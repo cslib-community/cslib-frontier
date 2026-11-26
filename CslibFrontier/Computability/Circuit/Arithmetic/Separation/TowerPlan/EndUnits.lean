@@ -457,8 +457,7 @@ theorem towerPlan_good_of_possible {ub : ℕ} (hub : 0 < ub) {x : Fin (Fintype.c
     (hp : (towerPlan R FL Pl lhat U0 U1).Possible n o ub x) :
     (towerPlan R FL Pl lhat U0 U1).Good n o x := by
   obtain ⟨ι, hι⟩ := hp
-  refine goodOutcome_of_length hub ι fun ν => ?_
-  exact (congrArg (fun c => (o c : ℕ)) ((Equiv.symm_apply_eq _).2 rfl)).trans (hι ν)
+  exact goodOutcome_of_length hub ι fun ν => (outcomeOf_moveOrder o x ν).trans (hι ν)
 
 /-- For a good outcome, all units of a channel but the last are alive. -/
 theorem alive_eq_of_goodOutcome {n : Fin A → Fin A → ℕ} {o : MoveChannel R ch FL → ℕ}

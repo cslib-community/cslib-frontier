@@ -368,14 +368,11 @@ private theorem profitExtractSize_mem_of_pos {s : Finset ι} {R : ℝ} {b : ι �
     (hk : 0 < profitExtractSize s R b) :
     0 ≤ R ∧ profitExtractSize s R b ∈ feasibleSizes s R b := by
   by_cases hR : 0 ≤ R
-  · rw [profitExtractSize_eq_feasibleSizes hR] at hk ⊢
-    split_ifs at hk with hne
-    · simp only [hne, ↓reduceDIte]
+  · by_cases hne : (feasibleSizes s R b).Nonempty
+    · simp only [profitExtractSize_eq_feasibleSizes hR, hne, ↓reduceDIte]
       exact ⟨hR, max'_mem _ hne⟩
-    · simp only [lt_self_iff_false] at hk
-  · exfalso
-    have h0 := profitExtractSize_eq_zero_of_neg s (lt_of_not_ge hR) b
-    omega
+    · simp [profitExtractSize_eq_feasibleSizes hR, hne] at hk
+  · simp [profitExtractSize_eq_zero_of_neg s (lt_of_not_ge hR)] at hk
 
 private theorem le_profitExtractSize {s : Finset ι} {R : ℝ} (hR : 0 ≤ R) {b : ι → ℝ} {k : ℕ}
     (hk : k ∈ feasibleSizes s R b) : k ≤ profitExtractSize s R b := by
@@ -524,8 +521,7 @@ private theorem profitExtractOn_update_win_iff [DecidableEq ι] {s : Finset ι} 
   have hk₀_pos : 1 ≤ k₀ := (otherThresholdSize_spec (R := R) (b := b) hi).1
   constructor
   · intro hwin
-    unfold profitExtractOn at hwin
-    dsimp only at hwin
+    dsimp only [profitExtractOn] at hwin
     rw [Function.update_self] at hwin
     split_ifs at hwin with h
     · obtain ⟨_, hkpos, hdiv⟩ := h
@@ -537,8 +533,7 @@ private theorem profitExtractOn_update_win_iff [DecidableEq ι] {s : Finset ι} 
     · exact absurd hwin zero_ne_one
   · intro hz
     have hkeq := profitExtractSize_update_eq_of_ge hR hi hz
-    unfold profitExtractOn
-    dsimp only
+    dsimp only [profitExtractOn]
     rw [Function.update_self, hkeq]
     exact ite_eq_left ⟨hi, hk₀_pos, hz⟩
 
@@ -553,11 +548,8 @@ private theorem profitExtractOn_update_lose [DecidableEq ι] {s : Finset ι} {R 
 theorem profitExtractOn_isBinary (s : Finset ι) (R : ℝ) :
     IsBinary (profitExtractOn s R).allocation := by
   intro b _ i
-  unfold profitExtractOn
-  dsimp only
-  split_ifs
-  · exact Or.inr rfl
-  · exact Or.inl rfl
+  dsimp only [profitExtractOn]
+  split_ifs <;> simp
 
 /-- `profitExtractOn s R` has a monotone allocation rule. -/
 theorem profitExtractOn_isMonotone [DecidableEq ι] (s : Finset ι) (R : ℝ) :
@@ -570,8 +562,7 @@ theorem profitExtractOn_isMonotone [DecidableEq ι] (s : Finset ι) (R : ℝ) :
     · by_cases hz : R / (otherThresholdSize s R b i hi : ℝ) ≤ z
       · rw [(profitExtractOn_update_win_iff hR b hi z).2 hz,
           (profitExtractOn_update_win_iff hR b hi z').2 (hz.trans hzz')]
-      · unfold profitExtractOn
-        dsimp only
+      · dsimp only [profitExtractOn]
         rw [ite_eq_right (profitExtractOn_update_lose hR b hi hz)]
         split_ifs <;> norm_num
     · simp only [profitExtractOn, hi, false_and, ↓reduceIte, le_refl]
@@ -593,12 +584,10 @@ theorem profitExtractOn_payment_eq_criticalBid [DecidableEq ι] (s : Finset ι) 
       set t := R / (k₀ : ℝ)
       have hk₀_pos : 1 ≤ k₀ := (otherThresholdSize_spec (R := R) (b := b) hi).1
       have ht : 0 ≤ t := div_nonneg hR (Nat.cast_nonneg _)
-      have hcrit : criticalBid (profitExtractOn s R).allocation b i = t := by
-        refine criticalBid_eq_of_threshold ht ?_ ?_
-        · intro z htz
-          exact (profitExtractOn_update_win_iff hR b hi z).2 htz.le
-        · intro z _ hwin
-          exact (profitExtractOn_update_win_iff hR b hi z).1 hwin
+      have hcrit : criticalBid (profitExtractOn s R).allocation b i = t :=
+        criticalBid_eq_of_threshold ht
+          (fun z htz => (profitExtractOn_update_win_iff hR b hi z).2 htz.le)
+          (fun z _ hwin => (profitExtractOn_update_win_iff hR b hi z).1 hwin)
       rw [hcrit]
       have hself : Function.update b i (b i) = b := Function.update_eq_self i b
       by_cases hbi : t ≤ b i
@@ -606,12 +595,10 @@ theorem profitExtractOn_payment_eq_criticalBid [DecidableEq ι] (s : Finset ι) 
           simpa only [hself] using profitExtractSize_update_eq_of_ge hR hi hbi
         have hcond : i ∈ s ∧ 0 < profitExtractSize s R b ∧
             R / (profitExtractSize s R b : ℝ) ≤ b i := hkeq ▸ ⟨hi, hk₀_pos, hbi⟩
-        unfold profitExtractOn
-        dsimp only
+        dsimp only [profitExtractOn]
         rw [ite_eq_left hcond, ite_eq_left hcond, hkeq, mul_one]
       · have hcond := hself ▸ profitExtractOn_update_lose hR b hi hbi
-        unfold profitExtractOn
-        dsimp only
+        dsimp only [profitExtractOn]
         rw [ite_eq_right hcond, ite_eq_right hcond, mul_zero]
     · simp only [profitExtractOn, hi, false_and, ↓reduceIte, mul_zero]
   · simp only [profitExtractOn, profitExtractSize_eq_zero_of_neg s (lt_of_not_ge hR),
@@ -681,13 +668,10 @@ theorem sum_payment_profitExtractOn [Fintype ι] (s : Finset ι) {R : ℝ} (hR :
         _ = R := mul_div_cancel₀ R (Nat.cast_pos.2 hkpos).ne'
     · simp only [hle, ↓reduceIte]
       have hempty : ¬ (feasibleSizes s R b).Nonempty :=
-        fun h => hle ((feasibleSizes_nonempty_iff_le hR hb hsne).1 h)
+        mt (feasibleSizes_nonempty_iff_le hR hb hsne).1 hle
       have hk0 : profitExtractSize s R b = 0 := by
-        rw [profitExtractSize_eq_feasibleSizes hR]
-        simp only [hempty, ↓reduceDIte]
-      refine sum_eq_zero fun i _ => ?_
-      unfold profitExtractOn; dsimp only
-      simp only [hk0, lt_self_iff_false, false_and, and_false, ↓reduceIte]
+        simp [profitExtractSize_eq_feasibleSizes hR, hempty]
+      simp [profitExtractOn, hk0]
 
 /-- **Exercise 13.10** ([HartlineKarlin2007], p. 361; §13.4.4, p. 347): on nonnegative bids with
 `0 ≤ R ≤ ℱ(b)`, `profitExtract R` obtains total profit `R`. Paired with `profitExtractOn_isDSIC`
@@ -836,24 +820,17 @@ private theorem card_filter_mem_notMem {i j : ι} (hij : i ≠ j) :
     simp only [mem_filter, mem_univ, true_and, mem_image, mem_powerset]
     constructor
     · rintro ⟨his, hjs⟩
-      refine ⟨s.erase i, fun x hx => ?_, insert_erase his⟩
-      have hxi : x ≠ i := (mem_erase.1 hx).1
-      have hxs : x ∈ s := (mem_erase.1 hx).2
-      have hxj : x ≠ j := fun h => hjs (h ▸ hxs)
-      exact mem_erase.2 ⟨hxj, mem_erase.2 ⟨hxi, mem_univ x⟩⟩
+      exact ⟨s.erase i, fun x hx => mem_erase.2 ⟨fun h => hjs (h ▸ (mem_erase.1 hx).2),
+        mem_erase.2 ⟨(mem_erase.1 hx).1, mem_univ x⟩⟩, insert_erase his⟩
     · rintro ⟨t, htU, rfl⟩
       refine ⟨mem_insert_self i t, fun hj => ?_⟩
       rcases mem_insert.1 hj with hji | hjt
       · exact hij hji.symm
       · exact (mem_erase.1 (htU hjt)).1 rfl
-  have hinj : Set.InjOn (insert i) (U.powerset : Set (Finset ι)) := by
-    intro t₁ ht₁ t₂ ht₂ h
-    have hi₁ : i ∉ t₁ := fun hi =>
-      (mem_erase.1 (mem_erase.1 (mem_powerset.1 ht₁ hi)).2).1 rfl
-    have hi₂ : i ∉ t₂ := fun hi =>
-      (mem_erase.1 (mem_erase.1 (mem_powerset.1 ht₂ hi)).2).1 rfl
-    have h' := congr_arg (fun s => s.erase i) h
-    simpa only [erase_insert hi₁, erase_insert hi₂] using h'
+  have hinj : Set.InjOn (insert i) (U.powerset : Set (Finset ι)) := fun t₁ ht₁ t₂ ht₂ h => by
+    have hnot {t : Finset ι} (ht : t ∈ U.powerset) : i ∉ t := fun hi =>
+      (mem_erase.1 (mem_erase.1 (mem_powerset.1 ht hi)).2).1 rfl
+    simpa only [erase_insert (hnot ht₁), erase_insert (hnot ht₂)] using congrArg (·.erase i) h
   rw [heq, card_image_of_injOn hinj, card_powerset, hcardU]
 
 /-- For `a + c = k`, `a * c ≤ (k - 1) * min a c`. -/
@@ -1016,16 +993,10 @@ private theorem optimalProfitOn_two_bid {i₀ i₁ : ι} (hne : i₀ ≠ i₁) (
         simp only [h0s, h1s, ↓reduceIte] at hcard ⊢ <;> exact_mod_cast hcard
     · by_cases hj1 : j = i₁
       · rw [hj1, hbi1]
-        have hsub : (s.filter fun i => (2 : ℝ) ≤ b i) ⊆ {i₁} := by
-          intro i hi
+        have hsub : (s.filter fun i => (2 : ℝ) ≤ b i) ⊆ {i₁} := fun i hi => by
           have hbi := (mem_filter.1 hi).2
-          rcases eq_or_ne i i₁ with rfl | h1
-          · exact mem_singleton_self _
-          · rcases eq_or_ne i i₀ with rfl | h0
-            · simp only [b, ↓reduceIte] at hbi
-              linarith
-            · simp only [b, h0, h1, ↓reduceIte] at hbi
-              linarith
+          dsimp only [b] at hbi
+          split_ifs at hbi with h0 h1 <;> first | exact mem_singleton.2 h1 | linarith
         have hcard : ((s.filter fun i => (2 : ℝ) ≤ b i).card : ℝ) ≤ 1 := by
           exact_mod_cast (card_le_card hsub).trans (by rw [card_singleton])
         simp only [hj1 ▸ hj, ↓reduceIte]

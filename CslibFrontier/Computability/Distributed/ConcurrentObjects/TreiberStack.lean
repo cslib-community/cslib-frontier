@@ -348,17 +348,13 @@ theorem treiberFreshNode_isLockFree (P V : Type u) [DecidableEq P] [Finite P] :
     ?_ ?_ ?_ ?_ ?_
   · intro s p _ _ hsh_ne
     obtain ⟨_, resp, hret⟩ := treiberFreshNodeStep_head_ne hsh_ne
-    dsimp only [treiberFreshNodeSystem]
-    rw [hret]
-    trivial
+    simp [treiberFreshNodeSystem, hret, TreiberPhase.IsReturning]
   · intro s p q _ _ hqp hcomm
     dsimp only [treiberFreshNodeSystem]
     rwa [treiberFreshNodeStep_threads_of_ne s hqp]
   · intro s p _ hcomm
-    cases htp : s.threads p with
-    | returning _ => simp only [treiberFreshNodeSystem, treiberFreshNodeStep, htp]
-    | idle | pushAlloc _ | pushRead _ _ | pushCAS _ _ _ | popRead | popNext _ | popCAS _ _ _ =>
-      rw [htp] at hcomm; exact False.elim hcomm
+    cases htp : s.threads p <;>
+      simp_all [treiberFreshNodeSystem, treiberFreshNodeStep, TreiberPhase.IsReturning]
   · intro s p hact hfalse _
     dsimp only [treiberFreshNodeSystem] at hact hfalse ⊢
     cases htp : s.threads p with
@@ -433,16 +429,12 @@ private theorem ValidSpine.mem_lt {V : Type u} {heap : List (StackNode V)} {ptr 
     {spine : List ℕ} (h : ValidSpine heap ptr spine) :
     ∀ i ∈ spine, i < heap.length := by
   induction spine generalizing ptr with
-  | nil => intro _ hm; exact False.elim (List.not_mem_nil hm)
+  | nil => simp
   | cons hd rest ih =>
-    cases ptr with
-    | none => exact False.elim h
-    | some idx =>
-      obtain ⟨rfl, hlt, nd, _, hrest⟩ := h
-      intro i hm
-      rcases List.mem_cons.mp hm with rfl | hmr
-      · exact hlt
-      · exact ih hrest i hmr
+    rcases ptr with _ | idx
+    · exact False.elim h
+    · obtain ⟨rfl, hlt, _, _, hrest⟩ := h
+      simpa only [List.mem_cons, forall_eq_or_imp, hlt, true_and] using ih hrest
 
 private theorem ValidSpine.congr_heap {V : Type u} {heap₁ heap₂ : List (StackNode V)}
     {ptr : Option ℕ} {spine : List ℕ} (h : ValidSpine heap₁ ptr spine)
@@ -836,11 +828,8 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
       · exact absurd (hsp_mem_lt _ hmem) (Nat.lt_irrefl _)
       · exact hnode.own_not_spine q n h hmem
     · rcases hown h₁ with ⟨rfl, rfl⟩ | ⟨-, h₁, hlt₁⟩ <;>
-        rcases hown h₂ with ⟨rfl, h⟩ | ⟨-, h₂, hlt₂⟩
-      · rfl
-      · omega
-      · omega
-      · exact hnode.own_uniq q₁ q₂ n h₁ h₂
+        rcases hown h₂ with ⟨rfl, h⟩ | ⟨-, h₂, hlt₂⟩ <;>
+        first | rfl | omega | exact hnode.own_uniq q₁ q₂ n h₁ h₂
     · obtain ⟨-, hq⟩ := update_eq_of_ne hq nofun
       rw [List.getElem?_append_left (hnode.own_lt q n (by rw [hq]; rfl))]
       exact hnode.pushCAS_nd q w n exp hq
@@ -940,9 +929,7 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
       | nil => exact False.elim hsp
       | cons hd rest =>
         obtain ⟨rfl, _, nd, hnd', hsp_rest⟩ := hsp
-        rw [hnd_top] at hnd'
-        injection hnd' with hnd_eq
-        subst hnd_eq
+        cases hnd_top.symm.trans hnd'
         have hvals_cons : spineVals s.heap (top :: rest) = retVal :: spineVals s.heap rest := by
           simp only [spineVals, List.filterMap_cons, hnd_top, Option.map_some]
         obtain ⟨hRp_nil, cs_p, hHp⟩ := (htp ▸ hpm p :)

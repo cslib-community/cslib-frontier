@@ -277,11 +277,7 @@ theorem recv_sendEvent {E : Execution P} {e : E.Event} {p : P} {sIdx : ℕ}
     ∃ eSend : E.Event, eSend.idx.val = sIdx ∧ eSend.idx < e.idx ∧
       p = e.actor ∧ ∃ src : P, eSend.step = .send src p := by
   obtain ⟨hs, src, hsend⟩ := E.recv_valid e.idx p sIdx hrecv
-  have hp : e.actor = p := by
-    unfold Event.actor
-    rw [hrecv]
-    rfl
-  exact ⟨⟨⟨sIdx, hs.trans e.idx.isLt⟩⟩, rfl, hs, hp.symm, src, hsend⟩
+  exact ⟨⟨⟨sIdx, hs.trans e.idx.isLt⟩⟩, rfl, hs, by simp [Event.actor, hrecv], src, hsend⟩
 
 /-! ### Direct causality and Lamport's happens-before poset -/
 
@@ -310,13 +306,7 @@ of `CausalStep`. -/
 /-- If `e₂.step = .recv p e₁.idx.val`, then `MessageOrder e₁ e₂` holds. -/
 theorem messageOrder_of_recv {E : Execution P} {e₁ e₂ : E.Event} {p : P}
     (h : e₂.step = .recv p e₁.idx.val) : E.MessageOrder e₁ e₂ := by
-  have hp : e₂.actor = p := by
-    unfold Event.actor
-    rw [h]
-    rfl
-  unfold MessageOrder
-  rw [hp]
-  exact h
+  simp [MessageOrder, Event.actor, h]
 
 /-- Direct causal steps strictly advance the execution trace index. -/
 theorem causalStep_idx_lt {E : Execution P} {e₁ e₂ : E.Event} (h : E.CausalStep e₁ e₂) :
@@ -640,12 +630,8 @@ theorem decideHappensBeforeLe_eq_true_iff [DecidableEq P] (E : Execution P)
 @[simp] theorem mem_causalPast [DecidableEq P] (E : Execution P) {x e : E.Event} :
     x ∈ E.causalPast e ↔ E.HappensBefore x e := by
   simp only [causalPast, Finset.mem_erase, mem_causalPastLe, happensBeforeLe_iff]
-  constructor
-  · rintro ⟨hne, rfl | hhb⟩
-    · exact absurd rfl hne
-    · exact hhb
-  · intro hhb
-    exact ⟨fun heq => E.happensBefore_irrefl e (heq ▸ hhb), .inr hhb⟩
+  exact ⟨fun ⟨hne, h⟩ => h.resolve_left hne,
+    fun h => ⟨fun heq => E.happensBefore_irrefl e (heq ▸ h), .inr h⟩⟩
 
 instance instDecidableHappensBeforeLe [DecidableEq P] (E : Execution P)
     (e₁ e₂ : E.Event) : Decidable (E.HappensBeforeLe e₁ e₂) :=
@@ -684,13 +670,8 @@ instance instDecidableIsConsistentCut [DecidableEq P] (E : Execution P)
 /-- Characterization of consistent cuts via reflexive `HappensBeforeLe`. -/
 theorem isConsistentCut_iff_happensBeforeLe {E : Execution P} {C : Finset E.Event} :
     E.IsConsistentCut C ↔ ∀ ⦃e₁ e₂ : E.Event⦄, E.HappensBeforeLe e₁ e₂ → e₂ ∈ C → e₁ ∈ C := by
-  constructor
-  · intro hc e₁ e₂ hle he₂
-    rcases happensBeforeLe_iff.mp hle with rfl | hlt
-    · exact he₂
-    · exact hc hlt he₂
-  · intro hc e₁ e₂ hlt he₂
-    exact hc hlt.happensBeforeLe he₂
+  refine ⟨fun hc e₁ e₂ hle he₂ => ?_, fun hc _ _ hlt => hc hlt.happensBeforeLe⟩
+  exact (happensBeforeLe_iff.mp hle).elim (fun h => h ▸ he₂) (hc · he₂)
 
 /-- Consistent cuts are downward closed under `HappensBeforeLe`. -/
 theorem IsConsistentCut.mem_of_happensBeforeLe {E : Execution P} {C : Finset E.Event}

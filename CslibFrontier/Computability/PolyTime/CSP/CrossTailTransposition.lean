@@ -104,20 +104,17 @@ theorem computableInPolyTime_transposeTail (encRel : Rel ↪ List Bool) :
 private theorem right_fields (J : State Rel) (ps : List ℕ) (p : ℕ)
     (hp : J.ports = ps ++ [p]) :
     (rotateRight J).body = J.body ∧ (rotateRight J).ports = p :: ps := by
-  rcases J with ⟨F, ports, c⟩
-  change ports = ps ++ [p] at hp
-  subst ports
-  rw [rotateRight_snoc]
-  exact ⟨rfl, rfl⟩
+  rcases J with ⟨F, _, c⟩
+  obtain rfl : _ = ps ++ [p] := hp
+  simp [rotateRight_snoc]
 
 private theorem seam_fields (J : State Rel) (a b : ℕ) (ps : List ℕ)
     (hp : J.ports = a :: b :: ps) :
     (hideHead (fuseHead J)).body = J.body.relabel (Function.update id b a) ∧
       (hideHead (fuseHead J)).ports = ps.map (Function.update id b a) := by
-  rcases J with ⟨F, ports, c⟩
-  change ports = a :: b :: ps at hp
-  subst ports
-  constructor <;> rfl
+  rcases J with ⟨F, _, c⟩
+  obtain rfl : _ = a :: b :: ps := hp
+  exact ⟨rfl, rfl⟩
 
 private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (c : Graph.RotationCertificate) :
@@ -156,21 +153,15 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (by simpa only [J5, List.append_assoc, List.cons_append, List.nil_append] using h5.2)
   have hE {a : ℕ} (b : ℕ) (ha : a % 2 = 1) : E.map (Function.update id a b) = E := by
     rw [List.map_map]
-    exact List.map_congr_left fun z _ => by
-      rw [Function.comp_apply, Function.update_of_ne (by omega)]
-      rfl
+    exact List.map_congr_left fun z _ => by simpa using Function.update_of_ne (by omega) b id
   have hE0 : E.map u0 = E := hE Y rfl
-  have hp6 : J6.ports = [3, 5, 7] ++ E ++ [X] := by
-    rw [h6.2]
-    simp [u0, X, hE0]
+  have hp6 : J6.ports = [3, 5, 7] ++ E ++ [X] := by simp [J6, h6.2, u0, X, hE0]
   have h7 := right_fields J6 ([3, 5, 7] ++ E) X
     (by simpa only [List.append_assoc] using hp6)
   have h8 := seam_fields J7 X 3 ([5, 7] ++ E)
     (by simpa only [J7, List.append_assoc, List.cons_append, List.nil_append] using h7.2)
   have hE1 : E.map u1 = E := hE X rfl
-  have hp8 : J8.ports = [5, 7] ++ E := by
-    rw [h8.2]
-    simp [u1, hE1]
+  have hp8 : J8.ports = [5, 7] ++ E := by simp [J8, h8.2, u1, hE1]
   have hb8 : J8.body = (J0.body.relabel u0).relabel u1 := by
     rw [show J8.body = _ from h8.1, show J7.body = _ from h7.1,
       show J6.body = _ from h6.1, show J5.body = _ from h5.1,
@@ -182,9 +173,7 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   change (rotateLeft (rotateLeft J8)).body = _ ∧
     (rotateLeft (rotateLeft J8)).ports = _
   rw [rotateLeft_body, rotateLeft_body, hb8, rotateLeft_ports, rotateLeft_ports, hp8]
-  constructor
-  · rfl
-  · simp [List.rotate_cons_succ, List.append_assoc, E]
+  exact ⟨rfl, by simp [List.rotate_cons_succ, List.append_assoc, E]⟩
 
 /-- On a long raw boundary, the final ports have fresh tail names, not swapped old names.
 Repeated or sparse old names and arbitrary malformed certificates require no hypothesis. -/
@@ -545,17 +534,14 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
     cases ps with
     | nil => change 0 = I.ports.length at hpJ; omega
     | cons x ps =>
-      constructor
-      · exact length_restrictPrefix _ _
-      · intro v hv
-        exact (Nat.size_le_size (entries_restrictPrefix_lt _ _ v hv).le).trans hB
+      exact ⟨length_restrictPrefix _ _, fun v hv =>
+        (Nat.size_le_size (entries_restrictPrefix_lt _ _ v hv).le).trans hB⟩
   have h1 := left_storage J B hj.1 hj.2 hB
   have hB1 : (2 * ((rotateLeft J).body.occurrences.length +
       (rotateLeft J).ports.length)).size ≤ B := by
     simpa only [rotateLeft_body, rotateLeft_ports, List.length_rotate] using hB
   have h2 := left_storage (rotateLeft J) B h1.1 h1.2 hB1
   rw [hout]
-  refine ⟨?_, h2.2⟩
-  simpa only [rotateLeft_ports, List.length_rotate, hpJ] using h2.1
+  exact ⟨by simpa only [rotateLeft_ports, List.length_rotate, hpJ] using h2.1, h2.2⟩
 
 end Cslib.Complexity.CSP.CrossInsertion

@@ -397,14 +397,10 @@ theorem wordEmpiricalHits_eq_empiricalHits {n m : ℕ} (predictor : List Bool �
     (samples : Fin m → BitString n) (x : BitString n) :
     wordEmpiricalHits predictor (List.ofFn (fun j => List.ofFn (samples j))) (List.ofFn x) =
       empiricalHits (fun query => predictor (List.ofFn query)) samples x := by
-  have hnodup : (List.finRange m).Nodup := List.nodup_finRange m
-  have huniv : (List.finRange m).toFinset = (Finset.univ : Finset (Fin m)) := by
-    ext j
-    simp
   rw [wordEmpiricalHits, List.countP_eq_length_filter,
-    List.ofFn_eq_map (f := fun j => List.ofFn (samples j)), List.filter_map,
-    List.length_map, ← List.toFinset_card_of_nodup (hnodup.filter _), List.toFinset_filter,
-    huniv, empiricalHits]
+    List.ofFn_eq_map (f := fun j => List.ofFn (samples j)), List.filter_map, List.length_map,
+    ← List.toFinset_card_of_nodup ((List.nodup_finRange m).filter _), List.toFinset_filter,
+    empiricalHits]
   congr 1
   ext j
   simp [listDot_ofFn]
@@ -923,9 +919,7 @@ theorem oracleListDecode_bitStringOracle_simultaneous_success_ge_half
           L.Nodup ∧
           L.length ≤ 16 * p.dimension * p.precision ^ 4 + 2} := by
   rw [bitStringOracle, runWith_oracleListDecode_predictorOracle, PMF.map_comp]
-  have hfst : Prod.fst ∘ (fun L : List (List Bool) => (L, ())) = id := rfl
-  rw [hfst, PMF.map_id]
-  simpa [bitStringPredictor_ofFn] using
+  simpa [Function.comp_def, bitStringPredictor_ofFn] using
     wordListDecode_simultaneous_success_ge_half (bitStringPredictor B) p.dimension p.precision hprec
 
 /-- Uniform strict oracle-PPT Goldreich–Levin pruned list decoder: sample `listMaskCount` random
@@ -996,9 +990,7 @@ theorem oracleListDecodePruned_bitStringOracle_simultaneous_success_ge_half
           L.Nodup ∧
           L.length ≤ p.precision ^ 2} := by
   rw [bitStringOracle, runWith_oracleListDecodePruned_predictorOracle, PMF.map_comp]
-  have hfst : Prod.fst ∘ (fun L : List (List Bool) => (L, ())) = id := rfl
-  rw [hfst, PMF.map_id]
-  simpa [bitStringPredictor_ofFn] using
+  simpa [Function.comp_def, bitStringPredictor_ofFn] using
     wordListDecodePruned_simultaneous_success_ge_half (bitStringPredictor B) p.dimension p.precision
       hprec
 

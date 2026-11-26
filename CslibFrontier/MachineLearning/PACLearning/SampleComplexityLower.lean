@@ -74,10 +74,8 @@ variable {α : Type*} [MeasurableSpace α]
 open Classical in
 private lemma measurable_decide_mem {c : Set α} (hc : MeasurableSet c) :
     Measurable (fun x : α => decide (x ∈ c)) := by
-  refine measurable_to_bool ?_
-  convert hc using 1
-  ext x
-  simp
+  have h : (fun x : α => decide (x ∈ c)) ⁻¹' {true} = c := Set.ext fun _ => by simp
+  exact measurable_to_bool (h.symm ▸ hc)
 
 private lemma measurable_graph_of_bool {c : α → Bool} (hc : Measurable c) :
     Measurable (fun x : α => (x, c x)) :=
@@ -229,10 +227,9 @@ private lemma joint_failure_eq_marginal
   rw [hev_rewrite, hπ_eq]
   -- Now apply Measure.map_apply₀ to the rewritten event.
   have hmeasSampleOf :
-      Measurable (sampleOf (c ⁻¹' {true}) : (Fin m → α) → LabeledSample α Bool m) := by
-    refine measurable_pi_iff.mpr fun i => ?_
-    refine (measurable_pi_apply i).prodMk ?_
-    exact (measurable_decide_mem hc_set).comp (measurable_pi_apply i)
+      Measurable (sampleOf (c ⁻¹' {true}) : (Fin m → α) → LabeledSample α Bool m) :=
+    measurable_pi_iff.mpr fun i =>
+      (measurable_pi_apply i).prodMk ((measurable_decide_mem hc_set).comp (measurable_pi_apply i))
   -- The rewritten event is null-measurable w.r.t. the pushforward measure
   -- (which equals `D^m`, a finitely-supported pi-product).
   have hnull : NullMeasurableSet
@@ -286,9 +283,8 @@ theorem sample_complexity_lower_bound_randomized
     rw [hδE_def, ← ENNReal.ofReal_coe_nnreal]
     exact (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr hδ_lt
   have h32ε_pos : (0 : ℝ) < 32 * ε.val.toReal := by positivity
-  have hW_sub : (0 : ℝ) < (W.card : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ (W.card : ℝ) := by exact_mod_cast hW_card
-    linarith
+  have hW_sub : (0 : ℝ) < (W.card : ℝ) - 1 :=
+    sub_pos.mpr (one_lt_two.trans_le (Nat.ofNat_le_cast.mpr hW_card))
   have hε_toReal : ENNReal.toReal εE = ε.val.toReal := by rw [hεE_def]; simp
   have hm_ennreal : (↑m : ℝ≥0∞) < ENNReal.ofReal
       ((W.card - 1 : ℝ) / (32 * ENNReal.toReal εE)) := by
@@ -296,10 +292,9 @@ theorem sample_complexity_lower_bound_randomized
     exact (ENNReal.ofReal_lt_ofReal_iff (div_pos hW_sub h32ε_pos)).mpr h
   -- Project `C` to `Set α` via the characteristic-set map and verify shattering.
   set C_set : Set (Set α) := {s | ∃ c ∈ C, c ⁻¹' {true} = s}
-  have hW_set : ∀ W' ⊆ (↑W : Set α), ∃ s ∈ C_set, s ∩ ↑W = W' := by
-    intro W' hW'
-    obtain ⟨c, hc, hc_eq⟩ := hW W' hW'
-    exact ⟨c ⁻¹' {true}, ⟨c, hc, rfl⟩, hc_eq⟩
+  have hW_set : ∀ W' ⊆ (↑W : Set α), ∃ s ∈ C_set, s ∩ ↑W = W' := fun W' hW' =>
+    let ⟨c, hc, hc_eq⟩ := hW W' hW'
+    ⟨c ⁻¹' {true}, ⟨c, hc, rfl⟩, hc_eq⟩
   -- Extract the randomized learner.
   obtain ⟨Ω, mΩ, Q, hQ, A, hA⟩ := hlearn
   -- Set-valued projection of the learner.
@@ -315,11 +310,9 @@ theorem sample_complexity_lower_bound_randomized
         {S : LabeledSample α Bool m |
           error (P.map (fun x => (x, c x))) (A ω S) > εE} ∂Q ≤ ↑δ.val := by
     intro P hP_prob c hc
-    have hc_meas := hC_meas c hc
     -- vendored: local `IsProbabilityMeasure (P.map _)` instance dropped, as above.
-    have ⟨haem, hint⟩ := hA _ (h_real P hP_prob c hc)
-    rw [optimalError_realizable_eq_zero P hc hc_meas, zero_add] at haem hint
-    exact ⟨haem, hint⟩
+    simpa only [optimalError_realizable_eq_zero P hc (hC_meas c hc), zero_add] using
+      hA _ (h_real P hP_prob c hc)
   -- AE-measurability of marginal failure (for `P` supported on `↑W`) from
   -- joint AE-measurability via `joint_failure_eq_marginal`.
   have hA_aem : ∀ (P : Measure α) [IsProbabilityMeasure P],
@@ -327,13 +320,9 @@ theorem sample_complexity_lower_bound_randomized
         AEMeasurable (fun ω => (Measure.pi (fun _ : Fin m => P))
           {xs : Fin m → α |
             hypothesisError P ((A_set ω) (sampleOf s xs)) s > εE}) Q := by
-    intro P hP_prob hP_supp s hs
-    obtain ⟨c_bool, hc_bool_mem, hc_bool_eq⟩ := hs
-    have hcb_meas := hC_meas c_bool hc_bool_mem
-    obtain ⟨hjoint_aem, _⟩ := collapsed P hc_bool_mem
-    subst hc_bool_eq
-    exact hjoint_aem.congr (Filter.Eventually.of_forall fun ω =>
-      joint_failure_eq_marginal (m := m) hP_supp hcb_meas (A ω) εE)
+    rintro P hP_prob hP_supp _ ⟨c_bool, hc_bool_mem, rfl⟩
+    exact (collapsed P hc_bool_mem).1.congr (Filter.Eventually.of_forall fun ω =>
+      joint_failure_eq_marginal (m := m) hP_supp (hC_meas c_bool hc_bool_mem) (A ω) εE)
   -- Apply the EHKV witness lemma.
   obtain ⟨P, hP_prob, hP_supp, c_set, hc_set_mem, hbad⟩ :=
     exists_bad_concept_marginal hW_set hW_card hεE_pos hεE_le hδE_lt
@@ -418,10 +407,8 @@ theorem sample_complexity_lower_bound_vcDim
   have hne : {n : ℕ | ∃ W : Finset α, W.card = n ∧ SetShatters C (↑W)}.Nonempty :=
     Set.nonempty_iff_ne_empty.mpr fun h => by simpa using (h ▸ hvc : (2 : ℕ) ≤ sSup (∅ : Set ℕ))
   obtain ⟨W, hWcard, hW⟩ := Nat.sSup_mem hne hbdd
-  have hvc_eq : vcDim C = W.card := hWcard.symm
-  rw [hvc_eq]
-  exact sample_complexity_lower_bound_randomized hW (hvc_eq ▸ hvc) hε_le hδ_lt hC_meas
-    h_real hlearn
+  rw [show vcDim C = W.card from hWcard.symm] at hvc ⊢
+  exact sample_complexity_lower_bound_randomized hW hvc hε_le hδ_lt hC_meas h_real hlearn
 
 /-- Lower bound on deterministic sample complexity in terms of `vcDim`. -/
 theorem sampleComplexity_lower_bound_vcDim

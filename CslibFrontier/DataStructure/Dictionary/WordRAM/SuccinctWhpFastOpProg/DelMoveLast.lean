@@ -159,7 +159,7 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     fun h2 => ?_, fun h3 => ?_, ?_, fun ha1 => ?_, fun hrbt => ?_⟩
   · obtain ⟨hna0, hia0, m0, hv0⟩ := hb0 loc_last hll_b h2
     dsimp only [fs1, fastDeleteRemove]
-    split_ifs with hd2 hd3
+    split_ifs
     · rw [Function.update_self]
       obtain ⟨hv0', hna_e, hia_e, _, _⟩ := hv0.delete_spec hrk_u_lt
       exact ⟨hna_e ▸ hna0, hia_e ▸ hia0, _, hv0'⟩
@@ -168,7 +168,7 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     · exact ⟨hna0, hia0, m0, hv0⟩
   · obtain ⟨hna1, hia1, m1, hv1⟩ := hb1 loc_last hll_b h3
     dsimp only [fs1, fastDeleteRemove]
-    split_ifs with hd2 hd3
+    split_ifs
     · rw [Function.update_of_ne (by decide : (1 : ℕ) ≠ 0)]
       exact ⟨hna1, hia1, m1, hv1⟩
     · rw [Function.update_self]
@@ -176,51 +176,29 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
       exact ⟨hna_e ▸ hna1, hia_e ▸ hia1, _, hv1'⟩
     · exact ⟨hna1, hia1, m1, hv1⟩
   · -- `liveSlice` in `fs1`
-    have hsl_l : fs1.slices (fs.liveSliceIdx b) =
-        if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) then
-          btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)
-        else fs.slices (fs.liveSliceIdx b) := by
-      dsimp only [fs1, fastDeleteRemove]
-      rw [ite_update_apply_of_ne hne_lr, ite_update_apply_of_ne hne_lo, ite_update_apply_self]
     change ∃ lm1, ValidWhpSlice n_max (fs.liveInsCount b) (fs1.slices (fs.liveSliceIdx b)) lm1
-    rw [hsl_l]
+    dsimp only [fs1, fastDeleteRemove]
+    rw [ite_update_apply_of_ne hne_lr, ite_update_apply_of_ne hne_lo, ite_update_apply_self]
     split_ifs
     · exact ⟨_, hv_l.delete_spec hv.hth hlic_le (hfp_lt _)⟩
     · exact ⟨lm, hv_l⟩
   · -- `overmarsSlice` in `fs1`
     obtain ⟨hins_om, om, hv_om⟩ := hom_fn ha1
     refine ⟨hins_om, ?_⟩
-    have hsl_o : fs1.slices (fs.overmarsSliceIdx b) =
-        if fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) then
-          btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs.slices (fs.overmarsSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)
-        else fs.slices (fs.overmarsSliceIdx b) := by
-      dsimp only [fs1, fastDeleteRemove]
-      rw [ite_update_apply_of_ne hne_or, ite_update_apply_self,
-        ite_update_apply_of_ne hne_lo.symm]
     change ∃ om1, ValidWhpSlice n_max (fs.overmarsInsCount b)
       (fs1.slices (fs.overmarsSliceIdx b)) om1
-    rw [hsl_o]
+    dsimp only [fs1, fastDeleteRemove]
+    rw [ite_update_apply_of_ne hne_or, ite_update_apply_self, ite_update_apply_of_ne hne_lo.symm]
     split_ifs
     · exact ⟨_, hv_om.delete_spec hv.hth hins_om.le (hfp_lt _)⟩
     · exact ⟨om, hv_om⟩
   · -- `rebSlice` in `fs1`
-    have hcs_lt : fs.rebCandSalt < sMaxWhp c n_max := (of_decide_eq_true hrbt).2.2.2.1
     obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
-    refine ⟨hcs_lt, hins_r, ?_⟩
-    have hsl_r : fs1.slices (fs.rebSliceIdx b) =
-        if rebActiveB && decide (loc_del < fs.rebScanCursor ∧
-            (fs.locState b loc_del = 1 ∨ fs.locState b loc_del = 2 + fs.oldEp)) then
-          btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs.slices (fs.rebSliceIdx b)) (fpOfSalt c U n_max θ.2 fs.rebCandSalt u)
-        else fs.slices (fs.rebSliceIdx b) := by
-      dsimp only [fs1, fastDeleteRemove, rebActiveB]
-      rw [ite_update_apply_self, ite_update_apply_of_ne hne_or.symm,
-        ite_update_apply_of_ne hne_lr.symm]
+    refine ⟨(of_decide_eq_true hrbt).2.2.2.1, hins_r, ?_⟩
     change ∃ rm1, ValidWhpSlice n_max fs.rebInsCount (fs1.slices (fs.rebSliceIdx b)) rm1
-    rw [hsl_r]
+    dsimp only [fs1, fastDeleteRemove]
+    rw [ite_update_apply_self, ite_update_apply_of_ne hne_or.symm,
+      ite_update_apply_of_ne hne_lr.symm]
     split_ifs
     · exact ⟨_, hv_r.delete_spec hv.hth hins_r.le (hfp_lt _)⟩
     · exact ⟨rm, hv_r⟩
@@ -296,9 +274,7 @@ private theorem realizes_delMoveApplyCoreGen :
     obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, u, henv, rfl, hv, hb, hcnt, hlt, rfl,
       hinfo, hseed, hrep1⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
-    rcases Prod.mk.inj hinfo with ⟨rfl, hinfo2⟩
-    rcases Prod.mk.inj hinfo2 with ⟨rfl, hinfo3⟩
-    rcases Prod.mk.inj hinfo3 with ⟨rfl, rfl⟩
+    cases hinfo
     set fs1 := fastDeleteRemove c U n_max θ fs u b loc_del
     obtain ⟨hll_tl, hbp1, hq1, hv1_lt, _, hbuf0_1, hbuf1_1, ⟨lm1, hv_l1⟩, hom1_fn,
       hreb1_fn⟩ := fs1_moveLast_invs u hv hb hcnt hlt
@@ -471,37 +447,10 @@ theorem fastDeleteMoveLastGenProg_fastStep {c U V w n_max base b loc_del loc_las
       (st_last := st_last) (s := slo)
   set sr := (Memory.spec 0).clientState slo
     (delMoveRebGenProg ((((cp, base), b), (loc_del, loc_last)), ((rebAct, st_last), fp_cand_last)))
-  set rebQuad :=
-    if rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs1lo.oldEp) then
-      if loc_last < fs1lo.rebScanCursor then
-        (Function.update fs1lo.slices (fs1lo.rebSliceIdx b)
-          (btreeUpdate (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs1lo.slices (fs1lo.rebSliceIdx b)) fp_cand_last loc_del),
-         (fs1lo.rebCandSalt, (fs1lo.rebScanCursor, fs1lo.rebInsCount)))
-      else if loc_del < fs1lo.rebScanCursor then
-        match btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs1lo.slices (fs1lo.rebSliceIdx b)) fp_cand_last with
-        | some _ =>
-          (Function.update fs1lo.slices (fs1lo.rebSliceIdx b)
-            (resetBTreeSlice (fs1lo.slices (fs1lo.rebSliceIdx b))),
-           (fs1lo.rebCandSalt + 1, (0, 0)))
-        | none =>
-          (Function.update fs1lo.slices (fs1lo.rebSliceIdx b)
-            (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-              (fs1lo.slices (fs1lo.rebSliceIdx b)) fp_cand_last loc_del),
-           (fs1lo.rebCandSalt, (fs1lo.rebScanCursor, fs1lo.rebInsCount + 1)))
-      else (fs1lo.slices, (fs1lo.rebCandSalt, (fs1lo.rebScanCursor, fs1lo.rebInsCount)))
-    else (fs1lo.slices, (fs1lo.rebCandSalt, (fs1lo.rebScanCursor, fs1lo.rebInsCount)))
-  set fs1r : FastState :=
-    { fs1lo with
-      slices := rebQuad.1
-      rebCandSalt := rebQuad.2.1
-      rebScanCursor := rebQuad.2.2.1
-      rebInsCount := rebQuad.2.2.2 }
   have hps_lt1 := (physSlotGenProg_spec henv hb hll_tl hbp_ll hrep1 (s := s)).2.2.1
   obtain ⟨hmc_c, hvp_c, hstep_c⟩ :=
-    delCopySlotGenProg_fastStep (fs := fs1r) henv hb hlt hll_tl hbp1 (hq1 _ hps_lt1) hv1_lt
-      hst_lt hstep_r.2.1 hstep_r.2.2.1 (s := sr)
+    delCopySlotGenProg_fastStep henv hb hlt hll_tl (by exact hbp1) (by exact hq1 _ hps_lt1)
+      (by exact hv1_lt) hst_lt hstep_r.2.1 hstep_r.2.2.1 (s := sr)
   dsimp only
   unfold fastDeleteMoveLastGenProg
   dsimp only

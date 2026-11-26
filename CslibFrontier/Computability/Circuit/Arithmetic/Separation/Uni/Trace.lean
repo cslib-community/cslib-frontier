@@ -64,11 +64,9 @@ theorem cols_ext {q : ℕ} {c c' : List (Fin (q + 1) → Bool)}
 theorem length_unb (L : ℕ) {q : ℕ} (a : Fin q → ℕ) : (unb L a).length = L := by simp [unb]
 
 theorem unb_proj (L : ℕ) {q : ℕ} (a : Fin q → ℕ) (j : Fin q) :
-    (unb L a).map (fun v => v j) = binaryWord L (a j % 2 ^ L) := by
-  refine List.ext_getElem
-    (by simp [length_unb, length_binaryWord (Nat.mod_lt (a j) (by positivity))])
-    fun i h1 h2 => ?_
-  simp [unb]
+    (unb L a).map (fun v => v j) = binaryWord L (a j % 2 ^ L) :=
+  List.ext_getElem (by simp [length_unb, length_binaryWord (Nat.mod_lt (a j) (by positivity))])
+    fun _ _ _ => by simp [unb]
 
 /-- Re-encoding the decoded big-endian column values recovers the column list. -/
 theorem unb_bv {q : ℕ} (w : List (Fin (q + 1) → Bool)) :
@@ -141,10 +139,8 @@ theorem length_cN (L : ℕ) (ρ : Rec K) : (cN L ρ).length = L + 1 := by
 @[expose] def kyN (L : ℕ) (ρ : Rec K) : Fin (L + 1) → Bl K :=
   fun i => (cN L ρ).get (i.cast (length_cN L ρ).symm)
 
-theorem ofFn_kyN (L : ℕ) (ρ : Rec K) : List.ofFn (kyN L ρ) = cN L ρ := by
-  refine List.ext_getElem (by rw [List.length_ofFn, length_cN]) fun i _ _ => ?_
-  rw [List.getElem_ofFn]
-  rfl
+theorem ofFn_kyN (L : ℕ) (ρ : Rec K) : List.ofFn (kyN L ρ) = cN L ρ :=
+  List.ext_getElem (by rw [List.length_ofFn, length_cN]) fun _ _ _ => List.getElem_ofFn _
 
 theorem kyN_inj {L : ℕ} {ρ ρ' : Rec K} (h : ∀ j, ρ.2 j < 2 ^ L)
     (h' : ∀ j, ρ'.2 j < 2 ^ L) (e : kyN L ρ = kyN L ρ') : ρ = ρ' := by
@@ -163,8 +159,7 @@ theorem bv_cn (r : List Bool × List Unit) : binaryValue (cn1 r) = binaryValue (
   binaryValue_succ_carry _ _
 
 theorem bv_i1 (l : List Unit) : binaryValue (i1 l) = 1 := by
-  rw [i1, binaryValue_append, binaryValue_replicate_false]
-  rfl
+  simp only [i1, binaryValue_append, binaryValue_replicate_false]; rfl
 
 theorem length_i1 (l : List Unit) : (i1 l).length = l.length + 1 := by simp [i1]
 
@@ -209,9 +204,7 @@ theorem MX.len_cn :
 
 theorem MX.len : ∀ s ∈ x.steps, s.2.length = x.init.length + 1 := fun s hs => by
   obtain ⟨r, hr, e⟩ := List.mem_map.1 (hx.fr ▸ List.mem_map.2 ⟨s, hs, rfl⟩)
-  have h2 := hx.len_cn.1 r hr
-  rw [e] at h2
-  simpa [cw] using h2
+  simpa [cw, e] using hx.len_cn.1 r hr
 
 theorem MX.length_eq : x.counter.length = x.steps.length := by
   simpa using congrArg List.length hx.fr
@@ -296,15 +289,13 @@ private theorem four_lt {a b c d n : ℕ} (ha : a < n) (hb : b < n) (hc : c < n)
 theorem MX.gv [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits : List Bool}
     (hx : MX x bits) : Mach.GV (σi P bits) (x.steps.map nst) := by
   refine ⟨?_, fun i => ⟨binaryValue (x.finalRegs.map fun v => v i), ?_⟩, ?_, ?_, ?_⟩
-  · rw [List.map_map, List.map_map]
-    exact hx.md
+  · simpa only [List.map_map, Function.comp_def, nst, σi] using hx.md
   · have h := congrArg (List.map binaryValue) (hx.rg i)
     rw [List.map_cons, List.map_append, List.map_map, List.map_map, bv_i0] at h
     rwa [List.map_map, List.map_map]
   · rw [List.map_map, List.length_map]
     exact hx.vals.1.trans (List.map_congr_left fun j _ => by simp [σi])
-  · rw [List.flatMap_map]
-    exact hx.inp
+  · simpa only [List.flatMap_map, nst, σi] using hx.inp
   · have h2 := (imu_table (M := M)
       ((dfN (x.steps.map nst)).map (kyN (x.init.length + 1)))
       (((x.steps.map nst).map Mach.ld).map (kyN (x.init.length + 1)))
@@ -330,11 +321,9 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
     {bits : List Bool} (hx : MX x bits) (hx' : MX x' bits)
     (e : x.steps.map nst = x'.steps.map nst) : x = x' := by
   have hT : x.steps.length = x'.steps.length := by simpa using congrArg List.length e
-  have hL : x.init.length = x'.init.length := by
-    have h1 := hx.size_eq
-    have h2 := hx'.size_eq
-    rw [hT] at h1
-    omega
+  have hL : x.init.length = x'.init.length :=
+    Nat.succ.inj ((hx.size_eq.symm.trans (congrArg (fun n => Nat.size (n + 1)) hT)).trans
+      hx'.size_eq)
   have e1 : x.init = x'.init := unit_list hL
   have e3 : x.steps = x'.steps :=
     List.ext_getElem hT fun i h1 h2 => by
@@ -352,13 +341,9 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
         Prod.ext a1 (unit_list a2))
       (by rw [hx.fr, hx'.fr, e3])
   have e4r : x.finalRegs = x'.finalRegs := cols_ext fun i => by
-    have h1 := hx.rg i
-    rw [e1, e3, hx'.rg i] at h1
-    simpa using h1.symm
+    simpa [e1, e3, hx'.rg i] using (hx.rg i).symm
   have e4c : x.finalCounter = x'.finalCounter := by
-    have h1 := hx.cp
-    rw [e1, e2, hx'.cp] at h1
-    simpa using h1.symm
+    simpa [e1, e2, hx'.cp] using hx.cp.symm
   have e6 : x.sort = x'.sort := by
     have h1 := hx.block ▸ hx.ls
     rw [e1, e3] at h1

@@ -55,9 +55,7 @@ private theorem exists_matchingMass_of_complete {n d : ℕ}
   change (𝔼 u : Point F (n + 1), (1 - Measurement.agreement S.toCommuting.state
     (R.map fun g => MvPolynomial.eval u g.val) (P u))) ≤ s at h
   simp only [hread, expect_sub_distrib, Fintype.expect_const] at h
-  refine ⟨G, ?_⟩
-  simp only [hG]
-  linarith only [h]
+  exact ⟨G, by simp only [hG]; linarith only [h]⟩
 
 private theorem loss_mem_Icc {n : ℕ}
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
@@ -136,13 +134,9 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
     have hs : 2 * (d : ℝ) ≤ θ * k := by
       dsimp only [θ]
       rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
-      have h : (400 : ℝ) * M * d ≤ k := by
-        dsimp [M]
-        exact_mod_cast hsize
-      linarith only [h]
-    have hdq : d ≤ Fintype.card F := by
-      have h : d ≤ 400 * (n + 2) * d := Nat.le_mul_of_pos_left d (by positivity)
-      exact (h.trans hsize).trans hfield
+      linarith only [show (400 : ℝ) * (n + 1 + 1) * d ≤ k from mod_cast hsize]
+    have hdq : d ≤ Fintype.card F :=
+      ((Nat.le_mul_of_pos_left d (by positivity)).trans hsize).trans hfield
     have hrq : 1 / (Fintype.card F : ℝ) ≤ r :=
       div_le_div_of_nonneg_right (by exact_mod_cast Nat.pos_of_ne_zero hd₀) hq.le
     have hr : r ∈ Set.Icc (0 : ℝ) 1 :=
@@ -230,8 +224,7 @@ private theorem exists_complete_of_matchingMass {n d : ℕ}
           ((QuantumStrategy.rightMeasurement H).map fun g => MvPolynomial.eval u g.val)
           (decodedPoint C.alice u) := by
     rw [hH, Measurement.map_map, Measurement.agreement_map_left, Fintype.sum_option]
-    apply le_add_of_nonneg_left
-    apply C.state.re_apply_nonneg
+    refine le_add_of_nonneg_left (C.state.re_apply_nonneg ?_)
     have hc (a : Answer F (n + 1)) :
         Commute (R.effect none) ((C.alice (.point u)).effect a) :=
       (commute_kroneckerOne_oneKronecker ((S.alice (.point u)).effect a) (G.effect none)).symm
@@ -308,10 +301,8 @@ theorem exists_polynomial_POVM_of_symmetric
       mul_nonneg (by linarith : (0 : ℝ) ≤ 8 * m) hε.1, hδ.1]
   let K := max k (400 * (n + 1) * d)
   have hkK : k ≤ K := le_max_left _ _
-  have hK : K ≤ 400 * k := by
-    apply max_le
-    · omega
-    · simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 400 hk
+  have hK : K ≤ 400 * k := max_le (by omega)
+    (by simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 400 hk)
   by_cases hfield : K ≤ Fintype.card F
   · obtain ⟨G, hG⟩ := exists_polynomial_POVM_of_symmetric_in_range D
       (hpos.trans_le hkK) (le_max_right _ _) hfield S hM hψ hP

@@ -143,9 +143,9 @@ theorem hittingTime_randomWalk_ne_top {u x : V} (hx : G.toSimpleGraph.Reachable 
     (fun y hy => ?_) hx
   · exact (ha : G.toSimpleGraph.Reachable u a).trans
       (reachable_of_edgeCount_ne_zero (randomWalk_ne_zero_iff.1 hab))
-  · refine Relation.ReflTransGen.mono (fun a b h => randomWalk_ne_zero_iff.2
-      (edgeCount_ne_zero_of_adj h)) _ _ ((SimpleGraph.reachable_iff_reflTransGen y u).1 ?_)
-    exact (hy : G.toSimpleGraph.Reachable u y).symm
+  · exact Relation.ReflTransGen.mono
+      (fun a b h => randomWalk_ne_zero_iff.2 (edgeCount_ne_zero_of_adj h)) _ _
+      ((SimpleGraph.reachable_iff_reflTransGen y u).1 (hy : G.toSimpleGraph.Reachable u y).symm)
 
 /-- **Arora–Barak, Exercise 7.9(c).** The expected return time of the random walk to `u` is the
 number of vertices of the connected component of `u`. -/
@@ -190,11 +190,9 @@ theorem hittingTime_randomWalk_le_of_edgeCount_ne_zero {x y : V} (h : G.edgeCoun
   have hle : (Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x ≤ Fintype.card V := by
     refine le_trans ?_ (returnTime_randomWalk_le_card (G := G) y)
     rw [returnTime_eq]
-    refine le_trans ?_ le_add_self
-    exact (by gcongr : (Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x ≤
-        G.randomWalk y x * hittingTime G.randomWalk y x).trans
-      (single_le_sum (f := fun z => G.randomWalk y z * hittingTime G.randomWalk y z)
-        (fun _ _ => zero_le) (mem_univ x))
+    exact ((mul_le_mul_of_nonneg_right hP zero_le).trans (single_le_sum
+      (f := fun z => G.randomWalk y z * hittingTime G.randomWalk y z)
+      (fun _ _ => zero_le) (mem_univ x))).trans le_add_self
   calc hittingTime G.randomWalk y x
       = Fintype.card D * ((Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x) := by
         rw [← mul_assoc, ENNReal.mul_inv_cancel
@@ -249,9 +247,7 @@ theorem survival_randomWalk_mul_pow (t : V) :
     ∀ (T : ℕ) (s : V), survival G.randomWalk t T s * (Fintype.card D : ℝ≥0∞) ^ T =
       #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t}
   | 0, s => by
-    by_cases hs : s = t
-    · subst hs; simp
-    · rw [survival_zero_of_ne hs]; simp [hs]
+    by_cases hs : s = t <;> simp [hs, survival_zero_of_ne]
   | T + 1, s => by
     by_cases hs : s = t
     · subst hs
@@ -343,12 +339,8 @@ theorem isStationary_randomWalk_iff (hG : G.toSimpleGraph.Connected) (π : PMF V
   have := hG.nonempty
   refine ⟨fun h => ?_, fun h => h ▸ isStationary_uniform_randomWalk⟩
   -- stationarity as an averaging identity in `ℝ≥0∞`
-  have hst : ∀ y, ∑ x, (G.edgeCount y x : ℝ≥0∞) * π x = Fintype.card D * π y := by
-    intro y
-    have hy : ∑ x, π x * G.randomWalk x y = π y := by
-      rw [← tsum_fintype (L := .unconditional V), ← PMF.bind_apply]
-      exact congrArg (· y) h
-    rw [← hy, mul_sum]
+  have hst : ∀ y, ∑ x, (G.edgeCount y x : ℝ≥0∞) * π x = Fintype.card D * π y := fun y => by
+    rw [← congrArg (· y) h, PMF.bind_apply, tsum_fintype, mul_sum]
     refine sum_congr rfl fun x _ => ?_
     rw [randomWalk_apply, G.edgeCount_comm x y, mul_comm (π x), ← mul_assoc,
       ENNReal.mul_div_cancel

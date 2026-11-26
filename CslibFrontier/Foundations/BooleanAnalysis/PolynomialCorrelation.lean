@@ -193,12 +193,10 @@ private theorem ite_firstFlagUnset_add_flipFirst (a : Fin k → α × Bool) :
   by_cases h : ∃ i, g (a i).1
   · have hi := Fin.find_spec h
     have hmi : ∀ j < Fin.find _ h, ¬g (a j).1 := fun j hj => Fin.find_min h hj
-    have hfi : g (flipFirst g a (Fin.find _ h)).1 := by rwa [fst_flipFirst]
-    have hfmi : ∀ j < Fin.find _ h, ¬g (flipFirst g a j).1 := by simpa only [fst_flipFirst]
     have e₁ := firstFlagUnset_iff hi hmi
-    have e₂ := firstFlagUnset_iff hfi hfmi
+    have e₂ := firstFlagUnset_iff ((fst_flipFirst (g := g) a _).symm ▸ hi)
+      fun j hj => (fst_flipFirst (g := g) a j).symm ▸ hmi j hj
     rw [flipFirst_apply, ite_eq_left ⟨hi, hmi⟩] at e₂
-    have h' : ¬∀ i, ¬g (a i).1 := fun h' => h.elim fun i hi => h' i hi
     cases hb : (a (Fin.find _ h)).2 <;> simp_all
   · push Not at h
     simp [FirstFlagUnset, fst_flipFirst, h]
@@ -586,11 +584,8 @@ private theorem abs_expect_signVal_mul_le_of_two_mul_card_le {n : ℕ} {f p : Bo
   have hd : #{x | (!p x) = f x} = hammingDist f p := by
     simp only [hammingDist, hnot, ne_comm]
   have hsum : (#{x | p x = f x} : ℝ) + #{x | (!p x) = f x} = 2 ^ n := by
-    have h := card_filter_add_card_filter_not (s := (univ : Finset (BitString n)))
-      fun x => p x = f x
-    rw [card_univ, BitString.card] at h
-    simp only [← hnot] at h
-    exact_mod_cast h
+    simp only [hnot, ← Nat.cast_add, card_filter_add_card_filter_not, card_univ,
+      BitString.card, Nat.cast_pow, Nat.cast_ofNat]
   have hpos : (0 : ℝ) < 2 ^ n := by positivity
   have key : 1 - 2 * (hammingDist f p : ℝ) / 2 ^ n = (2 * #{x | p x = f x} - 2 ^ n) / 2 ^ n := by
     rw [eq_div_iff hpos.ne', sub_mul, div_mul_cancel₀ _ hpos.ne', one_mul, ← hd]

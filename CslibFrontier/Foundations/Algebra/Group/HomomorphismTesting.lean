@@ -103,17 +103,13 @@ theorem collision_lower (f : G → H) (x : G) :
   have point (a b : G) :
       1 - bad (x + a) b - bad a (x + b) ≤
         (if vote f x a = vote f x b then (1 : ℝ) else 0) := by
-    dsimp [bad, vote]
-    by_cases h₁ : f (x + a) + f b = f ((x + a) + b)
-    · by_cases h₂ : f a + f (x + b) = f (a + (x + b))
-      · have he : f (x + a) - f a = f (x + b) - f b :=
-          sub_eq_sub_iff_add_eq_add.mpr
-            ((h₁.trans (congrArg f (by abel))).trans (h₂.symm.trans (add_comm _ _)))
-        simp [h₁, h₂, he]
-      · by_cases hc : f (x + a) - f a = f (x + b) - f b <;> simp [h₁, h₂, hc]
-    · by_cases h₂ : f a + f (x + b) = f (a + (x + b))
-      · by_cases hc : f (x + a) - f a = f (x + b) - f b <;> simp [h₁, h₂, hc]
-      · by_cases hc : f (x + a) - f a = f (x + b) - f b <;> simp [h₁, h₂, hc]
+    by_cases h₁ : f (x + a) + f b = f ((x + a) + b) <;>
+      by_cases h₂ : f a + f (x + b) = f (a + (x + b)) <;>
+      by_cases hc : f (x + a) - f a = f (x + b) - f b <;>
+      simp only [bad, vote, h₁, h₂, hc, ne_eq, not_true_eq_false, not_false_eq_true,
+        ↓reduceIte] <;> norm_num
+    exact hc (sub_eq_sub_iff_add_eq_add.mpr
+      ((h₁.trans (congrArg f (by abel))).trans (h₂.symm.trans (add_comm _ _))))
   have h := expect_le_expect (s := univ) (fun a _ =>
     expect_le_expect (s := univ) (fun b _ => point a b))
   have h₁ : (𝔼 a, 𝔼 b, bad (x + a) b) = rejection f :=
@@ -160,15 +156,12 @@ open Classical in
 theorem plurality_add (f : G → H) {φ : G → H} (hφ : IsPlurality f φ)
     (hε : rejection f < 1 / 6) (x y : G) : φ (x + y) = φ x + φ y := by
   let e (z r : G) : ℝ := if φ z ≠ vote f z r then 1 else 0
-  have h₁ := correction_error f hφ x
-  have h₂ := correction_error f hφ y
-  have h₃ := correction_error f hφ (x + y)
   have shift (z : G) : (𝔼 r, e z (r - y)) = 𝔼 r, e z r :=
     Fintype.expect_equiv (Equiv.subRight y) _ _ fun _ => rfl
   have ht : (𝔼 r, (e x r + e y (r - y) + e (x + y) (r - y))) < 1 := by
     rw [expect_add_distrib, expect_add_distrib, shift, shift]
-    dsimp [e] at *
-    linarith
+    dsimp [e]
+    linarith [correction_error f hφ x, correction_error f hφ y, correction_error f hφ (x + y)]
   obtain ⟨r, -, hr⟩ := exists_lt_of_expect_lt univ_nonempty ht
   have ⟨hx, hy, hxy⟩ : φ x = vote f x r ∧ φ y = vote f y (r - y) ∧
       φ (x + y) = vote f (x + y) (r - y) := by
@@ -307,10 +300,8 @@ open Classical in
 theorem three_mul_disagreement_sub_six_sq_le_rejection (f : G → H) (h : G →+ H) :
     let d := (hammingDist f h : ℝ) / Fintype.card G
     3 * d - 6 * d ^ 2 ≤ rejection f := by
-  have h₁ := disagreement_sub_two_sq_le_onlyFirst f h
-  have h₂ := three_mul_onlyFirst_le_rejection f h
-  dsimp only at *
-  linarith
+  dsimp only
+  linarith [disagreement_sub_two_sq_le_onlyFirst f h, three_mul_onlyFirst_le_rejection f h]
 
 variable [Fintype H]
 

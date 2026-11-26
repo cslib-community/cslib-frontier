@@ -767,9 +767,7 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
   let μ₂ (z : Data rHash) : PMF (Data rHash) :=
     if h : z.regs regB < 2 ^ (w₀ - 1) then PMF.pure (y_init ⟨z.regs regB, h⟩) else PMF.pure z
   have hμ₂ (b : Seed) : μ₂ (x_mid b) = PMF.pure (y_init b) := by
-    have hlt : (x_mid b).regs regB < 2 ^ (w₀ - 1) := hregB b ▸ b.isLt
-    have : (⟨(x_mid b).regs regB, hlt⟩ : Seed) = b := Fin.ext (hregB b)
-    simp only [μ₂, hlt, ↓reduceDIte, this]
+    simp [μ₂, hregB b, b.isLt]
   refine ⟨seedLaw.map fun b => (b, y_init b), ?_, fun θ => ?_, fun p hp => ?_⟩
   · refine (hinit1.seq_const (c₂ := storeHeader U n_max) (μ₂ := μ₂) (T₂ := fun _ => 11) (B₂ := 11)
       (fun z hz => by
@@ -961,10 +959,8 @@ private theorem finishQuery_spec {U V n_max w base : ℕ}
     intro hz_bdd
     exact ⟨by omega, hr.of_mem_eq hz_bdd (by regs_frame) hmy,
       by wram_simp; simp [decode, hmy, hsu', Dictionary.spec], by mem_frame⟩
-  · have hsu : s u = none := by
-      cases h : s u with
-      | none => rfl
-      | some v => obtain ⟨i, hi, hki⟩ := hbL.complete u v rfl h; exact absurd hki (hmiss i hi)
+  · have hsu : s u = none := Option.eq_none_iff_forall_not_mem.mpr fun v h =>
+      (hbL.complete u v rfl h).elim fun i ⟨hi, hki⟩ => hmiss i hi hki
     wram_exec [htag, hz, hyf]
     intro hz_bdd
     exact ⟨by omega, hr.of_mem_eq hz_bdd (by regs_frame) hmy,
@@ -1055,12 +1051,8 @@ private theorem finishInsertMiss_spec {U V n_max w base : ℕ}
   let s' := Function.update s u (some v)
   have hbk_lt : bk < numBuckets n_max := hbk_def ▸ multiplyShift_lt_numBuckets b u
   set sz := (Dictionary.dom s).card
-  have hsu : s u = none := by
-    cases h : s u with
-    | none => rfl
-    | some v₀ =>
-      obtain ⟨i, hi, hki⟩ := hbL.complete u v₀ hbk_def.symm h
-      exact absurd hki (hmiss i hi)
+  have hsu : s u = none := Option.eq_none_iff_forall_not_mem.mpr fun v₀ h =>
+    (hbL.complete u v₀ hbk_def.symm h).elim fun i ⟨hi, hki⟩ => hmiss i hi hki
   have hsz_lt : sz < n_max := hv.1.resolve_right (by simp [hsu])
   have hcard_eq : (Dictionary.dom s').card = sz + 1 :=
     Dictionary.card_dom_insert_eq_of_eq_none hsu v
@@ -1356,9 +1348,9 @@ theorem seq_expected_amortized (U V n_max w base : ℕ)
   have hpot : (∑' q, ν_final q * (C.potential q.1 q.2 : ℝ≥0∞)) = 0 := by simp [C, impl]
   have hinit : C.initTime = 16 := by change (3 : ℝ≥0∞) + 13 = 16; norm_num
   have htotal : (Dictionary.spec U V n_max).totalCost C.charge (Dictionary.empty U) ops =
-      chargeVal * ops.length := by
-    rw [show C.charge = fun _ _ => chargeVal from rfl, StateTransitionSpec.totalCost_const,
-      Nat.mul_comm]
+      chargeVal * ops.length :=
+    (StateTransitionSpec.totalCost_const (Dictionary.spec U V n_max) chargeVal
+      (Dictionary.empty U) ops).trans (Nat.mul_comm _ _)
   rw [hpot, add_zero, htotal] at hbound
   exact hbound.trans_eq (by change C.initTime + ((0 : ℕ) : ℝ≥0∞) + _ = _; simp [hinit])
 

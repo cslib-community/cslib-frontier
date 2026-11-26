@@ -115,8 +115,7 @@ section BasicPrimitives
 
 /-- Exact negation of a signed-digit stream negates its real value. -/
 theorem streamVal_neg_eq (x : ℕ → ℤ) : streamVal (fun j => -x j) = -streamVal x := by
-  simp only [streamVal, Int.cast_neg, neg_div]
-  exact tsum_neg
+  simpa only [streamVal, Int.cast_neg, neg_div] using tsum_neg
 
 /-- Identity `UniformStreamRecipe` reading operand `op` directly. -/
 @[expose] noncomputable def varRecipe {Op : Type u} {Struct : Type v}
@@ -549,20 +548,17 @@ theorem intPrefix_clipBoundStream_eq {m K : ℕ} (hm4 : 4 ≤ m) (hmK : m ≤ K 
 
 theorem posClipRes_eq (s : ℕ) :
     posClipRes s = ((2 : ℤ) ^ (s + 4) / 16) % 16 := by
-  unfold posClipRes
-  rcases s with _ | _ | _ | _ | s <;> first | decide |
-    (simp only [show ¬ s + 4 < 4 by omega, ↓reduceIte];
-     rw [show (2 : ℤ) ^ (s + 4 + 4) = 16 * (16 * (2 : ℤ) ^ s) by ring,
-       Int.mul_ediv_cancel_left _ (by decide), Int.mul_emod_right])
+  rcases s with _ | _ | _ | _ | s <;> simp only [posClipRes]
+  any_goals decide
+  simp only [show s + 1 + 1 + 1 + 1 + 4 = s + 8 by omega, pow_add, Int.reducePow]
+  omega
 
 theorem negClipRes_eq (s : ℕ) :
     negClipRes s = ((-((2 : ℤ) ^ (s + 4))) / 16) % 16 := by
-  unfold negClipRes
-  rcases s with _ | _ | _ | _ | s <;> first | decide |
-    (simp only [show ¬ s + 4 < 4 by omega, ↓reduceIte];
-     rw [show -((2 : ℤ) ^ (s + 4 + 4)) = 16 * (-(16 * (2 : ℤ) ^ s)) by ring,
-       Int.mul_ediv_cancel_left _ (by decide),
-       show -(16 * (2 : ℤ) ^ s) = 16 * (-(2 : ℤ) ^ s) by ring, Int.mul_emod_right])
+  rcases s with _ | _ | _ | _ | s <;> simp only [negClipRes]
+  any_goals decide
+  simp only [show s + 1 + 1 + 1 + 1 + 4 = s + 8 by omega, pow_add, Int.reducePow]
+  omega
 
 /-- Mod-16 residue program for `shiftClipApprox v (env ()) s` using at most two 27-state
 constant-bound prefix comparisons and an 8-bit low-residue window [OpenAI2026LogSpace, Lemma 10.7].
@@ -1202,20 +1198,18 @@ growing prefix accumulator). -/
 theorem eval_intPrefixProg {Op : Type u} {Struct : Type v} (op : Op) (K : ℕ)
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) :
     (intPrefixProg op K).eval env sEnv = intPrefix (env op) K := by
-  have hsnoc : ∀ idx rem acc,
-      (intPrefixAux op K idx (rem + 1) acc).eval env sEnv =
-        2 * (intPrefixAux op K idx rem acc).eval env sEnv + env op (idx + rem) := by
-    intro idx rem acc
-    induction rem generalizing idx acc with
-    | zero => simp [intPrefixAux, QueryProg.eval]
+  have haux : ∀ rem n,
+      (intPrefixAux op K (n + 1) rem (intPrefix (env op) n)).eval env sEnv =
+        intPrefix (env op) (n + rem) := by
+    intro rem
+    induction rem with
+    | zero => exact fun _ => rfl
     | succ rem ih =>
-      simpa only [intPrefixAux, QueryProg.eval, Nat.add_right_comm, Nat.add_assoc] using
-        ih (idx + 1) _
-  suffices ∀ n, (intPrefixAux op K 0 (n + 1) 0).eval env sEnv = intPrefix (env op) n from this K
-  intro n
-  induction n with
-  | zero => simp [intPrefixAux, QueryProg.eval, intPrefix_zero]
-  | succ n ih => rw [hsnoc, Nat.zero_add, ih, intPrefix_succ]
+      intro n
+      rw [intPrefixAux, QueryProg.eval, ← intPrefix_succ, ih (n + 1)]
+      exact congrArg _ (by omega)
+  rw [intPrefixProg, intPrefixAux, QueryProg.eval, mul_zero, Int.zero_add,
+    ← intPrefix_zero (env op), haux K 0, Nat.zero_add]
 
 theorem mem_activeQueries_intPrefixProg {Op : Type u} {Struct : Type v} (op : Op) (K : ℕ)
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent Op Struct}
@@ -1438,16 +1432,13 @@ private theorem eval_recipChild_eq {Struct : Type v} (s : ℕ)
     (env : Unit → ℕ → ℤ) (sEnv : Struct → Bool) :
     (fun op r => (recipChild s op r).eval env sEnv) = recipVirtualEnv (env ()) s := by
   ext op r
-  unfold recipChild recipVirtualEnv
-  by_cases h0 : op = 0
-  · simp [h0, QueryProg.eval_bindOverhead, QueryProg.eval, eval_intPrefixProg,
-      recipAlpha, recipPrefixRat]
-  · simp only [h0, ↓reduceIte]
-    by_cases h1 : op = 1
-    · simp [h1, QueryProg.eval_bindOverhead, QueryProg.eval, eval_intPrefixProg,
-        recipBeta, recipPrefixRat]
-    · simp only [h1, ↓reduceIte, suffixStream]
-      split_ifs <;> rfl
+  fin_cases op
+  · simp [recipChild, recipVirtualEnv, QueryProg.eval_bindOverhead, QueryProg.eval,
+      eval_intPrefixProg, recipAlpha, recipPrefixRat]
+  · simp [recipChild, recipVirtualEnv, QueryProg.eval_bindOverhead, QueryProg.eval,
+      eval_intPrefixProg, recipBeta, recipPrefixRat]
+  · dsimp [recipChild, recipVirtualEnv, suffixStream]
+    split_ifs <;> rfl
 
 theorem eval_recip64ResProg {Struct : Type v} (s : ℕ)
     {env : Unit → ℕ → ℤ} (hx : IsSignedStream (env ()))
@@ -1831,12 +1822,11 @@ private theorem eval_zeroPaddedRankFoldProg_optIntPrefix {Op : Type u} [Decidabl
     let step (next : Option Op) (hmem : ∀ b, next = some b → b ∈ items)
         (hval : optIntPrefix env K next = max (optIntPrefix env K best) (h i)) :=
       hval ▸ ih (hSub := hrest_sub) next hmem (hval ▸ hBestNonneg.trans (le_max_left _ _))
-    simp only [zeroPaddedRankFoldProg, QueryProg.eval_bindOverhead, hcnt, foldQualMax]
-    by_cases hPi : P i
+    simp only [zeroPaddedRankFoldProg, QueryProg.eval_bindOverhead, hcnt, foldQualMax, P]
+    split_ifs with hPi
     · have h0 : intPrefix (fun _ => 0) K = 0 := sum_eq_zero fun _ _ => zero_mul _
       have hiMem : ∀ b, some i = some b → b ∈ items := fun _ hb => Option.some.inj hb ▸ hi_mem
-      simp only [show k ≤ #{w ∈ items.toFinset | h i ≤ h w} from hPi, hPi, ↓reduceIte,
-        QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
+      simp only [QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
         cmpPos (hEnv i hi_mem) isSignedStream_zero, h0]
       split_ifs with hpos
       · cases best with
@@ -1848,8 +1838,7 @@ private theorem eval_zeroPaddedRankFoldProg_optIntPrefix {Op : Type u} [Decidabl
           exacts [step (some i) hiMem (max_eq_right hlt.le).symm,
             step (some b) hBestMem (max_eq_left (not_lt.mp hlt)).symm]
       · exact step best hBestMem (max_eq_left ((not_lt.mp hpos).trans hBestNonneg)).symm
-    · simp only [show ¬ k ≤ #{w ∈ items.toFinset | h i ≤ h w} from hPi, hPi, ↓reduceIte]
-      exact ih (hSub := hrest_sub) best hBestMem hBestNonneg
+    · exact ih (hSub := hrest_sub) best hBestMem hBestNonneg
 
 theorem eval_zeroPaddedRankListResProg {Op : Type u} [DecidableEq Op] {Struct : Type v}
     (k : ℕ) (items : List Op) (hNodup : items.Nodup) (s : ℕ)

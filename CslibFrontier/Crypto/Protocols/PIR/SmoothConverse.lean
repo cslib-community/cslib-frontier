@@ -413,9 +413,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
       · simp only [expectedReads_bind, expectedReads_readAll, expectedReads_pure, mul_zero,
           tsum_zero, add_zero]
         refine le_of_eq (Finset.sum_congr rfl fun k _ => ?_)
-        have hk : (st.slots k).get (h k) = j ↔ st.slots k = some j := by
-          conv_rhs => rw [← Option.some_get (h k), Option.some.injEq]
-        simp [hk]
+        exact if_congr (by rw [← Option.some_inj, Option.some_get]) rfl rfl
       · simp
     calc ∑' st, ProbComp.eval (smoothCoins P i₀ i) st *
             expectedReads
@@ -440,13 +438,10 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
     rw [smoothCoins, P.eval_serverQuery]
     simp only [pmf_norm]
     refine congrArg (ProbComp.eval (P.query i)).bind (funext fun rq => ?_)
-    have hconst : ∀ _ : Bool,
-        ((ProbComp.eval (OracleComp.pi fun idx : Fin (Fintype.card S) =>
-          smoothSlotCoins P i₀ i (eS.symm idx) (rq.2 (eS.symm idx)))).map (· k)) =
-          ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k))) := fun _ => by
-      rw [ProbComp.eval_pi, Probability.PMF.pi_map_eval]
-    exact (congrArg (ProbComp.eval (ProbComp.uniform Bool)).bind (funext hconst)).trans
-      (PMF.bind_const _ _)
+    refine Eq.trans ?_ (PMF.bind_const (ProbComp.eval (ProbComp.uniform Bool)) _)
+    refine congrArg _ (funext fun _ => ?_)
+    rw [ProbComp.eval_pi]
+    exact Probability.PMF.pi_map_eval _ k
   rcases j with ⟨⟨s₀, q₀⟩, idx₀⟩
   set l : ℕ := Fintype.card S * Fintype.card Q
   have hl_pos : (0 : ℝ) < l := by
@@ -863,12 +858,9 @@ theorem card_mul_sq_le_card_answer_sub_one_of_statPrivate (P : Scheme ι S R Q A
     have hA : (1 : ℝ) ≤ Fintype.card A := by exact_mod_cast Fintype.card_pos (α := A)
     linarith
   · obtain ⟨i₀⟩ := hne
-    have hcardS : Fintype.card S = 1 := Fintype.card_unique
     have hsm := isSmoothDecoder_smoothDecoder P i₀ hδ (hpriv.isStatPrivateAt i₀) hrec
-    rw [hcardS] at hsm
-    have h1 : ((1 : ℕ) : ℝ) + 1 = 2 := by norm_num
-    have hε' : ε - ((1 : ℕ) : ℝ) * δ / 2 = ε - δ / 2 := by push_cast; ring
-    rw [h1, hε'] at hsm
+    rw [Fintype.card_unique] at hsm
+    simp only [Nat.cast_one, one_add_one_eq_two, one_mul] at hsm
     have hfour := hsm.four_mul_card_mul_sq_le (by linarith)
     linarith
 

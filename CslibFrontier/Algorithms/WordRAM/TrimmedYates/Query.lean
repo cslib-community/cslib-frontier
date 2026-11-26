@@ -243,13 +243,11 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
       Finset.sdiff_sdiff_eq_self (hys_sub Y₂ h₂)]
   have hhigh_mem : ∀ X, X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := fun X => by
     simp only [List.mem_map]
-    refine ⟨?_, fun ⟨hXC, hsX⟩ => ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset, ?_⟩,
-      Finset.sdiff_sdiff_eq_self hXC⟩⟩
-    · rintro ⟨Y, hY, rfl⟩
-      have := ((hys_spec.2 Y).mp hY).2
-      rw [Finset.card_sdiff_of_subset (hys_sub Y hY)]
-      exact ⟨sdiff_subset, by omega⟩
-    · rw [Finset.card_sdiff_of_subset hXC]; omega
+    refine ⟨?_, fun ⟨hXC, hsX⟩ => ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset,
+      by rw [Finset.card_sdiff_of_subset hXC]; omega⟩, Finset.sdiff_sdiff_eq_self hXC⟩⟩
+    rintro ⟨Y, hY, rfl⟩
+    have := ((hys_spec.2 Y).mp hY).2
+    exact ⟨sdiff_subset, by rw [Finset.card_sdiff_of_subset (hys_sub Y hY)]; omega⟩
   -- Run the three high-domain Yates transforms with the precomputed low stages as fallback.
   obtain ⟨w₃, he_w3, hw₃_dp, hw₃_dl, hw₃_fr, hw₃_cut, hw₃_mem⟩ :
       ∃ w₃, ExecWithin w qHighPrepCode w₂ w₃ 5 ∧ w₃.regs Reg.entryPtr = qWorkStart + d ∧
@@ -265,14 +263,14 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
     (hw₃_below a (by omega)).trans (hs_pre a ha)
   have hw₃_bf : ∀ a < baseFree, w₃.mem a = initMem a := fun a ha =>
     (hw₃_ob a (by omega)).trans (hpre_below_bf a ha)
-  have hfb : ∀ base (G : ℕ → Finset (Fin d) → ℤ), base + d < outBase →
-      (∀ k ≤ d, ∃ stFn, HoldsTrie preMem outBase d (preMem (base + k)) stFn ∧
-        ∀ Y : Finset (Fin d), #Y ≤ s → stFn (setMask Y) = Signed.encode (G k Y)) →
-      ∀ k < d, ∃ fbFn, HoldsTrie w₃.mem (qWorkStart + d + 2 * H_q) d (w₃.mem (base + k)) fbFn ∧
-        ∀ Y, #Y < s → #Y ≤ s → fbFn (setMask Y) = Signed.encode (G k Y) := by
-    intro base G hb h k hk
-    obtain ⟨fbFn, htr, heq⟩ := h k hk.le
-    exact ⟨fbFn, ((htr.congr_below hw₃_ob).mono_bound (by omega)).congr_root
+  have hfb {base : ℕ} {G : ℕ → Finset (Fin d) → ℤ} (hb : base + d < outBase)
+      (h : ∀ k ≤ d, ∃ stFn, HoldsTrie preMem outBase d (preMem (base + k)) stFn ∧
+        ∀ Y : Finset (Fin d), #Y ≤ s → stFn (setMask Y) = Signed.encode (G k Y))
+      (k : ℕ) (hk : k < d) :
+      ∃ fbFn, HoldsTrie w₃.mem (qWorkStart + d + 2 * H_q) d (w₃.mem (base + k)) fbFn ∧
+        ∀ Y, #Y < s → #Y ≤ s → fbFn (setMask Y) = Signed.encode (G k Y) :=
+    let ⟨fbFn, htr, heq⟩ := h k hk.le
+    ⟨fbFn, ((htr.congr_below hw₃_ob).mono_bound (by omega)).congr_root
       (hw₃_ob _ (by omega)), fun Y _ => heq Y⟩
   obtain ⟨w₄, -, -, qHs, qEndFree, he_qtr, -, -, hw₄_ro, -, -, hqef_hi, -, -, hqHs_lt, -, -, -,
       ⟨qOutFn, hqOut_tr, hqOut_eq⟩, hw₄_fr, hw₄_regs⟩ :=
@@ -284,8 +282,8 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
         ⟨(erase_subset _ _).trans ((hhigh_mem X).mp hX).1, h⟩, le_of_lt⟩)
       ((htrieF.congr_below hw₃_bf).mono_bound (by omega))
       ((htrieG.congr_below hw₃_bf).mono_bound (by omega)) hf_eq hg_eq hf_le hg_le
-      (fun _ => ⟨by omega, by omega, by omega, hfb _ _ hpFs_lt hpreF_st,
-        hfb _ _ hpGs_lt hpreG_st, hfb _ _ hpHs_lt hpreH_st⟩)
+      (fun _ => ⟨by omega, by omega, by omega, hfb hpFs_lt hpreF_st,
+        hfb hpGs_lt hpreG_st, hfb hpHs_lt hpreH_st⟩)
       hfit_val (by rw [hhigh_len]; exact hfit_space.of_le (by omega))
   -- Look up `C` in the output trie.
   rw [hhigh_len] at hqef_hi
@@ -376,8 +374,7 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
   generalize hcList_def : (List.finRange d).filter (· ∈ C) = cList at hu₁_clen hu₁_cmem
   have hcList_nd : cList.Nodup := hcList_def ▸ (List.nodup_finRange d).filter _
   have hcList_tf : cList.toFinset = C := by rw [← hcList_def]; ext; simp
-  have hcList_len : cList.length = #C := by
-    rw [← List.toFinset_card_of_nodup hcList_nd, hcList_tf]
+  have hcList_len : cList.length = #C := hcList_tf ▸ (List.toFinset_card_of_nodup hcList_nd).symm
   rw [hcList_len] at hu₁_clen
   have hu₁_below : ∀ a < qWorkStart, u₁.mem a = st.mem a :=
     fun a ha => (hu₁_cfr a (.inl ha)).trans (congrFun hu₀_mem a)
@@ -438,10 +435,8 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
     by regs_frame, by regs_frame, by regs_frame, fun a ha => ?_, ?_, fun j hj hj_lt => ?_⟩, hz_qi⟩
   · rw [hz_mem, Function.update_of_ne (by omega), hu_below a (by omega), hs_pre a ha]
   · rw [hz_mem, Function.update_of_ne (by omega), hu_below outBase (by omega), hs_ob]
-  · by_cases hjq : j = q
-    · subst hjq
-      rw [show outBase + 1 + j = outBase + (j + 1) by omega, hz_mem, Function.update_self, ← hC_def]
-    · rw [hz_mem, Function.update_of_ne (by omega), hu_below _ (by omega),
-        hs_ans j hj (by omega)]
+  · rcases eq_or_ne j q with rfl | hjq
+    · rw [show outBase + 1 + j = outBase + (j + 1) by omega, hz_mem, Function.update_self, ← hC_def]
+    · rw [hz_mem, Function.update_of_ne (by omega), hu_below _ (by omega), hs_ans j hj (by omega)]
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

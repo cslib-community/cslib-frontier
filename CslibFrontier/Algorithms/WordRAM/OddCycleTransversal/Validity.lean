@@ -501,21 +501,13 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
 theorem inputFits_encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     {k w : ℕ} (hw : Fits w (octWorkspace n)) (hk : Fits w k) :
     InputFits w (encodeInput G k) := by
-  refine ⟨?_, ?_⟩
-  · rw [length_encodeInput]
-    apply hw.of_le
-    dsimp only [octWorkspace]
-    omega
-  · intro u hu
-    simp only [encodeInput, List.mem_cons] at hu
-    rcases hu with rfl | rfl | hu
-    · apply hw.of_le; dsimp only [octWorkspace]; omega
-    · exact hk
-    · simp only [encodeAdjMatrix, List.mem_ofFn] at hu
-      obtain ⟨idx, rfl⟩ := hu
-      split_ifs
-      · apply hw.of_le; dsimp only [octWorkspace]; omega
-      · exact fits_zero w
+  refine ⟨hw.of_le (by simp only [length_encodeInput, octWorkspace]; omega), fun u hu => ?_⟩
+  simp only [encodeInput, List.mem_cons, encodeAdjMatrix, List.mem_ofFn] at hu
+  rcases hu with rfl | rfl | ⟨_, rfl⟩
+  · exact hw.of_le (by dsimp only [octWorkspace]; omega)
+  · exact hk
+  · split_ifs
+    exacts [hw.of_le (by dsimp only [octWorkspace]; omega), fits_zero w]
 
 /-- Every step of `octProg ()` is history-valid under `Memory.spec w`. -/
 theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
@@ -524,9 +516,7 @@ theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G
     (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (octProg ())) := by
   intro s₀
   have hfr0 : s₀.frontier = 3 + n * n := by
-    change (encodeInput G k).length + 1 = 3 + n * n
-    rw [length_encodeInput]
-    omega
+    rw [show s₀.frontier = (encodeInput G k).length + 1 from rfl, length_encodeInput]; omega
   have hwf0 : Memory.WellFormed w s₀ :=
     Memory.wellFormed_init (inputFits_encodeInput G hw hk)
       (hw.of_le (by simp only [length_encodeInput, octWorkspace]; omega))
@@ -539,10 +529,9 @@ theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G
       ((Memory.spec w).clientHistory s₀ (Memory.alloc (octScratch n))) :=
     validHistory_alloc (by rw [hfr0, frontier_add_octScratch]; exact hw)
   refine validHistory_bind_step halloc ?_
-  have hs1 : MemReady w n ((Memory.spec 0).clientState s₀ (Memory.alloc (octScratch n))) := by
-    refine ⟨wellFormed_clientState hwf0 halloc, ?_⟩
-    change octWorkspace n ≤ s₀.frontier + octScratch n
-    rw [hfr0, frontier_add_octScratch]
+  have hs1 : MemReady w n ((Memory.spec 0).clientState s₀ (Memory.alloc (octScratch n))) :=
+    ⟨wellFormed_clientState hwf0 halloc,
+      ((congrArg (· + octScratch n) hfr0).trans (frontier_add_octScratch n)).ge⟩
   have hf1 := validHistory_fillRange (d := ((sepBase n, 0), n)) hs1
     (by dsimp only [octWorkspace, sepBase]; omega) (fits_zero w)
   refine validHistory_bind_step hf1 ?_

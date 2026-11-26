@@ -238,13 +238,7 @@ theorem iopInteractiveGame_le_sum {r d : ℕ} {Stmt Wit Sym Chal : Type}
     iopInteractiveGame iop x P true ≤ ∑ j : Fin r, ε_round j := by
   let defaultEntry : OracleTable d Sym × Chal :=
     ((P []).support_nonempty.some, Classical.arbitrary Chal)
-  let acceptFn : List (OracleTable d Sym × Chal) → Bool := fun tr =>
-    iopVerify iop x (fun j => (tr[j.val]?.getD defaultEntry).2)
-      (fun j => (tr[j.val]?.getD defaultEntry).1)
-  have hgame : iopInteractiveGame iop x P true =
-      (iopRunRounds P r []).toOuterMeasure (acceptFn ⁻¹' {true}) := by
-    rw [← PMF.toOuterMeasure_apply_singleton, iopInteractiveGame, PMF.toOuterMeasure_map_apply]
-  rw [hgame]
+  rw [← PMF.toOuterMeasure_apply_singleton, iopInteractiveGame, PMF.toOuterMeasure_map_apply]
   refine ((iopRunRounds P r []).toOuterMeasure_mono ?_).trans
     (iopPrefixEscape_le_sum (hrbr.init_doomed x hx) (hrbr.step_doomed x)
       r ε_round (hescape x hx) P)
@@ -356,17 +350,11 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
     · have hk1 : k.val < j + 1 := by omega
       simp only [hk, hk1, ↓reduceDIte]
       exact Fin.snoc_castSucc (α := fun _ => Chal) (rest 0) hist ⟨k.val, hk⟩
-    · have hk1 : k.val < j + 1 := by omega
-      have hnot : ¬ k.val < j := by omega
-      simp only [hnot, hk1, ↓reduceDIte]
-      have hlast : (⟨k.val, hk1⟩ : Fin (j + 1)) = Fin.last j := Fin.ext hkeq
-      have hzero : (⟨k.val - j, by omega⟩ : Fin (m + 1)) = 0 := Fin.ext (by simp [hkeq])
-      rw [hlast, Fin.snoc_last, hzero]
-    · have hnot1 : ¬ k.val < j := by omega
-      have hnot2 : ¬ k.val < j + 1 := by omega
-      simp only [hnot1, hnot2, ↓reduceDIte, Fin.tail]
-      congr 1
-      ext
+    · simp only [hkeq, lt_irrefl, Nat.lt_succ_self, ↓reduceDIte]
+      rw [show (⟨j, Nat.lt_succ_self j⟩ : Fin (j + 1)) = Fin.last j from rfl, Fin.snoc_last]
+      exact congrArg rest (Fin.ext (Nat.sub_self j).symm)
+    · simp only [not_lt.mpr hk.le, not_lt.mpr (Nat.succ_le_of_lt hk), ↓reduceDIte, Fin.tail]
+      refine congrArg rest (Fin.ext ?_)
       simp only [Fin.val_succ]
       omega
 
@@ -380,23 +368,17 @@ theorem iopInteractiveGame_ofCausal_eq {r d : ℕ} {Stmt Wit Sym Chal : Type}
       (PMF.uniformOfFintype (Fin r → Chal)).map fun chals =>
         iopVerify iop x chals (fun j => P j fun i => chals ⟨i.val, lt_trans i.isLt j.isLt⟩) := by
   have hrun := iopRunRounds_ofCausal_aux P r 0 (Nat.zero_add r) Fin.elim0
-  have hnil : causalPref P 0 (Nat.zero_le r) Fin.elim0 = [] := rfl
-  rw [hnil] at hrun
+  dsimp only [causalPref] at hrun
   simp only [iopInteractiveGame]
   change (iopRunRounds (InteractiveIOPProver.ofCausal P) r []).map _ = _
   rw [hrun, PMF.map_comp]
-  congr 1
-  funext chals
-  simp only [Function.comp_apply, Nat.not_lt_zero, ↓reduceDIte, Nat.sub_zero, Fin.eta]
+  congr 1 with chals : 1
   have hget (j : Fin r) (d0 : OracleTable d Sym × Chal) :
       (causalPref P r le_rfl chals)[j.val]?.getD d0 =
         (P j (fun i => chals ⟨i.val, lt_trans i.isLt j.isLt⟩), chals j) := by
-    have hj : j.val < (causalPref P r le_rfl chals).length := by
-      rw [length_causalPref]
-      exact j.isLt
-    rw [List.getElem?_eq_getElem hj, Option.getD_some,
-      getElem_causalPref P r le_rfl chals j.val j.isLt]
-  simp only [hget]
+    rw [List.getElem?_eq_getElem ((length_causalPref P r le_rfl chals).symm ▸ j.isLt),
+      Option.getD_some, getElem_causalPref P r le_rfl chals j.val j.isLt]
+  simp only [Function.comp_apply, Nat.not_lt_zero, ↓reduceDIte, Nat.sub_zero, Fin.eta, hget]
 
 /-- Bridge from per-round escape budgets `ε_round : Fin r → ℝ≥0∞` to the uniform all-prefix escape
 bound `≤ Finset.univ.sup ε_round` consumed by `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound`

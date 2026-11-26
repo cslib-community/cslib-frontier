@@ -205,13 +205,8 @@ theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
         have hsrc_ltL := (σ e.src).isLt
         have hsrc_mem : z.mem (4 + j * (L + 2)) = e.src := hzMem ▸ hinp.edge_src j hj
         have hdst_mem : z.mem (4 + j * (L + 2) + 1) = e.dst := hzMem ▸ hinp.edge_dst j hj
-        have hlv : z.mem (outBaseAddr g + 2 + e.src) = (σ e.src).val := by
-          rw [hzMem, hout.get e.src
-            (by simpa only [List.length_map, List.length_range] using hs_lt)]
-          simp only [List.getElem_map, List.getElem_range]
-        have hlw : z.mem (outBaseAddr g + 2 + e.dst) = (σ e.dst).val := by
-          rw [hzMem, hout.get e.dst
-            (by simpa only [List.length_map, List.length_range] using hd_lt)]
+        have hlv (u : ℕ) (hu : u < slots g) : z.mem (outBaseAddr g + 2 + u) = (σ u).val := by
+          rw [hzMem, hout.get u (by simpa only [List.length_map, List.length_range] using hu)]
           simp only [List.getElem_map, List.getElem_range]
         have hc_mem : z.mem (4 + j * (L + 2) + ((σ e.src).val + 2)) =
             (e.constraint (σ e.src)).val := by
@@ -236,13 +231,13 @@ theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
         by_cases heq_v : (e.constraint (σ e.src)).val = (σ e.dst).val
         · unfold checkBody
           wram_exec [hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
-            hsrc_mem, hdst_mem, hlv, hlw, hc_mem, heq_v]
+            hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp [hzOk]
           rw [hall_next, decide_eq_true (Fin.ext heq_v), Bool.and_true]
         · unfold checkBody
           wram_exec [hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
-            hsrc_mem, hdst_mem, hlv, hlw, hc_mem, heq_v]
+            hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp
           rw [hall_next, decide_eq_false (fun h => heq_v (congrArg Fin.val h)),

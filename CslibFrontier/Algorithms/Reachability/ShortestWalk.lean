@@ -166,14 +166,12 @@ private def NoShort (V : List α) (arc : α → α → Bool) (src tgt : α → B
 private theorem of_mem_bfsNew {found : List (α × List α)} {x : α × List α}
     (hx : x ∈ bfsNew V arc found) :
     x.1 ∈ V ∧ (∀ e ∈ found, e.1 ≠ x.1) ∧ ∃ e ∈ found, arc e.1 x.1 = true ∧ x.2 = e.2 ++ [x.1] := by
-  obtain ⟨v, hv, hfx⟩ := List.mem_filterMap.mp hx
-  by_cases hany : found.any (fun e => e.1 == v) = true
-  · simp [hany] at hfx
-  · rw [ite_eq_right hany] at hfx
-    obtain ⟨e, he, rfl⟩ := Option.map_eq_some_iff.mp hfx
-    refine ⟨hv, fun e' he' heq => hany ?_, e, List.mem_of_find?_eq_some he,
-      by simpa using List.find?_some he, rfl⟩
-    exact List.any_eq_true.mpr ⟨e', he', by simpa using heq⟩
+  simp only [bfsNew, List.mem_filterMap, Option.ite_none_left_eq_some, List.any_eq_true,
+    not_exists, not_and, Option.map_eq_some_iff] at hx
+  obtain ⟨v, hv, hany, e, he, rfl⟩ := hx
+  exact ⟨hv, fun e' he' heq => hany e' he' (beq_iff_eq.mpr heq),
+    e, List.mem_of_find?_eq_some he, List.find?_some (p := fun e : α × List α => arc e.1 v) he,
+    rfl⟩
 
 private theorem exists_mem_bfsNew {found : List (α × List α)} {v : α} (hv : v ∈ V)
     (hnot : ∀ e ∈ found, e.1 ≠ v) (harc : ∃ e ∈ found, arc e.1 v = true) :
@@ -203,11 +201,8 @@ private theorem sound_step {k : ℕ} {found : List (α × List α)} (hS : Sound 
     refine ⟨hne', ?_, ?_, ⟨?_, ?_⟩, ?_⟩
     · simpa [hx2, List.head_append_of_ne_nil hne] using hhead
     · simp [hx2]
-    · intro z hz
-      rw [hx2, List.mem_append, List.mem_singleton] at hz
-      rcases hz with hz | rfl
-      · exact hmem z hz
-      · exact hv
+    · rw [hx2]
+      exact List.forall_mem_append.mpr ⟨hmem, List.forall_mem_singleton.mpr hv⟩
     · rw [hx2]
       refine List.IsChain.append hchain (List.isChain_singleton _) ?_
       intro a ha b hb
@@ -267,21 +262,14 @@ private theorem keys_subset {k : ℕ} {found : List (α × List α)} (hS : Sound
 private theorem card_step {found : List (α × List α)} (hne : (bfsNew V arc found).isEmpty = false) :
     ((found.map Prod.fst).toFinset.card + 1) ≤
       ((found ++ bfsNew V arc found).map Prod.fst).toFinset.card := by
-  obtain ⟨x, hx⟩ : ∃ x, x ∈ bfsNew V arc found := by
-    rcases h : bfsNew V arc found with _ | ⟨x, _⟩
-    · simp [h] at hne
-    · exact ⟨x, by simp⟩
-  obtain ⟨-, hnot, -⟩ := of_mem_bfsNew hx
-  have hx1 : x.1 ∉ (found.map Prod.fst).toFinset := by
-    simp only [List.mem_toFinset, List.mem_map, not_exists, not_and]
-    exact hnot
+  obtain ⟨x, hx⟩ := List.exists_mem_of_ne_nil _ (List.isEmpty_eq_false_iff.mp hne)
+  have hx1 : x.1 ∉ (found.map Prod.fst).toFinset := fun h => by
+    obtain ⟨e, he, h1⟩ := List.mem_map.mp (List.mem_toFinset.mp h)
+    exact (of_mem_bfsNew hx).2.1 e he h1
   rw [← Finset.card_insert_of_notMem hx1]
-  refine Finset.card_le_card ?_
-  intro a ha
+  refine Finset.card_le_card fun a ha => ?_
   simp only [Finset.mem_insert, List.mem_toFinset, List.map_append, List.mem_append] at ha ⊢
-  rcases ha with rfl | ha
-  · exact .inr (List.mem_map_of_mem hx)
-  · exact .inl ha
+  exact ha.elim (fun h => .inr (h ▸ List.mem_map_of_mem hx)) .inl
 
 omit [DecidableEq α] in
 private theorem separator_of_closed {k : ℕ} {found : List (α × List α)}

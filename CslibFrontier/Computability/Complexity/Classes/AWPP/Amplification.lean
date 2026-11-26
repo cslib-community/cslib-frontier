@@ -98,11 +98,8 @@ private theorem card_majority_eq {β : Type} [Fintype β] (V : β → Bool) (R :
       ext x
       simp only [S, mem_filter, mem_univ, true_and]
       exact ⟨And.right, fun h => ⟨h ▸ hw, h⟩⟩
-    · rw [ite_eq_right hw, card_eq_zero]
-      apply eq_empty_iff_forall_notMem.mpr
-      intro x hx
-      simp only [S, mem_filter, mem_univ, true_and] at hx
-      exact hw (hx.2 ▸ hx.1)
+    · rw [ite_eq_right hw, card_eq_zero, eq_empty_iff_forall_notMem]
+      exact fun x hx => hw ((mem_filter.1 hx).2 ▸ (mem_filter.1 (mem_filter.1 hx).1).2)
   have h := card_eq_sum_card_fiberwise (s := S) (t := univ)
     (f := fun x i => V (x i)) (fun _ _ => mem_univ _)
   change (S.card : ℤ) = _
@@ -120,8 +117,7 @@ theorem majorityPolynomial_mem {α : Type} {enc : α ↪ List Bool} {g D : α �
     (fun a => majorityPolynomial (g a) (D a) (r a)) ∈ GapP enc := by
   let ones : α × List Bool → ℕ := fun x => x.2.countP id
   have hones : ComputableInPolyTime ones (encPair enc encBits) encUnary := by
-    dsimp [ones]
-    fun_prop
+    dsimp only [ones]; fun_prop
   have hg' := GapP.pow_mem_polyTime (GapP.comp_mem hg (.fst enc encBits)) hones
   have hd' := GapP.pow_mem_polyTime (GapP.comp_mem (GapP.sub_mem' hD hg) (.fst enc encBits))
     (by fun_prop : ComputableInPolyTime (fun x : α × List Bool => 2 * r x.1 - ones x) _ encUnary)
@@ -180,14 +176,9 @@ theorem majorityPolynomial_bounds {g : ℤ} {m e : ℕ}
   · intro hy
     have hv' : 2 * 2 ^ m ≤ 3 * #{x | V x = true} := by
       rw [hv]; exact_mod_cast (hgcast ▸ hy : 2 * (2 : ℤ) ^ m ≤ 3 * (g.toNat : ℤ))
-    have htail : (2 : ℤ) ^ e * (#{x : BitString (2 * (6 * e) * m) |
-        #{i | V (BitString.block x i) = true} ≤ 6 * e} : ℤ) ≤ (2 : ℤ) ^ (2 * (6 * e) * m) := by
-      exact_mod_cast BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl
-        (fun x => V x = true) hv'
-    have hc : (M : ℤ) + (#{x : BitString (2 * (6 * e) * m) |
-        #{i | V (BitString.block x i) = true} ≤ 6 * e} : ℤ) = (2 : ℤ) ^ (2 * (6 * e) * m) := by
-      exact_mod_cast hcompl
-    rwa [eq_sub_of_add_eq' hc] at htail
+    have htail := (Nat.cast_le (α := ℤ)).2 (Nat.eq_sub_of_add_eq' hcompl ▸
+      BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl (fun x => V x = true) hv')
+    simpa only [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, Nat.cast_sub hMle] using htail
   · intro hn
     have hg3 : 3 * g.toNat ≤ 2 ^ m := by
       exact_mod_cast (hgcast ▸ hn : 3 * (g.toNat : ℤ) ≤ (2 : ℤ) ^ m)
@@ -248,9 +239,8 @@ theorem exists_AWPP_gap_errorExponent {α : Type} {enc : α ↪ List Bool} {A : 
   obtain ⟨hG, hbound⟩ := AWPPAmplification.amplify hg p q hA
   refine ⟨_, hG, 12 * q * p, fun a => ?_⟩
   obtain ⟨h01, hy, hn⟩ := hbound a
-  have hle : r a ≤ q.eval (enc a).length := by simpa [q] using hb a
   have hpow : (2 : ℤ) ^ r a ≤ (2 : ℤ) ^ q.eval (enc a).length :=
-    pow_le_pow_right₀ (by norm_num) hle
+    pow_le_pow_right₀ (by norm_num) (by simpa [q] using hb a)
   exact ⟨h01, fun ha => (mul_le_mul_of_nonneg_right hpow (sub_nonneg.mpr h01.2)).trans (hy ha),
     fun ha => (mul_le_mul_of_nonneg_right hpow h01.1).trans (hn ha)⟩
 

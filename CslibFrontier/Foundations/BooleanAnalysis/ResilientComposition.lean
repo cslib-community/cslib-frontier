@@ -282,17 +282,10 @@ theorem coalitionInfluence_composeBlocks_maj3 {w : ℕ} (h : Fin 3 → BitString
     rw [if_congr (isUndetermined_composeBlocks_iff (majority 3) h Q x) rfl rfl,
       if_congr (isUndetermined_maj3_classify _ _) rfl rfl]
     let D (j : Fin 3) : Bool := decide (IsUndetermined (tribePart Q j) (h j) (sl x j))
-    have hF : univ.filter (fun j => IsUndetermined (tribePart Q j) (h j) (sl x j)) =
-        univ.filter fun j => D j = true := by simp only [D, decide_eq_true_eq]
-    have hU (j : Fin 3) : eU j (sl x j) = (nInd (D j) : ℝ) := by simp [eU, nInd, D]
-    have hD (j : Fin 3) : eD j (sl x j) = (nInd (!D j) : ℝ) := by simp [eD, nInd, D]
-    have hT (j : Fin 3) : eT j (sl x j) = (nInd (!D j && h j (sl x j)) : ℝ) := by
-      simp [eT, nInd, D]
-    have hF' (j : Fin 3) : eF j (sl x j) = (nInd (!D j && !h j (sl x j)) : ℝ) := by
-      simp [eF, nInd, D]
-    rw [hF]
-    simp only [hU, hD, hT, hF']
-    exact_mod_cast maj3_split_nat D _ _ _
+    simpa only [eU, eD, eT, eF, nInd, D, Bool.and_eq_true, Bool.not_eq_true',
+      decide_eq_true_eq, decide_eq_false_iff_not, Nat.cast_add, Nat.cast_mul, Nat.cast_ite,
+      Nat.cast_one, Nat.cast_zero] using
+      congrArg (Nat.cast (R := ℝ)) (maj3_split_nat D (h 0 (sl x 0)) (h 1 (sl x 1)) (h 2 (sl x 2)))
   have hprod (f0 f1 f2 : BitString w → ℝ) :
       𝔼 x : BitString (3 * w), f0 (sl x 0) * f1 (sl x 1) * f2 (sl x 2) =
         (𝔼 u, f0 u) * (𝔼 u, f1 u) * (𝔼 u, f2 u) := by

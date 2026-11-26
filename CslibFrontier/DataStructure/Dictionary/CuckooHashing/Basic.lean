@@ -245,13 +245,10 @@ def lookupEntry {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (tbl : PureTable U m) 
 theorem WellPlaced.entryIn_iff_home {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     (hwp : WellPlaced h₁ h₂ tbl) (e : SlotEntry U) :
     EntryIn tbl e ↔ tbl.t1 (h₁ e.key) = some e ∨ tbl.t2 (h₂ e.key) = some e := by
-  constructor
-  · rintro (⟨i, hi⟩ | ⟨i, hi⟩)
-    · left; rw [hwp.t1_home i e hi]; exact hi
-    · right; rw [hwp.t2_home i e hi]; exact hi
-  · rintro (h | h)
-    · exact Or.inl ⟨h₁ e.key, h⟩
-    · exact Or.inr ⟨h₂ e.key, h⟩
+  refine ⟨?_, fun h => h.elim (fun h => Or.inl ⟨_, h⟩) fun h => Or.inr ⟨_, h⟩⟩
+  rintro (⟨i, hi⟩ | ⟨i, hi⟩)
+  · exact Or.inl (hwp.t1_home i e hi ▸ hi)
+  · exact Or.inr (hwp.t2_home i e hi ▸ hi)
 
 theorem WellPlaced.entry_unique_of_key_eq {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     (hwp : WellPlaced h₁ h₂ tbl) {e₁ e₂ : SlotEntry U}
@@ -283,11 +280,7 @@ theorem WellPlaced.lookupEntry_eq_none_iff {U m : ℕ} {h₁ h₂ : Fin U → Fi
     (hwp : WellPlaced h₁ h₂ tbl) (u : Fin U) :
     lookupEntry h₁ h₂ tbl u = none ↔ ¬ HasKey tbl u := by
   rw [Option.eq_none_iff_forall_not_mem]
-  constructor
-  · intro hall ⟨e, hin, hk⟩
-    exact hall e ((hwp.lookupEntry_eq_some_iff u e).mpr ⟨hin, hk⟩)
-  · intro hno e he
-    exact hno ⟨e, (hwp.lookupEntry_eq_some_iff u e).mp he⟩
+  simp only [Option.mem_def, hwp.lookupEntry_eq_some_iff, HasKey, not_exists]
 
 /-- Place entry `e` into `T₁[h₁ e.key]`, returning the updated table and any displaced entry. -/
 @[expose]
@@ -518,24 +511,17 @@ theorem pureReplay_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ
       (∀ d : SlotEntry U, EntryIn tbl d ↔ (d.key, d.idx) ∈ ks.zipIdx) := by
   obtain ⟨hwp, hent⟩ := foldlM_zipIdx_spec ks 0 (wellPlaced_empty h₁ h₂) hnodup
     (fun u _ => not_hasKey_empty u) hrep
-  refine ⟨hwp, fun d => ?_⟩
-  rw [hent d]
-  simp
+  exact ⟨hwp, fun d => by simp [hent d]⟩
 
 theorem pureReplay_hasKey_iff {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {ks : List (Fin U)} {tbl : PureTable U m} (hnodup : ks.Nodup)
     (hrep : pureReplay h₁ h₂ maxLoop ks = some tbl) (u : Fin U) :
     HasKey tbl u ↔ u ∈ ks := by
   obtain ⟨_, hent⟩ := pureReplay_spec hnodup hrep
-  constructor
-  · rintro ⟨d, hdin, rfl⟩
-    rw [hent, List.mem_zipIdx_iff_getElem?] at hdin
-    exact List.mem_of_getElem? hdin
-  · intro hu
-    obtain ⟨idx, hlt, hget⟩ := List.mem_iff_getElem.mp hu
-    refine ⟨⟨u, idx⟩, ?_, rfl⟩
-    rw [hent, List.mem_zipIdx_iff_getElem?]
-    simp [hlt, hget]
+  simp only [HasKey, hent, List.mem_zipIdx_iff_getElem?]
+  exact ⟨fun ⟨⟨_, _⟩, hdin, rfl⟩ => List.mem_of_getElem? hdin, fun hu =>
+    let ⟨idx, hlt, hget⟩ := List.mem_iff_getElem.mp hu
+    ⟨⟨u, idx⟩, by simp [hlt, hget], rfl⟩⟩
 
 theorem pureReplay_lookupEntry_of_mem {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {ks : List (Fin U)} {tbl : PureTable U m} (hnodup : ks.Nodup)

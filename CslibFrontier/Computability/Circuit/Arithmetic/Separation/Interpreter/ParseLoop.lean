@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.NamedValue
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.FullTrie
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.LowDegree.Series
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ListPrograms
 import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
@@ -40,16 +41,6 @@ namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A} {R : Type} [CommRing R] [Algebra A R]
-
-/-- Concatenation of lists of bits. -/
-private theorem appBits_gives {a b : Fm} {x : Tree} {ca cb : ℕ} {v w : List Bool}
-    (ha : Gives θ a x (ofBits v) ca)
-    (hb : Gives θ b x (ofBits w) cb) : Gives θ (appF a b) x (ofBits (v ++ w))
-        (ca + cb + v.length * 62 + 41) := by
-  rw [← listT_ofBits] at ha hb ⊢
-  have := appF_gives ha hb
-  rw [← List.map_append, List.length_map] at this
-  exact this
 
 /-- Guess a word. -/
 @[expose] def gwd : ℕ → Fm
@@ -198,8 +189,8 @@ private theorem nameL_gives {self T t : Tree} {b : Tree} {g acc : List Bool} {ws
       · simp
       · rw [path_ofBits, hc2]
   have h := Gives.cons (Gives.quote (θ := θ) .nil y)
-      (Gives.cons (Gives.quote one y) (appBits_gives hg (appBits_gives hacc
-    (appBits_gives hc (Gives.quote (ofBits [false]) y)))))
+      (Gives.cons (Gives.quote one y) (appF_gives_ofBits hg (appF_gives_ofBits hacc
+    (appF_gives_ofBits hc (Gives.quote (ofBits [false]) y)))))
   have e : ofBits ([false, true] ++ g ++ acc ++ lc t ++ [false]) =
       Tree.cons .nil (.cons one (ofBits (g ++ (acc ++ (lc t ++ [false]))))) := by
     simp only [List.append_assoc, List.cons_append, List.nil_append]
@@ -219,8 +210,8 @@ private theorem nameK_gives {self T : Tree} {b : Tree} {g l r : List Bool} {ws :
   have hl : Gives θ (.hd (.tl .id)) y (ofBits l) 3 := (Gives.id y).tl.hd
   have hr : Gives θ (.tl (.tl .id)) y (ofBits r) 3 := (Gives.id y).tl.tl
   have h := Gives.cons (Gives.quote (θ := θ) .nil y)
-      (Gives.cons (Gives.quote .nil y) (appBits_gives hg (appBits_gives hl
-    (appBits_gives hr (Gives.quote (ofBits [false]) y)))))
+      (Gives.cons (Gives.quote .nil y) (appF_gives_ofBits hg (appF_gives_ofBits hl
+    (appF_gives_ofBits hr (Gives.quote (ofBits [false]) y)))))
   have e : ofBits ([false, false] ++ g ++ l ++ r ++ [false]) =
       Tree.cons .nil (.cons .nil (ofBits (g ++ (l ++ (r ++ [false]))))) := by
     simp only [List.append_assoc, List.cons_append, List.nil_append]

@@ -310,9 +310,9 @@ private theorem traj0_isEnvCurve {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b
     · exact ⟨ite_eq_right hle, ite_eq_right hle⟩
   have h := env_glue (x := trajX0 m b₁ b₂) (pay := trajP0 m b₁ b₂) (a := 0) (c := pe)
     (fun {p q} _ hpq hq => by
-      have hp : p ≤ eqPrice m b₁ b₂ := hpq.trans hq
-      have hq' : q ≤ eqPrice m b₁ b₂ := hq
-      simp only [trajX0, trajP0, hp, hq', ↓reduceIte, sub_self, mul_zero, le_rfl, and_self])
+      dsimp only [pe] at hq
+      simp only [trajX0, trajP0, hpq.trans hq, hq, ↓reduceIte, sub_self, mul_zero, le_rfl,
+        and_self])
     (fun {p q} hp hpq => by
       obtain ⟨hxp, hpp⟩ := eval2 p hp
       obtain ⟨hxq, hpq'⟩ := eval2 q (hp.trans hpq)
@@ -373,9 +373,9 @@ private theorem traj1_isEnvCurve {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b
         by linarith [hph.2.2]⟩)
   have hall := env_glue (x := trajX1 m b₁ b₂) (pay := trajP1 m b₁ b₂) (a := 0) (c := p₀)
     (fun {p q} _ hpq hq => by
-      have hp : p ≤ entryPrice m b₁ := hpq.trans hq
-      have hq' : q ≤ entryPrice m b₁ := hq
-      simp only [trajX1, trajP1, hp, hq', ↓reduceIte, sub_self, mul_zero, le_rfl, and_self])
+      dsimp only [p₀] at hq
+      simp only [trajX1, trajP1, hpq.trans hq, hq, ↓reduceIte, sub_self, mul_zero, le_rfl,
+        and_self])
     hge0
   exact ⟨fun {_ _} hp hpq => (hall hp hpq).1, fun {_ _} hp hpq => (hall hp hpq).2⟩
 
@@ -605,10 +605,7 @@ private theorem swapOutcome_pareto {o : Outcome (Fin 2)} {m : ℝ} {v B : Fin 2 
   have hsum_eq : ∀ f : Fin 2 → ℝ, (∑ i, f (swap01 i)) = ∑ i, f i := fun f => by
     simp only [Fin.sum_univ_two, swap01_zero, swap01_one]; ring
   refine ⟨⟨fun i => h.1.1 (swap01 i), ?_⟩,
-    fun i => by
-      have hi := h.2.1 (swap01 i)
-      dsimp only [swapOutcome]
-      simpa [swap01_invol] using hi,
+    fun i => by simpa [swapOutcome, swap01_invol] using h.2.1 (swap01 i),
     fun o' hdom => ?_⟩
   · simpa [swapOutcome, hsum_eq o.alloc] using h.1.2
   · refine h.2.2 (swapOutcome o') ⟨⟨fun i => hdom.1.1 (swap01 i), ?_⟩,
@@ -635,9 +632,7 @@ theorem twoBidderClinching_isFeasible {m : ℝ} (hm : 0 < m) {B v : Fin 2 → �
   · exact (orderedClinching_props hm (hB 0) hle (hv 0) (hv 1)).feas
   · have h := (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hv 1) (hv 0)).feas
     refine ⟨fun i => h.1 (swap01 i), ?_⟩
-    have := h.2
-    simp only [swapOutcome, Fin.sum_univ_two, swap01_zero, swap01_one] at this ⊢
-    linarith
+    simpa [swapOutcome, Fin.sum_univ_two, add_comm] using h.2
 
 /-- Nonnegative payments of `twoBidderClinching`. -/
 theorem twoBidderClinching_hasNonnegPayment {m : ℝ} (hm : 0 < m) {B v : Fin 2 → ℝ}
@@ -655,12 +650,11 @@ theorem twoBidderClinching_isBudgetFeasible {m : ℝ} (hm : 0 < m) {B v : Fin 2 
     (twoBidderClinching m B v).IsBudgetFeasible B := by
   dsimp only [twoBidderClinching]
   split_ifs with hle
-  · have h := (orderedClinching_props hm (hB 0) hle (hv 0) (hv 1)).bf
-    simpa only [fin2_vec_eq B] using h
-  · have h := (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hv 1) (hv 0)).bf
-    intro i; fin_cases i
-    · simpa [swapOutcome] using h 1
-    · simpa [swapOutcome] using h 0
+  · simpa only [fin2_vec_eq B] using
+      (orderedClinching_props hm (hB 0) hle (hv 0) (hv 1)).bf
+  · intro i
+    have h := (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hv 1) (hv 0)).bf (swap01 i)
+    fin_cases i <;> simpa [swapOutcome, swap01] using h
 
 /-- **Exact Pareto optimality** of the continuous 2-bidder adaptive clinching auction for every
 supply `m > 0`, strictly positive public budgets `B`, and nonnegative valuations `v`
@@ -670,13 +664,11 @@ theorem twoBidderClinching_isParetoOptimal {m : ℝ} (hm : 0 < m) {B v : Fin 2 �
     (twoBidderClinching m B v).IsParetoOptimal m v B := by
   dsimp only [twoBidderClinching]
   split_ifs with hle
-  · have h := (orderedClinching_props hm (hB 0) hle (hv 0) (hv 1)).po
-    simpa only [fin2_vec_eq v, fin2_vec_eq B] using h
-  · have h := (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hv 1) (hv 0)).po
-    have hv_eq : ![v 1, v 0] = fun i => v (swap01 i) := by ext i; fin_cases i <;> rfl
-    have hB_eq : ![B 1, B 0] = fun i => B (swap01 i) := by ext i; fin_cases i <;> rfl
-    rw [hv_eq, hB_eq] at h
-    exact swapOutcome_pareto h
+  · simpa only [fin2_vec_eq v, fin2_vec_eq B] using
+      (orderedClinching_props hm (hB 0) hle (hv 0) (hv 1)).po
+  · refine swapOutcome_pareto ?_
+    convert (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hv 1) (hv 0)).po using 1 <;>
+      ext i <;> fin_cases i <;> rfl
 
 /-- Exact market clearing of `twoBidderClinching` when some bidder has positive value. -/
 theorem twoBidderClinching_sum_alloc {m : ℝ} (hm : 0 < m) {B v : Fin 2 → ℝ}
@@ -694,12 +686,10 @@ theorem twoBidderClinchingSP_isIR {m : ℝ} (hm : 0 < m) {B : Fin 2 → ℝ} (hB
   dsimp only [SingleParameter.Mechanism.utility, twoBidderClinchingSP,
     BudgetedMechanism.toSingleParameter, twoBidderClinchingMechanism, twoBidderClinching]
   split_ifs with hle
-  · have h := (orderedClinching_props hm (hB 0) hle (hb 0) (hb 1)).ir i
-    simpa only [Outcome.utility, fin2_vec_eq b] using h
-  · have h := (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hb 1) (hb 0)).ir
-    fin_cases i
-    · simpa [Outcome.utility, swapOutcome] using h 1
-    · simpa [Outcome.utility, swapOutcome] using h 0
+  · simpa only [Outcome.utility, fin2_vec_eq b] using
+      (orderedClinching_props hm (hB 0) hle (hb 0) (hb 1)).ir i
+  · have h := (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hb 1) (hb 0)).ir (swap01 i)
+    fin_cases i <;> simpa [Outcome.utility, swapOutcome, swap01] using h
 
 /-- Normalization of `twoBidderClinchingSP`: a bidder bidding `0` pays `0`. -/
 theorem twoBidderClinchingSP_isNormalized {m : ℝ} (hm : 0 < m) {B : Fin 2 → ℝ}

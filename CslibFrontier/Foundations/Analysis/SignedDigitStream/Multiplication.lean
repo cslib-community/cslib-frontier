@@ -262,14 +262,11 @@ theorem bandSum_emod_eq_bandWindowSum_emod (x y : ℕ → ℤ) (t q k : ℕ) :
     bandSum x y t k % (2 : ℤ) ^ (q + bandMargin k) =
       bandWindowSum x y t q k % (2 : ℤ) ^ (q + bandMargin k) := by
   unfold bandSum bandWindowSum bandWindowPairs
-  have hsplit := sum_filter_add_sum_filter_not (bandPairs t k) (fun p => t < p.1 + p.2 + q)
-    (fun p => x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2)))
-  rw [← hsplit]
-  obtain ⟨c, hc⟩ : (2 : ℤ) ^ (q + bandMargin k) ∣
-      ∑ p ∈ (bandPairs t k).filter (fun p => ¬ t < p.1 + p.2 + q),
-        x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2)) :=
-    dvd_sum fun p hp => dvd_mul_of_dvd_right
-      (pow_dvd_pow 2 (by have := (mem_filter.mp hp).2; omega)) _
+  rw [← sum_filter_add_sum_filter_not (bandPairs t k) (fun p => t < p.1 + p.2 + q)]
+  obtain ⟨c, hc⟩ := dvd_sum (s := (bandPairs t k).filter fun p => ¬ t < p.1 + p.2 + q)
+    (f := fun p => x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2))) fun p hp =>
+    dvd_mul_of_dvd_right
+      (pow_dvd_pow 2 (by have := (mem_filter.mp hp).2; omega : q + bandMargin k ≤ _)) _
   rw [hc, Int.add_mul_emod_self_left]
 
 theorem bandFoldMod_eq_bandFold_emod (x y : ℕ → ℤ) (t q : ℕ) :
@@ -308,14 +305,10 @@ private def retainedUnion (t K : ℕ) : Finset (ℕ × ℕ) :=
 private theorem bandPairs_pairwiseDisjoint (t : ℕ) :
     (↑(range (maxBand t)) : Set ℕ).PairwiseDisjoint (bandPairs t) := by
   intro k₁ _ k₂ _ hne
-  change Disjoint (bandPairs t k₁) (bandPairs t k₂)
-  rw [Finset.disjoint_left]
-  intro p hp₁ hp₂
+  refine Finset.disjoint_left.mpr fun p hp₁ hp₂ => hne ?_
   obtain ⟨_, hlo₁, hhi₁, _⟩ := mem_filter.mp hp₁
   obtain ⟨_, hlo₂, hhi₂, _⟩ := mem_filter.mp hp₂
-  have heq₁ : bandIdx (min p.1 p.2) = k₁ := bandIdx_eq_iff.mpr ⟨hlo₁, hhi₁⟩
-  have heq₂ : bandIdx (min p.1 p.2) = k₂ := bandIdx_eq_iff.mpr ⟨hlo₂, hhi₂⟩
-  exact hne (heq₁.symm.trans heq₂)
+  exact (bandIdx_eq_iff.mpr ⟨hlo₁, hhi₁⟩).symm.trans (bandIdx_eq_iff.mpr ⟨hlo₂, hhi₂⟩)
 
 private theorem sum_bandPairs_real (x y : ℕ → ℤ) (t k : ℕ) :
     (bandSum x y t k : ℝ) / (2 : ℝ) ^ bandMargin k =
@@ -542,14 +535,9 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
         omega
       · rw [mem_Ico]
         exact mem_band_bandIdx r
-    have hdisj : (↑(range B) : Set ℕ).PairwiseDisjoint fun k => Ico (bandStart k) (bandEnd k) := by
-      intro k₁ _ k₂ _ hne
-      change Disjoint (Ico (bandStart k₁) (bandEnd k₁)) (Ico (bandStart k₂) (bandEnd k₂))
-      rw [Finset.disjoint_left]
-      intro r hr₁ hr₂
-      have heq₁ : bandIdx r = k₁ := bandIdx_eq_iff.mpr (mem_Ico.mp hr₁)
-      have heq₂ : bandIdx r = k₂ := bandIdx_eq_iff.mpr (mem_Ico.mp hr₂)
-      exact hne (heq₁.symm.trans heq₂)
+    have hdisj : (↑(range B) : Set ℕ).PairwiseDisjoint fun k => Ico (bandStart k) (bandEnd k) :=
+      fun _ _ _ _ hne => Finset.disjoint_left.mpr fun _ hr₁ hr₂ => hne <|
+        (bandIdx_eq_iff.mpr (mem_Ico.mp hr₁)).symm.trans (bandIdx_eq_iff.mpr (mem_Ico.mp hr₂))
     calc ∑ r ∈ range (N + 1), 72 / (2 : ℝ) ^ bandMargin (bandIdx r)
         ≤ ∑ r ∈ (range B).biUnion (fun k => Ico (bandStart k) (bandEnd k)),
             72 / (2 : ℝ) ^ bandMargin (bandIdx r) :=

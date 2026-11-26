@@ -268,9 +268,7 @@ theorem exists_runningPath_of_runBranch (M : CountingAuxPDA k Symbol StackSym St
     ∃ p : RelSeries (M.toAuxPDA.runningStepRel input),
       p.head = c ∧ p.last = d ∧ p.length = indices.length := by
   induction indices generalizing c with
-  | nil =>
-    have he : c = d := Option.some.inj h
-    exact ⟨RelSeries.singleton _ c, rfl, he, rfl⟩
+  | nil => exact ⟨RelSeries.singleton _ c, rfl, Option.some.inj h, rfl⟩
   | cons i is ih =>
     obtain ⟨next, hs, ht⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨p, hp, hlast, hlen⟩ := ih ht
@@ -414,11 +412,10 @@ theorem branchCount_add_not (M : CountingAuxPDA k Symbol StackSym State)
       (M.branches fuel cfg).filter (fun choices =>
         (M.runBranch cfg choices).any (fun final => !verdict final.tapes.output)) =
       (M.branches fuel cfg).filter (fun choices =>
-        ¬(M.runBranch cfg choices).any (fun final => verdict final.tapes.output)) := by
-    apply Finset.filter_congr
-    intro choices hchoices
-    obtain ⟨_, final, hrun, _⟩ := (M.mem_branches_iff cfg fuel choices).mp hchoices
-    simp [hrun]
+        ¬(M.runBranch cfg choices).any (fun final => verdict final.tapes.output)) :=
+    Finset.filter_congr fun choices hchoices => by
+      obtain ⟨_, final, hrun, _⟩ := (M.mem_branches_iff cfg fuel choices).mp hchoices
+      simp [hrun]
   rw [hfilter]
   exact Finset.card_filter_add_card_filter_not _
 
@@ -459,10 +456,8 @@ theorem branchCount_succ (M : CountingAuxPDA k Symbol StackSym State)
     simp only [Finset.mem_filter] at hleft hright
     split at hleft <;> split at hright <;>
       try simp only [Finset.notMem_empty, false_and] at hleft hright
-    obtain ⟨hleft, -⟩ := hleft
-    obtain ⟨hright, -⟩ := hright
-    obtain ⟨_, _, rfl⟩ := Finset.mem_image.mp hleft
-    obtain ⟨_, _, h⟩ := Finset.mem_image.mp hright
+    obtain ⟨_, _, rfl⟩ := Finset.mem_image.mp hleft.1
+    obtain ⟨_, _, h⟩ := Finset.mem_image.mp hright.1
     exact (List.cons.inj h).1.symm
 
 /-- Accepting branch count under the standard `[true]` output convention. -/
@@ -538,11 +533,8 @@ theorem ofMultiTapeCTM_toAuxPDA (M : MultiTapeCTM k Symbol State) :
   congr 1
   funext q inp work top ⟨tape, stackOp⟩
   simp only [List.mem_map, AuxPDA.Action.mk.injEq, eq_iff_iff]
-  constructor
-  · rintro ⟨a, ha, rfl, rfl⟩
-    exact ⟨rfl, by simpa using ha⟩
-  · rintro ⟨rfl, ha⟩
-    exact ⟨MultiTapeMachine.Action.emptyOracleEquiv.symm tape, ha, by simp, rfl⟩
+  exact ⟨fun ⟨a, ha, h1, h2⟩ => ⟨h2.symm, by simpa [← h1] using ha⟩,
+    fun ⟨rfl, ha⟩ => ⟨MultiTapeMachine.Action.emptyOracleEquiv.symm tape, ha, by simp, rfl⟩⟩
 
 lemma ofMultiTapeCTM_step? (M : MultiTapeCTM k Symbol State)
     (c : Turing.Cfg k Symbol State input) (s : List PUnit) (i : ℕ) :
@@ -601,10 +593,8 @@ theorem ofMultiTapeCTM_acceptCount (M : MultiTapeCTM k Bool State) {input : List
     (ofMultiTapeCTM M).acceptCount fuel ⟨c, s⟩ = M.acceptCount fuel c := by
   simp only [acceptCount, MultiTapeCTM.acceptCount, branchCount, MultiTapeCTM.branchCount,
     ofMultiTapeCTM_branches, ofMultiTapeCTM_runBranch]
-  congr 1
-  apply Finset.filter_congr
-  intro choices _
-  cases M.runBranch c choices <;> rfl
+  exact congrArg Finset.card
+    (Finset.filter_congr fun choices _ => by cases M.runBranch c choices <;> rfl)
 
 end CountingAuxPDA
 

@@ -153,8 +153,6 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
   induction ys with
   | nil =>
     intro cur curM ok _ _ hok
-    have h0 : iterate noAdjStep env 0 ⟨cur, curM, ok⟩ = pure ⟨cur, curM, ok⟩ := rfl
-    simp only [List.length_nil, h0, noAdjInst]
     refine ⟨validHistory_pure w s _, ?_⟩
     rcases hok with rfl | rfl <;> rfl
   | cons u rest ih =>
@@ -405,9 +403,7 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
   induction ys with
   | nil =>
     intro cur curM ok _ _ hok
-    have h0 : iterate indepBagStep env 0 ⟨cur, 0, curM, ok⟩ = pure ⟨cur, 0, curM, ok⟩ := rfl
-    simp only [List.length_nil, h0, indepInst]
-    refine ⟨validHistory_pure w s _, ?_, by simp [memoryCost_pure]⟩
+    refine ⟨validHistory_pure w s _, ?_, by simp [iterate, memoryCost_pure]⟩
     rcases hok with rfl | rfl <;> rfl
   | cons u rest ih =>
     intro cur curM ok hcur hus hok
@@ -449,8 +445,7 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       rw [hmem_u]
       split
       · exact validHistory_bind_step hv_na (validHistory_pure w _ _)
-      · rw [pure_bind]
-        exact validHistory_pure w s _
+      · exact validHistory_pure w s _
     have hc_step : memoryCost (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) s ≤
         2 * rest.length + 1 := by
       unfold indepBagStep
@@ -460,11 +455,8 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       · rw [memoryCost_bind', hst_na, memoryCost_pure, Nat.add_zero]
         omega
       · simp [memoryCost_pure]
-    have hiter_eq :
-        iterate indepBagStep env (u :: rest).length ⟨cur, (u :: rest).length, curM, ok⟩ =
-        (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩) >>=
-          iterate indepBagStep env rest.length) := rfl
-    rw [hiter_eq]
+    simp only [List.length_cons] at hst_step hres_step hv_step hc_step ⊢
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
       dsimp only [ok', naPure, indepInst]
@@ -472,8 +464,7 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       · simp
       · by_cases hbit : curM % 2 = 1 <;> simp [hbit, and_comm]
     · rw [memoryCost_bind', hst_step, hres_step]
-      simp only [List.length_cons]
-      calc memoryCost (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) s +
+      calc memoryCost (indepBagStep (env, ⟨cur, rest.length + 1, curM, ok⟩)) s +
             memoryCost
               (iterate indepBagStep env rest.length ⟨cur + 1, rest.length, curM / 2, ok'⟩) s
           ≤ (2 * rest.length + 1) + rest.length * (2 * rest.length + 1) :=

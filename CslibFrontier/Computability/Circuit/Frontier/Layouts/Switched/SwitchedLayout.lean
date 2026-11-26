@@ -601,11 +601,9 @@ private theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 �
     ((intervalBag (start G y l) (finish G y l) t).card : ℝ) ≤ w + 1 := by
   set A := Finset.univ.filter fun v => rank y v = t
   set B := Finset.univ.filter fun v => rank y v < t ∧ ∃ z, G.Adj v z ∧ t ≤ rank y z
-  have hsub : intervalBag (start G y l) (finish G y l) t ⊆ A ∪ B := by
-    intro v hv
-    rcases mem_inner_phase ht hv with h | h
-    · exact Finset.mem_union_left _ (by simp [A, h])
-    · exact Finset.mem_union_right _ (by simp [B, h])
+  have hsub : intervalBag (start G y l) (finish G y l) t ⊆ A ∪ B := fun v hv =>
+    (mem_inner_phase ht hv).elim (fun h => Finset.mem_union_left _ (by simp [A, h]))
+      fun h => Finset.mem_union_right _ (by simp [B, h])
   have hA : (A.card : ℝ) ≤ 1 := by exact_mod_cast card_rank_eq_le hy t
   have hB : (B.card : ℝ) ≤ w := by
     rcases Nat.eq_zero_or_pos t with h0 | hpos
@@ -637,15 +635,11 @@ private theorem outer_bag_card (hy : Function.Injective y)
     ((intervalBag (start G y l) (finish G y l) (i + K G y + 2)).card : ℝ) ≤ w + 1 := by
   set A := Finset.univ.filter fun v => rank y v = i
   set B := Finset.univ.filter fun v => i < rank y v ∧ ∃ z, G.Adj v z ∧ rank y z ≤ i
-  have hsub : intervalBag (start G y l) (finish G y l) (i + K G y + 2) ⊆ A ∪ B := by
-    intro v hv
-    rcases mem_outer_phase hl hi hv with h | h
-    · exact Finset.mem_union_left _ (by simp [A, h])
-    · exact Finset.mem_union_right _ (by simp [B, h])
+  have hsub : intervalBag (start G y l) (finish G y l) (i + K G y + 2) ⊆ A ∪ B := fun v hv =>
+    (mem_outer_phase hl hi hv).elim (fun h => Finset.mem_union_left _ (by simp [A, h]))
+      fun h => Finset.mem_union_right _ (by simp [B, h])
   obtain ⟨x, hx⟩ := exists_rank_eq hy hin
-  have hx0 : 0 < y x := not_le.mp fun h => by
-    have := (lower_iff y x).mpr h
-    omega
+  have hx0 : 0 < y x := not_le.mp fun h => ((lower_iff y x).mpr h).not_ge (hx ▸ hi)
   have hsubB : B ⊆ outerFrontier G y (y x) := by
     intro v hv
     simp only [B, Finset.mem_filter, Finset.mem_univ, true_and] at hv
@@ -707,18 +701,8 @@ private theorem conn_bag_card (hl : Connector.Good (Wp G y) (items G y) (ends G 
     have hgood := hl.2.2 (k - 1) (by unfold K at hk; omega)
     change ((k - 1 : ℕ) : ℤ) - (Connector.covered (items G y) (ends G y) X : ℤ) ≤
       max 0 ((K G y : ℤ) - (items G y).card) + 1 at hgood
-    have hk1 : ((k - 1 : ℕ) : ℤ) = k - 1 := by omega
-    zify at hcard hI hJk hitems hDU hDW ⊢
-    have hmax : max 0 ((K G y : ℤ) - (items G y).card) + (items G y).card ≤
-        max (lowerZero G y : ℤ) (upperZero G y) - (crossFull G y).card := by
-      rw [← max_sub_sub_right]
-      rcases le_total (K G y : ℤ) (items G y).card with h | h
-      · rw [max_eq_left (by linarith)]
-        exact le_max_of_le_left (by linarith)
-      · rw [max_eq_right (by linarith)]
-        exact le_max_of_le_right (by linarith)
-    rw [hk1] at hgood
-    linarith
+    zify [hpos] at hcard hI hJk hJK hitems hDU hDW hgood ⊢
+    omega
 
 end Bags
 

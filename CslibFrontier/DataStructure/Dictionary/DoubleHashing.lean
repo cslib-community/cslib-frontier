@@ -995,11 +995,9 @@ private theorem hasBFSWitness_of_partialDepSet {U m : ℕ} (hm : 0 < m)
       obtain ⟨ih_q, ih_len⟩ := ih hb_lt.le
       have htake := take_filter_probePrefix_eq hm (π (x ⟨b, hb_lt⟩)) (hk_lt ⟨b, hb_lt⟩).le
         (· ∉ rawQueue hm T π x₀ r₀ b) (d := h ⟨b + 1, Nat.succ_lt_succ hb_lt⟩) rfl
-      refine ⟨?_, ?_⟩
-      · simp only [bfsQueue, hb_lt, ↓reduceDIte, ih_q, htake]
-        rfl
-      · rw [Finset.sum_range_succ, dite_eq_left hb_lt, ← Nat.add_assoc, ← ih_len]
-        exact List.length_append
+      refine ⟨by simp only [bfsQueue, hb_lt, ↓reduceDIte, ih_q, htake]; rfl, ?_⟩
+      rw [Finset.sum_range_succ, dite_eq_left hb_lt, ← Nat.add_assoc, ← ih_len]
+      exact List.length_append
   have hnodup_w := nodup_rawQueue hm T π x₀ (hr₀_mp.trans (missedProbes_le _ _)) w
   have hlen_w : (rawQueue hm T π x₀ r₀ w).length = w := by
     obtain ⟨hsub_w, hlen_w_ge⟩ := hspec w le_rfl
@@ -1156,13 +1154,12 @@ private theorem card_stepFiber_le (M : ℕ) {w : ℕ} (hw : w ≤ 2 ^ M) (q : Li
     simpa only [Finset.card_univ, Fintype.card_fin] using
       card_filter_prod_probeAt_le M d slot_b (S := Finset.univ) fun ps hps =>
         ⟨Finset.mem_univ _, (Finset.mem_filter.mp hps).2⟩
-  have hP_le : ∀ (k_b j₁ : Fin w) (slot₁ : Fin (2 ^ M)), (P k_b j₁ slot₁).card ≤ w :=
-    fun k_b j₁ slot₁ => by
-      by_cases hlt : j₁.val < k_b.val
-      · simp only [P, hlt, true_and]
-        exact (card_filter_two_probes_eq_le M hlt (k_b.isLt.trans_le hw) slot₁ slot_b).trans
-          (by have := k_b.isLt; omega)
-      · simp [P, show ¬j₁ < k_b from hlt]
+  have hP_le (k_b j₁ : Fin w) (slot₁ : Fin (2 ^ M)) : (P k_b j₁ slot₁).card ≤ w := by
+    by_cases hlt : j₁.val < k_b.val
+    · simp only [P, hlt, true_and]
+      exact (card_filter_two_probes_eq_le M hlt (k_b.isLt.trans_le hw) slot₁ slot_b).trans
+        ((Nat.sub_le _ _).trans k_b.isLt.le)
+    · simp [P, show ¬j₁ < k_b from hlt]
   calc (stepFiber M w q slot_b d).card
       ≤ F₁.card + _ := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
     _ ≤ 2 ^ (M - 1) + Fintype.card (Fin w) * (Fintype.card (Fin w) * (q.toFinset.card * w)) :=
@@ -1205,12 +1202,10 @@ private theorem card_toFinset_tupleQueue_le (M w : ℕ) (h : Fin (w + 1) → ℕ
     (hsum : ∑ a : Fin (w + 1), h a = w) {b : ℕ} (hb : b ≤ w)
     (ps : Fin (b + 1) → Fin (2 ^ M) × Fin (2 ^ (M - 1))) :
     (tupleQueue M w h b hb ps).toFinset.card ≤ w := by
-  have h1 := List.toFinset_card_le (tupleQueue M w h b hb ps)
-  have h2 := length_tupleQueue_le M w h b hb ps
   have hsub := Finset.sum_le_sum_of_subset (Finset.range_mono hb)
     (f := fun i => if hi : i < w then h ⟨i + 1, Nat.succ_lt_succ hi⟩ else 0)
-  have h3 := sum_fin_succ_eq h
-  omega
+  linarith [List.toFinset_card_le (tupleQueue M w h b hb ps), length_tupleQueue_le M w h b hb ps,
+    sum_fin_succ_eq h]
 
 /-- Prefix tuples `ps : Fin (b + 1) → Fin (2 ^ M) × Fin (2 ^ (M - 1))` satisfying the first `b`
 BFS step constraints. -/
@@ -1373,10 +1368,10 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
     let g (f : Fin (w + 1) → Fin (w + 1)) (b : Fin w) : Fin (2 * w) :=
       if h : degPrefSum w f b.val < 2 * w then ⟨degPrefSum w f b.val, h⟩
       else ⟨0, by have := b.isLt; omega⟩
-    have hg : ∀ f ∈ degSeqFinset w, ∀ b, (g f b).val = degPrefSum w f b.val := fun f hf b => by
-      have hle := (Finset.sum_le_univ_sum_of_nonneg (f := fun a => (f a).val)
-        (s := Finset.univ.filter fun a : Fin (w + 1) => a.val ≤ b.val)
-        fun _ => Nat.zero_le _).trans (Finset.mem_filter.mp hf).2.le
+    have hg (f) (hf : f ∈ degSeqFinset w) (b : Fin w) : (g f b).val = degPrefSum w f b.val := by
+      have hle := (Finset.sum_le_univ_sum_of_nonneg
+        (s := Finset.univ.filter (·.val ≤ b.val)) fun _ => Nat.zero_le _).trans
+        (Finset.mem_filter.mp hf).2.le
       have hlt : degPrefSum w f b.val < 2 * w := by have := b.isLt; dsimp only [degPrefSum]; omega
       simp only [g, hlt, ↓reduceDIte]
     have hg_mono : ∀ f ∈ degSeqFinset w, StrictMono (g f) := fun f hf b₁ b₂ hb => by
@@ -1399,18 +1394,16 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
         rw [hg f₁ hf₁, hg f₂ hf₂] at hval
         exact Nat.add_left_cancel hval
     -- Equal prefix sums give equal entries, by strong induction on the index.
-    have key : ∀ n, ∀ a : Fin (w + 1), a.val = n → f₁ a = f₂ a := fun n => by
-      induction n using Nat.strong_induction_on with
-      | _ n ih =>
-        intro a ha
-        have hmem : a ∈ Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ n) := by simp [ha]
-        have h := hpref_eq n (ha ▸ Nat.le_of_lt_succ a.isLt)
-        have hrest := Finset.sum_congr
-          (rfl : (Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ n)).erase a = _)
-          fun c hc => congrArg Fin.val (ih c.val (by simp [Fin.ext_iff] at hc; omega) c rfl)
-        rw [← Finset.add_sum_erase _ _ hmem, ← Finset.add_sum_erase _ _ hmem, hrest] at h
-        exact Fin.ext (Nat.add_right_cancel h)
-    exact funext fun a => key a.val a rfl
+    refine funext fun a => ?_
+    induction hn : a.val using Nat.strong_induction_on generalizing a with
+    | _ n ih =>
+      have hmem : a ∈ Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ n) := by simp [hn]
+      have h := hpref_eq n (hn ▸ Nat.le_of_lt_succ a.isLt)
+      have hrest := Finset.sum_congr
+        (rfl : (Finset.univ.filter (fun c : Fin (w + 1) => c.val ≤ n)).erase a = _)
+        fun c hc => congrArg Fin.val (ih c.val (by simp [Fin.ext_iff] at hc; omega) c rfl)
+      rw [← Finset.add_sum_erase _ _ hmem, ← Finset.add_sum_erase _ _ hmem, hrest] at h
+      exact Fin.ext (Nat.add_right_cancel h)
   calc (degSeqFinset w).card ≤ (Finset.univ : Finset (Fin (2 * w))).powerset.card :=
       Finset.card_le_card_of_injOn (degPrefImage w) (fun f _ => by simp) hinj
     _ = 4 ^ w := by

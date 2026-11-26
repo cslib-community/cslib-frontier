@@ -254,31 +254,22 @@ private theorem decode_after_halt0_two_steps
       some ((Dynamic.step (Dynamic.step (Dictionary.empty U) o₁).1 (.query u_q)).2) := by
   dsimp only
   obtain ⟨μ₁, _, _, hstep₁, hrem₁⟩ := execFlatProgramOps_cons_inv hex
-  obtain ⟨_, hpdist₁, _⟩ := hstep₁ p₀ hp₀
-  have hmap₁ := execProgramDist_halt0_eq_pure hp0 _ hpdist₁
   obtain ⟨q₁, hq₁⟩ := (μ₁ p₀).support_nonempty
-  have hq₁_pure : q₁.2 ∈ (PMF.pure ((prepareFlatRegs input encode o₁ p₀.2).regs retReg,
-      prepareFlatRegs input encode o₁ p₀.2) : PMF (ℕ × Data r)).support := by
-    rw [← hmap₁, PMF.mem_support_map_iff]
-    exact ⟨q₁, hq₁, rfl⟩
-  have hq₁_data : q₁.2.2 = prepareFlatRegs input encode o₁ p₀.2 :=
-    congrArg Prod.snd ((PMF.mem_support_pure_iff _ _).mp hq₁_pure)
-  have hmem_b₁ : (q₁.1, q₁.2.2) ∈
-      (ν₀.bind fun p => (μ₁ p).map fun q => (q.1, q.2.2)).support :=
+  have hq₁_eq : q₁.2 = (_, prepareFlatRegs input encode o₁ p₀.2) :=
+    (PMF.mem_support_pure_iff _ _).mp
+      (execProgramDist_halt0_eq_pure hp0 _ (hstep₁ p₀ hp₀).2.1 ▸
+        (PMF.mem_support_map_iff _ _ _).mpr ⟨q₁, hq₁, rfl⟩)
+  have hmem_b₁ : (q₁.1, q₁.2.2) ∈ (ν₀.bind fun p => (μ₁ p).map fun q => (q.1, q.2.2)).support :=
     (PMF.mem_support_bind_iff _ _ _).mpr
       ⟨p₀, hp₀, (PMF.mem_support_map_iff _ _ _).mpr ⟨q₁, hq₁, rfl⟩⟩
   obtain ⟨μ₂, _, _, hstep₂, _⟩ := execFlatProgramOps_cons_inv hrem₁
-  obtain ⟨_, hpdist₂, hdec₂⟩ := hstep₂ (q₁.1, q₁.2.2) hmem_b₁
-  have hmap₂ := execProgramDist_halt0_eq_pure hp0 _ hpdist₂
   obtain ⟨q₂, hq₂⟩ := (μ₂ (q₁.1, q₁.2.2)).support_nonempty
-  have hq₂_pure : q₂.2 ∈ (PMF.pure ((prepareFlatRegs input encode (.query u_q) q₁.2.2).regs retReg,
-      prepareFlatRegs input encode (.query u_q) q₁.2.2) : PMF (ℕ × Data r)).support := by
-    rw [← hmap₂, PMF.mem_support_map_iff]
-    exact ⟨q₂, hq₂, rfl⟩
-  have hq₂_eq := (PMF.mem_support_pure_iff _ _).mp hq₂_pure
-  have hd := (hdec₂ q₂ hq₂).2.1
-  rw [congrArg Prod.fst hq₂_eq, congrArg Prod.snd hq₂_eq, hq₁_data] at hd
-  exact hd
+  have hq₂_eq : q₂.2 = (_, prepareFlatRegs input encode (.query u_q) q₁.2.2) :=
+    (PMF.mem_support_pure_iff _ _).mp
+      (execProgramDist_halt0_eq_pure hp0 _ (hstep₂ _ hmem_b₁).2.1 ▸
+        (PMF.mem_support_map_iff _ _ _).mpr ⟨q₂, hq₂, rfl⟩)
+  have hd := ((hstep₂ _ hmem_b₁).2.2 q₂ hq₂).2.1
+  rwa [congrArg Prod.fst hq₂_eq, congrArg Prod.snd hq₂_eq, congrArg Prod.snd hq₁_eq] at hd
 
 private theorem not_halt_zero_of_execFlatProgramOps
     {B : Basis} {U V n M r w base space : ℕ} {Latent : Type z}
@@ -350,10 +341,7 @@ private theorem one_le_of_execProgramDist_no_halt0
         · simp [WordRAM.step, hp0] at hs_step
         · simp only [WordRAM.step, hp0] at hs_step
           split at hs_step <;> cases hs_step
-        · simp [WordRAM.step, hp0] at hs_step
-        · simp [WordRAM.step, hp0] at hs_step
-        · exact hno i hp0
-        · simp [WordRAM.step, hp0] at hs_step
+        all_goals first | exact hno _ hp0 | simp [WordRAM.step, hp0] at hs_step
   have h1 : (evalRand w p 1 ⟨0, x⟩).toOuterMeasure {cfg | ∃ u, cfg = .running u} = 1 := by
     have hpart := hp.2.1.running_add_halted_eq_one 1
     rwa [hhalt1, add_zero] at hpart
@@ -724,12 +712,10 @@ theorem expectedFlatTime_ge_of_indexedScheme
     ENNReal.ofReal (LB / (2 * (persCount input : ℝ) + 1)) ≤
       ∑' ops, insertQueryDeleteDist U V n hU hV ops *
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
-  have h := le_expectedFlatTime_mode_of_det_indexedScheme true hn hU hV hspace p_op encode decode
-    ν₀ hsupp₀ (by rwa [modeHorizon_true]) (LB := LB)
-    fun hcorr => by
-      rw [modeDist_true]
-      exact hlb (by rwa [modeHorizon_true] at hcorr)
-  rwa [modeDist_true] at h
+  simpa only [modeDist_true] using
+    le_expectedFlatTime_mode_of_det_indexedScheme true hn hU hV hspace p_op encode decode ν₀
+      hsupp₀ ((modeHorizon_true n).symm ▸ hex_corr) fun hcorr => by
+        simpa only [modeDist_true] using hlb (modeHorizon_true n ▸ hcorr)
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over `insertDeleteDist`
 directly to the exact intrinsic expected non-`halt` body-instruction count
@@ -756,12 +742,10 @@ theorem expectedFlatTime_update_ge_of_indexedScheme
     ENNReal.ofReal (LB / (2 * (persCount input : ℝ) + 1)) ≤
       ∑' ops, insertDeleteDist U V n hU hV ops *
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
-  have h := le_expectedFlatTime_mode_of_det_indexedScheme false hn hU hV hspace p_op encode decode
-    ν₀ hsupp₀ (by rwa [modeHorizon_false]) (LB := LB)
-    fun hcorr => by
-      rw [modeDist_false]
-      exact hlb (by rwa [modeHorizon_false] at hcorr)
-  rwa [modeDist_false] at h
+  simpa only [modeDist_false] using
+    le_expectedFlatTime_mode_of_det_indexedScheme false hn hU hV hspace p_op encode decode ν₀
+      hsupp₀ ((modeHorizon_false n).symm ▸ hex_corr) fun hcorr => by
+        simpa only [modeDist_false] using hlb (modeHorizon_false n ▸ hcorr)
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over
 `insertQueryDeleteDist` to the certified expected-amortized instruction budget of a zero-error
@@ -787,11 +771,10 @@ theorem expectedTotalCost_ge_of_indexedScheme
       (C.initPotential : ℝ≥0∞) +
         ∑' ops, insertQueryDeleteDist U V n hU hV ops *
           ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) := by
-  have h := le_expectedTotalCost_mode_of_det_indexedScheme true hU hV C hbase hparams_fit
-    hparams_fr hparams_agree hspace (LB := LB) fun hcorr => by
-      rw [modeDist_true]
-      exact hlb (by rwa [modeHorizon_true] at hcorr)
-  rwa [modeDist_true] at h
+  simpa only [modeDist_true] using
+    le_expectedTotalCost_mode_of_det_indexedScheme true hU hV C hbase hparams_fit hparams_fr
+      hparams_agree hspace fun hcorr => by
+        simpa only [modeDist_true] using hlb (by rwa [modeHorizon_true] at hcorr)
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over `insertDeleteDist` to
 the certified expected-amortized instruction budget of a zero-error
@@ -817,11 +800,10 @@ theorem expectedTotalCost_update_ge_of_indexedScheme
       (C.initPotential : ℝ≥0∞) +
         ∑' ops, insertDeleteDist U V n hU hV ops *
           ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) := by
-  have h := le_expectedTotalCost_mode_of_det_indexedScheme false hU hV C hbase hparams_fit
-    hparams_fr hparams_agree hspace (LB := LB) fun hcorr => by
-      rw [modeDist_false]
-      exact hlb (by rwa [modeHorizon_false] at hcorr)
-  rwa [modeDist_false] at h
+  simpa only [modeDist_false] using
+    le_expectedTotalCost_mode_of_det_indexedScheme false hU hV C hbase hparams_fit hparams_fr
+      hparams_agree hspace fun hcorr => by
+        simpa only [modeDist_false] using hlb (by rwa [modeHorizon_false] at hcorr)
 
 /-! ### 3. Primary Word-RAM Headline Lower Bounds: Actual Expected Running Time -/
 

@@ -96,13 +96,9 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
       (by have := hp (enc a).length; omega) r, ?_⟩
   rw [hAV a, eval_instanceOfTableau (tab a) (width a) _ i hi true r
     (by simp only [r, Bool.not_not])]
-  symm
-  apply eval_certBlocks (width a) _ i hmul true
-  intro σ
+  refine (eval_certBlocks (width a) _ i hmul true _ fun σ => ?_).symm
   let z := block σ (width a) 0 0 ++ block σ (width a) 1 0
-  have hz : z.length = 2 * width a := by
-    simp only [z, List.length_append, length_block]
-    omega
+  have hz : z.length = 2 * width a := by simp [z, length_block, two_mul]
   have hrun := (htm (a, z)).runFrom_initCfg
   have hlen : (encPair enc encBits (a, z)).length = 2 * (enc a).length + 2 * width a + 1 := by
     simp only [length_encPair, encBits_apply, hz]
@@ -114,8 +110,7 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
     rw [← hz, show tab a = CookLevin.tableau tm (frame (enc a)) z.length (time a) by rw [hz],
       CookLevin.exists_eval_tableau_iff,
       show time a = c * (2 * (enc a).length + 2 * width a + 1 + 1) ^ d from rfl, hrun.2]
-    simp only [encBool_apply, List.cons.injEq, and_true]
-    exact ⟨fun h => h.2, fun h => ⟨hrun.1, h⟩⟩
+    simpa only [encBool_apply, List.cons.injEq, and_true] using and_iff_right hrun.1
   cases hr : r <;> simp [hr, QBF.eval_not, hbase, W, z]
 
 end Cslib.Complexity.QuantifiedSAT

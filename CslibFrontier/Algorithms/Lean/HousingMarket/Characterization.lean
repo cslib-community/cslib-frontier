@@ -86,15 +86,12 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
     (hor : ∀ j ∈ R, ν j = j ∨ I.rank j (ν j) ≤ I.rank j (I.ttcRounds k R j)) :
     ∀ x ∈ R, ν x = I.ttcRounds k R x := by
   induction k generalizing R with
-  | zero =>
-    intro x hx
-    simp_all
+  | zero => simp_all
   | succ k ih =>
     intro x hx
     have hRne : R.Nonempty := ⟨x, hx⟩
-    have hk' : (R \ I.cycleAgents R).card ≤ k := by
-      have := I.card_sdiff_cycleAgents_lt hRne
-      omega
+    have hk' : (R \ I.cycleAgents R).card ≤ k :=
+      Nat.lt_succ_iff.mp ((I.card_sdiff_cycleAgents_lt hRne).trans_le hk)
     set C := I.cycleAgents R
     set f := I.topChoice R
     have hadich (a : Fin n) (haC : a ∈ C) : ν a = a ∨ ν a = f a := by
@@ -113,8 +110,7 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
       set p := minimalPeriod f a₀
       have hp_pos : 0 < p := minimalPeriod_pos_of_mem_periodicPts ((I.mem_cycleAgents hRne).1 ha₀)
       -- Backward induction around the `p`-cycle shows `ν b = b` on all of `O`.
-      have hfix_back : ∀ m ≤ p, ν (f^[p - m] a₀) = f^[p - m] a₀ := by
-        intro m
+      have hfix_back (m : ℕ) : m ≤ p → ν (f^[p - m] a₀) = f^[p - m] a₀ := by
         induction m with
         | zero =>
           intro _
@@ -210,13 +206,11 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
     let π : Equiv.Perm (Fin n) := (Equiv.swap k₁ r₀).trans (I.pref i)
     set I' := I.updatePref i π
     have hI'_rank (h : Fin n) : I'.rank i h = Equiv.swap k₁ r₀ (I.rank i h) := by
-      rw [I.updatePref_rank_self]
-      simp [π, Instance.rank]
+      simp [I', π, Instance.rank]
     have hI'_ii : I'.rank i i = k₁ := by
       rw [hI'_rank, show I.rank i i = r₀ from rfl, Equiv.swap_apply_right]
-    have hI'_ttc_rank : I'.rank i (I.ttc i) = r := by
-      rw [hI'_rank]
-      exact Instance.swap_eq_self_of_le hrk hkr le_rfl
+    have hI'_ttc_rank : I'.rank i (I.ttc i) = r :=
+      (hI'_rank _).trans (Instance.swap_eq_self_of_le hrk hkr le_rfl)
     -- `I.ttc` remains in the strict core of `I'`, so `I'.ttc = I.ttc`.
     have hI'_strictCore : I'.InStrictCore I.ttc := by
       rintro S ⟨ν, hS, hle, j₀, hj₀, hlt⟩
@@ -233,19 +227,17 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
     have hsum_lt : (∑ j : Fin n, (I'.rank j j).val) < m := by
       rw [← hm]
       refine Finset.sum_lt_sum (fun j _ => ?_) ⟨i, Finset.mem_univ i, hI'_ii ▸ hkr⟩
-      by_cases hji : j = i
-      · subst hji
-        exact hI'_ii ▸ hkr.le
+      rcases eq_or_ne j i with rfl | hji
+      · exact hI'_ii ▸ hkr.le
       · rw [I.updatePref_rank_of_ne π hji]
     have hMI' : M I' = I.ttc := (ih _ hsum_lt I' rfl).trans hI'_strictCore.eq_ttc.symm
     -- Strategy-proofness between `I` and `I'` forces `M I i = I.ttc i`.
     have hsp_fwd : I.rank i (M I i) ≤ r := by
       simpa only [I', hMI'] using hSP I i π
     have hsp_bwd : r ≤ I.rank i (M I i) := by
-      have h1 := hSP I' i (I.pref i)
       have hback : I'.updatePref i (I.pref i) = I := by simp [I']
-      rwa [hback, hMI', hI'_ttc_rank, hI'_rank,
-        Instance.swap_eq_self_of_le hrk hkr hsp_fwd] at h1
+      simpa only [hback, hMI', hI'_ttc_rank, hI'_rank,
+        Instance.swap_eq_self_of_le hrk hkr hsp_fwd] using hSP I' i (I.pref i)
     exact Or.inr (le_antisymm hsp_fwd hsp_bwd).le
   · -- No house lies strictly between `I.ttc i` and `i`, so `hIR` suffices directly.
     have hir_i : (I.rank i (M I i)).val ≤ r₀.val := hIR I i
@@ -374,9 +366,7 @@ private theorem eq_sdSteps_of_rank_le {k : ℕ} {R : Finset (Fin n)} (hk_le : k 
     have hk : k < n := by omega
     let a : Fin n := ⟨n - 1 - k, by omega⟩
     have hh : I.topChoice R a ∈ R := I.topChoice_mem (Finset.card_pos.1 (by omega)) a
-    have ha_ge : n - (k + 1) ≤ a.val := by
-      change n - (k + 1) ≤ n - 1 - k
-      omega
+    have ha_ge : n - (k + 1) ≤ a.val := by dsimp [a]; omega
     have ha_eq : ν a = I.topChoice R a := by
       have h1 := hle a ha_ge
       rw [I.sdSteps_succ_of_eq hk R] at h1
@@ -384,9 +374,8 @@ private theorem eq_sdSteps_of_rank_le {k : ℕ} {R : Finset (Fin n)} (hk_le : k 
     by_cases hia : i = a
     · rw [hia, I.sdSteps_succ_of_eq hk R, ha_eq]
     · rw [I.sdSteps_succ_of_ne hk R hia]
-      have hne_a (j : Fin n) (hj : n - k ≤ j.val) : j ≠ a := fun h0 => by
-        have : j.val = n - 1 - k := congrArg Fin.val h0
-        omega
+      have hne_a (j : Fin n) (hj : n - k ≤ j.val) : j ≠ a :=
+        fun h0 => absurd (congrArg Fin.val h0) (by dsimp [a]; omega)
       refine ih (by omega) (card_sdiff_singleton_ge hcard hh) (fun j hj => ?_) (fun j hj => ?_)
         i (val_ge_of_ne hk hi hia)
       · exact Finset.mem_sdiff.2 ⟨hR j (by omega), fun hm =>
@@ -439,9 +428,7 @@ private theorem sdSteps_eq_of_val_lt {k : ℕ} (hk_le : k ≤ n) (R : Finset (Fi
   | succ k ih =>
     have hk : k < n := by omega
     let a : Fin n := ⟨n - 1 - k, by omega⟩
-    have hai : a ≠ i := fun h0 => by
-      have : n - 1 - k = i.val := congrArg Fin.val h0
-      omega
+    have hai : a ≠ i := fun h0 => absurd (congrArg Fin.val h0) (by dsimp [a]; omega)
     exact I.sdSteps_succ_congr hk R (I.updatePref_topChoice_of_ne π hai R) fun _ =>
       ih (by omega) _ (by omega)
 
@@ -457,9 +444,7 @@ private theorem sdSteps_updatePref_eq_of_apply_eq {k : ℕ} (hk_le : k ≤ n) (R
     by_cases hia : i = a
     · have htop : (I.updatePref i π).topChoice R a = I.topChoice R a := by
         simpa only [hia, a, sdSteps_succ_of_eq hk R] using heq_i
-      have hi_lt : i.val < n - k := by
-        have : i.val = n - 1 - k := congrArg Fin.val hia
-        omega
+      have hi_lt : i.val < n - k := by have : i.val = n - 1 - k := congrArg Fin.val hia; omega
       exact I.sdSteps_succ_congr hk R htop fun _ => I.sdSteps_eq_of_val_lt hk.le _ i hi_lt π j
     · have htop := I.updatePref_topChoice_of_ne π (Ne.symm hia) R
       rw [(I.updatePref i π).sdSteps_succ_of_ne hk R hia, I.sdSteps_succ_of_ne hk R hia,

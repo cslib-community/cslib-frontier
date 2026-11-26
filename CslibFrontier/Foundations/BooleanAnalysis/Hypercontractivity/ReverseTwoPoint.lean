@@ -141,8 +141,6 @@ private theorem one_add_rpow_add_one_sub_rpow_le {p t : ℝ} (hp : 0 < p) (hp' :
     · exact (by fun_prop (disch := first | exact Or.inr hp.le | exact Or.inl (hB t ht).ne') :
         ContinuousAt _ t).continuousWithinAt
     · rw [interior_Icc] at ht
-      have h1 : 1 + t ≠ 0 := by linarith only [ht.1]
-      have h2 : 1 - t ≠ 0 := by linarith only [ht.2]
       have h3 := (hB t ⟨ht.1.le, ht.2.le⟩).ne'
       have d1 := Real.hasDerivAt_one_add_rpow p (by linarith only [ht.1] : -1 < t)
       have d2 := Real.hasDerivAt_one_sub_rpow p ht.2
@@ -150,9 +148,9 @@ private theorem one_add_rpow_add_one_sub_rpow_le {p t : ℝ} (hp : 0 < p) (hp' :
         (p := -(p / 2)) (Or.inl h3)
       convert ((d1.add d2).mul d3).hasDerivWithinAt using 1
       have e1 : (1 + t) ^ p = (1 + t) ^ (p - 1) * (1 + t) := by
-        rw [← Real.rpow_add_one h1, sub_add_cancel]
+        rw [← Real.rpow_add_one (by linarith only [ht.1]), sub_add_cancel]
       have e2 : (1 - t) ^ p = (1 - t) ^ (p - 1) * (1 - t) := by
-        rw [← Real.rpow_add_one h2, sub_add_cancel]
+        rw [← Real.rpow_add_one (by linarith only [ht.2]), sub_add_cancel]
       have e3 : (1 - (1 - p) * t ^ 2) ^ (-(p / 2)) =
           (1 - (1 - p) * t ^ 2) ^ (-(p / 2) - 1) * (1 - (1 - p) * t ^ 2) := by
         rw [← Real.rpow_add_one h3, sub_add_cancel]
@@ -325,11 +323,9 @@ private theorem one_add_rpow_add_one_sub_rpow_le_rpow_of_lt {p q ρ t : ℝ} (hq
     rw [abs_mul]
     exact (mul_le_of_le_one_left (abs_nonneg t) hρ1).trans_lt ht
   set E := ((1 + ρ * t) ^ q + (1 - ρ * t) ^ q) / 2
-  have hE : 0 ≤ E := by
-    have h := abs_lt.1 hρt
-    have := Real.rpow_nonneg (by linarith only [h.1] : 0 ≤ 1 + ρ * t) q
-    have := Real.rpow_nonneg (by linarith only [h.2] : 0 ≤ 1 - ρ * t) q
-    positivity
+  have hE : 0 ≤ E := div_nonneg (add_nonneg
+    (Real.rpow_nonneg (by linarith [(abs_lt.1 hρt).1]) q)
+    (Real.rpow_nonneg (by linarith [(abs_lt.1 hρt).2]) q)) zero_le_two
   -- Bernoulli's inequality `(1 + s) ^ θ ≥ 1 + θ s` for `θ = p / q ≥ 1`
   have hB := one_add_mul_self_le_rpow_one_add (s := E - 1) (by linarith only [hE])
     ((one_le_div hq).2 hqp)
@@ -401,10 +397,9 @@ theorem rpow_add_rpow_le_rpow_add_rpow_rpow {p q ρ a b : ℝ} (hq : 0 < q) (hqp
   have hρt := abs_le.1 (show |ρ * t| ≤ 1 by
     rw [abs_mul]; exact (mul_le_of_le_one_left (abs_nonneg t) hρ1).trans ht)
   have key := one_add_rpow_add_one_sub_rpow_le_rpow hq hqp hp hq1 hρ ht
-  have hE : 0 ≤ ((1 + ρ * t) ^ q + (1 - ρ * t) ^ q) / 2 := by
-    have := Real.rpow_nonneg (by linarith only [hρt.1] : 0 ≤ 1 + ρ * t) q
-    have := Real.rpow_nonneg (by linarith only [hρt.2] : 0 ≤ 1 - ρ * t) q
-    positivity
+  have hE : 0 ≤ ((1 + ρ * t) ^ q + (1 - ρ * t) ^ q) / 2 := div_nonneg (add_nonneg
+    (Real.rpow_nonneg (by linarith only [hρt.1]) q)
+    (Real.rpow_nonneg (by linarith only [hρt.2]) q)) zero_le_two
   calc ((a + b) ^ p + (a - b) ^ p) / 2
       = a ^ p * (((1 + t) ^ p + (1 - t) ^ p) / 2) := by
         rw [hbt, show a + a * t = a * (1 + t) by ring, show a - a * t = a * (1 - t) by ring,
@@ -434,8 +429,7 @@ theorem lpNorm_le_lpNorm_noiseOp_of_unit {p q ρ : ℝ} (hq : 0 < q) (hqp : q �
   have hρ2' : ρ ^ 2 * (1 - q) ≤ 1 - p := by
     rcases (hqp.trans hp).lt_or_eq with hq1 | rfl
     · exact (le_div_iff₀ (by linarith only [hq1])).1 hρ2
-    · simp only [sub_self, mul_zero]
-      linarith only [hp]
+    · simp only [sub_self, mul_zero]; linarith only [hp]
   have hρ1 : ρ ≤ 1 :=
     hρ'.trans (Real.sqrt_le_one.2
       (div_le_one_of_le₀ (by linarith only [hqp]) (by linarith only [hqp, hp])))

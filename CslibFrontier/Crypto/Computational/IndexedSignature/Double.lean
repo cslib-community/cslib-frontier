@@ -280,18 +280,14 @@ private theorem doubleLogInv_preserve {S : IndexedSignatureScheme} {b : Bool}
       (requestDecoder.decode w).1 < 2 ∧ (requestDecoder.decode w).1 ∉ signed.map Prod.fst
   · by_cases hslot : (requestDecoder.decode w).1 = b.toNat
     · supp_cases hmem [doubleJointOracle_planted hcap hinv hfresh hslot]
-      refine ⟨?_, ?_⟩
-      · simp only [List.map_cons, List.mem_cons, true_or, hslot.symm]
-      · intro m hm
-        rcases List.mem_cons.mp hm with heq | hm
-        · rcases Prod.mk.inj heq with ⟨-, rfl⟩
-          exact List.mem_cons.mpr (Or.inl (Prod.ext hslot.symm rfl))
-        · exact List.mem_cons_of_mem _ (hinv.2 m hm)
+      refine ⟨by simp [hslot.symm], fun m hm => ?_⟩
+      rcases List.mem_cons.mp hm with heq | hm
+      · rcases Prod.mk.inj heq with ⟨-, rfl⟩
+        exact List.mem_cons.mpr (Or.inl (Prod.ext hslot.symm rfl))
+      · exact List.mem_cons_of_mem _ (hinv.2 m hm)
     · supp_cases hmem [doubleJointOracle_unplanted hfresh hslot]
-      have hne : b.toNat ≠ (requestDecoder.decode w).1 := Ne.symm hslot
-      refine ⟨?_, ?_⟩
-      · simpa only [doubleLogInv, List.map_cons, List.mem_cons, hne, false_or] using hinv.1
-      · exact fun m hm => List.mem_cons_of_mem _ (hinv.2 m hm)
+      exact ⟨by simpa [Ne.symm hslot] using hinv.1,
+        fun m hm => List.mem_cons_of_mem _ (hinv.2 m hm)⟩
   · supp_cases hmem [doubleJointOracle_refused hfresh]
     exact hinv
 
@@ -410,14 +406,11 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     cases hwin : !r.2.1.contains (r.1.1, r.1.2.1) && (r.1.1 == b.toNat) &&
         S.verify vk 0 r.1.2.1 r.1.2.2
     · simp
-    · simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, beq_iff_eq,
-        ← Bool.not_eq_true, List.contains_iff_mem] at hwin
-      obtain ⟨⟨hfresh, hu⟩, hv⟩ := hwin
-      have hwin' : (!r.2.2.contains (0, r.1.2.1) && S.verify vk 0 r.1.2.1 r.1.2.2) = true := by
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true,
-          ← Bool.not_eq_true, List.contains_iff_mem]
-        exact ⟨fun hmem => hfresh (hu ▸ hinv.2 _ hmem), hv⟩
-      rw [hwin']
+    · simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', ← Bool.not_eq_true,
+        List.contains_iff_mem] at hwin
+      suffices (!r.2.2.contains (0, r.1.2.1) && S.verify vk 0 r.1.2.1 r.1.2.2) = true by rw [this]
+      simpa [← Bool.not_eq_true, List.contains_iff_mem, hwin.2] using
+        fun hm => hwin.1.1 (hwin.1.2 ▸ hinv.2 _ hm)
   have hslot_pair (b : Bool) (kc ko : List Bool × List Bool)
       (hkc : kc ∈ (ProbComp.eval (S.keyGen n)).support) :
       slotEvent b (if b then ko else kc) (if b then kc else ko) true ≤
@@ -426,26 +419,20 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
             !r.2.2.contains (0, r.1.2.1) && S.verify kc.1 0 r.1.2.1 r.1.2.2) true := by
     obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap b (otherSk := ko.2) (hbound kc hkc)
       (adversary n (doublePlantPk b kc.1 ko.1))
-    cases b
-    · simp only [slotEvent, doublePlantPk, Bool.false_eq_true, ↓reduceIte] at heq ⊢
-      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step false (hinv r hr)
-    · simp only [slotEvent, doublePlantPk, ↓reduceIte] at heq ⊢
-      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step true (hinv r hr)
+    cases b <;> simp only [slotEvent, doublePlantPk, Bool.false_eq_true, ↓reduceIte] at heq ⊢ <;>
+      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp] <;>
+      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step _ (hinv r hr)
   have hslot (b : Bool) :
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
         (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent b k₀ k₁) true ≤
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n)) true := by
     rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
     cases b
-    · apply PMF.bind_apply_mono_on_support; intro k₀ hk₀
-      apply PMF.bind_apply_mono_on_support; intro k₁ _
-      exact hslot_pair false k₀ k₁ hk₀
+    · refine PMF.bind_apply_mono_on_support _ _ fun k₀ hk₀ =>
+        PMF.bind_apply_mono_on_support _ _ fun k₁ _ => hslot_pair false k₀ k₁ hk₀
     · conv_rhs => rw [PMF.bind_comm]
-      apply PMF.bind_apply_mono_on_support; intro k₀ _
-      apply PMF.bind_apply_mono_on_support; intro k₁ hk₁
-      exact hslot_pair true k₁ k₀ hk₁
+      refine PMF.bind_apply_mono_on_support _ _ fun k₀ _ =>
+        PMF.bind_apply_mono_on_support _ _ fun k₁ hk₁ => hslot_pair true k₁ k₀ hk₁
   have hgame :
       (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) true ≤
         ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>

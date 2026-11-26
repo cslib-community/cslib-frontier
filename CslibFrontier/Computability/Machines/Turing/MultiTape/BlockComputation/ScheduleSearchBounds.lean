@@ -34,11 +34,9 @@ open QueryReplay MultiTapeNTM.ChoiceTable
 /-- Positive blocks absorb the fixed header overhead into a fixed multiplicative constant. -/
 theorem width_le_mul (k s : ℕ) {b : ℕ} (hb : 0 < b) :
     Encoding.width k s b ≤ widthConstant k s * b := by
-  have h := Encoding.width_le k s b
-  have hheader := Nat.le_mul_of_pos_right ((s + 1).size + 3) hb
-  rw [show widthConstant k s * b = (7 * k + 1) * b + ((s + 1).size + 3) * b by
-    dsimp only [widthConstant]; ring]
-  omega
+  have := Encoding.width_le k s b
+  have := Nat.le_mul_of_pos_right ((s + 1).size + 3) hb
+  simp only [widthConstant, Nat.add_mul, one_mul] at *; omega
 
 /-- Measuring the encoded value width adds only a fixed number of bits to the block width. -/
 theorem width_size_le (k s : ℕ) {b : ℕ} (hb : 0 < b) :
@@ -48,21 +46,19 @@ theorem width_size_le (k s : ℕ) {b : ℕ} (hb : 0 < b) :
 /-- The selected chunk width is logarithmic in the block width, uniformly in the horizon. -/
 theorem selected_chunkWidth_le (k s : ℕ) {b : ℕ} (hb : 0 < b) :
     chunkWidth (k * 3 + 1) (Encoding.width k s b) ≤
-      (k * 3 + 1).size + (widthConstant k s).size + b.size := by
-  have h := Nat.size_mul_le (k * 3 + 1) (Encoding.width k s b)
-  have hw := width_size_le k s hb
-  change ((k * 3 + 1) * Encoding.width k s b).size ≤ _
-  omega
+      (k * 3 + 1).size + (widthConstant k s).size + b.size :=
+  ((Nat.size_mul_le _ _).trans (Nat.add_le_add_left (width_size_le k s hb) _)).trans_eq
+    (Nat.add_assoc _ _ _).symm
 
 /-- This is the logarithmic estimate needed inside the horizon-dependent stack term. -/
 theorem horizon_chunkWidth_le (k s q : ℕ) {b : ℕ} (hb : 0 < b) :
     q * (chunkWidth (k * 3 + 1) (Encoding.width k s b) + 1) ≤
       ((k * 3 + 1).size + (widthConstant k s).size + 1) * q * (b.size + 1) := by
-  have hm := selected_chunkWidth_le k s hb
-  have hbs := Nat.le_mul_of_pos_left b.size
-    (by omega : 0 < (k * 3 + 1).size + (widthConstant k s).size + 1)
   have hscalar : chunkWidth (k * 3 + 1) (Encoding.width k s b) + 1 ≤
       ((k * 3 + 1).size + (widthConstant k s).size + 1) * (b.size + 1) := by
+    have := selected_chunkWidth_le k s hb
+    have := Nat.le_mul_of_pos_left b.size
+      (by omega : 0 < (k * 3 + 1).size + (widthConstant k s).size + 1)
     rw [Nat.mul_add_one (_ + 1)]; omega
   simpa only [Nat.mul_assoc, Nat.mul_left_comm q] using Nat.mul_le_mul_left q hscalar
 
@@ -287,15 +283,13 @@ theorem scheduleAllowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b q : ℕ, 0 
       C * (b + q * (b.size + 1) + N.size + 1) := by
   obtain ⟨c, hc⟩ := initialized_allowance_le k s Q
   refine ⟨c * (2 * (k + 1) + 2), fun N b q hb => ?_⟩
-  have hq : q ≤ q * (b.size + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  have hkq := Nat.mul_le_mul_left (2 * (k + 1)) hq
+  have hkq := Nat.mul_le_mul_left (2 * (k + 1))
+    (Nat.le_mul_of_pos_right q (by omega : 0 < b.size + 1))
   have hcounter := counter_encoding_le k q (3 ^ ((k + 1) * q)) le_rfl
   rw [length_encNat_eq_size] at hcounter
   have harg : b + q * (b.size + 1) + N.size + (3 ^ ((k + 1) * q)).size + 1 ≤
       (2 * (k + 1) + 2) * (b + q * (b.size + 1) + N.size + 1) := by
-    rw [show (2 * (k + 1) + 2) * (b + q * (b.size + 1) + N.size + 1) =
-      2 * (k + 1) * (q * (b.size + 1)) + 2 * (b + q * (b.size + 1) + N.size + 1) +
-        2 * (k + 1) * (b + N.size + 1) by ring]; omega
+    simp only [Nat.add_mul (2 * (k + 1)) 2, Nat.mul_add (2 * (k + 1))]; omega
   exact ((hc N b (3 ^ ((k + 1) * q)) q hb).trans (Nat.mul_le_mul_left c harg)).trans_eq
     (Nat.mul_assoc c _ _).symm
 

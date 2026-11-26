@@ -92,9 +92,8 @@ private theorem sum_neg_one_pow_mul_choose_even_nonpos (d m : ℕ) (hd : 0 < d) 
   rcases m with _ | m
   · simp
   · obtain ⟨d', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hd.ne'
-    have heq : 2 * (m + 1) = (2 * m + 1) + 1 := by ring
-    rw [heq, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1), pow_succ, pow_mul, neg_one_sq,
-      one_pow, one_mul, neg_one_mul]
+    rw [show 2 * (m + 1) = (2 * m + 1) + 1 by ring, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1),
+      pow_succ, pow_mul, neg_one_sq, one_pow, one_mul, neg_one_mul]
     exact neg_nonpos.mpr (Nat.cast_nonneg _)
 
 private theorem natCard_subtype_mem_eq_card [Fintype ι] (A : ι → Set Ω) (ω : Ω)
@@ -118,8 +117,7 @@ private theorem sum_powersetCard_indicator [Fintype ι] (A : ι → Set Ω) (r :
       simp [Set.indicator_apply, T, Finset.mem_powerset, Finset.subset_iff]
   have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r := by
     ext s
-    simp only [Finset.mem_inter, Finset.mem_powersetCard, Finset.subset_univ, true_and,
-      Finset.mem_powerset, and_comm]
+    simp [and_comm]
   rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter, hinter, Finset.card_powersetCard]
 
 /-- Pointwise Bonferroni identity expressing the truncated inclusion-exclusion error in terms of
@@ -233,18 +231,15 @@ theorem measureReal_natCard_eq_le_bonferroni [Fintype ι] (μ : Measure Ω) [IsF
     μ.real {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} ≤
       ∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k), μ.real (⋂ i ∈ s, A i) := by
-  have hmono := integral_mono ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k))
-    (integrable_bonferroni_sum μ hA k (2 * m + 1)) fun ω =>
-      show ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω ≤ _ from
-        sub_nonneg.mp <| by
-          rw [bonferroni_pointwise A k (2 * m + 1) (Nat.succ_pos _) ω]
-          refine mul_nonneg (Nat.cast_nonneg _) ?_
-          split_ifs with hkt
-          · exact sum_neg_one_pow_mul_choose_odd_nonneg _ m (Nat.sub_pos_of_lt hkt)
-          · exact le_rfl
-  change ∫ ω, ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ∂μ ≤ _ at hmono
-  rwa [integral_indicator_one (measurableSet_natCard_eq hA k),
-    integral_bonferroni_sum μ hA k (2 * m + 1)] at hmono
+  rw [← integral_indicator_one (measurableSet_natCard_eq hA k),
+    ← integral_bonferroni_sum μ hA k (2 * m + 1)]
+  refine integral_mono ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k))
+    (integrable_bonferroni_sum μ hA k (2 * m + 1)) fun ω => sub_nonneg.mp ?_
+  rw [bonferroni_pointwise A k (2 * m + 1) (Nat.succ_pos _) ω]
+  refine mul_nonneg (Nat.cast_nonneg _) ?_
+  split_ifs with hkt
+  · exact sum_neg_one_pow_mul_choose_odd_nonneg _ m (Nat.sub_pos_of_lt hkt)
+  · exact le_rfl
 
 /-- **Bonferroni lower bound**: truncating the inclusion-exclusion sum for
 `Nat.card {i | ω ∈ A i} = k` at even length `2 * m` gives a lower bound on
@@ -256,18 +251,16 @@ theorem bonferroni_le_measureReal_natCard_eq [Fintype ι] (μ : Measure Ω) [IsF
       μ.real {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} := by
   rcases m with _ | m
   · simp [measureReal_nonneg]
-  have hmono := integral_mono (integrable_bonferroni_sum μ hA k (2 * (m + 1)))
+  rw [← integral_indicator_one (measurableSet_natCard_eq hA k),
+    ← integral_bonferroni_sum μ hA k (2 * (m + 1))]
+  refine integral_mono (integrable_bonferroni_sum μ hA k (2 * (m + 1)))
     ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k)) fun ω =>
-      show _ ≤ ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω from
-        sub_nonpos.mp <| by
-          rw [bonferroni_pointwise A k (2 * (m + 1)) (by omega) ω]
-          refine mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _) ?_
-          split_ifs with hkt
-          · exact sum_neg_one_pow_mul_choose_even_nonpos _ (m + 1) (Nat.sub_pos_of_lt hkt)
-          · exact le_rfl
-  change _ ≤ ∫ ω, ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ∂μ at hmono
-  rwa [integral_indicator_one (measurableSet_natCard_eq hA k),
-    integral_bonferroni_sum μ hA k (2 * (m + 1))] at hmono
+      sub_nonpos.mp ?_
+  rw [bonferroni_pointwise A k (2 * (m + 1)) (by omega) ω]
+  refine mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _) ?_
+  split_ifs with hkt
+  · exact sum_neg_one_pow_mul_choose_even_nonpos _ (m + 1) (Nat.sub_pos_of_lt hkt)
+  · exact le_rfl
 
 /-- Specialization of `measureReal_natCard_eq_le_bonferroni` to `k = 0`: the event that none
 of `A i` holds has probability at most the odd-length alternating sum of intersection

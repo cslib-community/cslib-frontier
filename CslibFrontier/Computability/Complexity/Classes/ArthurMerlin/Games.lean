@@ -470,17 +470,15 @@ private theorem sum_toNat_eq_card {ι : Type} [Fintype ι] (f : ι → Bool) :
 
 private theorem sup_toNat_eq {ι : Type} [Fintype ι] (f : ι → Bool) :
     (univ.sup fun i => (f i).toNat) = (decide (∃ i, f i = true)).toNat := by
-  by_cases h : ∃ i, f i = true
-  · obtain ⟨i, hi⟩ := h
-    rw [decide_eq_true ⟨i, hi⟩]
-    refine le_antisymm (Finset.sup_le fun j _ => ?_) ?_
-    · cases f j <;> simp
-    · have := Finset.le_sup (f := fun i => (f i).toNat) (mem_univ i)
-      simpa [hi] using this
-  · rw [decide_eq_false h]
-    push Not at h
-    refine le_antisymm (Finset.sup_le fun j _ => ?_) (Nat.zero_le _)
-    simp [h j]
+  refine le_antisymm (Finset.sup_le fun j _ => ?_) ?_
+  · cases hj : f j
+    · simp
+    · simp [show ∃ i, f i = true from ⟨j, hj⟩]
+  · by_cases h : ∃ i, f i = true
+    · obtain ⟨i, hi⟩ := h
+      rw [decide_eq_true ⟨i, hi⟩]
+      simpa [hi] using Finset.le_sup (f := fun i => (f i).toNat) (mem_univ i)
+    · simp [h]
 
 /-- The one-move shape `[(x, p)]` of a polynomial game. -/
 private theorem map_fst_eq_singleton {G : List (AMMove × Polynomial ℕ)} {x : AMMove}
@@ -586,7 +584,6 @@ theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polyn
     have := hsum y
     omega
   · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
-    rw [hy]
     have := h y
     have := hsum y
     omega
@@ -594,55 +591,44 @@ theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polyn
 /-- **The empty game `[]` is `P`.** -/
 theorem AMGameClass_nil {enc : α ↪ List Bool} : AMGameClass enc [] = P enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    rw [List.map_eq_nil_iff.1 hG] at hA
-    exact ⟨fun a => V (a, []), by fun_prop,
-      isAMGameVerifier_nil_iff.1 hA⟩
-  · rintro ⟨f, hf, hA⟩
-    exact ⟨[], fun x => f x.1, rfl, hf.comp (.fst enc encBits), isAMGameVerifier_nil_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨f, hf, hA⟩ =>
+    ⟨[], fun x => f x.1, rfl, hf.comp (.fst enc encBits), isAMGameVerifier_nil_iff.2 hA⟩⟩
+  rw [List.map_eq_nil_iff.1 hG] at hA
+  exact ⟨fun a => V (a, []), by fun_prop, isAMGameVerifier_nil_iff.1 hA⟩
 
 /-- **The game `A` is `BPP`.** -/
 theorem AMGameClass_arthur {enc : α ↪ List Bool} : AMGameClass enc [.arthur] = BPP enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨p, rfl⟩ := map_fst_eq_singleton hG
-    exact ⟨p, V, hV, isAMGameVerifier_arthur_iff.1 hA⟩
-  · rintro ⟨p, V, hV, hA⟩
-    exact ⟨[(.arthur, p)], V, rfl, hV, isAMGameVerifier_arthur_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨p, V, hV, hA⟩ =>
+    ⟨[(.arthur, p)], V, rfl, hV, isAMGameVerifier_arthur_iff.2 hA⟩⟩
+  obtain ⟨p, rfl⟩ := map_fst_eq_singleton hG
+  exact ⟨p, V, hV, isAMGameVerifier_arthur_iff.1 hA⟩
 
 /-- **The game `M` is `NP`.** -/
 theorem AMGameClass_merlin {enc : α ↪ List Bool} : AMGameClass enc [.merlin] = NP enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨q, rfl⟩ := map_fst_eq_singleton hG
-    exact ⟨q, V, hV, isAMGameVerifier_merlin_iff.1 hA⟩
-  · rintro ⟨q, V, hV, hA⟩
-    exact ⟨[(.merlin, q)], V, rfl, hV, isAMGameVerifier_merlin_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨q, V, hV, hA⟩ =>
+    ⟨[(.merlin, q)], V, rfl, hV, isAMGameVerifier_merlin_iff.2 hA⟩⟩
+  obtain ⟨q, rfl⟩ := map_fst_eq_singleton hG
+  exact ⟨q, V, hV, isAMGameVerifier_merlin_iff.1 hA⟩
 
 /-- **The game `A M` is `AM`.** -/
 theorem AMGameClass_arthur_merlin {enc : α ↪ List Bool} :
     AMGameClass enc [.arthur, .merlin] = AM enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨p, q, rfl⟩ := map_fst_eq_pair hG
-    exact ⟨p, q, V, hV, isAMGameVerifier_arthur_merlin_iff.1 hA⟩
-  · rintro ⟨p, q, V, hV, hA⟩
-    exact ⟨[(.arthur, p), (.merlin, q)], V, rfl, hV, isAMGameVerifier_arthur_merlin_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨p, q, V, hV, hA⟩ =>
+    ⟨[(.arthur, p), (.merlin, q)], V, rfl, hV, isAMGameVerifier_arthur_merlin_iff.2 hA⟩⟩
+  obtain ⟨p, q, rfl⟩ := map_fst_eq_pair hG
+  exact ⟨p, q, V, hV, isAMGameVerifier_arthur_merlin_iff.1 hA⟩
 
 /-- **The game `M A` is `MA`.** -/
 theorem AMGameClass_merlin_arthur {enc : α ↪ List Bool} :
     AMGameClass enc [.merlin, .arthur] = MA enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨q, p, rfl⟩ := map_fst_eq_pair hG
-    exact ⟨q, p, V, hV, isAMGameVerifier_merlin_arthur_iff.1 hA⟩
-  · rintro ⟨q, p, V, hV, hA⟩
-    exact ⟨[(.merlin, q), (.arthur, p)], V, rfl, hV, isAMGameVerifier_merlin_arthur_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨q, p, V, hV, hA⟩ =>
+    ⟨[(.merlin, q), (.arthur, p)], V, rfl, hV, isAMGameVerifier_merlin_arthur_iff.2 hA⟩⟩
+  obtain ⟨q, p, rfl⟩ := map_fst_eq_pair hG
+  exact ⟨q, p, V, hV, isAMGameVerifier_merlin_arthur_iff.1 hA⟩
 
 theorem AMk_zero {enc : α ↪ List Bool} : AMk enc 0 = P enc := AMGameClass_nil
 
@@ -691,14 +677,12 @@ theorem mem_AMGameClass_cons_merlin {enc : α ↪ List Bool} {B : Set (α × Lis
       count (evalShape G (L.eval (enc a).length)) fun t => VB ((a, List.ofFn y), t)
     refine ⟨fun ⟨w, hw, hwB⟩ => ?_, fun ha => ?_⟩
     · let y := BitString.ofList (p.eval (enc a).length) w
-      have hyB : (a, List.ofFn y) ∈ B := by rwa [BitString.ofFn_ofList hw]
-      have h1 := (hB' (a, List.ofFn y)).1 hyB
+      have h1 := (hB' (a, List.ofFn y)).1 (by rwa [BitString.ofFn_ofList hw])
       rw [hL a y] at h1
       exact h1.trans (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y)))
     · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
-      rw [hy]
-      have hyB : (a, List.ofFn y) ∉ B := fun h => ha ⟨List.ofFn y, List.length_ofFn, h⟩
-      have h2 := (hB' (a, List.ofFn y)).2 hyB
-      rwa [hL a y] at h2
+      have h2 := (hB' (a, List.ofFn y)).2 fun h => ha ⟨List.ofFn y, List.length_ofFn, h⟩
+      rw [hL a y] at h2
+      rwa [hy]
 
 end Cslib.Complexity

@@ -88,11 +88,9 @@ theorem le_countP_of_rel_eval_groupMedian (r : α → α → Prop) [DecidableRel
   have hperm := mergeSort_perm oracle (x :: xs)
   have hsorted := mergeSort_sorted r oracle horacle (x :: xs)
   rw [eval_mergeSort] at hperm hsorted
-  have hk : xs.length / 2 < ((x :: xs).mergeSort fun a b => oracle (.le a b)).length := by
-    rw [hperm.length_eq, List.length_cons]
-    omega
   have hlen : ((x :: xs).mergeSort fun a b => oracle (.le a b)).length = xs.length + 1 := by
     rw [hperm.length_eq, List.length_cons]
+  have hk : xs.length / 2 < ((x :: xs).mergeSort fun a b => oracle (.le a b)).length := by omega
   rw [eval_groupMedian, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk, Option.getD_some]
   constructor
   · intro hp
@@ -317,12 +315,9 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
     rw [← List.countP_eq_length_filter,
       List.length_eq_countP_add_countP (fun x => decide (r x p))]
     simp only [Bool.decide_eq_true, decide_not]
-  have hLlt : (xs.filter (fun x => ¬ r p x)).length < xs.length := by
-    simp only [selectSideBound, selectCutoff] at hL hsmall
-    omega
-  have hGlt : (xs.filter (fun x => ¬ r x p)).length < xs.length := by
-    simp only [selectSideBound, selectCutoff] at hG hsmall
-    omega
+  simp only [selectSideBound, selectCutoff] at hL hG hsmall
+  have hLlt : (xs.filter (fun x => ¬ r p x)).length < xs.length := by omega
+  have hGlt : (xs.filter (fun x => ¬ r x p)).length < xs.length := by omega
   set L := xs.filter (fun x => ¬ r p x) with hLdef
   set E := xs.filter (fun x => r x p ∧ r p x) with hEdef
   set G := xs.filter (fun x => ¬ r x p) with hGdef
@@ -345,9 +340,8 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
       hyos.of_filter_add fun x _ hx => by
         have hyp : ¬ r y p := of_decide_eq_true (List.mem_filter.mp hyos.mem).2
         exact _root_.trans (not_not.mp hx) ((Std.Total.total y p).resolve_left hyp)
-    have hc : xs.countP (fun x => ¬ ¬ r x p) = xs.countP (fun x => r x p) :=
-      List.countP_congr fun x _ => by simp
-    rwa [hc, show k - L.length - E.length + xs.countP (fun x => r x p) = k by omega] at h
+    simp only [decide_not, Bool.not_not] at h
+    rwa [show k - L.length - E.length + xs.countP (fun x => r x p) = k by omega] at h
 
 /-- **Correctness of selection.** Against an oracle implementing a total preorder `r`,
 `select k xs` returns an element of rank `k` of `xs` whenever `k < xs.length`. -/
@@ -372,8 +366,7 @@ theorem eval_select_eq_getElem?_mergeSort {β : Type} [LinearOrder β]
   by_cases hk : k < xs.length
   · obtain ⟨y, hy, hyos⟩ := select_isOrderStatistic (· ≤ ·) oracle horacle hk
     rw [hy, List.isOrderStatistic_iff_mergeSort.mp hyos]
-  · rw [eval_select_eq_none (· ≤ ·) oracle horacle (Nat.le_of_not_lt hk), eq_comm,
-      List.getElem?_eq_none_iff, List.length_mergeSort]
-    exact Nat.le_of_not_lt hk
+  · simp [eval_select_eq_none (· ≤ ·) oracle horacle (Nat.le_of_not_lt hk),
+      Nat.le_of_not_lt hk]
 
 end Cslib.Query

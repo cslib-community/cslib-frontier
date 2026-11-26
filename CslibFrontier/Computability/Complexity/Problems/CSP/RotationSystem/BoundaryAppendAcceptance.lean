@@ -107,9 +107,9 @@ theorem ofRotation_appendRotation (F H : CSP Rel V) (hd : List.Disjoint F.vars H
     cases d with
     | inl d =>
       simp only [Sum.map_inl, append_dart_index_inl]
-      rw [List.getD_append _ _ _ _ (by
-        rw [RotationCertificate.length_ofRotation]
-        exact (Dart.indexEquiv _ d).isLt), RotationCertificate.getD_ofRotation]
+      rw [List.getD_append _ _ _ _
+        ((RotationCertificate.length_ofRotation r) ▸ (Dart.indexEquiv _ d).isLt),
+        RotationCertificate.getD_ofRotation]
     | inr d =>
       simp only [Sum.map_inr, append_dart_index_inr]
       have hl : (RotationCertificate.ofRotation r).successor.length =
@@ -237,12 +237,10 @@ private theorem reindex_constraintJoin {Other W : Type} [DecidableEq W]
   have hi (d : Dart (incidenceGraph F)) : (mergeDartEquiv h k d).index = d.index := rfl
   apply RotationCertificate.reindex_eq_ofRotation_transport
   · exact RotationCertificate.getD_ofRotation _
-  · intro d
-    obtain ⟨d, rfl⟩ := (mergeDartEquiv h k).surjective d
-    simpa only [constraintJoinDartEquiv, Equiv.trans_apply, Equiv.symm_apply_apply, hi] using hf d
-  · intro d
-    obtain ⟨d, rfl⟩ := (mergeDartEquiv h k).surjective d
-    simpa only [constraintJoinDartEquiv, Equiv.trans_apply, Equiv.symm_apply_apply, hi] using hb d
+  · exact (mergeDartEquiv h k).surjective.forall.mpr fun d => by
+      simpa only [constraintJoinDartEquiv, Equiv.trans_apply, Equiv.symm_apply_apply, hi] using hf d
+  · exact (mergeDartEquiv h k).surjective.forall.mpr fun d => by
+      simpa only [constraintJoinDartEquiv, Equiv.trans_apply, Equiv.symm_apply_apply, hi] using hb d
 
 namespace OrderedBoundary
 
@@ -427,19 +425,16 @@ private theorem verify_appendRawCertificate_nil_right_ofFn (F H : CSP Rel V) (r 
   let target := occurrenceTransport source e hv hfib
   have ht : RotationCertificate.ofRotation source =
       ⟨c.successor ++ d.successor.map (2 * (F.occurrences.length + m) + ·)⟩ := by
-    rw [ofRotation_appendRotation]
-    simp only [rho, tau, RotationCertificate.ofRotation_decode,
+    simp only [source, ofRotation_appendRotation, rho, tau, RotationCertificate.ofRotation_decode,
       appended_scope_length]
   have hidx (a) : (occurrenceDartEquiv e a).index =
       Nat.blockMove (2 * F.occurrences.length) (2 * m) (2 * H.occurrences.length) a.index := by
     simpa only [Nat.add_zero] using scopeJoin_dart_index F H r x y a
   have heq : appendRawCertificate F.occurrences.length m H.occurrences.length 0 c d =
       RotationCertificate.ofRotation target := by
-    simp only [appendRawCertificate, or_true, ite_true, Nat.add_zero]
-    rw [show 2 * (F.occurrences.length + m + H.occurrences.length) =
-      2 * (incidenceGraph ((F ++ H) ++
-        [Constraint.mk r (List.ofFn (Fin.addCases y x))])).edges.length by
-          simpa only [Nat.add_zero] using scopeJoin_target_edges F H r x y]
+    have hedges := scopeJoin_target_edges F H r x y
+    rw [Nat.add_zero] at hedges
+    simp only [appendRawCertificate, or_true, ite_true, Nat.add_zero, hedges]
     unfold target occurrenceTransport
     apply RotationCertificate.reindex_eq_ofRotation_transport
     · intro a; rw [← ht]; exact RotationCertificate.getD_ofRotation source a
@@ -480,16 +475,15 @@ theorem verify_appendRawCertificate_scopes (F H : CSP Rel V) (r : Rel) (xs ys : 
       have h := verify_appendRawCertificate_nil_right_ofFn F H r p Fin.elim0
         (by simpa only [hp, List.ofFn_zero] using hd) c d
         (by simpa only [hp] using hc) (by simpa only [List.ofFn_zero] using hq)
-      rw [hscope, List.ofFn_zero, List.nil_append, hp] at h
-      simpa only [List.length_cons, List.length_nil, List.nil_append] using h
+      simpa only [hscope, List.ofFn_zero, List.nil_append, hp, List.length_cons,
+        List.length_nil] using h
     | cons y ys =>
       let q : Fin (ys.length + 1) → V := Fin.cons y ys.get
       have hq' : List.ofFn q = y :: ys := by rw [List.ofFn_cons, List.ofFn_get]
       have h := verify_appendRawCertificate_ofFn F H r p q
         (by simpa only [hp, hq'] using hd) c d
         (by simpa only [hp] using hc) (by simpa only [hq'] using hq)
-      rw [hscope, hq', hp] at h
-      simpa only [List.length_cons] using h
+      simpa only [hscope, hq', hp, List.length_cons] using h
 
 /-- Append two supplied ordered boundaries by executing the literal raw table program.
 The source certificates are read as data. Target probe acceptance, target body acceptance

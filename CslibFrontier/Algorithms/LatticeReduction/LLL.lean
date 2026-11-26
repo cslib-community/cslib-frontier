@@ -296,11 +296,8 @@ theorem span_reduceRow (G : Vector (Vector ℚ m) n) (i : Fin n) :
   | succ t ih =>
     intro B ht
     have htn : t < n := by omega
-    have hti : (⟨t, htn⟩ : Fin n) < i := by
-      change t < (i : ℕ); omega
     simp only [reduceRow, htn, dite_true]
-    rw [ih _ (by omega), reduceStep, rows_subRow,
-      Submodule.span_range_update_sub_smul (ne_of_lt hti)]
+    rw [ih _ (by omega), span_reduceStep _ _ (Fin.mk_lt_mk.2 (by omega))]
 
 /-! ### Exchange -/
 
@@ -402,9 +399,9 @@ theorem PrefixReduced.succ {δ : ℝ} {b : Fin n → E} {k : ℕ} (hb : PrefixRe
       exact hsize j hji
   · rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
     · exact hb.2 i j hj hij
-    · have hk1 : k - 1 < n := by omega
-      obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
-      obtain rfl : i = ⟨k - 1, hk1⟩ := Fin.ext (by simp only at hij ⊢; omega)
+    · obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
+      obtain rfl : i = ⟨k - 1, (Nat.sub_le k 1).trans_lt hk⟩ :=
+        Fin.ext (by simp only at hij ⊢; omega)
       exact hex (by simp only at hij; omega)
 
 end Prefix
@@ -637,8 +634,7 @@ theorem lll_eq_lllWith (B : Vector (Vector ℤ m) n) : lll B = lllWith (3 / 4) B
 independent. -/
 theorem isReduced_lll (B : Vector (Vector ℤ m) n) (hB : LinearIndependent ℝ (realRows B)) :
     IsReduced (3 / 4) (realRows (lll B)) ∧ LinearIndependent ℝ (realRows (lll B)) := by
-  have hδ : (3 / 4 : ℝ) = ((3 / 4 : ℚ) : ℝ) := by norm_num
-  rw [lll_eq_lllWith, hδ]
+  rw [lll_eq_lllWith, show (3 / 4 : ℝ) = ((3 / 4 : ℚ) : ℝ) by norm_num]
   exact isReduced_lllWith (by norm_num) (by norm_num) B hB
 
 /-- LLL preserves the lattice. -/

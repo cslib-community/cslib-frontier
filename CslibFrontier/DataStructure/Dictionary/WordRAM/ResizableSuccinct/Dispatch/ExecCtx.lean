@@ -372,10 +372,7 @@ private theorem val_mkTmp {r baseOff l s : ℕ} (outs : Fin l → Fin r)
 theorem mkTmp_castAdd {r baseOff l s : ℕ} (outs : Fin l → Fin r)
     (hb : baseOff + (l + s + 1) ≤ r) (i : Fin l) :
     mkTmp (baseOff := baseOff) outs hb (Fin.castAdd (s + 1) i) = outs i := by
-  dsimp only [mkTmp]
-  split_ifs with h
-  · rfl
-  · exfalso; exact h i.isLt
+  simp [mkTmp, i.isLt]
 
 theorem mkTmp_injective {r baseOff l s : ℕ} {outs : Fin l → Fin r}
     (hb : baseOff + (l + s + 1) ≤ r)
@@ -420,11 +417,7 @@ theorem outs1_inj {r : ℕ} (reg : Fin r) : Function.Injective ![reg] := by
 theorem outs2_inj {r : ℕ} {r0 r1 : Fin r} (h : r0 ≠ r1) :
     Function.Injective ![r0, r1] := by
   intro a b heq
-  fin_cases a <;> fin_cases b
-  · rfl
-  · exact absurd heq h
-  · exact absurd heq.symm h
-  · rfl
+  fin_cases a <;> fin_cases b <;> first | rfl | exact absurd heq h | exact absurd heq.symm h
 
 private theorem epochTmpHb {n : ℕ} (hb : n ≤ scratchEpoch) : 88 + n ≤ rEpoch :=
   Nat.add_le_add_left hb 88
@@ -866,25 +859,17 @@ theorem not_readsWidth_loadBlockUpTo {r m : ℕ} (rAddr rTmp : Fin r) (dst : Fin
       not_readsWidth_loadAtOffCode _ _ _ _⟩
 
 theorem not_readsWidth_loadActiveCtxCode : ¬loadActiveCtxCode.ReadsWidth := by
-  have h1 : ¬(RCode.ofCode (wItemWords.code rFr srcItemWords tmpItemWords)).ReadsWidth := by
-    rw [RCode.readsWidth_ofCode]
-    exact (wItemWords.code_spec rFr srcItemWords tmpItemWords
-      tmpItemWords_inj srcItemWords_ne_tmp tmpItemWords_ne_rFr srcItemWords_ne_rFr).1
-  have hblk1 := not_readsWidth_loadBlockUpTo rBase rCur hpReg offHashParams 18 (by decide)
-  have hblk2 := not_readsWidth_loadBlockUpTo rBase rCur cpReg offCompParams 35 (by decide)
-  simp [loadActiveCtxCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin, hblk1, hblk2, h1]
+  have h1 := (wItemWords.code_spec rFr srcItemWords tmpItemWords
+    tmpItemWords_inj srcItemWords_ne_tmp tmpItemWords_ne_rFr srcItemWords_ne_rFr).1
+  simp [loadActiveCtxCode, RCode.ReadsWidth, RCode.readsWidth_ofCode, Op.ReadsWidth, Op.exactBin,
+    not_readsWidth_loadBlockUpTo, h1]
 
 theorem not_readsWidth_evalKeyHashCode : ¬evalKeyHashCode.ReadsWidth := by
-  have h2 : ¬(RCode.ofCode (wExtractQuot.code rFr srcExtractQuot tmpExtractQuot)).ReadsWidth := by
-    rw [RCode.readsWidth_ofCode]
-    exact (wExtractQuot.code_spec rFr srcExtractQuot tmpExtractQuot
-      tmpExtractQuot_inj srcExtractQuot_ne_tmp tmpExtractQuot_ne_rFr srcExtractQuot_ne_rFr).1
-  have h3 : ¬(RCode.ofCode (wEvalHash.code rFr srcEvalHash tmpEvalHash)).ReadsWidth := by
-    rw [RCode.readsWidth_ofCode]
-    exact (wEvalHash.code_spec rFr srcEvalHash tmpEvalHash
-      tmpEvalHash_inj srcEvalHash_ne_tmp tmpEvalHash_ne_rFr srcEvalHash_ne_rFr).1
-  simp only [evalKeyHashCode, RCode.ReadsWidth, not_or]
-  exact ⟨h2, h3⟩
+  simp only [evalKeyHashCode, RCode.ReadsWidth, RCode.readsWidth_ofCode, not_or]
+  exact ⟨(wExtractQuot.code_spec rFr srcExtractQuot tmpExtractQuot
+      tmpExtractQuot_inj srcExtractQuot_ne_tmp tmpExtractQuot_ne_rFr srcExtractQuot_ne_rFr).1,
+    (wEvalHash.code_spec rFr srcEvalHash tmpEvalHash
+      tmpEvalHash_inj srcEvalHash_ne_tmp tmpEvalHash_ne_rFr srcEvalHash_ne_rFr).1⟩
 
 
 /-! ## Section 5: ABI Encoding, `InEpochValid`, `1 · OPT` Peak Space, Potential, and Charges -/
@@ -1093,10 +1078,7 @@ theorem storeAtOffCode_exec {r w L_peak base off val : ℕ} {rAddr rSrc rTmp : F
   rw [hx2] at s2
   have s3 := RDemonicExec.store (B := .exact) (a := rTmp) (s := rSrc) (w := w)
     (L_peak := L_peak) (x := x.set rTmp (base + off)) hL (by simp [hlt])
-  have haddr : (x.set rTmp (base + off)).regs rTmp = base + off := by simp
-  have hv_eq : (x.set rTmp (base + off)).regs rSrc = val := by
-    simp [Function.update_of_ne hs_ne_tmp, hsrc]
-  rw [haddr, hv_eq] at s3
+  simp only [RData.set_regs, Function.update_self, Function.update_of_ne hs_ne_tmp, hsrc] at s3
   exact ⟨(s1.seq_eq (s2.seq_eq s3)).mono le_rfl (fun _ h => h),
     (hx.set hadd_fit).write hlt hval_fit⟩
 
@@ -1511,18 +1493,15 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
       45206 * inEpochFactor := by
     have : evalMemBound 3 = 45151 := by decide
     rw [mul_comm 45206]; exact Nat.mul_le_mul_left _ (by omega)
-  have hy_rFr : y.regs rFr = y.frontier := by
-    have hfr_m := congrArg Memory.State.frontier hm_eh
-    change y.regs rFr = _ at hfr_m
-    rw [hfr_m, hfr_eh, hms_eq, hyf]
+  have hy_rFr : y.regs rFr = y.frontier :=
+    (congrArg Memory.State.frontier hm_eh).trans (by rw [hfr_eh, hms_eq, hyf])
   have hy_hout : y.regs rHashOut = hValOfSeed U N θ q := by
     have hu_eq : u_q = ⟨q % 2 ^ quotientBits U N, Nat.mod_lt _ (Nat.two_pow_pos _)⟩ :=
       Fin.ext (Nat.mod_eq_of_lt hq_lt).symm
     have h0 := hout_reg 0
     rw [tmpEvalHash_out, hres_eh] at h0
     unfold hValOfSeed evalQuotHash
-    rw [← hu_eq]
-    exact h0
+    rwa [← hu_eq]
   have hy_out_mem : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) →
       y.mem a = x.mem a := fun a ha =>
     (congrFun (congrArg Memory.State.mem hm_eh) a).trans (hout_eh a ha)

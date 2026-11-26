@@ -535,8 +535,7 @@ private theorem stage1BumpAndFinish_fastStep {c U V w n_max base : ℕ}
   · rw [ite_eq_left hdone, ite_eq_left hdone]
     obtain ⟨hfn_mc, hfn_vp, hfn_step⟩ :=
       stage1FinishGenProg_fastStep (fs := fsW) henv hpos_fn hw.2.2.2.1 hw.2.2.2.2.1 (s := sW)
-    have hseq := seqUnitProg_fastStep (c₁ := 1) (c₂ := 21) hw ⟨hfn_mc, hfn_vp, hfn_step⟩
-    exact ⟨hseq.1, hseq.2.1, hseq.2.2⟩
+    exact seqUnitProg_fastStep (c₁ := 1) (c₂ := 21) hw ⟨hfn_mc, hfn_vp, hfn_step⟩
   · rw [ite_eq_right hdone, ite_eq_right hdone]
     refine ⟨?_, validProg_bind hw.2.1 (validProg_pure _), ?_⟩
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
@@ -599,37 +598,30 @@ theorem epochTickStage1GenProg_fastStep {c U V w n_max base : ℕ}
         (stage1_dirtyZero_bounds_after_queue hc hb₀ hpos_init rfl)
         hqb_step.2.1 hqb_step.2.2.1
         (s := (Memory.spec 0).clientState s (stage1QueueBucketProg ((cp, base), b₀)))
-      have hfs_w_eq : ({ fs_q with stageCursor := fs.stageCursor + 1 } : FastState) =
-          (if fs.rebQueued b₀ = 0 then
-            { fs with
-              rebQueued := Function.update fs.rebQueued b₀ 1
-              dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b₀
-              dirtyCount := fs.dirtyCount + 1
-              stageCursor := fs.stageCursor + 1 }
-           else { fs with stageCursor := fs.stageCursor + 1 }) := by
-        dsimp only [fs_q]; split_ifs <;> rfl
-      rw [← hfs_w_eq]
       refine stageSlotCheckSeq_fastStep (kSlot := kSlot) (midCost := 12) (tailCost := 22)
-        hr hlt ?_ hcs_st hcs_res hcs_mc hcs_vp ?_ hqb_mc hqb_vp hqb_step
-        hbf.1 hbf.2.1 hbf.2.2 (by omega)
-      · rfl
-      · dsimp only [kSlot, slotCheckBucket, cp, oldTr]; simp
+        hr hlt rfl hcs_st hcs_res hcs_mc hcs_vp ?_ hqb_mc hqb_vp hqb_step
+        hbf.1 hbf.2.1
+        (by simpa only [fs_q,
+          apply_ite (fun f : FastState => { f with stageCursor := fs.stageCursor + 1 })]
+          using hbf.2.2)
+        (by omega)
+      dsimp only [kSlot, slotCheckBucket, cp, oldTr]
+      simp
     | none =>
       rw [hchk] at hcs_res; dsimp only at hcs_res ⊢
       have hbf := stage1BumpAndFinish_fastStep (fs := fs) (fsMid := fs) henv hcur1_fit hpos_init
         hseed hrep (s := s)
       refine stageSlotCheckSeq_fastStep (kSlot := kSlot) (fsMid := fs) (pMid := pure ())
-        (midCost := 0) (tailCost := 22) hr hlt ?_ hcs_st hcs_res hcs_mc hcs_vp ?_
+        (midCost := 0) (tailCost := 22) hr hlt rfl hcs_st hcs_res hcs_mc hcs_vp ?_
         (by simp) (validProg_pure ()) (FastStateStep.refl hseed hrep)
         hbf.1 hbf.2.1 hbf.2.2 (by omega)
-      · rfl
-      · dsimp only [kSlot, cp, oldTr]; simp [zero_ne_one, pure_bind]
+      dsimp only [kSlot, cp, oldTr]
+      simp [zero_ne_one, pure_bind]
   · rw [ite_eq_right hlt]
     obtain ⟨hfn_mc, hfn_vp, hfn_step⟩ :=
       stage1FinishGenProg_fastStep (fs := fs) henv hpos_init hseed hrep (s := s)
-    refine stageCursorPrefix_ge_fastStep (tailCost := 21)
-      hr hlt ?_ hfn_mc hfn_vp hfn_step (by omega)
-    rfl
+    exact stageCursorPrefix_ge_fastStep (tailCost := 21)
+      hr hlt rfl hfn_mc hfn_vp hfn_step (by omega)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal
 

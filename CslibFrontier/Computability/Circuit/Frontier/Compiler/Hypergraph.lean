@@ -152,10 +152,10 @@ private theorem input_supply_le_of_unread_lt {U : Type u} [Finite U] [Nontrivial
     (hu : Nat.card U ^ (hyperNetwork c I Acc lay).readᶜ.ncard < K) :
     c_n * (Fintype.card (LiveInput c) : ℝ) ≤ c_n * n + |c_n| * Real.logb (Nat.card U) K := by
   set u := (hyperNetwork c I Acc lay).readᶜ.ncard
-  have hread : (hyperNetwork c I Acc lay).read.ncard = Fintype.card (LiveInput c) := by
-    rw [read_hyperNetwork, ncard_coe_finset, Fintype.card_coe]
-  have hsum := ncard_add_ncard_compl (hyperNetwork c I Acc lay).read
-  rw [hread, Nat.card_eq_fintype_card, Fintype.card_fin] at hsum
+  have hsum : (hyperNetwork c I Acc lay).read.ncard + u = Nat.card (Fin n) :=
+    ncard_add_ncard_compl _
+  rw [read_hyperNetwork, ncard_coe_finset, ← Fintype.card_coe, Nat.card_eq_fintype_card,
+    Fintype.card_fin] at hsum
   have hR : c_n * (Fintype.card (LiveInput c) : ℝ) = c_n * n - c_n * u := by
     rw [← show (Fintype.card (LiveInput c) : ℝ) + u = n by exact_mod_cast hsum]; ring
   linarith [mul_nonneg (neg_le_iff_add_nonneg.mp (neg_abs_le c_n)) (Nat.cast_nonneg (α := ℝ) u),
@@ -175,11 +175,9 @@ private theorem accepted_hiddenHyperNetwork {U : Type u} [Nonempty U] {σ : Sign
   ext x
   simp only [hiddenHyperNetwork, Network.accepted_hide, Network.accepted_reindex,
     accepted_hyperNetwork, mem_ofPred_eq]
-  refine exists_congr fun y => ?_
-  have happend : Sum.elim x y ∘ finSumFinEquiv.symm = Fin.append x y := by
-    rw [← Fin.append_comp_sumElim, Function.comp_assoc]
-    exact congrArg (Fin.append x y ∘ ·) finSumFinEquiv.self_comp_symm
-  rw [happend]
+  refine exists_congr fun y => Eq.to_iff <| congrArg (c.eval I · 0 ∈ Acc) ?_
+  rw [← Fin.append_comp_sumElim, Function.comp_assoc]
+  exact congrArg (Fin.append x y ∘ ·) finSumFinEquiv.self_comp_symm
 
 
 /-- Nondeterministic input-count bound when `c_n ≤ 0`: hiding the `k` witness inputs can only
@@ -559,9 +557,7 @@ theorem eventually_agreement_le_multiarySize_of_cert {r K₀ : ℕ} {a b : ℚ}
       linarith [mul_le_mul_of_nonneg_right (min_le_right ((1 - c_n) * A * ε / 2) (1 / 2))
         (Nat.cast_nonneg (α := ℝ) n)]
     have hexp := div_pow_le_exp hq2 (by positivity) hμ.le hlogR
-    refine (agreement_le_of_forall_bias hbound Acc).trans ?_
-    dsimp only [γ]
-    linarith
+    exact (agreement_le_of_forall_bias hbound Acc).trans (by linarith)
   · refine agreement_le_of_unread_lt_step hcert hη hγ hK'2 c hfan I Acc hS hb_nn
       lay hlay (not_le.mp hu) hsize ?_ hn
     rw [mul_div_cancel_right₀ _ (Real.log_pos one_lt_two).ne']
@@ -579,11 +575,10 @@ theorem eventually_agreement_le_innerSize_of_cert {r K₀ : ℕ} {a b : ℚ}
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
   have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
   obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_multiarySize_of_cert.{u, v} hcert hε
-  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => ?_⟩
-  filter_upwards [H U S K b_bias hbias hK] with n hn σ I Acc c hfan hs
-  exact hn σ I Acc c hfan
-    ((mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by linarith)).trans
-      hs)
+  exact ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono
+    fun n hn σ I Acc c hfan hs => hn σ I Acc c hfan
+      ((mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize)
+        (by linarith)).trans hs)⟩
 
 /-! ### Monotonicity wrappers for rational certificate constants -/
 
@@ -641,11 +636,9 @@ private theorem eventually_agreement_multiary_of_le_coeff {r K₀ : ℕ} {a b : 
         (c : Circuit σ n 1), c.FanInAtMost r → m_r * c.multiarySize ≤ (L - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
   obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_multiarySize_of_cert.{u, v} hcert hε
-  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => ?_⟩
-  filter_upwards [H U S K b_bias hbias hK] with n hn σ I Acc c hfan hs
-  rw [← hm_r] at hs
-  exact hn σ I Acc c hfan
-    (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
+  exact ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono
+    fun n hn σ I Acc c hfan hs => hn σ I Acc c hfan
+      ((hm_r ▸ hs).trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) n.cast_nonneg))⟩
 
 /-! ### Unconditional bounded-fan-in lower bounds (`r ∈ {3, 4, 8, 16, 64}`) -/
 
@@ -715,12 +708,10 @@ theorem eventually_agreement_le_44199_two_mul_innerSize {ε : ℝ} (hε : 0 < ε
         (c : Circuit σ n 1), c.FanInAtMost 3 → 2 * (c.innerSize : ℝ) ≤ (44199 / 10000 - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
   obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_innerSize_of_cert.{u, v} cert_r3_slepian hε
-  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => ?_⟩
-  filter_upwards [H U S K b_bias hbias hK] with n hn σ I Acc c hfan hs
-  rw [show (2 : ℝ) = (3 : ℝ) - 1 by norm_num] at hs
-  exact hn σ I Acc c hfan
-    (hs.trans (mul_le_mul_of_nonneg_right
-      (sub_le_sub_right (by norm_num [hyperCoeff]) ε) (Nat.cast_nonneg n)))
+  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono ?_⟩
+  intro n hn σ I Acc c hfan hs
+  norm_num [hyperCoeff] at hn
+  exact hn σ I Acc c hfan (by linarith [Nat.cast_nonneg (α := ℝ) n])
 
 /-! #### Fan-in `r = 4` (Sheppard + star-cone: `4.4792n`) -/
 

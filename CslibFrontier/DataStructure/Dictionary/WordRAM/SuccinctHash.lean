@@ -113,9 +113,8 @@ theorem two_pow_quotientBits_le_two_pow_qBits (U n_max : ℕ) :
   Nat.pow_le_pow_right two_pos (quotientBits_le_qBits U n_max)
 
 theorem qBits_le_of_le_pow {U w n_max : ℕ} (hw : 0 < w) (hU : U ≤ 2 ^ w) :
-    qBits U n_max ≤ w := by
-  unfold qBits
-  exact max_le (quotientBits_le_of_le_pow hU) hw
+    qBits U n_max ≤ w :=
+  max_le (quotientBits_le_of_le_pow hU) hw
 
 theorem totalMicroBits_le_three_mul_hashB (n_max : ℕ) :
     totalMicroBits n_max ≤ 3 * hashB n_max := by wram_omega
@@ -147,13 +146,8 @@ theorem reducedTableBits_hash_le (U n_max : ℕ) :
 theorem two_pow_two_mul_reducedChunkBits_hash_le (U n_max : ℕ) :
     2 ^ (2 * reducedChunkBits
       (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max))) ≤ 8 + n_max := by
-  set t := reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)
-  have hc_pos : 0 < 2 * reducedChunkBits t := by
-    have := reducedChunkBits_pos t; omega
-  have hle : 2 ^ (2 * reducedChunkBits t) ≤ reducedTableBits t := by
-    dsimp only [reducedTableBits]
-    exact Nat.le_mul_of_pos_left _ hc_pos
-  exact hle.trans (reducedTableBits_hash_le U n_max)
+  refine (Nat.le_mul_of_pos_left _ ?_).trans (reducedTableBits_hash_le U n_max)
+  exact Nat.mul_pos two_pos (reducedChunkBits_pos _)
 
 /-- Explicit linear bound on `initSteps U n_max`: `initSteps U n_max ≤ 31 * n_max + 1091`. -/
 theorem initSteps_le (U n_max : ℕ) :
@@ -184,14 +178,9 @@ theorem eight_le_hashSpace (U w n_max : ℕ) : 8 ≤ hashSpace U w n_max := by
 
 theorem two_le_w_of_fits_space {U V w n_max base : ℕ}
     (hfit : Fits w (base + space U V w n_max)) : 2 ≤ w := by
-  have h8 : 8 ≤ space U V w n_max := by
-    unfold space totalSpace offGM offLM offVal offQuot
-    have := eight_le_hashSpace U w n_max
-    omega
-  have hlt : 8 < 2 ^ w := lt_of_le_of_lt (by omega) hfit
-  by_contra h
-  have hw1 : w ≤ 1 := by omega
-  have hpow : 2 ^ w ≤ 2 ^ 1 := Nat.pow_le_pow_right two_pos hw1
+  refine (Nat.pow_lt_pow_iff_right (n := 1) one_lt_two).mp (lt_of_le_of_lt ?_ hfit)
+  unfold space totalSpace offGM offLM offVal offQuot
+  have := eight_le_hashSpace U w n_max
   omega
 
 theorem two_mul_reducedChunkBits_hash_le {U w n_max : ℕ}
@@ -208,12 +197,9 @@ theorem two_mul_reducedChunkBits_hash_lt {U V w n_max base : ℕ}
     (hfit : Fits w (base + space U V w n_max)) :
     2 * reducedChunkBits
       (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) < w := by
-  have hw2 := two_le_w_of_fits_space hfit
-  have hfit_hash : Fits w (base + hashSpace U w n_max) := by
-    refine hfit.of_le ?_
-    wram_omega
   exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-    (two_mul_reducedChunkBits_hash_le hw2 hnU hU) hfit_hash
+    (two_mul_reducedChunkBits_hash_le (two_le_w_of_fits_space hfit) hnU hU)
+    (show Fits w (base + hashSpace U w n_max) from hfit.of_le (by wram_omega))
 
 theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (hU : U ≤ 2 ^ w) :
     ReducedKWise.tableWords w (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤
@@ -406,11 +392,8 @@ theorem hValOfSeed_lt (U n_max : ℕ) (θ : QuotHashSeed U n_max) (q : ℕ) :
 
 theorem mOfSeed_lt (U n_max : ℕ) (θ : QuotHashSeed U n_max) (q : ℕ) :
     mOfSeed U n_max θ q < numMicroPerBucket n_max := by
-  unfold mOfSeed numMicroPerBucket
-  rw [Nat.shiftRight_eq_div_pow]
-  apply Nat.div_lt_of_lt_mul
-  rw [← Nat.pow_add]
-  exact hValOfSeed_lt U n_max θ q
+  rw [mOfSeed, numMicroPerBucket, Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul (Nat.pow_add 2 _ _ ▸ hValOfSeed_lt U n_max θ q)
 
 theorem evalQuotHash_keyQuotient_eq (U n_max : ℕ) (θ : QuotHashSeed U n_max) (u : Fin U) :
     evalQuotHash U n_max θ (keyQuotient (bucketBits n_max) u.val) =
@@ -510,10 +493,8 @@ theorem dictStateInv_of_zero {U V w₀ n_max base : ℕ} (θ : QuotHashSeed U n_
   obtain ⟨hinv, htot0, hpot0⟩ :=
     bucketStateInv_of_zero (U := U) (V := V) (w₀ := w₀) (n_max := n_max)
       (h_space := hashSpace U w₀ n_max) (base := base) (mOfSeed U n_max θ) hgm0 hlm0
-  refine ⟨⟨⟨fun _ _ => [], ?_⟩, ?_⟩, hpot0⟩
-  · rwa [bucketMapOfState_empty]
-  · rw [htot0]
-    simp [Dictionary.dom_empty]
+  exact ⟨⟨⟨fun _ _ => [], by rwa [bucketMapOfState_empty]⟩,
+    by simp [htot0, Dictionary.dom_empty]⟩, hpot0⟩
 
 /-- Under `BucketStateInv ... (bucketMapOfState U n_max (hValOfSeed U n_max θ) s_abs)`, the length
 of the micro-chain `L b m` for key `u` is at most `1 + microCollCount` and the bucket overflow

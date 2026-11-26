@@ -111,14 +111,8 @@ private theorem initAuction_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin
       have hst_eq : (Memory.spec 0).clientState s (initStep (ws, k)) =
           ⟨Function.update (Function.update (Function.update s.mem
             (ws.bOwner + k) ws.n) (ws.bPrice + k) 0) (ws.bStack + k) (ws.n - (k + 1)),
-            s.frontier⟩ := by
-        unfold initStep
-        rw [clientState_bind_write, clientState_bind_write, clientState_bind_write,
-          clientState_pure]
-      have hres_eq : (Memory.spec 0).clientResult s (initStep (ws, k)) = k + 1 := by
-        unfold initStep
-        rw [clientResult_bind_write, clientResult_bind_write, clientResult_bind_write,
-          clientResult_pure]
+            s.frontier⟩ := rfl
+      have hres_eq : (Memory.spec 0).clientResult s (initStep (ws, k)) = k + 1 := rfl
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
         simp (disch := omega) only [Function.update_of_ne]
@@ -199,21 +193,14 @@ private theorem boundedWhile_auctionLoop_spec {w W : ℕ} (ws : AuctionWS)
       have hbids₁ : st₁.bids = st.bids + 1 := bids_bidStep hs_free
       have hbids_mono : st₁.bids ≤ (auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids :=
         bids_le_auctionLoop cZ (ws.eps : ℤ) fuel st₁
-      have hbw_eq : boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1)
-          st.free.length =
-          (bidStepProg (ws, st.free.length) >>= fun a' =>
-            boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws fuel a') := by
-        rw [boundedWhile, ite_eq_left hpos]
       have hloop_step : auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st =
           auctionLoop cZ (ws.eps : ℤ) fuel st₁ := by
         rw [auctionLoop, hs_free]
       simp only [← hs_free]
-      rw [hbw_eq, hloop_step]
-      refine ⟨fun hfree => ?_, ?_, ?_, ?_, ?_⟩
+      rw [boundedWhile, ite_eq_left hpos, hloop_step]
+      refine ⟨fun hfree => ?_, validHistory_bind_step hv_step (by rwa [hres_step]), ?_, ?_, ?_⟩
       · rw [whileSafe, ite_eq_left hpos, hres_step]
         exact ⟨hsafe_step, hwsafe_ih hfree⟩
-      · refine validHistory_bind_step hv_step ?_
-        rwa [hres_step]
       · rw [memoryCost_bind', hres_step]
         have hsub : (auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids - st.bids =
             1 + ((auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids - st₁.bids) := by omega

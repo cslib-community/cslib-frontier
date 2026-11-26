@@ -969,15 +969,13 @@ private lemma drainList_spec {F : Finset P} (s : State P S M V) (es : List (Enve
   induction es generalizing s with
   | nil => exact ⟨LTS.MTr.refl, rfl⟩
   | cons e es ih =>
-    have hmem : e ∈ s.msgs := Multiset.mem_of_le hle (by simp)
     have hcons : e ::ₘ Multiset.ofList es ≤ s.msgs := by simpa using hle
-    have hes_le : Multiset.ofList es ≤ s.msgs.erase e := by
-      simpa using Multiset.erase_le_erase e hcons
     have hle' : Multiset.ofList es ≤ (π.doDeliver e s).msgs :=
-      hes_le.trans (Multiset.le_add_right _ _)
-    obtain ⟨hmtr, hmap⟩ := ih (π.doDeliver e s) hle'
-      (fun x hx => hdest x (List.mem_cons_of_mem e hx))
-    exact ⟨.stepL ⟨hmem, rfl⟩ hmtr, by simp only [drainList, hmap, List.map_cons]⟩
+      le_trans (by simpa using Multiset.erase_le_erase e hcons) (Multiset.le_add_right _ _)
+    obtain ⟨hmtr, hmap⟩ := ih (π.doDeliver e s) hle' fun x hx =>
+      hdest x (List.mem_cons_of_mem e hx)
+    exact ⟨.stepL ⟨Multiset.mem_of_le hle (by simp), rfl⟩ hmtr,
+      by simp only [drainList, hmap, List.map_cons]⟩
 
 private noncomputable def drainPhase (F : Finset P) (s : State P S M V) :
     List (Action P M V) × State P S M V :=
@@ -992,26 +990,22 @@ private lemma drainPhase_spec (F : Finset P) (s : State P S M V) :
   dsimp only [drainPhase]
   set pending := s.msgs.filter (fun e => e.dest ∉ F)
   by_cases h0 : pending = 0
-  · simp only [h0, ↓reduceIte, List.length_singleton, zero_lt_one, true_and]
-    refine ⟨LTS.MTr.single π.lts (show π.lts.Tr s Action.stutter s from rfl), ?_, ?_⟩
-    · simp only [List.mem_singleton, forall_eq]; trivial
-    · intro e he hdest
-      have hmem : e ∈ pending := Multiset.mem_filter.mpr ⟨he, hdest⟩
-      simp [h0] at hmem
+  · simp only [h0, ↓reduceIte, List.length_singleton, zero_lt_one, true_and,
+      List.mem_singleton, forall_eq]
+    exact ⟨LTS.MTr.single π.lts (show π.lts.Tr s Action.stutter s from rfl), trivial,
+      fun e he hdest => absurd (show e ∈ pending from Multiset.mem_filter.mpr ⟨he, hdest⟩)
+        (by simp [h0])⟩
   · simp only [h0, ↓reduceIte]
-    have hle : Multiset.ofList pending.toList ≤ s.msgs := by
-      rw [Multiset.coe_toList]; exact Multiset.filter_le _ _
     have hdest : ∀ e ∈ pending.toList, e.dest ∉ F := fun e he =>
       (Multiset.mem_filter.mp (Multiset.mem_toList.mp he)).2
-    obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList hle hdest
-    refine ⟨hmtr, ?_, ?_, ?_⟩
-    · rw [hmap, List.length_map]
-      obtain ⟨e, he⟩ := Multiset.exists_mem_of_ne_zero h0
-      exact List.length_pos_of_mem (Multiset.mem_toList.mpr he)
-    · rw [hmap, List.forall_mem_map]; exact hdest
-    · intro e he hed
-      rw [hmap, List.mem_map]
-      exact ⟨e, Multiset.mem_toList.mpr (Multiset.mem_filter.mpr ⟨he, hed⟩), rfl⟩
+    obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList
+      (by simpa only [Multiset.coe_toList] using Multiset.filter_le _ _) hdest
+    obtain ⟨e, he⟩ := Multiset.exists_mem_of_ne_zero h0
+    refine ⟨hmtr, ?_, ?_, fun d hd hed => ?_⟩
+    · simpa only [hmap, List.length_map] using List.length_pos_of_mem (Multiset.mem_toList.mpr he)
+    · simpa only [hmap, List.forall_mem_map, IsDrainAction] using hdest
+    · simp only [hmap, List.mem_map]
+      exact ⟨d, Multiset.mem_toList.mpr (Multiset.mem_filter.mpr ⟨hd, hed⟩), rfl⟩
 
 private noncomputable def drainSeq (F : Finset P) (s₀ : State P S M V) :
     ℕ → List (Action P M V) × State P S M V
@@ -1037,14 +1031,11 @@ theorem exists_fair_omegaExecution (F : Finset P) (s₀ : State P S M V) :
   · intro e hdest k he
     by_contra! hnot
     have hk_le : k ≤ xls.cumLen k := (cumLen_strictMono hpos).id_le k
-    have hmem_cum : e ∈ (ts k).msgs := by
-      rw [← hts k]
-      exact π.omega_notDelivered_mem hexec he hnot (xls.cumLen k) hk_le
-    have hact : .deliver e ∈ xls k := (hseg k).2.2.2 e hmem_cum hdest
-    obtain ⟨i, hi, heq⟩ := List.getElem_of_mem hact
-    have hget : xls.flatten (xls.cumLen k + i) = .deliver e := by
-      rw [flatten_get_add xls hi hpos, heq]
-    exact hnot (xls.cumLen k + i) (hk_le.trans (Nat.le_add_right _ _)) hget
+    have hmem_cum : e ∈ (ts k).msgs :=
+      hts k ▸ π.omega_notDelivered_mem hexec he hnot (xls.cumLen k) hk_le
+    obtain ⟨i, hi, heq⟩ := List.getElem_of_mem ((hseg k).2.2.2 e hmem_cum hdest)
+    exact hnot (xls.cumLen k + i) (hk_le.trans (Nat.le_add_right _ _))
+      ((flatten_get_add xls hi hpos).trans heq)
   · rw [forall_flatten_iff hpos]
     exact fun k => List.forall_iff_forall_mem.mpr (hseg k).2.2.1
 
@@ -1171,23 +1162,17 @@ private lemma localInv_snoc {P V : Type*} {s : State P V PUnit V}
     (∀ (i j : ℕ) (hij : i < j) (hj : j < hist'.length),
       (hist'[i]'(hij.trans hj)).invStep < hist'[j].invStep) := by
   intro hist'
-  refine ⟨?_, ?_⟩
-  · intro i hi
-    have hi_len : i < s.history.length + 1 := by simpa [hist'] using hi
-    by_cases hlt : i < s.history.length
+  refine ⟨fun i hi => ?_, fun i j hij hj => ?_⟩
+  · by_cases hlt : i < s.history.length
     · simp only [hist', List.getElem_append_left hlt]
-      obtain ⟨hc, hr, hs⟩ := hcomp i hlt
-      exact ⟨hc, hr, Nat.lt_succ_of_lt hs⟩
-    · obtain rfl : i = s.history.length := by omega
+      exact ⟨(hcomp i hlt).1, (hcomp i hlt).2.1, Nat.lt_succ_of_lt (hcomp i hlt).2.2⟩
+    · obtain rfl : i = s.history.length := by simp [hist'] at hi; omega
       simp only [hist', List.getElem_append_right le_rfl, Nat.sub_self, List.getElem_singleton]
       exact ⟨hrec_comp, hrec_resp.trans (congrArg some hrec_inv.symm), by omega⟩
-  · intro i j hij hj
-    have hj_len : j < s.history.length + 1 := by simpa [hist'] using hj
-    by_cases hjl : j < s.history.length
-    · have hil : i < s.history.length := hij.trans hjl
-      simp only [hist', List.getElem_append_left hil, List.getElem_append_left hjl]
+  · by_cases hjl : j < s.history.length
+    · simp only [hist', List.getElem_append_left (hij.trans hjl), List.getElem_append_left hjl]
       exact hmono i j hij hjl
-    · obtain rfl : j = s.history.length := by omega
+    · obtain rfl : j = s.history.length := by simp [hist'] at hj; omega
       simp only [hist', List.getElem_append_left hij, List.getElem_append_right le_rfl,
         Nat.sub_self, List.getElem_singleton, hrec_inv]
       exact (hcomp i hij).2.2

@@ -147,11 +147,9 @@ private theorem listGetD_binary {α γ : Type} {encA : α ↪ List Bool} {encIn 
     (hl : ComputableInPolyTime l encIn (encList encA))
     (hi : ComputableInPolyTime i encIn encNat) :
     ComputableInPolyTime (fun x => (l x).getD (i x) d) encIn encA := by
-  have heq : (fun x => (l x).getD (i x) d) = fun x => (l x).getD (min (l x).length (i x)) d := by
-    funext x
-    rcases le_total (l x).length (i x) with h | h
-    · rw [Nat.min_eq_left h, List.getD_eq_default _ _ h, List.getD_eq_default _ _ le_rfl]
-    · rw [Nat.min_eq_right h]
+  have heq : (fun x => (l x).getD (i x) d) = fun x => (l x).getD (min (l x).length (i x)) d :=
+    funext fun x => by
+      rcases le_total (l x).length (i x) with h | h <;> simp [h]
   rw [heq]
   exact listGetDWithInput hl (binary_min_unary' ((length_list encA).comp hl) hi) d
 
@@ -272,16 +270,13 @@ private theorem chain_iff {R : ℕ → ℕ → Prop} {q : List ℕ} :
 
 private theorem eq_one_of_sum_le {l : List ℕ} (h1 : ∀ a ∈ l, 1 ≤ a) (h : l.sum ≤ l.length) :
     ∀ a ∈ l, a = 1 := by
-  induction l with
-  | nil => simp
-  | cons a t ih =>
-    have ht := List.length_le_sum_of_one_le t fun b hb => h1 b (List.mem_cons_of_mem _ hb)
-    simp only [List.sum_cons, List.length_cons] at h
-    have ha := h1 a List.mem_cons_self
-    intro b hb
-    rcases List.mem_cons.1 hb with rfl | hb
-    · omega
-    · exact ih (fun c hc => h1 c (List.mem_cons_of_mem _ hc)) (by omega) b hb
+  rintro a ha
+  obtain ⟨s, t, rfl⟩ := List.append_of_mem ha
+  have hs := List.length_le_sum_of_one_le s fun x hx => h1 x (by simp [hx])
+  have ht := List.length_le_sum_of_one_le t fun x hx => h1 x (by simp [hx])
+  have ha1 := h1 a (by simp)
+  simp only [List.sum_append, List.sum_cons, List.length_append, List.length_cons] at h
+  omega
 
 private theorem getD_map_of_lt {l : List ℕ} {f : ℕ → ℕ} {j : ℕ} (hj : j < l.length) :
     (l.map f).getD j 0 = f (l.getD j 0) := by

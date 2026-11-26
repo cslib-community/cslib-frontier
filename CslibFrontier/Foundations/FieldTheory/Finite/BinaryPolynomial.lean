@@ -260,9 +260,7 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
   | cons b f ih =>
     have hp' : (mulXMod (l ++ [true]) p).length = l.length := by
       simpa using length_mulXMod (l ++ [true]) p (by simpa using hp)
-    have ha' : (if b then a.zipWith xor p else a).length = l.length := by
-      simpa [modStep] using length_modStep_acc (l ++ [true]) p a b
-        (by simpa using hp) (by simpa using ha)
+    have ha' : (if b then a.zipWith xor p else a).length = l.length := by cases b <;> simp [hp, ha]
     obtain ⟨h1, h2, h3, h4⟩ := ih _ _ hp' ha'
     refine ⟨h1, h2, ?_, ?_⟩
     · rw [List.foldl_cons, modStep, h3, map_mul, mk_polyOfBits_mulXMod l p hp, map_mul,
@@ -270,11 +268,9 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
       ring
     · rw [List.foldl_cons, modStep, h4, map_add, map_mul, mk_polyOfBits_mulXMod l p hp,
         polyOfBits_cons]
-      cases b
-      · simp only [Bool.false_eq_true, ↓reduceIte, bitEquiv_symm_false, map_add, map_mul, map_zero]
-        ring
-      · rw [ite_eq_left rfl, polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
-        simp only [map_add, map_mul, map_one]
+      cases b <;>
+        simp only [Bool.false_eq_true, ↓reduceIte, polyOfBits_zipWith_xor (ha.trans hp.symm),
+          bitEquiv_symm_false, bitEquiv_symm_true, map_add, map_mul, map_zero, map_one] <;>
         ring
 
 private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).length = l.length := by
@@ -394,9 +390,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
   constructor
   · intro h q hq hdq hdvd
     obtain ⟨d, rfl⟩ := polyOfCode_surjective q
-    have hd0 : d ≠ 0 := by
-      rintro rfl
-      exact hq.ne_zero polyOfCode_zero
+    have hd0 : d ≠ 0 := fun h => hq.ne_zero (h ▸ polyOfCode_zero)
     rw [natDegree_polyOfCode hd0, Finset.mem_Ioc] at hdq
     have hd2 : 2 ≤ d := (Nat.pow_le_pow_right two_pos hdq.1).trans (Nat.pow_log_le_self 2 hd0)
     have hdm : d < m :=
@@ -411,11 +405,10 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     obtain ⟨⟨hd2, hdlog⟩, hany⟩ := hc
     have hd0 : d ≠ 0 := by omega
     have hd : polyOfCode d ≠ 0 := (polyOfCode_ne_zero_and_natDegree hd0).1
-    refine h (polyOfCode d) (monic_of_ne_zero hd) ?_ ?_
-    · rw [natDegree_polyOfCode hd0, Finset.mem_Ioc]
-      exact ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
-    · by_contra hndvd
-      exact Bool.true_eq_false.mp (((any_modBits_bits_iff hd0 _).2 hndvd).symm.trans hany)
+    refine h (polyOfCode d) (monic_of_ne_zero hd) ?_ (not_not.mp fun hndvd =>
+      Bool.false_ne_true (hany.symm.trans ((any_modBits_bits_iff hd0 _).2 hndvd)))
+    rw [natDegree_polyOfCode hd0, Finset.mem_Ioc]
+    exact ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
 
 /-- **The exhaustive search**: the least code `m < B` of an irreducible binary polynomial of degree
 `p`, by trial division (`0` if there is none). -/

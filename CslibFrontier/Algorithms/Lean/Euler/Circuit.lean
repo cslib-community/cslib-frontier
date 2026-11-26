@@ -139,12 +139,11 @@ theorem consecutivePairs_append_append {A c B : List α} {x : α} (hc1 : c.head?
       ((A ++ x :: B).consecutivePairs ++ c.consecutivePairs) := by
   obtain ⟨c₁, rfl⟩ := List.head?_eq_some_iff.mp hc1
   obtain ⟨c₂, hc₂⟩ := List.getLast?_eq_some_iff.mp hc2
-  have e1 : A ++ x :: c₁ ++ B = A ++ x :: (c₁ ++ B) := by simp
   have e2 : x :: (c₁ ++ B) = c₂ ++ x :: B := by
-    rw [← List.cons_append, hc₂]
-    simp
-  rw [e1, consecutivePairs_append_cons A x (c₁ ++ B), e2, consecutivePairs_append_cons c₂ x B,
-    ← hc₂, consecutivePairs_append_cons A x B, List.append_assoc]
+    simpa [List.append_assoc] using congrArg (· ++ B) hc₂
+  rw [List.append_assoc, List.cons_append, consecutivePairs_append_cons A x (c₁ ++ B), e2,
+    consecutivePairs_append_cons c₂ x B, ← hc₂, consecutivePairs_append_cons A x B,
+    List.append_assoc]
   exact List.Perm.append_left _ List.perm_append_comm
 
 theorem head?_append_append {A c B : List α} {x : α} (hc1 : c.head? = some x) :
@@ -183,19 +182,13 @@ theorem eqvGen_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α}
     rcases hce with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact .rel _ _ hcd
     · exact .symm _ _ (.rel _ _ hcd)
-  intro e he
-  have hm : undirected e ∈ (u :: w').consecutivePairs.map undirected :=
-    h.perm.symm.subset (List.mem_map_of_mem he)
-  obtain ⟨f, hf, hfe⟩ := List.mem_map.mp hm
+  intro ⟨a, b⟩ he
+  obtain ⟨⟨c, d⟩, hf, hfe⟩ := List.mem_map.mp (h.perm.symm.subset (List.mem_map_of_mem he))
   have hf12 := mem_of_mem_consecutivePairs hf
-  have he1 : e.1 ∈ u :: w' := by
-    obtain ⟨a, b⟩ := e
-    obtain ⟨c, d⟩ := f
-    simp only [undirected_mk, Sym2.eq_iff] at hfe
-    rcases hfe with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact hf12.1
-    · exact hf12.2
-  exact .symm _ _ (eqvGen_of_mem_cons hstep _ he1)
+  simp only [undirected_mk, Sym2.eq_iff] at hfe
+  rcases hfe with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact .symm _ _ (eqvGen_of_mem_cons hstep _ hf12.1)
+  · exact .symm _ _ (eqvGen_of_mem_cons hstep _ hf12.2)
 
 /-- An Euler circuit from `u` visits every vertex connected to `u` by edges of `H`. -/
 theorem mem_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α} (h : IsEulerCircuit H u w)
@@ -275,9 +268,8 @@ theorem degree_consecutivePairs_cons (a : α) (l : List α) (x : α) :
     have := ih b
     rw [List.consecutivePairs_cons_cons, degree_cons, List.getLast_cons_cons, List.count_cons]
     simp only [ends, beq_iff_eq] at this ⊢
-    by_cases h : x = a
-    · subst h
-      simp only [ite_true] at this ⊢
+    rcases eq_or_ne x a with rfl | h
+    · simp only [ite_true] at this ⊢
       omega
     · simp only [h, ite_false, Ne.symm h] at this ⊢
       omega
@@ -508,9 +500,8 @@ theorem eulerLoop_spec {H : List (α × α)} {u : α}
     · rw [hsp]
       have hw' := consecutivePairs_append_append (A := A) (B := B) s1 s2
       rw [← hw] at hw'
-      refine h3.trans ?_
-      rw [List.map_append]
-      refine (List.Perm.append_left _ s3).trans ?_
+      rw [List.map_append] at h3
+      refine (h3.trans (List.Perm.append_left _ s3)).trans ?_
       rw [← List.map_append, ← List.append_assoc]
       exact ((hw'.append_right _).map _).symm
     · exact s4

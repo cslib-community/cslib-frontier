@@ -195,8 +195,7 @@ private theorem inEpochOpCode_rename_active_demonicExec {U V w N n n_init base :
     have hregs : (y.extend epochEmb x).regs ∘ epochEmb = y.regs :=
       congrArg RData.regs (RData.comap_extend epochEmb_injective y x)
     rwa [hregs]
-  · rw [← epochEmb_rBase, RData.extend_regs_apply epochEmb_injective]
-    exact hy_base
+  · rwa [← epochEmb_rBase, RData.extend_regs_apply epochEmb_injective]
 
 /-! ## Section 2: Unified Parameter-Free Operational Dispatcher (`resizableOpCode`) -/
 
@@ -953,8 +952,7 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
     intro y hy
     rw [PMF.mem_support_map_iff] at hy
     obtain ⟨θ_new, _, rfl⟩ := hy
-    have hid : extMid (zMid θ_new) = θ_new := hext_id θ_new
-    rw [hid]
+    rw [show extMid (zMid θ_new) = θ_new from hext_id θ_new]
     exact (ExecRCodeDist.of_demonicExec (hop_spec θ_new).1).mono_peak hle_in
   have hex_seq := (hex_mig.mono_peak hle_m).seq hex_op_supp
   let mkOut (θ_new : QuotHashSeed U N_new) : StepROutcome (LatentSeed U) o.Result rResize :=
@@ -962,12 +960,9 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
   let μ_out : PMF (StepROutcome (LatentSeed U) o.Result rResize) := μ_u.map mkOut
   have hmap_data : (μ_u.map zMid).bind (fun y => PMF.pure (zFin (extMid y))) =
       μ_out.map StepROutcome.data := by
-    have h1 : (μ_u.map zMid).bind (fun y => PMF.pure (zFin (extMid y))) =
-        (μ_u.map zMid).map (zFin ∘ extMid) := rfl
-    rw [h1, PMF.map_comp, PMF.map_comp]
-    refine congrArg (μ_u.map ·) (funext fun θ_new => ?_)
-    dsimp only [Function.comp_apply, mkOut, StepROutcome.data, extMid]
-    rw [hext_id θ_new]
+    change (μ_u.map zMid).map (zFin ∘ extMid) = _
+    rw [PMF.map_comp, PMF.map_comp]
+    exact congrArg (μ_u.map ·) (funext fun θ_new => congrArg zFin (hext_id θ_new))
   have htsum_op : (∑' y, (μ_u.map zMid) y * ((stepsOp (extMid y) : ℕ) : ℝ≥0∞)) =
       ∑' θ_new, μ_u θ_new * ((stepsOp θ_new : ℕ) : ℝ≥0∞) := by
     rw [Cslib.Probability.PMF.tsum_map_mul]
@@ -992,21 +987,18 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
       push_cast at hc
       exact hc.trans_eq (add_assoc _ _ _)
     · unfold inEpochCharge; push_cast; ring
-  have hcap_eq_N : st'.cap = N_new := hst'_cap
-  have hinit_eq_n : st'.initCount = n := hst'_init
-  refine ⟨μ_out, _, hex_seq.congr_dist hmap_data le_rfl, fun q hq => ?_, ?_, ?_⟩
+  refine ⟨μ_out, _, hex_seq.congr_dist hmap_data le_rfl, fun q hq => ?_,
+    map_seedAt_uniform_of_cap_eq mkOut (fun _ => rfl) hst'_cap, ?_⟩
   · dsimp only [μ_out] at hq
     rw [PMF.mem_support_map_iff] at hq
     obtain ⟨θ_new, _, rfl⟩ := hq
     obtain ⟨_, hdec, hzb, hzf, hsp_fin, hzb_reg, hbel_fin, _⟩ := hop_spec θ_new
-    refine ⟨⟨hcap_eq_N.symm, ?_, hzb_reg, fun _ => ?_⟩, rfl, hdec, fun addr haddr =>
+    refine ⟨⟨hst'_cap.symm, ?_, hzb_reg, fun _ => ?_⟩, rfl, hdec, fun addr haddr =>
       (hbel_fin addr haddr).trans (((hmid_all θ_new).2.2.2.2.2.2.2 addr haddr).trans
         (hbelow_x addr haddr))⟩
-    · rw [hcap_eq_N, hinit_eq_n]
+    · rw [hst'_cap, hst'_init]
       exact compactedRep_of_split hzb hzf hval_tc.2 hsp_fin
-    · rw [hinit_eq_n]
-      exact compactedSplitRep_seedAt_mk hcap_eq_N hsp_fin
-  · exact map_seedAt_uniform_of_cap_eq mkOut (fun _ => rfl) hst'_cap
+    · exact hst'_init ▸ compactedSplitRep_seedAt_mk hst'_cap hsp_fin
   · rw [htsum_op]
     have htsum_pot : (∑' q, μ_out q *
         (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) =
@@ -1019,7 +1011,7 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
           ∑' θ_new, (μ_u θ_new * (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞) +
             μ_u θ_new * (((2 * migLinearFactor) * Nat.dist n' n : ℕ) : ℝ≥0∞)) :=
         tsum_congr fun θ_new => by
-          rw [hcap_eq_N, hinit_eq_n]
+          rw [hst'_cap, hst'_init]
           unfold resizablePotential
           rw [Nat.cast_add, mul_add]
       rw [h1, CompleteLattice.summable.tsum_add CompleteLattice.summable,
@@ -1335,8 +1327,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
     have hfr8 : x.frontier = base + 8 := by
       rw [hfr, hN0, hn0]; unfold compactedEpochWords rootHdrWords; simp
     have hhdr0 : RootHeaderValid U V w 0 0 0 base x.mem := by
-      have h0 : RootHeaderValid U V w st.cap n st.initCount base x.mem := hhdr
-      rwa [hN0, hn0, hinit0] at h0
+      simpa only [hN0, hn0, hinit0] using hhdr
     have hpot_x_zero : resizablePotential U w st.cap n st.initCount base x = 0 := by
       rw [hN0, hn0, hinit0]; exact resizablePotential_zero U w base x
     cases o with
@@ -1404,19 +1395,19 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
       refine ⟨μ_out, _, hex_code.congr_dist hmap_data le_rfl, fun q hq => ?_,
         fun _ => ?_, ?_⟩
       · dsimp only [μ_out] at hq
-        rw [PMF.mem_support_map_iff] at hq; obtain ⟨θ', _, rfl⟩ := hq
+        rw [PMF.mem_support_map_iff] at hq
+        obtain ⟨θ', _, rfl⟩ := hq
         obtain ⟨hzb, hzf, hsp, hzb_reg, hbel⟩ := hinit_all θ'
         have hs_eq : st'.dict = Function.update (Dictionary.empty U) u (some v) := by
           dsimp only [st', EpochState.step, Dynamic.spec, StateTransitionSpec.stepFn,
             Dynamic.step]
           rw [hs_emp]
-        have hcard1 : (Dictionary.dom (Function.update (Dictionary.empty U) u (some v))).card =
-            1 := by
-          rw [Dictionary.dom_insert, Dictionary.dom_empty]; rfl
+        have hcard1 : (Dictionary.dom st'.dict).card = 1 := by
+          rw [hs_eq, Dictionary.dom_insert, Dictionary.dom_empty]; rfl
         refine ⟨⟨hst'_cap.symm, ?_, hzb_reg, fun _ => ?_⟩, rfl, rfl, hbel⟩
-        · rw [hst'_cap, hst'_init, hs_eq, hcard1]
+        · rw [hst'_cap, hst'_init, hcard1, hs_eq]
           exact compactedRep_of_split hzb hzf (epochValid_targetCap hhdr.pos_U) hsp
-        · rw [hst'_init, hs_eq, hcard1]
+        · rw [hst'_init, hcard1, hs_eq]
           exact compactedSplitRep_seedAt_mk hst'_cap hsp
       · rw [ite_eq_right hcap_ne]
         exact map_seedAt_uniform_of_cap_eq mkOut (fun _ => rfl) hst'_cap
@@ -1593,16 +1584,12 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           dsimp only [L_peak, stepExactPeakWords, x₂, x₁, RData.set]
           change base + (if n = 0 then _ else _) = x.frontier
           rw [ite_eq_right hn0, ite_eq_left hn1, hfr, hn1]
-        have hev1 : EpochValid U 1 st.cap := by
-          have h0 : EpochValid U n st.cap := hanc.1
-          rwa [hn1] at h0
+        have hev1 : EpochValid U 1 st.cap := hn1 ▸ (hanc.1 : EpochValid U n st.cap)
         have hfr1 : x₂.frontier = base + compactedEpochWords U V w st.cap 1 := by
           change x.frontier = _; rw [hfr, hn1]
         have hsplit1 : CompactedSplitRep base (base + offCompItems U w st.cap) U V w st.cap
-            1 st.initCount θ st.dict ⟨x₂.mem, x₂.frontier⟩ := by
-          have h0 : CompactedSplitRep base (base + offCompItems U w st.cap) U V w st.cap
-              n st.initCount θ st.dict ⟨x.mem, x.frontier⟩ := hsplit
-          rwa [hn1] at h0
+            1 st.initCount θ st.dict ⟨x₂.mem, x₂.frontier⟩ :=
+          hn1 ▸ (hsplit : CompactedSplitRep _ _ _ _ _ _ n _ θ _ ⟨x₂.mem, x₂.frontier⟩)
         obtain ⟨z, steps_d1, hex_d1, hzb, hz_base, hbel_z, hd1_cases⟩ :=
           deleteLastOneCode_demonicExec u hx₂b hev1 hfr1 hsplit1 hx₂_base hx₂_arg.2
         have hsteps : steps_d1 ≤ deleteLastOneCharge := by
@@ -1625,8 +1612,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           omega
         by_cases hsome : (st.dict u).isSome
         · rw [ite_eq_left hsome] at hd1_cases
-          obtain ⟨hs_empty, hrep_z, _⟩ := hd1_cases
-          have hs'_empty : st'.dict = Dictionary.empty U := hs_empty
+          have hs'_empty : st'.dict = Dictionary.empty U := hd1_cases.1
           have hn'0 : n' = 0 := by simp [n', hs'_empty, Dictionary.dom_empty]
           have hcap0 : st'.cap = 0 := by
             dsimp only [st', EpochState.step, nextEpochCap]
@@ -1639,7 +1625,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
             fun q hq => ?_, fun hn'_pos => absurd hn'0 hn'_pos.ne',
             pure_empty_step_cost_le q_out hs'_empty hcap0 hinit0' hle_b_nat⟩
           obtain rfl := Set.mem_singleton_iff.mp (PMF.support_pure q_out ▸ hq)
-          exact ⟨epochRep_of_empty_step hs'_empty hcap0 hinit0' rfl hrep_z hz_base,
+          exact ⟨epochRep_of_empty_step hs'_empty hcap0 hinit0' rfl hd1_cases.2.1 hz_base,
             rfl, rfl, hbel_z⟩
         · rw [ite_eq_right hsome] at hd1_cases
           obtain ⟨hs_same, hzf_same, hsplit_z, hpot_eq, _⟩ := hd1_cases
@@ -1655,22 +1641,18 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
             fun q hq => ?_, fun _ => ?_, ?_⟩
           · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-            have hcard1 : (Dictionary.dom st.dict).card = 1 := hn1
             refine ⟨⟨hrep.cap_eq.trans hcap_same.symm, ?_, hz_base, fun _ => ?_⟩,
               rfl, rfl, hbel_z⟩
-            · rw [hcap_same, hinit_same, hs'_same, hcard1]
+            · rw [hcap_same, hinit_same, hs'_same, show (Dictionary.dom st.dict).card = 1 from hn1]
               exact compactedRep_of_split hzb hzf_same hev1 hsplit_z
-            · rw [hcap_same, hinit_same, hs'_same, hcard1]
+            · rw [hcap_same, hinit_same, hs'_same, show (Dictionary.dom st.dict).card = 1 from hn1]
               exact hsplit_z
           · rw [ite_eq_left hcap_same]
             exact ⟨hn_pos, PMF.pure_map _ _⟩
           · rw [ite_eq_left (show 0 < n from hn_pos), tsum_pmf_pure_mul]
             have hpot_full : resizablePotential U w st'.cap n' st'.initCount base q_out.data =
                 resizablePotential U w st.cap n st.initCount base x := by
-              rw [hcap_same, hinit_same, hn'1, hn1]
-              unfold resizablePotential
-              dsimp only [q_out]
-              rw [hpot_eq]
+              simp only [resizablePotential, hcap_same, hinit_same, hn'1, hn1, q_out, hpot_eq]
               rfl
             rw [hpot_full]
             exact (add_comm _ _).le.trans
@@ -1961,12 +1943,9 @@ theorem resizableOpCode_step_expected_amortized {U V w base k_init : ℕ}
     refine ⟨hbdd_t, hfit_in, P.prepare_bounded hbdd_t hfit_in, hP_code.symm ▸ hex,
       fun q hq => ?_⟩
     obtain ⟨hrep_q, _, hdec_q, hbel_q⟩ := hout_all q hq
-    have hfr_q : q.data.frontier = base + compactedEpochWords U V w st'.cap n' :=
-      hrep_q.compacted_rep.frontier_eq
-    have hreg_q : q.data.regs P.baseReg = base := by
-      rw [hP_base]; exact hrep_q.base_reg_eq
+    have hfr_q := hrep_q.compacted_rep.frontier_eq
     exact ⟨hrep_q.compacted_rep.bounded,
-      ⟨by rw [hfr_q]; exact Nat.le_add_right _ _, hfr_q, hreg_q⟩,
+      ⟨hfr_q.symm ▸ Nat.le_add_right _ _, hfr_q, hP_base ▸ hrep_q.base_reg_eq⟩,
       hdec_q, hbel_q⟩
   · intro q_seq hq_seq
     rw [PMF.mem_support_bind_iff] at hq_seq; obtain ⟨t, ht, hq_map⟩ := hq_seq

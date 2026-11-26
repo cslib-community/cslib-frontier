@@ -550,12 +550,11 @@ theorem FilterInv.isFull_backSlot_of_le_backLen {U b f n : ℕ} {S : Finset (Fin
     (hinv : FilterInv n S quot rem st) (hS_lt : #S < 2 ^ b) (q : Fin (2 ^ b))
     {r : ℕ} (hr1 : 1 ≤ r) (hr : r ≤ hinv.backLen hS_lt q) :
     st.isFull (backSlot b q r) = true := by
-  have hmin := Nat.find_min (hinv.exists_backSlot_empty hS_lt q)
-    (by omega : r - 1 < hinv.backLen hS_lt q)
-  push Not at hmin
-  have hne := hmin (by have := hinv.backLen_le_card hS_lt q; omega)
-  rw [Nat.sub_add_cancel hr1] at hne
-  exact Bool.eq_true_of_not_eq_false hne
+  have hmin := not_and.mp
+    (Nat.find_min (hinv.exists_backSlot_empty hS_lt q)
+      (by omega : r - 1 < hinv.backLen hS_lt q))
+    (by have := hinv.backLen_le_card hS_lt q; omega)
+  rwa [Nat.sub_add_cancel hr1, Bool.not_eq_false] at hmin
 
 /-- Start slot `o = backSlot b q (backLen q)` of the full cluster around `q`. -/
 @[expose] noncomputable def FilterInv.clusterStart {U b f n : ℕ} {S : Finset (Fin U)}
@@ -580,13 +579,11 @@ theorem FilterInv.exists_probeSlot_empty {U b f n : ℕ} {S : Finset (Fin U)}
     refine hinv.card_full_slots_le A fun p hp => ?_
     obtain ⟨idx, hidx, rfl⟩ := Finset.mem_image.mp hp
     have hidx_lt : idx < #S + 1 := Finset.mem_range.mp hidx
+    dsimp only [o, clusterStart]
     by_cases hlt : idx < a
-    · dsimp only [o, clusterStart]
-      rw [probeSlot_backSlot_sub q (by omega)]
+    · rw [probeSlot_backSlot_sub q (by omega)]
       exact hinv.isFull_backSlot_of_le_backLen hS_lt q (by omega) (by omega)
-    · dsimp only [o, clusterStart]
-      have heq : idx = a + (idx - a) := by omega
-      rw [heq, probeSlot_backSlot_add]
+    · rw [← Nat.add_sub_of_le (not_lt.mp hlt), probeSlot_backSlot_add]
       exact Bool.eq_true_of_not_eq_false (hall (idx - a) (by omega))
   omega
 
@@ -641,19 +638,16 @@ theorem FilterInv.intervalValid_cluster {U b f n : ℕ} {S : Finset (Fin U)}
     IntervalValid S quot rem st (hinv.clusterStart hS_lt q) (hinv.clusterLen hS_lt q) := by
   refine hinv.maximal_intervalValid (hinv.clusterStart hS_lt q) (hinv.clusterLen hS_lt q)
     (hinv.clusterLen_le_card hS_lt q) ?_ ?_ ?_
-  · dsimp only [clusterStart]
-    rw [backSlot_backSlot]
+  · rw [clusterStart, backSlot_backSlot]
     exact hinv.isFull_backSlot_succ_backLen hS_lt q
-  · dsimp only [clusterStart, clusterLen]
-    rw [probeSlot_backSlot_add]
+  · rw [clusterStart, clusterLen, probeSlot_backSlot_add]
     exact hinv.isFull_probeSlot_fwdLen hS_lt q
   · intro i hi
     dsimp only [clusterStart, clusterLen] at hi ⊢
     by_cases hlt : i < hinv.backLen hS_lt q
     · rw [probeSlot_backSlot_sub q (by omega)]
       exact hinv.isFull_backSlot_of_le_backLen hS_lt q (by omega) (by omega)
-    · have heq : i = hinv.backLen hS_lt q + (i - hinv.backLen hS_lt q) := by omega
-      rw [heq, probeSlot_backSlot_add]
+    · rw [← Nat.add_sub_of_le (not_lt.mp hlt), probeSlot_backSlot_add]
       exact hinv.isFull_probeSlot_of_lt_fwdLen hS_lt q (by omega)
 
 private theorem runOffset_eq_card_filter_image {U b f : ℕ} (S : Finset (Fin U))

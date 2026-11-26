@@ -93,8 +93,7 @@ theorem length_eWin_le {D B h L : ℕ} {w : Win} (hw : WInv D B h L w) :
   obtain ⟨q, ts⟩ := w
   have h₂ := length_encList_le eTape ts (b := 2 * h + 4 + 2 * L * (2 * B + 3)) fun t ht => by
     have hc := Nat.mul_le_mul_right (2 * B + 3) (hw.cells t ht)
-    simp only [cells] at hc
-    simp only [eTape_apply, length_encPair]
+    simp only [cells, eTape_apply, length_encPair] at hc ⊢
     nlinarith [length_encIntUnary_le t.head, hw.head t ht,
       length_cells_le fun o ho => hw.val t ht o (List.mem_append_left t.right ho),
       length_cells_le fun o ho => hw.val t ht o (List.mem_append_right t.left ho)]
@@ -136,8 +135,7 @@ theorem winv_initWin (d : Desc) (x : List ℕ) :
     simp only [List.cons_append, List.nil_append, List.mem_cons, List.mem_map] at ho
     rcases ho with rfl | ⟨a, ha, rfl⟩
     · simp
-    · have := le_listMax (f := id) ha
-      simp only [Option.getD_some, id] at this ⊢; omega
+    · simpa using (le_listMax (f := id) ha).trans (by omega)
   · simp
 
 /-! ### One step -/
@@ -206,10 +204,7 @@ private lemma grow_moveIn (t : Tape) (p p' : ℕ) : Grow 1 t (moveIn t p p') := 
 private lemma valLe_moveIn {B : ℕ} {t : Tape} (h : ValLe B t) (p p' : ℕ) :
     ValLe B (moveIn t p p') := by
   unfold moveIn
-  split_ifs
-  · exact valLe_move h _
-  · exact valLe_move h _
-  · exact h
+  split_ifs <;> first | exact valLe_move h _ | exact h
 
 /-- Applying actions moves every head by at most one and adds at most two cells. -/
 private lemma forall₂_applyTapes (ts : List Tape) (as : List TapeAct) :
@@ -258,11 +253,10 @@ private lemma wstep_cases (d : Desc) (w : Win) :
   · exact Or.inl rfl
   · refine Or.inr ⟨i, ts, inPos i.read,
       (stepWith d ⟨q, inPos i.read, ts⟩ (inSym i.read)).1.inputPos, rfl, ?_⟩
-    rcases stepWith_cases d ⟨q, inPos i.read, ts⟩ (inSym i.read) with h | h | ⟨e, he, h⟩ <;>
-      simp only [wstep, h]
-    · simp
-    · simp
-    · exact Or.inr (Or.inr ⟨e, he, rfl⟩)
+    rcases stepWith_cases d ⟨q, inPos i.read, ts⟩ (inSym i.read) with h | h | ⟨e, he, h⟩
+    · simp [wstep, h]
+    · simp [wstep, h]
+    · exact Or.inr (Or.inr ⟨e, he, by simp [wstep, h]⟩)
 
 /-! ### Pasting -/
 
@@ -286,10 +280,8 @@ private lemma exists_of_forall₂ {α β : Type} {R : α → β → Prop} {l₁ 
   induction h with
   | nil => simp at hb
   | cons hab _ ih =>
-    rcases List.mem_cons.mp hb with rfl | hb
-    · exact ⟨_, List.mem_cons_self .., hab⟩
-    · obtain ⟨a, ha, h⟩ := ih hb
-      exact ⟨a, List.mem_cons_of_mem _ ha, h⟩
+    exact (List.mem_cons.mp hb).elim (fun h => h ▸ ⟨_, List.mem_cons_self .., hab⟩)
+      fun hb => (ih hb).imp fun _ ⟨ha, h⟩ => ⟨List.mem_cons_of_mem _ ha, h⟩
 
 private lemma forall₂_trans {α β γ : Type} {R : α → β → Prop} {S : β → γ → Prop}
     {T : α → γ → Prop} (H : ∀ a b c, R a b → S b c → T a c) {l₁ : List α} {l₂ : List β}
@@ -428,12 +420,9 @@ private lemma sim_out (d : Desc) (n : ℕ) (w : Win) :
   fun_induction sim d n w with
   | case1 => simp -- 0 steps
   | case2 w => -- 1 step: `wstep`
-    rcases wstep_cases d w with h | ⟨i, ts, p, p', -, h | h | ⟨e, he, h⟩⟩ <;> rw [h]
-    · simp
-    · simp
-    · simp
-    · have := output_le he
-      cases hop : e.2.output <;> simp_all
+    rcases wstep_cases d w with h | ⟨i, ts, p, p', -, h | h | ⟨e, he, h⟩⟩ <;> rw [h] <;> simp
+    have := output_le he
+    cases hop : e.2.output <;> simp_all
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     refine ⟨?_, fun o ho => (List.mem_append.mp ho).elim (ih₁.2 o) (ih₂.2 o)⟩
     have h₂ := ih₂.1

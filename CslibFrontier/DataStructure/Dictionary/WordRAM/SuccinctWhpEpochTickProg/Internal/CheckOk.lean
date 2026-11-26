@@ -99,19 +99,9 @@ private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
     (if s = 2 then Function.update buf 0 b2
      else if s = 3 then Function.update buf 1 b3
      else buf) fs.oldEp = buf fs.oldEp := by
-  rcases hce_or with hce | hce
-  · have ho : fs.oldEp = 1 := by simp [FastState.oldEp, hce]
-    rw [ho]
-    split_ifs with h2 h3
-    · exact Function.update_of_ne (by decide) _ _
-    · exact absurd h3 (h1 ho)
-    · rfl
-  · have ho : fs.oldEp = 0 := by simp [FastState.oldEp, hce]
-    rw [ho]
-    split_ifs with h2 h3
-    · exact absurd h2 (h0 ho)
-    · exact Function.update_of_ne (by decide) _ _
-    · rfl
+  rcases hce_or with hce | hce <;> simp only [FastState.oldEp, hce] at h1 h0 ⊢
+  all_goals
+    split_ifs <;> first | rfl | exact absurd ‹_› (h1 trivial) | exact absurd ‹_› (h0 trivial)
 
 /-- `fastDelete` preserves `epochTickWillSucceed`. -/
 theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -152,9 +142,8 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
         dsimp only [fs2]
         split_ifs with hlt_l
         · have hne_l := hno_old b hb (fs.bktCount b - 1) (by omega)
-          have hls1 : fs1.locState = fs.locState := rfl
           dsimp only [fastDeleteMoveLast]
-          rw [hls1]
+          rw [show fs1.locState = fs.locState from rfl]
           exact (buf_oldEp_ite_locState hv.curEp_or
             (fun ho => by rwa [ho] at hne_l)
             (fun ho => by rwa [ho] at hne_l) _ _ _).trans hrem_buf

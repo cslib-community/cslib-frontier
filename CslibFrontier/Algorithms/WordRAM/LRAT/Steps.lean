@@ -41,12 +41,7 @@ theorem find?_filter_of_imp {α : Type*} {p q : α → Bool} (l : List α) (h : 
     (l.filter q).find? p = l.find? p := by
   induction l with
   | nil => rfl
-  | cons a l ih =>
-    by_cases hq : q a
-    · simp [hq, List.find?_cons, ih]
-    · have : p a = false := by
-        by_contra hp; exact hq (h a (by simpa using hp))
-      simp [hq, this, ih]
+  | cons a l ih => cases hq : q a <;> cases hp : p a <;> simp_all
 
 /-- Recording the address `a` of the encoding of `c` under number `i` adds `(i, c)` to the
 database. -/
@@ -85,9 +80,7 @@ theorem TableAt.erase {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause �
       List.find?_eq_none.mpr fun e he => by simpa using (List.mem_filter.mp he).2
     simp [hnone]
   · have hfind : (db.filter fun e => !(e.1 == i)).find? (·.1 == j) = db.find? (·.1 == j) :=
-      find?_filter_of_imp db fun e he => by
-        simp only [beq_iff_eq] at he
-        simpa [he] using Ne.symm hj
+      find?_filter_of_imp db fun e he => by simpa [beq_iff_eq.mp he] using Ne.symm hj
     rw [hfind, Function.update_of_ne (by simp only [tcell]; omega)]
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
@@ -366,9 +359,7 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
     simp only [stepWords, List.flatMap_nil, List.length_nil, Nat.add_zero] at hpT
     simp [Cond.holds_lt, hpT, hinv.endp]
   | cons a rest ih =>
-    have hwords : stepWords (a :: rest) = encodeAction a ++ stepWords rest :=
-      List.flatMap_cons
-    rw [hwords] at hl hpT hM
+    rw [stepWords, List.flatMap_cons, ← stepWords] at hl hpT hM
     simp only [List.length_append] at hpT
     obtain ⟨hla, hlr⟩ := holdsList_append_iff.mp hl
     have hpos : 0 < (encodeAction a).length := by cases a <;> simp [encodeAction]
@@ -430,10 +421,7 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
           obtain ⟨hyp, hys, hyo, hytab, hyfr, hym⟩ := hyif
           obtain ⟨z, hz, hzo⟩ := ih ((i, c') :: db) y (s + 1)
             ⟨hy0, hy1, by regs_frame, hyE, hyT, hys, by rw [hyo, hinv.out], hytab, hyfr,
-              fun e he l hl => by
-                rcases List.mem_cons.mp he with rfl | he
-                · exact hcl l hl
-                · exact hinv.dbM e he l hl,
+              List.forall_mem_cons.mpr ⟨hcl, hinv.dbM⟩,
               hw, by rw [hyp]; have := hinv.stamp_le; omega⟩
             (by
               rw [hyp]

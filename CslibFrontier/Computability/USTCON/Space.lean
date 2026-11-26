@@ -59,8 +59,7 @@ theorem computableInBigO_decide : ∃ t, ComputableInBigO
   have hc (I : USTCONInstance) :
       machine.toStepMachine.Computes (encUSTCON I) [decide (I ∈ USTCON)] := by
     obtain ⟨k, hhalt, hout⟩ := exists_run_eq I
-    have := ReadMachine.computes_toStepMachine (m := machine) (x := I.encode) (n := k) hhalt
-    rwa [hout] at this
+    exact hout ▸ ReadMachine.computes_toStepMachine hhalt
   choose rounds hr ho using hc
   let tS := ReadMachine.stateT encState T stateBudget
   let tMax (I : USTCONInstance) : ℕ := ∑ i ∈ Finset.range (rounds I + 1),
@@ -80,16 +79,12 @@ theorem computableInBigO_decide : ∃ t, ComputableInBigO
     have hp : (encNat ((machine.toStepMachine.run (encUSTCON I) i).state.2)).length ≤
         Nat.log2 (encUSTCON I).length + 2 := by
       rw [length_encNat_eq_size]
-      refine Nat.size_le.2 (hpos.trans_lt ?_)
       have := Nat.lt_log2_self (n := (encUSTCON I).length)
-      rw [pow_succ]
-      omega
-    have hb : stateBudget (machine.run (encUSTCON I) j).state =
-        2 * (encState (machine.run (encUSTCON I) j).state).length + 2 := by
-      simp only [stateBudget, stepBudget, length_encPair, encBool_apply, List.length_singleton,
-        encState_apply]
-    simp only [ReadMachine.stateS, length_encPair, hb]
-    nlinarith
+      exact Nat.size_le.2 (hpos.trans_lt (by rw [pow_succ]; omega))
+    rw [ReadMachine.stateS, stateBudget, stepBudget, length_encPair,
+      length_encPair ((machine.run (encUSTCON I) j).state, _)]
+    simp only [← encState_apply, encBool_apply, List.length_singleton]
+    nlinarith only [hs, hp]
 
 open scoped Classical in
 /-- **Reingold's theorem**: deciding undirected `s`–`t` connectivity is computable in logarithmic

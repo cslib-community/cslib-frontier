@@ -235,9 +235,8 @@ theorem flattenScopes_spec {w : ℕ} {args : FlattenArgs} {bucket : List (Factor
       simp only [List.length_nil, List.flatMap_nil, List.append_nil, Nat.zero_mul]
       exact ⟨validHistory_pure w t _, hfr, hpres, hacc, by simp [iterate]⟩
     | cons f rest ih =>
-      intro cur acc t hwf_t hfr hpres ⟨hf, hrest⟩ hmax_r hlen_eq hacc
+      intro cur acc t hwf_t hfr hpres ⟨⟨hd, hsl, hel, hsc, _⟩, hrest⟩ hmax_r hlen_eq hacc
       simp only [List.flatMap_cons, List.length_append] at hlen_eq
-      obtain ⟨hd, hsl, hel, hsc, _⟩ := hf
       have hm0 : t.mem cur = s.mem cur := hpres.2.2 _ (by omega)
       have hm1 : t.mem (cur + 1) = f.scope.length := (hpres.2.2 _ (by omega)).trans hsl
       obtain ⟨hcw_val, hcw_fr, hcw_pres, hcw_holds⟩ :=
@@ -266,20 +265,16 @@ theorem flattenScopes_spec {w : ℕ} {args : FlattenArgs} {bucket : List (Factor
         refine ⟨rfl, by rw [List.length_append, hm1, Nat.add_assoc],
           validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
             (validHistory_bind_step hcw_val (validHistory_pure w _ _))), by omega⟩
-      have hiter : iterate flattenStep () (f :: rest).length (cur, s.frontier + acc.length) =
-          flattenStep ((), (cur, s.frontier + acc.length)) >>=
-            iterate flattenStep () rest.length := rfl
       obtain ⟨hv_i, hfr_i, hpres_i, hholds_i, hcost_i⟩ :=
         ih (cur + 4) (acc ++ f.scope) _ (wellFormed_clientState hwf_t hcw_val) (hcw_fr.trans hfr)
           (hpres.trans (hcw_pres.mono_bound (Nat.le_add_right _ _))) hrest
           (fun g hg => hmax_r g (List.mem_cons_of_mem f hg)) (by rw [List.length_append]; omega)
           (Block.holdsList_append_iff.mpr
             ⟨hacc.frame fun a _ hhi => hcw_pres.2.2 a hhi, hcw_holds⟩)
-      dsimp only
-      rw [hiter, validHistory_bind', StateTransitionSpec.clientState_bind, memoryCost_bind', hst,
-        hres]
-      simp only [List.flatMap_cons, ← List.append_assoc, List.length_cons]
-      rw [Nat.add_one_mul]
+      dsimp only [List.length_cons, iterate]
+      rw [validHistory_bind', StateTransitionSpec.clientState_bind, memoryCost_bind', hst, hres,
+        Nat.add_one_mul]
+      simp only [List.flatMap_cons, ← List.append_assoc]
       exact ⟨⟨hval, hv_i⟩, hfr_i, hpres_i, hholds_i, by omega⟩
   obtain ⟨hv_l, hfr_l, hpres_l, hholds_l, hcost_l⟩ :=
     hloop bucket args.bucketPtr [] ⟨s.mem, s.frontier + args.flatLen⟩
@@ -320,8 +315,7 @@ theorem flattenScopes_realizes :
   · simp at hrem_l
   simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_l
   simp only [List.flatMap_cons, List.length_append] at hsum
-  obtain ⟨hf, hrest⟩ := hrem_h
-  obtain ⟨hd, hsl, hel, hsc, _⟩ := hf
+  obtain ⟨⟨hd, hsl, hel, hsc, _⟩, hrest⟩ := hrem_h
   have hm0 : t.mem st.1 = s.mem st.1 := hpres.2.2 _ (by omega)
   have hm1 : t.mem (st.1 + 1) = s.mem (st.1 + 1) := hpres.2.2 _ (by omega)
   refine ⟨?_, ?_⟩

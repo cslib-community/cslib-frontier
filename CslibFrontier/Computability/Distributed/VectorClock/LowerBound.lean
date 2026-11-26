@@ -163,10 +163,8 @@ private theorem crownStep_send_at {n : ℕ} (hn : 2 ≤ n) {m : ℕ} (hm : m < n
   have hs₀ : ¬ n + m < n := by omega
   have hs₁ : n + m < n + n * n := by omega
   have hsub : n + m - n = m := by omega
-  dsimp only [crownStep]
-  simp only [hs₀, hs₁, ↓reduceDIte, hsub]
   dsimp only at hcond
-  simp only [eq_true hcond, ↓reduceIte]
+  simp only [crownStep, hs₀, hs₁, ↓reduceDIte, hsub, eq_true hcond, ↓reduceIte]
 
 /-- Explicit 4-block unicast crown execution on `Fin n` (`2 ≤ n`), containing
 `2 * n + 2 * (n * n)` events (a crown-poset step after [CharronBost1991] toward #7203). -/
@@ -221,12 +219,10 @@ private theorem crownStep_actor_phase2 {n : ℕ} (hn : 2 ≤ n) (q : Fin n) :
   have h₀ : ¬ n + 2 * (n * n) + q.val < n := by omega
   have h₁ : ¬ n + 2 * (n * n) + q.val < n + n * n := by omega
   have h₂ : ¬ n + 2 * (n * n) + q.val < n + 2 * (n * n) := by omega
-  have hsub : n + 2 * (n * n) + q.val - (n + 2 * (n * n)) = q.val := by omega
   unfold Execution.Event.actor
   rw [crownEvent_step_eq]
   simp only [crownPhase2, crownStep, h₀, h₁, h₂, ↓reduceDIte, Step.actor_internal]
-  ext
-  exact hsub
+  exact Fin.ext (Nat.add_sub_cancel_left _ _)
 
 /-- Reachability invariant from `crownPhase1 hn p`: in Phase 1 (`idx < n + n²`) only process `p`
 is reached, and in Phase 2 (`idx ≥ n + n²`) process `crownShift hn p` is never reached. -/
@@ -245,9 +241,8 @@ private theorem crownAllowed_preserved {n : ℕ} {hn : 2 ≤ n} {p : Fin n}
     · rw [← hact, hx]
       exact (crownShift_ne_self hn p).symm
     · exact hact ▸ hx
-  · have hy_step : y.step = .recv y.actor x.idx.val := hmsg
-    rw [crownEvent_step_eq] at hy_step
-    obtain ⟨hge, hlt, hx_idx, hcond, hy_act⟩ := crownStep_eq_recv hy_step
+  · obtain ⟨hge, hlt, hx_idx, hcond, hy_act⟩ :=
+      crownStep_eq_recv ((crownEvent_step_eq hn y).symm.trans hmsg)
     have hm_lt : y.idx.val - (n + n * n) < n * n := by omega
     have hx_ph : x.idx.val < n + n * n := by omega
     simp only [hx_ph, ↓reduceIte] at hx
@@ -257,12 +252,9 @@ private theorem crownAllowed_preserved {n : ℕ} {hn : 2 ≤ n} {p : Fin n}
         .send ⟨(y.idx.val - (n + n * n)) / n,
           (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩
           ⟨(y.idx.val - (n + n * n)) % n, Nat.mod_lt _ (by omega)⟩ := by
-      rw [crownEvent_step_eq]
       have hx_fin : (⟨x.idx.val, by simpa only [crownFin, List.length_ofFn] using x.idx.isLt⟩ :
-          Fin (2 * n + 2 * (n * n))) = ⟨n + (y.idx.val - (n + n * n)), by omega⟩ :=
-        Fin.ext hx_idx
-      rw [hx_fin]
-      exact crownStep_send_at hn hm_lt hcond
+          Fin (2 * n + 2 * (n * n))) = ⟨n + (y.idx.val - (n + n * n)), by omega⟩ := Fin.ext hx_idx
+      exact (crownEvent_step_eq hn x).trans (hx_fin ▸ crownStep_send_at hn hm_lt hcond)
     have hp_eq : (⟨(y.idx.val - (n + n * n)) / n,
         (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩ : Fin n) = p := by
       rw [← hx, Execution.Event.actor, hx_step, Step.actor_send]
@@ -324,8 +316,7 @@ theorem crownFin_happensBeforeLe_iff {n : ℕ} (hn : 2 ≤ n) (p q : Fin n) :
       let eRecv : (crownFin n hn).Event := ⟨⟨n + n * n + m, by rw [hlen_eq]; omega⟩⟩
       have hsend_step : eSend.step = .send p q := by
         rw [crownEvent_step_eq]
-        simp only [eSend]
-        rw [crownStep_send_at hn hm_lt hcond_m, hp_fin, hq_fin]
+        simpa only [eSend, hp_fin, hq_fin] using crownStep_send_at hn hm_lt hcond_m
       have hrecv_step : eRecv.step = .recv q eSend.idx.val := by
         rw [crownEvent_step_eq]
         dsimp only [eRecv, eSend, crownStep]

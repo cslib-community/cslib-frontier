@@ -196,13 +196,10 @@ private theorem validWhpProg_innerLoop {w w₀ R c_tab d b_char M_out hBase F j 
   intro hp m
   have htop_seg : hBase + 1 +
       packedWords (BitPackedDoubleTabulation.topEntries c_tab d b_char) b_char w ≤ F := by
-    refine ( ?_ : _ ≤ hBase + BitPackedDoubleTabulation.space w c_tab d b_char M_out).trans hseg
-    unfold BitPackedDoubleTabulation.space BitPackedDoubleTabulation.topWords
+    unfold BitPackedDoubleTabulation.space BitPackedDoubleTabulation.topWords at hseg
     omega
   induction m with
-  | zero =>
-    intro i y r s _
-    exact ⟨validProg_pure _, rfl⟩
+  | zero => exact fun _ _ _ _ _ => ⟨validProg_pure _, rfl⟩
   | succ m ih =>
     intro i y r s him
     have hch_lt : r &&& (2 ^ b_char - 1) < 2 ^ b_char := by
@@ -237,19 +234,15 @@ private theorem validWhpProg_outerLoop {w w₀ R c_tab d b_char M_out hBase F s_
   intro hp m
   have htop_seg : hBase + 1 +
       packedWords (BitPackedDoubleTabulation.topEntries c_tab d b_char) b_char w ≤ F := by
-    refine (?_ : _ ≤ hBase + BitPackedDoubleTabulation.space w c_tab d b_char M_out).trans hseg
-    unfold BitPackedDoubleTabulation.space BitPackedDoubleTabulation.topWords
+    unfold BitPackedDoubleTabulation.space BitPackedDoubleTabulation.topWords at hseg
     omega
   have hbot_seg : hBase + BitPackedDoubleTabulation.offBot w c_tab d b_char +
       packedWords (BitPackedDoubleTabulation.botEntries d b_char) M_out w ≤ F := by
-    refine (?_ : _ ≤ hBase + BitPackedDoubleTabulation.space w c_tab d b_char M_out).trans hseg
-    unfold BitPackedDoubleTabulation.space BitPackedDoubleTabulation.offBot
-      BitPackedDoubleTabulation.botWords
+    simp only [BitPackedDoubleTabulation.space, BitPackedDoubleTabulation.offBot,
+      BitPackedDoubleTabulation.botWords] at hseg ⊢
     omega
   induction m with
-  | zero =>
-    intro j out s _
-    exact validProg_pure _
+  | zero => exact fun _ _ _ _ => validProg_pure _
   | succ m ih =>
     intro j out s hjm
     have hj : j < d := by omega
@@ -290,12 +283,8 @@ private theorem validWhpProg_outerLoop {w w₀ R c_tab d b_char M_out hBase F s_
       refine validProg_bind hvp_in ?_
       rw [hst_in]
       refine validProg_bind (validProg_readPacked hw hidx_s htop_seg) ?_
-      have hrp1_st : (Memory.spec 0).clientState s
-          (readPackedGenProg (((hBase, 1), (b_char, w)),
-            (j * (c_tab + 1) + c_tab) * 2 ^ b_char + s_val)) = s := rfl
-      rw [hrp1_st]
       dsimp only [readPackedGenProg]
-      rw [clientResult_readPackedProg]
+      rw [clientState_readPackedProg, clientResult_readPackedProg]
       exact validProg_bind (validProg_readPacked hw hidx₂ hbot_seg) (validProg_pure _)
     have hstep : (Memory.spec 0).clientState s
         (BitPackedDoubleTabulation.outerStepGenProg ((hp, (hBase, (s_val, rKey))), (j, out))) =
@@ -876,15 +865,11 @@ theorem rKeyOfQuotRtProg_spec {c U V w n_max base b q : ℕ} {θ : SeedWhp c U n
     fpReducedKeyOptRtProg_spec (kv := kv) henv hseed (s := s)
   dsimp only
   unfold rKeyOfQuotRtProg
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hst1, hres1, hst2]
-  · rw [clientResult_bind, hst1, hres1, hres2]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst1, hres1]
-    exact Nat.add_le_add hmc1 hmc2
-  · refine validProg_bind hvp1 ?_
-    rw [hst1, hres1]
-    exact hvp2
+  refine ⟨by rw [clientState_bind, hst1, hres1, hst2],
+    by rw [clientResult_bind, hst1, hres1, hres2], ?_,
+    validProg_bind hvp1 (by rwa [hst1, hres1])⟩
+  rw [memoryCost_bind_of_clientState_eq hst1, hres1]
+  exact Nat.add_le_add hmc1 hmc2
 
 /-- Composite salted fingerprint from `(((hrt, salt), b), q)` (`q < 2 ^ quotBitsWhp U n_max`),
 matching `FastState.fpAt` when `q = fs.quotArr (fs.physSlot n_max b loc)`. -/
@@ -935,15 +920,11 @@ theorem fpOfQuotRtProg_spec {c U V w n_max base salt b q : ℕ} {θ : SeedWhp c 
     fpOfSaltOptRtProg_spec (salt := salt) (kv := kv) henv hseed (s := s)
   dsimp only
   unfold fpOfQuotRtProg
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hst1, hres1, hst2]
-  · rw [clientResult_bind, hst1, hres1, hres2]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst1, hres1, Nat.two_mul]
-    exact Nat.add_le_add hmc1 hmc2
-  · refine validProg_bind hvp1 ?_
-    rw [hst1, hres1]
-    exact hvp2
+  refine ⟨by rw [clientState_bind, hst1, hres1, hst2],
+    by rw [clientResult_bind, hst1, hres1, hres2], ?_,
+    validProg_bind hvp1 (by rwa [hst1, hres1])⟩
+  rw [memoryCost_bind_of_clientState_eq hst1, hres1, Nat.two_mul]
+  exact Nat.add_le_add hmc1 hmc2
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

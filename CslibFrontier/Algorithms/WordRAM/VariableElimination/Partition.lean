@@ -271,17 +271,15 @@ theorem partitionLive_spec {w : ℕ} {args : PartitionArgs}
       have hacc : (HoldsFactorList bBase bAcc' t₁ ∧ AllDataBelow s.frontier bBase bAcc' t₁) ∧
           (HoldsFactorList (rBuf + 4) rAcc' t₁ ∧
             AllDataBelow s.frontier (rBuf + 4) rAcc' t₁) := by
-        by_cases hxf : args.x ∈ f.scope
-        · simp only [bAcc', rAcc', hxf, ↓reduceIte] at hdst ⊢
+        by_cases hxf : args.x ∈ f.scope <;>
+          simp only [bAcc', rAcc', hxf, ↓reduceIte] at hdst ⊢ <;>
           rw [hdst] at hf_new hm0 hm2
-          exact ⟨holdsFactorList_snoc hb hwd_pres (fun a ha => hwd_out a (Or.inl (by omega)))
-              hf_new (by rwa [hm0]) (by rwa [hm2]),
+        · exact ⟨holdsFactorList_snoc hb hwd_pres (fun a ha => hwd_out a (Or.inl (by omega)))
+              hf_new (hm0.symm ▸ hf_scF) (hm2.symm ▸ hf_enF),
             holdsFactorList_frame hr hwd_pres fun a ha _ => hwd_out a (Or.inr (by omega))⟩
-        · simp only [bAcc', rAcc', hxf, ↓reduceIte] at hdst ⊢
-          rw [hdst] at hf_new hm0 hm2
-          exact ⟨holdsFactorList_frame hb hwd_pres fun a _ ha => hwd_out a (Or.inl (by omega)),
+        · exact ⟨holdsFactorList_frame hb hwd_pres fun a _ ha => hwd_out a (Or.inl (by omega)),
             holdsFactorList_snoc hr hwd_pres (fun a ha => hwd_out a (Or.inl (by omega)))
-              hf_new (by rwa [hm0]) (by rwa [hm2])⟩
+              hf_new (hm0.symm ▸ hf_scF) (hm2.symm ▸ hf_enF)⟩
       have hst : (Memory.spec 0).clientState t (partitionStep (args.x, st₀)) = t₁ := hstep_st
       have hres : (Memory.spec 0).clientResult t (partitionStep (args.x, st₀)) =
           ⟨cur + 4, bBase + 4 * bAcc'.length, bAcc'.length, rBuf + 4 + 4 * rAcc'.length,
@@ -352,22 +350,7 @@ theorem partitionLive_realizes :
   · obtain ⟨h1, hfit, live, hlen, hlive⟩ := h
     let bBase := s.frontier
     let rBuf := s.frontier + 4 * d.liveLen
-    have hlive_b : d.livePtr + 4 * d.liveLen ≤ s.frontier := by rw [← hlen]; exact hlive.bound
-    let stInit : PartitionState :=
-      ⟨d.livePtr, s.frontier, 0, s.frontier + 4 * d.liveLen + 4, 0⟩
-    let sInit : Memory.State := ⟨s.mem, s.frontier + 4 * d.liveLen + (4 + 4 * d.liveLen)⟩
-    have hinit : sInit.frontier = s.frontier + 4 * d.liveLen + (4 + 4 * d.liveLen) ∧
-        PreservesBelow s.frontier s sInit ∧
-        bBase ≤ stInit.bDst ∧ rBuf + 4 ≤ stInit.rDst ∧
-        stInit.curDesc + 4 * d.liveLen ≤ s.frontier ∧
-        stInit.bDst + 4 * d.liveLen ≤ rBuf ∧
-        stInit.bCnt + d.liveLen ≤ d.liveLen ∧
-        stInit.rDst + 4 * d.liveLen ≤ s.frontier + 4 + 8 * d.liveLen ∧
-        stInit.rCnt + d.liveLen ≤ d.liveLen ∧
-        ∃ rem, rem.length = d.liveLen ∧ HoldsFactorList stInit.curDesc rem s :=
-      ⟨rfl, ⟨le_rfl, by dsimp only [sInit]; omega, fun _ _ => rfl⟩,
-        le_rfl, le_rfl, hlive_b, le_rfl, Nat.zero_add _ |>.le,
-        by dsimp only [stInit, rBuf]; omega, Nat.zero_add _ |>.le, live, hlen, hlive⟩
+    have hlive_b : d.livePtr + 4 * d.liveLen ≤ s.frontier := hlen ▸ hlive.bound
     refine iterationSafe_of_stepInv _ _ w _
       (fun (j : ℕ) (st : PartitionState) (t : Memory.State) =>
         t.frontier = s.frontier + 4 * d.liveLen + (4 + 4 * d.liveLen) ∧
@@ -382,7 +365,10 @@ theorem partitionLive_realizes :
         ∃ rem, rem.length = j ∧ HoldsFactorList st.curDesc rem s)
       (fun j st t ⟨hfr, hpres, hb_lo, hr_lo, hcur_b, hb_b, hb_c, hr_b, hr_c, rem, hrem_l,
         hrem_h⟩ => ?_)
-      hinit
+      ⟨rfl, ⟨le_rfl, (Nat.le_add_right _ _).trans (Nat.le_add_right _ _), fun _ _ => rfl⟩,
+        le_rfl, le_rfl, hlive_b, le_rfl, (Nat.zero_add _).le,
+        (by omega : (s.frontier + 4 * d.liveLen + 4) + 4 * d.liveLen ≤ _), (Nat.zero_add _).le,
+        live, hlen, hlive⟩
     dsimp only
     rcases rem with _ | ⟨f, rest⟩
     · cases hrem_l

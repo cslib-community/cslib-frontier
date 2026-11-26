@@ -131,10 +131,8 @@ theorem convexHull_margin_bound {α : Type*} [Fintype α] (D : PMF (α × Bool))
         2 / ρ * rademacherComplexity (D.map Prod.fst) H m +
           √(Real.log (1 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
-  have hconv : ∀ f ∈ convexHull ℝ H, ∀ x, |f x| ≤ B := fun f hf x =>
-    abs_le_of_mem_convexHull hH hf x
   simpa only [rademacherComplexity_convexHull (D.map Prod.fst) hH m] using
-    rademacherComplexity_margin_bound D hm hconv hρ hδ
+    rademacherComplexity_margin_bound D hm (fun _ => abs_le_of_mem_convexHull hH) hρ hδ
 
 /-- **Uniform margin generalization bound for convex combinations**
 [MohriRostamizadehTalwalkar2018, Theorem 5.9 and Lemma 7.4] (uniform-in-`ρ` counterpart of
@@ -153,10 +151,8 @@ theorem convexHull_uniform_margin_bound {α : Type*} [Fintype α] (D : PMF (α �
           √(Real.log (Real.logb 2 (2 * r / ρ)) / m) +
           √(Real.log (2 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
-  have hconv : ∀ f ∈ convexHull ℝ H, ∀ x, |f x| ≤ B := fun f hf x =>
-    abs_le_of_mem_convexHull hH hf x
   simpa only [rademacherComplexity_convexHull (D.map Prod.fst) hH m] using
-    uniform_rademacherComplexity_margin_bound D hm hconv hr hδ
+    uniform_rademacherComplexity_margin_bound D hm (fun _ => abs_le_of_mem_convexHull hH) hr hδ
 
 /-- **Data-dependent uniform margin generalization bound for convex combinations**
 [MohriRostamizadehTalwalkar2018, Theorem 5.9 and Lemma 7.4] (uniform-in-`ρ` counterpart of
@@ -286,25 +282,19 @@ theorem normalizedScore_mem_convexHull {S : Fin m → α × Bool} {A : (Fin m �
   · have hε₀ : ∀ t < T, 0 < (rounds S A t).error S := fun t ht =>
       (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht, h.symm⟩
     have hZ : 0 < totalVote S A T := totalVote_pos S A hT hε₀ hε
-    let w : ℕ → ℝ := fun t => (rounds S A t).vote S / totalVote S A T
-    let g : ℕ → α → ℝ := fun t x => signVal ((rounds S A t).hyp x)
-    have heq : normalizedScore S A T = ∑ t ∈ range T, w t • g t := by
+    have heq : normalizedScore S A T =
+        ∑ t ∈ range T, ((rounds S A t).vote S / totalVote S A T) •
+          fun x => signVal ((rounds S A t).hyp x) := by
       ext x
-      rw [normalizedScore_of_not_exists_error_zero S A hz]
-      dsimp only
-      rw [score_def, neg_neg, Finset.sum_apply, Finset.sum_div]
-      refine Finset.sum_congr rfl fun t _ => ?_
-      simp only [Pi.smul_apply, smul_eq_mul, w, g]
-      ring
+      simp only [normalizedScore_of_not_exists_error_zero S A hz, score_def, neg_neg,
+        Finset.sum_apply, Finset.sum_div, Pi.smul_apply, smul_eq_mul, div_mul_eq_mul_div]
     rw [heq]
     refine (convex_convexHull ℝ (signClass C)).sum_mem ?_ ?_ ?_
     · intro t ht
-      dsimp only [w]
       rw [Round.vote_def]
       exact div_nonneg (voteWeight_nonneg (hε₀ t (mem_range.mp ht))
         (hε t (mem_range.mp ht)).le) hZ.le
-    · dsimp only [w]
-      rw [← Finset.sum_div, ← totalVote_def, div_self hZ.ne']
+    · rw [← Finset.sum_div, ← totalVote_def, div_self hZ.ne']
     · intro t ht
       exact subset_convexHull ℝ (signClass C)
         (mem_signClass.2 ⟨(rounds S A t).hyp, hC t (mem_range.mp ht), rfl⟩)
@@ -318,10 +308,9 @@ theorem signVal_mul_normalizedScore_nonpos_of_adaBoost_ne {S : Fin m → α × B
   classical
   by_cases hz : ∃ t < T, (rounds S A t).error S = 0
   · rw [adaBoost_of_exists_error_zero S A hz] at hne
-    rw [normalizedScore_of_exists_error_zero S A hz]
-    have : signVal y * signVal ((rounds S A (Nat.find hz)).hyp x) = -1 := by
-      rw [mul_comm, signVal_mul_signVal, ite_eq_right hne]
-    linarith
+    rw [normalizedScore_of_exists_error_zero S A hz, mul_comm, signVal_mul_signVal,
+      ite_eq_right hne]
+    norm_num
   · rw [adaBoost_of_not_exists_error_zero S A hz] at hne
     rw [normalizedScore_of_not_exists_error_zero S A hz,
       show signVal y * (-score S A T x / totalVote S A T) =
@@ -722,12 +711,10 @@ theorem adaBoost_generalization_bound_of_edge {α : Type*} [Finite α] (D : PMF 
     (adaBoost_uniform_margin_bound_vc D hm hC hdm hδ)
   rintro S ⟨A, T, γ, ρ, hT, hγ₀, hγ₁, hρ₀, hργ, hmem, hε, hlt⟩
   have hε_lt : ∀ t < T, (rounds S A t).error S < 1 / 2 := fun t ht => by linarith [hε t ht]
-  have hρ_le_one : ρ ≤ 1 := by linarith
-  have hloss : empiricalMarginLoss ρ (normalizedScore S A T) S ≤
-      exp (-(2 * γ * (γ - ρ) * T)) :=
-    (empiricalMarginLoss_le_count_div hρ₀ _ S).trans
-      (marginCount_normalizedScore_le_exp S A hT hγ₀ hγ₁ hρ₀.le hργ hε)
-  exact ⟨A, T, hT, hmem, hε_lt, ρ, ⟨hρ₀, hρ_le_one⟩, by linarith⟩
+  have hloss := (empiricalMarginLoss_le_count_div hρ₀ (normalizedScore S A T) S).trans
+    (marginCount_normalizedScore_le_exp S A hT hγ₀ hγ₁ hρ₀.le hργ hε)
+  refine ⟨A, T, hT, hmem, hε_lt, ρ, ⟨hρ₀, by linarith⟩, ?_⟩
+  linarith
 
 end TrainingMargin
 

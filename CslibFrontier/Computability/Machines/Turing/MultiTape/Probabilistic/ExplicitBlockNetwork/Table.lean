@@ -195,9 +195,10 @@ theorem acceptWeight_decodeLetter (n : ℕ) :
   by_cases h : n < controlCount k s b
   · have hc := decodeControlData_controlEquiv e b ((controlEquiv e).symm ⟨n, h⟩)
     rw [Equiv.apply_symm_apply] at hc
-    have htr := congrArg (fun c => c.2.2) hc
-    simp only [decodeControlData, controlData] at htr
-    simp only [h, ↓reduceDIte, acceptWeight, ← htr, equivFin_symm_eq_accept_iff, true_and]
+    have htr : (decodeControlData e b n).2.2 = ((controlEquiv e).symm ⟨n, h⟩).2.2 :=
+      congrArg (·.2.2) hc
+    simp only [h, ↓reduceDIte, acceptWeight, ← htr, decodeControlData, equivFin_symm_eq_accept_iff,
+      true_and]
   · simp only [h, ↓reduceDIte, acceptWeight, false_and, ↓reduceIte]
 
 end Decode
@@ -254,8 +255,7 @@ theorem val_portOf (σ : ℕ) (i i' : Fin q) (h : Fin k) (δ : Fin 3) :
   have hb' := scheduleBlock_scheduleOfNat (k := k) σ i'.isLt.le (some h)
   rw [hc] at hb hb'
   simp only [portOf, portBlock, hb, hb', portOfNum]
-  congr 1
-  omega
+  exact congrArg (· % 3) (by omega)
 
 /-! ### The tensor of an interval -/
 
@@ -572,24 +572,19 @@ theorem explicitTable_eq_explicitTableNum (σ : ℕ)
     rw [tableEntryNum, ite_eq_left hv, TensorNetwork.subdivide_tensor_inl]
     simp only [TensorNetwork.binarize]
     -- The bits on the copies of an edge, and their number.
-    have hsrc : ∀ e' : BlockEdge k q,
+    have hsrc (e' : BlockEdge k q) :
         BN.src e' = u ↔ blockSrcNum k q (blockEdgeEquiv k q e') = ev (.inl u) := by
-      intro e'
       rw [blockSrcNum_blockEdgeEquiv (letterBits k s b) e', blockNetwork_src, Fin.val_inj,
-        Equiv.apply_eq_iff_eq]
-      simp only [Sum.inl.injEq]
-    have htgt : ∀ e' : BlockEdge k q,
+        Equiv.apply_eq_iff_eq, Sum.inl.injEq]
+    have htgt (e' : BlockEdge k q) :
         BN.tgt e' = u ↔ edgeTargetNum k q σ (blockEdgeEquiv k q e') = ev (.inl u) := by
-      intro e'
       rw [edgeTargetNum_blockEdgeEquiv σ (letterBits k s b) e', blockNetwork_tgt, Fin.val_inj,
-        Equiv.apply_eq_iff_eq]
-      simp only [Sum.inl.injEq]
-    have hbits : ∀ e' : BlockEdge k q,
+        Equiv.apply_eq_iff_eq, Sum.inl.injEq]
+    have hbits (e' : BlockEdge k q) :
         Cslib.BitString.lsbValue (List.ofFn (TensorNetwork.bitsOn (fun p =>
           if BN.src p.1 = u then j.testBit (P.idxOf (ee (.inl p) : ℕ))
           else j.testBit (P.idxOf (ee (.inr p) : ℕ))) e')) =
           lettersAt k q (letterBits k s b) P j (ev (.inl u)) (blockEdgeEquiv k q e') := by
-      intro e'
       simp only [lettersAt, readNum, halfBase, ← hsrc e']
       rw [← ofFn_eq_map_range]
       refine congrArg (fun l => Cslib.BitString.lsbValue (List.ofFn l)) (funext fun r => ?_)
@@ -627,8 +622,7 @@ theorem explicitTable_eq_explicitTableNum (σ : ℕ)
     have hv : q * (3 * k + 2) ≤ (ev (.inr (e₀, r)) : ℕ) := le_explicitVertexEquiv_inr k q _ _
     have hc : (ev (.inr (e₀, r)) : ℕ) - q * (3 * k + 2) =
         r + letterBits k s b * blockEdgeEquiv k q e₀ := by
-      rw [val_explicitVertexEquiv_inr]
-      omega
+      rw [val_explicitVertexEquiv_inr]; omega
     rw [tableEntryNum, ite_eq_right (by omega), TensorNetwork.subdivide_tensor_inr, hc,
       val_explicitEdgeEquiv_inl, val_explicitEdgeEquiv_inr]
 
@@ -648,11 +642,10 @@ theorem explicitBlockNetwork_eq_explicitNetworkNum (σ : ℕ) :
     rw [explicitBlockNetwork, TensorNetwork.toExplicit, explicitVerticesNum,
       ← List.map_coe_finRange_eq_range, List.map_map, List.ofFn_eq_map]
     refine List.map_congr_left fun v _ => ?_
-    simp only [Function.comp_apply]
-    rw [map_val_explicitPorts, explicitTable_eq_explicitTableNum, Equiv.apply_symm_apply]
-  refine Eq.trans (b := ⟨(machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e).numEdges,
-      (machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e).vertices⟩) rfl ?_
-  rw [explicitNetworkNum, numEdges_explicitBlockNetwork, hv]
+    simp only [Function.comp_apply, map_val_explicitPorts, explicitTable_eq_explicitTableNum,
+      Equiv.apply_symm_apply]
+  rw [explicitNetworkNum, ← numEdges_explicitBlockNetwork machine input b (scheduleOfNat k q σ) e,
+    ← hv]
 
 end Tables
 

@@ -135,7 +135,6 @@ noncomputable def weightedGroves [Fintype ι] [DecidableEq ι]
 @[simp] theorem weightedGroves_outcome [Fintype ι] [DecidableEq ι]
     (f : (ι → Ω → ℝ) → Ω) (w : ι → ℝ) (c : Ω → ℝ) (h : ι → (ι → Ω → ℝ) → ℝ) :
     (weightedGroves f w c h).outcome = f := by
-  unfold weightedGroves
   rfl
 
 /-- Payment charged to agent `i` on reports `b` under `weightedGroves f w c h`. -/
@@ -145,7 +144,6 @@ noncomputable def weightedGroves [Fintype ι] [DecidableEq ι]
     (weightedGroves f w c h).payment b i =
       if w i = 0 then h i b
       else h i b - (∑ j ∈ Finset.univ.erase i, (w j / w i) * b j (f b) + c (f b) / w i) := by
-  unfold weightedGroves
   rfl
 
 private theorem affineScore_eq_add [Fintype ι] [DecidableEq ι] (w : ι → ℝ) (c : Ω → ℝ)
@@ -258,9 +256,8 @@ private theorem pad_range_of_isWeaklyMonotoneOn [Finite ι] [DecidableEq ι]
         by_cases hj : j ∈ S <;> simp [hybrid, hj, hv' j, hv j]
       have h1 : Function.update (hybrid S) i (v i) = hybrid S :=
         Function.update_eq_self_iff.mpr (ite_eq_right hi).symm
-      have h2 : Function.update (hybrid S) i (v' i) = hybrid (insert i S) := by
-        ext j
-        by_cases h : j = i <;> simp [h, hybrid]
+      have h2 : Function.update (hybrid S) i (v' i) = hybrid (insert i S) :=
+        funext fun j => by by_cases h : j = i <;> simp [h, hybrid]
       by_contra hne
       have hw := hf i (hybrid S) (v i) (v' i) hdom (hv i) (hv' i)
       rw [h1, h2, ih] at hw
@@ -307,21 +304,19 @@ theorem isGeneralizedWMON_of_isPAD {f : (ι → Ω → ℝ) → Ω}
     hf v v'' (fun _ => trivial) (fun _ => trivial) fun i z hz => by
       change z ≠ x at hz
       change v'' i z - v i z < v'' i x - v i x
-      by_cases hzy : z = y
-      · subst hzy
-        simp only [v'', hxy.symm, ↓reduceIte]
+      rcases eq_or_ne y z with rfl | hzy
+      · simp only [v'', hxy.symm, ↓reduceIte]
         linarith [hΔ i]
-      · simp only [v'', hz, hzy, ↓reduceIte]
+      · simp only [v'', hz, hzy.symm, ↓reduceIte]
         linarith [min_le_left (v i z + Δ i / 2) (v' i z + (v i y - v' i y))]
   have hfy : f v'' = y :=
     hf v' v'' (fun _ => trivial) (fun _ => trivial) fun i z hz => by
       change z ≠ y at hz
       change v'' i z - v' i z < v'' i y - v' i y
-      by_cases hzx : z = x
-      · subst hzx
-        simp only [v'', hxy.symm, ↓reduceIte]
+      rcases eq_or_ne x z with rfl | hzx
+      · simp only [v'', hxy.symm, ↓reduceIte]
         linarith [hΔ i, show Δ i = (v' i x - v' i y) - (v i x - v i y) from rfl]
-      · simp only [v'', hzx, hz, hxy.symm, ↓reduceIte]
+      · simp only [v'', hzx.symm, hz, hxy.symm, ↓reduceIte]
         linarith [min_le_right (v i z + Δ i / 2) (v' i z + (v i y - v' i y))]
   exact hxy (hfx.symm.trans hfy)
 
@@ -352,10 +347,8 @@ private theorem nonempty_of_surjective_of_two_le_card [Fintype Ω] {f : (ι → 
 private theorem exists_ne_pair [Fintype Ω] (hcard : 3 ≤ Fintype.card Ω)
     (x y : Ω) : ∃ z : Ω, z ≠ x ∧ z ≠ y := by
   classical
-  have hlt : ({x, y} : Finset Ω).card < (Finset.univ : Finset Ω).card := by
-    have h2 : ({x, y} : Finset Ω).card ≤ 2 := Finset.card_le_two
-    rw [Finset.card_univ]
-    omega
+  have hlt : ({x, y} : Finset Ω).card < (Finset.univ : Finset Ω).card :=
+    lt_of_le_of_lt Finset.card_le_two (by rw [Finset.card_univ]; omega)
   obtain ⟨z, _, hz⟩ := Finset.exists_mem_notMem_of_card_lt_card hlt
   exact ⟨z, by simpa only [Finset.mem_insert, Finset.mem_singleton, not_or] using hz⟩
 
@@ -468,24 +461,24 @@ private theorem gamma_neg [Finite ι] [Nonempty ι] [DecidableEq Ω]
     (hpad : IsPADOn f (fun _ => Set.univ))
     (hgw : IsGeneralizedWMONOn f (fun _ => Set.univ)) (x y : Ω) :
     gamma f x y = -gamma f y x := by
-  by_cases hxy : x = y
-  · subst hxy; simp [gamma]
+  rcases eq_or_ne y x with rfl | hxy
+  · simp [gamma]
   · refine le_antisymm (le_of_forall_pos_le_add fun ε hε => ?_) ?_
-    · simp only [gamma, hxy, ↓reduceIte]
-      refine csInf_le (gammaSet_bddBelow hf_onto hgw hxy) ?_
+    · simp only [gamma, hxy.symm, ↓reduceIte]
+      refine csInf_le (gammaSet_bddBelow hf_onto hgw hxy.symm) ?_
       change (fun _ : ι => -gamma f y x + ε) ∈ diffSet f x y
-      convert neg_mem_diffSet_of_notMem hf_onto hgw (Ne.symm hxy)
-        (const_notMem_diffSet_of_lt_gamma hf_onto hgw (Ne.symm hxy)
+      convert neg_mem_diffSet_of_notMem hf_onto hgw hxy
+        (const_notMem_diffSet_of_lt_gamma hf_onto hgw hxy
           (by linarith : gamma f y x - ε < gamma f y x)) using 1
       ext
       simp only [Pi.neg_apply]
       ring
     · by_contra hlt
       push Not at hlt
-      obtain ⟨_, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hxy
-        (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy
+      obtain ⟨_, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hxy.symm
+        (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy.symm
           (p := gamma f x y - (gamma f x y + gamma f y x) / 4) (by linarith))
-        (const_mem_diffSet_of_gamma_lt hf_onto hpad (Ne.symm hxy)
+        (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy
           (p := gamma f y x - (gamma f x y + gamma f y x) / 4) (by linarith))
       linarith
 
@@ -494,19 +487,20 @@ private theorem gamma_add_le [Finite ι] [Nonempty ι] [DecidableEq Ω]
     (hpad : IsPADOn f (fun _ => Set.univ))
     (hgw : IsGeneralizedWMONOn f (fun _ => Set.univ)) (x y z : Ω) :
     gamma f x z ≤ gamma f x y + gamma f y z := by
-  by_cases hxy : x = y
-  · subst hxy; simp [gamma]
-  by_cases hyz : y = z
-  · subst hyz; simp [gamma]
-  by_cases hxz : x = z
-  · subst hxz; rw [gamma_neg hf_onto hpad hgw y x]; simp [gamma]
+  rcases eq_or_ne y x with rfl | hxy
+  · simp [gamma]
+  rcases eq_or_ne z y with rfl | hyz
+  · simp [gamma]
+  rcases eq_or_ne z x with rfl | hxz
+  · rw [gamma_neg hf_onto hpad hgw y z]
+    simp [gamma]
   refine le_of_forall_pos_le_add fun ε hε => ?_
-  simp only [gamma, hxz, ↓reduceIte]
-  refine csInf_le (gammaSet_bddBelow hf_onto hgw hxz) ?_
+  simp only [gamma, hxz.symm, ↓reduceIte]
+  refine csInf_le (gammaSet_bddBelow hf_onto hgw hxz.symm) ?_
   change (fun _ : ι => gamma f x y + gamma f y z + ε) ∈ diffSet f x z
-  convert add_shift_mem_diffSet hf_onto hgw hxy hyz hxz
-    (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy (p := gamma f x y + ε / 3) (by linarith))
-    (const_mem_diffSet_of_gamma_lt hf_onto hpad hyz (p := gamma f y z + ε / 3) (by linarith))
+  convert add_shift_mem_diffSet hf_onto hgw hxy.symm hyz.symm hxz.symm
+    (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy.symm (p := gamma f x y + ε / 3) (by linarith))
+    (const_mem_diffSet_of_gamma_lt hf_onto hpad hyz.symm (p := gamma f y z + ε / 3) (by linarith))
     (δ := ε / 3) (by linarith) using 1
   ext
   ring
@@ -831,12 +825,8 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
       let ε : ℝ := -(∑ i, w₀ i * ((b i x - b i y) - gamma f x y)) / (2 * S)
       have hε : 0 < ε := div_pos (by linarith) (mul_pos two_pos hsum_pos)
       let α : ι → ℝ := fun i => b i x - b i y - gamma f x y + ε
-      have hα_diff : (fun i => α i + gamma f x y - ε) ∈ diffSet f x y := by
-        have hdiff : (fun i => b i x - b i y) ∈ diffSet f x y := ⟨b, fun _ => rfl, rfl⟩
-        convert hdiff using 1
-        ext
-        simp only [α]
-        ring
+      have hα_diff : (fun i => α i + gamma f x y - ε) ∈ diffSet f x y :=
+        ⟨b, fun _ => by simp only [α]; ring, rfl⟩
       have hα : α ∈ openShifted f x₀ y₀ := by
         rw [← openShifted_eq hf_onto hpad hgw hcard (Ne.symm heq) hxy]
         exact ⟨ε, hε, hα_diff⟩
@@ -941,12 +931,9 @@ theorem exists_weightedWelfare_of_isNeutral_of_isWeaklyMonotone [Fintype ι] [De
     simp only [gamma, hxy, ↓reduceIte, zero_add]
     exact csInf_le (gammaSet_bddBelow hf_onto hgw hxy) hmem
   have hgamma_zero : ∀ x y : Ω, gamma f x y = 0 := fun x y => by
-    by_cases hxy : x = y
-    · subst hxy; simp [gamma]
-    · have h1 := hgamma_le x y hxy
-      have h2 := hgamma_le y x (Ne.symm hxy)
-      rw [gamma_neg hf_onto hpad hgw y x] at h2
-      linarith
+    rcases eq_or_ne y x with rfl | hxy
+    · simp [gamma]
+    · linarith [hgamma_le x y hxy.symm, hgamma_le y x hxy, gamma_neg hf_onto hpad hgw y x]
   obtain ⟨x₀⟩ := ‹Nonempty Ω›
   obtain ⟨w, hw, hsum, hmax⟩ := roberts_with_gamma hf_onto hf_wmon hcard x₀
   exact ⟨w, hw, hsum, fun b ω => by

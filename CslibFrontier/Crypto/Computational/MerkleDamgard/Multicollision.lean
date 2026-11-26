@@ -263,20 +263,16 @@ private theorem jouxFinder_failure_le {stage : T → M → ProbOracleComp spec T
         2 ^ b * ((1 + ε) / 2) ^ f / 2
   | f, 0, t, _ => by
     have hε0 : 0 ≤ ε := le_trans (by positivity) hε
-    have hmem : (some [] : Option (List (M × M))) ∈ jouxSuccess step 0 t :=
-      ⟨[], rfl, rfl, trivial⟩
-    have h0 : (ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f 0 t).run
-        fun x => pure (O x))).toOuterMeasure (jouxSuccess step 0 t)ᶜ = 0 := by
-      simp [jouxFinder, PMF.toOuterMeasure_pure_apply, hmem]
-    rw [h0, ENNReal.toReal_zero]
+    have hmem : (some [] : Option (List (M × M))) ∈ jouxSuccess step 0 t := ⟨[], rfl, rfl, trivial⟩
+    simp only [jouxFinder, ProbOracleComp.run_pure, ProbComp.eval_pure,
+      PMF.toOuterMeasure_pure_apply, Set.mem_compl_iff, hmem, not_true_eq_false, ↓reduceIte,
+      ENNReal.toReal_zero]
     positivity
   | 0, b + 1, t, _ => by
-    have h1 := (ENNReal.toReal_mono ENNReal.one_ne_top (Probability.PMF.toOuterMeasure_le_one
-      (ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s 0 (b + 1) t).run
-        fun x => pure (O x))) (jouxSuccess step (b + 1) t)ᶜ)).trans_eq ENNReal.toReal_one
-    have h2 : (1 : ℝ) ≤ 2 ^ b := one_le_pow₀ (by norm_num)
-    rw [pow_zero, mul_one, pow_succ]
-    linarith
+    simp only [jouxFinder, ProbOracleComp.run_pure, ProbComp.eval_pure,
+      PMF.toOuterMeasure_pure_apply, apply_ite ENNReal.toReal, ENNReal.toReal_one,
+      ENNReal.toReal_zero, pow_zero, mul_one, pow_succ]
+    split_ifs <;> linarith [one_le_pow₀ (a := (2 : ℝ)) (n := b) (by norm_num)]
   | f + 1, b + 1, t, ht => by
     have hε0 : 0 ≤ ε := le_trans (by positivity) hε
     have hB0 : 0 ≤ (2 : ℝ) ^ b * ((1 + ε) / 2) ^ f / 2 := by positivity
@@ -490,9 +486,9 @@ theorem run_absorbBits (n : ℕ) (t m : List Bool) :
   induction m generalizing t with
   | nil => simp [absorbBits, ProbOracleComp.run_pure]
   | cons b m ih =>
-    have := ih (h k (t ++ mdDataBlock n b))
-    simp only [absorbBits] at this
-    simp [absorbBits, List.foldlM_cons, ProbOracleComp.run_bind, ProbOracleComp.run_query, this]
+    rw [absorbBits, List.foldlM_cons, ProbOracleComp.run_bind, ProbOracleComp.run_query, pure_bind,
+      ← absorbBits]
+    simpa only [List.map_cons, merkleDamgardChain_cons] using ih (h k (t ++ mdDataBlock n b))
 
 /-- `absorbBits n t m` makes at most `m.length` compression calls. -/
 theorem isQueryBounded_absorbBits (n : ℕ) (t m : List Bool) :

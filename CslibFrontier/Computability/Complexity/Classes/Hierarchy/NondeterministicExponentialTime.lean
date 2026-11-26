@@ -207,10 +207,9 @@ private theorem exists_computableInO_brute (k : ℕ) : ∃ K, ComputableInO
     (hacc.computableInPolyTime hpoly hpoly)
     (ComputableInPolyTime.fst encQ encUnary) (ComputableInPolyTime.snd encQ encUnary)
   -- the certificate length in unary
-  have hL : ComputableInPolyTime (fun q : List Bool × List Bool => (k + 1) * (q.2.length + 1))
-      encQ encUnary := by
-    fun_prop
-  obtain ⟨C, hcl⟩ := hL.exists_computableInO_unary_two_pow
+  obtain ⟨C, hcl⟩ := (by fun_prop : ComputableInPolyTime
+    (fun q : List Bool × List Bool => (k + 1) * (q.2.length + 1)) encQ encUnary)
+    |>.exists_computableInO_unary_two_pow
   have h := hsearch.comp ((ComputableInO.of_eq (f := fun q : List Bool × List Bool => q)
     (encIn := encQ) (encMid := encQ) fun _ => rfl).prod hcl)
   -- the bounds
@@ -220,12 +219,13 @@ private theorem exists_computableInO_brute (k : ℕ) : ∃ K, ComputableInO
         2 * (encQ q).length + 1 + 2 ^ ((k + 1) * (q.2.length + 1)) := by
       rw [length_encPair, encUnary_apply, List.length_replicate]
     have e₂ : (4 : ℕ) ^ ((k + 1) * (q.2.length + 1)) =
-        2 ^ ((k + 1) * (q.2.length + 1)) * 2 ^ ((k + 1) * (q.2.length + 1)) := by
-      rw [← mul_pow]; norm_num
+        2 ^ ((k + 1) * (q.2.length + 1)) * 2 ^ ((k + 1) * (q.2.length + 1)) :=
+      Nat.mul_pow 2 2 _
     have hc : 1 ≤ 2 ^ ((k + 1) * (q.2.length + 1)) := Nat.one_le_two_pow
     have h := LazyDiagonal.brute_bound_aux C K₀ (encQ q).length _ hc
     have := Nat.le_mul_of_pos_left (2 ^ ((k + 1) * (q.2.length + 1))) hc
-    simp only [e₁, e₂, certLen] at h ⊢; omega
+    simp only [e₁, e₂, certLen] at h ⊢
+    omega
 
 /-- The cost of the tests of the verifier: quadratic in the encoded input, times the square of a
 bound `4 ^ ((k + 2) * (n + 1))` on the horizon, which the tests write in unary. -/
@@ -253,11 +253,8 @@ private theorem horizon_le (k C : ℕ) (x : List Bool) :
           (Nat.mul_le_mul_left 2 (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))))
     have h₂ : 4 ^ ((k + 2) * (2 * (unframe x).length + 1 + 1)) ≤
         (4 ^ ((k + 2) * (x.length + 1))) ^ 2 := by
-      rw [← pow_mul, mul_comm ((k + 2) * _)]
-      exact Nat.pow_le_pow_right (by norm_num) hk
-    have h₁' : C * 2 ^ (2 * (unframe x).length + 1) ≤ 2 * C * 4 ^ ((k + 2) * (x.length + 1)) :=
-      (Nat.mul_le_mul_left C h₁).trans_eq (by ring)
-    omega
+      simpa only [← pow_mul, mul_comm _ 2] using Nat.pow_le_pow_right (by norm_num) hk
+    exact Nat.add_le_add ((Nat.mul_le_mul_left C h₁).trans_eq (by ring)) h₂
 
 /-- **The verifier of the exponential lazy diagonal is computable**, within the cost of its tests
 plus the cost of the branch taken: the simulation, or the brute force at the end of an interval. -/
@@ -290,22 +287,19 @@ private theorem exists_computableInO_verifier (k : ℕ) :
     set Y := 4 ^ ((k + 2) * (p.1.length + 1))
     obtain ⟨h₁, -, h₃⟩ := LazyDiagonal.cheap_aux 1 hn (Nat.one_le_pow _ _ (by norm_num) : 1 ≤ Y)
       (Z := horizon k (2 * (unframe p.1).length + 1)) (by omega)
-    have hc : cheap k p = ((encPair encBits encBits p).length + 1) ^ 2 * Y ^ 2 := rfl
-    have hY₂ : Y ^ 2 ≤ cheap k p := by
-      rw [hc]
-      exact Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos _))
-    have := Nat.mul_le_mul_left (2 * CE) ((Nat.le_self_pow two_ne_zero Y).trans hY₂)
-    have : (2 * CE + 1) * cheap k p = 2 * CE * cheap k p + cheap k p := by ring
+    have hY₂ : Y ^ 2 ≤ cheap k p := Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos _))
     norm_num only at h₃
-    rw [hc]
-    exact ⟨hc ▸ h₁, h₃, by rw [← hc]; omega⟩
+    exact ⟨h₁, h₃, hE'.trans ((Nat.add_le_add
+      (Nat.mul_le_mul_left (2 * CE) ((Nat.le_self_pow two_ne_zero Y).trans hY₂)) hY₂).trans_eq
+      (Nat.succ_mul _ _).symm)⟩
   have hE' := hE.mono_time (T' := cheap k) (4 + 2 * CE) fun p => by
     obtain ⟨hc, -, ht⟩ := hfacts p
     have hu := length_unframe_le p.1
     have hn : p.1.length ≤ (encPair encBits encBits p).length := by enc_len
     have : (4 + 2 * CE) * (cheap k p + 1) =
         3 * cheap k p + (2 * CE + 1) * cheap k p + (4 + 2 * CE) := by ring
-    simp only [length_frame, encBits_apply]; omega
+    simp only [length_frame, encBits_apply]
+    omega
   obtain ⟨_, _, _, hc₀, hc₁', hc₂'⟩ := Diagonal.exists_computableInO_lazyTests (H := horizon k)
     (hE'.of_enc_eq fun p => by simp only [Function.comp_apply, horizon, length_frame])
     (fun p => (hfacts p).1) (fun p => (hfacts p).2.1)

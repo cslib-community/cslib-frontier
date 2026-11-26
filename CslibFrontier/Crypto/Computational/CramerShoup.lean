@@ -683,9 +683,7 @@ private theorem succProbability_cramerShoupExactCollisionGame_le
           ((s, t), ((s₁, t₁), (s₂, t₂)))]
       unfold runFinderOracle cramerShoupCollisionPhase2Oracle
       refine congrArg _ (funext fun out => ?_)
-      cases out.2 with
-      | none => simp
-      | some cand => rfl
+      cases out.2 <;> simp
     · simp only [h, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
       rfl
   game_trans using [hadv]
@@ -1225,25 +1223,19 @@ private theorem advantage_cramerShoupCCA2InnerSK_le
           (a : ZMod (F.order d)))
       (F.cramerShoupCCA2UniformSK hasAD encodeAD H isElem d adversary bit n true) ≤
       8 / 2 ^ n := by
-  simp only [cramerShoupCCA2UniformSK, PMF.monad_bind_eq_bind]
   refine advantage_four_le_eight _
     ((PMF.uniformOfFintype (ZMod (F.order d))).bind
       (F.cramerShoupCCA2SampledSK hasAD encodeAD H isElem d adversary bit n))
-    ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α =>
-      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun τ =>
-          (PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ₁ =>
-            (PMF.uniformOfFintype (ZMod (F.order d))).bind fun τ₁ =>
-              (PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ₂ =>
-                (PMF.uniformOfFintype (ZMod (F.order d))).bind fun τ₂ =>
-                  F.cramerShoupCCA2InnerSK hasAD encodeAD H isElem d adversary bit n
-                    α σ τ σ₁ τ₁ σ₂ τ₂ false) _
+    (F.cramerShoupCCA2UniformSK hasAD encodeAD H isElem d adversary bit n false) _
     (F.advantage_bind_sampleExp_le n d
       (F.cramerShoupCCA2SampledSK hasAD encodeAD H isElem d adversary bit n))
-    (advantage_bind_le_nnreal _ _ _ fun α =>
-      F.advantage_bind_sampleCramerShoupSK_le n d _ (fun σ τ σ₁ τ₁ σ₂ τ₂ =>
-        F.cramerShoupCCA2InnerSK hasAD encodeAD H isElem d adversary bit n
-          α σ τ σ₁ τ₁ σ₂ τ₂ false) (fun _ _ _ _ _ _ => rfl)) ?_
+    (by
+      simp only [cramerShoupCCA2UniformSK, PMF.monad_bind_eq_bind]
+      exact advantage_bind_le_nnreal _ _ _ fun α =>
+        F.advantage_bind_sampleCramerShoupSK_le n d _ (fun σ τ σ₁ τ₁ σ₂ τ₂ =>
+          F.cramerShoupCCA2InnerSK hasAD encodeAD H isElem d adversary bit n
+            α σ τ σ₁ τ₁ σ₂ τ₂ false) (fun _ _ _ _ _ _ => rfl)) ?_
+  simp only [cramerShoupCCA2UniformSK, PMF.monad_bind_eq_bind]
   peel_binds α σ τ σ₁ τ₁ σ₂ τ₂
   dsimp only [cramerShoupCCA2InnerSK]
   peel_binds choiceOut
@@ -1325,18 +1317,15 @@ private theorem exists_length_encDesc_withKeySetup_le {d : ℕ → F.Desc} {keyL
   refine ⟨2 * c₁ + 1 + c₂, k₁ + k₂, fun n p hp => ?_⟩
   obtain ⟨hd', hk⟩ := F.mem_support_withKeySetup (d := p.1) (k := p.2) hp
   rw [PMF.support_pure, Set.mem_singleton_iff] at hd'
-  have e₁ : (F.encDesc (d n)).length ≤ c₁ * (n + 1) ^ k₁ := by
-    simpa only [encUnary_apply, List.length_replicate] using h₁ n
-  have e₂ : keyLen n ≤ c₂ * (n + 1) ^ k₂ := by
-    simpa only [encUnary_apply, List.length_replicate] using h₂ n
-  have p₁ : c₁ * (n + 1) ^ k₁ ≤ c₁ * (n + 1) ^ (k₁ + k₂) :=
-    Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos n) (Nat.le_add_right _ _))
-  have p₂ : c₂ * (n + 1) ^ k₂ ≤ c₂ * (n + 1) ^ (k₁ + k₂) :=
-    Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos n) (Nat.le_add_left _ _))
-  have p₀ : 1 ≤ (n + 1) ^ (k₁ + k₂) := Nat.one_le_pow _ _ (Nat.succ_pos n)
+  have p₁ : (F.encDesc (d n)).length ≤ c₁ * (n + 1) ^ (k₁ + k₂) :=
+    Nat.le_trans (by simpa only [encUnary_apply, List.length_replicate] using h₁ n)
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos n) (Nat.le_add_right _ _)))
+  have p₂ : keyLen n ≤ c₂ * (n + 1) ^ (k₁ + k₂) :=
+    Nat.le_trans (by simpa only [encUnary_apply, List.length_replicate] using h₂ n)
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos n) (Nat.le_add_left _ _)))
   change (encPair F.encDesc encBits p).length ≤ _
   rw [length_encPair, encBits_apply, hd', hk]
-  nlinarith
+  nlinarith [Nat.one_le_pow (k₁ + k₂) (n + 1) (Nat.succ_pos n)]
 
 private theorem order_withKeySetup_ge {d : ℕ → F.Desc} {keyLen : ℕ → ℕ} {m : ℕ → ℕ}
     (hm : ∀ n, m n ≤ F.order (d n)) :

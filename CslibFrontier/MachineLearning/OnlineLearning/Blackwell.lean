@@ -815,26 +815,16 @@ theorem exists_approachStrategy_of_response [Fintype J] [Nonempty I]
           expectHistory (rule.toStrategy m adv) T []
               (fun h => if ε ≤ distToSet S ((T : ℝ)⁻¹ • sumPayoff m adv h) then (1 : ℝ) else 0) ≤
             (2 * R) ^ 2 / ((T : ℝ) * ε ^ 2) := by
-  have hhalf := halfspace_of_response hresp
-  have hchoice : ∀ y : E, ∃ p : I → ℝ, (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1 ∧
-      ∀ j, ⟪y - metricProjection S y, expectedPayoff m p j - metricProjection S y⟫ ≤ 0 := by
-    intro y
-    set s := metricProjection S y
-    have hsep : ∀ z ∈ S, ⟪y - s, z⟫ ≤ ⟪y - s, s⟫ := fun z hz => by
-      linarith [inner_sub_right (𝕜 := ℝ) (y - s) z s,
-        inner_sub_metricProjection_le_zero hc hS y hz]
-    obtain ⟨p, hp0, hp1, hp_le⟩ := hhalf (y - s) ⟪y - s, s⟫ hsep
-    refine ⟨p, hp0, hp1, fun j => ?_⟩
-    rw [inner_sub_right]
-    linarith [hp_le j]
   classical
-  let rule : FeedbackRule I E :=
-    { prob := fun y => (hchoice y).choose
-      nonneg := fun y => (hchoice y).choose_spec.1
-      sum_eq_one := fun y => (hchoice y).choose_spec.2.1 }
-  have hrule_step : ∀ y j,
-      ⟪y - metricProjection S y, expectedPayoff m (rule.prob y) j - metricProjection S y⟫ ≤ 0 :=
-    fun y j => (hchoice y).choose_spec.2.2 j
+  choose prob hnn hsum hle using fun y : E =>
+    let s := metricProjection S y
+    halfspace_of_response hresp (y - s) ⟪y - s, s⟫ fun z hz => by
+      linarith [inner_sub_right (𝕜 := ℝ) (y - s) z s, inner_sub_metricProjection_le_zero hc hS y hz]
+  let rule : FeedbackRule I E := ⟨prob, hnn, hsum⟩
+  have hrule_step (y : E) (j : J) :
+      ⟪y - metricProjection S y, expectedPayoff m (rule.prob y) j - metricProjection S y⟫ ≤ 0 := by
+    rw [inner_sub_right]
+    linarith [hle y j]
   refine ⟨rule, hrule_step, fun adv T hT => ?_⟩
   exact ⟨blackwell_expect_dist_sq_le hc hS hs₀ m hRnn hR (rule.toStrategy m adv) adv
       (fun h _ => hrule_step _ (adv h)) T hT,

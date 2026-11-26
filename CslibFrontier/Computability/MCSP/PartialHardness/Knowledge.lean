@@ -262,12 +262,10 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   have hlit (τ : Fin T) : ∃ q : ℕ, ∃ hq : q < φ[(τ : ℕ)].length,
       ∃ hv : φ[(τ : ℕ)][q].1 < I.weights.length, f ⟨_, hv⟩ ∉ cand h ⟨_, hv⟩ := by
     have hτ : φ[(τ : ℕ)] ∈ φ := List.getElem_mem _
-    have hfalse : Term.eval (fun i => decide (i ∈ K)) φ[(τ : ℕ)] = false := by
-      simp only [DNF.eval, List.any_eq_false] at hφ'
-      simpa using hφ' _ hτ
     obtain ⟨l, hl, hlK⟩ : ∃ l ∈ φ[(τ : ℕ)], decide (l.1 ∈ K) ≠ l.2 := by
       by_contra! hall
-      simp [(Term.eval_eq_true_iff (fun i => decide (i ∈ K)) _).2 hall] at hfalse
+      simp only [DNF.eval, List.any_eq_false] at hφ'
+      simpa [(Term.eval_eq_true_iff (fun i => decide (i ∈ K)) _).2 hall] using hφ' _ hτ
     obtain ⟨q, hq, rfl⟩ := List.getElem_of_mem hl
     have hv := hwf.var_lt _ hφ'mem _ hτ _ hl
     refine ⟨q, hq, hv, fun hmem => hlK ?_⟩
@@ -290,7 +288,7 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
     · intro τ q hq
       simp [sl, τ.isLt, show (q : ℕ) ≠ qs τ from fun he => hq (Fin.ext he)]
     · intro τ tq htq he
-      simp only at he
+      dsimp only at he
       split_ifs at he with h1 h2
       cases he
       exact htq (Prod.ext (Fin.ext rfl) (Fin.ext h2))
@@ -316,8 +314,7 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   -- `h` decodes the XOR-shared bit
   have hD (z : ∀ τ : Fin T, BitString (k * varLength I lam (vs τ))) (b : Bool) :
       D (fun τ => (z τ, E τ (z τ) + b)) = b := by
-    set w : ∀ τ : Fin T, BitString (k * varLength I lam (vs τ)) × Bool :=
-      fun τ => (z τ, E τ (z τ) + b) with hw
+    set w := fun τ => (z τ, E τ (z τ) + b) with hw
     have hidx := hmk_idx w
     apply hh
     change entry f ((BitString.equivFin _).symm (BitString.equivFin _ (mk w).toInput)) = some b
@@ -331,23 +328,22 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
     obtain ⟨τ, rfl⟩ : ∃ τ : Fin T, (sl τ).1 = t := ⟨⟨t, ht⟩, Fin.ext rfl⟩
     have hterm : term I j (sl τ).1 = φ[(τ : ℕ)] := term_eq_getElem hj τ.isLt
     have hq₀ : ((sl τ).2 : ℕ) < (term I (formulaIndex (mk w).toInput) (sl τ).1).length := by
-      rw [hidx, hterm]; exact hqs τ
+      simpa only [hidx, hterm, sl] using hqs τ
     have hvar : var I j (sl τ).1 (sl τ).2 = (vs τ : ℕ) := by
       simp [var, hterm, List.getD_eq_getElem?_getD, sl, vs, hqs τ]
-    have hfirst : slotBit f (mk w).toInput (sl τ).1 (sl τ).2 =
-        E τ (z τ) + b + xorPower (f (vs τ)) k (z τ) := by
-      simp only [Parts.slotBit_toInput, ha, hvar, mk, hinv_sl, Option.elim_some, hw,
-        sum_evalVar_seedsOf]
     have hrest : (∑ q ∈ univ.erase (sl τ).2,
         if (q : ℕ) < (term I (formulaIndex (mk w).toInput) (sl τ).1).length then
           slotBit f (mk w).toInput (sl τ).1 q else 0) = R τ := by
       rw [hidx]
       refine sum_congr rfl fun q hq => ?_
-      have hnone := hinv_none τ q (ne_of_mem_erase hq)
       split_ifs
-      exacts [by simp [Parts.slotBit_toInput, ha, mk, hnone]; rfl, rfl]
-    rw [termParity_eq_add hq₀, hfirst, hrest]
-    simp only [E]
+      · simp only [Parts.slotBit_toInput, ha, mk, hinv_none τ q (ne_of_mem_erase hq),
+          Option.elim_none]
+        exact zero_add _
+      · rfl
+    rw [termParity_eq_add hq₀, hrest]
+    simp only [Parts.slotBit_toInput, ha, hvar, mk, hinv_sl, Option.elim_some, hw,
+      sum_evalVar_seedsOf, E]
     cases xorPower (f (vs τ)) k (z τ) <;> cases R τ <;> cases b <;> rfl
   -- the hybrid argument finds a channel `h` predicts
   obtain ⟨τ, base, y₀, hcount⟩ := exists_card_add_decode_update_eq E D hD
@@ -376,10 +372,8 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
       cases h (mk (update base τ (z, y₀))).toInput <;> cases xorPower (f (vs τ)) k z <;>
         cases R τ <;> cases y₀ <;> decide
     rw [hcard]
-    have hc : (2 : ℝ) ^ (k * varLength I lam (vs τ)) * (T + 1) ≤
-        2 * T * #{z : BitString (k * varLength I lam (vs τ)) |
-          y₀ + D (update base τ (z, y₀)) = E τ z} := by
-      exact_mod_cast BitString.card ▸ hcount
+    have hc := (Nat.cast_le (α := ℝ)).mpr (BitString.card ▸ hcount)
+    push_cast at hc
     have hT' : (0 : ℝ) < T := by exact_mod_cast hT0
     have hTΔ' : (T : ℝ) ≤ Δ := by exact_mod_cast hTΔ
     calc (1 / 2 + 1 / (2 * Δ) : ℝ) * 2 ^ (k * varLength I lam (vs τ))

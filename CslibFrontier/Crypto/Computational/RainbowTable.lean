@@ -237,8 +237,7 @@ theorem lookup_evalPure_rainbowPreprocess [DecidableEq P] (h : P → Y) (g : ℕ
       starts.find? fun pw₀ => rainbowChainPure h g 0 τ pw₀ == z := by
   rw [evalPure_rainbowPreprocess, List.lookup_eq_findSome?, List.findSome?_map,
     List.find?_eq_findSome?_guard]
-  congr 1
-  funext pw₀
+  refine congrArg (List.findSome? · starts) (funext fun pw₀ => ?_)
   simp [Option.guard, @eq_comm _ z]
 
 /-- **Endpoint lookup in `A₀`'s table.** `List.lookup z` on the preprocessed table returns
@@ -555,14 +554,10 @@ private theorem evalPure_hellmanLoop_succ (h : P → Y) (lookup : P → Option P
       | none => (hellmanLoop g₀ y m (g₀ (h z))).evalPure (OracleComp.sumPure h lookup) := by
   simp only [hellmanLoop, OracleComp.evalPure_bind, OracleComp.evalPure_liftRight,
     OracleComp.evalPure_query]
-  cases lookup z with
-  | none =>
-    simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft, OracleComp.evalPure_query]
-  | some _ =>
-    simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft, evalPure_rainbowChain,
-      rainbowChainPure_const, OracleComp.evalPure_query]
-    split_ifs <;> simp only [OracleComp.evalPure_pure, OracleComp.evalPure_bind,
-      OracleComp.evalPure_liftLeft, OracleComp.evalPure_query]
+  cases lookup z <;> simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft,
+    evalPure_rainbowChain, rainbowChainPure_const, OracleComp.evalPure_query]
+  split_ifs <;> simp only [OracleComp.evalPure_pure, OracleComp.evalPure_bind,
+    OracleComp.evalPure_liftLeft, OracleComp.evalPure_query]
 
 private theorem hellmanLoop_sound {h : P → Y} {lookup : P → Option P} {g₀ : Y → P} {y : Y}
     {rem : ℕ} {z pw : P}
@@ -572,12 +567,10 @@ private theorem hellmanLoop_sound {h : P → Y} {lookup : P → Option P} {g₀ 
   | zero => cases heval
   | succ m ih =>
     rw [evalPure_hellmanLoop_succ] at heval
-    cases hlk : lookup z <;> rw [hlk] at heval
+    cases hlk : lookup z <;> simp only [hlk] at heval
     · exact ih heval
-    · dsimp only at heval
-      split_ifs at heval with hcheck
-      · exact Option.some.inj heval ▸ hcheck
-      · exact ih heval
+    · split_ifs at heval with hcheck
+      exacts [Option.some.inj heval ▸ hcheck, ih heval]
 
 /-- **Soundness of Hellman's inversion** ([BonehShoup2023], Section 18.7, line 5 of Algorithm `A₁`,
 p. 744): every password output by `hellmanAttack` satisfies `h pw = y`. -/
@@ -607,8 +600,7 @@ private theorem exists_evalPure_hellmanLoop_of_lookup_eq_some {h : P → Y} {loo
     | some _ =>
       dsimp only
       split_ifs with hcheck
-      · exact ⟨_, rfl, hcheck⟩
-      · exact hrec
+      exacts [⟨_, rfl, hcheck⟩, hrec]
 
 /-- **Completeness of Hellman's inversion on covered points** ([BonehShoup2023], Section 18.7,
 pp. 743–744): if `y = h(pw)` for a point `pw = (g₀ ∘ h)^[col](pw₀)` at column `col < τ` whose

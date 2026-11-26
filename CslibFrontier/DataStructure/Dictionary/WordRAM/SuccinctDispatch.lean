@@ -517,16 +517,10 @@ theorem regs_comp_append_paramReg {D : Type} [WordEncoding D]
     x.regs ∘ Fin.append paramReg srcD =
       WordEncoding.encode (α := DictParams × D) (dp, d) :=
   funext fun i => i.addCases
-    (fun j => by
-      change x.regs (Fin.append paramReg srcD (Fin.castAdd (WordEncoding.width D) j)) =
-        Fin.append (WordEncoding.encode dp) (WordEncoding.encode d)
-          (Fin.castAdd (WordEncoding.width D) j)
-      rw [Fin.append_left, Fin.append_left]; exact hp j)
-    (fun j => by
-      change x.regs (Fin.append paramReg srcD (Fin.natAdd 36 j)) =
-        Fin.append (WordEncoding.encode dp) (WordEncoding.encode d)
-          (Fin.natAdd (WordEncoding.width DictParams) j)
-      rw [Fin.append_right, Fin.append_right]; exact hd j)
+    (fun j => (congrArg x.regs (Fin.append_left _ _ j)).trans
+      ((hp j).trans (Fin.append_left (WordEncoding.encode dp) (WordEncoding.encode d) j).symm))
+    (fun j => (congrArg x.regs (Fin.append_right _ _ j)).trans
+      ((hd j).trans (Fin.append_right (WordEncoding.encode dp) (WordEncoding.encode d) j).symm))
 
 /-- Layout characterization for `tmp*` scratch/output register wirings: outputs occupy distinct
 registers below `256` in `outs`, and remaining indices map to `292 + j.val`. -/
@@ -965,8 +959,7 @@ private theorem exec_extCode {U V w n_max base : ℕ}
   have hkey₁ : x₁.regs hashKeyReg = (quotientFin U n_max u).val := by
     have h0 := hout 0
     rw [clientResult_width] at h0
-    refine h0.trans ?_
-    change u.val >>> bucketBits n_max = (quotientFin U n_max u).val
+    refine h0.trans (show u.val >>> bucketBits n_max = _ from ?_)
     rw [quotientFin_val_eq hwf.2.1 u, keyQuotient, Nat.shiftRight_eq_div_pow]
   refine ⟨x₁, hex, congrArg Memory.State.mem hm, hfr₁, hkey₁, fun i hi1 => ?_⟩
   obtain rfl | hif := eq_or_ne i 240

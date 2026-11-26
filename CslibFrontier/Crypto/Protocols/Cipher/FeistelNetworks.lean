@@ -619,12 +619,7 @@ omit [AddGroup G] in
 (original bound). -/
 theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (idealPermGame (feistel1CPAAttack l₀ r₀) true).toReal ≤ (Fintype.card G : ℝ)⁻¹ := by
-  have hgame :
-      idealPermGame (feistel1CPAAttack l₀ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide ((π (l₀, r₀)).1 = r₀)) := by
-    simp [idealPermGame, feistel1CPAAttack, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel1CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset G) (k := 1)
     (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _)
     (fun w => ![(r₀, w)])

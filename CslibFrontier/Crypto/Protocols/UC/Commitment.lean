@@ -1306,15 +1306,10 @@ theorem succProbability_corruptCommitterSuffix_add_le_one
     · simp only [corruptCommitterSuffix, Machine.runFrom_bind, Machine.runFrom_query]
       rw [handle_execMachine_fcom_query_one_idle]
       simp [Game.succProbability]
-    · cases bStar
-      · have h := eval_corruptCommitterSuffix_locked_not S₁ S₀ false κ st₁ recDel₁ stS₀ phase
-        rw [Bool.not_false] at h
-        rw [h, succProbability_pure_false, add_zero]
-        exact Game.succProbability_le_one _
-      · have h := eval_corruptCommitterSuffix_locked_not S₁ S₀ true κ st₁ recDel₁ stS₀ phase
-        rw [Bool.not_true] at h
-        rw [h, succProbability_pure_false, zero_add]
-        exact Game.succProbability_le_one _
+    · have h := eval_corruptCommitterSuffix_locked_not S₁ S₀ bStar κ st₁ recDel₁ stS₀ phase
+      cases bStar <;> simp only [Bool.not_false, Bool.not_true] at h <;>
+        simpa only [h, succProbability_pure_false, add_zero, zero_add] using
+          Game.succProbability_le_one _
 
 /-- **Ideal-World Binding Inequality for `corruptCommitterEnv`:** for every simulator `S₀`
 (`C = {0}`) and every simulator `S₁` (`C = {1}`), the ideal success probabilities of
@@ -1382,10 +1377,7 @@ theorem acceptProb_le_ideal_add_advantage [DecidableEq CommitMsg] [DecidableEq O
   rw [← NNReal.coe_le_coe]
   simp only [PlainCommitmentScheme.acceptProb, ← eval_exec_real_corruptReceiverEnv scheme b κ z₁,
     advantage, NNReal.coe_add, Game.coe_advantage]
-  rw [show Game.succProbability
-      (exec scheme.toProtocol (dummyAdversary 2 _ _) {0} (corruptCommitterEnv S₁ b) κ z₀).eval =
-    Game.succProbability (exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b) κ z₁).eval
-    from by rw [exec_real_corruptCommitterEnv_eq_exec_fcom_corruptReceiverEnv scheme S₁ b κ z₀ z₁]]
+  rw [exec_real_corruptCommitterEnv_eq_exec_fcom_corruptReceiverEnv scheme S₁ b κ z₀ z₁]
   linarith [le_abs_self ((Game.succProbability (exec scheme.toProtocol (dummyAdversary 2 _ _) {1}
       (corruptReceiverEnv scheme b) κ z₁).eval : ℝ) -
     Game.succProbability (exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b) κ z₁).eval),
@@ -1436,14 +1428,13 @@ theorem not_emulatesDummyWithin_fcom [DecidableEq CommitMsg] [DecidableEq OpenMs
       scheme.acceptProb κ false + scheme.acceptProb κ true) :
     ¬ EmulatesDummyWithin scheme.toProtocol fcom.toProtocol pD ε := by
   rintro ⟨S, hS_poly, hadv⟩
-  have hS1 : ∀ κ', (S κ' {1}).IsBounded (pD.eval κ') := fun κ' => hS_poly κ' {1}
   have hle : scheme.acceptProb κ false + scheme.acceptProb κ true ≤
       1 + 2 * ε (pV + 4) κ + 2 * ε (3 * pD + 4) κ := by
     grw [acceptProb_add_le_one_add_advantage scheme S S κ [],
       hadv {1} _ _ (corruptReceiverEnv_polyBounded hV false) κ [],
       hadv {1} _ _ (corruptReceiverEnv_polyBounded hV true) κ [],
-      hadv {0} _ _ (corruptCommitterEnv_polyBounded hS1 false) κ [],
-      hadv {0} _ _ (corruptCommitterEnv_polyBounded hS1 true) κ []]
+      hadv {0} _ _ (corruptCommitterEnv_polyBounded (fun κ' => hS_poly κ' {1}) false) κ [],
+      hadv {0} _ _ (corruptCommitterEnv_polyBounded (fun κ' => hS_poly κ' {1}) true) κ []]
     exact le_of_eq (by ring)
   exact not_lt_of_ge hle hgap
 
@@ -1481,7 +1472,6 @@ theorem not_realizes_fcom [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     ¬ Realizes scheme.toProtocol fcom := by
   intro hreal
   obtain ⟨S, pD, hS_poly, hsim⟩ := (emulates_iff_emulatesDummy _ _).mp hreal
-  have hS1 : ∀ κ, (S κ {1}).IsBounded (pD.eval κ) := fun κ => hS_poly κ {1}
   obtain ⟨ε₁, hε₁_neg, hε₁⟩ := hsim (pV + 4)
   obtain ⟨ε₀, hε₀_neg, hε₀⟩ := hsim (3 * pD + 4)
   have ht : Filter.Tendsto (fun κ => 2 * ε₁ κ + 2 * ε₀ κ) Filter.atTop (nhds 0) := by
@@ -1491,8 +1481,8 @@ theorem not_realizes_fcom [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     grw [hκ_complete, acceptProb_add_le_one_add_advantage scheme S S κ [],
       hε₁ {1} _ (corruptReceiverEnv_polyBounded hV false) κ [],
       hε₁ {1} _ (corruptReceiverEnv_polyBounded hV true) κ [],
-      hε₀ {0} _ (corruptCommitterEnv_polyBounded hS1 false) κ [],
-      hε₀ {0} _ (corruptCommitterEnv_polyBounded hS1 true) κ []]
+      hε₀ {0} _ (corruptCommitterEnv_polyBounded (fun κ' => hS_poly κ' {1}) false) κ [],
+      hε₀ {0} _ (corruptCommitterEnv_polyBounded (fun κ' => hS_poly κ' {1}) true) κ []]
     exact le_of_eq (by ring)
   exact not_lt_of_ge hle (add_lt_add_right hκ_lt 1)
 

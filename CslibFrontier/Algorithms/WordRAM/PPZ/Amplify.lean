@@ -501,14 +501,9 @@ theorem countDigits_binary (e c : ℕ) : ∀ d ∈ countDigits e c, d ≤ 1 :=
   Schoening.mulAddDigits_digit_le _ _ _
 
 theorem length_countDigits_le (e c : ℕ) :
-    (countDigits e c).length ≤ e + 1 + (Nat.digits 2 c).length := by
-  have h := Schoening.length_mulAddDigits_le (a := c) (cy := 0) (B := c)
-    (ds := List.replicate e 0 ++ [1])
-    (fun d hd => by
-      simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd
-      omega)
-    le_rfl (Nat.zero_le _)
-  simpa [countDigits] using h
+    (countDigits e c).length ≤ e + 1 + (Nat.digits 2 c).length :=
+  (Schoening.length_mulAddDigits_le (B := c) (by simp; omega) le_rfl (Nat.zero_le _)).trans
+    (by simp)
 
 /-- The binary digits of the number of rounds, as the setup computes them: the digits of
 `2 ^ ⌈(k - 1) n / k⌉`, multiplied by `c`. -/
@@ -578,10 +573,7 @@ theorem le_ppzExp {k : ℕ} (hk : 1 ≤ k) (n : ℕ) : (1 - 1 / (k : ℝ)) * n �
 theorem ppzExp_le (k n : ℕ) : ppzExp k n ≤ n := by
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · simp [ppzExp]
-  · simp only [ppzExp]
-    rw [Nat.div_le_iff_le_mul_add_pred hk]
-    have h1 : (k - 1) * n ≤ k * n := Nat.mul_le_mul_right n (Nat.sub_le k 1)
-    have h2 : k * n = n * k := Nat.mul_comm k n
+  · rw [ppzExp, Nat.div_le_iff_le_mul_add_pred hk, Nat.sub_mul, Nat.one_mul]
     omega
 
 /-! ### The setup -/
@@ -713,9 +705,7 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
     · simp only [Function.update_of_ne (show B + t ≠ B + e by omega)]
       rw [ite_eq_left (by omega), List.getElem_append_left (by simp; omega),
         List.getElem_replicate]
-  · intro d hd
-    simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd
-    omega
+  · simp; omega
 
 /-- The instruction bound of the counter's setup. -/
 def countTime (k n c : ℕ) : ℕ := 5 * ppzExp k n + 10 * ppzCounterLen k n c + 13

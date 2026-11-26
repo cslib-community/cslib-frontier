@@ -307,8 +307,8 @@ theorem isTruthful_withOpponentTransfer [DecidableEq ι] (D : IndirectMechanism 
     (D.withOpponentTransfer g).IsTruthful val ↔ D.IsTruthful val := by
   rw [isTruthful_iff, isTruthful_iff]
   refine forall_congr' fun t => forall_congr' fun i => forall_congr' fun ti' => ?_
-  simp only [withOpponentTransfer_outcome, withOpponentTransfer_payment, oppProj_update]
-  constructor <;> intro h <;> linarith
+  simp only [withOpponentTransfer_outcome, withOpponentTransfer_payment, oppProj_update,
+    sub_add_eq_sub_sub, sub_le_sub_iff_right]
 
 private theorem exists_singleAgentVal [Fintype ι] [DecidableEq Ω] (i₀ : ι)
     {ω₀ ω₁ : Ω} (hω : ω₀ ≠ ω₁) (v₀ : T i₀ → ℝ) (hv₀ : ∀ ti, 1 ≤ v₀ ti) :
@@ -510,8 +510,7 @@ theorem isBIC_withOpponentTransfer (P : CorrelatedPrior ι T) (val : ∀ i, T i 
     (D : IndirectMechanism ι T Ω) (g : ∀ i, OppProfile T i → ℝ) :
     P.IsBIC val (D.withOpponentTransfer g) ↔ P.IsBIC val D := by
   refine forall_congr' fun i => forall_congr' fun ti => forall_congr' fun ti' => ?_
-  simp only [interimUtility_withOpponentTransfer]
-  constructor <;> intro h <;> linarith
+  simp only [interimUtility_withOpponentTransfer, sub_le_sub_iff_right]
 
 /-- **Interim individual rationality (`IsInterimIR`)**: every agent `i` and true type `ti`
 receives nonnegative interim expected utility under truthful reporting. -/
@@ -532,16 +531,15 @@ theorem sum_marginal_mul_interimUtility (P : CorrelatedPrior ι T) (val : ∀ i,
     ∑ i, ∑ ti : T i, P.marginal i ti * P.interimUtility val D i ti ti =
       (∑ t, P.prob t * ∑ i, val i (t i) (D.outcome t)) -
         ∑ t, P.prob t * ∑ i, D.payment t i := by
-  have hagent : ∀ i : ι,
-      ∑ ti : T i, P.marginal i ti * P.interimUtility val D i ti ti =
-        ∑ t, P.prob t * (val i (t i) (D.outcome t) - D.payment t i) := fun i => by
-    rw [P.sum_prob_mul_eq_sum_marginal_mul i]
-    refine sum_congr rfl fun ti _ => ?_
-    simp only [interimUtility_apply, extendProfile_self]
-  simp only [hagent]
-  rw [sum_comm, ← sum_sub_distrib]
-  refine sum_congr rfl fun t _ => ?_
-  rw [← mul_sum, sum_sub_distrib, mul_sub]
+  have hagent (i : ι) : ∑ ti, P.marginal i ti * P.interimUtility val D i ti ti =
+      ∑ t, P.prob t * (val i (t i) (D.outcome t) - D.payment t i) := by
+    simpa only [interimUtility_apply, extendProfile_self] using
+      (P.sum_prob_mul_eq_sum_marginal_mul i fun t =>
+        val i (t i) (D.outcome t) - D.payment t i).symm
+  simp_rw [hagent]
+  rw [sum_comm]
+  simp_rw [← mul_sum, sum_sub_distrib, mul_sub]
+  rw [sum_sub_distrib]
 
 /-- Zero truthful interim utility at every agent and type implies `ExtractsFullSurplus`. -/
 theorem extractsFullSurplus_of_forall_interimUtility_eq_zero (P : CorrelatedPrior ι T)
@@ -596,13 +594,8 @@ private theorem linearIndependent_rows_iff_forall_exists_mulVec_eq {m n : Type*}
     obtain ⟨g, hg⟩ := (Matrix.exists_mulVec_le_iff M b).2 fun y hy hyM => by
       set c : m → ℝ := y ∘ Sum.inl - y ∘ Sum.inr
       have hcA : ∑ r, c r • A r = 0 := by
-        rw [sum_smul_row_eq_vecMul]
-        funext k
-        have hk := congr_fun hyM k
-        simp only [M, vecMul_fromRows, vecMul_neg, Pi.add_apply, Pi.neg_apply,
-          Pi.zero_apply] at hk
-        simp only [c, sub_vecMul, Pi.sub_apply, Pi.zero_apply]
-        linarith
+        simpa only [sum_smul_row_eq_vecMul, c, sub_vecMul, M, vecMul_fromRows, vecMul_neg,
+          ← sub_eq_add_neg] using hyM
       have hc0 : c = 0 := funext (hLI c hcA)
       have hdot : y ⬝ᵥ b = c ⬝ᵥ target := by
         rw [← Sum.elim_comp_inl_inr y]
@@ -850,9 +843,7 @@ theorem condBelief_notMem_convexHull_iff_exists_separating_lottery (P : Correlat
       have hy_ti' : 0 ≤ (P.condBelief i *ᵥ y) ti' := by
         simpa only [A, vecMul, mulVec, Matrix.of_apply, Pi.zero_apply, dotProduct_comm] using
           hyA ⟨ti', hne⟩
-      have hc : c < 0 := hyb
-      dsimp only [mulVec, dotProduct] at hy_ti' ⊢
-      linarith
+      linarith [hyb]
   · rintro ⟨h, h0, hpos⟩ ⟨w, hw, hcomb⟩
     have hdot_pos : 0 < w ⬝ᵥ fun ti' : {ti' : T i // ti' ≠ ti} => (P.condBelief i *ᵥ h) ti'.1 :=
       hw.dotProduct_pos fun ti' => hpos ti'.1 ti'.2

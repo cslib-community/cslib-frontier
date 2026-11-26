@@ -193,9 +193,8 @@ private theorem load_finnHorowitzTightNE (m : ℕ) (j : Fin m) :
   have hfilt : (univ.filter fun p : Bool × Fin m => finnHorowitzTightNE m p = j) =
       {(false, j), (true, j)} := by
     ext ⟨b, k⟩
-    rw [Finset.mem_filter, Finset.mem_insert, Finset.mem_singleton]
-    simp only [Finset.mem_univ, true_and, Prod.mk.injEq, finnHorowitzTightNE]
-    cases b <;> simp
+    rw [Finset.mem_filter]
+    cases b <;> simp [finnHorowitzTightNE]
   change ∑ p ∈ (univ.filter fun p : Bool × Fin m => finnHorowitzTightNE m p = j),
     (if p.2.val = 0 then (m : ℝ)
      else if p.1 then ((m - p.2.val : ℕ) : ℝ) else p.2.val) = _
@@ -255,7 +254,6 @@ theorem optMakespan_finnHorowitzTight (m : ℕ) [NeZero m] :
       (if p.2.val = 0 then (m : ℝ)
        else if p.1 then ((m - p.2.val : ℕ) : ℝ) else p.2.val) = _
     rw [hfilt, sum_pair (by simp)]
-    dsimp only
     simp only [Bool.false_eq_true, ↓reduceIte]
     have hprev_eq : (if prev.val = 0 then (m : ℝ) else ((m - prev.val : ℕ) : ℝ)) =
         ((m - prev.val : ℕ) : ℝ) := by
@@ -283,7 +281,6 @@ theorem makespan_finnHorowitzTightNE_eq_ratio (m : ℕ) [NeZero m] :
     (finnHorowitzTight m).makespan (finnHorowitzTightNE m) =
       (2 * (m : ℝ) / ((m : ℝ) + 1)) * (finnHorowitzTight m).optMakespan := by
   rw [makespan_finnHorowitzTightNE, optMakespan_finnHorowitzTight]
-  have hne : (m : ℝ) + 1 ≠ 0 := by positivity
   field_simp
 
 /-- **Three jobs on two identical machines** ([Vocking2007]): every pure Nash
@@ -312,8 +309,7 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
   obtain ⟨jstar, hjstar⟩ := G.exists_load_eq_makespan A
   let jother : Fin 2 := 1 - jstar
   have hjne : jother ≠ jstar := by fin_cases jstar <;> decide
-  have hne_eq : ∀ j : Fin 2, j ≠ jstar → j = jother := by
-    intro j
+  have hne_eq (j : Fin 2) : j ≠ jstar → j = jother := by
     fin_cases j <;> fin_cases jstar <;> decide
   set S : Finset (Fin 3) := univ.filter fun i => A i = jstar
   have hload_S : G.load A jstar = ∑ i ∈ S, G.weight i := by
@@ -386,13 +382,11 @@ theorem IsIdentical.makespan_le_optMakespan_add_of_weight_le {G : LoadBalancingG
   by_cases hSne : S.Nonempty
   · obtain ⟨i₀, hi₀⟩ := hSne
     have hbound := hId.card_mul_load_sub_le_card_mul_optMakespan hA (mem_filter.mp hi₀).2
-    have hmul : (Fintype.card M : ℝ) * G.makespan A ≤
-        (Fintype.card M : ℝ) * G.optMakespan + ((Fintype.card M : ℝ) - 1) * B := by
-      rw [← hjstar]; nlinarith [hw i₀]
     have heq : (Fintype.card M : ℝ) * (G.optMakespan + (1 - 1 / (Fintype.card M : ℝ)) * B) =
         (Fintype.card M : ℝ) * G.optMakespan + ((Fintype.card M : ℝ) - 1) * B := by
       field_simp
-    nlinarith
+    rw [← hjstar]
+    nlinarith [hw i₀]
   · rw [← hjstar, G.load_eq_sum_div,
       (not_nonempty_iff_eq_empty.mp hSne : (univ.filter fun i => A i = jstar) = ∅),
       sum_empty, zero_div]
@@ -447,10 +441,8 @@ theorem makespan_le_goldenRatio_mul_optMakespan (G : LoadBalancingGame ι (Fin 2
       · have hle : G.weight i₀ / s ≤ G.optMakespan := by
           simpa only [s, hAopt, hopt_i] using G.weight_div_speed_le_makespan Aopt i₀
         rw [hwi₀, mul_div_cancel_left₀ _ hs.ne'] at hle; nlinarith
-      · have hopt_other : Aopt i₀ = jother := by
-          have : Aopt i₀ ∈ ({jstar, jother} : Finset (Fin 2)) := hpair ▸ mem_univ _
-          simp only [mem_insert, mem_singleton] at this
-          exact this.resolve_left hopt_i
+      · have hopt_other : Aopt i₀ = jother :=
+          mem_singleton.mp ((mem_insert.mp (hpair ▸ mem_univ (Aopt i₀))).resolve_left hopt_i)
         have hle_t : G.weight i₀ / t ≤ G.optMakespan := by
           simpa only [t, hAopt, hopt_other] using G.weight_div_speed_le_makespan Aopt i₀
         have hbound1 : s * G.load A jstar ≤ t * G.optMakespan := by
@@ -685,14 +677,10 @@ theorem mem_prefix_of_nash_load_ge (G : LoadBalancingGame ι M) {Aopt : ι → M
     Aopt i ∈ P := by
   rw [hP]
   intro j' hj'
-  have h1 := hNE j'
   have hdiv : G.weight i / G.speed j' ≤ G.weight i / G.speed (Aopt i) :=
     div_le_div_of_nonneg_left (G.weight_nonneg i) (G.speed_pos (Aopt i)) hj'
-  have hopt : G.weight i / G.speed (Aopt i) ≤ G.optMakespan := by
-    rw [← hAopt]
-    exact G.weight_div_speed_le_makespan Aopt i
   push_cast at hge
-  linarith
+  linarith [hNE j', hAopt ▸ G.weight_div_speed_le_makespan Aopt i]
 
 /-- **Prefix-list inclusion lemma** ([CzumajVocking2002]; [Vocking2007]): if `A` is a
 pure Nash equilibrium and `Aopt` is an optimal assignment, then any job whose `A`-machine has load
@@ -854,9 +842,8 @@ theorem exists_isPureNash_makespan_eq_mul_optMakespan {K : ℝ} (hK : 1 ≤ K) :
     rw [load, sum_filter, Fin.sum_univ_two]
     fin_cases j <;> simp [U, Aopt]
   have hNE : U.toCostGame.IsPureNash A := (U.isPureNash_iff A).mpr fun i k hk => by
-    rw [hloadA, hloadA]
     simp only [U, A, id_eq] at hk ⊢
-    rw [ite_eq_right hk.symm]
+    rw [hloadA, hloadA, ite_eq_right hk.symm]
     linarith
   have hmsA : U.makespan A = K := le_antisymm ((U.makespan_le_iff A).mpr fun j => (hloadA j).le)
     (hloadA 0 ▸ U.load_le_makespan A 0)

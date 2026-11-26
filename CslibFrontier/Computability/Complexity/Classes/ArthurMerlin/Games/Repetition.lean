@@ -101,18 +101,15 @@ private theorem inf'_prod_pi {ι κ : Type} [Fintype ι] [DecidableEq ι] [Finty
 private theorem sup'_equiv {α β : Type} [Fintype α] [Fintype β] [Nonempty α] [Nonempty β]
     (e : α ≃ β)
     (φ : β → ℚ) : univ.sup' univ_nonempty (fun a => φ (e a)) = univ.sup' univ_nonempty φ :=
-  le_antisymm (sup'_le _ _ fun a _ => le_sup' φ (mem_univ _))
-    (sup'_le _ _ fun b _ => by
-      have := le_sup' (fun a => φ (e a)) (mem_univ (e.symm b))
-      rwa [Equiv.apply_symm_apply] at this)
+  le_antisymm (sup'_le _ _ fun _ _ => le_sup' φ (mem_univ _)) (sup'_le _ _ fun b _ => by
+    simpa only [Equiv.apply_symm_apply] using le_sup' (fun a => φ (e a)) (mem_univ (e.symm b)))
 
 private theorem inf'_equiv {α β : Type} [Fintype α] [Fintype β] [Nonempty α] [Nonempty β]
     (e : α ≃ β)
     (φ : β → ℚ) : univ.inf' univ_nonempty (fun a => φ (e a)) = univ.inf' univ_nonempty φ :=
   le_antisymm (le_inf' _ _ fun b _ => by
-      have := inf'_le (fun a => φ (e a)) (mem_univ (e.symm b))
-      rwa [Equiv.apply_symm_apply] at this)
-    (le_inf' _ _ fun a _ => inf'_le φ (mem_univ _))
+      simpa only [Equiv.apply_symm_apply] using inf'_le (fun a => φ (e a)) (mem_univ (e.symm b)))
+    (le_inf' _ _ fun _ _ => inf'_le φ (mem_univ _))
 
 /-- Copy `i` of a transcript that starts with a move of `m * n` bits starts with block `i` of
 that move. -/
@@ -229,8 +226,7 @@ theorem value_majority_ge (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool �
     from funext fun w => by cases majority g k W w <;> norm_num, value_one_sub, Bool.not_true]
   set v := value true g (fun t => ((W t).toNat : ℚ))
   have hdual : value false g (fun t => ((!W t).toNat : ℚ)) = 1 - v := by
-    simp only [toNat_not_cast]
-    rw [value_one_sub, Bool.not_false]
+    simp only [toNat_not_cast, value_one_sub, Bool.not_false, v]
   have hu : 0 ≤ value false g (fun t => ((!W t).toNat : ℚ)) :=
     value_nonneg _ _ fun t => by positivity
   have key : value false (repeatShape (2 * k) g) (fun w => ((!majority g k W w).toNat : ℚ)) ≤
@@ -333,19 +329,19 @@ theorem isAMGameVerifierWithErrorExponent_iff_value {enc : α ↪ List Bool} {e 
         (fun t => ((V (a, t)).toNat : ℚ))) ≤ 1) ∧
       (a ∉ A → 2 ^ e.eval (enc a).length * value true (evalShape G (enc a).length)
         (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1) := by
-  refine forall_congr' fun a => and_congr (imp_congr_right fun _ => ?_)
-    (imp_congr_right fun _ => ?_)
-  · have hle := count_le_two_pow (evalShape G (enc a).length) fun t => V (a, t)
-    rw [← Nat.cast_le (α := ℚ)]
-    push_cast [hle]
+  refine forall_congr' fun a => ?_
+  have hp : (0 : ℚ) < 2 ^ arthurBits (evalShape G (enc a).length) := by positivity
+  refine and_congr (imp_congr_right fun _ => ?_) (imp_congr_right fun _ => ?_)
+  · rw [← Nat.cast_le (α := ℚ)]
+    push_cast [count_le_two_pow (evalShape G (enc a).length) fun t => V (a, t)]
     rw [count_eq]
-    have hp : (0 : ℚ) < 2 ^ arthurBits (evalShape G (enc a).length) := by positivity
-    exact ⟨fun h => by nlinarith, fun h => by nlinarith⟩
+    exact ⟨fun h => by nlinarith,
+      fun h => by nlinarith⟩
   · rw [← Nat.cast_le (α := ℚ)]
     push_cast
     rw [count_eq]
-    have hp : (0 : ℚ) < 2 ^ arthurBits (evalShape G (enc a).length) := by positivity
-    exact ⟨fun h => by nlinarith, fun h => by nlinarith⟩
+    exact ⟨fun h => by nlinarith,
+      fun h => by nlinarith⟩
 
 theorem IsAMGameVerifierWithErrorExponent.isAMGameVerifier {enc : α ↪ List Bool}
     {e : Polynomial ℕ} {G : List (AMMove × Polynomial ℕ)} {V : α × List Bool → Bool} {A : Set α}
@@ -361,11 +357,8 @@ theorem IsAMGameVerifierWithErrorExponent.isAMGameVerifier {enc : α ↪ List Bo
     value_nonneg _ _ fun _ => by positivity
   have hv1 : value true (evalShape G (enc a).length) (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1 :=
     value_le_one _ _ fun t => by cases V (a, t) <;> norm_num
-  refine ⟨fun ha => ?_, fun ha => ?_⟩
-  · have := (h a).1 ha
-    nlinarith
-  · have := (h a).2 ha
-    nlinarith
+  exact ⟨fun ha => by nlinarith [(h a).1 ha],
+    fun ha => by nlinarith [(h a).2 ha]⟩
 
 /-- **Error reduction for public-coin games**: parallel repetition with a majority vote. A problem
 has a game verifier of pattern `π` exactly when it has one with error at most `2 ^ (-e(n))` for

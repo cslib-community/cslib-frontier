@@ -189,18 +189,13 @@ theorem expected_utility_ge_of_cce [DecidableEq ι] {M : Mechanism ι}
     σ.weights.sum (fun b w => w * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ))) ≤
       σ.weights.sum (fun b w => w * M.utility i (v i) (fun j => (b j : ℝ))) := by
   have h := hσ i z
-  simp only [toCostGame, mul_neg, Finsupp.sum] at h ⊢
-  rw [sum_neg_distrib, sum_neg_distrib, neg_le_neg_iff] at h
-  refine le_trans ?_ h
-  exact le_of_eq (sum_congr rfl fun b _ => by rw [coe_update_nnreal])
+  simpa only [toCostGame, mul_neg, Finsupp.sum, sum_neg_distrib, neg_le_neg_iff,
+    coe_update_nnreal] using h
 
 private theorem div_max_one_mul_le {lam μ W U P E : ℝ} (hsm : lam * W - μ * P ≤ U)
     (hU : 0 ≤ U) (hP : 0 ≤ P) (hwel : E = U + P) : lam / max 1 μ * W ≤ E := by
-  have hm1 : 1 ≤ max 1 μ := le_max_left 1 μ
-  have hm2 : μ ≤ max 1 μ := le_max_right 1 μ
-  have hm_pos : 0 < max 1 μ := lt_of_lt_of_le zero_lt_one hm1
-  rw [div_mul_eq_mul_div, div_le_iff₀ hm_pos]
-  nlinarith
+  rw [div_mul_eq_mul_div, div_le_iff₀ (lt_of_lt_of_le zero_lt_one (le_max_left 1 μ))]
+  nlinarith [le_max_left 1 μ, le_max_right 1 μ]
 
 variable [Fintype ι] [DecidableEq ι] {M : Mechanism ι}
 
@@ -350,16 +345,10 @@ private theorem interimSliceUtil_eq_interim (M : Mechanism ι) {ν : ι → Meas
       (Measure.pi ν)) :
     M.interimSliceUtil ν β i t =
       t * M.interimAllocation ν β i (β i t) - M.interimPayment ν β i (β i t) := by
-  have hupd : ∀ w : ι → ℝ,
+  have hupd (w : ι → ℝ) :
       M.utility i (update w i t i) (fun j => β j (update w i t j)) =
         M.utility i t (update (fun j => β j (w j)) i (β i t)) := by
-    intro w
-    rw [update_self]
-    congr 1
-    funext j
-    rcases eq_or_ne j i with rfl | hj
-    · rw [update_self, update_self]
-    · rw [update_of_ne hj, update_of_ne hj]
+    rw [update_self, funext (apply_update β w i t)]
   simp only [interimSliceUtil, hupd]
   exact M.integral_utility_update_eq ha hp t
 
@@ -371,13 +360,9 @@ private theorem integral_welfare_eq_add_payment (M : Mechanism ι) {ν : ι → 
     (∫ v, M.welfare v (fun j => β j (v j)) ∂Measure.pi ν) =
       (∫ v, ∑ i, M.utility i (v i) (fun j => β j (v j)) ∂Measure.pi ν) +
         ∫ v, ∑ i, M.payment (fun j => β j (v j)) i ∂Measure.pi ν := by
-  have hpt : (fun v => M.welfare v (fun j => β j (v j))) =
-      fun v => (∑ i, M.utility i (v i) (fun j => β j (v j))) +
-        ∑ i, M.payment (fun j => β j (v j)) i := by
-    funext v
-    exact (M.sum_utility_add_sum_payment v _).symm
-  rw [hpt, integral_add (integrable_finsetSum _ fun i _ => hu i)
-    (integrable_finsetSum _ fun i _ => hp i)]
+  simp_rw [← M.sum_utility_add_sum_payment]
+  exact integral_add (integrable_finsetSum _ fun i _ => hu i)
+    (integrable_finsetSum _ fun i _ => hp i)
 
 /-- **Bayesian price of anarchy for smooth mechanisms** ([SyrgkanisTardos2013]): if `M` is
 `(λ, μ)`-smooth, satisfies `HasZeroBidFloor`, and collects nonnegative total payments on
@@ -770,22 +755,16 @@ private theorem le_of_forall_exp_neg_inv_mul_le {A W : ℝ} (hW : 0 ≤ W)
     (hK : ∀ K : ℕ, 1 ≤ K → Real.exp (-1 / (K : ℝ)) * W ≤ A) : W ≤ A := by
   by_contra hlt
   push Not at hlt
-  have hW_pos : 0 < W := lt_of_le_of_ne hW fun h => by
-    subst h
-    linarith [hK 1 le_rfl]
+  have hW_pos : 0 < W := hW.lt_of_ne' fun h0 => by
+    simpa [h0] using (hK 1 le_rfl).trans_lt hlt
   obtain ⟨K, hK_gt⟩ := exists_nat_gt (W / (W - A))
-  have hK_pos : 0 < K := Nat.pos_of_ne_zero fun h => by
-    subst h
-    linarith [div_pos hW_pos (by linarith : 0 < W - A)]
-  have hKR : (0 : ℝ) < K := Nat.cast_pos.2 hK_pos
+  have hKR : (0 : ℝ) < K := (div_pos hW_pos (sub_pos.2 hlt)).trans hK_gt
   have hexp_ge : 1 - 1 / (K : ℝ) ≤ Real.exp (-1 / (K : ℝ)) := by
     rw [neg_div]; linarith [Real.add_one_le_exp (-(1 / (K : ℝ)))]
-  have hstep1 := (mul_le_mul_of_nonneg_right hexp_ge hW).trans (hK K hK_pos)
+  have hstep1 := (mul_le_mul_of_nonneg_right hexp_ge hW).trans (hK K (Nat.cast_pos.1 hKR))
   have hstep2 : W - A ≤ W / (K : ℝ) := by
-    have hring : (1 - 1 / (K : ℝ)) * W = W - W / (K : ℝ) := by ring
-    linarith
-  have hstep3 : (W - A) * (K : ℝ) ≤ W := (le_div_iff₀ hKR).1 hstep2
-  linarith [(div_lt_iff₀ (by linarith : 0 < W - A)).1 hK_gt]
+    linarith [show (1 - 1 / (K : ℝ)) * W = W - W / (K : ℝ) by ring]
+  linarith [(le_div_iff₀ hKR).1 hstep2, (div_lt_iff₀ (sub_pos.2 hlt)).1 hK_gt]
 
 omit [LinearOrder ι] in
 private theorem socialWelfare_nonneg_of_singleItemFeasible {v x : ι → ℝ} (hv : 0 ≤ v)
@@ -979,11 +958,7 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
   have hbox := ae_mem_Icc_pi hsupp
   have hwel_int : Integrable (fun w => Vickrey.mechanism.welfare w (fun j => β j (w j)))
       (Measure.pi ν) := by
-    have hpt_w : (fun w => Vickrey.mechanism.welfare w (fun j => β j (w j))) =
-        fun w => (∑ i, Vickrey.mechanism.utility i (w i) (fun j => β j (w j))) +
-          ∑ i, Vickrey.mechanism.payment (fun j => β j (w j)) i :=
-      funext fun w => (Vickrey.mechanism.sum_utility_add_sum_payment w _).symm
-    rw [hpt_w]
+    simp_rw [← Vickrey.mechanism.sum_utility_add_sum_payment]
     exact (integrable_finsetSum _ fun i _ => hutil_eq i).add
       (integrable_finsetSum _ fun i _ => hpay_eq i)
   set W_eq := ∫ w, Vickrey.mechanism.welfare w (fun j => β j (w j)) ∂Measure.pi ν

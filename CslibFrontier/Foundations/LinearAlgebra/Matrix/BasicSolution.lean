@@ -250,12 +250,8 @@ theorem exists_int_nonneg_mulVec_eq {A : Matrix m n ℤ} {b : m → ℤ} {B : �
       rw [congrFun hpy j]; exact mul_nonneg (by exact_mod_cast hd.le) (hy j))
   · funext i
     apply Int.cast_injective (α := K)
-    have h1 := (Int.castRingHom K).map_mulVec A p i
-    simp only [eq_intCast] at h1
-    rw [h1]
-    change (A.map (Int.cast : ℤ → K) *ᵥ fun j => (p j : K)) i = _
-    rw [hpy, mulVec_smul, hAy]
-    simp
+    simpa [eq_intCast, Function.comp_def, hpy, mulVec_smul, hAy] using
+      (Int.castRingHom K).map_mulVec A p i
 
 /-- **Small solutions of integer inequality systems.** If `A *ᵥ x ≤ b`, with integer entries of
 absolute value at most `B`, has a solution over some linearly ordered field, then it has a
@@ -288,8 +284,7 @@ theorem exists_int_mulVec_le {A : Matrix m n ℤ} {b : m → ℤ} {B : ℕ}
     have hslack := hp' (Sum.inr (Sum.inr i))
     simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] at h hslack ⊢
     linarith
-  · have h1 : 0 ≤ p' (Sum.inl j) := hp' _
-    have h2 : 0 ≤ p' (Sum.inr (Sum.inl j)) := hp' _
+  · have h1 : 0 ≤ p' (Sum.inl j) ∧ 0 ≤ p' (Sum.inr (Sum.inl j)) := ⟨hp' _, hp' _⟩
     rw [abs_sub_le_iff]
     constructor <;> linarith [hpN (Sum.inl j), hpN (Sum.inr (Sum.inl j))]
 
@@ -320,14 +315,12 @@ theorem exists_int_farkas_certificate {A : Matrix m n ℤ} {b : m → ℤ} {B : 
   have hMy : M.map (Int.cast : ℤ → K) *ᵥ ((-s⁻¹) • y) = fun r => (e r : K) := by
     rw [mulVec_smul]
     funext r
-    rcases r with j | u
-    · have h1 : ((A.map (Int.cast : ℤ → K))ᵀ *ᵥ y) j = 0 := by
-        rw [mulVec_transpose, hyA, Pi.zero_apply]
-      simpa only [M, e, mulVec, map_apply, of_apply, Sum.elim_inl, transpose_apply,
-        Pi.smul_apply, smul_eq_mul, Pi.zero_apply, Int.cast_zero, mul_eq_zero] using Or.inr h1
-    · have h1 : ((fun i => (b i : K)) ⬝ᵥ y) = s := dotProduct_comm _ y
-      simp only [M, e, mulVec, map_apply, of_apply, Sum.elim_inr, Pi.smul_apply, smul_eq_mul,
-        Int.cast_neg, Int.cast_one, h1]
+    rcases r with j | _
+    · simpa only [M, e, mulVec, vecMul, map_apply, of_apply, Sum.elim_inl, Pi.smul_apply,
+        smul_eq_mul, Pi.zero_apply, Int.cast_zero, mul_eq_zero, dotProduct_comm _ y] using
+        Or.inr (congrFun hyA j)
+    · simp only [M, e, mulVec, map_apply, of_apply, Sum.elim_inr, Pi.smul_apply, smul_eq_mul,
+        Int.cast_neg, Int.cast_one, dotProduct_comm _ y]
       rw [neg_mul, inv_mul_cancel₀ hyb.ne]
   obtain ⟨d, q, hd, hq, hMq, -, hqN⟩ := exists_int_nonneg_mulVec_eq hM he hy' hMy
   rw [show Fintype.card (n ⊕ Unit) = Fintype.card n + 1 by simp] at hqN

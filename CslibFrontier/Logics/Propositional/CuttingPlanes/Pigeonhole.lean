@@ -109,9 +109,8 @@ theorem derivableInSize_holeSum {P : Finset (Fin m)} (hP : P.Nonempty) (j : Fin 
     DerivableInSize (pigeonhole m n).toIneqs (holeSum P j) (#P * (#P + 3)) := by
   induction hP using Finset.Nonempty.cons_induction with
   | singleton a =>
-    have : holeSum {a} j = leOne (a, j) := by ext <;> simp [holeSum]
-    rw [this]
-    exact (DerivableInSize.leOne _).mono (by simp)
+    exact (show holeSum {a} j = leOne (a, j) by ext <;> simp [holeSum]) ▸
+      (DerivableInSize.leOne _).mono (by simp)
   | cons a P ha hP ih =>
     have hhole : ∀ i ∈ P, DerivableInSize (pigeonhole m n).toIneqs
         (contra + (leOne (i, j) + leOne (a, j))) 1 := fun i hi =>
@@ -128,9 +127,7 @@ theorem derivableInSize_holeSum {P : Finset (Fin m)} (hP : P.Nonempty) (j : Fin 
       exact dvd_mul_right _ _
     rw [div_eq_of (Nat.succ_pos _) hcoeff (by simp [holeSum]; omega)
       (by simp [holeSum]; omega)] at hdiv
-    refine hdiv.mono (le_of_eq ?_)
-    rw [card_cons]
-    ring
+    exact hdiv.mono (le_of_eq (by rw [card_cons]; ring))
 
 /-- **Cutting planes refute the pigeonhole principle in polynomial size** [Cook, Coullard and
 Turán][CookCoullardTuran1987] [Jukna, Section 19.2][Jukna2012]: for `m > n`, `PHP^m_n` has a
@@ -141,9 +138,8 @@ theorem refutableInSize_pigeonhole (h : n < m) :
     RefutableInSize (pigeonhole m n).toIneqs ((n + 1) * (m + 1) ^ 2) := by
   have hm : (univ : Finset (Fin m)).Nonempty := univ_nonempty_iff.2 ⟨⟨0, by omega⟩⟩
   have hp := DerivableInSize.sum hm (r := 1) (Γ := (pigeonhole m n).toIneqs)
-    (f := fun i => contra + ∑ j, nonneg (i, j)) fun i _ => by
-      rw [← toIneq_pigeonClause]
-      exact .hyp (toIneq_mem_toIneqs (mem_pigeonhole.2 (Or.inl ⟨i, rfl⟩)))
+    (f := fun i => contra + ∑ j, nonneg (i, j)) fun i _ =>
+      toIneq_pigeonClause i ▸ .hyp (toIneq_mem_toIneqs (mem_pigeonhole.2 (Or.inl ⟨i, rfl⟩)))
   have hh := hp.add_sum (univ : Finset (Fin n)) fun j _ => derivableInSize_holeSum hm j
   have hcoeff : (∑ i : Fin m, (contra + ∑ j : Fin n, nonneg (i, j)) +
       ∑ j : Fin n, holeSum univ j).coeff =

@@ -143,14 +143,11 @@ private theorem createLeaf_correct [LinearOrder M.Value] (zero maxSucc : M.Op)
   have vacancy : match q.ptr 2 with
       | none => q.ptr 1 = none
       | some a => ∃ par, q.heap[a]? = some par ∧ par.ptr side.castSucc = none := by
-    change match s.ptr 2 with
-      | none => s.ptr 1 = none
-      | some a => ∃ par, s.heap[a]? = some par ∧ par.ptr side.castSucc = none
+    dsimp only [q, initialized, State.setData]
     cases hp : s.ptr 2 with
     | none => simpa [hp] using vacant
     | some a =>
-      rw [hp] at vacant
-      obtain ⟨par, get, slot⟩ := vacant
+      obtain ⟨par, get, slot⟩ := hp ▸ vacant
       refine ⟨par, get, ?_⟩
       cases h : M.evalTest lt (s.data 0) (par.data 0) <;>
         simpa [side, parentKey, State.deref, hp, get, h] using slot
@@ -237,8 +234,6 @@ private theorem nullLoop_done (body : List (Instr M (layout extra (regs + 1))))
   · simp [step, pc, Instr.effect, Instr.next, mid]
   · simp [step, mid, Instr.effect, Instr.next, State.setPtr, cursor]
   · rw [Nat.add_comm 2 body.length]
-    simp only [List.cons_append, List.nil_append, List.getElem?_cons_succ]
-    rw [List.getElem?_append_right (by simp)]
     simp
 
 private theorem rebalance_done (zero maxSucc : M.Op) (heavy le : M.Test)
@@ -550,8 +545,6 @@ private theorem nullBranch_missing (missing : List (Instr M (layout extra (regs 
   · simp [step, pc, Instr.effect, Instr.next, mid]
   · simp [step, mid, Instr.effect, Instr.next, State.setPtr, cursor]
   · rw [Nat.add_comm 3 missing.length]
-    simp only [List.cons_append, List.nil_append, List.getElem?_cons_succ]
-    rw [List.getElem?_append_right (by simp)]
     simp
 
 private theorem afterSeek_missing (zero maxSucc : M.Op) (lt heavy le : M.Test)
@@ -633,8 +626,7 @@ theorem insert_correct [LinearOrder M.Value]
   | node label left right =>
     have nonempty : a.ptr 0 ≠ none := by simp [ra.cursor, root]
     have present : AVLTree.contains (s.data 0) original = true := by
-      rw [contains_eq_searchTree, ← matched.keys, ← ra.found]
-      simp [ra.cursor, root]
+      simp [contains_eq_searchTree, ← matched.keys, ← ra.found, ra.cursor, root]
     have unchanged := insert_eq_self valid ((contains_eq_true valid.ordered _).mp present)
     have run := ea.sequence
       (afterSeek_found zero maxSucc lt heavy le field source { a with pc := 0 } rfl nonempty)

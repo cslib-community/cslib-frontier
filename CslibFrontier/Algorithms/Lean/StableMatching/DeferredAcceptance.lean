@@ -168,13 +168,9 @@ private theorem target_surjective_of_last {s : State n} (hs : I.Inv s) {p : Fin 
   rcases Nat.lt_or_ge k.val (s p) with h | h
   · obtain ⟨q, hq, -⟩ := hs.rejected p k h
     exact ⟨q, hq.trans hr⟩
-  · refine ⟨p, ?_⟩
-    rw [I.target_of_lt (hs.lt p), ← hr]
-    congr 1
-    ext
-    have := k.isLt
-    simp only
-    omega
+  · have := k.isLt
+    have hk_eq : k = ⟨s p, hs.lt p⟩ := Fin.ext (by simp only; omega)
+    exact ⟨p, by rw [I.target_of_lt (hs.lt p), ← hk_eq, hr]⟩
 
 private theorem not_outranked_of_last {s : State n} (hs : I.Inv s) {p : Fin n}
     (hp : s p + 1 = n) (x : Fin n) : ¬ I.Outranked s x := by
@@ -234,14 +230,12 @@ theorem inv_run (k : ℕ) : I.Inv (I.run k) := by
     exact I.inv_step ih
 
 private theorem sq_aux (n : ℕ) :
-    (n - 1) * (n - 2) + (n - 1) = (n - 1) ^ 2 ∧ n * (n - 2) ≤ (n - 1) ^ 2 := by
-  rcases n with _ | _ | m
-  · simp
-  · simp
-  · change (m + 1) * m + (m + 1) = (m + 1) ^ 2 ∧ (m + 2) * m ≤ (m + 1) ^ 2
-    refine ⟨by ring, ?_⟩
-    have : (m + 2) * m + 1 = (m + 1) ^ 2 := by ring
-    omega
+    (n - 1) * (n - 2) + (n - 1) = (n - 1) ^ 2 ∧ n * (n - 2) ≤ (n - 1) ^ 2 :=
+  match n with
+  | 0 | 1 => by simp
+  | m + 2 => show (m + 1) * m + (m + 1) = (m + 1) ^ 2 ∧ (m + 2) * m ≤ (m + 1) ^ 2 from
+    ⟨by ring,
+      by nlinarith⟩
 
 /-- The total number of rejections in an invariant state is at most `(n - 1)^2`. -/
 theorem sum_le {s : State n} (hs : I.Inv s) : ∑ p, s p ≤ (n - 1) ^ 2 := by
@@ -401,21 +395,16 @@ private theorem noStableRejected_update {ν : Matching n} (hν : I.IsStable ν) 
       rw [ht]
       intro hνx
       obtain ⟨y, hy, hyx⟩ := hp
-      have hyx' : y ≠ x := I.ne_of_outranks hyx
-      have hνy : ν y ≠ I.target s x := by
-        rw [← hνx]
-        exact fun h => hyx' (ν.injective h)
+      have hνy : ν y ≠ I.target s x := fun h =>
+        I.ne_of_outranks hyx (ν.injective (h.trans hνx.symm))
       have hrank : I.propRank y (I.target s y) < I.propRank y (ν y) := by
         have hge : ¬ (I.propRank y (ν y)).val < s y := fun hlt =>
           hN y _ hlt (propPref_propRank I y (ν y)).symm
         rw [I.target_of_lt (hs.lt y), propRank_propPref]
         refine lt_of_le_of_ne (by simp only [Fin.le_def]; omega) fun h => hνy ?_
         rw [← hy, I.target_of_lt (hs.lt y), h, propPref_propRank]
-      apply hν y (I.target s x)
-      refine ⟨hy ▸ hrank, ?_⟩
-      have : ν.symm (I.target s x) = x := by rw [← hνx, Equiv.symm_apply_apply]
-      rw [this]
-      exact hyx
+      exact hν y (I.target s x) ⟨hy ▸ hrank,
+        ((congrArg ν.symm hνx).symm.trans (Equiv.symm_apply_apply ν x)).symm ▸ hyx⟩
   · rw [Function.update_of_ne hxp] at hk
     exact hN x k hk
 
@@ -481,10 +470,9 @@ theorem isProposerOptimal_iff (μ : Matching n) :
 /-- Receiver-proposing deferred acceptance: run deferred acceptance on the swapped market. -/
 @[expose] def receiverDeferredAcceptance : Matching n := I.swap.deferredAcceptance.symm
 
-theorem isStable_receiverDeferredAcceptance : I.IsStable I.receiverDeferredAcceptance := by
-  have h := I.swap.isStable_deferredAcceptance
-  rw [← Equiv.symm_symm I.swap.deferredAcceptance] at h
-  exact (I.isStable_swap_iff _).1 h
+theorem isStable_receiverDeferredAcceptance : I.IsStable I.receiverDeferredAcceptance :=
+  (I.isStable_swap_iff _).1
+    (Equiv.symm_symm I.swap.deferredAcceptance ▸ I.swap.isStable_deferredAcceptance)
 
 /-- Receiver-proposing deferred acceptance is receiver-optimal. -/
 theorem isReceiverOptimal_receiverDeferredAcceptance :

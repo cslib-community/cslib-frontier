@@ -69,20 +69,8 @@ private theorem seedWindow_cases {base w₀ b b' a : ℕ} (h₁ : base ≤ a)
 private theorem zeroResampleRegs_regs (y : RData rResize) (j : Fin rResize) :
     (((((y.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0).regs j =
       if j ∈ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) then 0 else y.regs j := by
-  dsimp only [RData.set]
-  by_cases h1 : j = mRes
-  · simp [h1]
-  rw [Function.update_of_ne h1]
-  by_cases h2 : j = mOne
-  · simp [h2]
-  rw [Function.update_of_ne h2]
-  by_cases h3 : j = mK
-  · simp [h3]
-  rw [Function.update_of_ne h3]
-  by_cases h4 : j = mIdx
-  · simp [h4]
-  rw [Function.update_of_ne h4]
-  by_cases h5 : j = mCur <;> simp [Function.update_of_ne, h1, h2, h3, h4, h5]
+  simp only [RData.set, Function.update_apply, List.mem_cons, List.not_mem_nil, or_false]
+  grind
 
 theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
     {θ : ReducedPolySeed w₀ b b' 3} {x y : RData rResize}

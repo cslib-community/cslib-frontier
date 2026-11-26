@@ -93,8 +93,8 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
     have hY1 : 1 ≤ (encA x).length + 1 := Nat.le_add_left 1 _
     have h1 := Nat.pow_le_pow_right hY1 (show dv ≤ E by omega)
     have h2 := Nat.pow_le_pow_right hY1 (show dg ≤ E by omega)
-    have h3 : (encA x).length ≤ ((encA x).length + 1) ^ E :=
-      (Nat.le_succ _).trans (Nat.le_self_pow (by omega) _)
+    have h3 := (Nat.le_succ (encA x).length).trans
+      (Nat.le_self_pow (by omega : E ≠ 0) ((encA x).length + 1))
     dsimp only [P]
     omega
   refine ⟨fun x => if valid x then count₀ (g' x) else 0, T, S, A,
@@ -139,9 +139,8 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
 private theorem computableInPolyTime_declareDense :
     ComputableInPolyTime (fun φ : CNF ℕ => (φ.denseRelabel.numVars, φ.denseRelabel)) encCNF
       (encPair encUnary encCNF) := by
-  have h : ComputableInPolyTime (fun ψ : CNF ℕ => (ψ.numVars, ψ)) encCNF
-      (encPair encUnary encCNF) := by fun_prop
-  exact h.comp SAT.computableInPolyTime_denseRelabel
+  exact (by fun_prop : ComputableInPolyTime (fun ψ : CNF ℕ => (ψ.numVars, ψ)) encCNF
+    (encPair encUnary encCNF)).comp SAT.computableInPolyTime_denseRelabel
 
 /-- **Subexponential bounded-width model counting.** For each width `k`, one machine computes
 `φ.modelCount` on every formula `φ` whose clauses have at most `k` literals, in time
@@ -183,9 +182,9 @@ public theorem exists_modelCounter (k : ℕ) :
         simpa only [g, CNF.numVars_denseRelabel, X] using hT (g φ)
       have hpowR : (((encPair encUnary encCNF (g φ)).length : ℝ) + 1) ^ e ≤
           (p + 1) ^ e * Y ^ (q * e) := by exact_mod_cast hpow e
-      have h1 := mul_le_mul hXN hpowR (by positivity) (by positivity)
-      have h2 := mul_le_mul_of_nonneg_left h1 (Nat.cast_nonneg c)
-      exact_mod_cast (by nlinarith : (T (g φ) : ℝ) ≤ c * (p + 1) ^ e * (N * Y ^ (q * e)) + c)
+      have hmul := mul_le_mul_of_nonneg_left
+        (mul_le_mul hXN hpowR (by positivity) (by positivity)) (Nat.cast_nonneg c)
+      exact_mod_cast (by linarith : (T (g φ) : ℝ) ≤ c * (p + 1) ^ e * (N * Y ^ (q * e)) + c)
     have hqe : Y ^ (q * e) ≤ Y ^ (q * e + d) := Nat.pow_le_pow_right hY1 (by omega)
     have hd' : Y ^ d ≤ N * Y ^ (q * e + d) :=
       (Nat.pow_le_pow_right hY1 (by omega)).trans (Nat.le_mul_of_pos_left _ hN1)
@@ -251,10 +250,9 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
   let C_bound : ℕ := 2 + K * (p + 1) ^ e₀ + (p + 1) ^ b₀ + M ^ d₃ + 1
   refine ⟨fun x => fPow x * countCNF (fCNF x), A, e, b, fun x => ?_,
     htot.mono C_bound (fun x => ?_) (fun x => ?_)⟩
-  · dsimp only [fPow, fCNF]
-    split_ifs with hvx
-    · rw [hcountCNF_spec (φ x) (hvalid_imp x hvx).1]
-    · simp only [Nat.zero_mul]
+  · by_cases hvx : valid x = true
+    · simp [fPow, fCNF, hvx, hcountCNF_spec (φ x) (hvalid_imp x hvx).1]
+    · simp [fPow, fCNF, hvx]
   all_goals
     set Y : ℕ := (encA x).length + 1
     have hY1 : 1 ≤ Y := Nat.le_add_left 1 _
@@ -268,20 +266,18 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
       nlinarith
     have hpair_d₃ : ((encPair encNat encNat (fPow x, countCNF (fCNF x))).length + 1) ^ d₃ ≤
         M ^ d₃ * Y ^ (B₁ * d₃) := by
-      have h1 : (encPair encNat encNat (fPow x, countCNF (fCNF x))).length ≤
-          c_pair * (Y ^ d₂ + (Y ^ d₁ + ((encCNF (fCNF x)).length + 1) ^ b₀) + 1) := hpair_len x
-      have h2 := Nat.mul_le_mul_left c_pair (Nat.add_le_add hSpair_le (Nat.one_le_pow B₁ Y hY1))
+      have h1 := (hpair_len x).trans
+        (Nat.mul_le_mul_left c_pair (Nat.add_le_add hSpair_le (Nat.one_le_pow B₁ Y hY1)))
+      dsimp only [Function.comp_apply] at h1
       refine Nat.pow_le_pow_mul_pow_of_le_mul_pow ?_ d₃
       dsimp only [M]
       nlinarith [Nat.one_le_pow B₁ Y hY1]
   · set N : ℕ := ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale (μ x))⌉₊
     have hN1 : 1 ≤ N := Nat.one_le_ceil_iff.mpr (Real.rpow_pos_of_pos (by norm_num) _)
     have hnum_le : (fCNF x).numVars ≤ C * μ x + D := by
-      dsimp only [fCNF]
-      split_ifs with hvx
-      · exact (hvalid_imp x hvx).2
-      · simp only [CNF.numVars, CNF.vars, List.flatten_nil, List.map_nil, List.toFinset_nil,
-          Finset.card_empty, Nat.zero_le]
+      by_cases hvx : valid x = true
+      · simpa only [fCNF, hvx, ↓reduceIte] using (hvalid_imp x hvx).2
+      · simp [fCNF, hvx, CNF.numVars, CNF.vars]
     have hle (k : ℕ) (hk : k ≤ e) : Y ^ k ≤ N * Y ^ e :=
       (Nat.pow_le_pow_right hY1 hk).trans (Nat.le_mul_of_pos_left _ hN1)
     have hsub_T := Nat.mul_le_mul (hK_bound hnum_le) ((hφ_pow e₀).trans

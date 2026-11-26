@@ -71,14 +71,12 @@ theorem entropy_le_expected_length_of_isPrefixFree {α : Type*} [Fintype α]
   have hs_mem (a : α) : a ∈ s ↔ a ∈ p.support := by simp [s]
   have hs_coe : (s : Set α) = p.support := Set.ext hs_mem
   obtain ⟨a₀, ha₀⟩ := p.support_nonempty
-  let S : Finset (List Bool) := s.image enc
-  have hS_pf : IsPrefixFree (S : Set (List Bool)) := by
-    simpa only [S, Finset.coe_image, hs_coe] using hpf
-  have hkraft_img := hS_pf.finsetSum_one_div_card_pow_length_le_one
-  simp only [Fintype.card_bool, Nat.cast_ofNat, one_div] at hkraft_img
   set Z : ℝ := ∑ a ∈ s, (2⁻¹ : ℝ) ^ (enc a).length
   have hZ_le : Z ≤ 1 := by
-    simpa only [Z, S, Finset.sum_image (hs_coe.symm ▸ hinj)] using hkraft_img
+    have hS_pf : IsPrefixFree ((s.image enc : Finset (List Bool)) : Set (List Bool)) := by
+      simpa only [Finset.coe_image, hs_coe] using hpf
+    simpa only [Z, Fintype.card_bool, Nat.cast_ofNat, one_div,
+      Finset.sum_image (hs_coe.symm ▸ hinj)] using hS_pf.finsetSum_one_div_card_pow_length_le_one
   have hZ_pos : 0 < Z :=
     Finset.sum_pos (fun a _ => by positivity) ⟨a₀, (hs_mem a₀).mpr ha₀⟩
   let f : α → ℝ≥0∞ := fun a =>
@@ -102,8 +100,7 @@ theorem entropy_le_expected_length_of_isPrefixFree {α : Type*} [Fintype α]
     have hpos : 0 < (q a).toReal :=
       (Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) _).trans_le (hmass_ge a ha)
     exact (PMF.mem_support_iff q a).mpr fun h0 => by simp [h0] at hpos
-  refine (entropy_le_sum_mul_surprisal hsupp).trans ?_
-  refine Finset.sum_le_sum fun a _ => ?_
+  refine (entropy_le_sum_mul_surprisal hsupp).trans (Finset.sum_le_sum fun a _ => ?_)
   by_cases ha : a ∈ p.support
   · exact mul_le_mul_of_nonneg_left (surprisal_le_of_mass_ge q a (hmass_ge a ha))
       ENNReal.toReal_nonneg
@@ -179,17 +176,13 @@ theorem conditionalEntropy_map_le_expected_length_of_isPrefixFree {Ω Obs α : T
     intro o ho
     refine (hpf o).anti ?_
     rintro _ ⟨c, hc, rfl⟩
-    have hoc : (o, c) ∈ joint_cw.support :=
-      (mem_support_conditionalSnd_iff joint_cw o ho c).mp hc
-    obtain ⟨ω, hω, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp hoc
+    obtain ⟨ω, hω, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp
+      ((mem_support_conditionalSnd_iff joint_cw o ho c).mp hc)
     rcases Prod.mk.inj hpair with ⟨rfl, rfl⟩
     exact ⟨ω, ⟨hω, rfl⟩, rfl⟩
-  have hcw_bound := conditionalEntropy_le_expected_length_of_isPrefixFree joint_cw
-    (fun _ c => c.val) (fun _ _ => Subtype.val_injective.injOn) hcw_pf
-  have hexp_eq : ∑ oc, (joint_cw oc).toReal * ((oc.2.val).length : ℝ) =
-      ∑ ω, (p ω).toReal * ((msg ω).length : ℝ) :=
-    sum_map_mul p (fun ω => (obs ω, cw ω)) (fun oc => ((oc.2.val).length : ℝ))
-  exact hent_le.trans (hcw_bound.trans_eq hexp_eq)
+  exact hent_le.trans ((conditionalEntropy_le_expected_length_of_isPrefixFree joint_cw
+    (fun _ c => c.val) (fun _ _ => Subtype.val_injective.injOn) hcw_pf).trans_eq
+    (sum_map_mul p (fun ω => (obs ω, cw ω)) fun oc => ((oc.2.val).length : ℝ)))
 
 /-- Conditioning `μ` on `{W = true}` scales any pushforward point mass by at most `Pr[W]⁻¹`. -/
 private theorem toReal_map_conditionalSnd_event_le {Ω α : Type*}
@@ -277,9 +270,9 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
   have hj_le (ot : ObsT × TgtT) :
       (J ot).toReal ≤ pW⁻¹ * ((μ.map fun ω => (obs ω, target ω)) ot).toReal :=
     toReal_map_conditionalSnd_event_le μ W hW0 (fun ω => (obs ω, target ω)) ot
-  have hr_eq : r = p.map obs := by simp only [r, J, _root_.PMF.map_comp, Function.comp_def]
   have hr_le (o : ObsT) : (r o).toReal ≤ pW⁻¹ * (q o).toReal := by
-    rw [hr_eq]; exact toReal_map_conditionalSnd_event_le μ W hW0 obs o
+    simpa only [r, J, _root_.PMF.map_comp, Function.comp_def] using
+      toReal_map_conditionalSnd_event_le μ W hW0 obs o
   have hsupp : r.support ⊆ q.support := fun o ho => by
     have hro : 0 < (r o).toReal := ENNReal.toReal_pos ((_root_.PMF.mem_support_iff _ _).mp ho)
       (PMF.apply_ne_top r o)
@@ -316,8 +309,7 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
           Real.logb_mul hpW_pos.ne' hro.ne']
         dsimp only [PMF.surprisal]
         ring
-      have hmul := mul_le_mul_of_nonneg_left (hlog ▸ hmin) hro.le
-      linarith
+      linarith [mul_le_mul_of_nonneg_left (hlog ▸ hmin) hro.le]
     · simp [(_root_.PMF.apply_eq_zero_iff r o).mpr ho]
   have hsum := Finset.sum_le_sum (s := Finset.univ) fun (o : ObsT) _ => hterm o
   simp only [Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.sum_mul,
@@ -345,9 +337,8 @@ theorem logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Type*}
     have h := PMF.marginal_mul_conditionalSnd (μ.map fun ω => (true, ω)) true ω
     rw [hfst, one_mul] at h
     exact h.trans (PMF.map_apply_of_injective μ (fun _ _ h => congrArg Prod.snd h) ω)
-  have h := logb_prob_add_logb_le_conditionalEntropy_of_fiber_le μ (fun _ => true) obs target hM
-    (htrue ▸ one_ne_zero) hfiber
-  dsimp only at h
-  rwa [htrue, ENNReal.toReal_one, Real.logb_one, zero_add, hcond] at h
+  simpa only [htrue, ENNReal.toReal_one, Real.logb_one, zero_add, hcond] using
+    logb_prob_add_logb_le_conditionalEntropy_of_fiber_le μ (fun _ => true) obs target hM
+      (htrue ▸ one_ne_zero) hfiber
 
 end Cslib.Probability.Coding

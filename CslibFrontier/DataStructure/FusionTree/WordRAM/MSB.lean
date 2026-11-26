@@ -341,10 +341,8 @@ theorem clusterMarkers_guard {s x i : ℕ} (hs : 0 < s) (hx : x < 2 ^ (s * s))
     simp only [Nat.testBit_mod_two_pow, decide_eq_true (by omega : s - 1 < s),
       Bool.true_and, Nat.testBit_div_two_pow]
   rw [hbit]
-  have hl : (x / 2 ^ (s * i) % 2 ^ s) % 2 ^ (s - 1) =
-      x / 2 ^ (s * i) % 2 ^ (s - 1) := by
-    apply Nat.mod_mod_of_dvd
-    exact Nat.pow_dvd_pow 2 (by omega)
+  have hl : (x / 2 ^ (s * i) % 2 ^ s) % 2 ^ (s - 1) = x / 2 ^ (s * i) % 2 ^ (s - 1) :=
+    Nat.mod_mod_of_dvd _ (Nat.pow_dvd_pow 2 (by omega))
   let v := x / 2 ^ (s * i) % 2 ^ s
   have hv : v < 2 ^ s := Nat.mod_lt _ (Nat.two_pow_pos _)
   have hsplit : v = v % 2 ^ (s - 1) + 2 ^ (s - 1) * (v / 2 ^ (s - 1) % 2) := by
@@ -390,17 +388,10 @@ private theorem clusterSummary_testBit {s x i : ℕ} (hs : 0 < s) (hx : x < 2 ^ 
   apply Bool.eq_iff_iff.mpr
   rw [Nat.testBit_sum_injective _ _ (fun _ _ _ _ h => Fin.ext h)]
   simp only [Finset.mem_univ, true_and, decide_eq_true_eq]
-  constructor
-  · rintro ⟨j, hj, he⟩
-    have hj' := clusterMarkers_guard hs hx j.isLt
-    have hmark : (clusterMarkers s x).testBit (s - 1 + s * j.val) = true := by
-      simpa only [Nat.mul_comm] using hj
-    rw [hmark] at hj'
-    simpa only [he] using of_decide_eq_true hj'.symm
-  · intro hx'
-    refine ⟨⟨i, hi⟩, ?_, rfl⟩
-    simpa only [Nat.mul_comm i s, clusterMarkers_guard hs hx hi,
-      decide_eq_true_eq] using hx'
+  refine ⟨fun ⟨j, hj, he⟩ => ?_, fun hx' => ⟨⟨i, hi⟩, ?_, rfl⟩⟩
+  · subst he
+    rwa [Nat.mul_comm, clusterMarkers_guard hs hx j.isLt, decide_eq_true_eq] at hj
+  · rwa [Nat.mul_comm, clusterMarkers_guard hs hx hi, decide_eq_true_eq]
 
 private theorem highestCluster {s x : ℕ} (hs : 0 < s) (hx0 : 0 < x)
     (hx : x < 2 ^ (s * s)) :
@@ -436,19 +427,16 @@ private theorem clusterSummary_log2 {s x : ℕ} (hs : 0 < s) (hx0 : 0 < x)
   obtain ⟨hc, hv, _, habove⟩ := highestCluster hs hx0 hx
   have hset : (clusterSummary s x).testBit (x.log2 / s) = true := by
     rw [clusterSummary_testBit hs hx hc]
-    exact decide_eq_true (by omega)
-  have hz : 0 < clusterSummary s x := by
-    have := Nat.ge_two_pow_of_testBit hset
-    have := Nat.two_pow_pos (x.log2 / s)
-    omega
-  refine ⟨hz, le_antisymm ?_ ?_⟩
-  · by_contra hn
-    have hi : (clusterSummary s x).log2 < s :=
-      (Nat.log2_lt (by omega)).mpr (clusterSummary_lt s x)
-    have hb := Nat.testBit_log2 (show clusterSummary s x ≠ 0 by omega)
-    rw [clusterSummary_testBit hs hx hi, habove _ (by omega)] at hb
-    simp at hb
-  · exact (Nat.le_log2 (by omega)).mpr (Nat.ge_two_pow_of_testBit hset)
+    exact decide_eq_true hv.ne'
+  have hz : 0 < clusterSummary s x :=
+    (Nat.two_pow_pos _).trans_le (Nat.ge_two_pow_of_testBit hset)
+  refine ⟨hz, le_antisymm ?_ ((Nat.le_log2 hz.ne').mpr (Nat.ge_two_pow_of_testBit hset))⟩
+  by_contra hn
+  have hi : (clusterSummary s x).log2 < s :=
+    (Nat.log2_lt hz.ne').mpr (clusterSummary_lt s x)
+  have hb := Nat.testBit_log2 hz.ne'
+  rw [clusterSummary_testBit hs hx hi, habove _ (by omega)] at hb
+  simp at hb
 
 /-- Two parallel power-comparison/count stages, with extraction of the selected cluster.
 The value for zero is explicitly zero. All constants depend only on `s`. -/
@@ -661,10 +649,7 @@ theorem smallMSB_lt {s z : ℕ} (hs : 0 < s) (hz : z < 2 ^ s) : smallMSB s z < s
   by_cases hz0 : z = 0
   · have hcount : powerCount s 0 = 0 := by
       rw [powerCount_eq hs (Nat.two_pow_pos _)]
-      apply Finset.sum_eq_zero
-      intro i _
-      have hp := Nat.two_pow_pos i
-      simp [show ¬2 ^ i ≤ 0 by omega]
+      exact Finset.sum_eq_zero fun i _ => by simp [Nat.not_le.mpr (Nat.two_pow_pos i)]
     simpa only [hz0, smallMSB, hcount, Nat.zero_sub] using hs
   · rw [smallMSB_eq_log2 (by omega) hz]
     exact (Nat.log2_lt hz0).mpr hz

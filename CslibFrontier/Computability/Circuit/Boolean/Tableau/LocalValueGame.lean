@@ -461,7 +461,7 @@ private theorem localUniversal_toLocal (c : Claim) (o : Option Bool) :
 private theorem step_localMachine_of_outcome_some (lc₀ : LocalClaim) {x : List Bool} {T w : ℕ}
     {v r : Bool} (ho : Claim.outcome tm ⟨x, T, w, v⟩ = some r) (b : Bool) :
     (localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b = (⟨x.length, T, w, v⟩, some r) := by
-  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
+  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = _ :=
     outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
   simp [localMachine_step_none, localNext, hout, ho]
 
@@ -470,10 +470,9 @@ private theorem step_localMachine_of_outcome_none (lc₀ : LocalClaim) {x : List
     (localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b =
       (⟨x.length, T, (Claim.next tm ⟨x, T, w, v⟩ b).wire,
         (Claim.next tm ⟨x, T, w, v⟩ b).value⟩, none) := by
-  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
+  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = _ :=
     outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
-  have hloc : LocalClaim.next tm ⟨x.length, T, w, v⟩ b =
-      (Claim.next tm ⟨x, T, w, v⟩ b).toLocal :=
+  have hloc : LocalClaim.next tm ⟨x.length, T, w, v⟩ b = _ :=
     (toLocal_next (tm := tm) ⟨x, T, w, v⟩ b).symm
   simp only [localMachine_step_none, localNext, hout, ho, hloc, Claim.toLocal]
   congr 2 <;> rw [Claim.next_eq]
@@ -564,10 +563,7 @@ theorem replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T : ℕ} :
           ((localMachine tm lc₀).replay_of_halted x (s := (⟨x.length, T, w, v⟩, some r)) rfl _)
       · obtain ⟨w', v', o', hw', heq, hle⟩ := ih w₁ v₁ none (hlt.trans hw)
         refine ⟨w', v', o', hw', (congrArg ((localMachine tm lc₀).replay x choices) h₁).trans heq,
-          fun h => ?_⟩
-        have := hle h
-        simp only [List.length_cons]
-        omega
+          fun h => (Nat.succ_add ..).trans_le (Nat.succ_le_of_lt ((hle h).trans_lt hlt))⟩
 
 /-- **Every branch of the local machine halts** within one more step than the starting wire. -/
 theorem halted_replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T w : ℕ} {v : Bool}
@@ -660,13 +656,12 @@ theorem localNext_inSpace {lc₀ : LocalClaim} :
       (encPair encLocalState (encPair (encOption encBool) encBool)) encLocalClaim
       fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length :=
     (budget_ite hb (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) true) hlc)
-      (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) false) hlc)).of_enc_eq fun p => by
-        obtain ⟨_, _, b⟩ := p
-        cases b <;> rfl
+      (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) false) hlc)).of_enc_eq
+        fun ⟨_, _, b⟩ => by cases b <;> rfl
   exact (budget_ite (budget_optionIsSome hout) (budget_prod hlc hout)
-    (budget_prod hnext (budget_const (encB := encOption encBool) none))).of_enc_eq fun p => by
-      obtain ⟨⟨lc, _⟩, r, b⟩ := p
-      cases h : LocalClaim.outcome tm lc r <;> simp [localMachine, localNext, h]
+    (budget_prod hnext (budget_const (encB := encOption encBool) none))).of_enc_eq
+      fun ⟨⟨lc, _⟩, r, b⟩ => by
+        cases h : LocalClaim.outcome tm lc r <;> simp [localMachine, localNext, h]
 
 end QueryMachine
 

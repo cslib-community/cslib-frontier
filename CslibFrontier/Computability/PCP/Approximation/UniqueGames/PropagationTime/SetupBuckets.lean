@@ -264,32 +264,24 @@ private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : 
       AdjChain g mem' (top + 2) (mem' (headBase g + v))
         ((bs.set u (g.edges[j] :: bs.getD u [])).getD v []) := by
   intro mem' v hv
-  have hfr : ∀ a, nodeBase g ≤ a → a < top → mem' a = mem a := by
-    intro a ha1 ha2
-    simp only [mem', Function.update_of_ne (by simp only [nodeBase] at ha1; omega :
-        a ≠ headBase g + u),
-      Function.update_of_ne (by omega : a ≠ top + 1),
-      Function.update_of_ne (by omega : a ≠ top)]
+  have hnb : headBase g + slots g ≤ top := htop_lo
+  have hfr : ∀ a, nodeBase g ≤ a → a < top → mem' a = mem a := fun a ha1 ha2 => by
+    have : headBase g + slots g ≤ a := ha1
+    simp only [mem', Function.update_apply]
+    split_ifs <;> omega
   by_cases hvu : v = u
   · subst hvu
-    have hhd : mem' (headBase g + v) = top := Function.update_self _ _ _
-    rw [List.getD_set_self (hlen ▸ hu), hhd]
-    have hp0 : mem' top = j := by
-      simp only [mem', Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
-          top ≠ headBase g + v),
-        Function.update_of_ne (by omega : top ≠ top + 1), Function.update_self]
-    have hp1 : mem' (top + 1) = mem (headBase g + v) := by
-      simp only [mem', Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
-          top + 1 ≠ headBase g + v), Function.update_self]
-    refine .cons hj htop_lo (le_refl _) hp0 ?_
-    rw [hp1]
-    exact (hbs v hv).frame (by omega) hfr
+    rw [List.getD_set_self (hlen ▸ hu)]
+    simp only [mem', Function.update_self]
+    refine .cons hj htop_lo (le_refl _) ?_ ?_
+    · simp only [Function.update_apply]
+      split_ifs <;> omega
+    · rw [Function.update_of_ne (by omega), Function.update_self]
+      exact (hbs v hv).frame (by omega) hfr
   · rw [List.getD_set_ne (Ne.symm hvu)]
     have hhd : mem' (headBase g + v) = mem (headBase g + v) := by
-      simp only [mem', Function.update_of_ne (by omega : headBase g + v ≠ headBase g + u),
-        Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
-          headBase g + v ≠ top + 1),
-        Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega : headBase g + v ≠ top)]
+      simp only [mem', Function.update_apply]
+      split_ifs <;> omega
     rw [hhd]
     exact (hbs v hv).frame (by omega) hfr
 
@@ -316,23 +308,20 @@ private theorem prependToSlot_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (sl
   have : Fits w (headBase g + u) := fits_top hw (by wram_omega)
   have : Fits w (x.regs rNodeFree + 1) := fits_top hw (by wram_omega)
   have : Fits w (x.regs rNodeFree + 2) := fits_top hw (by wram_omega)
+  have hnb : headBase g + slots g ≤ x.regs rNodeFree := hlo
   have hfr_inp : ∀ a < headBase g,
       Function.update (Function.update (Function.update x.mem (x.regs rNodeFree) j)
         (x.regs rNodeFree + 1) (x.mem (headBase g + u))) (headBase g + u) (x.regs rNodeFree) a =
         x.mem a := fun a ha => by
-    simp only [Function.update_of_ne (by omega : a ≠ headBase g + u),
-      Function.update_of_ne (by simp only [nodeBase] at hlo; omega : a ≠ x.regs rNodeFree + 1),
-      Function.update_of_ne (by simp only [nodeBase] at hlo; omega : a ≠ x.regs rNodeFree)]
+    simp only [Function.update_apply]
+    split_ifs <;> omega
   have hfr_zero : ∀ a, visBase g ≤ a →
       Function.update (Function.update (Function.update x.mem (x.regs rNodeFree) j)
         (x.regs rNodeFree + 1) (x.mem (headBase g + u))) (headBase g + u) (x.regs rNodeFree) a =
-        0 :=
-    fun a ha => by
-      simp only [Function.update_of_ne (by simp only [visBase, nodeBase] at ha; omega :
-          a ≠ headBase g + u),
-        Function.update_of_ne (by omega : a ≠ x.regs rNodeFree + 1),
-        Function.update_of_ne (by omega : a ≠ x.regs rNodeFree)]
-      exact hzero a ha
+        0 := fun a ha => by
+    have : headBase g + slots g + 4 * g.edges.length ≤ a := ha
+    simp only [Function.update_apply, hzero a ha]
+    split_ifs <;> omega
   rcases hsr with rfl | rfl <;>
   · unfold prependToSlot
     wram_exec [hc.one, hc.two, hc.headB, hslot, hj_reg]

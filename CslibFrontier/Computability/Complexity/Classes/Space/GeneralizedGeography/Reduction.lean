@@ -156,9 +156,6 @@ theorem mem_formulaArcs :
       exacts [Or.inl ⟨rfl, _, rfl⟩, Or.inl ⟨rfl, _, rfl⟩, Or.inr (Or.inl ⟨_, rfl, rfl⟩),
         Or.inr (Or.inl ⟨_, rfl, rfl⟩), Or.inr (Or.inr ⟨rfl, rfl⟩)]
     · rintro (⟨rfl, (_ | _), rfl⟩ | ⟨(_ | _), rfl, rfl⟩ | ⟨rfl, rfl⟩) <;> simp
-  have hc : (∃ i < ψ.length, (chooserNode, clauseNode i) = (u, w)) ↔
-      ∃ i < ψ.length, u = chooserNode ∧ w = clauseNode i := by
-    simp [Prod.mk.injEq, eq_comm]
   have hl : (∃ c ∈ ψ.zipIdx, (u, w) ∈ literalArcs xs c.2 c.1) ↔ ∃ i, ∃ h : i < ψ.length,
       ∃ l ∈ ψ[i], l.1 ∈ xs ∧ u = clauseNode i ∧ w = valueNode (lastIdx xs l.1) (!l.2) := by
     constructor
@@ -174,9 +171,8 @@ theorem mem_formulaArcs :
       simp only [literalArcs, List.mem_map, List.mem_filter, decide_eq_true_eq]
       exact ⟨l, ⟨hl, hlx⟩, rfl⟩
   simp only [formulaArcs, List.mem_append, List.mem_cons, List.mem_flatMap, List.mem_range,
-    List.mem_map, hd, Prod.mk.injEq, or_assoc]
-  rw [← hc, ← hl]
-  simp only [Prod.mk.injEq]
+    List.mem_map, hd, hl, Prod.mk.injEq, or_assoc, @eq_comm _ chooserNode,
+    @eq_comm _ (clauseNode _)]
 
 theorem mk_topNode_mem_formulaArcs_iff {j : ℕ} :
     (topNode j, w) ∈ formulaArcs xs ψ ↔
@@ -248,15 +244,9 @@ theorem valueNode_inj {i : ℕ} {b c : Bool} : valueNode j b = valueNode i c ↔
 
 private theorem valueNode_mem_visOf {b : Bool} :
     valueNode j b ∈ visOf z ↔ j < z.length ∧ b = z.getD j false := by
-  rw [mem_visOf]
-  constructor
-  · rintro (⟨i, -, h⟩ | ⟨i, -, h⟩ | ⟨i, hi, h⟩)
-    · simp [valueNode, topNode, Nat.pair_eq_pair] at h
-    · simp [valueNode, bottomNode, Nat.pair_eq_pair] at h
-    · obtain ⟨rfl, rfl⟩ := valueNode_inj.1 h
-      exact ⟨hi, rfl⟩
-  · rintro ⟨hj, rfl⟩
-    exact Or.inr (Or.inr ⟨j, hj, rfl⟩)
+  have hnt (i : ℕ) : valueNode j b ≠ topNode i := by simp [valueNode, topNode]
+  have hnb (i : ℕ) : valueNode j b ≠ bottomNode i := by simp [valueNode, bottomNode]
+  simp [mem_visOf, hnt, hnb, valueNode_inj]
 
 /-- Crossing a diamond visits its value node, its bottom and the next top. -/
 private theorem mem_visOf_append {b : Bool} {u : ℕ} :
@@ -427,8 +417,7 @@ theorem geographyWins_formulaGraph (heven : Even xs.length)
     (formulaGraph xs ψ).GeographyWins [topNode 0] (topNode 0) ↔
       Alternation true (List.replicate xs.length 1)
         fun z => ψ.eval (fun x => z.getD (lastIdx xs x) false) = true := by
-  have h := geographyWins_topNode heven hvars xs.length [] (by simp)
-  simpa [visOf] using h
+  simpa [visOf] using geographyWins_topNode heven hvars xs.length [] (by simp)
 
 end Game
 
@@ -453,12 +442,9 @@ theorem updates_eq_getD_lastIdx (σ : ℕ → Bool) :
         show vs.length + 1 - 1 - vs.reverse.idxOf x = (vs.length - 1 - vs.reverse.idxOf x) + 1 by
           omega, List.getD_cons_succ]
     · obtain rfl : x = v := by simpa [hxs] using hx
-      rw [QBF.updates_of_notMem hxs, Function.update_self]
-      have hidx : (x :: vs).reverse.idxOf x = vs.length := by
-        rw [List.reverse_cons, List.idxOf_append_of_notMem (by simpa using hxs)]
-        simp
-      rw [lastIdx, hidx, List.length_cons, show vs.length + 1 - 1 - vs.length = 0 by omega]
-      rfl
+      rw [QBF.updates_of_notMem hxs, Function.update_self, lastIdx, List.reverse_cons,
+        List.idxOf_append_of_notMem (by simpa using hxs)]
+      simp
 
 /-- **The reduction is correct**: the first player wins on the graph of an instance exactly when
 its formula is a true closed formula. -/

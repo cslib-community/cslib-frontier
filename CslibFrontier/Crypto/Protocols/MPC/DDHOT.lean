@@ -500,14 +500,9 @@ private theorem eval_pi_ddhOTSampleCoins (g : G) (q : ℕ) [Module (ZMod q) G]
         (OracleComp.pi (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).sampleCoins) =
       (ProbComp.eval sample₀).bind fun raw₀ =>
         (ProbComp.eval sample₁).map fun raw₁ => ddhOTCoinsWith raw₀ raw₁ := by
-  simp only [ddhOTProtocolWith, OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure]
-  refine congrArg (PMF.bind _) (funext fun raw₀ => ?_)
-  erw [PMF.map_bind]
-  simp only [PMF.pure_map]
-  rw [← PMF.bind_pure_comp]
-  refine congrArg (PMF.bind _) (funext fun raw₁ => congrArg PMF.pure
-    (funext (β := DDHOTCoinsWith C₀ C₁) fun i => ?_))
+  simp only [ddhOTProtocolWith, OracleComp.pi_succ, OracleComp.pi_zero, pmf_norm]
+  refine congrArg (PMF.bind _) (funext fun raw₀ => congrArg (PMF.bind _) (funext fun raw₁ =>
+    congrArg PMF.pure (funext (β := DDHOTCoinsWith C₀ C₁) fun i => ?_)))
   fin_cases i <;> rfl
 
 /-- Receiver's view in a run with coins `(raw₀, raw₁)`. -/
@@ -1034,15 +1029,13 @@ theorem succProbability_ddhOTUncheckedIdealGame_le
       rw [PMF.bind_comm]
       refine PMF.bind_apply_le_on_support _ fun pair _ =>
         PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-          (congrArg Prod.snd (of_decide_eq_true hy)).symm.trans
-            (congrArg Prod.snd (of_decide_eq_true hy'))
+          congrArg Prod.snd ((of_decide_eq_true hy).symm.trans (of_decide_eq_true hy'))
     · rw [PMF.bind_comm]
       refine PMF.bind_apply_le_on_support _ fun m₁ _ => ?_
       rw [PMF.bind_comm]
       refine PMF.bind_apply_le_on_support _ fun pair _ =>
         PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-          (congrArg Prod.fst (of_decide_eq_true hy)).symm.trans
-            (congrArg Prod.fst (of_decide_eq_true hy'))
+          congrArg Prod.fst ((of_decide_eq_true hy).symm.trans (of_decide_eq_true hy'))
   rw [Game.coe_succProbability, ← ENNReal.toReal_natCast, ← ENNReal.toReal_inv]
   exact ENNReal.toReal_mono (by simp) h_ennreal
 

@@ -646,11 +646,10 @@ private theorem stepValidClaim_invariant [DecidableEq Target]
       simp only [acc', stepValidClaim]
       split_ifs with hcond
       · rw [List.map_append, List.map_cons, List.map_nil]
-        refine List.nodup_append.mpr ⟨hnodup, List.nodup_singleton _, fun x hx y hy hxy => ?_⟩
-        rw [List.mem_singleton.mp hy] at hxy
-        subst hxy
-        have hnot := (Bool.and_eq_true_iff.mp hcond).2
-        simp [hx] at hnot
+        refine List.nodup_append.mpr ⟨hnodup, List.nodup_singleton _, fun _ hx _ hy hxy => ?_⟩
+        have hmem : J (embed hd.1.message) hd.1.opening ∈ acc.map fun c => J c.message c.opening :=
+          List.mem_singleton.mp hy ▸ hxy ▸ hx
+        simpa [hmem] using (Bool.and_eq_true_iff.mp hcond).2
       · exact hnodup
     obtain ⟨hv_tl, hnd_tl, hmem_tl, hcov_tl⟩ := ih acc' hstep_verify hstep_nodup
     refine ⟨hv_tl, hnd_tl, ?_, ?_⟩
@@ -660,9 +659,7 @@ private theorem stepValidClaim_invariant [DecidableEq Target]
         split_ifs at hc'
         · rcases List.mem_append.mp hc' with hc' | hc'
           · exact Or.inl hc'
-          · right
-            rw [List.mem_singleton.mp hc']
-            simp
+          · exact Or.inr (List.mem_singleton.mp hc' ▸ List.mem_cons_self)
         · exact Or.inl hc'
       · exact Or.inr (List.mem_cons_of_mem _ hc')
     · intro hall e he
@@ -694,11 +691,8 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
   · exact Or.inr (Or.inr hinv)
   · have hvalid_log :
         ∀ e ∈ run.log, S.verify run.publicKey (J (embed e.1.message) e.1.opening) e.2 = true := by
-      intro e he
-      have hnot : anyInvalidReply S target run = false := Bool.eq_false_iff.mpr hinv
-      simp only [anyInvalidReply, List.any_eq_false, Bool.not_eq_true'] at hnot
-      rw [← htarget]
-      exact Bool.eq_true_of_not_eq_false (hnot e he)
+      simp only [anyInvalidReply, Bool.not_eq_true, List.any_eq_false, Bool.not_eq_false'] at hinv
+      exact fun e he => htarget e.1.message e.1.opening ▸ hinv e he
     obtain ⟨hvalid_out, hfresh_raw⟩ := Bool.and_eq_true_iff.mp h
     have hfresh : run.output.payload.message ∉ run.log.map fun (p, _) => p.message :=
       of_decide_eq_true hfresh_raw
@@ -717,14 +711,12 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
     | none =>
       left
       have hnone := List.find?_eq_none.mp hfind
+      simp only [decide_eq_true_eq, htarget] at hnone
       have hy_fresh :
           J (embed run.output.payload.message) run.output.payload.opening ∉
-            run.log.map fun (p, _) => J (embed p.message) p.opening := by
-        intro hmem
+            run.log.map fun (p, _) => J (embed p.message) p.opening := fun hmem => by
         obtain ⟨e, he, heq⟩ := List.mem_map.mp hmem
-        apply hnone e he
-        simp only [decide_eq_true_eq, htarget]
-        exact heq
+        exact hnone e he heq
       obtain ⟨hv_logged, hnd_logged, hmem_logged, hcov_logged⟩ :=
         stepValidClaim_invariant S J embed run.publicKey run.log [] (by simp) (by simp)
       set logged := run.log.foldl (stepValidClaim S J embed run.publicKey) []
@@ -737,41 +729,21 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
         rcases hmem_logged c hc with hc | hc
         · simp at hc
         · exact hy_fresh (hce ▸ hc)
-      have hclaims_eq :
-          (clawExecutionOfExtracted S J embed run).claims =
-            ⟨embed run.output.payload.message, run.output.payload.opening, run.output.signature⟩ ::
-              logged := by
-        have hcond : (S.verify run.publicKey y run.output.signature &&
-            !(logged.map fun c => J c.message c.opening).contains y) = true := by
-          simp [hy_out, hy_not_mem]
-        simp only [clawExecutionOfExtracted, y, logged, hcond, ↓reduceIte]
       have hsub_len :
           ((run.log.map fun (p, _) => J (embed p.message) p.opening)).dedup.length ≤
-            (logged.map fun c => J c.message c.opening).length := by
-        refine (List.subperm_of_subset (List.nodup_dedup _) fun t ht => ?_).length_le
-        rw [List.mem_dedup, List.mem_map] at ht
-        obtain ⟨e, he, rfl⟩ := ht
-        exact hcov_logged hvalid_log e he
-      have hlt :
-          ((clawExecutionOfExtracted S J embed run).log.map fun (q, _) => J q.1 q.2).dedup.length <
-            (clawExecutionOfExtracted S J embed run).claims.length := by
-        rw [hclaims_eq]
-        simp only [clawExecutionOfExtracted, List.map_map, Function.comp_def, List.length_cons]
-        simp only [List.length_map] at hsub_len
-        omega
-      have hnd_claims :
-          ((clawExecutionOfExtracted S J embed run).claims.map
-            fun c => J c.message c.opening).Nodup := by
-        rw [hclaims_eq, List.map_cons, List.nodup_cons]
-        exact ⟨hy_not_mem, hnd_logged⟩
-      have hv_claims :
-          (clawExecutionOfExtracted S J embed run).claims.all
-            (fun c => S.verify (clawExecutionOfExtracted S J embed run).publicKey
-              (J c.message c.opening) c.preimage) = true := by
-        rw [hclaims_eq, List.all_cons, Bool.and_eq_true]
-        refine ⟨hy_out, List.all_eq_true.mpr fun c hc => hv_logged c hc⟩
-      simp only [clawAccept, Bool.and_eq_true, decide_eq_true_eq]
-      exact ⟨⟨hlt, hnd_claims⟩, hv_claims⟩
+            (logged.map fun c => J c.message c.opening).length :=
+        (List.subperm_of_subset (List.nodup_dedup _) fun t ht => by
+          obtain ⟨e, he, rfl⟩ := List.mem_map.mp (List.mem_dedup.mp ht)
+          exact hcov_logged hvalid_log e he).length_le
+      have hcond : (S.verify run.publicKey y run.output.signature &&
+          !(logged.map fun c => J c.message c.opening).contains y) = true := by
+        simp [hy_out, hy_not_mem]
+      simp only [List.length_map] at hsub_len
+      simp only [clawAccept, clawExecutionOfExtracted, y, logged, hcond, ↓reduceIte,
+        Bool.and_eq_true, decide_eq_true_eq, List.map_cons, List.nodup_cons, List.length_cons,
+        List.all_cons, List.map_map, Function.comp_def]
+      exact ⟨⟨Nat.lt_succ_of_le hsub_len, hy_not_mem, hnd_logged⟩,
+        hy_out, List.all_eq_true.mpr hv_logged⟩
 
 /-- Concrete bound decomposing `AnonymousToken.extractedExperiment` into structured-target one-more
 claw-freeness (`clawExperiment`), target binding collisions (`bindingExperiment`), and invalid
@@ -982,36 +954,21 @@ private theorem noteForger_rangeBoundedAdversary_support
     StateT.run_bind, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hres
   obtain ⟨⟨⟨_, accepted⟩, outerLog⟩, hcomp, rfl⟩ := hres
-  have hsimp :
-      ((OracleComp.interpret
+  have hhandler :
+      (fun req => OracleComp.interpret
         (OracleComp.sumHandler
           (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
           (Conservation.noteForgerHandler com tag S keys.1))
-        (ProbOracleComp.simulate
-          (fun req => if requestInRange bound req then ProbOracleComp.query req else pure none)
-          (A keys.1)))).run [] =
-        (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-            (boundedNoteForgerHandler bound com tag S keys.1))
-          (A keys.1)).run [] := by
-    rw [ProbOracleComp.interpret_simulate]
-    have hhandler :
-        (fun req => OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-            (Conservation.noteForgerHandler com tag S keys.1))
-          (if requestInRange bound req then ProbOracleComp.query req else pure none)) =
-          boundedNoteForgerHandler bound com tag S keys.1 := by
-      funext req acc
-      by_cases h : requestInRange bound req = true
-      · simp [h, boundedNoteForgerHandler]
-      · simp only [h, Bool.false_eq_true, ↓reduceIte, boundedNoteForgerHandler,
-          OracleComp.interpret_pure]
-        rfl
-    rw [hhandler]
-  rw [hsimp, ProbOracleComp.eval_runState, ProbOracleComp.runWith_run_interpret,
-    PMF.mem_support_map_iff] at hcomp
+        (if requestInRange bound req then ProbOracleComp.query req else pure none)) =
+        boundedNoteForgerHandler bound com tag S keys.1 := by
+    funext req acc
+    by_cases h : requestInRange bound req = true
+    · simp [h, boundedNoteForgerHandler]
+    · simp only [h, Bool.false_eq_true, ↓reduceIte, boundedNoteForgerHandler,
+        OracleComp.interpret_pure]
+      rfl
+  rw [ProbOracleComp.interpret_simulate, hhandler, ProbOracleComp.eval_runState,
+    ProbOracleComp.runWith_run_interpret, PMF.mem_support_map_iff] at hcomp
   obtain ⟨⟨_, accepted', outerLog'⟩, hcomp', heq⟩ := hcomp
   dsimp only at heq
   obtain ⟨hpair, rfl⟩ := Prod.mk.inj heq
@@ -1333,23 +1290,19 @@ theorem clawExperiment_zeroOpeningClawAttack_eq_pure_true {K : Type} [Field K]
   dsimp only [Function.comp_def]
   rw [PMF.pure_map]
   dsimp only [clawAccept]
+  let claims := scalars.map fun a =>
+    (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ : ClawClaim Message R Sig)
   have hclaims_nodup :
-      ((scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
-          ClawClaim Message R Sig)).map
-            fun c => UOV.structuredTarget F G c.message c.opening).Nodup := by
-    have hmap :
-        (scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
-            ClawClaim Message R Sig)).map (fun c => UOV.structuredTarget F G c.message c.opening) =
-          (scalars.map fun a => a * a).map fun b => (b • μ, G 0) := by
-      simp [UOV.structuredTarget, hF, List.map_map, Function.comp_def]
+      (claims.map fun c => UOV.structuredTarget F G c.message c.opening).Nodup := by
+    have hmap : (claims.map fun c => UOV.structuredTarget F G c.message c.opening) =
+        (scalars.map fun a => a * a).map fun b => (b • μ, G 0) := by
+      simp [claims, UOV.structuredTarget, hF, List.map_map, Function.comp_def]
     rw [hmap]
     exact hnodup.map fun _ _ heq => smul_left_injective K hμ (congrArg Prod.fst heq)
   have hclaims_verify :
-      (scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
-          ClawClaim Message R Sig)).all
-        (fun c =>
-          S.verify keys.1 (UOV.structuredTarget F G c.message c.opening) c.preimage) = true := by
-    rw [List.all_map, List.all_eq_true]
+      claims.all (fun c =>
+        S.verify keys.1 (UOV.structuredTarget F G c.message c.opening) c.preimage) = true := by
+    simp only [claims, List.all_map, List.all_eq_true]
     exact hverify keys hkeys σ hσ
   refine congrArg PMF.pure
     (Bool.and_eq_true_iff.mpr ⟨decide_eq_true ⟨?_, hclaims_nodup⟩, hclaims_verify⟩)

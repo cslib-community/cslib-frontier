@@ -492,9 +492,7 @@ private theorem computableInO_cappedAcc_total {α : Type} {encA : α ↪ List Bo
 private theorem cast_listMax_le {β : Type} (f : β → ℕ) (xs : List β) {B : ℝ} (hB0 : 0 ≤ B)
     (hf : ∀ b ∈ xs, (f b : ℝ) ≤ B) : (listMax f xs : ℝ) ≤ B := by
   induction xs with
-  | nil =>
-    simp only [listMax, List.map_nil, List.foldr_nil, Nat.cast_zero]
-    exact hB0
+  | nil => simp [listMax, hB0]
   | cons b xs ih =>
     simp only [listMax, List.map_cons, List.foldr_cons, Nat.cast_max]
     exact max_le (hf b (List.mem_cons_self ..))
@@ -622,11 +620,9 @@ private theorem batch_poly_exp_le (r : DisjointBatchReduction encA encB μA μB)
   obtain ⟨Cp, E, hCp⟩ := hpoly.exists_le
   set K : ℝ := Cp * (1 + k * 2 ^ (δ * r.offset) + k)
   refine ⟨⌈K⌉₊, E, fun a => ?_⟩
-  set P : ℝ := (((encA a).length : ℝ) + 1) ^ E
   have hCp_a : (base a : ℝ) + ((listLen a : ℝ) + 1) *
-      ((perItem a : ℝ) + ((listLen a : ℝ) + 1) ^ e) ≤ Cp * P := by
-    dsimp only [P]
-    exact_mod_cast hCp a
+      ((perItem a : ℝ) + ((listLen a : ℝ) + 1) ^ e) ≤
+        Cp * (((encA a).length : ℝ) + 1) ^ E := by exact_mod_cast hCp a
   have habs := batch_exp_absorb_le (by positivity)
     (Real.one_le_rpow (by norm_num) (by positivity) : 1 ≤ (2 : ℝ) ^ ((r.scale * δ) * μA a))
     (SizedListEncoding.length_le (encA := encB) (encL := encList encB) (r.toBatch a).items)
@@ -705,7 +701,7 @@ private theorem exists_computableInO_foldl_of_ansBound
       have hsg_i := hsg a _ (List.getElem_mem hi)
       dsimp only [Q, Function.comp_apply]
       omega)
-    (fun a i hi => hacc a i hi)
+    hacc
   have hlistPoly : PolyBounded (fun a => (encA a).length) listLen := r.polyBounded_batch_length
   have hOverhead : PolyBounded (fun a => (encA a).length)
       (fun a => ((encA a).length + 1) ^ dl + ((encA a).length + 1) ^ di +
@@ -750,15 +746,15 @@ theorem exists_computableInO_foldl (r : DisjointBatchReduction encA encB μA μB
   let listLen (a : α) : ℕ := (encList encB (r.toBatch a).items).length
   let sgMax (a : α) : ℕ := cs * (listLen a + 1) ^ ds
   let ansMax (a : α) : ℕ := kg * (sgMax a + 1)
-  have hsg_mem (a : α) {b : β} (hb : b ∈ (r.toBatch a).items) : Sg b ≤ sgMax a :=
+  have hsg_mem (a : α) (b : β) (hb : b ∈ (r.toBatch a).items) : Sg b ≤ sgMax a :=
     (hSg_le b).trans (Nat.mul_le_mul_left cs
       (Nat.pow_le_pow_left (Nat.add_le_add_right (length_le_encList_of_mem encB hb) 1) ds))
-  have hans_mem (a : α) {b : β} (hb : b ∈ (r.toBatch a).items) : (encG (g b)).length ≤ ansMax a :=
-    (hglen b).trans (Nat.mul_le_mul_left kg (Nat.add_le_add_right (hsg_mem a hb) 1))
+  have hans_mem (a : α) (b : β) (hb : b ∈ (r.toBatch a).items) : (encG (g b)).length ≤ ansMax a :=
+    (hglen b).trans (Nat.mul_le_mul_left kg (Nat.add_le_add_right (hsg_mem a b hb) 1))
   have hlistPoly : PolyBounded (fun a => (encA a).length) listLen := r.polyBounded_batch_length
   have hansPoly : PolyBounded (fun a => (encA a).length) ansMax := by growth_poly
   obtain ⟨c, e, hfold⟩ := r.exists_computableInO_foldl_of_ansBound hinit hcombine hg haccPoly
-    hansPoly hacc (fun a _ hb => hans_mem a hb) (fun a _ hb => hsg_mem a hb)
+    hansPoly hacc hans_mem hsg_mem
   have hSPoly : PolyBounded (fun a => (encA a).length)
       (fun a => c * ((encA a).length + 1) ^ e + sgMax a) := by growth_poly
   exact ⟨c, e, _, hSPoly, hfold⟩
@@ -1407,18 +1403,17 @@ private theorem exists_computableInO_run_of_spaceBound
         (clockLen a + 1) ^ 2 + clockLen a) := by
     growth_poly [S.computableInPolyTime_rounds]
   obtain ⟨c, e, hce⟩ := hOverhead.exists_le
+  dsimp only [clockLen] at hce
   have hfin (a : α) : ((encSt ((S.step g)^[S.rounds a] (S.initState a))).length + 1) ^ da ≤
       (stateBound a + 1) ^ da :=
     Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a (S.rounds a) le_rfl) 1) da
   refine ⟨c, e, hwhole.mono_le (fun a => ?_) (fun a => ?_)⟩
   · have hfa := hfin a
     have h₁ := hce a
-    dsimp only [clockLen] at h₁
     rw [Nat.add_right_comm]
     exact Nat.add_le_add (by omega) (Nat.mul_le_mul_left _ (by omega))
   · have hfa := hfin a
     have h₁ := hce a
-    dsimp only [clockLen] at h₁
     omega
 
 /-- **Accumulated-time and polynomial-live-workspace transfer for `S.run g`.**
@@ -1530,8 +1525,7 @@ theorem decidableInSubexpTime_of_stack
   refine (S.decidableInExpTime_of_stack hrounds hν hstatePoly hAB hδ.le (hB δ hδ)).mono ?_
   have hMε : 1 / (M : ℝ) < ε / 2 := by
     rw [div_lt_iff₀ hMpos]
-    rw [div_lt_iff₀ hε] at hM
-    linarith
+    linarith [(div_lt_iff₀ hε).mp hM]
   have hcδ : (scale : ℝ) * δ ≤ ε / 2 := natCast_mul_div_add_one_le (half_pos hε).le scale
   linarith
 
@@ -1652,9 +1646,7 @@ theorem run_eq_foldl_leafWords
   let f := fun (d : δ) (s : σ) =>
     S.combine ⟨S.initCtx a, d, g (S.leafInstance ⟨S.initCtx a, s⟩)⟩
   obtain ⟨L, hnd, hL, N, hN, hsearch⟩ := T.exists_iterate_searchStep hT f root hh
-  have hNR : N ≤ S.rounds a := by
-    have := hrounds L hnd hL
-    omega
+  have hrl := hrounds L hnd hL
   obtain ⟨hfin, hpref⟩ := hsearch [] (S.initAcc a)
   have hfix : ∀ k, (T.searchStep f)^[k] ([], (L.map (T.walk root)).foldl f (S.initAcc a)) =
       ([], (L.map (T.walk root)).foldl f (S.initAcc a)) :=
@@ -1666,15 +1658,14 @@ theorem run_eq_foldl_leafWords
   refine ⟨L, hnd, hL, ?_, fun i hi => ?_⟩
   · simp only [run, initState, hinit]
     rw [S.iterate_step_eq_binaryBranching g (S.initCtx a) T hleaf hexp (S.rounds a) [root]
-      (S.initAcc a), hafter (S.rounds a) hNR]
+      (S.initAcc a), hafter (S.rounds a) (by omega)]
   · dsimp only [initState]
     rw [hinit, S.iterate_step_eq_binaryBranching g (S.initCtx a) T hleaf hexp i [root]
       (S.initAcc a)]
     by_cases hiN : i ≤ N
     · obtain ⟨stk, L', hL', heq, hlen, hmem⟩ := hpref i hiN
       rw [List.append_nil] at heq
-      rw [heq]
-      exact ⟨hlen, hmem, L', hL', rfl⟩
+      exact heq ▸ ⟨hlen, hmem, L', hL', rfl⟩
     · rw [hafter i (by omega)]
       exact ⟨Nat.zero_le _, fun _ ht => by simp at ht, L, List.prefix_rfl, rfl⟩
 

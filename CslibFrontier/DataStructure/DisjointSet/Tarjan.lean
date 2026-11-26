@@ -154,10 +154,8 @@ private theorem findPathGo_rank_ge (uf : Batteries.UnionFind) :
       simp only [List.mem_cons] at hu
       rcases hu with rfl | htail
       · exact Nat.le_refl _
-      · have hstep : uf.rank x.1 < uf.rank uf.arr[x.1].parent := uf.rank'_lt x.1 x.2 h
-        have htail' := findPathGo_rank_ge uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩
-          htail
-        exact (Nat.le_of_lt hstep).trans htail'
+      · exact (Nat.le_of_lt (uf.rank'_lt x.1 x.2 h)).trans
+          (findPathGo_rank_ge uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ htail)
 
 private theorem findPathGo_pairwise_rank_lt (uf : Batteries.UnionFind) :
     ∀ (fuel : ℕ) (x : Fin uf.size),
@@ -203,11 +201,9 @@ private theorem findPathGo_rootD (uf : Batteries.UnionFind) :
     · simp only [List.mem_cons] at hu
       rcases hu with rfl | htail
       · rfl
-      · have ih := findPathGo_rootD uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ htail
-        have hp : uf.arr[x.1].parent = uf.parent x.1 := (Batteries.UnionFind.parentD_eq x.2).symm
-        rw [ih]
+      · rw [findPathGo_rootD uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ htail]
         dsimp only
-        rw [hp, Batteries.UnionFind.rootD_parent]
+        rw [← Batteries.UnionFind.parentD_eq x.2, Batteries.UnionFind.rootD_parent]
 
 private theorem findPath_rootD (uf : Batteries.UnionFind) (x : Fin uf.size) {u : ℕ}
     (hu : u ∈ findPath uf x) : uf.rootD u = uf.rootD x.1 :=
@@ -231,11 +227,9 @@ private theorem findPathGo_parent_rank_le (uf : Batteries.UnionFind) :
       have hxy : uf.rank x.1 < uf.rank y.1 := uf.rank'_lt x.1 x.2 h
       rcases hu with rfl | hu <;> rcases hv with rfl | hv
       · exact absurd hlt (Nat.lt_irrefl _)
-      · have hp : uf.parent x.1 = y.1 := Batteries.UnionFind.parentD_eq x.2
-        rw [hp]
-        exact findPathGo_rank_ge uf fuel y hv
-      · have hge := findPathGo_rank_ge uf fuel y hu
-        omega
+      · exact le_of_eq_of_le (congrArg uf.rank (Batteries.UnionFind.parentD_eq x.2))
+          (findPathGo_rank_ge uf fuel y hv)
+      · exact absurd (hxy.trans_le (findPathGo_rank_ge uf fuel y hu)) (Nat.not_lt.mpr hlt.le)
       · exact findPathGo_parent_rank_le uf fuel y hu hv hlt
 
 private theorem findPath_parent_rank_le (uf : Batteries.UnionFind) (x : Fin uf.size) {u v : ℕ}
@@ -310,19 +304,14 @@ private theorem ackermann_ackLevel_le {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) :
     Nat.ackermann (ackLevel r p) r ≤ p := by
   unfold ackLevel
   rw [dite_eq_left ⟨hr, hrp⟩]
-  have hpos := find_lt_ackermann_pos hr hrp
-  have hlt : Nat.find (exists_lt_ackermann hr p) - 1 < Nat.find (exists_lt_ackermann hr p) := by
-    omega
-  exact Nat.not_lt.mp (Nat.find_min (exists_lt_ackermann hr p) hlt)
+  exact Nat.not_lt.mp (Nat.find_min (exists_lt_ackermann hr p)
+    (Nat.sub_lt (find_lt_ackermann_pos hr hrp) Nat.one_pos))
 
 private theorem lt_ackermann_ackLevel_succ {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) :
     p < Nat.ackermann (ackLevel r p + 1) r := by
   unfold ackLevel
-  rw [dite_eq_left ⟨hr, hrp⟩]
-  have hpos := find_lt_ackermann_pos hr hrp
-  have hspec := Nat.find_spec (exists_lt_ackermann hr p)
-  rwa [show Nat.find (exists_lt_ackermann hr p) - 1 + 1 =
-    Nat.find (exists_lt_ackermann hr p) by omega]
+  rw [dite_eq_left ⟨hr, hrp⟩, Nat.sub_add_cancel (find_lt_ackermann_pos hr hrp)]
+  exact Nat.find_spec (exists_lt_ackermann hr p)
 
 private theorem le_ackLevel_of_ackermann_le {r p k : ℕ} (hr : 1 ≤ r) (hrp : r < p)
     (hle : Nat.ackermann k r ≤ p) : k ≤ ackLevel r p := by
@@ -382,19 +371,15 @@ private theorem iterate_ackermann_ackIter_le {r p : ℕ} (hr : 1 ≤ r) (hrp : r
     (Nat.ackermann (ackLevel r p))^[ackIter r p] r ≤ p := by
   unfold ackIter
   rw [dite_eq_left ⟨hr, hrp⟩]
-  have h2 := two_le_find_iterate hr hrp
-  have hlt : Nat.find (exists_lt_iterate_ackermann hr hrp) - 1 <
-      Nat.find (exists_lt_iterate_ackermann hr hrp) := by omega
-  exact Nat.not_lt.mp (Nat.find_min (exists_lt_iterate_ackermann hr hrp) hlt)
+  exact Nat.not_lt.mp (Nat.find_min (exists_lt_iterate_ackermann hr hrp)
+    (Nat.sub_lt (Nat.zero_lt_of_lt (two_le_find_iterate hr hrp)) Nat.zero_lt_one))
 
 private theorem lt_iterate_ackermann_ackIter_succ {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) :
     p < (Nat.ackermann (ackLevel r p))^[ackIter r p + 1] r := by
   unfold ackIter
-  rw [dite_eq_left ⟨hr, hrp⟩]
-  have h2 := two_le_find_iterate hr hrp
-  have hspec := Nat.find_spec (exists_lt_iterate_ackermann hr hrp)
-  rwa [show Nat.find (exists_lt_iterate_ackermann hr hrp) - 1 + 1 =
-    Nat.find (exists_lt_iterate_ackermann hr hrp) by omega]
+  rw [dite_eq_left ⟨hr, hrp⟩,
+    Nat.sub_add_cancel (Nat.le_of_lt (two_le_find_iterate hr hrp))]
+  exact Nat.find_spec (exists_lt_iterate_ackermann hr hrp)
 
 private theorem le_ackIter_of_iterate_le {r p i : ℕ} (hr : 1 ≤ r) (hrp : r < p)
     (hle : (Nat.ackermann (ackLevel r p))^[i] r ≤ p) : i ≤ ackIter r p := by
@@ -411,12 +396,9 @@ private noncomputable def nonRootPhi (q r p : ℕ) : ℕ :=
   (q - ackLevel r p) * r - ackIter r p
 
 private theorem ackIter_le_mul {q r p : ℕ} (hr : 1 ≤ r) (hrp : r < p)
-    (hpq : p < Nat.ackermann q r) : ackIter r p ≤ (q - ackLevel r p) * r := by
-  have hk : ackLevel r p < q := ackLevel_lt_of_lt_ackermann hr hrp hpq
-  have hi : ackIter r p ≤ r := ackIter_le hr hrp
-  have hmul : r ≤ (q - ackLevel r p) * r :=
-    Nat.le_mul_of_pos_left r (Nat.sub_pos_of_lt hk)
-  exact hi.trans hmul
+    (hpq : p < Nat.ackermann q r) : ackIter r p ≤ (q - ackLevel r p) * r :=
+  (ackIter_le hr hrp).trans
+    (Nat.le_mul_of_pos_left r (Nat.sub_pos_of_lt (ackLevel_lt_of_lt_ackermann hr hrp hpq)))
 
 private theorem nonRootPhi_le_mul_sub_one {q r p : ℕ} (hr : 1 ≤ r) (hrp : r < p)
     (hpq : p < Nat.ackermann q r) : nonRootPhi q r p + 1 ≤ q * r := by
@@ -445,36 +427,25 @@ private theorem nonRootPhi_lt_of_level_lt {q r p p' : ℕ} (hr : 1 ≤ r) (hrp :
 private theorem nonRootPhi_le_of_le {q r p p' : ℕ} (hr : 1 ≤ r) (hrp : r < p) (hp : p ≤ p')
     (hp'q : p' < Nat.ackermann q r) :
     nonRootPhi q r p' ≤ nonRootPhi q r p := by
-  have hmono : ackLevel r p ≤ ackLevel r p' := ackLevel_mono hr hrp hp
-  rcases Nat.eq_or_lt_of_le hmono with heq | hlt
-  · have hrp' : r < p' := lt_of_lt_of_le hrp hp
-    have hiter : ackIter r p ≤ ackIter r p' := by
-      refine le_ackIter_of_iterate_le hr hrp' ?_
-      rw [← heq]
-      exact (iterate_ackermann_ackIter_le hr hrp).trans hp
-    unfold nonRootPhi
+  rcases Nat.eq_or_lt_of_le (ackLevel_mono hr hrp hp) with heq | hlt
+  · unfold nonRootPhi
     rw [heq]
-    exact Nat.sub_le_sub_left hiter _
-  · exact Nat.le_trans (Nat.le_succ _) (nonRootPhi_lt_of_level_lt hr hrp hp hp'q hlt)
+    refine Nat.sub_le_sub_left (le_ackIter_of_iterate_le hr (lt_of_lt_of_le hrp hp) ?_) _
+    rw [← heq]
+    exact (iterate_ackermann_ackIter_le hr hrp).trans hp
+  · exact (Nat.le_succ _).trans (nonRootPhi_lt_of_level_lt hr hrp hp hp'q hlt)
 
 private theorem nonRootPhi_lt_of_step {q r p p' : ℕ} (hr : 1 ≤ r) (hrp : r < p) (hp : p ≤ p')
     (hp'q : p' < Nat.ackermann q r)
     (hstep : (Nat.ackermann (ackLevel r p))^[ackIter r p + 1] r ≤ p') :
     nonRootPhi q r p' + 1 ≤ nonRootPhi q r p := by
   have hrp' : r < p' := lt_of_lt_of_le hrp hp
-  have hmono : ackLevel r p ≤ ackLevel r p' := ackLevel_mono hr hrp hp
-  rcases Nat.eq_or_lt_of_le hmono with heq | hlt
-  · have hir : ackIter r p < r := by
-      rcases Nat.eq_or_lt_of_le (ackIter_le hr hrp) with hir_eq | hir_lt
-      · exfalso
-        rw [hir_eq] at hstep
-        have hack : ackLevel r p + 1 ≤ ackLevel r p' :=
-          le_ackLevel_of_ackermann_le hr hrp' hstep
-        omega
-      · exact hir_lt
-    have hiter : ackIter r p + 1 ≤ ackIter r p' := by
-      refine le_ackIter_of_iterate_le hr hrp' ?_
-      rwa [← heq]
+  rcases Nat.eq_or_lt_of_le (ackLevel_mono hr hrp hp) with heq | hlt
+  · have hir : ackIter r p < r := (ackIter_le hr hrp).lt_of_ne fun hir_eq =>
+      (le_ackLevel_of_ackermann_le hr hrp' (by rwa [hir_eq] at hstep)).not_gt
+        (heq.symm.trans_lt (Nat.lt_succ_self _))
+    have hiter : ackIter r p + 1 ≤ ackIter r p' :=
+      le_ackIter_of_iterate_le hr hrp' (by rwa [← heq])
     have himul' : ackIter r p' ≤ (q - ackLevel r p') * r := ackIter_le_mul hr hrp' hp'q
     unfold nonRootPhi
     rw [← heq] at himul' ⊢
@@ -548,15 +519,12 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
     · have hroot' : uf'.parent u ≠ u := by
         rwa [ne_eq, parent_compressWithSteps_eq_self_iff]
       simp only [nodePotential, uf', hroot, hroot', ↓reduceIte, rank_compressWithSteps]
-      by_cases huS : u ∈ findPath uf x
-      · have hp' : uf'.parent u = uf.rootD u := by
-          rw [parent_compressWithSteps, ite_eq_left huS, ← findPath_rootD uf x huS]
-        rw [hp']
+      rw [parent_compressWithSteps]
+      split_ifs with huS
+      · rw [← findPath_rootD uf x huS]
         obtain ⟨hr, hrp, hpp', hp'q⟩ := hpath_bounds u hroot
         exact nonRootPhi_le_of_le hr hrp hpp' hp'q
-      · have hp' : uf'.parent u = uf.parent u := by
-          rw [parent_compressWithSteps, ite_eq_right huS]
-        rw [hp']
+      · exact Nat.le_refl _
   have hpot_drop : ∀ u ∈ S_drop,
       nodePotential zs q d uf' u + 1 ≤ nodePotential zs q d uf u := by
     intro u hu
@@ -566,10 +534,8 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
     have hvPath : v ∈ findPath uf x := List.mem_toFinset.mp hvS
     have hroot' : uf'.parent u ≠ u := by
       rwa [ne_eq, parent_compressWithSteps_eq_self_iff]
-    have hp' : uf'.parent u = uf.rootD u := by
-      rw [parent_compressWithSteps, ite_eq_left huPath, ← findPath_rootD uf x huPath]
     simp only [nodePotential, uf', hroot, hroot', ↓reduceIte, rank_compressWithSteps]
-    rw [hp']
+    rw [parent_compressWithSteps, ite_eq_left huPath, ← findPath_rootD uf x huPath]
     obtain ⟨hr, hrp, hpp', hp'q⟩ := hpath_bounds u hroot
     refine nonRootPhi_lt_of_step hr hrp hpp' hp'q ?_
     have hpu_rv : uf.rank (uf.parent u) + d ≤ uf.rank v + d :=
@@ -585,16 +551,9 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
       rw [Batteries.UnionFind.rootD_parent, findPath_rootD uf x hvPath,
         ← findPath_rootD uf x huPath] at hle
       omega
-    have hiter_le :
-        (Nat.ackermann (lvl u))^[ackIter (uf.rank u + d) (uf.rank (uf.parent u) + d)]
-          (uf.rank u + d) ≤ uf.rank v + d :=
-      (iterate_ackermann_ackIter_le hr hrp).trans hpu_rv
-    have hstep1 :
-        (Nat.ackermann (lvl u))^[ackIter (uf.rank u + d) (uf.rank (uf.parent u) + d) + 1]
-          (uf.rank u + d) ≤ Nat.ackermann (lvl u) (uf.rank v + d) := by
-      rw [Function.iterate_succ_apply']
-      exact Nat.ackermann_monotone_right (lvl u) hiter_le
-    exact hstep1.trans (hack_v.trans hpv_root)
+    rw [Function.iterate_succ_apply']
+    exact (Nat.ackermann_monotone_right (lvl u)
+      ((iterate_ackermann_ackIter_le hr hrp).trans hpu_rv)).trans (hack_v.trans hpv_root)
   have hsum_drop : potentialCore zs q d uf' + S_drop.card ≤ potentialCore zs q d uf := by
     have hsum_le :
         ∑ u ∈ Finset.range uf.size,
@@ -716,11 +675,8 @@ private theorem link_pot_aux {uf uf' : Batteries.UnionFind}
           have hack := Nat.ackermann_monotone_right q (Nat.le_add_left d (uf.rank i))
           omega
         exact nonRootPhi_le_of_le hr_pos hrp hpp' hp'q
-      · have hp_ne_w : winner.1 ≠ uf.parent i := Ne.symm hpw
-        have hrp_eq : uf'.rank (uf'.parent i) = uf.rank (uf.parent i) := by
-          rw [hp_i, hrank (uf.parent i)]
-          simp [hp_ne_w]
-        rw [hrp_eq]
+      · rw [hp_i, hrank (uf.parent i)]
+        simp [Ne.symm hpw]
   have hsum_rest : ∑ i ∈ rest, nodePotential zs q d uf' i ≤
       ∑ i ∈ rest, nodePotential zs q d uf i := Finset.sum_le_sum hrest
   have hchild_bound : 1 + nodePotential zs q d uf' child.1 ≤ q * (uf.rank child.1 + d) := by
@@ -1017,11 +973,10 @@ theorem tarjan_run_two_param {n : ℕ} {β : Type} (client : (spec n).Client β)
   let m := ((spec n).clientHistory (Partition.discrete n) client).length
   have hrun := tarjan_run_correct client
   dsimp only at hrun
+  refine ⟨hrun.1, hrun.2.1, ?_⟩
   rcases Nat.lt_or_ge m n with hlt | hle
-  · refine ⟨hrun.1, hrun.2.1, ?_⟩
-    simpa only [m, Nat.inverseAckermannTwo_of_lt hlt] using hrun.2.2.2
-  · refine ⟨hrun.1, hrun.2.1, ?_⟩
-    let d := m / n + 1
+  · simpa only [m, Nat.inverseAckermannTwo_of_lt hlt] using hrun.2.2.2
+  · let d := m / n + 1
     have hrep0 : (impl n).rep (Partition.discrete n) (init n) := by rw [impl_rep]; exact rep_init n
     have hv := (spec n).validHistory_of_forall_valid (fun _ _ => trivial)
       (Partition.discrete n) ((spec n).clientHistory (Partition.discrete n) client)
@@ -1042,14 +997,10 @@ theorem tarjan_run_two_param {n : ℕ} {β : Type} (client : (spec n).Client β)
         _ ≤ (2 * m) * Nat.inverseAckermannTwo m n := Nat.mul_le_mul_right _ hnd
         _ = m * (2 * Nat.inverseAckermannTwo m n) := by
           rw [Nat.mul_comm 2 m, Nat.mul_assoc]
-    have hbound : total id (run (init n) client).traces ≤
-        m * (3 * Nat.inverseAckermannTwo m n + 2) +
-          n * (Nat.inverseAckermannTwo m n * max 1 d) :=
-      le_trans (Nat.le_add_right _ _) hconst
     calc
       total id (run (init n) client).traces ≤
           m * (3 * Nat.inverseAckermannTwo m n + 2) +
-            n * (Nat.inverseAckermannTwo m n * max 1 d) := hbound
+            n * (Nat.inverseAckermannTwo m n * max 1 d) := le_trans (Nat.le_add_right _ _) hconst
       _ ≤ m * (3 * Nat.inverseAckermannTwo m n + 2) +
             m * (2 * Nat.inverseAckermannTwo m n) := Nat.add_le_add_left hinit _
       _ = m * ((3 * Nat.inverseAckermannTwo m n + 2) + 2 * Nat.inverseAckermannTwo m n) :=

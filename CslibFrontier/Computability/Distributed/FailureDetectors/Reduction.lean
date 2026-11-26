@@ -316,12 +316,9 @@ theorem gossipHistory_strongCompleteness {P : Type*} [Finite P] [DecidableEq P]
       (Finset.range t_crash).image (fun s => GossipPacket.mk p s)
     obtain ⟨B, hB⟩ := exists_tick_disjoint_packets hadm q pPkts
     have hno_p : ∀ t, B ≤ t → ∀ pkt ∈ sched q t, pkt.sender ≠ p := by
-      intro t ht pkt hpkt hsend
-      have hval := (hadm.valid_delivery q t pkt hpkt).2.2
-      rw [hsend] at hval
-      have hslt : pkt.sendTick < t_crash := not_le.mp fun hge => hval (F.mem_of_le hge hcrash)
-      exact hB t ht pkt hpkt
-        (mem_image.mpr ⟨pkt.sendTick, mem_range.mpr hslt, by cases pkt; subst hsend; rfl⟩)
+      rintro t ht ⟨_, s⟩ hpkt rfl
+      exact hB t ht _ hpkt (mem_image.mpr ⟨s, mem_range.mpr
+        (not_le.mp fun hge => (hadm.valid_delivery q t _ hpkt).2.2 (F.mem_of_le hge hcrash)), rfl⟩)
     obtain ⟨t_send, t_recv, hts_ge, htr_ge, hdeliv⟩ :=
       hadm.fair_delivery w hw q hq (max t₁ B)
     have hBt : B ≤ t_recv := ((le_max_right t₁ B).trans hts_ge).trans htr_ge
@@ -356,16 +353,13 @@ theorem gossipHistory_preserves_eventual_notMem {P : Type*} [Finite P] [Decidabl
     intro q hq
     obtain ⟨B, hB⟩ := exists_tick_disjoint_packets hadm q badPkts
     have hno_susp : ∀ t, B ≤ t → ∀ pkt ∈ sched q t, p ∉ H pkt.sender pkt.sendTick := by
-      intro t ht pkt hpkt hsusp
-      obtain ⟨_, _, hsend_alive⟩ := hadm.valid_delivery q t pkt hpkt
-      by_cases hslt : pkt.sendTick < cutoff
-      · apply hB t ht pkt hpkt
-        simp only [badPkts, mem_biUnion, mem_univ, true_and, mem_image, mem_range]
-        exact ⟨pkt.sender, pkt.sendTick, hslt, by cases pkt; rfl⟩
-      · have hsge : cutoff ≤ pkt.sendTick := by omega
-        have hcorr_s : pkt.sender ∈ F.Correct :=
-          (hstab pkt.sendTick ((le_max_right t₁ t_stab).trans hsge)).2 pkt.sender |>.mp hsend_alive
-        exact hH pkt.sendTick ((le_max_left t₁ t_stab).trans hsge) pkt.sender hcorr_s hsusp
+      rintro t ht ⟨r, s⟩ hpkt hsusp
+      obtain ⟨_, _, hsend_alive⟩ := hadm.valid_delivery q t _ hpkt
+      rcases lt_or_ge s cutoff with hslt | hsge
+      · exact hB t ht _ hpkt
+          (mem_biUnion.mpr ⟨r, mem_univ r, mem_image_of_mem _ (mem_range.mpr hslt)⟩)
+      · exact hH s ((le_max_left t₁ t_stab).trans hsge) r
+          (((hstab s ((le_max_right t₁ t_stab).trans hsge)).2 r).mp hsend_alive) hsusp
     obtain ⟨t_send, t_recv, hts_ge, htr_ge, hdeliv⟩ := hadm.fair_delivery p hp q hq B
     have htr_B : B ≤ t_recv := hts_ge.trans htr_ge
     refine ⟨t_recv + 1, fun t' ht' => ?_⟩

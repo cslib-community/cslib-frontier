@@ -213,11 +213,10 @@ private theorem Extremal.sides (hx : Extremal K w) {W W' : Mt μ} (h : Transvers
     w a (a + W) = w (a + W + W') (a + W') ∧ w (a + W) (a + W + W') = w a (a + W') ∧
       defect w a W W' = 0 := by
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h
-  obtain rfl : W = X p q (S 0) := hW 0
-  obtain rfl : W' = X p q (S 1) := hW 1
+  obtain ⟨rfl, rfl⟩ : W = X p q (S 0) ∧ W' = X p q (S 1) := ⟨hW 0, hW 1⟩
   have hST := hd 0 1 (by decide)
-  have hc : (S 0).card + (S 1).card ≤ μ := by
-    rw [← card_union_of_disjoint hST]; exact card_le_univ _ |>.trans (Fintype.card_fin μ).le
+  have hc : (S 0).card + (S 1).card ≤ μ :=
+    card_union_of_disjoint hST ▸ (card_le_univ _).trans (Fintype.card_fin μ).le
   have h1 := sum_defect_eq hx.price hST
   rw [hx.meanSq_eq _ hc, hx.meanSq_eq _ (by omega), hx.meanSq_eq _ (by omega)] at h1
   simp only [Nat.cast_add, sub_self, mul_zero, ← Fintype.sum_prod_type'] at h1
@@ -248,31 +247,29 @@ private theorem Extremal.additive (hx : Extremal K w) {W₁ W₂ W₃ : Mt μ}
     (h : Transversal ![W₁, W₂, W₃]) (a : Mt μ) :
     BB w a W₁ (W₂ + W₃) = BB w a W₁ W₂ + BB w a W₁ W₃ := by
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h
-  obtain rfl : W₁ = X p q (S 0) := hW 0
-  obtain rfl : W₂ = X p q (S 1) := hW 1
-  obtain rfl : W₃ = X p q (S 2) := hW 2
+  have ⟨h0, h1, h2⟩ : W₁ = X p q (S 0) ∧ W₂ = X p q (S 1) ∧ W₃ = X p q (S 2) := ⟨hW 0, hW 1, hW 2⟩
   have e1 := hx.diagonal (transversal_X₂ (p := p) (q := q)
-    (disjoint_union_right.2 ⟨hd 0 1 (by decide), hd 0 2 (by decide)⟩)) (a + X p q (S 1))
+    (disjoint_union_right.2 ⟨hd 0 1 (by decide), hd 0 2 (by decide)⟩)) (a + W₂)
   have e2 := hx.diagonal (transversal_X₂ (p := p) (q := q)
     (disjoint_union_right.2 ⟨(hd 0 1 (by decide)).symm, hd 1 2 (by decide)⟩)) a
   have e3 := hx.diagonal (transversal_X₂ (p := p) (q := q)
     (disjoint_union_left.2 ⟨hd 0 2 (by decide), hd 1 2 (by decide)⟩)) a
   have e4 := hx.diagonal (transversal_X₂ (p := p) (q := q) (hd 1 2 (by decide))) a
   have e5 := hx.opposite (transversal_X₂ (p := p) (q := q) (hd 0 1 (by decide))) a
-  rw [X_union p q (hd 1 2 (by decide))] at e1
-  rw [X_union p q (hd 0 2 (by decide))] at e2
-  rw [X_union p q (hd 0 1 (by decide))] at e3
-  set A := X p q (S 0)
-  set B := X p q (S 1)
-  set C := X p q (S 2)
+  rw [X_union p q (hd 1 2 (by decide)), ← h0, ← h1, ← h2] at e1
+  rw [X_union p q (hd 0 2 (by decide)), ← h0, ← h1, ← h2] at e2
+  rw [X_union p q (hd 0 1 (by decide)), ← h0, ← h1, ← h2] at e3
+  rw [← h1, ← h2] at e4
+  rw [← h0, ← h1] at e5
   dsimp only [nn] at e1 e5
-  have f1 : a + B + A = a + (A + B) := by abel
-  have f2 : a + B + (B + C) = a + C := by rw [add_assoc, add_cancel_left]
-  have f3 : a + B + (A + (B + C)) = a + (A + C) := by
-    rw [add_left_comm A, add_assoc, add_cancel_left]
+  have f1 : a + W₂ + W₁ = a + (W₁ + W₂) := by abel
+  have f2 : a + W₂ + (W₂ + W₃) = a + W₃ := by rw [add_assoc, add_cancel_left]
+  have f3 : a + W₂ + (W₁ + (W₂ + W₃)) = a + (W₁ + W₃) := by
+    rw [add_left_comm W₁, add_assoc, add_cancel_left]
   rw [e5, f1, f2, f3, e2, e4, e3] at e1
   unfold BB nn at *
-  rw [show A + B + C = A + (B + C) by abel, show B + (A + C) = A + (B + C) by abel] at *
+  rw [show W₁ + W₂ + W₃ = W₁ + (W₂ + W₃) by abel,
+    show W₂ + (W₁ + W₃) = W₁ + (W₂ + W₃) by abel] at *
   linarith
 
 /-! ### Step 5: `B_a` is constant on pairs of rank one -/
@@ -434,8 +431,7 @@ private theorem Extremal.nn_eq (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ) 
   refine connect_rank_one' (W := 0) (fun V₁ V₂ h => ?_) (by rw [rank_zero]; omega)
     (transversal_zero V) (transversal_zero V') h1 h2
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h.tail
-  obtain rfl : V₁ = X p q (S 0) := hW 0
-  obtain rfl : V₂ = X p q (S 1) := hW 1
+  obtain ⟨rfl, rfl⟩ : V₁ = X p q (S 0) ∧ V₂ = X p q (S 1) := ⟨hW 0, hW 1⟩
   rw [← X_union p q (hd 0 1 (by decide)), hx.nn_X hμ, hx.nn_X hμ, hx.nn_X hμ,
     sum_union (hd 0 1 (by decide))]
 

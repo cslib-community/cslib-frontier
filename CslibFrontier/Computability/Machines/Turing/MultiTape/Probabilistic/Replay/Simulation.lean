@@ -302,9 +302,8 @@ theorem answerStep_inO {g : List Bool → Bool} {Tg Sg : List Bool → ℕ}
     have hL : 1 ≤ L + 1 := by omega
     have hpow (d : ℕ) (hd : d ≤ dc + dr + dv + dl + di) :
         (L + 1) ^ d ≤ (L + 1) ^ (dc + dr + dv + dl + di) := Nat.pow_le_pow_right hL hd
-    have h2 : (2 * L + 1 + 1 + 1) ^ dv ≤ 4 ^ dv * (L + 1) ^ dv := by
-      rw [← Nat.mul_pow]
-      exact Nat.pow_le_pow_left (by omega) dv
+    have h2 : (2 * L + 1 + 1 + 1) ^ dv ≤ 4 ^ dv * (L + 1) ^ dv :=
+      (Nat.pow_le_pow_left (by omega) dv).trans_eq (Nat.mul_pow _ _ _)
     have h4 : 1 ≤ 4 ^ dv := Nat.one_le_pow _ _ (by omega)
     have hc' := hpow dc (by omega)
     have hr' := hpow dr (by omega)
@@ -371,8 +370,8 @@ theorem exists_computableInO_run [Finite Operation] {α : Type}
   obtain ⟨cg, dg, hSg⟩ := hSg.exists_le
   obtain ⟨cf, hcf⟩ := length_encFiniteConfig_le (k := k) (State := Control) (Oracle := Operation)
   -- the clock in binary, the initial storage and the output
-  have hn : ComputableInPolyTime (fun a => c * ((input a).length + 1) ^ d) input encNat := by
-    exact (ComputableInPolyTime.unary_to_binary.comp
+  have hn : ComputableInPolyTime (fun a => c * ((input a).length + 1) ^ d) input encNat :=
+    (ComputableInPolyTime.unary_to_binary.comp
       ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
         (ComputableInPolyTime.encoding_length input))).of_enc_eq fun a => by simp
   obtain ⟨dn, _, hn⟩ := hn.exists_degree
@@ -408,7 +407,7 @@ theorem exists_computableInO_run [Finite Operation] {α : Type}
     (fun a i hi => Nat.add_le_add (Nat.pow_le_pow_left (by have := hlen a hi; omega) e)
       ((hSg _).trans (Nat.mul_le_mul_left cg (Nat.pow_le_pow_left (by
         have := hreq a hi; omega) dg))))
-    (fun a i hi => hlen a hi))
+    (fun a _ hi => hlen a hi))
   have h := (hout.inO.comp hit).mono_le (T' := fun a => _ + (B a + 1) ^ do')
     (S' := fun a => ((input a).length + 1) ^ dn + ((input a).length + 1) ^ di +
       ((B a + 1) ^ e + cg * (n a + 1) ^ dg) + B a + (n a + 1) + (B a + 1) ^ do')
@@ -417,8 +416,8 @@ theorem exists_computableInO_run [Finite Operation] {α : Type}
     (fun a => by
       have h₁ := hlen a (le_refl (n a))
       have h₂ : (encNat (n a)).length ≤ n a + 1 := by
-        rw [encNat_apply, Nat.size_eq_bits_len]
-        exact (Nat.size_le.mpr Nat.lt_two_pow_self).trans (Nat.le_succ _)
+        simpa only [encNat_apply, Nat.size_eq_bits_len] using
+          (Nat.size_le.mpr Nat.lt_two_pow_self).trans (Nat.le_succ _)
       have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) do'
       omega)
   refine ⟨_, _, by growth_poly, h.of_enc_eq (g := fun a => OracleComp.interpret (m := Id)
@@ -433,15 +432,11 @@ theorem computableInPolyTime_answerStep {g : List Bool → Bool}
     (hg : ComputableInPolyTime g encBits encBool) :
     ComputableInPolyTime (machine.answerStep fun q => [g q.2]) encFiniteConfig
       encFiniteConfig := by
-  have h : ComputableInPolyTime (fun cfg => if (machine.pendingQuery cfg).isSome then
-      machine.receiveBit (cfg, g (machine.pendingRequest cfg)) else machine.localStep cfg)
-      encFiniteConfig encFiniteConfig :=
-    ComputableInPolyTime.ite (encC := encBool)
-      ((ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt)
-      (machine.receiveBit_pt.comp
-        (ComputableInPolyTime.id'.prod (hg.comp machine.pendingRequest_pt)))
-      machine.localStep_pt
-  exact (h.of_enc_eq fun cfg => by rw [answerStep_bit])
+  exact (ComputableInPolyTime.ite (encC := encBool)
+    ((ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt)
+    (machine.receiveBit_pt.comp
+      (ComputableInPolyTime.id'.prod (hg.comp machine.pendingRequest_pt)))
+    machine.localStep_pt).of_enc_eq fun cfg => machine.answerStep_bit g cfg ▸ rfl
 
 omit [Fintype Operation] in
 /-- **A clocked run against a polynomial-time oracle is polynomial-time.** Against the oracle

@@ -66,9 +66,8 @@ theorem getD_parentPassPrefix (LB LP oldL bestL : List ℕ) {k s : ℕ}
     (hs_len : s < oldL.length) (hs_k : s < k) :
     (parentPassPrefix LB LP oldL bestL k).getD s 0 =
       oldL[s] + bestL.getD (restrictMask LB LP s) 0 := by
-  have hs_pfx : s < (parentPassPrefix LB LP oldL bestL k).length := by
-    rw [length_parentPassPrefix]; exact hs_len
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hs_pfx, Option.getD_some]
+  rw [List.getD_eq_getElem?_getD,
+    List.getElem?_eq_getElem (by simpa [parentPassPrefix] using hs_len)]
   simp [parentPassPrefix, hs_k]
 
 private theorem parentPassPrefix_zero (LB LP oldL bestL : List ℕ) :
@@ -220,11 +219,9 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
         (by rwa [parentPassPrefix_zero])
     rw [Nat.zero_add] at hpfx_run
     unfold parentPassProg
-    refine ⟨validHistory_bind_step hv_run (validHistory_pure w _ ()), ?_, ?_, ?_, ?_⟩
-    · rwa [StateTransitionSpec.clientState_bind]
-    · rwa [StateTransitionSpec.clientState_bind]
-    · rwa [StateTransitionSpec.clientState_bind]
-    · simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hc_run
+    refine ⟨validHistory_bind_step hv_run (validHistory_pure w _ ()), ?_, ?_, ?_,
+      by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hc_run⟩
+    all_goals rwa [StateTransitionSpec.clientState_bind]
   intro rem
   induction rem with
   | zero =>
@@ -235,29 +232,24 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
     intro curS st hsum hfr hout hcur_st
     have hcur_lt : curS < oldL.length := by omega
     have hLB_st : HoldsIn args.bagBPtr LB st :=
-      ⟨by rw [hfr]; exact hLB.1,
-        hLB.2.frame fun a _ ha => hout a (.inl (by omega))⟩
+      ⟨hfr ▸ hLB.1, hLB.2.frame fun a _ ha => hout a (.inl (by omega))⟩
     have hLP_st : HoldsIn args.bagPPtr LP st :=
-      ⟨by rw [hfr]; exact hLP.1,
-        hLP.2.frame fun a _ ha => hout a (.inl (by omega))⟩
+      ⟨hfr ▸ hLP.1, hLP.2.frame fun a _ ha => hout a (.inl (by omega))⟩
     have hbest_st : HoldsIn args.bestPtr bestL st :=
-      ⟨by rw [hfr]; exact hbest.1,
-        hbest.2.frame fun a ha _ => hout a (.inr (by omega))⟩
+      ⟨hfr ▸ hbest.1, hbest.2.frame fun a ha _ => hout a (.inr (by omega))⟩
     obtain ⟨hv_rk, hst_rk, hr_rk, hc_rk⟩ :=
       restrictMaskProg_spec (w := w)
         ⟨args.bagBPtr, args.bagBLen, args.bagPPtr, args.bagPLen, curS⟩
         hLB_st hlenB hLP_st hlenP
     dsimp only at hr_rk hc_rk
     let rKey := restrictMask LB LP curS
-    have hrk_lt : rKey < bestL.length := by
-      rw [hbest_len]; exact restrictMask_lt_two_pow LB LP curS
-    have hcur_pfx_lt : curS < (parentPassPrefix LB LP oldL bestL curS).length := by
-      rw [length_parentPassPrefix]; exact hcur_lt
+    have hrk_lt : rKey < bestL.length := hbest_len ▸ restrictMask_lt_two_pow LB LP curS
+    have hcur_pfx_lt : curS < (parentPassPrefix LB LP oldL bestL curS).length :=
+      (length_parentPassPrefix LB LP oldL bestL curS).symm ▸ hcur_lt
     have hold_addr_lt : args.tblPPtr + curS < st.frontier := by have := hcur_st.1; omega
     have hbest_addr_lt : args.bestPtr + rKey < st.frontier := by have := hbest_st.1; omega
     have holdVal_eq : st.mem (args.tblPPtr + curS) = oldL[curS] := by
-      rw [hcur_st.get curS hcur_pfx_lt]
-      simp [parentPassPrefix]
+      simpa [parentPassPrefix] using hcur_st.get curS hcur_pfx_lt
     have hbestVal_eq : st.mem (args.bestPtr + rKey) = bestL.getD rKey 0 := by
       rw [hbest_st.get rKey hrk_lt, List.getD_eq_getElem?_getD,
         List.getElem?_eq_getElem hrk_lt, Option.getD_some]
@@ -362,10 +354,9 @@ theorem parentPassProg_realizes :
     rw [show rk = _ from hr_rk, hbest_len, ← hLP_len]
     exact restrictMask_lt_two_pow LB LP curS
   have hcur_lt : curS < oldL.length := by omega
-  have hcur_pfx_lt : curS < (parentPassPrefix LB LP oldL bestL curS).length := by
-    rw [length_parentPassPrefix]; exact hcur_lt
   have hold_val : t.mem (d.tblPPtr + curS) = oldL[curS] := by
-    rw [hpfx_t.get curS hcur_pfx_lt]; simp [parentPassPrefix]
+    simpa [parentPassPrefix] using
+      hpfx_t.get curS ((length_parentPassPrefix LB LP oldL bestL curS).symm ▸ hcur_lt)
   have hold_le : t.mem (d.tblPPtr + curS) ≤ capO :=
     hold_val ▸ (List.mem_le_foldl_max (List.getElem_mem hcur_lt)).trans hold_cap
   have hbest_le : t.mem (d.bestPtr + rk) ≤ capB :=

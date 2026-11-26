@@ -463,19 +463,15 @@ private theorem bucketLoad_eq_sum_bucketInd {s : ℕ} {α : Type*} [DecidableEq 
     (f : α → Fin (2 ^ s)) (S : Finset (Fin (2 ^ s) × α)) (b : Fin (2 ^ s)) :
     (bucketLoad f S b : ℝ) = ∑ z ∈ S.image Prod.snd, bucketInd S b z (f z) := by
   have hcard : bucketLoad f S b = #{z ∈ S.image Prod.snd | (b ^^^ f z, z) ∈ S} := by
-    refine card_nbij' Prod.snd (fun z => (b ^^^ f z, z)) ?_ ?_ ?_ ?_
+    refine card_nbij' Prod.snd (fun z => (b ^^^ f z, z)) ?_ ?_ ?_ fun _ _ => rfl
     · intro x hx
       rcases mem_filter.mp hx with ⟨hxS, hhd⟩
-      refine mem_filter.mpr ⟨mem_image_of_mem Prod.snd hxS, ?_⟩
-      rwa [← (feistelHead_eq_iff f x b).mp hhd, Prod.mk.eta]
+      exact mem_filter.mpr ⟨mem_image_of_mem Prod.snd hxS,
+        by rwa [← (feistelHead_eq_iff f x b).mp hhd, Prod.mk.eta]⟩
     · exact fun z hz => mem_filter.mpr ⟨(mem_filter.mp hz).2, by simp [feistelHead]⟩
-    · intro x hx
-      simp only [← (feistelHead_eq_iff f x b).mp (mem_filter.mp hx).2, Prod.mk.eta]
-    · intro _ _; rfl
+    · exact fun x hx => by simp [← (feistelHead_eq_iff f x b).mp (mem_filter.mp hx).2]
   rw [hcard, card_filter, Nat.cast_sum]
-  refine sum_congr rfl fun z _ => ?_
-  dsimp only [bucketInd]
-  split_ifs <;> simp
+  exact sum_congr rfl fun z _ => by simp [bucketInd]
 
 private theorem expect_bucketInd_eq {s : ℕ} {α : Type*} [DecidableEq α]
     (S : Finset (Fin (2 ^ s) × α)) (b : Fin (2 ^ s)) (z : α) :
@@ -483,13 +479,11 @@ private theorem expect_bucketInd_eq {s : ℕ} {α : Type*} [DecidableEq α]
   rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat]
   simp only [bucketInd, sum_boole]
   congr 2
-  refine card_nbij' (fun y => (b ^^^ y, z)) (fun x => b ^^^ x.1) ?_ ?_ ?_ ?_
-  · exact fun y hy => mem_filter.mpr ⟨(mem_filter.mp hy).2, rfl⟩
+  refine card_nbij' (fun y => (b ^^^ y, z)) (fun x => b ^^^ x.1)
+    (fun y hy => mem_filter.mpr ⟨(mem_filter.mp hy).2, rfl⟩) ?_ (fun y _ => xor_cancel_left b y) ?_
   · intro x hx
     rcases mem_filter.mp hx with ⟨hxS, hxz⟩
-    refine mem_filter.mpr ⟨mem_univ _, ?_⟩
-    rwa [xor_cancel_left, ← hxz, Prod.mk.eta]
-  · intro y _; exact xor_cancel_left b y
+    exact mem_filter.mpr ⟨mem_univ _, by rwa [xor_cancel_left, ← hxz, Prod.mk.eta]⟩
   · intro x hx
     dsimp only
     rw [xor_cancel_left, ← (mem_filter.mp hx).2, Prod.mk.eta]
@@ -925,9 +919,7 @@ theorem childRouterSeedBits_pow_le (ε_inv α_inv s : ℕ) {T : ℕ} (hT : 1 ≤
     dsimp only [b, childRouterCharBits]
     rw [max_eq_left (by omega : 1 ≤ c)]
     exact max_eq_right (Nat.le_div_iff_mul_le (by omega) |>.mpr (by omega))
-  have hcb_le : c * b ≤ LT + c - 1 := by
-    rw [hb_eq]
-    exact Nat.mul_div_le (LT + c - 1) c
+  have hcb_le : c * b ≤ LT + c - 1 := hb_eq ▸ Nat.mul_div_le (LT + c - 1) c
   have hpow_LT : 2 ^ LT ≤ 4 * T :=
     (Nat.pow_clog_le_mul Nat.one_lt_two (by omega)).trans (by omega)
   have hfac1 : ((2 ^ b) ^ E) ^ 2 ≤ 2 ^ (c + 1) * (2 ^ s * T) := by

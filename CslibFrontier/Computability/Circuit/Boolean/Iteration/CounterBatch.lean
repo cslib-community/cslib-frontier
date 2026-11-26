@@ -297,12 +297,10 @@ theorem counterPower_of_batched (T : ℕ) (member : Fin r)
   have hout : wires (ModulusCounter.power (k := k) T) ⊆
       wires (fun y => c.eval interpretation (init y)) := by
     rintro _ ⟨bit, rfl⟩
-    refine ⟨finProdFinEquiv (member, bit), ?_⟩
-    funext y
+    refine ⟨finProdFinEquiv (member, bit), funext fun y => ?_⟩
     change c.eval interpretation (init y) _ = ModulusCounter.power T y bit
     rw [hc, counterBatchPower_apply]
-    congr 1 with b : 1
-    simp [counterBlock, init]
+    exact congrArg (ModulusCounter.power T · bit) (funext fun b => by simp [counterBlock, init])
   exact (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
 
 /-- If `ModulusCounter.power T` is not the identity, every block needs its own output gate. -/
@@ -349,8 +347,7 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
       exfalso
       have hi (x : BitString (r * (k + k))) : x i = g (counterBlock x member) := by
         rw [← heval member x, hw, Program.trace_input]
-      have h1 := hi (xe member)
-      rw [hxe_same, hge] at h1
+      have h1 : xe member i = true := (hi (xe member)).trans (by rw [hxe_same, hge])
       have hi_eq : i = o member := by
         obtain ⟨⟨m', q⟩, rfl⟩ := finProdFinEquiv.surjective i
         simp only [xe, Equiv.symm_apply_apply] at h1
@@ -363,19 +360,16 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
             decide_eq_true_eq] at h1
           rw [h1]
       let xy : BitString (r * (k + k)) := fun i => y (finProdFinEquiv.symm i).2
-      have h2 := hi xy
-      have hb : counterBlock xy member = y := by funext b; simp [xy, counterBlock]
-      rw [hb, hi_eq] at h2
-      exact hy (by simpa [xy, o, g] using h2.symm)
+      have hb : counterBlock xy member = y := funext fun b => by simp [xy, counterBlock]
+      exact hy (by simpa only [hb, hi_eq, xy, o, g, Equiv.symm_apply_apply] using (hi xy).symm)
   choose γ hγ using hgate
   have hinj : Function.Injective γ := by
     intro m m' hmm
     by_contra hne
     have h1 := heval m (xe m)
     have h2 := heval m' (xe m)
-    rw [hγ m, hmm, ← hγ m'] at h1
-    rw [h1, hxe_same, hxe_other (Ne.symm hne), hge, hgz] at h2
-    exact Bool.false_ne_true h2.symm
+    rw [hγ m, hmm, ← hγ m', h2, hxe_same, hxe_other (Ne.symm hne), hge, hgz] at h1
+    exact Bool.false_ne_true h1
   simpa using Fintype.card_le_of_injective γ hinj
 
 /-- Both lower bounds: a batched circuit is at least as large as any circuit for the single power,

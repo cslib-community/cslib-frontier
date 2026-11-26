@@ -1342,11 +1342,10 @@ theorem byzQuorum_validity [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p ∈
       simp only [acceptsProposal] at hacc
       cases hcv : prop.certView with
       | none =>
-        rw [hcv] at hacc
-        simp only [Bool.and_eq_true, decide_eq_true_eq] at hacc
+        simp only [hcv, Bool.and_eq_true, decide_eq_true_eq] at hacc
         have hcnt := hacc.2
-        rw [show 6 * u + 2 = (6 * u + 1) + 1 by omega, byzQuorum_state_succ] at hcnt
         have hm1 : (6 * u + 1) % 6 = 1 := by omega
+        rw [show 6 * u + 2 = (6 * u + 1) + 1 by omega, byzQuorum_state_succ] at hcnt
         simp only [byzUpdate, hm1, properSupportCount, filterMap_fst_filter_length] at hcnt
         -- A correct process vouched for `prop.val` in its Subround-0 properness report.
         obtain ⟨r', hr', hr'F⟩ :=
@@ -1357,8 +1356,7 @@ theorem byzQuorum_validity [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p ∈
         obtain ⟨hap, hfv⟩ := properReport_unanimous leader hF hx u r'
         exact hfv prop.val (hr'.2.resolve_left (by simp [hap]))
       | some u_cert =>
-        rw [hcv] at hacc
-        simp only [Bool.and_eq_true, decide_eq_true_eq] at hacc
+        simp only [hcv, Bool.and_eq_true, decide_eq_true_eq] at hacc
         obtain ⟨hu_lt, h', -, hh'mem⟩ := voterCerts_sound leader hF u h hacc.1
         exact ih u_cert hu_lt (6 * u) h' prop.val hh'mem
   intro r i w hdec
@@ -1745,11 +1743,8 @@ private theorem omission_lock_preservation [Fintype P] (hprocs : ∀ p : P, p �
       rw [omissionQuorum_state_succ] at hkeep ⊢
       simp only [omissionUpdate, show (3 * v + 1) % 3 = 1 by omega,
         show (3 * v + 1) / 3 = v by omega] at hkeep ⊢
-      split at hkeep
-      · split_ifs at hkeep ⊢
-        · exact ⟨_, rfl⟩
-        · exact (hkeep rfl).elim
-      · exact (hkeep rfl).elim
+      split at hkeep <;> (try split_ifs at hkeep ⊢)
+      exacts [⟨_, rfl⟩, (hkeep rfl).elim, (hkeep rfl).elim]
     exact ⟨v, by omega, by rw [hw, hv_lock _ q w hw]⟩
 
 private theorem omission_decided_quorum_view [Fintype P] (hprocs : ∀ p : P, p ∈ procs)
@@ -1816,10 +1811,8 @@ theorem omission_validity [Fintype P] (hprocs : ∀ p : P, p ∈ procs)
         exact hlp.1.symm.trans (ih best.view hlt_b (3 * u) jb best.val hjblk)
       · rw [← hlp.1, omissionState_input_eq, hx]
   intro r i w hdec
-  obtain ⟨m, -, hmn, hms⟩ := omission_first_decision leader deliver x r i hdec
-  obtain ⟨_, hQ⟩ := omission_decision_step_quorum leader hprocs hn deliver x hmn hms
-  obtain ⟨q, hq⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hQ)
-  exact hlock_val (m / 3) (m + 1) q w (Finset.mem_filter.1 hq).2
+  obtain ⟨u, _, q, -, -, hq⟩ := omission_decided_quorum_view leader hprocs hn deliver x hdec
+  exact hlock_val u (3 * (u + 1)) q w hq
 
 end OmissionSafety
 

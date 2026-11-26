@@ -181,10 +181,8 @@ theorem find?_run (q : ℕ) (i : Option ℕ) (ws : List (Option ℕ)) :
     exact decide_eq_false fun h => by rw [h] at this; dsimp only at this; omega
   · have := (prep_spec eS tm d (List.mem_append_right _ he)).1
     exact decide_eq_false fun h => by rw [h] at this; dsimp only at this; omega
-  · have := state_redirectEntries d he
-    exact decide_eq_false fun h => by rw [h] at this; simp at this
-  · have := state_redirectEntries d he
-    exact decide_eq_false fun h => by rw [h] at this; simp at this
+  · exact decide_eq_false fun h => by simpa [h] using state_redirectEntries d he
+  · exact decide_eq_false fun h => by simpa [h] using state_redirectEntries d he
 
 /-- For the states of `d b` and an input head reading a blank, the transitions found are those of
 `d b`, redirected. -/
@@ -310,14 +308,13 @@ theorem exists_run_of_computesTidily {w : List Bool} {o : List Bool} {t₀ s₀ 
       (descRun eS tm (w.map eBit) u).2 = o.map eBit := by
   classical
   obtain ⟨p, hhead, hlast, -, -⟩ := computesTidily_iff.mp htm
-  have hNp : tm.runFrom (tm.initCfg w) p.time = p.last := by
+  have hNp : tm.runFrom (tm.initCfg w) p.time = wordsCfg w none (fun _ => []) o := by
     rw [initCfg_eq_wordsCfg, ← hhead]
-    exact (runPath_last_eq_runFrom p).symm
-  have hp : (tm.runFrom (tm.initCfg w) p.time).state = none := by rw [hNp, hlast]; rfl
+    exact (runPath_last_eq_runFrom p).symm.trans hlast
+  have hp : (tm.runFrom (tm.initCfg w) p.time).state = none := congrArg Cfg.state hNp
   have hex : ∃ t, (tm.runFrom (tm.initCfg w) t).state = none := ⟨p.time, hp⟩
-  have hNu : tm.runFrom (tm.initCfg w) (Nat.find hex) = wordsCfg w none (fun _ => []) o := by
-    rw [← hlast, ← hNp]
-    exact (runFrom_eq_of_halt tm _ (Nat.find_min' hex hp) (Nat.find_spec hex)).symm
+  have hNu : tm.runFrom (tm.initCfg w) (Nat.find hex) = wordsCfg w none (fun _ => []) o :=
+    (runFrom_eq_of_halt tm _ (Nat.find_min' hex hp) (Nat.find_spec hex)).symm.trans hNp
   refine ⟨Nat.find hex, fun t ht => ?_, ?_⟩
   · obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp (Nat.find_min hex ht)
     obtain ⟨h₁, h₂⟩ := toCfg_iterate eS eBit tm w t
@@ -346,13 +343,12 @@ theorem exists_run_of_computesTidily {w : List Bool} {o : List Bool} {t₀ s₀ 
       change 1 = min c.1.inputPos (w.length + 1) at this
       omega
     · refine List.ext_getElem (by simp [hk]) fun i hi _ => ?_
-      have hi' : i < k := by simpa [hk] using hi
-      have hi'' : i < c.1.workTapes.length := by simpa using hi
-      have hc := congrFun (congrArg (fun c => c.workTapes ⟨i, hi'⟩) h₁) c.1.workTapes[i].head
+      have hc := congrFun (congrArg (fun c => c.workTapes ⟨i, by simpa [hk] using hi⟩) h₁)
+        (c.1.workTapes[i]'(by simpa using hi)).head
       simp only [Cfg.map_workTapes, wordsCfg, tapeOfList_nil, Option.map_none, SCfg.toCfg,
-        List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi'', Option.getD_some] at hc
-      simp only [List.getElem_map, List.getElem_replicate, Tape.read_eq]
-      exact hc.symm
+        List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa using hi),
+        Option.getD_some] at hc
+      simpa only [List.getElem_map, List.getElem_replicate, Tape.read_eq] using hc.symm
     · simpa only [Cfg.map_output, wordsCfg, SCfg.toCfg] using (congrArg Cfg.output h₁).symm
 
 end Dispatch

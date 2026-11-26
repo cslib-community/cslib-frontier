@@ -110,17 +110,14 @@ theorem supertileIndexGrid_eq_iterateRefine (level : ℕ) (root : Node) :
   induction level generalizing x y with
   | zero => rfl
   | succ level ih =>
-      have hx : (childPosition x y).val % 4 = x % 4 := by
-        dsimp only [childPosition, blockPosition]
-        omega
-      have hy : (childPosition x y).val / 4 = y % 4 := by
-        dsimp only [childPosition, blockPosition]
+      have hxy : (childPosition x y).val % 4 = x % 4 ∧ (childPosition x y).val / 4 = y % 4 := by
+        simp only [childPosition, blockPosition]
         omega
       rw [show 2 * (level + 1) = 2 + 2 * level by omega, ← iterateRefine_add,
         iterateRefine_two_local]
       change ((supertileNodeGrid level root (x / 4) (y / 4)).child
         (childPosition x y)).parent = _
-      rw [Node.child_parent, hx, hy]
+      rw [Node.child_parent, hxy.1, hxy.2]
       exact congrArg (fun parent => fineGrid parent (x % 4) (y % 4)) (ih (x / 4) (y / 4))
 
 /-- Inside the root block, canonical indices agree with any grid with the same root tile. -/
@@ -138,11 +135,8 @@ theorem supertileNodeGrid_block (level : ℕ) (root : Node)
     (bx by₀ x y : ℕ) (hx : x < 4) (hy : y < 4) :
     supertileNodeGrid (level + 1) root (4 * bx + x) (4 * by₀ + y) =
       (supertileNodeGrid level root bx by₀).child (childPosition x y) := by
-  have hxd : (4 * bx + x) / 4 = bx := by omega
-  have hyd : (4 * by₀ + y) / 4 = by₀ := by omega
-  have hxm : (4 * bx + x) % 4 = x % 4 := by omega
-  have hym : (4 * by₀ + y) % 4 = y % 4 := by omega
-  simp only [supertileNodeGrid, hxd, hyd, childPosition, hxm, hym]
+  simp only [supertileNodeGrid, childPosition, Nat.mul_add_div (by decide : 0 < 4),
+    Nat.div_eq_of_lt hx, Nat.div_eq_of_lt hy, Nat.add_zero, Nat.mul_add_mod]
 
 /-- The inherited sparse quarters keep the shade of their parent quarters. -/
 theorem supertileShadeGrid_sparse (level : ℕ) (root : Node) (x y : ℕ) :
@@ -160,13 +154,12 @@ theorem supertileShadeGrid_block (level : ℕ) (root : Node)
     (bx by₀ x y : ℕ) (hx : x < 8) (hy : y < 8) :
     supertileShadeGrid (level + 1) root (8 * bx + x) (8 * by₀ + y) =
       supertileShadeGrid 1 (supertileNodeGrid level root bx by₀) x y := by
-  have hxm : (8 * bx + x) % 2 = x % 2 := by omega
-  have hym : (8 * by₀ + y) % 2 = y % 2 := by omega
   dsimp only [supertileShadeGrid]
   rw [show (8 * bx + x) / 2 = 4 * bx + x / 2 by omega,
     show (8 * by₀ + y) / 2 = 4 * by₀ + y / 2 by omega,
-    supertileNodeGrid_block level root bx by₀ (x / 2) (y / 2) (by omega) (by omega), hxm, hym]
-  rfl
+    supertileNodeGrid_block level root bx by₀ (x / 2) (y / 2) (by omega) (by omega)]
+  dsimp only [supertileNodeGrid]
+  congr 1 <;> omega
 
 private theorem supertileNodeGrid_compatible (level : Nat) (root : Node) :
     CompatibleOn (supertileNodeGrid level root) (4 ^ level) (4 ^ level) := by
@@ -349,13 +342,7 @@ theorem intervalEdge_allowed (interior : ℕ → Option Bool) (length position :
   have hlength : length - position = length - (position + 1) + 1 := by omega
   cases hcurrent : interior position with
   | none =>
-      have hprevious : previousInterior interior (position + 1) =
-          previousInterior interior position := by simp [previousInterior, hcurrent]
-      have hnext : nextInterior interior position (length - position) =
-          nextInterior interior (position + 1) (length - (position + 1)) := by
-        rw [hlength]
-        simp [nextInterior, hcurrent]
-      simp [flowAllowed, intervalEdge, hprevious, hnext]
+      simp [flowAllowed, intervalEdge, hcurrent, hlength, previousInterior, nextInterior]
   | some current =>
       cases current <;> rcases hprevious : previousInterior interior position with _ | _ | _ <;>
         rcases hnext : nextInterior interior (position + 1) (length - (position + 1))

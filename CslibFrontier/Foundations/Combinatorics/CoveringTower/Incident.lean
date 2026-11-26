@@ -35,8 +35,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Load4`,
 * `Cslib.CoveringTower.Tower.sum_incidentSum`: the sums at all chambers are twice the load.
 * `Cslib.CoveringTower.Tower.incidentSum_le`, `Cslib.CoveringTower.Tower.sum_incidentSum_le`:
   the bounds by the norm of the load.
-* `Cslib.CoveringTower.Tower.two_mul_card_Ed`, `Cslib.CoveringTower.Tower.card_X_zero`: the
-  numbers of edges and of chambers.
+* `Cslib.CoveringTower.Tower.two_mul_card_Ed`, `Cslib.CoveringTower.Tower.card_X_zero`,
+  `Cslib.CoveringTower.Tower.pow_le_card_X_zero`: the numbers of edges and of chambers.
 * `Cslib.CoveringTower.Tower.card_X_le`, `Cslib.CoveringTower.Tower.card_Ed_le`,
   `Cslib.CoveringTower.Tower.card_V_le`, `Cslib.CoveringTower.Tower.card_V_mul_card_Nr_le`:
   bounds for the numbers of chambers, edges and vertices by the chambers of the level `0`.
@@ -101,6 +101,10 @@ theorem card_X_zero (hj : j ≤ J) : Fintype.card (T.X 0) = D ^ j * Fintype.card
 /-- The levels shrink: a level `j ≤ J` has at most as many chambers as the level `0`. -/
 theorem card_X_le (hD : 0 < D) (hj : j ≤ J) : Fintype.card (T.X j) ≤ Fintype.card (T.X 0) :=
   (card_X_zero hj).symm ▸ Nat.le_mul_of_pos_left _ (Nat.pow_pos hD)
+
+/-- The level `0` has at least `D ^ J` chambers if the level `J` has one. -/
+theorem pow_le_card_X_zero (hX : 0 < Fintype.card (T.X J)) : D ^ J ≤ Fintype.card (T.X 0) :=
+  (card_X_zero le_rfl).trans_ge (Nat.le_mul_of_pos_right _ hX)
 
 /-- A level `j ≤ J` has at most `h r` edges for every chamber of the level `0`. -/
 theorem card_Ed_le (hD : 0 < D) (hj : j ≤ J) :

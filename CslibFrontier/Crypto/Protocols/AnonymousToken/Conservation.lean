@@ -456,13 +456,10 @@ private theorem nodup_spends_of_validTraceFrom
   | cons req rest ih =>
     simp only [validTraceFrom, Bool.and_eq_true] at h
     cases req with
-    | issue ir =>
-      rw [spends_cons_issue]
-      exact ih h.2
+    | issue ir => simpa only [spends_cons_issue] using ih h.2
     | spend sr =>
       rw [spends_cons_spend, List.map_cons, List.nodup_cons]
-      refine ⟨?_, ih h.2⟩
-      intro hmem
+      refine ⟨fun hmem => ?_, ih h.2⟩
       obtain ⟨s, hs, heq⟩ := List.mem_map.mp hmem
       have htrue : hasSpentNullifier (acc ++ [.spend sr]) s.ctx s.nullifier = true :=
         List.any_eq_true.mpr ⟨.spend sr, by simp,
@@ -495,13 +492,9 @@ private theorem mem_reqs_of_mem_spends
     {reqs : List (Request Nullifier Context Opening Commitment Sig)}
     {s : SpendRequest Nullifier Context Opening Commitment Sig}
     (hs : s ∈ spends reqs) : Request.spend s ∈ reqs := by
-  simp only [spends, List.mem_filterMap] at hs
-  obtain ⟨r, hr, hsome⟩ := hs
-  cases r with
-  | issue _ => simp at hsome
-  | spend sr =>
-    cases hsome
-    exact hr
+  obtain ⟨ir | sr, hr, hsome⟩ := List.mem_filterMap.mp hs
+  · simp at hsome
+  · exact Option.some.inj hsome ▸ hr
 
 /-- The `(V3)` balance equation of every spend in a list whose requests pass `acceptLocal`. -/
 private theorem balance_of_acceptLocal [DecidableEq Commitment]
@@ -923,12 +916,11 @@ private theorem runExtracted_noteForger_eq
             (out, (represent log).2) := by
     rw [← ProbOracleComp.runLogWith_some, ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
     dsimp only [noteForger]
-    rw [ProbOracleComp.runWith_bind]
-    rw [ProbOracleComp.runWith_run_interpret
-      (noteForgerHandler com tag S pk)
-      (fun payload sigLog => ProbComp.eval (ProbOracleComp.logOracle targetSigner payload sigLog))
-      (A pk) [] []]
-    rw [PMF.bind_map]
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_run_interpret
+        (noteForgerHandler com tag S pk)
+        (fun payload sigLog => ProbComp.eval (ProbOracleComp.logOracle targetSigner payload sigLog))
+        (A pk) [] [],
+      PMF.bind_map]
     have hsim :
         (ProbOracleComp.runWith
           (fun req log =>
@@ -955,8 +947,7 @@ private theorem runExtracted_noteForger_eq
         simp [represent, Function.comp_def]
       · simp only [represent, ProbComp.eval_pure, ProbOracleComp.runWith_pure, PMF.pure_map]
         rfl
-    rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
-    rw [← hsim, PMF.bind_map]
+    rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState, ← hsim, PMF.bind_map]
     simp only [PMF.map, ProbOracleComp.runWith_pure, Function.comp_def]
   rw [hrun, PMF.bind_map, PMF.map_bind]
   refine PMF.bind_congr_on_support _ _ _ fun ⟨ctx, log⟩ _ => ?_

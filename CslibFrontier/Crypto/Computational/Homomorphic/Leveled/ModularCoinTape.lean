@@ -138,25 +138,23 @@ theorem eval_modLeveledAdversary_guess_eq_map_coins (E : Scheme)
         (modLeveledGuessCoins evaluateChoose evaluateEncrypt evaluateGuess n (capacity n)
           encCoins chooseCoins guessCoins choice.2 challenge) := by
   unfold modLeveledGuessCoins
+  have hlink {bit : Bool} {chosen}
+      (hchosen : chosen ∈ (ProbComp.eval ((E.modLinkAdversary coins depth capacity
+        (publicKeyGame E adversary bit)).choose n target.1)).support) :=
+    E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins depth capacity
+      evaluateChoose evaluateEncrypt evaluateGuess bit n pkBound encCoins chooseCoins guessCoins
+      target challenge chosen hkeys htarget hchosen hchallenge hencrypt hchoose hguess
   rcases modLeveledAdversary_choose_support E adversary coins depth capacity n target.1
     choice hchoice with rfl | ⟨chosen, hchosen, rfl⟩ | ⟨chosen, hchosen, rfl⟩ |
       ⟨chosen, hchosen, rfl⟩
   · simp [modLeveledAdversary, leveledAdversary, rejectLeveledChoice,
       ProbComp.eval_pure, PMF.map, Function.comp_def]
-  · simpa only [modLeveledAdversary, leveledAdversary, tagLeveledChoice,
-      List.headD_cons, List.tail_cons, Bool.false_eq_true, ↓reduceIte,
-      Scheme.modLinkAdversary, Scheme.linkAdversary] using
-        E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins depth capacity
-          evaluateChoose evaluateEncrypt evaluateGuess false n pkBound encCoins chooseCoins
-          guessCoins target challenge chosen hkeys htarget hchosen hchallenge
-          hencrypt hchoose hguess
+  · simpa only [modLeveledAdversary, leveledAdversary, tagLeveledChoice, List.headD_cons,
+      List.tail_cons, Bool.false_eq_true, ↓reduceIte, Scheme.modLinkAdversary,
+      Scheme.linkAdversary] using hlink hchosen
   · simpa only [modLeveledAdversary, leveledAdversary, tagLeveledChoice, swapLeveledChoice,
-      List.headD_cons, List.tail_cons, Bool.false_eq_true, ↓reduceIte,
-      Scheme.modLinkAdversary, Scheme.linkAdversary] using
-        E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins depth capacity
-          evaluateChoose evaluateEncrypt evaluateGuess true n pkBound encCoins chooseCoins
-          guessCoins target challenge chosen hkeys htarget hchosen hchallenge
-          hencrypt hchoose hguess
+      List.headD_cons, List.tail_cons, Bool.false_eq_true, ↓reduceIte, Scheme.modLinkAdversary,
+      Scheme.linkAdversary] using hlink hchosen
   · have hstate := zeroLinkAdversary_choose_state_length_le E adversary depth n
       (capacity n) pkBound encCoins chooseCoins target.1 (hkeys target htarget).1 hkeys
       (fun pk hpk message => (hencrypt pk hpk message).2)
@@ -292,12 +290,10 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
       capacity (publicKeyGame E adversary bit) n keyCoins challengePk hkey
     simp only [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
     congr 1 with first : 1
-    by_cases hfirst : index 3 first = 0
-    · change min 3 (BitString.binaryValue first % 3) = 0 at hfirst
-      simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte] using
+    by_cases hfirst : min 3 (BitString.binaryValue first % 3) = 0
+    · simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte] using
           congrArg (PMF.map (tagLeveledChoice false false)) (hlaw false)
-    · change ¬min 3 (BitString.binaryValue first % 3) = 0 at hfirst
-      by_cases hsecond : min 3 (BitString.binaryValue first % 3) = 1
+    · by_cases hsecond : min 3 (BitString.binaryValue first % 3) = 1
       · simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
           Nat.one_ne_zero] using
             congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) (hlaw true)
@@ -315,10 +311,9 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
         congr 1 with second : 1
         congr 1 with third : 1
         split_ifs <;> simp [hzero, PMF.map, Function.comp_def]
-  · simp only [modLeveledAdversary, hpos, ↓reduceIte, ProbComp.eval_map, hzero, PMF.map_comp]
-    unfold modLeveledChooseCoins
-    simp only [hpos, ↓reduceIte]
-    rw [← BitString.uniformList_drop (3 * coins n) zeroCoins, PMF.map_comp]
+  · unfold modLeveledChooseCoins
+    simp only [modLeveledAdversary, hpos, ↓reduceIte, ProbComp.eval_map, hzero,
+      ← BitString.uniformList_drop (3 * coins n) zeroCoins, PMF.map_comp]
     rfl
 
 /-- The original modular dispatch is native polynomial time using binary remainders and

@@ -994,15 +994,12 @@ private theorem realizes_overmarsScanInBounds :
     rw [hcp_eq, wp_large_offBktMeta hth, wp_large_globalPtrBits hth, wp_large_w hth]
       at hcur_eq0 hcur_lt0
     have hbm := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 b hb
-    have hbm0 : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem
-        (16 * b) = fs.bktCount b := hbm.1
     rw [hbm.2.2.2.2.2.2.1] at hcur_eq0
     rw [hbm.1] at hcur_lt0
     have hcur_tot : cur < totalLocalCoordsWhp n_max := hcur_lt0.trans_le hcnt_le
     obtain ⟨hcl_st, _, _, _⟩ :=
       checkCoordInLiveGenProg_spec henv hrep hce_or hb hcur_tot (s := s)
-    simp only [hcp_eq] at *
-    simp only [hcl_st] at *
+    simp only [hcp_eq, hcl_st] at *
     try simp only [wp_large_M hth, wp_large_nMax hth, wp_large_offBktMeta hth,
       wp_large_globalPtrBits hth, wp_large_w hth] at *
     first
@@ -1011,7 +1008,7 @@ private theorem realizes_overmarsScanInBounds :
     | exact ⟨c, U, V, w, n_max, θ, fs, omMap, henv, rfl, hseed, hrep, hb, hce_or, hor,
         hcnt_le, hcur_n, hins_lt, hq_all, hbp_v, hv_om⟩
     | exact hbm.2.2.2.2.2.2.1.symm ▸ hcur_eq0
-    | (rw [hbm0]; exact hcur_lt0)
+    | exact hbm.1.symm ▸ hcur_lt0
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     | exact hb
     | omega
@@ -1058,10 +1055,7 @@ private theorem realizes_overmarsScanOne :
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     obtain ⟨hcc_st, hcc_res, _, _⟩ := overmarsReadCurCntGenProg_spec henv hb hrep (s := s)
     have hbm := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 b hb
-    have hbm0 : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem
-        (16 * b) = fs.bktCount b := hbm.1
-    simp only [hcp_eq] at *
-    simp only [hcc_st, hcc_res] at *
+    simp only [hcp_eq, hcc_st, hcc_res] at *
     try simp only [wp_large_M hth, wp_large_nMax hth, wp_large_offBktMeta hth,
       wp_large_globalPtrBits hth, wp_large_w hth] at *
     first
@@ -1070,7 +1064,7 @@ private theorem realizes_overmarsScanOne :
     | exact ⟨c, U, V, w, n_max, θ, fs, omMap, henv, rfl, hseed, hrep, hb, hce_or, hor,
         hcnt_le, hcur_n, hins_lt, hq_all, hbp_v, hv_om⟩
     | exact hbm.2.2.2.2.2.2.1.symm
-    | (rw [hbm0]; omega)
+    | exact hbm.1.symm ▸ (by omega)
     | exact hcur_n
   )
 
@@ -1221,19 +1215,13 @@ private theorem overmarsScanLoopGenProg_spec {c U V w n_max base b : ℕ}
       ih fs1 omMap1 s1 (hce1 ▸ hce) (hor1 ▸ hor) (hcnt1 ▸ hcnt)
         (by omega) (by omega) (fun i hi => hq1 ▸ hq_all i hi)
         (fun k hk => hbp1 ▸ hbp_v k (hcnt1 ▸ hk)) hv_om1 hstep1.2.1 hstep1.2.2.1
-    have hu_eq : (Memory.spec 0).clientResult s (overmarsScanOneProg (d0, ())) = () := rfl
     dsimp only
     unfold overmarsScanLoopGenProg at hmc_r hvp_r hstep_r ⊢
     dsimp only [iterate] at hmc_r hvp_r hstep_r ⊢
-    have hst_all : (Memory.spec 0).clientState s
-        (overmarsScanOneProg (d0, ()) >>= fun u => iterate overmarsScanOneProg d0 rem u) =
-        (Memory.spec 0).clientState s1 (iterate overmarsScanOneProg d0 rem ()) := by
-      rw [clientState_bind, hu_eq]
-    rw [hst_all]
+    rw [clientState_bind]
     refine ⟨⟨hpre1, ?_⟩, ?_, validProg_bind hvp1 hvp_r, hstep1.trans hstep_r⟩
     · rw [clientState_width, clientResult_width]; exact hsafe_r
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hu_eq]
       calc memoryCost (overmarsScanOneProg (d0, ())) s +
             memoryCost (iterate overmarsScanOneProg d0 rem ()) s1
           ≤ (2 * hashEvalCostWhp c + 2454) + rem * (2 * hashEvalCostWhp c + 2454) :=
@@ -1317,8 +1305,7 @@ private theorem realizes_overmarsFinishSwapGen :
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
     obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    simp only [hcs_r] at *
-    simp only [wp_large_M hth] at *
+    simp only [hcs_r, wp_large_M hth] at *
     first
     | decide
     | exact henv.fits_const (by decide)
@@ -1498,8 +1485,7 @@ theorem realizes_overmarsStepGen :
         (s := (Memory.spec 0).clientState s
           (overmarsActivateGenProg ((mkWhpCoreParams c U V w n_max, base), b)))
     simp only [getBktField] at h5_res
-    simp only [hcp_eq] at *
-    simp only [h5_st, h5_res] at *
+    simp only [hcp_eq, h5_st, h5_res] at *
     try simp only [wp_large_M hth] at *
     first
     | decide

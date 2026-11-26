@@ -130,7 +130,6 @@ omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] in
 @[simp] theorem assembleRootNeighbors_restrict {G : SimpleGraph ι} (hT : G.IsTree) (r : ι)
     (p : ∀ i, S i → ℝ) :
     assembleRootNeighbors hT r (fun c => p c.1) = fun j : G.neighborSet r => p j.1 := by
-  unfold assembleRootNeighbors
   rfl
 
 omit [Fintype ι] [∀ i, Fintype (S i)] in
@@ -630,9 +629,7 @@ private theorem localDeviationPayoff_induceSubgame (M : GraphicalGame ι S) (U :
   rw [localNeighborPayoff_def, localNeighborPayoff_def]
   refine congrArg (M.localPayoff i.1) (funext fun ⟨k, hk⟩ => ?_)
   by_cases hki : k = i.1
-  · rcases i with ⟨i₀, hi₀⟩
-    subst hki
-    simp
+  · simp [hki]
   · have hne : (⟨k, hclosed i.2 (hk.resolve_left hki)⟩ : U) ≠ i :=
       fun h => hki (congrArg Subtype.val h)
     simp only [hki, hne, ↓reduceDIte]; rfl
@@ -710,15 +707,11 @@ theorem acyclicNash_isMixedNash (M : GraphicalGame ι S) (hA : M.graph.IsAcyclic
     fun C => ⟨C.nonempty_supp.some, C.nonempty_supp.some_mem⟩
   rw [M.isMixedNash_iff_component_treeNash hA rootOf]
   intro C
-  have heq : (fun i : C.supp => M.acyclicNash hA i.1) =
-      (M.componentGame C).treeNash (M.isTree_componentGame hA C) (rootOf C) := by
-    ext ⟨i, hi⟩ a
-    unfold acyclicNash
-    obtain rfl : M.graph.connectedComponentMk i = C :=
-      (SimpleGraph.ConnectedComponent.mem_supp_iff C i).mp hi
-    rfl
-  rw [heq]
-  exact (M.componentGame C).treeNash_isTreeNashOutput (M.isTree_componentGame hA C) (rootOf C)
+  convert (M.componentGame C).treeNash_isTreeNashOutput (M.isTree_componentGame hA C) (rootOf C)
+    using 1
+  ext ⟨i, hi⟩ a
+  obtain rfl := (SimpleGraph.ConnectedComponent.mem_supp_iff C i).mp hi
+  rfl
 
 end TreePass
 
@@ -803,12 +796,9 @@ private theorem sum_sub_mul_le_half_sum_abs {Ω : Type*} [Fintype Ω] {P Q f : �
   rw [hshift]
   calc ∑ ω, (Q ω - P ω) * (f ω - 1 / 2)
       ≤ ∑ ω, |Q ω - P ω| * (1 / 2) := sum_le_sum fun ω _ => (le_abs_self _).trans <| by
+        obtain ⟨hf0, hf1⟩ := hf ω
         rw [abs_mul]
-        have hf_abs : |f ω - 1 / 2| ≤ 1 / 2 := by
-          rw [abs_le]
-          exact ⟨by linarith [(hf ω).1],
-            by linarith [(hf ω).2]⟩
-        exact mul_le_mul_of_nonneg_left hf_abs (abs_nonneg _)
+        exact mul_le_mul_of_nonneg_left (abs_le.mpr ⟨by linarith, by linarith⟩) (abs_nonneg _)
     _ = (1 / 2 : ℝ) * ∑ ω, |Q ω - P ω| := by rw [← sum_mul, mul_comm]
 
 /-- **General `L₁` Nash perturbation lemma** ([Kearns2007], Lemma 7.4 over arbitrary finite action
@@ -837,9 +827,7 @@ theorem isApproxNash_of_l1_le {ι : Type*} {S : ι → Type*} [Fintype ι] [Deci
     rw [← Fintype.prod_sum (fun j : M.graph.neighborSet i => q j.1)]
     exact prod_eq_one fun j _ => (hq j.1).sum_eq_one
   have hTV_le : ∑ u, |Q_nbr u - P_nbr u| ≤ (d : ℝ) * τ := by
-    have hsymm : ∑ u, |Q_nbr u - P_nbr u| = ∑ u, |P_nbr u - Q_nbr u| :=
-      sum_congr rfl fun u _ => abs_sub_comm _ _
-    rw [hsymm]
+    rw [sum_congr rfl fun u _ => abs_sub_comm _ _]
     calc ∑ u, |P_nbr u - Q_nbr u|
         ≤ ∑ j : M.graph.neighborSet i, ∑ c : S j.1, |p j.1 c - q j.1 c| :=
           sum_abs_prod_sub_prod_le (fun j => (hp.1 j.1).nonneg) (fun j => (hp.1 j.1).sum_eq_one)
@@ -855,14 +843,9 @@ theorem isApproxNash_of_l1_le {ι : Type*} {S : ι → Type*} [Fintype ι] [Deci
       ∑ u, |B u - A u| ≤ (d : ℝ) * τ →
       ∑ u, B u * M.localNeighborPayoff i c u - ∑ u, A u * M.localNeighborPayoff i c u ≤
         (1 / 2 : ℝ) * ((d : ℝ) * τ) := fun {A B} c hA hB hTV => by
-    have heq : ∑ u, (B u * M.localNeighborPayoff i c u -
-        A u * M.localNeighborPayoff i c u) = ∑ u, (B u - A u) * M.localNeighborPayoff i c u :=
-      sum_congr rfl fun u _ => by ring
-    have hfc : ∀ u, 0 ≤ M.localNeighborPayoff i c u ∧ M.localNeighborPayoff i c u ≤ 1 := fun u => by
-      rw [localNeighborPayoff_def]
-      exact hpay i _
-    rw [← sum_sub_distrib, heq]
-    exact (sum_sub_mul_le_half_sum_abs hA hB hfc).trans
+    rw [← sum_sub_distrib, sum_congr rfl fun u _ => (sub_mul ..).symm]
+    exact (sum_sub_mul_le_half_sum_abs hA hB
+      (fun u => localNeighborPayoff_def M i c u ▸ hpay i _)).trans
       (mul_le_mul_of_nonneg_left hTV (by norm_num))
   have hdev_diff : ∀ c : S i,
       M.deviationPayoff q i c - M.deviationPayoff p i c ≤ (1 / 2 : ℝ) * ((d : ℝ) * τ) ∧
@@ -998,22 +981,20 @@ theorem pos_of_nearestGridStrategy_pos {m : ℕ} (hm : 1 ≤ m) {x : Bool → �
     0 < x b := by
   have hm_pos : (0 : ℝ) < m := Nat.cast_pos.mpr hm
   have hsum : x true + x false = 1 := by simpa only [Fintype.sum_bool] using hx.sum_eq_one
-  rcases eq_or_lt_of_le (hx.nonneg b) with hb0 | hb_pos
-  · exfalso
-    cases b
-    · -- `b = false`: `x false = 0` implies `⌊1 / 2⌋₊ = 0`, so `nearestGridStrategy m x false = 0`.
-      have h0 : ⌊(m : ℝ) * x false + 1 / 2⌋₊ = 0 := by
-        rw [← hb0, mul_zero, zero_add]
-        exact Nat.floor_eq_zero.mpr (by norm_num)
-      simp only [nearestGridStrategy, Bool.false_eq_true, ↓reduceIte, h0, min_zero, Nat.cast_zero,
-        zero_div, lt_self_iff_false] at hb
-    · -- `b = true`: `x true = 0` implies `x false = 1`, so `⌊m + 1 / 2⌋₊ = m` and `q true = 0`.
-      have hxf1 : x false = 1 := by linarith
-      have hrm : ⌊(m : ℝ) * x false + 1 / 2⌋₊ = m :=
-        le_antisymm (floor_mul_add_half_le hx) (Nat.le_floor (by rw [hxf1]; linarith))
-      simp only [nearestGridStrategy, ↓reduceIte, hrm, min_self, div_self hm_pos.ne', sub_self,
-        lt_self_iff_false] at hb
-  · exact hb_pos
+  by_contra! hb_le
+  have hb0 : x b = 0 := le_antisymm hb_le (hx.nonneg b)
+  cases b
+  · -- `b = false`: `x false = 0` implies `⌊1 / 2⌋₊ = 0`, so `nearestGridStrategy m x false = 0`.
+    have h0 : ⌊(m : ℝ) * x false + 1 / 2⌋₊ = 0 :=
+      Nat.floor_eq_zero.mpr (by rw [hb0]; norm_num)
+    simp only [nearestGridStrategy, Bool.false_eq_true, ↓reduceIte, h0, min_zero, Nat.cast_zero,
+      zero_div, lt_self_iff_false] at hb
+  · -- `b = true`: `x true = 0` implies `x false = 1`, so `⌊m + 1 / 2⌋₊ = m` and `q true = 0`.
+    have hxf1 : x false = 1 := by linarith
+    have hrm : ⌊(m : ℝ) * x false + 1 / 2⌋₊ = m :=
+      le_antisymm (floor_mul_add_half_le hx) (Nat.le_floor (by rw [hxf1]; linarith))
+    simp only [nearestGridStrategy, ↓reduceIte, hrm, min_self, div_self hm_pos.ne', sub_self,
+      lt_self_iff_false] at hb
 
 /-- **`τ`-grid Nash perturbation lemma** ([Kearns2007], Lemma 7.4, p. 167): let `M` be a binary
 graphical game of maximum degree at most `d` with payoffs in `[0, 1]`, and let `p` be an exact

@@ -170,15 +170,11 @@ theorem HeapShape.size_lt (h : HeapShape N base S mem) {v : ℕ} (hv : v < N)
     rw [Finset.mem_coe, Finset.mem_erase, Finset.mem_range]
     refine ⟨fun he => ?_, h.vertex_lt i hi.1 hi.2⟩
     have := h.pos_vertex i hi.1 hi.2
-    simp only at he
-    rw [he, hp] at this
+    rw [show mem (base + N + i) = v from he, hp] at this
     omega
   · rw [Finset.mem_coe, Finset.mem_Icc] at hi hj
-    have h1 := h.pos_vertex i hi.1 hi.2
-    have h2 := h.pos_vertex j hj.1 hj.2
-    simp only at he
-    rw [he] at h1
-    omega
+    rw [← h.pos_vertex i hi.1 hi.2, ← h.pos_vertex j hj.1 hj.2]
+    exact congrArg (fun x => mem (base + 2 * N + 1 + x)) he
 
 /-- When `sz = 0`, the represented `IndexedMinPQ.State N` is `empty N`. -/
 theorem HeapShape.stateOfMem_zero (h : HeapShape N base 0 mem) :
@@ -190,18 +186,15 @@ theorem HeapShape.stateOfMem_zero (h : HeapShape N base 0 mem) :
 /-- Size `S = 0` iff the represented `dom` is empty. -/
 theorem HeapShape.size_eq_zero_iff (h : HeapShape N base S mem) :
     S = 0 ↔ IndexedMinPQ.dom (stateOfMem N base mem) = ∅ := by
-  constructor
+  refine ⟨?_, fun hdom => ?_⟩
   · rintro rfl
     rw [h.stateOfMem_zero, IndexedMinPQ.dom_empty]
-  · intro hdom
-    rcases Nat.eq_zero_or_pos S with h0 | h1
-    · exact h0
-    · let u : Fin N := ⟨mem (base + N + 1), h.vertex_lt 1 le_rfl h1⟩
-      have hu_mem : u ∈ IndexedMinPQ.dom (stateOfMem N base mem) := by
-        rw [IndexedMinPQ.mem_dom_iff]
-        refine ⟨mem (base + u.val), ?_⟩
-        simp only [stateOfMem, u, h.pos_vertex 1 le_rfl h1, one_ne_zero, ↓reduceIte]
-      exact absurd (hdom ▸ hu_mem) (Finset.notMem_empty u)
+  · by_contra h0
+    have h1 : 1 ≤ S := Nat.pos_of_ne_zero h0
+    have hu_mem : (⟨mem (base + N + 1), h.vertex_lt 1 le_rfl h1⟩ : Fin N) ∈
+        IndexedMinPQ.dom (stateOfMem N base mem) := by
+      simp [IndexedMinPQ.mem_dom_iff, stateOfMem, h.pos_vertex 1 le_rfl h1]
+    exact Finset.notMem_empty _ (hdom ▸ hu_mem)
 
 /-- **Root optimality**: the root at position `1` has lexicographically minimum `(handle, key)`
 among all handles present in the heap, so `IndexedMinPQ.findMin` equals the root entry. -/
@@ -222,12 +215,10 @@ theorem HeapInv.findMin_eq_root (h : HeapInv N base S mem) (hS : 1 ≤ S) :
   refine ⟨?_, fun v k' hsv => ?_⟩
   · simp only [stateOfMem, h.pos_vertex 1 le_rfl hS, one_ne_zero, ↓reduceIte]
   · simp only [stateOfMem] at hsv
-    by_cases hp : mem (base + 2 * N + 1 + v.val) = 0
-    · simp only [hp, ↓reduceIte, reduceCtorEq] at hsv
-    · simp only [hp, ↓reduceIte, Option.some.injEq] at hsv
-      subst hsv
-      have hle := key _ (Nat.one_le_iff_ne_zero.2 hp) (h.pos_le v.val v.isLt)
-      simpa only [heapEntry, h.vertex_pos v.val v.isLt hp] using hle
+    split_ifs at hsv with hp
+    obtain ⟨rfl⟩ := hsv
+    simpa only [heapEntry, h.vertex_pos v.val v.isLt hp] using
+      key _ (Nat.one_le_iff_ne_zero.2 hp) (h.pos_le v.val v.isLt)
 
 /-- **Insertion**: storing key `c` for an absent handle `v < N` and appending `v` at `S + 1`
 produces `HeapShape` and `UpOrdered` at `S + 1`. -/
@@ -387,10 +378,7 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
   · rw [hpos w hw]
     split_ifs with h1 h2
     · subst h1
-      refine iff_of_false id ?_
-      rintro (h0 | h0)
-      · omega
-      · exact hUL h0.symm
+      exact iff_of_false id fun h0 => h0.elim (by omega) hUL.symm
     all_goals omega
 
 /-- **Singleton root removal**: clearing the root's position on a 1-element heap leaves the empty

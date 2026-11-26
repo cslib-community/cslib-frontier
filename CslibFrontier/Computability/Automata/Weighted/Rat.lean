@@ -194,17 +194,11 @@ theorem RatLe.idle {n : ℕ} {P : Series F Ω} (hP : RatLe n P) :
         cases a with
         | none => simp
         | some a =>
-          by_cases h : o.all Option.isSome
-          · simp only [h, ite_true, List.all_cons, Option.isSome_some, Bool.true_and,
-              List.reduceOption_cons_of_some, Option.elim]
-            rfl
-          · simp [h]
+          by_cases h : o.all Option.isSome <;>
+            simp [h, List.reduceOption_cons_of_some, Rep.tail]
     funext o
     rw [Rep.series, key]
-    by_cases h : o.all Option.isSome
-    · simp only [h, ite_true]
-      rfl
-    · simp [h]
+    by_cases h : o.all Option.isSome <;> simp [h, Rep.series]
   · refine ⟨Unit, inferInstance, ⟨1, fun a => a.elim 1 fun _ => 0, 1⟩, by simp, ?_⟩
     have key (o : List (Option Ω)) :
         (⟨1, fun a => a.elim 1 fun _ => 0, 1⟩ : Rep F (Option Ω) Unit).tail o =
@@ -238,8 +232,7 @@ theorem idle_apply (P : Series F Ω) (w : List Ω) (j : ℕ) :
       have hn : ¬((w.map some ++ List.replicate j none).take k).all Option.isSome :=
         fun hall => by simpa using List.all_eq_true.1 hall _ hmem
       simp only [hn, ↓reduceIte, zero_mul]
-  · intro h
-    exact absurd (mem_range.2 (by simp; omega)) h
+  · exact fun h => absurd (mem_range.2 (by simp; omega)) h
 
 theorem idle_ne_zero (P : Series F Ω) (o : List (Option Ω)) (h : Series.idle P o ≠ 0) :
     ∃ (w : List Ω) (j : ℕ), o = w.map some ++ List.replicate j none := by

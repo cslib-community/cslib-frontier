@@ -221,23 +221,18 @@ theorem exists_zeroError_errorExponent_of_mem_RP_inter_coRP {A : Set α}
   have hV₁ (ha : a ∉ A) (r : Fin (len a + m₂) → Bool) :
       V₁ (a, (List.ofFn r).take (len a)) = false := by
     obtain ⟨u, hu⟩ := exists_ofFn_eq_take r
-    rw [← hu]
-    exact (h₁ a).2 ha u
+    exact hu ▸ (h₁ a).2 ha u
   have hV₂ (ha : a ∈ A) (r : Fin (len a + m₂) → Bool) :
       V₂ (a, (List.ofFn r).drop (len a)) = false := by
     obtain ⟨v, hv⟩ := exists_ofFn_eq_drop r
-    rw [← hv]
-    exact (h₂ a).2 (not_not.mpr ha) v
+    exact hv ▸ (h₂ a).2 (not_not.mpr ha) v
   refine ⟨?_, errorExponentAt_true_iff.2 ?_⟩
   · rw [heval]
     intro r b hb
     simp only [V] at hb
     split_ifs at hb with hacc hrej <;> cases hb
-    · simp only [true_iff]
-      by_contra ha
-      exact Bool.false_ne_true (hV₁ ha r ▸ hacc)
-    · simp only [Bool.false_eq_true, false_iff]
-      exact fun ha => Bool.false_ne_true (hV₂ ha r ▸ hrej)
+    · exact iff_of_true rfl (by_contra fun ha => Bool.false_ne_true (hV₁ ha r ▸ hacc))
+    · exact iff_of_false Bool.false_ne_true fun ha => Bool.false_ne_true (hV₂ ha r ▸ hrej)
   rw [heval]
   set ans := acceptCount (fun x => (V x).isSome) a (len a + m₂)
   by_cases ha : a ∈ A
@@ -248,17 +243,12 @@ theorem exists_zeroError_errorExponent_of_mem_RP_inter_coRP {A : Set α}
         Nat.add_sub_cancel_left, Nat.mul_comm]
       rfl
     have hge : acceptCount V₁ a (len a) * 2 ^ m₂ ≤ ans :=
-      hcount ▸ Finset.card_le_card fun r => by
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, V]
-        intro hr
-        simp [hr]
+      hcount ▸ Finset.card_le_card fun r hr => by simp [V, (Finset.mem_filter.mp hr).2]
     exact errorExponent_scale (errorExponentAt_true_iff.1 ((h₁ a).1 ha)) hge
   · -- on a non-member, `V₂` rejects on at most a `2 ^ (-q(n))` fraction of its random strings
     have hge : 2 ^ len a * acceptCount V₂ a m₂ ≤ ans :=
-      card_filter_drop (len a) m₂ (fun v => V₂ (a, v) = true) ▸ Finset.card_le_card fun r => by
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, V]
-        intro hr
-        simp [hr, hV₁ ha r]
+      card_filter_drop (len a) m₂ (fun v => V₂ (a, v) = true) ▸
+        Finset.card_le_card fun r hr => by simp [V, (Finset.mem_filter.mp hr).2, hV₁ ha r]
     rw [Nat.add_comm]
     exact errorExponent_scale (errorExponentAt_true_iff.1 ((h₂ a).1 ha)) (by rwa [Nat.mul_comm])
 

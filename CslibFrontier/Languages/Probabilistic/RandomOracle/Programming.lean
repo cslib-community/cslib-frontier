@@ -270,10 +270,8 @@ theorem flaggedLazyProgramHandler_apply_inl [BEq Query]
         (inactive req (Bool.eq_false_iff.mpr h) log).map fun res =>
           (res.1, ((cache, res.2), b)) := by
   dsimp only [flaggedLazyProgramHandler, withBadFlag, lazyProgramStep]
-  split_ifs with h
-  · simp only [PMF.map_bind, PMF.map_comp]
-    rfl
-  · simp only [PMF.map_comp, Function.comp_def, Prod.map, id_eq, Bool.or_false]
+  split_ifs with h <;>
+    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, Prod.map, id_eq, Bool.or_false]
 
 /-- Explicit `.inr` transition equation for `flaggedLazyProgramHandler`. -/
 theorem flaggedLazyProgramHandler_apply_inr [BEq Query]
@@ -454,17 +452,12 @@ private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Que
               exact PMF.toOuterMeasure_le_one _ _
             · rw [Set.indicator_of_notMem (show ts ∉ {ts : Coins req |
                 (cache.lookup (point req ts)).isSome} from hts)]
-              dsimp only [inner]
-              rw [PMF.toOuterMeasure_map_apply]
-              simp [FlagBad, hts]
+              simp [inner, PMF.toOuterMeasure_map_apply, FlagBad, hts]
         _ = (samplePre req).toOuterMeasure {ts | (cache.lookup (point req ts)).isSome} :=
             (PMF.toOuterMeasure_eq_tsum_mul_indicator _ _).symm
         _ ≤ cache.length * δ := toOuterMeasure_lookup_isSome_le_aux (hminEnt req h) cache
-    · rw [PMF.toOuterMeasure_map_apply]
-      simp [FlagBad]
-  | inr q =>
-    simp only [Sum.elim_inr, zero_mul, Nat.cast_zero, lazyProgramStep, PMF.toOuterMeasure_map_apply]
-    simp [FlagBad]
+    · simp [PMF.toOuterMeasure_map_apply, FlagBad]
+  | inr q => simp [lazyProgramStep, PMF.toOuterMeasure_map_apply, FlagBad]
 
 private theorem length_cache_flaggedLazyProgramHandler_le [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -523,16 +516,11 @@ theorem toOuterMeasure_bad_flaggedLazyProgramHandler_choose_two_le
 private theorem choose_two_bound_le_mul (q_S len q_H : ℕ) (δ : ℝ≥0∞) :
     ((q_S * len + q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0∞) * δ ≤
       (q_S * (len + q_S + q_H) : ℕ) * δ := by
-  have hchoose (m : ℕ) : m.choose 2 ≤ m * m := by
-    induction m with
-    | zero => simp
-    | succ n ihn =>
-      rw [Nat.choose_succ_succ' n 1, Nat.choose_one_right, show (1 + 1 : ℕ) = 2 from rfl]
-      nlinarith
-  have hle : q_S * len + q_S * q_H + q_S.choose 2 ≤ q_S * (len + q_S + q_H) := by
-    have := hchoose q_S
-    nlinarith
+  have hchoose : q_S.choose 2 ≤ q_S * q_S := by
+    rw [Nat.choose_two_right]
+    exact Nat.div_le_of_le_mul (by nlinarith [Nat.sub_le q_S 1])
   gcongr
+  nlinarith
 
 /-- **Rectangular adaptive RO programming collision bound (`OracleComp`)**: corollary of
 `toOuterMeasure_bad_flaggedLazyProgramHandler_choose_two_le` bounding the collision probability from
@@ -571,13 +559,10 @@ private theorem closeTo_run_lazyProgramHandler_overwriteProgramHandler_raw
         program).run (cache, log))
       (((interpret (flaggedLazyProgramHandler dist active inactive samplePre point finish)
         program).run ((cache, log), false)).toOuterMeasure {x | FlagBad x.2}) := by
-  have hiub := identicalUntilBad_flaggedProgramHandlers dist active inactive samplePre point finish
-  have hl := run_flaggedLazyProgramHandler_map_fst dist active inactive samplePre point finish
-    program (cache, log) false
-  have hr := run_flaggedOverwriteProgramHandler_map_fst dist active inactive samplePre point finish
-    program (cache, log) false
-  rw [← hl, ← hr]
-  exact (hiub.closeTo_run program ((cache, log), false)).map (Prod.map id Prod.fst)
+  rw [← run_flaggedLazyProgramHandler_map_fst (b := false),
+    ← run_flaggedOverwriteProgramHandler_map_fst (b := false)]
+  exact ((identicalUntilBad_flaggedProgramHandlers dist active inactive samplePre point
+    finish).closeTo_run program ((cache, log), false)).map (Prod.map id Prod.fst)
 
 /-- **Sharpened adaptive RO programming `CloseTo` hop (`OracleComp`)**: replacing lazy oracle reads
 at `point req ts` with fresh overwrites changes the joint `(α × (List (Query × Digest) × Log))`

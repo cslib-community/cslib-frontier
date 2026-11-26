@@ -206,15 +206,9 @@ private theorem sum_wt_le (S : Finset α) (A B A' B' : α → Prop) {w l : α}
     · simp only [d, ↓reduceIte, hwl]; omega
     obtain rfl | hxl := eq_or_ne x l
     · simp only [d, hxw, ↓reduceIte]; omega
-    have hA' : A' x ↔ A x := by rw [hA]; simp [hxw]
-    have hB' : B' x ↔ B x := by rw [hB]; simp [hxl]
-    simp [hxw, hxl, propext hA', propext hB']
+    simp [hA, hB, hxw, hxl]
   have hd : d w + d l ≤ 2 := by
-    have hAw : A' w := (hA w).mpr (Or.inr rfl)
-    have hBl : B' l := (hB l).mpr (Or.inr rfl)
-    have hBw : B' w ↔ B w := by rw [hB]; simp [hwl]
-    have hAl : A' l ↔ A l := by rw [hA]; simp [Ne.symm hwl]
-    simp only [d, wt, hAw, hBl, propext hBw, propext hAl, ↓reduceIte]
+    simp only [d, wt, hA, hB, hwl, Ne.symm hwl, or_true, or_false, ↓reduceIte]
     by_cases haw : A w <;> by_cases hbw : B w <;> by_cases hal : A l <;> by_cases hbl : B l <;>
       simp only [haw, hbw, hal, hbl, ↓reduceIte] <;> first | omega | tauto
   calc ∑ x ∈ S, wt (A' x) (B' x)
