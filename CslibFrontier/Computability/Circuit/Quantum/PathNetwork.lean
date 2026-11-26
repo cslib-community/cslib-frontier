@@ -268,9 +268,7 @@ private theorem sum_ofFn_ite_eq {R : Type*} [AddCommMonoid R] {k : ℕ} (v : Lis
 private theorem getD_set_eq_update (s : List Bool) {t : ℕ} (ht : t < s.length) (b : Bool) :
     (fun j => (s.set t b).getD j false) = Function.update (fun j => s.getD j false) t b := by
   funext j
-  rcases eq_or_ne j t with rfl | hj
-  · simp [List.getD_eq_getElem?_getD, ht]
-  · simp [List.getD_eq_getElem?_getD, Function.update_of_ne hj, Ne.symm hj]
+  by_cases hj : j = t <;> simp [hj, Ne.symm, List.getD_eq_getElem?_getD, ht]
 
 /-- **The runs along the occurrences sum to the path sum** (with an initial sign `σ`): summing the
 weight of the runs over all bit strings written to the occurrences gives the sum over the paths
@@ -418,10 +416,8 @@ private theorem reg_succ (qs : List ℕ) (X y : ℕ → Bool) (p : ℕ) :
     reg qs X y (p + 1) = Function.update (reg qs X y p) (qs.getD p 0) (y p) := by
   funext j
   by_cases h : qs.getD p 0 = j
-  · subst h
-    simp [reg, lastOcc_succ]
-  · rw [Function.update_of_ne (Ne.symm h)]
-    simp only [reg, lastOcc_succ, h, ↓reduceIte]
+  · simp [← h, reg, lastOcc_succ]
+  · simp only [reg, lastOcc_succ, h, ↓reduceIte, Function.update_of_ne (Ne.symm h)]
 
 /-- Running through occurrences that hold the qubits `l` writes their bits to `l`. -/
 private theorem reg_add (qs : List ℕ) (X y : ℕ → Bool) (l : List ℕ) (b : ℕ)
@@ -709,9 +705,8 @@ private theorem prod_rowVertices_network {R : Type*} [CommRing R] (S : List ℕ)
     rw [List.map_map]
     refine List.map_congr_left fun w _ => ?_
     rw [Function.comp_apply, entry_glueVertex, ← hqs, ← hN]
-    by_cases hl : lastOcc qs (qs.getD w 0) N = some w
-    · simp only [reg, hl, Nat.zero_mul, Nat.zero_add, Nat.one_mul]
-    · simp only [hl, false_implies]
+    by_cases hl : lastOcc qs (qs.getD w 0) N = some w <;>
+      simp only [reg, hl, Nat.zero_mul, Nat.zero_add, Nat.one_mul, false_implies]
   simp only [List.map_append, List.prod_append, hP, hG, List.prod_map_boole, List.map_cons,
     List.map_nil, List.prod_cons, List.prod_nil, mul_one]
   rw [show entry (scalarVertex S X gs : List ℕ × List R).2 ((scalarVertex S X gs).1.map
@@ -929,12 +924,10 @@ theorem exists_base_le_lt {gs : List GateCode} {p : ℕ} (hp : p < (occurrences 
   have hex : ∃ i, p < base gs (i + 1) ∧ i < gs.length :=
     ⟨gs.length - 1, by rwa [Nat.sub_add_cancel hpos, base_length], by omega⟩
   refine ⟨Nat.find hex, (Nat.find_spec hex).2, ?_, (Nat.find_spec hex).1⟩
-  rcases Nat.eq_zero_or_pos (Nat.find hex) with h | h
-  · rw [h]; simp [base, occurrences]
-  · have hmin := Nat.find_min hex (show Nat.find hex - 1 < Nat.find hex by omega)
-    rw [Nat.sub_add_cancel h] at hmin
-    have : Nat.find hex - 1 < gs.length := by have := (Nat.find_spec hex).2; omega
-    simpa [this] using hmin
+  rcases h : Nat.find hex with _ | i
+  · exact Nat.zero_le p
+  · exact not_lt.mp fun hp' =>
+      Nat.find_min hex (h ▸ Nat.lt_succ_self i) ⟨hp', by have := (Nat.find_spec hex).2; omega⟩
 
 theorem eq_of_base_le_lt {gs : List GateCode} {p i i' : ℕ} (h1 : base gs i ≤ p)
     (h2 : p < base gs (i + 1)) (h1' : base gs i' ≤ p) (h2' : p < base gs (i' + 1)) : i = i' := by

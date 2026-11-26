@@ -203,21 +203,15 @@ private theorem exists_restrictAt_eq_const_of_leafSize_eq_one {G : Formula signa
     cases x i <;> simp [hc₀, hc₁]
   have hne : c₀ ≠ c₁ := by
     rintro rfl
-    have := hG (const c₀) fun x => by rw [eval_const, heval]; cases x i <;> rfl
-    rw [leafSize_const] at this
-    omega
-  have hc₁' : c₁ = !c₀ := by cases c₀ <;> cases c₁ <;> simp_all
-  subst hc₁'
+    have := hG (const c₀) fun x => ((heval x).trans (by cases x i <;> rfl)).symm
+    simp [leafSize_const, hGL] at this
+  obtain rfl : c₁ = !c₀ := by cases c₀ <;> cases c₁ <;> simp_all
   by_cases ha : c₀ = a
   · subst ha
-    refine ⟨false, hc₀, hc₁, fun x => ?_⟩
-    rw [heval]
-    cases x i <;> rfl
-  · have hc₀' : c₀ = !a := by cases c₀ <;> cases a <;> simp_all
-    subst hc₀'
-    refine ⟨true, by simpa using hc₁, by simpa using hc₀, fun x => ?_⟩
-    rw [heval]
-    cases x i <;> simp
+    exact ⟨false, hc₀, hc₁, fun x => (heval x).trans (by cases x i <;> rfl)⟩
+  · obtain rfl : c₀ = !a := by cases c₀ <;> cases a <;> simp_all
+    exact ⟨true, by simpa using hc₁, by simpa using hc₀,
+      fun x => (heval x).trans (by cases x i <;> simp)⟩
 
 /-- Shrinkage at a binary gate when one argument `G` has a single leaf at `i`: the restriction of
 `G` that annihilates the gate eliminates the other argument `H`, while the restriction that is
@@ -376,10 +370,7 @@ theorem sum_formulaSize_restrict_update_le (f : BooleanFunction n)
           if i = i₀ then 0 else 2 := by
       have := hbound i hi false
       have := hbound i hi true
-      split_ifs with h
-      · subst h
-        omega
-      · omega
+      split_ifs with h <;> subst_vars <;> omega
     calc ∑ i ∈ ρ.free, (formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) +
             formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true)))) + 2
         ≤ ∑ i ∈ ρ.free, (if i = i₀ then 0 else 2) + 2 :=
@@ -526,9 +517,8 @@ theorem exists_withFree_formulaSize_sq_mul_pow_three_le (f : BooleanFunction n) 
     (hk1 : 1 ≤ k) (hk : k ≤ n) :
     ∃ ρ ∈ PartialAssignment.withFree (Fin n) k,
       formulaSize (f ∘ ρ.fill) ^ 2 * n ^ 3 ≤ formulaSize f ^ 2 * k ^ 3 := by
-  have hk' : k ≤ #(PartialAssignment.empty : PartialAssignment (Fin n)).free := by simpa using hk
   obtain ⟨ρ, hρ, hle⟩ := exists_extensions_formulaSize_sq_mul_pow_three_le
-    f PartialAssignment.empty hk1 hk'
+    f PartialAssignment.empty hk1 (by simpa using hk)
   rw [PartialAssignment.free_empty, card_univ, Fintype.card_fin] at hle
   exact ⟨ρ, hρ, hle⟩
 
@@ -546,18 +536,16 @@ theorem pow_three_le_formulaSize_parity_sq (n : ℕ) :
     have hpos : 1 ≤ formulaSize (parity n ∘ ρ.fill) := by
       by_contra! h0
       obtain ⟨F, hF, hFL⟩ := exists_computes_leafSize_eq (parity n ∘ ρ.fill)
-      rw [Nat.lt_one_iff.1 h0] at hFL
-      have hconst := eval_eq_of_leafSize_eq_zero hFL interpretation (fun _ => false)
-        (update (fun _ => false) i true)
+      have hconst := eval_eq_of_leafSize_eq_zero (Nat.lt_one_iff.1 h0 ▸ hFL) interpretation
+        (fun _ => false) (update (fun _ => false) i true)
       rw [hF, hF, comp_apply, comp_apply,
         PartialAssignment.fill_update_of_eq_none (PartialAssignment.mem_free.1 hi)] at hconst
       have hflip := parity_update_not (ρ.fill fun _ => false) i
       rw [PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 hi), Bool.not_false]
         at hflip
       exact Bool.self_ne_not _ (hconst.trans hflip)
-    have hmul : 1 * n ^ 3 ≤ formulaSize (parity n ∘ ρ.fill) ^ 2 * n ^ 3 :=
-      Nat.mul_le_mul_right _ (by nlinarith)
-    linarith
+    simpa only [one_pow, mul_one, one_mul] using
+      (Nat.mul_le_mul_right (n ^ 3) (Nat.one_le_pow 2 _ hpos)).trans hle
 
 /-- **Subbotovskaya's parity lower bound** for De Morgan formulas: every formula computing
 `parity n` has leaf size `L` satisfying `n ^ 3 ≤ L ^ 2`. -/

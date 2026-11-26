@@ -157,13 +157,10 @@ private theorem isBoundedComp_foldlM_coinStep (t : ℕ) (r : List Bool) :
       (∀ op, (cfg.channels op).1.length ≤ i) → i + r.length ≤ t →
       IsBoundedComp t r.length (r.foldlM (coinStep M t) cfg) := by
   induction r with
-  | nil =>
-    intro i cfg _ _
-    exact .pure 0 cfg
+  | nil => exact fun _ cfg _ _ => .pure 0 cfg
   | cons b r ih =>
     intro i cfg hbuf hit
-    simp only [List.length_cons] at hit
-    simp only [List.foldlM_cons, List.length_cons]
+    simp only [List.foldlM_cons, List.length_cons] at hit ⊢
     exact isBoundedComp_coinStep_bind M hbuf (by lia) b fun cfg' hbuf' =>
       ih (i + 1) cfg' hbuf' (by lia)
 
@@ -477,13 +474,11 @@ private theorem support_presampleTree_subset (Q : Prover Unit) (L : ℕ)
   intro d
   induction d with
   | zero =>
-    intro _ t _
-    cases t
+    rintro _ ⟨⟩ _
     exact List.mem_singleton_self PUnit.unit
   | succ d ih =>
     intro s t ht
-    simp only [presampleTree] at ht
-    simp only [allTrees]
+    simp only [presampleTree, allTrees] at ht ⊢
     refine mem_listMapM (fun m _ entry hentry => ?_) t ht
     supp_cases hentry with ⟨ys, _, child, hchild, rfl⟩
     simp only [List.mem_flatMap, List.mem_map]
@@ -693,10 +688,8 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
       · simp [filterFn] at hf
       · simp only [filterFn, beq_iff_eq] at hf
         split_ifs at hf with hq
-        subst q'
-        simp only [Option.some.injEq, Prod.mk.injEq] at hf
-        obtain ⟨rfl, rfl⟩ := hf
-        exact hmem
+        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hf)
+        exact hq ▸ hmem
     have hmem_match : (r, rest) ∈ cand.filterMap filterFn := hmemF.mpr hh
     cases hm : cand.filterMap filterFn with
     | nil => simp [hm] at hmem_match
@@ -708,14 +701,13 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
       have hstep : (candidateProver H).respond q cand =
           (r₀, (cand.filterMap filterFn).map Prod.snd) := by
         simp only [candidateProver, stepCandidates, filterFn, hm]
-      refine ⟨?_, ?_⟩
-      · rw [hstep, hc.1]
-      · rw [hstep]
-        refine ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem hmem_match)
-        obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := List.mem_map.mp ht₁
-        obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := List.mem_map.mp ht₂
-        have hc12 := hcons _ (hmemF.mp hs₁) _ (hmemF.mp hs₂)
-        simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true] at hc12
-        exact hc12.2
+      refine ⟨by rw [hstep, hc.1], ?_⟩
+      rw [hstep]
+      refine ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem hmem_match)
+      obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := List.mem_map.mp ht₁
+      obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := List.mem_map.mp ht₂
+      have hc12 := hcons _ (hmemF.mp hs₁) _ (hmemF.mp hs₂)
+      simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true] at hc12
+      exact hc12.2
 
 end Cslib.Complexity.MIP

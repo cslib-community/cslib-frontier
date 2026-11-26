@@ -248,18 +248,16 @@ theorem eval_branch_le (k g₀ g₁ : ℕ) (c : Bool) :
     ProbComp.eval (branch k g₀ g₁) (some c) ≤ ((cond c g₁ g₀ : ℕ) : ENNReal) / (2 ^ k : ℕ) := by
   rw [eval_branch_apply]
   gcongr
-  cases c
-  · rw [card_coinOutcome_some_false]; simp only [Bool.cond_false]; omega
-  · rw [card_coinOutcome_some_true]; exact min_le_right _ _
+  cases c <;> simp only [card_coinOutcome_some_false, card_coinOutcome_some_true, Bool.cond_false,
+    Bool.cond_true] <;> omega
 
 /-- When `g₀ + g₁ ≤ 2 ᵏ` the branching coin picks `c` with probability exactly `g_c / 2 ᵏ`. -/
 theorem eval_branch_eq {k g₀ g₁ : ℕ} (h : g₀ + g₁ ≤ 2 ^ k) (c : Bool) :
     ProbComp.eval (branch k g₀ g₁) (some c) = ((cond c g₁ g₀ : ℕ) : ENNReal) / (2 ^ k : ℕ) := by
   rw [eval_branch_apply]
   congr 2
-  cases c
-  · rw [card_coinOutcome_some_false]; simp only [Bool.cond_false]; omega
-  · rw [card_coinOutcome_some_true]; simp only [Bool.cond_true]; omega
+  cases c <;> simp only [card_coinOutcome_some_false, card_coinOutcome_some_true, Bool.cond_false,
+    Bool.cond_true] <;> omega
 
 end Branch
 
@@ -346,8 +344,7 @@ private theorem eval_map_cons_some_cons (μ : PMF (Option (List Bool))) (b c : B
     exact Probability.PMF.map_apply_of_injective μ
       (Option.map_injective (List.cons_injective)) (some v)
   · rw [PMF.map_apply]
-    refine tsum_eq_zero_iff.2 fun o => ?_
-    cases o <;> simp [Ne.symm h]
+    exact tsum_eq_zero_iff.2 fun o => by cases o <;> simp [Ne.symm h]
 
 private theorem eval_bind_descend_some_cons (μ : PMF (Option Bool))
     (next : Bool → ProbComp (Option (List Bool))) (c : Bool) (v : List Bool) :
@@ -435,14 +432,11 @@ private theorem ratio_eq {M' M a b ac bc bc' : ℝ} (hac : ac ≠ 0) (hbc : bc �
 private theorem ratio_le {M' M a b ac bc bc' : ℝ} (hM' : 0 ≤ M') (hM : 0 ≤ M) (ha : 0 ≤ a)
     (hb : 0 ≤ b) :
     M' * ac * bc' * b / (M * a * bc * bc') * (bc / ac) ≤ M' / M * (b / a) := by
-  have h0 : 0 ≤ M' / M * (b / a) := by positivity
-  rcases eq_or_ne ac 0 with rfl | hac
-  · simpa using h0
-  rcases eq_or_ne bc 0 with rfl | hbc
-  · simpa using h0
-  rcases eq_or_ne bc' 0 with rfl | hbc'
-  · simpa using h0
-  exact (ratio_eq hac hbc hbc').le
+  by_cases h : ac = 0 ∨ bc = 0 ∨ bc' = 0
+  · rcases h with rfl | rfl | rfl <;> simp only [mul_zero, zero_mul, zero_div, div_zero]
+    all_goals positivity
+  · push Not at h
+    exact (ratio_eq h.1 h.2.1 h.2.2).le
 
 private theorem total_cast (m : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
     (total m e e₀ e₁ : ℝ) = (m : ℝ) * e.1 * (cond c e₁ e₀).2 * (cond c e₀ e₁).2 := by
@@ -478,10 +472,7 @@ theorem eval_walk_le (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbC
   | 0, y, hy, e, he, v => by
     rw [eval_walk_zero]
     split_ifs with h
-    · have he' := he hy
-      simp only [nodeEstimate, hy, h.2, ↓reduceIte, ProbComp.eval_pure, PMF.support_pure,
-        Set.mem_singleton_iff] at he'
-      subst he'
+    · obtain rfl : e = (1, 1) := by simpa [nodeEstimate, hy, h.2] using he hy
       simp [invEstimate]
     · exact zero_le
   | n + 1, y, hy, e, _, v => by
@@ -617,10 +608,8 @@ theorem le_eval_walk (R : SelfReducible enc W) {A : α → ℕ → ℕ → ProbC
         ProbComp.eval (R.walk A p t m extra n y e) (some v)
   | 0, y, hy, e, he, v, hv => by
     have hW := R.eq_singleton_nil hy (Finset.card_pos.2 ⟨v, hv⟩)
-    rw [hW, Finset.mem_singleton] at hv
-    subst hv
-    have hexact := he.2 hy
-    rw [hW, Finset.card_singleton, Nat.cast_one, one_mul] at hexact
+    obtain rfl : v = [] := Finset.mem_singleton.1 (hW ▸ hv)
+    have hexact : (e.1 : ℝ) = e.2 := by simpa [hW] using he.2 hy
     rw [eval_walk_zero, ite_eq_left ⟨rfl, hW ▸ Finset.mem_singleton_self _⟩, pow_zero, pow_zero,
       one_mul, one_mul, invEstimate, ← hexact]
     exact ENNReal.ofReal_le_one.2 (div_self_le_one _)
@@ -923,10 +912,8 @@ theorem le_eval_retry (R : SelfReducible enc W) {A : α → ℕ → ℕ → Prob
   have h8 := one_eighth_le (q := q) hN he.1
   have hfail : (ProbComp.eval (R.trial A x q e)).toOuterMeasure {o | ¬ o.isSome = true} =
       ProbComp.eval (R.trial A x q e) none := by
-    have : {o : Option (List Bool) | ¬ o.isSome = true} = {none} := by
-      ext o
-      cases o <;> simp
-    rw [this, PMF.toOuterMeasure_apply_singleton]
+    rw [show {o : Option (List Bool) | ¬ o.isSome = true} = {none} by ext (_ | _) <;> simp,
+      PMF.toOuterMeasure_apply_singleton]
   rw [ProbComp.eval_map]
   refine le_trans ?_ (Probability.PMF.le_map_apply _ Option.join (some (some v)))
   rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,

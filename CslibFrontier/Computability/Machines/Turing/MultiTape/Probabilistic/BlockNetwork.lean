@@ -418,9 +418,7 @@ theorem notMem_blockWindow {c : Cfg k Bool State input} {h : Fin k} {j : ℤ}
   have hr0 : (0 : ℤ) ≤ r.val := by positivity
   simp only [Cfg.blockIndex, Cfg.headPos_some, abs_le, not_and_or, not_le] at hj
   simp only [Cfg.blockWindow, Set.mem_Ico, not_and_or, not_le, not_lt]
-  rcases hj with hj | hj
-  · exact .inr (by nlinarith)
-  · exact .inl (by nlinarith)
+  exact hj.symm.imp (fun _ => by nlinarith) fun _ => by nlinarith
 
 /-- **The entering view is the true one.** If `x` agrees with the true run before interval `i`,
 then interval `i` reads the true control record and window contents, at the true block
@@ -529,15 +527,11 @@ private theorem forall_intervalHolds_trueLetters_iff (y : Fin (q * b) → Bool) 
     (∀ i : Fin q, machine.IntervalHolds input b σ i (trueLetters machine input σ y)
       (intervalBits y i)) ↔
       machine.schedule b q (List.ofFn y) (Cfg.init machine.initial input) = σ := by
-  constructor
-  · intro h
-    funext j
-    exact (agreesBefore_of_forall y h q le_rfl j j.isLt).1
-  · intro hσ i
-    have hagree : AgreesBefore machine input σ y (trueLetters machine input σ y) i :=
-      fun j _ => ⟨congrFun hσ j, rfl, fun _ _ => rfl⟩
-    obtain ⟨hindex, hcontrol, hwindow⟩ := inView_eq y hagree
-    exact (intervalHolds_iff y hindex hcontrol hwindow).mpr ⟨congrFun hσ i, rfl, fun _ _ => rfl⟩
+  refine ⟨fun h => funext fun j => (agreesBefore_of_forall y h q le_rfl j j.isLt).1, fun hσ i => ?_⟩
+  have hagree : AgreesBefore machine input σ y (trueLetters machine input σ y) i :=
+    fun j _ => ⟨congrFun hσ j, rfl, fun _ _ => rfl⟩
+  obtain ⟨hindex, hcontrol, hwindow⟩ := inView_eq y hagree
+  exact (intervalHolds_iff y hindex hcontrol hwindow).mpr ⟨congrFun hσ i, rfl, fun _ _ => rfl⟩
 
 omit [NeZero b] in
 /-- The run replaying `q * b` bits ends at the start of interval `q`. -/
@@ -569,8 +563,7 @@ private theorem prod_sinks (hq : 0 < q) (x : BlockEdge k q → BlockLetter k Sta
   have hblock : ∏ e : Fin q × Fin k × Fin 3,
       (machine.blockNetwork input b σ).tensor (.inr (.inr e)) x = 1 :=
     Finset.prod_eq_one fun _ _ => rfl
-  rw [hblock, mul_one]
-  rw [Finset.prod_eq_single (⟨q - 1, by omega⟩ : Fin q)]
+  rw [hblock, mul_one, Finset.prod_eq_single (⟨q - 1, by omega⟩ : Fin q)]
   · change (if q - 1 + 1 = q then _ else 1) = _
     rw [ite_eq_left (by omega)]
   · intro i _ hi
@@ -761,12 +754,9 @@ private theorem injOn_inEdges (i : Fin q) :
     have hl₁ := lastBefore_of_firstAfter (inWindow_portBlock σ i₁ h₁ d₁) hf₁
     have hl₂ := lastBefore_of_firstAfter (inWindow_portBlock σ i₂ h₁ d₂) hf₂
     rw [hj] at hl₁
-    have hi : i₁ = i₂ := Option.some.inj (hl₁.symm.trans hl₂)
-    subst hi
-    have hd : d₁ = d₂ := by
-      simp only [portBlock] at hj
-      omega
-    rw [hd]
+    obtain rfl : i₁ = i₂ := Option.some.inj (hl₁.symm.trans hl₂)
+    simp only [portBlock] at hj
+    exact congrArg (fun d => Sum.inr (i₁, h₁, d)) (Fin.ext (by omega))
 
 omit [NeZero b] in
 /-- **The degree bound.** An interval has its `3 k + 1` leaving edges and at most `3 k + 1`
