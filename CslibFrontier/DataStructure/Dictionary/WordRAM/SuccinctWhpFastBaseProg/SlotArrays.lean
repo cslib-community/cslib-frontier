@@ -299,8 +299,7 @@ theorem realizes_readBackPtrGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ k < wpCapBack cp)
       (fun _ _ => 0) := by
   unfold readBackPtrGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, k⟩
     obtain ⟨h2, h3⟩ := backPtr_realize_bounds h
@@ -341,8 +340,7 @@ theorem realizes_writeBackPtrGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ k < wpCapBack cp)
       (fun _ _ => 0) := by
   unfold writeBackPtrGenProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, k⟩, pSlot⟩
     obtain ⟨h2, h3⟩ := backPtr_realize_bounds h
@@ -435,8 +433,7 @@ theorem realizes_physSlotGen :
       PhysSlotPre
       (fun _ _ => 0) := by
   unfold physSlotGenProg
-  have hrb := realizes_readBackPtrGen
-  realize
+  realize [realizes_readBackPtrGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, loc⟩
     dsimp only at *
@@ -483,12 +480,11 @@ theorem physSlotGenProg_spec {c U V w n_max base b loc : ℕ} {fs : FastState}
       unfold totalLocalCoordsWhp at hloc; omega
     obtain ⟨hst, hres, hmc, hvp⟩ := readBackPtrGenProg_spec henv hb hk hrep (s := s)
     have hp := hbp_lt (Nat.not_lt.mp hcf)
-    refine ⟨?_, ?_, by omega, ?_, ?_⟩
-    · rw [clientState_bind, hst]; rfl
-    · rw [clientResult_bind, hst, hres]; rfl
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst, hmc]; exact le_rfl
-    · refine validProg_bind hvp ?_; rw [hst]; exact validProg_pure _
+    have hstep := CostBoundedStep.bind
+      (g := fun pSlot => pure (numBucketsWhp n_max * capFrontWhp n_max + pSlot))
+      ⟨hst, hres, hmc.le, hvp⟩ (.pure _ _)
+    exact ⟨hstep.clientState_eq, hstep.clientResult_eq, by omega, hstep.memoryCost_le,
+      hstep.validProg⟩
 
 /-- Compute `fs.rKeyAt c U n_max θ b loc` (`d = (((wp, base), b), loc)`). -/
 @[irreducible] def rKeyAtGenProg : ((WhpParams × ℕ) × ℕ) × ℕ → Memory.Prog ℕ
@@ -537,29 +533,22 @@ private theorem coordHashPrefix_spec {c U V w n_max base b loc : ℕ}
     (Memory.spec 0).clientResult s prog = res ∧
     memoryCost prog s ≤ C + 4 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
+  intro wp prog
   have hth := henv.2.2.2.1
-  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    simp [mkWhpParams, Nat.not_lt.mpr hth]
+  have hwp1 : mkWhpCoreParams c U V w n_max = wp.1 := by
+    simp [wp, mkWhpParams, Nat.not_lt.mpr hth]
   obtain ⟨hps_st, hps_res, hps_lt, hps_mc, hps_vp⟩ :=
     physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
   obtain ⟨hrq_st, hrq_res, hrq_mc, hrq_vp⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
   obtain ⟨hmh_st, hmh_res, hmh_mc, hmh_vp⟩ :=
     mkHashRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
   obtain ⟨hc_st, hc_res, hc_mc, hc_vp⟩ := hcont
-  dsimp only
-  rw [hwp1]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hps_st, hps_res, clientState_bind, hrq_st, hrq_res,
-      clientState_bind, hmh_st, hmh_res, hc_st]
-  · rw [clientResult_bind, hps_st, hps_res, clientResult_bind, hrq_st, hrq_res,
-      clientResult_bind, hmh_st, hmh_res, hc_res]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, hrq_mc, hmh_mc]
-    omega
-  · refine validProg_bind hps_vp ?_; rw [hps_st, hps_res]
-    refine validProg_bind hrq_vp ?_; rw [hrq_st, hrq_res]
-    refine validProg_bind hmh_vp ?_; rw [hmh_st, hmh_res]
-    exact hc_vp
+  rw [hwp1] at hps_st hps_res hps_mc hps_vp hrq_st hrq_res hrq_mc hrq_vp
+  have hstep : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s prog s res (C + 4) :=
+    .mono (.bind ⟨hps_st, hps_res, hps_mc, hps_vp⟩ <|
+      .bind ⟨hrq_st, hrq_res, hrq_mc.le, hrq_vp⟩ <|
+      .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ ⟨hc_st, hc_res, hc_mc, hc_vp⟩) (by omega)
+  exact ⟨hstep.clientState_eq, hstep.clientResult_eq, hstep.memoryCost_le, hstep.validProg⟩
 
 private theorem coordHashPre_goals {w base b loc : ℕ} {wp : WhpParams} {s : Memory.State}
     (h : CoordHashPre w (((wp, base), b), loc) s) :
@@ -574,8 +563,7 @@ private theorem coordHashPre_goals {w base b loc : ℕ} {wp : WhpParams} {s : Me
     (WhpLargeEnvGen w cp base ∧ p < wpNMax cp) ∧
     QuotHashRtEnv w hrt q s3 := by
   obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hloc, hbp⟩ := h
-  have hw_eq := henv.2.2.1
-  subst hw_eq
+  obtain rfl := henv.2.2.1
   have hth := henv.2.2.2.1
   have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]

@@ -262,10 +262,8 @@ private theorem blockT_run_true (n : ℕ) :
   induction n with
   | zero => rfl
   | succ n ih =>
-    rw [List.replicate_succ, Transducer.run_cons]
-    simp only [blockT, ite_true] at ih ⊢
-    rw [ih, show 2 * (n + 1) + 2 = (2 * n + 2) + 1 + 1 by ring]
-    rfl
+    simpa [List.replicate_succ, Transducer.run_cons, blockT, Nat.mul_succ] using
+      congrArg (false :: false :: ·) ih
 
 /-- `blockT` writes one level of the level marks. -/
 private theorem blockT_run (n : ℕ) :
@@ -273,11 +271,8 @@ private theorem blockT_run (n : ℕ) :
   cases n with
   | zero => rfl
   | succ n =>
-    rw [List.replicate_succ, Transducer.run_cons]
-    have := blockT_run_true n
-    simp only [blockT, Bool.false_eq_true, ite_false] at this ⊢
-    rw [this, show 2 * (n + 1) + 1 = (2 * n + 2) + 1 by ring]
-    rfl
+    simpa [List.replicate_succ, Transducer.run_cons, blockT, Nat.mul_succ] using
+      congrArg (true :: false :: ·) (blockT_run_true n)
 
 /-- The level marks have one mark per move. -/
 private theorem length_levelMarks (w i : ℕ) : (levelMarks w i).length = (2 * w + 2) * i := by
@@ -452,13 +447,8 @@ private theorem run_seek_levelMarks (d : Bool) :
     have hz' : z'.length = (2 * w + 2) * i := by simp at hz; omega
     have hlast : lastMidpoint w (i + 1) (m ++ x :: h :: z') d = (lastMidpoint w i z' d).or
         (if h = d then some (midpointMoves w (m ++ x :: h :: z')) else none) := by
-      have h1 : (m ++ x :: h :: z').drop (2 * w + 2) = z' := by
-        rw [List.drop_append, List.drop_eq_nil_of_le (by omega),
-          show 2 * w + 2 - m.length = 2 by omega]
-        rfl
-      have h2 : (m ++ x :: h :: z').getD (2 * w + 1) false = h := by
-        simp [List.getD_eq_getElem?_getD, hm]
-      simp only [lastMidpoint, h1, h2]
+      rw [lastMidpoint, List.drop_append, List.drop_eq_nil_of_le (by omega)]
+      simp [List.getD_eq_getElem?_getD, hm]
     have hrun : ∀ b e, levelMarks w (i + 1) ++ b = levelMarks w i ++
         (true :: List.replicate (2 * w + 1) false ++ b) ∧
         (m ++ x :: h :: z').reverse ++ e = z'.reverse ++ (h :: x :: m.reverse ++ e) :=

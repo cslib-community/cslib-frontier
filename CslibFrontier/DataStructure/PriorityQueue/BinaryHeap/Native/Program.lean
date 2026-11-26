@@ -72,9 +72,7 @@ private theorem argument_injective : Function.Injective argument := by
 
 private theorem bank_injective : Function.Injective bank := by
   intro i j h
-  have he := Backend.tmp_injective family (.inr 1) h
-  apply Fin.ext
-  exact congrArg (fun z : Fin (3 + Initialize.realizes_metadata.scratchSize + 1) => z.val) he
+  exact Fin.ext (Fin.mk.inj (Backend.tmp_injective family (.inr 1) h))
 
 private theorem bank_ne_argument (i : Fin 4) (j : Fin 6) : bank i ≠ argument j :=
   (Backend.src_ne_tmp family (.inl 2) (.inr 1) j _).symm
@@ -242,12 +240,9 @@ theorem clear_nodup :
 
 private theorem params_not_clear_aux (i : Fin 1) :
     code.initParams i ∉ [code.curReg, code.zeroReg, code.oneReg] := by
-  have hi : i = 0 := Subsingleton.elim _ _
-  subst i
-  change argument 0 ∉ [bank 0, bank 1, bank 2]
-  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-  exact ⟨(bank_ne_argument 0 0).symm, (bank_ne_argument 1 0).symm,
-    (bank_ne_argument 2 0).symm⟩
+  rcases Subsingleton.elim i 0 with rfl
+  simp only [code, Matrix.cons_val_zero, List.mem_cons, List.not_mem_nil, or_false, not_or]
+  exact ⟨(bank_ne_argument 0 0).symm, (bank_ne_argument 1 0).symm, (bank_ne_argument 2 0).symm⟩
 
 /-- Generic zero-fill retains the runtime dimension parameter. -/
 theorem params_not_clear (i : Fin 1) :
@@ -287,11 +282,9 @@ private theorem src_indexWords {n v : ℕ} {L : Memory.Layout n} {x : Data regis
       rw [indexWords, appendWords_castAdd]
       exact src_layoutWords hl t (f ∘ Fin.castAdd 1) (fun i => hf (i.castAdd 1)) i)
     (fun i => by
-      have hi : i = 0 := Subsingleton.elim _ _
-      subst hi
+      rcases Subsingleton.elim i 0 with rfl
       rw [indexWords, appendWords_natAdd]
-      exact (congrArg x.regs (method_src_eq_argument t (f (Fin.natAdd 4 0)) 4
-        (hf (Fin.natAdd 4 0)))).trans hv)
+      exact (congrArg x.regs (method_src_eq_argument t _ 4 (hf _))).trans hv)
 
 private theorem src_updateWords {n v k : ℕ} {L : Memory.Layout n} {x : Data registers}
     (hl : ∀ i : Fin 4, x.regs (argument (i.castAdd 2)) = layoutWords ⟨n, L⟩ i)
@@ -305,11 +298,9 @@ private theorem src_updateWords {n v k : ℕ} {L : Memory.Layout n} {x : Data re
       rw [updateWords, appendWords_castAdd]
       exact src_indexWords hl hv t (f ∘ Fin.castAdd 1) (fun j => hf (j.castAdd 1)) j)
     (fun i => by
-      have hi : i = 0 := Subsingleton.elim _ _
-      subst hi
+      rcases Subsingleton.elim i 0 with rfl
       rw [updateWords, appendWords_natAdd]
-      exact (congrArg x.regs (method_src_eq_argument t (f (Fin.natAdd (4 + 1) 0)) 5
-        (hf (Fin.natAdd (4 + 1) 0)))).trans hk)
+      exact (congrArg x.regs (method_src_eq_argument t _ 5 (hf _))).trans hk)
 
 /-- The existing PQ calling convention delivers the actual selected body's live words; layouts
 and operation payloads are runtime values in the same fixed bank. No prepare step is assumed. -/
@@ -475,39 +466,30 @@ private theorem metadataScratch_injective : Function.Injective metadataScratch :
   dsimp only [metadataScratch, bank] at he
   split_ifs at he
   all_goals first
-  | apply Fin.ext; omega
-  | have hh := Backend.tmp_injective family (.inr 1) he
-    have hv := congrArg (fun z => z.val) hh
-    dsimp only at hv
-    apply Fin.ext
-    omega
-  | have hh := argument_injective he
-    have hv := congrArg Fin.val hh
-    omega
-  | exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 1) (1 : Fin 6) _ he)
-  | exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 1) (2 : Fin 6) _ he)
-  | exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 1) (1 : Fin 6) _ he.symm)
-  | exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 1) (2 : Fin 6) _ he.symm)
+  | exact Fin.ext (by omega)
+  | exact Fin.ext (by
+      have hv := congrArg Fin.val (Backend.tmp_injective family (.inr 1) he)
+      dsimp only at hv; omega)
+  | exact absurd (congrArg Fin.val (argument_injective he)) (by omega)
+  | exact (Backend.src_ne_tmp family (.inl 2) (.inr 1) _ _ he).elim
+  | exact (Backend.src_ne_tmp family (.inl 2) (.inr 1) _ _ he.symm).elim
 
 private theorem metadataScratch_ne_argument
     (i : Fin (3 + Initialize.realizes_metadata.scratchSize + 1)) (j : Fin 6)
     (hj1 : j ≠ 1) (hj2 : j ≠ 2) : metadataScratch i ≠ argument j := by
   dsimp only [metadataScratch, bank]
   split_ifs
-  · exact (Backend.src_ne_tmp family (.inl 2) (.inr 1) j _).symm
-  · exact argument_injective.ne hj1.symm
-  · exact argument_injective.ne hj2.symm
-  · exact (Backend.src_ne_tmp family (.inl 2) (.inr 1) j _).symm
+  exacts [(Backend.src_ne_tmp family (.inl 2) (.inr 1) j _).symm,
+    argument_injective.ne hj1.symm, argument_injective.ne hj2.symm,
+    (Backend.src_ne_tmp family (.inl 2) (.inr 1) j _).symm]
 
 private theorem metadataScratch_ne_frontier
     (i : Fin (3 + Initialize.realizes_metadata.scratchSize + 1)) :
     metadataScratch i ≠ Backend.frontier family := by
   dsimp only [metadataScratch]
   split_ifs
-  · exact bank_ne_frontier 0
-  · exact argument_ne_frontier 1
-  · exact argument_ne_frontier 2
-  · exact Backend.tmp_ne_frontier family (.inr 1) _
+  exacts [bank_ne_frontier 0, argument_ne_frontier 1, argument_ne_frontier 2,
+    Backend.tmp_ne_frontier family (.inr 1) _]
 
 /-- Charged metadata setup on the actual native register ABI, preserving every memory cell.
 Only the count address/length and private scratch are written. -/
@@ -561,11 +543,8 @@ theorem initFresh_exec {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
   have hmem : y.mem = x.mem := hymem.trans hzmem
   have hf : y.regs code.frontierReg = base + PriorityQueue.BinaryHeap.space n :=
     hyfront.trans hzfront
-  have hi := Memory.inv_compactLayout (n := n) (base := base)
-    (s := memoryState code.frontierReg y) (by
-      change base + PriorityQueue.BinaryHeap.space n ≤ y.regs code.frontierReg
-      rw [hf])
-    (by intro a ha; change y.mem a = 0; rw [hmem]; exact hz a ha)
-  exact ⟨y, hzrun.seq hyrun, hybounded, hmem, hf, hyn, hybase, hysize, hylen, hi⟩
+  exact ⟨y, hzrun.seq hyrun, hybounded, hmem, hf, hyn, hybase, hysize, hylen,
+    Memory.inv_compactLayout (s := memoryState code.frontierReg y) hf.symm.le
+      fun a ha => (congrFun hmem a).trans (hz a ha)⟩
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Native.Program

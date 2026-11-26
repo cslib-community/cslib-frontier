@@ -132,24 +132,17 @@ theorem delMoveBufGenProg_fastStep {c U V w n_max base b loc_del st_last rKey_la
     memoryCost prog s ≤ 20 * cTabWhp c + 24 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ { fs with buf := buf2 } s s' := by
-  dsimp only
   unfold delMoveBufGenProg
   simp only [pure_bind]
   by_cases hs2 : st_last = 2
   · simp only [hs2, ↓reduceIte]
     obtain ⟨hna0, hia0, m0, hv0⟩ := h2 hs2
-    obtain ⟨hmc, hvp, hstep⟩ :=
-      bufInsertGenProg_fastStep henv (Or.inl rfl) hseed hrep hv0 hna0 hia0 hb hld
-        (rKey := rKey_last) (s := s)
-    exact ⟨hmc, hvp, hstep⟩
+    exact bufInsertGenProg_fastStep henv (Or.inl rfl) hseed hrep hv0 hna0 hia0 hb hld
   · simp only [hs2, ↓reduceIte]
     by_cases hs3 : st_last = 3
     · simp only [hs3, ↓reduceIte]
       obtain ⟨hna1, hia1, m1, hv1⟩ := h3 hs3
-      obtain ⟨hmc, hvp, hstep⟩ :=
-        bufInsertGenProg_fastStep henv (Or.inr rfl) hseed hrep hv1 hna1 hia1 hb hld
-          (rKey := rKey_last) (s := s)
-      exact ⟨hmc, hvp, hstep⟩
+      exact bufInsertGenProg_fastStep henv (Or.inr rfl) hseed hrep hv1 hna1 hia1 hb hld
     · simp only [hs3, ↓reduceIte]
       exact ⟨Nat.zero_le _, validProg_pure _, FastStateStep.refl hseed hrep⟩
 
@@ -482,7 +475,6 @@ theorem delMoveReadInfoGenProg_spec {c U V w n_max base b loc_last : ℕ}
       (readCandFpAtGenProg (((mkWhpParams c U V w n_max, base), b), loc_last)) s
       (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) (2 * hashEvalCostWhp c + 5) := by
     unfold readCandFpAtGenProg
-    dsimp only
     exact .mono (.bind ⟨hcs_st, hcs_res, hcs_mc.le, hcs_vp⟩
       ⟨hfp2_st, hfp2_res, hfp2_mc, hfp2_vp⟩) (by omega)
   have htot : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
@@ -493,7 +485,6 @@ theorem delMoveReadInfoGenProg_spec {c U V w n_max base b loc_last : ℕ}
          fs.fpAt c U n_max θ fs.rebCandSalt b loc_last)))
       (5 * hashEvalCostWhp c + 18) := by
     unfold delMoveReadInfoGenProg
-    dsimp only
     exact .mono (.bind hsr <| .bind hfl <| .bind hfc <| .pure _ _) (by omega)
   exact ⟨htot.clientState_eq, htot.clientResult_eq, htot.memoryCost_le, htot.validProg⟩
 

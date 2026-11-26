@@ -250,19 +250,13 @@ theorem noContagionProb_mono (h0 : ∀ j i, 0 ≤ G.contagion j i)
     (h1 : ∀ j i, G.contagion j i ≤ 1) (i : ι) :
     Monotone (G.noContagionProb i) := by
   intro s s' hss'
-  simp only [noContagionProb]
-  have hsub : (univ.erase i).filter (fun j => !s' j) ⊆ (univ.erase i).filter (fun j => !s j) := by
-    intro j hj
-    simp only [mem_filter] at hj ⊢
-    refine ⟨hj.1, ?_⟩
-    cases hsj : s j
-    · rfl
-    · have : true ≤ s' j := hsj ▸ hss' j
-      have hs'j : s' j = true := le_antisymm (Bool.le_true _) this
-      simp only [hs'j, Bool.not_true, Bool.false_eq_true, and_false] at hj
-  exact prod_le_prod_of_subset_of_le_one₀ hsub
-    (fun j _ => sub_nonneg.mpr (h1 j i))
-    (fun j _ _ => sub_le_self 1 (h0 j i))
+  refine prod_le_prod_of_subset_of_le_one₀ (fun j hj => ?_)
+    (fun j _ => sub_nonneg.mpr (h1 j i)) (fun j _ _ => sub_le_self 1 (h0 j i))
+  simp only [mem_filter, Bool.not_eq_true'] at hj ⊢
+  refine ⟨hj.1, Bool.eq_false_iff.mpr fun hs => ?_⟩
+  have hle := hss' j
+  rw [hs, hj.2] at hle
+  exact Bool.true_eq_false.mp (le_antisymm hle (Bool.false_le _))
 
 theorem criticalCost_mono (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀ i, 0 ≤ G.loss i)
     (h0 : ∀ j i, 0 ≤ G.contagion j i) (h1 : ∀ j i, G.contagion j i ≤ 1) (i : ι) :
@@ -289,13 +283,9 @@ theorem isPureNash_of_bestResponse_eq {s : ι → Bool} (hfp : G.bestResponse s 
     G.toCostGame.IsPureNash s := by
   rw [G.isPureNash_toCostGame_iff]
   intro i
-  have hi := congrFun hfp i
-  simp only [bestResponse] at hi
-  refine ⟨fun hT => ?_, fun hF => ?_⟩
-  · rw [hT, decide_eq_true_eq] at hi
-    exact hi
-  · rw [hF, decide_eq_false_iff_not] at hi
-    exact le_of_lt (lt_of_not_ge hi)
+  have hi : decide (G.investCost i ≤ G.criticalCost i s) = s i := congrFun hfp i
+  exact ⟨fun hT => of_decide_eq_true (hi.trans hT),
+    fun hF => le_of_not_ge (of_decide_eq_false (hi.trans hF))⟩
 
 omit [DecidableEq ι] in
 /-- Iterating any monotone map `f : (ι → Bool) → (ι → Bool)` from a profile `s₀` with `s₀ ≤ f s₀`
@@ -424,11 +414,7 @@ theorem IsCriticalCoalition.tipsAll (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀
   · ext i
     exact (Fintype.card_eq_zero_iff.mp hcard).elim i
   · unfold TipsAll
-    rw [hcard, Function.iterate_succ_apply, h1step]
-    clear hcard
-    induction k with
-    | zero => rfl
-    | succ k ih => rw [Function.iterate_succ_apply', ih, htop]
+    rw [hcard, Function.iterate_succ_apply, h1step, Function.IsFixedPt.iterate htop k]
 
 /-- **Self-enforcing persistence after tipping**: if a coalition `M` whose own members satisfy
 `investCost m ≤ directProb m * loss m` triggers a full cascade (`TipsAll M`), then `fun _ => true`
@@ -545,18 +531,15 @@ theorem isCriticalCoalition_of_higher_contagion {qExt : ι → ℝ}
         fun u hu => ?_, fun u hu => ?_, le_rfl⟩ <;>
         simp only [mem_sdiff, mem_insert, not_or] at hu ⊢ <;>
         exact ⟨hu.1.resolve_left hu.2.1, hu.2.2⟩
-  have hi_div : G.investCost i / (G.directProb i * G.loss i) ≤
-      G.noContagionProb i (fun u => decide (u ∈ M)) :=
-    calc G.investCost i / (G.directProb i * G.loss i)
-        ≤ G.investCost j / (G.directProb j * G.loss j) := hrel
-      _ ≤ G.noContagionProb j (fun u => decide (u ∈ M')) := by
-          rw [div_le_iff₀ (mul_pos (hp j) (hL j)), mul_comm]
-          simpa only [criticalCost] using hCrit j hjM'
-      _ ≤ G.noContagionProb i (fun u => decide (u ∈ M)) := by
-          rw [hprod_eq, hprod_eq]
-          exact hcompl _ _ hcardAB hA hB
   rw [criticalCost, mul_comm, ← div_le_iff₀ (mul_pos (hp i) (hL i))]
-  exact hi_div
+  calc G.investCost i / (G.directProb i * G.loss i)
+      ≤ G.investCost j / (G.directProb j * G.loss j) := hrel
+    _ ≤ G.noContagionProb j (fun u => decide (u ∈ M')) := by
+        rw [div_le_iff₀ (mul_pos (hp j) (hL j)), mul_comm]
+        simpa only [criticalCost] using hCrit j hjM'
+    _ ≤ G.noContagionProb i (fun u => decide (u ∈ M)) := by
+        rw [hprod_eq, hprod_eq]
+        exact hcompl _ _ hcardAB hA hB
 
 /-! ### Correlated equilibria and Roughgarden `(1, μ)`-smoothness / Price of Anarchy -/
 
@@ -948,12 +931,7 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
     simp only [G, InterdependentSecuritySpec.toCostGame, ↓reduceIte,
       InterdependentSecuritySpec.contagionProb_allTrue, mul_zero, add_zero, symmetricIDSSpec]
   have hcard_other : ∀ (i : Fin 2) (s : Fin 2 → Bool),
-      ((univ.erase i).filter (fun j => !s j)).card = if s (1 - i) then 0 else 1 := fun i s => by
-    have her0 : univ.erase (0 : Fin 2) = {1} := by decide
-    have her1 : univ.erase (1 : Fin 2) = {0} := by decide
-    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one, her0, her1, hsub0, hsub1, filter_singleton]
-    · cases s 1 <;> simp
-    · cases s 0 <;> simp
+      ((univ.erase i).filter (fun j => !s j)).card = if s (1 - i) then 0 else 1 := by decide
   have hcost_eval : ∀ (i : Fin 2) (s : Fin 2 → Bool),
       G.cost i s =
         if s i then c + (if s (1 - i) then 0 else p * q * L)

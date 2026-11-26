@@ -172,14 +172,12 @@ private theorem exists_pack_advance {n m : ℕ} (a b : BitString n → BitVec k)
     rintro _ ⟨i, rfl⟩
     induction i using Fin.addCases with
     | left i =>
-      left
-      simpa only [hf, pack, Fin.append_left, BitString.equivBitVec_symm_apply,
-        BitVec.getLsbD_eq_getElem, i.isLt] using ha' ⟨i, rfl⟩
+      exact Or.inl (by simpa only [hf, pack, Fin.append_left, BitString.equivBitVec_symm_apply,
+        BitVec.getLsbD_eq_getElem, i.isLt] using ha' ⟨i, rfl⟩)
     | right i =>
-      right
-      refine ⟨i, funext fun x => ?_⟩
-      simp only [hspec, hf, pack, Fin.append_right, BitString.equivBitVec_symm_apply,
-        BitVec.getLsbD_eq_getElem, i.isLt]
+      exact Or.inr ⟨i, funext fun x => by
+        simp only [hspec, hf, pack, Fin.append_right, BitString.equivBitVec_symm_apply,
+          BitVec.getLsbD_eq_getElem, i.isLt]⟩
   obtain ⟨out, ho, hsize⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
   exact ⟨out, ho, by simpa only [Nat.zero_add] using hsize⟩
 
@@ -386,11 +384,8 @@ theorem variable_time_counter_iff_remainder (m k : ℕ) :
     · induction i using Fin.addCases with
       | left j => exact ⟨Fin.natAdd (k + k) j, funext fun x => by simp [init]⟩
       | right i => exact ⟨Fin.castAdd m (Fin.castAdd k i), funext fun x => by simp [init]⟩
-    · have hm : (fun j : Fin m => init x (Fin.castAdd k j)) =
-          fun j => x (Fin.natAdd (k + k) j) := funext fun _ => by simp [init]
-      have hk : (fun i : Fin k => init x (Fin.natAdd m i)) =
-          fun i => x (Fin.castAdd m (Fin.castAdd k i)) := funext fun _ => by simp [init]
-      rw [hc (init x), inputTimeRemainder, ModulusCounter.remainder_word, hm, hk]
+    · simp only [hc (init x), inputTimeRemainder, ModulusCounter.remainder_word, init,
+        Fin.append_left, Fin.append_right]
       rfl
     · rw [inputTimeIterate, counterStep, ModulusCounter.iterate_power]
       rfl

@@ -309,28 +309,25 @@ private theorem dcSorted_step {n : Nat} {t : Fin (n + 1) → Int} (ht : Monotone
   unfold dcSorted
   by_cases h0 : countLe t r = 0
   · simp only [h0, ↓reduceDIte]
-    have hr0 : r < t 0 := by
-      have := (lt_countLe_iff ht r 0).not.1 (by rw [h0]; omega)
-      omega
-    have hm := matchCost_update_add_le t o hr 0 fun a => by
-      have := ht (Fin.zero_le a); omega
+    have hr0 : r < t 0 := lt_of_not_ge ((lt_countLe_iff ht r 0).not.1 (by simp [h0]))
+    have hm : (matchCost NatMetric.line (Function.update t 0 r) o : Int) +
+        ((t 0 - r).natAbs : Int) ≤ matchCost NatMetric.line t o :=
+      mod_cast matchCost_update_add_le t o hr 0 fun a => by
+        have := ht (Fin.zero_le a)
+        omega
     rw [moveCost_update, NatMetric.line_dist, spread_update_zero ht hr0.le]
-    have hδ : ((t 0 - r).natAbs : Int) = t 0 - r := by omega
-    have hm' : (matchCost NatMetric.line (Function.update t 0 r) o : Int) + (t 0 - r) ≤
-        matchCost NatMetric.line t o := by rw [← hδ]; exact_mod_cast hm
-    rw [hδ]
+    rw [Int.natCast_natAbs, abs_of_pos (sub_pos.mpr hr0)] at hm ⊢
     nlinarith
   by_cases h1 : countLe t r = n + 1
   · simp only [h1, Nat.add_one_ne_zero, ↓reduceDIte]
-    have hrl : t (Fin.last n) ≤ r := (lt_countLe_iff ht r (Fin.last n)).1 (by
-      rw [h1, Fin.val_last]; omega)
-    have hm := matchCost_update_add_le t o hr (Fin.last n) fun a => by
-      have := ht (Fin.le_last a); omega
+    have hrl : t (Fin.last n) ≤ r := (lt_countLe_iff ht r (Fin.last n)).1 (by simp [h1])
+    have hm : (matchCost NatMetric.line (Function.update t (Fin.last n) r) o : Int) +
+        ((t (Fin.last n) - r).natAbs : Int) ≤ matchCost NatMetric.line t o :=
+      mod_cast matchCost_update_add_le t o hr (Fin.last n) fun a => by
+        have := ht (Fin.le_last a)
+        omega
     rw [moveCost_update, NatMetric.line_dist, spread_update_last ht hrl]
-    have hδ : ((t (Fin.last n) - r).natAbs : Int) = r - t (Fin.last n) := by omega
-    have hm' : (matchCost NatMetric.line (Function.update t (Fin.last n) r) o : Int) +
-        (r - t (Fin.last n)) ≤ matchCost NatMetric.line t o := by rw [← hδ]; exact_mod_cast hm
-    rw [hδ]
+    rw [Int.natCast_natAbs, abs_of_nonpos (sub_nonpos.mpr hrl), neg_sub] at hm ⊢
     nlinarith
   simp only [h0, h1, ↓reduceDIte]
   have hc := countLe_le t r
@@ -352,10 +349,8 @@ private theorem dcSorted_step {n : Nat} {t : Fin (n + 1) → Int} (ht : Monotone
     spread_update_mid ht hab hd0 (by omega)]
   have h1' : |t a - (t a + d)| = d := by rw [abs_of_nonpos (by omega)]; ring
   have h2' : |t b - (t b - d)| = d := by rw [abs_of_nonneg (by omega)]; ring
-  simp only [Nat.cast_add, Int.natCast_natAbs]
-  rw [h1', h2']
-  have hm' := (Nat.cast_le (α := Int)).2 hm
-  nlinarith
+  simp only [Nat.cast_add, Int.natCast_natAbs, h1', h2']
+  nlinarith [(Nat.cast_le (α := Int)).2 hm]
 
 /-- Double Coverage on a sorted configuration serves the request. -/
 theorem exists_dcSorted_eq {n : Nat} (t : Fin (n + 1) → Int) (r : Int) :
@@ -434,11 +429,9 @@ theorem dcStep_amortized_offline {n : Nat} (s o o' : Fin (n + 1) → Int) {r : I
       2 * (n + 1) * moveCost NatMetric.line o o' +
         (2 * (n + 1) * matchCost NatMetric.line s o + pairSum NatMetric.line s) := by
   have h1 := dcStep_amortized s o' hr
-  have h2 := matchCost_le_add_moveCost NatMetric.line s o o'
-  generalize 2 * (n + 1) = K at h1 ⊢
-  have h3 := Nat.mul_le_mul_left K h2
-  rw [Nat.mul_add] at h3
-  omega
+  have h3 := Nat.mul_le_mul_left (2 * (n + 1)) (matchCost_le_add_moveCost NatMetric.line s o o')
+  generalize 2 * (n + 1) = K at h1 h3 ⊢
+  nlinarith
 
 /-! ### The strategy and its competitive ratio -/
 
