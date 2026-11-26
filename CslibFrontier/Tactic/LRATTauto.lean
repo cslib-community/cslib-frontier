@@ -53,6 +53,12 @@ step is the same, on a larger formula.
   numbered from `0` in order of first occurrence, left to right, in the goal and then in the
   premises, and two atoms are the same when they are definitionally equal at reducible
   transparency.
+* An equation is the same atom as its swap: `b = a` is read as the atom `a = b` when that atom
+  occurs first, and `HEq b a` as `HEq a b`. The orientation of the atom is the one in which it
+  first occurs, so `h : b = a` fixes the atom `a = b` of the goal, and `a ≠ b` and `b ≠ a` are the
+  negations of one atom. The valuation sends the atom to its first orientation, and the proof
+  rewrites each swapped occurrence by `eq_comm` (`HEq.comm`), so the theorem proved is the goal as
+  written. No other theory of equality is used: `a = b → b = c → a = c` is not proved.
 
 ## Hypotheses and leaves
 
@@ -185,10 +191,11 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
   five pigeons in four holes, with twenty irrelevant hypotheses of three connectives each in the
   context, the tactic took about 1.6 seconds against 1.4 without them, the kernel time being the
   same, and about 2.1 seconds when every hypothesis was kept.
-* Atoms are compared at reducible transparency only, and equations are not oriented:
-  `h : b = a` does not prove the atom `a = b`, and `a ≠ b → b = c → a ≠ c` is not proved, since
-  its atoms are independent. A hypothesis whose type is only definitionally equal to a formula at
-  a higher transparency is an atom.
+* Atoms are compared at reducible transparency only, and equations are identified only with their
+  swaps: `a ≠ b → b = c → a ≠ c` is not proved, since its atoms `a = b`, `b = c` and `a = c` are
+  independent, and neither are facts such as `0 ≠ 1` or `x ∉ []`, which `tauto` gets from
+  `contradiction`. A hypothesis whose type is only definitionally equal to a formula at a higher
+  transparency is an atom.
 -/
 
 public section
@@ -206,7 +213,8 @@ the goal does not follow propositionally from the hypotheses, the error shows an
 atoms, read as independent propositions, under which it is false and they are true. The kernel
 checks the certificate by evaluating `Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over
 non-propositions, such as `∀ p q : Prop`, are introduced first. `a ≠ b` is read as `¬a = b`. The
-atoms are the maximal subterms that are not connectives, compared at reducible transparency.
+atoms are the maximal subterms that are not connectives, compared at reducible transparency, and
+an equation `b = a` is the same atom as `a = b`.
 
 Without `using`, the propositional hypotheses of the context are premises, then the terms of
 `lrat_tauto [t₁, …, tₙ]`, proofs of propositions that must elaborate without metavariables, with
@@ -241,6 +249,9 @@ open Std.Tactic.BVDecide (LRAT.IntAction LRAT.Action)
 read from. -/
 private inductive Shape where
   | atom (i : ℕ) (e : Expr)
+  /-- The atom `i`, an equation `a = b` or `HEq a b`, read from the swapped `e`: `b = a` or
+  `HEq b a`. -/
+  | swapped (i : ℕ) (e : Expr)
   | falsum
   | verum
   | and (a b : Shape)
@@ -252,8 +263,36 @@ private inductive Shape where
 /-- `partial` definitions returning formulas need a default one. -/
 private instance : Inhabited Shape := ⟨.falsum⟩
 
+/-- The equation `e` with its sides swapped, `b = a` for `a = b` and `HEq b a` for `HEq a b`;
+`none` if `e` is neither. -/
+private def swapEq? (e : Expr) : Option Expr :=
+  match e.getAppFnArgs with
+  | (``Eq, #[α, a, b]) => some (mkApp3 e.getAppFn α b a)
+  | (``HEq, #[α, a, β, b]) => some (mkApp4 e.getAppFn β b α a)
+  | _ => none
+
+/-- The index of the atom already read that `e` is definitionally equal to at the transparency of
+`AtomM`, if any. -/
+private def findAtom? (e : Expr) : AtomM (Option ℕ) := do
+  let c ← get
+  for h : i in [:c.atoms.size] do
+    if ← withTransparency (← read).red <| isDefEqSafe e c.atoms[i] then
+      return some i
+  return none
+
+/-- Reads an atom. An equation `b = a` or `HEq b a` that is not an atom already read, but whose
+swap `a = b` or `HEq a b` is, is read as that atom (`Shape.swapped`); so the orientation of an
+atom is the one in which it occurs first. -/
+private def reifyAtom (e : Expr) : AtomM Shape := do
+  if let some i ← findAtom? e then return .atom i e
+  if let some e' := swapEq? e then
+    if let some i ← findAtom? e' then return .swapped i e
+  let i ← modifyGet fun c => (c.atoms.size, { c with atoms := c.atoms.push e })
+  return .atom i e
+
 /-- Reads a proposition as a formula over its atoms. `a ≠ b` is read as `¬a = b`, which it
-unfolds to at reducible transparency, and a β-redex `(fun x => P x) a` as `P a`. -/
+unfolds to at reducible transparency, and a β-redex `(fun x => P x) a` as `P a`. An equation is
+the same atom as its swap (`reifyAtom`). -/
 private partial def reify (e : Expr) : AtomM Shape := do
   let e := e.consumeMData.headBeta
   match e.getAppFnArgs with
@@ -269,11 +308,11 @@ private partial def reify (e : Expr) : AtomM Shape := do
     if let .forallE _ a b _ := e then
       if !b.hasLooseBVars && (← isProp a) then
         return .imp (← reify a) (← reify b)
-    return .atom (← AtomM.addAtom e).1 e
+    reifyAtom e
 
 /-- The formula as a `Proposition` over `Fin n`, with the encodings of `¬`, `True` and `↔`. -/
 private def Shape.toProposition (n : ℕ) : Shape → Proposition (Fin n)
-  | .atom i _ => if h : i < n then .atom ⟨i, h⟩ else .falsum
+  | .atom i _ | .swapped i _ => if h : i < n then .atom ⟨i, h⟩ else .falsum
   | .falsum => .falsum
   | .verum => .imp .falsum .falsum
   | .and a b => .and (a.toProposition n) (b.toProposition n)
@@ -297,10 +336,18 @@ private def propositionToExpr {n : ℕ} : Proposition (Fin n) → Expr
     (propositionToExpr a) (propositionToExpr b)
 
 /-- For a formula, the proposition `X` that its encoding evaluates to, definitionally, under the
-valuation sending each atom to the expression it was read from; the proposition `P` it was read
-from; and a proof of `X ↔ P`. -/
+valuation sending each atom to the expression it was first read from; the proposition `P` it was
+read from; and a proof of `X ↔ P`. An atom read from its swap `b = a` has `X` the equation `a = b`
+and the proof `eq_comm` (`HEq.comm` for `HEq b a`). -/
 private partial def Shape.iffGoal : Shape → MetaM (Expr × Expr × Expr)
   | .atom _ e => return (e, e, mkApp (mkConst ``Iff.refl) e)
+  | .swapped _ e => do
+    let some x := swapEq? e | throwError "lrat_tauto: {e} is not an equation"
+    let pf ← match e.getAppFnArgs with
+      | (``Eq, #[α, b, a]) => mkAppOptM ``eq_comm #[α, a, b]
+      | (``HEq, #[β, b, α, a]) => mkAppOptM ``HEq.comm #[α, β, a, b]
+      | _ => throwError "lrat_tauto: {e} is not an equation"
+    return (x, e, pf)
   | .falsum =>
     return (mkConst ``False, mkConst ``False, mkApp (mkConst ``Iff.refl) (mkConst ``False))
   | .verum => do
