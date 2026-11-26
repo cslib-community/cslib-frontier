@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.BTree.Comparisons.BinarySearch
+public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.KeyOracle
 
 /-!
 # B-trees under a key function
@@ -25,6 +26,8 @@ This lets a lookup be evaluated under an oracle that compares keys through a key
 
 * `BTree.toList_mapKeys`: mapping keys maps the entries.
 * `BTree.lookupM_mapKeys`, `BTree.lookupBinM_mapKeys`: lookup commutes with `mapKeys`.
+* `BTree.eval_lookupQ_keyOracle`, `BTree.eval_lookupBinQ_keyOracle`: the query programs, evaluated
+  at the comparison oracle of a key function, are the pure lookups in the tree with mapped keys.
 -/
 
 public section
@@ -169,5 +172,31 @@ theorem lookupBinM_mapKeys (le : α' → α' → m Bool) (visit : m Unit) (g : �
         · simp
         · simpa [hci] using ih c (List.mem_of_getElem? hci)
       · rfl
+
+section Oracle
+
+open Cslib.Query
+
+variable {W : Type} [LinearOrder W]
+
+/-- Under the comparison oracle of a key function, `lookupQ` evaluates to the pure `lookup` of the
+mapped key in the tree with mapped keys. -/
+theorem eval_lookupQ_keyOracle (key : α → W) (k : α) (tr : BTree α β) :
+    (lookupQ k tr).eval (LEQuery.keyOracle key) = lookup (key k) (tr.mapKeys key) := by
+  have h := Id.ext_iff.1
+    ((FreeM.isMonadHom_pure_eval (LEQuery.keyOracle key)).map_lookupM LEQuery.ask (pure ()) k tr)
+  rw [lookup_def, lookupM_mapKeys]
+  simpa [lookupQ_def, Cslib.SortedAssoc.leI] using h
+
+/-- Under the comparison oracle of a key function, `lookupBinQ` evaluates to the pure `lookupBin`
+of the mapped key in the tree with mapped keys. -/
+theorem eval_lookupBinQ_keyOracle (key : α → W) (k : α) (tr : BTree α β) :
+    (lookupBinQ k tr).eval (LEQuery.keyOracle key) = lookupBin (key k) (tr.mapKeys key) := by
+  have h := Id.ext_iff.1
+    ((FreeM.isMonadHom_pure_eval (LEQuery.keyOracle key)).map_lookupBinM LEQuery.ask (pure ()) k tr)
+  rw [lookupBin_def, lookupBinM_mapKeys]
+  simpa [lookupBinQ_def, Cslib.SortedAssoc.leI] using h
+
+end Oracle
 
 end Cslib.DataStructure.BTree
