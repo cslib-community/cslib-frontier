@@ -86,9 +86,9 @@ theorem markov_bad_samples
   -- proof, for the pinned Mathlib's `haveI` style linter and deprecation.
   have hμ_prob : IsProbabilityMeasure μ := Measure.pi.instIsProbabilityMeasure _
   have hd_pos : 0 < d := by rw [hd_def, hW'_def, card_erase_of_mem hw₀]; omega
-  have hd_one : (1 : ℝ) ≤ (d : ℝ) := by exact_mod_cast hd_pos
   have hp_nonneg : (0 : ℝ) ≤ 8 * ε' / d := by positivity
-  have hp_le_one : 8 * ε' / d ≤ 1 := (div_le_one (Nat.cast_pos.mpr hd_pos)).mpr (by linarith)
+  have hp_le_one : 8 * ε' / d ≤ 1 :=
+    (div_le_one (Nat.cast_pos.mpr hd_pos)).mpr (by linarith [(Nat.one_le_cast (α := ℝ)).mpr hd_pos])
   have hf_meas : Measurable (fun xs : Fin m → α => ((seenElements W' xs).card : ℝ≥0∞)) :=
     measurable_seenElements_card W'
   set good : Set (Fin m → α) := {xs | (seenElements W' xs).card ≤ d / 2}
@@ -193,8 +193,7 @@ theorem ehkv_sum_lower_bound
     have hσ_mem : ∀ S ∈ W'.powerset, σ S ∈ W'.powerset := by
       intro S hS; rw [Finset.mem_powerset] at hS ⊢
       exact union_subset (inter_subset_left.trans hS) (sdiff_subset.trans sdiff_subset)
-    have hσ_agree_T : ∀ S, σ S ∩ T = S ∩ T := by
-      intro S; ext x
+    have hσ_agree_T (S : Finset α) : σ S ∩ T = S ∩ T := Finset.ext fun x => by
       simp only [σ, U, Finset.mem_inter, Finset.mem_union, Finset.mem_sdiff]; tauto
     have hpairing : ∀ S ∈ W'.powerset,
         xs ∈ fail (concepts S) ∨ xs ∈ fail (concepts (σ S)) := by
@@ -220,18 +219,13 @@ theorem ehkv_sum_lower_bound
           (hmem_iff hσS_mem).trans (by
             simp only [σ, U, Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff] at *; tauto)
         -- Place w in the appropriate symmDiff based on its h₀_local membership.
-        have hplace : ∀ {A B : Set α}, w ∈ A → w ∉ B →
-            w ∈ symmDiff h₀_local A ∨ w ∈ symmDiff h₀_local B := by
-          intro A B hwA hwB
-          by_cases hwh : w ∈ h₀_local
-          · exact Or.inr (Set.mem_symmDiff.mpr (Or.inl ⟨hwh, hwB⟩))
-          · exact Or.inl (Set.mem_symmDiff.mpr (Or.inr ⟨hwA, hwh⟩))
-        by_cases hwS : w ∈ S
-        · exact hplace ((hmem_iff hS).mpr hwS) (hσ_iff.not.mpr (not_not.mpr hwS))
-        · exact (hplace (hσ_iff.mpr hwS) (mt (hmem_iff hS).mp hwS)).symm
+        by_cases hwh : w ∈ h₀_local <;> by_cases hwS : w ∈ S <;>
+          simp only [Set.mem_union, Set.mem_symmDiff, hmem_iff hS, hσ_iff, hwh, hwS,
+            not_true_eq_false, not_false_eq_true, and_self, and_false, false_and, or_self,
+            or_true, true_or]
       have h2U : d ≤ 2 * U.card := by
-        have hTeq : U.card = d - T.card := card_sdiff_of_subset (filter_subset _ _)
-        have hTle : T.card ≤ d / 2 := hxs_bad
+        have : U.card = d - T.card := card_sdiff_of_subset (filter_subset _ _)
+        have : T.card ≤ d / 2 := hxs_bad
         omega
       have hP_U : ENNReal.ofReal (4 * ε') ≤ P (↑U) :=
         unseen_measure_ge hε'_pos (by omega) h2U
@@ -329,9 +323,8 @@ theorem exists_bad_concept_marginal
     fun w hw => adversarialMeasure_singleton hw
   have hP_supp : P (↑W : Set α)ᶜ = 0 := adversarialMeasure_support hw₀
   have hm_real : (m : ℝ) < (W'.card : ℝ) / (32 * ε') := by
-    have hW'_eq : (W'.card : ℝ) = (W.card : ℝ) - 1 := by
-      rw [hW'_def, card_erase_of_mem hw₀, Nat.cast_sub (by omega), Nat.cast_one]
-    rw [← hW'_eq, ← ENNReal.ofReal_natCast] at hm
+    rw [← ENNReal.ofReal_natCast, ← Nat.cast_one, ← Nat.cast_sub (Nat.one_le_of_lt hW_card),
+      ← card_erase_of_mem hw₀] at hm
     exact (ENNReal.ofReal_lt_ofReal_iff (by positivity)).mp hm
   -- vendored: `haveI` becomes `have` (the pinned Mathlib's `haveI` style linter).
   have := hP_prob
@@ -345,10 +338,10 @@ theorem exists_bad_concept_marginal
   set concepts : Finset α → Set α :=
     fun S => if h : S ∈ W'.powerset then cMap S h else ∅
   -- vendored: `dif_pos` is deprecated in the pinned core; `dite_eq_left`.
-  have hconcepts_eq : ∀ S ∈ W'.powerset, concepts S ∩ ↑W = {w₀} ∪ ↑S := by
-    intro S hS; simp only [concepts, dite_eq_left hS]; exact hcMap_eq S hS
-  have hconcepts_mem : ∀ S ∈ W'.powerset, concepts S ∈ C_set := by
-    intro S hS; simp only [concepts, dite_eq_left hS]; exact hcMap_mem S hS
+  have hconcepts_eq (S) (hS : S ∈ W'.powerset) : concepts S ∩ ↑W = {w₀} ∪ ↑S := by
+    simpa only [concepts, dite_eq_left hS] using hcMap_eq S hS
+  have hconcepts_mem (S) (hS : S ∈ W'.powerset) : concepts S ∈ C_set := by
+    simpa only [concepts, dite_eq_left hS] using hcMap_mem S hS
   set B := {xs : Fin m → α | (seenElements W' xs).card ≤ d / 2}
   have hB_prob : ENNReal.ofReal (1 / 2) < μ B :=
     markov_bad_samples hw₀ hW_card hε'_pos hε'_le hm_real P hP_w

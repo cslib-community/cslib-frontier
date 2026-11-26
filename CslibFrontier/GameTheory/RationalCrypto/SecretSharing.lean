@@ -785,19 +785,17 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
     intro m' hm'
     split_ifs with hm1
     · nlinarith [R.prefs.uMinus_lt_uPlus, hq_pos ⟨m', hm'⟩]
-    · have hT_lt : T - 1 < T := Nat.sub_lt (by omega) zero_lt_one
-      have hm_eq : ⟨m', hm'⟩ = (⟨T - 1, hT_lt⟩ : Fin T) := Fin.ext (by dsimp; omega)
-      rw [hm_eq, hq_last (by omega)]
+    · have hT0 : 0 < T := by omega
+      have hm_eq : ⟨m', hm'⟩ = (⟨T - 1, Nat.sub_lt hT0 zero_lt_one⟩ : Fin T) :=
+        Fin.ext (by dsimp; omega)
+      rw [hm_eq, hq_last hT0]
       linarith [R.prefs.uAll_lt_uPlus]
   refine ⟨fun i => ⟨fun s hs => ?_, ?_⟩, fun i r hr => ?_⟩
   · -- Part 1a: `m` is at least as good as `m + 1` against all `s ∈ Rset`.
-    set s₀ := Function.update s i mFin
-    set s₁ := Function.update s i mSuccFin
-    have hbefore : ∀ c < m, roundActive s₀ c = roundActive s₁ c := fun c hc =>
-      roundActive_congr_lt fun j => by
-        rcases eq_or_ne j i with rfl | hne
-        · simp only [s₀, s₁, Function.update_self, mFin, mSuccFin]; omega
-        · simp [s₀, s₁, Function.update_of_ne hne]
+    have hbefore : ∀ c < m,
+        roundActive (Function.update s i mFin) c = roundActive (Function.update s i mSuccFin) c :=
+      fun c hc => (roundActive_update_of_lt s i hc).trans
+        (roundActive_update_of_lt s i (Nat.lt_succ_of_lt hc)).symm
     rcases rampPayoffFrom_eq_or_reach R q i hbefore with heq | ⟨_, he0, he1⟩
     · exact heq.ge
     · dsimp only [gradualReleaseGame]
@@ -892,8 +890,7 @@ reconstruction game (`2 ≤ t ≤ n`), `R.uniformRampGame T` satisfies
 theorem hasBackwardInductionDominance_uniformRampGame (R : ReconstructionGame ι) (T : ℕ) :
     (R.uniformRampGame T).HasBackwardInductionDominance := by
   rcases Nat.eq_zero_or_pos T with rfl | hT
-  · intro m hm
-    exact absurd hm (Nat.not_lt_zero m)
+  · exact fun _ hm => absurd hm (Nat.not_lt_zero _)
   · refine R.hasBackwardInductionDominance_gradualReleaseGame (fun _ => by positivity)
       (fun a b hab => div_lt_div_of_pos_right (add_lt_add_left (Nat.cast_lt.mpr hab) 1)
         (Nat.cast_pos.mpr hT)) fun _ => ?_
@@ -1002,13 +999,9 @@ private theorem geometricStageGame_update_false_le (p : ℝ) (hp0 : 0 ≤ p) (i 
       p * R.prefs.uPlus + (1 - p) * R.prefs.uMinus := by
   have hnot_all : ¬ ∀ j, Function.update (fun _ : ι => true) i false j = true :=
     fun h => Bool.false_ne_true (by simpa using h i)
-  rw [geometricStageGame_payoff]
-  split_ifs
-  have hle : R.prefs.outcomeUtility
-      (R.learnedSet (broadcastSet (Function.update (fun _ : ι => true) i false))) i ≤
-      R.prefs.uPlus :=
-    R.prefs.outcomeUtility_le_uPlus _ i
-  nlinarith
+  rw [geometricStageGame_payoff, ite_eq_right hnot_all]
+  nlinarith [R.prefs.outcomeUtility_le_uPlus
+    (R.learnedSet (broadcastSet (Function.update (fun _ : ι => true) i false))) i]
 
 /-- For `0 ≤ p ≤ criticalStoppingProb`, honest simultaneous broadcast (`fun _ => true`) is a
 **pure Nash equilibrium** of `R.geometricStageGame p` for every `(t, n)` reconstruction game
@@ -1064,16 +1057,14 @@ theorem broadcast_weaklyDominates_withhold_geometricStageGame {p : ℝ} (hp0 : 0
   refine ⟨fun s _ => ?_, ⟨fun _ => true, fun _ => Set.mem_univ _, ?_⟩⟩
   · by_cases hall : ∀ j ≠ i, s j = true
     · have hall_true : ∀ j, Function.update s i true j = true := fun j => by
-        rcases eq_or_ne j i with rfl | hne
-        · simp
-        · simp [Function.update_of_ne hne, hall j hne]
+        by_cases h : j = i <;> simp [h, hall]
       have hnot_all : ¬ ∀ j, Function.update s i false j = true :=
         fun h => Bool.false_ne_true (by simpa using h i)
-      dsimp only [geometricStageGame]
-      split_ifs
-      have hle := R.prefs.outcomeUtility_le_uPlus
-        (R.learnedSet (broadcastSet (Function.update s i false))) i
-      nlinarith [R.prefs.temptation_lt_uAll_iff.mpr hp]
+      rw [geometricStageGame_payoff, geometricStageGame_payoff, ite_eq_left hall_true,
+        ite_eq_right hnot_all]
+      nlinarith [R.prefs.outcomeUtility_le_uPlus
+        (R.learnedSet (broadcastSet (Function.update s i false))) i,
+        R.prefs.temptation_lt_uAll_iff.mpr hp]
     · push Not at hall
       obtain ⟨j, hji, hjf⟩ := hall
       have hj_false : s j = false := Bool.eq_false_iff.mpr hjf
@@ -1499,22 +1490,19 @@ private theorem outcomeUtility_learnedFromVec_le_coalition {C : Finset ι} {h₀
       proto.prefs.outcomeUtility (proto.learnedFromCoalition C b) i := by
   let B := ReconstructionGame.broadcastSet b
   by_cases hB : proto.scheme.access.authorized B
-  · have hLv : proto.learnedFromVec b = Finset.univ := by
-      ext m
-      simp only [mem_learnedFromVec_iff, Finset.mem_univ, iff_true]
-      exact proto.scheme.access.mono (Finset.subset_insert m B) hB
-    have hLc : proto.learnedFromCoalition C b = Finset.univ := by
-      ext m
-      simp only [mem_learnedFromCoalition_iff, Finset.mem_univ, iff_true]
-      split_ifs
-      · exact proto.scheme.access.mono Finset.subset_union_right hB
-      · exact proto.scheme.access.mono (Finset.subset_insert m B) hB
+  · have hLv : proto.learnedFromVec b = Finset.univ := Finset.eq_univ_iff_forall.mpr fun m =>
+      (mem_learnedFromVec_iff ..).mpr (proto.scheme.access.mono (Finset.subset_insert m B) hB)
+    have hLc : proto.learnedFromCoalition C b = Finset.univ := Finset.eq_univ_iff_forall.mpr
+      fun m => (mem_learnedFromCoalition_iff ..).mpr <| by
+        split_ifs
+        exacts [proto.scheme.access.mono Finset.subset_union_right hB,
+          proto.scheme.access.mono (Finset.subset_insert m B) hB]
     rw [hLv, hLc]
-  · have hh₀_not : h₀ ∉ proto.learnedFromCoalition C b := by
-      simp only [mem_learnedFromCoalition_iff, hh₀C, ↓reduceIte, Finset.insert_eq_of_mem hh₀B]
-      exact hB
-    have hne_univ : proto.learnedFromCoalition C b ≠ Finset.univ :=
-      fun h => hh₀_not (h ▸ Finset.mem_univ h₀)
+  · have hne_univ : proto.learnedFromCoalition C b ≠ Finset.univ := fun h => by
+      have hh₀ : h₀ ∈ proto.learnedFromCoalition C b := h.symm ▸ Finset.mem_univ h₀
+      exact hB <| by
+        simpa only [mem_learnedFromCoalition_iff, hh₀C, ↓reduceIte,
+          Finset.insert_eq_of_mem hh₀B] using hh₀
     by_cases hiV : i ∈ proto.learnedFromVec b
     · have hiC' : i ∈ proto.learnedFromCoalition C b := by
         rw [mem_learnedFromVec_iff] at hiV
@@ -1617,11 +1605,9 @@ utility using any joint `CoalitionStrategy C` with pooled reconstruction
 
 omit [Fintype ι] [DecidableEq ι] in
 private theorem continueProb_bounds (d : PMF (ι → Bool)) :
-    0 ≤ 1 - (d (fun _ => true)).toReal ∧ 1 - (d (fun _ => true)).toReal ≤ 1 := by
-  have h0 : 0 ≤ (d (fun _ => true)).toReal := ENNReal.toReal_nonneg
-  have h1 : (d (fun _ => true)).toReal ≤ 1 :=
-    ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ _)
-  exact ⟨by linarith, by linarith⟩
+    0 ≤ 1 - (d (fun _ => true)).toReal ∧ 1 - (d (fun _ => true)).toReal ≤ 1 :=
+  ⟨sub_nonneg.mpr (ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ _)),
+    sub_le_self 1 ENNReal.toReal_nonneg⟩
 
 /-- Under `honestProfile`, every player achieves exact expected utility `uAll`. -/
 @[simp]
@@ -1633,9 +1619,7 @@ theorem payoff_honestProfile (i : ι) :
   have hcont (r) : 1 - proto.roundContinueProb honestProfile r = 0 := by
     simp [roundContinueProb, hdist]
   have hgen (r) : proto.genuineStagePayoff honestProfile r i = proto.prefs.uAll := by
-    rw [genuineStagePayoff, hdist, Fintype.sum_eq_single (fun _ : ι => true)
-      fun b hbne => by simp [PMF.pure_apply, hbne]]
-    simp
+    simp [genuineStagePayoff, hdist, PMF.pure_apply, apply_ite ENNReal.toReal]
   rw [toPayoffGame_payoff]
   simp only [hcont, hgen, mul_zero, zero_mul, add_zero]
   simpa only [geometricExpectedUtility, sub_zero, one_mul, zero_mul, add_zero] using
@@ -1706,14 +1690,11 @@ private theorem summable_evalHorizon (dGen dDum : ℕ → PMF (ι → Bool))
   have h1 : |proto.stopProb *
       ∑ b : ι → Bool, (dGen r b).toReal * proto.prefs.outcomeUtility (L b) i| ≤ B := by
     rw [abs_mul, abs_of_pos hp0]
-    exact (mul_le_mul_of_nonneg_right hp1 (abs_nonneg _)).trans
-      (by rw [one_mul]; exact hgen_abs r)
+    exact (mul_le_of_le_one_left (abs_nonneg _) hp1).trans (hgen_abs r)
   have h2 : |(1 - proto.stopProb) * q r * proto.prefs.uMinus| ≤ B := by
-    have hqr0 := hq0 r
-    have hqr1 := hq1 r
-    rw [abs_mul, abs_mul, abs_of_nonneg (by linarith), abs_of_nonneg hqr0]
-    have hc : (1 - proto.stopProb) * q r ≤ 1 := by nlinarith
-    exact (mul_le_mul_of_nonneg_right hc (abs_nonneg _)).trans (by rw [one_mul]; exact hM_le_B)
+    rw [abs_mul, abs_mul, abs_of_nonneg (sub_nonneg.mpr hp1), abs_of_nonneg (hq0 r)]
+    exact (mul_le_of_le_one_left (abs_nonneg _)
+      ((mul_le_of_le_one_left (hq0 r) (sub_le_self 1 hp0.le)).trans (hq1 r))).trans hM_le_B
   exact (abs_add_le _ _).trans (by linarith)
 
 private theorem evalHorizon_le_geometricExpectedUtility {d : ℕ → PMF (ι → Bool)}
@@ -1774,8 +1755,7 @@ private theorem evalHorizon_tsum_le_of_pointwise
           ∑ b : ι → Bool, (dGen₂ r b).toReal * proto.prefs.outcomeUtility (L₂ b) i := by
       refine Finset.sum_le_sum fun b _ => ?_
       by_cases hb : dGen₁ r b = 0
-      · have hb2 : dGen₂ r b = 0 := by rw [← hGen r b, hb]
-        simp [hb, hb2]
+      · simp [hb, ← hGen r b]
       · rw [← hGen r b]
         exact mul_le_mul_of_nonneg_left (hL r b hb) ENNReal.toReal_nonneg
     nlinarith [proto.stopProb_pos]
@@ -1822,13 +1802,12 @@ theorem payoff_piecewise_le_coalitionPayoff {C : Finset ι} (hC : C ≠ Finset.u
     (fun r => (proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.dummy ▸ rfl)) ?_
   intro r b hb
   have hb_supp : b ∈ (proto.roundCoalitionBroadcastDist C (CoalitionStrategy.ofProfile C τ)
-      r proto.genuine).support := by
-    rw [proto.roundCoalitionBroadcastDist_ofProfile, PMF.mem_support_iff]
-    exact hb
-  have hh₀_true := proto.mem_support_roundCoalitionBroadcastDist hb_supp hh₀C
-  have hh₀B : h₀ ∈ ReconstructionGame.broadcastSet b :=
-    ReconstructionGame.mem_broadcastSet_iff.mpr hh₀_true
-  exact proto.outcomeUtility_learnedFromVec_le_coalition hh₀C hh₀B hi
+      r proto.genuine).support :=
+    (proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.genuine).symm ▸
+      (PMF.mem_support_iff _ _).mpr hb
+  exact proto.outcomeUtility_learnedFromVec_le_coalition hh₀C
+    (ReconstructionGame.mem_broadcastSet_iff.mpr
+      (proto.mem_support_roundCoalitionBroadcastDist hb_supp hh₀C)) hi
 
 omit [DecidableEq ι] in
 private theorem geometricExpectedUtility_le_uAll
@@ -1968,9 +1947,8 @@ theorem coalitionPayoff_const_false {C : Finset ι} (hC_ne : C.Nonempty) (hC_uni
     · simp [hm, Finset.insert_eq_of_mem (Finset.mem_sdiff.mpr ⟨Finset.mem_univ m, hm⟩), hOut]
   have hgen0 : proto.coalitionGenuineStagePayoff C (fun _ _ _ => false) 0 i =
       proto.prefs.uPlus := by
-    unfold coalitionGenuineStagePayoff
-    rw [hdist, Fintype.sum_eq_single bC fun b hbne => by simp [PMF.pure_apply, hbne]]
-    simp [hL, proto.prefs.outcomeUtility_of_mem_of_ne_univ hi hC_univ]
+    simp [coalitionGenuineStagePayoff, hdist, PMF.pure_apply, apply_ite ENNReal.toReal, hL,
+      proto.prefs.outcomeUtility_of_mem_of_ne_univ hi hC_univ]
   rw [coalitionPayoff_eq, tsum_eq_single 0]
   · simp [reachProb_zero, hcont, hgen0]
   · intro r hr
@@ -1996,8 +1974,8 @@ theorem honestProfile_isJointCoalitionProofUpTo_iff {t : ℕ} (ht : 1 ≤ t)
   have hC_univ : C ≠ Finset.univ := fun heq => by
     rw [heq, Finset.card_univ] at hCcard; omega
   have hOut : ¬ proto.scheme.access.authorized (Finset.univ \ C) := by
-    rw [hacc, AccessStructure.threshold_authorized_iff, Finset.card_sdiff]
-    simp only [Finset.inter_univ, Finset.card_univ]
+    rw [hacc, AccessStructure.threshold_authorized_iff, Finset.card_sdiff, Finset.inter_univ,
+      Finset.card_univ]
     omega
   have ⟨i, hi⟩ := hC_ne
   have hle := h C (by omega) (fun _ _ _ => false) i hi
@@ -2038,13 +2016,11 @@ theorem payoff_lt_uAll_of_withholdProb_pos
     linarith [proto.prefs.temptation_lt_uAll_iff.mpr hp]
   have hgap := uAll_sub_geometricExpectedUtility proto.prefs proto.stopProb_pos
     proto.stopProb_lt_one.le hq0 hq1
-  have hpiece : σ = ({i} : Finset ι).piecewise σ honestProfile := by
-    simp [σ, Finset.piecewise_singleton]
-  have hlt_geom : geometricExpectedUtility proto.prefs proto.stopProb q < proto.prefs.uAll := by
-    linarith [mul_pos hmargin_pos htsum_pos]
-  have hle_geom := proto.payoff_piecewise_le_geometricExpectedUtility hi σ i
-  rw [← hpiece] at hle_geom
-  exact hle_geom.trans_lt hlt_geom
+  have hle_geom : proto.toPayoffGame.payoff i σ ≤
+      geometricExpectedUtility proto.prefs proto.stopProb q := by
+    simpa only [σ, q, Finset.piecewise_singleton, Function.update_self] using
+      proto.payoff_piecewise_le_geometricExpectedUtility hi σ i
+  exact hle_geom.trans_lt (by linarith [mul_pos hmargin_pos htsum_pos])
 
 /-- **Exact Nash equilibrium characterization for `n`-out-of-`n` geometric protocol**: when
 `proto.scheme.access = AccessStructure.all ι` and `2 ≤ Fintype.card ι`, `honestProfile` is a pure
@@ -2056,24 +2032,23 @@ theorem honestProfile_isPureNash_iff
       proto.stopProb ≤ proto.prefs.criticalStoppingProb := by
   refine ⟨fun hnash => ?_, fun hp => ?_⟩
   · obtain ⟨i⟩ := Fintype.card_pos_iff.mp (by omega : 0 < Fintype.card ι)
-    let τ₀ : ∀ j, Strategy (Share := Share) j := fun _ _ _ => false
     have hC_univ : ({i} : Finset ι) ≠ Finset.univ :=
       ne_of_apply_ne Finset.card (by rw [Finset.card_singleton, Finset.card_univ]; omega)
     have hOut : ¬ proto.scheme.access.authorized (Finset.univ \ {i}) := by
       rw [hall_acc, AccessStructure.all_authorized_iff]
       exact fun h => (Finset.mem_sdiff.mp (h i)).2 (Finset.mem_singleton_self i)
-    have hpay_eq : proto.toPayoffGame.payoff i (Function.update honestProfile i (τ₀ i)) =
-        proto.coalitionPayoff {i} (CoalitionStrategy.ofProfile {i} τ₀) i := by
-      rw [← Finset.piecewise_singleton]
+    have hpay_eq :
+        proto.toPayoffGame.payoff i (Function.update honestProfile i fun _ _ => false) =
+          proto.coalitionPayoff {i} (fun _ _ _ => false) i := by
+      rw [← Finset.piecewise_singleton (f := fun _ _ _ => false)]
       unfold toPayoffGame coalitionPayoff
-      dsimp only
-      simp_rw [proto.roundCoalitionBroadcastDist_ofProfile,
+      simp_rw [← proto.roundCoalitionBroadcastDist_ofProfile {i} (fun _ _ _ => false),
         funext (proto.learnedFromCoalition_singleton i)]
-    have hle := hnash i (τ₀ i)
-    rw [proto.payoff_honestProfile i, hpay_eq] at hle
-    change proto.coalitionPayoff {i} (fun _ _ _ => false) i ≤ proto.prefs.uAll at hle
-    rw [proto.coalitionPayoff_const_false (Finset.singleton_nonempty i) hC_univ hOut
-      (Finset.mem_singleton_self i)] at hle
+      rfl
+    have hle := hnash i fun _ _ => false
+    rw [proto.payoff_honestProfile i, hpay_eq,
+      proto.coalitionPayoff_const_false (Finset.singleton_nonempty i) hC_univ hOut
+        (Finset.mem_singleton_self i)] at hle
     exact proto.prefs.temptation_le_uAll_iff.mp hle
   · have hthresh : proto.scheme.access = AccessStructure.threshold ι (Fintype.card ι) := by
       rw [hall_acc, AccessStructure.all_eq_threshold]

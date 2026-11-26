@@ -142,16 +142,13 @@ theorem SH.not_decidableInPowerExpTime_of_reduction (hSH : SH)
   intro h
   let η := (1 - b * p) / (2 * p)
   have hη : 0 < η := div_pos (sub_pos.mpr hbp) (by positivity)
-  have hmul : (b + η) * p = (b * p + 1) / 2 := by
-    dsimp only [η]
-    field_simp [ne_of_gt hp]
-    ring
   obtain ⟨K, hK⟩ := hsize η hη
-  apply (SH_iff_KSAT (k := 3) le_rfl).mp hSH (max q ((b + η) * p))
-  · exact lt_max_of_lt_right (mul_pos (add_pos hb hη) hp)
-  · rw [max_lt_iff, hmul]
-    exact ⟨hq, by linarith⟩
-  · exact h.of_reduction hf hmem hK hp.le
+  refine (SH_iff_KSAT (k := 3) le_rfl).mp hSH (max q ((b + η) * p))
+    (lt_max_of_lt_right (mul_pos (add_pos hb hη) hp))
+    (max_lt hq ?_) (h.of_reduction hf hmem hK hp.le)
+  dsimp only [η]
+  rw [add_mul, div_mul_eq_mul_div, mul_div_mul_right _ _ hp.ne']
+  linarith
 
 /-- Linear-size polynomial-time reductions from width-three satisfiability transfer SH with the
 same power threshold. On formulas of greater width the reduction can use the image of a fixed
@@ -197,10 +194,8 @@ theorem SH.not_decidableInPowerExpTime_of_linear_reduction (hSH : SH)
           _ ≤ 2 * K * (φ.numVars + φ.length + 1) := Nat.mul_le_mul_left _ (by omega)
     have hl : (μ (reduce φ) + 1 : ℝ) ≤
         (↑(2 * K) + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) := by
-      have hbound' : (μ (reduce φ) : ℝ) ≤
-          2 * K * ((φ.numVars : ℝ) + φ.length + 1) := by exact_mod_cast hbound
-      push_cast
-      nlinarith
+      exact_mod_cast (Nat.add_le_add hbound
+        (Nat.le_add_left 1 (φ.numVars + φ.length))).trans_eq (by ring)
     refine hl.trans (mul_le_mul_of_nonneg_left ?_ (by positivity))
     conv_lhs => rw [← Real.rpow_one (((φ.numVars + φ.length : ℕ) : ℝ) + 1)]
     exact Real.rpow_le_rpow_of_exponent_le

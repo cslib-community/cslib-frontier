@@ -118,11 +118,10 @@ private theorem isStable_of_inCore {μ : Matching n} (hμ : I.InCore μ) : I.IsS
     exact ⟨hσr, hσr ▸ hr⟩
 
 private theorem inCore_of_inWeakCore {μ : Matching n} (hμ : I.InWeakCore μ) : I.InCore μ := by
-  rintro P R μ' ⟨⟨p, hp⟩ | ⟨r, hr⟩, hP, hR⟩
-  · exact hμ P R μ' ⟨fun p hp => ⟨(hP p hp).1, (hP p hp).2.le⟩,
-      fun r hr => ⟨(hR r hr).1, (hR r hr).2.le⟩, Or.inl ⟨p, hp, (hP p hp).2⟩⟩
-  · exact hμ P R μ' ⟨fun p hp => ⟨(hP p hp).1, (hP p hp).2.le⟩,
-      fun r hr => ⟨(hR r hr).1, (hR r hr).2.le⟩, Or.inr ⟨r, hr, (hR r hr).2⟩⟩
+  rintro P R μ' ⟨hne, hP, hR⟩
+  exact hμ P R μ' ⟨fun p hp => ⟨(hP p hp).1, (hP p hp).2.le⟩,
+    fun r hr => ⟨(hR r hr).1, (hR r hr).2.le⟩,
+    hne.imp (fun ⟨p, hp⟩ => ⟨p, hp, (hP p hp).2⟩) fun ⟨r, hr⟩ => ⟨r, hr, (hR r hr).2⟩⟩
 
 /-- **Theorem 10.12** ([SchummerVohra2007], p. 257): a complete matching lies in the core of `I`
 if and only if it is stable. -/
@@ -170,9 +169,6 @@ unacceptable partner, and every acceptable partner strictly beats `none` in list
 @[expose] def RecvPrefers (r : Fin n) (o₁ o₂ : Option (Fin m)) : Prop :=
   I.recvScore r o₁ < I.recvScore r o₂
 
-private theorem propPrefers_irrefl (p : Fin m) (o : Option (Fin n)) : ¬ I.PropPrefers p o o :=
-  lt_irrefl _
-
 /-- A nonempty coalition `(P, R)` strictly blocks a partial matching `μ` via `μ'` when `μ'` only
 matches agents of `P` inside `R` (and vice versa), leaving partners optionally unmatched, and
 every member of `P ∪ R` strictly prefers its outcome under `μ'` to `μ`. -/
@@ -214,34 +210,27 @@ private theorem propPrefers_implies_propRank_lt {p : Fin m} {r : Fin n} {o : Opt
 
 private theorem inWeakCore_of_isStable {μ : PartialMatching m n} (hμ : I.IsStable μ) :
     I.InWeakCore μ := by
-  rintro P R μ' ⟨hP, hR, ⟨p, hp, hlt⟩ | ⟨r, hr, hlt⟩⟩ <;>
-    have hP_acc : ∀ p r', μ p = some r' → r' ∈ I.propPref p := fun p r' h => (hμ.1 p r' h).1 <;>
-    have hR_acc : ∀ r p', μ.symm r = some p' → p' ∈ I.recvPref r := fun r p' h =>
-      (hμ.1 p' r (μ.eq_some_iff.1 h)).2
-  · rcases hμ'p : μ' p with _ | r
-    · rw [hμ'p] at hlt
-      rcases hμp : μ p with _ | r'
-      · exact lt_irrefl _ (hμp ▸ hlt)
-      · have := List.idxOf_lt_length_iff.2 (hP_acc p r' hμp)
-        simp only [PropPrefers, propScore, hμp, hP_acc p r' hμp, ↓reduceIte] at hlt; omega
-    · have hsymm : μ'.symm r = some p := μ'.eq_some_iff.2 hμ'p
-      rcases (hR r ((hP p hp).1 r hμ'p)).2 with heq | hltR
-      · rw [hμ'p, μ.eq_some_iff.1 (hsymm ▸ heq.symm)] at hlt
-        exact I.propPrefers_irrefl p _ hlt
-      · exact hμ.2 p r ⟨I.propPrefers_implies_propRank_lt (hP_acc p) (hμ'p ▸ hlt),
-          I.swap.propPrefers_implies_propRank_lt (hR_acc r) (hsymm ▸ hltR)⟩
-  · rcases hμ'r : μ'.symm r with _ | p
-    · rw [hμ'r] at hlt
-      rcases hμr : μ.symm r with _ | p'
-      · exact lt_irrefl _ (hμr ▸ hlt)
-      · have := List.idxOf_lt_length_iff.2 (hR_acc r p' hμr)
-        simp only [RecvPrefers, recvScore, hμr, hR_acc r p' hμr, ↓reduceIte] at hlt; omega
-    · have hfwd : μ' p = some r := μ'.eq_some_iff.1 hμ'r
-      rcases (hP p ((hR r hr).1 p hμ'r)).2 with heq | hltP
-      · rw [hμ'r, μ.eq_some_iff.2 (hfwd ▸ heq.symm)] at hlt
-        exact lt_irrefl _ hlt
-      · exact hμ.2 p r ⟨I.propPrefers_implies_propRank_lt (hP_acc p) (hfwd ▸ hltP),
-          I.swap.propPrefers_implies_propRank_lt (hR_acc r) (hμ'r ▸ hlt)⟩
+  have hstep {m n : ℕ} (J : IncompleteInstance m n) {ν ν' : PartialMatching m n}
+      (hν : J.IsStable ν) {p : Fin m} (hlt : J.PropPrefers p (ν' p) (ν p))
+      (hR : ∀ r, ν' p = some r → ν'.symm r = ν.symm r ∨ J.RecvPrefers r (ν'.symm r) (ν.symm r)) :
+      False := by
+    rcases hν'p : ν' p with _ | r
+    · rcases hνp : ν p with _ | r'
+      · exact lt_irrefl _ (hν'p ▸ hνp ▸ hlt)
+      · have hr' := (hν.1 p r' hνp).1
+        have := List.idxOf_lt_length_iff.2 hr'
+        simp only [PropPrefers, propScore, hν'p, hνp, hr', ↓reduceIte] at hlt; omega
+    · have hsymm : ν'.symm r = some p := ν'.eq_some_iff.2 hν'p
+      rcases hR r hν'p with heq | hltR
+      · exact lt_irrefl _ (hν'p ▸ ν.eq_some_iff.1 (hsymm ▸ heq.symm) ▸ hlt)
+      · exact hν.2 p r
+          ⟨J.propPrefers_implies_propRank_lt (fun r' h => (hν.1 p r' h).1) (hν'p ▸ hlt),
+            J.swap.propPrefers_implies_propRank_lt
+              (fun p' h => (hν.1 p' r (ν.eq_some_iff.1 h)).2) (hsymm ▸ hltR)⟩
+  rintro P R μ' ⟨hP, hR, ⟨p, hp, hlt⟩ | ⟨r, hr, hlt⟩⟩
+  · exact hstep I hμ hlt fun r hr => (hR r ((hP p hp).1 r hr)).2
+  · exact hstep I.swap ((I.isStable_swap_iff μ).2 hμ) hlt fun p hp =>
+      (hP p ((hR r hr).1 p hp)).2
 
 private theorem isStable_of_inCore {μ : PartialMatching m n} (hμ : I.InCore μ) :
     I.IsStable μ := by
@@ -285,11 +274,10 @@ private theorem isStable_of_inCore {μ : PartialMatching m n} (hμ : I.InCore μ
 
 private theorem inCore_of_inWeakCore {μ : PartialMatching m n} (hμ : I.InWeakCore μ) :
     I.InCore μ := by
-  rintro P R μ' ⟨⟨p, hp⟩ | ⟨r, hr⟩, hP, hR⟩
-  · exact hμ P R μ' ⟨fun p hp => ⟨(hP p hp).1, Or.inr (hP p hp).2⟩,
-      fun r hr => ⟨(hR r hr).1, Or.inr (hR r hr).2⟩, Or.inl ⟨p, hp, (hP p hp).2⟩⟩
-  · exact hμ P R μ' ⟨fun p hp => ⟨(hP p hp).1, Or.inr (hP p hp).2⟩,
-      fun r hr => ⟨(hR r hr).1, Or.inr (hR r hr).2⟩, Or.inr ⟨r, hr, (hR r hr).2⟩⟩
+  rintro P R μ' ⟨hne, hP, hR⟩
+  exact hμ P R μ' ⟨fun p hp => ⟨(hP p hp).1, Or.inr (hP p hp).2⟩,
+    fun r hr => ⟨(hR r hr).1, Or.inr (hR r hr).2⟩,
+    hne.imp (fun ⟨p, hp⟩ => ⟨p, hp, (hP p hp).2⟩) fun ⟨r, hr⟩ => ⟨r, hr, (hR r hr).2⟩⟩
 
 /-- **Theorem 10.12** ([SchummerVohra2007], p. 257; incomplete-list extension): a partial matching
 lies in the core of `IncompleteInstance m n` if and only if it is stable. -/

@@ -102,17 +102,14 @@ private theorem slabBijection_of_ptr {n_max : ℕ} {gm : ℕ → ℕ} (f : ℕ �
     fun b hb s hs => hptr b hb s hs ▸ hf_lt b hb s hs,
     fun b hb s hs => hptr b hb s hs ▸ hf_ownB b hb s hs,
     fun b hb s hs => hptr b hb s hs ▸ hf_ownS b hb s hs,
-    fun p hp => by
-      obtain ⟨hb, hs, heq⟩ := hown_valid p hp
-      exact ⟨hb, hs, (hptr _ hb _ hs).trans heq⟩,
+    fun p hp =>
+      let ⟨hb, hs, heq⟩ := hown_valid p hp
+      ⟨hb, hs, (hptr _ hb _ hs).trans heq⟩,
     fun b hb s hs hd => (hdir b hb s hs hd).trans (hptr b hb s hs).symm,
     fun b hb s hs ht => (htop b hb s hs ht).trans (hptr b hb s hs).symm,
-    fun b hb s hs hpos => by
-      rw [hptr b hb s hs, hptr b hb (s - 1) (by omega)]
-      exact hbel b hb s hs hpos,
-    fun b hb s hs ha => by
-      rw [hptr b hb s hs, hptr b hb (s + 1) ha]
-      exact habv b hb s hs ha⟩⟩
+    fun b hb s hs hpos =>
+      hptr b hb s hs ▸ hptr b hb (s - 1) ((Nat.sub_le s 1).trans_lt hs) ▸ hbel b hb s hs hpos,
+    fun b hb s hs ha => hptr b hb s hs ▸ hptr b hb (s + 1) ha ▸ habv b hb s hs ha⟩⟩
 
 /-- Shared verification step for `below_eq` and `above_eq` after relocating `p_last` to `p_del`. -/
 private theorem gmCompactSlab_link_eq {n_max : ℕ} {gm : ℕ → ℕ}
@@ -276,8 +273,7 @@ theorem slabBijection_gmPushSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
   · intro b' hb' s hs hdir
     rw [hDir b' hb' s hdir]
     split_ifs with hc
-    · rfl
-    · exact hslab.dir_eq b' hb' s (hs_old_of_ne b' hb' s hs hc) hdir
+    exacts [rfl, hslab.dir_eq b' hb' s (hs_old_of_ne b' hb' s hs hc) hdir]
   · intro b' hb' s hs htop
     rw [hTop b' hb']
     rw [hQ b' hb'] at hs htop
@@ -645,9 +641,8 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
   · intro p hp
     rw [hc0] at hp
     rw [hcOwnB p, hcOwnS p, hB p, hS p]
-    by_cases hp_eq : p = p_del
-    · subst hp_eq
-      rw [ite_eq_left rfl, ite_eq_left rfl]
+    rcases eq_or_ne p p_del with rfl | hp_eq
+    · rw [ite_eq_left rfl, ite_eq_left rfl]
       exact ⟨hb_last, hcQ _ hb_last ▸ hact_own p_last (by omega) (by omega),
         ite_eq_left hptr_last⟩
     · rw [ite_eq_right hp_eq, ite_eq_right hp_eq]
@@ -684,7 +679,8 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
       (bwd_last := gm (gmSlabAboveIdx n_max p_last))
       (fun p => by rw [hcBel p, hBel p]) hb' hs_old hs1_old (by omega) hne_del
       (hslab.below_eq b' hb' s hs_old hpos)
-      (fun hbeq hseq => by subst hbeq; rwa [show s_last + 1 = s by omega])
+      (fun hbeq hseq => ((congrArg (· + 1) hseq.symm).trans (Nat.sub_add_cancel hpos)).trans_lt
+        (hs.trans_eq (congrArg (gmUnlinkTopSlab n_max gm b ∘ gmQIdx) hbeq)))
       (fun hq_lt => ⟨s_last + 1, (hact_s _ hb_last _ hq_lt).1,
         (congrArg (fun p => gm (gmSlabAboveIdx n_max p)) hptr_last.symm).trans
           (hslab.above_eq _ hb_last _ hs_last_old (hact_s _ hb_last _ hq_lt).1),

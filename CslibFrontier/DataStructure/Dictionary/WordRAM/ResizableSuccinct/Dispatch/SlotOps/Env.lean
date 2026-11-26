@@ -101,8 +101,7 @@ theorem ghostDictEnvGen {U V w N : ℕ} (hw : 0 < w) (hnU : N ≤ U) (hU : U < 2
     packedWords_le_len_add_two hwg hwg
   have hmax_lt : max N 1 < 2 ^ w := max_n_one_lt_two_pow_w hw hnU hU
   have h2w_pos : 2 ≤ 2 ^ w := Nat.le_self_pow hw.ne' 2
-  have hpow16 : 2 ^ ghostW w = 2 ^ w * 65536 := by
-    unfold ghostW; rw [Nat.pow_add]
+  have hpow16 : 2 ^ ghostW w = 2 ^ w * 65536 := by rw [ghostW, Nat.pow_add]
   change totalSpace U V wg N (hashSpace U wg N) < 2 ^ ghostW w
   rw [hpow16]
   unfold totalSpace offGM offLM offVal offQuot
@@ -113,9 +112,7 @@ theorem FixedCoupled.tailDenseInv {metaBase itemBase U V w N : ℕ} {s_fix s : M
     (hcpl : FixedCoupled metaBase itemBase U V w N s_fix s) (hb_pos : 0 < bucketBits N) :
     TailDenseInv N (compGmAt metaBase U w N s.mem 0) (compGmAt metaBase U w N s.mem 1)
       (compTDAt metaBase U w N s.mem) (compDTAt metaBase U w N s.mem) := by
-  have hwin := hcpl.win_inv
-  simp only [hb_pos.ne', ↓reduceIte] at hwin
-  exact hwin
+  simpa only [TailDenseInv, hb_pos.ne', ↓reduceIte] using hcpl.win_inv
 
 /-- Concrete epoch parameter and frontier envelope at `(metaBase, itemBase)` covering `m_items`
 dense `(quotient, value)` slots. -/
@@ -270,13 +267,10 @@ theorem FixedCoupled.writeVal_slotOf {metaBase itemBase U V w N b j v : ℕ}
     · rw [compValAt_writeCompVal_of_ne hw s.mem hdeq]
       have hg_ne : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d' ≠ g := by
         intro heq
-        apply hdeq
         obtain ⟨hb'_lt, hj'_lt, hd'_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd'
-        have hv' : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d' = _ :=
-          physOfDense_eq_slotOf_owner hslot htd hd'
-        rw [hv'] at heq
-        obtain ⟨rfl, rfl⟩ := (slotOf_lt_and_injective hslot).2 _ hb'_lt _ hj'_lt b hb j hj heq
-        exact hd'_eq.symm
+        obtain ⟨rfl, rfl⟩ := (slotOf_lt_and_injective hslot).2 _ hb'_lt _ hj'_lt b hb j hj
+          ((physOfDense_eq_slotOf_owner hslot htd hd').symm.trans heq)
+        exact hdeq hd'_eq.symm
       rw [Function.update_of_ne hg_ne]
       exact hcpl.val_eq d' hd'
 
@@ -303,11 +297,11 @@ theorem compGmFrame_writeCompGMGenProg {metaBase itemBase U V w N m_items idx va
     CompGmFrame metaBase itemBase U V w N m_items s s' ∧
     compGmAt metaBase U w N s'.mem = Function.update (compGmAt metaBase U w N s.mem) idx val := by
   intro s'
-  have hs' := clientState_writeCompGMGenProg U V w N metaBase idx val s
   obtain ⟨hgm, hlm, htd, hdt, hq, hv, hout⟩ :=
     writeCompGM_effect (metaBase := metaBase) (itemBase := itemBase) (U := U) (V := V)
       (m_items := m_items) hw hitem hidx hval s.mem
-  dsimp only [s']; rw [hs']
+  dsimp only [s']
+  rw [clientState_writeCompGMGenProg]
   exact ⟨⟨rfl, hout, hlm, htd, hdt, hq, hv⟩, hgm⟩
 
 theorem validProg_bind_unit {β : Type} {w : ℕ} {s : Memory.State}

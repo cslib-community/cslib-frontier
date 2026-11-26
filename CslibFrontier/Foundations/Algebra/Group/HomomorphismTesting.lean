@@ -165,9 +165,7 @@ theorem plurality_add (f : G → H) {φ : G → H} (hφ : IsPlurality f φ)
     dsimp [e] at hr
     split_ifs at hr <;> simp_all
     all_goals norm_num at hr
-  rw [hx, hy, hxy, vote, vote, vote, show y + (r - y) = r by abel,
-    show x + y + (r - y) = x + r by abel]
-  abel
+  simp only [hx, hy, hxy, vote, add_assoc, add_sub_cancel]; abel
 
 open Classical in
 /-- The plurality correction bundled as an additive homomorphism. -/
@@ -191,11 +189,9 @@ theorem closeness (f : G → H) {φ : G → H} (hφ : IsPlurality f φ)
           𝔼 y, if f x + f y ≠ f (x + y) then (1 : ℝ) else 0 :=
         expect_le_expect fun y _ => by
           by_cases hv : vote f x y = φ x
-          · have hn : f x + f y ≠ f (x + y) := fun he =>
-              hx (by rw [← hv, vote, ← he, add_sub_cancel_right])
-            simp [hv, hn]
-          · simp only [hv, ite_false]
-            positivity
+          · rw [ite_eq_left hv, ite_eq_left fun he =>
+              hx (by rw [← hv, vote, ← he, add_sub_cancel_right])]
+          · rw [ite_eq_right hv]; positivity
       simp only [hx, ne_eq, not_false_eq_true, ite_true, mul_one]
       linarith
   have h := expect_le_expect (s := univ) fun x _ => point x
@@ -273,10 +269,8 @@ theorem three_mul_onlyFirst_le_rejection (f : G → H) (h : G →+ H) :
   have hp := expect_le_expect (s := univ) fun x _ =>
     expect_le_expect (s := univ) fun y _ => point x y
   obtain ⟨ha, hb, hc, hab, hac, hbc⟩ := disagreement_moments f h
-  have pull (b : G → G → ℝ) (c : ℝ) : (𝔼 x, 𝔼 y, c * b x y) = c * (𝔼 x, 𝔼 y, b x y) := by
-    simp_rw [← mul_expect]
   simp only [expect_add_distrib, expect_sub_distrib] at hp
-  rw [pull _ 3, pull _ 2, pull _ 2] at hp
+  simp_rw [← mul_expect (a := (3 : ℝ)), ← mul_expect (a := (2 : ℝ))] at hp
   dsimp only [a] at hp ha hb hc hab hac hbc
   rw [ha, hb, hc, hab, hac, hbc, ← rejection_eq_expect] at hp
   linarith

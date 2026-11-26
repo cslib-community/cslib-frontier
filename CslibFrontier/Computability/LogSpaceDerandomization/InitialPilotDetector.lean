@@ -69,21 +69,18 @@ theorem environmentDetector_row_moment
           (channels D) σ (ident x))
         (fun σ y => r.terminal.retains (channels D) σ (ident y))
         (fun σ x y => A σ x y - B σ x y) := by
-  have h := PilotRowRecipe.sourceDetector_row_moment_transport HP.toHierarchyParams
+  refine (PilotRowRecipe.sourceDetector_row_moment_transport HP.toHierarchyParams
     (stageSource D ident r hr) (splitTerminal D ident r)
     (fun σ x => r.source.retains (channels D) σ (ident x))
-    (fun σ y => r.terminal.retains (channels D) σ (ident y))
-    hN hu hf hπ hY
-    (fun (_ : Environment P J) s t => A ((terminalSplit r.terminal.role).symm (s, t)))
-    (fun (_ : Environment P J) s t => B ((terminalSplit r.terminal.role).symm (s, t)))
-  apply h.trans_eq
+    (fun σ y => r.terminal.retains (channels D) σ (ident y)) hN hu hf hπ hY
+    (fun _ s t => A ((terminalSplit r.terminal.role).symm (s, t)))
+    (fun _ s t => B ((terminalSplit r.terminal.role).symm (s, t)))).trans_eq ?_
   congr 1
   unfold rowNormPow
   congr 1
   rw [← univ_product_univ, expect_product]
   simp only [PilotRowRecipe.sourceCoord, PilotRowRecipe.terminalCoord, Fintype.expect_const]
-  apply Fintype.expect_equiv (terminalSplit r.terminal.role).symm
-  intro p
+  refine Fintype.expect_equiv (terminalSplit r.terminal.role).symm _ _ fun p => ?_
   simp [hr.1, stageSource, splitTerminal, terminalSplit, coordinate,
     CorrectionRowTask.Channel.retains, channels]
 
@@ -130,12 +127,11 @@ theorem initialDetector_terminal_density (D : ZMod P) (kt : ℕ) (st : List (ZMo
   constructor
   · have := (Fact.out : P.Prime).pos; positivity
   · intro y
-    unfold frameRetains
     have he := congrArg (fun q : ℚ≥0 => (q : ℝ))
       (dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1)
         (by decide) (side_le P kt) (CopyPadding.identifier D st y))
     push_cast at he
-    simpa only [nnratCast_dens] using he
+    simpa only [frameRetains, nnratCast_dens] using he
 
 /-- The initial detector consumes the completed score on the very same integrated
 frame. The score's source rate is reset to the stage rate before the lower call. -/
@@ -153,10 +149,9 @@ theorem initialPilotDetector_rank_lt (HP : FourthRootHierarchyParams 16 1 16 32 
     (R : RoleProfile J) (ks kt : ℕ) (ss st : List (ZMod P)) :
     (initialDetectorScoreRequest HP R ks kt ss st).task.rank <
       (initialDetectorRequest HP R ks kt ss st).task.rank := by
-  change (HierarchyTask.row (k := HP.k) 0 (.score ⟨0, HP.k_pos⟩)).rank <
-    (HierarchyTask.row 0 (.detector ⟨0, HP.k_pos⟩)).rank
-  apply HierarchyTask.rank_lt_of_mem_children
-  simp [HierarchyTask.children, BoundedRowTask.children]
+  exact HierarchyTask.rank_lt_of_mem_children (by
+    simp [initialDetectorScoreRequest, initialDetectorRequest, HierarchyTask.children,
+      BoundedRowTask.children])
 
 /-- True initial detector of the base, using the original unmodified score recipe.
 The source reset and suffixes are the same as those used by the approximate call. -/
@@ -184,10 +179,8 @@ theorem initialTrueDetector_eq_canonical
     (initialDetectorRequest_admissible HP R ks kt ss st) hD C
   funext y
   change min 1 (max 0 (columnDetector (stageSource D id r _) (splitTerminal D id r)
-    HP.ϕ HP.ρ HP.J HP.K (rate kt) C y)) = _
-  rw [show columnDetector (stageSource D id r _) (splitTerminal D id r)
-    HP.ϕ HP.ρ HP.J HP.K (rate kt) C = _ from he]
-  rw [max_eq_right columnDetector_nonneg,
+    HP.ϕ HP.ρ HP.J HP.K r.terminal.rate C y)) = _
+  rw [he, max_eq_right columnDetector_nonneg,
     min_eq_right (columnDetector_le_one HP.ϕ_nonneg HP.ϕ_le_one HP.ρ_le_one)]
   rfl
 
@@ -335,11 +328,8 @@ theorem initialPilotDetector_accuracy
   intro P J inst D hD R H bin ks kt hkt ss st cutoff h C hkh η hη hρη hK hC hC1
     hcover π hπ hY ε hε payment tolerance steps
   have hc : 0 ≤ payment := by positivity
-  have hden : 0 < 1 + payment := by linarith
-  have ht : 0 < tolerance := div_pos hε hden
   obtain ⟨hs, he⟩ := ha P J D hD R H bin ks kt hkt ss st cutoff h C hkh η hη hρη hK hC hC1
-    hcover π hπ hY tolerance ht
-  refine ⟨hs, he.trans ?_⟩
-  exact calibrated_fourth_moment hc hε
+    hcover π hπ hY tolerance (div_pos hε (by linarith))
+  exact ⟨hs, he.trans (calibrated_fourth_moment hc hε)⟩
 
 end Matrix.HierarchyParams.H4RankEnvironment

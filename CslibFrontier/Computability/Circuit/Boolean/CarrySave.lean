@@ -322,16 +322,11 @@ theorem eval_finishStep (p : BitString (w + w)) :
       Fin.append (csaSum (fstBits p) (sndBits p) (fun _ => false))
         (csaCarry (fstBits p) (sndBits p) (fun _ => false)) := by
   rw [finishStep, Circuit.eval_comp, Circuit.eval_comp, eval_csa3to2]
-  set u := (Circuit.wiring signature (finishStepIn w)).eval interpretation
-    (((Circuit.id signature (w + w)).append
-      (Circuit.oneGate (Op.const false) Fin.elim0)).eval interpretation p)
-  have h1 : fstBits u = fstBits p :=
-    funext fun i => by simp [u, fstBits, finishStepIn, -Fin.natAdd_eq_addNat]
-  have h2 : fstBits (sndBits u) = sndBits p :=
-    funext fun i => by simp [u, fstBits, sndBits, finishStepIn, -Fin.natAdd_eq_addNat]
-  have h3 : sndBits (sndBits u) = fun _ => false :=
-    funext fun i => by simp [u, sndBits, finishStepIn, interpretation, -Fin.natAdd_eq_addNat]
-  rw [h1, h2, h3]
+  congr 1
+  · congr 1 <;> funext i <;>
+      simp [fstBits, sndBits, finishStepIn, interpretation, -Fin.natAdd_eq_addNat]
+  · congr 1 <;> funext i <;>
+      simp [fstBits, sndBits, finishStepIn, interpretation, -Fin.natAdd_eq_addNat]
 
 /-- `finishStep w` preserves the carry-save value modulo `2 ^ w`. -/
 theorem pairVal_eval_finishStep_mod (p : BitString (w + w)) :

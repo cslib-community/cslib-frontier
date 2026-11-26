@@ -43,6 +43,9 @@ that the total maps computable relative to some oracle are exactly the continuou
 * `Partrec.join_coe`: the join of two total functions is total.
 * `Nat.RecursiveIn.Code.continuous_iff_forall_exists_cylinder`: continuity on Baire space as
   dependence of each output entry on a finite prefix of the input.
+* `Nat.RecursiveIn.Code.prefixOf_eq_iff`: equality of finite prefixes as cylinder membership.
+* `Nat.RecursiveIn.Code.exists_code_search`: one fixed code searches for the least prefix on which
+  an oracle answers with a nonzero value.
 * `Nat.RecursiveIn.Code.exists_code_isAssociate`: one code computes every map relative to an
   associate of the map.
 * `Nat.RecursiveIn.Code.exists_code_continuous`: one code computes every continuous map relative
@@ -99,7 +102,7 @@ theorem continuous_iff_forall_exists_cylinder {F : (ℕ → ℕ) → ℕ → ℕ
 
 /-- Two inputs have the same prefix of length `k` exactly when one lies in the cylinder of length
 `k` around the other. -/
-private theorem prefixOf_eq_iff {x y : ℕ → ℕ} {k : ℕ} :
+theorem prefixOf_eq_iff {x y : ℕ → ℕ} {k : ℕ} :
     prefixOf y k = prefixOf x k ↔ y ∈ cylinder x k := by
   refine ⟨fun h i hi => ?_, fun h => List.map_congr_left fun i hi => h i (List.mem_range.1 hi)⟩
   simpa [prefixOf, hi] using congrArg (·[i]?) h
@@ -175,6 +178,27 @@ structure IsAssociate (α : ℕ → ℕ) (F : (ℕ → ℕ) → ℕ → ℕ) : P
   eq_of_ne_zero : ∀ x n k, α (Nat.pair n (encode (prefixOf x k))) ≠ 0 →
     α (Nat.pair n (encode (prefixOf x k))) = F x n + 1
 
+/-- **Prefix-search code.** One fixed oracle code searches for the least prefix of `x` on which
+`α` answers `⟨n, σ⟩` with a nonzero value and returns that answer minus one, whenever some prefix
+has a nonzero answer and every nonzero answer on a prefix of `x` is `v + 1`. -/
+theorem exists_code_search :
+    ∃ e : Code, ∀ (α x : ℕ → ℕ) (n v : ℕ),
+      (∃ k, α (Nat.pair n (encode (prefixOf x k))) ≠ 0) →
+      (∀ k, α (Nat.pair n (encode (prefixOf x k))) ≠ 0 →
+        α (Nat.pair n (encode (prefixOf x k))) = v + 1) →
+      eval ((α : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) e n = Part.some v := by
+  obtain ⟨e, he⟩ := hasUniformCode_search
+  refine ⟨e, fun α x n v ⟨k, hk⟩ heq => ?_⟩
+  rw [he (α, x)]
+  dsimp only
+  have hdom : (Nat.rfind fun k => Part.some (decide
+      (1 - α (Nat.pair n (encode (prefixOf x k))) = 0))).Dom :=
+    Nat.rfind_dom.2 ⟨k, Part.mem_some_iff.2 (decide_eq_true (by omega)).symm, fun _ => trivial⟩
+  have hspec :=
+    of_decide_eq_true (Part.mem_some_iff.1 (Nat.rfind_spec (Part.get_mem hdom))).symm
+  rw [← Part.some_get hdom, Part.map_some, heq _ (by omega)]
+  simp
+
 /-- **Maps with an associate are computable through one fixed code.** A single oracle code `e`
 computes every total map `F` on Baire space relative to the join of an associate `α` of `F` with
 the input: `F x n = Φₑ^{α ⊕ x}(n)`. The code searches for the least `k` such that `α` answers the
@@ -182,18 +206,8 @@ prefix of length `k` of `x` with a nonzero value. -/
 theorem exists_code_isAssociate :
     ∃ e : Code, ∀ (F : (ℕ → ℕ) → ℕ → ℕ) (α : ℕ → ℕ), IsAssociate α F → ∀ (x : ℕ → ℕ) n,
       eval ((α : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) e n = Part.some (F x n) := by
-  obtain ⟨e, he⟩ := hasUniformCode_search
-  refine ⟨e, fun F α hα x n => ?_⟩
-  rw [he (_, x)]
-  dsimp only
-  obtain ⟨k, hk⟩ := hα.exists_ne_zero x n
-  have hdom : (Nat.rfind fun k => Part.some (decide
-      (1 - α (Nat.pair n (encode (prefixOf x k))) = 0))).Dom :=
-    Nat.rfind_dom.2 ⟨k, Part.mem_some_iff.2 (decide_eq_true (by omega)).symm, fun _ => trivial⟩
-  have hspec :=
-    of_decide_eq_true (Part.mem_some_iff.1 (Nat.rfind_spec (Part.get_mem hdom))).symm
-  rw [← Part.some_get hdom, Part.map_some, hα.eq_of_ne_zero x n _ (by omega)]
-  simp
+  obtain ⟨e, he⟩ := exists_code_search
+  exact ⟨e, fun F α hα x n => he α x n (F x n) (hα.exists_ne_zero x n) (hα.eq_of_ne_zero x n)⟩
 
 /-- The oracle `nbhd F` is an associate of every continuous `F`. -/
 private theorem isAssociate_nbhd {F : (ℕ → ℕ) → ℕ → ℕ} (hF : Continuous F) :

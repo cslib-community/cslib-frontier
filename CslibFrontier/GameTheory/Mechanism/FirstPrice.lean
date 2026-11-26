@@ -93,19 +93,15 @@ theorem measurable_uniformBid (n : ℕ) : Measurable (uniformBid n) :=
 
 /-- With two bidders each bids half its value ([Hartline2021], §2.3). -/
 theorem uniformBid_two (v : ℝ) : uniformBid 2 v = v / 2 := by
-  rw [uniformBid]
-  push_cast
-  ring
+  simp only [uniformBid, Nat.cast_ofNat]; ring
 
 private theorem unif_isProb : IsProbabilityMeasure (volume.restrict (Icc (0 : ℝ) 1)) :=
   ⟨by rw [Measure.restrict_apply_univ, Real.volume_Icc, sub_zero, ENNReal.ofReal_one]⟩
 
 private theorem unif_Iic {a : ℝ} (ha : 0 ≤ a) :
     (volume.restrict (Icc (0 : ℝ) 1)).real (Iic a) = min a 1 := by
-  have hset : Iic a ∩ Icc (0 : ℝ) 1 = Icc 0 (min a 1) := by
-    ext t
-    simp only [mem_inter_iff, mem_Iic, mem_Icc, le_min_iff]
-    tauto
+  have hset : Iic a ∩ Icc (0 : ℝ) 1 = Icc 0 (min a 1) :=
+    Set.ext fun _ => by simp only [mem_inter_iff, mem_Iic, mem_Icc, le_min_iff]; tauto
   rw [measureReal_def, Measure.restrict_apply measurableSet_Iic, hset, Real.volume_Icc, sub_zero,
     ENNReal.toReal_ofReal (le_min ha zero_le_one)]
 
@@ -119,14 +115,12 @@ private theorem coeff_pos {n : ℕ} (hn : 2 ≤ n) : 0 < ((n : ℝ) - 1) / n := 
 private theorem coeff_nonneg (n : ℕ) : 0 ≤ ((n : ℝ) - 1) / n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  · have : (1 : ℝ) ≤ n := by exact_mod_cast hn
-    exact div_nonneg (by linarith) (Nat.cast_nonneg n)
+  · exact div_nonneg (by cast_linarith [hn]) (Nat.cast_nonneg n)
 
 private theorem coeff_le_one (n : ℕ) : ((n : ℝ) - 1) / n ≤ 1 := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  · rw [div_le_one (by exact_mod_cast hn)]
-    linarith
+  · rw [div_le_one (by exact_mod_cast hn)]; linarith
 
 theorem uniformBid_nonneg (n : ℕ) {v : ℝ} (hv : 0 ≤ v) : 0 ≤ uniformBid n v :=
   mul_nonneg (coeff_nonneg n) hv
@@ -179,12 +173,10 @@ private theorem interimAllocation_mul (c : ℝ) (hc : 1 < Fintype.card ι → 0 
     have hcpos : 0 < c := hc (Fintype.one_lt_card_iff.2 ⟨j, i, hj⟩)
     have hzc : 0 ≤ z / c := div_nonneg hz hcpos.le
     have hlo : Iio (z / c) ⊆ s j := fun t ht => by
-      have hlt : t * c < z := (lt_div_iff₀ hcpos).1 ht
-      simp only [hs, ite_eq_right hj]
+      simp only [hs, ite_eq_right hj, mem_Iio, lt_div_iff₀ hcpos] at ht ⊢
       split_ifs <;> simp only [mem_ofPred_eq] <;> linarith
     have hhi : s j ⊆ Iic (z / c) := fun t ht => by
-      simp only [hs, ite_eq_right hj] at ht
-      rw [mem_Iic, le_div_iff₀ hcpos]
+      simp only [hs, ite_eq_right hj, mem_Iic, le_div_iff₀ hcpos] at ht ⊢
       split_ifs at ht <;> simp only [mem_ofPred_eq] at ht <;> linarith
     exact le_antisymm ((measureReal_mono hhi).trans_eq (unif_Iic hzc))
       ((unif_Iio hzc).symm.trans_le (measureReal_mono hlo))
@@ -213,8 +205,8 @@ theorem interimAllocation_uniformBid_uniformBid (i : ι) {v : ℝ} (hv : v ∈ I
       v ^ (Fintype.card ι - 1) := by
   have hn : 0 < Fintype.card ι := Fintype.card_pos_iff.2 ⟨i⟩
   rw [interimAllocation_uniformBid i (uniformBid_nonneg _ hv.1)]
-  rcases (show Fintype.card ι = 1 ∨ 2 ≤ Fintype.card ι by omega) with h1 | h2
-  · rw [h1, Nat.sub_self, pow_zero, pow_zero]
+  rcases eq_or_lt_of_le (Nat.succ_le_of_lt hn) with h1 | h2
+  · rw [← h1, Nat.sub_self, pow_zero, pow_zero]
   · rw [uniformBid, mul_div_cancel_left₀ _ (coeff_pos h2).ne', min_eq_left hv.2]
 
 /-- A bid of at least `(n − 1) / n` wins for sure against `uniformBid`. -/
@@ -224,8 +216,8 @@ theorem interimAllocation_uniformBid_of_le (i : ι) {z : ℝ}
         (fun _ => uniformBid (Fintype.card ι)) i z = 1 := by
   have hn : 0 < Fintype.card ι := Fintype.card_pos_iff.2 ⟨i⟩
   rw [interimAllocation_uniformBid i ((coeff_nonneg _).trans hz)]
-  rcases (show Fintype.card ι = 1 ∨ 2 ≤ Fintype.card ι by omega) with h1 | h2
-  · rw [h1, Nat.sub_self, pow_zero]
+  rcases eq_or_lt_of_le (Nat.succ_le_of_lt hn) with h1 | h2
+  · rw [← h1, Nat.sub_self, pow_zero]
   · rw [min_eq_right ((one_le_div (coeff_pos h2)).2 hz), one_pow]
 
 /-- **The first-price equilibrium for uniform values** ([Hartline2021], §2.3 and Example 2.8.1 for
@@ -258,10 +250,8 @@ theorem isBayesNash_uniformBid :
         ⟨div_nonneg hz hcpos.le, (div_le_one hcpos).2 hzc.le⟩, ?_⟩
       rw [uniformBid, mul_div_cancel₀ _ hcpos.ne']
     · refine ⟨1, ⟨zero_le_one, le_rfl⟩, ?_⟩
-      have h1 : uniformBid (Fintype.card ι) 1 = ((Fintype.card ι : ℝ) - 1) / Fintype.card ι := by
-        rw [uniformBid, mul_one]
-      rw [interimPayment_eq, interimPayment_eq, interimAllocation_uniformBid_of_le i hzc,
-        interimAllocation_uniformBid_of_le i h1.ge, h1]
+      rw [uniformBid, mul_one, interimPayment_eq, interimPayment_eq,
+        interimAllocation_uniformBid_of_le i hzc, interimAllocation_uniformBid_of_le i le_rfl]
       linarith
 
 /-- **Bid shading.** With at least two bidders whose values are uniform on `[0, 1]`, truthful
@@ -279,8 +269,7 @@ theorem not_isBayesNash_id (hn : 1 < Fintype.card ι) :
   have h := (hM i 1 ⟨zero_le_one, le_rfl⟩).2 (1 / 2) (by norm_num)
   rw [interimPayment_eq, interimPayment_eq, hX _ (by norm_num), hX _ zero_le_one,
     min_eq_left (by norm_num), min_self, one_pow] at h
-  have : 0 < ((1 : ℝ) / 2) ^ (Fintype.card ι - 1) := by positivity
-  linarith
+  linarith [pow_pos (one_half_pos (α := ℝ)) (Fintype.card ι - 1)]
 
 theorem integrable_payment_uniformBid (i : ι) :
     Integrable (fun v : ι → ℝ => mechanism.payment (fun j => uniformBid (Fintype.card ι) (v j)) i)
@@ -354,9 +343,8 @@ theorem integral_sum_payment_uniformBid_eq_vickrey :
       (fun _ => hasValueDensity_uniform) (fun i => measurable_allocation i) hB]
   simp only [interimPayment_eq, uniformBid, mul_zero, zero_mul, Finset.sum_const_zero, zero_add]
   congr 1 with v : 1
-  refine Finset.sum_congr rfl fun i _ => ?_
-  congr 1
-  change Vickrey.allocation _ i = Vickrey.allocation v i
+  refine Finset.sum_congr rfl fun i _ => mul_eq_mul_left_iff.mpr (.inl ?_)
+  dsimp only [mechanism, Vickrey.mechanism]
   rcases le_or_gt (Fintype.card ι) 1 with h1 | h2
   · have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.1 h1
     rw [allocation_eq_one_iff.2 (wins_of_subsingleton _ i),

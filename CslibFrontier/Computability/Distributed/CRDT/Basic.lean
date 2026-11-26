@@ -192,9 +192,8 @@ theorem evalHistory_le_iff {init : S} {post : UId → S}
   induction H using Finset.cons_induction with
   | empty => simp [evalHistory]
   | cons u H hu ih =>
-    rw [evalHistory, Finset.fold_cons hu]
-    change post u ⊔ evalHistory init post H ≤ b ↔ _
-    simp only [sup_le_iff, ih, Finset.mem_cons, forall_eq_or_imp]
+    simp only [evalHistory, Finset.fold_cons hu, sup_le_iff, Finset.mem_cons, forall_eq_or_imp]
+    rw [← evalHistory, ih]
     tauto
 
 theorem init_le_evalHistory (init : S) (post : UId → S) (H : Finset UId) :
@@ -437,21 +436,18 @@ private theorem gossipInv_step (C : CvRDT S Op Q) {G : Digraph P}
   cases act with
   | update p uid op =>
     have huid_not : uid ∉ s.generated := hen
-    have hcongr_hist : ∀ q,
+    have hcongr_hist (q) :
         evalHistory C.init (Function.update s.postState uid (C.update op (s.replica p)))
-          (s.history q) = evalHistory C.init s.postState (s.history q) := fun q =>
+          (s.history q) = evalHistory C.init s.postState (s.history q) :=
       evalHistory_congr C.init fun u hu =>
-        Function.update_of_ne (fun heq => huid_not (by rw [← heq]; exact hinv.hist_sub q hu)) _ _
-    refine
-      { hist_sub := fun q => ?_
-        pkt_sub := fun pkt hpkt => ?_
-        rep_eq := fun q => ?_
-        pkt_eq := fun pkt hpkt => ?_ }
+        Function.update_of_ne (fun heq => huid_not (heq ▸ hinv.hist_sub q hu : uid ∈ _)) _ _
+    refine ⟨fun q => ?_,
+      fun pkt hpkt => (hinv.pkt_sub pkt hpkt).trans (Finset.subset_insert uid s.generated),
+      fun q => ?_, fun pkt hpkt => ?_⟩
     · simp only [CvRDT.gossipStep, Function.update_apply]
       split_ifs
       · exact Finset.insert_subset_insert uid (hinv.hist_sub p)
       · exact (hinv.hist_sub q).trans (Finset.subset_insert uid s.generated)
-    · exact Finset.Subset.trans (hinv.pkt_sub pkt hpkt) (Finset.subset_insert uid s.generated)
     · rcases eq_or_ne q p with rfl | hqp
       · simp only [CvRDT.gossipStep, Function.update_self, evalHistory_insert, hcongr_hist q,
           ← hinv.rep_eq q]
@@ -460,7 +456,7 @@ private theorem gossipInv_step (C : CvRDT S Op Q) {G : Digraph P}
     · rw [hinv.pkt_eq pkt hpkt]
       exact evalHistory_congr C.init fun u hu =>
         (Function.update_of_ne
-          (fun heq => huid_not (by rw [← heq]; exact hinv.pkt_sub pkt hpkt hu)) _ _).symm
+          (fun heq => huid_not (heq ▸ hinv.pkt_sub pkt hpkt hu : uid ∈ _)) _ _).symm
   | send src dst =>
     refine ⟨hinv.hist_sub, fun pkt hpkt => ?_, hinv.rep_eq, fun pkt hpkt => ?_⟩
     · exact (Multiset.mem_cons.mp hpkt).elim (fun h => h ▸ hinv.hist_sub src) (hinv.pkt_sub pkt)
@@ -810,13 +806,12 @@ theorem bss_delivered_isCausalLinearization {F : Set P}
   refine ⟨?_, bss_no_duplicates hmtr q, fun _ => List.mem_toFinset.symm, ?_⟩
   · intro b₂ hb₂ b₁ hprec
     have hb₂_del : b₂ ∈ (s.proc q).delivered := List.mem_toFinset.mp hb₂
-    have hb₂_bcast : b₂ ∈ BroadcastIn xl := bss_integrity hmtr q hb₂_del
-    have hb₁_bcast : b₁ ∈ BroadcastIn xl := by
-      clear hb₂ hb₂_del hb₂_bcast
-      induction hprec with
-      | single hstep => exact hstep.elim (fun ⟨i, _, hi, _, _, hbi, _, _⟩ => ⟨i, hi, hbi⟩) And.left
-      | tail _ _ ih => exact ih
-    exact List.mem_toFinset.mpr (bss_causal_delivery hmtr hb₁_bcast hb₂_bcast hprec q hb₂_del).1
+    refine List.mem_toFinset.mpr
+      (bss_causal_delivery hmtr ?_ (bss_integrity hmtr q hb₂_del) hprec q hb₂_del).1
+    clear hb₂ hb₂_del
+    induction hprec with
+    | single hstep => exact hstep.elim (fun ⟨i, _, hi, _, _, hbi, _, _⟩ => ⟨i, hi, hbi⟩) And.left
+    | tail _ _ ih => exact ih
   · exact fun b₁ hb₁ b₂ hb₂ hprec =>
       (bss_causal_delivery hmtr (bss_integrity hmtr q hb₁) (bss_integrity hmtr q hb₂) hprec q hb₂).2
 
@@ -898,12 +893,10 @@ theorem CmRDT.bss_quiescent_convergence (C : CmRDT S Op Eff Q) {F : Set P}
       have hem_i : emittedPacket (ss i) (xs i) = some pkt := by
         simpa [bssStateAt, htake, ← hrun_i, hget] using hbi
       have hi_lt_K : i < K := not_le.mp fun hge => by simp [hquiesce i hge] at hem_i
-      let idx : Fin K × P := (⟨i, hi_lt_K⟩, r)
-      have hmem_m : pkt ∈ ((ss (mFn idx)).proc r).delivered := hmFn idx hr pkt hem_i
-      have hm_le_k : mFn idx ≤ k :=
-        le_trans (Finset.le_sup (f := mFn) (Finset.mem_univ idx))
-          (le_trans (Nat.le_max_right K _) hkM)
-      exact bss_omega_delivered_mono he hm_le_k hmem_m
+      exact bss_omega_delivered_mono he
+        ((Finset.le_sup (f := mFn) (Finset.mem_univ (⟨i, hi_lt_K⟩, r))).trans
+          ((Nat.le_max_right K _).trans hkM))
+        (hmFn (⟨i, hi_lt_K⟩, r) hr pkt hem_i)
   exact (C.bss_strong_convergence (hmtr k) (hcomm k) fun pkt =>
     (hall_deliv p hp pkt).trans (hall_deliv q hq pkt).symm).1
 
@@ -958,20 +951,12 @@ private theorem exists_minimal_of_nonempty {Ev : Type*}
   classical
   -- Choose `m ∈ H` minimizing the cardinality of `{y ∈ H | prec y m}`.
   let ancCard : Ev → ℕ := fun x => (H.filter (fun y => prec y x)).card
-  let minCard := (H.image ancCard).min' (hne.image ancCard)
-  obtain ⟨m, hmH, hm_eq⟩ := Finset.mem_image.mp (Finset.min'_mem (H.image ancCard) _)
-  refine ⟨m, hmH, fun y hyH hprec => ?_⟩
-  have hssub : H.filter (fun z => prec z y) ⊂ H.filter (fun z => prec z m) := by
-    rw [Finset.ssubset_iff_of_subset]
-    · exact ⟨y, Finset.mem_filter.mpr ⟨hyH, hprec⟩,
-        fun hy_mem => irrefl y (Finset.mem_filter.mp hy_mem).2⟩
-    · intro z hz
-      obtain ⟨hzH, hzy⟩ := Finset.mem_filter.mp hz
-      exact Finset.mem_filter.mpr ⟨hzH, _root_.trans hzy hprec⟩
-  have hlt : ancCard y < ancCard m := Finset.card_lt_card hssub
-  have hle : minCard ≤ ancCard y :=
-    Finset.min'_le _ _ (Finset.mem_image_of_mem ancCard hyH)
-  omega
+  obtain ⟨m, hmH, hmin⟩ := H.exists_min_image ancCard hne
+  refine ⟨m, hmH, fun y hyH hprec => not_lt_of_ge (hmin y hyH) (Finset.card_lt_card ?_)⟩
+  exact Finset.ssubset_iff_of_subset
+    (fun z hz => Finset.mem_filter.mpr
+      ⟨(Finset.mem_filter.mp hz).1, _root_.trans (Finset.mem_filter.mp hz).2 hprec⟩) |>.mpr
+    ⟨y, Finset.mem_filter.mpr ⟨hyH, hprec⟩, fun hy => irrefl y (Finset.mem_filter.mp hy).2⟩
 
 /-- Every finite event set `H : Finset Ev` equipped with a strict partial order `prec` admits a
 causal linearization `l : List Ev` (`IsCausalLinearization prec H l`). -/
@@ -1123,21 +1108,19 @@ theorem deliverableEvents_eq_self_of_closed {Ev : Type*} [DecidableEq Ev]
     induction k with
     | zero => exact Nat.zero_le _
     | succ k ih =>
-      have hk_le : k ≤ (deliverableIter deps M k).card := ih (Nat.le_of_succ_le hk)
       set D := deliverableIter deps M k
       have hnot_D : ¬ M ⊆ D := fun hsub =>
         hnot_sub (Finset.Subset.trans hsub (deliverableIter_mono_nat deps M (Nat.le_of_succ_le hk)))
       obtain ⟨m, hm_sdiff, hm_min⟩ :=
         exists_minimal_of_nonempty prec (Finset.sdiff_nonempty.mpr hnot_D)
       obtain ⟨hmM, hmNotD⟩ := Finset.mem_sdiff.mp hm_sdiff
-      have hdeps_in_D : deps m ⊆ D := fun y hy => by
-        by_contra hyNotD
-        exact hm_min y (Finset.mem_sdiff.mpr ⟨hclosed m hmM hy, hyNotD⟩) (hdeps_prec m y hy)
       have hm_in_next : m ∈ deliverableIter deps M (k + 1) :=
-        Finset.mem_union_right _ (Finset.mem_filter.mpr ⟨hmM, hdeps_in_D⟩)
-      have : D.card < _ := Finset.card_lt_card <| Finset.ssubset_iff_of_subset
-        (deliverableIter_step_mono deps M k) |>.mpr ⟨m, hm_in_next, hmNotD⟩
-      omega
+        Finset.mem_union_right _ (Finset.mem_filter.mpr ⟨hmM, fun y hy => by
+          by_contra hyNotD
+          exact hm_min y (Finset.mem_sdiff.mpr ⟨hclosed m hmM hy, hyNotD⟩) (hdeps_prec m y hy)⟩)
+      exact Nat.succ_le_of_lt ((ih (Nat.le_of_succ_le hk)).trans_lt (Finset.card_lt_card
+        ((Finset.ssubset_iff_of_subset (deliverableIter_step_mono deps M k)).mpr
+          ⟨m, hm_in_next, hmNotD⟩)))
   have hge_full : M.card ≤ (deliverableEvents deps M).card := hcard_ge M.card le_rfl
   exact hnot_sub (Finset.eq_of_subset_of_card_le (deliverableEvents_subset deps M) hge_full).ge
 

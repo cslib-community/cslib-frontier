@@ -81,14 +81,10 @@ theorem eqn_of_mem {e' : ℕ} (he' : e' ∈ C.eqns) : (C.moveAffine J e).eqn e' 
 takes its value. -/
 theorem eqnsHold_iff (val : ℕ → Bool) : (C.moveAffine J e).EqnsHold val ↔
     C.EqnsHold val ∧ (affEqn (C.gate J) J).Holds val := by
-  constructor
-  · intro hv
-    refine ⟨fun e' he' => h.eqn_of_mem he' ▸ hv e' (Finset.mem_insert_of_mem he'), ?_⟩
-    simpa only [moveAffine, Function.update_self] using hv e (Finset.mem_insert_self _ _)
-  · rintro ⟨hv, hJv⟩ e' he'
-    rcases Finset.mem_insert.1 he' with rfl | he'
-    · simpa only [moveAffine, Function.update_self] using hJv
-    · simpa only [h.eqn_of_mem he'] using hv e' he'
+  change (∀ e' ∈ insert e C.eqns, ((C.moveAffine J e).eqn e').Holds val) ↔ _
+  rw [Finset.forall_mem_insert, and_comm]
+  exact and_congr (forall₂_congr fun e' he' => by rw [h.eqn_of_mem he'])
+    (by simp only [moveAffine, Function.update_self])
 
 private theorem live_eq : (C.moveAffine J e).live = C.live := by
   ext i
@@ -146,7 +142,7 @@ theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e)
     · change (Function.update C.eqn e' _ e').terms.card ≤ 3
       rw [Function.update_self]
       exact card_affEqn_le _ _
-    · rw [h.eqn_of_mem he']; exact hC.card_terms_le e' he'
+    · exact h.eqn_of_mem he' ▸ hC.card_terms_le e' he'
   · obtain ⟨val, hu, heq⟩ := hC.solvable u
     have hw : ∀ i, i ≠ J → Function.update val J (g.eval val) i = val i := fun i hi =>
       Function.update_of_ne hi _ _
@@ -169,12 +165,11 @@ theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e)
 /-- A consistent assignment after moving a gate into the affine system is consistent for the
 original semi-circuit. -/
 theorem MoveOK.liftsTo {J e : ℕ} (h : C.MoveOK J e) : (C.moveAffine J e).LiftsTo C :=
-  fun val hval => by
-    obtain ⟨heq, hJv⟩ := (h.eqnsHold_iff val).1 hval.1
-    refine ⟨val, ⟨heq, fun K hK => ?_⟩, fun _ _ => rfl, rfl⟩
-    by_cases hKJ : K = J
-    · subst hKJ; exact (affEqn_holds h.affine _ _).1 hJv
-    · exact hval.2 K (Finset.mem_erase.2 ⟨hKJ, hK⟩)
+  fun val hval =>
+    let ⟨heq, hJv⟩ := (h.eqnsHold_iff val).1 hval.1
+    ⟨val, ⟨heq, fun K hK => (eq_or_ne K J).elim
+      (fun hKJ => hKJ ▸ (affEqn_holds h.affine _ _).1 hJv)
+      fun hKJ => hval.2 K (Finset.mem_erase.2 ⟨hKJ, hK⟩)⟩, fun _ _ => rfl, rfl⟩
 
 /-- Moving a gate into the affine system does not increase the degree of any value other than
 the gate. -/
@@ -254,12 +249,11 @@ theorem WellFormed.rewire (hC : C.WellFormed) {J : ℕ} {g : Gate} (h : C.Rewire
 /-- A consistent assignment of a rewired semi-circuit is consistent for the original one. -/
 theorem RewireOK.liftsTo {J : ℕ} {g : Gate} (h : C.RewireOK J g) : (C.rewire J g).LiftsTo C :=
   fun val hval => by
-    have hothers : ∀ K ∈ C.gates, K ≠ J → val K = (C.gate K).eval val := fun K hK hKJ => by
-      rw [← rewire_gate_of_ne hKJ]; exact hval.2 K hK
+    have hothers (K : ℕ) (hK : K ∈ C.gates) (hKJ : K ≠ J) : val K = (C.gate K).eval val :=
+      rewire_gate_of_ne hKJ ▸ hval.2 K hK
     refine ⟨val, ⟨hval.1, fun K hK => ?_⟩, fun _ _ => rfl, rfl⟩
-    by_cases hKJ : K = J
-    · subst hKJ
-      rw [← h.value val hothers, ← rewire_gate_self (C := C) (g := g)]
+    obtain rfl | hKJ := eq_or_ne K J
+    · rw [← h.value val hothers, ← rewire_gate_self (C := C) (g := g)]
       exact hval.2 K hK
     · exact hothers K hK hKJ
 

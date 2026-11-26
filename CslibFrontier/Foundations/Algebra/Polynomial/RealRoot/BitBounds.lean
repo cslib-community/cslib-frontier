@@ -277,7 +277,6 @@ theorem DyadicBounded.mono {b e e' : ℕ} {q : ℚ} (hq : DyadicBounded b e q) (
   · rw [Int.cast_mul, Int.cast_pow, Int.cast_ofNat, div_eq_div_iff (by positivity) (by positivity)]
     rw [mul_assoc, ← pow_add, Nat.sub_add_cancel he]
   · rw [Int.natAbs_mul, Int.natAbs_pow]
-    change Int.natAbs z * 2 ^ (e' - e) ≤ b * 2 ^ e'
     calc Int.natAbs z * 2 ^ (e' - e)
         ≤ (b * 2 ^ e) * 2 ^ (e' - e) := Nat.mul_le_mul_right _ hz
       _ = b * 2 ^ e' := by rw [mul_assoc, ← pow_add, Nat.add_sub_of_le he]
@@ -289,21 +288,18 @@ theorem DyadicBounded.mid {b e : ℕ} {u v : ℚ}
     DyadicBounded b (e + 1) ((u + v) / 2) := by
   obtain ⟨zu, rfl, hzu⟩ := hu
   obtain ⟨zv, rfl, hzv⟩ := hv
-  refine ⟨zu + zv, ?_, ?_⟩
-  · rw [pow_succ, Int.cast_add]
-    ring
-  · calc Int.natAbs (zu + zv)
-        ≤ Int.natAbs zu + Int.natAbs zv := Int.natAbs_add_le _ _
-      _ ≤ b * 2 ^ e + b * 2 ^ e := Nat.add_le_add hzu hzv
-      _ = b * 2 ^ (e + 1) := by ring
+  refine ⟨zu + zv, by simp only [← add_div, div_div, pow_succ, Int.cast_add], ?_⟩
+  calc Int.natAbs (zu + zv)
+      ≤ Int.natAbs zu + Int.natAbs zv := Int.natAbs_add_le _ _
+    _ ≤ b * 2 ^ e + b * 2 ^ e := Nat.add_le_add hzu hzv
+    _ = b * 2 ^ (e + 1) := by ring
 
 /-- Denominator bound `q.den ≤ 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.den_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :
     q.den ≤ 2 ^ e := by
   obtain ⟨z, rfl, _⟩ := hq
-  have hdvd : (((z : ℚ) / (2 : ℚ) ^ e).den : ℤ) ∣ (2 : ℤ) ^ e := by
-    simpa [Rat.divInt_eq_div] using Rat.den_dvd z ((2 : ℤ) ^ e)
-  exact Nat.le_of_dvd (Nat.pow_pos zero_lt_two) (by exact_mod_cast hdvd)
+  refine Nat.le_of_dvd (Nat.pow_pos zero_lt_two) (Int.ofNat_dvd.mp ?_)
+  simpa [Rat.divInt_eq_div] using Rat.den_dvd z ((2 : ℤ) ^ e)
 
 /-- Numerator magnitude bound `Int.natAbs q.num ≤ b * 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.natAbs_num_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :

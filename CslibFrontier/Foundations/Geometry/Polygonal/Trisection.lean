@@ -73,9 +73,7 @@ private theorem eval_trisect_first (p : Route) (s t : ℝ)
     p.endpoint_cutEnds s t false
   calc
     _ = AffineMap.lineMap p.start (p.cutEnds s t).start u := eval_line _ _ i u
-    _ = _ := by
-      rw [hstart]
-      exact p.lineMap_cut false s u
+    _ = _ := hstart ▸ p.lineMap_cut false s u
 
 private theorem endTime_last (t u : ℝ) :
     endTime true (t * (1 - u)) = 1 - t + t * u := by
@@ -93,9 +91,7 @@ private theorem eval_trisect_last (p : Route) (s t : ℝ)
     _ = AffineMap.lineMap (p.cutEnds s t).finish p.finish u := eval_line _ _ i u
     _ = AffineMap.lineMap p.finish (p.eval (p.endSegment true) (endTime true t)) (1 - u) := by
       rw [hfinish, ← AffineMap.lineMap_apply_one_sub p.finish _ u]
-    _ = _ := by
-      rw [← endTime_last]
-      exact p.lineMap_cut true t (1 - u)
+    _ = _ := endTime_last t u ▸ p.lineMap_cut true t (1 - u)
 
 private theorem middle_position_lower (p : Route) {s t : ℝ}
     (hs : 0 < s) (ht : 0 < t) (hst : s + t < 1)
@@ -220,10 +216,8 @@ theorem support_trisect (p : Route) {s t : ℝ}
     exact (p.mem_support_iff z).mpr ⟨j, r, hr, h.trans he⟩
   · obtain ⟨i, r, hr, rfl⟩ := (p.mem_support_iff z).mp hz
     rcases lt_or_ge r (p.cutLower s i) with hlow | hlow
-    · obtain rfl : i = 0 := by
-        by_contra h
-        exact (not_lt_of_ge hr.1)
-          (by simpa only [cutLower, ite_eq_right (fun e : i.val = 0 => h (Fin.ext e))] using hlow)
+    · obtain rfl : i = 0 := Classical.byContradiction fun h => not_lt_of_ge hr.1
+        (by simpa only [cutLower, ite_eq_right (fun e : i.val = 0 => h (Fin.ext e))] using hlow)
       change r < s at hlow
       obtain ⟨u, hu, he⟩ := preimage hs.le ⟨hr.1, hlow.le⟩
       have hr' : s * u = r := by rw [AffineMap.lineMap_apply_ring'] at he; linarith
@@ -235,9 +229,8 @@ theorem support_trisect (p : Route) {s t : ℝ}
         refine Set.mem_iUnion.mpr
           ⟨1, ((p.trisect s t 1).mem_support_iff _).mpr ⟨i, u, hu, ?_⟩⟩
         exact (p.eval_cutEnds s t i u).trans (congrArg (p.eval i) he)
-      · have hi : i.val + 1 = p.segments := by
-          by_contra hn
-          exact not_lt_of_ge hr.2 (by simpa only [cutUpper, ite_eq_right hn] using hupp)
+      · have hi : i.val + 1 = p.segments := Classical.byContradiction fun hn =>
+          not_lt_of_ge hr.2 (by simpa only [cutUpper, ite_eq_right hn] using hupp)
         obtain rfl : i = Fin.last p.bends := Fin.ext (Nat.add_right_cancel hi)
         have hupp' : 1 - t < r := by simpa [cutUpper, segments] using hupp
         obtain ⟨u, hu, he⟩ := preimage (sub_le_self 1 ht.le) ⟨hupp'.le, hr.2⟩

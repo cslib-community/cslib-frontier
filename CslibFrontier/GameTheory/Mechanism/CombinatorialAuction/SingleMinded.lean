@@ -142,8 +142,7 @@ theorem eval_mono [DecidableEq M] {bid : SingleMindedBid M} (hv : 0 ≤ bid.valu
 single-minded bid with a nonempty desired bundle. -/
 theorem eval_empty_of_nonempty [DecidableEq M] {bid : SingleMindedBid M}
     (h : bid.bundle.Nonempty) : bid.eval ∅ = 0 := by
-  have hnot : ¬ bid.bundle ⊆ ∅ := fun hsub => h.ne_empty (Finset.subset_empty.mp hsub)
-  simp [eval, hnot]
+  exact ite_eq_right_iff.mpr fun hsub => absurd (Finset.subset_empty.mp hsub) h.ne_empty
 
 end SingleMindedBid
 
@@ -204,9 +203,7 @@ theorem utility_eq_eval_allocated [DecidableEq N] [DecidableEq M] (m : Mechanism
     (b : N → SingleMindedBid M) :
     m.utility i trueBid b =
       trueBid.eval (if i ∈ m.winners b then (b i).bundle else ∅) - m.payment b i := by
-  by_cases hi : i ∈ m.winners b
-  · simp [utility, hi]
-  · simp [utility, hi, trueBid.eval_empty_of_nonempty hne]
+  by_cases hi : i ∈ m.winners b <;> simp [utility, hi, trueBid.eval_empty_of_nonempty hne]
 
 /-- Dominant-strategy incentive compatibility (DSIC) on nonnegative single-minded bids
 ([BlumrosenNisan2007], Definition 11.7, p. 273): for every bidder `i`, nonnegative reported
@@ -332,12 +329,10 @@ variable {N M : Type*}
 
 /-- Every normalized mechanism charging winners their critical values has nonnegative payments. -/
 theorem hasNonnegPayment_of_hasCriticalPayments [DecidableEq N] {m : Mechanism N M}
-    (h0 : m.LosersPayZero) (hcrit : m.HasCriticalPayments) : m.HasNonnegPayment := by
-  intro b hb i
+    (h0 : m.LosersPayZero) (hcrit : m.HasCriticalPayments) : m.HasNonnegPayment := fun b hb i => by
   by_cases hi : i ∈ m.winners b
-  · rw [hcrit b hb i hi]
-    exact criticalValue_nonneg m.winners b i
-  · rw [h0 b hb i hi]
+  · exact (hcrit b hb i hi).symm ▸ criticalValue_nonneg m.winners b i
+  · exact (h0 b hb i hi).ge
 
 /-- Every normalized mechanism charging winners their critical values is individually rational. -/
 theorem isIR_of_hasCriticalPayments [DecidableEq N] [DecidableEq M] {m : Mechanism N M}
@@ -508,8 +503,8 @@ private theorem losLt_total {N M : Type*} [LinearOrder N] (b : N → SingleMinde
   · exact Or.inr (Or.inl h)
 
 private theorem losScore_le_of_losLt {N M : Type*} [LT N] {b : N → SingleMindedBid M}
-    {i j : N} (h : losLt b i j) : losScore (b j) ≤ losScore (b i) := by
-  exact h.elim le_of_lt fun h => h.1.le
+    {i j : N} (h : losLt b i j) : losScore (b j) ≤ losScore (b i) :=
+  h.elim le_of_lt fun h => h.1.le
 
 private theorem losLe_iff_eq_or_losLt {N M : Type*} [LinearOrder N] (b : N → SingleMindedBid M)
     (i j : N) : losLe b i j ↔ i = j ∨ losLt b i j := by
@@ -587,8 +582,7 @@ private theorem subset_foldl_greedyStep {N M : Type*} [DecidableEq N] [Decidable
     refine Finset.Subset.trans ?_ (ih _)
     unfold greedyStep
     split_ifs
-    · exact Finset.subset_insert _ _
-    · exact Finset.Subset.rfl
+    exacts [Finset.subset_insert _ _, Finset.Subset.rfl]
 
 private theorem foldl_greedyStep_subset_union {N M : Type*} [DecidableEq N] [DecidableEq M]
     (b : N → SingleMindedBid M) (l : List N) (W : Finset N) {x : N}
@@ -626,10 +620,7 @@ private theorem isCompatible_foldl_greedyStep {N M : Type*} [DecidableEq N] [Dec
     · intro x hx y hy hxy
       rcases Finset.mem_insert.mp hx with rfl | hxW <;>
         rcases Finset.mem_insert.mp hy with rfl | hyW
-      · exact (hxy rfl).elim
-      · exact hdisj y hyW
-      · exact (hdisj x hxW).symm
-      · exact hW hxW hyW hxy
+      exacts [(hxy rfl).elim, hdisj y hyW, (hdisj x hxW).symm, hW hxW hyW hxy]
     · exact hW
 
 private theorem greedySelect_congr {N M : Type*} [DecidableEq N] [DecidableEq M]
@@ -648,9 +639,7 @@ private theorem greedySelect_congr {N M : Type*} [DecidableEq N] [DecidableEq M]
     refine ih (fun k hk => h k (List.mem_cons_of_mem a hk)) _ fun k hk => ?_
     unfold greedyStep at hk
     split_ifs at hk
-    · rcases Finset.mem_insert.mp hk with rfl | hkW
-      · exact ha
-      · exact hW k hkW
+    · exact (Finset.mem_insert.mp hk).elim (fun h => h ▸ ha) (hW k)
     · exact hW k hk
 
 private theorem mem_greedySelect_append_cons {N M : Type*} [DecidableEq N] [DecidableEq M]
@@ -692,10 +681,8 @@ private theorem losSort_pairwise_losLt {N M : Type*} [LinearOrder N]
   have hle : (losSort b s).Pairwise (losLe b) :=
     @Finset.pairwise_sort N s (losLe b) (Classical.decRel _) (losLe_trans b)
       (losLe_antisymm b) (losLe_total b)
-  refine ((losSort_nodup b s).and hle).imp fun {a c} ⟨hne, h⟩ => ?_
-  rcases (losLe_iff_eq_or_losLt b a c).mp h with rfl | hlt
-  · exact (hne rfl).elim
-  · exact hlt
+  exact ((losSort_nodup b s).and hle).imp fun {a c} ⟨hne, h⟩ =>
+    ((losLe_iff_eq_or_losLt b a c).mp h).resolve_left hne
 
 end LosSort
 
@@ -740,16 +727,14 @@ theorem losWinners_eq_greedySelect {N M : Type*} [Fintype N] [LinearOrder N] [De
     {b : N → SingleMindedBid M} {l : List N}
     (hnd : l.Nodup) (hmem : ∀ i, i ∈ l) (hsort : l.Pairwise (losLt b)) :
     losWinners b = greedySelect b l := by
-  unfold losWinners
-  rw [losSort_eq_of_pairwise hnd (fun i => by simp [hmem i]) hsort]
+  rw [losWinners, losSort_eq_of_pairwise hnd (fun i => by simp [hmem i]) hsort]
 
 /-- Characterizing `losWinnersWithout` using an explicit sorted list of `N \ {i}`. -/
 theorem losWinnersWithout_eq_greedySelect {N M : Type*} [Fintype N] [LinearOrder N]
     [DecidableEq M] {b : N → SingleMindedBid M} {i : N} {l : List N}
     (hnd : l.Nodup) (hmem : ∀ j, j ∈ l ↔ j ≠ i) (hsort : l.Pairwise (losLt b)) :
     losWinnersWithout b i = greedySelect b l := by
-  unfold losWinnersWithout
-  rw [losSort_eq_of_pairwise hnd (fun j => by simp [hmem j]) hsort]
+  rw [losWinnersWithout, losSort_eq_of_pairwise hnd (fun j => by simp [hmem j]) hsort]
 
 /-- `losWinnersWithout b i` is independent of bidder `i`'s own bid. -/
 @[simp]
@@ -846,8 +831,8 @@ private theorem mem_losWinnersWithout_iff_earlier {N M : Type*} [Fintype N] [Lin
 
 private theorem losWinnersWithout_subset_ne {N M : Type*} [Fintype N] [LinearOrder N]
     [DecidableEq M] (b : N → SingleMindedBid M) {i j : N}
-    (hj : j ∈ losWinnersWithout b i) : j ≠ i := by
-  exact (Finset.mem_erase.1 ((mem_losSort b _ j).1 (mem_of_mem_greedySelect b hj))).1
+    (hj : j ∈ losWinnersWithout b i) : j ≠ i :=
+  (Finset.mem_erase.1 ((mem_losSort b _ j).1 (mem_of_mem_greedySelect b hj))).1
 
 /-- An empty-bundle bidder never conflicts with any winner and hence always wins in `losWinners`. -/
 theorem mem_losWinners_of_bundle_empty {N M : Type*} [Fintype N] [LinearOrder N] [DecidableEq M]
@@ -857,10 +842,9 @@ theorem mem_losWinners_of_bundle_empty {N M : Type*} [Fintype N] [LinearOrder N]
 private theorem losScore_mono {M : Type*} {S S' : Finset M} {v v' : ℝ}
     (hv : 0 ≤ v) (hvv' : v ≤ v') (hSS' : S' ⊆ S) (hne : S'.Nonempty) :
     losScore ⟨S, v⟩ ≤ losScore ⟨S', v'⟩ := by
-  have hc_pos : (0 : ℝ) < S'.card := Nat.cast_pos.2 hne.card_pos
-  have hc_le : (S'.card : ℝ) ≤ S.card := Nat.cast_le.2 (Finset.card_le_card hSS')
-  have hsq_pos : 0 < Real.sqrt S'.card := Real.sqrt_pos.2 hc_pos
-  have hsq_le : Real.sqrt S'.card ≤ Real.sqrt S.card := Real.sqrt_le_sqrt hc_le
+  have hsq_pos : 0 < Real.sqrt S'.card := Real.sqrt_pos.2 (Nat.cast_pos.2 hne.card_pos)
+  have hsq_le : Real.sqrt S'.card ≤ Real.sqrt S.card :=
+    Real.sqrt_le_sqrt (Nat.cast_le.2 (Finset.card_le_card hSS'))
   unfold losScore
   calc v / Real.sqrt S.card ≤ v' / Real.sqrt S.card :=
         div_le_div_of_nonneg_right hvv' (Real.sqrt_nonneg _)
@@ -873,8 +857,7 @@ theorem losWinners_isMonotone {N M : Type*} [Fintype N] [LinearOrder N] [Decidab
     IsMonotone (losWinners (N := N) (M := M)) := by
   intro i b S' v' hb hwin hsub hle
   by_cases hS' : S' = ∅
-  · refine mem_losWinners_of_bundle_empty _ ?_
-    simp [Function.update_self, hS']
+  · exact mem_losWinners_of_bundle_empty _ (by simp [Function.update_self, hS'])
   · have hne : S'.Nonempty := Finset.nonempty_iff_ne_empty.2 hS'
     have hscore : losScore (b i) ≤ losScore ⟨S', v'⟩ :=
       losScore_mono (hb i) hle hsub hne
@@ -890,8 +873,7 @@ theorem losWinners_isMonotone {N M : Type*} [Fintype N] [LinearOrder N] [Decidab
         rcases lt_or_eq_of_le hscore with hs | hs
         · exact Or.inl (lt_of_lt_of_eq hs es)
         · exact Or.inr ⟨hs.trans es, hij⟩
-    have hdisj := (mem_losWinners_iff b i).1 hwin j hj hlt_orig
-    exact hdisj.mono_left hsub
+    exact ((mem_losWinners_iff b i).1 hwin j hj hlt_orig).mono_left hsub
 
 private noncomputable def losBlockers {N M : Type*} [Fintype N] [LinearOrder N] [DecidableEq M]
     (b : N → SingleMindedBid M) (i : N) : Finset N :=
@@ -1018,9 +1000,8 @@ private theorem winners_agree_before_blocker {N M : Type*} [Fintype N] [LinearOr
       have heq := ih r hlt hri hno_r
       constructor
       · intro hrw
-        have hdisj_i : Disjoint (b i).bundle (b r).bundle := by
-          by_contra hnd
-          exact hno r (Finset.mem_filter.2 ⟨hrw, hnd⟩) hlt
+        have hdisj_i : Disjoint (b i).bundle (b r).bundle :=
+          by_contra fun hnd => hno r (Finset.mem_filter.2 ⟨hrw, hnd⟩) hlt
         refine (mem_losWinners_iff_earlier_winners b r).2 fun t ht htr => ?_
         by_cases hti : t = i
         · subst hti; exact hdisj_i.symm
@@ -1076,13 +1057,10 @@ theorem losPayment_eq_first_blocked {N M : Type*} [Fintype N] [LinearOrder N] [D
       ((winners_agree_before_blocker b j hji (fun x hx => hj_min x hx)).1 hj_w k hk hki hlt).symm
     have hmin_j : ∀ j', j' ≠ i → ¬ Disjoint (b i).bundle (b j').bundle →
         (∀ k ∈ losWinners b, k ≠ i → losLt b k j' → Disjoint (b k).bundle (b j').bundle) →
-        j = j' ∨ losLt b j j' := by
-      intro j' hj'i hnd' hcond'
-      rcases eq_or_ne j j' with rfl | heq
-      · exact Or.inl rfl
-      · exact Or.inr <| (losLt_total b heq).resolve_right fun h =>
-          hj_min j' (hmem_block j' hj'i hnd'
-            (fun x hx hxj' => hj_min x hx (losLt_trans b hxj' h)) hcond') h
+        j = j' ∨ losLt b j j' := fun j' hj'i hnd' hcond' =>
+      (eq_or_ne j j').imp_right fun heq => (losLt_total b heq).resolve_right fun h =>
+        hj_min j' (hmem_block j' hj'i hnd'
+          (fun x hx hxj' => hj_min x hx (losLt_trans b hxj' h)) hcond') h
     have hij_lt : losLt b i j :=
       (losLt_total b hji.symm).resolve_right fun h =>
         hnd_ij ((mem_losWinners_iff b i).1 hwin j hj_w h)
@@ -1155,10 +1133,8 @@ private theorem sum_optBlocked_le {N M : Type*} [LinearOrder N] [Fintype M]
     rcases hspec j hj with ⟨hle, hnd⟩
     have hj_ne : (b j).bundle.Nonempty := by
       classical exact (Finset.not_disjoint_iff_nonempty_inter.1 hnd).mono Finset.inter_subset_right
-    have hsc_j_le : losScore (b j) ≤ losScore (b i) := by
-      rcases hle with rfl | hlt
-      · exact le_rfl
-      · exact losScore_le_of_losLt hlt
+    have hsc_j_le : losScore (b j) ≤ losScore (b i) :=
+      hle.elim (fun h => h ▸ le_rfl) losScore_le_of_losLt
     have hsj_pos : 0 < Real.sqrt (b j).bundle.card :=
       Real.sqrt_pos.2 (Nat.cast_pos.2 hj_ne.card_pos)
     calc (b j).value
@@ -1173,9 +1149,8 @@ private theorem sum_optBlocked_le {N M : Type*} [LinearOrder N] [Fintype M]
       Finset.sum_mul_sq_le_sq_mul_sq optI (fun _ => (1 : ℝ)) fun j => Real.sqrt (b j).bundle.card
   have hcard_optI : (optI.card : ℝ) ≤ (b i).bundle.card := by
     exact_mod_cast card_optBlocked_le hopt i hsub fun j hj => (hspec j hj).2
-  have hcompatI : IsCompatible b optI := hopt.subset (Finset.coe_subset.2 hsub)
   have hsum_card : ∑ j ∈ optI, ((b j).bundle.card : ℝ) ≤ Fintype.card M := by
-    exact_mod_cast hcompatI.sum_card_le
+    exact_mod_cast IsCompatible.sum_card_le (hopt.subset (Finset.coe_subset.2 hsub))
   have hcs_bound : ∑ j ∈ optI, Real.sqrt (b j).bundle.card ≤
       Real.sqrt (b i).bundle.card * Real.sqrt (Fintype.card M) := by
     rw [← Real.sqrt_mul (Nat.cast_nonneg _)]
@@ -1223,8 +1198,8 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
     intro j hj
     rcases Finset.mem_filter.1 hj with ⟨_, hjne⟩
     by_cases hjW : j ∈ W
-    · refine ⟨j, Finset.mem_filter.2 ⟨hjW, hjne⟩, Or.inl rfl, ?_⟩
-      exact Finset.not_disjoint_iff.2 ⟨hjne.choose, hjne.choose_spec, hjne.choose_spec⟩
+    · exact ⟨j, Finset.mem_filter.2 ⟨hjW, hjne⟩, Or.inl rfl,
+        Finset.not_disjoint_iff.2 ⟨hjne.choose, hjne.choose_spec, hjne.choose_spec⟩⟩
     · obtain ⟨i, hiW, hilt, hnd⟩ : ∃ i ∈ W, losLt b i j ∧ ¬ Disjoint (b j).bundle (b i).bundle := by
         by_contra! hnone
         exact hjW ((mem_losWinners_iff_earlier_winners b j).2 hnone)

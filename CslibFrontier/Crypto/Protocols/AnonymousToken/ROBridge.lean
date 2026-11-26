@@ -436,17 +436,14 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
       S.sign keys.2 (targetFn p.message p.opening)
     let signH : Payload Message Opening → StateT (List (Payload Message Opening × Sig)) PMF Sig :=
       fun p log => (ProbComp.eval (signO p)).map fun sig => (sig, log ++ [(p, sig)])
+    let extRun := (OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+        (romToExtractedInner expand decWit chalToIdx checkRel))
+      (A keys.1)).run ([], [])
     have hlog_map :
-        ProbComp.eval ((Prod.fst <$> (OracleComp.interpret
-            (OracleComp.sumHandler
-              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-              (romToExtractedInner expand decWit chalToIdx checkRel))
-            (A keys.1)).run ([], [])).runLog signO) =
-          (ProbOracleComp.runWith signH ((OracleComp.interpret
-              (OracleComp.sumHandler
-                (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-                (romToExtractedInner expand decWit chalToIdx checkRel))
-              (A keys.1)).run ([], [])) []).map (Prod.map Prod.fst id) := by
+        ProbComp.eval ((Prod.fst <$> extRun).runLog signO) =
+          (ProbOracleComp.runWith signH extRun []).map (Prod.map Prod.fst id) := by
       simp only [ProbOracleComp.runLog, ProbOracleComp.runState_map, StateT.run_map,
         ProbOracleComp.eval_runState, ProbComp.eval_map]
       congr 2
@@ -1102,24 +1099,22 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
           (some sig, log ++ [(q, some sig)])
       else
         PMF.pure (none, log)
+    let extRun := (OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+        (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
+      (A keys.1)).run ([], [])
     have hlog_map :
-        ProbComp.eval ((Prod.fst <$> (OracleComp.interpret
-            (OracleComp.sumHandler
-              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-              (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
-            (A keys.1)).run ([], [])).runLogWith
+        ProbComp.eval ((Prod.fst <$> extRun).runLogWith
             (Conservation.extractedIssuerOracle com tag S keys)) =
-          (ProbOracleComp.runWith issuerH ((OracleComp.interpret
-              (OracleComp.sumHandler
-                (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-                (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
-              (A keys.1)).run ([], [])) []).map (Prod.map Prod.fst id) := by
+          (ProbOracleComp.runWith issuerH extRun []).map (Prod.map Prod.fst id) := by
       simp only [ProbOracleComp.runLogWith, ProbOracleComp.runState_map, StateT.run_map,
         ProbOracleComp.eval_runState, ProbComp.eval_map]
       congr 2 with q log
       simp only [ProbOracleComp.logOracle, Conservation.extractedIssuerOracle, issuerH]
       cases Conservation.acceptRequest com tag S keys.1 (log.map Prod.fst) q
-      · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure]; rfl
+      · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure]
+        rfl
       · simp only [↓reduceIte, ProbComp.eval_map, PMF.map_comp, Function.comp_def]
     erw [hlog_map]
     have hrun := ProbOracleComp.runWith_run_interpret

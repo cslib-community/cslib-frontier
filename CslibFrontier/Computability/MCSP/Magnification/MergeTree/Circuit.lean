@@ -244,8 +244,7 @@ theorem cost_program_tree (n s k : ℕ) :
     rw [tree, Circuit.cost_program_comp, cost_program_tree n s k j, cost_program_layer,
       Finset.sum_range_succ']
     have h (i : ℕ) : ℓ + k + (i + 1) * k = ℓ + (i + 1 + 1) * k := by ring
-    simp only [h, zero_add, one_mul]
-    ring
+    simp only [h, zero_add, one_mul]; ring
 
 theorem size_tree (n s k : ℕ) :
     ∀ (j ℓ N : ℕ) (out : Fin N → Fin (2 ^ ℓ) × Fin (stateWidth n s)),
@@ -255,31 +254,28 @@ theorem size_tree (n s k : ℕ) :
   | j + 1, ℓ, N, out => by
     rw [tree, Circuit.size_comp, size_tree n s k j, size_layer, Finset.sum_range_succ']
     have h (i : ℕ) : ℓ + k + (i + 1) * k = ℓ + (i + 1 + 1) * k := by ring
-    simp only [h, zero_add, one_mul]
-    ring
+    simp only [h, zero_add, one_mul]; ring
 
 theorem depthWith_tree_le (n s k : ℕ) :
     ∀ (j ℓ N : ℕ) (out : Fin N → Fin (2 ^ ℓ) × Fin (stateWidth n s)),
       (tree n s k j ℓ N out).depthWith OracleOp.queryWeight ≤ j + 1
-  | 0, ℓ, N, out => depthWith_layer_le _ _ _ _ _ _ _
-  | j + 1, ℓ, N, out =>
-    (Circuit.depthWith_comp_le _ _ _).trans
-      (Nat.add_le_add (depthWith_layer_le _ _ _ _ _ _ _) (depthWith_tree_le n s k j _ _ _)) |>.trans
-      (by omega)
+  | 0, _, _, _ => depthWith_layer_le _ _ _ _ _ _ _
+  | j + 1, _, _, _ =>
+    Nat.add_comm 1 (j + 1) ▸ (Circuit.depthWith_comp_le _ _ _).trans
+      (Nat.add_le_add (depthWith_layer_le _ _ _ _ _ _ _) (depthWith_tree_le n s k j _ _ _))
 
 theorem fanInAtMost_tree (n s k : ℕ) :
     ∀ (j ℓ N : ℕ) (out : Fin N → Fin (2 ^ ℓ) × Fin (stateWidth n s)),
       ℓ + j * k ≤ n →
         (tree n s k j ℓ N out).FanInAtMost
           (headerLength n s n n + max (2 ^ (n - ℓ - j * k)) (2 ^ k * stateWidth n s))
-  | 0, ℓ, N, out, hℓ => by
-    refine (fanInAtMost_layer _ _ _ _ _ _ _).mono ?_
-    simp only [Nat.zero_mul, Nat.sub_zero]
-    exact Nat.add_le_add (by unfold headerLength; omega) (le_max_left _ _)
+  | 0, ℓ, N, out, hℓ =>
+    (fanInAtMost_layer _ _ _ _ _ _ _).mono
+      (by simp only [headerLength, Nat.zero_mul, Nat.sub_zero]; omega)
   | j + 1, ℓ, N, out, hℓ => by
     rw [Nat.add_mul, Nat.one_mul] at hℓ
-    refine Circuit.FanInAtMost.comp ((fanInAtMost_layer _ _ _ _ _ _ _).mono ?_) ?_
-    · exact Nat.add_le_add (by unfold headerLength; omega) (le_max_right _ _)
+    refine Circuit.FanInAtMost.comp
+      ((fanInAtMost_layer _ _ _ _ _ _ _).mono (by dsimp only [headerLength]; omega)) ?_
     · have he : n - (ℓ + k) - j * k = n - ℓ - (j + 1) * k := by rw [Nat.add_mul]; omega
       exact he ▸ fanInAtMost_tree n s k j (ℓ + k) _ finProdFinEquiv.symm (by omega)
 

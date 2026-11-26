@@ -65,15 +65,11 @@ private theorem vertex_lt (v : Fin N) : v.val < 2 ^ N.size :=
 /-- Exact canonical ID decoding. -/
 theorem decodeVertex_eq_some_iff (bits : List Bool) (v : Fin N) :
     decodeVertex bits = some v ↔ bits = vertex v := by
-  constructor
-  · intro h
-    unfold decodeVertex at h
-    split at h
-    · split at h
-      · exact binaryValue_injective_of_length_eq (by simp [*, length_vertex])
-          (by simpa [vertex] using congrArg Fin.val (Option.some.inj h))
-      · cases h
-    · cases h
+  refine ⟨fun h => ?_, ?_⟩
+  · simp only [decodeVertex, Option.ite_none_right_eq_some, Option.dite_none_right_eq_some,
+      Option.some.injEq] at h
+    obtain ⟨hlen, _, rfl⟩ := h
+    exact binaryValue_injective_of_length_eq (hlen.trans (length_vertex _).symm) (by simp [vertex])
   · rintro rfl
     rw [decodeVertex, ite_eq_left (length_vertex v)]
     simp [vertex]
@@ -308,12 +304,9 @@ theorem replay_expected_eq_some_iff (edge : Fin N → Fin N → Bool) (source ta
         Passes (fun u v => edge u v = true) source k (transcript source b) ∧
         (b target).isSome = hit := by
   rw [replay_eq_some_iff]
-  constructor
-  · rintro ⟨b, _, he, hr⟩
-    exact ⟨b, he, (Scan.run_eq_some_iff _ _ _ _ _ _).mp hr⟩
-  · rintro ⟨b, he, hp, hh⟩
-    exact ⟨b, bounded_of_passes source k b hp, he,
-      (Scan.run_eq_some_iff _ _ _ _ _ _).mpr ⟨hp, hh⟩⟩
+  exact ⟨fun ⟨b, _, he, hr⟩ => ⟨b, he, (Scan.run_eq_some_iff ..).mp hr⟩,
+    fun ⟨b, he, hp, hh⟩ => ⟨b, bounded_of_passes source k b hp, he,
+      (Scan.run_eq_some_iff ..).mpr ⟨hp, hh⟩⟩⟩
 
 /-- Encoding commutes with typed replay, without collapsing negative answers into rejection. -/
 theorem replay_encode (edge : Fin N → Fin N → Bool) (source target : Fin N)

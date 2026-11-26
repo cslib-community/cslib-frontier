@@ -104,8 +104,7 @@ private theorem search_eq_true_iff {f : α × ℕ → β} {ν : α → ℕ} {g :
 open ComputableInPolyTime in
 private theorem computableInPolyTime_init :
     ComputableInPolyTime init encA (encState encA) := by
-  unfold init encState
-  fun_prop
+  fun_prop [init, encState]
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_rounds {ν : α → ℕ}
@@ -132,9 +131,9 @@ private theorem exists_computableInO_step {f : α × ℕ → β}
   have h := (hN.mono (d' := D) (e' := eN) (by omega) le_rfl).inO.prod
     (hO.inO.comp ((hB.mono (d' := D) (e' := eB) (by omega) le_rfl).inO.prod
       (hg.comp (hR.mono (d' := D) (e' := eR) (by omega) le_rfl).inO)))
+  have hlen4 (p : Bool × Bool) : (encPair encBool encBool p).length = 4 := by simp
   refine ⟨D, (h.mono (5 ^ dO + 4) (fun s => ?_) (fun s => ?_)).of_enc_eq fun _ => rfl⟩ <;>
-  · simp only [Function.comp_apply,
-      show ∀ p : Bool × Bool, (encPair encBool encBool p).length = 4 from fun _ => by simp]
+  · simp only [Function.comp_apply, hlen4]
     have hF : 1 ≤ (4 + 1) ^ dO := Nat.one_le_pow _ _ (by norm_num)
     generalize ((encState encA s).length + 1) ^ D = P, t (f s.1) = T, (4 + 1) ^ dO = F at hF ⊢
     nlinarith
@@ -179,7 +178,6 @@ private theorem le_leafTime {nd : α → ℕ} {queryExponent : α → ℝ} {k e 
     t b ≤ leafTime nd queryExponent k e a := by
   have h₁ : (2 : ℝ) ^ rate b ≤ 2 ^ queryExponent a :=
     Real.rpow_le_rpow_of_exponent_le (by norm_num) hRate
-  have h₂ : (((encB b).length : ℝ) + 1) ^ e ≤ ((nd a : ℝ) + 1) ^ e := by gcongr
   exact Nat.cast_le.mp (ht.trans ((by gcongr : _ ≤ _).trans (Nat.le_ceil _)))
 
 /-- **Absorbing the overheads.** A running time `A + R * (B + ℓ)`, with polynomial overheads
@@ -196,9 +194,8 @@ private theorem add_mul_add_le {A B R ℓ X Y P a r b b' : ℝ} (hA : A ≤ a * 
     have := le_mul_of_one_le_right hb' (one_le_mul_of_one_le_of_one_le hY hP)
     linarith
   have := (mul_le_mul_of_nonneg_left hBℓ hR₀).trans (mul_le_mul_of_nonneg_right hR (by positivity))
-  have := mul_le_mul_of_nonneg_left
-    (le_mul_of_one_le_left hP₀ (one_le_mul_of_one_le_of_one_le hX hY)) ha
-  linarith
+  linarith [mul_le_mul_of_nonneg_left
+    (le_mul_of_one_le_left hP₀ (one_le_mul_of_one_le_of_one_le hX hY)) ha]
 
 /-- Certify the search once for arbitrary bounds on the branch and leaf exponents. -/
 private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
@@ -261,19 +258,17 @@ private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
     have := Nat.pow_le_pow_left (Nat.add_le_add_right (hrounds_len a) 1) 2
     norm_cast; omega
   have hR : (rounds ν a : ℝ) + 1 ≤ 2 * (2 : ℝ) ^ branchExponent a := by
-    have h₁ : (rounds ν a : ℝ) ≤ 2 ^ branchExponent a := by
-      rw [rounds, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
-      exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (hbranch a)
+    have h₁ := Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) (hbranch a)
+    rw [rounds, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
     linarith
   have hleaf : (leafTime nd queryExponent k e a : ℝ) ≤
       k * Cp * 2 ^ queryExponent a * ((encA a).length + 1) ^ E + (k + 1) := by
     have hnd : ((nd a : ℝ) + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E := by norm_cast; omega
-    have hceil := Nat.ceil_lt_add_one (show (0 : ℝ) ≤
-      k * (2 ^ queryExponent a * ((nd a : ℝ) + 1) ^ e) + k by positivity)
-    have := mul_le_mul_of_nonneg_left hnd
-      (by positivity : (0 : ℝ) ≤ k * 2 ^ queryExponent a)
+    have hceil := Nat.ceil_lt_add_one
+      (by positivity : (0 : ℝ) ≤ k * (2 ^ queryExponent a * ((nd a : ℝ) + 1) ^ e) + k)
+    have hmul : (0 : ℝ) ≤ k * 2 ^ queryExponent a := by positivity
     unfold leafTime
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hnd hmul]
   have key := add_mul_add_le hA hB hR hleaf (by positivity) (by positivity) (by positivity)
     (by positivity) hbr₁ (Real.one_le_rpow (by norm_num) (hquery₀ a))
     (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _)))
@@ -302,15 +297,11 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
   have hbranch (a : α) : (ν a : ℝ) ≤ (1 / M : ℝ) * μA a + K := by
     rw [one_div_mul_eq_div]
     exact (mod_cast hνM a : (ν a : ℝ) ≤ ↑(μA a / M) + K).trans (add_le_add Nat.cast_div_le le_rfl)
-  have hquery (a : α) (r : ℕ) : δ * μB (f (a, r)) ≤ c * δ * μA a + c * δ := by
-    have hbound : (μB (f (a, r)) : ℝ) ≤ c * μA a + c := by exact_mod_cast hμ a r
-    calc
-      δ * μB (f (a, r)) ≤ δ * (c * μA a + c) :=
-        mul_le_mul_of_nonneg_left hbound hδ
-      _ = c * δ * μA a + c * δ := by ring
+  have hquery (a : α) (r : ℕ) : δ * μB (f (a, r)) ≤ c * δ * μA a + c * δ := calc
+    δ * μB (f (a, r)) ≤ δ * (c * μA a + c) := mul_le_mul_of_nonneg_left (mod_cast hμ a r) hδ
+    _ = c * δ * μA a + c * δ := by ring
   obtain ⟨E, hsearch⟩ := ExhaustiveSearch.exists_decidableInTimeO hf hν hfA hbranch hquery
-    (fun a => add_nonneg (mul_nonneg (mul_nonneg (Nat.cast_nonneg c) hδ)
-      (Nat.cast_nonneg (μA a))) (mul_nonneg (Nat.cast_nonneg c) hδ)) h
+    (fun _ => by positivity) h
   refine ⟨E, hsearch.mono ⌈(2 : ℝ) ^ (K + c * δ)⌉₊ (fun a => ?_) (fun _ => by positivity)⟩
   have hsum : (1 / M : ℝ) * μA a + K + (c * δ * μA a + c * δ) =
       (1 / M + c * δ) * μA a + (K + c * δ) := by ring
@@ -356,11 +347,10 @@ theorem DecidableInPowerExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν :
       _ ≤ _ := by
         rw [← add_mul]
         exact mul_le_mul_of_nonneg_right (add_le_add le_rfl (Nat.le_ceil R)) (by positivity)
-  have hbound := mul_le_mul_of_nonneg_right
-    (Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) hexponent)
-    (show 0 ≤ ((encA a).length + 1 : ℝ) ^ E by positivity)
   simp only [Nat.cast_one, one_mul]
-  exact hbound.trans (le_add_of_nonneg_right zero_le_one)
+  exact (mul_le_mul_of_nonneg_right
+    (Real.rpow_le_rpow_of_exponent_le (by norm_num) hexponent) (by positivity)).trans
+    (le_add_of_nonneg_right zero_le_one)
 
 /-- **Subexponential-time transfer along an exhaustive search with sublinear branch exponent.** If
 $f : \alpha \times \mathbb{N} \to \beta$ and $\nu : \alpha \to \mathbb{N}$ are computable in

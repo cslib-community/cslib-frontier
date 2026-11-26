@@ -161,20 +161,15 @@ private theorem SPFormula.pow_lt_nodeCount_of_imm {K : Type*} [Field K] {n d N :
   -- the exponent of the left side exceeds `L A`
   have hq : q ≠ 0 := Nat.sub_ne_zero_of_lt (Nat.one_lt_pow (by omega) (by norm_num))
   have hqR : (4 ^ Δ - 1 : ℝ) = (q : ℝ) := by
-    rw [hqdef, Nat.cast_sub (Nat.one_le_pow _ _ (by norm_num))]
-    push_cast; ring
+    simp [hqdef, Nat.cast_sub (Nat.one_le_pow Δ 4 (by norm_num))]
   have hr : (20 * A + 11 : ℝ) ≤ (d : ℝ) ^ (1 / (4 ^ Δ - 1 : ℝ)) := by
     rw [hqR, one_div, ← Real.pow_rpow_inv_natCast (by positivity : (0 : ℝ) ≤ 20 * A + 11) hq]
     exact Real.rpow_le_rpow (by positivity) (by exact_mod_cast hdq) (by positivity)
   have hexp : ((L * A : ℕ) : ℝ) < (L : ℝ) * ((d : ℝ) ^ (1 / (4 ^ Δ - 1 : ℝ)) / 20 - 1 / 2) := by
     push_cast
     exact mul_lt_mul_of_pos_left (by linarith) (by exact_mod_cast hL1)
-  have hlt := Real.rpow_lt_rpow_of_exponent_lt one_lt_two hexp
-  rw [Real.rpow_natCast] at hlt
-  have hR' : ((SPFormula.smCost d ^ Δ * F.nodeCount : ℕ) : ℝ) ≤ 2 ^ (L * A) := by
-    exact_mod_cast hR
-  push_cast at hR'
-  linarith
+  have hR' : (SPFormula.smCost d ^ Δ : ℝ) * F.nodeCount ≤ 2 ^ (L * A) := by exact_mod_cast hR
+  linarith [Real.rpow_natCast 2 (L * A), Real.rpow_lt_rpow_of_exponent_lt one_lt_two hexp]
 
 /-- **Superpolynomial lower bound for constant-depth formulas computing IMM over any field**
 (LST Corollary 4, p. 4, at constant product-depth and `d = ⌊log₂ ⌊log₂ n⌋⌋`, over any field by
@@ -246,10 +241,9 @@ theorem eventually_pow_lt_size_of_imm (K : Type*) [Field K] (Δ c : ℕ) :
     (by rw [polynomial_toSPFormula]; exact hCP)
   have hN : N ≤ n ^ 3 := by
     have hcard : N = Nat.log 2 (Nat.log 2 n) * (n * n) := by simpa using Fintype.card_congr e
-    have hd : Nat.log 2 (Nat.log 2 n) ≤ n :=
-      (Nat.log_le_self 2 _).trans (Nat.log_le_self 2 n)
-    rw [hcard, pow_succ, pow_two]
-    exact (Nat.mul_le_mul_right _ hd).trans_eq (by ring)
+    rw [hcard]
+    exact (Nat.mul_le_mul_right _ ((Nat.log_le_self 2 _).trans (Nat.log_le_self 2 n))).trans_eq
+      (by ring)
   have hbase : C.size + N + 1 ≤ n ^ (c + 5) := by
     have h1 : 1 ≤ n ^ c := Nat.one_le_pow _ _ (by omega)
     have h3 : n ^ 3 ≤ n ^ (c + 3) := Nat.pow_le_pow_right (by omega) (by omega)

@@ -256,27 +256,8 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
         (modLeveledChooseCoins evaluateKey evaluateZero n (coins n) (depth n) (capacity n)
           keyCoins challengePk) := by
   by_cases hpos : 0 < depth n ∧ 0 < capacity n
-  · let index (bound : ℕ) (seed : List Bool) := min bound (BitString.binaryValue seed % bound)
-    let afterHop (first remaining : List Bool) :=
-      if index 3 first = 0 then
-        tagLeveledChoice false false (Scheme.chooseModLinkCoins evaluateKey n (coins n) keyCoins
-          (depth n) (capacity n) challengePk
-          (remaining.take (2 * coins n + depth n * keyCoins)))
-      else if index 3 first = 1 then
-        tagLeveledChoice false true (swapLeveledChoice (Scheme.chooseModLinkCoins evaluateKey n
-          (coins n) keyCoins (depth n) (capacity n) challengePk
-          (remaining.take (2 * coins n + depth n * keyCoins))))
-      else if index (depth n) (remaining.take (coins n)) = 0 then
-        if index (capacity n) ((remaining.drop (coins n)).take (coins n)) = 0 then
-          tagLeveledChoice true false
-            (evaluateZero (n, challengePk) ((remaining.drop (coins n)).drop (coins n)))
-        else rejectLeveledChoice
-      else rejectLeveledChoice
-    have hsize : 3 * coins n + zeroCoins = coins n + (2 * coins n + zeroCoins) := by omega
-    have hrhs : modLeveledChooseCoins evaluateKey evaluateZero n (coins n) (depth n) (capacity n)
-        keyCoins challengePk = fun tape => afterHop (tape.take (coins n)) (tape.drop (coins n)) :=
-      funext fun _ => ite_eq_left hpos
-    rw [hrhs, hsize, BitString.uniformList_map_split (coins n) (2 * coins n + zeroCoins) afterHop]
+  · have hsize : 3 * coins n + zeroCoins = coins n + (2 * coins n + zeroCoins) := by omega
+    rw [hsize, BitString.uniformList_add, PMF.map_bind]
     simp only [pmf_norm, modLeveledAdversary, hpos, and_self, ↓reduceIte, ProbComp.sampleModIndex,
       ProbComp.sampleModNat, ProbComp.sampleBinaryNat, BitString.eval_sampleList]
     -- both link branches use a prefix of the common payload
@@ -284,27 +265,29 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
     have hlaw (bit : Bool) := E.eval_modLinkAdversary_choose_eq_map_coins evaluateKey coins depth
       capacity (publicKeyGame E adversary bit) n keyCoins challengePk hkey
     simp only [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
-    congr 1 with first : 1
+    rw [← PMF.bindOnSupport_eq_bind, ← PMF.bindOnSupport_eq_bind]
+    congr 1 with first hfirst_mem : 2
+    have hlen1 := BitString.length_of_mem_support_uniformList hfirst_mem
+    simp only [modLeveledChooseCoins, hpos, and_self, ↓reduceIte,
+      List.take_left' hlen1, List.drop_left' hlen1]
     by_cases hfirst : min 3 (BitString.binaryValue first % 3) = 0
-    · simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte] using
-          congrArg (PMF.map (tagLeveledChoice false false)) (hlaw false)
+    · simpa only [pmf_norm, hfirst, ↓reduceIte, Function.comp_def] using
+        congrArg (PMF.map (tagLeveledChoice false false)) (hlaw false)
     · by_cases hsecond : min 3 (BitString.binaryValue first % 3) = 1
-      · simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
-          Nat.one_ne_zero] using
-            congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) (hlaw true)
-      · have hsize : 2 * coins n + zeroCoins = coins n + (coins n + zeroCoins) := by omega
-        have hsplit := BitString.uniformList_map_split3 (coins n) (coins n) zeroCoins
-          (fun second third rest =>
-            if index (depth n) second = 0 then
-              if index (capacity n) third = 0 then
-                tagLeveledChoice true false (evaluateZero (n, challengePk) rest)
-              else rejectLeveledChoice
-            else rejectLeveledChoice)
-        simp only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
-          BitString.eval_sampleList, hsize] at hsplit ⊢
-        rw [hsplit]
-        congr 1 with second : 1
-        congr 1 with third : 1
+      · simpa only [pmf_norm, hfirst, hsecond, ↓reduceIte, Nat.one_ne_zero, Function.comp_def] using
+          congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) (hlaw true)
+      · have hsize2 : 2 * coins n + zeroCoins = coins n + (coins n + zeroCoins) := by omega
+        simp only [pmf_norm, hfirst, hsecond, ↓reduceIte, BitString.eval_sampleList, hsize2]
+        rw [BitString.uniformList_add, PMF.map_bind,
+          ← PMF.bindOnSupport_eq_bind, ← PMF.bindOnSupport_eq_bind]
+        congr 1 with second hsec_mem : 2
+        have hlen2 := BitString.length_of_mem_support_uniformList hsec_mem
+        rw [BitString.uniformList_add, PMF.map_comp, PMF.map_bind,
+          ← PMF.bindOnSupport_eq_bind, ← PMF.bindOnSupport_eq_bind]
+        congr 1 with third hthird_mem : 2
+        have hlen3 := BitString.length_of_mem_support_uniformList hthird_mem
+        simp only [PMF.map_comp, Function.comp_def, List.take_left' hlen2, List.drop_left' hlen2,
+          List.take_left' hlen3, List.drop_left' hlen3]
         split_ifs <;> simp [hzero, PMF.map, Function.comp_def]
   · unfold modLeveledChooseCoins
     simp only [modLeveledAdversary, hpos, ↓reduceIte, ProbComp.eval_map, hzero,

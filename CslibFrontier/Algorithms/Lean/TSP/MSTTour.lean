@@ -312,15 +312,13 @@ theorem eqvGen_kruskalEdges_completeEdges (δ : Fin n → Fin n → ℕ) (a b : 
 
 /-- **Feasibility.** The MST tour visits every vertex exactly once. -/
 theorem mstTour_perm (δ : Fin n → Fin n → ℕ) : (mstTour δ).Perm (List.finRange n) := by
-  by_cases h : 0 < n
+  rcases Nat.eq_zero_or_pos n with rfl | h
+  · simp [mstTour]
   · rw [mstTour_of_pos δ h]
-    refine (List.perm_ext_iff_of_nodup (nodup_growTour _ n (List.nodup_singleton _))
-      (List.nodup_finRange n)).2 fun x => ?_
-    simp only [List.mem_finRange, iff_true]
-    exact mem_growTour (eqvGen_kruskalEdges_completeEdges δ) (List.nodup_singleton _)
-      (List.cons_ne_nil _ _) (by simp only [List.length_singleton]; omega) x
-  · obtain rfl : n = 0 := by omega
-    simp [mstTour]
+    exact (List.perm_ext_iff_of_nodup (nodup_growTour _ n (List.nodup_singleton _))
+      (List.nodup_finRange n)).2 fun x => iff_of_true (mem_growTour
+        (eqvGen_kruskalEdges_completeEdges δ) (List.nodup_singleton _) (List.cons_ne_nil _ _)
+        (Nat.le_add_left n 1) x) (List.mem_finRange x)
 
 /-- **The upper bound** ([WilliamsonShmoys2011], proof of Theorem 2.11): for symmetric `δ` with
 the triangle inequality and at least two vertices, the MST tour costs at most twice the tree. -/
@@ -375,24 +373,21 @@ theorem totalWeight_kruskalEdges_le_cycleCost (δ : Fin n → Fin n → ℕ) {q 
   set H : List (WeightedEdge n ℕ) :=
     (q.zip (q.rotate 1)).map fun p => ⟨p.1, p.2, δ p.1 p.2⟩ with hH
   have hHw : totalWeight H = cycleCost δ q := by
-    simp only [totalWeight, hH, cycleCost, List.map_map]
-    rw [← List.map_uncurry_zip_eq_zipWith]
-    rfl
+    simp only [totalWeight, hH, cycleCost, List.map_map, Function.comp_def]
+    exact congrArg List.sum List.map_uncurry_zip_eq_zipWith
   rw [← hHw]
-  refine totalWeight_kruskalEdges_completeEdges_le δ ?_ ?_ ?_
+  refine totalWeight_kruskalEdges_completeEdges_le δ ?_ (List.forall_mem_map.2 fun _ _ => rfl) ?_
   · have hmap : H.map WeightedEdge.u = q := by
-      simp only [hH, List.map_map]
-      exact List.map_fst_zip (by simp)
+      simpa only [hH, List.map_map, Function.comp_def] using List.map_fst_zip (by simp)
     exact List.Nodup.of_map _ (hmap ▸ hq)
-  · exact List.forall_mem_map.2 fun _ _ => rfl
   · -- the tour's consecutive vertices are joined by its edges, so all vertices are connected
     intro x y
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem (hcov x)
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem (hcov y)
-    have hR (k : ℕ) (hk : k + 1 < q.length) : ∃ e ∈ H, q[k] = e.u ∧ q[k + 1] = e.v := by
-      refine ⟨H[k]'(by simp [hH]; omega), List.getElem_mem _, ?_, ?_⟩
-      · simp [hH]
-      · simp [hH, List.getElem_rotate, Nat.mod_eq_of_lt hk]
+    have hR (k : ℕ) (hk : k + 1 < q.length) : ∃ e ∈ H, q[k] = e.u ∧ q[k + 1] = e.v :=
+      ⟨H[k]'(by simp [hH]; omega), List.getElem_mem _,
+        by simp [hH],
+        by simp [hH, List.getElem_rotate, Nat.mod_eq_of_lt hk]⟩
     exact .trans _ _ _ (.symm _ _ (eqvGen_getElem_zero hR (Nat.zero_lt_of_lt hi) i hi))
       (eqvGen_getElem_zero hR (Nat.zero_lt_of_lt hi) j hj)
 
@@ -409,10 +404,9 @@ theorem cycleCost_mstTour_le_two_mul {δ : Fin n → Fin n → ℕ} (hsymm : ∀
       ((List.perm_ext_iff_of_nodup (List.nodup_finRange n) hq).2 (by simp [hcov]))
     have hlen : q.length ≤ n := by simpa using hq.length_le_card
     rcases q with _ | ⟨_, _ | ⟨_, _⟩⟩
-    · exact hperm.eq_nil ▸ Nat.le_mul_of_pos_left _ (by decide)
-    · exact List.perm_singleton.1 hperm ▸ Nat.le_mul_of_pos_left _ (by decide)
-    · simp only [List.length_cons] at hlen
-      omega
+    · exact hperm.eq_nil ▸ Nat.le_mul_of_pos_left _ Nat.two_pos
+    · exact List.perm_singleton.1 hperm ▸ Nat.le_mul_of_pos_left _ Nat.two_pos
+    · simp only [List.length_cons] at hlen; omega
   · exact (cycleCost_mstTour_le_two_mul_totalWeight hsymm htri hn).trans
       (Nat.mul_le_mul_left 2 (totalWeight_kruskalEdges_le_cycleCost δ hq hcov))
 

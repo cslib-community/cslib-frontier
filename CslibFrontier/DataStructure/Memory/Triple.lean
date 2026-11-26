@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, vvauted
 -/
 
 module
@@ -39,11 +39,27 @@ of a zeroed one, whose charge grows with its size.
 
 * `Cslib.DataStructure.Memory.triple_iff`: the triple along the run of the program.
 * `Cslib.DataStructure.Memory.Triple.pure`, `Cslib.DataStructure.Memory.Triple.read_bind`,
-  `Cslib.DataStructure.Memory.Triple.write_bind`,
-  `Cslib.DataStructure.Memory.Triple.allocBlockDirty_bind`: one step of a run.
-* `Cslib.DataStructure.Memory.Triple.bind`: sequential composition.
-* `Cslib.DataStructure.Memory.Triple.mono`: weaken the cost and the postcondition.
-* `Cslib.DataStructure.Memory.zeroAbove_init`: the input convention is zero above the frontier.
+  `Cslib.DataStructure.Memory.Triple.read`, `Cslib.DataStructure.Memory.Triple.write_bind`,
+  `Cslib.DataStructure.Memory.Triple.write`, `Cslib.DataStructure.Memory.Triple.alloc_bind`,
+  `Cslib.DataStructure.Memory.Triple.alloc`, `Cslib.DataStructure.Memory.Triple.allocDirty_bind`,
+  `Cslib.DataStructure.Memory.Triple.allocDirty`,
+  `Cslib.DataStructure.Memory.Triple.allocBlock_bind`,
+  `Cslib.DataStructure.Memory.Triple.allocBlock`,
+  `Cslib.DataStructure.Memory.Triple.allocBlockDirty_bind`,
+  `Cslib.DataStructure.Memory.Triple.allocBlockDirty`,
+  `Cslib.DataStructure.Memory.Triple.get_bind`, `Cslib.DataStructure.Memory.Triple.get`,
+  `Cslib.DataStructure.Memory.Triple.set_bind`, `Cslib.DataStructure.Memory.Triple.set`:
+  primitive step and block rules.
+* `Cslib.DataStructure.Memory.Triple.bind`, `Cslib.DataStructure.Memory.Triple.ite`,
+  `Cslib.DataStructure.Memory.Triple.dite`, `Cslib.DataStructure.Memory.Triple.map`: sequential
+  composition, branching, and functorial mapping.
+* `Cslib.DataStructure.Memory.Triple.mono`, `Cslib.DataStructure.Memory.Triple.wellFormed`,
+  `Cslib.DataStructure.Memory.Triple.zeroAbove`: cost/postcondition weakening and invariant
+  preservation.
+* `Cslib.DataStructure.Memory.zeroAbove_init`, `Cslib.DataStructure.Memory.ZeroAbove.write`,
+  `Cslib.DataStructure.Memory.ZeroAbove.alloc`,
+  `Cslib.DataStructure.Memory.ZeroAbove.allocDirty`, `Cslib.DataStructure.Memory.ZeroAbove.step`,
+  `Cslib.DataStructure.Memory.ZeroAbove.run`: `ZeroAbove` initialization and preservation.
 -/
 
 @[expose] public section
@@ -88,12 +104,78 @@ theorem read_bind {a : ℕ} {k : ℕ → Prog α} (ha : a < s.frontier)
   obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
   exact triple_iff.mpr ⟨⟨ha, hv⟩, (Nat.add_le_add_left hc 1).trans_eq (Nat.add_comm 1 c), hq⟩
 
+/-- Read an allocated cell as a standalone program. -/
+theorem read {Q : ℕ → State → Prop} {a : ℕ} (ha : a < s.frontier) (h : Q (s.mem a) s) :
+    Triple w s (Memory.read a) 1 Q :=
+  read_bind ha (pure h)
+
 /-- Write a word to an allocated cell, then continue. -/
 theorem write_bind {a v : ℕ} {k : Unit → Prog α} (ha : a < s.frontier) (hv : Fits w v)
     (h : Triple w ⟨Function.update s.mem a v, s.frontier⟩ (k ()) c Q) :
     Triple w s (write a v >>= k) (c + 1) Q := by
   obtain ⟨hvh, hc, hq⟩ := triple_iff.mp h
   exact triple_iff.mpr ⟨⟨⟨ha, hv⟩, hvh⟩, (Nat.add_le_add_left hc 1).trans_eq (Nat.add_comm 1 c), hq⟩
+
+/-- Write a word to an allocated cell as a standalone program. -/
+theorem write {Q : Unit → State → Prop} {a v : ℕ} (ha : a < s.frontier) (hv : Fits w v)
+    (h : Q () ⟨Function.update s.mem a v, s.frontier⟩) :
+    Triple w s (Memory.write a v) 1 Q :=
+  write_bind ha hv (pure h)
+
+/-- Allocate `k` zeroed cells at the frontier, then continue with the base address. -/
+theorem alloc_bind {k : ℕ} {next : ℕ → Prog α} (hk : Fits w (s.frontier + k))
+    (h : Triple w ⟨clear s.mem s.frontier k, s.frontier + k⟩ (next s.frontier) c Q) :
+    Triple w s (Memory.alloc k >>= next) (c + (k + 1)) Q := by
+  obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
+  refine triple_iff.mpr ⟨⟨hk, hv⟩, ?_, hq⟩
+  change charge s (.alloc k) + (spec w).totalCost charge
+    ⟨clear s.mem s.frontier k, s.frontier + k⟩
+    ((spec w).clientHistory ⟨clear s.mem s.frontier k, s.frontier + k⟩ (next s.frontier)) ≤
+    c + (k + 1)
+  rw [charge_alloc]
+  omega
+
+/-- Allocate `k` zeroed cells as a standalone program. -/
+theorem alloc {Q : ℕ → State → Prop} {k : ℕ} (hk : Fits w (s.frontier + k))
+    (h : Q s.frontier ⟨clear s.mem s.frontier k, s.frontier + k⟩) :
+    Triple w s (Memory.alloc k) (k + 1) Q :=
+  mono (alloc_bind (c := 0) hk (pure h)) (Nat.zero_add _).le fun _ _ hq => hq
+
+/-- Allocate `k` dirty cells at the frontier, then continue with the base address. -/
+theorem allocDirty_bind {k : ℕ} {next : ℕ → Prog α} (hk : Fits w (s.frontier + k))
+    (h : Triple w ⟨s.mem, s.frontier + k⟩ (next s.frontier) c Q) :
+    Triple w s (Memory.allocDirty k >>= next) (c + 1) Q := by
+  obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
+  refine triple_iff.mpr ⟨⟨hk, hv⟩, ?_, hq⟩
+  change charge s (.allocDirty k) + (spec w).totalCost charge ⟨s.mem, s.frontier + k⟩
+    ((spec w).clientHistory ⟨s.mem, s.frontier + k⟩ (next s.frontier)) ≤ c + 1
+  rw [charge_allocDirty]
+  omega
+
+/-- Allocate `k` dirty cells as a standalone program. -/
+theorem allocDirty {Q : ℕ → State → Prop} {k : ℕ} (hk : Fits w (s.frontier + k))
+    (h : Q s.frontier ⟨s.mem, s.frontier + k⟩) :
+    Triple w s (Memory.allocDirty k) 1 Q :=
+  allocDirty_bind hk (pure h)
+
+/-- Allocate a zeroed block of `k` cells, then continue with the block handle. -/
+theorem allocBlock_bind {k : ℕ} {next : Block → Prog α} (hk : Fits w (s.frontier + k))
+    (h : Triple w ⟨clear s.mem s.frontier k, s.frontier + k⟩ (next ⟨s.frontier, k⟩) c Q) :
+    Triple w s (Memory.allocBlock k >>= next) (c + (k + 1)) Q := by
+  obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
+  refine triple_iff.mpr ⟨⟨hk, hv⟩, ?_, hq⟩
+  change charge s (.alloc k) + (spec w).totalCost charge
+    ⟨clear s.mem s.frontier k, s.frontier + k⟩
+    ((spec w).clientHistory ⟨clear s.mem s.frontier k, s.frontier + k⟩
+      (next ⟨s.frontier, k⟩)) ≤ c + (k + 1)
+  rw [charge_alloc]
+  omega
+
+/-- Allocate a zeroed block of `k` cells as a standalone program. -/
+theorem allocBlock {Q : Block → State → Prop} {k : ℕ} (hk : Fits w (s.frontier + k))
+    (h : Q ⟨s.frontier, k⟩ ⟨clear s.mem s.frontier k, s.frontier + k⟩) :
+    Triple w s (Memory.allocBlock k) (k + 1) Q :=
+  mono (allocBlock_bind (c := 0) hk (pure h)) (Nat.zero_add _).le fun _ _ hq => hq
 
 /-- Allocate a field of `k` cells without clearing it, then continue with the field at the
 frontier. -/
@@ -102,6 +184,37 @@ theorem allocBlockDirty_bind {k : ℕ} {next : Block → Prog α} (hk : Fits w (
     Triple w s (allocBlockDirty k >>= next) (c + 1) Q := by
   obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
   exact triple_iff.mpr ⟨⟨hk, hv⟩, (Nat.add_le_add_left hc 1).trans_eq (Nat.add_comm 1 c), hq⟩
+
+/-- Allocate a dirty block of `k` cells as a standalone program. -/
+theorem allocBlockDirty {Q : Block → State → Prop} {k : ℕ} (hk : Fits w (s.frontier + k))
+    (h : Q ⟨s.frontier, k⟩ ⟨s.mem, s.frontier + k⟩) :
+    Triple w s (Memory.allocBlockDirty k) 1 Q :=
+  allocBlockDirty_bind hk (pure h)
+
+/-- Read entry `i` of an allocated block, then continue with its contents. -/
+theorem get_bind {b : Block} {i : ℕ} {k : ℕ → Prog α} (hb : b.Allocated s) (hi : i < b.length)
+    (h : Triple w s (k (s.mem (b.base + i))) c Q) :
+    Triple w s (b.get i >>= k) (c + 1) Q :=
+  read_bind (hb.lt_frontier hi) h
+
+/-- Read entry `i` of an allocated block as a standalone program. -/
+theorem get {Q : ℕ → State → Prop} {b : Block} {i : ℕ} (hb : b.Allocated s) (hi : i < b.length)
+    (h : Q (s.mem (b.base + i)) s) : Triple w s (b.get i) 1 Q :=
+  get_bind hb hi (pure h)
+
+/-- Write `v` to entry `i` of an allocated block, then continue. -/
+theorem set_bind {b : Block} {i v : ℕ} {k : Unit → Prog α} (hb : b.Allocated s)
+    (hi : i < b.length) (hv : Fits w v)
+    (h : Triple w ⟨Function.update s.mem (b.base + i) v, s.frontier⟩ (k ()) c Q) :
+    Triple w s (b.set i v >>= k) (c + 1) Q :=
+  write_bind (hb.lt_frontier hi) hv h
+
+/-- Write `v` to entry `i` of an allocated block as a standalone program. -/
+theorem set {Q : Unit → State → Prop} {b : Block} {i v : ℕ} (hb : b.Allocated s)
+    (hi : i < b.length) (hv : Fits w v)
+    (h : Q () ⟨Function.update s.mem (b.base + i) v, s.frontier⟩) :
+    Triple w s (b.set i v) 1 Q :=
+  set_bind hb hi hv (pure h)
 
 /-- **Sequential composition.** Run `p` within `c₁`, and from each of its outcomes run the
 continuation within `c₂`. -/
@@ -124,6 +237,37 @@ theorem bind {p : Prog α} {k : α → Prog β} {c₁ c₂ : ℕ} {Q : β → St
       show (spec w).clientState s (p >>= k) = _ from congrArg (·.2.1) hrun]
     exact hq
 
+/-- Branching rule for `if cond then p₁ else p₂`. -/
+theorem ite {cond : Prop} [Decidable cond] {p₁ p₂ : Prog α}
+    (h₁ : cond → Triple w s p₁ c Q) (h₂ : ¬cond → Triple w s p₂ c Q) :
+    Triple w s (if cond then p₁ else p₂) c Q := by
+  split_ifs with h
+  · exact h₁ h
+  · exact h₂ h
+
+/-- Dependent branching rule for `if h : cond then p₁ h else p₂ h`. -/
+theorem dite {cond : Prop} [Decidable cond] {p₁ : cond → Prog α} {p₂ : ¬cond → Prog α}
+    (h₁ : ∀ h : cond, Triple w s (p₁ h) c Q) (h₂ : ∀ h : ¬cond, Triple w s (p₂ h) c Q) :
+    Triple w s (if h : cond then p₁ h else p₂ h) c Q := by
+  split_ifs with h
+  · exact h₁ h
+  · exact h₂ h
+
+/-- Map the result of a memory program without additional cost. -/
+theorem map (f : α → β) {p : Prog α} {Q : β → State → Prop}
+    (h : Triple w s p c fun a s' => Q (f a) s') : Triple w s (f <$> p) c Q := by
+  rw [← bind_pure_comp]
+  exact (bind (c₁ := c) (c₂ := 0) (h.mono le_rfl fun _ _ ha => pure ha)).mono
+    (Nat.add_zero c).le fun _ _ hq => hq
+
+/-- Any admissible `Triple` run preserves `WellFormed w`. -/
+theorem wellFormed {p : Prog α} (hwf : WellFormed w s) (h : Triple w s p c Q) :
+    Triple w s p c fun a s' => Q a s' ∧ WellFormed w s' := by
+  obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
+  refine triple_iff.mpr ⟨hv, hc, hq, ?_⟩
+  have hrun := hwf.run hv
+  rwa [StateTransitionSpec.run_runClient] at hrun
+
 end Triple
 
 /-! ## Memory that is zero above the frontier -/
@@ -141,5 +285,50 @@ theorem zeroAbove_init (input : List ℕ) : ZeroAbove (State.init input) := by
 /-- A dirty allocation keeps memory zero above the new frontier. -/
 theorem ZeroAbove.allocDirty {s : State} (h : ZeroAbove s) (k : ℕ) :
     ZeroAbove ⟨s.mem, s.frontier + k⟩ := fun a ha => h a (by simp only at ha; omega)
+
+namespace ZeroAbove
+
+/-- Writing below the frontier preserves `ZeroAbove`. -/
+theorem write {s : State} (h : ZeroAbove s) {a v : ℕ} (ha : a < s.frontier) :
+    ZeroAbove ⟨Function.update s.mem a v, s.frontier⟩ := by
+  intro b hb
+  change Function.update s.mem a v b = 0
+  rw [Function.update_of_ne (by simp only at hb; omega)]
+  exact h b hb
+
+/-- A zeroed allocation preserves `ZeroAbove`. -/
+theorem alloc {s : State} (h : ZeroAbove s) (k : ℕ) :
+    ZeroAbove ⟨clear s.mem s.frontier k, s.frontier + k⟩ := by
+  intro a ha
+  change clear s.mem s.frontier k a = 0
+  rw [clear_of_not_owns (fun howns => by simp only [Block.Owns] at howns; simp only at ha; omega)]
+  exact h a (by simp only at ha; omega)
+
+/-- Every admissible single operation preserves `ZeroAbove`. -/
+theorem step {s : State} (h : ZeroAbove s) {o : Op} (hv : valid w s o) :
+    ZeroAbove (Memory.step s o).1 := by
+  cases o with
+  | read => exact h
+  | write a v => exact h.write hv.1
+  | alloc k => exact h.alloc k
+  | allocDirty k => exact h.allocDirty k
+
+/-- Every admissible history preserves `ZeroAbove`. -/
+theorem run {s : State} (h : ZeroAbove s) {os : List Op} (hv : (spec w).ValidHistory s os) :
+    ZeroAbove ((spec w).run s os).1 := by
+  induction os generalizing s with
+  | nil => exact h
+  | cons o os ih => exact ih (h.step hv.1) hv.2
+
+end ZeroAbove
+
+/-- Any `Triple` run preserves `ZeroAbove`. -/
+theorem Triple.zeroAbove {s : State} {p : Prog α} {c : ℕ} {Q : α → State → Prop}
+    (hz : ZeroAbove s) (h : Triple w s p c Q) :
+    Triple w s p c fun a s' => Q a s' ∧ ZeroAbove s' := by
+  obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
+  refine triple_iff.mpr ⟨hv, hc, hq, ?_⟩
+  have hrun := hz.run hv
+  rwa [StateTransitionSpec.run_runClient] at hrun
 
 end Cslib.DataStructure.Memory

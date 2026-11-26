@@ -164,12 +164,10 @@ theorem reaches_iff {m v : ℕ} :
         hch.2.2 u (by simp) v (by simp)⟩
       rw [Nat.testBit_sub_two_pow ((hm _).2 (by simp)), Bool.and_eq_true, hm, decide_eq_true_iff,
         List.map_append, List.mem_append, List.map_singleton, List.mem_singleton]
-      exact ⟨fun ⟨hc, hne⟩ => hc.resolve_right hne,
-        fun hc => ⟨.inl hc, fun h => hva (h ▸ hc)⟩⟩
+      exact ⟨fun h => h.1.resolve_right h.2, fun hc => ⟨.inl hc, fun h => hva (h ▸ hc)⟩⟩
   · rintro ⟨hv, hbit, rfl | ⟨u, ⟨p, hp, hnd, hm⟩, hadj⟩⟩
-    · refine ⟨[], ⟨by simp, by simpa using hv, ?_⟩, by simp, ?_⟩
-      · simp
-      · exact fun c => by simp [Nat.testBit_two_pow, eq_comm]
+    · exact ⟨[], ⟨List.nodup_singleton _, List.forall_mem_singleton.2 hv, List.isChain_singleton _⟩,
+        List.nodup_singleton _, fun c => by simp [Nat.testBit_two_pow, eq_comm]⟩
     · have hva : χ v ∉ (p ++ [u]).map χ := fun h => by
         simpa [Nat.testBit_sub_two_pow hbit] using (hm (χ v)).2 h
       refine ⟨p ++ [u], ⟨List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb h =>
@@ -233,8 +231,7 @@ theorem exists_reaches_iff {k : ℕ} (hk : 0 < k) :
           hc ▸ Finset.mem_range.2 (hlt x hx))
         (by rw [Finset.card_range, List.toFinset_card_of_nodup hnd, List.length_map, hlen])
     refine ⟨v, L, hp, hnd, fun c => ?_⟩
-    rw [Nat.testBit_two_pow_sub_one, decide_eq_true_iff, ← Finset.mem_range, ← hfs,
-      List.mem_toFinset]
+    simp [Nat.testBit_two_pow_sub_one, ← Finset.mem_range, ← hfs, or_comm]
 
 /-! ### Polynomial time on padded inputs -/
 
@@ -358,9 +355,8 @@ theorem ColorCoding.computableInPolyTime_table :
     ⟨((PolyBounded.const 2).mul hV.polyBounded_length).add (.const 1), fun x T m _ => ?_⟩
   simp only [encTable, encList_append, List.length_append, encList_cons, encList_nil,
     List.append_nil, length_frame]
-  have : (encList encNat (entryCapped x.graph (colorOf x.graph x.colors) T m)).length ≤
-      (encList encNat x.graph.distinctVertices).length :=
-    length_encList_sublist encNat List.filter_sublist
+  have := length_encList_sublist encNat
+    (l₁ := entryCapped x.graph (colorOf x.graph x.colors) T m) List.filter_sublist
   omega
 
 /-- The padded test of the dynamic programming: whether the table on `numSets` color sets has a
@@ -387,8 +383,7 @@ theorem colorfulPathBool_eq_true_iff (x : ColorfulPathInstance) :
   rw [colorfulPathBool, beq_eq_false_iff_ne.2 hk.ne', Bool.false_or, Bool.and_eq_true,
     decide_eq_true_iff, ColorCoding.lastEntryNonempty, Bool.not_eq_true', List.isEmpty_eq_false_iff]
   refine ⟨fun ⟨hkn, hne⟩ => ?_, fun hx => ?_⟩
-  · rw [Nat.min_eq_right hkn] at hne
-    obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ hne
+  · obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (by rwa [Nat.min_eq_right hkn] at hne)
     exact (ColorCoding.exists_reaches_iff hk).1 ⟨v, (ColorCoding.mem_table_getD hlt).1 hv⟩
   · obtain ⟨p, hp, hlen, -⟩ := id hx
     have hkn : k ≤ G.distinctVertices.length := hlen.symm.trans_le hp.length_le

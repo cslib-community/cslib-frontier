@@ -114,8 +114,7 @@ theorem pohligHellman_subgroup_modEq {M : Type*} [Group M] (g : M) {q qi : ℕ}
     (h : (g ^ (q / qi)) ^ xi = (g ^ x) ^ (q / qi)) : xi ≡ x [MOD qi] := by
   have hord : orderOf (g ^ (q / qi)) = qi :=
     hg ▸ orderOf_pow_orderOf_div (x := g) (n := qi) (hg ▸ hq.ne') (hg.symm ▸ hqi)
-  rw [show (g ^ x) ^ (q / qi) = (g ^ (q / qi)) ^ x by rw [← pow_mul, mul_comm, pow_mul]] at h
-  rwa [pow_eq_pow_iff_modEq, hord] at h
+  rwa [pow_right_comm g x, pow_eq_pow_iff_modEq, hord] at h
 
 /-- **Pohlig–Hellman CRT uniqueness** ([KatzLindell2020], Section 10.2.1, p. 375): let `g` have
 order `q = ∏ qs` with pairwise coprime `qs`, let `h = g ^ x`, and let `sol qi` solve each subgroup
@@ -152,23 +151,22 @@ a divisor `D * p ∣ q`, and a candidate digit `t < p`, the subgroup projection
 theorem pohligHellman_step {M : Type*} [Group M] (g : M) {q : ℕ} (hg : orderOf g = q) (hq : 0 < q)
     {D p : ℕ} (hDp : D * p ∣ q) (x t : ℕ) (ht : t < p) :
     (g ^ x * g ^ (q - x % D)) ^ (q / (D * p)) = (g ^ (q / p)) ^ t ↔ t = x / D % p := by
-  obtain ⟨m, hm⟩ := hDp
-  have hpos : 0 < D * p * m := hm ▸ hq
-  have hD : 0 < D := Nat.pos_of_ne_zero (by rintro rfl; simp at hpos)
-  have hp : 0 < p := by omega
-  have hm0 : 0 < m := Nat.pos_of_ne_zero (by rintro rfl; simp at hpos)
-  have hqm : q / (D * p) = m := by rw [hm, Nat.mul_div_cancel_left _ (Nat.mul_pos hD hp)]
-  have hqp : q / p = D * m := by
-    rw [hm, show D * p * m = p * (D * m) by ring, Nat.mul_div_cancel_left _ hp]
-  have hxle : x % D ≤ q :=
-    le_trans (Nat.mod_lt _ hD).le (Nat.le_of_dvd hq ⟨p * m, by rw [hm]; ring⟩)
-  have e1 : (x + (q - x % D)) * m = D * m * (x / D) + q * m := by
+  obtain ⟨m, rfl⟩ := hDp
+  have hD : 0 < D := Nat.pos_of_ne_zero fun h => by simp [h] at hq
+  have hp : 0 < p := Nat.pos_of_ne_zero fun h => by simp [h] at hq
+  have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by simp [h] at hq
+  have hqm : D * p * m / (D * p) = m := Nat.mul_div_cancel_left _ (Nat.mul_pos hD hp)
+  have hqp : D * p * m / p = D * m := by
+    rw [Nat.mul_right_comm D p m, Nat.mul_div_cancel _ hp]
+  have e1 : (x + (D * p * m - x % D)) * m = D * m * (x / D) + D * p * m * m := by
     have h0 := Nat.div_add_mod x D
-    have h2 : x + (q - x % D) = D * (x / D) + q := by omega
+    have hxle : x % D ≤ D * p * m :=
+      (Nat.mod_lt _ hD).le.trans (Nat.le_of_dvd hq ⟨p * m, Nat.mul_assoc D p m⟩)
+    have h2 : x + (D * p * m - x % D) = D * (x / D) + D * p * m := by omega
     rw [h2]; ring
   rw [← pow_add, ← pow_mul, ← pow_mul, hqm, e1, hqp, pow_eq_pow_iff_modEq, hg]
   unfold Nat.ModEq
-  rw [Nat.add_mul_mod_self_left, show q = D * m * p by rw [hm]; ring, Nat.mul_mod_mul_left,
+  rw [Nat.add_mul_mod_self_left, Nat.mul_right_comm D p m, Nat.mul_mod_mul_left,
     Nat.mul_mod_mul_left, Nat.mul_left_cancel_iff (Nat.mul_pos hD hm0), Nat.mod_eq_of_lt ht,
     eq_comm]
 
@@ -240,25 +238,21 @@ theorem smoothDivisorSeq_not_dvd_div {q T m : ℕ} (hq : 0 < q) (hqm : q < 2 ^ m
     | zero => intro _; simp [smoothDivisorSeq]
     | succ j ih =>
       intro hj
-      have ih' := ih (by omega)
       have hr : ℓ - 2 < T := by omega
-      have hkmod : (j * T + (ℓ - 2)) % T = ℓ - 2 := Nat.mul_add_mod_of_lt hr
       have hkN : j * T + (ℓ - 2) + 1 ≤ (j + 1) * T := by rw [Nat.succ_mul]; omega
-      have hjm : (j + 1) * T ≤ m * T := Nat.mul_le_mul_right T hj
-      have hDk :
-          smoothDivisorSeq q T (j * T + (ℓ - 2)) ∣ smoothDivisorSeq q T (m * T) :=
-        smoothDivisorSeq_mono q T (by omega)
+      have hDk : smoothDivisorSeq q T (j * T + (ℓ - 2)) ∣ smoothDivisorSeq q T (m * T) :=
+        smoothDivisorSeq_mono q T (by have := Nat.mul_le_mul_right T hj; omega)
       have hdiv' : ℓ ∣ q / smoothDivisorSeq q T (j * T + (ℓ - 2)) :=
         hdiv.trans (Nat.div_dvd_div_left hN hDk)
-      have hstep :
-          smoothDivisorSeq q T (j * T + (ℓ - 2) + 1) =
-            smoothDivisorSeq q T (j * T + (ℓ - 2)) * ℓ := by
-        rw [smoothDivisorSeq, hkmod, show ℓ - 2 + 2 = ℓ by omega,
+      have hstep : smoothDivisorSeq q T (j * T + (ℓ - 2) + 1) =
+          smoothDivisorSeq q T (j * T + (ℓ - 2)) * ℓ := by
+        rw [smoothDivisorSeq, Nat.mul_add_mod_of_lt hr, Nat.sub_add_cancel hℓ2,
           ite_eq_left_iff.mpr fun h =>
             absurd (Nat.mul_dvd_of_dvd_div (smoothDivisorSeq_dvd q T _) hdiv') h]
       calc ℓ ^ (j + 1) = ℓ ^ j * ℓ := pow_succ _ _
         _ ∣ smoothDivisorSeq q T (j * T + (ℓ - 2)) * ℓ :=
-          Nat.mul_dvd_mul_right (ih'.trans (smoothDivisorSeq_mono q T (by omega))) ℓ
+          Nat.mul_dvd_mul_right
+            ((ih (by omega)).trans (smoothDivisorSeq_mono q T (by omega))) ℓ
         _ = smoothDivisorSeq q T (j * T + (ℓ - 2) + 1) := hstep.symm
         _ ∣ smoothDivisorSeq q T ((j + 1) * T) := smoothDivisorSeq_mono q T hkN
   exact absurd (Nat.le_of_dvd hq ((key m le_rfl).trans hN))

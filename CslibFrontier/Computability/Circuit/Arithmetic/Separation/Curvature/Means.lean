@@ -169,7 +169,8 @@ private theorem lem_means_display (hN : CrossingLength N) (hh : IsHomogeneous N)
   unfold meansDiff
   have h := hN.crossing p (-p) q (-q) a (-a) b (-b) τ hτ
   have e1 (Z : ℤ × ℤ) : N (Z - -Z) = 2 * N Z := by
-    rw [show Z - -Z = 2 • Z by module, hh]
+    have hz : Z - -Z = 2 • Z := by module
+    rw [hz, hh]
     norm_num
   have en (X Y : ℤ × ℤ) : N (-X - Y) = N (X - -Y) :=
     (congrArg N (by module : -X - Y = -(X - -Y))).trans (hN.neg _)
@@ -183,10 +184,10 @@ private theorem lem_means_identity (a b : ℤ × ℤ) (M i : ℕ) :
     meansDiff N a b (meansPt a b M i) + meansDiff N a b (meansPt a b M i - a) =
       2 * (N (meansPt a b M i) - N (meansPt a b M i - (a + b)))
         + (meansDelta N a b M i - meansDelta N a b M (i + 1)) := by
-  simp only [meansDiff, meansDelta, meansPt,
-    show M • (a + b) + (i + 1) • (a - b) - a = M • (a + b) + i • (a - b) - b by module,
-    show M • (a + b) + i • (a - b) - b - a = M • (a + b) + i • (a - b) - (a + b) by module,
-    show M • (a + b) + i • (a - b) - a - b = M • (a + b) + i • (a - b) - (a + b) by module]
+  have hpt : meansPt a b M (i + 1) - a = meansPt a b M i - b := by
+    simp only [meansPt]
+    module
+  simp only [meansDiff, meansDelta, hpt, sub_sub, add_comm b a]
   ring
 
 /-- Since `t ↦ N(t c + i e)` is convex, the first difference on the right is at least
@@ -208,10 +209,8 @@ private theorem lem_means_convex (hN : CrossingLength N) (hh : IsHomogeneous N) 
   rw [h1, Finset.sum_const, Finset.card_range, nsmul_eq_mul (α := ℝ), zero_smul, zero_add] at h2
   have h3 := hN.sub_le ((M + 1) • c + s) s
   rw [add_sub_cancel_right, hh] at h3
-  rw [show (M + 1) • c + s - c = M • c + s by module]
-  have h5 : N c - 2 * N s / ((M + 1 : ℕ) : ℝ) =
-      (((M + 1 : ℕ) : ℝ) * N c - 2 * N s) / ((M + 1 : ℕ) : ℝ) := by field_simp
-  rw [h5, div_le_iff₀ (by positivity)]
+  have hsub : (M + 1) • c + s - c = M • c + s := by module
+  rw [hsub, sub_le_comm, le_div_iff₀ (by positivity)]
   linarith
 
 /-- The `δ_i` are bounded and telescope: the sum of `∂A_i + ∂(A_i - a)` over `0 ≤ i < R` is at least
@@ -348,20 +347,14 @@ private theorem lem_means_average (hN : CrossingLength N) (hh : IsHomogeneous N)
           (lem_means_near hN hh ha hc _ (Finset.mem_range.1 hi)).2)
   have hp := Finset.sum_le_sum p
   rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul (α := ℝ)] at hp
-  have hp2 : ((R ^ 2 : ℕ) : ℝ) * N (a + b) *
-        (2 * R * (N (a + b) - 2 * R * N (a - b) / (R ^ 2 : ℕ)) - 2 * N a)
-      + ((R ^ 2 : ℕ) : ℝ) * N (a - b) *
-        (2 * R * (N (a - b) - 2 * R * N (a + b) / (R ^ 2 : ℕ)) - 2 * N a) ≤
-      R * (((R ^ 2 : ℕ) : ℝ) * ((N (a + b) ^ 2 + N (a - b) ^ 2) / 2 + (N a ^ 2 + N b ^ 2))
-        + 12 * R * κ ^ 2 + (((R ^ 2 : ℕ) : ℝ) * ((N (a + b) ^ 2 + N (a - b) ^ 2) / 2
-        + (N a ^ 2 + N b ^ 2)) + 12 * R * κ ^ 2)) := by
-    refine le_trans ?_ hp
-    refine le_trans (add_le_add
-      (mul_le_mul_of_nonneg_left s1 (mul_nonneg (Nat.cast_nonneg _) (hN.nonneg _)))
-      (mul_le_mul_of_nonneg_left s2 (mul_nonneg (Nat.cast_nonneg _) (hN.nonneg _)))) ?_
+  have hp2 := ((add_le_add
+      (mul_le_mul_of_nonneg_left s1 (mul_nonneg (Nat.cast_nonneg (R ^ 2)) (hN.nonneg (a + b))))
+      (mul_le_mul_of_nonneg_left s2
+        (mul_nonneg (Nat.cast_nonneg (R ^ 2)) (hN.nonneg (a - b))))).trans_eq <| by
     rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
-    exact Finset.sum_le_sum fun i _ => le_of_eq (by ring)
+    exact Finset.sum_congr rfl fun _ _ => by ring).trans hp
   push_cast at hp2
+  rw [← hκ] at hp2
   exact means_arith (by exact_mod_cast hR) (hN.nonneg _) hc (hN.nonneg _) he (hN.nonneg _) ha hp2
 
 /-- Hence `N(a + b)² + N(a - b)² ≤ 2 N(a)² + 2 N(b)²`. -/
@@ -382,8 +375,9 @@ theorem _root_.Cslib.Circuits.Arithmetic.Separation.CrossingLength.parallelogram
     N (a + b) ^ 2 + N (a - b) ^ 2 = 2 * N a ^ 2 + 2 * N b ^ 2 := by
   refine le_antisymm (by linarith [lem_means_parallelogram_le hN hh a b]) ?_
   have h := lem_means_parallelogram_le hN hh (a + b) (a - b)
-  rw [show a + b + (a - b) = (2 : ℕ) • a by rw [two_nsmul]; abel,
-    show a + b - (a - b) = (2 : ℕ) • b by rw [two_nsmul]; abel, hh, hh] at h
+  have hab₁ : a + b + (a - b) = (2 : ℕ) • a := by module
+  have hab₂ : a + b - (a - b) = (2 : ℕ) • b := by module
+  rw [hab₁, hab₂, hh, hh] at h
   push_cast at h
   linarith
 

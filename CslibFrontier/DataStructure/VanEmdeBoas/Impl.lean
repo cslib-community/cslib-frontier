@@ -198,11 +198,8 @@ private theorem two_branch_visits_le {d : ℕ} {f : Tree d → ℕ → ℕ}
       if k h then 1 + f (sub h) low else 1 + f s hi
     else 1) ≤ d + 1 + 1 := by
   split_ifs with hp hq hr hk
-  · exact Nat.le_add_left 1 _
-  · exact Nat.le_add_left 1 _
-  · exact one_add_le_succ (ih (sub hr) low)
-  · exact one_add_le_succ (ih s hi)
-  · exact Nat.le_add_left 1 _
+  exacts [Nat.le_add_left 1 _, Nat.le_add_left 1 _, one_add_le_succ (ih (sub hr) low),
+    one_add_le_succ (ih s hi), Nat.le_add_left 1 _]
 
 /-- `minimum` performs `1 ≤ d + 1` active calls. -/
 theorem minimumVisits_le (t : Tree d) : t.minimumVisits ≤ d + 1 :=
@@ -214,9 +211,7 @@ theorem memberVisits_le (t : Tree d) (x : ℕ) : t.memberVisits x ≤ d + 1 :=
     (fun _ _ _ _ _ _ ih => by
       simp only [memberVisits]
       split_ifs
-      · exact Nat.le_add_left 1 _
-      · exact one_add_le_succ (ih _ _)
-      · exact Nat.le_add_left 1 _) t x
+      exacts [Nat.le_add_left 1 _, one_add_le_succ (ih _ _), Nat.le_add_left 1 _]) t x
 
 /-- Inserting into an empty node performs only `1` active call at any depth. -/
 theorem insertVisits_of_bounds_none {t : Tree d} (hb : t.bounds = none) (x : ℕ) :
@@ -264,9 +259,8 @@ theorem eraseVisits_le (t : Tree d) (x : ℕ) : t.eraseVisits x ≤ d + 1 :=
           · exact Nat.le_add_left 1 _
           · dsimp only
             split_ifs
-            · exact one_add_le_succ (ih s _)
-            · exact Nat.le_add_left 1 _
-            · exact one_add_le_succ (ih (c _) _)) t x
+            exacts [one_add_le_succ (ih s _), Nat.le_add_left 1 _,
+              one_add_le_succ (ih (c _) _)]) t x
 
 /-- `successor` performs at most `d + 1` active recursive calls. -/
 theorem successorVisits_le (t : Tree d) (x : ℕ) : t.successorVisits x ≤ d + 1 :=
@@ -391,8 +385,7 @@ theorem finPredecessor_eq_none_iff {t : Tree d} (ht : t.Valid) (x : Fin (univers
   cases hp : t.predecessor x.val with
   | none =>
     simp only [finPredecessor, hp, true_iff, mem_finElements_iff ht]
-    have hnone := (predecessor_eq_none_iff ht x.val).mp hp
-    exact fun z hz => hnone z.val hz
+    exact fun z => (predecessor_eq_none_iff ht x.val).mp hp z.val
   | some y =>
     have hspec := (predecessor_eq_some_iff ht x.val y).mp hp
     have hy : y < universeSize d := ht.contains_lt hspec.1
@@ -459,12 +452,9 @@ calls. -/
 theorem exec_visits_le {t t' : Tree d} {o : Op (Fin (universeSize d))}
     {a : (spec (Fin (universeSize d))).Result o} {n : ℕ} (he : Exec d t o a t' n) :
     n ≤ d + 1 := by
-  cases o with
-  | contains x => cases he; exact Tree.memberVisits_le t x.val
-  | insert x => cases he; exact Tree.insertVisits_le t x.val
-  | delete x => cases he; exact Tree.eraseVisits_le t x.val
-  | minimum => cases he; exact Tree.minimumVisits_le t
-  | successor x => cases he; exact Tree.successorVisits_le t x.val
+  cases o <;> cases he
+  exacts [Tree.memberVisits_le t _, Tree.insertVisits_le t _, Tree.eraseVisits_le t _,
+    Tree.minimumVisits_le t, Tree.successorVisits_le t _]
 
 /-- Uniform `d + 1` active-call depth bound (`O(log log U)` since `universeSize d = 2 ^ (2 ^ d)`)
 for `VanEmdeBoas.impl d`. -/

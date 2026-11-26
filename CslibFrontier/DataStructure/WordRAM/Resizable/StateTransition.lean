@@ -186,10 +186,7 @@ theorem prepare_bounded (P : SubroutineCode B r_ds k_init) {Op : Type v} {w : �
     (hx : x.Bounded w) (hfit : ∀ i, P.input i = true → Fits w (encode o i)) :
     (P.prepare encode o x).Bounded w := by
   refine ⟨⟨fun i => ?_, hx.1.2⟩, hx.2.1, hx.2.2⟩
-  dsimp only [prepare, prepareRegs, RData.toData]
-  cases hi : P.input i
-  · simp [hx.regs_fits i]
-  · simp [hfit i hi]
+  cases hi : P.input i <;> simp [prepare, prepareRegs, RData.toData, hi, hx.regs_fits i, hfit i]
 
 /-- Transport a `SubroutineCode` bundle along a defined-evaluation basis simulation. -/
 @[expose] def mapSimulates (φ : B.Simulates B') (P : SubroutineCode B r_ds k_init) :
@@ -684,11 +681,10 @@ theorem steps_amortized_ofFn
     C.steps_amortized ops hr
       ((D.validOpSeq_iff_validHistory s ops).mpr hv)
       ((peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s ops).mpr hfit)
-  obtain ⟨_, hs_fin, htr_eq⟩ := (D.validTranscript_iff_run s tr s_fin).mp htr
-  rw [hops] at hs_fin htr_eq
-  subst hs_fin; subst htr_eq
-  exact ⟨z, t_ops, hsteps, hr_z, hcaller,
-    by rwa [D.totalCostTranscript_canonicalTranscript] at hbound⟩
+  subst hops
+  obtain ⟨_, rfl, htr_eq⟩ := (D.validTranscript_iff_run s tr s_fin).mp htr
+  exact ⟨z, t_ops, htr_eq ▸ hsteps, hr_z, hcaller,
+    by rwa [htr_eq, D.totalCostTranscript_canonicalTranscript] at hbound⟩
 
 /-- **End-to-end deterministic amortized sequence theorem for functional specifications
 (`seq_amortized_ofFn`).** -/
@@ -800,9 +796,7 @@ theorem seq_program_amortized (C : StateTransitionImpl P D w base params s₀)
     induction tr_c generalizing s_c with
     | nil => simp
     | cons lbl tr_tail ih =>
-      rcases lbl with ⟨_, _, s_next⟩
-      simp only [StateTransitionSpec.totalCostTranscript_cons, List.length_cons]
-      have := ih (s_c := s_next)
+      simp only [StateTransitionSpec.totalCostTranscript_cons, List.length_cons, ← ih]
       omega
   refine ⟨y₀, tr, s_fin, z, t_ops + ops.length,
     by simpa [SubroutineCode.initProg, Nat.cast_add, Nat.cast_one] using
@@ -840,11 +834,10 @@ theorem seq_program_amortized_ofFn
     C.seq_program_amortized out ops hx₀ hfr₀ hpar hfit₀
       ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
       ((peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s₀ ops).mpr hfit_ops)
-  obtain ⟨_, hs_fin, htr_eq⟩ := (D.validTranscript_iff_run s₀ tr s_fin).mp htr
-  rw [hops] at hs_fin htr_eq
-  subst hs_fin; subst htr_eq
-  exact ⟨y₀, z, t_prog, hinit, hr₀, hcaller₀, hprog, hr_z, hcaller_z,
-    by rwa [D.totalCostTranscript_canonicalTranscript] at hbound⟩
+  subst hops
+  obtain ⟨_, rfl, htr_eq⟩ := (D.validTranscript_iff_run s₀ tr s_fin).mp htr
+  exact ⟨y₀, z, t_prog, hinit, hr₀, hcaller₀, htr_eq ▸ hprog, hr_z, hcaller_z,
+    by rwa [htr_eq, D.totalCostTranscript_canonicalTranscript] at hbound⟩
 
 /-- **`.halt`-rejection soundness lemma (`not_execProgramSteps_halt`):** a 1-instruction
 `[.halt out]` stub cannot satisfy `C.ExecProgramSteps [.halt out] out` on `(o :: ops)` whenever

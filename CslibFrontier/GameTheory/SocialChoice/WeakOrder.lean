@@ -98,10 +98,8 @@ theorem toTopSet_atLeast_iff_of_mem (R : WeakRanking A) {S : Set A} {x y : A}
 
 theorem toTopSet_prefers_of_mem_of_notMem (R : WeakRanking A) {S : Set A} {x y : A}
     (hx : x ∈ S) (hy : y ∉ S) :
-    (R.toTopSet S).Prefers x y := by
-  rintro (⟨hy', -⟩ | ⟨hyx, -⟩)
-  · exact hy hy'
-  · exact hy (hyx.2 hx)
+    (R.toTopSet S).Prefers x y :=
+  fun h => h.elim (fun ⟨hy', _⟩ => hy hy') fun ⟨hyx, _⟩ => hy (hyx.2 hx)
 
 end WeakRanking
 
@@ -174,23 +172,16 @@ theorem isIIA_dictatorship (i : V) : (dictatorship (A := A) i).IsIIA :=
   fun _ _ _ _ h => (h i).1
 
 theorem isDictator_serialDictatorship (i j : V) :
-    (serialDictatorship (A := A) i j).IsDictator i := by
-  intro P a b hi hba
-  rcases show (P i).Prefers b a ∨ ((P i).AtLeast b a ∧ (P j).AtLeast b a) from hba with
-    hba' | ⟨hiba, -⟩
-  · exact (P i).prefers_asymm hi hba'
-  · exact hi hiba
+    (serialDictatorship (A := A) i j).IsDictator i :=
+  fun P _ _ hi hba => hba.elim (fun hba' => (P i).prefers_asymm hi hba') fun ⟨hiba, _⟩ => hi hiba
 
 theorem isPareto_serialDictatorship (i j : V) :
     (serialDictatorship (A := A) i j).IsPareto :=
   (isDictator_serialDictatorship i j).isPareto
 
 theorem isIIA_serialDictatorship (i j : V) :
-    (serialDictatorship (A := A) i j).IsIIA := by
-  intro P Q a b h
-  change ((P i).Prefers a b ∨ ((P i).AtLeast a b ∧ (P j).AtLeast a b)) ↔
-    ((Q i).Prefers a b ∨ ((Q i).AtLeast a b ∧ (Q j).AtLeast a b))
-  simp only [WeakRanking.Prefers, (h i).1, (h i).2, (h j).1]
+    (serialDictatorship (A := A) i j).IsIIA :=
+  fun _ _ _ _ h => by simp only [serialDictatorship, WeakRanking.Prefers, (h i).1, (h i).2, (h j).1]
 
 /-- Unlike strict-profile dictatorships (`SocialWelfareFunction.isDictator_iff_eq_dictatorship`),
 a rule on weak profiles with dictator `i` need not equal `dictatorship i`: when `i ≠ j` and `A`
@@ -289,8 +280,7 @@ theorem isDictatorial_of_isPareto_of_isIIA [Finite V] (hP : G.IsPareto) (hI : G.
 /-- Under the hypotheses of weak-order Arrow's theorem, the dictator is unique. -/
 theorem existsUnique_isDictator_of_isPareto_of_isIIA [Finite V] (hP : G.IsPareto)
     (hI : G.IsIIA) (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c) : ∃! i, G.IsDictator i := by
-  obtain ⟨a, b, -, hab, -⟩ := id h3
-  have : Nontrivial A := ⟨⟨a, b, hab⟩⟩
+  have : Nontrivial A := h3.elim fun a ⟨b, _, hab, _⟩ => ⟨⟨a, b, hab⟩⟩
   obtain ⟨i, hi⟩ := isDictatorial_of_isPareto_of_isIIA hP hI h3
   exact ⟨i, hi, fun j hj => hj.unique hi⟩
 
@@ -333,10 +323,9 @@ to `b` belongs to `U`. -/
   · obtain ⟨i, hi₁, hi₂⟩ := U.nonempty_of_mem (Filter.inter_mem h hba)
     exact (P i).asymm hi₁ hi₂
 
-theorem isPareto_ultrafilter (U : Ultrafilter V) : (ultrafilter (A := A) U).IsPareto := by
-  intro P a b h
-  rw [ultrafilter_prefers, (Set.eq_univ_iff_forall (s := {i | (P i).Prefers a b})).2 h]
-  exact Filter.univ_mem
+theorem isPareto_ultrafilter (U : Ultrafilter V) : (ultrafilter (A := A) U).IsPareto :=
+  fun P _ _ h => (ultrafilter_prefers U P).2
+    ((Set.eq_univ_iff_forall (s := {i | (P i).Prefers _ _})).2 h ▸ Filter.univ_mem)
 
 theorem isIIA_ultrafilter (U : Ultrafilter V) : (ultrafilter (A := A) U).IsIIA :=
   fun P Q a b h => or_congr_right
@@ -365,11 +354,9 @@ theorem isDictator_ultrafilter_iff [Nontrivial A] (U : Ultrafilter V) (i : V) :
 /-- On an infinite electorate, the social welfare function defined by `Filter.hyperfilter V`
 has no dictator. -/
 theorem not_isDictatorial_ultrafilter_hyperfilter [Infinite V] [Nontrivial A] :
-    ¬ (ultrafilter (A := A) (Filter.hyperfilter V)).IsDictatorial := by
-  rintro ⟨i, hi⟩
-  rw [isDictator_ultrafilter_iff] at hi
-  exact Filter.notMem_hyperfilter_of_finite (Set.finite_singleton i)
-    (hi.symm ▸ Set.mem_singleton i)
+    ¬ (ultrafilter (A := A) (Filter.hyperfilter V)).IsDictatorial :=
+  fun ⟨i, hi⟩ => Filter.notMem_hyperfilter_of_finite (Set.finite_singleton i)
+    (((isDictator_ultrafilter_iff _ i).1 hi).symm ▸ Set.mem_singleton i)
 
 /-- **Fishburn's possibility theorem** ([Fishburn1970]): on any infinite electorate `V` and
 nontrivial alternative set `A`, there exists a social welfare function satisfying weak Pareto and

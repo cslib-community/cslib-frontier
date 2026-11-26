@@ -52,9 +52,8 @@ private theorem point_injective {a b : ℕ} {s : Level} (rho : List Byte)
     (ha : 8 * (rho.length + 2) ≤ a) (hb : 894 ≤ b) :
     Function.Injective (point (s := s) rho ha hb) := by
   intro p q h
-  have hx := word_inj (hx := ((address_length rho p.1).le.trans ha))
-    (hy := ((address_length rho q.1).le.trans ha)) (congrArg Prod.fst h)
-  have hc := congrArg (cellAt s rho) hx
+  have hc := congrArg (cellAt s rho) (word_inj (hx := (address_length rho p.1).le.trans ha)
+    (hy := (address_length rho q.1).le.trans ha) (congrArg Prod.fst h))
   simp only [cellAt_address, Option.some.injEq] at hc
   exact Prod.ext hc (Fin.ext (congrArg (fun v => v.2.val) h))
 
@@ -75,12 +74,11 @@ private theorem overwrite {a b : ℕ} {s : Level} (base : Xofs) (t : Table a b)
     let z : RawWord a × Fin b := (word x h.1, ⟨i, h.2⟩)
     by_cases hit : ∃ p : MatrixByte s, point rho ha hb p = z
     · obtain ⟨p, hp⟩ := hit
-      have hx := word_inj (hx := (address_length rho p.1).le.trans ha) (hy := h.1)
+      obtain rfl := word_inj (hx := (address_length rho p.1).le.trans ha) (hy := h.1)
         (congrArg Prod.fst hp)
-      have hi : p.2.val = i := congrArg (fun z => z.2.val) hp
+      obtain rfl : p.2.val = i := congrArg (fun z => z.2.val) hp
       change _ = Function.extend (point rho ha hb) (flatten s g) t z
       rw [← hp, (point_injective rho ha hb).extend_apply]
-      subst x; subst i
       simp only [cellAt_address, Option.map_some, Option.bind_some, List.getElem?_ofFn,
         dite_eq_left p.2.isLt, Option.getD_some, flatten, Equiv.coe_fn_mk, Fin.eta]
     · change _ = Function.extend (point rho ha hb) (flatten s g) t z
@@ -88,17 +86,16 @@ private theorem overwrite {a b : ℕ} {s : Level} (base : Xofs) (t : Table a b)
       cases hc : cellAt s rho x with
       | none => rfl
       | some cell =>
-        have hi : ¬ i < 894 := fun small => hit ⟨(cell, ⟨i, small⟩), by
-          obtain rfl := address_of_cellAt hc
-          rfl⟩
+        obtain rfl := address_of_cellAt hc
+        have hi : ¬ i < 894 := fun small => hit ⟨(cell, ⟨i, small⟩), rfl⟩
         simp only [Option.map_some, Option.bind_some, List.getElem?_ofFn, dite_eq_right hi,
           Option.getD_none, z]
   · simp only [dite_eq_right h]
     cases hc : cellAt s rho x with
     | none => rfl
     | some cell =>
-      have ha' : x.length ≤ a := by rw [← address_of_cellAt hc, address_length]; exact ha
-      have hi : ¬ i < 894 := fun small => h ⟨ha', small.trans_le hb⟩
+      obtain rfl := address_of_cellAt hc
+      have hi : ¬ i < 894 := fun small => h ⟨(address_length ..).le.trans ha, small.trans_le hb⟩
       simp only [Option.map_some, Option.bind_some, List.getElem?_ofFn, dite_eq_right hi,
         Option.getD_none]
 
@@ -173,9 +170,7 @@ theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : �
   let R := base.uniformPrefixes a b
   let U := PMF.uniformOfFintype (PublicMatrix s)
   let f (x : Xofs × Option (PublicMatrix s × KeyPair)) := x.2.map Prod.fst
-  let setup := R.bind fun H => matrixSetup H s
-  have eq : setup.map f = matrices := by
-    dsimp only [setup]
+  have eq : (R.bind fun H => matrixSetup H s).map f = matrices := by
     rw [uniformPrefixes_matrixSetup base s ha hb]
     simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, matrices]
     refine congrArg (PMF.bind R ·) (funext fun H => congrArg (PMF.map · _) (funext fun seed => ?_))
@@ -196,7 +191,7 @@ theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : �
       · cases val
       · have same := (keyGen_of_mem_programmedMatrixSetup mem).2.1
         exact h ((Option.some.inj val).symm.trans same)
-  simpa [setup, PMF.map_bind, U, PMF.map_apply] using
+  simpa [PMF.map_bind, U, PMF.map_apply] using
     PMF.bind_apply_mono_on_support R (some A) fun H _ => on H
 
 

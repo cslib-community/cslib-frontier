@@ -436,9 +436,8 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
     rw [← BitString.uniformList_take hfits, PMF.bind_map]
     simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, BitString.eval_sampleList,
       ProbComp.eval_pure, PMF.map]
-    apply PMF.bind_congr_on_support
-    intro input hinput
-    simp [Function.comp_def, reindex, BitString.length_of_mem_support_uniformList hinput, n]
+    exact PMF.bind_congr_on_support _ _ _ fun input hinput => by
+      simp [Function.comp_def, reindex, BitString.length_of_mem_support_uniformList hinput, n]
   have hrhs : ProbComp.eval (familyInversionGame m core (familyInverter m core c d evaluate) n) =
       (BitString.uniformList (m n)).bind (fun x₀ =>
         (BitString.uniformList (coinBudget m c d n (core n x₀))).map fun coins =>
@@ -454,8 +453,7 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
   refine PMF.bind_apply_mono_on_support _ true fun coins _ => ?_
   simp only [Function.comp_apply, PMF.pure_apply]
   by_cases h : reindex m core (evaluate (M, wrappedImage n y) coins) == wrappedImage n y
-  · obtain ⟨hn_eq, hcore_eq⟩ : _ = n ∧ _ := by
-      simpa only [beq_iff_eq, reindex, wrappedImage_inj] using h
+  · obtain ⟨hn_eq, hcore_eq⟩ := wrappedImage_inj.mp (beq_iff_eq.mp h)
     simp [h, searchCandidate_spec hlt.le (hn_eq ▸ hcore_eq)]
   · simp [h]
 
@@ -481,15 +479,11 @@ theorem weakOneWay {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
     fun adversary hPPT => ?_
   obtain ⟨familyAdv, hfamilyPPT, hred⟩ :=
     exists_familyInverter_inversion_le hm hge hcore adversary hPPT
-  have hev := (GeneratorReindex.parameter_tendsto m).eventually (hweak familyAdv hfamilyPPT)
-  filter_upwards [hev, eventually_ge_atTop (m 0)] with M hM hM0
-  have h1 : (Game.succProbability
-        (ProbComp.eval (inversionGame (reindex m core) adversary M)) : ℝ) ≤
-      (Game.succProbability (ProbComp.eval (familyInversionGame m core familyAdv
-        (GeneratorReindex.parameter m M))) : ℝ) := mod_cast hred hM0
-  have hdiv := one_div_le_one_div_of_le ((Nat.cast_pos (α := ℝ)).mpr (hq _))
-    ((Nat.cast_le (α := ℝ)).mpr (Polynomial.eval_mono q (GeneratorReindex.parameter_le m M)))
-  linarith
+  filter_upwards [(GeneratorReindex.parameter_tendsto m).eventually (hweak familyAdv hfamilyPPT),
+    eventually_ge_atTop (m 0)] with M hM hM0
+  exact (NNReal.coe_le_coe.mpr (hred hM0)).trans (hM.trans (sub_le_sub_left
+    (one_div_le_one_div_of_le (Nat.cast_pos.mpr (hq _))
+      (Nat.cast_le.mpr (Polynomial.eval_mono q (GeneratorReindex.parameter_le m M)))) 1))
 
 /-- **Strong one-wayness under schedule reindexing
 (library generalization of the padding trick in

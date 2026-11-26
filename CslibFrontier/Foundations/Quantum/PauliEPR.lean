@@ -202,9 +202,7 @@ theorem extractedRegisterEmbedding_left (A : Matrix Q Q ℂ) :
   change (A i i' * (1 : Matrix Q Q ℂ) k k') * (1 : Matrix (J × K) (J × K) ℂ)
       (j, l) (j', l') =
     (A i i' * (1 : Matrix J J ℂ) j j') * (1 : Matrix (Q × K) (Q × K) ℂ) (k, l) (k', l')
-  rw [← one_kronecker_one, ← one_kronecker_one]
-  simp only [kronecker_apply]
-  ring
+  rw [← one_kronecker_one, ← one_kronecker_one, kronecker_apply, kronecker_apply, mul_mul_mul_comm]
 
 /-- A second-side register operator remains on the second side after placing the ancillas. -/
 theorem extractedRegisterEmbedding_right (A : Matrix Q Q ℂ) :
@@ -214,9 +212,7 @@ theorem extractedRegisterEmbedding_right (A : Matrix Q Q ℂ) :
   change ((1 : Matrix Q Q ℂ) i i' * A k k') * (1 : Matrix (J × K) (J × K) ℂ)
       (j, l) (j', l') =
     (1 : Matrix (Q × J) (Q × J) ℂ) (i, j) (i', j') * (A k k' * (1 : Matrix K K ℂ) l l')
-  rw [← one_kronecker_one, ← one_kronecker_one]
-  simp only [kronecker_apply]
-  ring
+  rw [← one_kronecker_one, ← one_kronecker_one, kronecker_apply, kronecker_apply, mul_mul_mul_comm]
 
 /-- Projection onto the EPR state on the two extracted registers, with the
 identity on both ancillary registers. The registers are in player order. -/
@@ -232,9 +228,8 @@ theorem reindex_extractedEprProjection :
       pureState (maxEntangled Q) ⊗ₖ (1 : Matrix (J × K) (J × K) ℂ) := by
   intro e
   ext p q
-  change (pureState (maxEntangled Q) ⊗ₖ (1 : Matrix (J × K) (J × K) ℂ))
-    (e (e.symm p)) (e (e.symm q)) = _
-  rw [e.apply_symm_apply, e.apply_symm_apply]
+  exact congrArg₂ (pureState (maxEntangled Q) ⊗ₖ (1 : Matrix (J × K) (J × K) ℂ))
+    (e.apply_symm_apply p) (e.apply_symm_apply q)
 
 /-- The extracted EPR projection is self-adjoint. -/
 theorem isHermitian_extractedEprProjection :

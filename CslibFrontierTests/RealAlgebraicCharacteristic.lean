@@ -22,6 +22,35 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM Po
 private instance : Fact (Nat.Prime 2) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
 
+-- The relation and the multiplier carry different parameters through the binary norm bound.
+open MvPolynomial.PurePower in
+example :
+    let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+      fun _ => MvPolynomial.C (MvPolynomial.X 0)
+    let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+      MvPolynomial.C (MvPolynomial.X 1) * MvPolynomial.X 0
+    (multiplicationMatrix (by decide : 1 ≤ 2) r (by intro i; simp [r]) v).charpoly.sum
+      (fun _ a => a.coeffNorm1) ≤ 2 ^ multiplicationMatrixCharpolyCoeffNormExponent 1 2 1 0 0 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+    fun _ => MvPolynomial.C (MvPolynomial.X 0)
+  let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+    MvPolynomial.C (MvPolynomial.X 1) * MvPolynomial.X 0
+  have hr (i : Fin 1) : (r i).totalDegree < 2 := by simp [r]
+  have hR (i : Fin 1) : (r i).coeff.sum (fun _ a => a.coeffNorm1) ≤ 2 ^ 0 := by
+    dsimp only [r]
+    rw [MvPolynomial.sum_C MvPolynomial.coeffNorm1_zero, MvPolynomial.coeffNorm1_X, pow_zero]
+  have hdeg : v.totalDegree ≤ 1 := by
+    dsimp only [v]
+    exact (MvPolynomial.totalDegree_mul _ _).trans
+      (by rw [MvPolynomial.totalDegree_C, MvPolynomial.totalDegree_X, zero_add])
+  have hV : v.coeff.sum (fun _ a => a.coeffNorm1) ≤ 2 ^ 0 := by
+    dsimp only [v]
+    rw [MvPolynomial.C_mul_X_eq_monomial, MvPolynomial.sum_monomial_eq MvPolynomial.coeffNorm1_zero,
+      MvPolynomial.coeffNorm1_X, pow_zero]
+  exact sum_multiplicationMatrix_charpoly_le_pow_two MvPolynomial.coeffNorm1_zero
+    MvPolynomial.coeffNorm1_one.le MvPolynomial.coeffNorm1_add_le MvPolynomial.coeffNorm1_mul_le
+    MvPolynomial.coeffNorm1_neg MvPolynomial.coeffNorm1_nsmul (by decide) r hr hR v hdeg hV
+
 -- The logarithm's zero slot is masked before inversion, including at the smallest prime.
 example (t : ℕ) : traceLogarithmResidue 2 0 t = 0 := by
   simp [traceLogarithmResidue]

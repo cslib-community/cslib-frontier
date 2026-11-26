@@ -247,18 +247,14 @@ theorem innerLoopInv_of_bfsInv {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     (hT : TreeInv σ T) {B : PBFS} (hinv : BFSInv P σ T B) (hlt : B.qHead < B.qTail) :
     InnerLoopInv P σ T B.qHead (B.queue B.qHead) (B.fail (B.queue B.qHead)) 0
       { B with qHead := B.qHead + 1 } := by
-  set qh := B.qHead
-  set r := B.queue qh
-  set fr := B.fail r
-  obtain ⟨hr_pos, hr_lt⟩ := hinv.q_bounds qh hlt
-  have hr_disc : r ∈ B.disc :=
-    Finset.mem_insert_of_mem (Finset.mem_image.mpr ⟨qh, Finset.mem_range.mpr hlt, rfl⟩)
-  obtain ⟨hfr_disc, hfr_str⟩ := hinv.tables.fail_spec r hr_disc hr_pos
-  have hfr_lt : fr < T.numStates := mem_disc_lt hT.one_le hinv.q_bounds hfr_disc
-  have hfr_depth : T.depth fr < T.depth r := by
-    rw [hT.depth_eq fr hfr_lt, hT.depth_eq r hr_lt, hfr_str]
-    exact length_failure_lt P (hT.str_ne_nil r hr_pos hr_lt)
-  have hfr_exp : fr ∈ B.expAt qh := hinv.lt_depth_mem_exp fr hfr_lt hlt hfr_depth
+  obtain ⟨hr_pos, hr_lt⟩ := hinv.q_bounds B.qHead hlt
+  have hr_disc : B.queue B.qHead ∈ B.disc :=
+    Finset.mem_insert_of_mem (Finset.mem_image.mpr ⟨B.qHead, Finset.mem_range.mpr hlt, rfl⟩)
+  obtain ⟨hfr_disc, hfr_str⟩ := hinv.tables.fail_spec _ hr_disc hr_pos
+  have hfr_lt := mem_disc_lt hT.one_le hinv.q_bounds hfr_disc
+  have hfr_depth : T.depth (B.fail (B.queue B.qHead)) < T.depth (B.queue B.qHead) := by
+    rw [hT.depth_eq _ hfr_lt, hT.depth_eq _ hr_lt, hfr_str]
+    exact length_failure_lt P (hT.str_ne_nil _ hr_pos hr_lt)
   exact
     { qHead_eq := rfl
       qHead_le := by dsimp only; omega
@@ -266,14 +262,14 @@ theorem innerLoopInv_of_bfsInv {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
       q_bounds := hinv.q_bounds
       q_inj := hinv.q_inj
       disc_iff := fun w hw => (hinv.disc_iff w hw).trans
-        (by simp only [PBFS.expAt, qh, Nat.not_lt_zero, false_and, exists_false, or_false])
+        (by simp only [PBFS.expAt, Nat.not_lt_zero, false_and, exists_false, or_false])
       q_mono := hinv.q_mono
       q_depth_ub := fun j hj => hinv.q_depth_ub j hj hlt
       lt_depth_mem_exp := fun v hv hdv => hinv.lt_depth_mem_exp v hv hlt hdv
       le_depth_mem_disc := le_depth_mem_disc_of_bfsInv hT hinv hlt
       delta_exp := hinv.delta_spec
       delta_r := fun _ hc => absurd hc (Nat.not_lt_zero _)
-      fr_mem := hfr_exp
+      fr_mem := hinv.lt_depth_mem_exp _ hfr_lt hlt hfr_depth
       fr_str := hfr_str
       tables := { hinv.tables with } }
 
@@ -287,22 +283,19 @@ theorem outerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     let fr := B.fail r
     let B₂ := PBFS.innerLoop T r fr σ 0 { B with qHead := B.qHead + 1 }
     BFSInv P σ T B₂ ∧ B₂.qHead = B.qHead + 1 := by
-  set qh := B.qHead
-  set r := B.queue qh
-  set fr := B.fail r
-  set B₁ : PBFS := { B with qHead := qh + 1 }
-  have hInner := innerLoop_spec hT hchar hterm qh r fr σ 0 B₁ (by omega)
-    (innerLoopInv_of_bfsInv hT hinv hlt)
+  set r := B.queue B.qHead
+  have hInner := innerLoop_spec hT hchar hterm B.qHead r (B.fail r) σ 0
+    { B with qHead := B.qHead + 1 } (by omega) (innerLoopInv_of_bfsInv hT hinv hlt)
   rw [Nat.zero_add] at hInner
-  set B₂ := PBFS.innerLoop T r fr σ 0 B₁
-  have hexp₂ : B₂.expAt B₂.qHead = insert r (B₂.expAt qh) := by
+  set B₂ := PBFS.innerLoop T r (B.fail r) σ 0 { B with qHead := B.qHead + 1 }
+  have hexp₂ : B₂.expAt B₂.qHead = insert r (B₂.expAt B.qHead) := by
     rw [hInner.qHead_eq, expAt_succ, hInner.r_eq]
   change BFSInv P σ T B₂ ∧ B₂.qHead = B.qHead + 1
   refine ⟨{
     qHead_le := hInner.qHead_le, q_bounds := hInner.q_bounds, q_inj := hInner.q_inj,
     q_mono := hInner.q_mono, tables := hInner.tables, disc_iff := fun w hw => ?_,
     q_depth_ub := fun j hj hlt₂ => (hInner.q_depth_ub j hj).trans (Nat.add_le_add_right
-      (hInner.r_eq ▸ hInner.q_mono qh B₂.qHead (by rw [hInner.qHead_eq]; omega) hlt₂) 1),
+      (hInner.r_eq ▸ hInner.q_mono B.qHead B₂.qHead (by rw [hInner.qHead_eq]; omega) hlt₂) 1),
     lt_depth_mem_exp := fun v hv hlt₂ hdv => ?_,
     delta_spec := fun u hu c hc => ?_ }, hInner.qHead_eq⟩
   · rw [hexp₂, hInner.disc_iff w hw, Finset.exists_mem_insert]
@@ -389,25 +382,24 @@ theorem bfsInv_rootLoop {P : List (List ℕ)} {σ : ℕ} {T : PTrie} (hT : TreeI
   rw [Nat.zero_add] at hRoot
   set B₀ := PBFS.rootLoop T σ 0 PBFS.init
   have hexp₀ : B₀.expAt B₀.qHead = {0} := by simp [hRoot.qHead_zero, PBFS.expAt]
-  refine ⟨?_, hRoot.qHead_zero⟩
-  exact
-    { qHead_le := by rw [hRoot.qHead_zero]; exact Nat.zero_le _
-      q_bounds := fun i hi => ⟨(hRoot.q_bounds i hi).1, (hRoot.q_bounds i hi).2.1⟩
-      q_inj := hRoot.q_inj
-      disc_iff := fun w hw => by simp [hexp₀, hRoot.disc_iff w hw]
-      q_mono := fun i j hij hj => by
-        rw [(hRoot.q_bounds i (lt_of_le_of_lt hij hj)).2.2, (hRoot.q_bounds j hj).2.2]
-      q_depth_ub := fun j hj _ => by rw [(hRoot.q_bounds j hj).2.2]; omega
-      lt_depth_mem_exp := fun v hv hlt hdv => by
-        rw [hexp₀, Finset.mem_singleton]
-        rw [hRoot.qHead_zero] at hlt hdv
-        rw [(hRoot.q_bounds 0 hlt).2.2, hT.depth_eq v hv] at hdv
-        have hv_nil : T.strOf v = [] := List.eq_nil_of_length_eq_zero (by omega)
-        exact hT.str_inj v hv 0 hT.one_le (hv_nil.trans hT.str_zero.symm)
-      delta_spec := fun u hu c hc => by
-        obtain rfl : u = 0 := by simpa [hexp₀] using hu
-        simpa [hT.str_zero] using hRoot.delta_zero c hc
-      tables := hRoot.tables }
+  refine ⟨{
+    qHead_le := hRoot.qHead_zero ▸ Nat.zero_le _
+    q_bounds := fun i hi => ⟨(hRoot.q_bounds i hi).1, (hRoot.q_bounds i hi).2.1⟩
+    q_inj := hRoot.q_inj
+    disc_iff := fun w hw => by simp [hexp₀, hRoot.disc_iff w hw]
+    q_mono := fun i j hij hj => by
+      rw [(hRoot.q_bounds i (lt_of_le_of_lt hij hj)).2.2, (hRoot.q_bounds j hj).2.2]
+    q_depth_ub := fun j hj _ => by rw [(hRoot.q_bounds j hj).2.2]; omega
+    lt_depth_mem_exp := fun v hv hlt hdv => by
+      rw [hRoot.qHead_zero] at hlt hdv
+      rw [(hRoot.q_bounds 0 hlt).2.2, hT.depth_eq v hv] at hdv
+      rw [hexp₀, Finset.mem_singleton]
+      exact hT.str_inj v hv 0 hT.one_le
+        ((List.eq_nil_of_length_eq_zero (by omega)).trans hT.str_zero.symm)
+    delta_spec := fun u hu c hc => by
+      obtain rfl : u = 0 := by simpa [hexp₀] using hu
+      simpa [hT.str_zero] using hRoot.delta_zero c hc
+    tables := hRoot.tables }, hRoot.qHead_zero⟩
 
 theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
     (hvalid : ∀ p ∈ P, ∀ a ∈ p, a < σ) :

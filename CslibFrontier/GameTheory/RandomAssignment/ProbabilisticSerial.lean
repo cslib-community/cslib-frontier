@@ -236,8 +236,7 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
     EatingInv p (eatingStep p s) := by
   by_cases h : ∃ o : Fin n, 0 < s.rem o
   swap
-  · have hstep : eatingStep p s = s := dite_eq_right h
-    rwa [hstep]
+  · rwa [eatingStep, dite_eq_right h]
   set dt := eatingDuration p s.rem h
   have hdt_pos : 0 < dt := eatingDuration_pos p s.rem h
   have hrem_eq := eatingStep_pos_rem p s h
@@ -263,18 +262,17 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
     simp [← Finset.sum_filter, eatingDemand]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro o
-    rw [hrem_eq o]
     rcases Nat.eq_zero_or_pos (eatingDemand p s.rem h o) with hd0 | hd
-    · simp [hd0, hinv.rem_nonneg o]
-    · exact sub_nonneg.mpr (eatingDuration_le p s.rem h o hd)
+    · simp [hrem_eq o, hd0, hinv.rem_nonneg o]
+    · exact (hrem_eq o).symm ▸ sub_nonneg.mpr (eatingDuration_le p s.rem h o hd)
   · exact fun i o => (halloc_eq i o).symm ▸
       add_nonneg (hinv.alloc_nonneg i o) (ite_nonneg hdt_pos.le le_rfl)
   · intro i
     simp [halloc_eq i, Finset.sum_add_distrib, hinv.row_sum i, hel_eq]
   · intro o
-    simp_rw [hrem_eq o, fun i => halloc_eq i o]
-    rw [Finset.sum_add_distrib, hcard_sum o]
-    linarith [hinv.col_sum o]
+    rw [hrem_eq o]
+    simp only [halloc_eq _ o, Finset.sum_add_distrib]
+    linarith [hcard_sum o, hinv.col_sum o]
   · rw [hel_eq]; linarith [hinv.elapsed_nonneg]
   · intro i j
     have hrow (a : Fin n) : (eatingStep p s).alloc a =
@@ -298,8 +296,7 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
     refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
     rw [hexh_old a ha0]
     by_cases hb_pos : 0 < s.rem b
-    · rw [hexh_new b hb_pos hb0']
-      linarith [hinv.exhaust_le a ha0]
+    · rw [hexh_new b hb_pos hb0']; linarith [hinv.exhaust_le a ha0]
     · exact hexh_old b (hz b hb_pos) ▸ horder (hz b hb_pos)
 
 private noncomputable def activeObjs {n : ℕ} (s : EatingState n) : Finset (Fin n) :=
@@ -326,10 +323,8 @@ private lemma activeCard_step_le {n : ℕ} (p : Profile n) (s : EatingState n) :
       rw [eatingStep_pos_rem p s h o₀] at hmem
       linarith
   · left
-    have hstep : eatingStep p s = s := dite_eq_right h
-    rw [hstep]
-    exact Finset.card_eq_zero.mpr
-      (Finset.eq_empty_of_forall_notMem fun o ho => h ⟨o, (mem_activeObjs s o).mp ho⟩)
+    rw [eatingStep, dite_eq_right h, Finset.card_eq_zero]
+    exact Finset.eq_empty_of_forall_notMem fun o ho => h ⟨o, (mem_activeObjs s o).mp ho⟩
 
 private lemma eatingStep_iter_inv {n : ℕ} (p : Profile n) (k : ℕ) :
     EatingInv p ((eatingStep p)^[k] (initEatingState n)) := by
@@ -487,8 +482,7 @@ private lemma eatingStep_padded {n : ℕ} (hn : 3 ≤ n) (p : Profile n) (s : Ea
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
       split_ifs with hi
       · have := (f ⟨i.val, hi⟩).isLt
-        simp only [Fin.ext_iff]
-        omega
+        simp only [Fin.ext_iff]; omega
       · rfl
   have hdt : eatingDuration p s.rem hex = dt := by
     obtain ⟨j, hj_pos, hj_eq⟩ := hdt_mem
@@ -515,10 +509,8 @@ dummy agents `k ≥ 3` whose top choice is object `k`. -/
 
 private lemma psManip_symm_dummy {n : ℕ} (hn : 3 ≤ n) (i : Fin n) (hi : 3 ≤ i.val) :
     (psManipProfile hn i).symm i = ⟨0, by omega⟩ := by
-  have h0 : i.val ≠ 0 := by omega
-  have h1 : i.val ≠ 1 := by omega
-  have h2 : i.val ≠ 2 := by omega
-  simp [psManipProfile, h0, h1, h2]
+  unfold psManipProfile
+  split_ifs <;> first | omega | simp
 
 /-- Verify the favorite object of agent `i` under a permutation `π` agreeing with `id`, `swap 1 2`,
 or `swap 0 1` on `{0, 1, 2}`: every strictly preferred object in `{0, 1, 2}` is `≤ 0`. -/
@@ -648,8 +640,8 @@ private lemma eval_psManip_three {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
     rw [hs3_rem' o]; by_cases ho : o.val < 3 <;> simp [padVec, ho, hr₃_zero, hd₃_zero]
   intro a
   rw [probabilisticSerial, eq_iter_three_of_rem_zero hn p hs3_zero]
-  refine (hs3_a a).trans ?_
-  rw [hs2_a a, hs1_a a]
+  change s3.alloc _ _ = _
+  rw [hs3_a, hs2_a, hs1_a]
   exact congrArg (· + _ + _) (zero_add _)
 
 private lemma coreCount_t0 (j : Fin 3) : coreCount ![0, 0, 1] j = ![2, 1, 0] j := by
@@ -703,8 +695,8 @@ private lemma psManip_misreport_row2 {n : ℕ} (hn : 3 ≤ n) :
     Function.update_of_ne (fun h => hi (congrArg Fin.val h)) _ _
   have hp2 : p' ⟨2, by omega⟩ = Equiv.refl (Fin n) := Function.update_self _ _ _
   have heval := eval_psManip_three hn p'
-    (by rw [hne2 _ (by change (0 : ℕ) ≠ 2; omega)]; simp [psManipProfile])
-    (by rw [hne2 _ (by change (1 : ℕ) ≠ 2; omega)]; simp [psManipProfile])
+    (by simpa [psManipProfile] using hne2 ⟨0, by omega⟩ (by simp))
+    (by simpa [psManipProfile] using hne2 ⟨1, by omega⟩ (by simp))
     (fun i hi => by rw [hne2 i (by omega)]; exact psManip_symm_dummy hn i hi)
     ![0, 0, 0] (1 / 3) (1 / 2) (1 / 6)
     ![0, 1, 1] ![0, 0, 1 / 2] (2 / 3) (1 / 6)

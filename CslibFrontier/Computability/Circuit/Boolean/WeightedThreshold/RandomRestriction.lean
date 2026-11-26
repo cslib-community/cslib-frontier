@@ -270,19 +270,16 @@ theorem card_not_forcedToConst_ltfEval_le {ι : Type*} [Fintype ι] [DecidableEq
     have hunion :
         (#{w : ι → Bool | ¬ ForcedToConst (ltfEval a θ) B w} : ℝ) ≤
           ∑ i ∈ B ∩ S, (2 : ℝ) ^ Fintype.card ι / Real.sqrt (k' i + 1) := by
-      have hfilter : (univ.filter fun w : ι → Bool => ¬ ForcedToConst (ltfEval a θ) B w) =
-          univ.filter fun w => θ - (∑ i ∈ B ∩ S, |a i|) ≤ minSum w ∧ minSum w < θ :=
-        ext fun _ => by simp [S, minSum, not_forcedToConst_ltfEval_iff]
-      simpa only [hfilter] using card_filter_Ico_sum_le minSum (B ∩ S) (fun i => |a i|)
-        (fun i => (2 : ℝ) ^ Fintype.card ι / Real.sqrt (k' i + 1)) hLO θ
+      rw [filter_congr fun w _ => not_forcedToConst_ltfEval_iff a θ B w]
+      exact card_filter_Ico_sum_le minSum (B ∩ S) (fun i => |a i|) _ hLO θ
     refine hunion.trans ?_
     rw [mul_sum, mul_sum]; refine sum_le_sum fun i hi => ?_
     have hki_pos : (0 : ℝ) < (ltfWeightRank a i : ℝ) :=
       Nat.cast_pos.mpr (one_le_ltfWeightRank (mem_inter.mp hi).2)
     have hsqrt_le : Real.sqrt (ltfWeightRank a i) ≤ 2 * Real.sqrt (k' i + 1) := by
-      have hsq := Real.sqrt_le_sqrt (show (ltfWeightRank a i : ℝ) ≤ (2 : ℝ) ^ 2 * ((k' i : ℝ) + 1)
-        by cast_linarith [hcase i hi])
-      rwa [Real.sqrt_mul (by positivity), Real.sqrt_sq (by positivity)] at hsq
+      have hle : (ltfWeightRank a i : ℝ) ≤ (2 : ℝ) ^ 2 * ((k' i : ℝ) + 1) := by
+        cast_linarith [hcase i hi]
+      simpa [Real.sqrt_mul] using Real.sqrt_le_sqrt hle
     rw [div_eq_mul_one_div]; refine mul_le_mul_of_nonneg_left ?_ (by positivity)
     rwa [div_le_iff₀ (by positivity), mul_assoc, one_div_mul_eq_div, ← mul_div_assoc,
       le_div_iff₀ (Real.sqrt_pos.mpr hki_pos), one_mul]
@@ -310,8 +307,7 @@ theorem card_not_forcedToConst_ltfEval_le {ι : Type*} [Fintype ι] [DecidableEq
         exact_mod_cast hkB_ge
       linarith
     have htriv : (#{w : ι → Bool | ¬ ForcedToConst (ltfEval a θ) B w} : ℝ) ≤
-        (2 : ℝ) ^ Fintype.card ι := by
-      exact_mod_cast (card_filter_le univ _).trans_eq (by simp)
+        (2 : ℝ) ^ Fintype.card ι := mod_cast (card_filter_le univ _).trans_eq (by simp)
     exact htriv.trans (le_mul_of_one_le_right (by positivity) hsum_ge)
 
 /-- **Fixed-`B` LTF single-input non-forcing bound**: if `#(B ∩ ltfSupport a) < 2`, no input fails
@@ -418,16 +414,14 @@ theorem sum_card_not_forcedToAtMostOne_ltfEval_le {Ω ι : Type*} [Fintype Ω] [
         (Nat.cast_sum _ _)).trans ((sum_le_sum fun j hj => hp2 i hi j hj).trans ?_)
       rw [sum_const, nsmul_eq_mul, mul_assoc]
       exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr card_erase_le) (by positivity)
-    have hsq :
-        (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ^ 2 ≤
-          (Real.sqrt #S * p * Real.sqrt p * (Fintype.card Ω : ℝ)) ^ 2 := by
-      calc (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ^ 2
-          ≤ (p * (Fintype.card Ω : ℝ)) * ((#S : ℝ) * p ^ 2 * (Fintype.card Ω : ℝ)) := by
-            rw [sq]; gcongr
-        _ = (Real.sqrt #S * p * Real.sqrt p * (Fintype.card Ω : ℝ)) ^ 2 := by
-            rw [mul_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), Real.sq_sqrt hp0]; ring
-    have hsqrt := Real.sqrt_le_sqrt hsq
-    rwa [Real.sqrt_sq (by positivity), Real.sqrt_sq (by positivity)] at hsqrt
+    refine le_of_sq_le_sq ?_ (by positivity)
+    calc (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ^ 2
+        ≤ (p * (Fintype.card Ω : ℝ)) * ((#S : ℝ) * p ^ 2 * (Fintype.card Ω : ℝ)) := by
+          rw [sq]
+          gcongr
+      _ = (Real.sqrt #S * p * Real.sqrt p * (Fintype.card Ω : ℝ)) ^ 2 := by
+          rw [mul_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), Real.sq_sqrt hp0]
+          ring
   refine (sum_le_of_card_filter_le a _ (fun ω i => i ∈ B ω ∧ 2 ≤ #(B ω ∩ ltfSupport a))
     (fun ω => ?_) hpair_bound).trans_eq ?_
   · refine (card_not_forcedToAtMostOne_ltfEval_le a θ (B ω)).trans_eq ?_

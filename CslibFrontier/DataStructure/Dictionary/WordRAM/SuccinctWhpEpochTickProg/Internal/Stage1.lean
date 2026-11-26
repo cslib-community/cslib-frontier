@@ -60,12 +60,8 @@ private theorem realizes_stage1EnterStage2 :
           fs.rebSliceIdx (fs.dirtyBuckets 0) < 3 * numBucketsWhp n_max)
       (fun _ _ => 0) := by
   unfold stage1EnterStage2Prog
-  have hrd := realizes_readDirtyBucketGen
-  have hrs := realizes_readRebSliceIdxGen
-  have hrb := realizes_resetBTreeSliceGen
-  have hwh := realizes_writeHdr
-  have hzh := realizes_resetRebScanHdrs
-  realize
+  realize [realizes_readDirtyBucketGen, realizes_readRebSliceIdxGen,
+    realizes_resetBTreeSliceGen, realizes_writeHdr, realizes_resetRebScanHdrs]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
@@ -172,10 +168,7 @@ private theorem realizes_stage1FinishGen :
             fs.rebSliceIdx (fs.dirtyBuckets 0) < 3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage1FinishGenProg
-  have hrh := realizes_readHdr
-  have ht3 := realizes_tickToStage3
-  have he2 := realizes_stage1EnterStage2
-  realize
+  realize [realizes_readHdr, realizes_tickToStage3, realizes_stage1EnterStage2]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
@@ -264,10 +257,7 @@ private theorem realizes_stage1QueueBucket :
           fs.dirtyCount < qEpochWhp n_max)
       (fun _ _ => 0) := by
   unfold stage1QueueBucketProg
-  have hrb := realizes_readBktFieldGen
-  have hwb := realizes_writeBktFieldGen
-  have hpd := realizes_pushDirtyBucketGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_writeBktFieldGen, realizes_pushDirtyBucketGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -430,14 +420,9 @@ theorem realizes_epochTickStage1Gen :
           fs.rebStage = 1)
       (fun _ _ => 0) := by
   unfold epochTickStage1GenProg
-  have hro := realizes_readOldEp
-  have hra := realizes_readBufAllocs
-  have hrh := realizes_readHdr
-  have hcs := realizes_bufCheckSlotGen
-  have hqb := realizes_stage1QueueBucket
-  have hwh := realizes_writeHdr
-  have hfn := realizes_stage1FinishGen
-  realize
+  realize [realizes_readOldEp, realizes_readBufAllocs, realizes_readHdr,
+    realizes_bufCheckSlotGen, realizes_stage1QueueBucket, realizes_writeHdr,
+    realizes_stage1FinishGen]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *

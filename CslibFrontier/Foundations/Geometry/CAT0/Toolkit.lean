@@ -189,8 +189,10 @@ private theorem le_two_mul_of_forall {S a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
     have h1 := h ((a ^ 2 + 1) / ε) (by positivity)
     simp only [zero_pow two_ne_zero, mul_zero, zero_add, div_div_eq_mul_div] at h1
     exact (zero_add ε).symm ▸ h1.trans_lt ((div_lt_iff₀ (by positivity)).2 (by linarith))
-  · linarith [h (a / b) (by positivity),
-      show a / b * b ^ 2 + a ^ 2 / (a / b) = 2 * a * b by field_simp; ring]
+  · have heq : a / b * b ^ 2 + a ^ 2 / (a / b) = 2 * a * b := by
+      field_simp
+      ring
+    linarith [h (a / b) (by positivity)]
 
 /-- The first step of part (b): for the point `q` at `s` on `[p, p']`, insert the inequality of
 part (a) twice into `t(1 − t)|xv|² ≤ (1 − t)|xq|² + t|qv|²`. -/
@@ -216,18 +218,8 @@ theorem dist_sq_add_dist_sq_le (x v y u : Y) :
   refine le_two_mul_of_forall dist_nonneg dist_nonneg fun τ hτ => ?_
   have hs1 : τ / (1 + τ) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
   have h := quadrilateral_aux x v y u (by positivity) hs1 (by positivity) hs1
-  have e1 : 1 - τ / (1 + τ) = 1 / (1 + τ) := by field_simp; ring
-  rw [e1] at h
-  have h2 := mul_le_mul_of_nonneg_left h (show 0 ≤ (1 + τ) ^ 2 / τ by positivity)
-  have e2 : (1 + τ) ^ 2 / τ * (τ / (1 + τ) * (1 / (1 + τ)) * dist x v ^ 2 +
-      τ / (1 + τ) * (1 / (1 + τ)) * dist y u ^ 2) = dist x v ^ 2 + dist y u ^ 2 := by
-    field_simp
-  have e3 : (1 + τ) ^ 2 / τ * (1 / (1 + τ) * (1 / (1 + τ)) * dist x y ^ 2 +
-      1 / (1 + τ) * (τ / (1 + τ)) * dist x u ^ 2 + τ / (1 + τ) * (1 / (1 + τ)) * dist v y ^ 2 +
-      τ / (1 + τ) * (τ / (1 + τ)) * dist v u ^ 2) =
-      dist x y ^ 2 / τ + dist x u ^ 2 + dist v y ^ 2 + τ * dist v u ^ 2 := by
-    field_simp
-  rw [e2, e3, dist_comm v y, dist_comm v u] at h2
+  rw [dist_comm v y, dist_comm v u] at h
+  field_simp at h ⊢
   linarith
 
 /-- **Part (b).** The squared diagonals of a quadrangle add up to at most its squared sides. -/

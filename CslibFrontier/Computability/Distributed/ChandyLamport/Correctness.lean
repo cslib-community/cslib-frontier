@@ -139,9 +139,7 @@ theorem project_chan_eq_preInFlight_append_postInFlight {P S M : Type*}
     (S_aug : SnapGlobalState P S M) (u v : P) :
     (project S_aug).chan u v = preInFlight S_aug u v ++ postInFlight S_aug u v := by
   simp only [project, preInFlight, postInFlight]
-  cases hmk : (S_aug.chan u v).any WireMsg.isMarker
-  · cases (S_aug.proc u).snapState.isNone <;> simp
-  · simp [unmarker_eq_takeBeforeMarker_append_dropAfterMarker]
+  split_ifs <;> simp [unmarker_eq_takeBeforeMarker_append_dropAfterMarker]
 
 private theorem preInFlight_eq_unmarker_of_unrecorded {P S M : Type*}
     {S_aug : SnapGlobalState P S M} {u v : P}
@@ -268,9 +266,8 @@ theorem preRecv_pops_preInFlight [DecidableEq P] [DecidableRel sys.graph.Adj]
     | none =>
       exact ⟨unmarker ws, by simp [hch]⟩
     | some _ =>
-      rcases hinv.recordedSrc src dest (by simp [hsrc]) hadj with ⟨hm, _⟩ | ⟨_, hv_some, _⟩
-      · exact absurd hm hnotm
-      · simp [hpre_dest] at hv_some
+      have hrec := hinv.recordedSrc src dest (by simp [hsrc]) hadj
+      simp [hnotm, hpre_dest] at hrec
   · exact ⟨takeBeforeMarker ws, by simp [hch, takeBeforeMarker]⟩
 
 /-- **`chanRec` captures the exact pre-snapshot sends received post-snapshot:** when an
@@ -291,30 +288,25 @@ theorem postRecv_records_iff_preInFlight [DecidableEq P] [DecidableRel sys.graph
       ((S₂.proc dest).chanRec src).msgs = ((S₁.proc dest).chanRec src).msgs) := by
   obtain ⟨⟨hadj, hhead, _, _⟩, rfl⟩ := htr
   obtain ⟨ws, hch⟩ := List.head?_eq_some_iff.mp hhead
+  simp only [stepSnap, SnapGlobalState.applyApp, hpost_dest, ↓reduceIte]
   cases hsrc : (S₁.proc src).snapState with
   | none =>
     obtain ⟨hnotm, hrec⟩ := hinv.unrecordedSrc src dest hsrc
     obtain ⟨buf, hbuf⟩ := hrec hpost_dest hadj
-    have hpre_eq : preInFlight S₁ src dest = msg :: unmarker ws := by
-      rw [preInFlight_eq_unmarker_of_unrecorded hsrc hnotm, hch, unmarker_cons_app]
-    refine Or.inl ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
-    simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hbuf, ChannelRec.recordApp,
-      ChannelRec.msgs]
+    rw [preInFlight_eq_unmarker_of_unrecorded hsrc hnotm, hch, unmarker_cons_app]
+    exact Or.inl ⟨List.cons_ne_nil _ _, rfl, by simp [hbuf, ChannelRec.recordApp, ChannelRec.msgs]⟩
   | some _ =>
     have hsrc_some : (S₁.proc src).snapState.isSome = true := by simp [hsrc]
     rcases hinv.recordedSrc src dest hsrc_some hadj with ⟨hmem, hrec⟩ | ⟨hnotm, _, ⟨sv, hsv⟩⟩
     · obtain ⟨buf, hbuf⟩ := hrec hpost_dest
-      have hpre_eq : preInFlight S₁ src dest = msg :: takeBeforeMarker ws := by
-        rw [preInFlight_of_recorded hsrc_some, any_isMarker_eq_true_iff.mpr hmem, hch]; rfl
-      refine Or.inl ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
-      simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hbuf, ChannelRec.recordApp,
-        ChannelRec.msgs]
-    · have hpost_eq : postInFlight S₁ src dest = msg :: unmarker ws := by
-        rw [postInFlight_of_recorded hsrc_some, any_isMarker_eq_false_iff.mpr hnotm, hch]; rfl
-      refine Or.inr ⟨preInFlight_eq_nil_of_recorded_of_notMem hsrc_some hnotm,
-        by simp [hpost_eq], ?_⟩
-      simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hsv, ChannelRec.recordApp,
-        ChannelRec.msgs]
+      rw [preInFlight_of_recorded hsrc_some, ite_eq_left (any_isMarker_eq_true_iff.mpr hmem), hch]
+      exact Or.inl ⟨List.cons_ne_nil _ _, rfl,
+        by simp [hbuf, ChannelRec.recordApp, ChannelRec.msgs]⟩
+    · rw [postInFlight_of_recorded hsrc_some,
+        ite_eq_right (Bool.eq_false_iff.mp (any_isMarker_eq_false_iff.mpr hnotm)), hch,
+        unmarker_cons_app]
+      exact Or.inr ⟨preInFlight_eq_nil_of_recorded_of_notMem hsrc_some hnotm, rfl,
+        by simp [hsv, ChannelRec.recordApp, ChannelRec.msgs]⟩
 
 /-! ### Part 2: Ghost cut executions & causal permutation (`chandyLamport_consistent_cut`) -/
 

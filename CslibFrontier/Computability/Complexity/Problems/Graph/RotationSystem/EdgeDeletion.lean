@@ -111,9 +111,7 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
       · rw [Fin.succAbove_of_le_castSucc _ _ (le_of_not_gt hk),
           ite_eq_right (not_lt_of_ge (le_trans (le_of_not_gt hk) (Fin.castSucc_le_succ _)))]
         simp only [Fin.val_castSucc, Fin.val_succ, Nat.add_sub_cancel]
-    · change (σ i).val = H.edges.length
-      rw [hσi]
-      exact Nat.add_right_cancel (by simpa only [Fin.val_last] using hlenH.symm)
+    · exact (congrArg Fin.val hσi).trans (Nat.add_right_cancel hlenH.symm)
     · exact congrArg Prod.fst (List.getD_eq_getElem _ _ i.isLt).symm
     · exact congrArg Prod.snd (List.getD_eq_getElem _ _ i.isLt).symm
 
@@ -125,12 +123,10 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
 @[simp] theorem vertex_retainedLastEdgeDart (G : Graph) (u v : ℕ) (d : Dart G) :
     (retainedLastEdgeDart G u v d).vertex = d.vertex := by
   rcases d with ⟨⟨i, hi⟩, b⟩
-  have hi' : i < (G.edges ++ [(u, v)]).length := by
-    simpa only [List.length_append, List.length_singleton] using Nat.lt_succ_of_lt hi
   change (if b then ((G.edges ++ [(u, v)]).getD i (0, 0)).2
     else ((G.edges ++ [(u, v)]).getD i (0, 0)).1) =
     if b then (G.edges.getD i (0, 0)).2 else (G.edges.getD i (0, 0)).1
-  rw [List.getD_eq_getElem _ _ hi', List.getElem_append_left hi, List.getD_eq_getElem _ _ hi]
+  rw [List.getD_eq_getElem?_getD, List.getElem?_append_left hi, ← List.getD_eq_getElem?_getD]
 
 /-- Delete the last two indexed ends from their vertex cycles. The construction works when
 either endpoint becomes isolated and when there are no remaining edges. -/

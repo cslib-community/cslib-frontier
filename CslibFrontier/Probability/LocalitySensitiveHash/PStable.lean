@@ -161,8 +161,7 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
   have hdiff (b : ℝ) : (⌊y + b⌋ : ℝ) - ⌊x + b⌋ =
       (y - x) + Int.fract (x + b) - Int.fract (y + b) := by
     simp only [Int.fract]; ring
-  have hper : Function.Periodic (Int.fract : ℝ → ℝ) 1 := fun z => by
-    simpa only [add_comm] using Int.fract_add_one z
+  have hper : Function.Periodic (Int.fract : ℝ → ℝ) 1 := Int.fract_add_one
   have hf_eq (u : ℝ) : ∫ b in (0 : ℝ)..1, Int.fract (u + b) = ∫ b in (0 : ℝ)..1, Int.fract b := by
     rw [intervalIntegral.integral_comp_add_left (Int.fract : ℝ → ℝ) u, add_zero,
       hper.intervalIntegral_add_eq u 0, zero_add]
@@ -187,10 +186,9 @@ theorem measureReal_uniformInterval_floor_eq {r : ℝ} (hr : 0 < r) (x y : ℝ) 
   · have hemp : {b : ℝ | ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋} = ∅ :=
       Set.eq_empty_iff_forall_notMem.mpr fun b (hb : ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋) => by
         have h1 : (x + b) / r + 1 ≤ (y + b) / r := by
-          rw [div_add_one hr.ne', div_le_div_iff_of_pos_right hr]
-          linarith
-        have := Int.floor_add_one ((x + b) / r) ▸ Int.floor_mono h1
-        omega
+          rw [div_add_one hr.ne', div_le_div_iff_of_pos_right hr]; linarith
+        linarith [Int.floor_le ((x + b) / r), Int.lt_floor_add_one ((y + b) / r),
+          congrArg (Int.cast (R := ℝ)) hb]
     rw [hemp, measureReal_empty, eq_comm, max_eq_left]
     rwa [habs, sub_nonpos, le_div_iff₀ hr, one_mul]
   · have hscale : volume.real (Set.Ico 0 r ∩ {b : ℝ | ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋}) =
@@ -469,8 +467,7 @@ theorem p2StableProb_eq_integral {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
   rw [mul_zero, mul_div_cancel₀ _ hc.ne', smul_eq_mul] at hcomp
   rw [← hcomp, ← intervalIntegral.integral_const_mul, ← intervalIntegral.integral_const_mul]
   refine intervalIntegral.integral_congr fun z _ => ?_
-  rw [mul_div_cancel_left₀ z hc.ne']
-  field_simp
+  rw [mul_div_cancel_left₀ z hc.ne']; field_simp
 
 /-- **Closed-form evaluation for `p = 2`**: for `r > 0` and `c > 0`, `p2StableProb r c` equals
 `(gaussianReal 0 1).real (Icc (-r / c) (r / c)) -`
@@ -490,7 +487,7 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
   have hnorm : 2 * ∫ z in (0 : ℝ)..(r / c), gaussianPDFReal 0 1 z =
       (gaussianReal 0 1).real (Set.Icc (-r / c) (r / c)) := by
     have heven (z : ℝ) : gaussianPDFReal 0 1 (-z) = gaussianPDFReal 0 1 z := by
-      simp only [gaussianPDFReal_def, sub_zero, neg_sq]
+      simp [gaussianPDFReal_def]
     have hcomp := intervalIntegral.integral_comp_neg (gaussianPDFReal 0 1) (a := -(r / c)) (b := 0)
     simp only [neg_zero, neg_neg, heven] at hcomp
     rw [two_mul]
@@ -516,9 +513,8 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
       intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv hie]
     simp only [zero_pow (by decide : 2 ≠ 0), neg_zero, zero_div, Real.exp_zero]
     have hsqrt : 2 * (√(2 * π))⁻¹ = √(2 / π) := by
-      rw [Real.sqrt_div zero_le_two, Real.sqrt_mul zero_le_two]
-      field_simp
-      rw [Real.sq_sqrt zero_le_two]
+      rw [Real.sqrt_div zero_le_two, Real.sqrt_mul zero_le_two, mul_inv, ← mul_assoc,
+        ← div_eq_mul_inv 2 √2, Real.div_sqrt, ← div_eq_mul_inv]
     rw [← hsqrt]; ring
   rw [hnorm, htail, gaussianReal_of_var_ne_zero 0 one_ne_zero]
 
@@ -607,8 +603,6 @@ theorem p1StableProb_eq {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
   have hcongr : (fun z : ℝ => (1 - c * z / r) * cauchyPDFReal 0 1 z) =
       fun z => π⁻¹ * (1 + z ^ 2)⁻¹ - (c / (π * r)) * (z * (1 + z ^ 2)⁻¹) := funext fun z => by
     simp only [cauchyPDFReal_def, sub_zero, NNReal.coe_one, mul_one]; ring
-  have hd1 : ∀ z ∈ uIcc 0 (r / c),
-      HasDerivAt Real.arctan (1 + z ^ 2)⁻¹ z := fun z _ => Real.hasDerivAt_arctan' z
   have hd2 : ∀ z ∈ uIcc 0 (r / c),
       HasDerivAt (fun s : ℝ => (2 : ℝ)⁻¹ * Real.log (1 + s ^ 2)) (z * (1 + z ^ 2)⁻¹) z :=
     fun z _ => ((((hasDerivAt_pow 2 z).const_add 1).log (by positivity)).const_mul
@@ -619,8 +613,8 @@ theorem p1StableProb_eq {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     Continuous.intervalIntegrable (continuous_id.mul
       (Continuous.inv₀ (by fun_prop) fun z => by positivity)) _ _
   rw [hcongr, intervalIntegral.integral_sub (hie1.const_mul _) (hie2.const_mul _),
-    intervalIntegral.integral_const_mul,
-    intervalIntegral.integral_const_mul, intervalIntegral.integral_eq_sub_of_hasDerivAt hd1 hie1,
+    intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
+    intervalIntegral.integral_eq_sub_of_hasDerivAt (fun z _ => Real.hasDerivAt_arctan' z) hie1,
     intervalIntegral.integral_eq_sub_of_hasDerivAt hd2 hie2]
   simp only [Real.arctan_zero, sub_zero, zero_pow (by decide : 2 ≠ 0), add_zero, Real.log_one,
     mul_zero]

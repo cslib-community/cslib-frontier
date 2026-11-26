@@ -423,10 +423,9 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
     simpa only [PMF.toOuterMeasure_apply_singleton] using
       (Probability.PMF.toOuterMeasure_toReal_mono _
         (Set.singleton_subset_iff.mpr hv)).trans (hacc D hD)
-  have hlt : empFreq k v (pickThresholded a b N k i v) < a := by
-    linarith [(abs_sub_le_iff.mp (hconc (pickThresholded a b N k i v))).1]
-  exact Bool.false_ne_true
-    ((thresholdRound_false_of_lt_left hab i hlt).symm.trans (Finset.mem_filter.mp hmem).2)
+  exact Bool.false_ne_true ((thresholdRound_false_of_lt_left hab i
+    (by linarith [(abs_sub_le_iff.mp (hconc (pickThresholded a b N k i v))).1])).symm.trans
+    (Finset.mem_filter.mp hmem).2)
 
 /-- **Finite-domain amplification theorem** [ImpagliazzoLeiPitassiSorrell2022]: for any finite
 nonempty linearly ordered output type `α`, if `A` achieves error `β₀ < 1 / (|α| + 1)` on `𝒟`
@@ -443,8 +442,8 @@ theorem exists_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   let M : ℝ := Fintype.card α
   have hM : 0 < M := Nat.cast_pos.mpr Fintype.card_pos
   have hgap : 0 < (1 - β₀) / M - β₀ := by
-    have hmul : β₀ * (M + 1) < 1 := by rwa [lt_div_iff₀ (by positivity)] at hβ₀
-    rw [sub_pos, lt_div_iff₀ hM]; linarith
+    rw [sub_pos, lt_div_iff₀ hM]
+    linarith [(lt_div_iff₀ (by positivity)).mp hβ₀]
   let Δ : ℝ := ((1 - β₀) / M - β₀) / 4
   let a : ℝ := β₀ + Δ
   let b : ℝ := (1 - β₀) / M - Δ
@@ -460,12 +459,12 @@ theorem exists_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
       (by linarith [min_le_left (Δ / 2) ((ρ / (4 * M)) * (b - a))])
       (by linarith [min_le_left (Δ / 2) ((ρ / (4 * M)) * (b - a))]) k N).mono
       (hk_bound.trans (min_le_right _ _))⟩
-  have h1 : M * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)) ≤ ρ / 8 := hk_bound.trans (min_le_left _ _)
   have h2 : M * (2 * δ / (b - a)) ≤ ρ / 2 := calc
     M * (2 * δ / (b - a)) ≤ M * (2 * ((ρ / (4 * M)) * (b - a)) / (b - a)) := by
       have := min_le_right (Δ / 2) ((ρ / (4 * M)) * (b - a)); gcongr
     _ = ρ / 2 := by field_simp [hM.ne', hba.ne']; ring
   have h3 : M * (2 * δ / (b - a) + 1 / N) = M * (2 * δ / (b - a)) + M / N := by ring
+  have h1 := hk_bound.trans (min_le_left _ _)
   dsimp only [M] at h1 h2 h3 hN_bound; linarith
 
 end FiniteDomainAmplification
@@ -853,20 +852,14 @@ theorem disagreeProb_amplifyReplicability_le [DecidableEq α] (A : Algorithm X �
           2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2))) +
         (T : ℝ) * (2 * δ / (b - a) + 1 / N) := by
   rw [Algorithm.disagreeProb, pairedOutput_amplifyReplicability]
-  let trialFail : ℝ := (T : ℝ) * (2 * Real.exp (-2 * (k₁ : ℝ) * δ ^ 2) +
-    2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2))
-  let seedFail : ℝ := (T : ℝ) * (2 * δ / (b - a) + 1 / N)
   have hba : 0 < b - a := sub_pos.mpr hab
-  let goodSeeds : Set (Fin T → Ω) := {rs | ∃ t : Fin T, θ_acc ≤ seedColl A D (rs t)}
-  have hfull := Probability.PMF.toOuterMeasure_bind_failure_toReal_le
-    (PMF.piFin fun _ : Fin T => A.seed)
-    (fun rs => (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₁ =>
-      (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₂ =>
-        (Probability.PMF.uniformOfFintype (Fin N)).map fun i =>
-          (pickFirstThresholded a b N i trials₁, pickFirstThresholded a b N i trials₂))
-    goodSeeds {p : α × α | p.1 ≠ p.2} (error := 2 * trialFail + seedFail) (by positivity) ?_
-  · exact hfull.trans (by linarith [bad_goodSeeds_le A D hθ_lt T])
-  rintro rs _ ⟨t₀, ht₀⟩
+  refine (Probability.PMF.toOuterMeasure_bind_failure_toReal_le _ _
+    {rs | ∃ t : Fin T, θ_acc ≤ seedColl A D (rs t)} _
+    (error := 2 * ((T : ℝ) * (2 * Real.exp (-2 * (k₁ : ℝ) * δ ^ 2) +
+      2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2))) +
+      (T : ℝ) * (2 * δ / (b - a) + 1 / N))
+    (by positivity) fun rs _ ⟨t₀, ht₀⟩ => ?_).trans
+    (by linarith [bad_goodSeeds_le A D hθ_lt T])
   refine paired_bind_disagree_le _ (goodTrialsSet A D a δ rs) (pickFirstThresholded a b N)
     (goodTrials_fail_le A D hδ ha_half T k₁ k₂ rs) (by positivity) fun tr₁ htr₁ tr₂ htr₂ => ?_
   simpa only [Fintype.card_fin] using thresholdRound_union_disagree_le hab N
@@ -956,8 +949,7 @@ theorem exists_amplifyReplicability_accurate {ρ₀ ρ β : ℝ} (hρ₀_nonneg 
   let q : ℝ := ρ₀ / (1 - θ_acc)
   have hq0 : 0 ≤ q := div_nonneg hρ₀_nonneg (sub_pos.mpr hθ_lt).le
   have hq1 : q < 1 := (div_lt_one (sub_pos.mpr hθ_lt)).mpr (by dsimp only [θ_acc, γ]; linarith)
-  obtain ⟨T, hT_inst, hT_pow⟩ :=
-    exists_neZero_mul_pow_le 1 hq0 hq1 (show 0 < ε / 4 by positivity)
+  obtain ⟨T, hT_inst, hT_pow⟩ := exists_neZero_mul_pow_le 1 hq0 hq1 (by positivity : 0 < ε / 4)
   have hTR : (0 : ℝ) < T := Nat.cast_pos.mpr (NeZero.pos T)
   obtain ⟨N, hN_inst, hN_bound⟩ := exists_nat_div_le (T : ℝ) (by positivity : 0 < ρ / 4)
   let δ : ℝ := min (γ / 2) ((ρ / (8 * (T : ℝ))) * (b - a))

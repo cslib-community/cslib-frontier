@@ -66,6 +66,19 @@ theorem sum_mul_le_of_submultiplicative [CommSemiring S] [PartialOrder S] [IsOrd
         (sum_monomial_eq h0).trans_le (hmul _ _)
     _ = N p * N q := (sum_mul_sum _ _ _ _).symm
 
+/-- The weighted coefficient sum of a power is bounded by the power of the sum. -/
+theorem sum_pow_le_of_submultiplicative {ν : R → ℕ}
+    (h0 : ν 0 = 0) (h1 : ν 1 ≤ 1) (hadd : ∀ a b, ν (a + b) ≤ ν a + ν b)
+    (hmul : ∀ a b, ν (a * b) ≤ ν a * ν b) (p : MvPolynomial ι R) (k : ℕ) :
+    ((p ^ k).coeff.sum fun _ a => ν a) ≤ (p.coeff.sum fun _ a => ν a) ^ k := by
+  induction k with
+  | zero =>
+    rw [pow_zero, pow_zero, ← C_1, sum_C h0]
+    exact h1
+  | succ k ih =>
+    rw [pow_succ, pow_succ]
+    exact (sum_mul_le_of_submultiplicative h0 hadd hmul _ _).trans (Nat.mul_le_mul_right _ ih)
+
 /-- A partial derivative increases the sum of subadditive coefficient weights
 by at most the total degree. -/
 theorem sum_pderiv_le_of_subadditive {ν : R → ℕ}

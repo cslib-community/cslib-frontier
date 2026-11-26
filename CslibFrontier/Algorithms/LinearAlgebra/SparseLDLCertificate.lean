@@ -198,10 +198,8 @@ theorem sparseGet_toSparseFrom [AddMonoid α] (k : ℕ) (r : List α) (j : ℕ) 
   | cons x r ih =>
     rw [toSparseFrom, sparseGet_cons, ih]
     rcases lt_trichotomy k j with h | rfl | h
-    · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_lt h
-      simp [show k ≠ k + m + 1 by omega, show k + m + 1 - k = m + 1 by omega,
-        show k + m + 1 - (k + 1) = m by omega]
-      omega
+    · have hsub : j - k = j - (k + 1) + 1 := by omega
+      simp [h.ne, h.le, Nat.succ_le_of_lt h, hsub]
     · simp
     · simp [h.ne', Nat.not_le.2 h, Nat.not_le.2 (Nat.lt_succ_of_lt h)]
 
@@ -234,15 +232,11 @@ theorem zget_step {past future rows : List (List (ℕ × α))} {i : ℕ}
     zget (future.headD [] :: past) future.tail (i + 1) k = rows.getD k [] := by
   rw [← h k, zget_eq, zget_eq]
   rcases lt_trichotomy k i with hk | rfl | hk
-  · rw [ite_eq_left (by omega), ite_eq_left hk, show i + 1 - 1 - k = (i - 1 - k) + 1 by omega,
-      List.getD_cons_succ]
-  · rw [ite_eq_left (by omega), ite_eq_right (lt_irrefl _), Nat.sub_self,
-      show k + 1 - 1 - k = 0 by omega, List.getD_cons_zero]
-    cases future <;> rfl
-  · rw [ite_eq_right (by omega), ite_eq_right (by omega)]
-    obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_lt hk
-    rw [show i + m + 1 - (i + 1) = m by omega, show i + m + 1 - i = m + 1 by omega]
-    cases future <;> simp
+  · have hsub : i - k = i - 1 - k + 1 := by omega
+    simp [hk, Nat.lt_succ_of_lt hk, hsub]
+  · cases future <;> simp
+  · have hsub : k - i = k - (i + 1) + 1 := by omega
+    cases future <;> simp [Nat.not_lt.2 hk.le, Nat.not_lt.2 (Nat.succ_le_of_lt hk), hsub]
 
 /-! #### Products -/
 
@@ -462,10 +456,9 @@ theorem map_ofSparse_scaleSparse {m n s : ℕ} {rows : List (List (ℕ × ℚ))}
     (hs : ∀ e ∈ rows.flatten, e.2.den ∣ s) :
     (ofSparse m n (rows.map (scaleSparse s))).map ((↑) : ℤ → ℚ) = (s : ℚ) • ofSparse m n rows := by
   ext i j
-  simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofSparse_apply]
   have hrow : (rows.map (scaleSparse s)).getD i [] = scaleSparse s (rows.getD i []) :=
     List.getD_map _ [] _
-  rw [hrow]
+  simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofSparse_apply, hrow]
   exact cast_sparseGet_scaleSparse (fun e he => hs e (mem_flatten_of_mem_getD he)) j
 
 theorem den_dvd_sparseDenLcm {rows : List (List (ℕ × ℚ))} :

@@ -162,8 +162,7 @@ theorem PBConstr.coeff_toIneq (c : PBConstr) :
 
 theorem PBConstr.bound_toIneq (c : PBConstr) :
     c.toIneq.bound = (c.degree : ℤ) - negSum c.terms := by
-  simp only [toIneq, bound_add, bound_sum_termIneq]
-  ring
+  rw [toIneq, bound_add, bound_sum_termIneq, sub_eq_add_neg, add_comm]
 
 theorem Literal.lhs_sub_bound_toIneq (σ : ℕ → Bool) (l : Literal ℕ) :
     l.toIneq.lhs σ - l.toIneq.bound = ((Literal.eval σ l).toNat : ℤ) := by
@@ -188,19 +187,16 @@ theorem PBConstr.lhs_sub_bound_sum (σ : ℕ → Bool) (ts : List (ℕ × Litera
 theorem PBConstr.holds_toIneq_iff (σ : ℕ → Bool) (c : PBConstr) :
     c.toIneq.Holds σ ↔ c.Holds σ := by
   have h := lhs_sub_bound_sum σ c.terms
-  rw [bound_sum_termIneq] at h
-  have h0 : (⟨0, c.degree⟩ : Ineq ℕ).lhs σ = 0 := by
-    rw [lhs_of_coeff_eq_smul σ (I := ⟨0, c.degree⟩) (J := 0) (c := 1) (by rw [one_smul]; rfl),
-      lhs_zero, mul_zero]
+  have h0 : (⟨0, c.degree⟩ : Ineq ℕ).lhs σ = 0 := by simp [lhs_eq_finsuppSum]
   simp only [Ineq.Holds, PBConstr.Holds, toIneq, lhs_add, h0, add_zero, bound_add,
-    bound_sum_termIneq]
+    bound_sum_termIneq] at h ⊢
   omega
 
 /-- A clause's constraint is its cutting planes inequality. -/
 theorem Clause.toIneq_toPB (c : Clause ℕ) : c.toPB.toIneq = c.toIneq := by
-  rw [show Clause.toIneq c = Clause.toIneq c.dedup by
-      simp only [Clause.toIneq, List.toFinset_dedup],
-    Clause.toIneq_of_nodup (List.nodup_dedup c)]
+  have hdedup : Clause.toIneq c = Clause.toIneq c.dedup := by
+    simp only [Clause.toIneq, List.toFinset_dedup]
+  rw [hdedup, Clause.toIneq_of_nodup (List.nodup_dedup c)]
   simp only [Clause.toPB, PBConstr.toIneq, List.map_map, Function.comp_def, termIneq, one_nsmul]
   exact add_comm _ _
 
@@ -302,18 +298,16 @@ theorem negSum_filter_add (p : ℕ × Literal ℕ → Bool) (ts : List (ℕ × L
       Bool.false_eq_true, ↓reduceIte, negSum_cons] <;> omega
 
 theorem toIneq_eq (c : PBConstr) :
-    c.toIneq = ⟨cf c.terms, (c.degree : ℤ) - negSum c.terms⟩ := by
-  ext
-  · rw [coeff_toIneq]; rfl
-  · rw [bound_toIneq]
+    c.toIneq = ⟨cf c.terms, (c.degree : ℤ) - negSum c.terms⟩ :=
+  Ineq.ext (coeff_toIneq c) (bound_toIneq c)
 
 theorem cf_eq_lin (ts : List (ℕ × Literal ℕ)) :
     cf ts = ((toLinear ts).map fun e => Finsupp.single e.1 e.2).sum := by
   induction ts with
   | nil => simp only [cf_nil, toLinear, List.foldr_nil, List.map_nil, List.sum_nil]
   | cons t ts ih =>
-    rw [cf_cons, ih,
-      show toLinear (t :: ts) = insertCoeff (termVar t) (termCoeff t) (toLinear ts) from rfl]
+    rw [cf_cons, ih]
+    conv_rhs => rw [toLinear, List.foldr_cons, ← toLinear]
     generalize toLinear ts = L
     induction L with
     | nil => simp only [insertCoeff, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
@@ -324,18 +318,17 @@ theorem cf_eq_lin (ts : List (ℕ × Literal ℕ)) :
       · subst h
         simp only [insertCoeff, ↓reduceIte, List.map_cons, List.sum_cons, Finsupp.single_add]
         abel
-      · simp only [insertCoeff, h, ↓reduceIte, List.map_cons, List.sum_cons]
-        rw [← ihL]; abel
+      · simp only [insertCoeff, h, ↓reduceIte, List.map_cons, List.sum_cons, ← ihL]
+        abel
 
 theorem entryTerm_cases (v : ℕ) (c : ℤ) :
     (0 < c ∧ entryTerm (v, c) = some (c.toNat, (v, true))) ∨
       (c < 0 ∧ entryTerm (v, c) = some ((-c).toNat, (v, false))) ∨
       (c = 0 ∧ entryTerm (v, c) = none) := by
   rcases lt_trichotomy c 0 with h | rfl | h
-  · exact Or.inr (Or.inl ⟨h, by
-      simp only [entryTerm, h, ↓reduceIte, not_lt.mpr h.le]⟩)
-  · exact Or.inr (Or.inr ⟨rfl, by simp only [entryTerm, lt_irrefl, ↓reduceIte]⟩)
-  · exact Or.inl ⟨h, by simp only [entryTerm, h, ↓reduceIte]⟩
+  · exact .inr (.inl ⟨h, by simp only [entryTerm, h, ↓reduceIte, not_lt.mpr h.le]⟩)
+  · exact .inr (.inr ⟨rfl, by simp only [entryTerm, lt_irrefl, ↓reduceIte]⟩)
+  · exact .inl ⟨h, by simp only [entryTerm, h, ↓reduceIte]⟩
 
 theorem cf_fromLinear (L : List (ℕ × ℤ)) (D : ℤ) :
     cf (fromLinear L D).terms = (L.map fun e => Finsupp.single e.1 e.2).sum := by
@@ -374,14 +367,11 @@ theorem cf_normalize (c : PBConstr) : cf c.normalize.terms = cf c.terms := by
 
 /-- Normalization keeps the coefficients of the inequality. -/
 theorem coeff_toIneq_normalize (c : PBConstr) : c.normalize.toIneq.coeff = c.toIneq.coeff := by
-  rw [toIneq_eq, toIneq_eq]
-  exact cf_normalize c
+  simp only [toIneq_eq, cf_normalize]
 
 /-- Normalization can only raise the bound of the inequality: it clamps the degree at `0`. -/
 theorem bound_toIneq_le_normalize (c : PBConstr) : c.toIneq.bound ≤ c.normalize.toIneq.bound := by
-  rw [toIneq_eq, toIneq_eq]
-  simp only [PBConstr.normalize]
-  rw [negSum_fromLinear]
+  rw [toIneq_eq, toIneq_eq, PBConstr.normalize, negSum_fromLinear]
   simp only [fromLinear]
   omega
 
@@ -1092,8 +1082,7 @@ axioms, and `0 ≥ 1` does not. -/
 theorem le_of_refutableInSize_wideContra {w s : ℕ}
     (h : RefutableInSize {I | ∃ c ∈ [wideContra w], c.toIneq = I} s) : w ≤ s := by
   obtain ⟨ls, hls, hc, hlen⟩ := h
-  have hsub : (List.range w).map Ineq.leOne ⊆ ls := by
-    intro I hI
+  have hsub : (List.range w).map Ineq.leOne ⊆ ls := fun I hI => by
     obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hI
     by_contra hnot
     have := bound_le_of_isProof (List.mem_range.1 hv) hls hnot _ hc
@@ -1101,9 +1090,7 @@ theorem le_of_refutableInSize_wideContra {w s : ℕ}
   have hnd : ((List.range w).map (Ineq.leOne (V := ℕ))).Nodup :=
     List.nodup_range.map fun u v huv =>
       (Finsupp.single_left_inj (by norm_num : (-1 : ℤ) ≠ 0)).1 (congrArg Ineq.coeff huv)
-  have := (hnd.subperm hsub).length_le
-  simp only [List.length_map, List.length_range] at this
-  omega
+  simpa only [List.length_map, List.length_range] using (hnd.subperm hsub).length_le.trans hlen
 
 /-- **No size bound in steps and operations alone**: no function `g` bounds the number of lines of
 a cutting planes refutation by `g (|F| + s + m)`, for every checked VeriPB proof of `UNSAT` on `F`

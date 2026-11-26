@@ -270,8 +270,7 @@ private theorem eventually_lt_of_hyperSupply {U : Type u} [Finite U] [Nontrivial
   have hX : 0 ≤ ((n : ℝ) - Real.logb q (S n).ncard) / (1 - c_n) :=
     div_nonneg (by linarith [logb_ncard_le_self hSne]) h1c_n.le
   obtain ⟨hE_nn, hE_in, hE_ge⟩ :=
-    errTerm_bounds hcert (Real.logb_nonneg hq1 (by exact_mod_cast hfreen.pos) :
-      0 ≤ Real.logb q (K n))
+    errTerm_bounds hcert (Real.logb_nonneg (b := q) (x := K n) hq1 (Nat.one_le_cast.mpr hfreen.pos))
   have hsupply := rescaled_hyperSupply_le hcert hη₀ C n v w hlg (add_nonneg hX hE_nn)
     (hE_in.trans (mul_le_mul_of_nonneg_left (le_add_of_nonneg_left hX) hA.le))
     (by linarith [hw, hinp])
@@ -453,12 +452,12 @@ private theorem agreement_le_of_unread_lt_step {U : Type u} [Finite U] [Nontrivi
   have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
   set c_n := max (b : ℝ) (-a)
   set q := Nat.card U
-  have hq1 : (1 : ℝ) < q := by exact_mod_cast Finite.one_lt_card
-  have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast (Finite.one_lt_card (α := U))
+  have hq1 : (1 : ℝ) < q := mod_cast Finite.one_lt_card
+  have hq2 : (2 : ℝ) ≤ q := mod_cast (Finite.one_lt_card (α := U))
   have hq0 : 0 < q := Nat.card_pos
   have hK_pos : (0 : ℝ) < K' := Nat.cast_pos.mpr (Nat.zero_lt_of_lt hK'2)
   obtain ⟨he_nn, he_in, he_ge⟩ := errTerm_bounds hcert
-    (Real.logb_nonneg (b := q) (x := K') hq1 (Nat.one_le_cast.mpr (Nat.one_le_of_lt hK'2)))
+    (Real.logb_nonneg hq1 (Nat.one_le_cast.mpr (Nat.one_le_of_lt hK'2)))
   set V := Nat.card (HyperNode c)
   set w := hyperWidth c lay
   have hsupply := rescaled_hyperSupply_le hcert hη C n V w (card_liveGate_le_multiarySize c)
@@ -469,9 +468,8 @@ private theorem agreement_le_of_unread_lt_step {U : Type u} [Finite U] [Nontrivi
   have hlogR : Real.logb q ((K' ^ 3 * (V + 1) * q ^ (w + (3 * r + 2)) : ℕ) : ℝ) ≤
       (1 - γ / Real.log 2) * n := by
     push_cast
-    have hV : (0 : ℝ) < V + 1 := by positivity
-    rw [Real.logb_mul (mul_pos (pow_pos hK_pos 3) hV).ne' (pow_pos (by linarith) _).ne',
-      Real.logb_mul (pow_pos hK_pos 3).ne' hV.ne', Real.logb_pow, Real.logb_pow,
+    rw [Real.logb_mul (by positivity) (by positivity),
+      Real.logb_mul (by positivity) (by positivity), Real.logb_pow, Real.logb_pow,
       Real.logb_self_eq_one hq1]
     push_cast
     have hW := mul_div_cancel₀ ((w : ℝ) - c_n * n) h1c_n.ne'
@@ -526,9 +524,8 @@ theorem eventually_agreement_le_multiarySize_of_cert {r K₀ : ℕ} {a b : ℚ}
   obtain ⟨lay, hlay⟩ := hC c hfan
   have hK'2 : 2 ≤ K' n := le_max_right _ _
   have hS : RectangleBias (S n) (K' n) (b_bias n) := hbiasn.mono (le_max_left _ _)
-  have hb_nn : 0 ≤ b_bias n := hS.nonneg (by
-    rw [Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
-    exact le_pow_half_of_logb hq1_nat (by omega) hsmalln)
+  have hb_nn : 0 ≤ b_bias n := hS.nonneg <| by
+    simpa [Nat.card_eq_fintype_card] using le_pow_half_of_logb hq1_nat (by omega) hsmalln
   by_cases hu : K' n ≤ q ^ (hyperNetwork c I Acc lay).readᶜ.ncard
   · have hbound (A_set : Set U) :
         |signedCount (S n) {x | c.eval I x 0 ∈ A_set}| ≤
@@ -542,7 +539,7 @@ theorem eventually_agreement_le_multiarySize_of_cert {r K₀ : ℕ} {a b : ℚ}
         Real.logb_self_eq_one hq1]
       push_cast
       linarith [mul_le_mul_of_nonneg_right (min_le_right ((1 - c_n) * A * ε / 2) (1 / 2))
-        (Nat.cast_nonneg (α := ℝ) n)]
+        n.cast_nonneg]
     have hexp := div_pow_le_exp hq2 (by positivity) hμ.le hlogR
     exact (agreement_le_of_forall_bias hbound Acc).trans (by linarith)
   · exact agreement_le_of_unread_lt_step hcert hη hγ hK'2 c hfan I Acc hS hb_nn lay hlay
@@ -559,12 +556,11 @@ theorem eventually_agreement_le_innerSize_of_cert {r K₀ : ℕ} {a b : ℚ}
         (c : Circuit σ n 1), c.FanInAtMost r →
           ((r : ℝ) - 1) * c.innerSize ≤ ((hyperCoeff r a b : ℝ) - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
-  have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
   obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_multiarySize_of_cert.{u, v} hcert hε
   exact ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono
     fun n hn σ I Acc c hfan hs => hn σ I Acc c hfan
       ((mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize)
-        (by linarith)).trans hs)⟩
+        (sub_nonneg.mpr (Nat.one_le_cast.mpr (Nat.one_le_of_lt hcert.hr)))).trans hs)⟩
 
 /-! ### Monotonicity wrappers for rational certificate constants -/
 

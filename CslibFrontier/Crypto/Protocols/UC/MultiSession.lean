@@ -642,41 +642,29 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
     simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
     exact hpair.symm
   · rintro ⟨j, q⟩ ⟨sS, sφ⟩
+    conv_lhs =>
+      enter [2, 1, 1]
+      change Equiv.prodAssoc _ _ _ <$>
+        (sessionRouter C φ).runFrom (((parLiftAdversary S).handle (j, q)).run sS) sφ
     rcases q with p | nq
     on_goal 1 =>
-      change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
-          (sessionRouter C φ).runFrom
-            ((StateT.lift (ProbOracleComp.query (j, Sum.inl p))).run sS) sφ)).eval.map
-          (fun x => (x.1, fun i => (x.2.1 i, x.2.2 i))) =
-        (Machine.closeProgram (((SSP.parFin fun i => (liftAdversary (S i)).comp
-          (corruptRouter C (φ i))).handle (j, Sum.inl p)).run fun i => (sS i, sφ i))).eval
-      rw [StateT.run_lift, bind_pure_comp]
-      erw [Machine.runFrom_map, Machine.runFrom_query, SSP.parFin_handle, SSP.parFin_handle]
+      erw [StateT.run_lift, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_query,
+        SSP.parFin_handle, SSP.parFin_handle]
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run, StateT.lift,
         bind_pure_comp]
       erw [Machine.runFrom_map, Machine.runFrom_query]
     on_goal 2 =>
-      change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
-          (sessionRouter C φ).runFrom
-            (liftSessionNet j ((fun x => (x.1, Function.update sS j x.2)) <$>
-              ((S j).handle nq).run (sS j))) sφ)).eval.map
-          (fun x => (x.1, fun i => (x.2.1 i, x.2.2 i))) =
-        (Machine.closeProgram (((SSP.parFin fun i => (liftAdversary (S i)).comp
-          (corruptRouter C (φ i))).handle (j, Sum.inr nq)).run fun i => (sS i, sφ i))).eval
-      rw [liftSessionNet_map]
-      erw [Machine.runFrom_map, runFrom_sessionRouter_liftSessionNet, SSP.parFin_handle]
+      erw [parLiftAdversary_handle_inr, liftSessionNet_map, Machine.runFrom_map,
+        runFrom_sessionRouter_liftSessionNet, SSP.parFin_handle]
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run]
     all_goals
       repeat erw [Machine.closeProgram_map]
       repeat erw [ProbComp.eval_map]
       repeat erw [PMF.map_comp]
-      refine congrArg (PMF.map · _) (funext fun x => ?_)
-      dsimp only [sessionRouter, parLiftAdversary, SSP.parFin] at x sS sφ ⊢
-      repeat erw [Function.comp_apply]
-      repeat erw [Equiv.prodAssoc_apply]
-      repeat erw [Prod.map_apply]
-      dsimp only [id_eq]
-      rcases x with ⟨r, sφ'⟩
+      refine congrArg (PMF.map · _) (funext fun ⟨r, sφ'⟩ => ?_)
+      dsimp only [sessionRouter, parLiftAdversary, SSP.parFin, Function.comp_apply,
+        Prod.map_apply, id_eq] at r sφ' sS sφ ⊢
+      erw [Equiv.prodAssoc_apply]
       refine Prod.ext rfl (funext fun i => ?_)
       obtain rfl | hi := eq_or_ne i j <;> simp [*]
 

@@ -106,17 +106,12 @@ private theorem search_computableInO_preprocess {α β γ : Type} {encI : α ↪
       (fun q => ((encH q).length + 1) ^ dS) := by
     refine hcomp.mono (4 * cT + cS + 1) (fun q => ?_) (fun q => ?_)
     · have hpow : (2 ^ a q + 1) * (2 ^ b q + 1) ≤ 4 * 2 ^ (a q + b q) := by
-        have ha : 1 ≤ 2 ^ a q := Nat.one_le_two_pow
-        have hb : 1 ≤ 2 ^ b q := Nat.one_le_two_pow
-        rw [pow_add]
-        nlinarith
+        rw [pow_add]; nlinarith [Nat.one_le_two_pow (n := a q), Nat.one_le_two_pow (n := b q)]
       calc
         (2 ^ a q + 1) * (2 ^ b q + 1) * pT (encH q).length
           ≤ (4 * 2 ^ (a q + b q)) * (cT * ((encH q).length + 1) ^ dT) :=
             Nat.mul_le_mul hpow (hT_le (encH q).length)
-        _ ≤ _ := by
-          have : 0 ≤ 2 ^ (a q + b q) * ((encH q).length + 1) ^ dT := Nat.zero_le _
-          nlinarith
+        _ ≤ _ := by nlinarith [Nat.zero_le (2 ^ (a q + b q) * ((encH q).length + 1) ^ dT)]
     · calc
         pS (encH q).length ≤ cS * ((encH q).length + 1) ^ dS := hS_le (encH q).length
         _ ≤ (4 * cT + cS + 1) * ((encH q).length + 1) ^ dS :=
@@ -222,9 +217,8 @@ private theorem smallBiasCeil_polyTime {α : Type} {encIn : α ↪ List Bool} {r
   have heq : (fun a => (4 * (r a + 1) * (q a * q a) + p a * p a - 1) / (p a * p a)) =
       (fun a => smallBiasCeil (r a) (p a) (q a)) := by
     funext a
-    by_cases h0 : p a ^ 2 = 0
-    · have hmul : p a * p a = 0 := by simpa only [sq] using h0
-      rw [smallBiasCeil, h0, ceilDiv_zero, hmul, Nat.div_zero]
+    by_cases h0 : p a = 0
+    · simp [smallBiasCeil, h0]
     · simp only [smallBiasCeil, Nat.ceilDiv_eq_add_pred_div, sq]
   rwa [heq] at hdiv
 
@@ -256,19 +250,14 @@ theorem findSmallBiasShiftsCeil_computableInO :
             ((encSmallBiasCeilParams q).length + 1) ^ eT)
         (fun q => ((encSmallBiasCeilParams q).length + 1) ^ eS) := by
   obtain ⟨pT, pS, hpT, hpS, hcomp⟩ := findSmallBiasShifts_computableInO
-  let encH := encPair encUnary (encPair encUnary (encPair encNat encNat))
   let hId : ComputableInPolyTime (fun x : SmallBiasCeilParams => x)
       encSmallBiasCeilParams encSmallBiasCeilParams := of_eq fun _ => rfl
   have hr := encSmallBiasCeilParams_r_polyTime hId
   have hp := encSmallBiasCeilParams_p_polyTime hId
   have hq := encSmallBiasCeilParams_q_polyTime hId
-  have hd := smallBiasCeil_polyTime hr hp hq
-  have hg : ComputableInPolyTime
-      (fun x : SmallBiasCeilParams => (x.r, smallBiasCeil x.r x.p x.q, x.p, x.q))
-      encSmallBiasCeilParams encH :=
-    hr.prod (hd.prod ((unary_to_binary.comp hp).prod (unary_to_binary.comp hq)))
-  exact search_computableInO_preprocess hpT hpS
-    (a := fun q => q.2.1 * q.1) (b := fun q => q.1) hcomp hg
+  exact search_computableInO_preprocess hpT hpS (a := fun q => q.2.1 * q.1) (b := fun q => q.1)
+    hcomp (hr.prod ((smallBiasCeil_polyTime hr hp hq).prod
+      ((unary_to_binary.comp hp).prod (unary_to_binary.comp hq))))
 
 end SmallBias
 
@@ -315,9 +304,9 @@ theorem weight_le_of_findLocalCheckMatrix_of_pow_le {c d h : ℕ}
     checkLocalCodeDistance c d (h + 1) H0 = true ∧
       H0.length = c ∧ (∀ row ∈ H0, row.length = d) ∧
       ∀ w : Fin d → Bool, w ≠ 0 →
-        (∀ i : Fin c, ofList d (H0.getD i.val []) ⬝ᵥ w = false) → h + 1 ≤ weight w := by
-  refine weight_le_of_findLocalCheckMatrix_of_ball_lt (lt_of_lt_of_le ?_ hp)
-  exact lt_of_lt_of_le (card_filter_nonzero_weight_lt d h) (card_filter_weight_le_le d h)
+        (∀ i : Fin c, ofList d (H0.getD i.val []) ⬝ᵥ w = false) → h + 1 ≤ weight w :=
+  weight_le_of_findLocalCheckMatrix_of_ball_lt <|
+    ((card_filter_nonzero_weight_lt d h).trans_le (card_filter_weight_le_le d h)).trans_le hp
 
 end LocalCode
 
@@ -463,14 +452,8 @@ theorem tannerParityTests_computableInO :
         hr_m (.const 0)
   have hsh_m := (fst (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
   have hlo_m := (snd (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
-  have hBuild : ComputableInPolyTime
-      (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
-        buildShortenedTannerRows x.1.m (effectiveCubeDim x.1.maxVerts x.1.r)
-          x.1.d x.1.c x.2.1 x.2.2)
-      encMid (encList encBits) :=
-    buildShortenedTannerRows_polyTime hm_m heff_m hd_m hc_m hMax_m hsh_m hlo_m
-      fun x => two_pow_effectiveCubeDim_le x.1.maxVerts x.1.r
-  exact (hcProd.comp_ofPolyTime hBuild).computableInO
+  exact (hcProd.comp_ofPolyTime (buildShortenedTannerRows_polyTime hm_m heff_m hd_m hc_m hMax_m
+    hsh_m hlo_m fun x => two_pow_effectiveCubeDim_le x.1.maxVerts x.1.r)).computableInO
 
 end EndToEnd
 

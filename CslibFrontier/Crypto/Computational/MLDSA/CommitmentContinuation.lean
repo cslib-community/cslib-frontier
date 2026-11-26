@@ -63,13 +63,10 @@ private theorem mean_query_sqrt_le {ι κ σ α : Type} [Fintype ι] [Fintype κ
       (st.instruction (H.queryTable a b) .query).density outcome
     ∑ y, (μ y).toReal * (√(p y (write y)) - √(p y base)) ^ 2 ≤ 4 * δ := by
   intro p
-  apply (st.mean_sq_sqrt_query_readout_sub_le μ M outcome _ _).trans
-  apply mean_xorQueryDisturbance_le μ _ _ _ st.isDensityMatrix
-  intro x
+  refine (st.mean_sq_sqrt_query_readout_sub_le μ M outcome _ _).trans
+    (mean_xorQueryDisturbance_le μ _ _ _ st.isDensityMatrix fun x => ?_)
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-  convert hit x using 4
-  ext y
-  exact decide_eq_true_iff
+  simpa only [Set.preimage, Set.mem_singleton_iff, decide_eq_true_eq] using hit x
 
 /-- Mean squared change of the square root of an observable probability after one coherent
 SHAKE query when a fresh ML-DSA mask selects the digest to change. The final measurement may
@@ -116,8 +113,8 @@ private theorem mean_abs_of_root {ι : Type} [Fintype ι] (μ : PMF ι) (p q : �
     have hu : u ≤ 1 := (Real.sqrt_le_one).mpr (PMF.toReal_apply_le_one ..)
     have hv : v ≤ 1 := (Real.sqrt_le_one).mpr (PMF.toReal_apply_le_one ..)
     have eq : prob (p y) - prob (q y) = (u + v) * (u - v) := by
-      nlinarith only [Real.sq_sqrt (show 0 ≤ prob (p y) from ENNReal.toReal_nonneg),
-        Real.sq_sqrt (show 0 ≤ prob (q y) from ENNReal.toReal_nonneg)]
+      nlinarith only [Real.sq_sqrt (x := prob (p y)) ENNReal.toReal_nonneg,
+        Real.sq_sqrt (x := prob (q y)) ENNReal.toReal_nonneg]
     rw [eq, abs_mul, abs_of_nonneg (add_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))]
     exact mul_le_mul_of_nonneg_right (by linarith : u + v ≤ 2) (abs_nonneg _)
   calc
@@ -134,10 +131,10 @@ private theorem meanGap_of_agree {ι : Type} [Fintype ι] (μ : PMF ι) (p q : �
   refine Finset.sum_le_sum fun y _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
   by_cases h : y ∈ bad
   · simp only [h, ↓reduceIte, abs_le]
-    constructor <;> linarith [PMF.toReal_apply_le_one (p y) true,
-      PMF.toReal_apply_le_one (q y) true,
-      show 0 ≤ prob (p y) from ENNReal.toReal_nonneg,
-      show 0 ≤ prob (q y) from ENNReal.toReal_nonneg]
+    have hp0 : 0 ≤ prob (p y) := ENNReal.toReal_nonneg
+    have hq0 : 0 ≤ prob (q y) := ENNReal.toReal_nonneg
+    constructor <;>
+      linarith [PMF.toReal_apply_le_one (p y) true, PMF.toReal_apply_le_one (q y) true]
   · simp [h, same y h]
 
 private noncomputable abbrev stepState {C : QuantumSigningForger} (H : Xofs) (d : Device C) :=
@@ -153,13 +150,13 @@ private theorem mean_query_gap_of_root {C : QuantumSigningForger} {ι : Type} [F
       ∑ y, (μ y).toReal * (√(p y (write y)) - √(p y base)) ^ 2 ≤ 4 * δ) :
     PMF.meanAbsDiffAt μ true (fun y => observe (M y) (stepState (write y) d))
       (fun y => observe (M y) (stepState base d)) ≤ 4 * √δ := by
-  apply (mean_abs_of_root μ _ _ (2 * √δ) (by positivity) ?_).trans_eq
-  · ring
-  · have born (T : Xofs) (y) : prob (observe (M y) (stepState T d)) =
-        (M y).densityProb (stepState T d).density true := by
-      rw [prob, observe, POVM.measureDensity_apply, ENNReal.toReal_ofReal
-        ((M y).densityProb_nonneg (stepState T d).isDensityMatrix.posSemidef true)]
-    simpa only [born, mul_pow, Real.sq_sqrt hn, show (2 : ℝ) ^ 2 = 4 by norm_num] using bound
+  refine (mean_abs_of_root μ _ _ (2 * √δ) (by positivity) ?_).trans_eq (by ring)
+  have born (T : Xofs) (y) : prob (observe (M y) (stepState T d)) =
+      (M y).densityProb (stepState T d).density true := by
+    rw [prob, observe, POVM.measureDensity_apply, ENNReal.toReal_ofReal
+      ((M y).densityProb_nonneg (stepState T d).isDensityMatrix.posSemidef true)]
+  rw [mul_pow, Real.sq_sqrt hn]
+  simpa only [born] using bound.trans_eq (by ring)
 
 private theorem device_meanGap_le {C : QuantumSigningForger} {ι σ : Type} [Fintype ι]
     (μ : PMF ι) (base : Xofs) (write : ι → Xofs) (cmd : DeviceRequest (Width C) Empty)
@@ -229,12 +226,11 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
       simp only [← scored_eq_measured]
       let left y r dev := scored (k r) (write y) (sign' y) (test' y) dev log tape
       let right y r dev := scored (k r) base sign (test y) dev log tape
-      apply (device_meanGap_le μ base write cmd left right d (log, tape)
-        (B := m * Q + n * S + T) (fun y r => scored_readout ..) (coherent d) ?_).trans_eq
-      · rw [Nat.cast_add]; ring
-      · intro r st
-        simpa only [left, right, isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false,
-          Nat.sub_zero] using ih r (cont r) st log tape
+      refine (device_meanGap_le μ base write cmd left right d (log, tape)
+        (B := m * Q + n * S + T) (fun _ _ => scored_readout ..) (coherent d)
+        fun r st => ?_).trans_eq (by rw [Nat.cast_add]; ring)
+      simpa only [left, right, isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false,
+        Nat.sub_zero] using ih r (cont r) st log tape
     · let sig := sign (tape.headD 0) ask
       let sig' y := sign' y (tape.headD 0) ask
       let tail y v := scored (k v) (write y) (sign' y) (test' y) d (ask.logReply v log) tape.tail
@@ -361,19 +357,17 @@ theorem freshExpansionGame_eq_expansionContinuation (C : QuantumSigningForger) (
   refine congrArg (PMF.bind (base.uniformPrefixes a b)) (funext fun H =>
     congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32))) (funext fun seed => ?_))
   simp only [scoreTranscript, withTrialSetup]
-  cases key : H.keyGen s seed with
-  | none => rfl
-  | some keys =>
-    dsimp only
-    cases mat : H.expandA s (keys.publicKey.take 32) with
-    | none => rfl
-    | some A =>
-      dsimp only
+  rcases H.keyGen s seed with _ | keys
+  · rfl
+  · dsimp only
+    rcases H.expandA s (keys.publicKey.take 32) with _ | A
+    · rfl
+    · dsimp only
       rw [freshExpansionTranscript, ← C.uniform_signingTapeTranscript _ _ _ hn, PMF.map_bind]
-      congr 1 with rows
-      simp only [expansionContinuation, scored, signingTapeTranscript, POVM.measureDensity_const,
-        PMF.map_comp, Function.comp_def]
-      rfl
+      exact congrArg (PMF.bind _) (funext fun _ => by
+        simp only [expansionContinuation, scored, signingTapeTranscript, POVM.measureDensity_const,
+          PMF.map_comp, Function.comp_def]
+        rfl)
 
 end QuantumSigningForger
 end Cslib.Crypto.MLDSA.FIPS204

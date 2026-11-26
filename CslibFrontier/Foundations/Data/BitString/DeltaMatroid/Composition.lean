@@ -74,8 +74,7 @@ theorem IsEvenDeltaMatroid.sumProd [Fintype ι] [Fintype κ]
     (hR : IsEvenDeltaMatroid R) (hS : IsEvenDeltaMatroid S) :
     IsEvenDeltaMatroid (sumProd R S) where
   isDeltaMatroid := hR.isDeltaMatroid.sumProd hS.isDeltaMatroid
-  parity_eq := by
-    rintro x y ⟨hxR, hxS⟩ ⟨hyR, hyS⟩
+  parity_eq := fun _ _ ⟨hxR, hxS⟩ ⟨hyR, hyS⟩ => by
     rw [parityOn_univ_sum, parityOn_univ_sum, hR.parity_eq hxR hyR, hS.parity_eq hxS hyS]
 
 /-- Identify two coordinates, indexed by `Bool`, and remove both. -/
@@ -130,16 +129,14 @@ omit [DecidableEq ι] in
 private theorem parityOn_pair_extension [Fintype ι] (x : ι → Bool) (b : Bool) :
     parityOn univ (Sum.elim x (fun _ : Bool => b)) = parityOn univ x := by
   have hpar : parityOn (univ : Finset Bool) (fun _ => b) = false := by cases b <;> decide
-  rw [parityOn_univ_sum]
-  simp only [Sum.elim_inl, Sum.elim_inr, hpar, Bool.xor_false]
+  simp only [parityOn_univ_sum, Sum.elim_inl, Sum.elim_inr, hpar, Bool.xor_false]
 
 /-- An eliminated equal pair contributes zero parity. -/
 theorem IsEvenDeltaMatroid.tracePair [Fintype ι] {R : Set ((ι ⊕ Bool) → Bool)}
     (hR : IsEvenDeltaMatroid R) (hne : (tracePair R).Nonempty) :
     IsEvenDeltaMatroid (tracePair R) where
   isDeltaMatroid := hR.isDeltaMatroid.tracePair hne
-  parity_eq := by
-    rintro x y ⟨b, hx⟩ ⟨c, hy⟩
+  parity_eq := fun _ _ ⟨_, hx⟩ ⟨_, hy⟩ => by
     simpa only [parityOn_pair_extension] using hR.parity_eq hx hy
 
 /-- Identify and eliminate a finite family of disjoint equal pairs. -/
@@ -190,8 +187,7 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
         simp only [BitString.trace, U, Set.mem_ofPred_eq]
         exact ⟨fun ⟨z, hz⟩ => ⟨z ∘ e.symm, hfun z ▸ hz⟩,
           fun ⟨z, hz⟩ => ⟨z ∘ e, (hfun (z ∘ e)).symm ▸ by simpa [Function.comp_def] using hz⟩⟩
-      rw [← he]
-      exact ih β U (hT.reindex E) (he.symm ▸ hn)
+      exact he ▸ ih β U (hT.reindex E) (he.symm ▸ hn)
     · intro _ β _ T hT hn
       let E : (β ⊕ (PEmpty × Bool)) ≃ β :=
         { toFun := Sum.elim id (fun p => p.1.elim)
@@ -211,34 +207,26 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
         {x | (fun i => x (optionPairEquiv i)) ∈ T}
       have he : BitString.trace (BitString.tracePair U) = BitString.trace T := trace_option T
       have hn' : (BitString.trace (BitString.tracePair U)).Nonempty := he.symm ▸ hn
-      have hpair : (BitString.tracePair U).Nonempty := by
-        obtain ⟨x, z, hz⟩ := hn'
-        exact ⟨_, hz⟩
-      rw [← he]
-      exact ih β (BitString.tracePair U)
-        ((hT.reindex optionPairEquiv).tracePair hpair) hn'
+      obtain ⟨_, _, hz⟩ := id hn'
+      exact he ▸ ih β (BitString.tracePair U)
+        ((hT.reindex optionPairEquiv).tracePair ⟨_, hz⟩) hn'
   exact h κ ι R hR hne
 
 omit [DecidableEq ι] [DecidableEq κ] in
 private theorem parityOn_trace_extension [Fintype ι] [Fintype κ]
     (x : ι → Bool) (z : κ → Bool) :
     parityOn univ (Sum.elim x (fun p : κ × Bool => z p.1)) = parityOn univ x := by
-  rw [parityOn_univ_sum]
   have hz : parityOn univ (fun p : κ × Bool => z p.1) = false := by
-    simp only [parityOn_eq_sum, Fintype.sum_prod_type]
-    have he (k : κ) : ∑ _ : Bool, z k = (0 : Bool) := by
-      rw [Fintype.sum_bool]; cases z k <;> rfl
-    simp_rw [he]
-    exact Finset.sum_const_zero
-  simp only [Sum.elim_inl, Sum.elim_inr, hz, Bool.xor_false]
+    rw [parityOn_eq_sum, Fintype.sum_prod_type]
+    exact Finset.sum_eq_zero fun k _ => (Fintype.sum_bool _).trans (by cases z k <;> rfl)
+  simp only [parityOn_univ_sum, Sum.elim_inl, Sum.elim_inr, hz, Bool.xor_false]
 
 /-- Eliminating equal pairs preserves common parity. -/
 theorem IsEvenDeltaMatroid.trace [Fintype ι] [Fintype κ]
     {R : Set ((ι ⊕ (κ × Bool)) → Bool)} (hR : IsEvenDeltaMatroid R)
     (hne : (trace R).Nonempty) : IsEvenDeltaMatroid (trace R) where
   isDeltaMatroid := hR.isDeltaMatroid.trace hne
-  parity_eq := by
-    rintro x y ⟨z, hx⟩ ⟨w, hy⟩
+  parity_eq := fun _ _ ⟨_, hx⟩ ⟨_, hy⟩ => by
     simpa only [parityOn_trace_extension] using hR.parity_eq hx hy
 
 /-- Composition by existential equality of the shared coordinates `κ`.
@@ -275,17 +263,15 @@ Neither input nonemptiness nor nonempty external coordinates imply compatibility
 theorem IsDeltaMatroid.comp [Finite κ]
     {R : Set ((ι ⊕ κ) → Bool)} {S : Set ((κ ⊕ τ) → Bool)}
     (hR : IsDeltaMatroid R) (hS : IsDeltaMatroid S) (hne : (comp R S).Nonempty) :
-    IsDeltaMatroid (comp R S) := by
-  rw [comp_eq_trace] at hne ⊢
-  exact ((hR.sumProd hS).reindex compEquiv).trace hne
+    IsDeltaMatroid (comp R S) :=
+  (comp_eq_trace R S).symm ▸ ((hR.sumProd hS).reindex compEquiv).trace (comp_eq_trace R S ▸ hne)
 
 /-- The parity corollary after Proposition 6, with nonempty output explicit. -/
 theorem IsEvenDeltaMatroid.comp [Fintype ι] [Fintype κ] [Fintype τ]
     {R : Set ((ι ⊕ κ) → Bool)} {S : Set ((κ ⊕ τ) → Bool)}
     (hR : IsEvenDeltaMatroid R) (hS : IsEvenDeltaMatroid S)
-    (hne : (comp R S).Nonempty) : IsEvenDeltaMatroid (comp R S) := by
-  rw [comp_eq_trace] at hne ⊢
-  exact ((hR.sumProd hS).reindex compEquiv).trace hne
+    (hne : (comp R S).Nonempty) : IsEvenDeltaMatroid (comp R S) :=
+  (comp_eq_trace R S).symm ▸ ((hR.sumProd hS).reindex compEquiv).trace (comp_eq_trace R S ▸ hne)
 
 /-- The relation with exactly one true coordinate. The coordinate type must be inhabited
 for this relation to be a delta-matroid. -/
@@ -312,10 +298,10 @@ theorem isEvenDeltaMatroid_oneHotRelation [Fintype ι] [Nonempty ι] :
       · exact ⟨b, by simp [hab.symm], b, hf.symm⟩
       · exact ⟨a, by simp [hab], i, by simpa only [pair_comm] using hf.symm⟩ }
   parity_eq := by
-    rintro x y ⟨a, rfl⟩ ⟨b, rfl⟩
-    have hp (a : ι) : parityOn univ (fun j => decide (j = a)) = true := by
-      have he : {j ∈ (univ : Finset ι) | j = a} = {a} := by ext j; simp
-      simp only [parityOn, decide_eq_true_eq, he, card_singleton]
+    rintro _ _ ⟨a, rfl⟩ ⟨b, rfl⟩
+    have hp (c : ι) : parityOn univ (fun j => decide (j = c)) = true := by
+      have he : {j ∈ (univ : Finset ι) | j = c} = {c} := Finset.ext fun _ => by simp
+      simp [parityOn, he]
     rw [hp, hp]
 
 /-- The even star gadget in Section 5.3 of [KazdaKolmogorovRolinek2018], printed p. 12.
@@ -359,16 +345,13 @@ theorem mem_starAt_iff [Fintype κ] (reference : κ → Bool) {x : (κ ⊕ Unit)
       ((∀ k, (x (.inl k) != reference k) = false) ∧ x (.inr ()) = false) ∨
         ∃ k, (∀ j, (x (.inl j) != reference j) = decide (j = k)) ∧
           x (.inr ()) = true := by
-  change flipOn _ x ∈ star κ ↔ _
+  let S : Finset (κ ⊕ Unit) :=
+    univ.filter fun i => Sum.elim reference (fun _ : Unit => false) i = true
+  change flipOn S x ∈ star κ ↔ _
   rw [mem_star_iff]
-  have hi (k : κ) :
-      flipOn (univ.filter
-        (fun i => Sum.elim reference (fun _ : Unit => false) i = true)) x (.inl k) =
-        (x (.inl k) != reference k) := by
-    cases hr : reference k <;> cases hx : x (.inl k) <;> simp [flipOn, hr, hx]
-  have hc : flipOn (univ.filter
-      (fun i => Sum.elim reference (fun _ : Unit => false) i = true)) x
-      (.inr ()) = x (.inr ()) := by simp [flipOn]
+  have hi (k : κ) : flipOn S x (.inl k) = (x (.inl k) != reference k) := by
+    cases hr : reference k <;> cases hx : x (.inl k) <;> simp [S, flipOn, hr, hx]
+  have hc : flipOn S x (.inr ()) = x (.inr ()) := by simp [S, flipOn]
   simp only [hi, hc]
 
 end Cslib.BitString

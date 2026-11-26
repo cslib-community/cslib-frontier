@@ -122,12 +122,9 @@ theorem mem_no_iff {S : SetSystem} {k : ℕ} :
 
 /-- The optimum of a coverable system is at most its number of sets. -/
 private theorem optCoverSize_le_length {S : SetSystem} (hS : S.Coverable) :
-    S.optCoverSize ≤ S.sets.length := by
-  obtain ⟨C, hC⟩ := hS
-  refine (SetSystem.optCoverSize_le (C := univ) fun u hu => ?_).trans_eq
-    (card_univ.trans (Fintype.card_fin _))
-  obtain ⟨i, -, hi⟩ := hC u hu
-  exact ⟨i, mem_univ _, hi⟩
+    S.optCoverSize ≤ S.sets.length :=
+  let ⟨C, hC⟩ := hS
+  (SetSystem.optCoverSize_le hC).trans ((card_le_univ C).trans_eq (Fintype.card_fin _))
 
 /-- A no-instance of `GapSetCover 3` has a nonempty ground list: the empty family covers an empty
 one at cost `0 < 3k`. -/
@@ -339,11 +336,10 @@ theorem two_pow_arity_le_seedLength (S : SetSystem) (k : ℕ) :
   rw [seedLength_eval]
   have hN := length_le_length_encList encNat S.ground
   have ht := length_le_length_encList (encList encNat) S.sets
-  have henc : S.ground.length + S.sets.length ≤ (encSetCover (S, k)).length := by
-    refine le_trans ?_ (length_le_encPair_left _ _ (S, k))
-    rw [encSetSystem_apply, encSetSystemFields, length_encPair]
-    simp only [encNatSetList] at ht ⊢
-    omega
+  have hpair : ((encPair encSetSystem encNat) (S, k)).length ≤ (encSetCover (S, k)).length := le_rfl
+  have hleft := (length_le_encPair_left encSetSystem encNat (S, k)).trans hpair
+  rw [encSetSystem_apply, encSetSystemFields, length_encPair] at hleft
+  simp only [encNatSetList] at ht hleft
   exact (two_pow_arity_le S).trans
     (Nat.mul_le_mul_left 64 (Nat.pow_le_pow_left (by simp only [bound]; omega) 6))
 
@@ -357,14 +353,9 @@ theorem three_mul_card_reduce_mem_le {S : SetSystem} {k : ℕ} (hno : (S, k) ∈
   let g : List Bool → Prop := fun l => ofTable S k (fun y => l.getD y false) ∈ MultiMCSP I
   have hcard : #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∈ MultiMCSP I} =
       2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I} := by
-    refine Eq.trans ?_ ((BitString.card_filter_take hq g).trans (congrArg _ ?_))
-    · exact congrArg card (Finset.ext fun r => by
-        simp only [mem_filter, mem_univ, true_and, g, reduce_of_ground_ne_nil hS,
-          List.getD_eq_getElem?_getD,
-          fun y : Fin (2 ^ arity S) => List.getElem?_take_of_lt (l := List.ofFn r) y.isLt])
-    · exact congrArg card (Finset.ext fun T => by
-        simp only [mem_filter, mem_univ, true_and, g, List.getD_eq_getElem?_getD,
-          List.getElem?_ofFn, Fin.is_lt, ↓reduceDIte, Option.getD_some])
+    simpa only [g, reduce_of_ground_ne_nil hS, List.getD_eq_getElem?_getD,
+      List.getElem?_take_of_lt, Fin.is_lt, List.getElem?_ofFn, ↓reduceDIte,
+      Option.getD_some] using BitString.card_filter_take hq g
   rw [hcard]
   calc 3 * (2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I})
       = 2 ^ (q - 2 ^ arity S) * (3 * #{T : Fin (2 ^ arity S) → Bool |

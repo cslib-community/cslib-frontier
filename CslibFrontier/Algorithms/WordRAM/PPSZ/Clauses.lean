@@ -57,9 +57,8 @@ theorem sections_map_map {α β : Type*} (f : α → β) :
     ∀ L : List (List α), (L.map (List.map f)).sections = L.sections.map (List.map f)
   | [] => rfl
   | l :: L => by
-    simp only [List.map_cons, List.sections, sections_map_map f L, List.flatMap_map,
-      List.map_flatMap, List.map_map]
-    rfl
+    simp [List.sections, sections_map_map f L, List.flatMap_map, List.map_flatMap,
+      Function.comp_def]
 
 /-- `List.any` depends only on the values of the test on the list. -/
 theorem any_congr_of_mem {α : Type*} {l : List α} {f g : α → Bool} (h : ∀ a ∈ l, f a = g a) :
@@ -216,9 +215,7 @@ theorem compatCodes_map_litCode {mem : ℕ → ℕ} {Tb : ℕ} {τ : Fin n → O
     · subst hlx
       simp only [↓reduceIte, Function.update_self]
       cases l.2 <;> cases b <;> rfl
-    · simp only [show l.1.val ≠ x.val from fun h => hlx (Fin.ext h), ↓reduceIte,
-        Function.update_of_ne hlx, hτ l.1]
-      rw [Bool.eq_iff_iff]
+    · rw [ite_eq_right fun h => hlx (Fin.ext h), Function.update_of_ne hlx, hτ l.1, Bool.eq_iff_iff]
       simp only [bne_iff_ne, ne_eq, optCode_eq_one_sub_iff]
   have hpair (l l' : Literal (Fin n)) :
       (litCode l' != litCode l ^^^ 1) = (l' != (l.1, !l.2)) := by
@@ -226,9 +223,7 @@ theorem compatCodes_map_litCode {mem : ℕ → ℕ} {Tb : ℕ} {τ : Fin n → O
     simp only [bne_iff_ne, ne_eq, litCode_injective.eq_iff]
   simp only [compatCodes, compatible, List.all_map, Function.comp_def, hfine, hpair]
   rw [Bool.eq_iff_iff]
-  simp only [List.all_eq_true, Bool.and_eq_true]
-  exact ⟨fun h => ⟨fun l hl => (h l hl).1, fun l hl => (h l hl).2⟩,
-    fun h l hl => ⟨h.1 l hl, h.2 l hl⟩⟩
+  simp only [List.all_eq_true, Bool.and_eq_true, imp_and, forall_and]
 
 /-! ### The search on stored data -/
 
@@ -253,11 +248,10 @@ theorem addrTest_eq {mem : ℕ → ℕ} {C Tb : ℕ} {φ : CNF (Fin n)} {τ : Fi
       ((D.map fun p => List.range' (p + 1) (mem p)).sections.any fun E =>
         compatCodes (fun v => mem (Tb + v)) x b.toNat (E.map mem)) =
       (D.map (clauseOf C φ)).sections.any (compatible (Function.update τ x (some !b))) := by
-    have hD' := (mem_sections_replicate.mp hD).2
     have hmap : (D.map fun p => List.range' (p + 1) (mem p)).map (List.map mem) =
         (D.map (clauseOf C φ)).map (List.map litCode) := by
       simpa only [List.map_map, Function.comp_def] using List.map_congr_left fun p hp =>
-        map_range'_clauseOf hφ (hD' p hp)
+        map_range'_clauseOf hφ ((mem_sections_replicate.mp hD).2 p hp)
     have h1 := congrArg
       (fun L => (List.sections L).any (compatCodes (fun v => mem (Tb + v)) x b.toNat)) hmap
     simp only [sections_map_map, List.any_map, Function.comp_def] at h1

@@ -133,11 +133,10 @@ theorem relRank_prod_le_two_rpow (A B : Finset (Fin d)) {ι : Type*} (s : Finset
     relRank blk (A ∩ s.biUnion T) (B ∩ s.biUnion T) (∏ j ∈ s, f j) ≤
       2 ^ (-((s.biUnion T).card * c)) := by
   classical
-  refine (relRank_inter_biUnion_prod_le A B s T f hT hf).trans ?_
-  refine (Finset.prod_le_prod₀ (fun _ _ => relRank_nonneg _ _ _ _) hc).trans_eq ?_
-  rw [← Real.rpow_sum_of_pos two_pos, Finset.card_biUnion hT]
-  push_cast
-  rw [Finset.sum_mul, ← Finset.sum_neg_distrib]
+  refine (relRank_inter_biUnion_prod_le A B s T f hT hf).trans
+    ((Finset.prod_le_prod₀ (fun _ _ => relRank_nonneg _ _ _ _) hc).trans_eq ?_)
+  rw [← Real.rpow_sum_of_pos two_pos, Finset.card_biUnion hT, Nat.cast_sum, Finset.sum_mul,
+    ← Finset.sum_neg_distrib]
 
 end Products
 
@@ -149,9 +148,7 @@ section Word
 private theorem sqrt_two_pow_div_two_pow (p q : ℕ) :
     √((2 : ℝ) ^ p / 2 ^ q) = 2 ^ (((p : ℝ) - q) / 2) := by
   rw [← Real.rpow_natCast, ← Real.rpow_natCast, ← Real.rpow_sub two_pos, Real.sqrt_eq_rpow,
-    ← Real.rpow_mul zero_le_two]
-  congr 1
-  ring
+    ← Real.rpow_mul zero_le_two, ← div_eq_mul_one_div]
 
 variable [Fintype σ] [Field K] {blk : σ → Fin d}
 
@@ -204,11 +201,10 @@ private theorem sq_ne_two_mul_sq {a b : ℤ} (hab : a ≠ 0 ∨ b ≠ 0) : a ^ 2
   rcases eq_or_ne b 0 with rfl | hb
   · exact hab.resolve_right (not_not.mpr rfl) (pow_eq_zero_iff two_ne_zero |>.mp (by simpa using h))
   · refine irrational_sqrt_two.ne_rational |a| |b| ?_
-    have hb' : (0 : ℝ) < |(b : ℝ)| := abs_pos.mpr (Int.cast_ne_zero.mpr hb)
-    have hR : ((a : ℝ)) ^ 2 = 2 * (b : ℝ) ^ 2 := by exact_mod_cast h
-    rw [Real.sqrt_eq_iff_eq_sq zero_le_two (by push_cast; positivity)]
-    push_cast
-    rw [div_pow, sq_abs, sq_abs, hR]
+    have hb' : |(b : ℝ)| ≠ 0 := abs_ne_zero.mpr (Int.cast_ne_zero.mpr hb)
+    have hR : (a : ℝ) ^ 2 = 2 * (b : ℝ) ^ 2 := mod_cast h
+    rw [Int.cast_abs, Int.cast_abs, Real.sqrt_eq_iff_eq_sq zero_le_two (by positivity), div_pow,
+      sq_abs, sq_abs, hR]
     field_simp
 
 /-- **LST Claim 17** (ECCC TR21-081 rev. 1, §5, proof of Claim 16): for integers `a` and `b`,
@@ -256,8 +252,8 @@ private theorem div_le_abs_sum_of_card_le {k : ℕ} {w : Fin d → ℤ}
     Finset.sum_congr rfl fun i hi => by simp [(Finset.mem_filter.mp hi).2]
   have h2 : ∑ i ∈ T.filter (fun i => ¬ w i = -k), (w i : ℝ) =
       ∑ i ∈ T.filter (fun i => ¬ w i = -k), ((⌊(k : ℝ) / √2⌋ : ℤ) : ℝ) :=
-    Finset.sum_congr rfl fun i hi => by
-      rw [(hw i).resolve_right (Finset.mem_filter.mp hi).2]
+    Finset.sum_congr rfl fun i hi =>
+      congrArg Int.cast ((hw i).resolve_right (Finset.mem_filter.mp hi).2)
   rw [← Finset.sum_filter_add_sum_filter_not T (fun i => w i = -k), h1, h2,
     Finset.sum_const, Finset.sum_const, nsmul_eq_mul, nsmul_eq_mul]
   generalize (T.filter fun i => w i = -k).card = b at hab ⊢
@@ -484,7 +480,6 @@ theorem IsSetMultilinear.relRank_polynomial_le {k : ℕ} {w : Fin d → ℤ}
     have hvu : v = 2 * u + 1 := by simp only [hv, hu, pow_succ]; ring
     have hv0 : 0 < v := by linarith
     have hu0 : u ≠ 0 := (by linarith : (0 : ℝ) < u).ne'
-    have hv0' : v ≠ 0 := hv0.ne'
     set τ : ℝ := M ^ (u / v) with hτ
     have hτ1 : 1 ≤ τ := Real.one_le_rpow hM1 (by positivity)
     by_cases htype : ∃ j, τ < (T j).card
@@ -510,9 +505,7 @@ theorem IsSetMultilinear.relRank_polynomial_le {k : ℕ} {w : Fin d → ℤ}
       have hk' : 10 * τ ^ 2 ≤ k := by cast_linarith [hcard U, hk]
       refine (relRank_prod_le_two_rpow _ _ Finset.univ T _ hdisj hGp ((k : ℝ) / (20 * τ ^ 2))
         fun j _ => relRank_le_two_rpow_of_card_le hblk hw (htype j) (by positivity) hk' _).trans ?_
-      have he : 1 - u / v * 2 = 1 / v := by
-        field_simp
-        linarith [hvu]
+      have he : 1 - u / v * 2 = 1 / v := by field_simp; linarith [hvu]
       have hMv : M / τ ^ 2 = M ^ (1 / v) := by
         rw [hτ, ← Real.rpow_ofNat, ← Real.rpow_mul hM0.le,
           ← Real.rpow_one_sub' hM0.le (he ▸ (div_pos one_pos hv0).ne'), he]

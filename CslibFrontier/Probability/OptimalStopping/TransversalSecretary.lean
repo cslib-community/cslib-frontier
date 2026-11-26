@@ -144,12 +144,11 @@ private theorem mem_priceSamplingStep_of_notMem {G : L × R → Bool} {w : L →
       ∀ r, G (a, r) = true → p r < w a → r ∉ M0.image Prod.snd → p e.2 ≤ p r := by
   unfold priceSamplingStep at he
   split_ifs at he with hne
-  · rcases Finset.mem_insert.mp he with rfl | hm0
-    · obtain ⟨hmem, hmin⟩ := Classical.choose_spec (Finset.exists_min_image _ p hne)
-      obtain ⟨-, hG, hp, hfree⟩ := Finset.mem_filter.mp hmem
-      exact ⟨rfl, hG, hp, hfree, fun r h1 h2 h3 =>
-        hmin r (Finset.mem_filter.mpr ⟨Finset.mem_univ _, h1, h2, h3⟩)⟩
-    · exact absurd hm0 hnot
+  · obtain rfl := (Finset.mem_insert.mp he).resolve_right hnot
+    obtain ⟨hmem, hmin⟩ := Classical.choose_spec (Finset.exists_min_image _ p hne)
+    obtain ⟨-, hG, hp, hfree⟩ := Finset.mem_filter.mp hmem
+    exact ⟨rfl, hG, hp, hfree, fun r h1 h2 h3 =>
+      hmin r (Finset.mem_filter.mpr ⟨Finset.mem_univ _, h1, h2, h3⟩)⟩
   · exact absurd he hnot
 
 omit [Fintype L] in
@@ -289,12 +288,11 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
             (Finset.image_subset_iff.mpr fun ⟨l, r⟩ he =>
               Finset.mem_filter.mpr ⟨Finset.mem_univ _, l, hM.1 (l, r) he⟩)
             fun r _ _ => hw (h r)
-    have hfib : ∑ r ∈ Ract, w (h r) = ∑ l ∈ H, ∑ r ∈ Ract with h r = l, w (h r) :=
-      (Finset.sum_fiberwise_of_maps_to (fun r hr => Finset.mem_image_of_mem h hr)
-        (fun r => w (h r))).symm
     calc ∑ e ∈ M, w e.1
         ≤ ∑ r ∈ Ract, w (h r) := hM_le_R
-      _ = ∑ l ∈ H, ∑ r ∈ Ract with h r = l, w (h r) := hfib
+      _ = ∑ l ∈ H, ∑ r ∈ Ract with h r = l, w (h r) :=
+          (Finset.sum_fiberwise_of_maps_to (fun r hr => Finset.mem_image_of_mem h hr)
+            fun r => w (h r)).symm
       _ ≤ ∑ l ∈ H, (d : ℝ) * w l := by
           refine Finset.sum_le_sum fun l _ => ?_
           rw [Finset.sum_congr rfl (fun r hr => congrArg w (Finset.mem_filter.mp hr).2),
@@ -536,13 +534,11 @@ private theorem foldl_priceSamplingStep_split_agent
 private theorem alloc_none_of_notMem_post (profile : L → USVType R)
     (σ : Fin (Fintype.card L) ≃ L) {l : L}
     (hl : l ∉ postSampleList σ ((Fintype.card L + 1) / 2)) :
-    priceSamplingUSVAlloc profile σ l = none := by
-  cases h : priceSamplingUSVAlloc profile σ l with
-  | none => rfl
-  | some r =>
-    exact absurd ((mem_foldl_priceSamplingStep_imp (profileGraph profile) (profileWeight profile) _
+    priceSamplingUSVAlloc profile σ l = none :=
+  Option.eq_none_iff_forall_not_mem.mpr fun r h => hl <|
+    (mem_foldl_priceSamplingStep_imp (profileGraph profile) (profileWeight profile) _
       (postSampleList σ _) ∅ ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h)).resolve_left
-      (Finset.notMem_empty _)) hl
+      (Finset.notMem_empty _)
 
 /-- **Ex-post individual rationality** ([BabaioffImmorlicaKleinberg2007], Theorem 4.2): under
 truthful reporting, every agent's utility is nonnegative for every arrival order `σ` (regardless of
@@ -554,12 +550,11 @@ theorem priceSamplingUSV_ir (profile : L → USVType R) (σ : Fin (Fintype.card 
   cases h : priceSamplingUSVAlloc profile σ l with
   | none => norm_num
   | some r =>
-    obtain ⟨hdes, hlt⟩ := mem_foldl_priceSamplingStep_cand (profileGraph profile)
-      (profileWeight profile) _ (postSampleList_nodup σ _) (fun _ _ => by simp)
-      ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h) (by simp)
-    dsimp only [profileGraph, profileWeight] at hdes hlt
-    simp only [hdes, ↓reduceIte]
-    linarith
+    obtain ⟨hdes, hlt⟩ : (profile l).desired r = true ∧ _ < (profile l).value :=
+      mem_foldl_priceSamplingStep_cand (profileGraph profile) (profileWeight profile) _
+        (postSampleList_nodup σ _) (fun _ _ => by simp)
+        ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h) (by simp)
+    simp only [hdes, ↓reduceIte]; linarith
 
 /-- **Ex-post dominant-strategy truthfulness (Theorem 4.2)** of [BabaioffImmorlicaKleinberg2007]
 (Section 4, p. 6): in the Unknown Single-Value (USV) unit-demand domain—even without any bound
@@ -633,8 +628,7 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
           set r₀ := Classical.choose (Finset.exists_min_image _ p hcandT)
           have hmT_step : (l, r₀) ∈
               priceSamplingStep (profileGraph profT) (profileWeight profT) p Mbefore l := by
-            rw [priceSamplingStep, dite_eq_left hcandT]
-            exact Finset.mem_insert_self ..
+            simp only [priceSamplingStep, hcandT, ↓reduceDIte, r₀, Finset.mem_insert_self]
           obtain ⟨-, hG₀, -, -, hmin₀⟩ := mem_priceSamplingStep_of_notMem hmT_step (hnot_Mb r₀)
           have hallocT : priceSamplingUSVAlloc profT σ l = some r₀ :=
             (priceSamplingUSVAlloc_eq_some_iff profT σ l r₀).mpr ((hiffT r₀).mpr hmT_step)

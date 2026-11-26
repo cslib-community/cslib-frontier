@@ -167,7 +167,7 @@ theorem matchingMatrix_mem_stablePolytope_iff (μ : Matching n) :
     have hr_nn : 0 ≤ I.recvBetterMass (matchingMatrix μ) r p :=
       Finset.sum_nonneg fun p' _ => matchingMatrix_nonneg μ p' r
     by_cases hpr : μ p = r
-    · linarith [show matchingMatrix μ p r = 1 from ite_eq_left hpr]
+    · simp only [matchingMatrix, hpr, ↓reduceIte]; linarith
     · by_cases hp : I.PropPrefers p (μ p) r
       · have hp1 : 1 ≤ I.propBetterMass (matchingMatrix μ) p r :=
           calc
@@ -367,8 +367,7 @@ theorem stablePolytope_eq_convexHull :
       I.convex_stablePolytope)
   intro x hx
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · rw [show x = matchingMatrix (Equiv.refl (Fin 0)) from funext fun p => Fin.elim0 p]
-    exact subset_convexHull ℝ _ ⟨Equiv.refl (Fin 0), fun p => Fin.elim0 p, rfl⟩
+  · exact subset_convexHull ℝ _ ⟨Equiv.refl _, fun p => Fin.elim0 p, funext fun p => Fin.elim0 p⟩
   · classical
     obtain ⟨hx_nn, hx_row, hx_col, hx_stab⟩ := hx
     -- Finite breakpoint set containing 0, 1, all P p r, and all P p r + x p r.
@@ -406,19 +405,17 @@ theorem stablePolytope_eq_convexHull :
               x p r') ≤ ∑ r' : Fin n, x p r' :=
             Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun r' _ _ => hx_nn p r'
           _ = 1 := hx_row p
-    have hB_card_ge : 2 ≤ B.card := Finset.one_lt_card_iff.2 ⟨0, 1, h0B, h1B, zero_ne_one⟩
     let m : ℕ := B.card - 1
-    have hB_card : B.card = m + 1 := by omega
+    have hB_card : B.card = m + 1 := (Nat.sub_add_cancel (Finset.card_pos.2 ⟨0, h0B⟩)).symm
     let e : Fin (m + 1) ↪o ℝ := B.orderEmbOfFin hB_card
     have hmem_e {y : ℝ} (hy : y ∈ B) : y ∈ Set.range e :=
       (Finset.range_orderEmbOfFin B hB_card).symm ▸ hy
     have he0 : e ⟨0, Nat.succ_pos m⟩ = 0 := by
       rw [Finset.orderEmbOfFin_zero hB_card (Nat.succ_pos m)]
       exact le_antisymm (Finset.min'_le B 0 h0B) (hB_bounds _ (Finset.min'_mem B _)).1
-    have heLast : e (Fin.last m) = 1 := by
-      rw [show (Fin.last m : Fin (m + 1)) = ⟨m + 1 - 1, by omega⟩ from rfl,
-        Finset.orderEmbOfFin_last hB_card (Nat.succ_pos m)]
-      exact le_antisymm (hB_bounds _ (Finset.max'_mem B _)).2 (Finset.le_max' B 1 h1B)
+    have heLast : e (Fin.last m) = 1 :=
+      (Finset.orderEmbOfFin_last hB_card (Nat.succ_pos m)).trans
+        (le_antisymm (hB_bounds _ (Finset.max'_mem B _)).2 (Finset.le_max' B 1 h1B))
     let w : Fin m → ℝ := fun k => e k.succ - e k.castSucc
     let mid : Fin m → ℝ := fun k => (e k.castSucc + e k.succ) / 2
     have hw_pos (k : Fin m) : 0 < w k := sub_pos.2 (e.strictMono k.castSucc_lt_succ)
@@ -428,9 +425,8 @@ theorem stablePolytope_eq_convexHull :
       dsimp only [mid]; linarith [e.strictMono k.castSucc_lt_succ]
     have hmid_not_B (k : Fin m) : mid k ∉ B := fun hmem => by
       obtain ⟨j, hj⟩ := hmem_e hmem
-      have : k.val < j.val := e.lt_iff_lt.1 (hj ▸ hmid_gt k)
-      have : j.val < k.val + 1 := e.lt_iff_lt.1 (hj ▸ hmid_lt k)
-      omega
+      exact Nat.not_lt.2 (Nat.lt_succ_iff.1 (e.lt_iff_lt.1 (hj ▸ hmid_lt k)))
+        (e.lt_iff_lt.1 (hj ▸ hmid_gt k))
     have hmid_01 (k : Fin m) : 0 < mid k ∧ mid k < 1 :=
       ⟨lt_of_le_of_lt (he0 ▸ e.monotone (Fin.zero_le _)) (hmid_gt k),
        lt_of_lt_of_le (hmid_lt k) (heLast ▸ e.monotone (Fin.le_last _))⟩
@@ -465,7 +461,7 @@ theorem stablePolytope_eq_convexHull :
         strictLower_add_le (fun p' => hx_nn p' r) hr_pref
       have hr_pStar : I.recvBetterMass x r pStar < 1 - mid k :=
         (μ k).apply_symm_apply r ▸ (hf_recv k pStar).1
-      linarith [(hf k p).1, hr_pStar, hx_stab p r, hx_nn p r]
+      linarith [(hf k p).1, hx_stab p r, hx_nn p r]
     have hμ_iff (k : Fin m) (p r : Fin n) :
         μ k p = r ↔ (I.propBetterMass x p r < mid k ∧ mid k < I.propBetterMass x p r + x p r) := by
       change f k p = r ↔ _

@@ -253,12 +253,10 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
     have hr0 : 0 < r := hr
     refine mul_le_mul_of_nonneg_left ?_ (hrad_nonneg r hr0.le)
     rcases lt_or_gt_of_ne hne with hlt | hgt
-    · rw [indicator_of_notMem (not_lt.mpr hlt.le)]
-      have hzero (φ : ℝ) : A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) = 0 := by
-        refine indicator_of_notMem
-          (fun hA => not_mem_uIoc_of_lt_abs (φ := φ) (ψ := φ - θ) hr0 hlt ?_) _
-        simpa only [A, mem_ofPred_eq, hrot] using hA
-      simp [angInt, hzero]
+    · have hzero (φ : ℝ) : (r * cos φ, r * sin φ) ∉ A :=
+        fun (hA : t ∈ Ι _ (cos θ * (r * cos φ) + sin θ * (r * sin φ))) =>
+          not_mem_uIoc_of_lt_abs hr0 hlt (hrot r φ ▸ hA)
+      simp [angInt, not_lt.mpr hlt.le, indicator_of_notMem (hzero _)]
     · rw [indicator_of_mem hgt]
       set c := arccos (t / r)
       have htr := abs_lt.mp (show |t / r| < 1 by rwa [abs_div, abs_of_pos hr0, div_lt_one hr0])
@@ -294,12 +292,10 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
   have hrewrite : (fun r => rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r) =
       (Ioi |t|).indicator (fun r => rad r * (2 * θ)) :=
     funext fun _ => (indicator_mul_right _ _ _).symm
-  have hRHS_int :
-      IntegrableOn (fun r => rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r) (Ioi 0) :=
-    hrewrite ▸ (hrad_int.mul_const _).indicator measurableSet_Ioi
   calc ∫ r in Ioi (0 : ℝ), rad r * angInt r
       ≤ ∫ r in Ioi (0 : ℝ), rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r :=
-        integral_mono_ae hLHS_int hRHS_int hang_ae
+        integral_mono_ae hLHS_int
+          (hrewrite ▸ (hrad_int.mul_const _).indicator measurableSet_Ioi) hang_ae
     _ = ∫ r in Ioi |t|, rad r * (2 * θ) := by
         rw [hrewrite, setIntegral_indicator measurableSet_Ioi,
           inter_eq_right.mpr (Ioi_subset_Ioi (abs_nonneg t))]

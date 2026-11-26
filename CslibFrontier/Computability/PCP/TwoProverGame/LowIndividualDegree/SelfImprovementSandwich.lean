@@ -67,8 +67,7 @@ theorem sandwichedPolynomialMeasurement_effect_some
     (sandwichedPolynomialMeasurement R T).effect (some g) =
       (Fintype.card (Point F m) : ℝ)⁻¹ • ∑ u : Point F m,
         (R u).effect (eval u g.val) * T.effect g * (R u).effect (eval u g.val) := by
-  rw [sandwichedPolynomialMeasurement, Measurement.mixture_uniform_effect]
-  simp only [Measurement.sandwichBy_effect_some]
+  simp [sandwichedPolynomialMeasurement, Measurement.mixture_uniform_effect]
 
 omit [DecidableEq F] in
 /-- A step of the self-improvement argument. In a score against positive contractions
@@ -109,12 +108,11 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
     expect_congr rfl fun u _ => by
       simp_rw [sandwichedPolynomialMeasurement_effect_some, mul_smul_comm, mul_sum,
         AlgState.re_apply_uniformAverage, hright, expect_sum_comm, f]
-  have h₂ : (𝔼 u : Point F m, ∑ g, (φ ((L u).effect (f u g) * C u g *
-        (L u).effect (f u g) * T.effect g)).re) =
-      𝔼 u : Point F m, 𝔼 v : Point F m, S L u u := by
-    simp only [Fintype.expect_const, hleft]
-  rw [h₁, h₂]
-  simp_rw [← expect_sub_distrib]
+  have h₂ (u : Point F m) : (∑ g, (φ ((L u).effect (eval u g.val) * C u g *
+      (L u).effect (eval u g.val) * T.effect g)).re) = 𝔼 _ : Point F m, S L u u := by
+    simp only [Fintype.expect_const, hleft, f]
+  rw [h₁]
+  simp_rw [h₂, ← expect_sub_distrib]
   refine (abs_expect_le _ _).trans <| (expect_le_expect fun u _ => abs_expect_le _ _).trans ?_
   have hp (u v : Point F m) : |S R u v - S L u u| ≤
       2 * √(copyDefect φ (R v) (L v)) + 2 * √(e u v) := by
@@ -184,15 +182,14 @@ theorem abs_successfulMass_sandwichedPolynomial_sub_majorant_le (φ : AlgState A
       T.nonneg (fun _ => le_rfl)).trans hweighted
     simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib,
       abs_sub_comm (∑ g, (φ (T.effect g * Rg u g)).re)] at hlin
-    refine ((abs_sub_le (∑ g, (φ (Rg u g * T.effect g * Rg u g)).re)
+    exact ((abs_sub_le (∑ g, (φ (Rg u g * T.effect g * Rg u g)).re)
       (∑ g, (φ (T.effect g * Lg u g)).re) (∑ g, (φ (T.effect g * Rg u g)).re)).trans
-      (add_le_add hquad hlin)).trans_eq ?_
-    simp only [copyDefect]; ring
+      (add_le_add hquad hlin)).trans_eq (by simp only [copyDefect]; ring)
   rw [state_successfulMass_sandwichedPolynomial_eq, ← hmean, ← expect_sub_distrib]
   refine (abs_expect_le _ _).trans ((expect_le_expect fun u _ => hp u).trans ?_)
   rw [← mul_expect]
   exact mul_le_mul_of_nonneg_left (Fintype.expect_sqrt_le_sqrt_expect _
-    (fun _ => sum_nonneg fun _ _ => sq_nonneg _)) (by norm_num)
+    fun _ => sum_nonneg fun _ _ => sq_nonneg _) (by norm_num)
 
 /-- A step of the completeness proof. A common majorant and complementary slackness
 transfer the input polynomial agreement to the successful mass of the sandwiched
@@ -225,11 +222,10 @@ theorem successfulMass_sandwichedPolynomial_lower_bound (φ : AlgState A)
       (φ (G.effect (some g) * (R u).effect (eval u g.val))).re) ≤ (φ Z).re := by
     simp only [expect_sum_comm, hmean]
     refine (sum_le_sum fun g _ => ?_).trans hsum
-    have hc := (hGZ (some g)).sub_right
-      (commute_averagePolynomialPointEffect R g _ (hGR (some g)))
     exact φ.re_apply_mono (by
-      simpa only [mul_sub, sub_nonneg] using
-        hc.mul_nonneg (G.nonneg (some g)) (sub_nonneg.mpr (hle g)))
+      simpa only [mul_sub, sub_nonneg] using ((hGZ (some g)).sub_right
+        (commute_averagePolynomialPointEffect R g _ (hGR (some g)))).mul_nonneg
+        (G.nonneg (some g)) (sub_nonneg.mpr (hle g)))
   have hm := abs_successfulMass_sandwichedPolynomial_sub_majorant_le φ L R T hL hLT Z hslack
   linarith only [hscore, (abs_le.mp hm).1]
 

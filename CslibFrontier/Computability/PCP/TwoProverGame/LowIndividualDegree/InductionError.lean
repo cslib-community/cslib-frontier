@@ -75,22 +75,19 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
   have hδs : δ ≤ s := (le_max_right _ _).trans (le_max_left _ _)
   have hγs : γ ≤ s := (le_max_left _ _).trans (le_max_right _ _)
   have hrs : r ≤ s := (le_max_right _ _).trans (le_max_right _ _)
-  have hs_pow : s = t ^ 128 := by
-    rw [← Real.rpow_natCast t 128, ← Real.rpow_mul hs.1]
-    norm_num
+  have hs_pow : s = t ^ 128 := by rw [← Real.rpow_natCast t 128, ← Real.rpow_mul hs.1]; norm_num
   have hpow (a b : ℕ) (h : a ≤ b) : t ^ b ≤ t ^ a :=
     pow_le_pow_of_le_one ht₀ ht₁ h
   have hsum : t ≤ inductionLossTerm ε δ γ r := by
+    have hle {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) : max a b ≤ a + b :=
+      max_le (le_add_of_nonneg_right hb) (le_add_of_nonneg_left ha)
+    have hnn {x : ℝ} (hx : 0 ≤ x) := Real.rpow_nonneg hx (1 / 128 : ℝ)
     dsimp only [t, s, inductionLossTerm]
-    simp only [Real.rpow_max hε.1 hδ.1 (by norm_num : 0 ≤ (1 / 128 : ℝ)),
-      Real.rpow_max hγ.1 hr.1 (by norm_num : 0 ≤ (1 / 128 : ℝ)),
-      Real.rpow_max (le_max_of_le_left hε.1) (le_max_of_le_left hγ.1)
-        (by norm_num : 0 ≤ (1 / 128 : ℝ))]
-    have h₁ := Real.rpow_nonneg hε.1 (1 / 128 : ℝ)
-    have h₂ := Real.rpow_nonneg hδ.1 (1 / 128 : ℝ)
-    have h₃ := Real.rpow_nonneg hγ.1 (1 / 128 : ℝ)
-    have h₄ := Real.rpow_nonneg hr.1 (1 / 128 : ℝ)
-    exact max_le (max_le (by linarith) (by linarith)) (max_le (by linarith) (by linarith))
+    rw [Real.rpow_max (le_max_of_le_left hε.1) (le_max_of_le_left hγ.1) (by norm_num),
+      Real.rpow_max hε.1 hδ.1 (by norm_num), Real.rpow_max hγ.1 hr.1 (by norm_num),
+      add_assoc (_ + _)]
+    exact (hle (le_max_of_le_left (hnn hε.1)) (le_max_of_le_left (hnn hγ.1))).trans
+      (add_le_add (hle (hnn hε.1) (hnn hδ.1)) (hle (hnn hγ.1) (hnn hr.1)))
   let ζ := 3000 * m * (ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ))
   let v := √(8 * m * ε + 4 * δ)
   let c := 32 * (4 * √(2 * ζ) + 2 * √(64 * m * γ) + 2 * √ζ + 2 * √ζ) +
@@ -155,12 +152,9 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     rw [mul_assoc, div_eq_mul_one_div]
     gcongr
   have hsqrt2 : √(2 : ℝ) ≤ 2 := by rw [Real.sqrt_le_left (by norm_num)]; norm_num
-  have hz' : ζ ≤ 9000 * m * t := by
-    linarith only [hz4, hmt 1 4 (by norm_num)]
-  have hq' : (m - 1) * r ≤ m * t := by
-    linarith only [hqterm, hmt 1 4 (by norm_num)]
-  have hsz' : √(2 * ζ) ≤ 140 * m * t := by
-    linarith only [hsqrt2Z, hmt 1 2 (by norm_num)]
+  have hz' : ζ ≤ 9000 * m * t := by linarith only [hz4, hmt 1 4 Nat.one_le_ofNat]
+  have hq' : (m - 1) * r ≤ m * t := by linarith only [hqterm, hmt 1 4 Nat.one_le_ofNat]
+  have hsz' : √(2 * ζ) ≤ 140 * m * t := by linarith only [hsqrt2Z, hmt 1 2 Nat.one_le_ofNat]
   suffices h :
       slicePastingError m k q ε δ γ r σ θ ≤
         σ / (1 - θ) + Real.exp (-(θ ^ 2 * k) / 2) + 100000 * (k : ℝ) ^ 2 * m * t by

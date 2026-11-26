@@ -142,9 +142,10 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
   let descBase := (Memory.spec 0).clientResult s₀ (initNodesProg ⟨rawBagsPtr, n + 1⟩)
   have hfr₁' : s₁.frontier ≤ inst.encode.length + 1 + 4 * (n + 1) + (n + 1) * 2 ^ M := by
     dsimp only [s₁, rawBagsPtr, m, n, M, s₀] at hfr₁ ⊢; omega
-  have h2n1 : (n + 1) * 2 ^ M + n * 2 ^ M = (2 * n + 1) * 2 ^ M := by ring
   have hfit_proc_peak : Fits w (s₁.frontier + n * 2 ^ M) :=
-    hw.of_le (by simp only [n, M, MWISInstance.wordBound] at hfr₁' h2n1 ⊢; omega)
+    hw.of_le (by
+      simp only [n, M, MWISInstance.wordBound, Nat.add_mul, Nat.one_mul, Nat.two_mul] at hfr₁' ⊢
+      omega)
   have hfit_val : Fits w ((n + 1) * M * inst.maxWeight) :=
     hw.of_le (by simp only [n, M, MWISInstance.wordBound]; omega)
   obtain ⟨hv_proc, _, ⟨tblFinal, hlay₂, _, hagree₂⟩, hc_proc⟩ :=
@@ -166,9 +167,6 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     h0_tbl (h0_tlen.trans h0_pow.symm) (h0_pow.symm ▸ hagree₂ zeroFin)
   have hd_lt (off : ℕ) (hoff : off < 4) : descBase + off < s₂.frontier :=
     Nat.lt_of_lt_of_le (by omega) hlay₂.desc_hi
-  have hr_st (s : Memory.State) (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
-  have hr_res (s : Memory.State) (a : ℕ) :
-      (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
   refine ⟨?_, ?_, ?_⟩
   · dsimp only [runMWISProg]
     refine validHistory_read_bind (by omega) ?_
@@ -176,26 +174,26 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     refine validHistory_read_bind (by omega) ?_
     rw [hm2]
     refine validHistory_bind_step hv_init (validHistory_bind_step hv_proc ?_)
-    refine validHistory_read_bind (by simpa only [Nat.add_zero] using hd_lt 0 (by decide)) ?_
+    refine validHistory_read_bind (hd_lt 0 (by decide)) ?_
     refine validHistory_read_bind (hd_lt 1 (by decide)) ?_
     refine validHistory_read_bind (hd_lt 2 (by decide)) ?_
     exact validHistory_read_bind (hd_lt 3 (by decide)) hv_rp
   · dsimp only [runMWISProg]
-    rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm1,
-      StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm2,
+    rw [StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read, hm1,
+      StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read, hm2,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
     change (Memory.spec 0).clientResult s₂ (Memory.read descBase >>= _) = inst.result
-    iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
+    iterate 4 rw [StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read]
     rw [hr_rp]
     exact congrArg _ h0_pow
   · dsimp only [runMWISProg]
-    rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm1,
-      memoryCost_bind', memoryCost_read, hr_st, hr_res, hm2,
+    rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm1,
+      memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm2,
       memoryCost_bind', memoryCost_bind']
     change 1 + (1 + (memoryCost (initNodesProg ⟨rawBagsPtr, n + 1⟩) s₀ +
       (memoryCost (processNodesProg procArgs) s₁ +
         memoryCost (Memory.read descBase >>= _) s₂))) ≤ inst.stepBound
-    iterate 4 rw [memoryCost_bind', memoryCost_read, hr_st, hr_res]
+    iterate 4 rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read]
     have h0_len_le : (inst.bagAt zeroFin).length ≤ M := inst.bagAt_length_le zeroFin
     have hc_rp_M : memoryCost (rootPassProg rpArgs) s₂ ≤ 2 ^ M * (5 * M ^ 2 + 5 * M + 17) := by
       refine hc_rp.trans ?_
@@ -255,9 +253,7 @@ theorem runMWISProg_realizes :
     refine ⟨inst, fun i => List.replicate (2 ^ (inst.bagAt i).length) 0,
       rfl, rfl, rfl, rfl, hlay₁, prefixMaxSum_replicate_zero _ _, hw.of_le ?_,
       hw.of_le (by simp only [MWISInstance.wordBound]; omega)⟩
-    have : (inst.numNodes + 1) * 2 ^ inst.maxBagLen + inst.numNodes * 2 ^ inst.maxBagLen =
-        (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen := by ring
-    simp only [MWISInstance.wordBound]; omega
+    simp only [MWISInstance.wordBound, Nat.add_mul, Nat.one_mul, Nat.two_mul] at hfr₁' ⊢; omega
   all_goals
     obtain ⟨hdesc_eq, hfr₁', hlay₁⟩ := runMWISProg_init_helper inst hw
   all_goals try

@@ -366,23 +366,12 @@ private theorem threePC_decision_update {st : P → ThreePCLocalState} {q p : P}
 private theorem step_threePC_decision_stable {s s' : ThreePCState P} {act : ThreePCAction P}
     (hstep : threePCStep? votes s act = some s') {p : P} {d : Decision}
     (hd : s.decision p = some d) : s'.decision p = some d := by
-  cases act <;> dsimp only [threePCStep?] at hstep <;> split at hstep <;> cases hstep <;>
-    dsimp only [ThreePCState.decision] at hd ⊢
-  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2]) hd
-  · rename_i hg; exact threePC_decision_update (by simp [hg.2.2.2 s.coord hg.1]) hd
-  · rename_i hg
-    exact threePC_decision_update
-      (by have := hg.2.2.1; cases h : s.localState s.coord <;>
-            simp_all [ThreePCLocalState.isCommittable]) hd
-  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2.2]) hd
-  · rename_i hg
-    exact threePC_decision_update
-      (by have := hg.2.2.1; cases h : s.localState s.coord <;> simp_all) hd
-  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2.2]) hd
-  · rename_i q hg
-    exact threePC_decision_update (by rcases hg.2.2.2 with h | h <;> simp [h]) hd
-  · exact hd
-  · exact hd
+  cases act <;> dsimp only [threePCStep?] at hstep <;> split_ifs at hstep <;> cases hstep
+  all_goals first
+    | exact hd
+    | refine threePC_decision_update (fun d' hd' => ?_) hd
+      cases d' <;> simp_all [ThreePCLocalState.decision_eq_some_commit_iff,
+        ThreePCLocalState.decision_eq_some_abort_iff, ThreePCLocalState.isCommittable]
 
 /-- Global-phase FSA step toward [Skeen1981], §5 (pp. 140–141), not the cited message-passing `3PC`
 result (#7289): local decisions are irreversible along all reachable transitions of `threePCLts`

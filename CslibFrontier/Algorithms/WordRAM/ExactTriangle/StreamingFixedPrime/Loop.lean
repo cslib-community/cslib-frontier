@@ -199,9 +199,7 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
       (sum_recordFailures_le hn V hout hD hDn hg hp I (fun _ hi => hi))
   let Inv := Invariant (m := m) (g := g) V a x order hn
   let Φ := fun z : Data 416 => remainingCharge B F C M (z.regs Reg.index) (z.regs Reg.found)
-  have body : ∀ z, Inv z → (Cond.lt Reg.index Reg.limit).Holds z →
-      ∃ y T, ExecWithin (w + 2) step z y T ∧ Inv y ∧ T + 2 + Φ y ≤ Φ z :=
-    exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
+  have body := exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
   have h1 : Fits (w + 2) 1 := (counter_fits hW).of_le (by unfold counterEnvelope; omega)
   obtain ⟨s, hs, sm, si, sl, sf, ss, so, sbank⟩ := exec_setup x h1
   have sInv : Inv s := by
@@ -232,11 +230,9 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
   intro ⟨u, v, c, hw⟩
   by_contra hnot
   have hf : y.regs Reg.found = 0 := hIy.flag.resolve_right hnot
-  have hlim : y.regs Reg.limit = M := by simpa only [hf, zero_ne_one, ite_false] using hIy.limit
   have hi : y.regs Reg.index = M := by
-    change ¬ y.regs Reg.index < y.regs Reg.limit at hcy
-    have := hIy.index_le
-    omega
+    have hlim : y.regs Reg.limit = M := by simpa [hf] using hIy.limit
+    exact le_antisymm hIy.index_le (not_lt.mp (hlim ▸ hcy))
   obtain ⟨idx, hacc, hc⟩ := exists_mem_acceptedPairs hD hDn hg hp0
     (RecordProduct.product_answers_correct V wAB wBC wAC hD hg hp (fun _ _ => rfl) (fun _ _ => rfl))
     hw
@@ -244,8 +240,8 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
   have hh : recordHit (m := m) (n := n) (g := g) V (order j.val) := by
     rw [order_at j.val j.isLt, hj]
     exact ⟨(u, v), (mem_acceptedPairs.mp hacc).2.1, c, hc, hw⟩
-  have searched := hIy.searched
-  rw [hf, hi] at searched
-  exact Nat.not_lt_zero _ (searched ▸ Nat.count_strict_mono hh j.isLt)
+  have h0 : Nat.count (fun k => recordHit (m := m) (n := n) (g := g) V (order k)) M = 0 :=
+    hi ▸ hIy.searched.trans hf
+  exact Nat.not_lt_zero _ (h0 ▸ Nat.count_strict_mono hh j.isLt)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

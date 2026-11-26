@@ -165,8 +165,7 @@ theorem full_retains (A : FrameChannel P 4 1) (a : ZMod P) :
 omit [Fact P.Prime] in
 /-- Every coordinate side is bounded by the shared prime. -/
 theorem pairSide_le (s t : Fin J) (Ls Lt : ℕ) (hs : Ls ≤ P) (ht : Lt ≤ P) :
-    ∀ j, pairSide (P := P) s t Ls Lt j ≤ P := by
-  intro j
+    ∀ j, pairSide (P := P) s t Ls Lt j ≤ P := fun j => by
   simp only [pairSide]
   split_ifs <;> first | assumption | exact le_rfl
 
@@ -235,30 +234,27 @@ theorem grid_retains (D : ZMod P) (role : Fin J) (k : ℕ)
 theorem rate_pos (k : ℕ) : 0 < rate k := by unfold rate; positivity
 
 /-- Increasing the exponent narrows the grid rate. -/
-theorem rate_antitone : Antitone rate := fun _ _ hab => by
-  unfold rate
-  exact pow_le_pow_left₀ (by positivity)
+theorem rate_antitone : Antitone rate := fun _ _ hab =>
+  pow_le_pow_left₀ (by positivity)
     (inv_anti₀ (by positivity) (pow_le_pow_right₀ (a := (2 : ℝ)) one_le_two hab)) 4
 
 /-- Usage minima correspond to maxima of natural exponents. -/
-theorem rate_min (k l : ℕ) : min (rate k) (rate l) = rate (max k l) := by
-  rcases le_total k l with h | h
-  · rw [max_eq_right h, min_eq_right (rate_antitone h)]
-  · rw [max_eq_left h, min_eq_left (rate_antitone h)]
+theorem rate_min (k l : ℕ) : min (rate k) (rate l) = rate (max k l) :=
+  (rate_antitone.map_max).symm
 
 omit [Fact P.Prime] in
 /-- The declared exponent horizon supplies the frame side lower bound. -/
 theorem horizon_admissible (H : Horizon P) {k : ℕ} (hk : k ≤ H.maxExponent) :
     1 ≤ (P: ℝ) * ((2: ℝ) ^ k)⁻¹ := by
-  rw [← div_eq_mul_inv, le_div_iff₀ (by positivity)]
-  norm_num only [one_mul]
+  rw [← div_eq_mul_inv, one_le_div (by positivity)]
   exact_mod_cast (le_trans (Nat.pow_le_pow_right (by decide : 1 ≤ 2) hk) H.side_admissible)
 
 /-- On the declared exponent horizon, the frame mass `(side P k / P) ^ 4` is at most `16` times
 the grid rate. -/
 theorem side_div_pow_four_le (H : Horizon P) {k : ℕ} (hk : k ≤ H.maxExponent) :
     ((side P k : ℝ) / P) ^ 4 ≤ 16 * rate k := by
-  simpa only [← side_eq_ceil, rate, show (2 : ℝ) ^ 4 = 16 by norm_num] using
+  have h16 : (2 : ℝ) ^ 4 = 16 := by norm_num
+  simpa only [← side_eq_ceil, rate, h16] using
     (affineRetains_rates (P := P) (H := 4) (horizon_admissible H hk)
       (inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))).2.2.1
 
@@ -271,8 +267,9 @@ theorem retention {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P))
       (fun A : FrameChannel P 4 1 => fun x => frameRetains P 4 (side P k) A
         (CopyPadding.identifier D suffix x))
       (rate k) ((((side P k : ℕ): ℝ) / P) ^ 4) 1 16 32 8 := by
-  simpa only [← side_eq_ceil, rate, show (2 : ℝ) ^ 4 = 16 by norm_num,
-    show (2 : ℝ) ^ (4 + 1) = 32 by norm_num] using
+  have h16 : (2 : ℝ) ^ 4 = 16 := by norm_num
+  have h32 : (2 : ℝ) ^ (4 + 1) = 32 := by norm_num
+  simpa only [← side_eq_ceil, rate, h16, h32] using
     retentionChannels_frameRetains_of_lt (CopyPadding.identifier_injective hD suffix) (H := 4)
       (r := 1) (by decide) (by decide) (horizon_admissible H hk)
       (inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))
@@ -283,8 +280,7 @@ theorem density (role : Fin J) (L : ℕ) (hL : L ≤ P) (a : ZMod P) :
   classical
   rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 => frameRetains P 4 L A a),
     dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1) (by decide) hL a]
-  push_cast
-  rfl
+  push_cast; rfl
 
 /-- Concrete mixed rank / usage pair law from frame conditioning, not unrestricted
 seed independence. Usage may have any other positive side; only rank's admissible
@@ -297,15 +293,14 @@ theorem mixed_pair_density (role : Fin J) (H : Horizon P) {k : ℕ}
   classical
   rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 =>
     frameRetains P 4 (side P k) A w ∧ frameRetains P 4 Lt A y), density role Lt hLt]
-  have hp := dens_eval_mem_and_eval_mem_le (P := P) (H := 4) (r := 1)
-    (by decide) (side_le P k) hLt hwy
-  have hq := one_div_two_le_frameDensity (P := P) (H := 4) (r := 1) (by decide)
-  have hh := side_div_pow_four_le H hk
-  apply hp.trans
+  refine (dens_eval_mem_and_eval_mem_le (P := P) (H := 4) (r := 1)
+    (by decide) (side_le P k) hLt hwy).trans ?_
   rw [div_le_iff₀ (by positivity)]
-  have hπ : 0 ≤ ((Lt: ℝ) / P) ^ 4 := by positivity
-  nlinarith [mul_le_mul_of_nonneg_right hh hπ,
-    mul_le_mul_of_nonneg_left hq (show 0 ≤ 32 * rate k * ((Lt: ℝ) / P) ^ 4 by positivity)]
+  have h32 : 0 ≤ 32 * rate k * ((Lt : ℝ) / P) ^ 4 := by positivity
+  nlinarith [mul_le_mul_of_nonneg_right (side_div_pow_four_le H hk)
+      (pow_nonneg (div_nonneg (Nat.cast_nonneg Lt) (Nat.cast_nonneg P)) 4),
+    mul_le_mul_of_nonneg_left (one_div_two_le_frameDensity (P := P) (H := 4) (r := 1) (by decide))
+      h32]
 
 /-- The mixed rank/usage density bound as a count bound, with injective copy padding. -/
 theorem mixed_pair_count (role : Fin J) (H : Horizon P) {k : ℕ}
@@ -339,9 +334,7 @@ theorem copy_retains (D : ℕ) (ch : Channel P J) (σ : Environment P J)
         ((((radixCopyEquiv n m l).symm (toLex (x, j))).val : ℕ): ZMod P) := by
   subst D
   change frameRetains P 4 _ _ _ ↔ frameRetains P 4 _ _ _
-  dsimp only [CorrectionRowTask.Channel.throughCopy]
-  push_cast
-  rw [CopyPadding.identifier_radixCopy]
+  simp [CorrectionRowTask.Channel.throughCopy, CopyPadding.identifier_radixCopy]
 
 /-- A fixed independent role product, reused unchanged at every stage. -/
 structure RoleProfile (J : ℕ) where
@@ -462,9 +455,8 @@ theorem rawNormalized_noise [Fintype V] {k : ℕ} (D : ZMod P) (ident : V → ZM
         (Y R.terminal (side P kt) b) G (fun _ _ => steps) F σ x z -
         rowSliceMean (X R.source (side P ks) a) (Y R.terminal (side P kt) b) F x z) ≤
       32 * (1 - 1 / (155648 * (J + 1) * (4: ℝ) ^ 4)) ^ (2 * steps) *
-        rowNormPow 4 N u (X R.source (side P ks) a) (Y R.terminal (side P kt) b) F := by
-  exact noise R.source R.terminal R.source_terminal _ _ (side_le P ks) (side_le P kt) _ _
-    hNu steps _
+        rowNormPow 4 N u (X R.source (side P ks) a) (Y R.terminal (side P kt) b) F :=
+  noise R.source R.terminal R.source_terminal _ _ (side_le P ks) (side_le P kt) _ _ hNu steps _
 
 /-- The frame counterpart of DenseSamplingLaws.ofAffine, on the actual entire
 role product and with the correct cross-rate constant 32. -/
@@ -543,9 +535,8 @@ theorem explicitDense_mean (D : ZMod P) (hD : D ≠ 0) (role : Fin J)
     let A := explicitDense D hD role suffix H k hk Lt La hLt0 hLtP hLa
     (𝔼 σ ∈ ({σ : Environment P J | frameRetains P 4 La (σ role)
       (CopyPadding.identifier D suffix y)} : Finset _), A.direct G σ x y) =
-        rate k * cutoff (G x y / rate k) := by
-  exact (explicitDense D hD role suffix H k hk Lt La hLt0 hLtP hLa).expect_direct
-    (rate_pos k) hG hG1 x y
+        rate k * cutoff (G x y / rate k) :=
+  (explicitDense D hD role suffix H k hk Lt La hLt0 hLtP hLa).expect_direct (rate_pos k) hG hG1 x y
 
 /-- Equal rank environments give identical actual raw / normalized samples,
 regardless of any external deterministic record. No random salt coordinate is
@@ -802,18 +793,16 @@ theorem normalizedRequest_formula [Fintype V] {k : ℕ} (D : ZMod P) (ident : V 
             (fun τ v => r.usage.retains (channels D) τ (ident v)) prep x y))
       else 0 := by
   classical
-  rw [normalizedRequest, dite_eq_left hr]
-  dsimp only
-  rw [DenseRowRecipe.normalized, normalizer_full D ident r hr prep x y]
+  rw [normalizedRequest, dite_eq_left hr, DenseRowRecipe.normalized,
+    normalizer_full D ident r hr prep x y]
   simp only [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains,
     channels, hr.2.1]
   congr 6
 
 /-- The source grid has exactly the requested adjacent-bin ratio. -/
 theorem adjacent_rate_ratio (k : ℕ) : rate k / rate (k + 1) = 16 := by
-  have hne : (16 : ℝ)⁻¹ ^ k ≠ 0 := by positivity
   rw [rate_eq_source_grid, rate_eq_source_grid, pow_succ]
-  field_simp [hne]
+  field_simp
 
 omit [Fact P.Prime] in
 /-- Every actual residual request stays on the natural-exponent grid (the usage min is a max
@@ -911,9 +900,8 @@ theorem rawIncomingNormalized_noise [Fintype V] {k : ℕ}
         (Y R.terminal (side P kt) b) G (fun _ _ => steps) F σ x z -
         rowSliceMean (X R.source (side P ks) a) (Y R.terminal (side P kt) b) F x z) ≤
       32 * (1 - 1 / (155648 * (J + 1) * (4: ℝ) ^ 4)) ^ (2 * steps) *
-        rowNormPow 4 N u (X R.source (side P ks) a) (Y R.terminal (side P kt) b) F := by
-  exact noise R.source R.terminal R.source_terminal _ _ (side_le P ks) (side_le P kt) _ _
-    hNu steps _
+        rowNormPow 4 N u (X R.source (side P ks) a) (Y R.terminal (side P kt) b) F :=
+  noise R.source R.terminal R.source_terminal _ _ (side_le P ks) (side_le P kt) _ _ hNu steps _
 
 /-- Exact-route dependence for the incoming-gated client itself. -/
 theorem rawIncomingNormalized_rank_dependency [Fintype V] {k : ℕ} {Input : Type*}

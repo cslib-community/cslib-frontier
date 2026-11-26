@@ -106,8 +106,8 @@ theorem isExponentiallyStable_iff_tendsto_exp_smul :
       opNorm_le_bound _ (by positivity) fun y => by
         have h := hM _ (isTrajectoryOn_exp_smul_apply A y _) t ht
         simp only [zero_smul, exp_zero] at h
-        refine h.trans (mul_le_mul_of_nonneg_right ?_ (norm_nonneg y))
-        exact mul_le_mul_of_nonneg_right (le_abs_self M) (Real.exp_pos _).le
+        exact h.trans <| mul_le_mul_of_nonneg_right
+          (mul_le_mul_of_nonneg_right (le_abs_self M) (Real.exp_pos _).le) (norm_nonneg y)
     have hlim : Tendsto (fun t => |M| * Real.exp (-(α * t))) atTop (𝓝 0) := by
       simpa using (Real.tendsto_exp_atBot.comp
         (tendsto_neg_atTop_atBot.comp (tendsto_id.const_mul_atTop hα))).const_mul |M|
@@ -152,10 +152,8 @@ theorem isExponentiallyStable_iff_tendsto_exp_smul :
       rw [one_div, inv_pow, ← Real.exp_log (by norm_num : (0 : ℝ) < 2), ← Real.exp_nat_mul,
         ← Real.exp_neg, ← Real.exp_add, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
       refine Real.exp_le_exp.2 ?_
-      have hl := Real.log_pos one_lt_two
-      have : t / T < q + 1 := (div_lt_iff₀ hT0).2 htq
       have : Real.log 2 / T * t = Real.log 2 * (t / T) := by ring
-      nlinarith
+      nlinarith [Real.log_pos one_lt_two, (div_lt_iff₀ hT0).2 htq]
     calc ‖exp (s • A) ((exp (T • A) ^ q) (x 0))‖ ≤ K * ((1 / 2) ^ q * ‖x 0‖) :=
           (le_opNorm _ _).trans (mul_le_mul (hK s hs) (hpow q _) (norm_nonneg _) hK0)
       _ ≤ K * (2 * Real.exp (-(Real.log 2 / T * t)) * ‖x 0‖) := by gcongr
@@ -196,8 +194,7 @@ theorem exp_smul_mulVec_eq_of_pow_mulVec_eq_zero {M : Matrix n n ℂ} {μ : ℂ}
     open scoped Matrix.Norms.Operator in
     have h := algebraMap_exp_comm (𝕂 := ℂ) (𝔸 := Matrix n n ℂ) (t * μ)
     rw [Algebra.algebraMap_eq_smul_one, Algebra.algebraMap_eq_smul_one] at h
-    rw [Complex.exp_eq_exp_ℂ]
-    exact h.symm
+    exact Complex.exp_eq_exp_ℂ ▸ h.symm
   have hser : HasSum (fun j => ((j.factorial : ℂ)⁻¹ • (t • N) ^ j) *ᵥ v) (exp (t • N) *ᵥ v) := by
     open scoped Matrix.Norms.Operator in
     exact (exp_series_hasSum_exp' (𝕂 := ℂ) (t • N)).map (mulVec.addMonoidHomLeft v)
@@ -210,8 +207,8 @@ theorem exp_smul_mulVec_eq_of_pow_mulVec_eq_zero {M : Matrix n n ℂ} {μ : ℂ}
     simp only [hterm]
     refine hasSum_sum_of_ne_finset_zero fun j hj => ?_
     rw [Finset.mem_range, not_lt] at hj
-    rw [show N ^ j = N ^ (j - k) * N ^ k by rw [← pow_add, Nat.sub_add_cancel hj],
-      ← mulVec_mulVec, hv, mulVec_zero, smul_zero]
+    have hNj : N ^ j = N ^ (j - k) * N ^ k := by rw [← pow_add, Nat.sub_add_cancel hj]
+    rw [hNj, ← mulVec_mulVec, hv, mulVec_zero, smul_zero]
   rw [hsplit, Matrix.exp_add_of_commute _ _ hcomm, hscalar, mul_smul_comm, mul_one, smul_mulVec,
     hser.unique hfin]
 
@@ -256,15 +253,10 @@ theorem IsHurwitz.tendsto_exp_smul {A : Matrix n n ℝ} (hA : A.IsHurwitz) :
       refine tendsto_finsetSum _ fun j _ => ?_
       set w := (Ac - μ • 1) ^ j *ᵥ v
       have hp : Tendsto (fun t : ℝ => t ^ j * Real.exp (μ.re * t)) atTop (𝓝 0) := by
-        have h := (Real.tendsto_pow_mul_exp_neg_atTop_nhds_zero j).comp
-          (tendsto_id.const_mul_atTop hc)
-        have h' := h.const_mul ((-μ.re)⁻¹ ^ j)
-        rw [mul_zero] at h'
-        refine h'.congr fun t => ?_
-        simp only [Function.comp_apply, id, neg_mul, neg_neg]
-        have e : (-μ.re)⁻¹ * (-(μ.re * t)) = t := by
-          rw [neg_mul_eq_neg_mul, ← mul_assoc, inv_mul_cancel₀ hc.ne', one_mul]
-        rw [← mul_assoc, ← mul_pow, e]
+        simpa only [mul_zero] using (((Real.tendsto_pow_mul_exp_neg_atTop_nhds_zero j).comp
+          (tendsto_id.const_mul_atTop hc)).const_mul ((-μ.re)⁻¹ ^ j)).congr fun t => by
+          dsimp only [Function.comp_apply, id]
+          rw [← mul_assoc, ← mul_pow, inv_mul_cancel_left₀ hc.ne', neg_mul, neg_neg]
       refine squeeze_zero_norm' (eventually_atTop.2 ⟨0, fun t ht => le_of_eq ?_⟩)
         (by simpa using hp.mul_const (‖w‖ / j.factorial))
       rw [norm_smul, norm_smul, Complex.norm_exp, norm_div, norm_pow, Complex.norm_real,
@@ -275,12 +267,9 @@ theorem IsHurwitz.tendsto_exp_smul {A : Matrix n n ℝ} (hA : A.IsHurwitz) :
         rw [spectrum.mem_iff, not_not, Algebra.algebraMap_eq_smul_one] at hμ
         simpa only [neg_sub] using hμ.neg
       have hv0 : v = 0 := (mulVec_injective_iff_isUnit.2 (hu.pow k)) (by rw [hk', mulVec_zero])
-      rw [hv0]
-      exact S.zero_mem
-  have key : ∀ v : n → ℂ, Tendsto (fun t : ℝ => exp ((t : ℂ) • Ac) *ᵥ v) atTop (𝓝 0) := by
-    have htop : ⨆ μ, Module.End.maxGenEigenspace (toLin' Ac) μ ≤ S := iSup_le hgen
-    rw [Module.End.iSup_maxGenEigenspace_eq_top] at htop
-    exact fun v => htop Submodule.mem_top
+      exact hv0.symm ▸ S.zero_mem
+  have key (v : n → ℂ) : Tendsto (fun t : ℝ => exp ((t : ℂ) • Ac) *ᵥ v) atTop (𝓝 0) :=
+    (Module.End.iSup_maxGenEigenspace_eq_top (toLin' Ac) ▸ iSup_le hgen) Submodule.mem_top
   have hcol : ∀ y : n → ℝ, Tendsto (fun t : ℝ => exp (t • A) *ᵥ y) atTop (𝓝 0) := by
     intro y
     have e : ∀ t : ℝ, exp ((t : ℂ) • Ac) *ᵥ (fun i => (y i : ℂ)) =
@@ -296,8 +285,8 @@ theorem IsHurwitz.tendsto_exp_smul {A : Matrix n n ℝ} (hA : A.IsHurwitz) :
     simp only [Function.comp_def, Complex.ofReal_re] at hre
     exact hre
   refine tendsto_pi_nhds.2 fun i => tendsto_pi_nhds.2 fun j => ?_
-  have h := ((continuous_apply i).tendsto _).comp (hcol (Pi.single j 1))
-  simpa [Function.comp_def, mulVec_single_one] using h
+  simpa [Function.comp_def, mulVec_single_one] using
+    ((continuous_apply i).tendsto _).comp (hcol (Pi.single j 1))
 
 /-- A Hurwitz matrix gives an exponentially stable system `ẋ = A x` in the Euclidean norm. -/
 theorem IsHurwitz.isExponentiallyStable {A : Matrix n n ℝ} (hA : A.IsHurwitz) :
@@ -306,8 +295,8 @@ theorem IsHurwitz.isExponentiallyStable {A : Matrix n n ℝ} (hA : A.IsHurwitz) 
   have hc : Continuous (toEuclideanCLM (n := n) (𝕜 := ℝ)) :=
     (toEuclideanCLM (n := n) (𝕜 := ℝ)).toAlgEquiv.toLinearEquiv.toLinearMap
       |>.continuous_of_finiteDimensional
-  have h := (hc.tendsto 0).comp hA.tendsto_exp_smul
-  simpa [Function.comp_def, ← map_smul, ← toEuclideanCLM_exp] using h
+  simpa [Function.comp_def, ← map_smul, ← toEuclideanCLM_exp] using
+    (hc.tendsto 0).comp hA.tendsto_exp_smul
 
 /-- **A decay rate bounds the spectrum.** If every trajectory of `ẋ = A x` on `[0, ∞)` satisfies
 `‖x t‖ ≤ M exp (-α t) ‖x 0‖` in the Euclidean norm, then every eigenvalue `μ` of `A` over `ℂ`
@@ -317,12 +306,10 @@ theorem re_le_of_forall_norm_le {A : Matrix n n ℝ} {M α : ℝ}
       ∀ t ≥ 0, ‖x t‖ ≤ M * Real.exp (-(α * t)) * ‖x 0‖)
     {μ : ℂ} (hμ : μ ∈ spectrum ℂ (A.map (algebraMap ℝ ℂ))) : μ.re ≤ -α := by
   set Ac := A.map (algebraMap ℝ ℂ)
-  obtain ⟨v, hv0, hv⟩ : ∃ v ≠ 0, (Ac - μ • 1) *ᵥ v = 0 := by
-    rw [spectrum.mem_iff, Algebra.algebraMap_eq_smul_one, isUnit_iff_isUnit_det, isUnit_iff_ne_zero,
-      not_not, ← exists_mulVec_eq_zero_iff] at hμ
-    obtain ⟨v, hv0, hv⟩ := hμ
-    refine ⟨v, hv0, ?_⟩
-    rw [← neg_sub, neg_mulVec, hv, neg_zero]
+  rw [spectrum.mem_iff, Algebra.algebraMap_eq_smul_one, isUnit_iff_isUnit_det, isUnit_iff_ne_zero,
+    not_not, ← exists_mulVec_eq_zero_iff] at hμ
+  obtain ⟨v, hv0, hv⟩ := hμ
+  have hv' : (Ac - μ • 1) *ᵥ v = 0 := by rw [← neg_sub, neg_mulVec, hv, neg_zero]
   have hflow : ∀ t : ℝ, (exp (t • A)).map (algebraMap ℝ ℂ) *ᵥ v = Complex.exp (t * μ) • v := by
     intro t
     rw [map_algebraMap_exp_smul,
@@ -368,8 +355,7 @@ theorem re_le_of_forall_norm_le {A : Matrix n n ℝ} {M α : ℝ}
     rw [(hcoord t i).1, (hcoord t i).2, ← Complex.normSq_apply, Complex.normSq_mul,
       Complex.normSq_eq_norm_sq, Complex.norm_exp, Complex.re_ofReal_mul, sq, ← Real.exp_add]
     ring_nf
-  by_contra hlt
-  rw [not_le] at hlt
+  by_contra! hlt
   set c := μ.re + α
   have hc : 0 < c := by simp only [c]; linarith
   set t := (M ^ 2 + 1) / (2 * c)
@@ -388,11 +374,8 @@ theorem re_le_of_forall_norm_le {A : Matrix n n ℝ} {M α : ℝ}
       _ ≤ M ^ 2 * Real.exp (-(2 * α * t)) * Real.exp (2 * α * t) :=
           mul_le_mul_of_nonneg_right hk' (Real.exp_pos _).le
       _ = M ^ 2 := by rw [mul_assoc, ← Real.exp_add, neg_add_cancel, Real.exp_zero, mul_one]
-  have h1 := Real.add_one_le_exp (2 * t * c)
-  have h3 : 2 * t * c = M ^ 2 + 1 := by
-    simp only [t]
-    field_simp
-  linarith
+  have h3 : 2 * t * c = M ^ 2 + 1 := by simp only [t]; field_simp
+  linarith [Real.add_one_le_exp (2 * t * c)]
 
 /-- **Exponential stability gives a Hurwitz matrix.** -/
 theorem isHurwitz_of_isExponentiallyStable {A : Matrix n n ℝ}
@@ -426,11 +409,10 @@ theorem IsHurwitz.eq_zero_of_lyapunov_eq_zero {A X : Matrix n n ℝ} (hA : A.IsH
       exp_zero, one_mul]
   have hE := hA.tendsto_exp_smul
   have hET : Tendsto (fun t : ℝ => exp (t • Aᵀ)) atTop (𝓝 0) := by
-    have h := (continuous_id.matrix_transpose.tendsto 0).comp hE
-    simpa [Function.comp_def, ← transpose_smul, exp_transpose] using h
-  have hlim := (hET.mul_const X).mul hE
-  rw [zero_mul, zero_mul] at hlim
-  exact tendsto_nhds_unique (tendsto_const_nhds.congr fun t => (hF t).symm) hlim
+    simpa [Function.comp_def, ← transpose_smul, exp_transpose] using
+      (continuous_id.matrix_transpose.tendsto 0).comp hE
+  exact tendsto_nhds_unique (tendsto_const_nhds.congr fun t => (hF t).symm)
+    (by simpa only [zero_mul] using (hET.mul_const X).mul hE)
 
 /-- **Existence and uniqueness for the Lyapunov equation.** If `A` is Hurwitz, then for every
 real matrix `Q` the Lyapunov equation `Aᵀ P + P A = -Q` has exactly one solution `P` among all
@@ -453,15 +435,12 @@ theorem IsHurwitz.existsUnique_lyapunov_eq {A : Matrix n n ℝ} (hA : A.IsHurwit
 solves the same equation. -/
 theorem IsHurwitz.isHermitian_of_lyapunov_eq {A P Q : Matrix n n ℝ} (hA : A.IsHurwitz)
     (hQ : Q.IsHermitian) (hP : Aᵀ * P + P * A = -Q) : P.IsHermitian := by
-  have hQ' : Qᵀ = Q := by rw [← conjTranspose_eq_transpose_of_trivial]; exact hQ
+  have hQ' : Qᵀ = Q := (conjTranspose_eq_transpose_of_trivial (A := Q)).symm.trans hQ
   have hPt : Aᵀ * Pᵀ + Pᵀ * A = -Q := by
-    have h := congrArg transpose hP
-    rw [transpose_add, transpose_mul, transpose_mul, transpose_transpose, transpose_neg, hQ',
-      add_comm] at h
-    exact h
-  have h := (hA.existsUnique_lyapunov_eq Q).unique hPt hP
+    simpa only [transpose_add, transpose_mul, transpose_transpose, transpose_neg, hQ', add_comm]
+      using congrArg transpose hP
   rw [IsHermitian, conjTranspose_eq_transpose_of_trivial]
-  exact h
+  exact (hA.existsUnique_lyapunov_eq Q).unique hPt hP
 
 /-- **The Lyapunov solution is positive definite.** If `A` is Hurwitz, `Q ≻ 0` and
 `Aᵀ P + P A = -Q`, then `P ≻ 0`. Along `x t = exp (t A) y` the energy `xᵀ P x` is nonincreasing
@@ -475,11 +454,8 @@ theorem IsHurwitz.posDef_of_lyapunov_eq {A P Q : Matrix n n ℝ} (hA : A.IsHurwi
   have hnonneg : ∀ y : n → ℝ, 0 ≤ y ⬝ᵥ P *ᵥ y := fun y => by
     have hle : ∀ t : ℝ, t ≥ 0 → (exp (t • A) *ᵥ y) ⬝ᵥ P *ᵥ (exp (t • A) *ᵥ y) ≤ y ⬝ᵥ P *ᵥ y :=
       fun t ht => by
-        have h := dotProduct_mulVec_le_exp_mul (P := P) (hasDerivWithinAt_exp_smul_mulVec A y)
-          (K := 0) (fun z => by
-            rw [hP, zero_mul, neg_mulVec, dotProduct_neg, neg_nonpos]
-            exact hQy z) ht
-        simpa using h
+        simpa using dotProduct_mulVec_le_exp_mul (P := P) (hasDerivWithinAt_exp_smul_mulVec A y)
+          (K := 0) (fun z => by simpa [hP, neg_mulVec] using hQy z) ht
     have hlim : Tendsto (fun t : ℝ => (exp (t • A) *ᵥ y) ⬝ᵥ P *ᵥ (exp (t • A) *ᵥ y)) atTop
         (𝓝 0) := by
       have hc : Continuous fun z : n → ℝ => z ⬝ᵥ P *ᵥ z :=
@@ -498,9 +474,7 @@ theorem IsHurwitz.posDef_of_lyapunov_eq {A P Q : Matrix n n ℝ} (hA : A.IsHurwi
     rw [add_mulVec, dotProduct_add, ← mulVec_mulVec, ← mulVec_mulVec, hPy, mulVec_zero,
       dotProduct_zero, zero_add, dotProduct_mulVec, ← mulVec_transpose, hPt, hPy, zero_dotProduct]
   rw [hP, neg_mulVec, dotProduct_neg, neg_eq_zero] at h0
-  have := hQ.dotProduct_mulVec_pos hy
-  simp only [star_trivial] at this
-  linarith
+  exact (lt_irrefl (0 : ℝ)) (by simpa only [star_trivial, h0] using hQ.dotProduct_mulVec_pos hy)
 
 /-- **The unique symmetric solution.** If `A` is Hurwitz and `Q` is symmetric, the Lyapunov
 equation `Aᵀ P + P A = -Q` has exactly one symmetric solution. It is in fact the only solution
@@ -528,10 +502,9 @@ theorem isHurwitz_iff_forall_posDef_exists_posDef {A : Matrix n n ℝ} :
   · obtain ⟨P, hP, -⟩ := hA.existsUnique_lyapunov_eq Q
     exact ⟨P, hA.posDef_of_lyapunov_eq hQ hP, hP⟩
   · obtain ⟨P, hP, hPQ⟩ := h 1 PosDef.one
-    refine isHurwitz_of_isExponentiallyStable
-      (isExponentiallyStable_toEuclideanCLM_of_posDef hP ?_)
-    rw [hPQ, neg_neg]
-    exact PosDef.one
+    exact isHurwitz_of_isExponentiallyStable <|
+      isExponentiallyStable_toEuclideanCLM_of_posDef hP
+        (by simpa only [hPQ, neg_neg] using PosDef.one)
 
 /-- **Lyapunov's theorem, with uniqueness.** A real square matrix `A` is Hurwitz iff for every
 positive definite `Q` there is exactly one positive definite `P` with `Aᵀ P + P A = -Q`. -/

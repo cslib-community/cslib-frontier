@@ -143,24 +143,18 @@ theorem sum_norm_sq_sub_fiber_le_twistedShearTranslation (π₁ π₂ : Equiv.Pe
     (f : X × (ZMod n × ZMod n) → ℂ) :
     ∑ p, ‖f p - (∑ w, f (p.1, w)) / (n : ℂ) ^ 2‖ ^ 2 ≤
       512 * ∑ k, ∑ p, ‖f (twistedShearTranslationMove π₁ π₂ n k p) - f p‖ ^ 2 := by
-  have hn : (0 : ℝ) < (n : ℝ) ^ 2 := by
-    have : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne n)
-    positivity
+  have hn : (0 : ℝ) < (n : ℝ) ^ 2 := pow_pos (Nat.cast_pos.2 (NeZero.pos n)) 2
   have hnC : (n : ℂ) ^ 2 ≠ 0 := pow_ne_zero _ (Nat.cast_ne_zero.2 (NeZero.ne n))
   -- The transforms of the fibers, and of the fibers minus their averages.
   set F : X → ZMod n × ZMod n → ℂ := fun x ↦ ZMod.dftProd fun w ↦ f (x, w) with hF
   set g : X → ℂ := fun x ↦ (∑ w, f (x, w)) / (n : ℂ) ^ 2 with hg
-  have hcard : (Fintype.card (ZMod n × ZMod n) : ℂ) = (n : ℂ) ^ 2 := by
-    simp [Fintype.card_prod, ZMod.card, sq]
   have hdft (x : X) (ξ : ZMod n × ZMod n) :
       ‖ZMod.dftProd (fun w ↦ f (x, w) - g x) ξ‖ ^ 2 = if ξ = 0 then 0 else ‖F x ξ‖ ^ 2 := by
     split_ifs with hξ
     · subst hξ
-      rw [ZMod.dftProd_zero, sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul, hcard]
-      simp only [hg]
-      rw [mul_div_cancel₀ _ hnC, sub_self, norm_zero, sq, mul_zero]
-    · have : (fun w ↦ f (x, w) - g x) = (fun w ↦ f (x, w)) - fun _ ↦ g x := rfl
-      rw [this, ZMod.dftProd_sub, Pi.sub_apply, ZMod.dftProd_const_of_ne_zero _ hξ, sub_zero]
+      simp [ZMod.dftProd_zero, Fintype.card_prod, ← sq, hg, mul_div_cancel₀ _ hnC]
+    · change ‖ZMod.dftProd ((fun w ↦ f (x, w)) - fun _ ↦ g x) ξ‖ ^ 2 = ‖F x ξ‖ ^ 2
+      rw [ZMod.dftProd_sub, Pi.sub_apply, ZMod.dftProd_const_of_ne_zero _ hξ, sub_zero]
   -- The function on the frequencies: the `ℓ²` norm over `X` of the nonzero frequencies.
   set ψ : ZMod n × ZMod n → ℝ := fun ξ ↦ if ξ = 0 then 0 else √(∑ x, ‖F x ξ‖ ^ 2) with hψ
   have hψsq (ξ : ZMod n × ZMod n) :

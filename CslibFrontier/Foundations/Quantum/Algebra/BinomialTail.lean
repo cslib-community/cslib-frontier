@@ -47,8 +47,7 @@ theorem binomialTail_eq_sum_powerset {A ι : Type*} [Ring A]
     binomialTail s.card d X =
       ∑ t ∈ s.powerset with d < t.card, X ^ t.card * (1 - X) ^ (s.card - t.card) := by
   classical
-  rw [binomialTail, sum_filter, sum_filter]
-  rw [sum_powerset_apply_card (fun i =>
+  rw [binomialTail, sum_filter, sum_filter, sum_powerset_apply_card (fun i =>
     if d < i then X ^ i * (1 - X) ^ (s.card - i) else 0)]
   refine sum_congr rfl fun i _ => ?_
   split_ifs <;> simp [nsmul_eq_mul, mul_assoc]
@@ -86,27 +85,20 @@ theorem binomialAtLeast_succ {A : Type*} [Ring A] (k r : ℕ) (X : A) :
       binomialAtLeast k r X * (1 - X) + binomialAtLeast k (r - 1) X * X := by
   have hz : k ∉ range k := notMem_range_self
   have hc := binomialAtLeast_eq_sum_powerset (insert k (range k)) r X
-  rw [card_insert_of_notMem hz, card_range, sum_powerset_insert hz] at hc
-  rw [hc]
   have h (l : ℕ) := binomialAtLeast_eq_sum_powerset (range k) l X
-  simp only [card_range] at h
-  rw [h r, h (r - 1), sum_mul, sum_mul]
+  simp only [card_insert_of_notMem hz, card_range, sum_powerset_insert hz] at hc h
+  rw [hc, h r, h (r - 1), sum_mul, sum_mul]
   congr 1
   · refine sum_congr rfl fun t ht => ?_
     have htk : t.card ≤ k := (card_le_card (mem_powerset.mp ht)).trans_eq (card_range k)
-    have he : k + 1 - t.card = k - t.card + 1 := by omega
-    simp only [he, pow_succ]
+    rw [Nat.succ_sub htk, pow_succ]
     split_ifs <;> simp [mul_assoc]
   · refine sum_congr rfl fun t ht => ?_
-    have hn : k ∉ t := fun h => hz (mem_powerset.mp ht h)
-    rw [card_insert_of_notMem hn]
-    have hs : r ≤ t.card + 1 ↔ r - 1 ≤ t.card := by omega
-    simp only [Nat.add_sub_add_right, hs]
+    simp only [card_insert_of_notMem fun hx => hz (mem_powerset.mp ht hx), Nat.add_sub_add_right,
+      ← Nat.sub_le_iff_le_add]
     have hcomm : Commute ((1 - X) ^ (k - t.card)) X :=
       (((Commute.one_right X).sub_right (Commute.refl X)).symm).pow_left _
-    split_ifs
-    · simp only [pow_succ, mul_assoc, ← hcomm.eq]
-    · rw [zero_mul]
+    split_ifs <;> simp [pow_succ, mul_assoc, ← hcomm.eq]
 
 /-- An operator commuting with the trial effect commutes with its binomial effects. -/
 theorem commute_binomialAtLeast {A : Type*} [Ring A] (k r : ℕ) {X Y : A}

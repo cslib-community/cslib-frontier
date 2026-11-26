@@ -170,9 +170,8 @@ theorem mem_completeAllocationList_iff {A : BundleAllocation n m} :
     A ∈ completeAllocationList n m ↔ A.IsComplete := by
   rw [completeAllocationList, List.mem_map]
   refine ⟨fun ⟨f, _, h⟩ => h ▸ isComplete_ofAssignment f, fun hA => ?_⟩
-  have hne (g : Fin m) : (Finset.univ.filter fun i => g ∈ A.bundle i).Nonempty := by
-    obtain ⟨i, hi⟩ := hA g
-    exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi⟩⟩
+  have hne (g : Fin m) : (Finset.univ.filter fun i => g ∈ A.bundle i).Nonempty :=
+    (hA g).imp fun i hi => Finset.mem_filter.2 ⟨Finset.mem_univ i, hi⟩
   refine ⟨fun g => (Finset.univ.filter fun i => g ∈ A.bundle i).min' (hne g),
     mem_allAssignments _, BundleAllocation.ext (funext fun i => Finset.ext fun g => ?_)⟩
   have hmem :=
@@ -215,14 +214,10 @@ theorem giveGood_bundle_of_ne (A : BundleAllocation n m) {i j : Fin n} (g : Fin 
     (hg : g ∉ A.allocatedGoods) :
     (A.giveGood i g hg).allocatedGoods = insert g A.allocatedGoods := by
   ext x
-  simp only [mem_allocatedGoods, Finset.mem_insert, giveGood]
-  refine ⟨fun ⟨j, hj⟩ => ?_, ?_⟩
-  · split_ifs at hj with hji
-    · exact (Finset.mem_insert.1 hj).imp_right (⟨i, ·⟩)
-    · exact Or.inr ⟨j, hj⟩
-  · rintro (rfl | ⟨j, hj⟩)
-    · exact ⟨i, by simp⟩
-    · exact ⟨j, by split_ifs with hji <;> simp_all⟩
+  rcases eq_or_ne x g with rfl | hxg
+  · simpa [giveGood] using ⟨i, by simp⟩
+  · simp only [mem_allocatedGoods, Finset.mem_insert, hxg, false_or, giveGood]
+    exact exists_congr fun j => by split_ifs with hji <;> simp [hji, hxg]
 
 /-- Permutes bundles across agents via `σ : Equiv.Perm (Fin n)` (`i` receives `A.bundle (σ i)`). -/
 @[expose] def relabel (A : BundleAllocation n m) (σ : Equiv.Perm (Fin n)) :
@@ -309,11 +304,8 @@ theorem isComplete_transferGood {A : BundleAllocation n m} (j i : Fin n) (g : Fi
   · exact ⟨i, by simp⟩
   · obtain ⟨k, hkx⟩ := hA x
     refine ⟨k, ?_⟩
-    dsimp only [transferGood]
-    split_ifs with hki hkj
-    · exact Finset.mem_insert_of_mem (hki ▸ hkx)
-    · exact Finset.mem_sdiff.2 ⟨hkj ▸ hkx, Finset.notMem_singleton.2 hxg⟩
-    · exact hkx
+    simp only [transferGood]
+    split_ifs with hki hkj <;> simp_all
 
 end BundleAllocation
 
@@ -391,8 +383,7 @@ theorem IsEnvyFree.isEFX {A : BundleAllocation n m} (hEF : V.IsEnvyFree A) : V.I
 /-- Every `EFX` allocation is `EF1`. -/
 theorem IsEFX.isEF1 {A : BundleAllocation n m} (hEFX : V.IsEFX A) : V.IsEF1 A := fun i j => by
   rcases (A.bundle j).eq_empty_or_nonempty with hEmpty | ⟨g, hg⟩
-  · exact Or.inl (hEmpty ▸ V.mono i (Finset.empty_subset _))
-  · exact Or.inr ⟨g, hg, hEFX i j g hg⟩
+  exacts [Or.inl (hEmpty ▸ V.mono i (Finset.empty_subset _)), Or.inr ⟨g, hg, hEFX i j g hg⟩]
 
 theorem isEnvyFree_empty : V.IsEnvyFree BundleAllocation.empty :=
   fun _ _ => le_rfl
@@ -495,11 +486,9 @@ smallest item index. -/
 private theorem bestGood_spec (i : Fin n) (rem : Finset (Fin m)) (hrem : rem.Nonempty) :
     W.bestGood i rem hrem ∈ rem ∧
       W.weight i (W.bestGood i rem hrem) = (rem.image (W.weight i)).max' (hrem.image _) := by
-  let maxW := (rem.image (W.weight i)).max' (hrem.image _)
-  have hne : (rem.filter fun g => W.weight i g = maxW).Nonempty := by
-    obtain ⟨g, hg, hgw⟩ := Finset.mem_image.1 ((rem.image (W.weight i)).max'_mem (hrem.image _))
-    exact ⟨g, Finset.mem_filter.2 ⟨hg, hgw⟩⟩
-  exact Finset.mem_filter.1 ((rem.filter fun g => W.weight i g = maxW).min'_mem hne)
+  exact Finset.mem_filter.1 ((rem.filter _).min'_mem <|
+    (Finset.mem_image.1 ((rem.image (W.weight i)).max'_mem (hrem.image _))).imp
+      fun _ ⟨hg, hgw⟩ => Finset.mem_filter.2 ⟨hg, hgw⟩)
 
 theorem bestGood_mem (i : Fin n) (rem : Finset (Fin m)) (hrem : rem.Nonempty) :
     W.bestGood i rem hrem ∈ rem :=
@@ -526,9 +515,9 @@ private theorem card_rrRemaining (hn : 0 < n) :
   | t + 1, ht => by
     have ih := card_rrRemaining hn t (by omega)
     have hne : (W.rrRemaining hn t).Nonempty := Finset.card_pos.1 (by omega)
-    rw [rrRemaining, dite_eq_left hne]
-    have hmem := W.bestGood_mem ⟨t % n, Nat.mod_lt t hn⟩ (W.rrRemaining hn t) hne
-    rw [Finset.card_sdiff_of_subset (Finset.singleton_subset_iff.2 hmem), Finset.card_singleton, ih]
+    rw [rrRemaining, dite_eq_left hne,
+      Finset.card_sdiff_of_subset (Finset.singleton_subset_iff.2 (W.bestGood_mem _ _ hne)),
+      Finset.card_singleton, ih]
     omega
 
 private theorem rrRemaining_antitone (hn : 0 < n) :
@@ -668,10 +657,9 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
   · left
     rw [W.bundleVal_roundRobin hn i j, W.bundleVal_roundRobin hn i i]
     refine hmap (rrTurns n m j) (fun t => t.val / n)
-      (fun t ht => (Finset.mem_filter.1 ht).2) (fun _ _ _ _ h => h) fun t ht => ?_
-    have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht).2
-    have hdiv := Nat.div_add_mod t.val n
-    omega
+      (fun t ht => (Finset.mem_filter.1 ht).2) (fun _ _ _ _ h => h) fun t ht =>
+        le_of_le_of_eq (Nat.add_le_add_left (hij.trans_eq (Finset.mem_filter.1 ht).2.symm) _)
+          (Nat.div_add_mod t.val n)
   · by_cases hjm : j.val < m
     · right
       let t₀ : Fin m := ⟨j.val, hjm⟩

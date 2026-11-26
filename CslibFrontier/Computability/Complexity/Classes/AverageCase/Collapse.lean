@@ -169,9 +169,7 @@ theorem binaryValue_collapse_add_one {r : List Bool} (hv : H.valid r = true) :
 theorem binaryValue_le_binaryValue_collapse (r : List Bool) :
     BitString.binaryValue r ≤ BitString.binaryValue (H.collapse r) := by
   by_cases hv : H.valid r = true
-  · have := H.binaryValue_collapse_add_one hv
-    have := (H.mem_block hv).2
-    omega
+  · exact Nat.lt_add_one_iff.mp ((H.binaryValue_collapse_add_one hv).symm ▸ (H.mem_block hv).2)
   · simp [collapse, hv]
 
 /-- Two words of the same length collapse to the same word as a valid `r` exactly when they lie in
@@ -208,9 +206,8 @@ theorem cdfNum_le_two_pow (y : List Bool) : H.cdfNum y ≤ 2 ^ y.length := by
   have hb := BitString.binaryValue_lt_two_pow y
   unfold cdfNum
   split_ifs with hy
-  · omega
-  · have := (H.mem_block (H.valid_of_collapse_ne hy)).1
-    omega
+  · exact hb
+  · exact (H.mem_block (H.valid_of_collapse_ne hy)).1.trans hb.le
 
 /-- **Monotonicity of collapsing.** A word `r` of the length of `y` collapses to a word of value at
 most that of `y` exactly when the value of `r` is below `cdfNum y`. -/
@@ -276,35 +273,25 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
       encBits encBits := by
     polytime
   have hfindHdr {r : List Bool} (hv : H.valid r = true) : findHdr r = H.header r := by
-    let L := List.range (r.length + 1)
-    let p : ℕ → Bool := fun k => H.valid (r.take k)
-    have hlen : (H.header r).length ∈ L :=
-      List.mem_range.mpr (Nat.lt_succ_of_le (H.length_header_le hv))
     have htake_hdr : r.take (H.header r).length = H.header r :=
       (List.prefix_iff_eq_take.mp (H.header_isPrefix r hv)).symm
     have hh := H.valid_of_isPrefix r (H.header r) hv (List.prefix_refl _)
-    have hp_hdr : p (H.header r).length = true := by simp [p, htake_hdr, hh.1]
-    cases hopt : L.find? p with
-    | none =>
-      exact absurd hp_hdr (List.find?_eq_none.mp hopt _ hlen)
-    | some k =>
-      obtain ⟨hp_k, as, bs, hL, hmin⟩ := List.find?_eq_some_iff_append.mp hopt
-      have hk_le_hdr : k ≤ (H.header r).length := by
-        rcases List.mem_append.mp (hL ▸ hlen) with h_as | h_kbs
-        · exact absurd (hmin _ h_as) (by simp [hp_hdr])
-        · rcases List.mem_cons.mp h_kbs with h_eq | h_bs
-          · exact h_eq.ge
-          · have hp_pw : (as ++ k :: bs).Pairwise (· < ·) := hL ▸ List.pairwise_lt_range
-            exact (List.rel_of_pairwise_cons (List.pairwise_append.mp hp_pw).2.1 h_bs).le
-      have hdr_le_k : (H.header r).length ≤ k := by
-        have hvp : H.valid (r.take k) = true := hp_k
-        have hp_pref : H.header (r.take k) <+: r :=
-          (H.header_isPrefix _ hvp).trans (List.take_prefix k r)
-        have hhd := (H.valid_of_isPrefix _ r hvp hp_pref).2
+    have hfind : (List.range (r.length + 1)).find? (fun k => H.valid (r.take k)) =
+        some (H.header r).length := by
+      rw [List.range_eq_range', List.find?_range'_eq_some]
+      refine ⟨by simpa only [htake_hdr] using hh.1, by simp [H.length_header_le hv],
+        fun k _ hk => ?_⟩
+      rw [Bool.not_eq_true', Bool.eq_false_iff]
+      intro hvp
+      have hp_pref : H.header (r.take k) <+: r :=
+        (H.header_isPrefix _ hvp).trans (List.take_prefix k r)
+      have hhd := (H.valid_of_isPrefix _ r hvp hp_pref).2
+      have hdr_le_k : (H.header r).length ≤ k :=
         calc (H.header r).length = (H.header (r.take k)).length := by rw [hhd]
           _ ≤ (r.take k).length := (H.header_isPrefix _ hvp).length_le
           _ ≤ k := List.length_take_le k r
-      simp [findHdr, idx, L, p, hopt, le_antisymm hk_le_hdr hdr_le_k, htake_hdr]
+      omega
+    simp [findHdr, idx, hfind, htake_hdr]
   have heq : H.collapse = fun r =>
       if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true else r :=
     funext fun r => by cases hv : H.valid r <;> simp [collapse, hv, hfindHdr]
@@ -351,10 +338,8 @@ theorem ensemble_dist_collapse {r : List Bool} (hv : H.valid r = true) :
       Set.disjoint_left.mpr fun _ h1 h2 => not_le_of_gt h1 h2.1
     have hunion : {r' : List Bool | BitString.binaryValue r' < H.hi r} =
         {r' | BitString.binaryValue r' < H.lo r} ∪
-          {r' | H.lo r ≤ BitString.binaryValue r' ∧ BitString.binaryValue r' < H.hi r} := by
-      ext r'
-      simp only [Set.mem_ofPred_eq, Set.mem_union]
-      omega
+          {r' | H.lo r ≤ BitString.binaryValue r' ∧ BitString.binaryValue r' < H.hi r} :=
+      Set.ext fun _ => by simp only [Set.mem_ofPred_eq, Set.mem_union]; omega
     rw [hunion, Probability.PMF.toOuterMeasure_union_of_disjoint _ hdisj, ensemble_dist,
       ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
     congr 1

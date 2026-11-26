@@ -77,12 +77,9 @@ theorem elsewhere_row (hb : ∀ i, |cfg.workTapePos i| < B)
   · intro hne
     obtain ⟨s, b, hb'⟩ := exists_offset_eq (hb i)
     refine ⟨b, ?_⟩
-    by_cases hs : s = sign
-    · subst hs
-      exact .inl ⟨hb'.symm, fun h => hne (by rw [← h, hb'])⟩
-    · have hns : s = !sign := by cases s <;> cases sign <;> simp_all
-      subst hns
-      refine .inr ⟨hb'.symm, fun h0 => hne ?_⟩
+    rcases Bool.eq_or_eq_not s sign with rfl | rfl
+    · exact .inl ⟨hb'.symm, fun h => hne (h ▸ hb'.symm)⟩
+    · refine .inr ⟨hb'.symm, fun h0 => hne ?_⟩
       cases sign <;> simp only [offset, Bool.not_false, Bool.not_true, Bool.false_eq_true,
         ↓reduceIte] at hb' ⊢ <;> omega
 
@@ -112,8 +109,7 @@ theorem inputPrev_row (hn : input.length + 1 < B) (d : SignType) (a : Fin B) :
 private theorem headPrev_out {B : ℕ} {z : ℤ} (hz : |z| + 1 < B) (a : Fin B) :
     ((a.val = 0 ∧ ∃ b : Fin B, b.val = 1 ∧ z = -(b.val : ℤ)) ∨
       ∃ b : Fin B, b.val + 1 = a.val ∧ z = (b.val : ℤ)) ↔ z + 1 = (a.val : ℤ) := by
-  have hz' : |z| < (B : ℤ) - 1 := by omega
-  rw [abs_lt] at hz'
+  have := abs_lt.mp (by omega : |z| < (B : ℤ) - 1)
   constructor
   · rintro (⟨ha, b, hb, hp⟩ | ⟨b, hb, hp⟩) <;> omega
   · intro hmove
@@ -123,8 +119,7 @@ private theorem headPrev_out {B : ℕ} {z : ℤ} (hz : |z| + 1 < B) (a : Fin B) 
 
 private theorem headPrev_in {B : ℕ} {z : ℤ} (hz : |z| + 1 < B) (a : Fin B) :
     (∃ b : Fin B, a.val + 1 = b.val ∧ z = (b.val : ℤ)) ↔ z + -1 = (a.val : ℤ) := by
-  have hz' : |z| < (B : ℤ) - 1 := by omega
-  rw [abs_lt] at hz'
+  have := abs_lt.mp (by omega : |z| < (B : ℤ) - 1)
   constructor
   · rintro ⟨b, hb, hp⟩; omega
   · intro hmove; exact ⟨⟨a.val + 1, by omega⟩, rfl, by dsimp; omega⟩
@@ -142,10 +137,10 @@ theorem headPrev_row (hb : ∀ i, |cfg.workTapePos i| + 1 < B)
       SignType.zero_eq_zero, SignType.neg_eq_neg_one, SignType.pos_eq_one,
       SignType.coe_zero, SignType.coe_neg_one, SignType.coe_one, neg_zero, neg_neg,
       add_zero]
-  · simpa only [neg_eq_iff_eq_neg, neg_neg, show -cfg.workTapePos i + 1 = a.val ↔
-      cfg.workTapePos i + -1 = -a.val by omega] using headPrev_out hneg a
-  · simpa only [neg_eq_iff_eq_neg, show -cfg.workTapePos i + -1 = a.val ↔
-      cfg.workTapePos i + 1 = -a.val by omega] using headPrev_in hneg a
+  · refine Iff.trans ?_ (by omega : -cfg.workTapePos i + 1 = a.val ↔ _)
+    simpa only [neg_eq_iff_eq_neg, neg_neg] using headPrev_out hneg a
+  · refine Iff.trans ?_ (by omega : -cfg.workTapePos i + -1 = a.val ↔ _)
+    simpa only [neg_eq_iff_eq_neg] using headPrev_in hneg a
   · exact headPrev_in hbi a
   · exact headPrev_out hbi a
 

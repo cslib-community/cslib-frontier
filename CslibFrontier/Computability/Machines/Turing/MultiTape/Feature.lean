@@ -476,11 +476,8 @@ theorem holds_step_iff_exists_stepTerms (hn : input.length = n)
   rcases mem_basic.1 hφ with ⟨q, rfl⟩ | ⟨j, -, rfl⟩ | ⟨i, z, -, rfl⟩ | ⟨i, z, s, -, rfl⟩ | ⟨o, rfl⟩
   · rw [holds_step_state_iff]
     cases q <;> simp [stepTerms, or_and_right, exists_or]
-  · rw [holds_step_inPos_iff, stepTerms]
-    simp only [List.mem_cons, exists_eq_or_imp, List.mem_map, exists_exists_and_eq_and]
-    refine or_congr (by simp) ⟨fun ⟨⟨y, j'⟩, hy, h⟩ => ⟨(y, j'), ?_, ?_⟩,
-      fun ⟨⟨y, j'⟩, hy, h⟩ => ⟨(y, j'), ?_, ?_⟩⟩ <;>
-      simp_all [List.mem_filter, Finset.mem_filter]
+  · rw [holds_step_inPos_iff]
+    simp [stepTerms, Prod.exists, or_and_right, exists_or, and_assoc]
   · simp [holds_step_head_iff tm (hb i), stepTerms, or_and_right, exists_or]
   · rw [holds_step_cell_iff]
     simp [stepTerms, and_or_left, or_assoc, and_assoc]
@@ -513,11 +510,8 @@ theorem mem_basic_of_mem_stepTerms {φ : Feature k State} (hφ : φ ∈ basic n 
     simp only [stepTerms, List.mem_append, List.mem_cons, List.mem_map, List.mem_filter,
       decide_eq_true_eq] at hc
   · rcases hc with hc | ⟨y, -, rfl⟩
-    · split_ifs at hc
-      · obtain rfl := List.mem_singleton.1 hc
-        obtain rfl := List.mem_singleton.1 hl
-        exact Or.inl (state_mem_basic _)
-      · simp at hc
+    · cases q <;> simp only [↓reduceIte, reduceCtorEq, List.mem_singleton, List.not_mem_nil] at hc
+      exact List.mem_singleton.1 (hc ▸ hl) ▸ Or.inl (state_mem_basic _)
     · exact hsit y (List.mem_singleton.1 hl).symm
   · rcases hc with rfl | ⟨⟨y, j'⟩, ⟨-, hj', -⟩, rfl⟩ <;>
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl <;> rcases hl with rfl | rfl

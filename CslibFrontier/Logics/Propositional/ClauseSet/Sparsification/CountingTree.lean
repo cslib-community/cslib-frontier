@@ -222,11 +222,10 @@ theorem sparse_iff_forall_mem_powerset {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j 
     (ψ : ClauseSet V) :
     Sparse θ ψ ↔ ∀ C ∈ ψ, ∀ H ∈ C.powerset, ¬ Heavy θ ψ C.card H := by
   refine ⟨fun hs C _ H _ => hs C.card H, fun h c H hheavy => ?_⟩
-  have hpos : 0 < (flower ψ c H).card :=
-    lt_of_lt_of_le (hθ (c - H.card) (by have := hheavy.2.1; omega)) hheavy.2.2
-  obtain ⟨C, hC⟩ := card_pos.mp hpos
-  obtain ⟨hCψ, hCcard, hHC⟩ := mem_flower.mp hC
-  exact h C hCψ H (mem_powerset.mpr hHC) (hCcard ▸ hheavy)
+  obtain ⟨C, hC⟩ := card_pos.mp
+    (lt_of_lt_of_le (hθ (c - H.card) (Nat.sub_pos_of_lt hheavy.2.1)) hheavy.2.2)
+  obtain ⟨hCψ, rfl, hHC⟩ := mem_flower.mp hC
+  exact h C hCψ H (mem_powerset.mpr hHC) hheavy
 
 /-- If `(c, H)` is a valid `Choice` and no other heavy heart at width `c` has size at least `|H|`,
 `chooseBranch` must select `(c, H)`. -/
@@ -302,7 +301,7 @@ theorem countingLeaves_of_mem_powerset_unique {θ : ℕ → ℕ} (hθ : ∀ j, 1
         countingLeaves θ (countingChild ψ c H true) := by
   have hex_clause : ∀ {c' : ℕ} {H' : Finset (Literal V)}, Heavy θ ψ c' H' →
       ∃ C ∈ ψ, C.card = c' ∧ H' ∈ C.powerset := fun hh => by
-    obtain ⟨C, hC⟩ := card_pos.mp (lt_of_lt_of_le (hθ _ (by have := hh.2.1; omega)) hh.2.2)
+    obtain ⟨C, hC⟩ := card_pos.mp (lt_of_lt_of_le (hθ _ (Nat.sub_pos_of_lt hh.2.1)) hh.2.2)
     obtain ⟨hCψ, hCcard, hHC⟩ := mem_flower.mp hC
     exact ⟨C, hCψ, hCcard, mem_powerset.mpr hHC⟩
   have huniq' : ∀ H', Heavy θ ψ c H' → H.card ≤ H'.card → H' = H := fun H' hh hle =>
@@ -312,8 +311,7 @@ theorem countingLeaves_of_mem_powerset_unique {θ : ℕ → ℕ} (hθ : ∀ j, 1
     fun H' hh => by_contra fun hlt => ?_⟩ hz huniq'
   · obtain ⟨C, hCψ, hCcard, hH'pow⟩ := hex_clause hh
     exact hmin C hCψ (by omega) H' hH'pow (hCcard ▸ hh)
-  · obtain rfl := huniq' H' hh (by omega)
-    exact hlt le_rfl
+  · exact hlt (huniq' H' hh (Nat.le_of_not_ge hlt) ▸ le_rfl)
 
 /-- `countingLeaves` never returns the empty list. -/
 theorem countingLeaves_ne_nil (θ : ℕ → ℕ) (ψ : ClauseSet V) :
@@ -362,7 +360,7 @@ theorem support_of_mem_countingLeaves {θ : ℕ → ℕ} {ψ L : ClauseSet V} {d
     ∀ C ∈ L, ∀ l ∈ C, l.1 ∈ declared := by
   refine of_mem_countingLeaves (P := fun L => ∀ C ∈ L, ∀ l ∈ C, l.1 ∈ declared)
     (fun ψ c H _ hz hψ b => ?_) hψ hL
-  obtain ⟨D, hD⟩ := card_pos.mp (lt_of_lt_of_le (by omega : 0 < 2) hz)
+  obtain ⟨D, hD⟩ := card_pos.mp (Nat.zero_lt_two.trans_le hz)
   obtain ⟨hDψ, -, hHD⟩ := mem_flower.mp hD
   exact support_countingChild ψ c H declared hψ (fun l hl => hψ D hDψ l (hHD hl)) b
 
@@ -370,11 +368,12 @@ theorem support_of_mem_countingLeaves {θ : ℕ → ℕ} {ψ L : ClauseSet V} {d
 of every leaf `L ∈ countingLeaves θ ψ` has width at most `k`. -/
 theorem card_le_of_mem_countingLeaves {θ : ℕ → ℕ} {ψ L : ClauseSet V} {k : ℕ}
     (hk : ∀ C ∈ ψ, C.card ≤ k) (hL : L ∈ countingLeaves θ ψ) :
-    ∀ C ∈ L, C.card ≤ k := by
-  refine of_mem_countingLeaves (P := fun L => ∀ C ∈ L, C.card ≤ k)
-    (fun ψ c H hch hz hk b C hC => ?_) hk hL
-  exact card_le_of_mem_countingChild hch.1.1 hch.1.2.1
-    (card_pos.mp (lt_of_lt_of_le (by omega : 0 < 2) hz)) hk hC
+    ∀ C ∈ L, C.card ≤ k :=
+  of_mem_countingLeaves (P := fun L => ∀ C ∈ L, C.card ≤ k)
+    (fun _ _ _ hch hz hk _ _ =>
+      card_le_of_mem_countingChild hch.1.1 hch.1.2.1
+        (card_pos.mp (Nat.zero_lt_two.trans_le hz)) hk)
+    hk hL
 
 /-- **Reducedness preservation.** From a reduced root `ψ`, every leaf in `countingLeaves θ ψ` is
 reduced. -/
@@ -426,8 +425,7 @@ theorem sat_iff_existsUnique_mem_countingLeaves (θ : ℕ → ℕ) (ψ : ClauseS
   · obtain ⟨L, ⟨hLm, hLs⟩, huniq⟩ := List.existsUnique_mem_of_countP_eq_one (ite_eq_left hsat ▸ hc)
     exact ⟨L, ⟨hLm, of_decide_eq_true hLs⟩, fun L' ⟨hL'm, hL's⟩ =>
       huniq L' ⟨hL'm, decide_eq_true hL's⟩⟩
-  · rw [ite_eq_right hnsat, List.countP_eq_zero] at hc
-    exact hc L hLm (decide_eq_true hLs)
+  · exact List.countP_eq_zero.mp (ite_eq_right hnsat ▸ hc) L hLm (decide_eq_true hLs)
 
 /-- **Additive model-count conservation.** Summing `CNF.modelCountOn declared` over all leaves in
 `countingLeaves θ ψ` recovers `ψ.toCNF.modelCountOn declared` on the same declared variable set,
@@ -461,10 +459,8 @@ theorem countP_eval_toCNF_countingLeaves_of_sat_iff (θ : ℕ → ℕ) {ψ : Cla
     {x : V → Bool} (h : ψ.Sat x ↔ φ.eval x = true) :
     ((countingLeaves θ ψ).map ClauseSet.toCNF).countP (fun F => F.eval x) =
       if φ.eval x then 1 else 0 := by
-  have hcongr : Function.comp (fun F : CNF V => F.eval x) ClauseSet.toCNF =
-      fun L : ClauseSet V => decide (L.Sat x) :=
-    funext fun L => Bool.eq_iff_iff.mpr
-      ((ClauseSet.eval_toCNF_eq_true_iff L x).trans decide_eq_true_iff.symm)
+  have hcongr : (fun F : CNF V => F.eval x) ∘ ClauseSet.toCNF = fun L => decide (L.Sat x) :=
+    funext fun L => Bool.eq_iff_iff.mpr (by simp [ClauseSet.eval_toCNF_eq_true_iff])
   rw [List.countP_map, hcongr, countP_sat_countingLeaves]
   exact if_congr h rfl rfl
 
@@ -482,14 +478,13 @@ theorem vars_toCNF_subset_of_mem_countingLeaves {θ : ℕ → ℕ} {φ : CNF V} 
     (hvars : φ.vars.toFinset ⊆ declared) {L : ClauseSet V}
     (hL : L ∈ countingLeaves θ φ.toClauseSet) :
     L.toCNF.vars.toFinset ⊆ declared := by
-  have hleaf := support_of_mem_countingLeaves (declared := declared) (fun C hC l hl => by
-    obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hC)
-    exact hvars (List.mem_toFinset.mpr
-      (CNF.mem_vars.mpr ⟨c, hc, l.2, List.mem_toFinset.mp hl⟩))) hL
   intro v hv
   obtain ⟨c, hc, b, hvb⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp hv)
   obtain ⟨C, hC, rfl⟩ := List.mem_map.mp hc
-  exact hleaf C (Finset.mem_toList.mp hC) (v, b) (Finset.mem_toList.mp hvb)
+  refine support_of_mem_countingLeaves (fun D hD l hl => ?_) hL
+    C (Finset.mem_toList.mp hC) (v, b) (Finset.mem_toList.mp hvb)
+  obtain ⟨d, hd, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hD)
+  exact hvars (List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨d, hd, l.2, List.mem_toFinset.mp hl⟩))
 
 /-- **CNF additive model-count conservation.** Summing `modelCountOn declared` over the leaf
 formulas of `countingLeaves θ φ.toClauseSet` recovers `φ.modelCountOn declared`. -/

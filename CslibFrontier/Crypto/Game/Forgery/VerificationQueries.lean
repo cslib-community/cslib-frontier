@@ -268,8 +268,7 @@ theorem eval_vqForgeExperiment_forgerToVq {PK SK M Sig : Type} [Inhabited Sig] [
   rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState]
   dsimp only [forgerToVq]
   rw [ProbOracleComp.runWith_bind, runWith_vqOracle_liftSigning, PMF.bind_map, PMF.bind_bind]
-  refine PMF.bind_congr_on_support _ _ _ fun x _ => ?_
-  rcases x with ⟨⟨m, σ⟩, log⟩
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨m, σ⟩, log⟩ _ => ?_
   simp [ProbOracleComp.runWith_query, vqOracle]
 
 /-- `forgerToVq A` preserves the signing query bound of `A`. -/
@@ -599,78 +598,69 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
           (forgeExperiment keyGen signer verify freshPair (vqToForgerOn admit index A)) true +
         ε := by
   simp only [vqForgeExperiment, forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  have hkey : ∀ keys ∈ (ProbComp.eval keyGen).support,
-      (((ProbComp.eval (((A keys.1).runState
-          (vqOracle signer verify keys.1 keys.2)).run ⟨[], false⟩)).bind
-          fun x => PMF.pure x.2.won) true) ≤
-        c * (((ProbComp.eval ((vqToForgerOn admit index A keys.1).runLogWith
-            (signer keys.2))).bind
-            fun x => PMF.pure
-              (verify keys.1 keys.2 x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true) + ε := by
-    rintro ⟨pk, sk⟩ hkeys
-    have hsign' := hsign (pk, sk) hkeys
-    have hadmit' := hadmit (pk, sk) hkeys
-    let W : ℕ → ℝ≥0∞ := fun j =>
-      (ProbOracleComp.runWith
-        (ProbOracleComp.plantedHandler
-          (vqPlantedSim signer verify pk sk)
-          Sum.isRight vqExtract default vqDummyReply)
-        (A pk)
-        (ProbOracleComp.PlantedOracleState.init j default ⟨[], by simp⟩)).bind
-        (fun x => PMF.pure
-          (verify pk sk x.2.planted.candidate.1 x.2.planted.candidate.2 &&
-            freshPair x.2.planted.candidate.1 x.2.planted.candidate.2 x.2.oracleState.val))
-        true
-    have hlhs_eq :
-        (((ProbComp.eval (((A pk).runState
-            (vqOracle signer verify pk sk)).run ⟨[], false⟩)).bind
-            fun x => PMF.pure x.2.won) true) =
-          (ProbOracleComp.runWith
-            (fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
-            (A pk) ⟨[], false⟩).toOuterMeasure {x | x.2.won = true} := by
-      rw [ProbOracleComp.eval_runState, PMF.bind_apply, PMF.toOuterMeasure_eq_tsum_mul_indicator]
-      refine tsum_congr fun x => ?_
-      cases hwon : x.2.won <;> simp [hwon]
-    have hunion :=
-      ProbOracleComp.toOuterMeasure_bad_le_sum_planted_candidate_of_cost
-        (badHandler := fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
-        (bad := fun st => st.won = true)
-        (embed := fun s : ValidVqLog verify pk sk => ⟨s.val, false⟩)
-        (fun _ => Bool.false_ne_true)
+  refine PMF.bind_apply_le_mul_bind_apply_add_on_support (ProbComp.eval keyGen) ?_
+  rintro ⟨pk, sk⟩ hkeys
+  have hsign' := hsign (pk, sk) hkeys
+  let W : ℕ → ℝ≥0∞ := fun j =>
+    (ProbOracleComp.runWith
+      (ProbOracleComp.plantedHandler
         (vqPlantedSim signer verify pk sk)
-        Sum.isRight
-        (fun q s => match q with
-          | .inl _ => false
-          | .inr (m, σ) => verify pk sk m σ && freshPair m σ s.val)
-        vqExtract default vqDummyReply
-        (fun cand s => verify pk sk cand.1 cand.2 && freshPair cand.1 cand.2 s.val)
-        (eval_vqOracle_good_eq_sim signer verify pk sk hsign')
-        (fun q s ht hb => by cases q with
-          | inl _ => simp at ht
-          | inr p => exact hb)
-        (hA pk)
-        ⟨[], by simp⟩
-    have hrhs_ge :
-        ∑ j ∈ Finset.range Q_v, ProbComp.eval index j * W j ≤
-          ((ProbComp.eval ((vqToForgerOn admit index A pk).runLogWith (signer sk))).bind
-            fun x => PMF.pure
-              (verify pk sk x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true := by
-      refine (Summable.sum_le_tsum (Finset.range Q_v) (fun _ _ => zero_le)
-        CompleteLattice.summable).trans_eq ?_
-      symm
-      rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
-      dsimp only [vqToForgerOn]
-      rw [ProbOracleComp.runWith_sample_bind, PMF.bind_bind, PMF.bind_apply]
-      refine tsum_congr fun j => congrArg (ProbComp.eval index j * ·) ?_
-      rw [ProbOracleComp.runWith_bind]
-      have hstep := run_vqToForgerHandler_eq_plantedHandler admit signer verify pk sk
-        hadmit' hsign' (A pk) j
-      rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState] at hstep
-      rw [hstep, PMF.bind_map, PMF.bind_bind]
-      simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, Function.comp_def, W]
-    rw [hlhs_eq]
-    exact le_mul_add_of_le_sum (PMF.toOuterMeasure_le_one _ _) hunion hrhs_ge hindex
-  exact PMF.bind_apply_le_mul_bind_apply_add_on_support (ProbComp.eval keyGen) hkey
+        Sum.isRight vqExtract default vqDummyReply)
+      (A pk)
+      (ProbOracleComp.PlantedOracleState.init j default ⟨[], by simp⟩)).bind
+      (fun x => PMF.pure
+        (verify pk sk x.2.planted.candidate.1 x.2.planted.candidate.2 &&
+          freshPair x.2.planted.candidate.1 x.2.planted.candidate.2 x.2.oracleState.val))
+      true
+  have hlhs_eq :
+      (((ProbComp.eval (((A pk).runState
+          (vqOracle signer verify pk sk)).run ⟨[], false⟩)).bind
+          fun x => PMF.pure x.2.won) true) =
+        (ProbOracleComp.runWith
+          (fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
+          (A pk) ⟨[], false⟩).toOuterMeasure {x | x.2.won = true} := by
+    rw [ProbOracleComp.eval_runState, PMF.bind_apply, PMF.toOuterMeasure_eq_tsum_mul_indicator]
+    refine tsum_congr fun x => ?_
+    cases hwon : x.2.won <;> simp [hwon]
+  have hunion :=
+    ProbOracleComp.toOuterMeasure_bad_le_sum_planted_candidate_of_cost
+      (badHandler := fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
+      (bad := fun st => st.won = true)
+      (embed := fun s : ValidVqLog verify pk sk => ⟨s.val, false⟩)
+      (fun _ => Bool.false_ne_true)
+      (vqPlantedSim signer verify pk sk)
+      Sum.isRight
+      (fun q s => match q with
+        | .inl _ => false
+        | .inr (m, σ) => verify pk sk m σ && freshPair m σ s.val)
+      vqExtract default vqDummyReply
+      (fun cand s => verify pk sk cand.1 cand.2 && freshPair cand.1 cand.2 s.val)
+      (eval_vqOracle_good_eq_sim signer verify pk sk hsign')
+      (fun q s ht hb => by cases q with
+        | inl _ => simp at ht
+        | inr p => exact hb)
+      (hA pk)
+      ⟨[], by simp⟩
+  have hrhs_ge :
+      ∑ j ∈ Finset.range Q_v, ProbComp.eval index j * W j ≤
+        ((ProbComp.eval ((vqToForgerOn admit index A pk).runLogWith (signer sk))).bind
+          fun x => PMF.pure
+            (verify pk sk x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true := by
+    refine (Summable.sum_le_tsum (Finset.range Q_v) (fun _ _ => zero_le)
+      CompleteLattice.summable).trans_eq ?_
+    symm
+    rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
+    dsimp only [vqToForgerOn]
+    rw [ProbOracleComp.runWith_sample_bind, PMF.bind_bind, PMF.bind_apply]
+    refine tsum_congr fun j => congrArg (ProbComp.eval index j * ·) ?_
+    rw [ProbOracleComp.runWith_bind]
+    have hstep := run_vqToForgerHandler_eq_plantedHandler admit signer verify pk sk
+      (hadmit (pk, sk) hkeys) hsign' (A pk) j
+    rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState] at hstep
+    rw [hstep, PMF.bind_map, PMF.bind_bind]
+    simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, Function.comp_def, W]
+  rw [hlhs_eq]
+  exact le_mul_add_of_le_sum (PMF.toOuterMeasure_le_one _ _) hunion hrhs_ge hindex
 
 /-- Finite query-bounded step toward [BonehShoup2023], Section 6.2, Theorem 6.1 (pp. 221–223),
 without machine running-time certificates (not the cited computational result; see
@@ -736,9 +726,8 @@ theorem succProbability_vqForgeExperiment_ofSign_le_mul {PK SK M Sig : Type} [In
           (vqToForger (Fin.val <$> ProbComp.unifFin (Q_v - 1)) A)) :=
   succProbability_vqForgeExperiment_le_mul keyGen (Signer.ofSign sign) verify (fun _ _ => true)
     (fun _ _ _ _ => rfl)
-    (fun keys hkeys _ m program hprog σ hσ => by
-      simp only [Signer.ofSign_apply, Option.some.injEq] at hprog
-      subst hprog
+    (fun keys hkeys _ m _ hprog σ hσ => by
+      obtain ⟨rfl⟩ := hprog
       exact hsign keys hkeys m σ hσ)
     Q_v hA
 
@@ -1128,9 +1117,7 @@ theorem succProbability_vqForgeExperiment_prf_le {Key D R : Type} [Fintype Key] 
                 (fun _ f m σ => decide (f m = σ)) freshPair
                 (vqToForger (Fin.val <$> ProbComp.unifFin (Q_v - 1)) A)) :=
             succProbability_vqForgeExperiment_ofSign_le_mul _ _ _
-              (fun keys _ m σ hσ => by
-                simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hσ
-                simp [hσ])
+              (fun keys _ m σ hσ => by simp_all [ProbComp.eval_pure])
               Q_v (fun _ => hA)
         _ ≤ Q_v * (Fintype.card R : ℝ≥0)⁻¹ :=
             mul_le_mul_of_nonneg_left (succProbability_forgeExperiment_uniformFunction_le _)

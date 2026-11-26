@@ -182,19 +182,13 @@ theorem IsSLDegen.toIsDegen [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq 
 theorem IsDegen.of_isRestriction [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (h : IsRestriction T S) : IsDegen 0 T S := by
   obtain ⟨α, β, γ, rfl⟩ := h
-  refine ⟨α.map C, β.map C, γ.map C, 0, ?_⟩
-  rw [← map_restrict]
-  ext x y z
-  simp
+  exact ⟨α.map C, β.map C, γ.map C, 0, by simp [← map_restrict]⟩
 
 /-- A shared-left restriction is a shared-left degeneration of order `0`. -/
 theorem IsSLDegen.of_restrict_incl [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
     {f : X → X'} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (β : Matrix Y' Y K)
     (γ : Matrix Z Z' K) (h : restrict (incl f) β γ S = T) : IsSLDegen f 0 T S := by
-  refine ⟨β.map C, γ.map C, 0, ?_⟩
-  rw [← map_incl (C : K →+* K[X]) f, ← map_restrict, h]
-  ext x y z
-  simp
+  exact ⟨β.map C, γ.map C, 0, by simp [← h, map_restrict]⟩
 
 /-- Raising the order of a degeneration: multiply the decoder by `ε`. -/
 theorem IsDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] {h h' : ℕ} {T : Tensor K X Y Z}
@@ -442,8 +436,7 @@ theorem IsDegen.tprodPi {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] 
 theorem IsDegen.tpow [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ} {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (hT : IsDegen h T S) (d : ℕ) :
     IsDegen (d * h) (tpow d T) (tpow d S) := by
-  have := IsDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
-  rwa [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
+  simpa [Tensor.tpow, smul_eq_mul] using IsDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
 
 theorem IsDegen.dsum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [Fintype Y']
     [Fintype Z'] {h : ℕ} {T : ι → Tensor K X Y Z} {S : ι → Tensor K X' Y' Z'}
@@ -501,8 +494,7 @@ theorem IsSLDegen.tprodPi {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'
 theorem IsSLDegen.tpow [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'}
     {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h T S) (d : ℕ) :
     IsSLDegen (fun x i => f (x i)) (d * h) (tpow d T) (tpow d S) := by
-  have := IsSLDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
-  rwa [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
+  simpa [Tensor.tpow, smul_eq_mul] using IsSLDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
 
 private theorem restrict_incl_slSum_map {ι κ : Type*} [Fintype ι] [DecidableEq ι] [DecidableEq κ]
     [Fintype X] [Fintype Y] [Fintype Z] [DecidableEq X] [DecidableEq Y] [DecidableEq Z]
@@ -596,9 +588,8 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
     refine ⟨α.map ev, β.map ev, γ.map ev, ?_⟩
     rw [map_restrict]
     congr 1
-    funext i j l
-    simp only [Tensor.map_apply, unit_apply, Polynomial.coe_evalRingHom]
-    split_ifs <;> simp
+    ext i j l
+    simp only [Tensor.map_apply, Polynomial.coe_evalRingHom, Polynomial.eval_C]
   rw [hT]
   exact Rank.of_isRestriction ((isRestriction_sum_dsum c _).trans (IsRestriction.dsum h₁))
     (Rank.dsum (D + 1) (IsRestriction.refl _))

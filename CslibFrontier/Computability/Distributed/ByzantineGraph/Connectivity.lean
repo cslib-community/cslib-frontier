@@ -230,13 +230,13 @@ theorem not_solvesByzantineAgreement_of_vertexCut [Fintype P] {t R : ℕ} {A B C
     ¬ π.SolvesByzantineAgreement t R := by
   obtain ⟨u, hu⟩ := hA
   obtain ⟨v, hv⟩ := hB
-  have hsep : G.IsVertexSeparator u v C :=
-    SimpleGraph.isVertexSeparator_of_forall_adj hu (Finset.disjoint_right.mp hAB hv)
-      (Finset.disjoint_left.mp hAC hu) (Finset.disjoint_left.mp hBC hv) fun x hx y hxy hyA => by
-        have hy : y ∈ A ∪ B ∪ C := huniv.symm ▸ Finset.mem_univ y
-        simp only [Finset.mem_union] at hy
-        exact hy.resolve_left fun h => h.elim hyA fun hyB => hab x hx y hyB hxy
-  exact π.not_solvesByzantineAgreement_of_isVertexSeparator hsep hcard
+  refine π.not_solvesByzantineAgreement_of_isVertexSeparator
+    (SimpleGraph.isVertexSeparator_of_forall_adj hu (Finset.disjoint_right.mp hAB hv)
+      (Finset.disjoint_left.mp hAC hu) (Finset.disjoint_left.mp hBC hv) fun x hx y hxy hyA => ?_)
+    hcard
+  have hy : y ∈ A ∪ B ∪ C := huniv.symm ▸ Finset.mem_univ y
+  simp only [Finset.mem_union] at hy
+  exact hy.resolve_left fun h => h.elim hyA fun hyB => hab x hx y hyB hxy
 
 /-- Global `(2t + 1)`-vertex-connectivity necessity for synchronous fixed-round Boolean consensus
 on `|P| ≥ 2` processes, combining the separator lower bound
@@ -451,13 +451,11 @@ private theorem curBuf_freeze (v : ℕ) (i : P) (w : List P) :
       curBuf routes F adv x v (s + d) i w = curBuf routes F adv x v s i w
   | s, 0, _, _ => rfl
   | s, d + 1, hws, hsd => by
-    rw [show s + (d + 1) = (s + d) + 1 by omega]
+    rw [← Nat.add_assoc]
     have hstep : curBuf routes F adv x v ((s + d) + 1) i w =
-        curBuf routes F adv x v (s + d) i w := by
-      match w with
-      | [] => exact curBuf_succ_nil routes F adv x (by omega) i
-      | j :: w' =>
-        exact funext (curBuf_succ_cons_ne routes F adv x (by omega) i j
+        curBuf routes F adv x v (s + d) i w := match w with
+      | [] => curBuf_succ_nil routes F adv x (by omega) i
+      | j :: w' => funext (curBuf_succ_cons_ne routes F adv x (by omega) i j
           (by simp only [List.length_cons] at hws; omega))
     exact hstep.trans (curBuf_freeze v i w hws (by omega))
 
@@ -470,23 +468,20 @@ private theorem curBuf_walk (v : ℕ) :
     have hlen' : W'.length < epochLen P := Nat.lt_of_succ_le hlen
     have htail : (SimpleGraph.Walk.cons hij W').support.tail = j :: W'.support.tail := by
       cases W' <;> rfl
-    have htail_len : W'.support.tail.length = W'.length := by
-      simp [SimpleGraph.Walk.length_support]
+    rw [htail, SimpleGraph.Walk.length_cons]
     funext τ
-    rw [htail, SimpleGraph.Walk.length_cons,
-      curBuf_succ_cons_eq routes F adv x hlen' i hij.symm
-        (hsupp j (List.mem_cons_of_mem _ W'.start_mem_support)) htail_len τ,
-      curBuf_walk v W' hlen'.le fun z hz => hsupp z (List.mem_cons_of_mem _ hz)]
+    exact (curBuf_succ_cons_eq routes F adv x hlen' i hij.symm
+      (hsupp j (List.mem_cons_of_mem _ W'.start_mem_support))
+      (by simp [SimpleGraph.Walk.length_support]) τ).trans
+      (congrFun (curBuf_walk v W' hlen'.le fun z hz => hsupp z (List.mem_cons_of_mem _ hz)) τ)
 
 private theorem curBuf_epochLen_walk (v : ℕ) {i u : P} {W : G.Walk i u} (hW : W.IsPath)
     (hsupp : ∀ z ∈ W.support, z ∉ F) :
     curBuf routes F adv x v (epochLen P) i W.support.tail =
       ((purifiedOM t routes).state F adv x (v * epochLen P) u).omTree := by
   have hlen := walk_length_le_epochLen hW
-  have htail_le : W.support.tail.length ≤ W.length := by
-    rw [List.length_tail, SimpleGraph.Walk.length_support, Nat.add_sub_cancel]
-  have hfr := curBuf_freeze routes F adv x v i W.support.tail htail_le
-    (show W.length + (epochLen P - W.length) ≤ epochLen P by omega)
+  have htail_le : W.support.tail.length ≤ W.length := by simp [SimpleGraph.Walk.length_support]
+  have hfr := curBuf_freeze routes F adv x v i W.support.tail htail_le (Nat.add_sub_of_le hlen).le
   rw [Nat.add_sub_of_le hlen] at hfr
   exact hfr.trans (curBuf_walk routes F adv x v W hlen hsupp)
 
@@ -705,12 +700,9 @@ and the node and separator bounds exclude `2 ≤ |P| ≤ 3t` and graphs of conne
 theorem exists_solvesByzantineAgreement_iff.{u} {P : Type u} [Fintype P] [DecidableEq P]
     (G : SimpleGraph P) (t : ℕ) :
     (∃ (S M : Type u) (R : ℕ) (π : GraphProtocol G S M), π.SolvesByzantineAgreement t R) ↔
-      Fintype.card P ≤ 1 ∨ (3 * t < Fintype.card P ∧ G.IsVertexConnected (2 * t + 1)) := by
-  constructor
-  · rintro ⟨_, _, _, _, h⟩
-    exact card_le_one_or_of_solvesByzantineAgreement h
-  · intro h
-    obtain ⟨S, M, π, hsol⟩ := (exists_solvesByzantineAgreement_of_le_iff G t le_rfl).mpr h
-    exact ⟨S, M, (t + 1) * epochLen P, π, hsol⟩
+      Fintype.card P ≤ 1 ∨ (3 * t < Fintype.card P ∧ G.IsVertexConnected (2 * t + 1)) :=
+  ⟨fun ⟨_, _, _, _, h⟩ => card_le_one_or_of_solvesByzantineAgreement h, fun h =>
+    let ⟨S, M, π, hsol⟩ := (exists_solvesByzantineAgreement_of_le_iff G t le_rfl).mpr h
+    ⟨S, M, (t + 1) * epochLen P, π, hsol⟩⟩
 
 end Cslib.Distributed.ByzantineGraph

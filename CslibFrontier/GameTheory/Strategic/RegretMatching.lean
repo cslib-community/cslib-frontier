@@ -345,8 +345,7 @@ theorem average_epsDominated_le_div [∀ j, DecidableEq (S j)]
     dsimp only [δ]
     split_ifs with hs
     · have hdom := (hD (s i) hs).choose_spec s
-      rw [update_eq_self] at hdom
-      linarith
+      rw [update_eq_self] at hdom; linarith
     · simp
   have hsum : ε * ∑ t ∈ range T, (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0) ≤
       R := by
@@ -385,18 +384,16 @@ its realized expected cost sequence. -/
 theorem extRegretMatchingDynamics_eq_regretMatchingProb (t : ℕ) (i : ι) :
     G.extRegretMatchingDynamics t i =
       regretMatchingProb (fun s c => G.deviationCost (G.extRegretMatchingDynamics s) i c) t := by
-  refine (congrFun (WellFounded.fix_eq _ _ t) i).trans (regretMatchingProb_congr fun s hs => ?_)
-  exact funext fun c => dite_eq_left hs
+  refine (congrFun (WellFounded.fix_eq _ _ t) i).trans (regretMatchingProb_congr fun _ hs => ?_)
+  exact funext fun _ => dite_eq_left hs
 
 theorem extRegretMatchingDynamics_nonneg (t : ℕ) (i : ι) (a : S i) :
-    0 ≤ G.extRegretMatchingDynamics t i a := by
-  rw [extRegretMatchingDynamics_eq_regretMatchingProb]
-  exact regretMatchingProb_nonneg _ _ _
+    0 ≤ G.extRegretMatchingDynamics t i a :=
+  G.extRegretMatchingDynamics_eq_regretMatchingProb t i ▸ regretMatchingProb_nonneg _ _ _
 
 theorem sum_extRegretMatchingDynamics [∀ i, Nonempty (S i)] (t : ℕ) (i : ι) :
-    ∑ a, G.extRegretMatchingDynamics t i a = 1 := by
-  rw [extRegretMatchingDynamics_eq_regretMatchingProb]
-  exact sum_regretMatchingProb _ _
+    ∑ a, G.extRegretMatchingDynamics t i a = 1 :=
+  G.extRegretMatchingDynamics_eq_regretMatchingProb t i ▸ sum_regretMatchingProb _ _
 
 /-- Outcome distribution in round `t` of `extRegretMatchingDynamics`. -/
 noncomputable def extRegretMatchingDist [∀ i, Nonempty (S i)] (t : ℕ) :
@@ -420,20 +417,19 @@ theorem intRegretMatchingDynamics_eq_internalRegretMatchingProb (t : ℕ) (i : �
       internalRegretMatchingProb
         (fun s c => G.deviationCost (G.intRegretMatchingDynamics s) i c) t := by
   refine (congrFun (WellFounded.fix_eq _ _ t) i).trans
-    (internalRegretMatchingProb_congr fun s hs => ?_)
-  exact funext fun c => dite_eq_left hs
+    (internalRegretMatchingProb_congr fun _ hs => ?_)
+  exact funext fun _ => dite_eq_left hs
 
 variable [∀ i, Nonempty (S i)]
 
 theorem intRegretMatchingDynamics_nonneg (t : ℕ) (i : ι) (a : S i) :
-    0 ≤ G.intRegretMatchingDynamics t i a := by
-  rw [intRegretMatchingDynamics_eq_internalRegretMatchingProb]
-  exact internalRegretMatchingProb_nonneg _ _ _
+    0 ≤ G.intRegretMatchingDynamics t i a :=
+  G.intRegretMatchingDynamics_eq_internalRegretMatchingProb t i ▸
+    internalRegretMatchingProb_nonneg _ _ _
 
 theorem sum_intRegretMatchingDynamics (t : ℕ) (i : ι) :
-    ∑ a, G.intRegretMatchingDynamics t i a = 1 := by
-  rw [intRegretMatchingDynamics_eq_internalRegretMatchingProb]
-  exact sum_internalRegretMatchingProb _ _
+    ∑ a, G.intRegretMatchingDynamics t i a = 1 :=
+  G.intRegretMatchingDynamics_eq_internalRegretMatchingProb t i ▸ sum_internalRegretMatchingProb _ _
 
 /-- Outcome distribution in round `t` of `intRegretMatchingDynamics`. -/
 noncomputable def intRegretMatchingDist (t : ℕ) : Convexity.StdSimplex ℝ (∀ i, S i) :=

@@ -465,11 +465,8 @@ theorem rompelAccessibleInputSet_subset_fiber {n m : ℕ} (c : ℕ) (gFin : BitS
 
 theorem self_mem_rompelAccessibleSet (c : ℕ) (g : List Bool → List Bool) (outLen : ℕ → ℕ) (n : ℕ)
     (b : BitString (rompelBaseInLen n (outLen n))) :
-    b ∈ rompelAccessibleSet c g outLen n b := by
-  rw [rompelAccessibleSet, mem_map]
-  exact ⟨(rompelBaseInputEquiv n (outLen n)).symm b,
-    self_mem_rompelAccessibleInputSet c _ _,
-    (rompelBaseInputEquiv n (outLen n)).apply_symm_apply b⟩
+    b ∈ rompelAccessibleSet c g outLen n b :=
+  mem_map_equiv.mpr (self_mem_rompelAccessibleInputSet c _ _)
 
 theorem rompelAccessibleSet_subset_fiber (c : ℕ) (g : List Bool → List Bool) (outLen : ℕ → ℕ)
     (n : ℕ) (b : BitString (rompelBaseInLen n (outLen n))) :
@@ -652,10 +649,9 @@ private theorem rompelBase_escape_seed_toReal_le (c : ℕ) (g : List Bool → Li
     let z' := RompelBaseInput.unpackWord n m raw
     have hpack' : z'.packWord = raw := RompelBaseInput.packWord_unpackWord hlen_raw
     have hhash : rompelBaseHashFin gFin z' = rompelBaseHashFin gFin z := by
-      have heq : rompelBaseEvalWord g outLen n z'.packWord =
-          rompelBaseEvalWord g outLen n z.packWord := hpack'.symm ▸ heval_raw
-      simpa only [rompelBaseEvalWord_packWord, RompelBaseOutput.unpackWord_packWord] using
-        congrArg (RompelBaseOutput.unpackWord n (outLen n)) heq
+      simpa only [m, z, gFin, rompelBaseEvalWord_packWord, RompelBaseOutput.unpackWord_packWord]
+        using congrArg (RompelBaseOutput.unpackWord n (outLen n))
+          ((congrArg (rompelBaseEvalWord g outLen n) hpack').trans heval_raw)
     refine ⟨mem_compl.mpr fun hlight => hnot_acc ?_,
       ((rompelBaseHashFin_eq_iff gFin z' z).mp hhash).2.2.2, ?_⟩
     · rw [rompelAccessibleSet, mem_map]
@@ -1063,12 +1059,9 @@ private theorem rompelBase_goodLightPair_term_ge {n m : ℕ} (c : ℕ)
         have hhigh : 2 ^ (k + 1 + j) < 2 ^ (k + t + 2) :=
           Nat.pow_lt_pow_right (by decide) (by omega)
         omega
-    have hclaim := rompelBase_heavy_sibling_prob_ge gFin (rBits := rBitsOf j) hne hfib_le hstar_le
-    have hdiv : ((2 : ℝ) ^ n)⁻¹ / (8 * (2 ^ rompelTruncWidth n : ℝ)) =
-        (2 ^ rompelTruncWidth n : ℝ)⁻¹ * (((2 : ℝ) ^ n)⁻¹ / 8) := by ring
-    rw [hdiv]
-    refine mul_le_mul_of_nonneg_left (hclaim.trans (sum_le_sum fun s _ =>
-      mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg)) (by positivity)
+    refine le_of_eq_of_le (by ring) (mul_le_mul_of_nonneg_left
+      ((rompelBase_heavy_sibling_prob_ge gFin hne hfib_le hstar_le).trans (sum_le_sum fun s _ =>
+        mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg)) (by positivity))
     have hsdiff :
         RompelBaseInput.mk xStar s.1 s.2 (rBitsOf j) ∈
           fiberSet (rompelBaseHashFin gFin) (rompelBaseHashFin gFin ⟨x, s.1, s.2, rBitsOf j⟩) \
@@ -1370,8 +1363,7 @@ theorem logGap_le_inv_rompelGapDenom {d : ℝ} (hd : 0 < d) {c n : ℕ}
       _ = (256 * d) * (Nat.log 2 n : ℝ) := by ring
       _ ≤ (c : ℝ) * (Nat.log 2 n : ℝ) := by gcongr
   rw [div_le_div_iff₀ (by positivity) (mod_cast rompelGapDenom_pos c n)]
-  have hmul := mul_le_mul_of_nonneg_left hdmul (Nat.cast_nonneg (rompelGapDenom c n))
-  linarith
+  linarith [mul_le_mul_of_nonneg_left hdmul (Nat.cast_nonneg (rompelGapDenom c n))]
 
 private theorem mul_log_le_self_of_four_mul_sq_le (c n : ℕ) (hn : 4 * c * c ≤ n) :
     c * Nat.log 2 n ≤ n := by

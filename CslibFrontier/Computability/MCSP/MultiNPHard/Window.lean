@@ -218,9 +218,8 @@ theorem value_congr (A : Fin t → Finset (Fin (2 ^ p))) {T T' : Fin (2 ^ p) →
   | window i y =>
     funext x
     simp only [value_window]
-    refine decide_eq_decide.mpr (and_congr_right fun _ => ?_)
-    exact ⟨fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).symm.trans hT⟩,
-      fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).trans hT⟩⟩
+    exact decide_eq_decide.mpr (and_congr_right fun _ =>
+      and_congr_right fun hm => by rw [h i rfl _ hm])
   | _ => rfl
 
 /-- The last input `2^p - 1`, whose window gates compute the windows of `T`. -/
@@ -401,16 +400,13 @@ private theorem line_early (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p)
     simp only [Gate.val_equivFin_grid]
     omega
   | window i y =>
-    have hy := y.isLt
-    have hgrid : p * (y : ℕ) + p ≤ 2 ^ p * p := by
-      rw [Nat.mul_comm (2 ^ p), ← Nat.mul_succ]
-      exact Nat.mul_le_mul_left p hy
+    have hgrid : p * (y : ℕ) + p ≤ 2 ^ p * p :=
+      (Nat.mul_succ p y).symm.trans_le ((Nat.mul_comm p _).trans_le (Nat.mul_le_mul_right p y.isLt))
     change Early _ (if a.val = 0 then _ else _)
-    refine early_ite (early_dite (fun _ => early_gateWire ?_) fun hy0 => early_gateWire ?_)
-      (early_ite (early_gateWire ?_) (early_gateWire ?_))
-    all_goals
-      simp only [Gate.val_equivFin_zero, Gate.val_equivFin_grid, Gate.val_equivFin_window, lastBit]
-      omega
+    refine early_ite (early_dite (fun _ => early_gateWire ?_) fun _ => early_gateWire ?_)
+      (early_ite (early_gateWire ?_) (early_gateWire ?_)) <;>
+      simp only [Gate.val_equivFin_zero, Gate.val_equivFin_grid, Gate.val_equivFin_window,
+        lastBit] <;> omega
 
 /-- **The template as a program.** For `p ≥ 1`, a program over the constant-free De Morgan basis
 with one gate for each gate of the layout computes the window template, and its gate
@@ -421,8 +417,7 @@ theorem exists_program (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) →
         ∀ κ, (P.lines (Gate.equivFin p t κ)).op = κ.op := by
   obtain ⟨P, hP, hop⟩ := Program.exists_eval_eq_of_lines DeMorgan.interpretation
     (fun j => line A T ((Gate.equivFin p t).symm j)) (template A T)
-    (fun j a s hs => by
-      simpa only [Equiv.apply_symm_apply] using line_early A T _ a s hs)
+    (fun j a => by simpa only [Early, Equiv.apply_symm_apply] using line_early A T _ a)
     (fun x j => value_eq_eval A T x _)
   exact ⟨P, hP, fun κ => by rw [hop, Equiv.symm_apply_apply, line_op]⟩
 

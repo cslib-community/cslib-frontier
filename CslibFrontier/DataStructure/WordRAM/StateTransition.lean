@@ -228,8 +228,7 @@ theorem native_execute {s : D.State} {x : Data r_ds} (o : D.Op)
     R.execute o a hrep (C.bounded hrep) (hready hr' hv harg he) hdec
   refine ⟨z, s', a, n + k, he.seq hex, hstep, ?_, hrepz, ?_⟩
   · simp only [DynamicProgram.decode, SubroutineBase.toDynamicProgram,
-      SubroutineCode.toDynamicProgram, hz, Option.map_some]
-    congr 1
+      SubroutineCode.toDynamicProgram, hz, Option.map_some, Option.some.injEq]
     exact cast_cast ..
   · rw [hpotential, ← hp_eq]
     lia
@@ -449,16 +448,12 @@ theorem seq_runsOps_of_prep (C : StateTransitionImpl P D w base params s₀)
     ⟨[], s, x, 0, .nil, rfl, .nil s, hr, Nat.zero_add (C.potential x) ▸ le_rfl⟩
   | o :: ops, s, x, hr, ⟨hv_o, hv_rest⟩ => by
     let x' : Data r_ds := ⟨prepRegs o x.regs, x.mem⟩
-    have hbx := C.bounded hr
-    have hreg' : ∀ i, P.input i = false → x'.regs i = x.regs i :=
-      fun i hi => hnot_in o x.regs i hi
-    have hr' : C.rep s x' :=
-      C.rep_supported hreg' (fun _ _ => rfl) ⟨hfit o x.regs hv_o hbx.1, hbx.2⟩ hr
-    have hpot' : C.potential x' = C.potential x :=
-      C.potential_supported hreg' (fun _ _ => rfl) hr
+    have hreg' : ∀ i, P.input i = false → x'.regs i = x.regs i := hnot_in o x.regs
+    have hr' : C.rep s x' := C.rep_supported hreg' (fun _ _ => rfl)
+      ⟨hfit o x.regs hv_o (C.bounded hr).1, (C.bounded hr).2⟩ hr
     obtain ⟨y, s₁, a, m, he_op, hstep, hdec, hr_y, hmod, hpot_m⟩ :=
       C.step_exec o hr' hv_o (harg o x.regs)
-    rw [hpot'] at hpot_m
+    rw [C.potential_supported hreg' (fun _ _ => rfl) hr] at hpot_m
     obtain ⟨tr, s_fin, z, rest, hrest, hops, htr, hr_z, hpot_rest⟩ :=
       seq_runsOps_of_prep C prepRegs hfit hnot_in harg ops hr_y (hv_rest s₁ a hstep)
     refine ⟨⟨o, a, s₁⟩ :: tr, s_fin, z, (m + 1) + rest,

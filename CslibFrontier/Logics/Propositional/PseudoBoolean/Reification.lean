@@ -95,19 +95,15 @@ theorem holds_impl (σ : ℕ → Bool) (R : List (Literal ℕ)) (c : PBConstr) :
   unfold impl Holds
   simp only [lhs_append]
   by_cases h : ∀ l ∈ R, Literal.eval σ l = true
-  · have h0 : lhs σ (R.map fun l => (c.degree, Std.Sat.Literal.negate l)) = 0 := by
-      refine List.sum_eq_zero fun x hx => ?_
-      obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hx
-      obtain ⟨l, hl, rfl⟩ := List.mem_map.1 ht
-      simp [termVal, h l hl]
+  · have h0 : lhs σ (R.map fun l => (c.degree, Std.Sat.Literal.negate l)) = 0 := List.sum_eq_zero
+      (List.forall_mem_map.2 (List.forall_mem_map.2 fun l hl => by simp [termVal, h l hl]))
     rw [h0, Nat.zero_add]
     exact ⟨fun h' _ => h', fun h' => h' h⟩
   · push Not at h
     obtain ⟨l, hl, hf⟩ := h
     have hle : c.degree ≤ lhs σ (R.map fun l => (c.degree, Std.Sat.Literal.negate l)) := by
-      refine le_trans ?_ (List.le_sum_of_mem (List.mem_map.2
-        ⟨(c.degree, Std.Sat.Literal.negate l), List.mem_map.2 ⟨l, hl, rfl⟩, rfl⟩))
-      simp [termVal, hf]
+      simpa [lhs, termVal, hf] using List.le_sum_of_mem (List.mem_map_of_mem (f := termVal σ)
+        (List.mem_map_of_mem (f := fun l => (c.degree, Std.Sat.Literal.negate l)) hl))
     exact ⟨fun _ h' => absurd (h' l hl) hf, fun _ => le_trans hle (Nat.le_add_right _ _)⟩
 
 /-- `c ⇒ z`, as `¬z ⇒ ¬c`. -/
@@ -185,14 +181,13 @@ theorem weakImplies_of_le {D C : PBConstr} (hcf : ∀ v, cf D.terms v ≤ cf C.t
     VeriPB.weakImplies D C = true := by
   unfold VeriPB.weakImplies
   have hnd := nodup_keys_subLinear (nodup_map_fst_toLinear D.terms) (toLinear C.terms)
-  have h0 : VeriPB.posMass (VeriPB.subLinear (toLinear D.terms) (toLinear C.terms)) = 0 := by
-    refine List.sum_eq_zero fun x hx => ?_
-    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hx
-    have := sing_apply_of_mem hnd he
-    rw [sing_subLinear, sing, sing, ← cf_eq_lin, ← cf_eq_lin] at this
-    have := hcf e.1
-    simp only [Finsupp.coe_sub, Pi.sub_apply] at *
-    omega
+  have h0 : VeriPB.posMass (VeriPB.subLinear (toLinear D.terms) (toLinear C.terms)) = 0 :=
+    List.sum_eq_zero (List.forall_mem_map.2 fun e he => by
+      have hs := sing_apply_of_mem hnd he
+      rw [sing_subLinear, Finsupp.coe_sub, Pi.sub_apply, sing, sing, ← cf_eq_lin,
+        ← cf_eq_lin] at hs
+      have := hcf e.1
+      omega)
   simp [h0, hb]
 
 
@@ -567,11 +562,9 @@ theorem objGoal_normalize_degree {z : ℕ} {w : VeriPB.WVal} {f : VeriPB.Objecti
   have h0 : negMass (toLinear (fromLinear (VeriPB.subLinear f.lin f.lin) 0).terms) = 0 :=
     negMass_toLinear_eq_zero fun v => by
       have hsub := sing_subLinear f.lin f.lin
-      simp only [cf_fromLinear, sing, sub_self] at hsub ⊢
-      simp [hsub]
-  have hs := negSum_fromLinear (VeriPB.subLinear f.lin f.lin) 0
+      simp [cf_fromLinear, sing, hsub]
   have hd := degree_normalize (fromLinear (VeriPB.subLinear f.lin f.lin) 0)
-  rw [h0, hs] at hd
+  rw [h0, negSum_fromLinear] at hd
   simp only [fromLinear] at hd ⊢; omega
 
 /-- The witness `z ↦ w` on `l ⇒ c`, for `l` on `z` false under `w` and `z` not in `c`, leaves the
@@ -820,20 +813,12 @@ theorem stepTop_red_of_covered {F : List PBConstr} {obj : Option Objective} {s :
     dsimp only [redOk, visible, goalCovered, objuCovered, substCovered]
     simp only [List.filter_nil, List.map_nil, Bool.false_or, Bool.and_eq_true, List.all_eq_true]
     refine ⟨⟨⟨?_, by simp [h1]⟩, ?_⟩, ?_, fun e he => ?_⟩
-    · cases ho : s.order with
-      | none => rfl
-      | some L => simp [hord L ho]
-    · cases ho : s.order with
-      | none => rfl
-      | some L => simp [hord L ho]
-    · cases hf : s.obj with
-      | none => rfl
-      | some f => simp [hobj f hf]
+    · cases ho : s.order <;> simp [hord, ho]
+    · cases ho : s.order <;> simp [hord, ho]
+    · cases hf : s.obj <;> simp [hobj, hf]
     · rcases hgs e he with h | h <;> simp [h]
-  have hrg : runGoals (goalOf s.obj s.order s.db ω c) noScope none ((s.next, c.negate) :: s.db)
-      (s.next + 1) [] [] = some (((s.next, c.negate) :: s.db), s.next + 1, []) := rfl
   dsimp only [stepTop, redCheckP, redCheckOn]
-  simp [hp, hsub, hrg, hok]
+  simp [hp, hsub, runGoals, hok]
 
 
 /-! ### Reification -/

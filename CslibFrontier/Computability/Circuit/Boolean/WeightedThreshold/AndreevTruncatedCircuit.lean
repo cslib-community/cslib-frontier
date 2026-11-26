@@ -101,8 +101,7 @@ theorem card_andreevTruncatedBottomIndex (b r R : ℕ) :
     Fintype.card (AndreevTruncatedBottomIndex b r R) =
       4 * #(andreevPrefixSubsetsNonempty b r) * (R + 1) := by
   rw [Fintype.card_congr (AndreevTruncatedBottomIndex.equivProd b r R)]
-  simp only [Fintype.card_prod, Fintype.card_coe, Fintype.card_bool, Fintype.card_fin]
-  ring
+  simp only [Fintype.card_prod, Fintype.card_coe, Fintype.card_bool, Fintype.card_fin]; ring
 
 /-- Numbering of the bottom gates of `andreevTruncatedCircuit b m r R`. -/
 noncomputable def andreevTruncatedBottomEquiv (b r R : ℕ) :
@@ -158,8 +157,7 @@ theorem interpretation_andreevTruncatedBottomOp (b m r R : ℕ)
   have hsum : ∑ i, andreevReflectedWeight b m idx.subset idx.form i * (((w i).toNat : ℝ) - 1 / 2) =
       ∑ i, andreevReflectedWeight b m idx.subset idx.form i * ((w i).toNat : ℝ) -
         (∑ i, andreevReflectedWeight b m idx.subset idx.form i) / 2 := by
-    simp only [mul_sub, sum_sub_distrib, ← sum_mul]
-    ring
+    simp only [mul_sub, sum_sub_distrib, ← sum_mul]; ring
   simp only [interpretation, andreevTruncatedBottomOp, decide_eq_decide, ← @Int.cast_le ℝ, hU, hsum]
   refine sub_nonneg.symm.trans ((iff_of_eq (congrArg (0 ≤ ·) ?_)).trans sub_nonneg)
   dsimp only [andreevReflectedOffset]; ring
@@ -178,8 +176,7 @@ theorem andreevTruncatedScore_eq_sum (b m r R : ℕ) (w : BitString (2 ^ b + b *
   refine sum_congr rfl fun S _ => ?_
   rw [Fintype.sum_prod_type, Fintype.sum_bool, altLinearTrunc_eq_sum,
     altLinearTrunc_eq_sum, mul_add, mul_sum, mul_sum]
-  simp only [altLinearTruncStep, altLinearTruncThreshold, mul_assoc]
-  rfl
+  simp only [altLinearTruncStep, altLinearTruncThreshold, mul_assoc]; rfl
 
 /-- The table score of `∅` is `N - 2 ∑_c x_c`. -/
 private theorem cast_andreevTableScore_empty (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
@@ -189,8 +186,7 @@ private theorem cast_andreevTableScore_empty (b m : ℕ) (w : BitString (2 ^ b +
   simp only [chi_empty, one_mul, andreevTable, andreevTableIndex, Int.cast_sub, Int.cast_one,
     Int.cast_mul, Int.cast_ofNat, Int.cast_natCast, sum_sub_distrib, sum_const, card_univ,
     BitString.card, nsmul_eq_mul, mul_one, ← mul_sum]
-  push_cast
-  ring
+  push_cast; ring
 
 /-- **The truncated circuit computes the truncated vote.** -/
 theorem eval_andreevTruncatedCircuit (b m r R : ℕ) (w : BitString (2 ^ b + b * m)) (o : Fin 1) :
@@ -300,9 +296,7 @@ theorem andreevTruncationRadius_le (b m r : ℕ) (δ : ℝ) :
 /-- At balance (`k m = N`), `v = 5 N / 4`. -/
 private theorem andreevVarianceProxy_of_balanced {b m : ℕ} (hbal : b * m = 2 ^ b) :
     andreevVarianceProxy b m = 5 / 4 * 2 ^ b := by
-  unfold andreevVarianceProxy
-  rw [← Nat.cast_mul, hbal, Nat.cast_pow, Nat.cast_ofNat]
-  ring
+  rw [andreevVarianceProxy, ← Nat.cast_mul, hbal, Nat.cast_pow, Nat.cast_ofNat]; ring
 
 private theorem balanced_radius_le {b m r : ℕ} (hbal : b * m = 2 ^ b)
     {δ L A C : ℝ} (hL : 0 ≤ L) (hC : 0 ≤ C) (hA : 20 * A ≤ C ^ 2)

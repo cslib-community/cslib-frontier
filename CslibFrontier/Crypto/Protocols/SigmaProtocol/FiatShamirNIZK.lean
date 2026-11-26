@@ -1178,17 +1178,13 @@ theorem succProbability_fiatShamirNIZKRealExtGameOn_le [DecidableEq Y] [Decidabl
         √((Qro + 1) * Game.succProbability
           (fiatShamirNIZKSimExtractGame R admissible
             (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro))) := by
-  let post : (Y × (T × Z)) × ExtGameState Y T C → PMF Bool :=
-    fun ((y, prf), (cache, proved)) =>
-      ((interpret (oracle C) (fiatShamirNIZKVerify P y prf)).run cache).bind
-        fun (acc, _) => PMF.pure (admissible y && acc && !proved.contains (y, prf.1))
   have hhop : fiatShamirNIZKRealExtGameOn admissible P valid A true ≤
       fiatShamirNIZKSimExtGameOn admissible P simulate valid A true +
         (Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞) := by
     simp only [fiatShamirNIZKRealExtGameOn, fiatShamirNIZKSimExtGameOn, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure]
     exact Probability.PMF.bind_apply_le_add_const_on_support _ _ fun s _ =>
-      extHandlers_bind_apply_le hvalid hHVZK hUnpred (hA s) post true
+      extHandlers_bind_apply_le hvalid hHVZK hUnpred (hA s) _ true
   have hsim := succProbability_fiatShamirNIZKSimExtGameOn_le hsound src valid admissible hA
   have htop : ((Qp * (Qp + Qro) : ℕ) : ℝ≥0∞) * (δ : ℝ≥0∞) ≠ ⊤ :=
     ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.coe_ne_top
@@ -1239,22 +1235,18 @@ theorem succProbability_fiatShamirNIZKFreshStmtGameOn_le [DecidableEq Y] [Decida
         √((Qro + 1) * Game.succProbability
           (fiatShamirNIZKSimExtractGame R admissible
             (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro))) := by
-  have hmono : fiatShamirNIZKFreshStmtGameOn admissible P valid A true ≤
-      fiatShamirNIZKRealExtGameOn admissible P valid A true := by
-    simp only [fiatShamirNIZKFreshStmtGameOn, fiatShamirNIZKRealExtGameOn, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure]
-    refine Probability.PMF.bind_apply_mono_on_support _ _ fun s _ =>
-      Probability.PMF.bind_apply_mono_on_support _ _ fun ((y, prf), (cache, proved)) _ =>
-        Probability.PMF.bind_apply_mono_on_support _ _ fun (acc, _) _ => ?_
-    cases admissible y && acc
-    · simp
-    · by_cases hmem : (y, prf.1) ∈ proved
-      · simp [List.mem_map_of_mem (f := Prod.fst) hmem]
-      · exact (PMF.coe_le_one _ _).trans_eq (by simp [hmem])
-  refine le_trans ?_
+  refine le_trans (NNReal.coe_le_coe.mpr (ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_))
     (succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred src admissible hA)
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
-  exact ENNReal.toReal_mono (PMF.apply_ne_top _ _) hmono
+  simp only [fiatShamirNIZKFreshStmtGameOn, fiatShamirNIZKRealExtGameOn, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure]
+  refine Probability.PMF.bind_apply_mono_on_support _ _ fun s _ =>
+    Probability.PMF.bind_apply_mono_on_support _ _ fun ((y, prf), (cache, proved)) _ =>
+      Probability.PMF.bind_apply_mono_on_support _ _ fun (acc, _) _ => ?_
+  cases admissible y && acc
+  · simp
+  · by_cases hmem : (y, prf.1) ∈ proved
+    · simp [List.mem_map_of_mem (f := Prod.fst) hmem]
+    · exact (PMF.coe_le_one _ _).trans_eq (by simp [hmem])
 
 /-- Concrete adaptive soundness bound on false statements for one Sigma protocol, derived here: if
 every statement accepted by `admissible` lacks a witness in `R`, then even after `Qp` adaptive

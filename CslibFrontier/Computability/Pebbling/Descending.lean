@@ -245,11 +245,9 @@ theorem holds_tableStep (hchild : ∀ i, 0 < i → ∀ a, child i a < i)
     {s : ℕ} {C D : Finset (Fin N)} {t : List (ℕ × U)} (h : Holds value C t)
     (hmove : C = D ∨ (blackPebbleGame (graph child) s).UnlabelledTr C D) :
     Holds value D (tableStep child gates source s (indicatorList C) (indicatorList D) t) := by
-  rcases hmove with rfl | ⟨_, hstep, hcard⟩
-  · rwa [tableStep, ite_eq_left rfl]
   by_cases hCD : C = D
-  · subst hCD
-    rwa [tableStep, ite_eq_left rfl]
+  · rwa [← hCD, tableStep, ite_eq_left rfl]
+  obtain ⟨_, hstep, hcard⟩ := hmove.resolve_left hCD
   have hne : indicatorList C ≠ indicatorList D := fun e => hCD (indicatorList_injective e)
   cases hstep with
   | @place v hv =>
@@ -259,16 +257,15 @@ theorem holds_tableStep (hchild : ∀ i, 0 < i → ∀ a, child i a < i)
     have hdiff : diffIndex (indicatorList C) (indicatorList (insert v C)) = v :=
       indicatorList_insert C v ▸ diffIndex_set (by simp) (ne_of_eq_of_ne hbit Bool.false_ne_true)
     have hlen : t.length < s := by
-      rw [h.length_eq]
-      rw [Finset.card_insert_of_notMem hvC] at hcard
+      have := Finset.card_insert_of_notMem hvC
+      have := h.length_eq
       omega
     have hentry : entry child gates source t v = value v := by
       unfold entry
       split_ifs with h0
       · rw [h0, hzero]
       · rw [hsucc v (Nat.pos_of_ne_zero h0) v.isLt]
-        congr 1
-        funext a
+        refine congrArg (gates v) (funext fun a => ?_)
         rw [h.lookup_eq (v := ⟨child v a, (hchild v (Nat.pos_of_ne_zero h0) a).trans v.isLt⟩)
           (hv _ ⟨Nat.pos_of_ne_zero h0, a, rfl⟩), Option.getD_some]
     simpa only [tableStep, ite_eq_right hne, hdiff, hbit, ite_eq_right Bool.false_ne_true,
@@ -315,10 +312,8 @@ theorem lookup_eq_of_tableStep (hchild : ∀ i, 0 < i → ∀ a, child i a < i)
     (hts : ∀ j < n, ts (j + 1) = tableStep child gates source s (ws j) (ws (j + 1)) (ts j))
     {v : Fin N} (hend : ws n = indicatorList {v}) :
     (ts n).lookup (v : ℕ) = some (value v) := by
-  suffices ∀ j ≤ n, Holds value (supportOfList N (ws j)) (ts j) by
-    have h := this n le_rfl
-    rw [hend, supportOfList_indicatorList] at h
-    exact h.lookup_eq (Finset.mem_singleton_self v)
+  suffices ∀ j ≤ n, Holds value (supportOfList N (ws j)) (ts j) from
+    (supportOfList_indicatorList {v} ▸ hend ▸ this n le_rfl).lookup_eq (Finset.mem_singleton_self v)
   intro j hj
   induction j with
   | zero => simpa [hws0, hts0, ← indicatorList_empty] using holds_nil

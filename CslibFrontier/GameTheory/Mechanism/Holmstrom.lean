@@ -106,8 +106,8 @@ theorem IsSmoothlyConnected.of_convex [Finite Ω] {S : Set (Ω → ℝ)} (hS : C
     fun ω _ _ => (Finset.le_fold_max _).2 (Or.inr ⟨ω, Finset.mem_univ ω, le_rfl⟩)⟩
   have h := (((hasDerivAt_const t (1 : ℝ)).fun_sub (hasDerivAt_id t)).mul_const (v₀ ω)).fun_add
     ((hasDerivAt_id t).mul_const (v₁ ω))
-  rw [show (0 - 1) * v₀ ω + 1 * v₁ ω = v₁ ω - v₀ ω by ring] at h
-  exact h.hasDerivWithinAt
+  have hd : (0 - 1) * v₀ ω + 1 * v₁ ω = v₁ ω - v₀ ω := by ring
+  exact (hd ▸ h).hasDerivWithinAt
 
 /-! ### Payment uniqueness along convex segments and smooth curves -/
 
@@ -119,8 +119,7 @@ private theorem dsic_utility_sandwich [DecidableEq ι] {M : Mechanism ι Ω} {V 
   have hb' : ∀ j, Function.update b i w j ∈ V j := fun j => by
     rcases eq_or_ne j i with rfl | hj <;> simp [*]
   have h := hM i (Function.update b i w) v hb' hv
-  simp only [Function.update_idem, utility] at h ⊢
-  linarith
+  simp only [Function.update_idem, utility] at h ⊢; linarith
 
 /-- Along a uniformly differentiable curve `γ : [0, 1] → V i` with coordinate derivatives bounded
 by `K`, the truthful utility `U(t)` is `|K|`-Lipschitz on `[0, 1]` and its derivative at every
@@ -189,8 +188,7 @@ theorem payment_sub_eq_of_isSmoothlyConnected [DecidableEq ι] {M₁ M₂ : Mech
   obtain ⟨C, hC⟩ := (hAC₁.sub hAC₂).const_of_ae_hasDerivAt_zero hzero
   have hdiff : U₁ 1 - U₂ 1 = U₁ 0 - U₂ 0 :=
     (hC 1 right_mem_uIcc).trans (hC 0 left_mem_uIcc).symm
-  simp only [U₁, U₂, utility, hγ0, hγ1, hout] at hdiff
-  linarith
+  simp only [U₁, U₂, utility, hγ0, hγ1, hout] at hdiff; linarith
 
 /-- **DSIC payment uniqueness on convex domains** ([Nisan2007], §9.5.5, Theorem 9.37;
 [Holmstrom1979]; locators not re-verified against primary PDF): for an arbitrary (possibly infinite)
@@ -221,13 +219,11 @@ theorem payment_sub_eq_of_convex [DecidableEq ι] {M₁ M₂ : Mechanism ι Ω}
       rcases eq_or_ne j i with rfl | hj <;> simp [*, hγV s hs]
     have h := hM i (Function.update b i (γ s)) (γ t) hbs (hγV t ht)
     simp only [utility, Function.update_idem, γ, Pi.add_apply, Pi.smul_apply, smul_eq_mul,
-      houtM] at h
-    dsimp only [X]
+      houtM, X] at h ⊢
     linarith
   have hP₁ := (hT M₁ rfl hM₁).payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
   have hP₂ := (hT M₂ hout.symm hM₂).payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
-  simp only [hγ0, hγ1] at hP₁ hP₂
-  linarith
+  simp only [hγ0, hγ1] at hP₁ hP₂; linarith
 
 /-! ### Uniqueness of Groves mechanisms -/
 
@@ -254,8 +250,7 @@ private theorem exists_groves_of_payment_sub_const [Fintype ι] [DecidableEq ι]
   have hne : (V i).Nonempty := ⟨b i, hb i⟩
   have hv₀ : v₀ i ∈ V i := by simpa only [v₀, hne, ↓reduceDIte] using hne.some_mem
   have key := hconst i b hb (v₀ i) hv₀ (b i) (hb i)
-  simp only [Function.update_eq_self, groves, zero_sub, sub_neg_eq_add, hsum] at key
-  simp only [groves, h]
+  simp only [Function.update_eq_self, groves, zero_sub, sub_neg_eq_add, hsum, h] at key ⊢
   linarith
 
 /-- **Holmström's theorem on smoothly connected domains** ([Holmstrom1979]; locator not
@@ -362,9 +357,10 @@ theorem disconnectedNonGroves_not_groves :
   have h0eq : h 0 bHi = h 0 bLo := hupd ▸ hh 0 bLo (twoOutcomeVal 2)
   have hLo := hpay bLo hbLo 0
   have hHi := hpay bHi hbHi 0
-  simp only [groves, disconnectedNonGroves, welfare, Fin.sum_univ_two,
-    show (Finset.univ : Finset (Fin 2)).erase 0 = {1} by decide, Finset.sum_singleton, bLo, bHi,
-    Matrix.cons_val_zero, Matrix.cons_val_one, twoOutcomeVal] at hLo hHi
+  have herase : (Finset.univ : Finset (Fin 2)).erase 0 = {1} := by decide
+  simp only [groves, disconnectedNonGroves, welfare, Fin.sum_univ_two, herase,
+    Finset.sum_singleton, bLo, bHi, Matrix.cons_val_zero, Matrix.cons_val_one,
+    twoOutcomeVal] at hLo hHi
   norm_num at hLo hHi
   linarith
 

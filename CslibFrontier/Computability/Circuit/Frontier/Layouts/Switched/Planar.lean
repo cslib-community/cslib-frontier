@@ -112,9 +112,9 @@ theorem stdGaussian_map_inner_prod_unit {E : Type*} [NormedAddCommGroup E] [Inne
     [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
     {a b : E} (ha : inner ℝ a a = 1) (hb : inner ℝ b b = 1) (hab : inner ℝ a b = 0) :
     (stdGaussian E).map (fun x => (inner ℝ a x, inner ℝ b x)) = normal2 := by
-  rw [stdGaussian_map_inner_prod hab, normal2]
-  simp only [show ‖a‖₊ = 1 from NNReal.eq (norm_eq_one_of_inner_self ha),
-    show ‖b‖₊ = 1 from NNReal.eq (norm_eq_one_of_inner_self hb), one_pow]
+  rw [stdGaussian_map_inner_prod hab, normal2,
+    (NNReal.eq (norm_eq_one_of_inner_self ha) : ‖a‖₊ = 1),
+    (NNReal.eq (norm_eq_one_of_inner_self hb) : ‖b‖₊ = 1), one_pow]
 
 /-- Convenience form of `stdGaussian_map_inner_unit` keyed on `inner ℝ a a = 1`. -/
 theorem stdGaussian_map_inner_unit_sq {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
@@ -184,10 +184,8 @@ private theorem freeInd_periodic (γ₀ γ₁ k : ℝ) : Function.Periodic (free
 private theorem intervalIntegrable_of_bdd {f : ℝ → ℝ} (hf : Measurable f) (h0 : ∀ t, 0 ≤ f t)
     (h1 : ∀ t, f t ≤ 1) (a b : ℝ) : IntervalIntegrable f volume a b := by
   rw [intervalIntegrable_iff]
-  refine Measure.integrableOn_of_bounded (M := 1) measure_Ioc_lt_top.ne hf.aestronglyMeasurable ?_
-  filter_upwards with t
-  rw [Real.norm_eq_abs, abs_of_nonneg (h0 t)]
-  exact h1 t
+  exact Measure.integrableOn_of_bounded measure_Ioc_lt_top.ne hf.aestronglyMeasurable
+    (Filter.Eventually.of_forall fun t => (Real.norm_of_nonneg (h0 t)).trans_le (h1 t))
 
 private theorem intervalIntegrable_freeInd (γ₀ γ₁ k : ℝ) {a b : ℝ} :
     IntervalIntegrable (freeInd γ₀ γ₁ k) volume a b :=
@@ -252,13 +250,11 @@ private theorem angMeasure_ge {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ
       (c < t - γ₀ ∧ t - γ₀ < 2 * π - c ∨ c < γ₀ - t ∧ γ₀ - t < 2 * π - c) →
       (c < t + γ₁ ∧ t + γ₁ < 2 * π - c) → FreeAngle γ₀ γ₁ k t := by
     intro t ha hb hd
-    have key : ∀ u, (c < u ∧ u < 2 * π - c ∨ c < -u ∧ -u < 2 * π - c) → Real.cos u < k := by
-      intro u hu
+    have key (u : ℝ) (hu : c < u ∧ u < 2 * π - c ∨ c < -u ∧ -u < 2 * π - c) :
+        Real.cos u < k := by
       refine (lt_max_iff.mp ?_).resolve_right (not_lt.mpr (Real.neg_one_le_cos u))
-      rw [← hck]
-      rcases hu with ⟨p, q⟩ | ⟨p, q⟩
-      · exact cos_lt_cos_of_mem hc0 hcπ p q
-      · simpa only [Real.cos_neg] using cos_lt_cos_of_mem hc0 hcπ p q
+      exact hck ▸ hu.elim (fun h => cos_lt_cos_of_mem hc0 hcπ h.1 h.2) fun h =>
+        (Real.cos_neg u).symm ▸ cos_lt_cos_of_mem hc0 hcπ h.1 h.2
     exact ⟨key t ha, key _ (hb.imp id fun hb => ⟨by linarith [hb.1], by linarith [hb.2]⟩),
       key _ (Or.inl hd)⟩
   have hpt : ∀ t, (Ioo (-γ₁ + c) (-c)).indicator (fun _ => (1 : ℝ)) t +
@@ -379,8 +375,7 @@ private theorem planarSet_polar {γ₀ γ₁ h r t : ℝ} (hr : 0 < r) :
   have e2 : Real.cos γ₁ * (r * Real.cos t) - Real.sin γ₁ * (r * Real.sin t) =
       r * Real.cos (t + γ₁) := by rw [Real.cos_add]; ring
   simp only [planarSet, Set.mem_ofPred_eq, e1, e2, FreeAngle]
-  rw [lt_div_iff₀ hr, lt_div_iff₀ hr, lt_div_iff₀ hr]
-  simp only [mul_comm]
+  simp only [lt_div_iff₀ hr, mul_comm]
 
 /-- Polar form of the planar probability. -/
 private theorem planarProb_polar (γ₀ γ₁ h : ℝ) :
@@ -404,9 +399,8 @@ private theorem planarProb_polar (γ₀ γ₁ h : ℝ) :
       exact mul_le_of_le_one_right (norm_nonneg _)
         (by rw [Real.norm_eq_abs, abs_of_nonneg (hf01 _).1]; exact (hf01 _).2)
   rw [planarProb, ← integral_indicator_one (measurableSet_planarSet γ₀ γ₁ h)]
-  change ∫ z, f z ∂normal2 = _
-  rw [integral_normal2_polar hint]
-  refine setIntegral_congr_fun measurableSet_Ioi fun r hr => ?_
+  refine (integral_normal2_polar hint).trans
+    (setIntegral_congr_fun measurableSet_Ioi fun r hr => ?_)
   rw [integral_const_mul, angMeasure, intervalIntegral.integral_of_le (by linarith [Real.pi_pos]),
     integral_Ioc_eq_integral_Ioo]
   exact congrArg (radial r * ·) (setIntegral_congr_fun measurableSet_Ioo fun t _ => by
@@ -432,9 +426,7 @@ theorem planarProb_ge_eq {γ₀ γ₁ h : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ �
       fun t _ => freeInd_nonneg a b k t, ?_⟩
     have hle := intervalIntegral.integral_mono_on (by linarith [Real.pi_pos] : -π ≤ π)
       (intervalIntegrable_freeInd a b k) intervalIntegrable_const fun t _ => freeInd_le_one a b k t
-    simp only [intervalIntegral.integral_const, smul_eq_mul, mul_one] at hle
-    rw [angMeasure]
-    linarith
+    simpa [angMeasure, sub_neg_eq_add, two_mul] using hle
   have hmeasA (a b : ℝ) : Measurable fun r => angMeasure a b (h / r) := by
     -- the parametric integral of a jointly measurable bounded function
     have hj : Measurable (Function.uncurry fun r t => freeInd a b (h / r) t) :=

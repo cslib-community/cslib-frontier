@@ -66,10 +66,8 @@ theorem posSemidef_of_diagDominant {n : Type*} [Fintype n] [DecidableEq n] {R : 
   refine ⟨by rw [IsHermitian, conjTranspose_eq_transpose_of_trivial, hR], fun x => ?_⟩
   simp only [star_trivial, dotProduct, mulVec, Finset.mul_sum]
   set c : n → n → ℝ := fun i j => if i = j then 0 else |R i j| with hc
-  have hsymm : ∀ i j, R j i = R i j := fun i j => by
-    rw [← transpose_apply R i j, hR]
-  have hcs : ∀ i j, c j i = c i j := fun i j => by
-    simp only [hc, hsymm, eq_comm]
+  have hsymm (i j : n) : R j i = R i j := by rw [← transpose_apply R i j, hR]
+  have hcs (i j : n) : c j i = c i j := by simp only [hc, hsymm, eq_comm]
   -- each off-diagonal pair is bounded below
   have hT : ∀ i j, 0 ≤ 2 * (x i * (R i j * x j)) + c i j * x i ^ 2 + c i j * x j ^ 2 -
       (if i = j then 2 * (x i * (R i j * x j)) else 0) := by
@@ -83,7 +81,7 @@ theorem posSemidef_of_diagDominant {n : Type*} [Fintype n] [DecidableEq n] {R : 
   have hsum := Finset.sum_nonneg fun i (_ : i ∈ Finset.univ) =>
     Finset.sum_nonneg fun j (_ : j ∈ Finset.univ) => hT i j
   simp only [Finset.sum_sub_distrib, Finset.sum_add_distrib, Finset.sum_ite_eq,
-    Finset.mem_univ, ite_true] at hsum
+    Finset.mem_univ, ite_true, two_mul] at hsum
   have hswap : ∑ i, ∑ j, c i j * x j ^ 2 = ∑ i, ∑ j, c i j * x i ^ 2 := by
     rw [Finset.sum_comm]
     exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => by rw [hcs]
@@ -91,12 +89,8 @@ theorem posSemidef_of_diagDominant {n : Type*} [Fintype n] [DecidableEq n] {R : 
     refine Finset.sum_le_sum fun i _ => ?_
     rw [← Finset.sum_mul]
     nlinarith [mul_le_mul_of_nonneg_right (h i) (sq_nonneg (x i))]
-  have h2 : ∑ i, ∑ j, 2 * (x i * (R i j * x j)) = 2 * ∑ i, ∑ j, x i * (R i j * x j) := by
-    simp only [Finset.mul_sum]
-  have h3 : ∑ i, 2 * (x i * (R i i * x i)) = 2 * ∑ i, x i * (R i i * x i) := by
-    simp only [Finset.mul_sum]
   rw [hswap] at hsum
-  linarith [hsum, hdiag, h2, h3]
+  linarith [hsum, hdiag]
 
 section LDL
 
@@ -176,16 +170,14 @@ theorem exists_LDL_of_posSemidef : ∀ {n : ℕ} {M : Matrix (Fin n) (Fin n) K},
       · ext i j
         simp only [S, conjTranspose_apply, of_apply, star_trivial, hsymm]
         ring
-      · have := hM.dotProduct_mulVec_nonneg (Fin.cons (-(l ⬝ᵥ y)) y)
-        convert this using 1
+      · convert hM.dotProduct_mulVec_nonneg (Fin.cons (-(l ⬝ᵥ y)) y) using 1
         set t := l ⬝ᵥ y
         simp only [star_trivial, dotProduct, mulVec, Fin.sum_univ_succ, Fin.cons_zero,
           Fin.cons_succ, S, of_apply]
         have e1 : ∑ x, M 0 x.succ * y x = a * t := by
           simp only [← hsymm 0, hb, t, dotProduct, Finset.mul_sum, mul_assoc]
-        have e2 : ∀ x, ∑ j, (M x.succ j.succ - a * l x * l j) * y j =
+        have e2 (x : Fin n) : ∑ j, (M x.succ j.succ - a * l x * l j) * y j =
             ∑ j, M x.succ j.succ * y j - a * l x * t := by
-          intro x
           simp only [sub_mul, Finset.sum_sub_distrib, t, dotProduct, Finset.mul_sum, mul_assoc]
         have e3 : ∑ x, y x * (a * l x * t) = a * t * t := by
           simp only [t, dotProduct, Finset.sum_mul, Finset.mul_sum]

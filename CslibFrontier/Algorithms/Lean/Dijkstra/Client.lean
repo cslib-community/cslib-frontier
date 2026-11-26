@@ -784,21 +784,17 @@ theorem sum_rate_dijkstra_le (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       fun o => rate (kind o)).sum ≤ rateBound rate G.n G.m := by
   change weight rate _ ≤ _
   refine le_min ?_ ?_
-  · obtain ⟨dist, _, _, _, hw⟩ :=
-      dijkstra_runs rate (pU := rate .insert) (pQ := 0) G hK hV
-    have hpot : pot (rate .insert) 0 (init (K := K) (V := V) G) = rate .insert * G.n := by
-      simp [pot, unreached, init, Dictionary.empty, IndexedMinPQ.dom_empty]
-    simp only [hpot, edgeRate, Nat.add_zero, Nat.sub_self, Nat.sub_zero, Nat.zero_sub] at hw
-    nlinarith [Nat.zero_le (pot (K := K) (V := V) (rate .insert) 0
-      (IndexedMinPQ.empty G.n, dist, G.adj))]
+  · obtain ⟨dist, _, _, _, hw⟩ := dijkstra_runs rate (pU := rate .insert) (pQ := 0) G hK hV
+    unfold init at hw ⊢
+    simp only [pot, unreached, Dictionary.empty, Finset.filter_true, Finset.card_univ,
+      Fintype.card_fin, zero_mul, add_zero, edgeRate, Nat.sub_self, Nat.sub_zero,
+      Nat.zero_sub] at hw
+    nlinarith [Nat.zero_le (rate .insert * (Finset.univ.filter fun v => dist v = none).card)]
   · obtain ⟨dist, _, _, _, hw⟩ :=
       dijkstra_runs rate (pU := 0) (pQ := rate .extractMin + rate .graph) G hK hV
-    have hpot : pot 0 (rate .extractMin + rate .graph) (init (K := K) (V := V) G) = 0 := by
-      simp [pot, init, IndexedMinPQ.dom_empty]
-    have hpot' : pot (K := K) (V := V) 0 (rate .extractMin + rate .graph)
-        (IndexedMinPQ.empty G.n, dist, G.adj) = 0 := by simp [pot, IndexedMinPQ.dom_empty]
-    simp only [hpot, hpot', edgeRate, Nat.sub_zero, Nat.sub_self, Nat.add_sub_cancel, mul_zero,
-      Nat.add_zero, Nat.zero_add] at hw
+    unfold init at hw ⊢
+    simp only [pot, IndexedMinPQ.dom_empty, Finset.card_empty, zero_mul, mul_zero, add_zero,
+      edgeRate, Nat.sub_zero, Nat.sub_self, Nat.add_sub_cancel, Nat.zero_add] at hw
     nlinarith
 
 /-- The number of operations of each kind that Dijkstra's algorithm issues on a graph with `n`

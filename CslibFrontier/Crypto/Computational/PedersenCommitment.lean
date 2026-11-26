@@ -210,19 +210,16 @@ the sum of the individual commitments. -/
 theorem pedersenCommit_add (d : F.Desc) (h : F.Carrier d) (m₁ r₁ m₂ r₂ : ZMod (F.order d)) :
     F.pedersenCommit d h (m₁ + m₂) (r₁ + r₂) =
       F.pedersenCommit d h m₁ r₁ + F.pedersenCommit d h m₂ r₂ := by
-  simp only [pedersenCommit, add_smul]
-  abel
+  simp only [pedersenCommit, add_smul, add_add_add_comm]
 
 theorem pedersenCommit_neg (d : F.Desc) (h : F.Carrier d) (m r : ZMod (F.order d)) :
     F.pedersenCommit d h (-m) (-r) = -F.pedersenCommit d h m r := by
-  simp only [pedersenCommit, neg_smul, neg_add_rev]
-  abel
+  simp only [pedersenCommit, neg_smul, neg_add]
 
 theorem pedersenCommit_sub (d : F.Desc) (h : F.Carrier d) (m₁ r₁ m₂ r₂ : ZMod (F.order d)) :
     F.pedersenCommit d h (m₁ - m₂) (r₁ - r₂) =
       F.pedersenCommit d h m₁ r₁ - F.pedersenCommit d h m₂ r₂ := by
-  simp only [pedersenCommit, sub_smul]
-  abel
+  simp only [pedersenCommit, sub_smul, add_sub_add_comm]
 
 /-- **Scalar-multiplication homomorphism of Pedersen commitments**. -/
 theorem pedersenCommit_smul (d : F.Desc) (h : F.Carrier d) (c m r : ZMod (F.order d)) :
@@ -240,8 +237,7 @@ theorem pedersenCommit_smul_generator_eq_iff (d : F.Desc) (α m₀ r₀ m₁ r�
     F.pedersenCommit d (α • F.generator d) m₀ r₀ =
       F.pedersenCommit d (α • F.generator d) m₁ r₁ ↔
       m₀ + r₀ * α = m₁ + r₁ * α := by
-  rw [pedersenCommit_smul_generator, pedersenCommit_smul_generator]
-  exact (F.smul_generator_injective d).eq_iff
+  simp only [pedersenCommit_smul_generator, (F.smul_generator_injective d).eq_iff]
 
 /-- Pedersen commitment on encoded group elements: given `(d, encode h, m, r)`, compute
 `encode (m • g + r • h)`. -/
@@ -465,8 +461,7 @@ noncomputable def pedersenCommitPairLaw (d : F.Desc) (h : F.Carrier d) (m : ZMod
 theorem map_fst_pedersenCommitPairLaw (d : F.Desc) (h : F.Carrier d) (m : ZMod (F.order d)) :
     (F.pedersenCommitPairLaw d h m).map Prod.fst =
       (F.pedersenCommitLaw d h m).map (F.encode d) := by
-  simp only [pedersenCommitPairLaw, pedersenCommitLaw, PMF.map_comp]
-  rfl
+  simp only [pedersenCommitPairLaw, pedersenCommitLaw, PMF.map_comp, Function.comp_def]
 
 /-- Pedersen commitment verification `V(m, c, o)` ([BonehShoup2023], Section 8.12, p. 344, and
 Section 10.6.1, p. 414; [Pedersen1991], Section 3): verify that `m` is a canonical message word for
@@ -846,10 +841,10 @@ theorem succProbability_pedersenBindingGame_le_discreteLogGame (setup : ℕ → 
     simp only [discreteLogGame, Game.withSetup, dlExperiment, pedersenToDLAdversary_encode,
       ProbComp.eval_uniform, ofBits_bits, ZMod.natCast_zmod_val, pmf_norm]
   rw [pedersenBindingGame_eq, hDL]
-  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
-    (PMF.bind_apply_mono_on_support (setup n) true fun d _ => ?_)
-  exact (ENNReal.toNNReal_le_toNNReal (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
-    (F.succProbability_pedersen_bindingExperiment_le _)
+  exact ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
+    (PMF.bind_apply_mono_on_support (setup n) true fun d _ =>
+      (ENNReal.toNNReal_le_toNNReal (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
+        (F.succProbability_pedersen_bindingExperiment_le _))
 
 /-- `pedersenToDLAdversary` is uniform strict PPT whenever the binding adversary is. -/
 theorem isPPTOn_pedersenToDLAdversary

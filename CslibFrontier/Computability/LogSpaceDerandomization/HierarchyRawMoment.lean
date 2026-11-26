@@ -187,32 +187,21 @@ theorem rawIncomingNormalized_moment {k : ℕ}
   let ZD := fun σ x => mid.retains (channels D) σ (ident x)
   let YD := fun σ x => terminal.retains (channels D) σ (ident x)
   have hr : Admissible requests.left := ⟨R.source_midpoint, rfl, rfl⟩
-  have hleft (σ : Environment P J) : child requests.left σ =
-      correctionRequest D ident requests.left (polynomialAuxCutoff4 HP.θ)
-        HP.incomingCutoff HP.ρ HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc
-        (raw requests.left) (prep requests.left) (maximum requests.left) σ := rfl
   have hrow : ∀ σ x, XD σ x →
       #{z ∈ ({z | ZD σ z} : Finset V) | child requests.left σ x z ≠ 0} ≤ HP.K := fun σ x _ =>
     selectedRequest_row_support HP hK D ident requests.left Kc (raw requests.left)
       (prep requests.left) (maximum requests.left) σ x
   have hcol : ∀ σ z, ZD σ z →
-      #{x ∈ ({x | XD σ x} : Finset V) | child requests.left σ x z ≠ 0} ≤ Kc := by
-    intro σ z _
-    rw [hleft]
-    have h := selectedRequest_col_support HP D ident requests.left hr Kc hKc
-      (raw requests.left) (prep requests.left) (maximum requests.left) σ z
-    convert h.le using 1
-    congr 1
+      #{x ∈ ({x | XD σ x} : Finset V) | child requests.left σ x z ≠ 0} ≤ Kc := fun σ z _ =>
+    (selectedRequest_col_support HP D ident requests.left hr Kc hKc
+      (raw requests.left) (prep requests.left) (maximum requests.left) σ z).le
   have hbound : ∀ σ x z, |child requests.left σ x z| ≤
       2 * HP.Q HP.toHierarchyParams.atomCap := fun σ x z =>
     have h := selectedRequest_mem_Icc HP D ident requests.left Kc
       (raw requests.left) (prep requests.left) (maximum requests.left) σ x z
     (abs_of_nonneg h.1).trans_le h.2
-  have hz : ∀ σ x z, ¬ ZD σ z → child requests.left σ x z = 0 := by
-    intro σ x z h
-    rw [hleft]
-    exact correctionRequest_eq_zero_of_not_usage D ident requests.left _ _ _ _ _ _ _
-      _ _ _ σ x z h
+  have hz : ∀ σ x z, ¬ ZD σ z → child requests.left σ x z = 0 := fun σ x z h =>
+    correctionRequest_eq_zero_of_not_usage D ident requests.left _ _ _ _ _ _ _ _ _ _ σ x z h
   have hprod := rowNormPow_product_le (X := XD) (Z := ZD) (Y := YD)
     hN hu (rate_pos km) hbound hrow hcol
     (B := fun σ z y => rate kb *

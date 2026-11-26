@@ -131,10 +131,8 @@ theorem two_pow_mul_mod_mod_two {N : ℕ} (hN : Odd N) {k : ℕ} (hk : k ≠ 0) 
   obtain ⟨t, rfl⟩ := hN
   obtain ⟨j, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk
   have hdiv := Nat.div_add_mod (2 ^ (j + 1) * x) (2 * t + 1)
-  generalize 2 ^ (j + 1) * x / (2 * t + 1) = q at hdiv ⊢
-  generalize 2 ^ (j + 1) * x % (2 * t + 1) = r at hdiv ⊢
-  rw [show 2 ^ (j + 1) * x = 2 * (2 ^ j * x) by ring,
-    show (2 * t + 1) * q = 2 * (t * q) + q by ring] at hdiv
+  rw [pow_succ', mul_assoc] at hdiv ⊢
+  rw [add_one_mul, mul_assoc] at hdiv
   omega
 
 /-- The doubling query `2 ^ (k * e) * y % N` is the RSA image of `2 ^ k * x % N` when
@@ -216,38 +214,21 @@ an odd `N`, then `lsbInverter P` returns the preimage of every `y = x ^ e % N` w
 theorem eval_lsbInverter {P : RSAPredictor} {n : ℕ} {pk : RSAPublicKey} (hN : Odd pk.N)
     (hP : ∀ z : Fin pk.N, ProbComp.eval (P n pk (pk.eval z)) = PMF.pure ((z : ℕ).testBit 0))
     (x : Fin pk.N) : ProbComp.eval (lsbInverter P n pk (pk.eval x)) = PMF.pure x := by
-  classical
   have hpos : 0 < pk.N := x.pos
-  let oracle : ℕ → Bool := fun query =>
-    if h : ∃ z : Fin pk.N, rsaEval pk.N pk.e z = query then (Classical.choose h).val.testBit 0
-    else false
-  have hcorrect : ∀ z < pk.N, oracle (rsaEval pk.N pk.e z) = z.testBit 0 := by
-    intro z hz
-    have hex : ∃ z' : Fin pk.N, rsaEval pk.N pk.e z' = rsaEval pk.N pk.e z := ⟨⟨z, hz⟩, rfl⟩
-    have heq : pk.eval (Classical.choose hex) = pk.eval ⟨z, hz⟩ :=
-      Fin.ext (Classical.choose_spec hex)
-    have h1 := congrArg PMF.support (hP (Classical.choose hex))
-    rw [heq, hP ⟨z, hz⟩, PMF.support_pure, PMF.support_pure,
-      Set.singleton_eq_singleton_iff] at h1
-    simp only [oracle, dite_eq_left_of_eq_true (eq_true hex)]
-    exact h1.symm
-  have hqueries : ∀ query ∈ lsbQueries pk.N pk.e (pk.eval x) pk.N.size,
-      ProbComp.eval (P n pk ⟨query % pk.N, Nat.mod_lt _ (pk.eval x).pos⟩) =
-        PMF.pure (oracle query) := by
-    intro query hq
-    obtain ⟨k, -, rfl⟩ := List.mem_map.mp hq
+  have hqueries : ∀ k ∈ List.range pk.N.size,
+      ProbComp.eval (P n pk ⟨2 ^ ((k + 1) * pk.e) * (pk.eval x : ℕ) % pk.N % pk.N,
+        Nat.mod_lt _ (pk.eval x).pos⟩) = PMF.pure ((2 ^ (k + 1) * x % pk.N).testBit 0) := by
+    intro k _
     have hpoint : (⟨2 ^ ((k + 1) * pk.e) * (pk.eval x : ℕ) % pk.N % pk.N,
         Nat.mod_lt _ (pk.eval x).pos⟩ : Fin pk.N) =
         pk.eval ⟨2 ^ (k + 1) * x % pk.N, Nat.mod_lt _ hpos⟩ :=
       Fin.ext ((Nat.mod_mod _ _).trans (by simp only [RSAPublicKey.val_eval, two_pow_mul_rsaEval]))
-    rw [hpoint, hP, RSAPublicKey.val_eval, two_pow_mul_rsaEval, hcorrect _ (Nat.mod_lt _ hpos)]
-  simp only [lsbInverter, ProbComp.eval_bind, ProbComp.eval_pure,
-    eval_mapM_of_pure _ oracle _ hqueries, PMF.pure_bind]
+    rw [hpoint, hP]
+  simp only [lsbInverter, lsbQueries, List.mapM_map, Function.comp_def, ProbComp.eval_bind,
+    ProbComp.eval_pure, eval_mapM_of_pure _ _ _ hqueries, PMF.pure_bind]
   congr 1
-  ext
-  simp only [RSAPublicKey.val_eval]
-  rw [lsbRecover_lsbQueries hN x.isLt (Nat.lt_size_self pk.N).le oracle hcorrect,
-    Nat.mod_eq_of_lt x.isLt]
+  exact Fin.ext ((congrArg (· % pk.N) (lsbRecover_eq x.isLt (Nat.lt_size_self pk.N).le _
+    (binaryValue_testBit_two_pow_mul_mod hN x.isLt pk.N.size))).trans (Nat.mod_eq_of_lt x.isLt))
 
 /-- A predictor that is always correct on the odd moduli produced by `gen n` yields an inverter
 that wins the RSA inversion experiment with probability one. -/

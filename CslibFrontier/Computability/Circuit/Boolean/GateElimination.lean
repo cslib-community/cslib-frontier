@@ -92,28 +92,28 @@ def IsConstOrLiteral (φ : BooleanFunction n) : Prop :=
   ⟨false, fun _ => (Bool.xor_false _).symm⟩
 
 /-- Equality up to negation is symmetric. -/
-@[symm] theorem EqUpToNeg.symm (h : EqUpToNeg φ ψ) : EqUpToNeg ψ φ := by
-  exact h.imp fun c h x => by rw [h x, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
+@[symm] theorem EqUpToNeg.symm (h : EqUpToNeg φ ψ) : EqUpToNeg ψ φ :=
+  h.imp fun c h x => by rw [h x, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
 
 /-- Equality up to negation is transitive. -/
-@[trans] theorem EqUpToNeg.trans (h₁ : EqUpToNeg φ ψ) (h₂ : EqUpToNeg ψ χ) : EqUpToNeg φ χ := by
-  exact h₁.elim fun c h₁ => h₂.elim fun d h₂ =>
+@[trans] theorem EqUpToNeg.trans (h₁ : EqUpToNeg φ ψ) (h₂ : EqUpToNeg ψ χ) : EqUpToNeg φ χ :=
+  h₁.elim fun c h₁ => h₂.elim fun d h₂ =>
     ⟨d ^^ c, fun x => by rw [h₁ x, h₂ x, Bool.xor_assoc]⟩
 
-private theorem EqUpToNeg.isConst (h : EqUpToNeg φ ψ) (hψ : IsConst ψ) : IsConst φ := by
-  exact h.elim fun _ h x y => by rw [h, h, hψ x y]
+private theorem EqUpToNeg.isConst (h : EqUpToNeg φ ψ) (hψ : IsConst ψ) : IsConst φ :=
+  h.elim fun _ h x y => by rw [h, h, hψ x y]
 
 private theorem EqUpToNeg.isConstOrLiteral (h : EqUpToNeg φ ψ) (hψ : IsConstOrLiteral ψ) :
     IsConstOrLiteral φ :=
   hψ.imp h.isConst fun ⟨i, hi⟩ => ⟨i, h.trans hi⟩
 
 private theorem EqUpToNeg.dependsOn {s : Set (Fin n)} (h : EqUpToNeg φ ψ) (hψ : DependsOn ψ s) :
-    DependsOn φ s := by
-  exact h.elim fun _ h x y hxy => by rw [h, h, hψ hxy]
+    DependsOn φ s :=
+  h.elim fun _ h x y hxy => by rw [h, h, hψ hxy]
 
 private theorem EqUpToNeg.comp_right (h : EqUpToNeg φ ψ) (f : BitString n → BitString n) :
-    EqUpToNeg (φ ∘ f) (ψ ∘ f) := by
-  exact h.imp fun _ h _ => h _
+    EqUpToNeg (φ ∘ f) (ψ ∘ f) :=
+  h.imp fun _ h _ => h _
 
 private theorem isConstOrLiteral_literal (i : Fin n) :
     IsConstOrLiteral fun x : BitString n => x i :=
@@ -187,17 +187,13 @@ private theorem exists_eqUpToNeg_of_isConst (h : ℓ.op.IsBinary) {s : Fin (sign
 
 /-- A gate whose arguments are constant is constant. -/
 private theorem isConst_of_forall_isConst (h : ∀ s, IsConst (G (ℓ.wires s))) :
-    IsConst (lineFunction ℓ G) := fun x y => by
-  simp only [lineFunction]
-  congr 1 with s : 1
-  exact h s x y
+    IsConst (lineFunction ℓ G) :=
+  fun x y => congrArg (interpretation ℓ.op) (funext fun s => h s x y)
 
 /-- A gate whose arguments depend only on `S` depends only on `S`. -/
 private theorem dependsOn_of_forall_dependsOn {S : Set (Fin n)}
-    (h : ∀ s, DependsOn (G (ℓ.wires s)) S) : DependsOn (lineFunction ℓ G) S := fun x y hxy => by
-  simp only [lineFunction]
-  congr 1 with s : 1
-  exact h s hxy
+    (h : ∀ s, DependsOn (G (ℓ.wires s)) S) : DependsOn (lineFunction ℓ G) S :=
+  fun _ _ hxy => congrArg (interpretation ℓ.op) (funext fun s => h s hxy)
 
 /-- A binary gate on two constants or literals that is neither constant, nor a literal, nor one
 of its arguments up to negation reads two different bits, each of which, suitably fixed, makes it
@@ -262,9 +258,8 @@ variable {p} {ρ : PartialAssignment (Fin n)} {i : Fin n}
 /-- Fixing one more free bit is restricting the restricted function. -/
 private theorem restricted_update (hi : ρ i = none) (b : Bool) (w : Wire n g) :
     restricted p (update ρ i (some b)) w =
-      restricted p ρ w ∘ PartialAssignment.fill (update ρ i (some b)) := by
-  funext x
-  simp only [restricted, comp_apply, PartialAssignment.fill_fill_update hi]
+      restricted p ρ w ∘ PartialAssignment.fill (update ρ i (some b)) :=
+  funext fun _ => by simp only [restricted, comp_apply, PartialAssignment.fill_fill_update hi]
 
 private theorem restricted_update_of_ne_none (hi : ρ i ≠ none) (w : Wire n g) (x : BitString n)
     (c : Bool) : restricted p ρ w (update x i c) = restricted p ρ w x := by
@@ -349,10 +344,10 @@ private theorem isConstOrLiteral_or_eqUpToNeg_of_not_nonRedundant {k : Fin g}
 /-- A binary gate with a constant argument is redundant. -/
 private theorem not_nonRedundant_of_isConst_wires {k : Fin g}
     {s : Fin (signature.Arity (p.lines k).op)}
-    (h : IsConst (restricted p ρ ((p.lines k).wires s))) : ¬NonRedundant p ρ k := by
-  rintro ⟨hb, -, hns⟩
-  obtain ⟨t, ht⟩ := exists_eqUpToNeg_of_isConst _ _ hb h
-  exact hns t (restricted_gate p ρ k ▸ ht)
+    (h : IsConst (restricted p ρ ((p.lines k).wires s))) : ¬NonRedundant p ρ k :=
+  fun ⟨hb, _, hns⟩ =>
+    let ⟨t, ht⟩ := exists_eqUpToNeg_of_isConst _ _ hb h
+    hns t (restricted_gate p ρ k ▸ ht)
 
 end NonRedundant
 

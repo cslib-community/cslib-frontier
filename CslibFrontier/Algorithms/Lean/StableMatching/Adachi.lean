@@ -333,13 +333,12 @@ theorem isFixedPt_ofMatching_iff (μ : Matching n) :
         have hr_will := I.bestWillingReceiver_mem hbest
         simp only [willingReceivers, PreMatching.ofMatching, Finset.mem_filter, Finset.mem_univ,
           true_and, recvOptRank_some, Fin.castSucc_le_castSucc_iff] at hr_will
-        have hge : I.propRank p (μ p) ≤ I.propRank p r := by
-          by_contra! hlt
-          exact hstab p r ⟨hlt, lt_of_le_of_ne hr_will fun heq => (ne_of_lt hlt)
-            (congrArg (I.propRank p) (by rw [I.recvRank_injective r heq, Equiv.apply_symm_apply]))⟩
-        rw [hbest, propOptRank_some] at hle1
-        simp only [PreMatching.ofMatching,
-          I.propRank_injective p (le_antisymm (Fin.castSucc_le_castSucc_iff.1 hle1) hge)]
+        by_cases hμr : μ p = r
+        · simp [PreMatching.ofMatching, hμr]
+        · rw [hbest, propOptRank_some, propOptRank_some, Fin.castSucc_le_castSucc_iff] at hle1
+          exact absurd ⟨lt_of_le_of_ne hle1 fun h => hμr (I.propRank_injective p h).symm,
+            lt_of_le_of_ne hr_will fun h => hμr
+              ((congrArg μ (I.recvRank_injective r h)).trans (μ.apply_symm_apply r))⟩ (hstab p r)
     · -- recvPartner fixed
       rw [adachiMap_recvPartner]
       have hle1 := I.recvOptRank_bestWillingProposer_le (ν := PreMatching.ofMatching I μ) (r := r)
@@ -350,14 +349,12 @@ theorem isFixedPt_ofMatching_iff (μ : Matching n) :
         have hp_will := I.bestWillingProposer_mem hbest
         simp only [willingProposers, PreMatching.ofMatching, Finset.mem_filter, Finset.mem_univ,
           true_and, propOptRank_some, Fin.castSucc_le_castSucc_iff] at hp_will
-        have hge : I.recvRank r (μ.symm r) ≤ I.recvRank r p := by
-          by_contra! hlt
-          exact hstab p r ⟨lt_of_le_of_ne hp_will fun heq => (ne_of_lt hlt)
-            (congrArg (I.recvRank r) (by rw [I.propRank_injective p heq, Equiv.symm_apply_apply])),
-            hlt⟩
-        rw [hbest, recvOptRank_some] at hle1
-        simp only [PreMatching.ofMatching,
-          I.recvRank_injective r (le_antisymm (Fin.castSucc_le_castSucc_iff.1 hle1) hge)]
+        by_cases hμp : μ.symm r = p
+        · simp [PreMatching.ofMatching, hμp]
+        · rw [hbest, recvOptRank_some, recvOptRank_some, Fin.castSucc_le_castSucc_iff] at hle1
+          exact absurd ⟨lt_of_le_of_ne hp_will fun h => hμp
+              ((congrArg μ.symm (I.propRank_injective p h)).trans (μ.symm_apply_apply p)),
+            lt_of_le_of_ne hle1 fun h => hμp (I.recvRank_injective r h).symm⟩ (hstab p r)
 
 private theorem fixedPt_mutual {ν : I.PreMatching} (hfix : Function.IsFixedPt I.adachiMap ν)
     (p r : Fin n) : ν.propPartner p = some r ↔ ν.recvPartner r = some p := by
@@ -464,8 +461,8 @@ theorem adachiMap_gfp :
   have hp := I.propRank_deferredAcceptance_le hstab
   refine h_eq.trans (le_antisymm ?_ (h_eq ▸ I.adachiMap.isGreatest_gfp.2
     ((I.isFixedPt_ofMatching_iff _).2 I.isStable_deferredAcceptance)))
-  rw [PreMatching.le_iff]
-  simpa [PreMatching.ofMatching] using ⟨hp, I.recvRank_le_of_propRank_le hstab hp⟩
+  simpa [PreMatching.le_iff, PreMatching.ofMatching] using
+    ⟨hp, I.recvRank_le_of_propRank_le hstab hp⟩
 
 /-- Tarski's least fixed point `I.adachiMap.lfp` is the receiver-optimal deferred-acceptance
 matching ([Adachi2000]; [SchummerVohra2007], Section 10.4.1, Theorem 10.14, p. 260). -/
@@ -476,8 +473,7 @@ theorem adachiMap_lfp :
   have hp := I.isProposerPessimal_receiverDeferredAcceptance.2 μ hstab
   refine h_eq.trans (le_antisymm (h_eq ▸ I.adachiMap.isLeast_lfp.2
     ((I.isFixedPt_ofMatching_iff _).2 I.isStable_receiverDeferredAcceptance)) ?_)
-  rw [PreMatching.le_iff]
-  simpa [PreMatching.ofMatching] using
+  simpa [PreMatching.le_iff, PreMatching.ofMatching] using
     ⟨hp, I.recvRank_le_of_propRank_le I.isStable_receiverDeferredAcceptance hp⟩
 
 end Instance

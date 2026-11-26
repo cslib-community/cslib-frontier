@@ -146,9 +146,7 @@ private theorem promoteSlabInv_and_cap_of_tailWrite
   · rw [hrb_f1, congrFun hcpl.gm_eq.symm (gmRIdx b), hprom]
   · rw [(hother_f1 b' hb' hne).1, (hother_f1 b' hb' hne).2]
     exact hslot_fix.multi_r_bounds hb_pos b' hb'
-  · simp only [hcpl1.gm_eq, totalSlots, hb0, ↓reduceIte, htot_f1]
-    simp only [hcpl.gm_eq, totalSlots, hb0, ↓reduceIte] at hm_cap
-    omega
+  · simp only [hcpl1.gm_eq, hcpl.gm_eq, totalSlots, hb0, ↓reduceIte, htot_f1] at hm_cap ⊢; omega
 
 /-- `compPushBackSlotGenProg` maintains `FixedCoupled` with `pushBackSlotProg`, preserves outside
 memory via `CompOpFrame`, and satisfies the `O(1)` amortized `memoryCost` bound against
@@ -278,8 +276,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
     · have hcost : memoryCost (compPushBackSlotGenProg d) s = 14 := by
         dsimp only [d, compPushBackSlotGenProg, compPushBackSingleGenProg, writeCompItemGenProg]
         simp [hb0]
-      simp only [hcost, slotPotential, hb0, ↓reduceIte]
-      omega
+      simp only [hcost, slotPotential, hb0, ↓reduceIte]; omega
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     obtain ⟨hres1, hfr1, hcpl1⟩ :=
       compPushBackTailWrite_effect henv hb_pos hcpl hslot hb htot hm_cap hq_lt hv_lt
@@ -321,28 +318,21 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
           Realization.memoryCost_bind', memoryCost_compPushBackTailWriteGenProg]
         rw [hres1, cpTwoSlabSize_mk, ite_eq_left hprom]
         exact Nat.add_le_add_left hcost2 42
-      have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold pushBackCounts; rw [ite_eq_left hprom]
-        rw [hs'_eq, hcpl2.gm_eq]
-        exact ⟨hqb_f2.trans
-          (congrArg (· + 1) (hqb_f1.trans (congrFun hcpl.gm_eq.symm (gmQIdx b)))), hrb_f2⟩
-      have hother_all : ∀ b' < numBuckets N, b' ≠ b →
-          compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
-        rw [hs'_eq, hcpl2.gm_eq]
-        exact ⟨(hother_f2 b' hb' hne).1.trans ((hother_f1 b' hb' hne).1.trans
-            (congrFun hcpl.gm_eq.symm _)),
-          (hother_f2 b' hb' hne).2.trans ((hother_f1 b' hb' hne).2.trans
-            (congrFun hcpl.gm_eq.symm _))⟩
-      have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
+      have hpot := slotPotential_pushBack_le (gm := gm₀) (gm' := compGmAt metaBase U w N s'.mem)
+        hb_pos hb
+        (by unfold pushBackCounts
+            rw [ite_eq_left hprom, hs'_eq, hcpl2.gm_eq]
+            exact ⟨hqb_f2.trans
+              (congrArg (· + 1) (hqb_f1.trans (congrFun hcpl.gm_eq.symm (gmQIdx b)))), hrb_f2⟩)
+        fun b' hb' hne => by
+          rw [hs'_eq, hcpl2.gm_eq]
+          exact ⟨(hother_f2 b' hb' hne).1.trans ((hother_f1 b' hb' hne).1.trans
+              (congrFun hcpl.gm_eq.symm _)),
+            (hother_f2 b' hb' hne).2.trans ((hother_f1 b' hb' hne).2.trans
+              (congrFun hcpl.gm_eq.symm _))⟩
       rw [pushBackWork, ite_eq_left hprom] at hpot
-      exact ⟨by rw [hs'_eq]; exact hfr1.trans hfr2,
-        by rw [hs'_eq, hs_fix'_eq]; exact hcpl2,
-        by omega⟩
+      rw [hs'_eq] at hpot ⊢
+      exact ⟨hfr1.trans hfr2, by rwa [hs_fix'_eq], by omega⟩
     · have hs'_eq : s' = s₁ := by
         dsimp only [s', d, compPushBackSlotGenProg, compPushBackMultiGenProg]
         simp only [cpBucketBits_mk, hb0, ↓reduceIte]
@@ -359,24 +349,18 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
         simp only [cpBucketBits_mk, hb0, ↓reduceIte,
           Realization.memoryCost_bind', memoryCost_compPushBackTailWriteGenProg]
         rw [hres1, cpTwoSlabSize_mk, ite_eq_right hprom, memoryCost_pure, Nat.add_zero]
-      have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold pushBackCounts; rw [ite_eq_right hprom, hs'_eq, hcpl1.gm_eq]
-        exact ⟨hqb_f1.trans (congrFun hcpl.gm_eq.symm _), hrb_f1⟩
-      have hother_all : ∀ b' < numBuckets N, b' ≠ b →
-          compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
-        rw [hs'_eq, hcpl1.gm_eq]
-        exact ⟨(hother_f1 b' hb' hne).1.trans (congrFun hcpl.gm_eq.symm _),
-          (hother_f1 b' hb' hne).2.trans (congrFun hcpl.gm_eq.symm _)⟩
-      have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
+      have hpot := slotPotential_pushBack_le (gm := gm₀) (gm' := compGmAt metaBase U w N s'.mem)
+        hb_pos hb
+        (by unfold pushBackCounts
+            rw [ite_eq_right hprom, hs'_eq, hcpl1.gm_eq]
+            exact ⟨hqb_f1.trans (congrFun hcpl.gm_eq.symm _), hrb_f1⟩)
+        fun b' hb' hne => by
+          rw [hs'_eq, hcpl1.gm_eq]
+          exact ⟨(hother_f1 b' hb' hne).1.trans (congrFun hcpl.gm_eq.symm _),
+            (hother_f1 b' hb' hne).2.trans (congrFun hcpl.gm_eq.symm _)⟩
       rw [pushBackWork, ite_eq_right hprom, Nat.add_zero] at hpot
-      exact ⟨by rw [hs'_eq]; exact hfr1,
-        by rw [hs'_eq, hs_fix'_eq]; exact hcpl1,
-        by omega⟩
+      rw [hs'_eq] at hpot ⊢
+      exact ⟨hfr1, by rwa [hs_fix'_eq], by omega⟩
 
 private theorem realizesBounded_compPushBackMultiGen :
     RealizesBounded .exact compPushBackMultiGenProg
@@ -396,8 +380,7 @@ private theorem realizesBounded_compPushBackMultiGen :
     rw [hres1, cpTwoSlabSize_mk] at hc
     obtain ⟨hpre_prom, hm_cap1⟩ := promoteSlabInv_and_cap_of_tailWrite hb_pos hcpl hcpl1
       hslot hb htot hm_cap hq_lt hv_lt hc
-    exact ⟨U, V, N, m_cap, _, rfl,
-      henv.of_mem_eq (by rw [hfr1.frontier_eq]),
+    exact ⟨U, V, N, m_cap, _, rfl, henv.of_mem_eq hfr1.frontier_eq.symm.le,
       hb_pos, hpre_prom, hcpl1, hm_cap1⟩
 
 private def CompPushBackSinglePre (w : ℕ) :
@@ -471,10 +454,9 @@ theorem validProg_compPushBackSlotGen {w : ℕ}
     rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg h0_lt]
     refine validProg_bind_unit
       (validProg_writeCompItemGen ⟨m_cap, henv.compItemEnv, by omega⟩) fun s2 hs2 => ?_
-    have hf2 : s2.frontier = s.frontier := by
-      rw [hs2, writeCompItemGenProg, StateTransitionSpec.clientState_bind,
-        clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
-    exact validProg_writeCompGMGen ⟨(henv.of_mem_eq (by rw [hf2])).compMetaEnv, h0_lt⟩
+    refine validProg_writeCompGMGen ⟨(henv.of_mem_eq ?_).compMetaEnv, h0_lt⟩
+    rw [hs2, writeCompItemGenProg, StateTransitionSpec.clientState_bind,
+      clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     obtain ⟨hres1, hfr1, hcpl1⟩ :=
       compPushBackTailWrite_effect henv hb_pos hcpl hslot hb htot hm_cap hq_lt hv_lt
@@ -487,7 +469,7 @@ theorem validProg_compPushBackSlotGen {w : ℕ}
     obtain ⟨hpre_prom, hm_cap1⟩ := promoteSlabInv_and_cap_of_tailWrite hb_pos hcpl hcpl1
       hslot hb htot hm_cap hq_lt hv_lt hprom
     exact validProg_compPromoteSlabGen ⟨U, V, N, m_cap, _, rfl,
-      henv.of_mem_eq (by rw [hfr1.frontier_eq]), hb_pos, hpre_prom, hcpl1, hm_cap1⟩
+      henv.of_mem_eq hfr1.frontier_eq.symm.le, hb_pos, hpre_prom, hcpl1, hm_cap1⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 

@@ -34,8 +34,8 @@ namespace Rot
 private abbrev γ1 : Measure ℝ := gaussianReal 0 1
 
 private theorem integrable_abs_gaussian : Integrable (fun x : ℝ => |x|) γ1 := by
-  have := (memLp_id_gaussianReal (μ := 0) (v := 1) 1).integrable le_rfl
-  simpa [Real.norm_eq_abs] using this.norm
+  simpa [Real.norm_eq_abs] using
+    ((memLp_id_gaussianReal (μ := 0) (v := 1) 1).integrable le_rfl).norm
 
 private theorem integrable_dom3 {f : ℝ → ℝ → ℝ → ℝ}
     (hf : Measurable fun q : (ℝ × ℝ) × ℝ => f q.1.1 q.1.2 q.2) {s : Set ℝ} (hs : volume s < ⊤)
@@ -63,38 +63,31 @@ private theorem swap3 {f : ℝ → ℝ → ℝ → ℝ}
     have h1 : Integrable (fun p : ℝ × ℝ => |p.2| + M) (γ1.prod γ1) := by
       refine Integrable.add ?_ (integrable_const M)
       simpa using (integrable_const (1 : ℝ)).mul_prod integrable_abs_gaussian
-    exact h1.mono' (hf.comp (by fun_prop : Measurable fun p : ℝ × ℝ => (p, θ))).aestronglyMeasurable
+    exact h1.mono' (hf.comp (measurable_id.prodMk measurable_const)).aestronglyMeasurable
       (ae_of_all _ fun _ => (Real.norm_eq_abs _).trans_le (hb _ _ _))
   calc ∫ x₀, (∫ x₁, (∫ θ in s, f x₀ x₁ θ) ∂γ1) ∂γ1
       = ∫ p : ℝ × ℝ, (∫ θ in s, f p.1 p.2 θ) ∂(γ1.prod γ1) :=
           (integral_prod _ hint.integral_prod_left).symm
     _ = ∫ θ in s, (∫ p : ℝ × ℝ, f p.1 p.2 θ ∂(γ1.prod γ1)) :=
           integral_integral_swap (f := fun (p : ℝ × ℝ) (θ : ℝ) => f p.1 p.2 θ) hint
-    _ = ∫ θ in s, (∫ x₀, (∫ x₁, f x₀ x₁ θ ∂γ1) ∂γ1) := by
-        refine integral_congr_ae (ae_of_all _ fun θ => integral_prod _ (hθint θ))
+    _ = ∫ θ in s, (∫ x₀, (∫ x₁, f x₀ x₁ θ ∂γ1) ∂γ1) :=
+        integral_congr_ae (ae_of_all _ fun θ => integral_prod _ (hθint θ))
 
 private theorem continuous_Phi : Continuous Phi :=
   continuous_iff_continuousAt.mpr fun x => (hasDerivAt_Phi x).continuousAt
 
-private theorem Phi_mem (x : ℝ) : 0 ≤ Phi x ∧ Phi x ≤ 1 := by
-  rw [← gaussianReal_Iic_eq]
-  exact ⟨measureReal_nonneg, measureReal_le_one⟩
+private theorem Phi_mem (x : ℝ) : 0 ≤ Phi x ∧ Phi x ≤ 1 :=
+  gaussianReal_Iic_eq x ▸ ⟨measureReal_nonneg, measureReal_le_one⟩
 
 variable {I J si sj h : ℝ}
 
-private theorem measurable_indA : Measurable fun p : ℝ × ℝ => indA I si h p.1 p.2 := by
-  unfold indA
-  refine Measurable.ite ?_ measurable_const measurable_const
-  rw [Set.ofPred_and]
-  exact (measurableSet_lt measurable_fst measurable_const).inter
-    (measurableSet_lt (by fun_prop) measurable_const)
+private theorem measurable_indA : Measurable fun p : ℝ × ℝ => indA I si h p.1 p.2 :=
+  Measurable.ite (Set.ofPred_and ▸ (measurableSet_lt measurable_fst measurable_const).inter
+    (measurableSet_lt (by fun_prop) measurable_const)) measurable_const measurable_const
 
-private theorem measurable_indB : Measurable fun p : ℝ × ℝ => indB I si h p.1 p.2 := by
-  unfold indB
-  refine Measurable.ite ?_ measurable_const measurable_const
-  rw [Set.ofPred_and]
-  exact (measurableSet_le measurable_const measurable_fst).inter
-    (measurableSet_le measurable_const (by fun_prop))
+private theorem measurable_indB : Measurable fun p : ℝ × ℝ => indB I si h p.1 p.2 :=
+  Measurable.ite (Set.ofPred_and ▸ (measurableSet_le measurable_const measurable_fst).inter
+    (measurableSet_le measurable_const (by fun_prop))) measurable_const measurable_const
 
 private theorem indA_mem (x₀ x₁ : ℝ) : 0 ≤ indA I si h x₀ x₁ ∧ indA I si h x₀ x₁ ≤ 1 := by
   unfold indA; split_ifs <;> norm_num
@@ -159,12 +152,10 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
   have hbk {g : ℝ → ℝ → ℝ} (hg : Measurable fun p : ℝ × ℝ => g p.1 p.2)
       (hg1 : ∀ a b, 0 ≤ g a b ∧ g a b ≤ 1) (x₀ : ℝ) :
       Integrable (fun x₁ => g x₀ x₁ * kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) γ1 :=
-    (hk x₀).bdd_mul (c := 1) (hg.comp (by fun_prop :
-      Measurable fun x₁ : ℝ => (x₀, x₁))).aestronglyMeasurable
+    (hk x₀).bdd_mul (c := 1) (hg.comp (measurable_const.prodMk measurable_id)).aestronglyMeasurable
       (ae_of_all _ fun x₁ => by
-        have := hg1 x₀ x₁
-        rw [Real.norm_eq_abs, abs_of_nonneg this.1]
-        exact this.2)
+        rw [Real.norm_eq_abs, abs_of_nonneg (hg1 x₀ x₁).1]
+        exact (hg1 x₀ x₁).2)
   have hinner (x₀ : ℝ) : ∫ x₁, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
       kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ ∂γ1 =
       -((if x₀ < h then (1 : ℝ) else -1) *

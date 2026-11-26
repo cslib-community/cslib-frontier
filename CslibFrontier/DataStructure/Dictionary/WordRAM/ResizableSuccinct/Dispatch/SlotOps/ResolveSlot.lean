@@ -137,8 +137,7 @@ theorem realizesBounded_compLastSlotOfGen :
     RealizesBounded .exact compLastSlotOfGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompLastSlotOfPre (fun _ _ => 0) := by
-  have hgm := realizesBounded_readCompGMGen
-  realize
+  realize [realizesBounded_readCompGMGen]
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb, hbc⟩ := h
@@ -230,10 +229,8 @@ theorem memoryCost_compResolveIndexedSlotGenProg_le
     memoryCost (compResolveIndexedSlotGenProg d) s ≤ 4 := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, j⟩
   dsimp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg]
-  split_ifs
-  · simp
-  · rw [Realization.memoryCost_bind', memoryCost_readCompGMGenProg, clientState_readCompGMGenProg]
-    split_ifs <;> simp
+  split_ifs <;> simp [memoryCost_readCompGMGenProg]
+  split_ifs <;> simp
 
 /-- The slab of local slot `j < effBucketCap N` has a `slabDir` entry inside `GlobalMeta`. -/
 private theorem slabDir_read_bounds {N b j : ℕ} (hb_pos : 0 < bucketBits N)
@@ -299,8 +296,7 @@ private theorem realizesBounded_compResolveMultiSlotGen :
     RealizesBounded .exact compResolveMultiSlotGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompResolveMultiSlotPre (fun _ _ => 0) := by
-  have hgm := realizesBounded_readCompGMGen
-  realize
+  realize [realizesBounded_readCompGMGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, j⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hslot, hb, hj_bc, hj_cap⟩ := h
@@ -358,12 +354,11 @@ theorem realizesBounded_compResolveIndexedSlotGen :
     RealizesBounded .exact compResolveIndexedSlotGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompResolveIndexedSlotPre (fun _ _ => 0) := by
-  have hm := realizesBounded_compResolveMultiSlotGen
-  realize
+  realize [realizesBounded_compResolveMultiSlotGen]
   rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, j⟩
   obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb, hj_bc, hj_cap⟩ := h
   simp only [cpBucketBits_mk] at *
-  · exact ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, Nat.pos_of_ne_zero hc, hslot, hb, hj_bc, hj_cap⟩
+  exact ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, Nat.pos_of_ne_zero hc, hslot, hb, hj_bc, hj_cap⟩
 
 theorem validProg_compResolveIndexedSlotGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ}
     {s : Memory.State} (h : CompResolveIndexedSlotPre w d s) :

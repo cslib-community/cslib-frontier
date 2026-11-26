@@ -277,13 +277,11 @@ theorem tableEntries_le_card_mul_pow (M : GraphicalGame ι S) [DecidableRel M.gr
     {m d : ℕ} (hm : ∀ i, Fintype.card (S i) ≤ m) (hd : ∀ i, M.graph.degree i ≤ d) :
     M.tableEntries ≤ Fintype.card ι * m ^ (d + 1) := by
   rw [M.tableEntries_eq_sum_prod]
-  have hterm : ∀ i ∈ (univ : Finset ι),
+  have hterm (i : ι) (_ : i ∈ (univ : Finset ι)) :
       ∏ j ∈ insert i (M.graph.neighborFinset i), Fintype.card (S j) ≤ m ^ (d + 1) := by
-    intro i _
     have hcard : (insert i (M.graph.neighborFinset i)).card ≤ d + 1 := by
-      rw [Finset.card_insert_of_notMem (M.graph.notMem_neighborFinset_self i),
-        M.graph.card_neighborFinset_eq_degree]
-      exact Nat.add_le_add_right (hd i) 1
+      simpa [Finset.card_insert_of_notMem (M.graph.notMem_neighborFinset_self i),
+        M.graph.card_neighborFinset_eq_degree] using hd i
     rcases m.eq_zero_or_pos with rfl | hm_pos
     · simp [Nat.eq_zero_of_le_zero (hm i)]
     · calc ∏ j ∈ insert i (M.graph.neighborFinset i), Fintype.card (S j)
@@ -470,8 +468,7 @@ theorem deviationPayoff_eq_localDeviationPayoff {p : ∀ k, S k → ℝ} {i : ι
     (hp : ∀ k, ¬ M.graph.Adj i k → ∑ a, p k a = 1) (a : S i) :
     M.deviationPayoff p i a = M.localDeviationPayoff i a (fun j => p j.1) := by
   classical
-  rw [deviationPayoff_def, localDeviationPayoff_def]
-  simp only [payoff_update_eq_localNeighborPayoff]
+  simp only [deviationPayoff_def, localDeviationPayoff_def, payoff_update_eq_localNeighborPayoff]
   exact sum_productWeight_mul_restrict (fun k => M.graph.Adj i k) hp (M.localNeighborPayoff i a)
 
 /-- Two mixed strategy profiles agreeing on `M.graph.neighborSet i` give player `i` identical
@@ -625,16 +622,15 @@ private theorem sum_mul_local_eq_of_localNeighborhoodEquiv {G : SimpleGraph ι}
   classical
   let U : Finset (∀ j : ClosedNeighborhood G i, S j.1) :=
     (σ.weights.support ∪ τ.weights.support).image fun s j => s j.1
-  have hdecomp : ∀ ρ : Convexity.StdSimplex ℝ (∀ i, S i),
-      (∀ s ∈ ρ.weights.support, (fun j : ClosedNeighborhood G i => s j.1) ∈ U) →
-        ρ.weights.sum (fun s w => w * f (fun j => s j.1)) =
-          ∑ u ∈ U, neighborhoodMarginal G ρ i u * f u := by
-    intro ρ hU
+  have hdecomp (ρ : Convexity.StdSimplex ℝ (∀ i, S i))
+      (hU : ∀ s ∈ ρ.weights.support, (fun j : ClosedNeighborhood G i => s j.1) ∈ U) :
+      ρ.weights.sum (fun s w => w * f (fun j => s j.1)) =
+        ∑ u ∈ U, neighborhoodMarginal G ρ i u * f u := by
     simp only [neighborhoodMarginal_def, Finsupp.sum, sum_mul]
     rw [sum_comm]
     refine sum_congr rfl fun s hs => ?_
-    simp only [ite_mul, zero_mul]
-    rw [sum_ite_eq U (fun j : ClosedNeighborhood G i => s j.1) (fun u => ρ.weights s * f u),
+    simp only [ite_mul, zero_mul,
+      sum_ite_eq U (fun j : ClosedNeighborhood G i => s j.1) (fun u => ρ.weights s * f u),
       ite_eq_left_iff.2 fun hnot => absurd (hU s hs) hnot]
   rw [hdecomp σ (fun s hs => mem_image_of_mem _ (mem_union_left _ hs)),
     hdecomp τ (fun s hs => mem_image_of_mem _ (mem_union_right _ hs))]
@@ -654,8 +650,7 @@ theorem exists_graphicalGame_not_expectedPayoffEquiv {G : SimpleGraph ι}
     {σ τ : Convexity.StdSimplex ℝ (∀ i, S i)} (h : ¬ LocalNeighborhoodEquiv G σ τ) :
     ∃ M : GraphicalGame ι S, M.graph = G ∧ ¬ M.ExpectedPayoffEquiv σ τ := by
   classical
-  simp only [LocalNeighborhoodEquiv, not_forall] at h
-  obtain ⟨i₀, u₀, hne⟩ := h
+  obtain ⟨i₀, u₀, hne⟩ : ∃ i u, _ ≠ _ := by simpa only [LocalNeighborhoodEquiv, not_forall] using h
   refine ⟨⟨G, fun i u =>
     if hi : i = i₀ then if (hi ▸ u : ∀ j : ClosedNeighborhood G i₀, S j.1) = u₀ then 1 else 0
     else 0⟩, rfl, fun hep => hne ?_⟩

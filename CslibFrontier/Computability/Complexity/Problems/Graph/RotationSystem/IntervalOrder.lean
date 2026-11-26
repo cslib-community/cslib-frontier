@@ -56,9 +56,9 @@ theorem rotationDistance_lt_period {a b : Dart G} (hab : a.vertex = b.vertex) :
 /-- First-hit ranks from a common origin distinguish darts on that vertex cycle. -/
 theorem rotationDistance_eq_iff_eq (o a b : Dart G) (hoa : o.vertex = a.vertex)
     (hob : o.vertex = b.vertex) :
-    r.rotationDistance o a = r.rotationDistance o b ↔ a = b := by
-  refine ⟨fun h => ?_, fun h => congrArg _ h⟩
-  rw [← r.pow_rotationDistance o a hoa, ← r.pow_rotationDistance o b hob, h]
+    r.rotationDistance o a = r.rotationDistance o b ↔ a = b :=
+  ⟨fun h => (r.pow_rotationDistance o a hoa).symm.trans (h ▸ r.pow_rotationDistance o b hob),
+    congrArg _⟩
 
 /-- The rank of a forward iterate is its exponent reduced modulo the vertex period. -/
 theorem rotationDistance_pow (o : Dart G) (k : ℕ) :
@@ -87,17 +87,15 @@ theorem rotationDistance_pow_from (o a : Dart G) (hoa : o.vertex = a.vertex) (k 
 
 private theorem period_eq (o a : Dart G) (hoa : o.vertex = a.vertex) :
     Function.minimalPeriod r.rotate a = Function.minimalPeriod r.rotate o := by
-  have h := Function.minimalPeriod_apply_iterate (r.rotate.injective.mem_periodicPts o)
-    (r.rotationDistance o a)
-  simpa only [r.rotate.iterate_eq_pow, r.pow_rotationDistance o a hoa] using h
+  simpa only [r.rotate.iterate_eq_pow, r.pow_rotationDistance o a hoa] using
+    Function.minimalPeriod_apply_iterate (r.rotate.injective.mem_periodicPts o)
+      (r.rotationDistance o a)
 
 private theorem add_mod_eq_iff {a b c n : ℕ} (ha : a < n) (hb : b < n) (hc : c < n) :
     (a + b) % n = c ↔ a + b = c ∨ a + b = c + n := by
   by_cases h : a + b < n
-  · rw [Nat.mod_eq_of_lt h]
-    omega
-  · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
-    omega
+  · rw [Nat.mod_eq_of_lt h]; omega
+  · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]; omega
 
 /-- The actual directed rotation interval is the cyclic order of first-hit ranks at
 any chosen cut. All three darts must be distinct and belong to that vertex cycle. -/
@@ -167,8 +165,7 @@ private theorem portRank_at (a d : Dart G) (had : a.vertex = d.vertex) :
 /-- Ranks distinguish every actual dart at a vertex. -/
 theorem portRank_injective (a b : Dart G) (hab : a.vertex = b.vertex)
     (heq : r.portRank a = r.portRank b) : a = b := by
-  have hoa : (vertexDart a.vertex ⟨a, rfl⟩).vertex = a.vertex :=
-    Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
+  have hoa := Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
   rw [r.portRank_at a a rfl, r.portRank_at a b hab] at heq
   exact (r.rotationDistance_eq_iff_eq _ a b hoa (hoa.trans hab)).mp heq
 
@@ -180,8 +177,7 @@ theorem mem_rotationInterval_iff_portRank (a b c : Dart G)
       (r.portRank a < r.portRank b ∧ r.portRank b < r.portRank c) ∨
       (r.portRank b < r.portRank c ∧ r.portRank c < r.portRank a) ∨
       (r.portRank c < r.portRank a ∧ r.portRank a < r.portRank b) := by
-  have hoa : (vertexDart a.vertex ⟨a, rfl⟩).vertex = a.vertex :=
-    Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
+  have hoa := Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
   rw [r.portRank_at a a rfl, r.portRank_at a b hab, r.portRank_at a c (hab.trans hbc)]
   exact r.mem_rotationInterval_iff_ranks _ a b c hoa (hoa.trans hab)
     (hoa.trans (hab.trans hbc)) hneab hnebc hneac
@@ -381,13 +377,9 @@ theorem rotate_eq_of_same_incident_intervals (s : RotationSystem G) (a : Dart G)
     r.rotate a = s.rotate a := by
   classical
   have fixed (t u : RotationSystem G) (ht : t.rotate a = a) : u.rotate a = a := by
-    have hcycle := (t.sameCycle_iff a (u.rotate a)).mpr (u.vertex_rotate a).symm
-    obtain ⟨n, hn⟩ := hcycle.exists_nat_pow_eq
-    have hpow (k : ℕ) : (t.rotate ^ k) a = a := by
-      induction k with
-      | zero => rfl
-      | succ k ih => rw [pow_succ', Equiv.Perm.mul_apply, ih, ht]
-    exact hn.symm.trans (hpow n)
+    obtain ⟨n, hn⟩ :=
+      ((t.sameCycle_iff a (u.rotate a)).mpr (u.vertex_rotate a).symm).exists_nat_pow_eq
+    exact hn.symm.trans ((t.rotate.iterate_eq_pow n).symm ▸ Function.IsFixedPt.iterate ht n)
   by_cases hr : r.rotate a = a
   · exact hr.trans (fixed r s hr).symm
   by_cases hs : s.rotate a = a

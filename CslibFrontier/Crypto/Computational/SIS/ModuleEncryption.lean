@@ -193,24 +193,19 @@ theorem decodePolyMsg_encodePolyMsg_add_noise {n q B : ℕ} (hB : 4 * B + 2 < q)
   cases hmi : m i
   · have hlift : SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i = err i :=
       (ZMod.valMinAbs_spec _ _).mpr ⟨by simp [encodePolyMsg, hmi], by omega, by omega⟩
-    rw [decodePolyMsg_apply_eq_false_iff, hlift]
-    omega
+    rw [decodePolyMsg_apply_eq_false_iff, hlift]; omega
   · rw [decodePolyMsg_apply_eq_true_iff]
     by_cases hwrap : (((q / 2 : ℕ) : ℤ) + err i) * 2 ≤ (q : ℤ)
     · have hlift : SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i =
           ((q / 2 : ℕ) : ℤ) + err i :=
-        (ZMod.valMinAbs_spec _ _).mpr
-          ⟨by simp only [encodePolyMsg, hmi, ↓reduceIte, Pi.add_apply, Int.cast_add,
-            Int.cast_natCast], by omega, hwrap⟩
-      rw [hlift]
-      omega
+        (ZMod.valMinAbs_spec _ _).mpr ⟨by simp [encodePolyMsg, hmi, -Int.natCast_ediv], by omega,
+          hwrap⟩
+      rw [hlift]; omega
     · have hlift : SIS.liftCentered (encodePolyMsg q m + fun j => (err j : ZMod q)) i =
           ((q / 2 : ℕ) : ℤ) + err i - (q : ℤ) :=
-        (ZMod.valMinAbs_spec _ _).mpr
-          ⟨by simp only [encodePolyMsg, hmi, ↓reduceIte, Pi.add_apply, Int.cast_sub, Int.cast_add,
-            Int.cast_natCast, ZMod.natCast_self, sub_zero], by omega, by omega⟩
-      rw [hlift]
-      omega
+        (ZMod.valMinAbs_spec _ _).mpr ⟨by simp [encodePolyMsg, hmi, -Int.natCast_ediv], by omega,
+          by omega⟩
+      rw [hlift]; omega
 
 /-- Bounded-error decoding correctness stated with `|err i| ≤ B`. -/
 theorem decodePolyMsg_encodePolyMsg_add_noise_of_abs_le {n q B : ℕ} (hB : 4 * B + 2 < q)
@@ -482,7 +477,6 @@ def unextendCiphertext {k n q : ℕ} (w : Fin (k + 1) → Fin n → ZMod q) :
 @[simp] theorem unextendCiphertext_extendCiphertext {k n q : ℕ}
     (ct : ModuleLWECiphertext k n q) :
     unextendCiphertext (extendCiphertext ct) = ct := by
-  rcases ct with ⟨u, v⟩
   rfl
 
 @[simp] theorem extendCiphertext_unextendCiphertext {k n q : ℕ}
@@ -512,9 +506,7 @@ theorem extendCiphertext_moduleLWEEncrypt {k n q : ℕ}
         Fin.cons (encodePolyMsg q m) 0 := by
   funext i
   refine Fin.cases rfl (fun i' => ?_) i
-  simp only [extendCiphertext, moduleLWEEncrypt, ModuleLWE.sample, Pi.add_apply,
-    Fin.cons_succ, Pi.zero_apply, add_zero]
-  rfl
+  exact (add_zero _).symm
 
 /-- Equivalence masking the second component of a `(k + 1) × k` Module-LWE sample by
 `Fin.cons (encodePolyMsg q m) 0`. -/
@@ -633,12 +625,10 @@ theorem hybridEncryptionView_eq_sampleLaw_map (k n q : ℕ) [NeZero q]
       hybridEncryptionView k n q noise m =
         (uniformKeyEncryptionLaw k n q noise m).map
           (fun p => (unextendPublicKeyMatrix p.1, unextendCiphertext p.2)) := by
-    unfold hybridEncryptionView encryptionViewOfKeyLaw uniformKeyEncryptionLaw
-    simp only [pmf_norm, unextendPublicKeyMatrix_extendPublicKeyMatrix,
-      unextendCiphertext_extendCiphertext]
+    simp only [hybridEncryptionView, encryptionViewOfKeyLaw, uniformKeyEncryptionLaw, pmf_norm,
+      unextendPublicKeyMatrix_extendPublicKeyMatrix, unextendCiphertext_extendCiphertext]
     rw [PMF.bind_comm]
-  rw [hcomm, uniformKeyEncryptionLaw_eq_sampleLaw_map, PMF.map_comp]
-  rfl
+  rw [hcomm, uniformKeyEncryptionLaw_eq_sampleLaw_map, PMF.map_comp]; rfl
 
 /-- Pushing forward the uniform `(k + 1) × k` sample distribution under `unextendMaskedSample m`
 yields `uniformEncryptionView k n q` for every message `m`. -/

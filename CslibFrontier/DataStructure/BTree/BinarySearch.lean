@@ -149,10 +149,7 @@ theorem slotBinM_cons (le : α → α → m Bool) (k : α) (e : Triple α β) (l
           ((l.length + 1) / 2 + 1)) := by
   rw [slotBinM]
   split
-  next h =>
-    have := List.getElem?_eq_none_iff.1 h
-    simp only [List.length_cons] at this
-    omega
+  next h => exact absurd (List.getElem?_eq_none_iff.1 h) (by simp only [List.length_cons]; omega)
   next e' h =>
     obtain ⟨-, rfl⟩ := List.getElem?_eq_some_iff.1 h
     rfl
@@ -322,17 +319,14 @@ theorem slotBin_eq_slot (k : α) {rest : List (Triple α β)}
   unfold slotBin
   fun_induction slotBinM leI k rest with
   | case1 rest h =>
-    have hlen : rest.length = 0 := by have := List.getElem?_eq_none_iff.1 h; omega
-    obtain rfl : rest = [] := List.eq_nil_of_length_eq_zero hlen
-    rfl
+    have h0 : rest.length = 0 := by have := List.getElem?_eq_none_iff.1 h; omega
+    simp [List.eq_nil_of_length_eq_zero h0]
   | case2 rest e h ih1 ih2 =>
     obtain ⟨hlt, rfl⟩ := List.getElem?_eq_some_iff.1 h
-    have hsplit : rest =
-        rest.take (rest.length / 2) ++ rest[rest.length / 2] :: rest.drop (rest.length / 2 + 1) :=
-      by simp
     set l₁ := rest.take (rest.length / 2)
     set l₂ := rest.drop (rest.length / 2 + 1)
     set e := rest[rest.length / 2]
+    have hsplit : rest = l₁ ++ e :: l₂ := by simp [l₁, l₂, e]
     have hlen₁ : l₁.length = rest.length / 2 := by simp [l₁, Nat.min_eq_left hlt.le]
     rw [hsplit] at hs
     simp only [List.map_append, List.map_cons, List.pairwise_append, List.pairwise_cons] at hs

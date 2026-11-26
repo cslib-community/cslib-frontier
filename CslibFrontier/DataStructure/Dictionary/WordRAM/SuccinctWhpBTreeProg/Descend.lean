@@ -75,10 +75,7 @@ private theorem realizes_descendStepGen :
       DescendStepGenPre
       (fun _ _ => 0) := by
   unfold descendStepGenProg
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hlg := realizes_laneGetGen
-  realize
+  realize [realizes_readBTreeNodeGen, realizes_swarRankGen, realizes_laneGetGen]
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, cur⟩
     dsimp only [DescendStepGenPre] at h
@@ -94,19 +91,15 @@ private theorem realizes_descendStepGen :
     have ht8 := eight_le_tMinWhp hth
     have hvw_lt := henv.valsWordBits_lt_w
     try simp only [hcs_n, hres_n, wp_large_M hth, wp_large_nSlice hth, wp_large_wVal hth]
+  all_goals try first | decide | exact henv.fits_const (by decide)
   · exact ⟨c, U, V, w, n_max, henv, rfl⟩
   · exact hsIdx
   · exact hcur_lt.trans_le hrep.1
-  · decide
-  · exact henv.fits_const (by decide)
-  · exact henv.fits_const (by decide)
-  · decide
-  · exact henv.fits_const (by decide)
-  · refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩, ?_, ?_, ?_, ?_⟩
-    · simp only [wp_large_capLanes hth]; change metaCount (sl.nodes cur).metaWord < _; omega
-    · simp only [wp_large_powFp hth]; exact hqhi.trans_lt hhi
-    · simp only [wp_large_wKey hth]; exact hkw_cnt
-    · simp only [wp_large_wKey hth, wp_large_powFp hth]; exact hlanes
+  · refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩, ?_,
+      (wp_large_powFp hth).symm ▸ hqhi.trans_lt hhi, (wp_large_wKey hth).symm ▸ hkw_cnt, ?_⟩
+    · rw [wp_large_capLanes hth]
+      exact Nat.lt_of_le_of_lt hcnt_le (by omega)
+    · rwa [wp_large_wKey hth, wp_large_powFp hth]
   · exact (Nat.le_mul_of_pos_left _ (by omega)).trans_lt hvw_lt
   · rw [clientResult_swarRankGenProg hth]
     obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
@@ -118,7 +111,6 @@ private theorem realizes_descendStepGen :
       exact (card_filter_le _ _).trans_eq (card_range _)
     exact ((Nat.mul_le_mul_right _ (hrank_le.trans (by omega : _ ≤ 2 * tMinWhp n_max))).trans_lt
       hvw_lt).trans Nat.lt_two_pow_self
-
 
 /-- Bounded `iterate` loop refining `descendToLeaf`
 (`d = (((((cp, base), sIdx), q), cur), fuel)`). -/
@@ -201,8 +193,8 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
       rw [hcs_n, hres_n]
       split_ifs
       · exact validProg_pure cur
-      · refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
-        simpa only [clientState_swarRankGenProg] using validWhpProg_laneGetGenProg _
+      · exact validProg_bind (validWhpProg_swarRankGenProg _)
+          (clientState_swarRankGenProg _ _ ▸ validWhpProg_laneGetGenProg _)
     have hnext : ∃ (isRoot' : Bool) (cur' lo' hi' : ℕ) (T' : BTreeTree),
         (Memory.spec 0).clientResult s (descendStepGenProg (d0, cur)) = cur' ∧
         descendToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)

@@ -284,8 +284,7 @@ variable [DecidableEq V]
 /-- The new root arc is distinguished from the unchanged, retained old arcs. -/
 theorem mem_reroot_arcs {a b e : Arc F} :
     e ∈ (T.reroot a b).arcs ↔ e = b.reverse ∨ e ∈ T.arcs ∧ e ≠ a ∧ e ≠ b := by
-  change e ∈ insert b.reverse (T.arcs.filter _) ↔ _
-  simp only [mem_insert, mem_filter]
+  simp only [reroot, mem_insert, mem_filter]
 
 /-- Delete a variable root and a constraint copy, retaining all other supported nodes. -/
 @[expose] def removeRootCopy (T : DAG F) (u : V) (c : Copy F) : DAG F :=
@@ -369,10 +368,8 @@ theorem IsFDAG.reroot_earliest (h : T.IsFDAG sem f)
   · intro x hx y hy hxy
     rcases mem_reroot_arcs.mp hx with rfl | ⟨hxt, _, hxb⟩ <;>
       rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, hyb⟩
-    · rfl
-    · exact (hyb (h.unique y hyt b hb hxy.symm)).elim
-    · exact (hxb (h.unique x hxt b hb hxy)).elim
-    · exact h.unique x hxt y hyt hxy
+    exacts [rfl, (hyb (h.unique y hyt b hb hxy.symm)).elim,
+      (hxb (h.unique x hxt b hb hxy)).elim, h.unique x hxt y hyt hxy]
   · intro x hx y hy hxo hyo hxy
     have hnt {e} (he : e ∈ (T.reroot a b).arcs) (ho : e.incoming = false) : e ∈ T.arcs :=
       (mem_reroot_arcs.mp he).elim (fun hh => by simp [hh, Arc.reverse, hbo] at ho) And.left
@@ -401,19 +398,17 @@ theorem IsFDAG.reroot_earliest (h : T.IsFDAG sem f)
     · rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
       · simpa only [pairFlip_self] using hv
       · simpa only [Arc.reverse, pairFlip_cancel] using h.feasible a ha y hyt hai (hab.trans hxy)
-    · have hxc := hcopy x hxt hxa hxi
-      rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
-      · exact (hxc (hxy.trans hab.symm)).elim
+    · rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
+      · exact (hcopy x hxt hxa hxi (hxy.trans hab.symm)).elim
       · exact h.feasible_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy
-          (h.time_lt_of_earliest he hxt hxc)
+          (h.time_lt_of_earliest he hxt (hcopy x hxt hxa hxi))
   · intro x hx y hy hxi hxy htime
     rcases mem_reroot_arcs.mp hx with rfl | ⟨hxt, hxa, _⟩
     · rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
       · exact (Nat.lt_irrefl b.time htime).elim
       · simpa only [Arc.reverse, pairFlip_cancel] using
           h.noShortcut a ha y hyt hai (hbi.trans hxy) (hbt.symm ▸ htime)
-    · have hxc := hcopy x hxt hxa hxi
-      have htx := h.time_lt_of_earliest he hxt hxc
+    · have htx := h.time_lt_of_earliest he hxt (hcopy x hxt hxa hxi)
       rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
       · exact absurd (lt_trans htx htime) (hbt ▸ lt_irrefl a.time)
       · exact h.noShortcut_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy htx htime

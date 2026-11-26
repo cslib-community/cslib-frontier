@@ -154,11 +154,9 @@ theorem Op.evalFast_toData (w : ℕ) (o : Op B r) (x : FastData r) :
   | const d v => exact FastData.toData_put w x d v
   | copy d s => exact congrArg some (FastData.toData_set x d (x.reg s))
   | alu f d args =>
-    simp only [evalFast, eval]
-    change (Option.bind _ _).map _ = Option.bind (B.interp w f (x.reg ∘ args)) _
-    cases B.interp w f (x.reg ∘ args) with
-    | none => rfl
-    | some v => exact FastData.toData_put w x d v
+    have h : x.toData.regs = x.reg := rfl
+    simp only [evalFast, eval, h, Option.bind_eq_bind]
+    cases B.interp w f (x.reg ∘ args) <;> simp [FastData.toData_put]
   | load d a => exact congrArg some (FastData.toData_set x d (x.read (x.reg a)))
   | store a s => exact congrArg some (FastData.toData_write x (x.reg a) (x.reg s))
 
@@ -200,10 +198,7 @@ theorem Code.evalLoopFast_toData (c : Cond r) {f : FastData r → Option (FastDa
     · rw [← hfg x]
       cases f x with
       | none => rfl
-      | some ym =>
-        change ((evalLoopFast c f fuel ym.1).map _).map _ = (evalLoop c g fuel ym.1.toData).map _
-        rw [← ih ym.1, Option.map_map, Option.map_map]
-        rfl
+      | some ym => simp [Option.bind_eq_bind, ← ih ym.1, Option.map_map, Function.comp_def]
     · rfl
 
 /-- `Code.evalFast` computes `Code.eval`. -/
@@ -217,10 +212,7 @@ theorem Code.evalFast_toData (w fuel : ℕ) (c : Code B r) (x : FastData r) :
     simp only [evalFast, eval, ← ih₁]
     cases c₁.evalFast w fuel x with
     | none => rfl
-    | some ym =>
-      change ((evalFast w fuel c₂ ym.1).map _).map _ = (eval w fuel c₂ ym.1.toData).map _
-      rw [← ih₂, Option.map_map, Option.map_map]
-      rfl
+    | some ym => simp [Option.bind_eq_bind, ← ih₂, Option.map_map, Function.comp_def]
   | branch c pos neg ihp ihn =>
     simp only [evalFast, eval, Cond.holdsFast_eq, decide_eq_true_eq]
     split <;> simp only [← ihp, ← ihn, Option.map_map] <;> rfl

@@ -215,9 +215,6 @@ theorem logb_prob_add_logb_card_le_conditionalEntropy {Ω ObsT TgtT : Type*}
   set joint_ot : PMF (ObsT × TgtT) := p.map fun ω => (obs ω, target ω)
   set pW_real : ℝ := ((μ.map W) true).toReal
   have hpW_pos : 0 < pW_real := ENNReal.toReal_pos hW0 (PMF.apply_ne_top (μ.map W) true)
-  have hj_le (ot : ObsT × TgtT) :
-      (joint_ot ot).toReal ≤ pW_real⁻¹ * ((μ.map fun ω => (obs ω, target ω)) ot).toReal :=
-    toReal_map_conditionalSnd_event_le μ W hW0 (fun ω => (obs ω, target ω)) ot
   have hcObs : (0 : ℝ) < (Fintype.card ObsT : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
   have hcTgt : (0 : ℝ) < (Fintype.card TgtT : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
   have hcard_ot : (Fintype.card ObsT : ℝ) * (Fintype.card TgtT : ℝ) =
@@ -228,12 +225,12 @@ theorem logb_prob_add_logb_card_le_conditionalEntropy {Ω ObsT TgtT : Type*}
     rw [PMF.le_minEntropy_iff joint_ot]; intro ot
     rw [Real.rpow_neg (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) (by positivity),
       mul_assoc pW_real, hcard_ot, mul_inv]
-    exact (hj_le ot).trans (mul_le_mul_of_nonneg_left (hmass ot) (inv_nonneg.mpr hpW_pos.le))
-  have hfst_le : PMF.entropy (joint_ot.map Prod.fst) ≤ Real.logb 2 (Fintype.card ObsT) :=
-    PMF.entropy_le_log_card _
+    exact (toReal_map_conditionalSnd_event_le μ W hW0 _ ot).trans
+      (mul_le_mul_of_nonneg_left (hmass ot) (inv_nonneg.mpr hpW_pos.le))
   rw [Real.logb_mul (mul_pos hpW_pos hcObs).ne' hcTgt.ne',
     Real.logb_mul hpW_pos.ne' hcObs.ne'] at hmin
-  rw [PMF.conditionalEntropy]; linarith
+  rw [PMF.conditionalEntropy]
+  linarith [PMF.entropy_le_log_card (joint_ot.map Prod.fst)]
 
 open Classical in
 /-- Fiberwise event-conditioned conditional entropy lower bound: if under prior `μ : PMF Ω`, every
@@ -260,9 +257,6 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
   set q : PMF ObsT := μ.map obs
   set pW : ℝ := ((μ.map W) true).toReal
   have hpW_pos : 0 < pW := ENNReal.toReal_pos hW0 (PMF.apply_ne_top (μ.map W) true)
-  have hj_le (ot : ObsT × TgtT) :
-      (J ot).toReal ≤ pW⁻¹ * ((μ.map fun ω => (obs ω, target ω)) ot).toReal :=
-    toReal_map_conditionalSnd_event_le μ W hW0 (fun ω => (obs ω, target ω)) ot
   have hr_le (o : ObsT) : (r o).toReal ≤ pW⁻¹ * (q o).toReal := by
     simpa only [r, J, _root_.PMF.map_comp, Function.comp_def] using
       toReal_map_conditionalSnd_event_le μ W hW0 obs o
@@ -285,13 +279,13 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
         rw [PMF.le_minEntropy_iff]; intro t
         rw [Real.rpow_neg (by norm_num),
           Real.rpow_logb (by norm_num) (by norm_num) (by positivity), inv_div]
-        have hm : (r o).toReal * (PMF.conditionalSnd J o t).toReal = (J (o, t)).toReal := by
-          rw [← ENNReal.toReal_mul]; exact congrArg _ (PMF.marginal_mul_conditionalSnd J o t)
+        have hm : (r o).toReal * (PMF.conditionalSnd J o t).toReal = (J (o, t)).toReal :=
+          (ENNReal.toReal_mul ..).symm.trans (congrArg _ (PMF.marginal_mul_conditionalSnd J o t))
         rw [le_div_iff₀ (by positivity)]
         calc (PMF.conditionalSnd J o t).toReal * (pW * (r o).toReal * M)
             = (J (o, t)).toReal * (pW * M) := by rw [← hm]; ring
           _ ≤ pW⁻¹ * ((q o).toReal / M) * (pW * M) :=
-            mul_le_mul_of_nonneg_right ((hj_le (o, t)).trans
+            mul_le_mul_of_nonneg_right ((toReal_map_conditionalSnd_event_le μ W hW0 _ (o, t)).trans
               (mul_le_mul_of_nonneg_left (hfiber o t) (inv_nonneg.mpr hpW_pos.le))) (by positivity)
           _ = (q o).toReal := by field_simp
       have hlog : Real.logb 2 (pW * (r o).toReal * M / (q o).toReal) =

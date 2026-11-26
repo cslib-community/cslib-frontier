@@ -176,8 +176,7 @@ theorem size_zeros {α : Type*} [Zero α] (n : ℕ) : (zeros n : FenwickTree α)
 
 theorem valid_zeros {α : Type*} [AddCommMonoid α] (n : ℕ) :
     Valid (zeros n : FenwickTree α) (List.replicate n 0) := by
-  rw [valid_iff_sum_Ico]
-  exact ⟨by simp [zeros], fun _ _ _ => by simp [zeros]⟩
+  simp [valid_iff_sum_Ico, zeros]
 
 /-! ## Prefix queries (`prefixSum`) -/
 
@@ -221,12 +220,8 @@ p. 330): on any valid tree for `s`, `prefixSum t len` equals `(s.take len).sum` 
 theorem prefixSum_eq {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} (hv : Valid t s) (len : ℕ) :
     prefixSum t len = (s.take len).sum := by
-  unfold prefixSum
-  rw [hv.1, prefixSumLoop_eq hv (Nat.min_le_right len s.length) 0, zero_add]
-  rcases le_or_gt len s.length with hle | hgt
-  · rw [Nat.min_eq_left hle]
-  · rw [Nat.min_eq_right (Nat.le_of_lt hgt), List.take_length,
-      List.take_of_length_le (Nat.le_of_lt hgt)]
+  rw [prefixSum, hv.1, prefixSumLoop_eq hv (Nat.min_le_right len s.length) 0, zero_add,
+    ← List.take_take, List.take_length]
 
 /-! ## Point increments (`addLoop`, `add`) -/
 
@@ -318,11 +313,10 @@ theorem valid_add {α : Type*} [AddCommMonoid α]
       Finset.sum_congr rfl fun i _ => by
         rw [PrefixSums.getD_addAt s δ hpos_s i]; split_ifs <;> simp only [add_zero]
     rw [hsum_eq, Finset.sum_add_distrib]
-    by_cases hmem : pos ∈ Finset.Ico (idx - lowbit idx) idx
-    · rw [ite_eq_left hmem, Finset.sum_eq_single_of_mem pos hmem fun i _ hne => ite_eq_right hne,
-        ite_eq_left rfl]
-    · rw [ite_eq_right hmem, Finset.sum_eq_zero fun i hi =>
-        ite_eq_right fun (h : i = pos) => hmem (h ▸ hi), add_zero]
+    split_ifs with hmem
+    · simp only [Finset.sum_eq_single_of_mem pos hmem fun _ _ hne => ite_eq_right hne, ↓reduceIte]
+    · simp only [Finset.sum_eq_zero fun _ hi =>
+        ite_eq_right fun h => hmem (Eq.mp (congrArg (· ∈ _) h) hi), add_zero]
   · have hge : s.length ≤ pos := by have := hv.1; omega
     rwa [PrefixSums.addAt_of_length_le δ hge]
 
@@ -536,8 +530,7 @@ theorem size_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :
 
 theorem valid_ofList {α : Type*} [AddCommMonoid α] (s : List α) :
     Valid (ofList s) s := by
-  change Valid (ofArray s.toArray) s
-  simpa only [List.toList_toArray] using valid_ofArray s.toArray
+  simpa only [ofList, List.toList_toArray] using valid_ofArray s.toArray
 
 @[simp]
 theorem size_ofList {α : Type*} [AddCommMonoid α] (s : List α) :

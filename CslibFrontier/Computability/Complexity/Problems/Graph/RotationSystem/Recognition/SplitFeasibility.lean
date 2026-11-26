@@ -44,15 +44,10 @@ private theorem mem_successor_block {α : Type} (f : Perm α) (L : List α)
     f a ∈ L ↔ a = f.symm L[0] ∨ (a ∈ L ∧ a ≠ L[L.length - 1]) := by
   constructor
   · intro ha
-    obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp ha
-    rcases eq_or_ne i 0 with rfl | hz
+    obtain ⟨_ | i, hi, he⟩ := List.mem_iff_getElem.mp ha
     · exact Or.inl (f.injective (he.symm.trans (f.apply_symm_apply _).symm))
-    · have hp : i - 1 + 1 < L.length := by omega
-      have heq : a = L[i - 1] := f.injective (by
-        rw [hs (i - 1) hp]
-        simpa only [Nat.sub_add_cancel (by omega : 1 ≤ i)] using he.symm)
-      refine Or.inr ⟨heq.symm ▸ List.getElem_mem (by omega), ?_⟩
-      intro h
+    · have heq : a = L[i] := f.injective ((hs i hi).trans he).symm
+      refine Or.inr ⟨heq.symm ▸ List.getElem_mem (Nat.lt_of_succ_lt hi), fun h => ?_⟩
       have := hnd.getElem_inj_iff.mp (heq.symm.trans h)
       omega
   · rintro (rfl | ⟨ha, hlast⟩)
@@ -175,9 +170,8 @@ private theorem mem_blockDarts {I : FixedRotationInput} {v : ℕ} (block : List 
 
 private theorem vertex_blockDarts {I : FixedRotationInput} {v : ℕ} (block : List ℕ)
     (hb : ∀ d ∈ block, d ∈ fiber I.graph v) {d : Dart I.graph}
-    (hd : d ∈ blockDarts block hb) : d.vertex = v := by
-  have h := (mem_fiber.mp (hb d.index ((mem_blockDarts block hb d).mp hd))).2
-  rwa [Dart.vertex_index] at h
+    (hd : d ∈ blockDarts block hb) : d.vertex = v :=
+  d.vertex_index ▸ (mem_fiber.mp (hb d.index ((mem_blockDarts block hb d).mp hd))).2
 
 private theorem get_blockDarts_index {I : FixedRotationInput} {v : ℕ} (block : List ℕ)
     (hb : ∀ d ∈ block, d ∈ fiber I.graph v) (i : ℕ)
@@ -213,9 +207,8 @@ private theorem cutPermutation_none {α : Type} [DecidableEq α] (f : Perm α)
 
 private theorem cutPermutation_hub {α : Type} [DecidableEq α] (f : Perm α)
     (first last : α) : cutPermutation f first last (some none) = some (some first) := by
-  by_cases h : f.symm first = last
-  · have hf : f last = first := by rw [← h, f.apply_symm_apply]
-    simp [cutPermutation, h, hf]
+  rcases eq_or_ne (f.symm first) last with rfl | h
+  · simp [cutPermutation]
   · simp [cutPermutation, h, insertAfter_other f last (f.symm first) h]
 
 private theorem cutPermutation_old {α : Type} [DecidableEq α] (f : Perm α)
@@ -255,9 +248,8 @@ private theorem declared_of_valid {I : FixedRotationInput} (hI : Valid I) :
   fun w hw => hI.1 ▸ List.mem_range.mpr (hI.2.1 w hw)
 
 private theorem dart_vertex_lt {I : FixedRotationInput} (hI : Valid I) (d : Dart I.graph) :
-    d.vertex < I.graph.vertices.length := by
-  have h := RotationSystem.vertex_mem (declared_of_valid hI) d
-  rwa [hI.1, List.mem_range] at h
+    d.vertex < I.graph.vertices.length :=
+  List.mem_range.mp (hI.1 ▸ RotationSystem.vertex_mem (declared_of_valid hI) d)
 
 private theorem split_incident_iff {I : FixedRotationInput} {v : ℕ}
     {block : List ℕ} (hne : block ≠ []) (hb : ∀ d ∈ block, d ∈ fiber I.graph v) (w : ℕ) :
@@ -609,11 +601,9 @@ private theorem cut_realizes {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
       by_cases hlast : i + 1 = block.length
       · have hel : e = last := by
           change L[i] = L[L.length - 1]
-          congr 1; omega
-        rw [ite_eq_left hel]
-        dsimp only [coordinateIndex, nextInWord]
-        rw [hlast]
-        simp
+          congr 1
+          omega
+        simp [ite_eq_left hel, coordinateIndex, nextInWord, hlast]
       · have hi' : i + 1 < L.length := by omega
         have hlt : i + 1 < block.length := hlen ▸ hi'
         have hel : e ≠ last := fun h => absurd (hL.getElem_inj_iff.mp h) (by omega)

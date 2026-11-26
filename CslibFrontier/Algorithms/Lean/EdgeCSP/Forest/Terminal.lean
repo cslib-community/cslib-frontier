@@ -146,9 +146,7 @@ theorem children_nodup (h : Partial sem f rs es e) :
 private theorem unique (h : Partial sem f rs es e) {a b : Arc F}
     (ha : a ∈ Log.arcs (e :: es)) (hb : b ∈ Log.arcs (e :: es))
     (he : a.occurrence = b.occurrence) : a = b := by
-  have hn := h.used_nodup
-  rw [← Log.map_arcs_occurrence] at hn
-  exact List.inj_on_of_nodup_map hn ha hb he
+  exact List.inj_on_of_nodup_map (Log.map_arcs_occurrence (e :: es) ▸ h.used_nodup) ha hb he
 
 private theorem rank_arc (h : Partial sem f rs es e) {a : Arc F}
     (ha : a ∈ Log.arcs (e :: es)) :
@@ -162,8 +160,7 @@ private theorem rank_arc (h : Partial sem f rs es e) {a : Arc F}
   · rw [hold _ (Log.Grown.used_visited h.grown (es.mem_arcs ha).1)]
     exact h.grown.rank_arc ha
   · simp only [↓reduceIte, hold _ h.visited]
-    have := es.birth_le e.input.var
-    omega
+    exact Nat.lt_succ_of_le (es.birth_le e.input.var)
   · have hm : o.var ∈ e.outputs.map Occurrence.var := List.mem_map.mpr ⟨o, ho, rfl⟩
     simp only [Bool.false_eq_true, ↓reduceIte, Log.birth, hm]
     omega
@@ -268,10 +265,10 @@ would have this original constraint position, triggering source step 4b. -/
 theorem Trace.old_visited (h : Trace sem f m) : m.older.Visited m.roots m.output.var := by
   refine h.visited.imp_right fun hv => (List.mem_append.mp hv).resolve_left fun hv => ?_
   obtain ⟨o, ho, he⟩ := List.mem_map.mp hv
-  have hp := Log.sameParent_of_mem_outgoing h.expansion.children_nodup
-    (List.mem_append_left m.older.outgoing ho)
-  have hc := ((mem_partners sem f _ _).mp (h.expansion.feasible o ho)).1
-  exact h.not_parent (by simpa only [he, ← hc] using hp)
+  exact h.not_parent (by
+    simpa only [he, ← ((mem_partners sem f _ _).mp (h.expansion.feasible o ho)).1] using
+      Log.sameParent_of_mem_outgoing h.expansion.children_nodup
+        (List.mem_append_left m.older.outgoing ho))
 
 /-- The second incoming port is fresh even if its variable was visited long ago. Old outgoing
 ports trigger step 4b; old incoming ports contradict saturation and current-input freshness. -/
@@ -393,10 +390,8 @@ theorem run_trace (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
       obtain ⟨hfr, hnd, hsub⟩ :=
         hs ▸ scan_outputs (roots f) es input (partners sem f input) [] (by simp) (by simp)
       obtain ⟨ho, hvo, hpo⟩ := scan_meeting_spec (roots f) es input _ [] hs
-      have ht : Meeting.Trace sem f ⟨roots f, es, ⟨input, os⟩, o⟩ :=
-        ⟨rfl, ⟨hg, hv, hui, hfr, hnd, fun p hp => hsub hp⟩, ho, hvo, hpo⟩
       dsimp only
-      split <;> exact ht
+      split <;> exact ⟨rfl, ⟨hg, hv, hui, hfr, hnd, hsub⟩, ho, hvo, hpo⟩
     next os hs =>
       exact run_trace sem f hF _ _ (hg.of_scan hF hv hui hs)
         fun o ho => of_decide_eq_true (List.mem_filter.mp ho).2

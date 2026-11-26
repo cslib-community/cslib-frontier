@@ -310,9 +310,8 @@ private theorem ackLevel_lt_of_lt_ackermann {r p q : ℕ} (hr : 1 ≤ r) (hrp : 
     (hlt : p < Nat.ackermann q r) : ackLevel r p < q := by
   unfold ackLevel
   rw [dite_eq_left ⟨hr, hrp⟩]
-  have hpos := find_lt_ackermann_pos hr hrp
-  have hmin : Nat.find (exists_lt_ackermann hr p) ≤ q := Nat.find_min' _ hlt
-  omega
+  exact Nat.sub_lt_right_of_lt_add (find_lt_ackermann_pos hr hrp)
+    (Nat.lt_succ_of_le (Nat.find_min' (exists_lt_ackermann hr p) hlt))
 
 private theorem ackLevel_mono {r p₁ p₂ : ℕ} (hr : 1 ≤ r) (hrp₁ : r < p₁) (hle : p₁ ≤ p₂) :
     ackLevel r p₁ ≤ ackLevel r p₂ :=
@@ -341,15 +340,12 @@ private theorem two_le_find_iterate {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) :
 private theorem one_le_ackIter {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) : 1 ≤ ackIter r p := by
   unfold ackIter
   rw [dite_eq_left ⟨hr, hrp⟩]
-  have h2 := two_le_find_iterate hr hrp
-  omega
+  exact Nat.le_sub_one_of_lt (two_le_find_iterate hr hrp)
 
 private theorem ackIter_le {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) : ackIter r p ≤ r := by
   unfold ackIter
   rw [dite_eq_left ⟨hr, hrp⟩]
-  have hmin : Nat.find (exists_lt_iterate_ackermann hr hrp) ≤ r + 1 :=
-    Nat.find_min' _ (lt_ackermann_ackLevel_succ hr hrp)
-  omega
+  exact Nat.sub_le_of_le_add (Nat.find_min' _ (lt_ackermann_ackLevel_succ hr hrp))
 
 private theorem iterate_ackermann_ackIter_le {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) :
     (Nat.ackermann (ackLevel r p))^[ackIter r p] r ≤ p := by
@@ -492,9 +488,8 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
       nodePotential zs q d uf' u ≤ nodePotential zs q d uf u := by
     intro u hu
     by_cases hroot : uf.parent u = u
-    · have hroot' : uf'.parent u = u := (parent_compressWithSteps_eq_self_iff uf x u).mpr hroot
-      simp only [nodePotential, uf', hroot, hroot', ↓reduceIte, rank_compressWithSteps]
-      exact Nat.le_refl _
+    · simp only [nodePotential, uf', hroot, (parent_compressWithSteps_eq_self_iff uf x u).mpr hroot,
+        ↓reduceIte, rank_compressWithSteps, le_refl]
     · have hroot' : uf'.parent u ≠ u := by
         rwa [ne_eq, parent_compressWithSteps_eq_self_iff]
       simp only [nodePotential, uf', hroot, hroot', ↓reduceIte, rank_compressWithSteps]
@@ -560,16 +555,9 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
       have hmap : Set.MapsTo lvl (S_keep_nonroots : Set ℕ) (Finset.range q : Set ℕ) := by
         intro u hu
         rw [Finset.mem_coe, Finset.mem_filter, Finset.mem_sdiff] at hu
-        have hroot := hu.2
-        have hr : 1 ≤ uf.rank u + d := Nat.le_trans hd (Nat.le_add_left d _)
-        have hrp : uf.rank u + d < uf.rank (uf.parent u) + d :=
-          Nat.add_lt_add_right (uf.rank_lt hroot) d
-        have hpq : uf.rank (uf.parent u) + d < Nat.ackermann q (uf.rank u + d) := by
-          have hlog := hvalid.rank_le_log (uf.parent u)
-          have hack := Nat.ackermann_monotone_right q (Nat.le_add_left d (uf.rank u))
-          omega
+        obtain ⟨hr, hrp, hpp', hp'q⟩ := hpath_bounds u hu.2
         exact Finset.mem_coe.mpr (Finset.mem_range.mpr
-          (ackLevel_lt_of_lt_ackermann hr hrp hpq))
+          (ackLevel_lt_of_lt_ackermann hr hrp (lt_of_le_of_lt hpp' hp'q)))
       have hinj : Set.InjOn lvl (S_keep_nonroots : Set ℕ) := by
         intro u₁ hu₁ u₂ hu₂ heq
         rw [Finset.mem_coe, Finset.mem_filter, Finset.mem_sdiff] at hu₁ hu₂

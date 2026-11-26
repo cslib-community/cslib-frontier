@@ -211,13 +211,12 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
       affineSpan ℝ ({point (left d), point (right d)} : Set ℂ) ≠
         affineSpan ℝ ({a, b} : Set ℂ) := by
     rcases hmovable d with ⟨k, hk⟩ | ⟨k, hk⟩
-    · exact affineSpan_pair_ne_of_avoids_spans (hpool (right d)) ha hb (hnondeg d) hab hne
-        (fun x hx y hy hxy hdx hdy => hk ▸ hspans k x y hx hy hxy (hk.trans_ne hdx)
-          (hk.trans_ne hdy))
-    · rw [Set.pair_comm (point (left d)) (point (right d))] at hne ⊢
-      exact affineSpan_pair_ne_of_avoids_spans (hpool (left d)) ha hb (hnondeg d).symm hab hne
-        (fun x hx y hy hxy hdx hdy => hk ▸ hspans k x y hx hy hxy (hk.trans_ne hdx)
-          (hk.trans_ne hdy))
+    · rw [← hk] at hne ⊢
+      exact affineSpan_pair_ne_of_avoids_spans (hpool (right d)) ha hb (hk ▸ hnondeg d) hab hne
+        (fun x hx y hy => hspans k x y hx hy)
+    · rw [Set.pair_comm (point (left d)), ← hk] at hne ⊢
+      exact affineSpan_pair_ne_of_avoids_spans (hpool (left d)) ha hb (hk ▸ (hnondeg d).symm)
+        hab hne (fun x hx y hy => hspans k x y hx hy)
   refine ⟨?_, fun d => ⟨hpool (left d), hpool (right d), hmovable d, hnondeg d⟩, ?_, ?_⟩
   · intro e i j he
     exact Fin.ext (congrArg (fun d : N => d.2.val)
@@ -227,13 +226,10 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
     exact hcompare d _ _ (hpool (left f)) (hpool (right f)) (hnondeg f)
       (fun hp => hdf (hpair d f hp)) he
   · intro d a ha b hb hab
-    apply hcompare d a b (Or.inl ha) (Or.inl hb) hab
-    intro hp
+    refine hcompare d a b (Or.inl ha) (Or.inl hb) hab fun hp => ?_
     have hsub : ({point (left d), point (right d)} : Set ℂ) ⊆ fixed :=
       hp ▸ Set.insert_subset_iff.mpr ⟨ha, Set.singleton_subset_iff.mpr hb⟩
-    rcases hmovable d with ⟨k, hk⟩ | ⟨k, hk⟩
-    · exact hfixed k (hk.symm ▸ hsub (Set.mem_insert _ _) : placed k ∈ fixed)
-    · exact hfixed k (hk.symm ▸ hsub (Set.mem_insert_of_mem _ (Set.mem_singleton _)) :
-        placed k ∈ fixed)
+    rcases hmovable d with ⟨k, hk⟩ | ⟨k, hk⟩ <;> rw [← hk] at hsub <;>
+      exact hfixed k (hsub (by simp [placed]))
 
 end Cslib.Polygonal.Route

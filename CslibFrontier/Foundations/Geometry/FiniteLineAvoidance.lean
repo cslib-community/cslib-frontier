@@ -115,8 +115,8 @@ private theorem affineSpan_pair_inter_subsingleton {a b c d : ℂ}
 /-- Segments on distinct supporting lines share at most one point. -/
 theorem segment_inter_subsingleton_of_affineSpan_ne {a b c d : ℂ}
     (hne : affineSpan ℝ ({a, b} : Set ℂ) ≠ affineSpan ℝ ({c, d} : Set ℂ)) :
-    (segment ℝ a b ∩ segment ℝ c d).Subsingleton := by
-  exact (affineSpan_pair_inter_subsingleton hne).anti
+    (segment ℝ a b ∩ segment ℝ c d).Subsingleton :=
+  (affineSpan_pair_inter_subsingleton hne).anti
     (Set.inter_subset_inter (segment_subset_affineSpan_pair a b)
       (segment_subset_affineSpan_pair c d))
 
@@ -162,10 +162,9 @@ private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
       ⟨⟨(⟨⟨a j, (hold j hij).1⟩, ⟨b j, (hold j hij).2⟩⟩,
           ⟨⟨a k, (hold k hik).1⟩, ⟨b k, (hold k hik).2⟩⟩), hdistinct hjk⟩, hz j, hz k⟩
     have hother (c : ℂ) (hc : c ∈ insert w points) (hcw : c ≠ w)
-        (hcz : c ≠ z) (hcl : c ∈ line i) : False := by
-      apply havoid c (hc.resolve_left hcw) z hzCross hcz
-      rw [affineSpan_pair_eq_of_mem_of_mem_of_ne hcl (hz i) hcz]
-      exact hline i hi
+        (hcz : c ≠ z) (hcl : c ∈ line i) : False :=
+      havoid c (hc.resolve_left hcw) z hzCross hcz
+        ((affineSpan_pair_eq_of_mem_of_mem_of_ne hcl (hz i) hcz).symm ▸ hline i hi)
     rcases hi with ha | hb
     · exact hother (b i) (hpoints i).2.1 (ha ▸ (hpoints i).2.2.symm)
         (he i).2.symm (right_mem_affineSpan_pair ℝ (a i) (b i))
@@ -223,7 +222,6 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
         fun j hj => Function.update_of_ne (ne_of_mem_of_not_mem hj hi) _ _
       have hold (j : ι) (hj : j ∈ s) : old j ∈ present :=
         Finset.mem_union_right _ (Finset.mem_image_of_mem _ hj)
-      have hfixed' : ∀ a ∈ fixed, a ∈ present := fun a ha => Finset.mem_union_left _ ha
       have hplaced : q '' (↑(insert i s) : Set ι) = insert w (old '' (↑s : Set ι)) := by
         rw [Finset.coe_insert, Set.image_insert_eq, hqnew, hqold.image_eq]
       have hpool : (↑fixed : Set ℂ) ∪ q '' (↑(insert i s) : Set ι) =
@@ -238,8 +236,7 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
         exact ⟨hinj, fun ⟨j, hj, h⟩ => hwne (h ▸ hold j hj)⟩
       · intro j hj h
         rcases Finset.mem_insert.mp hj with rfl | hj
-        · exact hwne (hqnew ▸ hfixed' _ h)
-        · exact hfixed j hj (hqold hj ▸ h)
+        exacts [hwne (hqnew ▸ Finset.mem_union_left _ h), hfixed j hj (hqold hj ▸ h)]
       · intro j hj a b ha hb hab hja hjb h
         rw [hpool] at ha hb
         rcases Finset.mem_insert.mp hj with rfl | hj
@@ -247,16 +244,14 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
           exact hwspans a (ha.resolve_left hja.symm) b (hb.resolve_left hjb.symm) hab h
         · rw [hqold hj] at hja hjb h
           rcases ha with rfl | ha'
-          · apply hwspans _ (hold j hj) _ (hb.resolve_left hab.symm) hjb
-            rw [affineSpan_pair_eq_of_left_mem_of_ne h hjb]
-            exact left_mem_affineSpan_pair _ _ _
+          · exact hwspans _ (hold j hj) _ (hb.resolve_left hab.symm) hjb
+              ((affineSpan_pair_eq_of_left_mem_of_ne h hjb).symm ▸ left_mem_affineSpan_pair _ _ _)
           · rcases hb with rfl | hb'
-            · apply hwspans _ ha' _ (hold j hj) hja.symm
-              rw [affineSpan_pair_eq_of_right_mem_of_ne h hja]
-              exact right_mem_affineSpan_pair _ _ _
+            · exact hwspans _ ha' _ (hold j hj) hja.symm
+                ((affineSpan_pair_eq_of_right_mem_of_ne h hja).symm ▸
+                  right_mem_affineSpan_pair _ _ _)
             · exact hspans j hj a b (hpresent ▸ ha') (hpresent ▸ hb') hab hja hjb h
-      · rw [hpool, hplaced]
-        exact (hpresent.symm ▸ htriple).insert_point hwcross
+      · exact hpool.symm ▸ hplaced.symm ▸ (hpresent.symm ▸ htriple).insert_point hwcross
   simpa only [Finset.mem_univ, true_imp_iff, Finset.coe_univ, Set.image_univ, Set.injOn_univ] using
     extend Finset.univ
 
