@@ -176,13 +176,12 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
       next ∈ OracleComp.support (wordBirthdayStep blockLen n state) →
       (encPair (encList encBits) encBool next).length ≤
         (encPair (encList encBits) encBool state).length + (4 * blockLen n + 10) := by
-    intro n state next hnext
-    obtain ⟨seen, collided⟩ := state
+    rintro n ⟨seen, collided⟩ next hnext
     simp only [wordBirthdayStep, OracleComp.mem_supportWith_bind_iff] at hnext
-    rcases hnext with ⟨raw, -, hnext⟩
-    rcases OracleComp.eq_of_mem_supportWith_pure hnext with rfl
+    obtain ⟨raw, -, hnext⟩ := hnext
+    obtain rfl := OracleComp.eq_of_mem_supportWith_pure hnext
     have hlen : (raw.take (blockLen n)).length ≤ blockLen n := List.length_take_le _ _
-    have hencBool : ∀ b : Bool, (encBool b).length = 1 := by intro b; cases b <;> rfl
+    have hencBool : ∀ b : Bool, (encBool b).length = 1 := fun b => by cases b <;> rfl
     enc_len [hencBool]
   have hiter : IsOraclePPTOn encUnary (encPair (encList encBits) encBool)
       (fun n => OracleComp.iterate (min (Q n) (2 ^ blockLen n))
@@ -209,10 +208,9 @@ oracle queries. -/
 theorem isQueryBounded_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (n : ℕ) (aux : List Bool) :
     ProbOracleComp.IsQueryBounded (wordBirthdayDistinguisher blockLen Q n aux)
       (min (Q n) (2 ^ blockLen n)) := by
-  have hiter : ∀ k, ProbOracleComp.IsQueryBounded
+  have hiter (k : ℕ) : ProbOracleComp.IsQueryBounded
       (OracleComp.iterate k (wordBirthdayStep blockLen n) ([], false) :
         WordOracleComp Unit (List (List Bool) × Bool)) k := by
-    intro k
     induction k with
     | zero => exact OracleComp.IsCostBounded.pure _ 0
     | succ k ih =>
@@ -287,18 +285,12 @@ theorem run_wordBirthdayDistinguisher_randomFunctionOracle (blockLen Q : ℕ →
         (fun d => pure (f d)) := by
   rw [run_wordBirthdayDistinguisher, PRP.run_birthdayDistinguisher]
   congr 2
-  refine propext (not_congr ?_)
-  constructor
-  · intro hinj i j hij
-    apply hinj
-    have hij' := congrArg List.ofFn hij
-    simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
-      List.take_of_length_le List.length_ofFn.le] using hij'
-  · intro hinj i j hij
-    apply hinj
-    have hij' := congrArg (BitString.ofList (blockLen n)) hij
-    simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
-      List.take_of_length_le List.length_ofFn.le, BitString.ofList_ofFn] using hij'
+  refine propext (not_congr ⟨fun hinj i j hij => hinj ?_, fun hinj i j hij => hinj ?_⟩)
+  · simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
+      List.take_of_length_le List.length_ofFn.le] using congrArg List.ofFn hij
+  · simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
+      List.take_of_length_le List.length_ofFn.le, BitString.ofList_ofFn] using
+      congrArg (BitString.ofList (blockLen n)) hij
 
 /-- Output distribution of `wordBirthdayDistinguisher` in `E.prpRealGame` coincides with
 `PRP.realExperiment` on `E.permEquiv`. -/

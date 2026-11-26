@@ -387,9 +387,8 @@ theorem dispatch_exec {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
   | append v =>
     have harg : x₁.regs arg = v := by
       simp +decide [x₁, x₀, Data.set, implementation, DynamicProgram.prepare]
-    have hw : Fits w (x₁.regs frontier + 2 * x₁.regs cap) := by
-      have hle := hx₁_rep.frontier_add_two_cap_le
-      exact hv.2.of_le (by omega)
+    have hw : Fits w (x₁.regs frontier + 2 * x₁.regs cap) :=
+      hv.2.of_le (by have := hx₁_rep.frontier_add_two_cap_le; omega)
     obtain ⟨y, n, he, hy_rep, hy_frame, hy_pot, _⟩ := append_exec hx₁_rep hw
     rw [harg] at hy_rep hy_pot
     have hdest : ((implementation w).prepare (.append v) x).regs dest = 0 := by
@@ -432,8 +431,7 @@ theorem amortized {w : ℕ} (h1 : Fits w 1) :
   DataStructure.Amortized.ofFn fun hr hv he => by
     obtain ⟨z, n, hz, _, _, _, hpot⟩ := dispatch_exec h1 hr _ hv
     obtain ⟨rfl, hk⟩ := he.eq_of_exec hz
-    rw [hk]
-    exact hpot
+    exact hk ▸ hpot
 
 /-- Uniform amortized instruction-cost certificate (`52` instructions per operation). -/
 theorem amortized_uniform {w : ℕ} (h1 : Fits w 1) :
@@ -450,10 +448,9 @@ theorem modifies {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x y : Data 12} {o : 
     (hr : BoundedRep w vs x) (hv : (spec w).valid vs o)
     (he : (implementation w).ExecOp w x o a y trace) :
     Modifies (Finset.range (y.regs frontier)) x.mem y.mem := by
-  obtain ⟨z, n, hz, _, _, hf, _⟩ := dispatch_exec h1 hr o hv
+  obtain ⟨_, _, hz, _, _, hf, _⟩ := dispatch_exec h1 hr o hv
   obtain ⟨rfl, _⟩ := he.eq_of_exec hz
-  intro addr haddr
-  exact hf addr (Nat.le_of_not_lt (Finset.mem_range.not.mp haddr))
+  exact fun addr haddr => hf addr (Nat.le_of_not_lt (Finset.mem_range.not.mp haddr))
 
 /-- Disjoint heap assertions above `y.regs frontier` survive every dynamic-array call. -/
 theorem frame {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x y : Data 12} {o : Op}
@@ -497,10 +494,8 @@ theorem run_initialized {w : ℕ} (h1 : Fits w 1) {α : Type} (p : (spec w).Clie
       (((spec w).clientState [] p) ≠ [] →
         y.regs frontier < 4 * ((spec w).clientState [] p).length) := by
   obtain ⟨ready, hi, hr_init, _, hpot_init, _, _⟩ := init_exec x h1
-  have hready : BoundedRep w [] ready := ⟨hi.bounded hx, hr_init⟩
-  obtain ⟨y, traces, he, hy, hb, hspace⟩ := run_client h1 p hready hv
-  refine ⟨ready, y, traces, hi, he, hy, ?_, hspace⟩
-  omega
+  obtain ⟨y, traces, he, hy, hb, hspace⟩ := run_client h1 p ⟨hi.bounded hx, hr_init⟩ hv
+  exact ⟨ready, y, traces, hi, he, hy, by omega, hspace⟩
 
 /-- Client that appends each element of `us` in order. -/
 @[expose] def appendAll {w : ℕ} : List ℕ → (spec w).Client Unit

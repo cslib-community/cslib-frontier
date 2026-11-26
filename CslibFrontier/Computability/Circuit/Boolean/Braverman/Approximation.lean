@@ -123,9 +123,8 @@ private theorem tr_gate (k : Fin g) :
 private theorem snd_tr_gate (k : Fin g) (x : BitString n) :
     (tr ℓ s ν P (.gate k)).2 x =
       gateApprox (P.lines k).op (sets ℓ s ν P k)
-        fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x := by
-  rw [tr_gate]
-  rfl
+        fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x :=
+  congrArg (fun p => p.2 x) (tr_gate ℓ s ν P k)
 
 /-- **Degrees of the approximants**: at most `(ℓ s) ^ depth`. -/
 private theorem snd_tr_mem (h : 1 ≤ ℓ * s) (w : Wire n g) :
@@ -166,10 +165,9 @@ private theorem abs_snd_tr_le (h : 2 ≤ ℓ * s) (hfan : ∀ k, (P.lines k).op.
   · rw [Program.wireDepths_gateWire, snd_tr_gate]
     have hpos := P.depths_pos k
     have hargs (a : Fin (P.lines k).op.arity) : |(tr ℓ s ν P ((P.lines k).wires a)).2 x| ≤
-        2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ (P.depths k - 1) - 1)) := by
-      have hlt := P.wireDepths_lines_lt k a
-      exact (ih a).trans (pow_le_pow_right₀ (by norm_num) (Nat.mul_le_mul_left _
-        (Nat.sub_le_sub_right (Nat.pow_le_pow_right (by omega) (by omega)) 1)))
+        2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ (P.depths k - 1) - 1)) :=
+      (ih a).trans (pow_le_pow_right₀ (by norm_num) (Nat.mul_le_mul_left _ (Nat.sub_le_sub_right
+        (Nat.pow_le_pow_right (by omega) (Nat.le_sub_one_of_lt (P.wireDepths_lines_lt k a))) 1)))
     refine (abs_gateApprox_le (by simpa using (by omega : 1 ≤ ℓ * s)) (P.lines k).op (hfan k)
       (sets ℓ s ν P k) hargs).trans (pow_le_pow_right₀ (by norm_num) ?_)
     simpa using exp_step (ℓ := ℓ) h hpos
@@ -188,9 +186,7 @@ private theorem snd_tr_eq {D : ℕ} {x : BitString n} (hx : ∀ k, P.depths k �
     (fun k ih hk => ?_) w hw
   rw [Program.wireDepths_gateWire] at hk
   rw [tr_gate]
-  change gateApprox (P.lines k).op (sets ℓ s ν P k)
-      (fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x) =
-    bitVal ℝ (Unbounded.interpretation (P.lines k).op (args ℓ s ν P k x))
+  dsimp only [pairInterpretation]
   simp only [fun a => ih a (by have := P.wireDepths_lines_lt k a; omega)]
   exact gateApprox_bitVal (hx k hk)
 
@@ -241,8 +237,7 @@ private theorem card_ne_one_iff {α : Type*} (A : Finset α) :
   refine ⟨fun h j hj => by_contra fun hno => h ⟨j, eq_singleton_iff_unique_mem.2
     ⟨hj, fun x hx => by_contra fun hxj => hno ⟨x, hx, hxj⟩⟩⟩, ?_⟩
   rintro h ⟨a, rfl⟩
-  obtain ⟨j', hj', hne⟩ := h a (mem_singleton_self a)
-  exact hne (mem_singleton.1 hj')
+  simpa using h a (mem_singleton_self a)
 
 variable {t K : ℕ}
 
@@ -277,14 +272,14 @@ private theorem eval_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K �
       constructor
       · rintro ⟨j', hj'⟩ ⟨-, hz⟩
         split_ifs at hj' with hjj hS'
-        · subst hjj; rw [eval_lit, hz] at hj'; cases pol <;> simp at hj'
+        · simp_all
         · exact ⟨j', ⟨hS', (eval_lit ..).1 hj'⟩, hjj⟩
         · simp at hj'
       · intro h
         by_cases hz : y (w j) = pol
         · obtain ⟨j', ⟨hS', hy'⟩, hne⟩ := h ⟨hS, hz⟩
-          exact ⟨j', by rw [ite_eq_right hne, ite_eq_left hS', eval_lit]; exact hy'⟩
-        · exact ⟨j, by rw [ite_eq_left rfl, eval_lit]; cases pol <;> cases h : y (w j) <;> simp_all⟩
+          exact ⟨j', by simp [hne, hS', hy']⟩
+        · exact ⟨j, by cases pol <;> cases h' : y (w j) <;> simp_all⟩
     · simp [hS]
   rw [Bool.eq_iff_iff, decide_eq_true_iff, AndMiss]
   simp only [circuit_simps, andMissFormula, Unbounded.interpretation_and,

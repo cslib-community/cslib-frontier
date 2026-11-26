@@ -288,11 +288,8 @@ theorem isPPT_lorToSingle {Msg : Type} {encMsg : Msg ↪ List Bool}
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) :
     (lorToSingle valid encrypt Q adversary).IsPPT encMsg where
-  choose := by
-    have hsample : IsPPTOn (encPair encUnary encBits) encUnary
-        (fun p : ℕ × List Bool => ProbComp.sampleDyadicIndex (Q p.1)) :=
-      isPPTOn_sampleDyadicIndex (hQ.comp (ComputableInPolyTime.fst encUnary encBits))
-    exact hsample.bind_with
+  choose := (isPPTOn_sampleDyadicIndex
+    (hQ.comp (ComputableInPolyTime.fst encUnary encBits))).bind_with
       (isPPTOn_lorToSingleAt_choose hvalid hencrypt hctBound hctLen hQ hadversary)
   guess := (isPPT_lorToSingleAt hvalid hencrypt hctBound hctLen hQ hadversary 0).guess
 
@@ -362,10 +359,7 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
           (gameOn valid keyGen encrypt
             (lorToSingleAt valid encrypt Q adversary split) true n)) := by
   by_cases hlt : split < Q n
-  · have hmin0 : min split (Q n) = split := Nat.min_eq_left hlt.le
-    have hmin1 : min (split + 1) (Q n) = split + 1 := Nat.min_eq_left hlt
-    have hrem0 : Q n - split = (Q n - split - 1) + 1 := by omega
-    have hrem1 : Q n - (split + 1) = Q n - split - 1 := by omega
+  · have hrem0 : Q n - split = (Q n - split - 1) + 1 := by omega
     have lhs_eq (bit : Bool) :
         ProbComp.eval
           (lorHybridGameOn valid keyGen encrypt Q adversary (if bit then split + 1 else split) n) =
@@ -383,7 +377,8 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
                 (ChoiceOut.state choice, c :: mid.2))
             ProbComp.eval (adversary.guess n final.1 final.2)) := by
       cases bit
-      · simp only [Bool.false_eq_true, ↓reduceIte, lorHybridGameOn, lorHybridDistinguisherOn, hmin0]
+      · simp only [Bool.false_eq_true, ↓reduceIte, lorHybridGameOn, lorHybridDistinguisherOn,
+          Nat.min_eq_left hlt.le]
         have htail (pk : List Bool) (mid : List Bool × List (List Bool)) :
             lorRunOn valid encrypt adversary n pk false (Q n - split) mid =
               lorStepOn valid encrypt adversary n pk false mid >>=
@@ -391,7 +386,8 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
           unfold lorRunOn; conv_lhs => rw [hrem0, OracleComp.iterate_succ_bind]
         simp_rw [htail]
         simp only [lorStepOn, pmf_norm, Bool.false_eq_true, ↓reduceIte]
-      · simp only [↓reduceIte, lorHybridGameOn, lorHybridDistinguisherOn, hmin1, hrem1]
+      · simp only [↓reduceIte, lorHybridGameOn, lorHybridDistinguisherOn, Nat.min_eq_left hlt,
+          Nat.sub_add_eq (Q n) split 1]
         have hfront (pk st₀ : List Bool) :
             lorRunOn valid encrypt adversary n pk true (split + 1) (st₀, []) =
               lorRunOn valid encrypt adversary n pk true split (st₀, []) >>=
@@ -435,19 +431,16 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
     · simp [hv]
     · simp [hv, add_comm]
   · have hle : Q n ≤ split := Nat.le_of_not_lt hlt
-    have heqL :
-        ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n) =
-          ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary (split + 1) n) := by
-      rw [eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary hle,
-        eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary (hle.trans (Nat.le_succ _))]
     have heqR (bit : Bool) :
         ProbComp.eval
           (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) bit n) =
           PMF.pure false := by
-      simp only [gameOn, lorToSingleAt, decide_eq_false (Nat.not_lt.mpr hle), Bool.false_eq_true,
+      simp only [gameOn, lorToSingleAt, decide_eq_false hlt, Bool.false_eq_true,
         ↓reduceIte, pmf_norm, apply_ite ProbComp.eval, decode_rejectLoRToSingleState,
         PMF.bind_const, ite_self]
-    rw [heqL, sub_self, heqR false, heqR true, sub_self]
+    rw [eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary hle,
+      eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary (Nat.le_succ_of_le hle),
+      sub_self, heqR false, heqR true, sub_self]
 
 /-- Running `lorToSingle` in `gameOn` averages `lorToSingleAt` uniformly over
 `Fin (dyadicSize (Q n))`, padding indices `i.val ≥ Q n` with `PMF.pure false`. -/

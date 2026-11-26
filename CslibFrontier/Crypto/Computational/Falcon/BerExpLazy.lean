@@ -302,21 +302,15 @@ private theorem bytesToBitsBE_map_berExpByteOfNat_listRows : ∀ (count : Nat)
   | count + 1, bits, hlength => by
       let head := bits.take 8
       let tail := bits.drop 8
-      have hwidth : 8 ≤ bits.length := by
-        rw [hlength, Nat.succ_mul]
-        omega
-      have hhead : head.length = 8 := List.length_take_of_le hwidth
-      have htail : tail.length = count * 8 := by
-        simp only [tail, List.length_drop, hlength, Nat.succ_mul]
-        omega
-      have hsplit : bits = head ++ tail := (List.take_append_drop 8 bits).symm
+      have hhead : head.length = 8 := List.length_take_of_le (by omega)
+      have htail : tail.length = count * 8 := by simp [tail, hlength, Nat.succ_mul]
       have hbyte : berExpByteOfNat (BitString.binaryValue head) = byteOfBitsBE head := by
         apply Fin.ext
         simpa only [berExpByteOfNat,
           Nat.mod_eq_of_lt (by simpa only [hhead] using BitString.binaryValue_lt_two_pow head),
           byteBitsBE, BitString.binaryValue_binaryWord] using
           (congrArg BitString.binaryValue (byteBitsBE_byteOfBitsBE head hhead)).symm
-      rw [hsplit, BitString.listRows_succ_append count 8 hhead tail]
+      rw [← List.take_append_drop 8 bits, BitString.listRows_succ_append count 8 hhead tail]
       simp only [List.map_cons, bytesToBitsBE, hbyte]
       rw [byteBitsBE_byteOfBitsBE head hhead,
         bytesToBitsBE_map_berExpByteOfNat_listRows count htail]
@@ -451,14 +445,11 @@ private theorem eval_berExpLazyBytes_bytesRead_gt_one (first second : Byte)
     OracleComp.replicate_succ]
   simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.map_comp,
     Function.comp_def]
-  have hbind := PMF.bind_congr_on_support (ProbComp.eval berExpLazyByte)
-    (fun sample =>
-      (ProbComp.eval (OracleComp.replicate (thresholds.length + 1) berExpLazyByte)).map
-        (fun samples => decide ((sample :: samples).headD 0 = first)))
+  rw [PMF.bind_congr_on_support (ProbComp.eval berExpLazyByte) _
     (fun sample => PMF.pure (decide (sample = first))) fun sample _ =>
-      (PMF.map_congr_on_support _ _ _ fun _ _ => by simp).trans (PMF.map_const _ _)
-  rw [hbind, Probability.PMF.bind_pure_decide_eq_apply_true',
-    eval_berExpLazyByte, PMF.uniformOfFintype_apply]
+      (PMF.map_congr_on_support _ _ _ fun _ _ => by simp).trans (PMF.map_const _ _),
+    Probability.PMF.bind_pure_decide_eq_apply_true', eval_berExpLazyByte,
+    PMF.uniformOfFintype_apply]
   norm_num
 
 /-- The lazy comparison reads a second byte with exact probability `2^-8`, independently of the

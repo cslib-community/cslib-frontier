@@ -114,21 +114,16 @@ private theorem exists_isCut_last (hc : OneCutAt θ v a₀ α Λ) (hv : 1 ≤ v)
     ∃ (G : Tree) (P t s' : ℕ), IsCut θ τ s (v ^ H) s' P t G ∧ P * v ^ H ≤ τ * (2 * Λ ^ 2) ∧
       t * v ^ 48 ≤ c * τ * (2 * Λ) ∧ s' * v ^ 48 ≤ c * v ^ H * 2 ∧ G.size ≤ v ^ a₀ := by
   have hV : 0 < v ^ H := Nat.pow_pos hv
-  obtain ⟨k, hk⟩ : ∃ k, k = τ * Λ / v ^ H + 1 := ⟨_, rfl⟩
-  have hk1 : τ * Λ < k * v ^ H := by
-    rw [hk, Nat.mul_comm _ (v ^ H)]
-    exact Nat.lt_mul_div_succ _ hV
+  set k := τ * Λ / v ^ H + 1
+  have hk1 : τ * Λ < k * v ^ H :=
+    Nat.mul_comm (v ^ H) k ▸ Nat.lt_mul_div_succ (τ * Λ) hV
   have hk2 : k * v ^ H ≤ τ * Λ + v ^ H := by
-    rw [hk, Nat.add_mul, Nat.one_mul]
-    exact Nat.add_le_add_right (Nat.div_mul_le_self _ _) _
-  have hk0 : 2 ≤ k := by
-    have : Λ ≤ τ * Λ / v ^ H := (Nat.le_div_iff_mul_le hV).2 (by
-      rw [Nat.mul_comm]
-      exact Nat.mul_le_mul_right _ hτ)
-    omega
-  have hkv : k ≤ v ^ 64 := hk ▸ Nat.succ_le_of_lt ((Nat.div_lt_iff_lt_mul hV).2 (by
-    rw [Nat.mul_comm (v ^ 64)]
-    exact hτΛ))
+    simpa only [k, Nat.add_mul, Nat.one_mul] using
+      Nat.add_le_add_right (Nat.div_mul_le_self (τ * Λ) (v ^ H)) (v ^ H)
+  have hk0 : 2 ≤ k := Nat.succ_le_succ ((Nat.le_div_iff_mul_le hV).2
+    (by simpa using hτ.trans (Nat.le_mul_of_pos_right _ (by omega))))
+  have hkv : k ≤ v ^ 64 := Nat.succ_le_of_lt ((Nat.div_lt_iff_lt_mul hV).2
+    (hτΛ.trans_eq (Nat.mul_comm _ _)))
   obtain ⟨G, s', t, hG, hcut, hs', ht⟩ := hc.exists_isCut_factor hv
     ((Nat.pow_le_pow_right hv hH).trans hτ) hτα hk0 hkv hs hc1 hcv
   refine ⟨G, k * Λ, t, s', hcut.mono (Nat.div_le_of_le_mul hk1.le) le_rfl le_rfl le_rfl, ?_,
@@ -186,12 +181,10 @@ theorem exists_isCut_iterate (hc : OneCutAt θ v a₀ α Λ) (hv : 110 ≤ v) (h
     obtain ⟨G₁, s₁, t₁, hG₁, hcut₁, hs₁, ht₁⟩ := hc.exists_isCut_factor hv1 (k := v ^ 63)
       ((pmono hH).trans hτ) hτα ((by omega : 2 ≤ v).trans (Nat.le_self_pow (by norm_num) v))
       (pmono (by norm_num)) hs hc1 (by omega)
-    obtain ⟨τ₁, hτ₁⟩ : ∃ n, n = τ * Λ / v ^ 63 := ⟨_, rfl⟩
-    rw [← hτ₁] at hcut₁
-    have hτ₁le : τ₁ * v ^ 63 ≤ τ * Λ := hτ₁ ▸ Nat.div_mul_le_self _ _
-    have hτ₁V : v ^ H ≤ τ₁ := by
-      rw [hτ₁, Nat.le_div_iff_mul_le (ppos 63)]
-      exact (Nat.mul_le_mul_left _ (pmono (by norm_num))).trans hmany
+    set τ₁ := τ * Λ / v ^ 63 with hτ₁
+    have hτ₁le : τ₁ * v ^ 63 ≤ τ * Λ := Nat.div_mul_le_self _ _
+    have hτ₁V : v ^ H ≤ τ₁ := (Nat.le_div_iff_mul_le (ppos 63)).2
+      ((Nat.mul_le_mul_left _ (pmono (by norm_num))).trans hmany)
     have hτ₁half : τ * Λ ≤ 2 * (τ₁ * v ^ 63) := by
       have h1 := Nat.lt_mul_div_succ (τ * Λ) (ppos 63)
       have h2 : v ^ 63 ≤ τ₁ * v ^ 63 := Nat.le_mul_of_pos_left _ ((ppos H).trans_le hτ₁V)
@@ -218,14 +211,11 @@ theorem exists_isCut_iterate (hc : OneCutAt θ v a₀ α Λ) (hv : 110 ≤ v) (h
         _ = 4 * c * τ₁ * v ^ 63 := by ring) (ppos 63)
     obtain ⟨G₂, P₂, t₂, s₂, hcut₂, hP₂, ht₂, hs₂, hG₂⟩ :=
       ih τ₁ s₁ (4 * c) hτ₁V (hτ₁τ.trans hτα) hτ₁Λ hs₁c (by omega) hcv'
-    obtain ⟨Y, hY⟩ : ∃ Y, Y = X ^ (r + 1) := ⟨_, rfl⟩
-    rw [pow_succ X (r + 1), ← hY]
-    rw [← hY] at hP₂ ht₂ hs₂
-    have hY1 : 1 ≤ Y := hY ▸ Nat.one_le_pow _ _ (by omega)
-    have hΛY : Λ ^ 2 ≤ Λ ^ 2 * Y := Nat.le_mul_of_pos_right _ hY1
-    have hXY : 8 * (Λ ^ 2 * Y) ≤ Y * X := by
-      rw [← Nat.mul_assoc, Nat.mul_comm Y X]
-      exact Nat.mul_le_mul_right _ hX
+    rw [pow_succ X (r + 1)]
+    set Y := X ^ (r + 1)
+    have hΛY : Λ ^ 2 ≤ Λ ^ 2 * Y := Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ (by omega))
+    have hXY : 8 * (Λ ^ 2 * Y) ≤ Y * X :=
+      (Nat.mul_assoc 8 (Λ ^ 2) Y).symm.trans_le (Nat.mul_comm X Y ▸ Nat.mul_le_mul_right Y hX)
     have hP : v ^ 63 * Λ * P₂ * v ^ H ≤ τ * (Λ ^ 2 * Y) :=
       calc v ^ 63 * Λ * P₂ * v ^ H = v ^ 63 * Λ * (P₂ * v ^ H) := by ring
         _ ≤ v ^ 63 * Λ * (τ₁ * Y) := Nat.mul_le_mul_left _ hP₂
@@ -272,12 +262,10 @@ theorem exists_isCut_iterate (hc : OneCutAt θ v a₀ α Λ) (hv : 110 ≤ v) (h
         _ ≤ c * v ^ H * (Y * X) := Nat.mul_le_mul_left _
             (Nat.mul_comm 4 Y ▸ Nat.mul_le_mul_left Y (by omega))
     · -- the size of the program
+      rw [pow_succ' 4 r, Nat.mul_assoc]
       have h1 := size_cutComp G₁ G₂
       have h2 : v ^ a₀ + 3000 ≤ 4 ^ r * (v ^ a₀ + 3000) :=
         Nat.le_mul_of_pos_left _ (Nat.pow_pos (by norm_num))
-      have e : 4 ^ (r + 1) * (v ^ a₀ + 3000) = 4 * (4 ^ r * (v ^ a₀ + 3000)) := by
-        rw [pow_succ]
-        ring
       omega
 
 /-- **The cut at a scale, given one cut** (the conditional step of the proof of

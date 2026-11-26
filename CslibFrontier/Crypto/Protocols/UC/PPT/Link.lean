@@ -93,44 +93,31 @@ theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → 
       iI (WordInterface.protocol party (WordPort.sum party netPort)) := by
   obtain ⟨bound, hpoly, hle⟩ := h
   refine ⟨fun p => bound p + (party.reply none).length + 1,
-    (hpoly.add (PolyBounded.const _)).add (PolyBounded.const 1), fun p q s x hx => ?_⟩
-  let s' : (M p.secParam p.corrupted).State := s
-  rcases q with ⟨i, inp⟩ | ⟨i, inp⟩ | nq
-  · change x ∈ OracleComp.support (ProbOracleComp.lowerWith iI p.replyBound
-      ((if i ∈ p.corrupted then pure none
-        else (M p.secParam p.corrupted).handle (.inl (i, inp))).run s')) at hx
-    by_cases hi : i ∈ p.corrupted
-    · simp only [hi, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_pure] at hx
+    (hpoly.add (PolyBounded.const _)).add (PolyBounded.const 1), fun p q => ?_⟩
+  rcases q with ⟨i, inp⟩ | ⟨i, inp⟩ | nq <;> simp only [UC.routeCorrupt] <;> intro s x hx
+  · split_ifs at hx with hi
+    · simp only [StateT.run_pure, ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure] at hx
       obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
       simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net]
       omega
-    · simp only [hi, ↓reduceIte] at hx
-      have h1 := hle p (.inl (i, inp)) s' x hx
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net] at h1 ⊢
+    · have h1 := hle p (.inl (i, inp)) s x hx
+      simp only [WordInterface.protocol, WordInterface.sum] at h1 ⊢
       omega
-  · change x ∈ OracleComp.support (ProbOracleComp.lowerWith iI p.replyBound
-      ((if i ∈ p.corrupted then Sum.inl <$> (M p.secParam p.corrupted).handle (.inl (i, inp))
-        else pure (.inl none)).run s')) at hx
-    by_cases hi : i ∈ p.corrupted
-    · simp only [hi, ↓reduceIte, StateT.run_map, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_map] at hx
+  · split_ifs at hx with hi
+    · simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
       obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-      have h1 := hle p (.inl (i, inp)) s' y hy
+      have h1 := hle p (.inl (i, inp)) s y hy
       simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
         encSum_inl, List.length_cons] at h1 ⊢
       omega
-    · simp only [hi, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_pure] at hx
+    · simp only [StateT.run_pure, ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure] at hx
       obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
       simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
         encSum_inl, List.length_cons]
       omega
-  · change x ∈ OracleComp.support (ProbOracleComp.lowerWith iI p.replyBound
-      ((Sum.inr <$> (M p.secParam p.corrupted).handle (.inr nq)).run s')) at hx
-    simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
+  · simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
     obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-    have h1 := hle p (.inr nq) s' y hy
+    have h1 := hle p (.inr nq) s y hy
     simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
       encSum_inr, List.length_cons] at h1 ⊢
     omega
@@ -238,55 +225,36 @@ theorem Machine.IsReplyBounded.hybridWrap
       (WordInterface.protocol party (WordPort.sum net nq)) := by
   obtain ⟨bρ, hbρ, hle⟩ := h
   obtain ⟨bN, hbN, hleN⟩ := (WordInterface.net nq).exists_polyBounded_reply_take (n := n)
-  refine ⟨fun p => bρ p + 1 + bN p, (hbρ.add (PolyBounded.const 1)).add hbN, fun p q s x hx => ?_⟩
-  let s' : (ρ p.secParam p.corrupted).State := s
-  cases q with
-  | inl qp =>
-    change x ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-      p.replyBound (liftParty (((ρ p.secParam p.corrupted).handle (.inl qp)).run s'))) at hx
+  refine ⟨fun p => bρ p + 1 + bN p, (hbρ.add (PolyBounded.const 1)).add hbN, fun p q => ?_⟩
+  rcases q with qp | qm | qs
+  · simp only [UC.hybridWrap, StateT.run]
+    intro s x hx
     rw [support_lowerWith_liftParty subParty nq] at hx
-    have h1 := hle p (.inl qp) s' x hx
-    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net] at h1 ⊢
+    have h1 := hle p (.inl qp) s x hx
+    simp only [WordInterface.protocol, WordInterface.sum] at h1 ⊢
     omega
-  | inr qnet =>
-    cases qnet with
-    | inl qm =>
-      change x ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-        p.replyBound
-        (liftParty ((Sum.inl <$> (ρ p.secParam p.corrupted).handle (.inr qm)).run s')))
-        at hx
-      rw [StateT.run_map, liftParty_map, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_map] at hx
-      obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-      change y ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-        p.replyBound (liftParty (((ρ p.secParam p.corrupted).handle (.inr qm)).run s'))) at hy
-      rw [support_lowerWith_liftParty subParty nq] at hy
-      have h1 := hle p (.inr qm) s' y hy
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-        encSum_inl, List.length_cons] at h1 ⊢
-      omega
-    | inr qs =>
-      let x' : (NetR ⊕ NR) × (ρ p.secParam p.corrupted).State := x
-      change x' ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-        p.replyBound ((StateT.lift (Sum.inr (α := NetR) <$>
-          ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs))).run s'))
-        at hx
-      have hrun : (StateT.lift (Sum.inr (α := NetR) <$>
-            ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs))).run s' =
-          (fun y : NR × _ => (Sum.inr y.1, y.2)) <$>
-            (ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs) >>=
-              fun r => pure (r, s')) := by
-        simp only [StateT.run_lift, bind_map_left, map_bind, map_pure]
-      rw [hrun, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
-      obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-      obtain ⟨w, hw⟩ := exists_word_of_mem_support_lowerWith_query_bind_pure
-        (WordInterface.protocol subParty nq) p.replyBound (.inr qs) s' hy
-      have h1 : (nq.reply y.1).length ≤ bN p := by
-        simpa only [WordInterface.protocol, WordInterface.sum, WordInterface.net] using
-          hw ▸ hleN p qs w
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-        encSum_inr, List.length_cons]
-      omega
+  · simp only [UC.hybridWrap, StateT.run_map]
+    intro s x hx
+    simp only [StateT.run, liftParty_map, ProbOracleComp.lowerWith,
+      ProbOracleComp.simulate_map] at hx
+    obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
+    rw [← OracleComp.support, ← ProbOracleComp.lowerWith,
+      support_lowerWith_liftParty subParty nq] at hy
+    have h1 := hle p (.inr qm) s y hy
+    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+      encSum_inl, List.length_cons] at h1 ⊢
+    omega
+  · simp only [UC.hybridWrap]
+    intro s x hx
+    simp only [StateT.run_lift, bind_map_left, ProbOracleComp.lowerWith,
+      ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure,
+      WordInterface.lowerQuery] at hx
+    obtain ⟨w, _, hx'⟩ := OracleComp.mem_supportWith_bind_iff.mp hx
+    obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx'
+    have h1 : (nq.reply _).length ≤ bN p := hleN p qs w
+    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+      encSum_inr, List.length_cons] at h1 ⊢
+    omega
 
 /-! ### Linking -/
 

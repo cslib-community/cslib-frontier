@@ -246,17 +246,12 @@ theorem computableInPolyTime_tableQueries (d : ℕ) :
     (size := fun L => (2 * (L + 1)) ^ d * (2 * (d * (2 * (L + 1))) + 1)) (by fun_prop)
     fun input => ?_) ?_
   · obtain ⟨n, aux⟩ := input
-    dsimp only
-    have hn : n ≤ (encPair encUnary encBits (n, aux)).length := by
-      enc_len
+    dsimp only [tableArity]
+    have hn : n ≤ (encPair encUnary encBits (n, aux)).length := by enc_len
     set L := (encPair encUnary encBits (n, aux)).length
     have hpow : 2 ^ Nat.clog 2 n ≤ 2 * (L + 1) := (Nat.two_pow_clog_two_le n).trans (by omega)
     have hclog : Nat.clog 2 n ≤ 2 * (L + 1) := Nat.lt_two_pow_self.le.trans hpow
-    refine Nat.mul_le_mul ?_ ?_
-    · rw [tableArity, mul_comm, pow_mul]
-      exact Nat.pow_le_pow_left hpow d
-    · rw [tableArity]
-      nlinarith
+    exact Nat.mul_le_mul ((pow_mul' 2 d _).trans_le (Nat.pow_le_pow_left hpow d)) (by nlinarith)
   · have hsub : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool =>
         p.1.1 - tableArity d p.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
       unary_sub.comp ((fst _ _).fst'.prod (harity.comp (fst _ _)))
@@ -335,13 +330,9 @@ theorem eventually_tableArity (c : ℕ) :
   refine ⟨by omega, ?_, ?_, ?_⟩ <;> rw [tableArity]
   · nlinarith
   · nlinarith
-  · have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := by
-      rw [← mul_pow]
-      exact Nat.pow_le_pow_left (by omega) c
+  · have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := mul_pow 5 n c ▸ Nat.pow_le_pow_left (by omega) c
     have h1 : 1 ≤ n ^ c := Nat.one_le_pow c n (by omega)
-    have hpow : n ^ (c + 2) ≤ 2 ^ ((c + 2) * t) := by
-      rw [mul_comm, pow_mul]
-      exact Nat.pow_le_pow_left hn2 _
+    have hpow : n ^ (c + 2) ≤ 2 ^ ((c + 2) * t) := pow_mul' 2 _ t ▸ Nat.pow_le_pow_left hn2 _
     have hpos : 0 < 5 * ((c + 2) * t) := mul_pos (by decide) (mul_pos (by omega) (by omega))
     refine (Nat.le_div_iff_mul_le hpos).2 ?_
     calc (c * (3 * n + 2) ^ c + 2) * (5 * ((c + 2) * t))

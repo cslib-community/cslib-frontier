@@ -38,15 +38,11 @@ private theorem clog_width_le (security : ℕ) :
     Nat.clog 2 (DepthParameters.width security + 1) ≤
       15 + 2 * DepthParameters.logSize security := by
   let t := DepthParameters.logSize security
-  have ht : t ≤ 2 ^ t := Nat.le_of_lt Nat.lt_two_pow_self
-  have hs : t ^ 2 ≤ (2 ^ t) ^ 2 := Nat.pow_le_pow_left ht 2
   apply Nat.clog_le_of_le_pow
   change 16384 * t ^ 2 + 1 ≤ 2 ^ (15 + 2 * t)
-  have he : 2 ^ (15 + 2 * t) = 32768 * (2 ^ t) ^ 2 := by
-    rw [pow_add, mul_comm 2 t, pow_mul]
-    norm_num
-  rw [he]
-  have hp : 0 < (2 ^ t) ^ 2 := by positivity
+  rw [pow_add, mul_comm 2 t, pow_mul]
+  have hs : t ^ 2 ≤ (2 ^ t) ^ 2 := Nat.pow_le_pow_left Nat.lt_two_pow_self.le 2
+  have hp : 0 < (2 ^ t) ^ 2 := Nat.pow_pos (Nat.two_pow_pos t)
   omega
 
 private theorem clog_dimension_le (security : ℕ) :
@@ -60,12 +56,11 @@ theorem layers_le_depthBudget (security : ℕ) :
     (Layered.compile (inputWidth (Parameters.dimension security) (DepthParameters.width security))
       (circuit (Parameters.dimension security) (DepthParameters.width security)).code).1.length ≤
       DepthParameters.depthBudget security := by
-  rw [Layered.length_compile]
+  rw [Layered.length_compile, DepthParameters.depthBudget]
   have hd := depth_circuit_le (Parameters.dimension security) (DepthParameters.width security)
   have hw := clog_width_le security
   have hn := clog_dimension_le security
   have ht := DepthParameters.two_le_logSize security
-  unfold DepthParameters.depthBudget
   omega
 
 /-- The NAND extension adds at most two De Morgan levels to the complete raw decryptor. -/
@@ -83,12 +78,11 @@ theorem layers_augment_le_depthBudget (security : ℕ) :
       (augmentNand
       (circuit (Parameters.dimension security) (DepthParameters.width security))).code).1.length ≤
       DepthParameters.depthBudget security := by
-  rw [Layered.length_compile]
+  rw [Layered.length_compile, DepthParameters.depthBudget]
   have hd := depth_augment_le (Parameters.dimension security) (DepthParameters.width security)
   have hw := clog_width_le security
   have hn := clog_dimension_le security
   have ht := DepthParameters.two_le_logSize security
-  unfold DepthParameters.depthBudget
   omega
 
 end Cslib.Crypto.Homomorphic.GSW.DecryptionCircuit

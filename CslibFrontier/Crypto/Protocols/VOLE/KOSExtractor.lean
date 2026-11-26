@@ -147,9 +147,7 @@ theorem eq_of_eval_eq {F V : Type*} [Field F] [AddCommGroup V] [Module F V]
       _ = 0 := by rw [h₀, h₁, sub_self]
   have hslope : line₁.slope = line₂.slope :=
     sub_eq_zero.mp ((smul_eq_zero.mp hsub).resolve_left hd)
-  have hinter : line₁.intercept = line₂.intercept := by
-    simpa [KOSLine.eval, hslope] using h₀
-  ext <;> assumption
+  exact KOSLine.ext hslope (by simpa [KOSLine.eval, hslope] using h₀)
 
 end KOSLine
 
@@ -541,25 +539,17 @@ theorem toOuterMeasure_hasKOSBadTriple_le
     have hTeq := chooseTriple_spec (Finset.mem_powersetCard.mp hT).2
     set u := chooseTriple (Finset.mem_powersetCard.mp hT).2
     have hperm := kosAffineDefect_index_perm_eq_or_neg responses hTeq hi₀₁ hi₀₂ hi₁₂
-    change repDefect ⟨T, hT⟩ ≠ 0 ∧ H s (repDefect ⟨T, hT⟩) = 0
-    have hrep : repDefect ⟨T, hT⟩ =
-        kosAffineDefect (responses.get u.1) (responses.get u.2.1) (responses.get u.2.2) := rfl
-    rw [hrep]
+    dsimp only [badSet, repDefect]
     rcases hperm with heq | hneg
     · exact ⟨heq ▸ hdef, heq ▸ hzero⟩
-    · refine ⟨fun hr => hdef (by rw [hneg, hr, neg_zero]), ?_⟩
-      rwa [hneg, map_neg, neg_eq_zero] at hzero
+    · exact ⟨by rwa [hneg, neg_ne_zero] at hdef,
+        by rwa [hneg, map_neg, neg_eq_zero] at hzero⟩
   have hterm (T : {T // T ∈ triples}) (_ : T ∈ triples.attach) :
       seed.toOuterMeasure (badSet T) ≤ ε := by
     by_cases hr : repDefect T = 0
-    · have hemp : badSet T = ∅ := by
-        ext s
-        simp [badSet, hr]
-      simp [hemp]
-    · refine (seed.toOuterMeasure.mono ?_).trans (hH (repDefect T) 0 hr)
-      intro s hs
-      change H s (repDefect T) = H s 0
-      rw [hs.2, map_zero]
+    · simp [badSet, hr]
+    · refine (seed.toOuterMeasure.mono fun s hs => ?_).trans (hH (repDefect T) 0 hr)
+      exact hs.2.trans (map_zero (H s)).symm
   calc
     seed.toOuterMeasure {s | HasKOSBadTriple (H s) responses}
         ≤ seed.toOuterMeasure (⋃ T ∈ triples.attach, badSet T) :=
