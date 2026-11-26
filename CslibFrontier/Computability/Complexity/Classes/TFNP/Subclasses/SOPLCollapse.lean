@@ -389,18 +389,17 @@ private theorem plsPpadsSucc_spec (hx : x.length = n₁ a) (hz : z.length = n₁
           decide (binaryValue z < 2 ^ n₂ a))
       · simp [hc] at h
       · simp only [↓reduceIte]
-        simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
-        obtain ⟨hk_eq, hαK⟩ := hc
+        obtain ⟨hk_eq, hαK⟩ := by simpa only [Bool.and_eq_true, decide_eq_true_eq] using hc
         have hNx_len : (N₁ (a, x)).length = n₁ a := hN₁ x hx
         have hxy_len : (x ++ binaryWord (n₂ a) (binaryValue z)).length = n₁ a + n₂ a := by
           simp [hx, length_binaryWord hαK]
         refine ⟨?_, ?_, ?_⟩
-        · rw [plsPpadsPred_append hNx_len hxy_len]; dsimp only [plsPpadsPredCore]
-          have hr_restore : binaryWord (n₁ a + n₂ a) (2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a) = r := by
-            rw [← hk_eq, binaryWord_binaryValue hr]
+        · rw [plsPpadsPred_append hNx_len hxy_len]
+          dsimp only [plsPpadsPredCore]
           simp only [binaryValue_zeroVertex, decide_true, ↓reduceIte,
             List.take_left' hx, List.drop_left' hx, decide_eq_true hstep, Bool.and_self,
-            binaryValue_binaryWord, binaryWord_binaryValue hz, hr_restore]
+            binaryValue_binaryWord, binaryWord_binaryValue hz, ← hk_eq,
+            binaryWord_binaryValue hr]
         · rw [ne_eq, append_three_eq_zeroVertex_iff hNx_len hxy_len]
           rintro ⟨hN0, hxy0, -⟩
           have hx0 : x = zeroVertex (n₁ a) := by
@@ -435,8 +434,7 @@ private theorem plsPpadsPred_spec (hx : x.length = n₁ a) (hz : z.length = n₁
         decide (N₁ (a, z.take (n₁ a)) = x))
     · simp [hc] at h
     · simp only [↓reduceIte]
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
-      obtain ⟨hstep₀, hNx₀⟩ := hc
+      obtain ⟨hstep₀, hNx₀⟩ := by simpa only [Bool.and_eq_true, decide_eq_true_eq] using hc
       have hx₀_len : (z.take (n₁ a)).length = n₁ a := by simp only [List.length_take, hz]; omega
       have hi₀_len : (z.drop (n₁ a)).length = n₂ a := by simp only [List.length_drop, hz]; omega
       have hi₀_lt := binaryValue_lt_of_length hi₀_len
@@ -456,8 +454,7 @@ private theorem plsPpadsPred_spec (hx : x.length = n₁ a) (hz : z.length = n₁
         decide (C₁ (a, N₁ (a, x)) < C₁ (a, x)))
     · simp [hc] at h
     · simp only [↓reduceIte] at h ⊢
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
-      obtain ⟨hkM, hstep⟩ := hc
+      obtain ⟨hkM, hstep⟩ := by simpa only [Bool.and_eq_true, decide_eq_true_eq] using hc
       have hk_sub_lt : binaryValue r - 1 < 2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a := by omega
       have hk_add : binaryValue r - 1 + 1 = binaryValue r := by omega
       have gadget_pot {v : ℕ} (hv : v < 2 ^ (n₁ a + n₂ a)) :
@@ -638,8 +635,7 @@ theorem plsPpads_sink
     -- Step 3: neither `hasOut` nor the isolated non-zero hole-self-map branch can fire.
     have hy_out : hasOut n₂ P₂ S₂ a (binaryWord (n₂ a) (binaryValue z)) = false := by
       by_contra ho
-      simp only [Bool.not_eq_false] at ho
-      simp only [ho, ↓reduceIte] at hout_false
+      simp only [Bool.eq_true_of_not_eq_false ho, ↓reduceIte] at hout_false
       have := binaryValue_lt_of_length (hS₂ _ hy_len)
       exact no_step_r (by omega) hout_false
     simp only [hy_out, Bool.false_eq_true, ↓reduceIte] at hout_false
@@ -784,9 +780,6 @@ theorem mem_SOPL_of_localOpt_sinkOfLine (hR : R ∈ FNP enc)
     (h₂ : ∀ a w, sinkOfLineRel n₂ P₂ S₂ a w → R a (g₂ (a, w))) :
     R ∈ SOPL enc := by
   obtain ⟨m₀, hm₀, hB⟩ := exists_potentialBound hn₁ hC₁
-  have hBpt : ComputableInPolyTime (fun a => 2 ^ m₀ a) enc encNat := by fun_prop
-  have hW : ComputableInPolyTime (plsPpadsWidth n₁ n₂) enc encUnary := by
-    fun_prop [plsPpadsWidth]
   let optTest (p : α × List Bool) : Bool :=
     decide (C₁ (p.1, p.2.take (n₁ p.1)) ≤ C₁ (p.1, N₁ (p.1, p.2.take (n₁ p.1))))
   let g (p : α × List Bool) : List Bool :=
@@ -801,10 +794,11 @@ theorem mem_SOPL_of_localOpt_sinkOfLine (hR : R ∈ FNP enc)
   have hPred_len : PreservesWidth (plsPpadsWidth n₁ n₂) (plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂) :=
     fun a _ hw => length_plsPpadsPred (hP₂_len a) hw
   refine ⟨hR, plsPpadsWidth n₁ n₂, plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂,
-    plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂, plsPpadsPotential n₁ C₁ n₂ (fun a => 2 ^ m₀ a), hW,
+    plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂, plsPpadsPotential n₁ C₁ n₂ (fun a => 2 ^ m₀ a),
+    by fun_prop [plsPpadsWidth],
     computableInPolyTime_plsPpadsPred hn₁ hN₁ hC₁ hn₂ hP₂ hS₂,
     computableInPolyTime_plsPpadsSucc hn₁ hN₁ hC₁ hn₂ hP₂ hS₂,
-    computableInPolyTime_plsPpadsPotential hn₁ hC₁ hn₂ hBpt, hPred_len, hSucc_len,
+    computableInPolyTime_plsPpadsPotential hn₁ hC₁ hn₂ (by fun_prop), hPred_len, hSucc_len,
     .of_isTotalSearch (isTotalSearch_sinkOfPotentialLineRel hSucc_len) ComputableInPolyTime.id' hg
       fun a w hw => ?_⟩
   obtain ⟨x, z, r, rfl, hx, hz, hr⟩ := exists_append_three hw.1

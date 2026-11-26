@@ -120,12 +120,11 @@ theorem replay_subset_mTr {A H F_src : Finset P} (hAH : Disjoint A H)
     | byzRecv => exact False.elim ha_hon
     | deliver e =>
       obtain ⟨he_mem, he_dest_F, rfl⟩ := htr
-      have hsrc' : ∀ m ∈ (π.recvHonest e s).msgs, m.src ∈ A ∨ m.src ∈ H := by
-        intro m hm
+      have hsrc' (m : Envelope P M) (hm : m ∈ (π.recvHonest e s).msgs) :
+          m.src ∈ A ∨ m.src ∈ H := by
         simp only [recvHonest, recvCore, Multiset.mem_add, Multiset.mem_map] at hm
-        rcases hm with hm | ⟨qm, _, rfl⟩
-        · exact hsrc_init m (Multiset.mem_of_mem_erase hm)
-        · exact hFsrc e.dest he_dest_F
+        exact hm.elim (fun hm => hsrc_init m (Multiset.mem_of_mem_erase hm))
+          fun ⟨_, _, h⟩ => h ▸ hFsrc e.dest he_dest_F
       by_cases hdestH : e.dest ∈ H
       · -- Replay an `H → H` message as `.deliver e` and an `A → H` one as a Byzantine injection.
         have hdestA : e.dest ∉ A := Finset.disjoint_right.mp hAH hdestH
@@ -152,12 +151,11 @@ theorem replay_subset_mTr {A H F_src : Finset P} (hAH : Disjoint A H)
         have hproc' : ∀ p ∈ H,
             (π.recvCore e.src e.dest e.body base u₀).proc p = (π.recvHonest e s).proc p :=
           fun p hp => by simp only [recvHonest, recvCore, hproc_e, hproc₀ p hp]
-        have hmsg' : ∀ m : Envelope P M, m.src ∈ H → m.dest ∈ H →
+        have hmsg' (m : Envelope P M) (hs : m.src ∈ H) (hd : m.dest ∈ H) :
             (π.recvHonest e s).msgs.count m ≤
-              (π.recvCore e.src e.dest e.body base u₀).msgs.count m :=
-          fun m hs hd => by
-            simp only [recvHonest, recvCore, Multiset.count_add, hproc_e]
-            exact Nat.add_le_add_right (hbase_le m hs hd) _
+              (π.recvCore e.src e.dest e.body base u₀).msgs.count m := by
+          simpa only [recvHonest, recvCore, Multiset.count_add, hproc_e] using
+            Nat.add_le_add_right (hbase_le m hs hd) _
         obtain ⟨yl, u₁, hyl, hpH, hpOut, hmOut⟩ := ih hrest_hon hsrc' hproc' hmsg'
         refine ⟨act :: yl, u₁, LTS.MTr.stepL hstep hyl, hpH, fun p hp => ?_, fun m hm => ?_⟩
         · rw [hpOut p hp]
@@ -335,18 +333,15 @@ private lemma exists_three_partition {P : Type*} [Fintype P]
       dealer ∈ A ∧ B.Nonempty ∧ C.Nonempty := by
   classical
   let n := Fintype.card P
-  have hn3 : 3 ≤ n := h3
   let zero : Fin n := ⟨0, by omega⟩
   let e : P ≃ Fin n := (Fintype.equivFin P).trans (Equiv.swap (Fintype.equivFin P dealer) zero)
   have he_dealer : e dealer = zero := by simp [e, Equiv.swap_apply_left]
   let grp : Fin 3 → Finset P := fun k => Finset.univ.filter fun p => (e p : ℕ) % 3 = k.val
-  have hgrp_disj : ∀ k₁ k₂ : Fin 3, k₁ ≠ k₂ → Disjoint (grp k₁) (grp k₂) :=
-    fun _ _ _ => by finset_card
+  have hgrp_disj (k₁ k₂ : Fin 3) (_ : k₁ ≠ k₂) : Disjoint (grp k₁) (grp k₂) := by finset_card
   have hgrp_card : ∀ k : Fin 3, (grp k).card ≤ t := fun k => by
     refine (Finset.card_le_card_of_injOn (fun p => (e p : ℕ) / 3) (fun p _ => ?_)
       fun p hp q hq hdiv => ?_).trans_eq (Finset.card_range t)
-    · simp only [Finset.coe_range, Set.mem_Iio]
-      exact Nat.div_lt_of_lt_mul ((e p).isLt.trans_le (by omega))
+    · simpa using Nat.div_lt_of_lt_mul ((e p).isLt.trans_le hle)
     · simp only [grp, Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hp hq
       exact e.injective (Fin.ext (by dsimp only at hdiv; omega))
   refine ⟨grp 0, grp 1, grp 2,
@@ -365,11 +360,10 @@ theorem not_solvesReliableBroadcast [Nonempty V] {t : ℕ}
     (h3 : 3 ≤ Fintype.card P) (hle : Fintype.card P ≤ 3 * t) :
     ¬ π.SolvesReliableBroadcast t := by
   intro hsol
-  obtain ⟨v₀⟩ := ‹Nonempty V›
   obtain ⟨A, B, C, hAB, hAC, hBC, hcover, hA, hB, hC, hdA, ⟨b₀, hb₀⟩, ⟨c₀, hc₀⟩⟩ :=
     exists_three_partition dealer h3 hle
-  exact π.not_reliableBroadcast_of_partition A B C hAB hAC hBC hcover hA hB hC hdA hb₀ hc₀ v₀
-    hsol.validity hsol.totality hsol.noSpurious
+  exact π.not_reliableBroadcast_of_partition A B C hAB hAC hBC hcover hA hB hC hdA hb₀ hc₀
+    (Classical.arbitrary V) hsol.validity hsol.totality hsol.noSpurious
 
 /-- **Three-process impossibility**: on `Fin 3`, no asynchronous deterministic protocol over a
 nonempty value domain `V` solves reliable broadcast against a single Byzantine fault. -/

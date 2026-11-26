@@ -63,18 +63,15 @@ theorem eval_tree (source : Fin ℓ → Bool) (child : ℕ → Fin d → ℕ)
     (tree source child gates h i).eval = value source child gates hchild i := by
   induction h generalizing i with
   | zero =>
-    have : i = 0 := by omega
-    subst i
+    obtain rfl : i = 0 := by omega
     simp only [tree, Tree.eval_leaf, value]
   | succ h ih =>
     cases i with
     | zero => simp [tree, paddedGate, value]
     | succ i =>
-      simp only [tree, Tree.eval_node, paddedGate, Nat.succ_ne_zero, ite_false, value,
-        next]
-      congr 1 with j : 1
-      have hj := hchild (i + 1) (by omega) j
-      exact ih (by omega)
+      simp only [tree, Tree.eval_node, paddedGate, Nat.succ_ne_zero, ite_false, value, next]
+      exact congrArg _ <| funext fun j =>
+        ih (Nat.le_of_lt_succ ((hchild _ i.succ_pos j).trans_le hi))
 
 /-- Resolve an implicit node index by following the path from the root. -/
 @[expose] def resolve (child : ℕ → Fin d → ℕ) (i : ℕ) (P : List (Fin d)) : ℕ :=
@@ -104,15 +101,10 @@ theorem nodeAt_tree (source : Fin ℓ → Bool) (child : ℕ → Fin d → ℕ)
     (gates : ℕ → Gate d ℓ) (h i : ℕ) (P : List (Fin d)) :
     (tree source child gates h i).nodeAt P = lookup source child gates h i P := by
   induction h generalizing i P with
-  | zero =>
-    cases P with
-    | nil => simp [tree, lookup]
-    | cons j P => simp [tree, Tree.nodeAt, lookup]
+  | zero => cases P <;> simp [tree, Tree.nodeAt, lookup]
   | succ h ih =>
     cases P with
     | nil => simp [tree, lookup]
-    | cons j P =>
-      rw [tree, Tree.nodeAt_node_cons, lookup_cons]
-      exact ih _ _
+    | cons j P => simpa only [tree, Tree.nodeAt_node_cons, lookup_cons] using ih _ _
 
 end Cslib.TreeEval.Ary.Descending

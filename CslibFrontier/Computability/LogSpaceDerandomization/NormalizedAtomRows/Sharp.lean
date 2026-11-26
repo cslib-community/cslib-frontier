@@ -51,20 +51,17 @@ theorem stationary_bound {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP.
         (stationaryState s n (fun _ => HP.K) (dyadicFloor δ m) Δ ⟨0, raw⟩ truth j) ⟨0, truth⟩ y| ≤
         Cpre * ∑ i ∈ range j, dyadicFloor δ m i * ε i := by
   obtain ⟨L, hL, hroot⟩ := root_dist HP hζ
-  refine ⟨3 * L * (12 * (1 + δ / 2) / (δ / 2)), by positivity, ?_⟩
-  intro ι s n Δ raw truth m j hj hno ε hε herr y hy
-  have hηθ : δ ≤ HP.θ := by
-    have h := threshold_margin HP
-    linarith [HP.η_lt_η₂, HP.η_pos]
-  have hh := abs_stationaryState_root_sub_le_weighted_dyadic
+  refine ⟨3 * L * (12 * (1 + δ / 2) / (δ / 2)), by positivity,
+    fun s n Δ raw truth m j hj hno ε hε herr y hy => ?_⟩
+  have hηθ : δ ≤ HP.θ := by linarith [threshold_margin HP, HP.η_lt_η₂, HP.η_pos]
+  simpa only [stateRootError, mul_assoc] using abs_stationaryState_root_sub_le_weighted_dyadic
     (H := output HP ζ) (p := (4⁻¹ : ℝ)) (C := L)
     hδ (rank_pos HP) hL (by norm_num : (0 : ℝ) ≤ 0) (by linarith : (0 : ℝ) ≤ δ / 2)
     m j hj hno hε herr
     (fun x _ _ hx => entry_zero HP (hx.trans hηθ))
-    (fun _ _ _ _ hq hq' => gate_flat HP (hq.2.trans (hδs.trans hmargin)) (hq'.2.trans
-      (hδs.trans hmargin)))
+    (fun _ _ _ _ hq hq' => gate_flat HP (hq.2.trans (hδs.trans hmargin))
+      (hq'.2.trans (hδs.trans hmargin)))
     (fun x v q x' v' q' _ _ _ _ => hroot x v q x' v' q') y hy
-  simpa only [stateRootError, mul_assoc] using hh
 
 
 omit hζ in
@@ -84,19 +81,15 @@ theorem continuation_preserved {ι : Type*} (s : Finset ι) (n : ℕ → ℕ)
   have hb (y : ι) (ν : Fin 2) := abs_stationaryState_row_sub_le_dyadic
     (s := s) (n := n) (K := fun _ => HP.K) (Δ := Δ) (a := ⟨0, raw⟩) (truth := truth)
     hδ.le m j (by omega) hno y ν
-  apply reference_iterate_output_eq (H := output HP ζ) hs.le (rank_pos HP)
-    (fun y hy => by have hh := (abs_le.mp (hb y 0)).1; linarith [hfirst y hy])
-    (fun y hy => by
-      have hh := abs_le.mp (hb y 1)
-      exact abs_le.mpr ⟨by linarith [(abs_le.mp (hsecond y hy)).1], by linarith [(abs_le.mp
-        (hsecond y hy)).2]⟩)
+  exact reference_iterate_output_eq (H := output HP ζ) hs.le (rank_pos HP)
+    (fun y hy => by linarith [(abs_le.mp (hb y 0)).1, hfirst y hy])
+    (fun y hy => abs_le.mpr ⟨by linarith [(abs_le.mp (hb y 1)).1, (abs_le.mp (hsecond y hy)).1],
+      by linarith [(abs_le.mp (hb y 1)).2, (abs_le.mp (hsecond y hy)).2]⟩)
     (hmargin.trans_lt HP.η_lt_η₂) (threshold_margin HP)
     (fun _ _ _ hx => entry_zero HP hx) (fun _ _ _ hq => gate_zero HP hq)
     (fun _ _ _ _ hq hq' => gate_flat HP (hq.2.trans hmargin) (hq'.2.trans hmargin)) r
-  · intro i hi; exact hn (j + i) (Nat.le_add_right _ _) (by omega)
-  · intro i _; have h := dyadicFloor_le_scale_div hδ.le m (j + i); linarith
-  · exact hy
-
+    (fun i hi => hn (j + i) (Nat.le_add_right _ _) (by omega))
+    (fun i _ => by linarith [dyadicFloor_le_scale_div hδ.le m (j + i)]) y hy
 
 /-- Cap-free actual relative comparison at fixed shape. The bounded initial default is
 necessary for the sentinel coupling; it is supplied by actual stationary preloss. -/

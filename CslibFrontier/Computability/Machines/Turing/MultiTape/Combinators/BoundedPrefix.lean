@@ -98,11 +98,8 @@ private lemma copyCappedCore_runFrom_walk
       simp [List.getElem_append_right]
     have hwork0 : (tapeOfList (List.replicate N true) (m : ℤ)) = some true := by
       simp [tapeOfList_ofNat, hltN]
-    have htr : copyCappedCore.tr () cur.inputSymbol cur.workTapeSymbols =
-        ⟨1, ![(none, 1), (some (some raw[m]), 1)], none, some ()⟩ := by
-      rw [copyCappedCore, tr_ofTr, hinp, show cur.workTapeSymbols 0 = some true from hwork0]
     change (copyCappedCore.tr () cur.inputSymbol cur.workTapeSymbols).apply cur = _
-    rw [htr]
+    rw [copyCappedCore, tr_ofTr, hinp, show cur.workTapeSymbols 0 = some true from hwork0]
     refine Cfg.ext rfl (Fin.ext ?_) (funext fun i => ?_) (funext fun i => ?_) (by simp [cur])
     · have hlenApp : (u₀ ++ raw).length = u₀.length + raw.length := List.length_append
       have hinpPos : (↑(1 + u₀.length + m) + (1 : ℤ)).toNat = 1 + u₀.length + (m + 1) := by omega
@@ -217,9 +214,8 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
     rw [runFrom_tapeEmb,
       show u₀.length + min N raw.length + 2 = (u₀ ++ raw.take N).length + 2 by omega, h1,
       runFrom_rewindWork_none pEnd (tapeOfList (u₀ ++ raw.take N)) out rfl le_rfl, embed_tapeEmb]
-    refine Cfg.ext rfl rfl (funext fun i => ?_) (funext fun i => ?_) rfl
-    · fin_cases i <;> rfl
-    · fin_cases i <;> simp [cfg₂, cfg₃]
+    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> fin_cases i <;>
+      simp [cfg₂, cfg₃, Cfg.withState]
   have hrun₄ : ((rewindWork Bool).extendTapes (tapeEmb 0)).runFrom
       (cfg₃.withState (some (rewindWork Bool).q₀)) (min N raw.length + 2) = cfg₄ := by
     have h1 : oneTapeCfg 0 (cfg₃.withState (some (rewindWork Bool).q₀)) =
@@ -231,9 +227,8 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
       runFrom_rewindWork_none (w := List.replicate N true) pEnd
         (tapeOfList (List.replicate N true)) out rfl (by simp),
       embed_tapeEmb]
-    refine Cfg.ext rfl rfl (funext fun i => ?_) (funext fun i => ?_) rfl
-    · fin_cases i <;> rfl
-    · fin_cases i <;> simp [cfg₃, cfg₄, wordsCfgAt]
+    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> fin_cases i <;>
+      simp [cfg₃, cfg₄, wordsCfgAt, Cfg.withState]
   have hrun₁₂ := runFrom_seq hrun₁ rfl hrun₂ rfl
   have hmap₃₄ : (cfg₂.mapState (Option.map (Sum.inr : Unit → Unit ⊕ Unit))).withState
         (some rewindBothTM.q₀) =
@@ -594,12 +589,11 @@ theorem computableInTimeAndSpace_boundedPrefix
           (inp.drop (1 - 1))).2) (ws := ws₀)
         (ws' := Function.update ws₀ tV ([] ++ (frameStopReader.read frameStopReader.q₀
           (inp.drop (1 - 1))).1))
-        (e := []) (fun q hq => ⟨rfl, hq, by simp [ws₀]⟩)
-        (fun q q' v e hq hQ => by rcases hQ with ⟨hp', rfl, rfl⟩; exact ⟨hp', rfl, rfl⟩)
+        (e := []) (fun q hq => ⟨rfl, hq, by simp [ws₀]⟩) (fun _ _ _ _ _ hQ => hQ)
       have hwords' := hwords.congr rfl (by rw [hread]) rfl (by rw [hread]) rfl
       refine hwords'.mono ?_ ?_
       · simp only [hread, List.nil_append, List.length_nil, Nat.zero_add]; omega
-      · simp only [hread, List.nil_append]; exact le_rfl
+      · simp only [hread, List.nil_append, le_rfl]
     have hspec2 : TransformsWordsAt m2 inp p₁ p₁ ws₁ ws₂ []
         (cU * ((frame u).length + 1) ^ dU + L + 6)
         (cU * ((frame u).length + 1) ^ dU + 2 * (frame u).length + 2 * L + 3 * kU + 18 +

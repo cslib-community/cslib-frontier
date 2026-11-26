@@ -204,8 +204,7 @@ private theorem prop_crossing_classes (E : ℕ) : ∃ μ e,
   have hmaps : ∀ s ∈ lowStates E, (s.1.card, energy s.1 + energy s.2) ∈ S := fun s hs => by
     obtain ⟨h1, h2⟩ := mem_lowStates.1 hs
     have h3 : s.1.card ≤ energy s.1 := by
-      rw [energy, Finset.card_eq_sum_ones]
-      exact Finset.sum_le_sum fun _ _ => by omega
+      simpa only [energy, Finset.card_eq_sum_ones] using Finset.sum_le_sum fun _ _ => by omega
     simp only [hS, mem_product, mem_range]; omega
   obtain ⟨z, hz, hmax⟩ :=
     Finset.exists_max_image S (fun z => (states z.1 z.2).card) ⟨(0, 0), by simp [hS]⟩
@@ -401,18 +400,14 @@ theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
     have q2 : z.2 ≤ ρ + 1 := by nlinarith [sq_nonneg (z.2 - 1)]
     have lo (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
         t * (c * F.wireExponent i j) ≤
-          t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) + t * η := by
-      rw [← mul_add]
-      exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
+          t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) + t * η :=
+      mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
     have hi (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
         t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) ≤
-          t * (c * F.wireExponent i j) + t * η := by
-      rw [← mul_add]
-      exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
-    have hsum : 3 * (p * η) + 3 * (q * η) + (ρ + 1) * η = δ := by
-      rw [hη]
-      field_simp
-      rw [hT]; ring
+          t * (c * F.wireExponent i j) + t * η :=
+      mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
+    have hsum : 3 * (p * η) + 3 * (q * η) + (ρ + 1) * η = δ :=
+      (by ring : _ = η * T).trans (div_mul_cancel₀ δ hT0.ne')
     obtain ⟨a1, a2⟩ : _ ∧ _ := ⟨hi 0 2 hp, hi 1 3 hq⟩
     dsimp at a1 a2
     rw [← min_add_add_right]

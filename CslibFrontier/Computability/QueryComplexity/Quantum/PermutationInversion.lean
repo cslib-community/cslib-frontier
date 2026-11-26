@@ -145,10 +145,8 @@ theorem permInvPermRel_nonempty {I₀ I₁ : Finset ι} (h₀ : I₀.Nonempty) (
   obtain ⟨j₁, hj₁⟩ := h₁
   let π : Equiv.Perm ι := Equiv.swap i₀ target
   have hπ : π.symm target = i₀ := (Equiv.symm_apply_eq π).2 (Equiv.swap_apply_left i₀ target).symm
-  have hσ : (π * Equiv.swap i₀ j₁).symm target = j₁ := by
-    simpa only [hπ] using symm_mul_swap_self π j₁ target
-  exact ⟨(π, π * Equiv.swap i₀ j₁),
-    mem_permInvPermRel.2 ⟨by rwa [hπ], by rwa [hσ], by rw [hπ, hσ]⟩⟩
+  exact ⟨(π, π * Equiv.swap (π.symm target) j₁), mem_permInvPermRel.2
+    ⟨hπ.symm ▸ hi₀, (symm_mul_swap_self π j₁ target).symm ▸ hj₁, by rw [symm_mul_swap_self]⟩⟩
 
 /-- Every related pair across disjoint `I₀` and `I₁` has distinct target preimages. -/
 theorem permInvPermRel_symm_ne {I₀ I₁ : Finset ι} (hdisj : Disjoint I₀ I₁) {target : ι}
@@ -280,19 +278,14 @@ theorem one_sub_mul_sqrt_min_le_of_permInversion_partition {ι V W : Type*}
     have hR : R.Nonempty := (permInvPermRel_nonempty hne₀ hne₁ target).map
     have hadv := one_sub_mul_sqrt_le_two_mul_mul_sqrt_value step U hψ₀ T hR
       (δ := δ) (m := #I₁) (m' := #I₀) (L := max #I₀ #I₁)
-      (fun p hp => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
-        exact hδ q hq)
-      (fun p hp => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
+      (forall_mem_map.2 hδ)
+      (forall_mem_map.2 fun q hq => by
         rw [← card_permInvPermRel_fst hq, filter_map, card_map]
         exact le_of_eq (congrArg card (filter_congr fun _ _ => by simp [DFunLike.coe_fn_eq])))
-      (fun p hp => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
+      (forall_mem_map.2 fun q hq => by
         rw [← card_permInvPermRel_snd hq, filter_map, card_map]
         exact le_of_eq (congrArg card (filter_congr fun _ _ => by simp [DFunLike.coe_fn_eq])))
-      (fun p hp k hk => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
+      (forall_mem_map.2 fun q hq k hk => by
         refine (le_of_eq ?_).trans (card_permInvPermRel_diff_mul_le hdisj hq hk)
         congr 1 <;> rw [filter_map, card_map] <;>
           exact congrArg card (filter_congr fun _ _ => by simp [DFunLike.coe_fn_eq]))

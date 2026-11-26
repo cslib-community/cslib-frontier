@@ -193,12 +193,10 @@ theorem card_filter_rowGate_lt_one_mul_le (T : Finset κ) (x : V) (hf : 0 < f) {
   have hbadK : ∀ t ∈ T, rowGate ρ K f G {w | Y t w} x < 1 → (K : ℝ) ≤ #{w ∈ W | Y t w} := by
     intro t _ ht
     have hlt : η < kthLargest K {w | Y t w} (fun w => G x w / f) := by grind [rowGate]
-    have hcard := (lt_kthLargest_iff hK hη.le).mp hlt
-    have hsub : ({w ∈ ({w | Y t w} : Finset V) | η < G x w / f} : Finset V) ⊆
-        {w ∈ W | Y t w} := fun w hw => by
-      simp only [mem_filter, mem_univ, true_and, W] at hw ⊢
-      exact ⟨by rw [lt_div_iff₀ hf] at hw; exact hw.2, hw.1⟩
-    exact_mod_cast hcard.trans (card_le_card hsub)
+    refine Nat.cast_le.mpr (((lt_kthLargest_iff hK hη.le).mp hlt).trans
+      (card_le_card fun w hw => ?_))
+    simp only [mem_filter, mem_univ, true_and, lt_div_iff₀ hf, W] at hw ⊢
+    exact ⟨hw.2, hw.1⟩
   have hMarkov : (#{t ∈ T | rowGate ρ K f G {w | Y t w} x < 1} : ℝ) * K ≤
       ∑ t ∈ T, (#{w ∈ W | Y t w} : ℝ) :=
     card_filter_mul_le_sum T _ _ (fun _ _ => by positivity) hbadK
@@ -253,19 +251,16 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
     intro s t
     rcases le_or_gt (detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y) 0 with h | h
     · exact h.trans (by positivity)
-    have hcard := (lt_kthLargest_iff hJ le_rfl).mp h
     have hsub : ({x ∈ ({x | X s x} : Finset V) |
         0 < ϕ (G x y / f) * rowGate ρ K f G {w | Y t w} x}) ⊆ {x ∈ A0 | X s x} := by
       intro x hx
       simp only [mem_filter, mem_univ, true_and, A0] at hx ⊢
-      refine ⟨?_, hx.1⟩
-      by_contra hle
-      have : G x y / f ≤ δ₀ := by rw [div_le_iff₀ hf]; linarith
-      rw [hϕδ _ this, zero_mul] at hx
-      exact lt_irrefl _ hx.2
-    have hJle : (J : ℝ) ≤ #{x ∈ A0 | X s x} := by exact_mod_cast hcard.trans (card_le_card hsub)
+      refine ⟨lt_of_not_ge fun hle => ?_, hx.1⟩
+      rw [hϕδ _ ((div_le_iff₀ hf).mpr hle), zero_mul] at hx
+      exact lt_irrefl 0 hx.2
     rw [le_div_iff₀ hJr]
-    exact (mul_le_of_le_one_left hJr.le (detectorTrial_le_one hϕ0 hϕ1 hρ1)).trans hJle
+    exact (mul_le_of_le_one_left hJr.le (detectorTrial_le_one hϕ0 hϕ1 hρ1)).trans
+      (Nat.cast_le.mpr (((lt_kthLargest_iff hJ le_rfl).mp h).trans (card_le_card hsub)))
   -- summing over the start seeds counts each substantial entry with its retention probability
   have hsumX : ∑ s, (#{x ∈ A0 | X s x} : ℝ) = #A0 * (π * Fintype.card ι) := by
     simp only [natCast_card_filter]
@@ -343,9 +338,7 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
     card_filter_rowGate_lt_one_mul_le T x hf hη hρη (hG0 x) (hGk x) hKpos hCpair fun w hwy => by
       have hp := hch.pair w y hwy
       rw [dens_cast, dens_cast, ← mul_div_assoc, div_le_div_iff_of_pos_right hκr] at hp
-      have hset : ({t ∈ T | Y t w} : Finset κ) = ({t | Y t w ∧ Y t y} : Finset κ) := by
-        ext t; simp only [T, mem_filter, mem_univ, true_and]; tauto
-      rwa [hset]
+      simpa only [T, filter_filter, and_comm] using hp
   -- the expected number of retained large rows that fail their gate
   set N : ι → ℝ := fun s => #{x ∈ A | X s x}
   set L : ι → κ → ℝ := fun s t => #{x ∈ A | X s x ∧ gate t x < 1}
@@ -384,18 +377,15 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
   -- sum the pointwise bound `trial ≥ 1 - [bad start draw] - [many gate failures]`
   set b1 : ι → ℝ := fun s => if 2 * N s < #A * π then 1 else 0
   set b2 : ι → κ → ℝ := fun s t => if #A * π < 4 * L s t then 1 else 0
-  have hpoint : ∀ s t, 1 - b1 s - b2 s t ≤
+  have hpoint (s : ι) (t : κ) : 1 - b1 s - b2 s t ≤
       detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y := by
-    intro s t
     have h0 : 0 ≤ detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y := detectorTrial_nonneg
-    by_cases h1 : 2 * N s < #A * π
-    · have : 0 ≤ b2 s t := by simp only [b2]; split_ifs <;> norm_num
-      simp only [b1, h1, ↓reduceIte]
-      linarith
-    by_cases h2 : #A * π < 4 * L s t
-    · simp only [b1, b2, h1, h2, ↓reduceIte]
-      linarith
-    · simpa only [b1, b2, h1, h2, ↓reduceIte, sub_zero] using hgood s t h1 h2
+    by_cases h1 : 2 * N s < #A * π <;> by_cases h2 : #A * π < 4 * L s t <;>
+      simp only [b1, b2, h1, h2, ↓reduceIte, sub_zero]
+    · linarith
+    · linarith
+    · linarith
+    · exact hgood s t h1 h2
   have hb1 : ∑ s, b1 s ≤ Cvar / (#A * π) * Fintype.card ι := by
     simpa only [b1, N, sum_boole, dens_cast, div_le_iff₀ hιr] using hch.tail A hA
   have hb2 : ∑ s, ∑ t ∈ T, b2 s t ≤ 4 / (#A * π) * ∑ s, ∑ t ∈ T, L s t := by

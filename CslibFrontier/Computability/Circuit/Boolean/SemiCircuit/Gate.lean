@@ -137,10 +137,8 @@ def subst (o : Lit) (v : ℕ) (ℓ : Lit) : Lit :=
 theorem eval_subst {o : Lit} {v : ℕ} {ℓ : Lit} {val : ℕ → Bool} (h : val v = ℓ.eval val) :
     (o.subst v ℓ).eval val = o.eval val := by
   unfold subst
-  split_ifs with ho
-  · simp only [eval, ho, Arg.eval_node, h]
-    cases ℓ.arg.eval val <;> cases o.neg <;> cases ℓ.neg <;> rfl
-  · rfl
+  split_ifs with ho <;> simp only [eval, ho, Arg.eval_node, h]
+  cases ℓ.arg.eval val <;> cases o.neg <;> cases ℓ.neg <;> rfl
 
 /-- The literal reads the internal value `t`. -/
 def Reads (o : Lit) (t : ℕ) : Prop :=
@@ -164,8 +162,7 @@ theorem reads_of_reads_subst {o : Lit} {v : ℕ} {ℓ : Lit} {z : ℕ} (h : (o.s
     o.Reads z ∨ (o.Reads v ∧ ℓ.Reads z) := by
   unfold subst Reads at *
   split_ifs at h with ho
-  · exact Or.inr ⟨ho, h⟩
-  · exact Or.inl h
+  exacts [Or.inr ⟨ho, h⟩, Or.inl h]
 
 /-- Rerouting `v` in a literal that does not read `v` leaves the literal unchanged. -/
 theorem subst_of_not_reads {o : Lit} {v : ℕ} {ℓ : Lit} (h : ¬ o.Reads v) : o.subst v ℓ = o :=
@@ -242,10 +239,9 @@ theorem eval_subst {g : Gate} {v : ℕ} {ℓ : Lit} {val : ℕ → Bool} (h : va
 theorem substArg_eq_node_of_ne {a : Arg} {v z : ℕ} {target : Arg} (hzv : z ≠ v)
     (hzt : target ≠ .node z) : a.substArg v target = .node z ↔ a = .node z := by
   unfold Arg.substArg
-  by_cases ha : a = .node v
-  · rw [ite_eq_left ha, ha]
-    exact ⟨fun h => absurd h hzt, fun h => absurd (Arg.node.inj h) (Ne.symm hzv)⟩
-  · rw [ite_eq_right ha]
+  split_ifs with ha
+  · exact ⟨fun h => absurd h hzt, fun h => (hzv (Arg.node.inj (ha.symm.trans h)).symm).elim⟩
+  · rfl
 
 theorem eq_node_of_substArg_eq_node {a : Arg} {v z : ℕ} {target : Arg}
     (h : a.substArg v target = .node z) : a = .node z ∨ (a = .node v ∧ target = .node z) := by
@@ -303,7 +299,6 @@ assignment `Function.update val v b`. -/
 theorem args_of_reads {g : Gate} {z z' : ℕ} (hzz : z ≠ z') (hz : g.Reads z)
     (hz' : g.Reads z') : (g.left = .node z ∧ g.right = .node z') ∨
       (g.left = .node z' ∧ g.right = .node z) := by
-  unfold Gate.Reads at hz hz'
   rcases hz with hz | hz <;> rcases hz' with hz' | hz'
   · exact absurd (Arg.node.inj (hz.symm.trans hz')) hzz
   · exact Or.inl ⟨hz, hz'⟩
@@ -329,10 +324,8 @@ theorem eq_or_eq_of_reads {g : Gate} {a b i : ℕ} (hab : a ≠ b) (ha : g.Reads
 theorem card_filter_reads_le (g : Gate) (s : Finset ℕ) : (s.filter g.Reads).card ≤ 2 := by
   by_contra h
   obtain ⟨a, ha, b, hb, c, hc, hab, hac, hbc⟩ := Finset.two_lt_card.1 (not_le.1 h)
-  rcases eq_or_eq_of_reads hab (Finset.mem_filter.1 ha).2 (Finset.mem_filter.1 hb).2
-    (Finset.mem_filter.1 hc).2 with h | h
-  · exact hac h.symm
-  · exact hbc h.symm
+  exact (eq_or_eq_of_reads hab (Finset.mem_filter.1 ha).2 (Finset.mem_filter.1 hb).2
+    (Finset.mem_filter.1 hc).2).elim (hac ∘ Eq.symm) (hbc ∘ Eq.symm)
 
 /-- The value of a gate reading the internal values `a` and `b`. -/
 theorem eval_of_args {g : Gate} {a b : ℕ} (ha : g.left = .node a) (hb : g.right = .node b)
@@ -384,37 +377,29 @@ theorem reads_of_unaryLit_reads {h : Bool → Bool} {a : Arg} {t : ℕ}
 /-- A degenerate gate evaluates to the same value as its simplified literal `g.lit`. -/
 theorem Gate.eval_lit {g : Gate} (hg : g.Degenerate) (val : ℕ → Bool) :
     g.eval val = g.lit.eval val := by
-  obtain ⟨op, l, r⟩ := g
-  cases l with
-  | const b => exact eval_unaryLit (op b) r val
-  | node t =>
-    cases r with
-    | const b => exact eval_unaryLit (op · b) (.node t) val
-    | node t' =>
-      rcases hg with ⟨_, ⟨⟩⟩ | ⟨_, ⟨⟩⟩ | hb
-      cases hb
-      exact eval_unaryLit (fun x => op x x) (.node t) val
+  rcases g with ⟨op, b | t, r⟩
+  · exact eval_unaryLit (op b) r val
+  rcases r with b | t'
+  · exact eval_unaryLit (op · b) (.node t) val
+  rcases hg with ⟨_, ⟨⟩⟩ | ⟨_, ⟨⟩⟩ | hb
+  obtain rfl := Arg.node.inj hb
+  exact eval_unaryLit (fun x => op x x) (.node t) val
 
 /-- Any internal value read by `g.lit` is also read by `g`. -/
 theorem Gate.reads_of_lit_reads {g : Gate} {t : ℕ} (h : g.lit.Reads t) : g.Reads t := by
-  obtain ⟨op, l, r⟩ := g
-  cases l with
-  | const b => exact Or.inr (reads_of_unaryLit_reads h)
-  | node s =>
-    cases r with
-    | const b => exact Or.inl (reads_of_unaryLit_reads (h := fun x => op x b) h)
-    | node s' => exact Or.inl (reads_of_unaryLit_reads (h := fun x => op x x) h)
+  rcases g with ⟨op, b | s, r⟩
+  · exact Or.inr (reads_of_unaryLit_reads h)
+  rcases r with b | s'
+  · exact Or.inl (reads_of_unaryLit_reads (h := fun x => op x b) h)
+  · exact Or.inl (reads_of_unaryLit_reads (h := fun x => op x x) h)
 
 /-- Rerouting a variable in a degenerate gate yields a degenerate gate. -/
 theorem Gate.degenerate_subst {g : Gate} (hg : g.Degenerate) (v : ℕ) (ℓ : Lit) :
     (g.subst v ℓ).Degenerate := by
-  unfold Gate.Degenerate at *
-  change (∃ b, g.left.substArg v ℓ.arg = .const b) ∨ (∃ b, g.right.substArg v ℓ.arg = .const b) ∨
-    g.left.substArg v ℓ.arg = g.right.substArg v ℓ.arg
   rcases hg with ⟨b, hb⟩ | ⟨b, hb⟩ | hb
-  · exact Or.inl ⟨b, by rw [hb]; rfl⟩
-  · exact Or.inr (Or.inl ⟨b, by rw [hb]; rfl⟩)
-  · exact Or.inr (Or.inr (by rw [hb]))
+  · exact Or.inl ⟨b, by simp [Gate.subst, Arg.substArg, hb]⟩
+  · exact Or.inr (Or.inl ⟨b, by simp [Gate.subst, Arg.substArg, hb]⟩)
+  · exact Or.inr (Or.inr (by simp [Gate.subst, hb]))
 
 /-! ### Operations of the full binary basis -/
 

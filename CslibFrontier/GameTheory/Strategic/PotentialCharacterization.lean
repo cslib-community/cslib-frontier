@@ -378,10 +378,7 @@ private theorem sweepProfile_apply (L : List ι) (cur target : ∀ i, S i) (k : 
   | nil => simp only [sweepProfile, List.not_mem_nil, ↓reduceIte]
   | cons i L ih =>
       rw [sweepProfile, ih]
-      by_cases hki : k = i
-      · subst hki
-        simp
-      · simp [hki]
+      rcases eq_or_ne k i with rfl | hki <;> simp [*]
 
 private theorem sweepCost_append (G : CostGame ι S) (L₁ L₂ : List ι) (cur target : ∀ i, S i) :
     sweepCost G (L₁ ++ L₂) cur target =
@@ -451,10 +448,7 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
       exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
   have hw_rem (t : ∀ k, S k) : sweepProfile L_rem z t = update t i (z i) := by
     funext k
-    rw [sweepProfile_apply]
-    rcases eq_or_ne k i with rfl | hki
-    · simp [L_rem]
-    · simp [L_rem, hki]
+    rcases eq_or_ne k i with rfl | hki <;> simp [sweepProfile_apply, L_rem, *]
   unfold potentialOfBase
   rw [sweepCost_perm h hperm hnd_all z (update s i a),
     sweepCost_perm h hperm hnd_all z s,
@@ -596,9 +590,8 @@ theorem exists_isWeightedPotential_mixedExtension_iff {G : CostGame ι S} {w : �
   let f : ∀ j, S j → { q : S j → ℝ // IsMixedStrategy q } :=
     fun _ x => ⟨Pi.single x 1, isMixedStrategy_single x⟩
   refine ⟨fun s => Ψ fun j => f j (s j), fun s i a => ?_⟩
-  have hstep := hΨ (fun j => f j (s j)) i (f i a)
-  rw [← funext (apply_update f s i a)] at hstep
-  simpa only [mixedExtension, f, G.expectedCost_single] using hstep
+  simpa only [mixedExtension, f, ← funext (apply_update f s i a), G.expectedCost_single] using
+    hΨ (fun j => f j (s j)) i (f i a)
 
 /-- Exact-potential (`w = 1`) specialization of [MondererShapley1996], Lemma 2.10 (pp. 131–132): a
 finite game admits an exact potential if and only if its mixed extension does. -/

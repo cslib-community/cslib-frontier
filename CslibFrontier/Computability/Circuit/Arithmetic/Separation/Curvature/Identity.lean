@@ -276,12 +276,10 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
   have h1 := det_permute' e (matM (1 : ℤ) sa sb sc sd)
   have h2 : (matM (1 : ℤ) sa sb sc sd).submatrix id e =
       fromBlocks (blU (1 : ℤ) sa sd sc sb) (blX (1 : ℤ) sa sd) (blY (1 : ℤ) sc sb)
-        (-(blU (1 : ℤ) sa.swap sd.swap sc.swap sb.swap)ᵀ) := by
-    ext i j
-    rcases i with i | i <;> rcases j with j | j <;> simp [matM, e]
-  have hY : blY (1 : ℤ) sc sb = 0 := by
-    ext i j
-    rcases i with i | i <;> rcases j with j | j <;> simp [blY]
+        (-(blU (1 : ℤ) sa.swap sd.swap sc.swap sb.swap)ᵀ) :=
+    Matrix.ext fun i j => by rcases i with i | i <;> rcases j with j | j <;> simp [matM, e]
+  have hY : blY (1 : ℤ) sc sb = 0 :=
+    Matrix.ext fun i j => by rcases i with i | i <;> rcases j with j | j <;> simp [blY]
   have hU : ∀ (sa : Word μ) (sd : Word ν) (sc : Word μ) (sb : Word ν),
       StrictMono sa.row → StrictMono sd.row →
       StrictMono sc.col → StrictMono sb.col →
@@ -291,9 +289,8 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
     have e1 : blU (1 : ℤ) sa sd sc sb =
         fromBlocks (of fun i j => if sa.row i = sc.col j then 1 else 0) 0
         (of fun i j => meixnerB 1 (sc.col j) (sd.row i))
-            (-(of fun i j => if sd.row i = sb.col j then 1 else 0)) := by
-      ext i j
-      rcases i with i | i <;> rcases j with j | j <;> simp [blU]
+            (-(of fun i j => if sd.row i = sb.col j then 1 else 0)) :=
+      Matrix.ext fun i j => by rcases i with i | i <;> rcases j with j | j <;> simp [blU]
     rw [e1, det_fromBlocks_zero₁₂, det_neg, Fintype.card_fin, det_coinc _ _ k1 k3,
         det_coinc _ _ k2 k4]
     ring
@@ -392,11 +389,9 @@ private theorem prop_identity_term_zero (T : Finset (ρ ⊕ ρ)) (hT : T.toLeft.
     (X : Matrix p p R) (A : Matrix p ρ R) (A' : Matrix ρ p R)
     (Y : Matrix q q R) (B : Matrix ρ q R) (B' : Matrix q ρ R) :
     (termMat T X A A' Y B B').det = 0 := by
-  rw [termMat_eq_glue]
-  refine Matrix.det_glue_eq_zero_of_card_ne _ _ _ _ ?_
-  rw [card_colGroup]
   have := card_rowGroup (p := p) (q := q) T
-  omega
+  rw [termMat_eq_glue]
+  exact Matrix.det_glue_eq_zero_of_card_ne _ _ _ _ (by rw [card_colGroup]; omega)
 
 /-- Proof of Proposition B.2, the coefficients: for every `T`, the determinant of the term is a
 function of `(X, A, A')` times a function of `(Y, B, B')`. -/
@@ -449,13 +444,11 @@ private theorem prop_identity_near (K N : ℕ) {S T : Type*}
     fun k t => ((Polynomial.X : ℤ[X]) ^ (enT (k.1 : Finset (Fin K ⊕ Fin K))) *
       β k.1 (Y t) (B t) (B' t)).coeff (N - k.2), fun s t => ?_⟩
   rw [prop_identity_expand, Polynomial.finsetSum_coeff, Fintype.sum_prod_type]
-  have hw : ∀ T : Finset (Fin K ⊕ Fin K),
+  have hw (T : Finset (Fin K ⊕ Fin K)) :
       ∏ r ∈ T, Sum.elim (fun r : Fin K => (Polynomial.X : ℤ[X]) ^ (2 * (r : ℕ) + 1))
         (fun r : Fin K => (Polynomial.X : ℤ[X]) ^ (2 * (r : ℕ) + 1)) r = Polynomial.X ^ enT T := by
-    intro T
     rw [enT, ← Finset.prod_pow_eq_pow_sum]
-    refine Finset.prod_congr rfl fun r _ => ?_
-    rcases r with r | r <;> rfl
+    exact Finset.prod_congr rfl fun r _ => by rcases r with r | r <;> rfl
   rw [← Finset.sum_subset (Finset.subset_univ (goodT K N)), ← Finset.sum_coe_sort]
   · refine Finset.sum_congr rfl fun T _ => ?_
     rw [hw, hαβ, mul_left_comm, Polynomial.coeff_mul,
@@ -463,10 +456,8 @@ private theorem prop_identity_near (K N : ℕ) {S T : Type*}
   · intro T _ hT
     rw [hw]
     by_cases hb : T.toLeft.card = T.toRight.card
-    · have : N < enT T := by
-        by_contra hcon
-        exact hT (mem_filter.2 ⟨mem_univ _, hb, not_lt.1 hcon⟩)
-      rw [Polynomial.coeff_X_pow_mul', ite_eq_right (not_le.2 this)]
+    · rw [Polynomial.coeff_X_pow_mul',
+        ite_eq_right fun hle => hT (mem_filter.2 ⟨mem_univ _, hb, hle⟩)]
     · rw [prop_identity_term_zero T hb, mul_zero, Polynomial.coeff_zero]
 
 end Expansion
@@ -495,12 +486,11 @@ private theorem prop_identity_coefficients (μ ν N : ℕ) :
     rcases i with i | i <;> rcases j with j | j
     · simp [matM]
     · simpa only [matM, fromBlocks_apply₁₂] using prop_identity_blocks (N + 1) X sa sd sc sb i j
-    · have := prop_identity_blocks (N + 1) (X : ℤ[X]) sa.swap sd.swap sc.swap sb.swap j i
-      simp only [matM, fromBlocks_apply₂₁]
-      rw [← dvd_neg] at this
+    · simp only [matM, fromBlocks_apply₂₁]
       rw [Matrix.neg_mul, Matrix.neg_mul, ← Matrix.diagonal_transpose, ← Matrix.transpose_mul,
         ← Matrix.transpose_mul, ← Matrix.mul_assoc]
-      convert this using 1
+      convert (prop_identity_blocks (N + 1) (X : ℤ[X]) sa.swap sd.swap sc.swap sb.swap
+          j i).neg_right using 1
       simp only [Matrix.neg_apply, Matrix.transpose_apply]
       ring
     · simp [matM]

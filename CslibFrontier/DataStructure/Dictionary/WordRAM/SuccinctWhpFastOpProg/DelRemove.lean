@@ -118,8 +118,7 @@ private theorem realizes_delRemCoreGen :
     have hom_fn2 : fs_l.overmarsActive b = 1 →
         fs_l.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 ∧
         ∃ om, ValidWhpSlice n_max (fs_l.overmarsInsCount b)
-          (fs_l.slices (fs_l.overmarsSliceIdx b)) om := by
-      intro ha1
+          (fs_l.slices (fs_l.overmarsSliceIdx b)) om := fun ha1 => by
       obtain ⟨hins_o, om, hv_o⟩ := hom_fn ha1
       refine ⟨hins_o.le, om, ?_⟩
       change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
@@ -184,11 +183,9 @@ private theorem delRemCoreGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
     validFastState_delete_bounds hv hb
   have hfp_lt : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u < 2 ^ fpBitsWhp n_max := by
     unfold fpOfSalt
-    by_cases hs : fs.bktSalt b < sMaxWhp c n_max
-    · simp only [hs, ↓reduceDIte]
-      exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-    · simp only [hs, ↓reduceDIte]
-      exact Nat.two_pow_pos _
+    split_ifs with hs
+    · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
+    · exact Nat.two_pow_pos _
   set st_del := fs.locState b loc_del
   set rKey_u := fpReducedKey c U n_max θ.2 u
   set fp_live_u := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
@@ -217,8 +214,7 @@ private theorem delRemCoreGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
   have hom_fn2 : fs_l.overmarsActive b = 1 →
       fs_l.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 ∧
       ∃ om, ValidWhpSlice n_max (fs_l.overmarsInsCount b)
-        (fs_l.slices (fs_l.overmarsSliceIdx b)) om := by
-    intro ha1
+        (fs_l.slices (fs_l.overmarsSliceIdx b)) om := fun ha1 => by
     obtain ⟨hins_o, om, hv_o⟩ := hom_fn ha1
     refine ⟨hins_o.le, om, ?_⟩
     change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
@@ -277,9 +273,8 @@ theorem realizes_fastDeleteRemoveGen :
     rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, loc_del⟩, u_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, heq_wp, hseed, hrep, hv, hb, hld, hu⟩ := h
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hld, hu⟩ := h
     obtain rfl := henv.2.2.1
-    subst heq_wp
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1]
     set u : Fin U := ⟨u_val, hu⟩
@@ -289,9 +284,7 @@ theorem realizes_fastDeleteRemoveGen :
     dsimp only [u] at hri_st hri_res
     obtain ⟨hfp_lt, _, hst_core, hce_o, hr_lt_o, hreb_fn_o⟩ :=
       delRemCoreGenProg_fastStep u henv hseed hrep hv hb hld (s := s)
-    rw [hcp_eq] at *
-    rw [hri_st] at *
-    rw [hri_res] at *
+    rw [hcp_eq, hri_st, hri_res] at *
     first
     | exact ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hld_tl⟩
     | exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hld, rfl, hfp_lt⟩

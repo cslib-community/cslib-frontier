@@ -287,10 +287,7 @@ private theorem inFrame_ceilDivFour_periodic (depth : ℕ) :
     Function.Periodic (fun coordinate =>
       inFrame depth (ceilDivFour coordinate)) (period (depth + 1)) := by
   intro coordinate
-  rw [period_succ]
-  change inFrame depth (ceilDivFour (coordinate + 4 * period depth)) = _
-  rw [ceilDivFour_add_four_mul]
-  simp [inFrame]
+  simp [inFrame, period_succ, ceilDivFour_add_four_mul]
 
 private theorem inFrame_periodic (depth : ℕ) :
     Function.Periodic (inFrame depth) (period depth) := by
@@ -332,13 +329,7 @@ private theorem boundaryLiftCondition_periodic
       ceilDivFour coordinate % period depth = side.boundaryResidue depth ∧
         coordinate % 4 = side.fineResidue) (period (depth + 1)) := by
   intro coordinate
-  rw [period_succ]
-  apply propext
-  change
-    ceilDivFour (coordinate + 4 * period depth) % period depth = _ ∧
-        (coordinate + 4 * period depth) % 4 = side.fineResidue ↔ _
-  rw [ceilDivFour_add_four_mul]
-  simp
+  exact propext (by simp [period_succ, ceilDivFour_add_four_mul])
 
 private theorem boundary_periodic (side : FrameSide) (depth : ℕ) :
     Function.Periodic (fun coordinate =>
@@ -649,16 +640,8 @@ private theorem frameBorder_zero_parity (coordinate transverse offsetX offsetY :
     frameBorder 0 (2 * coordinate + offsetX) (2 * transverse + offsetY) =
       frameBorder 0 (2 * (coordinate % 2) + offsetX)
         (2 * (transverse % 2) + offsetY) := by
-  have coordinateMod :
-      (2 * coordinate + offsetX) % 4 =
-        (2 * (coordinate % 2) + offsetX) % 4 := by
-    omega
-  have transverseMod :
-      (2 * transverse + offsetY) % 4 =
-        (2 * (transverse % 2) + offsetY) % 4 := by
-    omega
-  simp [frameBorder, inFrame, period, frameStartResidue, frameEndResidue,
-    scale, coordinateMod, transverseMod]
+  have hmod (a b : ℕ) : (2 * a + b) % 4 = (2 * (a % 2) + b) % 4 := by omega
+  simp [frameBorder, inFrame, period, frameStartResidue, frameEndResidue, scale, hmod]
 
 private theorem liftBorder_eight_mul_add (block offset : ℕ)
     (border : Option Bool) :
@@ -685,21 +668,18 @@ private theorem selectedBorder_succ (level coordinate transverse : ℕ) :
   constructor
   · rintro (outer | ⟨depth, positive, bounded, border⟩)
     · exact Or.inl (Or.inl outer)
-    · by_cases depthOne : depth = 1
-      · right
-        refine ⟨?_, by simpa [depthOne] using border⟩
+    · rcases eq_or_ne depth 1 with rfl | depthNe
+      · refine .inr ⟨?_, border⟩
         cases oldEq : liftBorder coordinate
             (selectedBorder level (ceilDivFour coordinate)
               (ceilDivFour transverse)) with
         | none => rfl
-        | some oldOrientation =>
-            exfalso
-            rcases (lift_selectedBorder_eq_some_iff _ _ _ _).1 oldEq with
-              oldOuter | ⟨oldDepth, oldLower, _, oldBorder⟩
-            · exact outerBorder_frameBorder_disjoint oldOuter border
-            · exact frameBorders_disjoint_of_lt (by omega) border oldBorder
-      · left
-        exact Or.inr ⟨depth, by omega, bounded, border⟩
+        | some _ =>
+          rcases (lift_selectedBorder_eq_some_iff _ _ _ _).1 oldEq with
+            oldOuter | ⟨_, oldLower, _, oldBorder⟩
+          · exact (outerBorder_frameBorder_disjoint oldOuter border).elim
+          · exact (frameBorders_disjoint_of_lt oldLower border oldBorder).elim
+      · exact .inl (.inr ⟨depth, by omega, bounded, border⟩)
   · rintro ((outer | ⟨depth, lower, bounded, border⟩) | ⟨_, new⟩)
     · exact Or.inl outer
     · exact Or.inr ⟨depth, by omega, bounded, border⟩
