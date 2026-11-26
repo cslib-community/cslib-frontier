@@ -220,12 +220,11 @@ theorem RompelBaseInput.truncIndex_le {n m : ℕ} (z : RompelBaseInput n m) : z.
 
 @[simp] theorem RompelBaseInput.unpackWord_packWord {n m : ℕ} (z : RompelBaseInput n m) :
     RompelBaseInput.unpackWord n m z.packWord = z := by
-  have hx : (List.ofFn z.preimage).length = n := List.length_ofFn
-  have hs : (packAffineSeed (z.hashRows, z.hashShift)).length = rompelSeedWidth n m :=
-    length_packAffineSeed _
-  cases z with | mk pre rows shift tbits =>
-  simp only [RompelBaseInput.packWord, RompelBaseInput.unpackWord, List.append_assoc,
-    List.take_left' hx, List.drop_left' hx, List.take_left' hs, List.drop_left' hs,
+  rcases z with ⟨_, rows, shift, _⟩
+  simp only [RompelBaseInput.packWord, RompelBaseInput.unpackWord, rompelSeedWidth,
+    List.append_assoc, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn,
+    List.take_left' (length_packAffineSeed (rows, shift)),
+    List.drop_left' (length_packAffineSeed (rows, shift)),
     unpackAffineSeed_packAffineSeed, BitString.ofList_ofFn]
 
 theorem RompelBaseInput.packWord_unpackWord {n m : ℕ} {w : List Bool}
@@ -291,12 +290,11 @@ structure RompelBaseOutput (n m : ℕ) where
 
 @[simp] theorem RompelBaseOutput.unpackWord_packWord {n m : ℕ} (y : RompelBaseOutput n m) :
     RompelBaseOutput.unpackWord n m y.packWord = y := by
-  have hs : (packAffineSeed (y.hashRows, y.hashShift)).length = rompelSeedWidth n m :=
-    length_packAffineSeed _
-  have ht : (List.ofFn y.truncBits).length = rompelTruncWidth n := List.length_ofFn
-  cases y with | mk rows shift tbits dig =>
-  simp only [RompelBaseOutput.packWord, RompelBaseOutput.unpackWord, List.append_assoc,
-    List.take_left' hs, List.drop_left' hs, List.take_left' ht, List.drop_left' ht,
+  rcases y with ⟨rows, shift, _, _⟩
+  simp only [RompelBaseOutput.packWord, RompelBaseOutput.unpackWord, rompelSeedWidth,
+    List.append_assoc, List.take_left' (length_packAffineSeed (rows, shift)),
+    List.drop_left' (length_packAffineSeed (rows, shift)),
+    List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn,
     unpackAffineSeed_packAffineSeed, BitString.ofList_ofFn]
 
 theorem RompelBaseOutput.packWord_unpackWord {n m : ℕ} {w : List Bool}
@@ -386,13 +384,11 @@ theorem rompelBaseEvalWord_packWord (g : List Bool → List Bool) (outLen : ℕ 
     (z : RompelBaseInput n (outLen n)) :
     rompelBaseEvalWord g outLen n z.packWord =
       (rompelBaseHashFin (wordToFinMap n (outLen n) g) z).packWord := by
-  have hx : (List.ofFn z.preimage).length = n := List.length_ofFn
-  have hs : (packAffineSeed (z.hashRows, z.hashShift)).length = rompelSeedWidth n (outLen n) :=
-    length_packAffineSeed _
+  have hs := length_packAffineSeed (z.hashRows, z.hashShift)
   simp only [rompelBaseEvalWord, RompelBaseInput.packWord, RompelBaseOutput.packWord,
-    rompelBaseHashFin, List.append_assoc, List.take_left' hx, List.drop_left' hx,
-    List.take_left' hs, List.drop_left' hs, BitString.listRow_zero, BitString.ofList_ofFn,
-    BitString.ofFn_ofList hs]
+    rompelBaseHashFin, rompelSeedWidth, List.append_assoc, List.take_left' List.length_ofFn,
+    List.drop_left' List.length_ofFn, List.take_left' hs, List.drop_left' hs,
+    BitString.listRow_zero, BitString.ofList_ofFn, BitString.ofFn_ofList hs]
   rw [wordAffineHash_eq_ofFn, unpackAffineSeed_packAffineSeed, ofFn_zeroPadPrefix,
     Nat.min_eq_left z.truncIndex_le]
   rfl
@@ -716,10 +712,9 @@ private theorem rompelBase_heavy_image_mass_ge {n m r : ℕ} (c : ℕ) (hr_le : 
     (1 : ℝ) ≤
       (4 * (n + 1 : ℝ) ^ c) *
         (((PMF.uniformOfFintype (BitString n)).map gFin) y).toReal * (2 : ℝ) ^ r := by
-  have hy_heavy : (2 : ℝ) ^ (n - r) ≤ 4 * (n + 1 : ℝ) ^ c * (#(fiberSet gFin y) : ℝ) := by
-    refine mod_cast Nat.le_of_lt ?_
-    by_contra! hle
-    exact hy_not (mem_insert_of_mem (mem_filter.mpr ⟨mem_univ y, by rwa [Nat.min_eq_left hr_le]⟩))
+  have hy_heavy : (2 : ℝ) ^ (n - r) ≤ 4 * (n + 1 : ℝ) ^ c * (#(fiberSet gFin y) : ℝ) :=
+    mod_cast (Nat.lt_of_not_le fun hle =>
+      hy_not (mem_insert_of_mem (mem_filter.mpr ⟨mem_univ y, by rwa [Nat.min_eq_left hr_le]⟩))).le
   have hcard_sub : Nat.card {a : BitString n // gFin a = y} = #(fiberSet gFin y) :=
     Nat.card_eq_fintype_card.trans (card_fiberSet_eq_fintypeCard gFin y).symm
   have hpow : (2 : ℝ) ^ n = (2 : ℝ) ^ (n - r) * (2 : ℝ) ^ r := by
@@ -1232,16 +1227,14 @@ private theorem rompelBase_goodLightPairs_frac_ge {n m : ℕ} (c : ℕ)
           _ = 2 * 2 ^ t * #eqPairs := by ring
       have hpow2 : (2 : ℝ) ≤ (2 : ℝ) ^ t :=
         mod_cast Nat.pow_le_pow_right (by decide : 0 < 2) ht_pos
-      have hcoeff : (1 + 2 * (2 : ℝ) ^ t) * (#eqPairs : ℝ) ≤
-          (4 * (2 : ℝ) ^ t - 3) * (#eqPairs : ℝ) := by gcongr; linarith
-      linarith [show (#badNeqPairs : ℝ) ≤ 2 * (2 : ℝ) ^ t * (#eqPairs : ℝ) from mod_cast hbad_nat]
-  rw [hcoll_eq, div_le_div_iff₀ (by norm_num) (by positivity)]
+      nlinarith [Nat.cast_nonneg (α := ℝ) #eqPairs,
+        show (#badNeqPairs : ℝ) ≤ 2 * (2 : ℝ) ^ t * (#eqPairs : ℝ) from mod_cast hbad_nat]
+  rw [hcoll_eq, div_le_div_iff₀ (by norm_num) (by positivity),
+    sub_mul, one_mul, mul_assoc, div_mul_cancel₀ _ (by positivity)]
   have hcover_r : (2 ^ n : ℝ) * (2 ^ n : ℝ) ≤
       (#eqPairs : ℝ) + (#badNeqPairs : ℝ) + (#lightNeqPairs : ℝ) := mod_cast hcover
-  have hlight_r : (#lightNeqPairs : ℝ) ≤ 2 * (#goodLightPairs : ℝ) := mod_cast hlightNeq_le
-  rw [sub_mul, one_mul, mul_assoc, div_mul_cancel₀ _ (by positivity)]
   dsimp only [t] at hbad_bound ⊢
-  linarith
+  linarith [show (#lightNeqPairs : ℝ) ≤ 2 * (#goodLightPairs : ℝ) from mod_cast hlightNeq_le]
 
 /-- **`[HHRVW2020]`, Section 4.2, Claim 4.7 (pp. 21, 23–25)**: unconditional finite-`n` lower bound
 on the entropy gap between `PMF.conditionalEntropy` of `rompelBaseHashFin gFin` and
@@ -1541,10 +1534,9 @@ theorem OneWay.exists_rompelBase_logGap {f : List Bool → List Bool} (hf : OneW
   let F₀ := hg.rompelFamily 0 hlen houtLen
   refine ⟨F₀.inLen, F₀.outLen, F₀.evalWord, F₀.polyTime_inLen, F₀.polyTime_outLen,
     F₀.polyTime_evalWord, F₀.length_evalWord, fun d hd => ?_⟩
-  let c := Nat.ceil (256 * d) + 1
   obtain ⟨hgap, hesc⟩ := hg.rompelBase_logGap hlen houtLen hd
-  exact ⟨rompelAccessibleSet c g outLen, self_mem_rompelAccessibleSet c g outLen,
-    rompelAccessibleSet_subset_fiber c g outLen, hgap, hesc⟩
+  exact ⟨rompelAccessibleSet _ g outLen, self_mem_rompelAccessibleSet _ g outLen,
+    rompelAccessibleSet_subset_fiber _ g outLen, hgap, hesc⟩
 
 /-- Every uniform `OneWay` function yields a uniform polynomial-time `InaccessibleEntropyFamily`:
 `OneWay.rompelFamily` for its fixed-output-length normalization. -/

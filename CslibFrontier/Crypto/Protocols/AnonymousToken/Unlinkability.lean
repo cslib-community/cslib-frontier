@@ -119,11 +119,9 @@ theorem OpeningCommitment.toScheme_correct {CommitKey Message C Opening : Type}
     Com.toScheme.Correct := by
   intro ck _ m c r hmem
   simp only [OpeningCommitment.toScheme, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-  rcases hmem with ⟨r', _, heq⟩
-  injection heq with hc hr
-  subst c r'
-  simp [OpeningCommitment.toScheme]
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq, decide_eq_true_eq] at hmem ⊢
+  rcases hmem with ⟨_, _, rfl, rfl⟩
+  rfl
 
 /-- Message committed inside a VOLE-ACT note commitment `Com(nf, ctx, t, r)`. -/
 structure CommitMsg (Nullifier Context : Type) where
@@ -688,20 +686,14 @@ private lemma eval_unlinkOracleProgram_mkSig_issue
   simp only [hcond, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind]
   refine pmfBind_congr _ fun nf0 => pmfBind_congr _ fun r0 => ?_
-  have hv0 : validStatement Com tag S bound ck
-      (.issue ⟨ctx, Com.eval ck ⟨nf0, ctx, t0⟩ r0, t0⟩) (.issue ⟨nf0, r0⟩) = true := by
-    simp [validStatement, ht0.1, ht0.2]
-  rw [bind_realProofOracle_valid Com tag S bound sys ck hv0]
-  dsimp only
+  rw [bind_realProofOracle_valid Com tag S bound sys ck
+    (by simp [validStatement, ht0.1, ht0.2])]
   refine pmfBind_congr _ fun pi0 => ?_
   simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
     ProbComp.eval_bind]
   refine pmfBind_congr _ fun nf1 => pmfBind_congr _ fun r1 => ?_
-  have hv1 : validStatement Com tag S bound ck
-      (.issue ⟨ctx, Com.eval ck ⟨nf1, ctx, t1⟩ r1, t1⟩) (.issue ⟨nf1, r1⟩) = true := by
-    simp [validStatement, ht1.1, ht1.2]
-  rw [bind_realProofOracle_valid Com tag S bound sys ck hv1]
-  dsimp only
+  rw [bind_realProofOracle_valid Com tag S bound sys ck
+    (by simp [validStatement, ht1.1, ht1.2])]
   refine pmfBind_congr _ fun pi1 => ?_
   simp only [hissue, ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.pure_bind, hmksig, Bool.and_self, Bool.not_true, Bool.false_eq_true,
@@ -1535,9 +1527,9 @@ private lemma challengeLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpe
   | zero =>
     simp [challengeLoopOracle, challengeLoopSim, ProbOracleComp.run_sample]
   | succ rem' ih =>
-    have htrueOr : ∀ x : Bool, (!true || x) = x := fun x => by cases x <;> rfl
-    simp only [challengeLoopOracle, challengeLoopSim, ClientNote.toSim, Nat.not_lt_zero, htrueOr,
-      ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind]
+    simp only [challengeLoopOracle, challengeLoopSim, ClientNote.toSim, Nat.not_lt_zero,
+      Bool.not_true, Bool.false_or, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+      ProbComp.eval_bind]
     refine pmfBind_congr _ fun choice => ?_
     cases hguard : spendAdmissible env.bound noteAct.bal noteAct.ref choice.debit &&
         spendAdmissible env.bound balOther refOther choice.debit
@@ -1583,14 +1575,12 @@ private lemma preLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpends : 
     simp only [preLoopOracle, preLoopSim, Nat.not_lt_zero, ↓reduceIte, ProbOracleComp.run_bind,
       ProbOracleComp.run_sample, ProbComp.eval_bind]
     refine pmfBind_congr _ fun choice => ?_
+    rw [← apply_ite ClientNote.toSim]
     set noteSel := if choice.client then note1 else note0
     have hsel : NoteInv env.Com env.tag env.S env.bound env.ck pk ctx noteSel := by
       cases hcl : choice.client <;> simp only [noteSel, hcl, ↓reduceIte, Bool.false_eq_true]
       · exact h0
       · exact h1
-    have hsimSel : (if choice.client then note1.toSim else note0.toSim) = noteSel.toSim := by
-      cases hcl : choice.client <;> simp [noteSel, hcl]
-    rw [hsimSel]
     by_cases hguard : spendAdmissible env.bound noteSel.bal noteSel.ref choice.debit = false
     · simp only [hguard, Bool.not_false, ↓reduceIte, ClientNote.toSim, ProbOracleComp.run_pure,
         ProbComp.eval_pure]
@@ -2187,11 +2177,7 @@ private lemma challengeLoopG4Skeleton_symm {preRounds challengeSpends : ℕ}
   | succ rem' ih =>
     simp only [challengeLoopG4Skeleton]
     congr 1 with choice
-    have hcomm : (spendAdmissible env.bound bal0 ref0 choice.debit &&
-        spendAdmissible env.bound bal1 ref1 choice.debit) =
-        (spendAdmissible env.bound bal1 ref1 choice.debit &&
-        spendAdmissible env.bound bal0 ref0 choice.debit) := Bool.and_comm _ _
-    simp only [hcomm]
+    rw [Bool.and_comm (spendAdmissible env.bound bal0 ref0 choice.debit)]
     split_ifs
     · rfl
     · congr 1 with nfAct; congr 1 with rPrime; congr 1 with pi; congr 1 with resp
@@ -2286,14 +2272,12 @@ private lemma preLoopSim_G4_eq_skeleton {preRounds challengeSpends : ℕ}
   | zero =>
     simp only [preLoopSim, preLoopG4Skeleton]
     cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
-        (le_refl _) bal0 ref0 bal1 ref1 st
-      simpa only [PMF.bind_const] using hsub
+    · simpa only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const] using
+        challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends (le_refl _)
+          bal0 ref0 bal1 ref1 st
     · simp only [↓reduceIte]
-      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
-        (le_refl _) bal1 ref1 bal0 ref0 st
-      rw [PMF.bind_const, hsub]
+      rw [PMF.bind_const, challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
+        (le_refl _) bal1 ref1 bal0 ref0 st]
       exact congrArg ProbComp.eval (challengeLoopG4Skeleton_symm env adv pk ctx challengeSpends
         (le_refl _) bal1 ref1 bal0 ref0 st)
   | succ rem' ih =>
@@ -2468,23 +2452,21 @@ theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challeng
     refine pmfBind_congr _ fun h => pmfBind_congr _ fun b => ?_
     cases bHide
     · simp only [MessagePair.select_false, Bool.false_eq_true, ↓reduceIte]
-      have hreal := runPause_real_eq (envOf ck dummyNf) adv b h.val
       calc _ = ((ProbComp.eval (do
               let res ← runPause (envOf ck dummyNf) adv b h.val
               let r ← Com.openSample
               resumeAfterCom (envOf ck dummyNf) adv h.val res.cont
                 (Com.eval ck res.msgReal r))).bind fun g => PMF.pure (decide (g = b))) := by
             simp only [envOf, ProbComp.eval_bind, PMF.bind_bind]
-        _ = _ := by rw [hreal]
+        _ = _ := by rw [runPause_real_eq (envOf ck dummyNf) adv b h.val]
     · simp only [MessagePair.select_true, ↓reduceIte]
-      have hdummy := runPause_dummy_eq (envOf ck dummyNf) adv b h.val
       calc _ = ((ProbComp.eval (do
               let res ← runPause (envOf ck dummyNf) adv b h.val
               let r ← Com.openSample
               resumeAfterCom (envOf ck dummyNf) adv h.val res.cont
                 (Com.eval ck res.msgDummy r))).bind fun g => PMF.pure (decide (g = b))) := by
             simp only [envOf, ProbComp.eval_bind, PMF.bind_bind]
-        _ = _ := by rw [hdummy]
+        _ = _ := by rw [runPause_dummy_eq (envOf ck dummyNf) adv b h.val]
   have hxor_not (fn : Bool → Game) :
       ((uniformOfFintype Bool).bind fun b => (fn b).map (fun g => g ^^ b)).map Bool.not =
         (uniformOfFintype Bool).bind fun b => (fn b).map (fun g => decide (g = b)) := by

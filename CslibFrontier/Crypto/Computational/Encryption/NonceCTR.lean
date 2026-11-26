@@ -531,7 +531,9 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
     dsimp only
     by_cases hcond : (ok && nonceCTRValid nonceLen n pair.msg₀ pair.msg₁ &&
         nonceCTRValidNonce nonceLen n nonce && decide (nonce ∉ seen)) = true
-    · simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
+    · rw [ite_eq_left hcond, ProbOracleComp.run_map, run_ctrKeystreamQueries hlen hkLen,
+        map_pure, ProbComp.eval_pure]
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
       have hpair := hcond.1.1.2
       simp only [nonceCTRValid, blockPairValid, Bool.and_eq_true, beq_iff_eq] at hpair
       rcases hpair with ⟨⟨hlenPair, hmod⟩, _⟩
@@ -540,18 +542,13 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
       have hselDiv : ((pair.select b).length + n - 1) / n = pair.msg₀.length / n := by
         rw [div_ceil_eq_div_of_mod_eq_zero hselMod]
         cases b <;> simp [MessagePair.select, hlenPair]
-      rw [ite_eq_left (by simpa only [Bool.and_eq_true, decide_eq_true_eq] using hcond),
-        ProbOracleComp.run_map, run_ctrKeystreamQueries hlen hkLen,
-        map_pure, ProbComp.eval_pure]
       dsimp only [Functor.map, StateT.map]
       simp [hcond.1.1.1, hcond.1.1.2, hcond.1.2, hcond.2, NonceCipher.unitCPACodec,
-        ProbComp.eval_pure, nonceCTRCipher, nonceStreamCipher_encrypt_eq, hselDiv]
-    · have hnot : ¬ (((ok = true ∧ nonceCTRValid nonceLen n pair.msg₀ pair.msg₁ = true) ∧
-          nonceCTRValidNonce nonceLen n nonce = true) ∧ nonce ∉ seen) := by
-        simpa only [Bool.and_eq_true, decide_eq_true_eq] using hcond
-      rw [ite_eq_right hcond, ProbOracleComp.run_pure, ProbComp.eval_pure]
+        nonceCTRCipher, nonceStreamCipher_encrypt_eq, hselDiv]
+    · rw [ite_eq_right hcond, ProbOracleComp.run_pure, ProbComp.eval_pure]
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
       dsimp only [Functor.map, StateT.map]
-      simp [hnot, NonceCipher.unitCPACodec, ProbComp.eval_pure]
+      simp [hcond, NonceCipher.unitCPACodec]
 
 private noncomputable def nonceCTRIdealOracle (nonceLen : ℕ → ℕ) (n : ℕ)
     (request : Unit × List Bool) : StateT (Bool × List (List Bool)) PMF (List Bool)
@@ -900,11 +897,7 @@ private theorem zipWith_xor_replicate_false :
 private theorem zipWith_xor_replicate_true_ne :
     ∀ w : List Bool, w ≠ [] → List.zipWith Bool.xor (List.replicate w.length true) w ≠ w
   | [], h => (h rfl).elim
-  | b :: w, _ => by
-    simp only [List.length_cons, List.replicate_succ, List.zipWith_cons_cons, ne_eq,
-      List.cons.injEq, not_and]
-    intro hb
-    cases b <;> cases hb
+  | b :: _, _ => by cases b <;> simp [List.replicate_succ]
 
 /-- At every parameter `n ≥ 1`, `unscaledNonceCTRAdversary` achieves CPA advantage `1` against
 `unscaledNonceCTRCipher family n` for any length-preserving `family` on whole-block message
@@ -982,14 +975,15 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
     rw [hwordCall z2 m1 (BitString.lowBits n 1) [BitString.lowBits n 0] hv1 (hvn 1)
       (by simp [hnonceNe])]
     simp only [PMF.pure_map, PMF.pure_bind, Prod.map, id_eq]
-    have hr1Take : (true :: (y 0 ++ y 1)).take (2 * n + 1) = true :: (y 0 ++ y 1) :=
-      List.take_of_length_le (by simp [hyLen, Nat.two_mul])
-    rw [hr1Take, List.drop_succ_cons, List.drop_zero, List.drop_left' (hyLen 0)]
+    have hrTake (ct : List Bool) (hct : ct.length = 2 * n) :
+        (true :: ct).take (2 * n + 1) = true :: ct :=
+      List.take_of_length_le (by rw [List.length_cons, hct])
+    rw [hrTake (y 0 ++ y 1) (by simp [hyLen, Nat.two_mul]), List.drop_succ_cons, List.drop_zero,
+      List.drop_left' (hyLen 0)]
     cases b
-    · have hr2Take : (true :: (y 1 ++ y 2)).take (2 * n + 1) = true :: (y 1 ++ y 2) :=
-        List.take_of_length_le (by simp [hyLen, Nat.two_mul])
-      dsimp only [MessagePair.select, cond]
-      rw [hct_z2 1 htwoPow, hr2Take, List.drop_succ_cons, List.drop_zero, List.take_left' (hyLen 1)]
+    · dsimp only [MessagePair.select, cond]
+      rw [hct_z2 1 htwoPow, hrTake (y 1 ++ y 2) (by simp [hyLen, Nat.two_mul]),
+        List.drop_succ_cons, List.drop_zero, List.take_left' (hyLen 1)]
       simp
     · have hct1True :
           (unscaledNonceCTRCipher family n).encrypt k m1 () (BitString.lowBits n 1) =
@@ -1001,16 +995,12 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
         rw [List.zipWith_append (by simp [hyLen]), ← hyLen 2, zipWith_xor_replicate_false]
       have hxorLen : (List.zipWith Bool.xor (List.replicate n true) (y 1)).length = n := by
         simp [hyLen]
-      have hr2Take :
-          (true :: (List.zipWith Bool.xor (List.replicate n true) (y 1) ++ y 2)).take (2 * n + 1) =
-            true :: (List.zipWith Bool.xor (List.replicate n true) (y 1) ++ y 2) :=
-        List.take_of_length_le (by simp [hxorLen, hyLen, Nat.two_mul])
       have hneBlock : List.zipWith Bool.xor (List.replicate n true) (y 1) ≠ y 1 :=
         hyLen 1 ▸ zipWith_xor_replicate_true_ne (y 1)
           (List.ne_nil_of_length_pos ((hyLen 1).symm ▸ hn))
       dsimp only [MessagePair.select, cond]
-      rw [hct1True, hr2Take, List.drop_succ_cons, List.drop_zero, List.take_left' hxorLen,
-        beq_eq_false_iff_ne.mpr hneBlock]
+      rw [hct1True, hrTake _ (by simp [hxorLen, hyLen, Nat.two_mul]), List.drop_succ_cons,
+        List.drop_zero, List.take_left' hxorLen, beq_eq_false_iff_ne.mpr hneBlock]
       simp
   rw [heval false, heval true, Game.advantage]
   simp [Game.succProbability]

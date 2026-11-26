@@ -706,21 +706,8 @@ theorem advantage_ddhRerandomizeLaw_ddhSelfReduceDistinguisher_le
   let k : ZMod (F.order d) → ZMod (F.order d) → ZMod (F.order d) → Game := fun r s₁ s₂ =>
     let (u', v', w') := F.ddhRerandomize d u v w r s₁ s₂
     ProbComp.eval (distinguisher n d u' v' w')
-  have hlaw : ((F.ddhRerandomizeLaw d u v w).bind fun (u', v', w') =>
-      ProbComp.eval (distinguisher n d u' v' w')) =
-      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun r =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₁ =>
-          (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ => k r s₁ s₂ := by
-    simp only [ddhRerandomizeLaw, pmf_norm]
-    rfl
-  have hself : ProbComp.eval (F.ddhSelfReduceDistinguisher distinguisher n d u v w) =
-      (ProbComp.eval (F.sampleExp n d)).bind fun r =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
-          (ProbComp.eval (F.sampleExp n d)).bind fun s₂ =>
-            k (r : ZMod (F.order d)) (s₁ : ZMod (F.order d)) (s₂ : ZMod (F.order d)) := by
-    simp only [ddhSelfReduceDistinguisher, ProbComp.eval_bind]
-    rfl
-  rw [hlaw, hself, Game.advantage_comm]
+  simp only [ddhRerandomizeLaw, ddhSelfReduceDistinguisher, pmf_norm]
+  rw [Game.advantage_comm]
   have h₁ := F.advantage_bind_sampleExp_le n d fun r =>
     (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
       (ProbComp.eval (F.sampleExp n d)).bind fun s₂ =>
@@ -953,11 +940,10 @@ theorem isPPT_ddhAmplifiedDecider {distinguisher : F.DDHDistinguisher} (hD : dis
 private theorem cast_sub_add_sub_eq_abs (a b : ℕ) :
     (((a - b) + (b - a) : ℕ) : ℝ) = |(a : ℝ) - (b : ℝ)| := by
   rcases le_total a b with h | h
-  · have hR : (a : ℝ) ≤ (b : ℝ) := by exact_mod_cast h
-    rw [Nat.sub_eq_zero_of_le h, zero_add, Nat.cast_sub h, abs_of_nonpos (sub_nonpos.mpr hR),
-      neg_sub]
-  · have hR : (b : ℝ) ≤ (a : ℝ) := by exact_mod_cast h
-    rw [Nat.sub_eq_zero_of_le h, add_zero, Nat.cast_sub h, abs_of_nonneg (sub_nonneg.mpr hR)]
+  · rw [Nat.sub_eq_zero_of_le h, zero_add, Nat.cast_sub h,
+      abs_of_nonpos (sub_nonpos.mpr (Nat.cast_le.mpr h)), neg_sub]
+  · rw [Nat.sub_eq_zero_of_le h, add_zero, Nat.cast_sub h,
+      abs_of_nonneg (sub_nonneg.mpr (Nat.cast_le.mpr h))]
 
 private theorem abs_succProbability_sub_le_of_advantage_le {g₁ g₂ : Game} {ε : ℝ}
     (h : (Game.advantage g₁ g₂ : ℝ) ≤ ε) :

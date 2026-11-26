@@ -183,16 +183,9 @@ theorem run_gmwSeqProver_fst {α : Type} (generator : List Bool → List Bool) (
       relate (fun q state => by
         cases state <;>
           simp [P, gmwSeqProver, relate, PMF.bind_map, Function.comp_def]) prog P.init
-  have hlhs : ((ProbOracleComp.runWith P.respond prog P.init).bind
-        (fun (a, s') => (relate s').map (a, ·))).map Prod.fst =
-      (P.run prog P.init).map Prod.fst := by
-    simp only [pmf_norm, Prover.run]
-    refine congrArg (PMF.bind _) (funext fun _ => ?_)
-    exact PMF.map_const _ _
-  rw [hlhs] at hmap
-  rw [hmap]
-  simp only [pmf_norm, P, gmwSeqProver, relate]
-  exact congrArg (PMF.bind _) (funext fun coinsList => by rw [eval_runSeq])
+  simp only [Prover.run, pmf_norm, P, gmwSeqProver, relate, eval_runSeq] at hmap ⊢
+  exact (PMF.bind_pure_comp Prod.fst _).symm.trans
+    ((congrArg (PMF.bind _) (funext fun _ => (PMF.map_const _ _).symm)).trans hmap)
 
 /-- The PPT program realizing `gmwSeqProver`'s interaction with a verifier `prog`. -/
 noncomputable def gmwSeqInteract (generator : List Bool → List Bool) (s m : ℕ) (φ : CNF ℕ)
@@ -408,11 +401,9 @@ theorem acceptProb_gmwSeqVerifier_gmwSeqProver {α : Type} {generator : List Boo
       (honestReply2 (n + 7) (f a) coins) (gmwVerifier generator length f n a) .init
   have h1 : ProbComp.eval single true = 1 := by
     simpa only [acceptProb, run_gmwProver_fst] using acceptProb_gmwVerifier_gmwProver hlen f n a hw
-  have h1' : ProbComp.eval single = PMF.pure true := PMF.ext fun b => by
-    have hs := (PMF.apply_eq_one_iff _ _).mp h1
-    cases b
-    · simpa using mt (PMF.mem_support_iff _ false).mpr (by simp [hs])
-    · simpa using h1
+  have h1' : ProbComp.eval single = PMF.pure true := PMF.ext fun
+    | false => by simp [PMF.apply_eq_zero_iff, (PMF.apply_eq_one_iff _ _).mp h1]
+    | true => by simpa using h1
   have hrep (K : ℕ) : (OracleComp.replicate K (pure true : ProbComp Bool)) =
       pure (List.replicate K true) := by
     induction K <;> simp [OracleComp.replicate_succ, List.replicate_succ, *]
