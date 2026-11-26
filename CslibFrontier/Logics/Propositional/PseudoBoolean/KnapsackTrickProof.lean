@@ -2593,13 +2593,14 @@ theorem picksD_p {c : ℕ → ℕ} {kw kp : ℕ} (hkp : kp < I.pDom.length) :
   ⟨hkp, by rw [I.asg_p c kw kp kp]; simp,
     fun k' _ hne => by rw [I.asg_p c kw kp k']; simpa using hne⟩
 
-/-- **An assignment picking the positions `c j` of the items, `kw` of `W` and `kp` of `P` solves
-the formula** when the weight and the profit of `c` are the values at `kw` and `kp`. -/
-theorem holds_formula_of {σ : ℕ → Bool} {c : ℕ → ℕ} {kw kp : ℕ}
+/-- **The sum inequalities at an assignment picking the positions `c j` of the items, `kw` of `W`
+and `kp` of `P`**: those of the weight hold exactly when the value at `kw` is the weight of `c`, and
+those of the profit exactly when the value at `kp` is its profit. -/
+theorem holds_links_iff {σ : ℕ → Bool} {c : ℕ → ℕ} {kw kp : ℕ}
     (hc : ∀ j < I.n, I.Picks σ j (c j)) (hkw : PicksD σ I.wDom I.wBase kw)
-    (hkp : PicksD σ I.pDom I.pBase kp)
-    (hw : dval I.wDom kw = pre I.cw c I.n) (hp : dval I.pDom kp = pre I.cp c I.n) :
-    ∀ c' ∈ I.formula, c'.Holds σ := by
+    (hkp : PicksD σ I.pDom I.pBase kp) :
+    (I.linkW₁.Holds σ ∧ I.linkW₂.Holds σ ↔ dval I.wDom kw = pre I.cw c I.n) ∧
+      (I.linkP₁.Holds σ ∧ I.linkP₂.Holds σ ↔ dval I.pDom kp = pre I.cp c I.n) := by
   have hpw := I.part_of_picks hc I.cw le_rfl
   have hpp := I.part_of_picks hc I.cp le_rfl
   have aw := part_add_part σ (I.flat I.cw) true (I.off I.n)
@@ -2609,16 +2610,28 @@ theorem holds_formula_of {σ : ℕ → Bool} {c : ℕ → ℕ} {kw kp : ℕ}
   have tw := sPart_true hkw
   have tp := sPart_true hkp
   simp only [Bool.not_true] at aw ap sw sp
+  simp only [linkW₁, linkW₂, linkP₁, linkP₂, Holds, lhs_append, lhs_terms, lhs_sTerms, tot_eq]
+  simp only [sPart] at *
+  exact ⟨⟨fun ⟨_, _⟩ => by omega, fun _ => ⟨by omega, by omega⟩⟩,
+    ⟨fun ⟨_, _⟩ => by omega, fun _ => ⟨by omega, by omega⟩⟩⟩
+
+/-- **An assignment picking the positions `c j` of the items, `kw` of `W` and `kp` of `P` solves
+the formula** when the weight and the profit of `c` are the values at `kw` and `kp`. -/
+theorem holds_formula_of {σ : ℕ → Bool} {c : ℕ → ℕ} {kw kp : ℕ}
+    (hc : ∀ j < I.n, I.Picks σ j (c j)) (hkw : PicksD σ I.wDom I.wBase kw)
+    (hkp : PicksD σ I.pDom I.pBase kp)
+    (hw : dval I.wDom kw = pre I.cw c I.n) (hp : dval I.pDom kp = pre I.cp c I.n) :
+    ∀ c' ∈ I.formula, c'.Holds σ := by
+  have hW := (I.holds_links_iff hc hkw hkp).1.2 hw
+  have hP := (I.holds_links_iff hc hkw hkp).2.2 hp
   intro c' hc'
   simp only [formula, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
     List.mem_flatMap, List.mem_range] at hc'
   rcases hc' with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | ⟨j, hj, rfl | rfl⟩
-  · simp only [linkW₁, Holds, lhs_append, lhs_terms, lhs_sTerms]; simp only [sPart] at *; omega
-  · simp only [linkW₂, Holds, lhs_append, lhs_terms, lhs_sTerms, tot_eq]
-    simp only [sPart] at *; omega
-  · simp only [linkP₁, Holds, lhs_append, lhs_terms, lhs_sTerms]; simp only [sPart] at *; omega
-  · simp only [linkP₂, Holds, lhs_append, lhs_terms, lhs_sTerms, tot_eq]
-    simp only [sPart] at *; omega
+  · exact hW.1
+  · exact hW.2
+  · exact hP.1
+  · exact hP.2
   · exact (holds_alo _ _ _).2 ⟨kw, hkw.1, hkw.2.1⟩
   · exact holds_amo_of (k := kw) hkw.2.2
   · exact (holds_alo _ _ _).2 ⟨kp, hkp.1, hkp.2.1⟩
@@ -2727,29 +2740,12 @@ public theorem holds_formula_iff (σ : ℕ → Bool) :
       by_contra hl
       have := lit_of hD (I.mem_antecedent_sum true (k := kp) hpp.1 (by simpa [sDom] using hl))
       simp [sBase, hpp.2.1] at this
-    have hpw' := I.part_of_picks hc I.cw le_rfl
-    have hpp' := I.part_of_picks hc I.cp le_rfl
-    have aw := part_add_part σ (I.flat I.cw) true (I.off I.n)
-    have ap := part_add_part σ (I.flat I.cp) true (I.off I.n)
-    have sw := sPart_add σ I.wDom I.wBase true
-    have sp := sPart_add σ I.pDom I.pBase true
-    have tw := sPart_true hpw
-    have tp := sPart_true hpp
-    have h1 := hF _ (List.mem_append_left _ (by simp : I.linkW₁ ∈ _))
-    have h2 := hF _ (List.mem_append_left _ (by simp : I.linkW₂ ∈ _))
-    have h3 := hF _ (List.mem_append_left _ (by simp : I.linkP₁ ∈ _))
-    have h4 := hF _ (List.mem_append_left _ (by simp : I.linkP₂ ∈ _))
-    simp only [linkW₁, linkW₂, linkP₁, linkP₂, Holds, lhs_append, lhs_terms, lhs_sTerms,
-      tot_eq] at h1 h2 h3 h4
-    simp only [Bool.not_true] at aw ap sw sp
-    simp only [sPart] at *
+    have hL := I.holds_links_iff hc hpw hpp
     refine ⟨c, kw, kp, fun j hj => mem_livePos.2 ⟨(hc j hj).1, hlive j hj⟩,
-      mem_livePos.2 ⟨hpw.1, hlw⟩, mem_livePos.2 ⟨hpp.1, hlp⟩, ?_, ?_, fun j hj k hk => ?_,
-      fun k hk => ?_, fun k hk => ?_⟩
-    · change _ = pre I.cw c I.n
-      omega
-    · change _ = pre I.cp c I.n
-      omega
+      mem_livePos.2 ⟨hpw.1, hlw⟩, mem_livePos.2 ⟨hpp.1, hlp⟩,
+      hL.1.1 ⟨hF _ (List.mem_append_left _ (by simp)), hF _ (List.mem_append_left _ (by simp))⟩,
+      hL.2.1 ⟨hF _ (List.mem_append_left _ (by simp)), hF _ (List.mem_append_left _ (by simp))⟩,
+      fun j hj k hk => ?_, fun k hk => ?_, fun k hk => ?_⟩
     · by_cases h : k = c j
       · rw [h, (hc j hj).2.1]; simp
       · rw [(hc j hj).2.2 k hk h]; simp [h]
