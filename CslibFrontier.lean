@@ -6341,6 +6341,7 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Training
 public import CslibFrontier.Computability.Complexity.Problems.STCON
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.LiftingPolyTime
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.BinaryField
+public import CslibFrontier.Foundations.Computability.SpectorExactPair
 public import CslibFrontier.Algorithms.Reachability.ShortestWalk
 public import CslibFrontier.Computability.Complexity.Problems.NCL.HWord.RewriteOccurrence
 public import CslibFrontier.Probability.BitString.AffineHash.ThreeWise
