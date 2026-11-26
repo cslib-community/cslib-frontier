@@ -473,11 +473,9 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     rcases hcases v with rfl | rfl | ⟨h, hvr, hvs⟩
     · simp [dict, hr1, hrs]
     · simp [dict, hs1, hps, rowConst_succ_self hj hlow]
-    · by_cases hb : Basic N v
-      · rw [dict_coeff hb hsb, hps]
-        simp [dict, hvr, hvs, hb, hb1 v h, rowConst_succ_of_ne hj hlow (hne v h), div_neg,
-          sub_neg_eq_add]
-      · simp [dict, hvs, hb, hb1 v h]
+    · by_cases hb : Basic N v <;>
+        simp [dict, hvr, hvs, hb, hb1 v h, hsb, hps, rowConst_succ_of_ne hj hlow (hne v h),
+          div_neg, sub_neg_eq_add]
   · funext v u
     simp only [Dictionary.pivot]
     rw [hcrs]
@@ -485,10 +483,9 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     · rcases hcases v with rfl | rfl | ⟨h, hvr, hvs⟩
       · simp [dict, hr1, hrs]
       · simp [dict, hs1, hr1, hrs, hps, hpr, rowCoeff_self]
-      · by_cases hb : Basic N v
-        · simp [dict, hvr, hvs, hb, hb1 v h, hsb, hr1, hrs, hps, hpr,
+      · by_cases hb : Basic N v <;>
+          simp [dict, hvr, hvs, hb, hb1 v h, hsb, hr1, hrs, hps, hpr,
             rowCoeff_succ_right hj hlow (hne v h), div_neg]
-        · simp [dict, hvr, hvs, hb, hb1 v h, hrs]
     · simp [dict, hs1]
     · by_cases hbu : Basic N u
       · simp [dict, hus, hur, hbu, hb1 u hu]
@@ -496,10 +493,9 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
         · simp [dict, hr1, hrs, hus, hur, hbu, hb1 u hu]
         · simp [dict, hs1, hus, hur, hbu, hb1 u hu, hrb, hps, hpr,
             rowCoeff_succ_left hj hlow (hne u hu), div_neg]
-        · by_cases hb : Basic N v
-          · simp [dict, hvr, hvs, hb, hb1 v h, hus, hur, hbu, hb1 u hu, hsb, hrb, hps, hpr,
+        · by_cases hb : Basic N v <;>
+            simp [dict, hvr, hvs, hb, hb1 v h, hus, hur, hbu, hb1 u hu, hsb, hrb, hps, hpr,
               rowCoeff_succ hj hlow (hne v h) (hne u hu), div_neg, sub_neg_eq_add]
-          · simp [dict, hvr, hvs, hb, hb1 v h, hus, hur, hbu, hb1 u hu]
   · simp only [Dictionary.pivot]
     rw [hcs, hrr, hcrs]
     simp [dict, zVal_succ_top hj hlow j.isLt, div_neg, sub_neg_eq_add]
@@ -821,8 +817,7 @@ theorem isGreatest_kleeMinty (n : ℕ) :
   have hrun := dantzigRun_kleeMinty (K := K) (n + 1) (2 ^ (n + 1) - 1)
   rw [ite_eq_right (lt_irrefl _)] at hrun
   obtain ⟨h1, h2, -, h4⟩ := S.dantzigRun_eq_optimal hS hrun
-  rw [← image_value_slackDictionary, S.image_value_feasibleSet_eq h1]
-  have := (dict (n + 1) (2 ^ (n + 1) - 1) : Dictionary _ K).isGreatest_value h2 h4
-  rwa [objConst_dict_top] at this
+  rw [← image_value_slackDictionary, S.image_value_feasibleSet_eq h1, ← objConst_dict_top]
+  exact (dict (n + 1) (2 ^ (n + 1) - 1) : Dictionary _ K).isGreatest_value h2 h4
 
 end Cslib.Algorithms.Lean.Simplex

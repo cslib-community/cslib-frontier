@@ -323,8 +323,6 @@ theorem findLoop_spec (π : List (Literal ℕ)) (ψ : CNF ℕ) (x : Data 32) (N 
     have hpψ' : HoldsList (x.regs ptr + 1 + c.length) (ψ.flatMap encodeClause) x.mem := by
       rwa [show x.regs ptr + 1 + c.length = x.regs ptr + (c.length + 1) by omega]
     have hNψ : ∀ c ∈ ψ, ∀ l ∈ c, l.1 < N := fun c' h => hN c' (by simp [h])
-    have hfψ : ¬ Falsifies π c = true → ψ.any (Falsifies π) = true := fun h => by
-      simpa [h] using hf
     have hNc := hN c (by simp)
     obtain ⟨hcnt, -⟩ := foldl_litStep π c ⟨0, 0, false, none⟩
     refine WP.exists_execWithin (WP.loop_iter (by simp [Cond.holds_eq, haux, hone]) ?_)
@@ -334,16 +332,14 @@ theorem findLoop_spec (π : List (Literal ℕ)) (ψ : CNF ℕ) (x : Data 32) (N 
       with v₂ m₂ ⟨rfl, ⟨hcnt₂, -⟩, hp₂⟩
     rw [hcnt] at hcnt₂
     by_cases hc : Falsifies π c = true
-    · have h0 : (notFalse π c).length = 0 := by
-        rw [List.length_eq_zero_iff, notFalse_eq_nil_iff]; exact hc
-      wram_exec [hcnt₂, h0, hzero]
+    · wram_exec [hcnt₂, List.length_eq_zero_iff.2 ((notFalse_eq_nil_iff π c).2 hc), hzero]
       refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_eq, hone])) ?_
       refine ⟨by omega, ?_⟩
       wram_simp [List.findIdx_cons, hc]
       simp
     · have h0 : (notFalse π c).length ≠ 0 := by
         rwa [Ne, List.length_eq_zero_iff, notFalse_eq_nil_iff]
-      have hfψ' := hfψ hc
+      have hfψ' : ψ.any (Falsifies π) = true := by simpa [hc] using hf
       wram_exec [hcnt₂, h0, hzero]
       wram_call (ih _ ..) framed with v₃ m₃ ⟨rfl, hp₃⟩
       refine ⟨by omega, rfl, ?_⟩
@@ -556,15 +552,13 @@ private theorem run_nodes (N : ℕ) (φ : CNF ℕ) :
     simpa [answerLog, answerList, Trail.answer, hd, hs] using answerList_answer N φ
   | none =>
     rw [hd] at hrun
-    have hs : (solve φ).isSat = false := by rw [isSat_solve_eq_isSome_dfs, hd]; rfl
-    refine ⟨hrun, ?_⟩
+    have hs : (solve φ).isSat = false := by simp [isSat_solve_eq_isSome_dfs, hd]
     have hlog := Trail.runLog_add_nodes φ (logOut φ) (depth φ) [] 0 hlen hd
     simp only [Nat.zero_add, Trail.lits_nil] at hlog
     cases hsol : solve φ with
-    | sat σ => rw [hsol] at hs; cases hs
+    | sat σ => exact Bool.noConfusion (hsol ▸ hs)
     | unsat c =>
-      rw [hlog]
-      simp [answerLog, answerWords, hsol, treeWords, Trail.backtrack]
+      exact ⟨hrun, by simp [hlog, answerLog, answerWords, hsol, treeWords, Trail.backtrack]⟩
 
 /-- **The variant on the word RAM** ends with the output `refutationWords N φ` at the address in
 `out`. -/
@@ -650,11 +644,10 @@ theorem leafCount_searchTree_le_of_executes (N : ℕ) (φ : CNF ℕ)
     cases hs : solve φ with
     | sat σ => exact absurd ⟨σ, solve_sat hs⟩ hφ
     | unsat c => exact ⟨c, rfl⟩
-  have hw : refutationWords N φ = 0 :: treeWords φ := by
-    simp [refutationWords, answerWords, hc]
-  have hout : outputList y.mem (L + 1 + 4 * N) = 0 :: treeWords φ := by rw [← hyo, hyl, hw]
-  obtain ⟨-, hcells⟩ := outputList_eq_iff.1 hout
-  obtain ⟨-, htree⟩ := holdsList_cons_iff.1 hcells
+  have hout : outputList y.mem (L + 1 + 4 * N) = 0 :: treeWords φ := by
+    simpa [← hyo, refutationWords, answerWords, hc] using hyl
+  obtain ⟨-, -, htree⟩ : _ ∧ _ ∧ HoldsList (L + 1 + 4 * N + 1 + 1) (treeWords φ) y.mem := by
+    simpa [outputList_eq_iff, holdsList_cons_iff] using hout
   have hb := hrun.block_lowerBound ⟨L + 1 + 4 * N + 1 + 1, (treeWords φ).length⟩ fun i => by
     simp only
     rw [htree.get i i.isLt, Data.init_mem_of_length_lt (by omega)]
