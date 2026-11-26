@@ -61,6 +61,7 @@ def rcDec : DecouplingCert where
   Q₂ := [[1, 0, 0, 0], [0, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
   Q₁' := [[0, 1, 0, 0, 0]]
   Q₂' := [[1, 0, 0, 0, 0], [0, -1, 1, 0, 0], [0, 1, 0, 1, 0], [0, 1, 0, 0, 1]]
+  A := [[-1]]
 
 /-- The operating point of `rc`. -/
 def rcEq : List ℚ := [1, 1, 0, 0, 0]
@@ -75,7 +76,7 @@ def rcLyap : LyapunovCert := ⟨⟨[[1]], [(1/2 : ℚ)]⟩,
 theorem rc_check : rc.check = true := by decide +kernel
 theorem rcDec_check : rcDec.check rc.size rc.eRows rc.fRows = true := by decide +kernel
 theorem rcEq_check : isEquilibriumRows rc.size rc.fRows rc.bList rcEq = true := by decide +kernel
-theorem rcLyap_check : rcLyap.check rcDec.k (rcDec.reducedA rc.size rc.fRows) rcP = true := by
+theorem rcLyap_check : rcLyap.check rcDec.k rcDec.A rcP = true := by
   decide +kernel
 
 /-- Every RC trajectory with the source at 1 V converges exponentially to the operating point,
@@ -86,7 +87,6 @@ example := rc.isExponentiallyStable_of_check rc_check rcDec_check rcEq_check rcL
 def rcProbes : List Probe := [.voltage 2 0, .voltage 1 0]
 
 theorem rc_realization :
-    rcDec.reducedA rc.size rc.fRows = [[-1]] ∧
     rcDec.reducedB rc.size rc.inputs rc.gRows = [[1]] ∧
     rcDec.outputC rc.size rcProbes.length (rc.probeRows rcProbes) = [[1], [0]] ∧
     rcDec.feedthroughD rc.size rcProbes.length rc.inputs (rc.probeRows rcProbes) rc.gRows =
@@ -125,6 +125,7 @@ def rlcDec : DecouplingCert where
   Q₂ := [[1, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 1]]
   Q₁' := [[0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 0]]
   Q₂' := [[1, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 3, 0], [0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 1, -1, 0], [0, 0, 0, 0, 0, -1, 1]]
+  A := [[0, 2], [-1, -3]]
 
 /-- The operating point of `rlc`. -/
 def rlcEq : List ℚ := [1, 1, 1, 0, 0, 0, 0]
@@ -141,7 +142,7 @@ theorem rlcDec_check : rlcDec.check rlc.size rlc.eRows rlc.fRows = true := by de
 theorem rlcEq_check : isEquilibriumRows rlc.size rlc.fRows rlc.bList rlcEq = true := by
   decide +kernel
 theorem rlcLyap_check :
-    rlcLyap.check rlcDec.k (rlcDec.reducedA rlc.size rlc.fRows) rlcP = true := by
+    rlcLyap.check rlcDec.k rlcDec.A rlcP = true := by
   decide +kernel
 
 /-- Exponential stability of every damped RLC trajectory about the operating point. -/
@@ -167,6 +168,7 @@ def lcDec : DecouplingCert where
   Q₂ := [[0], [0], [1]]
   Q₁' := [[1, 0, 0], [0, 1, 0]]
   Q₂' := [[0, 1, 1]]
+  A := [[0, -1], [1, 0]]
 
 /-- The operating point of `lc`. -/
 def lcEq : List ℚ := [0, 0, 0]
@@ -174,7 +176,6 @@ def lcEq : List ℚ := [0, 0, 0]
 theorem lc_check : lc.check = true := by decide +kernel
 theorem lcDec_check : lcDec.check lc.size lc.eRows lc.fRows = true := by decide +kernel
 theorem lcEq_check : isEquilibriumRows lc.size lc.fRows lc.bList lcEq = true := by decide +kernel
-theorem lc_reducedA : lcDec.reducedA lc.size lc.fRows = [[0, -1], [1, 0]] := by decide +kernel
 
 /-- The oscillation `φ = ε cos t`, `i_L = ε sin t`, `i_C = -ε sin t` is an LC trajectory. -/
 theorem lc_osc (ε : ℝ) :
@@ -215,7 +216,7 @@ private theorem norm_le_of_apply {n : ℕ} (z : Fin n → ℝ) (j : Fin n) :
 
 /-- Hence no Lyapunov certificate is accepted for its reduced matrix. -/
 theorem lc_no_lyapunov (l : LyapunovCert) (P : List (List ℚ)) :
-    l.check lcDec.k (lcDec.reducedA lc.size lc.fRows) P = false := by
+    l.check lcDec.k lcDec.A P = false := by
   by_contra hl
   obtain ⟨-, -, M, α, hα, hM⟩ := lc.isExponentiallyStable_of_check lc_check lcDec_check
     lcEq_check (Bool.eq_true_of_not_eq_false hl)
@@ -255,6 +256,7 @@ def negDec : DecouplingCert where
   Q₂ := [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]
   Q₁' := [[1, 0, 0, 0]]
   Q₂' := [[-1, 1, 0, 0], [-1, 0, 1, 0], [2, 0, 0, 1]]
+  A := [[1]]
 
 /-- The operating point of `neg`. -/
 def negEq : List ℚ := [0, 0, 0, 0]
@@ -263,7 +265,6 @@ theorem neg_check : neg.check = true := by decide +kernel
 theorem negDec_check : negDec.check neg.size neg.eRows neg.fRows = true := by decide +kernel
 theorem negEq_check : isEquilibriumRows neg.size neg.fRows neg.bList negEq = true := by
   decide +kernel
-theorem neg_reducedA : negDec.reducedA neg.size neg.fRows = [[1]] := by decide +kernel
 
 /-- The growing trajectory `φ₁ = ε eᵗ`. -/
 theorem neg_grow (ε : ℝ) :
@@ -295,7 +296,7 @@ example : ∀ δ > 0, ∃ φ i, neg.IsTrajectoryOn 0 φ i (Ici 0) ∧ |φ 0 0| <
 
 /-- Hence no Lyapunov certificate is accepted for its reduced matrix. -/
 theorem neg_no_lyapunov (l : LyapunovCert) (P : List (List ℚ)) :
-    l.check negDec.k (negDec.reducedA neg.size neg.fRows) P = false := by
+    l.check negDec.k negDec.A P = false := by
   by_contra hl
   obtain ⟨-, -, M, α, hα, hM⟩ := neg.isExponentiallyStable_of_check neg_check negDec_check
     negEq_check (Bool.eq_true_of_not_eq_false hl)

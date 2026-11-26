@@ -600,7 +600,7 @@ private theorem append_split (z : Fin c.size → ℝ) :
 /-- **Certified exponential stability of a circuit.** Let the netlist be well formed, let `d`
 be an accepted index-one decoupling of its modified nodal equations, `z₀` an exactly checked
 equilibrium (`F z₀ + b = 0`) and `l` an accepted Lyapunov certificate for the reduced matrix
-`d.reducedA`. Then, with zero input,
+`d.A`. Then, with zero input,
 
 1. the operating point `z₀ = (φ₀, i₀)` is a (constant) circuit trajectory;
 2. every differential state `x₀`, read through `Q₁'`, starts a circuit trajectory on `[0, ∞)`;
@@ -610,7 +610,7 @@ equilibrium (`F z₀ + b = 0`) and `l` an accepted Lyapunov certificate for the 
 theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ} {l : LyapunovCert}
     {P : List (List ℚ)} (hc : c.check = true) (hd : d.check c.size c.eRows c.fRows = true)
     (hz : isEquilibriumRows c.size c.fRows c.bList z₀ = true)
-    (hl : l.check d.k (d.reducedA c.size c.fRows) P = true) :
+    (hl : l.check d.k d.A P = true) :
     c.IsTrajectoryOn 0 (fun _ j => realOfList c.size z₀ (Fin.castAdd _ j))
         (fun _ b => realOfList c.size z₀ (Fin.natAdd _ b)) (Ici 0) ∧
       (∀ x₀ : Fin d.k → ℝ, ∃ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) ∧
@@ -641,11 +641,11 @@ theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ} {l
     exact ⟨M, α, hα, fun φ i h t ht => hM _ ((isTrajectoryOn_iff hc hs).1 h) t ht⟩
 
 /-- The checked realization of a circuit for the probes `probes` and its input ports, with the
-rational matrices computed from the decoupling `d` (`DecouplingCert.reducedA`, `reducedB`,
+rational matrices computed from the decoupling `d` (`DecouplingCert.A`, `reducedB`,
 `outputC` and `feedthroughD`). -/
 @[expose] noncomputable def realization (d : DecouplingCert) (probes : List Probe) :
     LTISystem (Fin d.k) (Fin c.inputs) (Fin probes.length) where
-  A := realOfRows d.k d.k (d.reducedA c.size c.fRows)
+  A := realOfRows d.k d.k d.A
   B := realOfRows d.k c.inputs (d.reducedB c.size c.inputs c.gRows)
   C := realOfRows probes.length d.k (d.outputC c.size probes.length (c.probeRows probes))
   D := realOfRows probes.length c.inputs
