@@ -189,15 +189,18 @@ example (oracle : {ι : Type} → LEQuery ℕ ι → ι) (k : ℕ) :
 
 /-! ### Upper bounds over all oracles -/
 
+/-- An input of the bounded queries: the tree `full` with the query key `6`. -/
+def fullInput : WFInput ℕ String 2 := ⟨full, 6, isWF_full⟩
+
 /-- At `t = 2`, lookup asks at most `3 * height + 1` comparisons. -/
 example :
-    UpperBound (fun p : WFInput ℕ String 2 => lookupQ p.val.2 p.val.1) (fun p => p.val.1.height)
+    UpperBound (fun p : WFInput ℕ String 2 => lookupQ p.key p.tree) (fun p => p.tree.height)
       (fun h => 3 * h + 1) :=
   lookupQ_upperBound
 
 /-- At `t = 2`, rank asks at most `3 * height` comparisons. -/
 example :
-    UpperBound (fun p : WFInput ℕ String 2 => rankQ p.val.2 p.val.1) (fun p => p.val.1.height)
+    UpperBound (fun p : WFInput ℕ String 2 => rankQ p.key p.tree) (fun p => p.tree.height)
       (fun h => 3 * h) :=
   rankQ_upperBound
 

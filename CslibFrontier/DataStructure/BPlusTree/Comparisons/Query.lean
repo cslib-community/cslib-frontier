@@ -7,10 +7,10 @@ Authors: Jesse Alama
 module
 -- upstream: candidate
 
-public import CslibFrontier.DataStructure.BPlusTree.Height
 public import CslibFrontier.DataStructure.BPlusTree.PredSucc
 public import CslibFrontier.DataStructure.BPlusTree.Rank
 public import CslibFrontier.DataStructure.BTree.Comparisons.Query
+import CslibFrontier.DataStructure.BPlusTree.Height
 
 /-!
 # Comparison costs of B+-tree point queries
@@ -220,9 +220,11 @@ theorem countQueries_slotM_le (k : α) (rest : List (Branch α β)) :
     (containsQ k tr).countQueries oracle = (lookupQ k tr).countQueries oracle := by
   simp [containsQ, containsM, lookupQ]
 
-private theorem countQueries_scan_lookupM_le (k : α) (l : List (α × β)) :
-    (SortedAssoc.lookupM LEQuery.ask k l).countQueries oracle ≤ l.length + 1 := by
-  induction l with
+/-- Lookup in a leaf makes at most one comparison per entry and one more to test equality. -/
+private theorem countQueries_lookupQ_leaf_le (k : α) (entries : List (α × β)) :
+    (lookupQ k (.leaf entries)).countQueries oracle ≤ entries.length + 1 := by
+  rw [lookupQ, lookupM, pure_bind]
+  induction entries with
   | nil => simp [SortedAssoc.lookupM]
   | cons e l ih =>
     obtain ⟨k', v⟩ := e
@@ -230,52 +232,38 @@ private theorem countQueries_scan_lookupM_le (k : α) (l : List (α × β)) :
     · by_cases h' : oracle (.le k' k) = true <;> simp [SortedAssoc.lookupM, h, h']
     · simp [SortedAssoc.lookupM, h]; omega
 
-private theorem countQueries_scan_rankM_le (k : α) (l : List (α × β)) :
-    (SortedAssoc.rankM LEQuery.ask k l).countQueries oracle ≤ l.length := by
-  induction l with
+/-- Rank in a leaf makes at most one comparison per entry. -/
+private theorem countQueries_rankQ_leaf_le (k : α) (entries : List (α × β)) :
+    (rankQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
+  rw [rankQ, rankM, pure_bind]
+  induction entries with
   | nil => simp [SortedAssoc.rankM]
   | cons e l ih =>
     by_cases h : oracle (.le k e.1) = true
     · simp [SortedAssoc.rankM, h]
     · simp [SortedAssoc.rankM, h]; omega
 
-private theorem countQueries_scan_predM_le (k : α) (l : List (α × β)) :
-    (SortedAssoc.predM LEQuery.ask k l).countQueries oracle ≤ l.length := by
-  induction l with
+/-- Predecessor search in a leaf makes at most one comparison per entry. -/
+private theorem countQueries_predQ_leaf_le (k : α) (entries : List (α × β)) :
+    (predQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
+  rw [predQ, predM, pure_bind]
+  induction entries with
   | nil => simp [SortedAssoc.predM]
   | cons e l ih =>
     by_cases h : oracle (.le k e.1) = true
     · simp [SortedAssoc.predM, h]
     · simp [SortedAssoc.predM, h]; omega
 
-private theorem countQueries_scan_succM_le (k : α) (l : List (α × β)) :
-    (SortedAssoc.succM LEQuery.ask k l).countQueries oracle ≤ l.length := by
-  induction l with
+/-- Successor search in a leaf makes at most one comparison per entry. -/
+private theorem countQueries_succQ_leaf_le (k : α) (entries : List (α × β)) :
+    (succQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
+  rw [succQ, succM, pure_bind]
+  induction entries with
   | nil => simp [SortedAssoc.succM]
   | cons e l ih =>
     by_cases h : oracle (.le e.1 k) = true
     · simp [SortedAssoc.succM, h]; omega
     · simp [SortedAssoc.succM, h]
-
-/-- Lookup in a leaf makes at most one comparison per entry and one more to test equality. -/
-private theorem countQueries_lookupQ_leaf_le (k : α) (entries : List (α × β)) :
-    (lookupQ k (.leaf entries)).countQueries oracle ≤ entries.length + 1 := by
-  simpa [lookupQ, lookupM] using countQueries_scan_lookupM_le oracle k entries
-
-/-- Rank in a leaf makes at most one comparison per entry. -/
-private theorem countQueries_rankQ_leaf_le (k : α) (entries : List (α × β)) :
-    (rankQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
-  simpa [rankQ, rankM] using countQueries_scan_rankM_le oracle k entries
-
-/-- Predecessor search in a leaf makes at most one comparison per entry. -/
-private theorem countQueries_predQ_leaf_le (k : α) (entries : List (α × β)) :
-    (predQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
-  simpa [predQ, predM] using countQueries_scan_predM_le oracle k entries
-
-/-- Successor search in a leaf makes at most one comparison per entry. -/
-private theorem countQueries_succQ_leaf_le (k : α) (entries : List (α × β)) :
-    (succQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
-  simpa [succQ, succM] using countQueries_scan_succM_le oracle k entries
 
 private theorem countQueries_node_le_of_step {f : BPlusTree α β → ℕ}
     (hnil : ∀ first, f (node first []) = f first)
@@ -391,43 +379,49 @@ variable {α β : Type} [LinearOrder α] {t : ℕ}
 
 /-- A well-formed B+-tree of minimum degree `t` and a query key: the inputs of the bounded point
 queries. -/
-abbrev WFInput (α β : Type) [LinearOrder α] (t : ℕ) := {p : BPlusTree α β × α // IsWF t p.1}
+structure WFInput (α β : Type) [LinearOrder α] (t : ℕ) where
+  /-- The B+-tree being queried. -/
+  tree : BPlusTree α β
+  /-- The query key. -/
+  key : α
+  /-- Well-formedness of `tree` at minimum degree `t`. -/
+  isWF : IsWF t tree
 
 /-- Lookup makes at most `2 * t - 1` comparisons at each of `height` levels, and one more. -/
 theorem lookupQ_upperBound :
-    UpperBound (fun p : WFInput α β t => lookupQ p.val.2 p.val.1) (fun p => p.val.1.height)
+    UpperBound (fun p : WFInput α β t => lookupQ p.key p.tree) (fun p => p.tree.height)
       (fun h => (2 * t - 1) * h + 1) :=
   UpperBound.of_pointwise (fun _ _ h => Nat.add_le_add_right (Nat.mul_le_mul_left _ h) 1)
-    fun oracle p => countQueries_lookupQ_le oracle p.property p.val.2
+    fun oracle p => countQueries_lookupQ_le oracle p.isWF p.key
 
 /-- The membership test makes at most `2 * t - 1` comparisons at each of `height` levels, and
 one more. -/
 theorem containsQ_upperBound :
-    UpperBound (fun p : WFInput α β t => containsQ p.val.2 p.val.1) (fun p => p.val.1.height)
+    UpperBound (fun p : WFInput α β t => containsQ p.key p.tree) (fun p => p.tree.height)
       (fun h => (2 * t - 1) * h + 1) :=
   UpperBound.of_pointwise (fun _ _ h => Nat.add_le_add_right (Nat.mul_le_mul_left _ h) 1)
-    fun oracle p => countQueries_containsQ_le oracle p.property p.val.2
+    fun oracle p => countQueries_containsQ_le oracle p.isWF p.key
 
 /-- Predecessor search makes at most `2 * t - 1` comparisons at each of `height` levels. -/
 theorem predQ_upperBound :
-    UpperBound (fun p : WFInput α β t => predQ p.val.2 p.val.1) (fun p => p.val.1.height)
+    UpperBound (fun p : WFInput α β t => predQ p.key p.tree) (fun p => p.tree.height)
       (fun h => (2 * t - 1) * h) :=
   UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
-    fun oracle p => countQueries_predQ_le oracle p.property p.val.2
+    fun oracle p => countQueries_predQ_le oracle p.isWF p.key
 
 /-- Successor search makes at most `2 * t - 1` comparisons at each of `height` levels. -/
 theorem succQ_upperBound :
-    UpperBound (fun p : WFInput α β t => succQ p.val.2 p.val.1) (fun p => p.val.1.height)
+    UpperBound (fun p : WFInput α β t => succQ p.key p.tree) (fun p => p.tree.height)
       (fun h => (2 * t - 1) * h) :=
   UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
-    fun oracle p => countQueries_succQ_le oracle p.property p.val.2
+    fun oracle p => countQueries_succQ_le oracle p.isWF p.key
 
 /-- Rank makes at most `2 * t - 1` comparisons at each of `height` levels. -/
 theorem rankQ_upperBound :
-    UpperBound (fun p : WFInput α β t => rankQ p.val.2 p.val.1) (fun p => p.val.1.height)
+    UpperBound (fun p : WFInput α β t => rankQ p.key p.tree) (fun p => p.tree.height)
       (fun h => (2 * t - 1) * h) :=
   UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
-    fun oracle p => countQueries_rankQ_le oracle p.property p.val.2
+    fun oracle p => countQueries_rankQ_le oracle p.isWF p.key
 
 end UpperBounds
 
