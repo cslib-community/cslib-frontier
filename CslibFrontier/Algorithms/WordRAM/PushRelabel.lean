@@ -1144,25 +1144,22 @@ private theorem zeroOutCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.w
   refine ⟨y, ((hx₁_ex.seq hx₂_ex.within).seq hfin).mono (by rw [hx₁_v2]; nlinarith), hy_ctx,
     by simp [y, hval0], ?_⟩
   rw [hy_ctx.houtBase]
-  refine outputList_eq_answerWords inst y.mem ?_ ?_ (fun v => ?_) (fun u v => ?_)
-  · rw [Data.set_mem, hx₂_mem, fill_of_not_owns (fun hown => by
-      simp only [Block.Owns] at hown
-      rw [hx₁_a2] at hown; omega), hx₁_m0]
-  · rw [Data.set_mem, hx₂_mem, fill_of_not_owns (fun hown => by
-      simp only [Block.Owns] at hown
-      rw [hx₁_a2] at hown; omega), hx₁_m1, hval0]
-  · rw [Data.set_mem, hx₂_mem, fill_of_owns (by
-      have := v.isLt
-      simp only [Block.Owns]
-      rw [hx₁_a2, hx₁_v2]; omega),
-      hx₁_ctx.hzero, hout_def]
-    simp
-  · rw [Data.set_mem, hx₂_mem, fill_of_owns (by
-      have := List.mul_add_lt_sq u.isLt v.isLt
-      simp only [Block.Owns]
-      rw [hx₁_a2, hx₁_v2]; omega),
-      hx₁_ctx.hzero, hout_def]
-    rfl
+  have hno {a : ℕ} (ha : a < 4 + 2 * inst.n * inst.n + 4 * inst.n + 2) :
+      y.mem a = x₁.mem a := by
+    rw [Data.set_mem, hx₂_mem]
+    exact fill_of_not_owns fun h => absurd (hx₁_a2 ▸ h.1) (not_le.mpr ha)
+  have hyes {k : ℕ} (hk : k < inst.n + inst.n * inst.n) :
+      y.mem (4 + 2 * inst.n * inst.n + 4 * inst.n + 2 + k) = 0 := by
+    rw [Data.set_mem, hx₂_mem,
+      fill_of_owns ⟨hx₁_a2 ▸ Nat.le_add_right _ _, by simp [hx₁_a2, hx₁_v2, hk]⟩]
+    exact hx₁_ctx.hzero
+  refine outputList_eq_answerWords inst y.mem ((hno (by omega)).trans hx₁_m0)
+    ((hno (by omega)).trans (hx₁_m1.trans hval0.symm))
+    (fun v => (hyes (lt_add_of_lt_of_nonneg v.isLt (Nat.zero_le _))).trans (by simp [hout_def]))
+    (fun u v => ?_)
+  rw [Nat.add_assoc (4 + 2 * inst.n * inst.n + 4 * inst.n + 2),
+    hyes (Nat.add_lt_add_left (List.mul_add_lt_sq u.isLt v.isLt) _), hout_def]
+  rfl
 
 private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.wordBound)
     (hst : inst.s ≠ inst.t) {x : Data 32} (hx : CtxInv inst x) :
@@ -1377,14 +1374,7 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
     have htake : ((List.finRange inst.n).take (k + 1)).filter (fun v => v ≠ inst.s ∧ v ≠ inst.t) =
         if vk ≠ inst.s ∧ vk ≠ inst.t then pfx ++ [vk] else pfx := by
       rw [List.take_succ_finRange hlt, List.filter_append]
-      by_cases hnt : vk ≠ inst.s ∧ vk ≠ inst.t
-      · rw [ite_eq_left hnt]
-        change pfx ++ List.filter (fun v => decide (v ≠ inst.s ∧ v ≠ inst.t)) [vk] = pfx ++ [vk]
-        simp only [List.filter_cons, decide_eq_true hnt, ↓reduceIte, List.filter_nil]
-      · rw [ite_eq_right hnt]
-        change pfx ++ List.filter (fun v => decide (v ≠ inst.s ∧ v ≠ inst.t)) [vk] = pfx
-        simp only [List.filter_cons, decide_eq_false hnt, Bool.false_eq_true, ↓reduceIte,
-          List.filter_nil, List.append_nil]
+      by_cases hnt : vk ≠ inst.s ∧ vk ≠ inst.t <;> simp [pfx, vk, hnt]
     obtain ⟨_, _, _, hf_k1⟩ := fits_vtx hw vk
     have hf_o : Fits w (4 + 2 * inst.n * inst.n + 3 * inst.n + pfx.length) :=
       fits_of_addr hw (by omega)
@@ -1458,12 +1448,9 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
           { hrPos := by wram_simp [y, RTFState.init]; rfl
             hlen := rtfInv_length_eq hinit_inv hst
             hmem := fun i hi => by
-              have hi' : i <
-                  (((List.finRange inst.n).take inst.n).filter
-                    (fun v => v ≠ inst.s ∧ v ≠ inst.t)).length := htake_n.symm ▸ hi
               change x₆.mem _ = ((nonTermFin inst.toNetwork)[i]'hi).val
               rw [List.getElem_of_eq htake_n.symm hi]
-              exact hx₆_P.2.2.2.2 i hi' }
+              exact hx₆_P.2.2.2.2 i (htake_n.symm ▸ hi) }
         hdis0 := rfl
         hadv0 := rfl }
 
@@ -1507,17 +1494,11 @@ private theorem relabelBody_step (inst : Instance) {w : ℕ} (hw : Fits w inst.w
   have hrc_eq : inst.cap u v - s.pr.flow u v + s.pr.flow v u = s.pr.flow.resCap u v := rfl
   have hS_sub : S (k + 1) = if 0 < s.pr.flow.resCap u v then insert v (S k) else S k := by
     ext w'
-    simp only [S]
-    split_ifs with hpos
-    · simp only [Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and]
-      exact ⟨fun ⟨hwk, hwpos⟩ => (Nat.lt_succ_iff_lt_or_eq.mp hwk).elim
-          (fun h => Or.inr ⟨h, hwpos⟩) (fun h => Or.inl (show w' = v from Fin.ext h)),
-        fun h => h.elim (fun h => h ▸ ⟨Nat.lt_succ_self _, hpos⟩)
-          fun ⟨hwk, hwpos⟩ => ⟨Nat.lt_succ_of_lt hwk, hwpos⟩⟩
-    · simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-      exact ⟨fun ⟨hwk, hwpos⟩ => ⟨(Nat.lt_succ_iff_lt_or_eq.mp hwk).resolve_right
-          fun h => hpos ((show w' = v from Fin.ext h) ▸ hwpos), hwpos⟩,
-        fun ⟨hwk, hwpos⟩ => ⟨Nat.lt_succ_of_lt hwk, hwpos⟩⟩
+    by_cases hwv : w' = v
+    · subst hwv
+      split_ifs with hpos <;> simp [S, hv_val, hpos]
+    · have hne : w'.val ≠ k := fun h => hwv (Fin.ext h)
+      split_ifs <;> simp [S, hwv, Nat.le_iff_lt_or_eq, hne]
   unfold relabelBody
   refine WP.exists_execWithin ?_
   by_cases hrc : 0 < s.pr.flow.resCap u v
@@ -1940,17 +1921,12 @@ private theorem pushBody_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.word
     unfold pushTail
     by_cases hvs : v = inst.s
     · wram_exec [hx₁_cur, hx₁_ctx.hrs, congrArg Fin.val hvs]
+      rw [show x₁.set rVal (x₁.regs rVal) = x₁ from Data.ext (Function.update_eq_self _ _) rfl]
       obtain ⟨hca, hframe⟩ := hpost_push x₁.mem (fun _ _ => rfl) fun w hw_ne => by
-        by_cases hwu : w = u
-        · subst hwu; rw [hx₁_mem, Function.update_self]
-        · exact hex_x1_of_ne w hw_ne hwu (fun h => hw_ne (h.trans hvs))
-      exact ⟨hx₁_ctx.set (by decide), hca,
-        by wram_simp [hx₁_pos],
-        by wram_simp [hx₁_u],
-        by wram_simp [hx₁_rel],
-        by wram_simp [hx₁_cur],
-        by wram_simp [hx₁_hu],
-        by wram_simp [hx₁_exr], hframe⟩
+        rcases eq_or_ne w u with rfl | hwu
+        · rw [hx₁_mem, Function.update_self]
+        · exact hex_x1_of_ne w hw_ne hwu fun h => hw_ne (h.trans hvs)
+      exact ⟨hx₁_ctx, hca, hx₁_pos, hx₁_u, hx₁_rel, hx₁_cur, hx₁_hu, hx₁_exr, hframe⟩
     · have hex_v_mem : x₁.mem (4 + 2 * inst.n * inst.n + v.val) = (s.pr.flow.excess v).toNat := by
         rw [hx₁_mem, Function.update_of_ne (fun h => huv (Fin.ext (by omega))),
           Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
@@ -2255,15 +2231,11 @@ private theorem shiftOrderCode_spec (inst : Instance) {w : ℕ} (hw : Fits w ins
     refine ⟨⟨((hyc.set (by decide)).set (by decide)).set (by decide) |>.set (by decide)
         |>.write_ge (by omega) |>.set (by decide),
       by wram_simp [hyu],
-      by
-        wram_simp
-        omega,
+      (Nat.sub_le k 1).trans hyidx,
       fun a ha => (Data.write_mem_of_ne (by omega) _).trans (hylow a ha),
       fun j hj_lt hj => ?_, fun j hj_lt hj₁ => ?_,
       fun j hj_lt hj₁ => (Data.write_mem_of_ne (by omega) _).trans (hyrest j hj_lt hj₁)⟩,
-      by
-        wram_simp
-        omega⟩
+      Nat.sub_lt hk_pos Nat.one_pos⟩
     · wram_simp at hj
       exact (Data.write_mem_of_ne (by omega) _).trans (hypref j hj_lt (by omega))
     · wram_simp at hj₁
@@ -2646,47 +2618,27 @@ private theorem cutAndOutputCode_spec (inst : Instance) {w : ℕ} (hw : Fits w i
       unfold gapTail
       rcases hy₂_rel with ⟨hr0, hall⟩ | ⟨hr1, v, _, hvk⟩
       · wram_exec [hr0, hy₂_ctx.hzero, hy₂_cur, hk_pos, hy₂_ctx.hone, hf_km1]
-        refine ⟨⟨(hy₂_ctx.set (by decide)).set (by decide), hy₂_mem,
-          by wram_simp [hy₂_acc],
-          by
-            wram_simp
-            omega,
-          by
-            wram_simp
-            omega,
-          fun h => by
-            wram_simp at h
-            omega,
-          fun _ => ?_⟩,
-          by
-            wram_simp
-            omega⟩
-        wram_simp
-        exact ⟨by omega, ⟨hk_pos, hycur_lt, fun v => hall v v.isLt⟩, fun _ _ _ => by omega⟩
+        exact ⟨⟨(hy₂_ctx.set (by decide)).set (by decide), hy₂_mem, hy₂_acc,
+          (Nat.sub_le k 1).trans_lt hycur_lt, hycur_lt.le,
+          fun (h : k = inst.n) => absurd h hycur_lt.ne,
+          fun _ => ⟨Nat.sub_lt hk_pos Nat.one_pos, ⟨hk_pos, hycur_lt, fun v => hall v v.isLt⟩,
+            fun _ (hj₁ : k - 1 < _) (hj₂ : _ < k) => by omega⟩⟩,
+          Nat.sub_lt hk_pos Nat.one_pos⟩
       · have hne_emp : ¬ EmptyLevel k := fun ⟨_, _, hne⟩ => hne v hvk
         wram_exec [hr1, hy₂_ctx.hzero, hy₂_cur, hk_pos, hy₂_ctx.hone, hf_km1]
-        refine ⟨⟨(hy₂_ctx.set (by decide)).set (by decide), hy₂_mem,
-          by wram_simp [hy₂_acc],
-          by
-            wram_simp
-            omega,
-          by
-            wram_simp
-            omega,
-          fun hm j hj₁ => ?_, fun hm => ?_⟩,
-          by
-            wram_simp
-            omega⟩
-        · wram_simp at hm hj₁
-          exact (Nat.lt_or_eq_of_le (Nat.succ_le_of_lt hj₁)).elim
-            (fun _ => hym_eq (hy₂_min.symm.trans hm) j (by omega))
-            fun _ => (show j = k by omega) ▸ hne_emp
-        · wram_simp at hm ⊢
-          obtain ⟨h1, h2, h3⟩ := hym_lt (hy₂_min ▸ hm)
-          exact ⟨by omega, hy₂_min ▸ h2, fun j hj₁ hj₂ =>
-            (Nat.lt_or_eq_of_le (Nat.succ_le_of_lt hj₁)).elim
-              (fun _ => h3 j (by omega) (hy₂_min ▸ hj₂))
-              fun _ => (show j = k by omega) ▸ hne_emp⟩
+        rw [show y₂.set rVal (y₂.regs rVal) = y₂ from Data.ext (Function.update_eq_self _ _) rfl]
+        refine ⟨⟨hy₂_ctx.set (by decide), hy₂_mem, hy₂_acc,
+          (Nat.sub_le k 1).trans_lt hycur_lt, hy₂_min.symm ▸ hymin_le,
+          fun (hm : y₂.regs rMinH = inst.n) j (hj₁ : k - 1 < j) => ?_,
+          fun (hm : y₂.regs rMinH < inst.n) => ?_⟩,
+          Nat.sub_lt hk_pos Nat.one_pos⟩
+        · exact (Nat.lt_or_eq_of_le (Nat.le_of_pred_lt hj₁)).elim
+            (hym_eq (hy₂_min.symm.trans hm) j) fun hkj => hkj ▸ hne_emp
+        · obtain ⟨h1, h2, h3⟩ := hym_lt (hy₂_min ▸ hm)
+          exact ⟨(Nat.sub_le k 1).trans_lt (hy₂_min.symm ▸ h1), hy₂_min ▸ h2,
+            fun j (hj₁ : k - 1 < j) (hj₂ : j < y₂.regs rMinH) =>
+              (Nat.lt_or_eq_of_le (Nat.le_of_pred_lt hj₁)).elim
+                (fun hkj => h3 j hkj (hy₂_min ▸ hj₂)) fun hkj => hkj ▸ hne_emp⟩
     exact ⟨z, (hinit_in.seq (hy₂_ex.seq hz_ex)).mono (by omega), hz_G, hz_lt⟩
   have hx₁_G : GInv x₁ :=
     ⟨hx₁_ctx, hx₁_mem, hx₁_acc, by omega, by omega,

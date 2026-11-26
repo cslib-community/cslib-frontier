@@ -121,14 +121,9 @@ theorem twistBody_size {n : ℕ} (a : Fin n → Bool) :
     | cons i L ih => cases ha : a i <;> simp [f, ha] at * <;> omega
   have hc := hl (List.finRange n)
   have hv := hw (List.finRange n)
-  simp only [List.length_finRange] at hc hv
-  constructor
-  · change ((List.finRange n).flatMap f).length + 1 ≤ 1 + 2 * n
-    omega
-  · change (List.ofFn (fun i : Fin n => Sum.inr (i.castAdd n)) ++
-      (((List.finRange n).flatMap f).flatMap Constraint.scope)).length ≤ 5 * n
-    rw [List.length_append, List.length_ofFn]
-    omega
+  simp only [twistBody, vars, f, List.length_cons, List.flatMap_cons, List.length_append,
+    List.length_ofFn, List.length_finRange] at hc hv ⊢
+  omega
 
 /-- Exact scope widths of the initial conjunction, including arities zero and one. -/
 theorem wellFormed_twistBody {n : ℕ} (a : Fin n → Bool) :
@@ -335,12 +330,9 @@ theorem CyclicExchangeObstruction.cap {n : ℕ} {P : Set (Fin (n + 4) → Bool)}
       ⟨fun ⟨z, hz⟩ => ⟨fun i => !z i, capPort_not y z ▸ (h.selfComplementary _).mp hz⟩,
         fun ⟨z, hz⟩ => ⟨fun i => !z i, by
           convert (h.selfComplementary _).mp hz using 1
-          funext i
-          rcases hcp : capPort i with a | a <;> simp [hcp]⟩⟩
-  · exact ⟨fun _ => false, by
-      convert h.zero_mem using 1
-      funext i
-      simp⟩
+          ext i
+          cases hcp : capPort i <;> simp [hcp]⟩⟩
+  · exact ⟨fun _ => false, by simpa using h.zero_mem⟩
   · exact (mem_cyclicDifferenceRelation_capRelation P _).mpr ⟨_, h.feasible, rfl, rfl⟩
   · intro j hj hd hp
     obtain ⟨s, hs, h12, hsd⟩ := (mem_cyclicDifferenceRelation_capRelation P _).mp hp
@@ -483,14 +475,10 @@ theorem exists_failed_exchange {n : ℕ} {R : Set (Fin n → Bool)} (hne : R.Non
   classical
   have hd : ¬IsDeltaMatroid (cyclicDifferenceRelation R) := fun h => hn ⟨h, fun x y hx hy => by
     rw [parityOn_mem_cyclicDifferenceRelation hx, parityOn_mem_cyclicDifferenceRelation hy]⟩
-  have hw : ∃ x ∈ cyclicDifferenceRelation R, ∃ y ∈ cyclicDifferenceRelation R,
-      ∃ e, x e ≠ y e ∧ ∀ j, x j ≠ y j → flipOn {e, j} x ∉ cyclicDifferenceRelation R := by
-    by_contra h
-    push Not at h
-    exact hd ⟨(cyclicDifferenceRelation_nonempty_iff R).mpr hne,
-      fun x y hx hy e he => h x hx y hy e he⟩
-  obtain ⟨_, ⟨a, ha, rfl⟩, _, ⟨b, hb, rfl⟩, e, he, hf⟩ := hw
-  exact ⟨a, ha, b, hb, e, he, hf⟩
+  by_contra! h
+  refine hd ⟨(cyclicDifferenceRelation_nonempty_iff R).mpr hne, ?_⟩
+  rintro _ _ ⟨a, ha, rfl⟩ ⟨b, hb, rfl⟩ e he
+  exact h a ha b hb e he
 
 /-- A completed finite normalization recipe. Its starting tuple is feasible in the input,
 and the first operation is the specified cyclic rotation of the twisted literal. -/
@@ -599,11 +587,8 @@ theorem Construction.body_bounds {n : ℕ} {R : Set (Fin n → Bool)}
       c.gadget.body.vars.length ≤ 5 * n := by
   have hl := congrArg List.length
     ((Program.rotate c.start c.reduction).gadget_symbols (twistGadget R c.tuple))
-  simp only [List.length_map] at hl
   have hw := (Program.rotate c.start c.reduction).gadget_width (twistGadget R c.tuple)
-  change c.gadget.body.length = (twistBody c.tuple).length at hl
-  change c.gadget.body.vars.length = (twistBody c.tuple).vars.length at hw
-  rw [hl, hw]
-  exact twistBody_size c.tuple
+  simp only [List.length_map] at hl
+  exact hl.symm ▸ hw.symm ▸ twistBody_size c.tuple
 
 end Cslib.Logic.PL.CSP.Normalization
