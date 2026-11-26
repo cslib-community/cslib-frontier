@@ -536,27 +536,20 @@ theorem wordListDecodePruned_simultaneous_success_ge_half (predictor : List Bool
   let m := pruneSampleCount n precision
   let num := 2 * precision + 3
   let den := 4 * precision
-  have hdecode :
-      decodePruned pred k m num den =
-        ((uniformList (k * n)).bind (fun masks =>
-          (uniformList (m * n)).map (fun samples => (masks, samples)))).map
-            (fun ms => prunedCandidates pred num den
-              (block (ofList (k * n) ms.1)) (block (ofList (m * n) ms.2))) := by
+  let joint := (uniformList (k * n)).bind fun masks => (uniformList (m * n)).map (masks, ·)
+  have hdecode : decodePruned pred k m num den = joint.map fun ms =>
+      prunedCandidates pred num den (block (ofList (k * n) ms.1))
+        (block (ofList (m * n) ms.2)) := by
     rw [decodePruned, ← uniformList_blocks, ← uniformList_blocks]
-    simp only [PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def]
-  have hword :
-      ((uniformList (k * n)).bind (fun masks =>
-        (uniformList (m * n)).map (wordListDecodePruned predictor n precision masks))) =
-        ((uniformList (k * n)).bind (fun masks =>
-          (uniformList (m * n)).map (fun samples => (masks, samples)))).map
-            (fun ms => wordListDecodePruned predictor n precision ms.1 ms.2) := by
-    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
+    simp only [joint, PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def]
+  have hword : ((uniformList (k * n)).bind fun masks =>
+      (uniformList (m * n)).map (wordListDecodePruned predictor n precision masks)) =
+      joint.map fun ms => wordListDecodePruned predictor n precision ms.1 ms.2 := by
+    simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def]
   have hbase := decodePruned_simultaneous_success_ge_half pred hprec
   rw [hdecode, PMF.toOuterMeasure_map_apply] at hbase
   rw [hword, PMF.toOuterMeasure_map_apply]
-  refine hbase.trans (((uniformList (k * n)).bind (fun masks =>
-    (uniformList (m * n)).map (fun samples => (masks, samples)))).toOuterMeasure.mono ?_)
-  rintro ⟨masks, samples⟩ ⟨h1, h2, h3⟩
+  refine hbase.trans (joint.toOuterMeasure.mono fun ⟨masks, samples⟩ ⟨h1, h2, h3⟩ => ?_)
   exact ⟨fun x hx => (mem_wordListDecodePruned_ofFn_iff predictor masks samples x).mpr (h1 x hx),
     fun x hx => h2 x ((mem_wordListDecodePruned_ofFn_iff predictor masks samples x).mp hx),
     nodup_wordListDecodePruned predictor n precision masks samples,
@@ -675,11 +668,10 @@ theorem wordCandidate_congr {predictor₁ predictor₂ : List Bool → Bool} (di
     wordCandidate predictor₁ dimension rows selectors guess =
       wordCandidate predictor₂ dimension rows selectors guess := by
   unfold wordCandidate
-  refine List.map_congr_left fun coordinate hcoord => ?_
-  congr 1
-  refine List.map_congr_left fun selector hsel => ?_
-  rw [hagree _
-    (List.mem_flatMap.mpr ⟨coordinate, hcoord, List.mem_map.mpr ⟨selector, hsel, rfl⟩⟩)]
+  refine List.map_congr_left fun coordinate hcoord =>
+    congrArg listStrictMajority (List.map_congr_left fun selector hsel =>
+      congrArg (· ^^ listDot guess selector) (hagree _
+        (List.mem_flatMap.mpr ⟨coordinate, hcoord, List.mem_map.mpr ⟨selector, hsel, rfl⟩⟩)))
 
 /-- `wordCandidates` depends on `predictor` only at queries in `candidateQueries`. -/
 theorem wordCandidates_congr {predictor₁ predictor₂ : List Bool → Bool} (dimension : ℕ)

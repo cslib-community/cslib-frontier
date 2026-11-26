@@ -323,8 +323,7 @@ theorem candidateLabel_ne_of_ne {IV : Type} {nMult lam nMask : ℕ}
   cases hact : active e <;>
     simp only [tbl, honestCRTMaskTable, hact, Bool.false_eq_true, ↓reduceIte,
       zmod2_vec_add_cancel_right] at hact_diff hother
-  · exact ⟨hact_diff, hother⟩
-  · exact ⟨hother, hact_diff⟩
+  exacts [⟨hact_diff, hother⟩, ⟨hother, hact_diff⟩]
 
 /-- Deterministic parity evaluation of a candidate prefix `wStar` against `kGates` subcircuit gates
 given an `H5` oracle function. -/
@@ -477,18 +476,16 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
     (fun _ : H5Query IV nMult lam => Fin nMask → ZMod 2)
   let unsplit : (∀ q : I, Fin nMask → ZMod 2) × (∀ q : {q // q ∉ I}, Fin nMask → ZMod 2) →
       H5Query IV nMult lam → Fin nMask → ZMod 2 := eSplit.symm
-  have hnotMem₀ (e : Fin nMult) : (⟨iv, e, L0 e⟩ : H5Query IV nMult lam) ∉ I := by
+  have hcand_ne (e : Fin nMult) := candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F
+    maskInput (fun _ _ => 0) hne hnonzero e
+  have hnotMem {f : Fin nMult → Fin lam → ZMod 2} (hf : ∀ e, candFun e ≠ f e) (e : Fin nMult) :
+      (⟨iv, e, f e⟩ : H5Query IV nMult lam) ∉ I := by
     intro hmem
     obtain ⟨i, -, hi⟩ := Finset.mem_image.mp hmem
-    obtain rfl : sub i = e := congrArg H5Query.gate hi
-    exact (candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
-      (fun _ _ => 0) hne hnonzero (sub i)).1 (congrArg H5Query.label hi)
-  have hnotMem₁ (e : Fin nMult) : (⟨iv, e, L0 e + uPrefix⟩ : H5Query IV nMult lam) ∉ I := by
-    intro hmem
-    obtain ⟨i, -, hi⟩ := Finset.mem_image.mp hmem
-    obtain rfl : sub i = e := congrArg H5Query.gate hi
-    exact (candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
-      (fun _ _ => 0) hne hnonzero (sub i)).2 (congrArg H5Query.label hi)
+    exact hf (sub i)
+      ((congrArg H5Query.label hi).trans (congrArg f (congrArg H5Query.gate hi).symm))
+  have hnotMem₀ := hnotMem (f := L0) fun e => (hcand_ne e).1
+  have hnotMem₁ := hnotMem (f := fun e => L0 e + uPrefix) fun e => (hcand_ne e).2
   have hnotMemAct (e : Fin nMult) :
       (⟨iv, e, if active e then L0 e + uPrefix else L0 e⟩ : H5Query IV nMult lam) ∉ I := by
     cases active e <;> simp [hnotMem₀, hnotMem₁]
@@ -514,8 +511,8 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
             fun i => h5 ⟨iv, sub i, tbl.activeLabel (sub i)⟩
           ProbComp.eval
             ((crtPrefixTest sub Hsub tbl hActive wStar).run (fun q => pure (h5 q))) := by
-    rw [← uniformOfFintype_map_equiv eSplit.symm, PMF.bind_map]
-    rw [← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
+    rw [← uniformOfFintype_map_equiv eSplit.symm, PMF.bind_map,
+      ← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
     simp_rw [PMF.bind_map, Function.comp_def]
     exact PMF.bind_comm _ _ _
   rw [hbindSplit, PMF.bind_apply]
@@ -578,15 +575,10 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
         rw [← hemb, hunsplit_mem hsubMem]
         rfl
       simp only [crtPrefixEval, hcol]
-    have hstep :
-        ((uniformOfFintype (∀ q : I, Fin nMask → ZMod 2)).bind fun hIn =>
-          PMF.pure (decide (∀ mask, Hsub *ᵥ eFlip hIn mask = 0))) =
-        (uniformOfFintype (Fin nMask → Fin kGates → ZMod 2)).map
-          (fun y => decide (∀ mask, Hsub *ᵥ y mask = 0)) := by
-      rw [← uniformOfFintype_map_equiv eFlip, _root_.PMF.map_comp]
-      rfl
     simp_rw [hinner]
-    rw [hstep, multiMask_parityCheck_uniform_zero_prob hsurj]
+    rw [← multiMask_parityCheck_uniform_zero_prob hsurj, ← uniformOfFintype_map_equiv eFlip,
+      _root_.PMF.map_comp]
+    rfl
   simp_rw [hconst]
   rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
@@ -736,8 +728,7 @@ theorem packBalancePrefix_inj_left {wBal wRand : ℕ}
     {t₀ t₁ : Fin wBal → ZMod 2} {r₀ r₁ : Fin wRand → ZMod 2}
     (h : packBalancePrefix t₀ r₀ = packBalancePrefix t₁ r₁) : t₀ = t₁ := by
   funext i
-  have hi := congrFun h (Fin.castAdd wRand i)
-  simpa [packBalancePrefix, Fin.append_left] using hi
+  simpa [packBalancePrefix, Fin.append_left] using congrFun h (Fin.castAdd wRand i)
 
 /-- Exhaustive Spend-prefix parity test across a list of `lam`-bit prefix guesses `guesses`. -/
 def crtSpendPrefixTest {IV : Type} {nMult lam nMask kGates rSub : ℕ}
@@ -801,9 +792,7 @@ theorem mem_balancePrefixGuesses {wBal wRand : ℕ} (tStar : Fin wBal → ZMod 2
     (r : Fin wRand → ZMod 2) :
     packBalancePrefix tStar r ∈ balancePrefixGuesses wBal wRand tStar := by
   simp only [balancePrefixGuesses, List.mem_map, List.mem_finRange, true_and]
-  refine ⟨Fin.cast (by simp [ZMod.card])
-    (Fintype.equivFin (Fin wRand → ZMod 2) r), ?_⟩
-  simp
+  exact ⟨Fin.cast (by simp [ZMod.card]) (Fintype.equivFin (Fin wRand → ZMod 2) r), by simp⟩
 
 /-- Candidates in `balancePrefixGuesses wBal wRand tStar` are disjoint from
 `packBalancePrefix tReal rReal` whenever `tStar ≠ tReal`. -/
@@ -1128,16 +1117,12 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
             ((uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).map
               fun cmultSim mask i => cmultSim mask (sub i)) =
             uniformOfFintype (Fin nMask → Fin kGates → ZMod 2) := by
-          let eSwap : (Fin nMask → Fin nMult → ZMod 2) ≃ (Fin nMult → Fin nMask → ZMod 2) :=
-            Equiv.piComm _
-          let eSwapK : (Fin kGates → Fin nMask → ZMod 2) ≃ (Fin nMask → Fin kGates → ZMod 2) :=
-            Equiv.piComm _
-          have hpull := uniformOfFintype_pi_map_comp_embedding (α := Fin nMask → ZMod 2) sub
-          have hcomp1 : (fun (cmultSim : Fin nMask → Fin nMult → ZMod 2) mask i =>
-              cmultSim mask (sub i)) =
-              eSwapK ∘ (fun f i => f (sub i)) ∘ eSwap := rfl
-          rw [hcomp1, ← _root_.PMF.map_comp, ← _root_.PMF.map_comp,
-            uniformOfFintype_map_equiv eSwap, hpull, uniformOfFintype_map_equiv eSwapK]
+          change ((uniformOfFintype _).map
+            (Equiv.piComm _ ∘ (fun f i => f (sub i)) ∘ Equiv.piComm _)) = _
+          rw [← _root_.PMF.map_comp, ← _root_.PMF.map_comp,
+            uniformOfFintype_map_equiv (Equiv.piComm _),
+            uniformOfFintype_pi_map_comp_embedding (α := Fin nMask → ZMod 2) sub,
+            uniformOfFintype_map_equiv (Equiv.piComm _)]
         let eShift : (Fin nMask → Fin kGates → ZMod 2) ≃ (Fin nMask → Fin kGates → ZMod 2) :=
           { toFun := fun y mask i => y mask i + base mask i
             invFun := fun y mask i => y mask i + base mask i

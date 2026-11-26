@@ -213,8 +213,9 @@ theorem publicKeyChainHybrid_exact_gap (n depth width capacity : ℕ)
             (Game.succProbability (original i) - Game.succProbability (replacement i)) := by
       have h := E.publicKeyLinkHybrid_exact_gap n (depth - i - 1) i width capacity
         hwidth hcapacity test
-      rw [show depth - i - 1 + i + 1 = depth by omega, show depth - i - 1 + 1 = depth - i by omega]
-        at h
+      have h1 : depth - i - 1 + i + 1 = depth := by omega
+      have h2 : depth - i - 1 + 1 = depth - i := by omega
+      rw [h1, h2] at h
       simpa only [games, original, replacement, Nat.sub_sub] using h
     have h := Game.succProbability_hybrid_reduction games original replacement
       depth depth le_rfl capacity hstep
@@ -414,23 +415,14 @@ theorem advantage_exactLinkAdversary_modLinkAdversary_le
     rw [hexact, hmod, Game.advantage_comm]
     exact Game.advantage_bind_sampleModNat_fin_fin_le (coins n) (depth n) (capacity n)
       (E.linkRunAt depth capacity test bit n)
-  · refine le_of_eq_of_le
-      (congr (congrArg Game.advantage ?_) ?_ :
-        _ = Game.advantage (PMF.pure false) (PMF.pure false))
-      (by simp)
-    · simp only [Encryption.game, Encryption.gameOn, exactLinkAdversary,
-        dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice,
-        ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, guessLink_reject, PMF.bind_const]
-    · rw [hmod]
-      refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false) fun i hi =>
-        (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false) fun j hj => ?_).trans
-          (PMF.bind_const _ _)).trans (PMF.bind_const _ _)
-      simp only [sampleModIndex, ProbComp.eval_map, PMF.mem_support_map_iff] at hi hj
-      obtain ⟨⟨x, _, rfl⟩, ⟨y, _, rfl⟩⟩ := And.intro hi hj
-      have := Nat.min_le_left (depth n) (x % depth n)
-      have := Nat.min_le_left (capacity n) (y % capacity n)
+  · have hrun (i j : ℕ) : E.linkRunAt depth capacity test bit n i j = PMF.pure false := by
       dsimp only [linkRunAt]
       split_ifs <;> first | rfl | omega
+    rw [hmod]
+    simp only [Encryption.game, Encryption.gameOn, exactLinkAdversary,
+      dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice, ProbComp.eval_bind,
+      ProbComp.eval_pure, PMF.pure_bind, guessLink_reject, hrun, PMF.bind_const,
+      Game.advantage_self, zero_le]
 
 /-- Concrete key-chain hybrid advantage bound via the strict-PPT `modLinkAdversary` reduction:
 when every base secret key in the support of `E.keyGen n` has the same length
@@ -818,13 +810,11 @@ theorem advantage_scheme_eq_exactLeveledAdversary {E : Scheme}
         (exactLeveledAdversary E (fun n => 2 * budget n) capacity adversary)) n := by
   dsimp only [scheme]
   apply NNReal.eq
-  rw [NNReal.coe_mul, NNReal.coe_mul, NNReal.coe_mul, NNReal.coe_mul,
-    NNReal.coe_ofNat, NNReal.coe_ofNat, NNReal.coe_natCast, NNReal.coe_natCast,
-    Game.coe_advantage, Game.coe_advantage,
+  simp only [NNReal.coe_mul, NNReal.coe_ofNat, NNReal.coe_natCast, Game.coe_advantage,
     gap_exactLeveledAdversary E budget capacity adversary n width hbudget_pos hcapacity_pos
       hwidth hcapacity,
-    abs_mul, abs_mul, abs_mul, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < 3),
-    abs_of_pos (by positivity : (0 : ℝ) < 2), Nat.abs_cast, Nat.abs_cast]
+    abs_mul, abs_of_pos (zero_lt_three (α := ℝ)), abs_of_pos (zero_lt_two (α := ℝ)),
+    Nat.abs_cast]
 
 /-! ### Strict-PPT `sampleModNat` leveled reduction and statistical-tail bound -/
 

@@ -501,21 +501,19 @@ private theorem take_ofFn_ofList_append {n : ℕ} {r m : List Bool} (hr : r.leng
 private theorem coupledInv_coupledStep {n : ℕ} (bit : Bool) (request : Bool × List Bool)
     {s : CoupledState n} {r : List Bool} (z : BitString (2 * n)) (hr : r.length = n)
     (hs : CoupledInv n s) : CoupledInv n (coupledStep n bit request s r z).2.1 := by
+  unfold coupledStep
   by_cases h1 : request.1 = true
-  · simp only [coupledStep, h1, ↓reduceIte]
-    by_cases h2 : s.1.contains request.2 = true
-    · simpa only [h2, ↓reduceIte] using hs
-    · simp only [h2, Bool.false_eq_true, ↓reduceIte]
-      by_cases h3 : (request.2.length == 2 * n) = true
-      · simp only [h3, ↓reduceIte]
-        split
-        · exact hs
-        · intro t ht
-          rcases List.mem_cons.mp ht with rfl | ht
-          · exact ⟨fun h => (h rfl).elim, rfl⟩
-          · exact hs t ht
-      · simpa only [h3, Bool.false_eq_true, ↓reduceIte] using hs
-  · simp only [coupledStep, h1, Bool.false_eq_true, ↓reduceIte]
+  · simp only [h1, ↓reduceIte]
+    split_ifs
+    · exact hs
+    · split
+      · exact hs
+      · intro t ht
+        rcases List.mem_cons.mp ht with rfl | ht
+        · exact ⟨fun h => (h rfl).elim, rfl⟩
+        · exact hs t ht
+    · exact hs
+  · simp only [h1, Bool.false_eq_true, ↓reduceIte]
     by_cases h2 : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
     · simp only [h2, ↓reduceIte]
       simp only [Bool.and_eq_true, beq_iff_eq] at h2
@@ -530,8 +528,7 @@ private theorem coupledInv_coupledStep {n : ℕ} (bit : Bool) (request : Bool ×
       by_cases h3 : r ∈ s.2.map (fun t => (List.ofFn t.1).take n)
       · simp only [h3, ↓reduceIte]
         split
-        · intro t ht
-          exact ⟨fun h => List.mem_cons_of_mem _ ((hs t ht).1 h), (hs t ht).2⟩
+        · exact fun t ht => ⟨fun h => List.mem_cons_of_mem _ ((hs t ht).1 h), (hs t ht).2⟩
         · exact hnew
       · simpa only [h3, ↓reduceIte] using hnew
     · simpa only [h2, Bool.false_eq_true, ↓reduceIte] using hs
@@ -863,10 +860,9 @@ against the half-block scheme with probability `1`. -/
 theorem BlockCipher.eval_encForgeGame_halfBlockCipher_allOnesForger (F : BlockCipher)
     (hblock : ∀ n, F.blockLen n = 2 * n) (n : ℕ) :
     ProbComp.eval ((F.halfBlockCipher hblock).encForgeGame F.allOnesForger n) = PMF.pure true := by
-  have h : ProbComp.eval ((F.halfBlockCipher hblock).encForgeGame F.allOnesForger n) =
-      (BitString.uniformList (F.keyLen n)).map (fun _ => true) := by
-    simp [SymmetricCipher.encForgeGame, BlockCipher.allOnesForger, BlockCipher.halfBlockCipher]
-  exact h.trans (PMF.map_const _ true)
+  trans (BitString.uniformList (F.keyLen n)).map (fun _ => true)
+  · simp [SymmetricCipher.encForgeGame, BlockCipher.allOnesForger, BlockCipher.halfBlockCipher]
+  · exact PMF.map_const _ true
 
 /-- The half-block scheme does not have plaintext integrity, whatever the block cipher. -/
 theorem BlockCipher.not_encForge_halfBlockCipher (F : BlockCipher)

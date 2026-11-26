@@ -339,21 +339,12 @@ theorem inEdge?_eq_some_iff {m m' : ℕ} (s : RelocationState m m') (u v : Fin m
   simp only [inEdge?, hasEdge]
   split_ifs with hp
   · rw [List.getElem?_eq_some_iff]
-    constructor
-    · rintro ⟨ht, rfl⟩
-      have hlt : m + ((s.perm.symm v).val - m) < m' := by
-        have := (s.perm.symm v).isLt; omega
-      refine ⟨(s.perm.symm v).val - m, ht, hlt, rfl, ?_⟩
-      have hmk : (⟨m + ((s.perm.symm v).val - m), hlt⟩ : Fin m') = s.perm.symm v := by
-        ext; dsimp; omega
-      rw [hmk, Equiv.apply_symm_apply]
-    · rintro ⟨t, ht, _, rfl, rfl⟩
-      simp only [Equiv.symm_apply_apply, Nat.add_sub_cancel_left]
-      exact ⟨ht, trivial⟩
-  · simp only [false_iff]
-    rintro ⟨_, _, _, _, rfl⟩
-    simp only [Equiv.symm_apply_apply] at hp
-    omega
+    refine ⟨fun ⟨ht, h⟩ => ?_, fun ⟨t, ht, _, h1, h2⟩ =>
+      ⟨by simpa [← h2] using ht, by simpa [← h2] using h1⟩⟩
+    have hlt := (Nat.add_sub_of_le hp).trans_lt (s.perm.symm v).isLt
+    exact ⟨(s.perm.symm v).val - m, ht, hlt, h,
+      s.perm.eq_symm_apply.mp (Fin.ext (Nat.add_sub_of_le hp))⟩
+  · exact iff_of_false (by simp) fun ⟨_, _, _, _, h⟩ => hp (by simp [← h])
 
 /-- When `s.history.Nodup`, `outEdge? s u = some v` iff there is a directed edge from `u` to `v`
 in the relocation graph ([WangRen2025], Definition 3.6 and Lemma 3.9, p. 15). -/
@@ -567,12 +558,10 @@ theorem existsUnique_access_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.V
 theorem valid_relocate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid) {c : Fin m'}
     (hc : c ∉ s.history) (hlen : m + s.history.length < m') :
     (relocate s c).Valid := by
-  refine ⟨?_, by simp only [relocate, List.length_append, List.length_singleton]; omega⟩
-  rw [relocate, List.nodup_append]
-  refine ⟨hv.1, List.nodup_singleton c, fun a ha b hb hab => ?_⟩
-  have hbc : b = c := List.mem_singleton.mp hb
-  subst hbc; subst hab
-  exact hc ha
+  refine ⟨List.nodup_append.mpr ⟨hv.1, List.nodup_singleton c,
+    fun _ ha _ hb h => hc (List.mem_singleton.mp hb ▸ h ▸ ha)⟩, ?_⟩
+  simp only [relocate, List.length_append, List.length_singleton]
+  omega
 
 private theorem hasEdge_relocate_iff {m m' : ℕ} (s : RelocationState m m') (c x y : Fin m')
     (hlen : m + s.history.length < m') :
@@ -1005,16 +994,14 @@ private theorem access_relocate_endOfChain_perm_add {m m' : ℕ} {s : Relocation
   have hc'_not_mem : c' ∉ s.history :=
     endOfChain_not_mem_history hv (inEdge?_eq_none_of_le_symm s (by simp))
   have hc'_not_mem' : c' ∉ (relocate s c).history := by simp [relocate, hc'_not_mem, hc'c]
-  have hc'_acc : access s c' = none := access_endOfChain_perm_add_eq_none hv.1 hlen
   refine Option.ext fun e => ?_
   rw [access_eq_some_iff_locate_eq hv' hc'_not_mem' e hm,
     access_eq_some_iff_locate_eq hv hc e hm]
   refine ⟨fun h => ?_, locate_relocate_self_eq hv hc hlen hm⟩
   by_contra hne
   have heq : locate s e hm = c' := (locate_relocate_of_ne hv hc hlen hm hne).symm.trans h
-  have := (access_eq_some_iff_locate_eq hv hc'_not_mem e hm).mpr heq
-  rw [hc'_acc] at this
-  nomatch this
+  exact nomatch
+    (heq ▸ access_locate hv e hm).symm.trans (access_endOfChain_perm_add_eq_none hv.1 hlen)
 
 private theorem access_relocate_of_ne {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
     {c p : Fin m'} (hc : c ∉ s.history) (hp : p ∉ s.history)

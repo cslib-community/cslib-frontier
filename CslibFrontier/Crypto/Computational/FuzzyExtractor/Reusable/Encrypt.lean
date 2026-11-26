@@ -517,18 +517,16 @@ theorem encryptLWEErrorLaw_pi (χ : PMF (ZMod q)) (Q : ℕ) :
       ((Probability.PMF.pi fun _ : Fin m => χ).bind fun w =>
         (E.bind fun e₀ => (Probability.PMF.pi fun _ : Fin Q => E).map (e₀, ·)).map (w, ·)).map
           (splitRowsEquiv m l Q (ZMod q)) := by
-    simp only [encryptLWEErrorLaw, PMF.map_bind, PMF.map_comp, Function.comp_def]
-    rfl
+    simp only [encryptLWEErrorLaw, PMF.map_bind, PMF.map_comp, Function.comp_def]; rfl
   rw [hlaw]
   ext f
   rw [Probability.PMF.map_equiv_apply, Probability.PMF.bind_map_prodMk_apply,
     Probability.PMF.bind_map_prodMk_apply]
   change (∏ i, χ (headRows f i)) * ((∏ i, χ (challengeRows f i)) *
       ∏ k, ∏ i, χ (queryRows f k i)) = ∏ r, χ (f r)
-  rw [← Fintype.prod_equiv (rowIndexEquiv m l Q) (fun x => χ (f (rowIndexEquiv m l Q x)))
-    (fun r => χ (f r)) fun _ => rfl, Fintype.prod_sum_type, Fintype.prod_sum_type,
-    Fintype.prod_prod_type]
-  rfl
+  simpa only [Fintype.prod_sum_type, Fintype.prod_prod_type, headRows, challengeRows,
+    queryRows] using Fintype.prod_equiv (rowIndexEquiv m l Q)
+      (fun x => χ (f (rowIndexEquiv m l Q x))) (fun r => χ (f r)) fun _ => rfl
 
 /-- The shift oracle of the Section 5 reduction ([AponChoEldefrawyKatz2017], Section 5, step 2 of
 the simulation on p. 12), answering a shift `δ` from one `l`-row LWE block `(B_k, b_k)`: sample a
@@ -827,10 +825,7 @@ theorem strongReuseAdvantage_lweEncryptFuzzyExtractor_le {St : Type}
     ← realGame_encryptRealReduction E decode W t Q adv hQ,
     ← realGame_encryptIdealReduction E decode W t Q adv hQ,
     ← randomGame_encryptRealReduction_eq_ideal t Q adv]
-  rw [Game.advantage_comm
-    (LWE.realGame (PMF.uniformOfFintype (Fin n → ZMod q))
-      (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptIdealReduction t Q adv))]
-  exact Game.advantage_triangle _ _ _
+  exact (Game.advantage_triangle _ _ _).trans_eq (congrArg _ (Game.advantage_comm _ _))
 
 end Cslib.Crypto.FuzzyExtractor
 
@@ -1058,8 +1053,9 @@ private theorem blockAt_entries {m n l Q w : ℕ}
       (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) (j.val + 1) :
         ZMod (2 ^ w)) = (blockAt M b k).1 i j) := by
   by_cases hk : k < Q
-  · rw [show blockAt M b k = (queryMatrixRows M ⟨k, hk⟩, queryRows b ⟨k, hk⟩) by simp [blockAt, hk]]
-    exact ⟨fun i => (rowEntries M b _ (val_rowIndexEquiv_query ⟨k, hk⟩ i)).1,
+  · have hblk : blockAt M b k = (queryMatrixRows M ⟨k, hk⟩, queryRows b ⟨k, hk⟩) := by
+      simp [blockAt, hk]
+    exact hblk.symm ▸ ⟨fun i => (rowEntries M b _ (val_rowIndexEquiv_query ⟨k, hk⟩ i)).1,
       fun i j => (rowEntries M b _ (val_rowIndexEquiv_query ⟨k, hk⟩ i)).2 j⟩
   · have hzero (i : Fin l) (j : ℕ) : Cslib.Matrix.binaryEntry (n + 1) w
         (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) j = 0 :=

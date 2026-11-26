@@ -668,9 +668,8 @@ theorem isPPT_ddhSelfReduceDistinguisher {distinguisher : F.DDHDistinguisher}
       (hx : ComputableInPolyTime x enc F.encDDHInput) :
       IsPPTOn enc encNat fun a => F.sampleExp (x a).secParam (x a).groupParameters :=
     F.isPPTOn_sampleExp (by fun_prop) (by fun_prop)
-  refine IsPPTOn.bind_with (hs .id') ?_
-  refine IsPPTOn.bind_with (hs (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (hs (by fun_prop)) ?_
+  refine IsPPTOn.bind_with (hs .id') <| IsPPTOn.bind_with (hs (by fun_prop)) <|
+    IsPPTOn.bind_with (hs (by fun_prop)) ?_
   let E := encPair (encPair (encPair F.encDDHInput encNat) encNat) encNat
   have hx : ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.1.1.1) E
       F.encDDHInput := by fun_prop
@@ -944,19 +943,10 @@ private theorem abs_sub_lt_abs_sub_of_close
     (hq : |q - p₁| ≤ ε / 12) (hq₁ : |q₁ - p₁| ≤ ε / 12) (hq₂ : |q₂ - p₂| ≤ ε / 12)
     (hx : |x - q| < ε / 7) (hx₁ : |x₁ - q₁| < ε / 7) (hx₂ : |x₂ - q₂| < ε / 7) :
     |x - x₁| < |x - x₂| := by
-  have hu : |x - p₁| < ε / 7 + ε / 12 :=
-    (abs_sub_le x q p₁).trans_lt (add_lt_add_of_lt_of_le hx hq)
-  have hv : |p₁ - x₁| < ε / 7 + ε / 12 := by
-    rw [abs_sub_comm]
-    exact (abs_sub_le x₁ q₁ p₁).trans_lt (add_lt_add_of_lt_of_le hx₁ hq₁)
-  have hw : |x₂ - p₂| < ε / 7 + ε / 12 :=
-    (abs_sub_le x₂ q₂ p₂).trans_lt (add_lt_add_of_lt_of_le hx₂ hq₂)
-  have h1 := abs_sub_le x p₁ x₁
-  have h2 : |p₁ - p₂| ≤ |x - p₁| + (|x - x₂| + |x₂ - p₂|) := by
-    rw [abs_sub_comm x p₁]
-    exact (abs_sub_le p₁ x p₂).trans (add_le_add_right (abs_sub_le x x₂ p₂) _)
-  clear hq hq₁ hq₂ hx hx₁ hx₂
-  linarith [abs_nonneg (x - p₁)]
+  have hxp₁ := abs_sub_le x q p₁
+  have hp₁x₁ := abs_sub_comm x₁ p₁ ▸ abs_sub_le x₁ q₁ p₁
+  have hp₁p₂ := abs_sub_comm p₁ x ▸ abs_sub_le p₁ x p₂
+  linarith [abs_nonneg (x - p₁), abs_sub_le x p₁ x₁, abs_sub_le x x₂ p₂, abs_sub_le x₂ q₂ p₂]
 
 private theorem toOuterMeasure_bind₃_failure_le_pow
     (μ₁ μ₂ μ₃ : PMF ℕ) (S₁ S₂ S₃ : Set ℕ) (f : ℕ → ℕ → ℕ → Bool) (b₀ : Bool) (n : ℕ)
@@ -1042,7 +1032,7 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
   have hconc (t : ProbComp Bool) :
       (((ProbComp.eval (OracleComp.countTrue N t)).toOuterMeasure (good t)ᶜ).toReal) ≤
         (1 / 2 : ℝ) ^ (n + 2) := by
-    simpa only [good, N, Set.compl_ofPred, not_lt, show n + 3 = (n + 2) + 1 by omega] using
+    simpa only [good, N, Set.compl_ofPred, not_lt] using
       ProbComp.countTrue_average_deviation_pow (n + 2) (7 * invEps n) h7pos t
   have hdet {cIn cReal cRandom : ℕ} (hcIn : cIn ∈ good tIn) (hcReal : cReal ∈ good tReal)
       (hcRandom : cRandom ∈ good tRandom) :
@@ -1091,9 +1081,9 @@ theorem ddhAmplifiedDecider_correct_ge_one_sub_pow (distinguisher : F.DDHDisting
 private theorem three_div_le_one_div_twelve_mul {a b : ℝ} (hb : 0 < b)
     (h : 1 / a ≤ 1 / (36 * b + 1)) : 3 / a ≤ 1 / (12 * b) := by
   have h1 : 1 / a ≤ 1 / (36 * b) :=
-    h.trans (one_div_le_one_div_of_le (mul_pos (by norm_num) hb)
-      (le_add_of_nonneg_right zero_le_one))
-  simpa only [div_eq_mul_one_div 3 a, show 3 * (1 / (36 * b)) = 1 / (12 * b) by ring] using
+    h.trans (one_div_le_one_div_of_le (by positivity) (by linarith))
+  have h12 : 3 * (1 / (36 * b)) = 1 / (12 * b) := by ring
+  simpa only [div_eq_mul_one_div 3 a, h12] using
     mul_le_mul_of_nonneg_left h1 (by norm_num : (0 : ℝ) ≤ 3)
 
 /-- **Worst-case DDH decider with negligible error** ([BonehShoup2023], Exercise 10.10, p. 426):

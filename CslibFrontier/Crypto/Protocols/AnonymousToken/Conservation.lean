@@ -593,38 +593,27 @@ theorem spentDebit_le_of_certified [DecidableEq Context]
   let reqsCtx := reqs.filter fun r => decide (r.ctx = ctx)
   let inList := spCtx.map SpendRequest.inputNote
   let outList := reqsCtx.map fun r => r.outputPayload.message
-  have hnodup_key : (spCtx.map fun s => (s.ctx, s.nullifier)).Nodup :=
-    hnodup.sublist (List.filter_sublist.map _)
   have hnodup_in : inList.Nodup := by
-    have hcomp :
-        (inList.map fun n => (n.context, n.nullifier)) =
-          spCtx.map fun s => (s.ctx, s.nullifier) := by
-      simp [inList, List.map_map, Function.comp_def, SpendRequest.inputNote]
-    exact List.Nodup.of_map (fun n => (n.context, n.nullifier)) (hcomp ▸ hnodup_key)
+    refine List.Nodup.of_map (fun n => (n.context, n.nullifier)) ?_
+    simpa only [inList, spCtx, spendsIn, List.map_map, Function.comp_def,
+      SpendRequest.inputNote] using hnodup.sublist (List.filter_sublist.map _)
   have hsub_in_out : ∀ n ∈ inList, n ∈ outList := by
     intro n hn
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hn
     obtain ⟨hsp, hsctx⟩ := List.mem_filter.mp hs
     obtain ⟨r, hr, hreq⟩ := List.mem_map.mp (hcertified s hsp)
-    have hrctx : r.ctx = ctx := by
-      have hctx_note := congrArg Credit.Note.context hreq
-      rw [outputPayload_context] at hctx_note
-      exact hctx_note.trans (of_decide_eq_true hsctx)
+    have hrctx : r.ctx = ctx :=
+      (outputPayload_context r ▸ congrArg Credit.Note.context hreq).trans (of_decide_eq_true hsctx)
     refine List.mem_map.mpr ⟨r, List.mem_filter.mpr ⟨hr, decide_eq_true hrctx⟩, hreq⟩
   have hsum_le := sum_map_le_sum_map_of_nodup inList outList Credit.Note.balance hnodup_in
     hsub_in_out
   have hin :
       (inList.map Credit.Note.balance).sum =
-        (spCtx.map SpendRequest.newCredit).sum + spentDebit reqs ctx := by
+        ((spendsIn reqs ctx).map SpendRequest.newCredit).sum + spentDebit reqs ctx := by
     simpa only [inList, spCtx, spentDebit, List.map_map, Function.comp_def] using
-      sum_balance_inputNote_list (spendsIn reqs ctx) fun s hs =>
-        hbalance s (List.mem_filter.mp hs).1
-  have hout :
-      (outList.map Credit.Note.balance).sum =
-        issuedAmount reqs ctx + ((spCtx.map SpendRequest.newCredit).sum + grantedRefund reqs ctx) :=
-    by
-    simpa only [outList, List.map_map, Function.comp_def] using
-      sum_balance_outputPayload_filter reqs ctx
+      sum_balance_inputNote_list spCtx fun s hs => hbalance s (List.mem_filter.mp hs).1
+  have hout := sum_balance_outputPayload_filter reqs ctx
+  simp only [outList, reqsCtx, List.map_map, Function.comp_def] at hsum_le
   omega
 
 /-- `findNoteForgery reqs = none` iff every spend in `reqs` uses a certified input note. -/
