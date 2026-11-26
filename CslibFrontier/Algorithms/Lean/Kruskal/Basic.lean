@@ -349,16 +349,13 @@ endpoints lie in distinct classes of `p` and `F` is acyclic over `p.merge e.u e.
 theorem isAcyclicFrom_cons {n : ℕ} {W : Type} {p : Partition n} {e : WeightedEdge n W}
     {F : List (WeightedEdge n W)} :
     IsAcyclicFrom p (e :: F) ↔ p.rel e.u e.v = false ∧ IsAcyclicFrom (p.merge e.u e.v) F := by
-  unfold IsAcyclicFrom
-  rw [edgePartitionFrom_cons, List.length_cons]
+  rw [IsAcyclicFrom, IsAcyclicFrom, edgePartitionFrom_cons, List.length_cons]
   cases hrel : p.rel e.u e.v
   · have hm := Partition.numComponents_merge_of_not_rel hrel
-    simp only [true_and]
-    omega
-  · simp only [Bool.true_eq_false, false_and, iff_false]
-    rw [Partition.merge_of_rel hrel]
+    simp; omega
+  · rw [Partition.merge_of_rel hrel]
     have hle := numComponents_le_edgePartitionFrom_add_length p F
-    omega
+    simp; omega
 
 /-- Relative acyclicity is invariant under edge-list permutations. -/
 theorem Perm.isAcyclicFrom_iff {n : ℕ} {W : Type} {p : Partition n}
@@ -619,9 +616,7 @@ theorem totalWeight_kruskalScan_le {n : ℕ} {W : Type}
     (hH : IsSpanningForestFrom p sorted H) :
     totalWeight (kruskalScan p sorted) ≤ totalWeight H := by
   induction sorted generalizing p H with
-  | nil =>
-    simp only [kruskalScan_nil, totalWeight_nil]
-    rw [List.subperm_nil.mp hH.1, totalWeight_nil]
+  | nil => simp [List.subperm_nil.mp hH.1]
   | cons e es ih =>
     obtain ⟨he_le, hes_sorted⟩ := List.pairwise_cons.mp hsorted
     rw [kruskalScan_cons]
@@ -646,9 +641,7 @@ theorem perm_kruskalScan_of_totalWeight_le_of_nodup_weights {n : ℕ} {W : Type}
     (hopt : totalWeight H ≤ totalWeight (kruskalScan p sorted)) :
     H.Perm (kruskalScan p sorted) := by
   induction sorted generalizing p H with
-  | nil =>
-    simp only [kruskalScan_nil]
-    rw [List.subperm_nil.mp hH.1]
+  | nil => simp [List.subperm_nil.mp hH.1]
   | cons e es ih =>
     obtain ⟨he_le, hes_sorted⟩ := List.pairwise_cons.mp hsorted
     obtain ⟨he_not_mem, hes_nodup⟩ := List.nodup_cons.mp hnodup
@@ -716,13 +709,10 @@ theorem sortEdges_length {n : ℕ} {W : Type} [LE W] [DecidableLE W]
 theorem sortEdges_sorted {n : ℕ} {W : Type} [LinearOrder W]
     (es : List (WeightedEdge n W)) :
     (sortEdges es).Pairwise (fun a b => a.weight ≤ b.weight) := by
-  have h := List.pairwise_mergeSort
+  simpa only [sortEdges, decide_eq_true_eq] using List.pairwise_mergeSort
     (le := fun a b : WeightedEdge n W => decide (a.weight ≤ b.weight))
-    (fun a b c hab hbc => decide_eq_true (le_trans (of_decide_eq_true hab) (of_decide_eq_true hbc)))
-    (fun a b => by
-      rcases le_total a.weight b.weight with h | h <;> simp [h])
-    es
-  exact h.imp fun hle => of_decide_eq_true hle
+    (fun _ _ _ hab hbc => decide_eq_true (le_trans (of_decide_eq_true hab) (of_decide_eq_true hbc)))
+    (fun a b => by rcases le_total a.weight b.weight with h | h <;> simp [h]) es
 
 /-- Kruskal's algorithm: merge-sort edges in nondecreasing weight order and scan from the discrete
 partition `Partition.discrete n`, retaining each edge whose endpoints lie in distinct components. -/

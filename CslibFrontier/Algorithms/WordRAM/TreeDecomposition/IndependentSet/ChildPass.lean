@@ -85,10 +85,9 @@ theorem getD_childPassList_eq (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ)
         (childPassInst adj wt LB LP f (Array.replicate (2 ^ LP.length) 0) c).getD k 0 := by
   induction c with
   | zero =>
-    intro k hk
-    simp only [childPassList, childPassInst, List.getD_eq_getElem?_getD,
-      List.getElem?_replicate, Array.getD_eq_getD_getElem?, Array.getElem?_replicate,
-      hk, ↓reduceIte, Option.getD_some]
+    exact fun k hk => by
+      simp [childPassList, childPassInst, List.getD_eq_getElem?_getD,
+        Array.getD_eq_getD_getElem?, hk]
   | succ c ih =>
     intro k hk
     have hih := ih fun t ht => htbl t (Nat.lt_succ_of_lt ht)
@@ -122,10 +121,8 @@ theorem mem_childPassList_le {adj : ℕ → ℕ → Bool} {wt : ℕ → ℕ}
       · exact hih x hmem
       · refine max_le ?_ (hstep c (Nat.lt_succ_self c))
         rw [List.getD_eq_getElem?_getD]
-        cases hget :
-            (childPassList adj wt LB LP tblB init c)[keyMask LB LP c]? with
-        | none => exact Nat.zero_le _
-        | some v => exact hih v (List.mem_of_getElem? hget)
+        rcases hget : (childPassList adj wt LB LP tblB init c)[keyMask LB LP c]? with _ | v
+        exacts [Nat.zero_le _, hih v (List.mem_of_getElem? hget)]
     · exact hih
 
 /-! ### Word-RAM child pass (`childPassProg`) -/
@@ -295,9 +292,8 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
     dsimp only at hr_ind hc_ind hr_key hc_key hr_fw hc_fw
     let bestCur := childPassList inst.adj inst.wt LB LP tblB initL curC
     let key := keyMask LB LP curC
-    have hkey_lt : key < bestCur.length := by
-      rw [length_childPassList, hinit_len]
-      exact keyMask_lt_two_pow LB LP curC
+    have hkey_lt : key < bestCur.length :=
+      (length_childPassList ..).trans hinit_len ▸ keyMask_lt_two_pow LB LP curC
     have hcur_tbl_lt : curC < tblB.length := by omega
     have hfc_addr_lt : args.tblBPtr + curC < st.frontier := by have := htblB_st.1; omega
     have hbest_addr_lt : args.bestPtr + key < st.frontier :=
@@ -342,15 +338,13 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
       have hlist_eq : bestCur.set key nextVal =
           childPassList inst.adj inst.wt LB LP tblB initL (curC + 1) := by
         simp only [nextVal, cand, fw, fc, oldBest, hfc_eq, holdBest_eq]
-        dsimp only [bestCur, key, childPassList]
+        dsimp only [childPassList]
         by_cases hind : indepInst inst.adj LB curC = true
-        · simp only [hind, ↓reduceIte]
+        · simp only [hind, ↓reduceIte, bestCur, key]
           congr 1
           split_ifs <;> omega
-        · have hlt' : keyMask LB LP curC <
-              (childPassList inst.adj inst.wt LB LP tblB initL curC).length := hkey_lt
-          simp only [Bool.eq_false_iff.2 hind, Bool.false_eq_true, ↓reduceIte,
-            List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt', Option.getD_some]
+        · simp only [Bool.eq_false_iff.2 hind, Bool.false_eq_true, ↓reduceIte,
+            List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hkey_lt, Option.getD_some]
           exact List.set_getElem_self hkey_lt
       exact hlist_eq ▸ holdsIn_set hbest_st
     have hc_step : memoryCost (childPassStep (args, curC)) st ≤ stepCost := by
@@ -362,10 +356,10 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
     obtain ⟨hv_rem, hfr_rem, hp_rem, hbest_rem, hc_rem⟩ :=
       ih (curC + 1) st₁ (by omega) hfr
         (hpres.trans (preservesBelow_write (Nat.le_add_right _ _) hbest_addr_lt)) hbest_next
-    have hadd : curC + (rem + 1) = curC + 1 + rem := by omega
     rw [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_⟩
-    rw [StateTransitionSpec.clientState_bind, memoryCost_bind', hst_step, hres_step, hadd]
+    rw [StateTransitionSpec.clientState_bind, memoryCost_bind', hst_step, hres_step,
+      ← Nat.add_assoc, Nat.add_right_comm curC rem 1]
     refine ⟨hfr_rem, hp_rem, hbest_rem, ?_⟩
     calc memoryCost (childPassStep (args, curC)) st +
           memoryCost (iterate childPassStep args rem (curC + 1)) st₁

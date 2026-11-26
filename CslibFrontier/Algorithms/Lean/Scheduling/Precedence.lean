@@ -114,9 +114,8 @@ theorem sum_card_running (p s : J → ℕ) :
   refine sum_congr rfl fun j _ => ?_
   have hj := le_makespan p s j
   have hfilter : (range (makespan p s)).filter (fun t => s j ≤ t ∧ t < s j + p j) =
-      Ico (s j) (s j + p j) := by
-    ext t
-    simp only [mem_filter, mem_range, mem_Ico]; omega
+      Ico (s j) (s j + p j) :=
+    Finset.ext fun t => by simp only [mem_filter, mem_range, mem_Ico]; omega
   rw [← card_filter, hfilter, Nat.card_Ico]; omega
 
 omit [Fintype J] in
@@ -198,12 +197,10 @@ theorem IsGreedy.exists_chain {m : ℕ} {prec : J → J → Prop} {p s : J → �
   have hN : #N ≤ (c.map p).sum := card_le_sum_of_covered p s c N fun t ht =>
     hcov t (mem_range.mp (mem_filter.mp ht).1) (mem_filter.mp ht).2
   have hslot : ∀ t ∈ range (makespan p s),
-      m ≤ #(running p s t) + (m - 1) * (if #(running p s t) < m then 1 else 0) := by
-    intro t ht
+      m ≤ #(running p s t) + (m - 1) * (if #(running p s t) < m then 1 else 0) := fun t ht => by
     split_ifs with h
-    · rw [mem_range] at ht
-      obtain ⟨i, hi, hrun⟩ := hcov t ht h
-      have : 0 < #(running p s t) := card_pos.mpr ⟨i, mem_running.mpr hrun⟩
+    · obtain ⟨i, _, hrun⟩ := hcov t (mem_range.mp ht) h
+      have := card_pos.mpr ⟨i, mem_running.mpr hrun⟩
       omega
     · omega
   calc m * makespan p s = ∑ _t ∈ range (makespan p s), m := by simp [mul_comm]
@@ -254,9 +251,8 @@ theorem IsGreedy.mul_makespan_le {m : ℕ} {prec : J → J → Prop} {p s s' : J
   calc m * makespan p s ≤ ∑ j, p j + (m - 1) * (c.map p).sum := h
     _ ≤ m * makespan p s' + (m - 1) * makespan p s' := by gcongr
     _ = (2 * m - 1) * makespan p s' := by
-        rcases Nat.eq_zero_or_pos m with rfl | hm
-        · simp
-        · rw [← add_mul]; congr 1; omega
+        rw [← add_mul]
+        exact congrArg (· * _) (by omega)
 
 /-- **Graham's anomaly bound** ([Graham1966], §II, Theorem (p. 1570)): let `s` be a greedy
 schedule on `m'` machines for well-founded precedences `prec'` and processing times `p'`, and `s'`
@@ -457,15 +453,14 @@ theorem exists_isGreedy (m : ℕ) (hm : 0 < m) (prec : J → J → Prop) (hwf : 
   obtain ⟨D, s, h⟩ := exists_greedyInv (prec := prec) hwf hm hp (∑ j, p j + 1)
   have hD : D = univ := by
     by_contra hD
-    have hcov : ∀ t ∈ range (∑ j, p j + 1), 1 ≤ #(running p s t) := fun t ht => by
-      obtain ⟨k, hk⟩ := h.busy t (mem_range.mp ht) hD
-      exact card_pos.mpr ⟨k, (mem_inter.mp hk).1⟩
+    have hcov : ∀ t ∈ range (∑ j, p j + 1), 1 ≤ #(running p s t) := fun t ht =>
+      card_pos.mpr ((h.busy t (mem_range.mp ht) hD).mono inter_subset_left)
     have := (card_nsmul_le_sum _ _ 1 hcov).trans (sum_card_running_range_le p s _)
     simp at this
   subst hD
-  refine ⟨s, ⟨⟨fun i j hij => (h.prec_le i j hij (mem_univ j)).2, fun t => ?_⟩, ?_⟩⟩
-  · simpa using h.card_le t
-  · exact fun t j hlt htj => h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj
+  exact ⟨s, ⟨⟨fun i j hij => (h.prec_le i j hij (mem_univ j)).2,
+    fun t => by simpa using h.card_le t⟩,
+    fun t j hlt htj => h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj⟩⟩
 
 end Existence
 
