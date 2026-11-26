@@ -70,8 +70,8 @@ def bitOffset [Zero L] (Δ : L) (b : Bool) : L := if b then Δ else 0
 the offsets. -/
 theorem bitOffset_add_of_add_self [AddCommMonoid L] {Δ : L} (hΔ : Δ + Δ = 0) (a b : Bool) :
     bitOffset Δ (a + b) = bitOffset Δ a + bitOffset Δ b := by
-  change bitOffset Δ (xor a b) = _
-  cases a <;> cases b <;> simp [hΔ]
+  cases a <;> cases b <;>
+    first | exact (add_zero _).symm | exact (zero_add _).symm | exact hΔ.symm
 
 /-- In characteristic two, the offset selected by a sum of bits is the sum of the offsets. -/
 theorem bitOffset_add [AddCommGroup L] [Module (ZMod 2) L] (Δ : L) (a b : Bool) :
@@ -116,7 +116,7 @@ theorem tableMul_add [Fintype ι] [AddCommMonoid L] (T : ι → κ → Bool) (X 
     tableMul T (X + Y) = tableMul T X + tableMul T Y := by
   funext u
   simp only [tableMul, Pi.add_apply, ← Finset.sum_add_distrib]
-  exact Finset.sum_congr rfl fun j _ => by cases T j u <;> simp
+  exact Finset.sum_congr rfl fun j _ => by cases T j u <;> first | rfl | exact (add_zero 0).symm
 
 /-- **Free-XOR linearity**: in characteristic two, the product of a table with the offsets of a
 bit vector `v` is the offset of the product of the table with `v`. -/
