@@ -1289,6 +1289,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Exc
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.Dichotomy
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Median
 public import CslibFrontier.Crypto.Computational.SIS.ModulusSwitch.CenteredBinomial
+public import CslibFrontier.Computability.MCSP.Restrictions
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.MeanEvent
 public import CslibFrontier.Foundations.Quantum.Algebra.SandwichedMeasurement
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine.Offset
@@ -4124,6 +4125,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Sketch
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ParameterSelecting.SourceBounds
 public import CslibFrontier.Crypto.Computational.TreeSignature.Reduction
+public import CslibFrontier.Computability.MCSP.CommunicationCut
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateCycles
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Transfer
