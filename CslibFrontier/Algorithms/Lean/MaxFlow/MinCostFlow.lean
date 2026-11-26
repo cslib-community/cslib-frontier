@@ -466,16 +466,14 @@ locator not re-verified against primary PDF): any feasible flow admitting potent
 theorem isMinCost_of_compSlackness [AddCommGroup W] [PartialOrder W] [IsOrderedAddMonoid W]
     {f : M.Flow} {π : V → W} (hcs : M.CompSlackness f π) : f.IsMinCost := by
   intro g
-  have hpt : ∀ u v : V, f u v • (M.cost u v + π u - π v) ≤ g u v • (M.cost u v + π u - π v) := by
-    intro u v
-    rcases Nat.lt_trichotomy (f u v) (g u v) with hlt | heq | hgt
-    · exact nsmul_le_nsmul_left (hcs.1 u v (lt_of_lt_of_le hlt (g.le_cap u v))) hlt.le
-    · rw [heq]
-    · rw [← Nat.sub_add_cancel hgt.le, add_nsmul]
-      exact add_le_of_nonpos_left (nsmul_nonpos (hcs.2 u v (by omega)) _)
   have hsum : (∑ u : V, ∑ v : V, f u v • (M.cost u v + π u - π v)) ≤
       ∑ u : V, ∑ v : V, g u v • (M.cost u v + π u - π v) :=
-    Finset.sum_le_sum fun u _ => Finset.sum_le_sum fun v _ => hpt u v
+    Finset.sum_le_sum fun u _ => Finset.sum_le_sum fun v _ => by
+      rcases Nat.lt_trichotomy (f u v) (g u v) with hlt | heq | hgt
+      · exact nsmul_le_nsmul_left (hcs.1 u v (lt_of_lt_of_le hlt (g.le_cap u v))) hlt.le
+      · rw [heq]
+      · rw [← Nat.sub_add_cancel hgt.le, add_nsmul]
+        exact add_le_of_nonpos_left (nsmul_nonpos (hcs.2 u v (by omega)) _)
   have hdecomp (h : M.Flow) :
       (∑ u : V, ∑ v : V, h u v • (M.cost u v + π u - π v)) =
         h.totalCost + ∑ u : V, M.balance u • π u := by
@@ -1128,23 +1126,20 @@ theorem cycleCancelInt_correct [DecidableEq V] {M : CostNetwork V ℤ} {vs : Lis
     out.flow.IsMinCost ∧ M.CompSlackness out.flow out.potential ∧
       out.flow.totalCost + (out.cancellations : ℤ) ≤ f₀.totalCost ∧
       out.cancellations ≤ 2 * absCostBound M vs := by
-  have hbound : ∀ g : M.Flow, -(absCostBound M vs : ℤ) ≤ g.totalCost := fun g =>
-    (totalCost_bound_aux hvs g).1
-  have hrank : ∀ f : M.Flow, (f.totalCost + (absCostBound M vs : ℤ)).toNat = 0 → f.IsMinCost :=
-    fun f _ g => by have := hbound g; omega
-  have hdrop : ∀ f f' : M.Flow, f'.totalCost < f.totalCost →
-      (f'.totalCost + (absCostBound M vs : ℤ)).toNat <
-        (f.totalCost + (absCostBound M vs : ℤ)).toNat :=
-    fun f f' _ => by have := hbound f'; omega
-  have hf₀_lo := (totalCost_bound_aux hvs f₀).1
-  have hf₀_hi := (totalCost_bound_aux hvs f₀).2
+  have hbound (g : M.Flow) := totalCost_bound_aux hvs g
   obtain ⟨hmin, hcs, hdec⟩ := cycleCancelLoop_spec hvs
-    (fun f => (f.totalCost + (absCostBound M vs : ℤ)).toNat) hrank hdrop
+    (fun f => (f.totalCost + (absCostBound M vs : ℤ)).toNat)
+    (fun f _ g => by have := (hbound g).1; omega)
+    (fun f f' _ => by have := (hbound f').1; omega)
     (fun f₁ c₁ f₂ c₂ => f₂.totalCost + (c₂ : ℤ) ≤ f₁.totalCost + (c₁ : ℤ))
     (fun _ _ => le_rfl)
-    (fun {_ c₁ f₂ c₂ _ _} hlt hc₂ hle => by subst hc₂; push_cast at hle ⊢; omega)
+    (fun {_ c₁ f₂ c₂ _ _} _ hc₂ hle => by
+      subst hc₂
+      push_cast at hle ⊢
+      omega)
     (f₀.totalCost + (absCostBound M vs : ℤ)).toNat f₀ 0 le_rfl
-  have hout_lo := (totalCost_bound_aux hvs (cycleCancelInt M vs f₀).flow).1
+  have hf₀ := hbound f₀
+  have hout_lo := (hbound (cycleCancelInt M vs f₀).flow).1
   dsimp only [cycleCancelInt] at hout_lo hmin hcs hdec ⊢
   simp only [Nat.cast_zero, add_zero] at hdec
   exact ⟨hmin, hcs, hdec, by omega⟩

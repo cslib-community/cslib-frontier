@@ -187,12 +187,8 @@ def kept : EditScript α → List α
 
 theorem kept_sublist_src : ∀ s : EditScript α, s.kept <+ s.src
   | [] => by rw [kept, src_nil]
-  | .del a :: s => by
-    rw [kept, src_cons, EditOp.src, List.singleton_append]
-    exact (kept_sublist_src s).cons a
-  | .ins _ :: s => by
-    rw [kept, src_cons, EditOp.src, List.nil_append]
-    exact kept_sublist_src s
+  | .del a :: s => by simpa [kept, src_cons, EditOp.src] using (kept_sublist_src s).cons a
+  | .ins _ :: s => by simpa [kept, src_cons, EditOp.src] using kept_sublist_src s
   | .sub a b :: s => by
     rw [kept, src_cons]
     split_ifs
@@ -201,16 +197,12 @@ theorem kept_sublist_src : ∀ s : EditScript α, s.kept <+ s.src
 
 theorem kept_sublist_tgt : ∀ s : EditScript α, s.kept <+ s.tgt
   | [] => by rw [kept, tgt_nil]
-  | .del _ :: s => by
-    rw [kept, tgt_cons, EditOp.tgt, List.nil_append]
-    exact kept_sublist_tgt s
-  | .ins b :: s => by
-    rw [kept, tgt_cons, EditOp.tgt, List.singleton_append]
-    exact (kept_sublist_tgt s).cons b
+  | .del _ :: s => by simpa [kept, tgt_cons, EditOp.tgt] using kept_sublist_tgt s
+  | .ins b :: s => by simpa [kept, tgt_cons, EditOp.tgt] using (kept_sublist_tgt s).cons b
   | .sub a b :: s => by
     rw [kept, tgt_cons]
     split_ifs with h
-    · subst h; exact (kept_sublist_tgt s).cons_cons a
+    · exact h ▸ (kept_sublist_tgt s).cons_cons a
     · exact (kept_sublist_tgt s).cons b
 
 /-- Under `Costs.indel`, a script costs `|src| + |tgt|` less twice the number of letters it
@@ -329,16 +321,14 @@ termination_by x y => x.length + y.length
 from `x` to `y`. -/
 theorem editDist_indel_add_two_mul (x y : List α) :
     editDist Costs.indel x y + 2 * lcsLength x y = x.length + y.length := by
-  refine Nat.le_antisymm ?_ ?_
-  · obtain ⟨h1, h2, h3⟩ := lcs_spec x y
-    rw [← h3]
-    exact editDist_indel_add_two_mul_le h1 h2
-  · have hk := (optScript Costs.indel x y).cost_indel_add_two_mul
-    have hle := length_le_lcsLength ((optScript Costs.indel x y).kept_sublist_src)
-      ((optScript Costs.indel x y).kept_sublist_tgt)
-    rw [src_optScript, tgt_optScript, cost_optScript] at hk
-    rw [src_optScript, tgt_optScript] at hle
-    omega
+  obtain ⟨h1, h2, h3⟩ := lcs_spec x y
+  have hk := (optScript Costs.indel x y).cost_indel_add_two_mul
+  have hle := length_le_lcsLength (optScript Costs.indel x y).kept_sublist_src
+    (optScript Costs.indel x y).kept_sublist_tgt
+  rw [src_optScript, tgt_optScript, cost_optScript] at hk
+  rw [src_optScript, tgt_optScript] at hle
+  have := h3 ▸ editDist_indel_add_two_mul_le h1 h2
+  omega
 
 /-- Under `Costs.indel`, replacements by a different letter gain nothing: `editDist Costs.indel x y`
 is the least cost of a script from `x` to `y` with no such replacement, that is, the least number

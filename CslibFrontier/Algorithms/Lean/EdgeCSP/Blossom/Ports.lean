@@ -123,9 +123,8 @@ theorem vars_contract (f : OccurrenceLabeling F Bool) (vs : List ℕ) :
       · split at hv
         · cases hv
         next hp =>
-          have he := List.mem_singleton.mp hv
-          refine Or.inr (List.mem_map.mpr ⟨i, ?_, he.symm⟩)
-          exact (mem_touched vs i).mpr (by simpa using hp)
+          exact Or.inr (List.mem_map.mpr ⟨i, (mem_touched vs i).mpr (by simpa using hp),
+            (List.mem_singleton.mp hv).symm⟩)
     · obtain rfl := List.mem_singleton.mp hc
       exact Or.inr hv
   · rintro (⟨hv, hn⟩ | hv)
@@ -178,26 +177,23 @@ connector scope. This permutation does not reorder the constructed CSP itself. -
 theorem vars_contract_perm (f : OccurrenceLabeling F Bool) (vs : List ℕ) :
     (contract f vs).vars.Perm
       (F.vars.filter (fun v => !vs.contains v) ++ connectors F vs ++ connectors F vs) := by
-  let ids := List.finRange F.length
-  let outside (i : Fin F.length) := F[i.val].scope.filter fun v => !vs.contains v
-  let added (i : Fin F.length) :=
-    if (positions vs F[i.val].scope).isEmpty then [] else [connector F i]
-  have hout : ids.flatMap outside = F.vars.filter (fun v => !vs.contains v) := by
+  have hout : (List.finRange F.length).flatMap
+      (fun i => F[i.val].scope.filter fun v => !vs.contains v) =
+      F.vars.filter (fun v => !vs.contains v) := by
     rw [← List.filter_flatMap,
       ← List.flatMap_map (f := fun i : Fin F.length => F[i.val]) (g := Constraint.scope),
       ← List.ofFn_eq_map, List.ofFn_getElem]
     rfl
-  have hscope : (List.ofFn (constraint f vs)).flatMap Constraint.scope =
-      ids.flatMap (fun i => outside i ++ added i) := by
-    rw [List.ofFn_eq_map, List.flatMap_map]
-    exact List.flatMap_congr fun i _ => scope_constraint f vs i
   have he : (contract f vs).vars =
-      ids.flatMap (fun i => outside i ++ added i) ++ connectors F vs := by
+      (List.finRange F.length).flatMap
+        (fun i => F[i.val].scope.filter (fun v => !vs.contains v) ++
+          if (positions vs F[i.val].scope).isEmpty then [] else [connector F i]) ++
+      connectors F vs := by
     simp only [contract, vars, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
-      List.append_nil, hscope]
-  rw [he]
-  simpa only [hout, show ids.flatMap added = connectors F vs from flatMap_connectors F vs] using
-    (List.flatMap_append_perm ids outside added).symm.append_right (connectors F vs)
+      List.append_nil, List.ofFn_eq_map, List.flatMap_map]
+    exact congrArg (· ++ connectors F vs) (List.flatMap_congr fun i _ => scope_constraint f vs i)
+  rw [he, ← hout, ← flatMap_connectors F vs]
+  exact (List.flatMap_append_perm _ _ _).symm.append_right _
 
 /-- Each output name retains its two old outside occurrences, or is a fresh connector with
 one old-constraint port and one central port. No enumeration below a binary name is involved. -/

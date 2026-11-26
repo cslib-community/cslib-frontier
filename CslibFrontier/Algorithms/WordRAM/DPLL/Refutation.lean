@@ -251,15 +251,11 @@ theorem decodeTree_preorder (φ : CNF ℕ) :
     | conflict =>
       have hidx : φ.findIdx (Falsifies π) < φ.length :=
         List.findIdx_lt_length_of_exists (by simpa using any_falsifies_of_status_eq_conflict hs)
-      have hp : preorder φ (logOut φ) fuel π = [clauseAddr φ (φ.findIdx (Falsifies π))] := by
-        cases fuel <;> simp [preorder, logOut, hs]
-      have ht : searchTree φ fuel π = .leaf (falsifiedClause φ π) := by
-        cases fuel <;> simp [searchTree, hs]
-      rw [hp] at hk ⊢
-      obtain ⟨k, rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by simp at hk; omega⟩
-      rw [ht, List.singleton_append, decodeTree, ite_eq_left (clauseAddr_lt hidx),
-        clauseAt_clauseAddr]
-      rfl
+      cases k with
+      | zero => cases fuel <;> simp [preorder, logOut, hs] at hk
+      | succ k =>
+        cases fuel <;> simp only [preorder, logOut, searchTree, falsifiedClause, hs,
+          List.singleton_append, decodeTree, ite_eq_left (clauseAddr_lt hidx), clauseAt_clauseAddr]
     | branch l =>
       obtain ⟨fuel, rfl, hlen⟩ := length_openVars_cons_le hs hf
       rw [dfs, hs, Option.or_eq_none_iff] at hd
@@ -320,8 +316,8 @@ theorem findLoop_spec (π : List (Literal ℕ)) (ψ : CNF ℕ) (x : Data 32) (N 
     obtain ⟨hpc, hpψ⟩ := holdsList_append_iff.mp hcl
     obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp hpc
     simp only [length_encodeClauseBy] at hpψ
-    have hpψ' : HoldsList (x.regs ptr + 1 + c.length) (ψ.flatMap encodeClause) x.mem := by
-      rwa [show x.regs ptr + 1 + c.length = x.regs ptr + (c.length + 1) by omega]
+    have hpψ' : HoldsList (x.regs ptr + 1 + c.length) (ψ.flatMap encodeClause) x.mem :=
+      Nat.add_right_comm (x.regs ptr) 1 c.length ▸ hpψ
     have hNψ : ∀ c ∈ ψ, ∀ l ∈ c, l.1 < N := fun c' h => hN c' (by simp [h])
     have hNc := hN c (by simp)
     obtain ⟨hcnt, -⟩ := foldl_litStep π c ⟨0, 0, false, none⟩
@@ -455,7 +451,7 @@ theorem stepBodyLog_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
       rw [outputList_eq_iff]
       wram_simp [*]
       refine ⟨by simp [answerLog, hlen'], ?_⟩
-      rw [answerLog, holdsList_cons_iff, show T + 4 * N + 1 + 1 = T + 4 * N + 2 by omega]
+      rw [answerLog, holdsList_cons_iff]
       exact ⟨by rw [Function.update_of_ne (by omega)]; exact hz₂',
         hlog₂.frame fun a ha _ => Function.update_of_ne (by omega) _ _⟩
     · obtain ⟨-, -, -, -, -, -, -, -, hgo₂, htp₂, hmem₂⟩ := h₂

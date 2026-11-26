@@ -266,22 +266,17 @@ theorem blackwell_cone_dist_sq_le_sum {S : Set E} (hc : IsComplete S) (hS : Conv
       ⟪X - metricProjection S X, v t⟫ ≤ 0) :
     distToSet S (∑ t ∈ range T, v t) ^ 2 ≤ ∑ t ∈ range T, ‖v t‖ ^ 2 := by
   induction T with
-  | zero =>
-    simp only [range_zero, sum_empty]
-    rw [distToSet_eq_zero_of_mem hc hS hzero]
-    norm_num
+  | zero => simp [distToSet_eq_zero_of_mem hc hS hzero]
   | succ k ih =>
-    have hih := ih fun t ht => hstep t (lt_trans ht (Nat.lt_succ_self k))
     set X := ∑ t ∈ range k, v t
     set s := metricProjection S X
     have hs_mem : s ∈ S := metricProjection_mem ⟨0, hzero⟩ hc hS X
     have hmin : distToSet S (X + v k) ^ 2 ≤ ‖(X + v k) - s‖ ^ 2 :=
       pow_le_pow_left₀ (distToSet_nonneg S _) (distToSet_le_norm_sub hc hS hs_mem (X + v k)) 2
     have hexp : ‖(X + v k) - s‖ ^ 2 = distToSet S X ^ 2 + 2 * ⟪X - s, v k⟫ + ‖v k‖ ^ 2 := by
-      rw [show X + v k - s = (X - s) + v k by abel, norm_add_sq_real]
-      rfl
+      rw [add_sub_right_comm, norm_add_sq_real, distToSet]
     rw [sum_range_succ, sum_range_succ (fun t => ‖v t‖ ^ 2)]
-    linarith [hstep k (Nat.lt_succ_self k)]
+    linarith [ih fun t ht => hstep t (Nat.lt_succ_of_lt ht), hstep k k.lt_succ_self]
 
 /-- Square-root form of `blackwell_cone_dist_sq_le_sum` (`distToSet S (∑ t < T, v t) ≤ R * √T`). -/
 theorem blackwell_cone_dist_le {S : Set E} (hc : IsComplete S) (hS : Convex ℝ S)
@@ -464,9 +459,8 @@ theorem exists_nonapproachable_dist_ge [Nonempty I] {m : I → J → E} {S : Set
       ∀ (T : ℕ), 0 < T →
         ∀ (p : ℕ → I → ℝ), (∀ t < T, (∀ i, 0 ≤ p t i) ∧ ∑ i, p t i = 1) →
           δ ≤ distToSet S (vecAvg (fun t => bilinearPayoff m (p t) q) T) := by
-  obtain ⟨q, hq0, hq1, hq_out⟩ : ∃ q : J → ℝ, (∀ j, 0 ≤ q j) ∧ ∑ j, q j = 1 ∧
-      ∀ p : I → ℝ, (∀ i, 0 ≤ p i) → ∑ i, p i = 1 → bilinearPayoff m p q ∉ S := by
-    simpa [SatisfiesResponseCondition] using hfail
+  simp only [SatisfiesResponseCondition, not_forall, not_exists, not_and] at hfail
+  obtain ⟨q, hq0, hq1, hq_out⟩ := hfail
   obtain ⟨hCne, hCcvx, hCcmp⟩ := attainable_compact_convex m q
   obtain ⟨_, δ, _, hδ, hmin, _, _⟩ :=
     exists_strict_sep_compact_complete hCne hCcmp hCcvx hSne hSc hScvx
@@ -484,10 +478,8 @@ theorem exists_nonapproachable_dist_ge [Nonempty I] {m : I → J → E} {S : Set
   have havg_eq : vecAvg (fun t => bilinearPayoff m (p t) q) T = bilinearPayoff m pbar q := by
     simp only [vecAvg, bilinearPayoff_eq_sum_row, pbar]
     rw [sum_comm, smul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    rw [← sum_smul, smul_smul]
-  rw [havg_eq]
-  exact hmin _ ⟨pbar, ⟨hpbar0, hpbar1⟩, rfl⟩
+    exact sum_congr rfl fun i _ => by rw [← sum_smul, smul_smul]
+  exact havg_eq ▸ hmin _ ⟨pbar, ⟨hpbar0, hpbar1⟩, rfl⟩
 
 end Conditions
 

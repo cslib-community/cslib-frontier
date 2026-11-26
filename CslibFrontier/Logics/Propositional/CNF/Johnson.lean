@@ -148,16 +148,14 @@ theorem CNF.countUnsat_restrict {σ : V → Bool} {v : V} {b : Bool} (hσ : σ v
   | cons c ψ ih =>
     rw [CNF.restrict_cons]
     split_ifs with h
-    · rw [ih]
-      exact (List.countP_cons_of_neg
+    · exact ih.trans (List.countP_cons_of_neg
         (by simp [(Clause.eval_eq_true_iff σ c).2 ⟨_, h, by simp [hσ]⟩])).symm
     · have hc : Clause.eval σ (c.filter (· ≠ (v, !b))) = c.eval σ := by
         rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
         simp only [List.mem_filter, decide_eq_true_eq]
-        exact ⟨fun ⟨l, ⟨hl, _⟩, hle⟩ => ⟨l, hl, hle⟩,
+        exact ⟨fun ⟨l, hl, hle⟩ => ⟨l, hl.1, hle⟩,
           fun ⟨l, hl, hle⟩ => ⟨l, ⟨hl, fun heq => by simp [heq, hσ] at hle⟩, hle⟩⟩
-      simp only [CNF.countUnsat, List.countP_cons, hc] at ih ⊢
-      rw [ih]
+      simpa only [CNF.countUnsat, List.countP_cons, hc] using congrArg (· + _) ih
 
 /-! ### Johnson's weight -/
 
@@ -208,17 +206,16 @@ theorem CNF.johnsonWeight_restrict_add_le {L : ℕ} (v : V) {ψ : CNF V}
     -- Deleting one literal from a nonempty clause doubles its term.
     have hdouble {a : Literal V} (ha : a ∈ c) :
         2 ^ (L - (c.filter (· ≠ a)).length) = 2 ^ (L - c.length) + 2 ^ (L - c.length) := by
-      have h1 := length_filter_ne_add_one hnd ha
-      rw [show L - (c.filter (· ≠ a)).length = L - c.length + 1 by omega,
-        pow_succ, Nat.mul_two]
+      have h1 : L - (c.filter (· ≠ a)).length = L - c.length + 1 := by
+        have := length_filter_ne_add_one hnd ha
+        omega
+      rw [h1, pow_succ, Nat.mul_two]
     by_cases hT : (v, true) ∈ c <;> by_cases hF : (v, false) ∈ c <;>
       simp only [hT, hF, ite_true, ite_false, CNF.johnsonWeight_cons, Bool.not_true,
         Bool.not_false]
     · lia
-    · rw [hdouble hT]
-      lia
-    · rw [hdouble hF]
-      lia
+    · linarith [hdouble hT]
+    · linarith [hdouble hF]
     · rw [filter_ne_eq_self hT, filter_ne_eq_self hF]
       lia
 
@@ -354,9 +351,8 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le_length {k : ℕ} {φ : CNF V
     simpa only [CNF.johnsonWeight_eraseDupLits] using two_pow_mul_countUnsat_johnsonAssignment_le φ
   have hw : (φ.map fun c => 2 ^ (L - c.toFinset.card)).sum ≤ φ.length * 2 ^ (L - k) := by
     rw [← smul_eq_mul, ← List.sum_replicate, ← List.map_const']
-    exact List.sum_le_sum fun c hc => Nat.pow_le_pow_right (by norm_num) (by
-      have := hk c hc
-      omega)
+    exact List.sum_le_sum fun c hc => Nat.pow_le_pow_right (by norm_num)
+      (Nat.sub_le_sub_left (hk c hc) L)
   have hsplit : 2 ^ L = 2 ^ k * 2 ^ (L - k) := by rw [← pow_add, Nat.add_sub_cancel' hkL]
   rw [hsplit, mul_right_comm] at h
   exact Nat.le_of_mul_le_mul_right (h.trans hw) (by positivity)
@@ -392,15 +388,15 @@ theorem one_sub_inv_two_pow_mul_le_johnsonAssignment {k : ℕ} {φ : CNF V}
 theorem CNF.IsExactThreeDistinct.seven_div_eight_mul_le_johnsonAssignment {φ : CNF V}
     (hφ : φ.IsExactThreeDistinct) :
     7 / 8 * (1 - φ.unsatVal) ≤ 1 - (φ.countUnsat (johnsonAssignment φ) : ℝ) / φ.length := by
-  have h := one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 3) fun _ hc =>
-    (hφ.card_toFinset_eq hc).ge
-  rwa [show (1 : ℝ) - 2⁻¹ ^ 3 = 7 / 8 by norm_num] at h
+  convert one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 3)
+    (fun _ hc => (hφ.card_toFinset_eq hc).ge) using 2
+  norm_num
 
 /-- **The `1 / 2` approximation ratio** for MAX-SAT on formulas without empty clauses. -/
 theorem one_div_two_mul_le_johnsonAssignment {φ : CNF V} (hφ : ∀ c ∈ φ, c ≠ []) :
     1 / 2 * (1 - φ.unsatVal) ≤ 1 - (φ.countUnsat (johnsonAssignment φ) : ℝ) / φ.length := by
-  have h := one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 1) fun c hc =>
-    Finset.one_le_card.2 ⟨_, List.mem_toFinset.2 (List.head_mem (hφ c hc))⟩
-  rwa [show (1 : ℝ) - 2⁻¹ ^ 1 = 1 / 2 by norm_num] at h
+  convert one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 1)
+    (fun c hc => Finset.one_le_card.2 ⟨_, List.mem_toFinset.2 (List.head_mem (hφ c hc))⟩) using 2
+  norm_num
 
 end Cslib.Logic.PL
