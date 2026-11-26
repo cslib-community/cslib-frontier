@@ -86,10 +86,8 @@ theorem expect_boole_apply_mem [Semifield 𝕜] [CharZero 𝕜] (hh : IsPairwise
     𝔼 i, (if h i x ∈ B then 1 else 0 : 𝕜) = #B / Fintype.card Y := by
   have hpt (i : ι) : (if h i x ∈ B then 1 else 0 : 𝕜) = ∑ y ∈ B, if h i x = y then 1 else 0 :=
     (sum_ite_eq B (h i x) fun _ ↦ (1 : 𝕜)).symm
-  simp only [hpt]
-  rw [expect_sum_comm]
-  simp only [Fintype.expect_boole, hh.dens_filter_apply_eq, NNRat.cast_inv, NNRat.cast_natCast,
-    sum_const, nsmul_eq_mul, div_eq_mul_inv]
+  simp only [hpt, expect_sum_comm, Fintype.expect_boole, hh.dens_filter_apply_eq, NNRat.cast_inv,
+    NNRat.cast_natCast, sum_const, nsmul_eq_mul, div_eq_mul_inv]
 
 /-- **Retention probability**: a point is retained, its hash lying in `B`, with probability
 `#B / |Y|`. -/
@@ -106,18 +104,10 @@ theorem expect_boole_apply_mem_and_apply_mem [Semifield 𝕜] [CharZero 𝕜]
       #B₁ / Fintype.card Y * (#B₂ / Fintype.card Y) := by
   have hpt (i : ι) : (if h i x₁ ∈ B₁ ∧ h i x₂ ∈ B₂ then 1 else 0 : 𝕜) =
       ∑ y₁ ∈ B₁, ∑ y₂ ∈ B₂, if h i x₁ = y₁ ∧ h i x₂ = y₂ then 1 else 0 := by
-    have e₂ : (if h i x₂ ∈ B₂ then 1 else 0 : 𝕜) =
-        ∑ y₂ ∈ B₂, if h i x₂ = y₂ then 1 else 0 :=
-      (sum_ite_eq B₂ (h i x₂) fun _ ↦ (1 : 𝕜)).symm
     rw [ite_and, ← sum_ite_eq B₁ (h i x₁) fun _ ↦ (if h i x₂ ∈ B₂ then 1 else 0 : 𝕜)]
     refine sum_congr rfl fun y₁ _ ↦ ?_
-    by_cases hy : h i x₁ = y₁
-    · simp only [hy, true_and, ite_true]
-      exact e₂
-    · simp [hy]
-  simp only [hpt]
-  rw [expect_sum_comm]
-  simp only [expect_sum_comm, Fintype.expect_boole, hh.dens_filter_apply_eq_and_apply_eq hx,
+    by_cases hy : h i x₁ = y₁ <;> simp [hy, sum_ite_eq]
+  simp only [hpt, expect_sum_comm, Fintype.expect_boole, hh.dens_filter_apply_eq_and_apply_eq hx,
     NNRat.cast_inv, NNRat.cast_pow, NNRat.cast_natCast, sum_const, nsmul_eq_mul]
   ring
 
@@ -235,6 +225,10 @@ theorem sub_le_dens_filter_exists_apply_mem [Field 𝕜] [LinearOrder 𝕜] [IsS
         exact natCast_sub_mul_sub_one_div_two_le _
     _ = _ := Fintype.expect_boole _
 
+omit [Fintype ι] [DecidableEq Y] in
+private theorem cast_dens_eq (B : Finset Y) : ((dens B : ℚ≥0) : ℚ) = #B / Fintype.card Y := by
+  rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
+
 /-- **A pairwise independent generator hits a dense set** [Goldreich, Exercise 7.23, first
 claim][Goldreich2007DraftR4]: some point of `S` is sent into a set `B` of density
 `p = #B / |Y|` with probability at least `min (#S p) 1 / 2`. Goldreich states it for a pairwise
@@ -249,8 +243,6 @@ theorem min_mul_div_two_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndepend
   have : Nonempty Y := hB.to_subtype.map Subtype.val
   set p : ℚ := #B / Fintype.card Y with hp_def
   have hp : 0 < p := div_pos (Nat.cast_pos.2 hB.card_pos) (Nat.cast_pos.2 Fintype.card_pos)
-  have hdB : ((dens B : ℚ≥0) : ℚ) = p := by
-    rw [hp_def, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   set k := min #S ⌈1 / p⌉₊ with hk_def
   obtain ⟨S', hS'S, hS'⟩ := exists_subset_card_eq (min_le_left #S ⌈1 / p⌉₊)
   have hmono : dens {i | ∃ x ∈ S', h i x ∈ B} ≤ dens {i | ∃ x ∈ S, h i x ∈ B} :=
@@ -260,7 +252,7 @@ theorem min_mul_div_two_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndepend
       exact ⟨x, hS'S hx, hxB⟩
   rw [← NNRat.cast_le (K := ℚ)]
   refine le_trans ?_ ((NNRat.cast_le.2 hmono).trans' (hh.sub_le_dens_filter_exists_apply_mem S' B))
-  push_cast [hdB]
+  push_cast [cast_dens_eq B]
   rw [hS', ← hp_def]
   have hkp : ((k : ℚ) - 1) * p ≤ 1 := by
     have hlt : (k : ℚ) < 1 / p + 1 := (Nat.cast_le.2 (min_le_right _ _)).trans_lt
@@ -275,8 +267,9 @@ theorem min_mul_div_two_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndepend
       rw [hk_def, hk]
       calc (1 : ℚ) = 1 / p * p := (one_div_mul_cancel hp.ne').symm
         _ ≤ ⌈1 / p⌉₊ * p := mul_le_mul_of_nonneg_right (Nat.le_ceil _) hp.le
-  have hk0 : (0 : ℚ) ≤ k * p := by positivity
-  nlinarith [mul_le_mul_of_nonneg_left hkp hk0]
+  have h2 := mul_le_mul_of_nonneg_left hkp (mul_nonneg (Nat.cast_nonneg k) hp.le)
+  have hsq : (k : ℚ) * (k - 1) * p ^ 2 = (k * p) * ((k - 1) * p) := by ring
+  linarith
 
 /-- **A pairwise independent generator hits a sparse set** [Goldreich, Exercise 7.23, second
 claim][Goldreich2007DraftR4]: if the set `B` has density `p = #B / |Y|` with `p ≤ 1 / (2 #S)`, then
@@ -287,13 +280,13 @@ theorem three_quarters_mul_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndep
     3 / 4 * (#S * dens B) ≤ dens {i | ∃ x ∈ S, h i x ∈ B} := by
   set p : ℚ := #B / Fintype.card Y with hp_def
   have hp : 0 ≤ p := by positivity
-  have hdB : ((dens B : ℚ≥0) : ℚ) = p := by
-    rw [hp_def, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   rw [← NNRat.cast_le (K := ℚ)] at hSB ⊢
   refine le_trans ?_ (hh.sub_le_dens_filter_exists_apply_mem S B)
-  push_cast [hdB] at hSB ⊢
+  push_cast [cast_dens_eq B] at hSB ⊢
   rw [← hp_def]
   have hsp : 0 ≤ (#S : ℚ) * p := by positivity
-  nlinarith [mul_nonneg hsp hp, mul_nonneg hsp (sub_nonneg.2 hSB)]
+  have h2 := mul_le_mul_of_nonneg_left (by linarith : (#S : ℚ) * p ≤ 1 / 2) hsp
+  have hsq : (#S : ℚ) * (#S - 1) * p ^ 2 = (#S * p) * (#S * p) - (#S * p) * p := by ring
+  linarith [mul_nonneg hsp hp]
 
 end Cslib.Probability.IsPairwiseIndependentHash

@@ -73,25 +73,16 @@ theorem exists_card_eq_sum_mul_le {N : Type*} [Fintype N] (w c : N → ℝ)
       (sum_eq_zero_iff_of_nonneg fun i _ => hc0 i).mp (by rw [hd, hd0]; simp) i (mem_univ i)
     simp [hc]
   · set τ := S.inf' hSne w
-    have hin : ∀ s ∈ S, τ ≤ w s := fun s hs => inf'_le _ hs
-    have hout : ∀ t ∉ S, w t ≤ τ := fun t ht => (le_inf'_iff _ _).mpr fun s hs => hex s hs t ht
-    have hsplit : ∑ i, w i * c i = ∑ i ∈ S, w i * c i + ∑ i ∈ univ \ S, w i * c i := by
-      rw [add_comm, sum_sdiff (subset_univ S)]
-    have hcsplit : ∑ i ∈ S, c i + ∑ i ∈ univ \ S, c i = d := by
-      rw [add_comm, sum_sdiff (subset_univ S), hd]
-    have h₁ : ∑ i ∈ univ \ S, w i * c i ≤ ∑ i ∈ univ \ S, τ * c i :=
-      sum_le_sum fun i hi => mul_le_mul_of_nonneg_right (hout i (mem_sdiff.mp hi).2) (hc0 i)
-    have h₂ : ∑ i ∈ S, τ * (1 - c i) ≤ ∑ i ∈ S, w i * (1 - c i) :=
-      sum_le_sum fun i hi => mul_le_mul_of_nonneg_right (hin i hi) (sub_nonneg.mpr (hc1 i))
-    have h₃ : ∑ i ∈ S, (1 - c i) = d - ∑ i ∈ S, c i := by
-      rw [sum_sub_distrib]; simp [hcard]
-    rw [← mul_sum] at h₁ h₂
-    rw [h₃] at h₂
-    have h₄ : ∑ i ∈ S, w i * (1 - c i) = ∑ i ∈ S, w i - ∑ i ∈ S, w i * c i := by
-      rw [← sum_sub_distrib]; simp [mul_sub]
-    rw [h₄] at h₂
-    have : ∑ i ∈ univ \ S, c i = d - ∑ i ∈ S, c i := by linarith
-    rw [this] at h₁
+    have hpt : ∀ i, (w i - τ) * c i ≤ if i ∈ S then w i - τ else 0 := fun i => by
+      by_cases hi : i ∈ S
+      · simp only [hi, ↓reduceIte]
+        nlinarith [inf'_le w hi, hc1 i]
+      · simp only [hi, ↓reduceIte]
+        exact mul_nonpos_of_nonpos_of_nonneg
+          (sub_nonpos.mpr ((le_inf'_iff _ _).mpr fun s hs => hex s hs i hi)) (hc0 i)
+    have hsum := sum_le_sum (s := univ) fun i _ => hpt i
+    simp only [sub_mul, sum_sub_distrib, ← mul_sum, hd, sum_ite_mem, univ_inter, hcard,
+      sum_const, nsmul_eq_mul] at hsum
     linarith
 
 end Finset

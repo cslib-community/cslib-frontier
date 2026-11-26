@@ -41,33 +41,24 @@ theorem mem_ModP_mul_iff {j k : ℕ} (hjk : j.Coprime k) :
     A ∈ ModP (j * k) enc ↔ ∃ B C, B ∈ ModP j enc ∧ C ∈ ModP k enc ∧ A = B ∪ C := by
   constructor
   · rintro ⟨f, hf, hA⟩
-    refine ⟨{a | f a % j ≠ 0}, {a | f a % k ≠ 0}, ?_, ?_, ?_⟩
-    · exact ⟨f, hf, fun _ => Iff.rfl⟩
-    · exact ⟨f, hf, fun _ => Iff.rfl⟩
-    · ext a
-      simp only [Set.mem_union, Set.mem_ofPred_eq, hA a, ne_eq, ← not_and_or,
-        ← Nat.dvd_iff_mod_eq_zero]
-      exact not_congr (Iff.intro (fun h_div =>
-          ⟨dvd_of_mul_right_dvd h_div, dvd_of_mul_left_dvd h_div⟩)
-        (fun ⟨hj, hk⟩ => hjk.mul_dvd_of_dvd_of_dvd hj hk))
+    refine ⟨{a | f a % j ≠ 0}, {a | f a % k ≠ 0}, ⟨f, hf, fun _ => Iff.rfl⟩,
+      ⟨f, hf, fun _ => Iff.rfl⟩, Set.ext fun a => ?_⟩
+    simp only [Set.mem_union, Set.mem_ofPred_eq, hA a, ne_eq, ← not_and_or,
+      ← Nat.dvd_iff_mod_eq_zero]
+    exact not_congr ⟨fun h => ⟨dvd_of_mul_right_dvd h, dvd_of_mul_left_dvd h⟩,
+      fun ⟨hj, hk⟩ => hjk.mul_dvd_of_dvd_of_dvd hj hk⟩
   · rintro ⟨B, C, ⟨f_j, hfj, hB⟩, ⟨f_k, hfk, hC⟩, rfl⟩
     refine ⟨fun a => k * f_j a + j * f_k a,
       SharpP.add_mem (SharpP.mul_mem (SharpP.natCast_mem k) hfj)
         (SharpP.mul_mem (SharpP.natCast_mem j) hfk), fun a => ?_⟩
-    simp only [Set.mem_union, hB a, hC a, ne_eq, ← Nat.dvd_iff_mod_eq_zero]
-    rw [← not_and_or]
-    apply not_congr
-    refine Iff.intro ?_ ?_
-    · rintro ⟨hj, hk⟩
-      have hk_f_j : j * k ∣ k * f_j a := mul_comm j k ▸ mul_dvd_mul_left k hj
-      have hj_f_k : j * k ∣ j * f_k a := mul_dvd_mul_left j hk
-      exact dvd_add hk_f_j hj_f_k
-    · intro hdvd
-      have hdvd_j : j ∣ k * f_j a + j * f_k a := (dvd_mul_right j k).trans hdvd
-      have hj_dvd : j ∣ k * f_j a := (Nat.dvd_add_iff_left (dvd_mul_right j (f_k a))).mpr hdvd_j
-      have hdvd_k : k ∣ k * f_j a + j * f_k a := (dvd_mul_left k j).trans hdvd
-      have hk_dvd : k ∣ j * f_k a := (Nat.dvd_add_iff_right (dvd_mul_right k (f_j a))).mpr hdvd_k
-      exact ⟨hjk.dvd_of_dvd_mul_left hj_dvd, hjk.symm.dvd_of_dvd_mul_left hk_dvd⟩
+    simp only [Set.mem_union, hB a, hC a, ne_eq, ← Nat.dvd_iff_mod_eq_zero, ← not_and_or]
+    refine not_congr ⟨fun ⟨hj, hk⟩ =>
+        dvd_add (mul_comm j k ▸ mul_dvd_mul_left k hj) (mul_dvd_mul_left j hk),
+      fun hdvd => ?_⟩
+    exact ⟨hjk.dvd_of_dvd_mul_left ((Nat.dvd_add_iff_left (dvd_mul_right j _)).mpr
+        ((dvd_mul_right j k).trans hdvd)),
+      hjk.symm.dvd_of_dvd_mul_left ((Nat.dvd_add_iff_right (dvd_mul_right k _)).mpr
+        ((dvd_mul_left k j).trans hdvd))⟩
 
 open scoped Classical in
 theorem mem_ModP_prod_iff {ι : Type*} (s : Finset ι) (f : ι → ℕ)
@@ -77,85 +68,51 @@ theorem mem_ModP_prod_iff {ι : Type*} (s : Finset ι) (f : ι → ℕ)
   induction s using Finset.induction_on generalizing A with
   | empty =>
     simp only [Finset.prod_empty, mem_ModP_one]
-    constructor
-    · rintro rfl
-      exact ⟨fun _ => ∅, by simp⟩
-    · rintro ⟨B, hB, rfl⟩
-      simp
+    exact ⟨fun h => ⟨fun _ => ∅, by simp [h]⟩, fun ⟨_, _, h⟩ => by simp [h]⟩
   | @insert a s ha ih =>
-    rw [Finset.prod_insert ha]
-    have h_coprime_a_s : (f a).Coprime (∏ i ∈ s, f i) := by
-      apply Nat.Coprime.prod_right
-      intro i hi
-      exact h_coprime (Finset.mem_insert_self a s) (Finset.mem_insert_of_mem hi)
-        (ne_of_mem_of_not_mem hi ha).symm
-    rw [mem_ModP_mul_iff h_coprime_a_s]
+    have h_coprime_a_s : (f a).Coprime (∏ i ∈ s, f i) :=
+      Nat.Coprime.prod_right fun i hi =>
+        h_coprime (Finset.mem_insert_self a s) (Finset.mem_insert_of_mem hi)
+          (ne_of_mem_of_not_mem hi ha).symm
+    have h_coprime_s := h_coprime.mono (Finset.subset_insert a s)
+    rw [Finset.prod_insert ha, mem_ModP_mul_iff h_coprime_a_s]
     constructor
     · rintro ⟨Ba, C, hBa, hC, rfl⟩
-      have h_coprime_s : (s : Set ι).Pairwise (fun i j => (f i).Coprime (f j)) :=
-        h_coprime.mono (Finset.subset_insert a s)
       rcases (ih h_coprime_s).mp hC with ⟨B, hB, rfl⟩
-      refine ⟨Function.update B a Ba, ?_, ?_⟩
-      · intro i hi
-        by_cases h_eq : i = a
-        · subst h_eq
-          simp [Function.update, hBa]
-        · have h_ne : i ≠ a := h_eq
-          have hi_s : i ∈ s := by
-            simp only [Finset.mem_insert] at hi
-            exact hi.resolve_left h_eq
-          simp [Function.update, h_ne, hB i hi_s]
+      refine ⟨Function.update B a Ba, fun i hi => ?_, ?_⟩
+      · rcases Finset.mem_insert.mp hi with rfl | hi_s
+        · simpa [Function.update] using hBa
+        · simpa [Function.update, ne_of_mem_of_not_mem hi_s ha] using hB i hi_s
       · ext x
         simp only [Finset.mem_insert, Set.mem_iUnion, Set.mem_union, Function.update]
         aesop
     · rintro ⟨B, hB, rfl⟩
-      refine ⟨B a, ⋃ i ∈ s, B i, hB a (Finset.mem_insert_self a s), ?_, ?_⟩
-      · have h_coprime_s : (s : Set ι).Pairwise (fun i j => (f i).Coprime (f j)) :=
-          h_coprime.mono (Finset.subset_insert a s)
-        exact (ih h_coprime_s).mpr ⟨B, fun i hi => hB i (Finset.mem_insert_of_mem hi), rfl⟩
-      · ext x
-        simp [Finset.mem_insert]
+      exact ⟨B a, ⋃ i ∈ s, B i, hB a (Finset.mem_insert_self a s),
+        (ih h_coprime_s).mpr ⟨B, fun i hi => hB i (Finset.mem_insert_of_mem hi), rfl⟩,
+        Finset.set_biUnion_insert a s B⟩
 
 
 theorem mem_ModP_iff_primeFactors (hk : k ≠ 0) :
     A ∈ ModP k enc ↔ ∃ B : ℕ → Set α, (∀ p ∈ k.primeFactors, B p ∈ ModP p enc) ∧
       A = ⋃ p ∈ k.primeFactors, B p := by
-  have hk_eq : ModP k enc = ModP (∏ p ∈ k.primeFactors, p ^ k.factorization p) enc := by
-    congr 1
-    exact (Nat.prod_factorization_pow_eq_self hk).symm.trans
+  have hk_eq : k = ∏ p ∈ k.primeFactors, p ^ k.factorization p :=
+    (Nat.prod_factorization_pow_eq_self hk).symm.trans
       (Nat.prod_factorization_eq_prod_primeFactors (fun p e => p ^ e))
-  rw [hk_eq]
   have h_coprime : (k.primeFactors : Set ℕ).Pairwise fun i j =>
-    (i ^ k.factorization i).Coprime (j ^ k.factorization j) := by
-    intro i hi j hj hneq
-    have h_sub := Nat.pairwise_coprime_pow_primeFactors_factorization (n := k)
-    exact h_sub (fun (h : (⟨i, hi⟩ : k.primeFactors) = ⟨j, hj⟩) => hneq (congrArg Subtype.val h))
-  rw [mem_ModP_prod_iff k.primeFactors (fun p => p ^ k.factorization p) h_coprime]
-  constructor
-  · rintro ⟨B, hB, rfl⟩
-    refine ⟨B, fun p hp => ?_, rfl⟩
-    have hp_pos : k.factorization p ≠ 0 := Finsupp.mem_support_iff.mp hp
-    have h_eq : ModP (p ^ k.factorization p) enc = ModP p enc :=
-      ModP_prime_pow (Nat.prime_of_mem_primeFactors hp) hp_pos
-    rw [← h_eq]
-    exact hB p hp
-  · rintro ⟨B, hB, rfl⟩
-    refine ⟨B, fun p hp => ?_, rfl⟩
-    have hp_pos : k.factorization p ≠ 0 := Finsupp.mem_support_iff.mp hp
-    have h_eq : ModP (p ^ k.factorization p) enc = ModP p enc :=
-      ModP_prime_pow (Nat.prime_of_mem_primeFactors hp) hp_pos
-    rw [h_eq]
-    exact hB p hp
+      (i ^ k.factorization i).Coprime (j ^ k.factorization j) :=
+    fun i hi j hj hneq => Nat.pairwise_coprime_pow_primeFactors_factorization (n := k)
+      fun h : (⟨i, hi⟩ : k.primeFactors) = ⟨j, hj⟩ => hneq (congrArg Subtype.val h)
+  rw [congrArg (ModP · enc) hk_eq,
+    mem_ModP_prod_iff k.primeFactors (fun p => p ^ k.factorization p) h_coprime]
+  refine exists_congr fun B => and_congr_left fun _ => forall₂_congr fun p hp => ?_
+  rw [ModP_prime_pow (Nat.prime_of_mem_primeFactors hp) (Finsupp.mem_support_iff.mp hp)]
 
 theorem ModP_eq_ModP_prod_primeFactors (hk : k ≠ 0) :
     ModP k enc = ModP (∏ p ∈ k.primeFactors, p) enc := by
   ext A
-  rw [mem_ModP_iff_primeFactors hk]
-  have h_coprime : (k.primeFactors : Set ℕ).Pairwise (fun i j => i.Coprime j) := by
-    intro i hi j hj hneq
-    exact (Nat.coprime_primes (Nat.prime_of_mem_primeFactors hi)
-      (Nat.prime_of_mem_primeFactors hj)).mpr hneq
-  rw [mem_ModP_prod_iff k.primeFactors (fun p => p) h_coprime]
+  rw [mem_ModP_iff_primeFactors hk, mem_ModP_prod_iff k.primeFactors (fun p => p)
+    fun i hi j hj hneq => (Nat.coprime_primes (Nat.prime_of_mem_primeFactors hi)
+      (Nat.prime_of_mem_primeFactors hj)).mpr hneq]
 
 theorem supClosed_ModP (k : ℕ) (hA : A ∈ ModP k enc) (hB : B ∈ ModP k enc) :
     A ∪ B ∈ ModP k enc := by
@@ -165,25 +122,20 @@ theorem supClosed_ModP (k : ℕ) (hA : A ∈ ModP k enc) (hB : B ∈ ModP k enc)
   · rw [mem_ModP_iff_primeFactors hk] at hA hB ⊢
     rcases hA with ⟨B_A, hB_A, rfl⟩
     rcases hB with ⟨B_B, hB_B, rfl⟩
-    refine ⟨fun p => B_A p ∪ B_B p, fun p hp => ?_, ?_⟩
-    · exact union_mem_ModP (Nat.prime_of_mem_primeFactors hp) (hB_A p hp) (hB_B p hp)
-    · ext x
-      simp only [Set.mem_union, Set.mem_iUnion]
-      aesop
+    refine ⟨fun p => B_A p ∪ B_B p,
+      fun p hp => union_mem_ModP (Nat.prime_of_mem_primeFactors hp) (hB_A p hp) (hB_B p hp), ?_⟩
+    ext x
+    simp only [Set.mem_union, Set.mem_iUnion]
+    aesop
 
 private lemma binter_mem_ModP (hk : 2 ≤ k)
     (hInter : ∀ A B, A ∈ ModP k enc → B ∈ ModP k enc → A ∩ B ∈ ModP k enc)
     (s : Finset ℕ) (f : ℕ → Set α) (hf : ∀ p ∈ s, f p ∈ ModP k enc) :
     ⋂ p ∈ s, f p ∈ ModP k enc := by
   induction s using Finset.induction_on with
-  | empty =>
-    have : (⋂ p ∈ (∅ : Finset ℕ), f p) = Set.univ := by ext x; simp
-    rw [this]
-    exact P_subset_ModP hk univ_mem_P
-  | @insert a s ha ih =>
-    have : (⋂ p ∈ insert a s, f p) = f a ∩ ⋂ p ∈ s, f p := by ext x; simp [Finset.mem_insert]
-    rw [this]
-    exact hInter _ _ (hf a (Finset.mem_insert_self a s))
+  | empty => simpa using P_subset_ModP hk univ_mem_P
+  | @insert a s _ ih =>
+    simpa [Finset.mem_insert] using hInter _ _ (hf a (Finset.mem_insert_self a s))
       (ih fun p hp => hf p (Finset.mem_insert_of_mem hp))
 
 theorem hertrampf_equivalence {k : ℕ} (hk : 2 ≤ k) :
@@ -192,16 +144,12 @@ theorem hertrampf_equivalence {k : ℕ} (hk : 2 ≤ k) :
   constructor
   · intro hInter A hA
     have hk_ne_zero : k ≠ 0 := by omega
-    rw [mem_ModP_iff_primeFactors hk_ne_zero] at hA
-    rcases hA with ⟨B_A, hB_A, rfl⟩
-    have h_inter : (⋃ p ∈ k.primeFactors, B_A p)ᶜ = ⋂ p ∈ k.primeFactors, (B_A p)ᶜ := by ext x; simp
-    rw [h_inter]
-    exact binter_mem_ModP hk hInter k.primeFactors _ (fun p hp =>
+    rcases (mem_ModP_iff_primeFactors hk_ne_zero).mp hA with ⟨B_A, hB_A, rfl⟩
+    rw [Set.compl_iUnion₂]
+    exact binter_mem_ModP hk hInter k.primeFactors _ fun p hp =>
       ModP_subset_ModP_of_dvd (Nat.dvd_of_mem_primeFactors hp) hk_ne_zero
-        (compl_mem_ModP (Nat.prime_of_mem_primeFactors hp) (hB_A p hp)))
+        (compl_mem_ModP (Nat.prime_of_mem_primeFactors hp) (hB_A p hp))
   · intro hCompl A B hA hB
-    have : A ∩ B = (Aᶜ ∪ Bᶜ)ᶜ := by ext; simp
-    rw [this]
-    exact hCompl _ (supClosed_ModP k (hCompl A hA) (hCompl B hB))
+    simpa using hCompl _ (supClosed_ModP k (hCompl A hA) (hCompl B hB))
 
 end Cslib.Complexity

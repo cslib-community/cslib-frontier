@@ -87,8 +87,8 @@ private theorem firstExponent_polyTime (k D : ℕ) :
     (filterWithInput (range.comp hcount) (accepts_polyTime k))
 
 private theorem boundedBase_polyTime (k D : ℕ) :
-    ComputableInPolyTime (boundedBase k D) encNat encNat := by
-  exact ((id' (encIn := encNat)).decide_eq' (const 0)).ite_decide (const 2)
+    ComputableInPolyTime (boundedBase k D) encNat encNat :=
+  ((id' (encIn := encNat)).decide_eq' (const 0)).ite_decide (const 2)
     (binary_two_pow.comp (firstExponent_polyTime k D))
 
 private theorem boundedBase_eq {k D : ℕ} (hk : 2 ≤ k)
@@ -99,20 +99,16 @@ private theorem boundedBase_eq {k D : ℕ} (hk : 2 ≤ k)
   have hB' : 1 ≤ B := by omega
   obtain ⟨m, hm, hfirst⟩ := countingThresholdBase_first hk hB'
   have hmBound : m ≤ D + 2 * Nat.clog 2 B := by
-    have h := hD B hB'
-    simpa only [hm, Nat.clog_pow 2 m (by decide)] using h
-  have hpass : CountingExponentAccepts k B m := by
-    simpa only [CountingExponentAccepts, hm] using countingThresholdBase_spec hk hB'
+    simpa only [hm, Nat.clog_pow 2 m (by decide)] using hD B hB'
   have hfound : (List.range (D + 2 * Nat.clog 2 B + 1)).find?
-      (fun j => decide (CountingExponentAccepts k B j)) = some m := by
-    apply List.find?_range_eq_some.mpr
-    refine ⟨by simpa only [decide_eq_true_eq] using hpass, ?_, ?_⟩
-    · simpa only [List.mem_range] using Nat.lt_succ_of_le hmBound
-    · intro j hj
-      simpa only [Bool.not_eq_true', decide_eq_false_iff_not] using hfirst j hj
-  have hfirstEq : firstExponent k D B = m := by
-    simp only [firstExponent, List.headD_eq_head?_getD, List.head?_filter, hfound, Option.getD_some]
-  simp only [boundedBase, hB, ↓reduceIte, hfirstEq, hm]
+      (fun j => decide (CountingExponentAccepts k B j)) = some m :=
+    List.find?_range_eq_some.mpr
+      ⟨by simpa only [decide_eq_true_eq, CountingExponentAccepts, hm] using
+          countingThresholdBase_spec hk hB',
+        List.mem_range.mpr (Nat.lt_succ_of_le hmBound), fun j hj => by
+          simpa only [Bool.not_eq_true', decide_eq_false_iff_not] using hfirst j hj⟩
+  simp only [boundedBase, hB, ↓reduceIte, firstExponent, List.headD_eq_head?_getD,
+    List.head?_filter, hfound, Option.getD_some, hm]
 
 /-- For each fixed width, one native polynomial-time machine computes the unchanged first-success
 threshold from a binary inverse budget, returning the complete binary output. Widths zero and one
@@ -143,7 +139,7 @@ theorem exists_length_countingThresholdBase_le (k : ℕ) :
     have hB' : 1 ≤ B := by omega
     obtain ⟨m, hm, _⟩ := countingThresholdBase_first hk hB'
     have hmBound := hD B hB'
-    have hclog : Nat.clog 2 B ≤ B.size := Nat.clog_le_of_le_pow (Nat.lt_size_self B).le
+    have := Nat.clog_le_of_le_pow (Nat.lt_size_self B).le
     simp only [hm, Nat.clog_pow 2 m (by decide)] at hmBound
     simp only [hm, encNat_apply, Nat.size_eq_bits_len, Nat.size_pow]
     omega

@@ -189,10 +189,8 @@ theorem keyPairMaxFailProb_nonneg [Fintype M] [Nonempty M]
 
 theorem keyPairMaxFailProb_le_one [Fintype M] [Nonempty M]
     (P : ExplicitCoinPKE PK SK M R CT) (pk : PK) (sk : SK) :
-    P.keyPairMaxFailProb pk sk ≤ 1 := by
-  rw [keyPairMaxFailProb, Finset.sup'_le_iff]
-  intro m _
-  exact P.msgFailProb_le_one pk sk m
+    P.keyPairMaxFailProb pk sk ≤ 1 :=
+  Finset.sup'_le _ _ fun m _ => P.msgFailProb_le_one pk sk m
 
 /-- **HHK17 `δ`-correctness** ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §2.1,
 generalized from uniform coins to `sampleCoins`): the expectation over `(pk, sk) ← keyGen` of the
@@ -216,19 +214,16 @@ theorem deltaCorrect_zero_of_perfect [Fintype M] [Nonempty M]
       ∀ m, ∀ r ∈ (ProbComp.eval P.sampleCoins).support,
         P.dec sk (P.encDet pk m r) = some m) :
     P.DeltaCorrect 0 := by
-  unfold DeltaCorrect
   have hcongr : P.keyGen.expect (fun (pk, sk) => ENNReal.ofReal (P.keyPairMaxFailProb pk sk)) =
-      P.keyGen.expect (fun _ => 0) := by
-    refine ProbComp.expect_congr_on_support ?_
-    rintro ⟨pk, sk⟩ hkeys
-    rw [← ProbComp.support_eval] at hkeys
-    have hmax : P.keyPairMaxFailProb pk sk = 0 := by
-      apply le_antisymm _ (P.keyPairMaxFailProb_nonneg pk sk)
-      rw [keyPairMaxFailProb, Finset.sup'_le_iff]
-      intro m _
-      exact le_of_eq (P.msgFailProb_eq_zero_of_support pk sk m (hperf pk sk hkeys m))
-    simp [hmax]
-  rw [hcongr, ProbComp.expect_zero, ENNReal.toReal_zero]
+      P.keyGen.expect (fun _ => 0) :=
+    ProbComp.expect_congr_on_support fun ⟨pk, sk⟩ hkeys => by
+      rw [← ProbComp.support_eval] at hkeys
+      have h0 : P.keyPairMaxFailProb pk sk = 0 := le_antisymm
+        (Finset.sup'_le _ _ fun m _ =>
+          (P.msgFailProb_eq_zero_of_support pk sk m (hperf pk sk hkeys m)).le)
+        (P.keyPairMaxFailProb_nonneg pk sk)
+      simp [h0]
+  rw [DeltaCorrect, hcongr, ProbComp.expect_zero, ENNReal.toReal_zero]
 
 /-- **HHK17 `γ`-spreadness** ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §2.1,
 generalized from uniform coins to `sampleCoins`): for every supported key pair

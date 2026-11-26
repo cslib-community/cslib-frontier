@@ -84,16 +84,13 @@ theorem holds_subst {E : Equation} {v : ℕ} {ℓ : Lit} {val : ℕ → Bool}
   split_ifs with hv
   · unfold Holds
     rw [← Finset.add_sum_erase E.terms val hv, h]
-    obtain ⟨a, c⟩ := ℓ
     clear h
-    cases a with
-    | const b =>
-      simp only [Lit.eval, Arg.eval_const]
+    rcases ℓ with ⟨b | t, c⟩
+    · simp only [Lit.eval, Arg.eval_const]
       generalize ∑ i ∈ E.terms.erase v, val i = S
       generalize E.rhs = r
       revert S r b c; decide
-    | node t =>
-      simp only [Lit.eval, Arg.eval_node, sum_symmDiff_singleton]
+    · simp only [Lit.eval, Arg.eval_node, sum_symmDiff_singleton]
       generalize ∑ i ∈ E.terms.erase v, val i = S
       generalize E.rhs = r
       generalize val t = x
@@ -108,9 +105,7 @@ theorem mem_subst_of_ne {E : Equation} {v : ℕ} {ℓ : Lit} {z : ℕ} (hzv : z 
   split_ifs with hv
   · rcases ℓ with ⟨_ | t, c⟩
     · simp [Finset.mem_erase, hzv]
-    · have hzt : z ≠ t := fun h => hzℓ (by simp [h])
-      simp only [mem_symmDiff_singleton, Finset.mem_erase, ne_eq, hzv, not_false_eq_true, true_and]
-      exact ⟨fun h => h.2 hzt, fun h => ⟨fun _ => hzt, fun _ => h⟩⟩
+    · simp [mem_symmDiff_singleton, Finset.mem_erase, hzv, mt (congrArg Arg.node) hzℓ.symm]
   · exact Iff.rfl
 
 /-- Every term of `E.subst v ℓ` either already belongs to `E.terms` or arises from `v ∈ E.terms`
@@ -121,9 +116,8 @@ theorem mem_of_mem_subst {E : Equation} {v : ℕ} {ℓ : Lit} {z : ℕ}
   split_ifs at h with hv
   · rcases ℓ with ⟨_ | t, c⟩
     · exact Or.inl (Finset.mem_of_mem_erase h)
-    · by_cases hzt : z = t
-      · exact Or.inr ⟨hv, by simp [hzt]⟩
-      · exact Or.inl (Finset.mem_of_mem_erase ((mem_symmDiff_singleton.1 h).2 hzt))
+    · exact if hzt : z = t then Or.inr ⟨hv, by simp [hzt]⟩
+      else Or.inl (Finset.mem_of_mem_erase ((mem_symmDiff_singleton.1 h).2 hzt))
   · exact Or.inl h
 
 /-- Rerouting a variable in an equation does not increase the number of terms. -/
@@ -133,46 +127,40 @@ theorem card_subst_le {E : Equation} {v : ℕ} {ℓ : Lit} :
   split_ifs with hv
   · rcases ℓ with ⟨_ | t, c⟩
     · exact Finset.card_erase_le
-    · have h := Finset.card_erase_of_mem hv
-      have hpos : 0 < E.terms.card := Finset.card_pos.2 ⟨v, hv⟩
-      calc (E.terms.erase v ∆ {t}).card ≤ (E.terms.erase v).card + 1 :=
-            card_symmDiff_singleton_le _ _
-        _ = E.terms.card := by omega
+    · calc (E.terms.erase v ∆ {t}).card
+          ≤ (E.terms.erase v).card + 1 := card_symmDiff_singleton_le _ _
+        _ = E.terms.card := Finset.card_erase_add_one hv
   · exact le_rfl
 
 /-- Rerouting `v` to a literal not reading `v` eliminates `v` from the terms of the equation. -/
 theorem notMem_subst {E : Equation} {v : ℕ} {ℓ : Lit} (hℓ : ℓ.arg ≠ .node v) :
     v ∉ (E.subst v ℓ).terms := by
-  intro h
-  unfold subst at h
-  split_ifs at h with hv
+  unfold subst
+  split_ifs with hv
   · rcases ℓ with ⟨_ | t, c⟩
-    · exact Finset.notMem_erase v _ h
-    · have ht : v ≠ t := fun h' => hℓ (by simp [h'])
-      exact Finset.notMem_erase v _ ((mem_symmDiff_singleton.1 h).2 ht)
-  · exact hv h
+    · exact Finset.notMem_erase v _
+    · simp [mem_symmDiff_singleton, mt (congrArg Arg.node) hℓ.symm]
+  · exact hv
 
 /-- Rerouting a variable that does not occur in `E.terms` leaves the equation unchanged. -/
 theorem subst_of_notMem {E : Equation} {v : ℕ} {ℓ : Lit} (h : v ∉ E.terms) : E.subst v ℓ = E := by
-  unfold subst
-  rw [ite_eq_right h]
+  simp [subst, h]
 
 /-- Whether `E` holds depends only on the values assigned to `E.terms`. -/
 theorem holds_congr {E : Equation} {val val' : ℕ → Bool} (h : ∀ i ∈ E.terms, val i = val' i) :
     E.Holds val ↔ E.Holds val' := by
-  unfold Holds
-  rw [Finset.sum_congr rfl h]
+  simp only [Holds, Finset.sum_congr rfl h]
 
 /-- An equation with `v` rerouted to a literal not reading `v` holds exactly when the equation
 holds on the assignment giving `v` the value of the literal. -/
 theorem holds_subst_update {E : Equation} {v : ℕ} {ℓ : Lit} (hℓ : ℓ.arg ≠ .node v)
     (val : ℕ → Bool) : (E.subst v ℓ).Holds val ↔ E.Holds (Function.update val v (ℓ.eval val)) := by
-  have hℓu : ℓ.eval (Function.update val v (ℓ.eval val)) = ℓ.eval val :=
-    Lit.eval_congr fun i hi => Function.update_of_ne (by rintro rfl; exact hℓ hi) _ _
-  rw [← holds_subst (E := E) (show Function.update val v (ℓ.eval val) v = _ by
-    rw [hℓu]; exact Function.update_self _ _ _)]
-  exact holds_congr fun i hi =>
-    (Function.update_of_ne (by rintro rfl; exact notMem_subst hℓ hi) _ _).symm
+  set u := Function.update val v (ℓ.eval val)
+  have hu : u v = ℓ.eval u := (Function.update_self v (ℓ.eval val) val).trans
+    (Lit.eval_congr fun i hi => (Function.update_of_ne (fun h : i = v => hℓ (h ▸ hi)) _ _).symm)
+  exact (holds_congr fun i hi =>
+    (Function.update_of_ne (fun h : i = v => notMem_subst hℓ (h ▸ hi)) _ _).symm).trans
+    (holds_subst hu)
 
 /-- Once `p = r + c`, the equation `v + p + r = rhs` reads `v = rhs + c`. -/
 theorem holds_update_iff {E : Equation} {v p r : ℕ} (hterms : E.terms = {v, p, r})
@@ -220,10 +208,9 @@ theorem mem_addArg {p : Finset ℕ × Bool} {b : Bool} {a : Arg} {z : ℕ}
   · exact Or.inl h
   · cases a with
     | node t =>
-      by_cases hzt : z = t
-      · exact Or.inr (by rw [hzt])
-      · exact Or.inl ((mem_symmDiff_singleton.1 h).2 hzt)
-    | const v => exact Or.inl h
+      exact if hzt : z = t then Or.inr (hzt ▸ rfl)
+        else Or.inl ((mem_symmDiff_singleton.1 h).2 hzt)
+    | const _ => exact Or.inl h
 
 private theorem card_addArg_le (p : Finset ℕ × Bool) (b : Bool) (a : Arg) :
     (addArg p b a).1.card ≤ p.1.card + 1 := by
@@ -246,16 +233,13 @@ def affEqn (g : Gate) (J : ℕ) : Equation :=
 `val J = g.eval val`. -/
 theorem affEqn_holds {g : Gate} (hg : IsAffineOp g.op) (J : ℕ) (val : ℕ → Bool) :
     (affEqn g J).Holds val ↔ val J = g.eval val := by
-  unfold affEqn Equation.Holds
-  dsimp only
-  have h1 := sum_addArg ({J}, g.op false false) (g.op true false ^^ g.op false false) g.left val
-  have h2 := sum_addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)
-    g.left) (g.op false true ^^ g.op false false) g.right val
-  rw [Finset.sum_singleton] at h1
-  dsimp only at h1
-  rw [h1] at h2
-  unfold Gate.eval
+  unfold affEqn Equation.Holds Gate.eval
   unfold IsAffineOp at hg
+  dsimp only
+  have h2 := (sum_addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)
+    g.left) (g.op false true ^^ g.op false false) g.right val).trans (congrArg (fun x => x + _) (by
+      simpa only [Finset.sum_singleton] using
+        sum_addArg ({J}, g.op false false) (g.op true false ^^ g.op false false) g.left val))
   generalize ∑ i ∈ (addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)
     g.left) (g.op false true ^^ g.op false false) g.right).1, val i = s at h2 ⊢
   generalize (addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)
@@ -273,16 +257,12 @@ theorem affEqn_holds {g : Gate} (hg : IsAffineOp g.op) (J : ℕ) (val : ℕ → 
 
 /-- Every term of `affEqn g J` is either the output wire `J` or a node read by `g`. -/
 theorem mem_affEqn {g : Gate} {J z : ℕ} (h : z ∈ (affEqn g J).terms) : z = J ∨ g.Reads z := by
-  unfold affEqn at h
   rcases mem_addArg h with h | h
-  · rcases mem_addArg h with h | h
-    · exact Or.inl (Finset.mem_singleton.1 h)
-    · exact Or.inr (Or.inl h)
+  · exact (mem_addArg h).elim (Or.inl ∘ Finset.mem_singleton.1) (Or.inr ∘ Or.inl)
   · exact Or.inr (Or.inr h)
 
 /-- The equation `affEqn g J` of a binary gate has at most three terms. -/
 theorem card_affEqn_le (g : Gate) (J : ℕ) : (affEqn g J).terms.card ≤ 3 := by
-  unfold affEqn
   have h1 := card_addArg_le ({J}, g.op false false) (g.op true false ^^ g.op false false) g.left
   have h2 := card_addArg_le (addArg ({J}, g.op false false)
     (g.op true false ^^ g.op false false) g.left) (g.op false true ^^ g.op false false) g.right

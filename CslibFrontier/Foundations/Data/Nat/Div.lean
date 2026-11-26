@@ -22,6 +22,7 @@ and exact quotient identities for division by `m` with remainder strictly below 
 
 * `Nat.le_div_pow_of_mul_pow_le`: lower bound on `n / b ^ j` when `a * b ^ d ≤ n` and `j ≤ d`.
 * `Nat.mul_div_pow_succ_le`: `b * (n / b ^ (j + 1)) ≤ n / b ^ j`.
+* `Nat.mul_div_le_mul_of_le_mul`: a bound `c ≤ L * d` gives `c * (v / d) ≤ L * v`.
 * `Nat.mul_add_div_of_lt`, `Nat.add_mul_div_of_lt`: dividing `k * m + i` or `i + k * m` by `m`
   when `i < m` yields `k`.
 * `Nat.mul_add_div_fin`: the same for `i : Fin m`.
@@ -36,6 +37,13 @@ and exact quotient identities for division by `m` with remainder strictly below 
 public section
 
 namespace Nat
+
+/-- A coefficient bounded by `L * d` gives `c * (v / d) ≤ L * v`, including a zero divisor. -/
+theorem mul_div_le_mul_of_le_mul {c L d : ℕ} (v : ℕ) (h : c ≤ L * d) :
+    c * (v / d) ≤ L * v :=
+  calc c * (v / d) ≤ L * d * (v / d) := Nat.mul_le_mul_right _ h
+    _ = L * (d * (v / d)) := Nat.mul_assoc _ _ _
+    _ ≤ L * v := Nat.mul_le_mul_left _ (Nat.mul_div_le v d)
 
 /-- If `a b ^ d ≤ n`, then `a ≤ n / b ^ j` for every `j ≤ d`. -/
 theorem le_div_pow_of_mul_pow_le {a b d j n : ℕ} (hb : 0 < b) (hj : j ≤ d) (h : a * b ^ d ≤ n) :

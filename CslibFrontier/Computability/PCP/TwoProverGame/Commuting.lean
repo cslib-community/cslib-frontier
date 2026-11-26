@@ -118,9 +118,7 @@ def swap (S : CommutingStrategy X Y A B 𝒜) : CommutingStrategy Y X B A 𝒜 w
 
 @[simp] theorem prob_swap (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) (a : A) (b : B) :
     S.swap.prob y x b a = S.prob x y a b := by
-  unfold prob
-  rw [(S.commute x y a b).eq]
-  rfl
+  simp [prob, swap, (S.commute x y a b).eq]
 
 theorem sum_prob (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
     ∑ a, ∑ b, S.prob x y a b = 1 :=
@@ -181,22 +179,15 @@ theorem sum_ite_prob_map {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
       S.prob (questionAlice x) (questionBob y) a b else 0 := by
   conv_rhs => rw [← sum_fiberwise univ (answerAlice x)]
   refine sum_congr rfl fun a _ => ?_
-  have hrow (a' : A) :
-      (∑ b', if accepts (answerAlice x a') (answerBob y b') then
-        S.prob (questionAlice x) (questionBob y) a' b' else 0) =
-      ∑ b, ∑ b' with answerBob y b' = b,
-        if accepts (answerAlice x a') (answerBob y b') then
-          S.prob (questionAlice x) (questionBob y) a' b' else 0 :=
-    (sum_fiberwise univ (answerBob y) _).symm
-  simp_rw [hrow]
+  simp_rw [← sum_fiberwise univ (answerBob y)]
   rw [sum_comm]
   refine sum_congr rfl fun b _ => ?_
   rw [prob_map]
   trans ∑ a' with answerAlice x a' = a, ∑ b' with answerBob y b' = b,
     if accepts a b then S.prob (questionAlice x) (questionBob y) a' b' else 0
   · split_ifs <;> simp
-  refine sum_congr rfl fun a' ha => sum_congr rfl fun b' hb => ?_
-  rw [(mem_filter.mp ha).2, (mem_filter.mp hb).2]
+  exact sum_congr rfl fun a' ha => sum_congr rfl fun b' hb => by
+    rw [(mem_filter.mp ha).2, (mem_filter.mp hb).2]
 
 end Ring
 
@@ -241,23 +232,17 @@ theorem answers_relabel {X' Y' A' B' : Type*} [Fintype A'] [Fintype B']
   rw [Finset.sum_comm]
   refine sum_congr rfl fun a' _ => sum_congr rfl fun b' _ => ?_
   rw [answers_apply, ENNReal.toReal_ofReal (S.prob_nonneg (qx x) (qy y) a' b')]
-  simp only [prob, show (fa a' = a) ↔ (a = fa a') from eq_comm,
-    show (fb b' = b) ↔ (b = fb b') from eq_comm]
-  by_cases ha : a = fa a' <;> by_cases hb : b = fb b' <;> simp_all
+  by_cases ha : a = fa a' <;> by_cases hb : b = fb b' <;> simp_all [prob, eq_comm]
 
 /-- Alice's answer marginal is her measurement law and is independent of Bob's question. -/
 theorem answers_map_fst (S : CommutingStrategy X Y A B 𝒜) (x : X) (y : Y) :
     (S.answers x y).map Prod.fst = (S.alice x).distribution S.state := by
   classical
   ext a
-  rw [PMF.map_apply, tsum_fintype, Fintype.sum_prod_type, Measurement.distribution_apply]
-  have h (b : B) :
-      (∑ a', if a = a' then S.answers x y (a', b) else 0) =
-        ENNReal.ofReal (S.prob x y a b) := by
-    simp only [Finset.sum_ite_eq, Finset.mem_univ, ite_true, S.answers_apply]
-  rw [Finset.sum_comm]
-  change (∑ b : B, ∑ a' : A, if a = a' then S.answers x y (a', b) else 0) = _
-  simp only [h, ← ENNReal.ofReal_sum_of_nonneg (fun b _ => S.prob_nonneg x y a b)]
+  rw [PMF.map_apply, tsum_fintype, Fintype.sum_prod_type, Measurement.distribution_apply,
+    Finset.sum_comm]
+  simp only [Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte, S.answers_apply,
+    ← ENNReal.ofReal_sum_of_nonneg fun b _ => S.prob_nonneg x y a b]
   simp only [prob, ← Complex.re_sum, ← map_sum, ← Finset.mul_sum, (S.bob y).sum_effect,
     mul_one, Measurement.prob]
 
@@ -322,33 +307,25 @@ theorem sum_ite_prob_eq (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool)
     ∑ γ, ∑ r, (if γ = g r then S.prob x y γ r else 0) =
       (1 + (S.state ((S.alice x).observable * ((S.bob y).map g).observable)).re) / 2 := by
   classical
-  have h : ∀ γ, ∑ r, (if γ = g r then S.prob x y γ r else 0) =
+  have h (γ : Bool) : ∑ r, (if γ = g r then S.prob x y γ r else 0) =
       (S.state ((S.alice x).effect γ * ((S.bob y).map g).effect γ)).re := by
-    intro γ
     rw [Measurement.map_effect, mul_sum, map_sum, Complex.re_sum, sum_filter]
-    refine sum_congr rfl fun r _ => ?_
-    simp only [prob, eq_comm]
-  simp only [h, Fintype.sum_bool]
+    exact sum_congr rfl fun r _ => by simp only [prob, eq_comm]
+  simp only [h, Fintype.sum_bool, Measurement.observable]
   set s := (S.alice x).effect false
   set t := (S.alice x).effect true
   set u := ((S.bob y).map g).effect false
   set v := ((S.bob y).map g).effect true
-  have hst : t = 1 - s := by
-    have := (S.alice x).sum_effect
-    rw [Fintype.sum_bool] at this
-    exact eq_sub_of_add_eq this
-  have huv : v = 1 - u := by
-    have := ((S.bob y).map g).sum_effect
-    rw [Fintype.sum_bool] at this
-    exact eq_sub_of_add_eq this
-  have key : 1 + (s - t) * (u - v) = (t * v + s * u) + (t * v + s * u) := by
-    rw [hst, huv]; noncomm_ring
-  rw [Measurement.observable, Measurement.observable, ← Complex.add_re, ← map_add]
-  change _ = (1 + (S.state ((s - t) * (u - v))).re) / 2
-  have h1 : (1 : ℝ) = (S.state 1).re := by rw [S.state.map_one, Complex.one_re]
-  rw [h1, ← Complex.add_re, ← map_add, key]
-  simp only [map_add, Complex.add_re]
-  ring
+  have hst : t = 1 - s :=
+    eq_sub_of_add_eq (by simpa [Fintype.sum_bool] using (S.alice x).sum_effect)
+  have huv : v = 1 - u :=
+    eq_sub_of_add_eq (by simpa [Fintype.sum_bool] using ((S.bob y).map g).sum_effect)
+  have hring : 1 + (s - t) * (u - v) = (s * u + t * v) + (s * u + t * v) := by
+    rw [hst, huv]
+    noncomm_ring
+  have hre := congrArg (fun a => (S.state a).re) hring
+  simp only [map_add, S.state.map_one, Complex.add_re, Complex.one_re] at hre
+  linarith
 
 end Correlation
 
@@ -389,16 +366,13 @@ theorem commutingWinProb_chsh (S : CommutingStrategy Bool Bool Bool Bool 𝒜) :
   simp only [chsh_questions_apply, Fintype.sum_bool]
   simp only [chsh, Bool.xor_true, Bool.xor_false, Bool.not_true, Bool.not_false, Bool.and_true,
     Bool.and_false, Bool.true_eq_false, Bool.false_eq_true, ite_true, ite_false]
-  have h1 := S.correlation_eq false false
-  have h2 := S.correlation_eq false true
-  have h3 := S.correlation_eq true false
-  have h4 := S.correlation_eq true true
   have h5 := S.sum_prob false false
   have h6 := S.sum_prob false true
   have h7 := S.sum_prob true false
   have h8 := S.sum_prob true true
   simp only [Fintype.sum_bool] at h5 h6 h7 h8
-  linarith
+  linarith [S.correlation_eq false false, S.correlation_eq false true,
+    S.correlation_eq true false, S.correlation_eq true true]
 
 variable [StarModule ℂ 𝒜] [SelfAdjointDecompose 𝒜]
 
@@ -407,12 +381,11 @@ theorem _root_.Cslib.PCP.CommutingStrategy.chsh_correlation_le
     (S : CommutingStrategy X Y Bool Bool 𝒜) (x₀ x₁ : X) (y₀ y₁ : Y) :
     S.correlation x₀ y₀ + S.correlation x₀ y₁ + S.correlation x₁ y₀ - S.correlation x₁ y₁ ≤
       2 * √2 := by
-  have h := S.state.re_chsh_le ((S.alice x₀).isSelfAdjoint_observable)
-    ((S.alice x₁).isSelfAdjoint_observable) ((S.alice x₀).star_observable_mul_self_le_one)
-    ((S.alice x₁).star_observable_mul_self_le_one) ((S.bob y₀).star_observable_mul_self_le_one)
-    ((S.bob y₁).star_observable_mul_self_le_one)
   simpa only [CommutingStrategy.correlation, map_add, map_sub, Complex.add_re,
-    Complex.sub_re] using h
+    Complex.sub_re] using S.state.re_chsh_le (S.alice x₀).isSelfAdjoint_observable
+      (S.alice x₁).isSelfAdjoint_observable (S.alice x₀).star_observable_mul_self_le_one
+      (S.alice x₁).star_observable_mul_self_le_one (S.bob y₀).star_observable_mul_self_le_one
+      (S.bob y₁).star_observable_mul_self_le_one
 
 /-- **Tsirelson's bound** in the commuting-operator model: every commuting-operator strategy wins
 CHSH with probability at most `cos²(π/8)`. -/
@@ -509,8 +482,7 @@ theorem prob_toCommuting_swap_of_symmetric {Q C J : Type*}
     (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a))
     (x y : Q) (a b : C) :
     S.toCommuting.prob y x b a = S.toCommuting.prob x y a b := by
-  rw [prob_toCommuting, prob_toCommuting]
-  simp only [prob_eq, hM]
+  simp only [prob_toCommuting, prob_eq, hM]
   exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
     ((S.alice y).effect b) ((S.alice x).effect a))
 
@@ -528,9 +500,7 @@ commuting-operator form win with the same probability. -/
 theorem commutingWinProb_toCommuting (S : QuantumStrategy X Y A B ι κ) :
     G.commutingWinProb S.toCommuting = G.quantumWinProb S := by
   rw [commutingWinProb, quantumWinProb]
-  congr 1
-  funext x y
-  exact QuantumStrategy.answers_toCommuting S x y
+  exact congrArg G.answersWinProb (funext fun x => funext (QuantumStrategy.answers_toCommuting S x))
 
 /-- Exchanging the players of a symmetric tensor strategy preserves its score in
 any game with the same question and answer alphabets on both sides. -/
@@ -539,11 +509,9 @@ theorem commutingWinProb_swap_of_symmetric {Q C J : Type*}
     (G : TwoProverGame Q Q C C) (S : QuantumStrategy Q Q C C J J)
     (hM : S.bob = S.alice) (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a)) :
     G.commutingWinProb S.toCommuting.swap = G.commutingWinProb S.toCommuting := by
-  classical
-  unfold commutingWinProb
+  rw [commutingWinProb, commutingWinProb]
   congr 1
-  funext x y
-  ext ⟨a, b⟩
+  ext x y ⟨a, b⟩
   simp only [CommutingStrategy.answers_apply, CommutingStrategy.prob_swap,
     S.prob_toCommuting_swap_of_symmetric hM hψ x y a b]
 

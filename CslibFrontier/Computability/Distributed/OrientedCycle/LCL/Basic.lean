@@ -199,17 +199,13 @@ theorem logStar_le (hR : ∀ a, ¬R a a) (hA : A.SolvesLCL R n t) :
 (`Algorithm.solvesLCL_const`). -/
 theorem exists_loop (hA : A.SolvesLCL R n t)
     (ht : 2 * t + Nat.logStar (Fintype.card L) < Nat.logStar n) : ∃ a, R a a := by
-  by_contra h
-  push Not at h
-  exact absurd (hA.logStar_le h) (by omega)
+  by_contra! h
+  exact (hA.logStar_le h).not_gt ht
 
 /-- A 0-round algorithm solving `R` on a cycle with more than `|L|` nodes forces a loop. -/
 theorem exists_loop_of_zero (hA : A.SolvesLCL R n 0) (hn : Fintype.card L < n) : ∃ a, R a a := by
-  by_contra h
-  push Not at h
-  have := hA.le_iterate h
-  rw [Nat.mul_zero, Function.iterate_zero, id_eq] at this
-  omega
+  by_contra! h
+  exact (hA.le_iterate h).not_gt hn
 
 end Algorithm.SolvesLCL
 

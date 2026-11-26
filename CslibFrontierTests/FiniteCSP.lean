@@ -104,35 +104,38 @@ example : (triangleCSP.toBoolean 3 3).numVars ≤ 3 * CSP.bitWidth 3 :=
 
 -- Polynomial-time compilation and compiled encoding length bound
 example :
-    ComputableInPolyTime (fun x : ℕ × CSP Unit ℕ => x.2.toBoolean 3 x.1)
-      (encPair encUnary (encCSP encUnit encNat))
+    ComputableInPolyTime (fun x : DeclaredCSP Unit => x.formula.toBoolean 3 x.numVars)
+      (encDeclaredCSP encUnit)
       (encCSP (encOption encUnit) encNat) :=
   CSP.computableInPolyTime_toBoolean encUnit 3
 
 example :
     ComputableInPolyTime
-      (fun x : ℕ × CSP Unit ℕ => (x.1 * CSP.bitWidth 3, x.2.toBoolean 3 x.1))
-      (encPair encUnary (encCSP encUnit encNat))
-      (encPair encUnary (encCSP (encOption encUnit) encNat)) :=
+      (fun x : DeclaredCSP Unit =>
+        { numVars := x.numVars * CSP.bitWidth 3
+          formula := x.formula.toBoolean 3 x.numVars : DeclaredCSP (Option Unit) })
+      (encDeclaredCSP encUnit)
+      (encDeclaredCSP (encOption encUnit)) :=
   CSP.computableInPolyTime_toBooleanDeclared encUnit 3
 
 example :
     PolyBounded
-      (fun x : ℕ × CSP Unit ℕ => (encPair encUnary (encCSP encUnit encNat) x).length)
-      (fun x : ℕ × CSP Unit ℕ =>
-        (encPair encUnary (encCSP (encOption encUnit) encNat)
-          (x.1 * CSP.bitWidth 3, x.2.toBoolean 3 x.1)).length) :=
+      (fun x : DeclaredCSP Unit => (encDeclaredCSP encUnit x).length)
+      (fun x : DeclaredCSP Unit =>
+        (encDeclaredCSP (encOption encUnit)
+          { numVars := x.numVars * CSP.bitWidth 3
+            formula := x.formula.toBoolean 3 x.numVars }).length) :=
   CSP.polyBounded_length_toBooleanDeclared encUnit 3
 
 -- Native declared-variable exact counting on `Fin 3` (graph 3-coloring)
 example :
-    ∃ (count : ℕ × CSP Unit ℕ → ℕ) (T S : ℕ × CSP Unit ℕ → ℕ) (A c e a b_space : ℕ),
-      ComputableInO count (encPair encUnary (encCSP encUnit encNat)) encNat T S ∧
-      (∀ x, count x = if CSP.validDeclaredCSP 2 x.1 x.2 then
-        x.2.modelCountOn (semNeq 3) (Finset.range x.1) else 0) ∧
-      (∀ x, (T x : ℝ) ≤ c * ((2 : ℝ) ^ ((A : ℝ) * interpolationScale x.1) *
-        (((encPair encUnary (encCSP encUnit encNat) x).length : ℝ) + 1) ^ e) + c) ∧
-      (∀ x, S x ≤ a * ((encPair encUnary (encCSP encUnit encNat) x).length + 1) ^ b_space) :=
+    ∃ (count : DeclaredCSP Unit → ℕ) (T S : DeclaredCSP Unit → ℕ) (A c e a b_space : ℕ),
+      ComputableInO count (encDeclaredCSP encUnit) encNat T S ∧
+      (∀ x, count x = if CSP.validDeclaredCSP 2 x.numVars x.formula then
+        x.formula.modelCountOn (semNeq 3) (Finset.range x.numVars) else 0) ∧
+      (∀ x, (T x : ℝ) ≤ c * ((2 : ℝ) ^ ((A : ℝ) * interpolationScale x.numVars) *
+        (((encDeclaredCSP encUnit x).length : ℝ) + 1) ^ e) + c) ∧
+      (∀ x, S x ≤ a * ((encDeclaredCSP encUnit x).length + 1) ^ b_space) :=
   CSP.exists_declaredCounter_finiteDomain encUnit 3 2 (semNeq 3)
 
 -- Native occurring-variable exact counting on `Fin 3`

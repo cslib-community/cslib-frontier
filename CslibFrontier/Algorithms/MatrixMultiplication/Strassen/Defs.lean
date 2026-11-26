@@ -82,56 +82,42 @@ theorem multiply_natAbs_le {p A B : ℕ} (k : ℕ) (a b : ℕ → ℤ)
       have hp : 0 < p := by by_contra hc; simp [Nat.eq_zero_of_not_pos hc] at hi
       exact Nat.mul_pos (by positivity) hp
     have hs : 4 ^ (k + 1) * p = 4 * q := by dsimp [q]; rw [pow_succ]; ring
-    have hqa (t : ℕ) (ht : t < 4) (j : ℕ) (hj : j < q) :
-        (quarter q t a j).natAbs ≤ A := quarter_natAbs_le (by simpa only [← hs] using ha) ht hj
-    have hqb (t : ℕ) (ht : t < 4) (j : ℕ) (hj : j < q) :
-        (quarter q t b j).natAbs ≤ B := quarter_natAbs_le (by simpa only [← hs] using hb) ht hj
-    have hchild (u v : ℕ → ℤ)
-        (hu : ∀ j < q, (u j).natAbs ≤ 2 * A)
-        (hv : ∀ j < q, (v j).natAbs ≤ 2 * B) :
+    have ha' : ∀ j < 4 * q, (a j).natAbs ≤ A := by simpa only [← hs] using ha
+    have hb' : ∀ j < 4 * q, (b j).natAbs ≤ B := by simpa only [← hs] using hb
+    have hchild {u v : ℕ → ℤ}
+        (hu : ∀ j < q, (u j).natAbs ≤ 2 * A) (hv : ∀ j < q, (v j).natAbs ≤ 2 * B) :
         (multiply p k u v (i % q)).natAbs ≤ p * ((2 * A) * (2 * B)) * 16 ^ k :=
       ih u v hu hv (Nat.mod_lt _ hq)
-    have ha₀ (j : ℕ) (hj : j < q) := hqa 0 (by decide) j hj
-    have ha₁ (j : ℕ) (hj : j < q) := hqa 1 (by decide) j hj
-    have ha₂ (j : ℕ) (hj : j < q) := hqa 2 (by decide) j hj
-    have ha₃ (j : ℕ) (hj : j < q) := hqa 3 (by decide) j hj
-    have hb₀ (j : ℕ) (hj : j < q) := hqb 0 (by decide) j hj
-    have hb₁ (j : ℕ) (hj : j < q) := hqb 1 (by decide) j hj
-    have hb₂ (j : ℕ) (hj : j < q) := hqb 2 (by decide) j hj
-    have hb₃ (j : ℕ) (hj : j < q) := hqb 3 (by decide) j hj
-    have hsum {C : ℕ} {u v : ℤ} (hu : u.natAbs ≤ C) (hv : v.natAbs ≤ C) :
-        (u + v).natAbs ≤ 2 * C := (Int.natAbs_add_le _ _).trans (by omega)
-    have hsub {C : ℕ} {u v : ℤ} (hu : u.natAbs ≤ C) (hv : v.natAbs ≤ C) :
-        (u - v).natAbs ≤ 2 * C := (Int.natAbs_sub_le _ _).trans (by omega)
-    have h₁ := hchild (quarter q 0 a + quarter q 3 a) (quarter q 0 b + quarter q 3 b)
-      (fun j hj => hsum (ha₀ j hj) (ha₃ j hj)) (fun j hj => hsum (hb₀ j hj) (hb₃ j hj))
-    have h₂ := hchild (quarter q 2 a + quarter q 3 a) (quarter q 0 b)
-      (fun j hj => hsum (ha₂ j hj) (ha₃ j hj)) (fun j hj => (hb₀ j hj).trans (by omega))
-    have h₃ := hchild (quarter q 0 a) (quarter q 1 b - quarter q 3 b)
-      (fun j hj => (ha₀ j hj).trans (by omega)) (fun j hj => hsub (hb₁ j hj) (hb₃ j hj))
-    have h₄ := hchild (quarter q 3 a) (quarter q 2 b - quarter q 0 b)
-      (fun j hj => (ha₃ j hj).trans (by omega)) (fun j hj => hsub (hb₂ j hj) (hb₀ j hj))
-    have h₅ := hchild (quarter q 0 a + quarter q 1 a) (quarter q 3 b)
-      (fun j hj => hsum (ha₀ j hj) (ha₁ j hj)) (fun j hj => (hb₃ j hj).trans (by omega))
-    have h₆ := hchild (quarter q 2 a - quarter q 0 a) (quarter q 0 b + quarter q 1 b)
-      (fun j hj => hsub (ha₂ j hj) (ha₀ j hj)) (fun j hj => hsum (hb₀ j hj) (hb₁ j hj))
-    have h₇ := hchild (quarter q 1 a - quarter q 3 a) (quarter q 2 b + quarter q 3 b)
-      (fun j hj => hsub (ha₁ j hj) (ha₃ j hj)) (fun j hj => hsum (hb₂ j hj) (hb₃ j hj))
+    have hq1 {C : ℕ} {x : ℕ → ℤ} (hx : ∀ j < 4 * q, (x j).natAbs ≤ C)
+        (t : ℕ) (ht : t < 4 := by decide) : ∀ j < q, (quarter q t x j).natAbs ≤ 2 * C :=
+      fun j hj => (quarter_natAbs_le hx ht hj).trans (by omega)
+    have hadd {u v : ℤ} {c₁ c₂ : ℕ} (hu : u.natAbs ≤ c₁) (hv : v.natAbs ≤ c₂) :
+        (u + v).natAbs ≤ c₁ + c₂ := (Int.natAbs_add_le _ _).trans (Nat.add_le_add hu hv)
+    have hsub {u v : ℤ} {c₁ c₂ : ℕ} (hu : u.natAbs ≤ c₁) (hv : v.natAbs ≤ c₂) :
+        (u - v).natAbs ≤ c₁ + c₂ := (Int.natAbs_sub_le _ _).trans (Nat.add_le_add hu hv)
+    have hqAdd {C : ℕ} {x : ℕ → ℤ} (hx : ∀ j < 4 * q, (x j).natAbs ≤ C)
+        (t₁ t₂ : ℕ) (h₁ : t₁ < 4 := by decide) (h₂ : t₂ < 4 := by decide) :
+        ∀ j < q, ((quarter q t₁ x + quarter q t₂ x) j).natAbs ≤ 2 * C := fun j hj =>
+      (hadd (quarter_natAbs_le hx h₁ hj) (quarter_natAbs_le hx h₂ hj)).trans_eq (Nat.two_mul C).symm
+    have hqSub {C : ℕ} {x : ℕ → ℤ} (hx : ∀ j < 4 * q, (x j).natAbs ≤ C)
+        (t₁ t₂ : ℕ) (h₁ : t₁ < 4 := by decide) (h₂ : t₂ < 4 := by decide) :
+        ∀ j < q, ((quarter q t₁ x - quarter q t₂ x) j).natAbs ≤ 2 * C := fun j hj =>
+      (hsub (quarter_natAbs_le hx h₁ hj) (quarter_natAbs_le hx h₂ hj)).trans_eq (Nat.two_mul C).symm
+    have h₁ := hchild (hqAdd ha' 0 3) (hqAdd hb' 0 3)
+    have h₂ := hchild (hqAdd ha' 2 3) (hq1 hb' 0)
+    have h₃ := hchild (hq1 ha' 0) (hqSub hb' 1 3)
+    have h₄ := hchild (hq1 ha' 3) (hqSub hb' 2 0)
+    have h₅ := hchild (hqAdd ha' 0 1) (hq1 hb' 3)
+    have h₆ := hchild (hqSub ha' 2 0) (hqAdd hb' 0 1)
+    have h₇ := hchild (hqSub ha' 1 3) (hqAdd hb' 2 3)
     have hqeq : 4 ^ k * p = q := rfl
-    simp only [multiply, hqeq, assemble, Pi.add_apply, Pi.sub_apply]
-    split <;>
-      have htotal : p * (A * B) * 16 ^ (k + 1) =
+    have htotal : p * (A * B) * 16 ^ (k + 1) =
         4 * (p * ((2 * A) * (2 * B)) * 16 ^ k) := by rw [pow_succ]; ring
-    all_goals rw [htotal]
-    · exact ((Int.natAbs_add_le _ _).trans
-        (Nat.add_le_add ((Int.natAbs_sub_le _ _).trans
-          (Nat.add_le_add ((Int.natAbs_add_le _ _).trans (Nat.add_le_add h₁ h₄)) h₅)) h₇)).trans
-        (by omega)
-    · exact (Int.natAbs_add_le _ _).trans ((Nat.add_le_add h₃ h₅).trans (by omega))
-    · exact (Int.natAbs_add_le _ _).trans ((Nat.add_le_add h₂ h₄).trans (by omega))
-    · exact ((Int.natAbs_add_le _ _).trans
-        (Nat.add_le_add ((Int.natAbs_add_le _ _).trans
-          (Nat.add_le_add ((Int.natAbs_sub_le _ _).trans (Nat.add_le_add h₁ h₂)) h₃)) h₆)).trans
-        (by omega)
+    simp only [multiply, hqeq, assemble, Pi.add_apply, Pi.sub_apply, htotal]
+    split
+    · exact (hadd (hsub (hadd h₁ h₄) h₅) h₇).trans (by omega)
+    · exact (hadd h₃ h₅).trans (by omega)
+    · exact (hadd h₂ h₄).trans (by omega)
+    · exact (hadd (hadd (hsub h₁ h₂) h₃) h₆).trans (by omega)
 
 end Cslib.Algorithms.MatrixMultiplication.Strassen

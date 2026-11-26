@@ -285,17 +285,14 @@ Section 15.7, Definition 15.13 and Remark 15.13, pp. 659, 661). -/
 theorem cleartext_correct (F : Functionality Fn M Y) : (cleartext F).Correct F := by
   intro keys _ f m y hy sk hsk c hc
   simp only [cleartext, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hsk hc
-  subst hsk hc
-  exact hy
+  exact hsk ▸ hc ▸ hy
 
 /-- The cleartext scheme `cleartext F` is robust for every functionality `F` ([BonehShoup2023],
 Section 15.7, Definition 15.15 and Remark 15.13, p. 661). -/
 theorem cleartext_robust (F : Functionality Fn M Y) : (cleartext F).Robust F := by
-  intro keys _ c
-  refine ⟨c, fun f sk hsk y hy y' hy' => ?_⟩
+  refine fun keys _ c => ⟨c, fun f sk hsk y hy y' hy' => ?_⟩
   simp only [cleartext, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hsk
-  subst hsk
-  exact Option.some.inj (hy.symm.trans hy')
+  exact Option.some.inj ((hsk ▸ hy : F.eval f c = some y).symm.trans hy')
 
 /-! ### Example 15.1: public-key encryption -/
 
@@ -362,20 +359,15 @@ theorem toFE_correct_iff (E : PKE PK SK M C) (len : M → L) (leak : C → L) :
       E.Correct ∧ ∀ keys ∈ (ProbComp.eval E.keyGen).support, ∀ m,
         ∀ c ∈ (ProbComp.eval (E.encrypt keys.1 m)).support, leak c = len m := by
   refine ⟨fun h => ⟨fun keys hkeys m c hc => ?_, fun keys hkeys m c hc => ?_⟩, ?_⟩
-  · have := h keys hkeys (some ()) m (Sum.inl m) rfl (some keys.2) (by simp [toFE]) c hc
-    simpa [toFE] using this
-  · have := h keys hkeys none m (Sum.inr (len m)) rfl none (by simp [toFE]) c hc
-    simpa [toFE] using this
+  · simpa [toFE] using
+      h keys hkeys (some ()) m (Sum.inl m) rfl (some keys.2) (by simp [toFE]) c hc
+  · simpa [toFE] using
+      h keys hkeys none m (Sum.inr (len m)) rfl none (by simp [toFE]) c hc
   · rintro ⟨hE, hleak⟩ keys hkeys f m y hy sk hsk c hc
     simp only [toFE, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hsk
     subst hsk
-    cases f with
-    | none =>
-      simp only [FE.Functionality.pke, Option.some.injEq] at hy
-      simp [toFE, ← hy, hleak keys hkeys m c hc]
-    | some _ =>
-      simp only [FE.Functionality.pke, Option.some.injEq] at hy
-      simp [toFE, ← hy, hE keys hkeys m c hc]
+    cases f <;> simp only [FE.Functionality.pke, Option.some.injEq] at hy <;>
+      simp [toFE, ← hy, hE keys hkeys m c hc, hleak keys hkeys m c hc]
 
 /-- Played against an adversary `FE.Adversary.ofTwoStage A` that makes no key-generation queries,
 Attack Game 15.9 for `E.toFE leak` and `FE.Functionality.pke len` has the same output distribution
@@ -393,9 +385,7 @@ theorem eval_ssExperiment_toFE_ofTwoStage [DecidableEq M] [DecidableEq L] (E : P
     ProbComp.eval_map, PMF.pure_bind, PMF.bind_map, Function.comp_def]
   refine congrArg _ (funext fun keys => congrArg _ (funext fun out => ?_))
   obtain ⟨pair, state⟩ := out
-  by_cases h : len pair.msg₀ = len pair.msg₁
-  · simp [FE.Functionality.admissible, h]
-  · simp [FE.Functionality.admissible, h]
+  by_cases h : len pair.msg₀ = len pair.msg₁ <;> simp [FE.Functionality.admissible, h]
 
 end PKE
 

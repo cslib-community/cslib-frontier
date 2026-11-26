@@ -115,12 +115,8 @@ private theorem measurePreserving_replaceOne (D : Measure Z) [IsProbabilityMeasu
   -- `replaceOne i ∘ π = π ∘ swapSamples (indicator of i)`.
   have hcomm : replaceOne i ∘ π = π ∘ PACLearning.swapSamples (fun j => decide (j = i)) := by
     funext q
-    refine Prod.ext (funext fun j => ?_) ?_
-    · by_cases hj : j = i
-      · subst hj
-        simp [π, replaceOne]
-      · simp [π, replaceOne, hj]
-    · simp [π, replaceOne]
+    refine Prod.ext (funext fun j => ?_) (by simp [π, replaceOne])
+    rcases eq_or_ne j i with rfl | hj <;> simp [π, replaceOne, *]
   refine ⟨measurable_replaceOne i, ?_⟩
   calc Measure.map (replaceOne i) (μ.prod D)
       = Measure.map (replaceOne i) (Measure.map π (μ.prod μ)) := by rw [hπ.map_eq]
@@ -185,8 +181,7 @@ theorem integral_trueRisk_sub_empiricalRisk (ℓ : W → Z → ℝ) (D : Measure
   have htrue : ∫ S, trueRisk ℓ D (A S) ∂μ = ∫ p, ℓ (A p.1) p.2 ∂(μ.prod D) := by
     simp only [trueRisk_def]
     exact (integral_prod _ hint).symm
-  have htrue_int : Integrable (fun S => trueRisk ℓ D (A S)) μ := integrable_trueRisk_comp hint
-  rw [integral_sub htrue_int (integrable_empiricalRisk_comp ℓ μ A hint'),
+  rw [integral_sub (integrable_trueRisk_comp hint) (integrable_empiricalRisk_comp ℓ μ A hint'),
     htrue, integral_empiricalRisk_comp ℓ μ A hint', replaceOneGap_def]
   calc ∫ p, ℓ (A p.1) p.2 ∂(μ.prod D) - 𝔼 i, ∫ S, ℓ (A S) (S i) ∂μ
       = 𝔼 i, (∫ p, ℓ (A p.1) p.2 ∂(μ.prod D) - ∫ S, ℓ (A S) (S i) ∂μ) := by
@@ -228,9 +223,7 @@ theorem integral_trueRisk_le_of_replaceOneGap_le {ℓ : W → Z → ℝ} {m : �
     ∫ S, trueRisk ℓ D (A S) ∂(Measure.pi fun _ : Fin m => D) ≤
       ∫ S, empiricalRisk ℓ S (A S) ∂(Measure.pi fun _ : Fin m => D) + ε := by
   have h := integral_trueRisk_sub_empiricalRisk ℓ D hm A hint hint'
-  have htrue_int : Integrable (fun S => trueRisk ℓ D (A S)) (Measure.pi fun _ : Fin m => D) :=
-    integrable_trueRisk_comp hint
-  rw [integral_sub htrue_int (integrable_empiricalRisk_comp ℓ _ A hint')] at h
+  rw [integral_sub (integrable_trueRisk_comp hint) (integrable_empiricalRisk_comp ℓ _ A hint')] at h
   linarith
 
 /-- **Stable rules do not overfit** [ShalevShwartzBenDavid2014, Theorem 13.2 and Definition 13.3]:

@@ -98,17 +98,11 @@ theorem runWith_controller {a b m r : ℕ} {κ State Operation : Type}
   | nil => simp [controller, toCircuit, Circuit.matrix_nil]
   | cons code codes ih =>
     rw [controller, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-      deviceWordHandler_encode]
-    have hstep : deviceHandler H service code.deviceRequest s =
-        PMF.pure ([], s.instruction H code) := by
-      cases code
-      · exact deviceHandler_gate _ _ _ _
-      · exact deviceHandler_query _ _ _
-    rw [hstep, PMF.pure_bind, ih, DeviceState.instruction_eq_evolve,
-      ← DeviceState.evolve_mul]
-    have heq : toCircuit m H (code :: codes) =
-        toCircuit m H [code] ++ toCircuit m H codes := toCircuit_append H [code] codes
-    rw [heq, Circuit.matrix_append]
+      deviceWordHandler_encode, ← List.singleton_append, toCircuit_append H [code] codes,
+      Circuit.matrix_append, DeviceState.evolve_mul]
+    cases code <;>
+      simp [OracleGateCode.deviceRequest, deviceHandler_gate, deviceHandler_query, ih,
+        DeviceState.instruction_eq_evolve]
 
 end OracleCircuit
 

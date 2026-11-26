@@ -68,11 +68,8 @@ private theorem outer_list {L m : ℕ} (w : OutStr L) (h : (innerSetO w).card = 
     (Finset.card_compl_of_card_eq _ h) (fun i => (f (w i)).val),
     Finset.sort_eq_filter_finRange,
     List.ofFn_eq_map, List.filter_map, List.map_map]
-  have hp : (fun i : Fin L => decide (¬(w i).IsInner)) =
-      (fun i => decide (i ∈ (innerSetO w)ᶜ)) := by
-    funext i
-    simp [innerSetO]
-  simp only [Function.comp_def, hp]
+  simp only [Function.comp_def, innerSetO, Finset.mem_compl, Finset.mem_filter, Finset.mem_univ,
+    true_and]
 
 /-- A packed mask and the ordered outer coordinates recover every original output code. -/
 theorem pack_queryIndex {L m : ℕ} (w : OutStr L) (h : (innerSetO w).card = m) :
@@ -89,13 +86,11 @@ theorem pack_queryIndex {L m : ℕ} (w : OutStr L) (h : (innerSetO w).card = m) 
         by_cases hi : (w i).IsInner <;> simp [innerSetO, hi]
       _ = _ := Nat.ofDigits_finFunctionFinEquiv _
   have hr : Nat.ofDigits 3 (((List.ofFn w).filter fun z => ¬z.IsInner).map
-      fun z => z.rowIndex.val) = (finFunctionFinEquiv (rowO w h)).val := by
-    rw [outer_list w h OutVar.rowIndex, Nat.ofDigits_finFunctionFinEquiv]
-    rfl
+      fun z => z.rowIndex.val) = (finFunctionFinEquiv (rowO w h)).val :=
+    outer_list w h OutVar.rowIndex ▸ Nat.ofDigits_finFunctionFinEquiv (rowO w h)
   have hc : Nat.ofDigits 3 (((List.ofFn w).filter fun z => ¬z.IsInner).map
-      fun z => z.colIndex.val) = (finFunctionFinEquiv (colO w h)).val := by
-    rw [outer_list w h OutVar.colIndex, Nat.ofDigits_finFunctionFinEquiv]
-    rfl
+      fun z => z.colIndex.val) = (finFunctionFinEquiv (colO w h)).val :=
+    outer_list w h OutVar.colIndex ▸ Nat.ofDigits_finFunctionFinEquiv (colO w h)
   have ho : Nat.ofDigits 10 ((List.ofFn w).map fun z => (outputDigits.symm z).val) =
       (queryIndex w).val := by
     rw [List.map_ofFn]
@@ -110,10 +105,8 @@ theorem pack_outStrOfPos {L m : ℕ} (hm : m ≤ L) (I J : ℕ) :
       (I % N0 L m) (J % N0 L m) =
       (queryIndex (outStrOfPos (MaskTable.layout hm) I J)).val := by
   let lay := MaskTable.layout hm
-  let Q := lay.table (blockOf lay I, blockOf lay J)
-  have hQ : Q.card = m := lay.table_card _
   have h := pack_queryIndex (outStrOfPos lay I J)
-    (by simpa only [outStrOfPos, innerSetO_outStrOf] using hQ)
+    (by simpa only [outStrOfPos, innerSetO_outStrOf] using lay.table_card _)
   unfold outStrOfPos at h
   rw [rowO_outStrOf, colO_outStrOf, innerSetO_outStrOf] at h
   change pack L (MaskTable.maskCode (MaskTable.maskSet

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Tactic.FinIndex.Init
+public import Mathlib.Data.Fin.Tuple.Basic
 public import Mathlib.Tactic.SplitIfs
 public meta import Lean.Elab.Command
 public meta import Lean.Elab.Tactic.Simp
@@ -67,9 +68,9 @@ public section
 /- The members of `fin_index_simps`. Each one is needed: without it a call in the library fails.
 `Fin.val ⟨a, h⟩` needs no lemma, since `simp` reduces the projection. `Fin.ite_val` is the lemma
 for a dependent `if` and `Fin.dite_val` the one for a plain `if`. -/
-attribute [fin_index_simps] ne_eq Fin.val_castAdd Fin.val_natAdd Fin.val_castSucc Fin.val_succ
-  Fin.val_last Fin.val_cast Fin.val_castLE Fin.val_rev Fin.val_zero Fin.val_one Fin.ite_val
-  Fin.dite_val
+attribute [fin_index_simps] ne_eq Fin.append_left Fin.append_right Fin.val_castAdd Fin.val_natAdd
+  Fin.val_addNat Fin.val_castSucc Fin.coe_castPred Fin.val_succ Fin.val_pred Fin.val_last
+  Fin.val_cast Fin.val_castLE Fin.val_rev Fin.val_zero Fin.val_one Fin.ite_val Fin.dite_val
 
 /- A comparison is rewritten before its sides are (`↓`). A definition in the list of a call may
 be the bound of the `Fin` type, as in `k : Fin (chainLen p v)`; once it is unfolded there, these
@@ -85,9 +86,11 @@ open Lean Parser.Tactic Elab Tactic Meta
 hypothesis.
 
 It introduces the hypotheses of the goal, rewrites every comparison of `Fin` values in the goal
-and the context to a comparison of numbers, moves `Fin.val` through `⟨_, _⟩`, `Fin.castAdd`,
-`Fin.natAdd`, `Fin.castSucc`, `Fin.succ`, `Fin.last`, `Fin.cast`, `Fin.castLE`, `Fin.rev`, the
-numerals `0` and `1`, and `if` (the simp set `fin_index_simps`), and calls `omega`.
+and the context to a comparison of numbers, reduces `Fin.append` on `Fin.castAdd` and
+`Fin.natAdd`, moves `Fin.val` through `⟨_, _⟩`, `Fin.castAdd`, `Fin.natAdd`, `Fin.addNat`,
+`Fin.castSucc`, `Fin.castPred`, `Fin.succ`, `Fin.pred`, `Fin.last`, `Fin.cast`, `Fin.castLE`,
+`Fin.rev`, the numerals `0` and `1`, and `if` (the simp set `fin_index_simps`), and calls
+`omega`.
 
 * `fin_index [f, g, h]` also unfolds the definitions `f` and `g` and rewrites with the fact `h`.
   The list is a `simp only` list: definitions, local `let` variables, lemmas such as

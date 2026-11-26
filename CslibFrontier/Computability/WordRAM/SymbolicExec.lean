@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Structured
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Init
 public import CslibFrontier.Tactic.Fits
+public import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Symbolic execution of structured word-RAM code
@@ -84,8 +85,9 @@ a program.
   before the rest of a program.
 * `Cslib.WordRAM.WP.bounded`: the data reached from word-sized data is word-sized.
 * `Cslib.WordRAM.WP.name`: a name for the data reached, at a stop.
-* `Cslib.WordRAM.WP.loop_iter`, `Cslib.WordRAM.WP.Exact.loop_iter`: an iteration of a loop whose
-  condition holds, to continue into its body at a stop.
+* `Cslib.WordRAM.WP.loop_iter`, `Cslib.WordRAM.WP.Exact.loop_iter`, `Cslib.WordRAM.WP.loop_exit`,
+  `Cslib.WordRAM.WP.Exact.loop_exit`: continuing into the body of a loop whose condition holds, or
+  exiting when it fails, at a stop.
 * `Cslib.WordRAM.WP.Exact.exists_exec`, `Cslib.WordRAM.WP.Exact.exec`: back to `Exec`; the rules
   `Cslib.WordRAM.WP.Exact.seq`, `Cslib.WordRAM.WP.Exact.const`, … are those of `WP`, and
   `Cslib.WordRAM.WP.Exact.toWP` weakens an exact count to a bound.
@@ -223,6 +225,11 @@ theorem loop_iter {body : Code B r} (hc : cond.Holds x)
     WP w (.loop cond body) x Q :=
   let ⟨_, T₁, he₁, _, T₂, he₂, hz⟩ := h
   ⟨_, T₁ + T₂ + 2, ExecWithin.loop_iter hc he₁ he₂, Nat.add_comm T₁ T₂ ▸ hz⟩
+
+/-- Exit a loop whose condition fails in two instructions. -/
+theorem loop_exit {body : Code B r} (hc : ¬cond.Holds x) (h : Q x 2) :
+    WP w (.loop cond body) x Q :=
+  of_execWithin (ExecWithin.loop_exit hc) h
 
 /-! ### Data instructions
 
@@ -390,6 +397,11 @@ theorem loop_iter {body : Code B r} (hc : cond.Holds x)
   let ⟨_, T₁, he₁, _, T₂, he₂, hz⟩ := h
   ⟨_, T₁ + T₂ + 2, .loop_iter hc he₁ he₂, Nat.add_comm T₁ T₂ ▸ hz⟩
 
+/-- Exit a loop whose condition fails in exactly two instructions. -/
+theorem loop_exit {body : Code B r} (hc : ¬cond.Holds x) (h : Q x 2) :
+    WP.Exact w (.loop cond body) x Q :=
+  of_exec (Exec.loop_exit hc) h
+
 section Ops
 
 variable {d s a i j : Fin r} {u v b' : ℕ}
@@ -529,7 +541,7 @@ private meta def outsideRange? (j i : Expr) : MetaM (Option Expr) := do
   mkAppM ``Ne.symm #[← mkAppM ``ne_of_mem_of_not_mem #[hmem, hj]]
 
 /-- A hypothesis `Function.Injective f`. -/
-private meta def injective? (f : Expr) : MetaM (Option Expr) := do
+meta def injective? (f : Expr) : MetaM (Option Expr) := do
   (← getLCtx).findDeclRevM? fun d => do
     if d.isImplementationDetail then return none
     let_expr Function.Injective _ _ f' := (← instantiateMVars d.type).cleanupAnnotations
@@ -564,12 +576,50 @@ private meta def forallNe? (j i : Expr) : MetaM (Option Expr) := do
         s.restore
       return none
 
+/-- A hypothesis `∀ j, f j ≠ i`, proving `i ∉ Set.range f` directly. -/
+meta def forallRangeNe? (f i : Expr) : MetaM (Option Expr) := do
+  (← getLCtx).findDeclRevM? fun d => do
+    if d.isImplementationDetail then return none
+    let ty := (← instantiateMVars d.type).cleanupAnnotations
+    let .forallE _ _ body _ := ty | return none
+    let some (a, b) := neSides? body | return none
+    let check (l r : Expr) : Bool :=
+      match l with
+      | .app f' (.bvar 0) => f' == f && r == i
+      | _ => false
+    if check a b then return some d.toExpr
+    if check b a then
+      return some (← withLocalDeclD `j (ty.bindingDomain!) fun j => do
+        mkLambdaFVars #[j] (← mkAppM ``Ne.symm #[mkApp d.toExpr j]))
+    return none
+
+/-- A proof of `j ≠ i` from a hypothesis `i ∉ s` when `j ∈ s` holds by evaluation or hypothesis. -/
+private meta def outsideSet? (j i : Expr) : MetaM (Option Expr) := do
+  (← getLCtx).findDeclRevM? fun d => do
+    if d.isImplementationDetail then return none
+    let some q := (← instantiateMVars d.type).cleanupAnnotations.not? | return none
+    let q := q.cleanupAnnotations
+    unless q.isAppOfArity ``Membership.mem 5 do return none
+    let args := q.getAppArgs
+    unless ← withReducible (isDefEq args[4]! i) do return none
+    let memJ := mkAppN q.getAppFn (args.set! 4 j)
+    let hj? ← match ← decideClosed? memJ with
+      | some (some h) => pure (some h)
+      | _ => assumption? memJ
+    let some hj := hj? | return none
+    withLocalDeclD `heq (← mkEq j i) fun heq => do
+      let motive ← withLocalDeclD `x (← inferType j) fun x =>
+        mkLambdaFVars #[x] (mkAppN q.getAppFn (args.set! 4 x))
+      let memI ← mkAppM ``Eq.mp #[← mkCongrArg motive heq, hj]
+      some <$> mkLambdaFVars #[heq] (mkApp d.toExpr memI)
+
 /-- A proof that the register names `j` and `i` differ, for names that need not evaluate to
 literals: by evaluation if they have no free variables; by a hypothesis `j ≠ i` or `i ≠ j`, also
 stated as `¬j = i` as `by_cases` gives it; by a hypothesis `j ∉ Set.range f` when `i` is `f a`, or
-symmetrically; by an instance of a hypothesis `∀ xs, a ≠ b` (`forallNe?`); by a hypothesis
-`Function.Injective f` when they are `f b` and `f a` with `b` and `a` different; and otherwise by
-the discharger on their values, when one of them unfolds to a constructor `⟨k, _⟩` (`finVal`). -/
+symmetrically; by a hypothesis `i ∉ s` with `j ∈ s`, or symmetrically; by an instance of a
+hypothesis `∀ xs, a ≠ b` (`forallNe?`); by a hypothesis `Function.Injective f` when they are `f b`
+and `f a` with `b` and `a` different; and otherwise by the discharger on their values, when one of
+them unfolds to a constructor `⟨k, _⟩` (`finVal`). -/
 private meta partial def regNe? (j i : Expr) : SimpM (Option Expr) := do
   let p ← mkAppM ``Ne #[j, i]
   if let some r ← decideClosed? p then return r
@@ -579,6 +629,8 @@ private meta partial def regNe? (j i : Expr) : SimpM (Option Expr) := do
     if let some h ← assumption? q then return some (← mkAppM ``Ne.symm #[h])
   if let some h ← outsideRange? j i then return some h
   if let some h ← outsideRange? i j then return some (← mkAppM ``Ne.symm #[h])
+  if let some h ← outsideSet? j i then return some h
+  if let some h ← outsideSet? i j then return some (← mkAppM ``Ne.symm #[h])
   if let some h ← forallNe? j i then return some h
   if let (.app f b, .app f' a) := (j, i) then
     if f == f' then
@@ -732,10 +784,28 @@ meta structure Config where
   steps : IO.Ref ℕ
   /-- Whether to split a conditional that is not decided, rather than stop at it. -/
   split : Bool
+  /-- Optional extra simplification pass run after `wram_simps` (used by `wram_exec *`). -/
+  extraSimp? : Option (Expr → MetaM Simp.Result) := none
+
+/-- Combine two sequential `Simp.Result` rewrites of `e`. -/
+private meta def chainSimpResult (r1 r2 : Simp.Result) : MetaM Simp.Result := do
+  match r1.proof?, r2.proof? with
+  | none, none => return { expr := r2.expr }
+  | some p1, none => return { expr := r2.expr, proof? := some p1 }
+  | none, some p2 => return { expr := r2.expr, proof? := some p2 }
+  | some p1, some p2 => return { expr := r2.expr, proof? := some (← mkEqTrans p1 p2) }
 
 /-- Simplify `e` with the simp set of the call. -/
-meta def simpExpr (cfg : Config) (e : Expr) : MetaM Simp.Result :=
-  return (← Lean.Meta.simp e cfg.ctx cfg.simprocs (some cfg.simpDischarge)).1
+meta def simpExpr (cfg : Config) (e : Expr) : MetaM Simp.Result := do
+  let r1 := (← Lean.Meta.simp e cfg.ctx cfg.simprocs (some cfg.simpDischarge)).1
+  match cfg.extraSimp? with
+  | none => return r1
+  | some hook =>
+    let r2 ← hook r1.expr
+    if r2.expr == r1.expr && r2.proof?.isNone then return r1
+    let r12 ← chainSimpResult r1 r2
+    let r3 := (← Lean.Meta.simp r12.expr cfg.ctx cfg.simprocs (some cfg.simpDischarge)).1
+    chainSimpResult r12 r3
 
 /-- Prove the proposition `p` by simplification to `True`, by evaluation if it has no free
 variables, by a hypothesis of its type, or by `prove`. Returns the proof, or the simplification of
@@ -1085,19 +1155,27 @@ elab_rules : tactic
 
 open Lean in
 /-- The discharger of a `wram_exec` or `wram_simp` call: the given one, or by default `fits` on
-a word-size bound and `omega` on anything else. -/
-meta def WP.Exec.dischOf (d? : Option (TSyntax ``Lean.Parser.Tactic.discharger)) :
+a word-size bound, `omega` on plain arithmetic, and (when `wram.exec.autoWramOmega` is true)
+silent heartbeat-bounded `wram_omega`. -/
+meta def WP.Exec.dischOf (d? : Option (TSyntax ``Lean.Parser.Tactic.discharger))
+    (autoWramOmega : Bool := true) :
     MacroM (TSyntax ``Lean.Parser.Tactic.tacticSeq) :=
   match d? with
   | some d => pure ⟨d.raw[3]⟩
-  | none => `(Lean.Parser.Tactic.tacticSeq| first | fits | omega)
+  | none =>
+    if autoWramOmega then
+      `(Lean.Parser.Tactic.tacticSeq| first | fits | omega | wram_omega_silent)
+    else
+      `(Lean.Parser.Tactic.tacticSeq| first | fits | omega)
 
 open Lean Meta Elab Tactic in
 elab_rules : tactic
   | `(tactic| wram_simp $[$d?:discharger]? $[[$args,*]]? $[$loc?:location]?) => do
     let args := args.map (·.getElems.map (·.raw)) |>.getD #[]
-    WP.Exec.withSimpContext (← liftMacroM <| WP.Exec.dischOf d?) args fun ctx simprocs disch =>
-      discard <| simpLocation ctx simprocs disch (expandOptLocation (mkOptionalNode loc?))
+    let autoWram := wram.exec.autoWramOmega.get (← getOptions)
+    WP.Exec.withSimpContext (← liftMacroM <| WP.Exec.dischOf d? autoWram) args
+      fun ctx simprocs disch =>
+        discard <| simpLocation ctx simprocs disch (expandOptLocation (mkOptionalNode loc?))
 
 open Lean Meta Elab Tactic in
 elab_rules : tactic
@@ -1108,7 +1186,8 @@ elab_rules : tactic
       | `(Lean.Parser.Tactic.negConfigItem| -split) => split := false
       | `(Lean.Parser.Tactic.posConfigItem| +split) => split := true
       | _ => throwErrorAt item "wram_exec: unknown option; the only option is `-split`"
-    let userDisch ← liftMacroM <| WP.Exec.dischOf d?
+    let autoWram := wram.exec.autoWramOmega.get (← getOptions)
+    let userDisch ← liftMacroM <| WP.Exec.dischOf d? autoWram
     let disch ← `(tactic| ($userDisch))
     let args := args.map (·.getElems.map (·.raw)) |>.getD #[]
     WP.Exec.withSimpContext userDisch args fun ctx simprocs simpDischarge => do

@@ -353,26 +353,24 @@ theorem realizes_demoteStepGen :
     let d := (d1, d2)
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [demoteStepGenPre_mk, appendTailItemGenPre_mk, appendTailItemGenProg_mk]
+    obtain ⟨hk_le, htop_lt, h0_lt, hnslabs, hgdel, hglast, happ, htnew, hgtail, hk1_le⟩ :=
+      demoteStep_bounds hw h.2
   )
-  · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU
-      (le_of_lt (demoteStep_bounds hw h.2).2.1)
+  · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU htop_lt.le
   · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
-  · exact (demoteStep_bounds hw h.2).2.1
-  · exact (demoteStep_bounds hw h.2).2.2.1
-  · exact (demoteStep_bounds hw h.2).1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU
-      (le_trans (le_of_lt (demoteStep_bounds hw h.2).2.2.2.2.1) (le_max_left n_max 1))
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.1
-  · exact (demoteStep_bounds hw h.2).2.2.2.1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU
-      (le_trans (le_of_lt (demoteStep_bounds hw h.2).2.2.2.2.2.1) (le_max_left n_max 1))
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.2.1
-  · exact ⟨h.1, (demoteStep_bounds hw h.2).2.2.2.2.2.2.1⟩
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.2.2.2.1
-  · exact (demoteStep_bounds hw h.2).2.2.2.2.2.2.2.2.1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU
-      (demoteStep_bounds hw h.2).2.2.2.2.2.2.2.2.2
+  · exact htop_lt
+  · exact h0_lt
+  · exact hk_le
+  · exact fits_of_le_max_n_one h.1 hw hnU hU (hgdel.le.trans (le_max_left n_max 1))
+  · exact hgdel
+  · exact hnslabs
+  · exact fits_of_le_max_n_one h.1 hw hnU hU (hglast.le.trans (le_max_left n_max 1))
+  · exact hglast
+  · exact ⟨h.1, happ⟩
+  · exact htnew
+  · exact hgtail
+  · exact fits_of_le_max_n_one h.1 hw hnU hU hk1_le
 
 /-! ## Section 2: `DemoteArrInv`, `DemoteLoopInv`, and `demoteSlabProg` -/
 
@@ -943,11 +941,6 @@ theorem realizes_demoteSlabGen :
       (fun _ _ => 0) := by
   have hloop := realizes_demoteLoopGen
   have hpop := realizes_gmPopSlabGen
-  refine Realizes.congr (p := fun d : DictParams × (ℕ × ℕ) => do
-      let k0 ← pure 0
-      let _ ← demoteLoopGenProg ((d, k0), dpSlabSize d.1)
-      gmPopSlabGenProg d) ?_
-    (fun d => by simp only [demoteSlabGenProg, pure_bind])
   realizeDictWith [demoteSlabGenPre_mk, iterationSafe_demoteStepGenProg_mk,
     demoteLoopGenProg_mk, gmPopSlabGenPre_mk, gmPopSlabGenProg_mk]
   · exact (iterate_demoteStepProg_spec hw h.2.2 (slabSize n_max) 0 s

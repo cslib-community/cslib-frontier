@@ -28,11 +28,12 @@ private coins and asks vertex-pair queries adaptively; it runs against the deter
 oracle of the graph (`adjOracle`), and `acceptProb T G` is the probability that it outputs
 `true`.
 
-The distance between two graphs on the same vertex set is the number of vertex pairs on which
-they differ (`editDist`, the number of edges of their symmetric difference). A graph is `ε`-far
-from a property `P` when every graph with property `P` differs from it in more than `ε n²` pairs
-(`IsFar`). Goldreich normalizes by the `n²` ordered entries of the adjacency matrix, each changed
-pair accounting for two entries, so his distance `ε` corresponds to `IsFar G P (ε / 2)` here. A
+The distance between two graphs on the same finite vertex set is the number of vertex pairs on
+which they differ (`editDist`, the number of edges of their symmetric difference). A graph is
+`ε`-far from a property `P` when every graph with property `P` differs from it in more than `ε n²`
+pairs (`IsFar`). Goldreich normalizes by the `n²` ordered entries of the adjacency matrix, each
+changed pair accounting for two entries, so his distance `ε` corresponds to `IsFar G P (ε / 2)`
+here. A
 *one-sided tester* (`IsOneSidedTester`) makes at most `q` queries on every run, accepts every graph
 with the property with probability one and accepts every `ε`-far graph with probability at most
 `1 / 3`; a family of properties is `OneSidedTestable` with query bound `q` if every proximity
@@ -121,9 +122,12 @@ theorem adjOracle_apply {V : Type} (G : SimpleGraph V) [DecidableRel G.Adj] (u v
   rw [adjOracle]
   congr
 
-/-- The edit distance of two graphs on the same vertex set: the number of vertex pairs that are
-an edge of exactly one of them. -/
-noncomputable def editDist {V : Type*} (G H : SimpleGraph V) : ℕ :=
+/-- The edit distance of two graphs on the same finite vertex set: the number of vertex pairs that
+are an edge of exactly one of them. The finite vertex type ensures that `Nat.card` counts differing
+pairs rather than returning `0` on an infinite symmetric difference. -/
+-- Finiteness restricts the public domain; `Nat.card` itself does not require it.
+@[nolint unusedArguments]
+noncomputable def editDist {V : Type*} [Finite V] (G H : SimpleGraph V) : ℕ :=
   Nat.card (symmDiff G H).edgeSet
 
 /-- `G` is `ε`-far from the property `P`: every graph with property `P` differs from `G` in more
@@ -170,15 +174,26 @@ section EditDist
 variable {V : Type*}
 
 @[simp]
-theorem editDist_self (G : SimpleGraph V) : editDist G G = 0 := by
-  rw [editDist, symmDiff_self, SimpleGraph.edgeSet_bot, Nat.card_eq_zero]
-  exact Or.inl (Set.isEmpty_coe_sort.mpr rfl)
+theorem editDist_eq_zero [Finite V] {G H : SimpleGraph V} : editDist G H = 0 ↔ G = H := by
+  rw [editDist, Nat.card_coe_set_eq, Set.ncard_eq_zero (hs := Set.toFinite _),
+    SimpleGraph.edgeSet_eq_empty, symmDiff_eq_bot]
 
-theorem editDist_comm (G H : SimpleGraph V) : editDist G H = editDist H G := by
+@[simp]
+theorem editDist_self [Finite V] (G : SimpleGraph V) : editDist G G = 0 :=
+  editDist_eq_zero.2 rfl
+
+theorem editDist_comm [Finite V] (G H : SimpleGraph V) : editDist G H = editDist H G := by
   rw [editDist, editDist, symmDiff_comm]
 
+theorem editDist_triangle [Finite V] (G H K : SimpleGraph V) :
+    editDist G K ≤ editDist G H + editDist H K := by
+  rw [editDist, editDist, editDist, Nat.card_coe_set_eq, Nat.card_coe_set_eq, Nat.card_coe_set_eq,
+    SimpleGraph.edgeSet_symmDiff, SimpleGraph.edgeSet_symmDiff, SimpleGraph.edgeSet_symmDiff]
+  exact (Set.ncard_le_ncard (symmDiff_triangle G.edgeSet H.edgeSet K.edgeSet)
+    (Set.toFinite _)).trans (Set.ncard_union_le _ _)
+
 /-- Relabelling both graphs by the same bijection preserves their edit distance. -/
-theorem editDist_comap_equiv {W : Type*} (e : V ≃ W) (G H : SimpleGraph W) :
+theorem editDist_comap_equiv [Finite V] {W : Type*} [Finite W] (e : V ≃ W) (G H : SimpleGraph W) :
     editDist (G.comap e) (H.comap e) = editDist G H := by
   have h : symmDiff (G.comap e) (H.comap e) = (symmDiff G H).comap e := by
     ext a b
@@ -190,10 +205,8 @@ theorem editDist_comap_equiv {W : Type*} (e : V ≃ W) (G H : SimpleGraph W) :
 sets. -/
 theorem editDist_eq_card [Fintype V] [DecidableEq V] (G H : SimpleGraph V) [DecidableRel G.Adj]
     [DecidableRel H.Adj] : editDist G H = #(symmDiff G.edgeFinset H.edgeFinset) := by
-  have he : (symmDiff G H).edgeSet = ↑(symmDiff G.edgeFinset H.edgeFinset) := by
-    rw [Finset.coe_symmDiff, SimpleGraph.coe_edgeFinset, SimpleGraph.coe_edgeFinset,
-      SimpleGraph.edgeSet_symmDiff]
-  rw [editDist, Nat.card_coe_set_eq, he, Set.ncard_coe_finset]
+  rw [editDist, Nat.card_coe_set_eq, SimpleGraph.edgeSet_symmDiff, ← SimpleGraph.coe_edgeFinset,
+    ← SimpleGraph.coe_edgeFinset, ← Finset.coe_symmDiff, Set.ncard_coe_finset]
 
 /-- Deleting a set `s` of edges of `G` changes exactly the pairs in `s`. -/
 theorem editDist_deleteEdges [Fintype V] (G : SimpleGraph V) [DecidableRel G.Adj]
@@ -228,10 +241,8 @@ variable {G : SimpleGraph V} [DecidableRel G.Adj] {P : SimpleGraph V → Prop}
 /-- An `ε`-far graph is `ε n²`-delete-far: at least `ε n²` edges must be deleted to reach the
 property. -/
 theorem IsFar.deleteFar {ε : ℝ} (h : IsFar G P ε) :
-    G.DeleteFar P (ε * (Fintype.card V ^ 2 : ℕ)) := fun s hs hP => by
-  have h₁ := h _ hP
-  rw [editDist_deleteEdges G hs] at h₁
-  exact h₁.le
+    G.DeleteFar P (ε * (Fintype.card V ^ 2 : ℕ)) := fun _ hs hP =>
+  (editDist_deleteEdges G hs ▸ h _ hP).le
 
 /-- A graph `ε`-far from triangle-free is `ε`-far from triangle-free in the sense of Mathlib's
 triangle removal lemma. -/
@@ -246,24 +257,20 @@ theorem isFar_of_deleteFar (hP : ∀ ⦃H H' : SimpleGraph V⦄, H ≤ H' → P 
     (h : G.DeleteFar P r) (hr : ε * (Fintype.card V ^ 2 : ℕ) < r) : IsFar G P ε := by
   intro H hH
   classical
-  have hdel : P (G.deleteEdges (G.edgeFinset \ H.edgeFinset : Finset (Sym2 V))) := by
-    refine hP (fun u v huv => ?_) hH
-    rw [SimpleGraph.deleteEdges_adj] at huv
-    obtain ⟨hG, hn⟩ := huv
-    by_contra hH'
-    exact hn (by simp [hG, hH'])
-  have h₁ := h Finset.sdiff_subset hdel
-  have h₂ : #(G.edgeFinset \ H.edgeFinset) ≤ editDist G H := by
+  have h₁ := h (s := G.edgeFinset \ H.edgeFinset) Finset.sdiff_subset <| hP (fun u v huv => by
+    obtain ⟨hG, hn⟩ := SimpleGraph.deleteEdges_adj.mp huv
+    exact Classical.byContradiction fun hH' => hn (by simp [hG, hH'])) hH
+  have h₂ : (#(G.edgeFinset \ H.edgeFinset) : ℝ) ≤ editDist G H := by
     rw [editDist_eq_card]
-    exact Finset.card_le_card fun e he => Finset.mem_symmDiff.mpr (Or.inl (Finset.mem_sdiff.mp he))
-  have h₃ : (#(G.edgeFinset \ H.edgeFinset) : ℝ) ≤ editDist G H := by exact_mod_cast h₂
+    exact_mod_cast Finset.card_le_card fun _ he =>
+      Finset.mem_symmDiff.mpr (.inl (Finset.mem_sdiff.mp he))
   linarith
 
 /-- On a nonempty vertex set, being `ε'`-far from triangle-free in the sense of Mathlib implies
 being `ε`-far from triangle-free for every `ε < ε'`. -/
 theorem isFar_of_farFromTriangleFree [Nonempty V] {ε ε' : ℝ} (h : G.FarFromTriangleFree ε')
     (hεε' : ε < ε') : IsFar G (fun H => H.CliqueFree 3) ε := by
-  refine isFar_of_deleteFar (fun H H' hle hH' => hH'.anti hle) h ?_
+  refine isFar_of_deleteFar (fun _ _ hle hH' => hH'.anti hle) h ?_
   have hn : (0 : ℝ) < (Fintype.card V ^ 2 : ℕ) := by
     have := Fintype.card_pos (α := V)
     positivity

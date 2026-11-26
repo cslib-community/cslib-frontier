@@ -56,14 +56,10 @@ theorem consistent_ofFn_iff {N : ℕ} {T : Fin N → Option Bool} {y : BitString
 theorem consistent_ofFn_iff_exists {N : ℕ} {T : Fin N → Option Bool} {y : List Bool} :
     Consistent (List.ofFn T) y ↔
       ∃ z : BitString N, List.ofFn z = y ∧ ∀ i b, T i = some b → z i = b := by
-  constructor
-  · intro h
-    have hlen : y.length = N := by simpa using h.length_eq.symm
-    refine ⟨BitString.ofList N y, BitString.ofFn_ofList hlen, ?_⟩
-    rw [← consistent_ofFn_iff, BitString.ofFn_ofList hlen]
-    exact h
-  · rintro ⟨z, rfl, hz⟩
-    exact consistent_ofFn_iff.mpr hz
+  refine ⟨fun h => ?_, fun ⟨z, hy, hz⟩ => hy ▸ consistent_ofFn_iff.mpr hz⟩
+  have hlen : y.length = N := by simpa using h.length_eq.symm
+  exact ⟨BitString.ofList N y, BitString.ofFn_ofList hlen,
+    consistent_ofFn_iff.mp ((BitString.ofFn_ofList hlen).symm ▸ h)⟩
 
 /-- An indexed pattern is a yes-instance of `MINKT*` exactly when some table that agrees with it
 has `K^t` at most the threshold. -/
@@ -71,11 +67,8 @@ theorem mk_ofFn_mem_iff {N t s : ℕ} {T : Fin N → Option Bool} :
     (⟨List.ofFn T, t, s⟩ : Instance) ∈ MINKTStar ↔
       ∃ z : BitString N, (∀ i b, T i = some b → z i = b) ∧ timeBoundedAt t (List.ofFn z) ≤ s := by
   simp only [mk_mem_iff, consistent_ofFn_iff_exists]
-  constructor
-  · rintro ⟨_, ⟨z, rfl, hz⟩, hK⟩
-    exact ⟨z, hz, hK⟩
-  · rintro ⟨z, hz, hK⟩
-    exact ⟨_, ⟨z, rfl, hz⟩, hK⟩
+  exact ⟨fun ⟨_, ⟨z, rfl, hz⟩, hK⟩ => ⟨z, hz, hK⟩,
+    fun ⟨z, hz, hK⟩ => ⟨_, ⟨z, rfl, hz⟩, hK⟩⟩
 
 /-- **Truth-table form.** A pattern of length `2 ^ L`, indexed in the order of
 `BitString.equivFin`, is a yes-instance of `MINKT*` exactly when some Boolean function on `L`
@@ -86,10 +79,8 @@ theorem mk_ofFn_mem_iff_exists_booleanFunction {L t s : ℕ} {T : Fin (2 ^ L) �
       ∃ h : BooleanFunction L, (∀ i b, T i = some b → h ((BitString.equivFin L).symm i) = b) ∧
         timeBoundedAt t (List.ofFn fun i => h ((BitString.equivFin L).symm i)) ≤ s := by
   rw [mk_ofFn_mem_iff]
-  constructor
-  · rintro ⟨z, hz, hK⟩
-    exact ⟨fun x => z (BitString.equivFin L x), by simpa using hz, by simpa using hK⟩
-  · rintro ⟨h, hh, hK⟩
-    exact ⟨fun i => h ((BitString.equivFin L).symm i), hh, hK⟩
+  exact ⟨fun ⟨z, hz, hK⟩ =>
+      ⟨z ∘ BitString.equivFin L, by simpa using hz, by simpa using hK⟩,
+    fun ⟨h, hh, hK⟩ => ⟨fun i => h ((BitString.equivFin L).symm i), hh, hK⟩⟩
 
 end Cslib.Kolmogorov.MINKTStar

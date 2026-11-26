@@ -164,30 +164,22 @@ theorem fill_update_empty (i : ι) (b : Bool) (x : ι → Bool) :
 theorem fill_fill_update (hi : ρ i = none) (b : Bool) (x : ι → Bool) :
     ρ.fill (fill (update ρ i (some b)) x) = fill (update ρ i (some b)) x := by
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [fill, hi]
-  · simp only [fill, update_of_ne hj]
-    cases ρ j <;> rfl
+  rcases eq_or_ne j i with rfl | hj
+  · simp [fill, hi]
+  · cases hρ : ρ j <;> simp [fill, hj, hρ]
 
 /-- Changing a fixed coordinate does not change the filled input. -/
 theorem fill_update_of_ne_none (hi : ρ i ≠ none) (x : ι → Bool) (c : Bool) :
     ρ.fill (update x i c) = ρ.fill x := by
+  obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 hi
   funext j
-  by_cases hj : j = i
-  · subst hj
-    obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 hi
-    simp [fill, hb]
-  · simp [fill, update_of_ne hj]
+  by_cases hj : j = i <;> simp [fill, hb, hj]
 
 /-- Changing a free coordinate changes the filled input there. -/
 theorem fill_update_of_eq_none (hi : ρ i = none) (x : ι → Bool) (c : Bool) :
     ρ.fill (update x i c) = update (ρ.fill x) i c := by
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [fill, hi]
-  · simp [fill, update_of_ne hj]
+  by_cases hj : j = i <;> simp [fill, hi, hj]
 
 /-- Fix the coordinates of `S` to their values in `a`. -/
 def assign (ρ : PartialAssignment ι) (S : Finset ι) (a : ι → Bool) : PartialAssignment ι :=
@@ -212,9 +204,7 @@ def assign (ρ : PartialAssignment ι) (S : Finset ι) (a : ι → Bool) : Parti
 theorem assign_eq_self {S : Finset ι} {a : ι → Bool} (h : ∀ i ∈ S, ρ i = some (a i)) :
     ρ.assign S a = ρ := by
   funext i
-  by_cases hi : i ∈ S
-  · simp [hi, h i hi]
-  · simp [hi]
+  by_cases hi : i ∈ S <;> simp_all
 
 /-- Free the coordinates of `S`. -/
 def unassign (ρ : PartialAssignment ι) (S : Finset ι) : PartialAssignment ι :=
@@ -307,10 +297,7 @@ theorem compl_support (ρ : PartialAssignment ι) : ρ.supportᶜ = ρ.free := b
 @[simp] theorem free_update (ρ : PartialAssignment ι) (i : ι) (b : Bool) :
     free (update ρ i (some b)) = ρ.free.erase i := by
   ext j
-  by_cases hj : j = i
-  · subst hj
-    simp
-  · simp [hj]
+  by_cases hj : j = i <;> simp [hj]
 
 /-- Freeing coordinate `i` adds it to the free coordinates. -/
 @[simp] theorem free_update_none (ρ : PartialAssignment ι) (i : ι) :
@@ -457,8 +444,6 @@ coordinates in `Y` from its input and the others from `z` before applying `f`. -
 coordinates outside `Y`. -/
 theorem mem_subfunctions_iff {f g : (ι → Bool) → Bool} {Y : Finset ι} :
     g ∈ subfunctions f Y ↔ ∃ z, f ∘ (PartialAssignment.outside Y z).fill = g := by
-  simp only [mem_subfunctions]
-  exact exists_congr fun z => by rw [show f ∘ (PartialAssignment.outside Y z).fill =
-    fun x => f (Y.piecewise x z) from funext fun x => by simp]
+  simp [Function.comp_def]
 
 end Cslib.BitString

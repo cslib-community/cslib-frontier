@@ -50,18 +50,16 @@ certificate. -/
 theorem NP_subset_PP : NP enc ⊆ PP enc := by
   rintro A ⟨p, V, hV, hA⟩
   let V' (x : α × List Bool) : Bool := !(x.2.headD false) || V (x.1, x.2.tail)
-  have hV' : ComputableInPolyTime V' (encPair enc encBits) encBool :=
-    ComputableInPolyTime.bool_or.comp
-      ((ComputableInPolyTime.bool_not.comp
-        ((ComputableInPolyTime.headD (encA := encBool) false).comp (.snd _ _))).prod
-        (hV.comp ((ComputableInPolyTime.fst _ _).prod
-          (ComputableInPolyTime.bitsTail.comp (.snd _ _)))))
-  refine ⟨p + 1, V', hV', fun a => ?_⟩
-  have hcount (m : ℕ) : acceptCount V' a (m + 1) = 2 ^ m + acceptCount V a m := by
+  refine ⟨p + 1, V', ComputableInPolyTime.bool_or.comp
+    ((ComputableInPolyTime.bool_not.comp
+      ((ComputableInPolyTime.headD (encA := encBool) false).comp (.snd _ _))).prod
+      (hV.comp ((ComputableInPolyTime.fst _ _).prod
+        (ComputableInPolyTime.bitsTail.comp (.snd _ _))))), fun a => ?_⟩
+  have hacc (m : ℕ) : acceptCount V' a (m + 1) = 2 ^ m + acceptCount V a m := by
     rw [acceptCount, BitString.card_filter_ofFn_succ m fun l => V' (a, l) = true]
     simp [V', acceptCount, add_comm]
-  have heval : (p + 1).eval (enc a).length = p.eval (enc a).length + 1 := by simp
-  rw [heval, hcount, hA a, ← acceptCount_pos_iff, pow_succ]
+  rw [show (p + 1).eval (enc a).length = p.eval (enc a).length + 1 by simp,
+    hacc, hA a, ← acceptCount_pos_iff, pow_succ]
   omega
 
 /-- **`P ⊆ PP`**: `P ⊆ NP` and `NP ⊆ PP`. -/
@@ -112,16 +110,14 @@ theorem compl_mem_PP (hA : A ∈ PP enc) : Aᶜ ∈ PP enc := by
       Bool.true_or, Bool.not_true, Bool.false_or, Finset.filter_true, Finset.card_univ,
       Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Bool.not_eq_true', hzero]
     ring
-  have heval : (p + 2).eval (enc a).length = p.eval (enc a).length + 1 + 1 := by simp
   have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := p.eval (enc a).length)
-  rw [heval, hcount, Set.mem_compl_iff, hA a, pow_succ, pow_succ]
+  rw [show (p + 2).eval (enc a).length = p.eval (enc a).length + 1 + 1 by simp,
+    hcount, Set.mem_compl_iff, hA a, pow_succ, pow_succ]
   omega
 
 /-- `PP` equals its preimage under complement. -/
-theorem PP_eq_preimage_compl_PP (enc : α ↪ List Bool) : PP enc = compl ⁻¹' PP enc := by
-  ext A
-  refine ⟨compl_mem_PP, fun hA => ?_⟩
-  simpa using compl_mem_PP hA
+theorem PP_eq_preimage_compl_PP (enc : α ↪ List Bool) : PP enc = compl ⁻¹' PP enc :=
+  Set.ext fun _ => ⟨compl_mem_PP, fun hA => by simpa using compl_mem_PP hA⟩
 
 /-- **`coNP ⊆ PP`**: `NP ⊆ PP` and `PP` is closed under complement. -/
 theorem coNP_subset_PP : coNP enc ⊆ PP enc := fun _ hA => by

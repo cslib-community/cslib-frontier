@@ -120,20 +120,14 @@ theorem nonemptySymbol_eq_true_iff (arity : Rel → ℕ)
     nonemptySymbol arity sem r = true ↔ (booleanRelation arity sem r).Nonempty := by
   constructor
   · intro h
-    have hn : sourceRows arity sem r ≠ [] := by
-      intro he
-      simp only [nonemptySymbol, he, List.isEmpty_nil, Bool.not_true,
-        Bool.false_eq_true] at h
-    obtain ⟨word, hword⟩ := List.exists_mem_of_ne_nil _ hn
+    obtain ⟨word, hword⟩ := List.exists_mem_of_ne_nil _ (by simpa [nonemptySymbol] using h)
     obtain ⟨hw, hs⟩ := List.mem_filter.mp hword
     obtain ⟨x, _, rfl⟩ := List.mem_map.mp hw
     exact ⟨x, hs⟩
   · rintro ⟨x, hx⟩
     have hm : List.ofFn x ∈ sourceRows arity sem r :=
       List.mem_filter.mpr ⟨mem_enumList.mpr List.length_ofFn, hx⟩
-    cases he : sourceRows arity sem r with
-    | nil => simp only [he, List.not_mem_nil] at hm
-    | cons row rows => simp only [nonemptySymbol, he, List.isEmpty_cons, Bool.not_false]
+    simp [nonemptySymbol, List.ne_nil_of_mem hm]
 
 /-- Every listed white boundary is distinct and bounded by the actual occurrence count,
 including for malformed certificates. -/

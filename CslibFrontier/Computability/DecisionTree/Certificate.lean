@@ -37,7 +37,7 @@ certificate complexity.
 * [S. Jukna, *Boolean Function Complexity: Advances and Frontiers*][Jukna2012]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib
 
@@ -53,12 +53,10 @@ theorem IsCertificate.exists_mem_inter_ne {f : BooleanFunction n} {x w : BitStri
     {S T : Finset (Fin n)} (hS : IsCertificate f x S) (hT : IsCertificate f w T) (hne : f x ≠ f w) :
     ∃ i ∈ T ∩ S, w i ≠ x i := by
   by_contra! h
-  have hvx : f (T.piecewise w x) = f x := hS _ fun i hi => by
-    by_cases hiT : i ∈ T
-    · simp [hiT, h i (mem_inter.2 ⟨hiT, hi⟩)]
-    · simp [hiT]
-  have hvw : f (T.piecewise w x) = f w := hT _ fun i hi => by simp [hi]
-  exact hne (hvx.symm.trans hvw)
+  refine hne ((hS (T.piecewise w x) fun i hi => ?_).symm.trans (hT _ fun i hi => by simp [hi]))
+  by_cases hiT : i ∈ T
+  · simp [hiT, h i (mem_inter.2 ⟨hiT, hi⟩)]
+  · simp [hiT]
 
 /-- Fixing the variables of `S` to the values `a` turns a certificate `T` at the filled input into
 the certificate `T \ S` of the restricted function. -/
@@ -149,31 +147,29 @@ theorem complexity_le_certificateComplexityFor_mul (f : BooleanFunction n) :
     wlog hx : f x = false generalizing x y
     · exact this y x (Ne.symm hxy) (by simpa [hx] using hxy)
     obtain ⟨S, hS, hcard⟩ := exists_isCertificate_card_eq f x
-    have : S = ∅ := card_eq_zero.1 (hcard.trans (Nat.le_zero.1
+    obtain rfl : S = ∅ := card_eq_zero.1 (hcard.trans (Nat.le_zero.1
       ((certificateComplexityAt_le_certificateComplexityFor hx).trans hf)))
-    subst this
     exact hxy (hS y fun _ h => absurd h (notMem_empty _)).symm
   | succ m ih =>
     intro f hf
     by_cases h1 : ∃ x, f x = true
-    swap
+    · obtain ⟨x, hx⟩ := h1
+      obtain ⟨S, hS, hScard⟩ := exists_isCertificate_card_eq f x
+      -- Query the certificate of `x`, then continue with a tree for the restricted function.
+      refine (complexity_le_card_add S (d := m * certificateComplexityFor f true) fun a =>
+        (ih _ (certificateComplexityFor_restrict_lt hS a (by simp [hx]) hf)).trans
+          (Nat.mul_le_mul_left m (certificateComplexityFor_restrict_le S a true))).trans ?_
+      rw [hScard, Nat.succ_mul, add_comm]
+      exact Nat.add_le_add_left (certificateComplexityAt_le_certificateComplexityFor hx) _
     · push Not at h1
       exact (complexity_eq_zero_iff.2 fun x y => by simp [h1 x, h1 y]).trans_le (Nat.zero_le _)
-    obtain ⟨x, hx⟩ := h1
-    obtain ⟨S, hS, hScard⟩ := exists_isCertificate_card_eq f x
-    -- Query the certificate of `x`, then continue with a tree for the restricted function.
-    refine (complexity_le_card_add S (d := m * certificateComplexityFor f true) fun a =>
-      (ih _ (certificateComplexityFor_restrict_lt hS a (by simp [hx]) hf)).trans
-        (Nat.mul_le_mul_left m (certificateComplexityFor_restrict_le S a true))).trans ?_
-    rw [hScard, Nat.succ_mul, add_comm]
-    exact Nat.add_le_add_left (certificateComplexityAt_le_certificateComplexityFor hx) _
 
 /-- Decision tree complexity is at most the square of certificate complexity. -/
 theorem complexity_le_certificateComplexity_sq (f : BooleanFunction n) :
     complexity f ≤ certificateComplexity f ^ 2 :=
-  (complexity_le_certificateComplexityFor_mul f).trans (by
-    rw [sq]
-    exact Nat.mul_le_mul (certificateComplexityFor_le_certificateComplexity f false)
+  (complexity_le_certificateComplexityFor_mul f).trans
+    (sq (certificateComplexity f) ▸ Nat.mul_le_mul
+      (certificateComplexityFor_le_certificateComplexity f false)
       (certificateComplexityFor_le_certificateComplexity f true))
 
 end DecisionTree

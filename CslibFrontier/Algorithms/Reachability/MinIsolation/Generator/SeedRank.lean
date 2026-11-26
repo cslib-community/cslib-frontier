@@ -101,7 +101,7 @@ private theorem step_inSpace (encContext : κ ↪ List Bool) (code : κ → ℕ 
   have hc' := budget_comp_linear hc (budget_prod hctx hi)
   have hb := budget_comp_lin natTestBit (linear_mul 32) (budget_prod hrank hi)
   have hd := budget_finite (encC := encNat) Bool.toNat (budget_boolAnd hc' hb)
-  have hnew := budget_natAdd (budget_natMul (budget_const 6 hin) ha) hd
+  have hnew := budget_natAdd (budget_natMul (budget_const 6) ha) hd
   exact (encRegisters_mk_budget encContext hctx hrank (budget_natSucc hi) hnew).of_enc_eq
     (fun _ => rfl)
 
@@ -132,7 +132,7 @@ theorem accumulateRank_inSpace [Inhabited κ] (encContext : κ ↪ List Bool) (c
   have hid := budget_id hin
   have hinit : ComputableInSpace init (encRequest encContext) (encRegisters encContext) B :=
     encRegisters_mk_budget encContext (encRequest_context_budget encContext hid)
-      (encRequest_rank_budget encContext hid) (budget_const 0 hin) (budget_const 0 hin)
+      (encRequest_rank_budget encContext hid) (budget_const 0) (budget_const 0)
   have hrun := budget_iterate (encRequest_width_budget encContext hid) hinit
     (step_inSpace encContext code hc) (length_iterate_le encContext code)
     (show (fun q => (encRequest encContext q).length + 5 * q.width + 1) ≼ B from
@@ -188,7 +188,7 @@ theorem weightRank_inSpace [Inhabited κ] (encContext : κ ↪ List Bool) (code 
     omega
   have ha := budget_comp (accumulateRank_inSpace encContext code hc) hs hwidth
   have hw := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hl ha)
-  exact (budget_ite (budget_natIsZero hl) (budget_const 0 hin) hw).of_enc_eq fun q => by
+  exact (budget_ite (budget_natIsZero hl) (budget_const 0) hw).of_enc_eq fun q => by
     simp [weightRank]
 
 end Cslib.Reachability.Hoza.SeedRank

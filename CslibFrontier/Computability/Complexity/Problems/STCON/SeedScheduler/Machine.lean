@@ -189,7 +189,7 @@ theorem init_withContext_budget {α κ σ : Type} {enc : α ↪ List Bool} {S : 
     (hcontext : ComputableInSpace context enc encContext S) :
     ComputableInSpace (fun a => (machine (setup a) scan (fun r => start (r, context a))
       verdict).init) enc (encState encScan) S := by
-  have hzero := (constZero (encIn := enc) (encB := encNat) 0).mono_le (fun a => Nat.zero_le (S a))
+  have hzero := budget_const (encIn := enc) (Bs := S) (encB := encNat) 0
   have hcandidate := seedSchedulerCandidate_budget hsetup hzero
   have hframe := snd encContext encSeedSchedulerFrame
   have hreadContext := fst encContext encSeedSchedulerFrame
@@ -197,7 +197,8 @@ theorem init_withContext_budget {α κ σ : Type} {enc : α ↪ List Bool} {S : 
   have henter := enter_budget encScan (fun p r => start (r, p.1)) hframe
     (budget_comp_linear hstart (budget_prod hrequest hreadContext))
   have hexhaust :=
-    budget_const (encIn := encContext) (encB := encState encScan) (.inr (some none)) (.refl _)
+    budget_const (encIn := encContext) (Bs := fun a => (encContext a).length)
+      (encB := encState encScan) (.inr (some none))
   exact (budget_comp_linear (optionElimSnd hexhaust henter)
     (budget_prod hcontext hcandidate)).of_enc_eq fun a => by
       unfold machine
@@ -212,10 +213,9 @@ theorem init_budget {α σ : Type} {enc : α ↪ List Bool} {S : α → ℕ}
       (fun r => (encSeedScanRequest r).length))
     {setup : α → SeedSearchSetup} (hsetup : ComputableInSpace setup enc encSeedSearchSetup S) :
     ComputableInSpace (fun a => (machine (setup a) scan start verdict).init)
-      enc (encState encScan) S := by
-  have hunit := (constZero (encIn := enc) (encB := encUnit) ()).mono_le (fun a => Nat.zero_le (S a))
-  exact init_withContext_budget encUnit encScan scan (fun p => start p.1) verdict
-    (budget_comp_linear hstart (fst encSeedScanRequest encUnit)) hsetup hunit
+      enc (encState encScan) S :=
+  init_withContext_budget encUnit encScan scan (fun p => start p.1) verdict
+    (budget_comp_linear hstart (fst encSeedScanRequest encUnit)) hsetup (budget_const ())
 
 open _root_.Turing.MultiTapeTM.ComputableInSpace in
 private theorem resume_withContext_inSpace {κ σ : Type}
@@ -242,11 +242,14 @@ private theorem resume_withContext_inSpace {κ σ : Type}
   have hframeWithBit := snd' (fst saved encBool)
   have hrank := encSeedScanRequest_seed_budget (encSeedSchedulerFrame_request_budget hframeWithBit)
   have hresult := encAnswer_mk_budget hrank (snd saved encBool)
-  have hnoAnswer := budget_const (encIn := saved) (encB := encOption encAnswer) none (.refl _)
+  have hnoAnswer :=
+    budget_const (Bs := fun a => (saved a).length) (encIn := saved) (encB := encOption encAnswer)
+      none
   have hanswer := optionElimSnd hnoAnswer (budget_optionSome hresult)
   have hfinish := budget_comp_linear (of_inO (ComputableInO.inr live terminal))
     (budget_optionSome hanswer)
-  have hreject := budget_const (encIn := saved) (encB := R) (.inr none) (.refl _)
+  have hreject :=
+    budget_const (Bs := fun a => (saved a).length) (encIn := saved) (encB := R) (.inr none)
   have hdispatch := optionElimSnd hreject (sumElimSnd hcontinue hfinish)
   have hinner := snd encContext (encPair F V)
   have hsaved := budget_prod (fst encContext (encPair F V)) (fst' hinner)
@@ -271,11 +274,9 @@ theorem resume_inSpace {σ : Type} (encScan : σ ↪ List Bool) (start : SeedSca
     ComputableInSpace (fun p => resume start p.1 p.2) E (encState encScan)
       (fun p => (E p).length) := by
   intro E
-  have hresume := resume_withContext_inSpace encUnit encScan (fun p => start p.1)
-    (budget_comp_linear hstart (fst encSeedScanRequest encUnit))
-  have hid := budget_id (enc := E) (.refl _)
-  have hunit := budget_const (encIn := E) (encB := encUnit) () (.refl _)
-  exact budget_comp_linear hresume (budget_prod hunit hid)
+  exact budget_comp_linear (resume_withContext_inSpace encUnit encScan (fun p => start p.1)
+    (budget_comp_linear hstart (fst encSeedScanRequest encUnit)))
+    (budget_prod (budget_const ()) (budget_id (.refl _)))
 
 open _root_.Turing.MultiTapeTM.ComputableInSpace in
 /-- Query, read the phase tag or terminal reply, and test acceptance in space linear in
@@ -291,22 +292,15 @@ theorem observations_inSpace {σ : Type} (encScan : σ ↪ List Bool) (setup : S
       ComputableInSpace reply E (encOption (encOption encAnswer)) (fun s => (E s).length) ∧
       ComputableInSpace M.accept E encBool (fun s => (E s).length) := by
   intro E M
-  let live := encSum encSeedSchedulerFrame (encPair encSeedSchedulerFrame encScan)
-  let terminal := encOption (encOption encAnswer)
-  have hquerySkip := budget_const (encIn := encSeedSchedulerFrame) (encB := encNat) 0 (.refl _)
-  have hqueryScan := budget_comp_linear hquery (snd encSeedSchedulerFrame encScan)
-  have hqueryTerminal := budget_const (encIn := terminal) (encB := encNat) 0 (.refl _)
   have hqueryMachine : ComputableInSpace M.query E encNat (fun s => (E s).length) :=
-    (sumElim (sumElim hquerySkip hqueryScan) hqueryTerminal).of_enc_eq fun
-      | .inl (.inl _) | .inl (.inr _) | .inr _ => rfl
-  have hhaltLive := budget_const (encIn := live) (encB := encBool) false (.refl _)
-  have hhaltTerminal := budget_const (encIn := terminal) (encB := encBool) true (.refl _)
+    (sumElim (sumElim (budget_const 0)
+      (budget_comp_linear hquery (snd encSeedSchedulerFrame encScan)))
+      (budget_const 0)).of_enc_eq fun | .inl (.inl _) | .inl (.inr _) | .inr _ => rfl
   have hhalt : ComputableInSpace M.halted E encBool (fun s => (E s).length) :=
-    (sumElim hhaltLive hhaltTerminal).of_enc_eq fun | .inl _ | .inr _ => rfl
-  have hreplyLive := budget_const (encIn := live) (encB := terminal) none (.refl _)
-  have hreplyTerminal := budget_id (enc := terminal) (.refl _)
-  have hreply : ComputableInSpace reply E terminal (fun s => (E s).length) :=
-    (sumElim hreplyLive hreplyTerminal).of_enc_eq fun | .inl _ | .inr _ => rfl
+    (sumElim (budget_const false) (budget_const true)).of_enc_eq fun | .inl _ | .inr _ => rfl
+  have hreply : ComputableInSpace reply E (encOption (encOption encAnswer))
+      (fun s => (E s).length) :=
+    (sumElim (budget_const none) (budget_id (.refl _))).of_enc_eq fun | .inl _ | .inr _ => rfl
   have hanswer := encAnswer_reachable_budget (budget_id (enc := encAnswer) (.refl _))
   have haccept := budget_comp_linear (optionElim false (optionElim false hanswer)) hreply
   exact ⟨hqueryMachine, hhalt, hreply, haccept.of_enc_eq fun
@@ -342,8 +336,11 @@ theorem next_withContext_inSpace {κ σ : Type} (encContext : κ ↪ List Bool)
   have hskipFrame := fst F C
   have hskipContext := fst' (snd F C)
   have hskipChoice := snd' (snd' (snd F C))
-  have hskipReject := budget_const (encIn := encPair F C) (encB := E) (.inr none) (.refl _)
-  have hnoVerdict := budget_const (encIn := encPair F C) (encB := V) none (.refl _)
+  have hskipReject :=
+    budget_const (Bs := fun a => (encPair F C a).length) (encIn := encPair F C) (encB := E)
+      (.inr none)
+  have hnoVerdict :=
+    budget_const (Bs := fun a => (encPair F C a).length) (encIn := encPair F C) (encB := V) none
   have hskip := budget_ite hskipChoice hskipReject
     (budget_comp_linear hresume (budget_prod hskipContext (budget_prod hskipFrame hnoVerdict)))
   have hactive := fst A C
@@ -353,7 +350,9 @@ theorem next_withContext_inSpace {κ σ : Type} (encContext : κ ↪ List Bool)
   have hscan := snd' hactive
   have hreturned := budget_prod hsuspended (budget_comp_linear hverdict hscan)
   have hreturn := budget_comp_linear hresume (budget_prod hcontext hreturned)
-  have hscanReject := budget_const (encIn := encPair A C) (encB := E) (.inr none) (.refl _)
+  have hscanReject :=
+    budget_const (Bs := fun a => (encPair A C a).length) (encIn := encPair A C) (encB := E)
+      (.inr none)
   have hliveState := budget_prod hsuspended (budget_comp_linear hnext (budget_prod hscan hread))
   have hlive := budget_comp_linear (of_inO (ComputableInO.inl L T))
     (budget_comp_linear (of_inO (ComputableInO.inr F A)) hliveState)
@@ -386,7 +385,7 @@ theorem next_inSpace {σ : Type} (encScan : σ ↪ List Bool) (setup : SeedSearc
   intro E P
   have hstep := next_withContext_inSpace encUnit encScan setup scan (fun p => start p.1) verdict
     (budget_comp_linear hstart (fst encSeedScanRequest encUnit)) hhalt hverdict hnext
-  have hunit := budget_const (encIn := P) (encB := encUnit) () (.refl _)
+  have hunit := budget_const (Bs := fun a => (P a).length) (encIn := P) (encB := encUnit) ()
   exact (budget_comp_linear hstep
     (budget_prod (fst E encReadChoice) (budget_prod hunit (snd E encReadChoice)))).of_enc_eq
       fun ⟨_, _⟩ => rfl

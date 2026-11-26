@@ -347,8 +347,7 @@ theorem successor_eq_least {d : ℕ} {t : Tree d} (ht : t.Valid) (q : ℕ) :
   cases hs : t.successor q with
   | none =>
     simp only [OrderedSet.LeastResult, Finset.filter_eq_empty_iff]
-    have hnone := (Tree.successor_elements_none_iff ht q).mp hs
-    exact fun z hz => not_lt_of_ge (hnone z hz)
+    exact fun z hz => not_lt_of_ge ((Tree.successor_elements_none_iff ht q).mp hs z hz)
   | some y =>
     simp only [OrderedSet.LeastResult, Finset.mem_filter]
     obtain ⟨hy_mem, hqy, hmin⟩ := (Tree.successor_elements_some_iff ht q y).mp hs
@@ -433,22 +432,13 @@ theorem arguments_fit {d w base stackBase₀ : ℕ}
   have h5_le := five_le_span d
   have hu_le := universeSize_le_span d
   have h2 : Fits w 2 := hstk_fit.of_le (by omega)
-  cases o with
-  | insert k =>
-    simp only [dynamicProgram]
-    split
-    · exact fits_zero w
-    · exact hstk_fit.of_le (by dsimp only [spec] at ho; omega)
-  | member q =>
-    simp only [dynamicProgram]
-    split
-    · exact h2.of_le (by decide)
-    · exact ho
-  | successor q =>
-    simp only [dynamicProgram]
-    split
-    · exact h2
-    · exact ho
+  cases o <;> simp only [dynamicProgram] <;> split
+  · exact fits_zero w
+  · exact hstk_fit.of_le (by dsimp only [spec] at ho; omega)
+  · exact h2.of_le (by decide)
+  · exact ho
+  · exact h2
+  · exact ho
 
 /-- Every admitted native call executes the original dispatcher and the paid canonical result
 suffix, retaining the represented set and all original memory framing guarantees. -/
@@ -543,8 +533,7 @@ theorem instruction_bound {d w base stackBase₀ : ℕ}
     (hstk_lo : base + span d ≤ stackBase₀) (hstk_fit : Fits w (stackBase₀ + 4 * d)) :
     DataStructure.Bound (certificate hstk_lo hstk_fit).impl
       DynamicProgram.OperationTrace.instructions (fun _ _ => 65 * (d + 1) + 30) := by
-  apply (certificate hstk_lo hstk_fit).instruction_bound_const
-  intro s x o hx ho
+  refine (certificate hstk_lo hstk_fit).instruction_bound_const _ fun {s x} o hx ho => ?_
   obtain ⟨z, ⟨k, hk, he'⟩, _, _⟩ := dispatch_spec hstk_lo hstk_fit o hx ho
   exact ⟨z, k, he', by omega⟩
 

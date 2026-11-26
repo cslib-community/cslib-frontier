@@ -166,18 +166,12 @@ theorem onNegTriangle_padIsolated (eI : U ≃ I ⊕ I₁) (eJ : V ≃ J ⊕ J₁
     (C : Matrix I J (MinTropical R)) (i : I) (j : J) :
     OnNegTriangle (padIsolated eI eK A) (padIsolated eK eJ B) (padIsolated eI eJ C)
         (eI.symm (.inl i)) (eJ.symm (.inl j)) ↔ OnNegTriangle A B C i j := by
-  constructor
-  · rintro ⟨w, hw⟩
-    obtain ⟨-, k, -, hk⟩ := padIsolated_apply_eq_zero eI eK A hw.ne_zero_left
-    refine ⟨k, ?_⟩
-    have hw' : eK.symm (.inl k) = w := by rw [← hk, Equiv.symm_apply_apply]
-    rw [← hw', IsNegTriangle, padIsolated_apply_inl, padIsolated_apply_inl,
-      padIsolated_apply_inl] at hw
-    exact hw
-  · rintro ⟨k, hk⟩
-    refine ⟨eK.symm (.inl k), ?_⟩
-    rw [IsNegTriangle, padIsolated_apply_inl, padIsolated_apply_inl, padIsolated_apply_inl]
-    exact hk
+  refine ⟨?_, fun ⟨k, hk⟩ =>
+    ⟨eK.symm (.inl k), by simpa only [IsNegTriangle, padIsolated_apply_inl] using hk⟩⟩
+  rintro ⟨w, hw⟩
+  obtain ⟨-, k, -, hk⟩ := padIsolated_apply_eq_zero eI eK A hw.ne_zero_left
+  rw [← eK.symm_apply_apply w, hk] at hw
+  exact ⟨k, by simpa only [IsNegTriangle, padIsolated_apply_inl] using hw⟩
 
 variable [Fintype K]
 
@@ -230,11 +224,9 @@ theorem FiniteEntriesBounded.mul {A : Matrix I K (MinTropical (WithTop ℤ))}
   obtain ⟨k, -, hk⟩ := exists_sum_eq Finset.univ_nonempty (fun k => A i k * B k j)
   rw [hk, untrop_mul] at hx
   obtain ⟨a, b, ha, hb, rfl⟩ := WithTop.add_eq_coe.1 hx
-  have h1 := hA i k a ha.symm
-  have h2 := hB k j b hb.symm
   push_cast
   calc |a + b| ≤ |a| + |b| := abs_add_le a b
-    _ ≤ M + M := add_le_add h1 h2
+    _ ≤ M + M := add_le_add (hA i k a ha.symm) (hB k j b hb.symm)
     _ = 2 * M := (two_mul _).symm
 
 end Cslib.Algorithms.ShortestPaths
