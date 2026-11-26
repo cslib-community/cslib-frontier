@@ -139,8 +139,7 @@ private theorem shiftUp_value [DecidableEq ι] (v : ι → ℝ) (σ : Fin k ↪ 
   · by_cases h2 : r.val + 1 < k
     · simp only [shiftUp_mid σ t tail htail (by omega) h2, h1, h2, ↓reduceIte, ↓reduceDIte]
       exact Function.update_of_ne (σ.injective.ne (Fin.ne_of_val_ne (by dsimp; omega))) 0 v
-    · rw [shiftUp_last σ t tail htail (by omega)]
-      simp only [h1, h2, ↓reduceIte, ↓reduceDIte]
+    · simp only [shiftUp_last σ t tail htail (r := r) (by omega), h1, h2, ↓reduceIte, ↓reduceDIte]
 
 private theorem clarkePivot_unassigned [Fintype ι] [DecidableEq ι]
     [Fintype (Fin k ↪ ι)] [Nonempty (Fin k ↪ ι)]
@@ -182,8 +181,8 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
          else if h : r.val + 1 < k then μ ⟨r.val + 1, h⟩ * v (σ ⟨r.val + 1, h⟩) else 0) := by
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ t),
       ← Finset.add_sum_erase (a := last) _ _ (Finset.mem_univ last)]
-    simp only [↓reduceIte, show ¬last.val < t.val by dsimp [last]; omega,
-      show ¬last.val + 1 < k by dsimp [last]; omega, ↓reduceDIte, zero_add]
+    have ⟨hlast_t, hlast_k⟩ : ¬last.val < t.val ∧ ¬last.val + 1 < k := by dsimp [last]; omega
+    simp only [↓reduceIte, hlast_t, hlast_k, ↓reduceDIte, zero_add]
     refine (Finset.sum_bij (fun r (hr : r ∈ Finset.univ.erase last) =>
       if r.val < t.val then r else ⟨r.val + 1, by
         have := Fin.ext_iff.not.mp (Finset.ne_of_mem_erase hr)
@@ -201,15 +200,13 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
           Finset.mem_univ b⟩, by simp [hlt]⟩
       · refine ⟨⟨b.val - 1, by omega⟩, Finset.mem_erase.mpr
           ⟨Fin.ne_of_val_ne (by dsimp [last]; omega), Finset.mem_univ _⟩, ?_⟩
-        have hb1 : ¬b.val - 1 < t.val := by omega
-        simp only [hb1, ↓reduceIte, Fin.ext_iff]
-        omega
+        dsimp only
+        split_ifs <;> simp only [Fin.ext_iff] <;> omega
     · intro r hr
       have hrne : r.val ≠ k - 1 := Fin.ext_iff.not.mp (Finset.ne_of_mem_erase hr)
       by_cases hlt : r.val < t.val
-      · simp [hlt, show r ≠ t from Fin.ne_of_val_ne (by omega)]
-      · have hsucc : r.val + 1 < k := by omega
-        have hne : r.val + 1 ≠ t.val := by omega
+      · simp [hlt, Fin.ne_of_val_ne hlt.ne]
+      · have ⟨hsucc, hne⟩ : r.val + 1 < k ∧ r.val + 1 ≠ t.val := by omega
         simp [hlt, hsucc, Fin.ext_iff, hne]
   rw [welfare, hold_eq, hbelow_eq, ← Finset.sum_sub_distrib,
     ← Finset.sum_subset (Finset.subset_univ (Finset.Ici t)) fun r _ hr => by
@@ -236,18 +233,12 @@ private theorem shiftUp_isAssortative [DecidableEq ι] {v : ι → ℝ} {σ : Fi
     rw [shiftUp_value v σ t tail htail a, shiftUp_value v σ t tail htail b]
     have hab' : a.val ≤ b.val := hab
     split_ifs <;> try omega
-    · exact hσ.antitone hab
-    · exact hσ.antitone (Nat.le_succ_of_le hab')
-    · exact hσ.antitone (Nat.succ_le_succ hab')
-    · exact htail_le a
-    · exact htail_le ⟨a.val + 1, ‹_›⟩
-    · exact le_rfl
+    exacts [hσ.antitone hab, hσ.antitone (Nat.le_succ_of_le hab'),
+      hσ.antitone (Nat.succ_le_succ hab'), htail_le a, htail_le ⟨a.val + 1, ‹_›⟩, le_rfl]
   · have hle := hunassigned j hj
     rw [shiftUp_value v σ t tail htail i]
     split_ifs with hi1 hi2
-    · exact hle.trans (htail_le i)
-    · exact hle.trans (htail_le ⟨i.val + 1, hi2⟩)
-    · exact hle
+    exacts [hle.trans (htail_le i), hle.trans (htail_le ⟨i.val + 1, hi2⟩), hle]
 
 private theorem mem_range_shiftUp_of_ne {σ : Fin k ↪ ι} {t : Fin k} {tail : ι}
     {htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r} {r : Fin k} (hrt : r ≠ t) :
@@ -322,7 +313,6 @@ theorem vcg_payment_unassigned_eq_zero [Fintype ι] [DecidableEq ι]
     (hμ : Antitone μ) (hμ_nonneg : ∀ i, 0 ≤ μ i) (hv : ∀ j, 0 ≤ v j)
     {x : ι} (hx : x ∉ Set.range σ) :
     (vcg f).payment (linearProfile (slotAlloc μ) v) x = 0 := by
-  simp only [vcg, groves, hfσ]
-  rw [clarkePivot_unassigned hσ hμ hμ_nonneg hv hx, sub_self]
+  simp only [vcg, groves, hfσ, clarkePivot_unassigned hσ hμ hμ_nonneg hv hx, sub_self]
 
 end Cslib.GameTheory.SponsoredSearch

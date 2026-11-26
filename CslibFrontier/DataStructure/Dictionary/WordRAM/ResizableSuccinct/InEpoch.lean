@@ -103,8 +103,7 @@ theorem compactedEpochWords_le_succinctWords {U V w N n : ℕ}
     (hw : 0 < w) (hU : Fits w U) (_hU_pos : 0 < U) (_hV_pos : 0 < V) (hev : EpochValid U n N) :
     compactedEpochWords U V w N n ≤ Dynamic.succinctWords 1355 441 U V w n := by
   rcases hev with ⟨rfl, rfl⟩ | ⟨_, hnN, hN4, hNU⟩
-  · unfold compactedEpochWords rootHdrWords Dynamic.succinctWords
-    simp only [↓reduceIte]
+  · simp only [compactedEpochWords, rootHdrWords, Dynamic.succinctWords, ↓reduceIte]
     exact (by decide : 8 ≤ 441).trans (Nat.le_add_left 441 _)
   · rw [compactedEpochWords, ite_eq_right (by omega)]
     have hbase := compactedEpochWords_pos_le_div_add (V := V) (n := n) hw hNU hU.le
@@ -130,14 +129,14 @@ theorem compactedEpochWords_le_succinctWords {U V w N n : ℕ}
         localMetaLen N * effBucketPosBits N + globalMetaLen N * globalPtrBits N +
           (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1 ≤
           1344 * n * Dynamic.logLogFactor n := by
-      have hll_N1 := Dynamic.one_le_logLogFactor N
       have h10N : (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1 ≤
           10 * N * Dynamic.logLogFactor N := by
         calc (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1
             = 2 * (maxTailItems N * globalPtrBits N) + 2 * N := by ring
           _ ≤ 2 * (4 * N) + 2 * N := Nat.add_le_add (Nat.mul_le_mul_left 2 htail) le_rfl
           _ = 10 * N := by ring
-          _ ≤ 10 * N * Dynamic.logLogFactor N := Nat.le_mul_of_pos_right _ hll_N1
+          _ ≤ 10 * N * Dynamic.logLogFactor N :=
+              Nat.le_mul_of_pos_right _ (Dynamic.one_le_logLogFactor N)
       calc localMetaLen N * effBucketPosBits N + globalMetaLen N * globalPtrBits N +
             (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1
           ≤ 54 * N * Dynamic.logLogFactor N + 20 * N * Dynamic.logLogFactor N +
@@ -153,8 +152,7 @@ theorem compactedEpochWords_le_succinctWords {U V w N n : ℕ}
         Dynamic.optBits U V n + 1355 * n * Dynamic.logLogFactor n + w - 1 :=
       Nat.sub_le_sub_right (by linarith only [hitem_bits, hmeta_bits]) 1
     have hdiv := Nat.div_le_div_right (c := w) hnum
-    unfold Dynamic.succinctWords
-    omega
+    simp only [Dynamic.succinctWords]; omega
 
 /-- **Static `1 · OPT` bit-space bound (`w_mul_compactedEpochWords_le_bits`):**
 multiplying `compactedEpochWords U V w N n` by `w` yields at most
@@ -198,15 +196,14 @@ theorem reconstructKeyAt_spec {metaBase itemBase U V w N n : ℕ} {θ : QuotHash
   have hslot : SlotStoreInv N gm := hgm_eq ▸ hbucket.hslot
   have htd : 0 < bucketBits N → TailDenseInv N (gm 0) (gm 1) td dt := fun hb => by
     have hwin := hcpl.win_inv; simp only [Nat.ne_of_gt hb, ↓reduceIte] at hwin; exact hwin
-  have hqv_slot : ∀ d < totalSlots N gm, ∀ b j,
-      physOfDense N gm dt d = slotOf N gm b j →
+  have hqv_slot {d b j} (hd : d < totalSlots N gm)
+      (hphys : physOfDense N gm dt d = slotOf N gm b j) :
       compQuotAt itemBase U V w N n s.mem d =
         quotAt 0 U wg N (hashSpace U wg N) s_fix.mem
           (slotOf N (gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem) b j) ∧
       compValAt itemBase U V w N n s.mem d =
         valAt 0 U V wg N (hashSpace U wg N) s_fix.mem
           (slotOf N (gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem) b j) := by
-    intro d hd b j hphys
     rw [← hn, hgm_eq, ← hphys]
     exact ⟨hcpl.quot_eq d hd, hcpl.val_eq d hd⟩
   have howner : ∀ d < n,
@@ -226,7 +223,7 @@ theorem reconstructKeyAt_spec {metaBase itemBase U V w N n : ℕ} {θ : QuotHash
           (slotOf N (gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem) b j) := fun d hd => by
     have hd_tot : d < totalSlots N gm := hn ▸ hd
     obtain ⟨hb_lt, hj_lt, hd_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd_tot
-    obtain ⟨hq_d, hv_d⟩ := hqv_slot d hd_tot _ _ (physOfDense_eq_slotOf_owner hslot htd hd_tot)
+    obtain ⟨hq_d, hv_d⟩ := hqv_slot hd_tot (physOfDense_eq_slotOf_owner hslot htd hd_tot)
     obtain ⟨hfb_b, hfb_q⟩ := feistelBucket_feistelReconstruct (hValOfSeed U N θ) hb_lt
       (compQuotAt itemBase U V w N n s.mem d)
     exact ⟨hb_lt, hgm_eq.symm ▸ hj_lt, hd_eq, hfb_b, hfb_q, hq_d, hv_d⟩
@@ -252,11 +249,10 @@ theorem reconstructKeyAt_spec {metaBase itemBase U V w N n : ℕ} {θ : QuotHash
     obtain ⟨j, hj_lt', hq_j⟩ := (hbucket.hmap_dom b hb_lt q).mp (by rwa [hbm_eq])
     have hj_lt : j < bCount N gm b := hgm_eq ▸ hj_lt'
     obtain ⟨hd_lt, hb_inv, _⟩ := denseOfPhys_slotOf_lt_and_inv hslot htd hb_lt hj_lt
-    set d := denseOfPhys N gm td (slotOf N gm b j)
-    have hq_d := (hqv_slot d hd_lt b j (physOfDense_denseOfPhys_slotOf hslot htd hb_lt hj_lt)).1
-    refine ⟨d, hn ▸ hd_lt, ?_⟩
+    have hq_d := (hqv_slot hd_lt (physOfDense_denseOfPhys_slotOf hslot htd hb_lt hj_lt)).1
+    refine ⟨_, hd_lt.trans_eq hn, ?_⟩
     unfold reconstructKeyAt; dsimp only
-    rw [show ownerBucketOfDense N gm dt d = b from hb_inv, hq_d, hq_j]
+    rw [hb_inv, hq_d, hq_j]
     exact feistelReconstruct_feistelBucket (bucketBits N) (hValOfSeed U N θ) u.val
 
 /-- Active compacted epoch invariant at arbitrary `(metaBase, itemBase)` (`s : Memory.State`). -/

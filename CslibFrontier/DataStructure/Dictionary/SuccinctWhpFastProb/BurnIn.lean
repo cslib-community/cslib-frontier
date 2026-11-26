@@ -249,31 +249,19 @@ theorem HasBurnInBudget.run {c U V n_max : ℕ} (hnU : n_max ≤ U)
         (((Dynamic.spec U V n_max).run dict l).1) (b - l.length) := by
   intro l
   induction l with
-  | nil =>
-    intro st dict b hbud _ _ _
-    simpa [whpRunFrom] using hbud
+  | nil => exact fun hbud _ _ _ => hbud
   | cons o rest ih =>
     intro st dict b hbud hv_l hseq_sub hins_sub
     have hdict_mem := hseq_sub dict (self_mem_stateSeq dict (o :: rest))
     have hnxt_mem := hseq_sub (Dynamic.step dict o).1
       (List.mem_cons_of_mem dict (self_mem_stateSeq _ rest))
-    have hdom_sub : (Dictionary.dom dict : Set (Fin U)) ⊆
-        ((Dictionary.dom (windowStartState U n_max ops) ∪
-          opInsKeys (windowSuffix U n_max ops) : Finset (Fin U)) : Set (Fin U)) := by
-      exact_mod_cast dom_subset_union_opInsKeys _ _ dict hdict_mem
-    have hdom_nxt : (Dictionary.dom (Dynamic.step dict o).1 : Set (Fin U)) ⊆
-        ((Dictionary.dom (windowStartState U n_max ops) ∪
-          opInsKeys (windowSuffix U n_max ops) : Finset (Fin U)) : Set (Fin U)) := by
-      exact_mod_cast dom_subset_union_opInsKeys _ _ _ hnxt_mem
-    have hop_ins : ∀ u v, o = .insert u v →
-        u ∈ opInsKeys (windowSuffix U n_max ops) ∧
-        u ∈ Dictionary.dom (windowStartState U n_max ops) ∪
-          opInsKeys (windowSuffix U n_max ops) := by
-      rintro u v rfl
-      have hu : u ∈ opInsKeys (windowSuffix U n_max ops) :=
-        hins_sub (mem_insert_self u _)
-      exact ⟨hu, mem_union_right _ hu⟩
-    have hstep := HasBurnInBudget.step hnU hbud hv_l.1 hdom_sub hdom_nxt hop_ins
+    have hdom_sub := Finset.coe_subset.mpr (dom_subset_union_opInsKeys _ _ dict hdict_mem)
+    have hdom_nxt := Finset.coe_subset.mpr (dom_subset_union_opInsKeys _ _ _ hnxt_mem)
+    have hstep := HasBurnInBudget.step hnU hbud hv_l.1 hdom_sub hdom_nxt
+      (by
+        rintro u v rfl
+        have hu := hins_sub (mem_insert_self u _)
+        exact ⟨hu, mem_union_right _ hu⟩)
       (hg.goodSeedOnState_of_mem hnxt_mem) hg.1 (hg.2.1 _ hnxt_mem) hg.2.2.2.1 hbad_def hbad_lt
     have hins_rest : opInsKeys rest ⊆ opInsKeys (windowSuffix U n_max ops) := by
       refine Subset.trans ?_ hins_sub

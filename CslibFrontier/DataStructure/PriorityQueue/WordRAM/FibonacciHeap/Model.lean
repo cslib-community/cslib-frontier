@@ -134,15 +134,13 @@ theorem IsCircList.insertAfter {n : ℕ} {left right : Fin n → ℕ} {h u : Fin
     obtain ⟨hh_not, hnd_r⟩ := List.nodup_cons.mp hnodup
     have hr_ne_h : r ≠ h := fun e => hh_not (e ▸ List.mem_cons_self)
     have hu_ne_r : u ≠ r := fun e => hu_tail (e ▸ List.mem_cons_self)
-    refine ⟨hnodup', ⟨?_, ?_, ?_, ?_, hc.2.2.frame ?_ ?_ ?_⟩⟩
-    · simp only [Function.update_self]
-    · simp only [Function.update_of_ne hu_ne_r, Function.update_self]
-    · simp only [Function.update_of_ne huh, Function.update_self]
-    · simp only [Function.update_self]
+    refine ⟨hnodup', ?_⟩
+    simp only [ChainLinks, Function.update_self, Function.update_of_ne hu_ne_r,
+      Function.update_of_ne huh, true_and]
+    refine hc.2.2.frame ?_ ?_ fun x hx => ?_
     · simp only [Function.update_of_ne hr_ne_h.symm, Function.update_of_ne huh.symm]
     · simp only [Function.update_of_ne hr_ne_h, Function.update_of_ne hu_ne_r.symm]
-    · intro x hx
-      have hxr : x ≠ r := fun e => (List.nodup_cons.mp hnd_r).1 (e ▸ hx)
+    · have hxr : x ≠ r := fun e => (List.nodup_cons.mp hnd_r).1 (e ▸ hx)
       have hxu : x ≠ u := fun e => hu_tail (List.mem_cons_of_mem r (e ▸ hx))
       have hxh : x ≠ h := fun e => hh_not (List.mem_cons_of_mem r (e ▸ hx))
       simp only [Function.update_of_ne hxr, Function.update_of_ne hxu, Function.update_of_ne hxh,
@@ -179,11 +177,9 @@ theorem IsCircList.rotate_to {n : ℕ} {left right : Fin n → ℕ} {L₁ L₂ :
   induction L₁ generalizing L₂ with
   | nil => simpa only [List.append_nil, List.nil_append] using hL
   | cons x xs ih =>
-    have hrot : IsCircList left right ((xs ++ v :: L₂) ++ [x]) := hL.rotate_one
-    have heq : (xs ++ v :: L₂) ++ [x] = xs ++ v :: (L₂ ++ [x]) := by simp
-    rw [heq] at hrot
-    have hih := ih hrot
-    simpa only [List.append_assoc, List.singleton_append] using hih
+    have hrot : IsCircList left right (xs ++ v :: (L₂ ++ [x])) := by
+      simpa only [List.append_eq, List.append_assoc, List.cons_append] using hL.rotate_one
+    simpa only [List.append_assoc, List.singleton_append] using ih hrot
 
 /-- Any member `v ∈ L` of a circular list can be rotated to the head while preserving `Perm`. -/
 theorem IsCircList.exists_head {n : ℕ} {left right : Fin n → ℕ} {L : List (Fin n)} {v : Fin n}
@@ -233,12 +229,9 @@ theorem IsCircList.remove {n : ℕ} {left right : Fin n → ℕ} {L : List (Fin 
       IsCircList (Function.update left r l.val) (Function.update right l r.val) (r :: rest) ∧
       (r :: rest).Perm (L.erase v) := by
   obtain ⟨tail, hrot, hperm⟩ := hL.exists_head hv
-  have htlen : 1 ≤ tail.length := by
-    have := hperm.length_eq
-    simp only [List.length_cons] at this
-    omega
   rcases tail with _ | ⟨r, rest⟩
-  · simp at htlen
+  · have := hperm.length_eq
+    simp at this; omega
   obtain ⟨hnodup, hc⟩ := hrot
   simp only [ChainLinks] at hc
   have hne_rr : r :: rest ≠ [] := List.cons_ne_nil r rest
@@ -251,8 +244,7 @@ theorem IsCircList.remove {n : ℕ} {left right : Fin n → ℕ} {L : List (Fin 
   have hr_mem : r ∈ L := hperm.subset (List.mem_cons_of_mem v List.mem_cons_self)
   have hl_mem_L : l ∈ L := hperm.subset (List.mem_cons_of_mem v hl_mem_rr)
   have hperm_erase : (r :: rest).Perm (L.erase v) := by
-    have := hperm.erase v
-    simpa only [List.erase_cons_head] using this
+    simpa only [List.erase_cons_head] using hperm.erase v
   have hreclose : ChainLinks (Function.update left r l.val) (Function.update right l r.val)
       r r rest := by
     rcases rest with _ | ⟨x, xs⟩
@@ -282,10 +274,8 @@ theorem fib_sum_pred_add_two (k : ℕ) :
   | succ m ih =>
     rcases m with _ | m
     · decide
-    · rw [Finset.sum_range_succ, ← Nat.add_assoc, ih, Nat.add_sub_cancel,
-        show m + 1 + 2 = (m + 2) + 1 from rfl, show m + 1 + 1 + 2 = (m + 2) + 2 from rfl,
-        Nat.add_comm]
-      exact Nat.fib_add_two.symm
+    · rw [Finset.sum_range_succ, ← Nat.add_assoc, ih, Nat.add_sub_cancel, Nat.add_comm]
+      exact (Nat.fib_add_two (n := m + 2)).symm
 
 /-- Exponential lower bound on even-index Fibonacci numbers without golden-ratio reals:
 `2 ^ m ≤ fib (2 * m + 2)` for all `m : ℕ`. -/
@@ -293,19 +283,17 @@ theorem two_pow_le_fib (m : ℕ) : 2 ^ m ≤ Nat.fib (2 * m + 2) := by
   induction m with
   | zero => decide
   | succ m ih =>
-    have hstep : 2 * (m + 1) + 2 = (2 * m + 2) + 2 := by omega
-    rw [hstep, Nat.fib_add_two, Nat.pow_succ]
-    have hmono : Nat.fib (2 * m + 2) ≤ Nat.fib (2 * m + 2 + 1) := Nat.fib_mono (by omega)
+    rw [Nat.mul_succ, Nat.fib_add_two (n := 2 * m + 2), Nat.pow_succ]
+    have := Nat.fib_mono (Nat.le_add_right (2 * m + 2) 1)
     omega
 
 /-- Any node degree `d` satisfying `Nat.fib (d + 2) ≤ n` obeys the pure-`ℕ` logarithmic upper bound
 `d ≤ 2 * Nat.log 2 n + 1`. -/
 theorem deg_le_two_mul_log_add_one {d n : ℕ} (hfib : Nat.fib (d + 2) ≤ n) :
     d ≤ 2 * Nat.log 2 n + 1 := by
-  have h1 : 2 * (d / 2) + 2 ≤ d + 2 := by omega
   have hpow : 2 ^ (d / 2) ≤ n :=
-    (two_pow_le_fib (d / 2)).trans ((Nat.fib_mono h1).trans hfib)
-  have hlog : d / 2 ≤ Nat.log 2 n := Nat.le_log_of_pow_le (by omega) hpow
+    (two_pow_le_fib (d / 2)).trans ((Nat.fib_mono (by omega)).trans hfib)
+  have := Nat.le_log_of_pow_le (by decide) hpow
   omega
 
 end Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap

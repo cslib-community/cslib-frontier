@@ -252,8 +252,8 @@ theorem evalRand_zero (w : ℕ) (p : Program B r) (s : State r) :
 
 theorem evalRand_succ (w : ℕ) (p : Program B r) (T : ℕ) (s : State r) :
     evalRand w p (T + 1) s =
-      (stepRand w p (.running s)).eval.bind fun cfg => (runRand w p T cfg).eval := by
-  rw [evalRand, runRand_succ, ProbComp.eval_bind]
+      (stepRand w p (.running s)).eval.bind fun cfg => (runRand w p T cfg).eval :=
+  ProbComp.eval_bind _ _
 
 theorem support_evalRand (w : ℕ) (p : Program B r) (T : ℕ) (s : State r) :
     (evalRand w p T s).support = (runRand w p T (.running s)).support :=
@@ -321,9 +321,7 @@ theorem runRand_bounded {w : ℕ} {p : Program B r} {T : ℕ} {cfg cfg' : RandCf
     (hcfg : cfg.Bounded w) (hmem : cfg' ∈ (runRand w p T cfg).support) :
     cfg'.Bounded w := by
   induction T generalizing cfg with
-  | zero =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
-    exact hcfg
+  | zero => exact (OracleComp.eq_of_mem_supportWith_pure hmem).symm ▸ hcfg
   | succ T ih =>
     obtain ⟨mid, hmid, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem
     exact ih (stepRand_bounded hcfg hmid) hrest
@@ -431,9 +429,8 @@ def RandFaultFree (w : ℕ) (p : Program B r) (s : State r) : Prop :=
 /-- Under `RandFaultFree`, the fault probability vanishes at every horizon `T`. -/
 theorem RandFaultFree.evalRand_faulted_eq_zero {w : ℕ} {p : Program B r} {s : State r}
     (h : RandFaultFree w p s) (T : ℕ) :
-    evalRand w p T s .faulted = 0 := by
-  rw [PMF.apply_eq_zero_iff, support_evalRand]
-  exact h T
+    evalRand w p T s .faulted = 0 :=
+  (PMF.apply_eq_zero_iff _ _).mpr (support_evalRand w p T s ▸ h T)
 
 /-- Every supported randomized execution path from `s` has halted cleanly within `T` steps. -/
 def RandHaltsWithin (w : ℕ) (p : Program B r) (s : State r) (T : ℕ) : Prop :=
@@ -459,10 +456,8 @@ theorem evalRand_eq_of_randHaltsWithin {w T T' : ℕ} {p : Program B r} {s : Sta
 /-- `RandHaltsWithin` is monotone in the step bound. -/
 theorem RandHaltsWithin.mono {w T T' : ℕ} {p : Program B r} {s : State r}
     (h : RandHaltsWithin w p s T) (hT : T ≤ T') :
-    RandHaltsWithin w p s T' := by
-  intro cfg hmem
-  rw [runRand_eq_of_randHaltsWithin h hT] at hmem
-  exact h cfg hmem
+    RandHaltsWithin w p s T' :=
+  fun cfg hmem => h cfg (runRand_eq_of_randHaltsWithin h hT ▸ hmem)
 
 /-- Any program whose randomized runs halt within `T` steps is fault-free at all horizons. -/
 theorem RandHaltsWithin.randFaultFree {w T : ℕ} {p : Program B r} {s : State r}
@@ -491,8 +486,7 @@ calls. -/
 theorem RandCallsBounded.of_randHaltsWithin {w T T' R : ℕ} {p : Program B r} {s : State r}
     (hhalt : RandHaltsWithin w p s T) (hr : RandCallsBounded w p s T R) (hT : T ≤ T') :
     RandCallsBounded w p s T' R := by
-  rw [RandCallsBounded, runRand_eq_of_randHaltsWithin hhalt hT]
-  exact hr
+  rwa [RandCallsBounded, runRand_eq_of_randHaltsWithin hhalt hT]
 
 /-- Nominal bit cost of a single `ProbComp.unifFin n` draw: `⌈log₂(n + 1)⌉` (`0` bits for
 `rand(0)`, `w` bits for `rand(2 ^ w - 1)`). Charging `⌈log₂(n + 1)⌉` bits per draw is an
