@@ -101,8 +101,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       rw [h8m, h7m, h9m]; exact hcw.salt_bound hs2 hdi
   | none =>
     dsimp only
-    have hfl_sp := hv.fastFindLoc_spec u
-    dsimp only at hfl_sp; rw [hfl] at hfl_sp
+    have hfl_sp : dict u = none := by simpa only [hfl] using hv.fastFindLoc_spec u
     have hu_ndom : u ∉ Dictionary.dom dict := Dictionary.notMem_dom_iff.mpr hfl_sp
     -- 1. Guard 1 (`totalLocalCoordsWhp n_max ≤ X ∨ (cf ≤ X ∧ fs.poolFreeTop = 0)`) is false:
     have hg1 : ¬(totalLocalCoordsWhp n_max ≤ fs.bktCount b ∨
@@ -112,10 +111,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
         ext x
         by_cases hx : x = u <;> simp [dict', Dictionary.dom, hx]
       have hcard_dom' : #(Dictionary.dom dict') ≤ n_max := by
-        rw [hdom', Finset.card_insert_of_notMem hu_ndom]
-        rcases hval.1 with hlt | hsome
-        · omega
-        · rw [hfl_sp] at hsome; cases hsome
+        simpa [hdom', Finset.card_insert_of_notMem hu_ndom, hfl_sp, Nat.lt_succ_iff] using hval.1
       let X' : Fin (numBucketsWhp n_max) → ℕ :=
         fun b' => #((Dictionary.dom dict').filter fun w =>
           feistelBucket (bWhp n_max) h1 w.val = b'.val)
@@ -146,8 +142,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
           _ = #(Dictionary.dom dict') := by simp
       obtain ⟨hcb_lt, _, hpool_le⟩ := sum_sub_capFront_le_poolSize hc.hth X'
         (hsum_X'.trans_le hcard_dom')
-        (fun b' => by rw [hsum_X']; exact (hbal_nxt b').1)
-        (fun b' => by rw [hsum_X']; exact (hbal_nxt b').2)
+        (fun b' => hsum_X' ▸ (hbal_nxt b').1) (fun b' => hsum_X' ▸ (hbal_nxt b').2)
       have hb_cb := hcb_lt ⟨b, hb⟩
       rw [hX'_eq ⟨b, hb⟩, ite_eq_left rfl] at hb_cb
       have hcb_pos : 0 < capBackWhp n_max := by

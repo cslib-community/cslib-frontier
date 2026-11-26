@@ -176,9 +176,7 @@ private theorem createLeaf_correct [LinearOrder M.Value] (zero maxSucc : M.Op)
   have vacancy : match q.ptr 2 with
       | none => q.ptr 1 = none
       | some a => ∃ par, q.heap[a]? = some par ∧ par.ptr side.castSucc = none := by
-    change match s.ptr 2 with
-      | none => s.ptr 1 = none
-      | some a => ∃ par, s.heap[a]? = some par ∧ par.ptr side.castSucc = none
+    dsimp only [q, State.setData]
     cases hp : s.ptr 2 with
     | none => simpa [hp] using vacant
     | some a =>
@@ -523,20 +521,18 @@ theorem insert_correct [LinearOrder M.Value]
         ra.reconstruction ▸ rb.before ra.heap (fun i h1 _ => ra.data i h1) safe⟩
     | node label left right =>
       have present : AVLTree.contains (s.data 0) original = true := by
-        rw [contains_eq_searchTree, ← matched.keys, ← ra.found]
-        simp [ra.cursor, root]
+        simp [contains_eq_searchTree, ← matched.keys, ← ra.found, ra.cursor, root]
       have run := ExecWithin.seq ea
         (afterSeek_found zero maxSucc lt heavy le field source a (by simp [ra.cursor, root]))
       let t := a.setPtr 5 none
-      refine ⟨t, tree, run.mono (by omega), ?_, ?_, distinct, ?_, ?_,
-        ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1, ?_, ?_⟩
-      · simpa only [t, State.setPtr, ra.heap] using rep
-      · simpa only [insert_eq_self valid ((contains_eq_true valid.ordered _).mp present)]
-          using matched
-      · simpa [t, State.setPtr] using rootA
-      · simp [t, State.setPtr, ra.heap]
-      · intro z f _ _; simp only [t, State.setPtr, ra.heap]
-      · intro grows; simp [t, State.setPtr, ra.heap] at grows
+      have ht_heap : t.heap = s.heap := ra.heap
+      refine ⟨t, tree, run.mono (by omega), ht_heap ▸ rep,
+        (insert_eq_self valid ((contains_eq_true valid.ordered _).mp present)).symm ▸ matched,
+        distinct, ?_, by simp [ht_heap],
+        ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1,
+        fun _ _ _ _ => by simp only [ht_heap],
+        fun grows => absurd grows (by simp [ht_heap])⟩
+      simpa [t, State.setPtr] using rootA
   exact ⟨t, result, exec, exec.mono (by have := valid.cachedHeight_le_two_mul_log; omega), outcome⟩
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Structured

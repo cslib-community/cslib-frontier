@@ -226,11 +226,8 @@ private theorem execFlatProgramOps_cons_inv
           Modifies (Block.mk base space).footprint p.2.mem q.2.2.mem) ∧
       ExecFlatProgramOps D Latent w base space p_op input encode decode (D.stepFn s o).1 ops
         (ν.bind fun p => (μ_step p).map fun q => (q.1, q.2.2)) ν_final T_rest := by
-  generalize hops' : (o :: ops) = ops_idx at hex
-  induction hex with
-  | nil => cases hops'
-  | cons hstep hrem _ =>
-    cases hops'
+  cases hex with
+  | cons hstep hrem =>
     exact ⟨_, _, _, fun p hp =>
       ⟨(hstep p hp).1, (hstep p hp).2.1, fun q hq => (hstep p hp).2.2 q.1 q.2.1 q.2.2 hq⟩, hrem⟩
 
@@ -329,8 +326,7 @@ private theorem one_le_of_execProgramDist_no_halt0
         at hmem_s
       have heq := OracleComp.eq_of_mem_supportWith_pure hmem_s
       cases hs_step : WordRAM.step w p ⟨0, x⟩ with
-      | next _ => rw [hs_step] at heq; cases heq
-      | fault => rw [hs_step] at heq; cases heq
+      | next _ | fault => simp [hs_step, RandCfg.ofOutcome] at heq
       | halt _ =>
         rcases hp0 : p[0]? with _ | (_ | _ | _ | i | _)
         · simp [WordRAM.step, hp0] at hs_step
@@ -338,8 +334,7 @@ private theorem one_le_of_execProgramDist_no_halt0
           split at hs_step <;> cases hs_step
         all_goals first | exact hno _ hp0 | simp [WordRAM.step, hp0] at hs_step
   have h1 : (evalRand w p 1 ⟨0, x⟩).toOuterMeasure {cfg | ∃ u, cfg = .running u} = 1 := by
-    have hpart := hp.2.1.running_add_halted_eq_one 1
-    rwa [hhalt1, add_zero] at hpart
+    simpa only [hhalt1, add_zero] using hp.2.1.running_add_halted_eq_one 1
   have h2 : (1 : ℝ≥0∞) + 1 ≤ T + 1 := by
     calc (1 : ℝ≥0∞) + 1
       _ = ∑ t ∈ Finset.range 2,
@@ -605,10 +600,10 @@ private theorem le_expectedFlatTime_mode_of_no_halt (withQueries : Bool)
   rw [tsum_mul_add_const_length dist bodyTime _
     fun hops => (modeDist_support_spec withQueries hU hV hops).2.1] at hraw
   have hL_le : (L : ℝ≥0∞) ≤ ∑' ops, dist ops * bodyTime ops :=
-    const_le_tsum_of_support dist bodyTime fun {ops} hops => by
-      obtain ⟨_, T_ops, hT_le, _, hex⟩ := hex_hard ops hops
-      have hlen_eq := (modeDist_support_spec withQueries hU hV hops).2.1
-      exact (hlen_eq ▸ length_le_execFlatProgramOps hno hex).trans hT_le
+    const_le_tsum_of_support dist bodyTime fun hops =>
+      let ⟨_, _, hT_le, _, hex⟩ := hex_hard _ hops
+      ((modeDist_support_spec withQueries hU hV hops).2.1 ▸
+        length_le_execFlatProgramOps hno hex).trans hT_le
   exact ofReal_div_pers_le_of_le_add_mul hL_le hraw
 
 private theorem le_expectedFlatTime_mode_of_det_indexedScheme (withQueries : Bool)

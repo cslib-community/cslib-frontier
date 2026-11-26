@@ -95,10 +95,7 @@ private theorem realizes_insPopFreeSlotGen :
           fs.poolFreeTop ≤ poolSizeWhp n_max)
       (fun _ _ => 0) := by
   unfold insPopFreeSlotGenProg
-  have hrh := realizes_readHdr
-  have hrs := realizes_readPoolFreeStackGen
-  have hwh := realizes_writeHdr
-  realize
+  realize [realizes_readHdr, realizes_readPoolFreeStackGen, realizes_writeHdr]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
@@ -135,9 +132,7 @@ private theorem realizes_insBindBackSlotGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ k < wpCapBack cp ∧ pSlot < wpPoolSize cp)
       (fun _ _ => 0) := by
   unfold insBindBackSlotGenProg
-  have hwb := realizes_writeBackPtrGen
-  have hwo := realizes_writePoolOwnerGen
-  realize
+  realize [realizes_writeBackPtrGen, realizes_writePoolOwnerGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, k⟩, pSlot⟩
     dsimp only at *
@@ -180,9 +175,7 @@ private theorem realizes_insAllocBackyard :
           fs.poolFreeStack (fs.poolFreeTop - 1) < poolSizeWhp n_max)
       (fun _ _ => 0) := by
   unfold insAllocBackyardProg
-  have hpop := realizes_insPopFreeSlotGen
-  have hbnd := realizes_insBindBackSlotGen
-  realize
+  realize [realizes_insPopFreeSlotGen, realizes_insBindBackSlotGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, X⟩
     dsimp only at *
@@ -238,8 +231,7 @@ theorem realizes_fastInsertAllocGen :
             fs.poolFreeStack (fs.poolFreeTop - 1) < poolSizeWhp n_max))
       (fun _ _ => 0) := by
   unfold fastInsertAllocGenProg
-  have hab := realizes_insAllocBackyard
-  realize
+  realize [realizes_insAllocBackyard]
   rcases d with ⟨⟨⟨cp, base⟩, b⟩, X⟩
   obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hb, hX_tl, hcf_fn⟩ := h
   rcases henv.2.2 with ⟨rfl, hth, -⟩
@@ -318,10 +310,7 @@ theorem realizes_insWriteQVAtGen :
           q_val < 2 ^ quotBitsWhp U n_max)
       (fun _ _ => 0) := by
   unfold insWriteQVAtGenProg
-  have hps := realizes_physSlotGen
-  have hwq := realizes_writeQuotGen
-  have hwv := realizes_writeValGen
-  realize
+  realize [realizes_physSlotGen, realizes_writeQuotGen, realizes_writeValGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, X⟩, ⟨q_val, v_val⟩⟩
     dsimp only at *
@@ -385,9 +374,7 @@ private theorem realizes_insWriteCntLocGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ X < wpTotalLoc cp)
       (fun _ _ => 0) := by
   unfold insWriteCntLocGenProg
-  have hwb := realizes_writeBktFieldGen
-  have hwl := realizes_writeFastLocGen
-  realize
+  realize [realizes_writeBktFieldGen, realizes_writeFastLocGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, X⟩, tag⟩
     dsimp only at *
@@ -456,9 +443,7 @@ private theorem realizes_insIncLiveInsGen :
           fs.liveInsCount b ≤ 8 * (slabScale n_max) ^ 12)
       (fun _ _ => 0) := by
   unfold insIncLiveInsGenProg
-  have hrb := realizes_readBktFieldGen
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -533,10 +518,7 @@ theorem realizes_insFinishCollisionGen :
           ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) curMap)
       (fun _ _ => 0) := by
   unfold insFinishCollisionGenProg
-  have hrh := realizes_readHdr
-  have hwc := realizes_insWriteCntLocGen
-  have hbi := realizes_bufInsertGen
-  realize
+  realize [realizes_readHdr, realizes_insWriteCntLocGen, realizes_bufInsertGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, X⟩, rKey⟩
     dsimp only at *
@@ -594,10 +576,7 @@ theorem realizes_insFinishDirectGen :
           ValidWhpSlice n_max (fs.liveInsCount b) (fs.slices lIdx) lm)
       (fun _ _ => 0) := by
   unfold insFinishDirectGenProg
-  have hwc := realizes_insWriteCntLocGen
-  have hbi := realizes_btreeInsertGen
-  have hic := realizes_insIncLiveInsGen
-  realize
+  realize [realizes_insWriteCntLocGen, realizes_btreeInsertGen, realizes_insIncLiveInsGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, X⟩, ⟨fp, lIdx⟩⟩
     dsimp only at *
