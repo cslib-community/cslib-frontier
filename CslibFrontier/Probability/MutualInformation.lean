@@ -216,9 +216,7 @@ theorem condMutualInfo_eq_zero_of_apply_eq_mul [Finite γ] [Finite α] [Finite �
     rw [this, map_fst_apply, ← ENNReal.tsum_mul_right]
     exact tsum_congr fun a => by rw [map_equiv_apply]; simp [e, h]
   have hC (c : γ) : joint.map Prod.fst c = (∑' a, f c a) * ∑' b, g c b := by
-    rw [map_fst_apply, tsum_fintype, Fintype.sum_prod_type, tsum_fintype, tsum_fintype,
-      Finset.sum_mul_sum]
-    simp [h]
+    simp only [map_fst_apply, tsum_fintype, Fintype.sum_prod_type, Finset.sum_mul_sum, h]
   have hid (c : γ) (a : α) (b : β) :
       (joint (c, a, b)).toReal * (joint.map Prod.fst c).toReal =
         (joint.map (Prod.map id Prod.fst) (c, a)).toReal *
@@ -232,14 +230,12 @@ theorem condMutualInfo_eq_zero_of_apply_eq_mul [Finite γ] [Finite α] [Finite �
   refine Finset.sum_eq_zero fun ⟨c, a, b⟩ _ => ?_
   by_cases hm : joint (c, a, b) = 0
   · simp [hm]
-  have hm' : (joint (c, a, b)).toReal ≠ 0 :=
-    ENNReal.toReal_ne_zero.mpr ⟨hm, PMF.apply_ne_top _ _⟩
   have h1 := toReal_map_apply_ne_zero joint (Prod.map id Prod.fst) hm
   have h2 := toReal_map_apply_ne_zero joint (Prod.map id Prod.snd) hm
-  have h3 := toReal_map_apply_ne_zero joint Prod.fst hm
-  simp only [Prod.map_apply, id] at h1 h2 h3 ⊢
+  simp only [Prod.map_apply, id] at h1 h2 ⊢
   have hlog := congrArg (Real.logb 2) (hid c a b)
-  rw [Real.logb_mul hm' h3, Real.logb_mul h1 h2] at hlog
+  rw [Real.logb_mul (ENNReal.toReal_ne_zero.mpr ⟨hm, PMF.apply_ne_top _ _⟩)
+    (toReal_map_apply_ne_zero joint Prod.fst hm), Real.logb_mul h1 h2] at hlog
   simp only [surprisal]
   linear_combination (joint (c, a, b)).toReal * hlog
 

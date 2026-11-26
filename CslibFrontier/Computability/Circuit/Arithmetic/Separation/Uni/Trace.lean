@@ -183,8 +183,7 @@ private theorem cols_four_eq_unb {L : ℕ} {w : List (Fin 9 → Bool)} (hl : w.l
         binaryValue (cw w i2), binaryValue (cw w i3)] := by
   have key : ∀ i, cw w i = binaryWord L (binaryValue (cw w i) % 2 ^ L) := fun i => by
     have hlen : (cw w i).length = L := by simp [cw, hl]
-    have hlt : binaryValue (cw w i) < 2 ^ L := by rw [← hlen]; exact binaryValue_lt_two_pow _
-    rw [Nat.mod_eq_of_lt hlt, ← hlen, binaryWord_binaryValue]
+    rw [Nat.mod_eq_of_lt (hlen ▸ binaryValue_lt_two_pow _), ← hlen, binaryWord_binaryValue]
   refine cols_ext fun j => ?_
   rw [unb_proj, List.map_map]
   fin_cases j <;> exact key _
@@ -207,9 +206,7 @@ include hx
 theorem MX.len_cn :
     (∀ r ∈ x.counter, (cn r).length = x.init.length + 1) ∧
       x.finalCounter.length + 1 = x.init.length + 1 := by
-  have h := chain_len x.counter cn1 cn _ _ hx.cp fun r _ => length_cn r
-  rw [length_i1] at h
-  exact ⟨h.1, by simpa using h.2⟩
+  simpa [length_i1] using chain_len x.counter cn1 cn _ _ hx.cp fun r _ => length_cn r
 
 theorem MX.len : ∀ s ∈ x.steps, s.2.length = x.init.length + 1 := fun s hs => by
   obtain ⟨r, hr, e⟩ := List.mem_map.1 (hx.fr ▸ List.mem_map.2 ⟨s, hs, rfl⟩)
@@ -283,8 +280,7 @@ theorem MX.block [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits :
 theorem nst_lt [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits : List Bool}
     (hx : MX x bits) {s : P.Rl × List (Fin 9 → Bool)} (hs : s ∈ x.steps) (i : Fin 9) :
     (nst s).2 i < 2 ^ (x.init.length + 1) := by
-  have h := binaryValue_lt_two_pow (cw s.2 i)
-  rwa [cw, List.length_map, hx.len s hs] at h
+  simpa only [nst, cw, List.length_map, hx.len s hs] using binaryValue_lt_two_pow (cw s.2 i)
 
 private theorem four_lt {a b c d n : ℕ} (ha : a < n) (hb : b < n) (hc : c < n) (hd : d < n)
     (j : Fin 4) : (![a, b, c, d] : Fin 4 → ℕ) j < n := by
@@ -347,10 +343,8 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
     simpa [e1, e3, hx'.rg i] using (hx.rg i).symm
   have e4c : x.finalCounter = x'.finalCounter := by
     simpa [e1, e2, hx'.cp] using hx.cp.symm
-  have e6 : x.sort = x'.sort := by
-    have h1 := hx.block ▸ hx.ls
-    rw [e1, e3] at h1
-    exact imu_unique (lsN_ne _ _) h1 (hx'.block ▸ hx'.ls)
+  have e6 : x.sort = x'.sort :=
+    imu_unique (lsN_ne _ _) (e1 ▸ e3 ▸ hx.block ▸ hx.ls) (hx'.block ▸ hx'.ls)
   exact XP.ext e1 e2 e3 e4r e4c (by rw [hx.lk, hx'.lk, lks, lks, e3]) e6
 
 end Trace

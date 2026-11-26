@@ -162,9 +162,8 @@ theorem DifferentiallyPrivate.aboveThresholdMechanism {D : Type*} {Adj : D → D
   have hab : List.Forall₂ (fun a b : ℝ => a - s ≤ b ∧ b ≤ a + s) (fs.map fun f => f x)
       (fs.map fun f => f y) := by
     rw [List.forall₂_map_left_iff, List.forall₂_map_right_iff, List.forall₂_same]
-    intro f hf
-    have := abs_le.mp (hfs f hf hxy)
-    constructor <;> linarith [this.1, this.2]
+    exact fun f hf => ⟨by linarith [(abs_le.mp (hfs f hf hxy)).2],
+      by linarith [(abs_le.mp (hfs f hf hxy)).1]⟩
   simp only [Privacy.aboveThresholdMechanism, aboveThreshold, PMF.bind_apply]
   rw [Real.exp_add, ENNReal.ofReal_mul (Real.exp_pos _).le]
   conv_rhs => rw [← (Equiv.addRight s).tsum_eq]
@@ -221,16 +220,10 @@ theorem ThresholdAccurate.length_le {T α : ℝ} {as : List ℝ} {i : ℕ}
   | nil => exact Nat.zero_le _
   | cons a as ih =>
     cases i with
-    | zero =>
-      by_contra hlt
-      exact (has 0 (by simp only [List.length_cons] at hlt ⊢; omega)).not_ge h
+    | zero => exact not_lt.mp fun hlt => (has 0 hlt).not_ge h
     | succ i =>
-      simp only [ThresholdAccurate] at h
-      have := ih h.2 fun j hj => by
-        simpa only [List.getElem_cons_succ] using
-          has (j + 1) (by simp only [List.length_cons]; omega)
-      simp only [List.length_cons]
-      omega
+      refine Nat.succ_le_succ (ih h.2 fun j hj => ?_)
+      simpa only [List.getElem_cons_succ] using has (j + 1) (Nat.succ_lt_succ hj)
 
 /-- For a noisy threshold within `α₁` of `T`, AboveThreshold fails to be `(α₁ + α₂)`-accurate with
 probability at most `k · Pr[|ν| > α₂]` on `k` answers. -/
@@ -334,9 +327,7 @@ theorem aboveThreshold_discreteLaplace_toOuterMeasure_not_accurate_le {ε β : �
         ∀ i, o = some i → as.length ≤ i + 1)} ≤ ENNReal.ofReal β := by
   refine le_trans (MeasureTheory.measure_mono fun o ho => ?_)
     (aboveThreshold_discreteLaplace_toOuterMeasure_not_thresholdAccurate_le hε hβ hβ1 T as)
-  simp only [Set.mem_ofPred_eq] at ho ⊢
-  intro hacc
-  exact ho ⟨hacc, fun i hi => (hi ▸ hacc).length_le has⟩
+  exact fun hacc => ho ⟨hacc, fun i hi => (hi ▸ hacc).length_le has⟩
 
 section Sparse
 

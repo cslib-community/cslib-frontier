@@ -84,27 +84,24 @@ private theorem binomialAtLeast_eq_sum_powerset {A ι : Type*} [Ring A]
 theorem binomialAtLeast_succ {A : Type*} [Ring A] (k r : ℕ) (X : A) :
     binomialAtLeast (k + 1) r X =
       binomialAtLeast k r X * (1 - X) + binomialAtLeast k (r - 1) X * X := by
-  have hz : k ∉ range k := by simp
-  have hcard : (insert k (range k)).card = k + 1 := by simp [hz]
+  have hz : k ∉ range k := notMem_range_self
   have hc := binomialAtLeast_eq_sum_powerset (insert k (range k)) r X
-  rw [hcard, sum_powerset_insert hz] at hc
+  rw [card_insert_of_notMem hz, card_range, sum_powerset_insert hz] at hc
   rw [hc]
   have h (l : ℕ) := binomialAtLeast_eq_sum_powerset (range k) l X
   simp only [card_range] at h
   rw [h r, h (r - 1), sum_mul, sum_mul]
   congr 1
   · refine sum_congr rfl fun t ht => ?_
-    have htk : t.card ≤ k := by
-      simpa only [card_range] using card_le_card (mem_powerset.mp ht)
+    have htk : t.card ≤ k := (card_le_card (mem_powerset.mp ht)).trans_eq (card_range k)
     have he : k + 1 - t.card = k - t.card + 1 := by omega
     simp only [he, pow_succ]
     split_ifs <;> simp [mul_assoc]
   · refine sum_congr rfl fun t ht => ?_
     have hn : k ∉ t := fun h => hz (mem_powerset.mp ht h)
     rw [card_insert_of_notMem hn]
-    have he : k + 1 - (t.card + 1) = k - t.card := by omega
     have hs : r ≤ t.card + 1 ↔ r - 1 ≤ t.card := by omega
-    simp only [he, hs]
+    simp only [Nat.add_sub_add_right, hs]
     have hcomm : Commute ((1 - X) ^ (k - t.card)) X :=
       (((Commute.one_right X).sub_right (Commute.refl X)).symm).pow_left _
     split_ifs
@@ -128,11 +125,10 @@ private theorem one_sub_binomialTail_real_le {k d : ℕ} (hk : 0 < k) {θ p : �
   let w (i : ℕ) := (k.choose i : ℝ) * p ^ i * (1 - p) ^ (k - i)
   have hw (i : ℕ) : 0 ≤ w i := by dsimp [w]; positivity
   have hsum : ∑ i ∈ range (k + 1), w i = 1 := Cslib.sum_choose_mul_pow_eq_one k p
-  have hcomplement : 1 - binomialTail k d p = ∑ i ∈ range (k + 1) with i ≤ d, w i := by
-    apply sub_eq_iff_eq_add.mpr
-    rw [binomialTail]
-    simpa only [not_lt] using hsum.symm.trans
-      (sum_filter_not_add_sum_filter (s := range (k + 1)) (fun i => d < i) w).symm
+  have hcomplement : 1 - binomialTail k d p = ∑ i ∈ range (k + 1) with i ≤ d, w i :=
+    sub_eq_iff_eq_add.mpr (by
+      simpa only [binomialTail, not_lt] using hsum.symm.trans
+        (sum_filter_not_add_sum_filter (s := range (k + 1)) (fun i => d < i) w).symm)
   have hθ : 0 < 1 - θ := sub_pos.mpr hθ₁
   by_cases hp : p ≤ θ
   · have h : 1 ≤ (1 - p) / (1 - θ) := (le_div_iff₀ hθ).2 (by linarith)
@@ -142,16 +138,16 @@ private theorem one_sub_binomialTail_real_le {k d : ℕ} (hk : 0 < k) {θ p : �
     have hθk : θ * (k : ℝ) ≤ p * k :=
       mul_le_mul_of_nonneg_right (le_of_lt (lt_of_not_ge hp)) hk'.le
     have hgap : θ * k / 2 ≤ (k : ℝ) * p - d := by linarith
-    have hgap₀ : 0 ≤ (k : ℝ) * p - d := (by positivity : 0 ≤ θ * k / 2).trans hgap
+    have hθk0 : 0 ≤ θ * k / 2 := by positivity
+    have hgap₀ : 0 ≤ (k : ℝ) * p - d := hθk0.trans hgap
     have htail := Cslib.sum_filter_le_mul_sub_choose_mul_pow_le k hp₀ hp₁ hgap₀
     have hfilter : (range (k + 1)).filter (fun i => i ≤ d) =
-        (range (k + 1)).filter (fun i : ℕ => k * p - d ≤ k * p - (i : ℝ)) := by
-      ext i
-      simp only [mem_filter, sub_le_sub_iff_left, Nat.cast_le]
+        (range (k + 1)).filter (fun i : ℕ => k * p - d ≤ k * p - (i : ℝ)) :=
+      Finset.filter_congr fun _ _ => by simp only [sub_le_sub_iff_left, Nat.cast_le]
     rw [hcomplement, hfilter]
     refine htail.trans ?_
     have hexp : -2 * ((k : ℝ) * p - d) ^ 2 / k ≤ -(θ ^ 2 * k) / 2 := by
-      have hsq := pow_le_pow_left₀ (by positivity : 0 ≤ θ * k / 2) hgap 2
+      have hsq := pow_le_pow_left₀ hθk0 hgap 2
       apply (div_le_iff₀ hk').2
       linarith [show -(θ ^ 2 * k) / 2 * k = -2 * (θ * k / 2) ^ 2 by ring]
     exact (Real.exp_le_exp.mpr hexp).trans
@@ -165,12 +161,8 @@ omit [PartialOrder A] [StarOrderedRing A] in
 private theorem cfc_binomialTail (k d : ℕ) (X : A) (hX : IsSelfAdjoint X) :
     cfc (binomialTail k d : ℝ → ℝ) X = binomialTail k d X := by
   let q := binomialTail k d (Polynomial.X : Polynomial ℝ)
-  have heval : q.eval = binomialTail k d := by
-    funext p
-    change Polynomial.evalRingHom p (∑ i ∈ range (k + 1) with d < i,
-      (k.choose i : Polynomial ℝ) * Polynomial.X ^ i * (1 - Polynomial.X) ^ (k - i)) = _
-    rw [map_sum]
-    simp [binomialTail]
+  have heval : q.eval = binomialTail k d := funext fun p => by
+    simp [q, binomialTail, Polynomial.eval_finsetSum]
   rw [← heval, cfc_polynomial q X hX]
   simp [q, binomialTail]
 
@@ -212,8 +204,11 @@ theorem one_sub_binomialTail_le {k d : ℕ} (hk : 0 < k) {θ : ℝ}
     1 - binomialTail k d X ≤
       (1 - θ)⁻¹ • (1 - X) + algebraMap ℝ A (Real.exp (-(θ ^ 2 * k) / 2)) := by
   have hX := hX₀.isSelfAdjoint
-  have hs₁ : ∀ p ∈ spectrum ℝ X, p ≤ 1 := by
-    exact (le_algebraMap_iff_spectrum_le hX).mp (by simpa using hX₁)
+  have hs₁ : ∀ p ∈ spectrum ℝ X, p ≤ 1 :=
+    (le_algebraMap_iff_spectrum_le hX).mp (by simpa using hX₁)
+  have hf : ContinuousOn (binomialTail k d : ℝ → ℝ) (spectrum ℝ X) := by
+    unfold binomialTail
+    fun_prop
   have h := cfc_mono (a := X)
     (f := fun p : ℝ => 1 - binomialTail k d p)
     (g := fun p => (1 - θ)⁻¹ * (1 - p) + Real.exp (-(θ ^ 2 * k) / 2))
@@ -221,18 +216,13 @@ theorem one_sub_binomialTail_le {k d : ℕ} (hk : 0 < k) {θ : ℝ}
       rw [← div_eq_inv_mul]
       exact one_sub_binomialTail_real_le hk hθ₀ hθ₁ hsize (spectrum_nonneg_of_nonneg hX₀ hp)
         (hs₁ p hp))
-    (by unfold binomialTail; fun_prop) (by fun_prop)
-  have hf : ContinuousOn (binomialTail k d : ℝ → ℝ) (spectrum ℝ X) := by
-    unfold binomialTail
-    fun_prop
-  have hone : cfc (fun p : ℝ => 1 - p) X = 1 - X := by
-    rw [cfc_sub (fun _ : ℝ => 1) (fun p => p) X, cfc_const_one ℝ X hX, cfc_id' ℝ X hX]
-  rw [cfc_sub (fun _ : ℝ => 1) (binomialTail k d) X continuousOn_const hf,
+    (continuousOn_const.sub hf) (by fun_prop)
+  rwa [cfc_sub (fun _ : ℝ => 1) (binomialTail k d) X continuousOn_const hf,
     cfc_const_one ℝ X hX, cfc_binomialTail k d X hX,
     cfc_add_const (Real.exp (-(θ ^ 2 * k) / 2)) (fun p : ℝ => (1 - θ)⁻¹ * (1 - p)) X
       (by fun_prop) hX,
-    cfc_const_mul (1 - θ)⁻¹ (fun p : ℝ => 1 - p) X (by fun_prop), hone] at h
-  exact h
+    cfc_const_mul (1 - θ)⁻¹ (fun p : ℝ => 1 - p) X (by fun_prop),
+    cfc_sub (fun _ : ℝ => 1) (fun p => p) X, cfc_const_one ℝ X hX, cfc_id' ℝ X hX] at h
 
 /-- Binomial-tail amplification in any algebraic state. The number of trials must
 put the threshold at most halfway below the mean at parameter `θ`. -/

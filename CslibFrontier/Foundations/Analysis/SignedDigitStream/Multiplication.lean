@@ -232,8 +232,7 @@ theorem three_mul_bandStart_le_four_mul_drop {t k : ℕ} {p : ℕ × ℕ}
 theorem index_le_clock_add_baseMargin {t k : ℕ} {p : ℕ × ℕ} (hp : p ∈ bandPairs t k) :
     p.1 ≤ t + mulBaseMargin ∧ p.2 ≤ t + mulBaseMargin := by
   rcases k with _ | k
-  · have := (mem_filter.mp hp).2.2.2
-    simp only [bandMargin_zero] at this
+  · have := bandMargin_zero ▸ (mem_filter.mp hp).2.2.2
     omega
   · have := three_mul_bandStart_le_four_mul_drop hp
     omega
@@ -261,8 +260,9 @@ theorem bandFoldMod_eq_bandFold_emod (x y : ℕ → ℤ) (t q : ℕ) :
   | rem + 1, hrem => by
     simp only [bandFoldMod, bandFold]
     set k := maxBand t - (rem + 1)
+    have hk1 : maxBand t - rem = k + 1 := by omega
     have ih := bandFoldMod_eq_bandFold_emod x y t q rem (by omega)
-    rw [show maxBand t - rem = k + 1 by omega] at ih
+    rw [hk1] at ih
     set shift := bandMargin (k + 1) - bandMargin k
     have hmargin_add : (q + bandMargin k) + shift = q + bandMargin (k + 1) := by
       have hmono : bandMargin k ≤ bandMargin (k + 1) := bandMargin_mono (Nat.le_succ k)
@@ -343,7 +343,7 @@ private theorem abs_bandFold_sub_sum_le (x y : ℕ → ℤ) (t : ℕ) :
       dsimp [R]
       rw [div_div, ← pow_add, add_comm s, hs_add]
     have hQ_err : |(Q - R) / (2 : ℝ) ^ bandMargin k| ≤ 1 / (2 : ℝ) ^ bandMargin k := by
-      rw [abs_div, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ bandMargin k)]
+      rw [abs_div, abs_of_pos (pow_pos (two_pos : (0 : ℝ) < 2) (bandMargin k))]
       exact div_le_div_of_nonneg_right hfl.le (by positivity)
     push_cast
     rw [hdiff]
@@ -473,10 +473,7 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
       _ = ∑ r ∈ range (N + 1),
             ∑ j ∈ (range (N + 1)).filter (fun j => t + bandMargin (bandIdx r) < r + j),
               w (r, j) := by
-          dsimp [Sq]
-          rw [sum_filter, sum_product]
-          refine sum_congr rfl fun r _ => ?_
-          rw [sum_filter]
+          simp only [Sq, sum_filter, sum_product]
       _ ≤ ∑ r ∈ range (N + 1), 36 / (2 : ℝ) ^ bandMargin (bandIdx r) :=
           sum_le_sum fun r _ => hrow r
   have hO1 : ∑ p ∈ (Sq \ retainedUnion t K).filter (fun p => p.1 ≤ p.2), w p ≤
@@ -523,11 +520,8 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
             72 / (2 : ℝ) ^ bandMargin (bandIdx r) := sum_biUnion hdisj
       _ = ∑ k ∈ range B, (bandWidth k : ℝ) * (72 / (2 : ℝ) ^ bandMargin k) := by
           refine sum_congr rfl fun k _ => ?_
-          have hconst : ∀ r ∈ Ico (bandStart k) (bandEnd k),
-              72 / (2 : ℝ) ^ bandMargin (bandIdx r) = 72 / (2 : ℝ) ^ bandMargin k := by
-            intro r hr
-            rw [bandIdx_eq_iff.mpr (mem_Ico.mp hr)]
-          rw [sum_congr rfl hconst, sum_const, Nat.card_Ico, nsmul_eq_mul]
+          rw [sum_congr rfl fun r hr => by rw [bandIdx_eq_iff.mpr (mem_Ico.mp hr)], sum_const,
+            Nat.card_Ico, nsmul_eq_mul]
           rfl
       _ ≤ ∑ k ∈ range B, (72 / 1024) * (1 / 2 : ℝ) ^ k := by
           refine sum_le_sum fun k _ => ?_
@@ -579,8 +573,8 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
   rw [hSq_eq] at homit
   have hpre_err : |(2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N) -
       (2 : ℝ) ^ t * (streamVal x * streamVal y)| ≤ 144 / (2 : ℝ) ^ 20 := by
-    have hx_pre : |streamPrefix x N| ≤ 12 := by
-      linarith [abs_streamPrefix_le hx N, (by positivity : (0 : ℝ) ≤ 6 / (2 : ℝ) ^ N)]
+    have hx_pre : |streamPrefix x N| ≤ 12 :=
+      (abs_streamPrefix_le hx N).trans (sub_le_self 12 (by positivity))
     have hy_val : |streamVal y| ≤ 12 := abs_streamVal_le_twelve hy
     have hx_tail := abs_streamVal_sub_streamPrefix_le hx N
     have hy_tail := abs_streamVal_sub_streamPrefix_le hy N
@@ -596,7 +590,7 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
             (abs_add_le _ _).trans_eq (by rw [abs_mul, abs_mul])
         _ ≤ 12 * (6 / (2 : ℝ) ^ N) + (6 / (2 : ℝ) ^ N) * 12 := by gcongr
         _ = 144 / (2 : ℝ) ^ N := by ring
-    rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
+    rw [← mul_sub, abs_mul, abs_of_pos (pow_pos zero_lt_two t)]
     have hpow_ge : (2 : ℝ) ^ t * (2 : ℝ) ^ 20 ≤ (2 : ℝ) ^ N :=
       pow_add (2 : ℝ) t 20 ▸ pow_le_pow_right₀ (by norm_num) (by omega)
     calc (2 : ℝ) ^ t * |streamPrefix x N * streamPrefix y N - streamVal x * streamVal y|

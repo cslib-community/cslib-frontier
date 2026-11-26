@@ -189,16 +189,12 @@ private theorem streamsF_does {ub : ℕ} {t : Tree} (ht : StoreBound ub t)
   have e : ∀ (l : List (List (List Bool))) acc,
       l.foldl (fun acc es => es.reverse.flatMap ct :: acc) acc =
         (l.map fun es => es.reverse.flatMap ct).reverse ++ acc := fun l => by
-    induction l with
-    | nil => simp
-    | cons es l ih => simp [ih]
+    induction l <;> simp_all
   rw [e, List.append_nil] at h1
   have h2 := Does.lett_enc_enc (G := foldF .id (.quote .nil) (.tl .id))
     (f := fun acc => [((1 : A), acc.reverse)]) (enc' := wordsEnc) (d := slots.length * 31 + 25) h1
     fun b hb => by
-      have hb2 : b.2 = (slots.map fun es => es.reverse.flatMap ct).reverse := by
-        split_ifs at hb <;> simp_all
-      have hl : b.2.length = slots.length := by rw [hb2]; simp
+      have hl : b.2.length = slots.length := by split_ifs at hb <;> simp_all
       have := rev_gives (θ := θ) (xs := b.2.map ofBits) (Gives.quote (listT [])
         (.cons t (wordsEnc b.2))) (Gives.id _).tl
       rw [List.append_nil, ← List.map_reverse, List.length_map, hl] at this

@@ -201,15 +201,11 @@ theorem flatMap_toEvents_injective :
     ∀ {cs₁ cs₂ : List (OpCall P Op Resp)},
       cs₁.flatMap OpCall.toEvents = cs₂.flatMap OpCall.toEvents → cs₁ = cs₂
   | [], [], _ => rfl
-  | [], _ :: _, h | _ :: _, [], h => by
-    simp only [List.flatMap_nil, List.flatMap_cons, OpCall.toEvents, List.cons_append] at h
-    nomatch h
+  | [], _ :: _, h | _ :: _, [], h => by simp [OpCall.toEvents] at h
   | ⟨_, _, _, _⟩ :: rest₁, ⟨_, _, _, _⟩ :: rest₂, h => by
     simp only [List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append,
       List.cons.injEq] at h
-    rcases h with ⟨hinv, hresp, hrest⟩
-    cases hinv
-    cases hresp
+    rcases h with ⟨⟨⟩, ⟨⟩, hrest⟩
     exact congrArg _ (flatMap_toEvents_injective hrest)
 
 /-- Even positions `2 * k` of `cs.flatMap OpCall.toEvents` hold the invocation of `cs[k]`. -/
@@ -335,10 +331,8 @@ theorem prec_flatMap_toEvents_opIdAt_iff [DecidableEq P]
       (opIdAt calls j₁ hj₁) (opIdAt calls j₂ hj₂) ↔ j₁ < j₂ := by
   obtain ⟨_, hr₁⟩ := invPos_respPos_opIdAt calls j₁ hj₁
   obtain ⟨hi₂, _⟩ := invPos_respPos_opIdAt calls j₂ hj₂
-  refine ⟨fun ⟨_, _, hr, hi, _⟩ => ?_, fun _ => ⟨2 * j₁ + 1, 2 * j₂, hr₁, hi₂, by omega⟩⟩
-  rw [hr₁, Option.some.injEq] at hr
-  rw [hi₂, Option.some.injEq] at hi
-  omega
+  exact ⟨fun ⟨_, _, hr, hi, _⟩ => by simp only [hr₁, hi₂, Option.some.injEq] at hr hi; omega,
+    fun _ => ⟨2 * j₁ + 1, 2 * j₂, hr₁, hi₂, by omega⟩⟩
 
 /-- Surjectivity of `opIdAt calls` onto all `e : OpId P` with `e.idx < countProcCalls e.proc calls`.
 -/

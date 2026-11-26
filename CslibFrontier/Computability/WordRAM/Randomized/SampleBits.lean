@@ -92,11 +92,8 @@ theorem bitsAt_update_self {n : ℕ} (mem : ℕ → ℕ) (base : ℕ) (i : Fin n
     bitsAt (Function.update mem (base + i.val) v) base n =
       Function.update (bitsAt mem base n) i (decide (v = 1)) := by
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [bitsAt]
-  · have hne : base + j.val ≠ base + i.val := fun h => hj (Fin.ext (by omega))
-    simp [bitsAt, Function.update_of_ne hne, Function.update_of_ne hj]
+  simp only [bitsAt, Function.update_apply, Nat.add_left_cancel_iff, Fin.ext_iff]
+  split_ifs <;> rfl
 
 private def sampleBitsBody (one baseReg cnt val addr : Fin r) : Code .standard r := ram[
   val ← rand one;
@@ -145,11 +142,12 @@ private theorem sampleBitsLoop_law {w base n : ℕ}
           if i.val < x.regs cnt then bitsAt x.mem base n i else τ i)
   | 0, x, _, _, hn, hd, hbits => by
     have hc : ¬(Cond.lt cnt nReg).Holds x := by simp [Cond.holds_lt, hn]; omega
+    have hi (i : Fin n) : i.val < x.regs cnt := by omega
     have hconst : (fun τ : Fin n → Bool => fun i : Fin n =>
         if i.val < x.regs cnt then bitsAt x.mem base n i else τ i) =
         Function.const _ (bitsAt x.mem base n) := by
-      funext τ i
-      simp only [Function.const_apply, show i.val < x.regs cnt by omega, ↓reduceIte]
+      funext _ i
+      simp only [Function.const_apply, hi, ↓reduceIte]
     rw [hconst, PMF.map_const]
     exact ExecRandLaw.loop_exit hc
       ⟨fun i hi => hbits i (by omega), fun _ _ => rfl, fun _ _ _ _ => rfl⟩
@@ -200,7 +198,6 @@ private theorem sampleBitsLoop_law {w base n : ℕ}
           split_ifs
           exacts [hb, hbits i (by omega)])
       rw [hYc] at h
-      unfold sampleBitsLoop at h
       exact h.mono (fun z ⟨hzb, hzm, hzr⟩ =>
         ⟨hzb,
          fun a ha => (hzm a ha).trans (by
@@ -232,8 +229,7 @@ private theorem sampleBitsLoop_law {w base n : ℕ}
       _ = ((PMF.uniformOfFintype Bool).bind fun b =>
             (PMF.uniformOfFintype (Fin n → Bool)).map
               fun τ => Function.update τ ⟨j, hjn⟩ b).map G := by
-          rw [← PMF.uniformOfFintype_map_equiv finTwoEquiv, PMF.bind_map, PMF.map_bind]
-          rfl
+          rw [← PMF.uniformOfFintype_map_equiv finTwoEquiv, PMF.bind_map, PMF.map_bind]; rfl
       _ = _ := by rw [PMF.uniformOfFintype_update]
 
 /-- **Uniform bit-slice sampling.** When `[one, baseReg, nReg, cnt, val, addr]` are distinct
@@ -263,9 +259,9 @@ theorem sampleBits_law {w base n : ℕ}
     (by simp [Data.set_regs, Function.update_of_ne hd'.2.2.1.1, hn])
     (by simp) (by simp)
   simp only [Data.set_regs, Function.update_self, Nat.not_lt_zero, ↓reduceIte] at h
-  rw [show (fun τ : Fin n → Bool => fun i => τ i) = id from rfl, PMF.map_id] at h
-  have hcopy := ExecWithin.copy (B := .standard) (w := w) (d := cnt) (s := zero) (x := x)
-  rw [hz] at hcopy
+  have hid : (fun τ : Fin n → Bool => fun i => τ i) = id := rfl
+  rw [hid, PMF.map_id] at h
+  have hcopy := hz ▸ ExecWithin.copy (B := .standard) (w := w) (d := cnt) (s := zero) (x := x)
   exact (ExecRandLaw.seq_det hcopy h).mono
     (fun y ⟨hyb, hym, hyr⟩ =>
       ⟨hyb, hym, fun i hic hiv hia =>
@@ -319,7 +315,6 @@ theorem ExecRand.queriesSatisfy_eq_of_usesRandSrc {w u : ℕ} {s : Fin r} {c : C
     exact (Cslib.OracleComp.isCostBounded_map_iff _ _ 0).mpr (ih hs hp.2 hu.2)
   | loop_exit _ => exact Cslib.OracleComp.QueriesSatisfy.pure _
   | @loop_iter _ _ _ _ _ _ hb _ ihb ihl =>
-    simp only [Code.usesRandSrc] at hu
     simpa only [Cslib.OracleComp.QueriesSatisfy, Nat.add_zero] using
       Cslib.OracleComp.IsCostBounded.bind_on_support (ihb hs hp hu) fun z hz =>
         Cslib.OracleComp.IsCostBounded.bind_on_support

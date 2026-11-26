@@ -322,10 +322,8 @@ theorem accepts_repeatAll_eq (k : ℕ) (a : α) (π ρ : List Bool) :
         V.accepts a π (BitString.listRow (V.repeatRowWidth a ρ) i ρ) := by
   apply Bool.eq_iff_iff.mpr
   simp only [PCPVerifier.accepts, repeatAll, List.all_eq_true]
-  refine forall_congr' fun i => forall_congr' fun hi => Iff.of_eq ?_
-  congr 3
-  exact List.map_congr_left fun addr haddr =>
-    getD_answers_idxOf π (V.mem_repeatQueries hi haddr)
+  exact forall₂_congr fun i hi => Iff.of_eq <| congrArg (fun q => V.verdict ((a, _), q) = true) <|
+    List.map_congr_left fun addr haddr => getD_answers_idxOf π (V.mem_repeatQueries hi haddr)
 
 /-- On any random string of length `k * V.coins a`, `V.repeatAll k` accepts iff every coin block
 of width `V.coins a` accepts. -/
@@ -459,8 +457,8 @@ theorem tableAcceptCount_answers_append (a : α) (proof padding : List Bool) :
       V.acceptCount a proof := by
   unfold tableAcceptCount acceptCount Cslib.Complexity.acceptCount
   rw [← BitString.countP_enumList (V.coins a) (fun word => V.accepts a proof word)]
-  refine List.countP_congr fun word hword => ?_
-  rw [V.verdict_answers_queryTable_append a proof padding word (BitString.mem_enumList.mp hword)]
+  exact List.countP_congr fun word hword => Bool.eq_iff_iff.mp
+    (V.verdict_answers_queryTable_append a proof padding word (BitString.mem_enumList.mp hword))
 
 /-- Every bit table has the exact same accepted-word count as its expanded proof
 `V.proofOfTable a table`. -/
@@ -469,8 +467,8 @@ theorem tableAcceptCount_eq_acceptCount_proofOfTable (a : α) (table : List Bool
   unfold tableAcceptCount acceptCount Cslib.Complexity.acceptCount
   rw [← BitString.countP_enumList (V.coins a)
     (fun word => V.accepts a (V.proofOfTable a table) word)]
-  refine List.countP_congr fun word hword => ?_
-  rw [V.accepts_proofOfTable a table word (BitString.mem_enumList.mp hword)]
+  exact List.countP_congr fun word hword => Bool.eq_iff_iff.mp
+    (V.accepts_proofOfTable a table word (BitString.mem_enumList.mp hword)).symm
 
 /-- Exhaustively check whether strictly more than half of the random words of length
 `V.coins input.1` accept using the bit at each address's first table occurrence. -/
@@ -534,10 +532,8 @@ theorem PCPWith_log_subset_NP {c : ℝ} (hc : 1 / 2 < c) (q : ℕ → ℕ) :
 
 /-- For every positive constant `q ≥ 1`, `PCP(log n, q) = NP`. -/
 theorem PCP_log_const {q : ℕ} (hq : 1 ≤ q) :
-    PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc = NP enc := by
-  refine Set.Subset.antisymm (PCP_log_subset_NP _) ?_
-  rw [NP_eq_PCP_log enc]
-  exact PCP_mono_queries fun _ => hq
+    PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc = NP enc :=
+  Set.Subset.antisymm (PCP_log_subset_NP _) (NP_eq_PCP_log enc ▸ PCP_mono_queries fun _ => hq)
 
 /-- **Arora and Barak, Chapter 18, Problem 2 (corrected):** for every constant `q ≥ 1` and
 completeness threshold `1 / 2 < c ≤ 1`,

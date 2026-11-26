@@ -380,9 +380,8 @@ theorem base_succ {gs : List GateCode} {i : ℕ} (hi : i < gs.length) :
 theorem base_length (gs : List GateCode) : base gs gs.length = (occurrences gs).length := by
   simp [base]
 
-theorem base_le (gs : List GateCode) (i : ℕ) : base gs i ≤ (occurrences gs).length := by
-  conv_rhs => rw [← List.take_append_drop i gs, occurrences_append, List.length_append]
-  exact Nat.le_add_right _ _
+theorem base_le (gs : List GateCode) (i : ℕ) : base gs i ≤ (occurrences gs).length :=
+  ((List.take_sublist i gs).flatMap qubits).length_le
 
 theorem base_add_le {gs : List GateCode} {i : ℕ} (hi : i < gs.length) :
     base gs i + (qubits (gs.getD i default)).length ≤ (occurrences gs).length :=
@@ -499,8 +498,8 @@ private theorem entry_gateVertex (neg : R) (X : List Bool) (gs : List GateCode) 
           fun k => Z (c * (occurrences gs).length + (base gs i + k))) := by
   have hps : (gatePorts gs c i).length ≤ 6 := (length_gatePorts_le gs c i).trans (by omega)
   simp only [gateVertex]
-  rw [show (gatePorts gs c i).length = ((gatePorts gs c i).map fun e => Z (e / 2)).length by simp,
-    entry_boundedTable _ (by simpa using hps)]
+  have hplen := (List.length_map (fun e => Z (e / 2)) (as := gatePorts gs c i)).symm
+  rw [hplen, entry_boundedTable _ (by simpa using hps)]
   congr 1
   · refine List.map_congr_left fun j hj => ?_
     simp only [inBit, reg, inPort]
@@ -515,12 +514,9 @@ private theorem entry_gateVertex (neg : R) (X : List Bool) (gs : List GateCode) 
       omega
   · refine List.map_congr_left fun k hk => ?_
     have hk' : k < (qubits (gs.getD i default)).length := List.mem_range.mp hk
-    rw [BitString.testBit_lsbValue, List.getD_eq_getElem _ _ (by
-      simp only [List.length_map, gatePorts, List.length_append, List.length_range]; omega),
-      List.getElem_map]
-    simp only [gatePorts]
-    rw [List.getElem_append_left (by simpa using hk')]
-    simp only [List.getElem_map, List.getElem_range]
+    rw [BitString.testBit_lsbValue, List.getD_eq_getElem?_getD, List.getElem?_map, gatePorts,
+      List.getElem?_append_left (by simpa using hk')]
+    simp only [List.getElem?_map, List.getElem?_range hk', Option.map_some, Option.getD_some]
     congr 1
     omega
 
@@ -539,12 +535,11 @@ private theorem entry_glueVertex (S : List ℕ) (gs : List GateCode) (w : ℕ) (
       if (lastOcc (occurrences gs) ((occurrences gs).getD w 0) (occurrences gs).length = some w →
           GlueOK S (Z w) (Z ((occurrences gs).length + w)) ((occurrences gs).getD w 0))
         then (1 : R) else 0 := by
+  have hdiv (m : ℕ) : (2 * m + 1) / 2 = m := by omega
   unfold glueVertex
   by_cases hl : lastOcc (occurrences gs) ((occurrences gs).getD w 0) (occurrences gs).length =
     some w
-  · simp only [hl, ↓reduceIte, List.map_cons, List.map_nil, true_implies,
-      show (2 * w + 1) / 2 = w by omega,
-      show (2 * ((occurrences gs).length + w) + 1) / 2 = (occurrences gs).length + w by omega]
+  · simp only [hl, ↓reduceIte, List.map_cons, List.map_nil, true_implies, hdiv]
     by_cases h0 : (occurrences gs).getD w 0 ∈ S
     · simp only [h0, ↓reduceIte, GlueOK, true_implies]
       cases Z w <;> cases Z ((occurrences gs).length + w) <;> rfl
@@ -584,10 +579,10 @@ private instance (S : List ℕ) (X : List Bool) (gs : List GateCode) (r r' : ℕ
   infer_instance
 
 private theorem mem_iff_getD (qs : List ℕ) (j : ℕ) :
-    j ∈ qs ↔ ∃ w < qs.length, qs.getD w 0 = j := by
-  rw [List.mem_iff_getElem]
-  exact ⟨fun ⟨w, hw, h⟩ => ⟨w, hw, (List.getD_eq_getElem _ _ hw).trans h⟩,
-    fun ⟨w, hw, h⟩ => ⟨w, hw, (List.getD_eq_getElem _ _ hw).symm.trans h⟩⟩
+    j ∈ qs ↔ ∃ w < qs.length, qs.getD w 0 = j :=
+  List.mem_iff_getElem.trans
+    ⟨fun ⟨w, hw, h⟩ => ⟨w, hw, (List.getD_eq_getElem _ _ hw).trans h⟩,
+      fun ⟨w, hw, h⟩ => ⟨w, hw, (List.getD_eq_getElem _ _ hw).symm.trans h⟩⟩
 
 /-- **The glue condition on two final registers** that agree with the input register off the
 touched qubits: the registers are equal and every qubit of `S` is one. -/
