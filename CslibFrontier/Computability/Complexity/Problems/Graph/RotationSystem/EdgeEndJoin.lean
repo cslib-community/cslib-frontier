@@ -120,10 +120,9 @@ theorem numericalGenusZero_mergeEdgeEnds {G : Graph} (r : RotationSystem G)
   refine ⟨h₁, h₂, s.numericalGenusZero_mergeVertices (mergeGraph_endpoints_declared h k hG)
     (r.numericalGenusZero_mergeVertices_of_not_sameComponent hG hr h k h₁ hnot) a' b' h₂ cofacial,
     ?_, ?_, ?_⟩
-  · have he : (e a).vertex = (e b).vertex := by
-      simp only [e, vertex_mergeDartEquiv, ← hh, ← hk, Function.update_self,
-        Function.update_of_ne h₁, id_eq]
-    rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint, he]
+  · rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint,
+      vertex_mergeDartEquiv h k a, vertex_mergeDartEquiv h k b, ← hh, ← hk,
+      Function.update_self, Function.update_of_ne h₁, id_eq]
   · rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint,
       Function.update_self, Function.update_of_ne h₂, id_eq]
   · have frontA : (e a).vertex = a.vertex := by
@@ -252,13 +251,10 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
     change (G.relabel (Function.update id k.vertex h.vertex)).relabel
       (Function.update id b'.vertex a'.vertex) = G.relabel names
     rw [hh, hk, av, bv]
-    refine Graph.ext (by simp [Graph.relabel, names]) ?_
-    simp only [Graph.relabel, List.map_map, names]
-    exact List.map_congr_left fun ⟨_, _⟩ _ => rfl
+    exact Graph.ext (by simp [Graph.relabel, names])
+      (by simp [Graph.relabel, names, Function.comp_def])
   have hcoords (d : Dart G) : (f d).vertex = names d.vertex := by
-    rw [Equiv.trans_apply, vertex_mergeDartEquiv a' b' (e d), vertex_mergeDartEquiv h k d,
-      av, bv, hh, hk]
-    rfl
+    simp [f, e, vertex_mergeDartEquiv, av, bv, hh, hk, names]
   have hrotate (d : Dart G) : t.rotate (f d) = f (splice d) := by
     change ((r.mergeVertices h k h₁).mergeVertices a' b' h₂).rotate
       (mergeDartEquiv a' b' (e d)) = mergeDartEquiv a' b' (e (splice d))

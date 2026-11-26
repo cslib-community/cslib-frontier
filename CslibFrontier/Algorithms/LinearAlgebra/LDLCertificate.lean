@@ -300,13 +300,13 @@ theorem cast_getD_scaleRow {s : ℕ} {r : List ℚ} (hs : ∀ q ∈ r, q.den ∣
 theorem map_ofLists_scaleRow {m n s : ℕ} {A : List (List ℚ)} (hs : ∀ q ∈ A.flatten, q.den ∣ s) :
     (ofLists m n (A.map (scaleRow s))).map ((↑) : ℤ → ℚ) = (s : ℚ) • ofLists m n A := by
   ext i j
-  have hrow : (A.map (scaleRow s)).getD i [] = scaleRow s (A.getD i []) :=
-    List.getD_map A [] (scaleRow s)
   have hs' : ∀ q ∈ A.getD i [], q.den ∣ s := by
-    rcases Nat.lt_or_ge i A.length with hi | hi
-    · exact fun q hq => hs q (List.mem_flatten.2 ⟨_, List.getElem_mem hi,
-        by rwa [List.getD_eq_getElem _ _ hi] at hq⟩)
-    · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none hi]
+    rw [List.getD_eq_getElem?_getD]
+    rcases h : A[i]? with _ | r
+    · simp
+    · exact fun q hq => hs q (List.mem_flatten.2 ⟨r, List.mem_of_getElem? h, hq⟩)
+  have hrow : (A.map (scaleRow s)).getD i [] = scaleRow s (A.getD i []) :=
+    List.getD_map _ [] _
   simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hrow,
     cast_getD_scaleRow hs']
 
@@ -693,16 +693,14 @@ theorem exists_checkPosSemidef_iff {rows : List (List ℚ)} :
   · rintro ⟨c, h⟩
     refine ⟨?_, c.posSemidef_of_checkPosSemidef h⟩
     simp only [checkPosSemidef, factors, factorsLower, Bool.and_eq_true] at h
-    exact h.1.2.1.1.1.1
+    obtain ⟨⟨-, ⟨⟨⟨⟨hshape, -⟩, -⟩, -⟩, -⟩⟩, -⟩ := h
+    exact hshape
   · rintro ⟨hshape, hM⟩
     obtain ⟨L, d, hL, h1, hd, hLd⟩ := exists_LDL_of_posSemidef (posSemidef_of_map_ratCast hM)
     obtain ⟨hlen, hdlen, hl, hLL, hdd⟩ := ofFactors_spec (d := d) hL h1
-    refine ⟨ofFactors L d, ?_⟩
-    simp only [checkPosSemidef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
-    refine ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
-      fun x hx => ?_⟩
-    obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-    exact hd i
+    exact ⟨ofFactors L d, Bool.and_eq_true_iff.2
+      ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
+        by simp [ofFactors, hd]⟩⟩
 
 /-- **Completeness for `≻ 0`.** Some witness is accepted exactly when `rows` lists `n` rows of
 `n` entries and the matrix is positive definite over `ℝ` (`Matrix.exists_LDL_of_posDef`). -/
@@ -713,16 +711,14 @@ theorem exists_checkPosDef_iff {rows : List (List ℚ)} :
   · rintro ⟨c, h⟩
     refine ⟨?_, c.posDef_of_checkPosDef h⟩
     simp only [checkPosDef, factors, factorsLower, Bool.and_eq_true] at h
-    exact h.1.2.1.1.1.1
+    obtain ⟨⟨-, ⟨⟨⟨⟨hshape, -⟩, -⟩, -⟩, -⟩⟩, -⟩ := h
+    exact hshape
   · rintro ⟨hshape, hM⟩
     obtain ⟨L, d, hL, h1, hd, hLd⟩ := exists_LDL_of_posDef (posDef_of_map_ratCast hM)
     obtain ⟨hlen, hdlen, hl, hLL, hdd⟩ := ofFactors_spec (d := d) hL h1
-    refine ⟨ofFactors L d, ?_⟩
-    simp only [checkPosDef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
-    refine ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
-      fun x hx => ?_⟩
-    obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-    exact hd i
+    exact ⟨ofFactors L d, Bool.and_eq_true_iff.2
+      ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
+        by simp [ofFactors, hd]⟩⟩
 
 end LDLCert
 
