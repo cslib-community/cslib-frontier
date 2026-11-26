@@ -81,24 +81,19 @@ def threshold (k α j : ℕ) : ℕ := if j = 0 then 1 else α * base k α ^ (2 *
 variable {k α : ℕ}
 
 /-- When `1 ≤ k` and `1 ≤ α`, the threshold base `base k α` is at least `1`. -/
-theorem one_le_base (hk : 1 ≤ k) (hα : 1 ≤ α) : 1 ≤ base k α := by
-  unfold base
-  have : 1 ≤ k * α := Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (by omega))
-  nlinarith
+theorem one_le_base (hk : 1 ≤ k) (hα : 1 ≤ α) : 1 ≤ base k α :=
+  Nat.mul_pos (Nat.mul_pos two_pos hk) hα
 
 /-- When `1 ≤ k` and `1 ≤ α`, every threshold `threshold k α j` is at least `1`. -/
 theorem one_le_threshold (hk : 1 ≤ k) (hα : 1 ≤ α) (j : ℕ) : 1 ≤ threshold k α j := by
   unfold threshold
   split_ifs
-  · exact le_rfl
-  · exact Nat.one_le_iff_ne_zero.mpr
-      (Nat.mul_ne_zero (by omega) (pow_ne_zero _ (by have := one_le_base hk hα; omega)))
+  exacts [le_rfl, Nat.mul_pos hα (pow_pos (one_le_base hk hα) _)]
 
 /-- For `1 ≤ j`, `threshold k α j` equals `α * base k α ^ (2 * j - 1)`. -/
 theorem threshold_of_one_le {j : ℕ} (hj : 1 ≤ j) :
-    threshold k α j = α * base k α ^ (2 * j - 1) := by
-  unfold threshold
-  rw [ite_eq_right (by omega)]
+    threshold k α j = α * base k α ^ (2 * j - 1) :=
+  ite_eq_right (by omega)
 
 private theorem threshold_pred_le (hk : 1 ≤ k) (hα : 1 ≤ α) {c : ℕ} (hc : 1 ≤ c) :
     threshold k α (c - 1) ≤ α * base k α ^ (2 * c - 2) := by
@@ -125,21 +120,22 @@ theorem card_introducedOfCard_le_pow (P : Path (threshold k α) V)
   induction c using Nat.strong_induction_on with
   | _ c ih =>
     intro hc hck
-    obtain ⟨c', rfl⟩ : ∃ c', c = c' + 1 := ⟨c - 1, by omega⟩
+    obtain ⟨c', rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hc)
     have hrec := P.card_introducedOfCard_le hθ hleaf U hU hc
     have hterm : ∀ h ∈ Ico 1 (c' + 1),
         2 * threshold k α (c' + 1 - h) * (P.introducedOfCard h).card ≤
           2 * α * U.card * X ^ (2 * c') := by
       intro h hh
       obtain ⟨hh1, hhc⟩ := mem_Ico.mp hh
-      rw [threshold_of_one_le (by omega)]
-      have hIh := ih h hhc hh1 (by omega)
+      rw [threshold_of_one_le (by lia)]
+      have hIh := ih h hhc hh1 (hhc.le.trans hck)
+      have hexp : (2 * (c' + 1 - h) - 1) + (2 * h - 1) = 2 * c' := by lia
       calc 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (P.introducedOfCard h).card
           ≤ 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (U.card * X ^ (2 * h - 1)) :=
-            Nat.mul_le_mul_left _ hIh
-        _ = 2 * α * U.card * X ^ ((2 * (c' + 1 - h) - 1) + (2 * h - 1)) := by
-          rw [pow_add]; ring
-        _ = 2 * α * U.card * X ^ (2 * c') := by congr 2; omega
+          Nat.mul_le_mul_left _ hIh
+        _ = 2 * α * U.card * X ^ (2 * c') := by
+          rw [← hexp, pow_add]
+          ac_rfl
     calc (P.introducedOfCard (c' + 1)).card
         ≤ 2 * U.card * threshold k α (c' + 1 - 1) +
             ∑ h ∈ Ico 1 (c' + 1), 2 * threshold k α (c' + 1 - h) *
@@ -149,13 +145,13 @@ theorem card_introducedOfCard_le_pow (P : Path (threshold k α) V)
           add_le_add (Nat.mul_le_mul_left _ (threshold_pred_le hk hα hc)) (sum_le_sum hterm)
       _ = (c' + 1) * (2 * α * U.card * X ^ (2 * c')) := by
           rw [sum_const, Nat.card_Ico, smul_eq_mul, Nat.add_sub_cancel,
-            show 2 * (c' + 1) - 2 = 2 * c' by omega]
+            show 2 * (c' + 1) - 2 = 2 * c' by lia]
           ring
       _ ≤ k * (2 * α * U.card * X ^ (2 * c')) := Nat.mul_le_mul_right _ hck
       _ = U.card * X ^ (2 * (c' + 1) - 1) := by
-          rw [show 2 * (c' + 1) - 1 = 2 * c' + 1 by omega, pow_succ]
+          rw [show 2 * (c' + 1) - 1 = 2 * c' + 1 by lia, pow_succ]
           simp only [X, base]
-          ring
+          ac_rfl
 
 /-- **Few introduced clauses.** Along a branch from a clause set of width `k` over the `N`
 variables of `U`, ending in a sparse node, at most `N k X ^ (2 k)` clauses are introduced. -/
@@ -166,16 +162,14 @@ private theorem card_introduced_le (P : Path (threshold k α) V) (hk0 : ∀ C �
   have hθ := one_le_threshold hk hα
   calc P.introduced.card = ∑ c ∈ Ico 1 k, (P.introducedOfCard c).card :=
         P.card_introduced_eq_sum hθ hk0
-    _ ≤ ∑ _c ∈ Ico 1 k, U.card * base k α ^ (2 * k) := by
-        refine sum_le_sum fun c hc => ?_
-        obtain ⟨hc1, hck⟩ := mem_Ico.mp hc
-        refine (card_introducedOfCard_le_pow hk hα P hleaf U hU c hc1 hck.le).trans ?_
-        exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (one_le_base hk hα) (by omega))
+    _ ≤ ∑ _c ∈ Ico 1 k, U.card * base k α ^ (2 * k) :=
+        sum_le_sum fun c hc => by
+          obtain ⟨hc1, hck⟩ := mem_Ico.mp hc
+          exact (card_introducedOfCard_le_pow hk hα P hleaf U hU c hc1 hck.le).trans
+            (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (one_le_base hk hα) (by omega)))
     _ ≤ U.card * (k * base k α ^ (2 * k)) := by
-        rw [sum_const, Nat.card_Ico, smul_eq_mul]
-        calc (k - 1) * (U.card * base k α ^ (2 * k))
-            ≤ k * (U.card * base k α ^ (2 * k)) := Nat.mul_le_mul_right _ (Nat.sub_le k 1)
-          _ = U.card * (k * base k α ^ (2 * k)) := by ring
+        rw [sum_const, Nat.card_Ico, smul_eq_mul, mul_left_comm]
+        exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (Nat.sub_le k 1))
 
 /-- **Branches are short.** A branch from a clause set of width `k` over the `N` variables of `U`,
 ending in a sparse node, has at most `N k X ^ (2 k)` steps. -/
@@ -192,15 +186,12 @@ theorem card_node_le (P : Path (threshold k α) V) (hk0 : ∀ C ∈ P.node 0, C.
     (hleaf : Sparse (threshold k α) (P.node P.len)) (U : Finset V)
     (hU : ∀ C ∈ P.node 0, ∀ l ∈ C, l.1 ∈ U) {i : ℕ} (hi : i ≤ P.len) :
     (P.node i).card ≤ (P.node 0).card + U.card * (k * base k α ^ (2 * k)) := by
-  have hθ := one_le_threshold hk hα
-  have hsub : ∀ i ≤ P.len, P.node i ⊆ P.node 0 ∪ P.introduced := by
-    intro i hi
+  have hsub (i) (hi : i ≤ P.len) : P.node i ⊆ P.node 0 ∪ P.introduced := by
     induction i with
     | zero => exact subset_union_left
     | succ i ih =>
-      refine (P.node_succ_subset (by omega)).trans (union_subset (ih (by omega)) ?_)
-      exact (subset_biUnion_of_mem P.introAt (mem_range.mpr (by omega))).trans
-        subset_union_right
+      exact (P.node_succ_subset (by omega)).trans (union_subset (ih (by omega))
+        ((subset_biUnion_of_mem P.introAt (mem_range.mpr (by omega))).trans subset_union_right))
   calc (P.node i).card ≤ (P.node 0 ∪ P.introduced).card := card_le_card (hsub i hi)
     _ ≤ (P.node 0).card + P.introduced.card := card_union_le _ _
     _ ≤ (P.node 0).card + U.card * (k * base k α ^ (2 * k)) :=
@@ -216,16 +207,11 @@ theorem mul_card_petal_le (P : Path (threshold k α) V) (hk0 : ∀ C ∈ P.node 
   have hj : ∀ j ∈ Ico 1 k, α * (P.petalSteps j).card ≤ U.card := by
     intro j hj
     obtain ⟨hj1, hjk⟩ := mem_Ico.mp hj
-    have h1 := P.mul_card_petalSteps_le hθ j
-    have h2 := card_introducedOfCard_le_pow hk hα P hleaf U hU j hj1 hjk.le
-    rw [threshold_of_one_le hj1] at h1
-    have hpos : 0 < base k α ^ (2 * j - 1) := pow_pos (one_le_base hk hα) _
-    have : α * (P.petalSteps j).card * base k α ^ (2 * j - 1) ≤
-        U.card * base k α ^ (2 * j - 1) := by
-      calc α * (P.petalSteps j).card * base k α ^ (2 * j - 1)
-          = α * base k α ^ (2 * j - 1) * (P.petalSteps j).card := by ring
-        _ ≤ U.card * base k α ^ (2 * j - 1) := h1.trans h2
-    exact Nat.le_of_mul_le_mul_right this hpos
+    refine Nat.le_of_mul_le_mul_right ?_ (pow_pos (one_le_base hk hα) (2 * j - 1))
+    calc α * (P.petalSteps j).card * base k α ^ (2 * j - 1)
+        = threshold k α j * (P.petalSteps j).card := by rw [threshold_of_one_le hj1]; ring
+      _ ≤ _ := (P.mul_card_petalSteps_le hθ j).trans
+        (card_introducedOfCard_le_pow hk hα P hleaf U hU j hj1 hjk.le)
   calc α * ((range P.len).filter fun i => P.dir i = true).card
       ≤ α * ∑ j ∈ Ico 1 k, (P.petalSteps j).card :=
         Nat.mul_le_mul_left _ (P.card_petal_le_sum hθ hk0)
@@ -253,20 +239,16 @@ every leaf word has length at most `N k X ^ (2 k)`. -/
 theorem length_le_of_isLeafWord {w : List Bool} (hw : R.tree.IsLeafWord s w) :
     w.length ≤ U.card * (k * base k α ^ (2 * k)) := by
   obtain ⟨P, hP0, hPlen, hPleaf, -⟩ := exists_path_of_isLeafWord hred hw
-  have h0 : P.node 0 = R.toClauseSet s := by
-    simpa [BinaryBranching.walk] using hP0 0 (Nat.zero_le _)
-  rw [← hPlen]
-  exact Path.len_le hk hα P (h0 ▸ hk0) hPleaf U (h0 ▸ hU)
+  have h0 : P.node 0 = R.toClauseSet s := hP0 0 (Nat.zero_le _)
+  exact hPlen ▸ Path.len_le hk hα P (h0 ▸ hk0) hPleaf U (h0 ▸ hU)
 
 /-- **Leaf words have few petal steps.** From a reduced clause set of width `k` over the `N`
 variables of `U`, every leaf word has at most `(k - 1) N / α` petal steps. -/
 private theorem mul_card_le_of_isLeafWord {w : List Bool} (hw : R.tree.IsLeafWord s w) :
     α * ((range w.length).filter fun i => w.getD i false = true).card ≤ (k - 1) * U.card := by
-  obtain ⟨P, hP0, hPlen, hPleaf, hPdir⟩ := exists_path_of_isLeafWord hred hw
-  have h0 : P.node 0 = R.toClauseSet s := by
-    simpa [BinaryBranching.walk] using hP0 0 (Nat.zero_le _)
-  rw [← hPdir]
-  exact Path.mul_card_petal_le hk hα P (h0 ▸ hk0) hPleaf U (h0 ▸ hU)
+  obtain ⟨P, hP0, _, hPleaf, hPdir⟩ := exists_path_of_isLeafWord hred hw
+  have h0 : P.node 0 = R.toClauseSet s := hP0 0 (Nat.zero_le _)
+  exact hPdir ▸ Path.mul_card_petal_le hk hα P (h0 ▸ hk0) hPleaf U (h0 ▸ hU)
 
 /-- **Few leaves.** From a reduced clause set of width `k` over the `N` variables of `U`, there
 are at most `∑_{j ≤ (k - 1) N / α} (Λ choose j)` leaf words, `Λ = N k X ^ (2 k)`. -/
@@ -286,12 +268,10 @@ theorem card_walk_le {w : List Bool} (hw : R.tree.IsNodeWord s w) :
       (R.toClauseSet s).card + U.card * (k * base k α ^ (2 * k)) := by
   obtain ⟨u, hu⟩ := hw.exists_isLeafWord_append (tree_terminating (one_le_threshold hk hα))
   obtain ⟨P, hP0, hPlen, hPleaf, -⟩ := exists_path_of_isLeafWord hred hu
-  have h0 : P.node 0 = R.toClauseSet s := by
-    simpa [BinaryBranching.walk] using hP0 0 (Nat.zero_le _)
+  have h0 : P.node 0 = R.toClauseSet s := hP0 0 (Nat.zero_le _)
   have hw' : P.node w.length = R.toClauseSet (R.tree.walk s w) := by
-    rw [hP0 _ (by simp), List.take_left]
-  rw [← hw', ← h0]
-  exact Path.card_node_le hk hα P (h0 ▸ hk0) hPleaf U (h0 ▸ hU) (by rw [hPlen]; simp)
+    simpa using hP0 w.length (by simp)
+  exact hw' ▸ h0 ▸ Path.card_node_le hk hα P (h0 ▸ hk0) hPleaf U (h0 ▸ hU) (by simp [hPlen])
 
 end
 
@@ -327,36 +307,28 @@ theorem exists_leaves [Fintype V] (hk : 1 ≤ k) (hα : 1 ≤ α) (φ : ClauseSe
       _ = ∑ j ∈ range (ρ + 1), Λ.choose j := by
           rw [card_filter_powerset_card_le_eq_sum_choose, card_range]
   · intro ψ hψ
-    obtain ⟨hψimg, hsparse⟩ := mem_filter.mp hψ
-    obtain ⟨s, -, rfl⟩ := mem_image.mp hψimg
-    obtain ⟨w, hw, heq⟩ := R.tree.exists_isNodeWord_walkSeq Λ ψ₀ fun i => decide (i ∈ s)
-    have heq' : leaf s = R.tree.walk ψ₀ w := heq
-    rw [heq'] at hsparse ⊢
-    refine ⟨hsparse, fun C hC => ?_, fun x hx => ?_⟩
-    · obtain ⟨D, hD, hCD⟩ := BranchingRule.refines_walk (R := R) hθ hw C hC
-      exact ⟨D, reduce_subset φ hD, hCD⟩
-    · exact sat_reduce_iff.mp (BranchingRule.sat_of_sat_walk (R := R) hw hx)
+    obtain ⟨s, -, rfl⟩ := mem_image.mp (mem_filter.mp hψ).1
+    have hsparse := (mem_filter.mp hψ).2
+    obtain ⟨w, hw, heq : leaf s = R.tree.walk ψ₀ w⟩ :=
+      R.tree.exists_isNodeWord_walkSeq Λ ψ₀ fun i => decide (i ∈ s)
+    rw [heq] at hsparse ⊢
+    exact ⟨hsparse, fun C hC => (BranchingRule.refines_walk (R := R) hθ hw C hC).imp
+        fun _ h => ⟨reduce_subset φ h.1, h.2⟩,
+      fun _ hx => sat_reduce_iff.mp (BranchingRule.sat_of_sat_walk (R := R) hw hx)⟩
   · intro x hx
     obtain ⟨w, hw, hwx⟩ :=
       BranchingRule.exists_isLeafWord_sat (R := R) hθ ψ₀ (sat_reduce_iff.mpr hx)
-    have hlen : w.length ≤ Λ := by
-      simpa [card_univ] using
-        BranchingRule.length_le_of_isLeafWord hk hα (reduced_reduce φ) hψ₀ univ hU hw
+    have hlen : w.length ≤ Λ :=
+      BranchingRule.length_le_of_isLeafWord hk hα (reduced_reduce φ) hψ₀ univ hU hw
     set s := (range w.length).filter fun i => w.getD i false = true
-    have hs : s ∈ S := by
-      refine mem_filter.mpr ⟨mem_powerset.mpr fun i hi => ?_, ?_⟩
-      · exact mem_range.mpr (lt_of_lt_of_le (mem_range.mp (mem_filter.mp hi).1) hlen)
-      · refine (Nat.le_div_iff_mul_le (by omega)).mpr ?_
-        rw [mul_comm]
-        have := BranchingRule.mul_card_le_of_isLeafWord hk hα (reduced_reduce φ) hψ₀ univ hU hw
-        rwa [card_univ] at this
-    have hleaf : leaf s = R.tree.walk ψ₀ w := by
-      refine BinaryBranching.walkSeq_eq_walk hw (fun i hi => ?_) hlen
-      simp only [s, mem_filter, mem_range, hi, true_and]
-      cases w.getD i false <;> simp
-    refine ⟨leaf s, mem_filter.mpr ⟨mem_image.mpr ⟨s, hs, rfl⟩, ?_⟩, hleaf ▸ hwx⟩
-    rw [hleaf]
-    exact hw.isLeaf_walk
+    have hs : s ∈ S := mem_filter.mpr ⟨mem_powerset.mpr fun i hi =>
+        mem_range.mpr ((mem_range.mp (mem_filter.mp hi).1).trans_le hlen),
+      (Nat.le_div_iff_mul_le (by omega)).mpr ((mul_comm _ _).trans_le
+        (BranchingRule.mul_card_le_of_isLeafWord hk hα (reduced_reduce φ) hψ₀ univ hU hw))⟩
+    have hleaf : leaf s = R.tree.walk ψ₀ w :=
+      BinaryBranching.walkSeq_eq_walk hw (fun i hi => by simp [s, hi]) hlen
+    exact ⟨leaf s, mem_filter.mpr ⟨mem_image.mpr ⟨s, hs, rfl⟩, hleaf.symm ▸ hw.isLeaf_walk⟩,
+      hleaf ▸ hwx⟩
 
 /-- **Bounded occurrences.** In a sparse clause set of width `k`, every variable occurs in at most
 `2 ∑_{c < k} θ c` clauses. -/
@@ -369,11 +341,9 @@ theorem occurrences_le_of_sparse {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {�
     intro C hC
     obtain ⟨hCψ, l, hl, hlv⟩ := mem_filter.mp hC
     have hCpos : 1 ≤ C.card := card_pos.mpr ⟨l, hl⟩
-    have hleq : l = ⟨v, l.2⟩ := by cases l; simp_all
-    refine mem_biUnion.mpr ⟨l.2, mem_univ _, mem_biUnion.mpr ⟨C.card,
-      mem_Ico.mpr ⟨hCpos, by have := hk C hCψ; omega⟩, mem_flower.mpr ⟨hCψ, rfl, ?_⟩⟩⟩
-    rw [singleton_subset_iff, ← hleq]
-    exact hl
+    exact mem_biUnion.mpr ⟨l.2, mem_univ _, mem_biUnion.mpr ⟨C.card,
+      mem_Ico.mpr ⟨hCpos, by have := hk C hCψ; omega⟩,
+      mem_flower.mpr ⟨hCψ, rfl, singleton_subset_iff.mpr ((Prod.ext hlv rfl : l = ⟨v, l.2⟩) ▸ hl)⟩⟩⟩
   calc ψ.occurrences v ≤ ((univ : Finset Bool).biUnion fun p =>
         (Ico 1 (k + 1)).biUnion fun c => flower ψ c {⟨v, p⟩}).card := card_le_card hsub
     _ ≤ ∑ p : Bool, ((Ico 1 (k + 1)).biUnion fun c => flower ψ c {⟨v, p⟩}).card :=

@@ -134,23 +134,14 @@ private theorem eval_run_boundary (input output : List Bool) (q : Phase) (fuel :
     intro bit
     cases q <;> tm_step [Config.step, config, emit]
   simp only [hcfg]
-  rcases fuel with _ | fuel
-  · simp only [MultiTapeMachine.runConfigFrom, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.bind_const]
-  · have hhalt : ∀ n, ProbComp.eval (pairSampler.runClosedConfigFrom n
-        (config input none input.length output le_rfl)) =
-        PMF.pure (config input none input.length output le_rfl) := by
-      intro n
-      cases n with
-      | zero => simp [runClosedConfigFrom, runConfigFrom, MultiTapeMachine.runConfigFrom]
-      | succ n =>
-        rw [runClosedConfigFrom, runConfigFrom, MultiTapeMachine.runConfigFrom]
-        simp [config]
-    simp only [ProbComp.eval_bind]
-    change (ProbComp.eval (ProbComp.uniform Bool)).bind (fun _ => ProbComp.eval
-      (pairSampler.runClosedConfigFrom (fuel + 1)
-        (config input none input.length output le_rfl))) = _
-    rw [hhalt, PMF.bind_const]
+  have hhalt : pairSampler.runClosedConfigFrom fuel
+      (config input none input.length output le_rfl) =
+      pure (config input none input.length output le_rfl) := by
+    cases fuel <;>
+      simp [runClosedConfigFrom, runConfigFrom, MultiTapeMachine.runConfigFrom, config]
+  change ProbComp.eval (ProbComp.uniform Bool >>= fun _ =>
+    pairSampler.runClosedConfigFrom fuel (config input none input.length output le_rfl)) = _
+  simp only [hhalt, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_const]
 
 /-- The tail phase: one fresh fair bit per remaining symbol, then halting at the boundary. -/
 private theorem eval_run_tail (input : List Bool) (remaining : ℕ) :

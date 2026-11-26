@@ -122,24 +122,17 @@ private theorem exists_varying_query (p : Program signature n g)
   have hi : i ∈ varying := min'_mem _ _
   obtain ⟨x₀, hx₀⟩ := hS
   have hprevious (x) (hx : x ∈ S) : ∀ j : Fin g, j < i.val →
-      p.eval interpretation x₀ j = p.eval interpretation x j := by
-    apply eval_eq_of_forall_mem_inputGates_lt p i.val
-    intro j hj hjlt
-    by_contra hne
-    have hjv : (⟨j, hj⟩ : inputGates p) ∈ varying :=
-      mem_filter.mpr ⟨mem_univ _, x₀, hx₀, x, hx, hne⟩
-    exact (not_le_of_gt hjlt) (varying.min'_le _ hjv)
-  refine ⟨gateQuery p i.val (p.eval interpretation x₀), i, ?_, ?_⟩
-  · intro x hx
-    exact gateQuery_eval_eq p i.val _ x (hprevious x hx)
-  · obtain ⟨x, hx, y, hy, hxy⟩ := (mem_filter.mp hi).2
-    intro b
-    by_cases hxb : transcript p x i = b
-    · exact ⟨x, mem_filter.mpr ⟨hx, hxb⟩⟩
-    · have hyb : transcript p y i = b := by
-        cases hxi : transcript p x i <;> cases hyi : transcript p y i <;>
-          cases b <;> simp_all
-      exact ⟨y, mem_filter.mpr ⟨hy, hyb⟩⟩
+      p.eval interpretation x₀ j = p.eval interpretation x j :=
+    eval_eq_of_forall_mem_inputGates_lt p i.val fun j hj hjlt => by_contra fun hne =>
+      not_le_of_gt hjlt
+        (varying.min'_le ⟨j, hj⟩ (mem_filter.mpr ⟨mem_univ _, x₀, hx₀, x, hx, hne⟩))
+  refine ⟨gateQuery p i.val (p.eval interpretation x₀), i,
+    fun x hx => gateQuery_eval_eq p i.val _ x (hprevious x hx), fun b => ?_⟩
+  obtain ⟨x, hx, y, hy, hxy⟩ := (mem_filter.mp hi).2
+  by_cases hxb : transcript p x i = b
+  · exact ⟨x, mem_filter.mpr ⟨hx, hxb⟩⟩
+  · exact ⟨y, mem_filter.mpr ⟨hy, by
+      cases hxi : transcript p x i <;> cases hyi : transcript p y i <;> cases b <;> simp_all⟩⟩
 
 /-- Any output determined by the restricted transcript has a native linear-query tree.
 The tree is independent of coordinate splits; its leaves count only attainable transcripts. -/
@@ -214,10 +207,9 @@ theorem exists_transcript_tree (p : Program signature n g) (split : Fin n ≃ L 
   let : Fintype L := Fintype.ofInjective (Sum.inl : L → L ⊕ R) Sum.inl_injective
   let : Fintype R := Fintype.ofInjective (Sum.inr : R → L ⊕ R) Sum.inr_injective
   obtain ⟨t, ht, hd, hl⟩ := exists_linear_transcript_tree p output hout
-  refine ⟨t.mapQueries (fun q => lineComparison q split), ?_,
+  refine ⟨t.mapQueries (lineComparison · split), fun x y => ?_,
     (DecisionTree.depth_mapQueries _ _).trans_le hd,
     (DecisionTree.leafCount_mapQueries _ _).trans_le hl⟩
-  intro x y
   simpa only [DecisionTree.eval_mapQueries, Function.comp_def, lineComparison_eval] using
     ht (inputOfSplit split x y)
 
@@ -259,25 +251,11 @@ def prefixLine (reads : Fin d → Fin g) (pattern : Fin d → Bool) : Line signa
 private theorem prefixScore_iff (pattern values : Fin d → Bool) :
     (∑ j, ((pattern j).toNat : ℝ)) ≤
         ∑ j, (if pattern j then (1 : ℝ) else -1) * (values j).toNat ↔ values = pattern := by
-  have hle (j : Fin d) :
-      (if pattern j then (1 : ℝ) else -1) * (values j).toNat ≤ (pattern j).toNat := by
-    cases pattern j <;> cases values j <;> norm_num
-  constructor
-  · intro hsum
-    funext j
-    by_contra hne
-    have hlt : (if pattern j then (1 : ℝ) else -1) * (values j).toNat <
-        (pattern j).toNat := by
-      cases hp : pattern j <;> cases hv : values j <;> simp_all
-    have hstrict := sum_lt_sum (fun i (_ : i ∈ (univ : Finset (Fin d))) => hle i)
-      ⟨j, mem_univ j, hlt⟩
-    exact (not_lt_of_ge hsum) hstrict
-  · intro h
-    subst values
-    apply le_of_eq
-    apply sum_congr rfl
-    intro j _
-    cases pattern j <;> norm_num
+  refine ⟨fun hsum => funext fun j => by_contra fun hne => not_lt_of_ge hsum ?_, fun h => ?_⟩
+  · exact sum_lt_sum (fun i _ => by cases pattern i <;> cases values i <;> norm_num)
+      ⟨j, mem_univ j, by cases hp : pattern j <;> cases hv : values j <;> simp_all⟩
+  · subst values
+    exact (sum_congr rfl fun j _ => by cases pattern j <;> norm_num).ge
 
 /-- The prefix gate tests equality of the selected history with the pattern. -/
 theorem prefixLine_eval (reads : Fin d → Fin g) (pattern : Fin d → Bool)
@@ -310,12 +288,7 @@ theorem prefixBank_eval_castAdd (p : Program signature n g) (reads : Fin d → F
       p.eval interpretation x j := by
   induction m with
   | zero => rfl
-  | succ m ih =>
-    change ((prefixBank p reads m (fun i => patterns i.castSucc)).gate
-      (prefixLine (fun k => (reads k).castAdd m) (patterns (Fin.last m)))).eval
-        interpretation x (j.castAdd m).castSucc = _
-    rw [Program.eval_gate_castSucc]
-    exact ih (fun i => patterns i.castSucc)
+  | succ m ih => exact (Program.eval_gate_castSucc _ _ _ _ (j.castAdd m)).trans (ih _)
 
 /-- Each newly appended bank gate computes its own pattern indicator. -/
 theorem prefixBank_eval_natAdd (p : Program signature n g) (reads : Fin d → Fin g)
@@ -325,20 +298,10 @@ theorem prefixBank_eval_natAdd (p : Program signature n g) (reads : Fin d → Fi
   induction m with
   | zero => intro i; exact i.elim0
   | succ m ih =>
-    intro i
-    induction i using Fin.lastCases with
-    | last =>
-      change ((prefixBank p reads m (fun i => patterns i.castSucc)).gate
-        (prefixLine (fun j => (reads j).castAdd m) (patterns (Fin.last m)))).eval
-          interpretation x (Fin.last (g + m)) = _
-      rw [Program.eval_gate_last, prefixLine_eval]
-      simp only [prefixBank_eval_castAdd]
-    | cast i =>
-      change ((prefixBank p reads m (fun j => patterns j.castSucc)).gate
-        (prefixLine (fun j => (reads j).castAdd m) (patterns (Fin.last m)))).eval
-          interpretation x (Fin.natAdd g i).castSucc = _
-      rw [Program.eval_gate_castSucc]
-      exact ih (fun j => patterns j.castSucc) i
+    refine Fin.lastCases ?_ fun i =>
+      (Program.eval_gate_castSucc _ _ _ _ (Fin.natAdd g i)).trans (ih _ i)
+    change ((prefixBank p reads m _).gate _).eval interpretation x (Fin.last (g + m)) = _
+    simp [Program.eval_gate_last, prefixLine_eval, prefixBank_eval_castAdd]
 
 private theorem lineWeight_castSucc_input (line : Line signature n g) (i : Fin n) :
     lineWeight (line.mapWires Wire.Renaming.castSucc) (.input i) =
@@ -374,33 +337,17 @@ theorem prefixBank_inputWeight_castAdd (p : Program signature n g) (reads : Fin 
     inputWeight (prefixBank p reads m patterns) (j.castAdd m) i = inputWeight p j i := by
   induction m with
   | zero => rfl
-  | succ m ih =>
-    change inputWeight ((prefixBank p reads m (fun k => patterns k.castSucc)).gate
-      (prefixLine (fun k => (reads k).castAdd m) (patterns (Fin.last m))))
-        (j.castAdd m).castSucc i = _
-    rw [inputWeight_gate_castSucc]
-    exact ih (fun k => patterns k.castSucc)
+  | succ m ih => exact (inputWeight_gate_castSucc _ _ (j.castAdd m) i).trans (ih _)
 
 /-- Every new bank gate has zero direct input vector, including with repeated history wires. -/
 theorem prefixBank_inputWeight_natAdd (p : Program signature n g) (reads : Fin d → Fin g)
     (patterns : Fin m → Fin d → Bool) (i : Fin n) : ∀ j : Fin m,
     inputWeight (prefixBank p reads m patterns) (Fin.natAdd g j) i = 0 := by
   induction m with
-  | zero => intro j; exact j.elim0
+  | zero => exact fun j => j.elim0
   | succ m ih =>
-    intro j
-    induction j using Fin.lastCases with
-    | last =>
-      change inputWeight ((prefixBank p reads m (fun k => patterns k.castSucc)).gate
-        (prefixLine (fun k => (reads k).castAdd m) (patterns (Fin.last m))))
-          (Fin.last (g + m)) i = 0
-      rw [inputWeight_gate_last, prefixLine_inputWeight]
-    | cast j =>
-      change inputWeight ((prefixBank p reads m (fun k => patterns k.castSucc)).gate
-        (prefixLine (fun k => (reads k).castAdd m) (patterns (Fin.last m))))
-          (Fin.natAdd g j).castSucc i = 0
-      rw [inputWeight_gate_castSucc]
-      exact ih (fun k => patterns k.castSucc) j
+    refine Fin.lastCases ((inputWeight_gate_last _ _ i).trans (prefixLine_inputWeight _ _ i))
+      fun j => (inputWeight_gate_castSucc _ _ (Fin.natAdd g j) i).trans (ih _ j)
 
 /-- Appending any prefix bank adds no input-reading gates. -/
 theorem card_inputGates_prefixBank (p : Program signature n g) (reads : Fin d → Fin g)
@@ -408,9 +355,7 @@ theorem card_inputGates_prefixBank (p : Program signature n g) (reads : Fin d �
     (inputGates (prefixBank p reads m patterns)).card = (inputGates p).card := by
   induction m with
   | zero => rfl
-  | succ m ih =>
-    rw [prefixBank, card_inputGates_gate]
-    simp [prefixLine_inputWeight, ih]
+  | succ m ih => simp [prefixBank, card_inputGates_gate, prefixLine_inputWeight, ih]
 
 /-- A native scalar query with direct input vector `w`, plus a weighted sum of earlier flags. -/
 def queryLine (w : Fin n → ℝ) (flags : Fin m → Fin g) (adjust : Fin m → ℝ)
@@ -428,8 +373,7 @@ theorem queryLine_eval (w : Fin n → ℝ) (flags : Fin m → Fin g) (adjust : F
   change decide (baseline ≤ ∑ a : Fin (n + m), (Fin.addCases w adjust a : ℝ) *
     ((Wire.elim x z (Fin.addCases (Wire.input : Fin n → Wire n g)
       (fun j : Fin m => Wire.gate (flags j)) a)).toNat : ℝ)) = _
-  rw [Fin.sum_univ_add]
-  simp
+  simp [Fin.sum_univ_add]
 
 /-- The effective coefficient on an original input is exactly the supplied coefficient. -/
 theorem queryLine_inputWeight (w : Fin n → ℝ) (flags : Fin m → Fin g)
@@ -439,8 +383,7 @@ theorem queryLine_inputWeight (w : Fin n → ℝ) (flags : Fin m → Fin g)
     (Fin.addCases (Wire.input : Fin n → Wire n g)
       (fun j : Fin m => Wire.gate (flags j)) a : Wire n g) = Wire.input i,
       (Fin.addCases w adjust a : ℝ)) = w i
-  rw [sum_filter, Fin.sum_univ_add]
-  simp
+  simp [sum_filter, Fin.sum_univ_add]
 
 /-- Append one adaptive scalar stage: a bank of `m` prefix indicators and one query.
 A matching pattern contributes `baseline - threshold`, so a unique match selects that threshold.
@@ -480,19 +423,16 @@ theorem eval_append_of_match (p : Program signature n g) (reads : Fin d → Fin 
     (hmatch : (fun j => p.eval interpretation x (reads j)) = patterns a) :
     (append p reads patterns w thresholds baseline).eval interpretation x (Fin.last (g + m)) =
       decide (thresholds a ≤ ∑ i, w i * (x i).toNat) := by
+  have hne (b : Fin m) (hba : b ≠ a) :
+      (fun j => p.eval interpretation x (reads j)) ≠ patterns b :=
+    fun h => hba (hinj (h.symm.trans hmatch))
   have hsum : (∑ b, (baseline - thresholds b) *
       (decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat) =
         baseline - thresholds a := by
-    rw [sum_eq_single a]
-    · simp [hmatch]
-    · intro b _ hba
-      have hne : (fun j => p.eval interpretation x (reads j)) ≠ patterns b :=
-        fun h => hba (hinj (h.symm.trans hmatch))
-      simp [hne]
-    · intro h
-      exact (h (mem_univ a)).elim
+    rw [sum_eq_single a (fun b _ hba => by simp [hne b hba]) (fun h => (h (mem_univ a)).elim)]
+    simp [hmatch]
   rw [eval_append_last, hsum, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
-  constructor <;> intro h <;> linarith
+  constructor <;> intro <;> linarith
 
 /-- No matching live prefix pads the transcript with `false` when the score is below baseline. -/
 theorem eval_append_of_no_match (p : Program signature n g) (reads : Fin d → Fin g)
@@ -517,18 +457,12 @@ theorem eval_append_readout (p : Program signature n g) (reads : Fin d → Fin g
   classical
   rw [eval_append_last, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
   simp only [zero_mul, sum_const_zero, zero_add, sub_zero, one_mul]
-  constructor
-  · intro hs
-    by_contra hn
-    have hmiss (a : Fin m) : (fun j => p.eval interpretation x (reads j)) ≠ patterns a :=
-      fun ha => hn ⟨a, ha⟩
-    norm_num [hmiss] at hs
-  · rintro ⟨a, ha⟩
-    have hle := single_le_sum
-      (f := fun b : Fin m =>
-        ((decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat : ℝ))
+  refine ⟨fun hs => by_contra fun hn => ?_, fun ⟨a, ha⟩ => ?_⟩
+  · push Not at hn
+    norm_num [hn] at hs
+  · simpa [ha] using single_le_sum (f := fun b : Fin m =>
+      ((decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat : ℝ))
       (fun _ _ => Nat.cast_nonneg _) (mem_univ a)
-    simpa [ha] using hle
 
 /-- The scalar stage preserves all prior direct input coefficients. -/
 theorem inputWeight_append_castSucc (p : Program signature n g) (reads : Fin d → Fin g)
@@ -564,15 +498,7 @@ theorem card_inputGates_append (p : Program signature n g) (reads : Fin d → Fi
   classical
   rw [append, card_inputGates_gate, card_inputGates_prefixBank]
   simp only [queryLine_inputWeight]
-  by_cases h : w = 0
-  · simp [h]
-  · have hex : ∃ i, w i ≠ 0 := by
-      by_contra hn
-      apply h
-      funext i
-      by_contra hi
-      exact hn ⟨i, hi⟩
-    simp [h, hex]
+  by_cases h : w = 0 <;> simp [h, ← Function.ne_iff, ← Pi.zero_def]
 
 end ScalarStage
 

@@ -43,33 +43,27 @@ theorem exec_loop {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
   let I (y : Data registers) : Prop :=
     ∃ finished tasks, Ready η m t AA BB D V K F a b finished tasks y ∧
       ∀ q, ¬(F ≤ q ∧ q < F + 5 * stackCapacity L) → y.mem q = x.mem q
-  have hi : I x := ⟨[], [[]], hx, fun _ _ => rfl⟩
   have hbody (y : Data registers) (hy : I y)
       (hc : (Cond.lt BoxTable.Reg.nil Reg.top).Holds y) :
       ∃ z, ExecWithin (w + 2) body y z 256 ∧ I z ∧
         workMeasure η t F z < workMeasure η t F y := by
     obtain ⟨finished, tasks, hready, hframe⟩ := hy
     cases tasks with
-    | nil =>
-      have htop : y.regs Reg.top = 0 := hready.top
-      simp only [Cond.holds_lt, hready.parameters.nil, htop, lt_self_iff_false] at hc
+    | nil => simp [Cond.holds_lt, hready.parameters.nil, hready.top] at hc
     | cons xs tasks =>
       obtain ⟨z, finished', tasks', hz, hzready, hzwork, hzframe⟩ :=
         exec_step y η hη a b ha hb finished xs tasks hready hK hF hAA hBB hD hfit hmag
       exact ⟨z, hz, ⟨finished', tasks', hzready,
         fun q hq => (hzframe q hq).trans (hframe q hq)⟩, hzwork⟩
-  obtain ⟨y, hy, hIy, hstop⟩ := ExecWithin.loop_invariant I
-    (workMeasure η t F) hbody hi
-  obtain ⟨finished, tasks, hready, hframe⟩ := hIy
+  obtain ⟨y, hy, ⟨finished, tasks, hready, hframe⟩, hstop⟩ :=
+    ExecWithin.loop_invariant I (workMeasure η t F) hbody ⟨[], [[]], hx, fun _ _ => rfl⟩
   have htop : y.regs Reg.top = 0 := by
     simp only [Cond.holds_lt, hready.parameters.nil, not_lt] at hstop
     omega
-  have htasks : tasks = [] := List.length_eq_zero_iff.mp (hready.top.symm.trans htop)
-  subst tasks
+  obtain rfl : tasks = [] := List.length_eq_zero_iff.mp (hready.top.symm.trans htop)
   have hvalue : (finished.map (leafQueryValue m t η a b)).sum = queryValue m t η a b := by
     have hv := hready.frontier.finished_value
-    rw [possibleLeaves_root_eq_queryLeaves η hη] at hv
-    exact hv
+    rwa [possibleLeaves_root_eq_queryLeaves η hη] at hv
   refine ⟨y, ?_, hready.parameters, htop, hready.answer.trans
     (congrArg Signed.encode hvalue), hready.table, hframe⟩
   have hwork : workMeasure η t F x = (L + 1) * (queryLeaves m t η).card := by

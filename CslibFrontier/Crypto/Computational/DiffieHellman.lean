@@ -22,7 +22,9 @@ import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.Nat.Bits
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Languages.Probabilistic.Concentration
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Uniform
@@ -208,6 +210,37 @@ variable {F} in
       encBits :=
   .of_enc_eq (F.computableInPolyTime_smul.comp (hd.prod (hk.prod hx))) fun a => by
     simp [F.smul_encode]
+
+variable {F} in
+/-- The encoded negation of a computed element, computed as `(q - 1) • x` for the group order
+`q`. -/
+@[fun_prop] theorem computableInPolyTime_encode_neg {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {x : (a : α) → F.Carrier (d a)} (hd : ComputableInPolyTime d enc F.encDesc)
+    (hx : ComputableInPolyTime (fun a => F.encode (d a) (x a)) enc encBits) :
+    ComputableInPolyTime (fun a => F.encode (d a) (-x a)) enc encBits :=
+  .of_enc_eq (computableInPolyTime_encode_natCast_smul hd
+      ((F.computableInPolyTime_order.comp hd).binary_sub' (.const 1)) hx) fun a => by
+    rw [Function.comp_apply, ZMod.natCast_self_sub_one, neg_one_smul]
+
+variable {F} in
+/-- The encoded difference of computed elements. -/
+@[fun_prop] theorem computableInPolyTime_encode_sub {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {x y : (a : α) → F.Carrier (d a)} (hd : ComputableInPolyTime d enc F.encDesc)
+    (hx : ComputableInPolyTime (fun a => F.encode (d a) (x a)) enc encBits)
+    (hy : ComputableInPolyTime (fun a => F.encode (d a) (y a)) enc encBits) :
+    ComputableInPolyTime (fun a => F.encode (d a) (x a - y a)) enc encBits := by
+  simpa only [sub_eq_add_neg] using
+    computableInPolyTime_encode_add hd hx (computableInPolyTime_encode_neg hd hy)
+
+variable {F} in
+/-- The encoding of a computed choice between computed elements. -/
+@[fun_prop] theorem computableInPolyTime_encode_cond {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {c : α → Bool} {x y : (a : α) → F.Carrier (d a)}
+    (hc : ComputableInPolyTime c enc encBool)
+    (hx : ComputableInPolyTime (fun a => F.encode (d a) (x a)) enc encBits)
+    (hy : ComputableInPolyTime (fun a => F.encode (d a) (y a)) enc encBits) :
+    ComputableInPolyTime (fun a => F.encode (d a) (cond (c a) (x a) (y a))) enc encBits :=
+  .of_enc_eq (ComputableInPolyTime.ite' hc hx hy) fun a => by cases c a <;> simp
 
 /-! ### Computational Diffie–Hellman (CDH) -/
 
@@ -497,27 +530,12 @@ theorem ddhRerandomizeLaw_real (d : F.Desc) (α β : ZMod (F.order d)) :
       F.ddhRealTupleLaw d := by
   simp only [ddhRerandomizeLaw, ddhRealTupleLaw, ddhRerandomize_smul_generator, sub_self, mul_zero,
     add_zero, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  have hs₂ (α' : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-        PMF.pure (α' • F.generator d, (β + s₂) • F.generator d,
-          (α' * (β + s₂)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d)) :=
-    PMF.uniformOfFintype_bind_add_left β
-      (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
-  have hs₁ (r : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₁ =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-          PMF.pure ((r * α + s₁) • F.generator d, (β + s₂) • F.generator d,
-            ((r * α + s₁) * (β + s₂)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α' =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-          PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d)) := by
-    simp_rw [hs₂]
-    exact PMF.uniformOfFintype_bind_add_left (r * α)
-      (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
-  simp_rw [hs₁, PMF.bind_const]
+  have hs₂ (α' : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left β
+    (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
+  have hs₁ (r : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left (r * α)
+    (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
+      PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
+  simp_rw [hs₂, hs₁, PMF.bind_const]
 
 /-- **Random self-reducibility of DDH (random case)**: re-randomizing any fixed non-DDH tuple
 `(α • g, β • g, γ • g)` with `γ ≠ α * β` yields the exact uniform random DDH tuple distribution. -/
@@ -526,31 +544,14 @@ theorem ddhRerandomizeLaw_random (d : F.Desc) {α β γ : ZMod (F.order d)} (hγ
       F.ddhRandomTupleLaw d := by
   simp only [ddhRerandomizeLaw, ddhRandomTupleLaw, ddhRerandomize_smul_generator,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  have hs₂ (r α' : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-        PMF.pure (α' • F.generator d, (β + s₂) • F.generator d,
-          (α' * (β + s₂) + r * (γ - α * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d,
-          (α' * β' + r * (γ - α * β)) • F.generator d)) :=
-    PMF.uniformOfFintype_bind_add_left β
-      (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d,
+  have hs₂ (r α' : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left β
+    (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d,
+      (α' * β' + r * (γ - α * β)) • F.generator d))
+  have hs₁ (r : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left (r * α)
+    (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
+      PMF.pure (α' • F.generator d, β' • F.generator d,
         (α' * β' + r * (γ - α * β)) • F.generator d))
-  have hs₁ (r : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₁ =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-          PMF.pure ((r * α + s₁) • F.generator d, (β + s₂) • F.generator d,
-            ((r * α + s₁) * (β + s₂) + r * (γ - α * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α' =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-          PMF.pure (α' • F.generator d, β' • F.generator d,
-            (α' * β' + r * (γ - α * β)) • F.generator d)) := by
-    simp_rw [hs₂]
-    exact PMF.uniformOfFintype_bind_add_left (r * α)
-      (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d,
-          (α' * β' + r * (γ - α * β)) • F.generator d))
-  simp_rw [hs₁]
+  simp_rw [hs₂, hs₁]
   rw [PMF.bind_comm]
   refine congrArg (PMF.bind _) (funext fun α' => ?_)
   rw [PMF.bind_comm]
@@ -585,28 +586,16 @@ theorem advantage_bind_sampleExp_le (n : ℕ) (d : F.Desc)
       ((ProbComp.eval (F.sampleExp n d)).bind fun s => k (s : ZMod (F.order d)))
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind k) ≤
       1 / 2 ^ n := by
-  have hmap :
-      ((ProbComp.eval (F.sampleExp n d)).bind fun s => k (s : ZMod (F.order d))) =
-        ((ProbComp.eval (F.sampleExp n d)).map
-          (Nat.cast : ℕ → ZMod (F.order d))).bind k :=
-    (PMF.bind_map _ _ _).symm
-  have hlt : F.order d < 2 ^ (encNat (F.order d)).length := by
-    simpa only [encNat_apply, ← Nat.size_eq_bits_len] using Nat.lt_size_self (F.order d)
   have hord_le : (F.order d : ℝ) ≤ 2 ^ (encNat (F.order d)).length := by
-    exact_mod_cast hlt.le
-  rw [← NNReal.coe_le_coe, hmap, Game.advantage_eq_nndist, coe_nndist]
-  refine (PMF.dist_bind_le ((ProbComp.eval (F.sampleExp n d)).map
-      (Nat.cast : ℕ → ZMod (F.order d)))
-    (PMF.uniformOfFintype (ZMod (F.order d))) k).trans ?_
-  refine (ProbComp.dist_map_natCast_eval_sampleModNat_le
-    (n + (encNat (F.order d)).length) (F.order d)).trans ?_
+    exact_mod_cast (by simpa only [encNat_apply, ← Nat.size_eq_bits_len] using
+      (Nat.lt_size_self (F.order d)).le)
+  rw [← NNReal.coe_le_coe, Game.advantage_eq_nndist, coe_nndist]
+  refine le_of_eq_of_le
+    (congrArg (dist · _) (PMF.bind_map _ (Nat.cast : ℕ → ZMod (F.order d)) k).symm)
+    ((PMF.dist_bind_le _ _ k).trans ((ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_))
   rw [Nat.add_comm n, pow_add, ← div_div]
-  have hdiv : (F.order d : ℝ) / 2 ^ (encNat (F.order d)).length ≤ 1 :=
-    (div_le_one (by positivity)).mpr hord_le
-  have hbound :
-      (F.order d : ℝ) / 2 ^ (encNat (F.order d)).length / 2 ^ n ≤ 1 / 2 ^ n :=
-    div_le_div_of_nonneg_right hdiv (by positivity)
-  simpa only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_pow, NNReal.coe_ofNat] using hbound
+  simpa only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_pow, NNReal.coe_ofNat] using
+    div_le_div_of_nonneg_right ((div_le_one (by positivity)).mpr hord_le) (by positivity)
 
 /-- Distribution of a single modular exponent sampled via `ProbComp.sampleModNat` at parameter `n`
 and group parameters `d`, projected to `ZMod (F.order d)` (original). -/
@@ -619,19 +608,16 @@ is within statistical distance `1 / 2 ^ n` of `PMF.uniformOfFintype (ZMod (F.ord
 theorem dist_sampleModZModLaw_le (n : ℕ) (d : F.Desc) :
     dist (PMF.uniformOfFintype (ZMod (F.order d))) (F.sampleModZModLaw n d) ≤ 1 / 2 ^ n := by
   have : NeZero (F.order d) := ⟨(F.prime_order d).ne_zero⟩
-  rw [dist_comm]
-  refine (ProbComp.dist_map_natCast_eval_sampleModNat_le
-    ((F.order d).size + n) (F.order d)).trans ?_
-  have hlt : (F.order d : ℝ) ≤ 2 ^ (F.order d).size := by
-    exact_mod_cast (Nat.lt_size_self (F.order d)).le
   have hpos : (0 : ℝ) < 2 ^ (F.order d).size := by positivity
+  rw [dist_comm]
+  refine (ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_
   calc
     (F.order d : ℝ) / 2 ^ ((F.order d).size + n)
       ≤ 2 ^ (F.order d).size / (2 ^ (F.order d).size * 2 ^ n) := by
         rw [pow_add]
         gcongr
-    _ = 1 / 2 ^ n := by
-        rw [div_mul_eq_div_div, div_self hpos.ne']
+        exact_mod_cast (Nat.lt_size_self (F.order d)).le
+    _ = 1 / 2 ^ n := by rw [div_mul_eq_div_div, div_self hpos.ne']
 
 /-! ### Efficient DDH random self-reduction -/
 
@@ -682,22 +668,16 @@ theorem isPPT_ddhSelfReduceDistinguisher {distinguisher : F.DDHDistinguisher}
       (hx : ComputableInPolyTime x enc F.encDDHInput) :
       IsPPTOn enc encNat fun a => F.sampleExp (x a).secParam (x a).groupParameters :=
     F.isPPTOn_sampleExp (by fun_prop) (by fun_prop)
-  refine IsPPTOn.bind_with (hs .id') ?_
-  refine IsPPTOn.bind_with (hs (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (hs (by fun_prop)) ?_
+  refine IsPPTOn.bind_with (hs .id') <| IsPPTOn.bind_with (hs (by fun_prop)) <|
+    IsPPTOn.bind_with (hs (by fun_prop)) ?_
   let E := encPair (encPair (encPair F.encDDHInput encNat) encNat) encNat
   have hx : ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.1.1.1) E
       F.encDDHInput := by fun_prop
   have hd := F.encDDHInput_groupParameters_polyTime hx
-  have h := computableInPolyTime_encode_ddhRerandomize hd
+  have h := computableInPolyTime_encode_ddhRerandomize
+    (r := fun p => p.1.1.2) (s₁ := fun p => p.1.2) (s₂ := fun p => p.2) hd
     (F.encDDHInput_leftPublic_polyTime hx) (F.encDDHInput_rightPublic_polyTime hx)
-    (F.encDDHInput_candidateShared_polyTime hx)
-    (show ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.1.1.2) E encNat by
-      fun_prop)
-    (show ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.1.2) E encNat by
-      fun_prop)
-    (show ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.2) E encNat by
-      fun_prop)
+    (F.encDDHInput_candidateShared_polyTime hx) (by fun_prop) (by fun_prop) (by fun_prop)
   exact (hD.comp (F.encDDHInput_secParam_polyTime hx) hd h.1 h.2.1 h.2.2).congr
     fun _ => rfl
 
@@ -713,22 +693,8 @@ theorem advantage_ddhRerandomizeLaw_ddhSelfReduceDistinguisher_le
   let k : ZMod (F.order d) → ZMod (F.order d) → ZMod (F.order d) → Game := fun r s₁ s₂ =>
     let (u', v', w') := F.ddhRerandomize d u v w r s₁ s₂
     ProbComp.eval (distinguisher n d u' v' w')
-  have hlaw : ((F.ddhRerandomizeLaw d u v w).bind fun (u', v', w') =>
-      ProbComp.eval (distinguisher n d u' v' w')) =
-      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun r =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₁ =>
-          (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ => k r s₁ s₂ := by
-    simp only [ddhRerandomizeLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.pure_bind]
-    rfl
-  have hself : ProbComp.eval (F.ddhSelfReduceDistinguisher distinguisher n d u v w) =
-      (ProbComp.eval (F.sampleExp n d)).bind fun r =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
-          (ProbComp.eval (F.sampleExp n d)).bind fun s₂ =>
-            k (r : ZMod (F.order d)) (s₁ : ZMod (F.order d)) (s₂ : ZMod (F.order d)) := by
-    simp only [ddhSelfReduceDistinguisher, ProbComp.eval_bind]
-    rfl
-  rw [hlaw, hself, Game.advantage_comm]
+  simp only [ddhRerandomizeLaw, ddhSelfReduceDistinguisher, pmf_norm]
+  rw [Game.advantage_comm]
   have h₁ := F.advantage_bind_sampleExp_le n d fun r =>
     (ProbComp.eval (F.sampleExp n d)).bind fun s₁ =>
       (ProbComp.eval (F.sampleExp n d)).bind fun s₂ =>
@@ -748,15 +714,13 @@ theorem advantage_ddhRerandomizeLaw_ddhSelfReduceDistinguisher_le
 theorem ddhRealTupleLaw_bind_eq (distinguisher : F.DDHDistinguisher) (n : ℕ) (d : F.Desc) :
     ((F.ddhRealTupleLaw d).bind fun (u, v, w) => ProbComp.eval (distinguisher n d u v w)) =
       ProbComp.eval (ddhRealExperiment (F.order d) (F.generator d) (distinguisher n d)) := by
-  simp only [ddhRealTupleLaw, eval_ddhRealExperiment, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [ddhRealTupleLaw, eval_ddhRealExperiment, pmf_norm]
 
 /-- Running a distinguisher on the uniform random DDH tuple is the random DDH experiment. -/
 theorem ddhRandomTupleLaw_bind_eq (distinguisher : F.DDHDistinguisher) (n : ℕ) (d : F.Desc) :
     ((F.ddhRandomTupleLaw d).bind fun (u, v, w) => ProbComp.eval (distinguisher n d u v w)) =
       ProbComp.eval (ddhRandomExperiment (F.order d) (F.generator d) (distinguisher n d)) := by
-  simp only [ddhRandomTupleLaw, eval_ddhRandomExperiment, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [ddhRandomTupleLaw, eval_ddhRandomExperiment, pmf_norm]
 
 /-- On any fixed real DDH triple, `ddhSelfReduceDistinguisher` accepts within `3 / 2 ^ n` of the
 real DDH experiment. -/
@@ -943,10 +907,6 @@ theorem isPPT_ddhAmplifiedDecider {distinguisher : F.DDHDistinguisher} (hD : dis
     (hn.unary_add' (.const 3)).unary_mul'
       ((ComputableInPolyTime.unary_pow 2).comp ((ComputableInPolyTime.const 7).unary_mul'
         (hinvEps.comp hn)))
-  have hcmp : ComputableInPolyTime
-      (fun q : ℕ × ℕ × ℕ => decide ((q.1 - q.2.1) + (q.2.1 - q.1) ≤ (q.1 - q.2.2) + (q.2.2 - q.1)))
-      (encPair encUnary (encPair encUnary encUnary)) encBool := by
-    fun_prop
   refine IsPPTOn.bind_with
     ((hself.comp (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).countTrue
       (hN (by fun_prop))) ?_
@@ -958,20 +918,19 @@ theorem isPPT_ddhAmplifiedDecider {distinguisher : F.DDHDistinguisher} (hD : dis
     ((hself.comp (by fun_prop) (by fun_prop) (computableInPolyTime_encode_zero (by fun_prop))
       (computableInPolyTime_encode_zero (by fun_prop))
       (computableInPolyTime_encode_generator (by fun_prop))).countTrue (hN (by fun_prop))) ?_
-  have hproj : ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => (p.1.1.2, p.1.2, p.2))
-      (encPair (encPair (encPair F.encDDHInput encUnary) encUnary) encUnary)
-      (encPair encUnary (encPair encUnary encUnary)) := by
-    fun_prop
-  exact (hcmp.comp hproj).isPPTOn
+  exact (show ComputableInPolyTime
+      (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ =>
+        decide ((p.1.1.2 - p.1.2) + (p.1.2 - p.1.1.2) ≤ (p.1.1.2 - p.2) + (p.2 - p.1.1.2)))
+      (encPair (encPair (encPair F.encDDHInput encUnary) encUnary) encUnary) encBool by
+    fun_prop).isPPTOn
 
 private theorem cast_sub_add_sub_eq_abs (a b : ℕ) :
     (((a - b) + (b - a) : ℕ) : ℝ) = |(a : ℝ) - (b : ℝ)| := by
   rcases le_total a b with h | h
-  · have hR : (a : ℝ) ≤ (b : ℝ) := by exact_mod_cast h
-    rw [Nat.sub_eq_zero_of_le h, zero_add, Nat.cast_sub h, abs_of_nonpos (sub_nonpos.mpr hR),
-      neg_sub]
-  · have hR : (b : ℝ) ≤ (a : ℝ) := by exact_mod_cast h
-    rw [Nat.sub_eq_zero_of_le h, add_zero, Nat.cast_sub h, abs_of_nonneg (sub_nonneg.mpr hR)]
+  · rw [Nat.sub_eq_zero_of_le h, zero_add, Nat.cast_sub h,
+      abs_of_nonpos (sub_nonpos.mpr (Nat.cast_le.mpr h)), neg_sub]
+  · rw [Nat.sub_eq_zero_of_le h, add_zero, Nat.cast_sub h,
+      abs_of_nonneg (sub_nonneg.mpr (Nat.cast_le.mpr h))]
 
 private theorem abs_succProbability_sub_le_of_advantage_le {g₁ g₂ : Game} {ε : ℝ}
     (h : (Game.advantage g₁ g₂ : ℝ) ≤ ε) :
@@ -984,19 +943,10 @@ private theorem abs_sub_lt_abs_sub_of_close
     (hq : |q - p₁| ≤ ε / 12) (hq₁ : |q₁ - p₁| ≤ ε / 12) (hq₂ : |q₂ - p₂| ≤ ε / 12)
     (hx : |x - q| < ε / 7) (hx₁ : |x₁ - q₁| < ε / 7) (hx₂ : |x₂ - q₂| < ε / 7) :
     |x - x₁| < |x - x₂| := by
-  have hu : |x - p₁| < ε / 7 + ε / 12 :=
-    (abs_sub_le x q p₁).trans_lt (add_lt_add_of_lt_of_le hx hq)
-  have hv : |p₁ - x₁| < ε / 7 + ε / 12 := by
-    rw [abs_sub_comm]
-    exact (abs_sub_le x₁ q₁ p₁).trans_lt (add_lt_add_of_lt_of_le hx₁ hq₁)
-  have hw : |x₂ - p₂| < ε / 7 + ε / 12 :=
-    (abs_sub_le x₂ q₂ p₂).trans_lt (add_lt_add_of_lt_of_le hx₂ hq₂)
-  have h1 := abs_sub_le x p₁ x₁
-  have h2 : |p₁ - p₂| ≤ |x - p₁| + (|x - x₂| + |x₂ - p₂|) := by
-    rw [abs_sub_comm x p₁]
-    exact (abs_sub_le p₁ x p₂).trans (add_le_add_right (abs_sub_le x x₂ p₂) _)
-  clear hq hq₁ hq₂ hx hx₁ hx₂
-  linarith [abs_nonneg (x - p₁)]
+  have hxp₁ := abs_sub_le x q p₁
+  have hp₁x₁ := abs_sub_comm x₁ p₁ ▸ abs_sub_le x₁ q₁ p₁
+  have hp₁p₂ := abs_sub_comm p₁ x ▸ abs_sub_le p₁ x p₂
+  linarith [abs_nonneg (x - p₁), abs_sub_le x p₁ x₁, abs_sub_le x x₂ p₂, abs_sub_le x₂ q₂ p₂]
 
 private theorem toOuterMeasure_bind₃_failure_le_pow
     (μ₁ μ₂ μ₃ : PMF ℕ) (S₁ S₂ S₃ : Set ℕ) (f : ℕ → ℕ → ℕ → Bool) (b₀ : Bool) (n : ℕ)
@@ -1063,17 +1013,15 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
         ((α' * β') • F.generator d)) true).toReal - pReal| ≤ ε / 12 := by
     rw [abs_sub_comm]
     refine (abs_succProbability_sub_le_of_advantage_le ?_).trans hmod'
-    simpa only [NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_pow] using
-      NNReal.coe_le_coe.mpr
-        (F.advantage_ddhRealExperiment_ddhSelfReduceDistinguisher_le distinguisher n d α' β')
+    exact_mod_cast F.advantage_ddhRealExperiment_ddhSelfReduceDistinguisher_le
+      distinguisher n d α' β'
   have hRandomClose {α' β' γ' : ZMod (F.order d)} (hγ' : γ' ≠ α' * β') :
       |(ProbComp.eval (trial (α' • F.generator d) (β' • F.generator d)
         (γ' • F.generator d)) true).toReal - pRandom| ≤ ε / 12 := by
     rw [abs_sub_comm]
     refine (abs_succProbability_sub_le_of_advantage_le ?_).trans hmod'
-    simpa only [NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_pow] using
-      NNReal.coe_le_coe.mpr
-        (F.advantage_ddhRandomExperiment_ddhSelfReduceDistinguisher_le distinguisher n d hγ')
+    exact_mod_cast F.advantage_ddhRandomExperiment_ddhSelfReduceDistinguisher_le
+      distinguisher n d hγ'
   have hRealRef : |(ProbComp.eval tReal true).toReal - pReal| ≤ ε / 12 := by
     simpa only [zero_smul, mul_zero] using hRealClose 0 0
   have hRandomRef : |(ProbComp.eval tRandom true).toReal - pRandom| ≤ ε / 12 := by
@@ -1084,18 +1032,15 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
   have hconc (t : ProbComp Bool) :
       (((ProbComp.eval (OracleComp.countTrue N t)).toOuterMeasure (good t)ᶜ).toReal) ≤
         (1 / 2 : ℝ) ^ (n + 2) := by
-    simpa only [good, N, Set.compl_ofPred, not_lt, show n + 3 = (n + 2) + 1 by omega] using
+    simpa only [good, N, Set.compl_ofPred, not_lt] using
       ProbComp.countTrue_average_deviation_pow (n + 2) (7 * invEps n) h7pos t
   have hdet {cIn cReal cRandom : ℕ} (hcIn : cIn ∈ good tIn) (hcReal : cReal ∈ good tReal)
       (hcRandom : cRandom ∈ good tRandom) :
       decide ((cIn - cReal) + (cReal - cIn) ≤ (cIn - cRandom) + (cRandom - cIn)) =
         decide (γ = α * β) := by
-    have hcIn' : |(cIn : ℝ) / N - (ProbComp.eval tIn true).toReal| < ε / 7 := by
-      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hcIn
-    have hcReal' : |(cReal : ℝ) / N - (ProbComp.eval tReal true).toReal| < ε / 7 := by
-      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hcReal
-    have hcRandom' : |(cRandom : ℝ) / N - (ProbComp.eval tRandom true).toReal| < ε / 7 := by
-      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hcRandom
+    have hgood {t : ProbComp Bool} {c : ℕ} (hc : c ∈ good t) :
+        |(c : ℝ) / N - (ProbComp.eval t true).toReal| < ε / 7 := by
+      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hc
     have hcmp_iff :
         ((cIn - cReal) + (cReal - cIn) ≤ (cIn - cRandom) + (cRandom - cIn)) ↔
           |(cIn : ℝ) / N - (cReal : ℝ) / N| ≤ |(cIn : ℝ) / N - (cRandom : ℝ) / N| := by
@@ -1105,11 +1050,11 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
     by_cases hγ : γ = α * β
     · have hInRef : |(ProbComp.eval tIn true).toReal - pReal| ≤ ε / 12 := by
         simpa only [tIn, hγ] using hRealClose α β
-      have hlt :=
-        abs_sub_lt_abs_sub_of_close hadv' hInRef hRealRef hRandomRef hcIn' hcReal' hcRandom'
+      have hlt := abs_sub_lt_abs_sub_of_close hadv' hInRef hRealRef hRandomRef
+        (hgood hcIn) (hgood hcReal) (hgood hcRandom)
       simp only [hγ, decide_true, hcmp_iff, hlt.le]
     · have hlt := abs_sub_lt_abs_sub_of_close (abs_sub_comm pReal pRandom ▸ hadv')
-        (hRandomClose hγ) hRandomRef hRealRef hcIn' hcRandom' hcReal'
+        (hRandomClose hγ) hRandomRef hRealRef (hgood hcIn) (hgood hcRandom) (hgood hcReal)
       simp only [hγ, decide_false, hcmp_iff, not_le.mpr hlt]
   simp only [ddhAmplifiedDecider, ProbComp.eval_bind, ProbComp.eval_pure]
   exact toOuterMeasure_bind₃_failure_le_pow _ _ _ (good tIn) (good tReal) (good tRandom) _ _ n
@@ -1136,9 +1081,9 @@ theorem ddhAmplifiedDecider_correct_ge_one_sub_pow (distinguisher : F.DDHDisting
 private theorem three_div_le_one_div_twelve_mul {a b : ℝ} (hb : 0 < b)
     (h : 1 / a ≤ 1 / (36 * b + 1)) : 3 / a ≤ 1 / (12 * b) := by
   have h1 : 1 / a ≤ 1 / (36 * b) :=
-    h.trans (one_div_le_one_div_of_le (mul_pos (by norm_num) hb)
-      (le_add_of_nonneg_right zero_le_one))
-  simpa only [div_eq_mul_one_div 3 a, show 3 * (1 / (36 * b)) = 1 / (12 * b) by ring] using
+    h.trans (one_div_le_one_div_of_le (by positivity) (by linarith))
+  have h12 : 3 * (1 / (36 * b)) = 1 / (12 * b) := by ring
+  simpa only [div_eq_mul_one_div 3 a, h12] using
     mul_le_mul_of_nonneg_left h1 (by norm_num : (0 : ℝ) ≤ 3)
 
 /-- **Worst-case DDH decider with negligible error** ([BonehShoup2023], Exercise 10.10, p. 426):
@@ -1160,15 +1105,10 @@ theorem negligible_ddhAmplifiedDecider_error {distinguisher : F.DDHDistinguisher
   have hgeom : Negligible fun n => ((2⁻¹ : ℝ≥0) ^ n) := by negligible
   have hpoly : PolynomiallyBounded fun n => 36 * invEps n + 1 :=
     ((PolynomiallyBounded.const 36).mul hinvEps.polynomiallyBounded).add (.const 1)
-  have hmod_ev : ∀ᶠ n in Filter.atTop, 3 / (2 ^ n : ℝ) ≤ 1 / (12 * (invEps n : ℝ)) := by
-    filter_upwards [hpos, hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)]
-      with n hn hlt
-    refine three_div_le_one_div_twelve_mul (Nat.cast_pos.mpr hn) ?_
-    simpa only [NNReal.coe_pow, NNReal.coe_inv, NNReal.coe_ofNat, inv_pow, one_div,
-      Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one] using hlt
   negligible eventually (by
-    filter_upwards [hpos, hadv, hmod_ev] with n hn hadv_n hmod_n
-    exact F.ddhAmplifiedDecider_error_le_pow distinguisher invEps n (d n)
-      (α n) (β n) (γ n) hn hadv_n hmod_n)
+    filter_upwards [hpos, hadv,
+      hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)] with n hn hadv_n hlt
+    exact F.ddhAmplifiedDecider_error_le_pow distinguisher invEps n (d n) (α n) (β n) (γ n) hn
+      hadv_n (three_div_le_one_div_twelve_mul (Nat.cast_pos.mpr hn) (by simpa [one_div] using hlt)))
 
 end Cslib.Crypto.PrimeOrderGroupFamily

@@ -32,9 +32,16 @@ additionally carry `program_certificate`; `binary_mod'` stays explicit alongside
 
 ## Main results
 
+* `Turing.MultiTapeTM.ComputableInPolyTime.bool_and'`,
+  `Turing.MultiTapeTM.ComputableInPolyTime.bool_or'`: captured Boolean conjunction and disjunction
+  registered for `fun_prop` and `polytime`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.cond'`: Boolean `_root_.cond` case distinction.
+* `Turing.MultiTapeTM.ComputableInPolyTime.bitsHeadDWithInput`: head of a computed bit string with a
+  computed Boolean fallback, fixing `encBits` and `encBool` without `ListEncoding` synthesis.
 * `Turing.MultiTapeTM.ComputableInPolyTime.listHead?WithInput`: optional head of a computed
   framed list, fixing the element encoding without typeclass synthesis.
+* `Turing.MultiTapeTM.ComputableInPolyTime.listSetWithInput`: replace a computed framed-list entry
+  at a computed unary index.
 * `Turing.MultiTapeTM.ComputableInPolyTime.listHeadDWithInput`: head of a computed framed list
   with a computed fallback.
 * `Turing.MultiTapeTM.ComputableInPolyTime.listTakeWithInput`: prefix of a computed framed list
@@ -49,7 +56,11 @@ additionally carry `program_certificate`; `binary_mod'` stays explicit alongside
   naturals on `Turing.MultiTapeTM.encNat`.
 -/
 
+public section
+
 namespace Turing.MultiTapeTM.ComputableInPolyTime
+
+attribute [fun_prop] bool_and' bool_or'
 
 /-- Case distinction on a computed Boolean guard in any encoding of `Bool`, for `_root_.cond`. -/
 @[fun_prop]
@@ -59,6 +70,18 @@ public theorem cond' {α β : Type*} {encIn : α ↪ List Bool} {encOut : β ↪
     (he : ComputableInPolyTime e encIn encOut) :
     ComputableInPolyTime (fun a => _root_.cond (c a) (t a) (e a)) encIn encOut :=
   (hc.ite ht he).of_enc_eq fun a => by cases c a <;> rfl
+
+/-- Read the head of a computed bit string with a computed Boolean fallback, fixing the word and
+result encodings without waiting on `ListEncoding` synthesis. -/
+@[fun_prop]
+public theorem bitsHeadDWithInput {γ : Type} {encIn : γ ↪ List Bool}
+    {word : γ → List Bool} {fallback : γ → Bool}
+    (hword : ComputableInPolyTime word encIn encBits)
+    (hfallback : ComputableInPolyTime fallback encIn encBool) :
+    ComputableInPolyTime (fun a => (word a).headD (fallback a)) encIn encBool :=
+  ((bitsIsEmpty.comp hword).ite hfallback ((headD false).comp hword)).of_enc_eq fun a => by
+    simp only [Function.comp_apply]
+    cases word a <;> rfl
 
 /-- Read the optional head of a computed framed list, inferring the element encoding directly
 from the list certificate without waiting on `ListEncoding` synthesis. -/

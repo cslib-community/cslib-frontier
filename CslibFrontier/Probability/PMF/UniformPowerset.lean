@@ -66,22 +66,13 @@ private theorem uniformErase_apply_of_card {U V : Finset α} {t : ℕ} (ht : 1 �
     · intro e he
       split_ifs with hV
       · by_cases heU : e ∈ U
-        · exfalso
-          apply he
-          have he_not_V : e ∉ V := hV ▸ Finset.notMem_erase e U
-          have hins : insert e V = insert e₀ V := by
-            calc insert e V = insert e (U.erase e) := by rw [hV]
-              _ = U := Finset.insert_erase heU
-              _ = insert e₀ (U.erase e₀) := (Finset.insert_erase he₀U).symm
-              _ = insert e₀ V := by rw [he₀V]
-          have hmem : e ∈ insert e₀ V := hins ▸ Finset.mem_insert_self e V
-          rcases Finset.mem_insert.mp hmem with rfl | hmemV
-          · rfl
-          · exact absurd hmemV he_not_V
+        · have he_not_V : e ∉ V := hV ▸ Finset.notMem_erase e U
+          have h := (Finset.insert_erase heU).trans (Finset.insert_erase he₀U).symm
+          rw [← hV, he₀V] at h
+          exact absurd ((Finset.insert_inj he_not_V).1 h) he
         · simp only [uniformOfFinset_apply, heU, ↓reduceIte]
       · rfl
-  · simp only [hex, ↓reduceIte]
-    rw [tsum_eq_zero_iff]
+  · simp only [hex, ↓reduceIte, tsum_eq_zero_iff]
     intro e
     by_cases heU : e ∈ U
     · have hne : V ≠ U.erase e := fun h => hex ⟨e, heU, h.symm⟩
@@ -108,13 +99,45 @@ private theorem filter_powersetCard_exists_erase_eq {S V : Finset α} {t : ℕ}
 private theorem card_image_insert_sdiff {S V : Finset α} (hVS : V ⊆ S) :
     ((S \ V).image (fun e => insert e V)).card = S.card - V.card := by
   rw [Finset.card_image_of_injOn, Finset.card_sdiff_of_subset hVS]
-  intro e₁ he₁ e₂ _ hins
-  dsimp only at hins
-  have he₁V : e₁ ∉ V := (Finset.mem_sdiff.mp he₁).2
-  have hmem : e₁ ∈ insert e₂ V := hins ▸ Finset.mem_insert_self e₁ V
-  rcases Finset.mem_insert.mp hmem with rfl | hmemV
-  · rfl
-  · exact absurd hmemV he₁V
+  exact fun e₁ he₁ e₂ _ hins => (Finset.insert_inj (Finset.mem_sdiff.mp he₁).2).1 hins
+
+omit [DecidableEq α] in
+private theorem uniformBind_apply {β : Type*} {A : Finset α} (hA : A.Nonempty)
+    (f : α → PMF β) (b : β) :
+    (uniformOfFinset A hA).bind f b = (A.card : ℝ≥0∞)⁻¹ * ∑ a ∈ A, f a b := by
+  classical
+  rw [PMF.bind_apply, tsum_eq_sum (s := A), Finset.mul_sum]
+  · exact Finset.sum_congr rfl fun a ha => by rw [uniformOfFinset_apply, ite_eq_left ha]
+  · intro a ha
+    rw [uniformOfFinset_apply, ite_eq_right ha, zero_mul]
+
+-- The only contributing subsets are the one-element extensions of the output.
+private theorem sum_uniformErase (S V : Finset α) {t : ℕ} (ht : 1 ≤ t) :
+    ∑ U ∈ S.powersetCard t, uniformErase U V =
+      if V ∈ S.powersetCard (t - 1) then
+        ((S.card - (t - 1) : ℕ) : ℝ≥0∞) * (t : ℝ≥0∞)⁻¹ else 0 := by
+  have hsum : ∑ U ∈ S.powersetCard t, uniformErase U V =
+      ∑ U ∈ (S.powersetCard t).filter (fun U => ∃ e ∈ U, U.erase e = V),
+        (t : ℝ≥0∞)⁻¹ := by
+    rw [Finset.sum_filter]
+    exact Finset.sum_congr rfl fun U hU =>
+      uniformErase_apply_of_card ht (Finset.mem_powersetCard.mp hU).2
+  rw [hsum]
+  split_ifs with hV
+  · obtain ⟨hVS, hVcard⟩ := Finset.mem_powersetCard.mp hV
+    rw [Finset.sum_const, filter_powersetCard_exists_erase_eq hVS hVcard ht,
+      card_image_insert_sdiff hVS, hVcard, nsmul_eq_mul]
+  · refine Finset.sum_eq_zero fun U hU => ?_
+    obtain ⟨hU', e, he, rfl⟩ := Finset.mem_filter.mp hU
+    obtain ⟨hUS, hUcard⟩ := Finset.mem_powersetCard.mp hU'
+    exact (hV (Finset.mem_powersetCard.mpr ⟨(Finset.erase_subset e U).trans hUS,
+      hUcard ▸ Finset.card_erase_of_mem he⟩)).elim
+
+private theorem filter_powersetCard_notMem (S : Finset α) (p : α) (t : ℕ) :
+    (S.powersetCard t).filter (p ∉ ·) = (S.erase p).powersetCard t := by
+  ext U
+  simp only [Finset.mem_filter, Finset.mem_powersetCard, Finset.subset_erase]
+  tauto
 
 /-- Drawing a uniform `t`-subset `U` of `S` (`1 ≤ t ≤ |S|`) and erasing a uniformly chosen element
 of `U` yields the uniform distribution on `(t - 1)`-subsets of `S`. -/
@@ -123,45 +146,12 @@ theorem uniformOfFinset_powersetCard_erase {S : Finset α} {t : ℕ}
     (uniformOfFinset (S.powersetCard t) (Finset.powersetCard_nonempty.mpr htS)).bind uniformErase =
       uniformOfFinset (S.powersetCard (t - 1))
         (Finset.powersetCard_nonempty.mpr (by omega)) := by
-  set c : ℝ≥0∞ :=
-    ((S.card - (t - 1) : ℕ) : ℝ≥0∞) *
-      (((S.powersetCard t).card : ℝ≥0∞)⁻¹ * (t : ℝ≥0∞)⁻¹)
   refine pmf_eq_uniformOfFinset_of_ite_const
-    (Finset.powersetCard_nonempty.mpr (by omega)) (c := c) fun V => ?_
-  rw [PMF.bind_apply]
-  by_cases hV : V ∈ S.powersetCard (t - 1)
-  · simp only [hV, ↓reduceIte]
-    obtain ⟨hVS, hVcard⟩ := Finset.mem_powersetCard.mp hV
-    rw [tsum_eq_sum (s := S.powersetCard t)]
-    · have hsum :
-          ∑ U ∈ S.powersetCard t,
-            uniformOfFinset (S.powersetCard t) (Finset.powersetCard_nonempty.mpr htS) U *
-              uniformErase U V =
-          ∑ U ∈ (S.powersetCard t).filter (fun U => ∃ e ∈ U, U.erase e = V),
-            (((S.powersetCard t).card : ℝ≥0∞)⁻¹ * (t : ℝ≥0∞)⁻¹) := by
-        symm
-        rw [Finset.sum_filter]
-        refine Finset.sum_congr rfl fun U hU => ?_
-        have hUcard : U.card = t := (Finset.mem_powersetCard.mp hU).2
-        rw [uniformOfFinset_apply, ite_eq_left hU, uniformErase_apply_of_card ht hUcard]
-        split_ifs <;> simp only [mul_zero]
-      rw [hsum, Finset.sum_const, filter_powersetCard_exists_erase_eq hVS hVcard ht,
-        card_image_insert_sdiff hVS, hVcard, nsmul_eq_mul]
-    · intro U hU
-      simp only [uniformOfFinset_apply, hU, ↓reduceIte, zero_mul]
-  · simp only [hV, ↓reduceIte]
-    rw [tsum_eq_zero_iff]
-    intro U
-    by_cases hU : U ∈ S.powersetCard t
-    · obtain ⟨hUS, hUcard⟩ := Finset.mem_powersetCard.mp hU
-      rw [uniformErase_apply_of_card ht hUcard]
-      have hno : ¬ ∃ e ∈ U, U.erase e = V := by
-        rintro ⟨e, heU, rfl⟩
-        apply hV
-        rw [Finset.mem_powersetCard]
-        exact ⟨(Finset.erase_subset e U).trans hUS, by rw [Finset.card_erase_of_mem heU, hUcard]⟩
-      simp only [hno, ↓reduceIte, mul_zero]
-    · simp only [uniformOfFinset_apply, hU, ↓reduceIte, zero_mul]
+    (Finset.powersetCard_nonempty.mpr (by lia))
+    (c := ((S.powersetCard t).card : ℝ≥0∞)⁻¹ *
+      (((S.card - (t - 1) : ℕ) : ℝ≥0∞) * (t : ℝ≥0∞)⁻¹)) fun V => ?_
+  rw [uniformBind_apply, sum_uniformErase _ _ ht]
+  split_ifs <;> simp
 
 /-- For `p ∈ S` and `1 ≤ t ≤ |S|`, drawing a uniform `t`-subset `U` of `S` and returning
 `U.erase p` when `p ∈ U` or `uniformErase U` when `p ∉ U` yields the uniform distribution on
@@ -173,109 +163,48 @@ theorem uniformOfFinset_powersetCard_hitOrErase {S : Finset α} {p : α} {t : �
       uniformOfFinset ((S.erase p).powersetCard (t - 1))
         (Finset.powersetCard_nonempty.mpr
           (by rw [Finset.card_erase_of_mem hpS]; omega)) := by
-  have hne' : ((S.erase p).powersetCard (t - 1)).Nonempty :=
-    Finset.powersetCard_nonempty.mpr (by rw [Finset.card_erase_of_mem hpS]; omega)
-  set invN : ℝ≥0∞ := ((S.powersetCard t).card : ℝ≥0∞)⁻¹
-  set c : ℝ≥0∞ := invN + ((S.card - t : ℕ) : ℝ≥0∞) * (invN * (t : ℝ≥0∞)⁻¹)
-  refine pmf_eq_uniformOfFinset_of_ite_const hne' (c := c) fun V => ?_
-  rw [PMF.bind_apply]
-  by_cases hV : V ∈ (S.erase p).powersetCard (t - 1)
-  · simp only [hV, ↓reduceIte]
-    obtain ⟨hVsub, hVcard⟩ := Finset.mem_powersetCard.mp hV
+  refine pmf_eq_uniformOfFinset_of_ite_const _
+    (c := ((S.powersetCard t).card : ℝ≥0∞)⁻¹ *
+      (1 + ((((S.erase p).card - (t - 1) : ℕ) : ℝ≥0∞) * (t : ℝ≥0∞)⁻¹))) fun V => ?_
+  rw [uniformBind_apply, ← Finset.sum_filter_add_sum_filter_not (S.powersetCard t) (p ∈ ·)]
+  have hhit :
+      ∑ U ∈ (S.powersetCard t).filter (p ∈ ·),
+        (if p ∈ U then PMF.pure (U.erase p) else uniformErase U) V =
+      ∑ U ∈ ((S.powersetCard t).filter (p ∈ ·)).filter (fun U => V = U.erase p), 1 := by
+    rw [Finset.sum_filter (s := (S.powersetCard t).filter (p ∈ ·))]
+    exact Finset.sum_congr rfl fun U hU => by
+      rw [ite_eq_left (Finset.mem_filter.mp hU).2, PMF.pure_apply]
+      by_cases hUV : V = U.erase p <;> simp [hUV]
+  have hmiss :
+      ∑ U ∈ (S.powersetCard t).filter (fun U => ¬p ∈ U),
+        (if p ∈ U then PMF.pure (U.erase p) else uniformErase U) V =
+      ∑ U ∈ (S.erase p).powersetCard t, uniformErase U V := by
+    rw [← filter_powersetCard_notMem]
+    exact Finset.sum_congr rfl fun U hU => by rw [ite_eq_right (Finset.mem_filter.mp hU).2]
+  rw [hhit, hmiss, sum_uniformErase _ _ ht]
+  split_ifs with hV
+  · obtain ⟨hVsub, hVcard⟩ := Finset.mem_powersetCard.mp hV
     have hpV : p ∉ V := fun hp => Finset.notMem_erase p S (hVsub hp)
-    have hVS : V ⊆ S := hVsub.trans (Finset.erase_subset p S)
-    rw [tsum_eq_sum (s := S.powersetCard t)]
-    · have hpart :
-          ∑ U ∈ S.powersetCard t,
-            uniformOfFinset (S.powersetCard t) (Finset.powersetCard_nonempty.mpr htS) U *
-              (if p ∈ U then PMF.pure (U.erase p) else uniformErase U) V =
-          ∑ U ∈ (S.powersetCard t).filter (p ∈ ·),
-            invN * (if V = U.erase p then 1 else 0) +
-          ∑ U ∈ (S.powersetCard t).filter (p ∉ ·),
-            invN * uniformErase U V := by
-        rw [← Finset.sum_filter_add_sum_filter_not (S.powersetCard t) (p ∈ ·)]
-        congr 1
-        · refine Finset.sum_congr rfl fun U hU => ?_
-          obtain ⟨hUmem, hpU⟩ := Finset.mem_filter.mp hU
-          simp only [uniformOfFinset_apply, hUmem, hpU, ↓reduceIte, PMF.pure_apply, invN]
-          congr 1
-          split_ifs <;> rfl
-        · refine Finset.sum_congr rfl fun U hU => ?_
-          obtain ⟨hUmem, hpU⟩ := Finset.mem_filter.mp hU
-          simp only [uniformOfFinset_apply, hUmem, hpU, ↓reduceIte, invN]
-      rw [hpart]
-      have hhit_set :
-          ((S.powersetCard t).filter (p ∈ ·)).filter (fun U => V = U.erase p) = {insert p V} := by
-        ext U
-        simp only [Finset.mem_filter, Finset.mem_powersetCard, Finset.mem_singleton]
-        constructor
-        · rintro ⟨⟨⟨_, _⟩, hpU⟩, rfl⟩
-          exact (Finset.insert_erase hpU).symm
-        · rintro rfl
-          refine ⟨⟨⟨Finset.insert_subset hpS hVS, ?_⟩, Finset.mem_insert_self p V⟩,
-            (Finset.erase_insert hpV).symm⟩
-          rw [Finset.card_insert_of_notMem hpV, hVcard]
-          omega
-      have hhit :
-          ∑ U ∈ (S.powersetCard t).filter (p ∈ ·), invN * (if V = U.erase p then 1 else 0) =
-            invN := by
-        have hmul :
-            ∑ U ∈ (S.powersetCard t).filter (p ∈ ·), invN * (if V = U.erase p then 1 else 0) =
-              ∑ U ∈ ((S.powersetCard t).filter (p ∈ ·)).filter (fun U => V = U.erase p), invN := by
-          symm
-          rw [Finset.sum_filter]
-          refine Finset.sum_congr rfl fun U _ => ?_
-          split_ifs <;> simp only [mul_one, mul_zero]
-        rw [hmul, hhit_set, Finset.sum_singleton]
-      have hfilter_not :
-          (S.powersetCard t).filter (p ∉ ·) = (S.erase p).powersetCard t := by
-        ext U
-        simp only [Finset.mem_filter, Finset.mem_powersetCard, Finset.subset_erase]
-        tauto
-      have hmiss :
-          ∑ U ∈ (S.powersetCard t).filter (p ∉ ·), invN * uniformErase U V =
-            ((S.card - t : ℕ) : ℝ≥0∞) * (invN * (t : ℝ≥0∞)⁻¹) := by
-        rw [hfilter_not]
-        have hrew :
-            ∑ U ∈ (S.erase p).powersetCard t, invN * uniformErase U V =
-              ∑ U ∈ ((S.erase p).powersetCard t).filter (fun U => ∃ e ∈ U, U.erase e = V),
-                (invN * (t : ℝ≥0∞)⁻¹) := by
-          symm
-          rw [Finset.sum_filter]
-          refine Finset.sum_congr rfl fun U hU => ?_
-          have hUcard : U.card = t := (Finset.mem_powersetCard.mp hU).2
-          rw [uniformErase_apply_of_card ht hUcard]
-          split_ifs <;> simp only [mul_zero]
-        rw [hrew, Finset.sum_const, filter_powersetCard_exists_erase_eq hVsub hVcard ht,
-          card_image_insert_sdiff hVsub, Finset.card_erase_of_mem hpS, hVcard, nsmul_eq_mul]
-        have hsub_eq : S.card - 1 - (t - 1) = S.card - t := by omega
-        rw [hsub_eq]
-      rw [hhit, hmiss]
-    · intro U hU
-      simp only [uniformOfFinset_apply, hU, ↓reduceIte, zero_mul]
-  · simp only [hV, ↓reduceIte]
-    rw [tsum_eq_zero_iff]
-    intro U
-    by_cases hU : U ∈ S.powersetCard t
-    · obtain ⟨hUS, hUcard⟩ := Finset.mem_powersetCard.mp hU
-      by_cases hpU : p ∈ U
-      · simp only [hpU, ↓reduceIte, PMF.pure_apply]
-        have hneV : V ≠ U.erase p := by
-          rintro rfl
-          apply hV
-          rw [Finset.mem_powersetCard]
-          exact ⟨Finset.erase_subset_erase p hUS, by rw [Finset.card_erase_of_mem hpU, hUcard]⟩
-        simp only [hneV, ↓reduceIte, mul_zero]
-      · simp only [hpU, ↓reduceIte, uniformErase_apply_of_card ht hUcard]
-        have hUsub : U ⊆ S.erase p := Finset.subset_erase.mpr ⟨hUS, hpU⟩
-        have hno : ¬ ∃ e ∈ U, U.erase e = V := by
-          rintro ⟨e, heU, rfl⟩
-          apply hV
-          rw [Finset.mem_powersetCard]
-          exact ⟨(Finset.erase_subset e U).trans hUsub,
-            by rw [Finset.card_erase_of_mem heU, hUcard]⟩
-        simp only [hno, ↓reduceIte, mul_zero]
-    · simp only [uniformOfFinset_apply, hU, ↓reduceIte, zero_mul]
+    have hhits : ((S.powersetCard t).filter (p ∈ ·)).filter (fun U => V = U.erase p) =
+        {insert p V} := by
+      ext U
+      simp only [Finset.mem_filter, Finset.mem_powersetCard, Finset.mem_singleton]
+      constructor
+      · rintro ⟨⟨⟨_, _⟩, hpU⟩, rfl⟩
+        exact (Finset.insert_erase hpU).symm
+      · rintro rfl
+        refine ⟨⟨⟨Finset.insert_subset hpS (hVsub.trans (Finset.erase_subset p S)), ?_⟩,
+          Finset.mem_insert_self p V⟩, (Finset.erase_insert hpV).symm⟩
+        rw [Finset.card_insert_of_notMem hpV, hVcard]
+        lia
+    rw [hhits, Finset.sum_singleton]
+  · suffices ∑ U ∈ ((S.powersetCard t).filter (p ∈ ·)).filter (fun U => V = U.erase p),
+        (1 : ℝ≥0∞) = 0 by simp [this]
+    refine Finset.sum_eq_zero fun U hU => ?_
+    obtain ⟨⟨hU', hpU⟩, rfl⟩ := by simpa only [Finset.mem_filter] using hU
+    obtain ⟨hUS, hUcard⟩ := Finset.mem_powersetCard.mp hU'
+    exact (hV (Finset.mem_powersetCard.mpr ⟨Finset.erase_subset_erase p hUS,
+      hUcard ▸ Finset.card_erase_of_mem hpU⟩)).elim
 
 end WithDecidableEq
 
@@ -288,36 +217,17 @@ theorem toOuterMeasure_uniformOfFinset_powersetCard_notMem {α : Type*} {S : Fin
       ((S.card - t : ℕ) : ℝ≥0∞) * (S.card : ℝ≥0∞)⁻¹ := by
   classical
   rw [toOuterMeasure_uniformOfFinset]
-  have hfilter :
-      (S.powersetCard t).filter (· ∈ {U : Finset α | p ∉ U}) = (S.erase p).powersetCard t := by
-    ext U
-    simp only [Finset.mem_filter, Set.mem_ofPred_eq, Finset.mem_powersetCard, Finset.subset_erase]
-    tauto
-  rw [hfilter, Finset.card_powersetCard, Finset.card_powersetCard, Finset.card_erase_of_mem hpS]
+  change ((((S.powersetCard t).filter (p ∉ ·)).card : ℕ) : ℝ≥0∞) * _ = _
+  rw [filter_powersetCard_notMem, Finset.card_powersetCard, Finset.card_powersetCard,
+    Finset.card_erase_of_mem hpS]
   have hS_pos : 1 ≤ S.card := Finset.card_pos.mpr ⟨p, hpS⟩
   have hchoose_nat :
       (S.card - 1).choose t * S.card = S.card.choose t * (S.card - t) := by
     simpa [Nat.sub_add_cancel hS_pos] using Nat.choose_mul_succ_eq (S.card - 1) t
-  have hchoose :
-      (((S.card - 1).choose t : ℕ) : ℝ≥0∞) * (S.card : ℝ≥0∞) =
-        (S.card.choose t : ℝ≥0∞) * ((S.card - t : ℕ) : ℝ≥0∞) := by
-    exact_mod_cast hchoose_nat
-  have hSne : (S.card : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
-  have hCne : (S.card.choose t : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr (Nat.choose_pos htS).ne'
-  calc (((S.card - 1).choose t : ℕ) : ℝ≥0∞) * (S.card.choose t : ℝ≥0∞)⁻¹
-      = ((((S.card - 1).choose t : ℕ) : ℝ≥0∞) * (S.card : ℝ≥0∞)) *
-          ((S.card : ℝ≥0∞)⁻¹ * (S.card.choose t : ℝ≥0∞)⁻¹) := by
-        rw [mul_assoc, ← mul_assoc (S.card : ℝ≥0∞),
-          ENNReal.mul_inv_cancel hSne (ENNReal.natCast_ne_top _), one_mul]
-    _ = ((S.card.choose t : ℝ≥0∞) * ((S.card - t : ℕ) : ℝ≥0∞)) *
-          ((S.card : ℝ≥0∞)⁻¹ * (S.card.choose t : ℝ≥0∞)⁻¹) := by
-        rw [hchoose]
-    _ = (((S.card - t : ℕ) : ℝ≥0∞) * (S.card : ℝ≥0∞)⁻¹) *
-          ((S.card.choose t : ℝ≥0∞) * (S.card.choose t : ℝ≥0∞)⁻¹) := by
-        ring
-    _ = ((S.card - t : ℕ) : ℝ≥0∞) * (S.card : ℝ≥0∞)⁻¹ := by
-        rw [ENNReal.mul_inv_cancel hCne (ENNReal.natCast_ne_top _), mul_one]
+  rw [← div_eq_mul_inv, ← div_eq_mul_inv, ENNReal.div_eq_div_iff
+    (Nat.cast_ne_zero.mpr (by omega)) (ENNReal.natCast_ne_top _)
+    (Nat.cast_ne_zero.mpr (Nat.choose_pos htS).ne') (ENNReal.natCast_ne_top _), mul_comm]
+  exact_mod_cast hchoose_nat
 
 end PowersetCard
 

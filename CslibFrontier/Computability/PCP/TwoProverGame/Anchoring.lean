@@ -100,9 +100,7 @@ theorem answersWinProb_anchored (ans : Option X → Option Y → PMF (A × B)) :
       dsimp only [R]
       rw [PMF.toOuterMeasure_bind_apply]
       simp only [hq, mul_one, PMF.tsum_coe, ENNReal.toReal_one]
-    · have hi : i = false := by cases i <;> cases j <;> simp_all
-      have hj : j = false := by cases i <;> cases j <;> simp_all
-      subst i j
+    · obtain ⟨rfl, rfl⟩ : i = false ∧ j = false := by simpa using h
       let e := fun z : (X × Y) × A × B => ((some z.1.1, some z.1.2), z.2)
       have hr : R false false =
           (G.questions.bind fun q => (ans (some q.1) (some q.2)).map (q, ·)).map e := by
@@ -162,12 +160,9 @@ theorem quantumValue_anchored [Nonempty A] [Nonempty B] :
     nlinarith [mul_nonneg α.2.1 (sub_nonneg.mpr α.2.2)]
   have hlower {ι κ : Type} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq κ]
       (S : QuantumStrategy X Y A B ι κ) : 1 - c * (1 - G.quantumWinProb S) ≤ H.quantumValue := by
-    let T := extendStrategy S (Classical.choice ‹Nonempty A›) (Classical.choice ‹Nonempty B›)
-    have he : H.quantumWinProb T = 1 - c * (1 - G.quantumWinProb S) := by
-      rw [quantumWinProb_anchored]
-      rfl
-    rw [← he]
-    exact H.quantumWinProb_le_quantumValue T
+    simpa only [H, c, quantumWinProb_anchored, restrictStrategy, extendStrategy,
+      Option.elim_some] using H.quantumWinProb_le_quantumValue
+        (extendStrategy S (Classical.choice ‹Nonempty A›) (Classical.choice ‹Nonempty B›))
   let S₀ := QuantumStrategy.ofDeterministic (fun _ : X => Classical.choice ‹Nonempty A›)
     (fun _ : Y => Classical.choice ‹Nonempty B›)
   change H.quantumValue = 1 - c * (1 - G.quantumValue)
@@ -175,8 +170,7 @@ theorem quantumValue_anchored [Nonempty A] [Nonempty B] :
   · nlinarith [mul_nonneg hc G.quantumValue_nonneg]
   · intro ι κ _ _ _ _ S
     rw [quantumWinProb_anchored]
-    exact sub_le_sub_left (mul_le_mul_of_nonneg_left
-      (sub_le_sub_left (G.quantumWinProb_le_quantumValue (restrictStrategy S)) 1) hc) 1
+    gcongr; exact G.quantumWinProb_le_quantumValue _
   · rcases hc.eq_or_lt with hzero | hpos
     · simpa only [← hzero, zero_mul, sub_zero] using hlower S₀
     · have hthreshold : 0 ≤ (H.quantumValue - (1 - c)) / c := by
@@ -214,10 +208,8 @@ theorem value_anchored [Finite X] [Finite Y] [Finite A] [Finite B] [Nonempty A] 
   · rw [← hab, winProb_anchored]
     gcongr
     exact G.winProb_le_value _ _
-  · let a' (x : Option X) := x.elim (Classical.choice ‹Nonempty A›) p
-    let b' (y : Option Y) := y.elim (Classical.choice ‹Nonempty B›) q
-    have h := H.winProb_le_value a' b'
-    rw [winProb_anchored] at h
-    simpa only [a', b', Option.elim_some, hpq] using h
+  · simpa only [H, winProb_anchored, Option.elim_some, hpq] using H.winProb_le_value
+      (fun x => x.elim (Classical.choice ‹Nonempty A›) p)
+      (fun y => y.elim (Classical.choice ‹Nonempty B›) q)
 
 end Cslib.PCP.TwoProverGame

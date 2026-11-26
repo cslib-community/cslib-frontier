@@ -12,20 +12,24 @@ public import Mathlib.Basic.Complex.Basic
 public import Mathlib.LinearAlgebra.UnitaryGroup
 
 /-!
-# A unitary on the first register
+# Local unitaries on a pair of registers
 
 A quantum system with two registers has computational basis `ι × κ`. A unitary `U` on the first
 register acts on the whole system as `U ⊗ I`, the Kronecker product with the identity
 (`Cslib.Quantum.onFirst`), with entries `(U ⊗ I)((i, k), (i', k')) = U(i, i') · [k = k']`.
+Symmetrically, a unitary `U` on the second register acts on the whole system as `I ⊗ U`
+(`Cslib.Quantum.onSecond`).
 
 ## Main definitions
 
 * `Cslib.Quantum.onFirst`: the unitary `U ⊗ I` on `ι × κ`.
+* `Cslib.Quantum.onSecond`: the unitary `I ⊗ U` on `ι × κ`.
 
 ## Main results
 
-* `Cslib.Quantum.onFirst_apply`: its entries.
-* `Cslib.Quantum.coe_onFirst`: its matrix is the Kronecker product `U ⊗ₖ 1`.
+* `Cslib.Quantum.onFirst_apply`, `Cslib.Quantum.onSecond_apply`: their entries.
+* `Cslib.Quantum.coe_onFirst`, `Cslib.Quantum.coe_onSecond`: their matrices are `U ⊗ₖ 1` and
+  `1 ⊗ₖ U`.
 -/
 
 public section
@@ -49,6 +53,20 @@ theorem onFirst_apply (U : unitaryGroup ι ℂ) (p q : ι × κ) :
 
 theorem coe_onFirst (U : unitaryGroup ι ℂ) :
     (onFirst (κ := κ) U : Matrix (ι × κ) (ι × κ) ℂ) = (U : Matrix ι ι ℂ) ⊗ₖ 1 := by
+  rfl
+
+/-- The unitary `I ⊗ U` acting trivially on the first register of `ι × κ` and as `U` on the
+second. -/
+noncomputable def onSecond (U : unitaryGroup κ ℂ) : unitaryGroup (ι × κ) ℂ :=
+  ⟨(1 : Matrix ι ι ℂ) ⊗ₖ (U : Matrix κ κ ℂ), kronecker_mem_unitary (one_mem _) U.2⟩
+
+theorem onSecond_apply (U : unitaryGroup κ ℂ) (p q : ι × κ) :
+    (onSecond (ι := ι) U : Matrix (ι × κ) (ι × κ) ℂ) p q =
+      (if p.1 = q.1 then 1 else 0) * (U : Matrix κ κ ℂ) p.2 q.2 := by
+  rfl
+
+theorem coe_onSecond (U : unitaryGroup κ ℂ) :
+    (onSecond (ι := ι) U : Matrix (ι × κ) (ι × κ) ℂ) = 1 ⊗ₖ (U : Matrix κ κ ℂ) := by
   rfl
 
 end Cslib.Quantum

@@ -84,18 +84,18 @@ theorem machine_next_inSpace (k : ℕ) (P : OuterSearch.Parameters) : Computable
 /-- All intermediate phases are silent. -/
 theorem machine_emit_inSpace (k : ℕ) (P : OuterSearch.Parameters) : ComputableInSpace
     (machine E k P).emit (encPair (encState E) (encOption encBool)) encBits
-      (fun a => (encPair (encState E) (encOption encBool) a).length) := budget_const [] (.refl _)
+      (fun a => (encPair (encState E) (encOption encBool) a).length) := budget_const []
 
 /-- The driver stops precisely when its outer search stops. -/
 theorem machine_halted_inSpace (k : ℕ) (P : OuterSearch.Parameters) : ComputableInSpace
     (machine E k P).halted (encState E) encBool (fun a => (encState E a).length) :=
-  sumElim (budget_const (encIn := QueryMachine.InputLength.encState) false (.refl _))
+  sumElim (budget_const (encIn := QueryMachine.InputLength.encState) false)
     (OuterSearch.machine_halted_inSpace E k P)
 
 /-- The final returned Boolean is the driver output. -/
 theorem machine_finish_inSpace (k : ℕ) (P : OuterSearch.Parameters) : ComputableInSpace
     (machine E k P).finish (encState E) encBits (fun a => (encState E a).length) :=
-  sumElim (budget_const (encIn := QueryMachine.InputLength.encState) [] (.refl _))
+  sumElim (budget_const (encIn := QueryMachine.InputLength.encState) [])
     (OuterSearch.machine_finish_inSpace E k P)
 
 end Turing.MultiTapePTM.BlockComputation.Driver

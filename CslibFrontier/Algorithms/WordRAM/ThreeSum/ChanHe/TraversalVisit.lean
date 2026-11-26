@@ -75,23 +75,15 @@ theorem visit_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → ℤ)
       hvalues hbdd hsrc hinput hinj
   have hbp (i : Fin 128) (hi : 64 ≤ i.val) (hne : i ≠ selected) :
       b.regs i = x.regs i := by regs_frame
-  have hbL : NodePacking.layout ((nodeState b).comap kernel) = recordLayout x M := by
-    rw [nodeState_layout, hpb selected (by decide), hus]
-    exact recordLayout_congr x b M hbp
-  have hbOne : b.regs one = 1 := by regs_frame
   have hbTable : b.regs outputs + b.regs outputCount < b.regs heap := by
-    rw [hbp outputs (by decide) (by decide), hbp outputCount (by decide) (by decide),
-      hbp heap (by decide) (by decide)]
-    exact htable
-  have hEnd : Fits (w + 2) ((recordLayout x M).endpoint) :=
-    (Signed.unsigned_fits_of_signed (hnode M hMpos hMle)).of_le
-      (recordLayout x M).bounds.1
-  have hEndEq : (recordLayout x M).endpoint = b.regs heap + 3 + 2 *
+    simpa only [hbp outputs (by decide) (by decide), hbp outputCount (by decide) (by decide),
+      hbp heap (by decide) (by decide)] using htable
+  have hEnd : Fits (w + 2) (b.regs heap + 3 + 2 *
       (b.regs (slot 2) + b.regs (slot 4) + b.regs (slot 6)) +
-      4 * b.regs groups + b.regs selected := by
-    rw [← hbL, nodeState_layout, recordLayout_endpoint]
-  rw [hEndEq] at hEnd
-  have hd := deliver_exec b hbOne hbTable hEnd
+      4 * b.regs groups + b.regs selected) := by
+    rw [← recordLayout_endpoint, hpb selected (by decide), hus, recordLayout_congr x b M hbp]
+    exact (Signed.unsigned_fits_of_signed (hnode M hMpos hMle)).of_le (recordLayout x M).bounds.1
+  have hd := deliver_exec b (by regs_frame) hbTable hEnd
   refine ⟨M, u, b, ?_, hu, hus, hprefix, hout, hpb, hMpos, hMle, hM⟩
   obtain ⟨tk, htk, hek⟩ := he
   cases hek with

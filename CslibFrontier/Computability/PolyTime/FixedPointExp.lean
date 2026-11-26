@@ -151,6 +151,30 @@ private theorem arctan_alternating_remainder {x : ℝ} (hx0 : 0 ≤ x) (N : ℕ)
 
 /-! ### 2. Pure-`ℕ` alternating `arctan (1 / d)` fixed-point loop -/
 
+/-- Floor division in `ℕ` lies within `1` below the real quotient. -/
+private theorem cast_div_bounds (a b : ℕ) :
+    ((a / b : ℕ) : ℝ) ≤ (a : ℝ) / b ∧ (a : ℝ) / b < ((a / b : ℕ) : ℝ) + 1 := by
+  refine ⟨Nat.cast_div_le, ?_⟩
+  rcases Nat.eq_zero_or_pos b with rfl | hb
+  · simp
+  rw [div_lt_iff₀ (Nat.cast_pos.mpr hb), mul_comm]
+  exact_mod_cast Nat.lt_mul_div_succ a hb
+
+/-- One step of an alternating fixed-point accumulator: adding (even `n`) or subtracting (odd `n`)
+a term within `e'` of its real value `t` moves the accumulator error by at most `e'`. -/
+private theorem abs_altStep_sub_le {acc term n : ℕ} {A t B e e' : ℝ}
+    (hB : B = A + (-1) ^ n * t) (hle : n % 2 = 1 → term ≤ acc) (ih : |(acc : ℝ) - A| ≤ e)
+    (ht : |(term : ℝ) - t| ≤ e') :
+    |((if n % 2 = 0 then acc + term else acc - term : ℕ) : ℝ) - B| ≤ e + e' := by
+  subst hB
+  rcases Nat.mod_two_eq_zero_or_one n with h | h
+  · rw [ite_eq_left h, (Nat.even_iff.mpr h).neg_one_pow, Nat.cast_add, one_mul,
+      show (acc : ℝ) + term - (A + t) = (acc - A) + (term - t) by ring]
+    exact (abs_add_le _ _).trans (add_le_add ih ht)
+  · rw [ite_eq_right (by omega), (Nat.odd_iff.mpr h).neg_one_pow, Nat.cast_sub (hle h), neg_one_mul,
+      show (acc : ℝ) - term - (A + -t) = (acc - A) - (term - t) by ring]
+    exact (abs_sub _ _).trans (add_le_add ih ht)
+
 /-- One step of fixed-point `arctan(1/d)` series at scale `S`: state is `(k, (powTerm, acc))`. -/
 private def arctanStep (dSq : ℕ) (st : ℕ × (ℕ × ℕ)) : ℕ × (ℕ × ℕ) :=
   let k := st.1
@@ -184,82 +208,46 @@ private theorem arctanStep_inv (d M : ℕ) (i : ℕ) :
   | succ i ih =>
     set st := (arctanStep (d * d))^[i] (0, (2 ^ M / d, 0)) with hst_def
     have hfst : st.1 = i := by simpa [hst_def] using arctanStep_fst (d * d) (0, (2 ^ M / d, 0)) i
-    have hpow_le : st.2.1 ≤ 2 ^ M := ih.1
-    have hterm_le : (st.2.1 / (d * d)) / (2 * (i + 1) + 1) ≤ st.2.1 / (2 * i + 1) := by
-      exact (Nat.div_le_div_right (Nat.div_le_self _ _)).trans
+    have hterm_le : (st.2.1 / (d * d)) / (2 * (i + 1) + 1) ≤ st.2.1 / (2 * i + 1) :=
+      (Nat.div_le_div_right (Nat.div_le_self _ _)).trans
         (Nat.div_le_div_left (by omega) (by omega))
+    have := Nat.div_le_self st.2.1 (d * d)
     rw [Function.iterate_succ_apply']
-    dsimp only [arctanStep]
-    rw [← hst_def, hfst]
-    refine ⟨(Nat.div_le_self _ _).trans hpow_le, ?_⟩
-    by_cases hev : i % 2 = 0
-    · have hodd : (i + 1) % 2 ≠ 0 := by omega
-      have hih : st.2.2 + st.2.1 / (2 * i + 1) ≤ 2 ^ M := by
-        have h2 := ih.2
-        simp only [hev, ↓reduceIte, hfst] at h2
-        exact h2
-      simp only [hev, hodd, ↓reduceIte]
-      exact ⟨hterm_le.trans (Nat.le_add_left _ _), hih⟩
-    · have hev' : (i + 1) % 2 = 0 := by omega
-      have hih : st.2.1 / (2 * i + 1) ≤ st.2.2 ∧ st.2.2 ≤ 2 ^ M := by
-        have h2 := ih.2
-        simp only [hev, ↓reduceIte, hfst] at h2
-        exact h2
-      simp only [hev, hev', ↓reduceIte]
-      omega
+    dsimp only [arctanStep] at ih ⊢
+    rw [← hst_def, hfst] at ⊢
+    rw [hfst] at ih
+    split_ifs at ih ⊢ <;> omega
 
 private theorem arctanStep_powTerm_error (d M : ℕ) (hd : 5 ≤ d) (i : ℕ) :
     let p := ((arctanStep (d * d))^[i] (0, (2 ^ M / d, 0))).2.1
     (p : ℝ) ≤ (2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1) ∧
       (2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1) - (p : ℝ) ≤ 2 := by
-  have hdpos : (0 : ℝ) < (d : ℝ) := by positivity
   have hd2 : (25 : ℝ) ≤ (d : ℝ) ^ 2 := by
     have : (5 : ℝ) ≤ (d : ℝ) := by exact_mod_cast hd
     nlinarith
   induction i with
   | zero =>
     simp only [Function.iterate_zero, id_eq, mul_zero, zero_add, pow_one]
-    have hlo : ((2 ^ M / d : ℕ) : ℝ) ≤ (2 : ℝ) ^ M / (d : ℝ) := by
-      rw [le_div_iff₀ hdpos]
-      exact_mod_cast Nat.div_mul_le_self (2 ^ M) d
-    have hhi : (2 : ℝ) ^ M / (d : ℝ) < ((2 ^ M / d : ℕ) : ℝ) + 1 := by
-      rw [div_lt_iff₀ hdpos]
-      have h := Nat.lt_mul_div_succ (2 ^ M) (by omega : 0 < d)
-      have h' : (2 : ℝ) ^ M < (d : ℝ) * (((2 ^ M / d : ℕ) : ℝ) + 1) := by exact_mod_cast h
-      linarith
-    exact ⟨hlo, by linarith⟩
+    have h := cast_div_bounds (2 ^ M) d
+    push_cast at h
+    exact ⟨h.1, by linarith [h.2]⟩
   | succ i ih =>
     rw [Function.iterate_succ_apply']
     dsimp only [arctanStep]
     set p := ((arctanStep (d * d))^[i] (0, (2 ^ M / d, 0))).2.1
-    have hdiv_le : ((p / (d * d) : ℕ) : ℝ) ≤ (p : ℝ) / (d : ℝ) ^ 2 := by
-      rw [le_div_iff₀ (by positivity)]
-      have h := Nat.div_mul_le_self p (d * d)
-      have h' : ((p / (d * d) : ℕ) : ℝ) * ((d * d : ℕ) : ℝ) ≤ (p : ℝ) := by exact_mod_cast h
-      simpa [sq, Nat.cast_mul] using h'
-    have hdiv_lt : (p : ℝ) / (d : ℝ) ^ 2 < ((p / (d * d) : ℕ) : ℝ) + 1 := by
-      rw [div_lt_iff₀ (by positivity)]
-      have h := Nat.lt_mul_div_succ p (by positivity : 0 < d * d)
-      have h' : (p : ℝ) < ((d * d : ℕ) : ℝ) * (((p / (d * d) : ℕ) : ℝ) + 1) := by exact_mod_cast h
-      have : ((d * d : ℕ) : ℝ) = (d : ℝ) ^ 2 := by push_cast; ring
-      rw [this] at h'
-      linarith
+    have h := cast_div_bounds p (d * d)
+    rw [Nat.cast_mul, ← sq (d : ℝ)] at h
     have hpow : (2 : ℝ) ^ M / (d : ℝ) ^ (2 * (i + 1) + 1) =
         ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1)) / (d : ℝ) ^ 2 := by
       rw [div_div, ← pow_add, show 2 * (i + 1) + 1 = 2 * i + 1 + 2 by omega]
     rw [hpow]
-    refine ⟨hdiv_le.trans (div_le_div_of_nonneg_right ih.1 (by positivity)), ?_⟩
-    have hstep :
-        ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1) - (p : ℝ)) / (d : ℝ) ^ 2 ≤ 2 / 25 := by
-      calc
-        ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1) - (p : ℝ)) / (d : ℝ) ^ 2 ≤
-            2 / (d : ℝ) ^ 2 := div_le_div_of_nonneg_right ih.2 (by positivity)
-        _ ≤ 2 / 25 := div_le_div_of_nonneg_left (by norm_num) (by norm_num) hd2
-    have hsplit :
-        ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1)) / (d : ℝ) ^ 2 - ((p / (d * d) : ℕ) : ℝ) =
-          ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1) - (p : ℝ)) / (d : ℝ) ^ 2 +
-            ((p : ℝ) / (d : ℝ) ^ 2 - ((p / (d * d) : ℕ) : ℝ)) := by ring
-    linarith
+    refine ⟨h.1.trans (div_le_div_of_nonneg_right ih.1 (by positivity)), ?_⟩
+    have hstep : (2 : ℝ) ^ M / (d : ℝ) ^ (2 * i + 1) / (d : ℝ) ^ 2 - (p : ℝ) / (d : ℝ) ^ 2 ≤
+        2 / 25 := by
+      rw [← sub_div]
+      exact (div_le_div_of_nonneg_right ih.2 (by positivity)).trans
+        (div_le_div_of_nonneg_left (by norm_num) (by norm_num) hd2)
+    linarith [h.2]
 
 private theorem arctanInvApprox_series_error (d M L : ℕ) (hd : 5 ≤ d) :
     |((arctanInvApprox d M L : ℝ)) -
@@ -275,28 +263,18 @@ private theorem arctanInvApprox_series_error (d M L : ℕ) (hd : 5 ≤ d) :
     induction n with
     | zero => simp
     | succ n ih =>
-      set st := (arctanStep (d * d))^[n] (0, (2 ^ M / d, 0))
-      have hfst : st.1 = n := by simpa [st] using arctanStep_fst (d * d) (0, (2 ^ M / d, 0)) n
       have hinv := arctanStep_inv d M n
       have hp := arctanStep_powTerm_error d M hd n
+      set st := (arctanStep (d * d))^[n] (0, (2 ^ M / d, 0))
+      have hfst : st.1 = n := by simpa [st] using arctanStep_fst (d * d) (0, (2 ^ M / d, 0)) n
+      dsimp only at hinv hp
+      rw [hfst] at hinv
+      have h := cast_div_bounds st.2.1 (2 * n + 1)
       set term : ℕ := st.2.1 / (2 * n + 1)
+      push_cast at h
       have hterm_err :
           |(term : ℝ) - (2 : ℝ) ^ M * ((1 / (d : ℝ)) ^ (2 * n + 1) / (2 * n + 1 : ℝ))| ≤ 3 := by
-        have hden : (0 : ℝ) < (2 * n + 1 : ℝ) := by positivity
-        have hdiv_le : (term : ℝ) ≤ (st.2.1 : ℝ) / (2 * n + 1 : ℝ) := by
-          rw [le_div_iff₀ hden]
-          have h := Nat.div_mul_le_self st.2.1 (2 * n + 1)
-          exact_mod_cast h
-        have hdiv_lt : (st.2.1 : ℝ) / (2 * n + 1 : ℝ) < (term : ℝ) + 1 := by
-          rw [div_lt_iff₀ hden]
-          have h := Nat.lt_mul_div_succ st.2.1 (by omega : 0 < 2 * n + 1)
-          have h' : (st.2.1 : ℝ) < ((2 * n + 1 : ℕ) : ℝ) * ((term : ℝ) + 1) := by exact_mod_cast h
-          push_cast at h'
-          linarith
-        have hrew : (2 : ℝ) ^ M * ((1 / (d : ℝ)) ^ (2 * n + 1) / (2 * n + 1 : ℝ)) =
-            ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * n + 1)) / (2 * n + 1 : ℝ) := by
-          rw [one_div_pow, mul_div_assoc', mul_one_div]
-        rw [hrew]
+        rw [one_div_pow, mul_div_assoc', mul_one_div]
         have h1 : ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * n + 1)) / (2 * n + 1 : ℝ) -
             (st.2.1 : ℝ) / (2 * n + 1 : ℝ) ≤ 2 := by
           rw [← sub_div]
@@ -304,51 +282,15 @@ private theorem arctanInvApprox_series_error (d M L : ℕ) (hd : 5 ≤ d) :
             (by linarith [Nat.cast_nonneg (α := ℝ) n])).trans hp.2
         have h2 : (st.2.1 : ℝ) / (2 * n + 1 : ℝ) ≤
             ((2 : ℝ) ^ M / (d : ℝ) ^ (2 * n + 1)) / (2 * n + 1 : ℝ) :=
-          div_le_div_of_nonneg_right hp.1 hden.le
+          div_le_div_of_nonneg_right hp.1 (by positivity)
         rw [abs_le]
-        constructor <;> linarith
-      rw [Function.iterate_succ_apply', Finset.sum_range_succ, mul_add]
+        constructor <;> linarith [h.1, h.2]
+      have hle : n % 2 = 1 → term ≤ st.2.2 := fun h => by
+        rw [ite_eq_right (by omega)] at hinv; exact hinv.2.1
+      rw [Function.iterate_succ_apply', Finset.sum_range_succ]
       dsimp only [arctanStep]
       rw [hfst]
-      by_cases hev : n % 2 = 0
-      · have hsign : (-1 : ℝ) ^ n = 1 := Even.neg_one_pow (Nat.even_iff.mpr hev)
-        simp only [hev, ↓reduceIte, Nat.cast_add, Nat.cast_one, hsign, one_mul]
-        have hsplit :
-            ((st.2.2 : ℝ) + (term : ℝ)) -
-                ((2 : ℝ) ^ M * ∑ k ∈ Finset.range n,
-                    ((-1 : ℝ) ^ k * (1 / (d : ℝ)) ^ (2 * k + 1) / (2 * k + 1 : ℝ)) +
-                  (2 : ℝ) ^ M * ((1 / (d : ℝ)) ^ (2 * n + 1) / (2 * n + 1 : ℝ))) =
-              ((st.2.2 : ℝ) - (2 : ℝ) ^ M * ∑ k ∈ Finset.range n,
-                  ((-1 : ℝ) ^ k * (1 / (d : ℝ)) ^ (2 * k + 1) / (2 * k + 1 : ℝ))) +
-                ((term : ℝ) - (2 : ℝ) ^ M * ((1 / (d : ℝ)) ^ (2 * n + 1) / (2 * n + 1 : ℝ))) := by
-          ring
-        rw [hsplit]
-        calc
-          _ ≤ _ := abs_add_le _ _
-          _ ≤ 3 * (n : ℝ) + 3 := add_le_add ih hterm_err
-          _ = 3 * ((n : ℝ) + 1) := by ring
-      · have hsign : (-1 : ℝ) ^ n = -1 := Odd.neg_one_pow (Nat.odd_iff.mpr (by omega))
-        have hle : term ≤ st.2.2 := by
-          have h2 := hinv.2
-          simp only [hev, ↓reduceIte] at h2
-          simpa only [st, term, hfst] using h2.1
-        simp only [hev, ↓reduceIte, hsign, neg_one_mul, neg_div]
-        change |((st.2.2 - term : ℕ) : ℝ) - _| ≤ _
-        rw [Nat.cast_sub hle]
-        have hsplit :
-            ((st.2.2 : ℝ) - (term : ℝ)) -
-                ((2 : ℝ) ^ M * ∑ k ∈ Finset.range n,
-                    ((-1 : ℝ) ^ k * (1 / (d : ℝ)) ^ (2 * k + 1) / (2 * k + 1 : ℝ)) +
-                  (2 : ℝ) ^ M * -((1 / (d : ℝ)) ^ (2 * n + 1) / (2 * n + 1 : ℝ))) =
-              ((st.2.2 : ℝ) - (2 : ℝ) ^ M * ∑ k ∈ Finset.range n,
-                  ((-1 : ℝ) ^ k * (1 / (d : ℝ)) ^ (2 * k + 1) / (2 * k + 1 : ℝ))) -
-                ((term : ℝ) - (2 : ℝ) ^ M * ((1 / (d : ℝ)) ^ (2 * n + 1) / (2 * n + 1 : ℝ))) := by
-          ring
-        rw [hsplit]
-        calc
-          _ ≤ _ := abs_sub _ _
-          _ ≤ 3 * (n : ℝ) + 3 := add_le_add ih hterm_err
-          _ = 3 * ((n + 1 : ℕ) : ℝ) := by push_cast; ring
+      exact (abs_altStep_sub_le (by ring) hle ih hterm_err).trans_eq (by push_cast; ring)
   simpa only [arctanInvApprox, Nat.cast_mul, Nat.cast_ofNat,
     show (3 : ℝ) * (2 * (L : ℝ)) = 6 * (L : ℝ) by ring]
     using hgen (2 * L)
@@ -356,28 +298,13 @@ private theorem arctanInvApprox_series_error (d M L : ℕ) (hd : 5 ≤ d) :
 /-- Rounding-to-nearest error of `(raw + 2 ^ (g - 1)) / 2 ^ g` against `raw / 2 ^ g`. -/
 theorem abs_div_two_pow_round_sub_le (raw g : ℕ) (hg : 1 ≤ g) :
     |(((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) - (raw : ℝ) / (2 : ℝ) ^ g| ≤ 1 / 2 := by
-  have h2g_pos : (0 : ℝ) < (2 : ℝ) ^ g := by positivity
-  have hhalf : ((2 ^ (g - 1) : ℕ) : ℝ) / (2 : ℝ) ^ g = 1 / 2 := by
-    have hmul : (2 : ℕ) ^ g = 2 * 2 ^ (g - 1) := by
-      conv_lhs => rw [← Nat.sub_add_cancel hg, pow_succ']
-    have hmul' : (2 : ℝ) ^ g = 2 * ((2 ^ (g - 1) : ℕ) : ℝ) := by exact_mod_cast hmul
-    rw [hmul']
-    have hnz : ((2 ^ (g - 1) : ℕ) : ℝ) ≠ 0 := by positivity
-    field_simp
-  have hlo : (((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) ≤
-      ((raw + 2 ^ (g - 1) : ℕ) : ℝ) / (2 : ℝ) ^ g := by
-    rw [le_div_iff₀ h2g_pos]
-    exact_mod_cast Nat.div_mul_le_self (raw + 2 ^ (g - 1)) (2 ^ g)
-  have hhi : ((raw + 2 ^ (g - 1) : ℕ) : ℝ) / (2 : ℝ) ^ g <
-      (((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) + 1 := by
-    rw [div_lt_iff₀ h2g_pos]
-    have h := Nat.lt_mul_div_succ (raw + 2 ^ (g - 1)) (by positivity : 0 < 2 ^ g)
-    have h' : ((raw + 2 ^ (g - 1) : ℕ) : ℝ) <
-        (2 : ℝ) ^ g * ((((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) + 1) := by exact_mod_cast h
-    linarith
-  rw [Nat.cast_add, add_div, hhalf] at hlo hhi
-  rw [abs_le]
-  constructor <;> linarith
+  obtain ⟨k, rfl⟩ : ∃ k, g = k + 1 := ⟨g - 1, by omega⟩
+  have h := cast_div_bounds (raw + 2 ^ k) (2 ^ (k + 1))
+  have hhalf : (2 : ℝ) ^ k / 2 ^ (k + 1) = 1 / 2 := by rw [pow_succ]; field_simp
+  push_cast at h
+  rw [add_div, hhalf] at h
+  rw [Nat.add_sub_cancel, abs_le]
+  constructor <;> linarith [h.1, h.2]
 
 /-- Guard bits for `piApprox qBits` ensuring total Machin rounding and truncation error
 is strictly below `2 ^ (-qBits)`. -/
@@ -421,17 +348,7 @@ theorem abs_piApprox_div_sub_pi_le (qBits : ℕ) :
           (by positivity : (2 : ℝ) ^ M ≠ 0),
         ← sub_div, abs_div, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ M)]
       exact div_le_div_of_nonneg_right herr (by positivity)
-    calc
-      |(arctanInvApprox d M L : ℝ) / (2 : ℝ) ^ M - Real.arctan (1 / (d : ℝ))| ≤
-          |(arctanInvApprox d M L : ℝ) / (2 : ℝ) ^ M -
-              ∑ k ∈ Finset.range (2 * L),
-                ((-1 : ℝ) ^ k * (1 / (d : ℝ)) ^ (2 * k + 1) / (2 * k + 1 : ℝ))| +
-            |Real.arctan (1 / (d : ℝ)) -
-              ∑ k ∈ Finset.range (2 * L),
-                ((-1 : ℝ) ^ k * (1 / (d : ℝ)) ^ (2 * k + 1) / (2 * k + 1 : ℝ))| := by
-        rw [abs_sub_comm (Real.arctan _)]
-        exact abs_sub_le _ _ _
-      _ ≤ _ := add_le_add h1 htail
+    exact (abs_sub_le _ _ _).trans (add_le_add h1 (by rwa [abs_sub_comm] at htail))
   have h5_full : |(arctanInvApprox 5 M L : ℝ) / (2 : ℝ) ^ M - Real.arctan (1 / 5)| ≤
       6 * (L : ℝ) / (2 : ℝ) ^ M + (1 / 5 : ℝ) ^ (4 * L + 1) / (4 * L + 1 : ℝ) := by
     simpa using hterm_full 5 (by omega)
@@ -464,46 +381,26 @@ theorem abs_piApprox_div_sub_pi_le (qBits : ℕ) :
       |(16 * (arctanInvApprox 5 M L : ℝ) - 4 * (arctanInvApprox 239 M L : ℝ)) / (2 : ℝ) ^ M -
           Real.pi| ≤
         (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) := by
-    have hpi : Real.pi = 16 * Real.arctan (1 / 5) - 4 * Real.arctan (1 / 239) := by
-      have hm := Real.four_mul_arctan_inv_5_sub_arctan_inv_239
-      rw [← one_div, ← one_div] at hm
-      linarith
-    rw [hpi, sub_div, mul_div_assoc, mul_div_assoc]
-    have hsplit :
-        (16 * ((arctanInvApprox 5 M L : ℝ) / (2 : ℝ) ^ M) -
-            4 * ((arctanInvApprox 239 M L : ℝ) / (2 : ℝ) ^ M)) -
-          (16 * Real.arctan (1 / 5) - 4 * Real.arctan (1 / 239)) =
-        16 * ((arctanInvApprox 5 M L : ℝ) / (2 : ℝ) ^ M - Real.arctan (1 / 5)) -
-          4 * ((arctanInvApprox 239 M L : ℝ) / (2 : ℝ) ^ M - Real.arctan (1 / 239)) := by ring
-    rw [hsplit]
-    have htri := abs_sub (16 * ((arctanInvApprox 5 M L : ℝ) / (2 : ℝ) ^ M - Real.arctan (1 / 5)))
-      (4 * ((arctanInvApprox 239 M L : ℝ) / (2 : ℝ) ^ M - Real.arctan (1 / 239)))
-    rw [abs_mul, abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 16),
-      abs_of_pos (by norm_num : (0 : ℝ) < 4)] at htri
+    have hpi := Real.four_mul_arctan_inv_5_sub_arctan_inv_239
+    rw [← one_div, ← one_div] at hpi
     have hden1 : (1 : ℝ) ≤ (4 * L + 1 : ℝ) := by linarith [Nat.cast_nonneg (α := ℝ) L]
-    have htail5 : (1 / 5 : ℝ) ^ (4 * L + 1) / (4 * L + 1 : ℝ) ≤
-        (1 / 625 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) :=
-      (div_le_self (by positivity) hden1).trans h5_pow
-    have htail239 : (1 / 239 : ℝ) ^ (4 * L + 1) / (4 * L + 1 : ℝ) ≤
-        (1 / 625 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) :=
-      (div_le_self (by positivity) hden1).trans (h239_pow.trans h5_pow)
-    have hcomb :
-        16 * (6 * (L : ℝ) / (2 : ℝ) ^ M) + 4 * (6 * (L : ℝ) / (2 : ℝ) ^ M) =
-          120 * (L : ℝ) / (2 : ℝ) ^ M := by ring
+    have htail5 := (div_le_self (by positivity) hden1).trans h5_pow
+    have htail239 := (div_le_self (by positivity) hden1).trans (h239_pow.trans h5_pow)
     have hzpos : (0 : ℝ) < (2 : ℝ) ^ (-(qBits : ℤ)) := by positivity
-    linarith
+    have hcomb : 16 * (6 * (L : ℝ) / (2 : ℝ) ^ M) + 4 * (6 * (L : ℝ) / (2 : ℝ) ^ M) =
+        120 * (L : ℝ) / (2 : ℝ) ^ M := by ring
+    obtain ⟨h5l, h5r⟩ := abs_le.mp h5_full
+    obtain ⟨h239l, h239r⟩ := abs_le.mp h239_full
+    rw [abs_le, sub_div, mul_div_assoc, mul_div_assoc]
+    constructor <;> linarith
   have hge : 4 * arctanInvApprox 239 M L ≤ 16 * arctanInvApprox 5 M L := by
-    have hlow := (abs_le.mp hraw_real).1
-    have hpi3 : (3 : ℝ) < Real.pi := Real.pi_gt_three
     have hz1 : (2 : ℝ) ^ (-(qBits : ℤ)) ≤ 1 := by
       rw [zpow_neg, zpow_natCast]
       exact inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num))
     have hpos : (0 : ℝ) < (16 * (arctanInvApprox 5 M L : ℝ) -
-        4 * (arctanInvApprox 239 M L : ℝ)) / (2 : ℝ) ^ M := by linarith
-    have hnum : (0 : ℝ) < 16 * (arctanInvApprox 5 M L : ℝ) - 4 * (arctanInvApprox 239 M L : ℝ) :=
-      (div_pos_iff_of_pos_right (by positivity)).mp hpos
-    have hle : (4 * arctanInvApprox 239 M L : ℝ) ≤ (16 * arctanInvApprox 5 M L : ℝ) := by linarith
-    exact_mod_cast hle
+        4 * (arctanInvApprox 239 M L : ℝ)) / (2 : ℝ) ^ M := by
+      linarith [(abs_le.mp hraw_real).1, Real.pi_gt_three]
+    exact_mod_cast (sub_pos.mp ((div_pos_iff_of_pos_right (by positivity)).mp hpos)).le
   set raw : ℕ := 16 * arctanInvApprox 5 M L - 4 * arctanInvApprox 239 M L
   have hraw_cast : (raw : ℝ) =
       16 * (arctanInvApprox 5 M L : ℝ) - 4 * (arctanInvApprox 239 M L : ℝ) := by
@@ -526,8 +423,7 @@ theorem abs_piApprox_div_sub_pi_le (qBits : ℕ) :
     |(((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) / (2 : ℝ) ^ qBits - Real.pi| ≤
         |(((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) / (2 : ℝ) ^ qBits - (raw : ℝ) / (2 : ℝ) ^ M| +
           |(raw : ℝ) / (2 : ℝ) ^ M - Real.pi| := abs_sub_le _ _ _
-    _ ≤ (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) + (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) :=
-      add_le_add hshift_scaled hraw_real
+    _ ≤ (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) + (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) := by gcongr
     _ = (2 : ℝ) ^ (-(qBits : ℤ)) := by ring
 
 private theorem computableInPolyTime_arctanInvApprox (d : ℕ) :
@@ -559,24 +455,15 @@ private theorem computableInPolyTime_arctanInvApprox (d : ℕ) :
       have hinv := arctanStep_inv d p.1 i
       have hfst : ((arctanStep (d * d))^[i] (0, (2 ^ p.1 / d, 0))).1 = i := by
         simpa using arctanStep_fst (d * d) (0, (2 ^ p.1 / d, 0)) i
-      have hpow_lt : ((arctanStep (d * d))^[i] (0, (2 ^ p.1 / d, 0))).2.1 < 2 ^ (p.1 + 1) :=
-        lt_of_le_of_lt hinv.1 (Nat.pow_lt_pow_right (by omega) (by omega))
-      have hacc_lt : ((arctanStep (d * d))^[i] (0, (2 ^ p.1 / d, 0))).2.2 < 2 ^ (p.1 + 1) := by
-        have hle : ((arctanStep (d * d))^[i] (0, (2 ^ p.1 / d, 0))).2.2 ≤ 2 ^ p.1 := by
-          by_cases h : i % 2 = 0
-          · have h2 := hinv.2
-            simp only [h, ↓reduceIte] at h2
-            exact le_trans (Nat.le_add_right _ _) h2
-          · have h2 := hinv.2
-            simp only [h, ↓reduceIte] at h2
-            exact h2.2
-        exact lt_of_le_of_lt hle (Nat.pow_lt_pow_right (by omega) (by omega))
-      have hi_lt : i < 2 ^ (2 * p.2) := lt_of_le_of_lt hi Nat.lt_two_pow_self
-      have hl1 : (encNat i).length ≤ 2 * p.2 := length_encNat_le_of_lt_two_pow hi_lt
-      have hl2 : (encNat ((arctanStep (d * d))^[i] (0, (2 ^ p.1 / d, 0))).2.1).length ≤ p.1 + 1 :=
-        length_encNat_le_of_lt_two_pow hpow_lt
-      have hl3 : (encNat ((arctanStep (d * d))^[i] (0, (2 ^ p.1 / d, 0))).2.2).length ≤ p.1 + 1 :=
-        length_encNat_le_of_lt_two_pow hacc_lt
+      dsimp only at hinv
+      have hacc_le : ((arctanStep (d * d))^[i] (0, (2 ^ p.1 / d, 0))).2.2 ≤ 2 ^ p.1 := by
+        split_ifs at hinv
+        exacts [(Nat.le_add_right _ _).trans hinv.2, hinv.2.2]
+      have hl1 := length_encNat_le_of_lt_two_pow (lt_of_le_of_lt hi Nat.lt_two_pow_self)
+      have hl2 :=
+        length_encNat_le_of_lt_two_pow (hinv.1.trans_lt (Nat.pow_lt_pow_succ one_lt_two))
+      have hl3 :=
+        length_encNat_le_of_lt_two_pow (hacc_le.trans_lt (Nat.pow_lt_pow_succ one_lt_two))
       simp only [length_encPair, encUnary_apply, List.length_replicate, hfst] at hl1 hl2 hl3 ⊢
       omega)
   exact hiter.snd'.snd'
@@ -645,30 +532,12 @@ private theorem expNegStep_inv (S zC : ℕ) (hz : zC ≤ S) (i : ℕ) :
   | succ i ih =>
     set st := (expNegStep (S, zC))^[i] (0, (S, 0)) with hst_def
     have hfst : st.1 = i := by simpa [hst_def] using expNegStep_fst (S, zC) (0, (S, 0)) i
-    have hterm_le : (st.2.1 * zC) / ((i + 1) * S) ≤ st.2.1 := by
-      rcases Nat.eq_zero_or_pos S with rfl | hS
-      · simp
-      · refine (Nat.div_le_iff_le_mul_add_pred (by positivity)).mpr ?_
-        have h1 : st.2.1 * zC ≤ st.2.1 * S := Nat.mul_le_mul_left _ hz
-        have h2 : st.2.1 * S ≤ st.2.1 * ((i + 1) * S) :=
-          Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left S (by omega))
-        have h3 : st.2.1 * ((i + 1) * S) = ((i + 1) * S) * st.2.1 := mul_comm _ _
-        omega
+    have hterm_le : (st.2.1 * zC) / ((i + 1) * S) ≤ st.2.1 := Nat.div_le_of_le_mul <| by
+      nlinarith [Nat.mul_le_mul_left st.2.1 hz, Nat.zero_le (i * S * st.2.1)]
     rw [Function.iterate_succ_apply']
-    dsimp only [expNegStep]
+    dsimp only [expNegStep] at ih ⊢
     rw [← hst_def, hfst]
-    refine ⟨hterm_le.trans ih.1, ?_⟩
-    by_cases hev : i % 2 = 0
-    · have hodd : (i + 1) % 2 ≠ 0 := by omega
-      have hih : st.2.2 + st.2.1 ≤ S := by
-        have h2 := ih.2; simp only [hev, ↓reduceIte] at h2; exact h2
-      simp only [hev, hodd, ↓reduceIte]
-      exact ⟨hterm_le.trans (Nat.le_add_left _ _), hih⟩
-    · have hev' : (i + 1) % 2 = 0 := by omega
-      have hih : st.2.1 ≤ st.2.2 ∧ st.2.2 ≤ S := by
-        have h2 := ih.2; simp only [hev, ↓reduceIte] at h2; exact h2
-      simp only [hev, hev', ↓reduceIte]
-      omega
+    split_ifs at ih ⊢ <;> omega
 
 /-- `expNegSeries qBits zFp` stays in `[0, 2 ^ qBits]`. -/
 theorem expNegSeries_le (qBits zFp : ℕ) : expNegSeries qBits zFp ≤ 2 ^ qBits := by
@@ -680,12 +549,8 @@ theorem expNegSeries_le (qBits zFp : ℕ) : expNegSeries qBits zFp ≤ 2 ^ qBits
   omega
 
 private theorem expNegPow_step_le (S b : ℕ) (hb : b ≤ S) (p : ℕ) (hp : p ≤ S) :
-    (p * b) / S ≤ S := by
-  rcases Nat.eq_zero_or_pos S with rfl | hS
-  · simp
-  · refine (Nat.div_le_iff_le_mul_add_pred hS).mpr ?_
-    have h1 : p * b ≤ S * S := Nat.mul_le_mul hp hb
-    omega
+    (p * b) / S ≤ S :=
+  Nat.div_le_of_le_mul (Nat.mul_le_mul hp hb)
 
 /-- `expNegPow qBits zFp K` stays in `[0, 2 ^ qBits]`. -/
 theorem expNegPow_le (qBits zFp K : ℕ) : expNegPow qBits zFp K ≤ 2 ^ qBits := by
@@ -741,26 +606,15 @@ theorem computableInPolyTime_expNegSeries :
       have hinv := expNegStep_inv (2 ^ p.1) (min p.2 (2 ^ p.1)) (min_le_right _ _) i
       have hfst : ((expNegStep (2 ^ p.1, min p.2 (2 ^ p.1)))^[i] (0, (2 ^ p.1, 0))).1 = i := by
         simpa using expNegStep_fst (2 ^ p.1, min p.2 (2 ^ p.1)) (0, (2 ^ p.1, 0)) i
-      have ht_lt : ((expNegStep (2 ^ p.1, min p.2 (2 ^ p.1)))^[i] (0, (2 ^ p.1, 0))).2.1 <
-          2 ^ (p.1 + 1) :=
-        lt_of_le_of_lt hinv.1 (Nat.pow_lt_pow_right (by omega) (by omega))
-      have ha_lt : ((expNegStep (2 ^ p.1, min p.2 (2 ^ p.1)))^[i] (0, (2 ^ p.1, 0))).2.2 <
-          2 ^ (p.1 + 1) := by
-        have hle :
-            ((expNegStep (2 ^ p.1, min p.2 (2 ^ p.1)))^[i] (0, (2 ^ p.1, 0))).2.2 ≤
-              2 ^ p.1 := by
-          by_cases h : i % 2 = 0
-          · simp only [h, ↓reduceIte] at hinv; omega
-          · simp only [h, ↓reduceIte] at hinv; exact hinv.2.2
-        exact lt_of_le_of_lt hle (Nat.pow_lt_pow_right (by omega) (by omega))
-      have hi_lt : i < 2 ^ (2 * (p.1 + 2)) := lt_of_le_of_lt hi Nat.lt_two_pow_self
-      have hl1 : (encNat i).length ≤ 2 * (p.1 + 2) := length_encNat_le_of_lt_two_pow hi_lt
-      have hl2 : (encNat ((expNegStep (2 ^ p.1, min p.2 (2 ^ p.1)))^[i]
-          (0, (2 ^ p.1, 0))).2.1).length ≤
-          p.1 + 1 := length_encNat_le_of_lt_two_pow ht_lt
-      have hl3 : (encNat ((expNegStep (2 ^ p.1, min p.2 (2 ^ p.1)))^[i]
-          (0, (2 ^ p.1, 0))).2.2).length ≤
-          p.1 + 1 := length_encNat_le_of_lt_two_pow ha_lt
+      dsimp only at hinv
+      have ha_le : ((expNegStep (2 ^ p.1, min p.2 (2 ^ p.1)))^[i] (0, (2 ^ p.1, 0))).2.2 ≤
+          2 ^ p.1 := by
+        split_ifs at hinv <;> omega
+      have hl1 := length_encNat_le_of_lt_two_pow (lt_of_le_of_lt hi Nat.lt_two_pow_self)
+      have hl2 :=
+        length_encNat_le_of_lt_two_pow (hinv.1.trans_lt (Nat.pow_lt_pow_succ one_lt_two))
+      have hl3 :=
+        length_encNat_le_of_lt_two_pow (ha_le.trans_lt (Nat.pow_lt_pow_succ one_lt_two))
       simp only [length_encPair, encUnary_apply, List.length_replicate, hfst] at hl1 hl2 hl3 ⊢
       omega)
   exact hiter.snd'.snd'
@@ -846,74 +700,38 @@ private theorem expNegStep_term_error (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBits)
     have hfst : st.1 = j := by simpa [st] using expNegStep_fst (S, zFp) (0, (S, 0)) j
     rw [hfst]
     set term := st.2.1
-    set den : ℕ := (j + 1) * S
-    have hden_pos : 0 < den := by positivity
-    have hden_r : (0 : ℝ) < (den : ℝ) := by positivity
-    have hterm_eq : ((term * zFp : ℕ) : ℝ) / (den : ℝ) = (term : ℝ) * z / (j + 1 : ℝ) := by
-      dsimp only [den, z]
+    have h := cast_div_bounds (term * zFp) ((j + 1) * S)
+    have hterm_eq : ((term * zFp : ℕ) : ℝ) / (((j + 1) * S : ℕ) : ℝ) =
+        (term : ℝ) * z / (j + 1 : ℝ) := by
+      simp only [z]
       push_cast
-      have hS0 : (S : ℝ) ≠ 0 := hSpos.ne'
-      have hj0 : (j : ℝ) + 1 ≠ 0 := by positivity
-      field_simp
-    have hdiv_le : (((term * zFp) / den : ℕ) : ℝ) ≤ (term : ℝ) * z / (j + 1 : ℝ) := by
-      have h1 : (((term * zFp) / den : ℕ) : ℝ) ≤ ((term * zFp : ℕ) : ℝ) / (den : ℝ) := by
-        rw [le_div_iff₀ hden_r]
-        exact_mod_cast Nat.div_mul_le_self (term * zFp) den
-      rwa [hterm_eq] at h1
-    have hdiv_lt : (term : ℝ) * z / (j + 1 : ℝ) < (((term * zFp) / den : ℕ) : ℝ) + 1 := by
-      have h1 : ((term * zFp : ℕ) : ℝ) / (den : ℝ) < (((term * zFp) / den : ℕ) : ℝ) + 1 := by
-        rw [div_lt_iff₀ hden_r]
-        have h := Nat.lt_mul_div_succ (term * zFp) hden_pos
-        have h' : ((term * zFp : ℕ) : ℝ) < (den : ℝ) * ((((term * zFp) / den : ℕ) : ℝ) + 1) := by
-          exact_mod_cast h
-        linarith
-      rwa [hterm_eq] at h1
+      field_simp [hSpos.ne']
+    rw [hterm_eq] at h
     have hpow_step : (S : ℝ) * z ^ (j + 1) / (Nat.factorial (j + 1) : ℝ) =
         ((S : ℝ) * z ^ j / (Nat.factorial j : ℝ)) * z / (j + 1 : ℝ) := by
       rw [pow_succ, Nat.factorial_succ, Nat.cast_mul, Nat.cast_add, Nat.cast_one]
-      have hf0 : (Nat.factorial j : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero j)
-      have hj0 : (j : ℝ) + 1 ≠ 0 := by positivity
-      field_simp
-    have hupper : (((term * zFp) / den : ℕ) : ℝ) ≤
-        (S : ℝ) * z ^ (j + 1) / (Nat.factorial (j + 1) : ℝ) := by
-      rw [hpow_step]
-      exact hdiv_le.trans (div_le_div_of_nonneg_right
-        (mul_le_mul_of_nonneg_right ih.1 hz0) (by positivity))
-    refine ⟨hupper, ?_⟩
-    simp only [Nat.succ_ne_zero, ↓reduceIte]
-    have hsplit :
-        (S : ℝ) * z ^ (j + 1) / (Nat.factorial (j + 1) : ℝ) - (((term * zFp) / den : ℕ) : ℝ) =
-          ((S : ℝ) * z ^ j / (Nat.factorial j : ℝ) - (term : ℝ)) * (z / (j + 1 : ℝ)) +
-            ((term : ℝ) * z / (j + 1 : ℝ) - (((term * zFp) / den : ℕ) : ℝ)) := by
-      rw [hpow_step]; ring
+      field_simp [Nat.factorial_ne_zero j]
+    rw [hpow_step, ite_eq_right (Nat.succ_ne_zero j)]
+    refine ⟨h.1.trans (div_le_div_of_nonneg_right
+      (mul_le_mul_of_nonneg_right ih.1 hz0) (by positivity)), ?_⟩
     have herr_mul : ((S : ℝ) * z ^ j / (Nat.factorial j : ℝ) - (term : ℝ)) *
         (z / (j + 1 : ℝ)) ≤ 1 := by
-      cases j with
-      | zero =>
-        have hih0 : (S : ℝ) * z ^ 0 / (Nat.factorial 0 : ℝ) - (term : ℝ) ≤ 0 := by
-          have h := ih.2
-          simp only [↓reduceIte] at h
-          exact h
-        have hnn : 0 ≤ (S : ℝ) * z ^ 0 / (Nat.factorial 0 : ℝ) - (term : ℝ) := by linarith [ih.1]
-        have heq0 : (S : ℝ) * z ^ 0 / (Nat.factorial 0 : ℝ) - (term : ℝ) = 0 := by linarith
-        rw [heq0, zero_mul]; norm_num
-      | succ k =>
-        have hih2 : (S : ℝ) * z ^ (k + 1) / (Nat.factorial (k + 1) : ℝ) - (term : ℝ) ≤ 2 := by
-          have h := ih.2
-          simp only [Nat.succ_ne_zero, ↓reduceIte] at h
-          exact h
-        have hzdiv : z / ((k + 1 : ℕ) + 1 : ℝ) ≤ 1 / 2 := by
-          rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-          have hk : (2 : ℝ) ≤ ((k + 1 : ℕ) + 1 : ℝ) := by push_cast; linarith
-          nlinarith
-        have hnn : 0 ≤ (S : ℝ) * z ^ (k + 1) / (Nat.factorial (k + 1) : ℝ) - (term : ℝ) := by
-          linarith [ih.1]
-        calc
-          ((S : ℝ) * z ^ (k + 1) / (Nat.factorial (k + 1) : ℝ) - (term : ℝ)) *
-                (z / ((k + 1 : ℕ) + 1 : ℝ)) ≤
-              2 * (1 / 2) := mul_le_mul hih2 hzdiv (by positivity) (by norm_num)
-          _ = 1 := by norm_num
-    linarith
+      calc _ ≤ (if j = 0 then 0 else 2) * (1 / (j + 1 : ℝ)) :=
+            mul_le_mul ih.2 (div_le_div_of_nonneg_right hz1 (by positivity))
+              (div_nonneg hz0 (by positivity)) (by split_ifs <;> norm_num)
+        _ ≤ 1 := by
+          split_ifs with hj
+          · norm_num
+          · have : (1 : ℝ) ≤ j := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr hj
+            rw [mul_one_div, div_le_one (by positivity)]
+            linarith
+    have hsplit :
+        ((S : ℝ) * z ^ j / (Nat.factorial j : ℝ)) * z / (j + 1 : ℝ) -
+            (((term * zFp) / ((j + 1) * S) : ℕ) : ℝ) =
+          ((S : ℝ) * z ^ j / (Nat.factorial j : ℝ) - (term : ℝ)) * (z / (j + 1 : ℝ)) +
+            ((term : ℝ) * z / (j + 1 : ℝ) - (((term * zFp) / ((j + 1) * S) : ℕ) : ℝ)) := by
+      ring
+    linarith [h.2]
 
 /-- Fixed-point error bound for `expNegSeries`. -/
 theorem abs_expNegSeries_div_sub_exp_le (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBits) :
@@ -932,52 +750,24 @@ theorem abs_expNegSeries_div_sub_exp_le (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBit
     induction n with
     | zero => simp
     | succ n ih =>
-      set st := (expNegStep (S, zFp))^[n] (0, (S, 0))
-      have hfst : st.1 = n := by simpa [st] using expNegStep_fst (S, zFp) (0, (S, 0)) n
       have hinv := expNegStep_inv S zFp hz n
       have ht := expNegStep_term_error qBits zFp hz n
+      set st := (expNegStep (S, zFp))^[n] (0, (S, 0))
+      have hfst : st.1 = n := by simpa [st] using expNegStep_fst (S, zFp) (0, (S, 0)) n
+      dsimp only at hinv ht
       have ht_err : |(st.2.1 : ℝ) - (S : ℝ) * (z ^ n / (Nat.factorial n : ℝ))| ≤ 2 := by
         have h2 : (S : ℝ) * z ^ n / (Nat.factorial n : ℝ) - (st.2.1 : ℝ) ≤ 2 := by
           have := ht.2
           split_ifs at this <;> linarith
         rw [← mul_div_assoc, abs_le]
         constructor <;> linarith [ht.1]
-      rw [Function.iterate_succ_apply', Finset.sum_range_succ, mul_add]
+      have hle : n % 2 = 1 → st.2.1 ≤ st.2.2 := fun h => by
+        rw [ite_eq_right (by omega)] at hinv; exact hinv.2.1
+      rw [Function.iterate_succ_apply', Finset.sum_range_succ]
       dsimp only [expNegStep]
       rw [hfst]
-      by_cases hev : n % 2 = 0
-      · have hsign : (-z) ^ n = z ^ n := Even.neg_pow (Nat.even_iff.mpr hev) z
-        simp only [hev, ↓reduceIte, Nat.cast_add, Nat.cast_one, hsign]
-        have hsplit :
-            ((st.2.2 : ℝ) + (st.2.1 : ℝ)) -
-                ((S : ℝ) * ∑ k ∈ Finset.range n, (-z) ^ k / (Nat.factorial k : ℝ) +
-                  (S : ℝ) * (z ^ n / (Nat.factorial n : ℝ))) =
-              ((st.2.2 : ℝ) - (S : ℝ) * ∑ k ∈ Finset.range n, (-z) ^ k / (Nat.factorial k : ℝ)) +
-                ((st.2.1 : ℝ) - (S : ℝ) * (z ^ n / (Nat.factorial n : ℝ))) := by ring
-        rw [hsplit]
-        calc
-          _ ≤ _ := abs_add_le _ _
-          _ ≤ 2 * (n : ℝ) + 2 := add_le_add ih ht_err
-          _ = 2 * ((n : ℝ) + 1) := by ring
-      · have hsign : (-z) ^ n = -(z ^ n) := Odd.neg_pow (Nat.odd_iff.mpr (by omega)) z
-        have hle : st.2.1 ≤ st.2.2 := by
-          have h2 := hinv.2
-          simp only [hev, ↓reduceIte] at h2
-          exact h2.1
-        simp only [hev, ↓reduceIte, hsign, neg_div]
-        change |((st.2.2 - st.2.1 : ℕ) : ℝ) - _| ≤ _
-        rw [Nat.cast_sub hle]
-        have hsplit :
-            ((st.2.2 : ℝ) - (st.2.1 : ℝ)) -
-                ((S : ℝ) * ∑ k ∈ Finset.range n, (-z) ^ k / (Nat.factorial k : ℝ) +
-                  (S : ℝ) * -(z ^ n / (Nat.factorial n : ℝ))) =
-              ((st.2.2 : ℝ) - (S : ℝ) * ∑ k ∈ Finset.range n, (-z) ^ k / (Nat.factorial k : ℝ)) -
-                ((st.2.1 : ℝ) - (S : ℝ) * (z ^ n / (Nat.factorial n : ℝ))) := by ring
-        rw [hsplit]
-        calc
-          _ ≤ _ := abs_sub _ _
-          _ ≤ 2 * (n : ℝ) + 2 := add_le_add ih ht_err
-          _ = 2 * ((n + 1 : ℕ) : ℝ) := by push_cast; ring
+      exact (abs_altStep_sub_le (by rw [neg_pow]; ring) hle ih ht_err).trans_eq
+        (by push_cast; ring)
   have hsum_err :
       |(expNegSeries qBits zFp : ℝ) / (S : ℝ) -
           ∑ k ∈ Finset.range (2 * (qBits + 2)), (-z) ^ k / (Nat.factorial k : ℝ)| ≤
@@ -1026,15 +816,8 @@ theorem abs_expNegSeries_div_sub_exp_le (qBits zFp : ℕ) (hz : zFp ≤ 2 ^ qBit
       _ ≤ 2 / (2 * (S : ℝ)) :=
           div_le_div_of_nonneg_left (by norm_num) (by positivity) hfac'
       _ = 1 / (S : ℝ) := by field_simp [hSpos.ne']
-  have htri :
-      |(expNegSeries qBits zFp : ℝ) / (S : ℝ) - Real.exp (-z)| ≤
-        |(expNegSeries qBits zFp : ℝ) / (S : ℝ) -
-            ∑ k ∈ Finset.range (2 * (qBits + 2)), (-z) ^ k / (Nat.factorial k : ℝ)| +
-          |Real.exp (-z) -
-            ∑ k ∈ Finset.range (2 * (qBits + 2)), (-z) ^ k / (Nat.factorial k : ℝ)| := by
-    rw [abs_sub_comm (Real.exp (-z))]
-    exact abs_sub_le _ _ _
-  have hadd := htri.trans (add_le_add hsum_err htail)
+  rw [abs_sub_comm] at htail
+  have hadd := (abs_sub_le _ _ _).trans (add_le_add hsum_err htail)
   rw [← add_div] at hadd
   have hS_cast : (S : ℝ) = (2 : ℝ) ^ qBits := by dsimp only [S]; push_cast; rfl
   simpa only [z, hS_cast] using hadd
@@ -1059,12 +842,7 @@ theorem abs_expNegPow_div_sub_exp_le (qBits zFp K : ℕ) (hz : zFp ≤ 2 ^ qBits
       rw [abs_sub_comm]
       exact (abs_exp_neg_sub_exp_neg_le hzReal (by positivity)).trans
         (by simpa only [hS_cast] using hzErr)
-    calc
-      |(b : ℝ) / (S : ℝ) - Real.exp (-zReal)| ≤
-          |(b : ℝ) / (S : ℝ) - Real.exp (-((zFp : ℝ) / (S : ℝ)))| +
-            |Real.exp (-((zFp : ℝ) / (S : ℝ))) - Real.exp (-zReal)| := abs_sub_le _ _ _
-      _ ≤ (4 * ((qBits : ℝ) + 2) + 1) / (S : ℝ) + 2 / (S : ℝ) := add_le_add h1 h2
-      _ = (4 * ((qBits : ℝ) + 2) + 3) / (S : ℝ) := by ring
+    exact ((abs_sub_le _ _ _).trans (add_le_add h1 h2)).trans_eq (by ring)
   rw [← hS_cast]
   induction K with
   | zero =>
@@ -1080,16 +858,9 @@ theorem abs_expNegPow_div_sub_exp_le (qBits zFp K : ℕ) (hz : zFp ≤ 2 ^ qBits
     have hdiv_err :
         |(((p * b) / S : ℕ) : ℝ) / (S : ℝ) - ((p : ℝ) / (S : ℝ)) * ((b : ℝ) / (S : ℝ))| ≤
         1 / (S : ℝ) := by
-      have hlo : (((p * b) / S : ℕ) : ℝ) ≤ ((p * b : ℕ) : ℝ) / (S : ℝ) := by
-        rw [le_div_iff₀ hSpos]
-        exact_mod_cast Nat.div_mul_le_self (p * b) S
-      have hhi : ((p * b : ℕ) : ℝ) / (S : ℝ) < (((p * b) / S : ℕ) : ℝ) + 1 := by
-        rw [div_lt_iff₀ hSpos]
-        have h := Nat.lt_mul_div_succ (p * b) (by positivity : 0 < S)
-        have h' : ((p * b : ℕ) : ℝ) < (S : ℝ) * ((((p * b) / S : ℕ) : ℝ) + 1) := by exact_mod_cast h
-        linarith
+      have h := cast_div_bounds (p * b) S
       have h1 : |(((p * b) / S : ℕ) : ℝ) - ((p * b : ℕ) : ℝ) / (S : ℝ)| ≤ 1 := by
-        rw [abs_le]; constructor <;> linarith
+        rw [abs_le]; constructor <;> linarith [h.1, h.2]
       have hrew : ((p : ℝ) / (S : ℝ)) * ((b : ℝ) / (S : ℝ)) =
           (((p * b : ℕ) : ℝ) / (S : ℝ)) / (S : ℝ) := by
         push_cast; ring
@@ -1106,13 +877,6 @@ theorem abs_expNegPow_div_sub_exp_le (qBits zFp K : ℕ) (hz : zFp ≤ 2 ^ qBits
       rw [hexp_step]; ring
     change |(((p * b) / S : ℕ) : ℝ) / (S : ℝ) - Real.exp (-((K + 1 : ℕ) : ℝ) * zReal)| ≤ _
     rw [hsplit]
-    have ht1 := abs_add_le
-      ((((p * b) / S : ℕ) : ℝ) / (S : ℝ) - ((p : ℝ) / (S : ℝ)) * ((b : ℝ) / (S : ℝ)) +
-        ((p : ℝ) / (S : ℝ)) * ((b : ℝ) / (S : ℝ) - Real.exp (-zReal)))
-      (((p : ℝ) / (S : ℝ) - Real.exp (-(K : ℝ) * zReal)) * Real.exp (-zReal))
-    have ht2 := abs_add_le
-      ((((p * b) / S : ℕ) : ℝ) / (S : ℝ) - ((p : ℝ) / (S : ℝ)) * ((b : ℝ) / (S : ℝ)))
-      (((p : ℝ) / (S : ℝ)) * ((b : ℝ) / (S : ℝ) - Real.exp (-zReal)))
     have hp1 : (p : ℝ) / (S : ℝ) ≤ 1 := (div_le_one hSpos).mpr hp_le
     have hexp1 : Real.exp (-zReal) ≤ 1 := Real.exp_le_one_iff.mpr (by linarith)
     have hm1 : |((p : ℝ) / (S : ℝ)) * ((b : ℝ) / (S : ℝ) - Real.exp (-zReal))| ≤
@@ -1125,7 +889,8 @@ theorem abs_expNegPow_div_sub_exp_le (qBits zFp K : ℕ) (hz : zFp ≤ 2 ^ qBits
       exact (mul_le_of_le_one_right (abs_nonneg _) hexp1).trans ih
     calc
       _ ≤ 1 / (S : ℝ) + (4 * ((qBits : ℝ) + 2) + 3) / (S : ℝ) +
-          (K : ℝ) * (4 * ((qBits : ℝ) + 2) + 4) / (S : ℝ) := by linarith
+          (K : ℝ) * (4 * ((qBits : ℝ) + 2) + 4) / (S : ℝ) :=
+        (abs_add_three _ _ _).trans (add_le_add_three hdiv_err hm1 hm2)
       _ = ((K + 1 : ℕ) : ℝ) * (4 * ((qBits : ℝ) + 2) + 4) / (S : ℝ) := by push_cast; ring
 
 

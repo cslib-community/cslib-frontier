@@ -68,10 +68,10 @@ variable (hash : List Bool → List Bool → List Bool)
 /-- A defaulted lookup in words of at most `k + 2` bits has at most `k + 2` bits. -/
 theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
     (hws : ∀ w ∈ ws, w.length ≤ k + 2) (i : ℕ) : (ws.getD i []).length ≤ k + 2 := by
-  rw [List.getD_eq_getElem?_getD]
-  cases h : ws[i]? with
-  | none => simp
-  | some w => exact hws w (List.mem_of_getElem? h)
+  rcases List.getD_mem_or ws i [] with h | h
+  · exact hws _ h
+  · rw [h]
+    simp
 
 /-- The evaluator's AND gate writes at most `k + 2` bits. -/
 theorem length_andWord_le (k g : ℕ) (TG TE a b : List Bool) :
@@ -91,21 +91,18 @@ private theorem length_zeroGate_le (k g : ℕ) (Δ a b : List Bool) (isAnd : Boo
 /-- Every zero label word has at most `k + 2` bits. -/
 private theorem length_le_of_mem_zeroWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool)
     (s : ℕ) : ∀ w ∈ zeroWords hash k f coins s, w.length ≤ k + 2 := by
-  induction s with
-  | zero =>
+  fun_induction zeroWords hash k f coins s with
+  | case1 => -- 0: input words
     intro w hw
-    simp only [zeroWords, List.mem_ofFn] at hw
-    obtain ⟨i, rfl⟩ := hw
+    obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hw
     simp [inputWord]
-  | succ s ih =>
-    rw [zeroWords]
-    split
-    · intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · exact ih w hw
-      · rw [List.mem_singleton.mp hw]
-        exact length_zeroGate_le hash _ _ _ _ _ _ (length_getD_le ih _)
-    · exact ih
+  | case2 s hsq ws ih => -- s + 1, s < f.q: append gate `s`
+    intro w hw
+    rcases List.mem_append.mp hw with hw | hw
+    · exact ih w hw
+    · rw [List.mem_singleton.mp hw]
+      exact length_zeroGate_le hash _ _ _ _ _ _ (length_getD_le ih _)
+  | case3 => assumption -- s + 1, ¬s < f.q: unchanged
 
 /-- The first `n + s` zero label words, for `s ≤ q`. -/
 private theorem length_zeroWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool) {s : ℕ}
@@ -173,23 +170,21 @@ private theorem evalGate_eq_evalGateCut (k w : ℕ) (body : List Bool)
     evalGate hash k w body state g = evalGateCut hash k w body state g ∧
       ∀ l ∈ (evalGate hash k w body state g).1, l.length ≤ k + 2 := by
   obtain ⟨labels, pos⟩ := state
+  have happ {u : List Bool} (hu : u.length ≤ k + 2) :
+      ∀ l ∈ labels ++ [u], l.length ≤ k + 2 := by
+    simp only [List.mem_append, List.mem_singleton]
+    rintro l (hl | rfl)
+    · exact hstate l hl
+    · exact hu
   simp only [evalGate, evalGateCut]
   split
-  · refine ⟨rfl, fun l hl => ?_⟩
-    rcases List.mem_append.mp hl with hl | hl
-    · exact hstate l hl
-    · rw [List.mem_singleton.mp hl]
-      exact length_andWord_le hash _ _ _ _ _ _
+  · exact ⟨rfl, happ (length_andWord_le hash _ _ _ _ _ _)⟩
   · have hzip (a b : List Bool) (ha : a.length ≤ k + 2) :
         (List.zipWith xor a b).length ≤ k + 2 := by
       rw [List.length_zipWith]
       omega
-    refine ⟨by rw [List.take_of_length_le (hzip _ _ (length_getD_le hstate _))],
-      fun l hl => ?_⟩
-    rcases List.mem_append.mp hl with hl | hl
-    · exact hstate l hl
-    · rw [List.mem_singleton.mp hl]
-      exact hzip _ _ (length_getD_le hstate _)
+    exact ⟨by rw [List.take_of_length_le (hzip _ _ (length_getD_le hstate _))],
+      happ (hzip _ _ (length_getD_le hstate _))⟩
 
 /-- On labels of at most `k + 2` bits, `Ev`'s fold is the fold of `evalGateCut`. -/
 private theorem foldl_evalGate_eq (k w : ℕ) (body : List Bool) (gates : List ℕ) :
@@ -467,37 +462,21 @@ private theorem evalWord_polyTime :
     (evalGateCut_polyTime hf)
     (hgrowth.polyBounded_length.mono fun p => by simp)
     (fun p state g _ => length_evalGateCut_le hash _ _ _ _ _)
-  have heq : (fun (F, X) => evalWord hash F X) = fun p : List Bool × List Bool =>
-      ((((List.range (PointPermute.fnDecoder.decode p.1).1.2.2.2).foldl
-        (fun state g => evalGateCut hash (PointPermute.fnDecoder.decode p.1).1.1
-          (PointPermute.wireWidth (PointPermute.fnDecoder.decode p.1).1.2.1
-            (PointPermute.fnDecoder.decode p.1).1.2.2.2)
-          (PointPermute.fnDecoder.decode p.1).2 state g)
-        (BitString.listRows (PointPermute.fnDecoder.decode p.1).1.2.1
-          ((PointPermute.fnDecoder.decode p.1).1.1 + 2) p.2, 0)).1).drop
-        ((PointPermute.fnDecoder.decode p.1).1.2.1 + (PointPermute.fnDecoder.decode p.1).1.2.2.2 -
-          (PointPermute.fnDecoder.decode p.1).1.2.2.1)).flatten := by
-    funext p
-    have hinit : ∀ l ∈ (BitString.listRows (PointPermute.fnDecoder.decode p.1).1.2.1
-        ((PointPermute.fnDecoder.decode p.1).1.1 + 2) p.2, 0).1,
-        l.length ≤ (PointPermute.fnDecoder.decode p.1).1.1 + 2 := by
-      intro l hl
-      simp only [BitString.listRows, List.mem_map] at hl
-      obtain ⟨i, -, rfl⟩ := hl
-      simp
-    rw [← foldl_evalGate_eq hash _ _ _ _ _ hinit]
-    rfl
-  rw [heq]
   have hc : ComputableInPolyTime (fun p : List Bool × List Bool =>
       (PointPermute.fnDecoder.decode p.1).1.2.1 + (PointPermute.fnDecoder.decode p.1).1.2.2.2 -
         (PointPermute.fnDecoder.decode p.1).1.2.2.1) (encPair encBits encBits) encUnary := by
     polytime
   have hfin : ComputableInPolyTime (fun p : List (List Bool) × ℕ => (p.1.drop p.2).flatten)
       (encPair (encList encBits) encUnary) encBits :=
-    (ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
-      (ComputableInPolyTime.fst _ _)
-        (ComputableInPolyTime.snd _ _)))
-  exact hfin.comp (hfold.fst'.prod hc)
+    ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
+      (.fst _ _) (.snd _ _))
+  convert hfin.comp (hfold.fst'.prod hc) using 1
+  funext p
+  dsimp only [evalWord, Function.comp_def]
+  refine congrArg (fun s : List (List Bool) × ℕ => (s.1.drop _).flatten)
+    (foldl_evalGate_eq hash _ _ _ _ _ fun l hl => ?_)
+  obtain ⟨i, -, rfl⟩ := List.mem_map.mp hl
+  simp
 
 /-! ### Bodies from gate data -/
 
@@ -575,15 +554,10 @@ private theorem zeroWords_polyTime :
       simp only [zeroStep, length_encList, List.map_append, List.sum_append, List.map_cons,
         List.map_nil, List.sum_cons, List.sum_nil, encBits_apply, List.length_take]
       omega)
-  have heq : (fun x : ℕ × XorAndCircuit × List Bool =>
-      zeroWords hash x.1 x.2.1.circuit x.2.2 x.2.1.circuit.q) = fun x =>
-      x.2.1.circuit.gateList.foldl (zeroStep hash x.1 x.2.1.circuit.n (offsetWord x.1 x.2.2))
-        ((List.range x.2.1.circuit.n).map (inputWord x.1 x.2.2)) := by
-    funext x
-    rw [zeroWords_eq_foldl hash _ _ _ le_rfl,
-      List.take_of_length_le (ConventionalCircuit.length_gateList _).le]
-  rw [heq]
-  exact hfold
+  convert hfold using 1
+  funext x
+  rw [zeroWords_eq_foldl hash _ _ _ le_rfl,
+    List.take_of_length_le (ConventionalCircuit.length_gateList _).le]
 
 include hf in
 /-- The garbled function is computed in polynomial time. -/
@@ -666,14 +640,10 @@ theorem encInfoWord_polyTime_of {γ : Type} {encIn : γ ↪ List Bool}
     have hrow := ComputableInPolyTime.bitsZipWithInput xor hin hmask
     simpa only [inputWord, maskWord, offsetWord, Function.comp_def] using
       ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.mapWithInput hlist hrow)
-  have heq : (fun x => encInfoWord (k x) (f x) (coins x)) =
-      fun x => ((List.range (2 * (f x).n)).map fun j =>
-        List.zipWith xor (inputWord (k x) (coins x) (j / 2))
-          (maskWord (k x) (offsetWord (k x) (coins x)) (j.testBit 0))).flatten := by
-    funext x
-    rw [encInfoWord, List.map_range_eq_ofFn]
-  rw [heq]
-  exact hrange.comp (hk.prod (hn.prod hcoins))
+  convert hrange.comp (hk.prod (hn.prod hcoins)) using 1
+  funext x
+  dsimp only [Function.comp_def]
+  rw [encInfoWord, List.map_range_eq_ofFn]
 
 /-- The encoding information is computed in polynomial time. -/
 private theorem encInfoWord_polyTime :
@@ -701,15 +671,11 @@ private theorem decInfoWord_polyTime :
       simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
         (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
     polytime
-  have heq : (fun x : ℕ × XorAndCircuit × List Bool => decInfoWord hash x.1 x.2.1.circuit x.2.2) =
-      fun x => (List.range x.2.1.circuit.m).map fun o => colourWord x.1
-        ((zeroWords hash x.1 x.2.1.circuit x.2.2 x.2.1.circuit.q).getD
-          (x.2.1.circuit.n + x.2.1.circuit.q - x.2.1.circuit.m + o) []) := by
-    funext x
-    rw [decInfoWord, List.map_range_eq_ofFn]
-  rw [heq]
-  exact hrange.comp ((ComputableInPolyTime.fst _ _).prod (hd.snd'.fst'.prod
-    (hs.prod (zeroWords_polyTime hf))))
+  convert hrange.comp ((ComputableInPolyTime.fst _ _).prod (hd.snd'.fst'.prod
+    (hs.prod (zeroWords_polyTime hf)))) using 1
+  funext x
+  dsimp only [Function.comp_def]
+  rw [decInfoWord, List.map_range_eq_ofFn]
 
 include hf in
 /-- The garbler runs in polynomial time. -/
@@ -727,11 +693,8 @@ private theorem coins_polyTime :
       (encPair encUnary encXorAndCircuit) encUnary :=
     ((circuitData_polyTime.comp XorAndCircuit.val_polyTime).comp
       (ComputableInPolyTime.snd _ _)).fst'
-  have heq : (fun (k, f) => (scheme hash).coins k f) = fun x : ℕ × XorAndCircuit =>
-      (x.1 + 1) + x.2.circuit.n * (x.1 + 2) := by
-    funext x
-    rfl
-  rw [heq]
+  change ComputableInPolyTime (fun x : ℕ × XorAndCircuit => (x.1 + 1) + x.2.circuit.n * (x.1 + 2))
+    (encPair encUnary encXorAndCircuit) encUnary
   polytime
 
 include hf in

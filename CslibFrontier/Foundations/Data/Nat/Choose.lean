@@ -8,6 +8,7 @@ module
 -- upstream: candidate (to Mathlib's `Mathlib/Combinatorics/Choose/Bounds.lean` or cslib)
 
 public import CslibFrontier.Init
+public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Data.Nat.Choose.Basic
 public import Mathlib.Data.Nat.Factorial.Basic
 import Mathlib.Algebra.Order.Ring.Pow
@@ -44,11 +45,16 @@ the Kővári–Sós–Turán bound.
 * `Nat.descFactorial_mul_pow_le`, `Nat.choose_mul_pow_le`, `Nat.choose_mul_sub_mul_pow_le`,
   `Nat.two_mul_pred_pow_le`, `Nat.two_pow_mul_choose_sub_le`: power comparisons and the
   block-avoidance binomial estimate.
-* `Nat.choose_le_two_pow_mul_choose_sub`: shrinking the ground set by `d` scales `U.choose k` by at
-  most `2 ^ k * (U - d).choose k` when `2 * d + k ≤ U + 1`.
+* `Nat.choose_le_two_pow_mul_choose_sub`, `Nat.choose_le_two_pow_mul_choose_sub_of_two_mul_le`:
+  shrinking the ground set by `d` scales `U.choose k` by at most `2 ^ k * (U - d).choose k` (when
+  `2 * d + k ≤ U + 1`) or `2 ^ d * (U - d).choose k` (when `2 * k ≤ U - d + 1`).
+* `Nat.prod_choose_partition_mul_pow_factorial`: ordered equal-block partition identity
+  `(∏ i : Fin F, ((F - i.val) * m).choose m) * m.factorial ^ F = (F * m).factorial`.
 -/
 
 public section
+
+open scoped BigOperators
 
 namespace Nat
 
@@ -74,11 +80,7 @@ private theorem pow_mul_choose_le_choose_mul_pow_of_le {A B x y : ℕ} (k : ℕ)
     A ^ k * x.choose k ≤ y.choose k * B ^ k := by
   have H := pow_mul_descFactorial_le_descFactorial_mul_pow k h
   rw [descFactorial_eq_factorial_mul_choose, descFactorial_eq_factorial_mul_choose] at H
-  refine Nat.le_of_mul_le_mul_left (?_ : k.factorial * _ ≤ k.factorial * _) (factorial_pos k)
-  calc k.factorial * (A ^ k * x.choose k)
-      = A ^ k * (k.factorial * x.choose k) := by ring
-    _ ≤ k.factorial * y.choose k * B ^ k := H
-    _ = k.factorial * (y.choose k * B ^ k) := by ring
+  exact Nat.le_of_mul_le_mul_left (c := k.factorial) (by linarith) (factorial_pos k)
 
 /-- One factor of `pow_mul_descFactorial_le`: `q (k - i) ≤ q k - i` for `1 ≤ q`, stated with a
 factor `1` to fit `pow_mul_descFactorial_le_descFactorial_mul_pow`. -/
@@ -101,11 +103,10 @@ theorem pow_mul_choose_le_choose_mul {q : ℕ} (hq : 1 ≤ q) (k d : ℕ) :
 `q k ≤ n`. -/
 theorem pow_mul_choose_sub_le_choose {q n k d : ℕ} (hq : 1 ≤ q) (hd : d ≤ k) (hn : q * k ≤ n) :
     q ^ d * (n - d).choose (k - d) ≤ n.choose k := by
-  have h : q ^ d * k.choose d * (n - d).choose (k - d) ≤ n.choose d * (n - d).choose (k - d) :=
-    Nat.mul_le_mul_right _ ((pow_mul_choose_le_choose_mul hq k d).trans (choose_le_choose d hn))
+  have h := Nat.mul_le_mul_right ((n - d).choose (k - d))
+    ((pow_mul_choose_le_choose_mul hq k d).trans (choose_le_choose d hn))
   rw [← choose_mul (n := n) hd] at h
-  refine Nat.le_of_mul_le_mul_left (c := k.choose d) ?_ (choose_pos hd)
-  simpa [Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using h
+  exact Nat.le_of_mul_le_mul_left (c := k.choose d) (by linarith) (choose_pos hd)
 
 /-- Lowering `ℓ` by `s` scales the number of `ℓ`-subsets of an `m`-set by at most
 `(ℓ / (m - ℓ + 1)) ^ s`. -/
@@ -133,15 +134,13 @@ theorem choose_sub_mul_pow_le {m ℓ s : ℕ} (hs : s ≤ ℓ) (hℓ : ℓ ≤ m
 `ℓ`-subsets of an `m`-set by at least `q ^ s`. -/
 theorem pow_mul_choose_sub_le_choose_of_mul_le {m ℓ s q : ℕ} (hs : s ≤ ℓ)
     (hℓ : (q + 1) * ℓ ≤ m) : q ^ s * m.choose (ℓ - s) ≤ m.choose ℓ := by
-  have hℓm : ℓ ≤ m := le_trans (Nat.le_mul_of_pos_left ℓ (by omega)) hℓ
-  have hqℓ : q * ℓ ≤ m - ℓ + 1 := by
-    have : (q + 1) * ℓ = q * ℓ + ℓ := by ring
-    omega
-  refine Nat.le_of_mul_le_mul_right (?_ : _ * (m - ℓ + 1) ^ s ≤ _ * (m - ℓ + 1) ^ s)
-    (Nat.pow_pos (by omega))
+  have hℓm : ℓ ≤ m := (Nat.le_mul_of_pos_left ℓ (by omega)).trans hℓ
+  have hqℓ : q * ℓ ≤ m - ℓ + 1 := by rw [Nat.add_mul, one_mul] at hℓ; omega
+  refine Nat.le_of_mul_le_mul_right (c := (m - ℓ + 1) ^ s) ?_ (Nat.pow_pos (by omega))
   calc q ^ s * m.choose (ℓ - s) * (m - ℓ + 1) ^ s
-      = q ^ s * (m.choose (ℓ - s) * (m - ℓ + 1) ^ s) := by ring
-    _ ≤ q ^ s * (m.choose ℓ * ℓ ^ s) := Nat.mul_le_mul_left _ (choose_sub_mul_pow_le hs hℓm)
+      ≤ q ^ s * (m.choose ℓ * ℓ ^ s) := by
+        rw [mul_assoc]
+        exact Nat.mul_le_mul_left _ (choose_sub_mul_pow_le hs hℓm)
     _ = m.choose ℓ * (q * ℓ) ^ s := by rw [Nat.mul_pow]; ring
     _ ≤ m.choose ℓ * (m - ℓ + 1) ^ s := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hqℓ s)
 
@@ -150,8 +149,7 @@ private theorem mul_sub_le_sub_mul {s n : ℕ} (h : s ≤ n) (i : ℕ) : n * (s 
   rcases le_or_gt i s with his | his
   · zify [his, his.trans h]
     nlinarith
-  · rw [Nat.sub_eq_zero_of_le his.le, mul_zero]
-    exact Nat.zero_le _
+  · simp [Nat.sub_eq_zero_of_le his.le]
 
 /-- Descending factorials compare like powers: `s^{(k)} / n^{(k)} ≤ (s / n)^k` for `s ≤ n`. -/
 theorem descFactorial_mul_pow_le {s n : ℕ} (h : s ≤ n) (k : ℕ) :
@@ -170,38 +168,25 @@ theorem choose_mul_pow_le {a s : ℕ} (has : a ≤ s) (k : ℕ) :
 theorem pow_mul_choose_le_choose_mul_pow {d m s : ℕ} (hdm : d ≤ m) :
     (d + 1 - s) ^ s * m.choose s ≤ d.choose s * (m + 1 - s) ^ s := by
   rcases Nat.lt_or_ge d s with hds | hsd
-  · rcases Nat.eq_zero_or_pos s with rfl | hs
+  · rcases s with _ | s
     · simp
-    · rw [show d + 1 - s = 0 by omega, zero_pow hs.ne', zero_mul]
-      exact Nat.zero_le _
+    · have h0 : d + 1 - (s + 1) = 0 := by omega
+      simp [h0]
   -- for `i < s ≤ d ≤ m`: `(d + 1 - s) (m - i) ≤ (d - i) (m + 1 - s)`
   refine pow_mul_choose_le_choose_mul_pow_of_le s fun k hk => ?_
-  obtain ⟨j, rfl⟩ : ∃ j, s = k + 1 + j := ⟨s - k - 1, by omega⟩
-  obtain ⟨a, rfl⟩ : ∃ a, d = k + 1 + j + a := ⟨d - (k + 1 + j), by omega⟩
-  obtain ⟨b, rfl⟩ : ∃ b, m = k + 1 + j + a + b := ⟨m - (k + 1 + j + a), by omega⟩
-  rw [show k + 1 + j + a + 1 - (k + 1 + j) = a + 1 by omega,
-    show k + 1 + j + a + b - k = 1 + j + a + b by omega,
-    show k + 1 + j + a - k = 1 + j + a by omega,
-    show k + 1 + j + a + b + 1 - (k + 1 + j) = a + b + 1 by omega]
-  nlinarith [Nat.zero_le (b * j)]
+  zify [hsd.trans d.le_succ, hk.le.trans (hsd.trans hdm), hk.le.trans hsd,
+    hsd.trans (hdm.trans m.le_succ)]
+  nlinarith
 
 /-- `C(b * m - m, k) * b ^ k ≤ C(b * m, k) * (b - 1) ^ k`. -/
 theorem choose_mul_sub_mul_pow_le (b m k : ℕ) :
     (b * m - m).choose k * b ^ k ≤ (b * m).choose k * (b - 1) ^ k := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · rcases k with _ | k <;> simp
-  · have hbm : b * m - m = (b - 1) * m := by
-      rw [Nat.sub_mul, one_mul]
-    rw [hbm]
-    have hle : (b - 1) * m ≤ b * m := Nat.mul_le_mul_right m (Nat.sub_le b 1)
-    have h := choose_mul_pow_le hle k
+  · rw [show b * m - m = (b - 1) * m by rw [Nat.sub_mul, one_mul]]
+    have h := choose_mul_pow_le (Nat.mul_le_mul_right m (Nat.sub_le b 1)) k
     rw [Nat.mul_pow, Nat.mul_pow] at h
-    have hpos : 0 < m ^ k := by positivity
-    refine Nat.le_of_mul_le_mul_right ?_ hpos
-    calc ((b - 1) * m).choose k * b ^ k * m ^ k
-        = ((b - 1) * m).choose k * (b ^ k * m ^ k) := by ring
-      _ ≤ (b * m).choose k * ((b - 1) ^ k * m ^ k) := h
-      _ = (b * m).choose k * (b - 1) ^ k * m ^ k := by ring
+    exact Nat.le_of_mul_le_mul_right (c := m ^ k) (by linarith) (by positivity)
 
 /-- Bernoulli's inequality in `ℕ`: for `1 ≤ n`, `d ^ n + n * d ^ (n - 1) ≤ (d + 1) ^ n`. -/
 private theorem pow_add_mul_pow_sub_one_le (d : ℕ) {n : ℕ} (hn : 1 ≤ n) :
@@ -224,24 +209,22 @@ private theorem pow_add_mul_pow_sub_one_le (d : ℕ) {n : ℕ} (hn : 1 ≤ n) :
 theorem two_mul_pred_pow_le {b : ℕ} (hb : 1 ≤ b) :
     2 * (b - 1) ^ b ≤ b ^ b := by
   obtain ⟨d, rfl⟩ : ∃ d, b = d + 1 := ⟨b - 1, by omega⟩
-  have h := pow_add_mul_pow_sub_one_le d (Nat.succ_pos d)
   calc 2 * d ^ (d + 1)
       = d ^ (d + 1) + d * d ^ d := by ring
     _ ≤ d ^ (d + 1) + (d + 1) * d ^ d :=
         Nat.add_le_add_left (Nat.mul_le_mul_right (d ^ d) (Nat.le_succ d)) _
-    _ ≤ (d + 1) ^ (d + 1) := h
+    _ ≤ (d + 1) ^ (d + 1) := pow_add_mul_pow_sub_one_le d (Nat.succ_pos d)
 
 /-- For `1 ≤ b`, `2 ^ r * C(b * m - m, b * r) ≤ C(b * m, b * r)`. -/
 theorem two_pow_mul_choose_sub_le {b m : ℕ} (hb : 1 ≤ b) (r : ℕ) :
     2 ^ r * (b * m - m).choose (b * r) ≤ (b * m).choose (b * r) := by
-  have hpow : 2 ^ r * (b - 1) ^ (b * r) ≤ b ^ (b * r) := by
+  have hpow : 2 ^ r * (b - 1) ^ (b * r) ≤ b ^ (b * r) :=
     calc 2 ^ r * (b - 1) ^ (b * r)
         = (2 * (b - 1) ^ b) ^ r := by rw [Nat.mul_pow, ← pow_mul]
       _ ≤ (b ^ b) ^ r := Nat.pow_le_pow_left (two_mul_pred_pow_le hb) r
       _ = b ^ (b * r) := by rw [← pow_mul]
   have hchoose := choose_mul_sub_mul_pow_le b m (b * r)
-  have hpos : 0 < b ^ (b * r) := by positivity
-  refine Nat.le_of_mul_le_mul_right ?_ hpos
+  refine Nat.le_of_mul_le_mul_right (c := b ^ (b * r)) ?_ (by positivity)
   calc 2 ^ r * (b * m - m).choose (b * r) * b ^ (b * r)
       = 2 ^ r * ((b * m - m).choose (b * r) * b ^ (b * r)) := by ring
     _ ≤ 2 ^ r * ((b * m).choose (b * r) * (b - 1) ^ (b * r)) := by gcongr
@@ -258,5 +241,38 @@ theorem choose_le_two_pow_mul_choose_sub {U d k : ℕ} (hk : k ≤ U - d) (h : 2
     _ ≤ (U - d).choose k * (2 * (U - d + 1 - k)) ^ k :=
         Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) k)
     _ = (U - d + 1 - k) ^ k * (2 ^ k * (U - d).choose k) := by rw [Nat.mul_pow]; ring
+
+/-- Shrinking `N` by `d` (`k ≤ N - d`, `2 * k ≤ N - d + 1`) multiplies `choose · k` by `≤ 2 ^ d`. -/
+theorem choose_le_two_pow_mul_choose_sub_of_two_mul_le {N d k : ℕ}
+    (hk : k ≤ N - d) (h2k : 2 * k ≤ N - d + 1) :
+    N.choose k ≤ 2 ^ d * (N - d).choose k := by
+  rcases Nat.eq_zero_or_pos k with rfl | hk_pos
+  · simpa using Nat.one_le_two_pow
+  have h1 := choose_mul (n := N) (k := k + d) (s := k) (Nat.le_add_right k d)
+  have h2 := choose_mul (n := N) (k := k + d) (s := d) (Nat.le_add_left d k)
+  rw [Nat.add_sub_cancel_left] at h1
+  rw [Nat.add_sub_cancel, ← choose_symm_add] at h2
+  have hle := Nat.mul_le_mul_right ((N - d).choose k)
+    (choose_le_two_pow_mul_choose_sub (U := N) (d := k) (k := d) (by omega) (by omega))
+  exact Nat.le_of_mul_le_mul_right (c := (N - k).choose d)
+    (by nlinarith [h1.symm.trans h2]) (choose_pos (by omega))
+
+/-- Multinomial identity `(∏_{i < F} C((F - i) * m, m)) * (m!)^F = (F * m)!` counting ordered
+partitions of an `(F * m)`-element set into `F` blocks of size `m`. -/
+theorem prod_choose_partition_mul_pow_factorial (F m : ℕ) :
+    (∏ i : Fin F, ((F - i.val) * m).choose m) * m.factorial ^ F = (F * m).factorial := by
+  induction F with
+  | zero => simp
+  | succ F ih =>
+    rw [Fin.prod_univ_succ, Fin.val_zero, Nat.sub_zero, pow_succ,
+      show (∏ i : Fin F, ((F + 1 - (Fin.succ i).val) * m).choose m) =
+        ∏ i : Fin F, ((F - i.val) * m).choose m from Finset.prod_congr rfl fun i _ => by simp]
+    have hchoose := choose_mul_factorial_mul_factorial
+      (show m ≤ (F + 1) * m from Nat.le_mul_of_pos_left m (Nat.succ_pos F))
+    rw [show (F + 1) * m - m = F * m by rw [Nat.succ_mul, Nat.add_sub_cancel]] at hchoose
+    calc ((F + 1) * m).choose m * (∏ i : Fin F, ((F - i.val) * m).choose m) *
+          (m.factorial ^ F * m.factorial)
+        = ((F + 1) * m).choose m * m.factorial * (F * m).factorial := by rw [← ih]; ring
+      _ = ((F + 1) * m).factorial := hchoose
 
 end Nat

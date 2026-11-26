@@ -117,49 +117,39 @@ theorem stepCost_le_one (s : Finset α) (p : α) (s' : Finset α) :
 
 /-- A cache hit keeps `s` unchanged as a valid transition. -/
 theorem validStep_hit {k : Nat} {s : Finset α} {p : α} (hs : s.card ≤ k) (hp : p ∈ s) :
-    ValidStep k s p s := by
-  refine ⟨hs, hs, hp, ?_⟩
-  simp only [hp, ↓reduceIte]
+    ValidStep k s p s :=
+  ⟨hs, hs, hp, by simp only [hp, ↓reduceIte]⟩
 
 /-- Every valid transition on a resident page `p ∈ s` leaves the cache unchanged. -/
 theorem validStep_hit_eq {k : Nat} {s s' : Finset α} {p : α}
     (hv : ValidStep k s p s') (hp : p ∈ s) : s' = s := by
-  have h := hv.2.2.2
-  simp only [hp, ↓reduceIte] at h
-  exact h
+  simpa only [hp, ↓reduceIte] using hv.2.2.2
 
 /-- Every valid transition on a missing page `p ∉ s` satisfies `s' ⊆ insert p s`. -/
 theorem validStep_miss_subset {k : Nat} {s s' : Finset α} {p : α}
     (hv : ValidStep k s p s') (hp : p ∉ s) : s' ⊆ insert p s := by
-  have h := hv.2.2.2
-  simp only [hp, ↓reduceIte] at h
-  exact h
+  simpa only [hp, ↓reduceIte] using hv.2.2.2
 
 /-- Loading a missing page into a non-full cache (`s.card < k`) without eviction is valid. -/
 theorem validStep_insert {k : Nat} {s : Finset α} {p : α}
     (hs : s.card < k) (hp : p ∉ s) :
     ValidStep k s p (insert p s) := by
-  have hcard : (insert p s).card ≤ k := by grind
-  refine ⟨Nat.le_of_lt hs, hcard, Finset.mem_insert_self p s, ?_⟩
+  refine ⟨hs.le, by grind, Finset.mem_insert_self p s, ?_⟩
   simp only [hp, ↓reduceIte, Finset.Subset.refl]
 
 /-- Evicting a resident page `e ∈ s` to load a missing page `p ∉ s` preserves cardinality. -/
 theorem card_insert_erase_of_notMem {s : Finset α} {p e : α} (hp : p ∉ s) (he : e ∈ s) :
     (insert p (s.erase e)).card = s.card := by
-  have hp' : p ∉ s.erase e := fun h => hp (Finset.mem_of_mem_erase h)
-  rw [Finset.card_insert_of_notMem hp', Finset.card_erase_of_mem he]
-  have hpos : 1 ≤ s.card := Finset.one_le_card.mpr ⟨e, he⟩
-  omega
+  rw [Finset.card_insert_of_notMem fun h => hp (Finset.mem_of_mem_erase h),
+    Finset.card_erase_add_one he]
 
 /-- Evicting a resident page `e ∈ s` to load a missing page `p ∉ s` is a valid paging step. -/
 theorem validStep_replace {k : Nat} {s : Finset α} {p e : α}
     (hs : s.card ≤ k) (hp : p ∉ s) (he : e ∈ s) :
     ValidStep k s p (insert p (s.erase e)) := by
-  refine ⟨hs, ?_, Finset.mem_insert_self p _, ?_⟩
-  · rw [card_insert_erase_of_notMem hp he]
-    exact hs
-  · simp only [hp, ↓reduceIte]
-    exact Finset.insert_subset_insert p (Finset.erase_subset e s)
+  refine ⟨hs, (card_insert_erase_of_notMem hp he).trans_le hs, Finset.mem_insert_self p _, ?_⟩
+  simp only [hp, ↓reduceIte]
+  exact Finset.insert_subset_insert p (Finset.erase_subset e s)
 
 /-- Total faults along any schedule are at most the number of requests. -/
 theorem scheduleCost_le_length (k : Nat) (s : Finset α) (reqs : List α)
@@ -173,9 +163,7 @@ theorem scheduleCost_le_length (k : Nat) (s : Finset α) (reqs : List α)
     | nil => exact Nat.zero_le _
     | cons s' ss =>
       change stepCost s p s' + (problem α k).scheduleCost s' rs ss ≤ rs.length + 1
-      have h1 := stepCost_le_one s p s'
-      have h2 := ih s' ss
-      omega
+      simpa only [Nat.add_comm 1] using Nat.add_le_add (stepCost_le_one s p s') (ih s' ss)
 
 /-- Serving a request sequence whose pages are all already in `s` keeps `s` unchanged. -/
 theorem validSchedule_replicate_of_forall_mem {k : Nat} {s : Finset α} {reqs : List α}

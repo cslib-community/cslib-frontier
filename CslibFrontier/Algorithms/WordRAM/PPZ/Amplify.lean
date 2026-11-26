@@ -191,9 +191,7 @@ theorem sum_le_roundSuccessProbWith (O : (Fin n → Option Bool) → Fin n → O
   · obtain ⟨σ, hσ, rfl⟩ := Finset.mem_image.mp hτ
     rw [Finset.mem_filter] at hσ
     rw [ite_eq_left (by rw [Set.mem_ofPred_eq, succeeds_some]; exact hσ.2)]
-  · split_ifs
-    · exact ENNReal.toReal_nonneg
-    · exact le_rfl
+  · split_ifs <;> simp
 
 /-- **Amplification**: if one round succeeds with probability at least `q > 0` and `c ≤ R q`,
 then `R` rounds all fail with probability at most `e ^ (-c)`. -/
@@ -213,10 +211,7 @@ theorem roundSuccessProb_ge {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)} (hsat : 
   refine (round_success_of_satisfiable hk hsat hlen).trans
     (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _) (PMF.toOuterMeasure_mono _ ?_))
   rintro τ ⟨⟨σ, hσ, rfl⟩, -⟩
-  change φ.eval (fun v => some (σ v) == some true) = true
-  convert hσ using 2
-  funext v
-  cases σ v <;> rfl
+  simpa [succeeds_some] using hσ
 
 /-- The success test of a stored assignment is the satisfaction test of the stored words. -/
 theorem succeeds_partialAssignmentAt (φ : CNF (Fin n)) (mem : ℕ → ℕ) (base : ℕ) :
@@ -383,7 +378,7 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
       simp [Cond.holds_lt, hx.frame.zero_eq, hx.flag_eq]
     obtain ⟨y₁, hy₁, -, hf₁, hm₁⟩ := decCounter_rename_spec hx.frame.zero_eq hx.frame.one_eq
       hx.bLen_eq (by rw [hx.bBase_eq]; exact hx.digits) (by rw [hx.bBase_eq]; exact hfit)
-    replace hf₁ : y₁.regs sFound = 0 := by rw [hf₁]; split_ifs; rfl
+    replace hf₁ : y₁.regs sFound = 0 := by rw [hf₁, ite_eq_left hz]
     have hz₁ : y₁.regs zero = 0 := by regs_frame
     have hbody : ExecWithin w (ampBodyWith core) x (y₁.set flag 0)
         (9 * decSteps ds + 4 + 2) :=
@@ -398,8 +393,7 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
     have h := ExecRandLaw.of_execWithin (f := fun y => decide (y.regs out = 1))
       (ExecWithin.loop_iter hc hbody (ExecWithin.loop_exit hcy)) hpost
     have hsteps := Schoening.decSteps_add_count_le ds
-    refine (h.congr_law (by simp [hout, repeatRoundWith])).mono (fun _ h => h) (by omega)
-      (by simp)
+    exact (h.congr_law (by simp [hout, repeatRoundWith])).mono (fun _ h => h) (by omega) (by simp)
   | j + 1, ds, x, hx, hv, hfit => by
     have hnz : ¬∀ d ∈ ds, d = 0 := fun h => by
       rw [(Schoening.ofDigits_two_eq_zero_iff ds).mpr h] at hv; omega
@@ -407,7 +401,7 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
       simp [Cond.holds_lt, hx.frame.zero_eq, hx.flag_eq]
     obtain ⟨y₁, hy₁, hh₁, hf₁, hm₁⟩ := decCounter_rename_spec hx.frame.zero_eq hx.frame.one_eq
       hx.bLen_eq (by rw [hx.bBase_eq]; exact hx.digits) (by rw [hx.bBase_eq]; exact hfit)
-    replace hf₁ : y₁.regs sFound = 1 := by rw [hf₁]; split_ifs; rfl
+    replace hf₁ : y₁.regs sFound = 1 := by rw [hf₁, ite_eq_right hnz]
     rw [hx.bBase_eq] at hh₁ hm₁
     have hv₁ : Nat.ofDigits 2 (decDigits ds) = j := by
       have := Schoening.ofDigits_decDigits hx.binary (by omega)
@@ -448,29 +442,25 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
       (T₂ := j * (Tc + 12 * (encodeClauses φ).length + 35) + 9 * (decDigits ds).count 0 + 30)
       (R₂ := j * (2 * n))
       hc hbody fun y ⟨hy, hyb, hyl, hyo, hyf⟩ => by
-        have hmy : ∀ a, Tb + 2 * n ≤ a → y.mem a = y₁.mem a := hy.rest
-        have hdy : HoldsList (Tb + 2 * n + S.length) (decDigits ds) y.mem :=
-          by ram_keep hh₁ using hmy
-        have hpy : HoldsList (Tb + 2 * n) S y.mem := by ram_keep hpar₁ using hmy
+        have hdy : HoldsList (Tb + 2 * n + S.length) (decDigits ds) y.mem := by
+          ram_keep hh₁ using hy.rest
+        have hpy : HoldsList (Tb + 2 * n) S y.mem := by ram_keep hpar₁ using hy.rest
         rw [succeeds_partialAssignmentAt]
         by_cases he : φ.eval (assignmentAt y.mem Tb n) = true
-        · simp only [he, ↓reduceIte] at hyo hyf
+        · simp only [he, ↓reduceIte] at hyo hyf ⊢
           have hcy : ¬(Cond.lt zero flag).Holds y := by simp [Cond.holds_lt, hyf]
           have h := ExecRandLaw.loop_exit (w := w) (body := ampBodyWith core)
             (f := fun y => decide (y.regs out = 1)) hcy (P := AmpPost φ C Tb)
             ⟨hy.self, Or.inr ⟨hyo, he⟩⟩
-          simp only [he, ↓reduceIte]
-          refine (h.congr_law (by simp [hyo])).mono (fun _ h => h) (by omega) (Nat.zero_le _)
-        · simp only [he, Bool.false_eq_true, ↓reduceIte] at hyo hyf
-          simp only [he, Bool.false_eq_true, ↓reduceIte]
+          exact (h.congr_law (by simp [hyo])).mono (fun _ h => h) (by omega) (Nat.zero_le _)
+        · simp only [he, Bool.false_eq_true, ↓reduceIte] at hyo hyf ⊢
           exact ampLoopWith_law hcore hw hT j (decDigits ds) y
             ⟨hy.self, hpy, hyb, by rw [hyl, Schoening.length_decDigits], hdy,
               Schoening.decDigits_digit_le hx.binary, hyf, hyo⟩ hv₁
             (by rw [Schoening.length_decDigits]; exact hfit)
     have hsteps := Schoening.decSteps_add_count_le ds
-    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
+    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_ <;> simp only [Nat.add_mul, Nat.one_mul] <;>
+      omega
 
 /-- **The round loop of PPZ** from a counter of value `j` has the law `repeatRound φ j`. Each round
 costs `ampRoundTime n E` instructions, amortized: the decrements are paid for by the zero digits of
@@ -504,14 +494,9 @@ theorem countDigits_binary (e c : ℕ) : ∀ d ∈ countDigits e c, d ≤ 1 :=
   Schoening.mulAddDigits_digit_le _ _ _
 
 theorem length_countDigits_le (e c : ℕ) :
-    (countDigits e c).length ≤ e + 1 + (Nat.digits 2 c).length := by
-  have h := Schoening.length_mulAddDigits_le (a := c) (cy := 0) (B := c)
-    (ds := List.replicate e 0 ++ [1])
-    (fun d hd => by
-      simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd
-      omega)
-    le_rfl (Nat.zero_le _)
-  simpa [countDigits] using h
+    (countDigits e c).length ≤ e + 1 + (Nat.digits 2 c).length :=
+  (Schoening.length_mulAddDigits_le (B := c) (by simp; omega) le_rfl (Nat.zero_le _)).trans
+    (by simp)
 
 /-- The binary digits of the number of rounds, as the setup computes them: the digits of
 `2 ^ ⌈(k - 1) n / k⌉`, multiplied by `c`. -/
@@ -581,10 +566,7 @@ theorem le_ppzExp {k : ℕ} (hk : 1 ≤ k) (n : ℕ) : (1 - 1 / (k : ℝ)) * n �
 theorem ppzExp_le (k n : ℕ) : ppzExp k n ≤ n := by
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · simp [ppzExp]
-  · simp only [ppzExp]
-    rw [Nat.div_le_iff_le_mul_add_pred hk]
-    have h1 : (k - 1) * n ≤ k * n := Nat.mul_le_mul_right n (Nat.sub_le k 1)
-    have h2 : k * n = n * k := Nat.mul_comm k n
+  · rw [ppzExp, Nat.div_le_iff_le_mul_add_pred hk, Nat.sub_mul, Nat.one_mul]
     omega
 
 /-! ### The setup -/
@@ -619,29 +601,20 @@ theorem fillLoop_spec {w B e : ℕ} (hfit : Fits w (B + e)) :
       ∃ y, ExecWithin w fillLoop x y (5 * d + 2) ∧
         y.mem = fun a => if B + x.regs iReg ≤ a ∧ a < B + e then 0 else x.mem a
   | 0, x, hb, he, hz, ho, hd => by
-    have hc : ¬(Cond.lt iReg eReg).Holds x := by simp [Cond.holds_lt, he]; omega
-    refine ⟨x, (ExecWithin.loop_exit hc).mono (by omega), funext fun a => ?_⟩
-    simp only [show ¬(B + x.regs iReg ≤ a ∧ a < B + e) by omega, ↓reduceIte]
+    refine ⟨x, (ExecWithin.loop_exit (by simp [Cond.holds_lt, he]; omega)).mono
+      (by omega), funext fun a => (ite_eq_right (by omega)).symm⟩
   | d + 1, x, hb, he, hz, ho, hd => by
     set i := x.regs iReg with hi
-    have : Fits w (B + i) := hfit.of_le (by omega)
-    have : Fits w (i + 1) := hfit.of_le (by omega)
     refine WP.exists_execWithin (WP.loop_iter (by simp [Cond.holds_lt, he, ← hi]; omega) ?_)
     unfold fillBody
     wram_exec [hb, hz, ho, ← hi]
     wram_call (fillLoop_spec hfit d _ (by wram_simp [hb]) (by wram_simp [he]) (by wram_simp [hz])
       (by wram_simp [ho]) (by wram_simp; omega))
       with z hzm
-    refine ⟨by omega, ?_⟩
-    rw [hzm]
-    funext a
-    simp only [Data.set_regs, Function.update_self, Data.set_mem, Data.write_mem,
+    refine ⟨by omega, funext fun a => ?_⟩
+    simp only [hzm, Data.set_regs, Function.update_self, Data.set_mem, Data.write_mem,
       Function.update_apply]
-    by_cases h1 : B + (i + 1) ≤ a ∧ a < B + e
-    · simp [h1, show B + i ≤ a ∧ a < B + e by omega]
-    · by_cases h2 : a = B + i
-      · simp [h2, show B + i < B + e by omega]
-      · simp [h1, h2, show ¬(B + i ≤ a ∧ a < B + e) by omega]
+    split_ifs <;> first | rfl | omega
 
 /-- The data after the setup on the input `k :: c :: encode φ`. -/
 def ampSetupData (k c : ℕ) (φ : CNF (Fin n)) : Data 32 :=
@@ -658,15 +631,9 @@ theorem ampSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     ExecWithin w ampSetup (Data.init (k :: c :: encode φ)) (ampSetupData k c φ) 18 ∧
       RoundFrame φ 4 ((k :: c :: encode φ).length + 1) (ampSetupData k c φ).mem
         (ampSetupData k c φ) := by
-  have : Fits w 1 := hw.of_le (by omega)
-  have : Fits w 2 := hw.of_le (by simp [encode]; omega)
-  have : Fits w 3 := hw.of_le (by simp [encode]; omega)
-  have : Fits w 4 := hw.of_le (by simp [encode]; omega)
-  have : Fits w ((k :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
+  have hlen : 4 ≤ (k :: c :: encode φ).length + 1 := by simp [encode]
   have hkn : (k - 1) * n ≤ k * n := Nat.mul_le_mul_right n (Nat.sub_le k 1)
-  have : Fits w ((k - 1) * n + k) := hw.of_le (by omega)
-  have : Fits w (((k - 1) * n + k - 1) / k) := hw.of_le (by
-    have := Nat.div_le_self ((k - 1) * n + k - 1) k; omega)
+  have hdiv := Nat.div_le_self ((k - 1) * n + k - 1) k
   have hm0 : (Data.init (k :: c :: encode φ) : Data 32).mem 0 = (k :: c :: encode φ).length := rfl
   have hm1 : (Data.init (k :: c :: encode φ) : Data 32).mem 1 = k := rfl
   have hm2 : (Data.init (k :: c :: encode φ) : Data 32).mem 2 = c := rfl
@@ -695,8 +662,6 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
       y.regs bLen = (countDigits e c).length ∧ HoldsList B (countDigits e c) y.mem ∧
       ∀ a < B, y.mem a = x.mem a := by
   have hlen := length_countDigits_le e c
-  have : Fits w (B + e) := hw.of_le (by omega)
-  have : Fits w (e + 1) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold countSetup countTop
   wram_exec [hz]
@@ -715,14 +680,11 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
   · rintro ⟨t, ht⟩
     simp only [List.length_append, List.length_replicate, List.length_singleton] at ht
     change Function.update (β := fun _ => ℕ) _ (B + e) 1 (B + t) = (List.replicate e 0 ++ [1])[t]
-    by_cases hte : t = e
-    · simp [hte]
-    · simp only [Function.update_of_ne (show B + t ≠ B + e by omega)]
-      rw [ite_eq_left (by omega), List.getElem_append_left (by simp; omega),
-        List.getElem_replicate]
-  · intro d hd
-    simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd
-    omega
+    rcases eq_or_ne t e with rfl | hte
+    · simp
+    · rw [Function.update_of_ne (by omega), ite_eq_left (by omega),
+        List.getElem_append_left (by simp; omega), List.getElem_replicate]
+  · simp; omega
 
 /-- The instruction bound of the counter's setup. -/
 def countTime (k n c : ℕ) : ℕ := 5 * ppzExp k n + 10 * ppzCounterLen k n c + 13
@@ -738,20 +700,16 @@ theorem countSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       y.regs bLen = (ppzDigits k n c).length ∧
       HoldsList ((k :: c :: encode φ).length + 1 + 2 * n) (ppzDigits k n c) y.mem ∧
       y.regs out = 0 := by
-  obtain ⟨L, hL⟩ : ∃ L, (k :: c :: encode φ).length = L := ⟨_, rfl⟩
-  rw [hL] at hw ⊢
-  have hfr : RoundFrame φ 4 (L + 1) (ampSetupData k c φ).mem (ampSetupData k c φ) := by
-    have := (ampSetup_exec k c φ (hw.of_le (by rw [hL]; omega))).2
-    rwa [hL] at this
+  set L := (k :: c :: encode φ).length with hL
+  have hfr := (ampSetup_exec k c φ (hw.of_le (by omega))).2
   have hDb : (ampSetupData k c φ).regs bBase = L + 1 + 2 * n := by
-    simp +decide [ampSetupData, hL]; omega
+    simp +decide [ampSetupData, ← hL]; omega
   have hDe : (ampSetupData k c φ).regs eReg = ppzExp k n := by simp +decide [ampSetupData]
   have hDc : (ampSetupData k c φ).regs cReg = c := by simp +decide [ampSetupData]
-  have hDo : (ampSetupData k c φ).regs out = 0 := by simp +decide [ampSetupData]
   obtain ⟨y, hy, hyl, hyh, hym⟩ := countSetup_spec (ampSetupData k c φ) hfr.zero_eq hfr.one_eq
     hDb hDe hDc (hw.of_le (by simp only [ppzCounterLen]; omega))
   exact ⟨y, hy, hfr.of_exec_mem_lt (by decide) hy fun a ha => hym a (by omega),
-    by rw [hy.regs_eq (by decide), hDb], hyl, hyh, by rw [hy.regs_eq (by decide), hDo]⟩
+    (hy.regs_eq (by decide)).trans hDb, hyl, hyh, hy.regs_eq (by decide)⟩
 
 /-! ### The algorithm -/
 
@@ -789,7 +747,7 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((k :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts =
         repeatRound φ (ppzRounds k n c) := by
   set L := (k :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length ≤ L := by
@@ -800,14 +758,11 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
     WP.execWithin (by wram_exec [hfr₁.one_eq]; rfl)
   have hlen := length_ppzDigits_le k n c
   have hstate : AmpState φ 4 (L + 1) [] (ppzDigits k n c) (y₁.set flag 1) :=
-    { frame := hfr₁.set (by decide) 1
-      params := holdsList_nil _ _
-      bBase_eq := by simp +decide [hb₁, hL]
-      bLen_eq := by simp +decide [hl₁]
-      digits := hh₁
-      binary := ppzDigits_binary k n c
-      flag_eq := by simp
-      out_eq := by simp +decide [ho₁] }
+    ⟨hfr₁.set (by decide) 1, holdsList_nil _ _,
+      by simp +decide [hb₁, hL],
+      by simp +decide [hl₁],
+      hh₁, ppzDigits_binary k n c, by simp,
+      by simp +decide [ho₁]⟩
   have hloop := ampLoop_law (φ := φ) (C := 4) (Tb := L + 1) (hw.of_le (by omega)) (by omega)
     (ppzRounds k n c) (ppzDigits k n c) (y₁.set flag 1) hstate (ofDigits_ppzDigits k n c)
     (hw.of_le (by omega))
@@ -816,16 +771,15 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
   obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := hall.program out (T' := ampTime k n c L)
     (by
       simp only [ampTime, ampRoundTime, roundCoreTime, countTime]
-      have h1 := Nat.mul_le_mul_left n (show 28 * (encodeClauses φ).length + 40 ≤ 28 * L + 40 by
-        omega)
-      have h2 := Nat.mul_le_mul_left (ppzRounds k n c)
-        (show n * (28 * (encodeClauses φ).length + 40) + 6 + 12 * (encodeClauses φ).length + 35 ≤
-          n * (28 * L + 40) + 12 * L + 41 by omega)
+      have h1 := Nat.mul_le_mul_left n hE
+      have h2 : n * (28 * (encodeClauses φ).length + 40) + 6 + 12 * (encodeClauses φ).length + 35 ≤
+          n * (28 * L + 40) + 12 * L + 41 := by linarith
+      have h3 := Nat.mul_le_mul_left (ppzRounds k n c) h2
       omega)
-    Schoening.cfgSuccess fun _ _ => rfl
-  refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
-  obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
-  exact ⟨_, d, rfl, hd⟩
+    RandCfg.accepts fun _ _ => rfl
+  exact ⟨hhalt, hcalls, fun cfg hcfg =>
+    let ⟨d, hcfg', _, hd⟩ := hpost cfg hcfg
+    ⟨_, d, hcfg', hd⟩, hlaw⟩
 
 /-- **Failure probability.** The program outputs something other than `1` with probability exactly
 `(1 - p) ^ R`, where `R = ppzRounds k n c` and `p = roundSuccessProb φ` is the probability that one
@@ -834,7 +788,7 @@ theorem ampProgram_failure_eq (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w :
     (hw : Fits w ((k :: c :: encode φ).length + 2 * n + k * n + k + 2 * c +
       ppzCounterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess false).toReal =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal =
       (1 - roundSuccessProb φ) ^ ppzRounds k n c := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2, repeatRound_false_toReal]
 
@@ -846,7 +800,7 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)} 
     (hw : Fits w ((k :: c :: encode φ).length + 2 * n + k * n + k + 2 * c +
       ppzCounterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤ Real.exp (-c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal ≤ Real.exp (-c) := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2]
   exact repeatRoundWith_false_le_exp (roundSuccessProb_ge hk hφ hlen)
     (le_two_pow_mul_mul_rpow_neg (le_ppzExp hk n))
@@ -864,53 +818,36 @@ theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
     (ampTime k n c L : ℝ) ≤
       200 * ((n + L + 1 : ℕ) : ℝ) ^ 2 * (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n) * (c + 1) := by
   set X := (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n)
-  obtain ⟨N, hN⟩ : ∃ N, n + L + 1 = N := ⟨_, rfl⟩
-  rw [hN]
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
-  have hX1 : 1 ≤ X := by
-    refine Real.one_le_rpow one_le_two (mul_nonneg ?_ (Nat.cast_nonneg n))
-    rw [sub_nonneg, div_le_one (by linarith)]
-    exact hk1
+  set N := n + L + 1 with hN
+  have hX1 : 1 ≤ X := Real.one_le_rpow one_le_two (mul_nonneg (sub_nonneg.mpr
+    (div_le_one_of_le₀ (by exact_mod_cast hk) (Nat.cast_nonneg k))) (Nat.cast_nonneg n))
   -- the number of rounds
   have hR : (ppzRounds k n c : ℝ) ≤ 2 * X * c := by
-    simp only [ppzRounds]
-    push_cast
-    exact mul_le_mul_of_nonneg_right (two_pow_le_two_mul_rpow (ppzExp_le_add_one hk n))
-      (Nat.cast_nonneg c)
+    simpa only [ppzRounds, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat] using
+      mul_le_mul_of_nonneg_right (two_pow_le_two_mul_rpow (ppzExp_le_add_one hk n))
+        (Nat.cast_nonneg c)
   -- one round
   have hP : n * (28 * L + 40) + 12 * L + 41 ≤ 41 * N ^ 2 := by
-    have h1 : n + 1 ≤ N := by omega
-    have h2 : L + 1 ≤ N := by omega
-    have h3 : (n + 1) * (L + 1) ≤ N * N := Nat.mul_le_mul h1 h2
-    nlinarith
+    nlinarith [Nat.mul_le_mul (show n + 1 ≤ N by omega) (show L + 1 ≤ N by omega)]
   -- the setup
   have hS : 5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 ≤ 82 * N ^ 2 * (c + 1) := by
     have he := ppzExp_le k n
     have hd : (Nat.digits 2 c).length ≤ c :=
       (Nat.digits_length_le_iff (by decide) _).mpr Nat.lt_two_pow_self
     have h1 : n + 1 ≤ N ^ 2 := by nlinarith
-    have h3 : 5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 ≤ 82 * (n + 1) * (c + 1) := by
-      simp only [ppzCounterLen]
-      nlinarith [Nat.zero_le (n * c)]
-    have h4 : 82 * (n + 1) * (c + 1) ≤ 82 * N ^ 2 * (c + 1) :=
-      Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ h1)
-    omega
+    simp only [ppzCounterLen]
+    nlinarith [Nat.zero_le (n * c), Nat.mul_le_mul_right (c + 1) h1]
   have hexp : (ampTime k n c L : ℝ) =
       (ppzRounds k n c : ℝ) * ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) := by
     simp only [ampTime]; push_cast; ring
-  have hPr : ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) ≤ 41 * (N : ℝ) ^ 2 := by
-    exact_mod_cast hP
-  have hSr : ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) ≤
-      82 * (N : ℝ) ^ 2 * (c + 1) := by
-    exact_mod_cast hS
-  have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  have hN0 : (0 : ℝ) ≤ (N : ℝ) ^ 2 := by positivity
   have hT : (ppzRounds k n c : ℝ) * ((n * (28 * L + 40) + 12 * L + 41 : ℕ) : ℝ) ≤
       (2 * X * c) * (41 * (N : ℝ) ^ 2) :=
-    mul_le_mul hR hPr (Nat.cast_nonneg _) (by positivity)
+    mul_le_mul hR (mod_cast hP) (Nat.cast_nonneg _) (by positivity)
+  have hSr : ((5 * ppzExp k n + 19 * ppzCounterLen k n c + 63 : ℕ) : ℝ) ≤
+      82 * (N : ℝ) ^ 2 * (c + 1) := mod_cast hS
   rw [hexp]
-  nlinarith [mul_le_mul_of_nonneg_left hX1 (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ c + 1)),
-    mul_nonneg (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ X)) hc0]
+  nlinarith [mul_le_mul_of_nonneg_left hX1 (by positivity : (0 : ℝ) ≤ (N : ℝ) ^ 2 * (c + 1)),
+    show (0 : ℝ) ≤ (N : ℝ) ^ 2 * X * c by positivity]
 
 end Cslib.Algorithms.WordRAM.PPZ

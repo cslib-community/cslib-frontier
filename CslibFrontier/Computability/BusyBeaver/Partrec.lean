@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.BlumComplexity.Fuel
 public import Mathlib.Order.Lattice.Nat
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Computability.Halting
-import Mathlib.Tactic.Linarith
 
 /-!
 # Radó's busy beaver functions for partial recursive codes
@@ -142,10 +141,6 @@ noncomputable def bbOutput (n : ℕ) : ℕ :=
 for the evaluator `Code.evaln`; the fuel is not the step count of a machine. -/
 noncomputable def bbFuel (n : ℕ) : ℕ :=
   sSup {k | ∃ c : Code, encode c ≤ n ∧ k ∈ evalnFuel c 0}
-
-private theorem bbOutput_eq : bbOutput = bbOf fun c => c.eval 0 := rfl
-
-private theorem bbFuel_eq : bbFuel = bbOf fun c => evalnFuel c 0 := rfl
 
 private theorem dom_eval_zero : (Code.zero.eval 0).Dom := by
   simp [Code.eval, pure, PFun.pure]
@@ -285,14 +280,11 @@ theorem not_computable_bbFuel : ¬ Computable bbFuel := fun h =>
 exactly when `evaln` succeeds with fuel `bbFuel n`. -/
 theorem dom_eval_iff_isSome_evaln_bbFuel {n : ℕ} {c : Code} (hc : encode c ≤ n) :
     (c.eval 0).Dom ↔ (Code.evaln (bbFuel n) c 0).isSome := by
-  constructor
-  · intro h
-    obtain ⟨k, hk⟩ := Part.dom_iff_mem.1 ((dom_evalnFuel_iff c 0).2 h)
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨k, hk⟩ := Part.dom_iff_mem.1 ((dom_evalnFuel_iff c 0).2 h)
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 (mem_evalnFuel_iff.1 hk).1
-    rw [Code.evaln_mono (le_bbFuel hc hk) hx]
-    rfl
-  · intro h
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 h
+    exact Option.isSome_iff_exists.2 ⟨x, Code.evaln_mono (le_bbFuel hc hk) hx⟩
+  · obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 h
     exact Part.dom_iff_mem.2 ⟨x, Code.evaln_sound hx⟩
 
 /-- A computable upper bound on `bbFuel` decides whether a code halts on `0`. This is the
@@ -304,14 +296,10 @@ theorem computablePred_dom_eval_of_bbFuel_le {g : ℕ → ℕ} (hg : Computable 
     ⟨fun c => (Code.evaln (g (encode c)) c 0).isSome, ?_, funext fun c => propext ?_⟩
   · exact Primrec.option_isSome.to_comp.comp (Code.primrec_evaln.to_comp.comp
       (((hg.comp Computable.encode).pair Computable.id).pair (Computable.const 0)))
-  · dsimp only
-    constructor
-    · intro h
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 ((dom_eval_iff_isSome_evaln_bbFuel le_rfl).1 h)
-      rw [Code.evaln_mono (hle _) hx]
-      rfl
-    · intro h
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 h
+  · refine ⟨fun h => ?_, fun h => ?_⟩
+    · obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 ((dom_eval_iff_isSome_evaln_bbFuel le_rfl).1 h)
+      exact Option.isSome_iff_exists.2 ⟨x, Code.evaln_mono (hle _) hx⟩
+    · obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 h
       exact Part.dom_iff_mem.2 ⟨x, Code.evaln_sound hx⟩
 
 /-- No computable function bounds `bbFuel` from above, since it would decide the halting problem
@@ -325,9 +313,8 @@ private theorem encode_comp_succ_le (c : Code) :
     encode (Code.comp Code.succ c) ≤ 4 * encode c ^ 2 + 14 := by
   simp only [Code.encodeCode_eq, Code.encodeCode]
   have : Nat.pair 1 c.encodeCode ≤ c.encodeCode ^ 2 + 2 := by
-    unfold Nat.pair
-    split_ifs <;> nlinarith
-  linarith
+    rcases c.encodeCode with _ | _ | k <;> simp [Nat.pair, sq]
+  omega
 
 /-- The fuel version outgrows the output version, up to the size overhead `4 * n ^ 2 + 14` of
 composing a code with `succ`. -/
@@ -366,8 +353,7 @@ private theorem exists_code_evalnFuel :
   obtain ⟨d, hd⟩ := Code.exists_code.1 hp
   refine ⟨fun c => Code.curry d (encode c), fun c => ?_, fun n => encode (Code.curry d n), ?_,
     fun n c hc => (strictMono_encode_curry d).monotone hc⟩
-  · rw [Code.eval_curry, hd]
-    simp only [Nat.unpair_pair, ofNat_encode]
+  · simp [Code.eval_curry, hd, ofNat_encode]
   · exact Computable.encode.comp
       (Code.primrec₂_curry.to_comp.comp (Computable.const d) Computable.id)
 

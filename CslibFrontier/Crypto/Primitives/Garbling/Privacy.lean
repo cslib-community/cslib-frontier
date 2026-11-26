@@ -17,6 +17,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Simulation-based privacy of garbled circuits
@@ -297,32 +298,6 @@ private theorem hybridView_update (C : Circuit σ n m) (I : Interpretation σ Bo
     rfl
   · rfl
 
-/-- Masking the colour of each wire by an independent bit and keeping the key of the active
-colour separately is a bijection. -/
-private def maskEquiv {W : Type} (v : W → Bool) :
-    (W × Bool → K) × (W → Bool) ≃ (W → K × Bool) × (W → K) where
-  toFun p := (fun w => (p.1 (w, v w + p.2 w), v w + p.2 w), fun w => p.1 (w, !(v w + p.2 w)))
-  invFun q := (fun wc => if wc.2 = (q.1 wc.1).2 then (q.1 wc.1).1 else q.2 wc.1,
-    fun w => (q.1 w).2 + v w)
-  left_inv p := by
-    obtain ⟨key, perm⟩ := p
-    have hperm : ∀ w, v w + perm w + v w = perm w := fun w => by
-      rw [add_comm, ← add_assoc, BooleanRing.add_self, zero_add]
-    refine Prod.ext (funext fun ⟨w, c⟩ => ?_) (funext hperm)
-    dsimp only
-    split_ifs with h
-    · rw [h]
-    · rw [Bool.eq_not_of_ne h]
-  right_inv q := by
-    obtain ⟨A, B⟩ := q
-    have hcol : ∀ w, v w + ((A w).2 + v w) = (A w).2 := fun w => by
-      rw [add_comm, add_assoc, BooleanRing.add_self, add_zero]
-    refine Prod.ext (funext fun w => ?_) (funext fun w => ?_)
-    · dsimp only
-      rw [hcol, ite_eq_left rfl]
-    · dsimp only
-      rw [hcol, ite_eq_right (Bool.ne_not.mpr rfl).symm]
-
 /-- A map from a uniform input whose values are fixed off a set `U` of coordinates, and whose
 translations on `U` are realized by permutations of the input, is uniform on `U`. -/
 private theorem uniformOfFintype_map_eq_of_shift {Ω ι L : Type} [Fintype Ω] [Nonempty Ω]
@@ -415,8 +390,7 @@ theorem isQueryBounded_reduction (C : Circuit σ n m) (I : Interpretation σ Boo
     (ProbOracleComp.isQueryBounded_tabulate (R := K × Bool) tw
       (Finset.univ : Finset (Slot C.topology)).toList).bind fun O =>
     ProbOracleComp.IsQueryBounded.sample (D (hybridView C I F tw x j key perm R O))
-  rw [Finset.length_toList, Finset.card_univ] at h
-  simp only [Nat.zero_add, Nat.add_zero] at h
+  simp only [Finset.length_toList, Finset.card_univ, Nat.zero_add, Nat.add_zero] at h
   exact h
 
 /-- Against a table `f`, the reduction samples hybrid view `j` with the table at the slots' tweaks
@@ -445,8 +419,7 @@ theorem hybridGame_zero (C : Circuit σ n m) (I : Interpretation σ Bool)
     · funext r
       rw [hybridView_realOracle_table, ite_eq_right]
       · rfl
-      · rintro ⟨k, -, hk⟩
-        exact Nat.not_lt_zero _ hk
+      · exact fun ⟨_, _, hk⟩ => Nat.not_lt_zero _ hk
     · rfl
     · rfl
   simp only [hybridGame, realGame, garble, hv, bind_assoc, pure_bind, ProbComp.eval_bind,
@@ -495,10 +468,29 @@ theorem hybridGame_of_le (C : Circuit σ n m) (I : Interpretation σ Bool)
       rw [add_comm, ← add_assoc, BooleanRing.add_self, zero_add]
   simp only [hybridGame, simGame, simulate, hv, bind_assoc, pure_bind, ProbComp.eval_bind,
     ProbComp.eval_uniform]
-  exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_fst_equiv
-    (maskEquiv (K := K) (C.program.trace I x)) (fun A =>
-      (PMF.uniformOfFintype (Row C.topology → K × Bool)).bind fun R =>
-        ProbComp.eval (D (simulateWith C.topology F tw (C.eval I x) A R)))
+  conv_rhs =>
+    enter [2, A]
+    rw [← PMF.bind_const (PMF.uniformOfFintype (Wire n C.size → K))
+      ((PMF.uniformOfFintype (Row C.topology → K × Bool)).bind fun R =>
+        ProbComp.eval (D (simulateWith C.topology F tw (C.eval I x) A R)))]
+  relabel_uniform (fun p : (Wire n C.size × Bool → K) × (Wire n C.size → Bool) =>
+    (fun w => (p.1 (w, C.program.trace I x w + p.2 w), C.program.trace I x w + p.2 w),
+     fun w => p.1 (w, !(C.program.trace I x w + p.2 w)))) with p
+  · rintro ⟨key₁, perm₁⟩ ⟨key₂, perm₂⟩ h
+    obtain ⟨hA, hB⟩ := Prod.mk.inj h
+    have hperm : perm₁ = perm₂ := funext fun w => by
+      have hc := congrArg Prod.snd (congr_fun hA w)
+      simpa [add_assoc, BooleanRing.add_self] using congrArg (C.program.trace I x w + ·) hc
+    refine Prod.ext (funext fun ⟨w, c⟩ => ?_) hperm
+    subst hperm
+    by_cases hc : c = C.program.trace I x w + perm₁ w
+    · subst hc; exact congrArg Prod.fst (congr_fun hA w)
+    · rw [Bool.eq_not_of_ne hc]; exact congr_fun hB w
+  · simp only [Fintype.card_prod, Fintype.card_pi, Fintype.card_bool, Finset.prod_const,
+      Finset.card_univ, mul_pow]
+    rw [show Fintype.card (Wire n C.size) * 2 =
+      Fintype.card (Wire n C.size) + Fintype.card (Wire n C.size) by omega, pow_add]
+    ring
 
 /-- Against the keyed oracle, reduction `j` plays hybrid `j`. -/
 theorem eval_realExperiment_reduction (C : Circuit σ n m) (I : Interpretation σ Bool)
@@ -508,12 +500,11 @@ theorem eval_realExperiment_reduction (C : Circuit σ n m) (I : Interpretation �
       hybridGame C I F tw x D j := by
   by_cases hj : j < n + C.size
   swap
-  · have hle : n + C.size ≤ j := Nat.le_of_not_lt hj
-    simp only [PRF.realExperiment, hybridGame, ProbComp.eval_bind, ProbComp.eval_uniform,
+  · simp only [PRF.realExperiment, hybridGame, ProbComp.eval_bind, ProbComp.eval_uniform,
       eval_run_reduction]
     have hO : ∀ (a : K) key perm R, hybridView C I F tw x j key perm R (fun p => F a (tw p)) =
         hybridView C I F tw x j key perm R (realOracle C F tw key) := fun a key perm R =>
-      hybridView_eq_of_le C I F tw x hle key perm R _ _
+      hybridView_eq_of_le C I F tw x (Nat.le_of_not_lt hj) key perm R _ _
     simp only [hO]
     exact PMF.bind_const _ _
   let w : Wire n C.size := Wire.ofNat j hj
@@ -616,25 +607,16 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
       have hδ : ∀ k, δ (tw ⟨r, k⟩) = if First ⟨r, k⟩ then c r else 0 := by
         intro k
         simp only [δ]
-        rw [Finset.sum_eq_single ⟨r, k⟩]
-        · simp only [true_and]
-        · intro p _ hp
-          rw [ite_eq_right]
-          rintro ⟨hp', -⟩
-          exact hp (htw hp')
-        · intro hmem
-          exact absurd (Finset.mem_univ _) hmem
+        rw [Fintype.sum_eq_single ⟨r, k⟩ fun p hp => ite_eq_right fun h => hp (htw h.1)]
+        simp only [true_and]
       obtain ⟨k₁, hk₁, hlt₁⟩ := hr
-      have htk₁ : IsTarget a j r k₁ := by
-        refine ⟨hk₁, ?_⟩
-        by_contra hne
-        exact h ⟨k₁, hk₁, by omega⟩
+      have htk₁ : IsTarget a j r k₁ :=
+        ⟨hk₁, Classical.byContradiction fun _ => h ⟨k₁, hk₁, by omega⟩⟩
       let S := Finset.univ.filter fun k => IsTarget a j r k
       have hS : S.Nonempty := ⟨k₁, by simp [S, htk₁]⟩
       let k₀ := S.min' hS
-      have hk₀ : First ⟨r, k₀⟩ := by
-        refine ⟨(Finset.mem_filter.mp (S.min'_mem hS)).2, fun k hk => ?_⟩
-        exact S.min'_le k (by simp [S, hk])
+      have hk₀ : First ⟨r, k₀⟩ :=
+        ⟨(Finset.mem_filter.mp (S.min'_mem hS)).2, fun k hk => S.min'_le k (by simp [S, hk])⟩
       have hk₀u : ∀ k, First ⟨r, k⟩ → k = k₀ :=
         fun k hk => le_antisymm (hk.2 k₀ hk₀.1) (hk₀.2 k hk.1)
       have hsplit : (∑ k, if IsTarget a j r k then ω.1 (tw ⟨r, k⟩) + δ (tw ⟨r, k⟩) else
@@ -646,14 +628,12 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
         refine Finset.sum_congr rfl fun k _ => ?_
         split_ifs <;> simp
       have hδsum : (∑ k, if IsTarget a j r k then δ (tw ⟨r, k⟩) else 0) = c r := by
-        rw [Finset.sum_eq_single k₀]
+        rw [Fintype.sum_eq_single k₀]
         · rw [ite_eq_left hk₀.1, hδ, ite_eq_left hk₀]
-        · intro k _ hk
+        · intro k hk
           split_ifs
           · rw [hδ, ite_eq_right fun h2 => hk (hk₀u k h2)]
           · rfl
-        · intro hmem
-          exact absurd (Finset.mem_univ _) hmem
       rw [hsplit, hδsum, add_assoc]
   rw [uniformOfFintype_map_eq_of_shift (IsHidden a (j + 1)) z Tl houtL hshiftL,
     uniformOfFintype_map_eq_of_shift (IsHidden a (j + 1)) z Tr houtR hshiftR]

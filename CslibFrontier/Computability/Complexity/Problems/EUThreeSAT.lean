@@ -73,11 +73,9 @@ def verifier (x : CNF ℕ × List Bool) : Bool := syntaxCheck x.1 && SAT.verifie
 
 /-- The syntax guard preserves the usual first-occurrence certificate convention. -/
 theorem isVerifier : IsVerifier encCNF Polynomial.X verifier EUThreeSAT := by
-  have h : EUThreeSAT = {φ | syntaxCheck φ = true ∧ φ ∈ SAT} := by
-    ext φ
-    simp [EUThreeSAT, syntaxCheck_iff, SAT]
-  rw [h]
-  exact SAT.isVerifier.guard
+  have h : EUThreeSAT = {φ | syntaxCheck φ = true ∧ φ ∈ SAT} :=
+    Set.ext fun φ => by simp [EUThreeSAT, syntaxCheck_iff, SAT]
+  exact h ▸ SAT.isVerifier.guard
 
 /-- EU3SAT belongs to NP under the ordinary binary formula encoding. -/
 theorem mem_NP : EUThreeSAT ∈ NP encCNF :=
@@ -86,8 +84,8 @@ theorem mem_NP : EUThreeSAT ∈ NP encCNF :=
 /-- Read a literal position, supplying a fixed value outside the clause. -/
 theorem computableInPolyTime_literalAt (i : ℕ) :
     ComputableInPolyTime (fun c : Clause ℕ => c.getD i (0, false))
-      (encList (encPair encNat encBool)) (encPair encNat encBool) := by
-  exact ComputableInPolyTime.listGetDWithInput
+      (encList (encPair encNat encBool)) (encPair encNat encBool) :=
+  ComputableInPolyTime.listGetDWithInput
     (ComputableInPolyTime.id' (encIn := encList (encPair encNat encBool)))
     (ComputableInPolyTime.const i) (0, false)
 
@@ -100,11 +98,8 @@ def clause (c : Clause ℕ) : CNF ℕ :=
 @[fun_prop]
 theorem computableInPolyTime_clause :
     ComputableInPolyTime clause (encList (encPair encNat encBool)) encCNF := by
-  have h0 := (computableInPolyTime_literalAt 0)
-  have h1 := (computableInPolyTime_literalAt 1)
-  have h2 := (computableInPolyTime_literalAt 2)
   unfold clause Clause.oneThreeEncoding encCNF
-  fun_prop
+  fun_prop [computableInPolyTime_literalAt]
 
 /-- On a triple, the replacement expresses exactly-one semantics. -/
 theorem eval_clause (σ : ℕ → Bool) (c : Clause ℕ) (hc : c.length = 3) :

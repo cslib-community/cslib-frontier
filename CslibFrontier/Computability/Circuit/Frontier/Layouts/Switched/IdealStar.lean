@@ -41,11 +41,7 @@ abbrev E3 := EuclideanSpace ℝ (Fin 3)
 def e (i : Fin 3) : E3 := EuclideanSpace.single i 1
 
 theorem inner_e (i j : Fin 3) : ⟪e i, e j⟫ = if i = j then 1 else 0 := by
-  unfold e
-  rw [EuclideanSpace.inner_single_left]
-  by_cases h : i = j
-  · subst h; simp
-  · simp [h]
+  by_cases h : i = j <;> simp [e, EuclideanSpace.inner_single_left, h]
 
 /-- Planar equilateral directions `0, 2π/3, -2π/3`. -/
 def d₁ (j : Fin 3) : ℝ := if j = 0 then 1 else -1 / 2
@@ -97,23 +93,18 @@ private theorem inner_e0_bstar (j : Fin 3) : ⟪e 0, bstar r j⟫ = r := by
   simp only [bstar, inner_add_right, real_inner_smul_right, inner_e0_u, h00]
   ring
 
-theorem norm_bstar {r : ℝ} (hr : r ≤ 1) (hr' : -1 ≤ r) (j : Fin 3) : ‖bstar r j‖ = 1 := by
-  have h := inner_bstar hr hr' j j
-  simp only [↓reduceIte] at h
+private theorem norm_eq_one_of_inner_self {v : E3} (h : ⟪v, v⟫ = 1) : ‖v‖ = 1 := by
   rw [real_inner_self_eq_norm_sq] at h
-  nlinarith [norm_nonneg (bstar r j)]
+  nlinarith [norm_nonneg v]
 
-theorem norm_e (i : Fin 3) : ‖e i‖ = 1 := by
-  have h := inner_e i i
-  simp only [↓reduceIte] at h
-  rw [real_inner_self_eq_norm_sq] at h
-  nlinarith [norm_nonneg (e i)]
+theorem norm_bstar {r : ℝ} (hr : r ≤ 1) (hr' : -1 ≤ r) (j : Fin 3) : ‖bstar r j‖ = 1 :=
+  norm_eq_one_of_inner_self (by simp only [inner_bstar hr hr', ↓reduceIte])
 
-private theorem norm_u (j : Fin 3) : ‖u j‖ = 1 := by
-  have h := inner_u j j
-  simp only [↓reduceIte] at h
-  rw [real_inner_self_eq_norm_sq] at h
-  nlinarith [norm_nonneg (u j)]
+theorem norm_e (i : Fin 3) : ‖e i‖ = 1 :=
+  norm_eq_one_of_inner_self (by simp only [inner_e, ↓reduceIte])
+
+private theorem norm_u (j : Fin 3) : ‖u j‖ = 1 :=
+  norm_eq_one_of_inner_self (by simp only [inner_u, ↓reduceIte])
 
 /-- The neighbor labels sum to `3r` times the root label. -/
 theorem sum_bstar (y : E3) : ∑ j, ⟪bstar r j, y⟫ = 3 * r * ⟪e 0, y⟫ := by

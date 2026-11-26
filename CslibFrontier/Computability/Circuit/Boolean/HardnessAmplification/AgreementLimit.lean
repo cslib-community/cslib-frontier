@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
 public import Mathlib.Basic.Real.Basic
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The limit of average-case hardness
@@ -61,47 +62,38 @@ theorem exists_complexity_le_and_add_le_card_agree (f : BooleanFunction n) {t : 
   -- the majority value `b` of `f`
   set b : Bool := decide (2 ^ n ≤ 2 * #{x | f x = true}) with hb_def
   have htf : #{x | f x = true} + #{x | f x = false} = 2 ^ n := by
-    have h := card_filter_add_card_filter_not (s := (univ : Finset (BitString n)))
-      fun x => f x = true
     simpa only [Bool.not_eq_true, card_univ, Fintype.card_fun, Fintype.card_bool,
-      Fintype.card_fin] using h
+      Fintype.card_fin] using card_filter_add_card_filter_not
+        (s := (univ : Finset (BitString n))) fun x => f x = true
   have hsplit : #{x | f x = b} + #{x | f x ≠ b} = 2 ^ n := by
     cases b <;> simpa [add_comm] using htf
   have hmaj : 2 ^ n ≤ 2 * #{x | f x = b} := by
     by_cases h : 2 ^ n ≤ 2 * #{x | f x = true}
-    · have hb : b = true := by simp [hb_def, h]
-      rw [hb]
-      exact h
-    · have hb : b = false := by simp [hb_def, h]
-      rw [hb]
+    · rwa [hb_def, decide_eq_true h]
+    · rw [hb_def, decide_eq_false h]
       omega
   obtain ⟨T, hTD, hT⟩ := exists_subset_card_eq (min_le_right t #{x | f x ≠ b})
   refine ⟨fun x => if x ∈ T then !b else b, ?_, ?_⟩
-  · exact (complexity_ite_mem_le (fun _ => !b) T b).trans
-      (by gcongr; rw [hT]; exact min_le_left _ _)
+  · refine (complexity_ite_mem_le (fun _ => !b) T b).trans ?_
+    rw [hT]
+    gcongr
+    exact min_le_left _ _
   · -- `g` agrees with `f` where `f = b`, and on `T`, where `f = !b`
     have hagree : #{x | (if x ∈ T then !b else b) = f x} = #{x | f x = b} + #T := by
-      rw [← card_union_of_disjoint]
-      · congr 1
-        ext x
-        have hxT : x ∈ T → f x ≠ b := fun hx => (mem_filter.1 (hTD hx)).2
-        by_cases hx : x ∈ T
-        · have hfx : f x = !b := Bool.eq_not_iff.2 (hxT hx)
-          simp [hx, hfx]
-        · simp [hx, eq_comm]
-      · exact disjoint_left.2 fun x hx hxT => (mem_filter.1 (hTD hxT)).2 (mem_filter.1 hx).2
-    rw [hagree]
+      rw [← card_union_of_disjoint
+        (disjoint_left.2 fun x hx hxT => (mem_filter.1 (hTD hxT)).2 (mem_filter.1 hx).2)]
+      congr 1
+      ext x
+      by_cases hx : x ∈ T
+      · simp [hx, Bool.eq_not_iff.2 (mem_filter.1 (hTD hx)).2]
+      · simp [hx, eq_comm]
     have hcount : 2 ^ n + 2 * t ≤ 2 * (#{x | f x = b} + #T) := by
       rw [hT]
       rcases le_total t #{x | f x ≠ b} with h | h
       · rw [min_eq_left h]; omega
       · rw [min_eq_right h]; omega
-    have hpos : (0 : ℝ) < 2 ^ n := by positivity
-    have hc : (2 : ℝ) ^ n + 2 * t ≤ 2 * ((#{x | f x = b} : ℝ) + #T) := by exact_mod_cast hcount
-    rw [le_div_iff₀ hpos]
     have e : (1 / 2 + (t : ℝ) / 2 ^ n) * 2 ^ n = 2 ^ n / 2 + t := by field_simp
-    rw [e]
-    push_cast
-    linarith
+    rw [hagree, le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ n), e]
+    cast_linarith [hcount]
 
 end Cslib.Circuits.Boolean

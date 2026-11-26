@@ -105,13 +105,9 @@ def CNF.parityRowSystem (φ : CNF V) (rows : List (Fin φ.length → Bool))
 theorem CNF.isCommonZero_parityRowSystem_iff (φ : CNF V)
     (rows : List (Fin φ.length → Bool)) (σ : V → Bool) :
     IsCommonZero univ (φ.parityRowSystem rows) σ ↔ PassesTests φ.violations rows σ := by
-  rw [IsCommonZero, ← CNF.commonZero_parityRowMonomials_iff_passesTests]
-  constructor
-  · intro h r hr
-    rcases List.mem_iff_get.mp hr with ⟨i, rfl⟩
-    exact h i (mem_univ i)
-  · intro h i _
-    exact h (rows.get i) (List.get_mem rows i)
+  simp only [IsCommonZero, ← CNF.commonZero_parityRowMonomials_iff_passesTests, mem_univ,
+    forall_const, List.mem_iff_get, forall_exists_index, forall_apply_eq_imp_iff,
+    CNF.parityRowSystem, monomialSum]
 
 /-- If every clause of `φ` has width at most `k`, then every monomial in
 `φ.parityRowSystem rows i` has size at most `k`. -/
@@ -225,13 +221,9 @@ theorem CNF.commonZeroCount_parityRowSystem_greedy (φ : CNF V) {P : ℕ}
         commonZeroCount univ (φ.parityRowSystem (A i ++ [testRow γ']))) :
     commonZeroCount univ (φ.parityRowSystem (A (3 * Fintype.card V))) =
       φ.modelCountOn Finset.univ := by
-  rw [CNF.commonZeroCount_parityRowSystem]
-  have hγ_pass : ∀ i (γ' : Fin P → Fin φ.length × Bool),
-      numPassing φ.violations (A i ++ [testRow (γ i)]) ≤
-        numPassing φ.violations (A i ++ [testRow γ']) := by
-    intro i γ'
-    simpa only [CNF.commonZeroCount_parityRowSystem] using hγ i γ'
-  rw [CNF.numPassing_greedy φ hn hP A hinit γ hA hγ_pass, CNF.modelCountOn_univ]
+  rw [CNF.commonZeroCount_parityRowSystem, CNF.numPassing_greedy φ hn hP A hinit γ hA
+    (fun i γ' => by simpa only [CNF.commonZeroCount_parityRowSystem] using hγ i γ'),
+    CNF.modelCountOn_univ]
 
 /-- **Lemmas 6.1–6.2 & §6.3 (initial + greedy parity tests via `commonZeroCount` with system
 sparsity and scope bounds)**: for any width-`≤ k` CNF `φ` on `n = Fintype.card V ≥ 1` variables with
@@ -273,12 +265,9 @@ theorem CNF.exists_initialTests_commonZeroCount_greedy (φ : CNF V) {k B : ℕ}
     refine hgreedy A γ h0 hA fun i γ' => ?_
     simpa only [CNF.commonZeroCount_parityRowSystem] using hγ i γ'
   · have hbounds := φ.greedy_system_bounds hk A (h0 ▸ hlen) (h0 ▸ hw) γ hA hi
-    have hlen_i : (A i).length ≤ 6 * Fintype.card V := by
-      simpa only [List.length_map] using hbounds.1
-    refine ⟨hlen_i, fun j => ?_⟩
-    have hj_mem : φ.parityRowSystem (A i) j ∈ (A i).map φ.parityRowMonomials :=
-      List.mem_map.mpr ⟨(A i).get j, List.get_mem (A i) j, rfl⟩
-    obtain ⟨hM_bounds, hcard_le⟩ := hbounds.2 (φ.parityRowSystem (A i) j) hj_mem
+    refine ⟨by simpa only [List.length_map] using hbounds.1, fun j => ?_⟩
+    obtain ⟨hM_bounds, hcard_le⟩ :=
+      hbounds.2 _ (List.mem_map_of_mem (List.get_mem (A i) j))
     refine ⟨hM_bounds, hcard_le, ?_⟩
     exact (card_equationScope_le fun M hM => (hM_bounds M hM).2).trans
       (Nat.mul_le_mul_left k hcard_le)

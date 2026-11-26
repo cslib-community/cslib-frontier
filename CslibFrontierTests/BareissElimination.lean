@@ -11,7 +11,6 @@ public import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat
 public import CslibFrontier.Computability.PolyTime.LinearAlgebra.RationalElimination
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Bareiss
-import Mathlib.Tactic
 
 /-!
 # Tests for Bareiss–Jordan rational elimination and polynomial-time certificates

@@ -53,52 +53,40 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
       y.mem = memory (layout x) values x.mem ∧ Parameters x y := by
   let L := layout x
   have hfit : Fits (w + 2) L.budget := unsigned_fits_of_signed hwidth
-  have hwidth' : GenericRAM.Signed.Fits w (L.budget : ℤ) := hwidth
-  have hM' : 0 < L.M := hM
-  have hN' : 2 * L.M ≤ L.N := hN
-  have hmod : GenericRAM.Signed.Fits w (L.M : ℤ) := hwidth'.of_natAbs_le
+  have hmod : GenericRAM.Signed.Fits w (L.M : ℤ) := hwidth.of_natAbs_le
     (by simpa only [Int.natAbs_natCast] using
       (show L.M ≤ L.budget by have := L.bounds.2.2; omega))
   have hu : L.U ≤ L.budget := by have := L.bounds.2.2; omega
   have hsigned (j : Fin 3) (i : ℕ) (hi : i < L.n j) :
       GenericRAM.Signed.Fits w (values j i) :=
-    hwidth'.of_natAbs_le ((hbdd j i hi).trans hu)
+    hwidth.of_natAbs_le ((hbdd j i hi).trans hu)
   let R (y : Data 64) : Prop := Parameters x y ∧ Prepared L y ∧
     ∀ a < L.base, y.mem a = x.mem a
   obtain ⟨a, ha, hap, har, ham⟩ := exec_initialize x hfit
   have hRa : R a := by
-    refine ⟨hap, har, ?_⟩
-    intro b hb
+    refine ⟨hap, har, fun b hb => ?_⟩
+    have hnot : ¬(L.packed ≤ b ∧ b < L.packed + 4 * L.N) := by dsimp only [Layout.packed]; omega
     rw [ham]
-    have hp : L.base ≤ L.packed := by dsimp only [Layout.packed]; omega
-    have hnot : ¬(L.packed ≤ b ∧ b < L.packed + 4 * L.N) := by omega
     change paddingMemory L x.mem b = x.mem b
     simp only [paddingMemory, Padding.memory, hnot, ↓reduceIte]
   have hcall (j : Fin 3) (y : Data 64) (hy : R y) :
       ∃ z, ExecWithin (w + 2) (round j) y z (66 * L.n j + 5 * L.M + 65) ∧
         R z ∧ z.mem = roundMemory L values j y.mem := by
     obtain ⟨hp, hr, hm⟩ := hy
-    obtain ⟨z, hz, hzm, _, hzp, hzr⟩ := exec_round x y values j hp hr hfit hM' hN' hmod
+    obtain ⟨z, hz, hzm, _, hzp, hzr⟩ := exec_round x y values j hp hr hfit hM hN hmod
       (hsrc j) (hbdd j) (hsigned j)
-      (by
-        intro i hi
-        have hi' : i < L.n j := hi
-        have hsi := hsrc j
-        have hsi' : x.regs (source j) + L.n j ≤ L.base := hsi
-        rw [hm _ (by omega)]
-        exact hinput j i hi)
+      (fun i hi =>
+        (hm _ (lt_of_lt_of_le (Nat.add_lt_add_left hi _) (hsrc j))).trans (hinput j i hi))
       (hinj j)
-    refine ⟨z, hz, ⟨hzp, hzr, ?_⟩, hzm⟩
-    intro b hb
-    rw [hzm, roundMemory_before L values j y.mem hM' hN'
+    refine ⟨z, hz, ⟨hzp, hzr, fun b hb => ?_⟩, hzm⟩
+    rw [hzm, roundMemory_before L values j y.mem hM hN
       (lt_of_lt_of_le hb (L.base_le_descriptor j)), hm b hb]
   obtain ⟨b, hb, hRb, hbm⟩ := hcall 0 a hRa
   obtain ⟨c, hc, hRc, hcm⟩ := hcall 1 b hRb
   obtain ⟨d, hd, hRd, hdm⟩ := hcall 2 c hRc
   refine ⟨d, (ha.seq (hb.seq (hc.seq hd))).mono (by dsimp only [L, Layout.total]; omega),
     ?_, hRd.1⟩
-  rw [hdm, hcm, hbm, ham]
-  rfl
+  rw [hdm, hcm, hbm, ham]; rfl
 
 /-- The complete charged bound is uniformly linear in input lengths, modulus and output length. -/
 theorem time_le_linear (L : Layout) :

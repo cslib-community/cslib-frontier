@@ -38,16 +38,11 @@ theorem vector_kronecker_swap (ψ : EuclideanSpace ℂ (ι × ι)) (hψ : ‖ψ�
     AlgState.vector ψ hψ (X ⊗ₖ Y) = AlgState.vector ψ hψ (Y ⊗ₖ X) := by
   simp only [AlgState.vector_apply, dotProduct, Matrix.mulVec]
   let e := Equiv.prodComm ι ι
-  refine ((e.sum_comp _).symm.trans ?_)
-  refine sum_congr rfl fun i _ => ?_
-  change star (ψ.ofLp (e i)) * (∑ j, (X ⊗ₖ Y) (e i) j * ψ.ofLp j) =
-    star (ψ.ofLp i) * ∑ j, (Y ⊗ₖ X) i j * ψ.ofLp j
-  rw [show ψ.ofLp (e i) = ψ.ofLp i from hswap i.2 i.1]
-  congr 1
-  refine ((e.sum_comp _).symm.trans ?_)
-  refine sum_congr rfl fun j _ => ?_
-  change (X i.2 j.2 * Y i.1 j.1) * ψ.ofLp (j.2, j.1) =
-    (Y i.1 j.1 * X i.2 j.2) * ψ.ofLp j
-  rw [hswap j.2 j.1, mul_comm (X i.2 j.2)]
+  refine (e.sum_comp _).symm.trans (sum_congr rfl fun ⟨a, b⟩ _ => ?_)
+  rw [← e.sum_comp (fun j => (X ⊗ₖ Y) (e (a, b)) j * ψ.ofLp j)]
+  simp only [e, Equiv.prodComm_apply, Prod.swap_prod_mk, Pi.star_apply, kroneckerMap_apply,
+    hswap b a]
+  exact congrArg (star (ψ.ofLp (a, b)) * ·) (sum_congr rfl fun ⟨c, d⟩ _ => by
+    rw [Prod.swap_prod_mk, hswap d c, mul_comm (X b d)])
 
 end Cslib.Quantum.AlgState

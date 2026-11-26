@@ -111,10 +111,9 @@ the regularizer are continuous on `K`, some rule minimizes the regularized empir
 theorem exists_isRLM {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Set E} (hK : IsCompact K)
     (hne : K.Nonempty) (hℓ : ∀ z, ContinuousOn (fun w => ℓ w z) K) (hR : ContinuousOn R K)
     (m : ℕ) : ∃ A : (Fin m → Z) → E, IsRLM ℓ R K A := by
-  have h : ∀ S : Fin m → Z, ∃ w ∈ K, IsMinOn (fun w => empiricalRisk ℓ S w + R w) K w :=
-    fun S => hK.exists_isMinOn hne ((continuousOn_empiricalRisk fun i => hℓ (S i)).add hR)
-  choose A hAK hAmin using h
-  exact ⟨A, ⟨hAK, hAmin⟩⟩
+  choose A hAK hAmin using fun S : Fin m → Z =>
+    hK.exists_isMinOn hne ((continuousOn_empiricalRisk fun i => hℓ (S i)).add hR)
+  exact ⟨A, hAK, hAmin⟩
 
 end Existence
 
@@ -152,18 +151,12 @@ theorem exists_isRLM_tikhonov [ProperSpace E] {ℓ : E → Z → ℝ} {K : Set E
     have hev : ∀ᶠ w in cocompact E ⊓ Filter.principal K, f w₀ ≤ f w := by
       rw [eventually_inf_principal]
       filter_upwards [tendsto_norm_cocompact_atTop.eventually_ge_atTop ρ₀] with w hw hwK
-      have h1 : 1 ≤ ‖w‖ := by
-        have := div_nonneg (abs_nonneg (f w₀ - min c 0)) hr.le
-        linarith
-      have h2 : |f w₀ - min c 0| ≤ r * ‖w‖ := by
-        have : |f w₀ - min c 0| / r ≤ ‖w‖ := by linarith
-        rwa [div_le_iff₀ hr, mul_comm] at this
+      have h1 : 1 ≤ ‖w‖ := by linarith [div_nonneg (abs_nonneg (f w₀ - min c 0)) hr.le]
+      have h2 : |f w₀ - min c 0| ≤ r * ‖w‖ :=
+        (div_le_iff₀ hr).mp (by linarith) |>.trans_eq (mul_comm _ _)
       have h3 : r * ‖w‖ ≤ r * ‖w‖ ^ 2 :=
-        calc r * ‖w‖ = r * ‖w‖ * 1 := by ring
-          _ ≤ r * ‖w‖ * ‖w‖ := mul_le_mul_of_nonneg_left h1 (by positivity)
-          _ = r * ‖w‖ ^ 2 := by ring
-      have := hlow w hwK
-      linarith [le_abs_self (f w₀ - min c 0)]
+        mul_le_mul_of_nonneg_left (le_self_pow₀ h1 two_ne_zero) hr.le
+      linarith [hlow w hwK, le_abs_self (f w₀ - min c 0)]
     exact hf.exists_isMinOn' hK hw₀ hev
   choose A hAK hAmin using h
   exact ⟨A, ⟨hAK, hAmin⟩⟩
@@ -192,20 +185,13 @@ theorem IsRLM.mul_norm_sub_sq_le {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Se
   have hv := hA.mem (Function.update S i z')
   -- Both regularized empirical risks are `σ`-strongly convex, so both minimizers have quadratic
   -- growth.
-  have hstrong : ∀ T : Fin m → Z, StrongConvexOn K σ fun w => empiricalRisk ℓ T w + R w :=
-    fun T => by
-      have h := hR.add_convexOn (convexOn_empiricalRisk hR.1 fun j => hconv (T j))
-      rw [add_comm] at h
-      exact h
+  have hstrong (T : Fin m → Z) : StrongConvexOn K σ fun w => empiricalRisk ℓ T w + R w := by
+    simpa only [Pi.add_def, add_comm] using
+      hR.add_convexOn (convexOn_empiricalRisk hR.1 fun j => hconv (T j))
   have h₁ := (hstrong S).add_le_of_isMinOn hu (hA.isMinOn S) hv
   have h₂ := (hstrong (Function.update S i z')).add_le_of_isMinOn hv (hA.isMinOn _) hu
-  rw [norm_sub_rev, empiricalRisk_update, empiricalRisk_update] at h₂
-  have h : σ * ‖A (Function.update S i z') - A S‖ ^ 2 ≤
-      ((ℓ (A S) z' - ℓ (A S) (S i)) -
-        (ℓ (A (Function.update S i z')) z' - ℓ (A (Function.update S i z')) (S i))) / m := by
-    rw [sub_div]
-    linarith
-  rw [le_div_iff₀ hm] at h
+  rw [norm_sub_rev, empiricalRisk_update, empiricalRisk_update, sub_div, sub_div] at h₂
+  rw [mul_right_comm, ← le_div_iff₀ hm, add_div, sub_div, sub_div]
   linarith
 
 /-- **RLM rules with a strongly convex regularizer are stable** (compare
@@ -230,11 +216,11 @@ theorem IsRLM.norm_sub_le {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Set E} {m
   generalize ‖A (Function.update S i z') - A S‖ = d at hgrowth hlip₁ hlip₂ hd0 ⊢
   -- The change in the two losses is at most `2 ρ d`.
   have key : σ * m * d ^ 2 ≤ 2 * ρ * d := by linarith
-  rcases hd0.eq_or_lt with hd | hd
-  · rw [← hd]
-    positivity
+  rcases hd0.eq_or_lt with rfl | hd
+  · positivity
   · rw [le_div_iff₀ (by positivity)]
-    nlinarith
+    have hmul : d * (σ * m) * d = σ * m * d ^ 2 := by ring
+    exact le_of_mul_le_mul_right (by linarith) hd
 
 /-- **RLM rules with a strongly convex regularizer are uniformly stable**: under the hypotheses of
 `Cslib.MachineLearning.IsRLM.norm_sub_le`, replacing one of `m` examples changes the loss of the
@@ -281,10 +267,7 @@ theorem IsRLM.integral_empiricalRisk_le [MeasurableSpace Z] {ℓ : E → Z → �
       ∫ S, (empiricalRisk ℓ S w + R w) ∂(Measure.pi fun _ : Fin m => D) :=
     integral_mono (integrable_empiricalRisk_comp ℓ _ A hint')
       ((integrable_empiricalRisk_comp ℓ _ (fun _ => w) hwint').add (integrable_const _))
-      fun S => by
-        have := hA.le S hw
-        have := hR _ (hA.mem S)
-        linarith
+      fun S => by linarith [hA.le S hw, hR _ (hA.mem S)]
   rwa [integral_add (integrable_empiricalRisk_comp ℓ _ (fun _ => w) hwint') (integrable_const _),
     integral_empiricalRisk ℓ D hm w hwint, integral_const, probReal_univ, one_smul] at hemp
 
@@ -386,7 +369,7 @@ theorem IsRLM.integral_trueRisk_le_add_sqrt [MeasurableSpace Z] {ℓ : E → Z �
   have hw2 : r * ‖w‖ ^ 2 ≤ r * B ^ 2 := by gcongr
   have hstab : (ρ : ℝ) ^ 2 / (r * m) = r * B ^ 2 / 2 := by
     rw [div_eq_iff (by positivity)]
-    nlinarith
+    linear_combination -hr2 / 2
   have hρt : (ρ : ℝ) * t = 2 * B * r := by
     have hsq : ((ρ : ℝ) * t) ^ 2 = (2 * B * r) ^ 2 := by
       have : ((ρ : ℝ) * t) ^ 2 * m = (2 * B * r) ^ 2 * m := by

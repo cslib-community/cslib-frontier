@@ -41,23 +41,14 @@ theorem IsPlanarOrthogonalDrawing.germ_polygonalDrawing
   have hlen : 2 ≤ r.length := by
     simpa only [r, List.length_reverse] using sourceRoute_length_ge_two hd e.isLt
   cases side
-  · have he := hd.polygonalDrawing.endpoint_eq e false
-    change complexPoint r[0] = complexPoint (drawingPosition G d (Dart.vertex (e, false))) at he
-    change complexPoint r[1] - complexPoint r[0] = _
-    apply congrArg₂ (· - ·) _ he
-    apply congrArg complexPoint
-    rw [exitNeighbor_index]
-    simp only [Bool.false_eq_true, ↓reduceIte]
-    exact (List.getD_eq_getElem r (0, 0) (by omega : 1 < r.length)).symm
-  · have he := hd.polygonalDrawing.endpoint_eq e true
-    change complexPoint r[r.length - 2 + 1] =
-      complexPoint (drawingPosition G d (Dart.vertex (e, true))) at he
-    change complexPoint r[r.length - 2] - complexPoint r[r.length - 2 + 1] = _
-    apply congrArg₂ (· - ·) _ he
-    apply congrArg complexPoint
-    rw [exitNeighbor_index]
-    simp only [↓reduceIte]
-    exact (List.getD_eq_getElem r (0, 0) (by omega : r.length - 2 < r.length)).symm
+  · change complexPoint r[1] - complexPoint r[0] = _
+    refine congrArg₂ (· - ·) (congrArg complexPoint ?_) (hd.polygonalDrawing.endpoint_eq e false)
+    simpa only [exitNeighbor_index, Bool.false_eq_true, ↓reduceIte] using
+      (List.getD_eq_getElem r (0, 0) (by omega : 1 < r.length)).symm
+  · change complexPoint r[r.length - 2] - complexPoint r[r.length - 2 + 1] = _
+    refine congrArg₂ (· - ·) (congrArg complexPoint ?_) (hd.polygonalDrawing.endpoint_eq e true)
+    simpa only [exitNeighbor_index, ↓reduceIte] using
+      (List.getD_eq_getElem r (0, 0) (by omega : r.length - 2 < r.length)).symm
 
 /-- The native neighbour is joined to its displayed endpoint by an actual proper axis
 segment. The last end uses orthogonality of the reversed route, preserving orientation. -/
@@ -72,23 +63,19 @@ theorem IsPlanarOrthogonalDrawing.axisAligned_exitNeighbor
     (isOrthogonal_reverse_iff _).mpr (sourceRoute_regular hd e.isLt).1
   rw [exitNeighbor_index]
   cases side
-  · have he := hd.polygonalDrawing.endpoint_eq e false
-    change complexPoint r[0] = complexPoint (drawingPosition G d (Dart.vertex (e, false))) at he
-    rw [← complexPoint_injective he]
+  · rw [← complexPoint_injective (hd.polygonalDrawing.endpoint_eq e false)]
     change AxisAligned r[0] (r.getD 1 (0, 0))
     rw [List.getD_eq_getElem r (0, 0) (by omega : 1 < r.length)]
     exact horth _ (List.getElem_mem_consecutivePairs r 0 (by omega))
-  · have he := hd.polygonalDrawing.endpoint_eq e true
-    change complexPoint r[r.length - 2 + 1] =
-      complexPoint (drawingPosition G d (Dart.vertex (e, true))) at he
-    rw [← complexPoint_injective he]
+  · rw [← complexPoint_injective (hd.polygonalDrawing.endpoint_eq e true)]
     change AxisAligned r[r.length - 2 + 1] (r.getD (r.length - 2) (0, 0))
     rw [List.getD_eq_getElem r (0, 0) (by omega : r.length - 2 < r.length)]
-    have hrev : IsOrthogonal r.reverse := (isOrthogonal_reverse_iff _).mpr horth
-    have hp := hrev _ (List.getElem_mem_consecutivePairs r.reverse 0 (by
-      simp only [List.length_reverse]; omega))
+    have hp := ((isOrthogonal_reverse_iff r).mpr horth) _
+      (List.getElem_mem_consecutivePairs r.reverse 0 (by simp only [List.length_reverse]; omega))
     simp only [List.getElem_reverse, Nat.sub_zero] at hp
-    convert hp using 1; congr 1; omega
+    convert hp using 1
+    congr 1
+    omega
 
 /-- The converted drawing's literal outgoing angle is exactly the rank read by the
 native program; no rotation or idealized ray is supplied. -/

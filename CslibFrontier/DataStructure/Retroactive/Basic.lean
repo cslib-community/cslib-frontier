@@ -216,12 +216,8 @@ theorem operation_charge (editCharge : List D.Op → TimelineEdit D.Op → Nat)
       ((backend D initial).runClient (timeline, state) (methods D initial e)).2.2 =
       editCharge timeline e + resetCharge +
         D.totalCost ordinaryCharge initial (e.apply timeline) := by
-  simp only [methods, StateTransitionSpec.runClient_liftBind, backend]
-  rw [replay_run]
-  change editCharge timeline e + (resetCharge +
-    (backend D initial).totalCost
-      (primitiveCharge D initial editCharge resetCharge ordinaryCharge)
-      (e.apply timeline, initial) ((e.apply timeline).map BackendOp.execute)) = _
+  simp only [methods, StateTransitionSpec.runClient_liftBind, backend, replay_run]
+  change editCharge timeline e + (resetCharge + (backend D initial).totalCost _ _ _) = _
   rw [replay_charge, Nat.add_assoc]
 
 /-- Resource bounds transport to any realization of the backend interface.
@@ -235,12 +231,8 @@ theorem realized_bound {C Trace : Type} {exec : Execution (backend D initial) C 
       (fun os e => editCharge os e + resetCharge +
         D.totalCost ordinaryCharge initial (e.apply os)) := by
   apply (implementation D initial).bound R B
-  intro s e o hr hv
-  obtain ⟨timeline, state⟩ := e
-  obtain ⟨ht, _⟩ := hr
-  dsimp only at ht
-  subst timeline
-  exact (operation_charge D initial editCharge resetCharge ordinaryCharge s state o).le
+  rintro s ⟨timeline, state⟩ o ⟨rfl, _⟩ _
+  exact (operation_charge D initial editCharge resetCharge ordinaryCharge _ state o).le
 
 /-- A uniform ordinary-operation bound gives linear replay overhead. Editing and resetting
 remain explicit, and the resulting certificate applies to every concrete operation execution. -/
@@ -253,16 +245,12 @@ theorem realized_linear_bound {C Trace : Type} {exec : Execution (backend D init
     Bound ((implementation D initial).realize R) (total weight)
       (fun os e => editCharge os e + resetCharge + (e.apply os).length * T) := by
   apply (implementation D initial).bound R B
-  intro s e o hr hv
-  obtain ⟨timeline, state⟩ := e
-  obtain ⟨ht, _⟩ := hr
-  dsimp only at ht
-  subst timeline
+  rintro s ⟨timeline, state⟩ o ⟨rfl, _⟩ hv
   calc
-    _ = editCharge s o + resetCharge + D.totalCost ordinaryCharge initial (o.apply s) :=
-      operation_charge D initial editCharge resetCharge ordinaryCharge s state o
-    _ ≤ _ := Nat.add_le_add_left
-      (D.totalCost_le_length_mul ordinaryCharge T hT hv.2) _
+    _ = editCharge timeline o + resetCharge +
+        D.totalCost ordinaryCharge initial (o.apply timeline) :=
+      operation_charge D initial editCharge resetCharge ordinaryCharge _ state o
+    _ ≤ _ := Nat.add_le_add_left (D.totalCost_le_length_mul ordinaryCharge T hT hv.2) _
 
 end Retroactive
 end Cslib.DataStructure

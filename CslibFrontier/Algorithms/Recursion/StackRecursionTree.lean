@@ -72,23 +72,18 @@ theorem Loop.counted {x : X} {acc : ℕ → A} {child : ℕ → X} {val : ℕ �
     (heval : ∀ c < bound, R.Eval I (child c) (val c) (nodes c) (height c))
     (hframe : ∀ c < bound, I.frame x (acc c)) (hH : ∀ c < bound, height c ≤ H) :
     ∃ h ≤ H, R.Loop I x (acc 0) (acc bound) (∑ c ∈ range bound, nodes c) h := by
-  -- From any start `s ≤ bound`.
   have key : ∀ k s, s + k = bound →
       ∃ h ≤ H, R.Loop I x (acc s) (acc bound) (∑ c ∈ Ico s bound, nodes c) h := by
     intro k
     induction k with
-    | zero =>
-      intro s hs
-      subst hs
-      exact ⟨0, Nat.zero_le _, by simpa using Loop.done hdone⟩
+    | zero => rintro s rfl; exact ⟨0, Nat.zero_le _, by simpa using Loop.done hdone⟩
     | succ k ih =>
       intro s hs
       obtain ⟨h, hh, hl⟩ := ih (s + 1) (by omega)
       have hs' : s < bound := by omega
-      have hl' := Loop.child (hframe s hs') (hnext s hs') (heval s hs')
-        (by rw [habsorb s hs']; exact hl)
-      refine ⟨max (height s) h, max_le (hH s hs') hh, ?_⟩
-      rwa [sum_eq_sum_Ico_succ_bot hs']
+      have hl' := Loop.child (hframe s hs') (hnext s hs') (heval s hs') (habsorb s hs' ▸ hl)
+      exact ⟨max (height s) h, max_le (hH s hs') hh,
+        by rwa [sum_eq_sum_Ico_succ_bot hs']⟩
   simpa using key bound 0 (by omega)
 
 /-- **Derivations by well-founded recursion.** Let `value` assign values to the nodes satisfying
@@ -128,6 +123,39 @@ private theorem one_le_recursionBound (b : ℕ → ℕ) (k d : ℕ) : 1 ≤ Nat.
   | zero => simp
   | succ k => rw [Nat.recursionBound_succ]; omega
 
+/-- Shared depth-indexed induction for `exists_eval_of_counted` and `exists_eval_of_height`. -/
+private theorem exists_eval_of_depth (μ depth : X → ℕ) (value : X → Y) (D : ℕ)
+    (P Q : ℕ → ℕ → Prop) (hleaf : ∀ x, I.node x → R.isLeaf x = true → value x = R.leaf x)
+    (hP1 : ∀ d, P d 1)
+    (hPstep : ∀ d cnt (nodes : ℕ → ℕ), d < D → Q d cnt →
+      (∀ c < cnt, P (d + 1) (nodes c)) → P d ((∑ c ∈ range cnt, nodes c) + 1))
+    (hcall : ∀ x, I.node x → R.isLeaf x = false → depth x < D ∧
+      ∃ (cnt : ℕ) (acc : ℕ → A) (child : ℕ → X), Q (depth x) cnt ∧ acc 0 = R.start x ∧
+        (∀ c < cnt, R.next x (acc c) = some (child c)) ∧ R.next x (acc cnt) = none ∧
+        (∀ c < cnt, R.absorb x (acc c) (value (child c)) = acc (c + 1)) ∧
+        (∀ c < cnt, I.frame x (acc c) ∧ I.node (child c) ∧ μ (child c) < μ x ∧
+          depth (child c) = depth x + 1) ∧
+        value x = R.finish x (acc cnt))
+    (hvalue : ∀ x, I.node x → I.value (value x)) (x : X) (hx : I.node x) :
+    ∃ n h, R.Eval I x (value x) n h ∧ P (depth x) n ∧ h ≤ D - depth x := by
+  induction hμ : μ x using Nat.strong_induction_on generalizing x with
+  | _ k ih =>
+  cases hl : R.isLeaf x
+  · obtain ⟨hd, cnt, acc, child, hQ, h0, hnext, hdone, habs, hkids, hfin⟩ := hcall x hx hl
+    have hev : ∀ c < cnt, ∃ n h, R.Eval I (child c) (value (child c)) n h ∧
+        P (depth x + 1) n ∧ h ≤ D - (depth x + 1) := fun c hc => by
+      obtain ⟨-, hn, hμc, hdc⟩ := hkids c hc
+      simpa only [hdc] using ih (μ (child c)) (hμ ▸ hμc) (child c) hn rfl
+    choose! nodes height hev using hev
+    obtain ⟨h, hh, hloop⟩ := Loop.counted (I := I) (val := fun c => value (child c)) cnt
+      (D - (depth x + 1)) hnext hdone habs (fun c hc => (hev c hc).1)
+      (fun c hc => (hkids c hc).1) (fun c hc => (hev c hc).2.2)
+    rw [h0] at hloop
+    exact ⟨(∑ c ∈ range cnt, nodes c) + 1, h + 1, hfin ▸ Eval.call hx hl hloop (hfin ▸ hvalue x hx),
+      hPstep _ _ _ hd hQ fun c hc => (hev c hc).2.1, by omega⟩
+  · exact ⟨1, 0, by rw [hleaf x hx hl]; exact Eval.leaf hx hl (hleaf x hx hl ▸ hvalue x hx),
+      hP1 _, Nat.zero_le _⟩
+
 /-- **Derivations from the recursion tree.** Let `value` assign values to the nodes satisfying
 `I.node`, all satisfying `I.value`, such that
 
@@ -152,37 +180,20 @@ theorem exists_eval_of_counted (μ depth : X → ℕ) (value : X → Y) (b : ℕ
     (hvalue : ∀ x, I.node x → I.value (value x)) (x : X) (hx : I.node x) (hxD : depth x ≤ D) :
     ∃ n h, R.Eval I x (value x) n h ∧ n ≤ Nat.recursionBound b (D - depth x) (depth x) ∧
       h ≤ D - depth x := by
-  induction hμ : μ x using Nat.strong_induction_on generalizing x with
-  | _ k ih =>
-  cases hl : R.isLeaf x
-  · obtain ⟨hd, cnt, acc, child, hcnt, h0, hnext, hdone, habs, hkids, hfin⟩ := hcall x hx hl
-    have hev : ∀ c < cnt, ∃ n h, R.Eval I (child c) (value (child c)) n h ∧
-        n ≤ Nat.recursionBound b (D - (depth x + 1)) (depth x + 1) ∧
-        h ≤ D - (depth x + 1) := fun c hc => by
-      obtain ⟨-, hn, hμc, hdc⟩ := hkids c hc
-      obtain ⟨n, h, he, hnb, hhb⟩ := ih (μ (child c)) (hμ ▸ hμc) (child c) hn (by omega) rfl
-      rw [hdc] at hnb hhb
-      exact ⟨n, h, he, hnb, hhb⟩
-    choose! nodes height hev using hev
-    obtain ⟨h, hh, hloop⟩ := Loop.counted (I := I) (val := fun c => value (child c)) cnt
-      (D - (depth x + 1)) hnext hdone habs (fun c hc => (hev c hc).1)
-      (fun c hc => (hkids c hc).1) (fun c hc => (hev c hc).2.2)
-    rw [h0] at hloop
-    have hv : I.value (R.finish x (acc cnt)) := hfin ▸ hvalue x hx
-    refine ⟨(∑ c ∈ range cnt, nodes c) + 1, h + 1, hfin ▸ Eval.call hx hl hloop hv, ?_, by omega⟩
-    obtain ⟨k', hk'⟩ : ∃ k', D - depth x = k' + 1 := ⟨D - depth x - 1, by omega⟩
-    have hk'' : D - (depth x + 1) = k' := by omega
-    rw [hk', Nat.recursionBound_succ]
-    have hsum : ∑ c ∈ range cnt, nodes c ≤ cnt * Nat.recursionBound b k' (depth x + 1) := by
-      calc ∑ c ∈ range cnt, nodes c ≤ ∑ _c ∈ range cnt, Nat.recursionBound b k' (depth x + 1) :=
-            sum_le_sum fun c hc => hk'' ▸ (hev c (mem_range.mp hc)).2.1
-        _ = cnt * Nat.recursionBound b k' (depth x + 1) := by rw [sum_const, card_range,
-            smul_eq_mul]
-    have := Nat.mul_le_mul_right (Nat.recursionBound b k' (depth x + 1)) hcnt
-    omega
-  · refine ⟨1, 0, ?_, one_le_recursionBound _ _ _, Nat.zero_le _⟩
-    rw [hleaf x hx hl]
-    exact Eval.leaf hx hl (hleaf x hx hl ▸ hvalue x hx)
+  have _ := hxD
+  refine exists_eval_of_depth (R := R) (I := I) μ depth value D
+    (fun d n => n ≤ Nat.recursionBound b (D - d) d) (fun d cnt => cnt ≤ b d) hleaf
+    (fun d => one_le_recursionBound b (D - d) d) (fun d cnt nodes hd hcnt hnodes => ?_)
+    hcall hvalue x hx
+  obtain ⟨k', hk'⟩ : ∃ k', D - d = k' + 1 := ⟨D - d - 1, by omega⟩
+  rw [hk', Nat.recursionBound_succ]
+  have hsum : ∑ c ∈ range cnt, nodes c ≤ cnt * Nat.recursionBound b k' (d + 1) := by
+    calc ∑ c ∈ range cnt, nodes c
+        ≤ ∑ _c ∈ range cnt, Nat.recursionBound b k' (d + 1) :=
+          sum_le_sum fun c hc => (show D - (d + 1) = k' by omega) ▸ hnodes c (mem_range.mp hc)
+      _ = cnt * Nat.recursionBound b k' (d + 1) := by rw [sum_const, card_range, smul_eq_mul]
+  have := Nat.mul_le_mul_right (Nat.recursionBound b k' (d + 1)) hcnt
+  omega
 
 /-- **Derivations with their height.** Let `value` assign values to the nodes satisfying `I.node`,
 all satisfying `I.value`, such that a leaf has its leaf value, and a call at depth `d` has
@@ -200,26 +211,14 @@ theorem exists_eval_of_height (μ depth : X → ℕ) (value : X → Y) (D : ℕ)
         value x = R.finish x (acc cnt))
     (hvalue : ∀ x, I.node x → I.value (value x)) (x : X) (hx : I.node x) (hxD : depth x ≤ D) :
     ∃ n h, R.Eval I x (value x) n h ∧ h ≤ D - depth x := by
-  induction hμ : μ x using Nat.strong_induction_on generalizing x with
-  | _ k ih =>
-  cases hl : R.isLeaf x
-  · obtain ⟨hd, cnt, acc, child, h0, hnext, hdone, habs, hkids, hfin⟩ := hcall x hx hl
-    have hev : ∀ c < cnt, ∃ n h, R.Eval I (child c) (value (child c)) n h ∧
-        h ≤ D - (depth x + 1) := fun c hc => by
-      obtain ⟨-, hn, hμc, hdc⟩ := hkids c hc
-      obtain ⟨n, h, he, hhb⟩ := ih (μ (child c)) (hμ ▸ hμc) (child c) hn (by omega) rfl
-      rw [hdc] at hhb
-      exact ⟨n, h, he, hhb⟩
-    choose! nodes height hev using hev
-    obtain ⟨h, hh, hloop⟩ := Loop.counted (I := I) (val := fun c => value (child c)) cnt
-      (D - (depth x + 1)) hnext hdone habs (fun c hc => (hev c hc).1)
-      (fun c hc => (hkids c hc).1) (fun c hc => (hev c hc).2)
-    rw [h0] at hloop
-    have hv : I.value (R.finish x (acc cnt)) := hfin ▸ hvalue x hx
-    exact ⟨(∑ c ∈ range cnt, nodes c) + 1, h + 1, hfin ▸ Eval.call hx hl hloop hv, by omega⟩
-  · refine ⟨1, 0, ?_, Nat.zero_le _⟩
-    rw [hleaf x hx hl]
-    exact Eval.leaf hx hl (hleaf x hx hl ▸ hvalue x hx)
+  have _ := hxD
+  obtain ⟨n, h, he, -, hh⟩ := exists_eval_of_depth (R := R) (I := I) μ depth value D
+    (fun _ _ => True) (fun _ _ => True) hleaf (fun _ => trivial) (fun _ _ _ _ _ _ => trivial)
+    (fun x hx hl => by
+      obtain ⟨hd, cnt, acc, child, rest⟩ := hcall x hx hl
+      exact ⟨hd, cnt, acc, child, trivial, rest⟩)
+    hvalue x hx
+  exact ⟨n, h, he, hh⟩
 
 /-- **What a clocked run returns.** For any fuel, a value returned by the run satisfies the
 invariant of a derivation of the root. -/
@@ -227,12 +226,8 @@ theorem value_of_run_eq_some {J : Type} {fuel : J → ℕ} {root : J → X} {a :
     {N H : ℕ} (he : R.Eval I (root a) y N H) (hrun : R.run fuel root a = some y') :
     I.value y' := by
   obtain ⟨-, -, ⟨x, hr, -⟩ | ⟨z, hr, hz⟩⟩ := he.good_iterate (fuel a)
-  · simp only [run, State.returned] at hrun
-    rw [hr] at hrun
-    simp at hrun
-  · simp only [run, State.returned] at hrun
-    rw [hr] at hrun
-    cases hrun
-    exact hz
+  · simp [run, State.returned, hr] at hrun
+  · simp only [run, State.returned, hr] at hrun
+    exact Option.some.inj hrun ▸ hz
 
 end Cslib.Algorithms.StackRecursion.Scheme

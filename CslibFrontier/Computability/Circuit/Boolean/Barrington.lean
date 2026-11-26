@@ -91,6 +91,22 @@ namespace Cslib.Circuits.Formula
 
 open MonoidProgram
 
+/-- Prefixing a group element keeps a program within a length budget `4 ^ d`. -/
+private theorem length_mulLeft_le {G : Type*} [Group G] [NeZero n] (σ : G)
+    {P : MonoidProgram (Fin n) Bool G} {d : ℕ} (h : P.toList.length ≤ 4 ^ d) :
+    (mulLeft σ P).toList.length ≤ 4 ^ d :=
+  (length_mulLeft σ P).trans_le (max_le (Nat.one_le_pow _ _ (by decide)) h)
+
+/-- The commutator of programs of lengths at most `4 ^ d₀` and `4 ^ d₁` has length at most
+`4 ^ (max d₀ d₁ + 1)`. -/
+private theorem length_commutator_le {G : Type*} [Group G] {P Q : MonoidProgram (Fin n) Bool G}
+    {d₀ d₁ : ℕ} (hP : P.toList.length ≤ 4 ^ d₀) (hQ : Q.toList.length ≤ 4 ^ d₁) :
+    (P * Q * P.inv * Q.inv).toList.length ≤ 4 ^ (max d₀ d₁ + 1) := by
+  have h₀ := hP.trans (Nat.pow_le_pow_right (by decide) (le_max_left d₀ d₁))
+  have h₁ := hQ.trans (Nat.pow_le_pow_right (by decide) (le_max_right d₀ d₁))
+  simp only [FreeMonoid.toList_mul, List.length_append, length_inv, pow_succ]
+  omega
+
 /-- **Barrington's construction** in a group `G`. Let `C` be a set of elements of `G`, closed
 under inverses, in which every element is the commutator of two elements of `C`. For every
 `σ ∈ C`, a De Morgan formula of depth `d`, with negations and constants free, has a program over
@@ -112,29 +128,16 @@ theorem exists_monoidProgram_computes_of_forall_commutator {G : Type*} [Group G]
       · exact ⟨FreeMonoid.of (.const 0 σ), by simp, fun x => by simp [interpretation]⟩
     | not =>
       obtain ⟨P, hlen, hP⟩ := ih 0 (hinv σ hσ)
-      refine ⟨mulLeft σ P, (length_mulLeft σ P).trans_le (max_le ?_ (hlen.trans ?_)),
+      exact ⟨mulLeft σ P,
+        length_mulLeft_le σ (hlen.trans (Nat.pow_le_pow_right (by decide) (by simp))),
         fun x => (hP.not x).trans (by simp [interpretation])⟩
-      · exact Nat.one_le_pow _ _ (by decide)
-      · exact Nat.pow_le_pow_right (by decide) (by simp)
     | and =>
       obtain ⟨α, hα, β, hβ, rfl⟩ := hcomm σ hσ
       obtain ⟨P, hPlen, hP⟩ := ih 0 hα
       obtain ⟨Q, hQlen, hQ⟩ := ih 1 hβ
-      refine ⟨P * Q * P.inv * Q.inv, ?_, fun x => (hP.and hQ x).trans rfl⟩
-      set D : ℕ := max (depthWith (σ := signature) binaryCost (args 0))
-        (depthWith (σ := signature) binaryCost (args 1))
-      have hd : (gate (σ := signature) Op.and args).depthWith binaryCost = D + 1 := by
-        simp [D, Fin.univ_succ]
-      have h₀ : P.toList.length ≤ 4 ^ D :=
-        hPlen.trans (Nat.pow_le_pow_right (by decide) (le_max_left _ _))
-      have h₁ : Q.toList.length ≤ 4 ^ D :=
-        hQlen.trans (Nat.pow_le_pow_right (by decide) (le_max_right _ _))
-      calc (P * Q * P.inv * Q.inv).toList.length = 2 * (P.toList.length + Q.toList.length) := by
-            simp only [FreeMonoid.toList_mul, List.length_append, length_inv]
-            omega
-        _ ≤ 2 * (4 ^ D + 4 ^ D) := Nat.mul_le_mul_left 2 (Nat.add_le_add h₀ h₁)
-        _ = 4 ^ (D + 1) := by ring
-        _ = 4 ^ (gate (σ := signature) Op.and args).depthWith binaryCost := by rw [hd]
+      refine ⟨P * Q * P.inv * Q.inv, (length_commutator_le hPlen hQlen).trans_eq ?_,
+        fun x => (hP.and hQ x).trans rfl⟩
+      simp [Fin.univ_succ]
     | or =>
       obtain ⟨α, hα, β, hβ, hαβ⟩ := hcomm σ⁻¹ (hinv σ hσ)
       obtain ⟨P, hPlen, hP⟩ := ih 0 (hinv α hα)
@@ -144,26 +147,10 @@ theorem exists_monoidProgram_computes_of_forall_commutator {G : Type*} [Group G]
           !(args 1).eval interpretation x := by
         rw [← hαβ]
         exact hP.not.and hQ.not
-      set D : ℕ := max (depthWith (σ := signature) binaryCost (args 0))
-        (depthWith (σ := signature) binaryCost (args 1))
-      have hd : (gate (σ := signature) Op.or args).depthWith binaryCost = D + 1 := by
-        simp [D, Fin.univ_succ]
-      have hD : 1 ≤ 4 ^ D := Nat.one_le_pow _ _ (by decide)
-      have h₀ : (mulLeft α P).toList.length ≤ 4 ^ D := (length_mulLeft α P).trans_le (max_le hD
-        (hPlen.trans (Nat.pow_le_pow_right (by decide) (le_max_left _ _))))
-      have h₁ : (mulLeft β Q).toList.length ≤ 4 ^ D := (length_mulLeft β Q).trans_le (max_le hD
-        (hQlen.trans (Nat.pow_le_pow_right (by decide) (le_max_right _ _))))
-      have hRlen : R.toList.length ≤ 4 ^ (gate (σ := signature) Op.or args).depthWith binaryCost :=
-        calc R.toList.length = 2 * ((mulLeft α P).toList.length + (mulLeft β Q).toList.length) := by
-              simp only [R, FreeMonoid.toList_mul, List.length_append, length_inv]
-              omega
-          _ ≤ 2 * (4 ^ D + 4 ^ D) := Nat.mul_le_mul_left 2 (Nat.add_le_add h₀ h₁)
-          _ = 4 ^ (D + 1) := by ring
-          _ = 4 ^ (gate (σ := signature) Op.or args).depthWith binaryCost := by rw [hd]
-      refine ⟨mulLeft σ R, (length_mulLeft σ R).trans_le
-        (max_le (Nat.one_le_pow _ _ (by decide)) hRlen), fun x => ?_⟩
-      · rw [hR.not x]
-        simp [interpretation]
+      refine ⟨mulLeft σ R, length_mulLeft_le σ ((length_commutator_le
+        (length_mulLeft_le α hPlen) (length_mulLeft_le β hQlen)).trans_eq ?_), fun x => ?_⟩
+      · simp [Fin.univ_succ]
+      · simp [hR.not x, interpretation]
 
 /-- **Barrington's theorem in `A₅`.** For every `5`-cycle `σ`, a De Morgan formula of depth `d`,
 with negations and constants free, is `σ`-computed by a program of length at most `4 ^ d` over the
@@ -374,9 +361,7 @@ theorem Computes.exists_formula {P : MonoidProgram (Fin n) Bool (Perm (Fin w))} 
       List.mem_product, List.mem_finRange, true_and, decide_eq_true_eq, Prod.exists, ne_eq]
     cases hf : f x
     · simp only [MulAction.toEndHom, Bool.false_eq_true, ↓reduceIte, map_one, iff_false]
-      simp only [not_exists, not_and]
-      intro a b hab h
-      exact hab h
+      exact fun ⟨_, _, hab, h⟩ => hab h
     · simp only [↓reduceIte, iff_true]
       obtain ⟨a, ha⟩ := not_forall.1 fun h => hσ (Perm.ext h)
       exact ⟨a, σ a, fun h => ha h.symm, rfl⟩
@@ -384,9 +369,8 @@ theorem Computes.exists_formula {P : MonoidProgram (Fin n) Bool (Perm (Fin w))} 
       (Nat.clog_mono_right 2 ?_) _)
     · obtain ⟨p, -, rfl⟩ := List.mem_map.1 hF
       simpa [Q] using depthWith_entryFormula_le Q p.1 p.2
-    · rw [List.length_map]
-      exact (List.length_filter_le _ _).trans
-        (by rw [List.length_product, List.length_finRange])
+    · simpa [pairs, List.length_product] using
+        List.length_filter_le _ (List.finRange w ×ˢ List.finRange w)
   · obtain ⟨p, -, rfl⟩ := List.mem_map.1 hF
     exact Q.isNNF_entryFormula p.1 p.2
 

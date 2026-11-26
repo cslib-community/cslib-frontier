@@ -37,33 +37,26 @@ theorem getD_bodyCertificate_of_variable_not_mem_ports {F : CSP Rel V} {ports : 
   let d := w.probeRotation.rotate (incidenceDart (bodyOccurrence F ports o) false)
   have hc := ((verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted).1
   have hv := w.probeRotation.vertex_rotate (incidenceDart (bodyOccurrence F ports o) false)
-  have hv' : d.vertex = (incidenceDart (bodyOccurrence F ports o) false).vertex := hv
   obtain ⟨p, hp⟩ := exists_incidenceDart d
   have hf := (vertex_incidenceDart_eq_iff p (bodyOccurrence F ports o) d.2 false).mp
-    ((congrArg Dart.vertex hp).trans hv')
+    ((congrArg Dart.vertex hp).trans hv)
   have hvar : p.var = o.var := by
     simpa only [hf.1, Bool.false_eq_true, ite_false, var_bodyOccurrence] using hf.2
   have hpre : incidenceEdgeIndex p < F.occurrences.length := by
     rcases exists_bodyOccurrence_or_probeOccurrence F ports p with ⟨q, rfl⟩ | ⟨j, rfl⟩
     · rw [incidenceEdgeIndex_bodyOccurrence]
       simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt q
-    · have hm : (probeOccurrence F ports j).var ∈ ports := by
-        rw [var_probeOccurrence]
-        exact List.getElem_mem j.isLt
-      exact (ho (hvar ▸ hm)).elim
+    · exact (ho (hvar ▸ var_probeOccurrence F ports j ▸ List.getElem_mem j.isLt)).elim
   have hindex : (incidenceDart (bodyOccurrence F ports o) false).index =
       (incidenceDart o false).index := by
     change 2 * incidenceEdgeIndex (bodyOccurrence F ports o) + 0 = 2 * incidenceEdgeIndex o + 0
     rw [incidenceEdgeIndex_bodyOccurrence]
-  have hnext : w.certificate.successor.getD (incidenceDart o false).index 0 = d.index := by
-    have h := RotationCertificate.index_decode_rotate hc
-      (incidenceDart (bodyOccurrence F ports o) false)
-    rw [hindex] at h
-    exact h.symm
+  have hnext : w.certificate.successor.getD (incidenceDart o false).index 0 = d.index :=
+    (hindex ▸ RotationCertificate.index_decode_rotate hc
+      (incidenceDart (bodyOccurrence F ports o) false)).symm
   have hnextlt : w.certificate.successor.getD (incidenceDart o false).index 0 <
       2 * F.occurrences.length := by
-    have hp' : incidenceDart p false = d := hf.1 ▸ hp
-    rw [hnext, ← hp']
+    rw [hnext, ← hp, hf.1]
     change 2 * incidenceEdgeIndex p + 0 < _
     omega
   have hi : (incidenceDart o false).index < 2 * F.occurrences.length := by
@@ -72,10 +65,9 @@ theorem getD_bodyCertificate_of_variable_not_mem_ports {F : CSP Rel V} {ports : 
     change 2 * incidenceEdgeIndex o + 0 < _
     omega
   have hpos : 0 < w.certificate.successor.length := by
-    have hi' : (incidenceDart o false).index < w.certificate.successor.length := by
-      rw [RotationCertificate.length_of_verifyRotation hc, ← hindex]
-      exact (Dart.indexEquiv _ (incidenceDart (bodyOccurrence F ports o) false)).isLt
-    omega
+    rw [RotationCertificate.length_of_verifyRotation hc]
+    exact Nat.zero_lt_of_lt
+      (Dart.indexEquiv _ (incidenceDart (bodyOccurrence F ports o) false)).isLt
   exact getD_restrictPrefix_one w.certificate _ _ hi hpos hnextlt
 
 end Cslib.Complexity.CSP.OrderedBoundary

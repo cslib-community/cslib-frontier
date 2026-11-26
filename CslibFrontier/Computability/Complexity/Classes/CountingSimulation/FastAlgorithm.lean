@@ -109,19 +109,15 @@ most `degreeBound m`, for `m` its number of edges. -/
 `L₀` on. -/
 private theorem exists_pow_ten_le (C : ℕ) : ∃ L₀, ∀ L, L₀ ≤ L → (C * L) ^ 10 ≤ 2 ^ (9 * L) := by
   have hlim := tendsto_pow_const_div_const_pow_of_one_lt 10 (r := (2 : ℝ) ^ 9) (by norm_num)
-  have hC : (0 : ℝ) < 1 / ((C : ℝ) ^ 10 + 1) := by positivity
-  obtain ⟨L₀, hL₀⟩ := eventually_atTop.mp ((tendsto_order.1 hlim).2 _ hC)
+  obtain ⟨L₀, hL₀⟩ := eventually_atTop.mp
+    ((tendsto_order.1 hlim).2 (1 / ((C : ℝ) ^ 10 + 1)) (by positivity))
   refine ⟨L₀, fun L hL => ?_⟩
-  have h := hL₀ L hL
-  have h2 : (0 : ℝ) < ((2 : ℝ) ^ 9) ^ L := by positivity
-  have h1 : (0 : ℝ) < (C : ℝ) ^ 10 + 1 := by positivity
-  rw [div_lt_div_iff₀ h2 h1, one_mul] at h
+  have h := (div_lt_div_iff₀ (by positivity) (by positivity)).1 (hL₀ L hL)
   have hL10 : (0 : ℝ) ≤ (L : ℝ) ^ 10 := by positivity
-  have hle : ((C * L) ^ 10 : ℕ) ≤ ((2 ^ (9 * L) : ℕ) : ℝ) := by
+  exact_mod_cast (show ((C * L) ^ 10 : ℕ) ≤ ((2 ^ (9 * L) : ℕ) : ℝ) by
     push_cast
     rw [mul_pow, pow_mul]
-    nlinarith
-  exact_mod_cast hle
+    nlinarith)
 
 /-- **Admissible networks failing the guard are small.** For every `C` there is `s₀` such that a
 network admissible at size `s` with constant `C` that fails `fastGuard` has `s ≤ s₀`. -/
@@ -130,20 +126,15 @@ theorem exists_le_of_fastGuard_eq_false (C : ℕ) :
   obtain ⟨L₀, hL₀⟩ := exists_pow_ten_le C
   refine ⟨2 ^ L₀, fun s G hA hg => ?_⟩
   obtain ⟨hrows, -, hdeg, -, htab, hsm⟩ := hA
-  have hbig : degreeBound G.2.numEdges < G.2.maxDegree := by
-    simp only [fastGuard, decide_eq_false_iff_not, not_and, not_le] at hg
-    exact hg hrows htab
-  by_contra hs
-  rw [not_le] at hs
-  have hL : L₀ ≤ Nat.log 2 s := Nat.le_log_of_pow_le one_lt_two hs.le
+  simp only [fastGuard, decide_eq_false_iff_not, not_and, not_le] at hg
+  by_contra! hs
   have h1 : s ^ 9 ≤ G.2.numEdges ^ 9 := Nat.pow_le_pow_left hsm 9
   have h2 := pow_nine_le_degreeBound_pow_ten G.2.numEdges
   have h3 : degreeBound G.2.numEdges ^ 10 < (C * Nat.log 2 s) ^ 10 :=
-    Nat.pow_lt_pow_left (hbig.trans_le hdeg) (by norm_num)
-  have h4 := hL₀ _ hL
-  have h5 : 2 ^ (9 * Nat.log 2 s) ≤ s ^ 9 := by
-    rw [pow_mul']
-    exact Nat.pow_le_pow_left
+    Nat.pow_lt_pow_left ((hg hrows htab).trans_le hdeg) (by norm_num)
+  have h4 := hL₀ _ (Nat.le_log_of_pow_le one_lt_two hs.le)
+  have h5 : 2 ^ (9 * Nat.log 2 s) ≤ s ^ 9 :=
+    pow_mul' 2 9 (Nat.log 2 s) ▸ Nat.pow_le_pow_left
       (Nat.pow_log_le_self 2 (by have := Nat.one_le_two_pow (n := L₀); omega)) 9
   omega
 
@@ -153,27 +144,26 @@ section GuardPolyTime
 
 open Turing.MultiTapeTM
 
-/-- The encoding of an explicit network with its number of rows. -/
-local notation "encG" => encPair encNat ExplicitTensorNetwork.encExplicitNetwork
-
 /-- **The guard is polynomial-time**: the rows-first test (`DescribedNetwork.rowsFirst_polyTime`),
 the lengths of the tables and the degrees of the vertices. -/
-theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encG encBool := by
+theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encExplicitRowNetwork encBool := by
   have hd := ComputableInPolyTime.snd encNat ExplicitTensorNetwork.encExplicitNetwork
-  have hm : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.numEdges) encG
-      encUnary := DescribedNetwork.numEdges_polyTime.comp hd
-  have hvs : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.vertices) encG
-      (encList (encPair (encList encNat) (encList encNat))) :=
+  have hm : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.numEdges)
+      encExplicitRowNetwork encUnary := DescribedNetwork.numEdges_polyTime.comp hd
+  have hvs : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.vertices)
+      encExplicitRowNetwork (encList (encPair (encList encNat) (encList encNat))) :=
     DescribedNetwork.vertices_polyTime.comp hd
   -- Rows first.
   have hrows : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
-      decide (G.2.IsRowsFirstBipartite G.1)) encG encBool :=
+      decide (G.2.IsRowsFirstBipartite G.1)) encExplicitRowNetwork encBool :=
     DescribedNetwork.rowsFirst_polyTime
   -- Full tables.
   have htab : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
-      G.2.vertices.all (fun v => decide (v.2.length = 2 ^ v.1.length))) encG encBool := by
+      G.2.vertices.all (fun v => decide (v.2.length = 2 ^ v.1.length)))
+      encExplicitRowNetwork encBool := by
     refine ComputableInPolyTime.allWithInput hvs ?_
-    have hv := ComputableInPolyTime.snd encG (encPair (encList encNat) (encList encNat))
+    have hv := ComputableInPolyTime.snd encExplicitRowNetwork
+      (encPair (encList encNat) (encList encNat))
     exact ComputableInPolyTime.decide_eq'
       (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
         ((ComputableInPolyTime.snd _ _).comp hv)))
@@ -181,8 +171,8 @@ theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encG encBool := by
         ((ComputableInPolyTime.fst _ _).comp hv)))
   -- The degree bound.
   have hdeg : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
-      G.2.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.2.numEdges))) encG
-      encBool := by
+      G.2.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.2.numEdges)))
+      encExplicitRowNetwork encBool := by
     refine ComputableInPolyTime.allWithInput hvs ?_
     exact ComputableInPolyTime.binary_le'
       (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
@@ -217,10 +207,9 @@ theorem fuel_le {C D s P : ℕ} {G : ℕ × ExplicitTensorNetwork ℕ} (hA : Exp
   have hq' : Nat.sqrt (Nat.log 2 s) ≤ Nat.sqrt (Nat.log 2 x) :=
     Nat.sqrt_le_sqrt (Nat.log_mono_right hsx)
   calc fuelConst * x / Nat.sqrt (Nat.log 2 x) ≤ fuelConst * x / Nat.sqrt (Nat.log 2 s) := by gcongr
-    _ ≤ fuelConst * (C + D) * s / Nat.sqrt (Nat.log 2 s) := by
-        refine Nat.div_le_div_right ?_
-        rw [Nat.mul_assoc]
-        exact Nat.mul_le_mul_left _ hx
+    _ ≤ fuelConst * (C + D) * s / Nat.sqrt (Nat.log 2 s) :=
+        Nat.div_le_div_right ((Nat.mul_le_mul_left fuelConst hx).trans_eq
+          (Nat.mul_assoc fuelConst (C + D) s).symm)
 
 /-! ### The resources of the fast machine -/
 
@@ -312,30 +301,25 @@ theorem exists_clockedRun_le (K₁ Ka c d r₁ e₁ r₂ e₂ kf : ℕ) :
   set Xa := 2 ^ (Ka * s / S)
   set X := 2 ^ ((kf + Ka) * s / S)
   have hXf : 1 ≤ Xf := Nat.one_le_two_pow
-  have hXa : 1 ≤ Xa := Nat.one_le_two_pow
   have hX : Xf * Xa ≤ X := by
     rw [← pow_add]
     exact Nat.pow_le_pow_right (by norm_num) (Nat.div_add_div_le_add_div.trans (by rw [add_mul]))
-  have hXfX : Xf ≤ X := (Nat.le_mul_of_pos_right _ hXa).trans hX
+  have hXfX : Xf ≤ X := (Nat.le_mul_of_pos_right _ Nat.one_le_two_pow).trans hX
   set W := B ^ E * X
   have hEW (a : ℕ) : a * B ^ E ≤ a * W :=
     Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ (hXf.trans hXfX))
   have hfuel1 : fuel + 1 ≤ 2 * Xf := by omega
-  have hP1 : (fuel + 1) * (K₁ * ((H + 1) * (F + 1)) ^ K₁) ≤ 2 * (Z₀ * W) :=
-    calc _ ≤ 2 * Xf * (Z₀ * B ^ E) := Nat.mul_le_mul hfuel1 hZ
-      _ = 2 * (Z₀ * (B ^ E * Xf)) := by ring
-      _ ≤ 2 * (Z₀ * W) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hXfX))
+  have hP {y a : ℕ} (hy : y ≤ a * B ^ E) : (fuel + 1) * y ≤ 2 * (a * W) :=
+    calc _ ≤ 2 * Xf * (a * B ^ E) := Nat.mul_le_mul hfuel1 hy
+      _ = 2 * (a * (B ^ E * Xf)) := by ring
+      _ ≤ 2 * (a * W) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hXfX))
+  have hP1 := hP hZ
   have hP2 : (fuel + 1) * TL ≤ 2 * (Ka * W) :=
     calc _ ≤ 2 * Xf * (Ka * B ^ E * Xa) :=
           Nat.mul_le_mul hfuel1 (hTL.trans (Nat.mul_le_mul_right _ hKa))
       _ = 2 * (Ka * (B ^ E * (Xf * Xa))) := by ring
       _ ≤ 2 * (Ka * W) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hX))
-  have hP3 : (fuel + 1) * ((encNat fuel).length + 1) ^ 2 ≤ 2 * ((c + 1) ^ 2 * W) :=
-    calc _ ≤ 2 * Xf * ((c + 1) ^ 2 * B ^ E) := Nat.mul_le_mul hfuel1 hL
-      _ = 2 * ((c + 1) ^ 2 * (B ^ E * Xf)) := by ring
-      _ ≤ 2 * ((c + 1) ^ 2 * W) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hXfX))
+  have hP3 := hP hL
   have htime : pre + (2 * runT + n + rest) ≤ M * W := by
     have e : M * W = 4 * (c * W) + 4 * (Z₀ * W) + 4 * ((c + 1) ^ 2 * W) + 4 * (Ka * W) +
         (r₁ + r₂) * W + 1 * W := by rw [hM]; ring
@@ -364,19 +348,14 @@ theorem outputStep_le {β : Type*} {o : Option (ℕ × β)} {valid : ℕ × β �
         (o.elim dirS fun v => tagS v + if decide (v.1 = 0) = true then decS v else fstS v + dirS) ≤
       2 * Y + 2 * Z := by
   rcases hr : o with _ | v
-  · have hs₀ : s < s₀ := Nat.lt_of_not_le fun h => by rw [hbig h] at hr; cases hr
-    have := hdir hs₀
-    simp only [Option.elim_none]
-    omega
+  · have := hdir (Nat.lt_of_not_le fun h => nomatch hr.symm.trans (hbig h))
+    simp only [Option.elim_none]; omega
   · have hd := hdec v (hval v hr)
     simp only [Option.elim_some]
     split_ifs with h0
     · omega
-    · have hs₀ : s < s₀ := Nat.lt_of_not_le fun h => by
-        rw [hbig h] at hr
-        cases hr
-        simp at h0
-      have := hdir hs₀
+    · have := hdir (Nat.lt_of_not_le fun h => by
+        simp [Option.some.inj (hr.symm.trans (hbig h))] at h0)
       omega
 
 /-- **The cost of decoding a value**, for the output step of a clocked run (`outputStep_le`): a
@@ -442,8 +421,6 @@ theorem fastCertificate_le
   obtain ⟨hrT, hrS⟩ := hK₁ (NativeCertificate.ofPolyTime fuel_polyTime)
     (NativeCertificate.ofPolyTime root_polyTime) I F TL SL hnode hframe hvalue
     (ExplicitTensorNetwork.capPrecision q) _ N H he
-  have hrT' : (runCertificate hpoly).time (ExplicitTensorNetwork.capPrecision q) ≤ _ := hrT
-  have hrS' : (runCertificate hpoly).space (ExplicitTensorNetwork.capPrecision q) ≤ _ := hrS
   -- Direct summation below `s₀`.
   have h2 : 1 ≤ 2 ^ (C * s₀) := Nat.one_le_two_pow
   have hdir (hs₀ : s < s₀) :
@@ -477,11 +454,12 @@ theorem fastCertificate_le
     rw [Nat.mul_assoc 2, Nat.mul_assoc 2]
     exact outputStep_le (fun _ => Scheme.value_of_run_eq_some he)
       (fun v hv => le_of_le_encPair (h₂ (q, v)) hB (hvalue v hv) (by omega)) hbig hdir hdirS
-  rw [fastCertificate_time, fastCertificate_space]
+  simp only [fastCertificate_time, fastCertificate_space, runCertificate]
   exact (hK (n := (FastContraction.encInput q).length)
     (pre := 2 * (NativeCertificate.ofPolyTime ExplicitTensorNetwork.capPrecision_polyTime).time q)
     (preS := 2 * (NativeCertificate.ofPolyTime ExplicitTensorNetwork.capPrecision_polyTime).space q)
-    (by omega) hrT' hrS' (by rw [Nat.mul_assoc]; omega) hrest (fuel_le hA hs hPD) hHFS hTL).imp
+    ((Nat.lt_succ_self _).trans_eq hB.symm) hrT hrS (by rw [Nat.mul_assoc]; omega) hrest
+    (fuel_le hA hs hPD) hHFS hTL).imp
     (fun h => by omega) fun h => by omega
 
 /-- **The contraction algorithm from the fast machine**, given its remaining obligations:
@@ -496,8 +474,7 @@ noncomputable def contractionAlgorithmOfFast
     (hstep : StepCorrect tableEntry mk WF) (hwf : WFChildren mk WF)
     (hroot : ∀ P G, fastGuard G = true → WF (root (ExplicitTensorNetwork.capPrecision (P, G))))
     (hana : FastAnalysis mk) :
-    ContractionAlgorithm (encPair encNat ExplicitTensorNetwork.encExplicitNetwork)
-      (fun G => G.2.contraction) ExplicitAdmissible :=
+    ContractionAlgorithm encExplicitRowNetwork (fun G => G.2.contraction) ExplicitAdmissible :=
   ContractionAlgorithm.ofGuarded fastGuard_polyTime (fastCertificate hpoly)
     (fun P G hg => fastValue_eq mk hstep hwf (P, G) (hroot P G hg))
     (fun C D => fastCertificate_le hpoly hana C D) (fun _ _ _ hA => hA.2.1)
@@ -507,18 +484,14 @@ noncomputable def contractionAlgorithmOfFast
 tables as descriptors keep the rows-first ports. -/
 theorem wf_root (P : ℕ) {G : ℕ × ExplicitTensorNetwork ℕ} (hg : fastGuard G = true) :
     FastContraction.WF (root (ExplicitTensorNetwork.capPrecision (P, G))) := by
-  refine ⟨irreducible_modulus _, ?_⟩
-  have hrows : G.2.IsRowsFirstBipartite G.1 := by
-    simp only [fastGuard, decide_eq_true_eq] at hg
-    exact hg.1
-  obtain ⟨h1, h2⟩ := hrows
-  refine ⟨fun v hv i hi => ?_, fun i hi => ?_⟩
+  simp only [fastGuard, decide_eq_true_eq] at hg
+  obtain ⟨h1, h2⟩ := hg.1
+  refine ⟨irreducible_modulus _, fun v hv i hi => ?_, fun i hi => ?_⟩
   · simp only [root, ExplicitTensorNetwork.capPrecision, rootNet, List.mem_map] at hv
     obtain ⟨w, hw, rfl⟩ := hv
     exact h1 w hw i hi
-  · simp only [root, ExplicitTensorNetwork.capPrecision, rootNet, ← List.map_take,
-      ← List.map_drop, List.map_map, Function.comp_def] at hi ⊢
-    exact h2 i hi
+  · simpa only [root, ExplicitTensorNetwork.capPrecision, rootNet, ← List.map_take,
+      ← List.map_drop, List.map_map, Function.comp_def] using h2 i hi
 
 /-- **The contraction algorithm from the native recursion**, given its one remaining obligation,
 the resource analysis. The components of the scheme are polynomial-time
@@ -526,8 +499,7 @@ the resource analysis. The components of the scheme are polynomial-time
 children and the well-formed roots are proved (`FastContraction.stepCorrect_nativeMk`,
 `FastContraction.wfChildren_nativeMk`, `CountingSimulation.wf_root`). -/
 noncomputable def contractionAlgorithmOfNative (hana : FastAnalysis nativeMk) :
-    ContractionAlgorithm (encPair encNat ExplicitTensorNetwork.encExplicitNetwork)
-      (fun G => G.2.contraction) ExplicitAdmissible :=
+    ContractionAlgorithm encExplicitRowNetwork (fun G => G.2.contraction) ExplicitAdmissible :=
   contractionAlgorithmOfFast (scheme_nativeMk_polyTime tableEntry)
     (stepCorrect_nativeMk tableEntry) wfChildren_nativeMk
     (fun P _ hg => wf_root P hg) hana

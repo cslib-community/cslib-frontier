@@ -34,21 +34,11 @@ theorem exists_mul_im_injOn (s : Finset ℂ) :
   classical
   let bad := (s ×ˢ s).image (fun p => (p.2.im - p.1.im) / (p.1.re - p.2.re))
   obtain ⟨m, hm⟩ := bad.exists_notMem
-  refine ⟨⟨1, m⟩, ?_, ?_⟩
-  · intro h
-    have := congrArg Complex.re h
-    norm_num at this
-  · intro a ha b hb h
-    simp only [Complex.mul_im, one_mul] at h
-    by_cases hre : a.re = b.re
-    · apply Complex.ext hre
-      rw [hre] at h
-      linarith
-    · exfalso
-      have hmeq : m = (b.im - a.im) / (a.re - b.re) := by
-        apply (eq_div_iff (sub_ne_zero.mpr hre)).mpr
-        linarith
-      apply hm
-      exact Finset.mem_image.mpr ⟨(a, b), Finset.mem_product.mpr ⟨ha, hb⟩, hmeq.symm⟩
+  refine ⟨⟨1, m⟩, fun h => one_ne_zero (congrArg Complex.re h), fun a ha b hb h => ?_⟩
+  simp only [Complex.mul_im, one_mul] at h
+  by_cases hre : a.re = b.re
+  · exact Complex.ext hre (by rw [hre] at h; linarith)
+  · refine (hm (Finset.mem_image.mpr ⟨(a, b), Finset.mem_product.mpr ⟨ha, hb⟩, ?_⟩)).elim
+    exact ((eq_div_iff (sub_ne_zero.mpr hre)).mpr (by linarith)).symm
 
 end Cslib.Polygonal

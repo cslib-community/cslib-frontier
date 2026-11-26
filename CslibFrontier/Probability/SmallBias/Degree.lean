@@ -102,43 +102,27 @@ theorem card_lt_card_of_isSmallBias {G : σ → ι → Bool} {ε : ℝ} (hε : �
   classical
   obtain ⟨s₀⟩ := ‹Nonempty σ›
   let T : Finset (σ → Bool) := (univ.erase s₀).image fun s => Pi.single s true
-  have hW (i : ι) : ∃ c : Bool, (fun s => G s i) - Function.const σ c ∈ Submodule.span Bool
-      (T : Set (σ → Bool)) := by
+  have hW (i : ι) : ∃ c : Bool, (fun s => G s i) - Function.const σ c ∈
+      Submodule.span Bool (T : Set (σ → Bool)) := by
     refine ⟨G s₀ i, ?_⟩
-    have : (fun s => G s i) - Function.const σ (G s₀ i) =
-        ∑ s ∈ univ.erase s₀, (G s i - G s₀ i) • Pi.single s true := by
-      funext t
-      simp only [Pi.sub_apply, Function.const_apply, Finset.sum_apply, Pi.smul_apply,
-        Pi.single_apply, smul_eq_mul, mul_ite, mul_zero]
-      rw [sum_ite_eq]
-      by_cases ht : t = s₀
-      · subst ht; simp
-      · simp [ht, show (true : Bool) = 1 from rfl]
-    rw [this]
-    exact Submodule.sum_mem _ fun s hs =>
-      Submodule.smul_mem _ _ (Submodule.subset_span (mem_image_of_mem _ hs))
-  have h := card_le_finrank_of_isSmallBias hε hG _ hW
-  have hT : finrank Bool (Submodule.span Bool (T : Set (σ → Bool))) ≤ #T :=
-    finrank_span_finset_le_card (R := Bool) T
-  have hcard : #T ≤ Fintype.card σ - 1 :=
-    card_image_le.trans (by rw [card_erase_of_mem (mem_univ _), card_univ])
+    suffices (fun s => G s i) - Function.const σ (G s₀ i) =
+        ∑ s ∈ univ.erase s₀, (G s i - G s₀ i) • Pi.single s true from
+      this ▸ Submodule.sum_mem _ fun s hs =>
+        Submodule.smul_mem _ _ (Submodule.subset_span (mem_image_of_mem _ hs))
+    funext t
+    simp only [Pi.sub_apply, Function.const_apply, Finset.sum_apply, Pi.smul_apply,
+      Pi.single_apply, smul_eq_mul, mul_ite, mul_zero, sum_ite_eq]
+    by_cases ht : t = s₀ <;> simp [ht, show (true : Bool) = 1 from rfl]
+  have h := (card_le_finrank_of_isSmallBias hε hG _ hW).trans
+    ((finrank_span_finset_le_card (R := Bool) T).trans card_image_le)
+  rw [card_erase_of_mem (mem_univ _), card_univ] at h
   have := Fintype.card_pos (α := σ)
   omega
 
 /-- On bits, a positive power is the identity. -/
 private theorem bool_pow_of_ne_zero (b : Bool) {n : ℕ} (hn : n ≠ 0) : b ^ n = b := by
   cases b
-  · exact zero_pow hn
-  · exact one_pow n
-
-/-- The sets of between one and `d` of the `k` seed bits. -/
-private theorem card_biUnion_powersetCard (k d : ℕ) :
-    #((Icc 1 d).biUnion fun i => powersetCard i (univ : Finset (Fin k))) =
-      ∑ i ∈ Icc 1 d, k.choose i := by
-  rw [card_biUnion]
-  · simp [card_powersetCard]
-  · intro i _ j _ hij
-    exact pairwise_disjoint_powersetCard _ hij
+  exacts [zero_pow hn, one_pow n]
 
 /-- **Limitations on small-bias generators** [Goldreich, Exercise 8.37][Goldreich2007DraftR4]: if
 `G : {0,1}^k → {0,1}^ℓ`, with a uniform seed, is `ε`-biased for some `ε < 1`, and each output bit
@@ -154,40 +138,33 @@ theorem le_sum_choose_of_isSmallBias {k ℓ : ℕ} {G : (Fin k → Bool) → Fin
   let m : Finset (Fin k) → (Fin k → Bool) → Bool := fun T s => ∏ j ∈ T, s j
   let W := Submodule.span Bool ((𝒯.image m : Finset _) : Set ((Fin k → Bool) → Bool))
   have hm (e : Fin k →₀ ℕ) (he : e ≠ 0) (hle : (e.sum fun _ n => n) ≤ d) : m e.support ∈ W := by
-    refine Submodule.subset_span (mem_image_of_mem _ ?_)
     have hcard : #e.support ≤ e.sum fun _ n => n := by
       rw [Finsupp.sum, card_eq_sum_ones]
       exact sum_le_sum fun j hj => Nat.one_le_iff_ne_zero.2 (Finsupp.mem_support_iff.1 hj)
-    refine mem_biUnion.2 ⟨#e.support, mem_Icc.2 ⟨?_, hcard.trans hle⟩, ?_⟩
-    · exact card_pos.2 (Finsupp.support_nonempty_iff.2 he)
-    · exact mem_powersetCard.2 ⟨subset_univ _, rfl⟩
+    exact Submodule.subset_span (mem_image_of_mem _ (mem_biUnion.2
+      ⟨#e.support, mem_Icc.2 ⟨card_pos.2 (Finsupp.support_nonempty_iff.2 he), hcard.trans hle⟩,
+        mem_powersetCard.2 ⟨subset_univ _, rfl⟩⟩))
   have hW (i : Fin ℓ) : ∃ c : Bool, (fun s => G s i) - Function.const _ c ∈ W := by
     refine ⟨(p i).coeff 0, ?_⟩
-    have : (fun s => G s i) - Function.const _ ((p i).coeff 0) =
-        ∑ e ∈ (p i).support with e ≠ 0, (p i).coeff e • m e.support := by
-      funext s
-      simp only [Pi.sub_apply, Function.const_apply, Finset.sum_apply, Pi.smul_apply,
-        smul_eq_mul, m]
-      rw [← hp, MvPolynomial.eval_eq, ← sum_filter_add_sum_filter_not _ (· ≠ 0)]
-      have h0 : ∑ e ∈ (p i).support with ¬e ≠ 0,
-          (p i).coeff e * ∏ j ∈ e.support, s j ^ e j = (p i).coeff 0 := by
-        by_cases h : (0 : Fin k →₀ ℕ) ∈ (p i).support
-        · rw [sum_eq_single_of_mem 0 (by simpa using h) fun e he he0 => by
-            simp only [ne_eq, not_not, mem_filter] at he; exact absurd he.2 he0]
-          simp
-        · rw [sum_eq_zero fun e he => by
-            simp only [ne_eq, not_not, mem_filter] at he; exact absurd (he.2 ▸ he.1) h]
-          exact (MvPolynomial.notMem_support_iff.1 h).symm
-      rw [h0, add_sub_cancel_right]
-      refine sum_congr rfl fun e _ => congrArg _ (prod_congr rfl fun j hj => ?_)
-      exact bool_pow_of_ne_zero _ (Finsupp.mem_support_iff.1 hj)
-    rw [this]
-    refine Submodule.sum_mem _ fun e he => Submodule.smul_mem _ _ (hm e (mem_filter.1 he).2 ?_)
-    exact (MvPolynomial.le_totalDegree (mem_filter.1 he).1).trans (hdeg i)
-  have h := card_le_finrank_of_isSmallBias hε hG W hW
-  rw [Fintype.card_fin] at h
-  have hW' : finrank Bool W ≤ #(𝒯.image m) := finrank_span_finset_le_card (R := Bool) _
-  exact h.trans (hW'.trans (card_image_le.trans (card_biUnion_powersetCard k d).le))
+    suffices (fun s => G s i) - Function.const _ ((p i).coeff 0) =
+        ∑ e ∈ (p i).support with e ≠ 0, (p i).coeff e • m e.support from
+      this ▸ Submodule.sum_mem _ fun e he => Submodule.smul_mem _ _ (hm e (mem_filter.1 he).2
+        ((MvPolynomial.le_totalDegree (mem_filter.1 he).1).trans (hdeg i)))
+    funext s
+    simp only [Pi.sub_apply, Function.const_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, m]
+    rw [← hp, MvPolynomial.eval_eq, ← sum_filter_add_sum_filter_not _ (· ≠ 0)]
+    have h0 : ∑ e ∈ (p i).support with ¬e ≠ 0,
+        (p i).coeff e * ∏ j ∈ e.support, s j ^ e j = (p i).coeff 0 := by
+      rw [sum_eq_single 0 (fun e he he0 => absurd he0 (by simpa using (mem_filter.1 he).2))
+        (by simp [MvPolynomial.mem_support_iff])]
+      simp
+    rw [h0, add_sub_cancel_right]
+    exact sum_congr rfl fun e _ => congrArg _ (prod_congr rfl fun j hj =>
+      bool_pow_of_ne_zero _ (Finsupp.mem_support_iff.1 hj))
+  have h := (card_le_finrank_of_isSmallBias hε hG W hW).trans
+    ((finrank_span_finset_le_card (R := Bool) _).trans card_image_le)
+  rw [Fintype.card_fin, card_biUnion fun _ _ _ _ hij => pairwise_disjoint_powersetCard _ hij] at h
+  simpa [card_powersetCard] using h
 
 /-- **Corollary 2 of [Goldreich, Exercise 8.37][Goldreich2007DraftR4]**: an `ε`-bias generator
 `G : {0,1}^k → {0,1}^ℓ` with `ε < 1` and `ℓ > k` is not a `GF(2)`-linear map. -/
@@ -198,17 +175,14 @@ theorem not_exists_linearMap_of_isSmallBias {k ℓ : ℕ} {G : (Fin k → Bool) 
   let e : Fin k → Fin k → Bool := fun j j' => if j = j' then 1 else 0
   let p : Fin ℓ → MvPolynomial (Fin k) Bool := fun i =>
     ∑ j, MvPolynomial.C (L (e j) i) * MvPolynomial.X j
-  have hdeg (i : Fin ℓ) : (p i).totalDegree ≤ 1 := by
-    refine MvPolynomial.totalDegree_finsetSum_le fun j _ => ?_
-    refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-    rw [MvPolynomial.totalDegree_C, zero_add]
-    exact (MvPolynomial.totalDegree_X j).le
+  have hdeg (i : Fin ℓ) : (p i).totalDegree ≤ 1 :=
+    MvPolynomial.totalDegree_finsetSum_le fun j _ =>
+      (MvPolynomial.totalDegree_mul _ _).trans (by simp [MvPolynomial.totalDegree_X])
   have hp (s : Fin k → Bool) (i : Fin ℓ) : MvPolynomial.eval s (p i) = L s i := by
-    simp only [p, map_sum, map_mul, MvPolynomial.eval_C, MvPolynomial.eval_X]
-    rw [LinearMap.pi_apply_eq_sum_univ L s, Finset.sum_apply]
+    simp only [p, map_sum, map_mul, MvPolynomial.eval_C, MvPolynomial.eval_X,
+      LinearMap.pi_apply_eq_sum_univ L s, Finset.sum_apply]
     exact sum_congr rfl fun j _ => by simp [mul_comm, e]
   have h := le_sum_choose_of_isSmallBias hε hG p hdeg hp
-  simp at h
-  omega
+  simp at h; omega
 
 end Cslib.BitString

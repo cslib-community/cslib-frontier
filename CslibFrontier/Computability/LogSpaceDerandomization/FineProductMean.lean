@@ -64,13 +64,12 @@ theorem abs_expect_pow_le {Ω : Type*} (S : Finset Ω) {s : ℕ} (hs : s ≠ 0) 
   rcases S.eq_empty_or_nonempty with rfl | hS
   · simp [hs]
   have hcard : (#S : ℝ) ≠ 0 := by exact_mod_cast hS.card_ne_zero
-  have hw : ∑ _σ ∈ S, (#S : ℝ)⁻¹ = 1 := by simp [hcard]
   calc
     _ ≤ (𝔼 σ ∈ S, |v σ|) ^ s := pow_le_pow_left₀ (abs_nonneg _) (abs_expect_le S v) s
     _ ≤ _ := by
       simpa only [expect_eq_sum_div_card, div_eq_inv_mul, mul_sum] using
         Real.pow_arith_mean_le_arith_mean_pow S (fun _ => (#S : ℝ)⁻¹) (fun σ => |v σ|)
-          (fun _ _ => by positivity) hw (fun _ _ => abs_nonneg _) s
+          (fun _ _ => by positivity) (by simp [hcard]) (fun _ _ => abs_nonneg _) s
 
 variable {Ω V : Type*} [Fintype Ω] [Fintype V]
 
@@ -96,16 +95,10 @@ theorem rowNormPow_conditionalTableMean_le {s : ℕ} {N u : ℝ} (hs : s ≠ 0)
   refine mul_le_mul_of_nonneg_left (sum_le_sum fun x _ => sum_le_sum fun y _ => ?_)
     (inv_nonneg.mpr hNu)
   let S : Finset Ω := {σ | X σ x ∧ Y σ y}
-  have hmask := expect_mask_const S (|conditionalTableMean X Y D x y| ^ s)
-  simp only [S, mem_filter, mem_univ, true_and] at hmask
-  rw [hmask]
-  have hpoint := mul_le_mul_of_nonneg_left (abs_expect_pow_le S hs (fun σ => D σ x y))
-    (show (0 : ℝ) ≤ dens S by positivity)
-  have hright : (dens S : ℝ) * (𝔼 σ ∈ S, |D σ x y| ^ s) =
-      𝔼 σ, if X σ x ∧ Y σ y then |D σ x y| ^ s else 0 := by
-    simpa only [S, mem_filter, mem_univ, true_and, NNRat.smul_def] using
-      (Fintype.expect_ite_mem S (fun σ => |D σ x y| ^ s)).symm
-  exact hright ▸ hpoint
+  have hmem (σ) : (X σ x ∧ Y σ y) ↔ σ ∈ S := by simp [S]
+  simp only [hmem]
+  rw [expect_mask_const, Fintype.expect_ite_mem, NNRat.smul_def]
+  exact mul_le_mul_of_nonneg_left (abs_expect_pow_le S hs fun σ => D σ x y) (NNRat.cast_nonneg _)
 
 /-- A deterministic table is weighted by the actual joint source/endpoint densities. -/
 theorem rowNormPow_const_eq_dens_sum (s : ℕ) (N u : ℝ) (X Y : Ω → V → Prop)
@@ -137,10 +130,8 @@ omit [Fintype V] in
 private theorem conditionalTableMean_two_product (D : (Γ × Υ) → V → V → ℝ) (x y : V) :
     conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x) (fun (σ : Γ × Υ) y => Ya σ.2 y) D x y =
       𝔼 σ ∈ ({γ | X γ x} : Finset Γ) ×ˢ ({τ | Ya τ y} : Finset Υ), D σ x y := by
-  unfold conditionalTableMean
-  congr 1
-  ext σ
-  simp
+  rw [conditionalTableMean]
+  exact congrArg₂ _ (Finset.ext fun _ => by simp) rfl
 
 omit [Fintype V] in
 /-- Source and terminal masks on separate seed coordinates have the product of their actual
@@ -148,11 +139,8 @@ uniform densities. Empty seed spaces and slices are included. -/
 theorem dens_source_terminal (x y : V) :
     (dens {σ : Γ × Υ | X σ.1 x ∧ Ya σ.2 y} : ℝ) =
       (dens {γ | X γ x} : ℝ) * (dens {τ | Ya τ y} : ℝ) := by
-  have hset : ({σ : Γ × Υ | X σ.1 x ∧ Ya σ.2 y} : Finset (Γ × Υ)) =
-      ({γ | X γ x} : Finset Γ) ×ˢ ({τ | Ya τ y} : Finset Υ) := by
-    ext σ
-    simp
-  rw [hset]
+  rw [show ({σ : Γ × Υ | X σ.1 x ∧ Ya σ.2 y} : Finset (Γ × Υ)) =
+    ({γ | X γ x} : Finset Γ) ×ˢ ({τ | Ya τ y} : Finset Υ) from Finset.ext fun _ => by simp]
   simp only [nnratCast_dens, card_product, Fintype.card_prod, Nat.cast_mul]
   exact mul_div_mul_comm _ _ _ _
 
@@ -187,14 +175,10 @@ theorem rowNormPow_const_change_terminal (s : ℕ) (N u : ℝ) {πa πb : ℝ} (
       (πa / πb) * rowNormPow s N u (fun (σ : Γ × Υ) x => X σ.1 x)
         (fun (σ : Γ × Υ) y => Yb σ.2 y) (fun _ => v) := by
   rw [rowNormPow_const_eq_dens_sum, rowNormPow_const_eq_dens_sum]
-  simp_rw [dens_source_terminal, hYaπ, hYbπ]
-  have hpoint : ∀ x y, (dens {γ | X γ x} : ℝ) * πa * |v x y| ^ s =
-      (πa / πb) * ((dens {γ | X γ x} : ℝ) * πb * |v x y| ^ s) := by
-    intro x y
-    field_simp
-  simp_rw [hpoint]
-  simp only [← mul_sum]
-  ring
+  simp_rw [dens_source_terminal, hYaπ, hYbπ,
+    show ∀ x y, (dens {γ | X γ x} : ℝ) * πa * |v x y| ^ s =
+      (πa / πb) * ((dens {γ | X γ x} : ℝ) * πb * |v x y| ^ s) from fun _ _ => by field_simp]
+  simp only [← mul_sum]; ring
 
 /-- **Fine conditioning before powers**. The supported sample has importance factor
 `πa / πb` inside the broad-slice mean. After changing to the fine slice, Jensen contributes
@@ -212,14 +196,14 @@ theorem rowNormPow_fineMean_le {s : ℕ} {N u c πa πb : ℝ} (hs : s ≠ 0)
           (fun σ x y => c * (πa / πb) * D σ x y) x y) ≤
       c ^ s * (πa / πb) * rowNormPow s N u (fun (σ : Γ × Υ) x => X σ.1 x)
         (fun (σ : Γ × Υ) y => Yb σ.2 y) D := by
-  have hchange : ∀ x y,
+  have hchange (x y : V) :
       conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x) (fun (σ : Γ × Υ) y => Ya σ.2 y)
           (fun σ x y => c * (πa / πb) * D σ x y) x y =
         c * conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x)
           (fun (σ : Γ × Υ) y => Yb σ.2 y) D x y := by
-    intro x y
     have hcomm : (fun σ x y => c * (πa / πb) * D σ x y) =
-        (fun σ x y => (πa / πb) * (c * D σ x y)) := by funext σ x y; ring
+        fun σ x y => (πa / πb) * (c * D σ x y) :=
+      funext fun _ => funext fun _ => funext fun _ => by ring
     rw [hcomm, conditionalTableMean_change_terminal X Ya Yb hπb hYaπ hYbπ hsub
       (fun σ x y => c * D σ x y) (fun σ x y h => by rw [hD σ x y h, mul_zero])]
     exact (mul_expect ..).symm
@@ -297,14 +281,12 @@ theorem fineScaleCost_le {s : ℕ} (hs : s ≠ 0) {a b πa πb Ca cb : ℝ}
         exact (mul_le_mul_of_nonneg_right hupper (mul_nonneg hcb.le hb.le)).trans
           (mul_le_mul_of_nonneg_left hlower (mul_nonneg hCa ha.le))
       _ = _ := by ring
-  have hcancel : (b / a) ^ s * (a / b) = (b / a) ^ (s - 1) := by
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
-    rw [Nat.add_sub_cancel, pow_succ]
-    field_simp
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
   calc
-    _ ≤ (b / a) ^ s * ((Ca / cb) * (a / b)) := by gcongr
-    _ = (Ca / cb) * ((b / a) ^ s * (a / b)) := by ring
-    _ = _ := by rw [hcancel]
+    _ ≤ (b / a) ^ (k + 1) * ((Ca / cb) * (a / b)) := by gcongr
+    _ = _ := by
+      rw [Nat.add_sub_cancel, pow_succ]
+      field_simp
 
 /-- **Fine-bin conditional product comparison** [OpenAI2026LogSpace, proof of Lemma 7.3].
 Both sample products are concrete finite sums. The actual terminal density ratio is removed
@@ -369,7 +351,7 @@ theorem rowNormPow_fineProductMean_le {Γ Υ : Type*} [Fintype Γ] [Fintype Υ]
       rowNormPow_fineMean_le X Ya Yb hs hNu (by positivity) hπa hπb hYaπ hYbπ hsub E hEsupport
     _ ≤ ((f / πf) ^ s * (Ca / cb) * (b / a) ^ (s - 1)) *
         rowNormPow s N u (fun σ x => X σ.1 x) (fun σ y => Yb σ.2 y) E :=
-      mul_le_mul_of_nonneg_right hscale (rowNormPow_nonneg hNu E)
+      mul_le_mul_of_nonneg_right hscale (by positivity)
     _ ≤ _ := mul_le_mul_of_nonneg_left
       (rowNormPow_product_sub_le hs hN hu hf hCF hCB hF hF' hB hB' hFbound hF'bound
         hBbound hB'bound hleft hleft' hrow hcol) (by positivity)

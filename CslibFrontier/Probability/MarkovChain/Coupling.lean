@@ -140,15 +140,11 @@ theorem IsSticky.toOuterMeasure_succ_le (h : IsSticky Q) (t : ℕ) (z : S × S) 
     ((Q ^ (t + 1)) z).toOuterMeasure {w | w.1 ≠ w.2} ≤
       ((Q ^ t) z).toOuterMeasure {w | w.1 ≠ w.2} := by
   rw [pow_succ_apply]
-  have := toOuterMeasure_bind_le_mul_ennreal ((Q ^ t) z) Q {w | w.1 ≠ w.2} {w | w.1 ≠ w.2}
-    (q₂ := 1) le_rfl (fun a _ _ => toOuterMeasure_le_one _ _) (fun a _ ha => ?_)
-  · simpa using this
-  · obtain ⟨x, y⟩ := a
-    simp only [ne_eq, Set.mem_ofPred_eq, not_not] at ha
-    subst ha
-    rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-    intro w hw hne
-    exact hne (h x w hw)
+  simpa using toOuterMeasure_bind_le_mul_ennreal ((Q ^ t) z) Q {w | w.1 ≠ w.2} {w | w.1 ≠ w.2}
+    (q₂ := 1) le_rfl (fun _ _ _ => toOuterMeasure_le_one _ _) fun ⟨x, y⟩ _ ha => by
+      obtain rfl : x = y := of_not_not ha
+      exact (PMF.toOuterMeasure_apply_eq_zero_iff _ _).2
+        (Set.disjoint_left.2 fun w hw hne => hne (h x w hw))
 
 /-- Under a sticky coupling, the probability that the copies have not met by time `t` is
 non-increasing in `t`. -/
@@ -165,8 +161,6 @@ theorem isMarkovianCoupling_independentCoupling (P : MarkovChain S) :
   map_fst _ := map_fst_bind_pair _ _
   map_snd z := by
     change ((P z.1).bind fun a => (P z.2).map (a, ·)).map Prod.snd = P z.2
-    rw [PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def]
-    exact (congrArg _ (funext fun _ => PMF.map_id _)).trans (PMF.bind_const _ _)
+    simp [PMF.map_bind, PMF.map_comp, PMF.map_id]
 
 end Cslib.Probability.MarkovChain

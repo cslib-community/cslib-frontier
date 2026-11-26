@@ -48,11 +48,9 @@ theorem testBit_sum_injective {α : Type*} (s : Finset α)
       ∃ i ∈ s, c i = true ∧ f i = k := by
   classical
   have he : (∑ i ∈ s, (c i).toNat * 2 ^ f i) =
-      ∑ i ∈ (s.filter (fun i => c i = true)).image f, 2 ^ i := by
+      ∑ i ∈ (s.filter fun i => c i = true).image f, 2 ^ i := by
     rw [sum_image (hf.mono (filter_subset _ _)), sum_filter]
-    apply sum_congr rfl
-    intro i _
-    cases c i <;> simp
+    exact sum_congr rfl fun i _ => by cases c i <;> simp
   rw [he, testBit_sum_two_pow]
   simp only [mem_image, mem_filter, and_assoc]
 
@@ -61,20 +59,11 @@ theorem and_sum_two_pow {α : Type*} [Fintype α]
     (f : α → ℕ) (hf : Function.Injective f) (x : ℕ) :
     x &&& (∑ i, 2 ^ f i) = ∑ i, (x.testBit (f i)).toNat * 2 ^ f i := by
   classical
-  apply Nat.eq_of_testBit_eq
-  intro k
-  apply Bool.eq_iff_iff.mpr
-  rw [Nat.testBit_land, Bool.and_eq_true, testBit_sum_injective _ f
-    (fun _ _ _ _ h => hf h)]
-  have hm : (∑ i, 2 ^ f i).testBit k = true ↔ ∃ i, f i = k := by
-    rw [← sum_image (fun _ _ _ _ h => hf h), testBit_sum_two_pow]
-    simp
-  rw [hm]
-  constructor
-  · rintro ⟨hx, i, hi⟩
-    exact ⟨i, mem_univ _, hi ▸ hx, hi⟩
-  · rintro ⟨i, _, hx, hi⟩
-    exact ⟨hi ▸ hx, i, hi⟩
+  refine Nat.eq_of_testBit_eq fun k => Bool.eq_iff_iff.mpr ?_
+  rw [Nat.testBit_land, Bool.and_eq_true, testBit_sum_injective _ f (fun _ _ _ _ h => hf h),
+    ← sum_image (fun _ _ _ _ h => hf h), testBit_sum_two_pow]
+  simp only [mem_image, mem_univ, true_and]
+  exact ⟨fun ⟨hx, i, hi⟩ => ⟨i, hi ▸ hx, hi⟩, fun ⟨i, hx, hi⟩ => ⟨hi ▸ hx, i, hi⟩⟩
 
 /-- A Boolean-weighted sparse word fits below any width containing all its positions. -/
 theorem sum_injective_lt_two_pow {α : Type*} (s : Finset α) (f : α → ℕ)
@@ -82,15 +71,10 @@ theorem sum_injective_lt_two_pow {α : Type*} (s : Finset α) (f : α → ℕ)
     (∑ i ∈ s, (c i).toNat * 2 ^ f i) < 2 ^ L := by
   classical
   calc
-    (∑ i ∈ s, (c i).toNat * 2 ^ f i) ≤ ∑ i ∈ s, 2 ^ f i := by
-      apply sum_le_sum
-      intro i _
-      cases c i <;> simp
+    (∑ i ∈ s, (c i).toNat * 2 ^ f i) ≤ ∑ i ∈ s, 2 ^ f i :=
+      sum_le_sum fun i _ => by cases c i <;> simp
     _ = ∑ j ∈ s.image f, 2 ^ j := (sum_image hf).symm
-    _ < 2 ^ L := Nat.geomSum_lt (by decide) (by
-      intro j hj
-      obtain ⟨i, hi, rfl⟩ := mem_image.mp hj
-      exact hL i hi)
+    _ < 2 ^ L := Nat.geomSum_lt Nat.one_lt_two (forall_mem_image.2 hL)
 
 /-- Increasing placements of the same Boolean coefficients give the same comparisons.
 Gaps between bits do not affect numeric order. -/
@@ -100,12 +84,9 @@ theorem sum_strictMono_lt_iff {α : Type*} [Fintype α] [LinearOrder α]
       (∑ i, (c i).toNat * 2 ^ g i) < (∑ i, (d i).toNat * 2 ^ g i) := by
   classical
   have he (a : α → ℕ) (ha : Function.Injective a) (v : α → Bool) :
-      (∑ i, (v i).toNat * 2 ^ a i) =
-        ∑ j ∈ (univ.filter (fun i => v i = true)).image a, 2 ^ j := by
+      (∑ i, (v i).toNat * 2 ^ a i) = ∑ j ∈ (univ.filter fun i => v i = true).image a, 2 ^ j := by
     rw [sum_image (fun _ _ _ _ h => ha h), sum_filter]
-    apply sum_congr rfl
-    intro i _
-    cases v i <;> simp
+    exact sum_congr rfl fun i _ => by cases v i <;> simp
   rw [he f hf.injective c, he f hf.injective d, he g hg.injective c, he g hg.injective d,
     geomSum_lt_geomSum_iff_toColex_lt_toColex (by decide : 2 ≤ 2),
     geomSum_lt_geomSum_iff_toColex_lt_toColex (by decide : 2 ≤ 2),

@@ -66,24 +66,23 @@ theorem mPar_pow_le (n κ : ℕ) :
   have hL : 1 ≤ L := Nat.le_add_left 1 _
   have hbits : labelBits (2 * n ^ κ) ≤ (κ + 3) * L :=
     (labelBits_pow_le n κ).trans (by dsimp [L]; nlinarith)
-  have hunit : 1 ≤ (Nat.sqrt n + 1) * L := by nlinarith
-  have hw : wPar n (2 * n ^ κ) + 1 ≤ A * (Nat.sqrt n + 1) * L := by
-    calc wPar n (2 * n ^ κ) + 1
-        ≤ 5 * ((κ + 3) * L) * (Nat.sqrt n + 1) + 1 := by
+  have hw : wPar n (2 * n ^ κ) + 1 ≤ A * (Nat.sqrt n + 1) * L :=
+    calc wPar n (2 * n ^ κ) + 1 ≤ 5 * ((κ + 3) * L) * (Nat.sqrt n + 1) + 1 := by
           unfold wPar
           gcongr
       _ ≤ 5 * ((κ + 3) * L) * (Nat.sqrt n + 1) + (Nat.sqrt n + 1) * L :=
-          Nat.add_le_add_left hunit _
+          Nat.add_le_add_left (by nlinarith) _
       _ = A * (Nat.sqrt n + 1) * L := by dsimp [A]; ring
-  have hroot : Nat.sqrt n + 1 ≤ 2 ^ L :=
-    (Nat.add_le_add_right (Nat.sqrt_le_self n) 1).trans
-      (Nat.lt_pow_succ_log_self (by decide) n)
-  have hpow : wPar n (2 * n ^ κ) + 1 ≤ 2 ^ (A + 2 * L) := by
+  have hpow : wPar n (2 * n ^ κ) + 1 ≤ 2 ^ (A + 2 * L) :=
     calc wPar n (2 * n ^ κ) + 1 ≤ A * (Nat.sqrt n + 1) * L := hw
-      _ ≤ 2 ^ A * 2 ^ L * 2 ^ L :=
-          Nat.mul_le_mul (Nat.mul_le_mul (Nat.lt_two_pow_self (n := A)).le hroot)
-            (Nat.lt_two_pow_self (n := L)).le
-      _ = 2 ^ (A + 2 * L) := by rw [← pow_add, ← pow_add]; congr 1; omega
+      _ ≤ 2 ^ A * 2 ^ L * 2 ^ L := Nat.mul_le_mul
+          (Nat.mul_le_mul (Nat.lt_two_pow_self (n := A)).le
+            ((Nat.add_le_add_right (Nat.sqrt_le_self n) 1).trans
+              (Nat.lt_pow_succ_log_self (by decide) n)))
+          (Nat.lt_two_pow_self (n := L)).le
+      _ = 2 ^ (A + 2 * L) := by
+          rw [← pow_add, ← pow_add]
+          exact congrArg (2 ^ ·) (by omega)
   have hlog : Nat.log 2 (wPar n (2 * n ^ κ) + 1) ≤ A + 2 * L :=
     (Nat.log_mono_right hpow).trans_eq (Nat.log_pow (by decide) _)
   calc mPar n (2 * n ^ κ)
@@ -101,9 +100,7 @@ theorem lenOf_le (κ n : ℕ) (hn : 1 ≤ n) :
     lenOf κ n ≤ 32 * ((5 * κ + 16) * (10 * κ + 40)) ^ 2 * n *
       (Nat.log 2 n + 1) ^ 4 := by
   have hroot : (Nat.sqrt n + 1) ^ 2 ≤ 4 * n := by
-    have := Nat.sqrt_le n
-    have := Nat.sqrt_le_self n
-    nlinarith
+    nlinarith [Nat.sqrt_le n, Nat.sqrt_le_self n]
   calc lenOf κ n
       ≤ 8 * ((5 * κ + 16) * (10 * κ + 40) * (Nat.sqrt n + 1) *
           (Nat.log 2 n + 1) ^ 2) ^ 2 :=

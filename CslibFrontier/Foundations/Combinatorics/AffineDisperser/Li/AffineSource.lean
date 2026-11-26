@@ -18,6 +18,7 @@ public import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import CslibFrontier.Foundations.Data.BitString.ZModSpace
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.LinearAlgebra.Dimension.Constructions
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
@@ -191,16 +192,11 @@ private theorem uniformAffine_eq_bind_add_of_isCompl {n : ℕ}
         fun a => (uniformAffine (AffineSubspace.mk' 0 K) ⟨0, AffineSubspace.self_mem_mk' 0 K⟩).map
           fun b => a + b := by
   classical
-  let e := isCompl_prodEquiv hU hK hcompl
-  rw [uniformAffine_eq_map_direction A hx₀, ← uniformOfFintype_map_equiv e, PMF.map_comp,
-    show (fun v : A.direction => x₀ + v.1) ∘ e = fun p : U × K => x₀ + (e (p.1, p.2)).1 from rfl,
-    ← uniformOfFintype_bind_map (fun u k => x₀ + (e (u, k)).1),
-    uniformAffine_mk'_eq_map x₀ U, PMF.bind_map]
-  refine congrArg (PMF.bind _) (funext fun u => ?_)
-  dsimp only [Function.comp_def]
-  rw [uniformAffine_mk'_eq_map 0 K, PMF.map_comp]
-  exact congrArg (PMF.map · _) (funext fun k => by
-    change x₀ + (u.1 + k.1) = x₀ + u.1 + (0 + k.1); rw [zero_add, add_assoc])
+  rw [uniformAffine_eq_map_direction A hx₀, uniformAffine_mk'_eq_map x₀ U]
+  simp_rw [uniformAffine_mk'_eq_map 0 K]
+  relabel_uniform (isCompl_prodEquiv hU hK hcompl) with uk
+  rw [zero_add, add_assoc]
+  rfl
 
 /-- An affine map pushes `uniformAffine A hA` forward to `uniformAffine (A.map L.toAffineMap)`. -/
 theorem uniformAffine_map_of_isAffine {n m : ℕ} (A : AffineSubspace Bool (BitString n))
@@ -336,9 +332,8 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
       simpa [AffineSubspace.mem_mk', vsub_eq_sub] using
         (mem_support_uniformAffine_iff (AffineSubspace.mk' 0 K) _ b).mp hb
     have hLb := hL.toAffineMap.map_vadd (0 : BitString n) b
-    have hker : hL.toAffineMap.linear b = 0 := hbK.2
-    rw [vadd_eq_add, add_zero, vadd_eq_add, IsAffine.coe_toAffineMap, hker, zero_add] at hLb
-    exact hLb
+    rwa [vadd_eq_add, add_zero, vadd_eq_add, IsAffine.coe_toAffineMap,
+      show hL.toAffineMap.linear b = 0 from hbK.2, zero_add] at hLb
   · intro a ha
     have haU : a -ᵥ x₀ ∈ U := by
       simpa [AffineSubspace.mem_mk'] using
@@ -459,29 +454,20 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
   refine ⟨C_flat, inferInstance, PMF.uniformOfFintype C_flat, P,
     fun c i => ⟨finrank Bool (W i), blockSlice_codim_le V_flat eB (hdim_flat ▸ hr) i,
       _, _, by rw [AffineSubspace.direction_mk'], rfl⟩, ?_⟩
-  have hbind : ((PMF.uniformOfFintype (C_flat × (∀ i : Fin t, W i))).map
-      fun p => piBlocksLinearEquiv b (x₀_flat + (e_dir p).1)) =
-      (PMF.uniformOfFintype C_flat).bind fun c =>
-        (PMF.uniformOfFintype (∀ i : Fin t, W i)).map fun w =>
-          piBlocksLinearEquiv b (x₀_flat + (e_dir (c, w)).1) :=
-    (uniformOfFintype_bind_map fun c w => piBlocksLinearEquiv b (x₀_flat + (e_dir (c, w)).1)).symm
-  rw [hX_eq, uniformAffine_eq_map_direction A_flat hx₀_flat, ← uniformOfFintype_map_equiv e_dir,
-    PMF.map_comp, PMF.map_comp]
-  change (PMF.uniformOfFintype (C_flat × (∀ i : Fin t, W i))).map
-    (fun p => piBlocksLinearEquiv b (x₀_flat + (e_dir p).1)) = _
-  rw [hbind]
-  refine congrArg (PMF.bind _) (funext fun c => ?_)
-  have hpi : PMF.pi (P c) = (PMF.uniformOfFintype (∀ i : Fin t, W i)).map
+  have hpi (c : C_flat) : PMF.pi (P c) = (PMF.uniformOfFintype (∀ i : Fin t, W i)).map
       fun w i => x₀ i + piBlocksLinearEquiv b c.1 i + (w i).1 := by
     have : P c = fun i => (PMF.uniformOfFintype (W i)).map
         fun w => x₀ i + piBlocksLinearEquiv b c.1 i + w.1 :=
       funext fun i => uniformAffine_mk'_eq_map _ (W i)
     rw [this, PMF.pi_map, PMF.pi_uniformOfFintype]
-  rw [hpi]
-  exact congrArg (PMF.map · _) (funext fun w => funext fun i => by
-    change (piBlocksLinearEquiv b
-      (x₀_flat + (c.1 + (piBlocksLinearEquiv b).symm fun j => (w j).1))) i = _
-    simp only [map_add, (piBlocksLinearEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc])
+  rw [hX_eq, uniformAffine_eq_map_direction A_flat hx₀_flat, PMF.map_comp]
+  simp_rw [hpi]
+  relabel_uniform e_dir with cw
+  funext i
+  symm
+  change (piBlocksLinearEquiv b
+    (x₀_flat + (cw.1.1 + (piBlocksLinearEquiv b).symm fun j => (cw.2 j).1))) i = _
+  simp only [map_add, (piBlocksLinearEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc]
 
 /-! ### Bridges from affine and sumset extractors to `IsAffineDisperser` ([Li2023, Cor. 7.14]) -/
 
@@ -563,11 +549,9 @@ theorem exists_independent_affine_sum_of_isAffineSource {n k k₁ k₂ : ℕ}
     ⟨_, _, by rw [AffineSubspace.direction_mk', hV₂_dim], rfl⟩, ?_,
     uniformAffine_eq_bind_add_of_isCompl Asub hx₀ hV₁_le hV₂_le
       ⟨by rw [inf_comm]; exact hcompl_inf, by rw [sup_comm]; exact hcompl_sup⟩⟩
-  calc (k₂ : ℝ) ≤ ((k - k₁ : ℕ) : ℝ) := by exact_mod_cast (by omega : k₂ ≤ k - k₁)
-    _ = finrank Bool (AffineSubspace.mk' (0 : BitString n) V₂).direction := by
-        rw [AffineSubspace.direction_mk', hV₂_dim]
-    _ = minEntropy _ :=
-        (minEntropy_uniformAffine (AffineSubspace.mk' (0 : BitString n) V₂) _).symm
+  refine le_trans ?_ (minEntropy_uniformAffine _ _).ge
+  rw [AffineSubspace.direction_mk', hV₂_dim]
+  exact_mod_cast (by omega : k₂ ≤ k - k₁)
 
 /-- A `(k₁, k₂, ε)` sumset extractor is a `(k, ε)` affine extractor whenever `k₁ + k₂ ≤ k`
 ([Li2023, Cor. 7.14]). -/
