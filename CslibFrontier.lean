@@ -2686,6 +2686,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreePro
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Separation
 public import CslibFrontier.Computability.LogSpaceDerandomization.RowCompression.FalseOverflow
 public import CslibFrontier.Computability.LogSpaceDerandomization.PilotDetectorTransport
+public import CslibFrontier.DataStructure.BTree.Comparisons.LookupLowerBound
 public import CslibFrontier.Algorithms.Lean.Freivalds
 public import CslibFrontier.GameTheory.SocialChoice.SinglePeaked.Ching
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceLoop

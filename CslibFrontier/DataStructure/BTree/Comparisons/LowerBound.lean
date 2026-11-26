@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.BTree.Comparisons.BinarySearch
+import Mathlib.Data.Finset.Sort
 import Mathlib.Data.Fintype.Basic
+import Mathlib.Data.Fintype.EquivFin
 import Mathlib.SetTheory.Cardinal.Order
 
 /-!
@@ -37,7 +39,9 @@ these `n + 1` linear orders keeps `xs` strictly increasing while giving `k` a di
 per-tree bound to `Cslib.Query.LowerBound` both over arbitrary `BTree α β × α` inputs
 (`IsRank.lowerBound_infinite`, requiring no ambient order on `α`) and over well-formed trees
 `WFInput α β t` of minimum degree `t ≥ 2` (`IsRank.lowerBound_wfInput_infinite`, matching
-`rankBinQ_upperBound_size` so `LowerBound.le_upperBound` applies directly).
+`rankBinQ_upperBound_size` so `LowerBound.le_upperBound` applies directly). The trees come from
+`exists_isWF_toList_map_snd_eq`, which bulk-loads any prescribed list of values under distinct
+increasing keys.
 
 This module covers comparison-based `rank` in `FreeM (LEQuery α)` (not machine-instruction lower
 bounds); the companion comparison lower bound for `lookup` (which requires total preorders with
@@ -275,6 +279,23 @@ theorem rank_lowerBound_infinite [Infinite α]
     fun i j h => Fin.ext ((eval_eq i).symm.trans (h.trans (eval_eq j)))
   exact ⟨k, progOracles i, hi⟩
 
+/-- Every list of values `vs` is the value list of a well-formed B-tree of minimum degree `t ≥ 2`
+whose keys are distinct, over an infinite linearly ordered key type: the keys are any `vs.length`
+of them in increasing order. -/
+theorem exists_isWF_toList_map_snd_eq [LinearOrder α] [Infinite α] {t : ℕ} (ht : 2 ≤ t)
+    (vs : List β) :
+    ∃ tree : BTree α β, IsWF t tree ∧ (tree.toList.map Prod.fst).Nodup ∧
+      tree.toList.map Prod.snd = vs := by
+  obtain ⟨s, hs⟩ := Infinite.exists_subset_card_eq α vs.length
+  have hlen : (s.sort (· ≤ ·)).length = vs.length := by rw [Finset.length_sort, hs]
+  have hfst : ((s.sort (· ≤ ·)).zip vs).map Prod.fst = s.sort (· ≤ ·) := List.map_fst_zip hlen.le
+  refine ⟨ofSortedList t ((s.sort (· ≤ ·)).zip vs), isWF_ofSortedList ht ?_, ?_, ?_⟩
+  · rw [List.isSortedAssoc_iff_pairwise, hfst]
+    exact (Finset.sortedLT_sort s).pairwise
+  · rw [toList_ofSortedList, hfst]
+    exact Finset.sort_nodup s _
+  · rw [toList_ofSortedList, List.map_snd_zip hlen.ge]
+
 /-- **Comparison lower bound for B-tree rank (`Cslib.Query.LowerBound`).** Any `IsRank` program on
 an infinite key type `α` and nonempty value type `β` has worst-case comparison query complexity at
 least `⌈log₂(n + 1)⌉` on trees of size at most `n`. -/
@@ -283,14 +304,12 @@ theorem IsRank.lowerBound_infinite [Infinite α] [Nonempty β]
     LowerBound (fun p : BTree α β × α => rankProg p.2 p.1) (fun p => p.1.size)
       (fun n => Nat.clog 2 (n + 1)) := by
   intro n
-  let v : β := Classical.arbitrary β
-  let l : List (α × β) := (List.range n).map fun i => (Infinite.natEmbedding α i, v)
-  let tree : BTree α β := ofSortedList 2 l
-  have hmap : tree.toList.map Prod.fst = (List.range n).map (Infinite.natEmbedding α) := by
-    simp [tree, l, toList_ofSortedList, Function.comp_def]
-  have hnodup : (tree.toList.map Prod.fst).Nodup :=
-    hmap ▸ List.nodup_range.map (Infinite.natEmbedding α).injective
-  have hsize : tree.size = n := by simp [← length_toList, tree, l]
+  -- Well-formedness is discarded, so any linear order on `α` serves to build the tree.
+  obtain ⟨tree, -, hnodup, hvals⟩ := letI := IsWellOrder.linearOrder (α := α) WellOrderingRel
+    exists_isWF_toList_map_snd_eq (α := α) (t := 2) le_rfl
+      (List.replicate n (Classical.arbitrary β))
+  have hsize : tree.size = n := by
+    rw [← length_toList, ← List.length_map Prod.snd, hvals, List.length_replicate]
   obtain ⟨k, oracle, hi⟩ := rank_lowerBound_infinite h_corr tree hnodup
   exact ⟨(tree, k), hsize.le, oracle, hsize ▸ hi⟩
 
@@ -304,23 +323,11 @@ theorem IsRank.lowerBound_wfInput_infinite [LinearOrder α] [Infinite α] [Nonem
     LowerBound (fun p : WFInput α β t => rankProg p.val.2 p.val.1) (fun p => p.val.1.size)
       (fun n => Nat.clog 2 (n + 1)) := by
   intro n
-  let v : β := Classical.arbitrary β
-  let rawKeys : List α := (List.range n).map (Infinite.natEmbedding α)
-  let sortedKeys : List α := rawKeys.mergeSort
-  have hnodup_sorted : sortedKeys.Nodup :=
-    (List.mergeSort_perm rawKeys _).nodup_iff.mpr
-      (List.Nodup.map (Infinite.natEmbedding α).injective List.nodup_range)
-  have hlt_sorted : sortedKeys.Pairwise (· < ·) :=
-    ((List.pairwise_mergeSort' (· ≤ ·) rawKeys).and hnodup_sorted).imp
-      fun h => h.1.lt_of_ne h.2
-  let l : List (α × β) := sortedKeys.map fun x => (x, v)
-  have hl_map : l.map Prod.fst = sortedKeys := by simp [l, Function.comp_def]
-  let tree : BTree α β := ofSortedList t l
-  have hwf : IsWF t tree :=
-    isWF_ofSortedList ht (List.isSortedAssoc_iff_pairwise.mpr (hl_map ▸ hlt_sorted))
-  have hnodup_tree : (tree.toList.map Prod.fst).Nodup := by rwa [toList_ofSortedList, hl_map]
-  have hsize : tree.size = n := by simp [← length_toList, tree, l, sortedKeys, rawKeys]
-  obtain ⟨k, oracle, hi⟩ := rank_lowerBound_infinite h_corr tree hnodup_tree
+  obtain ⟨tree, hwf, hnodup, hvals⟩ :=
+    exists_isWF_toList_map_snd_eq (α := α) ht (List.replicate n (Classical.arbitrary β))
+  have hsize : tree.size = n := by
+    rw [← length_toList, ← List.length_map Prod.snd, hvals, List.length_replicate]
+  obtain ⟨k, oracle, hi⟩ := rank_lowerBound_infinite h_corr tree hnodup
   exact ⟨⟨(tree, k), hwf⟩, hsize.le, oracle, hsize ▸ hi⟩
 
 end LowerBound
