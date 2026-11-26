@@ -198,10 +198,10 @@ theorem Finset.sum_inv_choose_le_one_of_disjoint {ι α K : Type*}
     ∑ i ∈ s, ((#(A i) + #(B i)).choose #(A i) : K)⁻¹ ≤ 1 := by
   classical
   let U : Finset α := s.biUnion fun i => A i ∪ B i
-  refine sum_inv_choose_le_one_aux (#U) (U := U) (s := s) (A := A) (B := B) le_rfl ?_ hdiag hoff
-  intro i hi
-  exact ⟨Finset.subset_union_left.trans (Finset.subset_biUnion_of_mem (fun i => A i ∪ B i) hi),
-    Finset.subset_union_right.trans (Finset.subset_biUnion_of_mem (fun i => A i ∪ B i) hi)⟩
+  exact sum_inv_choose_le_one_aux (#U) le_rfl (fun i hi =>
+    ⟨Finset.subset_union_left.trans (Finset.subset_biUnion_of_mem (fun i => A i ∪ B i) hi),
+      Finset.subset_union_right.trans (Finset.subset_biUnion_of_mem (fun i => A i ∪ B i) hi)⟩)
+    hdiag hoff
 
 /-- **Bollobás's two-families inequality** [Bollobas1965] (bounded-size form):
 if `(A i, B i)` for `i ∈ s` satisfy `#(A i) ≤ r`, `#(B i) ≤ t`, `Disjoint (A i) (B i)`, and
@@ -340,35 +340,27 @@ theorem Fintype.card_le_choose_of_lt_not_disjoint {ι α : Type*}
         v ∘ Fin.append (enumA i) (enumB j) :=
       funext fun x => Fin.addCases (fun _ => by simp [finCongr]) (fun _ => by simp [finCongr]) x
     rw [hrow]; rfl
-  have hAppend_memU (i j k) : Fin.append (enumA i) (enumB j) k ∈ U := by
-    refine Fin.addCases (fun p => ?_) (fun q => ?_) k
-    · rw [Fin.append_left]
-      exact Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _,
-        Finset.mem_union_left _ (enumFinset_mem (hpA_card i) p)⟩
-    · rw [Fin.append_right]
-      exact Finset.mem_biUnion.mpr ⟨j, Finset.mem_univ _,
-        Finset.mem_union_right _ (enumFinset_mem (hpB_card j) q)⟩
-  have hΦ_diag : ∀ i, Φ i (b i) ≠ 0 := by
-    intro i
+  have hAppend_memU (i j k) : Fin.append (enumA i) (enumB j) k ∈ U :=
+    Fin.addCases
+      (fun p => by simpa [U, Fin.append_left] using ⟨i, Or.inl (enumFinset_mem (hpA_card i) p)⟩)
+      (fun q => by simpa [U, Fin.append_right] using ⟨j, Or.inr (enumFinset_mem (hpB_card j) q)⟩) k
+  have hΦ_diag : ∀ i, Φ i (b i) ≠ 0 := fun i => by
     rw [hΦ_eval, Matrix.det_vandermonde_ne_zero_iff]
-    have hdisj : Disjoint (Set.range (enumA i)) (Set.range (enumB i)) := by
-      rw [range_enumFinset, range_enumFinset, Finset.disjoint_coe]
-      exact disjoint_padWith_iff.mpr (hdiag i)
     have hinj := fin_append_injective (enumFinset_injective (hpA_card i))
-      (enumFinset_injective (hpB_card i)) hdisj
-    intro k₁ k₂ hk
-    exact hinj (hcoord_inj (hAppend_memU i i k₁) (hAppend_memU i i k₂) hk)
-  have hΦ_upper : ∀ {i j : ι}, i < j → Φ i (b j) = 0 := by
-    intro i j hij
+      (enumFinset_injective (hpB_card i)) (by
+        rw [range_enumFinset, range_enumFinset, Finset.disjoint_coe]
+        exact disjoint_padWith_iff.mpr (hdiag i))
+    exact fun k₁ k₂ hk => hinj (hcoord_inj (hAppend_memU i i k₁) (hAppend_memU i i k₂) hk)
+  have hΦ_upper : ∀ {i j : ι}, i < j → Φ i (b j) = 0 := fun {i j} hij => by
     rw [hΦ_eval, Matrix.det_vandermonde_eq_zero_iff]
     obtain ⟨x, hxA, hxB⟩ :=
       Finset.not_disjoint_iff.mp (disjoint_padWith_iff.not.mpr (hskew hij))
-    have ⟨p, hp⟩ : x ∈ Set.range (enumA i) := (range_enumFinset (hpA_card i)).symm ▸ hxA
-    have ⟨q, hq⟩ : x ∈ Set.range (enumB j) := (range_enumFinset (hpB_card j)).symm ▸ hxB
-    refine ⟨Fin.castAdd s p, Fin.natAdd r q, ?_, ?_⟩
-    · simp only [Function.comp_apply, Fin.append_left, Fin.append_right, enumA, enumB, hp, hq]
-    · intro h
-      rw [Fin.ext_iff, Fin.val_castAdd, Fin.val_natAdd] at h; omega
+    obtain ⟨p, hp⟩ : x ∈ Set.range (enumA i) :=
+      (range_enumFinset (hpA_card i)).symm ▸ (hxA : x ∈ pA i)
+    obtain ⟨q, hq⟩ : x ∈ Set.range (enumB j) :=
+      (range_enumFinset (hpB_card j)).symm ▸ (hxB : x ∈ pB j)
+    exact ⟨Fin.castAdd s p, Fin.natAdd r q, by simp [Fin.append_left, Fin.append_right, hp, hq],
+      fun h => by rw [Fin.ext_iff, Fin.val_castAdd, Fin.val_natAdd] at h; omega⟩
   have hlin : LinearIndependent ℚ b := Fintype.linearIndependent_iff.mpr fun c hc i => by
     by_contra hci
     let S : Finset ι := Finset.univ.filter fun j => c j ≠ 0

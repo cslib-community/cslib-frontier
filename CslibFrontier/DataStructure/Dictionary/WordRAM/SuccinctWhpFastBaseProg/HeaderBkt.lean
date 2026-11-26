@@ -108,9 +108,7 @@ private theorem ReadSpec.ite {α : Type} {w F C : ℕ} {s : Memory.State} {c : P
     [Decidable c] {p₁ p₂ : Memory.Prog α} {r₁ r₂ : α}
     (h₁ : ReadSpec w F s p₁ r₁ C) (h₂ : ReadSpec w F s p₂ r₂ C) :
     ReadSpec w F s (if c then p₁ else p₂) (if c then r₁ else r₂) C := by
-  split_ifs
-  · exact h₁
-  · exact h₂
+  split_ifs <;> assumption
 
 private theorem ReadSpec.if_pos {α : Type} {w F C : ℕ} {s : Memory.State} {c : Prop}
     [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : c) (h : ReadSpec w F s p₁ r C) :
@@ -220,12 +218,8 @@ theorem writeHdrProg_fastStep {c U V w n_max base hdrOff val : ℕ} {θ : SeedWh
   have hrp32 : ∀ {off N k idx}, idx < N → 32 ≤ off →
       readPacked (base + off) k w m' idx = readPacked (base + off) k w s.mem idx :=
     fun hidx hoff => readPacked_update_outside hw hidx (Or.inl (by omega))
-  have hupd_at : ∀ k, m' (base + k) = if k = hdrOff then val else s.mem (base + k) := by
-    intro k
-    dsimp only [m']
-    by_cases hk : k = hdrOff
-    · subst hk; simp
-    · rw [Function.update_of_ne (by omega)]; simp [hk]
+  have hupd_at : ∀ k, m' (base + k) = if k = hdrOff then val else s.mem (base + k) := fun k => by
+    by_cases hk : k = hdrOff <;> simp [m', hk]
   obtain ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
     hqv0, hloc0, hbmeta0, hbptr0, hpool0, _, _, _, hdirty0⟩ := id hrep
   set fs' := updateFastHdr fs hdrOff val
@@ -242,7 +236,6 @@ theorem writeHdrProg_fastStep {c U V w n_max base hdrOff val : ℕ} {θ : SeedWh
   have hdc_sub : fs'.dirtyCount ≤ fs.dirtyCount := by
     rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       first | exact le_rfl | exact hdc rfl
-  have hdc_q : fs'.dirtyCount ≤ qEpochWhp n_max := hdc_sub.trans hdc_le0
   have hhdrs :
       m' (base + hdrMode) = 1 ∧ m' (base + hdrPoolFreeTop) = fs'.poolFreeTop ∧
       m' (base + hdrCurEp) = fs'.curEp ∧ m' (base + hdrEpochClock) = fs'.epochClock ∧
@@ -449,15 +442,11 @@ theorem writeBktFieldGenProg_fastStep {c U V w n_max base b field val : ℕ}
     intro b' _ k hk
     by_cases hbk : b' = b ∧ k = field
     · rcases hbk with ⟨rfl, rfl⟩
-      simp only [and_self, ↓reduceIte]
-      exact readPacked_writePacked_self _ _ _ s.mem idxW hval_g
+      simpa using readPacked_writePacked_self _ _ _ s.mem idxW hval_g
     · simp only [hbk, ↓reduceIte]
-      have hne : 16 * b' + k ≠ idxW := by
-        dsimp only [idxW]
-        intro heq
-        have h1 : b' * 16 + k = b * 16 + field := by omega
-        exact hbk (mul_add_inj_right (by omega : k < 16) (by omega : field < 16) h1)
-      exact readPacked_writePacked_of_ne hw s.mem hne val
+      refine readPacked_writePacked_of_ne hw s.mem (fun heq => hbk ?_) val
+      exact mul_add_inj_right (Nat.lt_of_lt_of_le hk (Nat.le_add_right 10 6))
+        (Nat.lt_of_lt_of_le hfield (Nat.le_add_right 10 6)) (by omega)
   obtain ⟨hdc_le0, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
     hqv0, hloc0, hbmeta0, hbptr0, hpool0, _, _, _, hdirty0⟩ := id hrep
   set fs' := setBktField fs b field val
@@ -979,8 +968,7 @@ theorem fpOfSaltOpt_lt (c U n_max salt kv : ℕ) (θ₂ : FpSeed c U n_max) :
      else 0) < 2 ^ fpBitsWhp n_max := by
   split_ifs with hs hu
   · exact fpHash_lt c U n_max θ₂ ⟨salt, hs⟩ ⟨kv, hu⟩
-  · exact Nat.two_pow_pos _
-  · exact Nat.two_pow_pos _
+  all_goals exact Nat.two_pow_pos _
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

@@ -129,9 +129,7 @@ theorem beats_trichotomous {b : ι → ℝ} {i j : ι} (hij : i ≠ j) :
   · exact Or.inl (Or.inl hgt)
 
 theorem le_of_beats {b : ι → ℝ} {j i : ι} (h : Beats b j i) : b i ≤ b j := by
-  rcases h with hlt | ⟨heq, -⟩
-  · exact hlt.le
-  · exact heq.le
+  exact h.elim le_of_lt fun h => h.1.le
 
 theorem le_of_not_beats {b : ι → ℝ} {j i : ι} (h : ¬ Beats b j i) : b j ≤ b i := by
   by_contra hlt
@@ -153,21 +151,14 @@ theorem rank_def (b : ι → ℝ) (i : ι) :
 open Classical in
 theorem rank_lt_card (b : ι → ℝ) (i : ι) : rank b i < Fintype.card ι := by
   rw [rank, ← Finset.card_univ]
-  refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2 ⟨Finset.filter_subset _ _, ?_⟩)
-  intro heq
-  have hi : i ∈ Finset.univ.filter (fun j => Beats b j i) := by
-    rw [heq]
-    exact Finset.mem_univ i
-  exact beats_irrefl b i (Finset.mem_filter.1 hi).2
+  exact Finset.card_lt_card (Finset.filter_ssubset.2 ⟨i, Finset.mem_univ i, beats_irrefl b i⟩)
 
 open Classical in
 theorem rank_lt_of_beats {b : ι → ℝ} {i j : ι} (h : Beats b i j) : rank b i < rank b j := by
-  refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2 ⟨fun m hm => ?_, fun heq => ?_⟩)
-  · exact Finset.mem_filter.2 ⟨Finset.mem_univ m, beats_trans (Finset.mem_filter.1 hm).2 h⟩
-  · have hi : i ∈ Finset.univ.filter (fun m => Beats b m j) :=
-      Finset.mem_filter.2 ⟨Finset.mem_univ i, h⟩
-    rw [← heq] at hi
-    exact beats_irrefl b i (Finset.mem_filter.1 hi).2
+  refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun m hm => ?_).2
+    ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, h⟩,
+      fun hi => beats_irrefl b i (Finset.mem_filter.1 hi).2⟩)
+  exact Finset.mem_filter.2 ⟨Finset.mem_univ m, beats_trans (Finset.mem_filter.1 hm).2 h⟩
 
 theorem beats_iff_rank_lt {b : ι → ℝ} {i j : ι} : Beats b i j ↔ rank b i < rank b j := by
   refine ⟨rank_lt_of_beats, fun hlt => ?_⟩
@@ -330,11 +321,7 @@ theorem bidAtRank_eq_of_rank_nonneg {r : ℕ} {b : ι → ℝ} (hb : 0 ≤ b) {i
 
 theorem bidAtRank_of_card_le {r : ℕ} (b : ι → ℝ) (hr : Fintype.card ι ≤ r) :
     bidAtRank r b = 0 := by
-  have hno : ¬ ∃ i, rank b i = r := by
-    rintro ⟨i, rfl⟩
-    exact (rank_lt_card b i).not_ge hr
-  unfold bidAtRank
-  exact dite_eq_right hno
+  exact dite_eq_right fun ⟨i, hi⟩ => (hi ▸ rank_lt_card b i).not_ge hr
 
 /-- **Uniform `(k + 1)`-st price multi-unit auction** ([Nisan2007], §9.3.5.4, p. 221): the top `k`
 bidders win one item each and every winner pays `bidAtRank k b` (the `(k + 1)`-st highest bid, or
@@ -464,8 +451,7 @@ theorem nextBidMechanism_one_eq_mechanism :
     nextBidMechanism (ι := ι) 1 = mechanism 1 := by
   refine congrArg (Mechanism.mk (allocation 1)) (funext fun b => funext fun i => ?_)
   by_cases hw : Wins 1 b i
-  · have hr0 : rank b i = 0 := Nat.lt_one_iff.1 hw
-    rw [hr0]
+  · rw [Nat.lt_one_iff.1 hw]
   · rw [allocation_eq_zero_iff.2 hw, mul_zero, mul_zero]
 
 open Classical in

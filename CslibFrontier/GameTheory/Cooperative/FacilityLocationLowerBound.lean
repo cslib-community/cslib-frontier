@@ -102,21 +102,11 @@ private theorem isMetric_of_bipartite {A F : Type*} (I : FacilityLocationInstanc
   refine ⟨{
     dist := d
     dist_self := fun x => by cases x <;> simp [d]
-    dist_comm := fun x y => by
-      cases x with
-      | inl a₁ =>
-        cases y with
-        | inl a₂ => dsimp only [d]; by_cases h : a₁ = a₂ <;> simp [h, eq_comm]
-        | inr _ => rfl
-      | inr f₁ =>
-        cases y with
-        | inl _ => rfl
-        | inr f₂ => dsimp only [d]; by_cases h : f₁ = f₂ <;> simp [h, eq_comm]
+    dist_comm := fun x y => by cases x <;> cases y <;> simp only [d, eq_comm]
     dist_triangle := fun x y z => by
       cases x <;> cases y <;> cases z <;> dsimp only [d] <;> split_ifs <;>
         first | (norm_num; done) | (subst_vars; contradiction)
-  }, fun i j => ?_⟩
-  exact hconn i j
+  }, hconn⟩
 
 private theorem sum_ite_one_three {m : ℕ} (S : Finset (Fin m)) :
     ∑ j : Fin m, (if j ∈ S then (1 : ℝ) else 3) = 3 * (m : ℝ) - 2 * (S.card : ℝ) := by
@@ -172,11 +162,9 @@ private theorem flTightInstance_planCost {m k : ℕ} (F' : Finset (Fin m)) (hF' 
     obtain ⟨i₀, hi₀⟩ := hF'
     exact (Finset.inf'_le _ hi₀).trans (by simp [flTightInstance])
   rw [planCost_eq, Fintype.sum_sum_type]
-  have ho : ∑ i ∈ F', (flTightInstance m k).openCost i = 3 * (F'.card : ℝ) := by
-    simp [flTightInstance, mul_comm]
-  rw [ho]
   simp_rw [hconn_l, hconn_r, sum_ite_one_three]
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one]
+  simp only [flTightInstance, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
+    mul_one]
   ring
 
 /-- **Lemma 15.22** ([JainMahdian2007], pp. 400–401): for every `m ≥ 1` and `k ≥ 0`, the exact
@@ -251,10 +239,9 @@ cross-sections `b : Fin k → Fin m`, each of opening cost `3`, with connection 
   connCost_nonneg _ _ := by split_ifs <;> norm_num
 
 theorem flHardInstance_isMetric (k m : ℕ) : (flHardInstance k m).IsMetric := by
-  refine isMetric_of_bipartite (flHardInstance k m) (fun b a => b a.1 = a.2) fun b a => ?_
-  classical
+  refine isMetric_of_bipartite (flHardInstance k m) (fun b a => b a.1 = a.2) fun _ _ => ?_
   dsimp only [flHardInstance]
-  by_cases h : b a.1 = a.2 <;> simp [h]
+  split_ifs <;> rfl
 
 /-- Full cross-section `B(b) = {(j, b j) | j : Fin k}` of `flHardInstance k m`. -/
 private def diagCoalition {k m : ℕ} (b : Fin k → Fin m) : Finset (Fin k × Fin m) :=

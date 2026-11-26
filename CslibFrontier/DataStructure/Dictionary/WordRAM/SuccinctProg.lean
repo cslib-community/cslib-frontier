@@ -674,19 +674,15 @@ theorem clientResult_readBucketCountProg {U V w n_max h_space : ℕ}
       bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 := by
   unfold readBucketCountProg bCount
   by_cases hb0 : bucketBits n_max = 0
-  · have hd2 : d.2 = 0 := by
-      have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-      omega
-    have h0_lt : 0 < globalMetaLen n_max := by wram_omega
+  · have hd2 : d.2 = 0 := by simp [numBuckets, hb0] at hb; omega
     simp only [hb0, ↓reduceIte, hd2]
-    exact clientResult_readGMProg s h0_lt
+    exact clientResult_readGMProg s (by wram_omega)
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
-    have hq_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-    have hr_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
     simp only [hb0, ↓reduceIte, hb]
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s hq_lt, StateTransitionSpec.clientResult_bind,
-      clientState_readGMProg, clientResult_readGMProg s hr_lt]
+      clientResult_readGMProg (idx := 4 + 3 * d.2) s (gmQIdx_lt hb_pos hb),
+      StateTransitionSpec.clientResult_bind, clientState_readGMProg,
+      clientResult_readGMProg (idx := 4 + 3 * d.2 + 1) s (gmRIdx_lt hb_pos hb)]
     rfl
 
 theorem clientState_readBucketCountProg {U V w n_max h_space : ℕ}
@@ -757,13 +753,12 @@ theorem clientResult_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
       slotOf n_max (gmAt d.1.1 U V w n_max h_space s.mem) d.1.2 d.2 := by
   unfold resolveIndexedSlotProg slotOf
   by_cases hb0 : bucketBits n_max = 0
-  · simp only [hb0, ↓reduceIte]
-    rfl
+  · simp only [hb0, ↓reduceIte]; rfl
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
-    have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
     simp only [hb0, ↓reduceIte]
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s hq_lt, show 4 + 3 * d.1.2 = gmQIdx d.1.2 from rfl]
+      clientResult_readGMProg (idx := 4 + 3 * d.1.2) s (gmQIdx_lt hb_pos hb),
+      show 4 + 3 * d.1.2 = gmQIdx d.1.2 from rfl]
     split_ifs with hj_slab
     · have hs_dir := div_slabSize_lt_dirSlabs hb_pos hj_cap
       have hs_q : d.2 / slabSize n_max < gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) :=
@@ -772,15 +767,10 @@ theorem clientResult_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
         clientResult_readGMProg s (resolveIndexedSlot_dir_lt hb_pos hb hj_cap)]
       have hdir_eq := (hinv.multi_slab hb_pos).dir_eq d.1.2 hb (d.2 / slabSize n_max) hs_q hs_dir
       unfold gmSlabDirIdx at hdir_eq
-      rw [hdir_eq]
-      rfl
-    · have hr_cap := (hinv.tailOffset_lt hb_pos hb hj_bc hj_slab).2
-      have hptr_lt : gmTailPtrBase n_max + (d.1.2 * tailCapPerBucket n_max +
-          (d.2 - gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) * slabSize n_max)) <
-          globalMetaLen n_max :=
-        gmTailPtrIdx_lt hb_pos hb hr_cap
-      rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-        clientResult_readGMProg s hptr_lt]
+      rw [hdir_eq]; rfl
+    · rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
+        clientResult_readGMProg (idx := gmTailPtrBase n_max + _) s
+          (gmTailPtrIdx_lt hb_pos hb (hinv.tailOffset_lt hb_pos hb hj_bc hj_slab).2)]
       rfl
 
 private theorem resolveIndexedSlot_slab_fit {U V w₀ n_max h_space w : ℕ}

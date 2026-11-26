@@ -91,9 +91,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
   let score (ω : V → ℝ) (v : V) : ℝ := ⟪row v, WithLp.toLp 2 ω⟫
   let vEvent (f : ℝ → Prop) (v : V) : Set (V → ℝ) := {ω | f (score ω v)}
   let cEvent (t : ℝ) (e : E) : Set (V → ℝ) := {ω | t ∈ Ι (score ω (G.src e)) (score ω (G.tgt e))}
-  have hmeas_score (v : V) : Measurable fun ω : V → ℝ => score ω v := by
-    dsimp only [score]
-    fun_prop
+  have hmeas_score (v : V) : Measurable fun ω : V → ℝ => score ω v := by fun_prop
   have hcongr_score {v : V} {ω ω' : V → ℝ}
       (hω : ∀ z ∈ closedBall G.toSimpleGraph v R, ω z = ω' z) : score ω v = score ω' v :=
     inner_toLp_congr (fun z hz => hsupp v z (lt_of_not_ge hz)) hω
@@ -177,8 +175,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
       have hWm := vertexMean (f := fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ)
         (b := δ / √(2 * π)) fun v => measureReal_window_le (hunit v) (-T + i * δ) hδpos.le
       have h1 : ((G.edgeCut {v | score ω v < -T + i * δ}).ncard : ℝ) ≤ S_cross + c := by
-        rw [crossCount]
-        linarith
+        rw [crossCount]; linarith
       have h2 : ({v | -T + i * δ ≤ score ω v ∧ score ω v < -T + i * δ + δ}.ncard : ℝ) ≤
           h * (δ / √(2 * π)) + c := by dsimp [vEvent] at hW; linarith
       have hnonneg : 0 ≤ h * (d / T ^ 2) := by positivity
@@ -231,10 +228,7 @@ theorem exists_width_le_of_unitRows_add_mul {d : ℕ} (hd : 2 ≤ d) (R : ℕ) {
   have hT : 0 < T := by positivity
   have hε : 0 < ε := by positivity
   have hM : 0 < M := Nat.succ_pos _
-  have hMR : 8 * D * T / ξ ≤ (M : ℝ) := by
-    simp only [M]
-    push_cast
-    linarith [Nat.le_ceil (8 * D * T / ξ)]
+  have hMR : 8 * D * T / ξ ≤ (M : ℝ) := (Nat.le_ceil _).trans (by simp [M])
   have htail : D / T ^ 2 ≤ ξ / 4 := by
     have hsq : 4 * D / ξ ≤ T ^ 2 := by
       have hx : 0 ≤ 4 * D / ξ := by positivity
@@ -256,9 +250,8 @@ theorem exists_width_le_of_unitRows_add_mul {d : ℕ} (hd : 2 ≤ d) (R : ℕ) {
   have hlarge : ((M : ℝ) * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2 < Nat.card V :=
     (Nat.le_ceil _).trans_lt (Nat.cast_lt.mpr large)
   obtain ⟨σ, hσ⟩ := exists_width_le_of_unitRows G hd hdeg R row hunit hsupp ρ hcorr hT hε hM hlarge
-  refine ⟨σ, hσ.trans ?_⟩
-  have hV := mul_le_mul_of_nonneg_left herr (Nat.cast_nonneg (α := ℝ) (Nat.card V))
-  linarith
+  exact ⟨σ, hσ.trans
+    (by linarith [mul_le_mul_of_nonneg_left herr (Nat.cast_nonneg (α := ℝ) (Nat.card V))])⟩
 
 /-- **Gaussian vertex layouts of multigraphs.** For every `ξ > 0`, every large enough loopless
 multigraph of maximum degree `d ≥ 2` has a layout of width at most
@@ -282,10 +275,8 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
         abs_of_pos (by positivity)]
       linarith [min_le_left η g]
     have H := (le_abs_self _).trans (hcont hdist).le
-    rw [div_le_iff₀ pi_pos]
-    have heq : (arccos g / π + ξ / (4 * D)) * π = arccos g + π * ξ / (4 * D) := by
-      field_simp
-    rw [vertexCoefficient, show vertexCorrelation d = g from rfl, heq]
+    rw [vertexCoefficient, show vertexCorrelation d = g from rfl, div_le_iff₀ pi_pos, add_mul,
+      div_mul_cancel₀ _ pi_pos.ne', ← mul_div_right_comm, mul_comm ξ π]
     linarith
   obtain ⟨q, R, hq, hcorr⟩ := exists_decay_radius_degree hd hρg
   obtain ⟨N₀, hN₀⟩ := exists_width_le_of_unitRows_add_mul hd R (ξ := 3 * ξ / 4) (by positivity)

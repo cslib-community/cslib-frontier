@@ -177,9 +177,7 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
     rw [integral_add (hbk (g := indA I si h) measurable_indA indA_mem x₀)
       (hbk (g := indB I si h) measurable_indB indB_mem x₀), ibp_low hsi hsj hθ,
       ibp_high hsi hsj hθ]
-    by_cases hx : x₀ < h
-    · simp [hx, not_le.mpr hx]
-    · simp [hx, not_lt.mp hx]
+    by_cases hx : x₀ < h <;> simp [hx, le_of_not_gt, not_le_of_gt]
   simp_rw [hinner]
   rw [integral_neg, neg_nonpos, integral_gaussianReal_eq_integral_smul one_ne_zero]
   simp only [smul_eq_mul, gfun]
@@ -193,18 +191,15 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
   have hb : ∀ x₀, beta J sj h θ x₀ ((h - I * x₀) / si) = b0 + b1 * x₀ := fun x₀ => by
     simp only [beta, b0, b1]; field_simp; ring
   have hD : 0 ≤ h + (a0 + a1 * h) * a1 + (b0 + b1 * h) * b1 := by
-    have := D_nonneg (h := h) hP hR (Real.sin_sq_add_cos_sq θ) hsi hsj hsn hh (Real.cos_le_one θ)
-      hcond
-    convert this using 1
+    convert D_nonneg (h := h) hP hR (Real.sin_sq_add_cos_sq θ) hsi hsj hsn hh
+      (Real.cos_le_one θ) hcond using 1
     simp only [a0, a1, b0, b1]
     field_simp
     ring
-  have := reflect_nonneg hD
-  convert this using 1
+  convert reflect_nonneg hD using 1
   congr 1
   funext x₀
-  rw [hb x₀, ha x₀]
-  ring
+  rw [hb x₀, ha x₀]; ring
 
 /-- **ROT on the open interval.** -/
 theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
@@ -254,12 +249,9 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
         split_ifs with h1 h2 h2 <;> norm_num
         · exact absurd h1.1 (not_lt.mpr h2.1)
       have hk := abs_kernel_le (J := J) (sj := sj) (h := h) θ x₀ x₁
-      have hMθ := hM θ hθ
-      rw [Real.norm_eq_abs] at hMθ
+      have hMθ : |Real.cos θ / Real.sin θ| ≤ M := by simpa only [Real.norm_eq_abs] using hM θ hθ
       rw [abs_mul, abs_of_nonneg hab.1]
-      have : |kernel (J := J) (sj := sj) (h := h) θ x₀ x₁| ≤ |x₁| + M := by
-        linarith [abs_nonneg x₁]
-      nlinarith [abs_nonneg (kernel (J := J) (sj := sj) (h := h) θ x₀ x₁)]
+      nlinarith [abs_nonneg x₁, abs_nonneg (kernel (J := J) (sj := sj) (h := h) θ x₀ x₁)]
     · simp only [abs_zero]; linarith [abs_nonneg x₁, (abs_nonneg _).trans (hM ψ₁ ⟨le_rfl, h12⟩)]
   have hcongr : ∀ x₀ x₁, ∫ θ in Ioc ψ₁ ψ₂, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
       kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ = ∫ θ in Ioc ψ₁ ψ₂, f x₀ x₁ θ := by
@@ -271,12 +263,11 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
     simp_rw [hcongr]
     exact integral_prod _ (integrable_dom3 hfm measure_Ioc_lt_top hfb).integral_prod_left
   rw [hiter, swap3 hfm measure_Ioc_lt_top hfb]
-  apply setIntegral_nonpos measurableSet_Ioc
-  intro θ hθ
-  have hθI : θ ∈ Icc ψ₁ ψ₂ := Ioc_subset_Icc_self hθ
-  have hval : ∀ x₀ x₁, f x₀ x₁ θ = (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
-      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ := fun _ _ => Set.indicator_of_mem hθI _
-  simp_rw [hval]
+  refine setIntegral_nonpos measurableSet_Ioc fun θ hθ => ?_
+  have hval (x₀ x₁) := Set.indicator_of_mem (Ioc_subset_Icc_self hθ)
+    (fun θ => (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
+      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁)
+  simp_rw [hf, hval]
   have hcθ : Real.cos ψ₂ ≤ Real.cos θ :=
     Real.cos_le_cos_of_nonneg_of_le_pi (by linarith [hθ.1]) (by linarith) hθ.2
   exact inner_nonpos hP hR hsi hsj hh (by linarith [hθ.1]) (by linarith [hθ.2])

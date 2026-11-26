@@ -93,10 +93,7 @@ variable {α : Type*}
 private theorem take_snoc_of_le {k j : ℕ} (hj : j ≤ k) (h : Fin k → α) (a : α) :
     Fin.take j (Nat.le_succ_of_le hj) (Fin.snoc (α := fun _ => α) h a) = Fin.take j hj h := by
   ext i
-  simp only [Fin.take_apply]
-  have hcast : Fin.castLE (Nat.le_succ_of_le hj) i = (Fin.castLE hj i).castSucc := by
-    ext; rfl
-  rw [hcast, Fin.snoc_castSucc]
+  exact Fin.snoc_castSucc (α := fun _ => α) _ _ (Fin.castLE hj i)
 
 private theorem take_init_eq {k j : ℕ} (hj : j ≤ k) (h : Fin (k + 1) → α) :
     Fin.take j hj (Fin.init h) = Fin.take j (Nat.le_succ_of_le hj) h := by
@@ -141,10 +138,9 @@ theorem seqPredVar_zero (V : ∀ j : ℕ, (Fin j → α) → ℝ) (h : Fin 0 →
 theorem seqPredVar_snoc (V : ∀ j : ℕ, (Fin j → α) → ℝ) (k : ℕ) (h : Fin k → α) (a : α) :
     seqPredVar V (k + 1) (Fin.snoc (α := fun _ => α) h a) = seqPredVar V k h + V k h := by
   simp only [seqPredVar, Fin.sum_univ_castSucc, Fin.val_castSucc, Fin.val_last]
-  congr 1
-  · refine Finset.sum_congr rfl fun j _ => ?_
-    rw [take_snoc_of_le j.isLt.le h a]
-  · rw [take_snoc_of_le le_rfl h a, take_self_eq]
+  exact congrArg₂ (· + ·)
+    (Finset.sum_congr rfl fun j _ => congrArg (V j.1) (take_snoc_of_le j.isLt.le h a))
+    (congrArg (V k) ((take_snoc_of_le le_rfl h a).trans (take_self_eq _ h)))
 
 /-! ### Ville's maximal supermartingale inequality -/
 
@@ -163,12 +159,8 @@ private theorem stoppedProcess_eq_of_not_exists (Z : ∀ k : ℕ, (Fin k → α)
       (¬ ∃ (j : ℕ) (hj : j ≤ k), c ≤ Z j (Fin.take j hj h)) → stoppedProcess Z c k h = Z k h
   | 0, _, _ => rfl
   | k + 1, h, hno => by
-    have hno_init : ¬ ∃ (j : ℕ) (hj : j ≤ k), c ≤ Z j (Fin.take j hj (Fin.init h)) := by
-      rintro ⟨j, hj, hcj⟩
-      rw [take_init_eq hj h] at hcj
-      exact hno ⟨j, Nat.le_succ_of_le hj, hcj⟩
     classical
-    simp only [stoppedProcess, hno_init, ↓reduceIte]
+    exact ite_eq_right (fun ⟨j, hj, hcj⟩ => hno ⟨j, Nat.le_succ_of_le hj, take_init_eq hj h ▸ hcj⟩)
 
 private theorem le_stoppedProcess_of_exists (Z : ∀ k : ℕ, (Fin k → α) → ℝ≥0∞) (c : ℝ≥0∞) :
     ∀ {k : ℕ} (h : Fin k → α),
@@ -532,11 +524,9 @@ theorem seqProcess_bernstein_le_le (step : ∀ t : ℕ, (Fin t → α) → PMF �
   rw [heq]
   refine seqProcess_bernstein_ge_le step (fun k h => -X k h) vStep hb hε n hvStep
     (fun k hk h hh => ?_) (fun k hk h hh x hx => ?_) (fun k hk h hh => ?_)
-  · have hneg : (fun x : α => (step k h x).toReal * (-X (k + 1) (Fin.snoc h x) - -X k h)) =
-        fun x : α => -((step k h x).toReal * (X (k + 1) (Fin.snoc h x) - X k h)) :=
-      funext fun _ => by ring
-    rw [hneg, tsum_neg]
-    exact neg_nonpos.mpr (hmean k hk h hh)
+  · have hneg (x : α) : (step k h x).toReal * (-X (k + 1) (Fin.snoc h x) - -X k h) =
+        -((step k h x).toReal * (X (k + 1) (Fin.snoc h x) - X k h)) := by ring
+    simpa only [hneg, tsum_neg, neg_nonpos] using hmean k hk h hh
   · simpa only [neg_sub_neg, abs_sub_comm] using hbdd k hk h hh x hx
   · have hsq (x : α) : (-X (k + 1) (Fin.snoc h x) - -X k h) ^ 2 =
         (X (k + 1) (Fin.snoc h x) - X k h) ^ 2 := by ring

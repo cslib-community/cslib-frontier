@@ -112,13 +112,11 @@ theorem epochTickStage0_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           Function.update fs.rebDoneFlag b₀ 0 b' = 0 := by
         intro id hid b' loc' hc'
         by_cases hbb : b' = b₀
-        · subst hbb; simp
+        · simp [hbb]
         · rw [Function.update_of_ne hbb, Function.update_of_ne hbb]
           rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
           · exact hzero0 id hid' b' loc' hc'
-          · rw [hchk] at hc'
-            injection hc' with hp; injection hp with hb_eq _
-            exact absurd hb_eq.symm hbb
+          · exact absurd (Prod.mk.inj (Option.some.inj (hc'.symm.trans hchk))).1 hbb
       split_ifs with hdone
       · exact henter _ _ fun id hid => hzero_next id (hid.trans_le hdone)
       · exact hcont _ _ _ (Nat.lt_of_not_le hdone).le hzero_next
@@ -235,11 +233,8 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
         by
           rw [Nat.min_zero]
           exact SliceMapRel.empty_of_not _ _ 0 fun _ h => absurd h (Nat.not_lt_zero _)⟩⟩
-    change ValidWhpSlice n_max 0
-      (Function.update s.slices rIdx0 (resetBTreeSlice (s.slices rIdx0)) rIdx0)
-      (fun _ => none)
-    rw [Function.update_self]
-    exact validWhpSlice_zero _ 0 _
+    simpa only [rIdx0, b0, FastState.rebSliceIdx, FastState.rebRole, Function.update_self,
+      resetBTreeSlice] using validWhpSlice_zero n_max 0 _
 
 /-- Stage-1 tick collects distinct dirty buckets from `buf oldEp` into `dirtyBuckets`. -/
 theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -350,13 +345,11 @@ theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           · rw [Function.update_of_ne hbb]
             rcases hall_or id hid b' loc' hc' with hleft | ⟨j, hj, hdb⟩
             · exact Or.inl hleft
-            · exact Or.inr ⟨j, Nat.lt_succ_of_lt hj, by
-                rw [Function.update_of_ne (by omega)]; exact hdb⟩
+            · exact Or.inr ⟨j, Nat.lt_succ_of_lt hj, by rwa [Function.update_of_ne (by omega)]⟩
         · intro id hid b' loc' hc'
           rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
           · obtain ⟨j, hj, hdb⟩ := hlt_sc id hid' b' loc' hc'
-            exact ⟨j, Nat.lt_succ_of_lt hj, by
-              rw [Function.update_of_ne (by omega)]; exact hdb⟩
+            exact ⟨j, Nat.lt_succ_of_lt hj, by rwa [Function.update_of_ne (by omega)]⟩
           · rw [hchk] at hc'; injection hc' with hp; injection hp with hbb _
             exact ⟨fs.dirtyCount, Nat.lt_succ_self _, by simp [hbb]⟩
       · -- Only the cursor advances: the slot's bucket, if any, is already dirty.

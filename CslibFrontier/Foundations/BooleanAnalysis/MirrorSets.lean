@@ -316,8 +316,7 @@ private theorem guidingDensity_le (Y : Finset (ι → Bool)) {k : ℝ} (hk : 0 �
     calc (1 : ℝ) = (2 : ℝ) ^ k * (2 : ℝ) ^ (-k) := by
           rw [← Real.rpow_add two_pos, add_neg_cancel, Real.rpow_zero]
       _ ≤ (2 : ℝ) ^ k * coordinateDensity Y P x := by gcongr
-  · simp only [zero_div]
-    positivity
+  · simp only [zero_div]; positivity
   · exact Real.one_le_rpow (by norm_num) hk
 
 private theorem guidedAverage_mono (X Y : Finset (ι → Bool)) {p k : ℝ} (hp : 0 ≤ p)
@@ -352,9 +351,8 @@ private theorem guidingDensity_hits (Y : Finset (ι → Bool)) (k : ℝ) (P x : 
   by_cases h : (2 : ℝ) ^ (-k) ≤ coordinateDensity Y P x
   · have he (y : ι → Bool) : guidingDensity Y k P x y *
         (if resample P x y ∈ Y then 1 else 0) = guidingDensity Y k P x y := by
-      unfold guidingDensity
-      simp only [ite_eq_left h]
-      split_ifs <;> simp
+      simp only [guidingDensity, ite_eq_left h]
+      split_ifs <;> ring
     simp_rw [he, expect_guidingDensity, ite_eq_left h]
     exact le_rfl
   · rw [ite_eq_right h]
@@ -405,8 +403,7 @@ private theorem guidingDensity_small_event (Y : Finset (ι → Bool)) {k : ℝ} 
       exact expect_le_expect fun y _ =>
         mul_le_mul_of_nonneg_right (guidingDensity_le Y hk P x y) (hf y)
     have he : (2 : ℝ) ^ k * (2 : ℝ) ^ (-k - 6) = 1 / 64 := by
-      rw [← Real.rpow_add (by norm_num), show k + (-k - 6) = (-6 : ℝ) by ring]
-      norm_num
+      rw [← Real.rpow_add (by norm_num), show k + (-k - 6) = (-6 : ℝ) by ring]; norm_num
     rw [ite_eq_left hsmall]
     linarith [hcap.trans ((mul_le_mul_of_nonneg_left hsmall (by positivity)).trans_eq he)]
   · rw [ite_eq_right hsmall]; linarith
@@ -461,15 +458,12 @@ private theorem guidedAverage_mirror_mass (X Y : Finset (ι → Bool)) (hX : X.N
       (if z ∈ Y ∧ IsDensityLimit X q (194 * k) z then 1 else 0) + 4 * bad z := by
     by_cases hy : z ∈ Y
     · by_cases hl : IsDensityLimit X q (194 * k) z
-      · simp only [hy, hl, and_self, ite_true]
-        linarith [hbad z]
-      · simp only [hy, hl, and_false, ite_true, ite_false, zero_add]
-        dsimp only [bad]
-        rw [one_sub_bernoulliAverage_density_lt]
+      · simp only [hy, hl, and_self, ↓reduceIte]; linarith [hbad z]
+      · simp only [hy, hl, and_false, ↓reduceIte, zero_add, bad,
+          one_sub_bernoulliAverage_density_lt]
         unfold IsDensityLimit at hl
         linarith
-    · simp only [hy, false_and, ite_false, zero_add]
-      linarith [hbad z]
+    · simp only [hy, false_and, ↓reduceIte, zero_add]; linarith [hbad z]
   have hm := guidedAverage_mono X Y (k := k) hp.le (hpq.trans hq1) hpoint
   rw [guidedAverage_add_const_mul] at hm
   have hhit := guidedAverage_hits X Y hX hp.le (hpq.trans hq1) hlim

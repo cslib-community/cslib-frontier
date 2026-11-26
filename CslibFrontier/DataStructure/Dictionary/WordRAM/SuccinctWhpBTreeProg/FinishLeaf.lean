@@ -294,6 +294,8 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
         fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ => hwn_out a (Or.inl (by omega))
       exact ⟨hrep.1, (hbm_eq _ (by omega)).trans hrep.2.1,
         (hbm_eq _ (by omega)).trans hrep.2.2.1, hwn_up sl hrep.1 fun v hv _ => hrep.2.2.2 v hv⟩
+  have hvw0 : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) :=
+    hcnt_eq_L ▸ hv_leaf.2.2.2.2.1
   by_cases hhit : r < cnt ∧ laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r = q
   · obtain ⟨hrc, hkeq⟩ := hhit
     have hhit_res : (Memory.spec 0).clientResult s hitProg = 1 := by
@@ -306,9 +308,6 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       ⟨(sl.nodes leafIdx).metaWord, (sl.nodes leafIdx).keysWord,
         wordUpdateAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩
     have hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
-      have hvw0 : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) := by
-        rw [hcnt_eq_L]
-        exact hv_leaf.2.2.2.2.1
       unfold valsWordBitsWhp
       exact (wordUpdateAt_lt hrc hval hvw0).trans_le
         (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
@@ -348,19 +347,13 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       exact (wordInsertAt_lt hr_le hq_kl hkw_cnt).trans_le
         (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
     have hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
-      have hvw0 : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) := by
-        rw [hcnt_eq_L]
-        exact hv_leaf.2.2.2.2.1
       dsimp only [nd']
       unfold valsWordBitsWhp
       exact (wordInsertAt_lt hr_le hval hvw0).trans_le
         (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
     refine hfinish nd' hm'_lt hk'_lt hv'_lt
       (by
-        unfold finishLeafInsert
-        by_cases hrc : r < cnt
-        · simp [cnt, r, hrc, hne hrc, nd']
-        · simp [cnt, r, hrc, nd'])
+        by_cases hrc : r < cnt <;> simp [finishLeafInsert, cnt, r, hrc, hne, nd'])
       (ite_eq_right fun h => absurd (hhit_res.symm.trans h) zero_ne_one)
       (by
         rw [clientState_bind, clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg,

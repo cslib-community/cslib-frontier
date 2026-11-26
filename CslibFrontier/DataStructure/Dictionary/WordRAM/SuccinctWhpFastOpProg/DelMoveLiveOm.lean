@@ -95,8 +95,7 @@ private theorem realizes_delMoveOmInsertInc :
       btreeInsertGenProg_fastStep henv homIdx hins_lt.le hseed hrep hv_om hfp hval_ld (s := s)
     obtain ⟨hst_7, hres_7, _, _⟩ :=
       readBktFieldGenProg_spec henv hb (by decide : 7 < 10) hbi_step.2.2.1
-    simp only [getBktField] at hres_7
-    simp only [hst_7, hres_7, wp_large_M hth] at *
+    simp only [hst_7, hres_7, getBktField, wp_large_M hth] at *
     first
     | decide
     | exact henv.fits_const (by decide)
@@ -204,8 +203,7 @@ private theorem realizes_delMoveOmActive :
       hrep (s := s)
     obtain ⟨hst_4, hres_4, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 4 < 10)
       hrep (s := s)
-    simp only [getBktField] at hres_6 hres_4
-    simp only [hst_6, hres_6, hst_4, hres_4, wp_large_M hth] at *
+    simp only [hst_6, hres_6, hst_4, hres_4, getBktField, wp_large_M hth] at *
     first
     | decide
     | exact henv.fits_const (by decide)
@@ -261,8 +259,7 @@ private theorem realizes_delMoveOmSub :
     have hth := henv.2.2.2.1
     obtain ⟨hst_5, hres_5, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 5 < 10)
       hrep (s := s)
-    simp only [getBktField] at hres_5
-    simp only [hst_5, hres_5, wp_large_M hth] at *
+    simp only [hst_5, hres_5, getBktField, wp_large_M hth] at *
     first
     | decide
     | exact henv.fits_const (by decide)
@@ -408,8 +405,7 @@ private theorem realizes_delMoveLiveOmActive :
       unfold FastState.liveSliceIdx; omega
     obtain ⟨hst_2, hres_2, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 2 < 10)
       hrep (s := s)
-    simp only [getBktField] at hres_2
-    simp only [hst_2, hres_2, wp_large_M hth] at *
+    simp only [hst_2, hres_2, getBktField, wp_large_M hth] at *
     first
     | decide
     | exact henv.fits_of_le_n_max (by omega)
@@ -423,11 +419,7 @@ private theorem realizes_delMoveLiveOmActive :
          hld, hfp, fun ha1 => ?_⟩
        obtain ⟨hins_lt, om, hv_om⟩ := hom_fn ha1
        refine ⟨hins_lt, om, ?_⟩
-       change ValidWhpSlice n_max (fs.overmarsInsCount b)
-         (Function.update fs.slices (fs.liveSliceIdx b)
-           (btreeUpdate (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-             (fs.slices (fs.liveSliceIdx b)) fp_live_last loc_del)
-           (fs.overmarsSliceIdx b)) om
+       dsimp only [FastState.overmarsSliceIdx, FastState.liveSliceIdx] at hne_lo hv_om ⊢
        rwa [Function.update_of_ne hne_lo.symm])
   )
 
@@ -495,11 +487,11 @@ theorem realizes_delMoveLiveOmGen :
       hrep.2.2.2.1 (s := s)
     obtain ⟨hst_8, hres_8, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 8 < 10)
       hrep (s := s)
-    simp only [getBktField] at hres_8
     obtain ⟨hst_il, _, _, _⟩ := inLiveTreeProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (rebStage := s.mem (base + hdrRebStage))
       (oldEp := fs.oldEp) (rebDoneB := fs.rebDoneFlag b) (st := st_last) (s := s)
-    simp only [hst_s, hres_s, hst_o, hres_o, hst_8, hres_8, hst_il, wp_large_M hth] at *
+    simp only [hst_s, hres_s, hst_o, hres_o, hst_8, hres_8, getBktField, hst_il,
+      wp_large_M hth] at *
     first
     | decide
     | exact h2w

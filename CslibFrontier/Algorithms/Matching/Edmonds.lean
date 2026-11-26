@@ -80,7 +80,6 @@ def edmondsEval (G : V × V → Bool) (r : V × V → R) : Matrix V V R :=
 /-- An entry of the Edmonds matrix at values. -/
 theorem edmondsEval_apply (G : V × V → Bool) (r : V × V → R) (i j : V) :
     edmondsEval G r i j = if G (i, j) then r (i, j) else 0 := by
-  unfold edmondsEval
   rfl
 
 /-- Substituting values for the indeterminates of the Edmonds matrix. -/
@@ -105,14 +104,9 @@ variable [DecidableEq V]
 theorem edmondsEval_indicator {G : V × V → Bool} {σ : Perm V} (hσ : ∀ v, G (v, σ v) = true) :
     edmondsEval G (fun e => if σ e.1 = e.2 then (1 : R) else 0) = σ.permMatrix R := by
   ext i j
-  simp only [edmondsEval, Perm.permMatrix, PEquiv.toMatrix_apply, Equiv.toPEquiv_apply,
-    Option.mem_def, Option.some.injEq]
-  split_ifs with h1 h2 h2
-  · rfl
-  · rfl
-  · subst h2
-    simp [hσ i] at h1
-  · rfl
+  rcases eq_or_ne j (σ i) with rfl | hij
+  · simp [edmondsEval, Perm.permMatrix, PEquiv.toMatrix_apply, hσ i]
+  · simp [edmondsEval, Perm.permMatrix, PEquiv.toMatrix_apply, hij.symm]
 
 variable [Fintype V]
 

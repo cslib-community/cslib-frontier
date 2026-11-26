@@ -260,10 +260,7 @@ theorem hasConvexPreferences_linearUtility [Fintype G] (v : G → ℝ) :
   · intro x hx y hy a b ha hb _ g
     exact add_nonneg (mul_nonneg ha (hx g)) (mul_nonneg hb (hy g))
   · simp only [linearUtility_eq_sum, Pi.add_apply, Pi.smul_apply, smul_eq_mul, mul_add,
-      sum_add_distrib, mul_sum]
-    refine le_of_eq (congrArg₂ (· + ·)
-      (sum_congr rfl fun g _ => by ring)
-      (sum_congr rfl fun g _ => by ring))
+      sum_add_distrib, mul_sum, mul_left_comm, le_refl]
 
 /-- **Strict finite Jensen inequality** on `ℝ_+^G` for `StrictConcaveOn`: if `u` is strictly
 concave on `ℝ_+^G`, `w` assigns strictly positive weights on `S` summing to `1`, and `f` takes at
@@ -304,16 +301,12 @@ theorem StrictConcaveOn.sum_mul_lt_of_ne {ι : Type*} {u : (G → ℝ) → ℝ}
     have havg_eq : ∑ c ∈ S, w c • f c = w c₁ • f c₁ + WT • rest := by
       rw [← add_sum_erase S (fun c => w c • f c) hc₁]
       congr 1
-      simp only [rest, Finset.smul_sum, smul_smul, wT]
-      refine sum_congr rfl fun c _ => ?_
-      rw [mul_div_cancel₀ _ hWT_pos.ne']
+      simp only [rest, T, Finset.smul_sum, smul_smul, wT, fun a => mul_div_cancel₀ a hWT_pos.ne']
     have hval_split : ∑ c ∈ S, w c * u (f c) =
         w c₁ * u (f c₁) + WT * ∑ c ∈ T, wT c * u (f c) := by
       rw [← add_sum_erase S (fun c => w c * u (f c)) hc₁, mul_sum]
       congr 1
-      refine sum_congr rfl fun c _ => ?_
-      dsimp only [wT]
-      field_simp [hWT_pos.ne']
+      simp only [T, wT, ← mul_assoc, fun a => mul_div_cancel₀ a hWT_pos.ne']
     have hrest_jensen : ∑ c ∈ T, wT c * u (f c) ≤ u rest := by
       simpa only [smul_eq_mul] using
         hconc.le_map_sum (fun c hc => (hwT_pos c hc).le) hwT_sum
@@ -335,14 +328,10 @@ theorem StrictConcaveOn.sum_mul_lt_of_ne {ι : Type*} {u : (G → ℝ) → ℝ}
           (fun c hc => hf_nn c (mem_of_mem_erase hc)) hT_nonconst
       have hcomb := hconc.2 (hf_nn c₁ hc₁) hrest_nn (hw_pos c₁ hc₁).le hWT_pos.le hW_split
       simp only [smul_eq_mul] at hcomb
-      have : WT * ∑ c ∈ T, wT c * u (f c) < WT * u rest :=
-        mul_lt_mul_of_pos_left hT_strict hWT_pos
-      linarith
+      linarith [mul_lt_mul_of_pos_left hT_strict hWT_pos]
     · have hstrict2 := hsc.2 (hf_nn c₁ hc₁) hrest_nn heq_rest (hw_pos c₁ hc₁) hWT_pos hW_split
       simp only [smul_eq_mul] at hstrict2
-      have : WT * ∑ c ∈ T, wT c * u (f c) ≤ WT * u rest :=
-        mul_le_mul_of_nonneg_left hrest_jensen hWT_pos.le
-      linarith
+      linarith [mul_le_mul_of_nonneg_left hrest_jensen hWT_pos.le]
 
 variable [Fintype G]
 
@@ -655,9 +644,7 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
     have hy_nn : ∀ j g, 0 ≤ y j g := fun j g => by
       rcases eq_or_ne j i with rfl | hj <;> simp [y, *, hb_nn g, hyNear_nn _ g]
     have hy_gt : ∀ j, E.utility j (x j) < E.utility j (y j) := fun j => by
-      rcases eq_or_ne j i with rfl | hj
-      · simpa [y] using hub
-      · simpa [y, hj] using hyNear_gt j
+      rcases eq_or_ne j i with rfl | hj <;> simp [y, *, hyNear_gt j]
     have hge0 := hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
     rw [hexp_excess, ← hsum_eq] at hge0
     have htot_diff : (∑ j : I, expenditure p (y j)) - ∑ j : I, expenditure p (x j) =

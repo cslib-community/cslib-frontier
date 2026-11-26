@@ -78,8 +78,7 @@ omit [DecidableEq U] in
 @[simp]
 theorem mem_agreeing {C' : (Fin k → U) → Fin k → V} {f : U → V} {y : Fin k → U} :
     y ∈ agreeing C' f ↔ ∀ j, C' y j = f (y j) := by
-  unfold agreeing
-  simp
+  simp [agreeing]
 
 /-- **Small classes are rare**: grouping tuples by their values on `P`, the tuples of a set `G`
 whose class meets `G` in fewer than `t` tuples number at most `#U ^ #P * t`. -/
@@ -88,8 +87,7 @@ theorem card_filter_card_filter_agree_lt_le (G : Finset (Fin k → U)) (P : Fins
     (#{b ∈ G | (#{y ∈ G | ∀ i ∈ P, y i = b i} : ℝ) < t} : ℝ) ≤ Fintype.card U ^ #P * t := by
   classical
   rcases G.eq_empty_or_nonempty with rfl | ⟨d, -⟩
-  · simp only [filter_empty, card_empty, Nat.cast_zero]
-    positivity
+  · simp only [filter_empty, card_empty, Nat.cast_zero]; positivity
   set ρ : (Fin k → U) → (Fin k → U) := fun b => P.piecewise b d
   have hρ : ∀ b y, ρ y = ρ b → ∀ i ∈ P, y i = b i := fun b y h i hi => by
     simpa [ρ, P.piecewise_eq_of_mem _ _ hi] using congrFun h i
@@ -159,9 +157,8 @@ theorem sum_sum_card_heavy_le (C' : (Fin k → U) → Fin k → V) (f : U → V)
           sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow
             (fun (b₀ y : Fin k → U) => ∀ i ∈ P, b₀ i = y i) (s := univ) (t := H')
         _ = n ^ (k - s) * #H' := by
-          have hc : ∀ y ∈ H', #{b₀ : Fin k → U | ∀ i ∈ P, b₀ i = y i} = n ^ (k - s) :=
-            fun y _ => by rw [← hPc]; exact Fintype.card_filter_forall_mem_eq P y
-          rw [sum_const_nat hc, mul_comm]
+          rw [sum_const_nat fun y _ =>
+            (Fintype.card_filter_forall_mem_eq P y).trans (congrArg (n ^ ·) hPc), mul_comm]
     exact_mod_cast hcount
   refine (sum_le_sum hP).trans ?_
   rw [← mul_sum]
@@ -182,8 +179,8 @@ theorem sum_sum_card_heavy_le (C' : (Fin k → U) → Fin k → V) (f : U → V)
       _ ≤ ∑ _y : Fin k → U, (k.choose s * Real.exp (-(α * s)) : ℝ) :=
           sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
       _ = n ^ k * k.choose s * Real.exp (-(α * s)) := by
-          rw [sum_const, card_univ, Fintype.card_fun, Fintype.card_fin, nsmul_eq_mul]
-          push_cast
+          simp only [sum_const, card_univ, Fintype.card_fun, Fintype.card_fin, n, nsmul_eq_mul,
+            Nat.cast_pow]
           ring
   exact (mul_le_mul_of_nonneg_left hmiss (by positivity)).trans_eq (by ring)
 
@@ -282,8 +279,7 @@ theorem sum_card_filter_good_ge (C' : (Fin k → U) → Fin k → V) (f : U → 
           (ε / 64 * (δ / 2 * Fintype.card U ^ (k - s))) := by ring
   have hS : ∑ P ∈ univ.powersetCard s,
       (#{b₀ ∈ agreeing C' f | ¬δ / 2 * Fintype.card U ^ #Pᶜ ≤ #(consistent C' P b₀)} : ℝ) ≤
-        k.choose s * (δ / 2 * Fintype.card U ^ k) := by
-    refine (sum_le_sum hsparse).trans_eq ?_
+        k.choose s * (δ / 2 * Fintype.card U ^ k) := (sum_le_sum hsparse).trans_eq <| by
     rw [sum_const, card_powersetCard, card_univ, Fintype.card_fin, nsmul_eq_mul]
   have hsum := sum_le_sum fun P (_ : P ∈ univ.powersetCard s) => hsplit P
   rw [sum_const, card_powersetCard, card_univ, Fintype.card_fin, nsmul_eq_mul,
@@ -319,10 +315,10 @@ theorem card_filter_seed_dpDecode_err_le_ge (C' : (Fin k → U) → Fin k → V)
     (#{y ∈ consistent C' P b₀ | ε / 64 * k ≤ #(disagreements C' f y)} : ℝ) ≤
       ε / 64 * #(consistent C' P b₀)
   have hgood : δ / 4 * k.choose s * Fintype.card U ^ k ≤
-      #{Pb ∈ univ.powersetCard s ×ˢ univ | good Pb} := by
-    refine (sum_card_filter_good_ge C' f hε hδ hε1 hδ1 hG hsk' hs).trans_eq ?_
-    rw [card_filter, sum_product, Nat.cast_sum]
-    exact sum_congr rfl fun P _ => by rw [← card_filter]; congr 2; ext; simp [good]
+      #{Pb ∈ univ.powersetCard s ×ˢ univ | good Pb} :=
+    (sum_card_filter_good_ge C' f hε hδ hε1 hδ1 hG hsk' hs).trans_eq <| by
+      rw [card_filter, sum_product, Nat.cast_sum]
+      exact sum_congr rfl fun P _ => by rw [← card_filter]; congr 2; ext; simp [good]
   have hpairs := Probability.mul_le_card_filter_product (univ.powersetCard s ×ˢ univ) univ good
     (fun Pb v => (#{x | dpDecode C' dflt Pb.1 Pb.2 v x ≠ f x} : ℝ) ≤ ε * Fintype.card U)
     (ρ₂ := (Fintype.card (Trial U k) : ℝ) ^ m / 2) (by positivity) hgood

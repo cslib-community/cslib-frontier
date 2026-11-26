@@ -90,15 +90,13 @@ private theorem one_le_sqrt_log (n : ℕ) : 1 ≤ Nat.sqrt (Nat.log 2 (n + 2)) :
 private theorem sqrt_log_le {n : ℕ} (hn : 1 ≤ n) : Nat.sqrt (Nat.log 2 (n + 2)) ≤ n := by
   refine (Nat.sqrt_le_self _).trans (Nat.lt_succ_iff.mp (Nat.log_lt_of_lt_pow (by omega) ?_))
   have := Nat.lt_two_pow_self (n := n)
-  rw [Nat.pow_succ]
-  omega
+  rw [Nat.pow_succ]; omega
 
 /-- Below `16384` variables the threshold is at most `65536`. -/
 private theorem threshold_le_of_lt {n : ℕ} (hn : n < 16384) : threshold n ≤ 65536 := by
   have h14 : Nat.clog 2 n ≤ 14 := Nat.clog_le_of_le_pow (by omega)
   have h4 : Nat.clog 2 (Nat.clog 2 n) ≤ 4 := Nat.clog_le_of_le_pow (by omega)
-  unfold threshold
-  nlinarith
+  dsimp only [threshold]; nlinarith
 
 /-- Above `2 ^ 2 ^ D` variables the threshold is at least `D n`. -/
 private theorem mul_le_threshold {D n : ℕ} (hn : 2 ^ 2 ^ D ≤ n) : D * n ≤ threshold n := by
@@ -106,9 +104,7 @@ private theorem mul_le_threshold {D n : ℕ} (hn : 2 ^ 2 ^ D ≤ n) : D * n ≤ 
     simpa only [Nat.clog_pow 2 _ one_lt_two] using Nat.clog_mono_right 2 hn
   have h2 : D ≤ Nat.clog 2 (Nat.clog 2 n) := by
     simpa only [Nat.clog_pow 2 _ one_lt_two] using Nat.clog_mono_right 2 h1
-  unfold threshold
-  rw [Nat.mul_comm D n]
-  exact Nat.mul_le_mul_left n h2
+  simpa only [threshold, Nat.mul_comm] using Nat.mul_le_mul_left n h2
 
 /-- **The contraction exponent at the threshold is at most the interpolation scale**, up to the
 factor `32`, from `16384` variables on: `n ν / √⌊log₂ (n + 2)⌋ ≤ 32 ρ(n)`. -/
@@ -285,15 +281,12 @@ theorem exists_modelCounter (k : ℕ) :
         else ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale φ.numVars)⌉₊ * Y φ ^ e₂) ≤ T φ := by
       simp only [T]
       split <;> exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (hY1 φ) (by omega))
-    change Y φ ^ d + (if guard φ then 2 ^ (A₁ * φ.length / q φ) * Y φ ^ e₁
-        else ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale φ.numVars)⌉₊ * Y φ ^ e₂) ≤ 2 * (T φ + 1)
-    omega
+    exact (Nat.add_le_add hd' hbr).trans (by omega)
   · -- space: the test and either branch are within `Y ^ b`
     have hd' : Y φ ^ d ≤ Y φ ^ b := Nat.pow_le_pow_right (hY1 φ) (by omega)
     have hbr : (if guard φ then Y φ ^ b₁ else Y φ ^ b₂) ≤ Y φ ^ b := by
       split <;> exact Nat.pow_le_pow_right (hY1 φ) (by omega)
-    change Y φ ^ d + (if guard φ then Y φ ^ b₁ else Y φ ^ b₂) ≤ 2 * (Y φ ^ b + 1)
-    omega
+    exact (Nat.add_le_add hd' hbr).trans (by omega)
   · -- every formula: the interpolation scale
     have hceil {c : ℕ} (hc : c ≤ A) : ⌈(2 : ℝ) ^ ((c : ℝ) * interpolationScale φ.numVars)⌉₊ ≤
         ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ :=
@@ -311,10 +304,9 @@ theorem exists_modelCounter (k : ℕ) :
             rw [he, pow_add]; ring
     · exact Nat.mul_le_mul (hceil (by omega)) (hYe φ)
   · -- at most `threshold n` clauses: the contraction branch
-    have hg : guard φ = true := decide_eq_true hφ
-    simp only [T, hg, ↓reduceIte]
-    refine Nat.mul_le_mul (Nat.pow_le_pow_right (by norm_num) (Nat.div_le_div_right ?_)) (hYe φ)
-    exact Nat.mul_le_mul (by omega) hφ
+    simp only [T, guard, decide_eq_true hφ, ↓reduceIte]
+    refine Nat.mul_le_mul (Nat.pow_le_pow_right (by norm_num) ?_) (hYe φ)
+    exact Nat.div_le_div_right (Nat.mul_le_mul (by omega) hφ)
   · -- fixed density: few variables fall back on a constant
     set K := (Finset.range (2 ^ 2 ^ D)).sup
       fun n => ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale n)⌉₊ with hK

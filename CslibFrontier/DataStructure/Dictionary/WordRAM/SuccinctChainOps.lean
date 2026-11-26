@@ -138,27 +138,25 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
             fun heq => hm_ne (hvalid.2 b' hb' m' hm' m hm x hx (heq ▸ hold_mem))
           have := hx_ne_new rfl
           update_simp
-        · subst hb_eq; have := hx_ne_new rfl; update_simp
+        · rw [Function.update_of_ne (hx_ne_new hb_eq), hb_eq]
         · rfl
-      · have hx_cap := (hvalid.1 b' hb' m' hm').lt_cap_of_mem hx
-        rw [hnext b' hb' x hx_cap]
+      · rw [hnext b' hb' x ((hvalid.1 b' hb' m' hm').lt_cap_of_mem hx)]
         split_ifs with hb_eq
-        · subst hb_eq; have : x ≠ j_new := fun heq => hj_not m' hm' (heq ▸ hx)
-          update_simp
+        · rw [Function.update_of_ne (fun heq : x = j_new => hj_not m' hm' (hb_eq ▸ heq ▸ hx)),
+            hb_eq]
         · rfl
   · by_cases hnew : b' = b ∧ j = j_new
     · rcases hnew with ⟨rfl, rfl⟩
-      have hm_eq : ∀ {m'}, m' < numMicroPerBucket n_max → j ∈ L' b' m' → m' = m :=
-        fun {m'} hm' hj => by
-          by_contra hne
-          rw [show L' b' m' = L b' m' from ite_eq_right fun h => hne h.2] at hj
-          exact hj_not m' hm' hj
+      have hm_eq {m'} (hm' : m' < numMicroPerBucket n_max) (hj : j ∈ L' b' m') : m' = m := by
+        by_contra hne
+        simp only [L', hne, and_false, ↓reduceIte] at hj
+        exact hj_not m' hm' hj
       exact (hm_eq hm₁ hj₁).trans (hm_eq hm₂ hj₂).symm
-    · have hold : ∀ m', j ∈ L' b' m' → j ∈ L b' m' := fun m' hj => by
+    · have hold (m') (hj : j ∈ L' b' m') : j ∈ L b' m' := by
         dsimp only [L'] at hj
         split_ifs at hj with h
-        · exact (List.mem_cons.mp hj).elim (fun hj_eq => False.elim (hnew ⟨h.1, hj_eq⟩))
-            (fun hj_old => h.1 ▸ h.2 ▸ hj_old)
+        · exact (List.mem_cons.mp hj).elim (fun hj_eq => (hnew ⟨h.1, hj_eq⟩).elim)
+            fun hj_old => h.1 ▸ h.2 ▸ hj_old
         · exact hj
       exact hvalid.2 b' hb' m₁ hm₁ m₂ hm₂ j (hold m₁ hj₁) (hold m₂ hj₂)
 
@@ -266,8 +264,7 @@ def prependIfIndexedProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) 
 theorem prependIfIndexedGenProg_mk (U V w n_max h_space : ℕ)
     (d1 : (ℕ × ℕ) × ℕ) (d2 : ℕ) :
     prependIfIndexedGenProg ((mkDictParams U V w n_max h_space, d1), d2) =
-      prependIfIndexedProg U V w n_max h_space (d1, d2) := by
-  rfl
+      prependIfIndexedProg U V w n_max h_space (d1, d2) := rfl
 
 theorem memoryCost_prependIfIndexedProg_le (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
@@ -341,9 +338,8 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
   · have hj_cap : j_new < effBucketCap n_max := (lt_min_iff.mp hj_min).2
     have hs' : s' = (Memory.spec 0).clientState s
         (lmPrependProg U V w n_max h_space (((base, b), m), j_new)) := by
-      change (Memory.spec 0).clientState s (prependIfIndexedProg U V w n_max h_space d) = _
-      simp only [prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk, lmPrependGenProg_mk,
-        pure_bind, d, hj_min, ↓reduceIte]
+      simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
+        lmPrependGenProg_mk, pure_bind, hj_min, ↓reduceIte]
     have hold_le : lmHead n_max (lmAt base U V w n_max h_space s.mem) b m ≤ effBucketCap n_max :=
       (hvalid.1 b hb m hm).head_le_cap
     have eff := lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
@@ -364,9 +360,8 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
       exact ⟨Or.inl, fun h => h.elim id fun h => absurd ⟨h.1, h.2.1⟩ hbm⟩
   · have hj_not_cap : ¬(j_new < effBucketCap n_max) := fun hc => hj_min (lt_min hj_n hc)
     have hs' : s' = s := by
-      change (Memory.spec 0).clientState s (prependIfIndexedProg U V w n_max h_space d) = s
-      simp only [prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk, lmPrependGenProg_mk,
-        pure_bind, d, hj_min, ↓reduceIte]
+      simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
+        lmPrependGenProg_mk, pure_bind, hj_min, ↓reduceIte]
       rfl
     rw [hs']
     exact ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' _ m' _ j =>
@@ -393,8 +388,7 @@ def unlinkIfIndexedProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) �
 theorem unlinkIfIndexedGenProg_mk (U V w n_max h_space : ℕ)
     (d1 : (ℕ × ℕ) × ℕ) (d2 : ℕ) :
     unlinkIfIndexedGenProg ((mkDictParams U V w n_max h_space, d1), d2) =
-      unlinkIfIndexedProg U V w n_max h_space (d1, d2) := by
-  rfl
+      unlinkIfIndexedProg U V w n_max h_space (d1, d2) := rfl
 
 theorem memoryCost_unlinkIfIndexedProg_le (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
@@ -472,9 +466,8 @@ theorem unlinkIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_del :
     have hmem := hmem_if hj_cap
     have hs' : s' = (Memory.spec 0).clientState s
         (lmUnlinkProg U V w n_max h_space (((base, b), m), j_del)) := by
-      change (Memory.spec 0).clientState s (unlinkIfIndexedProg U V w n_max h_space d) = _
-      simp only [unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk, lmUnlinkGenProg_mk,
-        pure_bind, d, hj_min, ↓reduceIte]
+      simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,
+        lmUnlinkGenProg_mk, pure_bind, hj_min, ↓reduceIte]
     have hp_le : lmPrev n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
       (hvalid.1 b hb m hm).prev_le_cap hmem
     have hn_le : lmNext n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
@@ -487,9 +480,8 @@ theorem unlinkIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_del :
     exact ⟨eff.1, eff.2.1, eff.2.2.1, eff.2.2.2.1, eff.2.2.2.2.1, _, hval', hmem'⟩
   · have hj_not_cap : ¬(j_del < effBucketCap n_max) := fun hc => hj_min (lt_min hj_n hc)
     have hs' : s' = s := by
-      change (Memory.spec 0).clientState s (unlinkIfIndexedProg U V w n_max h_space d) = s
-      simp only [unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk, lmUnlinkGenProg_mk,
-        pure_bind, d, hj_min, ↓reduceIte]
+      simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,
+        lmUnlinkGenProg_mk, pure_bind, hj_min, ↓reduceIte]
       rfl
     rw [hs']
     refine ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' hb' m' hm' j =>
@@ -518,8 +510,7 @@ def readTotalSlotsProg (U V w n_max h_space : ℕ) (base : ℕ) : Memory.Prog �
 @[simp]
 theorem readTotalSlotsGenProg_mk (U V w n_max h_space base : ℕ) :
     readTotalSlotsGenProg (mkDictParams U V w n_max h_space, base) =
-      readTotalSlotsProg U V w n_max h_space base := by
-  rfl
+      readTotalSlotsProg U V w n_max h_space base := rfl
 
 theorem clientState_readTotalSlotsProg (U V w n_max h_space : ℕ) (base : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readTotalSlotsProg U V w n_max h_space base) = s := by
@@ -590,8 +581,7 @@ def copyLastPayloadProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) : 
 @[simp]
 theorem copyLastPayloadGenProg_mk (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) :
     copyLastPayloadGenProg (mkDictParams U V w n_max h_space, d) =
-      copyLastPayloadProg U V w n_max h_space d := by
-  rfl
+      copyLastPayloadProg U V w n_max h_space d := rfl
 
 theorem memoryCost_copyLastPayloadProg_le (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
