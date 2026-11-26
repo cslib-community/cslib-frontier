@@ -67,15 +67,14 @@ noncomputable def gamma (params : Parameters) : ℝ := params.rate / params.delt
 @[simp] theorem inverseRate_pos (params : Parameters) : 0 < params.inverseRate :=
   dyadicSize_pos _
 
-theorem rate_pos (params : Parameters) : 0 < params.rate := by
-  exact one_div_pos.mpr (by exact_mod_cast params.inverseRate_pos)
+theorem rate_pos (params : Parameters) : 0 < params.rate :=
+  one_div_pos.mpr (Nat.cast_pos.mpr params.inverseRate_pos)
 
 theorem Valid.delta_pos {params : Parameters} (h : params.Valid) : 0 < params.delta :=
   div_pos (by exact_mod_cast h.1) (by exact_mod_cast params.denominator_pos)
 
-theorem Valid.delta_le_one {params : Parameters} (h : params.Valid) : params.delta ≤ 1 := by
-  apply (div_le_one (by exact_mod_cast params.denominator_pos : (0 : ℝ) < params.denominator)).mpr
-  exact_mod_cast h.2
+theorem Valid.delta_le_one {params : Parameters} (h : params.Valid) : params.delta ≤ 1 :=
+  (div_le_one (Nat.cast_pos.mpr params.denominator_pos)).mpr (Nat.cast_le.mpr h.2)
 
 theorem Valid.gamma_pos {params : Parameters} (h : params.Valid) : 0 < params.gamma :=
   div_pos params.rate_pos h.delta_pos
@@ -233,10 +232,8 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
   have hmass : 3 * params.delta / 8 ≤ (source.toOuterMeasure {x | before x ≤ 0}).toReal := by
     refine hbelow.trans (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
       (MeasureTheory.measure_mono ?_))
-    intro x hx
-    change state.margin predict truth x ≤ 0 at hx
-    change state.margin predict truth x - (state.threshold : ℝ) ≤ 0
-    linarith [Nat.cast_nonneg (α := ℝ) state.threshold]
+    intro x (hx : state.margin predict truth x ≤ 0)
+    exact sub_nonpos.mpr (hx.trans (Nat.cast_nonneg state.threshold))
   have hstep := step_progress source hparams.gamma_pos hparams.delta_pos hparams.delta_le_one
     before vote (fun _ => by simp [vote]) yes
     (by intro hy; subst yes; simpa only [ite_true, hparams.gamma_mul_delta] using hguard)
@@ -348,10 +345,9 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
             simp only [State.margin_shift]
             cases yes
             · exact hgoodShift
-            · have hrestore := hstate
-              simp only [State.Invariant, hflag, Bool.false_eq_true, ite_false] at hrestore
+            · simp only [State.Invariant, hflag, Bool.false_eq_true, ite_false] at hstate
               simpa only [State.shift, ite_true, Nat.cast_add, Nat.cast_one,
-                sub_add_eq_sub_sub, predict] using hrestore.1
+                sub_add_eq_sub_sub, predict] using hstate.1
           have hlearner := hlearn yes hdensity
           simp only [ProbComp.eval_pure]
           change (((ProbComp.eval (learn (state.shift yes))).map
@@ -367,19 +363,16 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
         · exact add_le_add (by simpa only [Set.compl_ofPred, Nat.cast_one, shiftGuard, votes,
             predict, State.margin, State.votes, Parameters.delta, Parameters.rate,
             Parameters.inverseRate] using hshift) le_rfl
-      · have hnext := State.invariant_stop (ProbComp.eval source)
-          (fun code x => evaluate code (observe x)) truth params (rounds + 1) state hgoodStop
-        simp only [ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-          Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
+      · simp only [ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq,
+          State.invariant_stop _ _ _ _ (rounds + 1) state hgoodStop, not_true_eq_false, ite_false,
+          ENNReal.toReal_zero]
         positivity
     · exact (add_le_add (b := (1 / 2 : ℝ) ^ params.confidence) (by
         simpa only [Set.compl_ofPred, stopGuard, votes, predict, State.margin, State.votes,
           Parameters.delta] using hstop) le_rfl).trans_eq (by ring)
-  · have hnext : State.Invariant (ProbComp.eval source)
-        (fun code x => evaluate code (observe x)) truth params (rounds + 1) state := by
-      simpa only [State.Invariant, hflag, ite_true] using hstate
+  · simp only [State.Invariant, hflag, ite_true] at hstate
     simp only [round, hflag, ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-      Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
+      Set.mem_ofPred_eq, State.Invariant, hstate, not_true_eq_false, ite_false, ENNReal.toReal_zero]
     positivity
 
 variable (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error)

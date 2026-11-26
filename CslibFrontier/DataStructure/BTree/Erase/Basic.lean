@@ -414,9 +414,7 @@ theorem popMin_node (first : BTree α β) (rest : List (Triple α β)) :
 @[simp] theorem toList_mergeSplit (l : BTree α β) (k : α) (v : β) (r : BTree α β) :
     (mergeSplit t l k v r).toList = l.toList ++ (k, v) :: r.toList := by
   unfold mergeSplit
-  split
-  · simp
-  · rfl
+  split <;> simp
 
 /-- Repair against the right sibling keeps the entries. -/
 theorem toList_rebalanceRight (c : BTree α β) (k : α) (v : β) (s : BTree α β)
@@ -460,9 +458,7 @@ theorem toList_popMin {tr : BTree α β} :
 /-- Collapsing an empty root keeps the entries. -/
 @[simp] theorem toList_collapse (tr : BTree α β) : (collapse tr).toList = tr.toList := by
   unfold collapse
-  split
-  · simp
-  · rfl
+  split <;> simp
 
 /-! ### Shape -/
 
@@ -507,9 +503,7 @@ theorem Good.underfull {c : BTree α β} {h : ℕ} (hc : Good t h c) : Underfull
 /-- A good tree of positive height is a node. -/
 theorem Good.ne_leaf {c : BTree α β} {h : ℕ} (hc : Good t h c) (hh : 1 ≤ h) : c ≠ .leaf := by
   rintro rfl
-  have := hc.height_eq
-  simp at this
-  omega
+  simp [← hc.height_eq] at hh
 
 /-- A subtree that does not underflow is occupied. -/
 theorem Underfull.occupied {c : BTree α β} {h : ℕ} (hc : Underfull t h c)

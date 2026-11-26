@@ -127,8 +127,7 @@ theorem convex_openProbSimplex : Convex ℝ (openProbSimplex Ω) := by
   refine ⟨convex_probSimplex hp.1 hq.1 ha hb hab, fun ω => ?_⟩
   simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
   rcases ha.eq_or_lt with rfl | ha'
-  · have hb' : b = 1 := by linarith
-    subst hb'
+  · obtain rfl : b = 1 := by linarith
     simpa only [zero_mul, zero_add, one_mul] using hq.2 ω
   · exact add_pos_of_pos_of_nonneg (mul_pos ha' (hp.2 ω)) (mul_nonneg hb (hq.2 ω).le)
 
@@ -465,13 +464,9 @@ theorem quadraticScore_expectedScore_sub {Ω : Type*} [Fintype Ω] {q p : Ω →
     simp only [ScoringRule.expectedScore_apply, quadraticScore_score, mul_sub, sum_sub_distrib,
       ← sum_mul, hq, one_mul]
     rw [mul_sum]
-    congr 1
-    exact sum_congr rfl fun _ _ => by ring
-  have hqq : ∑ ω, q ω * q ω = ∑ ω, q ω ^ 2 := sum_congr rfl fun _ _ => (sq _).symm
-  have hsq : ∑ ω, (q ω - p ω) ^ 2 = ∑ ω, (q ω ^ 2 - 2 * (q ω * p ω) + p ω ^ 2) :=
-    sum_congr rfl fun _ _ => by ring
-  rw [heval q, heval p, hqq, hsq]
-  simp only [sum_add_distrib, sum_sub_distrib, ← mul_sum]
+    exact congrArg (· - ∑ ω, r ω ^ 2) (sum_congr rfl fun _ _ => by ring)
+  rw [heval q, heval p]
+  simp only [← sq, sub_sq, mul_assoc, sum_add_distrib, sum_sub_distrib, ← mul_sum]
   ring
 
 /-- **Strict propriety of the quadratic scoring rule** on the full probability simplex
@@ -512,24 +507,19 @@ theorem brierScore_score {Ω : Type*} [Fintype Ω] [DecidableEq Ω] (p : Ω → 
 theorem brierScore_eq_quadraticScore_sub_one {Ω : Type*} [Fintype Ω] [DecidableEq Ω]
     (p : Ω → ℝ) (ω : Ω) :
     (brierScore Ω).score p ω = (quadraticScore Ω).score p ω - 1 := by
-  simp only [brierScore_score, quadraticScore_score]
-  have h1 : ∑ ω', ((if ω' = ω then (1 : ℝ) else 0) - p ω') ^ 2 =
-      ∑ ω', ((if ω' = ω then (1 : ℝ) else 0) -
-        2 * ((if ω' = ω then (1 : ℝ) else 0) * p ω') + p ω' ^ 2) :=
-    sum_congr rfl fun _ _ => by split_ifs <;> ring
-  rw [h1, sum_add_distrib, sum_sub_distrib, ← mul_sum]
-  simp only [ite_mul, one_mul, zero_mul, Fintype.sum_ite_eq']
+  simp only [brierScore_score, quadraticScore_score, sub_sq, ite_pow, one_pow,
+    zero_pow two_ne_zero, mul_assoc, ite_mul, one_mul, zero_mul, sum_add_distrib,
+    sum_sub_distrib, ← mul_sum, Fintype.sum_ite_eq']
   ring
 
 /-- **Strict propriety of the Brier scoring rule** on the full probability simplex [Brier1950]. -/
 theorem isStrictlyProper_brierScore {Ω : Type*} [Fintype Ω] [DecidableEq Ω] :
     (brierScore Ω).IsStrictlyProper := by
-  have heq : brierScore Ω = (quadraticScore Ω).affine 1 (fun _ => -1) := by
-    ext p ω
-    rw [brierScore_eq_quadraticScore_sub_one, ScoringRule.affine_score, one_mul]
-    ring
-  rw [heq]
-  exact ScoringRule.IsStrictlyProperOn.affine isStrictlyProper_quadraticScore one_pos _
+  suffices brierScore Ω = (quadraticScore Ω).affine 1 (fun _ => -1) from
+    this ▸ ScoringRule.IsStrictlyProperOn.affine isStrictlyProper_quadraticScore one_pos _
+  ext p ω
+  simp only [brierScore_eq_quadraticScore_sub_one, ScoringRule.affine_score, one_mul,
+    sub_eq_add_neg]
 
 /-! ### Logarithmic scoring rule -/
 
@@ -616,14 +606,9 @@ theorem sphericalScore_eq_savage {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp 
       (savageScoringRule (fun r => Real.sqrt (∑ i, r i ^ 2))
         (fun r i => r i / Real.sqrt (∑ j, r j ^ 2))).score p ω := by
   have hpos := sum_sq_pos_of_isMixedStrategy hp
-  have h1 : ∑ i, p i * (p i / Real.sqrt (∑ j, p j ^ 2)) =
-      (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) := by
-    rw [sum_div]
-    exact sum_congr rfl fun _ _ => by ring
-  simp only [sphericalScore_score, savageScoringRule_score, dotProduct, h1]
-  have hdiv : (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) = Real.sqrt (∑ i, p i ^ 2) := by
-    rw [div_eq_iff (Real.sqrt_pos.mpr hpos).ne', Real.mul_self_sqrt hpos.le]
-  rw [hdiv]
+  simp only [sphericalScore_score, savageScoringRule_score, dotProduct, mul_div_assoc', ← sq,
+    ← sum_div,
+    (div_eq_iff (Real.sqrt_pos.mpr hpos).ne').mpr (Real.mul_self_sqrt hpos.le).symm]
   ring
 
 /-- Truthful expected spherical score on `probSimplex Ω` equals the Euclidean norm

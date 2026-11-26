@@ -240,12 +240,8 @@ theorem le_optMaxCost_iff [Nonempty G] {x : ι → G} {c : ℝ} :
 theorem le_mul_optMaxCost [Nonempty G] {x : ι → G} {α c : ℝ} (hα : 0 ≤ α)
     (h : ∀ y : G, c ≤ α * maxCost x y) : c ≤ α * optMaxCost x := by
   rcases hα.eq_or_lt with rfl | hpos
-  · obtain ⟨y⟩ := ‹Nonempty G›
-    simpa only [zero_mul] using h y
-  · rw [mul_comm, ← div_le_iff₀ hpos, le_optMaxCost_iff]
-    intro y
-    rw [div_le_iff₀ hpos, mul_comm]
-    exact h y
+  · exact ‹Nonempty G›.elim fun y => by simpa only [zero_mul] using h y
+  · exact (div_le_iff₀' hpos).mp (le_optMaxCost_iff.mpr fun y => (div_le_iff₀' hpos).mpr (h y))
 
 /-- `optMaxECost x` is at most `maxECost x y` for every location `y`. -/
 theorem optMaxECost_le_maxECost (x : ι → G) (y : G) : optMaxECost x ≤ maxECost x y :=
@@ -601,22 +597,15 @@ theorem maxCost_real_eq (x : ι → ℝ) (y : ℝ) :
   obtain ⟨ir, hir⟩ := exists_eq_rightmost x
   have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
   refine le_antisymm (maxCost_le_iff.mpr fun i => ?_) ?_
-  · have h1 := leftmost_le x i
-    have h2 := le_rightmost x i
-    rw [Real.dist_eq, abs_le]
-    rcases le_total (center x) y with hcy | hyc
-    · rw [abs_of_nonneg (sub_nonneg.mpr hcy)]
-      constructor <;> linarith
-    · rw [abs_of_nonpos (sub_nonpos.mpr hyc)]
-      constructor <;> linarith
-  · have hlr := leftmost_le_rightmost x
-    rcases le_total (center x) y with hcy | hyc
-    · have hdl := dist_le_maxCost x y il
-      rw [hil, Real.dist_eq, abs_of_nonpos (by linarith)] at hdl
-      rw [abs_of_nonneg (sub_nonneg.mpr hcy)]; linarith
-    · have hdr := dist_le_maxCost x y ir
-      rw [hir, Real.dist_eq, abs_of_nonneg (by linarith)] at hdr
-      rw [abs_of_nonpos (sub_nonpos.mpr hyc)]; linarith
+  · rw [Real.dist_eq, abs_le]
+    exact ⟨by linarith [leftmost_le x i, le_abs_self (y - center x)],
+      by linarith [le_rightmost x i, neg_le_abs (y - center x)]⟩
+  · have hdl := Real.dist_eq (x il) y ▸ dist_le_maxCost x y il
+    have hdr := Real.dist_eq (x ir) y ▸ dist_le_maxCost x y ir
+    have habs : |y - center x| ≤ maxCost x y - (rightmost x - leftmost x) / 2 :=
+      abs_le.mpr ⟨by linarith [hir, le_abs_self (x ir - y)],
+        by linarith [hil, neg_le_abs (x il - y)]⟩
+    linarith
 
 /-- The midpoint `center x` minimizes `maxCost x` on `ℝ`
 ([ProcacciaTennenholtz2013] §3.2, p. 18:8). -/
@@ -846,11 +835,9 @@ theorem expectedCost_lrmMechanism (x : ι → ℝ) (loc : ℝ) :
 theorem expectedMaxCost_lrmMechanism (x : ι → ℝ) :
     expectedMaxCost (lrmMechanism x) x = (3 / 2) * optMaxCost x := by
   have hle := leftmost_le_rightmost x
-  have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
   rw [expectedMaxCost_eq_expectedCost_center_add (lrmMechanism_hasFiniteCost x) x,
-    expectedCost_lrmMechanism, optMaxCost_real_eq, sub_self, abs_zero,
+    expectedCost_lrmMechanism, optMaxCost_real_eq, center, sub_self, abs_zero,
     abs_of_nonneg (by linarith), abs_of_nonpos (by linarith)]
-  rw [hcen_def]
   ring
 
 /-- **Theorem 3.3** of [ProcacciaTennenholtz2013] (§3.2, p. 18:9), approximation part:
@@ -865,19 +852,15 @@ theorem lrmMechanism_hasMaxCostApproxRatio :
 private theorem expectedCost_lrm_leftmost (x : ι → ℝ) :
     expectedCost (lrmMechanism x) (leftmost x) = (rightmost x - leftmost x) / 2 := by
   have hle := leftmost_le_rightmost x
-  have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
-  rw [expectedCost_lrmMechanism, sub_self, abs_zero,
+  rw [expectedCost_lrmMechanism, center, sub_self, abs_zero,
     abs_of_nonpos (by linarith), abs_of_nonpos (by linarith)]
-  rw [hcen_def]
   ring
 
 private theorem expectedCost_lrm_rightmost (x : ι → ℝ) :
     expectedCost (lrmMechanism x) (rightmost x) = (rightmost x - leftmost x) / 2 := by
   have hle := leftmost_le_rightmost x
-  have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
-  rw [expectedCost_lrmMechanism, sub_self, abs_zero,
+  rw [expectedCost_lrmMechanism, center, sub_self, abs_zero,
     abs_of_nonneg (by linarith), abs_of_nonneg (by linarith)]
-  rw [hcen_def]
   ring
 
 /-- **Theorem 3.3** of [ProcacciaTennenholtz2013] (§3.2, pp. 18:9–18:10), incentive part:

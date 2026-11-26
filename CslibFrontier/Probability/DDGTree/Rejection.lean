@@ -261,11 +261,9 @@ theorem runTrials_some (spec : BlockRejectionSpec α) (t : ℕ) (a : α) :
   | zero => simp
   | succ t ih =>
     classical
-    rw [runTrials_succ, PMF.bind_apply, tsum_option_eq, ih, geom_sum_succ]
-    have hsome : ∑' b : α, spec.singleLaw (some b) *
-        (PMF.pure (some b) : PMF (Option α)) (some a) = spec.singleLaw (some a) :=
-      (tsum_eq_single a fun b hb => by simp [hb.symm]).trans (by simp)
-    rw [hsome]
+    rw [runTrials_succ, PMF.bind_apply, tsum_option_eq, ih, geom_sum_succ,
+      tsum_eq_single a fun b hb => by simp [hb.symm]]
+    simp only [PMF.pure_apply, ↓reduceIte, mul_one]
     change spec.rejectProb * (spec.singleLaw (some a) * ∑ j ∈ Finset.range t, spec.rejectProb ^ j) +
       spec.singleLaw (some a) = _
     ring
@@ -385,17 +383,17 @@ theorem toDDGTree_generates {spec : BlockRejectionSpec α} {target : PMF α}
   · refine iSup_le fun n => ?_
     rw [run_toDDGTree, runTrials_some_of_singleLaw h]
     exact mul_le_of_le_one_left' tsub_le_self
-  · have hr_lt : spec.rejectProb < 1 := spec.rejectProb_lt_one_iff.mpr hacc
-    have hpow : Tendsto (fun t : ℕ => spec.rejectProb ^ t) atTop (𝓝 0) :=
-      ENNReal.tendsto_pow_atTop_nhds_zero_of_lt_one hr_lt
-    have hsub : Tendsto (fun t : ℕ => (1 - spec.rejectProb ^ t) * target a) atTop
-        (𝓝 ((1 - 0) * target a)) := by
-      refine ENNReal.Tendsto.mul_const ?_ (Or.inr (PMF.apply_ne_top target a))
-      exact ENNReal.Tendsto.sub tendsto_const_nhds hpow (Or.inr ENNReal.zero_ne_top)
-    rw [tsub_zero, one_mul] at hsub
+  · have hpow : Tendsto (fun t : ℕ => spec.rejectProb ^ t) atTop (𝓝 0) :=
+      ENNReal.tendsto_pow_atTop_nhds_zero_of_lt_one (spec.rejectProb_lt_one_iff.mpr hacc)
+    have hsub :
+        Tendsto (fun t : ℕ => (1 - spec.rejectProb ^ t) * target a) atTop (𝓝 (target a)) := by
+      simpa only [tsub_zero, one_mul] using ENNReal.Tendsto.mul_const
+        (ENNReal.Tendsto.sub (tendsto_const_nhds (x := (1 : ℝ≥0∞))) hpow
+          (Or.inr ENNReal.zero_ne_top))
+        (Or.inr (PMF.apply_ne_top target a))
     refine le_of_tendsto' hsub fun t => ?_
-    have := spec.toDDGTree.run_le_outputProb (t * spec.width) a
-    rwa [run_toDDGTree, Nat.mul_div_cancel t hw, runTrials_some_of_singleLaw h] at this
+    simpa only [run_toDDGTree, Nat.mul_div_cancel t hw, runTrials_some_of_singleLaw h] using
+      spec.toDDGTree.run_le_outputProb (t * spec.width) a
 
 /-- Closed-form expected fair-bit cost of `toDDGTree`: `(width : ℝ≥0∞) / acceptProb` whenever
 `0 < width` (including `⊤` when `acceptProb = 0`). -/
@@ -510,15 +508,13 @@ theorem singleLaw_uniformFinRejectionSpec_some (n : ℕ) [NeZero n] (i : Fin n) 
 theorem one_half_le_acceptProb_uniformFinRejectionSpec (n : ℕ) [NeZero n] :
     (1 / 2 : ℝ≥0∞) ≤ (uniformFinRejectionSpec n).acceptProb := by
   refine one_half_le_acceptProb_finCutoffSpec (Nat.le_pow_clog Nat.one_lt_two n) ?_
-  by_cases hn1 : n ≤ 1
-  · obtain rfl : n = 1 := by have := NeZero.pos n; omega
+  rcases le_or_gt n 1 with hn1 | hn1
+  · obtain rfl : n = 1 := le_antisymm hn1 (NeZero.pos n)
     simp
-  · have hclog : Nat.clog 2 n ≤ Nat.log 2 (n - 1) + 1 := by
-      rw [Nat.clog_le_iff_le_pow Nat.one_lt_two]
-      have := Nat.lt_pow_succ_log_self Nat.one_lt_two (n - 1)
-      omega
-    have hle1 : 2 ^ Nat.clog 2 n ≤ 2 ^ Nat.log 2 (n - 1) * 2 :=
-      pow_succ 2 (Nat.log 2 (n - 1)) ▸ Nat.pow_le_pow_right (by decide) hclog
+  · have hclog : Nat.clog 2 n ≤ Nat.log 2 (n - 1) + 1 :=
+      (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr
+        (by have := Nat.lt_pow_succ_log_self Nat.one_lt_two (n - 1); omega)
+    have := pow_succ 2 (Nat.log 2 (n - 1)) ▸ Nat.pow_le_pow_right (by decide) hclog
     have := Nat.pow_log_le_self 2 (x := n - 1) (by omega)
     omega
 
@@ -666,11 +662,9 @@ theorem subsetDyadicSpec_generates {α : Type*} [DecidableEq α] {m : ℕ} {enum
     (hcov : ∀ a ∈ S, ∃ i : Fin m, enum i = a) :
     (subsetDyadicSpec m enum S).toDDGTree.Generates (PMF.uniformOfFinset S hS) := by
   have hacc_eq := acceptProb_subsetDyadicSpec hinj hcov
-  have hacc : (subsetDyadicSpec m enum S).acceptProb ≠ 0 := by
-    rw [hacc_eq]
-    exact ENNReal.div_ne_zero.mpr
-      ⟨Nat.cast_ne_zero.mpr hS.card_ne_zero, ENNReal.natCast_ne_top _⟩
-  refine BlockRejectionSpec.toDDGTree_generates (Nat.succ_pos (Nat.log 2 m)) hacc fun a => ?_
+  refine BlockRejectionSpec.toDDGTree_generates (Nat.succ_pos (Nat.log 2 m))
+    (hacc_eq ▸ ENNReal.div_ne_zero.mpr
+      ⟨Nat.cast_ne_zero.mpr hS.card_ne_zero, ENNReal.natCast_ne_top _⟩) fun a => ?_
   rw [singleLaw_subsetDyadicSpec_some hinj hcov a, hacc_eq, PMF.uniformOfFinset_apply]
   split_ifs with haS
   · rw [div_eq_mul_inv, mul_right_comm,

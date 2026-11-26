@@ -165,8 +165,7 @@ theorem isLeast_balanced_lpOpt [DecidableEq A] (G : CostSharingGame A) :
     IsLeast ((fun w : Finset A → ℝ => ∑ S : Finset A, w S * G.cost S) ''
       {w | IsBalancedWeights w}) G.lpOpt := by
   obtain ⟨v, hG, hL⟩ := G.exists_isGreatest_isLeast_coreLP
-  have hv : v = G.lpOpt := hG.unique G.isGreatest_coreFeasible_lpOpt
-  exact hv ▸ hL
+  exact hG.unique G.isGreatest_coreFeasible_lpOpt ▸ hL
 
 theorem lpOpt_le_cost_univ (G : CostSharingGame A) :
     G.lpOpt ≤ G.cost Finset.univ := by
@@ -476,9 +475,9 @@ private theorem sum_le_coalitionValue_of_feasible [Fintype G]
     (E : LinearExchangeEconomy A G) {S : Finset A} {x : A → G → ℝ}
     (hx : E.IsFeasibleRedistribution S x) :
     ∑ i ∈ S, ∑ g : G, E.utility i g * x i g ≤ E.coalitionValue S := by
-  by_cases hS : S.Nonempty
-  · rw [Finset.sum_comm]
-    simp only [coalitionValue, hS, ↓reduceDIte]
+  rcases S.eq_empty_or_nonempty with rfl | hS
+  · simp [coalitionValue]
+  · rw [Finset.sum_comm, E.coalitionValue_of_nonempty hS]
     refine Finset.sum_le_sum fun g _ => ?_
     obtain ⟨i₀, hi₀⟩ := id hS
     have hsup_nn : 0 ≤ S.sup' hS (fun k => E.utility k g) :=
@@ -487,8 +486,6 @@ private theorem sum_le_coalitionValue_of_feasible [Fintype G]
         Finset.sum_le_sum fun i hi =>
           mul_le_mul_of_nonneg_right (Finset.le_sup' (E.utility · g) hi) (hx.1 i hi g)
       _ ≤ _ := by rw [← Finset.mul_sum]; exact mul_le_mul_of_nonneg_left (hx.2 g) hsup_nn
-  · rw [Finset.not_nonempty_iff_eq_empty.1 hS]
-    simp [coalitionValue]
 
 /-- Optimal redistribution of `S`'s endowments attained by `coalitionValue` (`IsGreatest` over
 `IsExactRedistribution`). -/
@@ -497,32 +494,24 @@ theorem isGreatest_exactRedistribution [Fintype G]
     IsGreatest ((fun x : A → G → ℝ => ∑ i ∈ S, ∑ g : G, E.utility i g * x i g) ''
       {x | E.IsExactRedistribution S x}) (E.coalitionValue S) := by
   classical
-  by_cases hS : S.Nonempty
-  · have hex : ∀ g : G, ∃ i_g ∈ S, S.sup' hS (fun i => E.utility i g) = E.utility i_g g :=
-      fun g => Finset.exists_mem_eq_sup' hS (fun i => E.utility i g)
-    choose winner hwinner_mem hwinner_eq using hex
+  rcases S.eq_empty_or_nonempty with rfl | hS
+  · simp [IsGreatest, IsExactRedistribution, upperBounds]
+  · choose winner hwinner_mem hwinner_eq using
+      fun g : G => Finset.exists_mem_eq_sup' hS (E.utility · g)
     let xStar : A → G → ℝ := fun i g =>
       if i = winner g then ∑ j ∈ S, E.endowment j g else 0
     have hxStar : E.IsExactRedistribution S xStar := by
-      refine ⟨fun i _ g => ?_, fun g => ?_⟩
-      · simp only [xStar]
-        split_ifs
-        exacts [Finset.sum_nonneg fun j _ => E.endowment_nonneg j g, le_rfl]
-      · simp only [xStar, Finset.sum_ite_eq' S (winner g), hwinner_mem g, ↓reduceIte]
+      refine ⟨fun i _ g => ?_, fun g => by simp [xStar, hwinner_mem g]⟩
+      simp only [xStar]
+      split_ifs
+      exacts [Finset.sum_nonneg fun j _ => E.endowment_nonneg j g, le_rfl]
     refine ⟨⟨xStar, hxStar, ?_⟩, ?_⟩
     · dsimp only
-      rw [Finset.sum_comm]
-      simp only [coalitionValue, hS, ↓reduceDIte]
+      rw [Finset.sum_comm, E.coalitionValue_of_nonempty hS]
       refine Finset.sum_congr rfl fun g _ => ?_
-      simp only [xStar, mul_ite, mul_zero, Finset.sum_ite_eq' S (winner g), hwinner_mem g,
-        ↓reduceIte, hwinner_eq g]
+      simp [xStar, mul_ite, hwinner_mem g, hwinner_eq g]
     · rintro _ ⟨x, hx, rfl⟩
       exact E.sum_le_coalitionValue_of_feasible hx.isFeasibleRedistribution
-  · simp only [Finset.not_nonempty_iff_eq_empty.1 hS, coalitionValue,
-      Finset.not_nonempty_empty, ↓reduceDIte]
-    refine ⟨⟨fun _ _ => 0, ⟨by simp, by simp⟩, by simp⟩, ?_⟩
-    rintro _ ⟨x, -, rfl⟩
-    simp
 
 theorem isGreatest_feasibleRedistribution [Fintype G]
     (E : LinearExchangeEconomy A G) (S : Finset A) :

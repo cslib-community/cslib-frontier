@@ -153,13 +153,11 @@ theorem hasDepthLE_of_layer {C : RectifierCircuit α β V} {d : ℕ} (layer : V 
     (htop : ∀ v : V, layer v ≤ d) : C.HasDepthLE d := by
   have hwalk {u v : V} (p : C.Walk u v) : layer v = layer u + p.length := by
     induction p with
-    | nil _ => simp only [Walk.length_nil, add_zero]
-    | cons h p ih =>
-      rw [Walk.length_cons, ih, hstep h]
-      omega
+    | nil _ => simp
+    | cons h _ ih => simp [ih, hstep h]; omega
   intro u v p
-  have hv := htop v
-  have heq := hwalk p
+  have := htop v
+  have := hwalk p
   omega
 
 /-- `C` *computes* (implements) `A : Matrix α β Bool` if `A i j = true` iff there is a directed walk
@@ -372,8 +370,7 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
       intro hz _ hju huK
       have hjin : j ∈ smallIn u := by simpa only [smallIn, huK, ↓reduceIte] using hju
       by_cases hv_out : v = z
-      · subst hv_out
-        subst hz
+      · subst hv_out hz
         refine ⟨(u, C.out i), he, mem_product.mpr ⟨?_, hjin⟩⟩
         dsimp only [smallOut]
         split_ifs with houtK
@@ -384,8 +381,8 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
         · subst hz
           have hout_v : #(outSet v) < K := hrect_vertex v (by omega)
           refine ⟨(u, v), he, mem_product.mpr ⟨?_, hjin⟩⟩
-          simp only [smallOut, hout_v, ↓reduceIte]
-          exact mem_filter.mpr ⟨mem_univ _, ⟨q'⟩⟩
+          simpa only [smallOut, outSet, hout_v, ↓reduceIte, mem_filter, mem_univ, true_and] using
+            ⟨q'⟩
   have hcover : (univ.filter fun p : α × β => A p.1 p.2 = true) ⊆
       C.edges.biUnion fun e => smallOut e.2 ×ˢ smallIn e.1 := by
     rintro ⟨i, j⟩ hp
@@ -399,10 +396,8 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
         (by omega : K ≤ #(inSet (C.inp j))).trans (card_le_card (hin_mono he))
       have hout_v : #(outSet v) < K := hrect_vertex v hv_in
       refine ⟨(C.inp j, v), he, mem_product.mpr ⟨?_, ?_⟩⟩
-      · simp only [smallOut, hout_v, ↓reduceIte]
-        exact mem_filter.mpr ⟨mem_univ _, ⟨q'⟩⟩
-      · simp only [smallIn, hjK, ↓reduceIte]
-        exact mem_filter.mpr ⟨mem_univ _, rfl⟩
+      · simpa only [smallOut, outSet, hout_v, ↓reduceIte, mem_filter, mem_univ, true_and] using ⟨q'⟩
+      · simp only [smallIn, hjK, ↓reduceIte, mem_filter, mem_univ, and_self]
   calc boolMatrixWeight A
       ≤ #(C.edges.biUnion fun e => smallOut e.2 ×ˢ smallIn e.1) := card_le_card hcover
     _ ≤ ∑ e ∈ C.edges, #(smallOut e.2 ×ˢ smallIn e.1) := card_biUnion_le

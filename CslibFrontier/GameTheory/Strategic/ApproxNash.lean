@@ -307,33 +307,24 @@ theorem IsApproxNash.smul {c : ℝ} (hc : 0 ≤ c) (h : G.IsApproxNash ε x y) :
 mixed Nash equilibrium of `G.toCostGame`. -/
 theorem isApproxNash_iff_isApproxMixedNash :
     G.IsApproxNash ε x y ↔ G.toCostGame.IsApproxMixedNash ε (profile x y) := by
-  rw [isApproxNash_iff_pure, CostGame.IsApproxMixedNash]
-  constructor
-  · rintro ⟨⟨hx, hbr₁⟩, ⟨hy, hbr₂⟩⟩
-    refine ⟨fun b => ?_, fun b a => ?_⟩
-    · cases b
-      exacts [isMixedStrategy_profile_false_iff.2 hx, isMixedStrategy_profile_true_iff.2 hy]
-    · cases b
-      · obtain ⟨i⟩ := a
-        rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-          deviationCost_toCostGame_row G y hx.sum_eq_one i]
-        linarith [hbr₁ i]
-      · obtain ⟨j⟩ := a
-        rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-          deviationCost_toCostGame_column G x hy.sum_eq_one j]
-        linarith [hbr₂ j]
-  · rintro ⟨hmix, hdev⟩
-    have hx := isMixedStrategy_profile_false_iff.1 (hmix false)
-    have hy := isMixedStrategy_profile_true_iff.1 (hmix true)
-    refine ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩
-    · have hi := hdev false (ULift.up i)
-      rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-        deviationCost_toCostGame_row G y hx.sum_eq_one i] at hi
-      linarith
-    · have hj := hdev true (ULift.up j)
-      rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-        deviationCost_toCostGame_column G x hy.sum_eq_one j] at hj
-      linarith
+  rw [isApproxNash_iff_pure, CostGame.IsApproxMixedNash, Bool.forall_bool, Bool.forall_bool,
+    isMixedStrategy_profile_false_iff, isMixedStrategy_profile_true_iff]
+  refine ⟨fun ⟨⟨hx, h₁⟩, ⟨hy, h₂⟩⟩ => ⟨⟨hx, hy⟩, fun ⟨i⟩ => ?_, fun ⟨j⟩ => ?_⟩,
+    fun ⟨⟨hx, hy⟩, h₁, h₂⟩ => ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩⟩
+  · rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
+      deviationCost_toCostGame_row G y hx.sum_eq_one i]
+    linarith [h₁ i]
+  · rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
+      deviationCost_toCostGame_column G x hy.sum_eq_one j]
+    linarith [h₂ j]
+  · have hi := h₁ (ULift.up i)
+    rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
+      deviationCost_toCostGame_row G y hx.sum_eq_one i] at hi
+    linarith
+  · have hj := h₂ (ULift.up j)
+    rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
+      deviationCost_toCostGame_column G x hy.sum_eq_one j] at hj
+    linarith
 
 /-! #### Daskalakis–Mehta–Papadimitriou `1/2`-approximate Nash equilibrium -/
 

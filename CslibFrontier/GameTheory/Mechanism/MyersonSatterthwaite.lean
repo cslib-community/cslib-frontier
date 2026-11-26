@@ -130,17 +130,14 @@ theorem nullSingletonClass (hμ : HasValueDensityOn μ f a b) : NullSingletonCla
 private theorem measure_Ioo_pos (hμ : HasValueDensityOn μ f a b) {c d : ℝ}
     (hac : a ≤ c) (hcd : c < d) (hdb : d ≤ b) : 0 < μ (Ioo c d) := by
   rw [hμ.eq_withDensity, withDensity_apply _ measurableSet_Ioo,
-    Measure.restrict_restrict measurableSet_Ioo]
-  have hsub : Ioo c d ⊆ Icc a b := fun x hx => ⟨hac.trans hx.1.le, hx.2.le.trans hdb⟩
-  rw [inter_eq_left.2 hsub]
-  refine (lintegral_pos_iff_support (hμ.measurable.coe_nnreal_ennreal)).2 ?_
-  have hsupp : Ioo c d ⊆ Function.support (fun v => (f v : ENNReal)) := fun v hv => by
-    simp only [Function.mem_support, ne_eq, ENNReal.coe_eq_zero]
-    exact (hμ.pos v ⟨hac.trans_lt hv.1, hv.2.trans_le hdb⟩).ne'
-  have hpos : 0 < (volume.restrict (Ioo c d)) (Ioo c d) := by
-    rw [Measure.restrict_apply measurableSet_Ioo, inter_self, Real.volume_Ioo]
-    exact ENNReal.ofReal_pos.2 (sub_pos.2 hcd)
-  exact hpos.trans_le (measure_mono hsupp)
+    Measure.restrict_restrict measurableSet_Ioo,
+    (inter_eq_left (s := Ioo c d) (t := Icc a b)).2 fun x hx =>
+      ⟨hac.trans hx.1.le, hx.2.le.trans hdb⟩]
+  refine (lintegral_pos_iff_support hμ.measurable.coe_nnreal_ennreal).2 ?_
+  have hsupp : Ioo c d ⊆ Function.support (fun v => (f v : ENNReal)) := fun v hv =>
+    ENNReal.coe_ne_zero.2 (hμ.pos v ⟨hac.trans_lt hv.1, hv.2.trans_le hdb⟩).ne'
+  refine (lt_of_lt_of_eq (ENNReal.ofReal_pos.2 (sub_pos.2 hcd)) ?_).trans_le (measure_mono hsupp)
+  rw [Measure.restrict_apply measurableSet_Ioo, inter_self, Real.volume_Ioo]
 
 /-- Every interior point `t ∈ (a, b)` has strictly positive upper tail `μ([t, ∞)) > 0`. -/
 theorem measureReal_Ici_pos [IsFiniteMeasure μ] (hμ : HasValueDensityOn μ f a b)
@@ -484,12 +481,12 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       rw [interimBuyerUtility, heff.interimBuyerTrade_eq v_b,
         intervalIntegral.integral_congr fun t _ => heff.interimBuyerTrade_eq t] at hu
       linarith
-    have hi1 : Integrable (fun v_b => v_b * μ_s.real (Iic v_b)) μ_b := by
-      refine Integrable.of_bound (measurable_id.mul hm_Fs).aestronglyMeasurable (max |a_b| |b_b|) ?_
-      filter_upwards [hb_supp] with v_b hv
-      rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg measureReal_nonneg]
-      exact mul_le_of_le_one_right (abs_nonneg _) (measureReal_le_one)|>.trans
-        (abs_le_max_of_mem_Icc hv)
+    have hi1 : Integrable (fun v_b => v_b * μ_s.real (Iic v_b)) μ_b :=
+      Integrable.of_bound (measurable_id.mul hm_Fs).aestronglyMeasurable (max |a_b| |b_b|)
+        (hb_supp.mono fun v_b hv => by
+          rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg measureReal_nonneg]
+          exact (mul_le_of_le_one_right (abs_nonneg _) measureReal_le_one).trans
+            (abs_le_max_of_mem_Icc hv))
     have hi2 : Integrable (fun v_b => ∫ t in a_b..v_b, μ_s.real (Iic t)) μ_b := by
       refine Integrable.of_bound
         (MeasureTheory.measurable_intervalIntegral (G := fun (_ : ℝ) t => μ_s.real (Iic t))
@@ -497,10 +494,9 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
         (max (b_b - a_b) 0) ?_
       filter_upwards [hb_supp] with v_b hv
       refine (intervalIntegral.norm_integral_le_of_norm_le_const (C := 1) fun t _ => ?_).trans ?_
-      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]
-        exact measureReal_le_one
-      · rw [one_mul, abs_of_nonneg (sub_nonneg.2 hv.1)]
-        exact (sub_le_sub_right hv.2 a_b).trans (le_max_left _ _)
+      · simpa only [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg] using measureReal_le_one
+      · simpa only [one_mul, abs_of_nonneg (sub_nonneg.2 hv.1)] using
+          (sub_le_sub_right hv.2 a_b).trans (le_max_left _ _)
     have hi1' : Integrable
         (fun v_b => v_b * μ_s.real (Iic v_b) - M.interimBuyerUtility μ_s a_b) μ_b :=
       hi1.sub (integrable_const _)
@@ -521,12 +517,12 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       rw [interimSellerUtility, heff.interimSellerTrade_eq v_s,
         intervalIntegral.integral_congr fun t _ => heff.interimSellerTrade_eq t] at hu
       linarith
-    have hi1 : Integrable (fun v_s => v_s * μ_b.real (Ici v_s)) μ_s := by
-      refine Integrable.of_bound (measurable_id.mul hm_Fb).aestronglyMeasurable (max |a_s| |b_s|) ?_
-      filter_upwards [hs_supp] with v_s hv
-      rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg measureReal_nonneg]
-      exact (mul_le_of_le_one_right (abs_nonneg _) (measureReal_le_one)).trans
-        (abs_le_max_of_mem_Icc hv)
+    have hi1 : Integrable (fun v_s => v_s * μ_b.real (Ici v_s)) μ_s :=
+      Integrable.of_bound (measurable_id.mul hm_Fb).aestronglyMeasurable (max |a_s| |b_s|)
+        (hs_supp.mono fun v_s hv => by
+          rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg measureReal_nonneg]
+          exact (mul_le_of_le_one_right (abs_nonneg _) measureReal_le_one).trans
+            (abs_le_max_of_mem_Icc hv))
     have hi2 : Integrable (fun v_s => ∫ t in v_s..b_s, μ_b.real (Ici t)) μ_s := by
       refine Integrable.of_bound
         (MeasureTheory.measurable_intervalIntegral (G := fun (_ : ℝ) t => μ_b.real (Ici t))
@@ -534,10 +530,9 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
         (max (b_s - a_s) 0) ?_
       filter_upwards [hs_supp] with v_s hv
       refine (intervalIntegral.norm_integral_le_of_norm_le_const (C := 1) fun t _ => ?_).trans ?_
-      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]
-        exact measureReal_le_one
-      · rw [one_mul, abs_of_nonneg (sub_nonneg.2 hv.2)]
-        exact (sub_le_sub_left hv.1 b_s).trans (le_max_left _ _)
+      · simpa only [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg] using measureReal_le_one
+      · simpa only [one_mul, abs_of_nonneg (sub_nonneg.2 hv.2)] using
+          (sub_le_sub_left hv.1 b_s).trans (le_max_left _ _)
     have hi1' : Integrable
         (fun v_s => v_s * μ_b.real (Ici v_s) + M.interimSellerUtility μ_b b_s) μ_s :=
       hi1.add (integrable_const _)
@@ -747,22 +742,16 @@ theorem budget_surplus_uniform_eq {M : Mechanism}
     (by norm_num) heff hpb hps
   simp only [max_self, min_self] at heq
   rw [heq]
-  have hint : ∫ t in Ioc (0 : ℝ) 1,
-      (volume.restrict (Icc (0 : ℝ) 1)).real (Ici t) *
-        (volume.restrict (Icc (0 : ℝ) 1)).real (Iic t) = 1 / 6 := by
-    have hcongr : ∫ t in Ioc (0 : ℝ) 1,
-        (volume.restrict (Icc (0 : ℝ) 1)).real (Ici t) *
-          (volume.restrict (Icc (0 : ℝ) 1)).real (Iic t) =
-        ∫ t in Ioc (0 : ℝ) 1, (t - t ^ 2) := by
-      refine setIntegral_congr_fun measurableSet_Ioc fun t ht => ?_
-      rw [unif_real_Ici (Ioc_subset_Icc_self ht), unif_real_Iic (Ioc_subset_Icc_self ht)]
-      ring
-    rw [hcongr, ← intervalIntegral.integral_of_le zero_le_one,
+  apply congrArg Neg.neg
+  trans ∫ t in Ioc (0 : ℝ) 1, (t - t ^ 2)
+  · refine setIntegral_congr_fun measurableSet_Ioc fun t ht => ?_
+    rw [unif_real_Ici (Ioc_subset_Icc_self ht), unif_real_Iic (Ioc_subset_Icc_self ht)]
+    ring
+  · rw [← intervalIntegral.integral_of_le zero_le_one,
       intervalIntegral.integral_sub (f := fun t : ℝ => t) (g := fun t : ℝ => t ^ 2)
         (continuous_id.intervalIntegrable 0 1) ((continuous_pow 2).intervalIntegrable 0 1),
       integral_id, integral_pow]
     norm_num
-  rw [hint]
 
 /-- **Explicit `Uniform[0, 1]` Myerson–Satterthwaite deficit**: every BIC, interim IR, ex-post
 efficient bilateral trade mechanism for independent `Uniform[0, 1]` types runs an expected deficit
@@ -796,9 +785,8 @@ theorem not_isExAnteBudgetBalanced_uniform {M : Mechanism}
       ((volume.restrict (Icc (0 : ℝ) 1)).prod (volume.restrict (Icc 0 1)))) :
     ¬ M.IsExAnteBudgetBalanced (volume.restrict (Icc 0 1)) (volume.restrict (Icc 0 1)) := by
   intro hBB
-  have hle := budget_surplus_uniform_le_neg_one_sixth hBIC hIR heff hpb hps
-  have : (0 : ℝ) ≤ -(1 / 6) := hBB.trans hle
-  norm_num at this
+  exact absurd (hBB.trans (budget_surplus_uniform_le_neg_one_sixth hBIC hIR heff hpb hps))
+    (by norm_num)
 
 end Mechanism
 
@@ -813,9 +801,7 @@ end Mechanism
 
 theorem fixedPrice_isExPostEfficient (c : ℝ) : (fixedPrice c).IsExPostEfficient := by
   intro v_b v_s
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · simp only [fixedPrice, ite_eq_left h.le]
-  · simp only [fixedPrice, ite_eq_right (not_le.2 h)]
+  exact ⟨fun h => ite_eq_left h.le, fun h => ite_eq_right (not_le.2 h)⟩
 
 theorem fixedPrice_isExAnteBudgetBalanced (c : ℝ) (μ_b μ_s : Measure ℝ) :
     (fixedPrice c).IsExAnteBudgetBalanced μ_b μ_s := by

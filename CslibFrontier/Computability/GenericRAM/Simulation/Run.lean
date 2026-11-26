@@ -195,87 +195,63 @@ def eval (k : M.Config) (p : Program M r) (n : ℕ) (s : FiniteState M r) : Opti
 
 theorem default_move {k : M.Config} {s t : FiniteState M r} {d : Fin r} {v : M.Value}
     (h : s.move k d v = some t) : t.default = s.default := by
-  unfold move at h
-  split at h
-  · injection h with h; subst h; rfl
-  · contradiction
+  obtain ⟨_, ⟨rfl⟩⟩ := Option.ite_none_right_eq_some.mp h
+  rfl
 
 theorem length_entries_move_eq {k : M.Config} {s t : FiniteState M r} {d : Fin r} {v : M.Value}
     (h : s.move k d v = some t) :
     (SparseMemory.entries t.memory).length = (SparseMemory.entries s.memory).length := by
-  unfold move at h
-  split at h
-  · injection h with h; subst h; rfl
-  · contradiction
+  obtain ⟨_, ⟨rfl⟩⟩ := Option.ite_none_right_eq_some.mp h
+  rfl
 
 theorem default_evalOp {k : M.Config} {o : Op M r} {s t : FiniteState M r}
     (h : evalOp k o s = some t) : t.default = s.default := by
   cases o with
-  | const d c =>
+  | const _ _ | alu _ _ _ =>
     simp only [evalOp, Option.map_eq_some_iff] at h
     obtain ⟨_, _, rfl⟩ := h
     rfl
-  | copy d src => exact default_move h
-  | alu f d args =>
-    simp only [evalOp, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, rfl⟩ := h
-    rfl
-  | load d a =>
+  | copy _ _ => exact default_move h
+  | load _ _ =>
     simp only [evalOp, bind, Option.bind_eq_some_iff] at h
     obtain ⟨_, _, hm⟩ := h
     exact default_move hm
-  | store a src =>
-    simp only [evalOp, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨_, _, hm⟩ := h
-    split at hm
-    · injection hm with hm; subst hm; rfl
-    · contradiction
+  | store _ _ =>
+    simp only [evalOp, bind, Option.bind_eq_some_iff, Option.ite_none_right_eq_some] at h
+    obtain ⟨_, _, _, ⟨rfl⟩⟩ := h
+    rfl
 
 /-- A single data operation adds at most one stored address to sparse memory. -/
 theorem length_entries_evalOp_le {k : M.Config} {o : Op M r} {s t : FiniteState M r}
     (h : evalOp k o s = some t) :
     (SparseMemory.entries t.memory).length ≤ (SparseMemory.entries s.memory).length + 1 := by
   cases o with
-  | const d c =>
+  | const _ _ | alu _ _ _ =>
     simp only [evalOp, Option.map_eq_some_iff] at h
     obtain ⟨_, _, rfl⟩ := h
     exact Nat.le_add_right _ _
-  | copy d src =>
+  | copy _ _ =>
     rw [length_entries_move_eq h]
     exact Nat.le_add_right _ _
-  | alu f d args =>
-    simp only [evalOp, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, rfl⟩ := h
-    exact Nat.le_add_right _ _
-  | load d a =>
+  | load _ _ =>
     simp only [evalOp, bind, Option.bind_eq_some_iff] at h
     obtain ⟨_, _, hm⟩ := h
     rw [length_entries_move_eq hm]
     exact Nat.le_add_right _ _
-  | store a src =>
-    simp only [evalOp, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨addr, _, hm⟩ := h
-    split at hm
-    · injection hm with hm
-      subst hm
-      exact SparseMemory.length_insert_le addr (s.regs src) s.memory
-    · contradiction
+  | store _ src =>
+    simp only [evalOp, bind, Option.bind_eq_some_iff, Option.ite_none_right_eq_some] at h
+    obtain ⟨addr, _, _, ⟨rfl⟩⟩ := h
+    exact SparseMemory.length_insert_le addr (s.regs src) s.memory
 
 theorem default_resume {k : M.Config} {pc : ℕ} {s t : FiniteState M r}
     (h : resume k pc s = some (.inl t)) : t.default = s.default := by
-  unfold resume at h
-  split at h
-  · simp only [Option.some.injEq, Sum.inl.injEq] at h
-    subst h; rfl
-  · contradiction
+  obtain ⟨_, ⟨rfl⟩⟩ := Option.ite_none_right_eq_some.mp h
+  rfl
 
 theorem memory_resume {k : M.Config} {pc : ℕ} {s t : FiniteState M r}
     (h : resume k pc s = some (.inl t)) : t.memory = s.memory := by
-  unfold resume at h
-  split at h
-  · simp only [Option.some.injEq, Sum.inl.injEq] at h
-    subst h; rfl
-  · contradiction
+  obtain ⟨_, ⟨rfl⟩⟩ := Option.ite_none_right_eq_some.mp h
+  rfl
 
 theorem default_evalInstr {k : M.Config} {nextPC : ℕ} {i : Instr M r} {s t : FiniteState M r}
     (h : evalInstr k nextPC i s = some (.inl t)) : t.default = s.default := by
@@ -390,9 +366,7 @@ theorem exists_run_eq_inl_of_runs {k : M.Config} {p : Program M r} {n : ℕ}
   | hrefl => exact ⟨s, rfl, hd⟩
   | hhead hab _ ih =>
     subst hd
-    have hstep := denote_step k p s
-    rw [GenericRAM.Next] at hab
-    rw [hab] at hstep
+    have hstep := (denote_step k p s).trans hab
     rcases hs : step k p s with _ | (s' | v)
     · simp [hs, denoteResult] at hstep
     · simp only [hs, denoteResult, Outcome.next.injEq] at hstep
@@ -445,14 +419,12 @@ theorem executes_of_run_eq_inr {k : M.Config} {p : Program M r} {n : ℕ}
     · simp [hs] at h
     · simp only [hs] at h
       obtain ⟨m, hmn, hex⟩ := ih h
-      have hnext : GenericRAM.Next k p s.denote t.denote := by
-        rw [GenericRAM.Next, ← denote_step, hs, denoteResult]
-      exact ⟨m + 1, Nat.add_le_add_right hmn 1, hex.head hnext⟩
+      exact ⟨m + 1, Nat.add_le_add_right hmn 1,
+        hex.head (by rw [GenericRAM.Next, ← denote_step, hs, denoteResult])⟩
     · simp only [hs, Option.some.injEq, Sum.inr.injEq] at h
-      cases h
-      have hhalt : GenericRAM.step k p s.denote = .halt v := by
-        rw [← denote_step, hs, denoteResult]
-      exact ⟨1, Nat.succ_le_succ (Nat.zero_le _), .halt hhalt⟩
+      subst h
+      exact ⟨1, Nat.succ_le_succ (Nat.zero_le _),
+        .halt (by rw [← denote_step, hs, denoteResult])⟩
 
 /-- Halting generic-RAM executions from `s.denote` correspond to halting finite-state runs. -/
 theorem executes_iff_exists_run (k : M.Config) (p : Program M r) (s : FiniteState M r)

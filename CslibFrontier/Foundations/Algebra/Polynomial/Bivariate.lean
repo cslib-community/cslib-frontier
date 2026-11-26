@@ -118,14 +118,10 @@ theorem coeff_coeff_shift_zero (x y : R) (Q : R[X][Y]) :
 theorem coeff_coeff_shift_monomial (x y : R) (a b r s : ℕ) (c : R) :
     ((shift x y (monomial b (monomial a c))).coeff s).coeff r =
       (a.choose r : R) * (b.choose s : R) * c * x ^ (a - r) * y ^ (b - s) := by
-  rw [shift_apply, map_monomial, taylor_coeff, hasseDeriv_monomial, eval_monomial]
-  have hcast :
-      (↑(b.choose s) * (taylorAlgHom x : R[X] →+* R[X]) (monomial a c)) * C y ^ (b - s) =
-        taylor x (monomial a c) * C ((b.choose s : R) * y ^ (b - s)) := by
-    rw [C_mul, C_pow, C_eq_natCast]
-    change (↑(b.choose s) * taylor x (monomial a c)) * C y ^ (b - s) = _
-    ring
-  rw [hcast, coeff_mul_C, taylor_coeff, hasseDeriv_monomial, eval_monomial]
+  rw [shift_apply, map_monomial, taylor_coeff, hasseDeriv_monomial, eval_monomial,
+    ← C_pow, coeff_mul_C, ← C_eq_natCast, coeff_C_mul]
+  simp only [AlgHom.coe_toRingHom, taylorAlgHom_apply, taylor_coeff, hasseDeriv_monomial,
+    eval_monomial]
   ring
 
 /-- The `i`-th Hasse derivative in the `X`-variable of a bivariate polynomial `Q : R[X][Y]`. -/
@@ -394,9 +390,7 @@ theorem weightedDegree_map_eq_of_injective {φ : R →+* S} (hφ : Function.Inje
     (d : ℕ) (Q : R[X][Y]) :
     weightedDegree d (Q.map (Polynomial.mapRingHom φ)) = weightedDegree d Q := by
   refine le_antisymm (weightedDegree_map_le φ d Q) (weightedDegree_le_iff.2 fun a b hab => ?_)
-  refine le_weightedDegree ?_
-  rw [coeff_map, Polynomial.coe_mapRingHom, coeff_map]
-  exact fun h0 => hab (hφ (h0.trans (map_zero φ).symm))
+  exact le_weightedDegree fun h0 => hab (hφ (by simpa [coeff_map] using h0))
 
 /-- Subadditivity of `(1, d)`-weighted degree under multiplication. -/
 theorem weightedDegree_mul_le (d : ℕ) (A B : R[X][Y]) :
@@ -664,12 +658,9 @@ theorem exists_eq_C_mul_prod_irreducible {Q : F[X][Y]} (hQ : Q ≠ 0) :
     refine ⟨hirr, hRprim, Nat.one_le_iff_ne_zero.2 fun h0 => ?_⟩
     have hRC : R = C (R.coeff 0) := eq_C_of_natDegree_eq_zero h0
     exact hirr.not_isUnit (hRC ▸ (hRprim _ (dvd_of_eq hRC.symm)).map C)
-  have hprod_ne : fs.prod ≠ 0 := fun h0 => hQ (by rw [hQeq, h0, mul_zero])
-  have hdeg_sum : (fs.map Polynomial.natDegree).sum = Q.natDegree := by
-    rw [hQeq, natDegree_C_mul hc0]
-    exact (Polynomial.natDegree_multiset_prod fs fun h0 =>
-      hprod_ne (Multiset.prod_eq_zero h0)).symm
-  exact ⟨Q.content * a, fs, hc0, hfs_prop, hQeq, hdeg_sum⟩
+  refine ⟨Q.content * a, fs, hc0, hfs_prop, hQeq, ?_⟩
+  rw [hQeq, natDegree_C_mul hc0,
+    Polynomial.natDegree_multiset_prod fs fun h0 => (hfs_prop 0 h0).1.ne_zero rfl]
 
 end FactorRefinement
 

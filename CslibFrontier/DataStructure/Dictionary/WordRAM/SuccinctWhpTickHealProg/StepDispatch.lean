@@ -232,17 +232,11 @@ theorem realizes_whpStepPureGen :
               (s := s)
             cases hfsp : fastStepPure c U n_max θ fs op with
             | some p =>
-              rw [hfsp] at hfs_m
-              have hne1 : ((Memory.spec 0).clientResult s
-                  (fastStepPureGenProg
-                    ((mkWhpParams c U V w n_max, base), (opTag, uv)))).1 ≠ 1 := ‹_›
-              exact False.elim (hne1 (hop_enc ▸ congrArg Prod.fst hfs_m.1))
+              rw [hfsp, hop_enc] at hfs_m
+              exact False.elim (‹_ ≠ 1› (congrArg Prod.fst hfs_m.1))
             | none =>
-              rw [hfsp] at hfs_m
-              have hs_eq : (Memory.spec 0).clientState s
-                  (fastStepPureGenProg ((mkWhpParams c U V w n_max, base), (opTag, uv))) = s :=
-                hop_enc ▸ hfs_m.2
-              rw [hs_eq, Prod.mk.eta, hwp1]
+              rw [hfsp, hop_enc] at hfs_m
+              rw [hfs_m.2, Prod.mk.eta, hwp1]
               obtain ⟨hseed_fc, hrep_fc, _, _, _⟩ := fastToCsrGenProg_spec henv_lg hseed hfs_rep
                 hv (s := s)
               obtain ⟨hcsr_fc, hqv_fc⟩ := hv.fastToCsr_spec
@@ -396,11 +390,7 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
       refine ⟨hfh_rep, hstep.2.1, hfh_fr.trans hfr_fc, hstep.2.2,
         fun a ha => (hfh_out a (hsp_eq ▸ ha)).trans (hout_fc a (hsp_eq ▸ ha)),
         fun _ hst_run hhit => ?_⟩
-      dsimp only [IsFastStepHit] at hhit
-      rw [← hst_run] at hhit
-      dsimp only at hhit
-      rw [hfsp] at hhit
-      cases hhit
+      simp only [IsFastStepHit, ← hst_run, hfsp, Option.isSome_none, Bool.false_eq_true] at hhit
   | fallback csr =>
     obtain ⟨hth, hseed, hcsr_rep⟩ := hrep
     obtain ⟨_, hcsr, hqv⟩ := hv
@@ -425,8 +415,7 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
     rw [hstep.1]
     refine ⟨hfh_rep, hstep.2.1, hfh_fr, hstep.2.2, fun a ha => hfh_out a (hsp_eq ▸ ha),
       fun _ hst_run hhit => ?_⟩
-    dsimp only [IsFastStepHit] at hhit
-    rw [← hst_run] at hhit
+    rw [IsFastStepHit, ← hst_run] at hhit
     exact False.elim hhit
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
