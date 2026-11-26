@@ -26,15 +26,21 @@ renumbered, and a deletion of a number that is not present is dropped. A number 
 after its clause is deleted, or while that clause is still present: then the new clause shadows
 the earlier one, a hint with the number names the new clause, and a deletion of the number
 deletes both, so the translated `del` names both kernel numbers. A RUP clause with complementary
-literals is a tautology, which the kernel accepts at once from its negation.
+literals is a tautology, which the kernel accepts at once from its negation. A hint that names
+no clause becomes the kernel hint `0`, and both checkers reject it.
 
-**The converse fails.** With the superfluous hint `3` first, `¬a ∨ b` has two literals left on
-the trail `¬a`: the LRAT checker rejects the certificate, while the kernel skips the hint and
-accepts the translation.
+**The converse fails for runs that skip a hint.** With the superfluous hint `3` first, `¬a ∨ b`
+has two literals left on the trail `¬a`: the LRAT checker rejects the certificate, while the
+kernel skips the hint and accepts the translation. A tautological RUP clause without hints is
+rejected by the LRAT checker and accepted by the kernel. Both translations skip a hint
+(`Cslib.Logic.PL.VeriPB.hintTight` fails), as does the tautology with a hint above. The other
+translations skip none, so the two checkers agree on them
+(`Cslib.Logic.PL.CNF.checkLRAT_iff_check_toVeriPB`).
 
 The kernel also checks, with `decide +kernel`, the translations of the certificates of
 `Cslib.Algorithms.Lean.DPLL.solve` on these clauses and of `Cslib.Algorithms.Lean.CDCL.solve` on
-the pigeonhole formula PHP(3, 2), and of the certificate CaDiCaL emits for PHP(5, 4).
+the pigeonhole formula PHP(3, 2), and of the certificate CaDiCaL emits for PHP(5, 4). None of
+their runs skips a hint.
 -/
 
 set_option linter.privateModule false
@@ -66,6 +72,12 @@ example : checkRed (φ.map Clause.toPB) none
     ⟨(φ.toVeriPB cert).steps.map .step, .unsat (φ.toVeriPB cert).conclusion⟩ = true :=
   CNF.checkRed_toVeriPB (by decide +kernel) none
 
+example : hintTight (φ.map Clause.toPB) (φ.toVeriPB cert) = true := by decide +kernel
+
+/-- The converse: the kernel's acceptance of the translation gives the LRAT checker's. -/
+example : φ.checkLRAT cert = true :=
+  (CNF.checkLRAT_iff_check_toVeriPB (by decide +kernel)).2 (by decide +kernel)
+
 /-- Certificate numbers far from the kernel numbers, a number reused after a deletion, and a
 deletion of a number that is not present. -/
 private abbrev certRenamed : Array LRAT.IntAction :=
@@ -81,6 +93,10 @@ example : (φ.toVeriPB certRenamed).steps =
   ⟨rfl, rfl⟩
 
 example : check (φ.map Clause.toPB) (φ.toVeriPB certRenamed) = true := by decide +kernel
+
+example : φ.checkLRAT certRenamed = true ↔
+    check (φ.map Clause.toPB) (φ.toVeriPB certRenamed) = true :=
+  CNF.checkLRAT_iff_check_toVeriPB (by decide +kernel)
 
 /-- The number `100` reused while its clause `a ∨ b` is present: the unit `a` shadows it, the hint
 `100` names `a`, and the deletion of `100` deletes both clauses. -/
@@ -99,6 +115,10 @@ example : (φ.toVeriPB certShadowed).steps =
 
 example : check (φ.map Clause.toPB) (φ.toVeriPB certShadowed) = true := by decide +kernel
 
+example : φ.checkLRAT certShadowed = true ↔
+    check (φ.map Clause.toPB) (φ.toVeriPB certShadowed) = true :=
+  CNF.checkLRAT_iff_check_toVeriPB (by decide +kernel)
+
 /-- A tautological RUP clause, `a ∨ ¬a ∨ b`: its negation conflicts at once. -/
 private abbrev certTaut : Array LRAT.IntAction :=
   #[.addRup 5 #[1, -1, 2] #[1], .addRup 6 #[1] #[1, 2], .addEmpty 7 #[6, 3, 4]]
@@ -106,6 +126,25 @@ private abbrev certTaut : Array LRAT.IntAction :=
 example : φ.checkLRAT certTaut = true := by decide +kernel
 
 example : check (φ.map Clause.toPB) (φ.toVeriPB certTaut) = true := by decide +kernel
+
+/-- The kernel refutes the negation of `a ∨ ¬a ∨ b` by itself, so its run skips the hint `1`. -/
+example : hintTight (φ.map Clause.toPB) (φ.toVeriPB certTaut) = false := by decide +kernel
+
+/-- A hint `9` that names no clause: both checkers reject the certificate. -/
+private abbrev certDangling : Array LRAT.IntAction :=
+  #[.addRup 5 #[1] #[9, 1, 2], .addEmpty 6 #[5, 3, 4]]
+
+example : (φ.toVeriPB certDangling).steps.head? =
+    some (.rup ⟨[(1, (0, true))], 1⟩ [.neg, .id 0, .id 1, .id 2]) :=
+  rfl
+
+example : φ.checkLRAT certDangling = false := by decide +kernel
+
+example : check (φ.map Clause.toPB) (φ.toVeriPB certDangling) = false := by decide +kernel
+
+example : φ.checkLRAT certDangling = true ↔
+    check (φ.map Clause.toPB) (φ.toVeriPB certDangling) = true :=
+  CNF.checkLRAT_iff_check_toVeriPB (by decide +kernel)
 
 /-! ### The converse fails -/
 
@@ -117,10 +156,29 @@ example : φ.checkLRAT certSuperfluous = false := by decide +kernel
 
 example : check (φ.map Clause.toPB) (φ.toVeriPB certSuperfluous) = true := by decide +kernel
 
+/-- The run skips the hint `3`, so the certificate violates the hypothesis of the converse. -/
+example : hintTight (φ.map Clause.toPB) (φ.toVeriPB certSuperfluous) = false := by decide +kernel
+
+/-- The tautology `a ∨ ¬a` without hints. -/
+private abbrev certTautNoHints : Array LRAT.IntAction :=
+  #[.addRup 5 #[1, -1] #[], .addRup 6 #[1] #[1, 2], .addEmpty 7 #[6, 3, 4]]
+
+example : φ.checkLRAT certTautNoHints = false := by decide +kernel
+
+example : check (φ.map Clause.toPB) (φ.toVeriPB certTautNoHints) = true := by decide +kernel
+
+/-- The negation of `a ∨ ¬a` conflicts by itself, so the run violates the hypothesis. -/
+example : hintTight (φ.map Clause.toPB) (φ.toVeriPB certTautNoHints) = false := by decide +kernel
+
 /-! ### Certificates from the solvers -/
 
 example : (match DPLL.solve φ with
     | .unsat c => check (φ.map Clause.toPB) (φ.toVeriPB c)
+    | .sat _ => false) = true := by
+  decide +kernel
+
+example : (match DPLL.solve φ with
+    | .unsat c => hintTight (φ.map Clause.toPB) (φ.toVeriPB c)
     | .sat _ => false) = true := by
   decide +kernel
 
@@ -132,10 +190,20 @@ example : (match CDCL.solve php with
     | .sat _ => false) = true := by
   decide +kernel
 
+example : (match CDCL.solve php with
+    | .unsat c => hintTight (php.map Clause.toPB) (php.toVeriPB c)
+    | .sat _ => false) = true := by
+  decide +kernel
+
 /-- The certificate CaDiCaL 3.0.1 emits for PHP(5, 4), with 47 RUP steps and 7 deletions
 (`CslibFrontierTests.Logics.Propositional.CNF.LRAT.phpCert`), translates into an accepted kernel
 proof. -/
 example : check (CNF.LRAT.php.map Clause.toPB) (CNF.LRAT.php.toVeriPB CNF.LRAT.phpCert) = true := by
   decide +kernel
+
+/-- Its run skips no hint, so the iff applies to it. -/
+example : CNF.LRAT.php.checkLRAT CNF.LRAT.phpCert = true ↔
+    check (CNF.LRAT.php.map Clause.toPB) (CNF.LRAT.php.toVeriPB CNF.LRAT.phpCert) = true :=
+  CNF.checkLRAT_iff_check_toVeriPB (by decide +kernel)
 
 end CslibFrontierTests.Logics.Propositional.VeriPBOfLRAT
