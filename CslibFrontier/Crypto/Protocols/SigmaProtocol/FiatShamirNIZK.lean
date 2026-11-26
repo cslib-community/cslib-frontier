@@ -589,15 +589,7 @@ theorem abs_sub_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T
     Prod.fst (nizkRealExtHandler_map_cache P valid) D ([], [])
   have hsim := run_interpret_map_state (nizkSimExtHandler simulate valid)
     (nizkSimHandler simulate valid) Prod.fst (nizkSimExtHandler_map_cache simulate valid) D ([], [])
-  have hrealEq : fiatShamirNIZKRealGame P valid D =
-      ((interpret (nizkRealExtHandler P valid) D).run ([], [])).bind
-        (fun (b, _) => PMF.pure b) := by
-    simp only [pmf_norm, fiatShamirNIZKRealGame, ← hreal]
-  have hsimEq : fiatShamirNIZKSimGame simulate valid D =
-      ((interpret (nizkSimExtHandler simulate valid) D).run ([], [])).bind
-        (fun (b, _) => PMF.pure b) := by
-    simp only [pmf_norm, fiatShamirNIZKSimGame, ← hsim]
-  rw [hrealEq, hsimEq]
+  simp only [pmf_norm, fiatShamirNIZKRealGame, fiatShamirNIZKSimGame, ← hreal, ← hsim]
   exact abs_sub_extHandlers_bind_le hvalid hHVZK hUnpred hD (fun (b, _) => PMF.pure b) true
 
 /-- `Game.advantage` form of the concrete zero-knowledge bound (20.9) for one Sigma protocol, a step
@@ -744,21 +736,14 @@ private theorem pokGame_eq_plainForkingProg [DecidableEq Y] [DecidableEq T] [Fin
   simp only [fiatShamirNIZKPokGame, plainForkingProg, ForkingReduction.map_run_program,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   refine congrArg A.coins.bind (funext fun s => ?_)
-  have hstep :
-      ∀ (yt : Y × T) (cache : List ((Y × T) × C)),
-        (oracle C yt cache).map
-          (fun (c, cache') => (c, ((cache', ([] : List (Y × T))), ([] : List Unit)))) =
-        withSampleList ()
-          (ForkingReduction.gameHandler (FiatShamirNIZK.plainSigner (Z := Z)))
-          (.inr yt) ((cache, []), []) := by
-    intro yt cache
-    simp only [pmf_norm, withSampleList, ForkingReduction.gameHandler, List.tail_nil]
   have hsim := run_interpret_map_state (oracle C)
     (fun yt st =>
       withSampleList () (ForkingReduction.gameHandler (FiatShamirNIZK.plainSigner (Z := Z)))
         (.inr yt) st)
     (fun cache => ((cache, ([] : List (Y × T))), ([] : List Unit)))
-    hstep (A.prove y s) []
+    (fun yt cache => by simp only [pmf_norm, withSampleList, ForkingReduction.gameHandler,
+      List.tail_nil])
+    (A.prove y s) []
   rw [liftPlainProve, run_interpret_map, interpret_interpret]
   simp only [PMF.monad_map_eq_map, PMF.bind_map, interpret_query]
   rw [← hsim]
@@ -846,13 +831,6 @@ theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq 
               (fun w => w.getD (Classical.arbitrary X)))) := by
   set first : PMF ((X × Y) × A.Coins) :=
     keyGen.bind fun key => A.coins.map fun s => (key, s)
-  have hp : (keyGen.bind fun (_, y) => fiatShamirNIZKPokGame P A y) true ≤
-      first.bind (fun ks =>
-        ((interpret countingUniform (plainForkingProg P A ks.1.2 ks.2)).run 0).map
-          fun ((_, outcome), _) => outcome.won) true + 0 := by
-    rw [add_zero]
-    simp only [pmf_norm, first, pokGame_eq_plainForkingProg]
-    exact le_rfl
   have hD : (Forking.fork first (forkingAlgorithm (Classical.arbitrary C) (Qro + 1)
       fun ks => plainForkingProg P A ks.1.2 ks.2)).map Option.isSome true ≤
       oneWayGame keyGen R (fun y =>
@@ -872,11 +850,15 @@ theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq 
     simp only [fiatShamirNIZKExtractGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun res _ => ?_
     cases res <;> simp
-  have h := ForkingReduction.toReal_le_add_sqrt_fork_of_le first FiatShamirNIZK.plainSigner
+  have h := ForkingReduction.toReal_le_add_sqrt_fork_of_le
+    (p := (keyGen.bind fun (_, y) => fiatShamirNIZKPokGame P A y) true)
+    first FiatShamirNIZK.plainSigner
     (fun ks => FiatShamirNIZK.check P fun y' => decide (y' = ks.1.2))
     (fun _ => FiatShamirNIZK.rejectsProgrammed _ _ _ _ _)
     (fun ks => liftPlainProve ks.1.2 (A.prove ks.1.2 ks.2)) (fun _ => [])
-    (fun ks => isCostBounded_liftPlainProve (hQro ks.1.2 ks.2)) ENNReal.zero_ne_top hp hD
+    (fun ks => isCostBounded_liftPlainProve (hQro ks.1.2 ks.2)) ENNReal.zero_ne_top
+    (by simp only [pmf_norm, first, pokGame_eq_plainForkingProg, plainForkingProg, add_zero,
+      le_rfl]) hD
     (PMF.apply_ne_top _ _)
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
   push_cast at h ⊢
@@ -1302,13 +1284,11 @@ theorem succProbability_fiatShamirNIZKFreshStmtGameOn_le [DecidableEq Y] [Decida
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun s _ => ?_
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun ((y, prf), (cache, proved)) _ => ?_
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun (acc, _) _ => ?_
-    cases admissible y
+    cases admissible y && acc
     · simp
-    · cases acc
-      · simp
-      · by_cases hmem : (y, prf.1) ∈ proved
-        · simp [List.mem_map_of_mem (f := Prod.fst) hmem]
-        · exact (PMF.coe_le_one _ _).trans_eq (by simp [hmem])
+    · by_cases hmem : (y, prf.1) ∈ proved
+      · simp [List.mem_map_of_mem (f := Prod.fst) hmem]
+      · exact (PMF.coe_le_one _ _).trans_eq (by simp [hmem])
   refine le_trans ?_
     (succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred src admissible hA)
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]

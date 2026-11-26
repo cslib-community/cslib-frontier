@@ -238,14 +238,12 @@ theorem factorOfTotient_eq {p q : ℕ} (hq : 0 < q) (hqp : q ≤ p) :
     factorOfTotient (p * q) ((p - 1) * (q - 1)) = (p, q) := by
   obtain ⟨t, rfl⟩ := Nat.exists_eq_add_of_le hqp
   obtain ⟨b, rfl⟩ := Nat.exists_eq_add_of_lt hq
+  simp only [zero_add]
   have hsum : (b + 1 + t) * (b + 1) + 1 - (b + 1 + t - 1) * (b + 1 - 1) = 2 * (b + 1) + t := by
-    rw [show b + 1 + t - 1 = b + t by omega, show b + 1 - 1 = b by omega]
-    rw [show (b + 1 + t) * (b + 1) + 1 = (b + t) * b + (2 * (b + 1) + t) by ring]
-    omega
-  have hdisc : (2 * (b + 1) + t) ^ 2 - 4 * ((b + 1 + t) * (b + 1)) = t ^ 2 := by
-    rw [show (2 * (b + 1) + t) ^ 2 = t ^ 2 + 4 * ((b + 1 + t) * (b + 1)) by ring]
-    omega
-  simp only [zero_add] at *
+    rw [Nat.add_right_comm b 1 t, Nat.add_sub_cancel, Nat.add_sub_cancel]
+    exact Nat.sub_eq_of_eq_add (by ring)
+  have hdisc : (2 * (b + 1) + t) ^ 2 - 4 * ((b + 1 + t) * (b + 1)) = t ^ 2 :=
+    Nat.sub_eq_of_eq_add (by ring)
   rw [factorOfTotient, hsum, hdisc, Nat.sqrt_eq']
   ext <;> dsimp only <;> omega
 
@@ -374,11 +372,7 @@ theorem computableInPolyTime_factorOfTotient {α : Type} {enc : α ↪ List Bool
     ComputableInPolyTime.binary_sqrt' (by
       simp only [sq]
       fun_prop)
-  have hpair {d : α → ℕ} (hd : ComputableInPolyTime d enc encNat) :
-      ComputableInPolyTime
-        (fun x => ((N x + 1 - φ x + d x) / 2, (N x + 1 - φ x - d x) / 2))
-        enc (encPair encNat encNat) := by fun_prop
-  exact hpair hdisc
+  fun_prop
 
 /-- The Euler totient computation experiment ([KatzLindell2020], Section 9.2.5, Theorem 9.49):
 sample `desc ← gen n`, run `T n desc.modulus`, and accept when `T` returns
@@ -430,8 +424,8 @@ theorem isPPTOn_factorToTotient {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
       (fun input => F input.1 input.2)) :
     IsPPTOn (encPair encUnary encNat) encNat (fun input => factorToTotient F input.1 input.2) := by
   unfold factorToTotient
-  refine IsPPTOn.bind_with hF ?_
-  exact (computableInPolyTime_totientIfFactor (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
+  exact hF.bind_with
+    (computableInPolyTime_totientIfFactor (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- `totientToFactor T` is uniform PPT whenever `T` is uniform PPT. -/
 theorem isPPTOn_totientToFactor {T : ℕ → ℕ → ProbComp ℕ}
@@ -439,8 +433,7 @@ theorem isPPTOn_totientToFactor {T : ℕ → ℕ → ProbComp ℕ}
     IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
       (fun input => totientToFactor T input.1 input.2) := by
   unfold totientToFactor
-  refine IsPPTOn.bind_with hT ?_
-  exact (computableInPolyTime_factorOfTotient (by fun_prop) (by fun_prop)).isPPTOn
+  exact hT.bind_with (computableInPolyTime_factorOfTotient (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- `totientGame gen (factorToTotient F) n` equals `modulusFactoringGame` on the pushed-forward
 RSA modulus distribution. -/

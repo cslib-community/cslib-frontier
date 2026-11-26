@@ -259,8 +259,7 @@ theorem getD_evalCode_eq_iff_of_claimable {n : ℕ} {gates : List (Op × List �
       ∀ c ∈ g.2, (evalCode interpretation false x gates).getD c false = b := by
   obtain ⟨op, args⟩ := g
   obtain ⟨hj, hgj⟩ := List.getElem?_eq_some_iff.1 hg
-  have hlen := (h.getElem j hj).1
-  rw [hgj] at hlen
+  have hlen := hgj ▸ (h.getElem j hj).1
   rw [getD_evalCode_add h hx hg]
   cases op with
   | not => simp [claimable] at hb
@@ -332,11 +331,11 @@ theorem getD_smallDepths_of_lt (d n : ℕ) (gates : List (Op × List ℕ)) {w : 
 
 theorem length_smallDepths (d n : ℕ) (gates : List (Op × List ℕ)) :
     (smallDepths d n gates).length = n + gates.length := by
-  unfold smallDepths
-  generalize hx : List.replicate n 0 = x
-  have : x.length = n := by rw [← hx, List.length_replicate]
-  rw [← this]
-  clear hx this
+  suffices ∀ x : List ℕ, (gates.foldl (fun sd g =>
+      sd ++ [smallDepthOp d g.1 (g.2.map (sd.getD · (d + 1)))]) x).length =
+      x.length + gates.length by
+    simpa [smallDepths] using this (List.replicate n 0)
+  intro x
   induction gates generalizing x with
   | nil => simp
   | cons g gates ih =>
@@ -386,7 +385,6 @@ theorem exists_determining {d n : ℕ} {gates : List (Op × List ℕ)}
         have := le_maxTwo h2
           (List.mem_map_of_mem (f := ((smallDepths d n gates).getD · (d + 1))) hc)
         have hc' := hlt c hc
-        refine ⟨?_, by omega⟩
         have hmin := min_le_iff.1 hw
         omega
       choose! S hScard hSlt hSdet using fun c (hc : c ∈ g.2) =>
@@ -410,9 +408,8 @@ theorem exists_determining {d n : ℕ} {gates : List (Op × List ℕ)}
           hSdet c hc x ρ hx hρ fun s hs => hagree s
             (Finset.mem_biUnion.2 ⟨c, List.mem_toFinset.2 hc, hs⟩)
         have hmap : g.2.map (fun a => some ((evalCode interpretation false x gates).getD a false)) =
-            (g.2.map ((evalCode interpretation false x gates).getD · false)).map some := by
-          rw [List.map_map]
-          rfl
+            (g.2.map ((evalCode interpretation false x gates).getD · false)).map some :=
+          List.map_map.symm
         rw [getD_kleeneEval_add hρ h hg, getD_evalCode_add h hx hg, List.map_congr_left hcs, hmap,
           ← ofFn_elim_eq_map (σ := signature) false _ _ hlen, List.map_ofFn,
           ← kleeneInterpretation_some]
@@ -466,10 +463,9 @@ theorem getD_kleeneEval_overrideGates_eq {n : ℕ} {gates : List (Op × List ℕ
     (hne : (kleeneEval (claimInputs n claims) (overrideGates n claims gates)).getD w none ≠ none) :
     (kleeneEval (claimInputs n claims) (overrideGates n claims gates)).getD w none =
       some ((evalCode interpretation false x gates).getD w false) := by
-  have := approx_override h hx (fun c hc _ => hcl c hc) w
   obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 hne
-  rw [hb] at this ⊢
-  rw [approx_some.1 this]
+  have := hb ▸ approx_override h hx (fun c hc _ => hcl c hc) w
+  exact hb.trans (congrArg some (approx_some.1 this))
 
 /-- A conjunction with a false argument, or a disjunction with a true one, is known. -/
 private theorem kleeneOp_of_claimable {g : Op × List ℕ} {b : Bool} (hb : claimable g = some b)
@@ -541,10 +537,9 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
     by_cases hlarge : 2 < g.2.length
     · have hcost : largeGateCost signature g.1 = 1 := by grind [largeGateCost]
       have hsd : ∀ c ∈ g.2, (smallDepths d n gates).getD c (d + 1) ≤ d := fun c hc => by
-        have h0 := hwdc c hc
-        have h1 := hdpc c hc
-        have := getD_smallDepths_le (d := d) h (show c < n + gates.length by
-          have := hcw c hc; omega) (by omega)
+        have := getD_smallDepths_le (d := d) (w := c) h (by have := hcw c hc; omega)
+          (by have := hwdc c hc; omega)
+        have := hdpc c hc
         omega
       obtain ⟨b0, hb0⟩ : ∃ b0, claimable g = some b0 := by
         obtain ⟨_ | _ | _, args⟩ := g
@@ -599,7 +594,7 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
         rw [getD_kleeneEval_overrideGates h (hρ claims) claims hg]
         split_ifs <;> try exact Option.some_ne_none _
         have hmap : g.2.map (fun a => some (v.getD a false)) =
-            (g.2.map (v.getD · false)).map some := by rw [List.map_map]; rfl
+            (g.2.map (v.getD · false)).map some := List.map_map.symm
         rw [List.map_congr_left hkc, hmap]
         exact kleeneOp_map_some_ne_none g.1 (by rw [List.length_map]; exact hlen)
 
@@ -737,9 +732,7 @@ private theorem computableInPolyTime_smallDepthOp (d : ℕ) :
 
 private theorem smallDepthOp_le (d : ℕ) (op : Op) (l : List ℕ) : smallDepthOp d op l ≤ d + 1 := by
   unfold smallDepthOp
-  split_ifs
-  · exact min_le_left _ _
-  · exact le_rfl
+  split_ifs <;> simp
 
 private theorem computableInPolyTime_smallDepths (d : ℕ)
     (hn : ComputableInPolyTime nf encIn encUnary)

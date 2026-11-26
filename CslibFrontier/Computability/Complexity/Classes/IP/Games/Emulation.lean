@@ -188,17 +188,10 @@ theorem check_verifier_ofFn (B Z K : ℕ) (V : List Bool → Bool) (n : ℕ) (g 
       (hashZero B (n + Z) (List.ofFn r) (List.ofFn m ++ List.ofFn z) &&
         (!((List.ofFn z).take (Z + κ - ((List.ofFn c).count true + K))).any fun b => b) &&
         check B Z K V g ((List.ofFn c).count true) (p ++ List.ofFn m) t) := by
-  have h1 : (List.ofFn c ++ (List.ofFn m ++ List.ofFn z) ++ t).take B = List.ofFn c := by
-    rw [List.append_assoc]; exact List.take_left' List.length_ofFn
-  have h2 : (List.ofFn c ++ (List.ofFn m ++ List.ofFn z) ++ t).drop B =
-      List.ofFn m ++ List.ofFn z ++ t := by
-    rw [List.append_assoc]; exact List.drop_left' List.length_ofFn
-  have h3 : (List.ofFn m ++ List.ofFn z ++ t).take (n + Z) = List.ofFn m ++ List.ofFn z :=
-    List.take_left' (by simp)
-  have h4 : (List.ofFn m ++ List.ofFn z ++ t).drop (n + Z) = t :=
-    List.drop_left' (by simp)
-  simp only [check, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn, h1, h2,
-    h3, h4]
+  have hlen : (List.ofFn m ++ List.ofFn z).length = n + Z := by simp
+  rw [List.append_assoc (List.ofFn c)]
+  simp only [check, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn,
+    List.take_left' hlen, List.drop_left' hlen]
 
 /-- Values of `a && F t` for a constant `a`. -/
 private theorem value_and_left (h : List (AMMove × ℕ)) (a : Bool) (F : List Bool → Bool) :
@@ -355,18 +348,17 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
           · have hr : r ∈ bad ((List.ofFn c).count true) :=
               mem_filter.2 ⟨mem_univ _, mem_image.2 ⟨_, hmemS _ m z hm hloc.2, hloc.1⟩⟩
             have h1 : (1 : ℚ) ≤ ∑ b ∈ range (B + 1), if r ∈ bad b then (1 : ℚ) else 0 := by
-              have := single_le_sum (f := fun b => if r ∈ bad b then (1 : ℚ) else 0)
+              simpa only [hr, ite_true] using single_le_sum
+                (f := fun b => if r ∈ bad b then (1 : ℚ) else 0)
                 (fun _ _ => by split_ifs <;> norm_num) (mem_range.2 (Nat.lt_succ_of_le hbB))
-              simpa only [hr, ite_true] using this
             have hv : AMGame.value true (shape B Z g) (fun t => ((check B Z K V g
                 ((List.ofFn c).count true) (p ++ List.ofFn m) t).toNat : ℚ)) ≤ 1 :=
               AMGame.value_le_one _ _ fun t => by
                 cases check B Z K V g ((List.ofFn c).count true) (p ++ List.ofFn m) t <;> norm_num
             linarith
           · have hle : 2 ^ κ * countFrom g V (p ++ List.ofFn m) ≤
-                μ * 2 ^ ((List.ofFn c).count true) * N := by
-              by_contra hcon
-              exact hm (mem_filter.2 ⟨mem_univ _, not_le.1 hcon⟩)
+                μ * 2 ^ ((List.ofFn c).count true) * N :=
+              not_lt.1 fun hcon => hm (mem_filter.2 ⟨mem_univ _, hcon⟩)
             refine (ih _ (hbB.trans hBK) _).trans ?_
             have hle' : (μ : ℚ) ^ verifierMoves g * countFrom g V (p ++ List.ofFn m) /
                 2 ^ ((List.ofFn c).count true) ≤ μ ^ (verifierMoves g + 1) * N / 2 ^ κ := by
@@ -585,9 +577,8 @@ theorem computableInPolyTime_check {γ : Type} {encIn : γ ↪ List Bool}
       (w x)) encIn encBool := by
   induction G generalizing κ p w with
   | nil =>
-    have h := ComputableInPolyTime.bool_and' (ComputableInPolyTime.decide_eq' hκ
-      (ComputableInPolyTime.const 0)) (hV hp)
-    exact h.of_enc_eq fun x => rfl
+    exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.decide_eq' hκ
+      (ComputableInPolyTime.const 0)) (hV hp)).of_enc_eq fun _ => rfl
   | cons y G ih =>
     obtain ⟨_ | _, q⟩ := y
     · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=

@@ -593,13 +593,10 @@ theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X S T : ℕ →
     refine PMF.bind_apply_le_mul_bind_apply_add_on_support (sample n) fun s hs => ?_
     refine PMF.bind_apply_le_mul_bind_apply_add_on_support _ fun l hl => ?_
     have hlen : l.length ≤ Q n := length_le_of_mem_support_lazyROToListGuess (hQ s hs) hl
-    have hmap : ((ProbComp.eval (ProbComp.sampleModIndex (width n) (Q n))).bind fun i =>
-        PMF.pure (decide (l.getD i (defaultS n) = s))) =
-        ((ProbComp.eval (ProbComp.sampleModIndex (width n) (Q n))).map
-          fun i => l.getD i (defaultS n)).bind fun s' => PMF.pure (decide (s' = s)) := by
-      rw [PMF.bind_map]
-      rfl
-    rw [hmap, Cslib.Probability.PMF.bind_pure_decide_eq_apply_true']
+    have hmap := PMF.bind_map (ProbComp.eval (ProbComp.sampleModIndex (width n) (Q n)))
+      (fun i => l.getD i (defaultS n)) (fun s' => PMF.pure (decide (s' = s)))
+    simp only [Function.comp_def] at hmap
+    rw [← hmap, Cslib.Probability.PMF.bind_pure_decide_eq_apply_true']
     by_cases hmem : s ∈ l
     · have htake : s ∈ l.take (Q n) := by rwa [List.take_of_length_le hlen]
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem htake
@@ -614,10 +611,8 @@ theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X S T : ℕ →
             ProbComp.one_le_mul_eval_sampleModNat_add hiQ
         _ ≤ _ := by
             gcongr
-            have hget : (l.take (Q n))[i] = l.getD i (defaultS n) := by
-              simp [List.getElem_take, List.getD_eq_getElem?_getD, hil]
-            rw [hget]
-            exact PMF.le_map_apply _ (fun j => l.getD j (defaultS n)) i
+            simpa [List.getElem_take, List.getD_eq_getElem?_getD, hil] using
+              PMF.le_map_apply _ (fun j => l.getD j (defaultS n)) i
     · simp [hmem]
   simp only [listGuessAdvantage, guessAdvantage, Game.succProbability, ← ENNReal.coe_le_coe]
   push_cast [ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
@@ -725,9 +720,6 @@ theorem SecretGuessHard.negligible_roAdvantage_bitString {X : ℕ → Type}
     hout.sampleList.congr fun n => by
       rw [ProbComp.eval_map, hsampleT_eval, BitString.eval_sampleList]; rfl
   exact hguess.negligible_roAdvantage hdecS hisSome hdefault hsampleT_ppt
-    ⟨fun _ => 0, negligible_zero, fun n => by
-      dsimp only
-      rw [hsampleT_eval n]
-      exact CloseTo.refl _⟩ hinfo hD
+    ⟨fun _ => 0, negligible_zero, fun n => by simp [hsampleT_eval]⟩ hinfo hD
 
 end Cslib.Crypto.KeyDerivation

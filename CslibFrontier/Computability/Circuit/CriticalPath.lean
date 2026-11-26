@@ -147,9 +147,7 @@ theorem Circuit.rank_lt_of_slotWire_eq (C : Circuit σ n m) {s : C.Slot} {v : Wi
 theorem Circuit.outDeg_eq_card_filter (C : Circuit σ n m) (v : Wire n C.size) :
     C.outDeg v = (Finset.univ.filter fun s : C.Slot => C.slotWire s = v).card := by
   rw [Circuit.outDeg, ← List.toFinset_card_of_nodup (C.nodup_slotReaders v)]
-  congr 1
-  ext s
-  simp
+  exact congrArg Finset.card (Finset.ext fun s => by simp)
 
 /-- Wire `v` has out-degree `0` precisely when no gate slot reads `v`. -/
 theorem Circuit.outDeg_eq_zero_iff (C : Circuit σ n m) {v : Wire n C.size} :
@@ -380,12 +378,11 @@ theorem Circuit.rank_lt_of_mem_tail_criticalPathAux (C : Circuit σ n m) :
     | none => simp [Circuit.criticalPathAux, h] at hw
     | some s =>
       simp only [Circuit.criticalPathAux, h, List.tail_cons] at hw
-      have hs := C.uniqueReaderSlot_eq_some_iff.mp h
       have hstep : v.rank < (Wire.gate s.1 : Wire n C.size).rank :=
-        C.rank_lt_of_slotWire_eq (C.mem_slotReaders.mp (by simp [hs]))
-      have hne := C.criticalPathAux_ne_nil fuel (.gate s.1)
-      rw [← List.cons_head_tail hne] at hw
-      simp only [head_criticalPathAux, List.mem_cons] at hw
+        C.rank_lt_of_slotWire_eq
+          (C.mem_slotReaders.mp (by simp [C.uniqueReaderSlot_eq_some_iff.mp h]))
+      rw [← List.cons_head_tail (C.criticalPathAux_ne_nil fuel (.gate s.1)),
+        head_criticalPathAux, List.mem_cons] at hw
       rcases hw with rfl | htail
       · exact hstep
       · exact hstep.trans (C.rank_lt_of_mem_tail_criticalPathAux fuel (.gate s.1) w htail)
@@ -432,12 +429,9 @@ theorem Circuit.rank_lt_criticalPathAux_getElem (C : Circuit σ n m) :
       · omega
       · have hj' : j' < (C.criticalPathAux fuel (.gate s.1)).length := by
           grind [Circuit.criticalPathAux, List.length_cons]
-        have hmem : (C.criticalPathAux fuel (.gate s.1))[j'] ∈
-            (C.criticalPathAux (fuel + 1) v).tail := by
-          simp only [Circuit.criticalPathAux, h, List.tail_cons]
-          exact List.getElem_mem hj'
         simpa only [Circuit.criticalPathAux, h, List.getElem_cons_zero,
-          List.getElem_cons_succ] using C.rank_lt_of_mem_tail_criticalPathAux (fuel + 1) v _ hmem
+          List.getElem_cons_succ] using C.rank_lt_of_mem_tail_criticalPathAux (fuel + 1) v _
+            (by simpa only [Circuit.criticalPathAux, h, List.tail_cons] using List.getElem_mem hj')
       · omega
       · simpa only [Circuit.criticalPathAux, h, List.getElem_cons_succ] using
           C.rank_lt_criticalPathAux_getElem fuel (.gate s.1)
@@ -574,12 +568,11 @@ theorem Circuit.two_mul_sub_two_mul_le_size (C : Circuit σ n m)
     simpa [hcardCompl] using Finset.card_nsmul_le_sum Eᶜ _ 1 fun v _ => hge1 v
   have hsumBonus : (∑ v : Wire n C.size, bonus v) ≤ 2 * m := by
     simpa [bonus, Nat.mul_comm] using Nat.mul_le_mul_left 2 C.card_outputsFinset_le
-  have htotalLow : 2 * n + C.size ≤ ∑ v : Wire n C.size, (C.outDeg v + bonus v) := by
-    rw [← Finset.sum_add_sum_compl E]
-    exact Nat.add_le_add hlowE hlowCompl
-  have htotalHigh : (∑ v : Wire n C.size, (C.outDeg v + bonus v)) ≤ 2 * C.size + 2 * m := by
-    rw [Finset.sum_add_distrib]
-    exact Nat.add_le_add (C.sum_outDeg_le_of_fanInAtMost hfan) hsumBonus
+  have htotalLow : 2 * n + C.size ≤ ∑ v : Wire n C.size, (C.outDeg v + bonus v) :=
+    (Nat.add_le_add hlowE hlowCompl).trans_eq (Finset.sum_add_sum_compl E _)
+  have htotalHigh : (∑ v : Wire n C.size, (C.outDeg v + bonus v)) ≤ 2 * C.size + 2 * m :=
+    Finset.sum_add_distrib.trans_le
+      (Nat.add_le_add (C.sum_outDeg_le_of_fanInAtMost hfan) hsumBonus)
   omega
 
 /-! ### Two-variable bottleneck at intersecting critical paths -/
@@ -616,12 +609,11 @@ theorem Circuit.outDeg_output_eq_zero_of_noDeadGates (C : Circuit σ n 1) (hnoDe
 wire of the path is a gate. -/
 theorem Circuit.input_mem_criticalPath_iff (C : Circuit σ n m) {x y : Fin n} :
     Wire.input x ∈ C.criticalPath y ↔ x = y := by
-  constructor
-  · intro h
-    rw [← List.cons_head_tail (C.criticalPath_ne_nil y), C.head_criticalPath, List.mem_cons] at h
+  refine ⟨fun h => ?_, ?_⟩
+  · rw [← List.cons_head_tail (C.criticalPath_ne_nil y), C.head_criticalPath, List.mem_cons] at h
     rcases h with h | h
     · exact Wire.input.inj h
-    · obtain ⟨k, ⟨⟩⟩ := C.gate_of_mem_tail_criticalPath y h
+    · obtain ⟨_, ⟨⟩⟩ := C.gate_of_mem_tail_criticalPath y h
   · rintro rfl
     exact List.mem_of_getElem (C.criticalPath_zero_getElem x)
 
@@ -652,10 +644,9 @@ private theorem Circuit.gate_mem_take_criticalPath (C : Circuit σ n m) (x : Fin
   obtain rfl : s = r := by
     simpa [hr] using C.mem_slotReaders.mpr hjs.symm
   rw [← hrGate]
-  rcases Nat.lt_or_ge (j + 1) i with hlt | hge
+  rcases eq_or_lt_of_le (show j + 1 ≤ i by omega) with rfl | hlt
+  · exact Or.inl rfl
   · exact Or.inr (List.mem_take_iff_getElem.mpr ⟨j + 1, by omega, rfl⟩)
-  · obtain rfl : j + 1 = i := by omega
-    exact Or.inl rfl
 
 /-- Every wire strictly before position `i` of a critical path has out-degree `1`. -/
 private theorem Circuit.outDeg_eq_one_of_mem_take_criticalPath (C : Circuit σ n m) (x : Fin n)

@@ -260,13 +260,12 @@ private theorem exists_auxiliaryOn {E : Type*} [Fintype E] [DecidableEq E]
     (hR : ∀ k, (R k).IsSimple)
     (hclean : ∀ e k, EndsApart c d e k.1 → c e ∉ (R k).support ∧ d e ∉ (R k).support) :
     Nonempty (AuxiliaryOn c d R V Finset.univ) := by
-  have h (s : Finset E) : Nonempty (AuxiliaryOn c d R V s) := by
-    induction s using Finset.induction_on with
-    | empty => exact auxiliaryOn_empty c d R V
-    | @insert e s he ih =>
-      obtain ⟨A⟩ := ih
-      exact auxiliaryOn_insert c d R V hcV hdV hcd hR hclean A e he
-  exact h Finset.univ
+  suffices ∀ s : Finset E, Nonempty (AuxiliaryOn c d R V s) from this Finset.univ
+  intro s
+  induction s using Finset.induction_on with
+  | empty => exact auxiliaryOn_empty c d R V
+  | insert e s he ih =>
+    exact ih.elim fun A => auxiliaryOn_insert c d R V hcV hdV hcd hR hclean A e he
 
 private theorem nodesAvoid_mul {p q : Route} (h : NodesAvoid p q) {u : ℂ} (hu : u ≠ 0) :
     NodesAvoid (Route.mulComplex u p) (Route.mulComplex u q) := by
@@ -420,11 +419,9 @@ private theorem exists_comparison_axis {E : Type*} [Finite E]
     (hheight (.inr e)) (hheight (.inr f))
     (hRR e f b hind) (hRR f e b hrev)
     (hRH e f b hind).1 (hRH e f b hind).2 (hHH e f hind) (hHH f e hrev)
-  have hrowP := hrow false
-  have hrowQ := hrow true
-  simp only [R, Bool.false_eq_true, ↓reduceIte, hPs, hPf] at hrowP
-  simp only [R, ↓reduceIte, hQs, hQf] at hrowQ
-  have hsum := congrArg₂ (fun a b : Bool => a + b) hrowP hrowQ
+  have hsum := congrArg₂ (· + ·)
+    (by simpa only [R, Bool.false_eq_true, ↓reduceIte, hPs, hPf] using hrow false)
+    (by simpa only [R, ↓reduceIte, hQs, hQf] using hrow true)
   simp only [cycleRay_eq] at hsum ⊢
   convert hsum.symm using 1 <;>
     abel_nf <;> simp only [two_zsmul, BooleanRing.add_self, add_zero]
@@ -435,12 +432,9 @@ private theorem open_index_unique {p : Route} (hp : p.IsSimple) (hopen : p.start
   have hpos := hp.position_eq_of_eval_eq hopen i j ⟨hs.1.le, hs.2.le⟩
     ⟨ht.1.le, ht.2.le⟩ heq
   dsimp only [Route.position] at hpos
-  have hij : i.val < j.val + 1 := by
-    exact_mod_cast (show (i.val : ℝ) < (j.val : ℝ) + 1 by linarith [hs.1, ht.2])
-  have hji : j.val < i.val + 1 := by
-    exact_mod_cast (show (j.val : ℝ) < (i.val : ℝ) + 1 by linarith [ht.1, hs.2])
-  apply Fin.ext
-  omega
+  have hij : i.val < j.val + 1 := by exact_mod_cast (by linarith [hs.1, ht.2] : (i : ℝ) < j + 1)
+  have hji : j.val < i.val + 1 := by exact_mod_cast (by linarith [ht.1, hs.2] : (j : ℝ) < i + 1)
+  exact Fin.ext (by omega)
 
 private theorem nodesAvoid_of_open_contacts {p q : Route} (hp : p.IsSimple)
     (hopen : p.start ≠ p.finish)
@@ -459,20 +453,14 @@ private theorem nodesAvoid_of_open_contacts {p q : Route} (hp : p.IsSimple)
   refine Fin.lastCases ?_ (fun j => ?_) k
   · intro hq
     obtain ⟨i, t, ht, heq⟩ := hcontacts _ (Route.point_mem_support p _) hq
-    have heval : p.eval (Fin.last p.bends) 1 = p.point (Fin.last p.segments) := by
-      simp only [Route.eval, AffineMap.lineMap_apply_one, Fin.succ_last]
-    have hpos := hp.position_eq_of_eval_eq hopen (Fin.last p.bends) i
-      (by norm_num) ⟨ht.1.le, ht.2.le⟩ (heval.trans heq.symm)
-    apply hno p.segments i t ht
-    simpa [Route.position, Route.segments, Nat.cast_add] using hpos
+    have hpos := hp.position_eq_of_eval_eq hopen (Fin.last p.bends) i (by norm_num)
+      ⟨ht.1.le, ht.2.le⟩ ((by simp [Route.eval] : p.eval (Fin.last p.bends) 1 = _).trans heq.symm)
+    exact hno p.segments i t ht (by simpa [Route.position, Route.segments, Nat.cast_add] using hpos)
   · intro hq
     obtain ⟨i, t, ht, heq⟩ := hcontacts _ (Route.point_mem_support p _) hq
-    have heval : p.eval j 0 = p.point j.castSucc := by
-      simp only [Route.eval, AffineMap.lineMap_apply_zero]
-    have hpos := hp.position_eq_of_eval_eq hopen j i (by norm_num)
-      ⟨ht.1.le, ht.2.le⟩ (heval.trans heq.symm)
-    apply hno j.val i t ht
-    simpa only [Route.position, add_zero] using hpos
+    have hpos := hp.position_eq_of_eval_eq hopen j i (by norm_num) ⟨ht.1.le, ht.2.le⟩
+      ((by simp [Route.eval] : p.eval j 0 = _).trans heq.symm)
+    exact hno j.val i t ht (by simpa only [Route.position, add_zero] using hpos)
 
 private theorem endsApart_false_of_endpoint_eq {E : Type*} {c d : E → ℂ} {e f : E}
     (h : EndsApart c d e f) (a b : Bool)
@@ -552,28 +540,21 @@ private theorem event_contact_equiv (p q : Route) (T : Set ℂ)
   let toPoint (a : Event) : T := ⟨point a, (hT _).mpr
     ⟨Set.mem_iUnion.mpr ⟨a.val.1, openSegment_subset_segment ℝ _ _ (hpoint a).1⟩,
       Set.mem_iUnion.mpr ⟨a.val.2, openSegment_subset_segment ℝ _ _ (hpoint a).2⟩⟩⟩
-  have hinj : Function.Injective toPoint := by
-    intro a b hab
+  have hinj : Function.Injective toPoint := fun a b hab => by
+    obtain ⟨⟨s, hs, hps⟩, ⟨t, ht, hqt⟩⟩ := by
+      simpa only [openSegment_eq_image_lineMap, Set.mem_image] using hpoint a
+    obtain ⟨⟨s', hs', hps'⟩, ⟨t', ht', hqt'⟩⟩ := by
+      simpa only [openSegment_eq_image_lineMap, Set.mem_image] using hpoint b
     have hab' : point a = point b := congrArg Subtype.val hab
-    have ha := hpoint a
-    have hb := hpoint b
-    simp only [openSegment_eq_image_lineMap, Set.mem_image] at ha hb
-    obtain ⟨s, hs, hps⟩ := ha.1
-    obtain ⟨t, ht, hqt⟩ := ha.2
-    obtain ⟨s', hs', hps'⟩ := hb.1
-    obtain ⟨t', ht', hqt'⟩ := hb.2
-    apply Subtype.ext
-    apply Prod.ext
-    · exact open_index_unique hp hpo _ _ hs hs' (hps.trans (hab'.trans hps'.symm))
-    · exact open_index_unique hq hqo _ _ ht ht' (hqt.trans (hab'.trans hqt'.symm))
-  have hsurj : Function.Surjective toPoint := by
-    intro z
+    exact Subtype.ext (Prod.ext
+      (open_index_unique hp hpo _ _ hs hs' (hps.trans (hab'.trans hps'.symm)))
+      (open_index_unique hq hqo _ _ ht ht' (hqt.trans (hab'.trans hqt'.symm))))
+  have hsurj : Function.Surjective toPoint := fun z => by
     obtain ⟨i, j, s, t, hs, ht, hps, hqt⟩ := hopen z.val z.property
     let a : Event := ⟨(i, j), ⟨z.val,
       hps ▸ lineMap_mem_openSegment ℝ _ _ hs,
       hqt ▸ lineMap_mem_openSegment ℝ _ _ ht⟩⟩
-    refine ⟨a, Subtype.ext ?_⟩
-    exact hsub (toPoint a).property z.property
+    exact ⟨a, Subtype.ext (hsub (toPoint a).property z.property)⟩
   exact ⟨Equiv.ofBijective toPoint ⟨hinj, hsurj⟩⟩
 
 open Classical in
@@ -704,11 +685,10 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
       z ∈ (A.drawing.route f).support ∧ ∀ v ∈ G.vertices, z ≠ A.drawing.vertex v}
     have hb : Set.BijOn (κ e f) O T := (hReg e f hef).1
     have hO : O.Subsingleton := referenceDrawing_open_inter_subsingleton hI e f hef
-    have hT : T.Subsingleton := by
-      intro z hz w hw
-      obtain ⟨a, ha, haz⟩ := hb.surjOn hz
-      obtain ⟨b, hbb, hbw⟩ := hb.surjOn hw
-      rw [← haz, ← hbw, hO ha hbb]
+    have hT : T.Subsingleton := fun z hz w hw => by
+      obtain ⟨a, ha, rfl⟩ := hb.surjOn hz
+      obtain ⟨b, hbb, rfl⟩ := hb.surjOn hw
+      rw [hO ha hbb]
     have hTIff (z : ℂ) : z ∈ T ↔
         z ∈ (A.drawing.route e).support ∧ z ∈ (A.drawing.route f).support :=
       ⟨fun hz => ⟨hz.1, hz.2.1⟩, fun ⟨he, hf⟩ => ⟨he, hf, haway e f hap z he hf⟩⟩
@@ -720,13 +700,10 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
       exact ⟨i, j, s, t, hs, ht, heq, hfq⟩
     rw [pairParity_of_subsingleton_contacts _ _ T (A.simple e) (A.simple f)
       (by rw [hAs, hAf]; exact hcd e) (by rw [hAs, hAf]; exact hcd f) hTIff hT hOpen]
-    have hNonempty : T.Nonempty ↔ O.Nonempty := by
-      rw [← hb.image_eq, Set.image_nonempty]
     have hcross := referenceDrawing_crossing_iff hI e f hind
-    refine Bool.eq_iff_iff.2 ((decide_eq_true_iff).trans (hNonempty.trans
-      ⟨fun ⟨z, hz⟩ => hcross.2 ⟨z, hz, fun w hw => hO hw hz⟩, fun h => ?_⟩))
-    obtain ⟨z, hz, _⟩ := hcross.1 h
-    exact ⟨z, hz⟩
+    exact Bool.eq_iff_iff.2 (decide_eq_true_iff.trans ((hb.image_eq ▸ Set.image_nonempty).trans
+      ⟨fun ⟨z, hz⟩ => hcross.2 ⟨z, hz, fun w hw => hO hw hz⟩,
+        fun h => (hcross.1 h).imp fun _ => And.left⟩))
   let F := frame I
   let index (e : Fin F.segments.length) : E :=
     ⟨e.val, by simpa only [F, frame, G, subdivisionGraph, List.length_map] using e.isLt⟩

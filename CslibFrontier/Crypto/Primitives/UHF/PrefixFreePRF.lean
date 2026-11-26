@@ -300,8 +300,7 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
     cachedRandomFunctionOracle, eval_cachedSamplerOracle, BitString.eval_sampleList,
     prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
     ProbOracleComp.runWith_sample_bind, PMF.map_bind]
-  apply PMF.bind_apply_le_on_support
-  intro guess _
+  refine PMF.bind_apply_le_on_support _ fun guess _ => ?_
   by_cases hg :
       (valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second)) = true
   · obtain ⟨⟨hl, hr⟩, hne⟩ := (Bool.and_eq_true_iff.mp hg).imp Bool.and_eq_true_iff.mp
@@ -331,8 +330,7 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
       (cachedDistOracle (oracleValid n) dist right a.2).bind (fun b =>
         PMF.pure (decide (a.1.take (outLen n) = b.1.take (outLen n)), b.2)))).map Prod.fst true ≤ _
     simp only [hFirst, PMF.bind_map, Function.comp_def, hSecond, PMF.map_bind, PMF.pure_map]
-    apply PMF.bind_apply_le_on_support
-    intro reply hReply
+    refine PMF.bind_apply_le_on_support _ fun reply hReply => ?_
     rw [PMF.bind_congr_on_support dist _ (fun other => PMF.pure (decide (reply = other)))
       (fun other hOther => by
         rw [List.take_of_length_le (BitString.length_of_mem_support_uniformList hReply).le,
@@ -566,9 +564,8 @@ theorem isPrefixFreeOn_prefixFreeBatchReduction {width cap Q : ℕ → ℕ}
   simp only [prefixFreeBatchReduction, wordQueryRunDist_sample_bind, PMF.mem_support_bind_iff,
     wordQueryRunDist_mapM_query_pure, PMF.mem_support_pure_iff] at hresult
   obtain ⟨guesses, _, rfl⟩ := hresult
-  have hprefix := isPrefixFree_prefixFreeBatchQueries (count := Q n) guesses haligned
   intro x hx _ y hy _ hne hpre
-  exact hne (hprefix x hx y hy hpre)
+  exact hne (isPrefixFree_prefixFreeBatchQueries (count := Q n) guesses haligned x hx y hy hpre)
 
 /-- The batch wrapper is a strict prefix-free oracle-PPT distinguisher when each valid
 message is a word of complete positive-width blocks. Prefix-freeness holds on every oracle
@@ -715,8 +712,7 @@ theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
   simp only [prfIdealGameOn, ProbComp.eval_map, ProbOracleComp.eval_run_interpret_eq_runWith,
     cachedRandomFunctionOracle, eval_cachedSamplerOracle, BitString.eval_sampleList,
     prefixFreeBatchReduction, ProbOracleComp.runWith_sample_bind, PMF.map_bind]
-  apply PMF.bind_apply_le_on_support
-  intro guesses _
+  refine PMF.bind_apply_le_on_support _ fun guesses _ => ?_
   let words := prefixFreeBatchQueries (width n) (Q n) (valid n) guesses
   let dist := BitString.uniformList (outLen n)
   let program : ProbOracleComp (fun _ : List Bool => List Bool) (List (List Bool)) :=
@@ -764,12 +760,11 @@ theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
       ProbOracleComp.runWith_query (fun req => guarded req.2) ((), word) cache
   rw [← hSim, ProbOracleComp.runWith_simulate, hHandler, hRun]
   let run := ProbOracleComp.runWith oracle program []
-  have hBound : program.IsQueryBounded (Q n) := by
-    have ht : program.IsQueryBounded (words.length * 1) :=
-      OracleComp.IsCostBounded.mapM fun word _ =>
-        (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query word)
-    exact ht.mono (by simpa only [Nat.mul_one] using
-      length_prefixFreeBatchQueries_le (width n) (Q n) (valid n) guesses)
+  have hBound : program.IsQueryBounded (Q n) :=
+    (OracleComp.IsCostBounded.mapM fun word _ =>
+      (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query word)).mono
+      (by simpa only [Nat.mul_one] using
+        length_prefixFreeBatchQueries_le (width n) (Q n) (valid n) guesses)
   have hBirthday := RandomOracle.toOuterMeasure_not_nodup_snd_runWith_memoize_le dist
     (fun y => by simpa only [one_div] using BitString.uniformList_apply_le (outLen n) y)
     hBound (cache := []) List.nodup_nil
@@ -777,10 +772,9 @@ theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
     ← PMF.toOuterMeasure_apply_inter_support]
   refine (run.toOuterMeasure.mono (s₂ := {result | ¬(result.2.map Prod.snd).Nodup}) ?_).trans ?_
-  · rintro result ⟨hAccept, hResult⟩
+  · rintro result ⟨hAccept, hResult⟩ h
     have hCache := mem_support_batchReplies
       (nodup_prefixFreeBatchQueries (width n) (Q n) (valid n) guesses) (by simp) hResult
-    intro h
     rw [← hCache, List.map_nil, List.append_nil, List.nodup_reverse] at h
     exact absurd h (by simpa using hAccept)
   · change (ProbOracleComp.runWith (memoize (fun _ => dist)) program []).toOuterMeasure
@@ -886,12 +880,11 @@ theorem isMultiQueryUHF_of_extendable_prefixFreePRF
     ⟨isOraclePPT_prefixFreeBatchReduction hwidth hCap hQ hvalid hGuess,
       fun n => isPrefixFreeOn_prefixFreeBatchReduction guessBatch n (outLen n) (haligned n)⟩
   have hRoom : ∀ᶠ n in Filter.atTop, maxBlocks n * Q n < 2 ^ width n := by
-    have hRatio := Negligible.polynomiallyBounded_div (hMaxBlocks.mul hQpoly) hAlphabet
-    filter_upwards [(hRatio 0).eventually_lt_const zero_lt_one] with n hn
-    simp only [pow_zero, one_mul, Nat.cast_mul] at hn
-    have hlt := (div_lt_iff₀ (pow_pos (by norm_num : (0 : ℝ≥0) < 2) (width n))).mp hn
-    rw [one_mul] at hlt
-    exact_mod_cast hlt
+    filter_upwards [((Negligible.polynomiallyBounded_div (hMaxBlocks.mul hQpoly) hAlphabet)
+      0).eventually_lt_const zero_lt_one] with n hn
+    simp only [pow_zero, one_mul, Nat.cast_mul,
+      div_lt_iff₀ (pow_pos (by norm_num : (0 : ℝ≥0) < 2) (width n))] at hn
+    exact_mod_cast hn
   have hBirthday := Negligible.polynomiallyBounded_div hQpoly.choose_two hOutput
   apply negligible_of_eventually_le ((hPRF.secure _ hReduction).add hBirthday)
   filter_upwards [hRoom, hProbe] with n hRoomN hProbeN

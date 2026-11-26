@@ -573,70 +573,52 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
                 ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
               (ProbOracleComp.runWith (g8Handler setup ck iv d r cmult h5) (setup.adv ck tok)
                 false).map Prod.fst := by
-        have hprod : P =
+        have hprod (f : (Fin qTok → Fin nMult → Fin nMask → ZMod 2) →
+            (H5Query IV nMult lam → Fin nMask → ZMod 2) → PMF Bool) :
             (uniformOfFintype ((Fin qTok → Fin nMult → Fin nMask → ZMod 2) ×
-              (H5Query IV nMult lam → Fin nMask → ZMod 2))).bind fun ⟨cmult, h5⟩ =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  fun e => h5 (φ (j, e))⟩
-              ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5 q))) := by
-          simp only [P]
+              (H5Query IV nMult lam → Fin nMask → ZMod 2))).bind (fun ⟨c, h⟩ => f c h) =
+            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun c =>
+              (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind (f c) := by
           rw [← uniformOfFintype_prod, PMF.bind_bind]
           simp only [PMF.bind_map, Function.comp_def]
-          rw [PMF.bind_comm]
-          rfl
-        have hprod2 :
-            ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-              (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-                let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                  ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
-                (ProbOracleComp.runWith (g8Handler setup ck iv d r cmult h5) (setup.adv ck tok)
-                  false).map Prod.fst) =
-            ((uniformOfFintype ((Fin qTok → Fin nMult → Fin nMask → ZMod 2) ×
-              (H5Query IV nMult lam → Fin nMask → ZMod 2))).map eSwap).bind fun ⟨cmult', h5'⟩ =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  fun e => h5' (φ (j, e))⟩
-              ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5' q))) := by
-          rw [PMF.bind_map, ← uniformOfFintype_prod, PMF.bind_bind]
-          simp only [PMF.bind_map, Function.comp_def]
-          rw [PMF.bind_comm]
-          simp only [eSwap, Equiv.coe_fn_mk]
-          refine Probability.PMF.bind_congr_on_support _ _ _ fun cmult _ =>
-            Probability.PMF.bind_congr_on_support _ _ _ fun h5 _ => ?_
-          let ans (q : H5Query IV nMult lam) : Fin nMask → ZMod 2 :=
-            if h : ∃ p, φ p = q then cmult (Classical.choose h).1 (Classical.choose h).2 else h5 q
-          have hg8_ans (q : H5Query IV nMult lam) (s : Bool) :
-              ((g8Handler setup ck iv d r cmult h5 q s).map fun (a, _) => (a, ())) =
-              (PMF.pure (ans q)).map (·, ()) := by
-            simp only [g8Handler, ans, PMF.pure_map]
-            by_cases h2 : ∃ p, φ p = q
-            · rcases h2 with ⟨p, rfl⟩
-              have h1 : ∃ p', φ p = φ p' := ⟨p, rfl⟩
-              have h2' : ∃ p', φ p' = φ p := ⟨p, rfl⟩
-              have hc1 : Classical.choose h1 = p := hphiInj (Classical.choose_spec h1).symm
-              have hc2 : Classical.choose h2' = p := hphiInj (Classical.choose_spec h2')
-              dsimp only [φ] at h1 h2' hc1 hc2 ⊢
-              simp [h1, h2', hc1, hc2]
-            · have h1 : ¬ ∃ p, q = φ p := fun ⟨p, hp⟩ => h2 ⟨p, hp.symm⟩
-              dsimp only [φ] at h1 h2 ⊢
-              simp [h1, h2]
-          have hunit := congrArg (PMF.map Prod.fst) (ProbOracleComp.runWith_map_state
-            (g8Handler setup ck iv d r cmult h5)
-            (fun q (state : Unit) => (PMF.pure (ans q)).map (·, state))
-            (fun _ => ()) hg8_ans
-            (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩)
-            false)
-          simp only [PMF.map_comp, Function.comp_def] at hunit
-          rw [hunit, ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => PMF.pure (ans q)),
-            PMF.map_comp, show (Prod.fst ∘ fun x : Bool => (x, ())) = id from rfl, PMF.map_id,
-            OracleComp.evalWith_eq_interpret, ProbOracleComp.eval_run]
-          dsimp only [ans]
-          congr 2
-          funext j
-          congr 1
-          exact (congrFun (hcm cmult h5) j).symm
-        rw [hprod, hprod2, uniformOfFintype_map_equiv eSwap]
+        dsimp only [P]
+        rw [PMF.bind_comm, ← hprod]
+        conv_lhs => rw [← uniformOfFintype_map_equiv eSwap, PMF.bind_map]
+        conv_rhs => rw [PMF.bind_comm, ← hprod]
+        simp only [Function.comp_def, eSwap, Equiv.coe_fn_mk]
+        refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨cmult, h5⟩ _ => ?_
+        let ans (q : H5Query IV nMult lam) : Fin nMask → ZMod 2 :=
+          if h : ∃ p, φ p = q then cmult (Classical.choose h).1 (Classical.choose h).2 else h5 q
+        have hg8_ans (q : H5Query IV nMult lam) (s : Bool) :
+            ((g8Handler setup ck iv d r cmult h5 q s).map fun (a, _) => (a, ())) =
+            (PMF.pure (ans q)).map (·, ()) := by
+          simp only [g8Handler, ans, PMF.pure_map]
+          by_cases h2 : ∃ p, φ p = q
+          · rcases h2 with ⟨p, rfl⟩
+            have h1 : ∃ p', φ p = φ p' := ⟨p, rfl⟩
+            have h2' : ∃ p', φ p' = φ p := ⟨p, rfl⟩
+            have hc1 : Classical.choose h1 = p := hphiInj (Classical.choose_spec h1).symm
+            have hc2 : Classical.choose h2' = p := hphiInj (Classical.choose_spec h2')
+            dsimp only [φ] at h1 h2' hc1 hc2 ⊢
+            simp [h1, h2', hc1, hc2]
+          · have h1 : ¬ ∃ p, q = φ p := fun ⟨p, hp⟩ => h2 ⟨p, hp.symm⟩
+            dsimp only [φ] at h1 h2 ⊢
+            simp [h1, h2]
+        have hunit := congrArg (PMF.map Prod.fst) (ProbOracleComp.runWith_map_state
+          (g8Handler setup ck iv d r cmult h5)
+          (fun q (state : Unit) => (PMF.pure (ans q)).map (·, state))
+          (fun _ => ()) hg8_ans
+          (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩)
+          false)
+        simp only [PMF.map_comp, Function.comp_def] at hunit
+        rw [hunit, ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => PMF.pure (ans q)),
+          PMF.map_comp, show (Prod.fst ∘ fun x : Bool => (x, ())) = id from rfl, PMF.map_id,
+          OracleComp.evalWith_eq_interpret, ProbOracleComp.eval_run]
+        dsimp only [ans]
+        congr 2
+        funext j
+        congr 1
+        exact congrFun (hcm cmult h5) j
       have hstep_le : ∀ h5 cmult,
           let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
             ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
@@ -911,46 +893,30 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
           (setup.Com.toScheme.bindingExperiment (badH5BindingReduction setup)) true := by
     simp only [Commitment.Scheme.eval_hidingExperiment, Commitment.Scheme.bindingExperiment,
       Game.withSetup, eval_lrExperiment, badH5HidingReduction, badH5BindingReduction,
-      OpeningCommitment.toScheme, Commitment.Scheme.commitment,
-      MessagePair.select_true, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
-      PMF.bind_apply]
-    refine tsum_le_tsum fun ck => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun jStar => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun rDummy => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun ⟨ivStar, dStar, qs⟩ => mul_le_mul_of_nonneg_left ?_ zero_le
-    let pred : H5Query IV nMult lam → Bool := fun q =>
-      decide (q.iv = ivStar) &&
-        decide (setup.Com.eval ck (setup.msgs ck jStar)
-          (q.label + setup.baseLabel ck jStar q.gate + dStar) =
-          setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy)
-    by_cases hany : qs.any pred = true
-    · dsimp only [pred] at hany
-      simp only [PMF.pure_apply, hany, ↓reduceIte]
-      obtain ⟨q, hq⟩ :=
-        Option.isSome_iff_exists.mp (List.find?_isSome.mpr (List.any_eq_true.mp hany))
+      OpeningCommitment.toScheme, Commitment.Scheme.commitment, MessagePair.select_true,
+      ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, ProbComp.eval_pure,
+      PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+    refine Probability.PMF.bind_apply_mono_on_support _ true fun ck _ =>
+      Probability.PMF.bind_apply_mono_on_support _ true fun jStar _ =>
+        Probability.PMF.bind_apply_mono_on_support _ true fun rDummy _ =>
+          Probability.PMF.bind_apply_mono_on_support _ true fun ⟨ivStar, dStar, qs⟩ _ => ?_
+    dsimp only
+    cases hq : (qs.find? fun q =>
+        decide (q.iv = ivStar) &&
+          decide (setup.Com.eval ck (setup.msgs ck jStar)
+            (q.label + setup.baseLabel ck jStar q.gate + dStar) =
+            setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy)) with
+    | none =>
+      have hany := List.any_eq_false.mpr (List.find?_eq_none.mp hq)
+      simp [hany]
+    | some q =>
       have hqp := List.find?_some hq
       have hqev : setup.Com.eval ck (setup.msgs ck jStar)
           (q.label + setup.baseLabel ck jStar q.gate + dStar) =
-          setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy := by
-        simp only [Bool.and_eq_true, decide_eq_true_eq] at hqp
-        exact hqp.2
-      have hcol : setup.Com.toScheme.isBindingCollision ck
-          { commitment := setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy
-            msg₀ := setup.msgs ck jStar
-            opening₀ := q.label + setup.baseLabel ck jStar q.gate + dStar
-            msg₁ := (setup.msgs ck jStar).bumpBal
-            opening₁ := rDummy } = true := by
-        simp only [Commitment.Scheme.isBindingCollision, OpeningCommitment.toScheme,
-          Bool.and_eq_true, decide_eq_true_eq]
-        exact ⟨⟨(CommitMsg.bumpBal_ne _).symm, hqev⟩, trivial⟩
-      rw [hq]
-      simp only [ProbComp.eval_pure, PMF.pure_apply, ite_mul, one_mul, zero_mul, tsum_ite_eq]
-      simp only [OpeningCommitment.toScheme] at hcol
-      simp only [hcol, ↓reduceIte, le_refl]
-    · dsimp only [pred] at hany
-      simp only [PMF.pure_apply, Bool.eq_false_iff.mpr hany, Bool.true_eq_false, ↓reduceIte,
-        zero_le]
+          setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy :=
+        of_decide_eq_true (Bool.and_eq_true_iff.mp hqp).2
+      refine (PMF.coe_le_one _ true).trans_eq ?_
+      simp [Commitment.Scheme.isBindingCollision, hqev, (CommitMsg.bumpBal_ne _).symm]
   have hbad_real :
       badFullProb.toReal ≤
         (qTok : ℝ) *

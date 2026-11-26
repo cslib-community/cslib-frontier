@@ -171,9 +171,8 @@ theorem edgeWeight_sq (deg : V → ℕ) (θ : ℝ) (u v : V) :
   rw [edgeWeight, div_pow, mul_pow, sq_sqrt (sqrt_nonneg _), sq_sqrt (sqrt_nonneg _)]
 
 private theorem sqrt_two_le_sqrt_deg_sub_one {d : ℕ} (hd : 3 ≤ d) :
-    √2 ≤ √((d : ℝ) - 1) := by
-  have hdR : (3 : ℝ) ≤ d := by exact_mod_cast hd
-  exact sqrt_le_sqrt (by linarith)
+    √2 ≤ √((d : ℝ) - 1) :=
+  sqrt_le_sqrt (by linarith [show (3 : ℝ) ≤ d from mod_cast hd])
 
 private theorem edgeWeight_sq_le_half {deg : V → ℕ} {θ : ℝ} {u v : V} (hu : 3 ≤ deg u)
     (hv : 3 ≤ deg v) : edgeWeight deg θ u v ^ 2 ≤ θ ^ 2 / 2 := by
@@ -277,11 +276,9 @@ private theorem bestWalkWeight_le_one (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hlo :
     split_ifs <;> norm_num
   | succ r ih =>
     rw [bestWalkWeight_succ]
-    refine max_le (ih u) (finsetMaxZero_le zero_le_one fun w _ => ?_)
-    have hq := (edgeWeight_lt_one hθ0 hθ1 (hlo u) (hlo w)).le
-    have hq0 := edgeWeight_nonneg deg hθ0 u w
-    have hr0 := bestWalkWeight_nonneg (H := H) (deg := deg) (θ := θ) r w z
-    nlinarith [ih w]
+    exact max_le (ih u) (finsetMaxZero_le zero_le_one fun w _ =>
+      (mul_le_of_le_one_left (bestWalkWeight_nonneg r w z)
+        (edgeWeight_lt_one hθ0 hθ1 (hlo u) (hlo w)).le).trans (ih w))
 
 /-- At `v` itself, `weightedKernelRow` equals `1` whenever `0 ≤ θ ≤ 1` and degrees are at least
 three. -/
@@ -342,12 +339,10 @@ private theorem weightedKernelRow_defect_le (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) 
     split_ifs <;> positivity
   by_cases hu : bestWalkWeight H deg θ r u z < a
   · rw [ite_eq_left hu]
-    have hprod : b ^ 2 ≤ a * b := by
-      rw [pow_two]
-      exact mul_le_mul_of_nonneg_right hba hb0
     have hκ_ab := mul_le_of_le_one_left (by positivity : 0 ≤ a ^ 2 + b ^ 2)
       (two_mul_div_one_add_sq_le_one q)
-    linarith only [hprod, hκ_ab, hIv, mul_nonneg (hb0.trans hba) hb0]
+    linarith only [(pow_two b).trans_le (mul_le_mul_of_nonneg_right hba hb0), hκ_ab, hIv,
+      mul_nonneg (hb0.trans hba) hb0]
   · rw [ite_eq_right hu, zero_add]
     have hru : bestWalkWeight H deg θ r u z = a :=
       le_antisymm (bestWalkWeight_le_succ r u z) (le_of_not_gt hu)
@@ -489,13 +484,12 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
           ((mul_le_mul_of_nonneg_left hle hq0).trans (step_le_bestWalkWeight_succ r hab z))
       obtain ⟨c, hc_mem, hc_piece, hc_eq⟩ := exists_mem_strictPiece_of_lt hlt_b
       have hca : c ≠ a := by
-        intro hca_eq
-        subst c
-        have hq1 := edgeWeight_lt_one hθ0 hθ1.le (hlo a) (hlo b)
-        rw [hc_eq, edgeWeight_comm deg θ b a, ← mul_assoc, ← sq] at hz'
+        rintro rfl
+        have hq1 := edgeWeight_lt_one hθ0 hθ1.le (hlo c) (hlo b)
+        rw [hc_eq, edgeWeight_comm deg θ b c, ← mul_assoc, ← sq] at hz'
         have hsq1 := (pow_le_pow_left₀ hq0 hq1.le 2).trans_eq (one_pow _)
-        exact hz'.not_ge ((mul_le_of_le_one_left (bestWalkWeight_nonneg r a z) hsq1).trans
-          (bestWalkWeight_le_succ r a z))
+        exact hz'.not_ge ((mul_le_of_le_one_left (bestWalkWeight_nonneg r c z) hsq1).trans
+          (bestWalkWeight_le_succ r c z))
       exact Finset.mem_biUnion.mpr ⟨c, Finset.mem_erase.mpr ⟨hca, hc_mem⟩, hc_piece⟩
     have hsum_cov : ∑ z ∈ strictStepSet H deg θ (r + 1) a b,
           bestWalkWeight H deg θ (r + 1) b z ^ 2 ≤
@@ -869,11 +863,9 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
   have ⟨hE3, hV3⟩ := hQ.card_external_and_blocks_le_three_mul_cycleRank hd hG two
   have hE3' : (Fintype.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
     rwa [← Nat.card_eq_fintype_card]
-  have hA_term := mul_le_mul_of_nonneg_left hdiff_le hA
-  have hξE := mul_le_mul_of_nonneg_left hE3' hξ.le
-  have hξV := mul_le_mul_of_nonneg_right hV3 hξ.le
   have hξ6 : 6 * ξ = η := by simp only [ξ]; ring
-  nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left hdiff_le hA, mul_le_mul_of_nonneg_left hE3' hξ.le,
+    mul_le_mul_of_nonneg_right hV3 hξ.le]
 
 /-! ### Closed-form rational and trigonometric helpers for `d = 4, 5, 6` -/
 
@@ -984,22 +976,18 @@ theorem pairCorrelation_self {d : ℕ} (hd : 1 ≤ d) :
 /-- At `(4, 4)`, `pairCorrelation 4 4 = √3 / 2 = cos (π / 6)`. -/
 theorem pairCorrelation_four_four : pairCorrelation 4 4 = cos (π / 6) := by
   rw [pairCorrelation_self (by norm_num), Gaussian.vertexCorrelation, cos_pi_div_six]
-  push_cast
   norm_num
   ring
 
 /-- At `(5, 5)`, `pairCorrelation 5 5 = 4 / 5`. -/
 theorem pairCorrelation_five_five : pairCorrelation 5 5 = 4 / 5 := by
-  rw [pairCorrelation_self (by norm_num), Gaussian.vertexCorrelation]
-  push_cast
-  have h4 : √((5 : ℝ) - 1) = 2 := (sqrt_eq_iff_eq_sq (by norm_num) (by norm_num)).mpr (by norm_num)
-  rw [h4]
+  rw [pairCorrelation_self (by norm_num), Gaussian.vertexCorrelation,
+    show ((5 : ℕ) : ℝ) - 1 = 2 ^ 2 by norm_num, sqrt_sq zero_le_two]
   norm_num
 
 /-- At `(6, 6)`, `pairCorrelation 6 6 = √5 / 3`. -/
 theorem pairCorrelation_six_six : pairCorrelation 6 6 = √5 / 3 := by
   rw [pairCorrelation_self (by norm_num), Gaussian.vertexCorrelation]
-  push_cast
   norm_num
   ring
 
@@ -1121,8 +1109,7 @@ have layouts of width `(1 / 3 + o(1)) β₁ + o(|V|)`: `(4, 4)` edges meet `1 / 
 `(3, 4)` edges have strictly smaller normalized crossing probability. -/
 theorem layoutBound_four_one_third : LayoutBound 4 (1 / 3) := by
   refine layoutBound_of_weightedKernel (by norm_num) (by norm_num) fun d₁ d₂ h1 h12 h2 hsum => ?_
-  have hcases : (d₁ = 3 ∧ d₂ = 4) ∨ (d₁ = 4 ∧ d₂ = 4) := by omega
-  rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  rcases (by omega : (d₁ = 3 ∧ d₂ = 4) ∨ (d₁ = 4 ∧ d₂ = 4)) with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
   · exact arccos_pairCorrelation_three_four_le.trans_eq (by push_cast; norm_num)
   · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos])]
     push_cast; field_simp; norm_num
@@ -1133,14 +1120,12 @@ have layouts of width `(fiveCoefficient + o(1)) β₁ + o(|V|)`, where
 theorem layoutBound_five_weighted : LayoutBound 5 WeightedKernel.fiveCoefficient := by
   refine layoutBound_of_weightedKernel (by norm_num) WeightedKernel.fiveCoefficient_pos.le
     fun d₁ d₂ h1 h12 h2 hsum => ?_
-  have hcases :
-      (d₁ = 4 ∧ d₂ = 4) ∨ (d₁ = 3 ∧ d₂ = 5) ∨ (d₁ = 4 ∧ d₂ = 5) ∨ (d₁ = 5 ∧ d₂ = 5) := by
-    omega
   unfold WeightedKernel.fiveCoefficient
   rw [div_mul_eq_mul_div]
   refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha5 := WeightedKernel.le_arccos_four_fifths
-  rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  rcases (by omega : (d₁ = 4 ∧ d₂ = 4) ∨ (d₁ = 3 ∧ d₂ = 5) ∨ (d₁ = 4 ∧ d₂ = 5) ∨
+      (d₁ = 5 ∧ d₂ = 5)) with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
   · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos])]
     push_cast; linarith [pi_lt_d4]
   · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_three_five_le]
@@ -1153,14 +1138,13 @@ have layouts of width `(sixCoefficient + o(1)) β₁ + o(|V|)`, where
 theorem layoutBound_six_weighted : LayoutBound 6 WeightedKernel.sixCoefficient := by
   refine layoutBound_of_weightedKernel (by norm_num) WeightedKernel.sixCoefficient_pos.le
     fun d₁ d₂ h1 h12 h2 hsum => ?_
-  have hcases : (d₁ = 4 ∧ d₂ = 5) ∨ (d₁ = 3 ∧ d₂ = 6) ∨ (d₁ = 4 ∧ d₂ = 6) ∨
-      (d₁ = 5 ∧ d₂ = 5) ∨ (d₁ = 5 ∧ d₂ = 6) ∨ (d₁ = 6 ∧ d₂ = 6) := by
-    omega
   unfold WeightedKernel.sixCoefficient
   rw [div_mul_eq_mul_div]
   refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha6 := WeightedKernel.le_arccos_sqrt_five_div_three
-  rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  rcases (by omega : (d₁ = 4 ∧ d₂ = 5) ∨ (d₁ = 3 ∧ d₂ = 6) ∨ (d₁ = 4 ∧ d₂ = 6) ∨
+      (d₁ = 5 ∧ d₂ = 5) ∨ (d₁ = 5 ∧ d₂ = 6) ∨ (d₁ = 6 ∧ d₂ = 6)) with
+    ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
   · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
   · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_three_six_le]
   · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_six_le]

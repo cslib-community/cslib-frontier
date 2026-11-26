@@ -373,10 +373,8 @@ theorem length_snd_of_mem_support_uniformDraws {k : ℕ}
     {p : BitString n × List (BitString n)}
     (h : p ∈ ((PMF.uniformOfFintype (BitString n)).bind fun iv =>
       (uniformBlocks (n := n) k).map (iv, ·)).support) : p.2.length = k := by
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨iv, -, hp⟩ := h
-  rw [PMF.support_map] at hp
-  obtain ⟨us, hus, rfl⟩ := hp
+  obtain ⟨iv, -, hp⟩ := (PMF.mem_support_bind_iff _ _ _).mp h
+  obtain ⟨us, hus, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
   exact length_of_mem_support_uniformBlocks hus
 
 /-- XORing a fixed block sequence `ms` into `uniformBlocks ms.length` preserves the uniform
@@ -441,23 +439,15 @@ theorem toOuterMeasure_badChain_le :
     refine le_trans (Probability.PMF.toOuterMeasure_bind_failure_le _ _ S0ᶜ _ C
       fun iv _ hiv => ?_) ?_
     · rw [uniformBlocks_succ, PMF.map_bind]
-      have hnotMem : iv + b ∉ ks := hiv
-      have hih := toOuterMeasure_badChain_le bs ((iv + b) :: ks)
-      have hle :
-          ((PMF.uniformOfFintype (BitString n)).bind fun u =>
-            ((uniformBlocks (n := n) bs.length).map (u :: ·)).map (iv, ·)).toOuterMeasure
-            {p : BitString n × List (BitString n) | ¬goodChain ks p.1 (b :: bs) p.2} ≤
-          ((PMF.uniformOfFintype (BitString n)).bind fun u =>
-            (uniformBlocks (n := n) bs.length).map (u, ·)).toOuterMeasure
-            {p : BitString n × List (BitString n) | ¬goodChain ((iv + b) :: ks) p.1 bs p.2} := by
-        rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-        refine tsum_le_tsum fun u => mul_le_mul_of_nonneg_left ?_ zero_le
-        rw [PMF.map_comp, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
-        refine MeasureTheory.measure_mono fun us hus => ?_
-        simp only [Set.mem_preimage, Function.comp_apply, Set.mem_ofPred_eq,
-          goodChain, hnotMem, not_false_eq_true, true_and] at hus ⊢
-        exact hus
-      exact hle.trans (by simpa [C] using hih)
+      refine (?_ : _ ≤ ((PMF.uniformOfFintype (BitString n)).bind fun u =>
+          (uniformBlocks (n := n) bs.length).map (u, ·)).toOuterMeasure
+          {p | ¬goodChain ((iv + b) :: ks) p.1 bs p.2}).trans
+        (by simpa [C] using toOuterMeasure_badChain_le bs ((iv + b) :: ks))
+      rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
+      refine tsum_le_tsum fun u => mul_le_mul_of_nonneg_left ?_ zero_le
+      rw [PMF.map_comp, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
+      exact MeasureTheory.measure_mono fun us => by
+        simp [goodChain, show iv + b ∉ ks from hiv]
     · rw [compl_compl]
       calc (PMF.uniformOfFintype (BitString n)).toOuterMeasure S0 + C
           ≤ (ks.length : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ + C :=
@@ -544,10 +534,8 @@ theorem streamIVReuseRealGame_eq_pure_true (padDist : PMF (BitString n)) (m₀ m
 private theorem uniform_addHom_decide_eq_apply_true {α : Type*} [Fintype α] [AddGroup α]
     (φ : α →+ BitString n) (hsurj : Function.Surjective φ) (target : BitString n) :
     (PMF.uniformOfFintype α).map (fun x => decide (φ x = target)) true = ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  have hfactor : (PMF.uniformOfFintype α).map (fun x => decide (φ x = target)) =
-      ((PMF.uniformOfFintype α).map φ).map (fun s => decide (s = target)) := by
-    rw [PMF.map_comp]; rfl
-  rw [hfactor, PMF.uniformOfFintype_map_addHom φ hsurj, PMF.map_apply, tsum_fintype]
+  rw [show (fun x => decide (φ x = target)) = (fun s => decide (s = target)) ∘ φ from rfl,
+    ← PMF.map_comp, PMF.uniformOfFintype_map_addHom φ hsurj, PMF.map_apply, tsum_fintype]
   simp [PMF.uniformOfFintype_apply, eq_comm (a := true)]
 
 private theorem advantage_pure_true_of_apply_true_inv_two_pow {g₁ g₂ : Game}
@@ -736,10 +724,8 @@ theorem additiveModeDistinguisher_spec {B α : Type*} [AddCommGroup B] [Decidabl
     {π : B → α} (hπ : Function.Injective π) {δ : B} (hδ : δ ≠ 0) (r : B) :
     additiveModeDistinguisher (additiveModeCipher π δ r 0 0) = false ∧
       additiveModeDistinguisher (additiveModeCipher π δ r 0 (-δ)) = true := by
-  unfold additiveModeDistinguisher additiveModeCipher
-  refine ⟨?_, ?_⟩
-  · simp [hπ.eq_iff, hδ]
-  · simp
+  exact ⟨by simp [additiveModeDistinguisher, additiveModeCipher, hπ.eq_iff, hδ],
+    by simp [additiveModeDistinguisher, additiveModeCipher]⟩
 /-! ### Transmission error-propagation laws and separations (Exercises 3.29 and 3.30) -/
 /-- Flip bit `i : Fin n` of ciphertext block `b : ℕ` in an indexed block stream `c : ℕ →
   BitString n`. -/
@@ -780,19 +766,14 @@ theorem maskBlockDecrypt_ofbBlockMask_ofbEncryptBlocks (f : BitString n → BitS
     (hc : ∀ j (hj : j < ms.length), c (j + 1) = (ofbEncryptBlocks f iv ms)[j]'(by simpa)) :
     ∀ j (hj : j < ms.length), maskBlockDecrypt (ofbBlockMask f) iv c (j + 1) = ms[j] := by
   intro j hj
-  have hchain : ∀ (v : BitString n) (k i : ℕ) (hi : i < k),
+  have hchain (v : BitString n) (k : ℕ) : ∀ (i : ℕ) (hi : i < k),
       (ofbChain f v k)[i]'(by simpa) = (f^[i + 1]) v := by
-    intro v k
     induction k generalizing v with
-    | zero => intro i hi; omega
+    | zero => omega
     | succ k ih =>
-      intro i hi
-      cases i with
-      | zero => simp [ofbChain]
-      | succ i =>
-        simp only [ofbChain, List.getElem_cons_succ]
-        rw [ih (f v) i (by omega)]
-        simp only [Function.iterate_succ_apply]
+      rintro (_ | i) hi
+      · simp [ofbChain]
+      · simp [ofbChain, ih (f v) i (by omega), Function.iterate_succ_apply]
   rw [maskBlockDecrypt, ofbBlockMask, hc j hj]
   simp only [ofbEncryptBlocks, List.getElem_zipWith]
   rw [hchain iv ms.length j hj, ← add_assoc, BitString.add_self, zero_add]

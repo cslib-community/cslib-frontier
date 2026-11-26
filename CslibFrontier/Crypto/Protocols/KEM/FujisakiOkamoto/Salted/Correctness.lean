@@ -1299,8 +1299,7 @@ private theorem realDecaps_apply_eq_prefetchDecaps
     simp only
     refine tsum_congr fun z => ?_
     by_cases hz : S.GoodCache pk sk z.2
-    · rw [S.realJoint_apply_eq_simJoint pk sk (S.jointInput pk message ciphertext.salt)
-          st z hz]
+    · rw [S.realJoint_apply_eq_simJoint pk sk _ st z hz]
     · have hcont : ((if S.pke.encDet pk message z.1.coins = ciphertext.pke then
           pure (some z.1.key)
         else
@@ -1388,25 +1387,17 @@ private theorem realDecaps_bad_eq_realJoint_bad
   simp only [hdec, StateT.bind_apply, PMF.monad_bind_eq_bind]
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
   refine tsum_congr fun z => ?_
+  let cont := (if S.pke.encDet pk message z.1.coins = ciphertext.pke then
+    pure (some z.1.key) else some <$> S.decapsKey ciphertext) z.2
+  have hmem_jc {y} (hy : y ∈ cont.support) : y.2.jointCache = z.2.jointCache :=
+    S.decapsContinuation_jointCache_eq ciphertext z hy
   by_cases hbad : ¬S.GoodCache pk sk z.2
-  · have hone :
-        (((if S.pke.encDet pk message z.1.coins = ciphertext.pke then
-              pure (some z.1.key)
-            else
-              some <$> S.decapsKey ciphertext) z.2).toOuterMeasure
-          {y | ¬S.GoodCache pk sk y.2}) = 1 :=
-      (PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr fun y hy hgood => hbad (hgood.of_subset
-        fun _ hentry => by rwa [S.decapsContinuation_jointCache_eq ciphertext z hy])
-    rw [hone, mul_one, Set.indicator_of_mem hbad]
-  · have hzero :
-        (((if S.pke.encDet pk message z.1.coins = ciphertext.pke then
-              pure (some z.1.key)
-            else
-              some <$> S.decapsKey ciphertext) z.2).toOuterMeasure
-          {y | ¬S.GoodCache pk sk y.2}) = 0 :=
-      toOuterMeasure_notGood_eq_zero (not_not.mp hbad) fun y hy _ hentry => by
-        rwa [S.decapsContinuation_jointCache_eq ciphertext z hy] at hentry
-    rw [hzero, mul_zero, Set.indicator_of_notMem hbad]
+  · rw [(PMF.toOuterMeasure_apply_eq_one_iff cont {y | ¬S.GoodCache pk sk y.2}).mpr
+        fun y hy hgood => hbad (hgood.of_subset fun _ h => (hmem_jc hy) ▸ h),
+      mul_one, Set.indicator_of_mem hbad]
+  · rw [toOuterMeasure_notGood_eq_zero (μ := cont) (not_not.mp hbad)
+        fun y hy _ h => (hmem_jc hy) ▸ h,
+      mul_zero, Set.indicator_of_notMem hbad]
 
 /-- From a good cache with a fresh implicit joint input, one successful real decapsulation creates
 a bad cache with exactly the decoded message's decryption-failure probability. This is the
@@ -1518,16 +1509,11 @@ private theorem realHandler_bad_le [Fintype M] [Nonempty M]
   rcases q with input | input | ciphertext
   · simpa only [realHandler, Query.dispatch, Query.jointCost, Query.decapsCost, Nat.cast_one,
       Nat.cast_zero, one_mul, zero_mul, add_zero] using S.realJoint_bad_le pk sk input hs
-  · simp only [realHandler, Query.dispatch, Query.jointCost, Query.decapsCost,
-      Nat.cast_zero, zero_mul, add_zero]
-    exact le_of_eq (toOuterMeasure_notGood_eq_zero hs fun z hz entry hentry => by
-      rwa [S.rejection_jointCache_eq input hz] at hentry)
+  · simp only [Query.jointCost, Query.decapsCost, Nat.cast_zero, zero_mul, add_zero]
+    exact (S.realHandler_rejection_bad_eq_zero pk sk challenge input hs).le
   · by_cases hc : ciphertext = challenge
-    · simp only [realHandler, Query.dispatch, hc, ↓reduceIte, Query.jointCost, Query.decapsCost,
-        Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, zero_add]
-      exact (le_of_eq (toOuterMeasure_notGood_eq_zero hs fun z hz entry hentry => by
-          supp_cases hz [StateT.pure_apply]
-          exact hentry)).trans zero_le
+    · subst hc
+      simp [hs]
     · simpa only [realHandler, Query.dispatch, hc, ↓reduceIte, Query.jointCost,
         Query.decapsCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, zero_add] using
         S.realDecaps_bad_le pk sk ciphertext hs

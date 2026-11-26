@@ -25,7 +25,7 @@ factor on the other block. -/
 example : ∃ g h : Finset (Fin 2) → Fin (1 + 1 + 1) → MvPolynomial (Fin 2) ℚ,
     (∀ S δ, IsSetMultilinear id S (g S δ)) ∧ (∀ S δ, IsSetMultilinear id Sᶜ (h S δ)) ∧
       (X 0 * X 1 : MvPolynomial (Fin 2) ℚ) =
-        ∑ S with 2 ≤ 3 * S.card ∧ 3 * S.card ≤ 2 * 2, ∑ δ, g S δ * h S δ := by
+        ∑ S ∈ balancedSets 2, ∑ δ, g S δ * h S δ := by
   obtain ⟨g, h, hg, hh, e⟩ := exists_balanced_products
     ((computedWithin_X (K := ℚ) (0 : Fin 2)).mul (computedWithin_X 1)) id le_rfl
   refine ⟨g, h, hg, hh, e ▸ (IsSetMultilinear.smProj_eq_self ?_).symm⟩
@@ -38,7 +38,7 @@ example {σ K : Type*} [CommSemiring K] {k s : ℕ} {P : MvPolynomial σ K}
     (hP : ComputedWithin P s) (blk : σ → Fin k) (hk : 2 ≤ k) (hsm : IsSetMultilinear blk univ P) :
     ∃ g h : Finset (Fin k) → Fin s → MvPolynomial σ K,
       (∀ S δ, IsSetMultilinear blk S (g S δ)) ∧ (∀ S δ, IsSetMultilinear blk Sᶜ (h S δ)) ∧
-      P = ∑ S with k ≤ 3 * S.card ∧ 3 * S.card ≤ 2 * k, ∑ δ, g S δ * h S δ := by
+      P = ∑ S ∈ balancedSets k, ∑ δ, g S δ * h S δ := by
   obtain ⟨g, h, hg, hh, e⟩ := exists_balanced_products hP blk hk
   exact ⟨g, h, hg, hh, hsm.smProj_eq_self ▸ e⟩
 

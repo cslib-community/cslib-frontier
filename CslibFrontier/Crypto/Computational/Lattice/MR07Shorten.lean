@@ -426,26 +426,23 @@ theorem ratOrthoScale_sq_bounds {sqS sqV : ℚ} (hS : 0 < sqS) (hV : 0 < sqV) :
     calc (k + 1) ^ 2 = k ^ 2 + 2 * k + 1 := by ring
       _ ≤ 64 * m + 2 * (8 * m) + m := by omega
       _ = 81 * m := by ring
-  have hd_q : (0 : ℚ) < (d : ℚ) := Nat.cast_pos.mpr hd_pos
-  have hlo_q : (64 * (p : ℚ) * (d : ℚ)) < ((k + 1 : ℕ) : ℚ) ^ 2 := by
-    have : 64 * p * d < (k + 1) ^ 2 := by simpa [m, mul_assoc] using hlo_nat
-    exact_mod_cast this
+  have hlo_q : 64 * (p : ℚ) * (d : ℚ) < ((k + 1 : ℕ) : ℚ) ^ 2 := by
+    exact_mod_cast (mul_assoc 64 p d).symm ▸ hlo_nat
   have hhi_q : ((k + 1 : ℕ) : ℚ) ^ 2 ≤ 81 * (p : ℚ) * (d : ℚ) := by
-    have : (k + 1) ^ 2 ≤ 81 * p * d := by simpa [m, mul_assoc] using hhi_nat
-    exact_mod_cast this
-  have hsq_eq : (((k + 1 : ℕ) : ℚ) / (16 * (d : ℚ))) ^ 2 =
-      ((k + 1 : ℕ) : ℚ) ^ 2 / (256 * (d : ℚ) ^ 2) := by
-    rw [div_pow]; ring
+    exact_mod_cast (mul_assoc 81 p d).symm ▸ hhi_nat
+  have hden_pos : (0 : ℚ) < (16 * (d : ℚ)) ^ 2 := by positivity
   have hk_def : Nat.sqrt (64 * p * d) = k := by simp [k, m, mul_assoc]
-  rw [hk_def, hsq_eq, hq_eq]
-  constructor
-  · rw [lt_div_iff₀ (by positivity)]
-    have h1 : (1 / 4 : ℚ) * ((p : ℚ) / (d : ℚ)) * (256 * (d : ℚ) ^ 2) =
-        64 * (p : ℚ) * (d : ℚ) := by field_simp; ring
+  rw [hk_def, div_pow, hq_eq]
+  refine ⟨(lt_div_iff₀ hden_pos).mpr ?_, (div_le_iff₀ hden_pos).mpr ?_⟩
+  · have h1 : (1 / 4 : ℚ) * ((p : ℚ) / (d : ℚ)) * (16 * (d : ℚ)) ^ 2 =
+        64 * (p : ℚ) * (d : ℚ) := by
+      field_simp
+      ring
     linarith
-  · rw [div_le_iff₀ (by positivity)]
-    have h2 : (9 / 16 : ℚ) ^ 2 * ((p : ℚ) / (d : ℚ)) * (256 * (d : ℚ) ^ 2) =
-        81 * (p : ℚ) * (d : ℚ) := by field_simp; ring
+  · have h2 : (9 / 16 : ℚ) ^ 2 * ((p : ℚ) / (d : ℚ)) * (16 * (d : ℚ)) ^ 2 =
+        81 * (p : ℚ) * (d : ℚ) := by
+      field_simp
+      ring
     linarith
 
 /-- `m × (m + 1)` `RatTable` whose rows are `{S j : j ≠ i}` ordered by `i.succAbove`. -/
@@ -511,17 +508,13 @@ theorem ratOrthoTarget_spec {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
   have hv_orth : ∀ j, j ≠ iStar → ∑ k : Fin (m + 1), v k * S j k = 0 := by
     intro j hj
     obtain ⟨a, rfl⟩ := Fin.exists_succAbove_eq hj
-    have ha := congr_fun hv_ker a
-    change ∑ k : Fin (m + 1), (omitRowTable S iStar).toMatrix a k * v k = 0 at ha
-    have ha' : ∑ k : Fin (m + 1), S (iStar.succAbove a) k * v k = 0 := by
-      simpa only [omitRowTable_toMatrix_apply] using ha
-    simpa only [mul_comm] using ha'
+    have ha : ∑ k : Fin (m + 1), (omitRowTable S iStar).toMatrix a k * v k = 0 :=
+      congr_fun hv_ker a
+    simpa only [omitRowTable_toMatrix_apply, mul_comm] using ha
   set ρ := ratOrthoScale (sqNormRat (S iStar)) (sqNormRat v)
   have ht_eq : ratOrthoTarget S = fun k => ρ * v k := by
-    funext k
-    change ratOrthoScale (sqNormRat (S iStar))
-      (sqNormRat fun k => ((Cslib.LinearAlgebra.ratKernelBasis M).headD []).getD k.val 0) *
-      ((Cslib.LinearAlgebra.ratKernelBasis M).headD []).getD k.val 0 = ρ * v k
+    unfold ratOrthoTarget
+    dsimp only
     rw [hhead]
   have hS_pos : 0 < sqNormRat (S iStar) :=
     sqNormRat_pos_of_ne_zero fun h0 => hS.ne_zero iStar (by ext k; simp [toEuclidean, h0])
@@ -536,23 +529,14 @@ theorem ratOrthoTarget_spec {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
     (norm_maxSqNormIndex_eq_pi_norm S).symm
   have ht_sq_lo : (1 / 4 : ℝ) * ‖fun j => toEuclidean (S j)‖ ^ 2 <
       ‖toEuclidean (ratOrthoTarget S)‖ ^ 2 := by
-    have hlo_q' : (1 / 4 : ℚ) * sqNormRat (S iStar) < ρ ^ 2 * sqNormRat v := by
-      have := mul_lt_mul_of_pos_right hlo_q hv_pos
-      rwa [mul_assoc, div_mul_cancel₀ _ hv_pos.ne'] at this
-    have hlo_r : (1 / 4 : ℝ) * (sqNormRat (S iStar) : ℝ) < (ρ : ℝ) ^ 2 * (sqNormRat v : ℝ) := by
-      simpa only [Rat.cast_mul, Rat.cast_pow, Rat.cast_div, Rat.cast_ofNat, Rat.cast_one] using
-        (Rat.cast_lt (K := ℝ)).mpr hlo_q'
-    rwa [sqNormRat_cast_eq_norm_sq, sqNormRat_cast_eq_norm_sq, ← hnorm_t_sq, ← hpi_eq] at hlo_r
+    have hq' : (1 / 4 : ℚ) * sqNormRat (S iStar) < ρ ^ 2 * sqNormRat v := by
+      rwa [← mul_div_assoc, div_lt_iff₀ hv_pos] at hlo_q
+    simpa [hpi_eq, hnorm_t_sq, ← sqNormRat_cast_eq_norm_sq] using (Rat.cast_lt (K := ℝ)).mpr hq'
   have ht_sq_hi : ‖toEuclidean (ratOrthoTarget S)‖ ^ 2 ≤
       (9 / 16 : ℝ) ^ 2 * ‖fun j => toEuclidean (S j)‖ ^ 2 := by
-    have hhi_q' : ρ ^ 2 * sqNormRat v ≤ (9 / 16 : ℚ) ^ 2 * sqNormRat (S iStar) := by
-      have := mul_le_mul_of_nonneg_right hhi_q hv_pos.le
-      rwa [mul_assoc, div_mul_cancel₀ _ hv_pos.ne'] at this
-    have hhi_r :
-        (ρ : ℝ) ^ 2 * (sqNormRat v : ℝ) ≤ (9 / 16 : ℝ) ^ 2 * (sqNormRat (S iStar) : ℝ) := by
-      simpa only [Rat.cast_mul, Rat.cast_pow, Rat.cast_div, Rat.cast_ofNat] using
-        (Rat.cast_le (K := ℝ)).mpr hhi_q'
-    rwa [sqNormRat_cast_eq_norm_sq, sqNormRat_cast_eq_norm_sq, ← hnorm_t_sq, ← hpi_eq] at hhi_r
+    have hq' : ρ ^ 2 * sqNormRat v ≤ (9 / 16 : ℚ) ^ 2 * sqNormRat (S iStar) := by
+      rwa [← mul_div_assoc, le_div_iff₀ hv_pos] at hhi_q
+    simpa [hpi_eq, hnorm_t_sq, ← sqNormRat_cast_eq_norm_sq] using (Rat.cast_le (K := ℝ)).mpr hq'
   refine ⟨?_, ?_, ?_⟩
   · intro j hj
     rw [toEuclidean, toEuclidean, EuclideanSpace.inner_eq_star_dotProduct]
@@ -820,39 +804,34 @@ theorem shortenGuardedIter_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : 
     let K := shortenRoundBound (finrank ℤ L) B
     GIVP.IsSolution φ (8 * γ) L (seq K) ∧ ‖seq K‖ ≤ ‖seq 0‖ := by
   set K := shortenRoundBound (finrank ℤ L) B
-  have hinv : ∀ k ≤ K,
-      LinearIndependent ℝ (seq k) ∧ (∀ j, seq k j ∈ L) ∧ ‖seq k‖ ≤ ‖seq 0‖ := by
+  have hinv : ∀ k ≤ K, LinearIndependent ℝ (seq k) ∧ ∀ j, seq k j ∈ L := by
     intro k hk
     induction k with
-    | zero => exact ⟨hS₀_li, hS₀_mem, le_rfl⟩
+    | zero => exact ⟨hS₀_li, hS₀_mem⟩
     | succ k ih =>
       have hkl : k < K := Nat.lt_of_succ_le hk
-      obtain ⟨hli, hmem, hnorm⟩ := ih hkl.le
+      obtain ⟨hli, hmem⟩ := ih hkl.le
       rw [hstep k hkl]
-      obtain ⟨hli', hmem', hnorm'⟩ := shortenGuardedStep_invariants hli hmem _ _
-      exact ⟨hli', hmem', hnorm'.trans hnorm⟩
-  have hmono_norm : ∀ a b, a ≤ b → b ≤ K → ‖seq b‖ ≤ ‖seq a‖ := by
+      exact ⟨(shortenGuardedStep_invariants hli hmem _ _).1,
+        (shortenGuardedStep_invariants hli hmem _ _).2.1⟩
+  have hmono_norm : ∀ {a b}, a ≤ b → b ≤ K → ‖seq b‖ ≤ ‖seq a‖ := by
     intro a b hab hbK
-    induction b with
-    | zero => rw [Nat.le_zero.mp hab]
-    | succ b ih =>
-      rcases eq_or_lt_of_le hab with rfl | hlt
-      · exact le_rfl
-      · have hbl : b < K := Nat.lt_of_succ_le hbK
-        obtain ⟨hli, hmem, _⟩ := hinv b hbl.le
-        have h1 : ‖seq (b + 1)‖ ≤ ‖seq b‖ := by
-          rw [hstep b hbl]
-          exact (shortenGuardedStep_invariants hli hmem _ _).2.2
-        exact h1.trans (ih (Nat.le_of_lt_succ hlt) hbl.le)
-  obtain ⟨hliK, hmemK, hnormK⟩ := hinv K le_rfl
-  refine ⟨?_, hnormK⟩
+    induction hab with
+    | refl => exact le_rfl
+    | @step m _ ih =>
+      have hml : m < K := Nat.lt_of_succ_le hbK
+      obtain ⟨hli, hmem⟩ := hinv m hml.le
+      rw [hstep m hml]
+      exact (shortenGuardedStep_invariants hli hmem _ _).2.2.trans (ih hml.le)
+  obtain ⟨hliK, hmemK⟩ := hinv K le_rfl
+  refine ⟨?_, hmono_norm (Nat.zero_le K) le_rfl⟩
   by_cases hn : finrank ℤ L = 0
   · exact ⟨hliK, hmemK, fun j => absurd j.isLt (by omega)⟩
   · have hnpos : 0 < finrank ℤ L := Nat.pos_of_ne_zero hn
     by_contra hnot
     have hval_all : ∀ k < K, IncGDD.IsValidInstance φ γ L (seq k) (‖seq k‖ / 8) := by
       intro k hk
-      obtain ⟨hlik, hmemk, _⟩ := hinv k hk.le
+      obtain ⟨hlik, hmemk⟩ := hinv k hk.le
       rcases isSolution_givp_or_isValidInstance_incGDD φ γ L (seq k) hlik hmemk with
         hsol | hval
       · exfalso
@@ -861,11 +840,11 @@ theorem shortenGuardedIter_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : 
         have hle_k : ‖seq k‖ ≤ 8 * γ * φ L :=
           (pi_norm_le_iff_of_nonneg ((norm_nonneg _).trans (hsol.norm_le ⟨0, hnpos⟩))).2
             hsol.norm_le
-        exact (norm_le_pi_norm (seq K) j).trans ((hmono_norm k K hk.le le_rfl).trans hle_k)
+        exact (norm_le_pi_norm (seq K) j).trans ((hmono_norm hk.le le_rfl).trans hle_k)
       · exact hval
     have hdrop : ∀ k < K, sqNormProd (seq (k + 1)) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd (seq k) := by
       intro k hk
-      obtain ⟨hlik, hmemk, _⟩ := hinv k hk.le
+      obtain ⟨hlik, hmemk⟩ := hinv k hk.le
       have ⟨hi, horth, hlo, hhi⟩ := hTarget (seq k) hlik hmemk
       rw [hstep k hk]
       exact (shortenGuardedStep_of_incGDD hlik hi horth hlo hhi

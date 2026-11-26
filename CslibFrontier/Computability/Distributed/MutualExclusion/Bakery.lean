@@ -775,22 +775,23 @@ private theorem bakeryInv_step [Fintype P] [LinearOrder P]
         rcases hp2' with hmem | rfl
         · exact hinv.l2_scan i k hik (by simp [passedL2, hph, hmem])
         · refine ⟨fun sc ac hrm _ => ?_, fun nt hwn => ?_⟩
-          · have hch_true := (hinv.local_inv target).readMax sc ac hrm
-            simp [BakeryState.SafeReadChoosing, BakeryState.isWritingChoosing, hrm, hch_true]
-              at hsafe
-          · have hch_true := ((hinv.local_inv target).writeNumber nt hwn).1
-            simp [BakeryState.SafeReadChoosing, BakeryState.isWritingChoosing, hwn, hch_true]
-              at hsafe
+          · simp [BakeryState.SafeReadChoosing, BakeryState.isWritingChoosing, hrm,
+              (hinv.local_inv target).readMax sc ac hrm] at hsafe
+          · simp [BakeryState.SafeReadChoosing, BakeryState.isWritingChoosing, hwn,
+              ((hinv.local_inv target).writeNumber nt hwn).1] at hsafe
       | pollNumNext _ _ checked target _ hph =>
         simp only [passedL2, Function.update_self, Finset.mem_insert] at hp2'
-        have hp2 : passedL2 s i k := by
-          simp only [passedL2, hph]; exact hp2'.elim (fun h => Or.inr h.symm) Or.inl
-        dsimp only at hph_k ⊢; rw [hph_k]; exact hinv.l2_scan i k hik hp2
-      | pollNumCS _ _ checked target hph _ _ hall =>
-        have hp2 : passedL2 s i k := by
+        dsimp only at hph_k ⊢
+        rw [hph_k]
+        exact hinv.l2_scan i k hik (by
           simp only [passedL2, hph]
-          exact (Finset.mem_insert.mp (hall k)).elim (fun h => Or.inr h.symm) Or.inl
-        dsimp only at hph_k ⊢; rw [hph_k]; exact hinv.l2_scan i k hik hp2
+          exact hp2'.elim (Or.inr ·.symm) Or.inl)
+      | pollNumCS _ _ checked target hph _ _ hall =>
+        dsimp only at hph_k ⊢
+        rw [hph_k]
+        exact hinv.l2_scan i k hik (by
+          simp only [passedL2, hph]
+          exact (Finset.mem_insert.mp (hall k)).elim (Or.inr ·.symm) Or.inl)
       | _ => simp [passedL2] at hp2'
     · obtain ⟨hph_i, _, hnum_i⟩ := step_actor_frame htr hact_i
       have hp2 : passedL2 s i k := (passedL2_congr hph_i).mp hp2'
@@ -837,11 +838,8 @@ private theorem bakeryInv_step [Fintype P] [LinearOrder P]
               (localInv_number_pos_of_inBakery (hinv.local_inv k))
           simp only [BakeryState.SafeReadNumber, hnwr_k, Bool.false_eq_true, false_or] at hsafe
           subst hsafe
-          have hnot_lt : ¬ (s.ticket k < s.ticket i) := fun hlt =>
-            hpass ⟨Nat.ne_of_gt hpos_k, hlt⟩
-          have hne_tk : s.ticket i ≠ s.ticket k := fun heq =>
-            hik (Prod.ext_iff.mp (ofLex_inj.mpr heq)).2
-          exact lt_of_le_of_ne (not_lt.mp hnot_lt) hne_tk
+          refine lt_of_le_of_ne (not_lt.mp fun hlt => hpass ⟨hpos_k.ne', hlt⟩) fun heq => ?_
+          exact hik (Prod.ext_iff.mp (ofLex_inj.mpr heq)).2
         · exact hinv.l3_ticket i k hik (by simp [passedL3, hph, hmem]) hk_in
       cases bakeryActorStep_of_step htr hact_i with
       | pollChSpin | pollNumSpin => exact hinv.l3_ticket i k hik hp3' hk_in
@@ -899,9 +897,7 @@ failures or halts — at most one process is in `CriticalSection`. -/
 theorem bakery_mutualExclusion [Fintype P] [LinearOrder P] {s : BakeryState P}
     (hr : s.Reachable) {p q : P} (hp : s.inCS p) (hq : s.inCS q) : p = q := by
   by_contra hne
-  have h1 := bakery_cs_lt hr hp (BakeryState.inBakery_of_inCS hq) hne
-  have h2 := bakery_cs_lt hr hq (BakeryState.inBakery_of_inCS hp) (Ne.symm hne)
-  exact lt_asymm h1 h2
+  exact lt_asymm (bakery_cs_lt hr hp (.inr hq) hne) (bakery_cs_lt hr hq (.inr hp) (Ne.symm hne))
 
 /-! ### Doorway ordering and First-Come-First-Served -/
 
@@ -1251,13 +1247,11 @@ private theorem waitMeasure_step_lt_of_quiescent [Fintype P] [LinearOrder P]
       · exact lt_asymm hlt_tk (hmin target ht_w hteq)
   cases bakeryActorStep_of_step htr hact with
   | pollChSpin _ _ target hph hsafe =>
-    have hnwr_t : s.isWritingChoosing target = false :=
-      (hquiesce target).elim (fun h => by simp [BakeryState.isWritingChoosing, h])
-        isWritingChoosing_false_of_inWaiting
-    have hch_t : s.choosing target = false :=
-      (hquiesce target).elim (fun h => ((hl target).rem h).1)
-        (localInv_choosing_false_of_inWaiting (hl target))
-    simp [BakeryState.SafeReadChoosing, hnwr_t, hch_t] at hsafe
+    rcases hquiesce target with h | h
+    · simp [BakeryState.SafeReadChoosing, BakeryState.isWritingChoosing, h,
+        ((hl target).rem h).1] at hsafe
+    · simp [BakeryState.SafeReadChoosing, isWritingChoosing_false_of_inWaiting h,
+        localInv_choosing_false_of_inWaiting (hl target) h] at hsafe
   | pollChPass _ checked target hph =>
     have := sdiff_insert_card_lt ((hl q).waitL2 checked target hph).2.2
     simp only [Function.update_self, hph, waitMeasure]; omega
@@ -1396,13 +1390,12 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     · exact lt_of_le_of_lt (Finset.mem_filter.mp hq_star_mem).2.2 (not_le.mp hr_le)
   have hno_cs_after : ∀ k ≥ t_s, ∀ r, ¬ (ss k).inCS r := by
     intro k hk r hr_cs
-    by_cases hr_eq : r = q_star
-    · subst hr_eq
-      have hw := hq_star_wait k hk
-      unfold BakeryState.inCS at hr_cs
-      simp [BakeryState.inWaiting, BakeryPhase.isWaiting, hr_cs] at hw
+    rcases eq_or_ne r q_star with rfl | hr_eq
+    · have hw := hq_star_wait k hk
+      simp [BakeryState.inWaiting, BakeryPhase.isWaiting, show (ss k).phase r = .cs from hr_cs]
+        at hw
     · exact lt_asymm (bakery_cs_lt (hreach_all k) hr_cs (hq_star_bak k hk) hr_eq)
-        (hq_star_global_min k hk r (BakeryState.inBakery_of_inCS hr_cs) hr_eq)
+        (hq_star_global_min k hk r (.inr hr_cs) hr_eq)
   -- Step 4a: Drain all processes initially in `.failed` or `.writeNumberZero` at `t_s`.
   have hex_clean_rf : ∀ r, ∃ u ≥ t_s,
       (ss u).phase r ≠ .failed ∧ (ss u).phase r ≠ .writeNumberZero := by

@@ -68,11 +68,8 @@ theorem map_root_nodup {n : ℕ} {cs : List (FHTree n)} (hnd : (forestNodes cs).
   induction cs with
   | nil => exact List.nodup_nil
   | cons c rest ih =>
-    simp only [forestNodes] at hnd
     obtain ⟨_, hnd_rest, hdisj⟩ := List.nodup_append.mp hnd
-    rw [List.map_cons, List.nodup_cons]
-    refine ⟨?_, ih hnd_rest⟩
-    intro hmem
+    refine List.nodup_cons.mpr ⟨fun hmem => ?_, ih hnd_rest⟩
     obtain ⟨c', hc', heq⟩ := List.mem_map.mp hmem
     exact hdisj c.root c.root_mem_nodes c'.root
       (mem_forestNodes_iff.mpr ⟨c', hc', c'.root_mem_nodes⟩) heq.symm
@@ -666,11 +663,8 @@ theorem FibRawInv.unique {n K_max : ℕ} {s₁ s₂ : IndexedMinPQ.State n} {st 
 theorem FibRawInv.findMin_eq_none {n K_max : ℕ} {s : IndexedMinPQ.State n} {st : RawState n}
     (h : FibRawInv n K_max s st) (h0 : st.minRoot = 0) :
     IndexedMinPQ.dom s = ∅ ∧ IndexedMinPQ.findMin s = none := by
-  obtain ⟨ts, _, _, hdom, _, _, _, _, _, _, hrl⟩ := h
-  rcases hrl with ⟨rfl, _⟩ | ⟨_, _, hm, _, _, _⟩
-  · have hemp : IndexedMinPQ.dom s = ∅ := by
-      rw [Finset.eq_empty_iff_forall_notMem]
-      intro v hv
+  obtain ⟨ts, _, _, hdom, _, _, _, _, _, _, ⟨rfl, _⟩ | ⟨_, _, hm, _, _, _⟩⟩ := h
+  · have hemp : IndexedMinPQ.dom s = ∅ := Finset.eq_empty_iff_forall_notMem.mpr fun v hv => by
       obtain ⟨k, hsk⟩ := IndexedMinPQ.mem_dom_iff.mp hv
       exact List.not_mem_nil ((hdom v).mpr (by simp [hsk]))
     exact ⟨hemp, IndexedMinPQ.findMin_eq_none_iff.mpr hemp⟩
@@ -774,11 +768,7 @@ def SlotInv (n sz : ℕ) (st : RawState n) (slotTrees : List (FHTree n)) (maxDeg
 /-- Initial empty consolidation table when `∀ d ≤ n, st.cons d = 0`. -/
 theorem SlotInv.empty {n sz : ℕ} {st : RawState n} (hcons : ∀ d ≤ n, st.cons d = 0) :
     SlotInv n sz st [] 0 :=
-  ⟨List.nodup_nil,
-   fun _ h => absurd h List.not_mem_nil,
-   fun _ h => absurd h List.not_mem_nil,
-   fun d hd _ => hcons d hd,
-   by omega, Or.inl rfl⟩
+  ⟨List.nodup_nil, nofun, nofun, fun d hd _ => hcons d hd, Nat.zero_le _, Or.inl rfl⟩
 
 /-- Framing `SlotInv` across a transition preserving `cons` and `ValidRoot` on `slotTrees`. -/
 theorem SlotInv.frame {n sz maxDeg : ℕ} {st st' : RawState n} {slotTrees : List (FHTree n)}
@@ -886,15 +876,12 @@ theorem SlotInv.done_of_cleared {n sz maxDeg : ℕ} {st : RawState n} {slotTrees
 theorem ValidRoot.par_eq_zero_iff_root {n : ℕ} {st : RawState n} {pending : Option (Fin n)}
     {T : FHTree n} (hT : ValidRoot st pending T) {u : Fin n} (hu : u ∈ T.nodes) :
     st.par u = 0 ↔ u = T.root := by
-  constructor
-  · intro hp0
-    rw [T.nodes_eq] at hu
-    rcases List.mem_cons.mp hu with rfl | hdesc
-    · rfl
-    · obtain ⟨q, _, hpq⟩ := hT.1.par_of_mem_children u hdesc
-      omega
-  · rintro rfl
-    exact hT.2.1
+  refine ⟨fun hp0 => ?_, fun h => h ▸ hT.2.1⟩
+  rw [T.nodes_eq] at hu
+  rcases List.mem_cons.mp hu with rfl | hdesc
+  · rfl
+  · obtain ⟨q, _, hpq⟩ := hT.1.par_of_mem_children u hdesc
+    omega
 
 /-- In a valid subtree with `Nodup` nodes, no strict descendant `v` is its own parent. -/
 theorem ValidSubtree.par_ne_self {n : ℕ} {st : RawState n} {pending : Option (Fin n)}

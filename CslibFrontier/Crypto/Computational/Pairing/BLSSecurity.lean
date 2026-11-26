@@ -365,9 +365,7 @@ private theorem length_encList_tail_le {α : Type} (enc : α ↪ List Bool) (l :
     (encList enc l.tail).length ≤ (encList enc l).length := by
   cases l with
   | nil => exact le_rfl
-  | cons hd tl =>
-    simp only [List.tail_cons, encList_cons, List.length_append]
-    exact Nat.le_add_left _ _
+  | cons _ _ => simp [encList_cons]
 
 private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
     {k : ℕ} {Control : Type} [Finite Control]
@@ -427,8 +425,8 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
       (length_le_encList_of_mem encBLSBankSample hs).trans (Nat.le_add_right _ _)⟩)
     hresources ?_
   intro caller request state hinv result hres
-  rw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hres
-  subst hres
+  obtain rfl : result = blsBankWordStep P caller request state := by
+    simpa only [ProbComp.eval_pure, PMF.mem_support_pure_iff] using hres
   dsimp only [blsBankWordStep]
   set found := blsBankLookupEntry state.table request.2
   set sample : BLSBankSample :=
@@ -448,18 +446,12 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
         ⟨if found.isSome then state.table
           else ⟨request.2, sample.coin, sample.exponent⟩ :: state.table,
           state.aborted || (!request.1 && sample.coin), state.remaining.tail⟩ := by
-    refine ⟨fun entry hentry => ?_, fun s hs => ?_⟩
-    · cases hf : found with
-      | some _ =>
-        simp only [hf, Option.isSome_some, ↓reduceIte] at hentry
-        exact hinv.1 entry hentry
-      | none =>
-        simp only [hf, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
-          List.mem_cons] at hentry
-        exact hentry.elim (fun h => h ▸ hsampleLen) (hinv.1 entry)
-    · cases hrem : state.remaining with
-      | nil => simp [hrem] at hs
-      | cons hd tl => exact hinv.2 s (hrem ▸ List.mem_cons_of_mem _ (by simpa [hrem] using hs))
+    refine ⟨fun entry hentry => ?_, fun s hs => hinv.2 s (List.mem_of_mem_tail hs)⟩
+    cases hf : found with
+    | some _ => exact hinv.1 entry (by simpa [hf] using hentry)
+    | none =>
+      simp only [hf, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, List.mem_cons] at hentry
+      exact hentry.elim (fun h => h ▸ hsampleLen) (hinv.1 entry)
   have hreplyLen :
       (blsBankReplyWord P caller.groupParameters caller.leftZeroWord caller.rightZeroWord
         request.1 sample).length ≤ resources caller request.2 := by
@@ -482,11 +474,8 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
     cases hf : found with
     | some _ =>
       simp only [Option.isSome_some, ↓reduceIte]
-      have hs0 :
-          (encBLSBankState ⟨state.table, state.aborted || (!request.1 && sample.coin),
-            state.remaining.tail⟩).length ≤ (encBLSBankState state).length := by
-        enc_len [encBLSBankState_apply]
-      exact hs0.trans (Nat.le_add_right _ _)
+      refine (?_ : _ ≤ (encBLSBankState state).length).trans (Nat.le_add_right _ _)
+      enc_len [encBLSBankState_apply]
     | none =>
       simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
       have hEntry :
@@ -497,12 +486,10 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
         simp only [encBLSBankEntry_apply, encBLSBankEntryFields, length_encPair, encBits_apply,
           hboolS]
         omega
-      have hs1 :
-          (encBLSBankState ⟨⟨request.2, sample.coin, sample.exponent⟩ :: state.table,
-            state.aborted || (!request.1 && sample.coin), state.remaining.tail⟩).length ≤
-            (encBLSBankState state).length + (8 * request.2.length + 4 * bankMax caller + 64) := by
-        enc_len [encBLSBankState_apply]
-      exact hs1.trans (Nat.add_le_add_left (le_max_right _ _) _)
+      refine (?_ : _ ≤ (encBLSBankState state).length +
+          (8 * request.2.length + 4 * bankMax caller + 64)).trans
+        (Nat.add_le_add_left (le_max_right _ _) _)
+      enc_len [encBLSBankState_apply]
   exact ⟨hinv', hreplyLen, hstateLen⟩
 
 private def blsBankAdversaryCaller (P : PairingGroupFamily)
@@ -667,12 +654,9 @@ private theorem interpret_handler_blsNative_eq_decoded (P : DecodablePairingGrou
                 (P.G₀.Carrier d) (P.G₀.Carrier d)) (Sum.inr q)))
           prog)).run state) := by
   have hsk : (Turing.MultiTapeTM.ofBits (P.G₁.toFamily.encScalar d α) : ZMod (P.G₀.order d)) =
-      α := by
-    change ((Turing.MultiTapeTM.ofBits (Turing.MultiTapeTM.encNat α.val) : ℕ) :
-      ZMod (P.G₀.order d)) = α
-    have hnat : Turing.MultiTapeTM.ofBits (Turing.MultiTapeTM.encNat α.val) = α.val :=
-      Turing.MultiTapeTM.Decoder.nat.decode_enc α.val
-    rw [hnat, ZMod.natCast_zmod_val]
+      α :=
+    (congrArg Nat.cast (Turing.MultiTapeTM.Decoder.nat.decode_enc α.val)).trans
+      (ZMod.natCast_zmod_val α)
   induction prog using OracleComp.induction generalizing state with
   | pure a =>
     simp only [OracleComp.interpret_pure, StateT.run_pure]
@@ -929,9 +913,8 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
       rw [hstepW, hrep, hisSome, hid, hid]
       cases hfl : tabT.lookup word with
       | some entry =>
-        have hsT : sT = entry.1 := by simp only [sT, hfl, Option.map_some, Option.getD_some]
         simp only [Option.isSome_some, ↓reduceIte, Bool.not_true, Bool.false_and, Bool.or_false,
-          hsT]
+          show sT = entry.1 by simp only [sT, hfl, Option.map_some, Option.getD_some]]
         exact ih _ tabW tabT aborted (count + 1) htab
       | none =>
         have hsT : sT = samplesT.getD count (false, 0) := by
@@ -964,9 +947,8 @@ private theorem blsWordBankFinish_eq
   dsimp only at hab hrem htab
   cases abortedT with
   | true =>
-    dsimp only [blsBankWordFinish, PairingGroupFamily.blsBankedReductionFinish, caller]
-    rw [hab]
-    simp only [↓reduceIte, P.decode₀_encode, Option.getD_some]
+    simp [blsBankWordFinish, PairingGroupFamily.blsBankedReductionFinish, caller, hab,
+      P.decode₀_encode]
   | false =>
     let sW : BLSBankSample :=
       ((blsBankLookupEntry stW.table msig.1).map fun e => ⟨e.coin, e.exponent⟩).getD

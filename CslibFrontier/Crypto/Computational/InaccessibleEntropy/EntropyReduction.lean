@@ -709,11 +709,10 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
   let v' := ShrunkHashInput.unpackWord w₁ out₁ s raw
   have hpack' : v'.packWord = raw := ShrunkHashInput.packWord_unpackWord hlen_raw
   have hf₃_eq : shrunkHashFin f₁ j₀ s v' = shrunkHashFin f₁ j₀ s v := by
-    have hp : (shrunkHashFin f₁ j₀ s v').packWord = (shrunkHashFin f₁ j₀ s v).packWord := by
-      rw [← shrunkHashEvalWord_packWord evalWord₁ j₀ v',
-        ← shrunkHashEvalWord_packWord evalWord₁ j₀ v, hpack', heval_raw]
     simpa only [ShrunkHashOutput.unpackWord_packWord] using
-      congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s) hp
+      congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s)
+        (((shrunkHashEvalWord_packWord evalWord₁ j₀ v').symm.trans (hpack'.symm ▸ heval_raw)).trans
+          (shrunkHashEvalWord_packWord evalWord₁ j₀ v))
   have hoRows_eq : v'.outRows = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
   have hf₂_eq : inputHashFin f₁ j₀ v'.inner = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
     Classical.byContradiction fun hne₂ => hnot_out ⟨v'.inner, hne₂,
@@ -806,30 +805,19 @@ private theorem shrunkHash_escape_succProbability_eq (n₁ m₁ s : ℕ → ℕ)
         ((ProbComp.eval (A n (ShrunkHashInput.mk ⟨z, iRows⟩ oRows).packWord) >>= fun raw =>
           PMF.pure (decide
             (shrunkEscPred (n₁ n) (evalWord₁ n) (L₁ n) z raw))) true).toReal := by
-  have heval :
-      ProbComp.eval (accessibleEscapeGame evalWord₁ n₁ L₁
-        (shrunkHashEscapeInverter n₁ m₁ s A) n) =
-      (PMF.uniformOfFintype (BitString (n₁ n))).bind fun z =>
-        (PMF.uniformOfFintype (Fin (n₁ n) → BitString (n₁ n))).bind fun iRows =>
-          (PMF.uniformOfFintype
-            (Fin (outHashLen (n₁ n) (s n)) → BitString (inputHashOutLen (n₁ n) (m₁ n)))).bind
-              fun oRows =>
-                ProbComp.eval (A n (ShrunkHashInput.mk ⟨z, iRows⟩ oRows).packWord) >>= fun raw =>
-                  PMF.pure (decide (shrunkEscPred (n₁ n) (evalWord₁ n) (L₁ n) z raw)) := by
-    simp only [accessibleEscapeGame, shrunkHashEscapeInverter, ProbComp.eval_bind,
-      Cslib.BitString.eval_sampleList, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-      PMF.bind_bind]
-    rw [Cslib.BitString.uniformList, PMF.bind_map]
-    refine congrArg (PMF.uniformOfFintype (BitString (n₁ n))).bind (funext fun z => ?_)
-    dsimp only [Function.comp_def]
-    rw [uniformList_mul_eq_map_blocks, PMF.bind_map]
-    refine congrArg (PMF.uniformOfFintype _).bind (funext fun iRows => ?_)
-    dsimp only [Function.comp_def]
-    rw [uniformList_mul_eq_map_blocks, PMF.bind_map]
-    refine congrArg (PMF.uniformOfFintype _).bind (funext fun oRows => ?_)
-    simp only [Function.comp_def, listRow_zero_ofFn, Cslib.BitString.ofList_ofFn, PMF.pure_bind,
-      ShrunkHashInput.packWord, InputHashedInput.packWord, shrunkEscPred]
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, heval, PMF.bind_apply_toReal]
+  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, accessibleEscapeGame,
+    shrunkHashEscapeInverter, ProbComp.eval_bind, Cslib.BitString.eval_sampleList,
+    ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_bind]
+  rw [Cslib.BitString.uniformList, PMF.bind_map, PMF.bind_apply_toReal]
+  refine sum_congr rfl fun z _ => congrArg (_ * ·) ?_
+  dsimp only [Function.comp_def]
+  rw [uniformList_mul_eq_map_blocks, PMF.bind_map, PMF.bind_apply_toReal]
+  refine sum_congr rfl fun iRows _ => congrArg (_ * ·) ?_
+  dsimp only [Function.comp_def]
+  rw [uniformList_mul_eq_map_blocks, PMF.bind_map, PMF.bind_apply_toReal]
+  refine sum_congr rfl fun oRows _ => congrArg (_ * ·) ?_
+  simp only [Function.comp_def, listRow_zero_ofFn, Cslib.BitString.ofList_ofFn, PMF.pure_bind,
+    ShrunkHashInput.packWord, InputHashedInput.packWord, shrunkEscPred]
 
 open Classical in
 private theorem shrunkBadIn_sum_le {w₁ out₁ j₀ s : ℕ} (f₁ : BitString w₁ → BitString out₁)

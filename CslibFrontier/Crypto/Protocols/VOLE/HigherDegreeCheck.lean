@@ -190,10 +190,7 @@ private theorem eval_eq_coeff_pow_add_qsPolySum {d : ℕ} {P : Polynomial R} (hd
     (delta : R) :
     P.eval delta = P.coeff d * delta ^ d + qsPolySum d (fun k => P.coeff k) delta := by
   rw [Polynomial.eval_eq_sum_range' (Nat.lt_succ_of_le hdeg), Finset.sum_range_succ, add_comm,
-    qsPolySum]
-  congr 1
-  symm
-  exact Fin.sum_univ_eq_sum_range (fun k => P.coeff k * delta ^ k) d
+    qsPolySum, ← Fin.sum_univ_eq_sum_range (fun k => P.coeff k * delta ^ k) d]
 
 private theorem coeff_qsWirePoly_eq_one {n : ℕ} (w v : Fin n → R) (i : Fin n) :
     (qsWirePoly w v i).natDegree ≤ 1 ∧ (qsWirePoly w v i).coeff 1 = w i := by
@@ -376,24 +373,10 @@ theorem qsPolySum_qsMaskCoeff (d : ℕ) (u v : Fin (d - 1) → R) (delta : R) :
   · simp [qsPolySum, qsMaskCoeff]
   · simp [qsPolySum, qsMaskCoeff]
   · simp only [qsPolySum, qsMaskCoeff, add_mul, Finset.sum_add_distrib]
-    have hv : (∑ j : Fin (m + 2),
-        (if hj : j.val < m + 1 then v ⟨j.val, hj⟩ else 0) * delta ^ (j : ℕ)) =
-        ∑ k : Fin (m + 1), v k * delta ^ (k : ℕ) := by
-      rw [Fin.sum_univ_castSucc]
-      simp only [Fin.val_castSucc, Fin.val_last, lt_irrefl, ↓reduceDIte, zero_mul, add_zero]
-      exact Finset.sum_congr rfl fun k _ => by simp only [k.isLt, ↓reduceDIte, Fin.eta]
-    have hu : (∑ j : Fin (m + 2),
-        (if hj0 : 0 < j.val then u ⟨j.val - 1, by omega⟩ else 0) * delta ^ (j : ℕ)) =
-        ∑ k : Fin (m + 1), u k * delta * delta ^ (k : ℕ) := by
-      rw [Fin.sum_univ_succ]
-      simp only [Fin.val_zero, lt_irrefl, ↓reduceDIte, zero_mul, zero_add, Fin.val_succ,
-        Nat.succ_pos, Nat.add_sub_cancel, Fin.eta, pow_succ', mul_assoc]
-    change (∑ j : Fin (m + 2),
-        (if hj : j.val < m + 1 then v ⟨j.val, hj⟩ else 0) * delta ^ (j : ℕ)) +
-      (∑ j : Fin (m + 2),
-        (if hj0 : 0 < j.val then u ⟨j.val - 1, by omega⟩ else 0) * delta ^ (j : ℕ)) = _
-    rw [hv, hu, ← Finset.sum_add_distrib]
-    conv_rhs => rw [← Finset.sum_add_distrib]
+    rw [Fin.sum_univ_castSucc (n := m + 1), Fin.sum_univ_succ (n := m + 1)]
+    simp only [Fin.val_castSucc, Fin.is_lt, Fin.val_last, Fin.val_zero, Fin.val_succ, lt_irrefl,
+      Nat.succ_pos, Nat.add_sub_cancel, ↓reduceDIte, Fin.eta, zero_mul, add_zero, zero_add,
+      pow_succ', ← Finset.sum_add_distrib]
     exact Finset.sum_congr rfl fun k _ => by ring
 
 /-- When `q_m k = u k * delta + v k` for all `k : Fin (d - 1)`, `qsPolySum` on `qsMaskCoeff`
@@ -1391,11 +1374,8 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
             _ ≤ ∑ _k ∈ T, δ_K := Finset.sum_le_sum fun k _ => hdist k
             _ = (T.card : ℝ≥0∞) * δ_K := by rw [Finset.sum_const, nsmul_eq_mul]
             _ ≤ (q : ℝ≥0∞) * δ_K := by gcongr
-        · have hswap2 : (∑' k, distK k * g k) =
-              ((PMF.uniformOfFintype V).bind fun v =>
-                distK.bind fun k => body s k v).toOuterMeasure {true} := by
-            rw [← PMF.bind_apply, PMF.bind_comm, PMF.toOuterMeasure_apply_singleton]
-          rw [hswap2]
+        · dsimp only [g]
+          rw [← PMF.bind_apply, PMF.bind_comm, ← PMF.toOuterMeasure_apply_singleton]
           exact hbody s
 
 private theorem toOuterMeasure_domainSeparated_query_le_add_swapped

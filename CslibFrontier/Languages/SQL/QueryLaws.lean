@@ -93,10 +93,8 @@ theorem IsSafePredicate.filterRows_eq_ok {Γ : Fin n → SqlType} {p : Expr n}
 /-- `TRUE` keeps every row. -/
 @[simp] theorem filterRows_true (rs : List (Row n)) :
     (lit (.bool true)).filterRows rs = .ok rs := by
-  have hall : ∀ r ∈ rs, ((lit (.bool true) : Expr n).evalTruth r).toOption.isSome :=
-    fun _ _ => rfl
-  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left hall]
-  exact congrArg some (List.filter_eq_self.mpr fun _ _ => rfl)
+  rw [← Except.toOption_eq_some_iff, toOption_filterRows]
+  simp [evalTruth, Datum.toTruth]
 
 /-- `WHERE` on rows computed by `f` is `WHERE` on their sources with a predicate that reads
 through `f`, followed by `f`. -/
@@ -128,10 +126,8 @@ theorem toOption_filterRows_append (p : Expr n) (rs ss : List (Row n)) :
       (p.filterRows rs).toOption.bind fun a => (p.filterRows ss).toOption.map (a ++ ·) := by
   simp only [toOption_filterRows, List.forall_mem_append, List.filter_append]
   by_cases h₁ : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome
-  · by_cases h₂ : ∀ r ∈ ss, (p.evalTruth r).toOption.isSome
-    · rw [ite_eq_left ⟨h₁, h₂⟩, ite_eq_left h₁, Option.bind_some, ite_eq_left h₂]; rfl
-    · rw [ite_eq_right fun h => h₂ h.2, ite_eq_left h₁, Option.bind_some, ite_eq_right h₂]; rfl
-  · rw [ite_eq_right fun h => h₁ h.1, ite_eq_right h₁]; rfl
+  · by_cases h₂ : ∀ r ∈ ss, (p.evalTruth r).toOption.isSome <;> simp +contextual [h₁, h₂]
+  · simp [h₁]
 
 /-- A `SELECT` list depends on the row only through the results of its expressions. -/
 theorem evalRow_congr {es : Fin k → Expr n} {es' : Fin k → Expr m} {r : Row n} {r' : Row m}
@@ -180,11 +176,10 @@ theorem select_select {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = 
     refine congrArg some (List.filter_congr fun r hr => ?_)
     obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr)
     simp [hs, ht r hr, Truth.inf_eq_true_iff, Bool.and_comm]
-  · have hAnd : ¬∀ r ∈ rs, ((c.evalTruth r).toOption.bind
-        fun s => (p.evalTruth r).toOption.map (s ⊓ ·)).isSome := fun hall => hC fun r hr => by
-      have := hall r hr
-      rcases hs : (c.evalTruth r).toOption <;> simp_all
-    simp [hC, hAnd]
+  · rw [ite_eq_right hC, Option.bind_none, eq_comm]
+    refine ite_eq_right fun hall => hC fun r hr => ?_
+    have := hall r hr
+    cases hs : (c.evalTruth r).toOption <;> simp_all
 
 /-- Selection commutation: two safe `WHERE` clauses may be applied in either order. -/
 theorem select_comm {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ)
@@ -356,8 +351,7 @@ theorem select_unionAll (p : Expr n) (q₁ q₂ : Query S n) :
   -- The right side filters `q₁` before evaluating `q₂`; observed in `Option`, binds commute.
   congr 1
   funext rs
-  rw [Option.bind_comm]
-  simp only [Option.map_eq_bind, Function.comp_def]
+  simpa only [Option.map_eq_bind, Function.comp_def] using Option.bind_comm _ _
 
 /-- A `SELECT` list distributes over `UNION ALL`. -/
 theorem project_unionAll (es : Fin k → Expr n) (q₁ q₂ : Query S n) :

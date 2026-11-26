@@ -76,10 +76,8 @@ theorem length_pad10star {r : ℕ} (hr : 0 < r) (msg : List Bool) :
   simp only [pad10star, List.length_append, List.length_cons, List.length_replicate,
     Nat.add_mul, Nat.one_mul, ← Nat.mod_add_mod msg.length r 1]
   rcases Nat.lt_or_ge (msg.length % r + 1) r with h | h
-  · rw [Nat.mod_eq_of_lt h, Nat.mod_eq_of_lt (by omega)]
-    omega
-  · rw [show msg.length % r + 1 = r by omega, Nat.mod_self, Nat.sub_zero, Nat.mod_self]
-    omega
+  · rw [Nat.mod_eq_of_lt h, Nat.mod_eq_of_lt (by omega)]; omega
+  · rw [show msg.length % r + 1 = r by omega, Nat.mod_self, Nat.sub_zero, Nat.mod_self]; omega
 
 theorem dvd_length_pad10star {r : ℕ} (hr : 0 < r) (msg : List Bool) :
     r ∣ (pad10star r msg).length :=
@@ -100,14 +98,10 @@ theorem length_pad10star_le {r : ℕ} (hr : 0 < r) (msg : List Bool) :
 `1 ‖ 0^(r - 1)`. -/
 theorem pad10star_of_dvd {r : ℕ} (hr : 0 < r) {msg : List Bool} (h : r ∣ msg.length) :
     pad10star r msg = msg ++ true :: List.replicate (r - 1) false := by
-  obtain ⟨k, hk⟩ := h
-  have : (r - (msg.length + 1) % r) % r = r - 1 := by
-    rw [hk, Nat.add_mod, Nat.mul_mod_right, Nat.zero_add, Nat.mod_mod]
-    rcases Nat.lt_or_ge 1 r with h1 | h1
-    · rw [Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt (by omega)]
-    · obtain rfl : r = 1 := by omega
-      rfl
-  simp only [pad10star, this]
+  rcases (Nat.succ_le_of_lt hr).eq_or_lt' with rfl | h1
+  · simp [pad10star, Nat.mod_one]
+  · simp [pad10star, Nat.add_mod, Nat.mod_eq_zero_of_dvd h, Nat.mod_eq_of_lt h1,
+      Nat.mod_eq_of_lt (Nat.sub_lt hr Nat.one_pos)]
 
 /-- Reading the padded list with default `false` is reading `msg ++ [true]` with default
 `false`: the zeros of the padding are the default. -/
@@ -126,9 +120,7 @@ theorem toBlocks_pad10star_injective {r : ℕ} (hr : 0 < r) :
 
 theorem toBlocks_pad10star_ne_nil {r : ℕ} (hr : 0 < r) (msg : List Bool) :
     toBlocks r (pad10star r msg) ≠ [] :=
-  List.ne_nil_of_length_pos <| by
-    rw [length_toBlocks, length_pad10star_div hr]
-    exact Nat.succ_pos _
+  List.ne_nil_of_length_pos (by simp [length_toBlocks, length_pad10star_div hr])
 
 /-- The padded blocks of a full-block list `u` followed by one more block `m` are the blocks of
 `u`, then `m`, then the padding block. -/

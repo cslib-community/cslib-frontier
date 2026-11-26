@@ -240,23 +240,24 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
     cbcWordDecrypt decFamily n k ct = some msg := by
   set ms := BitString.listRows (msg.length / n) n msg
   have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
+  have hcs (iv : List Bool) (hivLen : iv.length = n) :
+      ∀ c ∈ cbcChainWords (encFamily k) n iv ms, c.length = n :=
+    fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
   have hbodyLen (iv : List Bool) (hivLen : iv.length = n) :
       (cbcWordBody encFamily n k iv msg).length = msg.length := by
-    set cs := cbcChainWords (encFamily k) n iv ms
-    have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
-    rw [cbcWordBody_eq_flatten_cbcChainWords, List.length_flatten, List.map_congr_left hcs,
-      List.map_const', List.sum_replicate_nat, length_cbcChainWords, BitString.length_listRows,
+    rw [cbcWordBody_eq_flatten_cbcChainWords, List.length_flatten,
+      List.map_congr_left (hcs iv hivLen), List.map_const', List.sum_replicate_nat,
+      length_cbcChainWords, BitString.length_listRows,
       Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
   refine ivModeDecrypt_ivModeEncrypt hbodyLen (fun iv hivLen => ?_) hmsg hct
   set cs := cbcChainWords (encFamily k) n iv ms
-  have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
   have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
   have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
     cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
   have hflatLen : cs.flatten.length = msg.length := hbodyEq ▸ hbodyLen iv hivLen
   rw [hbodyEq, cbcWordDecBody, hflatLen, ← hcsLen,
-    BitString.listRows_flatten cs hcs, foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms,
-    List.nil_append]
+    BitString.listRows_flatten cs (hcs iv hivLen),
+    foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms, List.nil_append]
   exact BitString.flatten_listRows_of_length
     (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
 
@@ -697,9 +698,7 @@ theorem BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher (E : BlockCipher)
     (body := fun m _ iv msg => cbcWordBody (E.encrypt n) m k iv msg)
     (family := constFamily) (n := w)
     (fun k' _ iv hiv msg _ => by
-      rw [show (fun request : Unit × List Bool => pure (prfOracle constFamily w k' request.2)) =
-          fun request => pure (E.prpOracle n k request.2) by
-        funext request; rw [horacle]]
+      simp only [horacle]
       rw [run_cbcBodyQueries, cbcWordBody_eq_flatten_cbcChainWords,
         cbcWordBody_eq_flatten_cbcChainWords]
       congr 2
@@ -745,26 +744,19 @@ theorem BlockCipher.advantage_cbcEncrypt_le (E : BlockCipher) (adversary : Oracl
   rw [← E.eval_prpRealGame_cbcToPrpDistinguisher adversary false n,
     ← E.eval_prpRealGame_cbcToPrpDistinguisher adversary true n]
   let A' : OracleDistinguisher := fun _ _ => adversary n []
-  have hQ' : (A' (E.blockLen n) []).IsQueryBounded Q := hQ
-  have hL' : (A' (E.blockLen n) []).QueriesSatisfy fun request => request.2.length ≤ L := hL
   have hperm := advantage_cbcCpaGame_randomPermutation_le L
-    (isCostBounded_blockModeWordAdversary hQ' L)
+    (isCostBounded_blockModeWordAdversary (adversary := A') (n := E.blockLen n) hQ L)
   have hideal (bit : Bool) :
       ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary bit) n) =
         cbcCpaGame (fun π : Equiv.Perm (BitString (E.blockLen n)) => ⇑π) L bit
           (blockModeWordAdversary A' (E.blockLen n)) :=
-    eval_prpIdealGame_cbcToPrfDistinguisher A' bit hL'
+    eval_prpIdealGame_cbcToPrfDistinguisher A' bit hL
   rw [← hideal false, ← hideal true] at hperm
-  have htri₁ : (Game.advantage
-      (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
-      (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)) : ℝ) ≤
-      Game.advantage
-        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
-        (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n)) +
-      Game.advantage
-        (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
-        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)) := by
-    exact_mod_cast Game.advantage_triangle _ _ _
+  have htri₁ := NNReal.coe_le_coe.mpr (Game.advantage_triangle
+    (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
+    (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
+    (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)))
+  rw [NNReal.coe_add] at htri₁
   have htri₂ := advantage_le_two
     (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
     (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary true) n))

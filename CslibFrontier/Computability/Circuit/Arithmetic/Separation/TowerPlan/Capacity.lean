@@ -210,10 +210,7 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
   have hD1 : (1 : ℝ) ≤ D := by exact_mod_cast hD
   have h2h : (1 : ℝ) ≤ 2 * h := by exact_mod_cast (by omega : 1 ≤ 2 * h)
   have hk := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
-  have hDJ : (D : ℝ) ^ J ≤ Fintype.card (T.X 0) := by
-    rw [show (Fintype.card (T.X 0) : ℝ) = D ^ J * Fintype.card (T.X J) by
-      exact_mod_cast T.card_X_zero le_rfl]
-    exact le_mul_of_one_le_right (by positivity) (by exact_mod_cast hX)
+  have hDJ : (D : ℝ) ^ J ≤ Fintype.card (T.X 0) := by exact_mod_cast Tower.pow_le_card_X_zero hX
   set x : ℝ := (Fintype.card (T.X 0) : ℝ)
   have hx : 0 < x := (one_le_pow₀ hD1).trans_lt' one_pos |>.trans_le hDJ
   set M := max 1 (√D * ρ) with hMdef

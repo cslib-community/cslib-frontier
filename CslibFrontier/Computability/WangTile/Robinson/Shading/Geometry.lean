@@ -277,48 +277,42 @@ private theorem horizontal_none_weights_zero
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = none) :
     rightWeight quadrant state = 0 ∧ leftWeight quadrant state = 0 := by
-  have h := (localGeometry_unpack allowed).2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.1
 
 private theorem vertical_none_weights_zero
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = none) :
     upWeight quadrant state = 0 ∧ downWeight quadrant state = 0 := by
-  have h := (localGeometry_unpack allowed).2.2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.2.1
 
 private theorem horizontal_south_has_negative_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = some .south) :
     rightWeight quadrant state = -1 ∨ leftWeight quadrant state = -1 := by
-  have h := (localGeometry_unpack allowed).2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.1
 
 private theorem horizontal_north_has_positive_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = some .north) :
     rightWeight quadrant state = 1 ∨ leftWeight quadrant state = 1 := by
-  have h := (localGeometry_unpack allowed).2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.1
 
 private theorem vertical_west_has_negative_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = some .west) :
     upWeight quadrant state = -1 ∨ downWeight quadrant state = -1 := by
-  have h := (localGeometry_unpack allowed).2.2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.2.1
 
 private theorem vertical_east_has_positive_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = some .east) :
     upWeight quadrant state = 1 ∨ downWeight quadrant state = 1 := by
-  have h := (localGeometry_unpack allowed).2.2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.2.1
 
 /-- A horizontal light wire leaves no vertical light edge in the same quarter. -/
 private theorem up_zero_of_horizontal_light (component : Thick) (quadrant : Quadrant)
@@ -366,20 +360,14 @@ private theorem ValidShadeGrid.rightWeightAt_eq_leftWeightAt_succ
     {stateGrid : Nat → Nat → ShadeState}
     (valid : ValidShadeGrid indexGrid stateGrid) (x y : Nat) :
     rightWeightAt stateGrid x y = leftWeightAt stateGrid (x + 1) y := by
-  unfold rightWeightAt leftWeightAt rightWeight leftWeight
-  rw [valid.hmatch x y]
-  congr 1
-  simp only [quadrantAt_yBit]
+  simp [rightWeightAt, leftWeightAt, rightWeight, leftWeight, valid.hmatch, quadrantAt_yBit]
 
 private theorem ValidShadeGrid.upWeightAt_eq_downWeightAt_succ
     {indexGrid : Nat → Nat → Index}
     {stateGrid : Nat → Nat → ShadeState}
     (valid : ValidShadeGrid indexGrid stateGrid) (x y : Nat) :
     upWeightAt stateGrid x y = downWeightAt stateGrid x (y + 1) := by
-  unfold upWeightAt downWeightAt upWeight downWeight
-  rw [valid.vmatch x y]
-  congr 1
-  simp only [quadrantAt_xBit]
+  simp [upWeightAt, downWeightAt, upWeight, downWeight, valid.vmatch, quadrantAt_xBit]
 
 private theorem ValidShadeGrid.balanceAt
     {indexGrid : Nat → Nat → Index}
@@ -639,14 +627,10 @@ private theorem potential_eq_of_zero_steps
     potential finish = potential start := by
   induction finish, startLeFinish using Nat.le_induction with
   | base => rfl
-  | succ finish _ inductionHypothesis =>
-      rw [step (finish + 1) (by omega) le_rfl,
-        zero (finish + 1) (by omega) le_rfl]
-      have previous : finish + 1 - 1 = finish := by omega
-      rw [previous, inductionHypothesis
-        (fun position lower upper => step position lower (by omega))
-        (fun position lower upper => zero position lower (by omega))]
-      omega
+  | succ finish _ ih =>
+      rw [step (finish + 1) (by omega) le_rfl, zero (finish + 1) (by omega) le_rfl,
+        Nat.add_sub_cancel, add_zero]
+      exact ih (fun p lo hi => step p lo (by omega)) (fun p lo hi => zero p lo (by omega))
 
 /-- A nearest `-1` step above a unit-height point contradicts positivity. -/
 private theorem negative_step_after_false
@@ -705,10 +689,8 @@ private theorem exists_adjacent_weight
         primary scan other = 0 := by
   rcases atCoordinate with primaryWeight | secondaryWeight
   · exact ⟨coordinate, Or.inl rfl, primaryWeight, fun _ primaryZero _ => primaryZero⟩
-  · refine ⟨coordinate - 1, Or.inr (by omega), ?_, ?_⟩
-    · rw [shared, show coordinate - 1 + 1 = coordinate by omega, secondaryWeight]
-    · intro other _ secondaryZero
-      rw [shared, show coordinate - 1 + 1 = coordinate by omega, secondaryZero]
+  · have hc : coordinate - 1 + 1 = coordinate := by omega
+    exact ⟨coordinate - 1, Or.inr hc, by rwa [shared, hc], fun _ _ hz => by rwa [shared, hc]⟩
 
 /-- An oriented selected boundary after a unit-height point cannot be the
 direction whose local weight is `-1`. The potential, weights, and choice of
@@ -816,10 +798,8 @@ private theorem exists_first_after
       ∀ value, start < value → value < first → ¬ P value := by
   classical
   have witness : ∃ value, start < value ∧ P value := ⟨finish, hstart, hfinish⟩
-  refine ⟨Nat.find witness, (Nat.find_spec witness).1,
-    Nat.find_min' witness ⟨hstart, hfinish⟩, (Nat.find_spec witness).2, ?_⟩
-  intro value lower upper present
-  exact Nat.find_min witness upper ⟨lower, present⟩
+  exact ⟨Nat.find witness, (Nat.find_spec witness).1, Nat.find_min' witness ⟨hstart, hfinish⟩,
+    (Nat.find_spec witness).2, fun _ lo hi hp => Nat.find_min witness hi ⟨lo, hp⟩⟩
 
 private theorem exists_last_before
     {P : Nat → Prop} {first finish : Nat}
@@ -829,10 +809,8 @@ private theorem exists_last_before
   classical
   have bound : first ≤ finish - 1 := by omega
   have greatestBound := Nat.findGreatest_le (P := P) (finish - 1)
-  refine ⟨Nat.findGreatest P (finish - 1), Nat.le_findGreatest bound hfirstP,
-    by omega, Nat.findGreatest_spec bound hfirstP, ?_⟩
-  intro value lower upper
-  exact Nat.findGreatest_is_greatest lower (by omega)
+  exact ⟨Nat.findGreatest P (finish - 1), Nat.le_findGreatest bound hfirstP, by omega,
+    Nat.findGreatest_spec bound hfirstP, fun _ lo _ => Nat.findGreatest_is_greatest lo (by omega)⟩
 
 /-- Given any selected point in an open interval, expose the current point or
 the nearest selected point on one side.  The two callbacks provide the
@@ -1033,9 +1011,8 @@ private theorem faceHeight_step_up {scan position : Nat}
       faceHeight stateGrid scan (quarterSouth south)
           (position - 1 - quarterSouth south) +
         rightWeightAt stateGrid scan position := by
-  have offset : position - quarterSouth south =
-      (position - 1 - quarterSouth south) + 1 := by omega
-  rw [offset, faceHeight]
+  rw [show position - quarterSouth south = position - 1 - quarterSouth south + 1 by omega,
+    faceHeight]
   congr 2
   omega
 

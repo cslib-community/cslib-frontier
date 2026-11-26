@@ -126,9 +126,8 @@ theorem Valid.preparation_moveAffine {S : State n} {f : BooleanFunction n} (hS :
 /-- When no paired parameter is degenerate, every paired parameter has degree `1`. -/
 theorem Paired.deg_eq_one {S : State n} (hndeg : ¬ S.DegeneratePair) {p : ℕ}
     (hp : S.Paired p) : S.deg p = 1 := by
-  have h0 : S.deg p ≠ 0 := fun h => hndeg ⟨p, hp, Or.inl h⟩
-  have h2 : ¬ 2 ≤ S.deg p := fun h => hndeg ⟨p, hp, Or.inr h⟩
-  omega
+  by_contra h
+  exact hndeg ⟨p, hp, by omega⟩
 
 private theorem Paired.children_eq_singleton {S : State n} (hndeg : ¬ S.DegeneratePair)
     {p : ℕ} (hp : S.Paired p) {H : ℕ ⊕ ℕ} (hH : H ∈ S.children p) : S.children p = {H} :=
@@ -438,11 +437,9 @@ theorem Valid.step_of_partnersShareChild {S : State n} {f : BooleanFunction n}
     (hS : S.Valid f) (hndel : ¬ S.DeletionAvailable) (hndeg : ¬ S.DegeneratePair)
     (hsh : S.PartnersShareChild) : ∃ S', Step f S S' := by
   obtain ⟨pr, hpr, H, hH⟩ := hsh
-  obtain ⟨hHp, hHr⟩ := Finset.mem_inter.1 hH
-  refine ⟨_, Valid.step_partnersShareChild_of hS (fun e he => ?_) hndeg hpr hHp hHr⟩
-  by_contra hle
-  push Not at hle
-  exact hndel (Or.inr (Or.inr (Or.inl ⟨e, he, hle⟩)))
+  exact ⟨_, Valid.step_partnersShareChild_of hS
+    (fun e he => Nat.lt_of_not_ge fun hle => hndel (Or.inr (Or.inr (Or.inl ⟨e, he, hle⟩))))
+    hndeg hpr (Finset.mem_inter.1 hH).1 (Finset.mem_inter.1 hH).2⟩
 
 /-! ### Case 4: Paired parameter in an affine equation -/
 
@@ -494,9 +491,7 @@ private theorem child_ne_of_partner_share_child {n} {S : State n} (hnsh : ¬ S.P
     {pr : ZeroPair} (hpr : pr ∈ S.pairs) {p r : ℕ} (hprp : pr.Contains p) (hprr : pr.Contains r)
     (hrp : r ≠ p) {H Hr : ℕ ⊕ ℕ} (hp_ch : S.children p = {H}) (hHr : Hr ∈ S.children r) :
     Hr ≠ H := fun heq => by
-  have hHp : H ∈ S.children p := by rw [hp_ch]; exact Finset.mem_singleton_self _
-  have hHrp : Hr ∈ S.children p := by rwa [heq]
-  exact hnsh (partnersShareChild_of_mem_children hpr hprp hprr hrp hHrp hHr)
+  exact hnsh (partnersShareChild_of_mem_children hpr hprp hprr hrp (by simp [hp_ch, heq]) hHr)
 
 /-- Case 4, concretely and without a disperser hypothesis. Let `p` be a paired parameter occurring
 in the equation `e` and not read by the output, and `Hr` a child of its partner. Fixing the partner
@@ -562,11 +557,8 @@ theorem Valid.step_pairInSystem_of {S : State n} {f : BooleanFunction n} (hS : S
     rw [hp_wt₂] at hW₂
     exact hred.step hS (by rw [Finset.card_singleton, hk]; omega) (by simp)
       (by rw [hk, Finset.card_singleton]; omega)
-  · have hcp₂_eq : S₂.children p = {.inr e} := by
-      obtain ⟨N, hN⟩ := Finset.card_pos.1 (Nat.pos_of_ne_zero h0)
-      have hNe := Finset.mem_singleton.1 (hchp₂ hN)
-      subst hNe
-      exact Finset.eq_singleton_iff_unique_mem.2 ⟨hN, fun M hM => Finset.mem_singleton.1 (hchp₂ hM)⟩
+  · have hcp₂_eq : S₂.children p = {.inr e} :=
+      (Finset.subset_singleton_iff.1 hchp₂).resolve_left fun h => h0 (by simp [deg, h])
     have ha_rel := hred.a_add hS
     rw [hk, Finset.card_singleton] at ha_rel
     obtain ⟨hS₃, hm₃, hs₃, hq₃, ha₃, hW₃⟩ :=
@@ -594,9 +586,8 @@ theorem Valid.step_of_pairInSystem {S : State n} {f : BooleanFunction n} {d : �
   by_cases hd : S₂.deg p = 0
   · exact ⟨_, h0 hd⟩
   · obtain ⟨N, hN⟩ := Finset.card_pos.1 (Nat.pos_of_ne_zero hd)
-    have hNe := Finset.mem_singleton.1 (hch₂ hN)
-    subst hNe
-    obtain ⟨he₂, hpe₂⟩ := (SemiCircuit.inr_mem_children _).1 hN
+    obtain ⟨he₂, hpe₂⟩ := (SemiCircuit.inr_mem_children _).1
+      (show .inr e ∈ S₂.children p by rwa [← Finset.mem_singleton.1 (hch₂ hN)])
     obtain ⟨Q, hQ, c, T, haff, hpT⟩ :=
       SemiCircuit.exists_affineIn_of_mem_terms hS₂.wf (mem_unpaired.1 hp₂).1 he₂ hpe₂
     exact ⟨_, h1 hd Q c T hQ haff hpT⟩
@@ -621,12 +612,8 @@ private theorem deleteGateConst_and_child {S S₁ : State n} {f : BooleanFunctio
   have hred := (hred₁.trans_delete hred₂).trans_delete
     (hred₂.valid.reduction_deleteConstraint hdel₂)
   simp only [List.nil_append] at hred
-  refine ⟨hred, hred.wt_eq_zero_of_subset ?_ ?_⟩
-  · simp [hcpG]
-  · intro N hN hpN
-    rw [List.mem_singleton] at hN
-    rw [hN, hcpG, Finset.mem_singleton] at hpN
-    exact hHr_ne hpN
+  refine ⟨hred, hred.wt_eq_zero_of_subset (by simp [hcpG]) fun N hN hpN => hHr_ne ?_⟩
+  simpa [List.mem_singleton.1 hN, hcpG] using hpN
 
 /-- The successor in Case 5a. A non-affine gate `G` reads the parameter `p` of the pair `pr` and
 the parameter `w`, and becomes the constant `c` once `w = b`. Fix the partner of `p` to its

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
 public import CslibFrontier.Logics.Propositional.CuttingPlanes
+import CslibFrontier.Logics.Propositional.CuttingPlanes.Completeness
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -21,7 +22,9 @@ A pseudo-Boolean constraint `∑ aᵢ ℓᵢ ≥ d` is the integer linear inequa
 `∑ aᵢ ℓᵢ ≥ d` with `ℓᵢ` read as `xᵥ` or `1 - xᵥ` (`Cslib.Logic.PL.PBConstr.toIneq`): the sum of the
 literal axioms `aᵢ • ℓᵢ ≥ 0` of `Cslib.Logic.PL.Literal.toIneq` and `0 ≥ d`. It has the same
 solutions (`Cslib.Logic.PL.PBConstr.holds_toIneq_iff`), and a clause's constraint is its cutting
-planes inequality (`Cslib.Logic.PL.Clause.toIneq_toPB`).
+planes inequality (`Cslib.Logic.PL.Clause.toIneq_toPB`). By refutation completeness of cutting
+planes, the inequalities of a list of constraints are refutable iff the constraints have no common
+0/1 solution (`Cslib.Logic.PL.PBConstr.exists_refutableInSize_toIneq_iff`).
 
 A VeriPB proof whose steps are `pol` steps without saturation, and deletions, translates into a
 cutting planes proof (`Cslib.Logic.PL.CuttingPlanes.IsProof`) of the same contradiction: if the
@@ -49,6 +52,8 @@ Saturation is not a rule of cutting planes, so proofs using it are excluded.
 ## Main results
 
 * `Cslib.Logic.PL.PBConstr.holds_toIneq_iff`: the translation is faithful.
+* `Cslib.Logic.PL.PBConstr.exists_refutableInSize_toIneq_iff`: cutting planes refute a list of
+  constraints iff it has no 0/1 solution.
 * `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check`: a checked proof of `UNSAT` made of
   such steps gives a cutting planes refutation.
 * `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check_cnf`: the same for the clauses of a CNF.
@@ -151,6 +156,20 @@ theorem CNF.toIneqs_eq_toPB (φ : CNF ℕ) :
   simp only [Set.mem_ofPred_eq, List.mem_map, CNF.toIneqs]
   exact ⟨fun ⟨_, ⟨cl, hcl, rfl⟩, hI⟩ => ⟨cl, hcl, Clause.toIneq_toPB cl ▸ hI⟩,
     fun ⟨cl, hcl, hI⟩ => ⟨cl.toPB, ⟨cl, hcl, rfl⟩, (Clause.toIneq_toPB cl).symm ▸ hI⟩⟩
+
+/-- **Refutation completeness of cutting planes for pseudo-Boolean constraints**: the
+inequalities of a list of constraints have a cutting planes refutation iff the constraints have no
+common 0/1 solution. This is
+`Cslib.Logic.PL.CuttingPlanes.exists_refutableInSize_iff_not_exists_holds` read through the
+faithful translation `Cslib.Logic.PL.PBConstr.holds_toIneq_iff`. -/
+theorem PBConstr.exists_refutableInSize_toIneq_iff {F : List PBConstr} :
+    (∃ s, CuttingPlanes.RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s) ↔
+      ¬ ∃ σ : ℕ → Bool, ∀ c ∈ F, c.Holds σ := by
+  rw [CuttingPlanes.exists_refutableInSize_iff_not_exists_holds]
+  refine not_congr (exists_congr fun σ => ⟨fun h c hc => ?_, ?_⟩)
+  · exact (holds_toIneq_iff σ c).1 (h _ ⟨c, hc, rfl⟩)
+  · rintro h _ ⟨c, hc, rfl⟩
+    exact (holds_toIneq_iff σ c).2 (h c hc)
 
 /-! ### Coefficients and bounds of term lists -/
 
