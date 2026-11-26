@@ -99,8 +99,14 @@ the dimensions, and the kernel's GMP-accelerated `Nat` operations do the arithme
   checkers, built on the lower-triangle check `LDLCert.factorsLower`.
 * `Cslib.LinearAlgebra.scaledLyapunovResidual`, `Cslib.LinearAlgebra.lyapunovScale`: the
   fraction-free Lyapunov residual.
+* `Cslib.LinearAlgebra.LDLCert.factorsLyapunovResidual`: the integer check of a witness for the
+  recomputed residual `-(Aᵀ * P + P * A)`, shared by both certificates below.
 * `Cslib.LinearAlgebra.LyapunovCert`, `LyapunovCert.check`: witnesses for `P ≻ 0` and
   `-(Aᵀ * P + P * A) ≻ 0`.
+* `Cslib.LinearAlgebra.InstabilityCert`, `InstabilityCert.check`: a rate `ε`, a vector `x₀`
+  with `x₀ᵀ P x₀ < 0` and a witness for `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0`, for a
+  symmetric, possibly indefinite `P` (`Cslib.LinearAlgebra.shiftRows`,
+  `Cslib.LinearAlgebra.quadForm`).
 
 ## Main results
 
@@ -118,6 +124,11 @@ the dimensions, and the kernel's GMP-accelerated `Nat` operations do the arithme
   matrices of `n` rows of `n` entries.
 * `Cslib.LinearAlgebra.LyapunovCert.posDef_of_check`: an accepted Lyapunov witness gives
   `P ≻ 0` and `-(Aᵀ * P + P * A) ≻ 0` over `ℝ`.
+* `Cslib.LinearAlgebra.LDLCert.posDef_of_factorsLyapunovResidual`,
+  `Cslib.LinearAlgebra.LDLCert.posSemidef_of_factorsLyapunovResidual`: residual soundness for a
+  symmetric `P`.
+* `Cslib.LinearAlgebra.InstabilityCert.sound_of_check`: an accepted instability certificate
+  gives its two conditions over `ℝ`.
 -/
 public section
 
@@ -581,6 +592,17 @@ theorem posDef_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n
   rw [hM, posDef_mul_diagonal_mul_conjTranspose_iff hL h1]
   exact fun i => Rat.cast_pos.2 (hd _ (hdmem i))
 
+/-- A well-formed witness with nonnegative diagonal proves the matrix it factors positive
+semidefinite over `ℝ`. -/
+theorem posSemidef_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n)
+    (hdlen : c.diag.length = n) (hl : unitLowerFrom 0 c.lower = true)
+    (hd : c.diag.all (0 ≤ ·) = true) (hM : v = c.L n * diagonal (c.d n) * (c.L n)ᵀ) :
+    (v.map ((↑) : ℚ → ℝ)).PosSemidef := by
+  simp only [List.all_eq_true, decide_eq_true_eq] at hd
+  obtain ⟨hdmem, L, hL, h1, hM⟩ := c.map_eq_of_eq hlen hdlen hl hM
+  rw [hM, posSemidef_mul_diagonal_mul_conjTranspose_iff hL h1]
+  exact fun i => Rat.cast_nonneg.2 (hd _ (hdmem i))
+
 /-- The shape facts recorded by an accepted factorization. -/
 private theorem shape_of_factorsLower {β : Type*} {num : β → ℤ} {den : β → ℕ}
     {rows : List (List β)} (h : c.factorsLower num den n rows = true) :
@@ -601,11 +623,9 @@ theorem posDef_of_checkPosDef {rows : List (List ℚ)} (h : c.checkPosDef n rows
 theorem posSemidef_of_checkPosSemidef {rows : List (List ℚ)}
     (h : c.checkPosSemidef n rows = true) :
     ((ofLists n n rows).map ((↑) : ℚ → ℝ)).PosSemidef := by
-  simp only [checkPosSemidef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
+  simp only [checkPosSemidef, Bool.and_eq_true] at h
   have hs := c.shape_of_factorsLower (by simp only [factors, Bool.and_eq_true] at h; exact h.1.2)
-  obtain ⟨hdmem, L, hL, h1, hM⟩ := c.map_eq_of_eq hs.1 hs.2.1 hs.2.2 (c.eq_of_factors h.1)
-  rw [hM, posSemidef_mul_diagonal_mul_conjTranspose_iff hL h1]
-  exact fun i => Rat.cast_nonneg.2 (h.2 _ (hdmem i))
+  exact c.posSemidef_of_eq hs.1 hs.2.1 hs.2.2 h.2 (c.eq_of_factors h.1)
 
 /-! ### Completeness -/
 
@@ -759,6 +779,67 @@ theorem map_ofLists_scaledLyapunovResidual (n : ℕ) (A P : List (List ℚ)) :
     Nat.cast_mul]
   rw [mul_comm (denLcm P.flatten : ℚ)]
 
+/-- Whether `c` factors the recomputed residual `-(Aᵀ * P + P * A)` of the `n × n` matrices with
+rows `A` and `P`, on and below the diagonal and in integers (`scaledLyapunovResidual`). The
+residual's symmetry is not checked: it follows from that of `P`
+(`LDLCert.eq_of_factorsLyapunovResidual`). -/
+@[expose] def LDLCert.factorsLyapunovResidual (c : LDLCert) (n : ℕ) (A P : List (List ℚ)) :
+    Bool :=
+  c.factorsLower id (fun _ => lyapunovScale A P) n (scaledLyapunovResidual n A P)
+
+namespace LDLCert
+
+variable {c : LDLCert} {n : ℕ} {A P : List (List ℚ)}
+
+/-- For a symmetric `P`, an accepted residual check factors `-(Aᵀ * P + P * A)` over `ℚ`, and
+`c` is well formed. -/
+theorem eq_of_factorsLyapunovResidual (hPs : (ofLists n n P)ᵀ = ofLists n n P)
+    (h : c.factorsLyapunovResidual n A P = true) :
+    (c.lower.length = n ∧ c.diag.length = n ∧ unitLowerFrom 0 c.lower = true) ∧
+      ofLists n n (lyapunovResidual n A P) = c.L n * diagonal (c.d n) * (c.L n)ᵀ := by
+  set R := ofLists n n (lyapunovResidual n A P) with hR
+  have hσ : 0 < lyapunovScale A P := Nat.mul_pos (denLcm_pos _) (denLcm_pos _)
+  have hsymm : Rᵀ = R := by
+    rw [hR, ofLists_lyapunovResidual, transpose_neg, transpose_add, transpose_mul,
+      transpose_mul, transpose_transpose, hPs, add_comm]
+  -- the integer rows give `σ • R`
+  have hval (i j : Fin n) : (((scaledLyapunovResidual n A P).getD i []).getD j 0 : ℚ) =
+      R i j * lyapunovScale A P := by
+    simpa only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hR,
+      mul_comm] using congrFun (congrFun (map_ofLists_scaledLyapunovResidual n A P) i) j
+  exact ⟨c.shape_of_factorsLower h, c.eq_of_factorsLower (num := id)
+    (den := fun _ => lyapunovScale A P) (rows := scaledLyapunovResidual n A P) hval
+    (fun _ _ => hσ) hsymm h⟩
+
+private theorem map_lyapunovResidual :
+    (ofLists n n (lyapunovResidual n A P)).map ((↑) : ℚ → ℝ) =
+      -(((ofLists n n A).map ((↑) : ℚ → ℝ))ᵀ * (ofLists n n P).map ((↑) : ℚ → ℝ) +
+        (ofLists n n P).map ((↑) : ℚ → ℝ) * (ofLists n n A).map ((↑) : ℚ → ℝ)) := by
+  rw [ofLists_lyapunovResidual, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
+    Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map]
+
+/-- **Residual soundness for `≻ 0`.** For a symmetric `P`, an accepted residual check with
+positive diagonal proves `-(Aᵀ * P + P * A) ≻ 0` over `ℝ`. -/
+theorem posDef_of_factorsLyapunovResidual (hPs : (ofLists n n P)ᵀ = ofLists n n P)
+    (h : c.factorsLyapunovResidual n A P = true) (hd : c.diag.all (0 < ·) = true) :
+    (-(((ofLists n n A).map ((↑) : ℚ → ℝ))ᵀ * (ofLists n n P).map ((↑) : ℚ → ℝ) +
+      (ofLists n n P).map ((↑) : ℚ → ℝ) * (ofLists n n A).map ((↑) : ℚ → ℝ))).PosDef := by
+  obtain ⟨⟨hl, hdl, hu⟩, hM⟩ := eq_of_factorsLyapunovResidual hPs h
+  rw [← map_lyapunovResidual]
+  exact c.posDef_of_eq hl hdl hu hd hM
+
+/-- **Residual soundness for `⪰ 0`.** For a symmetric `P`, an accepted residual check with
+nonnegative diagonal proves `-(Aᵀ * P + P * A) ⪰ 0` over `ℝ`. -/
+theorem posSemidef_of_factorsLyapunovResidual (hPs : (ofLists n n P)ᵀ = ofLists n n P)
+    (h : c.factorsLyapunovResidual n A P = true) (hd : c.diag.all (0 ≤ ·) = true) :
+    (-(((ofLists n n A).map ((↑) : ℚ → ℝ))ᵀ * (ofLists n n P).map ((↑) : ℚ → ℝ) +
+      (ofLists n n P).map ((↑) : ℚ → ℝ) * (ofLists n n A).map ((↑) : ℚ → ℝ))).PosSemidef := by
+  obtain ⟨⟨hl, hdl, hu⟩, hM⟩ := eq_of_factorsLyapunovResidual hPs h
+  rw [← map_lyapunovResidual]
+  exact c.posSemidef_of_eq hl hdl hu hd hM
+
+end LDLCert
+
 /-- Witnesses for the two inequalities of a quadratic Lyapunov certificate for `ẋ = A x`:
 `P ≻ 0` and `-(Aᵀ * P + P * A) ≻ 0`. -/
 structure LyapunovCert where
@@ -775,8 +856,7 @@ namespace LyapunovCert
 accepted `P` is. -/
 @[expose] def check (c : LyapunovCert) (n : ℕ) (A P : List (List ℚ)) : Bool :=
   isShape n n A && c.P.checkPosDef n P &&
-    c.Q.factorsLower id (fun _ => lyapunovScale A P) n (scaledLyapunovResidual n A P) &&
-    c.Q.diag.all (0 < ·)
+    c.Q.factorsLyapunovResidual n A P && c.Q.diag.all (0 < ·)
 
 /-- **Soundness.** An accepted Lyapunov witness proves `P ≻ 0` and `-(Aᵀ * P + P * A) ≻ 0` for
 the real matrices `A` and `P`. -/
@@ -787,27 +867,107 @@ theorem posDef_of_check {c : LyapunovCert} {n : ℕ} {A P : List (List ℚ)}
         (ofLists n n P).map ((↑) : ℚ → ℝ) * (ofLists n n A).map ((↑) : ℚ → ℝ))).PosDef := by
   simp only [check, Bool.and_eq_true] at h
   obtain ⟨⟨⟨-, hP⟩, hQ⟩, hd⟩ := h
-  refine ⟨c.P.posDef_of_checkPosDef hP, ?_⟩
-  set R := ofLists n n (lyapunovResidual n A P) with hR
-  have hσ : 0 < lyapunovScale A P := Nat.mul_pos (denLcm_pos _) (denLcm_pos _)
-  -- the residual is symmetric because `P` is
   have hPs : (ofLists n n P)ᵀ = ofLists n n P := by
     rw [c.P.eq_of_factors (Bool.and_eq_true_iff.1 hP).1, LDLCert.transpose_LDLt]
-  have hsymm : Rᵀ = R := by
-    rw [hR, ofLists_lyapunovResidual, transpose_neg, transpose_add, transpose_mul,
-      transpose_mul, transpose_transpose, hPs, add_comm]
-  -- the integer rows give `σ • R`
-  have hval (i j : Fin n) : (((scaledLyapunovResidual n A P).getD i []).getD j 0 : ℚ) =
-      R i j * lyapunovScale A P := by
-    simpa only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hR,
-      mul_comm] using congrFun (congrFun (map_ofLists_scaledLyapunovResidual n A P) i) j
-  obtain ⟨hl, hdl, hu⟩ := c.Q.shape_of_factorsLower hQ
-  have hQpos := c.Q.posDef_of_eq hl hdl hu hd <|
-    c.Q.eq_of_factorsLower (num := id) (den := fun _ => lyapunovScale A P)
-      (rows := scaledLyapunovResidual n A P) hval (fun _ _ => hσ) hsymm hQ
-  rwa [hR, ofLists_lyapunovResidual, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
-    Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map] at hQpos
+  exact ⟨c.P.posDef_of_checkPosDef hP, LDLCert.posDef_of_factorsLyapunovResidual hPs hQ hd⟩
 
 end LyapunovCert
+
+/-! ### Instability certificates -/
+
+/-- The rows of the scalar matrix `ε • 1` of size `n × n`. -/
+@[expose] def scalarRows (n : ℕ) (ε : ℚ) : List (List ℚ) :=
+  (List.range n).map fun i => (List.range n).map fun j => if i = j then ε else 0
+
+/-- The rows of `A - ε • 1` for the `n × n` matrix with rows `A`. -/
+@[expose] def shiftRows (n : ℕ) (ε : ℚ) (A : List (List ℚ)) : List (List ℚ) :=
+  rowsMap₂ (· - ·) n n A (scalarRows n ε)
+
+/-- `shiftRows` computes `A - ε • 1`, with no shape hypothesis on `A`. -/
+theorem ofLists_shiftRows (n : ℕ) (ε : ℚ) (A : List (List ℚ)) :
+    ofLists n n (shiftRows n ε A) = ofLists n n A - ε • 1 := by
+  rw [shiftRows, ofLists_rowsMap₂]
+  ext i j
+  rcases eq_or_ne i j with rfl | hij
+  · simp [scalarRows, ofLists_apply, ofList_apply, List.getD_eq_getElem?_getD]
+  · have h : (i : ℕ) ≠ j := fun e => hij (Fin.ext e)
+    simp [scalarRows, ofLists_apply, ofList_apply, List.getD_eq_getElem?_getD, h,
+      one_apply_ne hij]
+
+/-- The quadratic form `xᵀ P x` of the `n × n` matrix with rows `P` at the `n`-vector `x`,
+both padded with zeros, computed on lists. -/
+@[expose] def quadForm (n : ℕ) (P : List (List ℚ)) (x : List ℚ) : ℚ :=
+  rowDot (x.take n) (P.map fun r => rowDot (r.take n) x)
+
+private theorem getD_take_of_lt {α : Type*} (l : List α) (d : α) {k n : ℕ} (hk : k < n) :
+    (l.take n).getD k d = l.getD k d := by
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_take, hk, ite_true]
+
+/-- `quadForm` computes `x ⬝ᵥ P *ᵥ x`, with no shape hypothesis. -/
+theorem quadForm_eq (n : ℕ) (P : List (List ℚ)) (x : List ℚ) :
+    quadForm n P x = ofList n x ⬝ᵥ ofLists n n P *ᵥ ofList n x := by
+  rw [quadForm, rowDot_eq_sum _ (List.length_take_le _ _)]
+  refine Finset.sum_congr rfl fun k _ => ?_
+  rw [getD_take_of_lt _ _ k.is_lt, ofList_apply]
+  congr 1
+  have hrow : (P.map fun r => rowDot (r.take n) x).getD k 0 =
+      rowDot ((P.getD k []).take n) x := by
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
+    cases P[(k : ℕ)]? <;> simp [rowDot]
+  rw [hrow, rowDot_eq_sum _ (List.length_take_le _ _), mulVec, dotProduct]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [getD_take_of_lt _ _ j.is_lt, ofLists_apply, ofList_apply, ofList_apply]
+
+/-- An instability (or slow-decay) certificate for `ẋ = A x` with the symmetric matrix `P`, which
+need not be definite: a rational rate `ε` of either sign, an initial vector `x₀` with
+`x₀ᵀ P x₀ < 0`, and an `LDLᵀ` witness for `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0`. -/
+structure InstabilityCert where
+  /-- The certified rate `ε`: some trajectory decays no faster than `exp (ε t)`. -/
+  rate : ℚ
+  /-- An initial vector of negative energy `x₀ᵀ P x₀ < 0`. -/
+  x₀ : List ℚ
+  /-- An `LDLᵀ` witness for `-((A - ε • 1)ᵀ * P + P * (A - ε • 1))`, with `d ≥ 0`. -/
+  Q : LDLCert
+
+namespace InstabilityCert
+
+/-- Whether `c` certifies, for the `n × n` matrices with rows `A` and `P`, that `P` is symmetric,
+`c.x₀ ⬝ᵥ P *ᵥ c.x₀ < 0` and `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0` for
+`ε = c.rate`. The residual is recomputed from `shiftRows n ε A` and `P`, in integers. -/
+@[expose] def check (c : InstabilityCert) (n : ℕ) (A P : List (List ℚ)) : Bool :=
+  isShape n n A && isShape n n P && ListMatrix.transpose n P == P && c.x₀.length == n &&
+    decide (quadForm n P c.x₀ < 0) &&
+    c.Q.factorsLyapunovResidual n (shiftRows n c.rate A) P && c.Q.diag.all (0 ≤ ·)
+
+/-- **Soundness.** An accepted instability certificate proves, over `ℝ`, that
+`x₀ ⬝ᵥ P *ᵥ x₀ < 0` and `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0` for `ε = c.rate`. -/
+theorem sound_of_check {c : InstabilityCert} {n : ℕ} {A P : List (List ℚ)}
+    (h : c.check n A P = true) :
+    (fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) ⬝ᵥ (ofLists n n P).map ((↑) : ℚ → ℝ) *ᵥ
+        (fun i => ((ofList n c.x₀ i : ℚ) : ℝ)) < 0 ∧
+    (-((((ofLists n n A).map ((↑) : ℚ → ℝ)) - (c.rate : ℝ) • 1)ᵀ *
+        (ofLists n n P).map ((↑) : ℚ → ℝ) +
+      (ofLists n n P).map ((↑) : ℚ → ℝ) *
+        (((ofLists n n A).map ((↑) : ℚ → ℝ)) - (c.rate : ℝ) • 1))).PosSemidef := by
+  simp only [check, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨⟨⟨⟨-, -⟩, hPs⟩, -⟩, hq⟩, hQ⟩, hd⟩ := h
+  have hPs' : (ofLists n n P)ᵀ = ofLists n n P := by rw [← ofLists_transpose, hPs]
+  have hshift : (ofLists n n (shiftRows n c.rate A)).map ((↑) : ℚ → ℝ) =
+      (ofLists n n A).map ((↑) : ℚ → ℝ) - (c.rate : ℝ) • 1 := by
+    rw [ofLists_shiftRows]
+    ext i j
+    rcases eq_or_ne i j with rfl | hij
+    · simp
+    · simp [one_apply_ne hij]
+  refine ⟨?_, ?_⟩
+  · rw [quadForm_eq] at hq
+    have hlt : ((ofList n c.x₀ ⬝ᵥ ofLists n n P *ᵥ ofList n c.x₀ : ℚ) : ℝ) < 0 :=
+      Rat.cast_lt_zero.2 hq
+    convert hlt using 1
+    simp only [dotProduct, mulVec, Rat.cast_sum, Rat.cast_mul, Matrix.map_apply]
+  · rw [← hshift]
+    exact LDLCert.posSemidef_of_factorsLyapunovResidual hPs' hQ hd
+
+end InstabilityCert
 
 end Cslib.LinearAlgebra
