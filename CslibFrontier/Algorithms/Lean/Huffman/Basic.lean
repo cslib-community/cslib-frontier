@@ -386,16 +386,19 @@ theorem isUniquelyDecodable_codewordSet (l r : CodeTree α) :
 theorem decodeOne_branch_length_lt {l r : CodeTree α} {bits rem : List Bool} {a : α}
     (h : decodeOne (branch l r) bits = some (a, rem)) :
     rem.length < bits.length := by
-  have hle (T : CodeTree α) (bs : List Bool) {rm : List Bool} {x : α}
-      (hd : decodeOne T bs = some (x, rm)) : rm.length ≤ bs.length := by
-    fun_induction decodeOne T bs with
-    | case1 => simp_all
-    | case2 _ _ _ ih | case3 _ _ _ ih => exact Nat.le_succ_of_le (ih hd)
-    | case4 => cases hd
+  have hle (T : CodeTree α) : ∀ {bs rm x}, decodeOne T bs = some (x, rm) →
+      rm.length ≤ bs.length := by
+    induction T with
+    | leaf _ => simp [decodeOne]
+    | branch _ _ ihl ihr =>
+      rintro (_ | ⟨false | true, _⟩) _ _ hd
+      · cases hd
+      · exact Nat.le_succ_of_le (ihl hd)
+      · exact Nat.le_succ_of_le (ihr hd)
   rcases bits with _ | ⟨false | true, _⟩
   · cases h
-  · exact Nat.lt_succ_of_le (hle l _ h)
-  · exact Nat.lt_succ_of_le (hle r _ h)
+  · exact Nat.lt_succ_of_le (hle l h)
+  · exact Nat.lt_succ_of_le (hle r h)
 
 /-- Decode a bit stream into a list of symbols using a non-leaf code tree `T`. -/
 @[expose] def decode : CodeTree α → List Bool → Option (List α)
@@ -514,8 +517,7 @@ private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List 
             hnodup.1 (h ▸ List.mem_map.mpr ⟨q, hq, rfl⟩)]
       have hmul : c.length • (msg.count a + 1) = c.length • msg.count a + c.length :=
         Nat.mul_succ _ _
-      simp only [List.count_cons_self, htail, hmul]
-      omega
+      simp only [List.count_cons_self, htail, hmul]; omega
     · rw [List.count_cons_of_ne fun (h : a = p.1) =>
           hnodup.1 (h.symm ▸ List.mem_map.mpr ⟨_, hps, rfl⟩),
         ih hnodup.2 hps]
@@ -528,9 +530,7 @@ theorem length_encode_eq_weightedPathLength_count [DecidableEq α] {T : CodeTree
     (henc : T.encode msg = some bits) :
     bits.length = T.weightedPathLength (fun a => msg.count a) := by
   induction msg generalizing bits with
-  | nil =>
-    obtain rfl : [] = bits := by simpa [encode] using henc
-    simp [weightedPathLength_eq_sum_codewords]
+  | nil => simp_all [encode, weightedPathLength_eq_sum_codewords]
   | cons a msg ih =>
     simp only [encode, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at henc
     rcases henc with ⟨c, hc, rest, hrest, rfl⟩

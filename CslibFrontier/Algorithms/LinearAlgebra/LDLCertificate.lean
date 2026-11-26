@@ -713,9 +713,12 @@ theorem exists_checkPosSemidef_iff {rows : List (List ℚ)} :
   · rintro ⟨hshape, hM⟩
     obtain ⟨L, d, hL, h1, hd, hLd⟩ := exists_LDL_of_posSemidef (posSemidef_of_map_ratCast hM)
     obtain ⟨hlen, hdlen, hl, hLL, hdd⟩ := ofFactors_spec (d := d) hL h1
-    exact ⟨ofFactors L d, Bool.and_eq_true_iff.2
-      ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
-        by simp [ofFactors, hd]⟩⟩
+    refine ⟨ofFactors L d, ?_⟩
+    simp only [checkPosSemidef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
+    refine ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
+      fun x hx => ?_⟩
+    obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
+    exact hd i
 
 /-- **Completeness for `≻ 0`.** Some witness is accepted exactly when `rows` lists `n` rows of
 `n` entries and the matrix is positive definite over `ℝ` (`Matrix.exists_LDL_of_posDef`). -/
@@ -730,9 +733,12 @@ theorem exists_checkPosDef_iff {rows : List (List ℚ)} :
   · rintro ⟨hshape, hM⟩
     obtain ⟨L, d, hL, h1, hd, hLd⟩ := exists_LDL_of_posDef (posDef_of_map_ratCast hM)
     obtain ⟨hlen, hdlen, hl, hLL, hdd⟩ := ofFactors_spec (d := d) hL h1
-    exact ⟨ofFactors L d, Bool.and_eq_true_iff.2
-      ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
-        by simp [ofFactors, hd]⟩⟩
+    refine ⟨ofFactors L d, ?_⟩
+    simp only [checkPosDef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
+    refine ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
+      fun x hx => ?_⟩
+    obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
+    exact hd i
 
 end LDLCert
 
@@ -815,15 +821,19 @@ theorem posDef_of_check {c : LyapunovCert} {n : ℕ} {A P : List (List ℚ)}
   have hσ : 0 < lyapunovScale A P := Nat.mul_pos (denLcm_pos _) (denLcm_pos _)
   -- the residual is symmetric because `P` is
   have hPs : (ofLists n n P)ᵀ = ofLists n n P := by
-    rw [c.P.eq_of_factors (Bool.and_eq_true_iff.1 hP).1, LDLCert.transpose_LDLt]
+    have := c.P.eq_of_factors (by simp only [LDLCert.checkPosDef, Bool.and_eq_true] at hP
+                                  exact hP.1)
+    rw [this, LDLCert.transpose_LDLt]
   have hsymm : Rᵀ = R := by
     rw [hR, ofLists_lyapunovResidual, transpose_neg, transpose_add, transpose_mul,
       transpose_mul, transpose_transpose, hPs, add_comm]
   -- the integer rows give `σ • R`
-  have hval (i j : Fin n) : (((scaledLyapunovResidual n A P).getD i []).getD j 0 : ℚ) =
+  have hval : ∀ i j : Fin n, (((scaledLyapunovResidual n A P).getD i []).getD j 0 : ℚ) =
       R i j * lyapunovScale A P := by
-    simpa only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hR,
-      mul_comm] using congrFun (congrFun (map_ofLists_scaledLyapunovResidual n A P) i) j
+    intro i j
+    have := congrFun (congrFun (map_ofLists_scaledLyapunovResidual n A P) i) j
+    simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply] at this
+    rw [this, mul_comm, hR, ofLists_apply, ofList_apply]
   have hM := c.Q.eq_of_factorsLower (num := id) (den := fun _ => lyapunovScale A P)
     (rows := scaledLyapunovResidual n A P) (fun i j => by simpa only [id] using hval i j)
     (fun _ _ => hσ) hsymm hQ
