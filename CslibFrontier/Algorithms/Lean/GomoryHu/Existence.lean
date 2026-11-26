@@ -85,8 +85,7 @@ private theorem exists_cross {E : Set (CEdge V)} {x₀ y₀ a b : V} {Y : Finset
     · obtain ⟨e, he, hsep, hends⟩ := hcd
       refine ⟨e, he, hsep, ?_⟩
       rcases hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-      · exact ⟨fun _ => hb, fun _ => hc⟩
-      · exact ⟨fun h => absurd h hb, fun h => absurd hc h⟩
+      exacts [⟨fun _ => hb, fun _ => hc⟩, ⟨fun h => absurd h hb, fun h => absurd hc h⟩]
     · exact ih hc
 
 private theorem step_mono {E E' : Set (CEdge V)} {x₀ y₀ x₁ y₁ : V}
@@ -124,13 +123,11 @@ orientation. -/
 private theorem Inv.treeOf_adj {E : Set (CEdge V)} (I : Inv f L R E) {x y : V} :
     (treeOf E).Adj x y ↔ ∃ e ∈ E, (e.u = x ∧ e.v = y) ∨ (e.u = y ∧ e.v = x) := by
   simp only [treeOf, SimpleGraph.fromRel_adj]
-  constructor
-  · rintro ⟨_, ⟨e, he, h⟩ | ⟨e, he, h⟩⟩
-    · exact ⟨e, he, Or.inl h⟩
-    · exact ⟨e, he, Or.inr h⟩
-  · rintro ⟨e, he, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩
-    · exact ⟨(I.edge e he).ne, Or.inl ⟨e, he, rfl, rfl⟩⟩
-    · exact ⟨(I.edge e he).ne.symm, Or.inr ⟨e, he, rfl, rfl⟩⟩
+  refine ⟨fun ⟨_, h⟩ => h.elim (fun ⟨e, he, h⟩ => ⟨e, he, .inl h⟩)
+      (fun ⟨e, he, h⟩ => ⟨e, he, .inr h⟩), ?_⟩
+  rintro ⟨e, he, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩
+  exacts [⟨(I.edge e he).ne, .inl ⟨e, he, rfl, rfl⟩⟩,
+    ⟨(I.edge e he).ne.symm, .inr ⟨e, he, rfl, rfl⟩⟩]
 
 /-- A tree edge other than that of `e` does not cross the label of `e`. -/
 private theorem Inv.mem_iff_of_adj {E : Set (CEdge V)} (I : Inv f L R E) {e : CEdge V}
@@ -142,8 +139,7 @@ private theorem Inv.mem_iff_of_adj {E : Set (CEdge V)} (I : Inv f L R E) {e : CE
     rcases hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     exacts [hne rfl, hne Sym2.eq_swap]
   rcases hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · exact I.nest e he e' he' hee'
-  · exact (I.nest e he e' he' hee').symm
+  exacts [I.nest e he e' he' hee', (I.nest e he e' he' hee').symm]
 
 /-- A partial tree on all vertices is a spanning tree. -/
 private theorem Inv.isTree [Fintype V] [Nonempty V] {E : Set (CEdge V)}
@@ -190,10 +186,8 @@ private theorem good_restrict {L : Finset V → Prop} (hL : Good L) (U : Finset 
     ⟨hL.2 X Y hX hY, ?_⟩⟩
   · exact hXU.symm.imp compl_le_iff_compl_le.mp Finset.compl_subset_compl.mpr
   · rcases hXU with h | h
-    · exact Or.inl (Finset.inter_subset_left.trans h)
-    · rcases hYU with h' | h'
-      · exact Or.inl (Finset.inter_subset_right.trans h')
-      · exact Or.inr (Finset.subset_inter h h')
+    · exact .inl (Finset.inter_subset_left.trans h)
+    · exact hYU.imp (Finset.inter_subset_right.trans ·) (Finset.subset_inter h ·)
 
 /-- A set that does not split `Uᶜ` contains both or neither of two vertices outside `U`. -/
 private theorem Restrict.mem_iff {L : Finset V → Prop} {U X : Finset V} (h : Restrict L U X)
@@ -340,9 +334,8 @@ private theorem exists_inv {f : Finset V → β} (hsym : ∀ X, f Xᶜ = f X) (h
   by_cases hone : ∀ a ∈ R, ∀ b ∈ R, a = b
   · obtain ⟨r, hr⟩ := hne
     refine ⟨∅, ⟨fun e he => he.elim, fun e he => he.elim, fun e he => he.elim,
-      fun e he => he.elim, fun x hx y hy => ?_, fun _ => ⟨r, hr, fun e he => he.elim⟩⟩⟩
-    obtain rfl := hone x hx y hy
-    exact Relation.ReflTransGen.refl
+      fun e he => he.elim, fun x hx y hy => hone x hx y hy ▸ .refl,
+      fun _ => ⟨r, hr, fun e he => he.elim⟩⟩⟩
   · push Not at hone
     obtain ⟨s, hs, t, ht, hst⟩ := hone
     obtain ⟨U, hLU, hU⟩ := hex s hs t ht hst

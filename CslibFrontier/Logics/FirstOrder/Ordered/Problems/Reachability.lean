@@ -242,26 +242,16 @@ theorem PosTCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduce
       change _ ↔ Relation.ReflTransGen (graphAdj (I.map hI M)) zeroIdx maxIdx
       rw [← I.rank_unrank zeroIdx, ← I.rank_unrank maxIdx]
       exact Relation.reflTransGen_equiv_iff e hedge z₀ m₀
-    have hargs_l (xs : Fin (2 * k) → Fin M.size) :
-        (fun i => Term.realize (Sum.elim Empty.elim xs)
-          (TC.left (fun i : Fin (2 * k) => (Term.var (.inr i) : (language L).Term _)) i)) =
-          TC.left xs := rfl
-    have hargs_r (xs : Fin (2 * k) → Fin M.size) :
-        (fun i => Term.realize (Sum.elim Empty.elim xs)
-          (TC.right (fun i : Fin (2 * k) => (Term.var (.inr i) : (language L).Term _)) i)) =
-          TC.right xs := rfl
-    have hleft_id (xs : Fin (2 * k) → Fin M.size) :
-        (fun x => xs (TC.left _root_.id x)) = TC.left xs := rfl
-    have hright_id (xs : Fin (2 * k) → Fin M.size) :
-        (fun x => xs (TC.right _root_.id x)) = TC.right xs := rfl
     rw [← hpath]
     simp only [pullbackReachSentence, Operator.Formula.realize_exs, Operator.Formula.realize_conj,
       Operator.Formula.realize_ofFO, TC.realize_tc, Formula.realize_inf, Formula.realize_relabel,
-      Function.comp_def, apply_ite, Sum.elim_inr, hpair_left, hpair_right, hargs_l, hargs_r,
-      hleft_id, hright_id, hzero, hmax]
-    exact ⟨fun hr => ⟨TC.pair z₀.val m₀.val, TC.left_pair _ _, TC.right_pair _ _, by
-      simpa only [TC.left_pair, TC.right_pair] using hr⟩,
+      Function.comp_def, apply_ite, Sum.elim_inr, hpair_left, hpair_right, hzero, hmax]
+    dsimp only [TC.left, TC.right, Term.realize, Sum.elim_inr, id]
+    refine ⟨fun hr => ⟨TC.pair z₀.val m₀.val, TC.left_pair _ _, TC.right_pair _ _, ?_⟩,
       fun ⟨_, hz, ht, hr⟩ => by rwa [hz, ht] at hr⟩
+    have hl : (fun i => TC.pair z₀.val m₀.val _) = z₀.val := TC.left_pair _ _
+    have hr' : (fun i => TC.pair z₀.val m₀.val _) = m₀.val := TC.right_pair _ _
+    rwa [hl, hr']
 
 /-- **Ordered first-order reductions to `Reach` pull back FO(TC) definability.** -/
 theorem TCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduces K Reach) :
@@ -597,13 +587,12 @@ theorem mem_STReach_reachToSTReachInterpretation
         Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one]
       rfl
   rw [mem_STReach, mem_Reach]
-  constructor
-  · rintro ⟨s', t', hs', ht', hpath⟩
-    obtain ⟨s, rfl⟩ := e.surjective s'
-    obtain ⟨t, rfl⟩ := e.surjective t'
-    rwa [(hsrc s).mp hs', (htgt t).mp ht', ← Relation.reflTransGen_equiv_iff e hadj] at hpath
-  · exact fun hpath => ⟨e 0, e M.maxElem,
-      (hsrc 0).mpr rfl, (htgt _).mpr rfl, (Relation.reflTransGen_equiv_iff e hadj _ _).mp hpath⟩
+  refine ⟨fun ⟨s', t', hs', ht', hpath⟩ => ?_, fun hpath =>
+    ⟨e 0, e M.maxElem, (hsrc 0).mpr rfl, (htgt _).mpr rfl,
+      (Relation.reflTransGen_equiv_iff e hadj _ _).mp hpath⟩⟩
+  obtain ⟨s, rfl⟩ := e.surjective s'
+  obtain ⟨t, rfl⟩ := e.surjective t'
+  rwa [(hsrc s).mp hs', (htgt t).mp ht', ← Relation.reflTransGen_equiv_iff e hadj] at hpath
 
 /-- `Reach` first-order reduces to `STReach`. -/
 theorem reach_reduces_STReach : Reduces Reach STReach :=

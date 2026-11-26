@@ -128,8 +128,7 @@ theorem evalOne_inheritedClause (τ : Variable V → Bool) (i : ℕ) (c : Clause
       have hh := (evalOne_complementClauses_iff τ (.inl v) (auxiliary i j 0)
         (auxiliary i j 1) (auxiliary i j 2) (auxiliary i j 3) (auxiliary i j 4)).mp
           (hcomp ((v, false), j) ha)
-      have hy := congrArg Bool.not hh.1
-      simpa [positiveLiteral, Literal.eval] using hy.symm
+      simpa [positiveLiteral, Literal.eval] using (congrArg Bool.not hh.1).symm
   unfold Clause.evalOne
   congr 1
   rw [List.countP_map]
@@ -139,9 +138,8 @@ theorem evalOne_inheritedClause (τ : Variable V → Bool) (i : ℕ) (c : Clause
         change Literal.eval τ (positiveLiteral i a.2 a.1) = true ↔ _
         rw [heval a ha])
     _ = c.countP (Literal.eval (fun v => τ (.inl v))) := by
-      have h := congrArg (List.countP (Literal.eval (fun v => τ (.inl v))))
-        (by simp only [List.zipIdx_map_fst] : c.zipIdx.map Prod.fst = c)
-      simpa only [List.countP_map, Function.comp_def] using h
+      simpa only [List.countP_map, Function.comp_def] using
+        congrArg (List.countP (Literal.eval (fun v => τ (.inl v)))) (List.zipIdx_map_fst 0 c)
 
 /-- A compiled clause is exactly the source clause together with its complement constraints. -/
 theorem evalOne_clauseClauses_iff (τ : Variable V → Bool) (i : ℕ) (c : Clause V) :
@@ -159,38 +157,28 @@ theorem evalOne_of_formula (φ : CNF V) (τ : Variable V → Bool)
   rw [CNF.evalOne_eq_true_iff]
   intro c hc
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-  have hzip : (φ[i], i) ∈ φ.zipIdx :=
-    List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi)
   have hh := (CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
-    (fun (c, i) => clauseClauses i c)).mp hτ (φ[i], i) hzip
+    (fun (c, i) => clauseClauses i c)).mp hτ (φ[i], i)
+    (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi))
   exact (evalOne_clauseClauses_iff τ i φ[i]).mp hh |>.1
 
 /-- Canonical extension preserves the exact-one value of the whole source formula. -/
 theorem evalOne_formula_extend (φ : CNF V) (σ : V → Bool) :
     CNF.evalOne (extend φ σ) (formula φ) = CNF.evalOne σ φ := by
   rw [Bool.eq_iff_iff]
-  constructor
-  · exact evalOne_of_formula φ (extend φ σ)
-  · intro hσ
-    rw [formula, CNF.evalOne_flatMap_eq_true_iff]
-    intro a ha
-    rcases a with ⟨c, i⟩
-    rw [evalOne_clauseClauses_iff]
-    refine ⟨(CNF.evalOne_eq_true_iff σ φ).mp hσ c
-      (List.fst_mem_of_mem_zipIdx ha), ?_⟩
-    intro a ha'
-    rcases a with ⟨l, j⟩
-    exact evalOne_complementBlock_extend φ σ
-      (List.mem_zipIdx_iff_getElem?.mp ha) (List.mem_zipIdx_iff_getElem?.mp ha')
+  refine ⟨evalOne_of_formula φ (extend φ σ), fun hσ => ?_⟩
+  rw [formula, CNF.evalOne_flatMap_eq_true_iff]
+  rintro ⟨c, i⟩ ha
+  rw [evalOne_clauseClauses_iff]
+  exact ⟨(CNF.evalOne_eq_true_iff σ φ).mp hσ c (List.fst_mem_of_mem_zipIdx ha),
+    fun ⟨l, j⟩ ha' => evalOne_complementBlock_extend φ σ
+      (List.mem_zipIdx_iff_getElem?.mp ha) (List.mem_zipIdx_iff_getElem?.mp ha')⟩
 
 /-- The positive output is exact-one satisfiable exactly when the source is. -/
 theorem oneSatisfiable_formula_iff (φ : CNF V) :
     (formula φ).OneSatisfiable ↔ φ.OneSatisfiable := by
-  constructor
-  · rintro ⟨τ, hτ⟩
-    exact ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ⟩
-  · rintro ⟨σ, hσ⟩
-    exact ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ⟩
+  exact ⟨fun ⟨τ, hτ⟩ => ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ⟩,
+    fun ⟨σ, hσ⟩ => ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ⟩⟩
 
 /-- Every negative-occurrence complement block is satisfied by a satisfying output assignment. -/
 theorem evalOne_complementBlock_of_formula (φ : CNF V) (τ : Variable V → Bool)
@@ -246,14 +234,8 @@ theorem complementBlock_assignments_agree (σ τ : Variable V → Bool) (i j : �
       forceFalseClauses, CNF.vars, List.flatten_cons, List.flatten_nil, List.cons_append,
       List.nil_append, List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil,
       or_false] at hv
-    rcases hv with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals first
-      | exact hsource
-      | exact hy
-      | exact hs.2.1.trans ht.2.1.symm
-      | exact hs.2.2.1.trans ht.2.2.1.symm
-      | exact hs.2.2.2.1.trans ht.2.2.2.1.symm
-      | exact hs.2.2.2.2.trans ht.2.2.2.2.symm
+    rcases hv with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simp [hsource, hy, hs.2, ht.2]
 
 /-- Satisfying output assignments agree exactly when their source restrictions agree. -/
 theorem assignments_agree_iff {φ : CNF V} {σ τ : Variable V → Bool}
@@ -401,17 +383,11 @@ def occurrenceVariables (i j : ℕ) (l : Literal V) : List (Variable V) :=
 /-- Distinct source variables remain distinct in the inherited positive clause. -/
 theorem nodup_inheritedClause (i : ℕ) (c : Clause V) (hc : (c.map Prod.fst).Nodup) :
     ((c.zipIdx.map fun (l, j) => positiveLiteral i j l).map Prod.fst).Nodup := by
-  have hvars : (c.zipIdx.map fun a => a.1.1).Nodup := by
-    rw [← List.zipIdx_map_fst 0 c, List.map_map] at hc
-    exact hc
-  have hidx := List.nodup_zipIdx_map_snd c
-  change List.Pairwise _ _ at hvars hidx ⊢
-  rw [List.map_map, List.pairwise_map]
-  have hboth := (List.pairwise_map.mp hvars).and (List.pairwise_map.mp hidx)
-  apply hboth.imp
-  intro a b hab
-  rcases a with ⟨⟨v, p⟩, j⟩
-  rcases b with ⟨⟨w, q⟩, k⟩
+  rw [← List.zipIdx_map_fst 0 c, List.map_map] at hc
+  rw [List.Nodup, List.map_map, List.pairwise_map]
+  refine ((List.pairwise_map.mp hc).and
+    (List.pairwise_map.mp (List.nodup_zipIdx_map_snd c))).imp ?_
+  rintro ⟨⟨v, p⟩, j⟩ ⟨⟨w, q⟩, k⟩ hab
   cases p <;> cases q <;> simp_all [positiveLiteral, auxiliary]
 
 /-- Every complement clause has three distinct variables, regardless of its source literal. -/
@@ -484,17 +460,15 @@ theorem count_aux_occurrenceVariables [DecidableEq V] (i j a b k : ℕ) (l : Lit
     (occurrenceVariables i j l).count (auxiliary a b k) ≤
       if a = i ∧ b = j then 3 else 0 := by
   cases hb : l.2
-  · by_cases hi : a = i
-    · subst a
-      by_cases hj : b = j
-      · subst b
-        rcases k with _ | _ | _ | _ | _ | k <;>
+  · obtain rfl | hi := eq_or_ne a i
+    · obtain rfl | hj := eq_or_ne b j
+      · rcases k with _ | _ | _ | _ | _ | k <;>
           simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
             forceFalseClauses, auxiliary, CNF.vars, hb]
       · simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-          forceFalseClauses, auxiliary, CNF.vars, hb, hj, Ne.symm hj]
+          forceFalseClauses, auxiliary, CNF.vars, hb, hj, hj.symm]
     · simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-        forceFalseClauses, auxiliary, CNF.vars, hb, hi, Ne.symm hi]
+        forceFalseClauses, auxiliary, CNF.vars, hb, hi, hi.symm]
   · simp [occurrenceVariables, positiveLiteral, complementBlock, auxiliary, CNF.vars, hb]
 
 /-- Original variable occurrence counts are unchanged in each compiled clause block. -/
