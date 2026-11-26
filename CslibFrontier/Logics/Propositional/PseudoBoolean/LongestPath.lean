@@ -155,18 +155,10 @@ satisfies it exactly when, at every vertex `v`, the edges it chooses carry the f
 theorem forall_holds_formula_iff (s t : Fin m) (σ : ℕ → Bool) :
     (∀ c ∈ formula src dst s t, c.Holds σ) ↔
       ∀ v, ∑ e ∈ chosen n σ, unitFlow (src e) (dst e) v = unitFlow s t v := by
-  simp only [formula, List.mem_flatMap, List.mem_finRange, true_and, List.mem_cons,
-    List.not_mem_nil, or_false, forall_exists_index]
-  constructor
-  · intro h v
-    have h₁ := (holds_fromLinear_iff _ _ _).1 (h _ v (Or.inl rfl))
-    have h₂ := (holds_fromLinear_iff _ _ _).1 (h _ v (Or.inr rfl))
-    rw [linVal_map_neg, linVal_flow] at h₂
-    rw [linVal_flow] at h₁
-    omega
-  · rintro h c v (rfl | rfl) <;> rw [holds_fromLinear_iff]
-    · rw [linVal_flow, h]
-    · rw [linVal_map_neg, linVal_flow, h]
+  simp only [formula, List.forall_mem_flatMap, List.mem_finRange, forall_const,
+    List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff, implies_true, and_true,
+    holds_fromLinear_iff, linVal_map_neg, linVal_flow]
+  exact forall_congr' fun _ => by omega
 
 /-! ### Walks and flows in an acyclic graph -/
 
@@ -214,8 +206,7 @@ private theorem eq_empty_of_circulation (hG : Acyclic fun u v => ∃ e, src e = 
   have hloop : src e ≠ dst e := fun h => hG.irrefl (dst e) (.single ⟨e, h, rfl⟩)
   have hfe : unitFlow (src e) (dst e) (dst e) = -1 := by simp [unitFlow, hloop]
   obtain ⟨f, hf, hpos⟩ : ∃ f ∈ S.erase e, 0 < unitFlow (src f) (dst f) (dst e) := by
-    by_contra hneg
-    simp only [not_exists, not_and, not_lt] at hneg
+    by_contra! hneg
     have h₁ := Finset.sum_nonpos hneg
     have h₂ := hS (dst e)
     rw [← Finset.sum_erase_add _ _ he, hfe] at h₂
@@ -233,8 +224,7 @@ private theorem exists_isWalk (hG : Acyclic fun u v => ∃ e, src e = u ∧ dst 
   · subst hut
     exact ⟨[], rfl, (eq_empty_of_circulation hG fun w => by rw [hS w, unitFlow_self]).symm⟩
   obtain ⟨f, hf, hpos⟩ : ∃ f ∈ S, 0 < unitFlow (src f) (dst f) u := by
-    by_contra hneg
-    simp only [not_exists, not_and, not_lt] at hneg
+    by_contra! hneg
     have h₁ := Finset.sum_nonpos hneg
     have h₂ := hS u
     have h₃ : unitFlow u t u = 1 := by simp [unitFlow, Ne.symm hut]
@@ -242,8 +232,7 @@ private theorem exists_isWalk (hG : Acyclic fun u v => ∃ e, src e = u ∧ dst 
   have hsrc := eq_of_unitFlow_pos hpos
   obtain ⟨l, hl, hlS⟩ := exists_isWalk hG (dst f) (S.erase f) fun w => by
     have h₁ := hS w
-    have h₂ := unitFlow_add u (dst f) t w
-    rw [← Finset.sum_erase_add _ _ hf, hsrc] at h₁
+    rw [← Finset.sum_erase_add _ _ hf, hsrc, ← unitFlow_add u (dst f) t w] at h₁
     linarith
   exact ⟨f :: l, ⟨hsrc, hl⟩, by rw [List.toFinset_cons, hlS, Finset.insert_erase hf]⟩
 termination_by S.card
@@ -453,8 +442,7 @@ theorem isGreatest_of_checkRed_certify {c : Fin n → ℕ} {s t : Fin m}
   · rw [hk] at hc
     exact (encodes hG c s t).isGreatest_natCast_of_checkRed (fun _ => rfl) h hc
   · rw [hk] at hc
-    have := (encodes hG c s t).eq_empty_of_checkRed h hc
-    exact (Set.eq_empty_iff_forall_notMem.1 this) l hl
+    exact Set.eq_empty_iff_forall_notMem.1 ((encodes hG c s t).eq_empty_of_checkRed h hc) l hl
 
 end Cslib.Logic.PL.VeriPB.LongestPath
 

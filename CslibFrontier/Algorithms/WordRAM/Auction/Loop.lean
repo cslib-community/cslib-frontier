@@ -105,18 +105,16 @@ private theorem initAuction_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin
               (validHistory_pure w _ _)))
       have hmc : memoryCost (initStep (ws, k)) s ≤ 3 := by
         unfold initStep
-        exact memoryCost_write_bind_le fun _ _ =>
-          memoryCost_write_bind_le fun _ _ =>
-            memoryCost_write_bind_le fun _ _ => Nat.le_refl 0
+        exact memoryCost_write_bind_le fun _ _ => memoryCost_write_bind_le fun _ _ =>
+          memoryCost_write_bind_le fun _ _ => le_rfl
       have hst_eq : (Memory.spec 0).clientState s (initStep (ws, k)) =
           ⟨Function.update (Function.update (Function.update s.mem
             (ws.bOwner + k) ws.n) (ws.bPrice + k) 0) (ws.bStack + k) (ws.n - (k + 1)),
             s.frontier⟩ := rfl
-      have hres_eq : (Memory.spec 0).clientResult s (initStep (ws, k)) = k + 1 := rfl
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
         simp (disch := omega) only [Function.update_of_ne]
-      · rw [hst_eq, hres_eq]
+      · rw [hst_eq]
         refine ⟨rfl, hsfr, fun j hj => ?_⟩
         rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt' | rfl
         · obtain ⟨ho, hp, hst⟩ := hprev j hlt'
@@ -297,26 +295,22 @@ theorem auctionCoreProg_spec {w : ℕ} (ws : AuctionWS)
       auctionLoop cZ (ws.eps : ℤ) (auctionCutoff ws) (auctionInit ws.n) =
         auction cZ (ws.eps : ℤ) := by
     unfold auction
-    have hf2 : (auctionLoop cZ (ws.eps : ℤ)
-        (bidBound ws.n (costSpread cZ) (ws.eps : ℤ)) (auctionInit ws.n)).free = [] :=
-      auction_free hεZ
     rcases le_total (auctionCutoff ws)
         (bidBound ws.n (costSpread cZ) (ws.eps : ℤ)) with hle | hle
-    · symm
-      rw [← Nat.add_sub_cancel' hle, auctionLoop_add hcut_free]
-    · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
+    · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hcut_free]
+    · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auction_free hεZ)]
   simp only [hlen_init] at hwsafe_bw hv_bw hmc_bw hfr_bw ham_bw
   have hsafe_core : AuctionCoreSafe w ws s₀ := ⟨hsafe_init, fun _ => hwsafe_bw hcut_free⟩
   unfold auctionCoreProg
   refine ⟨hsafe_core, validHistory_bind_step hv_init hv_bw, ?_, ?_, ?_⟩
   · rw [memoryCost_bind']
-    rw [hloop_eq, show (auctionInit ws.n).bids = 0 from rfl, Nat.sub_zero] at hmc_bw
-    dsimp only [s₁, cZ] at hmc_bw ⊢
-    omega
+    rw [hloop_eq] at hmc_bw
+    dsimp only [auctionInit, s₁, cZ] at hmc_bw ⊢
+    rw [Nat.sub_zero] at hmc_bw; omega
   · rw [clientState_bind]
     exact hfr_bw.trans hfr_init
-  · rw [clientState_bind]
-    rwa [← hloop_eq]
+  · rw [clientState_bind, ← hloop_eq]
+    exact ham_bw
 
 end
 

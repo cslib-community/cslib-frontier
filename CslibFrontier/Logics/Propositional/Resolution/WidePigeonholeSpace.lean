@@ -105,14 +105,11 @@ private theorem MatchImplies.exists_card_le_one {α : Finset (Fin m × Fin n)}
     {c : Clause (Fin m × Fin n)} (hα : IsMatching α) (h : MatchImplies α c) :
     ∃ e ⊆ α, #e ≤ 1 ∧ MatchImplies e c := by
   by_contra! hne
-  have h₀ : ¬ MatchImplies (∅ : Finset (Fin m × Fin n)) c :=
-    hne ∅ (empty_subset _) (by simp)
-  have h₁ : ∀ x ∈ α, ¬ MatchImplies {x} c := fun x hx =>
-    hne {x} (singleton_subset_iff.2 hx) (by simp)
-  simp only [MatchImplies, not_forall, Bool.not_eq_true, exists_prop] at h₀ h₁
+  have h₀ := hne ∅ (empty_subset _) (by simp)
+  have h₁ := fun x (hx : x ∈ α) => hne {x} (singleton_subset_iff.2 hx) (by simp)
+  simp only [MatchImplies, not_forall, Bool.not_eq_true, exists_prop, singleton_subset_iff] at h₀ h₁
   obtain ⟨β₀, hβ₀, -, hc₀⟩ := h₀
   choose! β hβ hxβ hcβ using h₁
-  replace hxβ : ∀ x ∈ α, x ∈ β x := fun x hx => singleton_subset_iff.1 (hxβ x hx)
   -- `N`: the variables of the negative literals of `c`
   let N : Finset (Fin m × Fin n) := ((c.filter fun l => l.2 = false).map Prod.fst).toFinset
   have hfalse : ∀ {γ : Finset (Fin m × Fin n)}, c.eval (fun x => decide (x ∈ γ)) = false →
@@ -242,10 +239,8 @@ private theorem Inv.step {s : ℕ} (hs : s ≤ n + 1) {M M' : Finset (Clause (Fi
     {mv : ConfigMove (Fin m × Fin n)} (h : ((CNF.pigeonhole m n).configLTS s).Tr M mv M')
     (hM : Inv M) : Inv M' := by
   obtain ⟨hstep, hcard⟩ := h
-  have hins : ∀ {x}, M' = insert x M → x ∉ M → ∃ α, Good α M := fun {x} hM' hx => by
-    refine hM.exists_good ?_
-    rw [hM', card_insert_of_notMem hx] at hcard
-    omega
+  have hins {x} (hM' : M' = insert x M) (hx : x ∉ M) : ∃ α, Good α M :=
+    hM.exists_good (by rw [hM', card_insert_of_notMem hx] at hcard; omega)
   cases hstep with
   | erase c =>
     rcases hM with ⟨α, hα⟩ | ⟨i, α, hα⟩
@@ -367,9 +362,8 @@ private theorem finds_phpTree {σ : Fin m × Fin n → Bool} :
       · have hhH := hLH h List.mem_cons_self
         refine Finds.node_of_true hih
           (finds_holeChain hih hP.1 fun hR => finds_phpTree hP.2 ?_ ?_)
-        · rw [List.length_erase_of_mem hhH]
-          have := List.length_pos_of_mem hhH
-          simp only [List.length_cons] at hlen
+        · have := List.length_pos_of_mem hhH
+          rw [List.length_erase_of_mem hhH, List.length_cons] at *
           omega
         · intro i' hi' j hj
           rcases eq_or_ne j h with rfl | hjh
@@ -406,9 +400,8 @@ private theorem rank_phpTree_le :
   | [], _ => by rw [phpTree, DecisionTree.rank_leaf]; omega
   | i :: rest, [] => by rw [phpTree, spine, DecisionTree.rank_leaf]; omega
   | i :: rest, [h] => by
-    have h1 : (holeChain i h (phpTree rest []) rest).rank ≤ max 1 0 :=
-      Nat.eq_zero_of_le_zero (rank_phpTree_le rest []) ▸
-        rank_holeChain_le i h (phpTree rest []) rest
+    have h0 : (phpTree rest []).rank ≤ 0 := rank_phpTree_le rest []
+    have h1 := rank_holeChain_le i h (phpTree rest []) rest
     rw [phpTree, spine, spine, List.erase_cons_head, DecisionTree.rank_node,
       DecisionTree.rank_leaf, List.length_singleton]
     split_ifs <;> omega
