@@ -19,22 +19,69 @@ The point queries of `Cslib.DataStructure.BPlusTree` are defined once over a mon
 comparator and a node-visit action. This file instantiates them in CSLib's query-complexity
 framework, at `FreeM (LEQuery α)` with the comparison query `LEQuery.ask` and the trivial
 `visit := pure ()`, so that every key comparison is a query and node visits are free: `lookupQ`,
-`containsQ`, `minQ`, `maxQ`, `predQ`, `succQ` and `rankQ`.
+`containsQ`, `minQ`, `maxQ`, `predQ`, `succQ` and `rankQ`. Counting is structural: a program
+parametric in the oracle cannot compare keys without asking.
+
+Applied to `FreeM.isMonadHom_pure_eval`, the transfer lemmas `map_lookupM` and its siblings give
+`eval_lookupQ` and its siblings: under `BTree.orderOracle`, the oracle of the order on the keys,
+each query evaluates to the pure query. The minimum and maximum take no comparator, so they
+evaluate to `min?` and `max?` under every oracle.
+
+## The constants
+
+A leaf has height `1`, so a descent in a tree of height `h` passes `h - 1` interior nodes and
+ends in one leaf.
+
+* At an interior node the search scans the separators, asking one comparison for each separator
+  it passes and one where it stops: at most one per separator (`countQueries_slotM_le` is the
+  same count for the separator search on its own). Separators are not entries, so there is no
+  equality test.
+* In a leaf, lookup asks one comparison per entry up to the first key that is not below the
+  query and then one more to test that key for equality: at most one per entry and one more.
+  Rank, predecessor and successor ask at most one per entry.
+* The minimum and maximum ask nothing, and the sibling fallback of the predecessor and the
+  successor is a maximum or minimum search, so it adds nothing to the descent.
+
+The root and every other node of a well-formed tree have at most `2 * t - 1` separators or
+entries. `le_mul_height_add_of_scan` turns the per-node counts into `(2 * t - 1) * height + 1`
+for lookup and the membership test and `(2 * t - 1) * height` for rank, predecessor and
+successor. The bounds hold under every oracle, since the shape of the tree does not depend on
+the answers; only the values returned depend on the oracle being that of the order.
+
+The lookup and rank bounds are attained: the test module
+`CslibFrontierTests.BPlusTreeComparisons` has a tree of height `2` at `t = 2`, full along its
+rightmost path, on which looking up the greatest key asks `7` comparisons and the rank of a key
+above all others asks `6`.
+
+The classic B-tree's bound is `2 * t * height` for all five queries
+(`BTree.countQueries_lookupQ_le`): there a node holds entries, lookup tests for equality at
+every node, and the empty leaf is free. Here the equality test happens once, in the leaf, which
+is a level of its own.
 
 ## Main definitions
 
 * `lookupQ`, `containsQ`, `minQ`, `maxQ`, `predQ`, `succQ`, `rankQ`: B+-tree point queries
   counting comparisons.
+* `WFInput`: a well-formed tree with a query key, the input of the `UpperBound` statements.
 
 ## Main results
 
-* `eval_lookupQ`: the value of `lookupQ` evaluated at the order oracle matches `lookup`.
-* (and similarly for the other queries)
+* `eval_lookupQ`, `eval_containsQ`, `eval_predQ`, `eval_succQ`, `eval_rankQ`: the value of each
+  query at the order's oracle is that of the pure query.
+* `eval_minQ`, `eval_maxQ`, `countQueries_minQ`, `countQueries_maxQ`: under every oracle the
+  minimum and maximum searches return `min?` and `max?` and ask nothing.
+* `countQueries_lookupQ_le`, `countQueries_containsQ_le`: at most `(2 * t - 1) * height + 1`
+  comparisons on a well-formed tree, under every oracle.
+* `countQueries_rankQ_le`, `countQueries_predQ_le`, `countQueries_succQ_le`: at most
+  `(2 * t - 1) * height`.
+* `lookupQ_upperBound` and its siblings: the same bounds as `Cslib.Query.UpperBound` over
+  well-formed inputs.
 
 ## References
 
 * [T. H. Cormen, C. E. Leiserson, R. L. Rivest and C. Stein, *Introduction to Algorithms*,
-  Chapter 18][CLRS2009]
+  Chapter 18][CLRS2009]. Section 18.2 there analyses B-TREE-SEARCH on classic B-trees; the
+  counts here are for B+-trees and are not taken from a source.
 -/
 
 public section
@@ -211,22 +258,22 @@ private theorem countQueries_scan_succM_le (k : α) (l : List (α × β)) :
     · simp [SortedAssoc.succM, h]
 
 /-- Lookup in a leaf makes at most one comparison per entry and one more to test equality. -/
-theorem countQueries_lookupQ_leaf_le (k : α) (entries : List (α × β)) :
+private theorem countQueries_lookupQ_leaf_le (k : α) (entries : List (α × β)) :
     (lookupQ k (.leaf entries)).countQueries oracle ≤ entries.length + 1 := by
   simpa [lookupQ, lookupM] using countQueries_scan_lookupM_le oracle k entries
 
 /-- Rank in a leaf makes at most one comparison per entry. -/
-theorem countQueries_rankQ_leaf_le (k : α) (entries : List (α × β)) :
+private theorem countQueries_rankQ_leaf_le (k : α) (entries : List (α × β)) :
     (rankQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
   simpa [rankQ, rankM] using countQueries_scan_rankM_le oracle k entries
 
 /-- Predecessor search in a leaf makes at most one comparison per entry. -/
-theorem countQueries_predQ_leaf_le (k : α) (entries : List (α × β)) :
+private theorem countQueries_predQ_leaf_le (k : α) (entries : List (α × β)) :
     (predQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
   simpa [predQ, predM] using countQueries_scan_predM_le oracle k entries
 
 /-- Successor search in a leaf makes at most one comparison per entry. -/
-theorem countQueries_succQ_leaf_le (k : α) (entries : List (α × β)) :
+private theorem countQueries_succQ_leaf_le (k : α) (entries : List (α × β)) :
     (succQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
   simpa [succQ, succM] using countQueries_scan_succM_le oracle k entries
 
@@ -249,7 +296,7 @@ private theorem countQueries_node_le_of_step {f : BPlusTree α β → ℕ}
 
 /-- Lookup at a node makes at most one comparison per separator beyond what it makes in the
 child it descends into. -/
-theorem countQueries_lookupQ_node_le (k : α) (first : BPlusTree α β)
+private theorem countQueries_lookupQ_node_le (k : α) (first : BPlusTree α β)
     (rest : List (Branch α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (lookupQ k c).countQueries oracle ≤ B) :
     (lookupQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
@@ -260,7 +307,7 @@ theorem countQueries_lookupQ_node_le (k : α) (first : BPlusTree α β)
 
 /-- Predecessor search at a node makes at most one comparison per separator beyond what it makes
 in the child it descends into: the sibling fallback is a maximum search, which asks nothing. -/
-theorem countQueries_predQ_node_le (k : α) (first : BPlusTree α β)
+private theorem countQueries_predQ_node_le (k : α) (first : BPlusTree α β)
     (rest : List (Branch α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (predQ k c).countQueries oracle ≤ B) :
     (predQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
@@ -271,7 +318,7 @@ theorem countQueries_predQ_node_le (k : α) (first : BPlusTree α β)
 
 /-- Successor search at a node makes at most one comparison per separator beyond what it makes
 in the child it descends into: the sibling fallback is a minimum search, which asks nothing. -/
-theorem countQueries_succQ_node_le (k : α) (first : BPlusTree α β)
+private theorem countQueries_succQ_node_le (k : α) (first : BPlusTree α β)
     (rest : List (Branch α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (succQ k c).countQueries oracle ≤ B) :
     (succQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
@@ -282,7 +329,7 @@ theorem countQueries_succQ_node_le (k : α) (first : BPlusTree α β)
 
 /-- Rank at a node makes at most one comparison per separator beyond what it makes in the child
 it descends into. -/
-theorem countQueries_rankQ_node_le (k : α) (first : BPlusTree α β)
+private theorem countQueries_rankQ_node_le (k : α) (first : BPlusTree α β)
     (rest : List (Branch α β)) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (rankQ k c).countQueries oracle ≤ B) :
     (rankQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
@@ -335,5 +382,53 @@ theorem countQueries_rankQ_le (h : IsWF t tr) (k : α) :
 end Bounds
 
 end Comparisons
+
+/-! ### Upper bounds over all oracles -/
+
+section UpperBounds
+
+variable {α β : Type} [LinearOrder α] {t : ℕ}
+
+/-- A well-formed B+-tree of minimum degree `t` and a query key: the inputs of the bounded point
+queries. -/
+abbrev WFInput (α β : Type) [LinearOrder α] (t : ℕ) := {p : BPlusTree α β × α // IsWF t p.1}
+
+/-- Lookup makes at most `2 * t - 1` comparisons at each of `height` levels, and one more. -/
+theorem lookupQ_upperBound :
+    UpperBound (fun p : WFInput α β t => lookupQ p.val.2 p.val.1) (fun p => p.val.1.height)
+      (fun h => (2 * t - 1) * h + 1) :=
+  UpperBound.of_pointwise (fun _ _ h => Nat.add_le_add_right (Nat.mul_le_mul_left _ h) 1)
+    fun oracle p => countQueries_lookupQ_le oracle p.property p.val.2
+
+/-- The membership test makes at most `2 * t - 1` comparisons at each of `height` levels, and
+one more. -/
+theorem containsQ_upperBound :
+    UpperBound (fun p : WFInput α β t => containsQ p.val.2 p.val.1) (fun p => p.val.1.height)
+      (fun h => (2 * t - 1) * h + 1) :=
+  UpperBound.of_pointwise (fun _ _ h => Nat.add_le_add_right (Nat.mul_le_mul_left _ h) 1)
+    fun oracle p => countQueries_containsQ_le oracle p.property p.val.2
+
+/-- Predecessor search makes at most `2 * t - 1` comparisons at each of `height` levels. -/
+theorem predQ_upperBound :
+    UpperBound (fun p : WFInput α β t => predQ p.val.2 p.val.1) (fun p => p.val.1.height)
+      (fun h => (2 * t - 1) * h) :=
+  UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
+    fun oracle p => countQueries_predQ_le oracle p.property p.val.2
+
+/-- Successor search makes at most `2 * t - 1` comparisons at each of `height` levels. -/
+theorem succQ_upperBound :
+    UpperBound (fun p : WFInput α β t => succQ p.val.2 p.val.1) (fun p => p.val.1.height)
+      (fun h => (2 * t - 1) * h) :=
+  UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
+    fun oracle p => countQueries_succQ_le oracle p.property p.val.2
+
+/-- Rank makes at most `2 * t - 1` comparisons at each of `height` levels. -/
+theorem rankQ_upperBound :
+    UpperBound (fun p : WFInput α β t => rankQ p.val.2 p.val.1) (fun p => p.val.1.height)
+      (fun h => (2 * t - 1) * h) :=
+  UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
+    fun oracle p => countQueries_rankQ_le oracle p.property p.val.2
+
+end UpperBounds
 
 end Cslib.DataStructure.BPlusTree

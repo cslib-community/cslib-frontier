@@ -11,6 +11,12 @@ public import CslibFrontier.DataStructure.BPlusTree.Comparisons.Query
 
 /-!
 # B+-tree comparison cost examples
+
+Checked examples for the comparison counts of the point queries of
+`Cslib.DataStructure.BPlusTree`: values and the transfer lemmas under the order's oracle; counts
+on a tree where the lookup and rank bounds are attained, on a root that is a leaf, on a node
+with no separators, on a predecessor search that takes the sibling fallback, and under two
+oracles that are not orders; and the bounds applied to a well-formed tree.
 -/
 
 public section
@@ -160,5 +166,19 @@ example (oracle : {ι : Type} → LEQuery ℕ ι → ι) (k : ℕ) :
 example (oracle : {ι : Type} → LEQuery ℕ ι → ι) (k : ℕ) :
     (rankQ k full).countQueries oracle ≤ 6 :=
   countQueries_rankQ_le oracle isWF_full k
+
+/-! ### Upper bounds over all oracles -/
+
+/-- At `t = 2`, lookup asks at most `3 * height + 1` comparisons. -/
+example :
+    UpperBound (fun p : WFInput ℕ String 2 => lookupQ p.val.2 p.val.1) (fun p => p.val.1.height)
+      (fun h => 3 * h + 1) :=
+  lookupQ_upperBound
+
+/-- At `t = 2`, rank asks at most `3 * height` comparisons. -/
+example :
+    UpperBound (fun p : WFInput ℕ String 2 => rankQ p.val.2 p.val.1) (fun p => p.val.1.height)
+      (fun h => 3 * h) :=
+  rankQ_upperBound
 
 end CslibFrontierTests.BPlusTreeComparisons
