@@ -18,12 +18,12 @@ import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
 /-!
 # The cycle-and-minor function
 
-The *cycle-and-minor function* of the manuscript of #8623 reads a bit `b`, a vector
-`x : Fin d → Bool` and a `d × d` Boolean matrix `Y`. For `b = 0` it tests whether `Y` is the
-permutation matrix of a single cycle through all indices (`Cslib.Circuits.IsCycleMatrix`); for
-`b = 1` it computes the determinant over `F₂` of the minor of `Y` on its first `d / 2` rows and on
-the columns where `x` is one, and is zero unless there are `d / 2` of them
-(`Cslib.Circuits.minorBit`).
+The *cycle-and-minor function* reads a bit `b`, a vector `x : Fin d → Bool` and a `d × d` Boolean
+matrix `Y`. For `b = 0` it tests whether `Y` is the permutation matrix of a single cycle through all
+indices (`Cslib.Circuits.IsCycleMatrix`); for `b = 1` it computes the determinant over `F₂` of the
+minor of `Y` on its first `d / 2` rows and on the columns where `x` is one, and is zero unless there
+are `d / 2` of them (`Cslib.Circuits.minorBit`). It is the hard function of the lower bounds tracked
+by #8623.
 
 Each branch has a multilinear representative:
 
@@ -43,9 +43,14 @@ Each branch has a multilinear representative:
 * `Cslib.Circuits.IsCycleMatrix`, `Cslib.Circuits.minorBit`, `Cslib.Circuits.cycleMinor`: the two
   branches and the cycle-and-minor function.
 * `Cslib.Circuits.cyclePoly`, `Cslib.Circuits.minorPoly`: their multilinear representatives.
+* `Cslib.Circuits.CycleMinor.permBoolMatrix`, `Cslib.Circuits.CycleMinor.selected`,
+  `Cslib.Circuits.CycleMinor.padRows`: the permutation matrix of a permutation, the coordinates
+  where a vector is one, and the matrix whose first `d / 2` rows are those of a given matrix.
 
 ## Main results
 
+* `Cslib.Circuits.isCycleMatrix_permBoolMatrix_iff`, `Cslib.Circuits.minorBit_of_card_ne`,
+  `Cslib.Circuits.minorBit_eq_det`: evaluating the two branches.
 * `Cslib.Circuits.homogeneousComponent_cyclePoly`: the Hamiltonian cycle sum is the component of
   degree `d` of the cycle branch.
 * `Cslib.Circuits.minorPoly_mem_restrictDegree`, `Cslib.Circuits.eval_bitPoint_minorPoly`,
@@ -62,10 +67,24 @@ variable {d : ℕ}
 
 /-! ### The function -/
 
+namespace CycleMinor
+
 /-- The permutation matrix of `σ`, with entry `(i, j)` true when `σ i = j`. -/
 @[expose]
 def permBoolMatrix (σ : Perm (Fin d)) : Fin d × Fin d → Bool :=
   fun v => decide (σ v.1 = v.2)
+
+/-- The coordinates where `x` is one. -/
+@[expose]
+def selected (x : Fin d → Bool) : Finset (Fin d) :=
+  univ.filter fun i => x i = true
+
+@[simp] theorem mem_selected {x : Fin d → Bool} {i : Fin d} : i ∈ selected x ↔ x i = true := by
+  simp [selected]
+
+end CycleMinor
+
+open CycleMinor
 
 private theorem permBoolMatrix_injective : Function.Injective (permBoolMatrix (d := d)) := by
   intro σ τ h
@@ -77,24 +96,38 @@ private theorem permBoolMatrix_injective : Function.Injective (permBoolMatrix (d
 
 /-- A Boolean matrix is a *cycle matrix* when it is the permutation matrix of a single cycle through
 all indices. -/
+@[expose]
 def IsCycleMatrix (Y : Fin d × Fin d → Bool) : Prop :=
   ∃ σ : Perm (Fin d), σ.IsCycleOn Set.univ ∧ permBoolMatrix σ = Y
 
-/-- The rows of the minor: the first `d / 2`. -/
-abbrev minorRow (r : Fin (d / 2)) : Fin d :=
-  Fin.castLE (Nat.div_le_self d 2) r
-
-/-- The coordinates where `x` is one. -/
-abbrev selected (x : Fin d → Bool) : Finset (Fin d) :=
-  univ.filter fun i => x i = true
+/-- The matrix of a permutation is a cycle matrix exactly when the permutation is a single cycle
+through all indices. -/
+@[simp] theorem isCycleMatrix_permBoolMatrix_iff (σ : Perm (Fin d)) :
+    IsCycleMatrix (permBoolMatrix σ) ↔ σ.IsCycleOn Set.univ :=
+  ⟨fun ⟨_, hτ, h⟩ => permBoolMatrix_injective h ▸ hτ, fun h => ⟨σ, h, rfl⟩⟩
 
 /-- The *minor bit*: the determinant over `F₂` of the minor of `Y` on its first `d / 2` rows and on
 the columns where `x` is one, or `0` unless there are `d / 2` of them. -/
+@[expose]
 noncomputable def minorBit (x : Fin d → Bool) (Y : Fin d × Fin d → Bool) : Bool :=
   if h : (selected x).card = d / 2 then
     decide ((Matrix.of fun r c => bitVal (ZMod 2)
-      (Y (minorRow r, (selected x).orderEmbOfFin h c))).det ≠ 0)
+      (Y (Fin.castLE (Nat.div_le_self d 2) r, (selected x).orderEmbOfFin h c))).det ≠ 0)
   else false
+
+/-- The minor bit is zero unless `x` selects `d / 2` columns. -/
+@[simp] theorem minorBit_of_card_ne {x : Fin d → Bool} (Y : Fin d × Fin d → Bool)
+    (h : (selected x).card ≠ d / 2) : minorBit x Y = false := by
+  simp [minorBit, h]
+
+/-- The minor bit through any increasing enumeration `f` of the `d / 2` columns that `x`
+selects. -/
+theorem minorBit_eq_det {x : Fin d → Bool} (Y : Fin d × Fin d → Bool) (f : Fin (d / 2) ↪o Fin d)
+    (hf : ∀ c, x (f c) = true) (h : (selected x).card = d / 2) :
+    minorBit x Y = decide ((Matrix.of fun r c => bitVal (ZMod 2)
+      (Y (Fin.castLE (Nat.div_le_self d 2) r, f c))).det ≠ 0) := by
+  simp only [minorBit, h, ↓reduceDIte]
+  rw [← orderEmbOfFin_unique' h fun c => mem_selected.mpr (hf c)]
 
 /-- The *cycle-and-minor function*: for `b = 0` whether `Y` is a cycle matrix, for `b = 1` the minor
 bit. -/
@@ -119,35 +152,16 @@ private theorem prod_X_mem_restrictDegree {ι σ R : Type*} [CommRing R] (s : Fi
     (hf : Set.InjOn f s) : (∏ i ∈ s, X (f i) : MvPolynomial σ R) ∈ restrictDegree σ R 1 := by
   classical
   induction s using Finset.induction_on with
-  | empty =>
-    rw [prod_empty, mem_restrictDegree]
-    intro t ht i
-    rw [← C_1, C_apply] at ht
-    rw [Finset.mem_singleton.mp (support_monomial_subset ht)]
-    exact Nat.zero_le _
+  | empty => simpa using C_mem_restrictDegree (σ := σ) 1 (1 : R)
   | insert a s ha ih =>
     rw [prod_insert ha]
-    have hs := ih (hf.mono (subset_insert a s))
-    refine mul_mem_restrictDegree_of_disjoint_vars ?_ hs ?_
-    · rw [mem_restrictDegree]
-      intro t ht i
-      rw [show t = Finsupp.single (f a) 1 from Finset.mem_singleton.mp (support_monomial_subset ht),
-        Finsupp.single_apply]
-      split <;> omega
-    · rw [Finset.disjoint_left]
-      intro v hva hvs
-      have hva : v = f a := by
-        obtain ⟨t, ht, hvt⟩ := (mem_vars_iff_mem_support v).mp hva
-        rw [Finset.mem_singleton.mp (support_monomial_subset ht)] at hvt
-        exact Finset.mem_singleton.mp (Finsupp.support_single_subset hvt)
-      subst hva
-      have := vars_prod (s := s) (fun i => (X (f i) : MvPolynomial σ R)) hvs
-      obtain ⟨i, hi, hfi⟩ := Finset.mem_biUnion.mp this
-      have hfi : f a = f i := by
-        obtain ⟨t, ht, hvt⟩ := (mem_vars_iff_mem_support _).mp hfi
-        rw [Finset.mem_singleton.mp (support_monomial_subset ht)] at hvt
-        exact Finset.mem_singleton.mp (Finsupp.support_single_subset hvt)
-      exact ha (hf (mem_insert_self a s) (mem_insert_of_mem hi) hfi ▸ hi)
+    refine mul_mem_restrictDegree_of_disjoint_vars (X_mem_restrictDegree le_rfl _)
+      (ih (hf.mono (subset_insert a s))) ?_
+    refine Finset.disjoint_left.mpr fun v hva hvs => ?_
+    rw [Finset.mem_singleton.mp (vars_X_subset _ hva)] at hvs
+    obtain ⟨i, hi, hfi⟩ := Finset.mem_biUnion.mp (vars_prod _ hvs)
+    have hfi : f a = f i := Finset.mem_singleton.mp (vars_X_subset _ hfi)
+    exact ha (hf (mem_insert_self a s) (mem_insert_of_mem hi) hfi ▸ hi)
 
 /-! ### The minor branch -/
 
@@ -157,7 +171,9 @@ variable (K : Type*) [CommRing K]
 rows and on the columns where `x` is one, or `0` unless there are `d / 2` of them. -/
 noncomputable def minorPoly (x : Fin d → Bool) : MvPolynomial (Fin d × Fin d) K :=
   if h : (selected x).card = d / 2 then
-    (Matrix.of fun r c => (X (minorRow r, (selected x).orderEmbOfFin h c) : MvPolynomial _ K)).det
+    (Matrix.of fun r c =>
+      (X (Fin.castLE (Nat.div_le_self d 2) r, (selected x).orderEmbOfFin h c) :
+        MvPolynomial _ K)).det
   else 0
 
 variable {K}
@@ -194,7 +210,7 @@ theorem eval_bitPoint_minorPoly [CharP K 2] (x : Fin d → Bool) (Y : Fin d × F
 
 /-- The matrix whose first `d / 2` rows are those of `C` and whose other rows are zero. -/
 @[expose]
-def padRows (C : Matrix (Fin (d / 2)) (Fin d) K) : Fin d × Fin d → K :=
+def CycleMinor.padRows (C : Matrix (Fin (d / 2)) (Fin d) K) : Fin d × Fin d → K :=
   fun v => if h : (v.1 : ℕ) < d / 2 then C ⟨v.1, h⟩ v.2 else 0
 
 /-- **The minor branch at a padded matrix.** At the matrix whose first `d / 2` rows are `C` and
@@ -208,7 +224,7 @@ theorem eval_padRows_minorPoly (C : Matrix (Fin (d / 2)) (Fin d) K) (x : Fin d �
   · rw [RingHom.map_det]
     congr 1
     ext r c
-    simp [padRows, minorRow, r.isLt]
+    simp [padRows, r.isLt]
   · simp
 
 /-! ### The cycle branch -/
@@ -217,7 +233,6 @@ variable (K)
 
 /-- The multilinear representative of the cycle branch: the multilinear extension of the
 indicator of the cycle matrices. -/
-@[expose]
 noncomputable def cyclePoly : MvPolynomial (Fin d × Fin d) K :=
   open Classical in
   multilinearExtension fun Y => bitVal K (decide (IsCycleMatrix Y))
@@ -226,8 +241,8 @@ variable {K}
 
 /-- The cycle branch is the multilinear extension of the indicator of the cycle matrices. -/
 theorem cyclePoly_eq_multilinearExtension : open Classical in
-    cyclePoly (d := d) K = multilinearExtension fun Y => bitVal K (decide (IsCycleMatrix Y)) :=
-  rfl
+    cyclePoly (d := d) K = multilinearExtension fun Y => bitVal K (decide (IsCycleMatrix Y)) := by
+  rw [cyclePoly]
 
 /-- The cycle branch is multilinear. -/
 theorem cyclePoly_mem_restrictDegree :
