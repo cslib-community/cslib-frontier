@@ -234,8 +234,7 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
       have hcardF : #(univ.filter fun i : Fin N => ¬x i = true) = N - t := by
         simpa [Fintype.card_fin] using card_filter_eq_false_eq_card_sub_weight x
       rw [hcardT, hcardF, nsmul_eq_mul, nsmul_eq_mul, Nat.cast_sub htN, ← hta, ← hub]
-      push_cast
-      ring
+      push_cast; ring
     have harg : (2 * ((k + 1 : ℕ) : ℝ) + 1) * θ = (2 * k + 1) * θ + 2 * θ := by push_cast; ring
     simp only [run, grover, LinearIsometryEquiv.coe_toLinearIsometry]
     rw [diffusion_apply hN, hsum, phaseOracle_apply, ih]
@@ -250,8 +249,7 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
         simpa [hi] using congrArg (Complex.ofReal : ℝ → ℂ) this
       rw [harg, Real.cos_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
       field_simp
-      rw [← hsN2]
-      ring
+      rw [← hsN2]; ring
     · have hst0 := hmarked i hi
       have hrel : sN ^ 2 = st ^ 2 + su ^ 2 := by rw [hsN2, hst2, hsu2]; ring
       suffices 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) + S / st =
@@ -272,10 +270,8 @@ theorem run_grover (hN : 2 ≤ N) (z : Fin N) (k : ℕ) (p : Fin N × Bool × Un
       if groverControl p then ((if p.1 = z then Real.sin ((2 * k + 1) * groverAngle N)
         else Real.cos ((2 * k + 1) * groverAngle N) / Real.sqrt (N - 1) : ℝ) : ℂ) else 0 := by
   have hweight : weight (marked z) = 1 := by simp [weight, marked, Finset.filter_eq']
-  have hangle : searchAngle N 1 = groverAngle N := by
-    simp only [searchAngle, groverAngle, Nat.cast_one, one_div, Real.sqrt_inv]
-  simpa only [hweight, hangle, Nat.cast_one, Real.sqrt_one, div_one, marked,
-    decide_eq_true_eq] using
+  simpa only [hweight, searchAngle, groverAngle, Nat.cast_one, one_div, Real.sqrt_inv,
+    Real.sqrt_one, div_one, marked, decide_eq_true_eq] using
     run_grover_of_weight (by omega) (marked z) k p
 
 /-- **Grover's success probability**: after `k` queries on the input marking `z`, measuring the
@@ -304,8 +300,7 @@ theorem grover_success (hN : 2 ≤ N) (z : Fin N) :
   have hθpi : θ ≤ Real.pi / 2 := Real.arcsin_le_pi_div_two _
   have hsinθ : Real.sin θ ≤ θ := Real.sin_le hθ0.le
   set T := ⌊Real.pi / (4 * θ)⌋₊
-  have hx : 0 ≤ Real.pi / (4 * θ) := by positivity
-  have hT1 : (T : ℝ) ≤ Real.pi / (4 * θ) := Nat.floor_le hx
+  have hT1 : (T : ℝ) ≤ Real.pi / (4 * θ) := Nat.floor_le (by positivity)
   have hT2 : Real.pi / (4 * θ) < T + 1 := Nat.lt_floor_add_one _
   refine ⟨?_, ?_⟩
   · rw [regProb_run_grover hN]

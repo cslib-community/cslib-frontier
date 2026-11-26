@@ -104,14 +104,8 @@ private def externalPort (side : ExitSide) (offset : Nat) : Port :=
 /-- A port is listed in a rectangle exactly when both its coordinates are in bounds. -/
 theorem mem_portsIn_iff {p : Port} {width height : Nat} :
     p ∈ portsIn width height ↔ PortInBounds p width height := by
-  simp only [portsIn, List.mem_flatMap, List.mem_range, List.mem_cons,
-    List.not_mem_nil, or_false]
-  constructor
-  · rintro ⟨y, hy, x, hx, rfl | rfl | rfl | rfl⟩ <;> exact ⟨hx, hy⟩
-  · rintro ⟨hx, hy⟩
-    rcases p with ⟨px, py, side⟩
-    refine ⟨py, hy, px, hx, ?_⟩
-    cases side <;> simp
+  rcases p with ⟨px, py, _ | _ | _ | _⟩ <;>
+    simp [portsIn, PortInBounds, and_comm]
 
 /-- A strict bottom-side port of the cycle created in a depth-two block. -/
 @[expose] def cycleSource : Port := ⟨4, 3, .west⟩
@@ -181,15 +175,9 @@ private theorem Move.link {grid : Nat → Nat → Index} (m : Move)
     cases kind <;>
       simp only [Move.valid, Move.first, Move.second, Move.baseFirst, Move.baseSecond,
         Move.parity, Bool.false_eq_true, ↓reduceIte, Bool.and_eq_true, beq_self_eq_true] at h ⊢
-    · exact Link.horizontalMatch x y
-    · exact Link.verticalMatch x y
-    · exact Link.horizontal x y h
-    · exact Link.vertical x y h
-    · exact Link.westNorth x y h.1 h.2
-    · exact Link.westSouth x y h.1 h.2
-    · exact Link.eastNorth x y h.1 h.2
-    · exact Link.eastSouth x y h.1 h.2
-    · exact Link.crossing x y h.1 h.2
+    exacts [Link.horizontalMatch x y, Link.verticalMatch x y, Link.horizontal x y h,
+      Link.vertical x y h, Link.westNorth x y h.1 h.2, Link.westSouth x y h.1 h.2,
+      Link.eastNorth x y h.1 h.2, Link.eastSouth x y h.1 h.2, Link.crossing x y h.1 h.2]
   cases reverse
   · exact h0
   · exact h0.symm

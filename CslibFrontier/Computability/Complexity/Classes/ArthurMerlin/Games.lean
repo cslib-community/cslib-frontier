@@ -190,25 +190,17 @@ theorem value_affine (b : Bool) (g : List (AMMove × ℕ)) (f : List Bool → �
   | nil => rfl
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · rw [value_arthur, value_arthur]
-      simp only [ih]
-      rw [sum_add_distrib, ← mul_sum, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_fin, nsmul_eq_mul]
-      have : (2 : ℚ) ^ n ≠ 0 := by positivity
+    · simp only [value_arthur, ih, sum_add_distrib, ← mul_sum, sum_const, card_univ,
+        Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, nsmul_eq_mul]
       field_simp
-      push_cast
-      ring
+      push_cast; ring
     · have hm : Monotone fun x : ℚ => c * x + d := fun _ _ hxy =>
         add_le_add (mul_le_mul_of_nonneg_left hxy hc) le_rfl
       cases b
-      · rw [value_merlin_false, value_merlin_false]
-        simp only [ih]
-        exact (Finset.apply_inf'_eq_inf'_comp _ (fun x : ℚ => c * x + d)
-          fun x y => hm.map_min).symm
-      · rw [value_merlin_true, value_merlin_true]
-        simp only [ih]
-        exact (Finset.apply_sup'_eq_sup'_comp _ (fun x : ℚ => c * x + d)
-          fun x y => hm.map_max).symm
+      · simp only [value_merlin_false, ih]
+        exact (Finset.apply_inf'_eq_inf'_comp _ (fun x : ℚ => c * x + d) fun _ _ => hm.map_min).symm
+      · simp only [value_merlin_true, ih]
+        exact (Finset.apply_sup'_eq_sup'_comp _ (fun x : ℚ => c * x + d) fun _ _ => hm.map_max).symm
 
 theorem value_const (b : Bool) (g : List (AMMove × ℕ)) (d : ℚ) : value b g (fun _ => d) = d := by
   simpa using value_affine b g (fun _ => 0) le_rfl d
@@ -257,14 +249,10 @@ theorem value_one_sub (b : Bool) (g : List (AMMove × ℕ)) (f : List Bool → �
   | nil => rfl
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · rw [value_arthur, value_arthur]
-      simp only [ih]
-      rw [sum_sub_distrib, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_fin, nsmul_eq_mul]
-      have : (2 : ℚ) ^ n ≠ 0 := by positivity
+    · simp only [value_arthur, ih, sum_sub_distrib, sum_const, card_univ, Fintype.card_fun,
+        Fintype.card_bool, Fintype.card_fin, nsmul_eq_mul]
       field_simp
-      push_cast
-      ring
+      push_cast; ring
     · cases b <;> simp only [value_merlin_false, value_merlin_true, Bool.not_false,
         Bool.not_true, ih]
       · exact (one_sub_sup' _).symm
@@ -323,15 +311,12 @@ theorem count_eq (g : List (AMMove × ℕ)) (V : List Bool → Bool) :
   | nil => simp [count, arthurBits, value_nil]
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · rw [count, arthurBits, value_arthur, Nat.cast_sum]
-      simp only [ih]
-      rw [← mul_sum, pow_add]
+    · simp only [count, arthurBits, value_arthur, Nat.cast_sum, ih, ← mul_sum, pow_add]
       field_simp
-    · rw [count, arthurBits, value_merlin_true, ← sup'_eq_sup univ_nonempty]
-      rw [Finset.apply_sup'_eq_sup'_comp univ_nonempty (Nat.cast : ℕ → ℚ)
-        fun x y => Nat.cast_max x y]
-      rw [Finset.apply_sup'_eq_sup'_comp univ_nonempty (fun x : ℚ => 2 ^ arthurBits g * x)
-        fun x y => mul_max_of_nonneg x y (by positivity)]
+    · rw [count, arthurBits, value_merlin_true, ← sup'_eq_sup univ_nonempty,
+        Finset.apply_sup'_eq_sup'_comp univ_nonempty (Nat.cast : ℕ → ℚ) Nat.cast_max,
+        Finset.apply_sup'_eq_sup'_comp univ_nonempty _
+          fun x y => mul_max_of_nonneg x y (by positivity)]
       exact sup'_congr univ_nonempty rfl fun y _ => ih _
 
 theorem count_nil (V : List Bool → Bool) : count [] V = (V []).toNat := rfl

@@ -163,14 +163,13 @@ private theorem abs_snd_tr_le (h : 2 ≤ ℓ * s) (hfan : ∀ k, (P.lines k).op.
     change |bitVal ℝ (x i)| ≤ 1
     cases x i <;> simp
   · rw [Program.wireDepths_gateWire, snd_tr_gate]
-    have hpos := P.depths_pos k
     have hargs (a : Fin (P.lines k).op.arity) : |(tr ℓ s ν P ((P.lines k).wires a)).2 x| ≤
         2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ (P.depths k - 1) - 1)) :=
       (ih a).trans (pow_le_pow_right₀ (by norm_num) (Nat.mul_le_mul_left _ (Nat.sub_le_sub_right
         (Nat.pow_le_pow_right (by omega) (Nat.le_sub_one_of_lt (P.wireDepths_lines_lt k a))) 1)))
     refine (abs_gateApprox_le (by simpa using (by omega : 1 ≤ ℓ * s)) (P.lines k).op (hfan k)
       (sets ℓ s ν P k) hargs).trans (pow_le_pow_right₀ (by norm_num) ?_)
-    simpa using exp_step (ℓ := ℓ) h hpos
+    simpa using exp_step (ℓ := ℓ) h (P.depths_pos k)
 
 /-- Whether gate `k` misses at `x` on its true arguments. -/
 private abbrev Miss (k : Fin g) (x : BitString n) : Prop :=
@@ -186,9 +185,8 @@ private theorem snd_tr_eq {D : ℕ} {x : BitString n} (hx : ∀ k, P.depths k �
     (fun k ih hk => ?_) w hw
   rw [Program.wireDepths_gateWire] at hk
   rw [tr_gate]
-  dsimp only [pairInterpretation]
-  simp only [fun a => ih a (by have := P.wireDepths_lines_lt k a; omega)]
-  exact gateApprox_bitVal (hx k hk)
+  simpa only [pairInterpretation, fun a => ih a (by have := P.wireDepths_lines_lt k a; omega)] using
+    gateApprox_bitVal (hx k hk)
 
 end Pairs
 
@@ -234,10 +232,9 @@ private theorem depth_lit (i : Fin N) (v : Bool) : (lit i v).depth ≤ 1 := by
 private theorem card_ne_one_iff {α : Type*} (A : Finset α) :
     #A ≠ 1 ↔ ∀ j ∈ A, ∃ j' ∈ A, j' ≠ j := by
   rw [Ne, card_eq_one]
-  refine ⟨fun h j hj => by_contra fun hno => h ⟨j, eq_singleton_iff_unique_mem.2
-    ⟨hj, fun x hx => by_contra fun hxj => hno ⟨x, hx, hxj⟩⟩⟩, ?_⟩
-  rintro h ⟨a, rfl⟩
-  simpa using h a (mem_singleton_self a)
+  exact ⟨fun h j hj => by_contra fun hno => h ⟨j, eq_singleton_iff_unique_mem.2
+    ⟨hj, fun x hx => by_contra fun hxj => hno ⟨x, hx, hxj⟩⟩⟩,
+    fun h ⟨a, ha⟩ => by simpa [ha] using h a (eq_singleton_iff_unique_mem.1 ha).1⟩
 
 variable {t K : ℕ}
 
@@ -391,12 +388,11 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
     simp only [circuit_simps, W, wf, Unbounded.interpretation_or, decide_eq_true_eq]
     refine exists_congr fun k => ?_
     split_ifs with hk
-    · rw [eval_missFormula, decide_eq_true_iff]
-      have harg : (fun a => Cw.eval Unbounded.interpretation x (e ((P.lines k).wires a))) =
+    · have harg : (fun a => Cw.eval Unbounded.interpretation x (e ((P.lines k).wires a))) =
           args ℓ s ν P k x := funext fun a =>
         (hCw_eval x _ (by have := P.wireDepths_lines_lt k a; omega)).trans
           (fst_tr ℓ s ν P _ x).symm
-      simp only [harg, hk, true_and]
+      simp only [eval_missFormula, decide_eq_true_iff, harg, hk, true_and]
     · simp [hk]
   refine ⟨(tr ℓ s ν P (C.outputs 0)).2,
     lowDegree_mono (Nat.pow_le_pow_right h1 (C.outputDepths_le_depth 0)) (snd_tr_mem ℓ s ν P h1 _),

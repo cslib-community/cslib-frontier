@@ -160,12 +160,9 @@ theorem interpretation_andreevTruncatedBottomOp (b m r R : ℕ)
         (∑ i, andreevReflectedWeight b m idx.subset idx.form i) / 2 := by
     simp only [mul_sub, sum_sub_distrib, ← sum_mul]
     ring
-  unfold interpretation andreevTruncatedBottomOp
-  dsimp only
-  rw [decide_eq_decide, ← @Int.cast_le ℝ, hU, hsum]
+  simp only [interpretation, andreevTruncatedBottomOp, decide_eq_decide, ← @Int.cast_le ℝ, hU, hsum]
   refine sub_nonneg.symm.trans ((iff_of_eq (congrArg (0 ≤ ·) ?_)).trans sub_nonneg)
-  unfold andreevReflectedOffset
-  ring
+  dsimp only [andreevReflectedOffset]; ring
 
 /-- The truncated score in staircase form:
 `P_R = 2 X_∅ + ∑_{S, τ, k} η_S (f_R(θ_k) - f_R(θ_k - 1)) [θ_k ≤ X_S ± D_S]`. -/
@@ -209,8 +206,7 @@ theorem eval_andreevTruncatedCircuit (b m r R : ℕ) (w : BitString (2 ^ b + b *
       ← (andreevTruncatedBottomEquiv b r R).symm.sum_comp]
     refine sum_congr rfl fun idx _ => ?_
     simp only [andreevTruncatedTopWeight]
-    push_cast
-    ring
+    push_cast; ring
   have hinput : ∑ i, andreevTruncatedInputWeight b m i * ((w i).toNat : ℝ) =
       2 * 2 ^ b - 2 * (andreevTableScore b m ∅ w : ℝ) := by
     rw [cast_andreevTableScore_empty, Fin.sum_univ_add]
@@ -416,8 +412,7 @@ theorem andreevVoteLevel_spec {b : ℕ} {ε : ℝ} (hε : 1 / Real.sqrt (2 ^ b) 
       linarith only [mul_le_mul_of_nonneg_right hε2 (by positivity : (0 : ℝ) ≤ 2 ^ (b - 1))])
     omega
   · rcases Nat.eq_zero_or_pos r with hr0 | hr0
-    · rw [hr0, pow_zero]
-      linarith only [hεN]
+    · simp only [hr0, pow_zero]; linarith only [hεN]
     · have hlt : ¬ 32 * ε ^ 2 * 2 ^ b ≤ (2 : ℝ) ^ (r - 1) := fun h =>
         absurd (andreevVoteLevel_le h) (by omega)
       rw [show (2 : ℝ) ^ r = 2 * 2 ^ (r - 1) by rw [← pow_succ', Nat.sub_add_cancel hr0]]

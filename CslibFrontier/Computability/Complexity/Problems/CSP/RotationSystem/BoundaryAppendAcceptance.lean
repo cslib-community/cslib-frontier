@@ -150,22 +150,15 @@ private theorem scopeJoin_source_index (F H : CSP Rel V) (r : Rel) {m n : ℕ}
       | Sum.inl (Sum.inr i) => F.occurrences.length + i.val
       | Sum.inr (Sum.inl o) => F.occurrences.length + m + incidenceEdgeIndex o
       | Sum.inr (Sum.inr i) => F.occurrences.length + m + H.occurrences.length + i.val := by
-  rcases a with (o | i) | (o | i)
-  · change incidenceEdgeIndex (appendOccurrenceEquiv _ _
-      (Sum.inl (appendOfFnOccurrenceEquiv F r x (Sum.inl o)))) = _
-    rw [incidenceEdgeIndex_appendOccurrenceEquiv_inl,
+  rcases a with (o | i) | (o | i) <;>
+    simp only [scopeJoinSourceEquiv, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl,
+      Sum.map_inr]
+  · rw [incidenceEdgeIndex_appendOccurrenceEquiv_inl,
       incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inl]
-  · change incidenceEdgeIndex (appendOccurrenceEquiv _ _
-      (Sum.inl (appendOfFnOccurrenceEquiv F r x (Sum.inr i)))) = _
-    rw [incidenceEdgeIndex_appendOccurrenceEquiv_inl,
+  · rw [incidenceEdgeIndex_appendOccurrenceEquiv_inl,
       incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr]
-  · change incidenceEdgeIndex (appendOccurrenceEquiv _ _
-      (Sum.inr (appendOfFnOccurrenceEquiv H r y (Sum.inl o)))) = _
-    rw [append_index_inr, appended_scope_length, incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inl]
-  · change incidenceEdgeIndex (appendOccurrenceEquiv _ _
-      (Sum.inr (appendOfFnOccurrenceEquiv H r y (Sum.inr i)))) = _
-    rw [append_index_inr, appended_scope_length, incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr]
-    dsimp only
+  · rw [append_index_inr, appended_scope_length, incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inl]
+  · rw [append_index_inr, appended_scope_length, incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr]
     omega
 
 private theorem scopeJoin_target_index (F H : CSP Rel V) (r : Rel) {m n : ℕ}

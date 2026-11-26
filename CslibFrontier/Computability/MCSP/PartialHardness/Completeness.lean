@@ -158,8 +158,7 @@ theorem exists_satTerm {S : Finset ℕ}
   have h (j : ℕ) : ∃ t, j < I.formulas.length → t < (I.formulas.getD j []).length ∧
       ∀ q < (term I j t).length, var I j t q ∈ S := by
     by_cases hj : j < I.formulas.length
-    · have hφ := hsat _ (List.getElem_mem hj)
-      obtain ⟨c, hc, hct⟩ := List.any_eq_true.1 hφ
+    · obtain ⟨c, hc, hct⟩ := List.any_eq_true.1 (hsat _ (List.getElem_mem hj))
       obtain ⟨t, ht, rfl⟩ := List.mem_iff_getElem.1 hc
       refine ⟨t, fun _ => ⟨by simpa [List.getD_eq_getElem?_getD, hj] using ht, fun q hq => ?_⟩⟩
       have htD : term I j t = I.formulas[j][t] := term_eq_getElem hj ht
@@ -169,7 +168,7 @@ theorem exists_satTerm {S : Finset ℕ}
       simpa [var, htD, List.getD_eq_getElem?_getD, hq] using hq'
     · exact ⟨0, fun h => absurd h hj⟩
   choose τ hτ using h
-  exact ⟨τ, fun j hj => hτ j hj⟩
+  exact ⟨τ, hτ⟩
 
 /-- The blocks of the variables of an assignment `S` have total size at most `2 w(S) λ`. -/
 theorem sum_two_pow_varLength_le_two_mul_weight {S : Finset ℕ}
@@ -229,9 +228,8 @@ private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ 
       0 = b := by
   have hj := formulaIndex_lt_of_entry_eq_some hx
   obtain ⟨htj, hvars⟩ := hτ _ hj
-  have hφΔ : (I.formulas.getD (formulaIndex x) []).length ≤ Δ :=
-    hΔ.length_le (List.getD_mem [] hj)
-  have htΔ : τ (formulaIndex x) < Δ := lt_of_lt_of_le htj hφΔ
+  have htΔ : τ (formulaIndex x) < Δ :=
+    lt_of_lt_of_le htj (hΔ.length_le (List.getD_mem [] hj))
   rw [← termParity_eq_of_entry_eq_some hx ⟨_, htΔ⟩ htj]
   simp only [combine, combineCore, Fin.append_left, Fin.append_right, termParity, slotBit,
     htΔ, ↓reduceDIte]
@@ -274,17 +272,13 @@ private theorem complexity_addr_le (L : ℕ) (τ o : ℕ → ℕ) :
       else ∅), ?_, ?_⟩
   · refine (card_union_le _ _).trans (add_le_add (card_image_le.trans (by simp)) ?_)
     split_ifs
-    · exact card_image_le.trans (by simp)
-    · simp
+    exacts [card_image_le.trans (by simp), by simp]
   · intro x y hxy
     have hidx : (fun i => x (indexPos I Δ k lam i)) = fun i => y (indexPos I Δ k lam i) :=
       funext fun i => hxy _ (mem_union_left _ (mem_image_of_mem _ (mem_univ i)))
-    simp only [addr, Equiv.symm_apply_apply, formulaIndex, hidx]
-    unfold addrBit
+    simp only [addr, Equiv.symm_apply_apply, formulaIndex, hidx, addrBit]
     split_ifs with h
-    · exact hxy _ (mem_union_right _ (by
-        rw [dite_eq_left h.2.2]
-        exact mem_image_of_mem _ (mem_univ _)))
+    · exact hxy _ (mem_union_right _ (dite_eq_left h.2.2 ▸ mem_image_of_mem _ (mem_univ _)))
     · rfl
 
 /-- The output reads the formula index, the masks and the table values. -/

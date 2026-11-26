@@ -242,10 +242,9 @@ theorem slotsSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
       (by rw [hzIdx0]; exact Nat.zero_le _)
       (by rw [hzIdx0]; exact ⟨hz0, hz1, hz2, hzL, hzSt, hzN0, hzE, hzEB, hx1m⟩)
   rw [hzIdx0, Nat.sub_zero] at hx2
-  have hzN_eq : x2.regs rN = slots g := by
-    simpa only [slotsPrefix, List.take_length, slots] using hzN'
   obtain ⟨x3, hx3, ha0, ha1, ha2, haL, haSt, haN, haE, haEB, haHB, haNB, haVB, haTB, hx3m⟩ :=
-    layoutSetupA_spec (w := w) g x2 hz0' hz1' hz2' hzL' hzSt' hzN_eq hzE' hzEB'
+    layoutSetupA_spec (w := w) g x2 hz0' hz1' hz2' hzL' hzSt'
+      (by simpa only [slotsPrefix, List.take_length, slots] using hzN') hzE' hzEB'
       (hx2m ▸ hinp.mem0) hw
   obtain ⟨x4, hx4, hc4, hnf4, hidx4, hx4m⟩ :=
     layoutSetupB_spec (w := w) g x3 ha0 ha1 ha2 haL haSt haN haE haEB haHB haNB haVB haTB hw
@@ -416,26 +415,15 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
             by rw [hz2NF, hz1NF, hy1NF]; omega,
             by rw [hz2NF, hz1NF, hy1NF]; omega,
             fun u hu => ?_, by rw [hz2m]; exact hz1Zero⟩, hz2Idx⟩
-          rw [hbs_next, hz2NF, hz2m]
-          simp only [insertEdge, hsd, ↓reduceIte]
+          simp only [hbs_next, insertEdge, hsd, ↓reduceIte, hz2NF, hz2m]
           simpa only [hsd] using hz1Adj u hu
-        · have hlen_k1 : ((bsAt k).set g.edges[j].src
-              (g.edges[j] :: (bsAt k).getD g.edges[j].src [])).length = slots g := by
-            rw [List.length_set, hlen_k]
-          obtain ⟨z2, hz2, hz2C, hz2Inp, hz2NF, hz2Idx, _, _, _, hz2Adj, hz2Zero⟩ :=
+        · obtain ⟨z2, hz2, hz2C, hz2Inp, hz2NF, hz2Idx, _, _, _, hz2Adj, hz2Zero⟩ :=
             prependToSlot_spec (w := w) g rDst z1
               ((bsAt k).set g.edges[j].src (g.edges[j] :: (bsAt k).getD g.edges[j].src []))
               g.edges[j].dst j (Or.inr rfl)
-              hz1C hz1Inp (hz1Dst.trans hy1Dst) hz1J hlen_k1 hd_lt hj
+              hz1C hz1Inp (hz1Dst.trans hy1Dst) hz1J (by rw [List.length_set, hlen_k]) hd_lt hj
               (by rw [hz1NF, hy1NF]; omega)
               (by rw [hz1NF, hy1NF]; simp only [visBase]; omega) hz1Adj hz1Zero hw
-          have hbr : ExecWithin w
-              (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ] else [ ⟪prependToSlot rDst⟫ ] ] :
-                Code .standard 34)
-              z1 z2 9 :=
-            ExecWithin.branch_neg
-              (by simp only [Cond.holds_eq, hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, not_false_eq_true])
-              hz2
           obtain ⟨z3, hz3, hz3C, hz3NF, hz3Idx, hz3m⟩ :
               ∃ z3, ExecWithin w
                 (ram[ rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z2 z3 1 ∧
@@ -443,7 +431,10 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
                 z3.regs rOuterIdx = k + 1 ∧ z3.mem = z2.mem := by
             wram_exec [hz2Idx, hz1Idx, hy1Idx, hz2C.one]
             exact ⟨by wram_simp [hz2C], by wram_simp, by wram_simp, by wram_simp⟩
-          refine ⟨z3, (hy1.seq (hz1.seq (hbr.seq hz3))).mono (by omega), ⟨hz3C, hz3m ▸ hz2Inp,
+          refine ⟨z3, (hy1.seq (hz1.seq ((ExecWithin.branch_neg
+              (by simp only [Cond.holds_eq, hz1Src, hy1Src, hz1Dst, hy1Dst, hsd,
+                not_false_eq_true])
+              hz2).seq hz3))).mono (by omega), ⟨hz3C, hz3m ▸ hz2Inp,
             by rw [hz3NF, hz2NF, hz1NF, hy1NF]; omega,
             by rw [hz3NF, hz2NF, hz1NF, hy1NF]; omega,
             fun u hu => ?_, by rw [hz3m]; exact hz2Zero⟩, hz3Idx⟩

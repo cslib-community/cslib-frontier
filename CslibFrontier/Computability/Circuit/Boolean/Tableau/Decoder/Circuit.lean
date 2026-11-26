@@ -299,18 +299,13 @@ theorem wireNat_lt {o j : ℕ} (ho : o < 3 * (2 + (s + cb + tb) + 1)) (hj : j < 
   have hr : o / (2 + (s + cb + tb) + 1) < 3 := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
   have hr' : o / (2 + (s + cb + tb) + 1) * (13 + s) + (13 + s) ≤ 3 * (13 + s) := by
     rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right _ hr
-  have hU := fun kk (hq : o % (2 + (s + cb + tb) + 1) - 2 < s + cb + tb) =>
-    uWire_lt (x := x) (n := n) (T := T) (o % (2 + (s + cb + tb) + 1) - 2) kk hq
-  have hV := fun kk (hq : o % (2 + (s + cb + tb) + 1) - 2 < s + cb + tb) =>
-    vWire_lt (x := x) (n := n) (T := T) (o % (2 + (s + cb + tb) + 1) - 2) kk hq
   have hL := lookW_lt (s := s) (cb := cb) (tb := tb) (x := x) (n := n) (T := T)
   have hN : 4 + (s + cb + tb) < aWidth s cb tb x n T := lt_aWidth_of_lt (by omega)
   unfold wireNat
-  split_ifs
-  all_goals first
+  split_ifs <;> first
     | omega
-    | (have := hU ((j - 1) / 3) (by omega); omega)
-    | (have := hV ((j - 1) / 3) (by omega); omega)
+    | exact (uWire_lt _ _ (by omega)).trans_le (Nat.le_add_right _ _)
+    | exact (vWire_lt _ _ (by omega)).trans_le (Nat.le_add_right _ _)
 
 theorem keyWire_lt {i : ℕ} (hi : i < 4 + s + 14) : keyWire s cb tb i < aWidth s cb tb x n T := by
   unfold keyWire
@@ -430,8 +425,7 @@ theorem fieldVal_carryC (idx : ℕ) {q : ℕ} (hq : q ≤ s + cb + tb) :
   have := Nat.one_le_two_pow (n := q)
   have h3 : 2 ^ q ≤ 2 ^ q * 2 ^ d := Nat.le_mul_of_pos_right _ (Nat.two_pow_pos d)
   have heq : 2 ^ q * 2 ^ d - 1 = 2 ^ q * (2 ^ d - 1) + (2 ^ q - 1) := by
-    rw [Nat.mul_sub_one]
-    omega
+    rw [Nat.mul_sub_one]; omega
   rw [hd, Nat.pow_add, heq, Nat.mul_add_mod, Nat.mod_eq_of_lt (by omega), Bool.eq_iff_iff]
   have := Nat.mod_lt (colOf s cb (idx / 16)) (Nat.two_pow_pos q)
   simp only [Bool.and_true, Bool.or_eq_true, decide_eq_true_eq, or_iff_right_iff_imp]

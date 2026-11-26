@@ -115,14 +115,11 @@ theorem mem_MAZero : A ∈ MAZero enc ↔ ∃ (q p : Polynomial ℕ) (V : α × 
 `q + p`. -/
 theorem IsMerlinArthurZeroVerifier.isVerifier {q p : Polynomial ℕ} {V : α × List Bool → Bool}
     (h : IsMerlinArthurZeroVerifier enc q p V A) : IsVerifier enc (q + p) V A := fun a => by
-  refine ⟨fun ha => ?_, fun ⟨w, hw, hVw⟩ => ?_⟩
+  refine ⟨fun ha => ?_, fun ⟨w, hw, hVw⟩ => by_contra fun ha => ?_⟩
   · obtain ⟨y, hy⟩ := (h a).1 ha
-    have hpos : 0 < 2 ^ p.eval (enc a).length := by positivity
-    obtain ⟨r, hr⟩ := card_pos.1 (by omega : 0 < (univ.filter
-      fun r : Fin (p.eval (enc a).length) → Bool => V (a, List.ofFn y ++ List.ofFn r) = true).card)
+    obtain ⟨r, hr⟩ := card_pos.1 (Nat.pos_of_mul_pos_left ((Nat.two_pow_pos _).trans_le hy))
     exact ⟨List.ofFn y ++ List.ofFn r, by simp [Polynomial.eval_add], (mem_filter.1 hr).2⟩
-  · by_contra ha
-    rw [Polynomial.eval_add] at hw
+  · rw [Polynomial.eval_add] at hw
     have hfalse := (h a).2 ha (BitString.ofList _ (w.take (q.eval (enc a).length)))
       (BitString.ofList _ (w.drop (q.eval (enc a).length)))
     rw [BitString.ofFn_ofList (by simp; omega),
@@ -135,12 +132,7 @@ theorem IsVerifier.isMerlinArthurZeroVerifier {q : Polynomial ℕ} {V : α × Li
     (h : IsVerifier enc q V A) : IsMerlinArthurZeroVerifier enc q 0 V A := fun a => by
   refine ⟨fun ha => ?_, fun ha y r => ?_⟩
   · obtain ⟨w, hw, hVw⟩ := (h a).1 ha
-    refine ⟨BitString.ofList _ w, ?_⟩
-    rw [filter_true_of_mem fun r _ => by
-      rw [BitString.ofFn_ofList hw,
-        List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0),
-        List.append_nil, hVw]]
-    simp
+    exact ⟨BitString.ofList _ w, by simp [BitString.ofFn_ofList hw, hVw]⟩
   · rw [List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0), List.append_nil]
     exact Bool.eq_false_iff.2 fun hVy => ha ((h a).2 ⟨List.ofFn y, List.length_ofFn, hVy⟩)
 
@@ -446,8 +438,7 @@ theorem AM_eq_AMOne : AM enc = AMOne enc :=
   Set.Subset.antisymm AM_subset_AMOne AMOne_subset_AM
 
 /-- **`MAOne ⊆ AMOne`**. -/
-theorem MAOne_subset_AMOne : MAOne enc ⊆ AMOne enc := by
-  rw [← MA_eq_MAOne, ← AM_eq_AMOne]
-  exact MA_subset_AM
+theorem MAOne_subset_AMOne : MAOne enc ⊆ AMOne enc :=
+  MA_eq_MAOne.symm ▸ AM_eq_AMOne.symm ▸ MA_subset_AM
 
 end Cslib.Complexity

@@ -130,9 +130,8 @@ theorem edgeWeight_perm {E F : List WeightedEdge} (h : E.Perm F) (i j : ℕ) :
   (h.map _).sum_eq
 
 theorem edgeMatrix_perm (N : ℕ) {E F : List WeightedEdge} (h : E.Perm F) :
-    edgeMatrix N E = edgeMatrix N F := by
-  ext i j
-  exact edgeWeight_perm h i j
+    edgeMatrix N E = edgeMatrix N F :=
+  Matrix.ext fun i j => edgeWeight_perm h i j
 
 theorem edgeWeight_eq_zero {E : List WeightedEdge} {i j : ℕ}
     (h : ∀ e ∈ E, e.src = i → e.dst ≠ j) : edgeWeight E i j = 0 := by
@@ -199,8 +198,7 @@ theorem entryChain_succ (N u v w L : ℕ) :
 theorem within_entryChain {N u v w L : ℕ} (hu : u < N) (hv : v < N) :
     Within (N + 2 * L) (entryChain N u v w L) := by
   intro e he
-  simp only [entryChain, List.mem_flatMap, List.mem_range] at he
-  obtain ⟨k, hk, he⟩ := he
+  obtain ⟨k, hk, he⟩ := by simpa only [entryChain, List.mem_flatMap, List.mem_range] using he
   simp only [chainLevel, List.mem_cons, List.not_mem_nil, or_false] at he
   rcases he with rfl | rfl | rfl | rfl | rfl | rfl <;> dsimp only <;> (try split_ifs) <;> omega
 
@@ -253,8 +251,7 @@ theorem permanent_entryChain (L : ℕ) :
         within_entryChain (L := 1) hu hv e (by simpa [entryChain] using he)
     rw [ih (N := N + 2) _ (by omega) hE1 (by omega) (by omega)
       (by rw [Nat.div_lt_iff_lt_mul (by norm_num)]; rw [pow_succ] at hw; exact hw)]
-    have hz : ∀ i j, (N ≤ i ∨ N ≤ j) → edgeWeight E i j = 0 :=
-      fun i j h => edgeWeight_eq_zero_of_within hE h
+    have hz (i j : ℕ) := edgeWeight_eq_zero_of_within (i := i) (j := j) hE
     -- remove the relay vertex `N + 1`
     -- remove the doubling vertex `N`
     have hz1r (j : ℕ) := hz (N + 1) j (.inl (Nat.le_succ N))
@@ -312,10 +309,9 @@ theorem permanent_tableChain (L : ℕ) :
       rw [List.append_assoc, List.append_assoc]
       exact List.Perm.append_left _ List.perm_append_comm),
       permanent_entryChain L _ rfl hrest htu htv htw]
-    congr 1
-    apply edgeMatrix_perm
-    rw [List.append_assoc]
-    exact List.Perm.append_left _ (List.perm_append_comm.trans (by simp))
+    refine congrArg Matrix.permanent (edgeMatrix_perm _ ?_)
+    simpa only [List.append_assoc, List.singleton_append] using
+      List.Perm.append_left E (List.perm_append_comm (l₁ := ts) (l₂ := [t]))
 
 /-! ### The chains form a 0/1 matrix -/
 
@@ -501,8 +497,7 @@ theorem zeroOnePermanent_edgeTable {N : ℕ} {E : List WeightedEdge}
   have hl := length_edgeTable N E
   rw [ZeroOnePermanent, ← Matrix.permanent_submatrix_equiv_equiv (finCongr hl.symm)
     (finCongr hl.symm)]
-  refine congrArg Matrix.permanent ?_
-  ext i j
+  refine congrArg Matrix.permanent (Matrix.ext fun i j => ?_)
   simp only [Matrix.submatrix_apply, boolTableMatrix_apply, edgeMatrix, Matrix.of_apply,
     finCongr_apply, Fin.getElem_fin, Fin.val_cast, getD_edgeTable _ j.isLt]
   rcases Nat.le_one_iff_eq_zero_or_eq_one.mp (h i i.isLt j j.isLt) with hw | hw
@@ -524,8 +519,7 @@ theorem zeroOnePermanent_natTableToZeroOne (A : List (List ℕ)) :
   · rw [natTableEdges, ← List.nil_append (tableChain _ _ _),
       permanent_tableChain _ _ _ (by simp [natTableDim, natTableTriples, gridEdges])
         (fun _ h => absurd h List.not_mem_nil) fun t ht => natTableTriples_bounds ht]
-    congr 1
-    ext i j
+    refine congrArg Matrix.permanent (Matrix.ext fun i j => ?_)
     simp [edgeMatrix, natTableTriples, edgeWeight_gridEdges, tableMatrix_apply, natTableEntry]
   · intro i _ j _
     by_cases hij : A.length ≤ i ∨ A.length ≤ j

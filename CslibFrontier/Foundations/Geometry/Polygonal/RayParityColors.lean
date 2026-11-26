@@ -184,22 +184,16 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
     refine Finset.sum_congr rfl fun j _ => ?_
     by_cases hj : j = i
     · simp [hj]
-    by_cases hx : x j = true
-    · have hevent : (openSegment ℝ (a j) (b j) ∩
-          openSegment ℝ (point t) (point (1 - t))).Nonempty ↔
-        (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (a i) (b i)).Nonempty := by
-        constructor
-        · rintro ⟨z, hjz, hz⟩
-          obtain ⟨s, hs, rfl⟩ := (image_openSegment ℝ point _ _).symm ▸ hz
-          exact ⟨point s, hjz,
-            lineMap_mem_openSegment ℝ _ _ ((convex_Ioo (0 : ℝ) 1).openSegment_subset ht ht' hs)⟩
-        · rintro ⟨z, hjz, hz⟩
-          obtain ⟨s, hs, rfl⟩ := openSegment_eq_image_lineMap ℝ (a i) (b i) ▸ hz
-          refine ⟨point s, hjz, ?_⟩
-          rw [← image_openSegment ℝ point, openSegment_eq_Ioo hlt]
-          exact ⟨s, hthits s (Set.mem_iUnion.mpr ⟨j, hs, hj, hx, hjz⟩), rfl⟩
-      rw [hevent]
-    · simp [hj, Bool.eq_false_iff.mpr hx, ← Bool.zero_eq_false]
+    cases hx : x j
+    · simp [hj, ← Bool.zero_eq_false]
+    suffices (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (point t) (point (1 - t))).Nonempty ↔
+        (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (a i) (b i)).Nonempty by simp [hj, this]
+    rw [← image_openSegment ℝ point, openSegment_eq_Ioo hlt]
+    refine ⟨fun ⟨_, hjz, s, hs, he⟩ =>
+      ⟨point s, he ▸ hjz, lineMap_mem_openSegment ℝ _ _ ⟨htpos.trans hs.1, hs.2.trans ht'.2⟩⟩,
+      fun ⟨_, hjz, hz⟩ => ?_⟩
+    obtain ⟨s, hs, rfl⟩ := openSegment_eq_image_lineMap ℝ (a i) (b i) ▸ hz
+    exact ⟨point s, hjz, s, hthits s (Set.mem_iUnion.mpr ⟨j, hs, hj, hx, hjz⟩), rfl⟩
   rw [hsum] at htrace
   simp only [rayEndpoint, rayEndVector, Bool.false_eq_true, ↓reduceIte] at ht0 ht1
   have hpoint0 : a i + t • (b i - a i) = point t := by

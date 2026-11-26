@@ -125,13 +125,11 @@ theorem criticalValue_eq_iInf (q : PriceSchedule ι T) (θ : ι → AgentType (F
     q.policy.criticalValue θ i a d had =
       ⨅ (t : Fin T) (_ : a ≤ t ∧ t ≤ d), ENNReal.ofReal (q.price i t θ) := by
   apply le_antisymm
-  · refine le_iInf₂ fun t ht =>
-      q.policy.criticalValue_le_of_isSome (q.price_nonneg i t θ) ?_
-    rw [q.policy_alloc_isSome_iff]
-    simp only [Function.update_self, q.price_update]
-    exact ⟨t, ht, le_rfl⟩
-  · refine le_sInf fun w hw => ?_
-    obtain ⟨r, hr, rfl, hwin⟩ := hw
+  · refine le_iInf₂ fun t ht => q.policy.criticalValue_le_of_isSome (q.price_nonneg i t θ) ?_
+    simpa only [q.policy_alloc_isSome_iff, Function.update_self, q.price_update] using
+      ⟨t, ht, le_rfl⟩
+  · apply le_sInf
+    rintro w ⟨r, hr, rfl, hwin⟩
     rw [q.policy_alloc_isSome_iff] at hwin
     simp only [Function.update_self, q.price_update] at hwin
     obtain ⟨t, ht, hle⟩ := hwin
@@ -156,16 +154,13 @@ under *arbitrary departure* misreports (`IsDSICNoEarlyArrival`). -/
 theorem arrivalMechanism_isDSICNoEarlyArrival (q : PriceSchedule ι T)
     (hinc : ∀ i θ t₁ t₂, t₁ ≤ t₂ → q.price i t₁ θ ≤ q.price i t₂ θ) :
     q.arrivalMechanism.IsDSICNoEarlyArrival := by
-  have halloc_arr : ∀ θ i,
-      (q.policy.alloc θ i).isSome ↔ q.price i (θ i).arrival θ ≤ (θ i).value := by
-    intro θ i
-    rw [q.policy_alloc_isSome_iff]
-    exact ⟨fun ⟨t, ht, hle⟩ => (hinc i θ _ t ht.1).trans hle,
+  have halloc_arr (θ : ι → AgentType (Fin T)) (i : ι) :
+      (q.policy.alloc θ i).isSome ↔ q.price i (θ i).arrival θ ≤ (θ i).value :=
+    (q.policy_alloc_isSome_iff θ i).trans ⟨fun ⟨t, ht, hle⟩ => (hinc i θ _ t ht.1).trans hle,
       fun hle => ⟨_, ⟨le_rfl, (θ i).arrival_le_departure⟩, hle⟩⟩
-  have halloc_eq : ∀ θ i,
-      q.price i (θ i).arrival θ ≤ (θ i).value →
+  have halloc_eq (θ : ι → AgentType (Fin T)) (i : ι)
+      (hle : q.price i (θ i).arrival θ ≤ (θ i).value) :
       q.policy.alloc θ i = some (θ i).arrival := by
-    intro θ i hle
     classical
     simp only [policy]
     set S := Finset.univ.filter fun t : Fin T => (θ i).InWindow t ∧ q.price i t θ ≤ (θ i).value
@@ -365,18 +360,13 @@ theorem exists_thresholdWins [Finite ι] {p : ℝ} {θ : ι → AgentType (Fin T
   have hQne : Q.Nonempty := ⟨i₀, Finset.mem_filter.mpr ⟨Finset.mem_univ i₀, hi₀⟩⟩
   obtain ⟨t_min, ht_mem, ht_min⟩ := Finset.exists_min_image Q (fun i => (θ i).arrival) hQne
   set Qmin := Q.filter fun i : ι => (θ i).arrival = (θ t_min).arrival
-  have hQmin_ne : Qmin.Nonempty :=
-    ⟨t_min, Finset.mem_filter.mpr ⟨ht_mem, rfl⟩⟩
-  set w := Qmin.min' hQmin_ne
+  have hQmin_ne : Qmin.Nonempty := ⟨t_min, Finset.mem_filter.mpr ⟨ht_mem, rfl⟩⟩
   obtain ⟨hwQ, hw_arr⟩ := Finset.mem_filter.mp (Finset.min'_mem Qmin hQmin_ne)
-  refine ⟨w, (Finset.mem_filter.mp hwQ).2, fun j hj hba => ?_⟩
+  refine ⟨Qmin.min' hQmin_ne, (Finset.mem_filter.mp hwQ).2, fun j hj hba => ?_⟩
   have hjQ : j ∈ Q := Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩
-  have hmin_le : (θ t_min).arrival ≤ (θ j).arrival := ht_min j hjQ
   rcases hba with hlt | ⟨heq, hji⟩
-  · rw [hw_arr] at hlt
-    exact not_lt_of_ge hmin_le hlt
-  · have hjQmin : j ∈ Qmin := Finset.mem_filter.mpr ⟨hjQ, heq.trans hw_arr⟩
-    exact not_lt_of_ge (Finset.min'_le Qmin j hjQmin) hji
+  · exact not_lt_of_ge (ht_min j hjQ) (hw_arr ▸ hlt)
+  · exact not_lt_of_ge (Finset.min'_le Qmin j (Finset.mem_filter.mpr ⟨hjQ, heq.trans hw_arr⟩)) hji
 
 end ThresholdSingleItemCore
 

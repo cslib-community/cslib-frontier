@@ -92,14 +92,14 @@ private theorem coinSuccID_vertexID (machine : MultiTapePTM k Bool State) {B : �
   have hmem : vertexID B (machine.viewCoinStep a bit) ∈
       List.range' 0 (vertexBound (k := k) B) :=
     List.mem_range'_1.mpr ⟨Nat.zero_le _, by simpa using vertexID_lt hfitB⟩
-  have hsome : ((List.range' 0 (vertexBound (k := k) B)).find? fun v =>
+  rw [coinSuccID, Cslib.findCode_eq]
+  cases hx : (List.range' 0 (vertexBound (k := k) B)).find? fun v =>
       edgeWithSymbol (machine.withCoin bit).toTM.toMultiTapeNTM B a.input.length (vertexID B a) v
-        a.input[queryIndex (k := k) B (vertexID B a)]?).isSome :=
-    List.find?_isSome.mpr ⟨_, hmem, hedge⟩
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsome
-  have hpx := List.find?_some hx
-  rw [coinSuccID, Cslib.findCode_eq, hx, Option.getD_some]
-  exact edgeWithSymbol_target_unique _ hpx hedge
+        a.input[queryIndex (k := k) B (vertexID B a)]? with
+  | none => exact absurd hedge (List.find?_eq_none.mp hx _ hmem)
+  | some x =>
+    have hpx := List.find?_some hx
+    exact edgeWithSymbol_target_unique _ hpx hedge
 
 /-- The arguments of the coin successor. -/
 private structure SuccQuery where
@@ -300,26 +300,21 @@ theorem replayCoins_inSpace [Finite State] (machine : MultiTapePTM k Bool State)
   have hT (b : β) (j : ℕ) (hj : j ≤ L b) :
       (encReplayRegs (replayRegsAt machine c w L coin b j)).length + S b ≤
         11 * (K * (S b + 2)) + 5 + S b := by
-    have hX : ∀ m ≤ K, m * (S b + 2) ≤ K * (S b + 2) := fun m hm => Nat.mul_le_mul_right _ hm
     have hℓ := hlogw b
     have h₁ : (encNat (L b)).length ≤ K * (S b + 2) :=
-      (hcL b).trans ((Nat.mul_le_mul_left cL (by omega : S b + 1 ≤ S b + 2)).trans
-        (hX cL (by omega)))
+      (hcL b).trans (Nat.mul_le_mul (by omega) (Nat.succ_le_succ (Nat.le_succ _)))
     have h₂ : (encNat j).length ≤ K * (S b + 2) := (length_encNat_mono hj).trans h₁
     have h₃ : (encNat (w b).length).length ≤ K * (S b + 2) :=
       (length_encNat_le_of_le_pow (N := (w b).length) (d := 1) (by simp)).trans
-        ((Nat.mul_le_mul_left 2 (by omega : Nat.log2 (w b).length + 1 ≤ S b + 2)).trans
-          (hX 2 (by omega)))
+        (Nat.mul_le_mul (by omega) (Nat.succ_le_succ (hℓ.trans (Nat.le_succ _))))
     have h₄ : (encNat (radix (radixExponent State c) (w b).length)).length ≤ K * (S b + 2) :=
       (length_encNat_le_of_le_pow_add_two le_rfl).trans
-        ((Nat.mul_le_mul_left (radixExponent State c + 1)
-          (by omega : Nat.log2 (w b).length + 2 ≤ S b + 2)).trans
-          (hX (radixExponent State c + 1) (by omega)))
+        (Nat.mul_le_mul (by omega) (Nat.add_le_add_right hℓ 2))
     have h₅ : (encNat (vertexID (radix (radixExponent State c) (w b).length)
-        (replayView machine w coin b j))).length ≤ K * (S b + 2) := by
-      have hl := log2_succ_le (w b).length
-      exact (length_vertexID_le_of_runsInSpace c (hs b) (hreach b j)).trans
-        ((Nat.mul_le_mul_left _ (by omega)).trans (hX _ (by omega)))
+        (replayView machine w coin b j))).length ≤ K * (S b + 2) :=
+      (length_vertexID_le_of_runsInSpace c (hs b) (hreach b j)).trans
+        (Nat.mul_le_mul (by omega)
+          (Nat.succ_le_succ ((log2_succ_le _).trans (Nat.add_le_add_right hℓ 1))))
     have hq : queryIndex (k := k) (radix (radixExponent State c) (w b).length)
         (vertexID (radix (radixExponent State c) (w b).length) (replayView machine w coin b j)) ≤
           ((w b).length + 2) ^ 1 := by
@@ -327,9 +322,8 @@ theorem replayCoins_inSpace [Finite State] (machine : MultiTapePTM k Bool State)
       have hlen := congrArg List.length (hinput b j)
       simp only [queryIndex, readRegisters_vertexID (hfit b j), registers, pow_one]
       omega
-    have h₆ := (length_encNat_le_of_le_pow_add_two hq).trans
-      ((Nat.mul_le_mul_left 2 (by omega : Nat.log2 (w b).length + 2 ≤ S b + 2)).trans
-        (hX 2 (by omega)))
+    have h₆ : _ ≤ K * (S b + 2) := (length_encNat_le_of_le_pow_add_two hq).trans
+      (Nat.mul_le_mul (by omega) (Nat.add_le_add_right hℓ 2))
     simp only [replayRegsAt, encReplayRegs_apply, encReplayRegsFields, length_encPair]
     omega
   have hloop := ComputableInSpace.loopWith (step := replayStep machine w coin)

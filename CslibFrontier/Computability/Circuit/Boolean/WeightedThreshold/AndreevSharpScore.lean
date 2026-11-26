@@ -158,9 +158,8 @@ theorem cast_andreevSharpMult (c : BitString b) :
     (andreevSharpMult b m c : ℝ) =
       (if c = 0 then 0 else 1) + andreevSharpAmp m * onSingles 1 c := by
   rw [← ite_isSingle_eq_onSingles, andreevSharpMult]
-  by_cases h0 : c = 0
-  · subst h0
-    simp [not_isSingle_zero]
+  rcases eq_or_ne c 0 with rfl | h0
+  · simp [not_isSingle_zero]
   · by_cases hu : IsSingle c <;> simp [h0, hu]
 
 /-- The squared multiplier: `μ_c ^ 2 = [c ≠ 0] + (2 α + α ^ 2) [c has weight one]`, from
@@ -170,9 +169,8 @@ theorem cast_andreevSharpMult_sq (c : BitString b) :
       (if c = 0 then 0 else 1) +
         (2 * andreevSharpAmp m + andreevSharpAmp m ^ 2) * onSingles 1 c := by
   rw [cast_andreevSharpMult, ← ite_isSingle_eq_onSingles]
-  by_cases hz : c = 0
-  · subst c
-    simp [not_isSingle_zero]
+  rcases eq_or_ne c 0 with rfl | hz
+  · simp [not_isSingle_zero]
   · by_cases hs : IsSingle c <;>
       simp only [hz, hs, ↓reduceIte, mul_one, mul_zero, add_zero, one_pow]
     ring
@@ -278,8 +276,7 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
       sum_onSingles_mul, mul_sum]
     refine sum_congr rfl fun i _ => ?_
     simp only [ha, andreevSharpMult_single]
-    push_cast
-    ring
+    push_cast; ring
   have hsum_δ (F : BitString b → ℝ) : ∑ c, F c * δ c = F p := by
     simp [hδ]
   have hsst : ∑ c, st c = σ := by
@@ -377,9 +374,7 @@ theorem andreevSharpScore_margin (x : BitString b → Bool) (s : Fin b → ℕ)
     · obtain ⟨i, hi⟩ := hu
       have hsi : s i % 2 = 1 := by simpa [hp, blockParities] using congrFun hi i
       have hsim := hs i
-      have hα : s i ≤ 2 * andreevSharpAmp m + 1 := by
-        unfold andreevSharpAmp
-        omega
+      have hα : s i ≤ 2 * andreevSharpAmp m + 1 := by simp only [andreevSharpAmp]; omega
       rw [hi, onSingles_single, onSingles_single, andreevSharpMult_single]
       push_cast
       have h1 := mul_le_mul_of_nonneg_left

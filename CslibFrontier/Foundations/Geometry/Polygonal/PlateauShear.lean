@@ -49,8 +49,7 @@ private noncomputable def profile (h r y : ℝ) : ℝ :=
   max 0 (min 1 (2 - 2 * |y - h| / r))
 
 private theorem profile_continuous (h r : ℝ) : Continuous (profile h r) := by
-  unfold profile
-  fun_prop
+  fun_prop [profile]
 
 private theorem profile_inner {h r y : ℝ} (hr : 0 < r) (hy : |y - h| ≤ r / 2) :
     profile h r y = 1 := by
@@ -387,8 +386,7 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
   change ∀ y ∈ levels h r, ¬(min (p.eval j α).im (p.eval j β).im < y ∧
     y < max (p.eval j α).im (p.eval j β).im) at hn
   have hzero : q.AtEnd (q.endSegment b) (Route.endTime b 0) b := by
-    rw [Route.AtEnd, q.position_near_end]
-    cases b <;> simp
+    cases b <;> simp [Route.AtEnd, q.position_near_end]
   have htzero := Route.endTime_mem b (Set.left_mem_Icc.2 zero_le_one)
   have hpzero := ((he (Route.endTime b 0) htzero).2 b).mp hzero
   change p.position j (AffineMap.lineMap α β (Route.endTime b 0)) =
@@ -405,13 +403,11 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
     have hdif := shear_difference_flat hr d ha hn'
     refine ⟨β, by linarith, ?_⟩
     have hq1 := (he 1 (Set.right_mem_Icc.2 zero_le_one)).1
-    rw [AffineMap.lineMap_apply_one] at hq1
-    have hq_end := q.eval_near_end false 1
-    rw [Route.endTime, ite_eq_right Bool.false_ne_true, hq1, Route.endpoint_mapAtCuts
-      (c := Complex.imCLM.toLinearMap.toAffineMap) (shear_lineMap h hr d) p false,
-      one_smul] at hq_end
     have hp1 : p.eval 0 β = p.endpoint false + β • p.germ false := p.eval_near_end false β
-    rw [eq_sub_of_add_eq' hq_end.symm, hdif, hp1, add_sub_cancel_left]
+    rw [← one_smul ℝ (q.germ false), eq_sub_of_add_eq' (q.eval_near_end false 1).symm,
+      Route.endTime, ite_eq_right Bool.false_ne_true, hq1, AffineMap.lineMap_apply_one,
+      Route.endpoint_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
+        (shear_lineMap h hr d) p false, hdif, hp1, add_sub_cancel_left]
   · simp only [Route.endTime, ↓reduceIte, sub_zero, AffineMap.lineMap_apply_one,
       Route.position, Route.segments, Nat.cast_add, Nat.cast_one] at hpzero
     obtain rfl : β = 1 := by cast_linarith [j.isLt]
@@ -424,14 +420,13 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
     have hdif := shear_difference_flat hr d ha hn'
     refine ⟨1 - α, by linarith, ?_⟩
     have hq1 := (he 0 (Set.left_mem_Icc.2 zero_le_one)).1
-    rw [AffineMap.lineMap_apply_zero] at hq1
-    have heval := q.eval_near_end true 1
-    simp only [Route.endTime, ↓reduceIte, sub_self, one_smul] at heval
-    rw [hq1, Route.endpoint_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
-      (shear_lineMap h hr d) p true] at heval
-    have hp1 := p.eval_near_end true (1 - α)
-    simp only [Route.endTime, Route.endSegment, ↓reduceIte, sub_sub_cancel] at hp1
-    rw [eq_sub_of_add_eq' heval.symm, hdif, hp1, add_sub_cancel_left]
+    have hp1 : p.eval (Fin.last p.bends) α = p.endpoint true + (1 - α) • p.germ true := by
+      simpa only [Route.endTime, Route.endSegment, ↓reduceIte, sub_sub_cancel] using
+        p.eval_near_end true (1 - α)
+    rw [← one_smul ℝ (q.germ true), eq_sub_of_add_eq' (q.eval_near_end true 1).symm,
+      Route.endTime, ite_eq_left rfl, sub_self, hq1, AffineMap.lineMap_apply_zero,
+      Route.endpoint_mapAtCuts (c := Complex.imCLM.toLinearMap.toAffineMap)
+        (shear_lineMap h hr d) p true, hdif, hp1, add_sub_cancel_left]
 
 namespace Route
 

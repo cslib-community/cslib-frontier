@@ -118,13 +118,8 @@ theorem unitPath_first_neighbor (G : Graph)
     rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi]
     simp [Layout.route, List.consecutivePairs]
   rw [Layout.fanWalk] at hf
-  have hp : [_ , _] <:+: [Layout.center (G.vertices.idxOf (G.edgeEndpoint i false)),
-      Layout.center (G.vertices.idxOf (G.edgeEndpoint i false)) +
-        Layout.portStep (portAt G.canonicalPorts i false),
-      Layout.elbow (G.vertices.idxOf (G.edgeEndpoint i false))
-        (portAt G.canonicalPorts i false)] := ⟨[], [_], rfl⟩
   exact (infix_head_pair_getD (unitPath_nodup G hG hloop hi)
-    (hp.trans hf) (unitPath_endpoints G hG hloop hi).1 d).2
+    (List.IsInfix.trans ⟨[], [_], rfl⟩ hf) (unitPath_endpoints G hG hloop hi).1 d).2
 
 /-- The penultimate unit point is the target center plus its canonical port direction. -/
 theorem unitPath_last_neighbor (G : Graph)
@@ -145,13 +140,8 @@ theorem unitPath_last_neighbor (G : Graph)
     rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi]
     simp [Layout.route, List.consecutivePairs]
   rw [Layout.returnFanWalk] at hf
-  have hp : [_ , _] <:+: [Layout.elbow (G.vertices.idxOf (G.edgeEndpoint i true))
-      (portAt G.canonicalPorts i true),
-      Layout.center (G.vertices.idxOf (G.edgeEndpoint i true)) +
-        Layout.portStep (portAt G.canonicalPorts i true),
-      Layout.center (G.vertices.idxOf (G.edgeEndpoint i true))] := ⟨[_], [], rfl⟩
   exact (infix_last_pair_getD (unitPath_nodup G hG hloop hi)
-    (hp.trans hf) (unitPath_endpoints G hG hloop hi).2 d).2
+    (List.IsInfix.trans ⟨[_], [], rfl⟩ hf) (unitPath_endpoints G hG hloop hi).2 d).2
 
 /-- The immediate unit neighbor at a chosen end of an indexed canonical path. -/
 def endpointNeighbor (G : Graph) (i : ℕ) (side : Bool) : Point :=
@@ -519,9 +509,8 @@ theorem BridgeStemCrossing.neighbors {G : Graph}
   have hrj := canonical_orthogonal G hG hloop hj
   rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hri
   rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hrj
-  have hp := hc.point
-  have hpx : p.1 = G.pathColumn j side := congrArg Prod.fst hp
-  have hpy : p.2 = Layout.track G.vertices.length i := congrArg Prod.snd hp
+  have hpx : p.1 = G.pathColumn j side := congrArg Prod.fst hc.point
+  have hpy : p.2 = Layout.track G.vertices.length i := congrArg Prod.snd hc.point
   have hx := hc.horizontal
   have hy := hc.vertical hG hj
   constructor

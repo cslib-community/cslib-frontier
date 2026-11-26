@@ -205,8 +205,7 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
   rw [List.length_reverse] at hstk2
   have hrest_le : rest.length < slots g := by
     have hp := hS.pot_le
-    simp only [statePotential, hst, List.length_cons] at hp
-    omega
+    simp only [statePotential, hst, List.length_cons] at hp; omega
   set S1 : State (Fin L) := { S with stack := rest, comp := u :: S.comp }
   have hun : S1.unvisited = S.unvisited := rfl
   have hpop_raw : ∃ x1, ExecWithin w scanPop x x1 8 ∧
@@ -234,10 +233,9 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
     rw [hx1m]; exact Function.update_of_ne (by omega) _ _
   have hS1 : StateAt g S1 x1 :=
     ⟨hS.toTableStateAt.frame hc1 rfl (compBase g) (by wram_omega) hfr_comp,
-      by have hp : S.potential ≤ slots g := hS.pot_le
-         change S1.potential ≤ slots g
-         simp only [State.potential, S1, hun, hst, List.length_cons] at hp ⊢
-         omega,
+      show S1.potential ≤ slots g by
+        have hp : S.potential ≤ slots g := hS.pot_le
+        simp only [State.potential, S1, hun, hst, List.length_cons] at hp ⊢; omega,
       fun a ha => (hfr_comp _ (by wram_omega)).trans (hS.cand_mem a ha),
       hsl1, fun v hv => hS.stack_lt v (hst ▸ List.mem_cons_of_mem u hv),
       hstk1.frame fun a _ ha2 => hfr_comp a (by
@@ -258,8 +256,7 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
   have hstep := foldl_visit_step (List.finRange L) (adj g u) (S := S1) (adj_bounds hS.len_table u)
   have hw_pot := hstep.wpot (weightRAM g)
   have hS1w : S1.wpot (weightRAM g) + weightRAM g u = S.wpot (weightRAM g) := by
-    simp only [State.wpot, hun, S1, hst, List.map_cons, List.sum_cons]
-    omega
+    simp only [State.wpot, hun, S1, hst, List.map_cons, List.sum_cons]; omega
   unfold creditRAM weightRAM at hw_pot hS1w ⊢
   dsimp only [S1] at hstep hw_pot hS1w ⊢
   rw [hstep.comp]
@@ -314,13 +311,10 @@ private theorem exploreCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : 
         exact ⟨hState_rem hS' _,
           by wram_simp,
           by wram_simp⟩
-      have hexl_exit : Exec w (.loop (.lt rZero rRem) exploreBody) z1 z1 2 :=
-        .loop_exit (by simp only [Cond.holds_lt, hS1.consts.zero, hrem1]; omega)
-      have hfix : (scan (List.finRange L) g)^[k + 1] S' = S' :=
-        Function.iterate_fixed (scan_nil (List.finRange L) g hst) (k + 1)
-      rw [hfix]
-      exact ⟨z1, (tb + 1) + 2 + 2,
-        .loop_iter hc_loop (.branch_pos hc_br hexb) hexl_exit, by omega, hS1, hidx1⟩
+      rw [Function.iterate_fixed (scan_nil (List.finRange L) g hst) (k + 1)]
+      exact ⟨z1, (tb + 1) + 2 + 2, .loop_iter hc_loop (.branch_pos hc_br hexb)
+        (.loop_exit (by simp only [Cond.holds_lt, hS1.consts.zero, hrem1]; omega)),
+        by omega, hS1, hidx1⟩
     | cons u rest =>
       have hc_br : ¬ (Cond.eq rStackLen rZero).Holds z := by
         simp only [Cond.holds_eq, hS'.stack_len, hst, List.length_cons, hS'.consts.zero,

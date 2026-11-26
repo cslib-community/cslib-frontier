@@ -200,9 +200,7 @@ theorem signProj_regularRep_negOne_mul_regularIsometry :
       regularIsometry (pauliFamily X Z) := by
   rw [signProj, Matrix.smul_mul, Matrix.add_mul, Matrix.one_mul, Matrix.smul_mul,
     regularRep_negOne_mul_regularIsometry, signVal_true, smul_neg]
-  push_cast
-  rw [neg_one_smul, neg_neg, ← two_smul ℂ, smul_smul]
-  norm_num
+  norm_num [neg_one_smul, ← two_smul ℂ, smul_smul]
 
 end Rep
 
@@ -237,9 +235,8 @@ private theorem exists_isometry_pauliFamily (X Z : (ι → Bool) → Matrix κ �
   have hEV : E * (Eᴴ * V) = V := by
     rw [← Matrix.mul_assoc, hEP, signProj_regularRep_negOne_mul_regularIsometry]
   have hWW : Wᴴ * W = 1 := by
-    simp only [W, conjTranspose_mul, conjTranspose_conjTranspose]
-    rw [show Vᴴ * E * Φ * (Φᴴ * (Eᴴ * V)) = Vᴴ * (E * (Φ * Φᴴ) * (Eᴴ * V)) by
-      simp only [Matrix.mul_assoc], hΦ2, Matrix.mul_one, hEV]
+    simp only [W, conjTranspose_mul, conjTranspose_conjTranspose, Matrix.mul_assoc]
+    rw [← Matrix.mul_assoc Φ, hΦ2, Matrix.one_mul, hEV]
     exact conjTranspose_regularIsometry_mul f hf
   have hRXZ : ∀ a b, R.X a * R.Z b = Φ * ((pauliXPow a * pauliZPow b) ⊗ₖ
       (1 : Matrix L₂ L₂ ℂ)) * Φᴴ := fun a b => by
@@ -249,13 +246,9 @@ private theorem exists_isometry_pauliFamily (X Z : (ι → Bool) → Matrix κ �
   have hconj (p : PauliGroup ι) :
       Eᴴ * regularRep p * E =
         Φ * (pauliFamily pauliXPow pauliZPow p ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * Φᴴ := by
-    have hc : Eᴴ * regularRep (ofX p.x * ofZ p.z) * E = R.X p.x * R.Z p.z :=
-      (compress_mul hEE hEP _ _).symm
     have hp : Eᴴ * regularRep p * E = (signVal p.sign : ℂ) • (R.X p.x * R.Z p.z) := by
       conv_lhs => rw [p.eq_sign_mul]
-      cases h : p.sign
-      · simp [hc]
-      · simp [compress_negOne_mul hEE hEP, hc]
+      cases p.sign <;> simp [R, codeRep, compress_negOne_mul hEE hEP, ← compress_mul hEE hEP]
     rw [hp, hRXZ, pauliFamily, smul_kronecker, Matrix.mul_smul, Matrix.smul_mul]
   let K := Φᴴ * Eᴴ
   have hKV : K * V = W := Matrix.mul_assoc _ _ _
@@ -353,12 +346,9 @@ theorem exists_isometry_compress_intertwine_pauliFamily
       hintertwine]
     refine (expect_congr rfl fun p _ => ?_).trans (Fintype.expect_const _)
     have hz : f p * f (ofZ b) - f (p * ofZ b) = 0 := by
-      rw [pauliFamily_mul_sub]
-      simp only [ofZ, zero_dotProduct, Bool.zero_eq_false, signVal_false, Complex.ofReal_one,
-        one_smul, hX0, Matrix.mul_one, add_zero, ← hZmul p.z b, Matrix.mul_assoc, sub_self,
-        smul_zero]
+      simp [f, pauliFamily_mul_sub, ofZ, Bool.zero_eq_false, hX0, ← hZmul p.z b, Matrix.mul_assoc]
     change (f p * f (ofZ b) - f (p * ofZ b))ᴴ * (f p * f (ofZ b) - f (p * ofZ b)) = _
-    rw [hz, conjTranspose_zero, Matrix.zero_mul]
+    simp [hz]
   refine ⟨J, inferInstance, inferInstance, W, hWW, hZexact,
     expect_norm_sub_pauliFamily_compression_le X Z W
       (conjTranspose_pauliFamily_mul X Z hX hZ) hcompress, ?_⟩
@@ -366,10 +356,8 @@ theorem exists_isometry_compress_intertwine_pauliFamily
   let B (b : ι → Bool) := Z b * X a - (signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)
   have hx (p : PauliGroup ι) : f p * f (ofX a) - f (p * ofX a) =
       (signVal p.sign : ℂ) • (X p.x * B p.z) := by
-    rw [pauliFamily_mul_sub]
-    simp only [ofX, hZ0, Matrix.mul_one, add_zero, B, Matrix.mul_sub, Matrix.mul_smul,
-      ← hXmul, Matrix.mul_assoc]
-    rw [show p.sign + false = p.sign from add_zero p.sign]
+    simp [f, pauliFamily_mul_sub, ofX, Bool.add_eq_xor, hZ0, B, Matrix.mul_sub, ← hXmul,
+      Matrix.mul_assoc]
   have hgram (p : PauliGroup ι) :
       (f p * f (ofX a) - f (p * ofX a))ᴴ * (f p * f (ofX a) - f (p * ofX a)) =
         (B p.z)ᴴ * B p.z := by
@@ -377,13 +365,10 @@ theorem exists_isometry_compress_intertwine_pauliFamily
       ← Matrix.mul_assoc (X p.x)ᴴ, hX, Matrix.one_mul, Complex.star_def, Complex.conj_ofReal,
       ← Complex.ofReal_mul, signVal_mul_self, Complex.ofReal_one, one_smul]
   have h := hintertwine (ofX a)
-  change _ = 𝔼 p, (f p * f (ofX a) - f (p * ofX a))ᴴ *
-    (f p * f (ofX a) - f (p * ofX a)) at h
-  simp only [hgram] at h
+  dsimp only at h
+  simp only [f, hgram] at h
   rw [pauliFamily_ofX _ _ hZ0, pauliFamily_ofX _ _ pauliZPow_zero] at h
-  change _ = 𝔼 b, (B b)ᴴ * B b
-  rw [show Dᴴ * D = _ from h, expect_pauliGroup (fun _ b => (B b)ᴴ * B b),
-    Fintype.expect_const]
+  simpa only [D, expect_pauliGroup (fun _ b => (B b)ᴴ * B b), Fintype.expect_const] using h
 
 /-- **Compression from consistency, anticommutation and linearity**, a step toward robust Pauli
 rigidity [Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017], for unitary families (see

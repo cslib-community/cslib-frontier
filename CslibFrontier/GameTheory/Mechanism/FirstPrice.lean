@@ -243,20 +243,14 @@ theorem isBayesNash_uniformBid :
     simp only [hX v hv, hX w hw]
     exact pow_le_pow_left₀ hw.1 hwv _
   · intro v hv
-    rw [interimPayment_eq, interimPayment_eq, hX v hv]
-    have hint : ∫ z in (0 : ℝ)..v, mechanism.interimAllocation
-        (fun _ => volume.restrict (Icc (0 : ℝ) 1)) (fun _ => uniformBid (Fintype.card ι)) i
-          (uniformBid (Fintype.card ι) z) = ∫ z in (0 : ℝ)..v, z ^ (Fintype.card ι - 1) := by
-      refine intervalIntegral.integral_congr fun z hz => ?_
-      rw [uIcc_of_le hv.1] at hz
-      exact hX z ⟨hz.1, hz.2.trans hv.2⟩
-    obtain ⟨k, hk⟩ : ∃ k, Fintype.card ι = k + 1 := ⟨Fintype.card ι - 1, by omega⟩
-    have hk' : (Fintype.card ι : ℝ) = k + 1 := by rw [hk]; push_cast; ring
-    rw [hint, integral_pow, uniformBid, uniformBid, mul_zero, zero_mul, zero_add,
-      show Fintype.card ι - 1 = k by omega, hk', zero_pow (Nat.succ_ne_zero k), sub_zero]
-    have : (k : ℝ) + 1 ≠ 0 := by positivity
+    rw [interimPayment_eq, interimPayment_eq, hX v hv,
+      intervalIntegral.integral_congr fun z hz =>
+        hX z ⟨(uIcc_of_le hv.1 ▸ hz).1, (uIcc_of_le hv.1 ▸ hz).2.trans hv.2⟩,
+      integral_pow, Nat.sub_add_cancel hn, Nat.cast_sub hn, Nat.cast_one, sub_add_cancel,
+      zero_pow hn.ne', sub_zero, uniformBid, uniformBid, mul_zero, zero_mul, zero_add,
+      mul_assoc, ← pow_succ', Nat.sub_add_cancel hn]
+    have : (Fintype.card ι : ℝ) ≠ 0 := mod_cast hn.ne'
     field_simp
-    ring
   · intro v hv z hz
     rcases lt_or_ge z (((Fintype.card ι : ℝ) - 1) / Fintype.card ι) with hzc | hzc
     · have hcpos : 0 < ((Fintype.card ι : ℝ) - 1) / Fintype.card ι := hz.trans_lt hzc

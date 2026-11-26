@@ -88,10 +88,8 @@ private theorem exists_endpointPrefix (c q : Circuit signature n n) (hL : 0 < L)
     exact (chooseRecord_map (row x) (flags x) id first K).symm
   · obtain ⟨⟨j, hj⟩, hmin⟩ := leastRankFlag_spec (ranks x) first
     obtain ⟨i, _, hflag, he⟩ := chooseRecord_spec (flags x) id first K ⟨j, j.isLt, hj⟩
-    change index x = i at he
-    change IsEndpointCheckpoint f _ L (f^[cut (index x)] x)
-    rw [he]
-    exact isEndpointCheckpoint_of_min f _ hi i (hmin i hflag)
+    dsimp only [index, id] at he ⊢
+    exact he ▸ isEndpointCheckpoint_of_min f _ hi i (hmin i hflag)
 
 /-- Feed the selected checkpoint and the unspent time to a circuit that answers queries
 starting at a mark. Both operands of the subtraction are widened, so the time may have any
@@ -211,8 +209,7 @@ private theorem exists_markedPower {w : ℕ} (c q : Circuit signature n n)
   obtain ⟨out, hval, hs⟩ := exists_branch tree cycle 0 Fin.succ
   refine ⟨out, fun h hh u => ?_, ?_⟩
   · rw [hval]
-    dsimp only
-    rw [hflag h hh, Equiv.apply_symm_apply]
+    simp only [hflag h hh, Equiv.apply_symm_apply]
     by_cases hu : u.toNat < transientDepth (c.eval interpretation) h
     · simpa only [hu, decide_true, ite_true, Equiv.apply_symm_apply, Fin.tail_def] using
         (htree h hh (BitString.equivBitVec.symm u) (by simpa using hu))
@@ -259,10 +256,8 @@ theorem input_time_endpoint_tradeoff (c : Circuit signature n n) (m L : ℕ)
         Fin.append_castAdd_natAdd] using
         hlong x t (Nat.le_of_not_gt (fun ht => ready (.inl ht)))
           (injective_of_not_liveShortReady ready)
-  · have hcard : H.card ≤ 512 * (2 ^ n / L + 1) := by
-      apply Nat.le_of_lt
-      apply Nat.lt_of_mul_lt_mul_right (a := L)
-      nlinarith [Nat.lt_mul_div_succ (2 ^ n) hL]
+  · have hcard : H.card ≤ 512 * (2 ^ n / L + 1) := Nat.le_of_lt <|
+      Nat.lt_of_mul_lt_mul_right (a := L) (by nlinarith [Nat.lt_mul_div_succ (2 ^ n) hL])
     have hRank := Nat.mul_le_mul_left L hq
     have hSquare := Nat.mul_le_mul_right (n * n) hL
     have hLinear := Nat.mul_le_mul_right n hL

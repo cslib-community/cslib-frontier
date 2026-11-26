@@ -285,11 +285,10 @@ theorem natChunkVec_eq_iff {q ℓ x y : ℕ} (hx : x < 2 ^ (ℓ * q)) (hy : y < 
   have hpow : (2 ^ q) ^ ℓ = 2 ^ (ℓ * q) := by rw [← pow_mul, Nat.mul_comm]
   obtain ⟨dx, hdx, hvx⟩ := Nat.exists_ofDigits_ofFn (hpow.symm ▸ hx)
   obtain ⟨dy, hdy, hvy⟩ := Nat.exists_ofDigits_ofFn (hpow.symm ▸ hy)
-  have hdx_eq : dx = natChunkVec q ℓ x := funext fun i ↦ by
-    rw [natChunkVec, Cslib.Radix.digit_eq_div_pow_mod, ← hvx, Nat.ofDigits_ofFn_div_mod dx hdx i]
-  have hdy_eq : dy = natChunkVec q ℓ y := funext fun i ↦ by
-    rw [natChunkVec, Cslib.Radix.digit_eq_div_pow_mod, ← hvy, Nat.ofDigits_ofFn_div_mod dy hdy i]
-  rw [← hvx, ← hvy, hdx_eq, hdy_eq, h]
+  have h_eq : dx = dy := funext fun i ↦ by
+    simpa only [natChunkVec, Cslib.Radix.digit_eq_div_pow_mod, ← hvx, ← hvy,
+      Nat.ofDigits_ofFn_div_mod dx hdx i, Nat.ofDigits_ofFn_div_mod dy hdy i] using congrFun h i
+  rw [← hvx, ← hvy, h_eq]
 
 private theorem mul_two_pow_sub_one_sq_lt (q ℓ : ℕ) :
     ℓ * (2 ^ q - 1) ^ 2 < 2 ^ (2 * q + Nat.log 2 ℓ + 1) := by
@@ -457,8 +456,7 @@ theorem run_vertexEqProc {B n x y : ℕ} (hx : x < 2 ^ n) (hy : y < 2 ^ n)
     (vertexEqProc B n).run x y (cat, s₀) = (cat, s₀ + if x = y then 1 else 0) := by
   have hcov : n ≤ outerDigits B n * outerChunkBits B :=
     Nat.le_ceilDiv_mul (by simp [outerChunkBits])
-  rw [run_vertexEqProc_chunk]
-  simp only [natChunkVec_eq_iff
+  simp only [run_vertexEqProc_chunk, natChunkVec_eq_iff
     (hx.trans_le (Nat.pow_le_pow_right (by decide) hcov))
     (hy.trans_le (Nat.pow_le_pow_right (by decide) hcov))]
 
@@ -502,8 +500,7 @@ theorem catalyticVertexEq_eq {B n x y : ℕ} (hx : x < 2 ^ n) (hy : y < 2 ^ n)
 /-- **Constant local frame (`7` bits).** The caller's local frame across all `64` excursions has
 cardinality `2 ^ 7`, independent of `B` and `n`. -/
 theorem card_vertexLocalFrame : Fintype.card VertexLocalFrame = 2 ^ 7 := by
-  rw [Fintype.card_prod, Fintype.card_fin, ZMod.card]
-  rfl
+  simp [VertexLocalFrame, ZMod.card]
 
 /-- **Exact catalytic bit count.** The shared catalytic state `VertexCatState B n` has cardinality
 `2 ^ vertexCatBits B n`. -/
@@ -535,9 +532,8 @@ private theorem outerAccBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
           Nat.mul_lt_mul_of_pos_right (Nat.lt_succ_self C_N) (by positivity)
       _ < 2 ^ (Nat.log 2 (C_N + 1) + 1) * 2 ^ (outerChunkBits B + 1) :=
           Nat.mul_lt_mul_of_pos_right hc (by positivity)
-      _ = 2 ^ (Nat.log 2 (C_N + 1) + outerChunkBits B + 2) := by
-          rw [← pow_add]
-          exact congrArg (2 ^ ·) (by omega)
+      _ = 2 ^ (Nat.log 2 (C_N + 1) + outerChunkBits B + 2) :=
+          (pow_add _ _ _).symm.trans (congrArg (2 ^ ·) (by omega))
   have := Nat.log_lt_of_lt_pow' (by omega) hℓ₁_lt
   rw [outerAccBits]; omega
 
@@ -548,8 +544,7 @@ theorem innerDigits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
   have hk₁ := outerAccBits_le hn
   have hq₂ : 0 < innerChunkBits B := by simp [innerChunkBits]
   have hq₁_le : outerChunkBits B ≤ 3 * innerChunkBits B := by grind [innerChunkBits]
-  have hc_mul : Nat.log 2 (C_N + 1) ≤ Nat.log 2 (C_N + 1) * innerChunkBits B :=
-    Nat.le_mul_of_pos_right _ hq₂
+  have := Nat.le_mul_of_pos_right (Nat.log 2 (C_N + 1)) hq₂
   rw [innerDigits, Nat.ceilDiv_le_iff hq₂, Nat.add_mul]
   omega
 
