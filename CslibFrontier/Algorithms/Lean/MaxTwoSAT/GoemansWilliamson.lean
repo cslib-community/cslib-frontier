@@ -270,15 +270,12 @@ private theorem satSdpClause_signVector {u : F} (hu : ‖u‖ = 1) (side : Optio
   rcases c with _ | ⟨ℓ₁, _ | ⟨ℓ₂, _ | ⟨ℓ₃, t⟩⟩⟩
   · simp [satSdpClause]
   · simpa [satSdpClause] using hlit ℓ₁
-  · have h1 := hlit ℓ₁
-    have h2 := hlit ℓ₂
-    have hp := hpair ℓ₁ ℓ₂
-    simp only [satSdpClause, Clause.eval_cons, Clause.eval_nil, Bool.or_false]
+  · simp only [satSdpClause, Clause.eval_cons, Clause.eval_nil, Bool.or_false]
     have hbool (b₁ b₂ : Bool) : (if (b₁ || b₂) = true then (1 : ℝ) else 0) =
         ((if b₁ = true then 1 else 0) + (if b₂ = true then 1 else 0) +
           (if b₁ ≠ b₂ then 1 else 0)) / 2 := by cases b₁ <;> cases b₂ <;> norm_num
     rw [hbool (ℓ₁.eval (truthAssignment side)) (ℓ₂.eval (truthAssignment side))]
-    linarith
+    linarith [hlit ℓ₁, hlit ℓ₂, hpair ℓ₁ ℓ₂]
   · simp at hc
 
 /-- At `liftAssignment u σ` (for `‖u‖ = 1`), `satSdpValue` equals `satValue`. -/
@@ -414,10 +411,7 @@ theorem goemansWilliamsonConstant_mul_satSdpValue_le_integral (clauses : ι → 
     integrable_ite_const (stdGaussian F) (measurableSet_clause_eval v (clauses j)) (w j),
     Finset.mul_sum]
   refine Finset.sum_le_sum fun j _ => ?_
-  have hmul : (fun r : F => if (clauses j).eval (satHyperplaneAssignment v r) then w j else 0) =
-      fun r : F => w j * if (clauses j).eval (satHyperplaneAssignment v r) then 1 else 0 :=
-    funext fun _ => (mul_boole _ _).symm
-  rw [hmul, integral_const_mul]
+  simp only [← mul_boole _ (w j), integral_const_mul]
   simpa only [mul_left_comm] using mul_le_mul_of_nonneg_left
     (goemansWilliamsonConstant_mul_satSdpClause_le_integral hv (hc j)) (hw j)
 

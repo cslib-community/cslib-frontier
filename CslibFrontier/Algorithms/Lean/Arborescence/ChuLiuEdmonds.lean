@@ -145,8 +145,7 @@ theorem IsInArborescenceParent.ne {R : V → V → Prop} {r : V} {p : V → V}
     (h : IsInArborescenceParent R r p) {v : V} (hv : v ≠ r) : p v ≠ v := by
   intro hpv
   obtain ⟨n, hn⟩ := h.reach v
-  rw [Function.iterate_fixed hpv] at hn
-  exact hv hn
+  exact hv ((Function.iterate_fixed hpv n).symm.trans hn)
 
 /-- The cost `∑ v ≠ r, c v (p v)` of the arcs `v → p v` of a parent function. -/
 @[expose] def parentCost [Fintype V] [DecidableEq V] [AddCommMonoid β] (c : V → V → β) (r : V)
@@ -209,8 +208,7 @@ theorem cheapestParent_spec {v : V} (hv : v ≠ r) (hne : candidates a v ≠ [])
     a v (cheapestParent a c r v) = true ∧ cheapestParent a c r v ≠ v ∧
       ∀ w, a v w = true → w ≠ v → c v (cheapestParent a c r v) ≤ c v w := by
   obtain ⟨m, hm⟩ := List.exists_argmin_eq_some (f := c v) hne
-  have hsel : cheapestParent a c r v = m := by simp [cheapestParent, hv, hm]
-  rw [hsel]
+  rw [show cheapestParent a c r v = m by simp [cheapestParent, hv, hm]]
   have hmem := (mem_candidates a).mp (List.argmin_mem hm)
   exact ⟨hmem.1, hmem.2, fun w hw hwv =>
     List.le_of_mem_argmin ((mem_candidates a).mpr ⟨hw, hwv⟩) hm⟩
@@ -288,8 +286,7 @@ theorem root_notMem_cycleOf (hr : f r = r) (hx0 : x0 ≠ r) (hm : Function.IsPer
     (hm0 : 0 < m) (hmc : m ≤ FinEnum.card V) : r ∉ cycleOf f x0 := by
   intro h
   obtain ⟨N, hN⟩ := cycleOf_reach hm hm0 h (iterate_mem_cycleOf hm hm0 hmc 0)
-  rw [Function.iterate_fixed hr] at hN
-  exact hx0 hN.symm
+  exact hx0 (hN.symm.trans (Function.iterate_fixed hr N))
 
 end Cycle
 
@@ -469,9 +466,8 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
         rw [Function.iterate_succ_apply, hpy, Function.iterate_add_apply, hk, hm]
       · obtain ⟨m, hm⟩ := ih n' (by omega) (q u) (hqO u hu hqu) hn
         exact ⟨m + 1, by rw [Function.iterate_succ_apply, hpO' u hu hqu, hm]⟩
-  have hrx0 : q r ≠ x0 := by rw [hq.root]; exact hx0r.symm
   refine ⟨⟨?_, ?_, ?_⟩, ?_⟩
-  · rw [hpO' r hrC hrx0, hq.root]
+  · rw [hpO' r hrC fun h => hx0r (h.symm.trans hq.root), hq.root]
   · intro v hv
     by_cases hvC : v ∈ C
     · rw [hpC v hvC]
@@ -544,8 +540,7 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
     if v ∈ C then (if v = x0 then t x else r) else if t v ∈ C then x0 else t v
   have hqC : ∀ v ∈ C, q v = if v = x0 then t x else r := fun v hv => by simp [q, hv]
   have hqO : ∀ v ∉ C, q v = if t v ∈ C then x0 else t v := fun v hv => by simp [q, hv]
-  have htr : t r = r := ht.root
-  have hq_r : q r = r := by rw [hqO r hrC, htr, ite_eq_right hrC]
+  have hq_r : q r = r := by rw [hqO r hrC, ht.root, ite_eq_right hrC]
   -- reachability from the exit vertex
   have hQ : ∀ j < Nat.find hexk, ∀ w, t^[j] w = r → ∃ n, q^[n] w = r := by
     intro j
@@ -769,10 +764,8 @@ theorem edmonds_spec :
 /-- `edmonds` fails exactly when there is no spanning in-arborescence rooted at `r`. -/
 theorem edmonds_eq_none_iff :
     edmonds G c r = none ↔ ∀ t, ¬ IsInArborescenceParent G.Adj r t := by
-  refine ⟨edmonds_spec.2, fun h => ?_⟩
-  cases hp : edmonds G c r with
-  | none => rfl
-  | some p => exact absurd (edmonds_spec.1 p hp).1 (h p)
+  exact ⟨edmonds_spec.2, fun h =>
+    Option.eq_none_iff_forall_ne_some.2 fun p hp => h p (edmonds_spec.1 p hp).1⟩
 
 /-- **Optimality over spanning in-arborescences.** If `edmonds G c r = some p`, then the digraph
 of `p` is a spanning in-arborescence of `G` rooted at `r` (`Digraph.IsInArborescence`), and its

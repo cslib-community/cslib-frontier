@@ -366,9 +366,8 @@ private theorem attainable_compact_convex [Nonempty I] (m : I → J → E) (q : 
   have hsim_cvx : Convex ℝ {p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1} := by
     intro p hp p' hp' a b ha hb hab
     refine ⟨fun i => add_nonneg (mul_nonneg ha (hp.1 i)) (mul_nonneg hb (hp'.1 i)), ?_⟩
-    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum, hp.2, hp'.2,
-      mul_one]
-    exact hab
+    simpa only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum, hp.2, hp'.2,
+      mul_one] using hab
   have hcont : Continuous (fun p : I → ℝ => bilinearPayoff m p q) := by
     simp only [bilinearPayoff_eq_sum_row]
     fun_prop
@@ -427,13 +426,10 @@ theorem halfspace_of_response [Nonempty I] {m : I → J → E} {S : Set E}
   have hcol : ∀ q : Convexity.StdSimplex ℝ J, ∃ i : I, ∑ j, q.weights j * M i j ≤ c := by
     intro q
     obtain ⟨p, hp0, hp1, hpS⟩ := hresp q.weights q.nonneg (by simp)
-    have hle : ∑ i, p i * ∑ j, q.weights j * M i j ≤ c := by
-      have hlin : ⟪w, bilinearPayoff m p q.weights⟫ =
-          ∑ i, p i * ∑ j, q.weights j * M i j := by
-        simp only [bilinearPayoff, inner_sum, real_inner_smul_right, M, mul_sum]
-        refine sum_congr rfl fun i _ => sum_congr rfl fun j _ => by ring
-      rw [← hlin]
-      exact hS_half _ hpS
+    have hlin : ⟪w, bilinearPayoff m p q.weights⟫ = ∑ i, p i * ∑ j, q.weights j * M i j := by
+      simp only [bilinearPayoff, inner_sum, real_inner_smul_right, M, mul_sum]
+      refine sum_congr rfl fun i _ => sum_congr rfl fun j _ => by ring
+    have hle := hlin ▸ hS_half _ hpS
     obtain ⟨i₀, -, hi₀⟩ :=
       univ.exists_min_image (fun i => ∑ j, q.weights j * M i j) univ_nonempty
     refine ⟨i₀, le_trans ?_ hle⟩
@@ -652,12 +648,11 @@ theorem blackwell_expect_dist_sq_le {S : Set E} (hc : IsComplete S) (hS : Convex
     expectHistory strat T []
       (fun h => distToSet S ((T : ℝ)⁻¹ • sumPayoff m adv h) ^ 2) ≤
     (2 * R) ^ 2 / (T : ℝ) := by
-  have hcore : ∀ t : ℕ,
+  have hcore (t : ℕ) :
       expectHistory strat t []
         (fun h => ‖sumPayoff m adv h -
           (t : ℝ) • metricProjection S ((t : ℝ)⁻¹ • sumPayoff m adv h)‖ ^ 2) ≤
         (t : ℝ) * (2 * R) ^ 2 := by
-    intro t
     induction t with
     | zero => simp [expectHistory]
     | succ k ih =>
@@ -683,13 +678,12 @@ theorem blackwell_expect_dist_sq_le {S : Set E} (hc : IsComplete S) (hS : Convex
             rw [hh, norm_sub_smul_eq_mul hkr] at h1
             exact le_of_mul_le_mul_left h1 hkr
           -- Expand the square at the comparison point `s` and bound the quadratic term.
-          have h1 : ∀ i : I,
+          have h1 (i : I) :
               ‖sumPayoff m adv (i :: h) -
                 ((k + 1 : ℕ) : ℝ) • metricProjection S
                   (((k + 1 : ℕ) : ℝ)⁻¹ • sumPayoff m adv (i :: h))‖ ^ 2 ≤
               ‖X - (k : ℝ) • s‖ ^ 2 + 2 * ⟪X - (k : ℝ) • s, m i (adv h) - s⟫ +
                 (2 * R) ^ 2 := by
-            intro i
             have hm := pow_le_pow_left₀ (norm_nonneg _)
               (sum_sub_smul_metricProjection_le hc hS hs_mem (sumPayoff m adv (i :: h))
                 k.succ_pos) 2

@@ -317,10 +317,9 @@ theorem wlHistogram_eq_of_bijPebbleWins_graph_empty {n : ℕ} {a : Fin (k + 1) �
     G.wlHistogram k n = H.wlHistogram k n := by
   let := G.structure
   let := H.structure
-  have hprefix : ∀ m ≤ k, ∃ F : (Fin m → V) ≃ (Fin m → W), ∀ t : Fin m → V,
+  have hprefix (m : ℕ) (hm : m ≤ k) : ∃ F : (Fin m → V) ≃ (Fin m → W), ∀ t : Fin m → V,
       BijPebbleWins Language.graph (n + (k - m)) (prefixPebbles k m)
         (extendPrefix k t (a 0)) (extendPrefix k (F t) (b 0)) := by
-    intro m hm
     induction m with
     | zero =>
       refine ⟨Equiv.ofUnique _ _, fun t => ?_⟩
@@ -416,10 +415,9 @@ theorem realize_countingFormula_le_one_iff_of_card_eq (h : Fintype.card V = Fint
     (letI := G.structure; φ.Realize a) ↔ (letI := H.structure; φ.Realize b) := by
   let := G.structure; let := H.structure
   have hwin : BijPebbleWins Language.graph 1 ∅ a b := by
-    rw [bijPebbleWins_succ]
-    refine ⟨partialIsoOn_empty a b, fun j => ⟨Fintype.equivOfCardEq h, fun c => ?_⟩⟩
-    rw [bijPebbleWins_zero]
-    exact partialIsoOn_graph_iff.2 fun x hx y hy => by
+    refine bijPebbleWins_succ.2
+      ⟨partialIsoOn_empty a b, fun j => ⟨Fintype.equivOfCardEq h, fun c => ?_⟩⟩
+    exact bijPebbleWins_zero.2 <| partialIsoOn_graph_iff.2 fun x hx y hy => by
       simp only [Set.mem_insert_iff, Set.mem_empty_iff_false, or_false] at hx hy
       subst hx hy
       simp only [Function.update_self]
@@ -449,13 +447,11 @@ theorem wlHistogram_eq_of_forall_realize_countingFormula_empty_le [Nonempty V] [
     G.wlHistogram k n = H.wlHistogram k n := by
   obtain ⟨v₀⟩ := ‹Nonempty V›
   obtain ⟨w₀⟩ := ‹Nonempty W›
-  let a : Fin (k + 1) → V := fun _ => v₀
-  let b : Fin (k + 1) → W := fun _ => w₀
-  refine wlHistogram_eq_of_bijPebbleWins_graph_empty (a := a) (b := b) ?_
+  refine wlHistogram_eq_of_bijPebbleWins_graph_empty (a := fun _ => v₀) (b := fun _ => w₀) ?_
   let := G.structure
   let := H.structure
   exact bijPebbleWins_of_forall_realize_iff fun φ hr hS =>
-    h φ hr (Finset.coe_eq_empty.1 (Set.Subset.antisymm hS (Set.empty_subset _))) a b
+    h φ hr (Finset.coe_eq_empty.1 (Set.Subset.antisymm hS (Set.empty_subset _))) _ _
 
 /-- **Cai–Fürer–Immerman theorem, sentence form** ([CaiFurerImmerman1992], Section 5, Theorem 5.2).
 Two nonempty finite simple graphs satisfy the same `C^{k+1}` sentences if and only if their `k`-WL

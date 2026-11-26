@@ -216,18 +216,16 @@ theorem Trace.constraint_fork_earliest (h : Trace sem f m) {c : Copy F}
     (m.older.toDAG_supported m.roots) k
   have hcs := h.constraint_first_copies hc hs ht
   have hsm : s ∈ (m.left.walk.drop k).steps := hdl ▸ List.mem_cons_self
-  have hmin : ∀ (p : Walk F) (s : Occurrence F × Occurrence F) (tail),
-      DirectedPath (m.older.toDAG m.roots) p m.older.stamp → p.steps = s :: tail →
-      p.steps.Pairwise (fun s t => m.older.stamp s.1 < m.older.stamp t.1) →
-      (inArc m.older.stamp s).copy = c →
-      ∀ d ∈ (pathDAG p m.older.stamp).copies, c.2 ≤ d.2 := by
-    intro p s tail hp he ho hs d hd
+  have hmin (p : Walk F) (s : Occurrence F × Occurrence F) (tail)
+      (hp : DirectedPath (m.older.toDAG m.roots) p m.older.stamp) (he : p.steps = s :: tail)
+      (ho : p.steps.Pairwise (fun s t => m.older.stamp s.1 < m.older.stamp t.1))
+      (hs : (inArc m.older.stamp s).copy = c) (d) (hd : d ∈ (pathDAG p m.older.stamp).copies) :
+      c.2 ≤ d.2 := by
     obtain ⟨u, hu, heq⟩ := hp.mem_copies.mp hd
     rw [he] at hu ho
     rw [← congrArg Prod.snd hs, ← congrArg Prod.snd heq]
-    rcases List.mem_cons.mp hu with rfl | hu
-    · exact le_rfl
-    · exact ((List.pairwise_cons.mp ho).1 u hu).le
+    exact (List.mem_cons.mp hu).elim (fun h => h ▸ le_rfl) fun hu =>
+      ((List.pairwise_cons.mp ho).1 u hu).le
   refine ⟨Finset.mem_union_left _ (Finset.mem_union_left _ (hw.mem_copies.mpr ⟨s, hsm, hcs.1⟩)),
     fun d hd => ?_⟩
   change d ∈ ((pathDAG _ _).copies ∪ (pathDAG _ _).copies) ∪ {_} at hd
@@ -476,9 +474,8 @@ theorem Trace.constraint_cycle_isWalk (h : Trace sem f m) (hF : EdgeInstance F)
   have hT := h.pruned_isFDAG hF hf
   have hw := h.left_directed.drop hT.supported (k + 1)
   have hz := h.right_directed.drop hT.supported (k + 1)
-  have hbound : m.commonNodes.length < 2 * (k + 1) + 2 := by
-    have hl : m.commonNodes.length = 2 * k + 2 := m.ancestor_constraint_length hc
-    omega
+  have hbound : m.commonNodes.length < 2 * (k + 1) + 2 :=
+    (m.ancestor_constraint_length hc : m.commonNodes.length = 2 * k + 2).trans_lt (by omega)
   have hj : ((w.snoc m.current.input m.output).append z.reverse).IsWalk :=
     h.drop_join_isWalk hF hf (k + 1) hbound
   have hleftlate : ∀ u ∈ w.steps, c.2 < m.older.stamp u.1 :=
@@ -502,10 +499,9 @@ theorem Trace.constraint_cycle_isWalk (h : Trace sem f m) (hF : EdgeInstance F)
       rw [Walk.edgesOf_append] at ho
       rcases List.mem_append.mp ho with ho | ho
       · exact haw ho
-      · rcases (show a.occurrence = m.current.input ∨ a.occurrence = m.output by
-          simpa [Walk.edgesOf] using ho) with he | he
-        · exact h.expansion.unused (he ▸ hau)
-        · exact h.output_unused (he ▸ hau)
+      · obtain he | he : a.occurrence = m.current.input ∨ a.occurrence = m.output := by
+          simpa [Walk.edgesOf] using ho
+        exacts [h.expansion.unused (he ▸ hau), h.output_unused (he ▸ hau)]
     · exact haz (List.mem_reverse.mp ho)
   apply hj.snoc
   · rw [Walk.finish_join_meeting _ _ _ _ hz.walk.1
@@ -642,8 +638,7 @@ private theorem Trace.join_times_nodup (h : Trace sem f m) (k : ℕ)
   have hcross : ∀ t ∈ m.left.times.drop k, ∀ u ∈ m.right.times.drop k, t ≠ u := by
     intro t ht u hu he
     dsimp only [Meeting.left, Meeting.right] at ht hu
-    rw [h.ancestry_times_drop] at ht
-    rw [h.ancestry_times_drop] at hu
+    rw [h.ancestry_times_drop] at ht hu
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp ht
     obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hu
     have hzfull := List.mem_of_mem_drop hz
@@ -678,9 +673,8 @@ theorem Trace.blossom_times_nodup (h : Trace sem f m) {b : BlossomData F}
     have hst : m.older.stamp s.1 = c.2 := congrArg Prod.snd hcs.1
     have hlast : c.2 < m.older.length :=
       hst ▸ (m.older.mem_arcs (h.expansion.grown.ancestry_arcs _ (List.mem_of_getElem? hs)).1).2
-    have hbound : m.commonNodes.length < 2 * (k + 1) + 2 := by
-      have hl : m.commonNodes.length = 2 * k + 2 := m.ancestor_constraint_length ha
-      omega
+    have hbound : m.commonNodes.length < 2 * (k + 1) + 2 :=
+      (m.ancestor_constraint_length ha : m.commonNodes.length = 2 * k + 2).trans_lt (by omega)
     have hlateSide : ∀ {v : V} {x : Occurrence F × Occurrence F},
         (m.older.ancestry v).walk.steps[k]? = some x → (inArc m.older.stamp x).copy = c →
         ∀ t' ∈ (m.older.ancestry v).times.drop (k + 1), c.2 < t' := by
@@ -717,9 +711,8 @@ theorem Trace.variable_prepare_empty (h : Trace sem f m) (hF : EdgeInstance F)
   have hw := h.left_directed.drop hT.supported k
   have hz := h.right_directed.drop hT.supported k
   have hbase := m.ancestor_variable_prefix ha
-  have hbound : m.commonNodes.length < 2 * k + 2 := by
-    have hh : m.commonNodes.length = 2 * k + 1 := m.ancestor_variable_length ha
-    omega
+  have hbound : m.commonNodes.length < 2 * k + 2 :=
+    (m.ancestor_variable_length ha : m.commonNodes.length = 2 * k + 1).trans_lt (by omega)
   have hd := (h.left_drop_disjoint_right k hbound).mono_right
     (h.right_directed.drop_copies_subset hT.supported k)
   have hab := (mem_partners sem f _ _).mp h.partner
@@ -729,11 +722,10 @@ theorem Trace.variable_prepare_empty (h : Trace sem f m) (hF : EdgeInstance F)
   have hbc : b.copy = m.copy := Prod.ext hab.1.symm rfl
   have ham : a ∈ m.prunedDAG.arcs := by rw [h.pruned_arcs]; simp [a]
   have hbm : b ∈ m.prunedDAG.arcs := by rw [h.pruned_arcs]; simp [b]
-  have hfirst : ∀ (q : Walk F), DirectedPath m.prunedDAG q m.older.stamp →
-      ∀ d ∈ m.prunedDAG.arcs, d.incoming = true → d.occurrence.var = q.finish →
+  have hfirst (q : Walk F) (hq : DirectedPath m.prunedDAG q m.older.stamp) (d : Arc F)
+      (hdm : d ∈ m.prunedDAG.arcs) (hdi : d.incoming = true) (hdv : d.occurrence.var = q.finish) :
       ∃ e ∈ m.prunedDAG.arcs, e.incoming = true ∧ e.occurrence.var = q.start ∧
         ((e.copy ∈ (pathDAG q m.older.stamp).copies) ∨ e = d) := by
-    intro q hq d hdm hdi hdv
     cases he : q.steps with
     | nil =>
       refine ⟨d, hdm, hdi, ?_, Or.inr rfl⟩

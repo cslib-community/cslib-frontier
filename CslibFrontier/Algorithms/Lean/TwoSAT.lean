@@ -85,14 +85,10 @@ theorem checkClauses_eq_true_iff (φ : CNF V) :
   simp only [isValidTwoClause]
   constructor
   · intro h
-    refine ⟨fun c hc => (of_decide_eq_true (h c hc)).2, fun hnil => ?_⟩
-    have := (of_decide_eq_true (h [] hnil)).1
-    simp at this
+    exact ⟨fun c hc => (of_decide_eq_true (h c hc)).2,
+      fun hnil => Nat.not_succ_le_zero 0 (of_decide_eq_true (h [] hnil)).1⟩
   · rintro ⟨hw, hnil⟩ c hc
-    refine decide_eq_true ⟨?_, hw c hc⟩
-    cases c with
-    | nil => exact absurd hc hnil
-    | cons _ _ => simp
+    exact decide_eq_true ⟨List.length_pos_iff.2 fun h => hnil (h ▸ hc), hw c hc⟩
 
 /-- Enumerate both polarities `(v, false)` and `(v, true)` for each `v ∈ vs`. -/
 def literalList : List V → List (Literal V)
@@ -172,9 +168,7 @@ private theorem foldl_addClauseEdges_mem :
         ℓ' ∈ cs.foldl addClauseEdges adj ℓ ↔ ℓ' ∈ adj ℓ ∨ cs.Implies ℓ ℓ'
   | [], adj, _, ℓ, ℓ' => by simp [CNF.Implies]
   | c :: cs, adj, hcs, ℓ, ℓ' => by
-    have hc := hcs c List.mem_cons_self
-    have hrest : ∀ c' ∈ cs, 1 ≤ c'.length ∧ c'.length ≤ 2 :=
-      fun c' hc' => hcs c' (List.mem_cons_of_mem c hc')
+    obtain ⟨hc, hrest⟩ := List.forall_mem_cons.1 hcs
     rw [List.foldl_cons, foldl_addClauseEdges_mem cs _ hrest, mem_addClauseEdges hc.1 hc.2]
     simp only [CNF.Implies, List.mem_cons, exists_eq_or_imp, or_assoc]
 
@@ -250,13 +244,11 @@ private theorem literal_false_lt {compIdx : Literal V → ℕ}
     (hf : Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) ℓ = false) :
     compIdx ℓ < compIdx ℓ.negate := by
   rcases ℓ with ⟨v, b⟩
-  have hnev := hne v
   cases b
   · simp only [Literal.eval, beq_false, Bool.not_eq_false', decide_eq_true_eq] at hf
     simpa [Std.Sat.Literal.negate] using hf
   · simp only [Literal.eval, beq_true, decide_eq_false_iff_not] at hf
-    have hlt : compIdx (v, true) < compIdx (v, false) := by omega
-    simpa [Std.Sat.Literal.negate] using hlt
+    simpa [Std.Sat.Literal.negate] using Nat.lt_of_le_of_ne (Nat.le_of_not_lt hf) (hne v)
 
 /-- **Soundness of `solve`**: whenever `solve vs φ = some σ` (with `vs` covering `V`), every clause
 of `φ` has width at most `2` and `σ` satisfies `φ`. -/
@@ -269,8 +261,7 @@ theorem solve_eq_some (hvs : ∀ v, v ∈ vs) {σ : V → Bool} (h : solve vs φ
     set adj := implicationAdj φ
     set comps := sccs adj lits
     set compIdx := indexComponents comps
-    have hlits : ∀ ℓ, ℓ ∈ lits := mem_literalList hvs
-    have hcond : IsSCCCondensation adj comps := isSCCCondensation_sccs hlits
+    have hcond : IsSCCCondensation adj comps := isSCCCondensation_sccs (mem_literalList hvs)
     dsimp only [extractAssignment] at h
     split_ifs at h with hdist
     · obtain rfl := Option.some.inj h
@@ -314,28 +305,20 @@ theorem isSome_solve_iff (hvs : ∀ v, v ∈ vs) :
   constructor
   · intro hs
     obtain ⟨σ, hσ⟩ := Option.isSome_iff_exists.1 hs
-    obtain ⟨hw, heval⟩ := solve_eq_some hvs hσ
-    exact ⟨hw, σ, heval⟩
+    exact (solve_eq_some hvs hσ).imp_right fun h => ⟨σ, h⟩
   · rintro ⟨hw, hsat⟩
     have hnil : [] ∉ φ := fun hnil => CNF.not_satisfiable_of_nil_mem hnil hsat
     have hchk : checkClauses φ = true := (checkClauses_eq_true_iff φ).2 ⟨hw, hnil⟩
-    have hlits : ∀ ℓ, ℓ ∈ literalList vs := mem_literalList hvs
     have hcond : IsSCCCondensation (implicationAdj φ) (sccs (implicationAdj φ) (literalList vs)) :=
-      isSCCCondensation_sccs hlits
-    have hdist :
-        vs.foldl
-            (fun ok v =>
-              ok && decide
-                (indexComponents (sccs (implicationAdj φ) (literalList vs)) (v, true) ≠
-                  indexComponents (sccs (implicationAdj φ) (literalList vs)) (v, false)))
-            true = true := by
-      rw [foldl_and_eq_and_all, Bool.true_and, List.all_eq_true]
-      intro v _
-      refine decide_eq_true fun heq => ?_
-      obtain ⟨h₁, h₂⟩ := (hcond.indexComponents_eq_iff (v, true) (v, false)).1 heq
-      exact CNF.not_satisfiable_of_reach (ℓ := (v, true))
-        ((reach_iff_implies hw hnil).1 h₁) ((reach_iff_implies hw hnil).1 h₂) hsat
-    simp only [solve, hchk, ↓reduceIte, extractAssignment, hdist, Option.isSome_some]
+      isSCCCondensation_sccs (mem_literalList hvs)
+    simp only [solve, hchk, ↓reduceIte, extractAssignment]
+    rw [ite_eq_left, Option.isSome_some]
+    rw [foldl_and_eq_and_all, Bool.true_and, List.all_eq_true]
+    intro v _
+    refine decide_eq_true fun heq => ?_
+    obtain ⟨h₁, h₂⟩ := (hcond.indexComponents_eq_iff (v, true) (v, false)).1 heq
+    exact CNF.not_satisfiable_of_reach (ℓ := (v, true))
+      ((reach_iff_implies hw hnil).1 h₁) ((reach_iff_implies hw hnil).1 h₂) hsat
 
 end SolveCorrectness
 

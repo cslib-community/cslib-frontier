@@ -338,9 +338,7 @@ private theorem lratPart_filter (J : List Ent) (p : ℕ → Bool) :
   | nil => rfl
   | cons e J ih =>
     simp only [lratPart] at ih ⊢
-    by_cases hp : p e.num = true
-    · cases hc : e.clause <;> simp [hp, hc, ih]
-    · cases hc : e.clause <;> simp [hp, hc, ih]
+    cases hc : e.clause <;> by_cases hp : p e.num = true <;> simp [hp, hc, ih]
 
 /-- **The invariant of the back-translation**: from kernel and LRAT databases that agree, a
 clausal run of kernel steps ending at a database that names the contradiction `q` translates into
@@ -385,20 +383,18 @@ private theorem checkLRAT_aux (q : ℕ) : ∀ (ss : List Step) (J : List Ent) (n
         refine List.forall_mem_cons.2 ⟨fun ρ _ => ?_, hA⟩
         exact propagate_eq_unitStep (nodup_termVar_normalize c)
           (fun _ ht => pos_of_mem_normalize ht) h1 ρ
-      have ih := checkLRAT_aux q ss (⟨n, c.normalize, some (clauseOf c)⟩ :: J) (n + 1) D m
-        (hid.cons le_rfl _) hA' hcl hrun hq
       have hprop := propagateHints_lratHints hJ hA (negate_ok h1) hs _ [] (consistent_clauseOf c)
         (fun _ h => h) (by simp) hr
       simp only [toLRATAux, h1, ↓reduceIte, CNF.checkLRATAux, Clause.ofDIMACS_toDIMACS,
         hprop, Bool.true_and]
-      exact ih
+      exact checkLRAT_aux q ss (⟨n, c.normalize, some (clauseOf c)⟩ :: J) (n + 1) D m
+        (hid.cons le_rfl _) hA' hcl hrun hq
     · have h0 : c.normalize.degree = 0 := by omega
       have hA' : ∀ e ∈ (⟨n, c.normalize, none⟩ :: J : List Ent), Agrees e :=
         List.forall_mem_cons.2 ⟨fun ρ _ => propagate_of_degree_eq_zero h0 ρ, hA⟩
-      have ih := checkLRAT_aux q ss (⟨n, c.normalize, none⟩ :: J) (n + 1) D m
-        (hid.cons le_rfl _) hA' hcl hrun hq
       simp only [toLRATAux, h1, ↓reduceIte]
-      exact ih
+      exact checkLRAT_aux q ss (⟨n, c.normalize, none⟩ :: J) (n + 1) D m
+        (hid.cons le_rfl _) hA' hcl hrun hq
   | .del ids :: ss, J, n, D, m, hid, hA, hcl, hrun, hq => by
     simp only [List.all_cons, Bool.and_eq_true, Step.isClausal, true_and] at hcl
     simp only [runSteps, runStep] at hrun
@@ -427,8 +423,7 @@ theorem checkLRAT_toLRAT {φ : CNF ℕ} {P : Proof} (hP : P.steps.all Step.isCla
   have hl : lratPart J = φ.lratDB := by simp [J, lratPart, List.filterMap_map]
   have hp : pbPart J = initDb (φ.map Clause.toPB) := by
     simp [J, pbPart, initDb, CNF.lratDB, List.zipIdx_map, Function.comp_def]
-  have hA : ∀ e ∈ J, Agrees e := by
-    intro e he
+  have hA : ∀ e ∈ J, Agrees e := fun _ he => by
     obtain ⟨x, -, rfl⟩ := List.mem_map.1 he
     exact fun ρ hρ => propagate_toPB x.2 hρ
   have hn : (φ.map Clause.toPB).length + 1 = φ.length + 1 := by simp

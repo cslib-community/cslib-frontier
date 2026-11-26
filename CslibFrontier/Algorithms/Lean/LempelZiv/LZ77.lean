@@ -99,13 +99,10 @@ theorem iterate_copyStep {d : ℕ} (hd : 0 < d) :
     rw [hdrop, List.drop_eq_getElem_cons hlt, List.cons_append, List.cons_prefix_cons] at hv
     have hstep : copyStep d h = h ++ [a] := by
       rw [copyStep, List.getElem?_eq_getElem hlt, ← hv.1]
-    have hlen : (h ++ [a]).length - d = h.length - d + 1 := by
-      rw [List.length_append, List.length_singleton]; omega
+    have hlen : (h ++ [a]).length = h.length + 1 := List.length_append
     have hv' : v <+: (h ++ [a] ++ v).drop ((h ++ [a]).length - d) := by grind
-    have hdh' : d ≤ (h ++ [a]).length := by
-      rw [List.length_append, List.length_singleton]; omega
     rw [List.length_cons, Function.iterate_succ_apply, hstep,
-      iterate_copyStep hd (h ++ [a]) v hdh' hv', List.append_assoc, List.singleton_append]
+      iterate_copyStep hd (h ++ [a]) v (by omega) hv', List.append_assoc, List.singleton_append]
 
 /-! ## Reproduction and histories -/
 
@@ -177,10 +174,7 @@ theorem Reproducible.drop {W : ℕ} {h v : List α} (hv : Reproducible W h v) (k
       simp only [List.length_append]; omega
     rw [List.append_assoc, List.take_append_drop, hlen, ← List.drop_drop]
     have hdk : v.drop (v.take k).length = v.drop k := by
-      rw [List.length_take]
-      rcases le_total k v.length with hk | hk
-      · rw [Nat.min_eq_left hk]
-      · rw [Nat.min_eq_right hk, List.drop_length, List.drop_eq_nil_of_le hk]
+      rw [List.length_take, List.drop_eq_drop_iff, Nat.min_assoc, Nat.min_self]
     rw [← hdk]
     exact hv.drop _
 
@@ -414,14 +408,12 @@ theorem bestDist_spec {W : ℕ} {h u : List α} {d : ℕ} (h0 : 0 < d) (hW : d �
   cases hf : (List.range' 1 (min W h.length)).find?
       (fun d => decide (u <+: (h ++ u).drop (h.length - d))) with
   | none =>
-    rw [List.find?_eq_none] at hf
-    exact absurd (decide_eq_true hu) (hf d (List.mem_range'_1.2 (by omega)))
+    exact absurd (decide_eq_true hu) (List.find?_eq_none.1 hf d (List.mem_range'_1.2 (by omega)))
   | some e =>
     have hmem := List.mem_range'_1.1 (List.mem_of_find?_eq_some hf)
-    have hp := List.find?_some hf
-    rw [decide_eq_true_eq] at hp
-    exact ⟨by simp only [Option.getD_some]; omega, by simp only [Option.getD_some]; omega,
-      by simpa only [Option.getD_some] using hp⟩
+    have hp := of_decide_eq_true (List.find?_some hf :)
+    simp only [Option.getD_some]
+    exact ⟨hmem.1, by omega, hp⟩
 
 /-- Encode each nonempty phrase `u` after the text `h` as (distance, `|u| - 1`, last symbol of
 `u`). Empty phrases are skipped. -/
@@ -438,14 +430,12 @@ theorem bestDist_spec {W : ℕ} {h u : List α} {d : ℕ} (h0 : 0 < d) (hW : d �
 private theorem decodeStep_phrase {W : ℕ} {h u : List α} (hne : u ≠ [])
     (hrep : Reproducible W h u.dropLast) :
     decodeStep h (bestDist W h u.dropLast, u.length - 1, u.getLast hne) = h ++ u := by
-  have hlen : u.length - 1 = u.dropLast.length := List.length_dropLast.symm
   have hcopy : (copyStep (bestDist W h u.dropLast))^[u.dropLast.length] h = h ++ u.dropLast := by
-    rcases hrep with h0 | ⟨d, h0, hW, hh, hu⟩
+    obtain h0 | ⟨hpos, hle, hpre⟩ := Or.elim hrep Or.inl fun ⟨_, h0, hW, hh, hu⟩ =>
+      bestDist_spec h0 hW hh hu
     · rw [h0, List.length_nil, Function.iterate_zero_apply, List.append_nil]
-    · rcases bestDist_spec h0 hW hh hu with h0 | ⟨hpos, hle, hpre⟩
-      · rw [h0, List.length_nil, Function.iterate_zero_apply, List.append_nil]
-      · exact iterate_copyStep hpos h _ hle hpre
-  rw [decodeStep, hlen, hcopy, List.append_assoc, List.dropLast_append_getLast]
+    · exact iterate_copyStep hpos h _ hle hpre
+  rw [decodeStep, ← List.length_dropLast, hcopy, List.append_assoc, List.dropLast_append_getLast]
 
 private theorem foldl_decodeStep_encodeAux {W : ℕ} :
     ∀ (h : List α) (ws : List (List α)), IsHistory W h ws →
