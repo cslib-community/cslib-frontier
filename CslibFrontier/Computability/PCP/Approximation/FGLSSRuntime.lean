@@ -59,13 +59,10 @@ private abbrev encView := encPair encBits encBits
 private def label (word : List Bool × List Bool) : ℕ :=
   ofBits (encView word ++ [true])
 
-private theorem label_injective : Function.Injective label := by
-  intro x y h
-  have hbits (w) : (label w).bits = encView w ++ [true] := by
-    simp [label, bits_ofBits]
-  have he := congrArg Nat.bits h
-  rw [hbits, hbits] at he
-  exact encView.injective (List.append_inj_left' he rfl)
+private theorem label_injective : Function.Injective label := fun _ _ h => by
+  have hbits (w) : (label w).bits = encView w ++ [true] := by simp [label, bits_ofBits]
+  exact encView.injective
+    (List.append_inj_left' (by simpa only [hbits] using congrArg Nat.bits h) rfl)
 
 private def assigned (a : α) (word : List Bool × List Bool) : List (ℕ × Bool) :=
   (V.queries (a, word.1)).zip word.2
@@ -102,8 +99,7 @@ private theorem queryWidth_le (a : α) (randoms : List (List Bool)) {q : ℕ}
   | cons n ns =>
     rw [List.foldl_max_eq_max (by simp), zero_max, List.max_le_iff]
     intro m hm
-    rw [← he] at hm
-    obtain ⟨ρ, hρ, rfl⟩ := List.mem_map.mp hm
+    obtain ⟨ρ, hρ, rfl⟩ := List.mem_map.mp (he ▸ hm)
     exact h ρ hρ
 
 private theorem length_queries_le_queryWidth (a : α) {randoms : List (List Bool)}
@@ -232,18 +228,16 @@ private theorem nativeTwoPow {encIn : α ↪ List Bool} {size T S width : α →
     Nat.mul_le_mul_right _ (Nat.lt_two_pow_self (n := width a))
 
 private theorem polyEnumFromBudget :
-    ComputableInPolyTime (fun n => BitString.enumList (Nat.log 2 n)) encUnary encWords := by
-  apply bitsEnumList_of_polyBounded ComputableInPolyTime.unary_log_two
-  refine (PolyBounded.self.add (.const 1)).mono fun n => ?_
-  simp only [encUnary_apply, List.length_replicate]
-  exact Nat.pow_log_le_add_one 2 n
+    ComputableInPolyTime (fun n => BitString.enumList (Nat.log 2 n)) encUnary encWords :=
+  bitsEnumList_of_polyBounded ComputableInPolyTime.unary_log_two <|
+    (PolyBounded.self.add (.const 1)).mono fun n => by simpa using Nat.pow_log_le_add_one 2 n
 
 private theorem polyQueryWidth (hV : V.PolyTime enc) :
     ComputableInPolyTime (fun p : α × List (List Bool) => V.queryWidth p.1 p.2)
-      (encPair enc encWords) encUnary := by
-  apply (unary_foldl_max 0).comp
-  exact ComputableInPolyTime.mapWith ((length_list encNat).comp hV.queries)
-    (fst enc encWords) (snd enc encWords)
+      (encPair enc encWords) encUnary :=
+  (unary_foldl_max 0).comp <|
+    ComputableInPolyTime.mapWith ((length_list encNat).comp hV.queries)
+      (fst enc encWords) (snd enc encWords)
 
 private theorem polyGraphFrom (hV : V.PolyTime enc) :
     ComputableInPolyTime (fun p : (α × List (List Bool)) × ℕ =>

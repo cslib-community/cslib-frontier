@@ -78,8 +78,7 @@ private theorem aligned_output (I : State Rel) (keys : List ℕ)
 
 private theorem pending_length (keys : List ℕ) (I : State Rel)
     (h : I.ports.length ≤ keys.length) : (pending keys I).length = I.ports.length := by
-  simp only [pending,List.length_drop]
-  omega
+  simp only [pending, List.length_drop]; omega
 
 private theorem run_length_le (keys : List ℕ) : runLength keys ≤ keys.length :=
   (List.takeWhile_sublist _).length_le
@@ -104,13 +103,12 @@ private theorem pending_step (keys : List ℕ) (I : State Rel)
     pending keys (step keys I) = (pending keys I).drop (runLength (pending keys I)) := by
   have hl := pending_length keys I h
   have hc := (components_closeFirstMetadataRun I (pending keys I)).2.2.2
-  simp only [hl,↓reduceIte] at hc
+  simp only [hl, ↓reduceIte] at hc
   have hr := (run_length_le (pending keys I)).trans_eq hl
-  change (step keys I).ports.length=I.ports.length-runLength (pending keys I) at hc
-  change keys.drop (keys.length-(step keys I).ports.length) = _
-  rw [show keys.length-(step keys I).ports.length =
-      keys.length-I.ports.length+runLength (pending keys I) by omega]
-  simp only [pending,List.drop_drop]
+  change (step keys I).ports.length = I.ports.length - runLength (pending keys I) at hc
+  have heq : keys.length - (step keys I).ports.length =
+      keys.length - I.ports.length + runLength (pending keys I) := by omega
+  simpa only [pending, List.drop_drop] using congrArg keys.drop heq
 
 private theorem collapse_of_pending_eq {keys : List ℕ} {I : State Rel} {a : ℕ} {ks : List ℕ}
     (he : pending keys I = a :: ks) :
@@ -223,11 +221,10 @@ theorem fields_closeMetadataRuns (I : State Rel) (keys : List ℕ)
       ((List.range keys.length).foldl (fun f s => collapse keys ((step keys)^[s] I) ∘ f) id) ∧ _
   simp_rw [← stage_iterate]
   rw [← pull_range]
-  refine ⟨hf.2.1,hp,?_⟩
-  intro hn
-  have hs : 0<keys.length := List.length_pos_iff.mpr hn
-  have hi : I.ports≠[] := by intro h; simp only [h,List.length_nil] at hl; omega
-  simpa only [hp,List.length_nil,Nat.add_zero] using hf.2.2.2 hs hi
+  refine ⟨hf.2.1, hp, fun hn => ?_⟩
+  have hi : I.ports ≠ [] := fun h =>
+    hn (List.length_eq_zero_iff.mp (hl.trans (congrArg List.length h)))
+  simpa only [hp, List.length_nil, Nat.add_zero] using hf.2.2.2 (List.length_pos_iff.mpr hn) hi
 
 private theorem fold_accepted (keys fuel : List ℕ) (I : State Rel) (hI : I.Accepted) :
     (fuel.foldl (fun J _ => step keys J) I).Accepted := by
@@ -291,8 +288,7 @@ theorem components_closeMetadataRuns (I : State Rel) (keys : List ℕ) :
     refine ⟨hf.1, hf.2.1, hf.2.2.1, ?_⟩
     change (keys.foldl (fun J _ => step keys J) I).ports.length = _
     simp [hp', hl]
-  · rw [closeMetadataRuns_eq_self I keys (Or.inl hl)]
-    simp [hl]
+  · simp [closeMetadataRuns_eq_self I keys (Or.inl hl), hl]
 
 /-- Every emitted body/port name is selected from the original body/ports; no group step
 increases the original maximum name width, even when names occur in multiple runs. -/
@@ -362,11 +358,10 @@ private theorem closedBlocks_step (keys : List ℕ) (I : State Rel) (s : ℕ) :
     List.filter_append,List.filter_cons,List.filter_nil]
   by_cases h : pending keys (stage keys I s)=[]
   · simp [h]
-  · have hp := run_length_pos h
-    have hn : (pending keys (stage keys I s)).takeWhile
-        (fun b => decide (b=(pending keys (stage keys I s)).headD 0))≠[] := by
-      simpa only [← List.length_pos_iff,runLength] using hp
-    simp only [ite_eq_right h,decide_eq_true hn,ite_true]
+  · have hn : (pending keys (stage keys I s)).takeWhile
+        (fun b => decide (b = (pending keys (stage keys I s)).headD 0)) ≠ [] :=
+      List.length_pos_iff.mp (run_length_pos h)
+    simp only [ite_eq_right h, decide_eq_true hn, ite_true]
 
 private theorem partition_prefix (keys : List ℕ) (I : State Rel)
     (hl : keys.length = I.ports.length) (s : ℕ) :
@@ -641,9 +636,8 @@ private theorem forward_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
       have hr := run_length_pos hn
       have hh := ih (step keys I) (by omega)
         (by omega) hbody he'
-      refine ⟨by simpa only [stage_shift] using hh.1,?_⟩
-      intro z
-      rw [pull_shift,Function.comp_apply,hh.2]
+      refine ⟨by simpa only [stage_shift] using hh.1, fun z => ?_⟩
+      rw [pull_shift, Function.comp_apply, hh.2]
       by_cases hm : z∈I.ports.take (runLength (pending keys I))
       · simpa only [collapse,ite_eq_left hm] using (hc z hm).symm
       · simp only [collapse,ite_eq_right hm]

@@ -271,9 +271,8 @@ theorem Good.alice {send : (Fin n → Fin m) → Bool} {p₀ p₁ : Protocol _ _
     h.alice_Y_large hτ b hL hqL hq ρ' η hηcard,
     h.alice_X_large hτ b hb hL hqL, ?_, ?_⟩
   · -- the piece is nonempty
-    rw [← card_pos]
-    by_contra hP
-    rw [Nat.eq_zero_of_not_pos hP, Nat.cast_zero, mul_zero, zero_mul] at hPcard
+    refine card_pos.mp (Nat.pos_of_ne_zero fun hP => ?_)
+    simp only [hP, Nat.cast_zero, mul_zero, zero_mul] at hPcard
     linarith only [hXpos, hb, hPcard]
   · intro x hx x' hx' i hi
     rcases mem_union.mp hi with hi | hi
@@ -500,17 +499,13 @@ private theorem sixtyFour_mul_depth_le_of_four_pow_lt {τ : ℝ} (hτ4 : 4 ≤ �
     (hc : (4 : ℝ) ^ p.depth < ((m : ℝ) / τ) ^ n) :
     64 * n * (5 * p.depth + 2) ≤ τ := by
   have hcn : 2 * p.depth ≤ n * (Nat.log 2 m + 1) := by
-    have h1 : ((m : ℝ) / τ) ^ n ≤ (m : ℝ) ^ n :=
-      pow_le_pow_left₀ (by positivity) (div_le_self (Nat.cast_nonneg m) (by linarith only [hτ4])) n
-    have h2 : (m : ℝ) ^ n ≤ 2 ^ (n * (Nat.log 2 m + 1)) := by
-      rw [mul_comm, pow_mul]
-      exact pow_le_pow_left₀ (Nat.cast_nonneg m)
-        (by exact_mod_cast (Nat.lt_pow_succ_log_self (by norm_num) m).le) n
     have h3 : (2 : ℝ) ^ (2 * p.depth) < 2 ^ (n * (Nat.log 2 m + 1)) := by
-      rw [pow_mul]; norm_num
-      exact (hc.trans_le h1).trans_le h2
-    have := (pow_lt_pow_iff_right₀ (by norm_num : (1 : ℝ) < 2)).mp h3
-    omega
+      rw [pow_mul, mul_comm n, pow_mul]
+      norm_num
+      exact hc.trans_le (pow_le_pow_left₀ (by positivity) ((div_le_self (Nat.cast_nonneg m)
+        (by linarith only [hτ4])).trans
+          (by exact_mod_cast (Nat.lt_pow_succ_log_self (by norm_num) m).le)) n)
+    exact ((pow_lt_pow_iff_right₀ (by norm_num)).mp h3).le
   have h1 : 64 * n * (5 * p.depth + 2) ≤ 320 * n ^ 2 * (Nat.log 2 m + 1) := by
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · simp
@@ -568,14 +563,12 @@ theorem depth_mul_logb_le {R : (Fin n → Bool) → O → Prop} (hm : 16 ≤ m)
     (hp : p.Solves (lift R) Set.univ Set.univ) :
     ∃ t : DecisionTree (Fin n) O, (∀ z, R z (t.eval z)) ∧
       t.depth * Real.logb 2 m ≤ 4 * p.depth := by
-  have hm0 : (0 : ℝ) ≤ m := by positivity
-  have hsq : Real.sqrt m ^ 2 = m := Real.sq_sqrt hm0
+  have hsq : Real.sqrt m ^ 2 = m := Real.sq_sqrt (Nat.cast_nonneg m)
   have h4 : (4 : ℝ) ≤ Real.sqrt m :=
-    Real.le_sqrt_of_sq_le (by exact_mod_cast show 4 ^ 2 ≤ m by omega)
+    Real.le_sqrt_of_sq_le (by linarith [(Nat.ofNat_le_cast (α := ℝ)).mpr hm])
   obtain ⟨t, ht, hdepth⟩ := exists_decisionTree_of_solves h4 hsq.le hmn hp
-  refine ⟨t, ht, ?_⟩
   have hdiv : (m : ℝ) / Real.sqrt m = Real.sqrt m :=
-    (div_eq_iff (by linarith only [h4] : Real.sqrt m ≠ 0)).mpr (sq (Real.sqrt m) ▸ hsq.symm)
+    (div_eq_iff (by positivity)).mpr (sq (Real.sqrt m) ▸ hsq.symm)
   have h4pow : (4 : ℝ) ^ p.depth = 2 ^ (2 * p.depth) := by
     rw [pow_mul]
     norm_num
@@ -584,7 +577,6 @@ theorem depth_mul_logb_le {R : (Fin n → Bool) → O → Prop} (hm : 16 ≤ m)
   rw [Real.logb_pow, Real.logb_two_pow, Nat.cast_mul, Nat.cast_ofNat] at hlog
   have hsqrt : Real.logb 2 m = 2 * Real.logb 2 (Real.sqrt m) := by
     simpa only [Real.logb_pow, Nat.cast_ofNat] using congrArg (Real.logb 2) hsq.symm
-  rw [hsqrt]
-  linarith [hlog]
+  exact ⟨t, ht, by rw [hsqrt]; linarith [hlog]⟩
 
 end Cslib.Communication.Lifting

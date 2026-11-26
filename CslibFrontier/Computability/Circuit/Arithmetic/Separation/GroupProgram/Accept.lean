@@ -205,9 +205,6 @@ private theorem count_le_of_packSem_ne_nil [Finite Γ] (hub : 0 < ub) {p : Fin (
   obtain ⟨t₁, ht₁, rfl⟩ := List.mem_map.1 hy
   obtain ⟨C, -, hC⟩ := exists_ne_zero_of_sum_ne_zero ht
   obtain ⟨hcC, hC⟩ := ite_ne_right_iff.1 hC
-  have hputC : putStrings ub (baseBody ρ n key dkey p).readKeys
-      (List.ofFn fun b => segmentString cb (fun s => C s b) ++ [true]) t₁ ≠ [] := fun h0 =>
-    hC (by rw [h0]; rfl)
   have cR := unitCount_eq_of_putStrings_ne_nil hub (List.ofFn fun b =>
     ((indicesBelow (n p b)).map fun k => key ⟨Fin.castAdd A' p, .init p b k⟩,
       segmentString cb fun s => R s b)) t (by
@@ -215,13 +212,13 @@ private theorem count_le_of_packSem_ne_nil [Finite Γ] (hub : 0 < ub) {p : Fin (
   have cC := unitCount_eq_of_putStrings_ne_nil hub (List.ofFn fun b =>
     ((indicesBelow (n b p)).map fun k => if b = p then dkey (p, k) else
       key ⟨Fin.castAdd A' p, .init b p k⟩, segmentString cb fun s => C s b)) t₁ (by
-        simpa [baseBody, List.map_ofFn, Function.comp_def] using hputC)
+        simpa [baseBody, List.map_ofFn, Function.comp_def] using
+          List.length_pos_iff.1 (Nat.pos_of_ne_zero hC))
   simp only [List.forall_mem_ofFn_iff, List.length_map, length_indicesBelow] at cR cC
   have e1 := sum_unitCount_le (ub := ub) (cb := cb) (X := R) (by simp only [hcR]; exact hw false)
   have e2 := sum_unitCount_le (ub := ub) (cb := cb) (X := C) (by simp only [hcC]; exact hw true)
   simp only [cR, cC, Fintype.card_option] at e1 e2
-  rw [sum_add_distrib]
-  omega
+  rw [sum_add_distrib]; omega
 
 variable (P q x ρ n o grp g key dkey tg) in
 /-- **An accepting run bounds the units of the base parties.** If the script of a group has an
@@ -275,10 +272,9 @@ theorem outcome_eq_of_accept (hub : 0 < ub) (hkind : ∀ r, kinds[tg r]? = some 
         simpa [List.map_ofFn, Function.comp_def, ← List.ofFn_getElem_eq_map] using
           List.ne_nil_of_mem (List.mem_map.1 hz).choose_spec.1)
   refine ⟨ι, fun ν => ?_⟩
-  have hj : (channelList (M.law r.1) r.2).idxOf ν < (channelList (M.law r.1) r.2).length :=
-    List.idxOf_lt_length_of_mem (mem_toList.2 (mem_univ ν))
+  have hj := List.idxOf_lt_length_of_mem (l := channelList (M.law r.1) r.2)
+    (mem_toList.2 (mem_univ ν))
   have := hc _ (List.mem_ofFn.2 ⟨⟨_, hj⟩, rfl⟩)
-  simp [unitCount, hι, List.get_eq_getElem] at this
-  omega
+  simp [unitCount, hι, List.get_eq_getElem] at this; omega
 
 end Cslib.Circuits.Arithmetic.Separation.GroupProgram

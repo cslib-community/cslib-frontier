@@ -173,10 +173,9 @@ theorem explore_subset_reachUpTo {K : ℕ} :
     unfold explore
     split_ifs
     · exact hv.trans (reachUpTo_mono (by omega))
-    rw [show D + (f + 1) = D + 1 + f by omega]
-    refine explore_subset_reachUpTo f (D + 1) _ _ (Finset.union_subset
-      (hv.trans (reachUpTo_mono (by omega))) ?_) Finset.subset_union_right
-    intro μ hμ
+    have hDf : D + (f + 1) = D + 1 + f := by omega
+    refine hDf ▸ explore_subset_reachUpTo f (D + 1) _ _ (Finset.union_subset
+      (hv.trans (reachUpTo_mono (by omega))) fun μ hμ => ?_) Finset.subset_union_right
     obtain ⟨ν, hν, hμ⟩ := Finset.mem_biUnion.mp (Finset.mem_sdiff.mp hμ).1
     exact Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨ν, hv (ht hν), hμ⟩)
 
@@ -391,9 +390,8 @@ theorem holeWitness_spec {K : ℕ} :
         (initWitness_spec (K := K) h).2
     rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
     · exact holeBack_spec (holeWitness_spec Rs) hrs h
-    rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
-    · exact popBack_spec (holeWitness_spec Rs) hrs h
-    · exact closeBack_spec (holeWitness_spec Rs) hrs h
+    exact (Option.or_eq_some_iff.mp h).elim (popBack_spec (holeWitness_spec Rs) hrs)
+      fun h => closeBack_spec (holeWitness_spec Rs) hrs h.2
 
 end BackwardSound
 
@@ -406,9 +404,7 @@ variable {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]
 
 private theorem isSome_bind_map {α β γ : Type*} {a : Option α} {b : Option β} (f : α → β → γ)
     (ha : a.isSome) (hb : b.isSome) : (a.bind fun x => b.map (f x)).isSome := by
-  obtain ⟨x, rfl⟩ := Option.isSome_iff_exists.mp ha
-  obtain ⟨y, rfl⟩ := Option.isSome_iff_exists.mp hb
-  rfl
+  cases a <;> cases b <;> simp_all
 
 theorem isSome_initWitness {μ : HoleList n State} (h : μ ∈ M.initialLists) :
     (M.initWitness μ).isSome := by
@@ -455,9 +451,7 @@ theorem isSome_holeWitness {K : ℕ} :
       simp only at hs hK
       subst hs
       obtain ⟨rs₀, rs₁, rfl, -, hrs₀, hrs₁⟩ := List.Forall₂.split_right hrs
-      cases hrs₁ with
-      | cons hr h =>
-      cases h
+      rcases hrs₁ with _ | ⟨hr, _ | ⟨⟩⟩
       unfold holeBack
       simp only [List.reverse_append, List.reverse_cons, List.reverse_nil, List.nil_append,
         List.cons_append, List.reverse_reverse]
@@ -484,9 +478,8 @@ theorem isSome_holeWitness {K : ℕ} :
         have hr' : (rpre ++ r :: rpost)[pre.length]? = some r := by rw [← hlen]; simp
         simp only [hh, hr']
         refine List.findSome?_isSome_iff.mpr ⟨(γ, s₃, ℓν, s', b), FinEnum.mem_toList _, ?_⟩
-        simp only [List.take_left, List.take_left' hlen,
-          show (pre ++ ⟨i, s₁, s₂⟩ :: post).drop (pre.length + 1) = post by simp,
-          show (rpre ++ r :: rpost).drop (pre.length + 1) = rpost by simp [← hlen]]
+        simp only [List.take_left, List.take_left' hlen, ← List.drop_drop, List.drop_left,
+          List.drop_left' hlen, List.drop_succ_cons, List.drop_zero]
         split_ifs with hc
         · exact isSome_bind_map _ (ih (List.rel_append hrpre (.cons (.cons hr hγ) hrpost)))
             (isSome_wrWitness hwr)

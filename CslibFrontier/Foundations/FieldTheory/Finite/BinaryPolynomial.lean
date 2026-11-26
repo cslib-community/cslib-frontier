@@ -101,9 +101,9 @@ private theorem polyOfBits_zipWith_xor {l l' : List Bool} (h : l.length = l'.len
     | cons b' l' =>
       simp only [List.zipWith_cons_cons, polyOfBits_cons, List.length_cons,
         Nat.add_right_cancel_iff] at h ⊢
-      rw [ih h, show bitEquiv.symm (b ^^ b') = bitEquiv.symm b + bitEquiv.symm b' by
-        cases b <;> cases b' <;> decide, C_add]
-      ring
+      have hxor : bitEquiv.symm (b ^^ b') = bitEquiv.symm b + bitEquiv.symm b' := by
+        cases b <;> cases b' <;> decide
+      rw [ih h, hxor, C_add]; ring
 
 theorem polyOfBits_eq_zero_iff {l : List Bool} : polyOfBits l = 0 ↔ ∀ b ∈ l, b = false := by
   induction l with
@@ -204,19 +204,17 @@ private theorem mk_polyOfBits_mulXMod (l r : List Bool) (h : r.length = l.length
       AdjoinRoot.mk (polyOfBits (l ++ [true])) (X * polyOfBits r) := by
   have hlen : (l ++ [true]).length - 1 = l.length := by simp
   have hs : (false :: r).length = l.length + 1 := by simp [h]
-  have hX : polyOfBits (false :: r) = X * polyOfBits r := by
-    simp [bitEquiv_symm_false]
   unfold mulXMod
   rw [hlen]
   split_ifs with htop
   · have hz : ((false :: r).zipWith xor (l ++ [true])).length = l.length + 1 := by simp [h]
     have htop' : ((false :: r).zipWith xor (l ++ [true])).getD l.length false = false := by
-      rw [List.getD_eq_getElem _ _ (by omega), List.getElem_zipWith]
-      rw [List.getD_eq_getElem _ _ (by omega)] at htop
-      simp [htop, List.getElem_append_right]
-    rw [polyOfBits_take_of_getD hz htop', polyOfBits_zipWith_xor (by simp [h]), hX,
-      map_add, AdjoinRoot.mk_self, add_zero]
-  · rw [polyOfBits_take_of_getD hs (Bool.eq_false_iff.mpr htop), hX]
+      rw [List.getD_eq_getElem _ _ (by omega)] at htop ⊢
+      simp [List.getElem_zipWith, htop, List.getElem_append_right]
+    rw [polyOfBits_take_of_getD hz htop', polyOfBits_zipWith_xor (by simp [h]), polyOfBits_cons,
+      bitEquiv_symm_false, map_zero, zero_add, map_add, AdjoinRoot.mk_self, add_zero]
+  · rw [polyOfBits_take_of_getD hs (Bool.eq_false_iff.mpr htop), polyOfBits_cons,
+      bitEquiv_symm_false, map_zero, zero_add]
 
 /-- One step of `modBits`: the next power of `X` modulo `g`, and the partial remainder. -/
 def modStep (g : List Bool) (state : List Bool × List Bool) (b : Bool) :
@@ -250,10 +248,9 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
   induction f generalizing p a with
   | nil => simp [hp, ha]
   | cons b f ih =>
-    have hp' : (mulXMod (l ++ [true]) p).length = l.length := by
-      simpa using length_mulXMod (l ++ [true]) p (by simpa using hp)
-    have ha' : (if b then a.zipWith xor p else a).length = l.length := by cases b <;> simp [hp, ha]
-    obtain ⟨h1, h2, h3, h4⟩ := ih _ _ hp' ha'
+    obtain ⟨h1, h2, h3, h4⟩ := ih (mulXMod (l ++ [true]) p) (if b then a.zipWith xor p else a)
+      (by simpa using length_mulXMod (l ++ [true]) p (by simpa using hp))
+      (by cases b <;> simp [hp, ha])
     refine ⟨h1, h2, ?_, ?_⟩
     · rw [List.foldl_cons, modStep, h3, map_mul, mk_polyOfBits_mulXMod l p hp, map_mul,
         List.length_cons, pow_succ, map_mul, map_mul]
@@ -368,9 +365,8 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     Bool.or_eq_true]
   rcases lt_or_ge m 2 with hm | hm
   · simp only [not_le.2 hm, false_and, false_iff]
-    obtain rfl | rfl : m = 0 ∨ m = 1 := by omega
-    · simp
-    · exact polyOfCode_one.symm ▸ not_irreducible_one
+    rcases (by omega : m = 0 ∨ m = 1) with rfl | rfl
+    exacts [by simp, polyOfCode_one.symm ▸ not_irreducible_one]
   have hm0 : m ≠ 0 := by omega
   have hdeg : (polyOfCode m).natDegree = Nat.log 2 m := natDegree_polyOfCode hm0
   have hlog : 1 ≤ Nat.log 2 m := Nat.le_log_of_pow_le one_lt_two (by simpa using hm)
@@ -438,11 +434,9 @@ theorem pow_eq_sum_powerTable {A : Type*} [CommRing A] [Algebra (ZMod 2) A] (l :
     {α : A} (hα : aeval α (polyOfBits (l ++ [true])) = 0) {e : ℕ} (he : e < 2 * l.length) :
     α ^ e = ∑ d ∈ Finset.range l.length,
       bitEquiv.symm (((powerTable (l ++ [true])).getD e []).getD d false) • α ^ d := by
-  have hget : (powerTable (l ++ [true])).getD e [] =
-      modBits (l ++ [true]) (List.replicate e false ++ [true]) := by
-    rw [List.getD_eq_getElem _ _ (by simp [length_powerTable, he])]
-    simp [powerTable]
-  rw [hget, ← length_modBits l _, ← aeval_polyOfBits]
+  rw [List.getD_eq_getElem _ _ (by simp [length_powerTable, he])]
+  simp only [powerTable, List.getElem_map, List.getElem_range]
+  rw [← length_modBits l _, ← aeval_polyOfBits]
   have h0 := aeval_eq_zero_of_dvd_aeval_eq_zero (polyOfBits_replicate_append_true e ▸
     AdjoinRoot.mk_eq_mk.1 (mk_polyOfBits_modBits l _)) hα
   rwa [map_sub, aeval_X_pow, sub_eq_zero, eq_comm] at h0

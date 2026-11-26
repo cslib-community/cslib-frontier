@@ -158,11 +158,11 @@ private theorem findGreatest_root_spec {d : ℕ} (hd : 1 ≤ d) (n : ℕ) :
     rootFloor d n ^ d ≤ n ∧ n + 1 ≤ (rootFloor d n + 1) ^ d := by
   set r := rootFloor d n
   refine ⟨Nat.findGreatest_spec (P := fun j => j ^ d ≤ n) (Nat.zero_le n)
-    (by simp [Nat.zero_pow (by omega : 0 < d)]), ?_⟩
+    (by simp [Nat.zero_pow hd]), ?_⟩
   by_contra h
   have hle : (r + 1) ^ d ≤ n := by omega
-  have hr1 : r + 1 ≤ n := (Nat.le_self_pow (by omega) _).trans hle
-  exact Nat.findGreatest_is_greatest (Nat.lt_succ_self r) hr1 hle
+  exact Nat.findGreatest_is_greatest (Nat.lt_succ_self r)
+    ((Nat.le_self_pow (by omega) _).trans hle) hle
 
 /-- `⌊n ^ (1 / d)⌋` grows: it is at least `R` once `n ≥ R ^ d`. -/
 private theorem le_findGreatest_root {d R n : ℕ} (hd : 1 ≤ d) (hn : R ^ d ≤ n) :
@@ -281,8 +281,7 @@ theorem seedDecider_eq_true_iff_of_advantage_lt {A : Set α} {V : α × List Boo
       simp only [test, hgen, hwf, List.ofFn_getD_eq_of_length false hlen_z])
   have hstrings : (#{y : BitString (ℓ k) | test y = true} : ℝ) / 2 ^ ℓ k =
       #{r : Fin m → Bool | V (x, List.ofFn r) = true} / 2 ^ m := by
-    simp only [test, BitString.card_filter_take hm fun w => V (x, w) = true]
-    rw [← pow_sub_mul_pow 2 hm]
+    rw [BitString.card_filter_take hm fun w => V (x, w) = true, ← pow_sub_mul_pow 2 hm]
     push_cast
     field_simp
   rw [hseeds, hstrings] at hadv
@@ -360,8 +359,7 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     have hadv := hsec _ htest
     have h7' : ((((k : ℝ≥0) ^ 1)⁻¹ : ℝ≥0) : ℝ) ≤ 1 / 7 := by
       simpa only [pow_one, one_div, NNReal.coe_inv, NNReal.coe_natCast] using
-        inv_anti₀ (by norm_num)
-          (mod_cast (by omega : 7 ≤ k))
+        inv_anti₀ (by norm_num) (by exact_mod_cast Nat.le_of_add_left_le hk7)
     exact (seedDecider_eq_true_iff_of_advantage_lt (hA x).1
       (fun hx => boundedErrorAt_false_iff.1 ((hA x).2 hx)) hG.length_eq gen seed (fun _ => rfl) hmℓ
       (by linarith)).symm
@@ -394,10 +392,9 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
         (((k : ℝ≥0) ^ c')⁻¹ : ℝ) < (wordFamily G ℓ k).advantage
           fun y => PMF.pure (C.eval interpretation y 0)) := by
     have hcirc (f : BooleanFunction (ℓ k)) : ∃ C : Circuit signature (ℓ k) 1,
-        C.size = complexity interpretation (single f) ∧ ∀ y, C.eval interpretation y 0 = f y := by
-      obtain ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation)
-        (f := single f)
-      exact ⟨C, hsize, Circuit.computes_single_iff.1 hC⟩
+        C.size = complexity interpretation (single f) ∧ ∀ y, C.eval interpretation y 0 = f y :=
+      let ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation) (f := single f)
+      ⟨C, hsize, Circuit.computes_single_iff.1 hC⟩
     by_cases hk : (wordFamily G ℓ k).Secure (IsCircuitTest (k ^ c)) ((k : ℝ≥0) ^ c')⁻¹
     · obtain ⟨C, hC, -⟩ := hcirc fun y => y ⟨0, by have := hG.stretch k; omega⟩
       exact ⟨C, by simp [hC], fun h => absurd hk h⟩
@@ -437,10 +434,9 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
     rw [← PRG.wordFamily_realExperiment hG.length_eq (fun n w => test ((n, advice n), w)),
       ← PRG.wordFamily_idealExperiment ℓ (fun n w => test ((n, advice n), w)),
       ← Generator.advantage_eq_game]
-    congr 1
-    funext bits
-    simp only [test, advice, List.length_ofFn]
-    rw [ProbComp.eval_pure, ← List.append_nil (certificate _ _ _ _),
+    refine congrArg _ (funext fun bits => ?_)
+    dsimp only [test, advice]
+    rw [List.length_ofFn, ProbComp.eval_pure, ← List.append_nil (certificate _ _ _ _),
       readCertificate_certificate_code_append (C k) (hCsize k), ← Circuit.eval_eq_evalOutput]
   -- negligible advantage contradicts the frequent breaks
   obtain ⟨m, hm⟩ := (Crypto.negligible_iff _).1 hneg c' 1 one_pos

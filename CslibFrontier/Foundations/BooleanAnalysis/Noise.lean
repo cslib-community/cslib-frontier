@@ -281,9 +281,7 @@ theorem noiseOp_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] (e : 
 /-- On the cube over no coordinates, a single point, the noise operator is the identity. -/
 theorem noiseOp_of_isEmpty [IsEmpty ι] (ρ : ℝ) (g : (ι → Bool) → ℝ) (x : ι → Bool) :
     noiseOp ρ g x = g x := by
-  have h : (fun P : ι → Bool => g (x + P)) = fun _ => g x :=
-    funext fun _ => congrArg g (Subsingleton.elim _ _)
-  rw [noiseOp, h, bernoulliAverage_const]
+  simp [noiseOp, Subsingleton.elim (x + ·) (fun _ => x), bernoulliAverage_const]
 
 /-- The correlation of `f` with `T_ρ g` is the sum of the products of the Fourier coefficients
 damped by `ρ ^ |S|`. -/
@@ -316,10 +314,7 @@ theorem noiseStability_derivative_eq_sum (ρ : ℝ) (i : ι) (f : (ι → Bool) 
     noiseStability ρ (derivative i f) = ∑ S with i ∈ S, ρ ^ (#S - 1) * fourierCoeff f S ^ 2 := by
   rw [noiseStability_eq_sum, sum_filter_mem_eq_sum_filter_notMem i, sum_filter]
   refine sum_congr rfl fun T _ => ?_
-  rw [fourierCoeff_derivative]
-  split_ifs with hT
-  · simp
-  · rw [card_insert_of_notMem hT, Nat.add_sub_cancel]
+  by_cases hT : i ∈ T <;> simp [fourierCoeff_derivative, hT, card_insert_of_notMem]
 
 /-- **The noise stability of a derivative**: `ρ Stab_ρ[Dᵢ f]` weighs the squared coefficient of
 `f` on each set containing `i` by `ρ` to the size of the set. -/

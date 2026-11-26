@@ -376,9 +376,8 @@ theorem prefixOf_prefix (f : ℕ → ℕ) {N₁ N₂ : ℕ} (h : N₁ ≤ N₂) 
 
 /-- Every total oracle extends each of its prefixes. -/
 theorem prefixOf_mem (f : ℕ → ℕ) (N : ℕ) :
-    ∀ i (h : i < (prefixOf f N).length), (prefixOf f N)[i] ∈ (f : ℕ →. ℕ) i := by
-  intro i h
-  simpa only [getElem_prefixOf, PFun.coe_val] using Part.mem_some (f i)
+    ∀ i (h : i < (prefixOf f N).length), (prefixOf f N)[i] ∈ (f : ℕ →. ℕ) i :=
+  fun _ _ => by simp [PFun.coe_val]
 
 -- As in Mathlib's `Nat.Partrec.Code.evaln_complete`: the `simp` calls unfold `PFun` coercions.
 set_option backward.isDefEq.respectTransparency false in
@@ -431,17 +430,14 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
       intro y hy hx
       rcases IH hy with ⟨N₁, k₁, nk₁, hk₁⟩
       rcases hg hx with ⟨N₂, k₂, hk₂⟩
-      refine
-        ⟨max N₁ N₂, (max k₁ k₂).succ,
-          Nat.le_succ_of_le <| le_max_of_le_left <|
-            le_trans (le_max_left _ (Nat.pair n₁ m)) nk₁, y,
-          evaln_mono (prefixOf_prefix f (le_max_left _ _))
-            (Nat.succ_le_succ <| le_max_left _ _) ?_,
-          evaln_mono (prefixOf_prefix f (le_max_right _ _))
-            (Nat.succ_le_succ <| Nat.le_succ_of_le <| le_max_right _ _) hk₂⟩
-      simp only [evaln, bind, unpaired, unpair_pair, Option.mem_def, Option.bind_eq_some_iff,
-        Option.guard_eq_some', exists_and_left, exists_const]
-      exact ⟨le_trans (le_max_right _ _) nk₁, hk₁⟩
+      refine ⟨max N₁ N₂, (max k₁ k₂).succ,
+        Nat.le_succ_of_le (le_max_of_le_left ((le_max_left _ (Nat.pair n₁ m)).trans nk₁)), y,
+        evaln_mono (prefixOf_prefix f (le_max_left _ _)) (Nat.succ_le_succ (le_max_left _ _)) ?_,
+        evaln_mono (prefixOf_prefix f (le_max_right _ _))
+          (Nat.succ_le_succ (Nat.le_succ_of_le (le_max_right _ _))) hk₂⟩
+      simpa only [evaln, bind, unpaired, unpair_pair, Option.mem_def, Option.bind_eq_some_iff,
+        Option.guard_eq_some', exists_and_left, exists_const] using
+        ⟨(le_max_right _ _).trans nk₁, hk₁⟩
   | rfind' cf hf =>
     simp only [eval, Part.map_eq_map, Part.mem_map_iff, Nat.mem_rfind,
       decide_eq_false_iff_not] at h ⊢
@@ -449,9 +445,7 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
     suffices ∃ N k, y + n.unpair.2 ∈
         evaln (prefixOf f N) (k + 1) (rfind' cf) (Nat.pair n.unpair.1 n.unpair.2) by
       simpa [evaln, Option.bind_eq_some_iff]
-    revert hy₁ hy₂
-    generalize n.unpair.2 = m
-    intro hy₁ hy₂
+    generalize n.unpair.2 = m at hy₁ hy₂
     induction y generalizing m with simp only [evaln, unpair_pair, Option.bind_eq_bind,
       Option.mem_def, Option.bind_eq_some_iff, Option.guard_eq_some', exists_const]
     | zero =>

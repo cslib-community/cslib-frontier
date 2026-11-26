@@ -97,17 +97,12 @@ private theorem hasSum_inv_succ_mul_succ :
     have heq (n : ℕ) : (1 : ℝ) / ((n + 1 : ℕ) * (n + 2 : ℕ)) =
         1 / ((n : ℝ) + 1) - 1 / ((n + 1 : ℕ) + 1 : ℝ) := by
       push_cast
-      have : (n : ℝ) + 1 ≠ 0 := by positivity
-      have : (n : ℝ) + 2 ≠ 0 := by positivity
-      field_simp
-      ring
+      field_simp; ring
     rw [Finset.sum_congr rfl fun n _ => heq n]
     simpa [Nat.cast_add, Nat.cast_one] using
       Finset.sum_range_sub' (fun k : ℕ => (1 : ℝ) / ((k : ℝ) + 1)) N
   simp_rw [hsum]
-  have h0 : Tendsto (fun N : ℕ => (1 : ℝ) / ((N : ℝ) + 1)) atTop (𝓝 0) :=
-    tendsto_one_div_add_atTop_nhds_zero_nat
-  simpa using tendsto_const_nhds.sub h0
+  simpa using (tendsto_const_nhds (x := (1 : ℝ))).sub tendsto_one_div_add_atTop_nhds_zero_nat
 
 /-- Countable union bound for a finite `PMF` over a telescoping sequence of budgets
 `δₙ = δ / ((n + 1) * (n + 2))`. -/
@@ -162,10 +157,8 @@ private theorem log_weight_le {c r ρ δ : ℝ} {n : ℕ} (hc : 0 < c) (hρ : 0 
       _ = 2 * ((n : ℝ) + 1) ^ 2 := by ring
       _ ≤ 2 * Real.logb 2 (2 * r / ρ) ^ 2 := by gcongr
   have hnum : c * ((n + 1 : ℕ) * (n + 2 : ℕ) : ℝ) / δ ≤
-      Real.logb 2 (2 * r / ρ) ^ 2 * (2 * c / δ) := by
-    have : c * ((n + 1 : ℕ) * (n + 2 : ℕ) : ℝ) / δ ≤
-        c * (2 * Real.logb 2 (2 * r / ρ) ^ 2) / δ := by gcongr
-    exact this.trans_eq (by ring)
+      Real.logb 2 (2 * r / ρ) ^ 2 * (2 * c / δ) :=
+    (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hprod hc.le) hδ.le).trans_eq (by ring)
   calc Real.log (c * ((n + 1 : ℕ) * (n + 2 : ℕ)) / δ)
       ≤ Real.log (Real.logb 2 (2 * r / ρ) ^ 2 * (2 * c / δ)) :=
         Real.log_le_log (by positivity) hnum
@@ -295,9 +288,8 @@ theorem uniform_empiricalRademacherComplexity_margin_bound {α : Type*} [Finite 
   have hloss := empiricalMarginLoss_mono_of_pos (by positivity : 0 < ρn n) hρ_gt.le h S
   have hrad := mul_le_mul_of_nonneg_right (two_div_dyadic_le hr hρ.1 hρ_le)
     (empiricalRademacherComplexity_nonneg hne hH (fun i => (S i).1))
-  have hsqrt := by
-    simpa only [show (2 : ℝ) * 2 = 4 by norm_num] using
-      sqrt_log_dyadic_le two_pos hm hρ.1 hδ hρ_le
+  have h22 : (2 : ℝ) * 2 = 4 := by norm_num
+  have hsqrt := h22 ▸ sqrt_log_dyadic_le two_pos hm hρ.1 hδ hρ_le
   dsimp only [ρn, δn] at hloss ⊢
   linarith
 

@@ -205,11 +205,9 @@ theorem scratch (r : Fin (regCount L)) (hr : L.ptrRegs + L.dataRegs + 2 ≤ r.va
 theorem setPtr (r : Fin L.ptrRegs) (p : Pointer) :
     Repr e (x.setPtr r p) (y.set (ptrReg L r) (ptrWord L p)) where
   ptr s := by
-    by_cases hs : s = r
-    · subst s; simp [State.setPtr, Cslib.WordRAM.Data.set]
-    · have hsr : ptrReg L s ≠ ptrReg L r := by simpa [ptrReg, Fin.ext_iff] using hs
-      simp [State.setPtr, Cslib.WordRAM.Data.set, Function.update_of_ne hs,
-        Function.update_of_ne hsr, h.ptr]
+    simp only [State.setPtr, Cslib.WordRAM.Data.set, Function.update_apply, Fin.ext_iff,
+      ptrReg_val, h.ptr]
+    split_ifs <;> rfl
   data s := by
     have hsr : dataReg L s ≠ ptrReg L r := by simp [Fin.ext_iff]; omega
     simpa [State.setPtr, Cslib.WordRAM.Data.set, Function.update_of_ne hsr] using h.data s
@@ -229,11 +227,9 @@ theorem setData (s : Fin L.dataRegs) (v : M.Value) :
     have hrs : ptrReg L r ≠ dataReg L s := by simp [Fin.ext_iff]; omega
     simpa [State.setData, Cslib.WordRAM.Data.set, Function.update_of_ne hrs] using h.ptr r
   data t := by
-    by_cases ht : t = s
-    · subst t; simp [State.setData, Cslib.WordRAM.Data.set]
-    · have hts : dataReg L t ≠ dataReg L s := by simpa [dataReg, Fin.ext_iff] using ht
-      simp [State.setData, Cslib.WordRAM.Data.set, Function.update_of_ne ht,
-        Function.update_of_ne hts, h.data]
+    simp only [State.setData, Cslib.WordRAM.Data.set, Function.update_apply, Fin.ext_iff,
+      dataReg_val, Nat.add_left_cancel_iff, h.data]
+    split_ifs <;> rfl
   free := by
     have hs : freeReg L ≠ dataReg L s := by simp [Fin.ext_iff]; omega
     simpa [State.setData, Cslib.WordRAM.Data.set, Function.update_of_ne hs] using h.free
@@ -322,9 +318,7 @@ theorem append (n : Record M L)
     by_cases hl : a < x.heap.length
     · exact Or.inl ⟨hl, by simpa only [List.getElem?_append_left hl] using ha⟩
     · obtain ⟨hb, ha⟩ := List.getElem?_eq_some_iff.mp ha
-      obtain rfl : a = x.heap.length := by
-        simp only [List.length_append, List.length_singleton] at hb
-        omega
+      obtain rfl : a = x.heap.length := by simp at hb; omega
       exact Or.inr ⟨rfl, by simpa using ha.symm⟩
   exact {
     ptr r := (hr _ (by simp; omega)

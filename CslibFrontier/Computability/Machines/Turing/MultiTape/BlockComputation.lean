@@ -141,9 +141,7 @@ omit [NeZero b] in
 theorem value_succ_eq_none {n : ℕ} (h : value machine input b σ n = none) :
     value machine input b σ (n + 1) = none := by
   rw [value]
-  split_ifs with hi
-  · rw [h, gate_none]
-  · rfl
+  split_ifs <;> simp [h, gate_none]
 
 /-- The true run at an interval boundary, with one fixed false coin per step. -/
 @[expose] noncomputable def boundary (n : ℕ) : Cfg k Bool State input :=
@@ -339,20 +337,15 @@ theorem value_eq_some_iff {n : ℕ} (hn : n ≤ q) (v : View k State b) :
 theorem value_final_eq_some_iff (v : View k State b) :
     value machine input b σ q = some v ↔
       actualSchedule machine input b (q := q) = σ ∧ v = trueView machine input b σ q := by
-  rw [value_eq_some_iff machine input b σ le_rfl,
-    show Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ from
-      ⟨fun h => funext fun j => h j j.isLt, fun h j _ => congrFun h j⟩]
+  have hpref : Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ :=
+    ⟨fun h => funext fun j => h j j.isLt, fun h j _ => congrFun h j⟩
+  rw [value_eq_some_iff machine input b σ le_rfl, hpref]
 
 /-- A wrong complete movement guess fails at the final boundary. -/
 theorem value_final_eq_none_iff :
     value machine input b σ q = none ↔ actualSchedule machine input b (q := q) ≠ σ := by
-  refine ⟨fun hfail heq => ?_, fun hwrong => ?_⟩
-  · have hgood := (value_final_eq_some_iff machine input b σ
-      (trueView machine input b σ q)).mpr ⟨heq, rfl⟩
-    rw [hfail] at hgood; cases hgood
-  · cases hv : value machine input b σ q with
-    | none => rfl
-    | some v => exact (hwrong ((value_final_eq_some_iff machine input b σ v).mp hv).1).elim
+  rw [Option.eq_none_iff_forall_not_mem]
+  simp [Option.mem_def, value_final_eq_some_iff]
 
 omit [NeZero b] in
 /-- The fixed-coin boundaries of a deterministic embedding are the native machine boundaries. -/

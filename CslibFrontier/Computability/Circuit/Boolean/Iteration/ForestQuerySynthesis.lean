@@ -161,13 +161,10 @@ theorem synthesis_transient_forest_reachability
     have hHcomplete : (∃ d ≤ 2 * L, f^[d] (inputLeft z) ∈ forestMarks f tables.H) →
         foundH z = true := fun ⟨d, hd, hmem⟩ =>
       (hmarkSpec z).2 ⟨⟨d, Nat.lt_succ_of_le hd⟩, hmem⟩
-    have hAsound : foundA z = true → ForestAnchor f tables.H L (inputRight z) (anchorState z) :=
-      fun hf => ((hanchorSpec z).1 hf).1
-    have hAcomplete : (∃ b, ForestAnchor f tables.H L (inputRight z) b) → foundA z = true :=
-      (hanchorSpec z).2
     have hnav := forest_navigation_spec f tables.H L hL tables.cover tables.low tables.high
       tables.interval (inputLeft z) (inputRight z) hChosen (anchorState z) hyPos
-      (foundH z) (foundA z) hHsound hHcomplete hAsound hAcomplete
+      (foundH z) (foundA z) hHsound hHcomplete (fun hf => ((hanchorSpec z).1 hf).1)
+      (hanchorSpec z).2
     rw [hnav]
     have hshortIff : shortBit z = true ↔ ∃ i ≤ 2 * L, f^[i] (inputLeft z) = inputRight z := by
       simp only [shortBit, decide_eq_true_eq, Fin.exists_iff, Q, K, Nat.lt_add_one_iff, exists_prop]
@@ -188,8 +185,7 @@ theorem synthesis_transient_forest_reachability
     exact or_congr_right ⟨fun ⟨⟨⟨hfH, hfA⟩, hv⟩, hi⟩ => ⟨hfH, hfA, hv, (hintIff hfH hfA).mp hi⟩,
       fun ⟨hfH, hfA, hv, hi⟩ => ⟨⟨⟨hfH, hfA⟩, hv⟩, (hintIff hfH hfA).mpr hi⟩⟩
   · dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start] at hsize ⊢
-    unfold transientForestCost
-    rw [show 2 * L + 1 + 1 = 2 * L + 2 by omega]
+    rw [transientForestCost, Nat.add_assoc (2 * L) 1 1]
     nlinarith
 
 end Cslib.Circuits.Boolean.Iteration

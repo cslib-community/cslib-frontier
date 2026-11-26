@@ -107,12 +107,9 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
   refine ⟨fun {S a b} hI => ?_, fun {S a b} hI j => ?_⟩
   · obtain ⟨u, φ, hsupp, hmap⟩ := hI
     refine partialIsoOn_graph_iff.2 fun i hiS j hjS => ?_
-    have hui : u ∉ (a i).support := hsupp i hiS
-    have huj : u ∉ (a j).support := hsupp j hjS
-    rw [hmap i hiS hui, hmap j hjS huj]
-    refine ⟨?_, ?_⟩
-    · rw [φ.injective.eq_iff, CFIVertex.castAway_inj hui huj]
-    · rw [φ.map_adj_iff, cfiGraph_adj_castAway_iff hui huj]
+    rw [hmap i hiS (hsupp i hiS), hmap j hjS (hsupp j hjS), φ.injective.eq_iff,
+      CFIVertex.castAway_inj, φ.map_adj_iff, cfiGraph_adj_castAway_iff]
+    exact ⟨Iff.rfl, Iff.rfl⟩
   · obtain ⟨u, φ, hsupp, hmap⟩ := hI
     let T : Finset (Fin m) := (Finset.univ.erase j).biUnion fun i => (a i).support
     have hcard_T : T.card ≤ 2 * d := by
@@ -124,9 +121,8 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
       rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ, Fintype.card_fin]
       omega
     obtain ⟨w, hw_mem, w', hw'_mem, hww'⟩ := Finset.one_lt_card.1 hgt
-    simp only [Finset.mem_sdiff, Finset.mem_univ, true_and, Finset.mem_insert, not_or]
-      at hw_mem hw'_mem
-    obtain ⟨⟨hwu, hwT⟩, ⟨hw'u, hw'T⟩⟩ : (w ≠ u ∧ w ∉ T) ∧ (w' ≠ u ∧ w' ∉ T) := ⟨hw_mem, hw'_mem⟩
+    obtain ⟨⟨hwu, hwT⟩, hw'u, hw'T⟩ : (w ≠ u ∧ w ∉ T) ∧ w' ≠ u ∧ w' ∉ T := by
+      simpa [not_or] using And.intro hw_mem hw'_mem
     have hother {z : Fin m} (hz : z ∉ T) (i : Fin (d + 1)) (hij : i ≠ j) : z ∉ (a i).support :=
       fun hzi => hz (Finset.mem_biUnion.2 ⟨i, Finset.mem_erase.2 ⟨hij, Finset.mem_univ i⟩, hzi⟩)
     refine ⟨(cfiBaseEquiv u w hwu).trans φ.toEquiv, fun c => ?_⟩
@@ -175,9 +171,9 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
           castAway_congr (Function.update_self i c a) hi huc]
         exact congrArg φ (cfiBaseEquiv_eq_castAway hwu (cfiZeroAway u) c huc)
       · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
-        have hui : u ∉ (a i).support := hsupp i hiS'
-        rw [Function.update_of_ne hij, castAway_congr (Function.update_of_ne hij c a) hi hui]
-        exact hmap i hiS' hui
+        rw [Function.update_of_ne hij,
+          castAway_congr (Function.update_of_ne hij c a) hi (hsupp i hiS')]
+        exact hmap i hiS' (hsupp i hiS')
 
 end Invariant
 
@@ -272,12 +268,11 @@ private theorem wlHistogram_cfiGraph_eq_zero {d m : ℕ} (hm : 2 * d + 4 ≤ m)
       (b := fun _ : Fin (d + 1) => x₁)).1
       (bijPebbleWinsForever_cfiGraph_zero_single hm u₀ _ _) n
   by_cases hsum0 : ∑ v, f v = 0
-  · have hsum : ∑ v, f v = ∑ v, (0 : Fin m → ZMod 2) v := by simp [hsum0]
-    obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2 hsum
+  · obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2
+      (show ∑ v, f v = ∑ v, (0 : Fin m → ZMod 2) v by simp [hsum0])
     exact (e.wlHistogram_eq d n).symm
-  · have hsum : ∑ v, f v = ∑ v, (Pi.single u₀ 1 : Fin m → ZMod 2) v := by
-      simp [Fin.eq_one_of_ne_zero _ hsum0]; rfl
-    obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2 hsum
+  · obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2
+      ((Fin.eq_one_of_ne_zero _ hsum0).trans (Fintype.sum_pi_single' u₀ (1 : ZMod 2)).symm)
     exact (e.wlHistogram_eq d n).symm.trans h01.symm
 
 /-- Whenever `2 * d + 4 ≤ m`, any two twist functions `f, g : Fin m → ZMod 2` produce CFI graphs
@@ -342,9 +337,9 @@ theorem exists_nonisomorphic_wlHistogram_eq (k : ℕ) :
   let φH : H ≃g cfiOdd k := { toEquiv := e, map_rel_iff' := Iff.rfl }
   have hH_wl : ∀ n, (cfiEven k).wlHistogram k n = H.wlHistogram k n :=
     fun n => (wlHistogram_cfiEven_eq_cfiOdd k n).trans (φH.wlHistogram_eq k n)
-  refine ⟨CFIVertex (2 * k + 4) 0, inferInstance, inferInstance, cfiEven k, H,
-    ⟨fun ψ => (isEmpty_iso_cfiEven_cfiOdd k).false (ψ.trans φH)⟩, hH_wl, ?_⟩
-  exact forall_realize_countingFormula_empty_iff_wlHistogram_eq.2 hH_wl
+  exact ⟨CFIVertex (2 * k + 4) 0, inferInstance, inferInstance, cfiEven k, H,
+    ⟨fun ψ => (isEmpty_iso_cfiEven_cfiOdd k).false (ψ.trans φH)⟩, hH_wl,
+    forall_realize_countingFormula_empty_iff_wlHistogram_eq.2 hH_wl⟩
 
 end MainResults
 

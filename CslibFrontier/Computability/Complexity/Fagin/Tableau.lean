@@ -130,9 +130,9 @@ private theorem exists_certWord_of_realize_endPosSentence {L' : Language.{0, 0}}
     fun z => by rw [hend z, hw], fun j hgt hle => ?_⟩
   have hk_lt : (j : ℕ) - 1 - u.length < (e : ℕ) - u.length := by omega
   have hjB : u.length + 1 + ((j : ℕ) - 1 - u.length) < B := by omega
-  simp [w, List.getElem?_range hk_lt, hjB,
-    (Fin.ext (show u.length + 1 + ((j : ℕ) - 1 - u.length) = j by omega) :
-      (⟨u.length + 1 + ((j : ℕ) - 1 - u.length), hjB⟩ : Fin B) = j)]
+  have hj_eq : (⟨u.length + 1 + ((j : ℕ) - 1 - u.length), hjB⟩ : Fin B) = j :=
+    Fin.ext (by dsimp only; omega)
+  simp [w, List.getElem?_range hk_lt, hjB, hj_eq]
 
 omit [Fintype State] [DecidableEq State] in
 private theorem abs_workTapePos_runFrom_add_one_lt (B : ℕ) (w : List Bool) (n : ℕ)
@@ -262,19 +262,16 @@ private theorem realize_tableauMatrix_sound {B : ℕ} [L₀.Structure (Fin B)]
   let _ := ESO.varLanguage.structure (arity := tableauArity m State) R
   have hB1 : 1 < B := by omega
   let r := tableauRels (m := m) (State := State) lt uLenRel uBitRel
-  change (endPosSentence r ⊓ initSentence r tm ⊓ stepSentence r tm ⊓ acceptSentence r).Realize
-    (Fin B) at hmat
-  simp only [Sentence.realize_inf] at hmat
-  obtain ⟨⟨⟨hendSent, hinitSent⟩, hstepSent⟩, haccSent⟩ := hmat
+  obtain ⟨⟨⟨hendSent, hinitSent⟩, hstepSent⟩, haccSent⟩ := by
+    simpa only [tableauMatrix, Sentence.realize_inf] using hmat
   obtain ⟨w, hwB, hend, hcert⟩ := exists_certWord_of_realize_endPosSentence hlt0 huLen0 hendSent
-  have hAgrees : ∀ (n : ℕ) (hn : n < B),
+  have hAgrees (n : ℕ) (hn : n < B) :
       r.AgreesAt (tm.runFrom (tm.initCfg (u ++ w)) n) ⟨n, hn⟩ := by
-    intro n hn
     induction n with
     | zero => simpa [runFrom] using (realize_initSentence hlt0 hB1).1 hinitSent
     | succ n ih =>
-      exact agreesAt_step_of_realize_stepSentence tm hlt0 ⟨hwB, huLen0, huBit0, hend, hcert⟩
-        hstepSent hn (ih (by omega))
+      exact agreesAt_step_of_realize_stepSentence (r := r) tm hlt0
+        ⟨hwB, huLen0, huBit0, hend, hcert⟩ hstepSent hn (ih (by omega))
   exact ⟨w, hwB,
     (realize_acceptSentence_iff_of_agreesAt hB1 hlt0 (hAgrees (B - 1) (by omega))).1 haccSent⟩
 
@@ -325,9 +322,7 @@ private theorem realize_tableauMatrix_complete {B : ℕ} [L₀.Structure (Fin B)
   have hAgrees : ∀ t : Fin B, r.AgreesAt (tm.runFrom (tm.initCfg (u ++ w)) (t : ℕ)) t := fun _ =>
     ⟨fun _ => Iff.rfl, fun _ => Iff.rfl, fun _ => Iff.rfl, fun _ _ => Iff.rfl,
       fun _ _ => Iff.rfl, fun _ _ _ => Iff.rfl, fun _ _ _ => Iff.rfl⟩
-  change (endPosSentence r ⊓ initSentence r tm ⊓ stepSentence r tm ⊓ acceptSentence r).Realize
-    (Fin B)
-  simp only [Sentence.realize_inf]
+  simp only [tableauMatrix, Sentence.realize_inf]
   exact ⟨⟨⟨realize_endPosSentence_of_canonical hlt0 (Nat.le_add_right _ _) hwB huLen0 hend,
       (realize_initSentence hlt0 hB1).2 (hAgrees ⟨0, by omega⟩)⟩,
     realize_stepSentence_of_agreesAt tm hlt0 ⟨hwB, huLen0, huBit0, hend, hcert⟩ hAgrees⟩,

@@ -115,20 +115,17 @@ theorem card_mul_sum_card_inter_mul_sub_one_powersetCard (hU : U ⊆ s) :
       #U * (#U - 1) * (ℓ * (ℓ - 1)) * (#s).choose ℓ := by
   rcases Nat.lt_or_ge ℓ 2 with hℓ | hℓ
   · -- a set of at most one element meets `U` in at most one element
-    have hzero : ∀ J ∈ s.powersetCard ℓ, #(U ∩ J) * (#(U ∩ J) - 1) = 0 := fun J hJ =>
-      mul_sub_one_eq_zero_of_lt_two
-        ((card_le_card inter_subset_right).trans_lt ((mem_powersetCard.1 hJ).2.trans_lt hℓ))
-    rw [sum_eq_zero hzero, mul_sub_one_eq_zero_of_lt_two hℓ]
+    rw [sum_eq_zero fun J hJ => mul_sub_one_eq_zero_of_lt_two
+      ((card_le_card inter_subset_right).trans_lt ((mem_powersetCard.1 hJ).2.trans_lt hℓ)),
+      mul_sub_one_eq_zero_of_lt_two hℓ]
     simp
   obtain ⟨ℓ, rfl⟩ : ∃ ℓ', ℓ = ℓ' + 2 := ⟨ℓ - 2, by omega⟩
-  rw [sum_card_inter_mul_sub_one_powersetCard hU hℓ, Nat.add_sub_cancel,
-    show ℓ + 2 - 1 = ℓ + 1 by omega]
+  rw [sum_card_inter_mul_sub_one_powersetCard hU hℓ, Nat.add_sub_cancel, Nat.succ_sub_one]
   rcases Nat.lt_or_ge #s 2 with hs | hs
-  · rw [Nat.choose_eq_zero_of_lt (n := #s) (k := ℓ + 2) (by omega),
+  · simp [Nat.choose_eq_zero_of_lt (hs.trans_le (Nat.le_add_left 2 ℓ)),
       mul_sub_one_eq_zero_of_lt_two hs]
-    simp
   obtain ⟨n, hn⟩ : ∃ n, #s = n + 2 := ⟨#s - 2, by omega⟩
-  rw [hn, Nat.add_sub_cancel, show n + 2 - 1 = n + 1 by omega]
+  rw [hn, Nat.add_sub_cancel, Nat.succ_sub_one]
   have h₁ := Nat.add_one_mul_choose_eq n ℓ
   have h₂ := Nat.add_one_mul_choose_eq (n + 1) (ℓ + 1)
   calc (n + 2) * (n + 1) * (#U * (#U - 1) * n.choose ℓ)
@@ -161,11 +158,12 @@ private theorem sq_card_mul_sum_card_inter_mul_sub_one_powersetCard_le (hU : U �
     simpa only [Nat.cast_mul, Nat.cast_sum, natCast_mul_natCast_sub_one] using
       congrArg (Nat.cast (R := ℝ)) (card_mul_sum_card_inter_mul_sub_one_powersetCard (ℓ := ℓ) hU)
   rcases Nat.lt_or_ge #s 2 with hs | hs
-  · rw [sum_eq_zero fun J _ => by
+  · have hsum : ∑ J ∈ P, X J * (X J - 1) = 0 := sum_eq_zero fun J _ => by
       have h0 := mul_sub_one_eq_zero_of_lt_two
         (((card_le_card (inter_subset_left (s₂ := J))).trans (card_le_card hU)).trans_lt hs)
       simpa only [Nat.cast_mul, natCast_mul_natCast_sub_one, Nat.cast_zero] using
-        congrArg (Nat.cast (R := ℝ)) h0, mul_zero]
+        congrArg (Nat.cast (R := ℝ)) h0
+    rw [hsum, mul_zero]
     positivity
   have hc : (2 : ℝ) ≤ c := by simp only [c]; exact_mod_cast hs
   have hac : a ≤ c := by simp only [a, c]; exact_mod_cast card_le_card hU
@@ -181,9 +179,9 @@ private theorem sq_card_mul_sum_card_inter_mul_sub_one_powersetCard_le (hU : U �
   refine le_of_mul_le_mul_left ?_ (show 0 < c - 1 by linarith)
   have hmul : (c - 1) * (c ^ 2 * ∑ J ∈ P, X J * (X J - 1)) =
       c * (a * (a - 1) * (b * (b - 1)) * M) := by rw [← hS₂]; ring
-  linarith [mul_nonneg hM hfac,
-    show (c - 1) * (a ^ 2 * b ^ 2 * M) - c * (a * (a - 1) * (b * (b - 1)) * M) =
-      M * (a * b * ((c - a) * (b - 1) + a * (c - 1))) by ring]
+  have hring : (c - 1) * (a ^ 2 * b ^ 2 * M) - c * (a * (a - 1) * (b * (b - 1)) * M) =
+      M * (a * b * ((c - a) * (b - 1) + a * (c - 1))) := by ring
+  linarith [mul_nonneg hM hfac]
 
 /-- **The variance of `#(U ∩ J)` is at most its mean**: over the `ℓ`-subsets `J` of `s`, with
 `n = #s`, `∑_J (n #(U ∩ J) - #U ℓ)² ≤ n #U ℓ C(n, ℓ)`. -/
@@ -202,15 +200,14 @@ theorem sum_card_inter_sub_sq_le (hU : U ⊆ s) :
       congrArg (Nat.cast (R := ℝ)) (card_mul_sum_card_inter_powersetCard (ℓ := ℓ) hU)
   have hexp : ∑ J ∈ P, (c * X J - a * b) ^ 2 = c ^ 2 * ∑ J ∈ P, X J * (X J - 1) +
       (c - 2 * a * b) * (c * ∑ J ∈ P, X J) + #P * (a ^ 2 * b ^ 2) := by
-    rw [sum_congr rfl fun J _ => show (c * X J - a * b) ^ 2 = c ^ 2 * (X J * (X J - 1)) +
-      (c - 2 * a * b) * (c * X J) + a ^ 2 * b ^ 2 by ring]
-    simp only [sum_add_distrib, ← mul_sum, sum_const, nsmul_eq_mul]
-    ring
+    have hsq (J : Finset α) : (c * X J - a * b) ^ 2 =
+        c ^ 2 * (X J * (X J - 1)) + (c - 2 * a * b) * (c * X J) + a ^ 2 * b ^ 2 := by ring
+    simp only [hsq, sum_add_distrib, ← mul_sum, sum_const, nsmul_eq_mul]; ring
   change ∑ J ∈ P, (c * X J - a * b) ^ 2 ≤ c * a * b * M
+  have hring : (c - 2 * a * b) * (a * b * M) + M * (a ^ 2 * b ^ 2) =
+      c * a * b * M - a ^ 2 * b ^ 2 * M := by ring
   rw [hexp, hS₁, hP]
-  linarith [sq_card_mul_sum_card_inter_mul_sub_one_powersetCard_le (ℓ := ℓ) hU,
-    show (c - 2 * a * b) * (a * b * M) + M * (a ^ 2 * b ^ 2) =
-      c * a * b * M - a ^ 2 * b ^ 2 * M by ring]
+  linarith [sq_card_mul_sum_card_inter_mul_sub_one_powersetCard_le (ℓ := ℓ) hU]
 
 /-- **Chebyshev's inequality for `#(U ∩ J)`**: with `n = #s` and `n m ≤ #U ℓ` (so `m` is at most
 the mean), the `ℓ`-subsets `J` of `s` meeting `U` in fewer than `m` elements number at most
@@ -232,11 +229,9 @@ expected size `μ = #U ℓ / #s` of `U ∩ J` is at least `8`, at most half of t
 theorem two_mul_card_filter_card_inter_lt_le (hU : U ⊆ s) (hs : 0 < #s)
     (hμ : 8 * #s ≤ #U * ℓ) {m : ℕ} (hm : 2 * m * #s ≤ #U * ℓ) :
     2 * #{J ∈ s.powersetCard ℓ | #(U ∩ J) < m} ≤ (#s).choose ℓ := by
-  have hm' : #s * m ≤ #U * ℓ :=
-    le_trans (by rw [mul_comm, mul_assoc]; exact Nat.le_mul_of_pos_left _ (by omega)) hm
+  have hm' : #s * m ≤ #U * ℓ := by nlinarith
   have h := card_filter_card_inter_lt_mul_sq_le (ℓ := ℓ) hU hm'
-  suffices h' : 2 * (#{J ∈ s.powersetCard ℓ | #(U ∩ J) < m} : ℝ) ≤ (#s).choose ℓ by
-    exact_mod_cast h'
+  rw [← Nat.cast_le (α := ℝ), Nat.cast_mul, Nat.cast_ofNat]
   have hc : (0 : ℝ) < #s := by exact_mod_cast hs
   have hμR : 8 * (#s : ℝ) ≤ #U * ℓ := by exact_mod_cast hμ
   have hmR : 2 * (m : ℝ) * #s ≤ #U * ℓ := by exact_mod_cast hm
