@@ -583,24 +583,22 @@ theorem sum_le_nsmul_sub_of_submodularMatroidGreedyChain {f : Finset α → β}
   -- `σ o`: the first round by which `o ∈ O` is selected or infeasible.
   have hex (o) : ∃ t, o ∈ O → P o t := ⟨n, hPn o⟩
   let σ (o : α) : ℕ := Nat.find (hex o)
-  have key := sum_le_nsmul_sum_range (O := O) (σ := σ) (c := c) (p := p) (N := n)
-    (d := fun s => f (S (s + 1)) - f (S s))
-    (fun s => sub_nonneg.mpr (hmono (submodularMatroidGreedyChain_subset_succ f indep u s)))
-    (fun o _ => Nat.find_min' (hex o) (hPn o))
-    (fun o ho s hs => by
-      have hnot : ¬ P o s := fun hPs => Nat.find_min (hex o) hs fun _ => hPs
-      simp only [P, not_or, Bool.not_eq_false] at hnot
-      exact hc o ho s (hs.trans_le (Nat.find_min' (hex o) (hPn o))) hnot.1 hnot.2)
-    fun t => (hsys.card_le_mul_card_of_blocked
-      (indep_submodularMatroidGreedyChain hsys.indep_empty u t)
-      (hsys.indep_of_subset hO (Finset.filter_subset _ O)) fun o ho hoS hind => by
-        obtain ⟨hoO, hσt⟩ := Finset.mem_filter.mp ho
-        rcases hPmono hσt (Nat.find_spec (hex o) hoO) with h | h
-        · exact hoS h
-        · exact Bool.false_ne_true (h.symm.trans hind)).trans
-      (Nat.mul_le_mul_left p (card_submodularMatroidGreedyChain_le f indep u t))
-  simpa only [Finset.sum_range_sub (fun s => f (S s)), S, submodularMatroidGreedyChain_zero]
-    using key
+  simpa only [Finset.sum_range_sub (fun s => f (S s)), S, submodularMatroidGreedyChain_zero] using
+    sum_le_nsmul_sum_range (O := O) (σ := σ) (c := c) (p := p) (N := n)
+      (d := fun s => f (S (s + 1)) - f (S s))
+      (fun s => sub_nonneg.mpr (hmono (submodularMatroidGreedyChain_subset_succ f indep u s)))
+      (fun o _ => Nat.find_min' (hex o) (hPn o))
+      (fun o ho s hs => by
+        have hnot : ¬ P o s := fun hPs => Nat.find_min (hex o) hs fun _ => hPs
+        simp only [P, not_or, Bool.not_eq_false] at hnot
+        exact hc o ho s (hs.trans_le (Nat.find_min' (hex o) (hPn o))) hnot.1 hnot.2)
+      fun t => (hsys.card_le_mul_card_of_blocked
+        (indep_submodularMatroidGreedyChain hsys.indep_empty u t)
+        (hsys.indep_of_subset hO (Finset.filter_subset _ O)) fun o ho hoS hind => by
+          obtain ⟨hoO, hσt⟩ := Finset.mem_filter.mp ho
+          exact (hPmono hσt (Nat.find_spec (hex o) hoO)).elim hoS
+            fun h => Bool.false_ne_true (h.symm.trans hind)).trans
+        (Nat.mul_le_mul_left p (card_submodularMatroidGreedyChain_le f indep u t))
 
 /-- **Fisher–Nemhauser–Wolsey greedy bound** ([FisherNemhauserWolsey1978];
 [CalinescuChekuriPalVondrak2011], Appendix B). For a monotone submodular `f`, a `p`-system
@@ -612,9 +610,7 @@ theorem add_nsmul_le_succ_nsmul_submodularMatroidGreedy {f : Finset α → β}
     (hO : indep O = true) (hOxs : O ⊆ xs.toFinset) :
     f O + p • f ∅ ≤ (p + 1) • f (submodularMatroidGreedy f indep xs) := by
   set u := xs.eraseDups
-  have hn : u.length = u.toFinset.card := by
-    simp only [u, List.length_eraseDups, List.toFinset_eraseDups]
-  rw [submodularMatroidGreedy_eq_chain, hn]
+  rw [submodularMatroidGreedy_eq_chain, List.length_eraseDups, ← List.toFinset_eraseDups]
   set G := submodularMatroidGreedyChain f indep u u.toFinset.card
   have hOu : O \ G ⊆ u.toFinset := by
     simpa only [u, List.toFinset_eraseDups] using Finset.sdiff_subset.trans hOxs
