@@ -352,8 +352,7 @@ theorem lastOcc_eq_some {qs : List ℕ} {j p w : ℕ} (h : lastOcc qs j p = some
   | succ p ih =>
     rw [lastOcc_succ] at h
     split_ifs at h with hp
-    · cases h
-      exact ⟨by omega, hp, fun _ _ _ => by omega⟩
+    · exact Option.some.inj h ▸ ⟨Nat.lt_succ_self _, hp, fun _ _ _ => by omega⟩
     · obtain ⟨h1, h2, h3⟩ := ih h
       refine ⟨by omega, h2, fun w' hw1 hw2 => ?_⟩
       rcases Nat.lt_succ_iff_lt_or_eq.mp hw2 with hw | rfl <;> [exact h3 w' hw1 hw; exact hp]
@@ -663,9 +662,7 @@ private theorem map_pairFun_right {N : ℕ} (a b : Fin N → Bool) :
 theorem length_qubits_le_three {m : ℕ} {g : GateCode} (h : g.WellFormed m) :
     (qubits g).length ≤ 3 := by
   obtain ⟨_ | _, t, cs⟩ := g
-  · have := h.1
-    simp only [qubits, List.length_cons]
-    omega
+  · simpa [qubits] using Nat.succ_le_succ h.1
   · simp [qubits, h.2]
 
 /-- The product of the row vertex entries of `network` when edge `e` carries `Z (e / 2)`. -/
@@ -829,10 +826,9 @@ theorem length_occurrences_le {m : ℕ} {gs : List GateCode} (hgs : ∀ g ∈ gs
   induction gs with
   | nil => simp [occurrences]
   | cons g gs ih =>
-    rw [occurrences_cons, List.length_append, List.length_cons]
-    have h1 := length_qubits_le_three (hgs g List.mem_cons_self)
-    have h2 := ih fun g' hg' => hgs g' (List.mem_cons_of_mem _ hg')
-    omega
+    rw [occurrences_cons, List.length_append, List.length_cons, Nat.mul_succ, Nat.add_comm _ 3]
+    exact add_le_add (length_qubits_le_three (hgs g List.mem_cons_self))
+      (ih fun _ hg => hgs _ (List.mem_cons_of_mem _ hg))
 
 variable {R : Type*} [Zero R] [One R]
 
@@ -980,12 +976,11 @@ theorem sum_readers {gs : List GateCode} (hnd : ∀ g ∈ gs, (qubits g).Nodup) 
       · rintro ⟨hq, hl⟩
         obtain ⟨k, hk, hkq⟩ := (mem_qubits_iff hi q).mp hq
         obtain ⟨hub, -, hnext⟩ := lastOcc_eq_some hl
-        have h2 := base_add_le hi; rw [← hqs] at h2
-        have hp₀ : p₀ ≤ base gs i + k := Nat.find_min' hex ⟨by omega, by omega, hkq⟩
-        have hbi := base_succ hi
-        refine eq_of_base_le_lt ?_ (by omega) hb₀ (by rwa [base_succ hi₀])
-        by_contra! h
-        exact hnext p₀ hup h hpq
+        have hp₀ : p₀ ≤ base gs i + k := Nat.find_min' hex ⟨by omega,
+          (Nat.add_lt_add_left hk _).trans_le (base_add_le hi), hkq⟩
+        exact eq_of_base_le_lt (not_lt.mp fun h => hnext p₀ hup h hpq)
+          (hp₀.trans_lt ((Nat.add_lt_add_left hk _).trans_eq (base_succ hi).symm)) hb₀
+          (base_succ hi₀ ▸ hb₀')
       · intro h
         rw [h]
         have hk : p₀ - base gs i₀ < (qubits (gs.getD i₀ default)).length := by omega

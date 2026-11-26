@@ -564,11 +564,8 @@ private theorem prod_sinks (hq : 0 < q) (x : BlockEdge k q → BlockLetter k Sta
       (machine.blockNetwork input b σ).tensor (.inr (.inr e)) x = 1 :=
     Finset.prod_eq_one fun _ _ => rfl
   rw [hblock, mul_one, Finset.prod_eq_single (⟨q - 1, by omega⟩ : Fin q)]
-  · change (if q - 1 + 1 = q then _ else 1) = _
-    rw [ite_eq_left (by omega)]
-  · intro i _ hi
-    change (if i.val + 1 = q then _ else 1) = 1
-    rw [ite_eq_right fun h => hi (by fin_index)]
+  · exact ite_eq_left (by omega : q - 1 + 1 = q)
+  · exact fun i _ hi => ite_eq_right fun h => hi (by fin_index)
   · exact fun h => absurd (Finset.mem_univ _) h
 
 omit [NeZero b] in
@@ -578,14 +575,10 @@ private theorem prod_intervals (x : BlockEdge k q → BlockLetter k State b) :
     ∏ i : Fin q, (machine.blockNetwork input b σ).tensor (.inl i) x =
       ∑ u : Fin q → Fin b → Bool,
         if ∀ i, machine.IntervalHolds input b σ i x (u i) then 1 else 0 := by
-  have hcard : ∀ i : Fin q, (machine.blockNetwork input b σ).tensor (.inl i) x =
-      ∑ u : Fin b → Bool, if machine.IntervalHolds input b σ i x u then 1 else 0 := by
-    intro i
-    change (Finset.univ.filter fun u => machine.IntervalHolds input b σ i x u).card = _
-    rw [Finset.card_filter]
-  simp only [hcard]
-  rw [Finset.prod_univ_sum]
-  simp only [Fintype.piFinset_univ, Fintype.prod_boole]
+  have hcard (i : Fin q) : (machine.blockNetwork input b σ).tensor (.inl i) x =
+      ∑ u : Fin b → Bool, if machine.IntervalHolds input b σ i x u then 1 else 0 :=
+    Finset.card_filter _ _
+  simp only [hcard, Finset.prod_univ_sum, Fintype.piFinset_univ, Fintype.prod_boole]
   exact Finset.sum_congr rfl fun u _ => by congr
 
 /-- **The block-counting identity for one schedule.** The contraction of the network of `σ` is the

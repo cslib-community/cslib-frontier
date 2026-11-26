@@ -299,17 +299,15 @@ theorem eqOnPrefix_swap_iff {π π₀ : Equiv.Perm (Fin n)} {i : ℕ} (hi : i < 
     rw [Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne]
     · exact fun h => Nat.ne_of_lt hj (congrArg Fin.val (π₀.injective h))
     · exact fun h => hy (by rw [← h]; exact mem_prefixSet_iff_exists.2 ⟨j, hj, rfl⟩)
-  have hi' : (Equiv.swap (π₀ ⟨i, hi⟩) y * π₀) ⟨i, hi⟩ = y := by
-    rw [Equiv.Perm.mul_apply, Equiv.swap_apply_left]
-  constructor
-  · intro h
-    exact ⟨fun j hj => (h j (by omega)).trans (hlt j hj),
-      (h ⟨i, hi⟩ (Nat.lt_succ_self i)).trans hi'⟩
-  · rintro ⟨h, hπ⟩ j hj
-    rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
-    · rw [h j hj, hlt j hj]
-    · obtain rfl : j = ⟨i, hi⟩ := Fin.ext hj
-      rw [hπ, hi']
+  have hi' : (Equiv.swap (π₀ ⟨i, hi⟩) y * π₀) ⟨i, hi⟩ = y :=
+    Equiv.swap_apply_left (π₀ ⟨i, hi⟩) y
+  refine ⟨fun h => ⟨fun j hj => (h j (by omega)).trans (hlt j hj),
+    (h ⟨i, hi⟩ (Nat.lt_succ_self i)).trans hi'⟩, ?_⟩
+  rintro ⟨h, hπ⟩ j hj
+  rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
+  · rw [h j hj, hlt j hj]
+  · obtain rfl : j = ⟨i, hi⟩ := Fin.ext hj
+    rw [hπ, hi']
 
 /-- The first `i + 1` steps of `π₀` followed by the swap of `y` with the variable at position `i`
 process the first `i` variables of `π₀` and `y`. -/
@@ -361,18 +359,15 @@ theorem unforcedCountWith_succ (O : (Fin n → Option Bool) → Fin n → Option
     unforcedCountWith O σ π (i + 1) = unforcedCountWith O σ π i +
       if O (restrict σ (prefixSet π i)) (π ⟨i, h⟩) = none then 1 else 0 := by
   unfold unforcedCountWith
-  have hsplit : (univ.filter fun j : Fin n =>
-      (j : ℕ) < i + 1 ∧ O (restrict σ (prefixSet π j)) (π j) = none) =
-      (univ.filter fun j : Fin n =>
-        (j : ℕ) < i ∧ O (restrict σ (prefixSet π j)) (π j) = none) ∪
-      ({⟨i, h⟩} : Finset (Fin n)).filter fun j => O (restrict σ (prefixSet π j)) (π j) = none := by
-    ext j
-    simp only [mem_filter, mem_univ, true_and, mem_union, mem_singleton, Fin.ext_iff,
-      Nat.lt_succ_iff_lt_or_eq, or_and_right]
-  rw [hsplit, card_union_of_disjoint (disjoint_left.2 fun j h1 h2 =>
-    (mem_filter.1 h1).2.1.ne (congrArg Fin.val (mem_singleton.1 (mem_filter.1 h2).1))),
-    filter_singleton]
-  split_ifs <;> rfl
+  split_ifs with ho
+  · rw [← card_insert_of_notMem (a := ⟨i, h⟩) (by simp)]
+    refine congrArg card (Finset.ext fun (⟨j, hj⟩ : Fin n) => ?_)
+    simp only [mem_filter, mem_univ, true_and, mem_insert, Fin.mk.injEq] at ho ⊢
+    grind
+  · rw [add_zero]
+    refine congrArg card (Finset.ext fun (⟨j, hj⟩ : Fin n) => ?_)
+    simp only [mem_filter, mem_univ, true_and] at ho ⊢
+    grind
 
 /-- **A run in a fixed order produces the solution with probability `2^{-u}`**, after
 [Paturi, Pudlák, Saks, Zane, Lemma 1][PaturiPudlakSaksZane2005], where `u` counts the variables
@@ -422,15 +417,11 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
       have hpref : prefixSet π (i + 1) = prefixSet π i := by
         ext x
         simp only [mem_prefixSet]
-        have := (π.symm x).isLt
         omega
       have hcnt : unforcedCountWith O σ π (i + 1) = unforcedCountWith O σ π i := by
-        unfold unforcedCountWith
-        congr 1
-        ext j
+        refine congrArg card (Finset.ext fun j => ?_)
         simp only [mem_filter, mem_univ, true_and]
-        exact and_congr_left fun _ =>
-          iff_of_true (Nat.lt_succ_of_lt (j.isLt.trans_le hle)) (j.isLt.trans_le hle)
+        exact and_congr_left fun _ => by omega
       rw [runWith_succ_of_le O π hle, hpref, hcnt, ih]
 
 /-- **A PPZ run in a fixed order produces the solution with probability `2^{-u}`**, where `u`
@@ -550,22 +541,16 @@ theorem exists_critical_of_flip {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : 
     ∃ c ∈ φ, IsCritical σ x c := by
   set τ := Function.update σ x (!σ x)
   obtain ⟨c, hc, hcτ⟩ : ∃ c ∈ φ, c.eval τ ≠ true := by
-    by_contra hall
-    push Not at hall
-    exact hflip ((CNF.eval_eq_true_iff τ φ).mpr hall)
-  have hfalse : ∀ l ∈ c, τ l.1 ≠ l.2 := fun l hl e =>
-    hcτ ((Clause.eval_eq_true_iff τ c).mpr ⟨l, hl, e⟩)
+    simpa [CNF.eval_eq_true_iff] using hflip
   have hall : ∀ l ∈ c, if l.1 = x then l.2 = σ x else σ l.1 ≠ l.2 := by
     intro l hl
-    have := hfalse l hl
+    have hfalse : τ l.1 ≠ l.2 := fun e => hcτ ((Clause.eval_eq_true_iff τ c).mpr ⟨l, hl, e⟩)
     split_ifs with hx
-    · rw [hx] at this
-      simp only [τ, Function.update_self] at this
-      cases h1 : l.2 <;> cases h2 : σ x <;> simp_all
-    · simpa [τ, Function.update_of_ne hx] using this
+    · subst hx
+      simpa [τ, eq_comm] using hfalse
+    · simpa [τ, Function.update_of_ne hx] using hfalse
   obtain ⟨l, hl, hls⟩ := (Clause.eval_eq_true_iff σ c).mp ((CNF.eval_eq_true_iff σ φ).mp hσ c hc)
-  refine ⟨c, hc, ⟨l, hl, by_contra fun hx => ?_⟩, hall⟩
-  simpa [hx, hls] using hall l hl
+  exact ⟨c, hc, ⟨l, hl, by_contra fun hx => by simpa [hx, hls] using hall l hl⟩, hall⟩
 
 /-- **Critical clauses exist** for every variable of the unique satisfying assignment: flipping
 the variable falsifies some clause. -/

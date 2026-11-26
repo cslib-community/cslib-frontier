@@ -126,9 +126,8 @@ private theorem exists_varying_query (p : Program signature n g)
     apply eval_eq_of_forall_mem_inputGates_lt p i.val
     intro j hj hjlt
     by_contra hne
-    have hjv : (⟨j, hj⟩ : inputGates p) ∈ varying :=
-      mem_filter.mpr ⟨mem_univ _, x₀, hx₀, x, hx, hne⟩
-    exact (not_le_of_gt hjlt) (varying.min'_le _ hjv)
+    exact not_le_of_gt hjlt
+      (varying.min'_le ⟨j, hj⟩ (mem_filter.mpr ⟨mem_univ _, x₀, hx₀, x, hx, hne⟩))
   refine ⟨gateQuery p i.val (p.eval interpretation x₀), i,
     fun x hx => gateQuery_eval_eq p i.val _ x (hprevious x hx), fun b => ?_⟩
   obtain ⟨x, hx, y, hy, hxy⟩ := (mem_filter.mp hi).2
@@ -292,12 +291,7 @@ theorem prefixBank_eval_castAdd (p : Program signature n g) (reads : Fin d → F
       p.eval interpretation x j := by
   induction m with
   | zero => rfl
-  | succ m ih =>
-    change ((prefixBank p reads m (fun i => patterns i.castSucc)).gate
-      (prefixLine (fun k => (reads k).castAdd m) (patterns (Fin.last m)))).eval
-        interpretation x (j.castAdd m).castSucc = _
-    rw [Program.eval_gate_castSucc]
-    exact ih (fun i => patterns i.castSucc)
+  | succ m ih => exact (Program.eval_gate_castSucc _ _ _ _ (j.castAdd m)).trans (ih _)
 
 /-- Each newly appended bank gate computes its own pattern indicator. -/
 theorem prefixBank_eval_natAdd (p : Program signature n g) (reads : Fin d → Fin g)
@@ -307,14 +301,10 @@ theorem prefixBank_eval_natAdd (p : Program signature n g) (reads : Fin d → Fi
   induction m with
   | zero => intro i; exact i.elim0
   | succ m ih =>
-    refine Fin.lastCases ?_ fun i => ?_
-    · change ((prefixBank p reads m (fun i => patterns i.castSucc)).gate _).eval
-        interpretation x (Fin.last (g + m)) = _
-      simp [Program.eval_gate_last, prefixLine_eval, prefixBank_eval_castAdd]
-    · change ((prefixBank p reads m (fun j => patterns j.castSucc)).gate _).eval
-        interpretation x (Fin.natAdd g i).castSucc = _
-      rw [Program.eval_gate_castSucc]
-      exact ih _ i
+    refine Fin.lastCases ?_ fun i =>
+      (Program.eval_gate_castSucc _ _ _ _ (Fin.natAdd g i)).trans (ih _ i)
+    change ((prefixBank p reads m _).gate _).eval interpretation x (Fin.last (g + m)) = _
+    simp [Program.eval_gate_last, prefixLine_eval, prefixBank_eval_castAdd]
 
 private theorem lineWeight_castSucc_input (line : Line signature n g) (i : Fin n) :
     lineWeight (line.mapWires Wire.Renaming.castSucc) (.input i) =
@@ -350,12 +340,7 @@ theorem prefixBank_inputWeight_castAdd (p : Program signature n g) (reads : Fin 
     inputWeight (prefixBank p reads m patterns) (j.castAdd m) i = inputWeight p j i := by
   induction m with
   | zero => rfl
-  | succ m ih =>
-    change inputWeight ((prefixBank p reads m (fun k => patterns k.castSucc)).gate
-      (prefixLine (fun k => (reads k).castAdd m) (patterns (Fin.last m))))
-        (j.castAdd m).castSucc i = _
-    rw [inputWeight_gate_castSucc]
-    exact ih (fun k => patterns k.castSucc)
+  | succ m ih => exact (inputWeight_gate_castSucc _ _ (j.castAdd m) i).trans (ih _)
 
 /-- Every new bank gate has zero direct input vector, including with repeated history wires. -/
 theorem prefixBank_inputWeight_natAdd (p : Program signature n g) (reads : Fin d → Fin g)
@@ -364,12 +349,8 @@ theorem prefixBank_inputWeight_natAdd (p : Program signature n g) (reads : Fin d
   induction m with
   | zero => exact fun j => j.elim0
   | succ m ih =>
-    refine Fin.lastCases ?_ fun j => ?_
-    · change inputWeight ((prefixBank p reads m _).gate _) (Fin.last (g + m)) i = 0
-      rw [inputWeight_gate_last, prefixLine_inputWeight]
-    · change inputWeight ((prefixBank p reads m _).gate _) (Fin.natAdd g j).castSucc i = 0
-      rw [inputWeight_gate_castSucc]
-      exact ih _ j
+    refine Fin.lastCases ((inputWeight_gate_last _ _ i).trans (prefixLine_inputWeight _ _ i))
+      fun j => (inputWeight_gate_castSucc _ _ (Fin.natAdd g j) i).trans (ih _ j)
 
 /-- Appending any prefix bank adds no input-reading gates. -/
 theorem card_inputGates_prefixBank (p : Program signature n g) (reads : Fin d → Fin g)

@@ -469,12 +469,10 @@ theorem eval_bitonicMergeTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : �
   | zero =>
     dsimp only [bitonicMergeTraceCircuit, mergeTraceSize, BitonicSort.merge, BitonicSort.mergeTrace]
     funext i
-    cases i using Fin.addCases with
-    | left i => exact Fin.elim0 i
-    | right i =>
-      simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right,
-        pack, Fin.append_right, BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
-        Equiv.apply_symm_apply, id_eq]
+    refine Fin.addCases (fun i => Fin.elim0 i) (fun i => ?_) i
+    simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, pack, Fin.append_right,
+      BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
+      Equiv.apply_symm_apply, id_eq]
   | succ d ih =>
     dsimp only [arity] at x
     simp only [bitonicMergeTraceCircuit, mergeTraceSize, arity,
@@ -495,12 +493,10 @@ theorem eval_bitonicSortTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : �
   | zero =>
     dsimp only [bitonicSortTraceCircuit, sortTraceSize, BitonicSort.sort, BitonicSort.sortTrace]
     funext i
-    cases i using Fin.addCases with
-    | left i => exact Fin.elim0 i
-    | right i =>
-      simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right,
-        pack, Fin.append_right, BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
-        Equiv.apply_symm_apply, id_eq]
+    refine Fin.addCases (fun i => Fin.elim0 i) (fun i => ?_) i
+    simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, pack, Fin.append_right,
+      BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
+      Equiv.apply_symm_apply, id_eq]
   | succ d ih =>
     dsimp only [arity] at x
     simp only [bitonicSortTraceCircuit, sortTraceSize, arity,
@@ -624,9 +620,8 @@ theorem cost_program_bitonicLayerCircuit {k r : ℕ} (key : Fin k → Fin r) (n 
     (ascending : Bool) (cost : signature.Op → ℕ) :
     (bitonicLayerCircuit key n ascending).program.cost cost =
       n * (compareSwapCircuit key).program.cost cost := by
-  by_cases hr : r = 0
-  · rw [bitonicLayerCircuit, ite_eq_left hr, compareSwapCircuit, ite_eq_left hr]
-    simp only [Circuit.id, Circuit.cost_program_wiring, Nat.mul_zero]
+  rcases Decidable.eq_or_ne r 0 with rfl | hr
+  · simp [bitonicLayerCircuit, compareSwapCircuit, Circuit.id]
   · rw [bitonicLayerCircuit, ite_eq_right hr, Circuit.cost_program_comp,
       Circuit.cost_program_wiring, Nat.add_zero, cost_layer,
       compareSwapCircuit.cost_record_eq_exchange, compareSwapCircuit, ite_eq_right hr]
@@ -636,9 +631,8 @@ theorem two_mul_cost_program_bitonicMergeCircuit {k r : ℕ} (key : Fin k → Fi
     (depth : ℕ) (ascending : Bool) (cost : signature.Op → ℕ) :
     2 * (bitonicMergeCircuit key depth ascending).program.cost cost =
       depth * 2 ^ depth * (compareSwapCircuit key).program.cost cost := by
-  by_cases hr : r = 0
-  · rw [bitonicMergeCircuit, ite_eq_left hr, compareSwapCircuit, ite_eq_left hr]
-    simp only [Circuit.id, Circuit.cost_program_wiring, Nat.mul_zero]
+  rcases Decidable.eq_or_ne r 0 with rfl | hr
+  · simp [bitonicMergeCircuit, compareSwapCircuit, Circuit.id]
   · rw [bitonicMergeCircuit, ite_eq_right hr, Circuit.cost_program_comp,
       Circuit.cost_program_wiring, Nat.add_zero, cost_program_bitonicMergeTraceCircuit,
       ← Nat.mul_assoc, BitonicSort.two_mul_mergeTraceSize,
@@ -650,9 +644,8 @@ theorem four_mul_cost_program_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fi
     (depth : ℕ) (ascending : Bool) (cost : signature.Op → ℕ) :
     4 * (bitonicSortCircuit key depth ascending).program.cost cost =
       depth * (depth + 1) * 2 ^ depth * (compareSwapCircuit key).program.cost cost := by
-  by_cases hr : r = 0
-  · rw [bitonicSortCircuit, ite_eq_left hr, compareSwapCircuit, ite_eq_left hr]
-    simp only [Circuit.id, Circuit.cost_program_wiring, Nat.mul_zero]
+  rcases Decidable.eq_or_ne r 0 with rfl | hr
+  · simp [bitonicSortCircuit, compareSwapCircuit, Circuit.id]
   · rw [bitonicSortCircuit, ite_eq_right hr, Circuit.cost_program_comp,
       Circuit.cost_program_wiring, Nat.add_zero, cost_program_bitonicSortTraceCircuit,
       ← Nat.mul_assoc, BitonicSort.four_mul_sortTraceSize,

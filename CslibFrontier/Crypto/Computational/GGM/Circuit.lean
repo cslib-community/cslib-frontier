@@ -137,9 +137,8 @@ theorem ofFn_evalBits (G : PRG.Generator (BitString k) (BitString (2 * k)))
   induction n generalizing seed with
   | zero => simp
   | succ n ih =>
-    rw [evalBits_succ, ih, List.ofFn_succ, eval_cons]
-    congr 1
-    rw [child, List.length_ofFn, ofFn_block, listGenerator]
+    rw [evalBits_succ, ih, List.ofFn_succ, eval_cons, child, List.length_ofFn, ofFn_block,
+      listGenerator]
     congr 3 with i : 1
     simp
 
@@ -185,9 +184,9 @@ theorem complexity_evalBits_block_le (G : PRG.Generator (BitString k) (BitString
   refine (complexity_comp_le ((fun seed => evalBits G seed x) ∘
       fun y => y ∘ fun j : Fin k => finProdFinEquiv (b, j))
     (fun z => z ∘ fun _ : Fin 1 => i)).trans ?_
-  rw [complexity_wiring, add_zero]
-  refine (complexity_comp_le _ _).trans ?_
-  simpa only [complexity_wiring, zero_add] using complexity_evalBits_le G x
+  simpa only [complexity_wiring, add_zero, zero_add] using
+    (complexity_comp_le (fun y => y ∘ fun j : Fin k => finProdFinEquiv (b, j)) _).trans
+      (Nat.add_le_add_left (complexity_evalBits_le G x) _)
 
 /-- **Circuits for tree evaluation.** If the bits of a seed and of a query of length `n` are
 available, the bits of the label reached are synthesized with, per query bit, a smallest circuit
@@ -365,12 +364,11 @@ private theorem hybridProb_zero (G : PRG.Generator (BitString k) (BitString (2 *
         (fun T => PMF.pure (D T)) true).toReal := by
   rw [PRG.Generator.toReal_realExperiment_pure, ← Fintype.expect_boole, hybridProb]
   refine Fintype.expect_equiv (Equiv.funUnique (BitString 0) (BitString k)) _ _ fun L => ?_
-  have hx (x : BitString n) : (fun i : Fin n => x ⟨0 + i, by omega⟩) = x :=
-    funext fun i => congrArg x (Fin.ext (zero_add _))
-  have hL (x : BitString n) : L (fun i : Fin 0 => x ⟨i, by omega⟩) =
-      Equiv.funUnique (BitString 0) (BitString k) L :=
-    congrArg L (Subsingleton.elim _ _)
-  simp only [leaves, hx, hL, truthTableGenerator_apply]
+  have hx (x : BitString n) : leaves G 0 n (zero_add n) L x =
+      evalBits G (Equiv.funUnique (BitString 0) (BitString k) L) x :=
+    congrArg₂ (evalBits G) (congrArg L (Subsingleton.elim _ _))
+      (funext fun i => congrArg x (Fin.ext (zero_add _)))
+  simp only [hx, truthTableGenerator_apply]
   rfl
 
 /-- The last hybrid is a uniformly random function. -/
@@ -408,9 +406,7 @@ theorem secure_truthTableGenerator_booleanFamily [NeZero k]
   have htel (m : ℕ) : ∀ j (h : j + m = n),
       |hybridProb G D j m h - hybridProb G D n 0 (add_zero n)| ≤ (2 ^ n - 2 ^ j) * ε := by
     induction m with
-    | zero =>
-      rintro j rfl
-      simp
+    | zero => exact fun _ h => by simp [← h]
     | succ m ih =>
       intro j h
       have hstep := abs_hybridProb_sub_le G D h (ε := ε) fun c q => by

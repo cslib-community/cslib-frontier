@@ -168,14 +168,13 @@ theorem uniform_interpret_eq_lazy {α : Type} (program : OracleComp (Spec Key Bl
       let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
       OracleComp.interpret (fun (q : Query Key Block) => PMF.pure (evalPerm (P q.1) q.2)) program) =
     ((OracleComp.interpret answer program).run (fun _ => [])).map Prod.fst := by
-  have h := congrArg (PMF.map Prod.fst) <|
-    OracleComp.run_interpret_simulation_of_invariant answer lazyEvalPerm complete
-      (fun s => ∀ k, IsPartialBijection (s k)) answer_preserve_isPartialBijection
-      answer_complete program (fun _ => []) (fun _ => isPartialBijection_nil)
   have h2 : ((OracleComp.interpret answer program).run (fun _ => [])).map Prod.fst =
       ((complete (fun _ : Key => [])).bind fun t =>
         (OracleComp.interpret lazyEvalPerm program).run t).map Prod.fst := by
-    simpa only [pmf_norm, complete, PMF.map, PMF.bind_const] using h
+    simpa only [pmf_norm, complete, PMF.map, PMF.bind_const] using congrArg (PMF.map Prod.fst) <|
+      OracleComp.run_interpret_simulation_of_invariant answer lazyEvalPerm complete
+        (fun s => ∀ k, IsPartialBijection (s k)) answer_preserve_isPartialBijection
+        answer_complete program (fun _ => []) (fun _ => isPartialBijection_nil)
   rw [h2]
   simp only [complete, RandomPermutation.complete_nil, pmf_norm, PMF.map_bind]
   refine congrArg _ (funext fun P => ?_)
@@ -191,14 +190,12 @@ theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
     IdenticalUntilBad (spec := Spec Key Block) exactWithBad forgetfulWithBad
       (fun st : (Key → Cache Block) × Bool => st.2 = true) where
   absorb_first a st h_bad st' hmem := by
-    rcases st with ⟨st_map, bad⟩
-    rcases st' with ⟨_, _, _⟩
+    rcases st, st' with ⟨⟨st_map, bad⟩, _, _, _⟩
     supp_cases hmem [exactWithBad] with ⟨⟨b, c, bad_new⟩, hmem3, rfl, rfl, rfl⟩
     exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_first
       a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
   absorb_second a st h_bad st' hmem := by
-    rcases st with ⟨st_map, bad⟩
-    rcases st' with ⟨_, _, _⟩
+    rcases st, st' with ⟨⟨st_map, bad⟩, _, _, _⟩
     supp_cases hmem [forgetfulWithBad] with ⟨⟨b, c, bad_new⟩, hmem3, rfl, rfl, rfl⟩
     exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_second
       a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
@@ -208,9 +205,7 @@ theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
       · simp only [exactWithBad, forgetfulWithBad, PMF.map_apply]
         refine tsum_congr fun ⟨b_out, c_out, bad_out⟩ => ?_
         split_ifs with h
-        · injection h with h1 h2
-          injection h2 with h3 h4
-          subst h4
+        · obtain ⟨-, -, rfl⟩ := h
           exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.agree a.2
             (st_map a.1, false) Bool.noConfusion b_out (c_out, false) Bool.noConfusion
         · rfl
@@ -259,17 +254,11 @@ theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
     supp_cases hp [forgetfulWithBad] with ⟨⟨a₀, c₀, b₀⟩, hx, rfl, rfl, rfl⟩
     rcases RandomPermutation.mem_support_forgetfulWithBad hx with ⟨_, rfl, _⟩ | ⟨_, rfl, _⟩
     · simp [Function.update_eq_self]
-    · have h1 := Finset.add_sum_erase Finset.univ
-        (fun k => (Function.update c q.1
-          (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length) (Finset.mem_univ q.1)
-      have h2 := Finset.add_sum_erase Finset.univ (fun k => (c k).length) (Finset.mem_univ q.1)
-      have heq : ∑ k ∈ Finset.univ.erase q.1,
-          (Function.update c q.1 (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length =
-          ∑ k ∈ Finset.univ.erase q.1, (c k).length :=
-        Finset.sum_congr rfl fun k hk => by simp [(Finset.mem_erase.mp hk).1]
-      simp only [Function.update_self, List.length_cons] at h1
-      dsimp only
-      omega
+    · have hlen (k) : (Function.update c q.1
+          (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length =
+          (c k).length + if k = q.1 then 1 else 0 := by
+        by_cases hk : k = q.1 <;> simp [hk]
+      simp [hlen, Finset.sum_add_distrib]
 
 omit [Fintype Key] in
 /-- A query step of `exactWithBad` preserves the invariant that every key's cache is a partial

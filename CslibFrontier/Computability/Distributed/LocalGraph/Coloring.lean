@@ -214,22 +214,18 @@ private theorem le_kwBound_add_div (Δ m : ℕ) :
   have hq_div := Nat.div_add_mod q (Δ + 1)
   have hq_mod : q % (Δ + 1) < Δ + 1 := Nat.mod_lt q (by omega)
   have hsplit : (Δ + 2) * q = (Δ + 1) * q + q := Nat.succ_mul _ _
-  have h3 : (Δ + 1) * m < (Δ + 1) * (q + (q / (Δ + 1) + 1)) := by
+  have h4 : m < q + (q / (Δ + 1) + 1) := Nat.lt_of_mul_lt_mul_left (a := Δ + 1) <| by
     rw [Nat.mul_add, Nat.mul_add, Nat.mul_one, Nat.mul_comm (Δ + 1) m]
     omega
-  have h4 : m < q + (q / (Δ + 1) + 1) := Nat.lt_of_mul_lt_mul_left h3
   omega
 
 /-- Whenever `Δ + 2 ≤ m`, `kwBound Δ m` strictly shrinks the palette (`kwBound Δ m < m`) while
 remaining at least `Δ + 1`. -/
 theorem kwBound_lt {Δ m : ℕ} (hm : Δ + 2 ≤ m) : Δ + 1 ≤ kwBound Δ m ∧ kwBound Δ m < m := by
   unfold kwBound
-  have hdiv := Nat.div_add_mod (m * (Δ + 1) + (Δ + 1)) (Δ + 2)
-  have hmod := Nat.mod_lt (m * (Δ + 1) + (Δ + 1)) (by omega : 0 < Δ + 2)
-  constructor
-  · have hlow : (Δ + 2) * (Δ + 1) ≤ m * (Δ + 1) + (Δ + 1) :=
+  refine ⟨(Nat.le_div_iff_mul_le (by omega)).2 ?_, ?_⟩
+  · exact Nat.mul_comm (Δ + 1) (Δ + 2) ▸
       le_trans (Nat.mul_le_mul_right (Δ + 1) hm) (Nat.le_add_right _ _)
-    exact (Nat.le_div_iff_mul_le (by omega)).2 (by rw [Nat.mul_comm]; exact hlow)
   · rw [Nat.div_lt_iff_lt_mul (by omega)]
     calc m * (Δ + 1) + (Δ + 1) < m * (Δ + 1) + m := by omega
       _ = m * (Δ + 2) := by rw [← Nat.mul_succ]
@@ -422,10 +418,9 @@ private instance (x : V → ℕ) (k : ℕ) : (partialGraph G x k).LocallyFinite 
 
 private theorem partialGraph_degree_le (x : V → ℕ) (k : ℕ) (u : V) :
     (partialGraph G x k).degree u ≤ G.degree u := by
-  rw [← SimpleGraph.card_neighborFinset_eq_degree, ← SimpleGraph.card_neighborFinset_eq_degree]
-  refine Finset.card_le_card fun w hw => ?_
-  exact (SimpleGraph.mem_neighborFinset _ _ _).2
-    ((SimpleGraph.mem_neighborFinset _ _ _).1 hw).1
+  simp only [← SimpleGraph.card_neighborFinset_eq_degree]
+  exact Finset.card_le_card fun w hw =>
+    (SimpleGraph.mem_neighborFinset _ _ _).2 ((SimpleGraph.mem_neighborFinset _ _ _).1 hw).1
 
 private theorem partialGraph_zero_not_adj (x : V → ℕ) (u v : V) :
     ¬ (partialGraph G x 0).Adj u v := by
@@ -455,8 +450,7 @@ private theorem state_nbrUIDs_of_pos (Δ C : ℕ) (x : V → ℕ) {r : ℕ} (hr 
   clear hr
   induction t generalizing u with
   | zero =>
-    change ((deltaPlusOneColoring Δ C).state G x (0 + 1) u).nbrUIDs = nbrList G x u
-    rw [deltaPlusOneColoring_state_succ]
+    rw [Nat.add_comm 1 0, deltaPlusOneColoring_state_succ]
     simp only [deltaPlusOneStep, nbrList, ↓reduceIte, Multiset.map_map]; rfl
   | succ t ih =>
     have hpos : 1 + t ≠ 0 := by omega
@@ -736,14 +730,14 @@ theorem deltaPlusOneColoring_state_add (Δ C : ℕ) (x : V → ℕ) (t : ℕ) (u
   induction t generalizing u with
   | zero => rfl
   | succ t ih =>
-    have hnz : deltaPlusOneRounds Δ C + t ≠ 0 := by unfold deltaPlusOneRounds; omega
-    have hnlt1 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C := by
+    have h1 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C := by
       unfold deltaPlusOneRounds; omega
-    have hnlt2 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
-      unfold deltaPlusOneRounds; rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]; omega
+    have h2 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
+      unfold deltaPlusOneRounds
+      rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]; omega
+    have h0 : deltaPlusOneRounds Δ C + t ≠ 0 := by omega
     rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-    dsimp only [deltaPlusOneStep]
-    simp only [hnz, ↓reduceIte, hnlt1, hnlt2, ↓reduceDIte]
+    simp only [deltaPlusOneStep, h0, ↓reduceIte, h1, h2, ↓reduceDIte]
     exact ih u
 
 /-- Step towards `#7505` (not the cited endpoint, after [Cole and Vishkin][ColeVishkin1986],

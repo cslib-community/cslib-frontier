@@ -188,19 +188,13 @@ theorem im_toPlacedGate?_gate {g : GateCode} {p : PlacedGate m}
     split_ifs <;> simp
   match g, hp with
   | (true, t, []), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
+    obtain ⟨_, ⟨rfl⟩⟩ := Option.dite_none_right_eq_some.mp hp
     change ((Gate.hadamard : Matrix _ _ ℂ) y x).im = 0
     rw [Gate.hadamard_apply]
     split_ifs <;> simp
   | (true, t, _ :: _), hp => simp [toPlacedGate?] at hp
   | (false, t, []), hp | (false, t, [_]), hp | (false, t, [_, _]), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
+    obtain ⟨_, ⟨rfl⟩⟩ := Option.dite_none_right_eq_some.mp hp
     exact hperm _ y x
   | (false, t, _ :: _ :: _ :: _), hp => simp [toPlacedGate?] at hp
 
@@ -291,14 +285,12 @@ theorem exists_toPlacedGate?_eq_ctrlPhase {inv : Bool} {t : ℕ} {cs : List ℕ}
     simp only [Fin.forall_fin_one, Bool.decide_coe]
     rfl
   | [c], _, hnd, hlt =>
-    have ht : t < m := hlt t (by simp)
-    have hc : c < m := hlt c (by simp)
-    have hct : c ≠ t := fun h => by simp [h] at hnd
-    have h : c < m ∧ t < m ∧ c ≠ t := ⟨hc, ht, hct⟩
+    have h : c < m ∧ t < m ∧ c ≠ t := ⟨hlt c (List.mem_cons_of_mem _ List.mem_cons_self),
+      hlt t List.mem_cons_self, fun h => (List.nodup_cons.mp hnd).1 (h ▸ List.mem_cons_self)⟩
     refine ⟨2, ⟨![⟨c, h.1⟩, ⟨t, h.2.1⟩], ?_⟩, by simp [toPlacedGate?, h], fun w => ?_⟩
     · intro i j hij
       fin_cases i <;> fin_cases j <;> first | rfl | (simp [Fin.ext_iff] at hij; omega)
-    · rw [List.all_cons, List.all_cons, List.all_nil, Bool.and_true, hread w ht, hread w hc]
+    · rw [List.all_cons, List.all_cons, List.all_nil, Bool.and_true, hread w h.2.1, hread w h.1]
       simp only [Fin.forall_fin_two, Bool.decide_and, Bool.decide_coe]
       exact Bool.and_comm _ _
   | _ :: _ :: _, hlen, _, _ => simp at hlen
@@ -596,8 +588,8 @@ none. -/
     exact F.wellFormed n g hg
 
 @[simp] theorem acceptProb_toPhaseFamily (F : UniformCircuitFamily) (x : List Bool) :
-    F.toPhaseFamily.acceptProb x = F.acceptProb x := by
-  exact PhaseGateCode.acceptProb_ofCodes _ _ _
+    F.toPhaseFamily.acceptProb x = F.acceptProb x :=
+  PhaseGateCode.acceptProb_ofCodes _ _ _
 
 end UniformCircuitFamily
 

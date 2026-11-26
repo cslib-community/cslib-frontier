@@ -218,12 +218,12 @@ private theorem localGeometryOk_of_allowed (component : Thick) (quadrant : Quadr
     localGeometryOk component quadrant state = true := by
   have hrules := allowedFor_iff.mp allowed
   rcases state with ⟨w, e, s, n⟩
-  have h1 := List.all_eq_true.mp localGeometryOk_all component (mem_allThick component)
-  have h2 := List.all_eq_true.mp h1 quadrant (Quadrant.mem_all quadrant)
-  have h3 := List.all_eq_true.mp h2 w (mem_edgeOptions hrules.west_present)
-  have h4 := List.all_eq_true.mp h3 e (mem_edgeOptions hrules.east_present)
-  have h5 := List.all_eq_true.mp h4 s (mem_edgeOptions hrules.south_present)
-  exact List.all_eq_true.mp h5 n (mem_edgeOptions hrules.north_present)
+  have h2 := List.all_eq_true.mp (List.all_eq_true.mp localGeometryOk_all component
+    (mem_allThick component)) quadrant (Quadrant.mem_all quadrant)
+  have h4 := List.all_eq_true.mp (List.all_eq_true.mp h2 w (mem_edgeOptions hrules.west_present))
+    e (mem_edgeOptions hrules.east_present)
+  exact List.all_eq_true.mp (List.all_eq_true.mp h4 s (mem_edgeOptions hrules.south_present))
+    n (mem_edgeOptions hrules.north_present)
 
 private theorem localGeometry_unpack {component : Thick} {quadrant : Quadrant}
     {state : ShadeState} (allowed : allowedFor component quadrant state = true) :
@@ -244,17 +244,13 @@ private theorem localGeometry_unpack {component : Thick} {quadrant : Quadrant}
   simp only [localGeometryOk, allowed, Bool.not_true, Bool.false_or, Bool.and_eq_true,
     Bool.not_eq_true', Bool.and_eq_false_iff, beq_iff_eq, beq_eq_false_iff_ne] at h
   obtain ⟨⟨⟨⟨⟨hbal, hturn⟩, hhor⟩, hver⟩, hup⟩, hright⟩ := h
-  refine ⟨hbal, ?_, ?_, ?_, ?_, ?_⟩
-  · rintro ⟨hr, hu⟩
-    rcases hturn with hne | hne <;> exact hne (by assumption)
+  refine ⟨hbal, fun ⟨hr, hu⟩ => hturn.elim (· hr) (· hu), ?_, ?_,
+    fun hw he => by simpa only [hw, he, beq_iff_eq] using hup,
+    fun hs hn => by simpa only [hs, hn, beq_iff_eq] using hright⟩
   · rcases hsh : selectedHorizontalFor component quadrant state with _ | _ | _ <;>
       rw [hsh] at hhor <;> simpa only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] using hhor
   · rcases hsv : selectedVerticalFor component quadrant state with _ | _ | _ <;>
       rw [hsv] at hver <;> simpa only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] using hver
-  · intro hw he
-    simpa only [hw, he, beq_iff_eq] using hup
-  · intro hs hn
-    simpa only [hs, hn, beq_iff_eq] using hright
 
 /-- The signed light flow has zero divergence at every allowed quarter tile. -/
 private theorem balance_of_allowed (component : Thick) (quadrant : Quadrant)
@@ -726,20 +722,13 @@ private theorem selected_after_eq_of_negative_rejected
   | some direction =>
       rcases directions direction with rfl | rfl
       · rfl
-      · exfalso
-        obtain ⟨scan, scanEq, boundaryWeight, zeroOfPair⟩ :=
+      · obtain ⟨scan, scanEq, boundaryWeight, zeroOfPair⟩ :=
           exists_adjacent_weight coordinatePositive shared (rejectedWeight value)
-        apply negative_step_after_false
-          (potential := potential scan)
-          (weight := primary scan) startBoundary
-          (startHeight scan scanEq)
-          (fun position lower upper =>
-            step scan position scanEq lower upper)
-          (fun position lower upper =>
-            let pair := zero position lower upper
-            zeroOfPair position pair.1 pair.2)
-          boundaryWeight
-          (positive scan scanEq)
+        exact False.elim <| negative_step_after_false (potential := potential scan)
+          (weight := primary scan) startBoundary (startHeight scan scanEq)
+          (fun position lower upper => step scan position scanEq lower upper)
+          (fun pos lo hi => zeroOfPair pos (zero pos lo hi).1 (zero pos lo hi).2)
+          boundaryWeight (positive scan scanEq)
 
 /-- An oriented selected boundary before a unit-height point cannot be the
 direction whose local weight is `+1`. This is the reverse scan dual of
@@ -775,21 +764,14 @@ private theorem selected_before_eq_of_positive_rejected
   | some direction =>
       rcases directions direction with rfl | rfl
       · rfl
-      · exfalso
-        obtain ⟨scan, scanEq, boundaryWeight, zeroOfPair⟩ :=
+      · obtain ⟨scan, scanEq, boundaryWeight, zeroOfPair⟩ :=
           exists_adjacent_weight coordinatePositive shared (rejectedWeight value)
-        apply positive_step_before_false
-          (potential := potential scan)
-          (weight := primary scan) boundaryFinish
-          (finishHeight scan scanEq)
+        exact False.elim <| positive_step_before_false (potential := potential scan)
+          (weight := primary scan) boundaryFinish (finishHeight scan scanEq)
           (step scan boundary scanEq le_rfl boundaryFinish)
-          (fun position lower upper =>
-            step scan position scanEq (by omega) upper)
-          (fun position lower upper =>
-            let pair := zero position lower upper
-            zeroOfPair position pair.1 pair.2)
-          boundaryWeight
-          (positiveBefore scan scanEq)
+          (fun position _ upper => step scan position scanEq (by omega) upper)
+          (fun pos lo hi => zeroOfPair pos (zero pos lo hi).1 (zero pos lo hi).2)
+          boundaryWeight (positiveBefore scan scanEq)
 
 private theorem exists_first_after
     {P : Nat → Prop} {start finish : Nat}
@@ -923,28 +905,21 @@ private theorem boundary_of_unit_height
           selected value = none) := by
   apply boundary_of_exists_selected witness
   · intro boundary pointBoundary boundaryUpper boundarySelected between
-    apply selected_after_eq_of_negative_rejected directionsAfter scanPositive
-      pointBoundary boundarySelected (rejectedAfterWeight boundary) shared
-      pointHeight
-    · intro scan position scanEq lowerPosition upperPosition
-      exact step scan position scanEq (by omega) (by omega)
-    · intro position pointPosition positionBoundary
-      exact zeroWeights position (between position pointPosition positionBoundary)
-    · intro scan scanEq
-      exact positive scan boundary scanEq (by omega) boundaryUpper
+    exact selected_after_eq_of_negative_rejected directionsAfter scanPositive
+      pointBoundary boundarySelected (rejectedAfterWeight boundary) shared pointHeight
+      (fun scan position scanEq _ _ => step scan position scanEq (by omega) (by omega))
+      (fun position lo hi => zeroWeights position (between position lo hi))
+      (fun scan scanEq => positive scan boundary scanEq (by omega) boundaryUpper)
   · intro boundary boundaryLower boundaryPoint boundarySelected between pointClear
-    apply selected_before_eq_of_positive_rejected directionsBefore scanPositive
+    refine selected_before_eq_of_positive_rejected directionsBefore scanPositive
       (boundaryLeBeforeFinish boundary boundaryLower boundaryPoint)
       boundarySelected (rejectedBeforeWeight boundary) shared beforeHeight
-    · intro scan position scanEq boundaryPosition positionFinish
-      exact step scan position scanEq (by omega) (by omega)
-    · intro position boundaryPosition positionFinish
-      apply zeroWeights
-      by_cases positionPoint : position = point
-      · simpa [positionPoint] using pointClear
-      · exact between position boundaryPosition (by omega)
-    · intro scan scanEq
-      exact positive scan (boundary - 1) scanEq (by omega) (by omega)
+      (fun scan position scanEq _ _ => step scan position scanEq (by omega) (by omega))
+      (fun position boundaryPosition _ => zeroWeights position ?_)
+      (fun scan scanEq => positive scan (boundary - 1) scanEq (by omega) (by omega))
+    by_cases positionPoint : position = point
+    · simpa [positionPoint] using pointClear
+    · exact between position boundaryPosition (by omega)
 
 private theorem ValidShadeGrid.vertical_west_has_negative_weightAt
     (valid : ValidShadeGrid indexGrid stateGrid) {x y : Nat}

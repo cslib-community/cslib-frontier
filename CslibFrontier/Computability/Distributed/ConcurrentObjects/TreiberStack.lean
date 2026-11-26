@@ -386,13 +386,11 @@ theorem treiberFreshNode_cas_fail_witnesses_intervening_cas {P V : Type u} [Deci
       j < k ∧ q ≠ p ∧ labels j = .exec q false ∧
         (states (j + 1)).head ≠ (states j).head ∧
         (states (j + 1)).threads q = .returning resp := by
-  have hex_chg : ∃ j < k, (states (j + 1)).head ≠ (states j).head := by
+  obtain ⟨j, hj_lt, hj_chg⟩ : ∃ j < k, (states (j + 1)).head ≠ (states j).head := by
     by_contra! hconst
-    have heq_all : ∀ m ≤ k, (states m).head = expected :=
-      Nat.rec (fun _ => hread) fun m ih hm =>
-        (hconst m (Nat.lt_of_succ_le hm)).trans (ih (Nat.le_of_succ_le hm))
-    exact hfail (heq_all k le_rfl)
-  obtain ⟨j, hj_lt, hj_chg⟩ := hex_chg
+    exact hfail <| Nat.rec (motive := fun m => m ≤ k → (states m).head = expected)
+      (fun _ => hread)
+      (fun m ih hm => (hconst m (Nat.lt_of_succ_le hm)).trans (ih (Nat.le_of_succ_le hm))) k le_rfl
   have htr_j := htr j hj_lt
   cases hlbl : labels j with
   | invoke q =>
@@ -451,13 +449,10 @@ private theorem ValidSpine.congr_heap {V : Type u} {heap₁ heap₂ : List (Stac
     | some idx =>
       obtain ⟨rfl, _, nd, hnd₁, hrest⟩ := h
       obtain ⟨hnd₂_eq, hlt₂⟩ := heq idx List.mem_cons_self
-      have hnd₂ : heap₂[idx]? = some nd := hnd₂_eq.trans hnd₁
-      obtain ⟨hsp₂, hvals₂⟩ :=
-        ih hrest (fun i hi => heq i (List.mem_cons_of_mem _ hi))
-      refine ⟨⟨rfl, hlt₂, nd, hnd₂, hsp₂⟩, ?_⟩
-      dsimp only [spineVals, List.filterMap_cons]
-      rw [hnd₁, hnd₂]
-      exact congrArg (nd.val :: ·) hvals₂
+      obtain ⟨hsp₂, hvals₂⟩ := ih hrest fun i hi => heq i (List.mem_cons_of_mem _ hi)
+      refine ⟨⟨rfl, hlt₂, nd, hnd₂_eq.trans hnd₁, hsp₂⟩, ?_⟩
+      dsimp only [spineVals] at hvals₂ ⊢
+      simp only [List.filterMap_cons, hnd₂_eq.trans hnd₁, hnd₁, Option.map_some, hvals₂]
 
 /-- `EvalStack stk cs stkOut` holds when executing the completed stack calls `cs` sequentially from
 `stk` produces responses matching `cs` and ends in abstract stack `stkOut`. -/
@@ -646,22 +641,17 @@ private theorem NodeOwnershipInv.update_owns_iff {P V : Type u} [DecidableEq P]
       rw [hheap n fun hp => hqp (hn.own_uniq q p n hq_own hp)]
       exact hn.pushCAS_nd q w n exp hq
   popNext_ok q top hq := by
-    by_cases hqp : q = p
-    · subst hqp; rw [Function.update_self] at hq
-      obtain ⟨hlt, hno⟩ := hpn top hq
-      exact ⟨hlen ▸ hlt, fun r hr => hno r ((ownsNode_update_iff hown r top).mp hr)⟩
-    · rw [Function.update_of_ne hqp] at hq
-      obtain ⟨hlt, hno⟩ := hn.popNext_ok q top hq
-      exact ⟨hlen ▸ hlt, fun r hr => hno r ((ownsNode_update_iff hown r top).mp hr)⟩
+    obtain ⟨hlt, hno⟩ := (eq_or_ne q p).elim
+      (fun hqp => hpn top (by simpa [hqp] using hq))
+      (fun hqp => hn.popNext_ok q top (by simpa [hqp] using hq))
+    exact ⟨hlen ▸ hlt, fun r hr => hno r ((ownsNode_update_iff hown r top).mp hr)⟩
   popCAS_ok q top nxt val hq := by
-    by_cases hqp : q = p
-    · subst hqp; rw [Function.update_self] at hq
-      obtain ⟨hlt, hno, hnd⟩ := hpcas top nxt val hq
-      exact ⟨hlen ▸ hlt, fun r hr => hno r ((ownsNode_update_iff hown r top).mp hr), hnd⟩
-    · rw [Function.update_of_ne hqp] at hq
-      obtain ⟨hlt, hno, hnd⟩ := hn.popCAS_ok q top nxt val hq
-      exact ⟨hlen ▸ hlt, fun r hr => hno r ((ownsNode_update_iff hown r top).mp hr),
-        (hheap top (hno p)).trans hnd⟩
+    obtain ⟨hlt, hno, hnd⟩ := (eq_or_ne q p).elim
+      (fun hqp => hpcas top nxt val (by simpa [hqp] using hq))
+      (fun hqp =>
+        have ⟨hlt, hno, hnd⟩ := hn.popCAS_ok q top nxt val (by simpa [hqp] using hq)
+        ⟨hlt, hno, (hheap top (hno p)).trans hnd⟩)
+    exact ⟨hlen ▸ hlt, fun r hr => hno r ((ownsNode_update_iff hown r top).mp hr), hnd⟩
 
 /-- Forward inductive invariant of `TreiberFreshNodeState` maintaining the heap spine, fresh-node
 ownership disjointness, pending response extension `R` for `.returning` threads, and linearized
@@ -957,25 +947,21 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
     by_cases hqp : q = p
     · subst hqp
       simp only [Function.update_self, ProcHistoryMatch]
-      have hR'_p :
-          History.procSubhistory (R.filter fun e => decide (e.proc ≠ q)) q = [] := by
-        simp +contextual [History.procSubhistory, List.filter_filter]
-      refine ⟨hR'_p, cs_p ++ [⟨q, (), op_p, resp⟩], ?_⟩
+      refine ⟨by simp +contextual [History.procSubhistory, List.filter_filter],
+        cs_p ++ [⟨q, (), op_p, resp⟩], ?_⟩
       simp only [History.procSubhistory_append, hHp, History.procSubhistory_cons,
         Event.proc_resp, ↓reduceIte, History.procSubhistory_nil, List.flatMap_append,
         List.flatMap_cons, List.flatMap_nil, List.append_nil, OpCall.toEvents,
         List.append_assoc, List.cons_append, List.nil_append]
     · simp only [Function.update_of_ne hqp]
-      have hHq : History.procSubhistory (s.history ++ [.resp p () resp]) q =
-          History.procSubhistory s.history q := by
-        simp only [History.procSubhistory_append, History.procSubhistory_cons, Event.proc_resp,
-          Ne.symm hqp, ↓reduceIte, History.procSubhistory_nil, List.append_nil]
       have hR'_q :
           History.procSubhistory (R.filter fun e => decide (e.proc ≠ p)) q =
             History.procSubhistory R q := by
         simp only [History.procSubhistory, List.filter_filter]
         exact List.filter_congr fun e _ => by by_cases h : e.proc = q <;> simp [h, hqp]
-      exact procHistoryMatch_congr hHq hR'_q (hpm q)
+      exact procHistoryMatch_congr (by
+        simp only [History.procSubhistory_append, History.procSubhistory_cons, Event.proc_resp,
+          Ne.symm hqp, ↓reduceIte, History.procSubhistory_nil, List.append_nil]) hR'_q (hpm q)
 
 private theorem treiberInv_of_reachable {P V : Type u} [DecidableEq P]
     {s : TreiberFreshNodeState P V} (hs : (treiberFreshNodeSystem P V).Reachable s) :
