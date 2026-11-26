@@ -198,8 +198,7 @@ theorem compGmPushSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}
       (gm (gmSlabTopIdx b) + gm (gmSlabTopIdx b) +
         (gm (gmSlabTopIdx b) + gm (gmSlabTopIdx b))) + 3 =
       gmSlabAboveIdx N (gm (gmSlabTopIdx b)) := by unfold gmSlabAboveIdx; omega
-  dsimp only [gm] at *
-  dsimp only [s', compGmPushSlabGenProg]
+  dsimp only [gm, s', compGmPushSlabGenProg] at *
   rw [StateTransitionSpec.clientState_bind, clientState_compGmPushReadProg,
     clientResult_compGmPushReadProg hb_pos hb]
   dsimp only [compGmPushApplyProg, compGmPushWriteOwnerProg, compGmPushWriteLinksProg,
@@ -225,8 +224,7 @@ theorem compGmPushSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}
   refine ⟨hf1.trans (hf2.trans (hf3.trans (hf4.trans (hf5.trans (hf6.trans (hf7.trans hf8)))))),
     ?_⟩
   -- `dsimp` leaves `cpDirSlabs` in a `Decidable` instance, so match the goal up to defeq.
-  refine hg8.trans ?_
-  rw [hg7, hg6, hg5, hg4, hg3, hg2, hg1]; rfl
+  exact hg8.trans (by rw [hg7, hg6, hg5, hg4, hg3, hg2, hg1]; rfl)
 
 private def CompGmPushMetaPre (w : ℕ) :
     ((CompParams × ℕ) × (ℕ × ℕ)) × (ℕ × ℕ) → Memory.State → Prop
@@ -353,8 +351,7 @@ private theorem realizesBounded_compGmPushApply :
       runClient_state_writeCompGMGenProg, hfr]
   · refine ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, ?_, hb_pos, hb, hq_le_p, hp_lt⟩
     dsimp only [compGmPushWriteOwnerProg, compGmPushWriteLinksProg, StateTransitionSpec.clientState]
-    by_cases hc0 : 0 < q_b <;> by_cases hc1 : q_b < dirSlabsPerBucket N <;>
-      simp [cpDirSlabs_mk, hc0, hc1, runClient_state_writeCompGMGenProg, hfr]
+    split_ifs <;> simp [runClient_state_writeCompGMGenProg, hfr]
 
 private theorem realizesBounded_compGmPushRead :
     RealizesBounded .exact compGmPushReadProg
@@ -397,15 +394,14 @@ theorem validProg_compGmPushSlabGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
       CompMetaEnv w (mkCompParams U V w N) metaBase s' :=
     fun s' hs' => ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hs' ▸ hfr⟩
   obtain ⟨hq_lt, hq_eq, htop_lt, htop_eq, h0_lt⟩ := gmPush_q_indices hb_pos hb
-  have hrd_v : ValidProg w 0 s (compGmPushReadProg ((mkCompParams U V w N, metaBase), b)) := by
-    dsimp only [compGmPushReadProg]; rw [hq_eq, htop_eq]
+  dsimp only [compGmPushSlabGenProg]
+  refine validProg_bind (by
+    rw [compGmPushReadProg, hq_eq, htop_eq]
     refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hq_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, h0_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
-    exact validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, htop_lt⟩) (validProg_pure _)
-  dsimp only [compGmPushSlabGenProg]
-  refine validProg_bind hrd_v ?_
+    exact validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, htop_lt⟩) (validProg_pure _)) ?_
   rw [clientState_compGmPushReadProg, clientResult_compGmPushReadProg hb_pos hb s]
   set q_b := compGmAt metaBase U w N s.mem (gmQIdx b)
   set p_new := compGmAt metaBase U w N s.mem 0

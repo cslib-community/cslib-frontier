@@ -93,13 +93,10 @@ theorem card_filter_trialTuple (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U)
   refine sum_congr rfl fun j _ => ?_
   by_cases hj : j ∈ P
   · simp [hj]
-  have hpw : ∀ r : Fin k → U, trialTuple P b₀ x (j, r) =
-      (insert j P).piecewise (Function.update b₀ j x) r := by
-    intro r
-    funext i
-    by_cases hij : i = j
-    · subst hij
-      simp [trialTuple]
+  have hpw (r : Fin k → U) : trialTuple P b₀ x (j, r) =
+      (insert j P).piecewise (Function.update b₀ j x) r := funext fun i => by
+    rcases eq_or_ne i j with rfl | hij
+    · simp [trialTuple]
     · by_cases hi : i ∈ P <;> simp [trialTuple, hij, hi]
   have h := sum_piecewise_eq_card_pow_nsmul_sum (insert j P) (Function.update b₀ j x)
     (fun y => if q j y then 1 else 0)
@@ -154,8 +151,7 @@ theorem dpDecode_cons (C' : (Fin k → U) → Fin k → V) (dflt : V) (P : Finse
     (b₀ : Fin k → U) {m : ℕ} (t : Trial U k) (w : Fin m → Trial U k) (x : U) :
     dpDecode C' dflt P b₀ (Fin.cons t w : Fin (m + 1) → Trial U k) x =
       if accepts C' P b₀ x t then C' (trialTuple P b₀ x t) t.1 else dpDecode C' dflt P b₀ w x := by
-  unfold dpDecode
-  rw [firstAccepted_cons]
+  rw [dpDecode, firstAccepted_cons]
   split_ifs <;> rfl
 
 /-- The pairs `(j, y)` that account for the trials accepted at `x`: `j ∉ P`, `y = b₀` on `P`,
@@ -214,14 +210,11 @@ theorem card_filter_dpDecode_ne_mul_le (C' : (Fin k → U) → Fin k → V) (f :
   have hsub : #{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} ≤
       #{v : Fin m → Trial U k | (firstAccepted acc v).any bad} +
         #{v : Fin m → Trial U k | ∀ i, acc (v i) = false} := by
-    refine (card_le_card ?_).trans (card_union_le _ _)
-    intro v hv
+    refine (card_le_card fun v hv => ?_).trans (card_union_le _ _)
     simp only [mem_filter, mem_univ, true_and, mem_union] at hv ⊢
     cases h : firstAccepted acc v with
     | none => exact Or.inr ((firstAccepted_eq_none_iff acc v).1 h)
-    | some t =>
-      left
-      simpa [dpDecode, acc, h, bad] using hv
+    | some t => exact Or.inl (by simpa [dpDecode, acc, h, bad] using hv)
   rw [← hnone]
   nlinarith [Nat.mul_le_mul_right a hsub]
 
@@ -277,8 +270,7 @@ theorem sum_card_badPairs (C' : (Fin k → U) → Fin k → V) (f : U → V) (P 
   classical
   simp_rw [badPairs_eq_filter]
   rw [← card_eq_sum_card_fiberwise (fun _ _ => mem_univ _), card_filter, sum_product, sum_comm]
-  refine sum_congr rfl fun y _ => ?_
-  rw [card_filter]
+  exact sum_congr rfl fun _ _ => (card_filter _ _).symm
 
 /-- **Few inputs are rarely accepted**: if the consistent tuples have density at least `μ` among
 the tuples agreeing with `b₀` on `P`, the inputs with fewer than `#S w / (4 #U)` accepted pairs,
@@ -429,8 +421,7 @@ theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f :
       _ ≤ ε * n / 8 * w := by gcongr
   -- the timeout term
   have hexp : Real.exp (-(m * (n ^ (#P + 1) * θ / N))) ≤ ε / 8 := by
-    have hk' : #P + w = k := by
-      rw [add_comm]; simp [w]
+    have hk' : #P + w = k := (card_add_card_compl P).trans (Fintype.card_fin k)
     have hN : (N : ℝ) = k * n ^ k := by
       simp only [N, n, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin]; push_cast
       ring

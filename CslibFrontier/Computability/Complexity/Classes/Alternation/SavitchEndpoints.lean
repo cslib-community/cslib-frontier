@@ -315,29 +315,17 @@ private theorem computableInO_levelMarks :
 /-- A zip transducer emits at most two symbols per pair of digits, and two at the end. -/
 private theorem length_run_le {Q : Type} (τ : ZipTransducer Q) (q : Q) (u v : List Bool) :
     (τ.run q u v).length ≤ 2 * (u.length + v.length) + 2 := by
-  induction u generalizing q v with
-  | nil =>
-    induction v generalizing q with
-    | nil => simpa using τ.length_final_le q
-    | cons b v ih =>
-      have := τ.length_step_le q (none, some b)
-      have := ih (τ.step q (none, some b)).1
-      simp only [ZipTransducer.run_nil_cons, List.length_append, List.length_cons,
-        List.length_nil] at this ⊢
-      omega
-  | cons a u ih =>
-    cases v with
-    | nil =>
-      have := τ.length_step_le q (some a, none)
-      have := ih (τ.step q (some a, none)).1 []
-      simp only [ZipTransducer.run_cons_nil, List.length_append, List.length_cons,
-        List.length_nil] at this ⊢
-      omega
-    | cons b v =>
-      have := τ.length_step_le q (some a, some b)
-      have := ih (τ.step q (some a, some b)).1 v
-      simp only [ZipTransducer.run_cons_cons, List.length_append, List.length_cons] at this ⊢
-      omega
+  induction hn : u.length + v.length using Nat.strong_induction_on generalizing q u v with
+  | _ n ih =>
+    rcases u with _ | ⟨a, u⟩ <;> rcases v with _ | ⟨b, v⟩
+    · simpa only [ZipTransducer.run_nil_nil] using (τ.length_final_le q).trans (Nat.le_add_left _ _)
+    all_goals
+      simp only [ZipTransducer.run_nil_cons, ZipTransducer.run_cons_nil,
+        ZipTransducer.run_cons_cons, List.length_append]
+      refine (Nat.add_le_add (τ.length_step_le _ _) (ih _ ?_ _ _ _ rfl)).trans ?_
+      all_goals
+        simp only [List.length_cons, List.length_nil] at hn ⊢
+        omega
 
 /-- The word computed by the endpoint machine for the half `d`, on the width `w`, the number `i`
 of levels and the moves `z`: the endpoint scan of the level marks and the reversed moves, reversed.

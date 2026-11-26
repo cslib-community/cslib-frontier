@@ -104,9 +104,8 @@ lemma derivative_cubicPoly_eval_ne_zero (hΔ : (ofCubic α β γ).Δ ≠ 0) {c :
     (hc : (cubicPoly α β γ).IsRoot c) : (derivative (cubicPoly α β γ)).eval c ≠ 0 := by
   have heq : (ofCubic α β γ).toAffine.Equation c 0 := by
     rw [Affine.equation_iff]
-    have := eval_cubicPoly α β γ c ▸ hc.eq_zero
     simp only [ofCubic_a₁, ofCubic_a₂, ofCubic_a₃, ofCubic_a₄, ofCubic_a₆]
-    linear_combination -this
+    linear_combination -1 * ((eval_cubicPoly α β γ c).symm.trans hc.eq_zero)
   have hns := (Affine.nonsingular_iff _ _).1
     ((Affine.equation_iff_nonsingular_of_Δ_ne_zero hΔ).1 heq)
   have hd : (derivative (cubicPoly α β γ)).eval c = 3 * c ^ 2 + 2 * α * c + β := by
@@ -164,9 +163,8 @@ lemma equation_P₁ (hF : ringChar F ≠ 2) (α β γ : F) :
   have hodd : (Fintype.card F + 3) / 2 * 2 = Fintype.card F + 3 := by
     have := FiniteField.odd_card_of_char_ne_two hF
     omega
-  rw [Affine.equation_iff]
-  simp only [twistPoly_a₁, twistPoly_a₂, twistPoly_a₃, twistPoly_a₄, twistPoly_a₆]
-  rw [← pow_mul, hodd]
+  simp only [Affine.equation_iff, twistPoly_a₁, twistPoly_a₂, twistPoly_a₃, twistPoly_a₄,
+    twistPoly_a₆, ← pow_mul, hodd]
   linear_combination cubicPoly α β γ ^ 3 * cubicPoly_pow_card α β γ
 
 variable {α β γ : F}
@@ -295,10 +293,9 @@ private lemma d_P₁_sub_P₀_eq (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β �
     (map_ne_zero_iff _ (RatFunc.algebraMap_injective _)).2 hQ
   have hDι := algebraMap_cubicPoly_ne_zero α β γ
   have hx : algebraMap F[X] (RatFunc F) (cubicPoly α β γ * X ^ Fintype.card F) ≠
-      algebraMap F[X] (RatFunc F) (cubicPoly α β γ * X) := by
-    intro h
-    rw [map_mul, map_mul] at h
-    exact hQ (sub_eq_zero.2 (RatFunc.algebraMap_injective _ (mul_left_cancel₀ hDι h)))
+      algebraMap F[X] (RatFunc F) (cubicPoly α β γ * X) := fun h =>
+    hQ (sub_eq_zero.2 (mul_left_cancel₀ (cubicPoly_ne_zero α β γ)
+      (RatFunc.algebraMap_injective _ h)))
   rw [P₁_eq hF hΔ, P₀_eq hΔ, sub_eq_add_neg, Affine.Point.neg_some,
     Affine.Point.add_of_X_ne hx]
   refine d_some_eq_of_div _ ?_
@@ -306,8 +303,7 @@ private lemma d_P₁_sub_P₀_eq (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β �
   simp only [Affine.addX, Affine.negY, twist, map_a₁, map_a₂, map_a₃,
     twistPoly_a₁, twistPoly_a₂, twistPoly_a₃, map_zero, zero_mul, sub_zero, add_zero,
     d1Num, hodd, map_mul, map_pow, map_sub, map_add, map_one] at hQι ⊢
-  field_simp
-  ring
+  field_simp; ring
 
 variable [DecidableEq F]
 
@@ -505,9 +501,8 @@ theorem hasse_bound_zmod {p : ℕ} [Fact p.Prime] (W : WeierstrassCurve (ZMod p)
       (Nat.card W.toAffine.Point : ℝ) ≤ p + 1 + 2 * Real.sqrt p := by
   rcases eq_or_ne p 2 with rfl | hp
   · obtain ⟨h1, h5⟩ := natCard_point_zmod_two W
-    have : 1 ≤ Real.sqrt 2 := Real.one_le_sqrt.2 (by norm_num)
     simp only [Nat.cast_ofNat]
-    constructor <;> cast_linarith
+    constructor <;> cast_linarith [Real.one_le_sqrt.2 one_le_two]
   · obtain ⟨h1, h2⟩ := abs_le.1
       (ZMod.card p ▸ abs_natCard_point_sub_le (ZMod.ringChar_zmod_n p ▸ hp) W)
     exact ⟨by linarith, by linarith⟩

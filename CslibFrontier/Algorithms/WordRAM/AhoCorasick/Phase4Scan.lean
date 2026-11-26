@@ -116,8 +116,7 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         rw [hx₁_mem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
     have hhold₁ : Block.HoldsList (inp.outBase + 1)
         (acc ++ [x.regs r3, inp.trie.depth (x.regs r4)]) x₁.mem := by
-      rw [hx₁_mem]
-      simpa only [List.length_append, List.length_singleton, List.append_assoc,
+      simpa only [hx₁_mem, List.length_append, List.length_singleton, List.append_assoc,
         List.singleton_append, Nat.add_assoc] using
         (hhold.append_one (x.regs r3)).append_one (inp.trie.depth (x.regs r4))
     have hdq : inp.trie.depth (x.regs r4) < fuel + 1 := hfuel.resolve_left (by omega)
@@ -126,10 +125,9 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         (hx₁_r4 ▸ hqn_lt) (hx₁_r4 ▸ hqn_dec.imp_right fun _ => by omega)
         (by simp [hx₁_r2]; omega) hhold₁
         (by simp [hx₁_r4]; omega)
-    rw [hx₁_r4] at he_tl hholdy hy_r2
-    rw [hx₁_r3] at hholdy
-    simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.append_assoc]
-      at hholdy ⊢
+    rw [hx₁_r4] at he_tl hy_r2
+    simp only [hx₁_r4, hx₁_r3, List.flatMap_cons, List.cons_append, List.nil_append,
+      List.append_assoc] at hholdy ⊢
     exact ⟨y, (ExecWithin.loop_iter hc he_st he_tl).mono (by omega), hLy, hMy, hholdy,
       by simp [hy_r2]; omega, hy_rS.trans hx₁_rS, hy_r1.trans hx₁_r1, hy_r3.trans hx₁_r3⟩
 
@@ -236,10 +234,9 @@ private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     obtain ⟨x₂, u', hu'_lt, he_st, hL₂, hm2, hs2, hu'_str, hu'_depth, h12, h22, h32, _⟩ :=
       exec_stepCode inp w hvalid hw x₁ hL₁ (by rwa [hm1]) (by rw [hs1]; exact hu_lt)
         (by rw [h51]; exact ha_lt)
-    rw [hs1] at he_st hu'_str hu'_depth
-    rw [h51] at hu'_str
+    rw [hs1] at he_st hu'_depth
     have hu'_lns : inp.trie.strOf u' = longestNodeSuffix inp.patterns (pref ++ [a]) := by
-      rw [hu'_str, hu_str, ← longestNodeSuffix_append_singleton_eq_nextMove]
+      rw [hu'_str, hs1, h51, hu_str, ← longestNodeSuffix_append_singleton_eq_nextMove]
     have hout_eq : output inp.patterns (inp.trie.strOf u') = output inp.patterns (pref ++ [a]) := by
       rw [hu'_lns, output_longestNodeSuffix]
     have hocc_pref_le : (occurrences inp.patterns (pref ++ [a])).length ≤
@@ -263,23 +260,18 @@ private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       wram_exec
       wram_simp [x₄, hr3₃, h32, h31]
     have hs4 : x₄.regs rState = u' := by wram_simp [x₄, hs3, hs2]
-    have h14 : x₄.regs r1 = (pref ++ [a]).length := by
-      rw [List.length_append, List.length_singleton]
-      wram_simp [x₄]
+    have h14 : x₄.regs r1 = (pref ++ [a]).length := by simp [x₄]
     have h24 : x₄.regs r2 =
         inp.outBase + 1 + 2 * (occurrences inp.patterns (pref ++ [a])).length := by
-      rw [show x₄.regs r2 = x₃.regs r2 by wram_simp [x₄], hr2₃, hocc_next_len]
-      omega
+      have hr2_eq : x₄.regs r2 = x₃.regs r2 := by wram_simp [x₄]
+      rw [hr2_eq, hr2₃, hocc_next_len]; omega
     obtain ⟨y, he_tl, hLy, hMy, hholdy, hy_r2⟩ :=
       ih (pref ++ [a]) x₄ (by rw [List.append_assoc, List.singleton_append, hpt])
         (hL₃.of_preserves he_adv) hM₃ (hs4 ▸ hu'_lt) (hs4 ▸ hu'_lns)
         h14 h24 hhold₃
     rw [hs4] at he_tl
-    refine ⟨y,
-      (ExecWithin.loop_iter hc (he_hd.seq (he_st.seq (he_em.seq he_adv))) he_tl).mono ?_,
-      hLy, hMy, hholdy, hy_r2⟩
-    simp only [List.length_cons]
-    omega
+    exact ⟨y, (ExecWithin.loop_iter hc (he_hd.seq (he_st.seq (he_em.seq he_adv))) he_tl).mono
+      (by simp only [List.length_cons]; omega), hLy, hMy, hholdy, hy_r2⟩
 
 theorem exec_scanCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) (x : Data 26)

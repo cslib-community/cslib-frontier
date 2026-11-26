@@ -63,13 +63,10 @@ private theorem inLiveTag_reads_step {c U V w n_max base b : ℕ} {fs : FastStat
       (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), 8)) s
       (fs.rebDoneFlag b) 2 := by
   have : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  have hS := CostBoundedStep.of (readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-    (by dsimp [hdrRebStage]; omega) (s := s))
-  rw [hrep.2.2.2.2.2.1] at hS
-  exact ⟨hS, .of (readOldEpProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-      (by dsimp [hdrCurEp]; omega) hce hrep.2.2.2.1 (s := s)),
-    by simpa only [getBktField] using CostBoundedStep.readBkt henv hb (by decide : 8 < 10) hrep⟩
+  exact ⟨hrep.2.2.2.2.2.1 ▸ .of (readHdrProg_spec (w := w) (base := base) (hdrOff := hdrRebStage)
+      (by dsimp [hdrRebStage]; omega)),
+    .of (readOldEpProg_spec (w := w) (by dsimp [hdrCurEp]; omega) hce hrep.2.2.2.1),
+    CostBoundedStep.readBkt henv hb (by decide : 8 < 10) hrep⟩
 
 /-- Sub-helper 6.1a: delete `rKey_u` from `buf 0` (`st_del = 2`) or `buf 1` (`st_del = 3`). -/
 @[irreducible] def delRemBufGenProg :
@@ -249,7 +246,6 @@ theorem delRemLiveGenProg_fastStep {c U V w n_max base b st_del fp_live_u : ℕ}
   by_cases hin : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
   · rw [ite_eq_left hin] at hIL ⊢
     have h2 := CostBoundedStep.readBkt henv hb (by decide : 2 < 10) hrep (s := s)
-    simp only [getBktField] at h2
     have hlIdx : fs.liveSliceIdx b < 3 * numBucketsWhp n_max := by
       unfold FastState.liveSliceIdx; omega
     obtain ⟨hbd_mc, hbd_vp, hbd_step⟩ :=
@@ -472,9 +468,8 @@ theorem delRemOmGenProg_fastStep {c U V w n_max base b loc_del st_del fp_live_u 
     FastStateStep base c U V w n_max θ { fs with slices := slices2 } s s' := by
   have h5 := CostBoundedStep.readBkt henv hb (by decide : 5 < 10) hrep (s := s)
   have h6 := CostBoundedStep.readBkt henv hb (by decide : 6 < 10) hrep (s := s)
-  obtain ⟨hIL1, hIL2, hIL3, hIL4⟩ := readInLiveTagGenProg_spec henv hce hb hrep (st := st_del)
-    (s := s)
-  have hIL : CostBoundedStep _ _ _ _ _ _ _ := ⟨hIL1, hIL2, hIL3, hIL4⟩
+  obtain ⟨hIL1, hIL2, hIL3, hIL4⟩ :=
+    readInLiveTagGenProg_spec henv hce hb hrep (st := st_del) (s := s)
   simp only [getBktField] at h5 h6
   have hcond_iff :
       (fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
@@ -490,15 +485,14 @@ theorem delRemOmGenProg_fastStep {c U V w n_max base b loc_del st_del fp_live_u 
   · rw [ite_eq_left hcond]
     obtain ⟨hins_om, om, hv_om⟩ := hom_fn hcond.1
     have h4 := CostBoundedStep.readBkt henv hb (by decide : 4 < 10) hrep (s := s)
-    simp only [getBktField] at h4
     have homIdx : fs.overmarsSliceIdx b < 3 * numBucketsWhp n_max := by
       unfold FastState.overmarsSliceIdx; omega
     obtain ⟨hbd_mc, hbd_vp, hbd_step⟩ :=
       btreeDeleteGenProg_fastStep henv homIdx hins_om hseed hrep hv_om hfp (s := s)
-    exact CostBoundedStep.elim (.bind h5 <| .bind h6 <| .bind hIL <|
+    exact CostBoundedStep.elim (.bind h5 <| .bind h6 <| .bind ⟨hIL1, hIL2, hIL3, hIL4⟩ <|
       .if_pos (hcond_iff.mpr hcond) <| .bind h4 ⟨rfl, rfl, hbd_mc, hbd_vp⟩) (by omega) hbd_step
   · rw [ite_eq_right hcond]
-    exact CostBoundedStep.elim (.bind h5 <| .bind h6 <| .bind hIL <|
+    exact CostBoundedStep.elim (.bind h5 <| .bind h6 <| .bind ⟨hIL1, hIL2, hIL3, hIL4⟩ <|
       .if_neg (fun h => hcond (hcond_iff.mp h)) <| .pure _ _) (by omega)
       (FastStateStep.refl hseed hrep)
 

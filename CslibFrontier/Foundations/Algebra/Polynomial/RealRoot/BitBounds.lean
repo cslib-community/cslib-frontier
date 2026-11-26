@@ -70,9 +70,7 @@ private theorem foldl_coeffBitBound_ge (cs : List ℚ) (init : ℕ) :
     init ≤ cs.foldl (fun acc q => max acc (max (Int.natAbs q.num).size q.den.size)) init := by
   induction cs generalizing init with
   | nil => exact le_rfl
-  | cons q qs ih =>
-    simp only [List.foldl_cons]
-    exact (le_max_left _ _).trans (ih _)
+  | cons q qs ih => exact (le_max_left _ _).trans (ih _)
 
 /-- Every coefficient list `cs` satisfies `HasCoeffBitBound (coeffBitBound cs) cs`. -/
 theorem hasCoeffBitBound_coeffBitBound (cs : List ℚ) :
@@ -227,8 +225,8 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
       _ = 2 ^ ((cs.length + 1) * B) := by rw [Nat.add_one_mul, add_comm, pow_add]
   have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := pow_right_comm 2 _ 2
   have hsq : sqNormList ns ≤ t.length * 4 ^ ((cs.length + 1) * B) := by
-    simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map] using
-      foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
+    simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map]
+      using foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
   exact hsq.trans (Nat.mul_le_mul_right _ ht_len)
 
 /-- Logarithmic bound on `sqNormList (clearDenomsList (CoeffList.trim cs)).2`
@@ -257,8 +255,7 @@ theorem mignotteBisectionDepth_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
         (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left (by decide) cs.length))))
     have h2 := Nat.mul_le_mul ((Nat.sub_le _ 1).trans hd_le_n) (clog4_sqNormList_le_of_bitBound hB)
     nlinarith
-  · rw [mignotteBisectionDepth_eq_zero_of_natDegree_le_one (by omega)]
-    exact Nat.zero_le _
+  · simp [mignotteBisectionDepth_eq_zero_of_natDegree_le_one (cs := cs) (by omega)]
 
 /-- Predicate asserting that `q : ℚ` is a dyadic rational `z / 2 ^ e` with `|z| ≤ b * 2 ^ e`. -/
 def DyadicBounded (b e : ℕ) (q : ℚ) : Prop :=
@@ -363,20 +360,19 @@ theorem isolateIoc_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBo
     dsimp only
     split_ifs with hc0 hc1
     · simp
-    · simp only [List.mem_singleton, forall_eq]
-      exact ⟨(refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv).1.mono (by omega),
-        (refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv).2.mono (by omega)⟩
+    · obtain ⟨hl, hr⟩ := refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv
+      simpa only [List.mem_singleton, forall_eq] using ⟨hl.mono (by omega), hr.mono (by omega)⟩
     · cases fuel with
       | zero => simp
       | succ fuel' =>
-        have hm : DyadicBounded b (e + 1) ((u + v) / 2) := hu.mid hv
-        intro I hI
+        have hm := hu.mid hv
         rw [← Nat.add_assoc e fuel' 1, Nat.add_right_comm e fuel' 1]
+        rintro I hI
         rcases List.mem_append.mp hI with hL | hR
-        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u
-            ((u + v) / 2) vu _ (hu.mono (by omega)) hm I hL
-        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1)
-            ((u + v) / 2) v _ vv hm (hv.mono (by omega)) I hR
+        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u ((u + v) / 2) vu _
+            (hu.mono (by omega)) hm I hL
+        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) ((u + v) / 2) v _ vv
+            hm (hv.mono (by omega)) I hR
 
 /-- Unconditional dyadic endpoint bound: every interval in `isolateRoots cs` has endpoints of the
 form `z / 2 ^ (2 * mignotteBisectionDepth cs)` with
@@ -388,9 +384,8 @@ theorem isolateRoots_dyadicBounded (cs : List ℚ) :
   simp only [isolateRoots]
   split_ifs with he
   · simp
-  · intro I hI
-    simpa only [zero_add, two_mul] using isolateIoc_dyadicBounded (CoeffList.trim cs)
+  · simpa only [zero_add, two_mul] using isolateIoc_dyadicBounded (CoeffList.trim cs)
       (sturmSeqList cs) (mignotteBisectionDepth cs) (mignotteBisectionDepth cs)
-      (cauchyBoundNat cs) 0 _ _ _ _ (DyadicBounded.of_neg_nat _) (DyadicBounded.of_nat _) I hI
+      (cauchyBoundNat cs) 0 _ _ _ _ (.of_neg_nat _) (.of_nat _)
 
 end Cslib.RealRoot

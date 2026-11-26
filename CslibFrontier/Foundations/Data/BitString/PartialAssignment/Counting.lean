@@ -91,15 +91,12 @@ theorem card_filter_extensions_free_eq (ρ₀ : PartialAssignment ι) (ℓ : ℕ
     simp only [mem_filter, mem_extensions, Fintype.mem_piFinset]
     constructor
     · rintro ⟨⟨hext, -⟩, rfl⟩ i
-      by_cases hi : i ∈ ρ.free
-      · simp only [hi, ↓reduceIte, mem_singleton, mem_free.1 hi]
-      · obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 fun h => hi (mem_free.2 h)
-        by_cases hi₀ : i ∈ ρ₀.free
-        · cases b <;>
-            simp only [hi, ↓reduceIte, hi₀, mem_insert, mem_singleton, hb, true_or, or_true]
-        · obtain ⟨c, hc⟩ := Option.ne_none_iff_exists'.1 fun h => hi₀ (mem_free.2 h)
-          simp only [hi, ↓reduceIte, hi₀, mem_singleton]
-          rw [hext i c hc, hc]
+      rcases hρ : ρ i with _ | (_ | _)
+      · simp [mem_free.2 hρ]
+      all_goals
+        rcases hρ₀ : ρ₀ i with _ | c
+        · simp [mem_free, hρ, hρ₀]
+        · simp [mem_free, hρ, hρ₀, (hext i c hρ₀).symm.trans hρ]
     · intro h
       have hfree : ρ.free = S := by
         ext i
@@ -113,15 +110,14 @@ theorem card_filter_extensions_free_eq (ρ₀ : PartialAssignment ι) (ℓ : ℕ
       have hi₀ : i ∉ ρ₀.free := by simp only [mem_free, hb, reduceCtorEq, not_false_eq_true]
       have hi : i ∉ S := fun hi => hi₀ (hSsub hi)
       simpa only [hi, ↓reduceIte, hi₀, mem_singleton, hb] using h i
+  have hsdiff : ({a | a ∉ S ∧ a ∈ ρ₀.free} : Finset ι) = ρ₀.free \ S := by
+    ext a
+    simp only [mem_filter, mem_univ, true_and, mem_sdiff, and_comm]
   rw [this, Fintype.card_piFinset]
   simp only [apply_ite card, card_singleton,
     card_pair (by decide : some false ≠ some true)]
   rw [prod_ite, prod_const_one, one_mul, prod_ite, prod_const,
-    prod_const_one, mul_one, filter_filter,
-    show ({a | a ∉ S ∧ a ∈ ρ₀.free} : Finset ι) = ρ₀.free \ S by
-      ext a
-      simp only [mem_filter, mem_univ, true_and, mem_sdiff, and_comm],
-    card_sdiff_of_subset hSsub, hScard]
+    prod_const_one, mul_one, filter_filter, hsdiff, card_sdiff_of_subset hSsub, hScard]
 
 /-- There are `(m choose ℓ) 2 ^ (m - ℓ)` extensions of `ρ₀` leaving `ℓ` of the `m` free
 coordinates of `ρ₀` free. -/
@@ -206,10 +202,9 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
     exact hb
   · obtain ⟨-, hext⟩ := mem_filter.1 hρ
     funext i
-    by_cases hi : i ∈ ρ.free
-    · simp only [hi, ↓reduceIte, mem_free.1 hi]
-    · obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 fun h => hi (mem_free.2 h)
-      simp only [hi, ↓reduceIte, hb, hext i b hb]
+    rcases hρi : ρ i with _ | b
+    · simp only [mem_free.2 hρi, ↓reduceIte]
+    · simp only [mem_free, hρi, reduceCtorEq, ↓reduceIte, hext i b hρi]
   · exact hfree (mem_filter.1 hF).2
 
 /-! ### Drawing random restrictions -/
@@ -223,11 +218,7 @@ theorem card_filter_outside_eq (ρ : PartialAssignment ι) :
   ext z
   simp only [mem_filter, mem_univ, true_and, funext_iff, outside]
   refine forall_congr' fun i => ?_
-  by_cases hi : i ∈ ρ.free
-  · simp only [hi, ↓reduceIte, mem_free.1 hi, not_true_eq_false, false_implies]
-  · obtain ⟨c, hc⟩ := Option.ne_none_iff_exists'.1 fun h => hi (mem_free.2 h)
-    simp only [hi, ↓reduceIte, hc, fill, Option.getD_some, not_false_eq_true, forall_const,
-      Option.some.injEq]
+  rcases hρ : ρ i with _ | c <;> simp [mem_free, hρ, fill]
 
 /-- **Drawing a free set and a word**: fixing the coordinates outside a set `J` of `ℓ`
 coordinates to a word `z` draws every partial assignment with `ℓ` free coordinates `2 ^ ℓ`

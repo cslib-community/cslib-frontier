@@ -296,8 +296,7 @@ theorem realizes_readBackPtrGen :
       (fun _ _ => 0) := by
   unfold readBackPtrGenProg
   realize [realizes_readPackedGen]
-  · exact (backPtr_realize_bounds h).1
-  · exact (backPtr_realize_bounds h).2
+  all_goals first | exact (backPtr_realize_bounds h).1 | exact (backPtr_realize_bounds h).2
 
 theorem readBackPtrGenProg_spec {c U V w n_max base b k : ℕ} {fs : FastState}
     {s : Memory.State}
@@ -380,17 +379,15 @@ theorem writeBackPtrGenProg_fastStep {c U V w n_max base b k pSlot : ℕ}
           (hpool0 j hj).1,
         (readPacked_writePacked_disjoint hw hj hidxW (Or.inr (by omega))).trans
           (hpool0 j hj).2⟩)⟩
-  dsimp only
-  by_cases hbk : b' = b ∧ k' = k
-  · rcases hbk with ⟨rfl, rfl⟩
-    simp only [Function.update_self]
+  simp only [Function.update_apply, ite_apply]
+  split_ifs with hbb hkk
+  · subst hbb hkk
     exact readPacked_writePacked_self _ _ _ s.mem idxW hp_g
-  · have hne : b' * capBackWhp n_max + k' ≠ idxW :=
-      fun heq => hbk (mul_add_inj_right hk' hk heq)
-    rw [readPacked_writePacked_of_ne hw s.mem hne pSlot, hbptr0 b' hb' k' hk']
-    by_cases hbb : b' = b
-    · subst hbb; simp [show k' ≠ k from fun h => hbk ⟨rfl, h⟩]
-    · simp [hbb]
+  · subst hbb
+    exact (readPacked_writePacked_of_ne hw s.mem
+      (fun heq => hkk (mul_add_inj_right hk' hk heq).2) pSlot).trans (hbptr0 _ hb' k' hk')
+  · exact (readPacked_writePacked_of_ne hw s.mem
+      (fun heq => hbb (mul_add_inj_right hk' hk heq).1) pSlot).trans (hbptr0 b' hb' k' hk')
 
 /-! ## Section 3: Composite Coordinate Helpers (`physSlot`, `rKeyAt`, `fpAt`) -/
 
@@ -436,15 +433,13 @@ theorem realizes_physSlotGen :
     simp only [wp_large_capFront hth, wp_large_frontTotal hth, wp_large_M hth,
       wp_large_capBack hth] at *
     first
-    | (have hlt : b * capFrontWhp n_max + loc < numBucketsWhp n_max * capFrontWhp n_max :=
-         mul_add_lt_mul_bound hb (by omega)
+    | (have _ := mul_add_lt_mul_bound hb (by omega)
        exact henv.fits_of_le_n_max (by omega))
     | omega
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     | (obtain ⟨_, hres, _, _⟩ := readBackPtrGenProg_spec henv hb (hcb (by omega)) hrep (s := s)
-       rw [hres]
-       have hp := hbp_lt (by omega)
-       exact henv.fits_of_le_n_max (by omega))
+       have _ := hbp_lt (by omega)
+       exact hres.symm ▸ henv.fits_of_le_n_max (by omega))
   )
 
 theorem physSlotGenProg_spec {c U V w n_max base b loc : ℕ} {fs : FastState}

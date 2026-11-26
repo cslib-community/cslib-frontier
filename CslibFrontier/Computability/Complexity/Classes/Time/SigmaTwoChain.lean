@@ -446,16 +446,12 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
         exact List.cons_ne_nil _ _ hr.symm
       have hg := heqG u (P a, step^[m] s₀) (hlen ▸ hLG hTg)
       simp only [encPair_apply, encBool_apply, hgoalm] at hg
-      rw [chainCheck_single hR, hw, him, hg]
-      rfl
+      simp [chainCheck_single hR, hw, him, hg]
     · obtain ⟨hi', hw', -⟩ := drop_map_range_eq_cons hr.symm
       rw [chainCheck_cons_cons hR, hu₁, hw, hw']
-      have hx := heqF u (P a, (step^[leadingTrues v] s₀, bw))
-        (hlen ▸ hLF (hTn _ (by omega)))
-      have hiter : next (P a, (step^[leadingTrues v] s₀, bw)) = step^[leadingTrues v + 1] s₀ :=
-        (Function.iterate_succ_apply' step _ _).symm
-      simp only [hiter, encPair_apply, encBits_apply, encBool_apply] at hx
-      simp [hx]
+      have hx := heqF u (P a, (step^[leadingTrues v] s₀, bw)) (hlen ▸ hLF (hTn _ (by omega)))
+      simp only [encPair_apply, encBits_apply, encBool_apply] at hx
+      simp [hx, Function.iterate_succ_apply', step]
   · -- soundness: the guessed words are the iterates, by induction
     rintro ⟨u, hu, hV⟩
     set bw := unframe u with hbw
@@ -497,8 +493,7 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
       rw [cvRest, leadingTrues_pick, hchain m le_rfl, List.drop_length]
     have hmE := length_frames_le E
     have hlast := hV (pick m 0 L) (length_pick (by omega))
-    dsimp only at hlast
-    rw [chainCheck_single hR, decide_eq_true_iff] at hlast
+    simp only [chainCheck_single hR, decide_eq_true_iff] at hlast
     have hpre := hpreG u (P a, step^[m] s₀)
     simp only [encPair_apply, encBool_apply] at hpre
     rw [List.take_of_length_le (hpre.length_le.trans (by simp))] at hlast

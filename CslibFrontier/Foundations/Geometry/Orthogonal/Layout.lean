@@ -115,11 +115,9 @@ theorem fan_bounds {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} (hp : p ∈ fan v s) :
 /-- Distinct vertex boxes have disjoint local fans. -/
 theorem fan_disjoint {u v : ℕ} (huv : u ≠ v) (s t : Fin 3) :
     Disjoint (fan u s) (fan v t) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
+  refine Set.disjoint_left.2 fun p hp hq => ?_
   have hp' := fan_bounds hp
-  have hq' := fan_bounds hq
-  rcases lt_or_gt_of_ne huv with h | h <;> cast_linarith
+  rcases lt_or_gt_of_ne huv with h | h <;> cast_linarith [fan_bounds hq]
 
 /-- Membership in a stem fixes its column and its closed vertical interval. -/
 theorem mem_stem {n e v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
@@ -208,11 +206,9 @@ theorem route_bounds {n m e u v : ℕ} (he : e < m) (hu : u < n) (hv : v < n)
 /-- One edge has wire length at most `80n+10m`, with no assumption on degree. -/
 theorem route_wireLength_le {n m e u v : ℕ} (he : e < m) (hu : u < n) (hv : v < n)
     (s t : Fin 3) : wireLength (route n e u v s t) ≤ 80 * n + 10 * m := by
-  have hb := wireLength_le_box (w := 8 * n) (h := 8 * n + 2 * m)
-    (r := route n e u v s t) (fun p hp => by
-      exact_mod_cast route_bounds he hu hv s t hp)
-  rw [route_segments_length] at hb
-  omega
+  have hb := wireLength_le_box (w := 8 * n) (h := 8 * n + 2 * m) (r := route n e u v s t)
+    fun _ hp => mod_cast route_bounds he hu hv s t hp
+  rw [route_segments_length] at hb; omega
 
 /-- A route visits no vertex center except its two prescribed endpoints. This concerns the
 whole real segment support, not only its six listed points. -/
@@ -268,22 +264,17 @@ theorem stem_disjoint {n e f u v : ℕ} {s t : Fin 3} (h : (u, s) ≠ (v, t)) :
 /-- A local fan lies strictly below every upper bridge. -/
 theorem fan_bridge_disjoint {n e u v w : ℕ} (hw : w < n) (s t q : Fin 3) :
     Disjoint (fan w q) (bridge n e u v s t) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
-  have hb := fan_bounds hp
+  refine Set.disjoint_left.2 fun p hp hq => ?_
   have hy := (mem_bridge.1 hq).1
-  have he : (0 : ℝ) ≤ e := by positivity
   simp only [track] at hy
-  cast_linarith [hw]
+  cast_linarith [hw, fan_bounds hp, (Nat.cast_nonneg e : (0 : ℝ) ≤ e)]
 
 /-- Distinct edge tracks give disjoint upper bridges. -/
 theorem bridge_disjoint {n e f u v a b : ℕ} (hef : e ≠ f) (s t q r : Fin 3) :
     Disjoint (bridge n e u v s t) (bridge n f a b q r) := by
   refine Set.disjoint_left.2 fun p hp hq => hef ?_
-  have htrack : track n e = track n f := by
-    exact_mod_cast (mem_bridge.1 hp).1.symm.trans (mem_bridge.1 hq).1
-  simp only [track] at htrack
-  omega
+  have ht : track n e = track n f := mod_cast (mem_bridge.1 hp).1.symm.trans (mem_bridge.1 hq).1
+  simp only [track] at ht; omega
 
 /-- Fans and stems at distinct ports are disjoint, even within one vertex box. -/
 theorem fan_stem_disjoint {n e u v : ℕ} (hv : v < n) {s t : Fin 3}

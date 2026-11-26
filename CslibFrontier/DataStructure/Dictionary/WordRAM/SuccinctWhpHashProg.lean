@@ -277,11 +277,10 @@ private theorem validWhpProg_outerLoop {w w₀ R c_tab d b_char M_out hBase F s_
         (BitPackedDoubleTabulation.outerStepGenProg ((hp, (hBase, (s_val, rKey))), (j, out))) := by
       unfold BitPackedDoubleTabulation.outerStepGenProg
       simp only [hp, pure_bind, hpCTab_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk,
-        hpOffBot_mk, hpMOut_mk]
+        hpOffBot_mk, hpMOut_mk, readPackedGenProg]
       refine validProg_bind hvp_in ?_
       rw [hst_in]
       refine validProg_bind (validProg_readPacked hw hidx_s htop_seg) ?_
-      dsimp only [readPackedGenProg]
       rw [clientState_readPackedProg, clientResult_readPackedProg]
       exact validProg_bind (validProg_readPacked hw hidx₂ hbot_seg) (validProg_pure _)
     have hstep : (Memory.spec 0).clientState s
@@ -497,13 +496,11 @@ private theorem bktHashRtProg_spec {c U V w n_max base q : ℕ} {θ : SeedWhp c 
   dsimp only
   unfold bktHashRtProg bktHash
   simp only [pure_bind, mkHashRt, hrULim, hrBase, hrHpBkt]
-  by_cases hq : q < U
-  · rw [ite_eq_left hq, dite_eq_left hq]
-    have hev := evalHashGenProg_spec henv1 hw (w0Whp_pos U) (le_two_pow_w0Whp U)
-      Nat.one_le_two_pow hseg1 hseed.1 ⟨0, Nat.zero_lt_one⟩ ⟨q, hq⟩
-    exact ⟨hev.1, hev.2.1, hev.2.2.1.le, hev.2.2.2⟩
-  · rw [ite_eq_right hq, dite_eq_right hq]
-    exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure 0⟩
+  split_ifs with hq
+  · obtain ⟨hst, hres, hmc, hvp⟩ := evalHashGenProg_spec henv1 hw (w0Whp_pos U)
+      (le_two_pow_w0Whp U) Nat.one_le_two_pow hseg1 hseed.1 ⟨0, Nat.zero_lt_one⟩ ⟨q, hq⟩
+    exact ⟨hst, hres, hmc.le, hvp⟩
+  · exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure 0⟩
 
 /-- Split any `u_val : ℕ` into `(feistelBucket, keyQuotient)`. -/
 @[irreducible] def feistelSplitRtProg (d : HashRt × ℕ) : Memory.Prog (ℕ × ℕ) := do
@@ -712,12 +709,11 @@ theorem fpReducedKeyOptRtProg_spec {c U V w n_max base kv : ℕ} {θ : SeedWhp c
   dsimp only
   unfold fpReducedKeyOptRtProg
   simp only [pure_bind, mkHashRt, hrULim, hrBase, hrOffFp, hrHpFp]
-  by_cases hkv : kv < U
-  · rw [ite_eq_left hkv, dite_eq_left hkv]
-    have hs1 := stage1RedGenProg_spec (R := rRedWhp c n_max) (w0Whp_pos U) hh_lt hseed.2 ⟨kv, hkv⟩
-    exact ⟨hs1.1, hs1.2.1, hs1.2.2.1.le, hs1.2.2.2⟩
-  · rw [ite_eq_right hkv, dite_eq_right hkv]
-    exact ⟨rfl, rfl, Nat.zero_le 1, validProg_pure 0⟩
+  split_ifs with hkv
+  · obtain ⟨hst, hres, hmc, hvp⟩ :=
+      stage1RedGenProg_spec (R := rRedWhp c n_max) (w0Whp_pos U) hh_lt hseed.2 ⟨kv, hkv⟩
+    exact ⟨hst, hres, hmc.le, hvp⟩
+  · exact ⟨rfl, rfl, Nat.zero_le 1, validProg_pure 0⟩
 
 /-- Compute `if hs : salt < sMaxWhp then if hu : kv < U then fpHash θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
 else 0` (`d = ((hrt, salt), kv)`). -/
@@ -791,17 +787,12 @@ theorem fpOfSaltOptRtProg_spec {c U V w n_max base salt kv : ℕ} {θ : SeedWhp 
   dsimp only
   unfold fpOfSaltOptRtProg
   simp only [pure_bind, mkHashRt, hrSMax, hrULim, hrBase, hrOffFp, hrHpFp]
-  by_cases hs : salt < sMaxWhp c n_max
-  · rw [ite_eq_left hs, dite_eq_left hs]
-    by_cases hu : kv < U
-    · rw [ite_eq_left hu, dite_eq_left hu]
-      have hev := evalHashGenProg_spec henv2 hw (w0Whp_pos U) (le_two_pow_w0Whp U)
-        (sMaxWhp_le_pow_bChar hth) hseg2 hseed.2 ⟨salt, hs⟩ ⟨kv, hu⟩
-      exact ⟨hev.1, hev.2.1, hev.2.2.1.le, hev.2.2.2⟩
-    · rw [ite_eq_right hu, dite_eq_right hu]
-      exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure 0⟩
-  · rw [ite_eq_right hs, dite_eq_right hs]
-    exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure 0⟩
+  split_ifs with hs hu
+  · obtain ⟨hst, hres, hmc, hvp⟩ := evalHashGenProg_spec henv2 hw (w0Whp_pos U)
+      (le_two_pow_w0Whp U) (sMaxWhp_le_pow_bChar hth) hseg2 hseed.2 ⟨salt, hs⟩ ⟨kv, hu⟩
+    exact ⟨hst, hres, hmc.le, hvp⟩
+  · exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure 0⟩
+  · exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure 0⟩
 
 /-- Composite `rKey` from `(b, q)` (`d = ((hrt, b), q)` with `q < 2 ^ quotBitsWhp U n_max`),
 matching `FastState.rKeyAt` when `q = fs.quotArr (fs.physSlot n_max b loc)`. -/

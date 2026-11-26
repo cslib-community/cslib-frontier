@@ -228,12 +228,9 @@ private theorem simonAcc_apply (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ :
     by_cases hk : k = simonOrd m n ⟨t, h⟩
     · subst hk
       simp [simonG, simonFun]
-    · have hne : ((simonOrd m n).symm k : ℕ) ≠ t := fun h' => hk <| by
-        rw [← (simonOrd m n).apply_symm_apply k]
-        exact congrArg _ (Fin.ext h')
-      have hlt : ((simonOrd m n).symm k : ℕ) < t + 1 ↔ ((simonOrd m n).symm k : ℕ) < t := by
-        omega
-      simp only [Function.update_of_ne hk, hlt]
+    · have hne : ((simonOrd m n).symm k : ℕ) ≠ t :=
+        fun h' => hk ((simonOrd m n).symm_apply_eq.mp (Fin.ext h'))
+      simp only [Function.update_of_ne hk, Nat.lt_succ_iff_lt_or_eq, hne, or_false]
 
 /-- **The bit queries of Simon's algorithm compute `f` rowwise**: from `|i₀, 0, xs, 0⟩` they reach
 `|i₀, 0, xs, f(xs)⟩`. -/
@@ -252,17 +249,15 @@ private theorem home_iff {P : Equiv.Perm (Fin N × Bool × SimonWork m n)} {i₀
     (q : Fin N × Bool × SimonWork m n) :
     ((P.symm q).1 = i₀ ∧ (P.symm q).2.1 = false ∧ (P.symm q).2.2.ys = 0) ↔
       (q.1 = i₀ ∧ q.2.1 = false ∧ q.2.2.ys = G q.2.2.xs) := by
-  constructor
-  · rintro ⟨h1, h2, h3⟩
-    have hq := congrArg P (show P.symm q = (i₀, false, ⟨(P.symm q).2.2.xs, 0⟩) from
+  refine ⟨fun ⟨h1, h2, h3⟩ => ?_, ?_⟩
+  · have hq := congrArg P (show P.symm q = (i₀, false, ⟨(P.symm q).2.2.xs, 0⟩) from
       Prod.ext h1 (Prod.ext h2 (SimonWork.ext rfl h3)))
     rw [P.apply_symm_apply, hP] at hq
     exact hq ▸ ⟨rfl, rfl, rfl⟩
   · rcases q with ⟨i, b, ⟨xs, ys⟩⟩
     dsimp only
     rintro ⟨rfl, rfl, rfl⟩
-    rw [← hP, P.symm_apply_apply]
-    exact ⟨rfl, rfl, rfl⟩
+    simp [← hP]
 
 private theorem simonEquiv_snd (r : Fin N × Bool × SimonWork m n) :
     (simonEquiv r).2 = (r.1, r.2.1, r.2.2.ys) := by
@@ -314,8 +309,7 @@ def simonAccept (m n : ℕ) : Finset (Fin N × Bool × SimonWork m n) :=
   simp [simonAccept]
 
 private theorem signVal_add_true (x : Bool) : signVal (x + true) = -signVal x := by
-  cases x <;> norm_num [signVal, show (false + true : Bool) = true from rfl,
-    show (true + true : Bool) = false from rfl]
+  cases x <;> dsimp only [HAdd.hAdd, Add.add] <;> norm_num [signVal]
 
 /-- Under Simon's promise with hidden string `s`, the amplitude of a row matrix with a row `z_r`
 with `z_r ⬝ s = 1` vanishes. -/
@@ -480,18 +474,16 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
     rw [sum_congr rfl fun zs _ => hrow zs, ← sum_filter, sum_const, nsmul_eq_mul,
       filter_mem_eq_inter, univ_inter]
     ring
-  have hc2 : c ^ 2 = ((2 : ℝ) ^ (m * n))⁻¹ := by
-    rw [hc, inv_pow, Real.sq_sqrt (by positivity), Fintype.card_prod, Fintype.card_fin,
-      Fintype.card_fin]
+  have hc4 : c ^ 4 = (((2 : ℝ) ^ (m * n))⁻¹) ^ 2 := by
+    rw [(pow_mul c 2 2 : c ^ 4 = (c ^ 2) ^ 2), hc, inv_pow, Real.sq_sqrt (by positivity),
+      Fintype.card_prod, Fintype.card_fin, Fintype.card_fin]
   calc measureProb (run (simonAlg m E i₀) (simonInit i₀) X (m * n))
         (univ.filter fun (_, _, w) => w.xs ∈ Z)
       ≤ ∑ p ∈ univ.filter fun (_, _, w) => (w : SimonWork m n).xs ∈ Z, B p :=
         sum_le_sum hpt
     _ ≤ ∑ p, B p := sum_le_sum_of_subset_of_nonneg (subset_univ _) fun p _ _ => hBnn p
     _ = c ^ 4 * K * (#Z' * 2 ^ (m * n)) := hsum
-    _ = K * #Z' / 2 ^ (m * n) := by
-      rw [show c ^ 4 = (c ^ 2) ^ 2 by ring, hc2]
-      field_simp
+    _ = K * #Z' / 2 ^ (m * n) := by rw [hc4]; field_simp
 
 /-- **Simon's algorithm rarely accepts when `f` is injective**: with probability at most
 `(2^n - 1) / 2^m`. -/

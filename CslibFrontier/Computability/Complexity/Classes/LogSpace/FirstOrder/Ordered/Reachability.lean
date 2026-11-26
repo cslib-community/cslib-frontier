@@ -157,17 +157,10 @@ theorem mem_Reach_configurationGraphInterpretation
         (E y .control).val = stateCode (none : Option State) ∧ (E y .output).val = 1 := by
     simp only [realize_acceptFormula, Term.realize_var, E, Equiv.arrowCongr_apply,
       Function.comp_apply, Equiv.symm_symm, Equiv.refl_apply]
-  constructor
-  · rintro ⟨x, y, hx, hxy, hy⟩
-    obtain ⟨hc, ho⟩ := (htgt y).mp hy
-    exact ⟨E x, E y, (hsrc x).mp hx,
-      (Relation.reflTransGen_equiv_iff E hstep x y).mp hxy, hc, ho⟩
-  · rintro ⟨x, y, hx, hxy, hc, ho⟩
-    refine ⟨E.symm x, E.symm y, ?_, ?_, ?_⟩
-    · simpa only [hsrc, Equiv.apply_symm_apply] using hx
-    · exact (Relation.reflTransGen_equiv_iff E hstep (E.symm x) (E.symm y)).mpr
-        (by simpa only [Equiv.apply_symm_apply] using hxy)
-    · simpa only [htgt, Equiv.apply_symm_apply] using ⟨hc, ho⟩
+  refine E.exists_congr fun x => E.exists_congr fun y => ?_
+  rw [hsrc x, Relation.reflTransGen_equiv_iff E
+    (s := fun u v => RegisterStep ntm w (fun r => (u r).val) (fun r => (v r).val)) hstep x y,
+    htgt y]
 
 end Cslib.Complexity.ConfigurationGraph
 
@@ -387,8 +380,7 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
           · exact Or.inr (Or.inl ⟨I.s, Fin.ext hw, .refl⟩)
           all_goals omega
         · rcases hedge with ⟨hu0, _⟩ | ⟨a', b, ha', hb, hab⟩ | ⟨ht, hw⟩
-          · simp only [shift] at hu0
-            omega
+          · simp [shift] at hu0
           · obtain rfl : a = a' := by fin_index [shift]
             exact Or.inr (Or.inl ⟨b, Fin.ext hb, hsa.tail hab⟩)
           · obtain rfl : a = I.t := by fin_index [shift]

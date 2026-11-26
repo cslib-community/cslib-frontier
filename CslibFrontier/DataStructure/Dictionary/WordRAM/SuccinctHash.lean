@@ -121,8 +121,7 @@ theorem totalMicroBits_le_three_mul_hashB (n_max : ℕ) :
 
 theorem hashB_div_two_le_log (n_max : ℕ) :
     hashB n_max / 2 ≤ Nat.log 2 n_max := by
-  unfold hashB
-  rw [totalMicroBits_eq_log]
+  rw [hashB, totalMicroBits_eq_log]
   omega
 
 theorem two_pow_hashB_div_two_le (n_max : ℕ) :
@@ -240,9 +239,7 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
       rw [hq1, ite_eq_left (by omega)]
     have htw4 :
         ReducedKWise.tableWords 1 (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤ 4 := by
-      unfold ReducedKWise.tableWords reducedTableWords
-      rw [ht0]
-      decide
+      rw [ReducedKWise.tableWords, reducedTableWords, ht0]; decide
     omega
 
 theorem hashSpace_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (hU : U ≤ 2 ^ w) :
@@ -335,11 +332,9 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
     have h1 : #S_Q ≤ n_max + 1 :=
       (card_image_le.trans (card_insert_le u (S.erase u))).trans (by omega)
     have hpow_B : n_max + 1 ≤ 2 ^ hashB n_max := by
-      unfold hashB
-      rw [totalMicroBits_eq_log]
+      rw [hashB, totalMicroBits_eq_log]
       rcases Nat.eq_zero_or_pos n_max with rfl | hn
-      · decide
-      · exact Nat.lt_pow_succ_log_self one_lt_two n_max
+      exacts [by decide, Nat.lt_pow_succ_log_self one_lt_two n_max]
     have hprod_le : (#S_Q * (#S_Q - 1)) * (2 * #(S.erase u)) ≤ 2 * 2 ^ (3 * hashB n_max) :=
       calc (#S_Q * (#S_Q - 1)) * (2 * #(S.erase u))
           ≤ ((n_max + 1) * (n_max + 1)) * (2 * (n_max + 1)) := by gcongr <;> omega
@@ -401,8 +396,7 @@ theorem evalQuotHash_keyQuotient_eq (U n_max : ℕ) (θ : QuotHashSeed U n_max) 
 theorem feistelBucketHash_val_eq_hValOfSeed (U n_max : ℕ) (θ : QuotHashSeed U n_max) (u : Fin U) :
     (feistelBucketHash n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2 u).val =
       feistelBucket (bucketBits n_max) (hValOfSeed U n_max θ) u.val := by
-  rw [feistelBucketHash_val_eq_feistelBucket]
-  rfl
+  rw [feistelBucketHash_val_eq_feistelBucket]; rfl
 
 theorem feistelLocalMicro_val_eq_mOfSeed (U n_max : ℕ) (θ : QuotHashSeed U n_max) (u : Fin U) :
     (feistelLocalMicro n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2 u).val =

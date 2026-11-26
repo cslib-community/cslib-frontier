@@ -117,8 +117,7 @@ def simonInput (E : Fin N ≃ (Fin n → Bool) × Fin n)
 
 @[simp] theorem simonFun_simonInput (E : Fin N ≃ (Fin n → Bool) × Fin n)
     (g : (Fin n → Bool) → Fin n → Bool) : simonFun E (simonInput E g) = g := by
-  funext a j
-  simp [simonFun, simonInput]
+  exact funext fun a => funext fun j => by simp [simonFun, simonInput]
 
 /-- Simon's promise with hidden string `0` says that `f` is injective. -/
 theorem simonPromise_zero_iff (f : (Fin n → Bool) → Fin n → Bool) :
@@ -172,9 +171,7 @@ private theorem simonRep_eq_iff (s a b : Fin n → Bool) :
 
 private theorem simonPromise_comp_simonRep (π : Equiv.Perm (Fin n → Bool)) (s : Fin n → Bool) :
     SimonPromise (fun a => π (simonRep s a)) s := by
-  intro a b
-  simp only [EmbeddingLike.apply_eq_iff_eq]
-  exact simonRep_eq_iff s a b
+  exact fun a b => (EmbeddingLike.apply_eq_iff_eq π).trans (simonRep_eq_iff s a b)
 
 /-- The hard input with permutation `π` and hidden string `s`: `f = π ∘ rep_s`. -/
 noncomputable def simonHard (E : Fin N ≃ (Fin n → Bool) × Fin n) (π : Equiv.Perm (Fin n → Bool))
@@ -184,8 +181,7 @@ noncomputable def simonHard (E : Fin N ≃ (Fin n → Bool) × Fin n) (π : Equi
 theorem simonPromise_simonHard (E : Fin N ≃ (Fin n → Bool) × Fin n)
     (π : Equiv.Perm (Fin n → Bool)) (s : Fin n → Bool) :
     SimonPromise (simonFun E (simonHard E π s)) s := by
-  rw [simonHard, simonFun_simonInput]
-  exact simonPromise_comp_simonRep π s
+  simpa only [simonHard, simonFun_simonInput] using simonPromise_comp_simonRep π s
 
 /-- The inputs `a` of `f` some bit of whose value `f(a)` the tree queries on `X`. -/
 private def queriedInputs (E : Fin N ≃ (Fin n → Bool) × Fin n) (t : DecisionTree (Fin N) Bool)
@@ -305,13 +301,10 @@ private theorem two_mul_card_not_pairFree_le (A : Finset (Fin n → Bool)) :
     _ ≤ ∑ s ∈ {s ∈ univ.erase (0 : Fin n → Bool) | ¬PairFree s A},
         #{p ∈ A.offDiag | p.1 + p.2 = s} := by
         refine sum_le_sum fun s hs => ?_
-        simp only [mem_filter, mem_erase, mem_univ, and_true, PairFree, not_forall, not_not] at hs
-        obtain ⟨hs0, a, ha, has⟩ := hs
+        obtain ⟨hs0, a, ha, has⟩ : s ≠ 0 ∧ ∃ a ∈ A, a + s ∈ A := by simpa [PairFree] using hs
         have hne : a ≠ a + s := fun h => hs0 (add_left_cancel (h.symm.trans (add_zero a).symm))
-        calc 2 = #{(a, a + s), (a + s, a)} := by
-              rw [card_pair]
-              intro h
-              exact hne (Prod.ext_iff.mp h).1
+        calc 2 = #{(a, a + s), (a + s, a)} :=
+              (card_pair fun h => hne (Prod.ext_iff.mp h).1).symm
           _ ≤ _ := by
               refine card_le_card fun p hp => ?_
               simp only [mem_insert, mem_singleton] at hp
@@ -523,10 +516,8 @@ total function `F` that answers Simon's problem on the promise inputs, `2^n ≤ 
 theorem simon_two_pow_le_randomizedComplexity_sq (F : (Fin N → Bool) → Bool)
     (hF : ∀ X s, SimonPromise (simonFun E X) s → F X = decide (s ≠ 0)) (hn : 1 ≤ n) :
     2 ^ n ≤ randomizedComplexity (1 / 3) F ^ 2 := by
-  obtain ⟨μ, hμ, hd⟩ :=
-    exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) F
-  rw [← hd]
-  exact simon_two_pow_le_depth_sq E μ F hF (fun X _ _ => hμ X) hn
+  obtain ⟨μ, hμ, hd⟩ := exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) F
+  exact hd ▸ simon_two_pow_le_depth_sq E μ F hF (fun X _ _ => hμ X) hn
 
 /-- **Exponential classical lower bound for the search variant including `s = 0`**: for `n ≥ 1`,
 a randomized decision tree that finds the hidden string with error `1/3` on every promise input,

@@ -264,11 +264,8 @@ theorem length_downChain_le_clog {m n : ℕ} (hmn : m ≤ n) :
     (downChain m).length ≤ Nat.clog 2 (n + 1) := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp only [downChain_zero, List.length_nil, Nat.zero_le]
-  · have hlog := length_downChain_le_log hm
-    have hclog : Nat.log 2 m < Nat.clog 2 (n + 1) :=
-      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
-        (Nat.lt_succ_of_le ((Nat.pow_log_le_self 2 hm.ne').trans hmn))
-    omega
+  · exact (length_downChain_le_log hm).trans ((Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
+      (Nat.lt_succ_of_le ((Nat.pow_log_le_self 2 hm.ne').trans hmn)))
 
 private theorem length_upChain_add_exp_le {n m k : ℕ}
     (hm : 0 < m) (hmn : m ≤ n) (hlb : lowbit m = 2 ^ k) :
@@ -299,11 +296,8 @@ theorem length_upChain_le_log {n m : ℕ} (hm : 0 < m) (hmn : m ≤ n) :
 theorem length_upChain_le_clog (n m : ℕ) :
     (upChain n m).length ≤ Nat.clog 2 (n + 1) := by
   by_cases h : 0 < m ∧ m ≤ n
-  · have hlog := length_upChain_le_log h.1 h.2
-    have hclog : Nat.log 2 n < Nat.clog 2 (n + 1) :=
-      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
-        (Nat.lt_succ_of_le (Nat.pow_log_le_self 2 (h.1.trans_le h.2).ne'))
-    omega
+  · exact (length_upChain_le_log h.1 h.2).trans ((Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
+      (Nat.lt_succ_of_le (Nat.pow_log_le_self 2 (h.1.trans_le h.2).ne')))
   · rw [upChain]
     simp only [h, ↓reduceDIte, List.length_nil, Nat.zero_le]
 
@@ -319,10 +313,8 @@ private theorem ge_of_mem_upChain {n m x : ℕ} (hx : x ∈ upChain n m) : m ≤
 theorem pairwise_lt_upChain (n m : ℕ) : (upChain n m).Pairwise (· < ·) := by
   fun_induction upChain n m with
   | case1 m hguard ih => -- 0 < m ∧ m ≤ n: m :: upChain n (m + lowbit m)
-    have hlb_pos : 0 < lowbit m := lowbit_pos hguard.1
-    refine List.Pairwise.cons (fun x hx => ?_) ih
-    have hge := ge_of_mem_upChain hx
-    omega
+    exact List.Pairwise.cons (fun x hx =>
+      (Nat.lt_add_of_pos_right (lowbit_pos hguard.1)).trans_le (ge_of_mem_upChain hx)) ih
   | case2 => exact List.Pairwise.nil -- otherwise: []
 
 theorem nodup_upChain (n m : ℕ) : (upChain n m).Nodup :=

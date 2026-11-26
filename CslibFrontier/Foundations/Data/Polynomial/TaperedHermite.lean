@@ -219,9 +219,7 @@ private theorem gridFlip_eq_self_iff (ht : t ∈ Ico (-L) L) (hq : q ∈ Ico (-L
 private theorem exists_gridFlip_eq (L t q : ℤ) : ∃ c : ℤ, gridFlip L t q = t - q + 2 * L * c := by
   unfold gridFlip
   split_ifs
-  · exact ⟨1, by ring⟩
-  · exact ⟨0, by ring⟩
-  · exact ⟨-1, by ring⟩
+  exacts [⟨1, by ring⟩, ⟨0, by ring⟩, ⟨-1, by ring⟩]
 
 end gridFlip
 
@@ -234,7 +232,7 @@ private theorem padicValInt_gridFlip (ht : t ∈ Ico (-(2 : ℤ) ^ a) (2 ^ a))
     (hq : q ∈ Ico (-(2 : ℤ) ^ a) (2 ^ a)) (hqt : q ≠ t) :
     padicValInt 2 (gridFlip (2 ^ a) t q) = padicValInt 2 (t - q) := by
   obtain ⟨c, hc⟩ := exists_gridFlip_eq (2 ^ a) t q
-  rw [hc, show 2 * (2 : ℤ) ^ a * c = 2 ^ (a + 1) * c by ring]
+  rw [hc, ← pow_succ']
   exact padicValInt_two_add_mul (sub_ne_zero.mpr hqt.symm) (natAbs_sub_lt ht hq) c
 
 /-- On the dyadic grid, `t` minus the reflection of `q ≠ 0` has the valuation of `q`. -/
@@ -293,9 +291,7 @@ private theorem sum_tapered_eq (m : ℕ → ℕ) (ht : t ∈ Ico (-(2 : ℤ) ^ a
   have h2 : ∑ q ∈ ((S.erase 0).erase t).filter (fun q => ¬i < v q), g q =
       ∑ q ∈ ((S.erase 0).erase t).filter (fun q => i < v q), g (φ q) := by
     rw [← sum_subset (s₁ := ((S.erase 0).erase t).filter (fun q => v q = i))
-      (fun q hq => by
-        simp only [mem_filter] at hq ⊢
-        exact ⟨hq.1, by omega⟩)
+      (fun q hq => mem_filter.2 ⟨(mem_filter.1 hq).1, (mem_filter.1 hq).2.not_gt⟩)
       fun q hq hq' => by
         simp only [mem_filter, not_and, not_lt] at hq hq'
         simp only [g, hlt (hmem.mp hq.1).2.1 (hq.2.lt_of_ne (hq' hq.1)), sub_self, mul_zero]]
@@ -341,8 +337,7 @@ theorem padicValRat_eval_zero_hermiteBasis_dyadic (m : ℕ → ℕ)
     sum_congr rfl fun q hq => (hfac q hq).2, sum_tapered_eq m ht ht0,
     sum_Ico_erase_zero_padicValInt_two a fun j => if padicValInt 2 t < j then
       ((j : ℤ) - padicValInt 2 t) * ((m j : ℤ) - m (padicValInt 2 t)) else 0]
-  simp only [mul_ite, mul_zero]
-  rw [← sum_filter]
+  simp only [mul_ite, mul_zero, ← sum_filter]
   refine sum_congr (Finset.ext fun j => ?_) fun _ _ => rfl
   simp only [mem_filter, mem_range, mem_Ioc]
   omega

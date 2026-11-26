@@ -131,18 +131,13 @@ theorem sum_add_le_prefixErrorBudget {ε : ℕ → ℝ} {m : ℕ}
 theorem le_prefixErrorBudget {ε : ℕ → ℝ} {m i : ℕ}
     (hε : ∀ i ≤ m, 0 ≤ ε i) (hi : i ≤ m) : ε i ≤ prefixErrorBudget ε m := by
   have hsum := sum_add_le_prefixErrorBudget hε
-  have hs0 : 0 ≤ ∑ k ∈ range m, (ε k + ε (k + 1)) :=
-    sum_nonneg fun k hk => add_nonneg (hε k (mem_range.mp hk).le)
-      (hε (k + 1) (mem_range.mp hk))
+  have hnn (k : ℕ) (hk : k ∈ range m) : 0 ≤ ε k + ε (k + 1) :=
+    add_nonneg (hε k (mem_range.mp hk).le) (hε (k + 1) (mem_range.mp hk))
   cases i with
-  | zero => exact (le_add_of_nonneg_right hs0).trans hsum
+  | zero => linarith [sum_nonneg hnn]
   | succ i =>
-    have hsingle := single_le_sum (s := range m) (f := fun k => ε k + ε (k + 1))
-      (fun k hk => add_nonneg (hε k (mem_range.mp hk).le) (hε (k + 1) (mem_range.mp hk)))
-      (mem_range.mpr hi)
-    have hi0 := hε i (Nat.le_of_lt hi)
-    have h00 := hε 0 (Nat.zero_le m)
-    linarith
+    linarith [single_le_sum hnn (mem_range.mpr hi), hε i (Nat.le_of_succ_le hi),
+      hε 0 (Nat.zero_le m)]
 
 /-- The budget before an update plus its adjacent-prefix error is controlled by the final budget. -/
 theorem prefixErrorBudget_add_le {ε : ℕ → ℝ} {m i : ℕ}
@@ -182,10 +177,8 @@ private theorem sentinel_reference_bounds {s : Finset ι} {K : ℕ} {η L₀ z :
     by_cases hm : y ∈ marked
     · rw [sentinelFirst_zero_of_mem hm]
       linarith
-    · rw [sentinelFirst_of_not_mem hm]
-      have hl := (abs_le.mp (hloss y hy 0)).1
-      change -η ≤ truth y 0 + loss y 0
-      linarith [hfirst y hy]
+    · simp only [sentinelFirst_of_not_mem hm, Pi.add_apply]
+      linarith [(abs_le.mp (hloss y hy 0)).1, hfirst y hy]
   · change |sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 1| ≤ η
     rw [sentinelFirst_one]
     exact (abs_add_le _ _).trans (by linarith [hsecond y hy, hloss y hy 1])
@@ -200,10 +193,8 @@ private theorem sentinel_reference_bounds {s : Finset ι} {K : ℕ} {η L₀ z :
     · have hlarge := (mem_filter.mp hm).2
       linarith
     · change 2 * L₀ < sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 0 at hy
-      rw [sentinelFirst_of_not_mem hm] at hy
-      have hl := (abs_le.mp (hloss y hys 0)).2
-      change 2 * L₀ < truth y 0 + loss y 0 at hy
-      linarith
+      simp only [sentinelFirst_of_not_mem hm, Pi.add_apply] at hy
+      linarith [(abs_le.mp (hloss y hys 0)).2]
   exact (not_le.mpr hcount) (hcard.trans (card_le_card hsub))
 
 open Classical in
@@ -380,11 +371,8 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
         (max_le hzD (abs_kthLargest_sub_kthLargest_le hK hD0 (fun y hy => hwD y hy 0)))
     have hudiff := abs_threshold_sub_threshold_le (ρ := ρ i) (hK.trans_le (hKn i hi))
       hD0 hzD hwD
-    refine ⟨?_, ?_⟩ <;> dsimp only [R]
-    · linarith [(abs_le.1 hqdiff).2]
-    · change threshold s (n i) (ρ i) (modified i).defaultValue
-        (inputRow s n (fun _ => K) ρ Δ' a' i) ≤ _
-      linarith [(abs_le.1 hudiff).2]
+    exact ⟨by dsimp only [R]; linarith [(abs_le.1 hqdiff).2],
+      by dsimp only [stepThreshold, R]; linarith [(abs_le.1 hudiff).2]⟩
   have hvar (y : ι) (hy : y ∈ marked) :
       3 * R + ∑ i ∈ range m, |Δ i y 0| < a.row y 0 := by
     have hys := hmarked hy

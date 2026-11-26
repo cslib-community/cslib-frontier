@@ -123,13 +123,9 @@ private theorem epochTickStage3Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
         simp only [Nat.reduceLeDiff, ↓reduceIte]
         exact ⟨hno_old, hv_o.toClearable,
           hna_o.trans (Nat.add_le_add_left (Nat.mul_le_mul_left _ hia_o) 1)⟩)
-      ?_ rfl
-    dsimp only [ValidEpochStage]
-    simp
+      (by simp [ValidEpochStage]) rfl
   · rw [ite_eq_right hdone]
-    refine ⟨hc, hom, ?_, rfl⟩
-    simp only [ValidEpochStage, hs3, Nat.reduceEqDiff, ↓reduceIte]
-    exact ⟨hsc_le, hnone_lt⟩
+    exact ⟨hc, hom, by simpa [ValidEpochStage, hs3, hsc_le] using hnone_lt, rfl⟩
 
 /-- Stage-3 tick promotes `2 + oldEp` items to `locState = 1` and deletes them from `buf oldEp`. -/
 theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -236,12 +232,10 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               (h2_orig b₁ hb₁ l₁ hl₁ h2₁) (h2_orig b₂ hb₂ l₂ hl₂ h2₂) hrkeq
           bufCur_valid := by
             obtain ⟨hi_c, hn_c, cm, hvc, hrc⟩ := hc.bufCur_valid
-            have hbuf_c : fs'.buf fs'.curEp = fs.buf fs.curEp :=
-              Function.update_of_ne (curEp_ne_oldEp hc.curEp_or) _ _
-            rw [hbuf_c]
+            dsimp only [fs']
+            rw [Function.update_of_ne (curEp_ne_oldEp hc.curEp_or)]
             refine ⟨hi_c, hn_c, cm, hvc, hrc.congr (fun _ _ => rfl) (fun b _ loc _ => ?_)
               (fun _ _ _ _ => rfl)⟩
-            dsimp only [fs']
             by_cases hbl : b = b₀ ∧ loc = loc₀
             · rcases hbl with ⟨rfl, rfl⟩
               rw [Function.update_self, Function.update_self, hst₀]
@@ -286,11 +280,8 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           · exact hnone0 id hid'
           · exact hchk)
   · rw [ite_eq_right hlt]
-    have heq_s3 : ({ fs with rebStage := 4 } : FastState) = epochTickStage3Finish fs := by
-      dsimp only [epochTickStage3Finish]; rw [ite_eq_left (Nat.not_lt.mp hlt)]
-    change (let fs1 : FastState := { fs with rebStage := 4 }; _)
-    rw [heq_s3]
-    exact epochTickStage3Finish_spec hc hom hs3 hsc_le hnone0
+    simpa only [epochTickStage3Finish, oldTr, oldEp, ite_eq_left (Nat.not_lt.mp hlt)] using
+      epochTickStage3Finish_spec hc hom hs3 hsc_le hnone0
 
 private theorem ClearableBufTrie.clearSteps_pres :
     ∀ (k : ℕ) {tr : BufTrie}, ClearableBufTrie tr →

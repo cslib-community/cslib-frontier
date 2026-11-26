@@ -773,21 +773,18 @@ theorem Rank.dsum {T : Tensor R X Y Z} {r : ℕ} (n : ℕ) (h : Rank r T) :
   exact dsum_const n T ▸ Rank.tprod (IsRestriction.refl _) h
 
 theorem Rank.swap12 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap12 T) := by
-  have hu : Tensor.swap12 (unit r : Tensor R _ _ _) = unit r := by
-    funext
-    simp; grind
+  have hu : Tensor.swap12 (unit r : Tensor R _ _ _) = unit r :=
+    funext fun _ => funext fun _ => funext fun _ => by grind [swap12_apply, unit_apply]
   simpa only [Rank, hu] using IsRestriction.swap12 h
 
 theorem Rank.swap23 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap23 T) := by
-  have hu : Tensor.swap23 (unit r : Tensor R _ _ _) = unit r := by
-    funext
-    simp; grind
+  have hu : Tensor.swap23 (unit r : Tensor R _ _ _) = unit r :=
+    funext fun _ => funext fun _ => funext fun _ => by grind [swap23_apply, unit_apply]
   simpa only [Rank, hu] using IsRestriction.swap23 h
 
 theorem Rank.swap13 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap13 T) := by
-  have hu : Tensor.swap13 (unit r : Tensor R _ _ _) = unit r := by
-    funext
-    simp; grind
+  have hu : Tensor.swap13 (unit r : Tensor R _ _ _) = unit r :=
+    funext fun _ => funext fun _ => funext fun _ => by grind [swap13_apply, unit_apply]
   simpa only [Rank, hu] using IsRestriction.swap13 h
 
 theorem Rank.reindex {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) (e₁ : X ≃ X') (e₂ : Y ≃ Y')
@@ -879,10 +876,9 @@ theorem isRestriction_mm_tprod_swaps (k : ℕ) :
   refine ⟨incl fun a => ((0, 0), ((0, a.1), (0, a.2))),
     incl fun b => ((0, b.2), ((0, 0), (0, b.1))), (incl fun c => ((0, c.2), ((0, c.1), (0, 0))))ᵀ,
     ?_⟩
-  rw [restrict_incl]
   ext ⟨a₁, a₂⟩ ⟨b₁, b₂⟩ ⟨c₁, c₂⟩
-  simp only [tprod_apply, swap12_apply, swap13_apply, mm_apply, true_and, ite_zero_mul_ite_zero,
-    mul_one]
+  simp only [restrict_incl, tprod_apply, swap12_apply, swap13_apply, mm_apply, true_and,
+    ite_zero_mul_ite_zero, mul_one]
   grind
 
 /-- `mm k k k` computes `mm 1 1 k` tensored with its two role exchanges. -/
@@ -891,10 +887,9 @@ theorem isRestriction_tprod_swaps_mm (k : ℕ) :
       (mm k k k : Tensor R _ _ _) := by
   refine ⟨incl fun x => (x.2.1.2, x.2.2.2), incl fun y => (y.2.2.2, y.1.2),
     (incl fun z => (z.2.1.2, z.1.2))ᵀ, ?_⟩
-  rw [restrict_incl]
   ext ⟨⟨_, _⟩, ⟨⟨_, _⟩, ⟨_, _⟩⟩⟩ ⟨⟨_, _⟩, ⟨⟨_, _⟩, ⟨_, _⟩⟩⟩ ⟨⟨_, _⟩, ⟨⟨_, _⟩, ⟨_, _⟩⟩⟩
-  simp only [tprod_apply, swap12_apply, swap13_apply, mm_apply, Fin.fin_one_eq_zero, true_and,
-    ite_zero_mul_ite_zero, mul_one]
+  simp only [restrict_incl, tprod_apply, swap12_apply, swap13_apply, mm_apply,
+    Fin.fin_one_eq_zero, true_and, ite_zero_mul_ite_zero, mul_one]
   grind
 
 /-- Matrix multiplication tensors with equal dimensions restrict to each other. -/
@@ -908,9 +903,8 @@ theorem isRestriction_mm_of_le {n n' : ℕ} (h : n ≤ n') :
   refine ⟨incl (Prod.map (Fin.castLE h) (Fin.castLE h)),
     incl (Prod.map (Fin.castLE h) (Fin.castLE h)), (incl (Prod.map (Fin.castLE h) (Fin.castLE h)))ᵀ,
     ?_⟩
-  rw [restrict_incl]
   ext ⟨_, _⟩ ⟨_, _⟩ ⟨_, _⟩
-  simp [Fin.castLE_inj]
+  simp [restrict_incl, Fin.castLE_inj]
 
 /-- Tensor powers of matrix multiplication are matrix multiplication of the power. -/
 theorem isRestriction_mm_pow_tpow (v m : ℕ) :
@@ -920,10 +914,10 @@ theorem isRestriction_mm_pow_tpow (v m : ℕ) :
       (Equiv.prodCongr finFunctionFinEquiv finFunctionFinEquiv)
   suffices (mm (v ^ m) (v ^ m) (v ^ m) : Tensor R _ _ _) = reindex e e e (tpow m (mm v v v)) from
     this ▸ isRestriction_reindex _ _ _ _
+  have he (p) : e.symm p = fun i =>
+      (finFunctionFinEquiv.symm p.1 i, finFunctionFinEquiv.symm p.2 i) := rfl
   funext a b c
-  simp only [reindex_apply, show ∀ p, e.symm p = fun i =>
-    (finFunctionFinEquiv.symm p.1 i, finFunctionFinEquiv.symm p.2 i) from fun _ => rfl,
-    tpow_apply, mm_apply, Fintype.prod_ite_zero, Finset.prod_const_one]
+  simp only [reindex_apply, he, tpow_apply, mm_apply, Fintype.prod_ite_zero, Finset.prod_const_one]
   exact if_congr (by simp only [forall_and, ← funext_iff, EmbeddingLike.apply_eq_iff_eq]) rfl rfl
 
 /-- `mm 1 1 1` is the unit tensor `unit 1`, up to reindexing. -/

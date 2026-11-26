@@ -196,16 +196,14 @@ theorem maxDiffNorm_nonneg (Γ : Matrix (BitString N) (BitString N) ℝ) : 0 ≤
 
 theorem norm_toEuclideanCLM_hadamard_le_maxDiffNorm
     (Γ : Matrix (BitString N) (BitString N) ℝ) (i : Fin N) :
-    ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (Γ.hadamard (diffMatrix i))‖ ≤ maxDiffNorm Γ := by
-  unfold maxDiffNorm
-  exact NNReal.coe_le_coe.2 (Finset.le_sup (f := fun j =>
+    ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (Γ.hadamard (diffMatrix i))‖ ≤ maxDiffNorm Γ :=
+  NNReal.coe_le_coe.2 (Finset.le_sup (f := fun j =>
     ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (Γ.hadamard (diffMatrix j))‖₊) (mem_univ i))
 
 theorem maxDiffNorm_le_iff {Γ : Matrix (BitString N) (BitString N) ℝ} {K : ℝ} (hK : 0 ≤ K) :
     maxDiffNorm Γ ≤ K ↔ ∀ i, ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (Γ.hadamard (diffMatrix i))‖ ≤ K := by
   refine ⟨fun h i => (norm_toEuclideanCLM_hadamard_le_maxDiffNorm Γ i).trans h, fun h => ?_⟩
-  unfold maxDiffNorm
-  rw [← Real.coe_toNNReal K hK, NNReal.coe_le_coe, Finset.sup_le_iff]
+  rw [maxDiffNorm, ← Real.coe_toNNReal K hK, NNReal.coe_le_coe, Finset.sup_le_iff]
   exact fun i _ => (Real.le_toNNReal_iff_coe_le hK).2 (h i)
 
 /-- Support condition for an adversary matrix of a partial function `(P, f)`: every nonzero
@@ -361,13 +359,12 @@ private theorem advForm_step_eq (Γ : Matrix (BitString N) (BitString N) ℝ)
       2 * ∑ i : Fin N, diffMatrix i x y *
         RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t))) := by
     have hre2 (z : ℂ) : RCLike.re (2 * z) = 2 * RCLike.re z := by simp [RCLike.re_to_complex]
-    rw [show run U ψ₀ x (t + 1) = U (t + 1) (phaseOracle x (run U ψ₀ x t)) from rfl,
-      show run U ψ₀ y (t + 1) = U (t + 1) (phaseOracle y (run U ψ₀ y t)) from rfl,
-      (U (t + 1)).inner_map_map, inner_phaseOracle_phaseOracle, ← map_sub, sub_sub_cancel, hre2,
+    dsimp only [run]
+    rw [(U (t + 1)).inner_map_map, inner_phaseOracle_phaseOracle, ← map_sub, sub_sub_cancel, hre2,
       map_sum, Finset.sum_filter]
-    congr 1
-    exact sum_congr rfl fun i _ => by
-      simp only [diffMatrix_apply, ne_eq]; split_ifs <;> simp only [one_mul, zero_mul]
+    refine congrArg (2 * ·) (sum_congr rfl fun i _ => ?_)
+    simp only [diffMatrix_apply, ne_eq]
+    split_ifs <;> simp only [one_mul, zero_mul]
   simp only [advForm, ← sum_sub_distrib, ← mul_sub, hdiff, mul_sum]
   conv_lhs => enter [2, x]; rw [Finset.sum_comm]
   rw [Finset.sum_comm]
@@ -515,15 +512,13 @@ private theorem abs_advForm_final_le_of_proj {α : Type*} {P : BitString N → P
     · simp only [hxy0, zero_mul, add_zero]
     · obtain ⟨hx, hy, hf⟩ := hΓ x y hxy0
       have haa : inner ℂ (αs x) (αs y) = 0 := by
-        simp only [αs, hx, hy, ↓reduceIte]
-        exact inner_projOutcomes_eq_zero _ _
+        simpa only [αs, hx, hy, ↓reduceIte] using inner_projOutcomes_eq_zero _ _
           (fun _ ⟨h1, h2⟩ => Finset.disjoint_left.1 (hdisj hf) h1 h2) _ _
-      rw [show run U ψ₀ x T = αs x + βs x by
-          simp only [αs, βs, hx, ↓reduceIte]; exact (projOutcomes_add_projOutcomes_not _ _).symm,
-        show run U ψ₀ y T = αs y + βs y by
-          simp only [αs, βs, hy, ↓reduceIte]; exact (projOutcomes_add_projOutcomes_not _ _).symm,
-        inner_add_left, inner_add_right, inner_add_right, haa, zero_add]
-      simp only [map_add]; ring
+      have hsplit {z : BitString N} (hz : P z) : run U ψ₀ z T = αs z + βs z := by
+        simpa only [αs, βs, hz, ↓reduceIte] using (projOutcomes_add_projOutcomes_not _ _).symm
+      rw [hsplit hx, hsplit hy, inner_add_left, inner_add_right, inner_add_right, haa, zero_add,
+        map_add, map_add]
+      ring
   refine ⟨hsum_all ▸ (abs_add_le _ _).trans ((add_le_add hcross hββ).trans_eq (by ring)), ?_⟩
   intro hβ
   have hβzero : advForm Γ u v βs = 0 := sum_eq_zero fun x _ => sum_eq_zero fun y _ => by
@@ -852,14 +847,13 @@ private theorem wsMatrix_opNorm_ge_one (S : WeightScheme N) (hW : 0 < S.weightSu
   have hsnd : ∑ y, S.wtSnd y = S.weightSum :=
     sum_fiberwise_of_maps_to (s := S.R) (g := Prod.snd) (t := univ) (f := S.w)
       fun _ _ => mem_univ _
-  have hw₀_sq : ‖w₀‖ ^ 2 = 1 := by
+  have hW2 : 0 ≤ 2 * S.weightSum := by positivity
+  have hw₀ : ‖w₀‖ = 1 := (pow_eq_one_iff_of_nonneg (norm_nonneg w₀) two_ne_zero).1 <| by
     rw [EuclideanSpace.real_norm_sq_eq]
     dsimp only [w₀, z]
     simp_rw [div_pow, Real.sq_sqrt (add_nonneg (S.wtFst_nonneg _) (S.wtSnd_nonneg _)),
-      Real.sq_sqrt (by linarith : 0 ≤ 2 * S.weightSum), ← sum_div, sum_add_distrib, hfst, hsnd,
-      ← two_mul]
+      Real.sq_sqrt hW2, ← sum_div, sum_add_distrib, hfst, hsnd, ← two_mul]
     exact div_self (by positivity)
-  have hw₀ : ‖w₀‖ = 1 := by rw [← Real.sqrt_sq (norm_nonneg w₀), hw₀_sq, Real.sqrt_one]
   have hA_sum : ∑ x, ∑ y, wsRaw S x y = S.weightSum := by
     simpa only [mul_one, WeightScheme.weightSum] using sum_wsRaw_mul S fun _ _ => 1
   have hray : inner ℝ w₀ (Matrix.toEuclideanCLM (𝕜 := ℝ) (wsMatrix S) w₀) = 1 := by
@@ -869,9 +863,8 @@ private theorem wsMatrix_opNorm_ge_one (S : WeightScheme N) (hW : 0 < S.weightSu
         = (∑ x, ∑ y, (wsRaw S x y + wsRaw S y x)) / (2 * S.weightSum) := by
             simp_rw [sum_div]
             refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
-            rw [show (z x / √(2 * S.weightSum)) * (wsMatrix S x y * (z y / √(2 * S.weightSum))) =
-              (wsMatrix S x y * (z x * z y)) / (√(2 * S.weightSum) * √(2 * S.weightSum)) by ring,
-              wsMatrix_mul_sqrt, Real.mul_self_sqrt (by linarith)]
+            rw [← mul_div_assoc, div_mul_div_comm, mul_left_comm (z x), wsMatrix_mul_sqrt,
+              Real.mul_self_sqrt hW2]
       _ = 1 := by
             simp_rw [Finset.sum_add_distrib]
             rw [hA_sum, sum_comm (f := fun x y => wsRaw S y x), hA_sum, ← two_mul]
@@ -1089,9 +1082,7 @@ theorem mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge
               Matrix.absVec_apply, Matrix.hadamard_apply]
             conv_rhs => rw [sum_comm]; enter [2, x]; rw [sum_comm]
             refine sum_le_sum fun x _ => sum_le_sum fun y _ => ?_
-            rw [show ∑ i : Fin N, |u.ofLp x| * (Γ x y * diffMatrix i x y * |v.ofLp y|) =
-                Γ x y * (∑ i : Fin N, diffMatrix i x y) * |u.ofLp x| * |v.ofLp y| by
-              simp only [mul_sum, sum_mul]; exact sum_congr rfl fun i _ => by ring]
+            simp only [← sum_mul, ← mul_sum]
             by_cases hxy0 : Γ x y = 0
             · simp only [hxy0, mul_zero, zero_mul, le_refl]
             · have hdiff : (k : ℝ) ≤ ∑ i : Fin N, diffMatrix i x y := by

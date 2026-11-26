@@ -156,10 +156,8 @@ theorem time_le {κ : ℕ} (hκ : κ ≤ m) :
     Nat.mul_le_mul_left τ (Nat.pow_le_pow_right hm hj)
   have hB : ((Lc + 1) * (T + ub + 2) + ιb * T + 3 * (ev + ιb * lh) * (ub + Lc + 1) + 10 * X ^ 3) *
       k ≤ 28 * τ * m ^ 4 := by
-    have := q 0 (by norm_num)
-    have := q 1 (by norm_num)
-    have := q 2 (by norm_num)
-    have := q 3 (by norm_num)
+    have ⟨_, _, _, _⟩ : _ ∧ _ ∧ _ ∧ _ :=
+      ⟨q 0 (by decide), q 1 (by decide), q 2 (by decide), q 3 (by decide)⟩
     simp only [pow_zero, pow_one, mul_one] at *
     linarith [pow_succ X 3]
   calc κ * (_ : ℕ) * k ≤ m * (28 * τ * m ^ 4) := by
@@ -190,19 +188,16 @@ theorem size_le : X + 1 + (200 * X ^ 3 * Lc + ιb * ℓ * (4 * c + 2) + bd * (4 
   have h₂ : bd * ub ≤ W := hW ▸ h.bd_mul_ub_le
   have h₃ : X + 1 + 200 * X ^ 3 * Lc + (m * m + X * m) ≤ W := by
     refine le_trans ?_ (hW ▸ h.small_le)
-    have := h.pow_mul_pow_le (a := 3) (b := 3) (a' := 6) (b' := 20) (by norm_num) (by norm_num)
+    have := h.pow_mul_pow_le (a := 3) (b := 3) (a' := 6) (b' := 20) (by decide) (by decide)
     have := Nat.mul_le_mul_left (X ^ 3 * m ^ 2) h.le_m
     have := Nat.mul_le_mul_left (200 * X ^ 3) h.Lc_lt.le
-    have := h.pow_mul_pow_le (a := 0) (b := 0) (a' := 3) (b' := 2) (by norm_num) (by norm_num)
-    have := h.pow_mul_pow_le (a := 1) (b := 0) (a' := 3) (b' := 2) (by norm_num) (by norm_num)
-    have := h.pow_mul_pow_le (a := 0) (b := 2) (a' := 3) (b' := 2) (by norm_num) (by norm_num)
-    have := h.pow_mul_pow_le (a := 1) (b := 1) (a' := 3) (b' := 2) (by norm_num) (by norm_num)
-    have := h.pow_mul_pow_le (a := 3) (b := 1) (a' := 3) (b' := 2) (by norm_num) (by norm_num)
+    let pm (a b : ℕ) (ha : a ≤ 3 := by decide) (hb : b ≤ 2 := by decide) := h.pow_mul_pow_le ha hb
+    have ⟨_, _, _, _, _⟩ : _ ∧ _ ∧ _ ∧ _ ∧ _ := ⟨pm 0 0, pm 1 0, pm 0 2, pm 1 1, pm 3 1⟩
     simp only [pow_zero, pow_one, one_mul, mul_one] at *
     linarith
-  have := Nat.mul_le_mul_left S (Nat.pow_le_pow_right hm (show 2 ≤ 10 by norm_num))
-  have := Nat.mul_le_mul_left W ((show 5 ≤ m by have := h.le_m; omega).trans
-    (Nat.le_self_pow (show 10 ≠ 0 by norm_num) m))
+  have := Nat.mul_le_mul_left S (Nat.pow_le_pow_right hm (by decide : 2 ≤ 10))
+  have := Nat.mul_le_mul_left W (((by decide : 5 ≤ 10000).trans h.le_m).trans
+    (Nat.le_self_pow (by decide : 10 ≠ 0) m))
   linarith
 
 /-- **The time of the dealing program** is at most `(s + τ * k / v ^ 256) * m ^ 10`, with at most
@@ -239,10 +234,8 @@ theorem dealTime_le : dealTime Lc X K mm ub (mm * bd) s ≤ (s + τ * k / v ^ 25
       _ ≤ 30000 * (X * m) ^ 5 := by
           generalize X * m = Y at hY
           unfold stepBound pieceBound
-          have := Nat.pow_le_pow_right hY (show 4 ≤ 5 by norm_num)
-          have := Nat.pow_le_pow_right hY (show 3 ≤ 4 by norm_num)
-          have := Nat.pow_le_pow_right hY (show 2 ≤ 3 by norm_num)
-          have := Nat.pow_le_pow_right hY (show 1 ≤ 2 by norm_num)
+          let py {k} (hk : k ≤ 5 := by decide) := Nat.pow_le_pow_right hY hk
+          have ⟨_, _, _, _⟩ : _ ∧ _ ∧ _ ∧ _ := ⟨py (k := 1), py (k := 2), py (k := 3), py (k := 4)⟩
           simp only [pow_one] at *
           linarith
       _ ≤ m * m * (X * m) ^ 5 :=

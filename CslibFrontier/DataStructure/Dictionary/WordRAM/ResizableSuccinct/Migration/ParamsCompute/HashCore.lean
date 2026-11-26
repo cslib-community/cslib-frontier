@@ -274,10 +274,9 @@ private theorem fits_hashShifts {w t : ℕ} (hc_lt : 2 * reducedChunkBits t < w)
     Fits w (3 ^ (t - 3)) ∧ Fits w (3 ^ min t 3) ∧
       Fits w (min (2 * reducedChunkBits t) (Nat.log 2 (w / (2 * reducedChunkBits t))) + 1) := by
   have hw_fit : Fits w w := Nat.lt_two_pow_self
-  refine ⟨hw_fit.of_le (by change reducedChunkBits t ≤ w; omega),
-    h225.of_le ((reducedHalfLimbs_le t).trans (by decide)), hw_fit.of_le ?_⟩
-  have := Nat.min_le_left (2 * reducedChunkBits t) (Nat.log 2 (w / (2 * reducedChunkBits t)))
-  omega
+  exact ⟨hw_fit.of_le ((Nat.le_mul_of_pos_left _ two_pos).trans hc_lt.le),
+    h225.of_le ((reducedHalfLimbs_le t).trans (by decide)),
+    hw_fit.of_le (lt_of_le_of_lt (Nat.min_le_left _ _) hc_lt)⟩
 
 /-- Pure arithmetic invariants for `computeHashCoreProg` and `writeHashParamsSubProg`. -/
 theorem computeHashCore_arith {w U N dstMetaBase : ℕ}
@@ -342,15 +341,14 @@ private theorem computeHashTargetProg_exec {w hdrBase qBitsVal logN : ℕ} {s : 
     trinomProg_spec (B := max (min (max qBitsVal 1) ((logN + 1) * 3)) (max logN 1)) hhdr hB2_fit
       (h225.of_le (by decide))
   dsimp only [d, computeHashTargetProg]
-  iterate 4 (
+  iterate 5 (
     rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
       Realization.memoryCost_bind']
     first
       | rw [clientState_maxNatProg, clientResult_maxNatProg, memoryCost_maxNatProg]
-      | rw [clientState_minNatProg, clientResult_minNatProg, memoryCost_minNatProg])
-  rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', hst_tr, hres_tr, StateTransitionSpec.clientState_pure,
-    prog_clientResult_pure, memoryCost_pure]
+      | rw [clientState_minNatProg, clientResult_minNatProg, memoryCost_minNatProg]
+      | rw [hst_tr, hres_tr, StateTransitionSpec.clientState_pure, prog_clientResult_pure,
+          memoryCost_pure])
   exact ⟨⟨validHistory_maxNatProg _ _, validHistory_minNatProg _ _, validHistory_maxNatProg _ _,
     validHistory_maxNatProg _ _, hv_tr, trivial⟩, rfl, rfl,
     by have := hc_tr.trans htarg_le; omega⟩
@@ -413,19 +411,16 @@ private theorem computeHashShiftsProg_exec {w hdrBase t : ℕ} {s : Memory.State
     dsimp only [reducedChunkBits]; ring
   have hmin_le : min t 3 ≤ 3 := Nat.min_le_right t 3
   dsimp only [d, computeHashShiftsProg]
-  rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', clientState_subSatProg, clientResult_subSatProg,
-    memoryCost_subSatProg,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', clientState_minNatProg, clientResult_minNatProg,
-    memoryCost_minNatProg,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', hst_p1, hres_p1,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', hst_p2, hres_p2, h2c_sum,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', hst_lg, hres_lg, StateTransitionSpec.clientState_pure,
-    prog_clientResult_pure, memoryCost_pure]
+  iterate 5 (
+    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+      Realization.memoryCost_bind']
+    first
+      | rw [clientState_subSatProg, clientResult_subSatProg, memoryCost_subSatProg]
+      | rw [clientState_minNatProg, clientResult_minNatProg, memoryCost_minNatProg]
+      | rw [hst_p1, hres_p1]
+      | rw [hst_p2, hres_p2, h2c_sum]
+      | rw [hst_lg, hres_lg, StateTransitionSpec.clientState_pure, prog_clientResult_pure,
+          memoryCost_pure])
   exact ⟨⟨validHistory_subSatProg _ _, validHistory_minNatProg _ _, hv_p1, hv_p2, hv_lg, trivial⟩,
     rfl, rfl, by omega⟩
 

@@ -246,8 +246,7 @@ functions of its input wires. -/
 theorem restricted_gate_apply (ρ : PartialAssignment (Fin n)) (k : Fin g) (x : BitString n) :
     restricted p ρ (.gate k) x =
       interpretation (p.lines k).op fun s => restricted p ρ ((p.lines k).wires s) x := by
-  simp only [restricted, comp_apply, Program.wireFunction_gate, Program.gateFunction_apply]
-  rw [← p.lines_eval]
+  rw [restricted, comp_apply, Program.wireFunction_gate, Program.gateFunction_apply, ← p.lines_eval]
   rfl
 
 private theorem restricted_gate (ρ : PartialAssignment (Fin n)) (k : Fin g) :
@@ -289,10 +288,9 @@ private theorem restricted_update_of_parity {o : Wire n g} (hi : ρ i = none) (b
     parityOn_eq_xor_erase (PartialAssignment.mem_free.2 hi), PartialAssignment.free_update,
     PartialAssignment.fill_of_eq_some (update_self ..), Bool.xor_assoc]
   congr 2
-  refine parityOn_congr fun j hj => PartialAssignment.fill_of_eq_none ?_ x
-  obtain ⟨hji, hj⟩ := mem_erase.1 hj
-  rw [update_of_ne hji]
-  exact PartialAssignment.mem_free.1 hj
+  exact parityOn_congr fun j hj => PartialAssignment.fill_of_eq_none
+    ((update_of_ne (mem_erase.1 hj).1 _ _).trans (PartialAssignment.mem_free.1 (mem_erase.1 hj).2))
+    x
 
 end Restricted
 
@@ -433,13 +431,11 @@ private theorem Effective.eqUpToNeg_or_dependsOn {i j : Fin n} (hj : ρ j = none
       (PartialAssignment.dependsOn_comp_fill · _)
   | gate k ih =>
     by_cases hkk : k = k₀
-    · subst hkk
-      exact Or.inr fun x y _ => hk₀ x y
+    · exact Or.inr fun x y _ => hkk ▸ hk₀ x y
     by_cases hk : NonRedundant p ρ k
-    · refine Or.inr ?_
-      rw [restricted_gate]
-      exact dependsOn_of_forall_dependsOn _ _ fun s =>
-        (ih s (hv.arg (Or.inl hk))).resolve_left (hread k hk hv hkk s)
+    · exact Or.inr (restricted_gate p (update ρ j (some b)) k ▸
+        dependsOn_of_forall_dependsOn _ _ fun s =>
+          (ih s (hv.arg (Or.inl hk))).resolve_left (hread k hk hv hkk s))
     · rcases isConstOrLiteral_or_eqUpToNeg_of_not_nonRedundant hk with h | ⟨s, h⟩
       · rw [restricted_update hj]
         exact (h.eqUpToNeg_or_dependsOn i).imp_right (PartialAssignment.dependsOn_comp_fill · _)
@@ -535,11 +531,9 @@ private theorem exists_card_add_three_le {c : Bool}
   obtain ⟨s₀, i, j, hij, hs₀, ⟨a, d₁, hka⟩, ⟨b, d₂, hkb⟩⟩ :=
     exists_two_literals _ _ hbin hargs hnt hns
   rw [← restricted_gate] at hka hkb hnt
-  have hi : ρ i = none := by
-    by_contra h
-    obtain ⟨e, he⟩ := hs₀
-    have := restricted_update_of_ne_none (p := p) h ((p.lines k₀).wires s₀) (fun _ => false) true
-    simp [he] at this
+  have hi : ρ i = none := Classical.byContradiction fun h => hs₀.elim fun e he => by
+    simpa [he] using
+      restricted_update_of_ne_none (p := p) h ((p.lines k₀).wires s₀) (fun _ => false) true
   have hfix {l : Fin n} (hl : ρ l = none) {e d : Bool}
       (h : ∀ x, x l = e → restricted p ρ (.gate k₀) x = d) :
       IsConst (restricted p (update ρ l (some e)) (.gate k₀)) :=

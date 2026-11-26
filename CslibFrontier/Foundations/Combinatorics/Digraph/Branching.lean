@@ -206,8 +206,7 @@ private theorem transGen_branchingDigraph_iterate {p : V → V} {x y : V}
   induction hxy with
   | single h =>
     exact ⟨1, Nat.zero_lt_one, by simpa using h.2, fun i hi => by
-      obtain rfl : i = 0 := by omega
-      simpa using h.1⟩
+      simpa [Nat.lt_one_iff.mp hi] using h.1⟩
   | @tail b c _ hbc ih =>
     obtain ⟨k, hk, hpk, hne⟩ := ih
     refine ⟨k + 1, Nat.succ_pos _, by rw [Function.iterate_succ_apply, hbc.2, hpk], fun i hi => ?_⟩
@@ -292,9 +291,7 @@ theorem IsBranching.exists_rank [Finite V] {B : Digraph V} (hB : B.IsBranching) 
   · exact absurd (by simpa [hk] using Nat.find_spec (hfix w)) hne
   · have hm : p (p^[m] (p w)) = p^[m] (p w) := by
       simpa only [hk, Function.iterate_succ_apply] using Nat.find_spec (hfix w)
-    dsimp only
-    rw [hk]
-    exact Nat.lt_succ_of_le (Nat.find_min' (hfix (p w)) hm)
+    simpa only [hk] using Nat.lt_succ_of_le (Nat.find_min' (hfix (p w)) hm)
 
 /-! ### Super-root bijection on `Option V` -/
 
@@ -394,13 +391,10 @@ theorem isBranching_iff_isInArborescence_superRootExtend [Finite V] {B : Digraph
     · rintro (_ | v) hne
       · exact absurd rfl hne
       · by_cases hv : ∃ u, (branchingDigraph p).Adj u v
-        · have ⟨u, hu⟩ := hv
-          refine ⟨some u, hu, ?_⟩
-          rintro (_ | w) hw
-          exacts [absurd hv hw, congrArg some (hB.in_unique hw hu)]
-        · refine ⟨none, hv, ?_⟩
-          rintro (_ | w) hw
-          exacts [rfl, absurd ⟨w, hw⟩ hv]
+        · obtain ⟨u, hu⟩ := hv
+          exact ⟨some u, hu, Option.rec (fun hw => absurd ⟨u, hu⟩ hw) fun _ hw =>
+            congrArg some (hB.in_unique hw hu)⟩
+        · exact ⟨none, hv, Option.rec (fun _ => rfl) fun w hw => absurd ⟨w, hw⟩ hv⟩
     · rintro (_ | v)
       · exact Relation.ReflTransGen.refl
       · obtain ⟨n, hn⟩ := hpfix v
@@ -555,10 +549,7 @@ theorem IsBranching.toSimpleGraph_isAcyclic {B : Digraph V} (hB : B.IsBranching)
           simpa [SimpleGraph.Walk.edges_reverse, Sym2.eq_swap] using this.symm
         have hmem_edge : s(v, w) ∈ p.edges := by
           rcases hpe : p.edges.reverse with _ | ⟨e, es⟩
-          · have hlen0 := congrArg List.length hpe
-            simp only [List.length_reverse, SimpleGraph.Walk.length_edges, List.length_nil] at hlen0
-            simp only [SimpleGraph.Walk.length_cons] at hlen
-            omega
+          · simp [← SimpleGraph.Walk.length_edges, List.reverse_eq_nil_iff.mp hpe] at hlen
           · rw [hpe, List.cons_append, List.cons.injEq] at hrev_edges
             exact List.mem_reverse.mp (hpe ▸ hrev_edges.1 ▸ List.mem_cons_self)
         have hwu_ne : w ≠ u := fun hwu => (List.nodup_cons.mp hnd).1 (hwu ▸ hmem_edge)

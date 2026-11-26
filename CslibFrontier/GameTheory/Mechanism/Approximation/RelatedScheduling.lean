@@ -395,8 +395,8 @@ noncomputable def lexOptAlloc [LinearOrder (J → M)] (w : J → ℝ) (c : M →
   (optSchedules w c).min' (optSchedules_nonempty w c)
 
 theorem lexOptAlloc_isOptimal [LinearOrder (J → M)] (w : J → ℝ) (c : M → ℝ) :
-    relatedMakespan w c (lexOptAlloc w c) = optRelatedMakespan w c := by
-  exact (Finset.mem_filter.1 (Finset.min'_mem (optSchedules w c) (optSchedules_nonempty w c))).2
+    relatedMakespan w c (lexOptAlloc w c) = optRelatedMakespan w c :=
+  (Finset.mem_filter.1 (Finset.min'_mem (optSchedules w c) (optSchedules_nonempty w c))).2
 
 theorem lexOptAlloc_le_of_optimal [LinearOrder (J → M)] (w : J → ℝ) (c : M → ℝ) {a : J → M}
     (ha : relatedMakespan w c a = optRelatedMakespan w c) :
@@ -463,9 +463,8 @@ theorem lexOptWork_isAntitoneWork [LinearOrder (J → M)] {w : J → ℝ} (hw : 
   change relatedMakespan w cy ax = cy k₀ * work w ax k₀ at hk₀
   have hk₀_ne : k₀ ≠ i := fun h =>
     hax_cy_i.ne ((h ▸ hk₀).symm.trans (hax_opt_cy.trans hopt_y.symm))
-  have hay_cx_le : relatedMakespan w cx ay ≤ relatedMakespan w cx ax := by
-    calc
-      relatedMakespan w cx ay ≤ relatedMakespan w cy ay := hmono ay
+  have hay_cx_le : relatedMakespan w cx ay ≤ relatedMakespan w cx ax :=
+    calc relatedMakespan w cx ay ≤ relatedMakespan w cy ay := hmono ay
       _ = cx k₀ * work w ax k₀ := by
         rw [hopt_y, ← hax_opt_cy, hk₀]
         simp only [cx, cy, Function.update_of_ne hk₀_ne]
@@ -488,14 +487,12 @@ theorem lexOptWork_eq_zero_of_large_cost [LinearOrder (J → M)] [Nontrivial M] 
     let W : ℝ := ∑ j : J, w j
     refine ⟨(c k * W) / wMin, fun x hx => ?_⟩
     set cx := Function.update c i x
-    let aAllK : J → M := fun _ => k
-    have hopt_le : optRelatedMakespan w cx ≤ c k * W := by
-      refine (optRelatedMakespan_le w cx aAllK).trans ((relatedMakespan_le_iff w cx aAllK).2
-        fun m => ?_)
-      rcases eq_or_ne m k with rfl | hmk
-      · simp only [cx, Function.update_of_ne hki, work, aAllK, Finset.filter_true, W, le_refl]
-      · rw [work, Finset.filter_false_of_mem fun _ _ => Ne.symm hmk, Finset.sum_empty, mul_zero]
-        exact mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)
+    have hopt_le : optRelatedMakespan w cx ≤ c k * W :=
+      (optRelatedMakespan_le w cx fun _ => k).trans <| (relatedMakespan_le_iff w cx _).2 fun m => by
+        rcases eq_or_ne m k with rfl | hmk
+        · simp only [cx, Function.update_of_ne hki, work, Finset.filter_true, W, le_refl]
+        · rw [work, Finset.filter_false_of_mem fun _ _ => Ne.symm hmk, Finset.sum_empty, mul_zero]
+          exact mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)
     have hle_opt : x * work w (lexOptAlloc w cx) i ≤ c k * W :=
       calc x * work w (lexOptAlloc w cx) i
         _ = cx i * work w (lexOptAlloc w cx) i := by simp only [cx, Function.update_self]
@@ -505,13 +502,12 @@ theorem lexOptWork_eq_zero_of_large_cost [LinearOrder (J → M)] [Nontrivial M] 
         _ ≤ c k * W := hopt_le
     refine Finset.sum_eq_zero fun j hj => ?_
     by_contra hne0
-    have hwj_pos : 0 < w j := lt_of_le_of_ne (hw j) (Ne.symm hne0)
     have hwMin_le : wMin ≤ work w (lexOptAlloc w cx) i :=
-      (Finset.inf'_le w (Finset.mem_filter.2 ⟨Finset.mem_univ j, hwj_pos⟩)).trans
+      (Finset.inf'_le w (Finset.mem_filter.2 ⟨Finset.mem_univ j, (hw j).lt_of_ne' hne0⟩)).trans
         (Finset.single_le_sum (fun j' _ => hw j') hj)
     have hgt : c k * W < x * wMin := (div_lt_iff₀ hwMin_pos).1 hx
     have hx_pos : 0 < x := pos_of_mul_pos_left
-      ((mul_nonneg (hc k).le (Finset.sum_nonneg fun _ _ => hw _)).trans_lt hgt) hwMin_pos.le
+      ((mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)).trans_lt hgt) hwMin_pos.le
     linarith [mul_le_mul_of_nonneg_left hwMin_le hx_pos.le]
   · refine ⟨0, fun x _ => Finset.sum_eq_zero fun j _ => le_antisymm ?_ (hw j)⟩
     exact not_lt.1 fun hpos => hne ⟨j, Finset.mem_filter.2 ⟨Finset.mem_univ j, hpos⟩⟩
@@ -522,18 +518,14 @@ theorem lexOptWork_hasIntegrableTail [LinearOrder (J → M)] [Nontrivial M] {w :
     HasIntegrableTail (fun c : M → ℝ => work w (lexOptAlloc w c)) := by
   intro c hc i a ha
   obtain ⟨C, hC⟩ := lexOptWork_eq_zero_of_large_cost hw hc i
-  set B := max a C
-  have haB : a ≤ B := le_max_left a C
-  have hanti : AntitoneOn (fun x => work w (lexOptAlloc w (Function.update c i x)) i)
-      (Set.Ioi 0) := lexOptWork_isAntitoneWork hw c hc i
+  have haB : a ≤ max a C := le_max_left a C
   have hIoc : IntegrableOn (fun x => work w (lexOptAlloc w (Function.update c i x)) i)
-      (Set.Ioc a B) volume :=
-    (hanti.mono fun t ht => ha.trans_le (Set.uIcc_of_le haB ▸ ht).1).intervalIntegrable.1
-  have hIoi : IntegrableOn (fun x => work w (lexOptAlloc w (Function.update c i x)) i)
-      (Set.Ioi B) volume :=
-    (integrableOn_zero (μ := volume) (s := Set.Ioi B)).congr_fun
-      (fun x hx => (hC x ((le_max_right a C).trans_lt hx)).symm) measurableSet_Ioi
-  exact Set.Ioc_union_Ioi_eq_Ioi haB ▸ hIoc.union hIoi
+      (Set.Ioc a (max a C)) volume :=
+    ((lexOptWork_isAntitoneWork hw c hc i).mono fun _ ht =>
+      ha.trans_le (Set.uIcc_of_le haB ▸ ht).1).intervalIntegrable.1
+  exact Set.Ioc_union_Ioi_eq_Ioi haB ▸ hIoc.union
+    ((integrableOn_zero (μ := volume) (s := Set.Ioi (max a C))).congr_fun
+      (fun x hx => (hC x ((le_max_right a C).trans_lt hx)).symm) measurableSet_Ioi)
 
 /-- The **Archer–Tardos exact related-machine scheduling mechanism** combining `lexOptAlloc`
 with `archerTardosPayment` ([ArcherTardos2001]; [NisanRoughgardenTardosVazirani2007], Chapter 12,

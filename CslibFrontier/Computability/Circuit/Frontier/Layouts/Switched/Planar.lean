@@ -406,15 +406,11 @@ private theorem planarProb_polar (γ₀ γ₁ h : ℝ) :
   rw [planarProb, ← integral_indicator_one (measurableSet_planarSet γ₀ γ₁ h)]
   change ∫ z, f z ∂normal2 = _
   rw [integral_normal2_polar hint]
-  apply setIntegral_congr_fun measurableSet_Ioi
-  intro r hr
-  dsimp only
+  refine setIntegral_congr_fun measurableSet_Ioi fun r hr => ?_
   rw [integral_const_mul, angMeasure, intervalIntegral.integral_of_le (by linarith [Real.pi_pos]),
     integral_Ioc_eq_integral_Ioo]
-  congr 1
-  apply setIntegral_congr_fun measurableSet_Ioo
-  intro t _
-  simp only [f, indicator, freeInd, planarSet_polar hr]
+  exact congrArg (radial r * ·) (setIntegral_congr_fun measurableSet_Ioo fun t _ => by
+    simp only [f, indicator, freeInd, planarSet_polar hr])
 
 /-- Free measure comparison at every radius. -/
 private theorem angMeasure_compare {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁)
@@ -439,8 +435,7 @@ theorem planarProb_ge_eq {γ₀ γ₁ h : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ �
     simp only [intervalIntegral.integral_const, smul_eq_mul, mul_one] at hle
     rw [angMeasure]
     linarith
-  have hmeasA : ∀ a b, Measurable fun r => angMeasure a b (h / r) := by
-    intro a b
+  have hmeasA (a b : ℝ) : Measurable fun r => angMeasure a b (h / r) := by
     -- the parametric integral of a jointly measurable bounded function
     have hj : Measurable (Function.uncurry fun r t => freeInd a b (h / r) t) :=
       (measurable_uncurry_freeInd a b).comp ((measurable_const.div measurable_fst).prodMk
@@ -448,17 +443,14 @@ theorem planarProb_ge_eq {γ₀ γ₁ h : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ �
     unfold angMeasure
     simp_rw [intervalIntegral.integral_of_le (by linarith [Real.pi_pos] : -π ≤ π)]
     exact (hj.stronglyMeasurable.integral_prod_right (ν := volume.restrict (Ioc (-π) π))).measurable
-  have hI : ∀ a b, IntegrableOn (fun r => radial r * angMeasure a b (h / r)) (Ioi 0) := by
-    intro a b
+  have hI (a b : ℝ) : IntegrableOn (fun r => radial r * angMeasure a b (h / r)) (Ioi 0) := by
     refine (integrableOn_radial.mul_const (2 * π)).mono'
       (measurable_radial.mul (hmeasA a b)).aestronglyMeasurable ?_
     filter_upwards [ae_restrict_mem measurableSet_Ioi] with r hr
-    rw [norm_mul, Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (radial_nonneg (le_of_lt hr)),
+    rw [norm_mul, Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (radial_nonneg hr.le),
       abs_of_nonneg (hA a b _).1]
-    exact mul_le_mul_of_nonneg_left (hA a b _).2 (radial_nonneg (le_of_lt hr))
-  apply setIntegral_mono_on (hI _ _) (hI _ _) measurableSet_Ioi
-  intro r hr
-  exact mul_le_mul_of_nonneg_left (angMeasure_compare h0 h0' h1 h1')
-    (radial_nonneg (le_of_lt hr))
+    exact mul_le_mul_of_nonneg_left (hA a b _).2 (radial_nonneg hr.le)
+  exact setIntegral_mono_on (hI _ _) (hI _ _) measurableSet_Ioi fun r hr =>
+    mul_le_mul_of_nonneg_left (angMeasure_compare h0 h0' h1 h1') (radial_nonneg hr.le)
 
 end Cslib.Circuits.Frontier.Switched

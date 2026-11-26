@@ -125,10 +125,8 @@ private theorem size_baseBody_le (hK : K + K ≤ X) (hU0 : U0 ≤ X) (hS : Finty
   have h2 : (keysEnc (baseBody ρ n key dkey p).readKeys).size ≤
       X * (X * (4 * Lc + 2) + 2) + 1 :=
     hkeys (fun b => n b p) _ fun b _ => by split_ifs; exacts [hd _, hk _]
-  have e1 : X * (X * (4 * Lc + 2) + 2) = X * X * (4 * Lc + 2) + 2 * X := by ring
-  have e2 : X * (X * 6 + 1 + 1) = X * X * 6 + 2 * X := by ring
-  have e3 : X * X * (8 * Lc + 10) = X * X * 6 + 2 * (X * X * (4 * Lc + 2)) := by ring
   simp only [Body.enc, Tree.size]
+  ring_nf at hflags h1 h2 ⊢
   omega
 
 omit [DecidableEq S] in
@@ -180,8 +178,7 @@ theorem size_scriptEnc_le (hX : 1 ≤ X) (hLc : 1 ≤ Lc) (hK : K + K ≤ X) (hU
       have hw : (wordsEnc ((x κ).map (letterCode cb)).reverse).size ≤
           (x κ).length * (4 * c + 2) + 1 :=
         size_wordsEnc_le (by simp) fun k hk => by
-          simp only [List.mem_reverse, List.mem_map] at hk
-          obtain ⟨a, -, rfl⟩ := hk
+          rcases List.mem_map.1 (List.mem_reverse.1 hk) with ⟨_, -, rfl⟩
           simp [letterCode]
       simp only [Fin.addCases_right, plen, Instruction.enc, Tree.size, size_num] at hB hagree ⊢
       omega
@@ -210,8 +207,7 @@ theorem size_scriptEnc_le (hX : 1 ≤ X) (hLc : 1 ≤ Lc) (hK : K + K ≤ X) (hU
         obtain ⟨e, -, rfl⟩ := List.mem_map.1 hks
         refine ⟨?_, fun k hk' => ?_⟩
         · simpa [Plan.ids] using (List.length_filter_le _ _).trans (by simpa [UnitId.list] using hU)
-        · simp only [List.mem_reverse, List.mem_map] at hk'
-          obtain ⟨u, -, rfl⟩ := hk'
+        · rcases List.mem_map.1 (List.mem_reverse.1 hk') with ⟨_, -, rfl⟩
           exact hk _
     have hc := size_keysEnc_le (X := X) (Lc := Lc) (kss := (channelList (M.law r.1) r.2).map
       fun ν => (indicesBelow (o ⟨r.1, ν.1⟩).succ).map fun k =>
@@ -223,9 +219,8 @@ theorem size_scriptEnc_le (hX : 1 ≤ X) (hLc : 1 ≤ Lc) (hK : K + K ≤ X) (hU
         exact hk _
     have := htg r
     have := hcount r.1
-    have e1 : X * (X * (4 * Lc + 2) + 2) = X * X * (4 * Lc + 2) + 2 * X := by ring
-    have e2 : X * X * (8 * Lc + 4) = 2 * (X * X * (4 * Lc + 2)) := by ring
     simp only [roleInstruction, Instruction.enc, Tree.size, size_num]
+    ring_nf at hs hc ⊢
     omega
   -- the end
   have h3 : ((endInstructions P n o grp g key b).map fun i => i.enc.size + 1).sum ≤
@@ -261,12 +256,8 @@ theorem size_scriptEnc_le (hX : 1 ≤ X) (hLc : 1 ≤ Lc) (hK : K + K ≤ X) (hU
       X * (X * X * (8 * Lc + 4) + 8 * X + 16) + X * (8 * Lc + 12) + 8 * Lc + 6 ≤
         200 * X ^ 3 * Lc := by
     have a1 : X ≤ X ^ 2 := Nat.le_self_pow two_ne_zero X
-    have a2 : X ^ 2 ≤ X ^ 3 := Nat.pow_le_pow_right hX (by omega)
-    have a3 : X ^ 3 ≤ X ^ 3 * Lc := Nat.le_mul_of_pos_right _ hLc
-    have a4 : X ^ 2 * Lc ≤ X ^ 3 * Lc := Nat.mul_le_mul_right _ a2
-    have a5 : X * Lc ≤ X ^ 2 * Lc := Nat.mul_le_mul_right _ a1
-    have a6 : Lc ≤ X * Lc := Nat.le_mul_of_pos_left _ hX
-    nlinarith
+    have a2 : X ^ 2 ≤ X ^ 3 := Nat.pow_le_pow_right hX (by decide)
+    nlinarith [Nat.mul_le_mul_right Lc a1, Nat.mul_le_mul_right Lc a2]
   omega
 
 end Cslib.Circuits.Arithmetic.Separation.Dealing

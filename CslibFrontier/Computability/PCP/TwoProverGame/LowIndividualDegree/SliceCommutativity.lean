@@ -161,8 +161,7 @@ private theorem abs_sum_sandwich_copy_le (φ : AlgState A)
       Measurement.successfulCopyDefect, q, r] using h
   have hh := (abs_sub_le (∑ b, (φ (G * q b)).re)
     (∑ b, (φ (r b * (G * q b))).re) (∑ b, (φ (q b * (G * q b))).re)).trans
-      (add_le_add h1 h2)
-  rw [← two_mul] at hh
+      ((add_le_add h1 h2).trans_eq (two_mul _).symm)
   rw [sum_comm (f := fun a b : F => (φ (P.effect (some a) * N.effect (some b))).re),
     sum_comm (f := fun a b : F =>
       (φ (N.effect (some b) * P.effect (some a) * N.effect (some b))).re)]
@@ -197,15 +196,11 @@ private theorem mean_successfulPairDefect_eq {X : Type*} [Fintype X]
     (expect_comm univ univ _).trans
       (expect_congr rfl fun _ _ => expect_congr rfl fun _ _ => sum_comm)
   change mean (fun u v a b => φ.norm (p u a * p v b - p v b * p u a) ^ 2) = _
+  have hs1 := hswap fun u v a b => (φ (p v b * p u a * p v b)).re
+  have hs2 := hswap fun u v a b => (φ (p u a * p v b * p u a * p v b)).re
   simp only [hterm, mean, sum_add_distrib, sum_sub_distrib, expect_add_distrib,
-    expect_sub_distrib]
-  rw [show (𝔼 u, 𝔼 v, ∑ a : F, ∑ b : F, (φ (p u a * p v b * p u a)).re) =
-      𝔼 u, 𝔼 v, ∑ a : F, ∑ b : F, (φ (p v b * p u a * p v b)).re from hswap _,
-    show (𝔼 u, 𝔼 v, ∑ a : F, ∑ b : F, (φ (p v b * p u a * p v b * p u a)).re) =
-      𝔼 u, 𝔼 v, ∑ a : F, ∑ b : F, (φ (p u a * p v b * p u a * p v b)).re from hswap _]
-  change _ = 2 * (mean _ - mean _)
-  unfold mean
-  ring
+    expect_sub_distrib] at hs1 hs2 ⊢
+  linarith
 
 variable [Field F] [DecidableEq F]
 

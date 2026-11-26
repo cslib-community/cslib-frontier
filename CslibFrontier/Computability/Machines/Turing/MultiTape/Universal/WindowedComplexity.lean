@@ -406,17 +406,13 @@ lemma eval_le (d : Desc) {B : ℕ} (hDB : descLen d ≤ B) (k : ℕ) :
       (by simp only [simDC, decide_eq_false_iff_not]; omega) h₁ h₂
     have hcost := nodeCost_le hDB hw
     obtain ⟨m, rfl⟩ : ∃ m, n = m + 2 := ⟨n - 2, by omega⟩
-    rw [show simDC.join ((simDC.mid ((d, m + 2, w), sim d (firstHalf (m + 2))
-        (extract (firstHalf (m + 2)) w))).2, sim d ((m + 2) / 2) (extract ((m + 2) / 2)
-          (restore (firstHalf (m + 2)) w (sim d (firstHalf (m + 2))
-            (extract (firstHalf (m + 2)) w)).1))) = sim d (m + 2) w by
-      rw [sim_add_two]; rfl] at hnode
+    rw [sim_add_two]
     refine ⟨_, hnode, ?_⟩
     have h2 := Nat.mul_le_mul_left (costA (descLen d) B)
       (show m + 2 + 1 ≤ 2 * 2 ^ (k + 1) by omega)
-    rw [show 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B =
-      2 * (2 ^ (k + 1) * (k + 1) * costA (descLen d) B) + costA (descLen d) B * (2 * 2 ^ (k + 1))
-      by ring]
+    have hpow : 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B =
+        2 * (2 ^ (k + 1) * (k + 1) * costA (descLen d) B) +
+          costA (descLen d) B * (2 * 2 ^ (k + 1)) := by ring
     omega
 
 end Cost
@@ -471,10 +467,9 @@ public theorem computableInO_universal_nlogn :
     rw [universal_eq_sim]; rfl).mono 6000000000 (fun i => ?_) (fun i => ?_))
   all_goals
     obtain ⟨d, x, t⟩ := i
-    have hY : descLen d + 1 ≤ descLen d + listMax id x + 2 := by omega
     have hY6 : 1 ≤ (descLen d + listMax id x + 2) ^ 6 := Nat.one_le_pow _ _ (by omega)
     have hD3 : (descLen d + 1) ^ 3 ≤ (descLen d + listMax id x + 2) ^ 6 :=
-      (Nat.pow_le_pow_left hY 3).trans (Nat.pow_le_pow_right (by omega) (by omega))
+      (Nat.pow_le_pow_left (by omega) 3).trans (Nat.pow_le_pow_right (by omega) (by omega))
     have hQ1 : 1 ≤ (t + 1) * (Nat.log 2 (t + 1) + 1) := Nat.one_le_iff_ne_zero.mpr (by positivity)
     have hQ : (t + 1) * ((encNat t).length + 1) ≤ 2 * ((t + 1) * (Nat.log 2 (t + 1) + 1)) := by
       have := length_encNat_le_log t
@@ -494,12 +489,11 @@ public theorem computableInO_universal_nlogn :
         640000000 * (descLen d + listMax id x + 2) ^ 6 :=
       (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left
         (show _ ≤ 2 * (descLen d + listMax id x + 2) by omega) 6)).trans (le_of_eq (by ring))
-    have hC3 := (hC (d, x, t)).2
     have hC4 : C (d, x, t) ≤ 5120000000 * ((descLen d + listMax id x + 2) ^ 6 *
         ((t + 1) * (Nat.log 2 (t + 1) + 1))) :=
       calc C (d, x, t) ≤ 8 * ((t + 1) * (Nat.log 2 (t + 1) + 1)) *
             (640000000 * (descLen d + listMax id x + 2) ^ 6) :=
-            hC3.trans (Nat.mul_le_mul hC1 hC2)
+            (hC (d, x, t)).2.trans (Nat.mul_le_mul hC1 hC2)
         _ = _ := by ring
     have hP1 := Nat.le_mul_of_pos_right ((descLen d + listMax id x + 2) ^ 6) hQ1
     have hP2 := Nat.le_mul_of_pos_left ((t + 1) * (Nat.log 2 (t + 1) + 1)) hY6
