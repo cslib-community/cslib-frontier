@@ -26,10 +26,11 @@ form a lattice [KleenePost1954], [Spector1956].
 ## Scope
 
 Mathlib's `TuringDegree` is the quotient of partial functions `ℕ →. ℕ` under Turing equivalence.
-The exact pair construction and non-lattice corollaries in this file are proved for **degrees of
-sets** (`TuringDegree.IsSetDegree`, represented by `{0, 1}`-valued indicator functions) and
-**degrees of total functions** (`TuringDegree.IsTotalDegree`, represented by total `f : ℕ → ℕ`),
-not for arbitrary partial-function degrees.
+The exact pair construction and non-lattice corollary in this file are proved for **degrees of
+sets** (`TuringDegree.IsSetDegree`, represented by `{0, 1}`-valued indicator functions), which
+coincide with **degrees of total functions** (`TuringDegree.IsTotalDegree`, represented by total
+`f : ℕ → ℕ`) by `TuringDegree.isSetDegree_iff_isTotalDegree`, not for arbitrary partial-function
+degrees.
 
 ## Main definitions
 
@@ -37,8 +38,9 @@ not for arbitrary partial-function degrees.
   sets and of total functions inside `TuringDegree`.
 * `Nat.RecursiveIn.setJoin`, `Nat.RecursiveIn.prefixJoin`: binary and finite-prefix joins of sets
   of natural numbers.
-* `Nat.RecursiveIn.diagSet`, `Nat.RecursiveIn.strictAscSeq`: a jump-free diagonalization operator
-  and the resulting strictly ascending sequence of sets under `≤ᵀ`.
+* `Nat.RecursiveIn.diagSet`, `Nat.RecursiveIn.strictAscSeq`: a direct diagonalization operator
+  (defined without formalizing the Turing jump operator) and the resulting strictly ascending
+  sequence of sets under `≤ᵀ`.
 * `TuringDegree.IsSetDegreeIdeal`: ideals inside the degrees of sets.
 * `TuringDegree.IsExactPairForSetDegrees`: exact pair predicate for ideals of degrees of sets.
 
@@ -47,11 +49,13 @@ not for arbitrary partial-function degrees.
 * `Nat.RecursiveIn.exists_exactPair_seq`: for every sequence of sets `C : ℕ → Set ℕ`, there exist
   sets `A` and `B` above every finite prefix join `prefixJoin C n` such that every total function
   `f ≤ᵀ A, B` is Turing reducible to `prefixJoin C n` for some `n`.
+* `TuringDegree.isSetDegree_iff_isTotalDegree`: degrees of sets coincide with degrees of total
+  functions.
 * `TuringDegree.spector_exact_pair_setDegrees`: every countable ideal of degrees of sets has an
   exact pair of degrees of sets.
-* `TuringDegree.exists_totalDegree_no_inf`, `TuringDegree.exists_setDegree_no_inf`: there exist
-  two degrees of sets with no greatest lower bound among degrees of total functions or among
-  degrees of sets.
+* `TuringDegree.exists_exactPair_strictMono_no_inf`, `TuringDegree.exists_setDegree_no_inf`: any
+  strictly increasing sequence of set degrees yields an exact pair with no greatest lower bound, so
+  the degrees of sets (equivalently, of total functions) do not form a lattice.
 
 ## References
 
@@ -213,9 +217,6 @@ namespace SpectorExactPair
 
 open Code
 
-private def PrefixAgrees (σ : List Bool) (g : ℕ → Bool) : Prop :=
-  ∀ i (h : i < σ.length), σ[i] = g i
-
 open Classical in
 private noncomputable def colBit (C : ℕ → Set ℕ) (i : ℕ) : Bool :=
   decide (i.unpair.2 ∈ C i.unpair.1)
@@ -325,24 +326,16 @@ private noncomputable def limA (C : ℕ → Set ℕ) (n : ℕ) : Bool :=
 private noncomputable def limB (C : ℕ → Set ℕ) (n : ℕ) : Bool :=
   (stage C (n + 1)).2.getD n false
 
-private theorem agrees_of_prefix {f : ℕ → List Bool}
-    (hpref : ∀ {s t}, s ≤ t → f s <+: f t) (hlen : ∀ i, i < (f (i + 1)).length) (s : ℕ) :
-    PrefixAgrees (f s) (fun n => (f (n + 1)).getD n false) := fun i hi => by
-  dsimp only
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (hlen i), Option.getD_some,
-    (hpref (le_max_left s (i + 1))).getElem hi,
-    (hpref (le_max_right s (i + 1))).getElem (hlen i)]
-
-private theorem agrees_limA (C : ℕ → Set ℕ) (s : ℕ) : PrefixAgrees (stage C s).1 (limA C) :=
-  agrees_of_prefix (fun h => (validExt_stage C h).1.1)
+private theorem agrees_limA (C : ℕ → Set ℕ) (s : ℕ) : KleenePost.Agrees (stage C s).1 (limA C) :=
+  KleenePost.agrees_of_prefix (idx := fun n => n + 1) (fun h => (validExt_stage C h).1.1)
     (fun i => Nat.lt_of_lt_of_le (Nat.lt_succ_self i) (length_stage C (i + 1)).1) s
 
-private theorem agrees_limB (C : ℕ → Set ℕ) (s : ℕ) : PrefixAgrees (stage C s).2 (limB C) :=
-  agrees_of_prefix (fun h => (validExt_stage C h).2.1)
+private theorem agrees_limB (C : ℕ → Set ℕ) (s : ℕ) : KleenePost.Agrees (stage C s).2 (limB C) :=
+  KleenePost.agrees_of_prefix (idx := fun n => n + 1) (fun h => (validExt_stage C h).2.1)
     (fun i => Nat.lt_of_lt_of_le (Nat.lt_succ_self i) (length_stage C (i + 1)).2) s
 
 private theorem agrees_of_prefix_of_agrees {σ σ' : List Bool} {g : ℕ → Bool}
-    (hpref : σ <+: σ') (hag : PrefixAgrees σ' g) : PrefixAgrees σ g := fun i hi => by
+    (hpref : σ <+: σ') (hag : KleenePost.Agrees σ' g) : KleenePost.Agrees σ g := fun i hi => by
   rw [hpref.getElem hi]
   exact hag i (lt_of_lt_of_le hi hpref.length_le)
 
@@ -393,7 +386,7 @@ private theorem prefixJoin_le_limB (C : ℕ → Set ℕ) (n : ℕ) :
   prefixJoin_turingReducible C n fun k _ => col_le_lim k (compat_limB C (k + 1))
 
 private theorem evaln_sound_agrees {σ : List Bool} {g : ℕ → Bool} {k : ℕ} {c : Code} {x y : ℕ}
-    (hag : PrefixAgrees σ g) (heval : y ∈ evaln (KleenePost.bits σ) k c x) :
+    (hag : KleenePost.Agrees σ g) (heval : y ∈ evaln (KleenePost.bits σ) k c x) :
     y ∈ eval (fun n => (g n).toNat : ℕ → ℕ) c x :=
   evaln_sound (fun i hi => by
     simp only [KleenePost.bits, List.getElem_map, hag i (by simpa [KleenePost.bits] using hi),
@@ -412,10 +405,10 @@ private theorem not_splits_of_eq {C : ℕ → Set ℕ} {f : ℕ → ℕ} {c d : 
           pad C (Classical.choose hsp).extB (s + 1)) := by
     simp only [stage, step, s, Nat.unpair_pair, ofNat_encode, hsp, ↓reduceDIte]
   have hw := Classical.choose_spec hsp
-  have hagA : PrefixAgrees (Classical.choose hsp).extA (limA C) :=
+  have hagA : KleenePost.Agrees (Classical.choose hsp).extA (limA C) :=
     agrees_of_prefix_of_agrees (validExt_pad C (s + 1) _ _).1
       (by simpa [hstep] using agrees_limA C (s + 1))
-  have hagB : PrefixAgrees (Classical.choose hsp).extB (limB C) :=
+  have hagB : KleenePost.Agrees (Classical.choose hsp).extB (limB C) :=
     agrees_of_prefix_of_agrees (validExt_pad C (s + 1) _ _).1
       (by simpa [hstep] using agrees_limB C (s + 1))
   have hy1 : (Classical.choose hsp).outA ∈ (f : ℕ →. ℕ) (Classical.choose hsp).input :=
@@ -554,10 +547,6 @@ private def primSearchCheck (σ₀ : List Bool) (c : Code) (q : ℕ) : Bool :=
     decide (σ₀ <+: p.1) && decide (evaln (KleenePost.bits p.1) p.2.1 c q.unpair.1 = some p.2.2)
   | none => false
 
-private theorem primrec_bits : _root_.Primrec KleenePost.bits :=
-  _root_.Primrec.list_map _root_.Primrec.id
-    ((_root_.Primrec.dom_bool Bool.toNat).comp _root_.Primrec.snd).to₂
-
 private theorem primrec_primSearchCheck (σ₀ : List Bool) (c : Code) :
     _root_.Primrec (primSearchCheck σ₀ c) := by
   have hx : _root_.Primrec (fun q : ℕ => q.unpair.1) :=
@@ -573,7 +562,7 @@ private theorem primrec_primSearchCheck (σ₀ : List Bool) (c : Code) :
     have heval : _root_.Primrec (fun r : ℕ × (List Bool × ℕ × ℕ) =>
         evaln (KleenePost.bits r.2.1) r.2.2.1 c r.1.unpair.1) :=
       primrec_evaln.comp
-        ((primrec_bits.comp (_root_.Primrec.fst.comp _root_.Primrec.snd)).pair
+        ((KleenePost.primrec_bits.comp (_root_.Primrec.fst.comp _root_.Primrec.snd)).pair
           (((_root_.Primrec.fst.comp (_root_.Primrec.snd.comp _root_.Primrec.snd)).pair
             (_root_.Primrec.const c)).pair (hx.comp _root_.Primrec.fst)))
     have hp2 : _root_.Primrec (fun r : ℕ × (List Bool × ℕ × ℕ) =>
@@ -609,12 +598,8 @@ private theorem primrec_witnessOut : _root_.Primrec witnessOut :=
     dsimp only [witnessOut]
     cases decode (α := List Bool × ℕ × ℕ) w <;> rfl
 
-private theorem prefixOf_bool_eq_bits (g : ℕ → Bool) (M : ℕ) :
-    KleenePost.bits ((List.range M).map g) = prefixOf (fun n => (g n).toNat) M := by
-  simp [KleenePost.bits, prefixOf, Function.comp_def]
-
 private theorem validExt_prefix_of_compat {C : ℕ → Set ℕ} {s : ℕ} {σ : List Bool} {g : ℕ → Bool}
-    (hag : PrefixAgrees σ g) (hcompat : ∀ i, σ.length ≤ i → i.unpair.1 < s → g i = colBit C i)
+    (hag : KleenePost.Agrees σ g) (hcompat : ∀ i, σ.length ≤ i → i.unpair.1 < s → g i = colBit C i)
     {M : ℕ} (hM : σ.length ≤ M) :
     ValidExt C s σ ((List.range M).map g) := by
   refine ⟨?_, fun i hi hge hcol => ?_⟩
@@ -625,7 +610,7 @@ private theorem validExt_prefix_of_compat {C : ℕ → Set ℕ} {s : ℕ} {σ : 
     exact hcompat i hge hcol
 
 private theorem exists_validExt_evaln {C : ℕ → Set ℕ} {s : ℕ} {σ : List Bool} {g : ℕ → Bool}
-    {c : Code} {x y : ℕ} (hag : PrefixAgrees σ g)
+    {c : Code} {x y : ℕ} (hag : KleenePost.Agrees σ g)
     (hcompat : ∀ i, σ.length ≤ i → i.unpair.1 < s → g i = colBit C i)
     (heval : y ∈ eval (fun n => (g n).toNat : ℕ → ℕ) c x) :
     ∃ σ' k, ValidExt C s σ σ' ∧ y ∈ evaln (KleenePost.bits σ') k c x := by
@@ -634,7 +619,7 @@ private theorem exists_validExt_evaln {C : ℕ → Set ℕ} {s : ℕ} {σ : List
   refine ⟨(List.range M).map g, k,
     validExt_prefix_of_compat hag hcompat (le_max_right N σ.length), ?_⟩
   rw [show KleenePost.bits ((List.range M).map g) = prefixOf (fun n => (g n).toNat) M from
-    prefixOf_bool_eq_bits _ M]
+    KleenePost.prefixOf_bool_eq_bits _ M]
   exact evaln_mono (prefixOf_prefix _ (le_max_left N σ.length)) le_rfl hk
 
 private theorem turingReducible_prefixJoin_of_no_splits {C : ℕ → Set ℕ} {f : ℕ → ℕ} {c d : Code}
@@ -773,7 +758,7 @@ theorem exists_exactPair_seq (C : ℕ → Set ℕ) :
     exact ⟨Nat.pair (encode c) (encode d),
       SpectorExactPair.turingReducible_prefixJoin_of_no_splits hc hd⟩
 
-/-! ### Jump-free strictly ascending sequence of sets -/
+/-! ### Strictly ascending sequence of sets via direct diagonalization -/
 
 /-- A diagonal set that is not Turing reducible to `S`: `n ∈ diagSet S` iff the `n`-th oracle code
 relative to `S` does not output `1` on input `n`. -/
@@ -796,24 +781,11 @@ theorem not_diagSet_turingReducible (S : Set ℕ) :
     rw [ofNat_encode, hval, PFun.coe_val, Set.indicator_of_notMem hm] at h1
     exact Nat.one_ne_zero (Part.mem_some_iff.1 h1)
 
-/-- A strictly ascending sequence of sets under Turing reducibility, built without the Turing jump
-by iterated joining with `diagSet`. -/
+/-- A strictly ascending sequence of sets under Turing reducibility, defined directly by iterated
+joining with `diagSet` without formalizing the Turing jump operator. -/
 @[expose] def strictAscSeq : ℕ → Set ℕ
   | 0 => ∅
   | n + 1 => setJoin (strictAscSeq n) (diagSet (strictAscSeq n))
-
-/-- Each step of `strictAscSeq` is Turing reducible to the next. -/
-theorem strictAscSeq_le_succ (n : ℕ) :
-    (((strictAscSeq n).indicator 1 : ℕ → ℕ) : ℕ →. ℕ) ≤ᵀ
-      ((strictAscSeq (n + 1)).indicator 1 : ℕ → ℕ) :=
-  left_le_setJoin (strictAscSeq n) (diagSet (strictAscSeq n))
-
-/-- No step of `strictAscSeq` computes the next step. -/
-theorem not_strictAscSeq_succ_le (n : ℕ) :
-    ¬(((strictAscSeq (n + 1)).indicator 1 : ℕ → ℕ) : ℕ →. ℕ) ≤ᵀ
-      ((strictAscSeq n).indicator 1 : ℕ → ℕ) := fun h =>
-  not_diagSet_turingReducible (strictAscSeq n)
-    ((right_le_setJoin (strictAscSeq n) (diagSet (strictAscSeq n))).trans h)
 
 end Nat.RecursiveIn
 
@@ -838,10 +810,47 @@ set `A : Set ℕ`. -/
 @[expose] def IsTotalDegree (d : TuringDegree) : Prop :=
   ∃ f : ℕ → ℕ, d = toAntisymmetrization _ (f : ℕ →. ℕ)
 
-/-- Every degree of a set is a degree of a total function. -/
-theorem IsSetDegree.isTotalDegree {d : TuringDegree} (hd : IsSetDegree d) : IsTotalDegree d :=
-  let ⟨A, hA⟩ := hd
-  ⟨A.indicator 1, hA⟩
+/-- A Turing degree is a degree of a set if and only if it is a degree of a total function:
+every total `f : ℕ → ℕ` is Turing equivalent to the indicator function of its graph. -/
+theorem isSetDegree_iff_isTotalDegree {d : TuringDegree} : IsSetDegree d ↔ IsTotalDegree d := by
+  constructor
+  · rintro ⟨A, rfl⟩
+    exact ⟨A.indicator 1, rfl⟩
+  · rintro ⟨f, rfl⟩
+    let G : Set ℕ := {p | f p.unpair.1 = p.unpair.2}
+    refine ⟨G, le_antisymm ?_ ?_⟩
+    · have hflip : Nat.RecursiveIn {(((G.indicator 1 : ℕ → ℕ) : ℕ →. ℕ))}
+          (fun m => (decide (m = 0)).toNat : ℕ → ℕ) :=
+        Nat.Primrec.recursiveIn (_root_.Primrec.nat_iff.1
+          ((_root_.Primrec.dom_bool Bool.toNat).comp
+            (PrimrecRel.comp _root_.Primrec.eq _root_.Primrec.id (_root_.Primrec.const 0)).decide))
+      have htest : Nat.RecursiveIn {(((G.indicator 1 : ℕ → ℕ) : ℕ →. ℕ))}
+          (fun q => (decide (G.indicator 1 q = 0)).toNat : ℕ → ℕ) :=
+        (hflip.comp (Nat.RecursiveIn.oracle_self _)).of_eq fun q => by
+          simp [bind_pfun, PFun.coe_val, Part.bind_some]
+      refine RecursiveIn.iff_nat.2 ((Nat.RecursiveIn.rfind htest).of_eq fun x => ?_)
+      refine Part.eq_some_iff.2 (Nat.mem_rfind.2 ⟨?_, ?_⟩)
+      · simp [PFun.coe_val, G, Set.indicator]
+      · intro y hy
+        simp [PFun.coe_val, G, Set.indicator, ne_of_gt hy]
+    · have hf1 : Nat.RecursiveIn {(f : ℕ →. ℕ)} (fun p => f p.unpair.1 : ℕ → ℕ) :=
+        ((Nat.RecursiveIn.oracle_self _).comp
+          (Nat.Primrec.recursiveIn (_root_.Primrec.nat_iff.1
+            (_root_.Primrec.fst.comp _root_.Primrec.unpair)))).of_eq fun _ => Part.bind_some _ _
+      have hp2 : Nat.RecursiveIn {(f : ℕ →. ℕ)} (fun p => p.unpair.2 : ℕ → ℕ) :=
+        Nat.Primrec.recursiveIn (_root_.Primrec.nat_iff.1
+          (_root_.Primrec.snd.comp _root_.Primrec.unpair))
+      have heq_ind : Nat.RecursiveIn {(f : ℕ →. ℕ)}
+          (fun n => (decide (n.unpair.1 = n.unpair.2)).toNat : ℕ → ℕ) :=
+        Nat.Primrec.recursiveIn (_root_.Primrec.nat_iff.1
+          ((_root_.Primrec.dom_bool Bool.toNat).comp
+            (PrimrecRel.comp _root_.Primrec.eq
+              (_root_.Primrec.fst.comp _root_.Primrec.unpair)
+              (_root_.Primrec.snd.comp _root_.Primrec.unpair)).decide))
+      refine RecursiveIn.iff_nat.2 ((heq_ind.comp (hf1.pair hp2)).of_eq fun p => ?_)
+      by_cases h : f p.unpair.1 = p.unpair.2 <;>
+        simp [Seq.seq, bind_pfun, PFun.coe_val, Part.bind_some_eq_map, Part.map_some, G,
+          Set.indicator, h]
 
 /-- The Turing degree of `setJoin A B` is the join `setDegree A ⊔ setDegree B`. -/
 theorem setDegree_setJoin (A B : Set ℕ) :
@@ -882,7 +891,10 @@ theorem setDegree_prefixJoin_succ (C : ℕ → Set ℕ) (n : ℕ) :
 theorem strictMono_setDegree_strictAscSeq :
     StrictMono (fun n => setDegree (strictAscSeq n)) :=
   strictMono_nat_of_lt_succ fun n =>
-    lt_of_le_not_ge (strictAscSeq_le_succ n) (not_strictAscSeq_succ_le n)
+    lt_of_le_not_ge
+      (left_le_setJoin (strictAscSeq n) (diagSet (strictAscSeq n)))
+      (fun h => not_diagSet_turingReducible (strictAscSeq n)
+        ((right_le_setJoin (strictAscSeq n) (diagSet (strictAscSeq n))).trans h))
 
 /-- An *ideal of degrees of sets* is a nonempty set of degrees of sets that is downward closed
 among degrees of sets and closed under binary joins `⊔`. -/
@@ -942,34 +954,37 @@ theorem IsExactPairForSetDegrees.no_inf_of_no_top {I : Set TuringDegree} {a b : 
   have hdb := (hp.mem_iff d hd).1 hdI
   exact ⟨d, hd, hdb.1, hdb.2, hmd⟩
 
-/-- The Turing degrees of total functions do not form a lattice: there exist two degrees of sets
-`a` and `b` such that every common lower bound `m` of `a` and `b` among degrees of total functions
-is strictly below another common lower bound `d` (which is itself a degree of a set). -/
-theorem exists_totalDegree_no_inf :
-    ∃ a b : TuringDegree, IsSetDegree a ∧ IsSetDegree b ∧
-      ∀ m, IsTotalDegree m → m ≤ a → m ≤ b →
-        ∃ d, IsSetDegree d ∧ d ≤ a ∧ d ≤ b ∧ m < d := by
-  obtain ⟨A, B, hupper, hlower⟩ := exists_exactPair_seq strictAscSeq
-  refine ⟨setDegree A, setDegree B, ⟨A, rfl⟩, ⟨B, rfl⟩, fun m hm hma hmb => ?_⟩
-  obtain ⟨f, rfl⟩ := hm
-  obtain ⟨n, hn⟩ := hlower f hma hmb
-  have hpref_le : setDegree (prefixJoin strictAscSeq n) ≤ setDegree (strictAscSeq n) :=
-    prefixJoin_turingReducible strictAscSeq n fun k hk =>
-      strictMono_setDegree_strictAscSeq.monotone hk
-  have hlt : toAntisymmetrization _ (f : ℕ →. ℕ) < setDegree (strictAscSeq (n + 1)) :=
-    lt_of_le_of_lt (le_trans hn hpref_le) (strictMono_setDegree_strictAscSeq (Nat.lt_succ_self n))
-  have hnext_le : setDegree (strictAscSeq (n + 1)) ≤ setDegree (prefixJoin strictAscSeq (n + 1)) :=
-    turingReducible_prefixJoin strictAscSeq le_rfl
-  exact ⟨setDegree (strictAscSeq (n + 1)), ⟨strictAscSeq (n + 1), rfl⟩,
-    hnext_le.trans (hupper (n + 1)).1, hnext_le.trans (hupper (n + 1)).2, hlt⟩
+/-- Any strictly increasing sequence of sets yields two sets `A` and `B` above every member of
+the sequence whose degrees have no greatest lower bound among degrees of sets. -/
+theorem exists_exactPair_strictMono_no_inf {C : ℕ → Set ℕ}
+    (hC : StrictMono fun n => setDegree (C n)) :
+    ∃ A B : Set ℕ,
+      (∀ n, setDegree (C n) ≤ setDegree A ∧ setDegree (C n) ≤ setDegree B) ∧
+      ∀ m, IsSetDegree m → m ≤ setDegree A → m ≤ setDegree B →
+        ∃ d, IsSetDegree d ∧ d ≤ setDegree A ∧ d ≤ setDegree B ∧ m < d := by
+  obtain ⟨A, B, hupper, hlower⟩ := exists_exactPair_seq C
+  refine ⟨A, B, fun n => ?_, fun m hm hma hmb => ?_⟩
+  · have hle : setDegree (C n) ≤ setDegree (prefixJoin C n) :=
+      turingReducible_prefixJoin C le_rfl
+    exact ⟨hle.trans (hupper n).1, hle.trans (hupper n).2⟩
+  · obtain ⟨D, rfl⟩ := hm
+    obtain ⟨n, hn⟩ := hlower (D.indicator 1) hma hmb
+    have hpref_le : setDegree (prefixJoin C n) ≤ setDegree (C n) :=
+      prefixJoin_turingReducible C n fun k hk => hC.monotone hk
+    have hlt : setDegree D < setDegree (C (n + 1)) :=
+      lt_of_le_of_lt (le_trans hn hpref_le) (hC (Nat.lt_succ_self n))
+    have hnext_le : setDegree (C (n + 1)) ≤ setDegree (prefixJoin C (n + 1)) :=
+      turingReducible_prefixJoin C le_rfl
+    exact ⟨setDegree (C (n + 1)), ⟨C (n + 1), rfl⟩,
+      hnext_le.trans (hupper (n + 1)).1, hnext_le.trans (hupper (n + 1)).2, hlt⟩
 
-/-- The Turing degrees of sets do not form a lattice: there exist two degrees of sets `a` and `b`
-with no greatest lower bound among degrees of sets. -/
+/-- The Turing degrees of sets (equivalently, of total functions) do not form a lattice: there
+exist two degrees of sets `a` and `b` with no greatest lower bound among degrees of sets. -/
 theorem exists_setDegree_no_inf :
     ∃ a b : TuringDegree, IsSetDegree a ∧ IsSetDegree b ∧
       ∀ m, IsSetDegree m → m ≤ a → m ≤ b →
         ∃ d, IsSetDegree d ∧ d ≤ a ∧ d ≤ b ∧ m < d := by
-  obtain ⟨a, b, ha, hb, hno⟩ := exists_totalDegree_no_inf
-  exact ⟨a, b, ha, hb, fun m hm => hno m hm.isTotalDegree⟩
+  obtain ⟨A, B, -, hno⟩ := exists_exactPair_strictMono_no_inf strictMono_setDegree_strictAscSeq
+  exact ⟨setDegree A, setDegree B, ⟨A, rfl⟩, ⟨B, rfl⟩, hno⟩
 
 end TuringDegree
