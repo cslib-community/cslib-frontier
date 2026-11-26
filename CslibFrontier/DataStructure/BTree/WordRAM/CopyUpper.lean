@@ -177,12 +177,11 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
       reg ∉ ([rSrc, rDst, rLim, rIdx, rTmp1, rTmp2] : List (Fin 20)) →
         x₄.regs reg = x.regs reg := by
     intro reg hnot
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-    obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2⟩ := hnot
+    obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2⟩ := by
+      simpa only [List.mem_cons, List.not_mem_nil, or_false, not_or] using hnot
     have hnot3 : reg ∉ ([rIdx, rTmp1, rTmp2] : List (Fin 20)) := by simp [hi1, ht1, ht2]
-    rw [hreg₄ reg hnot3]
-    simp only [x₃, Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne hs1 _, hreg₂ reg hnot3,
-      x₁, Data.set_regs_of_ne hl1 _]
+    simp only [hreg₄ reg hnot3, x₃, Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne hs1 _,
+      hreg₂ reg hnot3, x₁, Data.set_regs_of_ne hl1 _]
   have hlf₄ : x₄.mem (nodeAddr base t c) = x.mem (nodeAddr base t c) := by
     rw [hmem₄]; simp only [x₃, Data.set_mem]
     rw [ArrayCopy.copyPrefix_outside (by omega), hmem₂]; simp only [x₁, Data.set_mem]
@@ -239,12 +238,11 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
         exact WP.of_execWithin hc3 ⟨by omega, rfl⟩
       refine ⟨x₅, he3, hb₅, by rw [ite_eq_left hlf0, hmem₅]; rfl,
         (hreg₅ rZero (by decide)).trans hz₄, fun reg hnot => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-      obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, _⟩ := hnot
-      rw [hreg₅ reg (by simp [hi1, ht1, ht2])]
-      simp only [x₄', Data.set_regs_of_ne hl1 _, Data.set_regs_of_ne hd1 _,
-        Data.set_regs_of_ne hs1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne ht1 _]
-      exact hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])
+      obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, _⟩ := by
+        simpa only [List.mem_cons, List.not_mem_nil, or_false, not_or] using hnot
+      simp only [hreg₅ reg (by simp [hi1, ht1, ht2]), x₄', Data.set_regs_of_ne hl1 _,
+        Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne hs1 _, Data.set_regs_of_ne ht2 _,
+        Data.set_regs_of_ne ht1 _, hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])]
     · have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
       let x₅ : Data 20 := ?leafState
       have he3 : ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 16) := by
@@ -253,13 +251,11 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
         wram_exec [hz₄, ho₄, hb₄_reg, hst₄, hch₄, hna_c, hlf₄, hlf0,
           hf_cmul, hf_cb0, hf_cb1, hf_ac, hf0]
         rfl
-      refine ⟨x₅, he3, he3.bounded hb₄, by rw [ite_eq_right hlf0]; rfl, rfl,
-        fun reg hnot => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-      obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, hzr⟩ := hnot
+      refine ⟨x₅, he3, he3.bounded hb₄, by rw [ite_eq_right hlf0]; rfl, rfl, fun reg hnot => ?_⟩
+      obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, hzr⟩ := by
+        simpa only [List.mem_cons, List.not_mem_nil, or_false, not_or] using hnot
       simp only [x₅, Data.set_regs_of_ne hzr _, Data.set_regs_of_ne ht2 _,
-        Data.set_regs_of_ne ht1 _]
-      exact hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])
+        Data.set_regs_of_ne ht1 _, hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])]
   obtain ⟨x₅, he3, hb₅, hmem₅, hz₅, hkeep₅⟩ := hmem₃_step
   -- Step 4: `copyUpperPost`
   have hlf₅ : x₅.mem (nodeAddr base t c) = x.mem (nodeAddr base t c) := by
@@ -307,12 +303,8 @@ theorem memCopyUpper_at_c {base t c cnt : ℕ}
     memCopyUpper base t c cnt mem (nodeAddr base t c + o) = mem (nodeAddr base t c + o) := by
   dsimp only [memCopyUpper]
   generalize nodeAddr base t c = ac, nodeAddr base t cnt = az at hsep ⊢
-  rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-    Function.update_of_ne (by omega)]
-  split_ifs
-  · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
-      ArrayCopy.copyPrefix_outside (by omega)]
-  · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
+  iterate 3 rw [Function.update_of_ne (by omega)]
+  split_ifs <;> repeat rw [ArrayCopy.copyPrefix_outside (by omega)]
 
 theorem not_readsWidth_copyUpperCode : ¬copyUpperCode.ReadsWidth := by
   simp [copyUpperCode, copyUpperPre1, copyUpperPre2, copyUpperBranch, copyUpperPost,

@@ -291,28 +291,23 @@ private theorem actual_door_complete {p : Program} {s : MachineState} {t : State
   obtain ⟨_, i, hp, rfl⟩ := h
   have hr : registers.length = p.initial.length := hs.1
   by_cases hi : i.val < p.initial.length
-  · let r : Fin p.initial.length := ⟨i.val, hi⟩
-    let b := registers.getD i.val false
-    have hd : (principalDoors p)[i.val] = registerDoor i.val p.initial[r] :=
-      principal_register_get p r
-    have hb : (registers ++ markers).getD i.val false = b :=
-      List.getD_append _ _ _ _ (by omega)
+  · let b := registers.getD i.val false
+    have hir : i.val < registers.length := hr ▸ hi
+    have hd := principal_register_get p ⟨i.val, hi⟩
+    have hb : (registers ++ markers).getD i.val false = b := List.getD_append _ _ _ _ hir
     obtain rfl : location = .input i.val b := Place.code_injective (by
       simpa only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb, register_tunnel]
         using hp)
     refine ⟨⟨.output i.val b, registers.set i.val (!b), markers⟩,
-      MachineStep.register r b rfl, ?_⟩
+      MachineStep.register ⟨i.val, hi⟩ b rfl, ?_⟩
     simp only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb,
-      register_tunnel, List.set_append_left _ _ (by omega : i.val < registers.length)]
+      register_tunnel, List.set_append_left _ _ hir]
   · have hj : i.val - p.initial.length < p.instructions.length := by
-      have := i.isLt
-      simp only [principalDoors, List.length_append, registerDoors_length,
-        markerDoors_length] at this
-      omega
+      simpa only [principalDoors, List.length_append, registerDoors_length, markerDoors_length,
+        tsub_lt_iff_left (Nat.le_of_not_lt hi), add_comm] using i.isLt
     let j : Fin p.instructions.length := ⟨i.val - p.initial.length, hj⟩
     have hd : (principalDoors p)[i.val] = markerDoor j.val p.instructions[j] := by
-      simpa only [j, Nat.add_sub_of_le (by omega : p.initial.length ≤ i.val)] using
-        principal_marker_get p j
+      simpa only [j, Nat.add_sub_of_le (Nat.not_lt.1 hi)] using principal_marker_get p j
     have hb : (registers ++ markers).getD i.val false = markers.getD j.val false := by
       rw [List.getD_append_right _ _ _ _ (by omega), hr]
     have hset (b : Bool) : (registers ++ markers).set i.val b =
@@ -429,19 +424,18 @@ private theorem Certified.step {p : Program} {s t : MachineState}
     simpa only [← Fin.ext (Place.entry.inj hloc), selectedMarkers, List.set_set] using
       Certified.entry source hr j hp true
   case ready.register source hr j hp m r b hb =>
-    obtain ⟨hri, hbi⟩ := Place.input.inj hloc
-    have hg : source.bits.getD p.instructions[j].register false = p.instructions[j].guard := by
-      simpa only [hri, hbi] using hb
+    obtain ⟨hri, rfl⟩ := Place.input.inj hloc
+    have hg : source.bits.getD p.instructions[j].register false = p.instructions[j].guard :=
+      hri ▸ hb
     have hreg : p.instructions[j].register < source.bits.length := by
       simpa only [hri, hr.length rfl] using r.isLt
-    simpa only [hri, hbi] using
-      Certified.output source hr j hp hg hreg m p.instructions[j].guard
+    simpa only [hri] using Certified.output source hr j hp hg hreg m p.instructions[j].guard
   case input.register source hr j hp hg hreg m b₀ r b hb =>
-    obtain ⟨hri, hbi⟩ := Place.input.inj hloc
-    simpa only [hri, hbi, List.set_set] using Certified.output source hr j hp hg hreg m b₀
+    obtain ⟨hri, rfl⟩ := Place.input.inj hloc
+    simpa only [hri, List.set_set] using Certified.output source hr j hp hg hreg m b₀
   case output.connect source hr j hp hg hreg m b₀ r b =>
-    obtain ⟨hri, hbi⟩ := Place.output.inj hloc
-    simpa only [hri, hbi] using Certified.input source hr j hp hg hreg m (!b₀)
+    obtain ⟨hri, rfl⟩ := Place.output.inj hloc
+    simpa only [hri] using Certified.input source hr j hp hg hreg m (!b₀)
   case output.returnMarker source hr j hp hg hreg m b k hb =>
     obtain ⟨he, rfl⟩ := selectedMarkers_true hb
     subst k
@@ -464,15 +458,12 @@ private theorem machine_instruction_path (p : Program) (j : Fin p.instructions.l
   let r : Fin p.initial.length := ⟨p.instructions[j].register, by omega⟩
   let off := List.replicate p.instructions.length false
   let on := off.set j.val true
-  have hoff : off.getD j.val false = false := by
-    simp [off, List.getD_eq_getElem?_getD]
-  have hon : on.getD j.val false = true := by
-    simp [on, off, List.getD_eq_getElem?_getD, j.isLt]
   have hstart : MachineStep p (boundary p s) ⟨.entry j.val, s.bits, off⟩ := by
     simpa only [boundary, hsource] using
       (MachineStep.enter (registers := s.bits) (markers := off) j)
   have hprefix := ((Relation.ReflTransGen.single hstart).tail
-    (MachineStep.openMarker j hoff)).tail (MachineStep.approach j)
+    (MachineStep.openMarker j (by simp [off, List.getD_eq_getElem?_getD]))).tail
+    (MachineStep.approach j)
   have hfirst := hprefix.tail (MachineStep.register r p.instructions[j].guard hguard)
   have hready : Relation.ReflTransGen (MachineStep p) (boundary p s)
       ⟨.output p.instructions[j].register (!p.instructions[j].write),
@@ -486,8 +477,8 @@ private theorem machine_instruction_path (p : Program) (j : Fin p.instructions.l
       simpa only [r, hsame, Bool.not_not, List.set_set] using hcycle
     · have hother : p.instructions[j].guard = !p.instructions[j].write := by grind
       simpa only [r, hother, Bool.not_not] using hfirst
-  have hfinish := hready.tail (MachineStep.returnMarker j hon)
-  simpa only [boundary, on, List.set_set, List.set_replicate_self, off] using hfinish
+  simpa only [boundary, on, List.set_set, List.set_replicate_self, off] using
+    hready.tail (MachineStep.returnMarker j (by simp [on, off, List.getD_eq_getElem?_getD, j.isLt]))
 
 private theorem machine_program_path {p : Program} {s t : State}
     (hs : s.bits.length = p.initial.length) (hr : p.Reachable s t) :
@@ -568,25 +559,21 @@ open _root_.Turing.MultiTapeTM Compiler
 
 private theorem external_polyTime :
     ComputableInPolyTime external encNat encNat := by
-  unfold external
-  fun_prop
+  fun_prop [external]
 
 private theorem entry_polyTime : ComputableInPolyTime entry encNat encNat := by
-  unfold entry
-  fun_prop
+  fun_prop [entry]
 
 private theorem input_polyTime :
     ComputableInPolyTime (fun q : ℕ × Bool => input q.1 q.2)
       (encPair encNat encBool) encNat := by
-  unfold input
-  fun_prop
+  fun_prop [input]
 
 private theorem output_polyTime :
     ComputableInPolyTime (fun q : ℕ × Bool => output q.1 q.2)
       (encPair encNat encBool) encNat := by
   have hi := input_polyTime
-  unfold output
-  fun_prop
+  fun_prop [output]
 
 private theorem registerDoor_polyTime :
     ComputableInPolyTime (fun q : Bool × ℕ => registerDoor q.2 q.1)
@@ -596,8 +583,7 @@ private theorem registerDoor_polyTime :
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have hi := input_polyTime
   have ho := output_polyTime
-  unfold registerDoor
-  fun_prop
+  fun_prop [registerDoor]
 
 private theorem markerDoor_polyTime :
     ComputableInPolyTime (fun q : Instruction × ℕ => markerDoor q.2 q.1)
@@ -608,12 +594,10 @@ private theorem markerDoor_polyTime :
   have he := entry_polyTime
   have hx := external_polyTime
   have ho := output_polyTime
-  unfold markerDoor
-  fun_prop
+  fun_prop [markerDoor]
 
 private theorem diode_polyTime : ComputableInPolyTime Wiring.diode encTunnel encDoor := by
-  unfold Wiring.diode
-  fun_prop
+  fun_prop [Wiring.diode]
 
 private theorem registerDoors_polyTime :
     ComputableInPolyTime registerDoors encProgram (encList encDoor) := by
@@ -621,34 +605,32 @@ private theorem registerDoors_polyTime :
     ComputableInPolyTime.bitsToList.comp (by fun_prop)
   have hz := (ComputableInPolyTime.zipIdx encBool).comp hi
   have hm := registerDoor_polyTime
-  unfold registerDoors
-  fun_prop
+  fun_prop [registerDoors]
 
 private theorem markerDoors_polyTime :
     ComputableInPolyTime markerDoors encProgram (encList encDoor) := by
   have hz : ComputableInPolyTime (fun p : Program => p.instructions.zipIdx)
       encProgram (encList (encPair encInstruction encUnary)) := by fun_prop
   have hm := markerDoor_polyTime
-  unfold markerDoors
-  fun_prop
+  fun_prop [markerDoors]
 
 private theorem coreWiring_polyTime :
     ComputableInPolyTime coreWiring encProgram (encList encTunnel) := by
   have hn : ComputableInPolyTime (fun p : Program => p.initial.length) encProgram encUnary :=
     (ComputableInPolyTime.length encBool).comp (ComputableInPolyTime.bitsToList.comp (by fun_prop))
-  have hr : ComputableInPolyTime (fun r : ℕ => r) encUnary encNat :=
-    ComputableInPolyTime.unary_to_binary
+  have hrange : ComputableInPolyTime (fun p : Program => List.range p.initial.length)
+      encProgram (encList encUnary) := by fun_prop
   have hb : ComputableInPolyTime
       (fun r => [Tunnel.mk (output r false) (input r true),
         Tunnel.mk (output r true) (input r false)]) encUnary (encList encTunnel) := by
+    have hr : ComputableInPolyTime (fun r : ℕ => r) encUnary encNat :=
+      ComputableInPolyTime.unary_to_binary
     have hi := input_polyTime
     have ho := output_polyTime
     fun_prop
   unfold coreWiring
   simpa only [Function.comp_def, List.flatten_eq_flatMap, List.flatMap_map, id_eq] using
-    (ComputableInPolyTime.flatten encTunnel).comp ((ComputableInPolyTime.map hb).comp
-      (by fun_prop : ComputableInPolyTime (fun p : Program => List.range p.initial.length)
-        encProgram (encList encUnary)))
+    (ComputableInPolyTime.flatten encTunnel).comp ((ComputableInPolyTime.map hb).comp hrange)
 
 private theorem instructionWiring_polyTime :
     ComputableInPolyTime instructionWiring encProgram (encList encTunnel) := by
@@ -674,13 +656,11 @@ private theorem wiring_polyTime :
     ComputableInPolyTime wiring encProgram (encList encTunnel) := by
   have hcore := coreWiring_polyTime
   have hinstructions := instructionWiring_polyTime
+  have hx := external_polyTime
   have hj : ComputableInPolyTime
       (fun a : Tunnel => Tunnel.mk (external a.source) (external a.target))
-      encTunnel encTunnel := by
-    have hx := external_polyTime
-    fun_prop
-  unfold wiring
-  fun_prop
+      encTunnel encTunnel := by fun_prop
+  fun_prop [wiring]
 
 /-- The complete explicit door network of a finite register program is computable in
 polynomial time, with binary labels and the explicitly listed register contents. -/
@@ -691,7 +671,6 @@ polynomial time, with binary labels and the explicitly listed register contents.
   have hw := wiring_polyTime
   have hd := diode_polyTime
   have hx := external_polyTime
-  unfold compile Wiring.compile principalDoors
-  fun_prop
+  fun_prop [compile, Wiring.compile, principalDoors]
 
 end Cslib.Complexity.SelfClosingDoor.RegisterProgram

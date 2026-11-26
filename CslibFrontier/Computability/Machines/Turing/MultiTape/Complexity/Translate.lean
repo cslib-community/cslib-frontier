@@ -206,12 +206,9 @@ lemma time_le (c cI cF cQ K TI TF t l N P li le : ℕ) (hP : 1 ≤ P) (hli : li 
           · exact Nat.le_mul_of_pos_left _ hG
           · exact round_le cQ K t l
       _ = G * W := by ring
-  have h₁ : cI * (TI + (li + li) + 1) ≤ cI * TI + 2 * cI * W := by nlinarith
-  have h₂ : cF * (le + TF + 1) ≤ cF * TF + cF * (2 * cQ + 3) * W := by
-    rw [show cF * (le + TF + 1) = cF * TF + cF * (le + 1) by ring, Nat.mul_assoc]
-    exact Nat.add_le_add_left (Nat.mul_le_mul_left cF (by nlinarith)) _
+  have hleW : le + 1 ≤ (2 * cQ + 3) * W := by nlinarith
   refine le_trans (Nat.mul_le_mul_left c ?_) (le_of_eq (Nat.mul_assoc _ _ _).symm)
-  calc _ ≤ cI * TI + 2 * cI * W + (cF * TF + cF * (2 * cQ + 3) * W) + G * W := by linarith
+  calc _ ≤ cI * TI + 2 * cI * W + (cF * TF + cF * ((2 * cQ + 3) * W)) + G * W := by nlinarith
     _ ≤ _ := by ring_nf; omega
 
 /-- The space of the fold on bits. -/
@@ -220,13 +217,10 @@ lemma space_le (c cI cF cQ K SI SF s l li le : ℕ) (hli : li ≤ l) (hle : le �
       (4 * cQ + 4 * l + 6) + 1) ≤
     c * (3 * cI + cF * (2 * cQ + 3) + (2 * K + 1) * (4 * cQ + 7) + 1) * (SI + SF + s + l + 1) := by
   have hR := round_le cQ K s l
-  have h₁ : cI * (SI + (li + li) + 1) ≤ cI * SI + 2 * cI * (s + l + 1) := by nlinarith
-  have h₂ : cF * (le + SF + 1) ≤ cF * SF + cF * (2 * cQ + 3) * (s + l + 1) := by
-    rw [show cF * (le + SF + 1) = cF * SF + cF * (le + 1) by ring, Nat.mul_assoc]
-    exact Nat.add_le_add_left (Nat.mul_le_mul_left cF (by nlinarith)) _
+  have hleS : le + 1 ≤ (2 * cQ + 3) * (s + l + 1) := by nlinarith
   refine le_trans (Nat.mul_le_mul_left c ?_) (le_of_eq (Nat.mul_assoc _ _ _).symm)
-  calc _ ≤ cI * SI + 2 * cI * (s + l + 1) + (cF * SF + cF * (2 * cQ + 3) * (s + l + 1)) +
-        (2 * K + 1) * (4 * cQ + 7) * (s + l + 1) := by linarith
+  calc _ ≤ cI * SI + 2 * cI * (s + l + 1) + (cF * SF + cF * ((2 * cQ + 3) * (s + l + 1))) +
+        (2 * K + 1) * (4 * cQ + 7) * (s + l + 1) := by nlinarith
     _ ≤ _ := by ring_nf; omega
 
 /-- Reads one bit and emits it. -/
@@ -341,8 +335,7 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
         cE * ((encPair (encPair encQ encS) encBool ((qj, sj), (encIn x)[j])).length + 1) ≤
       2 * K * (fMax x + B x + 1) := by
     dsimp only [B]
-    have he := tr.elim_le tr.q₀ (encIn x) hj (fun jj e => F (st x i jj, e))
-      (fun jj hjj => hfMax x i hi jj hjj)
+    have he := tr.elim_le tr.q₀ (encIn x) hj (fun jj e => F (st x i jj, e)) (hfMax x i hi)
     have hl := hlen x (tr.run tr.q₀ ((encIn x).take j)).1
       (st x i (tr.run tr.q₀ ((encIn x).take j)).2.length)
       (hS x i hi _ (tr.length_run_take_le tr.q₀ (encIn x) j))
@@ -364,13 +357,12 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
           FPN sEnd + ((encS sNext).length + (encS sNext).length) + 1) +
         cC * ((encPair encQ encS (tr.q₀, sNext)).length + FC sNext + 1) ≤
       2 * K * (fMax x + B x + 1) := by
+    intro sEnd sNext
     dsimp only [B]
-    have h₀ := hlen x (tr.run tr.q₀ (encIn x)).1 (st x i (tr.events (encIn x)).length)
-      (hS x i hi _ le_rfl)
-    have h₁ := hlen x tr.q₀ (passState (init x) next passEnd (tr.events (encIn x)) (i + 1))
-      (hps x (i + 1) (by omega))
-    have h₂ := hps x (i + 1) (by omega)
-    have he := hfEnd x i hi
+    have h₀ := hlen x (tr.run tr.q₀ (encIn x)).1 sEnd (hS x i hi _ le_rfl)
+    have h₂ : (encS sNext).length ≤ lMax x := hps x (i + 1) (by omega)
+    have h₁ := hlen x tr.q₀ sNext h₂
+    have he : FPE sEnd + FPN sEnd + FC sNext ≤ fMax x := hfEnd x i hi
     refine (Nat.add_le_add (Nat.add_le_add
       (Nat.mul_le_mul_left cPE (m := fMax x + (4 * cQ + 4 * lMax x + 6) + 1) (by omega))
       (Nat.mul_le_mul_left cPN (m := fMax x + (4 * cQ + 4 * lMax x + 6) + 1) (by omega)))
@@ -400,15 +392,11 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
       simpa only [Translator.passState_lift, Translator.streamState_lift, List.take_length, st,
         Translator.events, passState, Function.comp_apply] using hend_bound hsEnd x i hi)
     (fun x i hi j _ => by
-      have := hlen x (tr.run tr.q₀ ((encIn x).take j)).1 _
-        (hS x i hi _ (tr.length_run_take_le tr.q₀ (encIn x) j))
-      simp only [Translator.passState_lift, Translator.streamState_lift, Translator.events, B]
-        at this ⊢
-      omega)
+      simpa only [Translator.passState_lift, Translator.streamState_lift, Translator.events, B]
+        using (hlen x (tr.run tr.q₀ ((encIn x).take j)).1 _
+          (hS x i hi _ (tr.length_run_take_le tr.q₀ (encIn x) j))).trans (by omega))
     (fun x => by
-      have := hlen x tr.q₀ _ (hSlast x)
-      simp only [Translator.passState_lift, B] at this ⊢
-      omega)
+      simpa only [Translator.passState_lift, B] using (hlen x tr.q₀ _ (hSlast x)).trans (by omega))
     (fun _ _ _ => by simp [B])
   refine ⟨c * (3 * cI + cF * (2 * cQ + 3) + (2 * K + 1) * (4 * cQ + 7) + 1),
     h.mono (fun x => ?_) (fun x => ?_)⟩

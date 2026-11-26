@@ -106,23 +106,17 @@ examples evaluate it with `decide +kernel`. -/
 
 theorem minOpt_eq_none_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} :
     minOpt s = none ↔ s = ∅ := by
-  unfold minOpt
-  split_ifs with h
-  · simp [h.ne_empty]
-  · simp [Finset.not_nonempty_iff_eq_empty.1 h]
+  simp [minOpt]
 
 theorem minOpt_eq_some_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} {a : ι} :
     minOpt s = some a ↔ a ∈ s ∧ ∀ b ∈ s, a ≤ b := by
   unfold minOpt
   split_ifs with h
-  · rw [Option.some.injEq]
-    constructor
-    · rintro rfl
-      exact ⟨s.min'_mem h, fun b hb => s.min'_le b hb⟩
-    · rintro ⟨ha, hle⟩
-      exact le_antisymm (s.min'_le a ha) (hle _ (s.min'_mem h))
-  · simp only [false_iff, not_and]
-    exact fun ha => absurd ⟨a, ha⟩ h
+  · refine Option.some_inj.trans ⟨?_, fun ⟨ha, hle⟩ =>
+      le_antisymm (s.min'_le a ha) (hle _ (s.min'_mem h))⟩
+    rintro rfl
+    exact ⟨s.min'_mem h, s.min'_le⟩
+  · exact ⟨nofun, fun ⟨ha, _⟩ => absurd ⟨a, ha⟩ h⟩
 
 /-- The decision of one simplex step: stop at an optimal dictionary, stop because the entering
 variable `s` has no leaving row, or pivot on the leaving `r` and the entering `s`. -/
@@ -274,16 +268,12 @@ theorem blandEntering_eq_some_iff {s : ι} : D.blandEntering = some s ↔
 omit [IsStrictOrderedRing K] in
 theorem blandLeaving_eq_none_iff {s : ι} :
     D.blandLeaving s = none ↔ ∀ i ∈ D.basis, 0 ≤ D.coeff i s := by
-  rw [blandLeaving, minOpt_eq_none_iff]
-  constructor
-  · intro h i hi
-    by_contra! hneg
-    obtain ⟨k, hk, hmin⟩ := (D.leavingCandidates s).exists_min_image (D.ratio s)
+  rw [blandLeaving, minOpt_eq_none_iff, Finset.eq_empty_iff_forall_notMem]
+  refine ⟨fun h i hi => not_lt.1 fun hneg => ?_, fun h i hi => ?_⟩
+  · obtain ⟨k, hk, hmin⟩ := (D.leavingCandidates s).exists_min_image (D.ratio s)
       ⟨i, Finset.mem_filter.2 ⟨hi, hneg⟩⟩
-    exact Finset.notMem_empty k (h ▸ Finset.mem_filter.2 ⟨hk, hmin⟩)
-  · intro h
-    refine Finset.eq_empty_of_forall_notMem fun i hi => ?_
-    obtain ⟨hi, hneg⟩ := Finset.mem_filter.1 (Finset.mem_filter.1 hi).1
+    exact h k (Finset.mem_filter.2 ⟨hk, hmin⟩)
+  · obtain ⟨hi, hneg⟩ := Finset.mem_filter.1 (Finset.mem_filter.1 hi).1
     exact (h i hi).not_gt hneg
 
 omit [IsStrictOrderedRing K] in
@@ -302,25 +292,17 @@ theorem blandLeaving_eq_some_iff {s r : ι} : D.blandLeaving s = some r ↔
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_optimal_iff : D.blandStep = .optimal ↔ D.blandEntering = none := by
-  rcases h1 : D.blandEntering with _ | s'
-  · simp only [blandStep, h1]
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> simp only [blandStep, h1, h2, reduceCtorEq]
+  grind [blandStep]
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_unbounded_iff {s : ι} :
     D.blandStep = .unbounded s ↔ D.blandEntering = some s ∧ D.blandLeaving s = none := by
-  unfold blandStep
-  rcases D.blandEntering with _ | s'
-  · simp
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> grind
+  grind [blandStep]
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_pivot_iff {r s : ι} :
     D.blandStep = .pivot r s ↔ D.blandEntering = some s ∧ D.blandLeaving s = some r := by
-  unfold blandStep
-  rcases D.blandEntering with _ | s'
-  · simp
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> grind
+  grind [blandStep]
 
 /-- `D'` arises from `D` by one pivot of Bland's rule. -/
 def BlandPivot (D D' : Dictionary ι K) : Prop :=
@@ -478,14 +460,11 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   by_cases hvs : v = s
   · rw [hvs, (E p).ray_self, mul_one] at hpos
     exact absurd (hminq s (hvs ▸ hvq) hpos) (not_le.2 hsr)
-  by_cases hvp : v ∈ (E p).basis
-  swap
-  · rw [(E p).ray_of_notMem hvp hvs, mul_zero] at hpos
-    exact lt_irrefl _ hpos
+  have hvp : v ∈ (E p).basis := of_not_not fun hvp => by
+    simp [(E p).ray_of_notMem hvp hvs] at hpos
   rw [(E p).ray_of_mem hvp hs] at hpos
   have hvF : v ∈ F := (hFmem v).2 ⟨p, hip, hpj.le, q, hiq, hqj.le, hvp, hvq⟩
-  have hvr : v ≠ t := by
-    rintro rfl; exact hpos.not_ge (mul_nonpos_of_nonneg_of_nonpos hcq.le har.le)
+  have hvr : v ≠ t := fun h => hpos.not_ge (h ▸ mul_nonpos_of_nonneg_of_nonpos hcq.le har.le)
   have hvlt : v < t := lt_of_le_of_ne (hleT v hvF) hvr
   have hcv : (E q).objCoeff v ≤ 0 := not_lt.1 fun h => (hminq v hvq h).not_gt hvlt
   have hav : (E p).coeff v s < 0 :=
@@ -502,11 +481,8 @@ feasible dictionary with `m` basic variables among `N` variables, `n + 1 ≤ N.c
 theorem add_one_le_choose_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ}
     (hE0 : (E 0).Feasible) (hE : ∀ k < n, (E k).BlandPivot (E (k + 1))) :
     n + 1 ≤ (Fintype.card ι).choose #(E 0).basis := by
-  have hcard : ∀ k ≤ n, #(E k).basis = #(E 0).basis := by
-    intro k hk
-    induction k with
-    | zero => rfl
-    | succ k ih => rw [(hE k (by omega)).card_basis, ih (by omega)]
+  have hcard (k : ℕ) (hk : k ≤ n) : #(E k).basis = #(E 0).basis := by
+    induction k with | zero => rfl | succ k ih => rw [(hE k (by omega)).card_basis, ih (by omega)]
   have h := Finset.card_le_card_of_injOn (s := Finset.range (n + 1))
     (t := Finset.powersetCard #(E 0).basis Finset.univ) (fun k => (E k).basis)
     (fun k hk => Finset.mem_powersetCard.2 ⟨Finset.subset_univ _,

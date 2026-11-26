@@ -302,16 +302,10 @@ theorem edgePartitionFrom_merge {n : ℕ} {W : Type} (p : Partition n) (x y : Fi
 theorem numComponents_le_edgePartitionFrom_add_length {n : ℕ} {W : Type} (p : Partition n)
     (es : List (WeightedEdge n W)) :
     p.numComponents ≤ (edgePartitionFrom p es).numComponents + es.length := by
-  induction es generalizing p with
-  | nil => simp
-  | cons e es ih =>
-    rw [edgePartitionFrom_cons, List.length_cons]
-    have hrec := ih (p.merge e.u e.v)
-    cases hrel : p.rel e.u e.v
-    · have hm := Partition.numComponents_merge_of_not_rel hrel
-      omega
-    · have hm := Partition.numComponents_merge_of_rel hrel
-      omega
+  rw [edgePartitionFrom_eq_eval_spanningForestEdges,
+    ← DisjointSet.spanningForestEdges_numComponents_add_length WeightedEdge.endpoints es p]
+  exact Nat.add_le_add_left
+    (DisjointSet.spanningForestEdges_sublist WeightedEdge.endpoints es p).length_le _
 
 /-! ### Relative acyclicity, spanning forests, and spanning trees -/
 
@@ -393,11 +387,9 @@ theorem IsAcyclic.length_le_pred {n : ℕ} {W : Type} {F : List (WeightedEdge n 
 theorem IsAcyclic.ne_of_mem {n : ℕ} {W : Type} {F : List (WeightedEdge n W)}
     (hF : IsAcyclic F) {e : WeightedEdge n W} (he : e ∈ F) : e.u ≠ e.v := by
   classical
-  have hcons := (Perm.isAcyclic_iff (List.perm_cons_erase he)).mp hF
-  obtain ⟨hrel, _⟩ := isAcyclicFrom_cons.mp hcons
   intro heq
-  rw [heq, Partition.rel_refl] at hrel
-  cases hrel
+  simpa [heq, Partition.rel_refl] using
+    (isAcyclicFrom_cons.mp ((Perm.isAcyclic_iff (List.perm_cons_erase he)).mp hF)).1
 
 /-- Redundant-edge extraction: if `L` has exactly one redundant merge over `p`, removing that
 redundant edge yields a sub-list `L'` (`L.Perm (f :: L')`) with the same final partition and
@@ -462,21 +454,15 @@ spanning forest, and vice versa. -/
 theorem isSpanningTree_iff_isSpanningForest_of_connected {n : ℕ} {W : Type}
     {es T : List (WeightedEdge n W)} (hconn : (edgePartition es).numComponents = 1) :
     IsSpanningTree es T ↔ IsSpanningForest es T := by
-  constructor
-  · rintro ⟨hsub, hacyc, hcomp⟩
-    refine ⟨hsub, hacyc, ?_⟩
-    -- Since `(edgePartition T).numComponents = 1`, all vertices are pairwise equivalent in `T`,
-    -- and likewise in `es` because `(edgePartition es).numComponents = 1`.
-    have hall_one : ∀ {q : Partition n}, q.numComponents = 1 → ∀ x y : Fin n, q.rel x y = true := by
-      intro q hq x y
-      obtain ⟨c, hc⟩ := Finset.card_eq_one.mp hq
-      have hx : q.classOf x = c := Finset.mem_singleton.mp (hc ▸ q.classOf_mem_components x)
-      have hy : q.classOf y = c := Finset.mem_singleton.mp (hc ▸ q.classOf_mem_components y)
-      exact Partition.classOf_eq_iff.mp (hx.trans hy.symm)
-    ext x y
-    rw [hall_one hcomp x y, hall_one hconn x y]
-  · rintro ⟨hsub, hacyc, hpart⟩
-    exact ⟨hsub, hacyc, hpart.symm ▸ hconn⟩
+  refine and_congr_right fun _ => and_congr_right fun _ =>
+    ⟨fun hcomp => ?_, fun h => h.symm ▸ hconn⟩
+  -- Since `(edgePartition T).numComponents = 1`, all vertices are pairwise equivalent in `T`,
+  -- and likewise in `es` because `(edgePartition es).numComponents = 1`.
+  have hall_one {q : Partition n} (hq : q.numComponents = 1) (x y : Fin n) : q.rel x y = true :=
+    Partition.classOf_eq_iff.mp
+      (Finset.card_le_one_iff.mp hq.le (q.classOf_mem_components x) (q.classOf_mem_components y))
+  ext x y
+  rw [hall_one hcomp, hall_one hconn]
 
 /-- Every spanning tree on `Fin n` has `n - 1` edges (`T.length + 1 = n`). -/
 theorem IsSpanningTree.length_add_one {n : ℕ} {W : Type} {es T : List (WeightedEdge n W)}
@@ -490,10 +476,8 @@ theorem IsSpanningTree.length_add_one {n : ℕ} {W : Type} {es T : List (Weighte
 theorem IsSpanningForest.length_eq {n : ℕ} {W : Type} {es F₁ F₂ : List (WeightedEdge n W)}
     (h₁ : IsSpanningForest es F₁) (h₂ : IsSpanningForest es F₂) :
     F₁.length = F₂.length := by
-  have ha₁ := (isAcyclic_iff F₁).mp h₁.2.1
-  have ha₂ := (isAcyclic_iff F₂).mp h₂.2.1
-  rw [h₁.2.2] at ha₁
-  rw [h₂.2.2] at ha₂
+  have ha₁ := h₁.2.2 ▸ (isAcyclic_iff F₁).mp h₁.2.1
+  have ha₂ := h₂.2.2 ▸ (isAcyclic_iff F₂).mp h₂.2.1
   omega
 
 /-! ### Pure Kruskal scan, merge-sort, optimality, and uniqueness -/
@@ -529,11 +513,9 @@ theorem kruskalScan_eq_eval_spanningForestEdges {n : ℕ} {W : Type} (p : Partit
   induction es generalizing p with
   | nil => rfl
   | cons e es ih =>
-    rw [kruskalScan_cons, DisjointSet.eval_spanningForestEdges_cons]
-    dsimp only [WeightedEdge.endpoints_fst, WeightedEdge.endpoints_snd]
-    by_cases hrel : p.rel e.u e.v = true
-    · simp [hrel, Partition.merge_of_rel hrel, ih p]
-    · simp [hrel, ih (p.merge e.u e.v)]
+    cases hrel : p.rel e.u e.v <;>
+      simp [kruskalScan_cons, DisjointSet.eval_spanningForestEdges_cons, hrel,
+        Partition.merge_of_rel, ih]
 
 /-- `kruskalScan p es` is an order-preserving sublist of `es`. -/
 theorem kruskalScan_sublist {n : ℕ} {W : Type} (p : Partition n)
@@ -598,26 +580,22 @@ private theorem exists_perm_cons_isSpanningForestFrom_merge {n : ℕ} {W : Type}
   | cons _ hsl =>
     -- `H` avoids this copy of `e`: `l.Sublist es`, so `H.Subperm es`, and `H` has exactly one
     -- redundant merge over `p' = p.merge e.u e.v`.
-    have he_rel : (edgePartitionFrom p H).rel e.u e.v = true := by
-      rw [hpart]
-      exact rel_edgePartitionFrom_of_mem p List.mem_cons_self
+    have he_rel : (edgePartitionFrom p H).rel e.u e.v = true :=
+      hpart ▸ rel_edgePartitionFrom_of_mem p List.mem_cons_self
     have hp'H : edgePartitionFrom p' H = edgePartitionFrom p H := by
       rw [edgePartitionFrom_merge, Partition.merge_of_rel he_rel]
-    have hp'es : edgePartitionFrom p' H = edgePartitionFrom p' es := by
-      rw [hp'H, hpart, edgePartitionFrom_cons]
-    have hm : p'.numComponents + 1 = p.numComponents :=
-      Partition.numComponents_merge_of_not_rel hrel
     have hsucc : (edgePartitionFrom p' H).numComponents + H.length = p'.numComponents + 1 := by
-      rw [hp'H]
+      have hm : p'.numComponents + 1 = p.numComponents :=
+        Partition.numComponents_merge_of_not_rel hrel
       have ha : (edgePartitionFrom p H).numComponents + H.length = p.numComponents := hacyc
-      omega
+      rw [hp'H]; omega
     obtain ⟨f, H', hHperm, hH'part, hH'acyc⟩ :=
       exists_perm_cons_of_numComponents_add_length_eq_succ hsucc
     have hH_sub : H.Subperm es := hHl.subperm.trans hsl.subperm
     have hH'_sub : H'.Subperm es :=
       ((List.sublist_cons_self f H').subperm.trans hHperm.symm.subperm).trans hH_sub
     exact ⟨f, H', hHperm, Or.inr (hH_sub.subset (hHperm.mem_iff.mpr List.mem_cons_self)),
-      hH'_sub, hH'acyc, hH'part.trans hp'es⟩
+      hH'_sub, hH'acyc, (hH'part.trans hp'H).trans hpart⟩
   | cons_cons _ hsl =>
     -- `H` contains this copy of `e`: `H.Perm (e :: l')` with `l'.Sublist es`.
     rename_i l'
@@ -817,9 +795,9 @@ theorem kruskalEdges_isMinSpanningTree {n : ℕ} {W : Type}
     [AddCommMonoid W] [LinearOrder W] [IsOrderedAddMonoid W]
     {es : List (WeightedEdge n W)} (hconn : (edgePartition es).numComponents = 1) :
     IsMinSpanningTree es (kruskalEdges es) := by
-  obtain ⟨hsf, hmin⟩ := kruskalEdges_isMinSpanningForest es
-  refine ⟨(isSpanningTree_iff_isSpanningForest_of_connected hconn).mpr hsf, fun T hT => ?_⟩
-  exact hmin T ((isSpanningTree_iff_isSpanningForest_of_connected hconn).mp hT)
+  simpa only [IsMinSpanningTree, IsMinSpanningForest,
+    isSpanningTree_iff_isSpanningForest_of_connected hconn] using
+    kruskalEdges_isMinSpanningForest es
 
 /-- **Distinct-weight uniqueness of Kruskal's forest** (generalizing [Kruskal, Opening paragraph,
 Construction A, and uniqueness proof, pp. 48–50][Kruskal1956]): when all edges in `es` have pairwise
@@ -846,10 +824,9 @@ theorem perm_kruskalEdges_of_isMinSpanningTree_of_nodup_weights {n : ℕ} {W : T
     (hnodup : (es.map WeightedEdge.weight).Nodup)
     (hT : IsMinSpanningTree es T) :
     T.Perm (kruskalEdges es) := by
-  refine perm_kruskalEdges_of_isMinSpanningForest_of_nodup_weights hnodup ⟨?_, ?_⟩
-  · exact (isSpanningTree_iff_isSpanningForest_of_connected hconn).mp hT.1
-  · intro F' hF'
-    exact hT.2 F' ((isSpanningTree_iff_isSpanningForest_of_connected hconn).mpr hF')
+  apply perm_kruskalEdges_of_isMinSpanningForest_of_nodup_weights hnodup
+  simpa only [IsMinSpanningForest, IsMinSpanningTree,
+    ← isSpanningTree_iff_isSpanningForest_of_connected hconn] using hT
 
 /-! ### `DisjointSet.spec` client and backend-parametric realization -/
 
@@ -888,11 +865,9 @@ theorem kruskalScan_map_endpoints {n : ℕ} {W : Type} (p : Partition n)
   induction es generalizing p with
   | nil => rfl
   | cons e es ih =>
-    rw [kruskalScan_cons, List.map_cons, DisjointSet.eval_spanningForestEdges_cons]
-    dsimp only [id_eq, WeightedEdge.endpoints_fst, WeightedEdge.endpoints_snd]
-    by_cases hrel : p.rel e.u e.v = true
-    · simp [hrel, Partition.merge_of_rel hrel, ih p]
-    · simp [hrel, ih (p.merge e.u e.v)]
+    cases hrel : p.rel e.u e.v <;>
+      simp [kruskalScan_cons, DisjointSet.eval_spanningForestEdges_cons, hrel,
+        Partition.merge_of_rel, ih]
 
 /-- Backend-parametric Kruskal execution: for any `Cslib.DataStructure.StateTransitionImpl` and
 `Cslib.DataStructure.Bound` for `DisjointSet.spec n`, from a state representing

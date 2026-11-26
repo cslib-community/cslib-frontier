@@ -414,9 +414,7 @@ theorem popMin_node (first : BTree α β) (rest : List (Triple α β)) :
 @[simp] theorem toList_mergeSplit (l : BTree α β) (k : α) (v : β) (r : BTree α β) :
     (mergeSplit t l k v r).toList = l.toList ++ (k, v) :: r.toList := by
   unfold mergeSplit
-  split
-  · simp
-  · rfl
+  split <;> simp
 
 /-- Repair against the right sibling keeps the entries. -/
 theorem toList_rebalanceRight (c : BTree α β) (k : α) (v : β) (s : BTree α β)
@@ -452,17 +450,14 @@ theorem toList_popMin {tr : BTree α β} :
     · cases rest <;> simp [ihf.1 hf]
     rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
     · simp [ihf.2 _ _ hf]
-    · refine ⟨by simp, fun e' tr' h => ?_⟩
-      simp only [Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+    · refine ⟨by simp, ?_⟩
+      rintro _ _ ⟨rfl, rfl⟩
       rw [toList_node, toList_node, toList_rebalanceRight, ihf.2 _ _ hf, List.cons_append]
 
 /-- Collapsing an empty root keeps the entries. -/
 @[simp] theorem toList_collapse (tr : BTree α β) : (collapse tr).toList = tr.toList := by
   unfold collapse
-  split
-  · simp
-  · rfl
+  split <;> simp
 
 /-! ### Shape -/
 
@@ -507,22 +502,17 @@ theorem Good.underfull {c : BTree α β} {h : ℕ} (hc : Good t h c) : Underfull
 /-- A good tree of positive height is a node. -/
 theorem Good.ne_leaf {c : BTree α β} {h : ℕ} (hc : Good t h c) (hh : 1 ≤ h) : c ≠ .leaf := by
   rintro rfl
-  have := hc.height_eq
-  simp at this
-  omega
+  simp [← hc.height_eq] at hh
 
 /-- A subtree that does not underflow is occupied. -/
 theorem Underfull.occupied {c : BTree α β} {h : ℕ} (hc : Underfull t h c)
     (hu : underflows t c = false) : Occupied t c := by
-  have ho := hc.children_occupied
-  have hk := hc.rootKeys_le
   cases c with
   | leaf => exact .leaf
   | node f r =>
     simp only [underflows, decide_eq_false_iff_not, not_lt] at hu
-    simp only [rootKeys_node] at hk
-    exact .node hu hk (ho f List.mem_cons_self)
-      fun e he => ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
+    exact .node hu hc.rootKeys_le (hc.children_occupied f List.mem_cons_self)
+      fun e he => hc.children_occupied _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
 
 /-- A subtree that does not underflow is good. -/
 theorem Underfull.good {c : BTree α β} {h : ℕ} (hc : Underfull t h c)
@@ -679,24 +669,21 @@ theorem eraseFits_popMin (ht : 2 ≤ t) {tr : BTree α β} (hb : Balanced tr)
     have hpos := hpos (by simp)
     simp only [rootKeys_node] at hpos
     rw [popMin_node] at hp
-    rcases hpf : popMin t first with _ | ⟨e₁, first'⟩ <;>
-      rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
-    · simp at hpos
-    · -- the first child is empty: the node gives up its first entry
-      simp only [hpf, Option.some.injEq, Prod.mk.injEq] at hp
-      obtain ⟨-, rfl⟩ := hp
-      obtain ⟨hc, hrest⟩ := List.forall_mem_cons.1 hr
-      obtain ⟨hb', hh', hco⟩ := node_of_good hc hrest
-      exact ⟨hb', by rw [hh', hh], hco, by simp, by simp⟩
-    · simp at hpos
-    · -- the least entry comes from the first child, which is then repaired
-      simp only [hpf, Option.some.injEq, Prod.mk.injEq] at hp
-      obtain ⟨-, rfl⟩ := hp
-      obtain ⟨hc, hrest⟩ := List.forall_mem_cons.1 hr
-      have hu := hf.underfull_of_eraseFits ht fun ho hpos => ihf hf.balanced ho hpos hpf
-      obtain ⟨g₁, g₂, l₁, l₂⟩ := good_rebalanceRight ht hu hc k v hrest
-      obtain ⟨hb', hh', hco⟩ := node_of_good g₁ g₂
-      exact ⟨hb', by rw [hh', hh], hco, by simpa using l₂, by simpa using l₁⟩
+    rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
+    · rcases hpf : popMin t first with _ | ⟨e₁, first'⟩ <;> simp at hpos
+    · obtain ⟨hc, hrest⟩ := List.forall_mem_cons.1 hr
+      rcases hpf : popMin t first with _ | ⟨e₁, first'⟩
+      · -- the first child is empty: the node gives up its first entry
+        obtain ⟨-, rfl⟩ : (k, v) = e ∧ BTree.node c rest = tr' := by simpa [hpf] using hp
+        obtain ⟨hb', hh', hco⟩ := node_of_good hc hrest
+        exact ⟨hb', hh'.trans hh.symm, hco, by simp, by simp⟩
+      · -- the least entry comes from the first child, which is then repaired
+        simp only [hpf, Option.some.injEq, Prod.mk.injEq] at hp
+        obtain ⟨-, rfl⟩ := hp
+        have hu := hf.underfull_of_eraseFits ht fun ho hpos => ihf hf.balanced ho hpos hpf
+        obtain ⟨g₁, g₂, l₁, l₂⟩ := good_rebalanceRight ht hu hc k v hrest
+        obtain ⟨hb', hh', hco⟩ := node_of_good g₁ g₂
+        exact ⟨hb', hh'.trans hh.symm, hco, by simpa using l₂, by simpa using l₁⟩
 
 end PureStructure
 
@@ -807,14 +794,11 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         simp only [h₁, ↓reduceIte]
         rcases hpm : popMin t c with _ | ⟨⟨k₂, v₂⟩, c'⟩
         · simp [toList_popMin.1 hpm]
-        · have hcm := toList_popMin.2 _ _ hpm
-          rcases rest with _ | ⟨⟨k₃, v₃, c₃⟩, rest₃⟩
-          · simp only
-            rw [toList_rebalanceLast, hcm]
+        · rcases rest with _ | ⟨⟨k₃, v₃, c₃⟩, rest₃⟩
+          · rw [toList_rebalanceLast, toList_popMin.2 _ _ hpm]
             simp
-          · simp only [toListRest_cons, List.cons_append]
-            rw [toList_rebalanceRight, hcm]
-            simp
+          · simp only [toListRest_cons, List.cons_append, toList_rebalanceRight,
+              toList_popMin.2 _ _ hpm]
       · -- the key is below this triple: erase from the child before it, then repair that child
         have hk : k < k' := lt_of_le_of_ne h₁ fun h => h₂ (h ▸ le_rfl)
         simp only [h₁, h₂, ↓reduceIte]
@@ -830,8 +814,7 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         SortedAssoc.erase_of_forall_ne fun p hp => ((hlt p hp).trans hk).ne
       simp only [h₁, ↓reduceIte]
       rcases rest with _ | ⟨e, rest⟩
-      · simp only
-        rw [toList_rebalanceLast]
+      · rw [toList_rebalanceLast]
         simp [SortedAssoc.erase_append, SortedAssoc.erase_cons, hk.ne, hpre', hcc hcs]
       · simp only [toListRest_cons, List.cons_append]
         rw [ih c (eraseSubtree t k c) hcl hcc]
@@ -934,8 +917,7 @@ theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
   rcases c with _ | ⟨f, _ | ⟨e, r⟩⟩
   · exact ⟨ht, by simp [collapse], by simp [collapse], by simp [collapse], .leaf, hs⟩
   · simp only [collapse] at hs ⊢
-    have hf : Occupied t f := hco f (by simp)
-    exact hf.isWF ht (hb.of_mem_children (c := f) (by simp)) hs
+    exact (hco f (by simp)).isWF ht (hb.of_mem_children (c := f) (by simp)) hs
   · simp only [collapse, rootKeys_node] at hs hk₁ ⊢
     exact ⟨ht, by simp only [rootKeys_node]; omega, fun _ => by simp, hco, hb, hs⟩
 
@@ -981,8 +963,7 @@ unchanged elsewhere. -/
   rw [lookup_eq_of_isSortedAssoc hs, toList_erase_of_isSortedAssoc h,
     lookup_eq_of_isSortedAssoc h]
   split_ifs with hk
-  · subst hk
-    exact SortedAssoc.lookup_erase_self
+  · exact hk ▸ SortedAssoc.lookup_erase_self
   · exact SortedAssoc.lookup_erase_of_ne hk
 
 /-- Lookup after erasure fails at the erased key and is unchanged elsewhere. -/

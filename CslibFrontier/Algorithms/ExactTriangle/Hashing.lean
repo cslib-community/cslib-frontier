@@ -86,9 +86,7 @@ theorem card : Fintype.card (Triangle n) = n ^ 3 := by
 /-- A sum over all vertex triples is an iterated sum over the three parts. -/
 theorem sum_eq {M : Type*} [AddCommMonoid M] (f : Triangle n → M) :
     ∑ t, f t = ∑ a, ∑ b, ∑ c, f ⟨a, b, c⟩ := by
-  rw [← equivProd.symm.sum_comp]
-  simp only [Fintype.sum_prod_type]
-  rfl
+  simp only [← equivProd.symm.sum_comp, equivProd, Equiv.coe_fn_symm_mk, Fintype.sum_prod_type]
 
 end Triangle
 
@@ -197,12 +195,9 @@ theorem falsePositiveCount_add_zeroCount_eq_sum_coeff {p : ℕ} (hp : p ≠ 0) :
       ∑ a : Fin n, ∑ b : Fin n,
         CyclicIntRing.coeff hp ((-wAB a b) % (p : ℤ)).toNat ((matP wAC p * matQ wBC p) a b) := by
   classical
-  rw [← countZeroMod_eq]
-  unfold countZeroMod
-  rw [Finset.card_filter, Triangle.sum_eq]
+  rw [← countZeroMod_eq, countZeroMod, Finset.card_filter, Triangle.sum_eq]
   push_cast
   refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => ?_
-  have hcast := Int.natCast_toNat_emod (Nat.pos_of_ne_zero hp) (-wAB a b)
   have hr : ((-wAB a b) % (p : ℤ)).toNat < p := Int.natMod_lt (m := -wAB a b) hp
   rw [(coeff_matP_mul_matQ wBC wAC) hp a b _ hr,
     Finset.card_filter]
@@ -210,15 +205,12 @@ theorem falsePositiveCount_add_zeroCount_eq_sum_coeff {p : ℕ} (hp : p ≠ 0) :
   refine Finset.sum_congr rfl fun c _ => ?_
   -- A zero `weightSum` modulo `p` means `wAC a c + wBC b c ≡ -wAB a b`, and the right side
   -- is congruent to its residue.
-  have hres : (-wAB a b) % (p : ℤ) ≡ -wAB a b [ZMOD (p : ℤ)] := Int.mod_modEq _ _
+  have hsub : 0 - weightSum wAB wBC wAC a b c = -wAB a b - (wAC a c + wBC b c) := by
+    simp only [weightSum]; ring
   have hiff : weightSum wAB wBC wAC a b c ≡ 0 [ZMOD (p : ℤ)] ↔
       wAC a c + wBC b c ≡ ((((-wAB a b) % (p : ℤ)).toNat : ℕ) : ℤ) [ZMOD (p : ℤ)] := by
-    rw [hcast, show wAC a c + wBC b c ≡ (-wAB a b) % (p : ℤ) [ZMOD (p : ℤ)] ↔
-        wAC a c + wBC b c ≡ -wAB a b [ZMOD (p : ℤ)] from
-      ⟨fun h => h.trans hres, fun h => h.trans hres.symm⟩,
-      Int.modEq_iff_dvd, Int.modEq_iff_dvd,
-      show 0 - weightSum wAB wBC wAC a b c = -wAB a b - (wAC a c + wBC b c) by
-        simp only [weightSum]; ring]
+    rw [Int.natCast_toNat_emod (Nat.pos_of_ne_zero hp), Int.modEq_iff_dvd, hsub,
+      ← Int.modEq_iff_dvd, Int.ModEq, Int.ModEq, Int.emod_emod]
   simp only [hiff]
 
 end Counting
@@ -363,12 +355,9 @@ theorem falsePositiveCount_le_of_le_card_sqrtPrimeWindow {n D p : ℕ} {κ c : �
   set Y := 3 * (n : ℝ) ^ κ with hY
   set numPrimes := (Nat.sqrtPrimeWindow D).card
   have hr : 4 ≤ r := Real.four_le_sqrt_natCast hD
-  have hn : (16 : ℝ) ≤ n := by exact_mod_cast hD.trans hDn
   have hlogD_pos : 0 < Real.log D := Real.log_pos (by exact_mod_cast (by omega : 1 < D))
-  have hlogr_pos : 0 < Real.log (r / 2) := Real.log_pos (by linarith)
-  have hlogY_nonneg : 0 ≤ Real.log Y := by
-    have : 1 ≤ (n : ℝ) ^ κ := Real.one_le_rpow (by linarith) (by linarith)
-    exact Real.log_nonneg (by rw [hY]; linarith)
+  have hn1 : 1 ≤ (n : ℝ) ^ κ := Real.one_le_rpow (Nat.one_le_cast.2 (by omega)) (by linarith)
+  have hlogY_nonneg : 0 ≤ Real.log Y := Real.log_nonneg (by rw [hY]; linarith)
   -- The selected prime is at most average, after multiplying by the number of primes.
   -- False positives of all primes in the
   -- range add up to at most `n³ log_{r/2} Y`.
@@ -377,12 +366,12 @@ theorem falsePositiveCount_le_of_le_card_sqrtPrimeWindow {n D p : ℕ} {κ c : �
     le_trans (by exact_mod_cast hp.falsePositiveCount_mul_card_le_sum)
         ((sum_falsePositiveCount_le wAB wBC wAC) hD hκ hT)
   -- The base of the logarithm changes: `log_{r/2} Y ≤ 4 log Y / log D`.
-  have hlogD_le : Real.log D ≤ 4 * Real.log (r / 2) := log_le_four_mul_log_sqrt_div_two D hD
   have changeBase : Real.logb (r / 2) Y ≤ 4 * Real.log Y / Real.log D := by
-    rw [Real.logb, div_le_div_iff₀ hlogr_pos hlogD_pos]
-    linarith [mul_le_mul_of_nonneg_left hlogD_le hlogY_nonneg]
-  rw [show 4 / c * ((n : ℝ) ^ 3 * Real.log Y / r) = 4 * (n : ℝ) ^ 3 * Real.log Y / (c * r) by
-    field_simp, le_div_iff₀ (by positivity)]
+    rw [Real.logb, div_le_div_iff₀ (Real.log_pos (by linarith)) hlogD_pos]
+    linarith [mul_le_mul_of_nonneg_left (log_le_four_mul_log_sqrt_div_two D hD) hlogY_nonneg]
+  have hrhs : 4 / c * ((n : ℝ) ^ 3 * Real.log Y / r) =
+      4 * (n : ℝ) ^ 3 * Real.log Y / (c * r) := by ring
+  rw [hrhs, le_div_iff₀ (by positivity)]
   calc ((falsePositiveCount wAB wBC wAC) p : ℝ) * (c * r) = (falsePositiveCount wAB wBC wAC) p *
       (c * (r / Real.log D)) * Real.log D := by field_simp
     _ ≤ (falsePositiveCount wAB wBC wAC) p * numPrimes * Real.log D := by gcongr

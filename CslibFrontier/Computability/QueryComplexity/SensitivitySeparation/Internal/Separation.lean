@@ -54,10 +54,8 @@ theorem quantitative_separation (d : ℕ) (hd : 1 ≤ d) :
       (∃ x y : Fin n → Bool, f x ≠ f y) ∧
       (2 : ℝ) ^ d / (4 * ((d : ℝ) + 2) ^ 2) ≤
         (blockSensitivityAt f (fun _ => false) : ℝ) / (sensitivity f : ℝ) ^ 2 := by
-  let M : ℕ := 9 ^ (d + 1)
-  have hM : 0 < M := by dsimp [M]; positivity
-  obtain ⟨f, hn, hf, hnc, hs, hb⟩ := exists_constructed_seed d M hd (by rfl)
-  exact ⟨_, f, hn, hf, hnc, quantitative_ratio_of_bounds f d M hM hnc hs hb⟩
+  obtain ⟨f, hn, hf, hnc, hs, hb⟩ := exists_constructed_seed d (9 ^ (d + 1)) hd le_rfl
+  exact ⟨_, f, hn, hf, hnc, quantitative_ratio_of_bounds f d _ (by positivity) hnc hs hb⟩
 
 /-- For every `C` there is a nonconstant `f : (Fin n → Bool) → Bool` with `0 < n`,
 `f (fun _ => false) = false` and `C * sensitivity f ^ 2 < blockSensitivityAt f (fun _ => false)`. -/
@@ -69,9 +67,8 @@ theorem unbounded_quadratic_separation (C : ℝ) :
   obtain ⟨d, hd, hlarge⟩ := ((Filter.eventually_ge_atTop (1 : ℕ)).and
     (quantitative_ratio_tendsto.eventually_gt_atTop C)).exists
   obtain ⟨n, f, hn, hf, hnc, hratio⟩ := quantitative_separation d hd
-  have hs : (0 : ℝ) < sensitivity f := by
-    exact_mod_cast sensitivity_pos_of_nonconstant f hnc
-  exact ⟨n, f, hn, hf, hnc, (lt_div_iff₀ (pow_pos hs 2)).mp (hlarge.trans_le hratio)⟩
+  exact ⟨n, f, hn, hf, hnc, (lt_div_iff₀ (pow_pos
+    (Nat.cast_pos.mpr (sensitivity_pos_of_nonconstant f hnc)) 2)).mp (hlarge.trans_le hratio)⟩
 
 /-- There are `α > 2` and Boolean functions `F m` on `n m` variables such that for every `m`,
 `0 < n m`, `F m` is nonconstant, vanishes at the all-false input and satisfies
@@ -89,9 +86,7 @@ theorem fixed_power_separation :
           (fun m : ℕ => (blockSensitivityAt (F m) (fun _ => false) : ℝ))
           Filter.atTop Filter.atTop := by
   obtain ⟨α, hα, n, F, hall, hlim⟩ := constructed_power_family
-  refine ⟨α, hα, n, F, fun m => ?_, hlim⟩
-  obtain ⟨hn, hf, hnc, hpow, -⟩ := hall m
-  exact ⟨hn, hf, hnc, hpow⟩
+  exact ⟨α, hα, n, F, fun m => (hall m).imp_right (.imp_right (.imp_right And.left)), hlim⟩
 
 end Internal
 

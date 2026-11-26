@@ -98,7 +98,7 @@ private theorem score_programmed {s : Level} {α : Type} (H : Xofs) (xi rho : Fi
     scoreRefresh (H.withKeySeedExpansion s xi (Fin.append rho (Fin.append r K))) xi rows score =
       (PMF.uniformOfFintype (FixedBytes 128)).bind fun fresh =>
         score (H.withKeySeedExpansion s xi fresh) rho (gen H rho rows) xi r := by
-  let F := H.withKeySeedExpansion s xi (Fin.append rho (Fin.append r K))
+  set F := H.withKeySeedExpansion s xi (Fin.append rho (Fin.append r K))
   have ex : F.expandKeySeed s xi = rho.toList ++ (r.toList ++ K.toList) := by
     simp only [F, Xofs.expandKeySeed_withKeySeedExpansion, FixedBytes.toList, List.ofFn_fin_append]
   have pub : matrixSeed F s xi = rho := List.ofFn_inj.mp <| by
@@ -108,8 +108,7 @@ private theorem score_programmed {s : Level} {α : Type} (H : Xofs) (xi rho : Fi
     change (expansionSeed F s xi).toList = r.toList
     rw [expansionSeed_bytes, ex, List.drop_left' (FixedBytes.length_toList rho),
       List.take_left' (FixedBytes.length_toList r)]
-  change (PMF.uniformOfFintype (FixedBytes 128)).bind (fun fresh =>
-    score (F.withKeySeedExpansion s xi fresh) _ _ xi _) = _
+  dsimp only [scoreRefresh]
   rw [pub, sec]
   simp only [F, replace_expansion]; rfl
 
@@ -267,9 +266,8 @@ private theorem uniform_hit_le (s : Level) (address : Option (List Bool)) :
     by_cases width : x.length = 272
     · simp_rw [PMF.map]
       rw [PMF.bind_comm]
-      apply PMF.bind_apply_le_on_support
-      intro r _
-      refine FixedBytes.uniform_test_le (n := 32) fun i hi j hj => ?_
+      refine PMF.bind_apply_le_on_support _ fun r _ =>
+        FixedBytes.uniform_test_le (n := 32) fun i hi j hj => ?_
       have off (k : Fin (s.params.ℓ + s.params.k)) :
           x ≠ Keccak.bytesToBitsLE (nonceInput r.toList k.val) := fun h => by
         rw [h, length_nonceInput_bits] at width
@@ -278,17 +276,13 @@ private theorem uniform_hit_le (s : Level) (address : Option (List Bool)) :
         off, exists_false, or_false] at hi hj
       exact List.ofFn_inj.mp (List.append_cancel_right
         (Keccak.bytesToBitsLE_injective (hi.symm.trans hj)))
-    · apply PMF.bind_apply_le_on_support
-      intro xi _
+    · refine PMF.bind_apply_le_on_support _ fun xi _ => ?_
       have off : x ≠ keySeedInput s xi := fun h => width (h ▸ length_keySeedInput s xi)
       refine (FixedBytes.uniform_test_le (n := 64) fun r hr t ht => ?_).trans
-        (ENNReal.inv_le_inv.mpr
-          (pow_le_pow_right₀ (by norm_num : (1 : ℝ≥0∞) ≤ 2)
-            (by decide : 256 ≤ 8 * 64)))
+        (ENNReal.inv_le_inv.mpr (pow_le_pow_right₀ (by norm_num) (by decide)))
       simp only [Set.mem_ofPred_eq, hitsExpansionInput, Option.any_some, decide_eq_true_eq,
         off, false_or] at hr ht
-      obtain ⟨i, hi⟩ := hr
-      obtain ⟨j, hj⟩ := ht
+      obtain ⟨⟨i, hi⟩, ⟨j, hj⟩⟩ := And.intro hr ht
       have eq := congrArg (List.take 64) (Keccak.bytesToBitsLE_injective (hi.symm.trans hj))
       simp only [nonceInput, List.take_left' (FixedBytes.length_toList _)] at eq
       exact List.ofFn_inj.mp eq

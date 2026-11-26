@@ -38,6 +38,7 @@ it by the bit "position `0` holds `0`" and, for every position `i`, by
 ## Main results
 
 * `Cslib.Circuits.Arithmetic.isPFamily_hcFamily`: it is a p-family.
+* `Cslib.Circuits.Arithmetic.map_hamiltonianCycleSum_genericMatrix`: change of coefficients.
 * `Cslib.Circuits.Arithmetic.hcFamily_mem_VNP`: it belongs to `VNP` over every commutative ring.
 
 ## References
@@ -73,6 +74,14 @@ theorem totalDegree_hamiltonianCycleSum_genericMatrix_le {K : Type u} [CommSemir
 theorem isPFamily_hcFamily {K : Type u} [CommSemiring K] : (hcFamily K).IsPFamily :=
   ⟨PolynomiallyBounded.id.mul PolynomiallyBounded.id,
     PolynomiallyBounded.id.mono_of_le (totalDegree_hamiltonianCycleSum_genericMatrix_le (K := K))⟩
+
+/-- Mapping the coefficients of the generic Hamiltonian cycle polynomial along `f` gives the
+generic Hamiltonian cycle polynomial. -/
+theorem map_hamiltonianCycleSum_genericMatrix {R : Type u} {S : Type*} [CommSemiring R]
+    [CommSemiring S] (f : R →+* S) (n : ℕ) :
+    MvPolynomial.map f (genericMatrix R n).hamiltonianCycleSum =
+      (genericMatrix S n).hamiltonianCycleSum := by
+  rw [RingHom.map_hamiltonianCycleSum, map_genericMatrix]
 
 variable {K : Type u} [CommRing K] (n : ℕ)
 

@@ -71,12 +71,10 @@ private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableE
     have transfer : ∀ opId st, (τ.stateAt (t + 1)).history =
         completeHistoryAt (τ.stateAt t).history opId st → .doneUpdate w ≠ st → id₁ = id₂ := by
       intro opId st hhist hne_st
-      have h₁' := hhist ▸ h₁
-      have h₂' := hhist ▸ h₂
       rw [List.getElem_of_eq hhist h₁] at hst₁
       rw [List.getElem_of_eq hhist h₂] at hst₂
-      obtain ⟨hk₁, heq₁⟩ := getElem_completeHistoryAt_of_status_ne hne_st h₁' hst₁
-      obtain ⟨hk₂, heq₂⟩ := getElem_completeHistoryAt_of_status_ne hne_st h₂' hst₂
+      obtain ⟨hk₁, heq₁⟩ := getElem_completeHistoryAt_of_status_ne hne_st (hhist ▸ h₁) hst₁
+      obtain ⟨hk₂, heq₂⟩ := getElem_completeHistoryAt_of_status_ne hne_st (hhist ▸ h₂) hst₂
       exact ih_t id₁ id₂ hk₁ hk₂ w (heq₁ ▸ hst₁) (heq₂ ▸ hst₂)
     rcases (stepSnapshot_effect (τ.stateAt_step ht_lt)).2 with
         ⟨_, opId, _, _, -, -, hs₁⟩ |
@@ -108,17 +106,11 @@ private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableE
           ∃ hk₀ : k < (τ.stateAt t).history.length,
             ((τ.stateAt t).history[k]'hk₀).status = .doneUpdate w := by
         intro k hk hst
-        have hk₀ : k < (τ.stateAt t).history.length := by
-          by_contra hge
-          obtain rfl : k = (τ.stateAt t).history.length := by
-            rw [hhist, List.length_append, List.length_singleton] at hk; omega
-          rw [List.getElem_of_eq hhist hk] at hst
-          simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
-            List.getElem_singleton, hpend] at hst
-          cases hst
-        refine ⟨hk₀, ?_⟩
-        rwa [List.getElem_of_eq hhist hk,
-          List.getElem_append_left hk₀] at hst
+        rw [List.getElem_of_eq hhist hk, List.getElem_append] at hst
+        split_ifs at hst with hk₀
+        · exact ⟨hk₀, hst⟩
+        · obtain rfl : k = (τ.stateAt t).history.length := by simp [hhist] at hk; omega
+          simp only [Nat.sub_self, List.getElem_singleton, hpend, reduceCtorEq] at hst
       obtain ⟨hk₁, hs₁'⟩ := lt_old h₁ hst₁
       obtain ⟨hk₂, hs₂'⟩ := lt_old h₂ hst₂
       exact ih_t id₁ id₂ hk₁ hk₂ w hs₁' hs₂'
@@ -146,9 +138,7 @@ theorem linScanPoint_spec (τ : SnapshotTrace ord dInit) {invStep resp : ℕ}
     invStep + 1 ≤ τ.linScanPoint invStep resp snap ∧
       τ.linScanPoint invStep resp snap ≤ resp ∧
       memSnapshot (τ.stateAt (τ.linScanPoint invStep resp snap)).reg = snap := by
-  unfold linScanPoint
-  simp only [hex, ↓reduceDIte]
-  exact Classical.choose_spec hex
+  simpa only [linScanPoint, hex, ↓reduceDIte] using Classical.choose_spec hex
 
 /-- Final-history indices of completed scans serialized at step `t`. -/
 noncomputable def linScansAt (τ : SnapshotTrace ord dInit) (t : ℕ) : List ℕ :=
@@ -300,24 +290,19 @@ private theorem linUpdatesAt_valid (τ : SnapshotTrace ord dInit)
     refine ⟨?_, by simp only [seqSnapshotValid, hget₀, hkind₀, hstat₀]⟩
     simp only [seqSnapshotMemAfter, hget₀, hkind₀, hcaller₀]
     funext p
-    by_cases hpj : p = j
-    · subst hpj
-      have hreg_j := hcaller₀ ▸ hreg₀
-      rw [Function.update_self, memSnapshot, hreg_j]
+    rcases eq_or_ne p j with rfl | hpj
+    · rw [Function.update_self, memSnapshot, ← hcaller₀, hreg₀]
     · rw [Function.update_of_ne hpj, memSnapshot]
       rcases τ.reg_step_iff p ht_lt with ⟨hreg_eq, -⟩ | ⟨_, _, _, hev_p, -, -, -⟩
       · exact (congrArg SnapshotReg.data hreg_eq).symm
       · obtain ⟨_, _, _, _, hev_j, -⟩ := hjw
         exact absurd (SnapshotEvent.step.inj (hev_p.symm.trans hev_j)) hpj
-  · have hupd_nil : τ.linUpdatesAt t = [] := by
-      refine List.eq_nil_iff_forall_not_mem.mpr fun x hx => ?_
+  · have hupd_nil : τ.linUpdatesAt t = [] := List.eq_nil_iff_forall_not_mem.mpr fun x hx => by
       obtain ⟨hx_lt, hstat⟩ := (τ.mem_linUpdatesAt_iff t x).mp hx
       obtain ⟨_, -, -, -, hw_x, -⟩ := inv.hist_doneUpdate x hx_lt t hstat
       exact hw ⟨_, hw_x⟩
     rw [hupd_nil]
-    refine ⟨?_, trivial⟩
-    dsimp only [seqSnapshotMemAfter]
-    funext p
+    refine ⟨funext fun p => ?_, trivial⟩
     rcases τ.reg_step_iff p ht_lt with ⟨hreg_eq, -⟩ | ⟨opId, val, snap, hev_p, hproc_p, -, -⟩
     · exact (congrArg SnapshotReg.data hreg_eq).symm
     · exact absurd ⟨p, ht_lt, opId, val, snap, hev_p, hproc_p⟩ hw
@@ -339,11 +324,7 @@ theorem linPrefix_valid (τ : SnapshotTrace ord dInit)
     omega
   intro k hk
   induction k with
-  | zero =>
-    dsimp only [linPrefix]
-    refine ⟨by simp only [List.range_zero, List.flatMap_nil, seqSnapshotValid], fun _ => ?_⟩
-    simp only [List.range_zero, List.flatMap_nil, seqSnapshotMemAfter, stateAt_zero]
-    rfl
+  | zero => simp [linPrefix, seqSnapshotValid, seqSnapshotMemAfter, stateAt_zero]; rfl
   | succ k ih_k =>
     obtain ⟨hv_k, hm_k⟩ := ih_k (Nat.le_of_succ_le hk)
     have hk_le_T : k ≤ τ.events.length := Nat.le_of_succ_le_succ hk

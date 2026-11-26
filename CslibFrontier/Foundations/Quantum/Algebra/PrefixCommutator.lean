@@ -167,11 +167,9 @@ private theorem transcriptCommutatorDefect_succ_le {k : ℕ} (φ : AlgState A)
   have hW : rootEnergy φ W = √(copyDefect φ (M 0) R) := by
     unfold rootEnergy copyDefect
     congr 1
-    simp only [W, K, D, Fintype.sum_prod_type]
-    rw [sum_comm]
-    refine sum_congr rfl fun b _ => ?_
-    rw [sum_comm]
-    simp only [sum_norm_effect_mul_sq φ E hE, sum_norm_star_transcriptProduct_mul_sq φ T hT]
+    rw [Fintype.sum_prod_type, sum_comm]
+    simp only [W, K, D, sum_norm_effect_mul_sq φ E hE, Fintype.sum_prod_type,
+      sum_norm_star_transcriptProduct_mul_sq φ T hT]
   have hZ : rootEnergy φ Z = √(copyDefect φ (M 0) R) := by
     unfold rootEnergy copyDefect
     congr 1
@@ -220,9 +218,8 @@ theorem transcriptCommutatorDefect_le {k : ℕ} (φ : AlgState A)
   have h0 : 0 ≤ transcriptCommutatorDefect φ E M := by
     unfold transcriptCommutatorDefect
     exact sum_nonneg fun _ _ => sum_nonneg fun _ _ => sq_nonneg _
-  have h := pow_le_pow_left₀ (Real.sqrt_nonneg _)
-    (sqrt_transcriptCommutatorDefect_le φ E hE M R hM hR hER hMR) 2
-  rw [Real.sq_sqrt h0] at h
+  have h := (Real.sq_sqrt h0).symm.trans_le (pow_le_pow_left₀ (Real.sqrt_nonneg _)
+    (sqrt_transcriptCommutatorDefect_le φ E hE M R hM hR hER hMR) 2)
   have hcs : (∑ j, f j) ^ 2 ≤ (k : ℝ) * ∑ j, f j ^ 2 := by
     simpa only [one_mul, one_pow, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul,
       mul_one] using (Finset.sum_mul_sq_le_sq_mul_sq univ (fun _ => (1 : ℝ)) f)
@@ -254,10 +251,9 @@ theorem average_prefixCommutatorDefect_le {Q : Type*} [Fintype Q] [Nonempty Q] {
     exact Fintype.expect_apply_pair (fun x y => pairCommutatorDefect φ (M x) (M y)) hj
   have hcopy' (j : Fin i.val) :
       (𝔼 x : Fin k → Q, C x j) = 𝔼 x : Q, copyDefect φ (M x) (R x) := by
-    unfold C
-    rw [← Fintype.expect_expect_update
-      (fun x : Fin k → Q => copyDefect φ (M (x (pos j))) (R (x (pos j)))) (pos j)]
-    simp only [Function.update_self, Fintype.expect_const]
+    simpa only [C, Function.update_self, Fintype.expect_const] using
+      (Fintype.expect_expect_update
+        (fun x : Fin k → Q => copyDefect φ (M (x (pos j))) (R (x (pos j)))) (pos j)).symm
   calc
     _ ≤ 𝔼 x : Fin k → Q, ((i.val : ℝ) * ∑ j, (2 * P x j + 8 * C x j)) := by
       refine expect_le_expect fun x _ => ?_
@@ -287,9 +283,8 @@ theorem sum_prefixDisturbance_le_of_pairwise {Q : Type*} [Fintype Q] [Nonempty Q
   calc
     _ ≤ ∑ i : Fin k, 2 * ((i.val : ℝ) * √(2 * χ + 8 * ζ)) := by
       refine sum_le_sum fun i _ => mul_le_mul_of_nonneg_left ?_ (by norm_num)
-      have hi : (0 : ℝ) ≤ i.val := by positivity
-      simpa only [Function.comp_def, Real.sqrt_mul (sq_nonneg (i.val : ℝ)), Real.sqrt_sq hi] using
-        Real.sqrt_le_sqrt (h i)
+      simpa only [Function.comp_def, Real.sqrt_mul (sq_nonneg (i.val : ℝ)),
+        Real.sqrt_sq (Nat.cast_nonneg i.val)] using Real.sqrt_le_sqrt (h i)
     _ = _ := by
       have hk : (∑ i : Fin k, (i.val : ℝ)) * 2 = k * ((k - 1 : ℕ) : ℝ) := by
         exact_mod_cast (Fin.sum_univ_eq_sum_range (fun j : ℕ => j) k).symm ▸ sum_range_id_mul_two k

@@ -220,29 +220,25 @@ private theorem decodeAux_stageCode {t : Term ι} {W : List ι}
     rw [Term.stageCode, List.cons_append,
       decodeAux_cons (cur := some t) (θ := θ) (t := t) rfl
         (List.getElem?_idxOf (hW v List.mem_cons_self))]
+    have hass (W : List ι) :
+        PartialAssignment.assign (Function.update θ v (some (x v))) W.toFinset x =
+          θ.assign (v :: W).toFinset x := by
+      funext i
+      by_cases hi : i ∈ W.toFinset
+      · simp [PartialAssignment.assign_of_mem, hi]
+      · rcases eq_or_ne i v with rfl | hne <;>
+          simp [PartialAssignment.assign_of_mem, PartialAssignment.assign_of_notMem, hi, hne]
+    have hset (W : List ι) : insert v Q ∪ W.toFinset = Q ∪ (v :: W).toFinset := by
+      rw [List.toFinset_cons, union_insert, insert_union]
     cases W with
     | nil =>
-      simp only [List.isEmpty_nil, ↓reduceIte, List.nil_append, Term.stageCode]
-      congr 1
-      · funext i
-        by_cases hi : i = v <;> simp [hi]
-      · ext i
-        simp
+      simp only [List.isEmpty_nil, ↓reduceIte, List.nil_append, Term.stageCode, ← hass [],
+        ← hset [], List.toFinset_nil, union_empty]
+      rw [PartialAssignment.assign, piecewise_empty]
     | cons w W =>
       simp only [List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte]
-      rw [ih (fun u hu => hW u (List.mem_cons_of_mem _ hu)) (List.cons_ne_nil _ _)]
-      congr 1
-      · funext i
-        by_cases hi' : i ∈ (w :: W).toFinset
-        · rw [PartialAssignment.assign_of_mem hi', PartialAssignment.assign_of_mem
-            (List.mem_toFinset.2 (List.mem_cons_of_mem _ (List.mem_toFinset.1 hi')))]
-        · rw [PartialAssignment.assign_of_notMem hi']
-          rcases eq_or_ne i v with rfl | hi
-          · rw [PartialAssignment.assign_of_mem (by simp), Function.update_self]
-          · rw [Function.update_of_ne hi, PartialAssignment.assign_of_notMem (by simp_all)]
-      · ext i
-        simp only [mem_union, mem_insert, List.mem_toFinset, List.mem_cons]
-        tauto
+      rw [ih (fun u hu => hW u (List.mem_cons_of_mem _ hu)) (List.cons_ne_nil _ _),
+        hass (w :: W), hset (w :: W)]
 
 /-- At the start of a stage, the decoder reads the first term not falsified. -/
 private theorem decodeAux_none {c : List (ℕ × Bool × Bool)} (hc : c ≠ []) (θ : PartialAssignment ι)
@@ -299,8 +295,7 @@ private theorem encode_extends (s : ℕ) (ρ : PartialAssignment ι) (x : ι →
   have hiV : i ∉ (F.queried ρ).toFinset := fun hiV => by
     simp [free_of_mem_queried (List.mem_toFinset.1 hiV)] at hi
   by_cases h : F.queried ρ = []
-  · rw [encode_of_queried_eq_nil h]
-    exact hi
+  · rwa [encode_of_queried_eq_nil h]
   by_cases hs : s ≤ (F.queried ρ).length
   · rw [encode_of_le h hs]
     dsimp only
@@ -406,17 +401,14 @@ private theorem length_encode {ρ : PartialAssignment ι} {s : ℕ} {x : ι → 
     (hs : s ≤ F.pathLength ρ x) : (F.encode s ρ x).2.length = s := by
   by_cases h : F.queried ρ = []
   · rw [pathLength_of_queried_eq_nil h] at hs
-    rw [encode_of_queried_eq_nil h, Nat.le_zero.1 hs]
-    rfl
+    simp [encode_of_queried_eq_nil h, Nat.le_zero.1 hs]
   by_cases hsV : s ≤ (F.queried ρ).length
-  · rw [encode_of_le h hsV]
-    simp [hsV]
+  · simp [encode_of_le h hsV, hsV]
   · rw [encode_of_lt h (by omega)]
     dsimp only
     rw [List.length_append, Term.length_stageCode,
-      length_encode (ρ := ρ.assign (F.queried ρ).toFinset x) (by
-        rw [pathLength_of_queried_ne_nil h] at hs
-        omega)]
+      length_encode (ρ := ρ.assign (F.queried ρ).toFinset x)
+        (by rw [pathLength_of_queried_ne_nil h] at hs; omega)]
     omega
 termination_by #ρ.free
 decreasing_by exact card_free_assign_lt h x
@@ -471,9 +463,7 @@ theorem card_filter_pathLength_le {k : ℕ} (hk : ∀ t ∈ F, t.length ≤ k)
             rw [card_free_encode hnd hx, hcard]
           · exact mem_image_ofFn (length_encode hx) fun e he => fst_lt_of_mem_encode hk s ρ x he
     _ ≤ #(ρ₀.extensions (ℓ - s) ×ˢ C) := card_image_le
-    _ ≤ _ := by
-      rw [card_product]
-      exact Nat.mul_le_mul_left _ hC
+    _ ≤ _ := card_product _ _ ▸ Nat.mul_le_mul_left _ hC
 
 /-- **Håstad's switching lemma**, counting version. If every term of `F` has at most `k` literals
 and reads each variable once, then at most `#E(ℓ - s) (4k)^s` of the extensions of `ρ₀` leaving `ℓ`
@@ -484,11 +474,10 @@ theorem card_switching_le {k : ℕ} (hk : ∀ t ∈ F, t.length ≤ k)
     (hnd : ∀ t ∈ F, (t.map Prod.fst).Nodup) (ρ₀ : PartialAssignment ι) (ℓ s : ℕ) :
     #((ρ₀.extensions ℓ).filter fun ρ => s ≤ complexity fun x => DNF.eval (ρ.fill x) F) ≤
       #(ρ₀.extensions (ℓ - s)) * (4 * k) ^ s := by
-  refine (card_le_card fun ρ hρ => ?_).trans (card_filter_pathLength_le hk hnd ρ₀ ℓ s)
-  obtain ⟨hρ, hs⟩ := mem_filter.1 hρ
-  refine mem_filter.2 ⟨hρ, ?_⟩
+  refine (card_le_card (monotone_filter_right _ fun ρ _ hs => ?_)).trans
+    (card_filter_pathLength_le hk hnd ρ₀ ℓ s)
   by_contra! h
-  exact absurd hs (not_le.2 (complexity_lt_of_forall_pathLength_lt h))
+  exact hs.not_gt (complexity_lt_of_forall_pathLength_lt h)
 
 end DNF
 

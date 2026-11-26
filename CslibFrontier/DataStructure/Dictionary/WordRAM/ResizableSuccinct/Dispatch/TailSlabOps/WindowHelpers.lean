@@ -120,15 +120,10 @@ private theorem physByBase_tail_denseOfCirc {N b_win n_win : ℕ} {td dt : ℕ �
     let d := denseOfCirc (maxTailItems N) b_win (td t)
     b_win ≤ d ∧ d < b_win + n_win ∧ physByBase N b_win dt d = N - 1 - t := by
   intro d
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hM_pos : 0 < maxTailItems N := maxTailItems_pos_of_bucketBits_pos hb_pos
-  have hc_lt : td t < maxTailItems N := hw.td_lt t ht
-  have hge : b_win ≤ d := denseOfCirc_ge (maxTailItems N) b_win (td t)
-  have hlt : d < b_win + n_win := hw.dense_lt t ht
-  refine ⟨hge, hlt, ?_⟩
+  refine ⟨denseOfCirc_ge (maxTailItems N) b_win (td t), hw.dense_lt t ht, ?_⟩
   unfold physByBase
-  rw [ite_eq_right hb0, ite_eq_right (by omega : ¬d < b_win),
-    denseOfCirc_mod hM_pos hc_lt, hw.dt_td t ht]
+  rw [ite_eq_right hb_pos.ne', ite_eq_right (Nat.not_lt.mpr (denseOfCirc_ge _ _ _)),
+    denseOfCirc_mod (maxTailItems_pos_of_bucketBits_pos hb_pos) (hw.td_lt t ht), hw.dt_td t ht]
 
 private theorem physByBase_range_and_inj {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
     (hb_pos : 0 < bucketBits N) (hbn : b_win + n_win ≤ N) (hM : n_win ≤ maxTailItems N)
@@ -371,14 +366,10 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
     (U := U) (V := V) (N := N) (v := compValAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win)
     hw hitem hd_last_lt _
   have hs1_mem : s₁.mem = _ := congrArg Memory.State.mem hs1_eq
-  have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
-    hs1_mem ▸ hgm_c2.trans hgm_c1
-  have hlm1 : compLmAt metaBase U w N s₁.mem = compLmAt metaBase U w N s.mem :=
-    hs1_mem ▸ hlm_c2.trans hlm_c1
-  have htd1 : compTDAt metaBase U w N s₁.mem = compTDAt metaBase U w N s.mem :=
-    hs1_mem ▸ htd_c2.trans htd_c1
-  have hdt1 : compDTAt metaBase U w N s₁.mem = compDTAt metaBase U w N s.mem :=
-    hs1_mem ▸ hdt_c2.trans hdt_c1
+  have hgm1 := (congrArg (compGmAt metaBase U w N) hs1_mem).trans (hgm_c2.trans hgm_c1)
+  have hlm1 := (congrArg (compLmAt metaBase U w N) hs1_mem).trans (hlm_c2.trans hlm_c1)
+  have htd1 := (congrArg (compTDAt metaBase U w N) hs1_mem).trans (htd_c2.trans htd_c1)
+  have hdt1 := (congrArg (compDTAt metaBase U w N) hs1_mem).trans (hdt_c2.trans hdt_c1)
   have htd_b (i) : compTDAt metaBase U w N s.mem i < maxTailItems N := hmax_eq ▸ hcpl.td_lt i
   have hdt_b (i) : compDTAt metaBase U w N s.mem i < maxTailItems N := hmax_eq ▸ hcpl.dt_lt i
   obtain ⟨_, htd2, hdt2, hlm2, hgm2, hq2, hv2, _⟩ :=
@@ -394,26 +385,20 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
   have hspec := winShrinkLeft_spec hcpl.win_inv hM htd_b hdt_b
   have hp := physByBase_winShrinkLeft hb_pos hcpl.win_inv hM
   dsimp only [winShrinkLeft] at htd2 hdt2 hspec hp
-  have hgm_s3 : compGmAt metaBase U w N s₃.mem = compGmAt metaBase U w N s.mem :=
-    hgm4.trans (hgm3.trans (hgm2.trans hgm1))
-  have hlm_s3 : compLmAt metaBase U w N s₃.mem = compLmAt metaBase U w N s.mem :=
-    hlm4.trans (hlm3.trans (hlm2.trans hlm1))
+  have hgm_s3 := hgm4.trans (hgm3.trans (hgm2.trans hgm1))
+  have hlm_s3 := hlm4.trans (hlm3.trans (hlm2.trans hlm1))
   have htd_s3 := htd4.trans (htd3.trans htd2)
   have hdt_s3 := hdt4.trans (hdt3.trans hdt2)
   have hq_b_lt : compQuotAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win <
-      2 ^ quotientBits U N := by
-    rw [hcpl.quot_eq _ hb_lt]; exact quotAt_lt _ _ _ _ _ _ _
-  have hv_b_lt : compValAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win < 2 ^ valBits V := by
-    rw [hcpl.val_eq _ hb_lt]; exact valAt_lt _ _ _ _ _ _ _ _
+      2 ^ quotientBits U N :=
+    (hcpl.quot_eq _ hb_lt).trans_lt (quotAt_lt _ _ _ _ _ _ _)
+  have hv_b_lt : compValAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win < 2 ^ valBits V :=
+    (hcpl.val_eq _ hb_lt).trans_lt (valAt_lt _ _ _ _ _ _ _ _)
   have hp_ne_bwin : ∀ d < (b_win + 1) + n', d ≠ b_win →
-      physByBase N (b_win + 1) (compDTAt metaBase U w N s₃.mem) d ≠ b_win := by
-    intro d hd hneb
+      physByBase N (b_win + 1) (compDTAt metaBase U w N s₃.mem) d ≠ b_win := fun d hd hneb => by
     rw [hdt_s3]
-    have hrng := (physByBase_range_and_inj hb_pos (by omega : (b_win + 1) + n' ≤ N)
-      (by omega : n' ≤ maxTailItems N) hspec.1).1 d hd
-    rcases hrng with ⟨hlt, hp_eq⟩ | ⟨hge, hlo, _⟩
-    · rw [hp_eq]; omega
-    · omega
+    rcases (physByBase_range_and_inj hb_pos (hm_eq.symm ▸ hbn) (Nat.le_of_succ_le hM) hspec.1).1
+      d hd with ⟨_, hp_eq⟩ | ⟨_, _, _⟩ <;> omega
   have hp_b : physByBase N b_win (compDTAt metaBase U w N s.mem) b_win =
       N - 1 - compDTAt metaBase U w N s.mem (b_win % maxTailItems N) := by
     unfold physByBase
@@ -486,13 +471,10 @@ private theorem validProg_writeCompItemGen {w : ℕ} {d : ((CompParams × ℕ) �
     {s : Memory.State} (h : WriteCompItemPre w d s) :
     ValidProg w 0 s (writeCompItemGenProg d) := by
   rcases d with ⟨⟨⟨cp, itemBase⟩, dst⟩, ⟨q_val, v_val⟩⟩
-  obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hdst⟩ := h
-  dsimp only [writeCompItemGenProg]
-  refine validProg_bind_unit
-    (validProg_writeCompQuotGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hdst⟩)
-    fun s1 hs1 => ?_
-  have hfr1 : itemBase + compactedItemWords U V w N m_items ≤ s1.frontier := by
-    rw [hs1, clientState_writeCompQuotGenProg]; exact hfr
-  exact validProg_writeCompValGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr1⟩, hdst⟩
+  obtain ⟨m_items, hce, hdst⟩ := h
+  refine validProg_bind_unit (validProg_writeCompQuotGen ⟨m_items, hce, hdst⟩) fun s1 hs1 => ?_
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩ := hce
+  rw [hs1, clientState_writeCompQuotGenProg]
+  exact validProg_writeCompValGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hdst⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

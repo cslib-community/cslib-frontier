@@ -209,7 +209,7 @@ theorem cosetEval_add_half {g ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^
       -cosetEval g ω d i ⟨j.val, lt_of_lt_of_le j.isLt (Nat.pow_le_pow_right (by omega)
         (by omega))⟩ := by
   have hsplit : 2 ^ (d - i) = 2 * 2 ^ (d - (i + 1)) := by
-    rw [show d - i = (d - (i + 1)) + 1 by omega, pow_succ']
+    rw [← Nat.sub_add_cancel (Nat.sub_pos_of_lt hi), Nat.sub_sub, pow_succ']
   have hneg := (isPrimitiveRoot_fiber (Nat.pow_pos (by omega))
     (hsplit ▸ isPrimitiveRoot_pow_two_pow hω hi.le)).eq_neg_one_of_two_right
   simp only [cosetEval, cosetPoint, pow_add, hneg, mul_neg, mul_one]
@@ -232,9 +232,8 @@ theorem coeff_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) (r : Fin a) (t : ℕ) :
     Finset.sum_ite_eq', Finset.mem_range]
   split_ifs with ht
   · rfl
-  · refine (coeff_eq_zero_of_natDegree_lt ?_).symm
-    have hlt := (Nat.div_lt_iff_lt_mul ha).mp (by omega : p.natDegree / a < t)
-    nlinarith
+  · exact (coeff_eq_zero_of_natDegree_lt
+      (by nlinarith [(Nat.div_lt_iff_lt_mul ha).mp (Nat.lt_of_succ_le (not_lt.mp ht))])).symm
 
 /-- If `deg(p) < a * k`, each `a`-way component `polyComp a p r` has degree `< k`. -/
 theorem degree_polyComp_lt {a k : ℕ} (ha : 0 < a) {p : F[X]} (hp : p.degree < (a * k : ℕ))
@@ -279,9 +278,8 @@ theorem reconstructPoly_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) :
 
 /-- Evaluating `p` at `x` decomposes as `∑ r : Fin a, x ^ r * (polyComp a p r).eval (x ^ a)`. -/
 theorem eval_eq_sum_eval_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) (x : F) :
-    p.eval x = ∑ r : Fin a, x ^ r.val * (polyComp a p r).eval (x ^ a) := by
-  conv_lhs => rw [← reconstructPoly_polyComp ha p]
-  exact eval_reconstructPoly a (polyComp a p) x
+    p.eval x = ∑ r : Fin a, x ^ r.val * (polyComp a p r).eval (x ^ a) :=
+  (congrArg (·.eval x) (reconstructPoly_polyComp ha p)).symm.trans (eval_reconstructPoly a _ x)
 
 /-- If every component `ps r` has degree `< k`, then `reconstructPoly a ps` has degree `< a * k`.
 -/
@@ -526,9 +524,8 @@ theorem exists_mem_reedSolomon_weighted_agree_lift {g ω : F} {a N k : ℕ} [Dec
   let S : Finset (Fin N) :=
     Finset.univ.filter fun j : Fin N => ∀ r : Fin a, foldComp g ω f r j = v r j
   calc ∑ j ∈ S, pushWeight W j
-      = ∑ p ∈ S ×ˢ (Finset.univ : Finset (Fin a)), W (fiberIdxEquiv hN p) := by
-        rw [Finset.sum_product]
-        rfl
+      = ∑ p ∈ S ×ˢ (Finset.univ : Finset (Fin a)), W (fiberIdxEquiv hN p) :=
+        (Finset.sum_product S Finset.univ fun p => W (fiberIdxEquiv hN p)).symm
     _ = ∑ i ∈ (S ×ˢ (Finset.univ : Finset (Fin a))).image (fiberIdxEquiv hN), W i :=
         (Finset.sum_image fun _ _ _ _ h => (fiberIdxEquiv hN).injective h).symm
     _ ≤ ∑ i ∈ Finset.univ.filter (fun i => f i = c i), W i := by
@@ -571,8 +568,7 @@ theorem fold2Fiber_swap (yPos yNeg xPos z : F) :
 
 /-- `fold2` is the exact affine line `fold2Even f + z • fold2Odd g ω f`. -/
 theorem fold2_eq_line (g ω : F) {N : ℕ} (f : Fin (2 * N) → F) (z : F) :
-    fold2 g ω f z = fold2Even f + z • fold2Odd g ω f := by
-  ext j
+    fold2 g ω f z = fold2Even f + z • fold2Odd g ω f :=
   rfl
 
 /-- Helper: `ω ^ N = -1` whenever `ω` is a primitive `(2 * N)`-th root of unity. -/
@@ -611,8 +607,8 @@ theorem fold2_eq_foldWord {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRo
     (f : Fin (2 * N) → F) (z : F) :
     fold2 g ω f z = foldWord g ω f z := by
   rw [fold2_eq_line, foldWord_eq_sum_smul, Fin.sum_univ_two]
-  simp only [pow_zero, one_smul, pow_one, Fin.val_zero, Fin.val_one]
-  rw [fold2Even_eq_foldComp (g := g) (ω := ω) f, fold2Odd_eq_foldComp hN hω f]
+  simp only [pow_zero, one_smul, pow_one, Fin.val_zero, Fin.val_one,
+    fold2Even_eq_foldComp (g := g) (ω := ω) f, fold2Odd_eq_foldComp hN hω f]
   rfl
 
 /-- **Reed–Solomon closure of 2-to-1 folding**: folding a codeword of

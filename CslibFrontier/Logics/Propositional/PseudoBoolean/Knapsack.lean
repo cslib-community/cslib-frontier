@@ -7,13 +7,9 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.Chosen
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
-public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-public import Mathlib.Order.Bounds.Defs
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
-import CslibFrontier.Logics.Propositional.PseudoBoolean.Reification
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -32,14 +28,15 @@ Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024]. The proof is check
 item is taken; an assignment `σ` takes the items `Cslib.Logic.PL.VeriPB.chosen n σ`.
 The formula is the single capacity constraint `∑ wᵢ ¬xᵢ ≥ ∑ wᵢ - B`, the normal form of
 `∑ wᵢ xᵢ ≤ B` (`Cslib.Logic.PL.VeriPB.Knapsack.capacity`), and the objective, to be minimized, is
-the negated profit `∑ -pᵢ xᵢ` (`Cslib.Logic.PL.VeriPB.Knapsack.objective`). An assignment
+the negated profit `∑ -pᵢ xᵢ` (`Cslib.Logic.PL.VeriPB.negProfit`). An assignment
 satisfies the formula exactly when the items it takes fit
 (`Cslib.Logic.PL.VeriPB.Knapsack.holds_capacity_iff`), its objective value is the negated profit
-of those items (`Cslib.Logic.PL.VeriPB.Knapsack.eval_objective`), and every set of items is taken
-by some assignment (`Cslib.Logic.PL.VeriPB.exists_chosen_eq`). So a proof that the checker
-accepts with the conclusion `BOUNDS lb : q ub` shows that the optimum lies in `[-ub, -lb]`
-(`Cslib.Logic.PL.VeriPB.Knapsack.bounds_of_checkRed`), and is `-lb` when `lb = ub`
-(`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed`). These statements hold for every proof,
+of those items (`Cslib.Logic.PL.VeriPB.eval_negProfit`), and every set of items is taken
+by some assignment (`Cslib.Logic.PL.VeriPB.exists_chosen_eq`): the formula and objective encode
+the problem (`Cslib.Logic.PL.VeriPB.Knapsack.encodes`). So a proof that the checker accepts with
+the conclusion `BOUNDS lb : q ub` shows that the optimum lies in `[-ub, -lb]`
+(`Cslib.Logic.PL.VeriPB.Encodes.bounds_of_checkRed`), and is `-lb` when `lb = ub`
+(`Cslib.Logic.PL.VeriPB.Encodes.isGreatest_of_checkRed`). These statements hold for every proof,
 whoever wrote it.
 
 **The dynamic program** (`Cslib.Logic.PL.VeriPB.Knapsack.certify`). Layer `i` holds states
@@ -83,20 +80,18 @@ turns acceptance into optimality; acceptance itself holds on every instance
 
 ## Main definitions
 
-* `Cslib.Logic.PL.VeriPB.Knapsack.capacity`, `Cslib.Logic.PL.VeriPB.Knapsack.formula`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.objective`: the encoding; an assignment takes the items
+* `Cslib.Logic.PL.VeriPB.Knapsack.capacity`, `Cslib.Logic.PL.VeriPB.Knapsack.formula`: the
+  encoding, with the objective `Cslib.Logic.PL.VeriPB.negProfit`; an assignment takes the items
   `Cslib.Logic.PL.VeriPB.chosen n σ`, shared with the clique encoding.
-* `Cslib.Logic.PL.VeriPB.Knapsack.Certificate`, `Cslib.Logic.PL.VeriPB.Knapsack.certify`: the
-  record of a claimed optimum and a candidate proof, and the proof-logging dynamic program that
-  writes one, on the shared emitter (`Cslib.Logic.PL.VeriPB.Knapsack.optMode`,
+* `Cslib.Logic.PL.VeriPB.Knapsack.certify`: the proof-logging dynamic program, which returns a
+  `Cslib.Logic.PL.VeriPB.Certificate`: a claimed optimum and a candidate proof, written on the
+  shared emitter (`Cslib.Logic.PL.VeriPB.Knapsack.optMode`,
   `Cslib.Logic.PL.VeriPB.Knapsack.optInst`, `Cslib.Logic.PL.VeriPB.Knapsack.optSteps`).
 
 ## Main results
 
-* `Cslib.Logic.PL.VeriPB.Knapsack.holds_capacity_iff`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.eval_objective`: the encoding is correct.
-* `Cslib.Logic.PL.VeriPB.Knapsack.bounds_of_checkRed`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed`: an accepted proof bounds the optimum.
+* `Cslib.Logic.PL.VeriPB.Knapsack.holds_capacity_iff`, `Cslib.Logic.PL.VeriPB.Knapsack.encodes`:
+  the encoding is correct, so an accepted proof bounds the optimum.
 * `Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify`: if the checker accepts the
   proof of the dynamic program, its answer is the optimum.
 
@@ -127,12 +122,6 @@ def capacity (w : Fin n → ℕ) (B : ℕ) : PBConstr :=
 @[expose]
 def formula (w : Fin n → ℕ) (B : ℕ) : List PBConstr := [capacity w B]
 
-/-- **The knapsack objective**, the negated profit `∑ -pᵢ xᵢ`, to be minimized (equation (2) of the
-paper). -/
-@[expose]
-def objective (p : Fin n → ℕ) : Objective :=
-  ⟨(List.finRange n).map fun i => (i.val, -(p i : ℤ)), 0⟩
-
 private theorem lhs_capacity (w : Fin n → ℕ) (B : ℕ) (σ : ℕ → Bool) :
     lhs σ (capacity w B).terms = ∑ i ∈ (chosen n σ)ᶜ, w i := by
   rw [capacity, lhs, List.map_map, ← Fin.sum_univ_def,
@@ -150,45 +139,13 @@ theorem holds_capacity_iff (w : Fin n → ℕ) (B : ℕ) (σ : ℕ → Bool) :
   change ((List.finRange n).map w).sum - B ≤ _ ↔ _
   omega
 
-/-- **The objective value is the negated profit of the items taken.** -/
-theorem eval_objective (p : Fin n → ℕ) (σ : ℕ → Bool) :
-    (objective p).eval σ = -∑ i ∈ chosen n σ, (p i : ℤ) := by
-  rw [Objective.eval, objective, linVal, List.map_map, ← Fin.sum_univ_def, add_zero,
-    ← Finset.sum_neg_distrib, chosen, Finset.sum_filter]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  cases h : σ i.val <;> simp [h]
-
-/-! ### Accepted proofs bound the optimum -/
-
-/-- **An accepted proof bounds the optimum**: if the checker accepts a proof with the conclusion
-`BOUNDS lb : q ub` for the knapsack formula and objective, then every set of items that fits has
-profit at most `-lb`, and some set that fits has profit at least `-ub`. -/
-theorem bounds_of_checkRed {w p : Fin n → ℕ} {B : ℕ} {P : RedProof} {lb ub : ℤ} {q : ℕ}
-    {asg : Option (List (Literal ℕ))} {pres : Option (List ℕ)}
-    (h : checkRed (formula w B) (some (objective p)) P pres = true)
-    (hc : P.conclusion = .bounds (some lb) q (some ub) asg) :
-    (∀ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B → ∑ i ∈ S, (p i : ℤ) ≤ -lb) ∧
-      ∃ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B ∧ -ub ≤ ∑ i ∈ S, (p i : ℤ) := by
-  refine ⟨fun S hS => ?_, ?_⟩
-  · obtain ⟨σ, rfl⟩ := exists_chosen_eq S
-    have := le_eval_of_checkRed h hc σ (by simpa [formula, holds_capacity_iff] using hS)
-    rw [eval_objective] at this
-    omega
-  · obtain ⟨σ, hσ, hle⟩ := exists_eval_le_of_checkRed h hc
-    refine ⟨chosen n σ, (holds_capacity_iff w B σ).1 (hσ _ (by simp [formula])), ?_⟩
-    rw [eval_objective] at hle
-    omega
-
-/-- **An accepted proof of `BOUNDS lb : q lb` certifies the optimum `-lb`**: it is the largest
-profit of a set of items that fits. -/
-theorem isGreatest_of_checkRed {w p : Fin n → ℕ} {B : ℕ} {P : RedProof} {lb : ℤ} {q : ℕ}
-    {asg : Option (List (Literal ℕ))} {pres : Option (List ℕ)}
-    (h : checkRed (formula w B) (some (objective p)) P pres = true)
-    (hc : P.conclusion = .bounds (some lb) q (some lb) asg) :
-    IsGreatest ((fun S : Finset (Fin n) => ∑ i ∈ S, (p i : ℤ)) '' {S | ∑ i ∈ S, w i ≤ B})
-      (-lb) := by
-  obtain ⟨hle, S, hS, hge⟩ := bounds_of_checkRed h hc
-  exact ⟨⟨S, hS, le_antisymm (hle S hS) hge⟩, by rintro _ ⟨T, hT, rfl⟩; exact hle T hT⟩
+/-- **The knapsack encoding is correct**: the knapsack formula and the negated profit encode the
+maximization of the profit over the sets of items that fit. With
+`Cslib.Logic.PL.VeriPB.Encodes.isGreatest_of_checkRed`, a proof that the checker accepts with the
+conclusion `BOUNDS lb : q lb` certifies the optimum `-lb`. -/
+theorem encodes (w p : Fin n → ℕ) (B : ℕ) :
+    Encodes (formula w B) (negProfit p) {S | ∑ i ∈ S, w i ≤ B} fun S => ∑ i ∈ S, (p i : ℤ) :=
+  encodes_negProfit p fun σ => by simp [formula, holds_capacity_iff]
 
 /-! ### The proof-logging dynamic program -/
 
@@ -211,16 +168,6 @@ def optSteps (I : Inst) : Acc × ℕ :=
   (e₂.push [.step (.rup ⟨[], 1⟩ (ks.map .id ++ rn.nodes.map (.id ·.sf) ++ [.id rn.alo]))] 1 0,
     e₂.next)
 
-/-- **A claimed knapsack optimum with a candidate proof**: a plain record of a natural number and a
-kernel proof. Its type imposes no relation between them, nor any constraint on the proof's
-conclusion; `Cslib.Logic.PL.VeriPB.Knapsack.certify` writes one whose conclusion is
-`BOUNDS -optimum : q -optimum`, and only the checker's acceptance makes the optimum certified. -/
-structure Certificate where
-  /-- The claimed optimum. -/
-  optimum : ℕ
-  /-- The candidate proof. -/
-  proof : RedProof
-
 /-- **The proof-logging dynamic program** for the items of weights `w` and profits `p` and the
 capacity `B`. It returns a claimed optimum, the profit of the selection of
 `Cslib.Algorithms.Lean.Knapsack.profitDP`, and a VeriPB proof with the conclusion
@@ -228,7 +175,7 @@ capacity `B`. It returns a claimed optimum, the profit of the selection of
 `Cslib.Logic.PL.VeriPB.checkRed` accepts the proof, the claimed optimum is the optimum
 (`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify`), and it always accepts it
 (`Cslib.Logic.PL.VeriPB.Knapsack.checkRed_certify`). -/
-def certify (w p : Fin n → ℕ) (B : ℕ) : Certificate :=
+def certify (w p : Fin n → ℕ) (B : ℕ) : Certificate ℕ :=
   -- The solution is logged first, so its improving constraint is `2`; the rest starts at `3`.
   let sel := Cslib.Algorithms.Lean.Knapsack.profitDP w p B (List.finRange n)
   let k := (sel.map p).sum
@@ -239,20 +186,10 @@ def certify (w p : Fin n → ℕ) (B : ℕ) : Certificate :=
 /-- **If the checker accepts the proof of the dynamic program, its answer is the optimum**: the
 largest profit of a set of items that fits. -/
 theorem isGreatest_of_checkRed_certify {w p : Fin n → ℕ} {B : ℕ}
-    (h : checkRed (formula w B) (some (objective p)) (certify w p B).proof = true) :
+    (h : checkRed (formula w B) (some (negProfit p)) (certify w p B).proof = true) :
     IsGreatest ((fun S : Finset (Fin n) => ∑ i ∈ S, p i) '' {S | ∑ i ∈ S, w i ≤ B})
-      (certify w p B).optimum := by
-  obtain ⟨q, hc⟩ : ∃ q, (certify w p B).proof.conclusion =
-      .bounds (some (-(certify w p B).optimum)) q (some (-(certify w p B).optimum)) none :=
-    ⟨_, rfl⟩
-  obtain ⟨⟨S, hS, hSv⟩, hub⟩ := isGreatest_of_checkRed h hc
-  refine ⟨⟨S, hS, ?_⟩, ?_⟩
-  · simp only [neg_neg] at hSv
-    exact_mod_cast hSv
-  rintro _ ⟨T, hT, rfl⟩
-  have := hub ⟨T, hT, rfl⟩
-  simp only [neg_neg] at this
-  exact_mod_cast this
+      (certify w p B).optimum :=
+  (encodes w p B).isGreatest_natCast_of_checkRed (fun _ => by push_cast; rfl) h rfl
 
 end Cslib.Logic.PL.VeriPB.Knapsack
 

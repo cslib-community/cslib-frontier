@@ -200,13 +200,10 @@ theorem mem_occupiedPoints_acceptedLines {w : Fin ℓ → K} :
     w ∈ occupiedPoints (acceptedLines a T dirs) ↔
       ∃ m : Fin (2 ^ D), m.val < a ∧ w ∈ puncturedLine (T m) (dirs m) := by
   simp only [occupiedPoints, mem_biUnion, mem_univ, true_and, acceptedLines]
-  constructor
-  · rintro ⟨m, hm⟩
-    split_ifs at hm with h
-    · exact ⟨m, h, hm⟩
-    · exact absurd hm (Finset.notMem_empty w)
-  · rintro ⟨m, h, hm⟩
-    exact ⟨m, by simpa only [h, ↓reduceIte, Option.elim_some] using hm⟩
+  refine ⟨?_, fun ⟨m, h, hm⟩ => ⟨m, by simpa only [h, ↓reduceIte, Option.elim_some] using hm⟩⟩
+  rintro ⟨m, hm⟩
+  split_ifs at hm with h
+  exacts [⟨m, h, hm⟩, absurd hm (Finset.notMem_empty w)]
 
 variable (htarget : ∀ m, target x m = pointBits bits (T m))
 include htarget
@@ -258,25 +255,21 @@ theorem clean_iff (hmenu : ∀ e i, menu e i ≠ 0) (e : Fin r) (i : Fin (arity 
     refine ⟨disjoint_left.mpr fun w hw hocc => ?_,
       fun j hji => disjoint_left.mpr fun w hw hw' => ?_⟩
     · obtain ⟨c, rfl⟩ := (mem_puncturedLine_iff scalar).mp hw
-      have := (h c).1
-      rw [← Bool.not_eq_true, occupied_iff bits scalar menu htarget hline] at this
-      exact this hocc
+      exact (occupied_iff bits scalar menu htarget hline e i c).not.mp
+        (Bool.eq_false_iff.mp (h c).1) hocc
     · obtain ⟨c, rfl⟩ := (mem_puncturedLine_iff scalar).mp hw
       obtain ⟨c', hc'⟩ := (mem_puncturedLine_iff scalar).mp hw'
-      have := (h c).2
-      rw [← Bool.not_eq_true, duplicate_iff bits scalar menu htarget] at this
-      exact this ⟨j, c', fun h => hji (Prod.mk.inj h).1, hc'⟩
+      exact (duplicate_iff bits scalar menu htarget e i c).not.mp
+        (Bool.eq_false_iff.mp (h c).2) ⟨j, c', fun h => hji (Prod.mk.inj h).1, hc'⟩
   · intro h c
-    refine ⟨?_, ?_⟩
-    · rw [← Bool.not_eq_true, occupied_iff bits scalar menu htarget hline]
-      exact disjoint_left.mp h.1 ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩)
-    · rw [← Bool.not_eq_true, duplicate_iff bits scalar menu htarget]
-      rintro ⟨i', c', hne, heq⟩
-      by_cases hi : i' = i
-      · subst hi
-        exact hne (by rw [add_smul_injective scalar (hmenu e i') heq])
-      · exact disjoint_left.mp (h.2 i' hi) ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩)
-          ((mem_puncturedLine_iff scalar).mpr ⟨c', heq⟩)
+    refine ⟨Bool.eq_false_iff.mpr ((occupied_iff bits scalar menu htarget hline e i c).not.mpr
+      (disjoint_left.mp h.1 ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩))), ?_⟩
+    rw [← Bool.not_eq_true, duplicate_iff bits scalar menu htarget]
+    rintro ⟨i', c', hne, heq⟩
+    rcases eq_or_ne i' i with rfl | hi
+    · exact hne (by rw [add_smul_injective scalar (hmenu e i') heq])
+    · exact disjoint_left.mp (h.2 i' hi) ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩)
+        ((mem_puncturedLine_iff scalar).mpr ⟨c', heq⟩)
 
 end Correctness
 

@@ -36,7 +36,9 @@ programs use.
 ## Main results
 
 * `List.weightedSum_weightedBind`: the weighted sum of a sequence is the iterated weighted sum.
-* `List.mem_weightedBind_iff`, `List.weightedBind_assoc`, `List.map_weightedBind`.
+* `List.weightedSum_of_fst_eq_one`: with all weights `1`, the weighted sum is a sum.
+* `List.mem_weightedBind_iff`, `List.weightedBind_assoc`, `List.map_weightedBind`,
+  `List.map_snd_weightedBind`, `List.fst_eq_one_of_mem_weightedBind`.
 * `List.weightedFoldl_singleton_one`: a fold of deterministic steps is `List.foldl`.
 * `List.weightedFoldl_ite`: a fold of steps that reject unless a condition holds.
 * `List.mem_weightedFoldl_induction`: an invariant of the steps holds at every outcome of a fold.
@@ -92,9 +94,26 @@ theorem weightedSum_map (l : List (A × α)) (e : α → β) (G : β → A) :
 
 end Sum
 
-theorem weightedSum_singleton_one [NonAssocSemiring A] (a : α) (G : α → A) :
+section One
+
+variable [MulOneClass A] [AddMonoid A]
+
+theorem weightedSum_singleton_one (a : α) (G : α → A) :
     [((1 : A), a)].weightedSum G = G a := by
   simp
+
+/-- With all weights `1`, the weighted sum is the sum over the values. -/
+theorem weightedSum_of_fst_eq_one {l : List (A × α)} (h : ∀ p ∈ l, p.1 = 1) (G : α → A) :
+    l.weightedSum G = ((l.map Prod.snd).map G).sum := by
+  simp only [weightedSum, map_map, Function.comp_def]
+  exact congrArg sum (map_congr_left fun p hp => by rw [h p hp, one_mul])
+
+/-- The weighted sum of values, each with the weight `1`. -/
+theorem weightedSum_map_one (l : List α) (G : α → A) :
+    (l.map fun a => ((1 : A), a)).weightedSum G = (l.map G).sum := by
+  simp [weightedSum, Function.comp_def]
+
+end One
 
 section NonUnitalSemiring
 
@@ -125,6 +144,11 @@ theorem map_weightedBind [Mul A] (l : List (A × α)) (f : α → List (A × β)
       l.weightedBind fun a => (f a).map (Prod.map id e) := by
   simp [weightedBind, map_flatMap, Function.comp_def]
 
+/-- The values of a sequence are the values of the second part at the values of the first. -/
+theorem map_snd_weightedBind [Mul A] (l : List (A × α)) (f : α → List (A × β)) :
+    (l.weightedBind f).map Prod.snd = (l.map Prod.snd).flatMap fun a => (f a).map Prod.snd := by
+  simp [weightedBind, map_flatMap, flatMap_map, Function.comp_def]
+
 theorem weightedBind_assoc [Semigroup A] (l : List (A × α)) (f : α → List (A × β))
     (g : β → List (A × γ)) :
     (l.weightedBind f).weightedBind g = l.weightedBind fun a => (f a).weightedBind g := by
@@ -136,6 +160,14 @@ variable [MulOneClass A]
 @[simp] theorem weightedBind_singleton_one (a : α) (f : α → List (A × β)) :
     [((1 : A), a)].weightedBind f = f a := by
   simp [weightedBind]
+
+/-- A sequence of two parts whose weights are all `1` has only weights `1`. -/
+theorem fst_eq_one_of_mem_weightedBind {l : List (A × α)} {f : α → List (A × β)}
+    (hl : ∀ p ∈ l, p.1 = 1) (hf : ∀ a, ∀ p ∈ f a, p.1 = 1) :
+    ∀ p ∈ l.weightedBind f, p.1 = 1 := by
+  intro p hp
+  obtain ⟨a, ha, r, hr, rfl⟩ := mem_weightedBind_iff.1 hp
+  simp [hl a ha, hf _ r hr]
 
 /-- A sequence after a list of values of weight `1`. -/
 theorem weightedBind_map_one (l : List α) (g : α → β) (f : β → List (A × γ)) :

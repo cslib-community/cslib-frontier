@@ -41,8 +41,7 @@ theorem connector_bits_le (F : CSP Table ℕ) (B : ℕ)
   have hs : (F.vars.foldr max 0).size ≤ B := Nat.size_le.mpr <|
     (List.max_le_of_forall_le F.vars (2 ^ B - 1) fun v hv => by
       have hb := hB v hv
-      simp only [encNat_apply, Nat.size_eq_bits_len] at hb
-      have := Nat.size_le.mp hb
+      simp only [encNat_apply, Nat.size_eq_bits_len, Nat.size_le] at hb
       omega).trans_lt (Nat.sub_lt (Nat.two_pow_pos B) zero_lt_one)
   have ha := Nat.size_add_le (F.vars.foldr max 0) 1
   have hc := Nat.size_add_le (F.vars.foldr max 0 + 1) i.val
@@ -57,9 +56,8 @@ theorem contract_name_bits_le (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool
     (vs : List ℕ) (B : ℕ) (hB : ∀ v ∈ F.vars, (encNat v).length ≤ B) :
     ∀ v ∈ (Blossom.contract f vs).vars, (encNat v).length ≤ B + F.length + 3 := by
   intro v hv
-  have hm : v ∈ (F.vars.toFinset \ vs.toFinset) ∪ (Blossom.connectors F vs).toFinset := by
-    rw [← Blossom.vars_contract f vs]
-    exact List.mem_toFinset.mpr hv
+  have hm : v ∈ (F.vars.toFinset \ vs.toFinset) ∪ (Blossom.connectors F vs).toFinset :=
+    Blossom.vars_contract f vs ▸ List.mem_toFinset.mpr hv
   rcases Finset.mem_union.mp hm with ho | hn
   · have hb := hB v (List.mem_toFinset.mp (Finset.mem_sdiff.mp ho).1)
     omega
@@ -79,17 +77,14 @@ theorem encoded_body_le (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
   have htable (c : Constraint Table ℕ) (hc : c ∈ F) :
       c.rel.wellFormed = true ∧ c.rel.arity = c.scope.length := by
     obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-    have hs := Table.sem_eq_true.mp (hf ⟨i, hi⟩)
-    refine ⟨hs.1, ?_⟩
-    have hl := Table.wellFormed_eq_true.mp hs.1 _ hs.2
-    simpa only [localTuple, List.length_ofFn, Fin.getElem_fin] using hl.symm
+    obtain ⟨hw, hm⟩ := Table.sem_eq_true.mp (hf ⟨i, hi⟩)
+    have hl := Table.wellFormed_eq_true.mp hw _ hm
+    exact ⟨hw, by simpa only [localTuple, List.length_ofFn, Fin.getElem_fin] using hl.symm⟩
   have hscope (c : Constraint Table ℕ) (hc : c ∈ F) :
       (encList encNat c.scope).length ≤ c.scope.length * (2 * B + 1) := by
     rw [length_encList]
     calc
-      _ ≤ (c.scope.map fun _ => 2 * B + 1).sum := by
-        apply List.sum_le_sum
-        intro v hv
+      _ ≤ (c.scope.map fun _ => 2 * B + 1).sum := List.sum_le_sum fun v hv => by
         have hb := hB v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)
         omega
       _ = _ := by simp [Nat.mul_comm]
@@ -264,9 +259,8 @@ theorem encoded_walk_le {H : CSP Table ℕ} (w : Walk H) (hw : w.IsWalk) (B : �
   have hsteps : w.steps.length ≤ (incidenceList H).length := by omega
   have hindex (o : Occurrence H) :
       (encNat (EdgeAugmenting.occurrenceIndex o)).length ≤ (incidenceList H).length := by
-    have hi := EdgeAugmenting.occurrenceIndex_lt o
-    simp only [encNat_apply, Nat.size_eq_bits_len]
-    exact (Nat.size_le_self _).trans (by omega)
+    simpa only [encNat_apply, Nat.size_eq_bits_len] using
+      (Nat.size_le_self _).trans (EdgeAugmenting.occurrenceIndex_lt o).le
   simp only [EdgeAugmenting.encWalkCode_apply, EdgeAugmenting.encWalkCodeFields,
     EdgeAugmenting.code, length_encPair, length_encList, List.map_map, Function.comp_def]
   have hs : (w.steps.map fun s =>
@@ -274,12 +268,11 @@ theorem encoded_walk_le {H : CSP Table ℕ} (w : Walk H) (hw : w.IsWalk) (B : �
         (encNat (EdgeAugmenting.occurrenceIndex s.2)).length) + 1).sum ≤
       w.steps.length * (6 * (incidenceList H).length + 3) := by
     calc
-      _ ≤ (w.steps.map fun _ => 6 * (incidenceList H).length + 3).sum := by
-        apply List.sum_le_sum
-        intro s _
-        have ha := hindex s.1
-        have hb := hindex s.2
-        omega
+      _ ≤ (w.steps.map fun _ => 6 * (incidenceList H).length + 3).sum :=
+        List.sum_le_sum fun s _ => by
+          have ha := hindex s.1
+          have hb := hindex s.2
+          omega
       _ = _ := by simp [Nat.mul_comm]
   have hmul := Nat.mul_le_mul_right (6 * (incidenceList H).length + 3) hsteps
   omega

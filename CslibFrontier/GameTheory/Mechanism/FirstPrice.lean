@@ -243,20 +243,14 @@ theorem isBayesNash_uniformBid :
     simp only [hX v hv, hX w hw]
     exact pow_le_pow_left₀ hw.1 hwv _
   · intro v hv
-    rw [interimPayment_eq, interimPayment_eq, hX v hv]
-    have hint : ∫ z in (0 : ℝ)..v, mechanism.interimAllocation
-        (fun _ => volume.restrict (Icc (0 : ℝ) 1)) (fun _ => uniformBid (Fintype.card ι)) i
-          (uniformBid (Fintype.card ι) z) = ∫ z in (0 : ℝ)..v, z ^ (Fintype.card ι - 1) := by
-      refine intervalIntegral.integral_congr fun z hz => ?_
-      rw [uIcc_of_le hv.1] at hz
-      exact hX z ⟨hz.1, hz.2.trans hv.2⟩
-    obtain ⟨k, hk⟩ : ∃ k, Fintype.card ι = k + 1 := ⟨Fintype.card ι - 1, by omega⟩
-    have hk' : (Fintype.card ι : ℝ) = k + 1 := by rw [hk]; push_cast; ring
-    rw [hint, integral_pow, uniformBid, uniformBid, mul_zero, zero_mul, zero_add,
-      show Fintype.card ι - 1 = k by omega, hk', zero_pow (Nat.succ_ne_zero k), sub_zero]
-    have : (k : ℝ) + 1 ≠ 0 := by positivity
+    rw [interimPayment_eq, interimPayment_eq, hX v hv,
+      intervalIntegral.integral_congr fun z hz =>
+        hX z ⟨(uIcc_of_le hv.1 ▸ hz).1, (uIcc_of_le hv.1 ▸ hz).2.trans hv.2⟩,
+      integral_pow, Nat.sub_add_cancel hn, Nat.cast_sub hn, Nat.cast_one, sub_add_cancel,
+      zero_pow hn.ne', sub_zero, uniformBid, uniformBid, mul_zero, zero_mul, zero_add,
+      mul_assoc, ← pow_succ', Nat.sub_add_cancel hn]
+    have : (Fintype.card ι : ℝ) ≠ 0 := mod_cast hn.ne'
     field_simp
-    ring
   · intro v hv z hz
     rcases lt_or_ge z (((Fintype.card ι : ℝ) - 1) / Fintype.card ι) with hzc | hzc
     · have hcpos : 0 < ((Fintype.card ι : ℝ) - 1) / Fintype.card ι := hz.trans_lt hzc
@@ -301,11 +295,8 @@ theorem integrable_payment_uniformBid (i : ι) :
   filter_upwards [ae_mem_box fun _ : ι => hasValueDensity_uniform] with v hv
   have h1 : uniformBid (Fintype.card ι) (v i) ≤ 1 :=
     (mul_le_of_le_one_left (hv i).1 (coeff_le_one _)).trans (hv i).2
-  change ‖uniformBid (Fintype.card ι) (v i) *
-    Vickrey.allocation (fun j => uniformBid (Fintype.card ι) (v j)) i‖ ≤ 1
-  rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (uniformBid_nonneg _ (hv i).1)]
   rcases allocation_binary (fun j => uniformBid (Fintype.card ι) (v j)) i with h | h <;>
-    simp [h, h1]
+    simp [mechanism, h, abs_of_nonneg (uniformBid_nonneg _ (hv i).1), h1]
 
 /-- **Expected revenue of the first-price auction** for `n` uniform bidders in the equilibrium
 `uniformBid n`: `(n − 1) / (n + 1)`. Each bidder pays
@@ -361,15 +352,12 @@ theorem integral_sum_payment_uniformBid_eq_vickrey :
       integrable_payment_uniformBid hm hB,
     Vickrey.mechanism_isDSIC.integral_sum_payment_eq Vickrey.mechanism_isNormalized
       (fun _ => hasValueDensity_uniform) (fun i => measurable_allocation i) hB]
-  have h0 : ∀ i, mechanism.interimPayment (fun _ : ι => volume.restrict (Icc (0 : ℝ) 1))
-      (fun _ => uniformBid (Fintype.card ι)) i (uniformBid (Fintype.card ι) 0) = 0 := fun i => by
-    rw [interimPayment_eq, uniformBid, mul_zero, zero_mul]
-  rw [Finset.sum_congr rfl fun i _ => h0 i, Finset.sum_const_zero, zero_add]
+  simp only [interimPayment_eq, uniformBid, mul_zero, zero_mul, Finset.sum_const_zero, zero_add]
   congr 1 with v : 1
   refine Finset.sum_congr rfl fun i _ => ?_
   congr 1
   change Vickrey.allocation _ i = Vickrey.allocation v i
-  rcases (show Fintype.card ι ≤ 1 ∨ 2 ≤ Fintype.card ι by omega) with h1 | h2
+  rcases le_or_gt (Fintype.card ι) 1 with h1 | h2
   · have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.1 h1
     rw [allocation_eq_one_iff.2 (wins_of_subsingleton _ i),
       allocation_eq_one_iff.2 (wins_of_subsingleton _ i)]

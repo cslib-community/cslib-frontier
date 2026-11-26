@@ -281,9 +281,8 @@ private theorem cell_half {scale block cell : ℕ}
     (lower : 2 * scale * block ≤ cell) (upper : cell < 2 * scale * (block + 1)) :
     ∃ corner : Fin 2, scale * (2 * block + corner.val) ≤ cell ∧
       cell < scale * (2 * block + corner.val + 1) := by
-  by_cases h : cell < scale * (2 * block + 1)
-  · refine ⟨0, ?_, ?_⟩ <;> dsimp <;> nlinarith
-  · refine ⟨1, ?_, ?_⟩ <;> dsimp <;> nlinarith
+  refine ⟨if cell < scale * (2 * block + 1) then 0 else 1, ?_, ?_⟩ <;>
+    split_ifs <;> dsimp <;> nlinarith
 
 /-- Each binary refinement step changes the shade between a board and each of its four
 corner descendants. Iterating gives the shade of every finest cell cycle. -/
@@ -752,14 +751,11 @@ private theorem offset_parent {depth index : ℕ} (hi : index ≤ depth + 1) :
          offset (depth + 1) index = 4 * offset depth previous + 1)) ∨
       (offset depth previous % 2 = 1 ∧
         offset (depth + 1) index = 4 * offset depth previous + 3)) := by
-  by_cases hz : index = 0
-  · exact ⟨0, Nat.zero_le _, Or.inl ⟨by simp [offset_parity],
-      Or.inl (by simp [offset_children, hz])⟩⟩
-  · by_cases ho : index = 1
-    · exact ⟨0, Nat.zero_le _, Or.inl ⟨by simp [offset_parity],
-        Or.inr (by simp [offset_children, ho])⟩⟩
-    · exact ⟨index - 1, by omega, Or.inr ⟨by simp [offset_parity, show index - 1 ≠ 0 by omega],
-        by simp [offset_children, hz, ho]⟩⟩
+  rcases index with _ | _ | index
+  · exact ⟨0, Nat.zero_le _, by simp [offset_parity, offset_children]⟩
+  · exact ⟨0, Nat.zero_le _, by simp [offset_parity, offset_children]⟩
+  · refine ⟨index + 1, by omega, ?_⟩
+    simp [offset_parity, offset_children]
 
 private theorem even_free (axis : LineAxis) (root : Node) (depth index : ℕ)
     (hi : index ≤ depth) : LineFree axis 1 depth true root (coordinate 1 depth index) := by
@@ -874,9 +870,8 @@ private theorem state_eq_of_present_eq {grid other : ℕ → ℕ → Index}
 private theorem sparse_block {bx by₀ : ℕ} {p : Port} (hx : p.x < 2) (hy : p.y < 2) :
     sparsePort (translatePort p (2 * bx) (2 * by₀)) =
       translatePort (sparsePort p) (8 * bx) (8 * by₀) := by
-  rcases p with ⟨x, y, side⟩
-  simp only [sparsePort, sparseCoordinate, translatePort, Port.mk.injEq]
-  exact ⟨by omega, by omega, trivial⟩
+  cases p
+  simp [sparsePort, sparseCoordinate, translatePort]; omega
 
 /-- Data for the two-level shade comparison in the even and odd canonical phases. -/
 private structure RefinementComparison where
@@ -922,12 +917,10 @@ private theorem RefinementComparison.agreement_sparse (C : RefinementComparison)
       value (C.localStates d bx by₀) (sparsePort old) := by
   let oldGlobal := translatePort old (2 * bx) (2 * by₀)
   have oldGlobalPresent : portPresent (C.grid d) oldGlobal = true := by
-    have heq := portPresent_local (C.grid d) oldGlobal
-    simp only [oldGlobal, translatePort,
-      show (2 * bx + old.x) / 2 = bx by omega, show (2 * by₀ + old.y) / 2 = by₀ by omega,
-      show (2 * bx + old.x) % 2 = old.x by omega,
-      show (2 * by₀ + old.y) % 2 = old.y by omega] at heq
-    exact heq.symm.trans oldPresent
+    rw [← portPresent_local]
+    simpa only [oldGlobal, translatePort, Nat.mul_add_div Nat.two_pos, Nat.mul_add_mod,
+      Nat.div_eq_of_lt oldBounds.1, Nat.div_eq_of_lt oldBounds.2, Nat.mod_eq_of_lt oldBounds.1,
+      Nat.mod_eq_of_lt oldBounds.2, Nat.add_zero] using oldPresent
   have previous := ih oldGlobal
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega)
@@ -958,9 +951,8 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
       have hx : localPort.x < 8 := Nat.mod_lt _ (by decide)
       have hy : localPort.y < 8 := Nat.mod_lt _ (by decide)
       have hlocation : translatePort localPort (8 * bx) (8 * by₀) = p := by
-        rcases p with ⟨x, y, side⟩
-        simp only [localPort, bx, by₀, translatePort, Port.mk.injEq]
-        exact ⟨by omega, by omega, trivial⟩
+        cases p
+        simp [localPort, bx, by₀, translatePort]; omega
       have localPresent : portPresent (fineGrid (C.grid d bx by₀)) localPort = true := by
         rwa [portPresent_two_block (C.grid d) bx by₀ localPort hx hy, C.grid_succ, hlocation]
       obtain ⟨source, hsource, parity, path⟩ :=
@@ -978,11 +970,9 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
         rw [h] at rel1
         rw [← C.block d bx by₀ localPort hx hy, hlocation] at rel2
         exact Related.right_unique rel1 rel2
-      rcases source_cases hsource with heq | ⟨old, _, oldPresent, heq⟩
-      · subst source
-        exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
-      · subst source
-        have coarseShaded : CycleShade (coarsen actual) (C.scale d) (3 * C.scale d)
+      rcases source_cases hsource with rfl | ⟨old, _, oldPresent, rfl⟩
+      · exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
+      · have coarseShaded : CycleShade (coarsen actual) (C.scale d) (3 * C.scale d)
             (C.scale d) (3 * C.scale d) .light :=
           CycleShade.coarsen validFine (C.cycle d)
             (by convert shaded using 1 <;> rw [C.scale_succ] <;> omega)
@@ -1106,13 +1096,11 @@ private theorem phase_source (flipped : Bool) (depth : ℕ) (coarse : ℕ → �
     · exact (show 2 * (depth + 1) + 1 + 2 + 1 = 2 * (depth + 1 + 2) by omega) ▸ valid
     · exact (show 2 * (depth + 1) + 2 = 2 * (depth + 1 + 1) by omega) ▸ valid
   have scaleEq : 2 ^ k = phaseScale flipped (depth + 1) := by
-    cases flipped <;> simp [k, phaseScale, pow_add, pow_mul]
-    ring
+    cases flipped <;> simp [k, phaseScale, pow_succ', pow_mul]
   have h := root_descendant_source k g' valid' (by simpa only [scaleEq] using shaded) bx by₀
     (by rw [scaleEq, phaseScale_succ]; omega) (by rw [scaleEq, phaseScale_succ]; omega)
-  cases flipped <;> simp only [k, Bool.false_eq_true, ↓reduceIte] at h
-  · rwa [Function.Involutive.iterate_two_mul_add_one Shade.opposite_opposite] at h
-  · rwa [Function.Involutive.iterate_two_mul Shade.opposite_opposite] at h
+  cases flipped <;>
+    simpa [k, Shade.opposite, Function.Involutive.iterate_two_mul Shade.opposite_opposite] using h
 
 private def phaseComparison (flipped : Bool) (coarse : ℕ → ℕ → Index)
     (rootEq : coarse 0 0 = 0) : RefinementComparison where
@@ -1232,16 +1220,13 @@ private theorem marker_ray (coarse : ℕ → ℕ → Index) (base depth : ℕ)
   induction depth with
   | zero => simpa only [Nat.mul_zero, Nat.zero_add, pow_zero, Nat.mul_one] using start
   | succ depth ih =>
-    rw [show 2 * (depth + 1) + 4 = 2 + (2 * depth + 4) by omega, ← iterateRefine_add,
-      show base * 4 ^ (depth + 1) = 2 * (2 * (base * 4 ^ depth)) by rw [pow_succ]; ring]
-    let prev := iterateRefine (2 * depth + 4) coarse
-    let coord := base * 4 ^ depth
-    change refineIndexGrid (refineIndexGrid prev) (2 * (2 * coord)) (2 * (2 * coord)) = 0
-    have first := refineIndexGrid_child (refineIndexGrid prev) (2 * coord) (2 * coord) 0 0
-    have second := refineIndexGrid_child prev coord coord 0 0
-    simp only [Fin.val_zero, Nat.add_zero] at first second
-    rw [first, second, show prev coord coord = 0 from ih]
-    exact marker_checks.2.2
+    have hlev : 2 * (depth + 1) + 4 = 2 + (2 * depth + 4) := by omega
+    have hpow : base * 4 ^ (depth + 1) = 2 * (2 * (base * 4 ^ depth)) := by rw [pow_succ]; ring
+    have hc (g : ℕ → ℕ → Index) (x : ℕ) : refineIndexGrid g (2 * x) (2 * x) =
+        childBlock (g x x) 0 0 := by simpa using refineIndexGrid_child g x x 0 0
+    rw [hlev, ← iterateRefine_add, hpow]
+    change refineIndexGrid (refineIndexGrid (iterateRefine (2 * depth + 4) coarse)) _ _ = 0
+    simpa only [hc, ih] using marker_checks.2.2
 
 private theorem phase_marker (flipped : Bool) (depth : ℕ)
     (positive : flipped = true → 0 < depth)
@@ -1340,12 +1325,11 @@ theorem exists_markedFreeGrid {P : Cslib.WangTile.Plane scaffold.tiles}
       coarse rootEq states (gridEq.symm ▸ valid) shaded⟩
   rcases has_light_cycle coarse (2 * n + 2) (by omega)
       (s := states) (by simpa only [Nat.add_assoc] using valid) with large | small
-  · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by
-      rw [show 2 * n + 2 = 2 * (n + 1) by omega, pow_mul]; norm_num
+  · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by rw [pow_add, pow_mul, pow_succ 4]; norm_num
     exact ⟨a, b, finish true (n + 1) (by omega) (fun _ => Nat.succ_pos n) rfl
       (by simpa only [phaseScale, ↓reduceIte, Nat.one_mul, power] using large)⟩
   · have power : 2 ^ (2 * n + 2 - 1) = 2 * 4 ^ n := by
-      rw [show 2 * n + 2 - 1 = 1 + 2 * n by omega, pow_add, pow_mul]; norm_num
+      rw [Nat.add_sub_cancel (2 * n + 1) 1, pow_add, pow_mul, mul_comm]; norm_num
     exact ⟨a, b, finish false n le_rfl (by simp) rfl
       (by simpa only [phaseScale, Bool.false_eq_true, ↓reduceIte, power] using small)⟩
 

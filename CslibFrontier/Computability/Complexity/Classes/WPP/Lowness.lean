@@ -209,13 +209,9 @@ theorem acceptWeight_exact {σ : Type*} {D : ℤ} {p : σ → ℤ} (step : σ �
     have hp0 : p s = if answer s then D else 0 := hp 0 (Nat.zero_lt_succ n)
     have h := ih (step s (answer s)) fun i hi => hp (i + 1) (Nat.succ_lt_succ hi)
     rw [acceptWeight, hp0, Function.iterate_succ_apply, pow_succ]
-    cases ha : answer s
-    · simp only [Bool.false_eq_true, ↓reduceIte, sub_zero, zero_mul, add_zero, ha] at h ⊢
-      rw [h]
-      ring
-    · simp only [↓reduceIte, sub_self, zero_mul, zero_add, ha] at h ⊢
-      rw [h]
-      ring
+    cases ha : answer s <;>
+      simp only [Bool.false_eq_true, ↓reduceIte, sub_zero, sub_self, zero_mul, add_zero,
+        zero_add, ha] at h ⊢ <;> rw [h] <;> ring
 
 /-- Special case of `acceptWeight_exact` when the exact weight identity holds at every state. -/
 theorem acceptWeight_exact_of_forall {σ : Type*} {D : ℤ} {p : σ → ℤ} (step : σ → Bool → σ)
@@ -312,15 +308,13 @@ private theorem sharpPWithOracle_mem_GapP_of_mem_SPP (hA : A ∈ SPP encBits)
   funext a
   have hF_eval (w : Fin (r a) → Bool) :
       F (a, List.ofFn w) = if V (a, List.ofFn w) then 1 else 0 := by
-    have hexact := weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w)
-      (fun q _ => hg_eq q)
     have hout : OracleComp.interpret (m := Id) (languageOracle A)
         (machine.run (pure false) (fun op word => OracleComp.query (op, word))
           (T a) (input (a, List.ofFn w))) = encBool (V (a, List.ofFn w)) := by
       simpa only [input, T, r, length_encPair, encBits_apply, List.length_ofFn, hV] using
         hrun (a, List.ofFn w) (languageOracle A)
-    simpa only [F, input, T', D', hout, encBool_apply, List.headD_cons,
-      one_pow, one_mul] using hexact
+    simpa only [F, input, T', D', hout, encBool_apply, List.headD_cons, one_pow, one_mul] using
+      weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w) fun q _ => hg_eq q
   simp only [r, hF_eval, hc_eq a, acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite,
     Nat.cast_one, Nat.cast_zero]
 
@@ -408,13 +402,10 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
       (encPair enc encBits) (encList encUnary) :=
     ((ComputableInPolyTime.range.comp hbound).comp (.encoding_length enc)).comp
       (.fst enc encBits)
-  have htest : ComputableInPolyTime
-      (fun y : (α × List Bool) × ℕ => decide (y.2 ≠ y.1.2.length))
-      (encPair (encPair enc encBits) encUnary) encBool := by fun_prop
   have hK : ComputableInPolyTime K (encPair enc encBits) encIntBin :=
     ComputableInPolyTime.intBin_prod.comp
       ((ComputableInPolyTime.map hf).comp
-        (ComputableInPolyTime.filterWithInput hlist htest))
+        (ComputableInPolyTime.filterWithInput hlist (by fun_prop)))
   let H : α × List Bool → ℤ := fun x => g x.2 * K x
   have hH : H ∈ GapP (encPair enc encBits) :=
     GapP.mul_mem (GapP.comp_mem hg (by fun_prop)) (mem_GapP_of_polyTime hK)
@@ -423,11 +414,12 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
   let D' : α × List Bool → ℤ := fun x => D (enc x.1).length
   let H' : (α × List Bool) × List Bool → ℤ := fun x => H (x.1.1, x.2)
   let F := weightedReplay machine input T' D' H'
-  have hD'_pt : ComputableInPolyTime D' (encPair enc encBits) encIntBin :=
-    (hD.comp (.encoding_length enc)).comp (.fst enc encBits)
   have hF : F ∈ GapP (encPair enc encBits) :=
-    GapP.weightedReplay_mem machine (by dsimp [input]; fun_prop) (by dsimp [T']; fun_prop)
-      (mem_GapP_of_polyTime hD'_pt) (GapP.comp_mem hH (by fun_prop))
+    GapP.weightedReplay_mem machine
+      (by fun_prop : ComputableInPolyTime (encPair enc encBits) (encPair enc encBits) encBits)
+      (hT.comp (.fst enc encBits))
+      (mem_GapP_of_polyTime ((hD.comp (.encoding_length enc)).comp (.fst enc encBits)))
+      (GapP.comp_mem hH (by fun_prop))
   have hsum : (fun a => ∑ w : Fin (r a) → Bool, F (a, List.ofFn w)) ∈ GapP enc :=
     GapP.sum_bits_mem hF hr
   refine ⟨S, hS, hSn, ?_⟩
@@ -443,20 +435,16 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
         rw [List.nodup_range.erase_eq_filter]
         exact List.filter_congr fun i _ => by simp [bne, beq_eq_decide]
       simpa only [K, D, herase] using List.prod_map_erase f (List.mem_range.mpr hlt)
-    dsimp only [H]
-    rw [hg_eq q]
-    split_ifs
-    exacts [hmul, zero_mul _]
+    simp only [H, hg_eq q, ite_mul, zero_mul, hmul]
   have hF_eval (w : Fin (r a) → Bool) :
       F (a, List.ofFn w) = S (enc a).length * (if V (a, List.ofFn w) then 1 else 0) := by
-    have hexact := weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w)
-      (fun q hq => hH_exact q hq)
     have hout : OracleComp.interpret (m := Id) (languageOracle A)
         (machine.run (pure false) (fun op word => OracleComp.query (op, word))
           (T a) (input (a, List.ofFn w))) = encBool (V (a, List.ofFn w)) := by
       simpa only [input, T, τ, r, length_encPair, encBits_apply, List.length_ofFn, hV] using
         hrun (a, List.ofFn w) (languageOracle A)
-    simpa only [F, S, T, input, T', D', H', hout, encBool_apply, List.headD_cons] using hexact
+    simpa only [F, S, T, input, T', D', H', hout, encBool_apply, List.headD_cons] using
+      weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w) hH_exact
   simp only [r, hF_eval, ← mul_sum, hc_eq a, acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite,
     Nat.cast_one, Nat.cast_zero]
 
@@ -476,8 +464,7 @@ theorem exists_mul_mem_GapP_of_mem_LWPP (hA : A ∈ LWPP encBits) {h : α → �
     (GapP.mul_mem (mem_GapP_of_polyTime (hS₂.comp (.encoding_length enc))) hG₁)
     (GapP.mul_mem (mem_GapP_of_polyTime (hS₁.comp (.encoding_length enc))) hG₂) using 1
   funext a
-  dsimp only [Pi.sub_apply, Pi.mul_apply, Function.comp_apply]
-  rw [hh_eq a]
+  simp only [Pi.sub_apply, Pi.mul_apply, Function.comp_apply, hh_eq]
   ring
 
 /-- **`LWPP` is low for fixed-target `LWPP`** (`LWPPWithFixedTarget A enc = LWPP enc` for

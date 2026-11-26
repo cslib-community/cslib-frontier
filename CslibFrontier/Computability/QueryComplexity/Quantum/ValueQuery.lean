@@ -691,11 +691,10 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
       else LinearIsometry.id
   refine ⟨Vsim, embedState e ψ₀, (embedState e).norm_map ψ₀, fun b S => ?_⟩
   let x : ι → α := fun i => if b (e i) then a₁ else a₀
-  have hrun : ∀ t ≤ T,
+  have hrun (t : ℕ) (ht : t ≤ T) :
       run Vsim (embedState e ψ₀) b (stride * t) =
         if t < T then pre (embedState e (runValue step U ψ₀ x t))
         else embedState e (runValue step U ψ₀ x T) := by
-    intro t ht
     induction t with
     | zero =>
       rcases Nat.eq_zero_or_pos T with rfl | hT
@@ -703,46 +702,39 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
       · simp [run, Vsim, hT, pre, liftValueIso_embedState, runValue]
     | succ t ih =>
       have ht' : t < T := by omega
-      have hprev := ih ht'.le
-      simp only [ht', ite_true] at hprev
-      have hiter : ∀ k < stride,
+      have hiter (k : ℕ) (hk : k < stride) :
           run Vsim (embedState e ψ₀) b (stride * t + k) =
             Nat.iterate (fun u => Vmid (phaseOracle b u)) k
               (pre (embedState e (runValue step U ψ₀ x t))) := by
-        intro k hk
         induction k with
-        | zero => simpa using hprev
+        | zero => simpa [ht'] using ih ht'.le
         | succ k ihk =>
           have hne : stride * t + k + 1 ≠ 0 := by omega
           have hmod : (stride * t + k + 1) % stride ≠ 0 := by
-            rw [show stride * t + k + 1 = stride * t + (k + 1) by omega, Nat.mul_add_mod,
-              Nat.mod_eq_of_lt hk]
+            rw [add_assoc, Nat.mul_add_mod, Nat.mod_eq_of_lt hk]
             omega
           have hVmid : Vsim (stride * t + k + 1) = Vmid := by
-            dsimp only [Vsim]
-            simp only [hne, ite_false, eq_true hmod, ite_true]
+            simp only [Vsim, hne, ite_false, eq_true hmod, ite_true]
           rw [← add_assoc, run, hVmid, ihk (by omega), Function.iterate_succ_apply']
       have hq : stride * (t + 1) = (stride * t + (stride - 1)) + 1 := by
         rw [Nat.mul_succ]; omega
-      have hne : stride * (t + 1) ≠ 0 := Nat.ne_of_gt (Nat.mul_pos hstride (Nat.succ_pos t))
-      have hmod : ¬ (stride * (t + 1)) % stride ≠ 0 := by simp [Nat.mul_mod_right]
-      have hdiv : stride * (t + 1) / stride - 1 = t := by
-        rw [Nat.mul_div_right _ hstride]; omega
       have hVend : Vsim (stride * (t + 1)) =
           if t + 1 < T then
             pre.comp ((liftValueIso e (U (t + 1))).comp (liftBoolV Gpost).toLinearIsometry)
           else (liftValueIso e (U T)).comp (liftBoolV Gpost).toLinearIsometry := by
-        dsimp only [Vsim]
-        simp only [hne, ite_false, hmod, hdiv]
+        have hdiv : stride * (t + 1) / stride - 1 = t := by
+          rw [Nat.mul_div_right _ hstride]; omega
+        simp only [Vsim, Nat.ne_of_gt (Nat.mul_pos hstride (Nat.succ_pos t)), ite_false,
+          Nat.mul_mod_right, ne_eq, not_true_eq_false, hdiv]
         split_ifs <;> first | rfl | omega
       rw [hq, run, hiter (stride - 1) (by omega), ← hq, hVend]
       split_ifs with hlt <;> simp only [pre, A0, LinearIsometry.coe_comp, Function.comp_apply,
         LinearIsometryEquiv.coe_toLinearIsometry]
       · rw [hstep, liftValueIso_embedState, ← runValue]
-      · rw [show T = t + 1 by omega, hstep, liftValueIso_embedState, ← runValue]
-  have hT := hrun T le_rfl
-  simp only [lt_irrefl, ite_false] at hT
-  rw [hT, measureProb_embedState]
+      · obtain rfl : T = t + 1 := by omega
+        rw [hstep, liftValueIso_embedState, ← runValue]
+  simpa only [lt_irrefl, ite_false, measureProb_embedState] using
+    congrArg (measureProb · (S.map (embedOutcome e))) (hrun T le_rfl)
 
 /-- **1-query simulation of an involutive two-valued oracle restriction**: if
 `(step a₀).symm.trans (step a₁)` is an involution, any `T`-query value-query algorithm restricted
@@ -795,8 +787,7 @@ private theorem exists_half_angle (μ ν : ℝ) (h : μ ^ 2 + ν ^ 2 = 1) :
       have h1 : ν ^ 2 = (1 - μ) * (1 + μ) := by linarith
       have hden : (2 * c) ^ 2 = 2 * (1 + μ) := by rw [mul_pow, hc2]; ring
       rw [div_pow, h1, hden]
-      have hne : (1 + μ : ℝ) ≠ 0 := by linarith
-      field_simp [hne]
+      field_simp [ne_of_gt (by linarith : (0 : ℝ) < 1 + μ)]
     exact ⟨c, s, by linarith, by linarith, mul_div_cancel₀ ν (mul_ne_zero two_ne_zero hc_pos.ne')⟩
 
 private noncomputable def phaseSBool :
@@ -836,10 +827,8 @@ private theorem prepYBool_symm_apply (ψ : EuclideanSpace ℂ Bool) (c : Bool) :
     (prepYBool.symm ψ).ofLp c = (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
       (if c then ψ.ofLp false + Complex.I * ψ.ofLp true
       else ψ.ofLp false - Complex.I * ψ.ofLp true) := by
-  have hsym : hadBool.symm = hadBool := by
-    ext x b
-    exact congrArg (fun u => u.ofLp b)
-      ((LinearIsometryEquiv.symm_apply_eq hadBool).mpr (hadBool_self x).symm)
+  have hsym : hadBool.symm = hadBool :=
+    LinearIsometryEquiv.ext fun x => hadBool.symm_apply_eq.mpr (hadBool_self x).symm
   cases c <;> simp [prepYBool, hsym, hadBool_apply, phaseSBool_symm_apply]
   ring
 
@@ -875,12 +864,11 @@ private theorem liftBasis_ctrlZ {B₁ B₂ : Type*} [Fintype B₁] [Fintype B₂
     (U : EuclideanSpace ℂ B₁ ≃ₗᵢ[ℂ] EuclideanSpace ℂ B₂) (flag : Bool)
     (φ : EuclideanSpace ℂ (Bool × B₁)) :
     liftBasis U (ctrlZ flag φ) = ctrlZ flag (liftBasis U φ) := by
-  have hslice : ∀ c : Bool,
-      sliceSecond (ctrlZ flag φ) c = (if c && flag then (-1 : ℂ) else 1) • sliceSecond φ c := by
-    intro c
+  ext ⟨c, k⟩
+  have hslice : sliceSecond (ctrlZ flag φ) c =
+      (if c && flag then (-1 : ℂ) else 1) • sliceSecond φ c := by
     ext v
     cases flag <;> cases c <;> simp [sliceSecond]
-  ext ⟨c, k⟩
   change (U (sliceSecond (ctrlZ flag φ) c)).ofLp k =
     (if c && flag then (-1 : ℂ) else 1) * (U (sliceSecond φ c)).ofLp k
   rw [hslice, map_smul, PiLp.smul_apply, smul_eq_mul]
@@ -925,19 +913,18 @@ theorem exists_sim_value {N : ℕ}
     Bchg.trans (Qmid.trans Bchg.symm)
   let Gpost : EuclideanSpace ℂ (Bool × V) ≃ₗᵢ[ℂ] EuclideanSpace ℂ (Bool × V) :=
     Bchg.trans (Qpost.trans Bchg.symm)
-  have hgadget : ∀ flag (φ : EuclideanSpace ℂ V),
+  have hgadget (flag : Bool) (φ : EuclideanSpace ℂ V) :
       Gpost (ctrlZ flag (Gmid (ctrlZ flag (Gpre (embedBoolFalse φ))))) =
         embedBoolFalse (if flag then R φ else φ) := by
-    intro flag φ
     simp only [Gpost, Gmid, Gpre, Bchg, LinearIsometryEquiv.trans_apply, liftBasis_ctrlZ,
       LinearIsometryEquiv.apply_symm_apply, liftBasis_embedBoolFalse]
     have hQ : Qpost (ctrlZ flag (Qmid (ctrlZ flag (Qpre (embedBoolFalse (bas.repr φ)))))) =
         embedBoolFalse (WithLp.toLp 2 fun k =>
           (if flag then (μ k : ℂ) + Complex.I * ν k else 1) * (bas.repr φ).ofLp k) := by
       ext ⟨b, k⟩
-      have hmid_k : ∀ x : EuclideanSpace ℂ (Bool × Fin d),
+      have hmid_k (x : EuclideanSpace ℂ (Bool × Fin d)) :
           (WithLp.toLp 2 fun b' => (ctrlZ flag x).ofLp (b', k)) =
-            phaseStep flag (WithLp.toLp 2 fun b' => x.ofLp (b', k)) := fun _ => rfl
+            phaseStep flag (WithLp.toLp 2 fun b' => x.ofLp (b', k)) := rfl
       simp only [Qpost, Qmid, Qpre, liftBoolLeft_apply, hmid_k]
       exact congrArg (fun u => u.ofLp b)
         (prepY_rotBool_gadget (c k) (s k) (μ k) (ν k) (hcs k) (hmu k) (hnu k) flag
@@ -1067,9 +1054,8 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
   let ψ₀' := embedFalse v₀ i₀ ψ₀
   let out' : ι × V × Bool × V × W × ι → α := fun (_, v, _, _, _, _) => read v
   refine ⟨U', ψ₀', out', (embedFalse v₀ i₀).norm_map ψ₀, fun X hread Pred _ => ?_⟩
-  have hvo : ∀ ψ : ValueState ι V W,
+  have hvo (ψ : ValueState ι V W) :
       valueOracle step X (embedFalse v₀ i₀ ψ) = embedFalse v₀ i₀ (valueOracle step X ψ) := by
-    intro ψ
     ext ⟨i, v, b, v', w, i'⟩
     have hs : (WithLp.toLp 2 fun v₁ => (embedFalse v₀ i₀ ψ).ofLp (i, v₁, b, v', w, i')) =
         if b = false ∧ v' = v₀ ∧ i' = i₀ then WithLp.toLp 2 fun v₁ => ψ.ofLp (i, v₁, w)
@@ -1077,31 +1063,25 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
       ext u; split_ifs <;> simp_all
     rw [valueOracle_apply, hs]
     split_ifs with h <;> simp_all [valueOracle_apply]
-  have hlt_run : ∀ t ≤ T,
+  have hlt_run (t : ℕ) (ht : t ≤ T) :
       runValue step U' ψ₀' X t =
         if t < T then embedFalse v₀ i₀ (runValue step U ψ₀ X t)
         else route (embedFalse v₀ i₀ (runValue step U ψ₀ X T)) := by
-    intro t ht
     induction t with
     | zero =>
       rcases Nat.eq_zero_or_pos T with rfl | h0 <;>
         simp [runValue, U', ψ₀', liftFalse_embedFalse, *]
     | succ t ih =>
       have ht' : t < T := by omega
-      have hprev := ih ht'.le
-      simp only [ht', ite_true] at hprev
-      rw [runValue, hprev, hvo]
+      rw [runValue, ih ht'.le]
+      simp only [ht', ite_true, hvo]
       by_cases hlt : t + 1 < T
-      · simp only [hlt, ite_true, U', liftFalse_embedFalse]; rfl
+      · simp only [hlt, ite_true, U', liftFalse_embedFalse, runValue]
       · obtain rfl : t + 1 = T := by omega
-        simp only [lt_irrefl, ite_false, ite_true, U', LinearIsometry.coe_comp,
-          Function.comp_apply, LinearIsometryEquiv.coe_toLinearIsometry, liftFalse_embedFalse]
-        rfl
-  have hT := hlt_run T le_rfl
-  simp only [lt_irrefl, ite_false] at hT
-  have hU_succ : U' (T + 1) = LinearIsometry.id := by
-    simp only [U', show ¬ (T + 1 < T) by omega, show ¬ (T + 1 = T) by omega, ite_false]
-  rw [runValue, hU_succ, hT, LinearIsometry.id_apply]
+        simp [U', liftFalse_embedFalse, runValue]
+  have hU_succ : U' (T + 1) = LinearIsometry.id := by simp [U', Nat.not_lt.mpr (Nat.le_succ T)]
+  rw [runValue, hU_succ, hlt_run T le_rfl]
+  simp only [lt_irrefl, ite_false, LinearIsometry.id_apply]
   set ψT := runValue step U ψ₀ X T
   have hprob_step : ∀ j' : ι,
       measureProb (step (X j') (ket v₀)) (univ.filter fun v => Pred (read v)) =
@@ -1116,18 +1096,16 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
       exact sum_subset (subset_univ _) fun v _ hv =>
         hzero v fun heq => hv (mem_filter.mpr ⟨mem_univ _, heq ▸ hp⟩)
     · exact sum_eq_zero fun v hv => hzero v fun heq => hp (heq ▸ (mem_filter.mp hv).2)
-  have hroute_apply : ∀ (j : ι) (v' : V) (b : Bool) (v : V) (w : W) (i : ι),
+  have hroute_apply (j : ι) (v' : V) (b : Bool) (v : V) (w : W) (i : ι) :
       (route (embedFalse v₀ i₀ ψT)).ofLp (j, v', b, v, w, i) =
         if b = true ∧ v' = v₀ ∧ idx (i, v, w) = j then ψT.ofLp (i, v, w) else 0 := by
-    intro j v' b v w i
     change (embedFalse v₀ i₀ ψT).ofLp (indexRouteFun idx v₀ i₀ (j, v', b, v, w, i)) = _
     cases b <;> dsimp only [indexRouteFun]
     · by_cases h : v = v₀ ∧ i = i₀ <;> simp [h]
     · by_cases h : v' = v₀ ∧ idx (i, v, w) = j <;> simp [h]
-  have hslice : ∀ (j : ι) (b : Bool) (v : V) (w : W) (i : ι),
+  have hslice (j : ι) (b : Bool) (v : V) (w : W) (i : ι) :
       (WithLp.toLp 2 fun v' => (route (embedFalse v₀ i₀ ψT)).ofLp (j, v', b, v, w, i)) =
         if b = true ∧ idx (i, v, w) = j then ψT.ofLp (i, v, w) • ket v₀ else 0 := by
-    intro j b v w i
     ext v'
     rw [hroute_apply]
     by_cases hb : b = true <;> by_cases hj : idx (i, v, w) = j <;> by_cases hv' : v' = v₀ <;>

@@ -197,10 +197,9 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
     (hblocks : ∀ j : Fin b, (ρ.free ∩ andreevBlock b m j).Nonempty) :
     formulaSize h ≤ formulaSize (andreev b m ∘ ρ.fill) := by
   have hpivot (j : Fin b) : ∃ t : Fin m, andreevBlockVar b m j t ∈ ρ.free := by
-    obtain ⟨i, hi⟩ := hblocks j
-    obtain ⟨hi_free, hi_block⟩ := mem_inter.1 hi
-    obtain ⟨t, -, rfl⟩ := mem_image.1 hi_block
-    exact ⟨t, hi_free⟩
+    obtain ⟨_, hi⟩ := hblocks j
+    obtain ⟨t, -, rfl⟩ := mem_image.1 (mem_inter.1 hi).2
+    exact ⟨t, (mem_inter.1 hi).1⟩
   choose t_fn ht_fn using hpivot
   set y₀ : Fin b → BitString m :=
     fun j t => ρ.fill (fun _ => false) (andreevBlockVar b m j t)
@@ -214,10 +213,9 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
         const false
   obtain ⟨F, hF, hFL⟩ := exists_computes_leafSize_eq (andreev b m ∘ ρ.fill)
   have hσ_leaf (i : Fin (2 ^ b + b * m)) : (σ i).leafSize ≤ 1 := by
-    refine Fin.addCases (fun _ => ?_) (fun u => ?_) i
-    · simp [σ]
-    · simp only [σ, Fin.addCases_right]
-      split_ifs <;> simp
+    refine Fin.addCases (fun _ => by simp [σ]) (fun u => ?_) i
+    simp only [σ, Fin.addCases_right]
+    split_ifs <;> simp
   have hbind_computes : (F.bind σ).Computes interpretation h := by
     intro z
     rw [eval_bind, hF, comp_apply, andreev_fill_of_extends hext]
@@ -230,10 +228,7 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
           (σ (andreevBlockVar b m j t)).eval interpretation z =
             if t = t_fn j then (z j ^^ r j) else false := by
         simp only [σ, andreevBlockVar, Fin.addCases_right, Equiv.symm_apply_apply]
-        split_ifs with ht hr
-        · cases hzj : z j <;> simp [hr, hzj]
-        · cases hzj : z j <;> simp [hr, hzj]
-        · rfl
+        split_ifs with ht hr <;> cases hzj : z j <;> simp [*]
       by_cases ht : t = t_fn j
       · subst ht
         rw [PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)), hσ_val,
@@ -242,9 +237,8 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
         cases hρ : ρ (andreevBlockVar b m j t) <;> simp [y₀, PartialAssignment.fill, hρ, hσ_val, ht]
     have hy₀_false : y₀ j (t_fn j) = false :=
       PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)) (fun _ => false)
-    rw [hblock_eq, parity_update_of_eq_false hy₀_false]
-    change ((z j ^^ r j) ^^ r j) = z j
-    cases z j <;> cases r j <;> rfl
+    rw [hblock_eq, parity_update_of_eq_false hy₀_false, Bool.xor_assoc, Bool.xor_self,
+      Bool.xor_false]
   exact (formulaSize_le hbind_computes).trans ((F.leafSize_bind_le hσ_leaf).trans (by omega))
 
 /-! ### Andreev's reduction and explicit formula lower bound -/
@@ -261,9 +255,7 @@ theorem formulaSize_sub_sq_mul_pow_three_le_andreev (h : BooleanFunction b) (hb 
   set k := b * r
   have hk1 : 1 ≤ k := Nat.mul_pos hb hr1
   have hfree₀ : #ρ₀.free = b * m := card_free_andreevFixTable b m h
-  have hk : k ≤ #ρ₀.free := by
-    rw [hfree₀]
-    exact Nat.mul_le_mul_left b hrm
+  have hk : k ≤ #ρ₀.free := hfree₀.symm ▸ (Nat.mul_le_mul_left b hrm : k ≤ b * m)
   set A := {ρ ∈ ρ₀.extensions k | ∀ j : Fin b, (ρ.free ∩ andreevBlock b m j).Nonempty}
   have hAcard : #(ρ₀.extensions k) ≤ 2 * #A :=
     PartialAssignment.card_extensions_le_two_mul_card_filter_forall_nonempty ρ₀ hb hfree₀
@@ -276,12 +268,9 @@ theorem formulaSize_sub_sq_mul_pow_three_le_andreev (h : BooleanFunction b) (hb 
   have hle₀ : formulaSize (andreev b m ∘ ρ₀.fill) ≤ formulaSize (andreev b m) :=
     formulaSize_comp_fill_le (andreev b m) ρ₀
   have hsub_le :
-      (formulaSize h - 2 * b * r) ^ 2 ≤ (formulaSize (andreev b m ∘ ρ.fill) - 2 * k) ^ 2 := by
-    have : 2 * b * r = 2 * k := by ring
-    rw [this]
-    exact Nat.pow_le_pow_left (Nat.sub_le_sub_right hproj (2 * k)) 2
-  have hb3 : 0 < b ^ 3 := by positivity
-  refine Nat.le_of_mul_le_mul_right ?_ hb3
+      (formulaSize h - 2 * b * r) ^ 2 ≤ (formulaSize (andreev b m ∘ ρ.fill) - 2 * k) ^ 2 :=
+    mul_assoc 2 b r ▸ Nat.pow_le_pow_left (Nat.sub_le_sub_right hproj (2 * k)) 2
+  refine Nat.le_of_mul_le_mul_right ?_ (pow_pos hb 3)
   calc (formulaSize h - 2 * b * r) ^ 2 * m ^ 3 * b ^ 3
       = (formulaSize h - 2 * b * r) ^ 2 * (#ρ₀.free) ^ 3 := by
           rw [hfree₀]
@@ -300,8 +289,7 @@ theorem formulaSize_sub_sq_mul_pow_three_le_andreev_log (h : BooleanFunction b) 
     (formulaSize h - 2 * b * (Nat.log 2 b + 2)) ^ 2 * m ^ 3 ≤
       4 * formulaSize (andreev b m) ^ 2 * (Nat.log 2 b + 2) ^ 3 := by
   have hlt : b < 2 ^ (Nat.log 2 b + 1) := Nat.lt_pow_succ_log_self one_lt_two b
-  have hbr : 2 * b ≤ 2 ^ (Nat.log 2 b + 2) := by grind
-  exact formulaSize_sub_sq_mul_pow_three_le_andreev h hb (by omega) hm hbr
+  exact formulaSize_sub_sq_mul_pow_three_le_andreev h hb (by omega) hm (by grind)
 
 /-- **Shannon's counting bound for formula leaf size**: for all sufficiently large `b`, some
 Boolean function `h` on `b` bits satisfies `2 ^ b < 3 * b * L(h)`. -/
@@ -309,23 +297,17 @@ theorem exists_hard_function_formulaSize :
     ∃ B : ℕ, ∀ b ≥ B, ∃ h : BooleanFunction b, 2 ^ b < 3 * b * formulaSize h := by
   obtain ⟨N, hN⟩ := Shannon.exists_hard_function
   refine ⟨max N 1, fun b hb => ?_⟩
-  have hbN : N ≤ b := (le_max_left N 1).trans hb
   have hb1 : 1 ≤ b := (le_max_right N 1).trans hb
-  obtain ⟨h, hh⟩ := hN b hbN
+  obtain ⟨h, hh⟩ := hN b ((le_max_left N 1).trans hb)
   obtain ⟨F, hF, _, hsize⟩ := exists_computes_size_le h
-  have hcirc := hh F.toCircuit hF.toCircuit
-  rw [Formula.size_toCircuit] at hcirc
-  have hb_pos : (0 : ℝ) < (b : ℝ) := by positivity
-  have hmul_real : (2 ^ b : ℝ) < (F.size : ℝ) * (b : ℝ) := (div_lt_iff₀ hb_pos).1 hcirc
-  have hmul_nat : 2 ^ b < F.size * b := by exact_mod_cast hmul_real
+  have hcirc := Formula.size_toCircuit F ▸ hh F.toCircuit hF.toCircuit
+  have hmul_nat : 2 ^ b < F.size * b := by
+    exact_mod_cast (div_lt_iff₀ (by positivity : (0 : ℝ) < b)).1 hcirc
   have hpow : b < 2 ^ b := b.lt_two_pow_self
-  have hmax : F.size ≤ 3 * formulaSize h := by
-    rcases hsize with ⟨c, rfl⟩ | hle
-    · rw [size_const] at hmul_nat
-      omega
-    · omega
-  refine ⟨h, ?_⟩
-  nlinarith
+  rcases hsize with ⟨c, rfl⟩ | hle
+  · rw [size_const] at hmul_nat
+    omega
+  · exact ⟨h, by nlinarith⟩
 
 /-- For `16 ≤ b`, `12 * b ^ 2 * (b + 2) ≤ 2 ^ b`. -/
 private theorem twelve_mul_sq_mul_add_two_le_two_pow {b : ℕ} (hb : 16 ≤ b) :

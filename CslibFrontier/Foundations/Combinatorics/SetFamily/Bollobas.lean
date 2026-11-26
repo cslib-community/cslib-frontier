@@ -147,12 +147,8 @@ private theorem sum_inv_choose_le_one_aux {ι α K : Type*}
             ((#((A i).erase x) + #(B i)).choose #((A i).erase x) : K)⁻¹ else 0) =
           (#(A i) : K) * (((#(A i) - 1 + #(B i)).choose (#(A i) - 1) : ℕ) : K)⁻¹ := by
         rw [← nsmul_eq_mul, ← Finset.sum_const]
-        exact Finset.sum_congr rfl fun x hx => by
-          simp [Finset.disjoint_left.mp (hdiag i hi) hx, Finset.card_erase_of_mem hx]
-      have hs2 : ∑ x ∈ B i,
-          (if x ∉ B i then
-            ((#((A i).erase x) + #(B i)).choose #((A i).erase x) : K)⁻¹ else 0) = 0 :=
-        Finset.sum_eq_zero fun x hx => by simp [hx]
+        refine Finset.sum_congr rfl fun x hx => ?_
+        rw [ite_eq_left (Finset.disjoint_left.mp (hdiag i hi) hx), Finset.card_erase_of_mem hx]
       have hs3 : ∑ x ∈ (U \ A i) \ B i,
           (if x ∉ B i then
             ((#((A i).erase x) + #(B i)).choose #((A i).erase x) : K)⁻¹ else 0) =
@@ -160,10 +156,12 @@ private theorem sum_inv_choose_le_one_aux {ι α K : Type*}
             (((#(A i) + #(B i)).choose #(A i) : ℕ) : K)⁻¹ := by
         rw [← Nat.sub_sub, ← Finset.card_sdiff_of_subset hAU, ← Finset.card_sdiff_of_subset hBA,
           ← nsmul_eq_mul, ← Finset.sum_const]
-        refine Finset.sum_congr rfl fun x hx => ?_
-        rw [Finset.mem_sdiff, Finset.mem_sdiff] at hx
-        simp [hx.2, Finset.erase_eq_of_notMem hx.1.2]
-      rw [← Finset.sum_sdiff hAU, ← Finset.sum_sdiff hBA, hs3, hs2, hs1, add_zero, add_comm]
+        exact Finset.sum_congr rfl fun x hx =>
+          let ⟨hxUA, hxB⟩ := Finset.mem_sdiff.mp hx
+          (ite_eq_left hxB).trans
+            (by rw [Finset.erase_eq_of_notMem (Finset.mem_sdiff.mp hxUA).2])
+      rw [← Finset.sum_sdiff hAU, ← Finset.sum_sdiff hBA, hs3,
+        Finset.sum_eq_zero fun _ hx => ite_eq_right (not_not.mpr hx), hs1, add_zero, add_comm]
       exact inv_choose_add_step (hA_pos i hi)
         (Finset.card_union_of_disjoint (hdiag i hi) ▸
           Finset.card_le_card (Finset.union_subset hAU hBU))
@@ -226,9 +224,8 @@ theorem Finset.card_le_choose_of_disjoint {ι α : Type*}
         = ∑ _i ∈ s, (((r + t).choose r : ℕ) : ℚ)⁻¹ := by simp
       _ ≤ ∑ i ∈ s, ((#(A i) + #(B i)).choose #(A i) : ℚ)⁻¹ := Finset.sum_le_sum hterm
       _ ≤ 1 := Finset.sum_inv_choose_le_one_of_disjoint hdiag hoff
-  exact_mod_cast (show (#s : ℚ) ≤ (r + t).choose r by
-    simpa using (mul_inv_le_iff₀ (Nat.cast_pos.mpr (Nat.choose_pos (Nat.le_add_right r t)))).mp
-      hsum)
+  exact_mod_cast (div_le_one (Nat.cast_pos.mpr (Nat.choose_pos (Nat.le_add_right r t)))).mp
+    (div_eq_mul_inv (#s : ℚ) _ ▸ hsum)
 
 end Symmetric
 
@@ -355,11 +352,10 @@ theorem Fintype.card_le_choose_of_lt_not_disjoint {ι α : Type*}
     rw [hΦ_eval, Matrix.det_vandermonde_eq_zero_iff]
     obtain ⟨x, hxA, hxB⟩ :=
       Finset.not_disjoint_iff.mp (disjoint_padWith_iff.not.mpr (hskew hij))
-    obtain ⟨p, hp⟩ : x ∈ Set.range (enumA i) :=
-      (range_enumFinset (hpA_card i)).symm ▸ (hxA : x ∈ pA i)
-    obtain ⟨q, hq⟩ : x ∈ Set.range (enumB j) :=
-      (range_enumFinset (hpB_card j)).symm ▸ (hxB : x ∈ pB j)
-    exact ⟨Fin.castAdd s p, Fin.natAdd r q, by simp [Fin.append_left, Fin.append_right, hp, hq],
+    obtain ⟨p, hp⟩ := (range_enumFinset (hpA_card i)).symm.subset (Finset.mem_coe.mpr hxA)
+    obtain ⟨q, hq⟩ := (range_enumFinset (hpB_card j)).symm.subset (Finset.mem_coe.mpr hxB)
+    exact ⟨Fin.castAdd s p, Fin.natAdd r q,
+      by simp only [Function.comp_apply, Fin.append_left, Fin.append_right, enumA, enumB, hp, hq],
       fun h => by rw [Fin.ext_iff, Fin.val_castAdd, Fin.val_natAdd] at h; omega⟩
   have hlin : LinearIndependent ℚ b := Fintype.linearIndependent_iff.mpr fun c hc i => by
     by_contra hci
@@ -372,11 +368,10 @@ theorem Fintype.card_le_choose_of_lt_not_disjoint {ι α : Type*}
     · exact (mul_eq_zero.mp hzero).elim
         (Finset.mem_filter.mp (Finset.min'_mem S hS_ne)).2 (hΦ_diag i₀)
     · rcases lt_trichotomy j i₀ with hlt | rfl | hgt
-      · have hcj : c j = 0 := by_contra fun hcj => not_lt_of_ge
-          (Finset.min'_le S j (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hcj⟩)) hlt
-        simp [hcj]
+      · exact mul_eq_zero_of_left (by_contra fun hcj => not_lt_of_ge
+          (Finset.min'_le S j (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hcj⟩)) hlt) _
       · exact absurd rfl hj
-      · simp [hΦ_upper hgt]
+      · exact mul_eq_zero_of_right _ (hΦ_upper hgt)
   calc
     Fintype.card ι
       ≤ Module.finrank ℚ (⋀[ℚ]^s M) := hlin.fintype_card_le_finrank

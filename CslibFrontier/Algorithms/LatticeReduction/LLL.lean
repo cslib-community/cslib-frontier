@@ -115,8 +115,7 @@ theorem realRows_apply (B : Vector (Vector ℤ m) n) (i : Fin n) :
 
 theorem inner_realRows (B : Vector (Vector ℤ m) n) (i j : Fin n) :
     inner ℝ (realRows B i) (realRows B j) = ((dotProduct (rows B i) (rows B j) : ℤ) : ℝ) := by
-  rw [realRows_apply, realRows_apply, inner_ratToEuclidean]
-  simp [dotProduct, rows]
+  simp [realRows_apply, inner_ratToEuclidean, dotProduct, rows]
 
 theorem norm_sq_realRows (B : Vector (Vector ℤ m) n) (i : Fin n) :
     ‖realRows B i‖ ^ 2 = ((dotProduct (rows B i) (rows B i) : ℤ) : ℝ) := by
@@ -167,8 +166,7 @@ theorem IsGramSchmidtRows.of_isSizeStep {G : Vector (Vector ℚ m) n} {B C : Vec
     (hG : IsGramSchmidtRows G B) (h : IsSizeStep (realRows B) (realRows C)) :
     IsGramSchmidtRows G C := by
   intro j
-  rw [h.gramSchmidt_eq]
-  exact hG j
+  rw [h.gramSchmidt_eq, hG j]
 
 /-- `μᵢⱼ = ⟨b*ⱼ, bᵢ⟩ / ‖b*ⱼ‖²`, computed from the Gram–Schmidt rows `G`. -/
 def gsCoeff (G : Vector (Vector ℚ m) n) (B : Vector (Vector ℤ m) n) (i j : Fin n) : ℚ :=
@@ -498,8 +496,9 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
       refine hpre'.succ hk (fun l hl => ?_) fun _ => ?_
       · rcases Nat.lt_or_ge (l : ℕ) (k - 1) with hl' | hl'
         · exact h3 l hl'
-        · rw [show l = ⟨k - 1, by omega⟩ from Fin.ext (by simp only; omega), hmu]
-          exact hG.abs_gramSchmidtCoeff_reduceStep_le hk1 hli
+        · have hl_eq : l = ⟨k - 1, by omega⟩ :=
+            Fin.ext (by simp only; omega)
+          exact hl_eq ▸ hmu ▸ hG.abs_gramSchmidtCoeff_reduceStep_le hk1 hli
       · simpa only [ExchangeCondAt, (reflTransGen_isSizeStep h1).1, hmu] using
           (hG₁.exchangeCondQ_iff δ hk1).1 hex
     · -- Case 1: the exchange condition fails; swap `bₖ₋₁, bₖ` and step back.
@@ -644,8 +643,7 @@ theorem span_lll (B : Vector (Vector ℤ m) n) :
 
 theorem norm_sq_intToEuclidean (v : Fin m → ℤ) :
     ‖intToEuclidean v‖ ^ 2 = ((dotProduct v v : ℤ) : ℝ) := by
-  rw [intToEuclidean_eq_ratToEuclidean, norm_sq_ratToEuclidean]
-  simp [dotProduct]
+  simp [intToEuclidean_eq_ratToEuclidean, norm_sq_ratToEuclidean, dotProduct]
 
 /-- Proposition (1.11) of [LenstraLenstraLovasz1982] with the constant of the remark after
 (1.9): for `1/4 < δ < 1` and `n + 1` linearly independent integer rows, the first row of
@@ -658,10 +656,8 @@ theorem dotProduct_lllWith_zero_le {δ : ℚ} (hδ : 1 / 4 < δ) (hδ1 : δ < 1)
       (4 / (4 * δ - 1)) ^ n * ((dotProduct x x : ℤ) : ℚ) := by
   obtain ⟨hred, -⟩ := isReduced_lllWith (by linarith) hδ1 B hB
   have hmem : intToEuclidean x ∈ Submodule.span ℤ (Set.range (realRows (lllWith δ B))) := by
-    rw [span_realRows, span_lllWith]
-    exact Submodule.mem_map_of_mem hx
-  have hne : intToEuclidean x ≠ 0 := fun h =>
-    hx0 (intToEuclidean_injective (h.trans (map_zero _).symm))
+    simpa only [span_realRows, span_lllWith] using Submodule.mem_map_of_mem hx
+  have hne : intToEuclidean x ≠ 0 := (map_ne_zero_iff _ intToEuclidean_injective).2 hx0
   have h := hred.norm_sq_le (by simpa using Rat.cast_lt (K := ℝ).2 hδ)
     (by exact_mod_cast hδ1.le) hmem hne
   rw [norm_sq_intToEuclidean, norm_sq_realRows] at h

@@ -145,14 +145,10 @@ theorem add_nsmul_div {c : ℕ} (hc : 0 < c) (I J : Ineq V) (m : ℕ) :
     (I + (c * m) • J).div c = I.div c + m • J := by
   have hc' : (c : ℤ) ≠ 0 := by exact_mod_cast hc.ne'
   ext w
-  · simp only [coeff_div, coeff_add, coeff_nsmul, Finsupp.add_apply, Finsupp.smul_apply,
-      nsmul_eq_mul]
-    push_cast
-    rw [show I.coeff w + c * m * J.coeff w = I.coeff w + (m * J.coeff w) * c by ring,
-      Int.add_mul_ediv_right _ _ hc']
-  · simp only [bound_div, bound_add, bound_nsmul, nsmul_eq_mul]
-    push_cast
-    rw [show -(I.bound + c * m * J.bound) = -I.bound + (-(m * J.bound)) * c by ring,
+  · have h1 : I.coeff w + c * m * J.coeff w = I.coeff w + m * J.coeff w * c := by ring
+    simp [coeff_div, nsmul_eq_mul, h1, Int.add_mul_ediv_right _ _ hc']
+  · have h2 : -(I.bound + c * m * J.bound) = -I.bound + -(m * J.bound) * c := by ring
+    simp only [bound_div, bound_add, bound_nsmul, nsmul_eq_mul, Nat.cast_mul, h2,
       Int.add_mul_ediv_right _ _ hc']
     ring
 
@@ -233,12 +229,10 @@ theorem restrict_div {I : Ineq V} {c : ℕ} (hc : 0 < c) (hdvd : ∀ v, (c : ℤ
     simp only [coeff_restrict, coeff_div, Finsupp.smul_apply, smul_eq_mul]
     split_ifs <;> simp [hmul]
   · have h1 := (bound_div_le_iff (I := I) hc (y := (I.div c).bound - 1)).not.1 (by omega)
-    simp only [bound_restrict, coeff_div]
-    rw [hsum]
+    simp only [bound_restrict, coeff_div, hsum]
     nlinarith
   · have h2 := (bound_div_le_iff (I := I) hc (y := (I.div c).bound)).1 le_rfl
-    simp only [bound_restrict, coeff_div]
-    rw [hsum]
+    simp only [bound_restrict, coeff_div, hsum]
     nlinarith
 
 variable (S τ) in
@@ -257,16 +251,13 @@ private def offCoeff (τ : V → Bool) (I : Ineq V) (v : V) : ℤ :=
 
 private theorem offCoeff_lt (I : Ineq V) {v : V} (hv : v ∈ S) :
     offCoeff τ I v < guardLiftBound S τ I := by
-  have h1 : (I.coeff v).natAbs ≤ ∑ v ∈ S, (I.coeff v).natAbs :=
-    Finset.single_le_sum_of_canonicallyOrdered (f := fun v => (I.coeff v).natAbs) hv
-  have h2 : offCoeff τ I v ≤ ((I.coeff v).natAbs : ℤ) := by
+  have h1 : ((I.coeff v).natAbs : ℤ) ≤ (∑ v ∈ S, (I.coeff v).natAbs : ℕ) :=
+    Nat.cast_le.2 (Finset.single_le_sum_of_canonicallyOrdered (f := fun v => (I.coeff v).natAbs) hv)
+  have h2 : offCoeff τ I v ≤ (I.coeff v).natAbs := by
     rw [Int.natCast_natAbs]; unfold offCoeff; split_ifs
     exacts [neg_le_abs _, le_abs_self _]
-  have h3 : ((I.coeff v).natAbs : ℤ) ≤ ((∑ v ∈ S, (I.coeff v).natAbs : ℕ) : ℤ) := by
-    exact_mod_cast h1
-  have h4 : (0 : ℤ) ≤ ((I.restrict S τ).degree : ℤ) := Int.natCast_nonneg _
   simp only [guardLiftBound, Nat.cast_add, Nat.cast_one]
-  linarith
+  linarith [Int.natCast_nonneg (I.restrict S τ).degree]
 
 /-- **The identity behind the lifting after Lemma 2**: adding `(K - sᵥ) ℓ̄ᵥ ≥ 0` to `I` for every
 `v ∈ S` gives `I↾ρ + K • guard`. -/
@@ -296,9 +287,7 @@ private theorem add_sum_offLit (I : Ineq V) (K : ℕ) (hK : ∀ v ∈ S, offCoef
 theorem restrict_of_coeff_eq_zero {I : Ineq V} (h : ∀ v ∈ S, I.coeff v = 0) :
     I.restrict S τ = I := by
   ext w
-  · rw [coeff_restrict]; split_ifs with hw
-    · exact (h w hw).symm
-    · rfl
+  · exact (coeff_restrict I w).trans (ite_eq_right_iff.2 fun hw => (h w hw).symm)
   · rw [bound_restrict, Finset.sum_eq_zero fun v hv => by rw [h v hv, zero_mul], sub_zero]
 
 theorem restrict_guard : (guard S τ).restrict S τ = 0 := by
@@ -351,13 +340,10 @@ theorem holds_restrict_iff {σ : V → Bool} (h : ∀ v ∈ S, σ v = τ v) (I :
       by_cases hw : w ∈ S
       · simp only [hw, ↓reduceIte, offCoeff]; cases τ w <;> simp
       · simp [hw]
-    · have hpt : ∀ v ∈ S, offCoeff τ I v * -(τ v).toInt = I.coeff v * (τ v).toInt := by
-        intro v _
-        unfold offCoeff
-        rcases Bool.eq_false_or_eq_true (τ v) with ht | ht <;> simp [ht]
+    · have hpt : ∀ v ∈ S, offCoeff τ I v * -(τ v).toInt = I.coeff v * (τ v).toInt := fun v _ => by
+        cases hτ : τ v <;> simp [offCoeff, hτ]
       simp only [bound_add, bound_sum, bound_zsmul, bound_offLit, bound_restrict, smul_eq_mul]
-      rw [Finset.sum_congr rfl hpt]
-      ring
+      rw [Finset.sum_congr rfl hpt]; ring
   have hl : ∀ v ∈ S, (offCoeff τ I v • offLit τ v).lhs σ =
       (offCoeff τ I v • offLit τ v).bound := by
     intro v hv
@@ -367,8 +353,7 @@ theorem holds_restrict_iff {σ : V → Bool} (h : ∀ v ∈ S, σ v = τ v) (I :
       smul_eq_mul]
     congr 1; omega
   conv_rhs => rw [hsplit]
-  unfold Holds
-  rw [lhs_add, bound_add, lhs_sum, bound_sum, Finset.sum_congr rfl hl]
+  simp only [Holds, lhs_add, bound_add, lhs_sum, bound_sum, Finset.sum_congr rfl hl]
   constructor <;> intro h <;> linarith
 
 /-- At an assignment agreeing with `τ` on `S`, the line `D↾ρ + K • guard` holds exactly when `D`
@@ -376,8 +361,7 @@ does, for every `K`. -/
 private theorem holds_restrict_add_guard_of_eq {σ : V → Bool} (h : ∀ v ∈ S, σ v = τ v)
     (I : Ineq V) (K : ℕ) : (I.restrict S τ + K • guard S τ).Holds σ ↔ I.Holds σ := by
   rw [← holds_restrict_iff h I]
-  unfold Holds
-  rw [lhs_add, bound_add, lhs_nsmul, bound_nsmul, lhs_guard σ h, nsmul_eq_mul]
+  simp only [Holds, lhs_add, bound_add, lhs_nsmul, bound_nsmul, lhs_guard σ h, nsmul_eq_mul]
   constructor <;> intro h <;> linarith
 
 /-- **The lifted line means the implication**: for a reification coefficient `K` at least the
@@ -388,8 +372,7 @@ theorem holds_restrict_add_guard {σ : V → Bool} {I : Ineq V} {K : ℕ}
     (hK : (I.restrict S τ).degree ≤ K) :
     (I.restrict S τ + K • guard S τ).Holds σ ↔ ((∀ v ∈ S, σ v = τ v) → I.Holds σ) := by
   by_cases h : ∀ v ∈ S, σ v = τ v
-  · rw [holds_restrict_add_guard_of_eq h]
-    exact ⟨fun hI _ => hI, fun hI => hI h⟩
+  · exact (holds_restrict_add_guard_of_eq h I K).trans ⟨fun hI _ => hI, fun hI => hI h⟩
   · push Not at h
     obtain ⟨v, hv, hne⟩ := h
     refine iff_of_true ?_ fun h' => absurd (h' v hv) hne
@@ -411,8 +394,7 @@ variable {V : Type*} [DecidableEq V] {S : Finset V} {τ : V → Bool} {Γ : Set 
 omit [DecidableEq V] in
 private theorem IsProof.literal {ls : List (Ineq V)} (h : IsProof Γ ls) (l : Literal V) :
     IsProof Γ (l.toIneq :: ls) := by
-  obtain ⟨v, b⟩ := l
-  cases b
+  obtain ⟨v, _ | _⟩ := l
   exacts [h.leOne v, h.nonneg v]
 
 omit [DecidableEq V] in
@@ -465,10 +447,8 @@ private theorem lift_axiom {ls ls' : List (Ineq V)} {I J : Ineq V} (hp : IsProof
   · simp only [List.length_append, List.length_cons]; rw [Nat.mul_succ]; omega
   · intro D hD
     rcases List.mem_cons.1 hD with rfl | hD
-    · exact ⟨guardLiftBound S τ J, by rw [hIJ]; exact degree_restrict_le_guardLiftBound J,
-        by rwa [hIJ]⟩
-    · obtain ⟨K, hd, hK⟩ := hall D hD
-      exact ⟨K, hd, List.mem_append_right _ (List.mem_cons_of_mem _ hK)⟩
+    · exact ⟨guardLiftBound S τ J, hIJ ▸ degree_restrict_le_guardLiftBound J, hIJ ▸ hmem⟩
+    · exact (hall D hD).imp fun _ h => ⟨h.1, List.mem_append_right _ (List.mem_cons_of_mem _ h.2)⟩
 
 /-- **Lifting a cutting planes proof under a partial assignment**, an unsaturated cutting-planes
 step after Theorem 1 of [Demirović, McCreesh, McIlree, Nordström, Oertel and
@@ -489,56 +469,42 @@ theorem IsProof.lift {ls : List (Ineq V)} (h : IsProof (Ineq.restrict S τ '' Γ
   induction h with
   | nil => exact ⟨[], .nil, by simp, by simp⟩
   | @hyp ls I h hI ih =>
-    obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨C, hC, rfl⟩ := hI
-    exact lift_axiom (hp.hyp hC) hlen hall (restrict_restrict C)
+    exact ih.elim fun _ ⟨hp, hlen, hall⟩ => lift_axiom (hp.hyp hC) hlen hall (restrict_restrict C)
   | @nonneg ls h v ih =>
-    obtain ⟨ls', hp, hlen, hall⟩ := ih
-    exact lift_axiom (hp.nonneg v) hlen hall rfl
+    exact ih.elim fun _ ⟨hp, hlen, hall⟩ => lift_axiom (hp.nonneg v) hlen hall rfl
   | @leOne ls h v ih =>
-    obtain ⟨ls', hp, hlen, hall⟩ := ih
-    exact lift_axiom (hp.leOne v) hlen hall rfl
+    exact ih.elim fun _ ⟨hp, hlen, hall⟩ => lift_axiom (hp.leOne v) hlen hall rfl
   | @add ls I J h hI hJ ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨KI, hdI, hKI⟩ := hall I hI
     obtain ⟨KJ, hdJ, hKJ⟩ := hall J hJ
-    refine ⟨_ :: ls', hp.add hKI hKJ, ?_, ?_⟩
-    · simp only [List.length_cons]; rw [Nat.mul_succ]; omega
-    · intro D hD
-      rcases List.mem_cons.1 hD with rfl | hD
-      · refine ⟨KI + KJ, ?_, ?_⟩
-        · rw [restrict_add]; exact (degree_add_le _ _).trans (Nat.add_le_add hdI hdJ)
-        · rw [restrict_add, add_nsmul]
-          convert List.mem_cons_self using 1
-          abel
-      · obtain ⟨K, hd, hK⟩ := hall D hD
-        exact ⟨K, hd, List.mem_cons_of_mem _ hK⟩
+    refine ⟨_ :: ls', hp.add hKI hKJ, ?_, List.forall_mem_cons.2 ⟨⟨KI + KJ, ?_, ?_⟩,
+      fun D hD => (hall D hD).imp fun _ h => ⟨h.1, List.mem_cons_of_mem _ h.2⟩⟩⟩
+    · simp only [List.length_cons, Nat.mul_succ]; omega
+    · exact (restrict_add I J).symm ▸ (degree_add_le _ _).trans (Nat.add_le_add hdI hdJ)
+    · rw [restrict_add, add_nsmul]
+      convert List.mem_cons_self using 1
+      abel
   | @smul ls I h c hc hI ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨K, hd, hK⟩ := hall I hI
-    refine ⟨_ :: ls', hp.smul c hc hK, ?_, ?_⟩
-    · simp only [List.length_cons]; rw [Nat.mul_succ]; omega
-    · intro D hD
-      rcases List.mem_cons.1 hD with rfl | hD
-      · refine ⟨c * K, ?_, ?_⟩
-        · rw [restrict_nsmul]; exact (degree_nsmul_le c _).trans (Nat.mul_le_mul_left c hd)
-        · rw [restrict_nsmul, mul_nsmul]
-          convert List.mem_cons_self using 1
-          rw [smul_add, smul_comm]
-      · obtain ⟨K, hd, hK⟩ := hall D hD
-        exact ⟨K, hd, List.mem_cons_of_mem _ hK⟩
+    refine ⟨_ :: ls', hp.smul c hc hK, ?_, List.forall_mem_cons.2 ⟨⟨c * K, ?_, ?_⟩,
+      fun D hD => (hall D hD).imp fun _ h => ⟨h.1, List.mem_cons_of_mem _ h.2⟩⟩⟩
+    · simp only [List.length_cons, Nat.mul_succ]; omega
+    · exact (restrict_nsmul c I).symm ▸ (degree_nsmul_le c _).trans (Nat.mul_le_mul_left c hd)
+    · rw [restrict_nsmul, mul_nsmul]
+      convert List.mem_cons_self using 1
+      rw [smul_add, smul_comm]
   | @div ls I h c hc hdvd hI ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨K, hd, hK⟩ := hall I hI
+    have hcK : K + 1 ≤ c * (K + 1) := Nat.le_mul_of_pos_left _ hc
     obtain ⟨ext, hp', hmem, hlen'⟩ := hp.addOffLits (S := S) (τ := τ) hK
-      (fun _ => c * (K + 1) - K)
-      (fun _ _ => by have : K + 1 ≤ c * (K + 1) := Nat.le_mul_of_pos_left _ hc; omega)
+      (fun _ => c * (K + 1) - K) (fun _ _ => by omega)
     have heq : I.restrict S τ + K • guard S τ + ∑ v ∈ S, (c * (K + 1) - K) • offLit τ v =
         I.restrict S τ + (c * (K + 1)) • guard S τ := by
-      rw [← Finset.smul_sum, ← Ineq.guard, add_assoc, ← add_nsmul]
-      congr 2
-      have : K + 1 ≤ c * (K + 1) := Nat.le_mul_of_pos_left _ hc
-      omega
+      rw [← Finset.smul_sum, ← Ineq.guard, add_assoc, ← add_nsmul, Nat.add_sub_of_le (by omega)]
     rw [heq] at hmem
     have hdvdr : ∀ v, (c : ℤ) ∣ (I.restrict S τ).coeff v := fun v => by
       rw [coeff_restrict]; split_ifs
@@ -548,17 +514,13 @@ theorem IsProof.lift {ls : List (Ineq V)} (h : IsProof (Ineq.restrict S τ '' Γ
       simp only [coeff_add, Finsupp.add_apply, coeff_nsmul, Finsupp.smul_apply, nsmul_eq_mul]
       push_cast
       exact dvd_add (hdvdr v) (Dvd.dvd.mul_right (Dvd.dvd.mul_right (dvd_refl _) _) _)
-    refine ⟨_ :: (ext ++ ls'), hp'.div c hc hdvd' hmem, ?_, ?_⟩
-    · simp only [List.length_cons, List.length_append]; rw [Nat.mul_succ]; omega
-    · intro D hD
-      rcases List.mem_cons.1 hD with rfl | hD
-      · refine ⟨K + 1, ?_, ?_⟩
-        · rw [restrict_div hc hdvd]
-          exact (degree_div_le hc hdvdr).trans (hd.trans (Nat.le_succ K))
-        · rw [restrict_div hc hdvd, ← add_nsmul_div hc]
-          exact List.mem_cons_self
-      · obtain ⟨K', hd', hK'⟩ := hall D hD
-        exact ⟨K', hd', List.mem_cons_of_mem _ (List.mem_append_right _ hK')⟩
+    refine ⟨_ :: (ext ++ ls'), hp'.div c hc hdvd' hmem, ?_, List.forall_mem_cons.2 ⟨⟨K + 1, ?_, ?_⟩,
+      fun D hD => (hall D hD).imp fun _ h =>
+        ⟨h.1, List.mem_cons_of_mem _ (List.mem_append_right _ h.2)⟩⟩⟩
+    · simp only [List.length_cons, List.length_append, Nat.mul_succ]; omega
+    · exact (restrict_div hc hdvd).symm ▸ (degree_div_le hc hdvdr).trans (hd.trans (Nat.le_succ K))
+    · exact (restrict_div hc hdvd).symm ▸ add_nsmul_div hc (I.restrict S τ) (guard S τ) (K + 1) ▸
+        List.mem_cons_self
 
 /-- **Lifting a derivation under a partial assignment**, the unsaturated cutting-planes step of
 `Cslib.Logic.PL.CuttingPlanes.IsProof.lift`: if `D` has a derivation of at most `s` lines from
@@ -589,9 +551,8 @@ theorem DerivableInSize.wrap {C D : Ineq V} {z : V} {s : ℕ} (hC : C.coeff z = 
       restrict_of_coeff_eq_zero (by simpa using hC)]
   rw [← hΓ] at h
   obtain ⟨K, hd, hK⟩ := h.lift
-  rw [restrict_of_coeff_eq_zero (by simpa using hD), Finset.card_singleton] at hK
-  rw [restrict_of_coeff_eq_zero (by simpa using hD)] at hd
-  exact ⟨K, hd, hK⟩
+  rw [restrict_of_coeff_eq_zero (by simpa using hD)] at hd hK
+  exact ⟨K, hd, by rwa [Finset.card_singleton] at hK⟩
 
 end CuttingPlanes
 

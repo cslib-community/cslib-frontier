@@ -138,25 +138,18 @@ private theorem cf_eq_zero_of_forall {ts : List (ℕ × Literal ℕ)} (h : ∀ t
   induction ts with
   | nil => exact ⟨rfl, rfl, rfl⟩
   | cons t ts ih =>
-    obtain ⟨hcf, hns, hcs⟩ := ih fun t' ht' => h t' (List.mem_cons_of_mem _ ht')
-    have ht := h t List.mem_cons_self
     obtain ⟨a, v, b⟩ := t
-    simp only at ht
-    subst ht
-    refine ⟨?_, ?_, ?_⟩
-    · cases b <;> simp [cf_cons, hcf, termCoeff]
-    · cases b <;> simp [negSum_cons, hns]
-    · simp [coeffSum_cons, hcs]
+    obtain rfl : a = 0 := h (a, v, b) List.mem_cons_self
+    obtain ⟨hcf, hns, hcs⟩ := ih fun t' ht' => h t' (List.mem_cons_of_mem _ ht')
+    cases b <;> simp [cf_cons, negSum_cons, coeffSum_cons, termCoeff, hcf, hns, hcs]
 
 /-- With `k` dividing `a`, rounding `a / k` up is exact. -/
 private theorem mul_ceilDiv_of_dvd {a k : ℕ} (hk : 0 < k) (h : k ∣ a) : k * ceilDiv a k = a := by
   obtain ⟨q, rfl⟩ := h
-  have h1 := le_mul_ceilDiv (k * q) hk
-  have h2 := VeriPB.mul_ceilDiv_lt (k * q) hk
-  have hle : ceilDiv (k * q) k ≤ q :=
-    Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_left (a := k) (by rw [Nat.mul_succ]; exact h2))
-  have hge : q ≤ ceilDiv (k * q) k := Nat.le_of_mul_le_mul_left h1 hk
-  rw [le_antisymm hle hge]
+  have hlt : k * ceilDiv (k * q) k < k * (q + 1) := by
+    simpa [Nat.mul_succ] using VeriPB.mul_ceilDiv_lt (k * q) hk
+  rw [le_antisymm (Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_left hlt))
+    (Nat.le_of_mul_le_mul_left (le_mul_ceilDiv (k * q) hk) hk)]
 
 /-- **Division** of a constraint dominating `I` by `k` dividing every coefficient of `I`
 represents the exact division `I.div k`. -/
@@ -175,11 +168,9 @@ theorem Dominates.represents_div {c : PBConstr} {I : Ineq ℕ} (hc : c.Dominates
     have := congrArg (· (termVar t)) hn.1
     simp only [toIneq_eq] at this
     exact this ▸ hdvd _)
-  obtain ⟨hE, hEn, -⟩ := cf_eq_zero_of_forall (ts := ts.map fun t => (k * ceilDiv t.1 k - t.1, t.2))
-    (by
-      simp only [List.mem_map, forall_exists_index, and_imp]
-      rintro _ t ht rfl
-      simp [mul_ceilDiv_of_dvd hk (hts t ht)])
+  obtain ⟨hE, hEn, -⟩ := cf_eq_zero_of_forall
+    (ts := ts.map fun t => (k * ceilDiv t.1 k - t.1, t.2))
+    (List.forall_mem_map.2 fun t ht => by simp [mul_ceilDiv_of_dvd hk (hts t ht)])
   have hcf := VeriPB.cf_add_cf_round k hk ts
   have hns := VeriPB.negSum_add_negSum_round k hk ts
   rw [hE, add_zero] at hcf
@@ -195,11 +186,9 @@ theorem Dominates.represents_div {c : PBConstr} {I : Ineq ℕ} (hc : c.Dominates
     refine Ineq.div_eq_of hk hcoeff ?_ ?_ <;>
       (simp only [toIneq_eq]; rw [h3]; simp only [mul_sub, mul_one]; linarith)
   rw [Dominates, ← hdiv]
-  refine ⟨?_, ?_⟩
-  · ext v
-    simp only [coeff_div, hn.1]
-  · simp only [bound_div, neg_le_neg_iff]
-    exact Int.ediv_le_ediv (by exact_mod_cast hk) (neg_le_neg hn.2)
+  refine ⟨Finsupp.ext fun v => by simp only [coeff_div, hn.1], ?_⟩
+  simp only [bound_div, neg_le_neg_iff]
+  exact Int.ediv_le_ediv (mod_cast hk) (neg_le_neg hn.2)
 
 /-- A constraint representing `0 ≥ 1` is a contradiction. -/
 theorem Represents.isContradiction {c : PBConstr} (h : c.Represents contra) :
@@ -274,13 +263,11 @@ theorem lookup_append_of_notMem {E db : List (ℕ × PBConstr)} {i : ℕ} (h : i
 /-- With distinct numbers, a constraint of the database is found by its number. -/
 theorem IdOk.lookup_eq {db : List (ℕ × PBConstr)} {n : ℕ} (hid : IdOk db n) {i : ℕ}
     {c : PBConstr} (hc : (i, c) ∈ db) : lookup db i = some c := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.1
+  obtain ⟨⟨j, c'⟩, he⟩ := Option.isSome_iff_exists.1
     (List.find?_isSome.2 ⟨(i, c), hc, by simp⟩ : (db.find? (·.1 == i)).isSome)
-  obtain ⟨j, c'⟩ := e
-  have hj : j = i := by simpa using List.find?_some he
-  subst hj
-  simp only [lookup, he, Option.map_some]
-  exact congrArg some (hid.eq_of_mem (List.mem_of_find?_eq_some he) hc)
+  obtain rfl : j = i := by simpa using List.find?_some he
+  simpa only [lookup, he, Option.map_some, Option.some.injEq] using
+    hid.eq_of_mem (List.mem_of_find?_eq_some he) hc
 
 /-! ### Compiling proofs -/
 
@@ -321,11 +308,8 @@ private theorem Compiled.cons {db : List (ℕ × PBConstr)} {n : ℕ} {ls : List
     rcases lt_trichotomy p ls.length with hp | rfl | hp
     · rw [List.getElem?_append_left (by simpa using hp)] at hJ
       obtain ⟨c', hc', hJ⟩ := hls p J hJ
-      exact ⟨c', by simp [lookup_cons, show ls.length ≠ p by omega, hc'], hJ⟩
-    · rw [List.getElem?_append_right (by simp)] at hJ
-      simp only [List.length_reverse, Nat.sub_self, List.getElem?_cons_zero,
-        Option.some.injEq] at hJ
-      subst hJ
+      exact ⟨c', by simp [lookup_cons, hp.ne', hc'], hJ⟩
+    · obtain rfl : I = J := by simpa [List.getElem?_append_right] using hJ
       exact ⟨c, by simp [lookup_cons], hc⟩
     · rw [List.getElem?_eq_none (by simp; omega)] at hJ
       cases hJ
@@ -357,10 +341,8 @@ theorem exists_runSteps_of_isProof {Γ : Set (Ineq ℕ)} {db : List (ℕ × PBCo
       have := hn e he
       rw [hE, List.mem_reverse, List.mem_range'_1]
       omega
-    have := hcI.represents_mul 1
-    rw [one_smul] at this
     exact Compiled.cons ann E hlen hrun hE hls (.hyp i) _ rfl _
-      (by simp only [polEval, hi, Option.bind_some]) this
+      (by simp only [polEval, hi, Option.bind_some]) (one_smul ℕ I ▸ hcI.represents_mul 1)
   | @nonneg ls _ v ih =>
     obtain ⟨ann, E, hlen, hrun, hE, hls⟩ := ih
     exact Compiled.cons ann E hlen hrun hE hls (.nonneg v) _ rfl _ rfl

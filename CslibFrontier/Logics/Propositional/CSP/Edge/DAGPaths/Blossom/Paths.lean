@@ -72,13 +72,12 @@ theorem blossomArcs_get_mem {ss : List (Occurrence F × Occurrence F)} {ts : Lis
     | zero => simp
     | succ j =>
       have hh := ih (by simpa using hl) j (by simpa using hj)
-      have ha : decide (j < pivot - 1) = decide (j + 1 < pivot) := Bool.decide_congr (by omega)
-      have hb : decide (pivot - 1 ≤ j + 1) = decide (pivot ≤ j + 1 + 1) :=
-        Bool.decide_congr (by omega)
       exact ⟨List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, ha] using hh.1)),
+          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, Nat.lt_sub_iff_add_lt]
+            using hh.1)),
         List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, hb] using hh.2))⟩
+          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, Nat.sub_le_iff_le_add]
+            using hh.2))⟩
 
 /-- Every actual blossom arc is one of the two supplied ports of a particular cycle step. -/
 theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
@@ -95,11 +94,8 @@ theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List �
     · exact ⟨0, by simp, Or.inl rfl⟩
     · exact ⟨0, by simp, Or.inr rfl⟩
     · obtain ⟨j, hj, he⟩ := ih (by simpa using hl) ha
-      have hpa : decide (j < pivot - 1) = decide (j + 1 < pivot) := Bool.decide_congr (by omega)
-      have hpb : decide (pivot - 1 ≤ j + 1) = decide (pivot ≤ j + 1 + 1) :=
-        Bool.decide_congr (by omega)
       exact ⟨j + 1, by simpa using Nat.succ_lt_succ hj, by simpa only [List.getElem_cons_succ,
-        Nat.succ_eq_add_one, hpa, hpb] using he⟩
+        Nat.succ_eq_add_one, Nat.lt_sub_iff_add_lt, Nat.sub_le_iff_le_add] using he⟩
   | _ => simp at ha -- no steps or no timestamps
 
 /-- A finite lookup of the timestamp at an actual blossom incidence. -/
@@ -161,14 +157,13 @@ theorem blossomArcs_copy {w : Walk F} {ts : List ℕ} {pivot : ℕ}
   obtain ⟨k, hk, he⟩ := blossomArcs_mem hd.1 he
   have hl := linked_constraint hw.1 (List.getElem_mem hk)
   change w.steps[k].1.1 = w.steps[k].2.1 at hl
-  have hkj : k = j := by
+  obtain rfl : k = j := by
     apply hd.index_eq hk hj
     rcases he with rfl | rfl
     · exact hc
     · change (w.steps[k].2.1, ts[k]'(by have := hd.1; omega)) = _ at hc
       exact (congrArg (fun i : Fin F.length =>
         (i, ts[k]'(by have := hd.1; omega))) hl).trans hc
-  subst k
   exact he
 
 /-- Distinct copied steps give the two-arc hypothesis needed by Corollary 36 and Lemma 40.
@@ -272,9 +267,7 @@ theorem blossomDAG_copies [DecidableEq V] {w : Walk F} {ts : List ℕ} (hw : w.I
   constructor
   · rintro ⟨a, ha, rfl⟩
     obtain ⟨j, hj, he⟩ := blossomArcs_mem hl ha
-    have hjc : j < (w.copies ts).length := by simp [Walk.copies, hl, hj]
-    apply List.mem_iff_getElem.mpr
-    refine ⟨j, hjc, ?_⟩
+    refine List.mem_iff_getElem.mpr ⟨j, by simp [Walk.copies, hl, hj], ?_⟩
     rw [Walk.getElem_copies w hl j hj]
     have hs := linked_constraint hw.1 (List.getElem_mem hj)
     change w.steps[j].1.1 = w.steps[j].2.1 at hs
@@ -284,9 +277,8 @@ theorem blossomDAG_copies [DecidableEq V] {w : Walk F} {ts : List ℕ} (hw : w.I
   · intro hc
     obtain ⟨j, hjc, he⟩ := List.mem_iff_getElem.mp hc
     have hj : j < w.steps.length := by simpa [Walk.copies, hl] using hjc
-    refine ⟨⟨w.steps[j].1, ts[j]'(by omega), decide (j < pivot)⟩,
-      (blossomArcs_get_mem hl pivot j hj).1, ?_⟩
-    exact (Walk.getElem_copies w hl j hj).symm.trans he
+    exact ⟨⟨w.steps[j].1, ts[j]'(by omega), decide (j < pivot)⟩,
+      (blossomArcs_get_mem hl pivot j hj).1, (Walk.getElem_copies w hl j hj).symm.trans he⟩
 
 /-- The boundary step's copy is absent from every preceding whole step. -/
 theorem blossomDAG_copy_not_take [DecidableEq V] {w : Walk F} {ts : List ℕ}
@@ -294,12 +286,10 @@ theorem blossomDAG_copy_not_take [DecidableEq V] {w : Walk F} {ts : List ℕ}
     let (input, _) := w.steps[j]
     (input.1, ts[j]'(by have := hd.1; omega)) ∉
       (blossomDAG (w.take j) (ts.take j) pivot).copies := by
-  change (w.steps[j].1.1, ts[j]'(by have := hd.1; omega)) ∉
-    (blossomDAG (w.take j) (ts.take j) pivot).copies
-  rw [blossomDAG_copies (hw.take j) (hd.take j).1, Walk.copies_take,
-    List.mem_toFinset]
-  intro hm
-  obtain ⟨k, hk, he⟩ := List.mem_iff_getElem.mp hm
+  dsimp only
+  rw [blossomDAG_copies (hw.take j) (hd.take j).1, Walk.copies_take, List.mem_toFinset,
+    List.mem_iff_getElem]
+  rintro ⟨k, hk, he⟩
   simp only [List.length_take] at hk
   have hjl : j < (w.copies ts).length := by simp [Walk.copies, hd.1, hj]
   have heq : k = j := (hd.2.getElem_inj_iff (hi := by omega) (hj := hjl)).mp
@@ -328,19 +318,16 @@ theorem blossomDAG_copy_not_drop [DecidableEq V] {w : Walk F} {ts : List ℕ}
 theorem blossomDAG_vars [DecidableEq V] (w : Walk F) (ts : List ℕ) (pivot : ℕ)
     (hl : ts.length = w.steps.length) :
     (blossomDAG w ts pivot).vars = insert w.start (w.edges.map Occurrence.var).toFinset := by
-  change insert w.start _ = insert w.start _
-  congr 1
-  change ((blossomArcs w.steps ts pivot).map (Occurrence.var ∘ Arc.occurrence)).toFinset = _
-  rw [← List.map_map, blossomArcs_map_occurrence _ _ _ hl]
+  dsimp only [blossomDAG, Walk.edges]
+  rw [← blossomArcs_map_occurrence w.steps ts pivot hl, List.map_map]
   rfl
 
 /-- Each variable-ended prefix is a supported subgraph with its actual copied steps. -/
 theorem blossomDAG_take_subgraph [DecidableEq V] {w : Walk F} {ts : List ℕ} {pivot : ℕ}
     (hs : (blossomDAG w ts pivot).Supported) (n : ℕ) :
     (blossomDAG (w.take n) (ts.take n) pivot).Subgraph (blossomDAG w ts pivot) :=
-  blossomDAG_subgraph_of_arcs _ _ _ (by simp [blossomDAG, Walk.take]) hs
-    (fun a ha => List.mem_toFinset.mpr
-      (blossomArcs_take_subset w.steps ts pivot n a ha))
+  blossomDAG_subgraph_of_arcs _ _ _ (by simp [blossomDAG, Walk.take]) hs fun a ha =>
+    List.mem_toFinset.mpr (blossomArcs_take_subset w.steps ts pivot n a ha)
 
 /-- Each variable-ended suffix is a supported subgraph, with its meeting index shifted. -/
 theorem blossomDAG_drop_subgraph [DecidableEq V] {w : Walk F} {ts : List ℕ} {pivot : ℕ}
@@ -349,9 +336,8 @@ theorem blossomDAG_drop_subgraph [DecidableEq V] {w : Walk F} {ts : List ℕ} {p
   have hstart : (w.drop n).start ∈ (blossomDAG w ts pivot).vars := by
     rw [blossomDAG_vars w ts pivot hl]
     change (w.take n).finish ∈ _
-    by_cases he : (w.take n).steps = []
-    · exact Finset.mem_insert.mpr (Or.inl
-        (show Walk.finishFrom w.start (w.take n).steps = w.start by simp [Walk.finishFrom, he]))
+    by_cases he : w.steps.take n = []
+    · simp only [Walk.take, Walk.finish, Walk.finishFrom, he, Finset.mem_insert, true_or]
     · obtain ⟨s, hsm, heq⟩ := Walk.finish_step (w.take n) he
       exact Finset.mem_insert_of_mem (List.mem_toFinset.mpr (List.mem_map.mpr
         ⟨s.2, List.mem_flatMap.mpr ⟨s, List.mem_of_mem_take hsm, by simp⟩, heq⟩))
@@ -378,8 +364,7 @@ theorem blossomDAG_valid_take [DecidableEq V] {sem : Rel → List Bool → Bool}
     (h : (blossomDAG w ts pivot).IsFDAG sem f) (hw : w.IsWalk)
     (hd : w.DistinctCopies ts) (hM : EdgeInstance.EvenConstraints sem F) (n : ℕ) :
     ValidLabeling sem ((w.take n).flip f) := by
-  have hs := blossomDAG_take_subgraph h.supported n
-  have hh := h.subgraph hs (blossomDAG_supported _ _ _)
+  have hh := h.subgraph (blossomDAG_take_subgraph h.supported n) (blossomDAG_supported _ _ _)
   rw [← blossomDAG_flip _ _ pivot (hd.take n).1 f]
   exact hh.valid_flip_of_pairedCopies hM (blossomDAG_pairedCopies (hw.take n) (hd.take n))
 

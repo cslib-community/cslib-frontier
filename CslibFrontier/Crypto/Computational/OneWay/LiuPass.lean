@@ -175,9 +175,7 @@ private theorem lt_stretchLen_seedLen (γ m : ℕ) :
     rcases hn₀_le_m.lt_or_eq with hlt | heq
     · exact Nat.lt_of_not_ge (Nat.findGreatest_is_greatest
         (P := fun k => stretchLen γ k ≤ m) (Nat.lt_succ_self n₀) (by omega))
-    · rw [heq]
-      dsimp [stretchLen]
-      omega
+    · simp only [heq, stretchLen]; omega
   exact ⟨hgt, (stretchLen_succ_le γ n₀).trans (by omega)⟩
 
 private theorem seedLen_bound (γ m : ℕ) : m < (γ + 1) * seedLen γ m := by
@@ -214,11 +212,10 @@ private theorem computableInPolyTime_thresholdValue (γ d c : ℕ) :
   unfold thresholdValue
   have hlog := ComputableInPolyTime.unary_log_two
   have hm := ComputableInPolyTime.unary_sub'
-    (ComputableInPolyTime.unary_add' .id' (ComputableInPolyTime.unary_mul' (.const γ) hlog))
-    (.const c)
+    (.unary_add' .id' (.unary_mul' (.const γ) hlog)) (.const c)
   exact ComputableInPolyTime.unary_sub'
-    (hm.unary_sub' (ComputableInPolyTime.unary_add' (.unary_mul' (.const 2) hlog) (.const 3)))
-    (ComputableInPolyTime.unary_mul' (.const d) (.unary_add' (hlog.comp hm) (.const 1)))
+    (hm.unary_sub' (.unary_add' (.unary_mul' (.const 2) hlog) (.const 3)))
+    (.unary_mul' (.const d) (.unary_add' (hlog.comp hm) (.const 1)))
 
 private theorem computableInPolyTime_mul_log_two_succ (d : ℕ) :
     ComputableInPolyTime (fun x : List Bool => d * (Nat.log 2 x.length + 1)) encBits encNat :=
@@ -232,26 +229,19 @@ private noncomputable def thresholdDistinguisher (γ d c : ℕ) (H : List Bool �
 private theorem isPPT_thresholdDistinguisher (γ d c : ℕ) {H : List Bool → ProbComp ℕ}
     (hH : IsPPTOn encBits encNat H) :
     IsPPT encBool (thresholdDistinguisher γ d c H) := by
-  change IsPPTOn (encPair encUnary encBits) encBool
-    (fun p : ℕ × List Bool =>
-      (fun v => decide (thresholdValue γ d c p.1 ≤ v)) <$>
-        H (p.2.take (p.1 + γ * Nat.log 2 p.1 - c)))
   have hp1 := ComputableInPolyTime.fst encUnary encBits
-  have hlog := ComputableInPolyTime.unary_log_two.comp hp1
   have hprep : ComputableInPolyTime
       (fun p : ℕ × List Bool => p.2.take (p.1 + γ * Nat.log 2 p.1 - c))
       (encPair encUnary encBits) encBits :=
-    ComputableInPolyTime.bitsTakeWithInput (ComputableInPolyTime.snd encUnary encBits)
-      (ComputableInPolyTime.unary_sub'
-        (ComputableInPolyTime.unary_add' hp1
-          (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const γ) hlog))
-        (ComputableInPolyTime.const c))
+    ComputableInPolyTime.bitsTakeWithInput (.snd encUnary encBits)
+      (.unary_sub' (.unary_add' hp1 (.unary_mul' (.const γ) (ComputableInPolyTime.unary_log_two.comp
+        hp1))) (.const c))
   have hthr : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × ℕ => thresholdValue γ d c pair.1.1)
       (encPair (encPair encUnary encBits) encNat) encUnary :=
-    (computableInPolyTime_thresholdValue γ d c).comp (hp1.comp (ComputableInPolyTime.fst _ _))
+    (computableInPolyTime_thresholdValue γ d c).comp (hp1.comp (.fst _ _))
   refine (hH.preprocess hprep).map_with ?_
-  simpa using hthr.unary_le' (hthr.binary_min_unary' (ComputableInPolyTime.snd _ _))
+  simpa using hthr.unary_le' (hthr.binary_min_unary' (.snd _ _))
 
 /-! ### Theorem 5.2: Conditional EP-PRGs imply $K^t$ is mildly hard on average
 (M2a polynomial-threshold form) -/
@@ -361,25 +351,16 @@ private theorem condEPPRG_real_threshold_accept_le
     have htrunc_eq : truncGen G (c, List.ofFn x) = List.ofFn y := by
       dsimp [truncGen]
       rw [hlen_Gx, ← hm_def, hwy]
-    have hlen_enc : (encPair encUnary encBits (c, List.ofFn x)).length ≤ m + (2 * γ + 3) := by
+    have hlen_enc : (encPair encUnary encBits (c, List.ofFn x)).length ≤ n + (2 * γ + 3) := by
       rw [length_encPair, encUnary_apply, List.length_replicate, encBits_apply, List.length_ofFn]
       omega
-    have hstep : p₀.eval (encPair encUnary encBits (c, List.ofFn x)).length ≤
-        t (truncGen G (c, List.ofFn x)).length := by
+    have hKt := hbound₀ (c, List.ofFn x) (by
       rw [htrunc_eq, List.length_ofFn]
-      exact (hp₀_mono hlen_enc).trans ht_p₀
-    have hKt := hbound₀ (c, List.ofFn x) hstep
+      exact (hp₀_mono (by omega)).trans ht_p₀)
     rw [htrunc_eq] at hKt
-    have hne : timeBounded t (List.ofFn y) ≠ ⊤ :=
-      timeBounded_ne_top (by simpa [List.length_ofFn] using ht_ge_m)
-    have hKt_nat : timeBoundedNat t (List.ofFn y) ≤
-        (encPair encUnary encBits (c, List.ofFn x)).length + c_sim :=
-      (timeBoundedNat_le_iff hne).mpr hKt
-    have hlen_enc_n :
-        (encPair encUnary encBits (c, List.ofFn x)).length + c_sim ≤ n + (2 * γ + 3 + c_sim) := by
-      rw [length_encPair, encUnary_apply, List.length_replicate, encBits_apply, List.length_ofFn]
-      omega
-    exact (hKt_nat.trans hlen_enc_n).trans_lt hKt_low
+    exact (((timeBoundedNat_le_iff (timeBounded_ne_top
+      (by simpa [List.length_ofFn] using ht_ge_m))).mpr hKt).trans
+      ((Nat.add_le_add_right hlen_enc _).trans_eq (Nat.add_assoc _ _ _))).trans_lt hKt_low
   rw [hreal_eq]
   exact generator_threshold_accept_le hm_pos hB3 hent_pG k g_err hlow (fun y => ProbComp.eval (H y))
 
@@ -474,10 +455,8 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_
     exists_timeBounded_of_computableInPolyTime (computableInPolyTime_truncGen hG_poly)
   let pG : Polynomial ℕ := p₀.comp (Polynomial.X + Polynomial.C (2 * γ + 3))
   have hpG_eval (m : ℕ) : pG.eval m = p₀.eval (m + (2 * γ + 3)) := by simp [pG]
-  have hpG_ge (m : ℕ) : m + 1 ≤ pG.eval m := by
-    rw [hpG_eval]
-    have h := hp₀_ge (m + (2 * γ + 3))
-    omega
+  have hpG_ge (m : ℕ) : m + 1 ≤ pG.eval m :=
+    (Nat.succ_le_succ (Nat.le_add_right m _)).trans ((hp₀_ge _).trans_eq (hpG_eval m).symm)
   refine ⟨pG, hpG_ge, fun {t} ht => ?_⟩
   let q : Polynomial ℕ := Polynomial.C 16 * (Polynomial.X + 1) ^ (γ + α + 2)
   have hq_eval (m : ℕ) : q.eval m = 16 * (m + 1) ^ (γ + α + 2) := by simp [q]
@@ -566,11 +545,9 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToApprox_timeBoundedNat_log_succ
           (fun n => d * (Nat.log 2 n + 1)) (timeBoundedNat t) := by
   obtain ⟨pG, hpG, h⟩ :=
     hG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_succ (2 * d) (by omega)
-  refine ⟨pG, hpG, fun {t} ht => ?_⟩
-  have h2 : MildlyHardOnAverageToOneSidedApprox
-      (fun n => 2 * (d * (Nat.log 2 n + 1))) (timeBoundedNat t) := by
-    simpa only [mul_assoc] using h ht
-  exact h2.mildlyHardOnAverageToApprox (computableInPolyTime_mul_log_two_succ d)
+  refine ⟨pG, hpG, fun ht => MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverageToApprox
+    (computableInPolyTime_mul_log_two_succ d) ?_⟩
+  simpa only [mul_assoc] using h ht
 
 /-- **[Liu and Pass, Theorem 5.2, §5.2, p. 11 of arXiv:2009.11514v1][LiuPass2020] (M2a
 polynomial-threshold form, ceiling log window `d * Nat.clog 2 n`):**

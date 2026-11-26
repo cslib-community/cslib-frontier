@@ -83,17 +83,14 @@ def maxEvictions (n_max : ℕ) : ℕ :=
   6 * (Nat.clog 2 (max n_max 2) + 2)
 
 theorem seven_le_tableBits (n_max : ℕ) : 7 ≤ tableBits n_max := by
-  unfold tableBits
   have h7 : 7 = Nat.clog 2 128 := by decide
   exact h7 ▸ Nat.clog_mono_right 2 (by omega)
 
-theorem two_le_tableBits (n_max : ℕ) : 2 ≤ tableBits n_max := by
-  have := seven_le_tableBits n_max
-  omega
+theorem two_le_tableBits (n_max : ℕ) : 2 ≤ tableBits n_max :=
+  (by decide : 2 ≤ 7).trans (seven_le_tableBits n_max)
 
-theorem tableBits_pos (n_max : ℕ) : 0 < tableBits n_max := by
-  have := seven_le_tableBits n_max
-  omega
+theorem tableBits_pos (n_max : ℕ) : 0 < tableBits n_max :=
+  (by decide : 0 < 7).trans_le (seven_le_tableBits n_max)
 
 theorem tableBits_le (n_max : ℕ) : tableBits n_max ≤ Nat.clog 2 (max n_max 4) + 5 := by
   unfold tableBits
@@ -105,7 +102,6 @@ theorem tableBits_le (n_max : ℕ) : tableBits n_max ≤ Nat.clog 2 (max n_max 4
 
 theorem thirtyTwo_mul_max_le_tableSize (n_max : ℕ) :
     32 * max n_max 4 ≤ tableSize n_max := by
-  unfold tableSize tableBits
   exact Nat.le_pow_clog (by decide) _
 
 theorem four_mul_max_le_tableSize (n_max : ℕ) :
@@ -118,9 +114,8 @@ theorem four_mul_le_tableSize (n_max : ℕ) : 4 * n_max ≤ tableSize n_max :=
 theorem four_le_tableSize (n_max : ℕ) : 4 ≤ tableSize n_max :=
   le_trans (le_max_right _ _) (four_mul_max_le_tableSize n_max)
 
-theorem tableSize_pos (n_max : ℕ) : 0 < tableSize n_max := by
-  have := four_le_tableSize n_max
-  omega
+theorem tableSize_pos (n_max : ℕ) : 0 < tableSize n_max :=
+  (by decide : 0 < 4).trans_le (four_le_tableSize n_max)
 
 theorem tableSize_le_sixtyFour_mul_max (n_max : ℕ) :
     tableSize n_max ≤ 64 * max n_max 4 := by
@@ -140,9 +135,8 @@ theorem eighteen_le_maxEvictions (n_max : ℕ) : 18 ≤ maxEvictions n_max := by
   have := (by decide : 1 = Nat.clog 2 2) ▸ Nat.clog_mono_right 2 (le_max_right n_max 2)
   omega
 
-theorem maxEvictions_pos (n_max : ℕ) : 0 < maxEvictions n_max := by
-  have := eighteen_le_maxEvictions n_max
-  omega
+theorem maxEvictions_pos (n_max : ℕ) : 0 < maxEvictions n_max :=
+  (by decide : 0 < 18).trans_le (eighteen_le_maxEvictions n_max)
 
 theorem maxEvictions_le_thirtyTwo_mul_max (n_max : ℕ) :
     maxEvictions n_max ≤ 32 * max n_max 4 := by
@@ -222,9 +216,8 @@ theorem not_entryIn_empty {U m : ℕ} (e : SlotEntry U) :
 
 @[simp]
 theorem not_hasKey_empty {U m : ℕ} (k : Fin U) :
-    ¬ HasKey (PureTable.empty U m) k := by
-  rintro ⟨e, h, _⟩
-  exact not_entryIn_empty e h
+    ¬ HasKey (PureTable.empty U m) k :=
+  fun ⟨e, h, _⟩ => not_entryIn_empty e h
 
 /-- Two-probe cuckoo lookup for key `u`: probes `T₁[h₁ u]` first, then `T₂[h₂ u]`. -/
 @[expose]
@@ -327,17 +320,12 @@ theorem putT1_entryIn_none {U m : ℕ} {h₁ : Fin U → Fin m} {tbl : PureTable
   dsimp only [EntryIn, putT1]
   rw [Function.exists_update_iff tbl.t1 (a := h₁ e.key) (b := some e)
     (p := fun _ slot => slot = some d), Option.some.injEq]
-  constructor
-  · rintro ((hd | ⟨i, _, hi⟩) | hi)
-    · exact Or.inr hd.symm
-    · exact Or.inl (Or.inl ⟨i, hi⟩)
-    · exact Or.inl (Or.inr hi)
-  · rintro ((⟨i, hi⟩ | hi) | hd)
-    · have hie : i ≠ h₁ e.key := by
-        intro h; subst h; rw [ht1_none] at hi; cases hi
-      exact Or.inl (Or.inr ⟨i, hie, hi⟩)
-    · exact Or.inr hi
-    · exact Or.inl (Or.inl hd.symm)
+  refine ⟨?_, ?_⟩
+  · rintro ((rfl | ⟨i, _, hi⟩) | hi)
+    exacts [Or.inr rfl, Or.inl (Or.inl ⟨i, hi⟩), Or.inl (Or.inr hi)]
+  · rintro ((⟨i, hi⟩ | hi) | rfl)
+    exacts [Or.inl (Or.inr ⟨i, fun h => by simp [h, ht1_none] at hi, hi⟩),
+      Or.inr hi, Or.inl (Or.inl rfl)]
 
 theorem putT1_some_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     {e e₁ : SlotEntry U} (hwp : WellPlaced h₁ h₂ tbl) (hno : ¬ HasKey tbl e.key)
@@ -356,18 +344,15 @@ theorem putT1_some_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTab
     rw [Function.exists_update_iff tbl.t1 (a := h₁ e.key) (b := some e)
       (p := fun _ slot => slot = some d), Option.some.injEq]
     constructor
-    · rintro (((hd | ⟨i, _, hi⟩) | hi) | hd)
-      · exact Or.inr hd.symm
-      · exact Or.inl (Or.inl ⟨i, hi⟩)
-      · exact Or.inl (Or.inr hi)
-      · subst hd
-        exact Or.inl (Or.inl ⟨h₁ e.key, ht1_some⟩)
-    · rintro ((⟨i, hi⟩ | hi) | hd)
+    · rintro (((rfl | ⟨i, _, hi⟩) | hi) | rfl)
+      exacts [Or.inr rfl, Or.inl (Or.inl ⟨i, hi⟩), Or.inl (Or.inr hi),
+        Or.inl (Or.inl ⟨h₁ e.key, ht1_some⟩)]
+    · rintro ((⟨i, hi⟩ | hi) | rfl)
       · by_cases hie : i = h₁ e.key
-        · subst hie; rw [ht1_some] at hi; exact Or.inr (Option.some.inj hi).symm
+        · exact Or.inr (Option.some.inj ((hie ▸ hi).symm.trans ht1_some))
         · exact Or.inl (Or.inl (Or.inr ⟨i, hie, hi⟩))
       · exact Or.inl (Or.inr hi)
-      · exact Or.inl (Or.inl (Or.inl hd.symm))
+      · exact Or.inl (Or.inl (Or.inl rfl))
 
 /-- Exchange of the two sub-tables. It turns `putT2 h₂` into `putT1 h₂`, so the `putT2` lemmas
 below follow from their `putT1` counterparts. -/
@@ -529,10 +514,8 @@ theorem pureReplay_lookupEntry_of_mem {U m : ℕ} {h₁ h₂ : Fin U → Fin m} 
     {idx : ℕ} (hlt : idx < ks.length) :
     lookupEntry h₁ h₂ tbl ks[idx] = some ⟨ks[idx], idx⟩ := by
   obtain ⟨hwp, hent⟩ := pureReplay_spec hnodup hrep
-  rw [hwp.lookupEntry_eq_some_iff]
-  refine ⟨?_, rfl⟩
-  rw [hent, List.mem_zipIdx_iff_getElem?]
-  simp [hlt]
+  exact (hwp.lookupEntry_eq_some_iff _ _).mpr
+    ⟨(hent _).mpr (List.mem_zipIdx_iff_getElem?.mpr (by simp [hlt])), rfl⟩
 
 theorem pureReplay_lookupEntry_of_notMem {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {ks : List (Fin U)} {tbl : PureTable U m} (hnodup : ks.Nodup)
@@ -540,8 +523,7 @@ theorem pureReplay_lookupEntry_of_notMem {U m : ℕ} {h₁ h₂ : Fin U → Fin 
     {u : Fin U} (hu : u ∉ ks) :
     lookupEntry h₁ h₂ tbl u = none := by
   obtain ⟨hwp, _⟩ := pureReplay_spec hnodup hrep
-  rw [hwp.lookupEntry_eq_none_iff, pureReplay_hasKey_iff hnodup hrep]
-  exact hu
+  rwa [hwp.lookupEntry_eq_none_iff, pureReplay_hasKey_iff hnodup hrep]
 
 /-! ### Section 3: Set-monotone cuckoo goodness, walk bounds, and conditional-uniform invariance -/
 
@@ -592,10 +574,8 @@ noncomputable def cuckooWalkRounds {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (ma
 private theorem bddAbove_cuckooWalkRounds_set {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ)
     (S : Finset (Fin U)) (u : Fin U) :
     BddAbove {r : ℕ | ∃ tbl : PureTable U m, ValidPlacement h₁ h₂ S tbl ∧
-      ∃ idx : ℕ, r = evictRounds h₁ h₂ maxLoop tbl ⟨u, idx⟩} := by
-  refine ⟨maxLoop, ?_⟩
-  rintro r ⟨tbl, _, idx, rfl⟩
-  exact evictRounds_le h₁ h₂ maxLoop tbl ⟨u, idx⟩
+      ∃ idx : ℕ, r = evictRounds h₁ h₂ maxLoop tbl ⟨u, idx⟩} :=
+  ⟨maxLoop, fun _ ⟨tbl, _, idx, h⟩ => h ▸ evictRounds_le h₁ h₂ maxLoop tbl ⟨u, idx⟩⟩
 
 theorem evictRounds_le_cuckooWalkRounds {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {S : Finset (Fin U)} {tbl : PureTable U m} (hvp : ValidPlacement h₁ h₂ S tbl)
@@ -608,11 +588,8 @@ it ranges over (the supremum of the empty set is `0`). -/
 private theorem cuckooWalkRounds_le_of_forall {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {S : Finset (Fin U)} {u : Fin U} {B : ℕ}
     (h : ∀ tbl, ValidPlacement h₁ h₂ S tbl → ∀ idx, evictRounds h₁ h₂ maxLoop tbl ⟨u, idx⟩ ≤ B) :
-    cuckooWalkRounds h₁ h₂ maxLoop S u ≤ B := by
-  unfold cuckooWalkRounds
-  refine csSup_le' ?_
-  rintro r ⟨tbl, hvp, idx, rfl⟩
-  exact h tbl hvp idx
+    cuckooWalkRounds h₁ h₂ maxLoop S u ≤ B :=
+  csSup_le' fun _ ⟨tbl, hvp, idx, hr⟩ => hr ▸ h tbl hvp idx
 
 theorem cuckooWalkRounds_le_maxLoop {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ)
     (S : Finset (Fin U)) (u : Fin U) :
@@ -628,11 +605,9 @@ theorem t2_eq_none_of_validPlacement_card_le_one {U m : ℕ} {h₁ h₂ : Fin U 
   cases ht2 : tbl.t2 i₂ with
   | none => rfl
   | some e₂ =>
-    exfalso
-    have he1 : e₁.key ∈ S := hvp.2 e₁.key ⟨e₁, Or.inl ⟨i₁, ht1⟩, rfl⟩
-    have he2 : e₂.key ∈ S := hvp.2 e₂.key ⟨e₂, Or.inr ⟨i₂, ht2⟩, rfl⟩
-    have heq : e₁.key = e₂.key := Finset.card_le_one_iff.mp hcard he1 he2
-    exact hvp.1.disjoint_keys i₁ i₂ e₁ e₂ ht1 ht2 heq
+    exact absurd (Finset.card_le_one_iff.mp hcard
+      (hvp.2 e₁.key ⟨e₁, Or.inl ⟨i₁, ht1⟩, rfl⟩) (hvp.2 e₂.key ⟨e₂, Or.inr ⟨i₂, ht2⟩, rfl⟩))
+      (hvp.1.disjoint_keys i₁ i₂ e₁ e₂ ht1 ht2)
 
 /-- In any valid placement of a key set `S` of cardinality at most `1`, a single two-table
 displacement round `pureEvictRound` always terminates without displacing an entry from `T₂`. -/
@@ -692,10 +667,7 @@ theorem survivingSeeds_append_subset {Θ : Type*} [Fintype Θ] {U m : ℕ}
     survivingSeeds h₁ h₂ maxLoop (ks ++ [u]) ⊆ survivingSeeds h₁ h₂ maxLoop ks := by
   intro θ hθ
   rw [mem_survivingSeeds, pureReplay_append_singleton] at hθ
-  rw [mem_survivingSeeds]
-  cases h : pureReplay (h₁ θ) (h₂ θ) maxLoop ks with
-  | none => simp [h] at hθ
-  | some _ => rfl
+  cases h : pureReplay (h₁ θ) (h₂ θ) maxLoop ks <;> simp_all [mem_survivingSeeds]
 
 theorem mem_survivingSeeds_of_goodForSet {Θ : Type*} [Fintype Θ] {U m : ℕ}
     {h₁ h₂ : Θ → Fin U → Fin m} {maxLoop : ℕ} {ks : List (Fin U)} {S : Finset (Fin U)} {θ : Θ}
@@ -714,8 +686,7 @@ theorem pureReplay_isSome_of_length_le_one {U m : ℕ} (h₁ h₂ : Fin U → Fi
   · simp
   · obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hloop.ne'
     simp [pureReplay, pureEvict, pureEvictRound, putT1, PureTable.empty]
-  · simp only [List.length_cons] at hlen
-    omega
+  · simp at hlen
 
 /-- When `ks` has length at most `2` and `0 < maxLoop`, `pureReplay` succeeds for every hash pair
 `(h₁, h₂)` in at most `1` displacement round per key: the first key lands in `T₁`, and even if the
@@ -737,7 +708,6 @@ theorem pureReplay_isSome_of_length_le_two {U m : ℕ} (h₁ h₂ : Fin U → Fi
     rw [pureReplay_append_singleton, htbl₁, Option.bind_some, List.length_singleton, pureEvict,
       ← Prod.mk.eta (p := pureEvictRound h₁ h₂ tbl₁ ⟨v, 1⟩), hround]
     rfl
-  · simp only [List.length_cons] at hlen
-    omega
+  · simp at hlen
 
 end Cslib.DataStructure.Dictionary.CuckooHashing

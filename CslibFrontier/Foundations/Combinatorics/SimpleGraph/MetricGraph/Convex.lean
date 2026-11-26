@@ -103,12 +103,10 @@ theorem isConvex_compl_branch (hT : W.graph.IsTree) (y q : MetricGraph W) :
   intro a b ha hb z hz hz_mem
   rw [Set.mem_compl_iff, ← branch_eq_of_mem hT hz_mem] at ha hb
   simp only [branch, Set.mem_ofPred_eq, Classical.not_not] at ha hb
-  have h1 := mem_interval_iff.mp hz
-  have h2 := mem_interval_iff.mp ha
-  have h3 := mem_interval_iff.mp hb
   have hd : Dist.dist y z = 0 := by
-    linarith [_root_.dist_triangle a y b, _root_.dist_comm a y, _root_.dist_comm a z,
-      _root_.dist_comm y z, _root_.dist_comm y a, _root_.dist_comm y b, _root_.dist_comm z b,
+    linarith [mem_interval_iff.mp hz, mem_interval_iff.mp ha, mem_interval_iff.mp hb,
+      _root_.dist_triangle a y b, _root_.dist_comm a y, _root_.dist_comm a z,
+      _root_.dist_comm y z, _root_.dist_comm y b, _root_.dist_comm z b,
       _root_.dist_nonneg (x := y) (y := z)]
   exact notMem_branch_self y q ((_root_.dist_eq_zero.mp hd).symm ▸ hz_mem)
 
@@ -136,8 +134,7 @@ theorem helly_theorem (hT : W.graph.IsTree) {ι : Type*} {K : ι → Set (Metric
     have h₀ : i₀ ∈ insert i₀ s := Finset.mem_insert_self i₀ s
     have hs' : ∀ {i}, i ∈ s → i ∈ insert i₀ s := Finset.mem_insert_of_mem
     rcases s.eq_empty_or_nonempty with rfl | hsne
-    · obtain ⟨z, hz, -⟩ := hpair i₀ h₀ i₀ h₀
-      exact ⟨z, by simpa using hz⟩
+    · exact (hpair i₀ h₀ i₀ h₀).imp fun _ hz => by simpa using hz.1
     obtain ⟨z, hz⟩ := ih (K := fun i => K i ∩ K i₀) hsne
       (fun i hi => (hconv i (hs' hi)).inter (hconv i₀ h₀))
       (fun i hi j hj => by
@@ -145,12 +142,10 @@ theorem helly_theorem (hT : W.graph.IsTree) {ι : Type*} {K : ι → Set (Metric
           (hconv j (hs' hj)) (hconv i₀ h₀) (hpair i (hs' hi) j (hs' hj))
           (hpair j (hs' hj) i₀ h₀) (hpair i₀ h₀ i (hs' hi))
         exact ⟨z, ⟨hzi, hz₀⟩, hzj, hz₀⟩)
-    simp only [Set.mem_iInter] at hz
+    simp only [Set.mem_iInter, Set.mem_inter_iff] at hz
     obtain ⟨i₁, hi₁⟩ := hsne
-    refine ⟨z, Set.mem_iInter₂.mpr fun i hi => ?_⟩
-    rcases Finset.mem_insert.mp hi with rfl | hi
-    · exact (hz i₁ hi₁).2
-    · exact (hz i hi).1
+    exact ⟨z, Set.mem_iInter₂.mpr
+      ((Finset.forall_mem_insert i₀ s _).mpr ⟨(hz i₁ hi₁).2, fun i hi => (hz i hi).1⟩)⟩
 
 end IsConvex
 
@@ -170,8 +165,7 @@ noncomputable def gate (K : Set (MetricGraph W)) (y : MetricGraph W) : MetricGra
 theorem gate_eq_of_forall_mem_interval {K : Set (MetricGraph W)} {y p : MetricGraph W}
     (hp : p ∈ K) (h : ∀ z ∈ K, p ∈ interval y z) : gate K y = p := by
   have hex : ∃ p ∈ K, ∀ z ∈ K, p ∈ interval y z := ⟨p, hp, h⟩
-  unfold gate
-  rw [dite_eq_left hex]
+  rw [gate, dite_eq_left hex]
   obtain ⟨hq, hqz⟩ := hex.choose_spec
   exact _root_.dist_eq_zero.mp (by
     linarith [mem_interval_iff.mp (hqz p hp), mem_interval_iff.mp (h _ hq),
@@ -329,12 +323,10 @@ private lemma fst_mem_of_edgePoint_mem_subtree (hT : W.graph.IsTree) {S : Finset
   have hpos : 0 < edgeProj hT d₀ (edgePoint d t) := by
     by_cases he : d.edge = d₀.edge
     · rcases (dart_edge_eq_iff d d₀).mp he with rfl | hsym
-      · rw [edgeProj_edgePoint_self]
-        exact mul_pos ht0 (W.dart_weight_pos d)
-      · rw [hsym, edgeProj_edgePoint_symm]
-        exact mul_pos (sub_pos.mpr ht1) (W.dart_weight_pos d₀)
-    · rw [edgeProj_edgePoint_of_edge_ne hT he, hd₀]
-      exact W.dart_weight_pos d₀
+      · simpa only [edgeProj_edgePoint_self] using mul_pos ht0 (W.dart_weight_pos d)
+      · simpa only [hsym, edgeProj_edgePoint_symm] using
+          mul_pos (sub_pos.mpr ht1) (W.dart_weight_pos d₀)
+    · simpa only [edgeProj_edgePoint_of_edge_ne hT he, hd₀] using W.dart_weight_pos d₀
   exact hpos.ne' (edgeProj_eq_zero_of_mem_interval hT (hd₀S u₁ hu₁) (hd₀S u₂ hu₂) hz)
 
 theorem edgePoint_mem_subtree_iff (hT : W.graph.IsTree) {S : Finset V}
@@ -370,11 +362,9 @@ theorem IsSubtreeVertexSet.exists_subtree_eq_interval (hT : W.graph.IsTree) {S :
     intro a' b' q hq hqL hb' u' hu'S hu'q hadj
     have hq' : (Walk.cons hadj q).IsPath := Walk.IsPath.cons hq hu'q
     have hbd : L + 2 ≤ S.card := by
-      have hsub : (Walk.cons hadj q).support.toFinset ⊆ S := fun w hw =>
-        hS.mem_of_mem_support hu'S hb' hq' (List.mem_toFinset.mp hw)
-      have hc := Finset.card_le_card hsub
-      rwa [List.toFinset_card_of_nodup hq'.support_nodup, Walk.length_support, Walk.length_cons,
-        hqL] at hc
+      simpa only [List.toFinset_card_of_nodup hq'.support_nodup, Walk.length_support,
+        Walk.length_cons, hqL] using Finset.card_le_card (t := S) fun w hw =>
+          hS.mem_of_mem_support hu'S hb' hq' (List.mem_toFinset.mp hw)
     exact absurd (Finset.le_max' lengths (L + 1) (Finset.mem_filter.mpr
       ⟨Finset.mem_range.mpr (by omega), u', hu'S, b', hb', _, hq', by simp [hqL]⟩)) (by omega)
   have hall_mem : ∀ u ∈ S, u ∈ p.support := by
@@ -402,22 +392,15 @@ theorem IsSubtreeVertexSet.exists_subtree_eq_interval (hT : W.graph.IsTree) {S :
     have hv'_S : v' ∈ S := hp_in_S v' hv'p
     let p₁ := p.takeUntil v' hv'p
     let p₂ := p.dropUntil v' hv'p
-    have hp1_rev_ne : ¬ p₁.reverse.Nil := Walk.not_nil_of_ne hva
-    have hp2_ne : ¬ p₂.Nil := Walk.not_nil_of_ne hvb
-    let d₁ := p₁.reverse.firstDart hp1_rev_ne
-    let d₂ := p₂.firstDart hp2_ne
+    let d₁ := p₁.reverse.firstDart (Walk.not_nil_of_ne hva)
+    let d₂ := p₂.firstDart (Walk.not_nil_of_ne hvb)
     have hp_spec : p₁.append p₂ = p := Walk.take_spec p hv'p
-    have hd₁ : d₁ ∈ p₁.reverse.darts := Walk.firstDart_mem_darts hp1_rev_ne
-    have hd₂ : d₂ ∈ p₂.darts := Walk.firstDart_mem_darts hp2_ne
-    have h1_mem : d₁.snd ∈ p.support := by
-      have hd1_supp := p₁.reverse.dart_snd_mem_support_of_mem_darts hd₁
-      rw [Walk.support_reverse, List.mem_reverse] at hd1_supp
-      rw [← hp_spec]
-      exact Walk.support_subset_support_append_left _ _ hd1_supp
-    have h2_mem : d₂.snd ∈ p.support := by
-      rw [← hp_spec]
-      exact Walk.support_subset_support_append_right _ _
-        (p₂.dart_snd_mem_support_of_mem_darts hd₂)
+    have hd₁ : d₁ ∈ p₁.reverse.darts := Walk.firstDart_mem_darts _
+    have hd₂ : d₂ ∈ p₂.darts := Walk.firstDart_mem_darts _
+    have h1_mem : d₁.snd ∈ p.support := hp_spec ▸ Walk.support_subset_support_append_left _ _
+      (by simpa [Walk.support_reverse] using p₁.reverse.dart_snd_mem_support_of_mem_darts hd₁)
+    have h2_mem : d₂.snd ∈ p.support := hp_spec ▸ Walk.support_subset_support_append_right _ _
+      (p₂.dart_snd_mem_support_of_mem_darts hd₂)
     have h1_ne_u : d₁.snd ≠ u' := fun heq => hu'not (heq ▸ h1_mem)
     have h2_ne_u : d₂.snd ≠ u' := fun heq => hu'not (heq ▸ h2_mem)
     have h1_ne_2 : d₁.snd ≠ d₂.snd := fun heq => by
@@ -467,14 +450,11 @@ theorem exists_adj_mem_branch_of_mem_subtree (hT : W.graph.IsTree) {S : Finset V
   have hd_S := (edgePoint_mem_subtree_iff hT hS ht0 ht1).mp hp_S
   have hadj : W.graph.Adj c d.snd := hd_fst ▸ d.adj
   have hp_br : edgePoint d t ∈ branch (vertex c) (vertex d.snd) := by
-    rw [mem_branch_vertex_iff_edgeProj_pos hT hadj]
-    have hd_eq : (⟨(c, d.snd), hadj⟩ : W.graph.Dart) = d := by
-      ext <;> simp [hd_fst]
-    rw [hd_eq, edgeProj_edgePoint_self]
-    exact mul_pos ht0 (W.dart_weight_pos d)
-  have hp_ne : edgePoint d t ≠ vertex c := fun heq => by
-    rw [heq, _root_.dist_self] at hp_dist
-    linarith
+    have hd_eq : (⟨(c, d.snd), hadj⟩ : W.graph.Dart) = d := by ext <;> simp [hd_fst]
+    simpa only [mem_branch_vertex_iff_edgeProj_pos hT hadj, hd_eq, edgeProj_edgePoint_self] using
+      mul_pos ht0 (W.dart_weight_pos d)
+  have hp_ne : edgePoint d t ≠ vertex c := fun heq =>
+    hr_pos.ne' (by simpa only [heq, _root_.dist_self] using hp_dist.symm)
   have hp_bry : edgePoint d t ∈ branch (vertex c) y :=
     mem_branch_of_mem_interval hT (mem_branch_self hy_ne) hp_mem hp_ne
   refine ⟨d.snd, hd_S.2, hadj, ?_⟩
@@ -525,8 +505,7 @@ theorem IsSubtreeVertexSet.removeBranch (hT : W.graph.IsTree) {S : Finset V}
     congrArg Subtype.val ((hT.isAcyclic.subsingleton_path u v).elim ⟨p, hp⟩
       ⟨_, hq.map fun _ _ h => h⟩)
   have hx' : x ∈ q.support := by simpa [hpq, Walk.support_map] using hx
-  have hrx : (W.graph.deleteEdges {s(c, w)}).Reachable x u := ⟨(q.takeUntil x hx').reverse⟩
-  exact hrx.trans hu.2
+  exact Reachable.trans ⟨(q.takeUntil x hx').reverse⟩ hu.2
 
 theorem card_removeBranch_lt (hT : W.graph.IsTree) {S : Finset V}
     {c w : V} (hw : w ∈ S) (hadj : W.graph.Adj c w) :

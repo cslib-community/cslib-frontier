@@ -323,11 +323,9 @@ theorem numRelabels_add_sum_le {σ : State N} {os : List (Op V)} (hos : σ.IsRun
         have hlt : ∑ v, σ.height v < ∑ v, (σ.apply (.relabel u)).height v :=
           Finset.sum_lt_sum (fun x _ => le_height_apply hos.1 x)
             ⟨u, Finset.mem_univ _, by
-              change σ.height u < σ.flow.relabel σ.height u u
-              rw [relabel_self]
-              exact CanRelabel.lt_relabelHeight hos.1⟩
-        rw [ite_eq_left (show (Op.relabel u : Op V).IsRelabel from trivial)]
-        omega
+              simpa only [apply_relabel_height, relabel_self] using
+                CanRelabel.lt_relabelHeight hos.1⟩
+        simp only [Op.IsRelabel, ↓reduceIte]; omega
     rw [numRelabels_cons, run_cons]
     omega
 
@@ -336,14 +334,12 @@ theorem sum_height_le {σ : State N} (hσ : σ.Inv) :
     ∑ v, σ.height v ≤ Fintype.card V + (Fintype.card V - 2) * (2 * Fintype.card V - 1) := by
   classical
   have hst := hσ.valid.source_ne_sink
-  have hs : N.s ∈ (Finset.univ : Finset V) := Finset.mem_univ _
-  have ht : N.t ∈ (Finset.univ.erase N.s : Finset V) :=
-    Finset.mem_erase.mpr ⟨hst.symm, Finset.mem_univ _⟩
-  rw [← Finset.add_sum_erase _ _ hs, ← Finset.add_sum_erase _ _ ht, hσ.valid.source,
-    hσ.valid.sink]
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ N.s),
+    ← Finset.add_sum_erase _ _ (Finset.mem_erase.mpr ⟨hst.symm, Finset.mem_univ N.t⟩),
+    hσ.valid.source, hσ.valid.sink]
   have hcard : ((Finset.univ.erase N.s).erase N.t).card = Fintype.card V - 2 := by grind
   have := Finset.sum_le_card_nsmul ((Finset.univ.erase N.s).erase N.t) (fun v => σ.height v)
-    (2 * Fintype.card V - 1) (fun v _ => hσ.height_le v)
+    (2 * Fintype.card V - 1) fun v _ => hσ.height_le v
   rw [hcard, Nat.nsmul_eq_mul] at this
   omega
 
@@ -375,25 +371,20 @@ theorem PairInv.apply {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c)
       have hr := σ.flow.resCap_push_self huv
       have hc2 := hc.2 hp.resCap_pos
       have heq := hp.height_eq
-      by_cases hsat : σ.IsSatPush (.push u v)
-      · have hsat' : σ.flow.pushAmount u v = σ.flow.resCap u v := hsat
-        rw [ite_eq_left ⟨rfl, hsat⟩]
+      by_cases hsat : σ.flow.pushAmount u v = σ.flow.resCap u v
+      · rw [ite_eq_left ⟨rfl, hsat⟩]
         exact ⟨fun _ => by omega, fun _ => by omega⟩
-      · have hsat' : σ.flow.pushAmount u v ≠ σ.flow.resCap u v := hsat
-        rw [ite_eq_right fun h => hsat h.2, Nat.add_zero]
+      · rw [ite_eq_right fun h => hsat h.2, Nat.add_zero]
         exact ⟨fun _ => by omega, fun _ => hc2⟩
-    · rw [ite_eq_right (fun ⟨h, _⟩ => hab (Op.push.inj h)), Nat.add_zero]
+    · rw [ite_eq_right fun ⟨h, _⟩ => hab (Op.push.inj h), Nat.add_zero]
       by_cases hba : u = b ∧ v = a
       · obtain ⟨rfl, rfl⟩ := hba
         have hr := σ.flow.resCap_push_swap huv
         have heq := hp.height_eq
-        refine ⟨fun h0 => by omega, fun _ => ?_⟩
-        rcases Nat.eq_zero_or_pos (σ.flow.resCap v u) with h0 | h0
-        · have := hc.1 h0; omega
-        · have := hc.2 h0; omega
-      · have hr := σ.flow.resCap_push_of_ne (u := u) (v := v) (x := a) (y := b)
-          (fun h => hab ⟨h.1.symm, h.2.symm⟩) (fun h => hba ⟨h.2.symm, h.1.symm⟩)
-        rwa [hr]
+        have ⟨hc1, hc2⟩ := hc
+        exact ⟨fun _ => by omega, fun _ => by omega⟩
+      · rwa [σ.flow.resCap_push_of_ne (fun h => hab ⟨h.1.symm, h.2.symm⟩)
+          (fun h => hba ⟨h.2.symm, h.1.symm⟩)]
 
 theorem PairInv.run {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c) {os : List (Op V)}
     (hos : σ.IsRun os) : (σ.run os).PairInv a b (c + σ.numSatPushesAt a b os) := by
@@ -406,15 +397,11 @@ theorem PairInv.run {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c) {
 /-- At most `|V|` saturating pushes from `a` to `b` ([CLRS2009], proof of Lemma 26.22). -/
 theorem numSatPushesAt_le {σ : State N} (hσ : σ.Inv) {os : List (Op V)} (hos : σ.IsRun os)
     (a b : V) : σ.numSatPushesAt a b os ≤ Fintype.card V := by
-  have h0 : σ.PairInv a b 0 := ⟨fun _ => Nat.zero_le _, fun _ => Nat.zero_le _⟩
-  have hrun := h0.run hos
-  rw [Nat.zero_add] at hrun
-  have hinv := hσ.run hos
-  have ha := hinv.height_le a
-  have hb := hinv.height_le b
-  rcases Nat.eq_zero_or_pos ((σ.run os).flow.resCap a b) with h | h
-  · have := hrun.1 h; omega
-  · have := hrun.2 h; omega
+  obtain ⟨h1, h2⟩ := PairInv.run (σ := σ) (a := a) (b := b) (c := 0)
+    ⟨fun _ => Nat.zero_le _, fun _ => Nat.zero_le _⟩ hos
+  have ha := (hσ.run hos).height_le a
+  have hb := (hσ.run hos).height_le b
+  omega
 
 theorem numSatPushes_eq_sum (σ : State N) (os : List (Op V)) :
     σ.numSatPushes os = ∑ e : V × V, σ.numSatPushesAt e.1 e.2 os := by
@@ -422,8 +409,7 @@ theorem numSatPushes_eq_sum (σ : State N) (os : List (Op V)) :
   | nil => simp [numSatPushes, numSatPushesAt, countOps]
   | cons o os ih =>
     rw [numSatPushes_cons, ih]
-    simp only [numSatPushesAt_cons]
-    rw [Finset.sum_add_distrib]
+    simp only [numSatPushesAt_cons, Finset.sum_add_distrib]
     congr 1
     cases o with
     | relabel u => simp [IsSatPush]
@@ -431,9 +417,7 @@ theorem numSatPushes_eq_sum (σ : State N) (os : List (Op V)) :
       rw [Finset.sum_eq_single (u, v)]
       · simp
       · rintro ⟨a, b⟩ _ he
-        refine ite_eq_right fun ⟨h, _⟩ => he ?_
-        cases h
-        rfl
+        exact ite_eq_right fun ⟨h, _⟩ => he (by rw [(Op.push.inj h).1, (Op.push.inj h).2])
       · exact fun h => absurd (Finset.mem_univ _) h
 
 theorem numSatPushesAt_eq_zero {a b : V} (hab : (a, b) ∉ N.symArcs) (σ : State N)
@@ -444,11 +428,9 @@ theorem numSatPushesAt_eq_zero {a b : V} (hab : (a, b) ∉ N.symArcs) (σ : Stat
     rw [numSatPushesAt_cons, ih _ hos.2, Nat.add_zero, ite_eq_right]
     rintro ⟨rfl, _⟩
     have hp : σ.flow.CanPush σ.height a b := hos.1
-    apply hab
     have hle := σ.flow.resCap_le_cap_add_cap a b
     have := hp.resCap_pos
-    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨hp.ne, by omega⟩
+    exact hab (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hp.ne, by dsimp; omega⟩)
 
 theorem numSatPushes_le_of_inv {σ : State N} (hσ : σ.Inv) {os : List (Op V)} (hos : σ.IsRun os) :
     σ.numSatPushes os ≤ Fintype.card V * N.symArcs.card := by
@@ -480,25 +462,21 @@ theorem potential_apply_le {σ : State N} (hσ : σ.Inv) {o : Op V} (ho : σ.Adm
         (2 * Fintype.card V - 1) * (if σ.IsSatPush o then 1 else 0) := by
   cases o with
   | relabel u =>
-    have hns : ¬ ((Op.relabel u : Op V).IsPush ∧ ¬ σ.IsSatPush (.relabel u)) := fun h => h.1
-    have hs : ¬ σ.IsSatPush (.relabel u) := id
-    rw [ite_eq_right hns, ite_eq_right hs, Nat.mul_zero, Nat.add_zero, Nat.add_zero]
-    have hpt : ∀ x, (if (σ.apply (.relabel u)).flow.IsActive x then
+    simp only [Op.IsPush, IsSatPush, false_and, ↓reduceIte, Nat.mul_zero, Nat.add_zero]
+    have hpt (x : V) : (if (σ.apply (.relabel u)).flow.IsActive x then
         (σ.apply (.relabel u)).height x else 0) + σ.height x ≤
         (if σ.flow.IsActive x then σ.height x else 0) + (σ.apply (.relabel u)).height x := by
-      intro x
       have := le_height_apply ho x
       rw [apply_relabel_flow]
       split_ifs <;> omega
-    have := Finset.sum_le_sum fun x (_ : x ∈ Finset.univ) => hpt x
-    rwa [Finset.sum_add_distrib, Finset.sum_add_distrib] at this
+    simpa only [potential, Finset.sum_add_distrib] using
+      Finset.sum_le_sum fun x (_ : x ∈ Finset.univ) => hpt x
   | push u v =>
     have hp : σ.flow.CanPush σ.height u v := ho
     have huv := hp.ne
     have hδ := σ.flow.pushAmount_le_resCap u v
     have hδpos := hp.pushAmount_pos
     have hdec := sum_split_two huv
-    have hpu : (Op.push u v : Op V).IsPush := trivial
     change (∑ x, if (σ.flow.push u v).IsActive x then σ.height x else 0) + ∑ v, σ.height v +
         (if (Op.push u v : Op V).IsPush ∧ ¬ σ.IsSatPush (.push u v) then 1 else 0) ≤
       (∑ x, if σ.flow.IsActive x then σ.height x else 0) + ∑ v, σ.height v +
@@ -507,33 +485,27 @@ theorem potential_apply_le {σ : State N} (hσ : σ.Inv) {o : Op V} (ho : σ.Adm
       hdec (fun x => if σ.flow.IsActive x then σ.height x else 0)]
     have hrest : ∑ x ∈ (Finset.univ.erase u).erase v,
         (if (σ.flow.push u v).IsActive x then σ.height x else 0) =
-        ∑ x ∈ (Finset.univ.erase u).erase v, (if σ.flow.IsActive x then σ.height x else 0) := by
-      refine Finset.sum_congr rfl fun x hx => ?_
-      have hxv := Finset.ne_of_mem_erase hx
-      have hxu := Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hx)
-      simp only [isActive_push_of_ne σ.flow hxu hxv]
-    have hu_act : σ.flow.IsActive u := hp.active
+        ∑ x ∈ (Finset.univ.erase u).erase v, (if σ.flow.IsActive x then σ.height x else 0) :=
+      Finset.sum_congr rfl fun x hx => by
+        simp only [isActive_push_of_ne σ.flow (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hx))
+          (Finset.ne_of_mem_erase hx)]
     have hex := σ.flow.excess_push_self huv
-    have hTu : (if (σ.flow.push u v).IsActive u then σ.height u else 0) ≤ σ.height u := by
-      split_ifs <;> omega
     have hTv : (if (σ.flow.push u v).IsActive v then σ.height v else 0) ≤ σ.height v := by
       split_ifs <;> omega
-    rw [ite_eq_left hu_act]
+    rw [ite_eq_left hp.active]
     by_cases hsat : σ.IsSatPush (.push u v)
-    · have hns : ¬ ((Op.push u v : Op V).IsPush ∧ ¬ σ.IsSatPush (.push u v)) := fun h => h.2 hsat
-      rw [ite_eq_right hns, ite_eq_left hsat, Nat.mul_one, Nat.add_zero]
+    · simp only [hsat, not_true_eq_false, and_false, ↓reduceIte, Nat.mul_one, Nat.add_zero]
+      have hTu : (if (σ.flow.push u v).IsActive u then σ.height u else 0) ≤ σ.height u := by
+        split_ifs <;> omega
       have hv_le := hσ.height_le v
-      have : 0 ≤ (if σ.flow.IsActive v then σ.height v else 0) := Nat.zero_le _
       omega
-    · have hns : (Op.push u v : Op V).IsPush ∧ ¬ σ.IsSatPush (.push u v) := ⟨hpu, hsat⟩
-      rw [ite_eq_left hns, ite_eq_right hsat, Nat.mul_zero, Nat.add_zero]
-      have hsat' : σ.flow.pushAmount u v ≠ σ.flow.resCap u v := hsat
+    · simp only [Op.IsPush, hsat, not_false_eq_true, and_self, ↓reduceIte, Nat.mul_zero,
+        Nat.add_zero]
       -- a nonsaturating push moves the whole excess of `u`
-      have hamt : (σ.flow.pushAmount u v : ℤ) = σ.flow.excess u := by grind [pushAmount]
+      have hamt : (σ.flow.pushAmount u v : ℤ) = σ.flow.excess u := by grind [pushAmount, IsSatPush]
       have hTu0 : ¬ (σ.flow.push u v).IsActive u := fun h => by have := h.2.2; omega
-      rw [ite_eq_right hTu0]
       have heq := hp.height_eq
-      have : 0 ≤ (if σ.flow.IsActive v then σ.height v else 0) := Nat.zero_le _
+      rw [ite_eq_right hTu0]
       omega
 
 theorem numNonsatPushes_add_le {σ : State N} (hσ : σ.Inv) {os : List (Op V)} (hos : σ.IsRun os) :
@@ -557,29 +529,23 @@ open State
 theorem inv_init (hst : N.s ≠ N.t) : (init N).Inv := by
   refine ⟨isValidLabeling_initial hst, fun v => ?_⟩
   have hpos : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
-  change Preflow.initialHeight N v ≤ _
-  unfold Preflow.initialHeight
+  dsimp only [init, Preflow.initialHeight]
   split_ifs <;> omega
 
 theorem sum_height_init : ∑ v, (init N).height v = Fintype.card V := by
-  change ∑ v, Preflow.initialHeight N v = _
-  unfold Preflow.initialHeight
+  dsimp only [init, Preflow.initialHeight]
   rw [Finset.sum_ite_eq' Finset.univ N.s, ite_eq_left (Finset.mem_univ _)]
 
 theorem potential_init : (init N).potential = 0 := by
-  refine Finset.sum_eq_zero fun x _ => ?_
-  change (if (Preflow.initial N).IsActive x then Preflow.initialHeight N x else 0) = 0
-  split_ifs with hx
-  · simp [Preflow.initialHeight, hx.1]
-  · rfl
+  refine Finset.sum_eq_zero fun x _ => ite_eq_right_iff.mpr fun hx => ?_
+  simp [init, Preflow.initialHeight, hx.1]
 
 /-- **Relabel bound** ([CLRS2009], Corollary 26.21): a run from the initial state performs at most
 `(|V| - 2)(2|V| - 1)` relabels. -/
 theorem numRelabels_le (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).IsRun os) :
     (init N).numRelabels os ≤ (Fintype.card V - 2) * (2 * Fintype.card V - 1) := by
-  have h1 := numRelabels_add_sum_le hos
+  have h1 := sum_height_init (N := N) ▸ numRelabels_add_sum_le hos
   have h2 := sum_height_le ((inv_init hst).run hos)
-  rw [sum_height_init] at h1
   omega
 
 /-- **Relabel bound**, [CLRS2009]'s form (Corollary 26.21): fewer than `2|V|²` relabels. -/
@@ -604,21 +570,18 @@ theorem numSatPushes_le (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).I
 pushes, where `E = N.posArcs`. The source states `<`; the non-strict form also covers `E = ∅`. -/
 theorem numSatPushes_le_posArcs (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).IsRun os) :
     (init N).numSatPushes os ≤ 2 * Fintype.card V * N.posArcs.card := by
-  have h := numSatPushes_le hst hos
-  have h2 := Nat.mul_le_mul_left (Fintype.card V) N.card_symArcs_le_two_mul_posArcs
-  rw [Nat.mul_left_comm, ← Nat.mul_assoc] at h2
-  omega
+  exact (numSatPushes_le hst hos).trans
+    ((Nat.mul_le_mul_left _ N.card_symArcs_le_two_mul_posArcs).trans_eq (by ring))
 
 /-- **Nonsaturating-push bound** ([CLRS2009], Lemma 26.23): a run from the initial state performs at
 most `(|V| - 2)(2|V| - 1) + (2|V| - 1) |V| |N.symArcs|` nonsaturating pushes. -/
 theorem numNonsatPushes_le (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).IsRun os) :
     (init N).numNonsatPushes os ≤ (Fintype.card V - 2) * (2 * Fintype.card V - 1) +
       (2 * Fintype.card V - 1) * (Fintype.card V * N.symArcs.card) := by
-  have h0 := inv_init (N := N) hst
-  have h1 := numNonsatPushes_add_le h0 hos
-  have h2 := sum_height_le (h0.run hos)
+  have h1 := potential_init (N := N) ▸ sum_height_init (N := N) ▸
+    numNonsatPushes_add_le (inv_init hst) hos
+  have h2 := sum_height_le ((inv_init hst).run hos)
   have h3 := Nat.mul_le_mul_left (2 * Fintype.card V - 1) (numSatPushes_le hst hos)
-  rw [potential_init, sum_height_init] at h1
   omega
 
 /-- **Nonsaturating-push bound**, [CLRS2009]'s form (Lemma 26.23): fewer than `4|V|²(|V| + |E|)`
@@ -628,14 +591,11 @@ theorem numNonsatPushes_lt_posArcs (hst : N.s ≠ N.t) {os : List (Op V)}
     (init N).numNonsatPushes os < 4 * Fintype.card V ^ 2 * (Fintype.card V + N.posArcs.card) := by
   have h := numNonsatPushes_le hst hos
   have hpos : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
-  have h1 : (Fintype.card V - 2) * (2 * Fintype.card V - 1) <
-      4 * Fintype.card V ^ 2 * Fintype.card V := by
-    have := (Nat.mul_le_mul (n₁ := Fintype.card V - 2) (n₂ := Fintype.card V)
-      (m₁ := 2 * Fintype.card V - 1) (m₂ := 2 * Fintype.card V) (by omega) (by omega)).trans_eq
-      (by ring : Fintype.card V * (2 * Fintype.card V) = 2 * Fintype.card V ^ 2)
-    have := Nat.le_mul_of_pos_right (4 * Fintype.card V ^ 2) hpos
-    have := Nat.pow_pos (n := 2) hpos
-    omega
+  have h1 : (Fintype.card V - 2) * (2 * Fintype.card V - 1) ≤ 2 * Fintype.card V ^ 2 :=
+    (Nat.mul_le_mul (n₂ := Fintype.card V) (m₂ := 2 * Fintype.card V)
+      (by omega) (by omega)).trans_eq (by ring)
+  have := Nat.le_mul_of_pos_right (4 * Fintype.card V ^ 2) hpos
+  have := Nat.pow_pos (n := 2) hpos
   have h2 : (2 * Fintype.card V - 1) * (Fintype.card V * N.symArcs.card) ≤
       4 * Fintype.card V ^ 2 * N.posArcs.card :=
     (Nat.mul_le_mul (n₂ := 2 * Fintype.card V) (by omega)
@@ -679,8 +639,7 @@ theorem length_le (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).IsRun o
       N.symArcs.card ≤ 2 * Fintype.card V * (Fintype.card V * N.symArcs.card) := by
     have hn : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
     rw [← Nat.succ_mul]
-    refine Nat.mul_le_mul_right _ ?_
-    omega
+    exact Nat.mul_le_mul_right _ (by omega)
   omega
 
 /-- **Correctness of every run** ([CLRS2009], Lemma 26.14 and Theorem 26.18): if a run of the
@@ -717,9 +676,7 @@ theorem not_isActive_of_selectOp_eq_none {vs : List V} {σ : State N} (h : σ.se
     {u : V} (hu : u ∈ vs) : ¬ σ.flow.IsActive u := by
   unfold selectOp at h
   split at h
-  · rename_i hf
-    intro hact
-    exact List.find?_eq_none.mp hf u hu (decide_eq_true hact)
+  · exact fun hact => List.find?_eq_none.mp ‹_› u hu (decide_eq_true hact)
   · split at h <;> cases h
 
 theorem admissible_of_selectOp_eq_some {vs : List V} (hvs : ∀ v, v ∈ vs) {σ : State N}
@@ -734,16 +691,14 @@ theorem admissible_of_selectOp_eq_some {vs : List V} (hvs : ∀ v, v ∈ vs) {σ
     split at h
     · rename_i v hv
       cases h
-      have hp := of_decide_eq_true (List.find?_some
+      obtain ⟨h1, h2⟩ := of_decide_eq_true (List.find?_some
         (p := fun v => decide (0 < σ.flow.resCap u v ∧ σ.height u = σ.height v + 1)) hv)
-      exact ⟨hact, hp.1, hp.2⟩
+      exact ⟨hact, h1, h2⟩
     · rename_i hv
       cases h
       refine ⟨hact, fun v hpos => ?_⟩
       have h1 := hσ.le_add_one u v hpos
-      have h2 := List.find?_eq_none.mp hv v (hvs v)
-      have h3 : ¬ (0 < σ.flow.resCap u v ∧ σ.height u = σ.height v + 1) := fun h =>
-        h2 (decide_eq_true h)
+      have h2 := mt decide_eq_true (List.find?_eq_none.mp hv v (hvs v))
       omega
 
 /-- Apply operations chosen by `selectOp vs` until none applies or `fuel` runs out, normalizing the
@@ -800,9 +755,7 @@ theorem tabulateFlow_eq {n : ℕ} {N : Network (Fin n)} (f : N.Preflow) : tabula
 
 theorem tabulate_eq {n : ℕ} {N : Network (Fin n)} (σ : State N) : tabulate σ = σ := by
   obtain ⟨f, h⟩ := σ
-  simp only [tabulate, tabulateFlow_eq, State.mk.injEq, true_and]
-  funext v
-  simp [vget]
+  exact congrArg₂ State.mk (tabulateFlow_eq f) (funext fun _ => by simp [vget])
 
 end PushRelabel
 
@@ -856,8 +809,7 @@ theorem pushRelabelWith_correct {vs : List V} (hvs : ∀ v, v ∈ vs) {norm : St
   obtain ⟨hfin, hrun, hterm⟩ :=
     State.loop_spec hvs hnorm (maxOps N + 1) (PushRelabel.init N) (inv_init hst)
   have hlen := length_le hst hrun
-  have hinv := (inv_init hst).run hrun
-  rw [← hfin] at hinv
+  have hinv := hfin ▸ (inv_init hst).run hrun
   have hz := excess_eq_zero_of_forall_not_isActive _ (hterm (by omega))
   obtain ⟨hmin, hval⟩ := hinv.valid.isMinCut_gapCut hz
   unfold pushRelabelWith

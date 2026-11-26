@@ -65,8 +65,7 @@ private theorem split_firstAccepted (step : ℕ) (tryAt : ℕ → Option (Option
     simp only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, next]
     rcases h : tryAt start with _ | (_ | sig)
     · simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
-    · have eq : start + (pre + 1) * step = start + step + pre * step := by
-        rw [Nat.succ_mul]; omega
+    · have eq : start + (pre + 1) * step = start + step + pre * step := by ring
       simpa only [signingRetryLoop, id_bind_eq, id_pure_eq, id_eq, h, terminalReply,
         Option.map_none, Option.none_or, eq] using ih (start + step)
     · simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
@@ -102,9 +101,8 @@ private theorem find_updated (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : P
   let attempt n := G.attemptWithMask s sk A m (Function.update raw cutAt y n)
   have addr (i : Fin 814) : Function.update (rowMasks s r) j y i =
       Function.update raw cutAt y (i.val * step) := by
-    by_cases h : i = j
-    · subst i
-      simp [cutAt]
+    rcases eq_or_ne i j with rfl | h
+    · simp [cutAt]
     · have ne : i.val * step ≠ cutAt := fun eq =>
         h (Fin.ext (Nat.eq_of_mul_eq_mul_right pos eq))
       rw [Function.update_of_ne h, Function.update_of_ne ne]
@@ -152,18 +150,16 @@ private theorem afterTrial_read {C : QuantumSigningForger} (s : Level) (G : Xofs
   intro m reply
   by_cases over : 255 < q.context.length
   · simp [afterTrial, nativePreparation, preparedPrefix, reply, over]
-  · have bits : List.ofFn (BitString.ofList 512 m) = m := BitString.ofFn_ofList
-      (by simp only [m, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read])
+  · have bits : List.ofFn (BitString.ofList 512
+        (G.representativeFromTr sk.tr (formatMessage q.message q.context))) = m :=
+      BitString.ofFn_ofList (by
+        simp only [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read])
     simp only [afterTrial, nativePreparation, preparedPrefix, rowAttempt, reply, over, ↓reduceIte,
-      List.headD_cons,
-      List.tail_cons, find_updated]
-    cases done : (List.finRange j.val).findSome? (fun i => terminalReply
-      (G.attemptWithMask s sk A m (ringVectorCoeffs (maskFromRow s r (i.val * s.params.ℓ))))) with
-    | some reply => rfl
-    | none =>
-      dsimp only [m] at bits
-      simp only [bits]
-      rfl
+      List.headD_cons, List.tail_cons, find_updated]
+    cases (List.finRange j.val).findSome? (fun i => terminalReply
+      (G.attemptWithMask s sk A m (ringVectorCoeffs (maskFromRow s r (i.val * s.params.ℓ)))))
+    · simp only [bits, m]; rfl
+    · rfl
 
 private abbrev Resume (C : QuantumSigningForger) (s : Level) :=
   Boundary C → C.Device → List Forgery → List (Row s) → Game
@@ -218,12 +214,10 @@ private theorem prefixRun_split (C : QuantumSigningForger) (s : Level) (G : Xofs
             resume x st l (match x with | .finished _ => t ++ suffix | .signing .. => suffix)) := by
       simp only [prefixRun_step _ _ _ _ _ _ _ (push _), OracleComp.withSampleListWhen, skip,
         Bool.false_eq_true, ↓reduceIte, StateT.run, PMF.bind_map, Function.comp_def]
-      apply congrArg (PMF.bind _ ·)
-      funext ⟨r, st, l⟩
-      exact ih r st l pre
+      exact congrArg (PMF.bind _) (funext fun ⟨r, st, l⟩ => ih r st l pre)
     rcases cmd with coin | op | q
-    · exact off rfl (fun _ => rfl)
-    · exact off rfl (fun _ => rfl)
+    · exact off rfl fun _ => rfl
+    · exact off rfl fun _ => rfl
     · cases pre with
       | nil =>
         simp only [List.length_nil, List.nil_append, prefixRun, prefixInteraction, cut,
@@ -243,12 +237,9 @@ private theorem cut_resume (C : QuantumSigningForger) (prog : C.Program Forgery)
   induction prog generalizing i with
   | pure f => rfl
   | liftBind cmd k ih =>
-    rcases cmd with coin | op | q
-    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
-    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
-    · cases i with
-      | zero => rfl
-      | succ i => exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
+    rcases cmd with _ | _ | q <;> cases i
+    on_goal 5 => rfl
+    all_goals exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r _)
 
 private theorem prefixRun_mix {V : Type} (C : QuantumSigningForger) (s : Level)
     (G : Xofs) (keys : KeyPair) (μ : PMF V) (resume : V → Resume C s) (ref : Resume C s)
@@ -305,10 +296,8 @@ private theorem prefixRun_eq {V : Type} (C : QuantumSigningForger) (s : Level) (
     simp only [full, prefixRun, prefixInteraction, expansionContinuation, scored,
       OracleComp.run_interpret_bind, PMF.monad_bind_eq_bind, PMF.bind_bind]
   simp_rw [← ref]
-  apply prefixRun_mix
-  · exact finish
-  · intro q k d l t
-    simpa only [ordinary] using sign q k d l t
+  exact prefixRun_mix C s G keys μ resume full finish
+    (fun q k d l t => by simpa only [ordinary] using sign q k d l t) prog dev log pre rows
 
 private noncomputable def readUntil (C : QuantumSigningForger) (s : Level) (G : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (prog : C.Program Forgery)
@@ -328,8 +317,7 @@ private theorem readUntil_eq (C : QuantumSigningForger) (s : Level) (G : Xofs) (
       C.readUntil s G A keys sk prog pre.length j dev log (pre ++ r :: rows) y) =
     U.bind fun r => C.expansionContinuation s G A keys prog dev log (pre ++ r :: rows) := by
   apply prefixRun_eq
-  · intros
-    rfl
+  · exact fun _ _ _ _ _ => rfl
   · intro q k dev log rows
     let m := G.representativeFromTr sk.tr (formatMessage q.message q.context)
     let reply v := if 255 < q.context.length then none else tupleReply s G A sk m v
@@ -356,15 +344,13 @@ private theorem uniform_tape_eq (s : Level) {n : ℕ} (i : Fin n)
       (List.ofFn v).take i.val ++ r :: (List.ofFn v).drop (i.val + 1) := by
     rw [← show (List.ofFn v).set i.val r = _ from List.set_eq_take_append_cons_drop.trans
       (ite_eq_left (by simp))]
-    apply List.ext_getElem
-    · simp
-    · intro h h₁ h₂
-      rw [List.getElem_ofFn, List.getElem_set]
-      by_cases eq : i.val = h
-      · subst h
-        simp
-      · have ne : (⟨h, by simpa using h₁⟩ : Fin n) ≠ i := fun e => eq (congrArg Fin.val e).symm
-        simp [eq, Function.update_of_ne ne]
+    refine List.ext_getElem (by simp) fun h h₁ h₂ => ?_
+    rw [List.getElem_ofFn, List.getElem_set]
+    by_cases eq : i.val = h
+    · subst h
+      simp
+    · have ne : (⟨h, by simpa using h₁⟩ : Fin n) ≠ i := fun e => eq (congrArg Fin.val e).symm
+      simp [eq, Function.update_of_ne ne]
   have mix (f : List (Row s) → Game) :
       (U.bind fun v => (PMF.uniformOfFintype (Row s)).bind fun r =>
         f (List.ofFn (Function.update v i r))) = U.bind (fun v => f (List.ofFn v)) :=
@@ -372,11 +358,9 @@ private theorem uniform_tape_eq (s : Level) {n : ℕ} (i : Fin n)
       (fun v => f (List.ofFn v))
   change (U.bind fun v => left (List.ofFn v)) = U.bind fun v => right (List.ofFn v)
   rw [← mix left, ← mix right]
-  apply congrArg (PMF.bind U ·)
-  funext v
+  refine congrArg (PMF.bind U ·) (funext fun v => ?_)
   simp only [split]
-  have len : ((List.ofFn v).take i.val).length = i.val := by simp
-  exact same _ _ len
+  exact same _ _ (by simp)
 
 private theorem uniform_readUntil (C : QuantumSigningForger) (s : Level) (G : Xofs) (keys : KeyPair)
     (sk : PrivateKey s) (A : PublicMatrix s) (key : decodePrivate s keys.secretKey = some sk)
@@ -419,10 +403,8 @@ private theorem read_at_generated (C : QuantumSigningForger) (s : Level) (H : Xo
   simp only [eval, PMF.bind_const]
   conv_lhs => arg 2; ext rs; rw [PMF.bind_comm μ U]
   rw [PMF.bind_comm rows U]
-  apply congrArg (PMF.bind U ·)
-  funext D
-  exact C.uniform_readUntil s _ keys _ pair.A sk
-    ((Xofs.expandA_congr (K := H.withDigestRegister s D) (H := H) rfl ..).trans mat) i j
+  exact congrArg (PMF.bind U ·) (funext fun D => C.uniform_readUntil s _ keys _ pair.A sk
+    ((Xofs.expandA_congr (K := H.withDigestRegister s D) (H := H) rfl ..).trans mat) i j)
 
 /-- The private-expansion signing experiment with one selected attempt. The actual seeded
 setup and the entire private row tape are sampled before running the forger. At that attempt
@@ -451,10 +433,8 @@ private theorem average_register (s : Level) (base : Xofs) {a b : ℕ}
     (base.uniformPrefixes_digestRegister s ha hb)
   simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at reg
   rw [← reg]
-  apply congrArg (PMF.bind (base.uniformPrefixes a b) ·)
-  funext H
-  rw [show source H = (fun seed => D.bind fun t => target (H.withDigestRegister s t) seed)
-    from funext (law H), PMF.bind_comm U D]
+  exact congrArg (PMF.bind (base.uniformPrefixes a b))
+    (funext fun H => by rw [funext (law H), PMF.bind_comm U D])
 
 
 /-- Reading at the selected attempt has the exact fresh-digest forgery law of the original

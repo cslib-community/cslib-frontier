@@ -100,29 +100,24 @@ omit [Fintype ι] in
 private theorem inner_querySlice_eq_sum_fiberSlice (i : ι) (ψ φ : ValueState ι V W) :
     inner ℂ (querySlice i ψ) (querySlice i φ) =
       ∑ w : W, inner ℂ (fiberSlice i w ψ) (fiberSlice i w φ) := by
-  simp only [PiLp.inner_apply]
-  rw [Fintype.sum_prod_type, sum_comm]
-  rfl
+  simp only [PiLp.inner_apply, Fintype.sum_prod_type]
+  exact sum_comm
 
 omit [Fintype ι] in
 private theorem norm_querySlice_sq_eq_sum_fiberSlice (i : ι) (ψ : ValueState ι V W) :
     ‖querySlice i ψ‖ ^ 2 = ∑ w : W, ‖fiberSlice i w ψ‖ ^ 2 := by
-  simp only [EuclideanSpace.norm_sq_eq]
-  rw [Fintype.sum_prod_type, sum_comm]
-  rfl
+  simp only [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
+  exact sum_comm
 
 /-- Decomposition of the inner product on `ValueState ι V W` across query indices `i : ι`. -/
 theorem inner_eq_sum_inner_querySlice (ψ φ : ValueState ι V W) :
     inner ℂ ψ φ = ∑ i : ι, inner ℂ (querySlice i ψ) (querySlice i φ) := by
-  simp only [PiLp.inner_apply]
-  rw [Fintype.sum_prod_type]
-  refine sum_congr rfl fun i _ => sum_congr rfl fun ⟨v, w⟩ _ => rfl
+  simp only [PiLp.inner_apply, querySlice_apply, Fintype.sum_prod_type]
 
 /-- Parseval identity across query indices: `∑_i ‖querySlice i ψ‖² = ‖ψ‖²`. -/
 theorem sum_sq_norm_querySlice (ψ : ValueState ι V W) :
     ∑ i : ι, ‖querySlice i ψ‖ ^ 2 = ‖ψ‖ ^ 2 := by
-  simp only [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
-  rfl
+  simp only [EuclideanSpace.norm_sq_eq, querySlice_apply, Fintype.sum_prod_type]
 
 /-- On each query index `i`, `valueOracle step x` acts as a linear isometry on `querySlice i`. -/
 @[simp] theorem norm_querySlice_valueOracle
@@ -131,8 +126,7 @@ theorem sum_sq_norm_querySlice (ψ : ValueState ι V W) :
     ‖querySlice i (valueOracle step x ψ)‖ = ‖querySlice i ψ‖ := by
   have hsq : ‖querySlice i (valueOracle step x ψ)‖ ^ 2 = ‖querySlice i ψ‖ ^ 2 := by
     rw [norm_querySlice_sq_eq_sum_fiberSlice, norm_querySlice_sq_eq_sum_fiberSlice]
-    refine sum_congr rfl fun w _ => ?_
-    rw [fiberSlice_valueOracle, LinearIsometryEquiv.norm_map]
+    exact sum_congr rfl fun w _ => by rw [fiberSlice_valueOracle, LinearIsometryEquiv.norm_map]
   exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).1 hsq
 
 /-- When two inputs `x` and `y` agree at `i`, `valueOracle` preserves the `i`-slice overlap. -/
@@ -158,10 +152,8 @@ theorem norm_inner_valueOracle_valueOracle_ge [DecidableEq α]
     rw [inner_eq_sum_inner_querySlice ψ φ,
       inner_eq_sum_inner_querySlice (valueOracle step x ψ) (valueOracle step y φ),
       ← sum_sub_distrib]
-    symm
-    refine sum_subset (subset_univ _) fun i _ hi => ?_
-    simp only [mem_filter, mem_univ, true_and, not_not] at hi
-    rw [inner_querySlice_valueOracle_of_eq step hi, sub_self]
+    refine (sum_subset (subset_univ _) fun i _ hi => ?_).symm
+    rw [inner_querySlice_valueOracle_of_eq step (by simpa using hi), sub_self]
   have hnorm : ‖inner ℂ ψ φ - inner ℂ (valueOracle step x ψ) (valueOracle step y φ)‖ ≤
       2 * ∑ i with x i ≠ y i, ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
     rw [hdiff, mul_sum]
@@ -275,14 +267,11 @@ theorem valueWeightedProgress_zero_sub_le [DecidableEq α]
       have hi' := (mem_filter.1 hi).2
       exact two_mul_mul_le_of_sq_le_mul (norm_nonneg _) (norm_nonneg _)
         (ha p hp i hi') (hb p hp i hi') (hγsq p hp i hi')
-    have hX := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.fst a α_b hα t
-    have hY := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.snd b β_b hβ t
-    linarith
+    linarith [sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.fst a α_b hα t,
+      sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.snd b β_b hβ t]
   induction T with
   | zero => simp
-  | succ t ih =>
-    push_cast
-    linarith [hstep t]
+  | succ t ih => push_cast; linarith [hstep t]
 
 /-- **Weighted quantum adversary inequality for value-query algorithms**: if after `T` value queries
 the states on every pair in `R` have overlap at most `δ`, and nonnegative step weights `a, b`
@@ -308,9 +297,8 @@ theorem one_sub_mul_sum_le_of_sq_le_value [DecidableEq α]
   have htelT := valueWeightedProgress_zero_sub_le step U hψ₀ R γ a b α_b β_b hγ ha hb hγsq hα hβ T
   have hend : valueWeightedProgress step U ψ₀ R γ T ≤ δ * ∑ p ∈ R, γ p := by
     rw [valueWeightedProgress, mul_sum]
-    refine sum_le_sum fun p hp => ?_
-    rw [mul_comm δ]
-    exact mul_le_mul_of_nonneg_left (hδ p hp) (hγ p hp)
+    exact sum_le_sum fun p hp =>
+      (mul_le_mul_of_nonneg_left (hδ p hp) (hγ p hp)).trans_eq (mul_comm _ _)
   rw [valueWeightedProgress_zero step U hψ₀ R γ] at htelT
   linarith
 

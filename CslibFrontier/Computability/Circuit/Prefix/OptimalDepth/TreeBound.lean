@@ -149,8 +149,7 @@ private theorem GenPrefixTree.valid_suffix {c b : ℕ} {S T : Finset (ℕ × ℕ
         rw [Prod.mk.injEq] at heq; omega
       · exact hi
     · have hi := hed_u i
-      have hge_i : c ≤ (chu i).state := by split_ifs at hi <;> omega
-      exact (chu i).valid_suffix hsub hge_i (hch_mu i) (hcv_u i)
+      exact (chu i).valid_suffix hsub (by split_ifs at hi <;> omega) (hch_mu i) (hcv_u i)
 
 private theorem GenPrefixTree.extract_mul_subtree {k a m b : ℕ}
     (IL : IntervalTree a m) (IR : IntervalTree m b) :
@@ -281,26 +280,19 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
     intro r a b I t hrk hd_le hh_le hst hmax hbud hfan hval hout_at hmul_cnt
     cases h with
     | zero =>
-      rcases t with ⟨st, hasOut, r_ch, isMul, child⟩
-      by_cases hr0 : r_ch = 0
-      · subst hr0
-        simp only [GenPrefixTree.outCount, Finset.univ_eq_empty, Finset.sum_empty, Nat.add_zero]
-        have h1 : (1 : ℝ) ≤ W k r d 0 := by unfold W; exact one_le_pow₀ (by norm_num)
+      rcases t with ⟨st, hasOut, _ | r', isMul, child⟩
+      · simp only [GenPrefixTree.outCount, Finset.univ_eq_empty, Finset.sum_empty, Nat.add_zero, W]
         cases hasOut <;> simp only [Bool.false_eq_true, ↓reduceIte, Nat.cast_one, Nat.cast_zero]
-        · positivity
-        · exact h1
-      · have hc0 := GenPrefixTree.child_depth_lt (st := st) (hasOut := hasOut)
-          (isMul := isMul) (child := child) ⟨0, by omega⟩
-        omega
+        exacts [by positivity, one_le_pow₀ (by norm_num)]
+      · exact absurd (GenPrefixTree.child_depth_lt (st := st) (hasOut := hasOut)
+          (isMul := isMul) (child := child) 0) (by omega)
     | succ h' =>
       by_cases hr0 : r = 0
       · subst hr0
-        rcases t with ⟨st, hasOut, r_ch, isMul, child⟩
-        obtain rfl : r_ch = 0 := by simp only [GenPrefixTree.rootBudget] at hbud; omega
-        cases hasOut
+        rcases t with ⟨st, _ | _, _ | r', isMul, child⟩
         · simp only [GenPrefixTree.outCount, Bool.false_eq_true, ↓reduceIte, Finset.univ_eq_empty,
             Finset.sum_empty, Nat.add_zero, Nat.cast_zero, W, le_rfl]
-        · simp [GenPrefixTree.rootBudget] at hbud
+        all_goals simp [GenPrefixTree.rootBudget] at hbud
       by_cases hr1 : r = 1
       · subst hr1
         change _ ≤ V k d h'
@@ -317,10 +309,8 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
         obtain rfl : hasOut = false := by revert hbud; cases hasOut <;> simp
         simp only [GenPrefixTree.outCount, Bool.false_eq_true, ↓reduceIte, Nat.zero_add,
           Fin.sum_univ_one]
-        have hc0_d : (child 0).depth ≤ h' := by
-          have := GenPrefixTree.child_depth_lt (st := st) (hasOut := false)
-            (isMul := isMul) (child := child) 0
-          omega
+        have hc0_d : (child 0).depth ≤ h' :=
+          Nat.le_of_succ_le_succ ((GenPrefixTree.child_depth_lt 0).trans hh_le)
         obtain ⟨_, hch_max⟩ := hmax
         obtain ⟨_, hch_fan⟩ := hfan
         obtain ⟨hedges, hch_val⟩ := hval
@@ -329,10 +319,8 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
         have hc0_oa (s : ℕ) : (child 0).outAt s ≤ 1 := by
           simpa only [GenPrefixTree.outAt, Bool.false_eq_true, false_and, ↓reduceIte,
             Nat.zero_add, Fin.sum_univ_one] using hout_at s
-        have hc0_mc (m : ℕ) : (child 0).mulCount m ≤ 1 := by
-          have hm := hmul_cnt m
-          simp only [GenPrefixTree.mulCount, Fin.sum_univ_one] at hm
-          omega
+        have hc0_mc (m : ℕ) : (child 0).mulCount m ≤ 1 := (Nat.le_add_left _ _).trans <| by
+          simpa only [GenPrefixTree.mulCount, Fin.sum_univ_one] using hmul_cnt m
         have hed0 := hedges 0
         by_cases hm0 : isMul 0 = true
         · simp only [hm0, ↓reduceIte, hst] at hed0
@@ -348,12 +336,10 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
       | leaf a =>
         have hval_emp : t.Valid ∅ := by
           simpa only [IntervalTree.intervals, Finset.erase_singleton] using hval
-        have hle1 : t.outCount ≤ 1 :=
-          t.outCount_eq_outAt_of_valid_empty hval_emp ▸ hout_at t.state
-        exact (Nat.cast_le_one.mpr hle1).trans (W_one_le (k := k) (by omega : 1 ≤ r) d (h' + 1))
+        exact (Nat.cast_le_one.mpr (t.outCount_eq_outAt_of_valid_empty hval_emp ▸
+          hout_at t.state)).trans (W_one_le (k := k) (by omega : 1 ≤ r) d (h' + 1))
       | @node a m b IL IR =>
         have hIL := IL.lt
-        have hIR := IR.lt
         simp only [IntervalTree.depth] at hd_le
         obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
         have hdL : IL.depth ≤ d' := by omega
@@ -361,8 +347,8 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
         rw [IntervalTree.erase_root_eq_union] at hval
         have hmc_m := hmul_cnt m
         by_cases hmc0 : t.mulCount m = 0
-        · obtain ⟨hmax_L, hval_L⟩ := t.valid_left_of_mulCount_zero IL IR
-            (by omega) (by omega) hval hmc0
+        · obtain ⟨hmax_L, hval_L⟩ :=
+            t.valid_left_of_mulCount_zero IL IR hst.symm.le (hst ▸ hIL) hval hmc0
           exact (ih (d' + (h' + 1)) (by omega) d' (h' + 1) rfl r a m IL t hrk
             hdL hh_le hst hmax_L hbud hfan hval_L hout_at hmul_cnt).trans
             (W_mono_left k r d' (h' + 1))

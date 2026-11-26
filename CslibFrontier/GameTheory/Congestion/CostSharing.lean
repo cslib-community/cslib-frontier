@@ -146,8 +146,7 @@ theorem antitoneOn_latency_fairCostSharing (resources : ∀ i, S i → Finset E)
     AntitoneOn ((fairCostSharing resources c).latency e) (Set.Ici 1) := by
   intro m hm n _ hmn
   rw [fairCostSharing_latency, fairCostSharing_latency]
-  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
-  exact div_le_div_of_nonneg_left (hc e) hm' (by exact_mod_cast hmn)
+  exact div_le_div_of_nonneg_left (hc e) (by exact_mod_cast hm) (by exact_mod_cast hmn)
 
 variable [Fintype ι] [DecidableEq E] (resources : ∀ i, S i → Finset E) (c : E → ℝ)
 
@@ -168,14 +167,10 @@ theorem socialCost_fairCostSharing_biUnion (s : ∀ i, S i) :
   rw [CostGame.socialCost, Finset.sum_congr rfl hpad, Finset.sum_comm]
   refine Finset.sum_congr rfl fun e he => ?_
   obtain ⟨i, hi, hei⟩ := Finset.mem_biUnion.1 he
-  have hpos : 0 < (fairCostSharing resources c).load s e :=
-    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨hi, by rwa [fairCostSharing_resources]⟩⟩
-  have hload : (fairCostSharing resources c).load s e =
-      (Finset.univ.filter fun x => e ∈ resources x (s x)).card := by
-    simp [load, fairCostSharing_resources]
-  rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul, ← hload]
-  have : ((fairCostSharing resources c).load s e : ℝ) ≠ 0 := by exact_mod_cast hpos.ne'
-  field_simp
+  have hpos : ((fairCostSharing resources c).load s e : ℝ) ≠ 0 :=
+    Nat.cast_ne_zero.2 (Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨hi, hei⟩⟩).ne'
+  rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
+  exact mul_div_cancel₀ (c e) hpos
 
 /-- The social cost of a fair cost-sharing game is **the total cost of the resources in use**,
 `∑ e with load s e ≥ 1, c e` ([Roughgarden2013CS364A], Lecture #15, (2)). -/
@@ -235,9 +230,8 @@ theorem sum_le_socialCost_fairCostSharing [Finite E] (hc : ∀ e, 0 ≤ c e) (s 
   have := Fintype.ofFinite E
   rw [socialCost_fairCostSharing]
   refine Finset.sum_le_sum_of_subset_of_nonneg (fun e he => ?_) fun e _ _ => hc e
-  refine Finset.mem_filter.2 ⟨Finset.mem_univ e, Finset.card_pos.2 ⟨j, ?_⟩⟩
-  rw [Finset.mem_filter, fairCostSharing_resources]
-  exact ⟨Finset.mem_univ j, he⟩
+  exact Finset.mem_filter.2 ⟨Finset.mem_univ e,
+    Finset.card_pos.2 ⟨j, Finset.mem_filter.2 ⟨Finset.mem_univ j, he⟩⟩⟩
 
 /-- In a fair cost-sharing game with nonnegative costs and `k = Fintype.card ι` players, **every
 player pays at least a `1 / k` share of the cost of its resources**: no resource has more than `k`
@@ -247,13 +241,10 @@ theorem sum_div_card_le_cost_fairCostSharing (hc : ∀ e, 0 ≤ c e) (s : ∀ i,
       ≤ (fairCostSharing resources c).toCostGame.cost i s := by
   rw [toCostGame_cost, fairCostSharing_resources, Finset.sum_div]
   refine Finset.sum_le_sum fun e he => ?_
-  rw [fairCostSharing_latency]
   have hpos : 0 < (fairCostSharing resources c).load s e :=
-    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by
-      rw [fairCostSharing_resources]
-      exact he⟩⟩
-  refine div_le_div_of_nonneg_left (hc e) (by exact_mod_cast hpos) ?_
-  exact_mod_cast (Finset.card_filter_le _ _).trans_eq Finset.card_univ
+    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, he⟩⟩
+  exact div_le_div_of_nonneg_left (hc e) (by exact_mod_cast hpos)
+    (by exact_mod_cast (Finset.card_filter_le _ _).trans_eq Finset.card_univ)
 
 /-- In a fair cost-sharing game with nonnegative costs, **a player deviating to `a` pays at most
 the standalone cost `∑ e ∈ resources i a, c e`** of its chosen resources: every resource in
@@ -264,11 +255,8 @@ theorem cost_fairCostSharing_update_le [DecidableEq ι] (hc : ∀ e, 0 ≤ c e) 
       ≤ ∑ e ∈ resources i a, c e := by
   rw [toCostGame_cost, fairCostSharing_resources, Function.update_self]
   refine Finset.sum_le_sum fun e he => ?_
-  rw [fairCostSharing_latency]
   have hpos : 1 ≤ (fairCostSharing resources c).load (Function.update s i a) e :=
-    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by
-      rw [fairCostSharing_resources, Function.update_self]
-      exact he⟩⟩
+    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by simpa using he⟩⟩
   exact div_le_self (hc e) (by exact_mod_cast hpos)
 
 /-- **Fair cost-sharing games are `(k, 0)`-smooth** ([Roughgarden2015], Definition 2.1;
@@ -358,10 +346,9 @@ theorem exists_isPureNash_fairCostSharing_socialCost_le_harmonic_mul [∀ i, Non
   have := Fintype.ofFinite E
   obtain ⟨s, hs, hle⟩ := (fairCostSharing resources c).isExactPotential_rosenthalPotential
     |>.isGeneralizedOrdinalPotential.exists_isPureNash_socialCost_le zero_le_one
-      (fun s => by
-        rw [one_mul]
-        exact socialCost_le_rosenthalPotential_fairCostSharing resources c hc s)
-      (rosenthalPotential_fairCostSharing_le_harmonic_mul resources c hc)
+    (fun s => by
+      simpa only [one_mul] using socialCost_le_rosenthalPotential_fairCostSharing resources c hc s)
+    (rosenthalPotential_fairCostSharing_le_harmonic_mul resources c hc)
   exact ⟨s, hs, fun s' => by simpa only [one_mul] using hle s'⟩
 
 /-- **Better-response dynamics from any profile reach a good equilibrium** in fair cost-sharing
@@ -377,10 +364,9 @@ theorem exists_reflTransGen_isPureNash_fairCostSharing_socialCost_le_harmonic_mu
   have := Fintype.ofFinite E
   obtain ⟨t, hpath, ht, hle⟩ := (fairCostSharing resources c).isExactPotential_rosenthalPotential
     |>.isGeneralizedOrdinalPotential.exists_reflTransGen_isPureNash_socialCost_le zero_le_one
-      (fun s => by
-        rw [one_mul]
-        exact socialCost_le_rosenthalPotential_fairCostSharing resources c hc s)
-      (rosenthalPotential_fairCostSharing_le_harmonic_mul resources c hc) s₀
+    (fun s => by
+      simpa only [one_mul] using socialCost_le_rosenthalPotential_fairCostSharing resources c hc s)
+    (rosenthalPotential_fairCostSharing_le_harmonic_mul resources c hc) s₀
   exact ⟨t, hpath, ht, by simpa only [one_mul] using hle⟩
 
 end Cslib.GameTheory.CongestionGame
@@ -491,12 +477,10 @@ theorem isPureNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
     rw [optOut_cost (Function.update s j true), Function.update_self, ite_eq_left rfl] at hdev
     linarith
   · rintro rfl i (_ | _)
-    · rw [optOut_cost, optOut_cost, Function.update_self]
-      simp only [Bool.false_eq_true, ↓reduceIte]
+    · simp only [optOut_cost, Function.update_self, Bool.false_eq_true, ↓reduceIte]
       have hflt : (Finset.univ.filter fun j =>
-          Function.update (fun _ : Fin k => true) i false j = false) = {i} := by
-        ext j
-        by_cases hji : j = i <;> simp [hji]
+          Function.update (fun _ : Fin k => true) i false j = false) = {i} :=
+        Finset.ext fun j => by simp [Function.update_apply]
       rw [hflt, Finset.card_singleton, Nat.cast_one, div_one, div_le_iff₀ (by positivity)]
       nlinarith [Nat.cast_nonneg (α := ℝ) i]
     · rw [Function.update_eq_self]
@@ -504,12 +488,9 @@ theorem isPureNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
 /-- In the opt-out game, the profile in which every player opts out has social cost `H k`. -/
 theorem socialCost_optOut_true :
     (optOut k ε).toCostGame.socialCost (fun _ => true) = harmonic k := by
-  have h (i : Fin k) : (optOut k ε).toCostGame.cost i (fun _ => true) = 1 / ((i : ℕ) + 1 : ℝ) := by
-    simp [optOut_cost]
   unfold CostGame.socialCost
-  rw [Finset.sum_congr rfl fun i _ => h i,
-    Fin.sum_univ_eq_sum_range (fun i : ℕ => 1 / ((i : ℝ) + 1)), cast_harmonic]
-  simp only [one_div]
+  simp only [optOut_cost, ↓reduceIte, one_div]
+  rw [Fin.sum_univ_eq_sum_range (fun i : ℕ => ((i : ℝ) + 1)⁻¹), ← cast_harmonic]
 
 /-- In the opt-out game with `k ≥ 1` players, the profile in which every player shares has social
 cost `1 + ε`. -/

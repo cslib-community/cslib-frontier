@@ -206,11 +206,9 @@ private theorem assocIx_spec {α β : Type} {m l : ℕ}
     (x : (ε × α) × β) (idx : Fin (k + (m + l))) :
     appendWords env (appendWords input answer) (x.1.1, (x.1.2, x.2)) idx =
       appendWords (appendWords env input) answer x (assocIx k m l idx) := by
-  refine Fin.addCases (fun i => ?_) (Fin.addCases (fun j => ?_) (fun r => ?_)) idx
-  · simp only [assocIx, Fin.addCases_left, appendWords_castAdd]
-  · simp only [assocIx, Fin.addCases_right, Fin.addCases_left, appendWords_natAdd,
+  refine Fin.addCases (fun i => ?_) (Fin.addCases (fun j => ?_) (fun r => ?_)) idx <;>
+    simp only [assocIx, Fin.addCases_right, Fin.addCases_left, appendWords_natAdd,
       appendWords_castAdd]
-  · simp only [assocIx, Fin.addCases_right, appendWords_natAdd]
 
 private theorem bindRight {α β γ : Type} {m l n : ℕ}
     {p : ε × α → Memory.Prog β} {q : ε × (α × β) → Memory.Prog γ}
@@ -325,12 +323,9 @@ private theorem whileRightLt {α : Type} {m : ℕ}
     (Fin.addCases (Fin.addCases (Fin.castAdd (m + 1))
       (fun r : Fin m => Fin.natAdd k (Fin.castAdd 1 r)))
       (fun r : Fin 1 => Fin.natAdd k (Fin.natAdd m r)))
-    (fun d => Fin.addCases
-      (Fin.addCases
-        (fun r => by simp only [Fin.addCases_left, appendWords_castAdd])
-        (fun r => by simp only [Fin.addCases_right, Fin.addCases_left,
-          appendWords_castAdd, appendWords_natAdd]))
-      (fun r => by simp only [Fin.addCases_right, appendWords_natAdd]))
+    (fun d i => by
+      refine Fin.addCases (Fin.addCases (fun r => ?_) (fun r => ?_)) (fun r => ?_) i <;>
+        simp only [Fin.addCases_right, Fin.addCases_left, appendWords_castAdd, appendWords_natAdd])
   exact (hL'.congr fun d => boundedWhile_congr _ _ (hcond (d.1, d.2.1))
     (fun _ => rfl) (cutoff d.2) d.2.2).consequence
     (fun _ d _ _ _ h => whileSafe_imp _ _ (fun a => (hcond (d.1, d.2.1) a).symm)
@@ -1038,7 +1033,6 @@ theorem realizes_runWord : Realizes .exact
       Memory.frontier_init G ▸ hfit.of_le (by have := G.source.isLt; omega),
       hfit.of_le (by omega)⟩, ?_⟩
     obtain ⟨hV, hInvEmpty, hAbsEmpty, hRoomZero, hFpAbove⟩ := A.init_empty G hfit
-    let e0 := A.allocated G.n (f + G.n)
     let sAlloc : Memory.State := ⟨s₀.mem, f + G.n + A.span G.n⟩
     let sWrite : Memory.State := ⟨Function.update s₀.mem (f + G.source.val) 1, f + G.n + A.span G.n⟩
     have hFrameWrite : ∀ a ∈ (M.framed hV).footprint sAlloc, sWrite.mem a = sAlloc.mem a :=
@@ -1062,7 +1056,7 @@ theorem realizes_runWord : Realizes .exact
       Finset.disjoint_left.mpr fun a ha hb =>
         by have := hFpAbove a ha; have := hTAlt _ a hb; omega
     have hLoopSafe := initial_loop_safe_insert G le_rfl (by omega) D.toRefinement
-      (M.insert e0 G.source.val 0) rfl (M.insert_eq hV G.source 0).symm
+      (M.insert (A.allocated G.n (f + G.n)) G.source.val 0) rfl (M.insert_eq hV G.source 0).symm
       sAlloc ⟨hInvEmpty, hTAinv, hDisj, hRoomZero ▸ A.fits_alloc G hfit⟩
       (Prod.ext (funext hAbsEmpty) hTAabs)
     exact ⟨G, hV, hT, rfl, rfl, hLoopSafe.1, hLoopSafe.2.1, hfit, hLoopSafe.2.2⟩

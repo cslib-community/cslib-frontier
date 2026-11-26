@@ -99,8 +99,7 @@ private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
     (hkeep : keep = true → d = 0) {z : ℂ} (hz : z ∈ (member r s d keep).support) :
     z.re ∈ Set.Icc (-r) r ∧ z.im = s * z.re + d * (1 - |z.re| / r) := by
   cases keep
-  · change z ∈ (slopeDetour r s d).support at hz
-    obtain ⟨i, t, ht, rfl⟩ := ((slopeDetour r s d).mem_support_iff z).mp hz
+  · obtain ⟨i, t, ht, rfl⟩ := ((slopeDetour r s d).mem_support_iff z).mp hz
     rw [eval_slopeDetour]
     split_ifs with hi
     · have hx : -r ≤ (1 - t) * -r ∧ (1 - t) * -r ≤ 0 := by
@@ -118,14 +117,9 @@ private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
       refine ⟨⟨by linarith only [hr, hx.1], hx.2⟩, ?_⟩
       rw [abs_of_nonneg hx.1]
       field_simp [hr.ne']; ring
-  · have hd := hkeep rfl
-    change z ∈ (line (⟨-r, -r * s⟩ : ℂ) ⟨r, r * s⟩).support at hz
-    obtain ⟨i, t, ht, rfl⟩ :=
-      ((line (⟨-r, -r * s⟩ : ℂ) ⟨r, r * s⟩).mem_support_iff z).mp hz
-    rw [eval_line]
-    simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
-      Complex.smul_re, Complex.smul_im, smul_eq_mul, hd,
-      zero_mul, add_zero]
+  · obtain ⟨i, t, ht, rfl⟩ := ((line (⟨-r, -r * s⟩ : ℂ) ⟨r, r * s⟩).mem_support_iff z).mp hz
+    simp only [eval_line, AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
+      Complex.smul_re, Complex.smul_im, smul_eq_mul, hkeep rfl, zero_mul, add_zero]
     refine ⟨⟨?_, ?_⟩, ?_⟩ <;> nlinarith only [ht.1, ht.2, hr]
 
 private theorem member_tube {r s d ε : ℝ} {keep : Bool} (hr : 0 < r)
@@ -145,17 +139,16 @@ private theorem member_first {r s d x : ℝ} {keep : Bool} (hr : 0 < r)
   cases keep
   · refine ⟨(x + r) / r, ⟨div_pos (by linarith [hx.1]) hr,
       (div_lt_one hr).mpr (by linarith [hx.2])⟩, ?_⟩
-    rw [show member r s d false = slopeDetour r s d from rfl, eval_slopeDetour]
-    simp only [Fin.val_zero, ↓reduceIte, AffineMap.lineMap_apply_module,
+    change (slopeDetour r s d).eval 0 _ = _
+    simp only [eval_slopeDetour, Fin.val_zero, ↓reduceIte, AffineMap.lineMap_apply_module,
       Complex.ext_iff, Complex.add_re, Complex.add_im, Complex.smul_re, Complex.smul_im,
       smul_eq_mul]
     constructor <;> field_simp [hr.ne'] <;> ring
-  · have hd := hkeep rfl
-    refine ⟨(x + r) / (2 * r), ⟨div_pos (by linarith [hx.1]) (by linarith),
-      (div_lt_one (by linarith : 0 < 2 * r)).mpr (by linarith [hx.2])⟩, ?_⟩
-    rw [show member r s d true = line ⟨-r, -r * s⟩ ⟨r, r * s⟩ from rfl, eval_line]
-    simp only [hd, zero_mul, add_zero, AffineMap.lineMap_apply_module, Complex.ext_iff,
-      Complex.add_re, Complex.add_im, Complex.smul_re, Complex.smul_im,
+  · refine ⟨(x + r) / (2 * r), ⟨div_pos (by linarith [hx.1]) (mul_pos two_pos hr),
+      (div_lt_one (mul_pos two_pos hr)).mpr (by linarith [hx.2])⟩, ?_⟩
+    change (line ⟨-r, -r * s⟩ ⟨r, r * s⟩).eval 0 _ = _
+    simp only [eval_line, hkeep rfl, zero_mul, add_zero, AffineMap.lineMap_apply_module,
+      Complex.ext_iff, Complex.add_re, Complex.add_im, Complex.smul_re, Complex.smul_im,
       smul_eq_mul]
     constructor <;> field_simp [hr.ne'] <;> ring
 
@@ -163,13 +156,8 @@ private theorem member_first_vector (r s d : ℝ) (keep : Bool)
     (hkeep : keep = true → d = 0) :
     (member r s d keep).germ false =
       (if keep then (2 : ℝ) else 1) • (⟨r, r * s + d⟩ : ℂ) := by
-  cases keep
-  · simp only [member, Bool.false_eq_true, ↓reduceIte, slopeDetour, germ_append,
-      germ_line, one_smul]
-    apply Complex.ext <;> simp [add_comm]
-  · have hd := hkeep rfl
-    simp only [member, ↓reduceIte, germ_line, hd, add_zero]
-    apply Complex.ext <;> simp [Complex.real_smul, two_mul]
+  cases keep <;> apply Complex.ext <;>
+    simp [member, slopeDetour, germ_append, germ_line, hkeep, Complex.real_smul, two_mul, add_comm]
 
 private theorem contact_abscissa {r s t d e q x y : ℝ} (hr : 0 < r) (hst : s ≠ t)
     (hq : 0 < q) (hd : d - e = (s - t) * q) (hx : x ∈ Set.Icc (-r) r)
@@ -180,8 +168,7 @@ private theorem contact_abscissa {r s t d e q x y : ℝ} (hr : 0 < r) (hst : s �
       _ = (s - t) * x + (d - e) * (1 - |x| / r) := by rw [hd]; ring
       _ = 0 := by linarith
   have hzero := (mul_eq_zero.mp hprod).resolve_left (sub_ne_zero.mpr hst)
-  have hneg : x < 0 := by_contra fun h => by
-    have hnonneg : 0 ≤ x := not_lt.mp h
+  have hneg : x < 0 := lt_of_not_ge fun hnonneg => by
     rw [abs_of_nonneg hnonneg] at hzero
     have hw : 0 ≤ 1 - x / r := sub_nonneg.mpr ((div_le_one hr).mpr hx.2)
     obtain rfl : x = 0 := by linarith only [hzero, hnonneg, mul_nonneg hq.le hw]
@@ -228,7 +215,7 @@ private theorem pair_separation {r s t d e q : ℝ} (hr : 0 < r) (hst : s ≠ t)
     have hwre := contact_abscissa hr hst hq hd hwx hwy hwy'
     apply Complex.ext hwre
     rw [hwy, hwre, abs_of_neg hx.2]
-    change s * x + d * (1 - -x / r) = s * x + d * (1 + x / r)
+    dsimp only [z]
     ring
   refine ⟨⟨z, hz, fun w hw => common hw.1 hw.2⟩,
     fun w hw hw' => common hw hw' ▸ ⟨hx.1, hx.2, u, v, hu, hv, hue, hve⟩, ?_⟩
@@ -273,17 +260,12 @@ private theorem no_middle {a c μ w x y s t u : ℝ} (hμ : μ ≠ 0) (hw : w �
   have hd : (1 - v) * height a c μ s + v * height a c μ u = height a c μ t := by
     refine mul_left_cancel₀ hw ?_
     linear_combination ht - (1 - v) * hs - v * hu - x * hinterp
-  have hmap : lift a c μ (AffineMap.lineMap (parabolaPoint s) (parabolaPoint u) v) =
-      lift a c μ (parabolaPoint t) := by
-    rw [AffineMap.apply_lineMap, lift_parabola, lift_parabola, lift_parabola]
-    apply Complex.ext
-    · simpa only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re,
-        smul_eq_mul] using hinterp
-    · simpa only [AffineMap.lineMap_apply_module, Complex.add_im, Complex.smul_im,
-        smul_eq_mul] using hd
-  have hpoint := lift_injective hμ hmap
-  have hmem := lineMap_mem_segment ℝ (parabolaPoint s) (parabolaPoint u) hv
-  rw [hpoint] at hmem
+  have hpoint : AffineMap.lineMap (parabolaPoint s) (parabolaPoint u) v = parabolaPoint t :=
+    lift_injective hμ <| by
+      rw [AffineMap.apply_lineMap, lift_parabola, lift_parabola, lift_parabola]
+      exact Complex.ext (by simpa [AffineMap.lineMap_apply_module] using hinterp)
+        (by simpa [AffineMap.lineMap_apply_module] using hd)
+  have hmem := hpoint ▸ lineMap_mem_segment ℝ (parabolaPoint s) (parabolaPoint u) hv
   exact ((parabolaPoint_mem_segment_iff s u t).mp hmem).elim hst.ne' htu.ne
 
 private theorem no_three {a c μ w x y s t u : ℝ} (hμ : μ ≠ 0) (hw : w ≠ 0)
@@ -337,15 +319,11 @@ theorem exists_slopeDetour_separation {ι : Type*} [Finite ι]
   let B := M ^ 2 + c * M
   let Q := 4 * M + 1
   have hM : 0 ≤ M := Finset.sum_nonneg fun _ _ => abs_nonneg _
-  have hc : 0 < c := by dsimp [c]; linarith
-  have hB : 0 ≤ B := add_nonneg (sq_nonneg M) (mul_nonneg hc.le hM)
-  have hQ : 0 < Q := by dsimp [Q]; linarith
-  have hbound : 0 < min (ε / (B + 1)) (r / (2 * (Q + 1))) := by positivity
-  obtain ⟨μ, hμ, hμlt⟩ := exists_between hbound
-  have hμε : μ * (B + 1) < ε :=
-    (lt_div_iff₀ (by linarith : 0 < B + 1)).mp ((lt_min_iff.mp hμlt).1)
-  have hμr : μ * (2 * (Q + 1)) < r :=
-    (lt_div_iff₀ (by positivity : 0 < 2 * (Q + 1))).mp ((lt_min_iff.mp hμlt).2)
+  obtain ⟨μ, hμ, hμlt⟩ := exists_between
+    (by positivity : 0 < min (ε / (B + 1)) (r / (2 * (Q + 1))))
+  obtain ⟨hμε, hμr⟩ := lt_min_iff.mp hμlt
+  replace hμε : μ * (B + 1) < ε := (lt_div_iff₀ (by positivity)).mp hμε
+  replace hμr : μ * (2 * (Q + 1)) < r := (lt_div_iff₀ (by positivity)).mp hμr
   let d := fun i => height a c μ (s i)
   let keep := fun i => decide (fixedIndex = some i)
   let R := fun i => member r (s i) (d i) (keep i)
@@ -376,9 +354,7 @@ theorem exists_slopeDetour_separation {ι : Type*} [Finite ι]
     have hfactor : 1 ≤ s i + s j - 2 * a + c ∧ s i + s j - 2 * a + c ≤ Q := by
       dsimp only [c, Q]; constructor <;> linarith only [hi.1, hi.2, hj.1, hj.2]
     have hq : 0 < q := mul_pos hμ (by linarith only [hfactor.1])
-    have hqr : q < r / 2 := by
-      dsimp only [q]
-      linarith only [hμ, hμr, mul_le_mul_of_nonneg_left hfactor.2 hμ.le]
+    have hqr : q < r / 2 := by linarith only [hμ, hμr, mul_le_mul_of_nonneg_left hfactor.2 hμ.le]
     exact pair_separation hr (fun h => hij (hs h)) hq hqr
       (height_sub a c μ (s i) (s j)) (keep i) (keep j) (hkeep i) (hkeep j)
   refine ⟨d, ?_⟩

@@ -206,9 +206,8 @@ theorem bijPebbleWins_graph_range_castSucc_iff (n : ℕ) (u : Fin k → V) (w : 
   let := G.structure; let := H.structure
   induction n generalizing u w with
   | zero =>
-    rw [bijPebbleWins_zero, partialIsoOn_graph_range_castSucc_iff_tupleAtom, wlColoring_zero,
-      wlColoring_zero]
-    exact Iff.rfl
+    simp only [bijPebbleWins_zero, partialIsoOn_graph_range_castSucc_iff_tupleAtom, wlColoring_zero]
+    rfl
   | succ n ih =>
     rw [bijPebbleWins_succ, partialIsoOn_graph_range_castSucc_iff_tupleAtom,
       Fin.forall_iff_castSucc]
@@ -217,9 +216,9 @@ theorem bijPebbleWins_graph_range_castSucc_iff (n : ℕ) (u : Fin k → V) (w : 
     refine ⟨fun ⟨_, hlast, _⟩ => hlast, fun hcol => ?_⟩
     obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
     obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
-    refine ⟨?_, hcol, fun i => ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩⟩
-    rw [← wlColoring_zero, ← wlColoring_zero]
-    exact wlColoring_eq_of_le (Nat.zero_le (n + 1)) hcol
+    exact ⟨(congrFun wlColoring_zero u).symm.trans
+      ((wlColoring_eq_of_le (Nat.zero_le _) hcol).trans (congrFun wlColoring_zero w)), hcol,
+      fun i => ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩⟩
 
 /-- Duplicator wins the infinite bijective `(k + 1)`-pebble game from `(Set.range Fin.castSucc,
 Fin.snoc u v₀, Fin.snoc w w₀)` if and only if `u` and `w` receive the same `k`-WL color in every
@@ -274,10 +273,8 @@ private theorem insert_prefixPebbles {k m : ℕ} (hm : m < k) :
 private theorem extendPrefix_self {α : Type*} {k : ℕ} (u : Fin k → α) (a₀ : α) :
     extendPrefix k u a₀ = Fin.snoc u a₀ := by
   ext j
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [extendPrefix, Fin.val_last, lt_self_iff_false, ↓reduceDIte, Fin.snoc_last]
-  · intro i
-    simp only [extendPrefix, Fin.val_castSucc, i.isLt, ↓reduceDIte, Fin.eta, Fin.snoc_castSucc]
+  refine Fin.lastCases (by simp [extendPrefix]) (fun i => ?_) j
+  simp only [extendPrefix, Fin.val_castSucc, i.isLt, ↓reduceDIte, Fin.eta, Fin.snoc_castSucc]
 
 private theorem eqOn_update_extendPrefix {α : Type*} {k m : ℕ} (hm : m < k) (t : Fin m → α)
     (a₀ c : α) :
@@ -285,14 +282,11 @@ private theorem eqOn_update_extendPrefix {α : Type*} {k m : ℕ} (hm : m < k) (
       (extendPrefix k (Fin.snoc t c) a₀) (prefixPebbles k (m + 1)) := by
   intro j hj
   rcases eq_or_ne j.val m with hjm | hne
-  · rw [show j = ⟨m, Nat.lt_succ_of_lt hm⟩ from Fin.ext hjm, Function.update_self, extendPrefix,
-      dite_eq_left m.lt_succ_self]
-    exact (by rw [Fin.snoc_last] : (Fin.snoc t c : Fin (m + 1) → α) (Fin.last m) = c).symm
+  · have hj' : j = ⟨m, Nat.lt_succ_of_lt hm⟩ := Fin.ext hjm
+    simp [hj', extendPrefix, Fin.snoc]
   · have hlt : j.val < m := Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp hj) hne
-    rw [Function.update_of_ne fun h => hne (congrArg Fin.val h), extendPrefix, extendPrefix,
-      dite_eq_left hlt, dite_eq_left (show j.val < m + 1 from hj)]
-    exact (by rw [Fin.snoc_castSucc] :
-      (Fin.snoc t c : Fin (m + 1) → α) (⟨j.val, hlt⟩ : Fin m).castSucc = t ⟨j.val, hlt⟩).symm
+    have hne' : j ≠ ⟨m, Nat.lt_succ_of_lt hm⟩ := fun h => hne (congrArg Fin.val h)
+    simp [hne', extendPrefix, hlt, Nat.lt_succ_of_lt hlt, Fin.snoc]
 
 /-- If `G` and `H` have the same round-`n` `k`-WL histogram, then Duplicator wins the `n`-round
 bijective `(k + 1)`-pebble game from `∅`. -/
@@ -317,10 +311,9 @@ theorem wlHistogram_eq_of_bijPebbleWins_graph_empty {n : ℕ} {a : Fin (k + 1) �
     G.wlHistogram k n = H.wlHistogram k n := by
   let := G.structure
   let := H.structure
-  have hprefix : ∀ m ≤ k, ∃ F : (Fin m → V) ≃ (Fin m → W), ∀ t : Fin m → V,
+  have hprefix (m : ℕ) (hm : m ≤ k) : ∃ F : (Fin m → V) ≃ (Fin m → W), ∀ t : Fin m → V,
       BijPebbleWins Language.graph (n + (k - m)) (prefixPebbles k m)
         (extendPrefix k t (a 0)) (extendPrefix k (F t) (b 0)) := by
-    intro m hm
     induction m with
     | zero =>
       refine ⟨Equiv.ofUnique _ _, fun t => ?_⟩
@@ -337,9 +330,9 @@ theorem wlHistogram_eq_of_bijPebbleWins_graph_empty {n : ℕ} {a : Fin (k + 1) �
         exact ⟨f, fun c => bijPebbleWins_congr (eqOn_update_extendPrefix hm t (a 0) c)
           (eqOn_update_extendPrefix hm (F t) (b 0) (f c)) (insert_prefixPebbles hm ▸ hf c)⟩
       choose g hg using hmove
-      refine ⟨snocCongrEquiv F g, fun t' => ?_⟩
-      have ht' := hg (Fin.init t') (t' (Fin.last m))
-      rwa [Fin.snoc_init_self] at ht'
+      exact ⟨snocCongrEquiv F g, fun t' => by
+        simpa only [Fin.snoc_init_self, snocCongrEquiv, Equiv.coe_fn_mk] using
+          hg (Fin.init t') (t' (Fin.last m))⟩
   obtain ⟨F, hF⟩ := hprefix k le_rfl
   rw [wlHistogram_eq, wlHistogram_eq]
   refine Equiv.exists_apply_eq_iff_map_univ_eq.1
@@ -415,15 +408,12 @@ theorem realize_countingFormula_le_one_iff_of_card_eq (h : Fintype.card V = Fint
     (a : Fin (k + 1) → V) (b : Fin (k + 1) → W) :
     (letI := G.structure; φ.Realize a) ↔ (letI := H.structure; φ.Realize b) := by
   let := G.structure; let := H.structure
-  have hwin : BijPebbleWins Language.graph 1 ∅ a b := by
-    rw [bijPebbleWins_succ]
-    refine ⟨partialIsoOn_empty a b, fun j => ⟨Fintype.equivOfCardEq h, fun c => ?_⟩⟩
-    rw [bijPebbleWins_zero]
-    exact partialIsoOn_graph_iff.2 fun x hx y hy => by
-      simp only [Set.mem_insert_iff, Set.mem_empty_iff_false, or_false] at hx hy
-      subst hx hy
-      simp only [Function.update_self]
-      exact ⟨trivial, iff_of_false G.irrefl H.irrefl⟩
+  have hwin : BijPebbleWins Language.graph 1 ∅ a b := bijPebbleWins_succ.2
+    ⟨partialIsoOn_empty a b, fun j => ⟨Fintype.equivOfCardEq h, fun c => bijPebbleWins_zero.2 <|
+      partialIsoOn_graph_iff.2 fun x hx y hy => by
+        simp only [Set.mem_insert_iff, Set.mem_empty_iff_false, or_false] at hx hy
+        subst hx hy
+        exact ⟨iff_of_true rfl rfl, iff_of_false G.irrefl H.irrefl⟩⟩⟩
   exact hwin.realize_iff hr (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
 
 /-- If `G` and `H` have the same round-`n` `k`-WL histogram, then they agree on every `C^{k+1}`
@@ -447,15 +437,11 @@ theorem wlHistogram_eq_of_forall_realize_countingFormula_empty_le [Nonempty V] [
         ∀ (a : Fin (k + 1) → V) (b : Fin (k + 1) → W),
           ((letI := G.structure; φ.Realize a) ↔ (letI := H.structure; φ.Realize b))) :
     G.wlHistogram k n = H.wlHistogram k n := by
-  obtain ⟨v₀⟩ := ‹Nonempty V›
-  obtain ⟨w₀⟩ := ‹Nonempty W›
-  let a : Fin (k + 1) → V := fun _ => v₀
-  let b : Fin (k + 1) → W := fun _ => w₀
-  refine wlHistogram_eq_of_bijPebbleWins_graph_empty (a := a) (b := b) ?_
   let := G.structure
   let := H.structure
-  exact bijPebbleWins_of_forall_realize_iff fun φ hr hS =>
-    h φ hr (Finset.coe_eq_empty.1 (Set.Subset.antisymm hS (Set.empty_subset _))) a b
+  exact wlHistogram_eq_of_bijPebbleWins_graph_empty (a := fun _ => Classical.arbitrary V)
+    (b := fun _ => Classical.arbitrary W) (bijPebbleWins_of_forall_realize_iff fun φ hr hS =>
+      h φ hr (Finset.coe_eq_empty.1 (Set.subset_empty_iff.1 hS)) _ _)
 
 /-- **Cai–Fürer–Immerman theorem, sentence form** ([CaiFurerImmerman1992], Section 5, Theorem 5.2).
 Two nonempty finite simple graphs satisfy the same `C^{k+1}` sentences if and only if their `k`-WL

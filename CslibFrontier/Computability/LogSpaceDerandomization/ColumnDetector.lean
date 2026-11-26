@@ -158,7 +158,6 @@ theorem detectorTrial_le_one (hϕ0 : ∀ t, 0 ≤ ϕ t) (hϕ1 : ∀ t, ϕ t ≤ 
     (mul_le_mul_of_nonneg_left (hρ1 _) (hϕ0 _)).trans (by rw [mul_one]; exact hϕ1 _)
 
 theorem columnDetector_nonneg : 0 ≤ columnDetector X Y ϕ ρ J K f G y := by
-  rw [columnDetector]
   exact expect_nonneg fun _ _ => expect_nonneg fun _ _ => detectorTrial_nonneg
 
 theorem columnDetector_le_one (hϕ0 : ∀ t, 0 ≤ ϕ t) (hϕ1 : ∀ t, ϕ t ≤ 1)
@@ -202,11 +201,10 @@ theorem card_filter_rowGate_lt_one_mul_le (T : Finset κ) (x : V) (hf : 0 < f) {
     card_filter_mul_le_sum T _ _ (fun _ _ => by positivity) hbadK
   have hswap : ∑ t ∈ T, (#{w ∈ W | Y t w} : ℝ) = ∑ w ∈ W, (#{t ∈ T | Y t w} : ℝ) := by
     simpa only [natCast_card_filter] using sum_comm
-  have hterm : ∀ w ∈ W, (#{t ∈ T | Y t w} : ℝ) ≤ (if y = w then (#T : ℝ) else 0) +
-      c * f * #T := fun w _ => by
+  have hterm (w : V) (_ : w ∈ W) : (#{t ∈ T | Y t w} : ℝ) ≤ (if y = w then (#T : ℝ) else 0) +
+      c * f * #T := by
     split_ifs with hwy
-    · linarith [show (#{t ∈ T | Y t w} : ℝ) ≤ #T by exact_mod_cast card_filter_le _ _,
-        show 0 ≤ c * f * #T by positivity]
+    · exact le_add_of_le_of_nonneg (mod_cast card_filter_le _ _) (by positivity)
     · simpa only [zero_add] using hpair w (Ne.symm hwy)
   have hWf : (#W : ℝ) * f ≤ k / η := by
     rw [le_div_iff₀ hη]; linarith
@@ -215,9 +213,7 @@ theorem card_filter_rowGate_lt_one_mul_le (T : Finset κ) (x : V) (hf : 0 < f) {
         hMarkov.trans (hswap ▸ sum_le_sum hterm)
     _ = (if y ∈ W then (#T : ℝ) else 0) + #W * (c * f * #T) := by
         rw [sum_add_distrib, sum_ite_eq, sum_const, nsmul_eq_mul]
-    _ ≤ #T + #T * c * (#W * f) := by
-        have : (if y ∈ W then (#T : ℝ) else 0) ≤ #T := by split_ifs <;> [exact le_rfl; positivity]
-        nlinarith
+    _ ≤ #T + #T * c * (#W * f) := by split_ifs <;> nlinarith [Nat.cast_nonneg (α := ℝ) #T]
     _ ≤ #T + #T * c * (k / η) := by gcongr
     _ = #T * (1 + c * k / η) := by ring
 
@@ -246,9 +242,8 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
   set T : Finset κ := {t | Y t y}
   have hJr : (0 : ℝ) < J := by exact_mod_cast hJ
   -- a trial is at most the number of retained substantial entries over `J`
-  have htrial : ∀ s t, detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y ≤
+  have htrial (s : ι) (t : κ) : detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y ≤
       (#{x ∈ A0 | X s x} : ℝ) / J := by
-    intro s t
     rcases le_or_gt (detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y) 0 with h | h
     · exact h.trans (by positivity)
     have hsub : ({x ∈ ({x | X s x} : Finset V) |
@@ -263,8 +258,7 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
       (Nat.cast_le.mpr (((lt_kthLargest_iff hJ le_rfl).mp h).trans (card_le_card hsub)))
   -- summing over the start seeds counts each substantial entry with its retention probability
   have hsumX : ∑ s, (#{x ∈ A0 | X s x} : ℝ) = #A0 * (π * Fintype.card ι) := by
-    simp only [natCast_card_filter]
-    rw [sum_comm]
+    rw [sum_congr rfl fun _ _ => natCast_card_filter _ _, sum_comm]
     simp only [← natCast_card_filter, card_X hch, sum_const, nsmul_eq_mul]
   have hTr : (0 : ℝ) < #T := Nat.cast_pos.2 <| card_pos.2 <| nonempty_iff_ne_empty.2 fun hT => by
     linarith [show columnDetector X Y ϕ ρ J K f G y = 0 by simp [columnDetector_eq_sum, T, hT]]
@@ -281,13 +275,9 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
           simp only [sum_const, nsmul_eq_mul, Finset.mul_sum, Finset.sum_mul]
           exact sum_congr rfl fun s _ => by field_simp
       _ = #A0 * π * (Fintype.card ι * #T) := by rw [hsumX]; ring
-  have h1 : J / 4 < #A0 * π := by
-    have := hU.trans_le hUle
-    rw [lt_div_iff₀ hJr] at this
-    linarith
+  have h1 : J / 4 < #A0 * π := by linarith [(lt_div_iff₀ hJr).1 (hU.trans_le hUle)]
   have hπ : 0 < π := pos_of_mul_pos_right (by linarith : (0 : ℝ) < #A0 * π) (Nat.cast_nonneg _)
-  have hCπ : 0 < Cπ * f := hπ.trans_le hch.upper
-  rw [div_lt_iff₀ (by nlinarith)]
+  rw [div_lt_iff₀ (by linarith [hπ.trans_le hch.upper])]
   linarith [mul_le_mul_of_nonneg_left hch.upper (Nat.cast_nonneg (α := ℝ) #A0)]
 
 omit [Fintype V] in
@@ -359,9 +349,8 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
       _ = #A * π * Fintype.card ι * (#T * D / K) := by
           rw [sum_const, nsmul_eq_mul]; ring
   -- outside two bad events, at least `J` retained large rows pass their gates
-  have hgood : ∀ s t, ¬ 2 * N s < #A * π → ¬ #A * π < 4 * L s t →
+  have hgood (s : ι) (t : κ) (h1 : ¬ 2 * N s < #A * π) (h2 : ¬ #A * π < 4 * L s t) :
       1 ≤ detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y := by
-    intro s t h1 h2
     push Not at h1 h2
     have hsplit : N s = L s t + #{x ∈ A | X s x ∧ ¬ gate t x < 1} := by
       simp only [N, L, natCast_card_filter, ← sum_add_distrib]
@@ -381,11 +370,8 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
       detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y := by
     have h0 : 0 ≤ detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y := detectorTrial_nonneg
     by_cases h1 : 2 * N s < #A * π <;> by_cases h2 : #A * π < 4 * L s t <;>
-      simp only [b1, b2, h1, h2, ↓reduceIte, sub_zero]
-    · linarith
-    · linarith
-    · linarith
-    · exact hgood s t h1 h2
+      simp only [b1, b2, h1, h2, ↓reduceIte, sub_zero] <;>
+      first | linarith | exact hgood s t h1 h2
   have hb1 : ∑ s, b1 s ≤ Cvar / (#A * π) * Fintype.card ι := by
     simpa only [b1, N, sum_boole, dens_cast, div_le_iff₀ hιr] using hch.tail A hA
   have hb2 : ∑ s, ∑ t ∈ T, b2 s t ≤ 4 / (#A * π) * ∑ s, ∑ t ∈ T, L s t := by
@@ -399,13 +385,11 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
     rw [div_le_div_iff₀ hnπ0 (by norm_num)]; linarith
   have hgatebound : 4 / (#A * π) * (#A * π * Fintype.card ι * (#T * D / K)) ≤
       Fintype.card ι * #T / 40 := by
-    have hKr : (0 : ℝ) < K := by exact_mod_cast hKpos
-    have : 4 / (#A * π) * (#A * π * Fintype.card ι * (#T * D / K)) =
-        4 * D / K * (Fintype.card ι * #T) := by
-      field_simp
-    rw [this, div_eq_mul_one_div (Fintype.card ι * (#T : ℝ)) 40, mul_comm _ (1 / 40 : ℝ)]
-    refine mul_le_mul_of_nonneg_right ?_ (by positivity)
-    rw [div_le_iff₀ hKr]; linarith
+    have hKr : (0 : ℝ) < K := mod_cast hKpos
+    have heq : 4 / (#A * π) * (#A * π * Fintype.card ι * (#T * D / K)) =
+        4 * D / K * (Fintype.card ι * #T) := by field_simp
+    rw [heq, div_eq_mul_one_div (Fintype.card ι * (#T : ℝ)) 40, mul_comm _ (1 / 40 : ℝ)]
+    exact mul_le_mul_of_nonneg_right ((div_le_iff₀ hKr).mpr (by linarith)) (mul_pos hιr hTr).le
   rw [columnDetector_eq_sum, le_div_iff₀ (by positivity)]
   have h4 : 0 ≤ 4 / (#A * π) := by positivity
   calc 19 / 20 * (Fintype.card ι * #T : ℝ)

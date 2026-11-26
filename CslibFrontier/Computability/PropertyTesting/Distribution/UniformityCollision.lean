@@ -114,17 +114,15 @@ private theorem sum_cube_sub_sq_le [Nonempty α] (p : PMF α) :
     linarith
   obtain ⟨D, hD⟩ : ∃ D, D = ∑ a, d a ^ 2 := ⟨_, rfl⟩
   have hs : collisionProbability p = n⁻¹ + D := by
-    rw [collisionProbability_eq_sum, hD]
-    have h (a : α) : (p a).toReal ^ 2 = n⁻¹ * n⁻¹ + 2 * n⁻¹ * d a + d a ^ 2 := by
-      rw [hd]; ring
-    simp only [h, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← hn, ← mul_sum, hsum,
-      mul_zero, add_zero, ← mul_assoc, mul_inv_cancel₀ hn0, one_mul]
+    have h (a : α) : (p a).toReal ^ 2 = n⁻¹ * n⁻¹ + 2 * n⁻¹ * d a + d a ^ 2 := by rw [hd]; ring
+    simp only [collisionProbability_eq_sum, hD, h, sum_add_distrib, sum_const, card_univ,
+      nsmul_eq_mul, ← hn, ← mul_sum, hsum, mul_zero, add_zero, ← mul_assoc, mul_inv_cancel₀ hn0,
+      one_mul]
   have ht : ∑ a, (p a).toReal ^ 3 = n⁻¹ * n⁻¹ + 3 * n⁻¹ * D + ∑ a, d a ^ 3 := by
-    rw [hD]
     have h (a : α) : (p a).toReal ^ 3 =
         n⁻¹ * (n⁻¹ * n⁻¹) + 3 * (n⁻¹ * n⁻¹) * d a + 3 * n⁻¹ * d a ^ 2 + d a ^ 3 := by
       rw [hd]; ring
-    simp only [h, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← hn, ← mul_sum, hsum,
+    simp only [hD, h, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← hn, ← mul_sum, hsum,
       mul_zero, add_zero, ← mul_assoc, mul_inv_cancel₀ hn0, one_mul]
   have hcube : ∑ a, d a ^ 3 ≤ Real.sqrt D * D := by
     calc ∑ a, d a ^ 3 ≤ ∑ a, Real.sqrt D * d a ^ 2 := by
@@ -237,25 +235,21 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
       (2 * N * ε ^ 2 / n) (by positivity) ?_ (sum_iid_mul_collisionCount_sub_sq _ k).le ?_
     · intro x hx
       simp only [Bool.not_eq_true', decide_eq_false_iff_not, not_le] at hx
-      rw [← hN, hcp, le_abs]
-      left
       have heq : 2 * N * ε ^ 2 / n = N * (1 + 2 * ε ^ 2) / n - N * n⁻¹ := by field_simp; ring
-      linarith only [hx, heq, hτ]
+      rw [← hN, hcp]
+      exact le_abs.mpr (.inl (by linarith only [hx, heq, hτ]))
     · rw [← hN, hcp, hcube, sub_self, mul_zero, add_zero]
-      have hle : 3 * (N * (n⁻¹ - n⁻¹ ^ 2)) ≤ 3 * N / n := by
-        rw [mul_sub, div_eq_mul_inv]
-        linarith only [mul_nonneg hN0.le (sq_nonneg n⁻¹)]
-      refine hle.trans ?_
-      rw [div_pow, mul_pow, mul_pow, div_le_div_iff₀ hn0 (by positivity)]
+      refine (by linarith only [mul_sub N n⁻¹ (n⁻¹ ^ 2), mul_nonneg hN0.le (sq_nonneg n⁻¹)] :
+        _ ≤ 3 * N * n⁻¹).trans ?_
+      rw [← div_eq_mul_inv, div_pow, mul_pow, mul_pow, div_le_div_iff₀ hn0 (by positivity)]
+      have hKN : K ^ 2 ≤ 4 * N := by rw [hNK]; linarith only [hK0, sq_nonneg K]
       have h4 : 3 * n ≤ 4 * N * ε ^ 4 := by
-        have hKN : K ^ 2 ≤ 4 * N := by rw [hNK]; linarith only [hK0, sq_nonneg K]
         linarith only [hn0, h1600, mul_le_mul_of_nonneg_right hKN (pow_nonneg hε.le 4)]
       linarith only [mul_le_mul_of_nonneg_left h4 (mul_pos hN0 hn0).le]
   · intro p hp
     have hfar : ε ≤ dist p (uniformOfFintype α) := hp _ rfl
     have hε1 : ε ≤ 1 := hfar.trans (dist_le_one _ _)
-    have hsq := dist_uniform_sq_le p
-    rw [← hn] at hsq
+    have hsq := hn.symm ▸ dist_uniform_sq_le p
     set s := collisionProbability p with hs
     set D := s - n⁻¹ with hD
     have hnD : 4 * ε ^ 2 ≤ n * D := by
@@ -268,24 +262,20 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     have hr0 : 0 ≤ r := Real.sqrt_nonneg _
     have hrD : r ^ 2 = D := Real.sq_sqrt hD0.le
     have hw2 : 4 * ε ^ 2 ≤ (q * r) ^ 2 := by rwa [mul_pow, hqn, hrD]
-    have hw : 2 * ε ≤ q * r := by
-      refine (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).mp ?_
-      linarith only [hw2, show (2 * ε) ^ 2 = 4 * ε ^ 2 by ring]
+    have hw : 2 * ε ≤ q * r := (abs_le_of_sq_le_sq'
+      (by rw [mul_pow]; linarith only [hw2]) (mul_nonneg (zero_le_one.trans hq1) hr0)).2
     unfold collisionTester
     rw [acceptProb_pure]
     refine mass_le_one_third _
       (fun x => decide ((collisionCount x : ℝ) ≤ collisionThreshold (Fintype.card α) k ε)) _
       (N * (D - 2 * ε ^ 2 / n)) ?_ ?_ (sum_iid_mul_collisionCount_sub_sq _ k).le ?_
-    · refine mul_pos hN0 (sub_pos.mpr ?_)
-      rw [div_lt_iff₀ hn0, mul_comm]
-      linarith only [hnD, sq_pos_of_pos hε]
+    · exact mul_pos hN0 (sub_pos.mpr
+        ((div_lt_iff₀ hn0).mpr (by linarith only [hnD, sq_pos_of_pos hε])))
     · intro x hx
-      simp only [decide_eq_true_eq] at hx
       have hτ' : collisionThreshold (Fintype.card α) k ε = N * s - N * (D - 2 * ε ^ 2 / n) := by
         rw [hτ, hD]; field_simp; ring
-      rw [← hN, ← hs, le_abs]
-      right
-      linarith only [hx, hτ']
+      rw [← hN, ← hs]
+      exact le_abs.mpr (.inr (by linarith only [of_decide_eq_true hx, hτ']))
     · have hcube := sum_cube_sub_sq_le p
       rw [← hn, ← hs, ← hD, ← hr] at hcube
       rw [← hN, ← hs, hM]
@@ -298,8 +288,7 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
               zero_le_three
         _ = 3 * ((K + 1) * K / 2 * (1 / q ^ 2 + r ^ 2) +
             (K + 1) * K * (K - 1) * (r ^ 2 * (1 / q ^ 2) + r * r ^ 2)) := by
-            have hsD : s = n⁻¹ + D := by rw [hD]; ring
-            rw [hNK, hqn, hrD, hsD]
+            rw [hNK, hqn, hrD, eq_add_of_sub_eq' hD.symm]
             ring
         _ ≤ ((K + 1) * K / 2 * (r ^ 2 - 2 * ε ^ 2 / q ^ 2)) ^ 2 :=
             far_variance_le hq1 hε hε1 hr0 hw hw2 hk hK0

@@ -82,11 +82,9 @@ variable {P S M V : Type*} [Fintype P] [DecidableEq P] [DecidableEq M]
 omit [Fintype P] [DecidableEq P] [DecidableEq M] in
 private lemma extract_isDrainAction (F : Finset P) (xs : ωSequence (Action P M V)) {k₀ k₁ : ℕ}
     (hdrain : ∀ j, k₀ ≤ j → IsDrainAction F (xs j)) :
-    ∀ a ∈ xs.extract k₀ k₁, IsDrainAction F a := by
-  intro a ha
+    ∀ a ∈ xs.extract k₀ k₁, IsDrainAction F a := fun a ha => by
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
-  have hi' : i < k₁ - k₀ := by simpa [ωSequence.length_extract] using hi
-  rw [xs.get_extract hi']
+  rw [xs.get_extract (by simpa [ωSequence.length_extract] using hi)]
   exact hdrain (k₀ + i) (Nat.le_add_right k₀ i)
 
 omit [Fintype P] in
@@ -129,15 +127,11 @@ private lemma mTr_drain_preserves {F : Finset P} {s₀ s₁ : State P S M V}
         rcases hstep r hr with hold | rfl
         exacts [Nat.lt_succ_of_lt (hresp₀ i hi r hold), Nat.lt_succ_self s.step]
       obtain ⟨hlen1, hresp1, hproc1, hmsg1⟩ := ih hrest hresp_s'
-      refine ⟨hlen1.trans hlen_s', hresp1, ?_, ?_⟩
-      · intro p hp
-        rw [hproc1 p hp]
-        simp [doDeliver, Function.update_of_ne (ne_of_mem_of_not_mem hp hmdest)]
-      · intro e heF
-        have hem : e ≠ m := fun heq => hmdest (heq ▸ heF)
-        refine le_trans ?_ (hmsg1 e heF)
-        simp only [doDeliver, Multiset.count_add, Multiset.count_erase_of_ne hem]
-        exact Nat.le_add_right _ _
+      refine ⟨hlen1.trans hlen_s', hresp1, fun p hp => ?_, fun e heF => ?_⟩
+      · simp [hproc1 p hp, doDeliver, Function.update_of_ne (ne_of_mem_of_not_mem hp hmdest)]
+      · refine le_trans ?_ (hmsg1 e heF)
+        simp only [doDeliver, Multiset.count_add,
+          Multiset.count_erase_of_ne (fun heq : e = m => hmdest (heq ▸ heF)), Nat.le_add_right]
 
 /-- Simulation relation coupling Run 2 (`s`, after invoking `read` at `b₀` from `π.start`) with
 Run 3 (`u`, after invoking `read` at `b₀` from `s₁`). -/
@@ -166,20 +160,16 @@ private lemma simAfterRead_init {B : Finset P} {s₁ : State P S M V} {b₀ : P}
     (hmsg₁ : ∀ e : Envelope P M, e.dest ∈ B → π.start.msgs.count e ≤ s₁.msgs.count e) :
     SimAfterRead B s₁ b₀ (π.doInvoke b₀ .read π.start) (π.doInvoke b₀ .read s₁) := by
   have hb₀_st : (s₁.proc b₀).state = π.init b₀ := congrArg ProcState.state (hproc₁ b₀ hb₀)
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro p hp
-    by_cases hpb : p = b₀
-    · subst hpb; simp [doInvoke, start, hb₀_st]
+  refine ⟨fun p hp => ?_, fun e heB => ?_, fun p hp hpb => ?_, ?_⟩
+  · rcases eq_or_ne p b₀ with rfl | hpb
+    · simp [doInvoke, start, hb₀_st]
     · simpa only [doInvoke, Function.update_of_ne hpb] using congrArg ProcState.state (hproc₁ p hp)
-  · intro e heB
-    simp only [doInvoke, start, hb₀_st, Multiset.count_add]
+  · simp only [doInvoke, start, hb₀_st, Multiset.count_add]
     exact Nat.add_le_add_right (hmsg₁ e heB) _
-  · intro p hp hpb
-    simp only [doInvoke, Function.update_of_ne hpb, hproc₁ p hp]; exact ⟨rfl, rfl⟩
+  · simp [doInvoke, start, Function.update_of_ne hpb, hproc₁ p hp]
   · rcases matchCompletion_read_cases (π.onInvoke b₀ (π.init b₀) .read).resp with hnone | ⟨r, hsp⟩
     · exact Or.inl (by simp [doInvoke, start, hb₀_st, invokePending, hnone])
-    · right
-      refine ⟨r, 0, s₁.step, ?_, ?_, ?_, ?_⟩ <;>
+    · refine Or.inr ⟨r, 0, s₁.step, ?_, ?_, ?_, ?_⟩ <;>
         simp [doInvoke, start, hb₀_st, hsp, invokePending, matchCompletion]
 
 omit [Fintype P] in
@@ -205,23 +195,21 @@ private lemma simAfterRead_mTr {A B : Finset P} (hcover : ∀ p : P, p ∈ A ∨
       have htr_u : π.lts.Tr u (.deliver e) (π.doDeliver e u) := ⟨he_u, rfl⟩
       have hd_st : (u.proc e.dest).state = (s.proc e.dest).state := hst_eq e.dest hedB
       have hsim' : SimAfterRead B s₁ b₀ (π.doDeliver e s) (π.doDeliver e u) := by
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · intro p hp
-          by_cases hpe : p = e.dest
-          · subst hpe; simp [doDeliver, hd_st]
+        refine ⟨fun p hp => ?_, fun m hmB => ?_, fun p hp hpb => ?_, ?_⟩
+        · rcases eq_or_ne p e.dest with rfl | hpe
+          · simp [doDeliver, hd_st]
           · simp [doDeliver, hpe, hst_eq p hp]
-        · intro m hmB
-          simp only [doDeliver, hd_st, Multiset.count_add]
+        · simp only [doDeliver, hd_st, Multiset.count_add]
           apply Nat.add_le_add_right
-          by_cases hme : m = e
-          · subst hme; rw [Multiset.count_erase_self, Multiset.count_erase_self]
+          rcases eq_or_ne m e with rfl | hme
+          · simp only [Multiset.count_erase_self]
             exact Nat.sub_le_sub_right (hmsg_le m hmB) 1
           · simpa only [Multiset.count_erase_of_ne hme] using hmsg_le m hmB
-        · intro p hp hpb
-          obtain ⟨hsp, hup⟩ := hother_pend p hp hpb
-          by_cases hpe : p = e.dest
-          · subst hpe; simp [doDeliver, deliverPending, hsp, hup]
-          · simp only [doDeliver, Function.update_of_ne hpe]; exact ⟨hsp, hup⟩
+        · obtain ⟨hsp, hup⟩ := hother_pend p hp hpb
+          rcases eq_or_ne p e.dest with rfl | hpe
+          · simp [doDeliver, deliverPending, hsp, hup]
+          · simp only [doDeliver, Function.update_of_ne hpe]
+            exact ⟨hsp, hup⟩
         · by_cases hbe : e.dest = b₀
           · subst hbe
             rcases hb₀_cases with ⟨hsp, hup, hsh, huh⟩ | ⟨r, stp_s, stp_u, hsp, hup, hsh, huh⟩
@@ -383,22 +371,15 @@ private lemma exists_two_partition {P : Type*} [Fintype P] {t : ℕ}
   let e : P ≃ Fin n := Fintype.equivFin P
   let grp : Fin 2 → Finset P := fun k => Finset.univ.filter fun p => (e p : ℕ) % 2 = k.val
   have hdisj : Disjoint (grp 0) (grp 1) := by finset_card
-  have hcard : ∀ k : Fin 2, (grp k).card ≤ t := by
-    intro k
+  have hcard : ∀ k : Fin 2, (grp k).card ≤ t := fun k => by
     calc (grp k).card
-        ≤ (Finset.range t).card := by
-          apply Finset.card_le_card_of_injOn (fun p => (e p : ℕ) / 2)
-          · intro p _
-            have hlt : (e p : ℕ) < n := (e p).isLt
-            simp only [Finset.coe_range, Set.mem_Iio]; omega
-          · intro p hp q hq hdiv
-            simp only [grp, Finset.coe_filter, Finset.mem_univ, true_and,
-              Set.mem_ofPred_eq] at hp hq
-            refine e.injective (Fin.ext ?_)
-            have hmod : (e p : ℕ) % 2 = (e q : ℕ) % 2 := hp.trans hq.symm
-            dsimp only at hdiv
-            omega
+        ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun p => (e p : ℕ) / 2)
+            (fun p _ => Finset.mem_coe.2 (Finset.mem_range.2
+              (Nat.div_lt_of_lt_mul ((e p).isLt.trans_le hle)))) ?_
       _ = t := Finset.card_range t
+    rintro p hp q hq (hdiv : (e p : ℕ) / 2 = (e q : ℕ) / 2)
+    simp only [grp, Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hp hq
+    exact e.injective (Fin.ext (by omega))
   refine ⟨grp 0, grp 1, hdisj, ?_, hcard 0, hcard 1, ?_, ?_⟩
   · intro p
     simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and]

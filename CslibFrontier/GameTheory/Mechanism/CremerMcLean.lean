@@ -449,11 +449,7 @@ theorem sum_prob_mul_eq_sum_marginal_mul (P : CorrelatedPrior ι T) (i : ι)
     ∑ t, P.prob t * g t =
       ∑ ti : T i, P.marginal i ti *
         ∑ t_opp : OppProfile T i, P.condBelief i ti t_opp * g (extendProfile i ti t_opp) := by
-  rw [sum_profile_eq i]
-  refine sum_congr rfl fun ti _ => ?_
-  rw [mul_sum]
-  refine sum_congr rfl fun t_opp _ => ?_
-  rw [← mul_assoc, marginal_mul_condBelief]
+  simp_rw [sum_profile_eq i, mul_sum, ← mul_assoc, marginal_mul_condBelief]
 
 /-! ### Interim utility, BIC, interim IR, and full surplus extraction -/
 
@@ -487,8 +483,7 @@ theorem interimUtility_withOpponentTransfer (P : CorrelatedPrior ι T) (val : �
   simp only [interimUtility_apply, IndirectMechanism.withOpponentTransfer_outcome,
     IndirectMechanism.withOpponentTransfer_payment, oppProj_extendProfile, mulVec, dotProduct]
   rw [← sum_sub_distrib]
-  refine sum_congr rfl fun t_opp _ => ?_
-  ring
+  exact sum_congr rfl fun _ _ => by ring
 
 /-- **Bayesian incentive compatibility (`IsBIC`)**: for every agent `i` and true type `ti`,
 truthful reporting `ti' = ti` maximizes `P.interimUtility val D i ti`. -/
@@ -531,25 +526,20 @@ theorem sum_marginal_mul_interimUtility (P : CorrelatedPrior ι T) (val : ∀ i,
     ∑ i, ∑ ti : T i, P.marginal i ti * P.interimUtility val D i ti ti =
       (∑ t, P.prob t * ∑ i, val i (t i) (D.outcome t)) -
         ∑ t, P.prob t * ∑ i, D.payment t i := by
-  have hagent (i : ι) : ∑ ti, P.marginal i ti * P.interimUtility val D i ti ti =
-      ∑ t, P.prob t * (val i (t i) (D.outcome t) - D.payment t i) := by
-    simpa only [interimUtility_apply, extendProfile_self] using
-      (P.sum_prob_mul_eq_sum_marginal_mul i fun t =>
-        val i (t i) (D.outcome t) - D.payment t i).symm
-  simp_rw [hagent]
+  have h (i : ι) := P.sum_prob_mul_eq_sum_marginal_mul i fun t =>
+    val i (t i) (D.outcome t) - D.payment t i
+  simp only [extendProfile_self, ← interimUtility_apply] at h
+  simp_rw [← h]
   rw [sum_comm]
-  simp_rw [← mul_sum, sum_sub_distrib, mul_sub]
-  rw [sum_sub_distrib]
+  simp_rw [← mul_sum, sum_sub_distrib, mul_sub, sum_sub_distrib]
 
 /-- Zero truthful interim utility at every agent and type implies `ExtractsFullSurplus`. -/
 theorem extractsFullSurplus_of_forall_interimUtility_eq_zero (P : CorrelatedPrior ι T)
     {val : ∀ i, T i → Ω → ℝ} {D : IndirectMechanism ι T Ω}
     (h0 : ∀ i (ti : T i), P.interimUtility val D i ti ti = 0) :
     P.ExtractsFullSurplus val D := by
-  have h := P.sum_marginal_mul_interimUtility val D
-  simp only [h0, mul_zero, sum_const_zero] at h
-  rw [ExtractsFullSurplus]
-  linarith
+  have h := (P.sum_marginal_mul_interimUtility val D).symm
+  exact (sub_eq_zero.1 (by simpa only [h0, mul_zero, sum_const_zero] using h)).symm
 
 /-- Under `IsInterimIR`, a mechanism extracts the full surplus if and only if every agent and every
 type earns zero interim utility (`P.interimUtility val D i ti ti = 0`), because every marginal
@@ -637,8 +627,7 @@ theorem exists_withOpponentTransfer_extractsFullSurplus {P : CorrelatedPrior ι 
       P.ExtractsFullSurplus val (D₀.withOpponentTransfer g) := by
   have hSurj := P.hasFullBeliefRank_iff_forall_exists_mulVec_eq.1 hP
   choose g hg using fun i => hSurj i (fun ti => P.interimUtility val D₀ i ti ti)
-  have hzero : ∀ i (ti : T i), P.interimUtility val (D₀.withOpponentTransfer g) i ti ti = 0 := by
-    intro i ti
+  have hzero (i) (ti) : P.interimUtility val (D₀.withOpponentTransfer g) i ti ti = 0 := by
     rw [interimUtility_withOpponentTransfer, hg i, sub_self]
   exact ⟨g, hzero, fun i ti => (hzero i ti).ge,
     P.extractsFullSurplus_of_forall_interimUtility_eq_zero hzero⟩
@@ -661,11 +650,11 @@ theorem exists_isTruthful_interimIR_extractsFullSurplus {P : CorrelatedPrior ι 
   obtain ⟨f, hf⟩ := Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Ω)
   let D₀ : IndirectMechanism ι T Ω := (Mechanism.vcg f).toDirectMechanism val
   obtain ⟨g, hzero, hIR, hExt⟩ := hP.exists_withOpponentTransfer_extractsFullSurplus val D₀
-  refine ⟨D₀.withOpponentTransfer g, ?_, ?_, hIR, hExt, hzero⟩
-  · rw [IndirectMechanism.isExPostEfficient_withOpponentTransfer]
-    exact Mechanism.isExPostEfficient_toDirectMechanism hf val
-  · rw [IndirectMechanism.isTruthful_withOpponentTransfer]
-    exact (Mechanism.vcg_isDSIC hf).isTruthful_toDirectMechanism val
+  exact ⟨D₀.withOpponentTransfer g,
+    (IndirectMechanism.isExPostEfficient_withOpponentTransfer D₀ g val).2
+      (Mechanism.isExPostEfficient_toDirectMechanism hf val),
+    (IndirectMechanism.isTruthful_withOpponentTransfer D₀ g val).2
+      ((Mechanism.vcg_isDSIC hf).isTruthful_toDirectMechanism val), hIR, hExt, hzero⟩
 
 end HasFullBeliefRank
 
@@ -735,14 +724,10 @@ theorem hasFullBeliefRank_iff_forall_exists_isTruthful (P : CorrelatedPrior ι T
           D.IsTruthful val ∧
           P.IsInterimIR val D ∧
           P.ExtractsFullSurplus val D := by
-  refine ⟨fun hP val _ => ?_, fun H => ?_⟩
-  · obtain ⟨D, hEff, hTruth, hIR, hExt, -⟩ :=
-      hP.exists_isTruthful_interimIR_extractsFullSurplus val
-    exact ⟨D, hEff, hTruth, hIR, hExt⟩
-  · by_contra hP
-    obtain ⟨val, hnonneg, -, hno⟩ :=
-      exists_nonneg_val_not_exists_isTruthful_of_not_hasFullBeliefRank (Ω := Ω) hP
-    exact hno (H val hnonneg)
+  refine ⟨fun hP val _ => (hP.exists_isTruthful_interimIR_extractsFullSurplus val).imp
+    fun _ ⟨hEff, hTruth, hIR, hExt, _⟩ => ⟨hEff, hTruth, hIR, hExt⟩, fun H => not_not.1 fun hP =>
+    let ⟨val, hnn, _, hno⟩ := exists_nonneg_val_not_exists_isTruthful_of_not_hasFullBeliefRank hP
+    hno (H val hnn)⟩
 
 /-! ### Bayesian characterization: convex independence of beliefs (`HasConvexIndependentBeliefs`) -/
 
@@ -912,8 +897,7 @@ theorem exists_outcome_eq_isBIC_extractsFullSurplus {P : CorrelatedPrior ι T}
         gain i ti r - scale i r * (P.condBelief i *ᵥ h i r) ti := fun i ti r => by
     simp only [interimUtility_apply, D, extendProfile_self, oppProj_extendProfile, gain, mulVec,
       dotProduct, mul_sum, ← sum_sub_distrib]
-    refine sum_congr rfl fun t_opp _ => ?_
-    ring
+    exact sum_congr rfl fun _ _ => by ring
   have hzero : ∀ i (ti : T i), P.interimUtility val D i ti ti = 0 := fun i ti => by
     rw [hinterim, (hh i ti).1, mul_zero, sub_zero]
     simp only [gain, sub_self, mul_zero, sum_const_zero]
@@ -928,8 +912,7 @@ theorem exists_outcome_eq_isBIC_extractsFullSurplus {P : CorrelatedPrior ι T}
           if ti' = r then 0 else |gain i ti' r| / (P.condBelief i *ᵥ h i r) ti')
           (fun ti' _ => ?_) (mem_univ ti))
       split_ifs with heq
-      · exact le_rfl
-      · exact div_nonneg (abs_nonneg _) (hh_pos i r ti' heq).le
+      exacts [le_rfl, div_nonneg (abs_nonneg _) (hh_pos i r ti' heq).le]
     have hlt_scale : gain i ti r / (P.condBelief i *ᵥ h i r) ti < scale i r := by
       dsimp only [scale]
       linarith [div_le_div_of_nonneg_right (le_abs_self (gain i ti r)) hpen_pos.le]
@@ -957,9 +940,7 @@ theorem exists_isBIC_interimIR_extractsFullSurplus {P : CorrelatedPrior ι T}
   obtain ⟨f, hf⟩ := Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Ω)
   obtain ⟨D, hOut, hstrict, hBIC, hIR, hExt, hzero⟩ :=
     hP.exists_outcome_eq_isBIC_extractsFullSurplus val fun t => f (fun j => val j (t j))
-  refine ⟨D, fun t ω => ?_, hstrict, hBIC, hIR, hExt, hzero⟩
-  rw [hOut]
-  exact hf (fun j => val j (t j)) ω
+  exact ⟨D, fun t ω => hOut ▸ hf (fun j => val j (t j)) ω, hstrict, hBIC, hIR, hExt, hzero⟩
 
 end HasConvexIndependentBeliefs
 
@@ -1052,8 +1033,7 @@ theorem exists_nonneg_val_not_exists_isBIC_of_not_hasConvexIndependentBeliefs
             ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)
         = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
             ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp :=
-          sum_congr rfl fun ti' _ => by
-            simp [ite_eq_right ti'.2, show (2 : ℝ) - 1 = 1 by norm_num]
+          sum_congr rfl fun ti' _ => by rw [ite_eq_right ti'.2]; norm_num
       _ = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' := by
           simp only [P.sum_condBelief_eq_one, mul_one]
       _ = 1 := hw.sum_eq_one
@@ -1072,14 +1052,11 @@ theorem hasConvexIndependentBeliefs_iff_forall_exists_isBIC (P : CorrelatedPrior
           P.IsBIC val D ∧
           P.IsInterimIR val D ∧
           P.ExtractsFullSurplus val D := by
-  refine ⟨fun hP val _ => ?_, fun H => ?_⟩
-  · obtain ⟨D, hEff, -, hBIC, hIR, hExt, -⟩ :=
-      hP.exists_isBIC_interimIR_extractsFullSurplus val
-    exact ⟨D, hEff, hBIC, hIR, hExt⟩
-  · by_contra hP
-    obtain ⟨val, hnonneg, -, hno⟩ :=
-      exists_nonneg_val_not_exists_isBIC_of_not_hasConvexIndependentBeliefs (Ω := Ω) hP
-    exact hno (H val hnonneg)
+  refine ⟨fun hP val _ => (hP.exists_isBIC_interimIR_extractsFullSurplus val).imp
+    fun _ ⟨hEff, _, hBIC, hIR, hExt, _⟩ => ⟨hEff, hBIC, hIR, hExt⟩, fun H => not_not.1 fun hP =>
+    let ⟨val, hnn, _, hno⟩ :=
+      exists_nonneg_val_not_exists_isBIC_of_not_hasConvexIndependentBeliefs hP
+    hno (H val hnn)⟩
 
 /-! ### Independent product priors and impossibility of universal full extraction -/
 

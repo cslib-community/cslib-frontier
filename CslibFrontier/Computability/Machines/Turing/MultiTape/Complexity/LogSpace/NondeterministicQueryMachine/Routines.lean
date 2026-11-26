@@ -140,8 +140,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cPE, hPE⟩ := computableInTimeAndSpace_of_const
     (encIn := encPass encS) (encOut := encBits) ([] : List Bool)
   obtain ⟨TN, cN, hN, -⟩ := Internal.NormalForm.space (passNext_inSpace hquery false)
-  have hpns (b : Bool) := Internal.NormalForm.space (passEnd_inSpace hnext hhalted b)
-  choose TPN cPN hPN hlenPN using hpns
+  choose TPN cPN hPN _ using fun b => Internal.NormalForm.space (passEnd_inSpace hnext hhalted b)
   obtain ⟨TC, cC, hC, -⟩ := Internal.NormalForm.space (passCont_inSpace hhalted false)
   obtain ⟨TF, cF, hF, -⟩ := Internal.NormalForm.space (passFinish_inSpace haccept false)
   obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_frame (f := id)
@@ -154,10 +153,8 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cF', hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hF huf
   obtain ⟨cPE', hPE'⟩ := ComputableTidilyInTimeAndSpace.comp_linear
     (ComputableInTimeAndSpace.computableTidilyInTimeAndSpace hPE) huf
-  have hpn₁ (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear (hPN b) huf
-  choose cPN₁ hPN₁ using hpn₁
-  have hpn' (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear hfr (hPN₁ b)
-  choose cPN' hPN' using hpn'
+  choose cPN₁ hPN₁ using fun b => ComputableTidilyInTimeAndSpace.comp_linear (hPN b) huf
+  choose cPN' hPN' using fun b => ComputableTidilyInTimeAndSpace.comp_linear hfr (hPN₁ b)
   obtain ⟨cC₁, hC₁⟩ := ComputableTidilyInTimeAndSpace.comp_linear hC huf
   obtain ⟨cC', hC'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfl hC₁
   obtain ⟨kI, SI, _, tmI, htmI⟩ := hI'
@@ -184,12 +181,10 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     (Fin.natAdd kF (0 : Fin 2)) V
   obtain ⟨ePE, hePE⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kPE (0 : Fin 2)) V
-  have hepn (b : Bool) : ∃ e : Fin (kPN b + 1 + 2) ↪ Fin (m + 4),
-      e (Fin.natAdd (kPN b + 1) (0 : Fin 2)) = V ∧
-      e ((Fin.last (kPN b)).castAdd 2) = N := by
-    apply Fin.exists_embedding_eq₂ (by cases b <;> omega)
-      (by simp [Fin.ext_iff]) hVN
-  choose ePN hePN hePN' using hepn
+  choose ePN hePN hePN' using fun b => Fin.exists_embedding_eq₂ (K := m + 4)
+    (i := Fin.natAdd (kPN b + 1) (0 : Fin 2)) (o := (Fin.last (kPN b)).castAdd 2)
+    (by cases b <;> omega)
+    (by simp [Fin.ext_iff]) hVN
   obtain ⟨eC, heC, heC'⟩ := Fin.exists_embedding_eq₂ (K := m + 4) (by omega)
     (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
     (by simp [Fin.ext_iff]) hVC
@@ -203,7 +198,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   have hPE₀ := fun a => (htmPE a).inputFromWord_extendTapes true hePE
   have hPN₀ := fun b a => (htmPN b a).onWords_extendTapes true (hePN b) (hePN' b)
   have hC₀ := fun a => (htmC a).onWords_extendTapes true heC heC'
-  clear hquery hnext hhalted haccept hI hE hPE hN hPN hlenPN hC hF hfr huf hfl
+  clear hquery hnext hhalted haccept hI hE hPE hN hPN hC hF hfr huf hfl
     hPN₁ hC₁ htmI htmE htmN htmF htmPE htmPN htmC
     heI heE heN heN' heF hePE hePN hePN' heC heC'
   obtain ⟨D, hD_eq⟩ : ∃ D, D = cfr + cuf + cfl + cI + cE + cPE + cN + cF + cC + cI' + cN' +
@@ -267,21 +262,18 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
               ((tmF.inputFromWord true).extendTapes eF)
             C := C
             boundary := B
-            boundary_flag := ?_
+            boundary_flag := fun s b => by simp [B, passTapes]
             boundary_injective := ?_
             c := G
             initial_spec := ?_
             pass_spec := ?_
             final_spec := ?_ }⟩
-  · intro s b
-    simp [B, passTapes]
   · intro s b s' b' h
     have hv := congrFun h V
     simp only [B, passTapes, Function.update_of_ne hVC, Function.update_self] at hv
     exact congrArg Prod.fst ((encPass encS).injective (frame_injective hv))
   · intro a
-    have hlen := hscan a (start a) ((M.withInit (start a)).reachable_init _) false 0
-      (Nat.zero_le _)
+    have hlen := hscan a (start a) ((M.withInit (start a)).reachable_init _) false 0 (by omega)
     simp only [streamState_zero] at hlen
     have hcont := (hC₀ ((start a, 0, none) : PassState σ)).imp
       (Q' := fun _ _ ws' e => ws' = B (start a) (!M.halted (start a)) ∧ e = [])
@@ -292,13 +284,12 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
       le_rfl (le_trans ?_ (hG a (k := 50) (by omega)))⟩
     have := hU_bounds hlen false
     have := hU_bounds (hL1 a) false
-    have : (encBits (flagWord (passCont (M.withChoice false)
-        ((start a, 0, none) : PassState σ)))).length ≤ 1 := hflag _
+    have := hflag (passCont (M.withChoice false) (start a, 0, none))
     have := hsmall a
     have := hk false
     have := hcIU a
     simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame,
-      encBool_apply, List.length_singleton]
+      encBool_apply, encBits_apply, List.length_singleton]
     omega
   · intro a s hs b flag
     let q (j : ℕ) := streamState ((s, 0, none) : PassState σ)
@@ -333,8 +324,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
       (fun _ => ([] : List Bool)) hE₀ hN₀
       (roundCost := fun _ => 2 * T + 4 * U a)
       (sMax := 10 * U a + 3 * U a + 16 * L a + 7 * (m + 4) + 40) (lMax := L a)
-      (by
-        intro j hj
+      (fun j hj => by
         have ht := hT j hj
         have h₀ := hq j hj.le
         have h₁ := hq (j + 1) hj
@@ -344,8 +334,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
           ← streamState_succ ((s, 0, none) : PassState σ) _ _ hj,
           encBool_apply, List.length_singleton]
         omega)
-      (by
-        intro j hj
+      (fun j hj => by
         have h₀ := hq j hj.le
         have h₁ := hq (j + 1) hj
         have hu := hU_bounds h₁ false
@@ -386,8 +375,8 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
       le_rfl (le_trans ?_ (hG a le_rfl))⟩
     have := hflag flag
     have hMU : 2 * (m + 4) * (100 * U a) + 200 * U a ≤ 1000 * (m + 5) * U a := by
-      rw [show 2 * (m + 4) * (100 * U a) + 200 * U a = (200 * m + 1000) * U a by ring]
-      exact Nat.mul_le_mul_right _ (by omega)
+      have heq : 2 * (m + 4) * (100 * U a) + 200 * U a = (200 * m + 1000) * U a := by ring
+      exact heq ▸ Nat.mul_le_mul_right _ (by omega)
     simp only [length_frame]
     omega
   · intro a s hs flag
@@ -398,10 +387,9 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
       (P' := fun inp ws => inp = enc a ∧ ws = B s flag)
       (Q' := fun _ _ ws' e => ws' = Function.update (fun _ => []) V v ∧ e = [])
       (fun _ _ ⟨_, h⟩ => by simp [h, B, passTapes])
-      (fun _ _ _ _ ⟨_, hw⟩ ⟨hw', he⟩ => ⟨by
-        rw [hw', hw, show Function.update (B s flag) C [] = passTapes V C v [] by
-          simp only [B, passTapes, Function.update_idem, v]]
-        exact passTapes_nil hVC v, he⟩)
+      (fun _ _ _ _ ⟨_, hw⟩ ⟨hw', he⟩ =>
+        ⟨by simpa only [hw', hw, B, passTapes, Function.update_idem, v] using passTapes_nil hVC v,
+          he⟩)
       le_rfl le_rfl
     have hfinish := (hF₀ ((s, 0, none) : PassState σ)).imp
       (Q' := fun _ _ ws' e => ws' = Function.update (fun _ => []) V v ∧ e = [M.accept s])

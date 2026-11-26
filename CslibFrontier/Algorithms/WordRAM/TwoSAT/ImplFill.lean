@@ -79,10 +79,8 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
   | [], g, idx, _, x, _, _, hidx, _, _, hpcsr, _, hm, _, _, hi, _ => by
     simp only [List.length_nil] at hidx
-    have hend : ¬ (Cond.lt iReg mClauses).Holds x := by
-      change ¬ x.regs iReg < x.regs mClauses
-      omega
-    exact ⟨x, ExecWithin.loop_exit hend, hpcsr, fun _ _ => rfl, fun _ _ => rfl⟩
+    exact ⟨x, ExecWithin.loop_exit (show ¬ x.regs iReg < x.regs mClauses by omega), hpcsr,
+      fun _ _ => rfl, fun _ _ => rfl⟩
   | c :: cs, g, idx, p, x, hcs, htarget, hidx, hp, hcm, hpcsr, hc1, hm, hcur, hedge, hi, hpR => by
     have hc := hcs c List.mem_cons_self
     have hrest : ∀ c' ∈ cs, 1 ≤ c'.length ∧ c'.length ≤ 2 :=
@@ -145,8 +143,7 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           refine ⟨?_, fun addr_a ha => ?_, by wram_simp, ?_, fun r hr => ?_⟩
           · wram_simp
             rwa [mapAdj_addClauseEdges_one]
-          · wram_simp
-            exact hy₁_out addr_a ha
+          · wram_simp [hy₁_out addr_a ha, st_v]
           · wram_simp
             rfl
           · wram_simp [hy₁_fr r (by reg_ne) (by reg_ne), st_v]
@@ -176,9 +173,6 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               (x := st_v1) (by wram_simp [st_v1, hc1]) (by wram_simp [st_v1, hcur])
               (by wram_simp [st_v1, hedge]) (by wram_simp [st_v1, hxor_a])
               (by simp [st_v1, litEquiv, Data.set_regs]) hpcsr
-          have hy₁_p' : PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) g₁)
-              curBase edgeBase y₁.mem := by
-            rwa [hg₁_map]
           let st_v2 := (y₁.set vReg (litCodeBy Fin.val b ^^^ 1)).set uReg (litCodeBy Fin.val a)
           obtain ⟨y₂, hy₂_ex, hy₂_p, hy₂_out, hy₂_fr⟩ :=
             backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g₁) curBase edgeBase
@@ -187,7 +181,7 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               (by wram_simp [st_v2, hy₁_fr, st_v1, hcur])
               (by wram_simp [st_v2, hy₁_fr, st_v1, hedge])
               (by wram_simp [st_v2, hxor_b])
-              (by simp [st_v2, litEquiv, Data.set_regs]) hy₁_p'
+              (by simp [st_v2, litEquiv, Data.set_regs]) (hg₁_map.symm ▸ hy₁_p)
           unfold implFillBody
           wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_na]
           refine WP.of_execWithin hy₁_ex ?_
@@ -197,22 +191,18 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           refine ⟨?_, fun addr_a ha => ?_, by wram_simp, ?_, fun r hr => ?_⟩
           · wram_simp
             rwa [mapAdj_addClauseEdges_two, ← hg₁_map]
-          · wram_simp
-            exact (hy₂_out addr_a ha).trans (hy₁_out addr_a ha)
+          · wram_simp [(hy₂_out addr_a ha).trans (hy₁_out addr_a ha), st_v2, st_v1]
           · wram_simp
             rfl
           · wram_simp [hy₂_fr r (by reg_ne) (by reg_ne), st_v2, hy₁_fr r (by reg_ne) (by reg_ne),
               st_v1]
         · simp at hc
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := fun k hk => by
-      have hk_bound : p + 1 + c.length + k < G.workBase := by
-        simp only [Instance.workBase, Instance.outAddrBase]
-        omega
-      rw [hx₁_out _ (by simp only [curBase, edgeBase, kCurAddr, kEdgeAddr]; omega)]
-      exact hcm_rest k hk
+      refine (hx₁_out _ ?_).trans (hcm_rest k hk)
+      simp only [curBase, edgeBase, kCurAddr, kEdgeAddr, Instance.workBase, Instance.outAddrBase]
+      omega
     have hlt : (Cond.lt iReg mClauses).Holds x := by
-      simp only [List.length_cons] at hidx
-      exact show x.regs iReg < x.regs mClauses by omega
+      simp only [Cond.holds_lt, List.length_cons] at hidx ⊢; omega
     obtain ⟨y, hy_ex, hy_p_csr, hy_out, hy_fr⟩ := implFillLoop_spec G hfit cs
       (addClauseEdges g c) (idx + 1) (p + 1 + c.length) x₁ hrest (.inr htarget')
       (by simp only [List.length_cons] at hidx; omega)

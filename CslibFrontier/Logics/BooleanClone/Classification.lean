@@ -49,9 +49,7 @@ theorem EssentiallyUnary.exists_projection {n : ℕ} {f : (Fin n → Bool) → B
     (hf : EssentiallyUnary f) (hid : ∀ b, f (fun _ => b) = b) :
     ∃ i, ∀ a, f a = a i := by
   obtain ⟨i, u, hu⟩ := hf
-  refine ⟨i, fun a => ?_⟩
-  rw [hu]
-  exact (hu (fun _ => a i)).symm.trans (hid (a i))
+  exact ⟨i, fun a => (hu a).trans ((hu fun _ => a i).symm.trans (hid (a i)))⟩
 
 namespace BooleanClone
 
@@ -65,12 +63,12 @@ theorem binary_essentiallyUnary
     (hminority : (Cslib.parity 3) ∉ C.operations 3)
     {f : (Fin 2 → Bool) → Bool} (hf : f ∈ C.operations 2) : EssentiallyUnary f := by
   have h₁ := C.comp (by decide) (by decide) hf (fun _ : Fin 2 => hf)
-  have h₂ := C.comp (by decide) (by decide) hf
-    (show ∀ i : Fin 2, ![(fun a : Fin 2 → Bool => a 0), f] i ∈ C.operations 2 by
-      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
-  have h₃ := C.comp (by decide) (by decide) hf
-    (show ∀ i : Fin 2, ![f, (fun a : Fin 2 → Bool => a 1)] i ∈ C.operations 2 by
-      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
+  have hupd (k : Fin 2) : (fun a : Fin 2 → Bool => f (fun i => if i = k then f a else a i)) ∈
+      C.operations 2 :=
+    C.comp Nat.zero_lt_two Nat.zero_lt_two hf fun i => by
+      by_cases hi : i = k <;> simp [hi, hf, C.projection]
+  have h₂ := hupd 1
+  have h₃ := hupd 0
   have htail := C.minor (n := 3) (by decide) (by decide) hf ![1, 2]
   have h₄ := C.comp (by decide) (by decide) hf
     (show ∀ i : Fin 2, ![(fun a : Fin 3 → Bool => a 0),
@@ -104,16 +102,12 @@ private theorem selfDual_of_binaryMinors {n : ℕ} {f : (Fin n → Bool) → Boo
     ∀ a, f (fun i => !(a i)) = !(f a) := by
   intro a
   obtain ⟨j, hj⟩ := h (fun i => if a i then 1 else 0)
-  have h₀ := hj ![false, true]
-  have h₁ := hj ![true, false]
   have he₀ : (![false, true] : Fin 2 → Bool) ∘ (fun i => if a i then 1 else 0) = a :=
     funext fun i => by cases ha : a i <;> simp [ha]
   have he₁ : (![true, false] : Fin 2 → Bool) ∘ (fun i => if a i then 1 else 0) =
       fun i => !(a i) :=
     funext fun i => by cases ha : a i <;> simp [ha]
-  rw [he₀] at h₀
-  rw [he₁] at h₁
-  rw [h₀, h₁]
+  rw [← he₁, hj, ← he₀, hj]
   fin_cases j <;> rfl
 
 private def ternaryTable (b0 b1 b2 : Bool) (a : Fin 3 → Bool) : Bool :=
@@ -128,14 +122,15 @@ private theorem ternaryTable_eq {f : (Fin 3 → Bool) → Bool}
     f = ternaryTable (f ![true, false, false]) (f ![false, true, false])
       (f ![false, false, true]) := by
   have h000 : f ![false, false, false] = false :=
-    (congrArg f (show ![false, false, false] = (fun _ => false) by decide)).trans (hid false)
+    (show ![false, false, false] = (fun _ => false) by decide) ▸ hid false
   have h111 : f ![true, true, true] = true :=
-    (congrArg f (show ![true, true, true] = (fun _ => true) by decide)).trans (hid true)
-  have hdual (x y : Fin 3 → Bool) (hxy : (fun i => !(x i)) = y) : f y = !(f x) := hxy ▸ hself x
-  have h011 := hdual ![true, false, false] ![false, true, true] (by decide)
-  have h101 := hdual ![false, true, false] ![true, false, true] (by decide)
-  have h110 := hdual ![false, false, true] ![true, true, false] (by decide)
-  clear hdual
+    (show ![true, true, true] = (fun _ => true) by decide) ▸ hid true
+  have h011 : f ![false, true, true] = !(f ![true, false, false]) :=
+    (show (fun i => !(![true, false, false] i)) = ![false, true, true] by decide) ▸ hself _
+  have h101 : f ![true, false, true] = !(f ![false, true, false]) :=
+    (show (fun i => !(![false, true, false] i)) = ![true, false, true] by decide) ▸ hself _
+  have h110 : f ![true, true, false] = !(f ![false, false, true]) :=
+    (show (fun i => !(![false, false, true] i)) = ![true, true, false] by decide) ▸ hself _
   funext a
   have ha : a = ![a 0, a 1, a 2] := by ext i; fin_cases i <;> rfl
   conv_lhs => rw [ha]
@@ -153,18 +148,13 @@ theorem ternary_idempotent_projection
   have hself := selfDual_of_binaryMinors fun p =>
     (C.binary_essentiallyUnary hand hor hminority
       (C.minor (by decide) (by decide) hf p)).exists_projection (fun b => hid b)
-  have h₀ := C.comp (by decide) (by decide) hf
-    (show ∀ i : Fin 3, ![f, (fun a : Fin 3 → Bool => a 1),
-        (fun a : Fin 3 → Bool => a 2)] i ∈ C.operations 3 by
-      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
-  have h₁ := C.comp (by decide) (by decide) hf
-    (show ∀ i : Fin 3, ![(fun a : Fin 3 → Bool => a 0), f,
-        (fun a : Fin 3 → Bool => a 2)] i ∈ C.operations 3 by
-      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
-  have h₂ := C.comp (by decide) (by decide) hf
-    (show ∀ i : Fin 3, ![(fun a : Fin 3 → Bool => a 0),
-        (fun a : Fin 3 → Bool => a 1), f] i ∈ C.operations 3 by
-      intro i; fin_cases i <;> first | exact hf | exact C.projection _)
+  have hupd (k : Fin 3) : (fun a : Fin 3 → Bool => f (fun i => if i = k then f a else a i)) ∈
+      C.operations 3 :=
+    C.comp (Nat.zero_lt_succ 2) (Nat.zero_lt_succ 2) hf fun i => by
+      by_cases hi : i = k <;> simp [hi, hf, C.projection]
+  have h₀ := hupd 0
+  have h₁ := hupd 1
+  have h₂ := hupd 2
   rw [ternaryTable_eq hid hself] at hf h₀ h₁ h₂ ⊢
   generalize f ![true, false, false] = b0 at *
   generalize f ![false, true, false] = b1 at *
@@ -209,10 +199,7 @@ theorem exists_projection_of_ternaryMinors {n : ℕ} {f : (Fin n → Bool) → B
         have hu := hpu ▸ hk ![true, true, false]
         fin_cases k
         exacts [(by cases h₀), (by cases h₁), hu]
-    have hc : χ Finset.univ = fun _ => true := by ext j; simp [χ]
-    have hb := hall Finset.univ
-    rw [hc, hid] at hb
-    cases hb
+    simpa [χ, hid] using hall Finset.univ
   obtain ⟨i, hi⟩ := hsingle
   refine ⟨i, fun a => ?_⟩
   let p : Fin n → Fin 3 := fun j => if j = i then 0 else if a j then 1 else 2
@@ -222,11 +209,7 @@ theorem exists_projection_of_ternaryMinors {n : ℕ} {f : (Fin n → Bool) → B
   have h₀ := (hp₀ ▸ hk ![true, false, false]).symm.trans hi
   have hk₀ : k = 0 := by fin_cases k <;> first | rfl | cases h₀
   have hpa : (![a i, true, false] : Fin 3 → Bool) ∘ p = a :=
-    funext fun j => by
-      by_cases hj : j = i
-      · subst j
-        simp [p]
-      · cases ha : a j <;> simp [p, hj, ha]
+    funext fun j => by by_cases hj : j = i <;> cases ha : a j <;> simp_all [p]
   simpa only [hpa, hk₀, Matrix.cons_val_zero] using hk ![a i, true, false]
 
 /-- An arbitrary positive-arity idempotent operation in a clone missing the four generators
@@ -249,13 +232,9 @@ private theorem constant_of_binaryMinors {n : ℕ} {f : (Fin n → Bool) → Boo
   let p : Fin n → Fin 2 := fun i => if a i then 1 else 0
   obtain ⟨j, u, hu⟩ := h p
   have huv (c : Bool) : u c = b := (hu (fun _ => c)).symm.trans (hdiag c)
-  have hp : (![false, true] : Fin 2 → Bool) ∘ p = a := by
-    funext i
-    cases ha : a i <;> simp [p, ha]
-  have he := hu ![false, true]
-  change f (![false, true] ∘ p) = u (![false, true] j) at he
-  rw [hp, huv] at he
-  exact he
+  have hp : (![false, true] : Fin 2 → Bool) ∘ p = a :=
+    funext fun i => by cases ha : a i <;> simp [p, ha]
+  simpa only [hp, huv] using hu ![false, true]
 
 /-- Chen's Boolean clone classification, Theorem 5.1 (arXiv v1, printed pp. 17–18), in
 contrapositive form. All positive arities are quantified, and constants count as essentially
@@ -275,14 +254,11 @@ theorem essentiallyUnary_of_missing_generators
       (fun b => by cases b <;> assumption)
     exact ⟨i, id, hi⟩
   · have hd (b : Bool) : f (fun _ => b) = !b := by cases b <;> assumption
-    have hcomp := C.comp (by decide) hn (C.diagonal hn hf) (fun _ : Fin 1 => hf)
     have hneg : (fun a => !(f a)) ∈ C.operations n := by
-      simpa only [hd] using hcomp
-    have hnegid (b : Bool) : (!(f (fun _ => b))) = b := by rw [hd]; cases b <;> rfl
-    obtain ⟨i, hi⟩ := C.idempotent_projection hand hor hmajority hminority hn hneg hnegid
-    refine ⟨i, Bool.not, fun a => ?_⟩
-    have he := congrArg Bool.not (hi a)
-    simpa only [Bool.not_not] using he
+      simpa only [hd] using C.comp (by decide) hn (C.diagonal hn hf) (fun _ : Fin 1 => hf)
+    obtain ⟨i, hi⟩ := C.idempotent_projection hand hor hmajority hminority hn hneg
+      (fun b => by simp [hd])
+    exact ⟨i, Bool.not, fun a => by simpa only [Bool.not_not] using congrArg Bool.not (hi a)⟩
   · exact ⟨⟨0, hn⟩, fun _ => true,
       constant_of_binaryMinors (fun c => by cases c <;> assumption) hb⟩
 
@@ -293,8 +269,7 @@ theorem classification :
       andOp ∈ C.operations 2 ∨ orOp ∈ C.operations 2 ∨
       Cslib.majority 3 ∈ C.operations 3 ∨ Cslib.parity 3 ∈ C.operations 3 := by
   classical
-  by_contra! h
-  obtain ⟨⟨n, hn, f, hf, hnu⟩, hand, hor, hmaj, hmin⟩ := h
+  by_contra! ⟨⟨n, hn, f, hf, hnu⟩, hand, hor, hmaj, hmin⟩
   exact hnu (C.essentiallyUnary_of_missing_generators hand hor hmaj hmin hn hf)
 
 end BooleanClone

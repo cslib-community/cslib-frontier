@@ -165,9 +165,8 @@ theorem IsRandomParityRep.not {ℓ e ρ ζ : Polynomial ℕ} {W : α × List Boo
       acceptCount (fun x => W (x.1, u ++ List.ofFn r ++ x.2)) a (ζ.eval (enc a).length) + 1 := by
     rw [Polynomial.eval_add, Polynomial.eval_one, ← acceptCount_succVerifier]
     refine acceptCount_congr (fun w => ?_) _
-    have hlen : (u ++ List.ofFn r).length =
-        ℓ.eval (enc a).length + ρ.eval (enc a).length := by
-      rw [List.length_append, List.length_ofFn, hu]
+    have hlen : (u ++ List.ofFn r).length = ℓ.eval (enc a).length + ρ.eval (enc a).length := by
+      simp [hu]
     simp only [notVerifier, ← hlen, List.take_left' rfl, List.drop_left' rfl]
   refine le_of_eq_of_le ?_ (h a u hu)
   congr 2
@@ -243,14 +242,12 @@ theorem computableInPolyTime_trialsVerifier {W : α × List Bool → Bool}
     (hy : ComputableInPolyTime y input encBits) :
     ComputableInPolyTime (fun x => trialsVerifier W (a x) (u x) (r x) (seeds x) (M x) (Z x)
       (T x) (B x) (y x)) input encBool  := by
-  unfold trialsVerifier
-  fun_prop
+  fun_prop [trialsVerifier]
 
 private theorem computableInPolyTime_existsVerifier (ℓ m ρ ζ e : Polynomial ℕ)
     {W : α × List Bool → Bool} (hW : ComputableInPolyTime W (encPair enc encBits) encBool) :
     ComputableInPolyTime (existsVerifier enc ℓ m ρ ζ e W) (encPair enc encBits) encBool := by
-  unfold existsVerifier
-  fun_prop
+  fun_prop [existsVerifier]
 
 /-- One trial accepts, with the strings `w` passing the test as prefixes, the witnesses of `W`
 after `u ++ w ++ r`. -/
@@ -298,9 +295,8 @@ private theorem existsVerifier_append (ℓ m ρ ζ e : Polynomial ℕ) (W : α �
       succTest (trialsVerifier W a u r σ (m.eval (enc a).length) (ζ.eval (enc a).length)
         (4 * (e.eval (enc a).length + 1) * (m.eval (enc a).length + 3))
         ((m.eval (enc a).length + 2) * (m.eval (enc a).length + 1))) w := by
-  have hx : u ++ (r ++ σ) ++ w = u ++ (r ++ (σ ++ w)) := by simp only [List.append_assoc]
-  simp only [existsVerifier]
-  rw [hx, ← hu, ← hr, ← hσ, List.take_left' rfl, List.drop_left' rfl, List.take_left' rfl,
+  simp only [existsVerifier, List.append_assoc]
+  rw [← hu, ← hr, ← hσ, List.take_left' rfl, List.drop_left' rfl, List.take_left' rfl,
     ← List.drop_drop, List.drop_left' rfl, List.drop_left' rfl, List.take_left' rfl,
     ← List.drop_drop, ← List.drop_drop, List.drop_left' rfl, List.drop_left' rfl,
     List.drop_left' rfl]
@@ -437,14 +433,13 @@ theorem PH_subset_BPOp_ParityP : PH enc ⊆ BPOp enc (ParityP (encPair enc encBi
     rfl
   · -- error `1 / 4` is bounded error
     have ha := h a [] (by simp)
-    simp only [Polynomial.eval_ofNat, List.nil_append] at ha
+    simp only [Polynomial.eval_ofNat, List.nil_append, ← hLV a] at ha
     have hsplit := Finset.card_filter_add_card_filter_not
       (s := (univ : Finset (Fin (ρ.eval (enc a).length) → Bool)))
       (fun r => Odd (acceptCount (fun x => W (x.1, List.ofFn r ++ x.2)) a (ζ.eval (enc a).length)))
     simp only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at hsplit
     simp only [BoundedErrorAt, hL', Set.mem_ofPred_eq, decide_eq_true_eq,
       decide_eq_false_iff_not]
-    rw [← hLV a] at ha
     exact ⟨fun (haL : a ∈ L) => by simp only [haL, iff_true] at ha; omega,
       fun (haL : a ∉ L) => by simp only [haL, iff_false, not_not] at ha; omega⟩
 

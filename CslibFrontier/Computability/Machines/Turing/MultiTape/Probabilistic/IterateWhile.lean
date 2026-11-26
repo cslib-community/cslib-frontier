@@ -423,8 +423,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
     refine (RunsWords.iterateWhileRound (x := w₀) mark hp (l := L) (fun _ _ s w' s' hw' => ?_)
       []).mono ?_
     · rw [ProbOracleComp.runWith_sample, PMF.mem_support_map_iff] at hw'
-      obtain ⟨w'', hw'', ⟨⟩⟩ := hw'
-      exact hpl _ hw''
+      exact hw'.elim fun _ ⟨hw'', h⟩ => (Prod.mk.inj h).1 ▸ hpl _ hw''
     · have := (hlength v hv).2; omega
   -- a round from an answer word ends the loop
   have hstop (vp v : List Bool) (hvp : vp.length ≤ L) (hv : v ∈ answer) (m : ℕ) :
@@ -438,11 +437,10 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
       ite_eq_right]
     exact fun h => h ⟨rfl, v, hv, rfl⟩
   -- after `n` further rounds from a retry word, the loop is still going with probability `q ^ n`
-  have hgeom : ∀ n, ∀ vp v, vp.length ≤ L → v ∈ retry → ∀ j,
+  have hgeom (n : ℕ) : ∀ vp v, vp.length ≤ L → v ∈ retry → ∀ j,
       (ProbComp.eval (U.runClosedConfigFrom (R + 1 + (n * (R + 1) + j))
         (startU vp v))).toOuterMeasure
         goodUᶜ ≤ q ^ n := by
-    intro n
     induction n with
     | zero => exact fun _ _ _ _ _ => (PMF.toOuterMeasure_le_one _ _).trans_eq (pow_zero q).symm
     | succ n ih =>
@@ -459,13 +457,11 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
             · have hne := (hlength v' (hsupport v hv v' hv')).1
               rw [List.nil_append, eval_runClosedConfigFrom_check_ne_nil _ _ (by rwa [words_next])]
               by_cases ha : v' ∈ answer
-              · rw [add_assoc R 1, hstop v v' hvL ha, mul_zero]
-                exact zero_le
+              · simp [add_assoc R 1, hstop v v' hvL ha, U, startU]
               · have hr : v' ∈ retry := (hsupport v hv v' hv').resolve_right ha
                 rw [Set.indicator_of_mem hr]
                 exact mul_le_mul_of_nonneg_left (ih v v' hvL hr j) zero_le
-            · rw [(PMF.apply_eq_zero_iff _ _).mpr hv', zero_mul]
-              exact zero_le
+            · simp [(PMF.apply_eq_zero_iff _ _).mpr hv']
         _ = (ProbComp.eval (step v)).toOuterMeasure retry * q ^ n := by
             rw [PMF.toOuterMeasure_apply, ENNReal.tsum_mul_right]
         _ ≤ q * q ^ n := by gcongr; exact hq v hv
@@ -483,9 +479,8 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
       (transformsTapes_loadWord (nextTape k) w₀) ⟨rfl, rfl⟩ (ws' := words (k := k) [] w₀)
       (emitted := []) (fun _ _ h => ⟨h.1.trans (words_nil_cur w₀).symm, h.2⟩)).mono
         (time' := 3 * L + 6) (by omega)
-    rw [RunsWords.eval_runClosedConfigFrom (p := pure ()) hrw _ (Cfg.init_eq_wordsCfg _ _),
-      ProbComp.eval_pure, PMF.pure_map]
-    rfl
+    exact (RunsWords.eval_runClosedConfigFrom (p := pure ()) hrw _
+      (Cfg.init_eq_wordsCfg _ _)).trans (by simp [ProbComp.eval_pure])
   -- the finish phase outputs an answer word left by the loop
   let good : Set (Config (k + 1 + 2) Bool (MachineState State) Empty w₀) :=
     {final | final.tapes.state = none ∧ final.tapes.output ∈ answer}

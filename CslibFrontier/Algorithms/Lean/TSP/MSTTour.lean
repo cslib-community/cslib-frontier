@@ -98,9 +98,7 @@ theorem cycleCost_append_cons_cons_le (δ : α → α → ℕ) (htri : ∀ x y z
     (A B : List α) (u v : α) :
     cycleCost δ (A ++ u :: v :: B) ≤ cycleCost δ (A ++ u :: B) + (δ u v + δ v u) := by
   rw [cycleCost_append_comm δ A, cycleCost_append_comm δ A]
-  simp only [List.cons_append]
-  rw [cycleCost_cons, cycleCost_cons]
-  simp only [walkCost]
+  simp only [List.cons_append, cycleCost_cons, walkCost]
   have := walkCost_le δ htri u v (B ++ A)
   omega
 
@@ -173,13 +171,9 @@ theorem growStep_spec {W : Type} {t : List (Fin n)} {e : WeightedEdge n W}
       growStep t e = insertAfter a b t := by
   rw [crosses_eq_true_iff] at he
   unfold growStep
-  by_cases hu : e.u ∈ t
-  · exact ⟨e.u, e.v, Or.inl ⟨rfl, rfl⟩, hu, fun hv => he ⟨fun _ => hv, fun _ => hu⟩,
-      ite_eq_left hu⟩
-  · have hv : e.v ∈ t := by
-      by_contra hv
-      exact he ⟨fun h => absurd h hu, fun h => absurd h hv⟩
-    exact ⟨e.v, e.u, Or.inr ⟨rfl, rfl⟩, hv, hu, ite_eq_right hu⟩
+  split_ifs with hu
+  · exact ⟨e.u, e.v, Or.inl ⟨rfl, rfl⟩, hu, fun hv => he (iff_of_true hu hv), rfl⟩
+  · exact ⟨e.v, e.u, Or.inr ⟨rfl, rfl⟩, of_not_not fun hv => he (iff_of_false hu hv), hu, rfl⟩
 
 /-- Growing keeps the tour free of repetitions. -/
 theorem nodup_growTour {W : Type} (F : List (WeightedEdge n W)) (k : ℕ) {t : List (Fin n)}
@@ -188,9 +182,7 @@ theorem nodup_growTour {W : Type} (F : List (WeightedEdge n W)) (k : ℕ) {t : L
   | case1 | case2 => exact ht
   | case3 k t e h ih =>
     obtain ⟨a, b, -, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
-    refine ih ?_
-    rw [heq]
-    exact (insertAfter_perm b ha).nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩)
+    exact ih (heq ▸ (insertAfter_perm b ha).nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩))
 
 /-- **Coverage.** If the edges of `F` connect all of `Fin n` and there is fuel for `n` vertices,
 growing a nonempty tour without repetitions reaches every vertex. -/
@@ -205,27 +197,23 @@ theorem mem_growTour {W : Type} {F : List (WeightedEdge n W)}
     simp only [List.length_cons, Fintype.card_fin] at this
     omega
   | case2 k t h =>
-    have key : ∀ a b, Relation.EqvGen (fun x y => ∃ e ∈ F, x = e.u ∧ y = e.v) a b →
-        (a ∈ t ↔ b ∈ t) := by
-      intro a b hab
-      induction hab with
-      | rel _ _ hab =>
-        obtain ⟨e, he, rfl, rfl⟩ := hab
-        simpa [crosses_eq_true_iff] using List.find?_eq_none.1 h e he
-      | refl => rfl
-      | symm _ _ _ ih => exact ih.symm
-      | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
     obtain ⟨r, hr⟩ := List.exists_mem_of_ne_nil t hne
-    exact (key r x (hF r x)).1 hr
+    refine (?_ : r ∈ t ↔ x ∈ t).1 hr
+    clear hr
+    induction hF r x with
+    | rel _ _ hab =>
+      obtain ⟨e, he, rfl, rfl⟩ := hab
+      simpa [crosses_eq_true_iff] using List.find?_eq_none.1 h e he
+    | refl => rfl
+    | symm _ _ _ ih => exact ih.symm
+    | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
   | case3 k t e h ih =>
     obtain ⟨a, b, -, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
     have hperm := insertAfter_perm b ha
     rw [heq] at ih ⊢
     refine ih (hperm.nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩))
       (fun h0 => List.cons_ne_nil _ _ (h0 ▸ hperm).symm.eq_nil) ?_
-    have := hperm.length_eq
-    simp only [List.length_cons] at this
-    omega
+    rw [hperm.length_eq, List.length_cons]; omega
 
 /-! ### The charging argument -/
 
@@ -272,35 +260,30 @@ private theorem cycleCost_growTour_le {δ : Fin n → Fin n → ℕ} (hsymm : �
   fun_induction growTour F k t with
   | case1 | case2 => exact ht
   | case3 k t e h ih =>
-    refine ih fun _ => ?_
-    clear ih
-    have heF := List.mem_of_find?_eq_some h
     obtain ⟨a, b, hab, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
-    have hmem : ∀ x, x ∈ growStep t e ↔ x = b ∨ x ∈ t := fun x => by
-      rw [heq, (insertAfter_perm b ha).mem_iff, List.mem_cons]
-    have hsub : t ⊆ growStep t e := fun x hx => (hmem x).2 (Or.inr hx)
-    have hbin : b ∈ growStep t e := (hmem b).2 (Or.inl rfl)
+    rw [heq] at ih ⊢
+    refine ih fun _ => ?_
+    have heF := List.mem_of_find?_eq_some h
+    have hperm := insertAfter_perm b ha
+    have hsub : t ⊆ insertAfter a b t := fun _ hx => hperm.mem_iff.2 (List.mem_cons_of_mem b hx)
+    have hbin : b ∈ insertAfter a b t := hperm.mem_iff.2 List.mem_cons_self
+    have hain : a ∈ insertAfter a b t := hsub ha
     have hw2 : δ a b + δ b a = 2 * e.weight := by
       rw [hw e heF]
       have := hsymm e.u e.v
       rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> omega
     have hinside := insideWeight_add_le hsub heF
       (by rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> tauto)
-      (by rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> exact ⟨by tauto, by tauto⟩)
-    have hcost : cycleCost δ (insertAfter a b t) ≤ 2 * insideWeight F t + (δ a b + δ b a) := by
-      by_cases h2 : 2 ≤ t.length
-      · have := cycleCost_insertAfter_le δ htri b ha
-        have := ht h2
-        omega
-      · obtain rfl : t = [a] := by
-          rcases t with _ | ⟨x, _ | ⟨_, _⟩⟩
-          · cases ha
-          · rw [List.mem_singleton.1 ha]
-          · simp only [List.length_cons] at h2; omega
-        simp only [insertAfter, ↓reduceIte, cycleCost_pair]
-        omega
-    rw [← heq] at hcost
-    omega
+      (by rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> tauto)
+    by_cases h2 : 2 ≤ t.length
+    · have := cycleCost_insertAfter_le δ htri b ha
+      have := ht h2
+      omega
+    · rcases t with _ | ⟨x, _ | ⟨_, _⟩⟩
+      · cases ha
+      · obtain rfl := List.mem_singleton.1 ha
+        simp only [insertAfter, ↓reduceIte, cycleCost_pair] at hinside ⊢; omega
+      · simp only [List.length_cons] at h2; omega
 
 /-! ### The algorithm -/
 
@@ -350,12 +333,10 @@ theorem cycleCost_mstTour_le_two_mul_totalWeight {δ : Fin n → Fin n → ℕ}
   have h0 : 0 < n := by omega
   have hw : ∀ e ∈ kruskalEdges (completeEdges δ), e.weight = δ e.u e.v := fun e he =>
     mem_completeEdges.1 ((kruskalEdges_subperm _).subset he)
-  have := cycleCost_growTour_le hsymm htri hw n (t := [⟨0, h0⟩])
-    (fun h => absurd h (by simp))
-  rw [← mstTour_of_pos δ h0] at this
-  have hle := insideWeight_le_totalWeight (kruskalEdges (completeEdges δ)) (mstTour δ)
-  have := this (by omega)
-  omega
+  have hgrow := mstTour_of_pos δ h0 ▸
+    cycleCost_growTour_le hsymm htri hw n (t := [⟨0, h0⟩]) (fun h => absurd h (by simp))
+  exact (hgrow (by omega)).trans
+    (Nat.mul_le_mul_left 2 (insideWeight_le_totalWeight (kruskalEdges (completeEdges δ)) _))
 
 /-! ### The lower bound -/
 
@@ -405,9 +386,7 @@ theorem totalWeight_kruskalEdges_le_cycleCost (δ : Fin n → Fin n → ℕ) {q 
       simp only [hH, List.map_map]
       exact List.map_fst_zip (by simp)
     exact List.Nodup.of_map _ (hmap ▸ hq)
-  · intro e he
-    obtain ⟨p, -, rfl⟩ := List.mem_map.1 he
-    rfl
+  · exact List.forall_mem_map.2 fun _ _ => rfl
   · -- the tour's consecutive vertices are joined by its edges, so all vertices are connected
     intro x y
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem (hcov x)
@@ -434,14 +413,11 @@ theorem cycleCost_mstTour_le_two_mul {δ : Fin n → Fin n → ℕ} (hsymm : ∀
       ((List.perm_ext_iff_of_nodup (List.nodup_finRange n) hq).2 (by simp [hcov]))
     have hlen : q.length ≤ n := by simpa using hq.length_le_card
     rcases q with _ | ⟨_, _ | ⟨_, _⟩⟩
-    · rw [hperm.eq_nil]
-      omega
-    · rw [List.perm_singleton.1 hperm]
-      omega
+    · exact hperm.eq_nil ▸ Nat.le_mul_of_pos_left _ (by decide)
+    · exact List.perm_singleton.1 hperm ▸ Nat.le_mul_of_pos_left _ (by decide)
     · simp only [List.length_cons] at hlen
       omega
-  · have := totalWeight_kruskalEdges_le_cycleCost δ hq hcov
-    have := cycleCost_mstTour_le_two_mul_totalWeight hsymm htri hn
-    omega
+  · exact (cycleCost_mstTour_le_two_mul_totalWeight hsymm htri hn).trans
+      (Nat.mul_le_mul_left 2 (totalWeight_kruskalEdges_le_cycleCost δ hq hcov))
 
 end Cslib.Algorithms.Lean.TSP

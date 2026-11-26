@@ -84,18 +84,13 @@ theorem length_transferQueries_garbler {n : ℕ} {c : Params G} {L : ℕ}
     (hr : r ∈ (ProbComp.eval (OracleComp.pi (protocol G n c).sampleCoins)).support)
     (t : Fin c.evaluatorLen) (b : Bool) :
     (transferQueries n c x r 0 t b).length = L := by
-  have hmem : (r 0 : List Bool) ∈
-      (ProbComp.eval (BitString.sampleList (G.coins n c.fn))).support :=
-    (ProbComp.mem_support_pi_iff _ r).mp hr 0
-  rw [BitString.eval_sampleList] at hmem
   have hcoins : (r 0 : List Bool).length = G.coins n c.fn :=
-    BitString.mem_support_uniformList_iff.mp hmem
+    BitString.mem_support_uniformList_iff.mp
+      (BitString.eval_sampleList _ ▸ (ProbComp.mem_support_pi_iff _ r).mp hr 0)
   have he := hG _ (G.mem_support_eval_garble_iff.mpr ⟨r 0, hcoins, rfl⟩)
   have hpos : 0 < 2 * G.inLen c.fn := by
     have ht : (t : ℕ) < G.inLen c.fn - c.garblerLen := t.isLt
     omega
-  change (projectiveToken (G.gb n c.fn (r 0)).encInfo (G.inLen c.fn) (c.garblerLen + t) b).length
-    = L
-  rw [projectiveToken, BitString.length_listRow, he, Nat.mul_div_cancel_left L hpos]
+  exact (BitString.length_listRow _ _ _).trans (he ▸ Nat.mul_div_cancel_left L hpos)
 
 end Cslib.Crypto.Protocols.MPC.Yao

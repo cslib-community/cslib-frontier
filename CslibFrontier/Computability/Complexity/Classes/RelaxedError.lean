@@ -168,10 +168,8 @@ private theorem cast_le_inv_two_pow_mul {q m c : ℕ} (h : 2 ^ q * c ≤ 2 ^ m) 
 `1 - 2 ^ (-q)` fraction. -/
 private theorem one_sub_inv_two_pow_mul_le {q m c : ℕ} (hc : c ≤ 2 ^ m)
     (h : 2 ^ q * (2 ^ m - c) ≤ 2 ^ m) : (1 - ((2 : ℝ) ^ q)⁻¹) * 2 ^ m ≤ c := by
-  have := cast_le_inv_two_pow_mul h
-  rw [Nat.cast_sub hc] at this
-  push_cast at this
-  linarith
+  linarith [cast_le_inv_two_pow_mul h,
+    show ((2 ^ m - c : ℕ) : ℝ) = 2 ^ m - c by simp [Nat.cast_sub hc]]
 
 /-- A density of at least `1 / 2 + 1 / q` among `2 ^ m` strings, in natural-number form. -/
 private theorem two_mul_le_mul_sub_of_le {m g q : ℕ} (hq : 0 < q)
@@ -309,17 +307,14 @@ whenever `n ^ c < 2`; below `N` nothing is required here (error at most `1`). -/
 theorem setOf_exists_BPPWithError_rpow_eq_BPP {c : ℝ} (hc : 0 < c) :
     {A | ∃ N : ℕ, A ∈ BPPWithError enc (fun n => if n < N then 1 else 1 / 2 - (n : ℝ) ^ (-c))} =
       BPP enc := by
-  ext A
-  constructor
-  · rintro ⟨N, hA⟩
-    refine BPPWithError_subset_BPP (X ^ ⌈c⌉₊)
+  refine Set.ext fun A => ⟨fun ⟨N, hA⟩ => ?_, fun hA => ?_⟩
+  · refine BPPWithError_subset_BPP (X ^ ⌈c⌉₊)
       (eventually_atTop.2 ⟨max N 1, fun n hn => ⟨?_, ?_⟩⟩) hA
     · simpa only [eval_pow, eval_X] using pow_pos (by omega) _
     · have := inv_pow_ceil_le_rpow_neg (by exact_mod_cast le_of_max_le_right hn : (1 : ℝ) ≤ n) c
       simp only [show ¬n < N by omega, ↓reduceIte, eval_pow, eval_X, Nat.cast_pow, one_div]
       linarith
-  · intro hA
-    -- the error `1 / 4` is at most `1 / 2 - n ^ (-c)` once `n ^ (-c) ≤ 1 / 4`
+  · -- the error `1 / 4` is at most `1 / 2 - n ^ (-c)` once `n ^ (-c) ≤ 1 / 4`
     obtain ⟨N, hN⟩ := eventually_atTop.1 (((tendsto_rpow_neg_atTop hc).comp
       tendsto_natCast_atTop_atTop).eventually (ge_mem_nhds (by norm_num : (0 : ℝ) < 1 / 4)))
     refine ⟨N, BPP_subset_BPPWithError 2 (fun n => ?_) hA⟩
@@ -435,9 +430,9 @@ theorem RPWithSuccess_succ_rpow_subset_one_sub_two_rpow (c d : ℝ) :
     rw [cast_eval_X_add_one_pow, ← inv_eq_one_div]
     exact inv_pow_ceil_le_rpow_neg (by linarith [n.cast_nonneg (α := ℝ)]) c⟩).trans
   (RP_subset_RPWithSuccess ((X + 1) ^ ⌈d⌉₊) fun n => by
-    have := inv_two_pow_pow_ceil_le (by linarith [n.cast_nonneg (α := ℝ)] : (1 : ℝ) ≤ n + 1) d
     rw [eval_two_pow_X_add_one_pow]
-    linarith)
+    exact sub_le_sub_left
+      (inv_two_pow_pow_ceil_le (by linarith [n.cast_nonneg (α := ℝ)] : (1 : ℝ) ≤ n + 1) d) 1)
 
 /-! ### `ZPP` -/
 

@@ -288,10 +288,9 @@ theorem treeDepth_le (U r : ℕ) : treeDepth U r ≤ Nat.floorLogStar U + 2 := b
 
 theorem iterLog_treeDepth_le {U r : ℕ} (hr : 1 ≤ r) :
     Nat.iterLog (treeDepth U r) U ≤ 4 * r := by
-  have hend : Nat.iterLog (2 + Nat.floorLogStar U) U ≤ 1 :=
-    (Nat.iterLog_anti_left U (Nat.le_add_left _ 2)).trans (Nat.iterLog_floorLogStar_le_one U)
-  have hmax : max (4 * r) 1 = 4 * r := max_eq_left (by omega)
-  exact hmax ▸ iterLog_treeDepthAux_le (hend.trans (le_max_right _ _))
+  have hend := (Nat.iterLog_anti_left U (Nat.le_add_left _ 2)).trans
+    (Nat.iterLog_floorLogStar_le_one U)
+  exact max_eq_left (by omega : 1 ≤ 4 * r) ▸ iterLog_treeDepthAux_le (hend.trans (le_max_right _ _))
 
 theorem lt_iterLog_of_lt_treeDepth {U r ℓ : ℕ} (h2 : 2 ≤ ℓ) (hlt : ℓ < treeDepth U r) :
     4 * r < Nat.iterLog ℓ U :=
@@ -394,14 +393,10 @@ def waitCap (ℓ : ℕ) : ℕ :=
   2 * P.delta ℓ
 
 theorem nLow_pos {ℓ : ℕ} (hℓ : ℓ ≤ P.depth) : 1 ≤ P.nLow ℓ := by
-  dsimp only [nLow]
-  rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-  · simp only [↓reduceIte]
-    have := P.two_le_cap
-    omega
-  · rw [ite_eq_right hpos.ne']
-    have := P.delta_lt_nFloor ℓ hpos hℓ
-    omega
+  unfold nLow
+  split_ifs with h0
+  · exact Nat.le_sub_one_of_lt P.two_le_cap
+  · exact Nat.sub_pos_of_lt (P.delta_lt_nFloor ℓ (Nat.pos_of_ne_zero h0) hℓ)
 
 theorem nLow_le_nHigh (ℓ : ℕ) : P.nLow ℓ ≤ P.nHigh ℓ := by
   dsimp only [nLow, nHigh]
@@ -437,9 +432,7 @@ theorem quotUniv_pos (ℓ : ℕ) : 1 ≤ P.quotUniv ℓ := by
 
 theorem quotUniv_succ_of_pos {ℓ : ℕ} (h1 : 1 ≤ ℓ) :
     P.quotUniv (ℓ + 1) = P.quotUniv ℓ * 2 ^ P.remBits ℓ := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le h1
-  rw [Nat.add_comm 1 d]
-  rfl
+  obtain ⟨_ | d, rfl⟩ := Nat.exists_eq_add_of_le h1 <;> rfl
 
 /-- **Exact ID-quotient universe conservation**: `N_ℓ * 2 ^ I_ℓ * Q_ℓ = U_pad` across all
 `1 ≤ ℓ ≤ depth`. -/
@@ -615,8 +608,8 @@ theorem two_pow_eighteen_mul_targetSize_succ_le {n U r ℓ : ℕ}
     rw [ite_eq_right (by omega), ite_eq_left (by omega), ite_eq_left rfl]
     simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using hn
   · rw [targetSize_eq_levelScale_pow (by omega), targetSize_eq_levelScale_pow hpos]
-    have h4pow : (2 : ℕ) ^ 18 = 4 ^ 9 := by decide
-    rw [h4pow, ← Nat.mul_pow]
+    change 4 ^ 9 * (levelScale U r k (ℓ + 1)) ^ 9 ≤ _
+    rw [← Nat.mul_pow]
     refine Nat.pow_le_pow_left ?_ 9
     dsimp only [levelScale]
     rw [ite_eq_left hlt]
@@ -626,16 +619,13 @@ theorem two_pow_eighteen_mul_targetSize_succ_le {n U r ℓ : ℕ}
       have hs_gt : 4 * r < s := lt_iterLog_of_lt_treeDepth (by omega) hlt1
       have hs_ge : 4 ≤ s := by omega
       have h4s : 4 * s ≤ 2 ^ s := by nlinarith [Nat.sq_le_two_pow hs_ge]
-      have hX0 : Nat.iterLog ℓ U ≠ 0 := fun h0 => by
-        simp only [s, Nat.iterLog_succ, h0, Nat.log_zero_right] at hs_gt
-        omega
-      exact h4s.trans (Nat.pow_log_le_self 2 hX0)
+      refine h4s.trans (Nat.pow_log_le_self 2 fun h0 => ?_)
+      simp only [s, Nat.iterLog_succ, h0, Nat.log_zero_right] at hs_gt
+      omega
     · rw [ite_eq_right hlt1]
-      rcases Nat.lt_or_ge ℓ 2 with hℓ | hℓ
-      · obtain rfl : ℓ = 1 := by omega
-        simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using hU
-      · have := lt_iterLog_of_lt_treeDepth hℓ hlt
-        omega
+      rcases eq_or_lt_of_le (Nat.succ_le_of_lt hpos) with rfl | hgt
+      · simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using hU
+      · exact (lt_iterLog_of_lt_treeDepth (Nat.succ_le_of_lt hgt) hlt).le
 
 theorem targetSize_le_of_step {n U r k : ℕ}
     (hstep : ∀ j < k, 2 ^ 18 * targetSize n U r k (j + 1) ≤ targetSize n U r k j) :
@@ -643,10 +633,7 @@ theorem targetSize_le_of_step {n U r k : ℕ}
   intro ℓ hℓ
   induction ℓ with
   | zero => simp [targetSize]
-  | succ j ih =>
-    have h1 := hstep j (Nat.lt_of_succ_le hℓ)
-    have h2 := ih (Nat.le_of_succ_le hℓ)
-    omega
+  | succ j ih => linarith [hstep j (Nat.lt_of_succ_le hℓ), ih (Nat.le_of_succ_le hℓ)]
 
 theorem targetSize_pos {n U r k ℓ : ℕ}
     (hn : 1 ≤ n) (hr : 1 ≤ r) (hU : 4 * r ≤ Nat.log 2 U) (hℓ : ℓ ≤ treeDepth U r)
@@ -710,11 +697,9 @@ theorem cumBranchBits_add_seventeen_le {n U r k ℓ : ℕ}
       _ ≤ n := hlo
       _ < 2 * numNodes n U r k (ℓ + 1) * T_next := hhi
       _ = numNodes n U r k (ℓ + 1) * (2 * T_next) := by ring
-  have hlt_N : 2 ^ (cumBranchBits n U r k ℓ + 17) < 2 ^ cumBranchBits n U r k (ℓ + 1) := by
-    rw [Nat.pow_add, Nat.mul_comm _ (2 ^ 17)]
-    exact Nat.lt_of_mul_lt_mul_right hmul
-  have hlt_exp := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp hlt_N
-  omega
+  refine ((Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp ?_).le
+  rw [Nat.pow_add, Nat.mul_comm _ (2 ^ 17)]
+  exact Nat.lt_of_mul_lt_mul_right hmul
 
 theorem nFloor_succ_eq_div {n U r k ℓ : ℕ}
     (hle : cumBranchBits n U r k ℓ ≤ cumBranchBits n U r k (ℓ + 1)) :
@@ -788,10 +773,7 @@ theorem four_mul_branchBits_add_idBits_succ_le {n U r k ℓ : ℕ}
   set b := Nat.clog 2 (2 * max y 1)
   have hmx : max x 1 = x := max_eq_left hx1
   have hmy : max y 1 = y := max_eq_left hy1
-  have ha1 : 1 ≤ a := by
-    dsimp only [a]
-    rw [hmx]
-    exact (show 1 = Nat.clog 2 2 by decide) ▸ Nat.clog_mono_right 2 (by omega)
+  have ha1 : 1 ≤ a := Nat.clog_pos Nat.one_lt_two (by omega)
   have hpow_lt : 2 ^ (a - 1) < 2 * x := by
     by_contra hge
     have hcl := Nat.clog_le_of_le_pow (hmx.symm ▸ not_lt.mp hge)

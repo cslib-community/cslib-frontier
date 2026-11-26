@@ -102,14 +102,9 @@ theorem isStationary_permTupleKernel {T α : Type*} [Fintype T] [Fintype α]
     (fun x => ρ.map fun π => (Equiv.refl T).embeddingCongr π x) = _
   simp_rw [← PMF.bind_pure_comp, Function.comp_def]
   rw [PMF.bind_comm]
-  have hinner (π : Equiv.Perm α) :
-      (PMF.uniformOfFintype (T ↪ α)).bind
-        (fun x => PMF.pure ((Equiv.refl T).embeddingCongr π x)) =
-        PMF.uniformOfFintype (T ↪ α) :=
-    (PMF.bind_pure_comp (⇑((Equiv.refl T).embeddingCongr π)) _).trans
-      (PMF.uniformOfFintype_map_equiv _)
-  simp_rw [hinner]
-  exact PMF.bind_const ρ _
+  refine (congrArg ρ.bind (funext fun π => ?_)).trans (PMF.bind_const ρ _)
+  exact (PMF.bind_pure_comp (⇑((Equiv.refl T).embeddingCongr π)) _).trans
+    (PMF.uniformOfFintype_map_equiv _)
 
 /-- Left-to-right composition `π₀.trans (π₁.trans ⋯)` of `t` independent random permutations. -/
 noncomputable def composePermDist {α : Type*} :
@@ -329,13 +324,12 @@ theorem dist_uniform_embedding_to_fun {T α : Type*} [Fintype T] [DecidableEq T]
     · have hnone : ∀ e : T ↪ α, f ≠ j e := fun e h => hf (h ▸ mem_image_of_mem j (mem_univ e))
       simp [hf, hnone]
   have hunif_eq : PMF.uniformOfFintype (T → α) =
-      PMF.uniformOfFinset (univ : Finset (T → α)) univ_nonempty := by
-    ext f
-    simp [PMF.uniformOfFintype_apply, PMF.uniformOfFinset_apply]
+      PMF.uniformOfFinset (univ : Finset (T → α)) univ_nonempty :=
+    PMF.ext fun _ => by simp [PMF.uniformOfFintype_apply, PMF.uniformOfFinset_apply]
   rw [hmap_eq, hunif_eq, dist_uniformOfFinset_of_card_le hInj_ne univ_nonempty (card_le_univ _),
     card_univ]
-  have hsub : #(univ \ InjSet) ≤ #(univ.filter fun f : T → α => ¬ Function.Injective f) := by
-    exact card_le_card fun f hf => mem_filter.2
+  have hsub : #(univ \ InjSet) ≤ #(univ.filter fun f : T → α => ¬ Function.Injective f) :=
+    card_le_card fun f hf => mem_filter.2
       ⟨mem_univ f, fun hfinj => (mem_sdiff.1 hf).2 (mem_image.mpr ⟨⟨f, hfinj⟩, mem_univ _, rfl⟩)⟩
   exact (div_le_div_of_nonneg_right (Nat.cast_le.mpr hsub) (Nat.cast_nonneg _)).trans
     (ratio_not_injective_fun_le T α)
@@ -349,14 +343,11 @@ theorem prob_uniformOfFintype_pi_prod_forall_mem {T α β : Type*}
       ∏ i : T, (((#(B i) : ℝ) / (Fintype.card α : ℝ)) *
         ((#(A i) : ℝ) / (Fintype.card β : ℝ))) := by
   classical
-  let E : Set (T → α × β) := {f | ∀ i : T, (f i).1 ∈ B i ∧ (f i).2 ∈ A i}
-  change ((PMF.uniformOfFintype (T → α × β)).toOuterMeasure E).toReal = _
-  rw [toOuterMeasure_uniformOfFintype_toReal]
-  have hfilt : univ.filter (· ∈ E) = Fintype.piFinset (fun i : T => B i ×ˢ A i) := by
-    ext f
-    simp [E, Fintype.mem_piFinset]
-  rw [hfilt, Fintype.card_piFinset, Fintype.card_pi]
-  simp only [Finset.card_product, Fintype.card_prod, Nat.cast_prod, Nat.cast_mul, div_mul_div_comm]
-  rw [Finset.prod_div_distrib]
+  have hfilt : (univ.filter fun f : T → α × β => ∀ i, (f i).1 ∈ B i ∧ (f i).2 ∈ A i) =
+      Fintype.piFinset fun i => B i ×ˢ A i :=
+    Finset.ext fun _ => by simp [Fintype.mem_piFinset]
+  simp only [toOuterMeasure_uniformOfFintype_toReal, Set.mem_ofPred_eq, hfilt,
+    Fintype.card_piFinset, Fintype.card_pi, Finset.card_product, Fintype.card_prod,
+    Nat.cast_prod, Nat.cast_mul, div_mul_div_comm, Finset.prod_div_distrib]
 
 end Cslib.Probability

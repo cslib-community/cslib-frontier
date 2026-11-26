@@ -60,10 +60,6 @@ theorem planeVertexRow_card_le (r : ℕ) :
       4 * B ^ 2 := by
     simpa only [Nat.card_eq_fintype_card] using
       crossingRow_card_le vs (color vs) hw srcRow (fun p => ownerRow p.edge) hxs hys hrow B hB r
-  change Nat.card {v : (planeDiagram vs hw).Vtx Prim.interp //
-    planeVertexRow vs hw vertexRow ownerRow v = r} ≤
-      Nat.card {i // vertexRow i = r} + 16 * Nat.card {e // ownerRow e = r} +
-        286 * Nat.card {i // crossingRow vs (color vs) hw (fun p => ownerRow p.edge) i = r} at h
   calc
     _ ≤ _ := h
     _ ≤ A + 16 * E + 286 * (4 * B ^ 2) :=

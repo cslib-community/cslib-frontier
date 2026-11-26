@@ -172,9 +172,7 @@ private theorem eventually_polylog_le_chain {a : ℕ} (ha : 1 ≤ a) (p k : ℕ)
       chain p (2 ^ p * (k + 1)) n ^ a := by
   filter_upwards [eventually_ge_atTop (2 ^ (2 * (a + 1) ^ k))] with n hn
   set L := Nat.log 2 n + 1 with hL
-  have hLM : 2 * (a + 1) ^ k ≤ L := by
-    have := Nat.le_log_of_pow_le (by norm_num : 1 < 2) hn
-    omega
+  have hLM : 2 * (a + 1) ^ k ≤ L := (Nat.le_log_of_pow_le one_lt_two hn).trans (Nat.le_succ _)
   have hn2 : n + 1 ≤ 2 ^ L := Nat.lt_pow_succ_log_self (by norm_num) n
   have hpowL : (n + 1) ^ a ≤ 2 ^ (a * L) := by rw [pow_mul']; exact Nat.pow_le_pow_left hn2 a
   have hlog : Nat.log 2 ((n + 1) ^ a + 1) + 1 ≤ (a + 1) * L := by
@@ -239,10 +237,8 @@ private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
     (tendsto_rpow_atTop (sub_pos.2 hδ)).comp
       (Real.tendsto_log_atTop.comp tendsto_natCast_atTop_atTop)
   filter_upwards [hT.eventually_ge_atTop (K ^ δ), eventually_ge_atTop 3] with n hK hn
-  have hn' : (3 : ℝ) ≤ n := by exact_mod_cast hn
-  have hlog1 : 1 ≤ Real.log n := by
-    have : Real.exp 1 ≤ n := (Real.exp_one_lt_d9.trans (by norm_num)).le.trans hn'
-    simpa using Real.log_le_log (Real.exp_pos 1) this
+  have hlog1 : 1 ≤ Real.log n := Real.log_exp 1 ▸ Real.log_le_log (Real.exp_pos 1)
+    ((Real.exp_one_lt_d9.trans (by norm_num)).le.trans (Nat.cast_le.mpr hn))
   have hlog0 : 0 < Real.log n := by linarith
   have hL : ((Nat.log 2 n : ℕ) : ℝ) + 1 ≤ 3 * Real.log n := by
     have h1 : (Nat.log 2 n : ℝ) * Real.log 2 ≤ Real.log n :=
@@ -364,10 +360,7 @@ theorem DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div {q : ℕ} (hq : 1 ≤ q)
   have hstep (j : ℕ) : DTIME encBits (fun n => 2 ^ expChain q (j + 1) n) ⊆
       DTIME encBits (fun n => 2 ^ expChain q j n) :=
     (DTIME_mono_of_le_mul_add (C := 2) fun n => by
-      change 2 ^ (expChain q j n + Nat.log 2 (expChain q j n + 1) / q + 1) ≤
-        2 * 2 ^ (expChain q j n + Nat.log 2 (expChain q j n + 1) / q) + 2
-      rw [pow_succ]
-      omega).trans
+      rw [Function.comp_apply, expChain, pow_succ]; omega).trans
     (DTIME_comp_subset_of_subset (f₁ := fun n => 2 ^ (n + Nat.log 2 (n + 1) / q))
       (f₂ := fun n => 2 ^ n)
       (fun a b h => Nat.pow_le_pow_right two_pos
@@ -380,10 +373,7 @@ theorem DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div {q : ℕ} (hq : 1 ≤ q)
       DTIME encBits (fun n => 2 ^ n) := by
     induction J with
     | zero =>
-      exact DTIME_mono_of_le_mul_add (C := 2) fun n => by
-        change 2 ^ (n + 1) ≤ 2 * 2 ^ n + 2
-        rw [pow_succ]
-        omega
+      exact DTIME_mono_of_le_mul_add (C := 2) fun n => by rw [expChain, pow_succ]; omega
     | succ J ih => exact (hstep J).trans ih
   obtain ⟨k, hk⟩ := exists_DTIME_ssubset_DTIME_polylog
   have hsep := hk (f := fun n => 2 ^ n) (g := fun n => 2 ^ expChain q (2 * q * k) n)

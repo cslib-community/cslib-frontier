@@ -107,8 +107,7 @@ private theorem exists_pos_forall_lt_iff (a b c d : ℝ) :
   constructor
   · rintro ⟨ε₀, hε₀, h⟩
     have hca : c ≤ a := by
-      by_contra hlt
-      rw [not_le] at hlt
+      by_contra! hlt
       have hden : 0 < 2 * (|b - d| + 1) := by positivity
       let ε := min (ε₀ / 2) (min (1 / 2) ((c - a) / (2 * (|b - d| + 1))))
       have hε : 0 < ε :=
@@ -154,12 +153,9 @@ private theorem isBestResponse₁_iff_forall_le {x y : α → ℝ} :
 
 /-- In a symmetric game, `(s, s)` is a Nash equilibrium iff `s` is a best response to itself. -/
 private theorem isNash_self_iff (hG : G.B = G.Aᵀ) : G.IsNash s s ↔ G.IsBestResponse₁ s s := by
-  have hswap : G.swap = G := by
-    obtain ⟨A, B⟩ := G
-    dsimp only at hG
-    subst hG
-    simp only [swap_mk, transpose_transpose]
-  rw [isNash_iff, ← isBestResponse₁_swap, hswap, and_self]
+  rcases G with ⟨A, B⟩
+  obtain rfl : B = Aᵀ := hG
+  simp only [isNash_iff, ← isBestResponse₁_swap, swap_mk, transpose_transpose, and_self]
 
 /-- **Evolutionary stability refines symmetric Nash equilibrium** ([Suri2007], Theorem 29.2): in a
 symmetric game, `s` is an evolutionarily stable strategy iff `(s, s)` is a Nash equilibrium and
@@ -190,11 +186,8 @@ theorem isESS_iff_isNash_and_forall_lt (hG : G.B = G.Aᵀ) :
 private theorem isMixedStrategy_fin_two_iff {x : Fin 2 → ℝ} :
     IsMixedStrategy x ↔ 0 ≤ x 0 ∧ x 0 ≤ 1 ∧ x 1 = 1 - x 0 := by
   rw [isMixedStrategy_iff, Fin.forall_fin_two, Fin.sum_univ_two]
-  constructor
-  · rintro ⟨⟨h0, h1⟩, hs⟩
-    exact ⟨h0, by linarith, by linarith⟩
-  · rintro ⟨h0, h1, hs⟩
-    exact ⟨⟨h0, by linarith⟩, by linarith⟩
+  exact ⟨fun ⟨⟨h0, _⟩, _⟩ => ⟨h0, by linarith, by linarith⟩,
+    fun ⟨h0, _, _⟩ => ⟨⟨h0, by linarith⟩, by linarith⟩⟩
 
 /-- A mixed strategy on two pure strategies is determined by the probability of the first. -/
 private theorem eq_vec_fin_two_iff {x : Fin 2 → ℝ} {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) :
@@ -204,10 +197,7 @@ private theorem eq_vec_fin_two_iff {x : Fin 2 → ℝ} {p : ℝ} (hp0 : 0 ≤ p)
   · rintro rfl
     exact ⟨⟨hp0, hp1, rfl⟩, rfl⟩
   · rintro ⟨⟨-, -, h1⟩, rfl⟩
-    ext i
-    fin_cases i
-    · rfl
-    · exact h1
+    exact funext (Fin.forall_fin_two.2 ⟨rfl, h1⟩)
 
 /-- With two pure strategies, the payoff difference of two mixed strategies against a third. -/
 private theorem payoff₁_sub_fin_two (G : BimatrixGame (Fin 2) (Fin 2)) {x y z : Fin 2 → ℝ}
@@ -263,14 +253,11 @@ private theorem forall_stable_fin_two_iff {a b c d p : ℝ} (hp0 : 0 ≤ p) (hp1
     · have hden : 0 < c - a + (b - d) := by linarith
       have hL : (a - c) * p + (b - d) * (1 - p) = 0 := by
         rw [hp]
-        field_simp
-        ring
-      have hsq : 0 < (p - q) ^ 2 := by positivity
+        field_simp; ring
       refine Or.inr ⟨by rw [hL, mul_zero], ?_⟩
-      have : (p - q) * ((a - c) * q + (b - d) * (1 - q)) = (c - a + (b - d)) * (p - q) ^ 2 := by
+      have hsq : (p - q) * ((a - c) * q + (b - d) * (1 - q)) = (c - a + (b - d)) * (p - q) ^ 2 := by
         linear_combination (p - q) * hL
-      rw [this]
-      positivity
+      rw [hsq]; positivity
 
 /-- **Evolutionarily stable strategies of a game with two pure strategies** (a characterization
 answering [Suri2007], Exercise 29.3). Write `a b c d` for the payoffs `G.A 0 0`, `G.A 0 1`,
@@ -319,8 +306,7 @@ theorem exists_isESS_fin_two_iff {G : BimatrixGame (Fin 2) (Fin 2)} :
     (∃ s, G.IsESS s) ↔ G.A 0 0 ≠ G.A 1 0 ∨ G.A 0 1 ≠ G.A 1 1 := by
   constructor
   · rintro ⟨s, hs⟩
-    by_contra hcon
-    rw [not_or, not_not, not_not] at hcon
+    by_contra! hcon
     rcases (isESS_fin_two_iff.1 hs).2 with ⟨-, h | ⟨-, h⟩⟩ | ⟨-, h | ⟨-, h⟩⟩ | ⟨h, -, -⟩ <;>
       linarith [hcon.1, hcon.2]
   · intro h
@@ -371,11 +357,8 @@ theorem isESS_hawkDove_iff_of_lt {V C : ℝ} (hV : 0 < V) (hCV : C < V) {s : Fin
   rw [h10, eq_vec_fin_two_iff zero_le_one le_rfl, isESS_fin_two_iff]
   refine and_congr_right fun _ => ?_
   simp only [hawkDove_A, of_apply, cons_val', cons_val_zero, cons_val_one, cons_val_fin_one]
-  constructor
-  · rintro (⟨h, -⟩ | ⟨-, h | ⟨h, -⟩⟩ | ⟨h, -, -⟩)
-    · exact h
-    all_goals linarith
-  · exact fun h => Or.inl ⟨h, Or.inl (by linarith)⟩
+  exact ⟨by rintro (⟨h, -⟩ | ⟨-, h | ⟨h, -⟩⟩ | ⟨h, -, -⟩) <;> first | exact h | linarith,
+    fun h => Or.inl ⟨h, Or.inl (by linarith)⟩⟩
 
 /-- **The mixed evolutionarily stable strategy of Hawks and Doves** ([Suri2007], Exercise 29.2):
 in Hawks and Doves with `0 < V ≤ C`, playing Hawk with probability `V / C` is an evolutionarily

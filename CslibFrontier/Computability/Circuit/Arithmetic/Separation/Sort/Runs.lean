@@ -99,11 +99,9 @@ theorem IsRuns.sum {ι : Type*} [Fintype ι] {X : ι → Type*} {P : ι → Seri
     IsRuns (∑ i, P i) (fun (x : Σ i, X i) => em x.1 x.2) (fun x => wt x.1 x.2) := by
   intro v
   choose R h1 h2 using h
-  refine ⟨univ.sigma fun i => R i v, ?_, ?_⟩
-  · rintro ⟨i, x⟩
-    simp [h1]
-  · rw [hat_sum, Finset.sum_sigma]
-    exact Finset.sum_congr rfl fun i _ => h2 i v
+  refine ⟨univ.sigma fun i => R i v, fun ⟨i, x⟩ => by simp [h1], ?_⟩
+  rw [hat_sum, Finset.sum_sigma]
+  exact Finset.sum_congr rfl fun i _ => h2 i v
 
 theorem IsRuns.congr {P : Series F (Z × Γ)} {X Y : Type*} {em : X → Z → List Γ}
     {wt : X → F} {em' : Y → Z → List Γ} {wt' : Y → F} (h : IsRuns P em wt) (e : Y ≃ X)
@@ -111,10 +109,9 @@ theorem IsRuns.congr {P : Series F (Z × Γ)} {X Y : Type*} {em : X → Z → Li
     IsRuns P em' wt' := by
   intro v
   obtain ⟨R, g1, g2⟩ := h v
-  refine ⟨R.map e.symm.toEmbedding, fun y => ?_, ?_⟩
-  · simp [g1, funext (h1 y)]
-  · rw [g2, Finset.sum_map]
-    exact Finset.sum_congr rfl fun _ _ => by simp [← h2]
+  refine ⟨R.map e.symm.toEmbedding, fun y => by simp [g1, funext (h1 y)], ?_⟩
+  rw [g2, Finset.sum_map]
+  exact Finset.sum_congr rfl fun _ _ => by simp [← h2]
 
 theorem IsRuns.one :
     IsRuns (Series.one : Series F (Z × Γ)) (fun (_ : Unit) _ => []) (fun _ => 1) := by
@@ -136,8 +133,7 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
   | _ n ih =>
     choose Rf hf1 hf2 using hf
     have hlt : ∀ p ∈ (anti v).filter (fun p => p.1 ≠ fun _ => []),
-        ∑ z, (p.2 z).length < n := by
-      intro p hp
+        ∑ z, (p.2 z).length < n := fun p hp => by
       rw [Finset.mem_filter, mem_anti] at hp
       have he : n = ∑ z, (p.1 z).length + ∑ z, (p.2 z).length := by
         rw [← hn, ← Finset.sum_add_distrib]
@@ -167,8 +163,7 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
         exact ⟨_, hp, (hf1 _ _).2 rfl, ((hRs _ hp).1 _).2 rfl⟩
     let C : Finset (List X) :=
       B.map ⟨fun p => p.1 :: p.2, by rintro ⟨a, b⟩ ⟨c, d⟩ h; simpa using h⟩
-    have hC : ∀ l, l ∈ C ↔ l ≠ [] ∧ (fun z => l.flatMap fun x => em x z) = v := by
-      intro l
+    have hC : ∀ l, l ∈ C ↔ l ≠ [] ∧ (fun z => l.flatMap fun x => em x z) = v := fun l => by
       simp only [C, Finset.mem_map, Prod.exists]
       refine ⟨?_, fun ⟨h1, h2⟩ => ?_⟩
       · rintro ⟨x, l', h, rfl⟩
@@ -188,8 +183,7 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
             exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
               (List.prod_cons ..).symm
           · intro p hp q hq hpq
-            rw [Function.onFun, Finset.disjoint_left]
-            rintro ⟨x, y⟩ h h'
+            refine Finset.disjoint_left.mpr fun ⟨x, y⟩ h h' => ?_
             rw [Finset.mem_product, hf1] at h h'
             exact hpq (Prod.ext (h.1.symm.trans h'.1)
               (((hRs p hp).1 y |>.1 h.2).symm.trans ((hRs q hq).1 y |>.1 h'.2)))
@@ -274,17 +268,14 @@ theorem add {n m : ℕ} {X Y : Type*} {em : X → Z → List Γ} {wt : X → F}
   obtain ⟨R, h1, h2⟩ := g2 v
   obtain ⟨R', h3, h4⟩ := g4 v
   refine ⟨R.disjSum R', by rintro (x | x) <;> simp [h1, h3], ?_⟩
-  rw [hat_add, h2, h4, Finset.sum_disjSum]
-  simp
+  simp [hat_add, h2, h4, Finset.sum_disjSum]
 
 theorem kstar {n : ℕ} {X : Type*} {em : X → Z → List Γ} {wt : X → F}
     (hf : Runs n em wt) (hne : ∀ x, ∃ z, em x z ≠ []) :
     Runs (n + 1) (fun (l : List X) z => l.flatMap fun x => em x z)
       (fun l => (l.map wt).prod) := by
   obtain ⟨P, g1, g2⟩ := hf
-  refine ⟨_, g1.kstar, g2.kstar fun x h => ?_⟩
-  obtain ⟨z, hz⟩ := hne x
-  exact hz (congrFun h z)
+  exact ⟨_, g1.kstar, g2.kstar fun x h => (hne x).elim fun z hz => hz (congrFun h z)⟩
 
 theorem one :
     Runs 1 (fun (_ : Unit) (_ : Z) => ([] : List Γ)) (fun _ => (1 : F)) :=

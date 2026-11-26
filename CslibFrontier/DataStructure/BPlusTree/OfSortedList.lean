@@ -240,14 +240,10 @@ private theorem map_buildM (hf : IsMonadHom m n f) (t : ℕ) (visit : m Unit) (f
     f (buildM t visit fuel first rest) = buildM t (f visit) fuel first rest := by
   induction fuel generalizing first rest with
   | zero =>
-    rcases rest with _ | ⟨e, es⟩
-    · simp [hf.map_pure]
-    rw [buildM_cons, buildM_cons]
+    rcases rest with _ | ⟨e, es⟩ <;> simp only [buildM_nil, buildM_cons, hf.map_pure]
     split <;> simp [hf.map_bind, hf.map_pure]
   | succ fuel ih =>
-    rcases rest with _ | ⟨e, es⟩
-    · simp [hf.map_pure]
-    rw [buildM_cons, buildM_cons]
+    rcases rest with _ | ⟨e, es⟩ <;> simp only [buildM_nil, buildM_cons, hf.map_pure]
     split <;> simp [hf.map_bind, hf.map_pure, map_packM hf, ih]
 
 /-- A monad morphism commutes with bulk loading. -/
@@ -392,8 +388,7 @@ private theorem toList_pack (first : BPlusTree α β) (rest : List (Branch α β
   | nil => simp [pack_nil]
   | cons s ss ih =>
     rcases h : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
-    · rw [pack_cons_of_drop_eq_nil ss h]
-      simp
+    · simp [pack_cons_of_drop_eq_nil ss h]
     · rw [pack_cons_of_drop_eq_cons ss h]
       conv_rhs => rw [← List.take_append_drop s rest, h]
       simp only [toList_node, List.flatMap_cons, List.flatMap_append, List.append_assoc,
@@ -514,13 +509,11 @@ private theorem good_pack {h r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
     · exact absurd (List.drop_eq_nil_iff.1 hd) (by omega)
     · rw [pack_cons_of_drop_eq_cons ss hd]
-      have hmem : ∀ e ∈ rest.drop s, e ∈ rest := fun e he => List.mem_of_mem_drop he
-      rw [hd] at hmem
       have hlen' := congrArg List.length hd
       simp only [List.length_drop, List.length_cons] at hlen'
       obtain ⟨hf', hr'⟩ := ih (first := c) (rest := rest') (by omega)
-        (hr _ (hmem _ List.mem_cons_self))
-        (fun e he => hr e (hmem e (List.mem_cons_of_mem _ he)))
+        (hr _ (List.mem_of_mem_drop (hd ▸ List.mem_cons_self)))
+        (fun e he => hr e (List.mem_of_mem_drop (hd ▸ List.mem_cons_of_mem _ he)))
       refine ⟨good_node hf (fun e he => hr e (List.mem_of_mem_take he))
         (by rw [List.length_take]; omega) (by rw [List.length_take]; omega), ?_⟩
       rintro e (_ | ⟨_, he⟩)
@@ -550,8 +543,7 @@ private theorem shaped_build {h fuel : ℕ} {first : BPlusTree α β} {rest : Li
   induction fuel generalizing h first rest with
   | zero =>
     obtain rfl := List.eq_nil_of_length_eq_zero (Nat.le_zero.1 hfuel)
-    rw [build_nil]
-    exact hf.shaped ht
+    exact build_nil .. ▸ hf.shaped ht
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with hlt | hle
     · rw [build_succ_of_lt hlt]
@@ -560,18 +552,15 @@ private theorem shaped_build {h fuel : ℕ} {first : BPlusTree α β} {rest : Li
       obtain ⟨hf', hr'⟩ := good_pack hg rfl hf hr
       exact ih hf' hr' (by rw [length_pack hg rfl]; have := hg.two_mul_length_lt ht; omega)
     · rcases rest with _ | ⟨e, es⟩
-      · rw [build_nil]
-        exact hf.shaped ht
+      · exact build_nil .. ▸ hf.shaped ht
       · rw [build_of_length_le (List.cons_ne_nil e es) hle]
         exact
           { width_le := hle
             width_pos := fun _ => by simp
-            occupied_of_mem_children := by
-              intro c hc
+            occupied_of_mem_children := fun c hc => by
               simp only [children_node, List.mem_cons, List.mem_map] at hc
               rcases hc with rfl | ⟨e', he', rfl⟩
-              · exact hf.occupied
-              · exact (hr e' (by simpa using he')).occupied
+              exacts [hf.occupied, (hr e' (List.mem_cons.mpr he')).occupied]
             balanced := .node hf.balanced (fun e' he' => (hr e' he').balanced)
               fun e' he' => (hr e' he').height_eq.trans hf.height_eq.symm }
 
@@ -581,15 +570,11 @@ private theorem good_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List (α �
     (hss : ∀ s ∈ ss, t - 1 ≤ s ∧ s ≤ 2 * t - 1) (hsum : ss.sum = l.length) :
     ∀ e ∈ leafBranches ss l, Good t 1 e.child ∧ HeadKey e := by
   induction ss generalizing l with
-  | nil =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l => simp at hsum
+  | nil => rcases l with _ | ⟨p, l⟩ <;> simp [leafBranches_nil] at hsum ⊢
   | cons s ss ih =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l =>
-      obtain ⟨h₁, h₂⟩ := hss s List.mem_cons_self
+    rcases l with _ | ⟨p, l⟩
+    · simp [leafBranches_nil]
+    · obtain ⟨h₁, h₂⟩ := hss s List.mem_cons_self
       rw [List.sum_cons] at hsum
       rw [leafBranches_cons_cons]
       intro e he
@@ -651,15 +636,11 @@ private theorem separated_node {first : BPlusTree α β} {rest : List (Branch α
   obtain ⟨-, hrs, hfr⟩ := List.isSortedAssoc_append_iff.1 hs
   refine .node hf hr (fun e he p hp => ?_) ?_ fun e he p hp => ?_
   · obtain ⟨v, l, hl⟩ := hk e he
-    have hc : e.child.toList.IsSortedAssoc := by
-      refine hrs.sublist ?_
-      rw [List.flatMap_def]
-      exact List.sublist_flatten_of_mem
-        (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)
+    have hc : e.child.toList.IsSortedAssoc :=
+      hrs.sublist (List.flatMap_def .. ▸ List.sublist_flatten_of_mem (List.mem_map_of_mem he))
     rw [hl] at hc hp
     rcases List.mem_cons.1 hp with rfl | hp
-    · exact le_rfl
-    · exact ((List.isSortedAssoc_cons_iff.1 hc).1 p hp).le
+    exacts [le_rfl, ((List.isSortedAssoc_cons_iff.1 hc).1 p hp).le]
   · have hp := hrs.pairwise
     rw [List.flatMap_def, List.pairwise_flatten] at hp
     refine (List.pairwise_map.1 hp.2).imp_of_mem fun {a b} _ hb hab p hp => ?_
@@ -676,9 +657,7 @@ private theorem separated_pack {first : BPlusTree α β} {rest : List (Branch α
     Separated (pack first rest ss).1 ∧
       ∀ e ∈ (pack first rest ss).2, Separated e.child ∧ HeadKey e := by
   induction ss generalizing first rest with
-  | nil =>
-    rw [pack_nil]
-    exact ⟨separated_node hf hr hk hs, by simp⟩
+  | nil => exact ⟨pack_nil .. ▸ separated_node hf hr hk hs, by simp [pack_nil]⟩
   | cons s ss ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
     · rw [pack_cons_of_drop_eq_nil ss hd]
@@ -686,12 +665,9 @@ private theorem separated_pack {first : BPlusTree α β} {rest : List (Branch α
     · rw [pack_cons_of_drop_eq_cons ss hd]
       have hmem : ∀ e ∈ (k, c) :: rest', e ∈ rest := fun e he =>
         List.mem_of_mem_drop (hd ▸ he)
-      obtain ⟨hs₁, hs₂, -⟩ := List.isSortedAssoc_append_iff.1
-        (show ((first.toList ++ (rest.take s).flatMap fun e => e.child.toList) ++
-            (c.toList ++ rest'.flatMap fun e => e.child.toList)).IsSortedAssoc by
-          conv at hs => rw [← List.take_append_drop s rest, hd]
-          simpa only [List.flatMap_append, List.flatMap_cons, List.append_assoc,
-            Branch.child_mk] using hs)
+      rw [← List.take_append_drop s rest, hd, List.flatMap_append, List.flatMap_cons,
+        Branch.child_mk, ← List.append_assoc] at hs
+      obtain ⟨hs₁, hs₂, -⟩ := List.isSortedAssoc_append_iff.1 hs
       obtain ⟨hf', hr'⟩ := ih (first := c) (rest := rest')
         (hr _ (hmem _ List.mem_cons_self))
         (fun e he => hr e (hmem e (List.mem_cons_of_mem _ he)))
@@ -702,7 +678,7 @@ private theorem separated_pack {first : BPlusTree α β} {rest : List (Branch α
       · refine ⟨hf', ?_⟩
         obtain ⟨v, l, hl⟩ := hk (k, c) (hmem _ List.mem_cons_self)
         obtain ⟨l', hl'⟩ := toList_pack_fst c rest' ss
-        exact ⟨v, l ++ l', by rw [Branch.child_mk, hl', show c.toList = (k, v) :: l from hl]; rfl⟩
+        exact ⟨v, l ++ l', by rw [Branch.child_mk, hl', (hl : c.toList = (k, v) :: l)]; rfl⟩
       · exact hr' e he
 
 /-- The rounds of bulk loading from a level of separated trees with sorted entries, each branch
@@ -714,23 +690,20 @@ private theorem separated_build (fuel : ℕ) {first : BPlusTree α β} {rest : L
   induction fuel generalizing first rest with
   | zero =>
     rcases rest with _ | ⟨e, es⟩
-    · rwa [build_nil]
-    rw [build_zero_cons]
-    exact separated_node hf hr hk hs
+    exacts [by rwa [build_nil], build_zero_cons first e es ▸ separated_node hf hr hk hs]
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with hlt | hle
     · rw [build_succ_of_lt hlt]
       obtain ⟨hf', hr'⟩ := separated_pack (BTree.groupSizes t rest.length rest.length) hf hr hk hs
       exact ih hf' (fun e he => (hr' e he).1) (fun e he => (hr' e he).2) (by rwa [toList_pack])
     · rcases rest with _ | ⟨e, es⟩
-      · rwa [build_nil]
-      rw [build_of_length_le (List.cons_ne_nil e es) hle]
-      exact separated_node hf hr hk hs
+      exacts [by rwa [build_nil],
+        build_of_length_le (List.cons_ne_nil e es) hle ▸ separated_node hf hr hk hs]
 
 /-- A tree of the bottom level is a leaf, hence separated. -/
-private theorem Good.separated {c : BPlusTree α β} (h : Good t 1 c) : Separated c := by
-  obtain ⟨es, rfl⟩ := height_eq_one_iff.1 h.height_eq
-  exact .leaf
+private theorem Good.separated {c : BPlusTree α β} (h : Good t 1 c) : Separated c :=
+  let ⟨_, h⟩ := height_eq_one_iff.1 h.height_eq
+  h ▸ .leaf
 
 /-- Bulk loading a sorted list builds a well-formed tree at a minimum degree of at least `2`. -/
 theorem isWF_ofSortedList {l : List (α × β)} (ht : 2 ≤ t) (h : l.IsSortedAssoc) :
@@ -747,8 +720,7 @@ theorem isWF_ofSortedList {l : List (α × β)} (ht : 2 ≤ t) (h : l.IsSortedAs
         obtain ⟨hf, hr⟩ := good_leafLevel ht hlt
         exact separated_build _ hf.separated (fun e he => (hr e he).1.separated)
           (fun e he => (hr e he).2) (by rwa [toList_leafLevel])
-      · rw [ofSortedList_of_length_le ht hle]
-        exact .leaf
+      · exact ofSortedList_of_length_le ht hle ▸ .leaf
     sorted := by rwa [toList_ofSortedList] }
 
 /-- Lookup in a bulk-loaded sorted list is lookup in the list, for every `t`. -/

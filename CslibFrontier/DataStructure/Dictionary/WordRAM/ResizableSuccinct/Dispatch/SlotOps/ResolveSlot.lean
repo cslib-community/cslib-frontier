@@ -105,9 +105,8 @@ theorem clientResult_compLastSlotOfGenProg {U V w N metaBase b : ℕ} {s : Memor
       slotOf N (compGmAt metaBase U w N s.mem) b
         (bCount N (compGmAt metaBase U w N s.mem) b - 1) := by
   set gm := compGmAt metaBase U w N s.mem
-  dsimp only [compLastSlotOfGenProg, cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk,
-    cpNSubOne_mk]
-  simp only [pure_bind]
+  simp only [compLastSlotOfGenProg, cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk,
+    cpNSubOne_mk, pure_bind]
   by_cases hb0 : bucketBits N = 0
   · have hb_eq : b = 0 := by simp only [numBuckets, hb0, pow_zero] at hb; omega
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
@@ -180,8 +179,7 @@ theorem validProg_compLastSlotOfGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
   have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
     ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
   have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
-  dsimp only [compLastSlotOfGenProg]
-  simp only [pure_bind, cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk]
+  simp only [compLastSlotOfGenProg, pure_bind, cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk]
   refine validProg_ite
     (fun _ => validProg_bind (validProg_readCompGMGen ⟨henv, h0_lt⟩) (validProg_pure _))
     (fun hb0 => ?_)
@@ -246,11 +244,9 @@ private theorem slabDir_read_bounds {N b j : ℕ} (hb_pos : 0 < bucketBits N)
     (hb : b < numBuckets N) (hj_cap : j < effBucketCap N) :
     j / slabSize N < dirSlabsPerBucket N ∧
       gmSlabDirBase N + (b * dirSlabsPerBucket N + j / slabSize N) < globalMetaLen N := by
-  rw [effBucketCap_eq_dirSlabs_mul_slabSize hb_pos] at hj_cap
-  have hs := (Nat.div_lt_iff_lt_mul (slabSize_pos N)).2 hj_cap
-  have := gmSlabDirIdx_lt hb_pos hb hs
-  unfold gmSlabDirIdx at this
-  exact ⟨hs, by omega⟩
+  have hs := (Nat.div_lt_iff_lt_mul (slabSize_pos N)).2
+    (effBucketCap_eq_dirSlabs_mul_slabSize hb_pos ▸ hj_cap)
+  exact ⟨hs, Nat.add_assoc _ _ _ ▸ gmSlabDirIdx_lt hb_pos hb hs⟩
 
 /-- A slot `j` inside the full slabs of bucket `b` reads its physical slab from `slabDir`. -/
 private theorem slabDir_read_eq {N b j : ℕ} {gm : ℕ → ℕ} (hslot : SlotStoreInv N gm)
@@ -340,14 +336,12 @@ private theorem realizesBounded_compResolveMultiSlotGen :
     unfold gmQIdx gmSlabDirBase at *
     omega)
   all_goals try exact lt_of_le_of_lt (by omega) hU
-  have hc_pos : j < compGmAt metaBase U w N s.mem (gmQIdx b) * slabSize N := by assumption
-  rw [clientResult_readCompGMGenProg hdir_lt, slabDir_read_eq hslot hb_pos hb hj_cap hc_pos]
-  have hp_lt : slabPtrOf N (compGmAt metaBase U w N s.mem) b (j / slabSize N) <
-      compGmAt metaBase U w N s.mem 0 := by
-    rw [(hslot.multi_slab hb_pos).nslabs_eq]
-    exact (hslot.multi_slab hb_pos).ptr_lt b hb _ ((Nat.div_lt_iff_lt_mul hK).2 hc_pos)
-  have h1 := Nat.mul_le_mul_right (slabSize N) hp_lt
-  rw [Nat.add_one_mul] at h1
+  rw [clientResult_readCompGMGenProg hdir_lt, slabDir_read_eq hslot hb_pos hb hj_cap ‹_›]
+  have hp_lt := (hslot.multi_slab hb_pos).nslabs_eq ▸
+    (hslot.multi_slab hb_pos).ptr_lt b hb _ ((Nat.div_lt_iff_lt_mul hK).2 ‹_›)
+  have h1 := Nat.add_one_mul
+    (slabPtrOf N (compGmAt metaBase U w N s.mem) b (j / slabSize N)) (slabSize N) ▸
+    Nat.mul_le_mul_right (slabSize N) hp_lt
   have hSN := hslot.multi_total_le hb_pos
   exact lt_of_le_of_lt (by omega) hU
 
@@ -382,9 +376,8 @@ theorem validProg_compResolveIndexedSlotGen {w : ℕ} {d : ((CompParams × ℕ) 
   obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb, hj_bc, hj_cap⟩ := h
   have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
     ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
-  dsimp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg]
-  simp only [cpBucketBits_mk, cpSlabSize_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk,
-    cpGmTailPtrBase_mk, cpTailCap_mk]
+  simp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg, cpBucketBits_mk,
+    cpSlabSize_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk, cpGmTailPtrBase_mk, cpTailCap_mk]
   refine validProg_ite (fun _ => validProg_pure j) (fun hb0 => ?_)
   have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
   have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb

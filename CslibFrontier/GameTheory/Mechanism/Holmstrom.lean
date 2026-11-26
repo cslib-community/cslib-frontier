@@ -178,17 +178,14 @@ theorem payment_sub_eq_of_isSmoothlyConnected [DecidableEq ι] {M₁ M₂ : Mech
   set U₁ : ℝ → ℝ := fun t => M₁.utility i (γ t) (Function.update b i (γ t))
   set U₂ : ℝ → ℝ := fun t => M₂.utility i (γ t) (Function.update b i (γ t))
   have hae_ne (c : ℝ) : ∀ᵐ t : ℝ, t ≠ c := by
-    rw [ae_iff]
-    simp only [ne_eq, not_not, ofPred_eq_eq_singleton, Real.volume_singleton]
+    simp only [ae_iff, ne_eq, not_not, ofPred_eq_eq_singleton, Real.volume_singleton]
   have hzero : ∀ᵐ t : ℝ, t ∈ uIcc (0 : ℝ) 1 → HasDerivAt (fun s => U₁ s - U₂ s) 0 t := by
     filter_upwards [hAC₁.ae_differentiableAt, hAC₂.ae_differentiableAt, hae_ne 0, hae_ne 1]
       with t hd₁ hd₂ ht0 ht1 ht
-    have ht' : t ∈ Ioo (0 : ℝ) 1 := by
-      rw [uIcc_of_le zero_le_one] at ht
-      exact ⟨lt_of_le_of_ne ht.1 ht0.symm, lt_of_le_of_ne ht.2 ht1⟩
-    have h1 := hD₁ t ht' (hd₁ ht)
-    rw [hout] at h1
-    simpa only [sub_self] using h1.fun_sub (hD₂ t ht' (hd₂ ht))
+    have ht' : t ∈ Ioo (0 : ℝ) 1 :=
+      ⟨lt_of_le_of_ne (uIcc_of_le (zero_le_one : (0 : ℝ) ≤ 1) ▸ ht).1 ht0.symm,
+        lt_of_le_of_ne (uIcc_of_le (zero_le_one : (0 : ℝ) ≤ 1) ▸ ht).2 ht1⟩
+    simpa only [hout, sub_self] using (hD₁ t ht' (hd₁ ht)).fun_sub (hD₂ t ht' (hd₂ ht))
   obtain ⟨C, hC⟩ := (hAC₁.sub hAC₂).const_of_ae_hasDerivAt_zero hzero
   have hdiff : U₁ 1 - U₂ 1 = U₁ 0 - U₂ 0 :=
     (hC 1 right_mem_uIcc).trans (hC 0 left_mem_uIcc).symm
@@ -299,10 +296,9 @@ theorem exists_groves_of_isDSIC [Fintype ι] [DecidableEq ι] {M : Mechanism ι 
       (∀ i b v, h i (Function.update b i v) = h i b) ∧ M = groves M.outcome h := by
   obtain ⟨h, hh, hpay⟩ := exists_groves_of_convex (V := fun _ => Set.univ)
     (hM.isDSICOn _) (fun b _ ω => hf b ω) (fun _ => convex_univ)
-  refine ⟨h, hh, ?_⟩
   cases M
-  simpa only [groves, Mechanism.mk.injEq, true_and, funext_iff] using
-    fun b i => hpay b (fun _ => Set.mem_univ _) i
+  exact ⟨h, hh, by simpa only [groves, Mechanism.mk.injEq, true_and, funext_iff] using
+    fun b i => hpay b (fun _ => Set.mem_univ _) i⟩
 
 /-! ### Counterexample on a disconnected two-point domain -/
 
@@ -335,18 +331,13 @@ type `0` prefers `(false, 0)` over `(true, 3/2)` (`0 ≥ -3/2`), while type `2` 
 theorem disconnectedNonGroves_isDSICOn :
     disconnectedNonGroves.IsDSICOn disconnectedDomains := by
   intro i b v hb hv
-  have hb0 : b 0 = twoOutcomeVal 0 ∨ b 0 = twoOutcomeVal 2 := by
-    simpa only [disconnectedDomains, Matrix.cons_val_zero, Set.mem_insert_iff,
-      Set.mem_singleton_iff] using hb 0
-  have hb1 : b 1 = twoOutcomeVal (-1) := Set.mem_singleton_iff.1 (hb 1)
+  have hb0 : b 0 = twoOutcomeVal 0 ∨ b 0 = twoOutcomeVal 2 := hb 0
+  have hb1 : b 1 = twoOutcomeVal (-1) := hb 1
   rcases i with ⟨_ | _ | n, hn⟩
   · rw [Fin.zero_eta] at hv ⊢
-    have hv0 : v = twoOutcomeVal 0 ∨ v = twoOutcomeVal 2 := by
-      simpa only [disconnectedDomains, Matrix.cons_val_zero, Set.mem_insert_iff,
-        Set.mem_singleton_iff] using hv
     simp only [utility, disconnectedNonGroves, welfare, Fin.sum_univ_two, Function.update_self,
       Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0), hb1, true_and]
-    rcases hb0 with hb0 | hb0 <;> rcases hv0 with rfl | rfl <;>
+    rcases hb0 with hb0 | hb0 <;> rcases hv with rfl | rfl <;>
       rw [hb0] <;> norm_num [twoOutcomeVal]
   · rw [Fin.mk_one] at hv ⊢
     rw [Set.mem_singleton_iff.1 hv, ← hb1, Function.update_eq_self]

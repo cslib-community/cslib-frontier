@@ -233,11 +233,10 @@ private theorem exists_tick_disjoint_packets {P : Type*} {F : FailurePattern P}
   classical
   let lastPlusOne : GossipPacket P → ℕ := fun pkt =>
     if h : ∃ t, pkt ∈ sched q t then h.choose + 1 else 0
-  let B := bad.sup lastPlusOne
-  refine ⟨B, fun t ht pkt hpkt hmem => ?_⟩
+  refine ⟨bad.sup lastPlusOne, fun t ht pkt hpkt hmem => ?_⟩
   have hex : ∃ t', pkt ∈ sched q t' := ⟨t, hpkt⟩
   have heq : t = hex.choose := hadm.unique_delivery_tick q t hex.choose pkt hpkt hex.choose_spec
-  have hle : hex.choose + 1 ≤ B := by
+  have hle : hex.choose + 1 ≤ bad.sup lastPlusOne := by
     simpa only [lastPlusOne, hex, ↓reduceDIte] using Finset.le_sup (f := lastPlusOne) hmem
   omega
 
@@ -463,15 +462,13 @@ theorem DetectorClass.gossipHistory_sat_boost {P : Type*} [Finite P] [DecidableE
   | P =>
     by_cases hcorr : F.Correct.Nonempty
     · exact gossipHistory_isPerfect_of_isQuasiPerfect hadm (hsat.toQuasiPerfect hcorr)
-    · refine ⟨⟨0, fun _ _ q hq => absurd ⟨q, hq⟩ hcorr⟩,
-        gossipHistory_strongAccuracy hadm hsat.2⟩
+    · exact ⟨⟨0, fun _ _ q hq => absurd ⟨q, hq⟩ hcorr⟩, gossipHistory_strongAccuracy hadm hsat.2⟩
   | S => exact gossipHistory_isStrong_of_isWeak hadm hsat.toWeak
   | EP =>
     by_cases hcorr : F.Correct.Nonempty
     · exact gossipHistory_isEventuallyPerfect_of_isEventuallyQuasiPerfect hadm
         (hsat.toEventuallyQuasiPerfect hcorr)
-    · exact ⟨⟨0, fun _ _ q hq => absurd ⟨q, hq⟩ hcorr⟩,
-        ⟨0, fun _ _ p hp => absurd ⟨p, hp⟩ hcorr⟩⟩
+    · exact ⟨⟨0, fun _ _ q hq => (hcorr ⟨q, hq⟩).elim⟩, 0, fun _ _ p hp => (hcorr ⟨p, hp⟩).elim⟩
   | ES => exact gossipHistory_isEventuallyStrong_of_isEventuallyWeak hadm hsat.toEventuallyWeak
   | Q => exact gossipHistory_isPerfect_of_isQuasiPerfect hadm hsat
   | W => exact gossipHistory_isStrong_of_isWeak hadm hsat
@@ -495,24 +492,19 @@ theorem admissible_syncGossipSchedule {P : Type*} [DecidableEq P]
     (F : FailurePattern P) {procs : List P} (hprocs : ∀ q : P, q ∈ procs) :
     AdmissibleGossipSchedule F (syncGossipSchedule F procs) where
   valid_delivery p t pkt hpkt := by
-    by_cases hp : p ∈ F t
-    · simp [syncGossipSchedule, hp] at hpkt
-    · simp only [syncGossipSchedule, hp, ↓reduceIte, List.mem_map, List.mem_filter,
-        decide_eq_true_eq] at hpkt
-      obtain ⟨q, ⟨_, hq⟩, rfl⟩ := hpkt
-      exact ⟨hp, le_rfl, hq⟩
+    rw [syncGossipSchedule] at hpkt
+    split_ifs at hpkt with hp
+    · nomatch hpkt
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hpkt
+      exact ⟨hp, le_rfl, of_decide_eq_true (List.mem_filter.mp hq).2⟩
   unique_delivery_tick p t₁ t₂ pkt h₁ h₂ := by
     have hs {t} (h : pkt ∈ syncGossipSchedule F procs p t) : pkt.sendTick = t := by
-      by_cases hp : p ∈ F t
-      · simp [syncGossipSchedule, hp] at h
-      · simp only [syncGossipSchedule, hp, ↓reduceIte, List.mem_map] at h
-        obtain ⟨_, _, rfl⟩ := h
-        rfl
+      rw [syncGossipSchedule] at h
+      split_ifs at h with hp
+      · nomatch h
+      · exact congrArg GossipPacket.sendTick (List.mem_map.mp h).choose_spec.2.symm
     exact (hs h₁).symm.trans (hs h₂)
-  fair_delivery q hq p hp t₀ := by
-    refine ⟨t₀, t₀, le_rfl, le_rfl, ?_⟩
-    simp only [syncGossipSchedule, hp t₀, ↓reduceIte, List.mem_map, List.mem_filter,
-      List.mem_dedup, decide_eq_true_eq]
-    exact ⟨q, ⟨hprocs q, hq t₀⟩, rfl⟩
+  fair_delivery q hq p hp t₀ :=
+    ⟨t₀, t₀, le_rfl, le_rfl, by simp [syncGossipSchedule, hp t₀, hprocs q, hq t₀]⟩
 
 end Cslib.Distributed.FailureDetectors

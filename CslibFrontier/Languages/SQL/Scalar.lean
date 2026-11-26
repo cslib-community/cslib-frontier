@@ -335,8 +335,7 @@ theorem eval_eq_error {op : ArithOp} {a b : ℤ} {e : EvalError} (h : op.eval a 
 theorem exists_eval_eq_ok {op : ArithOp} {a b : ℤ} (h : op.isDivision → b ≠ 0) :
     ∃ z, op.eval a b = .ok z := by
   rcases hr : op.eval a b with e | z
-  · obtain ⟨-, hd, hb⟩ := eval_eq_error hr
-    exact absurd hb (h hd)
+  · exact absurd (eval_eq_error hr).2.2 (h (eval_eq_error hr).2.1)
   · exact ⟨z, rfl⟩
 
 end ArithOp
@@ -425,15 +424,14 @@ theorem eval_eq_ok_true_iff {a b : Datum} :
 /-- A comparison succeeds exactly when the operands have a common type (`NULL` has every type). -/
 theorem exists_eval_eq_ok_iff {op : CmpOp} {a b : Datum} :
     (∃ t, op.eval a b = .ok t) ↔ ∃ τ, a.HasType τ ∧ b.HasType τ := by
-  rcases a with _ | a
-  · cases b <;> simp
-  rcases b with _ | b
-  · simp
-  simp only [eval_some_some, Except.map_eq_ok, Datum.hasType_some]
-  refine ⟨fun ⟨_, o, h, _⟩ => ⟨a.type, rfl, (Value.exists_cmp_eq_ok_iff.mp ⟨o, h⟩).symm⟩, ?_⟩
-  rintro ⟨τ, ha, hb⟩
-  obtain ⟨o, h⟩ := Value.exists_cmp_eq_ok_iff.mpr (ha.trans hb.symm)
-  exact ⟨_, o, h, rfl⟩
+  match a, b with
+  | none, b => cases b <;> simp
+  | some _, none => simp
+  | some a, some b =>
+    simp only [eval_some_some, Except.map_eq_ok, Datum.hasType_some]
+    exact ⟨fun ⟨_, o, h, _⟩ => ⟨a.type, rfl, (Value.exists_cmp_eq_ok_iff.mp ⟨o, h⟩).symm⟩,
+      fun ⟨_, ha, hb⟩ => let ⟨o, h⟩ := Value.exists_cmp_eq_ok_iff.mpr (ha.trans hb.symm)
+        ⟨_, o, h, rfl⟩⟩
 
 /-- A comparison of datums of a common type succeeds. -/
 theorem exists_eval_eq_ok {op : CmpOp} {a b : Datum} {τ : SqlType} (ha : a.HasType τ)
@@ -444,9 +442,8 @@ theorem exists_eval_eq_ok {op : CmpOp} {a b : Datum} {τ : SqlType} (ha : a.HasT
 theorem eval_eq_error {op : CmpOp} {a b : Datum} {e : EvalError} (h : op.eval a b = .error e) :
     e = .typeMismatch := by
   match a, b, h with
-  | some a, some b, h =>
-    simp only [eval_some_some, Except.map_eq_error] at h
-    exact Value.cmp_eq_error h
+  | some _, some _, h =>
+    exact Value.cmp_eq_error (by simpa only [eval_some_some, Except.map_eq_error] using h)
 
 end CmpOp
 
@@ -537,26 +534,22 @@ theorem not_evalUnOp_isNotNull (d : Datum) :
 /-- `a AND TRUE` is `a` on boolean datums; on any other value it is a type error. -/
 theorem evalBinOp_and_true {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .and a (some (.bool true)) = .ok a := by
-  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
-  cases t <;> rfl
+  rcases Datum.hasType_bool_iff.mp ha with ⟨_ | _ | _, rfl⟩ <;> rfl
 
 /-- `a AND FALSE` is `FALSE` on boolean datums, also when `a` is `NULL`. -/
 theorem evalBinOp_and_false {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .and a (some (.bool false)) = .ok (some (.bool false)) := by
-  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
-  cases t <;> rfl
+  rcases Datum.hasType_bool_iff.mp ha with ⟨_ | _ | _, rfl⟩ <;> rfl
 
 /-- `a OR FALSE` is `a` on boolean datums. -/
 theorem evalBinOp_or_false {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .or a (some (.bool false)) = .ok a := by
-  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
-  cases t <;> rfl
+  rcases Datum.hasType_bool_iff.mp ha with ⟨_ | _ | _, rfl⟩ <;> rfl
 
 /-- `a OR TRUE` is `TRUE` on boolean datums, also when `a` is `NULL`. -/
 theorem evalBinOp_or_true {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .or a (some (.bool true)) = .ok (some (.bool true)) := by
-  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
-  cases t <;> rfl
+  rcases Datum.hasType_bool_iff.mp ha with ⟨_ | _ | _, rfl⟩ <;> rfl
 
 private theorem evalBinOp_arith_of_asInt {op : ArithOp} {a b : Datum} {x y : Option ℤ}
     (ha : a.asInt = .ok x) (hb : b.asInt = .ok y) :
@@ -577,9 +570,8 @@ theorem evalBinOp_arith_null_left (op : ArithOp) {a : Datum} (ha : a.HasType .in
 `NULL / 0` and `1 / NULL` are `NULL`. -/
 theorem evalBinOp_arith_null_right (op : ArithOp) {a : Datum} (ha : a.HasType .int) :
     evalBinOp (.arith op) a none = .ok none := by
-  obtain ⟨x, hx⟩ := Datum.exists_asInt_eq_ok_iff.mpr ha
-  rw [evalBinOp_arith_of_asInt hx rfl]
-  rcases x <;> rfl
+  obtain ⟨_ | _, hx⟩ := Datum.exists_asInt_eq_ok_iff.mpr ha <;>
+    exact evalBinOp_arith_of_asInt hx (y := none) rfl
 
 private theorem evalBinOp_arith_comm {op : ArithOp} (hop : ∀ x y, op.eval x y = op.eval y x)
     (a b : Datum) : evalBinOp (.arith op) a b = evalBinOp (.arith op) b a := by
@@ -765,15 +757,13 @@ theorem isTrue_not_inList_iff_iff {e : Datum} {vs : List Datum} {τ : SqlType} {
   have hfalse := inList_eq_ok_false_iff he hvs
   rw [ht, Except.ok.injEq] at htrue hfalse
   rw [hmatch, Truth.isTrue_iff, Truth.not_eq_true_iff]
-  refine ⟨fun h => ?_, ?_⟩
-  · by_cases hm : e ≠ none ∧ e ∈ vs
-    · exact .inr (.inl hm)
-    · exact (hfalse.mp (h.mpr hm)).elim .inl fun ⟨hne, hnull, _⟩ => .inr (.inr ⟨hne, hnull⟩)
-  · rintro (h | h | ⟨hne, hnull⟩)
-    · exact ⟨fun _ ⟨_, hv⟩ => by simp [h] at hv, fun _ => hfalse.mpr (.inl h)⟩
-    · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf, fun hm => absurd h hm⟩
-    · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf,
-        fun hm => hfalse.mpr (.inr ⟨hne, hnull, fun hv => hm ⟨hne, hv⟩⟩)⟩
+  refine ⟨fun h => if hm : e ≠ none ∧ e ∈ vs then .inr (.inl hm)
+    else (hfalse.mp (h.mpr hm)).elim .inl fun ⟨hne, hnull, _⟩ => .inr (.inr ⟨hne, hnull⟩), ?_⟩
+  rintro (h | h | ⟨hne, hnull⟩)
+  · exact ⟨fun _ ⟨_, hv⟩ => by simp [h] at hv, fun _ => hfalse.mpr (.inl h)⟩
+  · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf, fun hm => absurd h hm⟩
+  · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf,
+      fun hm => hfalse.mpr (.inr ⟨hne, hnull, fun hv => hm ⟨hne, hv⟩⟩)⟩
 
 end Datum
 

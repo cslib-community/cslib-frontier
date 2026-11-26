@@ -102,10 +102,8 @@ variable {N}
   (∑ u, (f u v : ℤ)) - ∑ w, (f v w : ℤ)
 
 theorem excess_nonneg (f : N.Preflow) {v : V} (hv : v ≠ N.s) : 0 ≤ f.excess v := by
-  have h : ((∑ w, f v w : ℕ) : ℤ) ≤ ((∑ u, f u v : ℕ) : ℤ) := by exact_mod_cast f.out_le_in v hv
-  push_cast at h
   unfold excess
-  omega
+  exact sub_nonneg.mpr (by exact_mod_cast f.out_le_in v hv)
 
 /-- Residual capacity `c_f(u, v)`: unused capacity on `(u, v)` plus cancellable flow on `(v, u)`. -/
 @[expose] def resCap (f : N.Preflow) (u v : V) : ℕ :=
@@ -205,14 +203,12 @@ theorem IsValidLabeling.le_add_card {f : N.Preflow} {h : V → ℕ} (hh : f.IsVa
 theorem IsValidLabeling.not_resReachable {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     ¬ f.ResReachable N.s N.t := by
   intro hst
-  have := hh.le_add_card hst
-  rw [hh.source, hh.sink] at this
+  have := hh.source ▸ hh.sink ▸ hh.le_add_card hst
   omega
 
 theorem IsValidLabeling.source_ne_sink {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     N.s ≠ N.t := by
-  intro hst
-  exact hh.not_resReachable (hst ▸ .refl)
+  exact fun hst => hh.not_resReachable (hst ▸ .refl)
 
 /-! ### Excess and residual reachability -/
 
@@ -251,17 +247,14 @@ theorem resReachable_source_of_excess_pos (f : N.Preflow) {x : V} (hx : 0 < f.ex
       exact Nat.cast_eq_zero.mpr (by omega)]
     exact sub_nonpos.mpr (Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ =>
       Int.natCast_nonneg _)
-  have hnonneg : ∀ v ∈ U, 0 ≤ f.excess v := fun v hv =>
-    f.excess_nonneg fun h => hsU (h ▸ hv)
-  have hle := Finset.single_le_sum hnonneg hxU
+  have hle := Finset.single_le_sum (fun v hv => f.excess_nonneg fun h => hsU (h ▸ hv)) hxU
   omega
 
 /-- **Height bound** ([CLRS2009], Lemma 26.20): under a valid labeling, a vertex with positive
 excess has height at most `2|V| - 1`. -/
 theorem IsValidLabeling.le_of_excess_pos {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
     {x : V} (hx : 0 < f.excess x) : h x ≤ 2 * Fintype.card V - 1 := by
-  have := hh.le_add_card (f.resReachable_source_of_excess_pos hx)
-  rw [hh.source] at this
+  have := hh.source ▸ hh.le_add_card (f.resReachable_source_of_excess_pos hx)
   omega
 
 /-! ### Push and relabel -/
@@ -326,10 +319,7 @@ theorem CanPush.ne {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u
 
 theorem CanPush.pushAmount_pos {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u v) :
     0 < f.pushAmount u v := by
-  have h1 := hp.active.2.2
-  have h2 := hp.resCap_pos
-  unfold pushAmount
-  omega
+  exact lt_min (Int.pos_iff_toNat_pos.mp hp.active.2.2) hp.resCap_pos
 
 /-- Every active vertex admits a push or a relabel ([CLRS2009], Lemma 26.14). -/
 theorem IsValidLabeling.exists_canPush_or_canRelabel {f : N.Preflow} {h : V → ℕ} {u : V}
@@ -337,10 +327,8 @@ theorem IsValidLabeling.exists_canPush_or_canRelabel {f : N.Preflow} {h : V → 
   by_cases hex : ∃ v, 0 < f.resCap u v ∧ h u = h v + 1
   · obtain ⟨v, hpos, heq⟩ := hex
     exact .inl ⟨v, hu, hpos, heq⟩
-  · refine .inr ⟨hu, fun v hpos => ?_⟩
-    have h1 := hh.le_add_one u v hpos
-    have h2 : ¬ (0 < f.resCap u v ∧ h u = h v + 1) := fun h' => hex ⟨v, h'⟩
-    omega
+  · exact .inr ⟨hu, fun v hpos =>
+      Nat.lt_succ_iff.mp ((hh.le_add_one u v hpos).lt_of_ne fun heq => hex ⟨v, hpos, heq⟩)⟩
 
 /-! ### Termination and the gap cut -/
 
@@ -404,10 +392,8 @@ theorem mem_gapCut {h : V → ℕ} {v : V} : v ∈ gapCut h ↔ gapLevel h < h v
 theorem IsValidLabeling.isCut_gapCut {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     N.IsCut (gapCut h) := by
   obtain ⟨_, hlt, _⟩ := hh.gapLevel_spec
-  refine ⟨mem_gapCut.mpr (by rw [hh.source]; exact hlt), fun ht => ?_⟩
-  have := mem_gapCut.mp ht
-  rw [hh.sink] at this
-  omega
+  exact ⟨mem_gapCut.mpr (hh.source.symm ▸ hlt),
+    fun ht => Nat.not_lt_zero _ (hh.sink ▸ mem_gapCut.mp ht)⟩
 
 theorem IsValidLabeling.resCap_eq_zero_of_mem_gapCut {f : N.Preflow} {h : V → ℕ}
     (hh : f.IsValidLabeling h) {u w : V} (hu : u ∈ gapCut h) (hw : w ∉ gapCut h) :
@@ -558,16 +544,11 @@ theorem IsValidLabeling.push {f : N.Preflow} {h : V → ℕ} {u v : V} (hh : f.I
   source := hh.source
   sink := hh.sink
   le_add_one x y hxy := by
-    by_cases hb : x = v ∧ y = u
-    · obtain ⟨rfl, rfl⟩ := hb
-      have := hp.height_eq
-      omega
-    · by_cases ha : x = u ∧ y = v
-      · obtain ⟨rfl, rfl⟩ := ha
-        have := hp.height_eq
-        omega
-      · rw [f.resCap_push_of_ne ha hb] at hxy
-        exact hh.le_add_one x y hxy
+    rcases Decidable.em (x = u ∧ y = v) with ⟨rfl, rfl⟩ | ha
+    · exact hp.height_eq.le
+    · rcases Decidable.em (x = v ∧ y = u) with ⟨rfl, rfl⟩ | hb
+      · exact hp.height_eq ▸ Nat.le_add_right _ 2
+      · exact hh.le_add_one x y (f.resCap_push_of_ne ha hb ▸ hxy)
 
 /-! ### The relabel operation -/
 
@@ -622,10 +603,8 @@ theorem CanRelabel.lt_relabelHeight {f : N.Preflow} {h : V → ℕ} {u : V} (hr 
 
 theorem CanRelabel.le_relabel {f : N.Preflow} {h : V → ℕ} {u : V} (hr : f.CanRelabel h u) (x : V) :
     h x ≤ f.relabel h u x := by
-  by_cases hx : x = u
-  · subst hx
-    rw [relabel_self]
-    exact hr.lt_relabelHeight.le
+  rcases eq_or_ne x u with rfl | hx
+  · exact relabel_self f h x ▸ hr.lt_relabelHeight.le
   · rw [relabel_of_ne f h hx]
 
 /-- Relabels preserve valid labelings ([CLRS2009], Lemma 26.16). -/
@@ -638,10 +617,8 @@ theorem IsValidLabeling.relabel {f : N.Preflow} {h : V → ℕ} {u : V} (hh : f.
     · rcases eq_or_ne y x with rfl | hy
       · omega
       · simpa [relabel_self, relabel_of_ne f h hy] using relabelHeight_le hxy
-    · have h1 := hh.le_add_one x y hxy
-      have h2 := hr.le_relabel y
-      rw [relabel_of_ne f h hx]
-      omega
+    · rw [relabel_of_ne f h hx]
+      exact (hh.le_add_one x y hxy).trans (Nat.add_le_add_right (hr.le_relabel y) 1)
 
 /-! ### Initialization -/
 

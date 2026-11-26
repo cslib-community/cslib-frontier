@@ -232,8 +232,8 @@ theorem Rep.node_header {p : Parameters} {m base : ℕ} {cs : List Tree} {mem : 
   have hh0 := hh.1.get
   refine ⟨by simpa using hh0 0 (by simp), by simpa using hh0 1 (by simp),
     by simpa using hh0 2 (by simp), fun j => ?_⟩
-  have hj := hh.2.get j (by simp only [List.length_ofFn]; exact j.isLt)
-  simpa only [List.length_cons, List.length_nil, List.getElem_ofFn] using hj
+  simpa only [List.length_cons, List.length_nil, List.getElem_ofFn] using
+    hh.2.get j (j.isLt.trans_eq List.length_ofFn.symm)
 
 /-- The three leaf words decode as tag, presence and key. -/
 theorem Rep.leaf_fields {p : Parameters} {base : ℕ} {xs : List ℕ} {mem : ℕ → ℕ}
@@ -308,8 +308,7 @@ private theorem node_access_owned (base m : ℕ) (cs : List Tree) (a : ℕ)
 /-- Each of the eighteen header loads lies inside the record, including for empty leaves. -/
 theorem header_access_owned (base : ℕ) (t : Tree) (j : Fin 18) :
     (Block.mk base (span t)).Owns (base + j) := by
-  apply access_owned
-  cases t <;> simp only [span, headerWords] <;> omega
+  exact access_owned base t j (by cases t <;> simp only [span, headerWords] <;> omega)
 
 /-- Both stride-two table loads are inside the parent's allocation. -/
 theorem child_entry_access_owned (base m : ℕ) (cs : List Tree) (i : Fin cs.length) :
@@ -380,15 +379,12 @@ theorem decode_rep {B fuel base : ℕ} {p : Parameters} {t : Tree} {mem : ℕ �
       simp only [decode, hh.1, Nat.one_ne_zero, ↓reduceIte, hh.2.1, hh.2.2.1]
       congr 1
       conv_rhs => rw [← List.ofFn_getElem (xs := cs)]
-      apply congrArg List.ofFn
-      funext i
+      refine congrArg List.ofFn (funext fun i => ?_)
       have hc := hr.child i
-      simp only [Fin.val_cast]
-      rw [hc.2.1]
-      apply ih (ht.2.2.2 cs[i] (List.getElem_mem i.isLt)).1 hc.2.2
-      have hh' := Tree.height_lt_node_of_mem (m := m) (List.getElem_mem i.isLt)
-      simp only [Fin.getElem_fin]
-      omega
+      simp only [Fin.val_cast, hc.2.1]
+      exact ih (ht.2.2.2 cs[i] (List.getElem_mem i.isLt)).1 hc.2.2
+        ((Tree.height_lt_node_of_mem (m := m) (List.getElem_mem i.isLt)).trans_le
+          (Nat.le_of_lt_succ hf))
 
 /-- The explicit serializer and total RAM realization round-trip through the load-based decoder. -/
 theorem decode_encode {B fuel : ℕ} {t : Tree} (ht : Tree.Valid B t)
@@ -473,8 +469,7 @@ private theorem encode_fits {w : ℕ} {p : Parameters} (t : Tree) :
       split
       · exact (ht.2.2 _ (List.getElem_mem (by omega))).minimum
       · exact (ha.child ⟨j.val / 2, by omega⟩).of_le (Nat.le_add_right _ _)
-    · apply ih _ _ ht.2.2 v hv
-      simpa only [ArenaFits, Nat.add_assoc, span] using ha
+    · exact ih _ (by simpa only [ArenaFits, Nat.add_assoc, span] using ha) ht.2.2 v hv
   | nil => simp_all [encodeForest]
   | cons t ts iht ihs =>
     rename_i base ha ht v hv

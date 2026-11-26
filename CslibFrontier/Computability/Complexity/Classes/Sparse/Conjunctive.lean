@@ -144,17 +144,13 @@ private theorem length_eraseDupsBy_flatMap (pre : List α) :
     ((pre.flatMap Q).eraseDupsBy fun u u' => decide (u = u')).length =
       (pre.flatMap Q).toFinset.card := by
   rw [← List.toFinset_card_of_nodup (List.nodup_eraseDupsBy_eq _)]
-  congr 1
-  ext u
-  simp only [List.mem_toFinset, List.mem_eraseDupsBy_eq]
+  exact congrArg Finset.card (Finset.ext fun _ => by simp [List.mem_eraseDupsBy_eq])
 
 /-- `SEARCH-RIGHT` keeps a sublist of its level. -/
 theorem searchRight_sublist (l : List α) : (searchRight Q s l).Sublist l := by
   have hmap : ((l.zip l.tail).zipIdx.map fun ((y, _), _) => y) = l.take (l.length - 1) := by
     rw [← List.dropLast_eq_take, ← map_fst_zip_tail]
-    conv_rhs => rw [← List.zipIdx_map_fst 0 (l.zip l.tail)]
-    rw [List.map_map]
-    rfl
+    exact (List.map_map ..).symm.trans (congrArg (List.map Prod.fst) (List.zipIdx_map_fst 0 _))
   conv_rhs => rw [← List.take_append_drop (l.length - 1) l]
   exact (hmap ▸ List.filter_sublist.map _).append (List.Sublist.refl _)
 
@@ -301,8 +297,8 @@ theorem atLeast_append_notMem_SAT_of_lt {c z : List (Literal ℕ)} (hc : IsLarge
   let b := z.map fun l => (l.1, σ l.1)
   have hbc := hc.2 b ((by simp [b, Function.comp_def] : b.map Prod.fst = _).trans hfst)
     (units_append_mem_SAT_iff.2 ⟨σ, hσ, by simp [b]⟩)
-  have hbz : b.map Prod.snd = z.map fun l => σ l.1 := by simp [b]
-  exact not_le_of_gt hlt (hzσ.trans (hbz ▸ hbc))
+  simp only [b, List.map_map, Function.comp_def] at hbc
+  exact not_le_of_gt hlt (hzσ.trans hbc)
 
 /-- Some child of the largest satisfiable node of a level is the largest satisfiable node of the
 next level. -/
@@ -335,17 +331,14 @@ theorem exists_isLargest_child {c : List (Literal ℕ)} (hc : IsLargest φ c) (v
     | true => le_rfl
   by_cases htrue : units (c ++ [(v, true)]) ++ φ ∈ SAT
   · refine ⟨true, htrue, fun b hfst hb => ?_⟩
-    rw [List.map_append, List.map_singleton] at hfst
-    rcases hext b hfst hb with hlt | ⟨y, rfl⟩
-    · simpa using (hlt true).le
-    · simpa using hle_true y
+    rw [List.map_append, List.map_singleton] at hfst ⊢
+    exact (hext b hfst hb).elim (fun hlt => (hlt true).le) fun ⟨y, hy⟩ =>
+      by simpa [hy] using hle_true y
   · obtain ⟨_ | _, hy⟩ := Fortune.exists_child_mem_SAT v hc.1
     · refine ⟨false, hy, fun b hfst hb => ?_⟩
-      rw [List.map_append, List.map_singleton] at hfst
+      rw [List.map_append, List.map_singleton] at hfst ⊢
       rcases hext b hfst hb with hlt | ⟨_ | _, rfl⟩
-      · simpa using (hlt false).le
-      · exact le_rfl
-      · exact absurd hb htrue
+      exacts [(hlt false).le, by simp, absurd hb htrue]
     · exact absurd hy htrue
 
 /-- Expanding a level in decreasing order gives a level in decreasing order: the `true` child of a
@@ -466,8 +459,7 @@ theorem computableInPolyTime_hasNewQuery {Q : γ → α → List κ} {s : γ →
     (hpre : ComputableInPolyTime pre encIn (encList encA))
     (hz : ComputableInPolyTime z encIn encA) :
     ComputableInPolyTime (fun x => hasNewQuery (Q x) (s x) (pre x) (z x)) encIn encBool := by
-  unfold hasNewQuery
-  fun_prop
+  fun_prop [hasNewQuery]
 
 /-- **`SEARCH-RIGHT` is polynomial-time**, for polynomial-time queries, bound and level. -/
 theorem computableInPolyTime_searchRight {Q : γ → α → List κ} {s : γ → ℕ} {l : γ → List α}
@@ -483,8 +475,7 @@ theorem computableInPolyTime_searchRight {Q : γ → α → List κ} {s : γ →
       (Q := fun p : γ × ((α × α) × ℕ) => Q p.1) (s := fun p => s p.1)
       (pre := fun p => (l p.1).take (p.2.2 + 1)) (z := fun p => p.2.1.2)
       (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-  unfold searchRight
-  fun_prop
+  fun_prop [searchRight]
 
 end PolyTime
 
@@ -502,8 +493,7 @@ private theorem computableInPolyTime_level {key : CNF ℕ → List (List Bool)}
     (Q := fun (q : ((CNF ℕ × ℕ) × List (List (Literal ℕ))) × ℕ) a => key (atLeast a ++ q.1.1.1))
     (s := fun q => q.1.1.2) (l := fun q => (Fortune.expand q.2 q.1.2).reverse)
     (by fun_prop) (by fun_prop) (by unfold Fortune.expand; fun_prop)
-  unfold prune
-  fun_prop
+  fun_prop [prune]
 
 /-- **The procedure is polynomial-time**, for polynomial-time queries `key` and a bound `s` computed
 in unary. Each level keeps at most `s + 2` nodes, each fixing at most as many occurrences as `φ`
@@ -540,8 +530,6 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
   sparse problem are that short. -/
   let Q : Polynomial ℕ := Polynomial.C C *
     (p.comp (2 * Polynomial.X + 1 + Polynomial.X * (4 * Polynomial.X + 5)) + 1) ^ D
-  have hQ (L : ℕ) : Q.eval L = C * (p.eval (2 * L + 1 + L * (4 * L + 5)) + 1) ^ D := by
-    simp [Q]
   refine ⟨fun φ => accepts key (Q.eval (encCNF φ).length) φ,
     computableInPolyTime_accepts hkey ((unary_eval Q).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (K := encB '' S) (M := p.eval (2 * (encCNF φ).length + 1 +
@@ -553,7 +541,7 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
     have hnode := Fortune.length_encNode_le ha hlen
     simp only [length_encPair]
     omega
-  · exact hQ _ ▸ hCD _ T fun w hw => by simpa using hT w hw
+  · simpa [Q] using hCD _ T fun w hw => by simpa using hT w hw
 
 /-- **Sparse sets are not hard for `NP` under conjunctive truth-table reductions unless `P = NP`:**
 if `SAT` reduces to a sparse problem by a polynomial-time conjunctive truth-table reduction, then

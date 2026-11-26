@@ -163,11 +163,8 @@ loss `loss i * contagionProb i s`, whereas not investing incurs expected loss
       G.loss i * (G.directProb i + (1 - G.directProb i) * G.contagionProb i s)
 
 @[simp] theorem noContagionProb_update_self (i : ι) (s : ι → Bool) (b : Bool) :
-    G.noContagionProb i (update s i b) = G.noContagionProb i s := by
-  simp only [noContagionProb]
-  congr 1
-  refine filter_congr fun j hj => ?_
-  rw [update_of_ne (ne_of_mem_erase hj)]
+    G.noContagionProb i (update s i b) = G.noContagionProb i s :=
+  prod_congr (filter_congr fun _ hj => by rw [update_of_ne (ne_of_mem_erase hj)]) fun _ _ => rfl
 
 @[simp] theorem contagionProb_update_self (i : ι) (s : ι → Bool) (b : Bool) :
     G.contagionProb i (update s i b) = G.contagionProb i s := by
@@ -253,10 +250,7 @@ theorem noContagionProb_mono (h0 : ∀ j i, 0 ≤ G.contagion j i)
   refine prod_le_prod_of_subset_of_le_one₀ (fun j hj => ?_)
     (fun j _ => sub_nonneg.mpr (h1 j i)) (fun j _ _ => sub_le_self 1 (h0 j i))
   simp only [mem_filter, Bool.not_eq_true'] at hj ⊢
-  refine ⟨hj.1, Bool.eq_false_iff.mpr fun hs => ?_⟩
-  have hle := hss' j
-  rw [hs, hj.2] at hle
-  exact Bool.true_eq_false.mp (le_antisymm hle (Bool.false_le _))
+  exact ⟨hj.1, Bool.eq_false_iff.mpr fun hs => Bool.false_lt_true.not_ge (hs ▸ hj.2 ▸ hss' j)⟩
 
 theorem criticalCost_mono (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀ i, 0 ≤ G.loss i)
     (h0 : ∀ j i, 0 ≤ G.contagion j i) (h1 : ∀ j i, G.contagion j i ≤ 1) (i : ι) :
@@ -272,12 +266,9 @@ theorem bestResponse_mono (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀ i, 0 ≤ 
     (h0 : ∀ j i, 0 ≤ G.contagion j i) (h1 : ∀ j i, G.contagion j i ≤ 1) :
     Monotone G.bestResponse := by
   intro s s' hss' i
-  simp only [bestResponse]
   by_cases h : G.investCost i ≤ G.criticalCost i s
-  · have h' : G.investCost i ≤ G.criticalCost i s' :=
-      h.trans (G.criticalCost_mono hp hL h0 h1 i hss')
-    simp only [h, h', decide_true, le_rfl]
-  · simp only [h, decide_false, Bool.false_le]
+  · simp [bestResponse, h, h.trans (G.criticalCost_mono hp hL h0 h1 i hss')]
+  · simp [bestResponse, h]
 
 theorem isPureNash_of_bestResponse_eq {s : ι → Bool} (hfp : G.bestResponse s = s) :
     G.toCostGame.IsPureNash s := by
@@ -405,11 +396,10 @@ theorem IsCriticalCoalition.tipsAll (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀
   have h1step : G.cascadeStep M (fun i => decide (i ∈ M)) = fun _ => true := by
     ext j
     by_cases hj : j ∈ M <;> simp [cascadeStep, hj, hM j]
-  have htop : G.cascadeStep M (fun _ => true) = fun _ => true := by
-    have hle := G.cascadeStep_mono hp hL h0 h1 M
-      (a := fun i => decide (i ∈ M)) (b := fun _ => true) fun _ => Bool.le_true _
-    rw [h1step] at hle
-    exact le_antisymm (fun _ => Bool.le_true _) hle
+  have htop : G.cascadeStep M (fun _ => true) = fun _ => true :=
+    le_antisymm (fun _ => Bool.le_true _) (by
+      simpa only [h1step] using
+        G.cascadeStep_mono hp hL h0 h1 M (a := fun i => decide (i ∈ M)) fun _ => Bool.le_true _)
   rcases hcard : Fintype.card ι with _ | k
   · ext i
     exact (Fintype.card_eq_zero_iff.mp hcard).elim i
@@ -434,10 +424,8 @@ theorem isPureNash_allTrue_of_tipsAll (hp : ∀ i, 0 ≤ G.directProb i) (hL : �
         simp only [cascadeStep]
         cases decide (j ∈ M) <;> simp
     rw [hTips] at hfix
-    have hi_eq := congrFun hfix i
-    simp only [cascadeStep, hi, decide_false, Bool.false_or, criticalCost_allTrue,
-      decide_eq_true_eq] at hi_eq
-    exact hi_eq
+    simpa only [cascadeStep, hi, decide_false, Bool.false_or, criticalCost_allTrue,
+      decide_eq_true_eq] using congrFun hfix i
 
 /-- **Heal–Kunreuther Theorem 3, corrected greedy top-`k` critical coalition theorem**
 ([HealKunreuther2007], §3.1, Theorem 3, p. 10, and Appendix, p. 20): under agent-uniform contagion
@@ -620,13 +608,11 @@ theorem isSmooth_toCostGame {μ : ℝ}
     simpa only [CostGame.socialCost, sum_add_distrib] using sum_le_sum fun i _ => hpt i
   have hswap : (∑ i, ∑ j ∈ (univ.erase i).filter (fun j => !s j), G.contagion j i * G.loss i) =
       ∑ j ∈ univ.filter (fun j => !s j), ∑ i ∈ univ.erase j, G.contagion j i * G.loss i := by
-    have he : ∀ a : ι, univ.erase a = univ.filter (· ≠ a) := fun a => by
-      ext
-      simp [and_comm]
+    have he : ∀ a : ι, univ.erase a = univ.filter (· ≠ a) :=
+      fun _ => Finset.ext fun _ => by simp [and_comm]
     simp only [he, filter_filter, sum_filter]
     rw [sum_comm]
-    refine sum_congr rfl fun j _ => ?_
-    by_cases hsj : (!s j) = true <;> simp [hsj, ne_comm]
+    exact sum_congr rfl fun j _ => by by_cases hsj : (!s j) = true <;> simp [hsj, ne_comm]
   -- Step 3: For each `j` with `!s j`, `directProb j * loss j ≤ cost j s`, while investing `j` have
   -- `0 ≤ μ * cost j s`.
   have hbound_j : ∑ j ∈ univ.filter (fun j => !s j),
@@ -694,13 +680,11 @@ theorem symmetricIDSSpec_criticalCost_eq_geom_sum {ι : Type*} [Fintype ι] [Dec
       p * L * (1 - p * q) ^ ((univ.erase i).filter (fun j => !s j)).card := by
   set u := ((univ.erase i).filter (fun j => !s j)).card
   have hclosed : (symmetricIDSSpec ι p q L c).criticalCost i s = p * L * (1 - p * q) ^ u := by
-    rw [InterdependentSecuritySpec.criticalCost, symmetricIDSSpec_noContagionProb]
-    rfl
+    rw [InterdependentSecuritySpec.criticalCost, symmetricIDSSpec_noContagionProb]; rfl
   refine ⟨?_, hclosed⟩
   rw [hclosed]
   have hgeom : p * q * ∑ k ∈ range u, (1 - p * q) ^ k = 1 - (1 - p * q) ^ u := by
-    have := geom_sum_mul_neg (1 - p * q) u
-    linarith
+    linarith [geom_sum_mul_neg (1 - p * q) u]
   calc p * L * (1 - p * q) ^ u
       = p * L - p * L * (1 - (1 - p * q) ^ u) := by ring
     _ = p * L - p * L * (p * q * ∑ k ∈ range u, (1 - p * q) ^ k) := by rw [hgeom]
@@ -724,13 +708,11 @@ theorem symmetricIDSSpec_cost_allFalse_eq_geom_sum (n : ℕ) (p q L c : ℝ) (i 
     simp only [InterdependentSecuritySpec.toCostGame, Bool.false_eq_true, ↓reduceIte,
       InterdependentSecuritySpec.contagionProb, symmetricIDSSpec_noContagionProb,
       symmetricIDS_unprotected_allFalse_card]
-    simp only [symmetricIDSSpec]
-    ring
+    simp only [symmetricIDSSpec]; ring
   refine ⟨?_, hclosed⟩
   rw [hclosed]
   have hgeom : p * q * ∑ k ∈ range n, (1 - p * q) ^ k = 1 - (1 - p * q) ^ n := by
-    have := geom_sum_mul_neg (1 - p * q) n
-    linarith
+    linarith [geom_sum_mul_neg (1 - p * q) n]
   calc L * (1 - (1 - p) * (1 - p * q) ^ n)
       = p * L + L * (1 - p) * (1 - (1 - p * q) ^ n) := by ring
     _ = p * L + L * (1 - p) * (p * q * ∑ k ∈ range n, (1 - p * q) ^ k) := by rw [hgeom]
@@ -794,8 +776,7 @@ theorem eq_const_of_isPureNash_symmetricIDSSpec {ι : Type*} [Fintype ι] [Decid
     (hq0 : 0 < q) (hq1 : q ≤ 1) (hL : 0 < L)
     {s : ι → Bool} (hs : (symmetricIDSSpec ι p q L c).toCostGame.IsPureNash s) :
     (∀ i, s i = true) ∨ (∀ i, s i = false) := by
-  by_contra hmix
-  push Not at hmix
+  by_contra! hmix
   obtain ⟨⟨iN, hiN_ne⟩, ⟨iS, hiS_ne⟩⟩ := hmix
   have hiN : s iN = false := Bool.eq_false_iff.mpr hiN_ne
   have hiS : s iS = true := Bool.eq_true_of_not_eq_false hiS_ne
@@ -864,9 +845,8 @@ theorem isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
   have hsupp : ∀ s ∈ σ.weights.support, s = fun _ => true := by
     intro s hs
     by_contra hne
-    obtain ⟨i, hi⟩ : ∃ i, s i = false := by
-      obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
-      exact ⟨i, Bool.eq_false_iff.mpr hi⟩
+    obtain ⟨i, hi_ne⟩ := Function.ne_iff.mp hne
+    have hi : s i = false := Bool.eq_false_iff.mpr hi_ne
     have hws_pos : 0 < σ.weights s :=
       lt_of_le_of_ne (Convexity.StdSimplex.weights_nonneg s)
         (Ne.symm (Finsupp.mem_support_iff.mp hs))
@@ -881,9 +861,7 @@ theorem isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
         σ.weights s' * G.toCostGame.cost i (update s' i true) <
         ∑ s' ∈ σ.weights.support, σ.weights s' * G.toCostGame.cost i s' :=
       sum_lt_sum hpt_le ⟨s, hs, mul_lt_mul_of_pos_left (hdom i s hi) hws_pos⟩
-    have hCCE := hσ i true
-    simp only [Finsupp.sum] at hCCE
-    linarith
+    exact hstrict.not_ge (by simpa only [Finsupp.sum] using hσ i true)
   ext s
   by_cases hs : s = fun _ => true
   · subst hs
@@ -994,10 +972,8 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
       rw [← G.sum_mul_deviationCost_eq_expectedCost mix (hMixed_wf i).sum_eq_one]
       simp only [Fintype.sum_bool, mix, ↓reduceIte, Bool.false_eq_true, hdev i]
       ring
-    have hFF : G.cost i (fun _ => false) = p * L + (1 - p) * p * q * L := by
-      rw [hcost_eval]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-    rw [hexp_i, hσ_sum, hcost_TT i, hFF, hc_eq]
+    rw [hexp_i, hσ_sum, hcost_TT i, hcost_eval i (fun _ => false), hc_eq]
+    simp only [Bool.false_eq_true, ↓reduceIte]
     ring
 
 /-- **Exact tightness of the `1 / (1 - (n - 1) q)` smoothness Price-of-Anarchy bound** (original):
@@ -1037,21 +1013,19 @@ theorem symmetricIDSSpec_poa_eq_inv_one_sub {q L : ℝ} (hq0 : 0 < q) (hq1 : q <
       symmetricIDSSpec]
     ring
   have hsoc_F : G.toCostGame.socialCost (fun _ => false) = 2 * L := by
-    have h0 := (symmetricIDSSpec_cost_allFalse_eq_geom_sum 1 1 q L (L * (1 - q)) 0).2
-    have h1 := (symmetricIDSSpec_cost_allFalse_eq_geom_sum 1 1 q L (L * (1 - q)) 1).2
-    simp only [CostGame.socialCost, Fin.sum_univ_two, G, h0, h1]
+    simp only [CostGame.socialCost, Fin.sum_univ_two, G,
+      (symmetricIDSSpec_cost_allFalse_eq_geom_sum 1 1 q L (L * (1 - q)) _).2]
     ring
   refine ⟨hSmooth, hFalse, hTrue, fun s => sum_le_sum fun i _ => ?_, ?_⟩
   · -- At `p = 1`, `c = L * (1 - q)`, every player's cost is at least `L * (1 - q)` pointwise.
     have hcont_nn : 0 ≤ G.contagionProb i s :=
       G.contagionProb_nonneg (fun _ _ => by simp [G, symmetricIDSSpec, hq0.le])
         (fun _ _ => by simp [G, symmetricIDSSpec, hq1.le]) i s
-    dsimp only [InterdependentSecuritySpec.toCostGame]
-    simp only [show ∀ j, G.investCost j = L * (1 - q) from fun _ => rfl,
-      show ∀ j, G.loss j = L from fun _ => rfl, show ∀ j, G.directProb j = 1 from fun _ => rfl]
-    cases s i <;> simp only [↓reduceIte, Bool.false_eq_true,
-      InterdependentSecuritySpec.contagionProb_allTrue, mul_zero, add_zero, sub_self, zero_mul] <;>
-      nlinarith
+    change L * (1 - q) + L * G.contagionProb i (fun _ => true) ≤
+      if s i = true then L * (1 - q) + L * G.contagionProb i s
+      else L * (1 + (1 - 1) * G.contagionProb i s)
+    rw [InterdependentSecuritySpec.contagionProb_allTrue]
+    split_ifs <;> nlinarith
   · rw [hsoc_F, hsoc_T]
     field_simp [(by linarith : 1 - q ≠ 0)]
 
@@ -1100,10 +1074,9 @@ theorem symmetricIDSSpec_prisonersDilemma_socialCost_le (n : ℕ) {p q L c : ℝ
       calc p * q * L * (1 - p) * ∑ k ∈ range n, (1 - p * q) ^ k
           ≤ p * q * L * 1 * ∑ k ∈ range n, (1 - p * q) ^ k :=
             mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left h1_sub_p hA) hB
-        _ ≤ p * q * L * (n : ℝ) := by
-            rw [mul_one]
-            exact mul_le_mul_of_nonneg_left hsum_le hA
-    linarith [show (1 + (n : ℝ) * q) * (p * L) = p * L + p * q * L * (n : ℝ) by ring]
+        _ ≤ p * q * L * (n : ℝ) := by simpa [mul_one] using mul_le_mul_of_nonneg_left hsum_le hA
+    have hexpand : (1 + (n : ℝ) * q) * (p * L) = p * L + p * q * L * (n : ℝ) := by ring
+    linarith
   have hub_soc : G.toCostGame.socialCost (fun _ => false) ≤
       ((n + 1 : ℕ) : ℝ) * ((1 + (n : ℝ) * q) * (p * L)) := by
     simpa only [CostGame.socialCost, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] using

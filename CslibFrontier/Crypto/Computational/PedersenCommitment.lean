@@ -338,17 +338,12 @@ theorem pedersen_verify (d : F.Desc) (h c : F.Carrier d) (m r : ZMod (F.order d)
 /-- Pedersen commitments are correct: every honest opening verifies. -/
 theorem pedersen_correct (d : F.Desc) : (F.pedersen d).Correct := by
   intro h _ m c r hcr
-  simp only [pedersen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-    PMF.support_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hcr
-  obtain ⟨r', -, rfl, rfl⟩ := hcr
-  simp
+  simp_all [pedersen]
 
 /-- The Pedersen commitment to `m` under `h` is distributed as `pedersenCommitLaw d h m`. -/
 theorem eval_pedersen_commitment (d : F.Desc) (h : F.Carrier d) (m : ZMod (F.order d)) :
     ProbComp.eval ((F.pedersen d).commitment h m) = F.pedersenCommitLaw d h m := by
-  simp only [Commitment.Scheme.commitment, pedersen, bind_pure_comp, ProbComp.eval_map,
-    ProbComp.eval_uniform, pedersenCommitLaw, PMF.map_comp]
-  rfl
+  simp [Commitment.Scheme.commitment, pedersen, pedersenCommitLaw]
 
 /-- **Perfect hiding at a non-identity key** ([Pedersen1991], Section 3, Theorem 3.1): for `h ≠ 0`,
 the commitment is uniform on `F.Carrier d` whatever the message. -/
@@ -660,11 +655,10 @@ theorem advantage_pedersenHidingGame_le (setup : ℕ → PMF F.Desc)
     (hm0 : 0 < m) (hm : ∀ d ∈ (setup n).support, m ≤ F.order d) :
     Game.advantage (F.pedersenScheme.hidingGame (F.pedersenKeyDist setup) adversary false n)
       (F.pedersenScheme.hidingGame (F.pedersenKeyDist setup) adversary true n) ≤ 1 / m := by
-  rw [pedersenHidingGame_eq, pedersenHidingGame_eq]
-  refine Game.advantage_withSetup_le _ _ _ fun d hd => ?_
-  refine (F.advantage_pedersen_hidingExperiment_le d _).trans ?_
-  rw [one_div]
-  exact inv_anti₀ (by exact_mod_cast hm0) (by exact_mod_cast hm d hd)
+  rw [pedersenHidingGame_eq, pedersenHidingGame_eq, one_div]
+  exact Game.advantage_withSetup_le _ _ _ fun d hd =>
+    (F.advantage_pedersen_hidingExperiment_le d _).trans
+      (inv_anti₀ (Nat.cast_pos.mpr hm0) (Nat.cast_le.mpr (hm d hd)))
 
 /-- Ideal-sampling step toward `negligible_advantage_pedersenHidingProbGame`, not the cited result:
 when every supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is
@@ -724,9 +718,7 @@ private theorem pedersenCommit_eq_of_isBindingCollision_pedersenScheme {d : F.De
     Bool.and_eq_true, decide_eq_true_eq] at hcoll
   rcases hcoll with ⟨⟨hne, ⟨hm₀_lt, hm₀_bits⟩, hc₀⟩, ⟨hm₁_lt, hm₁_bits⟩, hc₁⟩
   refine ⟨fun h => hne ?_, F.encode_injective d (hc₀.trans hc₁.symm)⟩
-  have hval := congrArg ZMod.val h
-  rw [ZMod.val_natCast_of_lt hm₀_lt, ZMod.val_natCast_of_lt hm₁_lt] at hval
-  rw [← hm₀_bits, ← hm₁_bits, hval]
+  rw [← hm₀_bits, ← hm₁_bits, ← ZMod.val_natCast_of_lt hm₀_lt, ← ZMod.val_natCast_of_lt hm₁_lt, h]
 
 /-- Any valid Pedersen binding collision `(c, (m₀, o₀), (m₁, o₁))` under `h = α • g` recovers `α`
 with `extractNat` ([Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023],
@@ -820,23 +812,18 @@ theorem pedersenToDLAdversary_encode
           adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩)) h := by
   simp only [pedersenToDLAdversary, pedersenToDL, pedersenScheme_encodeKey, map_bind,
     bind_map_left, map_pure]
-  congr 1
-  funext ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
-  have hcoll : (decide (m₀ ≠ m₁) && F.encodePedersenVerify ((d, F.encode d h), m₀, c, o₀) &&
-      F.encodePedersenVerify ((d, F.encode d h), m₁, c, o₁)) =
-        F.pedersenScheme.isBindingCollision ⟨d, h⟩ (c, (m₀, o₀), (m₁, o₁)) := by
-    simp only [encodePedersenVerify_encode]; rfl
-  simp only [hcoll]
+  congr 1 with ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
-  cases hb : F.pedersenScheme.isBindingCollision ⟨d, α • F.generator d⟩ (c, (m₀, o₀), (m₁, o₁))
+  simp only [encodePedersenVerify_encode]
+  cases hb : F.pedersenScheme.isBindingCollision ⟨d, α • F.generator d⟩ (c, (m₀, o₀), (m₁, o₁)) <;>
+    have hb' := hb <;> dsimp only [CommitmentScheme.isBindingCollision, pedersenScheme] at hb' <;>
+    rw [hb']
   · simp [pedersenCollisionOf, hb]
-  · have hword := F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hb
-    dsimp only at hword
-    have hlt : extractNat (F.order d) (ofBits o₁) (ofBits m₀) (ofBits o₀) (ofBits m₁) <
+  · have hlt : extractNat (F.order d) (ofBits o₁) (ofBits m₀) (ofBits o₀) (ofBits m₁) <
         F.order d := Nat.mod_lt _ (F.prime_order d).pos
     simp only [↓reduceIte, F.inv_mul_eq_of_isBindingCollision_pedersen
       ((F.isBindingCollision_pedersenCollisionOf d _ _).trans hb)]
-    rw [← hword, ZMod.val_cast_of_lt hlt]
+    rw [← F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hb, ZMod.val_cast_of_lt hlt]
 
 /-- **Exact binding-to-discrete-logarithm reduction** ([BonehShoup2023], Section 10.6.1,
 Theorem 10.4, pp. 414–415; [Pedersen1991], Section 3, Theorem 3.1): for every security parameter

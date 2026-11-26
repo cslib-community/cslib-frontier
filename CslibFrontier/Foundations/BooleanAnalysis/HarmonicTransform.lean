@@ -80,9 +80,7 @@ theorem harmonicTransform_reindex {ι κ : Type*} [Fintype ι] [Fintype κ]
     harmonicTransform (fun y => f (fun j => y (e.symm j))) s =
       harmonicTransform f (fun j => s (e.symm j)) := by
   unfold harmonicTransform
-  change harmonicMean (fun x => projectionAverage
-    (fun y => f (fun j => y (e.symm j))) s x) = _
-  simp_rw [projectionAverage_reindex e f s]
+  rw [funext (projectionAverage_reindex e f s)]
   exact harmonicMean_equiv (Equiv.arrowCongr e (Equiv.refl Bool)) _
 
 section
@@ -196,12 +194,10 @@ theorem harmonicTransform_cons_false {n : ℕ}
     harmonicTransform f (Fin.cons false selected) =
       harmonicTransform
         (fun x => (f (Fin.cons false x) + f (Fin.cons true x)) / 2) selected := by
-  unfold harmonicTransform
-  rw [← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
-  change harmonicMean (fun x : Bool × (Fin n → Bool) =>
-    projectionAverage f (Fin.cons false selected) (Fin.cons x.1 x.2)) = _
+  rw [harmonicTransform, ← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
+  dsimp only [Function.comp_def, Fin.consEquiv_apply]
   simp_rw [projectionAverage_cons_false]
-  simp [harmonicMean, Fintype.expect_prod_type]
+  simp [harmonicTransform, harmonicMean, Fintype.expect_prod_type]
 
 theorem harmonicTransform_cons_true {n : ℕ}
     {f : (Fin (n + 1) → Bool) → ℝ} (hf : ∀ x, 0 ≤ f x) (selected : Fin n → Bool) :
@@ -210,10 +206,8 @@ theorem harmonicTransform_cons_true {n : ℕ}
         harmonicTransform (fun x => f (Fin.cons true x)) selected /
       (harmonicTransform (fun x => f (Fin.cons false x)) selected +
         harmonicTransform (fun x => f (Fin.cons true x)) selected) := by
-  unfold harmonicTransform
-  rw [← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
-  change harmonicMean (fun x : Bool × (Fin n → Bool) =>
-    projectionAverage f (Fin.cons true selected) (Fin.cons x.1 x.2)) = _
+  rw [harmonicTransform, ← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
+  dsimp only [Function.comp_def, Fin.consEquiv_apply]
   simp_rw [projectionAverage_cons_true]
   exact harmonicMean_pair fun b =>
     projectionAverage_nonneg (fun x => hf (Fin.cons b x)) selected
@@ -316,13 +310,11 @@ private theorem add_sqrt_harmonicTransform_cons_le {n : ℕ} {f : (Fin (n + 1) �
     3 / 4 * Real.sqrt
         (harmonicTransform (fun x => (f (Fin.cons false x) + f (Fin.cons true x)) / 2) s) +
       1 / 4 * Real.sqrt (harmonicTransform f (Fin.cons true s)) := by
-  have h0 : ∀ x, 0 ≤ f (Fin.cons false x) := fun x => hf (Fin.cons false x)
-  have h1 : ∀ x, 0 ≤ f (Fin.cons true x) := fun x => hf (Fin.cons true x)
-  have hb := add_sqrt_div_two_le
-    (harmonicTransform_nonneg h0 s) (harmonicTransform_nonneg h1 s)
-  have hc := Real.sqrt_le_sqrt (harmonicTransform_midpoint h0 h1 s)
+  have h0 := fun x => hf (Fin.cons false x)
+  have h1 := fun x => hf (Fin.cons true x)
   rw [harmonicTransform_cons_true hf]
-  linarith
+  linarith [add_sqrt_div_two_le (harmonicTransform_nonneg h0 s) (harmonicTransform_nonneg h1 s),
+    Real.sqrt_le_sqrt (harmonicTransform_midpoint h0 h1 s)]
 
 private theorem expect_sqrt_le_bernoulliAverage_sqrt_harmonicTransform_fin {n : ℕ}
     {f : (Fin n → Bool) → ℝ} (hf : ∀ x, 0 ≤ f x) :
@@ -330,9 +322,8 @@ private theorem expect_sqrt_le_bernoulliAverage_sqrt_harmonicTransform_fin {n : 
       bernoulliAverage (1 / 4) (fun selected => Real.sqrt (harmonicTransform f selected)) := by
   induction n with
   | zero =>
-    have he : f = fun _ => f (fun i => Fin.elim0 i) :=
-      funext fun x => congrArg f (Subsingleton.elim _ _)
-    rw [he]
+    obtain ⟨c, rfl⟩ : ∃ c, f = fun _ => c :=
+      ⟨f Fin.elim0, funext fun _ => congrArg f (Subsingleton.elim _ _)⟩
     simp [harmonicTransform_const, bernoulliAverage_const]
   | succ n ih =>
     let f0 := fun x => f (Fin.cons false x)
@@ -407,17 +398,15 @@ theorem le_bernoulliAverage_le_harmonicTransform
       a + if 1 / (4 * B) ≤ harmonicTransform f s then 1 else 0 := by
     by_cases hs : 1 / (4 * B) ≤ harmonicTransform f s
     · rw [ite_eq_left hs]
-      have hupper : Real.sqrt (harmonicTransform f s) ≤ 1 := by
-        simpa [hmean] using Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)
-      linarith
+      linarith [show Real.sqrt (harmonicTransform f s) ≤ 1 by
+        simpa [hmean] using Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)]
     · rw [ite_eq_right hs, add_zero, ← Real.sqrt_sq ha, ha2]
       exact Real.sqrt_le_sqrt (le_of_not_ge hs)
   have havg := bernoulliAverage_mono (by norm_num : (0 : ℝ) ≤ 1 / 4)
     (by norm_num : (1 : ℝ) / 4 ≤ 1) hpoint
   rw [bernoulliAverage_add, bernoulliAverage_const] at havg
-  have hmain := expect_sqrt_le_bernoulliAverage_sqrt_harmonicTransform hf
   have ha' : 2 * a = 1 / Real.sqrt B := by dsimp [a]; field_simp
-  linarith
+  linarith [expect_sqrt_le_bernoulliAverage_sqrt_harmonicTransform hf]
 
 /-- A positive transform lower bound bounds the fraction of light projected
 patterns. The expectation ranges over the actual selected-coordinate cube. -/

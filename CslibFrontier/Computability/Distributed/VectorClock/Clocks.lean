@@ -141,9 +141,8 @@ private theorem length_scanSteps [DecidableEq P] {α : Type*} (E : Execution P) 
   induction k with
   | zero => rfl
   | succ k ih =>
-    have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
-    rw [E.scanSteps_succ_of_lt init next hlt]
-    simp [scanStepAux, ih hlt.le]
+    rw [E.scanSteps_succ_of_lt init next (Nat.lt_of_succ_le hk)]
+    simp [scanStepAux, ih (Nat.le_of_succ_le hk)]
 
 private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) (init : P → α)
     (next : P → α → Option α → α) {i k : ℕ} (hik : i < k) (hk : k ≤ E.steps.length) :
@@ -183,8 +182,7 @@ private theorem evalScan_step_eq [DecidableEq P] {α : Type*} (E : Execution P)
         (match e.step with
           | .recv _ sIdx => (E.scanSteps init next e.idx.val).1[sIdx]?
           | _ => none) := by
-  unfold evalScan
-  rw [E.scanSteps_fst_succ_self init next e, Option.getD_some]
+  rw [evalScan, E.scanSteps_fst_succ_self init next e, Option.getD_some]
 
 private theorem scanSteps_fst_eq_some_evalScan [DecidableEq P] {α : Type*} (E : Execution P)
     (defaultVal : α) (init : P → α) (next : P → α → Option α → α) {k : ℕ}
@@ -201,9 +199,8 @@ private theorem evalScan_of_recv [DecidableEq P] {α : Type*} (E : Execution P)
         (some (E.evalScan defaultVal init next eSend)) := by
   have hlt : eSend.idx.val < eRecv.idx.val :=
     E.causalStep_idx_lt (.inr (E.messageOrder_of_recv hrecv))
-  rw [E.evalScan_step_eq defaultVal init next eRecv, hrecv]
-  dsimp only
-  rw [E.scanSteps_fst_eq_some_evalScan defaultVal init next eRecv.idx.isLt.le eSend hlt]
+  simp only [E.evalScan_step_eq defaultVal init next eRecv, hrecv,
+    E.scanSteps_fst_eq_some_evalScan defaultVal init next eRecv.idx.isLt.le eSend hlt]
 
 private theorem scanSteps_snd_succ_self [DecidableEq P] {α : Type*} (E : Execution P)
     (defaultVal : α) (init : P → α) (next : P → α → Option α → α) (e : E.Event) :
@@ -221,12 +218,9 @@ private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E
   | zero => obtain rfl := Nat.eq_zero_of_le_zero hk₁₂; exact le_rfl
   | succ k ih =>
     rcases Nat.lt_or_eq_of_le hk₁₂ with hlt | rfl
-    · have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk₂
-      refine (ih (Nat.le_of_lt_succ hlt) hk_lt.le).trans ?_
-      rw [E.scanSteps_succ_of_lt init next hk_lt]
-      rcases eq_or_ne q (E.steps[k]).actor with rfl | hq
-      · simp [scanStepAux, hstep]
-      · simp [scanStepAux, Function.update_of_ne hq]
+    · refine (ih (Nat.le_of_lt_succ hlt) (Nat.le_of_succ_le hk₂)).trans ?_
+      rw [E.scanSteps_succ_of_lt init next (Nat.lt_of_succ_le hk₂)]
+      by_cases hq : q = (E.steps[k]).actor <;> simp [scanStepAux, hstep, hq]
     · exact le_rfl
 
 private theorem evalScan_le_snd_of_lt [DecidableEq P] {α : Type*} [Preorder α] (E : Execution P)
@@ -249,12 +243,10 @@ private theorem scanSteps_snd_provenance [DecidableEq P] {α : Type*} (E : Execu
     have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk
     let ek : E.Event := ⟨⟨k, hk_lt⟩⟩
     by_cases hq : q = ek.actor
-    · refine .inr ⟨ek, Nat.lt_succ_self k, hq.symm, ?_⟩
-      rw [hq]
-      exact E.scanSteps_snd_succ_self defaultVal init next ek
-    · rw [E.scanSteps_succ_of_lt init next hk_lt]
-      simp only [scanStepAux]
-      rw [Function.update_of_ne (show q ≠ (E.steps[k]).actor from hq)]
+    · exact .inr ⟨ek, Nat.lt_succ_self k, hq.symm,
+        hq ▸ E.scanSteps_snd_succ_self defaultVal init next ek⟩
+    · have hq' : q ≠ (E.steps[k]).actor := hq
+      simp only [E.scanSteps_succ_of_lt init next hk_lt, scanStepAux, Function.update_of_ne hq']
       exact (ih hk_lt.le).imp_right fun ⟨x, hxk, hact, heq⟩ =>
         ⟨x, Nat.lt_succ_of_lt hxk, hact, heq⟩
 
@@ -408,8 +400,7 @@ private theorem le_vcNext [DecidableEq P] (p : P) (cur : VectorClock P)
 theorem vc_actor_pos [DecidableEq P] (E : Execution P) (e : E.Event) :
     0 < E.vc e e.actor := by
   rw [vc, E.evalScan_step_eq]
-  simp only [vcNext, Function.update_self]
-  omega
+  simp only [vcNext, Function.update_self]; omega
 
 /-- Along events of the same process, that process's vector-clock coordinate is strictly
 increasing. -/
@@ -478,8 +469,7 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
         change E.vc ej p = _ at heq
         simp only [hstep, vcNext, Function.update_of_ne hp, Option.getD_none, Pi.sup_apply,
           Pi.zero_apply, max_eq_left (Nat.zero_le _)] at heq
-        rw [heq]
-        exact hloc_prov
+        rwa [heq]
       | recv q sIdx =>
         obtain ⟨eSend, hval, hlt, _, _⟩ := E.recv_sendEvent hstep
         have hrecv : ej.step = .recv q eSend.idx.val := hval.symm ▸ hstep
@@ -503,12 +493,10 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
 theorem happensBeforeLe_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event} :
     E.HappensBeforeLe e₁ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor := by
   refine ⟨fun hle => E.vc_mono hle e₁.actor, fun hcoord => ?_⟩
-  have hpos : 0 < E.vc e₁ e₁.actor := E.vc_actor_pos e₁
   rcases E.vc_eq_zero_or_exists_le e₂ e₁.actor with h0 | ⟨x, hxact, hxe₂, hxeq⟩
-  · omega
+  · exact absurd (hcoord.trans_eq h0) (not_le_of_gt (E.vc_actor_pos e₁))
   · refine (E.programOrder_happensBeforeLe hxact.symm (le_of_not_gt fun hlt => ?_)).trans hxe₂
-    have hvc_lt := E.vc_actor_strictMono_of_sameActor hxact hlt
-    rw [hxact] at hvc_lt
+    have hvc_lt := hxact ▸ E.vc_actor_strictMono_of_sameActor hxact hlt
     omega
 
 /-- **Single-coordinate comparison of given timestamps (`≺`)** ([Mattern1989], §8, Theorem 11):
@@ -569,8 +557,7 @@ theorem isConsistentCut_cutOfFrontier_iff [DecidableEq P] {E : Execution P}
     · omega
     · have hx_mem := hcut.mem_of_happensBeforeLe hxfq (by rw [mem_cutOfFrontier, hact q])
       rw [mem_cutOfFrontier, hxact] at hx_mem
-      rw [← hxeq]
-      exact E.vc_mono (E.programOrder_happensBeforeLe (hxact.trans (hact p).symm) hx_mem) p
+      exact hxeq ▸ E.vc_mono (E.programOrder_happensBeforeLe (hxact.trans (hact p).symm) hx_mem) p
   · intro hmax e₁ e₂ hhb he₂
     rw [mem_cutOfFrontier] at he₂ ⊢
     have he₁_fq : E.HappensBeforeLe e₁ (frontier e₂.actor) :=

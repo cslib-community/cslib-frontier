@@ -140,8 +140,7 @@ public theorem budgetStep_iterate (i : ℕ) : ∃ j ≤ i,
 private lemma length_budgetStep_iterate_le (i : ℕ) :
     ((budgetStep d x b)^[i] (init d, [])).2.length ≤ 2 := by
   obtain ⟨j, -, heq, -⟩ := budgetStep_iterate d x b i
-  rw [heq, List.length_take]
-  exact min_le_left _ _
+  simpa only [heq] using List.length_take_le 2 _
 
 /-- The symbols of the output kept by the run within the budget are numbers of the description. -/
 private lemma le_of_mem_budgetStep_iterate (i : ℕ) {o : ℕ}
@@ -158,12 +157,12 @@ private theorem budgetStep_iterate_of_le {t : ℕ}
   induction t with
   | zero => rfl
   | succ t ih =>
-    rw [Function.iterate_succ_apply', ih fun j hj => hb j (by omega), budgetStep]
+    rw [Function.iterate_succ_apply', ih fun j hj => hb j (Nat.lt_succ_of_lt hj), budgetStep]
     dsimp only
     split_ifs with h
     · simp only [simulate]
       rw [stepOut_iterate_succ, ← run_succ, take_two_append_take_two]
-    · exact absurd (by rw [← run_succ]; exact hb t (by omega)) h
+    · exact absurd (run_succ d x t ▸ hb t (Nat.lt_succ_self t)) h
 
 /-- **Within the budget, the universal function**: if every configuration of the simulation within
 `t` steps is encoded within `b` bits, `budgetedUniversal` returns the first two symbols of the
@@ -275,10 +274,8 @@ private lemma length_eSSt_le (t i j : ℕ) :
   have hout := List.length_take_le 2 ((stepOut d x)^[j'] (init d, [])).2
   have hval (o : ℕ) (ho : o ∈ ((stepOut d x)^[j'] (init d, [])).2.take 2) : o ≤ descLen d :=
     (inv_iterate d x j').2.2 o (List.mem_of_mem_take ho)
-  have hc : (eCfg (run d x j')).length ≤ max b (eCfg (init d)).length := by
-    rcases hb' with rfl | hb'
-    · exact le_max_right _ _
-    · exact hb'.trans (le_max_left _ _)
+  have hc : (eCfg (run d x j')).length ≤ max b (eCfg (init d)).length :=
+    hb'.elim (fun h0 => h0 ▸ le_max_right _ _) fun hb' => hb'.trans (le_max_left _ _)
   have hpos : (run d x j').inputPos ≤ x.length + 1 := (inv_iterate d x j').1.inputPos
   obtain ⟨hk, hcur⟩ := scan_take x (run d x j').inputPos 0 j
   have hr := length_encNat_mono (show t - i ≤ t by omega)
@@ -344,9 +341,8 @@ private lemma foldNextS_inO : ComputableInO foldNextS (encPair eSSt encBool) eSS
     (fun p => ((encPair eSSt encBool p).length + 1) ^ 2)
     fun p => (encPair eSSt encBool p).length + 1 := by
   have h₁ := fst eSSt encBool
-  have hn := foldNext_inO.comp (h₁.fst'.prod (snd eSSt encBool))
-  refine ((hn.prod h₁.snd').of_enc_eq (g := foldNextS) fun p => rfl).mono 20 (fun p => ?_)
-    fun p => ?_
+  refine (((foldNext_inO.comp (h₁.fst'.prod (snd eSSt encBool))).prod h₁.snd').of_enc_eq
+    (g := foldNextS) fun _ => rfl).mono 20 (fun p => ?_) fun p => ?_
   all_goals
     have : (encPair eSt encBool (p.1.1, p.2)).length ≤ (encPair eSSt encBool p).length := by
       simp only [length_encPair]; omega
@@ -494,9 +490,8 @@ private lemma foldEndS_inO : ComputableInO foldEndS eSSt eSSt
 lemma length_eSSt_le' (t i j : ℕ) :
     (eSSt (streamState (passState (foldInitS (d, x, t, b)) foldNextS foldEndS
       (inTr.events (eInS (d, x, t, b))) i) foldNextS (inTr.events (eInS (d, x, t, b))) j)).length ≤
-      budgetSpace (d, x, t, b) := by
-  rw [events_eInS]
-  exact length_eSSt_le d x b t i j
+      budgetSpace (d, x, t, b) :=
+  events_eInS d x b t ▸ length_eSSt_le d x b t i j
 
 local instance : FinEnum InState :=
   FinEnum.ofList [.descMarker, .descBit, .marker, .bit, .digitMarker, .digit, .steps]
@@ -541,13 +536,12 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
     rintro ⟨d, x, t, b⟩ i - j -
     have := length_eSSt_le' d x b t i j
     rw [length_encPair, encBool_apply, List.length_singleton]
-    dsimp only
-    omega
+    dsimp only; omega
   case refine_5 =>
     rintro ⟨d, x, t, b⟩ i -
     have h₁ := length_eSSt_le' d x b t i (inTr.events (eInS (d, x, t, b))).length
-    have h₂ := length_eSSt_le' d x b t (i + 1) 0
-    rw [streamState_zero] at h₂
+    have h₂ := streamState_zero _ foldNextS (inTr.events (eInS (d, x, t, b))) ▸
+      length_eSSt_le' d x b t (i + 1) 0
     have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) 3
     have h₄ := Nat.pow_le_pow_left (Nat.add_le_add_right h₂ 1) 3
     have h₅ : budgetSpace (d, x, t, b) + 1 ≤ (budgetSpace (d, x, t, b) + 1) ^ 3 :=
@@ -556,8 +550,8 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
   case refine_6 =>
     rintro ⟨d, x, t, b⟩ i -
     have h₁ := length_eSSt_le' d x b t i (inTr.events (eInS (d, x, t, b))).length
-    have h₂ := length_eSSt_le' d x b t (i + 1) 0
-    rw [streamState_zero] at h₂
+    have h₂ := streamState_zero _ foldNextS (inTr.events (eInS (d, x, t, b))) ▸
+      length_eSSt_le' d x b t (i + 1) 0
     omega
   case refine_7 => exact fun ⟨d, x, t, b⟩ i _ j _ => length_eSSt_le' d x b t i j
   case refine_8 =>
@@ -580,13 +574,11 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
 /-- The initial configuration is encoded within `11 * descLen d + 6` bits: the initial state, the
 input head at `1` and blank work tapes. -/
 public lemma length_eCfg_init_le : (eCfg (init d)).length ≤ 11 * descLen d + 6 := by
-  have hq : d.q₀ ≤ descLen d := by
-    simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]; omega
-  have hk : d.tapes ≤ descLen d := by
-    simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]; omega
-  have ht := length_encList_le eTape (List.replicate d.tapes ⟨0, [], []⟩) (b := 4) fun t ht => by
-    rw [List.eq_of_mem_replicate ht]
-    rfl
+  have hqk : d.q₀ ≤ descLen d ∧ d.tapes ≤ descLen d := by
+    simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
+    omega
+  have ht := length_encList_le eTape (List.replicate d.tapes ⟨0, [], []⟩) (b := 4)
+    fun t ht => List.eq_of_mem_replicate ht ▸ le_rfl
   rw [List.length_replicate] at ht
   simp only [init, eCfg_apply, length_encPair, eSym, encOption_some, List.length_cons,
     encUnary_apply, List.length_replicate]
@@ -623,12 +615,9 @@ public theorem computableInO_budgetedUniversal :
       (fun i => (i.2.2.1 + 1) * ((eInS i).length + 1) ^ 2 * (budgetSpace i + 1) ^ 3)
       budgetSpace := by
   obtain ⟨c, h⟩ := computableInTimeAndSpace_budgetedUniversal
-  refine .of_bounds h (c + 1)
-    (fun i => ?_) (fun i => ?_) fun i => ?_
-  · exact Nat.mul_le_mul (Nat.le_succ c) (Nat.le_succ _)
-  · exact Nat.mul_le_mul (Nat.le_succ c) le_rfl
-  · obtain ⟨d, x, t, b⟩ := i
-    have := length_eOut_budgetedUniversal_le d x b t
-    nlinarith
+  refine .of_bounds h (c + 1) (fun _ => Nat.mul_le_mul (Nat.le_succ c) (Nat.le_succ _))
+    (fun _ => Nat.mul_le_mul (Nat.le_succ c) le_rfl) fun ⟨d, x, t, b⟩ => ?_
+  have := length_eOut_budgetedUniversal_le d x b t
+  nlinarith
 
 end Turing.MultiTapeTM.Universal

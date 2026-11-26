@@ -196,9 +196,8 @@ private theorem synthesis_inputIs (j : ℕ) (b : Option Bool) :
   · refine Synthesis.of_forall_eq_const (decide (none = b)) fun x => ?_
     rcases hj with rfl | hj
     · rfl
-    · have hget : (List.ofFn x)[j - 1]? = none :=
-        List.getElem?_eq_none (by rw [List.length_ofFn]; omega)
-      simp [inputIs, inputAt, show j ≠ 0 by omega, hget]
+    · have hget : (List.ofFn x)[j - 1]? = none := List.getElem?_eq_none (by simp; omega)
+      simp [inputIs, inputAt, Nat.ne_of_gt (Nat.zero_lt_of_lt hj), hget]
   · push Not at hj
     have hidx : j - 1 < n := by omega
     have hinput (x : Fin n → Bool) : inputIs j b x = decide (some (x ⟨j - 1, hidx⟩) = b) := by
@@ -316,14 +315,10 @@ private theorem synthesis_next (ht : t ≤ T) {φ : Feature k State} (hφ : φ �
     have hlit (l : Feature k State × Bool) :
         featureFn tm t l.1 x = l.2 ↔ (l.1.Holds (cfgAt tm t x) ↔ l.2 = true) := by
       cases l.2 <;> simp [featureFn]
-    simp only [D, List.any_eq_true, List.all_eq_true, decide_eq_true_eq]
-    refine ⟨fun ⟨_, hc, h⟩ => ?_, fun ⟨c, hc, h⟩ => ⟨_, List.mem_map_of_mem hc, fun _ hl' => ?_⟩⟩
-    · obtain ⟨c, hc', rfl⟩ := List.mem_map.1 hc
-      exact ⟨c, hc', fun l hl => (hlit l).1 (h _ (List.mem_map_of_mem hl))⟩
-    · obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hl'
-      exact (hlit l).2 (h l hl)
-  · simp only [D, List.length_map, featureCost]
-    exact Nat.add_le_add_right
+    simp only [D, List.any_eq_true, List.all_eq_true, decide_eq_true_eq, List.mem_map,
+      exists_exists_and_eq_and, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, hlit]
+    rfl
+  · simpa only [D, List.length_map, featureCost] using Nat.add_le_add_right
       (Nat.mul_le_mul_right _ (length_stepTerms_le tm (n := n) (T := T) φ)) _
 
 /-- Phase 3: all basic features of the next configuration. -/

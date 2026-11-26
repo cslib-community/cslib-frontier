@@ -47,9 +47,8 @@ private theorem packedWords_eq_wordOffset_add {len k w : ℕ} (hw : 0 < w) :
     packedWords len k w =
       wordOffset k w len + (if bitOffset k w len = 0 then 2 else 3) := by
   unfold packedWords
-  have hid := wordOffset_mul_add_bitOffset (k := k) (w := w) (idx := len)
   have hb_lt : bitOffset k w len < w := bitOffset_lt hw
-  rw [← hid]
+  rw [← wordOffset_mul_add_bitOffset (k := k) (w := w) (idx := len)]
   set W := wordOffset k w len
   set B := bitOffset k w len
   split_ifs with hB0
@@ -199,14 +198,13 @@ private theorem computeMetaWordsProg_spec {w U dstMetaBase N : ℕ} {s : Memory.
   · dsimp only [d, computeMetaWordsProg]
     rw [htotMicro_eq, hgmBits_eq, validHistory_bind', clientState_maxSlabsProg,
       clientResult_maxSlabsProg, validHistory_bind', clientState_ifEqZeroProg,
-      clientResult_ifEqZeroProg, hgmLen_eq, validHistory_bind', clientState_compPackedWordsProg,
-      validHistory_bind', clientState_compPackedWordsProg, validHistory_bind',
-      clientState_compPackedWordsProg]
+      clientResult_ifEqZeroProg, hgmLen_eq]
+    repeat rw [validHistory_bind', clientState_compPackedWordsProg]
     exact ⟨validHistory_maxSlabsProg _ _, validHistory_ifEqZeroProg _ _,
       hv_pw _ s, hv_pw _ s, hv_pw _ s, trivial⟩
-  · simp only [d, computeMetaWordsProg, prog_runClient_state_bind, runClient_state_maxSlabsProg,
-      runClient_state_compPackedWordsProg, prog_runClient_state_pure]
-    exact clientState_ifEqZeroProg _ _
+  · simpa only [d, computeMetaWordsProg, prog_runClient_state_bind, runClient_state_maxSlabsProg,
+      runClient_state_compPackedWordsProg, prog_runClient_state_pure] using
+      clientState_ifEqZeroProg _ _
   all_goals simp only [d, computeMetaWordsProg, prog_clientResult_bind,
     Realization.memoryCost_bind', clientResult_maxSlabsProg, memoryCost_maxSlabsProg,
     clientResult_ifEqZeroProg, memoryCost_ifEqZeroProg, clientResult_compPackedWordsProg hw,
@@ -234,8 +232,7 @@ private theorem realizesBounded_computeMetaWords :
     obtain ⟨hlogN_lt, _, _, _, _, _, _⟩ := computeLogScales_arith hN hNU hU h225
     have hgmBits_eq : Nat.log 2 N + 1 = globalPtrBits N := (clog2_succ_eq_log2_add_one hN).symm
     have htotMicro_eq : (1 <<< Nat.log 2 N) = totalMicroBuckets N := by
-      rw [Nat.shiftLeft_eq, one_mul, ← totalMicroBits_eq_log]
-      rfl
+      rw [Nat.shiftLeft_eq, one_mul, ← totalMicroBits_eq_log, ← totalMicroBuckets]
     repeat first
       | rw [hgmBits_eq] | rw [htotMicro_eq]
       | rw [clientState_maxSlabsProg] | rw [clientResult_maxSlabsProg]
@@ -267,9 +264,7 @@ private theorem realizesBounded_computeMetaWords :
            tailCapPerBucket, dirSlabsPerBucket, maxFullSlabs, numBuckets, hb0, ↓reduceIte,
            pow_zero, mul_zero, add_zero]
          exact h225.of_le (by decide)
-       · have hgm_pos : gmSlabMetaBase N + maxFullSlabs N * 4 = globalMetaLen N := by
-           simpa only [hb0, ↓reduceIte] using globalMetaLen_cond_eq N
-         exact hgmLen_fit.of_le (by omega)))
+       · simpa only [← globalMetaLen_cond_eq N, hb0, ↓reduceIte] using hgmLen_fit))
 
 /-! ## Sub-Block Writers (`SubA`..`SubE`, `writeCompScalesGmDProg`, `writeCompABProg`) -/
 
@@ -466,9 +461,6 @@ private theorem writeCompSubCProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.S
   have hcp := fits_mkCompParams (V := V) hw hNU hU hV hfit_dst
   have hfit63 : Fits w (dstMetaBase + 63) := fits_add_of_fits_offCompItems hfit_dst (by decide)
   set cp := mkCompParams U V w N
-  have h16 : Nat.log 2 N + 1 = globalPtrBits N := (clog2_succ_eq_log2_add_one hN).symm
-  have h21 : (1 <<< bucketBits N) - 1 = 2 ^ bucketBits N - 1 := by
-    rw [Nat.shiftLeft_eq, one_mul]
   obtain ⟨hv, hres, hfr, hmem, hframe, hc⟩ :=
     writeTwoBlock4FinRet_spec (dstMetaBase + 43) cp 16 (by decide) (offCompItems U w N) (s := s)
       (by omega) (hfit63.of_le (by omega)) hcp
@@ -477,7 +469,7 @@ private theorem writeCompSubCProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.S
   refine ⟨⟨U, V, dstMetaBase, N, hw, hN, hNU, hU, hV, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
       h63, hfit_dst⟩, ?_⟩
   dsimp only [s', prog, d, writeCompSubCProg]
-  rw [h16, h21, hb43, hb47]
+  rw [← clog2_succ_eq_log2_add_one hN, Nat.one_shiftLeft, hb43, hb47]
   exact ⟨hv, hres, hfr, hmem, fun a ha => hframe a (by omega), hc⟩
 
 private theorem realizesBounded_writeCompSubC :
@@ -770,8 +762,6 @@ private theorem writeCompABProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.Sta
      (valBits V, (epochHashSpace U w N, lmSubWords N w))))
   obtain ⟨_, hvB, hresB, hfrB, hmB, hframeB, hcB⟩ :=
     writeCompSubBProg_spec (s := sA) hw hN hNU hU hV (hfrA.symm ▸ h63) hfit_dst
-  set sB := (Memory.spec 0).clientState sA (writeCompSubBProg
-    ((dstMetaBase + 27, offCompLMSub U w N 3), (lmSubWords N w, effBucketPosBits N)))
   dsimp only [s', prog, d, writeCompABProg]
   rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
     Realization.memoryCost_bind', hresA, hcA, hcB]
@@ -780,9 +770,9 @@ private theorem writeCompABProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.Sta
     fun a ha => (hframeB a (by omega)).trans (hframeA a (by omega)), rfl⟩
   by_cases hj8 : j < 8
   · rw [hframeB _ (by omega)]; exact hmA j hj8
-  · have hB := hmB (j - 8) (by omega)
-    rw [show dstMetaBase + 35 + (j - 8) = dstMetaBase + 27 + j by omega] at hB
-    exact hB.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
+  · have haddr : dstMetaBase + 35 + (j - 8) = dstMetaBase + 27 + j := by omega
+    exact (haddr ▸ hmB (j - 8) (by omega)).trans
+      (congrArg _ (Fin.ext (by dsimp only; omega)))
 
 private theorem realizesBounded_writeCompAB :
     RealizesBounded .exact writeCompABProg
@@ -873,12 +863,10 @@ theorem writeCompParamsSubProg_props {w U V dstMetaBase N : ℕ} {s : Memory.Sta
   rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
     Realization.memoryCost_bind', hst_mw, hres_mw]
   dsimp only
-  rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', hresAB, validHistory_bind', StateTransitionSpec.clientState_bind,
-    prog_clientResult_bind, Realization.memoryCost_bind', hresC, validHistory_bind',
-    StateTransitionSpec.clientState_bind, prog_clientResult_bind, Realization.memoryCost_bind',
-    StateTransitionSpec.clientState_pure, prog_clientResult_pure, memoryCost_pure, hc_mw, hcAB,
-    hcC, hcE]
+  repeat rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+    Realization.memoryCost_bind']
+  rw [StateTransitionSpec.clientState_pure, prog_clientResult_pure, memoryCost_pure, hresAB,
+    hresC, hc_mw, hcAB, hcC, hcE]
   refine ⟨⟨hvD, hv_mw, hvAB, hvC, hvE, trivial⟩, rfl, by rw [hfrE, hfrC, hfrAB, hfrD],
     fun ⟨j, hj⟩ => ?_, fun a ha => ?_, by omega⟩
   · dsimp only
@@ -886,17 +874,17 @@ theorem writeCompParamsSubProg_props {w U V dstMetaBase N : ℕ} {s : Memory.Sta
     · rw [hframeE _ (by omega), hframeC _ (by omega)]; exact hmAB j hj16
     · by_cases hj24 : j < 24
       · rw [hframeE _ (by omega)]
-        have hC := hmC (j - 16) (by omega)
-        rw [show dstMetaBase + 43 + (j - 16) = dstMetaBase + 27 + j by omega] at hC
-        exact hC.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
+        have haddr : dstMetaBase + 43 + (j - 16) = dstMetaBase + 27 + j := by omega
+        exact (haddr ▸ hmC (j - 16) (by omega)).trans
+          (congrArg _ (Fin.ext (by dsimp only; omega)))
       · by_cases hj32 : j < 32
         · rw [hframeE _ (by omega), hframeC _ (by omega), hframeAB _ (by omega)]
-          have hD := hmD (j - 24) (by omega)
-          rw [show dstMetaBase + 51 + (j - 24) = dstMetaBase + 27 + j by omega] at hD
-          exact hD.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
-        · have hE := hmE (j - 32) (by omega)
-          rw [show dstMetaBase + 59 + (j - 32) = dstMetaBase + 27 + j by omega] at hE
-          exact hE.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
+          have haddr : dstMetaBase + 51 + (j - 24) = dstMetaBase + 27 + j := by omega
+          exact (haddr ▸ hmD (j - 24) (by omega)).trans
+            (congrArg _ (Fin.ext (by dsimp only; omega)))
+        · have haddr : dstMetaBase + 59 + (j - 32) = dstMetaBase + 27 + j := by omega
+          exact (haddr ▸ hmE (j - 32) (by omega)).trans
+            (congrArg _ (Fin.ext (by dsimp only; omega)))
   · rw [hframeE a (by omega), hframeC a (by omega), hframeAB a (by omega), hframeD a (by omega)]
 
 /-- `writeCompParamsSubProg` compiles via `RealizesBounded .exact`. -/

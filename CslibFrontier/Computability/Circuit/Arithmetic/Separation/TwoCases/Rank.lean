@@ -57,18 +57,16 @@ private theorem quadrangle (hw : IsPrice K w) (x v y u : Mt μ) :
   exact ⟨dist_sq_add_dist_sq_le_sides _ _ _ _, sides_eq_of_dist_sq_add_dist_sq_eq⟩
 
 private theorem defect_nonneg (hw : IsPrice K w) (a W W' : Mt μ) : 0 ≤ defect w a W W' := by
-  have := (quadrangle hw a (a + W + W') (a + W) (a + W')).1
   unfold defect
-  linarith
+  linarith [(quadrangle hw a (a + W + W') (a + W) (a + W')).1]
 
 /-- The number of the triples `(p, q, a)`. -/
 private noncomputable abbrev frames (μ : ℕ) : ℝ :=
   (Fintype.card (GLM (Fin μ)) : ℝ) ^ 2 * Fintype.card (Mt μ)
 
 private theorem frames_pos : 0 < frames μ := by
-  unfold frames
-  have : (0 : ℝ) < Fintype.card (GLM (Fin μ)) := by exact_mod_cast Fintype.card_pos
-  positivity
+  have : (0 : ℝ) < Fintype.card (GLM (Fin μ)) := mod_cast Fintype.card_pos
+  rw [frames]; positivity
 
 /-- The squared sides minus the squared diagonals of the quadrangles with sides `p · dg S · q`
 and `p · dg T · q`, added over all `p`, `q` and `a`, are `2 (D(|S|)² + D(|T|)² − D(|S| + |T|)²)`
@@ -105,16 +103,14 @@ private theorem meanSq_le (hw : IsPrice K w) {r : ℕ} (hr : r ≤ μ) :
   induction r with
   | zero => simp [meanSq_zero hw]
   | succ r ih =>
-    have := meanSq_add_le hw (i := r) (j := 1) hr
     push_cast
-    linarith [ih (by omega)]
+    linarith [meanSq_add_le hw (i := r) (j := 1) hr, ih (by omega)]
 
 /-- Each squared distance is at most `|Mat_μ(F₂)|²` times the mean over its rank. -/
 private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
     w a (a + W) ^ 2 ≤ (Fintype.card (Mt μ) : ℝ) ^ 2 * meanSq w W.rank := by
   have hc : (0 : ℝ) < Fintype.card (Mt μ) := by exact_mod_cast Fintype.card_pos
-  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := by
-    exact_mod_cast card_pos.2 ⟨W, by simp⟩
+  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := mod_cast card_pos.2 ⟨W, by simp⟩
   have h1 : w a (a + W) ^ 2 ≤ #{V : Mt μ | V.rank = W.rank} *
       rankMean (fun V => w a (a + V)) W.rank := by
     rw [rankMean, mul_div_cancel₀ _ hn.ne']
@@ -123,12 +119,10 @@ private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
     rw [meanSq, mul_div_cancel₀ _ hc.ne']
     exact single_le_sum (f := fun a => rankMean (fun V => w a (a + V)) W.rank)
       (fun _ _ => rankMean_nonneg _ _) (mem_univ a)
-  have h3 : (#{V : Mt μ | V.rank = W.rank} : ℝ) ≤ Fintype.card (Mt μ) := by
-    exact_mod_cast card_le_univ _
+  have h3 : (#{V : Mt μ | V.rank = W.rank} : ℝ) ≤ Fintype.card (Mt μ) := mod_cast card_le_univ _
   calc _ ≤ _ := h1
-    _ ≤ (Fintype.card (Mt μ) : ℝ) * (Fintype.card (Mt μ) * meanSq w W.rank) := by
-      gcongr
-      exact rankMean_nonneg _ _
+    _ ≤ (Fintype.card (Mt μ) : ℝ) * (Fintype.card (Mt μ) * meanSq w W.rank) :=
+      mul_le_mul h3 h2 (rankMean_nonneg _ _) hc.le
     _ = _ := by ring
 
 /-! ### Step 2: a price with equality -/
@@ -163,25 +157,20 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
     have hr := (rank_le_card_width (a + b)).trans (Fintype.card_fin μ).le
     refine (add_cancel_left a b ▸ sq_le_meanSq w' a (a + b)).trans ?_
     gcongr
-    refine (meanSq_le hw' hr).trans ?_
-    rw [hc, mul_one]
-    exact_mod_cast hr
+    exact ((meanSq_le hw' hr).trans_eq (by rw [hc, mul_one])).trans (Nat.cast_le.mpr hr)
   obtain ⟨M, hMμ, hM⟩ : ∃ M : ℝ, M < μ ∧ ∀ w ∈ S, meanSq w μ ≤ M := by
     rcases S.eq_empty_or_nonempty with h0 | hne
     · exact ⟨0, by positivity, by simp [h0]⟩
     obtain ⟨w, ⟨⟨hw, -⟩, hw1⟩, hmax⟩ := hS.exists_isMaxOn hne (continuous_meanSq μ).continuousOn
     refine ⟨meanSq w μ, lt_of_le_of_ne ((meanSq_le hw le_rfl).trans_eq (by rw [hw1, mul_one]))
       fun e => hK' ⟨w, hw, fun r hr => ?_⟩, hmax⟩
-    have h1 := meanSq_le hw hr
-    have h2 := meanSq_le hw (Nat.sub_le μ r)
+    have h1 := (meanSq_le hw hr).trans_eq (by rw [hw1, mul_one])
+    have h2 := (meanSq_le hw (Nat.sub_le μ r)).trans_eq (by rw [hw1, mul_one, Nat.cast_sub hr])
     have h3 := meanSq_add_le hw (i := r) (j := μ - r) (by omega)
-    rw [hw1, mul_one] at h1 h2
     rw [Nat.add_sub_cancel' hr, e] at h3
-    push_cast [hr] at h2
     linarith
   refine hK ⟨μ, √(max 1 M), hμ, Real.one_le_sqrt.2 (le_max_left _ _), ?_, fun w hw => ?_⟩
-  · rw [Real.sq_sqrt (le_max_of_le_left zero_le_one)]
-    exact max_lt (by exact_mod_cast hμ) hMμ
+  · exact (Real.sq_sqrt (le_max_of_le_left zero_le_one)).trans_lt (max_lt (mod_cast hμ) hMμ)
   rw [distAtRank, distAtRank, ← Real.sqrt_mul (le_max_of_le_left zero_le_one)]
   refine Real.sqrt_le_sqrt ?_
   rcases (meanSq_nonneg w 1).eq_or_lt with h0 | h1
@@ -340,8 +329,7 @@ private theorem exists_transversal (hμ : 3 ≤ μ) {V W : Mt μ} (hV : V.rank =
     (hW : W.rank = 1) : ∃ Z : Mt μ, Z.rank = 1 ∧ Transversal ![V, Z] ∧ Transversal ![W, Z] := by
   have hc := Submodule.finrank_add_le_finrank_add_finrank (colSpace V) (colSpace W)
   have hr := Submodule.finrank_add_le_finrank_add_finrank (rowSpace V) (rowSpace W)
-  rw [finrank_colSpace, finrank_colSpace] at hc
-  rw [finrank_rowSpace, finrank_rowSpace] at hr
+  simp only [finrank_colSpace, finrank_rowSpace] at hc hr
   obtain ⟨u, hu⟩ := exists_notMem (A := colSpace V ⊔ colSpace W) (by omega)
   obtain ⟨x, hx⟩ := exists_notMem (A := rowSpace V ⊔ rowSpace W) (by omega)
   have hu0 : u ≠ 0 := fun e => hu (e ▸ zero_mem _)

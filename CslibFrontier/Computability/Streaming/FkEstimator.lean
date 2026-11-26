@@ -236,15 +236,11 @@ theorem expect_fkBasicEstimate_sq_le {k : ℕ} (hk : k ≠ 0) (s : List α) :
     simp only [fkBasicEstimate, mul_pow]
     rw [← mul_sum, Fin.sum_univ_eq_sum_range (fun p => ((suffixCount s p ^ (j + 1) -
       (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2), div_le_iff₀ (Nat.cast_pos.2 hpos)]
-    have h : ∑ p ∈ range s.length, ((suffixCount s p ^ (j + 1) -
-        (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2 ≤
-        ((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s := by
-      exact_mod_cast sum_range_sq_pow_sub_pow_suffixCount_le j s
     calc (s.length : ℝ) ^ 2 * _
-        ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) := by gcongr
-      _ = _ := by
-        push_cast
-        ring
+        ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) :=
+          mul_le_mul_of_nonneg_left
+            (by exact_mod_cast sum_range_sq_pow_sub_pow_suffixCount_le j s) (by positivity)
+      _ = _ := by push_cast; ring
 
 /-- The group size condition `(3 k) ^ k n ^ (k - 1) ≤ (K η²) ^ k` bounds three times the second
 moment bound `k F₁ F_{2k-1}` by `K (η F_k)²` on streams with at most `n` distinct items, through
@@ -266,9 +262,7 @@ theorem three_mul_length_mul_freqMoment_le {k K n : ℕ} (hk : k ≠ 0) {η : �
       = (3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) *
           ((s.length * freqMoment (2 * j + 1) s : ℕ) : ℝ) ^ (j + 1) := by
         rw [← mul_pow]
-        congr 1
-        push_cast
-        ring
+        exact congrArg (· ^ (j + 1)) (by push_cast; ring)
     _ ≤ (3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) *
           ((n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1))) := by gcongr
     _ = ((3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) * (n : ℝ) ^ j) *
@@ -382,16 +376,14 @@ theorem state_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) (s : List α) :
 theorem run_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) (s : List α) :
     (fkSketch k m r K ω).run s = median fun i => 𝔼 l, (m : ℝ) *
       ((suffixCount s (ω i l) ^ k - (suffixCount s (ω i l) - 1) ^ k : ℕ) : ℝ) := by
-  rw [Algorithm.run, state_fkSketch]
-  rfl
+  rw [Algorithm.run, state_fkSketch]; rfl
 
 /-- On a stream of exactly `m` items, the answer of the `F_k` sketch is the median of means of the
 basic estimator at the sampled positions. -/
 theorem run_fkSketch_eq_medianOfMeans (s : List α) (ω : Fin (2 * r) → Fin K → Fin s.length) :
     (fkSketch k s.length r K ω).run s =
-      medianOfMeans (fun p : Fin s.length => fkBasicEstimate k s p) ω := by
-  rw [run_fkSketch]
-  rfl
+      medianOfMeans (fun p : Fin s.length => fkBasicEstimate k s p) ω :=
+  run_fkSketch ω s
 
 /-- **The AMS sketch estimates `F_k`** [AlonMatiasSzegedy1999, Theorem 2.1]: on a stream of `m`
 items with at most `n` distinct items, if `k ≠ 0`, `η > 0` and `(3 k) ^ k n ^ (k - 1) ≤ (K η²) ^ k`,
@@ -449,11 +441,10 @@ theorem solves_fkEstimator [Fintype α] [NeZero m] (hk : k ≠ 0) {η δ : ℝ} 
   classical
   intro s _
   rw [errorProb_fkEstimator]
-  by_cases hs : s.length = m
-  · subst hs
-    simp only [not_imp, not_le, true_and]
-    exact (dens_fkSketch_error_le hk hη hK s (card_le_univ _)).trans hδ
-  · rw [filter_false_of_mem fun ω _ => by simp [hs], dens_empty, NNRat.cast_zero]
+  rcases eq_or_ne s.length m with rfl | hs
+  · simpa only [not_imp, not_le, true_and] using
+      (dens_fkSketch_error_le hk hη hK s (card_le_univ _)).trans hδ
+  · rw [filter_false_of_mem fun _ _ => by simp [hs], dens_empty, NNRat.cast_zero]
     exact (pow_nonneg (by norm_num) r).trans hδ
 
 /-- `Cslib.Streaming.solves_fkEstimator` with the group size condition
@@ -492,11 +483,9 @@ private theorem state_fkSketch_mem [Fintype α] {M : ℕ}
     (fkSketch k m r K ω).state s ∈ fkStateFinset M T := by
   classical
   rw [state_fkSketch, fkStateFinset, mem_map]
-  refine ⟨(ω, s.length, fun i l => (s[(ω i l : ℕ)]?, suffixCount s (ω i l))), ?_, rfl⟩
-  rw [mem_product, mem_product, Fintype.mem_piFinset]
-  refine ⟨hω, mem_range.2 (Nat.lt_succ_of_le hs), fun i => Fintype.mem_piFinset.2 fun l => ?_⟩
-  exact mem_product.2 ⟨mem_univ _,
-    mem_range.2 (Nat.lt_succ_of_le ((suffixCount_le_length s _).trans hs))⟩
+  exact ⟨(_, _, _), mem_product.2 ⟨hω, mem_product.2 ⟨mem_range.2 (Nat.lt_succ_of_le hs),
+    Fintype.mem_piFinset.2 fun _ => Fintype.mem_piFinset.2 fun _ => mem_product.2 ⟨mem_univ _,
+      mem_range.2 (Nat.lt_succ_of_le ((suffixCount_le_length s _).trans hs))⟩⟩⟩, rfl⟩
 
 omit [DecidableEq α] in
 private theorem card_fkStateFinset [Fintype α] (M : ℕ)
@@ -520,10 +509,9 @@ theorem spaceLE_fkEstimator [Fintype α] [NeZero m] {M b : ℕ}
   intro A hA
   rw [fkEstimator, PMF.support_map] at hA
   obtain ⟨ω, -, rfl⟩ := hA
-  refine Algorithm.spaceLE_of_subset_finset (T := fkStateFinset M {ω}) ?_ ?_
-  · rintro _ ⟨s, hs, rfl⟩
-    exact state_fkSketch_mem (mem_singleton_self ω) hs
-  · rwa [card_fkStateFinset, card_singleton, one_mul]
+  refine Algorithm.spaceLE_of_subset_finset (T := fkStateFinset M {ω})
+    (fun _ ⟨s, hs, hx⟩ => hx ▸ state_fkSketch_mem (mem_singleton_self ω) hs) ?_
+  rwa [card_fkStateFinset, card_singleton, one_mul]
 
 /-- **The memory of the `F_k` sketch with its positions stored** [AlonMatiasSzegedy1999,
 Theorem 2.1]: on streams of at most `M` items, the states reachable from all sampled positions
@@ -539,9 +527,7 @@ theorem exists_injOn_iUnion_reachable_fkSketch [Fintype α] {M b : ℕ}
   refine Algorithm.exists_injOn_of_subset_finset (T := fkStateFinset M univ) ?_ ?_
   · rintro _ ⟨_, ⟨ω, rfl⟩, s, hs, rfl⟩
     exact state_fkSketch_mem (mem_univ ω) hs
-  · rw [card_fkStateFinset, card_univ, Fintype.card_pi, prod_const, card_univ, Fintype.card_fin,
-      Fintype.card_pi, prod_const, card_univ, Fintype.card_fin, Fintype.card_fin, ← pow_mul,
-      mul_comm K]
-    exact hb
+  · simpa only [card_fkStateFinset, card_univ, Fintype.card_pi, prod_const, Fintype.card_fin,
+      ← pow_mul, mul_comm K] using hb
 
 end Cslib.Streaming

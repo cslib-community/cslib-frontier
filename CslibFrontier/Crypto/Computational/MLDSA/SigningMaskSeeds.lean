@@ -204,16 +204,12 @@ theorem keyGen_eq_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed 
     pair.shared.keyGen level setup = pair.background.keyGen level setup := by
   have bytes (x : List Byte) (k : ℕ) (hx : x.length ≠ 128) :
       pair.shared.h256.readBytes x k = pair.background.h256.readBytes x k :=
-    read_ne_maskSeed_length h _ (by
-      rw [Keccak.length_bytesToBitsLE]
-      lia) k
+    read_ne_maskSeed_length h _ (by have := Keccak.length_bytesToBitsLE x; omega) k
   exact Xofs.keyGen_congr_of_reads level setup (agree_off_sampleSigningMaskSeeds h).1
     (bytes _ _ (by simp [FixedBytes.toList]))
     (fun _ => bytes _ _
       (by simp [nonceInput, Xofs.expandKeySeed, pair.background.h256.length_read]))
-    fun x hx => bytes _ _ (by
-      rw [hx]
-      cases level <;> decide)
+    fun x hx => bytes _ _ (ne_of_eq_of_ne hx (by cases level <;> decide))
 
 private theorem publicKeyHash_eq_of_mem_sampleSigningMaskSeeds
     {base : Xofs} {s : Level} {seed : FixedBytes 32} {a b n : ℕ} {t : Fin n ↪ FixedBytes 32}
@@ -238,9 +234,8 @@ theorem Xofs.background_sampleSigningMaskSeeds (base : Xofs) (s : Level) (seed :
     (rows : SigningMaskSeeds n) :
     (base.sampleSigningMaskSeeds s seed t ha hb rows).map SigningMaskSeedOracles.background =
       base.uniformPrefixes a b := by
-  rw [← sample_streams]
-  simp only [sampleSigningMaskSeeds, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind,
-    PMF.pure_map]
+  simp only [← sample_streams, sampleSigningMaskSeeds, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
   rfl
 
 /-- Resampling all selected Algorithm 7 seeds at once preserves the law of the complete

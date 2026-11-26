@@ -73,8 +73,7 @@ theorem rotationDistance_pow (o : Dart G) (k : ℕ) :
     have hiter : (r.rotate^[j]) o = (r.rotate^[k % Function.minimalPeriod r.rotate o]) o := by
       rw [r.rotate.iterate_eq_pow, heq, ← r.rotate.iterate_eq_pow,
         Function.iterate_mod_minimalPeriod_eq]
-    have := (Function.iterate_eq_iterate_iff_of_lt_minimalPeriod (hj.trans hlt) hlt).mp hiter
-    omega
+    exact hj.ne ((Function.iterate_eq_iterate_iff_of_lt_minimalPeriod (hj.trans hlt) hlt).mp hiter)
 
 /-- Forward rotation adds to a rank modulo the same vertex period. -/
 theorem rotationDistance_pow_from (o a : Dart G) (hoa : o.vertex = a.vertex) (k : ℕ) :
@@ -122,16 +121,14 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
   have hb : rb < n := r.rotationDistance_lt_period hob
   have hc : rc < n := r.rotationDistance_lt_period hoc
   have hd : dist < n := by
-    have h := r.rotationDistance_lt_period (hoa.symm.trans hoc)
-    rwa [r.period_eq o a hoa] at h
+    simpa only [r.period_eq o a hoa] using r.rotationDistance_lt_period (hoa.symm.trans hoc)
   have hneab : ra ≠ rb := fun h => hab ((r.rotationDistance_eq_iff_eq o a b hoa hob).mp h)
   have hnebc : rb ≠ rc := fun h => hbc ((r.rotationDistance_eq_iff_eq o b c hob hoc).mp h)
   have hneac : ra ≠ rc := fun h => hac ((r.rotationDistance_eq_iff_eq o a c hoa hoc).mp h)
-  have hdist : ra + dist = rc ∨ ra + dist = rc + n := by
-    apply (add_mod_eq_iff ha hd hc).mp
-    have h := r.rotationDistance_pow_from o a hoa dist
-    rw [r.pow_rotationDistance a c (hoa.symm.trans hoc)] at h
-    exact h.symm
+  have hdist : ra + dist = rc ∨ ra + dist = rc + n :=
+    (add_mod_eq_iff ha hd hc).mp <| by
+      simpa only [ra, rc, n, dist, r.pow_rotationDistance a c (hoa.symm.trans hoc)] using
+        (r.rotationDistance_pow_from o a hoa dist).symm
   have pow_iff (k : ℕ) : (r.rotate ^ k) a = b ↔ (ra + k) % n = rb := by
     have hv : o.vertex = ((r.rotate ^ k) a).vertex :=
       hoa.trans ((r.sameCycle_iff _ _).mp
@@ -148,17 +145,12 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
   · intro horder
     change (ra < rb ∧ rb < rc) ∨ (rb < rc ∧ rc < ra) ∨ (rc < ra ∧ ra < rb) at horder
     let m := if ra < rb then rb - ra else rb + n - ra
-    have hm_pos : 0 < m := by
-      dsimp [m]
-      split_ifs <;> omega
-    have hm_le : m ≤ dist := by
-      dsimp [m]
+    have hm : 0 < m ∧ m ≤ dist ∧ (ra + m = rb ∨ ra + m = rb + n) := by
+      dsimp only [m]
       split_ifs <;> omega
     refine Finset.mem_image.mpr ⟨m - 1, Finset.mem_range.mpr (by omega), (pow_iff _).mpr ?_⟩
-    rw [Nat.sub_add_cancel hm_pos]
-    refine (add_mod_eq_iff ha (by omega) hb).mpr ?_
-    dsimp [m]
-    split_ifs <;> omega
+    rw [Nat.sub_add_cancel hm.1]
+    exact (add_mod_eq_iff ha (by omega) hb).mpr hm.2.2
 
 private noncomputable def vertexDart (v : ℕ) (h : ∃ d : Dart G, d.vertex = v) : Dart G :=
   Classical.choose h
@@ -175,11 +167,10 @@ private theorem portRank_at (a d : Dart G) (had : a.vertex = d.vertex) :
 /-- Ranks distinguish every actual dart at a vertex. -/
 theorem portRank_injective (a b : Dart G) (hab : a.vertex = b.vertex)
     (heq : r.portRank a = r.portRank b) : a = b := by
-  let o := vertexDart a.vertex ⟨a, rfl⟩
-  have hoa : o.vertex = a.vertex := Classical.choose_spec (show ∃ d : Dart G,
-    d.vertex = a.vertex from ⟨a, rfl⟩)
+  have hoa : (vertexDart a.vertex ⟨a, rfl⟩).vertex = a.vertex :=
+    Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
   rw [r.portRank_at a a rfl, r.portRank_at a b hab] at heq
-  exact (r.rotationDistance_eq_iff_eq o a b hoa (hoa.trans hab)).mp heq
+  exact (r.rotationDistance_eq_iff_eq _ a b hoa (hoa.trans hab)).mp heq
 
 /-- The chosen linear ranks retain the supplied clockwise cyclic interval. -/
 theorem mem_rotationInterval_iff_portRank (a b c : Dart G)
@@ -189,11 +180,10 @@ theorem mem_rotationInterval_iff_portRank (a b c : Dart G)
       (r.portRank a < r.portRank b ∧ r.portRank b < r.portRank c) ∨
       (r.portRank b < r.portRank c ∧ r.portRank c < r.portRank a) ∨
       (r.portRank c < r.portRank a ∧ r.portRank a < r.portRank b) := by
-  let o := vertexDart a.vertex ⟨a, rfl⟩
-  have hoa : o.vertex = a.vertex := Classical.choose_spec (show ∃ d : Dart G,
-    d.vertex = a.vertex from ⟨a, rfl⟩)
+  have hoa : (vertexDart a.vertex ⟨a, rfl⟩).vertex = a.vertex :=
+    Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
   rw [r.portRank_at a a rfl, r.portRank_at a b hab, r.portRank_at a c (hab.trans hbc)]
-  exact r.mem_rotationInterval_iff_ranks o a b c hoa (hoa.trans hab)
+  exact r.mem_rotationInterval_iff_ranks _ a b c hoa (hoa.trans hab)
     (hoa.trans (hab.trans hbc)) hneab hnebc hneac
 
 /-- If no two distinct color classes alternate at a vertex, some nonempty class forms
@@ -220,18 +210,15 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
     obtain ⟨b, hbs, hmax⟩ := S.exists_max_image r.portRank hne
     obtain ⟨ha, hac⟩ := (hmem a).mp has
     obtain ⟨hb, hbc⟩ := (hmem b).mp hbs
-    refine ⟨a, b, ⟨ha, hb, hac.trans hbc.symm, ?_⟩, hac⟩
-    intro d hd hc
-    have hds := (hmem d).mpr ⟨hd, hc.trans hac⟩
-    exact ⟨hmin d hds, hmax d hds⟩
+    refine ⟨a, b, ⟨ha, hb, hac.trans hbc.symm, fun d hd hc =>
+      ⟨hmin d ((hmem d).mpr ⟨hd, hc.trans hac⟩), hmax d ((hmem d).mpr ⟨hd, hc.trans hac⟩)⟩⟩, hac⟩
   have hex : ∃ n : ℕ, ∃ a b, covers a b ∧ r.portRank b - r.portRank a = n := by
     obtain ⟨w, hw⟩ := hv
     obtain ⟨a, b, hab, _⟩ := classBounds w hw
     exact ⟨_, a, b, hab, rfl⟩
   obtain ⟨a, b, hbounds, hwidth⟩ := Nat.find_spec hex
   obtain ⟨ha, hb, hab, hcover⟩ := hbounds
-  refine ⟨a, b, ha, hb, hab, fun z hz => ⟨hcover z hz, ?_⟩⟩
-  intro hzspan
+  refine ⟨a, b, ha, hb, hab, fun z hz => ⟨hcover z hz, fun hzspan => ?_⟩⟩
   by_contra hza
   have hnA (d : Dart G) (hd : d.vertex = v) (hc : color d ≠ color a) :
       r.portRank d ≠ r.portRank a :=
@@ -239,10 +226,8 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
   have hnB (d : Dart G) (hd : d.vertex = v) (hc : color d ≠ color a) :
       r.portRank d ≠ r.portRank b :=
     fun h => hc ((congrArg color (r.portRank_injective d b (hd.trans hb.symm) h)).trans hab.symm)
-  have hzi : r.portRank a < r.portRank z ∧ r.portRank z < r.portRank b := by
-    have := hnA z hz hza
-    have := hnB z hz hza
-    omega
+  have hzi : r.portRank a < r.portRank z ∧ r.portRank z < r.portRank b :=
+    ⟨lt_of_le_of_ne hzspan.1 (hnA z hz hza).symm, lt_of_le_of_ne hzspan.2 (hnB z hz hza)⟩
   have inside (d : Dart G) (hd : d.vertex = v) (hc : color d = color z) :
       r.portRank a < r.portRank d ∧ r.portRank d < r.portRank b := by
     by_contra hn
@@ -272,10 +257,8 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
   omega
 
 /-- A vertex cycle first reaches its starting dart at exponent zero. -/
-@[simp] theorem rotationDistance_self (a : Dart G) : r.rotationDistance a a = 0 := by
-  apply r.rotationDistance_eq a a rfl 0 rfl
-  intro k hk
-  omega
+@[simp] theorem rotationDistance_self (a : Dart G) : r.rotationDistance a a = 0 :=
+  r.rotationDistance_eq a a rfl 0 rfl fun _ hk => (Nat.not_lt_zero _ hk).elim
 
 /-- A different dart in the same source cycle has positive first-hit rank. -/
 theorem rotationDistance_pos_of_ne {G : Graph} (r : RotationSystem G)
@@ -302,14 +285,11 @@ theorem rotationDistance_rotate_of_ne {G : Graph} (r : RotationSystem G)
 theorem rotationDistance_of_rotate_eq {G : Graph} (r : RotationSystem G)
     (o a : Dart G) (hoa : o.vertex = a.vertex) (heq : r.rotate a = o) :
     r.rotationDistance o a = Function.minimalPeriod r.rotate o - 1 := by
-  let k := r.rotationDistance o a
-  have hperiod : Function.IsPeriodicPt r.rotate (k + 1) o := by
-    change (r.rotate : Dart G → Dart G)^[k + 1] o = o
-    rw [r.rotate.iterate_eq_pow, pow_succ', Equiv.Perm.mul_apply,
-      r.pow_rotationDistance o a hoa, heq]
-  have hle := hperiod.minimalPeriod_le (Nat.succ_pos k)
+  have hperiod : Function.IsPeriodicPt r.rotate (r.rotationDistance o a + 1) o := by
+    rw [Function.IsPeriodicPt, Function.IsFixedPt, r.rotate.iterate_eq_pow, pow_succ',
+      Equiv.Perm.mul_apply, r.pow_rotationDistance o a hoa, heq]
+  have hle := hperiod.minimalPeriod_le (Nat.succ_pos _)
   have hlt := r.rotationDistance_lt_period hoa
-  change k = _
   omega
 
 /-- The source vertex cycle after omitting its specified dart, in the original forward
@@ -383,19 +363,14 @@ theorem rotationDistance_le_iff_portRank_between (a b d : Dart G)
     fun h => hda (r.portRank_injective d a had.symm h)
   have hrb : r.portRank d ≠ r.portRank b :=
     fun h => hdb (r.portRank_injective d b (had.symm.trans hab) h)
-  have hdist : r.rotationDistance a d ≠ r.rotationDistance a b := by
-    intro h
-    exact hdb ((r.pow_rotationDistance a d had).symm.trans
-      (h ▸ r.pow_rotationDistance a b hab))
-  by_cases he : a = b
-  · subst b
-    have hpos := r.rotationDistance_pos_of_ne a d had hda
-    rw [r.rotationDistance_self]
-    omega
-  have had' : a ≠ d := Ne.symm hda
+  have hdist : r.rotationDistance a d ≠ r.rotationDistance a b := fun h =>
+    hdb ((r.pow_rotationDistance a d had).symm.trans (h ▸ r.pow_rotationDistance a b hab))
+  rcases eq_or_ne a b with rfl | he
+  · have hpos := r.rotationDistance_pos_of_ne a d had hda
+    rw [r.rotationDistance_self]; omega
   have hinterval := (r.mem_rotationInterval_iff_lt_distance a d b had hab
-    had' hdb he).symm.trans
-      (r.mem_rotationInterval_iff_portRank a d b had (had.symm.trans hab) had' hdb he)
+    (Ne.symm hda) hdb he).symm.trans
+      (r.mem_rotationInterval_iff_portRank a d b had (had.symm.trans hab) (Ne.symm hda) hdb he)
   omega
 
 /-- The clockwise betweenness of distinct triples starting at a dart fixes its successor.
@@ -427,7 +402,6 @@ theorem rotate_eq_of_same_incident_intervals (s : RotationSystem G) (a : Dart G)
   obtain ⟨k, hk, heq⟩ := Finset.mem_image.mp h
   have hlt := Finset.mem_range.mp hk
   rw [r.rotationDistance_rotate_of_ne a a rfl hr, r.rotationDistance_self] at hlt
-  have hk0 : k = 0 := by omega
-  exact hne (by simpa only [hk0, zero_add, pow_one] using heq)
+  exact hne (by simpa only [Nat.lt_one_iff.mp hlt, zero_add, pow_one] using heq)
 
 end Cslib.Complexity.Graph.RotationSystem

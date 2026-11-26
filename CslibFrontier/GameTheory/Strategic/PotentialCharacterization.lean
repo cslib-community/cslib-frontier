@@ -308,8 +308,7 @@ private theorem stepIntegral_eq_potential_sub {G : CostGame ι S} {Φ : (∀ i, 
       have hstep : G.cost i t - G.cost i s = Φ t - Φ s := by
         conv_lhs => rw [ht_eq]
         rw [hΦ s i (t i), ← ht_eq]
-      simp only [stepIntegral, stepLast, hstep, stepIntegral_eq_potential_sub hΦ t rest hrest]
-      ring
+      simp only [stepIntegral, stepLast, hstep, stepIntegral_eq_potential_sub hΦ t rest hrest]; ring
 
 /-- Along any unilateral path `γ`, an exact potential `Φ` telescopes `G.pathIntegral γ` to
 `Φ γ.last - Φ γ.start` ([MondererShapley1996], Appendix A, p. 138). -/
@@ -411,12 +410,10 @@ private theorem sweepCost_perm {G : CostGame ι S} (h : G.FourCycleZero) :
       sweepCost G L₁ cur target = sweepCost G L₂ cur target
   | _, _, .nil, _, _, _ => rfl
   | _, _, .cons i hp, hnd, cur, target => by
-      simp only [sweepCost]
-      rw [sweepCost_perm h hp (List.nodup_cons.1 hnd).2]
-  | _, _, .swap x y l, hnd, cur, target => by
-      have hyx : y ≠ x := fun heq =>
-        (List.nodup_cons.1 hnd).1 (by simp only [heq, List.mem_cons, true_or])
-      exact sweepCost_swap_head h hyx l cur target
+      simp only [sweepCost, sweepCost_perm h hp (List.nodup_cons.1 hnd).2]
+  | _, _, .swap x y l, hnd, cur, target =>
+      sweepCost_swap_head h (fun heq => (List.nodup_cons.1 hnd).1 (List.mem_cons.2 (.inl heq))) l
+        cur target
   | _, _, .trans hp₁ hp₂, hnd, cur, target =>
       (sweepCost_perm h hp₁ hnd cur target).trans
         (sweepCost_perm h hp₂ (hp₁.nodup_iff.1 hnd) cur target)
@@ -437,15 +434,9 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
   let L_rem := (Finset.univ.erase i).toList
   have hnd_all : L_all.Nodup := Finset.nodup_toList _
   have hi_notMem : i ∉ L_rem := by simp [L_rem]
-  have hnd_split : (L_rem ++ [i]).Nodup := List.nodup_append.2
-    ⟨Finset.nodup_toList _, List.nodup_singleton i, fun x hx y hy => by
-      rintro rfl
-      exact hi_notMem (List.mem_singleton.1 hy ▸ hx)⟩
   have hperm : L_all.Perm (L_rem ++ [i]) :=
-    (List.perm_ext_iff_of_nodup hnd_all hnd_split).2 fun x => by
-      simp only [L_all, L_rem, List.mem_append, Finset.mem_toList, Finset.mem_univ,
-        Finset.mem_erase, List.mem_singleton, and_true]
-      exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
+    (Finset.insert_erase (Finset.mem_univ i) ▸
+      Finset.toList_insert (Finset.notMem_erase i _)).trans (List.perm_append_comm (l₁ := [i]))
   have hw_rem (t : ∀ k, S k) : sweepProfile L_rem z t = update t i (z i) := by
     funext k
     rcases eq_or_ne k i with rfl | hki <;> simp [sweepProfile_apply, L_rem, *]
@@ -461,8 +452,7 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
 theorem potentialOfBase_self [Fintype ι] (G : CostGame ι S) (z : ∀ i, S i) :
     G.potentialOfBase z z = 0 := by
   unfold potentialOfBase
-  suffices ∀ L : List ι, sweepCost G L z z = 0 from this _
-  intro L
+  generalize (Finset.univ : Finset ι).toList = L
   induction L with
   | nil => rfl
   | cons i L ih => simp only [sweepCost, update_eq_self, sub_self, zero_add, ih]
@@ -472,17 +462,14 @@ admits an exact potential if and only if its four-cycle curl `FourCycleZero` van
 two-player `2 × 2` strategy rectangle. -/
 theorem exists_isExactPotential_iff_fourCycleZero [Finite ι] {G : CostGame ι S} :
     (∃ Φ, G.IsExactPotential Φ) ↔ G.FourCycleZero := by
-  constructor
-  · rintro ⟨Φ, hΦ⟩
-    refine fourCycleZero_of_simpleClosed_four fun γ hγ _ =>
-      hΦ.pathIntegral_eq_zero_of_isClosed hγ.isClosed
-  · intro h
-    by_cases hne : Nonempty (∀ i, S i)
-    · obtain ⟨z⟩ := hne
-      have : Fintype ι := Fintype.ofFinite ι
-      exact ⟨G.potentialOfBase z, h.isExactPotential_potentialOfBase z⟩
-    · have : IsEmpty (∀ i, S i) := not_nonempty_iff.1 hne
-      exact ⟨fun s => isEmptyElim s, fun s => isEmptyElim s⟩
+  refine ⟨fun ⟨Φ, hΦ⟩ => fourCycleZero_of_simpleClosed_four fun γ hγ _ =>
+    hΦ.pathIntegral_eq_zero_of_isClosed hγ.isClosed, fun h => ?_⟩
+  by_cases hne : Nonempty (∀ i, S i)
+  · obtain ⟨z⟩ := hne
+    have : Fintype ι := Fintype.ofFinite ι
+    exact ⟨G.potentialOfBase z, h.isExactPotential_potentialOfBase z⟩
+  · have : IsEmpty (∀ i, S i) := not_nonempty_iff.1 hne
+    exact ⟨isEmptyElim, isEmptyElim⟩
 
 /-- **[MondererShapley1996], Theorem 2.8, `(1) ↔ (2)` (p. 131)**: a game with finitely many players
 is an exact potential game if and only if `G.pathIntegral γ = 0` for every finite closed unilateral
@@ -556,21 +543,14 @@ theorem IsWeightedPotential.expectedCost_update_sub {G : CostGame ι S} {w : ι 
     G.expectedCost (update p i q) i - G.expectedCost p i =
       w i * (mixedPotential Φ (update p i q) - mixedPotential Φ p) := by
   let C : CostGame ι S := ⟨fun _ s => Φ s⟩
-  have hdev : ∀ a : S i, G.deviationCost p i a - G.expectedCost p i =
+  have hdev (a : S i) : G.deviationCost p i a - G.expectedCost p i =
       w i * (C.deviationCost p i a - C.expectedCost p i) := by
-    intro a
     rw [deviationCost_def, expectedCost_def, deviationCost_def, expectedCost_def,
       ← sum_sub_distrib, ← sum_sub_distrib, mul_sum]
-    refine sum_congr rfl fun s _ => ?_
-    simp only [C, ← mul_sub, hΦ s i a]
-    ring
-  have hC_eq : ∀ r : ∀ j, S j → ℝ, C.expectedCost r i = mixedPotential Φ r := fun r => by
-    rw [expectedCost_def, mixedPotential_def]
-  rw [← hC_eq (update p i q), ← hC_eq p, expectedCost_update_sub_eq G hp i hq,
-    expectedCost_update_sub_eq C hp i hq, mul_sum]
-  refine sum_congr rfl fun a _ => ?_
-  rw [hdev a]
-  ring
+    exact sum_congr rfl fun s _ => by simp only [C, ← mul_sub, hΦ s i a]; ring
+  rw [mixedPotential_def, mixedPotential_def, ← C.expectedCost_def _ i, ← C.expectedCost_def _ i,
+    expectedCost_update_sub_eq G hp i hq, expectedCost_update_sub_eq C hp i hq, mul_sum]
+  exact sum_congr rfl fun a _ => by rw [hdev a]; ring
 
 /-- If `Φ` is a `w`-potential for `G`, then `fun p => mixedPotential Φ (fun j => (p j).1)` is a
 `w`-potential for `G.mixedExtension` ([MondererShapley1996], equation (2.4), p. 132). -/

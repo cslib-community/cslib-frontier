@@ -84,14 +84,12 @@ theorem DW_some {w w' : List Bool} (h : decw w = some w') :
   | cons b w ih =>
     cases b with
     | true =>
-      simp only [decw, Option.some.injEq] at h
-      subst h
+      obtain rfl : false :: w = w' := by simpa [decw] using h
       exact ⟨_, by simp only [List.length_cons]; omega,
           Dt.ite_true (.tl (.id _)) (by simp [ofBits]) (Dt.ite_true (.hd (.tl (.id _)))
         (by simp [ofBits, bit, one]) (.cons (.quote _ _) (.tl (.tl (.id _)))))⟩
     | false =>
-      simp only [decw, Option.map_eq_some_iff] at h
-      obtain ⟨v, hv, rfl⟩ := h
+      obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp (by simpa [decw] using h)
       obtain ⟨k, hk, hd⟩ := ih hv
       exact ⟨_, by simp only [List.length_cons]; omega,
           Dt.ite_true (.tl (.id _)) (by simp [ofBits]) (Dt.ite_false (.hd (.tl (.id _)))
@@ -105,11 +103,10 @@ theorem DW_none {w : List Bool} (h : decw w = none) : Ev θ DW (.cons DW.code (o
     cases b with
     | true => simp [decw] at h
     | false =>
-      simp only [decw, Option.map_eq_none_iff] at h
       exact Ev.ite_true_nil (.tl (.id _)) (by simp [ofBits]) (Ev.ite_false_nil (.hd (.tl (.id _)))
         (Ev.cons_nil_right (.quote _ _)
           (Ev.run_nil (.hd (.id _)) (.cons (.hd (.id _)) (.tl (.tl (.id _))))
-            (ev_hd_cons_ofTree_code (ih h)))))
+            (ev_hd_cons_ofTree_code (ih (by simpa [decw] using h))))))
 
 /-- Subtract 1 in a budget; the argument is (this program, (the name, the budget)). -/
 @[expose] def DC : Fm :=
@@ -136,8 +133,7 @@ theorem DC_some {t t' : Bt} {x : Tree} (h : Bt.dec x.path t = some t') :
     cases x with
     | cons a b => simp [path, Bt.dec] at h
     | nil =>
-      simp only [path, Bt.dec, Option.map_eq_some_iff] at h
-      obtain ⟨v, hv, rfl⟩ := h
+      obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp (by simpa [path, Bt.dec] using h)
       obtain ⟨k, hk, hd⟩ := DW_some (θ := θ) hv
       exact ⟨_, by simp only [Bt.ht]; omega,
           Dt.ite_true (.tl (.tl (.id _))) (by simp [Bt.enc]) (Dt.ite_false (.hd (.tl (.tl (.id _))))
@@ -147,11 +143,8 @@ theorem DC_some {t t' : Bt} {x : Tree} (h : Bt.dec x.path t = some t') :
     cases x with
     | nil => simp [path, Bt.dec] at h
     | cons a b =>
-      by_cases ha : a = .nil
-      · subst ha
-        simp only [path, ne_eq, not_true_eq_false, decide_false, Bt.dec, Option.map_eq_some_iff]
-            at h
-        obtain ⟨v, hv, rfl⟩ := h
+      rcases eq_or_ne a .nil with rfl | ha
+      · obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp (by simpa [path, Bt.dec] using h)
         obtain ⟨k, hk, hd⟩ := ihl hv
         exact ⟨_, by simp only [Bt.ht]; omega,
             Dt.ite_true (.tl (.tl (.id _))) (by simp [Bt.enc])
@@ -162,9 +155,7 @@ theorem DC_some {t t' : Bt} {x : Tree} (h : Bt.dec x.path t = some t') :
               (.hd (.hd (.tl (.tl (.id _))))))) (dt_ofTree_code hd))
                 (.tl (.hd (.tl (.tl (.id _))))))
                   (.quote _ _)))))⟩
-      · simp only [path, ne_eq, ha, not_false_eq_true, decide_true, Bt.dec, Option.map_eq_some_iff]
-          at h
-        obtain ⟨v, hv, rfl⟩ := h
+      · obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp (by simpa [path, Bt.dec, ha] using h)
         obtain ⟨k, hk, hd⟩ := ihr hv
         exact ⟨_, by simp only [Bt.ht]; omega,
             Dt.ite_true (.tl (.tl (.id _))) (by simp [Bt.enc])
@@ -188,11 +179,9 @@ theorem DC_none {t : Bt} {x : Tree} (h : Bt.dec x.path t = none) : Ev θ DC
     | cons a b => exact Ev.ite_true_nil (.hd (.tl (.id _))) (by simp) (.fail _)
     | nil =>
       simp only [path, Bt.dec, Option.map_eq_none_iff] at h
-      refine Ev.ite_false_nil (.hd (.tl (.id _)))
-          (Ev.cons_nil_right (.quote _ _) (Ev.run_nil (.quote _ _)
-        (.cons (.quote _ _) (.tl (.tl (.tl (.id _))))) ?_))
-      simp only [Fm.ofTree_code]
-      exact DW_none h
+      exact Ev.ite_false_nil (.hd (.tl (.id _)))
+        (Ev.cons_nil_right (.quote _ _) (Ev.run_nil (.quote _ _)
+          (.cons (.quote _ _) (.tl (.tl (.tl (.id _))))) ((Fm.ofTree_code DW).symm ▸ DW_none h)))
   | node l r ihl ihr =>
     refine Ev.ite_true_nil (.tl (.tl (.id _))) (by simp [Bt.enc])
         (Ev.ite_true_nil (.hd (.tl (.tl (.id _))))
@@ -201,22 +190,17 @@ theorem DC_none {t : Bt} {x : Tree} (h : Bt.dec x.path t = none) : Ev θ DC
     | nil => exact Ev.ite_false_nil (.hd (.tl (.id _))) (.fail _)
     | cons a b =>
       refine Ev.ite_true_nil (.hd (.tl (.id _))) (by simp) ?_
-      by_cases ha : a = .nil
-      · subst ha
-        simp only [path, ne_eq, not_true_eq_false, decide_false, Bt.dec, Option.map_eq_none_iff]
-            at h
-        exact Ev.ite_false_nil (.hd (.hd (.tl (.id _))))
+      rcases eq_or_ne a .nil with rfl | ha
+      · exact Ev.ite_false_nil (.hd (.hd (.tl (.id _))))
             (Ev.cons_nil_left (Ev.cons_nil_left (Ev.run_nil (.hd (.id _))
           (.cons (.hd (.id _)) (.cons (.tl (.hd (.tl (.id _)))) (.hd (.hd (.tl (.tl (.id _)))))))
-              (ev_hd_cons_ofTree_code (ihl h)))
+              (ev_hd_cons_ofTree_code (ihl (by simpa [path, Bt.dec] using h))))
           (Dt.tl (.hd (.tl (.tl (.id _)))))) (Dt.quote _ _))
-      · simp only [path, ne_eq, ha, not_false_eq_true, decide_true, Bt.dec, Option.map_eq_none_iff]
-          at h
-        exact Ev.ite_true_nil (.hd (.hd (.tl (.id _)))) (by simpa using ha)
+      · exact Ev.ite_true_nil (.hd (.hd (.tl (.id _)))) (by simpa using ha)
             (Ev.cons_nil_left (Ev.cons_nil_right
           (Dt.hd (.hd (.tl (.tl (.id _))))) (Ev.run_nil (.hd (.id _)) (.cons (.hd (.id _))
           (.cons (.tl (.hd (.tl (.id _)))) (.tl (.hd (.tl (.tl (.id _)))))))
-            (ev_hd_cons_ofTree_code (ihr h)))) (Dt.quote _ _))
+            (ev_hd_cons_ofTree_code (ihr (by simpa [path, Bt.dec, ha] using h))))) (Dt.quote _ _))
 
 /-- Check that a number is 0. -/
 @[expose] def AW : Fm := .ite (.tl .id)
@@ -230,10 +214,8 @@ theorem AW_ev (w : List Bool) : ∃ k ≤ 20 * w.length + 5, ∃ o, Ev θ AW (.c
     obtain ⟨k, hk, o, ih⟩ := ih
     cases b with
     | true =>
-      refine ⟨0, Nat.zero_le _, .nil, ?_⟩
-      simp only [List.all_cons, Bool.not_true, Bool.false_and, Bool.false_eq_true, ite_false]
-      exact Ev.ite_true_nil (.tl (.id _)) (by simp [ofBits]) (Ev.ite_true_nil (.hd (.tl (.id _)))
-        (by simp [ofBits, bit, one]) (.fail _))
+      exact ⟨0, Nat.zero_le _, .nil, Ev.ite_true_nil (.tl (.id _)) (by simp [ofBits])
+        (Ev.ite_true_nil (.hd (.tl (.id _))) (by simp [ofBits, bit, one]) (.fail _))⟩
     | false =>
       simp only [List.all_cons, Bool.not_false, Bool.true_and]
       by_cases h : w.all (! ·)

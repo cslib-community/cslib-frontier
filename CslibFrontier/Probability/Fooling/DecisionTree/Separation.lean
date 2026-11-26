@@ -144,14 +144,14 @@ private theorem map_eval_forceBit {J : Type*} [Fintype J] [DecidableEq J]
       (fun z => Function.update z (p z) (b z))).map T.eval = PMF.pure true ∧
       (PMF.uniformOfFintype (J → Bool)).map T.eval = PMF.uniformOfFintype Bool := by
   refine ⟨?_, ?_⟩
-  · have h : T.eval ∘ (fun z => Function.update z (p z) (b z)) =
-        Function.const _ true := funext fun z => by simp [heval, hp, hb]
+  · have h : T.eval ∘ (fun z => Function.update z (p z) (b z)) = Function.const _ true :=
+      funext fun z => by simp [heval, hp, hb]
     simp [PMF.map_comp, h]
-  · have h := Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp
-      (fun z => PMF.pure (T.eval z))
-    simp only [heval, hp, hb, Function.update_self, bind_checkBit_uniform, PMF.bind_const] at h
-    rw [funext heval, ← PMF.bind_pure_comp]
-    exact h.symm
+  · rw [funext heval, ← PMF.bind_pure_comp]
+    simpa only [heval, hp, hb, Function.update_self, bind_checkBit_uniform, PMF.bind_const,
+      Function.comp_def] using
+      (Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp
+        (fun z => PMF.pure (T.eval z))).symm
 
 private def forcePointer {D : Type*} [DecidableEq D] (key : (Fin m → Bool) → D)
     (target : (Fin m → Bool) → Bool) (z : Fin m ⊕ D → Bool) : Fin m ⊕ D → Bool :=
@@ -232,8 +232,7 @@ private theorem forcePointer_eq_on {D : Type*} [DecidableEq D]
     S.restrict (forcePointer key target z) = S.restrict z := by
   ext i
   by_cases hi : (i : Fin m ⊕ D) = point key z
-  · have hz := h (hi ▸ i.property)
-    simp [Finset.restrict, forcePointer, hi, hz]
+  · simp [Finset.restrict, forcePointer, hi, h (hi ▸ i.property)]
   · simp [Finset.restrict, forcePointer, Function.update_of_ne hi]
 
 /-- A matching of address-cube edges with one edge in each coordinate direction. -/
@@ -312,15 +311,13 @@ private theorem key_endpoint (M : PointerMatching m) (i : Fin m) (side : Bool) :
 
 private theorem target_endpoint (M : PointerMatching m) (i : Fin m) (side : Bool) :
     M.target (M.endpoint i side) = side := by
-  cases side
-  · exact congrArg Sum.isLeft (M.charge_of_mem (a := M.lower i) (M.lowerKey i).property)
-  · exact congrArg Sum.isLeft (M.charge_upper i)
+  cases side <;>
+    simp [endpoint, target, M.charge_of_mem (a := M.lower i) (M.lowerKey i).property,
+      M.charge_upper]
 
 private theorem endpoint_bit (M : PointerMatching m) (i : Fin m) (side : Bool) :
     M.endpoint i side i = side := by
-  cases side
-  · exact M.lower_bit i
-  · simp [endpoint, M.upper_eq]
+  cases side <;> simp [endpoint, M.lower_bit, M.upper_eq]
 
 private theorem endpoint_other (M : PointerMatching m) (i : Fin m) (s t : Bool)
     {j : Fin m} (hj : j ≠ i) : M.endpoint i s j = M.endpoint i t j := by
@@ -346,16 +343,14 @@ private theorem address_swapWord (M : PointerMatching m) (i : Fin m)
 private theorem swapWord_swapWord (M : PointerMatching m) (i : Fin m) (s : Bool)
     (z : Fin m ⊕ M.Keys → Bool) (hz : address z = M.endpoint i s) :
     M.swapWord i (M.swapWord i z) = z := by
-  have hs : address z i = s := by rw [hz, M.endpoint_bit]
+  have hs : z (.inl i) = s := by simpa [address, M.endpoint_bit] using congrFun hz i
   funext j
-  cases j with
-  | inl j =>
-    simp only [swapWord, Sum.elim_inl, Sum.elim_inr, Function.update_self, hs]
-    exact (congrFun hz j).symm
-  | inr j =>
-    rw [swapWord, Sum.elim_inr, M.address_swapWord, M.endpoint_bit]
-    simp only [swapWord, Sum.elim_comp_inr, Function.update_idem]
-    exact congrFun (Function.update_eq_self _ (z ∘ Sum.inr)) j
+  rcases j with j | j
+  · simpa only [swapWord, address, Function.comp_apply, Sum.elim_inl, Sum.elim_inr,
+      Function.update_self, hs] using (congrFun hz j).symm
+  · rw [swapWord, Sum.elim_inr, M.address_swapWord, M.endpoint_bit]
+    simpa only [swapWord, Function.comp_apply, Sum.elim_comp_inr, Function.update_idem] using
+      congrFun (Function.update_eq_self _ (z ∘ Sum.inr)) j
 
 private theorem restrict_force_eq_swapWord (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys))
     (i : Fin m) (s : Bool) (z : Fin m ⊕ M.Keys → Bool) (hz : address z = M.endpoint i s)
@@ -365,16 +360,12 @@ private theorem restrict_force_eq_swapWord (M : PointerMatching m) (S : Finset (
   have hpoint : point M.key z = .inr (M.lowerKey i) := by rw [point, hz, M.key_endpoint]
   have htarget : M.target (address z) = s := by rw [hz, M.target_endpoint]
   funext ⟨j, hj⟩
-  cases j with
-  | inl j =>
-    simp only [Finset.restrict, forcePointer, swapWord, Sum.elim_inl, hpoint,
-      Function.update_of_ne (by simp : Sum.inl j ≠ .inr (M.lowerKey i))]
+  rcases j with j | j
+  · simp only [Finset.restrict, forcePointer, swapWord, Sum.elim_inl, hpoint,
+      Function.update_of_ne Sum.inl_ne_inr]
     exact (congrFun hz j).trans (M.endpoint_other i _ _ fun h => hi (h ▸ hj))
-  | inr j =>
-    simp only [Finset.restrict, forcePointer, swapWord, Sum.elim_inr, hpoint, htarget, hs]
-    by_cases h : j = M.lowerKey i
-    · simp [h]
-    · simp [Function.update_of_ne h, Function.update_of_ne (Sum.inr_injective.ne h)]
+  · by_cases h : j = M.lowerKey i <;>
+      simp [Finset.restrict, forcePointer, swapWord, hpoint, htarget, hs, h]
 
 /-- Perform the exchange precisely on edges whose direction is hidden by the projection. -/
 private noncomputable def compareWord (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys))
@@ -418,9 +409,7 @@ private theorem dist_map_restrict_le (M : PointerMatching m) (S : Finset (Fin m 
   refine ⟨?_, hne⟩
   by_cases h : ∃ i, address z = M.upper i
   · obtain ⟨i, hi⟩ := h
-    rw [hi, M.charge_upper]
-    by_contra hm
-    exact hhidden ⟨i, true, hi, hm⟩
+    exact hi ▸ (M.charge_upper i).symm ▸ by_contra fun hm => hhidden ⟨i, true, hi, hm⟩
   · have ha : address z ∈ M.Keys := (M.mem_keys _).2 fun i hi => h ⟨i, hi⟩
     rwa [M.charge_of_mem ha, ← M.key_of_mem ha]
 

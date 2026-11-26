@@ -132,9 +132,8 @@ theorem transcript_eq_of_weightedSum_between (p : Program signature n g) (w : Fi
     (h₁₂ : weightedSum w x₁ ≤ weightedSum w x₂)
     (h₂₃ : weightedSum w x₂ ≤ weightedSum w x₃)
     (htr : transcript p x₁ = transcript p x₃) :
-    transcript p x₂ = transcript p x₁ := by
-  funext j
-  exact congrFun (eval_eq_of_weightedSum_between p w hw h₁₂ h₂₃ htr) j.val
+    transcript p x₂ = transcript p x₁ :=
+  funext fun j => congrFun (eval_eq_of_weightedSum_between p w hw h₁₂ h₂₃ htr) j.val
 
 /-- Inputs with equal scalar score have identical gate evaluations. -/
 theorem eval_eq_of_weightedSum_eq (p : Program signature n g) (w : Fin n → ℝ)
@@ -153,9 +152,8 @@ theorem eval_eq_of_weightedSum_eq (p : Program signature n g) (w : Fin n → ℝ
 private theorem transcript_eq_of_weightedSum_eq (p : Program signature n g) (w : Fin n → ℝ)
     (hw : ∀ j : Fin g, ∃ c : ℝ, inputWeight p j = c • w)
     {x₁ x₂ : Fin n → Bool} (h : weightedSum w x₁ = weightedSum w x₂) :
-    transcript p x₁ = transcript p x₂ := by
-  funext j
-  exact congrFun (eval_eq_of_weightedSum_eq p w hw h) j.val
+    transcript p x₁ = transcript p x₂ :=
+  funext fun j => congrFun (eval_eq_of_weightedSum_eq p w hw h) j.val
 
 /-- The set of attainable transcripts is always nonempty. -/
 theorem attainableTranscripts_nonempty (p : Program signature n g) :
@@ -179,10 +177,8 @@ private noncomputable def leTranscripts (p : Program signature n g) (w : Fin n �
   (leInputs w t).image (transcript p)
 
 private theorem leInputs_subset {w : Fin n → ℝ} {t t' : ℝ} (htt' : t ≤ t') :
-    leInputs w t ⊆ leInputs w t' := by
-  intro x hx
-  simp only [leInputs, mem_filter, mem_univ, true_and] at hx ⊢
-  exact hx.trans htt'
+    leInputs w t ⊆ leInputs w t' := fun _ hx => by
+  simpa only [leInputs, mem_filter, mem_univ, true_and] using (mem_filter.mp hx).2.trans htt'
 
 private theorem leTranscripts_subset {p : Program signature n g} {w : Fin n → ℝ} {t t' : ℝ}
     (htt' : t ≤ t') :
@@ -282,12 +278,9 @@ private theorem scalarEval_eq_of_le_of_rank_eq (p : Program signature n g) (w : 
       intro s hs
       by_cases hne : (leInputs w s).Nonempty
       · obtain ⟨x₀, hx₀⟩ := hne
-        have hxmin_mem : xmin ∈ leInputs w s := by
-          simp only [leInputs, mem_filter, mem_univ, true_and] at hx₀ ⊢
-          exact (hxmin x₀).trans hx₀
         exact eval_eq_of_transcript_eq p (card_le_one.mp hs _
-          (mem_image_of_mem _ (scalarRep_mem_of_nonempty ⟨x₀, hx₀⟩)) _
-          (mem_image_of_mem _ hxmin_mem))
+          (mem_image_of_mem _ (scalarRep_mem_of_nonempty ⟨x₀, hx₀⟩)) _ (mem_image_of_mem _
+            (mem_filter.mpr ⟨mem_univ _, (hxmin x₀).trans (mem_filter.mp hx₀).2⟩)))
       · unfold scalarEval scalarRep
         rw [dite_eq_right hne]
     rw [hval t ((card_le_card hsub).trans h1), hval t' h1]

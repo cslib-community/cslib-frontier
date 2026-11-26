@@ -132,13 +132,10 @@ private theorem ceil_div_sub_eq_sub_div {M N e : ℕ} (hM : 0 < M) (he : e ≤ M
     (M * N - e + M - 1) / M = N - e / M := by
   have hdiv := Nat.div_add_mod e M
   have hmod := Nat.mod_lt e hM
-  have hmul : M * (N - e / M) = M * N - M * (e / M) := Nat.mul_sub M N (e / M)
-  have hq : e / M ≤ N := Nat.div_le_of_le_mul he
-  refine le_antisymm
-    (Nat.lt_succ_iff.mp <| (Nat.div_lt_iff_lt_mul hM).mpr <| by
-      rw [Nat.succ_mul, mul_comm _ M, hmul]; omega)
-    ((Nat.le_div_iff_mul_le hM).mpr <| by
-      rw [mul_comm _ M, hmul]; omega)
+  have hmul : (N - e / M) * M = M * N - M * (e / M) := by
+    rw [Nat.sub_mul, mul_comm N M, mul_comm (e / M) M]
+  exact Nat.div_eq_of_lt_le (by omega)
+    (by rw [Nat.succ_mul]; omega)
 
 omit [Field F] in
 private theorem sum_natCast_div_ennreal {ι : Type*} (s : Finset ι) (x : ι → ℕ) (D : ℕ) :
@@ -149,18 +146,16 @@ private theorem sum_natCast_div_ennreal {ι : Type*} (s : Finset ι) (x : ι →
 omit [Field F] in
 private theorem natCast_div_eq_ofReal {N D : ℕ} (hD : 0 < D) :
     ((N : ℝ≥0∞) / (D : ℝ≥0∞)) = ENNReal.ofReal ((N : ℝ) / (D : ℝ)) := by
-  rw [ENNReal.ofReal_div_of_pos (by exact_mod_cast hD), ENNReal.ofReal_natCast,
-    ENNReal.ofReal_natCast]
+  simp only [ENNReal.ofReal_div_of_pos (Nat.cast_pos.mpr hD), ENNReal.ofReal_natCast]
 
 private theorem cast_two_pow_sub_eq_smooth (params : FRISmoothParams F) :
     (((2 ^ params.d - 2 ^ (params.d - params.totalLog) : ℕ) : ℝ)) =
       (1 - (1 : ℝ) / (2 : ℝ) ^ params.totalLog) * ((2 : ℝ) ^ params.d) := by
-  have hle : 2 ^ (params.d - params.totalLog) ≤ 2 ^ params.d :=
-    Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)
-  rw [Nat.cast_sub hle, Nat.cast_pow, Nat.cast_pow, Nat.cast_ofNat,
-    show (2 : ℝ) ^ params.d = (2 : ℝ) ^ (params.d - params.totalLog) * (2 : ℝ) ^ params.totalLog
-      by rw [← pow_add, Nat.sub_add_cancel params.htotal]]
-  field_simp
+  have hpow : (2 : ℝ) ^ params.d =
+      (2 : ℝ) ^ (params.d - params.totalLog) * (2 : ℝ) ^ params.totalLog := by
+    rw [← pow_add, Nat.sub_add_cancel params.htotal]
+  push_cast [Nat.pow_le_pow_right zero_lt_two (Nat.sub_le _ _)]
+  rw [hpow]; field_simp
 
 private theorem sum_fin_arity_sub_one_succ {α : Type*} {a : ℕ} (ha : 1 ≤ a)
     (u : Fin a → α → F) (z : F) :
@@ -172,8 +167,7 @@ private theorem toSmooth_first_sub_eq_of_pos (params : FRIParams F) (hd : 0 < pa
     2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog) = 2 ^ (params.d - 1) := by
   have hsplit : 2 * 2 ^ (params.d - 1) = 2 ^ params.d := by
     rw [← pow_succ', Nat.sub_add_cancel hd]
-  rw [params.toSmooth_firstStepLog]
-  omega
+  rw [params.toSmooth_firstStepLog]; omega
 
 /-- At `params.toSmooth`, twice the round-`0` smooth folding drop
 `2 ^ d - 2 ^ (d - firstStepLog)` is bounded by `2 ^ d`. -/
@@ -207,15 +201,14 @@ theorem weightedCurveGapPerRound_of_unique [DecidableEq F]
       (fun i => (params.arity i - 1) * params.domainSize (i.val + 1)) := by
   refine weightedCurveGapPerRound_of_uniqueCurveGap params huniq fun i u Z hZ_gt hZ_close => ?_
   have ha : 1 ≤ params.arity i := le_trans (by omega) (params.two_le_arity i)
-  let eqA : Fin ((params.arity i - 1) + 1) ≃ Fin (params.arity i) :=
-    finCongr (Nat.sub_add_cancel ha)
-  have hα_inj := cosetEval_injective params.hg params.hω
-    ((params.cumLog_le_totalLog i.isLt).trans params.htotal)
+  let eqA := finCongr (Nat.sub_add_cancel ha)
   obtain ⟨D', hD'_card, v', hv', hD'_agree⟩ :=
-    exists_correlatedAgreement_curve_unique hα_inj
+    exists_correlatedAgreement_curve_unique
+      (cosetEval_injective params.hg params.hω
+        ((params.cumLog_le_totalLog i.isLt).trans params.htotal))
       (by simpa only [Fintype.card_fin] using params.two_mul_div_add_dim_le huniq i)
       (fun r => u (eqA r)) Z (by simpa only [Fintype.card_fin] using hZ_gt)
-      fun z hz => by rw [sum_fin_arity_sub_one_succ ha u z]; exact hZ_close z hz
+      fun z hz => sum_fin_arity_sub_one_succ ha u z ▸ hZ_close z hz
   refine ⟨D', fun r => v' (eqA.symm r), fun r => hv' (eqA.symm r),
     by simpa only [Fintype.card_fin] using hD'_card, fun j hj r => ?_⟩
   simpa only [Equiv.apply_symm_apply] using hD'_agree j hj (eqA.symm r)
@@ -450,20 +443,20 @@ theorem weightedCurveGapPerRound_of_johnson_discrete [DecidableEq F]
     params.two_pow_cumLog_mul_domainSize i.isLt
   have ha : 1 ≤ params.arity i := le_trans (by omega) (params.two_le_arity i)
   let eqA := finCongr (Nat.sub_add_cancel ha)
-  have hceil : (2 ^ params.d - e + M - 1) / M = params.domainSize (i.val + 1) - e / M := by
-    rw [← hMN]; exact ceil_div_sub_eq_sub_div hM_pos (hMN ▸ he.le)
-  have hα_inj := cosetEval_injective params.hg params.hω
-    ((params.cumLog_le_totalLog i.isLt).trans params.htotal)
+  have hceil : (2 ^ params.d - e + M - 1) / M = params.domainSize (i.val + 1) - e / M :=
+    hMN ▸ ceil_div_sub_eq_sub_div hM_pos (hMN.symm ▸ he.le)
   obtain ⟨D', hD'_wt, v', hv', hD'_agree⟩ :=
     exists_weighted_correlatedAgreement_curve_johnson (W := W) (M := M) (W_tot := 2 ^ params.d)
-      (B_W := 2 ^ params.d - e) hα_inj (params.one_le_dim (i.val + 1)) (hm i) hM_pos hW_le hW_sum
+      (B_W := 2 ^ params.d - e)
+      (cosetEval_injective params.hg params.hω
+        ((params.cumLog_le_totalLog i.isLt).trans params.htotal))
+      (params.one_le_dim (i.val + 1)) (hm i) hM_pos hW_le hW_sum
       (hceil ▸ hk_le i) (by simpa only [Fintype.card_fin] using hinterp i) (hceil ▸ hroot i)
       (fun r => u (eqA r)) Z (by simpa only [Fintype.card_fin] using Nat.lt_of_not_ge hgt)
       fun z hz => by
         obtain ⟨c, hc_rs, hc_wt⟩ := hZ_good z hz
-        refine ⟨c, hc_rs, ?_⟩
-        rw [sum_fin_arity_sub_one_succ ha u z]
-        exact (Nat.sub_add_cancel (Nat.sub_pos_of_lt he)).symm.trans_le hc_wt
+        exact ⟨c, hc_rs, (sum_fin_arity_sub_one_succ ha u z).symm ▸
+          (Nat.sub_add_cancel (Nat.sub_pos_of_lt he)).symm.trans_le hc_wt⟩
   have hle_B := hD'_wt.trans <|
     (Finset.sum_le_sum_of_subset fun j hj => Finset.mem_filter.mpr ⟨Finset.mem_univ j, fun r => by
       simpa only [Equiv.apply_symm_apply] using hD'_agree j hj (eqA.symm r)⟩).trans
@@ -565,10 +558,9 @@ private theorem round_err_ratio_le (params : FRISmoothParams F) (i : Fin params.
   have hMN : (2 ^ params.cumLog (i.val + 1) : ℝ) * (params.domainSize (i.val + 1) : ℝ) =
       ((2 ^ params.d : ℕ) : ℝ) := mod_cast params.two_pow_cumLog_mul_domainSize i.isLt
   have hdiv : ((e / 2 ^ params.cumLog (i.val + 1) : ℕ) : ℝ) *
-      (2 ^ params.cumLog (i.val + 1) : ℝ) ≤ (e : ℝ) :=
-    mod_cast Nat.div_mul_le_self e (2 ^ params.cumLog (i.val + 1))
-  rw [div_le_div_iff₀ (mod_cast Nat.pow_pos (by omega : 0 < 2))
-    (mod_cast Nat.pow_pos (by omega : 0 < 2)), ← hMN]
+      (2 ^ params.cumLog (i.val + 1) : ℝ) ≤ e := mod_cast Nat.div_mul_le_self e _
+  rw [div_le_div_iff₀ (Nat.cast_pos.mpr (Nat.pow_pos zero_lt_two))
+    (Nat.cast_pos.mpr (Nat.pow_pos zero_lt_two)), ← hMN]
   nlinarith
 
 omit [Field F] in
@@ -593,7 +585,7 @@ private theorem johnsonCurveBound_rescaled_le {ni m d D r mJ k₀ n₀ : ℕ}
             ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) * (k₀ : ℝ) := by gcongr
       _ = _ := by field_simp
   refine (Nat.le_div_iff_mul_le hk₀).mpr ?_
-  exact_mod_cast le_of_mul_le_mul_right hmul (by exact_mod_cast hni : (0 : ℝ) < ni)
+  exact_mod_cast le_of_mul_le_mul_right hmul (Nat.cast_pos.mpr hni)
 
 /-- **Original explicit-constant per-round Johnson-bound `WeightedCurveGapPerRound`** across all `m`
 single-word smooth FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (in the setting of
@@ -618,12 +610,11 @@ theorem weightedCurveGapPerRound_of_johnson [DecidableEq F]
     simpa only [Nat.cast_pow, Nat.cast_ofNat] using he
   have he_lt : e < 2 ^ params.d := by
     have hk₀R : (0 : ℝ) < params.dim 0 := mod_cast params.one_le_dim 0
-    have hn₀R : (0 : ℝ) < (2 ^ params.d : ℕ) := by positivity
-    have hsq : 0 < Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℕ)) :=
-      Real.sqrt_pos.mpr (by positivity)
+    have hsq : 0 < Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℕ)) := by positivity
     have hdiv : 0 ≤ Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℕ)) / (2 * mJ) := by positivity
-    exact_mod_cast (div_lt_one hn₀R).mp (by linarith : (e : ℝ) / (2 ^ params.d : ℕ) < 1)
-  let DRound : Fin params.m → ℕ := fun i =>
+    exact_mod_cast (div_lt_one (by positivity : (0 : ℝ) < (2 ^ params.d : ℕ))).mp
+      (by linarith : (e : ℝ) / (2 ^ params.d : ℕ) < 1)
+  let DRound (i : Fin params.m) : ℕ :=
     (mJ + 1) * ⌈(1 + 1 / (2 * (mJ : ℝ))) *
       Real.sqrt ((params.domainSize (i.val + 1) : ℝ) * (params.dim (i.val + 1) : ℝ))⌉₊ - 1
   have hparams (i : Fin params.m) := ProximityGap.johnson_curve_params_bound
@@ -631,13 +622,13 @@ theorem weightedCurveGapPerRound_of_johnson [DecidableEq F]
     (e := e / 2 ^ params.cumLog (i.val + 1)) (m := mJ) (r := params.arity i - 1)
     (params.one_le_dim (i.val + 1)) (params.dim_le_domainSize i.isLt) hmJ
     (by have := params.two_le_arity i; omega)
-    (by rw [round_rate_eq params i]; exact (round_err_ratio_le params i e).trans he')
+    (round_rate_eq params i ▸ (round_err_ratio_le params i e).trans he')
   refine (weightedCurveGapPerRound_of_johnson_discrete params he_lt (fun _ => mJ + 1) DRound
     (fun _ => by omega) (fun i => (hparams i).1) (fun i => (hparams i).2.1)
-    (fun i => (hparams i).2.2.1)).mono fun i => ?_
-  exact johnsonCurveBound_rescaled_le (Nat.pow_pos (by omega)) (params.one_le_dim 0)
-    (Nat.pow_le_pow_right (by omega) (Nat.sub_le params.d _))
-    (round_rate_eq params i ▸ (hparams i).2.2.2)
+    (fun i => (hparams i).2.2.1)).mono fun i =>
+    johnsonCurveBound_rescaled_le (Nat.pow_pos (by omega)) (params.one_le_dim 0)
+      (Nat.pow_le_pow_right (by omega) (Nat.sub_le params.d _))
+      (round_rate_eq params i ▸ (hparams i).2.2.2)
 
 /-- **Original explicit-constant uniform Johnson-bound `WeightedCurveGapBound`** for all `m`
 single-word smooth FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)`
@@ -828,8 +819,7 @@ theorem weightedLineGapBound_of_unique [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) :
     WeightedLineGapBound params (2 ^ params.d - e - 1) (2 ^ (params.d - 1)) :=
   (weightedLineGapPerRound_of_unique params huniq).mono fun _ =>
-    Nat.pow_le_pow_right (by omega)
-      (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _)
+    Nat.pow_le_pow_right zero_lt_two (Nat.sub_le_sub_left (Nat.succ_pos _) _)
 
 /-- Closed-form geometric commit-phase error `(1 - 1 / 2 ^ m) * (2 ^ d / |F|)` across all `m`
 single-word 2-to-1 FRI folding rounds in the unique-decoding regime (`< 2 ^ d / |F|`
@@ -970,9 +960,8 @@ private theorem friJohnsonRoundBound_eq_smooth (params : FRIParams F) (mJ : ℕ)
 theorem friSmoothJohnsonCommitBound_toSmooth_le (params : FRIParams F) (mJ : ℕ) :
     friSmoothJohnsonCommitBound params.toSmooth mJ ≤ friJohnsonCommitBound params mJ := by
   rw [friSmoothJohnsonCommitBound, friJohnsonCommitBound, params.toSmooth_dim (Nat.zero_le _)]
-  refine Nat.div_le_div_right ?_
-  have := two_mul_toSmooth_first_sub_le params
-  nlinarith [Nat.zero_le ((mJ + 1) ^ 6 * (2 ^ params.d) ^ 2)]
+  exact Nat.div_le_div_right <| by
+    nlinarith [two_mul_toSmooth_first_sub_le params, ((mJ + 1) ^ 6 * (2 ^ params.d) ^ 2).zero_le]
 
 /-- At round `0`, `friJohnsonRoundBound` coincides exactly with `friJohnsonCommitBound`. -/
 theorem friJohnsonRoundBound_zero (params : FRIParams F) (mJ : ℕ) (hm : 0 < params.m) :

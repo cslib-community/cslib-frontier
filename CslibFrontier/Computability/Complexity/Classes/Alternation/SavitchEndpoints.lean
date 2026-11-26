@@ -103,13 +103,11 @@ theorem lastMidpoint_eq_none_iff {i : ℕ} {z : List Bool} {d : Bool} :
   | zero => simp [lastMidpoint]
   | succ i ih =>
     simp only [lastMidpoint, Option.or_eq_none_iff, ih, getD_drop_level]
-    constructor
-    · rintro ⟨h1, h2⟩ j hj
-      cases j with
-      | zero => simpa using h2
-      | succ j => exact h1 j (by omega)
-    · intro h
-      exact ⟨fun j hj => h (j + 1) (by omega), by simpa using h 0 (by omega)⟩
+    exact ⟨fun ⟨h1, h2⟩ j hj => by
+        rcases j with _ | j
+        · simpa using h2
+        · exact h1 j (by omega),
+      fun h => ⟨fun j hj => h (j + 1) (by omega), by simpa using h 0 (by omega)⟩⟩
 
 /-- **The midpoint of the last level with half `d`.** `lastMidpoint w i z d` is `some m` exactly
 when some level `j < i` of the moves `z` has half `d`, no later level `j' < i` has half `d`, and `m`
@@ -276,14 +274,8 @@ private theorem blockT_run (n : ℕ) :
 
 /-- The level marks have one mark per move. -/
 private theorem length_levelMarks (w i : ℕ) : (levelMarks w i).length = (2 * w + 2) * i := by
-  induction i with
-  | zero => simp [levelMarks]
-  | succ i ih =>
-    simp only [levelMarks, List.range_succ, List.map_append, List.flatten_append,
-      List.length_append] at ih ⊢
-    rw [ih]
-    simp
-    ring
+  simp [levelMarks]
+  ring
 
 /-- The level marks are written in one streaming pass, in time linear in their length. -/
 private theorem computableInO_levelMarks :
@@ -323,29 +315,17 @@ private theorem computableInO_levelMarks :
 /-- A zip transducer emits at most two symbols per pair of digits, and two at the end. -/
 private theorem length_run_le {Q : Type} (τ : ZipTransducer Q) (q : Q) (u v : List Bool) :
     (τ.run q u v).length ≤ 2 * (u.length + v.length) + 2 := by
-  induction u generalizing q v with
-  | nil =>
-    induction v generalizing q with
-    | nil => simpa using τ.length_final_le q
-    | cons b v ih =>
-      have := τ.length_step_le q (none, some b)
-      have := ih (τ.step q (none, some b)).1
-      simp only [ZipTransducer.run_nil_cons, List.length_append, List.length_cons,
-        List.length_nil] at this ⊢
-      omega
-  | cons a u ih =>
-    cases v with
-    | nil =>
-      have := τ.length_step_le q (some a, none)
-      have := ih (τ.step q (some a, none)).1 []
-      simp only [ZipTransducer.run_cons_nil, List.length_append, List.length_cons,
-        List.length_nil] at this ⊢
-      omega
-    | cons b v =>
-      have := τ.length_step_le q (some a, some b)
-      have := ih (τ.step q (some a, some b)).1 v
-      simp only [ZipTransducer.run_cons_cons, List.length_append, List.length_cons] at this ⊢
-      omega
+  induction hn : u.length + v.length using Nat.strong_induction_on generalizing q u v with
+  | _ n ih =>
+    rcases u with _ | ⟨a, u⟩ <;> rcases v with _ | ⟨b, v⟩
+    · simpa only [ZipTransducer.run_nil_nil] using (τ.length_final_le q).trans (Nat.le_add_left _ _)
+    all_goals
+      simp only [ZipTransducer.run_nil_cons, ZipTransducer.run_cons_nil,
+        ZipTransducer.run_cons_cons, List.length_append]
+      refine (Nat.add_le_add (τ.length_step_le _ _) (ih _ ?_ _ _ _ rfl)).trans ?_
+      all_goals
+        simp only [List.length_cons, List.length_nil] at hn ⊢
+        omega
 
 /-- The word computed by the endpoint machine for the half `d`, on the width `w`, the number `i`
 of levels and the moves `z`: the endpoint scan of the level marks and the reversed moves, reversed.
@@ -577,15 +557,11 @@ theorem computableInO_lastMidpoint (d : Bool) :
   have hpad := hfst.prod (hsnd.fst'.prod (hzip.comp_linear (hmarks.prod hsnd.snd')))
   have h := computableInO_of_encOut_eq ((computableInO_endpointWord d).comp hpad)
     (g := fun ((w, i, z) : ℕ × ℕ × List Bool) => lastMidpoint w i z d)
-    (encOut' := encOption encBits) fun p => by
-      obtain ⟨w, i, z⟩ := p
-      have hlen : (padZip.run () (levelMarks w i) z).length = (2 * w + 2) * i := by
-        simp [padZip_run, length_levelMarks]
+    (encOut' := encOption encBits) fun ⟨w, i, z⟩ => by
       simp only [Function.comp_apply, encBits_apply]
-      rw [endpointWord_eq d hlen]
-      congr 1
-      exact lastMidpoint_congr fun p hp => by
-        simp [padZip_run, List.getD_eq_getElem?_getD, length_levelMarks, hp]
+      rw [endpointWord_eq d (by simp [padZip_run, length_levelMarks])]
+      exact congrArg _ (lastMidpoint_congr fun p hp => by
+        simp [padZip_run, List.getD_eq_getElem?_getD, length_levelMarks, hp])
   refine h.mono 40 (fun ⟨w, i, z⟩ => ?_) (fun ⟨w, i, z⟩ => ?_) <;>
   · simp only [Function.comp_apply, padZip_run, length_encPair, encUnary_apply, encBits_apply,
       List.length_replicate, List.length_map, List.length_range, length_levelMarks]

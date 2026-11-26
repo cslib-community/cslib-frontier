@@ -239,30 +239,24 @@ private theorem overmarsBucketStepBounds_insFresh {c U V n_max b q_val v_val rKe
     cases hasFpCollision <;> exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hcnt_ins : fsIns.bktCount b = X + 1 := by
     cases hasFpCollision <;> simp [fsIns, fastInsertFresh, fastInsertAlloc]
-  have hq_ins : ∀ i < n_max, fsIns.quotArr i < 2 ^ quotBitsWhp U n_max := by
-    intro i _
+  have hq_ins (i : ℕ) (_ : i < n_max) : fsIns.quotArr i < 2 ^ quotBitsWhp U n_max := by
     have hqa : fsIns.quotArr =
         Function.update fs.quotArr ((fastInsertAlloc n_max b X fs).physSlot n_max b X) q_val := by
       cases hasFpCollision <;> rfl
     rw [hqa]
-    by_cases hi : i = (fastInsertAlloc n_max b X fs).physSlot n_max b X
-    · subst hi; simp only [Function.update_self]; exact hq_lt
-    · rw [Function.update_of_ne hi]; exact (hv.qv_global i).1
-  have hbp_ins : ∀ k < fsIns.bktCount b - capFrontWhp n_max,
+    rcases eq_or_ne i ((fastInsertAlloc n_max b X fs).physSlot n_max b X) with rfl | hi
+    · simpa only [Function.update_self] using hq_lt
+    · simpa only [Function.update_of_ne hi] using (hv.qv_global i).1
+  have hbp_ins (k : ℕ) (hk : k < fsIns.bktCount b - capFrontWhp n_max) :
       fsIns.backPtr b k < poolSizeWhp n_max := by
-    rw [hcnt_ins]
-    intro k hk
     have hbp_eq : fsIns.backPtr = (fastInsertAlloc n_max b X fs).backPtr := by
       cases hasFpCollision <;> rfl
-    rw [hbp_eq]
-    by_cases hcf : capFrontWhp n_max ≤ X
-    · rw [fastInsertAlloc_backPtr_self hcf]
-      by_cases hk_eq : k = X - capFrontWhp n_max
-      · subst hk_eq; rw [Function.update_self]; exact (hcf_fn hcf).2.2
-      · rw [Function.update_of_ne hk_eq]; exact (hv.backPtr_valid b hb k (by omega)).1
-    · omega
-  have hom_idx : fsIns.overmarsSliceIdx b = fs.overmarsSliceIdx b := by
-    unfold FastState.overmarsSliceIdx; rw [hor_ins]
+    rw [hcnt_ins] at hk
+    rw [hbp_eq, fastInsertAlloc_backPtr_self (by omega)]
+    rcases eq_or_ne k (X - capFrontWhp n_max) with rfl | hk_ne
+    · simpa only [Function.update_self] using (hcf_fn (by omega)).2.2
+    · simpa only [Function.update_of_ne hk_ne] using (hv.backPtr_valid b hb k (by omega)).1
+  have hom_idx : fsIns.overmarsSliceIdx b = fs.overmarsSliceIdx b := congrArg (3 * b + · b) hor_ins
   have hom_sl : fsIns.slices (fs.overmarsSliceIdx b) = fs.slices (fs.overmarsSliceIdx b) := by
     cases hasFpCollision with
     | true => rfl
@@ -280,11 +274,9 @@ private theorem overmarsBucketStepBounds_insFresh {c U V n_max b q_val v_val rKe
   rcases hv.overmars_valid b hb with ⟨ha0, _⟩ | ⟨ha_act, _, hcur_lt, _, hins_le, omMap0, hv0, _⟩
   · by_cases htrig : 5 * (slabScale n_max) ^ 12 ≤ fsIns.liveInsCount b
     · rw [ite_eq_left ⟨ha0, htrig⟩]
-      dsimp only [FastState.overmarsSliceIdx]
-      simp only [Function.update_self]
+      simp only [FastState.overmarsSliceIdx, Function.update_self]
       exact ⟨by omega, by omega, ⟨fun _ => none, validWhpSlice_zero _ 0 _⟩⟩
-    · rw [ite_eq_right fun ⟨_, h⟩ => htrig h] at ha1
-      rw [hoa_ins] at ha1
+    · rw [ite_eq_right fun ⟨_, h⟩ => htrig h, hoa_ins] at ha1
       omega
   · rw [ite_eq_right (by omega), hoc_ins, hoi_ins, hom_idx, hom_sl]
     exact ⟨by omega, by omega, ⟨omMap0, hv0⟩⟩
@@ -376,11 +368,9 @@ theorem realizes_insCommitFreshGen :
     rcases d with ⟨⟨⟨⟨wp, base⟩, ⟨b, X⟩⟩, ⟨q_val, v_val⟩⟩, ⟨hasCol, ⟨rKey, ⟨fp, lIdx⟩⟩⟩⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, hasFpCollision, henv, heq_wp, hseed, hrep, hv,
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, hasFpCollision, henv, rfl, hseed, hrep, hv,
       hb, rfl, hX_tl, hpos_fn, hq_lt, hv_v, rfl, rfl, hfp_lt⟩ := h
-    have hw_eq := henv.2.2.1
-    subst hw_eq
-    subst heq_wp
+    rcases henv.2.2.1 with rfl
     obtain ⟨hcp_eq, hcf_fn, hc_buf, hc_sl, ⟨_, _, hfr_step⟩, hbnds_ins⟩ :=
       insFresh_step_bundle hasFpCollision henv hseed hrep hv hb hX_tl hpos_fn hq_lt hv_v hfp_lt
         (rKey := rKey) (s := s)

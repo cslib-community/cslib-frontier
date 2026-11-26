@@ -65,10 +65,8 @@ theorem exists_add_mul_dist_sq_le (C : Set Y) (hC : IsClosed C) (hne : C.Nonempt
   set I := sInf (Θ '' C)
   have hbdd : BddBelow (Θ '' C) := ⟨0, by rintro _ ⟨x, -, rfl⟩; exact hΘ0 x⟩
   have hle : ∀ y ∈ C, I ≤ Θ y := fun y hy => csInf_le hbdd ⟨y, hy, rfl⟩
-  have hseq : ∀ n : ℕ, ∃ y ∈ C, Θ y < I + 1 / ((n : ℝ) + 1) := fun n => by
-    obtain ⟨_, ⟨y, hy, rfl⟩, h⟩ := Real.lt_sInf_add_pos (hne.image Θ) Nat.one_div_pos_of_nat
-    exact ⟨y, hy, h⟩
-  choose u huC hu using hseq
+  choose u huC hu using fun n : ℕ =>
+    Set.exists_mem_image.1 (Real.lt_sInf_add_pos (hne.image Θ) (Nat.one_div_pos_of_nat (n := n)))
   have hcauchy : CauchySeq u := by
     rw [Metric.cauchySeq_iff]
     intro ε hε
@@ -134,11 +132,9 @@ omit [CompleteCAT0Space Y] in
 inequality, squared and weighted. -/
 private theorem mul_one_sub_mul_dist_sq_le (x v q : Y) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) :
     t * (1 - t) * dist x v ^ 2 ≤ (1 - t) * dist q x ^ 2 + t * dist q v ^ 2 := by
-  have h2 := dist_triangle x q v
-  rw [dist_comm x q] at h2
-  have h3 : t * (1 - t) * dist x v ^ 2 ≤ t * (1 - t) * (dist q x + dist q v) ^ 2 := by
-    have : 0 ≤ t * (1 - t) := mul_nonneg h0 (by linarith)
-    gcongr
+  have h2 := dist_comm x q ▸ dist_triangle x q v
+  have h3 := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ dist_nonneg h2 2)
+    (mul_nonneg h0 (sub_nonneg.2 h1))
   linarith [sq_nonneg ((1 - t) * dist q x - t * dist q v)]
 
 /-- For `t ∈ [0, 1]` some point satisfies the inequality of the point at fraction `t`: the
@@ -237,9 +233,7 @@ theorem dist_sq_add_dist_sq_le (x v y u : Y) :
 /-- **Part (b).** The squared diagonals of a quadrangle add up to at most its squared sides. -/
 theorem dist_sq_add_dist_sq_le_sides (x v y u : Y) :
     dist x v ^ 2 + dist y u ^ 2 ≤ dist x y ^ 2 + dist y v ^ 2 + dist v u ^ 2 + dist x u ^ 2 := by
-  have h := dist_sq_add_dist_sq_le x v y u
-  rw [dist_comm u v] at h
-  linarith [sq_nonneg (dist x y - dist v u)]
+  linarith [dist_comm u v ▸ dist_sq_add_dist_sq_le x v y u, sq_nonneg (dist x y - dist v u)]
 
 /-- **Part (b).** If the squared diagonals of a quadrangle add up to its squared sides,
 opposite sides are equal. -/
@@ -249,11 +243,9 @@ theorem sides_eq_of_dist_sq_add_dist_sq_eq {x v y u : Y}
     dist x y = dist v u ∧ dist y v = dist x u := by
   have h1 := dist_sq_add_dist_sq_le x v y u
   have h2 := dist_sq_add_dist_sq_le x v u y
-  rw [dist_comm u v] at h1
-  rw [dist_comm u y, dist_comm u v] at h2
-  constructor
-  · linarith [(sq_nonpos_iff (dist x y - dist v u)).1 (by linarith)]
-  · linarith [(sq_nonpos_iff (dist y v - dist x u)).1 (by linarith)]
+  simp only [dist_comm u v, dist_comm u y] at h1 h2
+  exact ⟨sub_eq_zero.1 ((sq_nonpos_iff _).1 (by linarith)),
+    sub_eq_zero.1 ((sq_nonpos_iff _).1 (by linarith))⟩
 
 /-! ### Barycenters (part (c)) -/
 
@@ -266,8 +258,7 @@ theorem IsBarycenter.sum_mul_dist_le {ι : Type*} [Fintype ι] {w : ι → ℝ} 
   rcases (dist_nonneg (x := b) (y := b')).eq_or_lt with h0 | h0
   · rw [← h0, mul_zero]
     exact Finset.sum_nonneg fun i _ => mul_nonneg (hw i) dist_nonneg
-  have h1 := h b'
-  rw [dist_comm b' b] at h1
+  have h1 := dist_comm b' b ▸ h b'
   have h3 : ∀ i, w i * dist b' (x i) ^ 2 + w i * dist b (x' i) ^ 2 ≤
       w i * dist b (x i) ^ 2 + w i * dist b' (x' i) ^ 2
         + 2 * dist b b' * (w i * dist (x i) (x' i)) := fun i => by
@@ -355,13 +346,10 @@ private theorem flat_same (hp : dist x u = h) (hp' : dist y v = h) (hq : dist u 
   have h7 := dist_sq_add_dist_sq_le_sides x v u y
   simp only [ha.dist_left hs0 hs1, hb.dist_left hs0 hs1, hp, hp', hq, hq',
     dist_comm y a, dist_comm y x, dist_comm y u, dist_comm v y] at h2 h5 h6 h7
-  have h4 : dist a b = δ := by
-    linarith [(sq_nonpos_iff (dist a b - δ)).1 (by linarith)]
+  have h4 : dist a b = δ := sub_eq_zero.1 ((sq_nonpos_iff _).1 (by linarith))
   rw [h4] at h1
-  have h8 : dist x v ^ 2 + dist u y ^ 2 = 2 * h ^ 2 + 2 * δ ^ 2 := by linarith
-  have h9 : s * dist x v ^ 2 + s * dist u y ^ 2 = s * (2 * h ^ 2 + 2 * δ ^ 2) := by
-    rw [← mul_add, h8]
-  constructor <;> linarith
+  have h9 := congrArg (s * ·) (by linarith : dist x v ^ 2 + dist u y ^ 2 = 2 * h ^ 2 + 2 * δ ^ 2)
+  constructor <;> linarith [mul_add s (dist x v ^ 2) (dist u y ^ 2)]
 
 /-- **Part (f), flat rectangles**, with `a` and `b` given by the inequality of the point at
 fraction `s`, `t`, and lower bounds for the diagonals: `|ab|² = δ² + (s − t)²h²`. -/
@@ -392,10 +380,9 @@ theorem dist_sq_of_flat (hxy : dist x y = δ) (huv : dist u v = δ) (hxu : dist 
     (a1 : dist x a = s * dist x u) (a2 : dist a u = (1 - s) * dist x u)
     (b1 : dist y b = t * dist y v) (b2 : dist b v = (1 - t) * dist y v) :
     dist a b ^ 2 = δ ^ 2 + h ^ 2 * (s - t) ^ 2 := by
-  have := dist_sq_of_flat_of_isPointAt hxu hyv huv hxy (by linarith)
-    (by rw [dist_comm u y]; linarith) hs0 hs1 ht0 ht1 (isPointAt_of_dist hs0 hs1 a1 a2)
-    (isPointAt_of_dist ht0 ht1 b1 b2)
-  linarith
+  linarith [dist_sq_of_flat_of_isPointAt hxu hyv huv hxy ((add_comm _ _).trans d1.symm).le
+    ((add_comm _ _).trans (d2.symm.trans (congrArg (· ^ 2) (dist_comm y u)))).le
+    hs0 hs1 ht0 ht1 (isPointAt_of_dist hs0 hs1 a1 a2) (isPointAt_of_dist ht0 ht1 b1 b2)]
 
 end flat
 

@@ -12,12 +12,14 @@ import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackCertify
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
+import CslibFrontierTests.Logics.Propositional.VeriPBProofText
 import Mathlib.Data.Fin.VecNotation
 -- `#guard` runs the dynamic program, the checkers and `profitDP` at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public meta import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBProofText
 
 /-! Certified knapsack (`CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack`) for an
 ordinary client, which imports the module without `import all`:
@@ -29,7 +31,8 @@ ordinary client, which imports the module without `import all`:
   than the capacity, zero weights and profits, a capacity above the total weight) and on random
   instances of up to `20` items;
 * the instances printed as OPB by the library's printer `Cslib.Logic.PL.VeriPB.Text.printOPB`
-  (`opbText`), and a test-only printer of the proofs as kernel text (`pbpText`), whose output the
+  (`opbText`), and the test-only printer of the proofs as kernel text
+  (`CslibFrontierTests.Logics.Propositional.VeriPBProofText.pbpText`), whose output the
   text front end parses and accepts with the same conclusion. VeriPB 3.0.2 and
   CakePB (cakepb `438b8f8`) report `s VERIFIED BOUNDS` on the printed texts of the instances
   below, as written out by `printCases`.
@@ -42,6 +45,7 @@ set_option linter.hashCommand false
 namespace CslibFrontierTests.Logics.Propositional.VeriPBKnapsack
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Knapsack
+open CslibFrontierTests.Logics.Propositional.VeriPBProofText
 
 /-! ### The theorems for an ordinary client -/
 
@@ -52,15 +56,15 @@ example {n : ℕ} (w p : Fin n → ℕ) (B : ℕ) :
 
 /-- Acceptance of the proof of the dynamic program gives the optimum. -/
 example {n : ℕ} (w p : Fin n → ℕ) (B : ℕ)
-    (h : checkRed (formula w B) (some (objective p)) (certify w p B).proof = true) :
+    (h : checkRed (formula w B) (some (negProfit p)) (certify w p B).proof = true) :
     ∀ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B → ∑ i ∈ S, p i ≤ (certify w p B).optimum :=
   fun S hS => (isGreatest_of_checkRed_certify h).2 ⟨S, hS, rfl⟩
 
 /-- The encoding on an instance: taking the items `0` and `2`, of weight `2 + 4 > 5`, violates
 the capacity, and the objective value is `-(3 + 5)`. -/
 example : ¬ (capacity ![2, 3, 4] 5).Holds (fun v => v == 0 || v == 2) ∧
-    (objective ![3, 4, 5]).eval (fun v => v == 0 || v == 2) = -8 := by
-  rw [holds_capacity_iff, eval_objective]
+    (negProfit ![3, 4, 5]).eval (fun v => v == 0 || v == 2) = -8 := by
+  rw [holds_capacity_iff, eval_negProfit]
   decide
 
 /-! ### Evaluated runs -/
@@ -71,7 +75,7 @@ def run (ws ps : List ℕ) (B : ℕ) : ℕ × Bool × ℕ :=
   let w : Fin ws.length → ℕ := fun i => ws.getD i 0
   let p : Fin ws.length → ℕ := fun i => ps.getD i 0
   let c := certify w p B
-  (c.optimum, checkRed (formula w B) (some (objective p)) c.proof,
+  (c.optimum, checkRed (formula w B) (some (negProfit p)) c.proof,
     ((Cslib.Algorithms.Lean.Knapsack.profitDP w p B (List.finRange ws.length)).map p).sum)
 
 /-- The run is accepted and agrees with `profitDP`. -/
@@ -86,7 +90,7 @@ def shifted (ws ps : List ℕ) (B : ℕ) (d : ℤ) : Bool :=
   let c := certify w p B
   match c.proof.conclusion with
   | .bounds _ q _ _ =>
-    checkRed (formula w B) (some (objective p))
+    checkRed (formula w B) (some (negProfit p))
       ⟨c.proof.steps, .bounds (some (-(c.optimum + d))) q (some (-(c.optimum + d))) none⟩
   | _ => false
 
@@ -121,60 +125,11 @@ def randItems (s m : ℕ) : List ℕ × List ℕ :=
 
 /-! ### Kernel text -/
 
-/-- The name of a literal. -/
-def litText (l : Literal ℕ) : String := (if l.2 then "x" else "~x") ++ toString (l.1 + 1)
-
-/-- A constraint `a₁ ℓ₁ … >= d`. -/
-def constrText (c : PBConstr) : String :=
-  String.join (c.terms.map fun t => s!"{t.1} {litText t.2} ") ++ s!">= {c.degree}"
-
-/-- A witness `x -> 0 …`. -/
-def witnessText (ω : Witness) : String :=
-  " ".intercalate (ω.map fun e => s!"x{e.1 + 1} -> " ++ match e.2 with
-    | .zero => "0"
-    | .one => "1"
-    | .lit l => litText l)
-
-/-- The operations of a `pol` step. -/
-def opText : PolOp → String
-  | .id k => toString k
-  | .lit l => litText l
-  | .add => "+"
-  | .mul k => s!"{k} *"
-  | .div k => s!"{k} d"
-  | .sat => "s"
-  | .weaken v => s!"x{v + 1} w"
-
-/-- A top-level step, in the fragment the dynamic program writes. -/
-def stepText : TopStep → String
-  | .step (.pol ops) => s!"pol {" ".intercalate (ops.map opText)} ;\n"
-  | .step (.rup c hs) =>
-    s!"rup {constrText c} : " ++
-      " ".intercalate (hs.map fun | .neg => "~" | .id k => toString k) ++ " ;\n"
-  | .red c ω (some []) none => s!"red {constrText c} : {witnessText ω} : subproof\nqed ;\n"
-  | .soli ρ => s!"soli {" ".intercalate (ρ.map litText)} ;\n"
-  | .deld ids => s!"deld {" ".intercalate (ids.map toString)} ;\n"
-  | _ => "unsupported ;\n"
-
-/-- An optional bound, `INF` for none. -/
-def boundText : Option ℤ → String
-  | some b => toString b
-  | none => "INF"
-
-/-- A proof for a formula of `m` constraints, in the kernel format. -/
-def pbpText (m : ℕ) (P : RedProof) : String :=
-  s!"pseudo-Boolean proof version 3.0\nf {m} ;\n" ++ String.join (P.steps.map stepText) ++
-    "output NONE ;\n" ++
-    (match P.conclusion with
-      | .bounds lb q ub none => s!"conclusion BOUNDS {boundText lb} : {q} {boundText ub} ;\n"
-      | _ => "conclusion NONE ;\n") ++
-    "end pseudo-Boolean proof ;\n"
-
 /-- The knapsack instance as OPB text, by the library's printer. -/
 def opbText (ws ps : List ℕ) (B : ℕ) : String :=
   let w : Fin ws.length → ℕ := fun i => ws.getD i 0
   let p : Fin ws.length → ℕ := fun i => ps.getD i 0
-  Text.printOPB ⟨formula w B, some (objective p), none⟩
+  Text.printOPB ⟨formula w B, some (negProfit p), none⟩
 
 /-- The proof of the dynamic program as kernel text. -/
 def proofText (ws ps : List ℕ) (B : ℕ) : String :=

@@ -119,17 +119,14 @@ theorem exists_int_gramPrefixDet {b : Fin n → E} (hb : HasIntegralGram b) {k :
   choose Z hZ using hb
   refine ⟨(Matrix.of fun i j : Fin k => Z (Fin.castLE hk i) (Fin.castLE hk j)).det, ?_⟩
   rw [gramPrefixDet_eq_det b hk, Int.cast_det]
-  congr 1
-  ext i j
-  simp only [Matrix.gram_apply, Function.comp_apply, hZ, Matrix.map_apply, Matrix.of_apply]
+  exact congrArg Matrix.det (Matrix.ext fun i j => by simp [Matrix.gram_apply, hZ])
 
 /-- With integral inner products and linear independence, `1 ≤ dₖ` for `k ≤ n`. -/
 theorem one_le_gramPrefixDet {b : Fin n → E} (hli : LinearIndependent ℝ b)
     (hb : HasIntegralGram b) {k : ℕ} (hk : k ≤ n) : 1 ≤ gramPrefixDet b k := by
   obtain ⟨z, hz⟩ := exists_int_gramPrefixDet hb hk
-  have hpos := gramPrefixDet_pos hli k
-  rw [hz] at hpos ⊢
-  exact_mod_cast (Int.cast_pos.1 hpos : 0 < z)
+  rw [hz]
+  exact_mod_cast Int.cast_pos.1 (hz ▸ gramPrefixDet_pos hli k)
 
 /-- With integral inner products and linear independence, `1 ≤ D`
 ([LenstraLenstraLovasz1982], (1.26)). -/
@@ -167,10 +164,8 @@ theorem exists_int_inner_of_mem_span {b : Fin n → E} (hb : HasIntegralGram b)
   obtain ⟨u, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hx
   obtain ⟨w, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hy
   refine ⟨∑ k, ∑ l, u k * w l * Z k l, ?_⟩
-  simp_rw [sum_inner, inner_sum, ← Int.cast_smul_eq_zsmul ℝ, inner_smul_left, inner_smul_right, hZ,
-    conj_trivial]
-  push_cast
-  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+  simp_rw [sum_inner, inner_sum, ← Int.cast_smul_eq_zsmul ℝ, inner_smul_left, inner_smul_right, hZ]
+  simp only [conj_trivial, Int.cast_sum, Int.cast_mul, mul_assoc]
 
 /-- Integral inner products pass to families inside the integer span. -/
 theorem HasIntegralGram.of_span_le {m : ℕ} {b : Fin n → E} {c : Fin m → E}
@@ -278,11 +273,10 @@ theorem gramSchmidt_swap_self (b : Fin n → E) {i j : Fin n} (hij : (j : ℕ) =
   symm
   refine eq_gramSchmidt_of_sub_mem_of_mem_orthogonal ?_ ?_
   · rw [himg, Function.comp_apply, Equiv.swap_apply_left, ← span_gramSchmidt_Iio ℝ b i]
-    have hexp := gramSchmidt_add_sum_coeff (𝕜 := ℝ) b j
-    rw [Iio_succ_eq_insert hij, Finset.sum_insert (by simp)] at hexp
     have hsub : gramSchmidt ℝ b j + gramSchmidtCoeff ℝ b j i • gramSchmidt ℝ b i - b j =
         -∑ l ∈ Finset.Iio i, gramSchmidtCoeff ℝ b j l • gramSchmidt ℝ b l := by
-      conv_lhs => rw [hexp]
+      rw [gramSchmidt_add_sum_coeff (𝕜 := ℝ) b j, Iio_succ_eq_insert hij,
+        Finset.sum_insert (by simp)]
       abel
     rw [hsub]
     exact neg_mem (Submodule.sum_mem _ fun l hl =>
@@ -308,10 +302,8 @@ theorem gramPrefixDet_succ (b : Fin n → E) (l : Fin n) :
   have hset : Finset.univ.filter (fun m : Fin n => (m : ℕ) < l + 1) =
       insert l (Finset.univ.filter fun m : Fin n => (m : ℕ) < l) := by
     ext m
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert, Fin.ext_iff]
-    omega
-  rw [gramPrefixDet, hset, Finset.prod_insert (by simp), mul_comm]
-  rfl
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert, Fin.ext_iff]; omega
+  rw [gramPrefixDet, gramPrefixDet, hset, Finset.prod_insert (by simp), mul_comm]
 
 /-- Swapping `bᵢ` and `bᵢ₊₁` leaves `dₘ` unchanged for `m ≤ i`. -/
 theorem gramPrefixDet_swap_of_le {b : Fin n → E} {i j : Fin n} (hij : (j : ℕ) = i + 1)
@@ -410,9 +402,8 @@ theorem inv_pow_swapCount_le {δ B : ℝ} (hδ : 0 < δ) {b : ℕ → Fin n → 
     (T : ℕ) (hstep : ∀ t < T, IsStep δ (b t) (b (t + 1))) :
     δ⁻¹ ^ swapCount δ b T ≤ B ^ (n * (n - 1) / 2) := by
   obtain ⟨hliT, hintT, hpotT⟩ := run_invariant hδ hli hint T hstep
-  have h1 := one_le_potential hliT hintT
   calc δ⁻¹ ^ swapCount δ b T ≤ potential (b T) * δ⁻¹ ^ swapCount δ b T :=
-        le_mul_of_one_le_left (pow_nonneg (inv_nonneg.2 hδ.le) _) h1
+        le_mul_of_one_le_left (pow_nonneg (inv_nonneg.2 hδ.le) _) (one_le_potential hliT hintT)
     _ ≤ potential (b 0) := hpotT
     _ ≤ B ^ (n * (n - 1) / 2) := potential_le hB
 

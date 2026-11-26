@@ -217,8 +217,7 @@ theorem corruptRouter_comp {ιJ : Type} {J : ιJ → Type} (C : Finset (Fin n))
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q
   · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte] <;> rfl
   · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-    · exact (StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm
-    · rfl
+    exacts [(StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm, rfl]
   · exact (StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm
 
 /-! ### The subroutine's environment -/
@@ -503,24 +502,20 @@ private theorem handle_swap
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q | q
   · erw [liftAdversary_handle_inl, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inl, routeCorrupt_handle_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      rfl
-    · simp only [hi, ↓reduceIte]
-      erw [hybridWrap_handle_inl, hybridWrap_handle_inl, runFrom_liftAdversary_liftParty]
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · rfl
+    · erw [hybridWrap_handle_inl, hybridWrap_handle_inl, runFrom_liftAdversary_liftParty]
       repeat erw [Functor.map_map]
       rfl
   · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, Machine.liftRightProgram_map,
       Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      erw [hybridWrap_handle_inl, hybridWrap_handle_inl, Machine.runFrom_map,
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · erw [hybridWrap_handle_inl, hybridWrap_handle_inl, Machine.runFrom_map,
         runFrom_liftAdversary_liftParty]
       repeat erw [Functor.map_map]
       rfl
-    · simp only [hi, ↓reduceIte]
-      rfl
+    · rfl
   · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, Machine.liftRightProgram_map,
       Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl,
@@ -649,12 +644,10 @@ theorem isBounded_routeCorrupt {ιI : Type} {I : ιI → Type} (C : Finset (Fin 
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q
   · erw [routeCorrupt_handle_inl]
     split_ifs
-    · exact .pure _ _
-    · exact h.2 _ s
+    exacts [.pure _ _, h.2 _ s]
   · erw [routeCorrupt_handle_inr_inl]
     split_ifs
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (h.2 _ s)
-    · exact .pure _ _
+    exacts [(OracleComp.isCostBounded_map_iff _ _ _).mpr (h.2 _ s), .pure _ _]
   · erw [routeCorrupt_handle_inr_inr]
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (h.2 _ s)
 

@@ -194,9 +194,8 @@ private theorem attach_dormant_legal (p : ℕ) (q : Quantifier) (qs : List Quant
     (((head p q).comp (circuit (p + 1) qs ms)).graph Gate.interp).Legal
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient) := by
   refine (legal_comp_iff _ _ _).2 ⟨?_, ?_⟩
-  · rw [show attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
-        compLeft (head p q) (circuit (p + 1) qs ms) = _ from funext (glueComp_compLeft _ _ _ _)]
-    exact legal_glueTensor hu (wires p ls hl).legal
+  · convert legal_glueTensor hu (wires p ls hl).legal using 1
+    exact funext (glueComp_compLeft _ _ _ _)
   · apply legal_dormant (p + 1) qs ms
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
         compRight (head p q) (circuit (p + 1) qs ms)) (fun _ => rfl)
@@ -307,9 +306,9 @@ private theorem call_path (p : ℕ) (q : Quantifier) (qs : List Quantifier)
   have hp := reachableOn_glueResponse_allowsTop j fp hfp h (allowed := AllowsTop 0)
     (fun u hu => ?_) (call_allowed p q qs ms)
   · have hs : (config (p + 1) qs ms true ([value, !value] ++ ls)
-        (by simp [hl]; omega)).orient (.inl j) = true :=
-      (Realization.orient_top _ _).trans rfl
-    simp only [glueResponse, hs, show t (.inl j) = false from hsat] at hp
+        (by simp [hl]; omega)).orient (.inl j) = true := Realization.orient_top _ j
+    change t (.inl j) = false at hsat
+    simp only [glueResponse, hs, hsat] at hp
     exact hp
   · apply attach_legal p q qs ms ls hl (f (u (.inl j)))
       (hu.reachable.legal (config (p + 1) qs ms true ([value, !value] ++ ls)
@@ -489,11 +488,8 @@ theorem canReverse_of_truth (qs : List Quantifier) (ms : List (List Bool))
     (h : Chain.Truth (Satisfies ms) qs []) :
     ((body qs ms).graph Gate.interp).CanReverse (Initial.body qs ms).orient (.inl 0) := by
   obtain ⟨t, ht, hsat⟩ := Completeness.execute qs [] ms h
-  let t' : (body qs ms).Edge → Bool := t
-  refine ⟨t',
-    (Relation.ReflTransGen.single (Completeness.activate_body qs ms)).trans ht.reachable, ?_⟩
-  rw [show t' (.inl 0) = false from hsat, Realization.orient_top]
-  decide +kernel
+  exact ⟨t, (Relation.ReflTransGen.single (Completeness.activate_body qs ms)).trans ht.reachable,
+    fun h => nomatch hsat.symm.trans (h.trans (Realization.orient_top _ _))⟩
 
 /-- Reversing the actual body's sat wire from its canonical initial configuration is
 equivalent to the quantified matrix, for every prefix and CNF. -/

@@ -90,11 +90,7 @@ and continues with the branch for the answer. -/
   | pure => rfl
   | lift_bind i k ih =>
     rw [ofFreeM_lift_bind, toFreeM_node]
-    congr 1
-    funext b
-    cases b
-    · exact ih false
-    · exact ih true
+    exact congrArg _ (funext fun b => by cases b <;> exact ih _)
 
 /-- Decision trees over `ι` are exactly the free programs of the Boolean query interface
 `monomial ι Bool`. -/
@@ -118,9 +114,7 @@ theorem eval_toFreeM (t : DecisionTree ι β) (x : ι → Bool) :
   | leaf => rfl
   | node i t₀ t₁ ih₀ ih₁ =>
     change FreeM.foldFreeM id _ (cond (x i) t₁.toFreeM t₀.toFreeM) = cond (x i) _ _
-    cases x i
-    · exact ih₀
-    · exact ih₁
+    cases x i <;> assumption
 
 /-- A free program over Boolean queries, answered from `x`, returns what its decision tree
 returns on `x`. -/

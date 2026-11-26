@@ -257,8 +257,7 @@ private theorem mul_exp_le_of_settles {α T eps2 K : ℚ} {N : ℕ} (hα : 0 < �
         gcongr
         exact hX0.trans hX
     _ = (K : ℝ) * Real.exp (-((2 * α * T : ℚ) : ℝ)) := by
-        push_cast
-        ring_nf
+        push_cast; ring_nf
     _ ≤ eps2 := mul_exp_neg_le (by positivity) he.le hs
 
 /-! ### Decay certificates -/
@@ -326,14 +325,11 @@ private theorem facts (h : c.check G = true) :
   have ho := c.outputW.posSemidef_of_checkPosSemidef ho
   have hi := c.inputW.posSemidef_of_checkPosSemidef hi
   change (re _).PosSemidef at hd hl hh ho hi
-  rw [re_rowsLin, re_lyapunovResidual] at hd
-  rw [re_rowsLin, re_rowsOne] at hl hh hi
-  rw [re_rowsLin, re_rowsGram] at ho
-  rw [re_rowsCongr] at hi
+  simp only [re_rowsLin, re_lyapunovResidual, re_rowsOne, re_rowsGram,
+    re_rowsCongr] at hd hl hh ho hi
   refine ⟨hα, hlo, hlh, hγ, hβ, ?_, ?_, ?_, ?_, ?_⟩
   · convert hd using 1
-    simp only [RatLTI.toSystem, Rat.cast_one, one_smul, Rat.cast_mul, Rat.cast_ofNat]
-    abel
+    simp only [RatLTI.toSystem, Rat.cast_one, one_smul, Rat.cast_mul, Rat.cast_ofNat]; abel
   · simpa using hl
   · simpa using hh
   · simpa [RatLTI.toSystem] using ho
@@ -366,8 +362,7 @@ theorem isExponentiallyStable (h : c.check G = true) :
   refine pow_le_pow_iff_left₀ (norm_nonneg _) hr two_ne_zero |>.1 ?_
   rw [mul_pow, mul_pow, Real.sq_sqrt hhl, ← Real.exp_nat_mul]
   convert hb using 3
-  push_cast
-  ring_nf
+  push_cast; ring_nf
 
 /-- **Certified output decay from an initial state.** If the kernel accepts `c` for `G`, every
 solution of `x' = A *ᵥ x` on `[0, ∞)` has `‖C x t‖₂² ≤ γ hi exp (-2 α t) ‖x 0‖₂²` for `t ≥ 0`.
@@ -400,10 +395,9 @@ theorem responseKernel_mulVec_sq_le_peak (h : c.check G = true) (v : Fin m → �
   refine (responseKernel_mulVec_sq_le h v ht).trans ?_
   have he : Real.exp (-(2 * (c.α : ℝ)) * t) ≤ 1 :=
     Real.exp_le_one_iff.2 (by nlinarith [(by exact_mod_cast hα : (0 : ℝ) < c.α)])
-  have := mul_nonneg (mul_nonneg (by exact_mod_cast hγ : (0 : ℝ) ≤ c.γ)
-    (by exact_mod_cast hβ : (0 : ℝ) ≤ c.β)) (dotProduct_self_star_nonneg v)
-  simp only [star_trivial] at this
-  nlinarith
+  have hv0 : 0 ≤ v ⬝ᵥ v := by simpa using dotProduct_self_star_nonneg v
+  have hgb : (0 : ℝ) ≤ c.γ * c.β := by exact_mod_cast mul_nonneg hγ hβ
+  nlinarith [mul_nonneg hgb hv0]
 
 variable (c) in
 /-- Whether `c` certifies settling of the impulse response below `ε` after time `T` for inputs
@@ -499,11 +493,9 @@ theorem integral_Ioi_frobeniusSq_le_of_tailBelow (h : c.check G = true) {tail T 
   simp only [tailBelow, Bool.and_eq_true, decide_eq_true_eq] at hs
   obtain ⟨⟨hT, htail⟩, hs⟩ := hs
   have hα : (0 : ℚ) < c.α := (facts h).1
-  have hx : (0 : ℚ) ≤ 2 * c.α * T := by positivity
   refine (integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le h (by exact_mod_cast hT)).2.trans ?_
-  refine le_of_eq_of_le ?_ (mul_exp_neg_le hx htail hs)
-  push_cast
-  ring_nf
+  refine le_of_eq_of_le ?_ (mul_exp_neg_le (by positivity) htail hs)
+  push_cast; ring_nf
 
 end DecayCert
 
@@ -518,8 +510,7 @@ private theorem re_gramianResidual {n m p : ℕ} (G : RatLTI n m p) (W : List (L
     re (ofLists n n (gramianResidual G W)) = -(G.toSystem.Aᵀ * re (ofLists n n W) +
       re (ofLists n n W) * G.toSystem.A + G.toSystem.Cᵀ * G.toSystem.C) := by
   rw [gramianResidual, re_rowsLin, re_lyapunovResidual, re_rowsGram]
-  simp only [Rat.cast_one, one_smul, RatLTI.toSystem]
-  abel
+  simp only [Rat.cast_one, one_smul, RatLTI.toSystem]; abel
 
 /-- An exact energy certificate for a `RatLTI n m p` model: a Lyapunov certificate (`P` and its
 witnesses) proving exponential stability, a symmetric-or-not `W` with
@@ -608,11 +599,10 @@ theorem integrableOn_Ioi_and_integral_le (h : c.check G = true) :
       ∫ t in Ioi 0, ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2 ≤ c.bound := by
   simp only [check, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨⟨⟨-, hW⟩, hR⟩, hb⟩ := h
-  have hW := c.posW.posSemidef_of_checkPosSemidef hW
-  have hR := c.dissipationW.posSemidef_of_checkPosSemidef hR
-  change (re _).PosSemidef at hR
+  have hR : (re _).PosSemidef := c.dissipationW.posSemidef_of_checkPosSemidef hR
   rw [re_gramianResidual] at hR
-  have := LTISystem.integrableOn_Ioi_and_integral_frobeniusSq_le hW hR
+  have := LTISystem.integrableOn_Ioi_and_integral_frobeniusSq_le
+    (c.posW.posSemidef_of_checkPosSemidef hW) hR
   rw [trace_toSystem] at this
   exact ⟨this.1, this.2.trans (by exact_mod_cast hb)⟩
 

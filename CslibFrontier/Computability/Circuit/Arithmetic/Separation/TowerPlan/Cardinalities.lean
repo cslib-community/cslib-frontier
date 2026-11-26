@@ -135,8 +135,7 @@ theorem card_relay_le : Fintype.card (Relay T m A) ≤ 8 * V ^ 5 := by
   have h3 := card_Ed_le_pow (T := T) hD hV le_rfl
   refine (add_le_add h0 (add_le_add h1 (add_le_add h2 h3))).trans ?_
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hV.one_le
-  ring_nf
-  omega
+  ring_nf; omega
 
 /-- The law moves are at most `V ^ 4`. -/
 theorem card_vertexMove_le (hb : 0 < b) : Fintype.card (VertexMove FL) ≤ V ^ 4 := by
@@ -173,8 +172,7 @@ theorem card_moveChannel_le : Fintype.card (MoveChannel R ch FL) ≤ 17 * V ^ 6 
     calc _ = ∑ _ω : T.V (j + 1) i, ∑ _d : FL.Kind, Fintype.card T.Nr :=
           sum_congr rfl fun ω _ => sum_congr rfl fun d _ => Fintype.card_congr (FL.nearPair d)
       _ = Fintype.card FL.Kind * (Fintype.card (T.V (j + 1) i) * Fintype.card T.Nr) := by
-          simp only [sum_const, card_univ, smul_eq_mul]
-          ring
+          simp only [sum_const, card_univ, smul_eq_mul]; ring
       _ ≤ V * V ^ 3 := Nat.mul_le_mul hV.card_kind_le ((Tower.card_V_mul_card_Nr_le j.2 i).trans
           (card_Ed_le_pow hD hV j.2))
       _ = V ^ 4 := by ring
@@ -203,11 +201,11 @@ theorem card_role_le (hb : 0 < b) (Pl : Placement T ch A') :
 theorem card_planUnit_le (Pl : Placement T ch A') (hU0 : U0 ≤ V) (hU1 : U1 ≤ V) :
     Fintype.card (PlanUnit R FL Pl U0 U1) ≤ 18 * V ^ 7 := by
   rw [card_planUnit, numUnits]
-  have h1 : A * A * U0 ≤ V * V * V := Nat.mul_le_mul (Nat.mul_le_mul hV.base_le hV.base_le) hU0
-  have h2 := Nat.mul_le_mul (card_moveChannel_le (R := R) (ch := ch) hD hV) hU1
-  have h3 : V * V * V ≤ V ^ 7 := by
-    simpa [pow_three, mul_assoc] using Nat.pow_le_pow_right hV.one_le (show 3 ≤ 7 by norm_num)
-  have h4 : 17 * V ^ 6 * V = 17 * V ^ 7 := by ring
+  have h1 : A * A * U0 ≤ V ^ 7 :=
+    (Nat.mul_le_mul (Nat.mul_le_mul hV.base_le hV.base_le) hU0).trans
+      (by simpa [pow_three, mul_assoc] using Nat.pow_le_pow_right hV.one_le (show 3 ≤ 7 by decide))
+  have h2 := (Nat.mul_le_mul (card_moveChannel_le (R := R) (ch := ch) hD hV) hU1).trans_eq
+    (by ring : 17 * V ^ 6 * V = 17 * V ^ 7)
   omega
 
 /-- The targets of units are at most `12 V ^ 5`. -/
@@ -215,10 +213,9 @@ theorem card_target_le (hb : 0 < b) : Fintype.card (Target T m A) ≤ 12 * V ^ 5
   rw [← Fintype.card_congr (proxy_equiv% (Target T m A))]
   simp only [Fintype.card_sum, Fintype.card_sigma, Fintype.card_unique, sum_const, card_univ,
     smul_eq_mul]
-  have hpair : Fintype.card (Sym2 T.Fl) ≤ V * V := by
-    refine (Fintype.card_le_of_surjective _ Sym2.mk_surjective).trans ?_
-    rw [Fintype.card_prod, T.card_fl]
-    exact Nat.mul_le_mul hV.places_le hV.places_le
+  have hpair : Fintype.card (Sym2 T.Fl) ≤ V * V :=
+    (Fintype.card_le_of_surjective _ Sym2.mk_surjective).trans
+      (by simpa [T.card_fl] using Nat.mul_le_mul hV.places_le hV.places_le)
   have h1 : ∑ j : Fin (J + 1), Fintype.card (T.Ed j) ≤ (V + 1) * V ^ 3 :=
     (sum_le_card_nsmul _ _ _ fun j _ => card_Ed_le_pow hD hV (Nat.le_of_lt_succ j.2)).trans <| by
       simpa using Nat.mul_le_mul_right (V ^ 3) (Nat.succ_le_succ hV.stages_le)
@@ -228,8 +225,7 @@ theorem card_target_le (hb : 0 < b) : Fintype.card (Target T m A) ≤ 12 * V ^ 5
   have h3 := card_relay_le (m := m) hD hV
   refine (Nat.add_le_add_left (add_le_add h1 (add_le_add h3 h2)) 1).trans ?_
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hV.one_le
-  ring_nf
-  omega
+  ring_nf; omega
 
 /-- The nodes of the tree are at most `3 V ^ 2`. -/
 theorem card_node_le : Fintype.card T.Node ≤ 3 * V ^ 2 := by

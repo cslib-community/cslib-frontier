@@ -163,15 +163,13 @@ theorem isTop_or_isBottom_of_extremal (hP : F.IsPareto) (hI : F.IsIIA)
   -- Move `c` just above `a` without moving `b`.
   let Q : Profile V A := fun i =>
     if (P i).IsTop b then ((P i).toTop c).toTop b else ((P i).toTop c).toBottom b
-  have hQ : ∀ i, ((P i).IsTop b ∧ (Q i).IsTop b) ∨ ((P i).IsBottom b ∧ (Q i).IsBottom b) := by
-    intro i
-    simp only [Q]
+  have hQ (i : V) : ((P i).IsTop b ∧ (Q i).IsTop b) ∨ ((P i).IsBottom b ∧ (Q i).IsBottom b) := by
+    dsimp only [Q]
     split_ifs with ht
     · exact .inl ⟨ht, ((P i).toTop c).isTop_toTop b⟩
     · exact .inr ⟨(hb i).resolve_left ht, ((P i).toTop c).isBottom_toBottom b⟩
-  have hca : ∀ i, (Q i).Prefers c a := by
-    intro i
-    simp only [Q]
+  have hca (i : V) : (Q i).Prefers c a := by
+    dsimp only [Q]
     split_ifs
     · exact (((P i).toTop c).toTop_prefers_of_ne hcb hab).2 ((P i).isTop_toTop c a hac)
     · exact (((P i).toTop c).toBottom_prefers_of_ne hcb hab).2 ((P i).isTop_toTop c a hac)
@@ -209,26 +207,20 @@ private theorem exists_isPivot [Finite V] (hP : F.IsPareto) (hI : F.IsIIA)
   obtain ⟨r⟩ := Ranking.nonempty A
   obtain ⟨a, hab, -⟩ := exists_ne_ne h3 b b
   let P : Finset V → Profile V A := fun S j => if j ∈ S then r.toTop b else r.toBottom b
-  have hext : ∀ S j, (P S j).IsTop b ∨ (P S j).IsBottom b := by
-    intro S j
-    simp only [P]
+  have hext (S : Finset V) (j : V) : (P S j).IsTop b ∨ (P S j).IsBottom b := by
+    dsimp only [P]
     split_ifs
     exacts [.inl (r.isTop_toTop b), .inr (r.isBottom_toBottom b)]
   let T : Finset V → Prop := fun S => (F (P S)).IsTop b
-  have h0 : ¬ T ∅ := by
-    intro hT
-    have hlow : (F (P ∅)).Prefers a b := hP _ a b fun j => by
-      simp only [P, Finset.notMem_empty, ite_false]
-      exact r.isBottom_toBottom b a hab
-    exact (F (P ∅)).prefers_asymm hlow (hT a hab)
+  have h0 : ¬ T ∅ := fun hT => (F (P ∅)).prefers_asymm (hP _ a b fun j => by
+    simpa only [P, Finset.notMem_empty, ite_false] using r.isBottom_toBottom b a hab) (hT a hab)
   have huniv : T Finset.univ := fun x hx => hP _ b x fun j => by
-    simp only [P, Finset.mem_univ, ite_true]
-    exact r.isTop_toTop b x hx
+    simpa only [P, Finset.mem_univ, ite_true] using r.isTop_toTop b x hx
   obtain ⟨S, n, hn, hS, hS'⟩ := exists_insert_flip h0 _ huniv
   refine ⟨n, P S, P (insert n S), fun j hj => ?_, hext S, ?_, ?_, ?_, hS'⟩
   · simp only [P, Finset.mem_insert, hj, false_or]
-  · simp only [P, hn, ite_false]; exact r.isBottom_toBottom b
-  · simp only [P, Finset.mem_insert, true_or, ite_true]; exact r.isTop_toTop b
+  · simpa only [P, hn, ite_false] using r.isBottom_toBottom b
+  · simpa only [P, Finset.mem_insert, true_or, ite_true] using r.isTop_toTop b
   · exact (isTop_or_isBottom_of_extremal hP hI h3 (hext S)).resolve_left hS
 
 /-- An extremely pivotal voter for `b` dictates society's comparison of every pair of
@@ -244,39 +236,36 @@ private theorem IsPivot.prefers (hI : F.IsIIA) {b : A} {n : V} (hn : IsPivot F b
     else if (P₁ j).IsTop b then (P j).toTop b else (P j).toBottom b
   have hxy' : x ≠ y := (P n).ne_of_prefers hxy
   -- `Q` keeps `b` where `P₁` has it, for every voter other than `n`.
-  have hQ : ∀ j, j ≠ n → ((P₁ j).IsTop b ∧ (Q j).IsTop b) ∨
+  have hQ (j : V) (hj : j ≠ n) : ((P₁ j).IsTop b ∧ (Q j).IsTop b) ∨
       ((P₁ j).IsBottom b ∧ (Q j).IsBottom b) := by
-    intro j hj
     simp only [Q, hj, ite_false]
     split_ifs with ht
     · exact .inl ⟨ht, (P j).isTop_toTop b⟩
     · exact .inr ⟨(hext j).resolve_left ht, (P j).isBottom_toBottom b⟩
-  have hQn : Q n = ((P n).toTop b).toTop x := by simp only [Q, ite_true]
   -- Society ranks `x` above `b` at `Q`, as at `P₁`.
   have h1 : (F Q).Prefers x b := by
     refine (hI.prefers_iff fun j => ?_).1 (hF₁ x hxb)
     by_cases hj : j = n
     · subst hj
-      rw [hQn]
-      exact iff_of_true (h₁n x hxb) (((P j).toTop b).isTop_toTop x b hxb.symm)
+      refine iff_of_true (h₁n x hxb) ?_
+      simpa only [Q, ite_true] using ((P j).toTop b).isTop_toTop x b hxb.symm
     · exact prefers_iff_of_extremal (hQ j hj) (Or.inr rfl)
   -- Society ranks `b` above `y` at `Q`, as at `P₂`.
   have h2 : (F Q).Prefers b y := by
     refine (hI.prefers_iff fun j => ?_).1 (hF₂ y hyb)
     by_cases hj : j = n
     · subst hj
-      rw [hQn]
       refine iff_of_true (h₂n y hyb) ?_
-      rw [((P j).toTop b).toTop_prefers_of_ne hxb.symm (Ne.symm hxy')]
-      exact (P j).isTop_toTop b y hyb
+      simpa only [Q, ite_true, ((P j).toTop b).toTop_prefers_of_ne hxb.symm (Ne.symm hxy')]
+        using (P j).isTop_toTop b y hyb
     · rw [← hP₁₂ j hj]
       exact prefers_iff_of_extremal (hQ j hj) (Or.inl rfl)
   -- `Q` agrees with `P` on `x` versus `y`.
   refine (hI.prefers_iff fun j => ?_).2 ((F Q).prefers_trans h1 h2)
   by_cases hj : j = n
   · subst hj
-    rw [hQn]
-    exact iff_of_true hxy (((P j).toTop b).isTop_toTop x y (Ne.symm hxy'))
+    refine iff_of_true hxy ?_
+    simpa only [Q, ite_true] using ((P j).toTop b).isTop_toTop x y (Ne.symm hxy')
   · simp only [Q, hj, ite_false]
     split_ifs
     · exact ((P j).toTop_prefers_of_ne hxb hyb).symm

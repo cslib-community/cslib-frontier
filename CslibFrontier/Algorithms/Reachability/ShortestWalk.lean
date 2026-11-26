@@ -89,20 +89,14 @@ theorem IsSrcTgtSeparator.not_isSrcTgtWalk {V : List α} {arc : α → α → Bo
     ¬ IsSrcTgtWalk V arc src tgt p := by
   obtain ⟨-, hsrc, hcl, htgt⟩ := hR
   rintro ⟨hne, hhead, hlast, hmem, hchain⟩
-  have key {p : List α} : ∀ (hne : p ≠ []), p.head hne ∈ R → (∀ z ∈ p, z ∈ V) →
-      List.IsChain (fun u v => arc u v = true) p → p.getLast hne ∈ R := by
-    induction p with
-    | nil => intro hne; exact absurd rfl hne
-    | cons a t ih =>
-      intro _ ha hmem hchain
-      rcases t with _ | ⟨b, t⟩
-      · simpa using ha
-      · exact List.getLast_cons (a := a) (List.cons_ne_nil b t) ▸
-          ih (List.cons_ne_nil b t) (hcl a ha b (hmem b (by simp)) hchain.rel)
-            (fun z hz => hmem z (List.mem_cons_of_mem a hz)) hchain.tail
-  have hR := key hne (hsrc _ (hmem _ (List.head_mem hne)) hhead) hmem hchain
-  rw [htgt _ hR] at hlast
-  exact Bool.false_ne_true hlast
+  replace hhead : p.head hne ∈ R := hsrc _ (hmem _ (List.head_mem hne)) hhead
+  induction p with
+  | nil => exact absurd rfl hne
+  | cons a t ih =>
+    rcases t with _ | ⟨b, t⟩
+    · exact Bool.false_ne_true (htgt a hhead ▸ hlast)
+    · exact ih (List.cons_ne_nil b t) hlast (fun z hz => hmem z (List.mem_cons_of_mem a hz))
+        hchain.tail (hcl a hhead b (hmem b (by simp)) hchain.rel)
 
 variable [DecidableEq α]
 
@@ -176,18 +170,9 @@ private theorem of_mem_bfsNew {found : List (α × List α)} {x : α × List α}
 private theorem exists_mem_bfsNew {found : List (α × List α)} {v : α} (hv : v ∈ V)
     (hnot : ∀ e ∈ found, e.1 ≠ v) (harc : ∃ e ∈ found, arc e.1 v = true) :
     ∃ w, (v, w) ∈ bfsNew V arc found := by
-  have hany : ¬ found.any (fun e => e.1 == v) = true := by
-    rw [List.any_eq_true]
-    rintro ⟨e, he, heq⟩
-    exact hnot e he (by simpa using heq)
-  obtain ⟨e, hfind⟩ : ∃ e, found.find? (fun e => arc e.1 v) = some e := by
-    rcases h : found.find? (fun e => arc e.1 v) with _ | e
-    · obtain ⟨e, he, harc⟩ := harc
-      exact absurd harc (by simpa using List.find?_eq_none.mp h e he)
-    · exact ⟨e, h⟩
-  refine ⟨e.2 ++ [v], List.mem_filterMap.mpr ⟨v, hv, ?_⟩⟩
-  rw [ite_eq_right hany, hfind]
-  rfl
+  have hany : found.any (fun e => e.1 == v) = false := by simpa using hnot
+  obtain ⟨e, hfind⟩ := Option.isSome_iff_exists.mp (List.find?_isSome.mpr harc)
+  exact ⟨e.2 ++ [v], List.mem_filterMap.mpr ⟨v, hv, by simp [hany, hfind]⟩⟩
 
 private theorem sound_step {k : ℕ} {found : List (α × List α)} (hS : Sound V arc src k found) :
     Sound V arc src (k + 1) (found ++ bfsNew V arc found) := by
@@ -197,21 +182,14 @@ private theorem sound_step {k : ℕ} {found : List (α × List α)} (hS : Sound 
     exact ⟨hne, hhead, hlast, hwalk, by omega⟩
   · obtain ⟨hv, -, e, he, harc, hx2⟩ := of_mem_bfsNew hx
     obtain ⟨hne, hhead, hlast, ⟨hmem, hchain⟩, hlen⟩ := hS e he
-    have hne' : x.2 ≠ [] := by simp [hx2]
-    refine ⟨hne', ?_, ?_, ⟨?_, ?_⟩, ?_⟩
-    · simpa [hx2, List.head_append_of_ne_nil hne] using hhead
-    · simp [hx2]
+    refine ⟨by simp [hx2], by simpa [hx2, List.head_append_of_ne_nil hne] using hhead,
+      by simp [hx2], ⟨?_, ?_⟩, ?_⟩
     · rw [hx2]
       exact List.forall_mem_append.mpr ⟨hmem, List.forall_mem_singleton.mpr hv⟩
     · rw [hx2]
-      refine List.IsChain.append hchain (List.isChain_singleton _) ?_
-      intro a ha b hb
-      rw [List.getLast?_eq_some_getLast hne, Option.mem_def, Option.some.injEq] at ha
-      simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hb
-      subst ha hb
-      rwa [hlast]
-    · simp only [hx2, List.length_append, List.length_singleton]
-      omega
+      exact List.IsChain.append hchain (List.isChain_singleton _) fun a ha b hb => by
+        simp_all [List.getLast?_eq_some_getLast hne]
+    · simp [hx2]; omega
 
 private theorem complete_step {k : ℕ} {found : List (α × List α)}
     (hC : Complete V arc src k found) :

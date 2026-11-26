@@ -192,9 +192,9 @@ private theorem exists_sectionEvent_eq_some_iff {k x v : ℕ} :
     split_ifs at hn with hlen
     obtain ⟨z, hz, hv⟩ := Option.bind_eq_some_iff.mp hn
     split_ifs at hv with hx
-    obtain rfl := Option.some.inj hv
-    rw [← id (α := z.unpair.1 = x) hx, Nat.pair_unpair]
-    exact (ecomplexity_le_length (Produces.of_mem_runFor hz)).trans (by exact_mod_cast hlen)
+    obtain rfl : z.unpair.1 = x := hx
+    cases hv
+    simpa using (ecomplexity_le_length (Produces.of_mem_runFor hz)).trans (Nat.cast_le.mpr hlen)
   · intro h
     obtain ⟨p, hp, hlen⟩ :=
       exists_length_eq_ecomplexity (ne_top_of_le_ne_top (ENat.natCast_ne_top k) h)
@@ -232,9 +232,7 @@ private theorem exists_heavyEvent_eq_some_iff {k l u : ℕ} :
     setOf_exists_sectionEvent_eq k u ▸ universal.finite_setOf_ecomplexity_pair_le k u
   constructor
   · rintro ⟨s, hs⟩
-    simp only [heavyEvent] at hs
-    split_ifs at hs with h
-    obtain rfl := Option.some.inj hs
+    obtain ⟨h, rfl⟩ : 2 ^ l ≤ _ ∧ s.unpair.1 = u := by simpa [heavyEvent] using hs
     exact setOf_exists_sectionEvent_eq k s.unpair.1 ▸
       h.trans (Nat.length_distinctValues_le_ncard hfin _)
   · intro h
@@ -327,8 +325,7 @@ theorem exists_complexity_universal_add_condUniversal_le :
         : ℕ) + cX :=
     hcX _ x (by simpa [heavyDecoder, decodeSelfDelimiting_selfDelimitingCode_append,
       Nat.foldr_bit_append_replicate_false, hrest, show k + 1 - (k + 1 - l) = l by omega] using hix)
-  rw [← natCast_complexity_universal] at hX
-  rw [← natCast_complexity_condUniversal] at hY
+  simp only [← natCast_complexity_universal, ← natCast_complexity_condUniversal] at hX hY
   norm_cast at hX hY
   simp only [List.length_append, hrest, length_selfDelimitingCode, Nat.size_eq_bits_len] at hX hY
   omega
@@ -347,14 +344,11 @@ theorem exists_abs_complexity_universal_pair_sub_le :
   have e₂ := h₂ x y
   have e₃ : universal.complexity x ≤ universal.complexity (Nat.pair x y) + c₃ := by
     simpa using h₃ (Nat.pair x y)
-  have e₄ : (universal.complexity x).size ≤
-      (universal.complexity (Nat.pair x y)).size + c₃ + 1 :=
-    (Nat.size_le_size e₃).trans <| (Nat.size_add_le _ _).trans <| by
-      have := Nat.size_le_self c₃
-      omega
+  have e₄ := (Nat.size_le_size e₃).trans (Nat.size_add_le _ _)
+  have := Nat.size_le_self c₃
   have e₅ := Nat.size_le_self (universal.complexity (Nat.pair x y)).size
   rw [abs_le]
-  constructor <;> omega
+  omega
 
 end DescriptionMethod
 
@@ -372,8 +366,7 @@ can be described when `x` is known, for the plain complexity of `universal`. -/
 [Shen, Uspensky and Vereshchagin, Section 2.3][ShenUspenskyVereshchagin2017]. -/
 theorem exists_algorithmicInformation_ge :
     ∃ c : ℕ, ∀ x y, -(c : ℤ) ≤ algorithmicInformation x y := by
-  obtain ⟨c, hc⟩ := exists_complexity_condUniversal_le
-  refine ⟨c, fun x y => ?_⟩
+  refine exists_complexity_condUniversal_le.imp fun c hc x y => ?_
   have := hc x y
   rw [algorithmicInformation]; omega
 
@@ -384,11 +377,9 @@ theorem exists_abs_algorithmicInformation_sub_le :
     ∃ c : ℕ, ∀ x y, |algorithmicInformation x y - (universal.complexity x +
       universal.complexity y - universal.complexity (Nat.pair x y) : ℤ)| ≤
         6 * (universal.complexity (Nat.pair x y)).size + c := by
-  obtain ⟨c, hc⟩ := exists_abs_complexity_universal_pair_sub_le
-  exact ⟨c, fun x y => by
-    have := abs_le.mp (hc x y)
-    rw [abs_le, algorithmicInformation]
-    omega⟩
+  refine exists_abs_complexity_universal_pair_sub_le.imp fun c hc x y => ?_
+  have := abs_le.mp (hc x y)
+  rw [abs_le, algorithmicInformation]; omega
 
 /-- **Symmetry of information** [Shen, Uspensky and Vereshchagin, Section
 2.3][ShenUspenskyVereshchagin2017]: there is a constant `c` with
@@ -407,12 +398,9 @@ theorem exists_abs_algorithmicInformation_sub_algorithmicInformation_le :
     simpa using hd (Nat.pair x y)
   have e₂ : universal.complexity (Nat.pair x y) ≤ universal.complexity (Nat.pair y x) + d := by
     simpa using hd (Nat.pair y x)
-  have e₃ : (universal.complexity (Nat.pair y x)).size ≤
-      (universal.complexity (Nat.pair x y)).size + d + 1 :=
-    (Nat.size_le_size e₁).trans <| (Nat.size_add_le _ _).trans <| by
-      have := Nat.size_le_self d
-      omega
+  have e₃ := (Nat.size_le_size e₁).trans (Nat.size_add_le _ _)
+  have := Nat.size_le_self d
   rw [abs_le]
-  constructor <;> omega
+  omega
 
 end Cslib.Kolmogorov

@@ -160,8 +160,7 @@ noncomputable def polynomialRoot (d : ℕ) : ℝ :=
 theorem polynomialRoot_pos (d : ℕ) : 0 < polynomialRoot d := by
   unfold polynomialRoot
   split_ifs with hd
-  · exact (Classical.choose_spec (existsUnique_polynomialRoot hd).exists).1
-  · exact zero_lt_one
+  exacts [(Classical.choose_spec (existsUnique_polynomialRoot hd).exists).1, zero_lt_one]
 
 theorem polynomialRoot_pow_eq {d : ℕ} (hd : 1 ≤ d) :
     polynomialRoot d ^ (d + 1) = (1 + polynomialRoot d) ^ d := by
@@ -235,18 +234,14 @@ noncomputable def polynomialSmoothMu (d : ℕ) : ℝ :=
 
 theorem polynomialSmoothMu_nonneg (d : ℕ) : 0 ≤ polynomialSmoothMu d := by
   unfold polynomialSmoothMu
-  split_ifs
-  · exact le_rfl
-  · have := polynomialRoot_pos d
-    positivity
+  have := polynomialRoot_pos d
+  split_ifs <;> positivity
 
 theorem polynomialSmoothMu_lt_one (d : ℕ) : polynomialSmoothMu d < 1 := by
   unfold polynomialSmoothMu
+  have := polynomialRoot_pos d
   split_ifs
-  · exact zero_lt_one
-  · have := polynomialRoot_pos d
-    rw [div_lt_one (by positivity)]
-    nlinarith
+  exacts [zero_lt_one, (div_lt_one (by positivity)).2 (by nlinarith)]
 
 theorem one_le_polynomialSmoothLam (d : ℕ) : 1 ≤ polynomialSmoothLam d := by
   unfold polynomialSmoothLam
@@ -286,10 +281,7 @@ theorem polynomialSmoothMu_mono {j d : ℕ} (hjd : j ≤ d) :
   have hφ_lt := polynomialRoot_strictMono hj hlt
   have hφj := polynomialRoot_pos j
   have hφd := polynomialRoot_pos d
-  have hj0 : j ≠ 0 := by omega
-  have hd0 : d ≠ 0 := by omega
-  unfold polynomialSmoothMu
-  simp only [hj0, hd0, ↓reduceIte]
+  simp only [polynomialSmoothMu, hj.ne', (hj.trans hlt).ne', ↓reduceIte]
   have hjd' : (j : ℝ) ≤ d := Nat.cast_le.2 hjd
   have hf1 : (j : ℝ) / ((j : ℝ) + 1) ≤ (d : ℝ) / ((d : ℝ) + 1) := by
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
@@ -321,10 +313,7 @@ theorem polynomialSmoothLam_mono {j d : ℕ} (hjd : j ≤ d) :
     have hφm_gt1 := polynomialRoot_gt_one hm1
     have hφs_gt1 := polynomialRoot_gt_one hm_succ
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le' hm1
-    have hk0 : k + 1 ≠ 0 := by omega
-    have hks0 : k + 1 + 1 ≠ 0 := by omega
-    unfold polynomialSmoothLam
-    simp only [hk0, hks0, ↓reduceIte,
+    simp only [polynomialSmoothLam, Nat.succ_ne_zero, ↓reduceIte,
       polynomialRoot_pow_eq hm1, polynomialRoot_pow_eq hm_succ]
     have h1m : 1 + polynomialRoot (k + 1) ≠ 0 := by linarith
     have h1s : 1 + polynomialRoot (k + 1 + 1) ≠ 0 := by linarith
@@ -431,9 +420,7 @@ theorem nat_mul_add_one_pow_le_polynomialSmooth {j d : ℕ} (hjd : j ≤ d) (y z
     positivity
   rcases Nat.eq_zero_or_pos j with rfl | hj
   · simp only [pow_zero, zero_add, pow_one, mul_one]
-    have hlam := one_le_polynomialSmoothLam d
-    have hmu := polynomialSmoothMu_nonneg d
-    nlinarith [show (0 : ℝ) ≤ y by positivity, show (0 : ℝ) ≤ z by positivity]
+    nlinarith [one_le_polynomialSmoothLam d, polynomialSmoothMu_nonneg d]
   have hy1 : (1 : ℝ) ≤ y := by exact_mod_cast hy
   refine ((mul_le_mul_of_nonneg_left
       (pow_le_pow_left₀ (by positivity) (by linarith) j) (by positivity)).trans
@@ -490,9 +477,8 @@ private theorem isSmooth_of_latency_bound {lam μ : ℝ}
 [AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_of_hasPolynomialLatencies {d : ℕ} (h : C.HasPolynomialLatencies d) :
     C.toCostGame.IsSmooth (polynomialSmoothLam d) (polynomialSmoothMu d) := by
-  have hmono := h.monotone_latency
+  refine isSmooth_of_latency_bound h.monotone_latency fun e y z => ?_
   obtain ⟨c, hc, hl⟩ := h
-  refine isSmooth_of_latency_bound hmono fun e y z => ?_
   rw [hl, hl, hl, mul_sum, mul_sum, mul_sum, mul_sum, mul_sum, ← sum_add_distrib]
   refine sum_le_sum fun j hj => ?_
   have hjd : j ≤ d := Nat.lt_succ_iff.1 (mem_range.1 hj)
@@ -514,9 +500,9 @@ theorem expected_socialCost_le_of_hasPolynomialLatencies {d : ℕ} (hd : 1 ≤ d
     (hσ : C.toCostGame.IsCoarseCorrelatedEquilibrium σ) (s' : ∀ i, S i) :
     σ.weights.sum (fun s w => w * C.toCostGame.socialCost s) ≤
       polynomialRoot d ^ (d + 1) * C.toCostGame.socialCost s' := by
-  have hsm := (isSmooth_of_hasPolynomialLatencies h).expected_socialCost_le
-    (polynomialSmoothMu_lt_one d) hσ s'
-  rwa [polynomialSmoothRatio_eq hd] at hsm
+  simpa only [polynomialSmoothRatio_eq hd] using
+    (isSmooth_of_hasPolynomialLatencies h).expected_socialCost_le
+      (polynomialSmoothMu_lt_one d) hσ s'
 
 /-- **Explicit closed-form `d^{O(d)}` robust price of anarchy** ([AwerbuchAzarEpstein2005];
 [Roughgarden2015], Example 2.5 and Theorem 3.2): for `d ≥ 1`, every coarse correlated equilibrium
@@ -586,9 +572,8 @@ variable {ι : Type*} {S : ι → Type*} {E : Type*} [Fintype ι] [DecidableEq �
 ([AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_quadratic (h : C.HasPolynomialLatencies 2) :
     C.toCostGame.IsSmooth (115 / 19) (7 / 19) := by
-  have hmono := h.monotone_latency
+  refine isSmooth_of_latency_bound h.monotone_latency fun e y z => ?_
   obtain ⟨c, hc, hl⟩ := h
-  refine isSmooth_of_latency_bound hmono fun e y z => ?_
   rw [hl, hl, hl]
   simp only [sum_range_succ, sum_range_zero, zero_add, pow_zero, pow_one]
   push_cast
@@ -612,9 +597,7 @@ theorem expected_socialCost_le_quadratic (h : C.HasPolynomialLatencies 2)
     (s' : ∀ i, S i) :
     σ.weights.sum (fun s w => w * C.toCostGame.socialCost s) ≤
       115 / 12 * C.toCostGame.socialCost s' := by
-  have h' := (isSmooth_quadratic h).expected_socialCost_le (by norm_num) hσ s'
-  norm_num at h' ⊢
-  linarith
+  linarith [(isSmooth_quadratic h).expected_socialCost_le (by norm_num) hσ s']
 
 /-- Resource sets of a symmetric four-player, eight-resource quadratic congestion game attaining
 exact pure Nash price of anarchy `115 / 12`: resources `0..3` form ring 1 (weight `11`) and

@@ -146,18 +146,16 @@ private theorem scheffe_pair_dist_bound {p : _root_.PMF α} {s : Finset ι} {hs 
       |empiricalMass (scheffeSet (models i₀) (models ihat)) x -
         (p.toOuterMeasure (scheffeSet (models i₀) (models ihat) : Set α)).toReal| +
       dist p (models i₀) + scheffeScore s hs models x ihat := by
-  let A := scheffeSet (models i₀) (models ihat)
-  have h2 := (abs_le.mp (abs_toOuterMeasure_toReal_sub_le_dist p (models i₀) (A : Set α))).1
-  have h3 := (abs_le.mp (Finset.le_sup' (fun j =>
-    |empiricalMass (scheffeSet (models j) (models ihat)) x -
-      ((models ihat).toOuterMeasure (scheffeSet (models j) (models ihat) : Set α)).toReal|)
-    hi₀)).2
   have hgap := scheffeSet_sub_eq_dist (models i₀) (models ihat)
-  change ((models i₀).toOuterMeasure (A : Set α)).toReal -
-      ((models ihat).toOuterMeasure (A : Set α)).toReal = dist (models i₀) (models ihat) at hgap
-  change empiricalMass A x - ((models ihat).toOuterMeasure (A : Set α)).toReal ≤
-      scheffeScore s hs models x ihat at h3
-  linarith [neg_le_abs (empiricalMass A x - (p.toOuterMeasure (A : Set α)).toReal)]
+  have h3 : empiricalMass (scheffeSet (models i₀) (models ihat)) x -
+      ((models ihat).toOuterMeasure (scheffeSet (models i₀) (models ihat) : Set α)).toReal ≤
+      scheffeScore s hs models x ihat :=
+    (le_abs_self _).trans (Finset.le_sup' (fun j =>
+      |empiricalMass (scheffeSet (models j) (models ihat)) x -
+        ((models ihat).toOuterMeasure (scheffeSet (models j) (models ihat) : Set α)).toReal|) hi₀)
+  set A := scheffeSet (models i₀) (models ihat)
+  linarith [(abs_le.mp (abs_toOuterMeasure_toReal_sub_le_dist p (models i₀) (A : Set α))).1,
+    neg_le_abs (empiricalMass A x - (p.toOuterMeasure (A : Set α)).toReal)]
 
 /-- Deterministic TV guarantee for `scheffeSelect`: if empirical frequencies on all pairwise Scheffé
 sets approximate `p` within `γ ≥ 0`, then `dist p q_hat ≤ 3 * dist p q₀ + 2 * γ` for every
@@ -194,13 +192,10 @@ theorem scheffeSelect_dist_lt_of_forall {p : _root_.PMF α} (s : Finset ι) (hs 
   let bound := (s ×ˢ s).sup' (hs.product hs) error
   have hbound (j k : ι) (hj : j ∈ s) (hk : k ∈ s) : error (j, k) ≤ bound :=
     Finset.le_sup' error (Finset.mem_product.mpr ⟨hj, hk⟩)
-  have hbound_lt : bound < γ := by
-    refine (Finset.sup'_lt_iff (hs.product hs)).mpr ?_
-    rintro ⟨j, k⟩ hjk
-    obtain ⟨hj, hk⟩ := Finset.mem_product.mp hjk
+  have hbound_lt : bound < γ := (Finset.sup'_lt_iff (hs.product hs)).mpr fun ⟨j, k⟩ hjk => by
     rcases eq_or_ne j k with rfl | hne
     · simpa [error, scheffeSet_self, empiricalMass] using hγ
-    · exact hgood j hj k hk hne
+    · exact hgood j (Finset.mem_product.mp hjk).1 k (Finset.mem_product.mp hjk).2 hne
   have hbound_nn : 0 ≤ bound := (abs_nonneg _).trans (hbound i₀ i₀ hi₀ hi₀)
   exact (scheffeSelect_dist_le_of_forall s hs models hbound_nn hi₀
     (fun j hj k hk _ => hbound j k hj hk)).trans_lt (by linarith)
@@ -297,7 +292,7 @@ theorem scheffeSelectFin_ge_le_of_log (p : _root_.PMF α) {M : ℕ} [NeZero M]
   refine (scheffeSelectFin_prob_ge_le p models i₀ n hγ).trans ?_
   have hM : (1 : ℝ) ≤ M := by exact_mod_cast NeZero.pos M
   have hcK : 2 * ((M : ℝ) * ((M : ℝ) - 1)) ≤ 2 * (M : ℝ) ^ 2 := by nlinarith
-  rw [show (-2 : ℝ) * (n : ℝ) * γ ^ 2 = -(2 * γ ^ 2 * (n : ℝ)) by ring]
+  rw [neg_mul, neg_mul, mul_right_comm _ (n : ℝ)]
   exact Real.mul_exp_neg_le_of_log hcK (by positivity) (by positivity) hδ hn
 
 /-- Agnostic finite-cover TV guarantee for `scheffeSelect`: if `models` on `s` forms an `r`-cover
@@ -357,14 +352,9 @@ private theorem le_maxDefeatRadius_of_ne_true {s : Finset ι} {hs : s.Nonempty}
     {models : ι → _root_.PMF α} {n : ℕ} {x : Fin n → α} {i₀ ihat : ι} (hi₀ : i₀ ∈ s)
     (htest : leCamBirgeTest (models ihat) (models i₀) x ≠ true) :
     hellingerDist (models ihat) (models i₀) ≤ maxDefeatRadius s hs models x ihat := by
-  have hterm := Finset.le_sup' (fun j =>
-    if leCamBirgeTest (models ihat) (models j) x then 0
-    else hellingerDist (models ihat) (models j)) hi₀
-  change (if leCamBirgeTest (models ihat) (models i₀) x then 0
-    else hellingerDist (models ihat) (models i₀)) ≤ maxDefeatRadius s hs models x ihat at hterm
-  split_ifs at hterm with hc
-  · exact absurd hc htest
-  · exact hterm
+  simpa only [maxDefeatRadius, htest, Bool.false_eq_true, ↓reduceIte] using Finset.le_sup'
+    (fun j => if leCamBirgeTest (models ihat) (models j) x then 0
+      else hellingerDist (models ihat) (models j)) hi₀
 
 private theorem birgeTournamentSelect_pair_le_zero_or_lt
     (s : Finset ι) (hs : s.Nonempty) (models : ι → _root_.PMF α) {n : ℕ} {x : Fin n → α} {r : ℝ}
@@ -466,12 +456,10 @@ private theorem toOuterMeasure_birge_bad_union_le [Finite α] [DecidableEq ι] {
       (fun x => leCamBirgeTest (models j) (models i₀) x = true)
       fun hsep => leCamBirgeTest_true_le_of_radius hr hp hsep n
     linarith
-  have hcard : ((s.erase i₀).card : ℝ) = (s.card - 1 : ℝ) := by
-    rw [Finset.card_erase_of_mem hi₀, Nat.cast_sub (Finset.Nonempty.card_pos ⟨i₀, hi₀⟩),
-      Nat.cast_one]
   refine (toOuterMeasure_toReal_biUnion_finset_le (iid p n) (s.erase i₀) fun j =>
     E₁ j ∪ E₂ j).trans ((Finset.sum_le_card_nsmul _ _ _ fun j _ => hterm j).trans_eq ?_)
-  rw [nsmul_eq_mul, hcard]
+  rw [nsmul_eq_mul, Finset.card_erase_of_mem hi₀, Nat.cast_sub (Finset.Nonempty.card_pos ⟨i₀, hi₀⟩),
+    Nat.cast_one]
   ring
 
 private theorem toOuterMeasure_le_birge_bad_union [Finite α] {p : _root_.PMF α} (s : Finset ι)
@@ -562,7 +550,7 @@ theorem birgeTournamentSelectFin_ge_le_of_log [Finite α] {p : _root_.PMF α} {M
       {x | 11 * r ≤ hellingerDist p (models (birgeTournamentSelectFin models x))}).toReal ≤
       δ := by
   refine (birgeTournamentSelectFin_prob_ge_le models i₀ n hr hp).trans ?_
-  rw [show (-4 : ℝ) * (n : ℝ) * r ^ 2 = -(4 * r ^ 2 * (n : ℝ)) by ring]
+  rw [neg_mul, neg_mul, mul_right_comm _ (n : ℝ)]
   exact Real.mul_exp_neg_le_of_log
     (mul_le_mul_of_nonneg_left (sub_le_self _ zero_le_one) zero_le_two)
     (mul_pos two_pos (Nat.cast_pos.mpr (NeZero.pos M))) (by positivity) hδ hn

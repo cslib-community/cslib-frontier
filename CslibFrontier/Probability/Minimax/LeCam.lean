@@ -153,15 +153,13 @@ type-I and type-II error probabilities satisfies `1 - tvDist μ ν / 2 ≤ μ.re
 theorem neymanPearson_measureReal_compl_add_ge (μ ν : Measure α) [IsProbabilityMeasure μ]
     [IsProbabilityMeasure ν] {A : Set α} (hA : MeasurableSet A) :
     1 - tvDist μ ν / 2 ≤ μ.real Aᶜ + ν.real A := by
-  have h := leCam_measure_add_ge μ ν
-    (L₀ := Aᶜ.indicator fun _ => (1 : ℝ)) (L₁ := A.indicator fun _ => (1 : ℝ)) (sep := 1)
-    (fun x => by by_cases hx : x ∈ Aᶜ <;> simp [hx])
-    (fun x => by by_cases hx : x ∈ A <;> simp [hx])
+  simpa only [integral_indicator_const _ hA.compl, integral_indicator_const _ hA,
+    smul_eq_mul, mul_one, one_mul] using leCam_measure_add_ge μ ν
+    (fun x => Set.indicator_nonneg (fun _ _ => zero_le_one) x)
+    (fun x => Set.indicator_nonneg (fun _ _ => zero_le_one) x)
     ((integrable_const (1 : ℝ)).indicator hA.compl)
     ((integrable_const (1 : ℝ)).indicator hA)
-    (fun x => by by_cases hx : x ∈ A <;> simp [hx])
-  simpa only [integral_indicator_const _ hA.compl, integral_indicator_const _ hA,
-    smul_eq_mul, mul_one, one_mul] using h
+    (fun x => le_of_eq (Set.indicator_compl_add_self_apply A (fun _ => (1 : ℝ)) x).symm)
 
 /-- **Neyman–Pearson testing optimality**: there exists a measurable acceptance region `A` attaining
 `μ.real Aᶜ + ν.real A = 1 - tvDist μ ν / 2`. -/
@@ -285,25 +283,17 @@ theorem toReal_klDiv_coin_perturbed_le {δ : ℝ} (hδ : |δ| ≤ 1 / 6)
   refine (toReal_klDiv_le_chiSquare hsupp).trans ?_
   rw [chiSquare_eq_sum hsupp, Fintype.sum_bool]
   simp only [coin_apply_toReal, ↓reduceIte, Bool.false_eq_true]
-  rw [hp₀, hp₁]
-  have hden1 : (0 : ℝ) < 1 / 2 + δ := by linarith
-  have hden2 : (0 : ℝ) < 1 / 2 - δ := by linarith
   have h1sub : (1 : ℝ) - (1 / 2 + δ) = 1 / 2 - δ := by ring
-  rw [h1sub]
-  have hcomb : ((1 / 2 - δ - (1 / 2 + δ)) ^ 2) / (1 / 2 + δ) +
-      ((1 - (1 / 2 - δ) - (1 / 2 - δ)) ^ 2) / (1 / 2 - δ) =
-      4 * δ ^ 2 / ((1 / 2 + δ) * (1 / 2 - δ)) := by
-    rw [div_add_div _ _ hden1.ne' hden2.ne']
-    congr 1
-    ring
-  rw [hcomb, div_le_iff₀ (by positivity)]
+  rw [hp₀, hp₁, h1sub,
+    div_add_div _ _ (by linarith) (by linarith), div_le_iff₀ (mul_pos (by linarith) (by linarith))]
   have hsq : δ ^ 2 ≤ 1 / 36 := by
     rw [← sq_abs]
     calc |δ| ^ 2 ≤ (1 / 6) ^ 2 := by gcongr
       _ = 1 / 36 := by norm_num
   have hprod : 2 / 9 ≤ (1 / 2 + δ) * (1 / 2 - δ) := by
     linarith [show (1 / 2 + δ) * (1 / 2 - δ) = 1 / 4 - δ ^ 2 by ring]
-  calc 4 * δ ^ 2 = 18 * δ ^ 2 * (2 / 9) := by ring
+  calc _ = 4 * δ ^ 2 := by ring
+    _ = 18 * δ ^ 2 * (2 / 9) := by ring
     _ ≤ 18 * δ ^ 2 * ((1 / 2 + δ) * (1 / 2 - δ)) := by gcongr
 
 /-- Symmetric `1 / (6 √n)`-perturbed fair coins `pBit : Bool → I` for sample size `n ≥ 1`, with
@@ -318,14 +308,10 @@ theorem exists_coin_perturbed_klDiv_le {n : ℕ} (hn : 0 < n) :
         (klDiv (coin (pBit b)).toMeasure (coin (pBit (!b))).toMeasure).toReal ≤
           1 / (2 * (n : ℝ)) := by
   have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-  have hsqrt_ge_one : 1 ≤ Real.sqrt n := by
-    rw [← Real.sqrt_one]
-    exact Real.sqrt_le_sqrt (by exact_mod_cast hn)
+  have hsqrt_ge_one : 1 ≤ Real.sqrt n := Real.one_le_sqrt.mpr (by exact_mod_cast hn)
   set δ : ℝ := 1 / (6 * Real.sqrt n)
   have hδ_pos : 0 < δ := by positivity
-  have hδ_le : δ ≤ 1 / 6 := by
-    rw [one_div_le_one_div (by positivity) (by positivity)]
-    linarith
+  have hδ_le : δ ≤ 1 / 6 := (one_div_le_one_div (by positivity) (by positivity)).mpr (by linarith)
   let pF : I := ⟨1 / 2 - δ, by constructor <;> linarith⟩
   let pT : I := ⟨1 / 2 + δ, by constructor <;> linarith⟩
   let pBit : Bool → I := fun b => if b then pT else pF
@@ -335,19 +321,16 @@ theorem exists_coin_perturbed_klDiv_le {n : ℕ} (hn : 0 < n) :
   have hsupp (b₁ b₂ : Bool) : (coin (pBit b₁)).support ⊆ (coin (pBit b₂)).support :=
     fun c _ => mem_support_coin_of_Ioo (hpBit_oo b₂).1 (hpBit_oo b₂).2 c
   have h18 : 18 * δ ^ 2 = 1 / (2 * (n : ℝ)) := by
-    simp only [δ]
-    field_simp
-    rw [Real.sq_sqrt hn_pos.le]
+    simp only [δ, div_pow, mul_pow, Real.sq_sqrt hn_pos.le]
     ring
   refine ⟨pBit, rfl, rfl, hsupp, fun b => ?_⟩
   rw [← h18]
   cases b
   · exact toReal_klDiv_coin_perturbed_le (by rwa [abs_of_pos hδ_pos]) pF pT rfl rfl
-  · have h := toReal_klDiv_coin_perturbed_le (δ := -δ)
-      (by rw [abs_neg, abs_of_pos hδ_pos]; exact hδ_le) pT pF
-      (by change (1 / 2 + δ : ℝ) = 1 / 2 - -δ; ring)
-      (by change (1 / 2 - δ : ℝ) = 1 / 2 + -δ; ring)
-    simpa only [pBit, Bool.not_true, ↓reduceIte, Bool.false_eq_true, even_two.neg_pow] using h
+  · simpa only [pBit, Bool.not_true, ↓reduceIte, Bool.false_eq_true, even_two.neg_pow] using
+      toReal_klDiv_coin_perturbed_le (δ := -δ)
+        ((le_of_eq ((abs_neg δ).trans (abs_of_pos hδ_pos))).trans hδ_le) pT pF
+        (sub_neg_eq_add (1 / 2 : ℝ) δ).symm (sub_eq_add_neg (1 / 2 : ℝ) δ)
 
 private theorem leCam_perturbed_coin_factor_ge {n : ℕ} (hn : 0 < n) {kl : ℝ}
     (hkl : kl ≤ 1 / (2 * (n : ℝ))) :
@@ -392,11 +375,8 @@ theorem bernoulli_mean_minimax_sq_lower_bound {n : ℕ} (hn : 0 < n)
     ∃ p : I, 1 / (72 * (n : ℝ)) ≤
       ∑ x : Fin n → Bool, (iid (coin p) n x).toReal * (est x - (p : ℝ)) ^ 2 := by
   set δ : ℝ := 1 / (6 * Real.sqrt n)
-  have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
   have hsep_eq : 2 * δ ^ 2 / 4 = 1 / (72 * (n : ℝ)) := by
-    simp only [δ]
-    field_simp
-    rw [Real.sq_sqrt hn_pos.le]
+    simp only [δ, div_pow, mul_pow, Real.sq_sqrt (Nat.cast_nonneg n)]
     ring
   rw [← hsep_eq]
   exact bernoulli_perturbed_minimax_lower_bound hn
@@ -423,12 +403,9 @@ theorem bernoulli_mean_minimax_abs_lower_bound {n : ℕ} (hn : 0 < n)
     (loss := fun t (q : I) => |t - (q : ℝ)|) (sep := 2 * δ) (by positivity)
     (fun _ _ => abs_nonneg _)
     (fun p₀ p₁ hp₀ hp₁ t => by
-      rw [hp₀, hp₁]
-      have htri := abs_sub_le (1 / 2 + δ) t (1 / 2 - δ)
-      rw [abs_sub_comm (1 / 2 + δ) t] at htri
-      have hsub : |(1 / 2 + δ) - (1 / 2 - δ)| = 2 * δ := by
-        rw [show (1 / 2 + δ) - (1 / 2 - δ) = 2 * δ by ring, abs_of_pos (by positivity)]
-      linarith)
+      rw [hp₀, hp₁, abs_sub_comm t (1 / 2 + δ)]
+      refine (le_of_eq ?_).trans ((abs_sub_le (1 / 2 + δ) t (1 / 2 - δ)).trans_eq (add_comm _ _))
+      rw [show (1 / 2 + δ) - (1 / 2 - δ) = 2 * δ by ring, abs_of_pos (by positivity)])
     est
 
 end BernoulliMinimax

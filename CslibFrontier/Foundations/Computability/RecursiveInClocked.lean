@@ -475,10 +475,9 @@ private theorem play_rfindFrom : ∀ (r i : ℕ) (rs : List ℕ),
     change _ = rfindDone ((rfindStep p x k)^[r] (Sum.elim _ _ (play p (((x, i), k), rs))))
     rw [play_apply]
     rcases OracleComp.play (p (x, i) k).run rs with q | ⟨_ | _ | _, rs'⟩
-    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
-    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
-    · exact play_rfindFrom r (i + 1) rs'
-    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
+    all_goals first
+      | exact play_rfindFrom r (i + 1) rs'
+      | exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
 
 end Rfind
 
@@ -507,10 +506,9 @@ variable [Primcodable σ] [Primcodable τ] [Primcodable β] [Primcodable γ]
 theorem computable_dialogue_of_play {P : ℕ → ClockedComp natOracleSpec ℕ}
     (hP : Computable (play P)) : Computable (dialogue P) := by
   refine (sumCasesOn hP (sumInl.comp snd).to₂ (sumInr.comp (fst.comp snd)).to₂).of_eq
-    fun x => ?_
-  rw [show dialogue P x = Sum.map id Prod.fst (play P x) from
-    OracleComp.nextMove_eq_play _ _]
-  cases play P x <;> rfl
+    fun ⟨⟨n, k⟩, rs⟩ => ?_
+  rw [dialogue, OracleComp.nextMove_eq_play, ← play_apply]
+  cases play P ((n, k), rs) <;> rfl
 
 /-! Closure of computable plays under the program constructors. -/
 
@@ -616,12 +614,10 @@ theorem computable_play_natRec {m : σ → ℕ} {P : σ → ClockedComp natOracl
     have hopt : Computable₂ fun (w : ((σ × ℕ) × List ℕ) × (ℕ × (ℕ ⊕ (Option β × List ℕ))))
         (p : Option β × List ℕ) => (Option.elim p.1 (Sum.inr (none, p.2))
           fun i => play g (((w.1.1.1, w.2.1, i), w.1.1.2), p.2) : ℕ ⊕ (Option β × List ℕ)) := by
-      unfold Computable₂
       refine (option_casesOn (fst.comp snd)
-        (sumInr.comp ((const none).pair (snd.comp snd))) hgc).of_eq fun z => ?_
+        (sumInr.comp ((const none).pair (snd.comp snd))) hgc).to₂.of_eq fun z => ?_
       rcases z with ⟨w, ⟨_ | _, _⟩⟩ <;> rfl
-    unfold Computable₂
-    refine (sumCasesOn (snd.comp snd) (sumInl.comp snd).to₂ hopt).of_eq fun z => ?_
+    refine (sumCasesOn (snd.comp snd) (sumInl.comp snd).to₂ hopt).to₂.of_eq fun z => ?_
     rcases z with ⟨a, y, _ | ⟨_ | _, rs⟩⟩ <;> rfl
   refine (nat_rec (hm.comp (fst.comp fst)) hP hstep).of_eq fun a => ?_
   rcases a with ⟨⟨x, k⟩, rs⟩
@@ -669,19 +665,15 @@ private theorem stable_toClocked_and_eval (g : ℕ →. ℕ) :
     obtain ⟨hf, ef⟩ := stable_toClocked_and_eval g cf n
     obtain ⟨hg, eg⟩ := stable_toClocked_and_eval g cg n
     refine ⟨hf.bind fun _ => hg.bind fun _ => .pure _, ?_⟩
-    simp only [toClocked]
-    rw [ClockedComp.eval_bind g hf fun _ => hg.bind fun _ => .pure _]
-    simp only [ClockedComp.eval_bind g hg fun _ => .pure _, ClockedComp.eval_pure g, ef, eg, eval]
-    simp only [seq_eq_bind_map, map_eq_pure_bind, bind_assoc, pure_bind]
+    rw [toClocked, ClockedComp.eval_bind g hf fun _ => hg.bind fun _ => .pure _]
+    simp only [ClockedComp.eval_bind g hg fun _ => .pure _, ClockedComp.eval_pure g, ef, eg, eval,
+      seq_eq_bind_map, map_eq_pure_bind, bind_assoc, pure_bind]
     rfl
   | comp cf cg, n => by
     obtain ⟨hg, eg⟩ := stable_toClocked_and_eval g cg n
     have hf := fun a => stable_toClocked_and_eval g cf a
     refine ⟨hg.bind fun a => (hf a).1, ?_⟩
-    simp only [toClocked]
-    rw [ClockedComp.eval_bind g hg fun a => (hf a).1, eg, eval]
-    simp only [(hf _).2]
-    rfl
+    simp only [toClocked, ClockedComp.eval_bind g hg fun a => (hf a).1, eg, eval, (hf _).2]; rfl
   | prec cf cg, n => by
     have hf := stable_toClocked_and_eval g cf
     have hg := stable_toClocked_and_eval g cg
@@ -691,9 +683,7 @@ private theorem stable_toClocked_and_eval (g : ℕ →. ℕ) :
     | succ m ih =>
       obtain ⟨hs, he⟩ := ih
       refine ⟨hs.bind fun _ => (hg _).1, ?_⟩
-      rw [ClockedComp.eval_bind g hs fun _ => (hg _).1, he]
-      simp only [(hg _).2]
-      rfl
+      simp only [ClockedComp.eval_bind g hs fun _ => (hg _).1, he, (hg _).2]; rfl
   | rfind' cf, n => by
     have hf := stable_toClocked_and_eval g cf
     simp only [toClocked, eval, Nat.unpaired]
@@ -769,12 +759,9 @@ clocked programs querying `g` whose dialogue is computable. -/
 theorem recursiveIn_iff_exists_clockedComp {g : ℕ →. ℕ} {F : ℕ →. ℕ} :
     Nat.RecursiveIn {g} F ↔ ∃ P : ℕ → ClockedComp natOracleSpec ℕ,
       Computable (ClockedComp.dialogue P) ∧ ∀ n, ClockedComp.eval g (P n) = F n := by
-  constructor
-  · intro h
-    obtain ⟨c, rfl⟩ := exists_code.1 h
-    exact ⟨c.toClocked, computable_dialogue_toClocked c, eval_toClocked g c⟩
-  · rintro ⟨P, hP, hF⟩
-    exact (ClockedComp.recursiveIn_eval hP _).of_eq hF
+  refine ⟨fun h => ?_, fun ⟨P, hP, hF⟩ => (ClockedComp.recursiveIn_eval hP _).of_eq hF⟩
+  obtain ⟨c, rfl⟩ := exists_code.1 h
+  exact ⟨c.toClocked, computable_dialogue_toClocked c, eval_toClocked g c⟩
 
 end Dialogue
 

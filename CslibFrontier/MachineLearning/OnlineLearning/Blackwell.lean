@@ -141,11 +141,8 @@ theorem distToSet_nonneg (S : Set E) (x : E) : 0 ≤ distToSet S x :=
 theorem distToSet_le_norm_sub {S : Set E} (hc : IsComplete S) (hS : Convex ℝ S)
     {s : E} (hs : s ∈ S) (x : E) :
     distToSet S x ≤ ‖x - s‖ := by
-  have hne : S.Nonempty := ⟨s, hs⟩
-  rw [distToSet, norm_sub_metricProjection hne hc hS x]
-  have hbd : BddBelow (Set.range fun w : S => ‖x - (w : E)‖) :=
-    ⟨0, Set.forall_mem_range.mpr fun _ => norm_nonneg _⟩
-  exact ciInf_le hbd ⟨s, hs⟩
+  rw [distToSet, norm_sub_metricProjection ⟨s, hs⟩ hc hS x]
+  exact ciInf_le ⟨0, Set.forall_mem_range.mpr fun _ => norm_nonneg _⟩ (⟨s, hs⟩ : S)
 
 theorem distToSet_eq_zero_of_mem {S : Set E} (hc : IsComplete S) (hS : Convex ℝ S)
     {x : E} (hx : x ∈ S) : distToSet S x = 0 :=
@@ -269,22 +266,17 @@ theorem blackwell_cone_dist_sq_le_sum {S : Set E} (hc : IsComplete S) (hS : Conv
       ⟪X - metricProjection S X, v t⟫ ≤ 0) :
     distToSet S (∑ t ∈ range T, v t) ^ 2 ≤ ∑ t ∈ range T, ‖v t‖ ^ 2 := by
   induction T with
-  | zero =>
-    simp only [range_zero, sum_empty]
-    rw [distToSet_eq_zero_of_mem hc hS hzero]
-    norm_num
+  | zero => simp [distToSet_eq_zero_of_mem hc hS hzero]
   | succ k ih =>
-    have hih := ih fun t ht => hstep t (lt_trans ht (Nat.lt_succ_self k))
     set X := ∑ t ∈ range k, v t
     set s := metricProjection S X
     have hs_mem : s ∈ S := metricProjection_mem ⟨0, hzero⟩ hc hS X
     have hmin : distToSet S (X + v k) ^ 2 ≤ ‖(X + v k) - s‖ ^ 2 :=
       pow_le_pow_left₀ (distToSet_nonneg S _) (distToSet_le_norm_sub hc hS hs_mem (X + v k)) 2
     have hexp : ‖(X + v k) - s‖ ^ 2 = distToSet S X ^ 2 + 2 * ⟪X - s, v k⟫ + ‖v k‖ ^ 2 := by
-      rw [show X + v k - s = (X - s) + v k by abel, norm_add_sq_real]
-      rfl
+      rw [add_sub_right_comm, norm_add_sq_real, distToSet]
     rw [sum_range_succ, sum_range_succ (fun t => ‖v t‖ ^ 2)]
-    linarith [hstep k (Nat.lt_succ_self k)]
+    linarith [ih fun t ht => hstep t (Nat.lt_succ_of_lt ht), hstep k k.lt_succ_self]
 
 /-- Square-root form of `blackwell_cone_dist_sq_le_sum` (`distToSet S (∑ t < T, v t) ≤ R * √T`). -/
 theorem blackwell_cone_dist_le {S : Set E} (hc : IsComplete S) (hS : Convex ℝ S)
@@ -325,8 +317,7 @@ theorem bilinearPayoff_eq_sum_col (m : I → J → E) (p : I → ℝ) (q : J →
     bilinearPayoff m p q = ∑ j, q j • expectedPayoff m p j := by
   simp only [bilinearPayoff, expectedPayoff, smul_sum, smul_smul]
   rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => ?_
-  rw [mul_comm]
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by rw [mul_comm]
 
 /-- **Blackwell's response condition**: for every mixed column strategy `q ∈ Δ(J)`, there exists a
 mixed row strategy `p ∈ Δ(I)` placing the expected vector payoff `bilinearPayoff m p q` in `S`. -/
@@ -361,14 +352,12 @@ private theorem attainable_compact_convex [Nonempty I] (m : I → J → E) (q : 
   have hsim_ne : ({p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1}).Nonempty := by
     obtain ⟨i₀⟩ := ‹Nonempty I›
     refine ⟨fun i => if i = i₀ then 1 else 0, fun i => ?_, by simp⟩
-    dsimp only
-    split_ifs <;> norm_num
+    by_cases h : i = i₀ <;> simp [h]
   have hsim_cvx : Convex ℝ {p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1} := by
     intro p hp p' hp' a b ha hb hab
     refine ⟨fun i => add_nonneg (mul_nonneg ha (hp.1 i)) (mul_nonneg hb (hp'.1 i)), ?_⟩
-    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum, hp.2, hp'.2,
-      mul_one]
-    exact hab
+    simpa only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum, hp.2, hp'.2,
+      mul_one] using hab
   have hcont : Continuous (fun p : I → ℝ => bilinearPayoff m p q) := by
     simp only [bilinearPayoff_eq_sum_row]
     fun_prop
@@ -393,10 +382,8 @@ private theorem exists_strict_sep_compact_complete {C S : Set E}
       (∀ v ∈ C,
         ⟪c₀ - metricProjection S c₀, metricProjection S c₀⟫ + δ ^ 2 ≤
           ⟪c₀ - metricProjection S c₀, v⟫) := by
-  have hproj_cont : Continuous (metricProjection S) :=
-    (lipschitzWith_metricProjection hSne hSc hScvx).continuous
   have hdist_cont : Continuous (distToSet S) :=
-    (continuous_id.sub hproj_cont).norm
+    (continuous_id.sub (lipschitzWith_metricProjection hSne hSc hScvx).continuous).norm
   obtain ⟨c₀, hc₀_mem, hc₀_min⟩ := hCcmp.exists_isMinOn hCne hdist_cont.continuousOn
   have hc₀_not : c₀ ∉ S := Set.disjoint_left.mp hdisj hc₀_mem
   set s₀ := metricProjection S c₀
@@ -427,13 +414,10 @@ theorem halfspace_of_response [Nonempty I] {m : I → J → E} {S : Set E}
   have hcol : ∀ q : Convexity.StdSimplex ℝ J, ∃ i : I, ∑ j, q.weights j * M i j ≤ c := by
     intro q
     obtain ⟨p, hp0, hp1, hpS⟩ := hresp q.weights q.nonneg (by simp)
-    have hle : ∑ i, p i * ∑ j, q.weights j * M i j ≤ c := by
-      have hlin : ⟪w, bilinearPayoff m p q.weights⟫ =
-          ∑ i, p i * ∑ j, q.weights j * M i j := by
-        simp only [bilinearPayoff, inner_sum, real_inner_smul_right, M, mul_sum]
-        refine sum_congr rfl fun i _ => sum_congr rfl fun j _ => by ring
-      rw [← hlin]
-      exact hS_half _ hpS
+    have hlin : ⟪w, bilinearPayoff m p q.weights⟫ = ∑ i, p i * ∑ j, q.weights j * M i j := by
+      simp only [bilinearPayoff, inner_sum, real_inner_smul_right, M, mul_sum]
+      refine sum_congr rfl fun i _ => sum_congr rfl fun j _ => by ring
+    have hle := hlin ▸ hS_half _ hpS
     obtain ⟨i₀, -, hi₀⟩ :=
       univ.exists_min_image (fun i => ∑ j, q.weights j * M i j) univ_nonempty
     refine ⟨i₀, le_trans ?_ hle⟩
@@ -475,9 +459,8 @@ theorem exists_nonapproachable_dist_ge [Nonempty I] {m : I → J → E} {S : Set
       ∀ (T : ℕ), 0 < T →
         ∀ (p : ℕ → I → ℝ), (∀ t < T, (∀ i, 0 ≤ p t i) ∧ ∑ i, p t i = 1) →
           δ ≤ distToSet S (vecAvg (fun t => bilinearPayoff m (p t) q) T) := by
-  obtain ⟨q, hq0, hq1, hq_out⟩ : ∃ q : J → ℝ, (∀ j, 0 ≤ q j) ∧ ∑ j, q j = 1 ∧
-      ∀ p : I → ℝ, (∀ i, 0 ≤ p i) → ∑ i, p i = 1 → bilinearPayoff m p q ∉ S := by
-    simpa [SatisfiesResponseCondition] using hfail
+  simp only [SatisfiesResponseCondition, not_forall, not_exists, not_and] at hfail
+  obtain ⟨q, hq0, hq1, hq_out⟩ := hfail
   obtain ⟨hCne, hCcvx, hCcmp⟩ := attainable_compact_convex m q
   obtain ⟨_, δ, _, hδ, hmin, _, _⟩ :=
     exists_strict_sep_compact_complete hCne hCcmp hCcvx hSne hSc hScvx
@@ -495,10 +478,8 @@ theorem exists_nonapproachable_dist_ge [Nonempty I] {m : I → J → E} {S : Set
   have havg_eq : vecAvg (fun t => bilinearPayoff m (p t) q) T = bilinearPayoff m pbar q := by
     simp only [vecAvg, bilinearPayoff_eq_sum_row, pbar]
     rw [sum_comm, smul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    rw [← sum_smul, smul_smul]
-  rw [havg_eq]
-  exact hmin _ ⟨pbar, ⟨hpbar0, hpbar1⟩, rfl⟩
+    exact sum_congr rfl fun i _ => by rw [← sum_smul, smul_smul]
+  exact havg_eq ▸ hmin _ ⟨pbar, ⟨hpbar0, hpbar1⟩, rfl⟩
 
 end Conditions
 
@@ -545,9 +526,8 @@ theorem expectHistory_smul (strat : ApproachStrategy I) (t : ℕ) (h : List I)
   induction t generalizing h with
   | zero => rfl
   | succ t ih =>
-    simp only [expectHistory, ih]
-    rw [mul_sum]
-    refine sum_congr rfl fun i _ => by ring
+    simp only [expectHistory, ih, mul_sum]
+    exact sum_congr rfl fun _ _ => by ring
 
 theorem expectHistory_mono (strat : ApproachStrategy I) {t : ℕ} {h : List I}
     {f g : List I → ℝ} (hfg : ∀ x, x.length = h.length + t → f x ≤ g x) :
@@ -557,8 +537,7 @@ theorem expectHistory_mono (strat : ApproachStrategy I) {t : ℕ} {h : List I}
   | succ t ih =>
     refine sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (ih fun x hx => hfg x ?_)
       (strat.nonneg h i)
-    simp only [List.length_cons] at hx
-    omega
+    simpa only [List.length_cons, Nat.succ_add, Nat.add_succ] using hx
 
 theorem expectHistory_nonneg (strat : ApproachStrategy I) {t : ℕ} {h : List I}
     {f : List I → ℝ} (hf : ∀ x, 0 ≤ f x) : 0 ≤ expectHistory strat t h f := by
@@ -599,14 +578,11 @@ theorem expectHistory_indicator_le (strat : ApproachStrategy I) (t : ℕ) (h : L
     (f : List I → ℝ) (hf : ∀ x, 0 ≤ f x) {c : ℝ} (hc : 0 < c) :
     expectHistory strat t h (fun x => if c ≤ f x then (1 : ℝ) else 0) ≤
       expectHistory strat t h f / c := by
-  have h1 : expectHistory strat t h (fun x => c * if c ≤ f x then (1 : ℝ) else 0) ≤
-      expectHistory strat t h f := by
-    refine expectHistory_mono strat fun x _ => ?_
-    split_ifs with hx
-    · linarith
-    · simpa using hf x
-  rw [expectHistory_smul] at h1
-  rwa [le_div_iff₀ hc, mul_comm]
+  rw [le_div_iff₀ hc, mul_comm, ← expectHistory_smul]
+  refine expectHistory_mono strat fun x _ => ?_
+  split_ifs with hx
+  · linarith
+  · simpa using hf x
 
 /-- Cumulative realized vector payoff along a reverse-ordered history `h : List I` against an
 adaptive adversary `adv : List I → J` (at step `h`, the adversary sees the realized prefix `h` and
@@ -652,12 +628,11 @@ theorem blackwell_expect_dist_sq_le {S : Set E} (hc : IsComplete S) (hS : Convex
     expectHistory strat T []
       (fun h => distToSet S ((T : ℝ)⁻¹ • sumPayoff m adv h) ^ 2) ≤
     (2 * R) ^ 2 / (T : ℝ) := by
-  have hcore : ∀ t : ℕ,
+  have hcore (t : ℕ) :
       expectHistory strat t []
         (fun h => ‖sumPayoff m adv h -
           (t : ℝ) • metricProjection S ((t : ℝ)⁻¹ • sumPayoff m adv h)‖ ^ 2) ≤
         (t : ℝ) * (2 * R) ^ 2 := by
-    intro t
     induction t with
     | zero => simp [expectHistory]
     | succ k ih =>
@@ -683,13 +658,12 @@ theorem blackwell_expect_dist_sq_le {S : Set E} (hc : IsComplete S) (hS : Convex
             rw [hh, norm_sub_smul_eq_mul hkr] at h1
             exact le_of_mul_le_mul_left h1 hkr
           -- Expand the square at the comparison point `s` and bound the quadratic term.
-          have h1 : ∀ i : I,
+          have h1 (i : I) :
               ‖sumPayoff m adv (i :: h) -
                 ((k + 1 : ℕ) : ℝ) • metricProjection S
                   (((k + 1 : ℕ) : ℝ)⁻¹ • sumPayoff m adv (i :: h))‖ ^ 2 ≤
               ‖X - (k : ℝ) • s‖ ^ 2 + 2 * ⟪X - (k : ℝ) • s, m i (adv h) - s⟫ +
                 (2 * R) ^ 2 := by
-            intro i
             have hm := pow_le_pow_left₀ (norm_nonneg _)
               (sum_sub_smul_metricProjection_le hc hS hs_mem (sumPayoff m adv (i :: h))
                 k.succ_pos) 2

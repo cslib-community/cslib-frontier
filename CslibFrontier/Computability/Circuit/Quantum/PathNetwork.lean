@@ -352,8 +352,7 @@ theorem lastOcc_eq_some {qs : List ℕ} {j p w : ℕ} (h : lastOcc qs j p = some
   | succ p ih =>
     rw [lastOcc_succ] at h
     split_ifs at h with hp
-    · cases h
-      exact ⟨by omega, hp, fun _ _ _ => by omega⟩
+    · exact Option.some.inj h ▸ ⟨Nat.lt_succ_self _, hp, fun _ _ _ => by omega⟩
     · obtain ⟨h1, h2, h3⟩ := ih h
       refine ⟨by omega, h2, fun w' hw1 hw2 => ?_⟩
       rcases Nat.lt_succ_iff_lt_or_eq.mp hw2 with hw | rfl <;> [exact h3 w' hw1 hw; exact hp]
@@ -663,9 +662,7 @@ private theorem map_pairFun_right {N : ℕ} (a b : Fin N → Bool) :
 theorem length_qubits_le_three {m : ℕ} {g : GateCode} (h : g.WellFormed m) :
     (qubits g).length ≤ 3 := by
   obtain ⟨_ | _, t, cs⟩ := g
-  · have := h.1
-    simp only [qubits, List.length_cons]
-    omega
+  · simpa [qubits] using Nat.succ_le_succ h.1
   · simp [qubits, h.2]
 
 /-- The product of the row vertex entries of `network` when edge `e` carries `Z (e / 2)`. -/
@@ -750,8 +747,8 @@ theorem contraction_network {R : Type*} [CommRing R] (S : List ℕ) (X : List Bo
   have hC (Φ : (ℕ → Bool) → R) : ∑ b : Fin N → Bool, trajWeight (-1) gs Xf (List.ofFn b) Φ =
       ∑ π : Fin (hadamardCount gs) → Bool, sgn (gs.foldl pathStep (X, List.ofFn π, false)).2.2 *
         Φ (fun j => (gs.foldl pathStep (X, List.ofFn π, false)).1.getD j false) := by
-    have := sgn_mul_sum_trajWeight gs X hgs false Φ
-    rwa [sgn, ite_eq_right Bool.false_ne_true, one_mul] at this
+    simpa only [sgn, ite_eq_right Bool.false_ne_true, one_mul] using
+      sgn_mul_sum_trajWeight gs X hgs false Φ
   simp only [hstep]
   rw [Finset.sum_congr rfl fun a _ =>
       (trajWeight_sum (-1) Finset.univ gs Xf (List.ofFn a) _).symm.trans
@@ -765,12 +762,11 @@ theorem contraction_network {R : Type*} [CommRing R] (S : List ℕ) (X : List Bo
   have hok := finalOK_iff S X gs (s := f.1) (s' := f'.1) (length_foldl_pathStep _ _ _ _)
     (length_foldl_pathStep _ _ _ _) (fun j hj => getD_foldl_pathStep_of_not_mem gs hj _ _ _)
     (fun j hj => getD_foldl_pathStep_of_not_mem gs hj _ _ _)
-  simp only [onesTerm, pathRun, List.all_eq_true]
+  simp only [hok, onesTerm, pathRun, List.all_eq_true]
   by_cases hc : f.1 = f'.1 ∧ ∀ j ∈ S, f.1.getD j false = true
-  · rw [ite_eq_left (hok.mpr hc), ite_eq_left hc, mul_one, ← sgn_xor]
+  · rw [ite_eq_left hc, ite_eq_left hc, mul_one, ← sgn_xor]
     simp [sgn, f, f']
-  · rw [ite_eq_right (mt hok.mp hc), ite_eq_right hc]
-    simp
+  · rw [ite_eq_right hc, ite_eq_right hc, mul_zero, mul_zero, Int.cast_zero]
 
 /-! ### Residues of the contraction over `ℕ` -/
 
@@ -820,8 +816,7 @@ theorem length_le_length_occurrences (gs : List GateCode) :
   induction gs with
   | nil => simp [occurrences]
   | cons g gs ih =>
-    rw [occurrences_cons, List.length_append, List.length_cons]
-    simp only [qubits, List.length_cons]
+    simp only [occurrences_cons, qubits, List.length_append, List.length_cons]
     omega
 
 theorem length_occurrences_le {m : ℕ} {gs : List GateCode} (hgs : ∀ g ∈ gs, g.WellFormed m) :
@@ -829,10 +824,9 @@ theorem length_occurrences_le {m : ℕ} {gs : List GateCode} (hgs : ∀ g ∈ gs
   induction gs with
   | nil => simp [occurrences]
   | cons g gs ih =>
-    rw [occurrences_cons, List.length_append, List.length_cons]
-    have h1 := length_qubits_le_three (hgs g List.mem_cons_self)
-    have h2 := ih fun g' hg' => hgs g' (List.mem_cons_of_mem _ hg')
-    omega
+    rw [occurrences_cons, List.length_append, List.length_cons, Nat.mul_succ, Nat.add_comm _ 3]
+    exact add_le_add (length_qubits_le_three (hgs g List.mem_cons_self))
+      (ih fun _ hg => hgs _ (List.mem_cons_of_mem _ hg))
 
 variable {R : Type*} [Zero R] [One R]
 
@@ -872,8 +866,7 @@ theorem maxDegree_network_le (neg : R) (S : List ℕ) (X : List Bool) {gs : List
   · exact hgate 1 i hi
   · unfold glueVertex
     split_ifs <;> simp
-  · simp [scalarVertex]
-  · simp
+  all_goals simp [scalarVertex]
 
 /-- **Full tables**: every table lists `2 ^ (number of ports)` entries. -/
 theorem length_table_network (neg : R) (S : List ℕ) (X : List Bool) {gs : List GateCode}
@@ -884,17 +877,15 @@ theorem length_table_network (neg : R) (S : List ℕ) (X : List Bool) {gs : List
     List.mem_singleton] at hv
   have hgate (c i : ℕ) (hi : i < gs.length) :
       (gateVertex neg X gs c i).2.length = 2 ^ (gateVertex neg X gs c i).1.length := by
-    have := hgs _ (List.getD_mem default hi)
-    simp only [gateVertex]
-    rw [boundedTable_eq _ ((length_gatePorts_le gs c i).trans (by omega)), List.length_map,
-      List.length_range]
+    have hle : (gatePorts gs c i).length ≤ 6 :=
+      (length_gatePorts_le gs c i).trans (by have := hgs _ (List.getD_mem default hi); omega)
+    simp [gateVertex, boundedTable_eq _ hle]
   rcases hv with (((⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩) | ⟨w, -, rfl⟩) | rfl) | ⟨w, -, rfl⟩
   · exact hgate 0 i hi
   · exact hgate 1 i hi
   · unfold glueVertex
     split_ifs <;> rfl
-  · rfl
-  · rfl
+  all_goals rfl
 
 /-! ### The bipartition -/
 
@@ -980,12 +971,11 @@ theorem sum_readers {gs : List GateCode} (hnd : ∀ g ∈ gs, (qubits g).Nodup) 
       · rintro ⟨hq, hl⟩
         obtain ⟨k, hk, hkq⟩ := (mem_qubits_iff hi q).mp hq
         obtain ⟨hub, -, hnext⟩ := lastOcc_eq_some hl
-        have h2 := base_add_le hi; rw [← hqs] at h2
-        have hp₀ : p₀ ≤ base gs i + k := Nat.find_min' hex ⟨by omega, by omega, hkq⟩
-        have hbi := base_succ hi
-        refine eq_of_base_le_lt ?_ (by omega) hb₀ (by rwa [base_succ hi₀])
-        by_contra! h
-        exact hnext p₀ hup h hpq
+        have hp₀ : p₀ ≤ base gs i + k := Nat.find_min' hex ⟨by omega,
+          (Nat.add_lt_add_left hk _).trans_le (base_add_le hi), hkq⟩
+        exact eq_of_base_le_lt (not_lt.mp fun h => hnext p₀ hup h hpq)
+          (hp₀.trans_lt ((Nat.add_lt_add_left hk _).trans_eq (base_succ hi).symm)) hb₀
+          (base_succ hi₀ ▸ hb₀')
       · intro h
         rw [h]
         have hk : p₀ - base gs i₀ < (qubits (gs.getD i₀ default)).length := by omega
@@ -1144,16 +1134,14 @@ theorem isRowsFirstBipartite_network (neg : R) (S : List ℕ) (X : List Bool) {g
     interval_cases r
     · simp only [Nat.add_zero, count_glueVertex_out, List.map_const', List.sum_replicate,
         smul_eq_mul, Nat.mul_zero]
-      rw [List.map_congr_left fun i hi => count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi)
-          hc (show 0 < 2 by omega) hu,
-        List.map_congr_left fun i hi => count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi)
-          hc (show 1 < 2 by omega) hu,
+      rw [List.map_congr_left fun i hi =>
+          count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi) hc Nat.zero_lt_two hu,
+        List.map_congr_left fun i hi =>
+          count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi) hc Nat.one_lt_two hu,
         List.sum_map_ite_and, List.sum_map_ite_and, sum_range_base gs hu]
       interval_cases c <;> simp
-    · rw [List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc
-          (show 0 < 2 by omega) hu,
-        List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc
-          (show 1 < 2 by omega) hu,
+    · rw [List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc Nat.zero_lt_two hu,
+        List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc Nat.one_lt_two hu,
         List.map_congr_left fun w hw => count_glueVertex_link S gs (List.mem_range.mp hw) hc hu,
         List.sum_map_ite_and, List.sum_map_ite_and]
       have hglue : ((List.range (occurrences gs).length).map fun w =>
@@ -1165,8 +1153,7 @@ theorem isRowsFirstBipartite_network (neg : R) (S : List ℕ) (X : List Bool) {g
             if_congr (and_congr_left fun h => by subst h; rfl) rfl rfl,
           List.sum_map_ite_and, List.sum_map_range_ite_eq, ite_eq_left hu]
       rw [hglue]
-      have := sum_readers hnd hu
-      interval_cases c <;> simpa using this
+      interval_cases c <;> simpa using sum_readers hnd hu
   · simp only [numEdges_network] at he
     rw [fst_network, vertices_network, List.drop_left' (by simp; omega)]
     have hcount (w : ℕ) : ([2 * w, 2 * w + 1] : List ℕ).count e = if w = e / 2 then 1 else 0 := by

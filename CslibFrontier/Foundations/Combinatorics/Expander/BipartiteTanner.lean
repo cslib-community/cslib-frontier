@@ -163,22 +163,18 @@ theorem mem_submodule {S M : Type*} [Semiring S] [AddCommMonoid M] [Module S M]
 /-- Hamming distance decomposes by left vertices. -/
 theorem hammingDist_eq_sum_left [Fintype L] [Fintype D] [DecidableEq α] (x y : L × D → α) :
     hammingDist x y = ∑ u : L, hammingDist (leftWord x u) (leftWord y u) := by
-  rw [hammingDist, Finset.card_filter, Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun u _ => by
-    rw [hammingDist, Finset.card_filter]
-    rfl
+  simp_rw [hammingDist, Finset.card_filter, Fintype.sum_prod_type]
+  rfl
 
 /-- Hamming distance decomposes by right vertices. -/
 theorem hammingDist_eq_sum_right [Fintype L] [Fintype R] [Fintype D] [DecidableEq α]
     (B : BipartiteRotationMap L R D) (x y : L × D → α) :
     hammingDist x y = ∑ v : R, hammingDist (rightWord B x v) (rightWord B y v) := by
-  rw [hammingDist, Finset.card_filter]
+  simp_rw [hammingDist, Finset.card_filter]
   rw [Fintype.sum_equiv B.toRight (fun p => if x p ≠ y p then (1 : ℕ) else 0)
     (fun q => if x (B.toRight.symm q) ≠ y (B.toRight.symm q) then 1 else 0)
     fun p => by simp only [Equiv.symm_apply_apply], Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun v _ => by
-    rw [hammingDist, Finset.card_filter]
-    rfl
+  rfl
 
 /-- Hamming weight decomposes by left vertices. -/
 theorem hammingNorm_eq_sum_left [Fintype L] [Fintype D] [Zero α] [DecidableEq α]
@@ -273,9 +269,9 @@ theorem hammingNorm_submatrix_row_le {κ ι ι' : Type*} [Fintype ι] [Fintype �
     [DecidableEq α] (H : Matrix κ ι α) (emb : ι' ↪ ι) (r : κ) :
     hammingNorm ((H.submatrix id emb) r) ≤ hammingNorm (H r) := by
   rw [hammingNorm, hammingNorm]
-  refine card_le_card_of_injOn emb (fun e he => ?_) fun _ _ _ _ h => emb.injective h
-  simp only [mem_coe, mem_filter, mem_univ, true_and] at he ⊢
-  simpa only [Matrix.submatrix_apply, id_eq] using he
+  exact card_le_card_of_injOn emb
+    (fun _ he => mem_coe.2 (mem_filter.2 ⟨mem_univ _, (mem_filter.1 (mem_coe.1 he)).2⟩))
+    fun _ _ _ _ h => emb.injective h
 
 /-- Rate lower bound `rate CL + rate CR - 1 ≤ rate (submodule B CL CR)` for arbitrary finite
 local linear codes `CL` and `CR` over a finite nontrivial commutative ring. -/
@@ -295,9 +291,7 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
     ext x
     simp [φ, LinearMap.mem_ker, funext_iff, Submodule.mkQ_apply,
       Submodule.Quotient.mk_eq_zero, mem_submodule]
-  have hcard := AddSubgroup.card_ker_mul_card_range φ.toAddMonoidHom
-  have hker_card : Nat.card φ.toAddMonoidHom.ker = Nat.card (submodule B CL CR) := by
-    rw [← hker]; rfl
+  have hker_card : Nat.card φ.toAddMonoidHom.ker = Nat.card (submodule B CL CR) := hker ▸ rfl
   have _ : Finite ((D → α) ⧸ CL) := Finite.of_surjective _ CL.mkQ_surjective
   have _ : Finite ((D → α) ⧸ CR) := Finite.of_surjective _ CR.mkQ_surjective
   have hrange_le : Nat.card φ.toAddMonoidHom.range ≤
@@ -320,7 +314,8 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
     have hmul : (Fintype.card α ^ Fintype.card D) ^ Fintype.card L ≤
         Nat.card (submodule B CL CR) *
           (Nat.card ((D → α) ⧸ CL) * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L := by
-      rw [← pow_mul, mul_comm (Fintype.card D), ← hdom, ← hcard, hker_card, mul_pow]
+      rw [← pow_mul, mul_comm (Fintype.card D), ← hdom,
+        ← AddSubgroup.card_ker_mul_card_range φ.toAddMonoidHom, hker_card, mul_pow]
       exact Nat.mul_le_mul_left _ hrange_le
     refine Nat.le_of_mul_le_mul_right (c := (Fintype.card α ^ Fintype.card D) ^ Fintype.card L)
       ?_ (by positivity)
@@ -329,9 +324,7 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
           Nat.mul_le_mul_left _ hmul
       _ = Nat.card (submodule B CL CR) * ((Nat.card CL * Nat.card ((D → α) ⧸ CL)) *
           (Nat.card CR * Nat.card ((D → α) ⧸ CR))) ^ Fintype.card L := by ring
-      _ = _ := by
-        rw [hqL, hqR]
-        ring
+      _ = _ := by simp only [hqL, hqR]; ring
   have hα : (1 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.one_lt_card
   have hCL_pos : (0 : ℝ) < Nat.card CL := Nat.cast_pos.2 Nat.card_pos
   have hCR_pos : (0 : ℝ) < Nat.card CR := Nat.cast_pos.2 Nat.card_pos
@@ -343,12 +336,9 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
   rw [Real.logb_pow, Real.logb_mul hCL_pos.ne' hCR_pos.ne',
     Real.logb_mul hSub_pos.ne' (by positivity), Real.logb_pow,
     Real.logb_self_pow (zero_lt_one.trans hα) hα.ne'] at hlog
-  have hL0 : (0 : ℝ) < Fintype.card L := by exact_mod_cast hL
-  have hD0 : (0 : ℝ) < Fintype.card D := by exact_mod_cast hD
   simp only [Code.rate, SetLike.coe_sort_coe, Fintype.card_prod, Nat.cast_mul]
-  refine le_of_mul_le_mul_right ?_ (mul_pos hL0 hD0)
-  field_simp
-  linarith
+  refine le_of_mul_le_mul_right ?_ (mul_pos (Nat.cast_pos.2 hL) (Nat.cast_pos.2 hD))
+  field_simp; linarith
 
 /-- Parity-check rate lower bound for bipartite Tanner codes: if `HL` has `|ιL|` checks and `HR`
 has `|ιR|` checks over a finite nontrivial commutative ring `α`, then the Tanner code has rate at
@@ -365,8 +355,7 @@ theorem one_sub_card_div_card_le_rate_parityCheck [Fintype L] [Finite R] [Fintyp
   have _ : Nonempty D := Fintype.card_pos_iff.1 hD
   have hLR : Fintype.card L = Fintype.card R := B.card_left_eq_card_right
   have h := Code.one_sub_card_div_card_le_rate_parityCheckCode
-    (show 0 < Fintype.card (L × D) by rw [Fintype.card_prod]; exact Nat.mul_pos hL hD)
-    (checkMatrix B HL HR)
+    (Fintype.card_prod L D ▸ Nat.mul_pos hL hD) (checkMatrix B HL HR)
   rw [parityCheckCode_checkMatrix, coe_submodule] at h
   have hcard_eq : (Fintype.card (L × ιL ⊕ R × ιR) : ℝ) / Fintype.card (L × D) =
       ((Fintype.card ιL : ℝ) + Fintype.card ιR) / Fintype.card D := by
@@ -396,10 +385,8 @@ private theorem core_tanner_bound {k lam d N W u v : ℝ} (hk : 0 ≤ k) (hlam :
       _ = d * (k ^ 2 * (u * v)) / N + (k * lam * d) * (k * √(u * v)) := by ring
       _ ≤ d * W ^ 2 / N + (k * lam * d) * W := by gcongr
       _ = (d * W / N + k * lam * d) * W := by ring
-  have hk1 : k ^ 2 ≤ d * W / N + k * lam * d := le_of_mul_le_mul_right hkW hW
-  have hkN := mul_le_mul_of_nonneg_right hk1 hN.le
-  rw [add_mul, div_mul_cancel₀ _ hN.ne'] at hkN
-  linarith
+  have hkN := mul_le_mul_of_nonneg_right (le_of_mul_le_mul_right hkW hW) hN.le
+  rw [add_mul, div_mul_cancel₀ _ hN.ne'] at hkN; linarith
 
 private theorem hammingDist_le_card_interedges [Fintype L] [Fintype R] [Fintype D]
     [DecidableEq R] [DecidableEq α] (B : BipartiteRotationMap L R D) (x y : L × D → α) :
@@ -452,13 +439,10 @@ theorem sqrt_mul_sub_card_le_of_hammingDist [Fintype L] [Fintype R] [Fintype D]
     obtain ⟨⟨u, i⟩, hne⟩ := Function.ne_iff.1 hxy
     exact ⟨u, mem_filter.2 ⟨mem_univ u, fun h => hne (congrFun h i)⟩⟩
   have hN : (0 : ℝ) < Fintype.card L := Nat.cast_pos.2 (Fintype.card_pos_iff.2 ⟨u₀⟩)
-  have hWE : (hammingDist x y : ℝ) ≤ #(B.interedges U W) :=
-    Nat.cast_le.2 (hammingDist_le_card_interedges B x y)
-  have hmix := B.card_interedges_le_of_nontrivialSingularValue_le hlam U W
   have hup : (hammingDist x y : ℝ) ≤
-      Fintype.card D * (#U * #W) / Fintype.card L + lam * Fintype.card D * √((#U : ℝ) * #W) := by
-    rw [mul_assoc (Fintype.card D : ℝ)] at hmix
-    linarith
+      Fintype.card D * (#U * #W) / Fintype.card L + lam * Fintype.card D * √((#U : ℝ) * #W) :=
+    (Nat.cast_le.2 (hammingDist_le_card_interedges B x y)).trans
+      ((B.card_interedges_le_of_nontrivialSingularValue_le hlam U W).trans_eq (by ring))
   have hk2 : √(kL * kR) ^ 2 * ((#U : ℝ) * #W) ≤ (hammingDist x y : ℝ) ^ 2 := by
     rw [Real.sq_sqrt (mul_nonneg hkL hkR)]
     calc
@@ -515,9 +499,8 @@ theorem le_minDist_of_relDist [Fintype L] [Fintype R] [Fintype D]
     (hlam : B.nontrivialSingularValue ≤ lam) {n : ℕ}
     (hn : (n : ℝ) ≤ δ * (δ - lam) * Fintype.card (L × D)) :
     (n : ℕ∞) ≤ Code.minDist (code B CL CR) := by
-  refine Code.le_minDist_iff.2 fun x hx y hy hxy => Nat.cast_le.2 ?_
-  have h := relDist_mul_sub_le_hammingDist B hδ hCL hCR hlam hx hy hxy
-  exact Nat.cast_le.1 (hn.trans h)
+  exact Code.le_minDist_iff.2 fun x hx y hy hxy => Nat.cast_le.2 <| Nat.cast_le.1 <|
+    hn.trans (relDist_mul_sub_le_hammingDist B hδ hCL hCR hlam hx hy hxy)
 
 /-- Minimum-weight bound `δ * (δ - lam) * |L × D| ≤ hammingNorm x` for nonzero words in a linear
 bipartite Tanner code `submodule B CL CR`. -/
@@ -530,13 +513,11 @@ theorem relDist_mul_sub_le_hammingNorm_of_submodule [Fintype L] [Fintype R] [Fin
     (hlam : B.nontrivialSingularValue ≤ lam) {x : L × D → α}
     (hx : x ∈ submodule B CL CR) (hx0 : x ≠ 0) :
     δ * (δ - lam) * Fintype.card (L × D) ≤ hammingNorm x := by
-  have toDist : ∀ {C : Submodule S (D → α)},
-      (∀ w ∈ C, w ≠ 0 → δ * Fintype.card D ≤ hammingNorm w) →
-      ∀ w₁ ∈ (C : Set (D → α)), ∀ w₂ ∈ (C : Set (D → α)), w₁ ≠ w₂ →
-        δ * Fintype.card D ≤ hammingDist w₁ w₂ := by
-    intro C hC w₁ hw₁ w₂ hw₂ hne
-    rw [hammingDist_eq_hammingNorm]
-    exact hC _ (C.add_mem (C.neg_mem hw₁) hw₂) fun h0 => hne (neg_add_eq_zero.1 h0)
+  have toDist {C : Submodule S (D → α)} (hC : ∀ w ∈ C, w ≠ 0 → δ * Fintype.card D ≤ hammingNorm w)
+      (w₁ : D → α) (hw₁ : w₁ ∈ (C : Set (D → α))) (w₂ : D → α) (hw₂ : w₂ ∈ (C : Set (D → α)))
+      (hne : w₁ ≠ w₂) : δ * Fintype.card D ≤ hammingDist w₁ w₂ :=
+    hammingDist_eq_hammingNorm w₁ w₂ ▸
+      hC _ (C.add_mem (C.neg_mem hw₁) hw₂) fun h0 => hne (neg_add_eq_zero.1 h0)
   rw [← hammingDist_zero_right x]
   exact relDist_mul_sub_le_hammingDist B hδ (toDist hCL) (toDist hCR) hlam
     hx (submodule B CL CR).zero_mem hx0
@@ -557,8 +538,7 @@ theorem relDist_mul_sub_le_hammingNorm_of_submatrix {ιL ιR ι' : Type*}
   classical
   have hext :
       Code.extend emb z ∈ submodule B (Code.parityCheckCode HL) (Code.parityCheckCode HR) := by
-    rw [← parityCheckCode_checkMatrix, Code.mem_parityCheckCode, Code.mulVec_extend]
-    exact hz
+    rwa [← parityCheckCode_checkMatrix, Code.mem_parityCheckCode, Code.mulVec_extend]
   have hext0 : Code.extend emb z ≠ 0 := fun h0 =>
     hz0 (funext fun e => by simpa only [Code.extend_emb, Pi.zero_apply] using congrFun h0 (emb e))
   rw [← Code.hammingNorm_extend emb z]
@@ -581,8 +561,7 @@ theorem le_minDist_shortenLinear_checkMatrix {ιL ιR ι' : Type*}
     (n : ℕ∞) ≤ Code.minDist
       (Code.shortenLinear (Code.parityCheckCode (checkMatrix B HL HR)) emb : Set (ι' → α)) := by
   rw [Code.shortenLinear_parityCheckCode, Code.le_minDist_iff_hammingNorm]
-  intro z hz hz0
-  exact Nat.cast_le.2 (Nat.cast_le.1 (hn.trans
+  exact fun z hz hz0 => Nat.cast_le.2 (Nat.cast_le.1 (hn.trans
     (relDist_mul_sub_le_hammingNorm_of_submatrix B HL HR hδ hHL hHR hlam emb
       (Code.mem_parityCheckCode.1 hz) hz0)))
 

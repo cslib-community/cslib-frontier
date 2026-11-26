@@ -528,10 +528,7 @@ theorem GFeat.idx_lt (f : GFeat State) : f.idx < Fintype.card (Option State) + 4
 theorem GFeat.ofIdx_idx (f : GFeat State) : GFeat.ofIdx f.idx = f := by
   rcases f with q | o
   · simp only [GFeat.idx, GFeat.ofIdx, Fin.is_lt, ↓reduceDIte, Fin.eta, Equiv.symm_apply_apply]
-  · rw [GFeat.ofIdx]
-    split_ifs with h
-    · exact absurd h (by simp only [GFeat.idx]; omega)
-    · simp [GFeat.idx]
+  · simp [GFeat.ofIdx, GFeat.idx]; omega
 
 /-- The index of a column feature is strictly less than `1 + 4 * k`. -/
 theorem ColFeat.idx_lt (f : ColFeat k) : f.idx < 1 + 4 * k := by
@@ -567,9 +564,7 @@ theorem gadgetIdx_div (fi : ℕ) (b : Bool) (j : Fin 8) : gadgetIdx fi b j / 16 
 theorem gadgetB_gadgetIdx (fi : ℕ) (b : Bool) (j : Fin 8) :
     gadgetB (gadgetIdx fi b j) = b := by
   have := j.isLt
-  cases b
-  · simp [gadgetB, gadgetIdx]; omega
-  · simp [gadgetB, gadgetIdx]; omega
+  cases b <;> simp [gadgetB, gadgetIdx] <;> omega
 
 /-- Decoding the term index from `gadgetIdx fi b j` recovers `j`. -/
 theorem gadgetJ_gadgetIdx (fi : ℕ) (b : Bool) (j : Fin 8) :
@@ -618,11 +613,9 @@ theorem Loc.offset_lt {l : Loc k State} {c : ℕ} (hl : l.ColOK T c) :
     l.offset T c < blockSize k State T := by
   rcases l with l | l | ⟨f, b, j⟩ | ⟨f, b, j⟩ <;> simp only [Loc.offset]
   · have := scan_offset_lt_globStart hl l
-    simp only [blockSize, colStart, gfStart]
-    omega
+    simp only [blockSize, colStart, gfStart]; omega
   · have := l.idx_lt
-    simp only [blockSize, colStart, gfStart]
-    omega
+    simp only [blockSize, colStart, gfStart]; omega
   · exact lt_of_lt_of_le (gfStart_add_gadgetIdx_lt f b j) (Nat.le_add_right _ _)
   · exact colStart_add_lt hl f b j
 
@@ -655,10 +648,10 @@ theorem div_mod_wire {n T t : ℕ} {l : Loc k State} {c : ℕ} (hl : l.ColOK T c
     (wire n T t l c - n - 2) / blockSize k State T = t ∧
       (wire n T t l c - n - 2) % blockSize k State T = l.offset T c := by
   have h := Loc.offset_lt hl
-  rw [wire_sub, show 2 + t * blockSize k State T + l.offset T c - 2 =
-    l.offset T c + t * blockSize k State T by omega]
-  exact ⟨Nat.add_mul_div_of_lt t h,
-    by rw [Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt h]⟩
+  have hsub : wire n T t l c - n - 2 = l.offset T c + t * blockSize k State T := by
+    rw [wire_sub]; omega
+  rw [hsub, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt h]
+  exact ⟨Nat.add_mul_div_of_lt t h, rfl⟩
 
 /-- **Decoding the offset of a position** gives its column and the position. -/
 theorem posOf_offset {c : ℕ} {l : Loc k State} (hl : l.ColOK T c) :

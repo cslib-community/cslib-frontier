@@ -102,18 +102,15 @@ first-order optimality condition `0 ≤ ⟪gradψ y' - gradψ y, u - y'⟫` agai
 theorem bregman_pythagorean (ψ : E → ℝ) (gradψ : E → E) {u y' y : E}
     (hopt : 0 ≤ ⟪gradψ y' - gradψ y, u - y'⟫) :
     bregmanDiv ψ gradψ u y' + bregmanDiv ψ gradψ y' y ≤ bregmanDiv ψ gradψ u y := by
-  linarith [bregmanDiv_three_point ψ gradψ u y' y,
-    show ⟪gradψ y - gradψ y', u - y'⟫ = -⟪gradψ y' - gradψ y, u - y'⟫ by
-      rw [← neg_sub (gradψ y') (gradψ y), inner_neg_left]]
+  have h3 := bregmanDiv_three_point ψ gradψ u y' y
+  rw [inner_sub_left] at h3 hopt; linarith
 
 /-- For the Euclidean generator `ψ x = ‖x‖ ^ 2 / 2` with gradient `gradψ x = x`, the Bregman
 divergence is half the squared Euclidean distance `‖x - y‖ ^ 2 / 2`. -/
 theorem bregmanDiv_sq_norm_half (x y : E) :
     bregmanDiv (fun z : E => ‖z‖ ^ 2 / 2) id x y = ‖x - y‖ ^ 2 / 2 := by
-  simp only [bregmanDiv, id_eq]
-  linarith [show ‖x - y‖ ^ 2 = ‖x‖ ^ 2 - 2 * ⟪y, x⟫ + ‖y‖ ^ 2 by
-      rw [norm_sub_sq_real, real_inner_comm],
-    show ⟪y, x - y⟫ = ⟪y, x⟫ - ‖y‖ ^ 2 by rw [inner_sub_right, real_inner_self_eq_norm_sq]]
+  simp only [bregmanDiv, id_eq, inner_sub_right, real_inner_self_eq_norm_sq, norm_sub_sq_real]
+  rw [real_inner_comm y x]; ring
 
 /-- First-order optimality condition for one **online mirror descent** step on `K`:
 `x' ∈ argmin_{z ∈ K} { η * ⟪g, z⟫ + B_ψ(z, x) }`. -/
@@ -144,13 +141,10 @@ theorem omd_step_le {K : Set E} {ψ : E → ℝ} {gradψ : E → E} {primal dual
         η ^ 2 * (dual g) ^ 2 / (2 * μ) := by
   have hlin : η * ⟪g, x - u⟫ + ⟪gradψ x - gradψ x', u - x'⟫ =
       η * ⟪g, x - x'⟫ - ⟪η • g + (gradψ x' - gradψ x), u - x'⟫ := by
-    rw [show x - u = (x - x') - (u - x') by abel,
-      show gradψ x - gradψ x' = -(gradψ x' - gradψ x) by abel,
-      inner_sub_right, inner_add_left, real_inner_smul_left, inner_neg_left]
-    ring
+    simp only [inner_sub_left, inner_sub_right, inner_add_left, real_inner_smul_left]; ring
   have hquad : η * (dual g * primal (x - x')) - μ / 2 * (primal (x - x')) ^ 2 ≤
       η ^ 2 * (dual g) ^ 2 / (2 * μ) := by
-    rw [le_div_iff₀ (by positivity : 0 < 2 * μ)]
+    rw [le_div_iff₀ (mul_pos zero_lt_two hμ)]
     nlinarith [sq_nonneg (μ * primal (x - x') - η * dual g)]
   linarith [hstep.2 u hu, bregmanDiv_three_point ψ gradψ u x' x, hsc x' hstep.1 x hx,
     mul_le_mul_of_nonneg_left (hpair g (x - x')) hη]
@@ -245,12 +239,11 @@ theorem omd_regret_le_tuned {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
   refine (omd_regret_le_const hμ (by positivity) hG.le hpair hsc f grad x T hx0 hstep hsub
     hdual_nonneg hgrad hu hB).trans_eq ?_
   have hsr : s * r / μ = Real.sqrt (2 * B * (T : ℝ) / μ) := by
-    rw [← Real.sqrt_sq (by positivity : 0 ≤ s * r / μ), div_pow, mul_pow, hs2, hr2]
+    rw [← Real.sqrt_sq (div_pos (mul_pos hs_pos hr_pos) hμ).le, div_pow, mul_pow, hs2, hr2]
     exact congrArg Real.sqrt (by field_simp)
   rw [← hsr]
   field_simp
-  rw [hs2, hr2]
-  ring
+  rw [hs2, hr2]; ring
 
 /-- Telescoping inner-product bound for **online mirror descent** with arbitrary nonincreasing
 positive step sizes `η : ℕ → ℝ` on a domain whose Bregman divergence to `u` is bounded by `D`. -/
@@ -351,8 +344,7 @@ theorem omd_regret_le_sqrt {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
             div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hsq (hη_pos t).le)
               (by positivity)
         _ = Real.sqrt (μ * D) * G / (2 * μ) * (1 / Real.sqrt ((t : ℝ) + 1)) := by
-            dsimp only [η]
-            field_simp
+            dsimp only [η]; field_simp
     have hterm2 := mul_le_mul_of_nonneg_left
       ((sum_range_one_div_sqrt_succ_le m).trans
         (by linarith : 2 * Real.sqrt ((m : ℝ) + 1) - 1 ≤ 2 * Real.sqrt ((m : ℝ) + 1)))
@@ -364,7 +356,7 @@ theorem omd_regret_le_sqrt {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
     have hs2 : s ^ 2 = μ * D := Real.sq_sqrt (by positivity)
     have hr2 : r ^ 2 = (m : ℝ) + 1 := Real.sq_sqrt (by positivity)
     have hsr : s * r / μ = Real.sqrt (D * ((m + 1 : ℕ) : ℝ) / μ) := by
-      rw [← Real.sqrt_sq (by positivity : 0 ≤ s * r / μ), div_pow, mul_pow, hs2, hr2,
+      rw [← Real.sqrt_sq (div_pos (mul_pos hs_pos hr_pos) hμ).le, div_pow, mul_pow, hs2, hr2,
         Nat.cast_add, Nat.cast_one]
       exact congrArg Real.sqrt (by field_simp)
     have hcomb : D / η m + s * G / (2 * μ) * (2 * r) =
@@ -372,8 +364,7 @@ theorem omd_regret_le_sqrt {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
       change D / (s / (G * r)) + s * G / (2 * μ) * (2 * r) = _
       rw [← hsr]
       field_simp
-      rw [hs2]
-      ring
+      rw [hs2]; ring
     linarith
 
 end Cslib.MachineLearning.OnlineLearning.OCO

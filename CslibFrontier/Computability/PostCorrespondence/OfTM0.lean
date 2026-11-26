@@ -142,16 +142,13 @@ private theorem split_active {x y : Letter Γ Λ} (hy : IsActive y) :
     exact ⟨congrArg _ h₁, h₂, h₃⟩
 
 private theorem not_active_left (L : List Γ) :
-    ∀ z ∈ (lb :: L.reverse.map sym : List (Letter Γ Λ)), ¬IsActive z := by
-  intro z hz
-  rcases (List.mem_cons.mp hz).imp_right List.mem_map.mp with rfl | ⟨a, -, rfl⟩ <;>
-    exact id
+    ∀ z ∈ (lb :: L.reverse.map sym : List (Letter Γ Λ)), ¬IsActive z := fun _ hz => by
+  rcases (List.mem_cons.mp hz).imp_right List.mem_map.mp with rfl | ⟨_, -, rfl⟩ <;> exact id
 
 private theorem not_active_right (R : List Γ) :
-    ∀ z ∈ (R.map sym ++ [rb] : List (Letter Γ Λ)), ¬IsActive z := by
-  intro z hz
+    ∀ z ∈ (R.map sym ++ [rb] : List (Letter Γ Λ)), ¬IsActive z := fun _ hz => by
   rcases (List.mem_append.mp hz).imp List.mem_map.mp List.mem_singleton.mp with
-    ⟨a, -, rfl⟩ | rfl <;> exact id
+    ⟨_, -, rfl⟩ | rfl <;> exact id
 
 private theorem split_word {x y : Letter Γ Λ} {L R : List Γ} {p s : List (Letter Γ Λ)}
     (h : p ++ y :: s = word x L R) (hy : IsActive y) :
@@ -194,8 +191,7 @@ private theorem peel_left_sym {L : List Γ} {p : List (Letter Γ Λ)} {c : Γ}
   rcases L with _ | ⟨c', L'⟩
   · exact nomatch (List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl).2
   · rw [List.reverse_cons, List.map_append, List.map_singleton, ← List.cons_append] at h
-    obtain ⟨rfl, h₂⟩ := List.append_inj' h rfl
-    cases h₂
+    obtain ⟨rfl, ⟨⟩⟩ := List.append_inj' h rfl
     exact ⟨L', rfl, rfl⟩
 
 private theorem peel_left_lb {L : List Γ} {p : List (Letter Γ Λ)}
@@ -241,10 +237,8 @@ inductive Rule (M : TM0.Machine Γ Λ) : Domino (Letter Γ Λ) → Prop
 
 theorem finite_rule [Finite Γ] [Finite Λ] (M : TM0.Machine Γ Λ) : {d | Rule M d}.Finite := by
   have hfin : {w : List (Letter Γ Λ) | w.length ≤ 3}.Finite := List.finite_length_le _ _
-  refine ((hfin.prod hfin).image fun p => (⟨p.1, p.2⟩ : Domino (Letter Γ Λ))).subset ?_
-  intro d hd
-  refine ⟨(d.top, d.bottom), ?_, rfl⟩
-  cases hd <;> simp
+  exact ((hfin.prod hfin).image fun p => (⟨p.1, p.2⟩ : Domino (Letter Γ Λ))).subset fun d hd =>
+    ⟨(d.top, d.bottom), by cases hd <;> simp, rfl⟩
 
 /-- The dominoes of the MPCP instance simulating `M`: the rules and a copy domino for every
 letter. -/
@@ -279,33 +273,27 @@ private theorem good_of_rewrites {M : TM0.Machine Γ Λ} {l : List Γ} {u v : Li
   rcases hu with ⟨q, a, L, R, hr, hw⟩ | ⟨hh, hw | ⟨L, R, hw⟩⟩
   · cases hd with
     | stop hM =>
-      obtain ⟨rfl, h, rfl⟩ := split1 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, rfl⟩ := split1 hw trivial
       exact Or.inr ⟨⟨_, hr, step_of_eq_none hM L R⟩, Or.inr ⟨L, R, by simp [word]⟩⟩
     | @write _ _ q' b hM =>
-      obtain ⟨rfl, h, rfl⟩ := split1 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, rfl⟩ := split1 hw trivial
       exact Or.inl ⟨q', b, L, R, hr.tail (step_of_eq_write hM L R), by simp [word]⟩
     | @right _ _ q' c hM =>
-      obtain ⟨rfl, h, hs⟩ := split2 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, hs⟩ := split2 hw trivial
       obtain ⟨R', rfl, rfl⟩ := peel_right_sym hs
       exact Or.inl ⟨q', c, _ :: L, R', hr.tail (step_of_eq_right hM L (c :: R')),
         by simp [word]⟩
     | @rightEnd _ _ q' hM =>
-      obtain ⟨rfl, h, hs⟩ := split2 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, hs⟩ := split2 hw trivial
       obtain ⟨rfl, rfl⟩ := peel_right_rb hs
       exact Or.inl ⟨q', default, _ :: L, [], hr.tail (step_of_eq_right hM L []), by simp [word]⟩
     | @left _ _ q' c hM =>
-      obtain ⟨hp, h, rfl⟩ := split2' hw trivial
-      cases h
+      obtain ⟨hp, ⟨⟩, rfl⟩ := split2' hw trivial
       obtain ⟨L', rfl, rfl⟩ := peel_left_sym hp
       exact Or.inl ⟨q', c, L', _ :: R, hr.tail (step_of_eq_left hM (c :: L') R),
         by simp [word]⟩
     | @leftEnd _ _ q' hM =>
-      obtain ⟨hp, h, rfl⟩ := split2' hw trivial
-      cases h
+      obtain ⟨hp, ⟨⟩, rfl⟩ := split2' hw trivial
       obtain ⟨rfl, rfl⟩ := peel_left_lb hp
       exact Or.inl ⟨q', default, [], _ :: R, hr.tail (step_of_eq_left hM [] R), by simp [word]⟩
     | eatLeft c => exact nomatch (split2' hw trivial).2.1
@@ -313,12 +301,9 @@ private theorem good_of_rewrites {M : TM0.Machine Γ Λ} {l : List Γ} {u v : Li
     | finish => exact nomatch (split3 hw trivial).2.1
   · cases hd <;> simp at hw
   · cases hd with
-    | stop hM => exact nomatch (split1 hw trivial).2.1
-    | write hM => exact nomatch (split1 hw trivial).2.1
-    | right c hM => exact nomatch (split2 hw trivial).2.1
-    | rightEnd hM => exact nomatch (split2 hw trivial).2.1
-    | left c hM => exact nomatch (split2' hw trivial).2.1
-    | leftEnd hM => exact nomatch (split2' hw trivial).2.1
+    | stop _ | write _ => exact nomatch (split1 hw trivial).2.1
+    | right _ _ | rightEnd _ => exact nomatch (split2 hw trivial).2.1
+    | left _ _ | leftEnd _ => exact nomatch (split2' hw trivial).2.1
     | eatLeft c =>
       obtain ⟨hp, -, rfl⟩ := split2' hw trivial
       obtain ⟨L', rfl, rfl⟩ := peel_left_sym hp
@@ -360,12 +345,10 @@ private theorem rb_mem_top {M : TM0.Machine Γ Λ} {d : Domino (Letter Γ Λ)} (
 
 private theorem halt_reflTransGen {M : TM0.Machine Γ Λ} :
     ∀ L R : List Γ, ReflTransGen (Rewrites (Rule M)) (word halt L R) []
-  | c :: L, R => by
-    refine ReflTransGen.head ⟨lb :: L.reverse.map sym, ⟨[sym c, halt], [halt]⟩,
+  | c :: L, R => ReflTransGen.head ⟨lb :: L.reverse.map sym, ⟨[sym c, halt], [halt]⟩,
       R.map sym ++ [rb], Rule.eatLeft c, by simp [word], by simp [word]⟩ (halt_reflTransGen L R)
-  | [], c :: R => by
-    refine ReflTransGen.head ⟨[lb], ⟨[halt, sym c], [halt]⟩, R.map sym ++ [rb], Rule.eatRight c,
-      by simp [word], by simp [word]⟩ (halt_reflTransGen [] R)
+  | [], c :: R => ReflTransGen.head ⟨[lb], ⟨[halt, sym c], [halt]⟩, R.map sym ++ [rb],
+      Rule.eatRight c, by simp [word], by simp [word]⟩ (halt_reflTransGen [] R)
   | [], [] => ReflTransGen.single ⟨[], ⟨[lb, halt, rb], []⟩, [], Rule.finish, rfl, rfl⟩
 
 private theorem reflTransGen_of_reaches {M : TM0.Machine Γ Λ} {c c' : TM0.Cfg Γ Λ}
@@ -380,11 +363,9 @@ private theorem reflTransGen_of_reaches {M : TM0.Machine Γ Λ} {c c' : TM0.Cfg 
       (halt_reflTransGen L R)
   | @head c₀ c₁ hstep _ ih =>
     rintro q a L R rfl
-    rcases hM : M q a with _ | ⟨q', _ | b⟩
-    · rw [Option.mem_def, step_of_eq_none hM] at hstep
-      cases hstep
-    · rename_i dir
-      cases dir with
+    rcases hM : M q a with _ | ⟨q', dir | b⟩
+    · simp [Option.mem_def, step_of_eq_none hM] at hstep
+    · cases dir with
       | left =>
         rw [Option.mem_def, step_of_eq_left hM, Option.some_inj] at hstep
         rcases L with _ | ⟨c', L'⟩
@@ -420,14 +401,13 @@ theorem eval_dom_iff_solvable [Fintype Γ] [Fintype Λ] (M : TM0.Machine Γ Λ) 
       (fun x => mem_dominoes.mpr (Or.inr ⟨x, rfl⟩))
       (reflTransGen_of_reaches hr hc _ _ _ _ (init_eq l))
   · intro h
-    have hD : ∀ d ∈ dominoes M, Rule M d ∨ d.top = d.bottom := fun d hd =>
-      (mem_dominoes.mp hd).imp_right fun ⟨x, hx⟩ => hx ▸ rfl
-    have he : ∀ d ∈ dominoes M, rb ∈ d.top → ∃ t, d.top = t ++ [rb] ∧ rb ∉ t := by
-      intro d hd hrb
+    have hD (d : Domino (Letter Γ Λ)) (hd : d ∈ dominoes M) : Rule M d ∨ d.top = d.bottom :=
+      (mem_dominoes.mp hd).imp_right fun ⟨_, hx⟩ => hx ▸ rfl
+    have he (d : Domino (Letter Γ Λ)) (hd : d ∈ dominoes M) (hrb : rb ∈ d.top) :
+        ∃ t, d.top = t ++ [rb] ∧ rb ∉ t := by
       rcases mem_dominoes.mp hd with hd | ⟨x, rfl⟩
       · exact rb_mem_top hd hrb
-      · simp only [copy, List.mem_singleton] at hrb
-        exact ⟨[], by rw [hrb]; rfl, List.not_mem_nil⟩
+      · exact ⟨[], List.mem_singleton.mp hrb ▸ rfl, List.not_mem_nil⟩
     have hrt := reflTransGen_of_mSolvable hD he
       (fun u hu => good_ends (good_of_reflTransGen hu)) h
     rcases good_of_reflTransGen hrt with ⟨q, a, L, R, -, h⟩ | ⟨hh, -⟩
@@ -438,13 +418,11 @@ theorem primrec_mInstance [Fintype Γ] [Fintype Λ] [Primcodable Γ] [Primcodabl
     (M : TM0.Machine Γ Λ) : Primrec (mInstance M) := by
   have hsym : Primrec (sym : Γ → Letter Γ Λ) := Primrec.dom_finite _
   have hcell : Primrec fun a : Γ => (cell default a : Letter Γ Λ) := Primrec.dom_finite _
-  have hw : Primrec fun l : List Γ => word (cell (default : Λ) l.headI) [] l.tail := by
-    have : Primrec fun l : List Γ => (lb : Letter Γ Λ) :: (cell (default : Λ) l.headI ::
-        (l.tail.map sym ++ [rb])) :=
-      Primrec.list_cons.comp (Primrec.const _) (Primrec.list_cons.comp
-        (hcell.comp Primrec.list_headI) (Primrec.list_append.comp
-          (Primrec.list_map Primrec.list_tail (hsym.comp Primrec.snd).to₂) (Primrec.const _)))
-    exact this.of_eq fun _ => rfl
+  have hw : Primrec fun l : List Γ => word (cell (default : Λ) l.headI) [] l.tail :=
+    (Primrec.list_cons.comp (Primrec.const _) (Primrec.list_cons.comp
+      (hcell.comp Primrec.list_headI) (Primrec.list_append.comp
+        (Primrec.list_map Primrec.list_tail (hsym.comp Primrec.snd).to₂)
+        (Primrec.const _)))).of_eq fun _ => rfl
   exact (MInstance.primrec₂_mk.comp
     (Domino.primrec₂_mk.comp (Primrec.const ([] : List (Letter Γ Λ))) hw)
     (Primrec.const _)).of_eq fun _ => rfl

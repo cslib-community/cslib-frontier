@@ -453,18 +453,15 @@ theorem card_filter_le_abs_andreevBlockSum_sub_half_bm (b m : ℕ) (S : Finset (
       2 * 2 ^ (2 ^ b + b * m) * exp (-(2 * t ^ 2 / (b * m : ℝ))) := by
   rcases eq_or_lt_of_le (by positivity : (0 : ℝ) ≤ (#S * m : ℝ)) with hSm | hSm_pos
   · rcases eq_or_lt_of_le ht with rfl | ht_pos
-    · have hreal : (#{w : BitString (2 ^ b + b * m) |
-          (0 : ℝ) ≤ |(andreevBlockSum b m S w : ℝ) - (#S * m : ℝ) / 2|} : ℝ) ≤
-          2 ^ (2 ^ b + b * m) :=
-        mod_cast (card_le_univ _).trans_eq BitString.card
-      simp only [sq, mul_zero, zero_div, neg_zero, exp_zero, mul_one]
-      linarith [show (0 : ℝ) ≤ 2 ^ (2 ^ b + b * m) by positivity]
+    · simp only [sq, mul_zero, zero_div, neg_zero, exp_zero, mul_one]
+      exact_mod_cast ((card_le_univ _).trans_eq BitString.card).trans
+        (Nat.le_mul_of_pos_left _ two_pos)
     · have hempty : andreevBlockSupport m S = ∅ :=
         card_eq_zero.mp ((card_andreevBlockSupport m S).trans (mod_cast hSm.symm))
       have hempty_filter : ({w : BitString (2 ^ b + b * m) |
-          t ≤ |(andreevBlockSum b m S w : ℝ) - (#S * m : ℝ) / 2|} : Finset _) = ∅ := by
-        ext
-        simp [cast_andreevBlockSum_eq_card_filter, hempty, ← hSm, not_le.mpr ht_pos]
+          t ≤ |(andreevBlockSum b m S w : ℝ) - (#S * m : ℝ) / 2|} : Finset _) = ∅ :=
+        filter_eq_empty_iff.mpr fun _ _ => by
+          simp [cast_andreevBlockSum_eq_card_filter, hempty, ← hSm, not_le.mpr ht_pos]
       rw [hempty_filter, card_empty, Nat.cast_zero]
       positivity
   · refine (card_filter_le_abs_andreevBlockSum_sub_half b m S ht).trans <|
@@ -506,11 +503,8 @@ private theorem cast_andreevTableScore_flipTable (b m : ℕ) (S : Finset (Fin b)
     simp only [andreevTableScore, Int.cast_sum, Int.cast_mul, Int.cast_sub, Int.cast_one,
       Int.cast_ofNat, Int.cast_natCast]
     refine sum_congr rfl fun c _ => ?_
-    have hchi : ((chi ℤ S c : ℤ) : ℝ) = (-1 : ℝ) ^ (parityOn S c).toNat := by
-      simp [chi_eq_neg_one_pow_parityOn]
-    rw [hchi]
-    simpa [andreevFlipTable, andreevFlipTableFun, andreevTable, andreevTableIndex] using
-      hxor (parityOn S c) (andreevTable b m w c)
+    simpa [chi_eq_neg_one_pow_parityOn, andreevFlipTable, andreevFlipTableFun, andreevTable,
+      andreevTableIndex] using hxor (parityOn S c) (andreevTable b m w c)
   have hcard : (#{i ∈ andreevTableSupport b m | w i = true} : ℝ) =
       ∑ c : BitString b, ((andreevTable b m w c).toNat : ℝ) := by
     rw [andreevTableSupport, card_filter, sum_map]

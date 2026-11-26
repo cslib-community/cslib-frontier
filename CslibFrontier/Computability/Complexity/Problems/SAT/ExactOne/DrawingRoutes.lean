@@ -117,13 +117,11 @@ theorem positiveExterior_box_contact {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
     p = realPoint (positiveBoxOrigin φ d i + collarOuterPort ((clausePorts φ d i).side j)) := by
   rw [positiveExterior, support_translate] at hp
   obtain ⟨q, hq, rfl⟩ := hp
-  rw [inPointBox_translate_iff] at hb
-  have hstart : sourceStart (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j) =
-      Graph.drawingPosition (SAT.incidenceGraph φ) d (φ.distinctVars.length + i) := by
-    rw [sourceStart, sourceEdgeIndex_edge φ hi hj]
   have hb' : inPointBox
       (positiveScale • sourceStart (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j))
-      positiveRadius q := by simpa only [positiveBoxOrigin, hstart] using hb
+      positiveRadius q := by
+    simpa only [inPointBox_translate_iff, positiveBoxOrigin, sourceStart,
+      sourceEdgeIndex_edge φ hi hj] using hb
   have hport := exteriorRoute_box_contact hd (sourceEdgeIndex_lt φ hi hj)
     (by decide : positiveRadius < positiveScale) hq hb'
   have hhead := positiveExterior_head hd hi j hj
@@ -174,18 +172,16 @@ theorem collaredProfile_incidence_endpoints (p : ClauseProfile)
   · rw [collared_variablePoint _ _ hfend.2.1]
     dsimp only [LocalIncidence.route]
     split_ifs with ht
-    · have hend := hfend.2.2.2
-      rw [profile_prefix_terminal_endpoint p f.variableIndex ht] at hend
-      have hleft : (collarRoute (collarReflected s) f.route).getLast? =
+    · have hleft : (collarRoute (collarReflected s) f.route).getLast? =
           some (collarInnerPort (collarReflected s)
             (terminalIndex (profilePrefixGeometry p) f.variableIndex)) := by
-        rw [collarRoute_eq_map, List.getLast?_map, hend, Option.map_some,
+        rw [collarRoute_eq_map, List.getLast?_map, hfend.2.2.2,
+          profile_prefix_terminal_endpoint p f.variableIndex ht, Option.map_some,
           collarPoint_innerTemplatePort]
-      have hright :=
-        ((collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)).2.1
-      rw [collarPrefixRoute, last_join hleft (by simpa only [List.head?_reverse] using hright),
+      let hc := (collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)
+      rw [collarPrefixRoute, last_join hleft (by simpa only [List.head?_reverse] using hc.2.1),
         List.getLast?_reverse]
-      exact ((collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)).1
+      exact hc.1
     · rw [collarRoute_eq_map, List.getLast?_map, hfend.2.2.2, Option.map_some]
 
 /-- The actual translated local incidence is proper and simple, with its prescribed endpoints.
@@ -206,10 +202,8 @@ theorem positiveStem_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   refine ⟨(isOrthogonal_translate_iff _ _).2
     (collaredProfile_incidence_orthogonal _ h hs he),
     (isSimple_translate_iff _ _).2 (collaredProfile_incidence_isSimple _ h hs he), ?_, ?_⟩
-  · rw [positiveStem, translate, List.head?_map, hept.2.2.1]
-    exact congrArg some (add_comm _ _)
-  · rw [positiveStem, translate, List.getLast?_map, hept.2.2.2]
-    exact congrArg some (add_comm _ _)
+  · simp [positiveStem, translate, clauseGeometry, hept.2.2.1, add_comm]
+  · simp [positiveStem, translate, clauseGeometry, hept.2.2.2, add_comm]
 
 /-- A local source-placeholder lookup identifies its unique terminal slot, including the
 actual unmodded source position. -/
@@ -235,11 +229,9 @@ theorem profile_source_lookup (p : ClauseProfile) {v j : ℕ}
     rw [← hget']
     exact ((CNF.nodup_distinctVars (profileFormula p)).idxOf_getElem v hv').symm
   have ht := profileSource_terminal_index p ⟨j, hj3⟩ hj
-  refine ⟨hj, hj3, hidx, ?_, ?_⟩
-  · rw [hidx]
-    exact ht.2.1
-  · change (profileGeometry p).terminalVariables.idxOf v % 3 = j
-    rw [hidx, ht.2.2, Nat.mod_eq_of_lt hj3]
+  refine ⟨hj, hj3, hidx, hidx ▸ ht.2.1, ?_⟩
+  change (profileGeometry p).terminalVariables.idxOf v % 3 = j
+  rw [hidx, ht.2.2, Nat.mod_eq_of_lt hj3]
 
 private theorem source_incidence_port {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
     (hd : Graph.IsPlanarOrthogonalDrawing (SAT.incidenceGraph φ) d) {i : ℕ}
@@ -275,9 +267,7 @@ theorem positiveIncidenceRoute_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawi
   split
   next j hj =>
     obtain ⟨j', rfl, hjSource, -, hpoint⟩ := source_incidence_port hd hi h he hj
-    have hlast : (positiveStem φ d i e).getLast? =
-        some (positiveBoxOrigin φ d i + collarOuterPort ((clausePorts φ d i).side j')) := by
-      rw [hstem.2.2.2, hpoint]
+    have hlast := hstem.2.2.2.trans (congrArg (some <| positiveBoxOrigin φ d i + ·) hpoint)
     have hhead := positiveExterior_head hd hi j' hjSource
     have hext := positiveExterior_regular hd hi hjSource
     exact ⟨isOrthogonal_join hlast hhead hstem.1 hext.1,
@@ -395,13 +385,10 @@ theorem positiveStem_other_terminal_not_mem_support {φ : CNF ℕ}
     realPoint (positiveBoxOrigin φ d i +
       (clauseGeometry φ d i c).variablePosition f.variableIndex) ∉
       support (positiveStem φ d i e) := by
-  intro hz
-  rw [positiveStem, support_translate] at hz
-  obtain ⟨x, hx, hxp⟩ := hz
-  obtain rfl : x = realPoint ((clauseGeometry φ d i c).variablePosition f.variableIndex) := by
-    simpa [realPoint_add, add_comm (realPoint (positiveBoxOrigin φ d i))] using hxp
+  rw [positiveStem, support_translate, realPoint_add, add_comm (realPoint _)]
+  rintro ⟨x, hx, hxp⟩
   exact collaredProfile_other_terminal_not_mem_support _ h (clausePorts_spec hd hi).1
-    he hf hne ht hx
+    he hf hne ht (add_right_cancel hxp ▸ hx)
 
 /-- Inside one clause box, an inherited exterior is disjoint from every other local prefix.
 The shared clause center has already been cut away. -/

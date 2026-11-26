@@ -150,8 +150,7 @@ private theorem draw_eq_map {s : Level} {L R : Xofs} (pair : MLDSA.PublicKey s.p
   refine congrArg (PMF.bind _ ·) (funext fun d => ?_)
   have eq := same d
   split <;> split
-  · simp only [PMF.map_bind, PMF.pure_map, Option.map_some]
-    rfl
+  · simp [PMF.map_bind, carryTerminal]
   · next hr _ hl => simp [hl, hr] at eq
   · next _ hr hl => simp [hl, hr] at eq
   · next c hr c' hl =>
@@ -197,8 +196,7 @@ private theorem publicCall_congr {s : Level} {v : SecretExpansionViews s} {base�
   simp only [Function.comp_def, Option.map_some, PMF.pure_bind]
   refine next _ _ _ ?_ (congrArg (q.logReply t.reply) log) ?_
   · change RowAgreement v (st₁.xofs.writeCommitment _ _) (st₂.xofs.writeCommitment _ _)
-    rw [h.rep size safe q]
-    exact h.write _ _
+    exact h.rep size safe q ▸ h.write _ _
   · change st₁.writes ++ [_] = st₂.writes ++ [_]
     rw [writes, h.rep size safe q]
     rfl
@@ -226,10 +224,9 @@ private theorem scoreProgram_congr (C : QuantumSigningForger) {s : Level}
   induction prog generalizing st₁ st₂ dev with
   | pure f =>
     rw [show PFunctor.FreeM.pure f = (pure f : Program C Forgery) from rfl]
-    simpa only [scoreProgram, ProbOracleComp.runWith_pure,
-      PMF.pure_map, log] using congrArg PMF.pure (h.freshWin pair f st₂.log (by
-        rw [st₂.trace.read_publicKey, key]
-        exact safe))
+    simpa only [scoreProgram, ProbOracleComp.runWith_pure, PMF.pure_map, log] using
+      congrArg PMF.pure (h.freshWin pair f st₂.log
+        fun e => safe (((st₂.trace.read_publicKey ..).trans key).symm.trans e))
   | liftBind cmd k ih =>
     rw [show PFunctor.FreeM.liftBind cmd k = (OracleComp.query cmd >>= k) from rfl]
     simp only [scoreProgram, ProbOracleComp.runWith, OracleComp.runWith_bind,
@@ -306,11 +303,8 @@ private theorem good_view {s : Level} {base : Xofs} {a b : ℕ} {ha : 528 ≤ a}
     v.refreshKeySeed.bind fun H =>
       (v.pair.map (C.publicPairWinWithDevice s G H v.publicSeed)).getD (PMF.pure false) := by
   intro G
-  rw [← PMF.bind_const (p := v.refreshKeySeed)
-    (q := (v.pair.map (fun pk => (C.publicPairSigning s G v.publicSeed pk).map
-      (·.trial.newDigestWin))).getD (PMF.pure false))]
-  apply PMF.bind_congr_on_support
-  intro H hH
+  refine (PMF.bind_const v.refreshKeySeed _).symm.trans
+    (PMF.bind_congr_on_support _ _ _ fun H hH => ?_)
   cases hp : v.pair with
   | none => rfl
   | some pk => exact separate_device hv hH share hp safe C

@@ -76,12 +76,10 @@ section PrimeThreeModFour
 
 variable {p : ℕ} [Fact p.Prime]
 
-private theorem not_isSquare_neg_one (hp : p % 4 = 3) : ¬ IsSquare (-1 : ZMod p) := by
-  rw [ZMod.exists_sq_eq_neg_one_iff]
-  omega
+private theorem not_isSquare_neg_one (hp : p % 4 = 3) : ¬ IsSquare (-1 : ZMod p) :=
+  ZMod.exists_sq_eq_neg_one_iff.not.mpr (by omega)
 
-private theorem two_ne_zero_zmod (hp : p % 4 = 3) : (2 : ZMod p) ≠ 0 := by
-  intro h2
+private theorem two_ne_zero_zmod (hp : p % 4 = 3) : (2 : ZMod p) ≠ 0 := fun h2 => by
   have := Nat.le_of_dvd (by decide) ((ZMod.natCast_eq_zero_iff 2 p).mp h2)
   omega
 
@@ -93,8 +91,7 @@ private theorem sq_add_sq_eq_zero_iff (hp : p % 4 = 3) (u v : ZMod p) :
     u ^ 2 + v ^ 2 = 0 ↔ u = 0 ∧ v = 0 := by
   refine ⟨fun huv => ?_, fun ⟨hu, hv⟩ => by simp [hu, hv]⟩
   by_cases hv : v = 0
-  · subst hv
-    exact ⟨by simpa using huv, rfl⟩
+  · exact ⟨by simpa [hv] using huv, hv⟩
   · exact False.elim (not_isSquare_neg_one hp
       (isSquare_neg_one_of_sq_eq_neg_sq (z := u) hv (by linear_combination huv)))
 
@@ -102,11 +99,9 @@ private def circleSet (p : ℕ) [NeZero p] (c : ZMod p) : Finset (ZMod p × ZMod
   univ.filter fun q => q.1 ^ 2 + q.2 ^ 2 = c
 
 private theorem card_circleSet_zero (hp : p % 4 = 3) : #(circleSet p 0) = 1 := by
-  have heq : circleSet p 0 = {(0, 0)} := by
-    ext ⟨u, v⟩
-    simp only [circleSet, mem_filter, mem_univ, true_and, mem_singleton, Prod.mk.injEq,
-      sq_add_sq_eq_zero_iff hp]
-  rw [heq, card_singleton]
+  suffices circleSet p 0 = {(0, 0)} by rw [this, card_singleton]
+  ext ⟨u, v⟩
+  simp [circleSet, sq_add_sq_eq_zero_iff hp]
 
 private theorem card_circleSet_eq_of_ne_zero {c : ZMod p} (hc : c ≠ 0) :
     #(circleSet p c) = #(circleSet p 1) := by
@@ -134,11 +129,9 @@ private theorem card_circleSet_eq_of_ne_zero {c : ZMod p} (hc : c ≠ 0) :
 private theorem card_circleSet_of_ne_zero (hp : p % 4 = 3) {c : ZMod p} (hc : c ≠ 0) :
     #(circleSet p c) = p + 1 := by
   have hpart : ∑ d : ZMod p, #(circleSet p d) = p ^ 2 := by
-    have hfib := card_eq_sum_card_fiberwise
-      (s := (univ : Finset (ZMod p × ZMod p))) (t := (univ : Finset (ZMod p)))
-      (f := fun q => q.1 ^ 2 + q.2 ^ 2) (fun _ _ => mem_univ _)
-    rw [card_univ, Fintype.card_prod, ZMod.card, ← sq] at hfib
-    exact hfib.symm
+    simpa only [circleSet, card_univ, Fintype.card_prod, ZMod.card, ← sq] using
+      (card_eq_sum_card_fiberwise (s := univ) (t := univ)
+        (f := fun q : ZMod p × ZMod p => q.1 ^ 2 + q.2 ^ 2) fun _ _ => mem_univ _).symm
   rw [← add_sum_erase _ _ (mem_univ 0), card_circleSet_zero hp,
     sum_congr rfl fun d hd => card_circleSet_eq_of_ne_zero (ne_of_mem_erase hd), sum_const,
     smul_eq_mul, card_erase_of_mem (mem_univ _), card_univ, ZMod.card] at hpart
@@ -156,8 +149,7 @@ private theorem card_unitSphere_three (hp : p % 4 = 3) :
     rw [← card_sigma]
     refine card_bij (fun z _ => ⟨z 2, (z 0, z 1)⟩) ?_ ?_ ?_
     · intro z hz
-      simp only [mem_filter, mem_univ, true_and] at hz
-      simp only [mem_sigma, mem_univ, circleSet, mem_filter, true_and]
+      simp only [mem_sigma, mem_univ, circleSet, mem_filter, true_and] at hz ⊢
       linear_combination hz
     · intro z₁ _ z₂ _ h
       simp only [Sigma.mk.injEq, heq_eq_eq, Prod.mk.injEq] at h
@@ -190,16 +182,12 @@ private theorem card_unitSphere_three (hp : p % 4 = 3) :
 theorem card_row_brownMatrix (hp : p % 4 = 3) (x : Fin 3 → ZMod p) :
     #(univ.filter fun y : Fin 3 → ZMod p => brownMatrix p x y = true) = p * (p - 1) := by
   rw [← card_unitSphere_three hp]
-  refine card_bij (fun y _ => x - y) ?_ ?_ ?_
-  · intro y hy
-    simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
-      Pi.sub_apply] using hy
-  · intro y₁ _ y₂ _ h
-    exact sub_right_injective h
-  · intro z hz
-    refine ⟨x - z, ?_, sub_sub_cancel x z⟩
-    simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
-      Pi.sub_apply, sub_sub_cancel] using hz
+  refine card_bij (fun y _ => x - y)
+    (fun y hy => by simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply,
+      decide_eq_true_eq, Pi.sub_apply] using hy)
+    (fun _ _ _ _ h => sub_right_injective h) fun z hz => ⟨x - z, ?_, sub_sub_cancel x z⟩
+  simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
+    Pi.sub_apply, sub_sub_cancel] using hz
 
 /-- For prime `p ≡ 3 (mod 4)`, `brownMatrix p` has exact weight `p ^ 4 * (p - 1)` (twice the
 undirected edge count `(p ^ 5 - p ^ 4) / 2` of [Brown1966], §2, p. 282;
@@ -269,14 +257,10 @@ private theorem no_three_collinear_on_unit_sphere (hp : p % 4 = 3)
   have heq {s : ZMod p} (hs : s ≠ 0) (h : normSq3 (u + s • w) = 1) :
       2 * dot3 u w + s * normSq3 w = 0 :=
     (mul_eq_zero.mp (by rw [← hexpand s, h, h0, sub_self])).resolve_left hs
-  have eq₁ := heq hs₁ h1
-  have eq₂ := heq hs₂ h2
-  have hnorm_w : normSq3 w = 0 := by
-    have hdiff : (s₁ - s₂) * normSq3 w = 0 := by linear_combination eq₁ - eq₂
-    exact (mul_eq_zero.mp hdiff).resolve_left (sub_ne_zero.mpr hs₁₂)
-  have hdot_uw : dot3 u w = 0 := by
-    rw [hnorm_w, mul_zero, add_zero] at eq₁
-    exact (mul_eq_zero.mp eq₁).resolve_left (two_ne_zero_zmod hp)
+  have hnorm_w : normSq3 w = 0 :=
+    mul_left_cancel₀ (sub_ne_zero.mpr hs₁₂) (by linear_combination heq hs₁ h1 - heq hs₂ h2)
+  have hdot_uw : dot3 u w = 0 :=
+    mul_left_cancel₀ (two_ne_zero_zmod hp) (by linear_combination heq hs₁ h1 - s₁ * hnorm_w)
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hw
   refine not_isSquare_neg_one hp ?_
   fin_cases i
@@ -300,9 +284,7 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     simpa only [brownMatrix_apply, decide_eq_true_eq, normSq3, Pi.sub_apply] using hall a ha b hb
   have hdist_symm {a b : Fin 3 → ZMod p} (ha : a ∈ ({a₀, a₁, a₂} : Finset _))
       (hb : b ∈ ({b₀, b₁, b₂} : Finset _)) : normSq3 (b - a) = 1 := by
-    have h := hdist ha hb
-    simp only [normSq3, Pi.sub_apply] at h ⊢
-    linear_combination h
+    simpa only [← neg_sub a b, normSq3, Pi.neg_apply, neg_sq] using hdist ha hb
   have ⟨ha₀, ha₁, ha₂⟩ : a₀ ∈ ({a₀, a₁, a₂} : Finset _) ∧ a₁ ∈ ({a₀, a₁, a₂} : Finset _) ∧
       a₂ ∈ ({a₀, a₁, a₂} : Finset _) := by simp
   have ⟨hb₀, hb₁, hb₂⟩ : b₀ ∈ ({b₀, b₁, b₂} : Finset _) ∧ b₁ ∈ ({b₀, b₁, b₂} : Finset _) ∧
@@ -323,10 +305,8 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     have ht1 : (1 : ZMod p) ≠ t := fun h => hr₁₂ (by simp [ht, ← h])
     refine no_three_collinear_on_unit_sphere hp hr₁ one_ne_zero ht0 ht1
       (hdist ha₀ hb₀) ?_ ?_
-    · rw [one_smul, add_comm (a₀ - b₀), sub_add_sub_cancel]
-      exact hdist ha₁ hb₀
-    · rw [show a₀ - b₀ + t • r₁ = a₂ - b₀ by rw [← ht]; simp only [r₂]; abel]
-      exact hdist ha₂ hb₀
+    · simpa only [one_smul, r₁, sub_add_sub_cancel'] using hdist ha₁ hb₀
+    · simpa only [← ht, r₂, sub_add_sub_cancel'] using hdist ha₂ hb₀
   · set n := cross3 r₁ r₂
     have hnc {b : Fin 3 → ZMod p} (hb : b ∈ ({b₀, b₁, b₂} : Finset _)) :
         cross3 n (b - b₀) = 0 := by
@@ -342,10 +322,8 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     have hs₁₂ : s₁ ≠ s₂ := fun h => hc₁₂ (by rw [hs₁, hs₂, h])
     refine no_three_collinear_on_unit_sphere hp hcross hs₁0 hs₂0 hs₁₂
       (hdist_symm ha₀ hb₀) ?_ ?_
-    · rw [show b₀ - a₀ + s₁ • n = b₁ - a₀ by rw [← hs₁]; simp only [c₁]; abel]
-      exact hdist_symm ha₀ hb₁
-    · rw [show b₀ - a₀ + s₂ • n = b₂ - a₀ by rw [← hs₂]; simp only [c₂]; abel]
-      exact hdist_symm ha₀ hb₂
+    · simpa only [← hs₁, c₁, sub_add_sub_cancel'] using hdist_symm ha₀ hb₁
+    · simpa only [← hs₂, c₂, sub_add_sub_cancel'] using hdist_symm ha₀ hb₂
 
 end PrimeThreeModFour
 

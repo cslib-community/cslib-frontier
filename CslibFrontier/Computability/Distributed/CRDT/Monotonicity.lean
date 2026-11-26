@@ -147,10 +147,8 @@ private theorem gossipReplicaStates_le_of_forall_le {P S : Type*} [DecidableEq P
   | nil => exact h
   | cons hop tl ih =>
     obtain ⟨src, dst⟩ := hop
-    refine ih (Function.update cfg dst (cfg dst ⊔ cfg src)) fun p => ?_
-    by_cases hpd : p = dst
-    · subst hpd; simp [sup_le (h p) (h src)]
-    · simp [Function.update_of_ne hpd, h p]
+    refine ih _ fun p => ?_
+    rcases eq_or_ne p dst with rfl | hpd <;> simp [*, sup_le (h _) (h _)]
 
 /-- Distributed state of replicas running a semilattice `CvRDT` alongside an irrevocable output
 accumulator `emitted : P → Finset Fact` (modeling append-only transition outputs
@@ -301,15 +299,11 @@ private theorem foldl_hops_achieves_pairs (emit : S → Finset Fact)
     obtain ⟨u, v⟩ := hd
     intro src dst hmem
     let st₁ := gossipEmitStep emit st (u, v)
-    obtain ⟨hmono_tl, _⟩ := foldl_gossipEmitStep_mono emit st₁ tl
     rcases List.mem_cons.mp hmem with hhd | htl
-    · rcases Prod.mk.inj hhd with ⟨rfl, rfl⟩
-      have huv : st.replica src ≤ st₁.replica dst := by
-        simp [st₁, gossipEmitStep, le_sup_right]
-      exact le_trans huv (hmono_tl dst)
-    · have hu_le : st.replica src ≤ st₁.replica src :=
-        (foldl_gossipEmitStep_mono emit st [(u, v)]).1 src
-      exact le_trans hu_le (ih st₁ src dst htl)
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hhd
+      exact le_trans (by simp [st₁, gossipEmitStep, le_sup_right])
+        ((foldl_gossipEmitStep_mono emit st₁ tl).1 dst)
+    · exact le_trans ((foldl_gossipEmitStep_mono emit st [(u, v)]).1 src) (ih st₁ src dst htl)
 
 /-- Under `Monotone emit`, any gossip schedule `hops` that covers every ordered pair `(src, dst)`
 (`∀ src dst, (src, dst) ∈ hops`) converges every replica `p`'s state to `globalMergedState cfg` and
@@ -357,23 +351,19 @@ theorem semilatticeCoordinationFreeConsistent_of_subsingleton [Nonempty P] [Subs
     (emit : S → Finset Fact) :
     SemilatticeCoordinationFreeConsistent P emit := by
   intro cfg hops p
-  have hcfg_const : ∀ q, cfg q = cfg p := fun q => congrArg cfg (Subsingleton.elim q p)
   have hglob : globalMergedState cfg = cfg p :=
-    le_antisymm (Finset.sup'_le _ _ fun q _ => (hcfg_const q).le)
+    le_antisymm (Finset.sup'_le _ _ fun q _ => (congrArg cfg (Subsingleton.elim q p)).le)
       (Finset.le_sup' cfg (Finset.mem_univ p))
-  have hinv : ∀ (l : List (P × P)) (st : IrrevocableReplicaState P S Fact),
-      (∀ q, st.replica q = cfg p) → (∀ q, st.emitted q = emit (cfg p)) →
-      ∀ q, (l.foldl (gossipEmitStep emit) st).emitted q = emit (cfg p) := by
-    intro l
-    induction l with
-    | nil => exact fun _ _ hem q => hem q
+  have hinv (l : List (P × P)) (st : IrrevocableReplicaState P S Fact)
+      (hrep : st.replica p = cfg p) (hem : st.emitted p = emit (cfg p)) :
+      (l.foldl (gossipEmitStep emit) st).emitted p = emit (cfg p) := by
+    induction l generalizing st with
+    | nil => exact hem
     | cons hop tl ih =>
-      intro st hrep hem
-      obtain ⟨src, dst⟩ := hop
-      refine ih (gossipEmitStep emit st (src, dst)) (fun q => ?_) (fun q => ?_) <;>
-        simp [gossipEmitStep, Function.update_apply, hrep, hem]
-  rw [runGossipEmit, hinv hops (initIrrevocableState emit cfg) hcfg_const
-    (fun q => congrArg emit (hcfg_const q)) p, hglob]
+      exact ih _
+        (by simp [gossipEmitStep, Subsingleton.elim hop.1 p, Subsingleton.elim hop.2 p, hrep])
+        (by simp [gossipEmitStep, Subsingleton.elim hop.1 p, Subsingleton.elim hop.2 p, hrep, hem])
+  rw [runGossipEmit, hinv hops _ rfl rfl, hglob]
 
 end IrrevocableCharacterization
 

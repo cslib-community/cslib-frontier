@@ -238,14 +238,11 @@ private theorem opCode_execCodeDist {w base c_exp n_max U V : ℕ}
       wram_rand_exec [h2]
       wram_rand_call he_g
       exact ⟨rfl, by norm_cast; omega⟩
-    · simp only [stepKeys, hθ_surv, ↓reduceIte, PMF.map, PMF.pure_bind, Function.comp_apply,
-        hy_seed]
-      rfl
+    · simp only [stepKeys, hθ_surv, ↓reduceIte, PMF.pure_map, hy_seed, Data.set, θ_mem]
     · intro z hz
-      rw [PMF.mem_support_pure_iff] at hz
-      subst hz
-      refine ⟨?_, hy_rep, hy_mod⟩
-      simp [decode, Dictionary.spec, hy_2, decodeOptionNat_encodeOptionNat]
+      obtain rfl := (PMF.mem_support_pure_iff ..).mp hz
+      exact ⟨by simp [decode, Dictionary.spec, hy_2, decodeOptionNat_encodeOptionNat],
+        hy_rep, hy_mod⟩
   | insert u v =>
     obtain ⟨h2, h3, h4⟩ := harg
     obtain ⟨μ_ins, hE', hins_dist, hins_law, hins_supp⟩ :=
@@ -280,11 +277,8 @@ private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v 
       insertBaseSteps c_exp n_max U + 3 + C_walk * evictIterSteps c_exp n_max U +
         C_reh * rehashAmortizedSteps c_exp n_max U)
   · have hu_ks : u ∉ ks := fun h => hu ((hdom u).mp h)
-    have hnone_u : s u = none := Dictionary.notMem_dom_iff.mp hu
-    have hcard_lt : (Dictionary.dom s).card < n_max := by
-      rcases hvalid.1 with hlt | hsome
-      · exact hlt
-      · rw [hnone_u] at hsome; exact Bool.noConfusion hsome
+    have hcard_lt : (Dictionary.dom s).card < n_max :=
+      hvalid.1.resolve_right (by simp [Dictionary.notMem_dom_iff.mp hu])
     have htoFinset : ks.toFinset = Dictionary.dom s := Finset.ext fun x => by simp [hdom x]
     have hlen_lt : ks.length < n_max := by
       rwa [← List.toFinset_card_of_nodup hnodup, htoFinset]
@@ -481,8 +475,7 @@ private theorem opCode_coupled_step_spec {w base c_exp n_max U V : ℕ}
       simpa only [μ_raw, hp, and_self, ↓reduceDIte] using
         hex.mono (opSeedSteps_le_stepWorstCharge _ _ _ _ _ _ _)
     · intro q hq
-      rw [PMF.mem_support_map_iff] at hq
-      obtain ⟨y, hy, rfl⟩ := hq
+      obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq
       obtain ⟨hdec, hrep', hmod⟩ :=
         hpost y (by simpa only [μ_raw, hp, and_self, ↓reduceDIte] using hy)
       exact ⟨hdec, hrep'.toRep, hmod⟩
@@ -659,15 +652,13 @@ theorem charge_le_expectedOpCharge {c_exp n_max U : ℕ}
     charge c_exp n_max U 3 4 s o ≤ expectedOpCharge c_exp s o := by
   cases o with
   | query _ =>
-    dsimp only [charge, expectedOpCharge, queryChargeBound]
     have hg := querySteps_le hU
-    omega
+    dsimp only [charge, expectedOpCharge, queryChargeBound]; omega
   | insert _ _ =>
-    dsimp only [charge, expectedOpCharge, insertCharge, insertChargeBound, insertBaseSteps]
     have hp := probeKeySteps_le hU
     have he := evictIterSteps_le_add hU
     have hr := rehashAmortizedSteps_le hU
-    omega
+    dsimp only [charge, expectedOpCharge, insertCharge, insertChargeBound, insertBaseSteps]; omega
 
 /-- Composable randomized Word-RAM `StateTransitionImpl` certificate for Pagh–Rodler cuckoo hashing
 over `Basis.exact`, unconditional whenever `U ≤ max n_max 4 ^ c_exp`. -/
@@ -766,8 +757,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
   | nil =>
     obtain ⟨p₀, hp₀⟩ := ν.support_nonempty
     have hrep₀ := (hsupp p₀ hp₀).2
-    have hcard := (survivingSeeds_card_and_nonempty (c_exp := c_exp) (U := U) (n_max := n_max)
-      hfam.rehash_prob_le_half hrep₀.2.2.2.2.1.1 hrep₀.2.2.2.2.1.2.1).1
+    have hcard := (survivingSeeds_card_and_nonempty hfam.rehash_prob_le_half
+      hrep₀.2.2.2.2.1.1 hrep₀.2.2.2.2.1.2.1).1
     exact ⟨ν, 0, Randomized.StateTransitionImpl.ExecStepsOfFn.nil (C := C) s ν,
       fun θ => hseed ▸ uniformOfFinset_le_two_mul_uniformOfFintype hE hcard θ,
       fun p hp => (hsupp p hp).2.toRep, by simp⟩
@@ -778,10 +769,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
     have hnodup : ks.Nodup := hrep₀.2.2.2.2.1.1
     have hlen_le : ks.length ≤ n_max := hrep₀.2.2.2.2.1.2.1
     have hdom : ∀ x, x ∈ ks ↔ x ∈ Dictionary.dom s := hrep₀.2.2.2.2.1.2.2.2.1
-    have hcard : Fintype.card (Seed c_exp n_max U (tableBits n_max)) ≤
-        2 * (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ks).card :=
-      (survivingSeeds_card_and_nonempty (c_exp := c_exp) (U := U) (n_max := n_max)
-        hfam.rehash_prob_le_half hnodup hlen_le).1
+    have hcard :=
+      (survivingSeeds_card_and_nonempty hfam.rehash_prob_le_half hnodup hlen_le).1
     have hseed_le : ∀ θ, (ν.map Prod.fst) θ ≤ 2 * seedLaw c_exp n_max U (tableBits n_max) θ :=
       fun θ => hseed ▸ uniformOfFinset_le_two_mul_uniformOfFintype hE hcard θ
     have hprep_ok : ∀ p ∈ ν.support,
@@ -869,29 +858,23 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
         q.1 = extractSeed (hashBase base) c_exp n_max U (tableBits n_max) q.2.mem ∧
         RepWithKeys w base c_exp n_max U V (stepKeys ks o)
           ((Dictionary.spec U V n_max).stepFn s o).1 q.2 := fun q hq => by
-      rw [PMF.mem_support_bind_iff] at hq
-      obtain ⟨p, hp, hq_step⟩ := hq
+      obtain ⟨p, hp, hq_step⟩ := (PMF.mem_support_bind_iff ..).mp hq
       exact ⟨((hstep_spec p hp).2.2 q hq_step).2.1, ((hstep_spec p hp).2.2 q hq_step).2.2.1⟩
     obtain ⟨ν_final, T_rest, hex_rest, hseed_final, hrep_final, hamort_rest⟩ :=
       ih ν₁ hvos hE' hseed₁ hsupp₁
-    have hex_cons : C.ExecStepsOfFn s (o :: os) ν ν_final ((∑' p, ν p * T_step p) + T_rest) := by
-      refine Randomized.StateTransitionImpl.ExecStepsOfFn.cons (C := C) (μ_step := μ_step)
-        (T_step := T_step) (fun p hp => ?_) hex_rest
-      obtain ⟨hex, _, hpost⟩ := hstep_spec p hp
-      refine ⟨hex, fun q hq => ?_⟩
-      obtain ⟨hdec, _, hrep', hmod⟩ := hpost q hq
-      exact ⟨hdec, hrep'.toRep, hmod⟩
+    have hex_cons : C.ExecStepsOfFn s (o :: os) ν ν_final ((∑' p, ν p * T_step p) + T_rest) :=
+      Randomized.StateTransitionImpl.ExecStepsOfFn.cons (C := C) (μ_step := μ_step)
+        (T_step := T_step) (fun p hp =>
+          let ⟨hex, _, hpost⟩ := hstep_spec p hp
+          ⟨hex, fun q hq =>
+            let ⟨hdec, _, hrep', hmod⟩ := hpost q hq
+            ⟨hdec, hrep'.toRep, hmod⟩⟩) hex_rest
     have hstep_cost :
         (∑' p, ν p * T_step p) ≤ (expectedOpCharge c_exp s o : ℝ≥0∞) := by
       have hstep_ch :
           (∑' p, ν p * T_step p) ≤ (charge c_exp n_max U 3 4 s o : ℝ≥0∞) := by
-        have hmap_lhs :
-            (∑' p : Seed c_exp n_max U (tableBits n_max) × Data 19, ν p * T_step p) =
-              ∑' θ : Seed c_exp n_max U (tableBits n_max),
-                (ν.map Prod.fst) θ * opSeedSteps c_exp n_max U ks θ s o :=
-          (Cslib.Probability.PMF.tsum_map_mul ν Prod.fst
-            (fun θ => opSeedSteps c_exp n_max U ks θ s o)).symm
-        rw [hmap_lhs]
+        rw [← Cslib.Probability.PMF.tsum_map_mul ν Prod.fst
+          (fun θ => opSeedSteps c_exp n_max U ks θ s o)]
         cases o with
         | query u =>
           dsimp only [opSeedSteps, charge]
@@ -959,10 +942,9 @@ theorem cuckoo_seq_expected_amortized (w base c_exp n_max U V : ℕ)
   obtain ⟨x₁, ⟨t_span, ht_span, he_span⟩, hm₁, hb₁, hfr₁, h3₁, h4₁⟩ :=
     allocSpan_execWithin hfr h3 h4 hfit_end hfit_ev
   have hx₁_bdd : x₁.Bounded w := he_span.bounded hx
-  have hz₁ : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, x₁.mem a = 0 := by
-    intro a ha; rw [hm₁]; exact hz a ha
   obtain ⟨ν₀, hdist_setup, hseed_setup, hsupp_setup⟩ :=
-    initSetup_spec (V := V) hx₁_bdd hb₁ hfr₁ h3₁ h4₁ hz₁ hfit_ev hfit_U hfit_q
+    initSetup_spec (V := V) hx₁_bdd hb₁ hfr₁ h3₁ h4₁ (fun a ha => hm₁ ▸ hz a ha)
+      hfit_ev hfit_U hfit_q
   have he_init :
       ExecCodeDist w (cuckooCode c_exp n_max).initFresh x (ν₀.map Prod.snd) C.initTime :=
     ((ExecCodeDist.of_exec he_span).seq_pure hdist_setup).mono
@@ -972,11 +954,9 @@ theorem cuckoo_seq_expected_amortized (w base c_exp n_max U V : ℕ)
         (maxEvictions n_max) ([] : List (Fin U))).Nonempty := by simp [survivingSeeds_nil]
   have hseed₀ : ν₀.map Prod.fst =
       PMF.uniformOfFinset
-        (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ([] : List (Fin U))) hE₀ := by
-    rw [hseed_setup]
-    ext θ
-    rw [seedLaw, PMF.uniformOfFintype_apply, PMF.uniformOfFinset_apply]
-    simp [survivingSeeds_nil]
+        (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ([] : List (Fin U))) hE₀ :=
+    hseed_setup.trans (PMF.ext fun θ => by
+      simp [seedLaw, PMF.uniformOfFintype_apply, PMF.uniformOfFinset_apply, survivingSeeds_nil])
   have hsupp₀ : ∀ p ∈ ν₀.support,
       p.1 = extractSeed (hashBase base) c_exp n_max U (tableBits n_max) p.2.mem ∧
       RepWithKeys w base c_exp n_max U V [] (Dictionary.empty U) p.2 :=

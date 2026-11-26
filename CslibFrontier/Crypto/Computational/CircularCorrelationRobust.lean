@@ -173,13 +173,8 @@ theorem tweakCost_encodeQuery (k : ℕ) (t : BitString k)
   dsimp only
   split_ifs with h
   · subst h
-    have hreq : (codec k).encodeQuery ⟨x, t', b⟩ =
-        ((), labelBits x ++ (List.ofFn t' ++ [b])) := rfl
-    have hcond : (labelBits x ++ (List.ofFn t' ++ [b])).length = 2 * k + 3 ∧
-        ((labelBits x ++ (List.ofFn t' ++ [b])).drop (k + 2)).take k = List.ofFn t' :=
-      ⟨by simp; omega, by rw [List.drop_left' (length_labelBits x),
-        List.take_left' (List.length_ofFn)]⟩
-    simp only [hreq, tweakCost, hcond, and_self, ↓reduceIte, le_refl]
+    have hlen : (labelBits x ++ (List.ofFn t' ++ [b])).length = 2 * k + 3 := by simp; omega
+    simp [codec, tweakCost, hlen, List.drop_left' (length_labelBits x)]
   · exact Nat.zero_le _
 
 /-- The word oracle of a fixed typed oracle answers a query's request with the query's label. -/

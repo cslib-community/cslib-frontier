@@ -123,8 +123,7 @@ private theorem forgetWeightStep_eval (env : ForgetWeightEnv) (st : ForgetWeight
               (bagMemProg ⟨s.mem st.curB, env.bagPPtr, env.bagPLen⟩) = 0 then
             s.mem (env.wtPtr + s.mem st.curB) else 0
         else 0⟩ := by
-  unfold forgetWeightStep
-  dsimp only
+  dsimp only [forgetWeightStep]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
@@ -186,30 +185,24 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
         acc + forgetWeight wt LP ys curT ∧
       memoryCost (iterate forgetWeightStep env ys.length ⟨curB, curT, acc⟩) s ≤
         ys.length * (args.bagPLen + 2) by
-    have hrun := this LB args.bagBPtr args.mask 0 hLB hLB_lt
-    rw [hlenB] at hrun
+    have hrun := hlenB ▸ this LB args.bagBPtr args.mask 0 hLB hLB_lt
     refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _),
-      forgetWeightProg_state args s, ?_, ?_⟩
-    · unfold forgetWeightProg
-      rw [StateTransitionSpec.clientResult_bind]
-      exact hrun.2.1.trans (Nat.zero_add _)
-    · unfold forgetWeightProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hrun.2.2
-  intro ys
-  induction ys with
+      forgetWeightProg_state args s, ?_,
+      by simpa only [forgetWeightProg, memoryCost_bind', memoryCost_pure, Nat.add_zero] using
+        hrun.2.2⟩
+    rw [forgetWeightProg, StateTransitionSpec.clientResult_bind]
+    exact hrun.2.1.trans (Nat.zero_add _)
+  intro ys curB curT acc hcur hus
+  induction ys generalizing curB curT acc with
   | nil =>
-    intro curB curT acc _ _
     exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
   | cons u rest ih =>
-    intro curB curT acc hcur hus
     obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     have hu_lt : u < wtL.length := hus u List.mem_cons_self
     have hwt_lt : args.wtPtr + u < s.frontier := by have := hwt.1; omega
     have hwt_read : s.mem (args.wtPtr + u) = wt u := by
-      rw [hwt.get u hu_lt]
-      dsimp only [wt]
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hu_lt, Option.getD_some]
+      simp only [wt, hwt.get u hu_lt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hu_lt,
+        Option.getD_some]
     obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
       bagMemProg_spec (w := w) ⟨u, args.bagPPtr, args.bagPLen⟩ hLP hlenP
     let addW := if curT % 2 = 1 ∧ memBag u LP = false then wt u else 0
@@ -223,11 +216,10 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
       by_cases hbit : curT % 2 = 1 <;> cases memBag u LP <;> simp [hbit]
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (forgetWeightStep (env, ⟨curB, curT, acc⟩))) := by
-      unfold forgetWeightStep
-      dsimp only [env]
-      refine validHistory_read_bind (by omega) ?_
-      rw [hmem_u]
-      exact validHistory_read_bind hwt_lt (validHistory_bind_step hv_bm (validHistory_pure w _ _))
+      simp only [forgetWeightStep, env]
+      exact validHistory_read_bind (by omega)
+        (hmem_u ▸ validHistory_read_bind hwt_lt
+          (validHistory_bind_step hv_bm (validHistory_pure w _ _)))
     obtain ⟨hst_step, hres_step⟩ := forgetWeightStep_eval env ⟨curB, curT, acc⟩ s
     dsimp only [env] at hres_step
     rw [hmem_u, hwt_read, hr_bm, hadd_eq] at hres_step
@@ -236,16 +228,10 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
       have hr_st (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
       have hr_res (a : ℕ) : (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
       dsimp only at hc_bm
-      unfold forgetWeightStep
-      dsimp only [env]
-      rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hmem_u,
-        memoryCost_bind', memoryCost_read, hr_st, hr_res,
-        memoryCost_bind', hst_bm, memoryCost_pure, Nat.add_zero]
+      simp only [forgetWeightStep, env, memoryCost_bind', memoryCost_read, hr_st, hr_res, hmem_u,
+        hst_bm, memoryCost_pure, Nat.add_zero]
       omega
-    have hiter_eq : iterate forgetWeightStep env (rest.length + 1) ⟨curB, curT, acc⟩ =
-        (forgetWeightStep (env, ⟨curB, curT, acc⟩) >>=
-          iterate forgetWeightStep env rest.length) := rfl
-    simp only [List.length_cons, hiter_eq]
+    simp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
       dsimp only [addW, forgetWeight]; omega
@@ -311,21 +297,20 @@ theorem forgetWeightProg_realizes :
   have hadd_fit : Fits w (st.acc + t.mem (d.wtPtr + t.mem st.curB)) :=
     hfitSum.of_le (hacc_next_le.trans hacc_max)
   have hacc_fit : Fits w (st.acc + 0) :=
-    hfitSum.of_le ((by omega : st.acc + 0 ≤ (d.bagBLen - j) * W).trans hacc_max)
+    hfitSum.of_le ((Nat.add_zero st.acc ▸ hacc_le).trans (Nat.mul_le_mul_right W (Nat.sub_le _ _)))
   let addW := if st.curT % 2 = 1 then
     if (Memory.spec 0).clientResult t (bagMemProg ⟨t.mem st.curB, d.bagPPtr, d.bagPLen⟩) = 0 then
       t.mem (d.wtPtr + t.mem st.curB) else 0
     else 0
   have hadd_le : addW ≤ t.mem (d.wtPtr + t.mem st.curB) := by
     dsimp only [addW]
-    split_ifs <;> first | exact le_rfl | exact Nat.zero_le _
+    split_ifs <;> omega
   obtain ⟨hst_body, hres_body⟩ := forgetWeightStep_eval ⟨d.wtPtr, d.bagPPtr, d.bagPLen⟩ st t
   change _ = (⟨st.curB + 1, st.curT / 2, st.acc + addW⟩ : ForgetWeightState) at hres_body
   refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
     Nat.le_of_succ_le hj_le, ?_, by rwa [hst_body], ?_, ?_⟩
   · simp only [hres_body]; omega
-  · rw [hst_body, hres_body]
-    exact hrem_next
+  · rwa [hst_body, hres_body]
   · simp only [hres_body]
     exact (Nat.add_le_add_left hadd_le _).trans hacc_next_le
 

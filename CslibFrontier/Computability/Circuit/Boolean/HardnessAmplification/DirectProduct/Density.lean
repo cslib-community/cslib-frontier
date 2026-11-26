@@ -105,13 +105,11 @@ theorem card_filter_card_filter_agree_lt_le (G : Finset (Fin k → U)) (P : Fins
             obtain ⟨b, -, rfl⟩ := mem_image.1 hz; exact ⟨b, rfl⟩)).symm
       _ ≤ Fintype.card (P → U) := card_le_univ _
       _ = Fintype.card U ^ #P := by simp
-  have hfib : ∀ z ∈ B.image ρ, (#{b ∈ B | ρ b = z} : ℝ) ≤ t := by
-    intro z hz
+  have hfib : ∀ z ∈ B.image ρ, (#{b ∈ B | ρ b = z} : ℝ) ≤ t := fun _ hz => by
     obtain ⟨b, hb, rfl⟩ := mem_image.1 hz
-    refine le_trans ?_ (mem_filter.1 hb).2.le
-    exact_mod_cast card_le_card fun y hy => by
-      simp only [B, mem_filter] at hy ⊢
-      exact ⟨hy.1.1, hρ b y hy.2⟩
+    refine (Nat.cast_le.2 (card_le_card fun y hy => ?_)).trans (mem_filter.1 hb).2.le
+    simp only [B, mem_filter] at hy ⊢
+    exact ⟨hy.1.1, hρ b y hy.2⟩
   calc (#B : ℝ) = ∑ z ∈ B.image ρ, (#{b ∈ B | ρ b = z} : ℝ) := by
         exact_mod_cast card_eq_sum_card_image ρ B
     _ ≤ #(B.image ρ) • t := sum_le_card_nsmul _ _ _ hfib
@@ -180,8 +178,7 @@ theorem sum_sum_card_heavy_le (C' : (Fin k → U) → Fin k → V) (f : U → V)
           sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
       _ = n ^ k * k.choose s * Real.exp (-(α * s)) := by
           simp only [sum_const, card_univ, Fintype.card_fun, Fintype.card_fin, n, nsmul_eq_mul,
-            Nat.cast_pow]
-          ring
+            Nat.cast_pow, ← mul_assoc]
   exact (mul_le_mul_of_nonneg_left hmiss (by positivity)).trans_eq (by ring)
 
 /-- **Many good seeds.** If `C'` agrees with the direct product of `f` on a `δ` fraction of
@@ -232,8 +229,7 @@ theorem sum_card_filter_good_ge (C' : (Fin k → U) → Fin k → V) (f : U → 
     rw [← Nat.cast_add, ← Nat.cast_add, Nat.cast_le]
     refine (card_le_card fun b hb => ?_).trans
       ((card_union_le _ _).trans (Nat.add_le_add_right (card_union_le _ _) _))
-    simp only [mem_union, mem_filter]
-    tauto
+    simp only [mem_union, mem_filter]; tauto
   -- sparse seeds: their class among the agreeing tuples is small
   have hsparse : ∀ P ∈ univ.powersetCard s,
       (#{b₀ ∈ agreeing C' f | ¬δ / 2 * Fintype.card U ^ #Pᶜ ≤ #(consistent C' P b₀)} : ℝ) ≤
@@ -257,11 +253,9 @@ theorem sum_card_filter_good_ge (C' : (Fin k → U) → Fin k → V) (f : U → 
         ∑ b₀ ∈ agreeing C' f,
           (#{y ∈ consistent C' P b₀ | ε / 64 * k ≤ #(disagreements C' f y)} : ℝ) := by
     intro P hPs
-    have hPc : #Pᶜ = k - s := by
-      rw [card_compl, Fintype.card_fin, (mem_powersetCard.1 hPs).2]
-    refine card_filter_mul_le_sum _ _ _ (fun _ _ => by positivity) fun _ _ ⟨hdense, htail⟩ => ?_
-    rw [hPc] at hdense
-    exact (mul_le_mul_of_nonneg_left hdense (by positivity)).trans (not_le.1 htail).le
+    have hPc : #Pᶜ = k - s := by rw [card_compl, Fintype.card_fin, (mem_powersetCard.1 hPs).2]
+    exact card_filter_mul_le_sum _ _ _ (fun _ _ => by positivity) fun _ _ ⟨hdense, htail⟩ =>
+      (mul_le_mul_of_nonneg_left (hPc ▸ hdense) (by positivity)).trans (not_le.1 htail).le
   have hB := sum_sum_card_heavy_le C' f s hk (ε / 64)
   have hc : 0 < ε / 64 * (δ / 2 * (Fintype.card U : ℝ) ^ (k - s)) := by positivity
   have hT : ∑ P ∈ univ.powersetCard s,

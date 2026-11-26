@@ -167,26 +167,20 @@ theorem reaches_iff {m v : ℕ} :
       exact ⟨fun ⟨hc, hne⟩ => hc.resolve_right hne,
         fun hc => ⟨.inl hc, fun h => hva (h ▸ hc)⟩⟩
   · rintro ⟨hv, hbit, rfl | ⟨u, ⟨p, hp, hnd, hm⟩, hadj⟩⟩
-    · refine ⟨[], ⟨by simp, by simpa using hv, by simp⟩, by simp, fun c => ?_⟩
-      simp [Nat.testBit_two_pow, eq_comm]
+    · refine ⟨[], ⟨by simp, by simpa using hv, ?_⟩, by simp, ?_⟩
+      · simp
+      · exact fun c => by simp [Nat.testBit_two_pow, eq_comm]
     · have hva : χ v ∉ (p ++ [u]).map χ := fun h => by
         simpa [Nat.testBit_sub_two_pow hbit] using (hm (χ v)).2 h
-      have hvp : v ∉ p ++ [u] := fun h => hva (List.mem_map_of_mem h)
-      refine ⟨p ++ [u], ⟨List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb =>
-          List.mem_singleton.1 hb ▸ fun h => hvp (h ▸ ha)⟩,
+      refine ⟨p ++ [u], ⟨List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb h =>
+          hva (List.mem_map_of_mem ((h.trans (List.mem_singleton.1 hb)) ▸ ha))⟩,
         fun x hx => (List.mem_append.1 hx).elim (hp.2.1 x) fun hx => List.mem_singleton.1 hx ▸ hv,
-        ?_⟩, ?_, fun c => ?_⟩
-      · refine List.isChain_append.2 ⟨hp.2.2, by simp, fun x hx y hy => ?_⟩
-        simp only [List.getLast?_append, List.getLast?_singleton, Option.some_or,
-          Option.mem_def, Option.some.injEq, List.head?_cons] at hx hy
-        exact hx ▸ hy ▸ hadj
-      · rw [List.map_append, List.nodup_append]
-        exact ⟨hnd, by simp, fun a ha b hb =>
-          List.mem_singleton.1 (by simpa using hb) ▸ fun h => hva (h ▸ ha)⟩
-      · have := hm c
-        rw [Nat.testBit_sub_two_pow hbit, Bool.and_eq_true, decide_eq_true_iff] at this
-        rw [List.map_append, List.mem_append, ← this, List.map_singleton, List.mem_singleton]
-        by_cases hc : c = χ v <;> simp [hc, hbit]
+        List.isChain_append.2 ⟨hp.2.2, List.isChain_singleton _, by simp [hadj]⟩⟩,
+        List.map_append ▸ List.nodup_append.2 ⟨hnd, List.nodup_singleton _, fun a ha b hb h =>
+          hva (h.trans (List.mem_singleton.1 hb) ▸ ha)⟩, fun c => ?_⟩
+      rw [List.map_append, List.mem_append, ← hm c, Nat.testBit_sub_two_pow hbit,
+        Bool.and_eq_true, decide_eq_true_iff, List.map_singleton, List.mem_singleton]
+      by_cases hc : c = χ v <;> simp [hc, hbit]
 
 theorem table_succ (N : ℕ) :
     table G χ (N + 1) = table G χ N ++ [entry G χ (table G χ N) N] := by
@@ -207,7 +201,7 @@ theorem mem_table_getD {N m v : ℕ} (hm : m < N) :
   | succ N ih =>
     rw [table_succ]
     rcases Nat.lt_succ_iff_lt_or_eq.1 hm with hm | rfl
-    · rw [List.getD_append _ _ _ _ (by rw [length_table]; exact hm)]
+    · rw [List.getD_append _ _ _ _ (by rwa [length_table])]
       exact ih hm
     · rw [List.getD_append_right _ _ _ _ (by rw [length_table]), length_table, Nat.sub_self,
         List.getD_cons_zero, entry, List.mem_filter, Graph.mem_distinctVertices,
@@ -226,19 +220,17 @@ theorem exists_reaches_iff {k : ℕ} (hk : 0 < k) :
   · rintro ⟨v, p, hp, hnd, hm⟩
     have hmem (c : ℕ) : c ∈ (p ++ [v]).map χ ↔ c < k := by
       rw [← hm, Nat.testBit_two_pow_sub_one, decide_eq_true_iff]
-    have hfs : ((p ++ [v]).map χ).toFinset = Finset.range k := by
-      ext c
-      rw [List.mem_toFinset, hmem, Finset.mem_range]
+    have hfs : ((p ++ [v]).map χ).toFinset = Finset.range k :=
+      Finset.ext fun c => by rw [List.mem_toFinset, hmem, Finset.mem_range]
     refine ⟨p ++ [v], hp, ?_, hnd, fun x hx => (hmem _).1 (List.mem_map_of_mem hx)⟩
     rw [← List.length_map (f := χ), ← List.toFinset_card_of_nodup hnd, hfs, Finset.card_range]
   · rintro ⟨p, hp, hlen, hnd, hlt⟩
     rcases List.eq_nil_or_concat' p with rfl | ⟨L, v, rfl⟩
-    · simp at hlen; omega
+    · exact absurd hlen.symm hk.ne'
     have hfs : ((L ++ [v]).map χ).toFinset = Finset.range k :=
       Finset.eq_of_subset_of_card_le
-        (fun c hc => by
-          obtain ⟨x, hx, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hc)
-          exact Finset.mem_range.2 (hlt x hx))
+        (fun c hc => let ⟨x, hx, hc⟩ := List.mem_map.1 (List.mem_toFinset.1 hc)
+          hc ▸ Finset.mem_range.2 (hlt x hx))
         (by rw [Finset.card_range, List.toFinset_card_of_nodup hnd, List.length_map, hlen])
     refine ⟨v, L, hp, hnd, fun c => ?_⟩
     rw [Nat.testBit_two_pow_sub_one, decide_eq_true_iff, ← Finset.mem_range, ← hfs,
@@ -320,8 +312,6 @@ private theorem computableInPolyTime_entryCapped :
         ColorCoding.entryCapped q.input.graph (colorOf q.input.graph q.input.colors) q.table
           q.mask)
       ColorCoding.encStepInput (encList encNat) := by
-  have hv : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.2)
-      (encPair ColorCoding.encStepInput encNat) encNat := by fun_prop
   have hmU : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.mask)
       (encPair ColorCoding.encStepInput encNat) encUnary := by fun_prop
   have hmB := unary_to_binary.comp hmU
@@ -340,7 +330,7 @@ private theorem computableInPolyTime_entryCapped :
       (by fun_prop : ComputableInPolyTime
         (fun p : (ColorCoding.StepInput × ℕ) × ℕ => p.1.1.input.graph)
         (encPair (encPair ColorCoding.encStepInput encNat) encNat) encGraph)
-      (snd _ _) (hv.comp (fst _ _))
+      (snd _ _) ((snd _ _).comp (fst _ _))
   unfold ColorCoding.entryCapped
   exact filterWithInput (by fun_prop)
     (bool_and' (binary_testBit hmB hcap) (bool_or.comp ((beq hmB hpow).prod hany)))
@@ -403,9 +393,9 @@ theorem colorfulPathBool_eq_true_iff (x : ColorfulPathInstance) :
   · obtain ⟨p, hp, hlen, -⟩ := id hx
     have hkn : k ≤ G.distinctVertices.length := hlen.symm.trans_le hp.length_le
     obtain ⟨v, hv⟩ := (ColorCoding.exists_reaches_iff hk).2 hx
-    refine ⟨hkn, by
-      rw [Nat.min_eq_right hkn]
-      exact List.ne_nil_of_mem ((ColorCoding.mem_table_getD hlt).2 hv)⟩
+    refine ⟨hkn, ?_⟩
+    simpa only [Nat.min_eq_right hkn] using
+      List.ne_nil_of_mem ((ColorCoding.mem_table_getD hlt).2 hv)
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_colorfulPathPad :
@@ -416,18 +406,17 @@ private theorem computableInPolyTime_colorfulPathPad :
       (encPair encColorfulPathInstance encUnary) encBool := by
   have hk : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.1.length)
       (encPair encColorfulPathInstance encUnary) encNat := by fun_prop
-  have hN : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.2)
-      (encPair encColorfulPathInstance encUnary) encUnary := snd _ _
   have hn := (length_list_binary encNat).comp
     (Graph.computableInPolyTime_distinctVertices.comp
       (by fun_prop : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.1.graph)
         (encPair encColorfulPathInstance encUnary) encGraph))
-  have ht : ComputableInPolyTime
+  have htab := ColorCoding.computableInPolyTime_table.comp
+    (by fun_prop : ComputableInPolyTime
       (fun y : ColorfulPathInstance × ℕ =>
         (⟨y.1.graph, y.1.colors, y.2⟩ : ColorCoding.TableInput))
-      (encPair encColorfulPathInstance encUnary) ColorCoding.encTableInput := by fun_prop
-  have htab := ColorCoding.computableInPolyTime_table.comp ht
-  have hget := (listGetD (encA := encList encNat) []).comp (htab.prod (unary_sub' hN (const 1)))
+      (encPair encColorfulPathInstance encUnary) ColorCoding.encTableInput)
+  have hget := (listGetD (encA := encList encNat) []).comp
+    (htab.prod (unary_sub' (snd _ _) (const 1)))
   exact bool_or.comp ((beq hk (const 0)).prod
     (bool_and' (binary_le' hk hn) (bool_not.comp ((listIsEmpty (encA := encNat)).comp hget))))
 
@@ -459,7 +448,6 @@ theorem ColorfulPath_decidableInExpTime :
 /-- **Colorful k-Path is fixed-parameter tractable** in `k`. -/
 theorem ColorfulPath_mem_FPT :
     ColorfulPath ∈ FPT encColorfulPathInstance ColorfulPathInstance.length :=
-  let ⟨_, h⟩ := ColorfulPath_decidableInExpTime
-  h.mem_FPT
+  ColorfulPath_decidableInExpTime.elim fun _ => DecidableInExpTime.mem_FPT
 
 end Cslib.Complexity

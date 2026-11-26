@@ -62,8 +62,8 @@ variable {w} {p r : ℕ}
 theorem wnEnd_spec (hp : p ≤ w.length) :
     p ≤ wnEnd w p ∧ wnEnd w p ≤ w.length ∧ WellNested (w.extract p (wnEnd w p)) := by
   classical
-  have hP : p ≤ p ∧ WellNested (w.extract p p) := ⟨le_rfl, by simpa using .nil⟩
-  have := Nat.findGreatest_spec (P := fun r => p ≤ r ∧ WellNested (w.extract p r)) hp hP
+  have := Nat.findGreatest_spec (P := fun r => p ≤ r ∧ WellNested (w.extract p r)) hp
+    ⟨le_rfl, by simpa using .nil⟩
   exact ⟨this.1, Nat.findGreatest_le _, this.2⟩
 
 theorem le_wnEnd (hr : r ≤ w.length) (hpr : p ≤ r) (hwn : WellNested (w.extract p r)) :
@@ -76,20 +76,15 @@ well-nested continuation. -/
 theorem wnEnd_event (hp : p ≤ w.length) (hlt : wnEnd w p < w.length) :
     (¬∃ a, w[wnEnd w p]? = some (a, .nop)) ∧ ¬WellMatched w (wnEnd w p) := by
   obtain ⟨hpe, -, hwn⟩ := wnEnd_spec hp
-  constructor
-  · rintro ⟨a, ha⟩
-    have hext : WellNested (w.extract p (wnEnd w p + 1)) := by
-      rw [← w.extract_append_extract hpe (Nat.le_succ _), List.extract_eq_singleton ha]
-      exact hwn.append (.nop .nil)
-    have := le_wnEnd (show wnEnd w p + 1 ≤ w.length by omega) (by omega) hext
-    omega
-  · rintro ⟨m, hm, hmwn⟩
-    have hpm := hm.1
-    have hext : WellNested (w.extract p (m + 1)) := by
-      rw [← w.extract_append_extract hpe (by omega)]
-      exact hwn.append hmwn
-    have := le_wnEnd hm.lt_length (by omega) hext
-    omega
+  refine ⟨fun ⟨a, ha⟩ => absurd
+    (le_wnEnd (w := w) (p := p) (r := wnEnd w p + 1) (by omega) (by omega) ?_) (by omega),
+    fun ⟨m, hm, hmwn⟩ => ?_⟩
+  · rw [← w.extract_append_extract hpe (Nat.le_succ _), List.extract_eq_singleton ha]
+    exact hwn.append (.nop .nil)
+  · have hpm := hm.1
+    refine absurd (le_wnEnd (w := w) (p := p) hm.lt_length (by omega) ?_) (by omega)
+    rw [← w.extract_append_extract hpe (by omega)]
+    exact hwn.append hmwn
 
 end Events
 
@@ -108,9 +103,8 @@ well-nested factor. -/
 @[expose] def Ext (w : List (α × Op n Γ)) (i : Fin n) (q r : ℕ) : Prop :=
   q < r ∧ IsHolePushOn w i r ∧ WellNested (w.extract (q + 1) r)
 
-theorem IsPushOn.lt_length {i : Fin n} {r : ℕ} (h : IsPushOn w i r) : r < w.length := by
-  obtain ⟨a, γ, h⟩ := h
-  exact (List.getElem?_eq_some_iff.mp h).1
+theorem IsPushOn.lt_length {i : Fin n} {r : ℕ} (h : IsPushOn w i r) : r < w.length :=
+  match h with | ⟨_, _, h⟩ => (List.getElem?_eq_some_iff.mp h).1
 
 /-- Only the least extension of a push is an extension: a later one would enclose it in a
 well-nested factor. -/
@@ -118,10 +112,9 @@ theorem Ext.eq_of_le {i : Fin n} {q r r' : ℕ} (h : Ext w i q r) (h' : Ext w i 
     (hle : r ≤ r') : r = r' := by
   by_contra hne
   obtain ⟨hqr, ⟨hpush, hnot⟩, -⟩ := h
-  obtain ⟨hqr', ⟨hpush', -⟩, hwn'⟩ := h'
-  obtain ⟨-, -, -, hwm⟩ := exists_matches_of_wellNested hwn'
-    (by have := hpush'.lt_length; omega) (show q + 1 ≤ r by omega)
-    (by omega) hpush
+  obtain ⟨-, ⟨hpush', -⟩, hwn'⟩ := h'
+  obtain ⟨-, -, -, hwm⟩ := exists_matches_of_wellNested hwn' hpush'.lt_length.le hqr
+    (lt_of_le_of_ne hle hne) hpush
   exact hnot hwm
 
 open Classical in
@@ -196,9 +189,7 @@ section Guard
 variable {w : List (α × Op n Γ)}
 
 theorem pendingAt_self {i : Fin n} {t : ℕ} (h : IsPushOn w i t) : PendingAt w t t :=
-  ⟨le_rfl, h.lt_length, i, h, fun k => by
-    rw [List.extract_eq_take_drop, Nat.sub_self, List.take_zero, List.take_nil]
-    simp⟩
+  ⟨le_rfl, h.lt_length, i, h, fun _ => by simp [List.extract_eq_take_drop]⟩
 
 /-- Pushes of different chains are at different positions. -/
 theorem chains_ne {C : List (HoleChain n Γ)}
@@ -267,9 +258,8 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
       rintro ⟨p, hpe, ⟨-, hp⟩, -, hstk, hwn⟩
       obtain ⟨c', hc', f, hf, rfl, hext⟩ := hext_of_same hpe het.le hp hstk hhole hwn
       obtain ⟨g, hg, hge⟩ := (hclosed c' hc' f hf e.1 hext).2 hpend
-      obtain rfl : c' = c := by
-        by_contra hcc
-        exact chains_ne horder hc hc' (Ne.symm hcc) e he g hg hge.symm
+      obtain rfl : c' = c := by_contra fun hcc =>
+        chains_ne horder hc hc' (Ne.symm hcc) e he g hg hge.symm
       have := hmin f hf
       omega
   have hfin : S.Finite := (Set.finite_le_nat t).subset fun q hq => hq.1.2.1
@@ -548,16 +538,12 @@ private theorem isEmpty_eq_false_of_cinv [DecidablePred (· ∈ M.accept)] {K : 
     {w : List (Symbol × Op n Γ)} {f : State} (hf : f ∈ M.accept)
     (h : M.CInv K w f w.length) : M.isEmpty K = false := by
   obtain ⟨μ, C, rs, c, hμ, -, hrun, hst, hcont, hstk, -, -, hne, -, -⟩ := h
-  rw [List.drop_length] at hrun
-  obtain rfl := LTS.MTr.nil_eq _ hrun
+  obtain rfl : c = _ := by simpa using hrun
   obtain rfl := eq_nil_of_stacksOf_eq_empty hne hcont.symm
-  have hholes : μ.holes = [] := List.forall₂_nil_left_iff.mp hstk
-  unfold isEmpty isEmptyFrom
-  rw [decide_eq_false_iff_not, not_not]
-  refine ⟨μ, (mem_explore fun ν hν => (mem_initialLists.mp hν).1).mpr hμ, hholes, f,
-    Finset.mem_filter.mpr ⟨Finset.mem_univ _, hf⟩, ?_⟩
-  rw [← hst]
-  exact (mem_wellNestedPairs M).mpr (.refl _)
+  simp only [isEmpty, isEmptyFrom, decide_eq_false_iff_not, not_not]
+  exact ⟨μ, (mem_explore fun _ hν => (mem_initialLists.mp hν).1).mpr hμ,
+    List.forall₂_nil_left_iff.mp hstk, f, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hf⟩,
+    hst ▸ (mem_wellNestedPairs M).mpr (.refl _)⟩
 
 end Invariant
 
@@ -590,11 +576,8 @@ private theorem chainFrom_drop_pred_not_pendingAt {w : List (α × Op n Γ)} {i 
   set m := min m₀ L.length with hmdef
   have htake : L.take m = L.take m₀ := by
     rcases le_total m₀ L.length with h | h <;> simp [m, h, List.take_of_length_le]
-  replace hpend₀ : ∀ r ∈ L.drop m, ¬PendingAt w r (t - 1) := by
-    intro r hr
-    rcases le_total m₀ L.length with h | h
-    · rw [hmdef, min_eq_left h] at hr; exact hpend₀ r hr
-    · simp [hmdef, min_eq_right h] at hr
+  replace hpend₀ : ∀ r ∈ L.drop m, ¬PendingAt w r (t - 1) := fun r hr => by
+    rcases le_total m₀ L.length with h | h <;> simp_all [m]
   rw [← htake] at hm
   have hm₂ : m ≤ L.length := min_le_right _ _
   have hm₁ : 1 ≤ m := by
@@ -634,9 +617,8 @@ private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t
   obtain ⟨hwnctl, hc₂⟩ := hwn.configLTS_mTr_iff.mp hwnrun
   have hApply' := Op.apply_pop.mp hApply
   -- The last chain of stack `i` and its newest push.
-  have htop : stacksOf C i = γ :: c₁.contents i := by
-    rw [← hcont, hApply', Function.update_self]
-  obtain ⟨pre, post, p, ps, rfl, hpost⟩ := stacksOf_eq_cons hne htop
+  obtain ⟨pre, post, p, ps, rfl, hpost⟩ :=
+    stacksOf_eq_cons hne (by rw [← hcont, hApply', Function.update_self])
   have hc₁ : c₁.contents = stacksOf (pre ++ ⟨i, ps⟩ :: post) := by
     apply update_cons_injective (i := i) (γ := γ)
     rw [← stacksOf_pop hpost, ← hcont, hApply']
@@ -657,16 +639,14 @@ private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t
   cases hreal₀ with
   | nil => simp at hsym₀
   | @cons s₂ _ γ' r hr hγ' =>
-  simp only [List.map_cons, List.cons.injEq] at hsym₀
-  obtain ⟨rfl, hpsr⟩ := hsym₀
+  obtain ⟨rfl, hpsr⟩ := List.cons.inj hsym₀
   have hHS : (s₁, s₂) ∈ M.holeSegments i := mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
   have hWR : (c₁.state, c₂.state) ∈ M.wellNestedPairs :=
     (mem_wellNestedPairs M).mpr (wellNestedReach_iff.mpr ⟨_, hwn, hwnctl⟩)
   have hd₁ : HoleDerivation K (pre ++ ⟨i, ps⟩ :: post) (w.take (t + 1)) := by
     rw [List.take_add_one, hwt, Option.toList_some]; exact hd.pop hpost
   -- Positions of the other chains, relative to `p`.
-  obtain ⟨hB, -⟩ := hd.invariant
-  obtain ⟨-, -, hB₃, -, hB₅⟩ := hB
+  obtain ⟨⟨-, -, hB₃, -, hB₅⟩, -⟩ := hd.invariant
   rw [List.pairwise_append, List.pairwise_cons] at hB₅
   have hp_mem : (p, γ) ∈ (⟨i, (p, γ) :: ps⟩ : HoleChain n Γ).pushes := List.mem_cons_self
   have hlt_ps : ∀ e ∈ ps, e.1 < p := fun e he =>
@@ -706,10 +686,9 @@ private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t
       List.rel_append hsympre hsympost, fun d hd' => hne d (hmem_old hd'),
       fun d hd' => hhole d (hmem_old hd'),
       fun d hd' => CInv.chain_mono (by omega) (hcons d (hmem_old hd'))⟩
-    unfold addPop
-    rw [hμh, hsplitLast]
-    exact Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(s₁, γ, c₁.state, c₂.state),
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, hok, rfl⟩, rfl⟩)
+    simpa only [addPop, hμh, hsplitLast] using Finset.mem_union_right _
+      (Finset.mem_image.mpr ⟨(s₁, γ, c₁.state, c₂.state),
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hok, rfl⟩, rfl⟩)
   · have hsh : ∀ {P : HoleChain n Γ → Prop},
         (∀ d ∈ pre ++ ⟨i, (p, γ) :: ps⟩ :: post, P d) → P ⟨i, ps⟩ →
         ∀ d ∈ pre ++ ⟨i, ps⟩ :: post, P d := fun hC hnew d hd' => by
@@ -723,10 +702,9 @@ private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t
       hsh hne hpsne,
       hsh hhole fun e he => hhole ⟨i, (p, γ) :: ps⟩ (by simp) e (List.mem_cons_of_mem _ he),
       hsh (fun d hd' => CInv.chain_mono (by omega) (hcons d hd')) ⟨q₀, hcons_ps⟩⟩
-    unfold addPop
-    rw [hμh, hsplitLast]
-    exact Finset.mem_union_left _ (Finset.mem_image.mpr ⟨(s₂, γ, c₁.state, c₂.state),
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, hok⟩, rfl⟩)
+    simpa only [addPop, hμh, hsplitLast] using Finset.mem_union_left _
+      (Finset.mem_image.mpr ⟨(s₂, γ, c₁.state, c₂.state),
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hok⟩, rfl⟩)
 
 end PopStep
 
@@ -762,16 +740,13 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
   have hpush : IsPushOn w i t := ⟨a, γ, hwt⟩
   have ht : IsHolePushOn w i t := ⟨hpush, hev⟩
   have htake_len : (w.take t).length = t := by simp; omega
-  obtain ⟨hB, -⟩ := hd.invariant
-  obtain ⟨-, hB₂, hB₃, hB₄, hB₅⟩ := hB
+  obtain ⟨⟨-, hB₂, hB₃, hB₄, hB₅⟩, -⟩ := hd.invariant
   rw [htake_len] at hB₂ hB₄
   -- The old pushes, seen in `w`.
-  have hold : ∀ d ∈ C, ∀ e ∈ d.pushes, e.1 < t ∧ PendingAt w e.1 (t - 1) := by
-    intro d hd' e he
+  have hold : ∀ d ∈ C, ∀ e ∈ d.pushes, e.1 < t ∧ PendingAt w e.1 (t - 1) := fun d hd' e he => by
     obtain ⟨⟨b, hb⟩, hpend⟩ := hB₂ d hd' e he
     have hlt : e.1 < t := htake_len ▸ (List.getElem?_eq_some_iff.mp hb).1
-    refine ⟨hlt, ?_⟩
-    simpa using (pendingAt_append_iff (v := w.drop t) (by omega)).mpr hpend
+    exact ⟨hlt, by simpa using (pendingAt_append_iff (v := w.drop t) (by omega)).mpr hpend⟩
   -- The counting guard.
   have hguard : C.length + 1 ≤ openHoles w t := by
     refine card_add_one_le_openHoles ht hne (fun d hd' e he => ⟨hhole d hd' e he,
@@ -818,9 +793,7 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
     simp [← hpsfst, show ps = [] from hps] at h₂
   · refine List.forall_mem_append.mpr ⟨hhole, List.forall_mem_singleton.mpr fun e he => ?_⟩
     have : e.1 ∈ chainFrom w i t := List.mem_reverse.mp (hpsfst ▸ List.mem_map_of_mem he)
-    by_cases het : e.1 = t
-    · exact het ▸ ht
-    · exact (chainFrom_spec t e.1 this).2 het
+    exact if het : e.1 = t then het ▸ ht else (chainFrom_spec t e.1 this).2 het
   · exact List.forall_mem_append.mpr ⟨fun d hd' => CInv.chain_mono htlt.le (hcons d hd'),
       List.forall_mem_singleton.mpr ⟨t, (chainFrom w i t).length,
         by rw [List.take_length]; exact hpsfst, chainFrom_lt_blockEnd t htlen, by simp⟩⟩
@@ -860,12 +833,10 @@ private theorem cinv_length {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State}
       | nop => exact absurd ⟨a, hwt⟩ hnop
       | push i γ =>
         obtain ⟨ht', h'⟩ := cinv_hole hK hwt hwm h
-        have hle' := blockEnd_le_length (i := i) t hlt
-        exact cinv_length hK _ hle' (blockEnd_event t hlt) h'
+        exact cinv_length hK _ (blockEnd_le_length t hlt) (blockEnd_event t hlt) h'
       | pop i γ =>
         obtain ⟨ht', h'⟩ := cinv_pop hwt h
-        have hle' := (wnEnd_spec (w := w) (p := t + 1) (by omega)).2.1
-        exact cinv_length hK _ hle' (wnEnd_event (by omega)) h'
+        exact cinv_length hK _ (wnEnd_spec (by omega)).2.1 (wnEnd_event (by omega)) h'
     · exact h
 termination_by t => w.length - t
 

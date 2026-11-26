@@ -161,17 +161,12 @@ theorem sum_incidentSum_le (hj : j ≤ J) (n : T.Ed j → ℕ) :
 /-- The norm of a load on the pairs of places is monotone. -/
 theorem NN2_mono {n n' : Sym2 T.Fl → ℕ} (hn : ∀ q, n q ≤ n' q) : T.NN2 n ≤ T.NN2 n' := by
   have hb : (0 : ℝ) ≤ b * (b - 1) / 2 := by
-    rcases Nat.eq_zero_or_pos b with rfl | hb
-    · simp
-    · have : (1 : ℝ) ≤ b := by exact_mod_cast hb
-      have : (0 : ℝ) ≤ b - 1 := by linarith
-      positivity
+    rcases (by exact_mod_cast Nat.eq_zero_or_pos b : (b : ℝ) = 0 ∨ 1 ≤ (b : ℝ)) with h | h <;>
+      nlinarith
   rw [NN2_def, NN2_def]
   refine mul_le_mul_of_nonneg_left (sum_le_sum fun q _ => ?_) hb
-  split_ifs
-  · exact le_rfl
-  · gcongr
-    exact hn q
+  split_ifs <;> gcongr
+  exact hn q
 
 /-- The end segments on the pair `q` of the vertex `ω`, by the edges of the type `i` and their
 two ends. -/

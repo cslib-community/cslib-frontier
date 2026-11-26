@@ -281,9 +281,9 @@ theorem modInv_lt {a m : ℕ} (hm : 0 < m) : modInv a m < m := by
   exact (snd_iterate_modInvStep_lt hm (modInvInit a m) hinit.1 hinit.2 (gcdCount (m, a))).1
 
 /-- For every `a` and `m`, `modInv a m ≤ m`. -/
-theorem modInv_le (a m : ℕ) : modInv a m ≤ m := by
-  obtain ⟨h₁, h₂⟩ := snd_modInvInit_le a m
-  exact (snd_iterate_modInvStep_le m (modInvInit a m) h₁ h₂ (gcdCount (m, a))).1
+theorem modInv_le (a m : ℕ) : modInv a m ≤ m :=
+  (snd_iterate_modInvStep_le m _ (snd_modInvInit_le a m).1 (snd_modInvInit_le a m).2
+    (gcdCount (m, a))).1
 
 private lemma modEq_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (ℕ × ℕ))
     (hm₁ : a * s.2.1 ≡ s.1.1 [MOD m]) (hm₂ : a * s.2.2 ≡ s.1.2 [MOD m]) :
@@ -319,10 +319,8 @@ theorem mul_modInv_modEq_gcd (a : ℕ) {m : ℕ} (hm : 0 < m) :
     split_ifs with hle
     · exact (show m = 1 by lia) ▸ Nat.modEq_one
     · rw [Nat.mul_one]
-  have hiter := (modEq_iterate_modInvStep hm (modInvInit a m) hm₁ hm₂ (gcdCount (m, a))).1
-  rw [fst_iterate_modInvStep, show (modInvInit a m).1 = (m, a) from rfl,
-    iterate_gcdStep_eq] at hiter
-  exact hiter
+  simpa only [modInv, modInvCoeff0, fst_iterate_modInvStep, modInvInit, iterate_gcdStep_eq] using
+    (modEq_iterate_modInvStep hm (modInvInit a m) hm₁ hm₂ (gcdCount (m, a))).1
 
 /-- Modular inverse correctness: when `Nat.Coprime a m`, `a * modInv a m ≡ 1 [MOD m]`. -/
 theorem mul_modInv_modEq_one {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m) :
@@ -390,8 +388,8 @@ theorem binary_gcd : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.gcd p.1 p.2
       (encPair encNat encNat) encUnary := by
     unfold BinaryGcd.gcdCount
     fun_prop
-  have hiter := binary_gcdIterate.comp ((id' (encIn := encPair encNat encNat)).prod hcount)
-  simpa only [Function.comp_apply, BinaryGcd.iterate_gcdStep_eq] using hiter.fst'
+  simpa only [Function.comp_apply, BinaryGcd.iterate_gcdStep_eq] using
+    (binary_gcdIterate.comp ((id' (encIn := encPair encNat encNat)).prod hcount)).fst'
 
 /-- Greatest common divisor of computed binary values, fixing their intermediate encodings for
 proof search. -/
@@ -432,12 +430,10 @@ theorem binary_modInv : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.mo
     unfold BinaryGcd.modInvStep
     have hm := fst encNat (encPair (encPair encNat encNat) (encPair encNat encNat))
     have hs := snd encNat (encPair (encPair encNat encNat) (encPair encNat encNat))
-    have hr₀ := hs.fst'.fst'
-    have hr₁ := hs.fst'.snd'
-    exact (decide_eq' hr₁ (const 0)).ite_decide hs
-      ((hr₁.prod (binary_mod' hr₀ hr₁)).prod
-        (hs.snd'.snd'.prod
-          (computableInPolyTime_modInvNext hm (binary_div' hr₀ hr₁) hs.snd'.fst' hs.snd'.snd')))
+    exact (decide_eq' hs.fst'.snd' (const 0)).ite_decide hs
+      ((hs.fst'.snd'.prod (binary_mod' hs.fst'.fst' hs.fst'.snd')).prod
+        (hs.snd'.snd'.prod (computableInPolyTime_modInvNext hm
+          (binary_div' hs.fst'.fst' hs.fst'.snd') hs.snd'.fst' hs.snd'.snd')))
   unfold BinaryGcd.modInv
   exact (iterateWith (snd encNat encNat) hcount hinit hstep
     (bound := fun p => 9 * (encPair encNat encNat p).length)

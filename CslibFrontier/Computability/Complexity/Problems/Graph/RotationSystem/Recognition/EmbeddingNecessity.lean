@@ -86,8 +86,8 @@ private def auxiliaryRoute (c d w : ℂ) : Route := (Route.line c w).append d
 
 private theorem auxiliary_start (c d w : ℂ) : (auxiliaryRoute c d w).start = c := rfl
 
-private theorem auxiliary_finish (c d w : ℂ) : (auxiliaryRoute c d w).finish = d := by
-  exact Route.endpoint_append (Route.line c w) d true
+private theorem auxiliary_finish (c d w : ℂ) : (auxiliaryRoute c d w).finish = d :=
+  Route.endpoint_append (Route.line c w) d true
 
 private theorem auxiliary_nodes (c d w : ℂ) (k : Fin ((auxiliaryRoute c d w).segments + 1)) :
     (auxiliaryRoute c d w).point k = c ∨ (auxiliaryRoute c d w).point k = w ∨
@@ -232,12 +232,11 @@ private theorem auxiliaryOn_insert {E : Type*} [Fintype E] [DecidableEq E]
       (fun j => (hR k).segment_ne j) (hclean e k hind).1 (hclean e k hind).2 hw
   have hnewH (f : E) (hf : f ∈ s) (hind : EndsApart c d e f) :
       NodesAvoid (auxiliaryRoute (c e) (d e) w) (H f) ∧
-        NodesAvoid (H f) (auxiliaryRoute (c e) (d e) w) := by
-    apply auxiliary_reciprocal (H f) (hHnodes f hf) (hHsegs f hf)
+        NodesAvoid (H f) (auxiliaryRoute (c e) (d e) w) :=
+    auxiliary_reciprocal (H f) (hHnodes f hf) (hHsegs f hf)
       (auxiliary_segment_ne (A.apex_ne f hf).1 (A.apex_ne f hf).2)
-    · exact A.vertices f hf _ (hcV e) hind.1 hind.2.1
-    · exact A.vertices f hf _ (hdV e) hind.2.2.1 hind.2.2.2
-    · exact hw
+      (A.vertices f hf _ (hcV e) hind.1 hind.2.1)
+      (A.vertices f hf _ (hdV e) hind.2.2.1 hind.2.2.2) hw
   let apex := Function.update A.apex e w
   have hupe : apex e = w := Function.update_self ..
   have hupd (f : E) (hf : f ∈ s) : apex f = A.apex f :=
@@ -323,18 +322,11 @@ private theorem cycle_observe {p q r : Route} {u : ℂ} (hu : u ≠ 0)
   have hrq' := nodesAvoid_mul hrq hu
   have h := Route.rayParity_endpoints_add_eq_sum_intersections
     (cycleStart u p q) (cycleFinish u p q) (fun _ => true) (Route.mulComplex u r)
-    (by intro i; cases i with | inl i => exact hp i | inr i => exact hq i)
-    hr
-    (by
-      intro k i _ hz
-      cases i with
-      | inl i => exact hrp' k (Set.mem_iUnion.mpr ⟨i, hz⟩)
-      | inr i => exact hrq' k (Set.mem_iUnion.mpr ⟨i, hz⟩))
-    (by
-      intro i _
-      cases i with
-      | inl i => exact ⟨hpr' i.castSucc, hpr' i.succ⟩
-      | inr i => exact ⟨hqr' i.castSucc, hqr' i.succ⟩)
+    (Sum.rec hp hq) hr
+    (fun k => Sum.rec (fun i _ hz => hrp' k (Set.mem_iUnion.mpr ⟨i, hz⟩))
+      (fun i _ hz => hrq' k (Set.mem_iUnion.mpr ⟨i, hz⟩)))
+    (Sum.rec (fun i _ => ⟨hpr' i.castSucc, hpr' i.succ⟩)
+      (fun i _ => ⟨hqr' i.castSucc, hqr' i.succ⟩))
     (cycle_even u p q hs hf)
   change cycleRay u p q r.finish + cycleRay u p q r.start =
     ∑ j : Fin r.segments, ∑ i : Fin p.segments ⊕ Fin q.segments,
@@ -387,11 +379,9 @@ private theorem exists_comparison_axis {E : Type*} [Finite E]
   have hRR (e f : E) (b : Bool) (hind : EndsApart c d e f) :
       NodesAvoid (R (e, b)) (R (f, b)) := Bool.casesOn b (hPP e f hind) (hQQ e f hind)
   have hclean (e : E) (k : E × Bool) (hind : EndsApart c d e k.1) :
-      c e ∉ (R k).support ∧ d e ∉ (R k).support := by
-    have hnodes := hRR e k.1 k.2 hind
-    constructor
-    · simpa only [← hRs (e, k.2), Route.start] using hnodes 0
-    · simpa only [← hRf (e, k.2), Route.finish] using hnodes (Fin.last (R (e, k.2)).segments)
+      c e ∉ (R k).support ∧ d e ∉ (R k).support :=
+    ⟨hRs (e, k.2) ▸ hRR e k.1 k.2 hind 0,
+      hRf (e, k.2) ▸ hRR e k.1 k.2 hind (Fin.last _)⟩
   obtain ⟨A⟩ := exists_auxiliaryOn c d R V hcV hdV hcd hR hclean
   let H (e : E) := auxiliaryRoute (c e) (d e) (A.apex e)
   let F : (E × Bool) ⊕ E → Route := Sum.elim R H
@@ -482,10 +472,9 @@ private theorem contact_away_of_vertex_contacts {G : Graph} (D : PolygonalDrawin
   obtain ⟨j, t, hjt, hfz⟩ := ((D.route f).mem_support_iff z).mp hg
   obtain ⟨a, _, hav⟩ := hvc e i s his v hv (hez.trans hz)
   obtain ⟨b, _, hbv⟩ := hvc f j t hjt v hv (hfz.trans hz)
-  apply endsApart_false_of_endpoint_eq hind a b
-  have hend := (D.endpoint_eq e a).trans
+  refine endsApart_false_of_endpoint_eq hind a b ?_
+  simpa only [Route.endpoint, hs, hf] using (D.endpoint_eq e a).trans
     ((congrArg D.vertex (hav.trans hbv.symm)).trans (D.endpoint_eq f b).symm)
-  simpa only [Route.endpoint, hs, hf] using hend
 
 private theorem embedding_nodesAvoid {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (c d : Fin G.edges.length → ℂ)
@@ -499,10 +488,9 @@ private theorem embedding_nodesAvoid {G : Graph} {D : PolygonalDrawing G}
   obtain ⟨j, t, hjt, hfz⟩ := ((D.route f).mem_support_iff z).mp hz
   obtain ⟨a, b, _, _, hab⟩ := hD.edge_contacts e f hef i j s t his hjt
     (hez.trans hfz.symm)
-  apply endsApart_false_of_endpoint_eq hind a b
-  have hend := (D.endpoint_eq e a).trans
+  refine endsApart_false_of_endpoint_eq hind a b ?_
+  simpa only [Route.endpoint, hs, hf] using (D.endpoint_eq e a).trans
     ((congrArg D.vertex hab).trans (D.endpoint_eq f b).symm)
-  simpa only [Route.endpoint, hs, hf] using hend
 
 open Classical in
 private theorem pairParity_eq_card_events (p q : Route) :
@@ -595,9 +583,8 @@ private theorem pairParity_embedding {G : Graph} {D : PolygonalDrawing G}
     obtain ⟨a, b, _, _, hab⟩ := hD.edge_contacts e f hef i j s t
       ⟨hs'.1.le, hs'.2.le⟩ ⟨ht'.1.le, ht'.2.le⟩ (he.trans hg.symm)
     apply endsApart_false_of_endpoint_eq hind a b
-    have hend := (D.endpoint_eq e a).trans
+    simpa only [Route.endpoint, hs, hf] using (D.endpoint_eq e a).trans
       ((congrArg D.vertex hab).trans (D.endpoint_eq f b).symm)
-    simpa only [Route.endpoint, hs, hf] using hend
   simp only [hno, decide_false, Bool.zero_eq_false]
 
 private theorem subdivision_end_declared {I : FixedRotationInput} (hI : Valid I)
@@ -716,9 +703,8 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
       change ((subdivide I).getD e.val ((0, 0), false)).frozen = true at he
       rw [List.getD_eq_getElem _ _ (show e.val < (subdivide I).length from e.isLt)] at he
       exact he
-    have hkeep := A.route_eq (index e)
-    dsimp only at hkeep
-    simp only [he', ↓reduceIte] at hkeep
+    have hkeep : A.drawing.route (index e) = ref.route (index e) := by
+      simpa only [he', ↓reduceIte] using A.route_eq (index e)
     change cycleRay u (D.route (index e)) (A.drawing.route (index e)) (ref.vertex v.val) = false
     rw [hF (index e) he', hkeep, cycleRay_eq, BooleanRing.add_self]
     rfl
@@ -788,10 +774,9 @@ theorem query_eq_true_of_unfrozen_embedding {I : FixedRotationInput} (hI : Valid
   intro e he
   let i : Fin (subdivide I).length :=
     ⟨e.val, by simpa only [subdivisionGraph, List.length_map] using e.isLt⟩
-  have hem : (subdivide I)[i].endpoints ∈ (frozenGraph I).edges :=
-    List.mem_map.mpr ⟨_, List.mem_filter.mpr ⟨List.getElem_mem _, he⟩, rfl⟩
-  rw [hF] at hem
-  exact (List.not_mem_nil hem).elim
+  refine False.elim (List.not_mem_nil (a := (subdivide I)[i].endpoints) ?_)
+  rw [← hF]
+  exact List.mem_map_of_mem (List.mem_filter.mpr ⟨List.getElem_mem _, he⟩)
 
 /-- An actual embedding of the original listed graph makes the query accept when no
 subdivision edge is frozen. The proof subdivides the indexed routes and places all
@@ -814,9 +799,8 @@ theorem query_eq_true_of_rotation_embedding {I : FixedRotationInput} (hI : Valid
       E.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 :=
     hfrozen _ ((frozen_iff_exists_subdivisionDart I _).mpr ⟨d, rfl, hd⟩)
   obtain ⟨F, hF, hpos, hroute⟩ := exists_subdivision_embedding_at_reference hI hE hcenter hspoke
-  apply query_eq_true_of_positioned_frozen_embedding hI F hF hpos
-  intro e he
-  obtain ⟨d, rfl, hd⟩ := (frozen_iff_exists_subdivisionDart I e).mp he
-  exact hroute d hd
+  exact query_eq_true_of_positioned_frozen_embedding hI F hF hpos fun e he => by
+    obtain ⟨d, rfl, hd⟩ := (frozen_iff_exists_subdivisionDart I e).mp he
+    exact hroute d hd
 
 end Cslib.Complexity.Graph.RotationRecognition

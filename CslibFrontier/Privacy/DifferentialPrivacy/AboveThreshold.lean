@@ -141,9 +141,7 @@ theorem aboveThresholdAux_apply_le {ν : PMF ℤ} {c : ℝ≥0∞} {s : ℤ} (hc
       refine tsum_le_tsum fun v => ?_
       by_cases hv : T ≤ a + v
       · simp only [hv, ↓reduceIte, mul_zero, zero_le]
-      · have hv' : ¬ T + s ≤ b + v := by
-          intro h
-          linarith [hab'.2]
+      · have hv' : ¬ T + s ≤ b + v := fun h => by linarith [hab'.2]
         simp only [hv, hv', ↓reduceIte]
         exact (mul_le_mul_right (Probability.PMF.map_apply_le_mul ih _ o) _).trans_eq
           (mul_left_comm _ _ _)
@@ -202,9 +200,8 @@ theorem differentiallyPrivate_aboveThreshold_discreteLaplace {D : Type*} {Adj : 
   have hΔ' : (0 : ℝ) < Δ := by exact_mod_cast hΔ
   obtain ⟨hρ, hν⟩ := discreteLaplace_pair_shift (s₁ := 2 * Δ / ε) (s₂ := 4 * Δ / ε)
     (Δ := Δ) (a := ε / 2) (by positivity) (by positivity) (by field_simp) (by field_simp; ring)
-  have := DifferentiallyPrivate.aboveThresholdMechanism (Adj := Adj) (T := T) (fs := fs)
-    (s := Δ) (ε₁ := ε / 2) (ε₂ := ε / 2) (by positivity) (by exact_mod_cast hfs) hρ hν
-  rwa [add_halves] at this
+  simpa only [add_halves] using DifferentiallyPrivate.aboveThresholdMechanism (T := T)
+    (by positivity) (by exact_mod_cast hfs) hρ hν
 
 /-- The accuracy condition of [DworkRoth2014, Definition 3.9] for the answers `as`, threshold `T`
 and slack `α`: every answer reported below threshold is at most `T + α`, and the answer reported
@@ -258,16 +255,13 @@ theorem aboveThresholdAux_toOuterMeasure_not_thresholdAccurate_le (ν : PMF ℤ)
       · rw [PMF.toOuterMeasure_pure_apply]
         split_ifs with hbad
         · simp only [Set.mem_ofPred_eq, ThresholdAccurate, not_le] at hbad
-          exfalso
           linarith [habs.1, hvabs.2]
         · exact zero_le
       · have ha : a ≤ T + (α₁ + α₂) := by linarith [habs.2, hvabs.1]
         rw [PMF.toOuterMeasure_map_apply]
         refine le_trans (MeasureTheory.measure_mono fun o ho => ?_) ih
         simp only [Set.mem_preimage, Set.mem_ofPred_eq] at ho ⊢
-        intro hacc
-        apply ho
-        cases o <;> exact ⟨ha, hacc⟩
+        exact fun hacc => ho (by cases o <;> exact ⟨ha, hacc⟩)
     · rw [compl_compl, List.length_cons, Nat.cast_succ, add_mul, one_mul, add_comm]
 
 /-- AboveThreshold on `k` answers fails to be `(α₁ + α₂)`-accurate with probability at most
@@ -306,8 +300,8 @@ theorem aboveThreshold_discreteLaplace_toOuterMeasure_not_thresholdAccurate_le {
   have h₂ := discreteLaplace_toOuterMeasure_lt_abs_le (4 / ε) (by positivity)
     (a := 4 * L / ε) (by positivity)
   have he₁ : -(4 * L / ε) / (2 / ε) = -(2 * L) := by field_simp; ring
-  have he₂ : -(4 * L / ε) / (4 / ε) = -L := by field_simp
   rw [he₁] at h₁
+  have he₂ : -(4 * L / ε) / (4 / ε) = -L := by field_simp
   rw [he₂] at h₂
   have hexpL : Real.exp (-L) = β / (2 * (k + 1)) := by
     rw [hL, neg_add, Real.exp_add, Real.exp_neg, Real.exp_neg, Real.exp_log hk,
@@ -410,11 +404,9 @@ theorem differentiallyPrivate_sparse_discreteLaplace {Adj : D → D → Prop} {T
   obtain ⟨hρ, hν⟩ := discreteLaplace_pair_shift (s₁ := 2 * c * Δ / ε) (s₂ := 4 * c * Δ / ε)
     (Δ := Δ) (a := ε / (2 * c)) (by positivity) (by positivity) (by field_simp)
     (by field_simp; ring)
-  have := DifferentiallyPrivate.sparse (Adj := Adj) (T := T) (qs := qs)
-    (s := Δ) (ε₁ := ε / (2 * c)) (ε₂ := ε / (2 * c)) (by positivity) (by exact_mod_cast hqs)
-    hρ hν c
   have hε' : (c : ℝ) * (ε / (2 * c) + ε / (2 * c)) = ε := by field_simp; ring
-  rwa [hε'] at this
+  simpa only [hε'] using DifferentiallyPrivate.sparse (T := T)
+    (by positivity) (by exact_mod_cast hqs) hρ hν c
 
 /-- Sparse on a fixed stream of queries of sensitivity `Δ ≥ 1`, each round continuing on the
 unconsumed queries, with discrete Laplace noise of scales `2 c Δ / ε` and `4 c Δ / ε`, is

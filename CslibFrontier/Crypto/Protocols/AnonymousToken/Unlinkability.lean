@@ -141,10 +141,8 @@ reductions where two distinct messages must be committed to check collisions. -/
 
 /-- `CommitMsg.bumpBal` is always distinct from the original message. -/
 theorem CommitMsg.bumpBal_ne {Nullifier Context : Type} (m : CommitMsg Nullifier Context) :
-    m.bumpBal ≠ m := by
-  intro h
-  have hb : m.bal + 1 = m.bal := congrArg CommitMsg.bal h
-  omega
+    m.bumpBal ≠ m :=
+  fun h => Nat.succ_ne_self m.bal (congrArg CommitMsg.bal h)
 
 /-- Public statement for a VOLE-ACT initial issuance proof ([VOLEACT2026], `#issuance`). -/
 structure IssueStmt (C Context : Type) where
@@ -678,13 +676,10 @@ private lemma eval_unlinkOracleProgram_mkSig_issue
         ⟨nf1, t1, r1, Com.eval ck ⟨nf1, ctx, t1⟩ r1, 0,
           mkSig (tag (Com.eval ck ⟨nf1, ctx, t1⟩ r1) 0)⟩
         ()).run (realProofOracle Com tag S bound sys ck)) := by
-  simp only [unlinkOracleProgram, hinit, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
-  have hcond : (0 < t0 && t0 < bound && 0 < t1 && t1 < bound) = true := by
-    simp only [Bool.and_eq_true, decide_eq_true_eq]
-    exact ⟨⟨⟨ht0.1, ht0.2⟩, ht1.1⟩, ht1.2⟩
-  simp only [hcond, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
-    ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind]
+  simp only [unlinkOracleProgram, hinit, ht0.1, ht0.2, ht1.1, ht1.2, decide_true, Bool.and_self,
+    Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
+    ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.pure_bind]
   refine pmfBind_congr _ fun nf0 => pmfBind_congr _ fun r0 => ?_
   rw [bind_realProofOracle_valid Com tag S bound sys ck
     (by simp [validStatement, ht0.1, ht0.2])]
@@ -736,15 +731,12 @@ private lemma eval_challengeLoop_debit2_true
   simp only [challengeLoopOracle, hj0, hchoose, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, spendAdmissible]
   have hadm1 : decide (2 < bound ∧ 2 ≤ noteAct.bal + noteAct.ref ∧
-      noteAct.bal + noteAct.ref - 2 < bound) = true := by
-    simp only [decide_eq_true_eq]
-    exact ⟨by omega, by omega, by omega⟩
+      noteAct.bal + noteAct.ref - 2 < bound) = true :=
+    decide_eq_true ⟨by omega, hsum⟩
   have hadm2 : (!guardBoth || decide (2 < bound ∧ 2 ≤ balOther + refOther ∧
       balOther + refOther - 2 < bound)) = true := by
-    cases guardBoth
-    · rfl
-    · have ho := hoth rfl
-      simp [show 2 < bound by omega, ho.1, ho.2]
+    have h2 : 2 < bound := by omega
+    cases guardBoth <;> simp [h2, hoth]
   simp only [hadm1, hadm2, Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
     ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
     ProbComp.eval_bind]
@@ -757,10 +749,10 @@ private lemma eval_challengeLoop_debit2_true
     simp only [validStatement, ← hnote_com, hnote_sig, Bool.true_and, decide_eq_true_eq]
     exact ⟨by simp, by omega, by simp, hnote_bal, hnote_ref, by omega, by omega⟩
   rw [bind_realProofOracle_valid Com tag S bound sys ck hv]
-  dsimp only
   refine pmfBind_congr _ fun piC => ?_
+  have h0 : 0 < bound := by omega
   simp only [hfin, ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, hmksig, show (0 : ℕ) < bound by omega, decide_true,
+    ProbComp.eval_pure, PMF.pure_bind, hmksig, h0, decide_true,
     Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte, hguess]
 
 /-- Helper showing a `challengeLoopOracle` debit-`2` call aborts immediately (`PMF.pure false`)
@@ -782,9 +774,7 @@ private lemma eval_challengeLoop_debit2_false
   have hj0 : (⟨1 - (0 + 1), by omega⟩ : Fin 1) = 0 := rfl
   simp only [challengeLoopOracle, hj0, hchoose, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, spendAdmissible]
-  rcases habort with h1 | ⟨rfl, h2⟩
-  · simp [not_le.mpr h1]
-  · simp [not_le.mpr h2]
+  rcases habort with h1 | ⟨rfl, h2⟩ <;> simp [not_le.mpr ‹_›]
 
 /-- Shared evaluation helper for `balancePartitionInitAdversary` across worlds. -/
 private lemma eval_balancePartitionInit_eq
@@ -830,12 +820,9 @@ private lemma eval_balancePartitionInit_abort
         (balancePartitionInitAdversary tag pk ctx mkSig) guardBoth b ck).run
         (realProofOracle Com tag S bound sys ck)) = PMF.pure false := by
   refine eval_balancePartitionInit_eq Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
-    guardBoth b false fun ck nf r => ?_
-  cases b
-  · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth _ 1 0 (Or.inr ⟨hbad, by simp⟩)
-  · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth _ 2 0 (Or.inl (by simp))
+    guardBoth b false fun ck nf r =>
+      eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
+        guardBoth _ _ 0 (by cases b <;> simp_all)
 
 /-- Without the cross-branch non-abort guard, `balancePartitionInitAdversary` achieves
 unlinkability advantage `1` whenever `bound ≥ 3` and `mkSig` produces valid signatures under
@@ -958,14 +945,13 @@ private lemma eval_refund_preLoopOracle
   simp only [preLoopOracle, balancePartitionRefundAdversary, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, ↓reduceIte,
     Bool.false_eq_true, spendAdmissible]
-  have hadm0 : decide (1 < bound ∧ 1 ≤ 2 + 0 ∧ 2 + 0 - 1 < bound) = true := by
-    simp only [decide_eq_true_eq]; omega
+  have hadm0 : decide (1 < bound ∧ 1 ≤ 2 + 0 ∧ 2 + 0 - 1 < bound) = true :=
+    decide_eq_true (by omega)
   simp only [hadm0, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind]
   refine pmfBind_congr _ fun nf0' => pmfBind_congr _ fun r0' => ?_
   rw [bind_realProofOracle_valid Com tag S bound sys ck
     (spendValid_mkSig_note2 Com tag S bound hbound ck pk ctx mkSig hmksig nf0 r0 nf0' r0')]
-  dsimp only
   refine pmfBind_congr _ fun pi0' => ?_
   simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.pure_bind, hmksig, Bool.and_true, show (2 : ℕ) < bound by omega,
@@ -977,7 +963,6 @@ private lemma eval_refund_preLoopOracle
   refine pmfBind_congr _ fun nf1' => pmfBind_congr _ fun r1' => ?_
   rw [bind_realProofOracle_valid Com tag S bound sys ck
     (spendValid_mkSig_note2 Com tag S bound hbound ck pk ctx mkSig hmksig nf1 r1 nf1' r1')]
-  dsimp only
   refine pmfBind_congr _ fun pi1' => ?_
   simp [hmksig, show bound ≠ 0 by omega]
 
@@ -1134,24 +1119,21 @@ private lemma challengeLoopOracle_isQueryBounded
     simp only [challengeLoopOracle]
     exact ProbOracleComp.IsQueryBounded.sample _
   | succ rem' ih =>
+    have hcost : rem' + 1 = 0 + (0 + (0 + (1 + (0 + rem')))) := by omega
     simp only [challengeLoopOracle]
-    conv_rhs => rw [← Nat.zero_add (rem' + 1)]
+    conv_rhs => rw [hcost]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs
-    · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-    · conv_rhs => rw [← Nat.zero_add (rem' + 1)]
-      refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-      conv_rhs => rw [← Nat.zero_add (rem' + 1)]
-      refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-      conv_rhs => rw [show rem' + 1 = 1 + rem' by omega]
-      refine (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
+    · exact OracleComp.IsCostBounded.pure _ _
+    · refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+        (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+          (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
       cases pi? with
-      | none => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+      | none => exact OracleComp.IsCostBounded.pure _ _
       | some pi =>
-        conv_rhs => rw [← Nat.zero_add rem']
-        refine (ProbOracleComp.IsQueryBounded.sample _).bind fun resp => ?_
+        refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
         split_ifs
-        · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+        · exact OracleComp.IsCostBounded.pure _ _
         · exact ih (by omega) _ _ _ _
 
 /-- Query bound for `preLoopOracle`: at most `rem + challengeSpends` queries. -/
@@ -1175,25 +1157,22 @@ private lemma preLoopOracle_isQueryBounded
       exact challengeLoopOracle_isQueryBounded Com nfGen tag S bound adv ck pk ctx guardBoth
         challengeSpends (le_refl _) _ _ _ _
   | succ rem' ih =>
+    have hcost : rem' + 1 + challengeSpends =
+        0 + (0 + (0 + (1 + (0 + (rem' + challengeSpends))))) := by omega
     simp only [preLoopOracle]
-    conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
+    conv_rhs => rw [hcost]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs <;> first
-      | exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-      | (conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
-         refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-         conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
-         refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-         conv_rhs =>
-           rw [show rem' + 1 + challengeSpends = 1 + (rem' + challengeSpends) by omega]
-         refine (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
+      | exact OracleComp.IsCostBounded.pure _ _
+      | (refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+           (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+             (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
          cases pi? with
-         | none => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+         | none => exact OracleComp.IsCostBounded.pure _ _
          | some pi =>
-           conv_rhs => rw [← Nat.zero_add (rem' + challengeSpends)]
            refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
            split_ifs <;> first
-             | exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+             | exact OracleComp.IsCostBounded.pure _ _
              | exact ih (by omega) _ _ _)
 
 private lemma issueStep_isQueryBounded
@@ -1441,7 +1420,7 @@ private lemma preLoopSim_cutoff_congr {preRounds challengeSpends : ℕ}
     have hf2 : ¬ (2 + (preRounds - (rem' + 1)) < hop2) := by omega
     simp only [preLoopSim, hf1, hf2, ↓reduceIte]
     congr 1 with choice
-    cases hguard : spendAdmissible env.bound
+    cases spendAdmissible env.bound
         (if choice.client then note1 else note0).bal
         (if choice.client then note1 else note0).ref choice.debit
     · simp only [Bool.not_false, ↓reduceIte]
@@ -1542,7 +1521,6 @@ private lemma challengeLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpe
       refine pmfBind_congr _ fun nfPrime => pmfBind_congr _ fun rPrime => ?_
       rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
         (spendValid_of_noteInv env pk ctx noteAct choice.debit nfPrime rPrime hinv hokAct)]
-      dsimp only
       refine pmfBind_congr _ fun pi => ?_
       simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind]
       refine pmfBind_congr _ fun resp => eval_simGate env.Com env.tag env.S env.bound env.sys
@@ -1578,9 +1556,8 @@ private lemma preLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpends : 
     rw [← apply_ite ClientNote.toSim]
     set noteSel := if choice.client then note1 else note0
     have hsel : NoteInv env.Com env.tag env.S env.bound env.ck pk ctx noteSel := by
-      cases hcl : choice.client <;> simp only [noteSel, hcl, ↓reduceIte, Bool.false_eq_true]
-      · exact h0
-      · exact h1
+      cases hcl : choice.client <;> simp only [noteSel, hcl, ↓reduceIte, Bool.false_eq_true] <;>
+        assumption
     by_cases hguard : spendAdmissible env.bound noteSel.bal noteSel.ref choice.debit = false
     · simp only [hguard, Bool.not_false, ↓reduceIte, ClientNote.toSim, ProbOracleComp.run_pure,
         ProbComp.eval_pure]
@@ -1592,7 +1569,6 @@ private lemma preLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpends : 
       refine pmfBind_congr _ fun nfPrime => pmfBind_congr _ fun rPrime => ?_
       rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
         (spendValid_of_noteInv env pk ctx noteSel choice.debit nfPrime rPrime hsel hokSel)]
-      dsimp only
       refine pmfBind_congr _ fun pi => ?_
       simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind]
       refine pmfBind_congr _ fun resp => eval_simGate env.Com env.tag env.S env.bound env.sys
@@ -1627,7 +1603,6 @@ private lemma unlinkOracleProgram_sim_eq [DecidableEq C] {preRounds challengeSpe
     rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
       (issueValid_of_pos_lt env.Com env.tag env.S env.bound env.ck initOut.ctx initOut.t0
         nf0 r0 ht0pos ht0ub)]
-    dsimp only
     refine pmfBind_congr _ fun pi0 => ?_
     simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbOracleComp.run_query,
       ProbComp.eval_bind]
@@ -1635,23 +1610,12 @@ private lemma unlinkOracleProgram_sim_eq [DecidableEq C] {preRounds challengeSpe
     rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
       (issueValid_of_pos_lt env.Com env.tag env.S env.bound env.ck initOut.ctx initOut.t1
         nf1 r1 ht1pos ht1ub)]
-    dsimp only
     refine pmfBind_congr _ fun pi1 => ?_
     simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind]
-    refine pmfBind_congr _ fun issResp => ?_
-    cases hiss : env.S.verify initOut.pk (env.tag
-        (env.Com.eval env.ck ⟨nf0, initOut.ctx, initOut.t0⟩ r0) 0) issResp.s0 &&
-        env.S.verify initOut.pk (env.tag
-        (env.Com.eval env.ck ⟨nf1, initOut.ctx, initOut.t1⟩ r1) 0) issResp.s1
-    · simp only [Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
-    · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      have hsigs := (Bool.and_eq_true _ _).mp hiss
-      exact preLoopOracle_sim_eq env adv initOut.pk initOut.ctx b preRounds (le_refl _)
-        ⟨nf0, initOut.t0, r0, env.Com.eval env.ck ⟨nf0, initOut.ctx, initOut.t0⟩ r0, 0, issResp.s0⟩
-        ⟨nf1, initOut.t1, r1, env.Com.eval env.ck ⟨nf1, initOut.ctx, initOut.t1⟩ r1, 0, issResp.s1⟩
-        issResp.st
-        ⟨rfl, ht0ub, show (0 : ℕ) < env.bound by omega, hsigs.1⟩
-        ⟨rfl, ht1ub, show (0 : ℕ) < env.bound by omega, hsigs.2⟩
+    refine pmfBind_congr _ fun issResp =>
+      eval_simGate env.Com env.tag env.S env.bound env.sys env.ck _ _ _ _ fun hs0 hs1 =>
+        preLoopOracle_sim_eq env adv initOut.pk initOut.ctx b preRounds (le_refl _) _ _ issResp.st
+          ⟨rfl, ht0ub, Nat.zero_lt_of_lt ht0ub, hs0⟩ ⟨rfl, ht1ub, Nat.zero_lt_of_lt ht1ub, hs1⟩
 
 /-- Challenge pause step: stops right before commitment slot `idx` equals `pauseSlot`. -/
 private def challengeLoopPause {preRounds challengeSpends : ℕ}

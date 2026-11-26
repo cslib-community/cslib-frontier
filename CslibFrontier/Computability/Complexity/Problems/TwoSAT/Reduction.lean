@@ -78,9 +78,7 @@ theorem mem_reachabilityFormula {I : STCONInstance} {c : Clause ℕ} :
     · exact ⟨u, v, harc, by simpa using h⟩
     · cases h
   · rintro ⟨u, v, harc, rfl⟩
-    have h := harc
-    simp only [arc] at h
-    split_ifs at h with huv
+    have huv : u < I.n ∧ v < I.n := of_not_not fun h => by simp [arc, h] at harc
     exact ⟨u, huv.1, v, huv.2, by simp [harc]⟩
 
 /-- Any satisfying assignment of `reachabilityFormula I` propagates `true` along paths from `s`,
@@ -239,8 +237,7 @@ theorem encCNF_reachabilityFormula (I : STCONInstance) :
   simp only [reachabilityFormula, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
     List.append_nil, clauseBits, List.flatMap_assoc, List.append_assoc]
   congr 4
-  refine congrArg (fun f => List.flatMap f (List.range I.n)) (funext fun u => ?_)
-  refine congrArg (fun f => List.flatMap f (List.range I.n)) (funext fun v => ?_)
+  refine List.flatMap_congr fun u _ => List.flatMap_congr fun v _ => ?_
   split_ifs <;> simp [clauseBits]
 
 /-! #### The program -/
@@ -360,9 +357,7 @@ theorem computableInLogSpace_reachabilityFormula :
     (rest := [0, 0, 0]) (by simp)).trans (h₁.trans (ReachesOut.emit
     (show writer.instr 29 = _ from rfl) hb (h₂.trans (ReachesOut.emit
       (show writer.instr 53 = _ from rfl) hb hrows))))
-  refine ⟨(108, regs), _, [], hchain, rfl, ?_, hregs⟩
-  rw [encCNF_reachabilityFormula]
-  simp
+  exact ⟨(108, regs), _, [], hchain, rfl, by simp [encCNF_reachabilityFormula], hregs⟩
 
 end Writer
 

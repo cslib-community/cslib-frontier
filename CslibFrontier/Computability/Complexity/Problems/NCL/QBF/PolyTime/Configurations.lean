@@ -57,15 +57,13 @@ theorem configurationBits_circuit (recorded : Bool) (qs : List Quantifier)
 /-- Clearing the output record gives exactly the numbered source initial configuration. -/
 theorem sourceConfiguration_false (x : PrenexCNF) :
     sourceConfiguration false x = Numbered.initial x := by
-  unfold Numbered.initial
-  rw [Diagram.bits_closed]
+  rw [Numbered.initial, Diagram.bits_closed]
   exact configurationBits_circuit false _ _
 
 /-- Setting the output record gives exactly the numbered fixed target configuration. -/
 theorem sourceConfiguration_true (x : PrenexCNF) :
     sourceConfiguration true x = Numbered.target x := by
-  unfold Numbered.target
-  rw [Diagram.bits_closed]
+  rw [Numbered.target, Diagram.bits_closed]
   exact configurationBits_circuit true _ _
 
 /-- Concatenating a fixed finite table of fragment configurations is polynomial-time. -/
@@ -89,18 +87,14 @@ open _root_.Turing.MultiTapeTM
 /-- The canonical source initial bit list is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_initial :
-    ComputableInPolyTime initial encPrenexCNF (encList encBool) := by
-  have h := Emit.computableInPolyTime_sourceConfiguration false
-  change ComputableInPolyTime (fun x => Emit.sourceConfiguration false x) _ _ at h
-  simpa only [Emit.sourceConfiguration_false] using h
+    ComputableInPolyTime initial encPrenexCNF (encList encBool) :=
+  funext Emit.sourceConfiguration_false ▸ Emit.computableInPolyTime_sourceConfiguration false
 
 /-- The source's fixed target bit list is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_target :
-    ComputableInPolyTime target encPrenexCNF (encList encBool) := by
-  have h := Emit.computableInPolyTime_sourceConfiguration true
-  change ComputableInPolyTime (fun x => Emit.sourceConfiguration true x) _ _ at h
-  simpa only [Emit.sourceConfiguration_true] using h
+    ComputableInPolyTime target encPrenexCNF (encList encBool) :=
+  funext Emit.sourceConfiguration_true ▸ Emit.computableInPolyTime_sourceConfiguration true
 
 end Cslib.Complexity.NCL.QBF.Numbered
 
@@ -111,17 +105,15 @@ open _root_.Turing.MultiTapeTM
 /-- Emit the graph and both explicit configurations in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toConfig :
-    ComputableInPolyTime toConfig encPrenexCNF encAndOrNCL := by
-  unfold toConfig
-  exact encAndOrNCL_mk_polyTime computableInPolyTime_graphData
+    ComputableInPolyTime toConfig encPrenexCNF encAndOrNCL :=
+  encAndOrNCL_mk_polyTime computableInPolyTime_graphData
     Numbered.computableInPolyTime_initial Numbered.computableInPolyTime_target
 
 /-- Emit the graph, initial bit list and output-memory edge in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toEdge :
-    ComputableInPolyTime toEdge encPrenexCNF encAndOrNCLEdge := by
-  unfold toEdge
-  exact encAndOrNCLEdge_mk_polyTime computableInPolyTime_graphData
+    ComputableInPolyTime toEdge encPrenexCNF encAndOrNCLEdge :=
+  encAndOrNCLEdge_mk_polyTime computableInPolyTime_graphData
     Numbered.computableInPolyTime_initial (ComputableInPolyTime.const 4)
 
 end Cslib.Complexity.NCL.QBF.Reduction

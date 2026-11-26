@@ -132,9 +132,7 @@ private theorem promoteSlabInv_and_cap_of_tailWrite
             ((((mkCompParams U V w N, (metaBase, itemBase)), b), q_val), v_val))).mem) ≤
         m_cap := by
   have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hwg : 0 < ghostW w := by
-    unfold ghostW
-    omega
+  have hwg : 0 < ghostW w := by simp only [ghostW]; omega
   have hslot_fix : SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
       s_fix.mem) := slotStoreInv_of_gm_eq hcpl.gm_eq.symm hslot
   have htot_fix : totalSlots N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
@@ -143,19 +141,13 @@ private theorem promoteSlabInv_and_cap_of_tailWrite
     pushBackTailWriteProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
       (h_space := epochHashSpace U (ghostW w) N) hwg hb_pos s_fix hslot_fix hb htot_fix
       hq_lt hv_lt
-  have htot_f0 : gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem 0 *
-      slabSize N + gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem 1 < N := by
-    unfold totalSlots at htot_fix
-    rwa [ite_eq_right hb0] at htot_fix
+  simp only [totalSlots, hb0, ↓reduceIte] at htot_fix
   refine ⟨⟨hb, htail_f1, hslab_f1, ?_, fun b' hb' hne => ?_, by omega⟩, ?_⟩
   · rw [hrb_f1, congrFun hcpl.gm_eq.symm (gmRIdx b), hprom]
   · rw [(hother_f1 b' hb' hne).1, (hother_f1 b' hb' hne).2]
     exact hslot_fix.multi_r_bounds hb_pos b' hb'
-  · rw [hcpl1.gm_eq]
-    rw [hcpl.gm_eq] at hm_cap
-    unfold totalSlots at hm_cap ⊢
-    rw [ite_eq_right hb0] at hm_cap
-    rw [ite_eq_right hb0, htot_f1]
+  · simp only [hcpl1.gm_eq, totalSlots, hb0, ↓reduceIte, htot_f1]
+    simp only [hcpl.gm_eq, totalSlots, hb0, ↓reduceIte] at hm_cap
     omega
 
 /-- `compPushBackSlotGenProg` maintains `FixedCoupled` with `pushBackSlotProg`, preserves outside
@@ -188,10 +180,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
   have htot_fix : totalSlots N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
       s_fix.mem) < N := by rw [← hcpl.gm_eq]; exact htot
   by_cases hb0 : bucketBits N = 0
-  · have hb_eq : b = 0 := by
-      have hnb : numBuckets N = 1 := by simp [numBuckets, hb0]
-      omega
-    subst hb_eq
+  · obtain rfl : b = 0 := Nat.lt_one_iff.mp (by simpa only [numBuckets, hb0, pow_zero] using hb)
     unfold totalSlots at htot hm_cap; rw [ite_eq_left hb0] at htot hm_cap
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
     have hc_cap : gm₀ 0 < m_cap := by omega
@@ -220,9 +209,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
       (m_items := gm₀ 0 + 1) (q := q_val) henv.pos_w henv.meta_le_item (Nat.lt_succ_self _) s.mem
     have fv := writeCompVal_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
       (m_items := gm₀ 0 + 1) (v := v_val) henv.pos_w henv.meta_le_item (Nat.lt_succ_self _) s₁.mem
-    have hgm2 : compGmAt metaBase U w N s₂.mem = gm₀ := by
-      rw [hs2_mem, fv.2.1, hs1_mem, fq.2.1]
-    rw [hgm2] at hgm3
+    rw [hs2_mem, fv.2.1, hs1_mem, fq.2.1] at hgm3
     have hframe : CompOpFrame metaBase itemBase U V w N m_cap s s' := by
       rw [hs'_eq]
       exact (compOpFrame_writeCompQuot henv.pos_w hc_cap s).trans
@@ -248,31 +235,26 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
       simp only [p_bucketBits_mk, hb0, ↓reduceIte, readGMGenProg_mk, writeQuotGenProg_mk,
         writeValGenProg_mk, writeGMGenProg_mk]
       rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
-        clientResult_readGMProg s_fix h0_lt, hgm_fix0]
-      repeat rw [StateTransitionSpec.clientState_bind]
+        clientResult_readGMProg s_fix h0_lt, hgm_fix0,
+        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind]
     refine ⟨hframe, ?_, ?_⟩
     · rw [hs'_eq, hs_fix'_eq]
       unfold FixedCoupled
-      have hgm3_0 : compGmAt metaBase U w N s₃.mem 0 = gm₀ 0 + 1 := by
-        rw [hgm3, Function.update_self]
       have htot3 : epochTotalSlots N (compGmAt metaBase U w N s₃.mem) = gm₀ 0 + 1 := by
-        unfold epochTotalSlots; rw [ite_eq_left hb0, hgm3_0]
-      have htd3 : compTDAt metaBase U w N s₃.mem = compTDAt metaBase U w N s.mem := by
-        rw [hfr3.td_eq, hs2_mem, fv.2.2.1, hs1_mem, fq.2.2.1]
-      have hdt3 : compDTAt metaBase U w N s₃.mem = compDTAt metaBase U w N s.mem := by
-        rw [hfr3.dt_eq, hs2_mem, fv.2.2.2, hs1_mem, fq.2.2.2]
-      have hlm3 : compLmAt metaBase U w N s₃.mem = compLmAt metaBase U w N s.mem := by
-        rw [hfr3.lm_eq, hs2_mem, fv.1, hs1_mem, fq.1]
+        rw [epochTotalSlots, ite_eq_left hb0, hgm3, Function.update_self]
       have hp_idx (idx : ℕ) : physByBase N (compGmAt metaBase U w N s₃.mem 0 * slabSize N)
           (compDTAt metaBase U w N s₃.mem) idx = idx := ite_eq_left hb0
       have het0 : epochTotalSlots N (compGmAt metaBase U w N s.mem) = gm₀ 0 := ite_eq_left hb0
       refine ⟨hgm3.trans (by rw [hg_f3, hg_f2, hg_f1, ← hcpl.gm_eq]),
-        hlm3.trans (by rw [hl_f3, hl_f2, hl_f1, ← hcpl.lm_eq]),
+        by rw [hfr3.lm_eq, hs2_mem, fv.1, hs1_mem, fq.1, hl_f3, hl_f2, hl_f1, ← hcpl.lm_eq],
         by simp only [hb0, ↓reduceIte]; exact windowInv_zero _ _ _ _,
-        fun i => by rw [htd3]; exact hcpl.td_lt i,
-        fun i => by rw [hdt3]; exact hcpl.dt_lt i,
-        fun idx hidx => ?_,
-        fun idx hidx => ?_⟩
+        fun i => by
+          rw [hfr3.td_eq, hs2_mem, fv.2.2.1, hs1_mem, fq.2.2.1]
+          exact hcpl.td_lt i,
+        fun i => by
+          rw [hfr3.dt_eq, hs2_mem, fv.2.2.2, hs1_mem, fq.2.2.2]
+          exact hcpl.dt_lt i,
+        fun idx hidx => ?_, fun idx hidx => ?_⟩
       · rw [htot3] at hidx ⊢
         rw [congrFun hfr3.quot_eq idx, hs2_mem, compQuotAt_writeCompVal henv.pos_w, hs1_mem,
           hq_f3, hq_f2, hq_f1, hp_idx]
@@ -296,8 +278,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
     · have hcost : memoryCost (compPushBackSlotGenProg d) s = 14 := by
         dsimp only [d, compPushBackSlotGenProg, compPushBackSingleGenProg, writeCompItemGenProg]
         simp [hb0]
-      have hpot0 (gm : ℕ → ℕ) : slotPotential N gm = 0 := ite_eq_left hb0
-      rw [hcost, hpot0, hpot0]
+      simp only [hcost, slotPotential, hb0, ↓reduceIte]
       omega
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     obtain ⟨hres1, hfr1, hcpl1⟩ :=
@@ -358,8 +339,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
           (hother_f2 b' hb' hne).2.trans ((hother_f1 b' hb' hne).2.trans
             (congrFun hcpl.gm_eq.symm _))⟩
       have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
-      have hwork : pushBackWork (slabSize N) (gm₀ (gmRIdx b)) = slabSize N := ite_eq_left hprom
-      rw [hwork] at hpot
+      rw [pushBackWork, ite_eq_left hprom] at hpot
       exact ⟨by rw [hs'_eq]; exact hfr1.trans hfr2,
         by rw [hs'_eq, hs_fix'_eq]; exact hcpl2,
         by omega⟩
@@ -393,8 +373,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
         exact ⟨(hother_f1 b' hb' hne).1.trans (congrFun hcpl.gm_eq.symm _),
           (hother_f1 b' hb' hne).2.trans (congrFun hcpl.gm_eq.symm _)⟩
       have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
-      have hwork : pushBackWork (slabSize N) (gm₀ (gmRIdx b)) = 0 := ite_eq_right hprom
-      rw [hwork, Nat.add_zero] at hpot
+      rw [pushBackWork, ite_eq_right hprom, Nat.add_zero] at hpot
       exact ⟨by rw [hs'_eq]; exact hfr1,
         by rw [hs'_eq, hs_fix'_eq]; exact hcpl1,
         by omega⟩
@@ -490,13 +469,11 @@ theorem validProg_compPushBackSlotGen {w : ℕ}
   · unfold totalSlots at hm_cap; rw [ite_eq_left hb0] at hm_cap
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h0_lt⟩) ?_
     rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg h0_lt]
-    set c0 := compGmAt metaBase U w N s.mem 0
     refine validProg_bind_unit
       (validProg_writeCompItemGen ⟨m_cap, henv.compItemEnv, by omega⟩) fun s2 hs2 => ?_
     have hf2 : s2.frontier = s.frontier := by
-      rw [hs2]; dsimp only [writeCompItemGenProg]
-      rw [StateTransitionSpec.clientState_bind, clientState_writeCompValGenProg,
-        clientState_writeCompQuotGenProg]
+      rw [hs2, writeCompItemGenProg, StateTransitionSpec.clientState_bind,
+        clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
     exact validProg_writeCompGMGen ⟨(henv.of_mem_eq (by rw [hf2])).compMetaEnv, h0_lt⟩
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     obtain ⟨hres1, hfr1, hcpl1⟩ :=

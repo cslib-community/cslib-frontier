@@ -141,9 +141,7 @@ theorem hit_nonneg (hk : 1 ≤ k) (t d : ℕ) : 0 ≤ hit k t d := by
     | zero => simp
     | succ d =>
       rw [hit_succ_succ]
-      have := ih d
-      have := ih (d + 2)
-      positivity
+      exact div_nonneg (add_nonneg (ih d) (mul_nonneg hk1 (ih (d + 2)))) (Nat.cast_nonneg k)
 
 theorem hit_le_one (hk : 1 ≤ k) (t d : ℕ) : hit k t d ≤ 1 := by
   have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
@@ -213,8 +211,7 @@ theorem choose_mul_le_hit (hk : 1 ≤ k) (a b d : ℕ) (h : d + a ≤ b) :
   have hkne : (k : ℝ) ≠ 0 := hk0.ne'
   induction hm : a + b generalizing a b d with
   | zero =>
-    obtain ⟨rfl, rfl⟩ : a = 0 ∧ b = 0 := by omega
-    obtain rfl : d = 0 := by omega
+    obtain ⟨rfl, rfl, rfl⟩ : a = 0 ∧ b = 0 ∧ d = 0 := by omega
     simp
   | succ m ih =>
     cases d with
@@ -298,14 +295,11 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   set i := d / (k - 2)
   set e := d % (k - 2)
   have hdie : (k - 2) * i + e = d := Nat.div_add_mod d (k - 2)
-  have he : e ≤ k - 3 := by
-    have := Nat.mod_lt d (show 0 < k - 2 by omega)
-    omega
+  have he : e < k - 2 := Nat.mod_lt d (by omega)
   have hlen : i + (i + d) = k * i + e := by
-    rw [← hdie]
-    obtain ⟨k', rfl⟩ : ∃ k', k = k' + 2 := ⟨k - 2, by omega⟩
-    simp only [Nat.add_sub_cancel]
-    ring
+    rw [← hdie, Nat.sub_mul]
+    have := Nat.mul_le_mul_right i hk
+    omega
   have hid : i ≤ d := Nat.div_le_self d (k - 2)
   have hki : k * i ≤ 3 * d := by omega
   have hpath := choose_mul_le_hit (by omega : 1 ≤ k) i (i + d) d (by omega)
@@ -426,9 +420,8 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
         rw [hammingDist_flip, hd]
         split_ifs <;> omega
       have hterm₀ : hit k t d ≤ f i₀ := by
-        have hdist : hammingDist (flipOn {(c.get i₀).1} σ) σs = d := by
-          rw [hi₀, hammingDist_flip, hd, ite_eq_right hne, Nat.succ_sub_one]
-        exact hdist ▸ ih _
+        simpa only [f, hi₀, hammingDist_flip, hd, ite_eq_right hne, Nat.succ_sub_one] using
+          ih (flipOn {(c.get i₀).1} σ)
       have hsum : hit k t d + ((c.length : ℝ) - 1) * hit k t (d + 2) ≤ ∑ i, f i := by
         rw [← add_sum_erase _ _ (mem_univ i₀)]
         refine add_le_add hterm₀ ((sum_le_sum fun i _ => hterm i).trans_eq' ?_)
@@ -454,12 +447,10 @@ coordinates. -/
 theorem sum_pow_hammingDist [DecidableEq V] (q : ℝ) (τ : V → Bool) :
     ∑ σ : V → Bool, q ^ hammingDist σ τ = (1 + q) ^ Fintype.card V := by
   have hprod (σ : V → Bool) : q ^ hammingDist σ τ = ∏ i, if σ i = τ i then 1 else q := by
-    rw [prod_ite, prod_const_one, one_mul, prod_const]
-    rfl
+    simp [prod_ite, hammingDist]
   simp only [hprod]
   rw [← Fintype.prod_sum (fun i b => if b = τ i then (1 : ℝ) else q)]
   have hb (i : V) : ∑ b : Bool, (if b = τ i then (1 : ℝ) else q) = 1 + q := by
-    rw [Fintype.sum_bool]
     cases τ i <;> simp [add_comm]
   simp only [hb, prod_const, card_univ]
 
@@ -473,9 +464,8 @@ theorem trial_success_of_length_le (hk : 3 ≤ k) {φ : CNF V} (hφ : φ.Satisfi
         (3 * Fintype.card V + 1) ≤ succeedProb φ (trial φ) := by
   obtain ⟨σs, hs⟩ := hφ
   set n := Fintype.card V
-  have hk1 : (1 : ℝ) < (k : ℝ) - 1 := by
-    have : (3 : ℝ) ≤ k := by exact_mod_cast hk
-    linarith
+  have hk3 : (3 : ℝ) ≤ k := mod_cast hk
+  have hk1 : (1 : ℝ) < (k : ℝ) - 1 := by linarith
   set c := (((k : ℝ) - 1) / k) ^ (k - 3)
   have hc : 0 ≤ c := by positivity
   have hlow (σ : V → Bool) : c * (1 / ((k : ℝ) - 1)) ^ hammingDist σ σs / (3 * n + 1) ≤
@@ -496,14 +486,11 @@ theorem trial_success_of_length_le (hk : 3 ≤ k) {φ : CNF V} (hφ : φ.Satisfi
         ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ *
           (c * (1 / ((k : ℝ) - 1)) ^ hammingDist σ σs / (3 * n + 1)) := by
       rw [← mul_sum, ← sum_div, ← mul_sum, sum_pow_hammingDist]
-      have : (1 + 1 / ((k : ℝ) - 1)) = (k : ℝ) / ((k : ℝ) - 1) := by
-        field_simp
-        ring
-      rw [this, div_pow, div_pow, mul_pow, show Fintype.card V = n from rfl]
-      field_simp
-    _ ≤ ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ * succeedProb φ (walk φ (3 * n) σ) := by
-      gcongr with σ
-      exact hlow σ
+      have h1 : 1 + 1 / ((k : ℝ) - 1) = k / ((k : ℝ) - 1) := by field_simp; ring
+      rw [h1, div_pow, div_pow, mul_pow]
+      dsimp only [n]; field_simp
+    _ ≤ ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ * succeedProb φ (walk φ (3 * n) σ) :=
+      sum_le_sum fun σ _ => mul_le_mul_of_nonneg_left (hlow σ) (by positivity)
 
 /-- **Schöning's theorem for 3-SAT, one trial.** For a satisfiable CNF formula on `n` variables
 whose clauses have at most three literals, one trial of Schöning's algorithm finds a satisfying

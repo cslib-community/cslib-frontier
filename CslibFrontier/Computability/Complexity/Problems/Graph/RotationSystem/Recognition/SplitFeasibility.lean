@@ -71,18 +71,14 @@ private theorem block_boundary {α : Type} (f : Perm α) (L : List α)
       (f L[L.length - 1] ∈ L ↔ f.symm L[0] = L[L.length - 1]) := by
   have hlast : L[L.length - 1] ∈ L := List.getElem_mem (by omega)
   have hmem := mem_successor_block f L hn hnd hs
-  constructor
-  · constructor
-    · intro ha
-      by_contra hne
-      obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp ha
-      have hnext : i + 1 < L.length := lt_of_le_of_ne hi fun h =>
-        hne (he.symm.trans (by simp only [← h, Nat.add_sub_cancel]))
-      have hz : L[i + 1] = L[0] := (hs i hnext).symm.trans
-        (congrArg f he |>.trans (f.apply_symm_apply _))
-      have := hnd.getElem_inj_iff.mp hz
-      omega
-    · exact fun h => h.symm ▸ hlast
+  refine ⟨⟨fun ha => by_contra fun hne => ?_, fun h => h.symm ▸ hlast⟩, ?_⟩
+  · obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp ha
+    have hnext : i + 1 < L.length := lt_of_le_of_ne hi fun h =>
+      hne (he.symm.trans (by simp only [← h, Nat.add_sub_cancel]))
+    have hz : L[i + 1] = L[0] := (hs i hnext).symm.trans
+      (congrArg f he |>.trans (f.apply_symm_apply _))
+    have := hnd.getElem_inj_iff.mp hz
+    omega
   · simp only [hmem, ne_self_iff_false, and_false, or_false, eq_comm]
 
 private def splitBase (I : FixedRotationInput) (block : List ℕ) : Graph :=
@@ -188,8 +184,7 @@ private theorem get_blockDarts_index {I : FixedRotationInput} {v : ℕ} (block :
     (hi : i < (blockDarts block hb).length) :
     ((blockDarts block hb)[i]).index = block.getD i 0 := by
   have h := congrArg (fun L : List ℕ => L.getD i 0) (indices_blockDarts block hb)
-  rw [List.getD_eq_getElem _ _ (by simpa using hi), List.getElem_map] at h
-  exact h
+  rwa [List.getD_eq_getElem _ _ (by simpa using hi), List.getElem_map] at h
 
 private theorem successive_blockDarts {I : FixedRotationInput} {v : ℕ} (block : List ℕ)
     (hb : ∀ d ∈ block, d ∈ fiber I.graph v) (r : RotationSystem I.graph)
@@ -245,10 +240,8 @@ private theorem cutPermutation_orbits {α : Type} [DecidableEq α] [Finite α]
     · exact .rfl
     · change f.SameCycle last (f.symm first)
       exact Equiv.Perm.sameCycle_apply_right.mp (by simpa using hs)
-  have hsame : (insertAfter (insertAfter f last) t).SameCycle (some none) none := by
-    rw [Equiv.Perm.Insertion.sameCycle_iff]
-    exact ht
-  rw [cutPermutation, (card_orbits_mul_swap _ (some none) none (by simp)).1 hsame,
+  rw [cutPermutation, (card_orbits_mul_swap _ (some none) none (by simp)).1
+      (by rwa [Equiv.Perm.Insertion.sameCycle_iff]),
     card_orbits_insertAfter, card_orbits_insertAfter]
 
 private theorem remove_cutPermutation {α : Type} [DecidableEq α] (f : Perm α)
@@ -360,13 +353,10 @@ private theorem cut_preserves_vertex {I : FixedRotationInput} {v : ℕ} {block :
         simp [splitCoordinates_vertex, redirectEnd, List.any_eq_true, hnot, hav]
       · rw [ite_eq_right ha]
         have hi : (r.rotate d).index ∈ block ↔ d.index ∈ block := by
-          rw [← mem_blockDarts block hb, ← mem_blockDarts block hb]
-          change r.rotate d ∈ L ↔ d ∈ L
-          rw [hmem d]
-          exact ⟨fun h => h.elim (fun he => False.elim (ha he)) And.left,
-            fun h => Or.inr ⟨h, hd⟩⟩
-        simp only [splitCoordinates_vertex, r.vertex_rotate]
-        simp [redirectEnd, List.any_eq_true, hi]
+          have hL : blockDarts block hb = L := rfl
+          simp only [← mem_blockDarts block hb, hL, hmem d]
+          exact ⟨fun h => h.elim (fun he => (ha he).elim) And.left, fun h => Or.inr ⟨h, hd⟩⟩
+        simp [splitCoordinates_vertex, r.vertex_rotate, redirectEnd, List.any_eq_true, hi]
 
 private theorem exists_cut_rotation {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
     {block : List ℕ} (hne : block ≠ []) (hnd : block.Nodup)
@@ -545,20 +535,15 @@ private theorem contract_consecutive {I : FixedRotationInput} (hI : Valid I) {v 
       ((splitCoordinates I v block).permCongr s.rotate * swap (some none) none)))
     (hs : Realizes (split I v block) s) : Consecutive r block := by
   intro i hi d hd
-  have hmem : block.getD (i + 1) 0 ∈ block := by
-    rw [List.getD_eq_getElem _ _ hi]
-    exact List.getElem_mem hi
+  have hmem : block.getD (i + 1) 0 ∈ block := List.getD_eq_getElem _ _ hi ▸ List.getElem_mem hi
   apply contract_index s r hr d (mem_fiber.mp (hb _ hmem)).1
+  have hget := List.getD_append block [2 * I.graph.edges.length] 0 i (Nat.lt_of_succ_lt hi)
   have h := hs I.graph.vertices.length (block ++ [2 * I.graph.edges.length])
     (split_order_hub hI v block) i (by simp; omega)
     ((splitCoordinates I v block).symm (some (some d)))
-  have hidx := index_splitCoordinates I v block (some (some d))
-  have hget : (block ++ [2 * I.graph.edges.length]).getD i 0 = block.getD i 0 := by
-    rw [List.getD_eq_getElem _ _ (by simp; omega),
-      List.getElem_append_left (by omega), List.getD_eq_getElem _ _ (by omega)]
-  specialize h (hidx.trans (hd.trans hget.symm))
-  simpa only [nextInWord, List.length_append, List.length_singleton,
-    show i + 1 < block.length + 1 from by omega, ↓reduceIte,
+    ((index_splitCoordinates I v block (some (some d))).trans (hd.trans hget.symm))
+  have hi' : i + 1 < block.length + 1 := Nat.lt_succ_of_lt hi
+  simpa only [nextInWord, List.length_append, List.length_singleton, hi', ↓reduceIte,
     List.getD_append _ _ _ _ hi] using h
 
 private theorem split_dart_eq_old {I : FixedRotationInput} {v : ℕ} {block : List ℕ}
@@ -636,9 +621,7 @@ private theorem cut_realizes {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
         rw [ite_eq_left (by simp; omega), List.getD_eq_getElem _ _ (by simp; omega)]
         simp [hlast]
       · have hi' : i + 1 < L.length := by omega
-        have hel : e ≠ last := fun h => by
-          have := hL.getElem_inj_iff.mp h
-          omega
+        have hel : e ≠ last := fun h => absurd (hL.getElem_inj_iff.mp h) (by omega)
         have hea : e ≠ a := fun h =>
           hel (h.trans ((block_boundary r.rotate L hn hL (successive_blockDarts block hb r hc)).1.mp
             (Eq.mp (congrArg (· ∈ L) h) (List.getElem_mem (Nat.lt_of_succ_lt hi')))))

@@ -278,20 +278,17 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   let vs (τ : Fin T) : Fin I.weights.length := ⟨_, hvs τ⟩
   let sl (τ : Fin T) : Fin Δ × Fin Δ := (⟨τ, hTΔ' τ⟩, ⟨qs τ, hqΔ τ⟩)
   -- the term chosen at a slot, if any
-  obtain ⟨inv, hinv_sl, hinv_none, hinv_ne⟩ : ∃ inv : Fin Δ × Fin Δ → Option (Fin T),
-      (∀ τ, inv (sl τ) = some τ) ∧ (∀ τ q, q ≠ (sl τ).2 → inv ((sl τ).1, q) = none) ∧
-      (∀ τ tq, tq ≠ sl τ → inv tq ≠ some τ) := by
-    refine ⟨fun tq => if ht : (tq.1 : ℕ) < T then
-      if (tq.2 : ℕ) = qs ⟨tq.1, ht⟩ then some ⟨tq.1, ht⟩ else none else none, ?_, ?_, ?_⟩
-    · intro τ
-      simp [sl, τ.isLt]
-    · intro τ q hq
-      simp [sl, τ.isLt, show (q : ℕ) ≠ qs τ from fun he => hq (Fin.ext he)]
-    · intro τ tq htq he
-      dsimp only at he
-      split_ifs at he with h1 h2
-      cases he
-      exact htq (Prod.ext (Fin.ext rfl) (Fin.ext h2))
+  let inv (tq : Fin Δ × Fin Δ) : Option (Fin T) :=
+    if ht : (tq.1 : ℕ) < T then
+      if (tq.2 : ℕ) = qs ⟨tq.1, ht⟩ then some ⟨tq.1, ht⟩ else none else none
+  have hinv_sl (τ : Fin T) : inv (sl τ) = some τ := by simp [inv, sl, τ.isLt]
+  have hinv_none (τ : Fin T) (q : Fin Δ) (hq : q ≠ (sl τ).2) : inv ((sl τ).1, q) = none := by
+    simp [inv, sl, τ.isLt, mt Fin.ext hq]
+  have hinv_ne (τ : Fin T) (tq : Fin Δ × Fin Δ) (htq : tq ≠ sl τ) : inv tq ≠ some τ := by
+    intro he
+    dsimp only [inv] at he
+    split_ifs at he with h1 h2
+    exact htq (Prod.ext (Fin.ext (Option.some.inj he ▸ rfl)) (Fin.ext (Option.some.inj he ▸ h2)))
   -- the formula-index bits of `j`
   have hjW : j < 2 ^ indexWidth I := lt_of_lt_of_le hj (Nat.le_pow_clog one_lt_two _)
   let a : BitString (indexWidth I) := (BitString.equivFin _).symm ⟨j, hjW⟩
@@ -365,10 +362,8 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
           xorPower (f (vs τ)) k z = y₀ + R τ + h (p₀.write (sl τ) z).toInput} =
         #{z : BitString (k * varLength I lam (vs τ)) |
           y₀ + D (update base τ (z, y₀)) = E τ z} := by
-      congr 1
-      refine filter_congr fun z _ => ?_
-      rw [hwrite]
-      simp only [D, E]
+      refine congrArg card (filter_congr fun z _ => ?_)
+      simp only [hwrite, D, E]
       cases h (mk (update base τ (z, y₀))).toInput <;> cases xorPower (f (vs τ)) k z <;>
         cases R τ <;> cases y₀ <;> decide
     rw [hcard]

@@ -113,19 +113,11 @@ def openingWord {k : ℕ} (o : Opening k) : List Bool :=
 theorem decodeOpening_openingWord {k : ℕ} (b : Bool) (o : Opening k) :
     decodeOpening k (({ submission := some (b, openingWord o) } : Session).opening k) =
       some (b, o) := by
-  have ht : (openingWord o).take k = List.ofFn (fun i => o i false) :=
-    List.take_left' List.length_ofFn
-  have hd : (openingWord o).drop k = List.ofFn (fun i => o i true) :=
-    List.drop_left' List.length_ofFn
   simp only [Session.opening, Option.bind_eq_bind, Option.bind_some, openingWord,
-    List.length_append,
-    List.length_ofFn, show k + k = 2 * k by omega, ite_true]
-  rw [show (List.ofFn (fun i => o i false) ++ List.ofFn (fun i => o i true)).take k = _ from ht,
-    show (List.ofFn (fun i => o i false) ++ List.ofFn (fun i => o i true)).drop k = _ from hd]
-  simp only [decodeOpening, Option.bind_some, List.length_zip, List.length_ofFn,
-    Nat.min_self, ite_true]
-  congr 2 with i c : 2
-  cases c <;> simp [List.getD_eq_getElem?_getD]
+    List.length_append, List.length_ofFn, ← Nat.two_mul, ite_true,
+    List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn, decodeOpening,
+    List.length_zip, Nat.min_self]
+  congr 2 with i (_ | _) : 2 <;> simp [List.getD_eq_getElem?_getD]
 
 /-- The receiver records whether a receipt was actually issued; pre-seal abort has no receipt. -/
 def Session.receipt (s : Session) : Phased.Observation :=

@@ -206,9 +206,8 @@ def namesContra (db : List (ℕ × PBConstr)) (n : ℕ) : Bool :=
 /-- A database naming a contradiction has no solution. -/
 theorem AllHold.not_namesContra {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (h : AllHold σ db)
     {n : ℕ} : namesContra db n = false := by
-  rw [Bool.eq_false_iff]
-  intro hq
-  obtain ⟨c, hc, hcon⟩ := (Option.any_eq_true _ _).mp hq
+  refine Bool.eq_false_iff.mpr fun hq => ?_
+  obtain ⟨_, hc, hcon⟩ := (Option.any_eq_true _ _).mp hq
   exact (of_decide_eq_true hcon).not_holds σ (h.lookup hc)
 
 /-! ### Reverse unit propagation -/
@@ -268,18 +267,16 @@ theorem rupHints_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {neg : 
     ∀ (hs : List Hint) (ρ : List (Literal ℕ)), Consistent σ ρ → rupHints db neg hs ρ = false
   | [], _, _ => rfl
   | h :: hs, ρ, hρ => by
-    have hc : ∀ c, resolve db neg h = some c → c.Holds σ := by
-      intro c hc
-      cases h with
-      | neg => cases hc; exact hneg
-      | id n => exact hdb.lookup (by simpa [resolve] using hc)
     unfold rupHints
     split
     · rfl
     · rename_i c hcm
-      obtain ⟨ρ', hp, hρ'⟩ := propagate_sound hρ (hc c hcm)
-      simp only [hp]
-      exact rupHints_sound hdb hneg hs ρ' hρ'
+      have hc : c.Holds σ := by
+        cases h with
+        | neg => exact Option.some.inj hcm ▸ hneg
+        | id n => exact hdb.lookup hcm
+      obtain ⟨ρ', hp, hρ'⟩ := propagate_sound hρ hc
+      simpa only [hp] using rupHints_sound hdb hneg hs ρ' hρ'
 
 theorem propRound_sound {σ : ℕ → Bool} :
     ∀ (cs : List PBConstr) (ρ : List (Literal ℕ)), (∀ c ∈ cs, c.Holds σ) → Consistent σ ρ →
@@ -569,9 +566,8 @@ theorem idOk_initDb (F : List PBConstr) : IdOk (initDb F) (F.length + 1) := by
       (1 + ·) ∘ Prod.snd from funext fun _ => Nat.add_comm _ _, ← List.map_map,
       List.zipIdx_map_snd, List.map_add_range']
   refine ⟨fun e he => ?_, hmap ▸ List.nodup_range'⟩
-  have := List.mem_map_of_mem (f := (·.1)) he
-  rw [hmap, List.mem_range'_1] at this
-  omega
+  exact Nat.add_comm 1 F.length ▸
+    (List.mem_range'_1.1 (hmap ▸ List.mem_map_of_mem (f := (·.1)) he)).2
 
 /-- **The shape of a successful step on the database `db`, whose next number is `n`**: which
 constraint it adds, at which number, and what it deletes. Each addition puts its constraint in

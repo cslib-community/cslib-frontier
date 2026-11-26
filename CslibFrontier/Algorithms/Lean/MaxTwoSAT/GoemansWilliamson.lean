@@ -87,9 +87,8 @@ normalized by `1 / 2`: `∑ e, (a e * (1 - ⟪v i, v j⟫) / 2 + b e * (1 + ⟪v
 theorem signedSdpValue_signVector (ends : ι → V × V) (a b : ι → ℝ) {u : F} (hu : ‖u‖ = 1)
     (side : V → Bool) :
     signedSdpValue ends a b (signVector u side) = signedCutValue ends a b side := by
-  unfold signedSdpValue signedCutValue
-  refine Finset.sum_congr rfl fun e _ => ?_
   have huu : ⟪u, u⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hu, one_pow]
+  refine Finset.sum_congr rfl fun e _ => ?_
   unfold signVector
   cases side (ends e).1 <;> cases side (ends e).2 <;>
     simp only [Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte, ne_eq, not_true_eq_false,
@@ -270,26 +269,22 @@ private theorem satSdpClause_signVector {u : F} (hu : ‖u‖ = 1) (side : Optio
   rcases c with _ | ⟨ℓ₁, _ | ⟨ℓ₂, _ | ⟨ℓ₃, t⟩⟩⟩
   · simp [satSdpClause]
   · simpa [satSdpClause] using hlit ℓ₁
-  · have h1 := hlit ℓ₁
-    have h2 := hlit ℓ₂
-    have hp := hpair ℓ₁ ℓ₂
-    simp only [satSdpClause, Clause.eval_cons, Clause.eval_nil, Bool.or_false]
+  · simp only [satSdpClause, Clause.eval_cons, Clause.eval_nil, Bool.or_false]
     have hbool (b₁ b₂ : Bool) : (if (b₁ || b₂) = true then (1 : ℝ) else 0) =
         ((if b₁ = true then 1 else 0) + (if b₂ = true then 1 else 0) +
           (if b₁ ≠ b₂ then 1 else 0)) / 2 := by cases b₁ <;> cases b₂ <;> norm_num
     rw [hbool (ℓ₁.eval (truthAssignment side)) (ℓ₂.eval (truthAssignment side))]
-    linarith
+    linarith [hlit ℓ₁, hlit ℓ₂, hpair ℓ₁ ℓ₂]
   · simp at hc
 
 /-- At `liftAssignment u σ` (for `‖u‖ = 1`), `satSdpValue` equals `satValue`. -/
 theorem satSdpValue_liftAssignment (clauses : ι → Clause V)
     (hc : ∀ j, (clauses j).length ≤ 2) (w : ι → ℝ) {u : F} (hu : ‖u‖ = 1) (σ : V → Bool) :
     satSdpValue clauses w (liftAssignment u σ) = satValue clauses w σ := by
-  unfold satSdpValue satValue liftAssignment
-  refine Finset.sum_congr rfl fun j _ => ?_
   have htr : truthAssignment (fun o : Option V => o.elim true σ) = σ :=
     funext fun x => by simp [truthAssignment]
-  rw [satSdpClause_signVector hu _ (hc j), htr]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [liftAssignment, satSdpClause_signVector hu _ (hc j), htr]
   split_ifs <;> ring
 
 /-- `ε`-optimal unit vectors for `satSdpValue` beat every Boolean assignment up to `ε`. -/
@@ -352,12 +347,12 @@ private theorem integral_literal_eval_ne {v : Option V → F} (hv : ∀ o, ‖v 
   rcases ℓ₂ with ⟨x₂, b₂⟩
   have hne := integral_hyperplaneSide_ne hv (some x₁) (some x₂)
   have heq := integral_hyperplaneSide_eq hv (some x₁) (some x₂)
-  have key : ∀ r, (Literal.eval (satHyperplaneAssignment v r) (x₁, b₁) ≠
+  have key (r : F) : (Literal.eval (satHyperplaneAssignment v r) (x₁, b₁) ≠
       Literal.eval (satHyperplaneAssignment v r) (x₂, b₂)) ↔
-      (hyperplaneSide v r (some x₁) ≠ hyperplaneSide v r (some x₂) ↔ b₁ = b₂) := fun r => by
-    cases b₁ <;> cases b₂ <;> cases h1 : hyperplaneSide v r (some x₁) <;>
-      cases h2 : hyperplaneSide v r (some x₂) <;> cases h0 : hyperplaneSide v r none <;>
-      simp [Literal.eval, satHyperplaneAssignment, truthAssignment, h1, h2, h0]
+      (hyperplaneSide v r (some x₁) ≠ hyperplaneSide v r (some x₂) ↔ b₁ = b₂) := by
+    unfold Literal.eval satHyperplaneAssignment truthAssignment
+    cases b₁ <;> cases b₂ <;> cases hyperplaneSide v r (some x₁) <;>
+      cases hyperplaneSide v r (some x₂) <;> cases hyperplaneSide v r none <;> simp
   simp only [key]
   cases b₁ <;> cases b₂ <;>
     simp_all [litVector, inner_neg_left, inner_neg_right, arccos_neg, sub_div]
@@ -414,10 +409,7 @@ theorem goemansWilliamsonConstant_mul_satSdpValue_le_integral (clauses : ι → 
     integrable_ite_const (stdGaussian F) (measurableSet_clause_eval v (clauses j)) (w j),
     Finset.mul_sum]
   refine Finset.sum_le_sum fun j _ => ?_
-  have hmul : (fun r : F => if (clauses j).eval (satHyperplaneAssignment v r) then w j else 0) =
-      fun r : F => w j * if (clauses j).eval (satHyperplaneAssignment v r) then 1 else 0 :=
-    funext fun _ => (mul_boole _ _).symm
-  rw [hmul, integral_const_mul]
+  simp only [← mul_boole _ (w j), integral_const_mul]
   simpa only [mul_left_comm] using mul_le_mul_of_nonneg_left
     (goemansWilliamsonConstant_mul_satSdpClause_le_integral hv (hc j)) (hw j)
 
@@ -468,13 +460,10 @@ theorem exists_isMaxOn_satSdpValue [FiniteDimensional ℝ F] [Nontrivial F]
     (clauses : ι → Clause V) (w : ι → ℝ) :
     ∃ v : Option V → F, (∀ o, ‖v o‖ = 1) ∧
       IsMaxOn (satSdpValue clauses w) {v' | ∀ o, ‖v' o‖ = 1} v := by
-  have hcont : ∀ c : Clause V, Continuous (fun v : Option V → F => satSdpClause v c) := by
-    rintro (_ | ⟨ℓ₁, _ | ⟨ℓ₂, _⟩⟩) <;> dsimp only [satSdpClause, litVector]
-    · exact continuous_const
-    · cases ℓ₁.2 <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> fun_prop
-    · cases ℓ₁.2 <;> cases ℓ₂.2 <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> fun_prop
-  refine NormedSpace.exists_isMaxOn_unitSphereFun ?_
   unfold satSdpValue
-  exact continuous_finsetSum _ fun j _ => continuous_const.mul (hcont (clauses j))
+  refine NormedSpace.exists_isMaxOn_unitSphereFun (continuous_finsetSum _ fun j _ =>
+    continuous_const.mul ?_)
+  rcases clauses j with _ | ⟨⟨_, _ | _⟩, _ | ⟨⟨_, _ | _⟩, _⟩⟩ <;>
+    simp only [satSdpClause, litVector, Bool.false_eq_true, ↓reduceIte] <;> fun_prop
 
 end Cslib.Algorithms.Lean.MaxTwoSAT

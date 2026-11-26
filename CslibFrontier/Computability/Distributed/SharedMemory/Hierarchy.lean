@@ -215,15 +215,13 @@ private theorem waitFree_of_decides_in_one_step [Finite P]
     simp only [π.step_of_active hact, Config.Active, Function.update_self] at hact'
     exact Option.ne_none_iff_isSome.mpr (hdec _ _ _) hact'
   simp only [InvImage, activeCount]
-  apply Finset.card_lt_card
-  rw [Finset.ssubset_iff_of_subset]
-  · exact ⟨p, Finset.mem_filter.mpr ⟨Finset.mem_univ p, hact⟩,
-      fun hm => hnot_act (Finset.mem_filter.mp hm).2⟩
-  · intro q hq
-    rw [Finset.mem_filter] at hq ⊢
-    rcases eq_or_ne q p with rfl | hqp
-    · exact absurd hq.2 hnot_act
-    · exact ⟨hq.1, (π.active_step_of_ne hqp).mp hq.2⟩
+  refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun q hq => ?_).mpr
+    ⟨p, Finset.mem_filter.mpr ⟨Finset.mem_univ p, hact⟩,
+      fun hm => hnot_act (Finset.mem_filter.mp hm).2⟩)
+  rw [Finset.mem_filter] at hq ⊢
+  rcases eq_or_ne q p with rfl | hqp
+  · exact absurd hq.2 hnot_act
+  · exact ⟨hq.1, (π.active_step_of_ne hqp).mp hq.2⟩
 
 end Helpers
 
@@ -272,16 +270,11 @@ theorem solvesWaitFreeConsensus_one {P I V : Type*} {Op Resp ObjState : I → Ty
   let π := oneProcProtocol (P := P) (V := V) objs i₀ op₀
   have hsub : Subsingleton P := Fintype.card_le_one_iff_subsingleton.mp hcard
   have hwf : π.WaitFree := waitFree_of_decides_in_one_step π fun _ _ _ => rfl
-  have hinv : ∀ inp c, π.Reachable inp c →
-      ∀ p, (c.proc p).state = inp p ∧
-        ∀ v, (c.proc p).decided = some v → v = inp p := by
-    intro inp c hr
-    refine hr.induction
-      (motive := fun c => ∀ p, (c.proc p).state = inp p ∧
-        ∀ v, (c.proc p).decided = some v → v = inp p) ?_ ?_
-    · intro p
-      refine ⟨rfl, fun v hv => ?_⟩
-      simp only [Protocol.initConfig, reduceCtorEq] at hv
+  let Inv (inp : P → V) (c : Config P ObjState V V) : Prop :=
+    ∀ p, (c.proc p).state = inp p ∧ ∀ v, (c.proc p).decided = some v → v = inp p
+  have hinv (inp c) (hr : π.Reachable inp c) : Inv inp c := by
+    refine hr.induction ?_ ?_
+    · exact fun _ => ⟨rfl, fun _ hv => by simp only [Protocol.initConfig, reduceCtorEq] at hv⟩
     · intro c₁ q hinit hact_q p
       rcases eq_or_ne p q with rfl | hpq
       · rw [π.step_of_active hact_q]
@@ -333,14 +326,11 @@ theorem exists_register_consensus_iff {P : Type*} [Fintype P] [DecidableEq P] :
     (∃ (I : Type) (_ : DecidableEq I) (Val : I → Type) (init : ∀ i, Val i) (S : Type)
       (π : Protocol P (fun i => registerObj (init i)) S Bool),
       π.SolvesWaitFreeConsensus) ↔ Fintype.card P ≤ 1 := by
-  constructor
-  · rintro ⟨I, _, Val, init, S, π, hcons⟩
-    by_contra hgt
-    exact not_waitFreeConsensus_registers π (by omega) hcons
-  · intro hle
-    exact ⟨Unit, inferInstance, fun _ => Bool, fun _ => false, Bool,
+  refine ⟨fun ⟨_, _, _, _, _, π, hcons⟩ => not_lt.mp fun hgt =>
+      not_waitFreeConsensus_registers π hgt hcons, fun hle =>
+    ⟨Unit, inferInstance, fun _ => Bool, fun _ => false, Bool,
       oneProcProtocol (fun _ : Unit => registerObj false) () .read,
-      solvesWaitFreeConsensus_one (fun _ : Unit => registerObj false) () .read hle⟩
+      solvesWaitFreeConsensus_one (fun _ : Unit => registerObj false) () .read hle⟩⟩
 
 /-! ### Level 2: Commuting-or-overwriting read-modify-write objects -/
 
@@ -542,9 +532,8 @@ private theorem waitFree_testAndSetProtocol {P R : Type*} {V : Type u}
   simp only [InvImage, measure]
   have hlt_p : tasProcRank ((π.step p c).proc p) < tasProcRank (c.proc p) := by
     rw [π.step_of_active hact]
-    simp only [Function.update_self]
-    have hdec_none : (c.proc p).decided = none := hact
-    simp only [tasProcRank, hdec_none]
+    rw [Config.Active] at hact
+    simp only [Function.update_self, tasProcRank, hact]
     cases (c.proc p).state <;>
       simp only [π, testAndSetProtocol, tasStageRank, tasObjFamily, tasKind,
         TASRegKind.toObjSpec, registerObj] <;> omega
@@ -753,9 +742,8 @@ theorem not_waitFreeConsensus_rmw_of_three_le {P I S : Type*} {Op Resp ObjState 
   refine false_of_same_object_critical π hcons (by omega) ?_
   intro cstar p q _ i op_p next_p dec_p op_q next_q dec_q ha_p ha_q huf hut hr_pq hr_qp
   obtain ⟨w, hwp, hwq⟩ : ∃ w : P, w ≠ p ∧ w ≠ q := by
-    have hle2 : ({p, q} : Finset P).card ≤ 2 := Finset.card_le_two
-    obtain ⟨w, -, hw_notin⟩ := Finset.exists_mem_notMem_of_card_lt_card
-      (t := Finset.univ) (s := {p, q}) (by rw [Finset.card_univ]; omega)
+    obtain ⟨w, -, hw_notin⟩ := Finset.exists_mem_notMem_of_card_lt_card (t := Finset.univ)
+      (s := {p, q}) (Finset.card_le_two.trans_lt (by rw [Finset.card_univ]; omega))
     exact ⟨w, by simpa only [Finset.mem_insert, Finset.mem_singleton, not_or] using hw_notin⟩
   rcases hobj i op_p op_q (cstar.mem i) with hcomm | hover_q | hover_p
   · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut hr_pq hr_qp ?_ ?_
@@ -779,18 +767,14 @@ theorem exists_testAndSet_consensus_iff {P : Type*} [Fintype P] [DecidableEq P] 
     (∃ (I : Type) (_ : DecidableEq I) (kind : I → TASRegKind.{0}) (S : Type)
       (π : Protocol P (fun i => (kind i).toObjSpec) S Bool),
       π.SolvesWaitFreeConsensus) ↔ Fintype.card P ≤ 2 := by
-  constructor
-  · rintro ⟨I, _, kind, S, π, hcons⟩
-    by_contra hgt
-    exact not_waitFreeConsensus_rmw_of_three_le
-      (fun i => (kind i).isCommutingOrOverwriting_toObjSpec) π (by omega) hcons
-  · intro hle
-    let e : P ≃ Fin (Fintype.card P) := Fintype.equivFin P
-    obtain ⟨other, hother⟩ := exists_other_of_card_le_two hle
-    exact ⟨TASObjId (Fin (Fintype.card P)), inferInstance,
-      tasKind (Fin (Fintype.card P)) false, TASState (Fin (Fintype.card P)) Bool,
-      testAndSetProtocol (fun p => e p) false other,
-      solvesWaitFreeConsensus_testAndSetProtocol (fun p => e p) e.injective false other hother⟩
+  refine ⟨fun ⟨_, _, kind, _, π, hcons⟩ => not_lt.mp fun hgt =>
+      not_waitFreeConsensus_rmw_of_three_le
+        (fun i => (kind i).isCommutingOrOverwriting_toObjSpec) π hgt hcons, fun hle => ?_⟩
+  obtain ⟨other, hother⟩ := exists_other_of_card_le_two hle
+  exact ⟨TASObjId (Fin (Fintype.card P)), inferInstance,
+    tasKind (Fin (Fintype.card P)) false, TASState (Fin (Fintype.card P)) Bool,
+    testAndSetProtocol (Fintype.equivFin P) false other,
+    solvesWaitFreeConsensus_testAndSetProtocol _ (Fintype.equivFin P).injective false other hother⟩
 
 /-! ### Level `∞`: `CompareAndSwap` -/
 
@@ -851,22 +835,16 @@ p. 135):** `casConsensusProtocol` solves wait-free consensus for **every** finit
 theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [DecidableEq V] :
     (casConsensusProtocol P V).SolvesWaitFreeConsensus := by
   let π := casConsensusProtocol P V
-  have hwf : π.WaitFree := by
-    refine waitFree_of_decides_in_one_step π fun _ _ r => ?_
-    cases r <;> rfl
-  have hinv : ∀ inp c, π.Reachable inp c →
-      (∀ p, (c.proc p).state = inp p) ∧
-      ((c.mem () = none → ∀ p, (c.proc p).decided = none) ∧
-        ∀ w, c.mem () = some w →
-          (∃ q, inp q = w) ∧ ∀ p v, (c.proc p).decided = some v → v = w) := by
-    intro inp c hr
-    refine hr.induction
-      (motive := fun c => (∀ p, (c.proc p).state = inp p) ∧
-        ((c.mem () = none → ∀ p, (c.proc p).decided = none) ∧
-          ∀ w, c.mem () = some w →
-            (∃ q, inp q = w) ∧ ∀ p v, (c.proc p).decided = some v → v = w)) ?_ ?_
-    · refine ⟨fun _ => rfl, ⟨fun _ _ => rfl, fun w hw => ?_⟩⟩
-      simp only [Protocol.initConfig, casObj, reduceCtorEq] at hw
+  have hwf : π.WaitFree :=
+    waitFree_of_decides_in_one_step π fun _ _ r => by cases r <;> rfl
+  let Inv (inp : P → V) (c : Config P (fun _ : Unit => Option V) V V) : Prop :=
+    (∀ p, (c.proc p).state = inp p) ∧
+      (c.mem () = none → ∀ p, (c.proc p).decided = none) ∧
+      ∀ w, c.mem () = some w → (∃ q, inp q = w) ∧ ∀ p v, (c.proc p).decided = some v → v = w
+  have hinv (inp c) (hr : π.Reachable inp c) : Inv inp c := by
+    refine hr.induction ?_ ?_
+    · exact ⟨fun _ => rfl, fun _ _ => rfl,
+        fun _ hw => by simp only [Protocol.initConfig, casObj, reduceCtorEq] at hw⟩
     · intro c₁ q ⟨hst, hnone, hsome⟩ hact_q
       -- Both `CAS` outcomes install some winner `w'` and let `q` decide it.
       obtain ⟨w', hw_valid, hw_dec, hstep_c⟩ : ∃ w', (∃ q, inp q = w') ∧
@@ -889,25 +867,19 @@ theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [De
         · simp only [Function.update_self]
         · simpa only [Function.update_of_ne hpq] using hst p
       · simp only [Function.update_self, reduceCtorEq] at hn
-      · simp only [Function.update_self, Option.some.injEq] at hw
-        subst hw
+      · obtain rfl : w' = w := by simpa only [Function.update_self, Option.some.injEq] using hw
         refine ⟨hw_valid, fun p v hpv => ?_⟩
         rcases eq_or_ne p q with rfl | hpq
-        · simp only [Function.update_self, Option.some.injEq] at hpv
-          exact hpv.symm
-        · simp only [Function.update_of_ne hpq] at hpv
-          exact hw_dec p v hpv
+        · simpa only [Function.update_self, Option.some.injEq] using hpv.symm
+        · exact hw_dec p v (by simpa only [Function.update_of_ne hpq] using hpv)
   have hdec_of {inp c p v} (hr : π.Reachable inp c) (hp : (c.proc p).decided = some v) :
       c.mem () = some v ∧ ∃ q, inp q = v := by
     obtain ⟨_, hnone, hsome⟩ := hinv inp c hr
     cases hm : c.mem () with
-    | none =>
-      rw [hnone hm p] at hp
-      exact nomatch hp
+    | none => exact nomatch (hnone hm p).symm.trans hp
     | some w =>
       obtain ⟨hq, hdec⟩ := hsome w hm
-      obtain rfl := hdec p v hp
-      exact ⟨rfl, hq⟩
+      exact (hdec p v hp).symm ▸ ⟨rfl, hq⟩
   refine ⟨hwf, fun inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩ => ?_,
     fun inp c v hr ⟨p, hp⟩ => (hdec_of hr hp).2⟩
   exact Option.some.inj ((hdec_of hr hp₁).1.symm.trans (hdec_of hr hp₂).1)

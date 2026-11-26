@@ -518,9 +518,9 @@ private theorem orderedClinching_props {m b₁ b₂ v₁ v₂ : ℝ} (hm : 0 < m
   have he1 := traj1_isEnvCurve hm hb₁ hle
   obtain ⟨hzx0, hzp0, hzx1, hzp1⟩ := orderedClinching_zero_vals (b₂ := b₂) hm hb₁
   have hir_p0 : ∀ p, 0 ≤ p → trajP0 m b₁ b₂ p ≤ p * trajX0 m b₁ b₂ p := fun p hp => by
-    have h := (he0.2 le_rfl hp).2; rw [hzx0, hzp0, sub_zero, sub_zero] at h; exact h
+    simpa only [hzx0, hzp0, sub_zero] using (he0.2 le_rfl hp).2
   have hir_p1 : ∀ p, 0 ≤ p → trajP1 m b₁ b₂ p ≤ p * trajX1 m b₁ b₂ p := fun p hp => by
-    have h := (he1.2 le_rfl hp).2; rw [hzx1, hzp1, sub_zero, sub_zero] at h; exact h
+    simpa only [hzx1, hzp1, sub_zero] using (he1.2 le_rfl hp).2
   have hv_nn : ∀ i : Fin 2, 0 ≤ (![v₁, v₂] : Fin 2 → ℝ) i := fun i => by fin_cases i <;> assumption
   have active {p s₀ s₁ : ℝ} (hp : 0 ≤ p) (hp1 : p ≤ v₁) (hp2 : p ≤ v₂)
       (hs₀ : 0 ≤ s₀) (hs₁ : 0 ≤ s₁) (hsum : s₀ + s₁ = trajSupply m b₁ b₂ p)
@@ -560,26 +560,22 @@ private theorem orderedClinching_props {m b₁ b₂ v₁ v₂ : ℝ} (hm : 0 < m
   · have inv : TrajInv m b₁ b₂ v₁ := traj_invariants hm hb₁ hle
     refine active hv₁ le_rfl hlt.le le_rfl inv.sup_nn (zero_add _)
       (by simp [orderedClinching, hlt]) (fun i hi => ?_) (fun i j hi hij => ?_)
-    · fin_cases i
-      · simp [show v₁ = 0 from hi, hzx0]
-      · linarith [show v₂ = 0 from hi]
-    · fin_cases i <;> fin_cases j <;> try exact absurd hij (lt_irrefl _)
-      · refine inv.exh1 (by_contra fun hle_pe => ?_)
-        have h0 : trajX0 m b₁ b₂ v₁ = 0 := ite_eq_left (not_lt.mp hle_pe)
-        linarith [show 0 < trajX0 m b₁ b₂ v₁ + 0 from hi]
-      · linarith [show v₂ < v₁ from hij]
+    · fin_cases i <;> dsimp at hi ⊢
+      exacts [by simp [hi, hzx0], by linarith]
+    · fin_cases i <;> fin_cases j <;> dsimp at hi hij <;> try linarith
+      refine inv.exh1 (by_contra fun hle_pe => ?_)
+      have h0 : trajX0 m b₁ b₂ v₁ = 0 := ite_eq_left (not_lt.mp hle_pe)
+      linarith
   · by_cases hgt : v₂ < v₁
     · have inv : TrajInv m b₁ b₂ v₂ := traj_invariants hm hb₁ hle
       refine active hv₂ hgt.le le_rfl inv.sup_nn le_rfl (add_zero _)
         (by simp [orderedClinching, hlt, hgt]) (fun i hi => ?_) (fun i j hi hij => ?_)
-      · fin_cases i
-        · linarith [show v₁ = 0 from hi]
-        · simp [show v₂ = 0 from hi, hzx1]
-      · fin_cases i <;> fin_cases j <;> try exact absurd hij (lt_irrefl _)
-        · linarith [show v₁ < v₂ from hij]
-        · refine inv.exh0 (by_contra fun hle_p0 => ?_)
-          have h0 : trajX1 m b₁ b₂ v₂ = 0 := ite_eq_left (not_lt.mp hle_p0)
-          linarith [show 0 < trajX1 m b₁ b₂ v₂ + 0 from hi]
+      · fin_cases i <;> dsimp at hi ⊢
+        exacts [by linarith, by simp [hi, hzx1]]
+      · fin_cases i <;> fin_cases j <;> dsimp at hi hij <;> try linarith
+        refine inv.exh0 (by_contra fun hle_p0 => ?_)
+        have h0 : trajX1 m b₁ b₂ v₂ = 0 := ite_eq_left (not_lt.mp hle_p0)
+        linarith
     · obtain rfl : v₁ = v₂ := le_antisymm (le_of_not_gt hgt) (le_of_not_gt hlt)
       by_cases hv0 : v₁ = 0
       · subst hv0
@@ -709,11 +705,9 @@ theorem twoBidderClinchingSP_isNormalized {m : ℝ} (hm : 0 < m) {B : Fin 2 → 
     twoBidderClinchingMechanism, twoBidderClinching]
   split_ifs with hle
   · fin_cases i
-    · exact (helper (hB 0) (hb 1)).1
-    · exact (helper (hB 0) (hb 0)).2
+    exacts [(helper (hB 0) (hb 1)).1, (helper (hB 0) (hb 0)).2]
   · fin_cases i
-    · exact (helper (hB 1) (hb 1)).2
-    · exact (helper (hB 1) (hb 0)).1
+    exacts [(helper (hB 1) (hb 1)).2, (helper (hB 1) (hb 0)).1]
 
 private theorem ordered_dsic_zero_branch {m v b : ℝ} (hm : 0 < m) (hv : 0 ≤ v) :
     (if 0 < b then v * m else 0) ≤ (if 0 < v then v * m else 0) := by
@@ -847,8 +841,7 @@ theorem twoBidderClinching_budget_manipulation {m : ℝ} (hm : 0 < m) :
   have hlog_lt : Real.log 2 < 3 / 4 := log_two_lt_three_fourths
   have hlt_v : (2 : ℝ) / m < 10 / m := by rw [div_lt_div_iff_of_pos_right hm]; norm_num
   have hnot_lt : ¬ (10 / m < 2 / m) := not_lt.mpr hlt_v.le
-  have hpe_hon : eqPrice m 1 1 = 1 / m := by
-    simp only [eqPrice, entryPrice, sub_self, zero_div, Real.exp_zero, mul_one]
+  have hpe_hon : eqPrice m 1 1 = 1 / m := by simp [eqPrice, entryPrice]
   have hpe_dev : eqPrice m 1 (1 + Real.log 2) = 2 / m := by
     simp only [eqPrice, entryPrice, add_sub_cancel_left, div_one,
       Real.exp_log (by norm_num : (0 : ℝ) < 2)]
@@ -881,19 +874,14 @@ theorem twoBidderClinching_budget_manipulation {m : ℝ} (hm : 0 < m) :
   have hdev_p : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).payment 1 =
       Real.log 2 := by
     simp only [hdev_p0, trajP1, entryPrice, hpe_dev, hgt_p0, le_rfl, ↓reduceIte, one_mul]
-    congr 1
-    field_simp [hm.ne']
+    exact congrArg Real.log (by field_simp [hm.ne'])
   have hdev_u : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).utility
       (fun k => (θ k).val) 1 = 1 - Real.log 2 := by
     simp only [Outcome.utility, hdev_x, hdev_p, θ, Matrix.cons_val_one, Matrix.cons_val_zero]
     field_simp [hm.ne']
-  refine ⟨fun k => ?_,
-    ⟨div_pos (by norm_num) hm,
-      by linarith⟩,
-    hhon_p, hhon_u, hdev_p,
-    by simp only [hdev_p, θ, Matrix.cons_val_one, Matrix.cons_val_zero]; linarith,
-    hdev_u,
-    by rw [hhon_u, hdev_u]; linarith⟩
+  refine ⟨fun k => ?_, ⟨div_pos zero_lt_two hm, by linarith⟩, hhon_p, hhon_u, hdev_p,
+    hdev_p.trans_le (hlog_lt.le.trans (by norm_num [θ])), hdev_u,
+    by linarith [hhon_u, hdev_u]⟩
   fin_cases k <;> exact ⟨div_pos (by norm_num) hm, zero_lt_one⟩
 
 /-- The continuous 2-bidder adaptive clinching auction is **not** private-budget DSIC for any
@@ -903,7 +891,6 @@ theorem twoBidderClinching_not_privateBudgetDSIC {m : ℝ} (hm : 0 < m) :
   intro hic
   obtain ⟨hpos_θ, hpos_b', _, _, _, hpay_le, _, hlt⟩ :=
     twoBidderClinching_budget_manipulation hm
-  have hle := hic ![⟨10 / m, 1⟩, ⟨2 / m, 1⟩] hpos_θ 1 ⟨2 / m, 1 + Real.log 2⟩ hpos_b' hpay_le
-  linarith
+  linarith [hic ![⟨10 / m, 1⟩, ⟨2 / m, 1⟩] hpos_θ 1 ⟨2 / m, 1 + Real.log 2⟩ hpos_b' hpay_le]
 
 end Cslib.GameTheory.BudgetedAuction

@@ -170,8 +170,8 @@ private theorem assignOf_rho :
   · cases h : σsel w p B v <;> simp [h, hv]
   · simp [σsel, hv]
 
-private theorem eval_σsel : (objective p).eval (σsel w p B) = -((sel w p B).map p).sum := by
-  rw [eval_objective, chosen_σsel, List.sum_toFinset _ (nodup_sel w p B)]
+private theorem eval_σsel : (negProfit p).eval (σsel w p B) = -((sel w p B).map p).sum := by
+  rw [eval_negProfit, chosen_σsel, List.sum_toFinset _ (nodup_sel w p B)]
   simp only [Nat.cast_list_sum, List.map_map]
   rfl
 
@@ -208,12 +208,12 @@ section
 variable (w p : Fin n → ℕ) (B : ℕ)
 
 /-- The improving constraint of the logged solution. -/
-private def impr : PBConstr := (objective p).improving (-((sel w p B).map p).sum)
+private def impr : PBConstr := (negProfit p).improving (-((sel w p B).map p).sum)
 
 private theorem impr_eq : impr w p B =
     fromLinear ((List.finRange n).map fun i => (i.val, (p i : ℤ)))
       (((sel w p B).map p).sum + 1) := by
-  simp only [impr, Objective.improving, objective, List.map_map]
+  simp only [impr, Objective.improving, negProfit, List.map_map]
   congr 1
   · refine List.map_congr_left fun i _ => ?_; simp
   · ring
@@ -340,15 +340,15 @@ private theorem vars_capacity {x : ℕ} (h : x ∈ (capacity w B).normalize.vars
 
 /-- The state after the logged solution. -/
 private def s₀ : State :=
-  ((State.init (formula w B) (some (objective p)) none).log (formula w B) (some (objective p))
-    ((List.finRange n).map fun i => (i.val, decide (i ∈ sel w p B)))).improve (objective p)
+  ((State.init (formula w B) (some (negProfit p)) none).log (formula w B) (some (negProfit p))
+    ((List.finRange n).map fun i => (i.val, decide (i ∈ sel w p B)))).improve (negProfit p)
     (-((sel w p B).map p).sum)
 
 /-- Where the dynamic program of the optimization starts. -/
-private def X₁ : Ctx := ⟨formula w B, some (objective p), s₀ w p B, impr w p B⟩
+private def X₁ : Ctx := ⟨formula w B, some (negProfit p), s₀ w p B, impr w p B⟩
 
-private theorem soli_step : stepTop (formula w B) (some (objective p))
-    (State.init (formula w B) (some (objective p)) none)
+private theorem soli_step : stepTop (formula w B) (some (negProfit p))
+    (State.init (formula w B) (some (negProfit p)) none)
     (.soli ((List.finRange n).map fun i => (i.val, decide (i ∈ sel w p B)))) =
       some (s₀ w p B) := by
   have hfit : (capacity w B).Holds (σsel w p B) := by
@@ -363,18 +363,18 @@ private theorem soli_step : stepTop (formula w B) (some (objective p))
     · exact (holds_normalize _ _).2 hfit
     · exact vars_capacity w B hv
   have hasg : assigns ((List.finRange n).map fun i => (i.val, decide (i ∈ sel w p B)))
-      (objective p) = true := by
+      (negProfit p) = true := by
     rw [rho_eq]
     simp only [assigns, assignsAll, List.all_eq_true, Bool.or_eq_true]
     intro x hx
-    simp only [objective, List.map_map, List.mem_map, List.mem_finRange, true_and,
+    simp only [negProfit, List.map_map, List.mem_map, List.mem_finRange, true_and,
       Function.comp_apply] at hx
     obtain ⟨i, rfl⟩ := hx
     have hmem : ((i.val, σsel w p B i.val) : Literal ℕ) ∈
         (List.range n).map fun v => (v, σsel w p B v) :=
       List.mem_map.2 ⟨i.val, List.mem_range.2 i.isLt, rfl⟩
     cases h : σsel w p B i.val <;> rw [h] at hmem <;> simp [hmem]
-  have hev : (objective p).eval (assignOf
+  have hev : (negProfit p).eval (assignOf
       ((List.finRange n).map fun i => (i.val, decide (i ∈ sel w p B)))) =
       -((sel w p B).map p).sum := by
     rw [assignOf_rho, eval_σsel]
@@ -396,7 +396,7 @@ private theorem ctxOk_opt : (optInst w p B).CtxOk (X₁ w p B) where
     have : ∀ i : Fin n, i.val ≠ v := fun i h => by
       have := i.isLt; simp only [optInst, Inst.ofFin] at hv; omega
     simpa [State.avoidsVar, X₁, s₀, State.improve, State.addCore, State.log, State.init,
-      objective, List.contains_iff_mem] using this
+      negProfit, List.contains_iff_mem] using this
 
 /-- **The final refutation**: the additions refute the `P` of every node of the last layer, its
 `S` follows, and the at-least-one constraint is violated. -/
@@ -454,7 +454,7 @@ private theorem final_rup {db : List (ℕ × PBConstr)} {V : ℕ} {rn : LayerRec
 
 /-- **The checker accepts the proof of the certified knapsack**, on every instance. -/
 theorem checkRed_certify :
-    checkRed (formula w B) (some (objective p)) (certify w p B).proof = true := by
+    checkRed (formula w B) (some (negProfit p)) (certify w p B).proof = true := by
   set I := optInst w p B with hI
   have hn : I.n = n := rfl
   have h₀ : I.Run (X₁ w p B) ⟨[], 3, I.n⟩ (s₀ w p B).db := by
@@ -486,7 +486,7 @@ theorem checkRed_certify :
       ((I.forward optMode).1.push (rn.nodes.map fun u => .step (.pol [.id u.pf, .id 2, .add]))
         rn.nodes.length 0).next) := by
     simp only [optSteps, hf, List.headD_cons]
-  have hev : (objective p).eval (assignOf
+  have hev : (negProfit p).eval (assignOf
       ((List.finRange n).map fun i => (i.val, decide (i ∈ sel w p B)))) =
       -((sel w p B).map p).sum := by
     rw [assignOf_rho, eval_σsel]

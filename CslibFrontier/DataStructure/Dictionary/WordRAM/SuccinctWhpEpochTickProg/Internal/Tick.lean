@@ -89,17 +89,20 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
         cases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with
         | none => exact stage1CursorTail_preserve fs fs rfl rfl (by omega)
         | some p =>
-          rcases p with ⟨b, _⟩; dsimp only
+          rcases p with ⟨b, _⟩
+          dsimp only
           by_cases hq : fs.rebQueued b = 0
           · rw [ite_eq_left hq]
             exact stage1CursorTail_preserve fs
               { fs with
                 rebQueued := Function.update fs.rebQueued b 1
                 dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b
-                dirtyCount := fs.dirtyCount + 1 } rfl rfl (by dsimp only; omega)
+                dirtyCount := fs.dirtyCount + 1 } rfl rfl
+              (Nat.le_succ_of_le (Nat.le_succ_of_le hs1.le))
           · rw [ite_eq_right hq]
             exact stage1CursorTail_preserve fs fs rfl rfl (by omega)
-      · rw [ite_eq_right hlt]; exact stage1Finish_preserve fs fs rfl rfl (by omega)
+      · rw [ite_eq_right hlt]
+        exact stage1Finish_preserve fs fs rfl rfl (by omega)
     exact ⟨hclk.1, hclk.2.1, by omega⟩
   rw [ite_eq_right hs1]
   by_cases hs2 : fs.rebStage = 2
@@ -108,20 +111,14 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
         (epochTickStage2 c U n_max θ fs).epochClock = fs.epochClock ∧
         (epochTickStage2 c U n_max θ fs).rebStage ≤ 3 := by
       dsimp only [epochTickStage2]
-      by_cases h1 : fs.dirtyIdx < fs.dirtyCount
-      · rw [ite_eq_left h1]
-        by_cases h2 : fs.rebCandSalt < sMaxWhp c n_max
-        · rw [ite_eq_left h2]
-          set b := fs.dirtyBuckets fs.dirtyIdx
-          have hp := rebScanSteps_preserved θ b 16 fs
-          unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap
-          dsimp only
-          split_ifs <;> refine ⟨hp.curEp, hp.epochClock, ?_⟩
-          all_goals try exact le_rfl
-          all_goals rw [hp.rebStage]
-          all_goals omega
-        · rw [ite_eq_right h2]; exact ⟨rfl, rfl, by omega⟩
-      · rw [ite_eq_right h1]; exact ⟨rfl, rfl, le_rfl⟩
+      split_ifs with h1 h2
+      · have hp := rebScanSteps_preserved θ (fs.dirtyBuckets fs.dirtyIdx) 16 fs
+        have := hp.rebStage
+        unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap
+        split_ifs <;> try dsimp only
+        all_goals exact ⟨hp.curEp, hp.epochClock, by omega⟩
+      · exact ⟨rfl, rfl, by omega⟩
+      · exact ⟨rfl, rfl, le_rfl⟩
     exact ⟨hclk.1, hclk.2.1, by omega⟩
   rw [ite_eq_right hs2]
   by_cases hs3 : fs.rebStage = 3
@@ -266,42 +263,24 @@ private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
   have hh := fastMemHdrs hrep
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
-  set cp := mkWhpCoreParams c U V w n_max
   dsimp only
   unfold epochTickStageAllGenProg
-  dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1,
-    show 2 * cTabWhp c + 32 * hashEvalCostWhp c + 43950 =
-      (2 * cTabWhp c + 32 * hashEvalCostWhp c + 43949) + 1 from rfl]
-  simp only [pure_bind]
-  refine readHdr_bind_fastStep (by dsimp [hdrRebStage, largeSpaceWhp]; omega) hh.rebStage ?_
+  simp only [pure_bind, hwp1]
+  refine readHdr_bind_fastStep (cost := 2 * cTabWhp c + 32 * hashEvalCostWhp c + 43949)
+    (by dsimp [hdrRebStage, largeSpaceWhp]; omega) hh.rebStage ?_
   dsimp only [epochTickStage]
-  by_cases hs0 : fs.rebStage = 0
+  split_ifs with hs0 hs1 hs2 hs3 hs4
   · obtain ⟨m, v, st⟩ := epochTickStage0GenProg_fastStep henv hcore hs0 hseed hrep (s := s)
-    simp only [hs0, ↓reduceIte]
-    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
-  rw [ite_eq_right hs0, ite_eq_right hs0]
-  by_cases hs1 : fs.rebStage = 1
+    exact ⟨by omega, v, st⟩
   · obtain ⟨m, v, st⟩ := epochTickStage1GenProg_fastStep henv hcore hpre hs1 hseed hrep (s := s)
-    simp only [hs1, ↓reduceIte]
-    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
-  rw [ite_eq_right hs1, ite_eq_right hs1]
-  by_cases hs2 : fs.rebStage = 2
+    exact ⟨by omega, v, st⟩
   · obtain ⟨m, v, st⟩ := epochTickStage2GenProg_fastStep henv hcore hpre hs2 hseed hrep (s := s)
-    simp only [hs2, ↓reduceIte]
     exact ⟨by omega, v, st⟩
-  rw [ite_eq_right hs2, ite_eq_right hs2]
-  by_cases hs3 : fs.rebStage = 3
   · obtain ⟨m, v, st⟩ := epochTickStage3GenProg_fastStep henv hcore hs3 hseed hrep (s := s)
-    simp only [hs3, ↓reduceIte]
     exact ⟨by omega, v, st⟩
-  rw [ite_eq_right hs3, ite_eq_right hs3]
-  by_cases hs4 : fs.rebStage = 4
   · obtain ⟨m, v, st⟩ := epochTickStage4GenProg_fastStep henv hcore hs4 hseed hrep (s := s)
-    simp only [hs4, ↓reduceIte]
-    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
-  rw [ite_eq_right hs4, ite_eq_right hs4]
-  exact ⟨by simp [memoryCost_pure], validProg_pure _, FastStateStep.refl hseed hrep⟩
+    exact ⟨by omega, v, st⟩
+  · exact ⟨by simp [memoryCost_pure], validProg_pure _, FastStateStep.refl hseed hrep⟩
 
 /-- Execute the epoch-clock increment / rollover of `epochTick` when rollover is known to succeed
 (`d = (cp, base)`). -/
@@ -500,8 +479,7 @@ theorem epochTickGenProg_fastStep {c U V w n_max base : ℕ}
     epochTickRolloverGenProg_fastStep (fs1 := fs1) henv (hce1 ▸ hcore.curEp_or)
       (hclk_eq ▸ hcore.epochClock_lt) hroll_ok hsa_step.2.1 hsa_step.2.2.1 (s := s1)
   unfold epochTick epochTickGenProg
-  dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
+  simp only [hwp1]
   refine ⟨fs', hro_eq, ?_, validProg_bind hsa_vp hro_vp, ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     dsimp only [s1] at hsa_mc hro_mc ⊢

@@ -159,17 +159,13 @@ theorem IsVerificationQueryBounded.query_verify {M Sig : Type} (p : M × Sig) :
 theorem IsSigningQueryBounded.of_isQueryBounded {M Sig α : Type}
     {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q : ℕ}
     (h : program.IsQueryBounded Q) : IsSigningQueryBounded program Q :=
-  h.of_le fun q => by cases q with
-    | inl _ => simp
-    | inr q => cases q <;> simp
+  h.of_le fun q => by rcases q with _ | (_ | _) <;> simp
 
 /-- A total external query budget bounds the number of verification queries. -/
 theorem IsVerificationQueryBounded.of_isQueryBounded {M Sig α : Type}
     {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q : ℕ}
     (h : program.IsQueryBounded Q) : IsVerificationQueryBounded program Q :=
-  h.of_le fun q => by cases q with
-    | inl _ => simp
-    | inr q => cases q <;> simp
+  h.of_le fun q => by rcases q with _ | (_ | _) <;> simp
 
 /-- Separate signing and verification query budgets yield a total external query budget of
 `Q_s + Q_v`. -/
@@ -177,9 +173,7 @@ theorem IsQueryBounded.of_signing_and_verification {M Sig α : Type}
     {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q_s Q_v : ℕ}
     (hs : IsSigningQueryBounded program Q_s) (hv : IsVerificationQueryBounded program Q_v) :
     program.IsQueryBounded (Q_s + Q_v) :=
-  (hs.add hv).of_le fun q => by cases q with
-    | inl _ => simp
-    | inr q => cases q <;> simp
+  (hs.add hv).of_le fun q => by rcases q with _ | (_ | _) <;> simp
 
 /-- Challenger state for Attack Game 6.2: the chronological `log` of answered signing pairs and
 whether some fresh verification query has already verified (`won`). -/
@@ -665,27 +659,22 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
           ((ProbComp.eval ((vqToForgerOn admit index A pk).runLogWith (signer sk))).bind
             fun x => PMF.pure
               (verify pk sk x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true := by
-      have hforger_eq :
-          ((ProbComp.eval ((vqToForgerOn admit index A pk).runLogWith (signer sk))).bind
-            fun x => PMF.pure
-              (verify pk sk x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true =
-          ∑' j, ProbComp.eval index j * W j := by
-        rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
-        dsimp only [vqToForgerOn]
-        rw [ProbOracleComp.runWith_sample_bind, PMF.bind_bind, PMF.bind_apply]
-        refine tsum_congr fun j => congrArg (ProbComp.eval index j * ·) ?_
-        rw [ProbOracleComp.runWith_bind]
-        have hstep := run_vqToForgerHandler_eq_plantedHandler admit signer verify pk sk
-          hadmit' hsign' (A pk) j
-        rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState] at hstep
-        rw [hstep, PMF.bind_map, PMF.bind_bind]
-        change ((ProbOracleComp.runWith _ (A pk) _).bind fun x => _) true = W j
-        dsimp only [W]
-        congr 2 with x : 1
-        simp [ProbOracleComp.runWith_pure]
-      rw [hforger_eq]
-      exact Summable.sum_le_tsum (Finset.range Q_v) (fun _ _ => zero_le)
-        CompleteLattice.summable
+      refine (Summable.sum_le_tsum (Finset.range Q_v) (fun _ _ => zero_le)
+        CompleteLattice.summable).trans_eq ?_
+      symm
+      rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
+      dsimp only [vqToForgerOn]
+      rw [ProbOracleComp.runWith_sample_bind, PMF.bind_bind, PMF.bind_apply]
+      refine tsum_congr fun j => congrArg (ProbComp.eval index j * ·) ?_
+      rw [ProbOracleComp.runWith_bind]
+      have hstep := run_vqToForgerHandler_eq_plantedHandler admit signer verify pk sk
+        hadmit' hsign' (A pk) j
+      rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState] at hstep
+      rw [hstep, PMF.bind_map, PMF.bind_bind]
+      change ((ProbOracleComp.runWith _ (A pk) _).bind fun x => _) true = W j
+      dsimp only [W]
+      congr 2 with x : 1
+      simp [ProbOracleComp.runWith_pure]
     rw [hlhs_eq]
     exact le_mul_add_of_le_sum (PMF.toOuterMeasure_le_one _ _) hunion hrhs_ge hindex
   exact PMF.bind_apply_le_mul_bind_apply_add_on_support (ProbComp.eval keyGen) hkey
@@ -987,17 +976,8 @@ theorem eval_realExperiment_vqMacToPrfAdversary {Key D R : Type} [Fintype Key] [
           (fun _ k m σ => decide (F k m = σ)) A) := by
   simp only [PRF.realExperiment, vqForgeExperiment, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun key _ => ?_
-  rw [eval_run_vqMacToPrfAdversary_pure]
-  have hkey_oracle :
-      (fun q st => ProbComp.eval
-        (vqOracle (Signer.ofSign fun g : D → R => fun m => pure (g m))
-          (fun (_ : Unit) (g : D → R) m σ => decide (g m = σ)) () (F key) q st)) =
-      (fun q st => ProbComp.eval
-        (vqOracle (Signer.ofSign fun k : Key => fun m => pure (F k m))
-          (fun (_ : Unit) (k : Key) m σ => decide (F k m = σ)) () key q st)) := by
-    funext q st
-    cases q <;> rfl
-  rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState, hkey_oracle]
+  rw [eval_run_vqMacToPrfAdversary_pure, ProbOracleComp.eval_runState, ProbOracleComp.eval_runState]
+  congr 2
 
 private def recordQueriesHandler {D R : Type} (q : D) :
     StateT (List D) (ProbOracleComp (fun _ : D => R)) R :=
@@ -1015,11 +995,9 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
     (keyGen := ((), ·) <$> ProbComp.uniform (D → R))
     (signer := Signer.ofSign fun f : D → R => fun m => pure (f m))
     (verify := fun (_ : Unit) (f : D → R) m σ => decide (f m = σ))
-    (fun ⟨⟨⟩, f⟩ _ _ m program hprog σ hσ => by
-      simp only [Signer.ofSign_apply, Option.some.injEq] at hprog
-      subst hprog
-      simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hσ
-      simp [hσ])
+    (by
+      rintro ⟨⟨⟩, f⟩ _ _ m _ ⟨⟩ σ hσ
+      simp_all [ProbComp.eval_pure])
     (fun ⟨⟨⟩, f⟩ _ m σ σ' h1 h2 => by
       simp only [decide_eq_true_eq] at h1 h2
       exact h1.symm.trans h2)
@@ -1114,9 +1092,7 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
           exact List.mem_cons_of_mem _ (hs x hx)
     dsimp only [Function.comp_def]
     by_cases hfresh : m ∉ queried
-    · have hnone : cache.lookup m = none := by
-        by_contra hsome
-        exact hfresh (hinv m hsome)
+    · have hnone : cache.lookup m = none := Classical.byContradiction (hfresh ∘ hinv m)
       simp only [decide_eq_true hfresh, ↓reduceIte, ProbOracleComp.runWith_map,
         ProbOracleComp.runWith_query, memoize_of_none _ _ _ hnone, Prod.map_fst, pmf_norm]
       rw [PMF.bind_apply, tsum_eq_single σ fun r hr => by simp [hr]]
@@ -1159,12 +1135,7 @@ theorem succProbability_vqForgeExperiment_prf_le {Key D R : Type} [Fintype Key] 
   have hideal_le :
       Experiment.succProbability (PRF.idealExperiment (vqMacToPrfAdversary A)) ≤
         Q_v / Fintype.card R := by
-    change Game.succProbability (ProbComp.eval (PRF.idealExperiment (vqMacToPrfAdversary A))) ≤ _
-    rw [hideal]
-    change Experiment.succProbability
-        (vqForgeExperiment (((), ·) <$> ProbComp.uniform (D → R))
-          (Signer.ofSign fun f m => pure (f m))
-          (fun _ f m σ => decide (f m = σ)) A) ≤ _
+    rw [Experiment.succProbability, hideal, ← Experiment.succProbability]
     by_cases hD : Nonempty D
     · let _ : Inhabited D := Classical.inhabited_of_nonempty hD
       calc Experiment.succProbability

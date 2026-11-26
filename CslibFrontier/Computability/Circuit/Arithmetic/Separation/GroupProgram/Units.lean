@@ -103,10 +103,7 @@ theorem StoreBound.tget {ub : ℕ} {t : Tree} (h : StoreBound ub t) (k : List Bo
 private theorem StoreBound.of_mem_putUnits {ub : ℕ} {ks : List (List Bool)} {r : List Bool}
     {t t' : Tree} (h : StoreBound ub t) (ht' : t' ∈ putUnits ub ks r t) : StoreBound ub t' := by
   induction ks generalizing r t with
-  | nil =>
-    simp only [putUnits] at ht'
-    split_ifs at ht'
-    exacts [List.mem_singleton.1 ht' ▸ h, absurd ht' List.not_mem_nil]
+  | nil => by_cases hr : r = [] <;> simp_all [putUnits]
   | cons k ks ih =>
     simp only [putUnits] at ht'
     split_ifs at ht'
@@ -145,13 +142,12 @@ private theorem unit_gives {s y : Fm} {x : Tree} {cs cy ub : ℕ} {r : List Bool
         3 := (Gives.id _).tl.hd
       exact ⟨((tl_ofBits s.1 ▸ g.tl).cons ((hd_ofBits s.1 ▸ g.hd).cons
         (Gives.id _).tl.tl)).mono (by omega), trivial⟩) trivial
-  have e : ∀ ub (r acc : List Bool), (List.replicate ub ()).foldl
+  have e (ub : ℕ) (r acc : List Bool) : (List.replicate ub ()).foldl
       (fun s _ => (s.1.tail, s.1.headD false :: s.2)) (r, acc) =
-        (r.drop ub, (padTake ub r).reverse ++ acc) := fun ub => by
-    induction ub with
+        (r.drop ub, (padTake ub r).reverse ++ acc) := by
+    induction ub generalizing r acc with
     | zero => simp [padTake]
     | succ ub ih =>
-      intro r acc
       rw [List.replicate_succ, List.foldl_cons, ih, padTake_succ]
       simp
   rw [e, List.append_nil] at h
@@ -209,17 +205,17 @@ private theorem putF_does (ub : ℕ) (keys : List (List Bool)) (r : List Bool) (
       | nil => exact (Does.ite_false (Gives.id _).tl.hd (Gives.id _).tl.tl).mono (by omega)
       | cons b r => exact (Does.ite_true (Gives.id _).tl.hd (by simp [ofBits])
           (Does.fail _)).mono (by omega)
-  have e : ∀ (keys : List (List Bool)) r t, (keys.weightedFoldl (putOne A ub) (r, t)).weightedBind
-      (fun s => if s.1 = [] then [((1 : A), s.2)] else []) = (putUnits ub keys r t).map (1, ·) :=
-    fun keys => by
-      induction keys with
-      | nil => intro r t; by_cases h : r = [] <;> simp [h, putUnits]
-      | cons k ks ih =>
-        intro r t
-        by_cases h : r = []
-        · simp [h, putUnits, putOne, List.weightedBind]
-        · simp only [List.weightedFoldl_cons, putOne, putUnits, h, ↓reduceIte,
-            List.weightedBind_singleton_one, ih]
+  have e (keys : List (List Bool)) (r : List Bool) (t : Tree) :
+      (keys.weightedFoldl (putOne A ub) (r, t)).weightedBind
+        (fun s => if s.1 = [] then [((1 : A), s.2)] else []) =
+        (putUnits ub keys r t).map (1, ·) := by
+    induction keys generalizing r t with
+    | nil => by_cases h : r = [] <;> simp [h, putUnits]
+    | cons k ks ih =>
+      by_cases h : r = []
+      · simp [h, putUnits, putOne, List.weightedBind]
+      · simp only [List.weightedFoldl_cons, putOne, putUnits, h, ↓reduceIte,
+          List.weightedBind_singleton_one, ih]
   rw [e] at h2
   refine h2.mono ?_
   have := List.sum_le_sum (l := keys) (f := fun k => 400 * (ub + k.length + 1) + 30)
@@ -258,14 +254,13 @@ theorem exists_formula_putStrings : ∃ F, ∀ (ub : ℕ) (kss : List (List (Lis
   have h2 := Does.lett_enc (G := .tl (.tl .id))
     (f := fun s : List (List Bool) × Tree => [((1 : A), s.2)]) (d := 3) h1
     fun _ _ => (Gives.id _).tl.tl
-  have e : ∀ (kss : List (List (List Bool))) strs t,
+  have e (kss : List (List (List Bool))) (strs : List (List Bool)) (t : Tree) :
       (kss.weightedFoldl (fun ks s => (putUnits ub ks (s.1.headD []) s.2).map fun t =>
         ((1 : A), (s.1.tail, t))) (strs, t)).weightedBind (fun s => [((1 : A), s.2)]) =
-        (putStrings ub kss strs t).map (1, ·) := fun kss => by
-    induction kss with
-    | nil => intro strs t; simp [putStrings]
+        (putStrings ub kss strs t).map (1, ·) := by
+    induction kss generalizing strs t with
+    | nil => simp [putStrings]
     | cons ks kss ih =>
-      intro strs t
       rw [List.weightedFoldl_cons, List.weightedBind_assoc, List.weightedBind_map_one]
       simp only [ih, putStrings, List.map_flatMap]
   rw [e] at h2

@@ -158,11 +158,9 @@ private theorem contract_comp {a b c : Vertex V bound}
   | nil => rfl
   | @cons b c q e ih =>
     rw [Quiver.Path.comp_cons]
-    rcases b with ⟨b, bi⟩
-    rcases c with ⟨c, ci⟩
-    by_cases h : b = c
-    · subst c
-      rw [contract_cons_eq (p.comp q) e rfl, contract_cons_eq q e rfl]
+    rcases b, c with ⟨⟨b, bi⟩, ⟨c, ci⟩⟩
+    rcases eq_or_ne b c with rfl | h
+    · rw [contract_cons_eq (p.comp q) e rfl, contract_cons_eq q e rfl]
       exact ih
     · rw [contract_cons_ne _ _ h, contract_cons_ne _ _ h]
       exact congrArg (fun r => @Quiver.Path.cons V G.toQuiver _ _ _ r _) ih
@@ -197,10 +195,9 @@ private theorem chain_step (v : V) (a b : Fin (bound + 1))
     @Quiver.Path.cons _ (toQuiver G weight bound) _ _ _
       (chain v a.val ha (Nat.le_of_lt_succ a.isLt)) e =
       chain v b.val hb (Nat.le_of_lt_succ b.isLt) := by
-  cases b with | mk b hb' =>
-    dsimp only at hoff hb ⊢
-    subst hoff
-    rfl
+  rcases b with ⟨_, hb'⟩
+  subst hoff
+  rfl
 
 /-- Every subdivided path is an expanded original path followed by a final chain prefix.
 The statement includes auxiliary endpoints, not only the original graph's vertices. -/
@@ -338,8 +335,7 @@ private theorem departureCost_eq {a b : V} (p : G.Path a b) (h : a ≠ b) :
         LayeredDigraph.Path.internalWeight_comp weight p (LayeredDigraph.Path.ofAdj e.down) hp
           (by have := G.layer_adj e.down; omega)
       rw [Quiver.Path.addWeightOfEPs_cons, ih hab, hw]
-      change _ = _ + weight a + (p.length + 1)
-      dsimp only [LayeredDigraph.Path.length] at *
+      simp only [LayeredDigraph.Path.length, Quiver.Path.length_cons] at *
       omega
 
 /-- For a fixed pair of endpoints and final offset, expansion orders paths by internal weight. -/
@@ -357,10 +353,6 @@ theorem length_pathEquiv_le_iff (hw : ∀ v, weight v ≤ bound) (s : V) (v : Ve
   · rw [length_pathEquiv, length_pathEquiv, departureCost_eq p heq, departureCost_eq q heq]
     have hp := LayeredDigraph.Path.layer_end p
     have hq := LayeredDigraph.Path.layer_end q
-    have hlen : p.length = q.length := by
-      change G.layer v.vertex = G.layer s + p.length at hp
-      change G.layer v.vertex = G.layer s + q.length at hq
-      omega
     dsimp only [LayeredDigraph.Path.length] at *
     omega
 

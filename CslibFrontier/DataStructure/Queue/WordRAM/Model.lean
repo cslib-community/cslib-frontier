@@ -87,16 +87,11 @@ theorem pairStep_length_le {w capacity : ℕ} {s : Stacks}
     (hs : s.contents.length ≤ capacity) (o : QueueOp ℕ)
     (hv : (spec w capacity).valid s.contents o) :
     (pairStep s o).1.contents.length ≤ capacity := by
-  have hc := congrArg (fun p => p.1.length) (pairStep_correct s o)
-  rw [hc]
+  rw [congrArg (fun p => p.1.length) (pairStep_correct s o)]
   cases o with
   | enqueue v =>
-    change (s.contents ++ [v]).length ≤ capacity
-    simp only [List.length_append, List.length_singleton]
-    exact Nat.succ_le_of_lt hv.1
+    simpa [queue] using Nat.succ_le_of_lt hv.1
   | dequeue =>
-    change s.contents.tail.length ≤ capacity
-    simp only [List.length_tail]
-    omega
+    simpa [queue] using (Nat.sub_le s.contents.length 1).trans hs
 
 end Cslib.DataStructure.Queue.WordRAM

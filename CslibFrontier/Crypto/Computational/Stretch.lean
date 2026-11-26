@@ -79,16 +79,14 @@ noncomputable def hybrid (generator : List Bool → List Bool) (n total i : ℕ)
 theorem hybrid_zero (generator : List Bool → List Bool) (count : ℕ → ℕ) (n : ℕ) :
     hybrid generator n (count n) 0 = generatorEnsemble (stretch generator count) n := by
   simp only [hybrid, Nat.add_zero, Nat.sub_zero, generatorEnsemble]
-  apply PMF.map_congr_on_support
-  intro seed hseed
-  simp only [stretch, length_of_mem_support_uniformList hseed]
+  exact PMF.map_congr_on_support _ _ _ fun seed hseed => by
+    simp only [stretch, length_of_mem_support_uniformList hseed]
 
 /-- The final hybrid is uniform at the expanded length. -/
 @[simp] theorem hybrid_last (generator : List Bool → List Bool) (n total : ℕ) :
     hybrid generator n total total = uniformList (n + total) := by
   unfold hybrid iterate
-  simp only [Nat.sub_self, Function.iterate_zero]
-  exact PMF.map_id _
+  simp only [Nat.sub_self, Function.iterate_zero, PMF.map_id]
 
 /-- Replacing the challenge by a genuine generator output gives the earlier hybrid. -/
 theorem real_hop (generator : List Bool → List Bool) (n total i : ℕ) (hi : i < total) :
@@ -203,8 +201,7 @@ theorem eval_real_hop (generator : List Bool → List Bool) (count : ℕ → ℕ
         (hybrid generator n (count n) i).bind (fun word => ProbComp.eval (adversary n word))
       else PMF.pure false := by
   by_cases hi : i < count n
-  · simp only [hi, ↓reduceIte]
-    simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using
+  · simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using
       congrArg (·.bind fun word => ProbComp.eval (adversary n word))
         (real_hop generator n (count n) i hi)
   · simp [hop, hi, PMF.bind_const]
@@ -219,8 +216,7 @@ theorem eval_ideal_hop (generator : List Bool → List Bool) (count : ℕ → �
         (hybrid generator n (count n) (i + 1)).bind (fun word => ProbComp.eval (adversary n word))
       else PMF.pure false := by
   by_cases hi : i < count n
-  · simp only [hi, ↓reduceIte]
-    simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using
+  · simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using
       congrArg (·.bind fun word => ProbComp.eval (adversary n word))
         (ideal_hop generator n (count n) i)
   · simp [hop, hi, PMF.bind_const]
@@ -298,9 +294,8 @@ theorem advantage_le (generator : List Bool → List Bool) (count : ℕ → ℕ)
   rw [advantage_eq]
   have hpow : 2 ^ (Nat.log 2 (count n) + 1) ≤ 2 * count n := by
     rw [pow_succ]
-    have := Nat.pow_log_le_self 2 (by lia : count n ≠ 0)
-    lia
-  exact mul_le_mul_of_nonneg_right (by exact_mod_cast hpow) zero_le
+    linarith [Nat.pow_log_le_self 2 hpositive.ne']
+  exact mul_le_mul_of_nonneg_right (mod_cast hpow) zero_le
 
 /-- Efficient unary counts give a polynomial bound on the reduction's dyadic loss. -/
 theorem loss_polynomial {count : ℕ → ℕ}
@@ -364,12 +359,9 @@ theorem indistinguishableWithAdvice {generator : List Bool → List Bool} {count
     IndistinguishableWithAdvice advice (generatorEnsemble (stretch generator count))
       (fun n => uniformList (n + count n)) := by
   intro test htest
-  have hgen : ComputableInPolyTime
-      (fun (((_ : ℕ), (_ : List Bool)), seed) => generator seed)
-      (encPair (encPair encUnary encBits) encBits) encBits :=
-    hgenerator.comp (ComputableInPolyTime.snd (encPair encUnary encBits) encBits)
   have h := indexed_indistinguishable (generator := fun _ _ => generator)
-    (seedBits := fun n => n) (choose := advice) hgen
+    (seedBits := fun n => n) (choose := advice)
+    (hgenerator.comp (ComputableInPolyTime.snd _ _))
     (ComputableInPolyTime.of_eq fun _ => rfl) hcount
     (fun adversary hadversary => by
       simpa only [distinguishingGame_eq_bind, generatorEnsemble, PMF.monad_bind_eq_bind] using
@@ -468,9 +460,8 @@ theorem NonuniformPRG.truncate {generator : List Bool → List Bool} {length : �
   have hpoly := hgenerator.polyTime
   refine ⟨by fun_prop, fun seed => ?_, hstretch, fun advice hadvice => ?_⟩
   · simp only [List.length_take, hgenerator.length_eq, Nat.min_eq_left (hle _)]
-  · have h := (hgenerator.secure advice hadvice).map
-      (f := fun n word => word.take (target n)) (by fun_prop)
-    simpa only [← generatorEnsemble_postprocess generator (fun n word => word.take (target n)),
-      uniformList_take (hle _)] using h
+  · simpa only [← generatorEnsemble_postprocess generator (fun n word => word.take (target n)),
+      uniformList_take (hle _)] using
+      (hgenerator.secure advice hadvice).map (f := fun n word => word.take (target n)) (by fun_prop)
 
 end Cslib.Crypto

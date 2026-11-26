@@ -51,13 +51,9 @@ open Finset Polynomial
 private theorem maxYDeg_le_johnsonCurveBound (n m d D r W_tot : ℕ) :
     ProximityGap.maxYDeg d D ≤ ProximityGap.johnsonCurveBound n m d D r W_tot := by
   rcases Nat.eq_zero_or_pos D with rfl | hD
-  · rw [show ProximityGap.maxYDeg d 0 = 0 from
-      Nat.eq_zero_of_le_zero (Finset.sup_le fun p hp => (Sudan.mem_monomials.1 hp).2.1)]
-    exact Nat.zero_le _
-  · have hmul : ProximityGap.maxYDeg d D ≤
-        2 * ProximityGap.maxYDeg d D * (D + ProximityGap.siegelZDeg n m d D r) :=
-      (by omega : ProximityGap.maxYDeg d D ≤ 2 * ProximityGap.maxYDeg d D).trans
-        (Nat.le_mul_of_pos_right _ (by omega))
+  · exact (Finset.sup_le fun p hp => (Sudan.mem_monomials.1 hp).2.1).trans (Nat.zero_le _)
+  · have := (by omega : ProximityGap.maxYDeg d D ≤ 2 * ProximityGap.maxYDeg d D).trans
+      (Nat.le_mul_of_pos_right _ (by omega : 0 < D + ProximityGap.siegelZDeg n m d D r))
     dsimp only [ProximityGap.johnsonCurveBound]
     omega
 
@@ -182,13 +178,12 @@ private theorem ratWeighted_to_nat_affine_ca
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
   obtain ⟨W, _, hW_le, _, hsum_iff, hθ_le_t⟩ := rat_weights_to_nat hM hμ_le hμ_den θ
   obtain ⟨z₀, hz₀⟩ := hT_ne
-  obtain ⟨c₀, _, hc₀_ge⟩ := hclose z₀ hz₀
+  obtain ⟨_, _, hc₀_ge⟩ := hclose z₀ hz₀
   have hB := ceilDiv_radius_le hM (hk.trans hkn) hθ_le_t
     (mod_cast hc₀_ge.trans (sum_le_card_of_le_one hμ_le _)) hθ
-  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ := hw hW_le hB fun z hz =>
+  exact (hw hW_le hB fun z hz =>
     let ⟨c, hcRS, hge⟩ := hclose z hz
-    ⟨c, hcRS, (hsum_iff _).1 hge⟩
-  exact ⟨D', (hsum_iff D').2 hD', v₀, hv₀, v, hvRS, hagree⟩
+    ⟨c, hcRS, (hsum_iff _).1 hge⟩).imp fun D' h => h.imp_left (hsum_iff D').2
 
 /-- **Explicit-parameter `ℕ`-weighted correlated-agreement step on affine spaces up to the Johnson
 bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and
@@ -225,20 +220,16 @@ theorem exists_weighted_correlatedAgreement_affine_johnson
   have hL_lt_q : 2 ≤ ℓ → ProximityGap.maxYDeg (k - 1) D < Fintype.card F := fun _ =>
     (maxYDeg_le_johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot).trans_lt
       (lt_card_field_of_density_threshold hT)
-  obtain ⟨D', _, hD'_ge, v₀, hv₀, v, hvRS, hagree⟩ :=
-    exists_weighted_correlatedAgreement_affine_of_line
-      (C := reedSolomon α k) (W := W) (B_W := B_W)
-      (B_line := ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot)
-      (L := ProximityGap.maxYDeg (k - 1) D)
-      (card_reedSolomon_list_le_maxYDeg hα hk hm hM hW_le hinterp hroot)
-      (fun {B'} hB' a b S hS hcl => by
-        have ht_le : (B_W + M - 1) / M ≤ (B' + M - 1) / M :=
-          Nat.div_le_div_right (by omega)
-        exact exists_weighted_correlatedAgreement_line_johnson hα hk hm hM hW_le hW_sum
-          (hk_le_t.trans ht_le) hinterp (hroot.trans_le (Nat.mul_le_mul_left m ht_le))
-          a b S hS hcl)
-      hL_lt_q u₀ u T hT hclose
-  exact ⟨D', hD'_ge, v₀, hv₀, v, hvRS, hagree⟩
+  refine (exists_weighted_correlatedAgreement_affine_of_line
+    (C := reedSolomon α k) (W := W) (B_W := B_W)
+    (B_line := ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot)
+    (L := ProximityGap.maxYDeg (k - 1) D)
+    (card_reedSolomon_list_le_maxYDeg hα hk hm hM hW_le hinterp hroot)
+    (fun {B'} hB' a b S hS hcl => ?_)
+    hL_lt_q u₀ u T hT hclose).imp fun _ h => h.2
+  have ht_le : (B_W + M - 1) / M ≤ (B' + M - 1) / M := Nat.div_le_div_right (by omega)
+  exact exists_weighted_correlatedAgreement_line_johnson hα hk hm hM hW_le hW_sum
+    (hk_le_t.trans ht_le) hinterp (hroot.trans_le (Nat.mul_le_mul_left m ht_le)) a b S hS hcl
 
 /-- **Explicit-parameter correlated-agreement step on affine spaces up to the Johnson bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.6], printed p. 6 of the

@@ -125,13 +125,9 @@ theorem lhs_le_coeffSum (σ : ℕ → Bool) (ts : List (ℕ × Literal ℕ)) : l
 variables of its terms. -/
 theorem holds_congr {σ τ : ℕ → Bool} {c : PBConstr}
     (h : ∀ t ∈ c.terms, σ (termVar t) = τ (termVar t)) : c.Holds σ ↔ c.Holds τ := by
-  suffices lhs σ c.terms = lhs τ c.terms by unfold Holds; rw [this]
-  unfold lhs
-  congr 1
-  refine List.map_congr_left fun t ht => ?_
-  obtain ⟨a, v, b⟩ := t
-  simp only [termVal, Literal.eval]
-  rw [show σ v = τ v from h _ ht]
+  suffices lhs σ c.terms = lhs τ c.terms by simp only [Holds, this]
+  exact congrArg List.sum <| List.map_congr_left fun ⟨a, v, b⟩ ht =>
+    congrArg (fun x => a * (x == b).toNat) (h _ ht)
 
 /-- A term and the term of the negated literal sum to the coefficient. -/
 theorem termVal_add_negate (σ : ℕ → Bool) (a : ℕ) (l : Literal ℕ) :
@@ -168,6 +164,13 @@ def negMass (L : List (ℕ × ℤ)) : ℕ := (L.map fun e => (-e.2).toNat).sum
 @[simp] theorem linVal_cons (σ : ℕ → Bool) (e : ℕ × ℤ) (L : List (ℕ × ℤ)) :
     linVal σ (e :: L) = e.2 * ((σ e.1).toNat : ℤ) + linVal σ L := by simp [linVal]
 
+/-- Negating every coefficient negates the value. -/
+theorem linVal_map_neg (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
+    linVal σ (L.map fun e => (e.1, -e.2)) = -linVal σ L := by
+  induction L with
+  | nil => simp
+  | cons e L ih => rw [List.map_cons, linVal_cons, linVal_cons, ih, neg_add, neg_mul]
+
 theorem linVal_insertCoeff (σ : ℕ → Bool) (v : ℕ) (a : ℤ) (L : List (ℕ × ℤ)) :
     linVal σ (insertCoeff v a L) = a * ((σ v).toNat : ℤ) + linVal σ L := by
   fun_induction insertCoeff v a L with
@@ -201,9 +204,9 @@ theorem lhs_eq_linVal (σ : ℕ → Bool) (ts : List (ℕ × Literal ℕ)) :
   | nil => simp [toLinear, negSum]
   | cons t ts ih =>
     have hneg : (negSum (t :: ts) : ℤ) = (if termPos t then 0 else (t.1 : ℤ)) + negSum ts := by
-      simp only [negSum, List.map_cons, List.sum_cons]; split <;> simp
-    rw [show toLinear (t :: ts) = insertCoeff (termVar t) (termCoeff t) (toLinear ts) from rfl,
-      lhs_cons, Nat.cast_add, linVal_insertCoeff, termVal_eq, ih, hneg]
+      cases h : termPos t <;> simp [negSum, h]
+    rw [toLinear, List.foldr_cons, ← toLinear, lhs_cons, Nat.cast_add, linVal_insertCoeff,
+      termVal_eq, ih, hneg]
     ring
 
 theorem neg_negMass_le_linVal (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
@@ -248,15 +251,8 @@ theorem holds_fromLinear_iff (σ : ℕ → Bool) (L : List (ℕ × ℤ)) (D : �
     (fromLinear L D).Holds σ ↔ D ≤ linVal σ L := by
   have h1 := lhs_fromLinear σ L D
   have h2 := neg_negMass_le_linVal σ L
-  unfold Holds
-  simp only [fromLinear] at h1 ⊢
-  constructor
-  · intro h
-    have : ((D + negMass L).toNat : ℤ) ≤ lhs σ (List.filterMap entryTerm L) := by exact_mod_cast h
-    omega
-  · intro h
-    have : ((D + negMass L).toNat : ℤ) ≤ lhs σ (List.filterMap entryTerm L) := by omega
-    exact_mod_cast this
+  simp only [Holds, fromLinear, ← Int.ofNat_le] at h1 ⊢
+  omega
 
 /-! ### Normalization -/
 
@@ -268,12 +264,8 @@ def normalize (c : PBConstr) : PBConstr :=
 theorem holds_iff_linVal (σ : ℕ → Bool) (c : PBConstr) :
     c.Holds σ ↔ (c.degree : ℤ) - negSum c.terms ≤ linVal σ (toLinear c.terms) := by
   have := lhs_eq_linVal σ c.terms
-  unfold Holds
-  constructor
-  · intro h; have : (c.degree : ℤ) ≤ lhs σ c.terms := by exact_mod_cast h
-    linarith
-  · intro h; have : (c.degree : ℤ) ≤ lhs σ c.terms := by linarith
-    exact_mod_cast this
+  simp only [Holds, ← Int.ofNat_le]
+  omega
 
 /-- **Normalization changes no satisfying assignment.** -/
 @[simp] theorem holds_normalize (σ : ℕ → Bool) (c : PBConstr) :
@@ -408,9 +400,8 @@ theorem lhs_le_filter (σ : ℕ → Bool) (v : ℕ) (ts : List (ℕ × Literal �
     · simp only [h, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, beq_self_eq_true,
         lhs_cons, coeffSum_cons]
       omega
-    · have h1 : (termVar t != v) = true := by simpa using h
-      have h2 : (termVar t == v) = false := by simpa using h
-      simp only [h1, h2, ↓reduceIte, Bool.false_eq_true, lhs_cons]
+    · simp only [bne_iff_ne.2 h, beq_eq_false_iff_ne.2 h, ↓reduceIte, Bool.false_eq_true,
+        lhs_cons]
       omega
 
 theorem Holds.weaken (hc : c.Holds σ) (v : ℕ) : (c.weaken v).Holds σ := by

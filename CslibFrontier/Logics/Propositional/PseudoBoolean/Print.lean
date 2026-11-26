@@ -665,10 +665,9 @@ private theorem isWord_lines (I : Instance) (N : Names)
     intro c hc w hw
     simp only [constrWords, List.mem_append, List.mem_flatMap, termWords, List.mem_cons,
       List.not_mem_nil, or_false] at hw
-    rcases hw with ⟨t, ht, rfl | rfl⟩ | rfl | rfl | rfl
+    rcases hw with ⟨⟨a, v, b⟩, ht, rfl | rfl⟩ | rfl | rfl | rfl
     · exact isWord_toDecimal _
-    · obtain ⟨a, v, b⟩ := t
-      exact isWord_litChars (hN v (mem_varList_constr hc ht)) b
+    · exact isWord_litChars (hN v (mem_varList_constr hc ht)) b
     · decide
     · exact isWord_toDecimal _
     · exact hsemi
@@ -677,12 +676,7 @@ private theorem isWord_lines (I : Instance) (N : Names)
     Option.map_eq_some_iff, List.mem_map] at hl
   rcases hl with rfl | (⟨f, hf, rfl⟩ | ⟨P, hP, rfl⟩) | ⟨c, hc, rfl⟩
   · simp only [headerWords, List.mem_cons, List.not_mem_nil, or_false] at hw
-    rcases hw with rfl | rfl | rfl | rfl | rfl
-    · decide
-    · decide
-    · exact isWord_toDecimal _
-    · decide
-    · exact isWord_toDecimal _
+    rcases hw with rfl | rfl | rfl | rfl | rfl <;> first | decide | exact isWord_toDecimal _
   · simp only [objWords, objTermWords, List.mem_cons, List.mem_append, List.mem_flatMap,
       List.not_mem_nil, or_false] at hw
     rcases hw with (rfl | ⟨e, he, rfl | rfl⟩ | hw) | rfl
@@ -846,9 +840,8 @@ theorem rereadObj_eq {f : Objective} (h : (f.lin.map Prod.fst).Nodup) : rereadOb
 theorem reread_eq {I : Instance} (h : Normal I) : reread I = I := by
   obtain ⟨cs, obj, pres⟩ := I
   have hcs : cs.map rereadConstr = cs := by
-    have := List.map_congr_left (l := cs) (f := rereadConstr) (g := id) fun c hc =>
-      rereadConstr_eq (h.constr_nodup c hc) (h.constr_pos c hc)
-    simpa using this
+    simpa using List.map_congr_left fun c hc => rereadConstr_eq (h.constr_nodup c hc)
+      (h.constr_pos c hc)
   cases obj with
   | none => simp [reread, hcs]
   | some f => simp [reread, hcs, rereadObj_eq (h.obj_nodup f rfl)]
@@ -974,10 +967,7 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
   set hdr : List (List Char) := [['p'], ['c', 'n', 'f'], Nat.toDecimal V]
   have hhdr : ∀ u ∈ hdr, IsWord u := by
     simp only [hdr, List.mem_cons, List.not_mem_nil, or_false]
-    rintro u (rfl | rfl | rfl)
-    · decide
-    · decide
-    · exact isWord_toDecimal _
+    rintro u (rfl | rfl | rfl) <;> first | decide | exact isWord_toDecimal _
   have hH : Dimacs.headerChars V φ.length =
       (hdr.flatMap (· ++ [' ']) ++ Nat.toDecimal φ.length) ++ '\n' :: [] := by
     simp [Dimacs.headerChars, hdr]
@@ -1002,9 +992,8 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
     · rw [List.mem_singleton.1 hc]; decide
   have hclause : ∀ cl : Clause ℕ, Dimacs.clauseChars cl = body cl ++ ['\n'] := fun cl => by
     simp [Dimacs.clauseChars, body, List.flatMap_map]
-  have hsplit : ∀ ψ : CNF ℕ, splitChars (· == '\n') (ψ.flatMap Dimacs.clauseChars) =
+  have hsplit (ψ : CNF ℕ) : splitChars (· == '\n') (ψ.flatMap Dimacs.clauseChars) =
       ψ.map body ++ [[]] := by
-    intro ψ
     induction ψ with
     | nil => rfl
     | cons cl ψ ih =>
@@ -1030,15 +1019,11 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
       rcases hd with rfl | hd
       · decide
       · intro h'
-        have := congrArg (fun o => o.map Char.isDigit) h'
-        simp only [Option.map_some, hd] at this
-        revert this
-        decide
+        exact absurd (Option.some.inj h' ▸ hd) (by decide)
   -- The clauses read.
-  have hcls : ∀ ψ : CNF ℕ, (∀ v ∈ CNF.vars ψ, v < V) →
+  have hcls (ψ : CNF ℕ) (hψ : ∀ v ∈ CNF.vars ψ, v < V) :
       dimacsClauses V (ψ.map fun cl => (cl.map Dimacs.litChars).map String.ofList ++ ["0"]).flatten
         [] = some ψ := by
-    intro ψ hψ
     induction ψ with
     | nil => rfl
     | cons cl ψ ih =>
@@ -1173,11 +1158,10 @@ theorem exists_parseOPB_printOPB {I : Instance} {N : Names} (hN : N.Covers I) :
   · obtain ⟨a, ha⟩ := hread v hv
     simp [ha]
   · obtain ⟨a, ha⟩ := hread v hv
-    simp only [ha, Option.getD_some]
-    exact Names.name_of_var? ha
+    simpa only [ha, Option.getD_some] using Names.name_of_var? ha
   · refine parseOPBWith_printOPB fun v hv => ⟨?_, hN.opb v hv⟩
     obtain ⟨a, ha⟩ := hread v hv
-    exact (show M.var? (N.name v) = some ((M.var? (N.name v)).getD 0) by simp [ha])
+    simp [ha, M]
 
 /-- **The parser reads back exactly the printed instance, normalized**, when its names read
 each variable as itself, as for names given in their order of first appearance in the text
@@ -1355,18 +1339,16 @@ theorem encard_eq_of_checkOPB_printOPB_enumComplete {I : Instance} {N : Names} (
 printed text `φ.toDIMACS` of a formula `φ` built in Lean means that `φ` is unsatisfiable. -/
 theorem not_satisfiable_of_checkDIMACS_toDIMACS {φ : CNF ℕ} {pbp : String} {q : ℕ}
     (h : checkDIMACS φ.toDIMACS pbp = some (.unsat q)) : ¬ φ.Satisfiable := by
-  obtain ⟨ψ, hψ, hns⟩ := not_satisfiable_of_checkDIMACS h
-  rw [parseDIMACS_toDIMACS, Option.some.injEq] at hψ
-  exact hψ ▸ hns
+  obtain ⟨_, hψ, hns⟩ := not_satisfiable_of_checkDIMACS h
+  exact Option.some.inj ((parseDIMACS_toDIMACS φ).symm.trans hψ) ▸ hns
 
 /-- **Soundness of `SAT` for DIMACS end to end**: an accepted proof of `SAT` against the printed
 text `φ.toDIMACS` of a formula `φ` means that `φ` is satisfiable. -/
 theorem satisfiable_of_checkDIMACS_toDIMACS {φ : CNF ℕ} {pbp : String}
     {asg : Option (List (Literal ℕ))} (h : checkDIMACS φ.toDIMACS pbp = some (.sat asg)) :
     φ.Satisfiable := by
-  obtain ⟨ψ, hψ, hs⟩ := satisfiable_of_checkDIMACS h
-  rw [parseDIMACS_toDIMACS, Option.some.injEq] at hψ
-  exact hψ ▸ hs
+  obtain ⟨_, hψ, hs⟩ := satisfiable_of_checkDIMACS h
+  exact Option.some.inj ((parseDIMACS_toDIMACS φ).symm.trans hψ) ▸ hs
 
 end Cslib.Logic.PL.VeriPB.Text
 

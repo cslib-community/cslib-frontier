@@ -85,9 +85,8 @@ subroutine (`0..239` for `ReducedKWise`, `240..255` for fixed control/input/outp
 noncomputable def rSuccinct : ℕ :=
   292 + scratchSuccinct
 
-theorem le_rSuccinct : 292 ≤ rSuccinct := by
-  dsimp only [rSuccinct]
-  omega
+theorem le_rSuccinct : 292 ≤ rSuccinct :=
+  Nat.le_add_right _ _
 
 /-- Canonical embedding `Fin 292 → Fin rSuccinct` for fixed control, hash, and parameter
 registers. -/
@@ -1029,20 +1028,16 @@ private theorem OpState.set_sReg {U V w n_max base : ℕ} {θ : QuotHashSeed U n
     {k : Fin 292} {v : ℕ} (hbdd : (x'.set (sReg k) v).Bounded w)
     (hlt : k.val < 256) (hne : k ∉ ([0, 2, 240, 244, 245, 246] : List (Fin 292))) :
     OpState U V w n_max base θ u x (x'.set (sReg k) v) := by
-  have hkeep {i : Fin 292} (hi : i ≠ k) : (x'.set (sReg k) v).regs (sReg i) = x'.regs (sReg i) := by
-    rw [Data.set_regs, update_sReg, ite_eq_right_iff]; exact fun h => absurd h hi
-  have hni : ∀ i ∈ ([0, 2, 240, 244, 245, 246] : List (Fin 292)), i ≠ k :=
-    fun i hi heq => hne (heq ▸ hi)
-  exact ⟨hbdd, hs.mem,
-    (hkeep (hni 240 (by decide))).trans hs.frontier,
-    (hkeep (hni 0 (by decide))).trans hs.base_reg,
-    (hkeep (hni 244 (by decide))).trans hs.tag,
-    (hkeep (hni 245 (by decide))).trans hs.argU,
-    (hkeep (hni 246 (by decide))).trans hs.argV,
-    (hkeep (hni 2 (by decide))).trans hs.hashOut,
-    fun j => (by
-      rw [Data.set_regs, Function.update_of_ne (ne_paramReg_of_lt hlt j).symm]
-      exact hs.params j)⟩
+  have hkeep {i : Fin 292} (hi : i ∈ ([0, 2, 240, 244, 245, 246] : List (Fin 292))) :
+      (x'.set (sReg k) v).regs (sReg i) = x'.regs (sReg i) := by
+    rw [Data.set_regs, update_sReg, ite_eq_right_iff]
+    exact fun heq => (hne (heq ▸ hi)).elim
+  refine ⟨hbdd, hs.mem,
+    (hkeep (by decide)).trans hs.frontier, (hkeep (by decide)).trans hs.base_reg,
+    (hkeep (by decide)).trans hs.tag, (hkeep (by decide)).trans hs.argU,
+    (hkeep (by decide)).trans hs.argV, (hkeep (by decide)).trans hs.hashOut, fun j => ?_⟩
+  rw [Data.set_regs, Function.update_of_ne (ne_paramReg_of_lt hlt j).symm]
+  exact hs.params j
 
 /-- Shared prefix execution helper for `opCode`: executes `loadParamsCode U V w n_max`, `extCode`,
 `hashEvalCode U w n_max`, and `zeroReg := 0`, producing the state `x₃` at the entry of the
@@ -1114,9 +1109,8 @@ private theorem exec_opPrefix_ne_zero {U V w n_max base : ℕ}
       x₄.regs oneReg = 1 ∧
       OpState U V w n_max base θ u x x₄ := by
   obtain ⟨x₃, hex_pre, hzero₃, hs₃⟩ := exec_opPrefix hwf hV_fit hfit θ u hrep hu_reg
-  have hcond_neg0 : ¬(Cond.eq tagReg zeroReg).Holds x₃ := by
-    change x₃.regs tagReg ≠ x₃.regs zeroReg
-    rw [hs₃.tag, hzero₃]; exact htag_ne
+  have hcond_neg0 : ¬(Cond.eq tagReg zeroReg).Holds x₃ :=
+    fun h => htag_ne (hs₃.tag.symm.trans (h.trans hzero₃))
   have hex_o : ExecWithin (B := .exact) w (.op (.const oneReg 1)) x₃ (x₃.set oneReg 1) 1 :=
     ExecWithin.const (fits_one (Nat.ne_of_gt hwf.1))
   exact ⟨_, fun hex_br => hex_pre (ExecWithin.branch_neg hcond_neg0 (hex_o.seq hex_br)),
@@ -1221,8 +1215,7 @@ private theorem exec_opCode_query {U V w n_max base : ℕ}
   rw [clientState_width, queryWithHashGenProg_mk, hst_qry] at hm_qry
   rw [clientResult_width, queryWithHashGenProg_mk, hres_qry] at hout_qry
   have hymem : y.mem = x.mem := (congrArg Memory.State.mem hm_qry).trans hs₃.mem
-  have hex_all := hex_pre (ExecWithin.branch_pos
-    (by change x₃.regs tagReg = x₃.regs zeroReg; rw [hs₃.tag, htag, hzero₃]) hex_qry)
+  have hex_all := hex_pre (ExecWithin.branch_pos (hs₃.tag.trans (htag.trans hzero₃.symm)) hex_qry)
   refine ⟨y, _, hex_all, decode_query_optionWords u (s_abs u) y.regs (hout_qry 0) (hout_qry 1),
     ⟨hex_all.bounded hx_bdd,
       (regs_sReg_of_frame tmpLayout_tmpQry hframe_qry (by decide) (by decide)).trans hs₃.base_reg,
@@ -1285,8 +1278,7 @@ private theorem exec_opCode_insert {U V w n_max base : ℕ}
         exact validProg_insertWithHash hpre_ins
           ⟨wellFormed_memoryState hs₄.bdd, le_of_eq hs₄.frontier.symm⟩)
   rw [clientState_width, insertWithHashGenProg_mk] at hm_ins
-  have hex_all := hex_pre (ExecWithin.branch_pos
-    (by change x₄.regs tagReg = x₄.regs oneReg; rw [hs₄.tag, htag, hone₄]) hex_ins)
+  have hex_all := hex_pre (ExecWithin.branch_pos (hs₄.tag.trans (htag.trans hone₄.symm)) hex_ins)
   obtain ⟨hy_rep, hmod⟩ := rep_and_modifies_of_table_post htab hseed (hex_all.bounded hx_bdd)
     ((regs_sReg_of_frame tmpLayout_tmpIns hframe_ins (by decide) (by decide)).trans hs₄.base_reg)
     hs₄.mem hs₄.frontier hm_ins hfr_ins hout_ins hdict_ins

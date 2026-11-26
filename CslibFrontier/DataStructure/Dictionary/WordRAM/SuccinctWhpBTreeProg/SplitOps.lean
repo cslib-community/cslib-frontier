@@ -335,19 +335,10 @@ private theorem realizes_writeSplitFourBody :
     first
     | decide
     | exact henv.fits_const (by decide)
-    | exact henv.fits_of_le_n_max (hidx1.le.trans htot_le)
-    | exact henv.fits_of_le_n_max (hidx2.le.trans htot_le)
-    | exact henv.fits_of_le_n_max (hidx3.le.trans htot_le)
     | exact henv.fits_of_le_n_max (by omega)
-    | exact henv.btMeta_safe hidx1
-    | exact henv.btKeys_safe hidx1
-    | exact henv.btVals_safe hidx1
-    | exact henv.btMeta_safe hidx2
-    | exact henv.btKeys_safe hidx2
-    | exact henv.btVals_safe hidx2
-    | exact henv.btMeta_safe hidx3
-    | exact henv.btKeys_safe hidx3
-    | exact henv.btVals_safe hidx3
+    | exact henv.btMeta_safe ‹_›
+    | exact henv.btKeys_safe ‹_›
+    | exact henv.btVals_safe ‹_›
     | exact henv.bktMeta_safe (by omega)
 
 
