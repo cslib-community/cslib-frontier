@@ -2658,6 +2658,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
 public import CslibFrontier.Computability.Complexity.Problems.Clique
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Schedule
+public import CslibFrontier.Languages.Electrical.LinearCircuit
 public import CslibFrontier.Probability.Product.ConditionalExpectation
 public import CslibFrontier.Logics.Propositional.CNF.Moser.LocalLemma
 public import CslibFrontier.Logics.FirstOrder.Trakhtenbrot.Undecidability
@@ -7643,7 +7644,6 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.ProductValidated
 public import CslibFrontier.Algorithms.Lean.MaxFlow.MinCostFlow
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.Natural
-public import CslibFrontier.Engineering.Electrical.LinearCircuit
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Littlestone
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.Decompositions
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.DrawingClauseVertices

@@ -310,6 +310,23 @@ private theorem P₂_rhs_reconstruct (x : κ → ℝ) (v : m → ℝ) :
   rw [reconstruct, mulVec_sub, mulVec_add, mulVec_add, mulVec_sub, P₂_F_Q₁, P₂_F_Q₂, zero_sub,
     add_assoc, ← mulVec_add, neg_add_cancel]
 
+/-- The backward direction of `isSolutionOn_iff`, which needs no `UniqueDiffOn`. -/
+private theorem isSolutionOn_of_reduced {u : ℝ → m → ℝ} {z : ℝ → ι → ℝ} {s : Set ℝ}
+    (hrec : ∀ t ∈ s, z t = D.reconstruct (D.Q₁' *ᵥ z t) (u t))
+    (hx : ∀ t ∈ s, HasDerivWithinAt (fun τ => D.Q₁' *ᵥ z τ)
+      (D.A *ᵥ (D.Q₁' *ᵥ z t) + D.B *ᵥ u t + D.c) s t) :
+    S.IsSolutionOn u z s := by
+  intro t ht
+  have h := hasDerivWithinAt_mulVec (S.E * D.Q₁) (hx t ht)
+  simp only [← E_mulVec] at h
+  convert h using 1
+  set w := D.A *ᵥ (D.Q₁' *ᵥ z t) + D.B *ᵥ u t + D.c
+  have hP₂ : D.P₂ *ᵥ (S.F *ᵥ z t + S.G *ᵥ u t + S.b) = 0 := by
+    rw [hrec t ht]
+    exact P₂_rhs_reconstruct _ _
+  rw [eq_of_P (D := D) (S.F *ᵥ z t + S.G *ᵥ u t + S.b), eq_of_P (D := D) ((S.E * D.Q₁) *ᵥ w),
+    hP₂, P₁_E_Q₁, P₂_E_Q₁, P₁_rhs]
+
 /-- **Exact decoupling.** On a time set with unique derivatives (such as `[0, ∞)`), `z` solves
 `E ż = F z + G u + b` exactly when (i) at every time it is reconstructed from its differential
 coordinates `x = Q₁' z` and the input value, and (ii) `x` solves `ẋ = A x + B u + c`. -/
@@ -332,37 +349,15 @@ theorem isSolutionOn_iff {u : ℝ → m → ℝ} {z : ℝ → ι → ℝ} {s : S
     · have h := hasDerivWithinAt_mulVec D.P₁ (hz t ht)
       simp only [P₁_E_mulVec, P₁_rhs] at h
       exact h
-  · rintro ⟨hrec, hx⟩ t ht
-    have h := hasDerivWithinAt_mulVec (S.E * D.Q₁) (hx t ht)
-    simp only [← E_mulVec] at h
-    convert h using 1
-    set w := D.A *ᵥ (D.Q₁' *ᵥ z t) + D.B *ᵥ u t + D.c
-    have hP₂ : D.P₂ *ᵥ (S.F *ᵥ z t + S.G *ᵥ u t + S.b) = 0 := by
-      rw [hrec t ht]
-      exact P₂_rhs_reconstruct _ _
-    rw [eq_of_P (D := D) (S.F *ᵥ z t + S.G *ᵥ u t + S.b), eq_of_P (D := D) ((S.E * D.Q₁) *ᵥ w),
-      hP₂, P₁_E_Q₁, P₂_E_Q₁, P₁_rhs]
+  · exact fun ⟨hrec, hx⟩ => isSolutionOn_of_reduced (D := D) hrec hx
 
 /-- **Reconstruction.** Every solution `x` of the reduced ODE `ẋ = A x + B u + c` on `s` yields
 the solution `t ↦ reconstruct (x t) (u t)` of `S`, whose differential coordinates are `x`. -/
 theorem isSolutionOn_reconstruct {u : ℝ → m → ℝ} {x : ℝ → κ → ℝ} {s : Set ℝ}
     (hx : ∀ t ∈ s, HasDerivWithinAt x (D.A *ᵥ x t + D.B *ᵥ u t + D.c) s t) :
-    S.IsSolutionOn u (fun t => D.reconstruct (x t) (u t)) s := by
-  have hs := (isSolutionOn_iff (D := D) (u := u) (z := fun t => D.reconstruct (x t) (u t))
-    (s := s))
-  -- The backward direction of `isSolutionOn_iff` does not use `UniqueDiffOn`.
-  intro t ht
-  have hx' : ∀ t ∈ s, HasDerivWithinAt (fun τ => D.Q₁' *ᵥ D.reconstruct (x τ) (u τ))
-      (D.A *ᵥ (D.Q₁' *ᵥ D.reconstruct (x t) (u t)) + D.B *ᵥ u t + D.c) s t := by
-    simpa only [Q₁'_mulVec_reconstruct] using hx
-  have h := hasDerivWithinAt_mulVec (S.E * D.Q₁) (hx' t ht)
-  simp only [← E_mulVec] at h
-  convert h using 1
-  clear hs
-  set w := D.A *ᵥ x t + D.B *ᵥ u t + D.c
-  simp only [Q₁'_mulVec_reconstruct]
-  rw [eq_of_P (D := D) (S.F *ᵥ _ + S.G *ᵥ u t + S.b), eq_of_P (D := D) ((S.E * D.Q₁) *ᵥ w),
-    P₂_rhs_reconstruct, P₁_E_Q₁, P₂_E_Q₁, P₁_rhs, Q₁'_mulVec_reconstruct]
+    S.IsSolutionOn u (fun t => D.reconstruct (x t) (u t)) s :=
+  isSolutionOn_of_reduced (D := D) (fun t _ => by rw [Q₁'_mulVec_reconstruct])
+    (by simpa only [Q₁'_mulVec_reconstruct] using hx)
 
 /-- **Existence and consistent initial states.** For an input continuous on `[0, ∞)`, an
 initial state `z₀` starts a solution of `S` on `[0, ∞)` exactly when it satisfies the algebraic
@@ -442,8 +437,7 @@ theorem isSolutionOn_iff_realization {p : Type*} (H : Matrix p ι ℝ) {z₀ : �
     · rw [add_sub_assoc, ← h, add_sub_cancel]
     · rw [add_sub_assoc] at h
       exact sub_eq_of_eq_add' h
-  · simp [realization, IndexOneDecoupling.deviation, DescriptorSystem.deviation, A, B, c,
-]
+  · simp [realization, IndexOneDecoupling.deviation, DescriptorSystem.deviation, A, B, c]
 
 /-- The output deviation of a solution in the form of `isSolutionOn_iff_realization` (i). -/
 theorem output_eq {p : Type*} (H : Matrix p ι ℝ) {z₀ v : ι → ℝ} {w : m → ℝ}
