@@ -15,7 +15,7 @@ public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTric
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
-/-! Trick's knapsack propagator
+/-! The two-equality knapsack propagator
 (`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrick`) for an ordinary client:
 
 * the theorems applied to the propagator's output;

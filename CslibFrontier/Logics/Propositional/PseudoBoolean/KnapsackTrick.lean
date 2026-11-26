@@ -7,18 +7,23 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
+-- `import all`: the emitter reuses the Boolean emitter's private `clause` and its partial sums.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 
 /-!
-# Trick's knapsack propagator with proof logging
+# A two-equality knapsack propagator with proof logging
 
-*Trick's knapsack constraint* over `n` items with integer domains asks for values `xⱼ` of the
-items, `W` of the weight and `P` of the profit, each in its domain, with `∑ wⱼ xⱼ = W` and
-`∑ pⱼ xⱼ = P`. This file gives a propagator for it, by a dynamic program over exact states, that
-writes a kernel-format VeriPB proof justifying each value it removes, after §3.3 of [Demirović,
-McCreesh, McIlree, Nordström, Oertel and
-Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024] and the framework of [Gocht,
-McCreesh and Nordström][GochtMcCreeshNordstrom2022]. Its acceptance by the checker and its
+The *knapsack constraint with two equalities* over `n` items with integer domains asks for values
+`xⱼ` of the items, `W` of the weight and `P` of the profit, each in its domain, with
+`∑ wⱼ xⱼ = W` and `∑ pⱼ xⱼ = P`. §3.3 (p. 9:11) of [Demirović, McCreesh, McIlree, Nordström,
+Oertel and Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024] attributes this form to
+Fahle and Sellmann, Sellmann, Katriel et al., Malitsky et al. and MiniZinc, and cites Trick for a
+propagator of a single `0`–`1` inequality whose sum is a variable. This file gives a propagator
+for the two-equality form in Trick's style, a decision diagram over exact states pruned backwards
+from its last layer, that writes a kernel-format VeriPB proof justifying each value it removes,
+after §3.3 and the framework of [Gocht, McCreesh and Nordström][GochtMcCreeshNordstrom2022]. The
+names `Knapsack.Trick` refer to that propagation method. Its acceptance by the checker and its
 exactness are proved in
 `CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrickProof`.
 
@@ -69,8 +74,8 @@ nothing (difference 5 allows deleting the intermediate constraints at the end).
 
 * `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst`: an instance, with its domains.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.formula`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.antecedent`: the encoding and the antecedent `D`.
-* `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.lay`: the layers.
+  `Inst.antecedent`: the encoding and the antecedent `D`.
+* `Inst.lay`: the layers.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Propagation`,
   `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.propagate`: the propagator and its output.
 
@@ -83,7 +88,7 @@ nothing (difference 5 allows deleting the intermediate constraints at the end).
   Solver*][GochtMcCreeshNordstrom2022]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Logic.PL.VeriPB.Knapsack.Trick
 
@@ -93,8 +98,8 @@ open PBConstr
 the value is in the current domain. -/
 abbrev Dom := List (ℕ × Bool)
 
-/-- **An instance of Trick's knapsack constraint**: `n` items of weights `w` and profits `p`, the
-domains of the items, and those of the weight `W` and of the profit `P`. -/
+/-- **An instance of the two-equality knapsack constraint**: `n` items of weights `w` and profits
+`p`, the domains of the items, and those of the weight `W` and of the profit `P`. -/
 structure Inst where
   /-- The number of items. -/
   n : ℕ
@@ -206,19 +211,19 @@ def formula : List PBConstr :=
   (List.range I.n).flatMap fun j => [alo (I.off j) (I.len j), amo (I.off j) (I.len j)]
 
 /-- The number of the at-least-one constraint of item `j`. -/
-def aloId (j : ℕ) : ℕ := 9 + 2 * j
+private def aloId (j : ℕ) : ℕ := 9 + 2 * j
 
 /-- The number of the at-most-one constraint of item `j`. -/
-def amoId (j : ℕ) : ℕ := 10 + 2 * j
+private def amoId (j : ℕ) : ℕ := 10 + 2 * j
 
 /-- The first number after the formula. -/
-def start : ℕ := 9 + 2 * I.n
+private def start : ℕ := 9 + 2 * I.n
 
 /-- The variables preserved: the direct literals. -/
 def pres : List ℕ := List.range I.M
 
 /-- **The antecedent `D`**: the negations `[x ≠ v]` of the values not in the current domains. -/
-def antecedent : List (Literal ℕ) :=
+private def antecedent : List (Literal ℕ) :=
   ((List.range I.n).flatMap fun j =>
     (List.range (I.len j)).filterMap fun k =>
       if dlive (I.dom j) k then none else some (I.var j k, false)) ++
@@ -228,41 +233,41 @@ def antecedent : List (Literal ℕ) :=
     if dlive I.pDom k then none else some (I.pBase + k, false))
 
 /-- The negation of the antecedent, the first literals of every derived clause. -/
-def negD : List (Literal ℕ) := I.antecedent.map Std.Sat.Literal.negate
+private def negD : List (Literal ℕ) := I.antecedent.map Std.Sat.Literal.negate
 
 /-- The direct literals of the values of item `i` not in its current domain. -/
-def negItem (i : ℕ) : List (Literal ℕ) :=
+private def negItem (i : ℕ) : List (Literal ℕ) :=
   (List.range (I.len i)).filterMap fun k =>
     if dlive (I.dom i) k then none else some (I.var i k, true)
 
 /-! ### The layers -/
 
 /-- The successor of the state `st` by the value at position `k` of item `i`. -/
-def succ (i : ℕ) (st : St) (k : ℕ) : St := (st.1 + I.cw i k, st.2 + I.cp i k)
+private def succ (i : ℕ) (st : St) (k : ℕ) : St := (st.1 + I.cw i k, st.2 + I.cp i k)
 
 /-- The states of the next layer. -/
-def nextL (i : ℕ) (L : List St) : List St :=
+private def nextL (i : ℕ) (L : List St) : List St :=
   (L.flatMap fun st => (livePos (I.dom i)).map (I.succ i st)).dedup
 
 /-- **The states of layer `i`**, those reached by the first `i` items. -/
-def lay : ℕ → List St
+private def lay : ℕ → List St
   | 0 => [(0, 0)]
   | i + 1 => I.nextL i (lay i)
 
 /-- A state of the last layer is feasible: its weight and profit are in the current domains. -/
-def feasible (st : St) : Bool :=
+private def feasible (st : St) : Bool :=
   (livePos I.wDom).any (fun k => dval I.wDom k == st.1) &&
     (livePos I.pDom).any (fun k => dval I.pDom k == st.2)
 
 /-- The states of layer `i` with a feasible completion, by `k = n - i` backward layers. -/
-def aliveAt : ℕ → ℕ → List St
+private def aliveAt : ℕ → ℕ → List St
   | 0, i => (I.lay i).filter I.feasible
   | k + 1, i =>
     let A := aliveAt k (i + 1)
     (I.lay i).filter fun st => (livePos (I.dom i)).any fun k => I.succ i st k ∈ A
 
 /-- The states of layer `i` with a feasible completion. -/
-def alive (i : ℕ) : List St := I.aliveAt (I.n - i) i
+private def alive (i : ℕ) : List St := I.aliveAt (I.n - i) i
 
 end Inst
 
@@ -280,19 +285,19 @@ structure Node where
   c : ℕ
 
 /-- The `d`-th extension variable of a node. -/
-def Node.z (u : Node) (d : ℕ) : ℕ := u.v + d
+private def Node.z (u : Node) (d : ℕ) : ℕ := u.v + d
 
 /-- The number of `z_d ⇒ …`. -/
-def Node.fwd (u : Node) (d : ℕ) : ℕ := u.c + 4 * d + 1
+private def Node.fwd (u : Node) (d : ℕ) : ℕ := u.c + 4 * d + 1
 
 /-- The number of `… ⇒ z_d`. -/
-def Node.bwd (u : Node) (d : ℕ) : ℕ := u.c + 4 * d + 3
+private def Node.bwd (u : Node) (d : ℕ) : ℕ := u.c + 4 * d + 3
 
 /-- The state variable `S`. -/
-def Node.S (u : Node) : ℕ := u.v + 4
+private def Node.S (u : Node) : ℕ := u.v + 4
 
 /-- A placeholder node, never reached on the layers. -/
-def noNode : Node := ⟨(0, 0), 0, 0⟩
+private def noNode : Node := ⟨(0, 0), 0, 0⟩
 
 /-- A transition out of a node: the position of the value of its item, the target and the number
 of `S ∧ [x = v] ⇒ S'`. -/
@@ -326,16 +331,17 @@ structure Layer where
   alo : ℕ
 
 /-- The node of a layer with the state `st`. -/
-def tgt (L : List Node) (st : St) : Node := (L.find? (·.st == st)).getD noNode
+private def tgt (L : List Node) (st : St) : Node := (L.find? (·.st == st)).getD noNode
 
 /-- The target of the transitions by the position `k`. -/
-def Out.tgtOf (o : Out) (k : ℕ) : Node := ((o.tr.find? (·.pos == k)).map (·.tgt)).getD noNode
+private def Out.tgtOf (o : Out) (k : ℕ) : Node :=
+  ((o.tr.find? (·.pos == k)).map (·.tgt)).getD noNode
 
 /-- The number of the implication of the transition by the position `k`. -/
-def Out.tau (o : Out) (k : ℕ) : ℕ := ((o.tr.find? (·.pos == k)).map (·.id)).getD 0
+private def Out.tau (o : Out) (k : ℕ) : ℕ := ((o.tr.find? (·.pos == k)).map (·.id)).getD 0
 
 /-- The state constraint `W↑ + W↓ + P↑ + P↓ ≥ 4` over the variables `v, …, v + 3`. -/
-def cS (v : ℕ) : PBConstr := ⟨(List.range 4).map fun d => (1, (v + d, true)), 4⟩
+private def cS (v : ℕ) : PBConstr := ⟨(List.range 4).map fun d => (1, (v + d, true)), 4⟩
 
 namespace Inst
 
@@ -343,30 +349,30 @@ variable (I : Inst)
 
 /-- The coefficients of the partial state `d`: the weights for `W↑`, `W↓`, the profits for `P↑`,
 `P↓`. -/
-def dimA (d : ℕ) : ℕ → ℕ → ℕ := if d < 2 then I.cw else I.cp
+private def dimA (d : ℕ) : ℕ → ℕ → ℕ := if d < 2 then I.cw else I.cp
 
 /-- The polarity of the partial state `d`: `true` for `W↑`, `P↑`, and `false` for `W↓`, `P↓`,
 which bound the sum over the negated literals from below. -/
-def dimPol (d : ℕ) : Bool := d % 2 == 0
+private def dimPol (d : ℕ) : Bool := d % 2 == 0
 
 /-- The coordinate of the state that the partial state `d` bounds. -/
-def dimS (st : St) (d : ℕ) : ℕ := if d < 2 then st.1 else st.2
+private def dimS (st : St) (d : ℕ) : ℕ := if d < 2 then st.1 else st.2
 
 /-- The partial state `d` of a state of layer `i`: `∑ a ℓ ≥ s` for `↑`, and `∑ a ¬ℓ ≥ ∑ a - s`, that
 is `∑ a ℓ ≤ s`, for `↓`. -/
-def cD (i : ℕ) (st : St) (d : ℕ) : PBConstr :=
+private def cD (i : ℕ) (st : St) (d : ℕ) : PBConstr :=
   I.dimC (I.dimA d) (dimPol d) i (if dimPol d then dimS st d else I.tot (I.dimA d) i - dimS st d)
 
 /-- The node of the state `st` created at `e`. -/
-def mkNode (e : Acc) (st : St) : Node := ⟨st, e.var, e.next⟩
+private def mkNode (e : ProofLog) (st : St) : Node := ⟨st, e.var, e.next⟩
 
 /-- The reifications of a node of layer `i`. -/
-def nodeSteps (i : ℕ) (u : Node) : List TopStep :=
+private def nodeSteps (i : ℕ) (u : Node) : List TopStep :=
   reify (u.z 0) (I.cD i u.st 0) ++ reify (u.z 1) (I.cD i u.st 1) ++ reify (u.z 2) (I.cD i u.st 2) ++
     reify (u.z 3) (I.cD i u.st 3) ++ reify u.S (cS u.v)
 
 /-- Create the nodes of layer `i`. -/
-def mkLayer (i : ℕ) : Acc → List St → Acc × List Node
+private def mkLayer (i : ℕ) : ProofLog → List St → ProofLog × List Node
   | e, [] => (e, [])
   | e, st :: sts =>
     let u := mkNode e st
@@ -374,12 +380,12 @@ def mkLayer (i : ℕ) : Acc → List St → Acc × List Node
     (r.1, u :: r.2)
 
 /-- The implication `S_u ∧ [xᵢ = v] ⇒ S_t` for the value at position `k`. -/
-def trClause (i k : ℕ) (u t : Node) : PBConstr :=
+private def trClause (i k : ℕ) (u t : Node) : PBConstr :=
   clause [(u.S, false), (I.var i k, false), (t.S, true)]
 
 /-- The transition steps: add the forward half of each partial state of `u` to the backward half
 of that of `t`, then RUP, the at-most-one constraint of item `i` first. -/
-def trSteps (i k : ℕ) (u t : Node) (e : Acc) : List TopStep :=
+private def trSteps (i k : ℕ) (u t : Node) (e : ProofLog) : List TopStep :=
   [.step (.pol [.id (u.fwd 0), .id (t.bwd 0), .add]),
     .step (.pol [.id (u.fwd 1), .id (t.bwd 1), .add]),
     .step (.pol [.id (u.fwd 2), .id (t.bwd 2), .add]),
@@ -388,7 +394,7 @@ def trSteps (i k : ℕ) (u t : Node) (e : Acc) : List TopStep :=
       .id (e.next + 1), .id (e.next + 2), .id (e.next + 3), .id (t.bwd 4)])]
 
 /-- The transitions out of `u` into the layer `L'`, for the positions `ks`. -/
-def trans1 (i : ℕ) (L' : List Node) (u : Node) : Acc → List ℕ → Acc × List Tr
+private def trans1 (i : ℕ) (L' : List Node) (u : Node) : ProofLog → List ℕ → ProofLog × List Tr
   | e, [] => (e, [])
   | e, k :: ks =>
     let t := tgt L' (I.succ i u.st k)
@@ -396,17 +402,17 @@ def trans1 (i : ℕ) (L' : List Node) (u : Node) : Acc → List ℕ → Acc × L
     (r.1, ⟨k, t, e.next + 4⟩ :: r.2)
 
 /-- `S_u ∧ D ⇒ ⋁ S_t` over the targets of the transitions `tr`. -/
-def succClause (i : ℕ) (u : Node) (tr : List Tr) : PBConstr :=
+private def succClause (i : ℕ) (u : Node) (tr : List Tr) : PBConstr :=
   clause ((u.S, false) :: I.negItem i ++ tr.map fun x => (x.tgt.S, true))
 
 /-- The transitions out of `u`, then `S_u ∧ D ⇒ ⋁ S_t` by RUP. -/
-def transOut (i : ℕ) (L' : List Node) (e : Acc) (u : Node) : Acc × Out :=
+private def transOut (i : ℕ) (L' : List Node) (e : ProofLog) (u : Node) : ProofLog × Out :=
   let r := I.trans1 i L' u e (livePos (I.dom i))
   (r.1.push [.step (.rup (I.succClause i u r.2) (.neg :: r.2.map (fun x => .id x.id) ++
     [.id (aloId i)]))] 1 0, ⟨u, r.2, r.1.next⟩)
 
 /-- The transitions out of a layer. -/
-def trans (i : ℕ) (L' : List Node) : Acc → List Node → Acc × List Out
+private def trans (i : ℕ) (L' : List Node) : ProofLog → List Node → ProofLog × List Out
   | e, [] => (e, [])
   | e, u :: us =>
     let r := I.transOut i L' e u
@@ -414,11 +420,11 @@ def trans (i : ℕ) (L' : List Node) : Acc → List Node → Acc × List Out
     (q.1, r.2 :: q.2)
 
 /-- The at-least-one constraint of a layer, under the domains: `D ⇒ ⋁ S_u`. -/
-def aloClause (L : List Node) : PBConstr := clause (I.negD ++ L.map fun u => (u.S, true))
+private def aloClause (L : List Node) : PBConstr := clause (I.negD ++ L.map fun u => (u.S, true))
 
 /-- The forward pass: from layer `i`, `k` more layers with their transitions and at-least-one
 constraints. The records are returned latest first. -/
-def fwd : ℕ → ℕ → Acc → List Node → ℕ → List Layer → Acc × List Layer
+private def fwd : ℕ → ℕ → ProofLog → List Node → ℕ → List Layer → ProofLog × List Layer
   | 0, i, e, L, a, recs => (e, ⟨i, L, [], a⟩ :: recs)
   | k + 1, i, e, L, a, recs =>
     let r₁ := I.mkLayer (i + 1) e (I.nextL i (L.map (·.st)))
@@ -429,7 +435,7 @@ def fwd : ℕ → ℕ → Acc → List Node → ℕ → List Layer → Acc × Li
 
 /-- **The forward pass from the start**: the node of layer `0`, its at-least-one constraint by
 RUP, and the layers `1, …, n`. The records are returned latest first. -/
-def forward : Acc × List Layer :=
+private def forward : ProofLog × List Layer :=
   let r₀ := I.mkLayer 0 ⟨[], I.start, I.M⟩ (I.lay 0)
   let u₀ := r₀.2.headD noNode
   let e₁ := r₀.1.push [.step (.rup (I.aloClause r₀.2) [.neg, .id (u₀.bwd 0), .id (u₀.bwd 1),
@@ -439,50 +445,50 @@ def forward : Acc × List Layer :=
 /-! ### The last layer and the sums -/
 
 /-- The domain of the sum `s`: `W` for `false`, `P` for `true`. -/
-def sDom (s : Bool) : Dom := if s then I.pDom else I.wDom
+private def sDom (s : Bool) : Dom := if s then I.pDom else I.wDom
 
 /-- The first variable of the sum `s`. -/
-def sBase (s : Bool) : ℕ := if s then I.pBase else I.wBase
+private def sBase (s : Bool) : ℕ := if s then I.pBase else I.wBase
 
 /-- The coordinate of the state that the sum `s` is. -/
-def sCoord (s : Bool) (st : St) : ℕ := if s then st.2 else st.1
+private def sCoord (s : Bool) (st : St) : ℕ := if s then st.2 else st.1
 
 /-- The partial state `↑` of the sum `s`. -/
-def sUp (s : Bool) : ℕ := if s then 2 else 0
+private def sUp (s : Bool) : ℕ := if s then 2 else 0
 
 /-- The number of the at-least-one constraint of the sum `s`. -/
-def sAlo (s : Bool) : ℕ := if s then 7 else 5
+private def sAlo (s : Bool) : ℕ := if s then 7 else 5
 
 /-- The number of the at-most-one constraint of the sum `s`. -/
-def sAmo (s : Bool) : ℕ := if s then 8 else 6
+private def sAmo (s : Bool) : ℕ := if s then 8 else 6
 
 /-- The clause `S_t ⇒ [s ≠ u]` for the value at position `k` of the sum `s`. -/
-def sClause (s : Bool) (t : Node) (k : ℕ) : PBConstr :=
+private def sClause (s : Bool) (t : Node) (k : ℕ) : PBConstr :=
   clause [(t.S, false), (I.sBase s + k, false)]
 
 /-- The steps of `S_t ⇒ [s ≠ u]`: for `u` above the coordinate of `t`, add the forward half of its
 `↓` to the first inequality of the sum, and otherwise that of its `↑` to the second; then RUP, the
 at-most-one constraint of the sum first. -/
-def sSteps (s : Bool) (t : Node) (k : ℕ) (e : Acc) : List TopStep :=
+private def sSteps (s : Bool) (t : Node) (k : ℕ) (e : ProofLog) : List TopStep :=
   let ops := if sCoord s t.st < dval (I.sDom s) k then
       [PolOp.id (t.fwd (sUp s + 1)), .id (if s then 3 else 1), .add]
     else [PolOp.id (t.fwd (sUp s)), .id (if s then 4 else 2), .add]
   [.step (.pol ops), .step (.rup (I.sClause s t k) [.neg, .id (sAmo s), .id (t.fwd 4), .id e.next])]
 
 /-- The positions of the current domain of the sum `s` other than the coordinate of `t`. -/
-def others (s : Bool) (t : Node) : List ℕ :=
+private def others (s : Bool) (t : Node) : List ℕ :=
   (livePos (I.sDom s)).filter fun k => dval (I.sDom s) k != sCoord s t.st
 
 /-- The clauses `S_t ⇒ [s ≠ u]` of the node `t`, for both sums, with their numbers: entries
 `((S_t, s, k), number)`. -/
-def sAll (t : Node) : Acc → List (Bool × ℕ) → Acc × List ((ℕ × Bool × ℕ) × ℕ)
+private def sAll (t : Node) : ProofLog → List (Bool × ℕ) → ProofLog × List ((ℕ × Bool × ℕ) × ℕ)
   | e, [] => (e, [])
   | e, (s, k) :: xs =>
     let r := sAll t (e.push (I.sSteps s t k e) 2 0) xs
     (r.1, ((t.S, s, k), e.next + 1) :: r.2)
 
 /-- The clauses of all nodes of the last layer. -/
-def sLayer : Acc → List Node → Acc × List ((ℕ × Bool × ℕ) × ℕ)
+private def sLayer : ProofLog → List Node → ProofLog × List ((ℕ × Bool × ℕ) × ℕ)
   | e, [] => (e, [])
   | e, t :: ts =>
     let r := I.sAll t e ((I.others false t).map (false, ·) ++ (I.others true t).map (true, ·))
@@ -490,19 +496,20 @@ def sLayer : Acc → List Node → Acc × List ((ℕ × Bool × ℕ) × ℕ)
     (q.1, r.2 ++ q.2)
 
 /-- The entry for `x` of a list of pairs. -/
-def slook (sl : List ((ℕ × Bool × ℕ) × ℕ)) (x : ℕ × Bool × ℕ) : ℕ :=
+private def slook (sl : List ((ℕ × Bool × ℕ) × ℕ)) (x : ℕ × Bool × ℕ) : ℕ :=
   ((sl.find? (·.1 == x)).map (·.2)).getD 0
 
 /-- The refutation of a state under the domains: `D ⇒ ¬S`. -/
-def deadClause (S : ℕ) : PBConstr := clause (I.negD ++ [(S, false)])
+private def deadClause (S : ℕ) : PBConstr := clause (I.negD ++ [(S, false)])
 
 /-- The sum that refutes an infeasible state of the last layer: `W` if its weight is not in the
 current domain, and `P` otherwise. -/
-def deadSum (st : St) : Bool := (livePos I.wDom).any (fun k => dval I.wDom k == st.1)
+private def deadSum (st : St) : Bool := (livePos I.wDom).any (fun k => dval I.wDom k == st.1)
 
 /-- The infeasible states of the last layer: refute `S_t` by RUP from its clauses `S_t ⇒ [s ≠ u]`
 and the at-least-one constraint of the sum. -/
-def deadFinal (sl : List ((ℕ × Bool × ℕ) × ℕ)) : Acc → List Node → Acc × List (ℕ × ℕ)
+private def deadFinal (sl : List ((ℕ × Bool × ℕ) × ℕ)) :
+    ProofLog → List Node → ProofLog × List (ℕ × ℕ)
   | e, [] => (e, [])
   | e, t :: ts =>
     if I.feasible t.st then deadFinal sl e ts
@@ -515,7 +522,8 @@ def deadFinal (sl : List ((ℕ × Bool × ℕ) × ℕ)) : Acc → List Node → 
 
 /-- The states of layer `i` without a feasible completion, refuted by RUP from the refutations of
 their targets and `S ∧ D ⇒ ⋁ S'`. -/
-def deadLayer (i : ℕ) (A : List St) (dl : List (ℕ × ℕ)) : Acc → List Out → Acc × List (ℕ × ℕ)
+private def deadLayer (i : ℕ) (A : List St) (dl : List (ℕ × ℕ)) :
+    ProofLog → List Out → ProofLog × List (ℕ × ℕ)
   | e, [] => (e, [])
   | e, o :: os =>
     if (livePos (I.dom i)).any fun k => I.succ i o.u.st k ∈ A then deadLayer i A dl e os
@@ -537,7 +545,7 @@ structure Back where
 /-- The backward pass over the layers `rs`, latest first, from the alive states `A` and the
 refutations `dl` of the layer after them. Returns each layer with the alive states and the
 refutations of the layer after it. -/
-def backAll : Acc → List St → List (ℕ × ℕ) → List Layer → Acc × List Back
+private def backAll : ProofLog → List St → List (ℕ × ℕ) → List Layer → ProofLog × List Back
   | e, _, _, [] => (e, [])
   | e, A, dl, r :: rs =>
     let d := I.deadLayer r.i A dl e r.outs
@@ -549,12 +557,12 @@ def backAll : Acc → List St → List (ℕ × ℕ) → List Layer → Acc × Li
 /-! ### The removals -/
 
 /-- The removal of the value at position `k` of item `i`: `D ⇒ [xᵢ ≠ v]`. -/
-def remClause (i k : ℕ) : PBConstr := clause (I.negD ++ [(I.var i k, false)])
+private def remClause (i k : ℕ) : PBConstr := clause (I.negD ++ [(I.var i k, false)])
 
 /-- The removals of a layer: the values all of whose transitions lead to refuted states, by RUP
 from those refutations, the transitions and the at-least-one constraint. -/
-def remLayer (r : Layer) (A : List St) (dl : List (ℕ × ℕ)) :
-    Acc → List ℕ → Acc × List ((ℕ × ℕ) × ℕ)
+private def remLayer (r : Layer) (A : List St) (dl : List (ℕ × ℕ)) :
+    ProofLog → List ℕ → ProofLog × List ((ℕ × ℕ) × ℕ)
   | e, [] => (e, [])
   | e, k :: ks =>
     if r.outs.all fun o => I.succ r.i o.u.st k ∉ A then
@@ -565,7 +573,7 @@ def remLayer (r : Layer) (A : List St) (dl : List (ℕ × ℕ)) :
     else remLayer r A dl e ks
 
 /-- The removals of all layers. -/
-def remAll : Acc → List Back → Acc × List ((ℕ × ℕ) × ℕ)
+private def remAll : ProofLog → List Back → ProofLog × List ((ℕ × ℕ) × ℕ)
   | e, [] => (e, [])
   | e, x :: xs =>
     let q := I.remLayer x.layer x.alive x.dead e (livePos (I.dom x.layer.i))
@@ -573,13 +581,13 @@ def remAll : Acc → List Back → Acc × List ((ℕ × ℕ) × ℕ)
     (q'.1, q.2 ++ q'.2)
 
 /-- The removal of the value at position `k` of the sum `s`: `D ⇒ [s ≠ u]`. -/
-def remSClause (s : Bool) (k : ℕ) : PBConstr := clause (I.negD ++ [(I.sBase s + k, false)])
+private def remSClause (s : Bool) (k : ℕ) : PBConstr := clause (I.negD ++ [(I.sBase s + k, false)])
 
 /-- The removals of the sum `s`: the values of its current domain that no feasible state of the
 last layer `L` has, by RUP from the clauses `S_t ⇒ [s ≠ u]` of the feasible states, the
 refutations `dl` of the others, and the at-least-one constraint `a` of the last layer. -/
-def remSum (s : Bool) (L : List Node) (sl : List ((ℕ × Bool × ℕ) × ℕ)) (dl : List (ℕ × ℕ))
-    (a : ℕ) : Acc → List ℕ → Acc × List (ℕ × ℕ)
+private def remSum (s : Bool) (L : List Node) (sl : List ((ℕ × Bool × ℕ) × ℕ)) (dl : List (ℕ × ℕ))
+    (a : ℕ) : ProofLog → List ℕ → ProofLog × List (ℕ × ℕ)
   | e, [] => (e, [])
   | e, k :: ks =>
     if L.all fun t => !(I.feasible t.st && sCoord s t.st == dval (I.sDom s) k) then
@@ -593,7 +601,7 @@ def remSum (s : Bool) (L : List Node) (sl : List ((ℕ × Bool × ℕ) × ℕ)) 
 values, then of the values of `W` and of `P`. -/
 structure Emitted where
   /-- The proof. -/
-  acc : Acc
+  acc : ProofLog
   /-- The removed item values `(j, k)`, with their numbers. -/
   items : List ((ℕ × ℕ) × ℕ)
   /-- The removed values of `W`, with their numbers. -/
@@ -603,7 +611,7 @@ structure Emitted where
 
 /-- **The whole proof** and the removals with their numbers: the item values, then the values of
 `W` and of `P`. -/
-def emit : Emitted :=
+private def emit : Emitted :=
   let f := I.forward
   let rn := f.2.headD ⟨0, [], [], 0⟩
   let s := I.sLayer f.1 rn.nodes

@@ -19,7 +19,8 @@ public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 (`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackPropagator`) for an ordinary client,
 which imports the module without `import all`:
 
-* the theorems applied to the propagator's output;
+* the theorems applied to the propagator's output, and the definitions `Supported`,
+  `propFormula` and `remClause` unfolded;
 * `#guard` runs of the propagator: its removals agree with a brute-force search for the
   unsupported values, and the checker accepts its proof, with and without a preserved set, on
   boundary instances (no items, an infeasible constraint, fixed items, zero weights and profits,
@@ -52,6 +53,38 @@ example {n : ℕ} (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool
 example {n : ℕ} (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) (j : Fin n) (b : Bool)
     (h : Supported w p C P dom j b) : (j.val, b) ∉ (propagate w p C P dom).removed :=
   fun hm => ((mem_removed_iff w p C P dom j b).1 hm).2 h
+
+/-- `Supported` unfolds: a supported value comes with a set of items that agrees with the domains,
+takes `j` exactly when `b`, weighs at most `C` and earns at least `P`. -/
+example {n : ℕ} (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) (j : Fin n) (b : Bool)
+    (h : Supported w p C P dom j b) :
+    ∃ S : Finset (Fin n), (∀ i c, dom i = some c → (i ∈ S ↔ c = true)) ∧ (j ∈ S ↔ b = true) ∧
+      ∑ i ∈ S, w i ≤ C ∧ P ≤ ∑ i ∈ S, p i := by
+  obtain ⟨S, hd, hj, hw, hp⟩ := h
+  exact ⟨S, hd, hj, hw, hp⟩
+
+/-- `propFormula` unfolds: the knapsack constraint holds exactly when the items taken weigh at
+most `C` and earn at least `P`. -/
+example {n : ℕ} (w p : Fin n → ℕ) (C P : ℕ) (σ : ℕ → Bool) :
+    (∀ c ∈ propFormula w p C P, c.Holds σ) ↔
+      ∑ i ∈ chosen n σ, w i ≤ C ∧ P ≤ ∑ i ∈ chosen n σ, p i := by
+  simp [propFormula, holds_capacity_iff, holds_profitBound_iff]
+
+/-- The proof derives the removal clause `D ⇒ xⱼ ≠ b` of every removed value: the checker reaches
+a database holding it. -/
+example {n : ℕ} (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) (j : Fin n) (b : Bool)
+    (h : (j.val, b) ∈ (propagate w p C P dom).removed) :
+    ∃ s, runTop (propFormula w p C P) none
+        (State.init (propFormula w p C P) none (some (List.range n)))
+        (propagate w p C P dom).proof.steps = some s ∧
+      ∃ k, lookup s.db k = some (remClause dom j b).normalize :=
+  have ⟨s, hs, hrem⟩ := runTop_propagate w p C P dom
+  ⟨s, hs, hrem j b h⟩
+
+/-- The removal clause says `D ⇒ xⱼ ≠ b`. -/
+example {n : ℕ} (dom : Fin n → Option Bool) (j : Fin n) (b : Bool) (σ : ℕ → Bool)
+    (hD : ∀ i c, dom i = some c → σ i = c) (h : (remClause dom j b).Holds σ) : σ j ≠ b :=
+  (holds_remClause_iff dom j b σ).1 h hD
 
 /-! ### Evaluated runs -/
 

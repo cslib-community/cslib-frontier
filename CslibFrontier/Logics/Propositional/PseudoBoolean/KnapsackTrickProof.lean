@@ -18,34 +18,34 @@ import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.List.GetD
 
 /-!
-# Trick's knapsack propagator: acceptance and exactness
+# The two-equality knapsack propagator: acceptance and exactness
 
-The checker accepts the proof of Trick's knapsack propagator
+The checker accepts the proof of the two-equality knapsack propagator
 (`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrick`) on every instance, and the
 propagator removes exactly the unsupported values: those of the items, of the weight and of the
 profit. Both are proved, not checked when the proof runs.
 
 **Acceptance** (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.checkRed_propagate`). Each step is
 shown to run from an invariant on the proof so far
-(`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.Run`): the database keeps the formula, its numbers
+(`Inst.Run`): the database keeps the formula, its numbers
 and variables are below the next ones, and the extension variables are above the direct
 literals. Each `rup` step is accepted by the completeness of unit propagation on constraints over
 distinct variables (`CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete`), from the
 meaning of the constraints its hints name; the sums of the partial states are over the direct
 literals in their numbering, so the slack lemmas of the shared emitter
 (`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP`) apply to them:
-* a transition (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.trSteps_spec`) adds the forward half
+* a transition (`Inst.trSteps_spec`) adds the forward half
   of each of the four partial states of a node to the backward half of that of its successor;
   under the item's at-most-one constraint, which makes the other values of the item false, the
   sum puts the successor in the partial state
-  (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.dim_trans`, from
-  `Cslib.Logic.PL.VeriPB.Knapsack.Trick.trans_gen`, the transition lemma over a block of
+  (`Inst.dim_trans`, from
+  `trans_gen`, the transition lemma over a block of
   variables);
-* a clause `S_t ⇒ [W ≠ u]` (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.sSteps_spec`) adds the
+* a clause `S_t ⇒ [W ≠ u]` (`Inst.sSteps_spec`) adds the
   `↓` partial state of `t` to the inequality `∑ wⱼ v [xⱼ = v] ≥ ∑ u [W = u]` when `u` is above
   the weight of `t`, which bounds `W` from above, and the `↑` partial state to the converse
-  inequality otherwise (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.link_down`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.link_up`).
+  inequality otherwise (`Inst.link_down`,
+  `Inst.link_up`).
 
 **Exactness** (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.mem_removed_iff`,
 `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.mem_removedW_iff`,
@@ -54,12 +54,12 @@ choice of values of the current domains of the items, with that value, has its w
 profit in theirs (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.SupportedN`,
 `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.SupportedS`). A removed value is unsupported because
 the checker's soundness makes its derived clause `D ⇒ [x ≠ v]` hold at every solution of the
-formula (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.holds_of_run`), and a supported value gives
-one, the direct literals of a choice (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.asg`), agreeing
+formula (`Inst.holds_of_run`), and a supported value gives
+one, the direct literals of a choice (`Inst.asg`), agreeing
 with the antecedent. An unsupported value is removed because the layers are exactly the states
-reachable under the current domains (`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.mem_lay_iff`)
+reachable under the current domains (`Inst.mem_lay_iff`)
 and the backward pass keeps exactly the states with a feasible completion
-(`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.mem_alive_iff`). So the remaining values of `W` and
+(`Inst.mem_alive_iff`). So the remaining values of `W` and
 `P` are exactly the weights and profits of the feasible states of the last layer, and their
 bounds, the least and greatest of them, are exact too.
 
@@ -86,16 +86,14 @@ bounds, the least and greatest of them, are exact too.
   Solver*][GochtMcCreeshNordstrom2022]
 -/
 
-public section
 
 namespace Cslib.Logic.PL.VeriPB.Knapsack.Trick
 
 open PBConstr
 open Knapsack.Inst (part part_succ part_add_part part_const lhs_sumTerms vars_sumTerms
   nodup_sumTerms holds_dimC holds_clause holds_negate_clause consistent_append lhs_map_negate
-  vars_negate_sub nodup_impl_single slack_fwd slack_bwd runTop_append push_steps lookup_cons_self
-  lookup_cons_ne lookup_cons_eq mem_of_lookup sub_cons vars_impl push_push rup_clause lit_of
-  vars_add polEval_add vars_clause bit Sub Sub.refl Sub.trans)
+  nodup_impl_single slack_fwd slack_bwd runTop_append push_steps mem_of_lookup sub_cons vars_impl
+  push_push rup_clause lit_of vars_add polEval_add vars_clause bit Sub Sub.refl Sub.trans)
 
 /-! ### Sums over lists of positions -/
 
@@ -466,55 +464,39 @@ def state (db : List (ℕ × PBConstr)) (m : ℕ) : State :=
 /-- **The proof so far runs** from the formula to the database `db`: the numbers of `db` are
 below the next one, its variables below the next free one, which is not a direct literal, and
 `db` keeps the formula. -/
-def Run (e : Acc) (db : List (ℕ × PBConstr)) : Prop :=
+def Run (e : ProofLog) (db : List (ℕ × PBConstr)) : Prop :=
   runTop I.formula none (State.init I.formula none (some I.pres)) e.steps.reverse =
       some (I.state db e.next) ∧
     (∀ x ∈ db, x.1 < e.next) ∧ (∀ x ∈ db, ∀ v ∈ x.2.vars, v < e.var) ∧ I.M ≤ e.var ∧
     Sub (initDb I.formula) db
 
-theorem Run.sub {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) :
+theorem Run.sub {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) :
     Sub (initDb I.formula) db := h.2.2.2.2
 
-/-- **A `pol` step runs.** -/
-theorem Run.pol {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {ops : List PolOp}
-    {c : PBConstr} (hp : polEval db ops [] = some [c]) (hv : ∀ v ∈ c.vars, v < e.var) :
-    I.Run (e.push [.step (.pol ops)] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) := by
+/-- **A step that is not a deletion runs** when it adds the constraint `c` at the next number,
+by the Boolean emitter's `runTop_push_step`. -/
+theorem Run.step {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {st : Step}
+    (hst : ∀ ids, st ≠ .del ids) {c : PBConstr}
+    (hr : runStep db e.next st = some ((e.next, c) :: db, e.next + 1))
+    (hv : ∀ v ∈ c.vars, v < e.var) :
+    I.Run (e.push [.step st] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) := by
   have hs := sub_cons h.2.1 c
-  refine ⟨⟨?_, ?_, ?_, by simpa [Acc.push] using h.2.2.2.1, h.sub.trans hs⟩, hs⟩
-  · rw [push_steps, runTop_append, h.1, Option.bind_some, runTop_cons,
-      stepTop_step_of_ne_del _ _ _ (by intro ids h; cases h)]
-    simp [state, runStep, hp, runTop_nil, Acc.push]
-  · intro x hx
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simp [Acc.push]
-    · have := h.2.1 x hx; simp [Acc.push]; omega
-  · intro x hx v hv'
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simpa [Acc.push] using hv _ hv'
-    · simpa [Acc.push] using h.2.2.1 x hx v hv'
+  obtain ⟨h1, h2, h3⟩ := Knapsack.Inst.runTop_push_step h.1 h.2.1 h.2.2.1 hst hr hv
+  exact ⟨⟨h1, h2, h3, by simpa [ProofLog.push] using h.2.2.2.1, h.sub.trans hs⟩, hs⟩
+
+/-- **A `pol` step runs.** -/
+theorem Run.pol {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {ops : List PolOp}
+    {c : PBConstr} (hp : polEval db ops [] = some [c]) (hv : ∀ v ∈ c.vars, v < e.var) :
+    I.Run (e.push [.step (.pol ops)] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) :=
+  Run.step I h (by intro ids h; cases h) (by simp [runStep, hp]) hv
 
 /-- **A `rup` step runs** when the checker accepts it. -/
-theorem Run.rup {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : PBConstr}
+theorem Run.rup {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : PBConstr}
     {hs : List Hint} (hr : rup db c hs = true) (hv : ∀ v ∈ c.vars, v < e.var) :
     I.Run (e.push [.step (.rup c hs)] 1 0) ((e.next, c.normalize) :: db) ∧
-      Sub db ((e.next, c.normalize) :: db) := by
-  have hsub := sub_cons h.2.1 c.normalize
-  refine ⟨⟨?_, ?_, ?_, by simpa [Acc.push] using h.2.2.2.1, h.sub.trans hsub⟩, hsub⟩
-  · rw [push_steps, runTop_append, h.1, Option.bind_some, runTop_cons,
-      stepTop_step_of_ne_del _ _ _ (by intro ids h; cases h)]
-    simp [state, runStep, hr, runTop_nil, Acc.push]
-  · intro x hx
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simp [Acc.push]
-    · have := h.2.1 x hx; simp [Acc.push]; omega
-  · intro x hx v hv'
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simpa [Acc.push] using hv _ (mem_vars_of_mem_vars_normalize hv')
-    · simpa [Acc.push] using h.2.2.1 x hx v hv'
+      Sub db ((e.next, c.normalize) :: db) :=
+  Run.step I h (by intro ids h; cases h) (by simp [runStep, hr])
+    fun v hv' => hv _ (mem_vars_of_mem_vars_normalize hv')
 
 /-- The variables of the formula are direct literals. -/
 theorem vars_formula : ∀ c ∈ I.formula, ∀ v ∈ c.vars, v < I.M := by
@@ -601,8 +583,8 @@ theorem run_init : I.Run ⟨[], I.start, I.M⟩ (initDb I.formula) := by
     simp only [start]; omega
 
 /-- **A reification by the next free variable runs**, for a satisfiable constraint over older
-variables. -/
-theorem Run.reify {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : PBConstr}
+variables, by the Boolean emitter's `runTop_push_reify`. -/
+theorem Run.reify {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : PBConstr}
     (hv : ∀ v ∈ c.vars, v < e.var) (hsat : ∃ σ, c.Holds σ) :
     I.Run (e.push (reify e.var c) 4 1)
         ((e.next + 3, (impl [(e.var, false)] c.negate).normalize) ::
@@ -610,18 +592,7 @@ theorem Run.reify {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : 
       Sub db ((e.next + 3, (impl [(e.var, false)] c.negate).normalize) ::
           (e.next + 1, (impl [(e.var, true)] c).normalize) :: db) := by
   obtain ⟨hrun, hid, hvar, hn, h0⟩ := h
-  have hsub : Sub db ((e.next + 3, (impl [(e.var, false)] c.negate).normalize) ::
-      (e.next + 1, (impl [(e.var, true)] c).normalize) :: db) :=
-    (sub_cons (m := e.next + 1) (fun x hx => by have := hid x hx; omega) _).trans
-      (sub_cons (fun x hx => by
-        simp only [List.mem_cons] at hx
-        rcases hx with rfl | hx
-        · simp
-        · have := hid x hx; omega) _)
-  have hz : e.var ∉ c.vars := fun h' => by have := hv _ h'; omega
-  have hnc : ¬ c.normalize.IsContradiction := fun hc => by
-    obtain ⟨σ, hσ⟩ := hsat
-    exact hc.not_holds σ ((holds_normalize σ c).2 hσ)
+  have hsub := Knapsack.Inst.sub_reify hid c
   have hfresh : (I.state db e.next).fresh e.var = true := by
     simp only [State.fresh, Bool.and_eq_true, List.all_eq_true, List.mem_append]
     refine ⟨fun x hx => ?_, ?_⟩
@@ -633,33 +604,15 @@ theorem Run.reify {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : 
       simpa using this
     · simp [State.avoidsVar, state, State.init, pres]
       omega
-  refine ⟨⟨?_, ?_, ?_, by simp [Acc.push]; omega, h0.trans hsub⟩, hsub⟩
-  · rw [push_steps, runTop_append, hrun, Option.bind_some, runTop_reify hfresh hz hnc]
-    simp [State.addStrengthened, state, State.init, Acc.push]
-  · intro x hx
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | rfl | hx
-    · simp [Acc.push]
-    · simp [Acc.push]
-    · have := hid x hx; simp [Acc.push]; omega
-  · intro x hx v hv'
-    simp only [List.mem_cons] at hx
-    simp only [Acc.push]
-    rcases hx with rfl | rfl | hx
-    · rcases vars_impl (mem_vars_of_mem_vars_normalize hv') with h' | h'
-      · simp at h'; omega
-      · have := hv _ (vars_negate_sub h'); omega
-    · rcases vars_impl (mem_vars_of_mem_vars_normalize hv') with h' | h'
-      · simp at h'; omega
-      · have := hv _ h'; omega
-    · have := hvar x hx v hv'; omega
+  obtain ⟨r1, r2, r3⟩ := Knapsack.Inst.runTop_push_reify rfl hrun hid hvar hv hsat hfresh
+  exact ⟨⟨r1, r2, r3, by simp [ProofLog.push]; omega, h0.trans hsub⟩, hsub⟩
 
-theorem vars_of_lookup {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {k : ℕ}
+theorem vars_of_lookup {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {k : ℕ}
     {c : PBConstr} (hk : lookup db k = some c) : ∀ v ∈ c.vars, v < e.var :=
   fun v hv => h.2.2.1 _ (mem_of_lookup hk) v hv
 
 /-- A `pol` step adding two constraints of the database runs. -/
-theorem Run.add {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {a b : ℕ}
+theorem Run.add {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {a b : ℕ}
     {c d : PBConstr} (ha : lookup db a = some c) (hb : lookup db b = some d) :
     I.Run (e.push [.step (.pol [.id a, .id b, .add])] 1 0) ((e.next, c.add d) :: db) ∧
       Sub db ((e.next, c.add d) :: db) :=
@@ -667,7 +620,7 @@ theorem Run.add {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {a b : 
     (I.vars_of_lookup h ha v) (I.vars_of_lookup h hb v)
 
 /-- The formula's constraint number `m + 1` is in the database. -/
-theorem lookup_formula {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {m : ℕ}
+theorem lookup_formula {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {m : ℕ}
     {c : PBConstr} (hm : I.formula[m]? = some c) : lookup db (m + 1) = some c.normalize :=
   by
   have := lookup_initDb I.formula m
@@ -691,7 +644,8 @@ private theorem getElem?_flatMap_pair (a b : ℕ → PBConstr) : ∀ {n i : ℕ}
       rw [List.getElem?_append_right (by omega), List.getElem?_append_right (by omega), hlen]
       simp
 
-theorem lookup_item {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {i : ℕ} (hi : i < I.n) :
+theorem lookup_item {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {i : ℕ}
+    (hi : i < I.n) :
     lookup db (aloId i) = some (alo (I.off i) (I.len i)).normalize ∧
       lookup db (amoId i) = some (amo (I.off i) (I.len i)).normalize := by
   obtain ⟨h1, h2⟩ := getElem?_flatMap_pair (fun j => alo (I.off j) (I.len j))
@@ -708,7 +662,7 @@ theorem lookup_item {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {i 
       List.getElem?_append_right (by simp only [List.length_cons, List.length_nil]; omega)]
     simpa [show 9 + 2 * i - 8 = 2 * i + 1 by omega] using h2
 
-theorem lookup_fixed {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) :
+theorem lookup_fixed {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) :
     lookup db 1 = some I.linkW₁.normalize ∧ lookup db 2 = some I.linkW₂.normalize ∧
       lookup db 3 = some I.linkP₁.normalize ∧ lookup db 4 = some I.linkP₂.normalize ∧
       lookup db 5 = some (alo I.wBase I.wDom.length).normalize ∧
@@ -721,14 +675,14 @@ theorem lookup_fixed {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) :
     I.lookup_formula h (m := 6) rfl, I.lookup_formula h (m := 7) rfl⟩
 
 /-- A reification by the next free variable runs, with the numbers of its halves. -/
-theorem Run.reify' {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : PBConstr}
+theorem Run.reify' {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : PBConstr}
     (hv : ∀ v ∈ c.vars, v < e.var) (hsat : ∃ σ, c.Holds σ) :
     ∃ db', I.Run (e.push (VeriPB.reify e.var c) 4 1) db' ∧ Sub db db' ∧
       lookup db' (e.next + 1) = some (impl [(e.var, true)] c).normalize ∧
       lookup db' (e.next + 3) = some (impl [(e.var, false)] c.negate).normalize := by
   obtain ⟨h', s'⟩ := Run.reify I h hv hsat
-  exact ⟨_, h', s', by simp (disch := omega) only [lookup_cons_ne, lookup_cons_eq],
-    lookup_cons_self _ _ _⟩
+  exact ⟨_, h', s', by simp (disch := omega) only [lookup_cons, ite_eq_right, ↓reduceIte],
+    ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩
 
 /-! ### Nodes -/
 
@@ -771,7 +725,7 @@ theorem NodeOk.mono {i : ℕ} {db db' : List (ℕ × PBConstr)} {V V' : ℕ} {u 
     fun d hd => hs _ _ (h.bw d hd), hs _ _ h.sf, hs _ _ h.sb⟩
 
 /-- **Creating a layer runs**, and gives nodes with their facts. -/
-theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e : Acc)
+theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e : ProofLog)
     (db : List (ℕ × PBConstr)), I.Run e db →
     (∀ st ∈ sts, st.1 ≤ I.tot I.cw i ∧ st.2 ≤ I.tot I.cp i) →
     ∃ db', I.Run (I.mkLayer i e sts).1 db' ∧ Sub db db' ∧
@@ -796,9 +750,9 @@ theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e : Acc)
         simp only [cS, PBConstr.vars, List.map_map, List.mem_map, List.mem_range,
           Function.comp_apply, termVar_mk] at hv
         obtain ⟨d, hd, rfl⟩ := hv
-        simp only [Acc.push]; omega)
+        simp only [ProofLog.push]; omega)
       ⟨fun _ => true, by simp [cS, Holds, lhs, termVal, List.range_succ]⟩
-    simp only [Acc.push] at f₁ b₁ f₂ b₂ f₃ b₃ f₄ b₄ f₅ b₅ h₂ h₃ h₄ h₅
+    simp only [ProofLog.push] at f₁ b₁ f₂ b₂ f₃ b₃ f₄ b₄ f₅ b₅ h₂ h₃ h₄ h₅
     have he : I.nodeSteps i (mkNode e st) = VeriPB.reify e.var (I.cD i st 0) ++
         VeriPB.reify (e.var + 1) (I.cD i st 1) ++ VeriPB.reify (e.var + 1 + 1) (I.cD i st 2) ++
         VeriPB.reify (e.var + 1 + 1 + 1) (I.cD i st 3) ++
@@ -811,7 +765,7 @@ theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e : Acc)
           ((VeriPB.reify (e.var + 1) (I.cD i st 1)).reverse ++
           ((VeriPB.reify e.var (I.cD i st 0)).reverse ++ e.steps)))),
           e.next + 4 + 4 + 4 + 4 + 4, e.var + 1 + 1 + 1 + 1 + 1⟩ := by
-      rw [he]; simp [Acc.push]
+      rw [he]; simp [ProofLog.push]
     rw [← hpush] at h₅
     obtain ⟨db', hr, hs, hmap, hok, hv, hnx⟩ := mkLayer_spec hi sts _ _ h₅
       (fun s hs => hst s (List.mem_cons_of_mem _ hs))
@@ -821,7 +775,7 @@ theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e : Acc)
     · simp only [mkLayer, List.mem_cons]
       rintro u (rfl | hu)
       · have hv' : e.var + 5 ≤ (I.mkLayer i (e.push (I.nodeSteps i ⟨st, e.var, e.next⟩) 20 5)
-            sts).1.var := le_trans (by simp [Acc.push]) hv
+            sts).1.var := le_trans (by simp [ProofLog.push]) hv
         refine ⟨hb, by simp only [mkNode]; omega, by simp only [mkNode]; omega, ?_, ?_, ?_, ?_⟩
         · intro d hd
           simp only [Node.fwd, Node.z]
@@ -844,8 +798,8 @@ theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e : Acc)
         · simp only [Node.bwd, Node.S]
           exact hs _ _ (by simpa [mkNode, Nat.add_assoc] using b₅)
       · exact hok u hu
-    · simp only [mkLayer]; exact le_trans (by simp [Acc.push]) hv
-    · simp only [mkLayer]; exact le_trans (by simp [Acc.push]) hnx
+    · simp only [mkLayer]; exact le_trans (by simp [ProofLog.push]) hv
+    · simp only [mkLayer]; exact le_trans (by simp [ProofLog.push]) hnx
 
 /-! ### Transitions -/
 
@@ -933,7 +887,7 @@ theorem nodeSteps_vars {i : ℕ} {u : Node} {db : List (ℕ × PBConstr)} {V : �
 
 /-- **A transition runs**: from a node `u` of layer `i` by the position `k` of item `i` to its
 successor `t`, the four additions and the RUP step derive `S_u ∧ [xᵢ = v] ⇒ S_t`. -/
-theorem trSteps_spec {i k : ℕ} (hi : i < I.n) (hk : k < I.len i) {e : Acc}
+theorem trSteps_spec {i k : ℕ} (hi : i < I.n) (hk : k < I.len i) {e : ProofLog}
     {db : List (ℕ × PBConstr)} (h : I.Run e db) {u t : Node} (hu : I.NodeOk i db e.var u)
     (ht : I.NodeOk (i + 1) db e.var t) (hst : t.st = I.succ i u.st k) :
     ∃ db', I.Run (e.push (I.trSteps i k u t e) 5 0) db' ∧ Sub db db' ∧
@@ -944,7 +898,7 @@ theorem trSteps_spec {i k : ℕ} (hi : i < I.n) (hk : k < I.len i) {e : Acc}
     (s₂ _ _ (s₁ _ _ (ht.bw 2 (by omega))))
   obtain ⟨h₄, s₄⟩ := Run.add I h₃ (s₃ _ _ (s₂ _ _ (s₁ _ _ (hu.fw 3 (by omega)))))
     (s₃ _ _ (s₂ _ _ (s₁ _ _ (ht.bw 3 (by omega)))))
-  simp only [Acc.push] at h₂ h₃ h₄ s₂ s₃ s₄
+  simp only [ProofLog.push] at h₂ h₃ h₄ s₂ s₃ s₄
   set c := fun d => (impl [(u.z d, true)] (I.cD i u.st d)).normalize.add
     (impl [(t.z d, false)] (I.cD (i + 1) t.st d).negate).normalize with hc
   set db₄ := (e.next + 1 + 1 + 1, c 3) :: (e.next + 1 + 1, c 2) :: (e.next + 1, c 1) ::
@@ -952,7 +906,7 @@ theorem trSteps_spec {i k : ℕ} (hi : i < I.n) (hk : k < I.len i) {e : Acc}
   have hl : ∀ d < 4, lookup db₄ (e.next + d) = some (c d) := by
     intro d hd
     rcases (by omega : d = 0 ∨ d = 1 ∨ d = 2 ∨ d = 3) with rfl | rfl | rfl | rfl <;>
-      simp (disch := omega) only [hdb₄, lookup_cons_ne, lookup_cons_eq, Nat.add_zero]
+      simp (disch := omega) only [hdb₄, lookup_cons, ite_eq_right, ↓reduceIte, Nat.add_zero]
   have hsub : Sub db db₄ := s₁.trans (s₂.trans (s₃.trans s₄))
   have hamo := (I.lookup_item h hi).2
   have hr : rup db₄ (I.trClause i k u t) [.neg, .id (amoId i), .id (u.fwd 4), .id e.next,
@@ -961,12 +915,12 @@ theorem trSteps_spec {i k : ℕ} (hi : i < I.n) (hk : k < I.len i) {e : Acc}
     simp only [List.map_cons, List.map_nil, Std.Sat.Literal.negate,
       Bool.not_false, Bool.not_true, List.append_nil]
     refine Knapsack.Inst.RupOk.id_imp (L := I.othersFalse i k) (hsub _ _ hamo)
-      (nodup_vars_normalize _) ?_ ?_
+      (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc'
       rw [holds_normalize] at hc'
       exact I.consistent_othersFalse hk hc' (lit_of hσ (by simp))
     refine Knapsack.Inst.RupOk.id_imp (L := [(u.z 0, true), (u.z 1, true), (u.z 2, true),
-      (u.z 3, true)]) (hsub _ _ hu.sf) (nodup_vars_normalize _) ?_ ?_
+      (u.z 3, true)]) (hsub _ _ hu.sf) (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc'
       rw [holds_normalize, holds_impl] at hc'
       have := (holds_cS σ _).1 (hc' (by simp [lit_of hσ (v := u.S) (b := true) (by simp)]))
@@ -988,16 +942,16 @@ theorem trSteps_spec {i k : ℕ} (hi : i < I.n) (hk : k < I.len i) {e : Acc}
       simpa using hstep d hd σ hσ hcd
     refine Knapsack.Inst.RupOk.id_imp (L := [(t.z 0, true)])
       (by have := hl 0 (by omega); rwa [Nat.add_zero] at this)
-      (nodup_vars_normalize _) (hone 0 (by omega)) ?_
+      (nodup_termVar_normalize _) (hone 0 (by omega)) ?_
     refine Knapsack.Inst.RupOk.id_imp (L := [(t.z 1, true)]) (hl 1 (by omega))
-      (nodup_vars_normalize _) (fun σ hσ => hone 1 (by omega) σ (consistent_append.1 hσ).2) ?_
+      (nodup_termVar_normalize _) (fun σ hσ => hone 1 (by omega) σ (consistent_append.1 hσ).2) ?_
     refine Knapsack.Inst.RupOk.id_imp (L := [(t.z 2, true)]) (hl 2 (by omega))
-      (nodup_vars_normalize _) (fun σ hσ => hone 2 (by omega) σ
+      (nodup_termVar_normalize _) (fun σ hσ => hone 2 (by omega) σ
         (consistent_append.1 (consistent_append.1 hσ).2).2) ?_
     refine Knapsack.Inst.RupOk.id_imp (L := [(t.z 3, true)]) (hl 3 (by omega))
-      (nodup_vars_normalize _) (fun σ hσ => hone 3 (by omega) σ
+      (nodup_termVar_normalize _) (fun σ hσ => hone 3 (by omega) σ
         (consistent_append.1 (consistent_append.1 (consistent_append.1 hσ).2).2).2) ?_
-    refine Knapsack.Inst.RupOk.id_conflict (hsub _ _ ht.sb) (nodup_vars_normalize _) ?_
+    refine Knapsack.Inst.RupOk.id_conflict (hsub _ _ ht.sb) (nodup_termVar_normalize _) ?_
     intro σ hσ hc'
     rw [holds_normalize, holds_impl_neg_negate] at hc'
     have h1 := hc' ((holds_cS σ _).2 ⟨lit_of hσ (v := t.z 0) (by simp),
@@ -1019,10 +973,10 @@ theorem trSteps_spec {i k : ℕ} (hi : i < I.n) (hk : k < I.len i) {e : Acc}
     · simp only; omega
     · exact I.nodeSteps_vars ht)
   refine ⟨_, ?_, hsub.trans s₅, ?_⟩
-  · simp only [Acc.push] at h₅ ⊢
+  · simp only [ProofLog.push] at h₅ ⊢
     convert h₅ using 2
     simp [trSteps]
-  · simpa [show e.next + 1 + 1 + 1 + 1 = e.next + 4 by omega] using lookup_cons_self _ _ _
+  · simp [show e.next + 1 + 1 + 1 + 1 = e.next + 4 by omega, lookup_cons]
 
 theorem tgt_spec {L : List Node} {st : St} (h : ∃ t ∈ L, t.st = st) :
     tgt L st ∈ L ∧ (tgt L st).st = st := by
@@ -1043,7 +997,7 @@ def TrOk (i : ℕ) (db : List (ℕ × PBConstr)) (L' : List Node) (u : Node) (x 
     lookup db x.id = some (I.trClause i x.pos u x.tgt).normalize
 
 theorem trans1_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {u : Node} :
-    ∀ (ks : List ℕ) (e : Acc) (db : List (ℕ × PBConstr)), I.Run e db →
+    ∀ (ks : List ℕ) (e : ProofLog) (db : List (ℕ × PBConstr)), I.Run e db →
       I.NodeOk i db e.var u → (∀ t ∈ L', I.NodeOk (i + 1) db e.var t) →
       (∀ k ∈ ks, k < I.len i ∧ ∃ t ∈ L', t.st = I.succ i u.st k) →
       ∃ db', I.Run (I.trans1 i L' u e ks).1 db' ∧ Sub db db' ∧
@@ -1056,11 +1010,11 @@ theorem trans1_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {u : Node} :
     obtain ⟨htm, hts⟩ := tgt_spec hcov
     obtain ⟨db₁, h₁, s₁, hl₁⟩ := I.trSteps_spec hi hk h hu (hL' _ htm) hts
     obtain ⟨db', h', s', hmap, hall, hv⟩ := trans1_spec hi ks _ db₁ h₁
-      (hu.mono I s₁ (by simp [Acc.push]))
-      (fun t ht => (hL' t ht).mono I s₁ (by simp [Acc.push]))
+      (hu.mono I s₁ (by simp [ProofLog.push]))
+      (fun t ht => (hL' t ht).mono I s₁ (by simp [ProofLog.push]))
       (fun k hk => hks k (List.mem_cons_of_mem _ hk))
     simp only [trans1]
-    refine ⟨db', h', s₁.trans s', by simp [hmap], ?_, by rw [hv]; simp [Acc.push]⟩
+    refine ⟨db', h', s₁.trans s', by simp [hmap], ?_, by rw [hv]; simp [ProofLog.push]⟩
     simp only [List.mem_cons]
     rintro x (rfl | hx)
     · exact ⟨htm, hts, hk, s' _ _ hl₁⟩
@@ -1103,7 +1057,7 @@ theorem mem_negItem {i : ℕ} {l : Literal ℕ} :
     exact ⟨k, hk, by simp [hl]⟩
 
 /-- **A node's transitions run**, then `S_u ∧ D ⇒ ⋁ S_t` by RUP. -/
-theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : Acc}
+theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : ProofLog}
     {db : List (ℕ × PBConstr)} (h : I.Run e db) {u : Node} (hu : I.NodeOk i db e.var u)
     (hL' : ∀ t ∈ L', I.NodeOk (i + 1) db e.var t)
     (hks : ∀ k ∈ livePos (I.dom i), ∃ t ∈ L', t.st = I.succ i u.st k) :
@@ -1114,7 +1068,7 @@ theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : Acc}
   obtain ⟨db₁, h₁, s₁, hmap, hall, hv⟩ := I.trans1_spec hi (livePos (I.dom i)) e db h hu hL'
     (fun k hk => ⟨(mem_livePos.1 hk).1, hks k hk⟩)
   have hvo : (I.transOut i L' e u).1.var = e.var := by
-    simp only [transOut, Acc.push, Nat.add_zero]; exact hv
+    simp only [transOut, ProofLog.push, Nat.add_zero]; exact hv
   set r := I.trans1 i L' u e (livePos (I.dom i)) with hr
   have hrup : rup db₁ (I.succClause i u r.2) (.neg :: r.2.map (fun x => .id x.id) ++
       [.id (aloId i)]) = true := by
@@ -1125,20 +1079,20 @@ theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : Acc}
     have hTK : ∀ x ∈ r.2, (x.tgt.S, false) ∈ K := fun x hx =>
       List.mem_append_left _ (List.mem_map.2 ⟨(x.tgt.S, true), List.mem_cons_of_mem _
         (List.mem_append_right _ (List.mem_map.2 ⟨x, hx, rfl⟩)), rfl⟩)
-    have := Knapsack.Inst.RupOk.imps (db := db₁) (neg := (I.succClause i u r.2).negate)
+    have := RupOk.imps (db := db₁) (neg := (I.succClause i u r.2).negate)
       (K₀ := K) (rest := [.id (aloId i)])
       (r.2.map fun x => (Hint.id x.id, (I.var i x.pos, false))) K (fun l hl => hl) ?_ ?_
     · rw [List.map_map] at this; exact this
     · intro y hy
       obtain ⟨x, hx, rfl⟩ := List.mem_map.1 hy
       obtain ⟨-, -, -, hl⟩ := hall x hx
-      refine ⟨_, hl, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+      refine ⟨_, hl, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
       have h1 := I.holds_trClause.1 hc (lit_of hσ hSK)
       have h2 := lit_of hσ (hTK x hx)
       by_contra hne
       simp only [Literal.eval_mk] at hne ⊢
       simp_all
-    · refine Knapsack.Inst.RupOk.id_conflict ((I.lookup_item h₁ hi).1) (nodup_vars_normalize _)
+    · refine Knapsack.Inst.RupOk.id_conflict ((I.lookup_item h₁ hi).1) (nodup_termVar_normalize _)
         fun σ hσ hc => ?_
       rw [holds_normalize, holds_alo] at hc
       obtain ⟨k, hk, hσk⟩ := hc
@@ -1169,10 +1123,10 @@ theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : Acc}
     hvo⟩
   · obtain ⟨h1, h2, h3, h4⟩ := hall x hx
     exact ⟨h1, h2, h3, s₂ _ _ h4⟩
-  · exact lookup_cons_self _ _ _
+  · exact (lookup_cons _ _ _ _).trans (ite_eq_left rfl)
 
 theorem trans_spec {i : ℕ} (hi : i < I.n) {L' : List Node} :
-    ∀ (L : List Node) (e : Acc) (db : List (ℕ × PBConstr)), I.Run e db →
+    ∀ (L : List Node) (e : ProofLog) (db : List (ℕ × PBConstr)), I.Run e db →
       (∀ u ∈ L, I.NodeOk i db e.var u) → (∀ t ∈ L', I.NodeOk (i + 1) db e.var t) →
       (∀ u ∈ L, ∀ k ∈ livePos (I.dom i), ∃ t ∈ L', t.st = I.succ i u.st k) →
       ∃ db', I.Run (I.trans i L' e L).1 db' ∧ Sub db db' ∧
@@ -1273,18 +1227,18 @@ theorem rup_alo {i : ℕ} (hi : i < I.n) {db : List (ℕ × PBConstr)} {V : ℕ}
     rup db (I.aloClause L') (.neg :: outs.map (fun o => .id o.succ) ++ [.id a]) = true := by
   refine rup_clause ?_
   rw [negate_aloClause]
-  have := Knapsack.Inst.RupOk.imps (db := db) (neg := (I.aloClause L').negate)
+  have := RupOk.imps (db := db) (neg := (I.aloClause L').negate)
     (K₀ := I.antecedent ++ L'.map fun u => (u.S, false)) (rest := [.id a])
     (outs.map fun o => (Hint.id o.succ, (o.u.S, false))) _ (fun l hl => hl) ?_ ?_
   · rw [List.map_map] at this; exact this
   · intro x hx
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hx
-    refine ⟨_, (houts o ho).succ, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, (houts o ho).succ, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     have := I.succ_false hi (fun l hl => List.mem_append_left _ hl)
       (fun x hx => List.mem_append_right _ (List.mem_map.2 ⟨_, ((houts o ho).tr x hx).1, rfl⟩))
       hσ hc
     simp [this]
-  · refine Knapsack.Inst.RupOk.id_conflict halo (nodup_vars_normalize _) fun σ hσ hc => ?_
+  · refine Knapsack.Inst.RupOk.id_conflict halo (nodup_termVar_normalize _) fun σ hσ hc => ?_
     rw [holds_normalize, aloClause, holds_clause] at hc
     obtain ⟨l, hl, hev⟩ := hc
     rcases List.mem_append.1 hl with hl | hl
@@ -1329,7 +1283,7 @@ theorem Chain.mono {db db' : List (ℕ × PBConstr)} {V V' : ℕ} (hs : Sub db d
 
 /-- **The forward pass runs**: from layer `i`, the layers `i + 1, …, n` with their transitions and
 at-least-one constraints. -/
-theorem fwd_spec : ∀ (k i : ℕ) (e : Acc) (L : List Node) (a : ℕ)
+theorem fwd_spec : ∀ (k i : ℕ) (e : ProofLog) (L : List Node) (a : ℕ)
     (recs : List Layer) (db : List (ℕ × PBConstr)), i + k = I.n → I.Run e db →
     I.LayOk i db e.var ⟨i, L, [], a⟩ → I.Chain db e.var i L recs →
     recs.map (·.i) = (List.range i).reverse →
@@ -1367,12 +1321,12 @@ theorem fwd_spec : ∀ (k i : ℕ) (e : Acc) (L : List Node) (a : ℕ)
         rw [hv₂]; exact I.nodeSteps_vars (hok₁ t ht))
     have hV : r₁.1.var ≤ (r₂.1.push [.step (.rup (I.aloClause r₁.2)
         (.neg :: r₂.2.map (fun o => .id o.succ) ++ [.id a]))] 1 0).var := by
-      simp [Acc.push, hv₂]
+      simp [ProofLog.push, hv₂]
     have hs := s₁.trans (s₂.trans s₃)
     obtain ⟨db', h', s', rest⟩ := fwd_spec k (i + 1) _ r₁.2 r₂.1.next
       (⟨i, L, r₂.2, a⟩ :: recs) _ (by omega) h₃
       ⟨rfl, hlay₁, fun u hu => (hok₁ u hu).mono I (s₂.trans s₃) hV,
-        lookup_cons_self _ _ _⟩
+        ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩
       ⟨rfl, ⟨rfl, hLl, fun u hu => (hL.nodes u hu).mono I hs (le_trans hv₁ hV), hs _ _ hL.alo⟩,
         hmap₂, fun o ho => (hok₂ o ho).mono I s₃ (by rw [hv₂]; exact hV),
         hc.mono I hs (le_trans hv₁ hV)⟩
@@ -1406,22 +1360,22 @@ theorem forward_spec :
     rw [negate_aloClause]
     simp only [List.headD_cons, List.map_cons, List.map_nil]
     refine Knapsack.Inst.RupOk.id_imp (L := [(u₀.z 0, true)]) (hn₀.bw 0 (by omega))
-      (nodup_vars_normalize _) (fun σ _ hc => by
+      (nodup_termVar_normalize _) (fun σ _ hc => by
         rw [holds_normalize, holds_impl_neg_negate] at hc
         simp [Consistent, hc (hz 0 (by omega) σ)]) ?_
     refine Knapsack.Inst.RupOk.id_imp (L := [(u₀.z 1, true)]) (hn₀.bw 1 (by omega))
-      (nodup_vars_normalize _) (fun σ _ hc => by
+      (nodup_termVar_normalize _) (fun σ _ hc => by
         rw [holds_normalize, holds_impl_neg_negate] at hc
         simp [Consistent, hc (hz 1 (by omega) σ)]) ?_
     refine Knapsack.Inst.RupOk.id_imp (L := [(u₀.z 2, true)]) (hn₀.bw 2 (by omega))
-      (nodup_vars_normalize _) (fun σ _ hc => by
+      (nodup_termVar_normalize _) (fun σ _ hc => by
         rw [holds_normalize, holds_impl_neg_negate] at hc
         simp [Consistent, hc (hz 2 (by omega) σ)]) ?_
     refine Knapsack.Inst.RupOk.id_imp (L := [(u₀.z 3, true)]) (hn₀.bw 3 (by omega))
-      (nodup_vars_normalize _) (fun σ _ hc => by
+      (nodup_termVar_normalize _) (fun σ _ hc => by
         rw [holds_normalize, holds_impl_neg_negate] at hc
         simp [Consistent, hc (hz 3 (by omega) σ)]) ?_
-    refine Knapsack.Inst.RupOk.id_conflict hn₀.sb (nodup_vars_normalize _) fun σ hσ hc => ?_
+    refine Knapsack.Inst.RupOk.id_conflict hn₀.sb (nodup_termVar_normalize _) fun σ hσ hc => ?_
     rw [holds_normalize, holds_impl_neg_negate] at hc
     have h1 := hc ((holds_cS σ _).2 ⟨lit_of hσ (v := u₀.z 0) (by simp),
       lit_of hσ (v := u₀.z 1) (by simp), lit_of hσ (v := u₀.z 2) (by simp),
@@ -1435,8 +1389,8 @@ theorem forward_spec :
     · have := I.vars_negD hl; have := h₀.2.2.2.1; omega
     · obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hl; exact I.nodeSteps_vars (hok₀ t ht))
   obtain ⟨db₂, h₂, s₂, rest⟩ := I.fwd_spec I.n 0 _ r₀.2 r₀.1.next [] _ (by omega) h₁
-    ⟨rfl, hmap₀, fun u hu => (hok₀ u hu).mono I s₁ (by simp [Acc.push]),
-      lookup_cons_self _ _ _⟩ trivial rfl
+    ⟨rfl, hmap₀, fun u hu => (hok₀ u hu).mono I s₁ (by simp [ProofLog.push]),
+      ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩ trivial rfl
   exact ⟨db₂, h₂, rest⟩
 
 /-! ### The sums at the last layer -/
@@ -1472,7 +1426,7 @@ theorem wBase_le_sBase (s : Bool) : I.wBase ≤ I.sBase s := by
 theorem sBase_add_le_M (s : Bool) : I.sBase s + (I.sDom s).length ≤ I.M := by
   cases s <;> simp [sBase, sDom, M, pBase]
 
-theorem lookup_sums {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) (s : Bool) :
+theorem lookup_sums {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) (s : Bool) :
     lookup db (if s then 3 else 1) = some (I.sLink₁ s).normalize ∧
       lookup db (if s then 4 else 2) = some (I.sLink₂ s).normalize ∧
       lookup db (sAlo s) = some (alo (I.sBase s) (I.sDom s).length).normalize ∧
@@ -1540,7 +1494,7 @@ def othersFalseS (s : Bool) (k : ℕ) : List (Literal ℕ) :=
 
 /-- **A clause `S_t ⇒ [s ≠ u]` runs**, for a node `t` of the last layer and a value `u` of the
 current domain of the sum `s` other than its coordinate. -/
-theorem sSteps_spec (s : Bool) {k : ℕ} {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db)
+theorem sSteps_spec (s : Bool) {k : ℕ} {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db)
     {t : Node} (ht : I.NodeOk I.n db e.var t) (hk : k < (I.sDom s).length)
     (hne : dval (I.sDom s) k ≠ sCoord s t.st) :
     ∃ db', I.Run (e.push (I.sSteps s t k e) 2 0) db' ∧ Sub db db' ∧
@@ -1561,7 +1515,7 @@ theorem sSteps_spec (s : Bool) {k : ℕ} {e : Acc} {db : List (ℕ × PBConstr)}
       have hf := ht.fw (sUp s + 1) (by cases s <;> simp [sUp])
       refine ⟨_, sUp s + 1, polEval_add hf hl₁, by cases s <;> simp [sUp],
         fun v hv => (vars_add hv).elim (I.vars_of_lookup h hf v) (I.vars_of_lookup h hl₁ v),
-        nodup_vars_normalize _, fun σ hz hp hA => ?_⟩
+        nodup_termVar_normalize _, fun σ hz hp hA => ?_⟩
       rw [cD_down] at hA
       have := I.link_down s (z := t.z (sUp s + 1)) (by have := ht.nv; simp only [Node.z]; omega)
         hb hA hz
@@ -1571,7 +1525,7 @@ theorem sSteps_spec (s : Bool) {k : ℕ} {e : Acc} {db : List (ℕ × PBConstr)}
       have hf := ht.fw (sUp s) (by cases s <;> simp [sUp])
       refine ⟨_, sUp s, polEval_add hf hl₂, by cases s <;> simp [sUp],
         fun v hv => (vars_add hv).elim (I.vars_of_lookup h hf v) (I.vars_of_lookup h hl₂ v),
-        nodup_vars_normalize _, fun σ hz hp hA => ?_⟩
+        nodup_termVar_normalize _, fun σ hz hp hA => ?_⟩
       rw [cD_up] at hA
       have := I.link_up s (z := t.z (sUp s)) (by have := ht.nv; simp only [Node.z]; omega) hA hz
       rw [sPart_true hp] at this
@@ -1584,19 +1538,20 @@ theorem sSteps_spec (s : Bool) {k : ℕ} {e : Acc} {db : List (ℕ × PBConstr)}
     simp only [List.map_cons, List.map_nil, Std.Sat.Literal.negate, Bool.not_false,
       List.append_nil]
     refine Knapsack.Inst.RupOk.id_imp (L := I.othersFalseS s k) (s₁ _ _ hamo)
-      (nodup_vars_normalize _) (fun σ hσ hc l hl => ?_) ?_
+      (nodup_termVar_normalize _) (fun σ hσ hc l hl => ?_) ?_
     · rw [holds_normalize] at hc
       simp only [othersFalseS, List.mem_map, List.mem_filter, List.mem_range, bne_iff_ne] at hl
       obtain ⟨k', ⟨hk', hne'⟩, rfl⟩ := hl
       simpa using eq_false_of_amo hc hk (lit_of hσ (by simp)) hk' hne'
     refine Knapsack.Inst.RupOk.id_imp (L := [(t.z 0, true), (t.z 1, true), (t.z 2, true),
-      (t.z 3, true)]) (s₁ _ _ ht.sf) (nodup_vars_normalize _) ?_ ?_
+      (t.z 3, true)]) (s₁ _ _ ht.sf) (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc'
       rw [holds_normalize, holds_impl] at hc'
       have := (holds_cS σ _).1 (hc' (by simp [lit_of hσ (v := t.S) (b := true) (by simp)]))
       simp only [Node.z, Nat.add_zero]
       simp [Consistent, this]
-    refine Knapsack.Inst.RupOk.id_conflict (lookup_cons_self _ _ _) hnd fun σ hσ hc => ?_
+    refine Knapsack.Inst.RupOk.id_conflict ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)) hnd
+      fun σ hσ hc => ?_
     refine hsem σ ?_ ⟨hk, lit_of hσ (by simp), fun k' hk' hne' => lit_of hσ ?_⟩ hc
     · rcases (by omega : d = 0 ∨ d = 1 ∨ d = 2 ∨ d = 3) with rfl | rfl | rfl | rfl <;>
         exact lit_of hσ (by simp)
@@ -1606,15 +1561,15 @@ theorem sSteps_spec (s : Bool) {k : ℕ} {e : Acc} {db : List (ℕ × PBConstr)}
   obtain ⟨h₂, s₂⟩ := Run.rup I h₁ hr (fun v hv => by
     obtain ⟨l, hl, rfl⟩ := vars_clause hv
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-    simp only [Acc.push]
+    simp only [ProofLog.push]
     rcases hl with rfl | rfl
     · exact I.nodeSteps_vars ht
     · have := I.sBase_add_le_M s; have := h.2.2.2.1; simp only; omega)
   refine ⟨_, ?_, s₁.trans s₂, ?_⟩
-  · simp only [Acc.push] at h₂ ⊢
+  · simp only [ProofLog.push] at h₂ ⊢
     convert h₂ using 2
     simp [sSteps]
-  · simpa [Acc.push] using lookup_cons_self _ _ _
+  · simp [ProofLog.push, lookup_cons]
 
 /-- The clauses `S ⇒ [s ≠ u]` in the database. -/
 private def SlOk (db : List (ℕ × PBConstr)) (sl : List ((ℕ × Bool × ℕ) × ℕ)) : Prop :=
@@ -1640,7 +1595,7 @@ theorem mem_others {s : Bool} {t : Node} {k : ℕ} :
   simp [others]
 
 private theorem sAll_spec {t : Node} :
-    ∀ (xs : List (Bool × ℕ)) (e : Acc) (db : List (ℕ × PBConstr)),
+    ∀ (xs : List (Bool × ℕ)) (e : ProofLog) (db : List (ℕ × PBConstr)),
     I.Run e db → I.NodeOk I.n db e.var t → (∀ x ∈ xs, x.2 ∈ I.others x.1 t) →
     ∃ db', I.Run (I.sAll t e xs).1 db' ∧ Sub db db' ∧ I.SlOk db' (I.sAll t e xs).2 ∧
       (I.sAll t e xs).2.map (·.1) = xs.map (fun x => (t.S, x)) ∧ (I.sAll t e xs).1.var = e.var
@@ -1649,13 +1604,13 @@ private theorem sAll_spec {t : Node} :
     obtain ⟨hkl, hne⟩ := I.mem_others.1 (hxs (s, k) List.mem_cons_self)
     obtain ⟨db₁, h₁, s₁, hl₁⟩ := I.sSteps_spec s h ht (mem_livePos.1 hkl).1 hne
     obtain ⟨db', h', s', hsl, hmap, hv⟩ := sAll_spec xs _ db₁ h₁
-      (ht.mono I s₁ (by simp [Acc.push])) (fun x hx => hxs x (List.mem_cons_of_mem _ hx))
+      (ht.mono I s₁ (by simp [ProofLog.push])) (fun x hx => hxs x (List.mem_cons_of_mem _ hx))
     simp only [sAll]
-    refine ⟨db', h', s₁.trans s', ?_, by simp [hmap], by rw [hv]; simp [Acc.push]⟩
+    refine ⟨db', h', s₁.trans s', ?_, by simp [hmap], by rw [hv]; simp [ProofLog.push]⟩
     simp only [SlOk, List.mem_cons, forall_eq_or_imp]
     exact ⟨s' _ _ hl₁, hsl⟩
 
-private theorem sLayer_spec : ∀ (ts : List Node) (e : Acc) (db : List (ℕ × PBConstr)),
+private theorem sLayer_spec : ∀ (ts : List Node) (e : ProofLog) (db : List (ℕ × PBConstr)),
     I.Run e db → (∀ t ∈ ts, I.NodeOk I.n db e.var t) →
     ∃ db', I.Run (I.sLayer e ts).1 db' ∧ Sub db db' ∧ I.SlOk db' (I.sLayer e ts).2 ∧
       (∀ t ∈ ts, ∀ s k, k ∈ I.others s t → ∃ m, ((t.S, s, k), m) ∈ (I.sLayer e ts).2) ∧
@@ -1752,7 +1707,7 @@ theorem deadSum_spec {st : St} (h : I.feasible st = false) :
 /-- **The refutations of the infeasible states of the last layer run**, from their clauses
 `S_t ⇒ [s ≠ u]` and the at-least-one constraint of the sum. -/
 private theorem deadFinal_spec {sl : List ((ℕ × Bool × ℕ) × ℕ)} :
-    ∀ (ts : List Node) (e : Acc) (db : List (ℕ × PBConstr)),
+    ∀ (ts : List Node) (e : ProofLog) (db : List (ℕ × PBConstr)),
     I.Run e db → (∀ t ∈ ts, I.NodeOk I.n db e.var t) → I.SlOk db sl →
     (∀ t ∈ ts, ∀ s k, k ∈ I.others s t → ∃ m, ((t.S, s, k), m) ∈ sl) →
     ∃ db', I.Run (I.deadFinal sl e ts).1 db' ∧ Sub db db' ∧
@@ -1778,7 +1733,7 @@ private theorem deadFinal_spec {sl : List ((ℕ × Bool × ℕ) × ℕ)} :
           (fun k => .id (slook sl (t.S, s, k))) ++ [.id (sAlo s)]) = true := by
         refine rup_clause ?_
         rw [negate_deadClause]
-        have := Knapsack.Inst.RupOk.imps (db := db) (neg := (I.deadClause t.S).negate)
+        have := RupOk.imps (db := db) (neg := (I.deadClause t.S).negate)
           (K₀ := I.antecedent ++ [(t.S, true)]) (rest := [.id (sAlo s)])
           ((I.others s t).map fun k => (Hint.id (slook sl (t.S, s, k)), (I.sBase s + k, false)))
           _ (fun l hl => hl) ?_ ?_
@@ -1786,7 +1741,7 @@ private theorem deadFinal_spec {sl : List ((ℕ × Bool × ℕ) × ℕ)} :
         · intro y hy
           obtain ⟨k, hk, rfl⟩ := List.mem_map.1 hy
           have hm := slook_mem (hcov t List.mem_cons_self s k hk)
-          refine ⟨_, hsl _ hm, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+          refine ⟨_, hsl _ hm, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
           rw [holds_normalize, holds_clause] at hc
           have hS := lit_of hσ (v := t.S) (b := true) (by simp)
           obtain ⟨l, hl, hev⟩ := hc
@@ -1795,7 +1750,7 @@ private theorem deadFinal_spec {sl : List ((ℕ × Bool × ℕ) × ℕ)} :
           · simp [hS] at hev
           · simpa using hev
         · refine Knapsack.Inst.RupOk.id_conflict (I.lookup_sums h s).2.2.1
-            (nodup_vars_normalize _) fun σ hσ hc => ?_
+            (nodup_termVar_normalize _) fun σ hσ hc => ?_
           rw [holds_normalize, holds_alo] at hc
           obtain ⟨k, hk, hσk⟩ := hc
           by_cases hl : dlive (I.sDom s) k = true
@@ -1815,12 +1770,12 @@ private theorem deadFinal_spec {sl : List ((ℕ × Bool × ℕ) × ℕ)} :
         · have := I.vars_negD hl; have := h.2.2.2.1; omega
         · simp only [List.mem_singleton] at hl; subst hl; exact I.nodeSteps_vars ht)
       obtain ⟨db', h', s', hd', hall, hv⟩ := deadFinal_spec ts _ _ h₁
-        (fun u hu => (hts u (List.mem_cons_of_mem _ hu)).mono I s₁ (by simp [Acc.push]))
+        (fun u hu => (hts u (List.mem_cons_of_mem _ hu)).mono I s₁ (by simp [ProofLog.push]))
         (hsl.mono I s₁) (fun u hu => hcov u (List.mem_cons_of_mem _ hu))
       refine ⟨db', by simpa [deadFinal, hfF, hs] using h', s₁.trans s', ?_, ?_, ?_⟩
       · simp only [deadFinal, hfF, Bool.false_eq_true, ↓reduceIte, DeadOk, List.mem_cons,
           forall_eq_or_imp]
-        exact ⟨s' _ _ (lookup_cons_self _ _ _), hd'⟩
+        exact ⟨s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)), hd'⟩
       · intro u hu hu'
         simp only [deadFinal, hfF, Bool.false_eq_true, ↓reduceIte, List.mem_cons]
         rcases List.mem_cons.1 hu with rfl | hu
@@ -1828,12 +1783,12 @@ private theorem deadFinal_spec {sl : List ((ℕ × Bool × ℕ) × ℕ)} :
         · obtain ⟨k, hk⟩ := hall u hu hu'
           exact ⟨k, .inr hk⟩
       · simp only [deadFinal, hfF, Bool.false_eq_true, ↓reduceIte]
-        simpa [Acc.push] using hv
+        simpa [ProofLog.push] using hv
 
 /-- **The refutations of an earlier layer run**: a state all of whose targets are refuted is
 refuted by RUP. -/
 theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List (ℕ × ℕ)}
-    {L' : List Node} : ∀ (os : List Out) (e : Acc) (db : List (ℕ × PBConstr)), I.Run e db →
+    {L' : List Node} : ∀ (os : List Out) (e : ProofLog) (db : List (ℕ × PBConstr)), I.Run e db →
     (∀ o ∈ os, I.OutOk i db e.var L' o) → I.DeadOk db dl →
     (∀ t ∈ L', t.st ∉ A → ∃ k, (t.S, k) ∈ dl) →
     ∃ db', I.Run (I.deadLayer i A dl e os).1 db' ∧ Sub db db' ∧
@@ -1866,17 +1821,17 @@ theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List (ℕ ×
           (.neg :: o.tr.map (fun x => .id (dlook dl x.tgt.S)) ++ [.id o.succ]) = true := by
         refine rup_clause ?_
         rw [negate_deadClause]
-        have := Knapsack.Inst.RupOk.imps (db := db) (neg := (I.deadClause o.u.S).negate)
+        have := RupOk.imps (db := db) (neg := (I.deadClause o.u.S).negate)
           (K₀ := I.antecedent ++ [(o.u.S, true)]) (rest := [.id o.succ])
           (o.tr.map fun x => (Hint.id (dlook dl x.tgt.S), (x.tgt.S, false))) _ (fun l hl => hl)
           ?_ ?_
         · rw [List.map_map] at this; exact this
         · intro y hy
           obtain ⟨x, hx, rfl⟩ := List.mem_map.1 hy
-          refine ⟨_, hdl _ (hdead x hx), nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+          refine ⟨_, hdl _ (hdead x hx), nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
           have := I.holds_deadClause (I.consistent_ante hσ) hc
           simp [this]
-        · refine Knapsack.Inst.RupOk.id_conflict ho.succ (nodup_vars_normalize _)
+        · refine Knapsack.Inst.RupOk.id_conflict ho.succ (nodup_termVar_normalize _)
             fun σ hσ hc => ?_
           have := I.succ_false hi (o := o)
             (K := (o.tr.map fun x => (Hint.id (dlook dl x.tgt.S), (x.tgt.S, false))).map (·.2) ++
@@ -1891,12 +1846,12 @@ theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List (ℕ ×
         · have := I.vars_negD hl; have := h.2.2.2.1; omega
         · simp only [List.mem_singleton] at hl; subst hl; exact I.nodeSteps_vars ho.u)
       obtain ⟨db', h', s', hd', hall, hv⟩ := deadLayer_spec hi os _ _ h₁
-        (fun u hu => (hos u (List.mem_cons_of_mem _ hu)).mono I s₁ (by simp [Acc.push]))
+        (fun u hu => (hos u (List.mem_cons_of_mem _ hu)).mono I s₁ (by simp [ProofLog.push]))
         (hdl.mono I s₁) hL'
       refine ⟨db', by simpa [deadLayer, hany'] using h', s₁.trans s', ?_, ?_, ?_⟩
       · simp only [deadLayer, hany', Bool.false_eq_true, ↓reduceIte, DeadOk, List.mem_cons,
           forall_eq_or_imp]
-        exact ⟨s' _ _ (lookup_cons_self _ _ _), hd'⟩
+        exact ⟨s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)), hd'⟩
       · intro u hu hu'
         simp only [deadLayer, hany', Bool.false_eq_true, ↓reduceIte, List.mem_cons]
         rcases List.mem_cons.1 hu with rfl | hu
@@ -1904,7 +1859,7 @@ theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List (ℕ ×
         · obtain ⟨k, hk⟩ := hall u hu hu'
           exact ⟨k, .inr hk⟩
       · simp only [deadLayer, hany', Bool.false_eq_true, ↓reduceIte]
-        simpa [Acc.push] using hv
+        simpa [ProofLog.push] using hv
 
 theorem alive_lt {i : ℕ} (hi : i < I.n) :
     I.alive i = (I.lay i).filter fun st =>
@@ -1941,7 +1896,7 @@ theorem BackAt.mono {db db' : List (ℕ × PBConstr)} {V V' : ℕ} {next : List 
     h.dead.mono I hs, h.cover⟩
 
 /-- **The backward pass runs.** -/
-theorem backAll_spec : ∀ (rs : List Layer) (e : Acc) (A : List St)
+theorem backAll_spec : ∀ (rs : List Layer) (e : ProofLog) (A : List St)
     (dl : List (ℕ × ℕ)) (j : ℕ) (L' : List Node) (db : List (ℕ × PBConstr)), I.Run e db →
     I.Chain db e.var j L' rs → j ≤ I.n → A = I.alive j → I.DeadOk db dl →
     (∀ t ∈ L', t.st ∉ A → ∃ k, (t.S, k) ∈ dl) →
@@ -2030,7 +1985,7 @@ theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Node} {r : 
     fun a b c => by simp]
   refine rup_clause ?_
   rw [negate_remClause]
-  have h1 := Knapsack.Inst.RupOk.imps (db := db) (neg := (I.remClause r.i k).negate)
+  have h1 := RupOk.imps (db := db) (neg := (I.remClause r.i k).negate)
     (K₀ := I.antecedent ++ [(I.var r.i k, true)])
     (rest := r.outs.map (fun o => .id (o.tau k)) ++ [.id r.alo])
     (r.outs.map fun o => (Hint.id (dlook dl (o.tgtOf k).S), ((o.tgtOf k).S, false))) _
@@ -2038,10 +1993,10 @@ theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Node} {r : 
   · rw [List.map_map] at h1; exact h1
   · intro y hy
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hy
-    refine ⟨_, hdead o ho, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, hdead o ho, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     have := I.holds_deadClause (I.consistent_ante hσ) hc
     simp [this]
-  have h2 := Knapsack.Inst.RupOk.imps (db := db) (neg := (I.remClause r.i k).negate)
+  have h2 := RupOk.imps (db := db) (neg := (I.remClause r.i k).negate)
     (K₀ := (r.outs.map fun o => (Hint.id (dlook dl (o.tgtOf k).S), ((o.tgtOf k).S, false))).map
       (·.2) ++ (I.antecedent ++ [(I.var r.i k, true)])) (rest := [.id r.alo])
     (r.outs.map fun o => (Hint.id (o.tau k), (o.u.S, false))) _ (fun l hl => hl) ?_ ?_
@@ -2050,7 +2005,7 @@ theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Node} {r : 
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hy
     obtain ⟨z, hz, hzk, ht, hτ⟩ := htr o ho
     obtain ⟨-, -, -, hzl⟩ := (hx.out o ho).tr z hz
-    refine ⟨_, by rw [hτ]; exact hzl, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, by rw [hτ]; exact hzl, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     rw [hzk] at hc
     have h3 := lit_of hσ (v := (o.tgtOf k).S) (b := false)
       (by simp only [List.mem_append, List.mem_map]; left; exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩)
@@ -2059,7 +2014,7 @@ theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Node} {r : 
     cases hu : σ o.u.S
     · simp [hu]
     · simp [I.holds_trClause.1 hc hu h4] at h3
-  · refine Knapsack.Inst.RupOk.id_conflict hx.lay.alo (nodup_vars_normalize _)
+  · refine Knapsack.Inst.RupOk.id_conflict hx.lay.alo (nodup_termVar_normalize _)
       fun σ hσ hc => I.alo_conflict (fun m hm => hσ m (by simp [hm])) (fun u hu => ?_) hc
     rw [← hx.outs] at hu
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
@@ -2067,7 +2022,7 @@ theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Node} {r : 
       (by simp only [List.mem_append, List.mem_map]; left; exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩)
 
 private theorem remLayer_spec {next : List Node} {r : Layer} {A : List St}
-    {dl : List (ℕ × ℕ)} : ∀ (ks : List ℕ) (e : Acc) (db : List (ℕ × PBConstr)),
+    {dl : List (ℕ × ℕ)} : ∀ (ks : List ℕ) (e : ProofLog) (db : List (ℕ × PBConstr)),
     I.Run e db → I.BackAt db e.var next ⟨r, A, dl⟩ → (∀ k ∈ ks, k ∈ livePos (I.dom r.i)) →
     ∃ db', I.Run (I.remLayer r A dl e ks).1 db' ∧ Sub db db' ∧
       (∀ y ∈ (I.remLayer r A dl e ks).2, y.1.1 = r.i ∧ y.1.2 ∈ ks ∧
@@ -2088,11 +2043,12 @@ private theorem remLayer_spec {next : List Node} {r : Layer} {A : List St}
           have := I.wBase_le_M
           have := h.2.2.2.1; simp only [wBase] at *; omega)
       obtain ⟨db', h', s', hys, hcov, hv⟩ := remLayer_spec ks _ _ h₁
-        (hx.mono I s₁ (by simp [Acc.push])) (fun k hk => hks k (List.mem_cons_of_mem _ hk))
+        (hx.mono I s₁ (by simp [ProofLog.push])) (fun k hk => hks k (List.mem_cons_of_mem _ hk))
       simp only [remLayer, hall, ↓reduceIte]
-      refine ⟨db', h', s₁.trans s', ?_, ?_, by simpa [Acc.push] using hv⟩
+      refine ⟨db', h', s₁.trans s', ?_, ?_, by simpa [ProofLog.push] using hv⟩
       · simp only [List.mem_cons, forall_eq_or_imp]
-        refine ⟨⟨by simp, by simp, s' _ _ (lookup_cons_self _ _ _)⟩, fun y hy => ?_⟩
+        refine ⟨⟨by simp, by simp, s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩,
+          fun y hy => ?_⟩
         obtain ⟨h1, h2, h3⟩ := hys y hy
         exact ⟨h1, .inr h2, h3⟩
       · simp only [List.mem_cons]
@@ -2112,7 +2068,7 @@ private theorem remLayer_spec {next : List Node} {r : Layer} {A : List St}
         · exact absurd hk'' hall
         · exact hcov k' hk' hk''
 
-private theorem remAll_spec : ∀ (xs : List Back) (e : Acc)
+private theorem remAll_spec : ∀ (xs : List Back) (e : ProofLog)
     (db : List (ℕ × PBConstr)), I.Run e db → (∀ x ∈ xs, ∃ next, I.BackAt db e.var next x) →
     ∃ db', I.Run (I.remAll e xs).1 db' ∧ Sub db db' ∧
       (∀ y ∈ (I.remAll e xs).2, y.1.2 ∈ livePos (I.dom y.1.1) ∧ y.1.1 < I.n ∧
@@ -2149,7 +2105,7 @@ theorem negate_remSClause (s : Bool) (k : ℕ) :
 
 /-- **The removals of the values of the sum `s` run.** -/
 private theorem remSum_spec (s : Bool) {L : List Node} {sl : List ((ℕ × Bool × ℕ) × ℕ)}
-    {dl : List (ℕ × ℕ)} {a : ℕ} : ∀ (ks : List ℕ) (e : Acc) (db : List (ℕ × PBConstr)),
+    {dl : List (ℕ × ℕ)} {a : ℕ} : ∀ (ks : List ℕ) (e : ProofLog) (db : List (ℕ × PBConstr)),
     I.Run e db → I.SlOk db sl → I.DeadOk db dl →
     lookup db a = some (I.aloClause L).normalize →
     (∀ t ∈ L, ∀ s k, k ∈ I.others s t → ∃ m, ((t.S, s, k), m) ∈ sl) →
@@ -2170,7 +2126,7 @@ private theorem remSum_spec (s : Bool) {L : List Node} {sl : List ((ℕ × Bool 
           then slook sl (t.S, s, k) else dlook dl t.S)) ++ [.id a]) = true := by
         refine rup_clause ?_
         rw [negate_remSClause]
-        have := Knapsack.Inst.RupOk.imps (db := db) (neg := (I.remSClause s k).negate)
+        have := RupOk.imps (db := db) (neg := (I.remSClause s k).negate)
           (K₀ := I.antecedent ++ [(I.sBase s + k, true)]) (rest := [.id a])
           (L.map fun t => (Hint.id (if I.feasible t.st then slook sl (t.S, s, k)
             else dlook dl t.S), (t.S, false))) _ (fun l hl => hl) ?_ ?_
@@ -2184,7 +2140,7 @@ private theorem remSum_spec (s : Bool) {L : List Node} {sl : List ((ℕ × Bool 
               simp only [hf, Bool.true_and, Bool.not_eq_true', beq_eq_false_iff_ne] at this
               exact Ne.symm this
             have hm := slook_mem (hcov t ht s k (I.mem_others.2 ⟨hk, hne⟩))
-            refine ⟨_, hsl _ hm, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+            refine ⟨_, hsl _ hm, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
             rw [holds_normalize, holds_clause] at hc
             have hS := lit_of hσ (v := I.sBase s + k) (b := true) (by simp)
             obtain ⟨l, hl, hev⟩ := hc
@@ -2194,11 +2150,11 @@ private theorem remSum_spec (s : Bool) {L : List Node} {sl : List ((ℕ × Bool 
             · simp [hS] at hev
           · have hfF : I.feasible t.st = false := by simpa using hf
             simp only [hfF, Bool.false_eq_true, ↓reduceIte]
-            refine ⟨_, hdl _ (dlook_mem (hdc t ht hfF)), nodup_vars_normalize _,
+            refine ⟨_, hdl _ (dlook_mem (hdc t ht hfF)), nodup_termVar_normalize _,
               fun σ hσ hc => ?_⟩
             have := I.holds_deadClause (I.consistent_ante hσ) hc
             simp [this]
-        · refine Knapsack.Inst.RupOk.id_conflict ha (nodup_vars_normalize _)
+        · refine Knapsack.Inst.RupOk.id_conflict ha (nodup_termVar_normalize _)
             fun σ hσ hc => I.alo_conflict (fun m hm => hσ m (by simp [hm])) (fun t ht => ?_) hc
           exact lit_of hσ (v := t.S) (b := false)
             (by simp only [List.map_map, List.mem_append, List.mem_map]; exact .inl ⟨t, ht, rfl⟩)
@@ -2213,9 +2169,9 @@ private theorem remSum_spec (s : Bool) {L : List Node} {sl : List ((ℕ × Bool 
       obtain ⟨db', h', s', hys, hcv, hv⟩ := remSum_spec s ks _ _ h₁ (hsl.mono I s₁)
         (hdl.mono I s₁) (s₁ _ _ ha) hcov hdc (fun k hk => hks k (List.mem_cons_of_mem _ hk))
       simp only [remSum, hall, ↓reduceIte]
-      refine ⟨db', h', s₁.trans s', ?_, ?_, by simpa [Acc.push] using hv⟩
+      refine ⟨db', h', s₁.trans s', ?_, ?_, by simpa [ProofLog.push] using hv⟩
       · simp only [List.mem_cons, forall_eq_or_imp]
-        refine ⟨⟨by simp, s' _ _ (lookup_cons_self _ _ _)⟩, fun y hy => ?_⟩
+        refine ⟨⟨by simp, s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩, fun y hy => ?_⟩
         obtain ⟨h1, h2⟩ := hys y hy
         exact ⟨.inr h1, h2⟩
       · simp only [List.mem_cons]
@@ -2319,7 +2275,7 @@ private theorem emit_spec : ∃ db, I.Run I.emit.acc db ∧
     · exact hcov₈ k hk hcv
 
 /-- **The checker accepts the propagator's proof**, with the direct literals preserved. -/
-theorem checkRed_propagate :
+public theorem checkRed_propagate :
     checkRed I.formula none I.propagate.proof (some I.pres) = true := by
   obtain ⟨db, h, -⟩ := I.emit_spec
   have h1 := h.1
@@ -2454,7 +2410,7 @@ theorem mem_alive_iff : ∀ (k : ℕ) {i : ℕ} (_ : i + k = I.n) {st : St},
 
 /-- **The value at position `k` of item `j` is supported**: some choice of positions of the
 current domains, with `k` for item `j`, has its weight and profit in their current domains. -/
-def SupportedN (j k : ℕ) : Prop :=
+public def SupportedN (j k : ℕ) : Prop :=
   ∃ c, I.Allowed c 0 I.n ∧ c j = k ∧ I.feasible (I.stC c I.n) = true
 
 /-- **Completeness of the dynamic program**: if no transition by the position `k` out of layer
@@ -2492,7 +2448,7 @@ theorem forall_not_alive_iff {j : ℕ} (hj : j < I.n) {k : ℕ} (hk : k ∈ live
 
 /-- **The value at position `k` of the sum `s` is supported**: some allowed choice of positions
 has its weight and profit in their current domains, the sum `s` being the value at `k`. -/
-def SupportedS (s : Bool) (k : ℕ) : Prop :=
+public def SupportedS (s : Bool) (k : ℕ) : Prop :=
   ∃ c, I.Allowed c 0 I.n ∧ I.feasible (I.stC c I.n) = true ∧
     sCoord s (I.stC c I.n) = dval (I.sDom s) k
 
@@ -2620,33 +2576,20 @@ theorem exists_of_feasible {st : St} (h : I.feasible st = true) :
       ∃ kp ∈ livePos I.pDom, dval I.pDom kp = st.2 := by
   simpa [feasible, List.any_eq_true] using h
 
-/-- A constraint of the database over the direct literals holds at every solution of the formula:
-the witnesses of `red` change only extension variables, which the preserved set excludes. -/
-theorem holds_of_run {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {k : ℕ}
+/-- A constraint of the database over the direct literals holds at every solution of the formula,
+by the Boolean emitter's `holds_of_runTop`. -/
+theorem holds_of_run {e : ProofLog} {db : List (ℕ × PBConstr)} (h : I.Run e db) {k : ℕ}
     {c : PBConstr} (hk : lookup db k = some c) (hv : ∀ x ∈ c.vars, x < I.M) {σ : ℕ → Bool}
-    (hσ : ∀ c ∈ I.formula, c.Holds σ) : c.Holds σ := by
-  obtain ⟨-, he⟩ := invariants_of_runTop h.1
-  obtain ⟨g, -, hmaps, hid⟩ := he.fwd 0 (.inr rfl)
-  have hmem : proj I.pres σ ∈ proj ((some I.pres).getD []) '' solsLE I.formula none 0 :=
-    ⟨σ, ⟨hσ, by simp [objValue]⟩, rfl⟩
-  rcases hmaps hmem with ⟨_, ⟨τ, ⟨hτ, -⟩, rfl⟩, hτσ⟩ | ⟨m, ⟨hm, -⟩, -⟩
-  · have heq := hid rfl _ hmem _ hτσ.symm
-    simp only [state, State.init, Option.getD_some] at heq
-    refine (holds_congr fun t ht => ?_).2 (hτ.lookup hk)
-    have hx : termVar t ∈ I.pres := by
-      simpa [pres] using hv _ (List.mem_map_of_mem ht)
-    have := congrArg (fun l => l[(I.pres.idxOf (termVar t))]?) heq
-    simp only [proj, List.getElem?_map, List.getElem?_idxOf hx, Option.map_some,
-      Option.some.injEq] at this
-    exact this.symm
-  · simp [state, State.init] at hm
+    (hσ : ∀ c ∈ I.formula, c.Holds σ) : c.Holds σ :=
+  Knapsack.Inst.holds_of_runTop (s := I.state db e.next) h.1 rfl rfl rfl hk
+    (fun x hx => by simpa [pres] using hv x hx) hσ
 
 /-! ### The removals are exactly the unsupported values -/
 
 /-- **The removed values of the items are exactly the unsupported values of their current
 domains.** The direction "removed ⇒ unsupported" holds because the checker accepts the proof,
 which derives `D ⇒ [xⱼ ≠ v]`; the converse is the exactness of the dynamic program. -/
-theorem mem_removed_iff {j k : ℕ} :
+public theorem mem_removed_iff {j k : ℕ} :
     (j, k) ∈ I.propagate.removed ↔ j < I.n ∧ k ∈ livePos (I.dom j) ∧ ¬ I.SupportedN j k := by
   obtain ⟨db, h, hys, hcov, -, -⟩ := I.emit_spec
   constructor
@@ -2722,18 +2665,16 @@ private theorem mem_removedS_iff (s : Bool) {k : ℕ} :
 
 /-- **The removed values of the weight are exactly the unsupported values of its current
 domain**: the remaining ones are the weights of the feasible states of the last layer. -/
-theorem mem_removedW_iff {k : ℕ} :
+public theorem mem_removedW_iff {k : ℕ} :
     k ∈ I.propagate.removedW ↔ k ∈ livePos I.wDom ∧ ¬ I.SupportedS false k :=
   I.mem_removedS_iff false
 
 /-- **The removed values of the profit are exactly the unsupported values of its current
 domain.** -/
-theorem mem_removedP_iff {k : ℕ} :
+public theorem mem_removedP_iff {k : ℕ} :
     k ∈ I.propagate.removedP ↔ k ∈ livePos I.pDom ∧ ¬ I.SupportedS true k :=
   I.mem_removedS_iff true
 
 end Inst
 
 end Cslib.Logic.PL.VeriPB.Knapsack.Trick
-
-end

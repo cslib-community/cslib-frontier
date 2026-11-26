@@ -8,10 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
--- `import all`: the acceptance proof unfolds `stepTop`, `runTop`, `State.improve` and `certify`.
+-- `import all`: the acceptance proof unfolds `stepTop`, `runTop`, `State.improve`, `certify` with
+-- its private `optSteps`, and the emitter's definitions and private lemmas.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 
 /-!
 # The certified knapsack's proof is accepted
@@ -42,7 +45,6 @@ constraint of the last layer is refuted by RUP.
   Algorithms*][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024]
 -/
 
-public section
 
 namespace Cslib.Logic.PL.VeriPB.Knapsack
 
@@ -71,11 +73,7 @@ private theorem exists_of_mem_layM {m : Mode} : ∀ {i : ℕ} {st : St}, st ∈ 
     · rw [stOf_succ, Function.update_self]
       congr 1
       rw [← hσ]
-      simp only [stOf]
-      rw [part_congr (σ := Function.update σ i b) (τ := σ) (fun (j : ℕ) (hj : j < i) =>
-          Function.update_of_ne (Nat.ne_of_lt hj) _ _),
-        part_congr (σ := Function.update σ i b) (τ := σ) (fun (j : ℕ) (hj : j < i) =>
-          Function.update_of_ne (Nat.ne_of_lt hj) _ _)]
+      exact I.stOf_update σ i b
     · simp only [keep, hp, Bool.not_true, Bool.false_or, decide_eq_true_eq] at hk
       simpa [succSt] using hk
 
@@ -83,25 +81,16 @@ end Inst
 
 /-! ### Sums over `Fin n` -/
 
-private theorem map_finRange {α : Type*} (g : ℕ → α) :
-    (List.finRange n).map (fun i => g i.val) = (List.range n).map g := by
-  rw [← List.map_coe_finRange_eq_range, List.map_map]; rfl
-
 private theorem sum_filter_map {α : Type*} (l : List α) (q : α → Bool) (a : α → ℕ) :
     ((l.filter q).map a).sum = (l.map fun i => if q i then a i else 0).sum := by
   induction l with
   | nil => rfl
   | cons x l ih => cases h : q x <;> simp [h, ih]
 
-/-- The weight of the items an assignment takes, as the dynamic program counts it. -/
-private theorem part_ofFin (σ : ℕ → Bool) (a : Fin n → ℕ) :
-    Inst.part σ (fun j => if h : j < n then a ⟨j, h⟩ else 0) true n =
-      (((List.finRange n).filter fun i => σ i.val).map a).sum := by
-  rw [sum_filter_map, Inst.part, ← map_finRange
-    (fun j => Inst.bit (σ j) true (if h : j < n then a ⟨j, h⟩ else 0))]
-  congr 1
-  refine List.map_congr_left fun i _ => ?_
-  cases σ i.val <;> simp [Inst.bit]
+/-- The weight of the items an assignment takes, as a list sum. -/
+private theorem sum_filter_finRange (σ : ℕ → Bool) (a : Fin n → ℕ) :
+    (((List.finRange n).filter fun i => σ i.val).map a).sum = ∑ i ∈ chosen n σ, a i := by
+  rw [sum_filter_map, chosen, Finset.sum_filter, Fin.sum_univ_def]
 
 /-! ### The logged solution -/
 
@@ -187,22 +176,6 @@ private theorem vars_fromLinear {L : List (ℕ × ℤ)} {D : ℤ} {x : ℕ}
   unfold entryTerm at ht
   split_ifs at ht <;> cases ht <;> rfl
 
-private theorem nodup_fromLinear {L : List (ℕ × ℤ)} (hL : (L.map Prod.fst).Nodup) (D : ℤ) :
-    ((fromLinear L D).terms.map termVar).Nodup := by
-  simp only [fromLinear]
-  refine List.Nodup.sublist ?_ hL
-  clear hL
-  induction L with
-  | nil => simp
-  | cons e L ih =>
-    obtain ⟨v, a⟩ := e
-    rw [List.filterMap_cons]
-    rcases h : entryTerm (v, a) with _ | t
-    · exact ih.cons _
-    · have hv : termVar t = v := by
-        unfold entryTerm at h; split_ifs at h <;> cases h <;> rfl
-      simpa [hv] using ih.cons_cons v
-
 section
 
 variable (w p : Fin n → ℕ) (B : ℕ)
@@ -230,7 +203,7 @@ private theorem slack_impr (σ : ℕ → Bool) :
       Inst.part σ (optInst w p B).p true n - (((sel w p B).map p).sum + 1) := by
   have hnd : ((impr w p B).terms.map termVar).Nodup := by
     rw [impr_eq]
-    refine nodup_fromLinear ?_ _
+    refine nodup_termVar_fromLinear ?_ _
     simpa [List.map_map, Function.comp_def] using List.nodup_finRange n |>.map Fin.val_injective
   rw [slack_normalize hnd, impr_eq, lhs_fromLinear]
   have hneg : negMass ((List.finRange n).map fun i => (i.val, (p i : ℤ))) = 0 := by
@@ -267,10 +240,13 @@ private theorem refute_last {u : Node} (hu : u.st ∈ (optInst w p B).layM optMo
   simp only [Bool.not_false] at h3 h4
   -- The selection of `τ` fits, so its profit is at most the optimum.
   have hw : (((List.finRange n).filter fun i => τ i.val).map w).sum ≤ B := by
-    rw [← part_ofFin]; have := hfit rfl; simp only [← hτ, Inst.stOf] at this; exact this
+    rw [sum_filter_finRange, ← Inst.part_ofFin]
+    have := hfit rfl
+    simp only [← hτ, Inst.stOf] at this
+    exact this
   have hle := Cslib.Algorithms.Lean.Knapsack.sum_map_le_profitDP (w := w) (p := p)
     List.filter_sublist hw
-  rw [← part_ofFin] at hle
+  rw [sum_filter_finRange, ← Inst.part_ofFin] at hle
   have hq : Inst.part τ (optInst w p B).p false n = u.st.2 := by rw [← hτ]; rfl
   have htot : Inst.tot (optInst w p B).p n = Inst.tot (optInst w p B).p (optInst w p B).n := rfl
   change Inst.part τ (fun j => if h : j < n then p ⟨j, h⟩ else 0) true n ≤ _ at hle
@@ -288,13 +264,13 @@ variable (I : Inst) {X : Ctx}
 
 /-- **The additions of the last layer run**: for each node, its forward half of `P` plus the
 constraint `2`, numbered from `e.next` on. -/
-private theorem run_pols : ∀ (L : List Node) (e : Acc) (db : List (ℕ × PBConstr)),
+private theorem run_pols : ∀ (L : List Node) (e : ProofLog) (db : List (ℕ × PBConstr)),
     I.Run X e db → (∀ u ∈ L, lookup db u.pf = some (impl [(u.P, true)] (I.cP I.n u.st)).normalize) →
     ∃ db', I.Run X (e.push (L.map fun u => .step (.pol [.id u.pf, .id 2, .add])) L.length 0) db' ∧
       Sub db db' ∧ ∀ x ∈ L.zip ((List.range L.length).map (e.next + ·)),
         lookup db' x.2 = some ((impl [(x.1.P, true)] (I.cP I.n x.1.st)).normalize.add
           X.c₂.normalize)
-  | [], e, db, h, _ => ⟨db, by simpa [Acc.push] using h, Sub.refl _, by simp⟩
+  | [], e, db, h, _ => ⟨db, by simpa [ProofLog.push] using h, Sub.refl _, by simp⟩
   | u :: L, e, db, h, hL => by
     obtain ⟨h₁, s₁⟩ := Run.add I h (hL u List.mem_cons_self) h.2.2.2.2.2
     obtain ⟨db', h', s', hall⟩ := run_pols L _ _ h₁
@@ -305,11 +281,11 @@ private theorem run_pols : ∀ (L : List Node) (e : Acc) (db : List (ℕ × PBCo
     · simp only [List.length_cons, List.range_succ_eq_map, List.map_cons, Nat.add_zero,
         List.zip_cons_cons, List.mem_cons, List.map_map]
       rintro x (rfl | hx)
-      · exact s' _ _ (lookup_cons_self _ _ _)
+      · exact s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))
       · refine hall x ?_
         convert hx using 3
         funext j
-        simp [Acc.push, Nat.add_assoc, Nat.add_comm 1]
+        simp [ProofLog.push, Nat.add_assoc, Nat.add_comm 1]
 
 end Inst
 
@@ -320,12 +296,7 @@ section
 variable (w p : Fin n → ℕ) (B : ℕ)
 
 private theorem capacity_eq : capacity w B = (optInst w p B).capC := by
-  have h1 : (List.finRange n).map (fun i => (w i, (i.val, false))) =
-      (List.range n).map fun j => ((optInst w p B).w j, (j, false)) := by
-    rw [← map_finRange]; exact List.map_congr_left fun i _ => by simp [optInst, Inst.ofFin]
-  have h3 : (List.finRange n).map w = (List.range n).map (optInst w p B).w := by
-    rw [← map_finRange]; exact List.map_congr_left fun i _ => by simp [optInst, Inst.ofFin]
-  simp only [capacity, Inst.capC, Inst.tot, h1, h3]
+  rw [optInst, Inst.capC_ofFin]
   rfl
 
 private theorem fixedLits_opt : (optInst w p B).fixedLits = [] := by
@@ -423,7 +394,7 @@ private theorem final_rup {db : List (ℕ × PBConstr)} {V : ℕ} {rn : LayerRec
   · intro x hx
     obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
     have hyn := (List.of_mem_zip hy).1
-    refine ⟨_, hpols y hy, nodup_vars_normalize _, fun σ _ hc => ?_⟩
+    refine ⟨_, hpols y hy, nodup_termVar_normalize _, fun σ _ hc => ?_⟩
     simp only [Literal.eval_mk, beq_iff_eq]
     by_contra hP
     exact refute_last w p B (hrn.lay ▸ List.mem_map_of_mem hyn) (hrn.nodes y.1 hyn).nP hc
@@ -435,25 +406,19 @@ private theorem final_rup {db : List (ℕ × PBConstr)} {V : ℕ} {rn : LayerRec
   refine RupOk.imps (K₀ := rn.nodes.map fun u => (u.P, false)) _ _ (fun l hl => hl) ?_ ?_
   · intro x hx
     obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hx
-    refine ⟨_, (hrn.nodes u hu).sf, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, (hrn.nodes u hu).sf, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     rw [holds_normalize, holds_impl] at hc
     have hP := lit_of hσ (v := u.P) (b := false) (List.mem_map_of_mem hu)
     cases hS : σ u.S
     · simp [hS]
     · have := ((holds_cS σ _ _).1 (hc (by simpa using hS))).2
       simp [hP] at this
-  · refine RupOk.id_conflict hrn.alo (nodup_vars_normalize _) fun σ hσ hc => ?_
-    rw [holds_normalize, Inst.aloClause, Inst.negD, fixedLits_opt, holds_clause] at hc
-    obtain ⟨l, hl, hev⟩ := hc
-    simp only [List.map_nil, List.nil_append, List.mem_map] at hl
-    obtain ⟨u, hu, rfl⟩ := hl
-    have := lit_of hσ (v := u.S) (b := false)
-      (List.mem_append_left _ (List.mem_map.2 ⟨(Hint.id u.sf, (u.S, false)),
-        List.mem_map.2 ⟨u, hu, rfl⟩, rfl⟩))
-    simp [this] at hev
+  · exact (optInst w p B).rupOk_alo hrn.alo (by simp [fixedLits_opt]) fun u hu =>
+      List.mem_append_left _ (List.mem_map.2 ⟨(Hint.id u.sf, (u.S, false)),
+        List.mem_map.2 ⟨u, hu, rfl⟩, rfl⟩)
 
 /-- **The checker accepts the proof of the certified knapsack**, on every instance. -/
-theorem checkRed_certify :
+public theorem checkRed_certify :
     checkRed (formula w B) (some (negProfit p)) (certify w p B).proof = true := by
   set I := optInst w p B with hI
   have hn : I.n = n := rfl
@@ -504,14 +469,14 @@ theorem checkRed_certify :
       rn.nodes.length 0).next, (⟨[], 1⟩ : PBConstr).normalize) :: db₃) ((I.forward optMode).1.push
       (List.map (fun u => TopStep.step (Step.pol [PolOp.id u.pf, PolOp.id 2, PolOp.add])) rn.nodes)
       rn.nodes.length 0).next = true := by
-    simp only [namesContra, lookup_cons_self, Option.any_some]; decide
+    simp only [namesContra, lookup_cons, ↓reduceIte, Option.any_some]; decide
   simp only [Nat.cast_list_sum, List.map_map] at hev
   simp [checkConclusion, boundsOk, state, s₀, State.improve, State.addCore, State.log,
     State.init, lowerTo, objValue, hnc, sel, hev]
 
 /-- **The answer of the certified knapsack is the optimum**: the largest profit of a set of items
 that fits, on every instance. -/
-theorem isGreatest_certify :
+public theorem isGreatest_certify :
     IsGreatest ((fun S : Finset (Fin n) => ∑ i ∈ S, p i) '' {S | ∑ i ∈ S, w i ≤ B})
       (certify w p B).optimum :=
   isGreatest_of_checkRed_certify (checkRed_certify w p B)
@@ -519,5 +484,3 @@ theorem isGreatest_certify :
 end
 
 end Cslib.Logic.PL.VeriPB.Knapsack
-
-end

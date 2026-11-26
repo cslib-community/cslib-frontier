@@ -7,11 +7,15 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
--- `import all`: the kernel evaluates `stepTop` and `runTop`, whose bodies are not exposed.
+-- `import all`: the kernel evaluates `stepTop` and `runTop`, the propagator `Inst.propagate` with
+-- its private `Inst.emit`, `Inst.forward`, `Inst.backAll`, `Inst.remAll`, …, and the encoding and
+-- the Boolean emitter's partial sums, whose bodies are not exposed.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrick
 import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrickProof
 
-/-! A kernel-checked client of Trick's knapsack propagator. Two items, `x₀ ∈ {0, 1, 2}` of
+/-! A kernel-checked client of the two-equality knapsack propagator. Two items, `x₀ ∈ {0, 1, 2}` of
 weight `2` and profit `1`, and `x₁ ∈ {0, 1}` of weight `3` and profit `2`, the weight
 `W ∈ {0, …, 4}` and the profit `P ∈ {2, 3}`: the solutions are `(x₀, x₁) = (2, 0)`, of weight
 `4` and profit `2`, and `(0, 1)`, of weight `3` and profit `2`. The kernel runs the propagator,
