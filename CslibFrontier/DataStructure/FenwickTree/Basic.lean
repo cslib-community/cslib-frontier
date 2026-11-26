@@ -123,16 +123,10 @@ theorem Valid.unique {α : Type*} [AddCommMonoid α]
 theorem Valid.getElem_le_sum {t : FenwickTree ℕ} {s : List ℕ} (hv : Valid t s)
     {i : ℕ} (hi : i < t.tree.size) : t.tree[i] ≤ s.sum := by
   have hm := hv.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi)
-  simp only [Nat.add_sub_cancel] at hm
-  rw [hm]
-  have h1 : ((s.take (i + 1)).drop (i + 1 - lowbit (i + 1))).sum ≤ (s.take (i + 1)).sum := by
-    conv_rhs => rw [← List.take_append_drop (i + 1 - lowbit (i + 1)) (s.take (i + 1)),
-      List.sum_append]
-    omega
-  have h2 : (s.take (i + 1)).sum ≤ s.sum := by
-    conv_rhs => rw [← List.take_append_drop (i + 1) s, List.sum_append]
-    omega
-  exact h1.trans h2
+  have h1 := congrArg List.sum (List.take_append_drop (i + 1 - lowbit (i + 1)) (s.take (i + 1)))
+  have h2 := congrArg List.sum (List.take_append_drop (i + 1) s)
+  simp only [Nat.add_sub_cancel, List.sum_append] at hm h1 h2
+  omega
 
 /-! ## Bridging `List` slice sums and `Finset.Ico` sums -/
 
@@ -536,12 +530,7 @@ theorem BuildInv.parent_add_le_sum {s : List ℕ} {m : ℕ} {tree : Array ℕ}
       tree[m - 1]'(by have := hinv.size_eq; omega) ≤ s.sum := by
   have hinv' := hinv.step hm1 hms
   simp only [hp, ↓reduceIte] at hinv'
-  have hp1 : 1 ≤ m + lowbit m := by omega
-  have hpsz : m + lowbit m ≤ (tree.modify (m + lowbit m - 1)
-      (· + tree[m - 1]'(by have := hinv.size_eq; omega))).size := by
-    rw [Array.size_modify, hinv.size_eq]
-    exact hp
-  have hle := hinv'.getElem_le_sum hp1 hpsz
+  have hle := hinv'.getElem_le_sum (by omega) ((Array.size_modify.trans hinv.size_eq).symm ▸ hp)
   simpa only [Array.getElem_modify, ↓reduceIte] using hle
 
 private theorem buildLoop_spec {α : Type*} [AddCommMonoid α]
@@ -565,8 +554,7 @@ theorem valid_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :
 @[simp]
 theorem size_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :
     (ofArray a).size = a.size := by
-  have hv := (valid_ofArray a).1
-  simpa only [size, Array.length_toList] using hv
+  simpa only [size, Array.length_toList] using (valid_ofArray a).1
 
 theorem valid_ofList {α : Type*} [AddCommMonoid α] (s : List α) :
     Valid (ofList s) s := by
@@ -634,10 +622,8 @@ theorem valid_set {α : Type*} [AddCommGroup α]
   split_ifs with hpos
   · rw [get_eq hv]
     have hadd := valid_add hv pos (v - s.getD pos 0)
-    unfold PrefixSums.addAt at hadd
-    rwa [add_sub_cancel] at hadd
-  · have hge : s.length ≤ pos := by have := hv.1; omega
-    rwa [List.set_eq_of_length_le hge]
+    simpa only [PrefixSums.addAt, add_sub_cancel] using hadd
+  · rwa [List.set_eq_of_length_le (by have := hv.1; omega)]
 
 @[simp]
 theorem size_set {α : Type*} [AddCommGroup α]

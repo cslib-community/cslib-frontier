@@ -224,15 +224,12 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
   have hz : z.Bounded w := staged_bounded (.enqueue v) hr.bounded h1 hv
   have hin : z.regs ∘ Backend.src family false = (family false).input d :=
     staged_input hr (.enqueue v)
-  have hdomz : enqueueDomain w d (memoryState (Backend.frontier family) z) := by
-    rwa [staged_memory]
+  have hdomz := (staged_memory w capacity (.enqueue v) x).symm ▸ hdom
   obtain ⟨b, n, hb, hn, hm, ho, hbb, hframe⟩ := Backend.exists_exec_live family false d hz hin
     hdomz (valid_enqueue hdomz)
   rw [staged_memory] at hm
   have hn' : n ≤ 2 * Backend.factor family := by
-    change n ≤ Backend.factor family * (memoryCost (enqueue d)
-      (memoryState (Backend.frontier family) z) + 0 + 1) at hn
-    simpa only [memoryCost_enqueue, Nat.add_zero, Nat.mul_comm] using hn
+    simpa [family, memoryCost_enqueue, Nat.mul_comm] using hn
   let m : Counts := ⟨front.length, back.length + 1⟩
   have hcommit : Exec w commit b (committed m b) 2 := commit_exec
     ((congrArg b.regs (enqueue_result_eq 0)).symm.trans (ho 0))
@@ -249,8 +246,8 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
       ((Memory.spec w).clientState (memoryState (Backend.frontier family) x) (enqueue d)).mem :=
     congrArg Memory.State.mem hm
   have hmem : b.mem =
-      ((Memory.spec 0).clientState (memoryState (Backend.frontier family) x) (enqueue d)).mem := by
-    simpa only [clientState_width w] using hmemw
+      ((Memory.spec 0).clientState (memoryState (Backend.frontier family) x) (enqueue d)).mem :=
+    congrArg Memory.State.mem (hm.trans (clientState_width w _ _))
   have hcontents := enqueue_contents (d := d) front back
     (memoryState (Backend.frontier family) x) rfl rfl hs hr.front_contents hr.back_contents
   exact ⟨committed m b, 1 + (n + 1 + 2), he, by omega,
@@ -287,8 +284,7 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
   have hin : z.regs ∘ Backend.src family true = (family true).input d := funext fun i =>
     (congrArg z.regs (Backend.src_eq_of_val_eq family true false rfl)).trans
       (congrFun (staged_input hr .dequeue) i)
-  have hdomz : transferDomain w d (memoryState (Backend.frontier family) z) := by
-    rwa [staged_memory]
+  have hdomz := (staged_memory w capacity .dequeue x).symm ▸ hdom
   obtain ⟨b, n, hb, hn, hm, ho, hbb, hframe⟩ := Backend.exists_exec_live family true d hz hin
     hdomz (by rw [staged_memory]; exact hi.1)
   rw [staged_memory] at hm hn ho
@@ -340,16 +336,15 @@ theorem execute {w base capacity : ℕ} {front back : List ℕ} {x : Data regist
       n + 1 + potential y ≤ 4 * Backend.factor family + 6 + potential x := by
   cases o with
   | enqueue v =>
-    change (Stacks.contents ⟨front, back⟩).length < capacity ∧ Fits w v at hv
-    rw [Stacks.contents_length] at hv
-    obtain ⟨y, n, he, hn, hry, hm⟩ := execute_enqueue h1 hr hv.1 hv.2
+    obtain ⟨y, n, he, hn, hry, hm⟩ :=
+      execute_enqueue h1 hr (by simpa only [Stacks.contents_length] using hv.1) hv.2
     refine ⟨y, n, he, rfl, hry, hm, ?_⟩
     simp only [potential, hry.backLen_eq, hr.backLen_eq, List.length_cons,
       Nat.mul_add, Nat.mul_one]
     omega
   | dequeue =>
     obtain ⟨y, n, he, hn, hry, ha, hm⟩ := execute_dequeue h1 hr
-    let d : Input := ![front.length, back.length, base, capacity, 0]
+    set d : Input := ![front.length, back.length, base, capacity, 0]
     have hw : Memory.WellFormed w (memoryState (Backend.frontier family) x) :=
       wellFormed_memoryState hr.bounded
     have hdom : transferDomain w d (memoryState (Backend.frontier family) x) :=
@@ -361,8 +356,6 @@ theorem execute {w base capacity : ℕ} {front back : List ℕ} {x : Data regist
     rw [hcontents.1] at hpay
     change memoryCost (dequeue d) (memoryState (Backend.frontier family) x) +
       2 * (pairStep ⟨front, back⟩ .dequeue).1.rear.length ≤ 3 + 2 * back.length at hpay
-    change n + 1 ≤ Backend.factor family *
-      (memoryCost (dequeue d) (memoryState (Backend.frontier family) x) + 1) + 6 at hn
     refine ⟨y, n, he, ha, hry, hm, ?_⟩
     simp only [potential, hry.backLen_eq, hr.backLen_eq]
     nlinarith [Nat.mul_le_mul_left (Backend.factor family) hpay]

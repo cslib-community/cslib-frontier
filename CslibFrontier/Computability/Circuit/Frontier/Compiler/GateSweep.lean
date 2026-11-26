@@ -499,20 +499,16 @@ private theorem eventually_signalWidth_err_le {U : Type u} [Finite U] [Nontrivia
     hNc_lb.trans (mul_le_mul_of_nonneg_left (by exact_mod_cast hnC) hη.le),
     fun c hs_L₀ => ?_⟩
   let V := Nat.card (Compiler.Node c)
-  have hnode_le : (V : ℝ) ≤ L₀ * n + 1 := by
-    have hnat : (V : ℝ) ≤ c.innerSize + 1 := by exact_mod_cast Compiler.card_node_le c
-    linarith
+  have hnode_le : (V : ℝ) ≤ L₀ * n + 1 :=
+    le_trans (b := (c.innerSize : ℝ) + 1) (by exact_mod_cast Compiler.card_node_le c) (by linarith)
   have hnode_mul : (V : ℝ) ≤ (L₀ + 1) * n := by linarith
   refine ⟨?_, ?_, logb_node_err_le hq2 (Nat.cast_nonneg _) hnode_le hnlogV⟩
   · have hM_pos : (0 : ℝ) < M := by positivity
     rw [div_le_iff₀ hM_pos]
-    have h2 : ((r + 1) * V : ℝ) ≤ (r + 1 : ℝ) * ((L₀ + 1) * n) :=
-      mul_le_mul_of_nonneg_left hnode_mul (by positivity)
-    nlinarith [mul_le_mul_of_nonneg_right hM_lb hn0]
-  · have hcast : ((M * R : ℕ) : ℝ) * V = (M : ℝ) * R * V := by push_cast; ring
-    rw [← hcast]
-    exact mul_sqrt_le_of_sq_le (by positivity) (Nat.cast_nonneg _) (by positivity) hη
-      hnode_mul hNsq_lb hn_sqrt
+    nlinarith [mul_le_mul_of_nonneg_left hnode_mul (by positivity : (0 : ℝ) ≤ r + 1),
+      mul_le_mul_of_nonneg_right hM_lb hn0]
+  · simpa only [Nat.cast_mul, mul_assoc] using mul_sqrt_le_of_sq_le (by positivity)
+      (Nat.cast_nonneg _) (by positivity) hη hnode_mul hNsq_lb hn_sqrt
 
 private theorem supply_base_le {b n δ a p W C_deg L_K L_V S_str gs U_un E : ℝ}
     (hb : 1 < b)
@@ -892,14 +888,10 @@ private theorem eventually_exists_layout_signalWidth_le_multiFanoutSize {U : Typ
   have hn1' : (1 : ℝ) ≤ n := by exact_mod_cast hn1
   have hn0 : (0 : ℝ) ≤ n := by positivity
   have hs_le : (c.innerSize : ℝ) ≤ (k₀ + 2 : ℝ) * n := by
-    have h2k_ge : (0 : ℝ) ≤ (2 : ℝ) ^ k₀ - k₀ := by
-      have hr : (k₀ + 1 : ℝ) ≤ (2 : ℝ) ^ k₀ := by
-        exact_mod_cast Nat.succ_le_of_lt k₀.lt_two_pow_self
-      linarith
-    have hmf_nn : (0 : ℝ) ≤ ((2 : ℝ) ^ k₀ - k₀) * Compiler.multiFanoutSize c :=
-      mul_nonneg h2k_ge (Nat.cast_nonneg _)
-    have hεn : 0 ≤ ε * n := by positivity
-    linarith
+    have hr : (k₀ + 1 : ℝ) ≤ (2 : ℝ) ^ k₀ := by
+      exact_mod_cast Nat.succ_le_of_lt k₀.lt_two_pow_self
+    have hr0 : (0 : ℝ) ≤ (2 : ℝ) ^ k₀ - k₀ := by linarith
+    linarith [mul_nonneg hr0 (Nat.cast_nonneg (Compiler.multiFanoutSize c)), mul_nonneg hε.le hn0]
   obtain ⟨hM_term, hsqrt_term, hlogV_err⟩ := hcerr c hs_le
   have hM3 : (3 * Nat.card (Compiler.Node c) : ℝ) / M ≤ η * n := by
     simpa only [show ((2 : ℕ) + 1 : ℝ) = 3 by norm_num] using hM_term
@@ -916,10 +908,9 @@ private theorem eventually_exists_layout_signalWidth_le_multiFanoutSize {U : Typ
   have hs_term :
       ((c.innerSize : ℝ) + ((2 : ℝ) ^ k₀ - k₀) * Compiler.multiFanoutSize c) / (2 : ℝ) ^ k₀ ≤
         ((k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * n - δ * n := by
-    have h1 := div_le_div_of_nonneg_right hsize (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ k₀)
-    have h2 : (((k₀ + 2 : ℝ) - ε) * n) / (2 : ℝ) ^ k₀ =
-        ((k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * n - δ * n := by dsimp only [δ]; ring
-    rwa [h2] at h1
+    refine (div_le_div_of_nonneg_right hsize (by positivity)).trans_eq ?_
+    dsimp only [δ]
+    ring
   exact supply_base_le (b := 5) (by norm_num)
     ((hπ.trans_eq (add_assoc _ _ _)).trans_eq (add_assoc _ _ _)) hstr hs_term
     (mul_le_mul_of_nonneg_left (ncard_not_reach_le_logb hunread) (by positivity))
@@ -1045,9 +1036,8 @@ theorem eventually_four_div_lt_innerSize_of_nondeterministicDecides {r : ℕ} (h
   simp only [Nat.cast_one, mul_one] at hsqrt_term
   set H := Compiler.hiddenSteinerNetwork c I (fun _ => Acc) π
   have hacc : H.accepted = S n := by
-    rw [Compiler.accepted_hiddenSteinerNetwork]
     ext x
-    rw [hndec x]
+    simp only [H, Compiler.accepted_hiddenSteinerNetwork, mem_ofPred_eq, hndec x]
     exact exists_congr fun y => ⟨fun h => h 0, fun h o => Subsingleton.elim o 0 ▸ h⟩
   have hdem := logb_ncard_le_of_steinerGraph (Compiler.hiddenSteinerNetwork_toMultigraph c I _ π)
     hfan (fun u => (Network.ncard_readAt_hide_le _ u).trans

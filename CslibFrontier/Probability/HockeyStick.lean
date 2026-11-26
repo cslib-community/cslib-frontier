@@ -256,9 +256,7 @@ theorem hockeyStick_bind_pair_le {c₁ c₂ : ℝ≥0∞} (hc₁ : c₁ ≠ ⊤)
     _ ≤ (c₁ * ∑' a, q a * (c₂ * B a) + hockeyStick c₁ p q) + δ₂ := by
         gcongr with a; exact min_le_right _ _
     _ = c₁ * c₂ * ∑' a, q a * B a + (hockeyStick c₁ p q + δ₂) := by
-        rw [add_assoc]
-        congr 1
-        simp only [mul_left_comm _ c₂, ENNReal.tsum_mul_left, mul_assoc]
+        simp only [add_assoc, mul_left_comm _ c₂, ENNReal.tsum_mul_left, mul_assoc]
 
 /-- **Markov conversion** for `PMF`s: `hockeyStick (exp ε') p q` is bounded by `exp (-t ε')` times
 the power-ratio moment `∑' a, p a · (p a / q a) ^ t`. -/
@@ -274,10 +272,9 @@ section Subprob
 private theorem min_le_mul_min {c : ℝ≥0∞} (hc : 1 ≤ c) (x y : ℝ≥0∞) :
     min y (c * x) ≤ c * min x (c * y) := by
   rcases le_total x (c * y) with h | h
-  · rw [min_eq_left h]
-    exact min_le_right _ _
-  · rw [min_eq_right h]
-    exact (min_le_left _ _).trans ((le_mul_of_one_le_left' hc).trans (le_mul_of_one_le_left' hc))
+  · simpa only [min_eq_left h] using min_le_right y (c * x)
+  · simpa only [min_eq_right h] using (min_le_left y (c * x)).trans
+      ((le_mul_of_one_le_left' hc).trans (le_mul_of_one_le_left' hc))
 
 private theorem exists_mix {P : α → ℝ≥0∞} {c : ℝ≥0∞} (hc : 1 ≤ c) (p₀ q₀ : α → ℝ≥0∞)
     (hp₀ : ∀ a, p₀ a ≤ P a) (hpq : ∀ a, p₀ a ≤ c * q₀ a) (hqp : ∀ a, q₀ a ≤ c * p₀ a)
@@ -347,13 +344,10 @@ theorem exists_subprob_of_hockeyStick_le (P Q : PMF α) {c : ℝ≥0∞} (hc : 1
   rcases le_or_gt (∑' a, min (P a) (c * Q a)) (∑' a, min (Q a) (c * P a)) with hle | hlt
   · exact ⟨_, _, fun a => min_le_left _ _, fun a => min_le_left _ _, hpq, hqp, hle,
       hmass P Q hPQ⟩
-  · have hfin : ∑' a, min (P a) (c * Q a) ≠ ⊤ :=
-      ne_top_of_le_ne_top ENNReal.one_ne_top
-        ((tsum_le_tsum fun a => min_le_left _ _).trans P.tsum_coe.le)
-    obtain ⟨p, hpP, hpq', hqp', hsum⟩ := exists_mix hc _ _ (fun a => min_le_left _ _) hpq hqp
-      hfin hlt
-    refine ⟨p, _, hpP, fun a => min_le_left _ _, hpq', hqp', hsum.le, ?_⟩
-    exact hsum ▸ hmass Q P hQP
+  · obtain ⟨p, hpP, hpq', hqp', hsum⟩ := exists_mix hc _ _ (fun a => min_le_left _ _) hpq hqp
+      (ne_top_of_le_ne_top ENNReal.one_ne_top
+        ((tsum_le_tsum fun a => min_le_left _ _).trans P.tsum_coe.le)) hlt
+    exact ⟨p, _, hpP, fun a => min_le_left _ _, hpq', hqp', hsum.le, hsum ▸ hmass Q P hQP⟩
 
 end Subprob
 

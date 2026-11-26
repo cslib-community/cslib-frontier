@@ -446,9 +446,7 @@ private def IntegralFrame.subframe {ι : Type*} {U : Submodule (F K) (ι → F K
 /-- `reducedSubspace` is monotone with respect to submodule inclusion. -/
 lemma reducedSubspace_mono {ι : Type*} {U V : Submodule (F K) (ι → F K)}
     (h : U ≤ V) : reducedSubspace U ≤ reducedSubspace V := by
-  apply Submodule.span_mono
-  rintro y ⟨x, hx, hI, rfl⟩
-  exact ⟨x, h hx, hI, rfl⟩
+  exact Submodule.span_mono fun _ ⟨x, hx, hI, hy⟩ => ⟨x, h hx, hI, hy⟩
 
 /-- Choose an integral-lattice subspace on whose reduction a specified
 projection is injective, of dimension equal to that projection's rank. -/
@@ -465,19 +463,16 @@ private theorem exists_projection_subspace {ι : Type*} [Finite ι]
   let b' := b.subframe a ha
   let U' := Submodule.span (F K) (Set.range (b.vector ∘ a))
   refine ⟨U', Submodule.span_le.mpr fun _ ⟨j, hj⟩ => hj ▸ b.vector_mem (a j), ?_, ?_⟩
-  · rw [reducedSubspace_eq_span b, Submodule.map_span, ← Set.range_comp]
-    change finrank (F K) U' = finrank K (Submodule.span K
-      (Set.range (fun j => P (reduce (b.vector j)))))
+  · rw [← b'.length_eq_finrank, reducedSubspace_eq_span b, Submodule.map_span, ← Set.range_comp]
+    change k = finrank K (Submodule.span K (Set.range fun j => P (reduce (b.vector j))))
     rw [← hs, finrank_span_eq_card hi, Fintype.card_fin]
-    exact b'.length_eq_finrank.symm
   · intro x hxU hxI hxP
     obtain ⟨c, hc⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp
       ((reducedSet_eq_span b').subset ⟨x, hxU, hxI, rfl⟩)
     have hh : ∑ j, c j • P (reduce (b.vector (a j))) = 0 := by
       simpa only [map_sum, map_smul, b', IntegralFrame.subframe, Function.comp_apply] using
         (congrArg P hc).trans hxP
-    have hz := Fintype.linearIndependent_iff.mp hi c hh
-    simp [← hc, b', IntegralFrame.subframe, hz]
+    simp [← hc, b', IntegralFrame.subframe, Fintype.linearIndependent_iff.mp hi c hh]
 
 /-- Low coordinate projection and its complementary support subspace. -/
 def lowProjection {ι : Type*} (w : ι → ℕ) (A : ℕ) :
@@ -592,13 +587,11 @@ private lemma reducedSubspace_liftEquiv (E : (ι → K) ≃ₗ[K] (κ → K))
     reducedSubspace (U.map (liftEquiv E).toLinearMap) =
       (reducedSubspace U).map E.toLinearMap := by
   rw [reducedSubspace, reducedSubspace, Submodule.map_span]
-  congr 1
-  ext y
-  constructor
+  refine congrArg _ (Set.ext fun y => ⟨?_, ?_⟩)
   · rintro ⟨_, ⟨x, hxU, rfl⟩, hzI, rfl⟩
     exact ⟨reduce x, ⟨x, hxU, (integral_liftEquiv_iff E x).mp hzI, rfl⟩,
       (reduction_liftMap E.toLinearMap x).symm⟩
-  · rintro ⟨z, ⟨x, hxU, hxI, rfl⟩, rfl⟩
+  · rintro ⟨_, ⟨x, hxU, hxI, rfl⟩, rfl⟩
     exact ⟨liftEquiv E x, ⟨x, hxU, rfl⟩, liftMap_integral E.toLinearMap hxI,
       reduction_liftMap E.toLinearMap x⟩
 

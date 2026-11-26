@@ -1168,14 +1168,11 @@ private theorem realJoint_bad_eq_msgFailProb
     simp only [μ, realJoint, cacheJoint, hlookup, ite_eq_left htarget, PMF.map_bind]
     conv_rhs => rw [← PMF.bind_pure (ProbComp.eval S.pke.sampleCoins)]
     refine PMF.bind_congr_on_support _ _ _ fun coins _ => ?_
-    by_cases hcoins : S.pke.dec sk (S.pke.encDet pk input.message coins) = some input.message
-    · simp only [hcoins, ↓reduceIte]
-      cases st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩
-      · simp only [PMF.map_comp, Function.comp_def]
-        exact PMF.map_const (ProbComp.eval S.sampleKey) coins
-      · simp only [PMF.pure_map]
-    · simp only [hcoins, ↓reduceIte, PMF.map_comp, Function.comp_def]
-      exact PMF.map_const (ProbComp.eval S.sampleKey) coins
+    split_ifs with hcoins
+    · cases st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩
+      · exact (PMF.map_comp _ _ _).trans (PMF.map_const (ProbComp.eval S.sampleKey) coins)
+      · exact PMF.pure_map _ _
+    · exact (PMF.map_comp _ _ _).trans (PMF.map_const (ProbComp.eval S.sampleKey) coins)
   have hbad : μ.toOuterMeasure {z | ¬S.GoodCache pk sk z.2} =
       μ.toOuterMeasure ((fun z => z.1.coins) ⁻¹' {coins |
         S.pke.dec sk (S.pke.encDet pk input.message coins) ≠ some input.message}) := by
@@ -1329,22 +1326,18 @@ private theorem dispatch_cacheJoint_jointCache_subset
       intro entry hentry <;> simp [h, hentry]
   rcases q with input | input | ciphertext
   · exact hjoint hy
-  · intro entry hentry
-    rwa [S.rejection_jointCache_eq input hy]
+  · exact fun entry hentry => S.rejection_jointCache_eq input hy ▸ hentry
   · supp_cases hy [Query.dispatch, stateT_ite_apply, StateT.pure_apply] with ⟨-, rfl⟩ | ⟨-, hy⟩
     · exact fun _ hentry => hentry
     · cases hdec : S.pke.dec sk ciphertext.pke with
       | none =>
         supp_cases hy [decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
-        intro entry hentry
-        dsimp only
-        rwa [S.decapsKey_jointCache_eq ciphertext hx]
+        exact fun entry hentry => S.decapsKey_jointCache_eq ciphertext hx ▸ hentry
       | some message =>
         classical
         supp_cases hy [decapsWithJoint, hdec, StateT.bind_apply] with ⟨z, hz, hy⟩
-        intro entry hentry
-        rw [S.decapsContinuation_jointCache_eq ciphertext z hy]
-        exact hjoint hz entry hentry
+        exact fun entry hentry =>
+          S.decapsContinuation_jointCache_eq ciphertext z hy ▸ hjoint hz entry hentry
 
 private theorem identicalUntilBad_realHandler_prefetchHandler
     [DecidableEq (JointInput JointPrefix M Salt)]

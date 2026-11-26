@@ -255,14 +255,11 @@ private theorem lookupStep_spec {w base capNodes t u k : ℕ} {x : Data 20}
   have hslot_le := slotCount_le base t x.mem u k m
   obtain ⟨x₂, h12, _, hmem₂, hz₂, ho₂, hb₂_reg, hd₂, hst₂, hk₂, _, hsrc₂, hnk₂, hslot₂, hreg₂⟩ :=
     loadAndScan_spec ht hu_cap hm_le hbdd hfit hz ho hbase hdeg hstride hkey hcur
-  have hact₂ : x₂.regs rActive = x.regs rActive := hreg₂ rActive (by decide)
-  have hfnd₂ : x₂.regs rFound = x.regs rFound := hreg₂ rFound (by decide)
-  have hval₂ : x₂.regs rVal = x.regs rVal := hreg₂ rVal (by decide)
   obtain ⟨y, h3, hmem₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hbr₃⟩ :=
     lookupBranch_spec ht hu_cap hm_le hslot_le hfit hz₂ ho₂ hd₂ hk₂ hnk₂ hsrc₂ hslot₂
   have hfull : ExecWithin w lookupStep x y (16 * t + 19) :=
     (h12.seq h3).mono (by omega)
-  rw [hmem₂, hact₂, hfnd₂, hval₂] at hbr₃
+  rw [hmem₂, hreg₂ rActive (by decide), hreg₂ rFound (by decide), hreg₂ rVal (by decide)] at hbr₃
   exact ⟨y, hfull, hfull.bounded hbdd, hmem₃.trans hmem₂, hz₃, ho₃, hb₃.trans hb₂_reg, hd₃,
     hst₃.trans hst₂, hk₃, hbr₃⟩
 
@@ -321,16 +318,12 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
       · simp only [hhit, hv.leafFlag_eq, Nat.succ_ne_zero, ↓reduceIte] at hbr
         obtain ⟨hcur₁, hact₁, hfnd₁, hval₁⟩ := hbr
         have hslot_lt1 : slot < m + 1 := Nat.lt_succ_of_le hsc.1
-        have hv_c : ValidNode l base t x₁.mem (childAt base t x.mem u slot) :=
-          hmem₁ ▸ hv.child_valid hslot_lt1
-        have hs_c : SortedNode l base t x₁.mem (childAt base t x.mem u slot) :=
-          hmem₁ ▸ hs.child_sorted hslot_lt1
-        have hcap_c : readNodeSet l base t x₁.mem (childAt base t x.mem u slot) ⊆
-            Finset.range capNodes :=
-          hmem₁ ▸ (child_subset_readNodeSet l base t x.mem u slot hslot_lt1).trans hcap
         obtain ⟨y, hy_rec, hmem_y, hb_y, hd_y, hfnd_y, hval_y⟩ :=
-          ih l (Nat.lt_succ_self l) hb₁ hv_c hs_c hcap_c hz₁ ho₁ hb₁_reg hd₁ hst₁ hk₁ hcur₁
-            (hact₁.trans hact) (hfnd₁.trans hfound0) (hval₁.trans hval0)
+          ih l (Nat.lt_succ_self l) hb₁ (hmem₁ ▸ hv.child_valid hslot_lt1)
+            (hmem₁ ▸ hs.child_sorted hslot_lt1)
+            (hmem₁ ▸ (child_subset_readNodeSet l base t x.mem u slot hslot_lt1).trans hcap)
+            hz₁ ho₁ hb₁_reg hd₁ hst₁ hk₁ hcur₁ (hact₁.trans hact) (hfnd₁.trans hfound0)
+            (hval₁.trans hval0)
         have hcond_in : (Cond.lt rZero rActive).Holds x := by
           simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one]
         have hlk := lookup_readTree_succ_eq_child hs hsc.1 hsc.2.1 hgt_all
@@ -398,13 +391,12 @@ theorem lookupCode_spec {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Da
       apply WP.execWithin
       wram_exec [hr.base_eq, hr.deg_eq, hcnt_ne, h6t, hf0, hf1, hf_b1, hf_2t, hf_4t, hf_6t]
       exact WP.of_execWithin hloop ⟨by omega, rfl⟩
-    have hh_eq : (readTree l base t x.mem (x.mem base)).height = l + 1 :=
-      hv.balanced_and_height.2
-    have hrep : Rep base capNodes t w (readTree l base t x.mem (x.mem base)) y :=
+    have hmem_yx : y.mem = x.mem := hmem_y
+    exact ⟨y, hv.balanced_and_height.2 ▸ he,
       ⟨he.bounded hr.bounded, hr.two_le, hb_y, hd_y, hfit,
-        by rw [hmem_y]; exact hr.cnt_le_cap,
-        by rw [hmem_y]; exact Or.inr ⟨hcnt_pos, l, rfl, hv, hs, hrange⟩⟩
-    exact ⟨y, hh_eq ▸ he, hrep, hmem_y, hfnd_y, hval_y⟩
+        by simpa only [hmem_yx] using hr.cnt_le_cap,
+        by simpa only [hmem_yx] using Or.inr ⟨hcnt_pos, l, rfl, hv, hs, hrange⟩⟩,
+      hmem_yx, hfnd_y, hval_y⟩
 
 /-- Logarithmic `O(t log_t n)` Word-RAM instruction bound for `lookupCode`. -/
 theorem lookupCode_log_spec {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}

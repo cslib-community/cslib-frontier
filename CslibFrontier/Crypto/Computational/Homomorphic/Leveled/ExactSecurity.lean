@@ -147,11 +147,11 @@ theorem publicKeyLinkHybrid_exact_gap (n beforeCount afterCount width capacity :
           (fun j => if j.val < width then ProbComp.eval
             (E.publicKeyLinkHybrid n beforeCount afterCount (j.val + 1) >>= test)
             else PMF.pure false))) := by
-  have h := Game.succProbability_hybrid_average
-    (fun j => ProbComp.eval (E.publicKeyLinkHybrid n beforeCount afterCount j >>= test))
-    width capacity hcapacity
   simpa only [ProbComp.eval_bind, E.eval_publicKeyLinkHybrid_zero,
-    E.eval_publicKeyLinkHybrid_length n beforeCount afterCount width hwidth] using h
+    E.eval_publicKeyLinkHybrid_length n beforeCount afterCount width hwidth] using
+    Game.succProbability_hybrid_average
+      (fun j => ProbComp.eval (E.publicKeyLinkHybrid n beforeCount afterCount j >>= test))
+      width capacity hcapacity
 
 /-- Average reverse link indices in `Fin depth` and forward bit indices in `Fin capacity` when
 both ranges are positive; otherwise reject in both worlds. -/
@@ -264,18 +264,17 @@ theorem eval_exactLinkAdversary (depth capacity : ℕ → ℕ)
   by_cases hpos : 0 < depth n ∧ 0 < capacity n
   · have : NeZero (depth n) := ⟨hpos.1.ne'⟩
     have : NeZero (capacity n) := ⟨hpos.2.ne'⟩
-    dsimp only [Encryption.game, Encryption.gameOn, exactLinkAdversary, exactKeyChainHybridGame]
-    simp only [dite_eq_left_of_eq_true (eq_true hpos), ↓reduceIte, bind_assoc,
-      ProbComp.eval_uniform, pmf_norm]
+    simp only [Encryption.game, Encryption.gameOn, exactLinkAdversary, exactKeyChainHybridGame,
+      dite_eq_left_of_eq_true (eq_true hpos), ↓reduceIte, bind_assoc, ProbComp.eval_uniform,
+      pmf_norm]
     peel_binds i j
     simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte,
       linkAdversaryAt, ProbComp.eval_bind, PMF.monad_pure_eq_pure] using
       E.eval_linkAdversaryAt (fun _ => depth n - i.val - 1) (fun _ => i.val)
         (fun _ => j.val) test n width bit hwidth
-  · dsimp only [Encryption.game, Encryption.gameOn, exactLinkAdversary, exactKeyChainHybridGame]
-    simp only [dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, guessLink_reject, PMF.bind_const,
-      PMF.monad_pure_eq_pure]
+  · simp only [Encryption.game, Encryption.gameOn, exactLinkAdversary, exactKeyChainHybridGame,
+      dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice, ProbComp.eval_bind,
+      ProbComp.eval_pure, PMF.pure_bind, guessLink_reject, PMF.bind_const, PMF.monad_pure_eq_pure]
 
 /-- Signed key-chain hybrid gap in terms of `exactLinkAdversary`, with exact factor
 `(depth n : ℝ) * capacity n`. -/
@@ -392,8 +391,8 @@ theorem advantage_exactLinkAdversary_modLinkAdversary_le
       (ProbComp.eval (sampleModIndex (coins n) (depth n))).bind fun i =>
         (ProbComp.eval (sampleModIndex (coins n) (capacity n))).bind fun j =>
           E.linkRunAt depth capacity test bit n i j := by
-    dsimp only [Encryption.game, Encryption.gameOn, modLinkAdversary, linkRunAt, linkAdversaryAt]
-    simp only [↓reduceIte, bind_assoc, ProbComp.eval_bind]
+    simp only [Encryption.game, Encryption.gameOn, modLinkAdversary, linkRunAt, linkAdversaryAt,
+      ↓reduceIte, bind_assoc, ProbComp.eval_bind]
     peel_binds i j
     by_cases hi : i < depth n <;> by_cases hj : j < capacity n <;>
       simp only [hi, hj, ↓reduceIte, rejectLinkChoice, ProbComp.eval_pure, PMF.pure_bind,
@@ -409,9 +408,8 @@ theorem advantage_exactLinkAdversary_modLinkAdversary_le
         (PMF.uniformOfFintype (Fin (depth n))).bind fun i =>
           (PMF.uniformOfFintype (Fin (capacity n))).bind fun j =>
             E.linkRunAt depth capacity test bit n i.val j.val := by
-      dsimp only [Encryption.game, Encryption.gameOn, exactLinkAdversary, linkRunAt,
-        linkAdversaryAt]
-      simp only [dite_eq_left_of_eq_true (eq_true hpos), ↓reduceIte, bind_assoc,
+      simp only [Encryption.game, Encryption.gameOn, exactLinkAdversary, linkRunAt,
+        linkAdversaryAt, dite_eq_left_of_eq_true (eq_true hpos), ↓reduceIte, bind_assoc,
         ProbComp.eval_bind, ProbComp.eval_uniform]
       peel_binds i j
       simp only [i.isLt, j.isLt, ↓reduceIte]
@@ -422,8 +420,8 @@ theorem advantage_exactLinkAdversary_modLinkAdversary_le
       (congr (congrArg Game.advantage ?_) ?_ :
         _ = Game.advantage (PMF.pure false) (PMF.pure false))
       (by simp)
-    · dsimp only [Encryption.game, Encryption.gameOn, exactLinkAdversary]
-      simp only [dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice,
+    · simp only [Encryption.game, Encryption.gameOn, exactLinkAdversary,
+        dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice,
         ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, guessLink_reject, PMF.bind_const]
     · rw [hmod]
       refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false) fun i hi =>
@@ -665,14 +663,10 @@ private theorem eval_leveled_hop_two (E : Scheme) (depth capacity : ℕ → ℕ)
           (zeroLinkAdversary E depth adversary) bit n)
       else PMF.pure false
     else PMF.pure false := by
-  by_cases hi : i = 0
-  · by_cases hj : j = 0
-    · simp [Encryption.game, Encryption.gameOn, hi, hj, leveledAdversary, tagLeveledChoice,
-        ProbComp.eval_bind, Function.comp_def]
-    · simp only [hi, hj, ↓reduceIte, leveledAdversary, rejectLeveledChoice, List.headD_cons,
-        List.tail_cons, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, PMF.bind_const]
-  · simp only [hi, ↓reduceIte, leveledAdversary, rejectLeveledChoice, List.headD_cons,
-      List.tail_cons, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, PMF.bind_const]
+  by_cases hi : i = 0 <;> by_cases hj : j = 0 <;>
+    simp [Encryption.game, Encryption.gameOn, hi, hj, leveledAdversary, tagLeveledChoice,
+      rejectLeveledChoice, ProbComp.eval_bind, ← PMF.bind_pure_comp, PMF.bind_const,
+      Function.comp_def]
 
 /-- Exact distributional decomposition of `exactLeveledAdversary` when `0 < depth n` and
 `0 < capacity n`. -/
@@ -698,18 +692,16 @@ theorem eval_exactLeveledAdversary (E : Scheme) (depth capacity : ℕ → ℕ)
               else PMF.pure false
             else PMF.pure false := by
   have hpos : 0 < depth n ∧ 0 < capacity n := ⟨NeZero.pos (depth n), NeZero.pos (capacity n)⟩
-  dsimp only [Encryption.game, Encryption.gameOn, exactLeveledAdversary]
-  simp only [dite_eq_left_of_eq_true (eq_true hpos), ↓reduceIte, bind_assoc, ProbComp.eval_bind,
+  simp only [Encryption.game, Encryption.gameOn, exactLeveledAdversary,
+    dite_eq_left_of_eq_true (eq_true hpos), ↓reduceIte, bind_assoc, ProbComp.eval_bind,
     ProbComp.eval_uniform]
   peel_binds hop
   by_cases h0 : hop.val = 0
-  · simp only [h0, ↓reduceIte]
-    simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using
+  · simpa only [h0, ↓reduceIte, Encryption.game, Encryption.gameOn, ProbComp.eval_bind] using
       eval_exactLeveled_hop_zero E depth capacity adversary bit n
   · by_cases h1 : hop.val = 1
-    · simp only [h1, one_ne_zero, ↓reduceIte]
-      simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using
-        eval_exactLeveled_hop_one E depth capacity adversary bit n
+    · simpa only [h1, one_ne_zero, ↓reduceIte, Encryption.game, Encryption.gameOn,
+        ProbComp.eval_bind] using eval_exactLeveled_hop_one E depth capacity adversary bit n
     · simp only [h0, h1, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_uniform, PMF.bind_bind]
       peel_binds i j
       simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using

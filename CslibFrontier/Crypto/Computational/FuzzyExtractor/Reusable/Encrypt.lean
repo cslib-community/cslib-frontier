@@ -246,9 +246,7 @@ theorem symDecrypt_symEncrypt_eq (s : Fin n → ZMod q)
     (B : Matrix (Fin l) (Fin n) (ZMod q)) (e : Fin l → ZMod q) (r : Fin l → Bool)
     (he : ∀ i : Fin l, 8 * (e i).valMinAbs.natAbs + 4 ≤ q) :
     symDecrypt s B (B.mulVec s + e + encodeHalfBits q r) = r := by
-  have hsub : B.mulVec s + e + encodeHalfBits q r - B.mulVec s = e + encodeHalfBits q r := by
-    abel
-  rw [symDecrypt, hsub, decodeThresholdBits_add_encodeHalfBits r e he]
+  rw [symDecrypt, add_assoc, add_sub_cancel_left, decodeThresholdBits_add_encodeHalfBits r e he]
 
 /-- Helper data `P = (c, B, h)` for the Section 5 encryption-based reusable fuzzy extractor
 ([AponChoEldefrawyKatz2017], Section 5), consisting of:
@@ -1000,15 +998,9 @@ private theorem keyWord_eq_cipherRowsWord {rows n w : ℕ} (b : Fin rows → ZMo
       cipherRowsWord rows n w word offset coins key := by
   simp only [keyWord, cipherRowsWord, Cslib.Matrix.toBinary_eq, _root_.Matrix.of_apply,
     List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
-    List.flatMap_def, List.map_range_eq_ofFn, BitString.lowBits_eq_ofFn_val]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
-  congr 2
-  funext k
-  congr 2
-  simp only [Pi.add_apply, Nat.cast_add, Nat.cast_sum, List.sum_ofFn, Nat.cast_mul, hb, hB, hx,
-    hr, natCast_halfOf, _root_.Matrix.mulVec, dotProduct, encodeHalfBits]
+    List.flatMap_def, List.map_range_eq_ofFn, BitString.lowBits_eq_ofFn_val, Pi.add_apply,
+    Nat.cast_add, Nat.cast_sum, List.sum_ofFn, Nat.cast_mul, hb, hB, hx, hr, natCast_halfOf,
+    _root_.Matrix.mulVec, dotProduct, encodeHalfBits]
 
 /-- Row `row` of the word of `[b | M]` reads `b r` in column `0` and `M r j` in column `j + 1`,
 where `r` is the row with index `row`. -/

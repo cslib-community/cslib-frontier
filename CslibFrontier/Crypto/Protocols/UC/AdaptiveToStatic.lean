@@ -355,12 +355,12 @@ private theorem corrupted_rel_of_mem_support_execMachine {α : Type}
     fun q ⟨sA', rs'⟩ y _ hy => ?_
   rcases q with (⟨i, u⟩ | _) | a
   · erw [adaptiveExecMachine_handle_inl_party] at hy
-    by_cases hi : i ∈ rs'.corrupted <;> simp only [hi, ↓reduceIte] at hy
-    · rcases mem_support_closeEval_pure.mp hy with rfl; exact hR_refl _
-    · rcases mem_support_closeEval_bind.mp hy with ⟨_, _, hy'⟩
-      rcases mem_support_closeEval_pure.mp hy' with rfl; exact hR_refl _
+    split_ifs at hy with hi
+    · exact (mem_support_closeEval_pure.mp hy) ▸ hR_refl _
+    · obtain ⟨_, _, hy'⟩ := mem_support_closeEval_bind.mp hy
+      exact (mem_support_closeEval_pure.mp hy') ▸ hR_refl _
   · erw [adaptiveExecMachine_handle_inl_status] at hy
-    rcases mem_support_closeEval_pure.mp hy with rfl; exact hR_refl _
+    exact (mem_support_closeEval_pure.mp hy) ▸ hR_refl _
   · change y ∈ (closeEval ((fun (p : (AdvR × (A.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
         (adaptiveRouter .adaptive P κ (A.initial κ)).runFrom
           (liftAdaptiveNet (((A.machine κ).handle a).run sA')) rs')).support at hy
@@ -468,11 +468,8 @@ private theorem closeEval_execMachine_adaptive_le_clampStatic {α : Type}
     (hy : y.2.2.corrupted = A.initial κ) :
     closeEval ((adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs)) y ≤
       closeEval ((adaptiveExecMachine .adaptive P A.clampStatic κ).runFrom program (sA, rs)) y := by
-  suffices h :
-      closeEval ((adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs) >>= pure) y ≤
-        closeEval ((adaptiveExecMachine .adaptive P A.clampStatic κ).runFrom program (sA, rs) >>=
-          pure) y by
-    simpa only [bind_pure] using h
+  rw [← bind_pure ((adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs)),
+    ← bind_pure ((adaptiveExecMachine .adaptive P A.clampStatic κ).runFrom program (sA, rs))]
   refine Machine.closeEval_runFrom_le_intertwine
     (adaptiveExecMachine .adaptive P A κ) (adaptiveExecMachine .adaptive P A.clampStatic κ)
     (fun _ => True) (fun x₁ x₂ => x₁ = x₂ ∧ x₁.2.corrupted = A.initial κ)
@@ -480,10 +477,8 @@ private theorem closeEval_execMachine_adaptive_le_clampStatic {α : Type}
     program (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
     (sA, rs) (sA, rs) ⟨rfl, hrs⟩ pure pure y
     (fun _ _ _ hR => hR.1 ▸ le_rfl)
-    (fun a s₁ hT => by
-      rw [closeEval_pure]
-      exact PMF.pure_apply_of_ne _ _ fun heq => by
-        rcases heq with rfl; exact hT (hy ▸ Finset.Subset.rfl))
+    (fun _ _ hT => closeEval_pure _ ▸ PMF.pure_apply_of_ne _ _ fun heq =>
+      hT ((congrArg (fun z => z.2.2.corrupted) heq).symm.trans hy ▸ Finset.Subset.rfl))
     (fun q ⟨sA', rs'⟩ z _ hT hz hsub => hT ((corrupted_rel_of_mem_support_execMachine P A κ
       (ProbOracleComp.query q) (fun _ => True) (· ⊆ ·) (fun _ => Finset.Subset.rfl)
       Finset.Subset.trans
@@ -499,8 +494,7 @@ private theorem closeEval_execMachine_adaptive_le_clampStatic {α : Type}
     · erw [bind_assoc, bind_assoc]
       refine closeEval_bind_le _ _ _ y fun ⟨out, s'⟩ => ?_
       erw [pure_bind, pure_bind]; exact hcont out _ _ ⟨rfl, hrs₁⟩
-  · erw [adaptiveExecMachine_handle_inl_status]
-    erw [pure_bind, pure_bind]
+  · erw [adaptiveExecMachine_handle_inl_status, pure_bind, pure_bind]
     exact hcont rs₁.corrupted _ _ ⟨rfl, hrs₁⟩
   · change closeEval (((fun (p : (AdvR × (A.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
         (adaptiveRouter .adaptive P κ (A.initial κ)).runFrom

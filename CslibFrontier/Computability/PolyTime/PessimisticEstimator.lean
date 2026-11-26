@@ -131,22 +131,15 @@ theorem computableInPolyTime_run
       (encS (G.branch x r b s)).length ≤ (encS s).length + growth x) :
     ComputableInPolyTime G.run encI encS := by
   let encStep := encPair (encPair encI encS) encR
-  have hid : ComputableInPolyTime id encStep encStep := id'
   have hx : ComputableInPolyTime (fun ((input, _state), _round) => input) encStep encI :=
     (fst (encPair encI encS) encR).fst'
   have hbr (b : Bool) : ComputableInPolyTime
       (fun ((input, state), round) => G.branch input round b state) encStep encS :=
-    hbranch.comp (hid.prod (const b))
+    hbranch.comp (id'.prod (const b))
   have hest (b : Bool) : ComputableInPolyTime
       (fun ((input, state), round) =>
         G.estimate input (G.branch input round b state)) encStep encM :=
     hestimate.comp (hx.prod (hbr b))
-  have hcmp : ComputableInPolyTime
-      (fun ((input, state), round) =>
-        decide (G.estimate input (G.branch input round true state) ≤
-          G.estimate input (G.branch input round false state)))
-      encStep encBool :=
-    hle.comp ((hest true).prod (hest false))
   have hstep : ComputableInPolyTime
       (fun ((input, state), round) =>
         if G.estimate input (G.branch input round true state) ≤
@@ -155,7 +148,8 @@ theorem computableInPolyTime_run
         else
           G.branch input round false state)
       encStep encS := by
-    simpa only [decide_eq_true_eq] using ite hcmp (hbr true) (hbr false)
+    simpa only [decide_eq_true_eq, Function.comp_def] using
+      ite (hle.comp ((hest true).prod (hest false))) (hbr true) (hbr false)
   refine foldlWithInput_of_bounded_growth hinit ⟨hrounds, hstep, inferInstance, inferInstance⟩
     ⟨hpoly, fun x s r hr => ?_⟩
   dsimp only [greedyStep]
@@ -355,17 +349,12 @@ theorem computableInPolyTime_run
         G.estimate pa.1.1.1 (G.branch pa.1.1.1 pa.1.2 pa.2 pa.1.1.2))
       (encChoiceInput encI encS encR encA) encM := by
     fun_prop
-  have hround_scan : ComputableInPolyTime
-      (fun q : (((I × S) × R) × Option (A × M)) × A => q.1.1) encScanIn encRound :=
-    (fst (encPair encRound encOpt) encA).fst'
-  have ha_scan : ComputableInPolyTime
-      (fun q : (((I × S) × R) × Option (A × M)) × A => q.2) encScanIn encA :=
-    snd (encPair encRound encOpt) encA
   have hval_scan : ComputableInPolyTime
       (fun q : (((I × S) × R) × Option (A × M)) × A =>
         G.estimate q.1.1.1.1 (G.branch q.1.1.1.1 q.1.1.2 q.2 q.1.1.1.2))
       encScanIn encM :=
-    hval_pa.comp (hround_scan.prod ha_scan)
+    hval_pa.comp (((fst (encPair encRound encOpt) encA).fst').prod
+      (snd (encPair encRound encOpt) encA))
   have hnew_some : ComputableInPolyTime
       (fun q : (((I × S) × R) × Option (A × M)) × A =>
         some (q.2, G.estimate q.1.1.1.1 (G.branch q.1.1.1.1 q.1.1.2 q.2 q.1.1.1.2)))
@@ -406,10 +395,9 @@ theorem computableInPolyTime_run
       have ha_len : (encA a).length ≤ (encLA (G.choices p.1.1 p.2)).length :=
         hSA.length_elem_le (G.choices p.1.1 p.2) a ha
       have hpa_len : (encChoiceInput encI encS encR encA (p, a)).length ≤
-          2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length := by
-        rw [show encChoiceInput encI encS encR encA = encPair encRound encA from rfl,
-          length_encPair]
-        exact Nat.add_le_add_left ha_len _
+          2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length :=
+        (length_encPair (enc₁ := encRound) (enc₂ := encA) (p, a)).le.trans
+          (Nat.add_le_add_left ha_len _)
       have hv_len : (encM (G.estimate p.1.1 (G.branch p.1.1 p.2 a p.1.2))).length ≤
           cV * (2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length + 1) ^ dV :=
         (hV (p, a)).trans

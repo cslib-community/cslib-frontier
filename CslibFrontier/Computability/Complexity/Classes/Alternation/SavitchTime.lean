@@ -184,27 +184,17 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
     have hAc : A ≤ c * (M + 1) := hA.trans (Nat.mul_le_mul_right _ (by omega))
     have hBc : B ≤ c * (M + 1) := hB.trans (Nat.mul_le_mul_right _ (by omega))
     have hc : M + 1 ≤ c * (M + 1) := Nat.le_mul_of_pos_left _ (by omega)
-    have h4c : 4 * c * (M + 1) = 4 * (c * (M + 1)) := by ring
-    have h12 : (A + 1) * (A + B + 1) ≤ (4 * c * (M + 1)) ^ 2 := by
-      simpa only [pow_two] using Nat.mul_le_mul (by omega) (by omega)
-    have h33 : (2 * A + 1 + B) ^ 2 ≤ (4 * c * (M + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-    have h4M : 4 * M ≤ (4 * c * (M + 1)) ^ 2 :=
-      (show 4 * M ≤ 4 * c * (M + 1) by omega).trans (Nat.le_self_pow two_ne_zero _)
-    have hsq : (M + 1) ^ 2 ≤ 2 * (M ^ 2 + 1) := by nlinarith
     calc M + M + (A + 1) * (A + B + 1) + (M + M + (2 * A + 1 + B) ^ 2)
-        ≤ 3 * (4 * c * (M + 1)) ^ 2 := by omega
+        ≤ 3 * (4 * (c * (M + 1))) ^ 2 := by nlinarith
       _ = 48 * c ^ 2 * (M + 1) ^ 2 := by ring
-      _ ≤ 48 * c ^ 2 * (2 * (M ^ 2 + 1)) := Nat.mul_le_mul_left _ hsq
+      _ ≤ 48 * c ^ 2 * (2 * (M ^ 2 + 1)) := Nat.mul_le_mul_left _ (by nlinarith)
       _ = 96 * c ^ 2 * (M ^ 2 + 1) := by ring
   refine ((ComputableInO.or' (ComputableInO.eq' ha hb) (hedge.comp (ha.prod hb))).of_enc_eq
     (encC := encBool) fun _ => rfl).mono (96 * (ca + cb + 1) ^ 2) (fun p => ?_) fun p => ?_
   · simpa only [length_encPair, encBits_apply, hN] using hbd _ _ _ (hca p) (hcb p)
   · have h := hbd _ _ _ (hca p) (hcb p)
     simp only [length_encPair, encBits_apply, hN] at h ⊢
-    generalize (p.2.2.1.getD (viewCode p.1 (ntm.initView p.2.1))).length = A at h ⊢
-    generalize (p.2.2.2.getD (acceptCode p.1)).length = B at h ⊢
-    have : 2 * A + 1 + B ≤ (A + 1) * (A + B + 1) := by nlinarith
-    omega
+    nlinarith
 
 end Turing.MultiTapeNTM
 

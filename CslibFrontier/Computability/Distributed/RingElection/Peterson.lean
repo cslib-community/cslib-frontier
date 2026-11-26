@@ -241,9 +241,7 @@ private theorem twoHopStep_chan_apply {n : ℕ} [NeZero n] {U : Type*} [LinearOr
     (twoHopStep target cfg).chan e =
       (if e = target - 1 then rest else cfg.chan e) ++
         (if e = target then (twoHopRecv (cfg.node target) msg).sent else []) := by
-  rcases eq_or_ne e target with rfl | het
-  · simp only [twoHopStep, hq, Function.update_apply, ↓reduceIte]
-  · simp only [twoHopStep, hq, Function.update_apply, het, ↓reduceIte, List.append_nil]
+  by_cases het : e = target <;> simp [twoHopStep, hq, Function.update_apply, het]
 
 private theorem twoHopStep_two_of_ne {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {cfg : TwoHopConfig n U} {i j : Fin n} (hne : i ≠ j)
@@ -310,10 +308,7 @@ theorem twoHopStep_comm {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     · rw [twoHopStep_node_of_cons hstep_i_at_jpred, hnode_i_at_j,
         twoHopStep_node_of_cons hstep_j_at_ipred, hnode_j_at_i,
         twoHopStep_node_of_cons hqi, twoHopStep_node_of_cons hqj]
-      by_cases hxj : x = j
-      · subst hxj
-        simp [hne.symm]
-      · by_cases hxi : x = i <;> simp [hxj, hxi, hne]
+      by_cases hxj : x = j <;> by_cases hxi : x = i <;> simp [hxj, hxi, hne, hne.symm]
     · rw [hlhs e, hrhs e]
       have hpred_ne : i - 1 ≠ j - 1 := fun h => hne (sub_left_injective h)
       have hbase_eq :
@@ -562,10 +557,7 @@ private theorem twoHopSurvivors_nonempty_and_max {n : ℕ} [NeZero n] {U : Type*
   have hrA : rStar ∈ A := nextActive_mem hqA
   have hprev_r : prevActive A rStar = qStar := prevActive_nextActive hqA
   have hp_ne_q : prevActive A qStar ≠ qStar := prevActive_ne_self_of_two_le_card hcard hqA
-  have hr_ne_q : rStar ≠ qStar := fun h => by
-    have hp := congrArg (prevActive A) h
-    rw [hprev_r] at hp
-    exact hp_ne_q hp.symm
+  have hr_ne_q : rStar ≠ qStar := fun h => hp_ne_q ((congrArg (prevActive A) h.symm).trans hprev_r)
   have hp_lt : tidMap (prevActive A qStar) < tidMap qStar :=
     lt_of_le_of_ne (hmax_all _ (prevActive_mem hqA)) fun heq =>
       hp_ne_q (hinj (prevActive_mem hqA) hqA heq)
@@ -644,11 +636,9 @@ private theorem twoHopAllActivePhase_inv {n : ℕ} [NeZero n] {U : Type*} [Linea
     obtain ⟨hne_k, hinj_k, hmax_k⟩ := ih
     dsimp only [twoHopAllActivePhase]
     by_cases h2 : 2 ≤ (twoHopAllActivePhase uid k).active.card
-    · simp only [h2, ↓reduceIte]
-      obtain ⟨hne', hinj', hmax'⟩ := twoHopSurvivors_nonempty_and_max h2 hinj_k
-      exact ⟨hne', hinj', hmax' maxUid hmax_k⟩
-    · simp only [h2, ↓reduceIte]
-      exact ⟨hne_k, hinj_k, hmax_k⟩
+    · obtain ⟨hne', hinj', hmax'⟩ := twoHopSurvivors_nonempty_and_max h2 hinj_k
+      simpa only [h2, ↓reduceIte] using ⟨hne', hinj', hmax' maxUid hmax_k⟩
+    · simpa only [h2, ↓reduceIte] using ⟨hne_k, hinj_k, hmax_k⟩
 
 /-- Exponential halving invariant: if phases `0, …, k - 1` all have `2 ≤ active.card`, then
 `2 ^ k * (twoHopAllActivePhase uid k).active.card ≤ n`. -/
@@ -706,10 +696,8 @@ private theorem twoHopAllActivePhases_prefix_spec {n : ℕ} [NeZero n] {U : Type
           ((List.range m).countP fun k =>
             decide (2 ≤ (twoHopAllActivePhase uid k).active.card)) = m := by
         by_contra hne
-        have hnot := hstop (lt_of_le_of_ne hKm hne)
-        have hst := phase_stable_of_lt_two uid hnot m (by omega)
-        rw [← hst] at hnot
-        exact hnot hm2
+        exact hstop (lt_of_le_of_ne hKm hne)
+          (phase_stable_of_lt_two uid (hstop (lt_of_le_of_ne hKm hne)) m hKm ▸ hm2)
       simp only [hm2, ↓reduceIte]
       rw [hK_eq_m]
       refine ⟨le_rfl, fun j hj => ?_, fun h => by omega⟩
@@ -1130,9 +1118,8 @@ private theorem exists_canonical_terminal {n : ℕ} [NeZero n] {U : Type*} [Line
     intro target _ ⟨hne, _⟩
     exact hne (hchan_empty (target - 1))
   have hmsgs_end_eq : twoHopEmittedMsgs cfgK w_end = n - 1 := by
-    rw [hmsgs_end, show stK.active = {qMax} from hiStar_eq]
-    simp only [Finset.card_singleton, Finset.sum_singleton]
-    rw [← hiStar_eq, hout_iStar]
+    have hact : stK.active = {qMax} := hiStar_eq
+    rw [hmsgs_end, hact, Finset.card_singleton, Finset.sum_singleton, ← hiStar_eq, hout_iStar]
     rfl
   have hn_pos : 1 ≤ n := Nat.pos_of_ne_zero (NeZero.ne n)
   -- Identify `maxUid` with `(Finset.univ.image uid).max'` for `∀ j, uid j ≤ maxUid`:
@@ -1186,8 +1173,7 @@ theorem twoHopAllActive_elects_leader {n : ℕ} [NeZero n] {U : Type*} [LinearOr
   obtain ⟨syncSched, cfg_term, iStar, maxUid, hsync, hterm, _, hmax_le, hmax_ex, hleader, hrelay⟩ :=
     exists_canonical_terminal huid
   refine ⟨fun sched cfg hmtr => ?_, fun sched cfg hmtr hcfg_term => ?_⟩
-  · obtain ⟨rem, hrem, _, _⟩ := confluence_of_canonical_terminal hsync hterm hmtr
-    exact ⟨rem, cfg_term, hrem, hterm⟩
+  · exact (confluence_of_canonical_terminal hsync hterm hmtr).imp fun _ h => ⟨_, h.1, hterm⟩
   · obtain ⟨rem, hrem, _, _⟩ := confluence_of_canonical_terminal hsync hterm hmtr
     obtain ⟨_, rfl⟩ := mtr_eq_nil_of_isTerminal hrem hcfg_term
     refine ⟨iStar, ⟨by simp [TwoHopConfig.isLeader, hleader, TwoHopNode.isLeader],

@@ -166,9 +166,8 @@ theorem networkPolynomial_size_ge {K : Type} [Field K] (hK : FlatCase K) (hk : 2
       ‖x‖ = 1 / (6 * √k) ∧ ∑ a, ∑ b, (if a = b then 0 else
         dist (endPoint a b) (if a ∈ S then x else -x)) ≤ (k : ℝ) * (k - 1) / 2 - k / 12 := by
     by_cases hS : S ∈ balancedSets k
-    · obtain ⟨x, hx⟩ := exists_norm_eq_sum_dist_endPoint_le (by omega) S
-        (mem_balancedSets.1 hS).1 (mem_balancedSets.1 hS).2
-      exact ⟨x, fun _ => hx⟩
+    · exact Exists.imp (fun _ hx _ => hx) (exists_norm_eq_sum_dist_endPoint_le (by omega) S
+        (mem_balancedSets.1 hS).1 (mem_balancedSets.1 hS).2)
     · exact ⟨0, fun h => absurd h hS⟩
   choose x hx using hhub
   -- a spectral point on the ends and the hubs, close to their distances up to the factor `c`
@@ -227,8 +226,7 @@ theorem networkPolynomial_size_ge {K : Type} [Field K] (hK : FlatCase K) (hk : 2
     have h3 := (abs_lt.1 (hF (.inr (A, true)) (.inr (A, false)))).1
     have h4 : dist (place (.inr (A, true))) (place (.inr (A, false))) = 1 / (3 * √k) := by
       change dist (x A) (-x A) = _
-      rw [dist_self_neg, hxn]
-      ring
+      rw [dist_self_neg, hxn]; ring
     simp only [id, h4] at h3
     linarith
   have key := lower_numbers hk1 (Nat.cast_nonneg ℓ) hc rfl hδ
@@ -275,18 +273,15 @@ theorem not_computedWithin_permFamily {K : Type} [Field K] (hK : FlatCase K) (h2
     rw [← pow_mul]
   -- so `ℓ n³ / 6 ≤ 3 + 2 n² (ℓ + 1) C`, which is false for `n = 30 (C + 1)`
   have h6 := h1.trans (Nat.cast_le.2 h5)
-  rw [Nat.cast_pow n, rpow_three_halves (by positivity), Real.sqrt_sq (Nat.cast_nonneg n),
-    show ((2 ^ (3 + 2 * n ^ 2 * (ℓ + 1) * C) : ℕ) : ℝ) =
-      (2 : ℝ) ^ ((3 + 2 * n ^ 2 * (ℓ + 1) * C : ℕ) : ℝ) by
-        rw [Real.rpow_natCast, Nat.cast_pow, Nat.cast_ofNat],
-    Real.rpow_le_rpow_left_iff one_lt_two, hn] at h6
+  push_cast [hn] at h6
+  rw [rpow_three_halves (by positivity), Real.sqrt_sq (by positivity), ← Real.rpow_natCast 2,
+    Real.rpow_le_rpow_left_iff one_lt_two] at h6
   push_cast at h6
-  have hC : (0 : ℝ) ≤ C := Nat.cast_nonneg C
   have hℓ1 : (1 : ℝ) ≤ ℓ := by exact_mod_cast (by omega : 1 ≤ ℓ)
-  have h7 := mul_nonneg (mul_nonneg (sq_nonneg ((C : ℝ) + 1)) hC) (sub_nonneg.2 hℓ1)
-  have h8 := mul_nonneg (sq_nonneg ((C : ℝ) + 1)) hC
-  have h9 : 1 ≤ ((C : ℝ) + 1) ^ 2 * ℓ :=
-    one_le_mul_of_one_le_of_one_le (one_le_pow₀ (by linarith)) hℓ1
-  linarith
+  linarith [mul_nonneg (mul_nonneg (sq_nonneg ((C : ℝ) + 1)) (Nat.cast_nonneg C))
+      (sub_nonneg.2 hℓ1),
+    mul_nonneg (sq_nonneg ((C : ℝ) + 1)) (Nat.cast_nonneg C),
+    one_le_mul_of_one_le_of_one_le
+      (one_le_pow₀ (n := 2) (le_add_of_nonneg_left (Nat.cast_nonneg C))) hℓ1]
 
 end Cslib.Circuits.Arithmetic.Separation.Flat

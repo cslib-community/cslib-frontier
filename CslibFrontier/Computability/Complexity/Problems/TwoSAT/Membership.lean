@@ -741,7 +741,6 @@ private theorem reaches_inspect_second {st₂ : St} {m₂ : Literal ℕ} {rest :
   obtain ⟨hm₂, hrest₂⟩ := hrest.cons
   have hend₂ := le_bnd_of_infixAt hm₂ (literalBits_ne_nil _ _)
   have hregs := mem_regs_zero hB₂
-  have hq₂B : st₂.q₂ ≤ bnd φ := by omega
   set st₃ : St := { st₂ with q₃ := st₂.q₂ + (literalBits m₂.1 m₂.2).length }
   have hB₃ : st₃.Bounded (bnd φ) := by simp only [st₃]; st_bounded
   have h₇₃ : decider.Reaches (encCNF φ) (decider.Oblivious (bnd φ)) (66, st₂.regs 0)
@@ -749,7 +748,7 @@ private theorem reaches_inspect_second {st₂ : St} {m₂ : Literal ℕ} {rest :
     cp_step [hm₂.literal_start]
     cp_step
     simpa [st₃, St.set_regs_10] using reaches_skipLitCode codeAt_skipLit₇₀ (by omega) (by simp) hm₂
-      (List.getD_set_self (by simp)) (List.forall_mem_set_of_forall_mem hregs hq₂B) hend₂
+      (List.getD_set_self (by simp)) (List.forall_mem_set_of_forall_mem hregs (by omega)) hend₂
   refine ⟨st₃, hB₃, Same.rfl', rfl, rfl, h₇₃.trans ?_⟩
   have := mem_regs_zero hB₃
   rcases rest with _ | ⟨m₃, rest⟩ <;> simp only [reduceCtorEq, ↓reduceIte]
@@ -795,10 +794,8 @@ theorem reaches_inspect {q : ℕ} {c : Clause ℕ} (hc : LitsAt (encCNF φ) q c)
     cp_step [List.getD_set_ne (by decide : 11 ≠ 8), st₂, St.set_regs_11, St.set_regs_12]
   obtain ⟨st₃, hB₃, hsame, hq₁, hq₂, h₂⟩ := reaches_inspect_second (st₂ := st₂) hrest hB₂
   rcases rest with _ | ⟨m₃, rest⟩
-  · rw [ite_eq_left rfl] at h₂
-    exact ⟨st₃, hB₃, hsame, .inr (.inr ⟨m₁, m₂, rfl, hq₁ ▸ hm₁, hq₂ ▸ hrest.cons.1, h₆₆.trans h₂⟩)⟩
-  · rw [ite_eq_right (by simp)] at h₂
-    exact ⟨st₃, hB₃, hsame, .inl ⟨.inr (by simp), h₆₆.trans h₂⟩⟩
+  · exact ⟨st₃, hB₃, hsame, .inr (.inr ⟨m₁, m₂, rfl, hq₁ ▸ hm₁, hq₂ ▸ hrest.cons.1, h₆₆.trans h₂⟩)⟩
+  · exact ⟨st₃, hB₃, hsame, .inl ⟨.inr (by simp), h₆₆.trans h₂⟩⟩
 
 /-- The registers after the guess of `ℓ'` in a clause of width two. -/
 def pairSt (st : St) (first : Bool) : St :=
@@ -838,12 +835,10 @@ theorem ab_inspect {p : ℕ} {c : Clause ℕ} (hc : LitsAt (encCNF φ) p c) {st 
   · refine ab_of_reaches h (fun b => ab_choice rfl hB' (fun b => ?_) (fun b => ?_) b) b
     · exact ab_of_reaches (reaches_pair hB' true) (fun b => .exit ⟨_, b, rfl, h₀, h₁, h₂, h₃,
         h₄, h₅, pairSt_bounded hB' true, m₁, m₂, by simp, by simp,
-        fun y hy => by simpa [or_comm] using hy,
-        by simpa [pairSt] using hq₁, by simpa [pairSt] using hq₂⟩) b
+        fun y hy => by simpa [or_comm] using hy, hq₁, hq₂⟩) b
     · exact ab_of_reaches (reaches_pair hB' false) (fun b => .exit ⟨_, b, rfl, h₀, h₁, h₂, h₃,
         h₄, h₅, pairSt_bounded hB' false, m₂, m₁, by simp, by simp,
-        fun y hy => by simpa using hy,
-        by simpa [pairSt] using hq₂, by simpa [pairSt] using hq₁⟩) b
+        fun y hy => by simpa using hy, hq₂, hq₁⟩) b
 
 /-- **Every branch guessing a clause**, from the clauses `cs`, rejects or reaches label `79` ready
 to check one of them. -/
@@ -1162,21 +1157,17 @@ private theorem branches_arc_pair {st st₂ st₃ : St} {b : Bool} {ℓ' m m₁ 
       InfixAt (encCNF φ) st₄.o₂ (literalBits m.1 m.2) ∧
       Branches (P := decider) (w := encCNF φ) (50, st.regs b.toNat)
         (79, st₄.regs (false : Bool).toNat) := by
-  have hgo : ∀ first : Bool,
-      Branches (P := decider) (w := encCNF φ) (50, st.regs b.toNat)
-        (79, (pairSt st₃ first).regs (false : Bool).toNat) := fun first => by
+  have hgo (first : Bool) : Branches (P := decider) (w := encCNF φ) (50, st.regs b.toNat)
+      (79, (pairSt st₃ first).regs (false : Bool).toNat) := by
     have hch : Branches (P := decider) (w := encCNF φ) (74, st₃.regs (!first).toNat)
         (if first then 75 else 77, st₃.regs 0) := by
-      cases first <;>
-        exact branches_choice (φ := φ) (show decider.instr 74 = _ from rfl) st₃ _ false
+      cases first <;> exact branches_choice (φ := φ) (l := 74) rfl st₃ _ false
     exact hto60.trans ((branches_of_reaches' h (by omega) false (!first)).trans
-      (hch.trans (branches_of_reaches' (reaches_pair hB₃ first) (by cases first <;> simp) false
-        false)))
+      (hch.trans (branches_of_reaches' (reaches_pair hB₃ first) (by cases first <;> simp)
+        false false)))
   rcases pair_choice hm hℓ' hall with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · exact ⟨pairSt st₃ true, pairSt_bounded hB₃ true, hsame,
-      by simpa [pairSt] using hq₁, by simpa [pairSt] using hq₂, hgo true⟩
-  · exact ⟨pairSt st₃ false, pairSt_bounded hB₃ false, hsame,
-      by simpa [pairSt] using hq₂, by simpa [pairSt] using hq₁, hgo false⟩
+  · exact ⟨_, pairSt_bounded hB₃ true, hsame, hq₁, hq₂, hgo true⟩
+  · exact ⟨_, pairSt_bounded hB₃ false, hsame, hq₂, hq₁, hgo false⟩
 
 /-- **A branch along an arc** of the implication graph, from label `50` back to the head of the
 walk, for a formula whose clauses have one or two literals. -/

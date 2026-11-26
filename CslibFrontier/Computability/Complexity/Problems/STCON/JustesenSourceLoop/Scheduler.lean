@@ -252,21 +252,17 @@ private theorem justesenSeedSchedulerScan_withInit_of_valid {k : ℕ} {State : T
           n := by
   intro I setup n
   rcases f with ⟨⟨saved, rank, source⟩, cursor, answer⟩
-  change saved = setup at hs
-  subst saved
-  have hrank := hv.seed_lt
-  change rank < setup.parameters.search.seedLimit at hrank
+  obtain rfl : saved = setup := hs
+  have hrank : rank < setup.parameters.search.seedLimit := hv.seed_lt
   rw [configurationSeedScheduler_seedLimit ntm c w,
     (configurationSeedSearchSetup_endpoints ntm c w).1] at hrank
   have hends := configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w
   have hroot := fun j hj => configurationSeedSearchSetup_originalSourceID_lt_vertexCount
     ntm c w (position := j) hj
   have hsource : source < n := hv.source_lt hends.1 hroot
-  refine ⟨⟨rank, hrank⟩, ⟨source, hsource⟩, rfl, rfl, ?_⟩
-  rw [show justesenSourceLoopEntryOfRequest ⟨setup, rank, source⟩
-      (configurationFieldContext ntm c w) = _ from
-    justesenSourceLoopEntryOfRequest_eq ntm c w rank source]
-  exact justesenSourceLoop_withInit ntm c _ _ 0 n
+  exact ⟨⟨rank, hrank⟩, ⟨source, hsource⟩, rfl, rfl,
+    (justesenSourceLoopEntryOfRequest_eq ntm c w rank source).symm ▸
+      justesenSourceLoop_withInit ntm c _ _ 0 n⟩
 
 /-- A valid scheduler frame has exactly one scanner trace that first halts with a verdict.
 A tie and either Boolean reachability verdict are successful returns. -/
@@ -379,8 +375,7 @@ theorem configurationJustesenSeedSchedulerScan_firstHalting_eq_reference
     configurationSeedSchedulerReferenceScan_correct ntm c w frame.request
       (hsource ▸ source.isLt)
   have heq : source = ⟨frame.request.sourceID, hsource ▸ source.isLt⟩ := Fin.ext hsource
-  rw [heq] at hcorrect
-  rw [hscan, href.eq hcorrect]
+  rw [hscan, href.eq (heq ▸ hcorrect)]
 
 /-- Every parsed concrete scan reply agrees with the mathematical reference callback. -/
 theorem configurationJustesenSeedSchedulerScan_readReply_eq_reference
@@ -447,11 +442,9 @@ theorem configurationJustesenSeedScheduler_replay_correct
     bits answer hfirst hanswer
   obtain ⟨result, hmath, hmin, hleast, hreach⟩ :=
     configurationSeedSchedulerReference_correct ntm c w
-  have hactual' : actual = some result := List.singleton_inj.mp (hactual.symm.trans hmath)
+  obtain rfl : actual = some result := List.singleton_inj.mp (hactual.symm.trans hmath)
   let selected : SeedSchedulerMachine.Answer := ⟨result.seed.val, result.reachable⟩
-  have hselected : answer = some selected := by
-    rw [hactual'] at hpack
-    exact hpack.symm
+  obtain rfl : answer = some selected := hpack.symm
   have hhalt (trace : List Bool) :
       M.FirstHalting w trace entry ↔ entered.FirstHalting w trace entered.init := by
     let e := Equiv.refl JustesenSeedSchedulerState
@@ -468,7 +461,7 @@ theorem configurationJustesenSeedScheduler_replay_correct
   have hseed : selected.seed < setup.parameters.search.seedLimit :=
     (configurationSeedScheduler_seedLimit ntm c w).symm ▸ result.seed.isLt
   exact ⟨selected, bits, hseed, hmin, hleast, hreach, (hhalt bits).mpr hfirst,
-    (hreply bits).trans (hanswer.trans (congrArg some hselected)), fun other hother hr =>
+    (hreply bits).trans hanswer, fun other hother hr =>
       hunique ⟨(hhalt other).mp hother, hreply other ▸ hr⟩ ⟨hfirst, hresult⟩⟩
 
 /-- Every selector prefix of the fixed retained-field scheduler fits in logarithmically
@@ -621,13 +614,9 @@ theorem configurationJustesenSeedScheduler_acceptCount {k : ℕ} {State : Type}
     rw [haccept]
     constructor
     · rintro ⟨hhalt, a, ha, hhit⟩
-      have hsome : (reply trace).isSome := by simp [ha]
-      have heq := hunique trace hhalt hsome
-      subst trace
-      have ha' : a = answer := by
-        have h : reply bits = some (some answer) := hreply
-        simpa only [h, Option.some.injEq] using ha.symm
-      exact ⟨rfl, hreach.mp (ha' ▸ hhit)⟩
+      obtain rfl := hunique trace hhalt (Option.isSome_iff_exists.mpr ⟨_, ha⟩)
+      obtain rfl : a = answer := Option.some.inj (Option.some.inj (ha.symm.trans hreply))
+      exact ⟨rfl, hreach.mp hhit⟩
     · rintro ⟨rfl, hmem⟩
       exact ⟨hfirst, answer, hreply, hreach.mpr hmem⟩
   have hset : {trace : List Bool |

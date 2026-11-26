@@ -633,10 +633,8 @@ theorem Related.right_unique {parity : Bool} {a b c : Option Shade}
     (hab : Related parity a b) (hac : Related parity a c) : b = c := by
   cases parity
   · exact hab.symm.trans hac
-  · obtain ⟨s, hs, hb⟩ := hab
-    obtain ⟨t, ht, hc⟩ := hac
-    obtain rfl : s = t := Option.some.inj (hs.symm.trans ht)
-    exact hb.trans hc.symm
+  · rcases hab, hac with ⟨⟨_, rfl, rfl⟩, ⟨_, ⟨⟩, rfl⟩⟩
+    rfl
 
 /-- Shade relations compose by taking the exclusive-or of their parities. -/
 theorem Related.trans {first second third : Option Shade}
@@ -746,25 +744,18 @@ tile and edge-matching rules. -/
 theorem validShadeGrid {indexGrid : Nat → Nat → Index}
     (labeling : ValidPortLabeling indexGrid) :
     ValidShadeGrid indexGrid labeling.stateGrid := by
-  constructor
-  · intro x y
-    simp only [locallyAllowed]
-    apply allowedFor_iff.mpr
-    constructor
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .west⟩
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .east⟩
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .south⟩
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .north⟩
-    · exact fun hpath => labeling.related (Link.horizontal x y hpath)
-    · exact fun hpath => labeling.related (Link.vertical x y hpath)
-    · exact fun heast hsouth => labeling.related (Link.eastSouth x y heast hsouth)
-    · exact fun heast hnorth => labeling.related (Link.eastNorth x y heast hnorth)
-    · exact fun hwest hsouth => labeling.related (Link.westSouth x y hwest hsouth)
-    · exact fun hwest hnorth => labeling.related (Link.westNorth x y hwest hnorth)
-    · exact fun hhorizontal hvertical =>
-        ne_of_related_true (labeling.related (Link.crossing x y hhorizontal hvertical))
-  · exact fun x y => labeling.related (Link.horizontalMatch x y)
-  · exact fun x y => labeling.related (Link.verticalMatch x y)
+  exact ⟨fun x y => allowedFor_iff.mpr
+    ⟨labeling.present ⟨x, y, .west⟩, labeling.present ⟨x, y, .east⟩,
+     labeling.present ⟨x, y, .south⟩, labeling.present ⟨x, y, .north⟩,
+     fun h => labeling.related (.horizontal x y h),
+     fun h => labeling.related (.vertical x y h),
+     fun he hs => labeling.related (.eastSouth x y he hs),
+     fun he hn => labeling.related (.eastNorth x y he hn),
+     fun hw hs => labeling.related (.westSouth x y hw hs),
+     fun hw hn => labeling.related (.westNorth x y hw hn),
+     fun hh hv => ne_of_related_true (labeling.related (.crossing x y hh hv))⟩,
+   fun x y => labeling.related (.horizontalMatch x y),
+   fun x y => labeling.related (.verticalMatch x y)⟩
 
 end ValidPortLabeling
 

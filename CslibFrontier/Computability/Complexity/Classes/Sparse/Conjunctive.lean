@@ -144,9 +144,7 @@ private theorem length_eraseDupsBy_flatMap (pre : List α) :
     ((pre.flatMap Q).eraseDupsBy fun u u' => decide (u = u')).length =
       (pre.flatMap Q).toFinset.card := by
   rw [← List.toFinset_card_of_nodup (List.nodup_eraseDupsBy_eq _)]
-  congr 1
-  ext u
-  simp only [List.mem_toFinset, List.mem_eraseDupsBy_eq]
+  exact congrArg Finset.card (Finset.ext fun _ => by simp [List.mem_eraseDupsBy_eq])
 
 /-- `SEARCH-RIGHT` keeps a sublist of its level. -/
 theorem searchRight_sublist (l : List α) : (searchRight Q s l).Sublist l := by
@@ -466,8 +464,7 @@ theorem computableInPolyTime_hasNewQuery {Q : γ → α → List κ} {s : γ →
     (hpre : ComputableInPolyTime pre encIn (encList encA))
     (hz : ComputableInPolyTime z encIn encA) :
     ComputableInPolyTime (fun x => hasNewQuery (Q x) (s x) (pre x) (z x)) encIn encBool := by
-  unfold hasNewQuery
-  fun_prop
+  fun_prop [hasNewQuery]
 
 /-- **`SEARCH-RIGHT` is polynomial-time**, for polynomial-time queries, bound and level. -/
 theorem computableInPolyTime_searchRight {Q : γ → α → List κ} {s : γ → ℕ} {l : γ → List α}
@@ -483,8 +480,7 @@ theorem computableInPolyTime_searchRight {Q : γ → α → List κ} {s : γ →
       (Q := fun p : γ × ((α × α) × ℕ) => Q p.1) (s := fun p => s p.1)
       (pre := fun p => (l p.1).take (p.2.2 + 1)) (z := fun p => p.2.1.2)
       (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-  unfold searchRight
-  fun_prop
+  fun_prop [searchRight]
 
 end PolyTime
 
@@ -502,8 +498,7 @@ private theorem computableInPolyTime_level {key : CNF ℕ → List (List Bool)}
     (Q := fun (q : ((CNF ℕ × ℕ) × List (List (Literal ℕ))) × ℕ) a => key (atLeast a ++ q.1.1.1))
     (s := fun q => q.1.1.2) (l := fun q => (Fortune.expand q.2 q.1.2).reverse)
     (by fun_prop) (by fun_prop) (by unfold Fortune.expand; fun_prop)
-  unfold prune
-  fun_prop
+  fun_prop [prune]
 
 /-- **The procedure is polynomial-time**, for polynomial-time queries `key` and a bound `s` computed
 in unary. Each level keeps at most `s + 2` nodes, each fixing at most as many occurrences as `φ`
@@ -540,8 +535,6 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
   sparse problem are that short. -/
   let Q : Polynomial ℕ := Polynomial.C C *
     (p.comp (2 * Polynomial.X + 1 + Polynomial.X * (4 * Polynomial.X + 5)) + 1) ^ D
-  have hQ (L : ℕ) : Q.eval L = C * (p.eval (2 * L + 1 + L * (4 * L + 5)) + 1) ^ D := by
-    simp [Q]
   refine ⟨fun φ => accepts key (Q.eval (encCNF φ).length) φ,
     computableInPolyTime_accepts hkey ((unary_eval Q).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (K := encB '' S) (M := p.eval (2 * (encCNF φ).length + 1 +
@@ -553,7 +546,7 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
     have hnode := Fortune.length_encNode_le ha hlen
     simp only [length_encPair]
     omega
-  · exact hQ _ ▸ hCD _ T fun w hw => by simpa using hT w hw
+  · simpa [Q] using hCD _ T fun w hw => by simpa using hT w hw
 
 /-- **Sparse sets are not hard for `NP` under conjunctive truth-table reductions unless `P = NP`:**
 if `SAT` reduces to a sparse problem by a polynomial-time conjunctive truth-table reduction, then

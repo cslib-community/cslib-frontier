@@ -166,7 +166,7 @@ private theorem ancestor?_add (s : State P) (a b : ℕ) (p : P) :
   | zero =>
     simp [ancestor?, Option.bind]
   | succ a ih =>
-    rw [show a + 1 + b = a + b + 1 by omega]
+    rw [Nat.succ_add]
     simp only [ancestor?]
     cases (s.proc p).parent <;> simp [ih]
 
@@ -334,16 +334,8 @@ private theorem children_attach {P : Type*} [Fintype P] [DecidableEq P] (s : Sta
   have heq : s'.children root p =
       if src = p then insert dst (s.children root p) else s.children root p := by
     ext q
-    split_ifs with h <;>
-      simp only [State.children, s', Finset.mem_insert, Finset.mem_filter, Finset.mem_univ,
-        true_and]
-    · subst h
-      rcases eq_or_ne q dst with rfl | hq
-      · simp [hdst]
-      · simp [hq]
-    · rcases eq_or_ne q dst with rfl | hq
-      · simp [h, hpar]
-      · simp [Function.update_of_ne hq]
+    by_cases hq : q = dst <;>
+      split_ifs with h <;> simp [State.children, s', hdst, hpar, h, hq]
   rw [heq]
   split_ifs <;> simp [Finset.card_insert_of_notMem hnotMem, Nat.add_comm]
 
@@ -354,20 +346,12 @@ private theorem children_detach {P : Type*} [Fintype P] [DecidableEq P] (s : Sta
   have heq : (s.detachState p q).children root r =
       if q = r then (s.children root r).erase p else s.children root r := by
     ext x
-    split_ifs with hqr
-    · subst hqr
-      rw [State.children, Finset.mem_filter, Finset.mem_erase, State.children, Finset.mem_filter]
-      rcases eq_or_ne x p with rfl | hx
-      · simp [State.detachState]
-      · simp [State.detachState, hx]
-    · rw [State.children, Finset.mem_filter, State.children, Finset.mem_filter]
-      rcases eq_or_ne x p with rfl | hx
-      · simp [State.detachState, hpar, hqr]
-      · simp [State.detachState, Function.update_of_ne hx]
+    by_cases hx : x = p <;>
+      split_ifs with hqr <;>
+        simp [State.children, State.detachState, Function.update_apply, hpar, hqr, hx]
   rw [heq]
   split_ifs with hqr
-  · subst hqr
-    exact Finset.card_erase_add_one (by simp [State.children, hp, hpar])
+  · exact Finset.card_erase_add_one (by simp [State.children, hp, hqr ▸ hpar])
   · simp
 
 private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq P] (root : P) :
@@ -420,13 +404,9 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
       omega
   | becomeIdle q =>
     obtain ⟨_, rfl⟩ := tr_becomeIdle_iff.mp htr
-    have hch : (s.becomeIdleState q).children root p = s.children root p :=
-      children_congr (parent_eq_of_update_same_parent s q false (s.proc q).deficit) root p
-    have hdef : ((s.becomeIdleState q).proc p).deficit = (s.proc p).deficit :=
-      deficit_eq_of_update_same_deficit s q false (s.proc q).parent p
-    rw [hdef, show (s.becomeIdleState q).inFlightBasicFrom p = s.inFlightBasicFrom p from rfl,
-      show (s.becomeIdleState q).inFlightSignalTo p = s.inFlightSignalTo p from rfl, hch]
-    exact hinv p
+    rw [children_congr (parent_eq_of_update_same_parent s q false (s.proc q).deficit) root p]
+    simpa only [State.becomeIdleState, State.inFlightBasicFrom, State.inFlightSignalTo,
+      deficit_eq_of_update_same_deficit s q false (s.proc q).parent p] using hinv p
   | recvSignal q =>
     obtain ⟨hmem, rfl⟩ := tr_recvSignal_iff.mp htr
     have hcons := hinv p
@@ -448,12 +428,13 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
     obtain ⟨⟨hq, _, _, hpar⟩, rfl⟩ := tr_detach_iff.mp htr
     have hcons := hinv p
     have hch := children_detach s hq hpar p
+    have hbasic : (s.detachState q r).inFlightBasicFrom p = s.inFlightBasicFrom p := rfl
     have hsig : (s.detachState q r).inFlightSignalTo p =
         s.inFlightSignalTo p + if p = r then 1 else 0 :=
       Multiset.count_cons p r s.signals
     have hdef : ((s.detachState q r).proc p).deficit = (s.proc p).deficit :=
       deficit_eq_of_update_same_deficit s q (s.proc q).active none p
-    rw [hdef, show (s.detachState q r).inFlightBasicFrom p = s.inFlightBasicFrom p from rfl, hsig]
+    rw [hdef, hbasic, hsig]
     simp only [eq_comm (a := p)]
     omega
 
@@ -467,10 +448,7 @@ theorem Reachable.deficit_eq_inFlight_add_children {P : Type*} [Fintype P] [Deci
       s.inFlightBasicFrom p + s.inFlightSignalTo p + (s.children root p).card := by
   obtain ⟨tr, hmtr⟩ := hr
   refine LTS.mtrInv_of_trInv (trInv_deficit_conservation root) _ tr s hmtr (fun q => ?_) p
-  have hch : (initState root).children root q = ∅ :=
-    Finset.eq_empty_iff_forall_notMem.mpr (by simp [State.children, initState])
-  rw [hch]
-  simp [State.inFlightBasicFrom, State.inFlightSignalTo, initState]
+  simp [State.inFlightBasicFrom, State.inFlightSignalTo, State.children, initState]
 
 /-! ### Engagement-tree reachability to `root` and acyclicity (P4) -/
 
@@ -786,13 +764,12 @@ theorem State.ComputationIdle.mtr_drainMeasure {P : Type*} [Fintype P] [Decidabl
     (hmtr : (lts root).MTr s tr s') :
     s'.ComputationIdle ∧ s'.drainMeasure root + tr.length = s.drainMeasure root := by
   induction hmtr with
-  | refl =>
-    exact ⟨hidle, by simp⟩
+  | refl => exact ⟨hidle, Nat.add_zero _⟩
   | stepL htr _ ih =>
     obtain ⟨_, hidle₁, hstep⟩ := hidle.step_drainMeasure htr
     obtain ⟨hidle₂, hrest⟩ := ih hidle₁
     refine ⟨hidle₂, ?_⟩
-    simp only [List.length_cons]
+    rw [List.length_cons]
     omega
 
 /-- Deadlock-freedom during draining: a reachable `ComputationIdle` configuration has no enabled

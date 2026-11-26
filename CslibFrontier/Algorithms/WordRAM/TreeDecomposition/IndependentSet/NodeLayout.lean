@@ -501,18 +501,10 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     have htbl_k_st₁ : HoldsIn tblPtr (List.replicate tblLen 0) st₁ :=
       ⟨htbl_zero_a.1, htbl_zero_a.2.frame fun a ha _ =>
         hp_writes a (.inr (by dsimp only [tblPtr, tblLen, dAddr, descBase, count] at *; omega))⟩
-    have hm4_0 : st₁.mem dAddr = bagPtr := by
-      dsimp only [st₁, m4, m3, m2, m1]
-      repeat rw [Function.update_of_ne (by omega)]
-      rw [Function.update_self]
-    have hm4_1 : st₁.mem (dAddr + 1) = bagLen := by
-      dsimp only [st₁, m4, m3, m2, m1]
-      repeat rw [Function.update_of_ne (by omega)]
-      rw [Function.update_self]
-    have hm4_2 : st₁.mem (dAddr + 2) = tblPtr := by
-      dsimp only [st₁, m4, m3, m2, m1]
-      rw [Function.update_of_ne (by omega), Function.update_self]
-    have hm4_3 : st₁.mem (dAddr + 3) = tblLen := Function.update_self ..
+    obtain ⟨hm4_0, hm4_1, hm4_2, hm4_3⟩ :
+        st₁.mem dAddr = bagPtr ∧ st₁.mem (dAddr + 1) = bagLen ∧
+          st₁.mem (dAddr + 2) = tblPtr ∧ st₁.mem (dAddr + 3) = tblLen := by
+      simp [st₁, m4, m3, m2, m1, Nat.left_eq_add]
     have hinv₁ : NodeInv (k + 1) st₁ := by
       refine ⟨fun i hi => ?_, fun i j hi hj hij => ?_⟩
       · by_cases hik : i = kFin

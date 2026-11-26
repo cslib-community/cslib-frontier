@@ -207,11 +207,10 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
     have hZ : (encPair (encPair encBits encUnary) encNat (c, i)).length ≤ Z c := by
       have := (length_encNat_mono hi.le)
       enc_len [Z, sz] at this ⊢
-    have hG : (encN (F.net (c.1, c.2, i))).length ≤
-        an * ((encPair (encPair encBits encUnary) encNat (c, i)).length + 1) ^ dn := hnl (c, i)
     have hY : (encPair encNat encN (paddedTime c.2 + 1, F.net (c.1, c.2, i))).length ≤ Y c := by
-      have hG' := hG.trans
+      have hG' := (hnl (c, i)).trans
         (Nat.mul_le_mul_left an (Nat.pow_le_pow_left (Nat.add_le_add_right hZ 1) dn))
+      dsimp only at hG'
       rw [length_encPair]
       simp only [Y]
       omega
@@ -362,9 +361,8 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
           2 ^ (k * (c * T n) / Nat.sqrt (Nat.log 2 (c * T n)))) := by
           simp only [scheduleCount, numBlocks, blockLength]
           ring
-      _ ≤ a * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 0 := by
-          rw [Nat.add_zero]
-          exact Nat.mul_le_mul_left _ (hC (T n) h2T)
+      _ ≤ a * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 0 :=
+          Nat.mul_le_mul_left _ (hC (T n) h2T)
       _ ≤ _ := by
           simpa only [Nat.add_zero] using
             Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a) (b := 0) (C := C) h2T
@@ -393,8 +391,7 @@ theorem exists_computableInO_countWith (F : NetworkFamily encN value Admissible 
       (fun x => 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))))
       (fun x => T x.length ^ d) := by
   obtain ⟨C, d, h⟩ := exists_computableInO_countPair F A hcount hT hTn hc
-  have hlength := h
-  obtain ⟨K, -, hlen⟩ := hlength
+  let ⟨K, _, hlen⟩ := h
   let g : List Bool → ℕ × ℕ := fun x =>
     (paddedTime (c * T x.length), count x (paddedTime (c * T x.length)))
   let cg : NativeCertificate g encBits (encPair encUnary encNat) := ⟨_, _, h⟩
@@ -411,26 +408,23 @@ theorem exists_computableInO_countWith (F : NetworkFamily encN value Admissible 
       ((bp (g x)).1.trans (mp (hlen x))).trans ((Nat.le_add_left _ _).trans (hPe _))
     have hmain := hC' (T x.length) h2
     simp only [Nat.zero_mul, pow_zero, Nat.one_mul] at hmain
-    have hpow : 1 ≤ (T x.length + 1) ^ e := Nat.one_le_pow _ _ (by omega)
-    have hE : 1 ≤ 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) :=
-      Nat.one_le_two_pow
+    have h1 := (Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ (by omega))).trans hmain
+    have hcr := hpost.trans
+      (Nat.mul_le_mul_left a ((Nat.le_mul_of_pos_right _ Nat.one_le_two_pow).trans hmain))
     calc ctotal.time x = 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) +
           cr.time (g x) := rfl
       _ ≤ (a + 1) * 2 ^ (C' * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) := by
-        nlinarith [Nat.mul_le_mul_left a hmain, Nat.mul_le_mul_left a (Nat.le_mul_of_pos_right
-          ((T x.length + 1) ^ e) hE)]
+        linarith
       _ ≤ _ := by
         simpa only [Nat.add_zero, Nat.add_assoc] using
           Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a + 1) (b := 0) (C := C') h2
   · have h2 : 2 ≤ T x.length := (le_max_right _ _).trans (hTn _)
-    have hpost := (bp (g x)).2.trans (mp (hlen x))
-    have hpoly := hPe (T x.length)
     calc ctotal.space x = T x.length ^ d + cr.space (g x) := rfl
       _ ≤ a * (T x.length + 1) ^ e :=
-        (Nat.add_le_add_left hpost _).trans hpoly
+        (Nat.add_le_add_left ((bp (g x)).2.trans (mp (hlen x))) _).trans (hPe (T x.length))
       _ ≤ T x.length ^ (a + 2 * e) := by
-        have := Nat.mul_add_one_pow_add_le_pow (a := a) (b := 0) (d := e) h2
-        simpa only [Nat.add_zero] using this
+        simpa only [Nat.add_zero] using
+          Nat.mul_add_one_pow_add_le_pow (a := a) (b := 0) (d := e) h2
 
 /-- The exact count at the padded clock, with binary output, inherits the counting core's
 subexponential time and polynomial workspace. -/

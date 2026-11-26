@@ -586,17 +586,13 @@ theorem advantage_bind_sampleExp_le (n : ℕ) (d : F.Desc)
       ((ProbComp.eval (F.sampleExp n d)).bind fun s => k (s : ZMod (F.order d)))
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind k) ≤
       1 / 2 ^ n := by
-  have hmap :
-      ((ProbComp.eval (F.sampleExp n d)).bind fun s => k (s : ZMod (F.order d))) =
-        ((ProbComp.eval (F.sampleExp n d)).map
-          (Nat.cast : ℕ → ZMod (F.order d))).bind k :=
-    (PMF.bind_map _ _ _).symm
   have hord_le : (F.order d : ℝ) ≤ 2 ^ (encNat (F.order d)).length := by
     exact_mod_cast (by simpa only [encNat_apply, ← Nat.size_eq_bits_len] using
       (Nat.lt_size_self (F.order d)).le)
-  rw [← NNReal.coe_le_coe, hmap, Game.advantage_eq_nndist, coe_nndist]
-  refine (PMF.dist_bind_le _ _ k).trans
-    ((ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_)
+  rw [← NNReal.coe_le_coe, Game.advantage_eq_nndist, coe_nndist]
+  refine le_of_eq_of_le
+    (congrArg (dist · _) (PMF.bind_map _ (Nat.cast : ℕ → ZMod (F.order d)) k).symm)
+    ((PMF.dist_bind_le _ _ k).trans ((ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_))
   rw [Nat.add_comm n, pow_add, ← div_div]
   simpa only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_pow, NNReal.coe_ofNat] using
     div_le_div_of_nonneg_right ((div_le_one (by positivity)).mpr hord_le) (by positivity)
@@ -1035,17 +1031,15 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
         ((α' * β') • F.generator d)) true).toReal - pReal| ≤ ε / 12 := by
     rw [abs_sub_comm]
     refine (abs_succProbability_sub_le_of_advantage_le ?_).trans hmod'
-    simpa only [NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_pow] using
-      NNReal.coe_le_coe.mpr
-        (F.advantage_ddhRealExperiment_ddhSelfReduceDistinguisher_le distinguisher n d α' β')
+    exact_mod_cast F.advantage_ddhRealExperiment_ddhSelfReduceDistinguisher_le
+      distinguisher n d α' β'
   have hRandomClose {α' β' γ' : ZMod (F.order d)} (hγ' : γ' ≠ α' * β') :
       |(ProbComp.eval (trial (α' • F.generator d) (β' • F.generator d)
         (γ' • F.generator d)) true).toReal - pRandom| ≤ ε / 12 := by
     rw [abs_sub_comm]
     refine (abs_succProbability_sub_le_of_advantage_le ?_).trans hmod'
-    simpa only [NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_pow] using
-      NNReal.coe_le_coe.mpr
-        (F.advantage_ddhRandomExperiment_ddhSelfReduceDistinguisher_le distinguisher n d hγ')
+    exact_mod_cast F.advantage_ddhRandomExperiment_ddhSelfReduceDistinguisher_le
+      distinguisher n d hγ'
   have hRealRef : |(ProbComp.eval tReal true).toReal - pReal| ≤ ε / 12 := by
     simpa only [zero_smul, mul_zero] using hRealClose 0 0
   have hRandomRef : |(ProbComp.eval tRandom true).toReal - pRandom| ≤ ε / 12 := by
@@ -1133,8 +1127,7 @@ theorem negligible_ddhAmplifiedDecider_error {distinguisher : F.DDHDistinguisher
     filter_upwards [hpos, hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)]
       with n hn hlt
     refine three_div_le_one_div_twelve_mul (Nat.cast_pos.mpr hn) ?_
-    simpa only [NNReal.coe_pow, NNReal.coe_inv, NNReal.coe_ofNat, inv_pow, one_div,
-      Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one] using hlt
+    simpa [one_div] using hlt
   negligible eventually (by
     filter_upwards [hpos, hadv, hmod_ev] with n hn hadv_n hmod_n
     exact F.ddhAmplifiedDecider_error_le_pow distinguisher invEps n (d n)

@@ -121,10 +121,9 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
     have hQ : (1 : ℝ) ≤ ((p : ℝ) + 1) ^ e₀ := one_le_pow₀ (by linarith [p.cast_nonneg (α := ℝ)])
     have hZ : (0 : ℝ) ≤ (((encA x).length : ℝ) + 1) ^ (dv + dg + 1 + q * e₀) := by positivity
     have hc₀ : (0 : ℝ) ≤ c₀ := Nat.cast_nonneg c₀
-    have hT₀x := hT₀ (g' x)
     change ((P x + T₀ (g' x) : ℕ) : ℝ) ≤ _
     push_cast
-    nlinarith [mul_le_mul_of_nonneg_left hW (mul_nonneg hc₀ (zero_le_one.trans hX1)),
+    nlinarith [hT₀ (g' x), mul_le_mul_of_nonneg_left hW (mul_nonneg hc₀ (zero_le_one.trans hX1)),
       mul_le_mul_of_nonneg_right hX1 hZ, mul_le_mul_of_nonneg_left hQ hc₀]
   · have hY1 : 1 ≤ (encA x).length + 1 := Nat.le_add_left 1 _
     have hS₀x := (hS₀ (g' x)).trans (Nat.mul_le_mul_left a₀ ((hpow x b₀).trans
@@ -160,13 +159,10 @@ public theorem exists_modelCounter (k : ℕ) :
   refine ⟨fun φ => count (g φ), A, q * e + d, q * b + d, fun φ hφ => ?_,
     (hcount.comp hd.inO).mono
       (c * (p + 1) ^ e + 1 + c + a * (p + 1) ^ b + 1) (fun φ => ?_) (fun φ => ?_)⟩
-  · have hw : ∀ cl ∈ φ.denseRelabel, cl.length ≤ k :=
-      (CNF.all_length_le_denseRelabel φ).mpr hφ
-    have hv : CNF.validDeclaredInput k φ.denseRelabel.numVars φ.denseRelabel = true :=
+  · have hv : CNF.validDeclaredInput k φ.numVars φ.denseRelabel = true :=
       CNF.validDeclaredInput_eq_true_iff.mpr
-        ⟨hw, by rw [CNF.vars_denseRelabel_toFinset, CNF.numVars_denseRelabel]⟩
-    dsimp only [g]
-    rw [hspec, ite_eq_left hv, CNF.numVars_denseRelabel, CNF.modelCountOn_denseRelabel]
+        ⟨(CNF.all_length_le_denseRelabel φ).mpr hφ, by rw [CNF.vars_denseRelabel_toFinset]⟩
+    simp only [g, hspec, CNF.numVars_denseRelabel, hv, ↓reduceIte, CNF.modelCountOn_denseRelabel]
   all_goals
     set Y := (encCNF φ).length + 1 with hY
     have hY1 : 1 ≤ Y := Nat.le_add_left 1 _
@@ -293,10 +289,9 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
             (Nat.add_le_add (hle d₁ (by dsimp only [e, B₁]; omega)) hsub_T)) hd₃
       _ = (2 + K * (p + 1) ^ e₀ + M ^ d₃) * (N * Y ^ e) := by ring
       _ ≤ _ := Nat.mul_le_mul (by omega) (Nat.le_succ _)
-  · have hB₁_b : Y ^ B₁ ≤ Y ^ b := Nat.pow_le_pow_right hY1 (by dsimp only [b]; omega)
-    have hBd₃_b : Y ^ (B₁ * d₃) ≤ Y ^ b := Nat.pow_le_pow_right hY1 (by dsimp only [b]; omega)
-    have hs1 := hSpair_le.trans (Nat.mul_le_mul_left _ hB₁_b)
-    have hs2 := hpair_d₃.trans (Nat.mul_le_mul_left _ hBd₃_b)
+  · have hle {k} (hk : k ≤ b) : Y ^ k ≤ Y ^ b := Nat.pow_le_pow_right hY1 hk
+    have hs1 := hSpair_le.trans (Nat.mul_le_mul_left _ (hle (Nat.le_add_right _ _)))
+    have hs2 := hpair_d₃.trans (Nat.mul_le_mul_left _ (hle (Nat.le_add_left _ _)))
     change Y ^ d₂ + (Y ^ d₁ + ((encCNF (fCNF x)).length + 1) ^ b₀) +
       ((encPair encNat encNat (fPow x, countCNF (fCNF x))).length + 1) ^ d₃ ≤
       C_bound * (Y ^ b + 1)

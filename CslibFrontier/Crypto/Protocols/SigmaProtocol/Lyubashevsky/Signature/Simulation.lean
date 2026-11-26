@@ -478,11 +478,7 @@ public theorem closeTo_lyubashevskySign_simulate {Ω M α : Type} [DecidableEq M
             (cont A h none)).run (cache h, [])
           return ((trace.2.2.map entryToPair).lookup (msg h, coin.1)).isSome) := by
       simp only [src, err, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-        PMF.bind_bind, PMF.pure_bind, PMF.map]
-      congr 1 with A : 1
-      congr 1 with h : 1
-      congr 1 with coin : 1
-      rw [PMF.bind_const]; rfl
+        PMF.bind_bind, PMF.pure_bind, PMF.map, PMF.bind_const, Function.comp_def]
     rw [hsrc]
     exact counterfactual_hit_le n m k q γ β R hγ H S T msg cache
       (fun A h => cont A h none) (fun A h hh => hcont A h none hh)
@@ -650,14 +646,9 @@ public theorem closeTo_lyubashevskySignAttempts_simulate_le_one {Ω M α : Type}
       (∑ j ∈ Finset.range K, ((R + K - 1 - j : ℝ≥0∞) / (q : ℝ≥0∞) ^ n +
         ENNReal.ofReal (Real.sqrt ((q : ℝ) ^ n / ((2 * γ + 1 : ℕ) : ℝ) ^ m) / 2))) := by
   rcases K with _ | _ | K
-  · simp only [Finset.range_zero, Finset.sum_empty]
-    rw [lyubashevskySignAttemptsVisibleProg_zero_eq_sim]
-    exact CloseTo.refl _
-  · rw [show (0 + 1 : ℕ) = 1 from rfl]
-    simp only [Finset.sum_range_one, Nat.cast_zero, Nat.cast_one, tsub_zero]
-    rw [ENNReal.add_sub_cancel_right (by norm_num)]
-    exact closeTo_lyubashevskySignAttempts_simulate_one n m k q η γ β R hγ hβ hη
-      H S T hvalid msg cache cont hcont
+  · simp [lyubashevskySignAttemptsVisibleProg_zero_eq_sim]
+  · simpa [ENNReal.add_sub_cancel_right] using closeTo_lyubashevskySignAttempts_simulate_one
+      n m k q η γ β R hγ hβ hη H S T hvalid msg cache cont hcont
   · omega
 
 /-- When the continuation makes zero oracle queries, the `K = 1` programmed signing hybrid and

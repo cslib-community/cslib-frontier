@@ -932,23 +932,17 @@ theorem computableInPolyTime_evalClausesMod {γ : Type} {encIn : γ ↪ List Boo
       (fun x => evalClausesMod (p x) (kOut x) (kIn x) (g x) (clauses x) (zs x) (ys x) (ws x))
       encIn encNat := by
   unfold evalClausesMod
-  have hp0 : ComputableInPolyTime (fun x => decide (p x = 0)) encIn encBool :=
-    decide_eq' hp (const 0)
-  have hgateEq : ComputableInPolyTime
-      (fun q : γ × WiringClause => decide (q.2.gate = g q.1))
-      (encPair encIn encWiringClause) encBool :=
-    decide_eq' (encWiringClause_gate_polyTime (snd _ _)) (hg.comp (fst _ _))
   have hterm : ComputableInPolyTime
       (fun q : γ × WiringClause =>
         if decide (q.2.gate = g q.1) then
           evalClauseNat (p q.1) (kOut q.1) (kIn q.1) q.2 (zs q.1) (ys q.1) (ws q.1)
         else 0)
       (encPair encIn encWiringClause) encNat :=
-    ite' hgateEq
+    ite' (decide_eq' (encWiringClause_gate_polyTime (snd _ _)) (hg.comp (fst _ _)))
       (evalClauseNat_pt (hp.comp (fst _ _)) (hkOut.comp (fst _ _)) (hkIn.comp (fst _ _))
         (snd _ _) (hzs.comp (fst _ _)) (hys.comp (fst _ _)) (hws.comp (fst _ _)))
       (const 0)
-  exact ite_decide hp0 (const 0)
+  exact ite_decide (decide_eq' hp (const 0)) (const 0)
     (binary_mod' (binary_sum.comp (mapWith hterm id' hclauses)) hp)
 
 end PolyTime
@@ -969,20 +963,18 @@ theorem hasPolyTimeWiringMLE_ofClauses {I : Type} {encI : I ↪ List Bool}
         q.gate (clauses q.index q.layer) q.z q.y q.w) where
   polyTime := by
     have hidx := encWiringMLEQuery_index_polyTime I encI ComputableInPolyTime.id'
-    have hgate := encWiringMLEQuery_gate_polyTime I encI ComputableInPolyTime.id'
     have hlayer := encWiringMLEQuery_layer_polyTime I encI ComputableInPolyTime.id'
-    have hmod := encWiringMLEQuery_modulus_polyTime I encI ComputableInPolyTime.id'
-    have hz := encWiringMLEQuery_z_polyTime I encI ComputableInPolyTime.id'
-    have hy := encWiringMLEQuery_y_polyTime I encI ComputableInPolyTime.id'
-    have hw := encWiringMLEQuery_w_polyTime I encI ComputableInPolyTime.id'
     have hlayerSucc : ComputableInPolyTime (fun q : WiringMLEQuery I => q.layer + 1)
         (encWiringMLEQuery I encI) encUnary := by fun_prop
-    exact computableInPolyTime_evalClausesMod hmod
+    exact computableInPolyTime_evalClausesMod
+      (encWiringMLEQuery_modulus_polyTime I encI .id')
       (hwidth.comp (hidx.prod hlayerSucc))
       (hwidth.comp (hidx.prod hlayer))
-      hgate
+      (encWiringMLEQuery_gate_polyTime I encI .id')
       (hclauses.comp (hidx.prod hlayer))
-      hz hy hw
+      (encWiringMLEQuery_z_polyTime I encI .id')
+      (encWiringMLEQuery_y_polyTime I encI .id')
+      (encWiringMLEQuery_w_polyTime I encI .id')
   lt_modulus q hp := evalClausesMod_lt hp _ _ _ _ _ _ _
   eval_eq ι p _ g i hi zs ys ws := by
     dsimp only

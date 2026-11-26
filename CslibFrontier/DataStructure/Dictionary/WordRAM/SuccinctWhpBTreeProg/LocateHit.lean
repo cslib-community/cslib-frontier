@@ -190,8 +190,6 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
     have hr_def : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) cnt q
         (sl.nodes leafIdx).keysWord = r := rfl
     have hcnt_div : (sl.nodes leafIdx).metaWord / 2 = cnt := rfl
-    have hlf_def : descendToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-        sl.nodes hMaxBTree sl.root q = leafIdx := rfl
     have hvw_cnt : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) := by
       obtain ⟨_, hm0, _, _, hvw0, _⟩ := hv_leaf
       have : cnt = cntL := by dsimp [cnt]; rw [hm0, metaCount_mkNodeMeta]
@@ -227,7 +225,9 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
     by_cases hhit : r < cnt ∧ laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r = q
     · obtain ⟨hrc, hkeq⟩ := hhit
       right
-      refine ⟨leafIdx, r, ?_, hleaf_lt, hrc, hcnt_le, hm_lt, hk_lt, hkw_cnt, hvw_cnt, ?_, ?_, ?_⟩
+      refine ⟨leafIdx, r, ?_, hleaf_lt, hrc, hcnt_le, hm_lt, hk_lt, hkw_cnt, hvw_cnt, ?_,
+        by simp [btreeDelete, ha_ne, leafIdx, cnt, r, hrc, hkeq],
+        fun _ => by simp [btreeUpdate, ha_ne, leafIdx, cnt, r, hrc, hkeq]⟩
       · rw [clientResult_bind, hcs_h, hres_h]; simp only [ha_ne, ↓reduceIte]
         rw [clientResult_bind, hdl_st, hdl_res, clientResult_bind, hnd_st, hnd_res,
           clientResult_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
@@ -236,28 +236,23 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
         rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
         dsimp only [keyLaneBitsWhp]
         simp [hkeq, StateTransitionSpec.clientResult_pure]
-      · rw [← hlk_eq]; unfold btreeLookup
-        simp [ha_ne, hlf_def, cnt, r, hrc, hkeq]
-      · unfold btreeDelete; simp [ha_ne, leafIdx, cnt, r, hrc, hkeq]
-      · intro newVal; unfold btreeUpdate; simp [ha_ne, leafIdx, cnt, r, hrc, hkeq]
+      · simp [← hlk_eq, btreeLookup, ha_ne, leafIdx, cnt, r, hrc, hkeq]
     · left
       have hne : r < cnt → laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r ≠ q :=
         fun hrc heq => hhit ⟨hrc, heq⟩
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · rw [clientResult_bind, hcs_h, hres_h]; simp only [ha_ne, ↓reduceIte]
-        rw [clientResult_bind, hdl_st, hdl_res, clientResult_bind, hnd_st, hnd_res,
-          clientResult_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
-          hcnt_div, hr_def]
-        by_cases hrc : r < cnt
-        · simp only [hrc, ↓reduceIte]
-          rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
-          simp [keyLaneBitsWhp, hne hrc, StateTransitionSpec.clientResult_pure]
-        · simp [hrc, StateTransitionSpec.clientResult_pure]
-      · rw [← hlk_eq]
-        simp +contextual [btreeLookup, ha_ne, hlf_def, cnt, r, hne]
-      · simp +contextual [btreeDelete, ha_ne, leafIdx, cnt, r, hne]
-      · intro newVal
-        simp +contextual [btreeUpdate, ha_ne, leafIdx, cnt, r, hne]
+      refine ⟨?_, by simp +contextual [← hlk_eq, btreeLookup, ha_ne, leafIdx, cnt, r, hne],
+        by simp +contextual [btreeDelete, ha_ne, leafIdx, cnt, r, hne],
+        fun _ => by simp +contextual [btreeUpdate, ha_ne, leafIdx, cnt, r, hne]⟩
+      rw [clientResult_bind, hcs_h, hres_h]
+      simp only [ha_ne, ↓reduceIte]
+      rw [clientResult_bind, hdl_st, hdl_res, clientResult_bind, hnd_st, hnd_res,
+        clientResult_bind, clientState_swarRankGenProg, clientResult_swarRankGenProg hth,
+        hcnt_div, hr_def]
+      by_cases hrc : r < cnt
+      · simp only [hrc, ↓reduceIte]
+        rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
+        simp [keyLaneBitsWhp, hne hrc, StateTransitionSpec.clientResult_pure]
+      · simp [hrc, StateTransitionSpec.clientResult_pure]
 
 theorem realizes_btreeLocateHitGen :
     Realizes .exact btreeLocateHitGenProg
@@ -276,6 +271,8 @@ theorem realizes_btreeLocateHitGen :
     have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
+    have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
+      Nat.sub_lt (Nat.two_pow_pos _) one_pos
     obtain ⟨hcs_h, hres_h, _, _⟩ := readSliceHeaderGenProg_spec hth henv.2.1 hsIdx hrep (s := s)
     dsimp only at hcs_h hres_h
     simp only [hcs_h, hres_h, wp_large_M hth, wp_large_hMaxBTree hth, wp_large_nSlice hth,
@@ -284,17 +281,13 @@ theorem realizes_btreeLocateHitGen :
   · exact hsIdx
   · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, _, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
     · simp_all
-    · have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
-        Nat.sub_lt (Nat.two_pow_pos _) one_pos
-      exact (descendLoopGenProg_spec henv hsIdx hrep hrt (Nat.zero_le q) (by omega) hhi hT
+    · exact (descendLoopGenProg_spec henv hsIdx hrep hrt (Nat.zero_le q) (by omega) hhi hT
         (fuel := hMaxBTree)).2.2.2.2
   · exact ⟨c, U, V, w, n_max, henv, rfl⟩
   · exact hsIdx
   · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
     · simp_all
     · obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
-      have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
-        Nat.sub_lt (Nat.two_pow_pos _) one_pos
       obtain ⟨_, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
         (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
       obtain ⟨_, _, _, _, hv_leaf⟩ :=
@@ -305,8 +298,6 @@ theorem realizes_btreeLocateHitGen :
   · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
     · simp_all
     · obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
-      have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
-        Nat.sub_lt (Nat.two_pow_pos _) one_pos
       obtain ⟨hdl_st, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
         (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
       dsimp only at hdl_st hdl_res
@@ -330,8 +321,6 @@ theorem realizes_btreeLocateHitGen :
   · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
     · simp_all
     · obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
-      have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
-        Nat.sub_lt (Nat.two_pow_pos _) one_pos
       obtain ⟨hdl_st, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
         (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
       dsimp only at hdl_st hdl_res

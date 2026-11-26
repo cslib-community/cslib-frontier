@@ -101,8 +101,7 @@ private theorem realizes_delRemRebCheck :
       hrep.2.2.2.2.2.2.2.1.trans_le hrep.1
     have hfit_old : Fits w (2 + fs.oldEp) := by
       have h4 : 4 ≤ 2 ^ w := (by decide : 4 ≤ 2 ^ 2).trans (Nat.pow_le_pow_right two_pos h2w)
-      have hold : fs.oldEp ≤ 1 := by rcases hce with hc | hc <;> simp [FastState.oldEp, hc]
-      change 2 + fs.oldEp < 2 ^ w; omega
+      rcases hce with hc | hc <;> simp only [Fits, FastState.oldEp, hc] <;> omega
     simp only [hst_ra, hres_ra, hst_rc, hres_rc, hst_o, hres_o, wp_large_qEpoch hth] at *
     first
     | exact h2w
@@ -216,8 +215,7 @@ private theorem realizes_delRemRebActive :
       rw [clientResult_bind, hst_cs, hres_cs, clientResult_bind, hmh_st, hmh_res, hfp_res]
     obtain ⟨hrs_st, hrs_res, _, _⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
     have hfp_lt := fpOfSaltOpt_lt c U n_max (s.mem (base + hdrRebCandSalt)) u_val θ.2
-    simp only [hcp_eq] at *
-    simp only [hrc_st, hrc_res, hrs_st, hrs_res, wp_large_M hth] at *
+    simp only [hcp_eq, hrc_st, hrc_res, hrs_st, hrs_res, wp_large_M hth] at *
     first
     | exact hb
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
@@ -341,10 +339,10 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ { fs with slices := slices3 } s s' := by
   have hth := henv.2.2.2.1
-  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    simp [mkWhpParams, Nat.not_lt.mpr hth]
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   set cp := mkWhpCoreParams c U V w n_max
+  have hwp1 : (mkWhpParams c U V w n_max).1 = cp := by
+    simp [cp, mkWhpParams, Nat.not_lt.mpr hth]
+  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   obtain ⟨hst_ra, hres_ra, hmc_ra, hvp_ra⟩ := readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
   obtain ⟨hst_rc, hres_rc, hmc_rc, hvp_rc⟩ := readHdrProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebScanCursor)
@@ -372,7 +370,6 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
       .bind ⟨hst_rc, hres_rc, hmc_rc.le, hvp_rc⟩ <|
       .bind ⟨hst_o, hres_o, hmc_o.le, hvp_o⟩ (by split_ifs <;> exact .pure _ _)) (by omega)
   unfold delRemRebGenProg
-  dsimp only
   simp only [hwp1, pure_bind]
   by_cases hcond : (rebActiveB && decide (loc_del < fs.rebScanCursor ∧
       (st_del = 1 ∨ st_del = 2 + fs.oldEp))) = true
@@ -399,8 +396,8 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
         ((Memory.spec 0).clientState s (btreeDeleteGenProg
           (((cp, base), fs.rebSliceIdx b), fpOfSalt c U n_max θ.2 fs.rebCandSalt u))) ()
         (hashEvalCostWhp c + 279) := by
-      unfold delRemRebActiveProg readCandFpGenProg; dsimp only
-      rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+      unfold delRemRebActiveProg readCandFpGenProg
+      simp only [hwp1]
       exact .mono (.bind (.bind ⟨hst_cs, hres_cs, hmc_cs.le, hvp_cs⟩ <|
         .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩) <|
         .bind ⟨hrs_st, hrs_res, hrs_mc.le, hrs_vp⟩ ⟨rfl, rfl, hbd_mc, hbd_vp⟩) (by omega)
@@ -458,8 +455,7 @@ theorem realizes_delRemReadInfoGen :
     simp only [getBktField] at hs1_res
     obtain ⟨hfp_st, _, _, _⟩ :=
       fpOfSaltOptRtProg_spec (salt := fs.bktSalt b) (kv := u_val) henv hseed (s := s)
-    simp only [hcp_eq] at *
-    simp only [hst_l, hmh_st, hmh_res, hrk_st, hs1_st, hs1_res, hfp_st,
+    simp only [hcp_eq, hst_l, hmh_st, hmh_res, hrk_st, hs1_st, hs1_res, hfp_st,
       wp_large_M hth, wp_large_totalLoc hth] at *
     first
     | decide
@@ -487,7 +483,6 @@ theorem delRemReadInfoGenProg_spec {c U V w n_max base b loc_del : ℕ}
   have hth := henv.2.2.2.1
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hst_l, hres_l, hmc_l, hvp_l⟩ := readFastLocGenProg_spec henv hb hld_tl hrep (s := s)
   obtain ⟨hmh_st, hmh_res, hmh_mc, hmh_vp⟩ :=
     mkHashRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
@@ -500,7 +495,6 @@ theorem delRemReadInfoGenProg_spec {c U V w n_max base b loc_del : ℕ}
     fpOfSaltOptRtProg_spec (salt := fs.bktSalt b) (kv := u.val) henv hseed (s := s)
   simp only [u.isLt, ↓reduceDIte] at hrk_res hfp_res
   change _ = fpOfSalt c U n_max θ.2 (fs.bktSalt b) u at hfp_res
-  dsimp only
   suffices h : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
       (delRemReadInfoGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), u.val)) s
       (fs.locState b loc_del,
@@ -508,8 +502,7 @@ theorem delRemReadInfoGenProg_spec {c U V w n_max base b loc_del : ℕ}
       (hashEvalCostWhp c + 5) from
     ⟨h.clientState_eq, h.clientResult_eq, h.memoryCost_le, h.validProg⟩
   unfold delRemReadInfoGenProg
-  dsimp only
-  rw [hwp1]
+  simp only [hwp1]
   exact .mono (.bind ⟨hst_l, hres_l, hmc_l.le, hvp_l⟩ <|
     .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ <| .bind ⟨hrk_st, hrk_res, hrk_mc, hrk_vp⟩ <|
     .bind ⟨hs1_st, hs1_res, hs1_mc.le, hs1_vp⟩ <|

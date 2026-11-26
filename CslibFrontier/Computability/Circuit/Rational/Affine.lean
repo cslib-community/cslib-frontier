@@ -102,9 +102,8 @@ def constMatrix {ι κ : Type*} (A : Matrix ι κ ℚ) : Matrix ι κ (Form n) :
 
 /-- Evaluating `constMatrix A` maps `c` over the entries of `A`. -/
 @[simp] theorem eval_constMatrix {ι κ : Type*} (c : ℚ →+* R) (X : Fin n → R)
-    (A : Matrix ι κ ℚ) : (constMatrix A).map (eval c X) = A.map c := by
-  ext i j
-  exact eval_constant c X (A i j)
+    (A : Matrix ι κ ℚ) : (constMatrix A).map (eval c X) = A.map c :=
+  Matrix.ext fun i j => eval_constant c X (A i j)
 
 end Affine
 
@@ -242,9 +241,7 @@ private theorem realized_leaf (a : Affine.Form n) (r : R) (ha : Affine.eval c X 
   rw [fromBlocks_map]
   simp only [Affine.eval_constMatrix, Matrix.map_one c (map_zero c) (map_one c),
     Matrix.map_zero, map_zero]
-  congr 1
-  ext
-  simp [scalar, ha]
+  exact congrArg (fromBlocks 1 · 0 1) (Matrix.ext fun _ _ => by simp [scalar, ha])
 
 private theorem realized_input : realized c X (.input i) = fromBlocks 1 (-scalar (X i)) 0 1 :=
   realized_leaf c X _ _ (Affine.eval_variable c X i)
@@ -306,14 +303,12 @@ private theorem fromBlocks_zero₂₂_inverse {ι κ : Type*} [Fintype ι] [Fint
       fromBlocks 1 (A' * B) 0 1 = _
     rw [← ha]
     simpa [Matrix.neg_mul] using (Matrix.fromBlocks_zero₂₂_schur_factor A A' B C hAA' hA'A).symm
-  refine ⟨↑(U * D * V)⁻¹, ?_, ?_, ?_⟩
-  · rw [← hS]; exact (U * D * V).mul_inv
-  · rw [← hS]; exact (U * D * V).inv_mul
-  · change fromCols (0 : Matrix κ ι R) (-1) *
-      (V.inv * (D.inv * U.inv)) * fromRows (0 : Matrix ι κ R) (1 : Matrix κ κ R) = b
-    simp [V, D, U, fromBlocks_multiply, Matrix.mul_zero, Matrix.zero_mul,
-      Matrix.fromCols_mul_fromBlocks, fromCols_mul_fromRows,
-      Matrix.mul_assoc, Matrix.neg_mul, Matrix.mul_neg]
+  refine ⟨↑(U * D * V)⁻¹, hS ▸ (U * D * V).mul_inv, hS ▸ (U * D * V).inv_mul, ?_⟩
+  change fromCols (0 : Matrix κ ι R) (-1) *
+    (V.inv * (D.inv * U.inv)) * fromRows (0 : Matrix ι κ R) (1 : Matrix κ κ R) = b
+  simp [V, D, U, fromBlocks_multiply, Matrix.mul_zero, Matrix.zero_mul,
+    Matrix.fromCols_mul_fromBlocks, fromCols_mul_fromRows,
+    Matrix.mul_assoc, Matrix.neg_mul, Matrix.mul_neg]
 
 /-- Affine realization for a multiplication gate from realizations of its two arguments. -/
 private theorem realization_mul (args : Fin (ratSignature.Arity .mul) → Formula n) {a b : R}
@@ -339,11 +334,9 @@ private theorem realization_mul (args : Fin (ratSignature.Arity .mul) → Formul
     simp [hf2, hg2, hB2, Matrix.mul_zero, Matrix.zero_mul, Matrix.mul_neg, Matrix.neg_mul,
       ← Matrix.mul_assoc]
   · rw [rowR_mul, colR_mul, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
-    simp only [Matrix.mul_zero, Matrix.zero_mul, add_zero, zero_add, B]
-    trans (rowR c (args 0) * Mf * colR c (args 0)) * (rowR c (args 1) * Mg * colR c (args 1))
-    · simp only [Matrix.mul_assoc]
-    · rw [hfr, hgr]
-      exact (map_mul (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
+    simp only [Matrix.mul_zero, Matrix.zero_mul, add_zero, zero_add, B, ← Matrix.mul_assoc]
+    rw [Matrix.mul_assoc _ (rowR c (args 1)), Matrix.mul_assoc _ (rowR c (args 1) * Mg), hfr, hgr]
+    exact (map_mul (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
 
 /-- Exact affine realization of every defined formula: the evaluated pencil is invertible, and
 the row, its inverse and the column multiply to the value. -/
@@ -353,27 +346,23 @@ theorem Eval.realization {f : Formula n} {v : R} (hv : f.Eval c X v) :
       rowR c f * M * colR c f = scalar v := by
   induction f generalizing v with
   | input i =>
-    obtain rfl : v = X i := hv
     rw [realized_input, rowR_input, colR_input]
-    exact leaf_realization (X i)
+    exact hv ▸ leaf_realization (X i)
   | gate op args ih =>
     cases op with
     | const q =>
-      obtain rfl : v = c q := hv
       rw [realized_const, rowR_const, colR_const]
-      exact leaf_realization (c q)
+      exact hv ▸ leaf_realization (c q)
     | add =>
       obtain ⟨a, b, ha, hb, rfl⟩ := hv
       obtain ⟨Mf, hf1, hf2, hfr⟩ := ih 0 ha
       obtain ⟨Mg, hg1, hg2, hgr⟩ := ih 1 hb
-      refine ⟨fromBlocks Mf 0 0 Mg, ?_, ?_, ?_⟩
-      · rw [realized_add, fromBlocks_multiply]
-        simp [hf1, hg1]
-      · rw [realized_add, fromBlocks_multiply]
-        simp [hf2, hg2]
-      · rw [rowR_add, colR_add, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
-        simp only [Matrix.mul_zero, add_zero, zero_add, hfr, hgr]
-        exact (map_add (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
+      refine ⟨fromBlocks Mf 0 0 Mg,
+        by simp [realized_add c X args, fromBlocks_multiply, hf1, hg1],
+        by simp [realized_add c X args, fromBlocks_multiply, hf2, hg2], ?_⟩
+      rw [rowR_add, colR_add, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
+      simp only [Matrix.mul_zero, add_zero, zero_add, hfr, hgr]
+      exact (map_add (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
     | mul =>
       obtain ⟨a, b, ha, hb, rfl⟩ := hv
       obtain ⟨Mf, hf1, hf2, hfr⟩ := ih 0 ha

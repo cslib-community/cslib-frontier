@@ -233,8 +233,7 @@ private theorem nullLoop_done (body : List (Instr M (layout extra (regs + 1))))
   refine ⟨2, .head s mid _ _ ?_ (.single ?_), ?_, rfl⟩
   · simp [step, pc, Instr.effect, Instr.next, mid]
   · simp [step, mid, Instr.effect, Instr.next, State.setPtr, cursor]
-  · rw [Nat.add_comm 2 body.length]
-    simp
+  · simp [Nat.add_comm 2]
 
 private theorem rebalance_done (zero maxSucc : M.Op) (heavy le : M.Test)
     (field : Fin (extra + 1)) (s : State M (layout extra (regs + 1)))
@@ -323,25 +322,23 @@ private theorem rebalance_correct [LinearOrder M.Value]
         (∀ i, i ≠ 1 → i ≠ 2 → t.data i = s.data i) ∧
         (∀ (a : ℕ) (f : Fin (extra + 1)), f ≠ field → (t.heap[a]?).map (fun n => n.data f) =
           (s.heap[a]?).map (fun n => n.data f)) := by
+      have cur : cleared.ptr 0 = s.ptr 0 := by simp [cleared, State.setPtr]
       cases frame with
       | left label sibling =>
         cases parentAVL with
         | nil => cases parentMatch
         | node key height left right =>
           obtain ⟨keyEq, _, leftMatch, rightMatch⟩ := parentMatch
-          have leftEq : left = focused :=
+          obtain rfl : left = focused :=
             parentValid.heightConsistent.2.1.eq_of_toBinaryTree_eq focusedValid.heightConsistent
               (leftMatch.keys.symm.trans focusedMatch.keys)
-          subst left
-          have cur : cleared.ptr 0 = some label.address := by
-            simpa [cleared, State.setPtr, contextParent] using cursor
           obtain ⟨t, tree, time, run, bound, rt, mt, dt, footprint, ct, rootT,
               size, data, payload⟩ :=
             ancestorStep_correct zero maxSucc heavy le encode zero_spec max_spec heavy_spec le_spec
-              field notKey cleared cs label after sibling (AVLTree.insert query focused) right
+              field notKey cleared cs label after sibling (AVLTree.insert query left) right
               currentRep currentDistinct changedMatch rightMatch
               (valid_insert focusedValid query).heightConsistent parentValid.heightConsistent.2.2
-              cur currentRoot rfl
+              (cur.trans cursor) currentRoot rfl
           refine ⟨t, tree, time, run, bound, rt, ?_, dt, footprint, ct, rootT, size, data, payload⟩
           simpa only [AVLTree.insert, ← keyEq, path.1, ↓reduceIte] using mt
       | right sibling label =>
@@ -349,19 +346,16 @@ private theorem rebalance_correct [LinearOrder M.Value]
         | nil => cases parentMatch
         | node key height left right =>
           obtain ⟨keyEq, _, leftMatch, rightMatch⟩ := parentMatch
-          have rightEq : right = focused :=
+          obtain rfl : right = focused :=
             parentValid.heightConsistent.2.2.eq_of_toBinaryTree_eq focusedValid.heightConsistent
               (rightMatch.keys.symm.trans focusedMatch.keys)
-          subst right
-          have cur : cleared.ptr 0 = some label.address := by
-            simpa [cleared, State.setPtr, contextParent] using cursor
           obtain ⟨t, tree, time, run, bound, rt, mt, dt, footprint, ct, rootT,
               size, data, payload⟩ :=
             ancestorStep_correct zero maxSucc heavy le encode zero_spec max_spec heavy_spec le_spec
-              field notKey cleared cs label sibling after left (AVLTree.insert query focused)
+              field notKey cleared cs label sibling after left (AVLTree.insert query right)
               currentRep currentDistinct leftMatch changedMatch
               parentValid.heightConsistent.2.1 (valid_insert focusedValid query).heightConsistent
-              cur currentRoot rfl
+              (cur.trans cursor) currentRoot rfl
           refine ⟨t, tree, time, run, bound, rt, ?_, dt, footprint, ct, rootT, size, data, payload⟩
           simpa only [AVLTree.insert, ← keyEq, not_lt_of_gt path.1, path.1, ↓reduceIte] using mt
     obtain ⟨a, tree, time, run, bound, rt, mt, dt, footprint, ct, rootA,
@@ -544,8 +538,7 @@ private theorem nullBranch_missing (missing : List (Instr M (layout extra (regs 
   refine ⟨time + 2, .head s mid _ _ ?_ (.head mid _ _ _ ?_ placed), ?_, by omega⟩
   · simp [step, pc, Instr.effect, Instr.next, mid]
   · simp [step, mid, Instr.effect, Instr.next, State.setPtr, cursor]
-  · rw [Nat.add_comm 3 missing.length]
-    simp
+  · simp [Nat.add_comm 3]
 
 private theorem afterSeek_missing (zero maxSucc : M.Op) (lt heavy le : M.Test)
     (field : Fin (extra + 1)) (source : Fin (extra + 1) → Fin (regs + 3))
@@ -601,9 +594,7 @@ theorem insert_correct [LinearOrder M.Value]
   | nil =>
     let cleared := { a.setPtr 5 none with pc := 0 }
     have complete : Represents cleared.heap none (plug cs .nil) := by
-      rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]; exact rep
-    have separated : AddressesDistinct (plug cs .nil) := ra.reconstruction ▸ distinct
-    have m : Matches encode field (plug cs .nil) original := ra.reconstruction ▸ matched
+      simpa only [cleared, State.setPtr, ra.heap, ← ra.reconstruction] using rep
     have path : SearchPath (cleared.data 0) cs := by
       simpa only [cleared, State.setPtr, query] using ra.path
     have parent : cleared.ptr 2 = contextParent cs := by
@@ -611,8 +602,9 @@ theorem insert_correct [LinearOrder M.Value]
     have rootCleared : cleared.ptr 1 = root (plug cs .nil) := by
       simpa [cleared, State.setPtr, ra.reconstruction] using rootA
     obtain ⟨b, result, tb, eb, bb, rb⟩ := missing_correct zero maxSucc lt heavy le encode
-      zero_spec max_spec compare heavy_spec le_spec field notKey source safe
-      cleared cs original m valid path complete separated parent rootCleared rfl
+      zero_spec max_spec compare heavy_spec le_spec field notKey source safe cleared cs
+      original (ra.reconstruction ▸ matched) valid path complete (ra.reconstruction ▸ distinct)
+      parent rootCleared rfl
     have run := ea.sequence (afterSeek_missing zero maxSucc lt heavy le field source
       { a with pc := 0 } rfl ra.cursor b tb eb)
     let t := { b with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
@@ -634,9 +626,7 @@ theorem insert_correct [LinearOrder M.Value]
       (insertAfterSeek zero maxSucc lt heavy le field source).length }
     have ht_heap : t.heap = s.heap := ra.heap
     exact ⟨t, tree, ta + 3 + 1, run, by omega,
-      by simpa only [ht_heap] using rep,
-      by simpa only [unchanged] using matched,
-      distinct,
+      ht_heap.symm ▸ rep, unchanged.symm ▸ matched, distinct,
       by simpa [t, State.setPtr] using rootA,
       by simp [ht_heap],
       ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1,

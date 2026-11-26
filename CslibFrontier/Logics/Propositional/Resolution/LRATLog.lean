@@ -412,23 +412,46 @@ private theorem le_foldl_max {ids : List ℕ} {i : ℕ} :
     · exact .inr (le_max_of_le_left h)
 
 /-- **The numbered clauses `db` without those numbered in `ids`**: the clauses whose number is
-not in `ids` (`eraseIds_eq`). The numbers are marked once, in an array reaching the greatest of
-them, so that each clause is tested in constant time instead of by searching `ids`. -/
+not in `ids` (`eraseIds_eq`). The numbers are marked once, from the least of them, in an array
+reaching the greatest, so that each clause is tested in constant time instead of by searching
+`ids`. The numbers deleted together are mostly recent ones, so the array is much shorter than the
+greatest number. -/
 def eraseIds (db : List (ℕ × Clause ℕ)) (ids : List ℕ) : List (ℕ × Clause ℕ) :=
-  let marks := ids.foldl (fun a i => a.setIfInBounds i true)
-    (Array.replicate (ids.foldl max 0 + 1) false)
-  db.filter fun e => !marks.getD e.1 false
+  let lo := ids.foldl min (ids.headD 0)
+  let marks := ids.foldl (fun a i => a.setIfInBounds (i - lo) true)
+    (Array.replicate (ids.foldl max 0 + 1 - lo) false)
+  db.filter fun e => !(decide (lo ≤ e.1) && marks.getD (e.1 - lo) false)
 
 theorem eraseIds_eq (db : List (ℕ × Clause ℕ)) (ids : List ℕ) :
     eraseIds db ids = db.filter fun e => !ids.contains e.1 := by
   unfold eraseIds
   refine List.filter_congr fun e _ => ?_
-  rw [getD_foldl_setTrue]
+  congr 1
+  have hlo : ∀ j ∈ ids, ids.foldl min (ids.headD 0) ≤ j := fun j hj => by
+    rw [List.foldl_min_eq_min (List.ne_nil_of_mem hj)]
+    exact Nat.le_trans (Nat.min_le_right _ _) (List.min_le_of_mem hj)
+  set lo := ids.foldl min (ids.headD 0)
+  have hf : ∀ A : Array Bool, ids.foldl (fun a i => a.setIfInBounds (i - lo) true) A =
+      (ids.map (· - lo)).foldl (fun a i => a.setIfInBounds i true) A := fun A => by
+    rw [List.foldl_map]
+  rw [hf, getD_foldl_setTrue]
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate, Array.size_replicate]
-  by_cases hi : e.1 < ids.foldl max 0 + 1
-  · simp [hi]
-  · have : e.1 ∉ ids := fun h => hi (Nat.lt_succ_of_le (le_foldl_max 0 (.inl h)))
-    simp [hi, this]
+  by_cases hle : lo ≤ e.1
+  · have hmem : (ids.map (· - lo)).contains (e.1 - lo) = ids.contains e.1 := by
+      rw [Bool.eq_iff_iff]
+      simp only [List.contains_iff_mem, List.mem_map]
+      constructor
+      · rintro ⟨j, hj, hje⟩
+        have := hlo j hj
+        rwa [show j = e.1 by omega] at hj
+      · exact fun h => ⟨e.1, h, rfl⟩
+    rw [hmem]
+    by_cases hi : e.1 ∈ ids
+    · have : e.1 ≤ ids.foldl max 0 := le_foldl_max 0 (.inl hi)
+      simp [hle, hi, show e.1 - lo < ids.foldl max 0 + 1 - lo by omega]
+    · simp only [hle]; split <;> simp [hi]
+  · have hi : e.1 ∉ ids := fun h => hle (hlo _ h)
+    simp [hle, hi]
 
 /-- **Deleting clauses** from the log. An empty list deletes nothing and adds no step. The index
 entries are cleared in place (`chunkClear`), so deleting a number that names no clause does not

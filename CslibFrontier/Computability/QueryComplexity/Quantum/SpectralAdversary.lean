@@ -256,10 +256,9 @@ private theorem norm_div_maxDiffNorm_le_card {α : Type*} {P : BitString N → P
   have hsum (g : BitString N → ℝ) (hg : ∀ z, g z ≤ maxDiffNorm Γ) :
       ∑ z, g z ≤ (Fintype.card (BitString N) : ℝ) * maxDiffNorm Γ :=
     (sum_le_sum fun z _ => hg z).trans_eq (by simp only [sum_const, card_univ, nsmul_eq_mul])
-  have hschur := Matrix.opNorm_toEuclideanCLM_le_sqrt Γ (by positivity) (by positivity)
-    (fun x => hsum _ (abs_le_maxDiffNorm hΓ x)) (fun y => hsum _ (abs_le_maxDiffNorm hΓ · y))
-  rw [Real.sqrt_mul_self (by positivity)] at hschur
-  exact (div_le_iff₀ hpos).2 hschur
+  refine (div_le_iff₀ hpos).2 ((Matrix.opNorm_toEuclideanCLM_le_sqrt Γ (by positivity)
+    (by positivity) (fun x => hsum _ (abs_le_maxDiffNorm hΓ x))
+    fun y => hsum _ (abs_le_maxDiffNorm hΓ · y)).trans_eq (Real.sqrt_mul_self (by positivity)))
 
 theorem bddAbove_generalAdversary {α : Type*} (P : BitString N → Prop) (f : BitString N → α) :
     BddAbove {r : ℝ | ∃ Γ : Matrix (BitString N) (BitString N) ℝ,
@@ -673,13 +672,11 @@ theorem one_sub_mul_opNorm_le_spectral {α : Type*} {P : BitString N → Prop}
       ‖inner ℂ (run U ψ₀ x T) (run U ψ₀ y T)‖ ≤ δ) :
     (1 - δ) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ 2 * T * maxDiffNorm Γ := by
   by_cases hzero : Γ = 0
-  · simp only [hzero, map_zero, norm_zero, mul_zero]
-    exact mul_nonneg (mul_nonneg zero_le_two (Nat.cast_nonneg T)) (maxDiffNorm_nonneg 0)
-  have hδ0 : 0 ≤ δ := by
-    by_contra! hneg
-    exact hzero <| Matrix.ext fun x y => by_contra fun hxy =>
+  · simpa [hzero] using mul_nonneg (by positivity) (maxDiffNorm_nonneg 0)
+  have hδ0 : 0 ≤ δ := Classical.byContradiction fun hneg => hzero <| Matrix.ext fun x y =>
+    Classical.byContradiction fun hxy =>
       let ⟨hx, hy, hf⟩ := hΓ x y hxy
-      hneg.not_ge ((norm_nonneg _).trans (hδ x y hx hy hf))
+      hneg ((norm_nonneg _).trans (hδ x y hx hy hf))
   refine one_sub_mul_opNorm_le_of_advForm Γ U hψ₀ T hδ0 fun u v hu hv => ?_
   calc |advForm Γ u v (fun x => run U ψ₀ x T)|
       ≤ ∑ x, ∑ y, Γ x y * |u.ofLp x| * |v.ofLp y| * δ :=
@@ -745,10 +742,8 @@ theorem spectralSensitivity_le_spectralAdversary (f : BooleanFunction N) :
   have hnonneg : ∀ x y, 0 ≤ Γ x y := fun x y => by
     simp only [Γ, SimpleGraph.adjMatrix_apply]; split_ifs <;> norm_num
   have hΓ : IsAdversaryMatrix (fun _ => True) f Γ := fun x y hne => by
-    have hadj : (BitString.sensitivityGraph f).Adj x y := by
-      by_contra h; exact hne (by simp only [Γ, SimpleGraph.adjMatrix_apply, h, ↓reduceIte])
-    obtain ⟨i, hi, rfl⟩ := BitString.sensitivityGraph_adj.1 hadj
-    exact ⟨trivial, trivial, Ne.symm hi⟩
+    obtain ⟨_, hi, rfl⟩ := BitString.sensitivityGraph_adj.1 (by simpa [Γ] using hne)
+    exact ⟨trivial, trivial, hi.symm⟩
   have hmax : maxDiffNorm Γ ≤ 1 := (maxDiffNorm_le_iff zero_le_one).2 fun i => by
     have hrow (x : BitString N) : ∑ y, |(Γ.hadamard (diffMatrix i)) x y| ≤ 1 := by
       rw [Finset.sum_eq_single (Function.update x i (!x i))]
@@ -1117,12 +1112,10 @@ theorem spectralAdversary_le_div_of_hammingDist_ge {α : Type*} {P : BitString N
     {f : BitString N → α} {k : ℕ} (hk0 : 0 < k)
     (hk : ∀ x y, P x → P y → f x ≠ f y → k ≤ #{i : Fin N | x i ≠ y i}) :
     spectralAdversary P f ≤ (N : ℝ) / k := by
-  have hk_pos : (0 : ℝ) < k := Nat.cast_pos.2 hk0
   refine (spectralAdversary_le_iff (by positivity)).2 fun Γ _ hnonneg hΓ => ?_
-  rw [div_mul_eq_mul_div, le_div_iff₀' hk_pos]
-  exact mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge hnonneg fun x y hxy0 =>
-    let ⟨hx, hy, hf⟩ := hΓ x y hxy0
-    hk x y hx hy hf
+  rw [div_mul_eq_mul_div, le_div_iff₀' (Nat.cast_pos.2 hk0)]
+  exact mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge hnonneg fun x y hxy =>
+    hk x y (hΓ x y hxy).1 (hΓ x y hxy).2.1 (hΓ x y hxy).2.2
 
 end HierarchyAndBarriers
 

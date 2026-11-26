@@ -99,11 +99,10 @@ theorem mem_of_mem_cyclePairsTail {v₀ u : V} :
 theorem mem_of_mem_cyclePairs {l : List V} {p : V × V} (h : p ∈ cyclePairs l) :
     p.1 ∈ l ∧ p.2 ∈ l := by
   match l, h with
-  | [v₀], h => simp only [cyclePairs, List.mem_singleton] at h; subst h; simp
+  | [v₀], h => simpa [cyclePairs, Prod.ext_iff] using h
   | v₀ :: v :: l, h =>
     have := mem_of_mem_cyclePairsTail h
-    simp only [List.mem_cons] at this ⊢
-    tauto
+    grind
 
 theorem getElem_mem_cyclePairsTail (v₀ : V) :
     ∀ (u : V) (l : List V) (j : ℕ) (hj : j + 1 < l.length),
@@ -250,9 +249,7 @@ theorem runList_cycleItems (x : V → Bool) (l : List V) (f p s d : Bool) : ∃ 
   | [] => exact ⟨f, p, by simp [cycleItems, cyclePairs]⟩
   | [v₀] =>
     refine ⟨x v₀, x v₀, ?_⟩
-    simp only [cycleItems, cycleRun_cons, cycleRun_nil, cyclePairs, List.any_cons,
-      List.any_nil, cycleStep, pairLabel, pairHas, ite_true]
-    cases x v₀ <;> simp
+    cases hx : x v₀ <;> simp [cycleItems, cyclePairs, cycleStep, pairLabel, pairHas, hx]
   | v₀ :: v :: l =>
     obtain ⟨p', hp'⟩ := M.runList_cycleItemsTail α β x v₀ v₀ (v :: l) s d
     refine ⟨x v₀, p', ?_⟩
@@ -333,8 +330,7 @@ def cycleStepMap (v : V) : V :=
 
 omit [DecidableEq V] in
 theorem cycleStepMap_injective : Function.Injective (M.cycleStepMap α β) := fun u v h => by
-  have := congrArg (fun w => M.mate α (M.mate β w)) h
-  simpa only [cycleStepMap, M.mate_mate] using this
+  simpa only [cycleStepMap, M.mate_mate] using congrArg (fun w => M.mate α (M.mate β w)) h
 
 omit [DecidableEq V] in
 theorem mate_mate_iterate (x : V) (i : ℕ) :
@@ -548,9 +544,7 @@ theorem exists_isCycleCover_of_closed : ∀ W : Finset V,
         exact (hclosed _ (hclosed _ ih').1).2
     have hbW : ∀ v ∈ b, v ∈ W := fun v hv => by
       obtain ⟨j, -, rfl⟩ := mem_cycleBlock.mp hv
-      unfold cycleVertex
-      split_ifs
-      exacts [hσ _, (hclosed _ (hσ _)).1]
+      by_cases hj : j % 2 = 0 <;> simp [cycleVertex, hj, hσ, fun i => (hclosed _ (hσ i)).1]
     set W' := W.filter (· ∉ b)
     have hlt : #W' < m := hW ▸ card_lt_card (filter_ssubset.mpr ⟨x, hx, by
       simpa using self_mem_cycleBlock x⟩)
@@ -654,10 +648,7 @@ theorem isDeterministic_dDNNF : M.dDNNF.IsDeterministic := by
 
 theorem size_dDNNF : M.dDNNF.size ≤ 150 * Fintype.card V + 50 := by
   rw [dDNNF, NNF.size_disj, NNF.size_disj]
-  have := M.size_colorDNNF 0 1
-  have := M.size_colorDNNF 1 2
-  have := M.size_colorDNNF 2 0
-  omega
+  grind [M.size_colorDNNF 0 1, M.size_colorDNNF 1 2, M.size_colorDNNF 2 0]
 
 /-- **[ArenasBroadrickLiewVanDenBroeck2026, Proposition 5.1], upper bound.** For a cubic graph
 with a proper `3`-edge-colouring on `n` vertices, `f_G` is computed by a d-DNNF with at most

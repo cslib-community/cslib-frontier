@@ -90,18 +90,15 @@ theorem nodeQuery_match_iff
     by_contra hout; have := hwf.storeLvl_outside x hout; omega
   rcases hq : st.nodeQuery scheme ℓ h1 hℓ (st.seeds.nodeAt ℓ hℓ x)
       (st.seeds.idAt ℓ h1 hℓ x) with _ | ⟨q, v⟩
-  · simp only
-    split_ifs with hsl
+  · split_ifs with hsl
     · obtain ⟨vx, hvx⟩ := Option.isSome_iff_exists.mp ((P.mem_paddedDom_iff d x).mp (hx_in hsl))
-      have hq' := hwf.query_eq_of_storeLvl ℓ h1 hℓ _ x vx hvx rfl hsl
-      rw [hq] at hq'; cases hq'
+      exact nomatch hq.symm.trans (hwf.query_eq_of_storeLvl ℓ h1 hℓ _ x vx hvx rfl hsl)
     · rfl
   · simp only
-    have hid_mem : st.seeds.idAt ℓ h1 hℓ x ∈ st.nodeDom ℓ h1 hℓ (st.seeds.nodeAt ℓ hℓ x) := by
-      by_contra hnot
-      rw [st.nodeQuery_eq_none_of_notMem scheme h1 hℓ _ hnot] at hq; cases hq
-    rw [hwf.dom_eq ℓ h1 hℓ] at hid_mem
-    obtain ⟨y, hy_filt, hid_eq⟩ := mem_image.mp hid_mem
+    have hid_mem : st.seeds.idAt ℓ h1 hℓ x ∈ st.nodeDom ℓ h1 hℓ (st.seeds.nodeAt ℓ hℓ x) :=
+      by_contra fun hnot =>
+        nomatch hq.symm.trans (st.nodeQuery_eq_none_of_notMem scheme h1 hℓ _ hnot)
+    obtain ⟨y, hy_filt, hid_eq⟩ := mem_image.mp (hwf.dom_eq ℓ h1 hℓ _ ▸ hid_mem)
     obtain ⟨hy_act, hsl_y⟩ := mem_filter.mp hy_filt
     obtain ⟨hy_dom, hny⟩ := SeedAssignment.mem_activeAt_iff.mp hy_act
     obtain ⟨vy, hvy⟩ := Option.isSome_iff_exists.mp ((P.mem_paddedDom_iff d y).mp hy_dom)
@@ -130,13 +127,12 @@ theorem rawQuery_eq
     · exact (hwf.storeLvl_bounds x hxin).2
     · rw [hwf.storeLvl_outside x hxin]; omega
   -- One loop step at level `m`, given the answer of the loop from level `m + 1`.
-  have hstep : ∀ m (h1 : 1 ≤ m) (hml : m ≤ P.depth),
-      (∀ hlt : m < P.depth, st.rawQueryLoop scheme (m + 1) (by omega) hlt
+  have hstep (m) (h1 : 1 ≤ m) (hml : m ≤ P.depth)
+      (hrec : ∀ hlt : m < P.depth, st.rawQueryLoop scheme (m + 1) (by omega) hlt
         (st.seeds.stepCoordEquiv h1 hlt (st.seeds.levelCoordEquiv m h1 hml x)) =
-          if m + 1 ≤ storeLvl x then d x else none) →
+          if m + 1 ≤ storeLvl x then d x else none) :
       st.rawQueryLoop scheme m h1 hml (st.seeds.levelCoordEquiv m h1 hml x) =
         if m ≤ storeLvl x then d x else none := by
-    intro m h1 hml hrec
     have hm := nodeQuery_match_iff hwf h1 hml x
     simp only [SeedAssignment.idAt, SeedAssignment.quotAt] at hm
     unfold rawQueryLoop
@@ -146,10 +142,9 @@ theorem rawQuery_eq
         (st.seeds.levelCoordEquiv m h1 hml x).id with _ | ⟨q, v⟩ <;>
       simp only [hq, beq_iff_eq] at hm ⊢ <;>
       split_ifs at hm ⊢ <;> first | rfl | exact hm | omega
-  have hgen : ∀ (k m : ℕ), m + k = P.depth → (h1 : 1 ≤ m) → (hml : m ≤ P.depth) →
+  have hgen (k) : ∀ m : ℕ, m + k = P.depth → (h1 : 1 ≤ m) → (hml : m ≤ P.depth) →
       st.rawQueryLoop scheme m h1 hml (st.seeds.levelCoordEquiv m h1 hml x) =
         if m ≤ storeLvl x then d x else none := by
-    intro k
     induction k with
     | zero => exact fun m hsum h1 hml => hstep m h1 hml fun hlt => absurd hlt (by omega)
     | succ k ih =>
@@ -178,8 +173,7 @@ theorem query_eq_apply
     (u : Fin P.univ) :
     st.query scheme u = dict u := by
   obtain ⟨d, storeLvl, hm, hwfp⟩ := hwf
-  dsimp only [query]
-  rw [rawQuery_eq hwfp, hm.real_eq]
+  exact (congrArg (Option.map Fin.val) (rawQuery_eq hwfp _)).trans (hm.real_eq u)
 
 /-! ## Section 2: Uniform node overwrite and `rawOverwrite` -/
 
@@ -455,10 +449,9 @@ theorem wellFormedPadded_rawOverwrite
   let st_target := st.overwriteAtNode scheme L hlo_x hhi_x uL idL (qL, v_new)
   have heq_target : st.rawOverwrite scheme x v_new = st_target := by
     obtain ⟨vx, hvx⟩ := Option.isSome_iff_exists.mp ((P.mem_paddedDom_iff d x).mp hx)
-    have hgen : ∀ (k m : ℕ), m + k = L → (h1 : 1 ≤ m) → (hmL : m ≤ L) →
+    have hgen (k) : ∀ m : ℕ, m + k = L → (h1 : 1 ≤ m) → (hmL : m ≤ L) →
         st.rawOverwriteLoop scheme v_new m h1 (hmL.trans hhi_x)
           (st.seeds.levelCoordEquiv m h1 (hmL.trans hhi_x) x) = st_target := by
-      intro k
       induction k with
       | zero =>
         intro m hsum h1 hmL
@@ -489,9 +482,8 @@ theorem wellFormedPadded_rawOverwrite
         · rfl
         · simp only [hqm, beq_iff_eq] at hnm ⊢
           split_ifs at hnm ⊢; rfl
-    dsimp only [rawOverwrite]
-    have h1 := hgen (L - 1) 1 (by omega) le_rfl hlo_x
-    rwa [st.seeds.levelCoordEquiv_one] at h1
+    simpa only [rawOverwrite, ← st.seeds.levelCoordEquiv_one] using
+      hgen (L - 1) 1 (by omega) le_rfl hlo_x
   rw [heq_target]
   have hseeds : st_target.seeds = st.seeds :=
     st.seeds_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new)

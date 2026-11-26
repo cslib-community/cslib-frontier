@@ -214,21 +214,17 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
           sl.alloc sl.nodes lo' hi' mapFn T' := by
       cases T with
       | leaf idx c0 =>
-        dsimp only [BTreeTree.rootIdx] at hrt
-        subst idx
+        obtain rfl : cur = idx := hrt.symm
         have hmeta : (sl.nodes cur).metaWord = mkNodeMeta true c0 := hv.2.1
         have hmod1 : (sl.nodes cur).metaWord % 2 = 1 := by
           simp [hmeta, mkNodeMeta, Nat.add_mul_mod_self_left]
         refine ⟨isRoot, cur, lo, hi, .leaf cur c0, ?_, ?_, rfl, hqlo, hqhi, hhi, hv⟩
         · unfold descendStepGenProg
-          simp only [pure_bind]
-          rw [clientResult_bind, hcs_n, hres_n]
-          simp only [hmod1, ↓reduceIte, StateTransitionSpec.clientResult_pure]
-        · simp only [descendToLeaf, hmeta, metaIsLeaf_mkNodeMeta, ↓reduceIte]
-          cases f <;> simp [descendToLeaf, hmeta]
+          simp only [d0, pure_bind, clientResult_bind, hcs_n, hres_n, hmod1, ↓reduceIte,
+            StateTransitionSpec.clientResult_pure]
+        · cases f <;> simp [descendToLeaf, hmeta]
       | branch idx c0 cs =>
-        dsimp only [BTreeTree.rootIdx] at hrt
-        subst idx
+        obtain rfl : cur = idx := hrt.symm
         obtain ⟨hr_le, hclo_q, hq_chi, _⟩ :=
           branch_child_routing (by omega) hkey_lt hv hhi hqlo hqhi
         obtain ⟨_, hmeta, _, _, _, _, _, hhi_last, hmono, _, _, _, hcs_sub⟩ := hv
@@ -242,32 +238,26 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
             hi := by
           unfold childHi
           split_ifs with hrc
-          · rcases eq_or_lt_of_le (by omega : r_fin.val ≤ c0 - 1) with heq | hlt
-            · rw [heq]
-              exact hhi_last.le
-            · exact (hmono r_fin.val (c0 - 1) hlt (by omega)).le.trans hhi_last.le
+          · rcases eq_or_lt_of_le (Nat.le_sub_one_of_lt hrc) with heq | hlt
+            · exact heq ▸ hhi_last.le
+            · exact (hmono _ _ hlt (by omega)).le.trans hhi_last.le
           · exact le_rfl
         refine ⟨false, (cs r_fin).rootIdx, _, _, cs r_fin, ?_, ?_, rfl,
           hclo_q, hq_chi, hchi_le.trans_lt hhi, (hcs_sub r_fin).2⟩
         · unfold descendStepGenProg
-          simp only [d0, pure_bind]
-          rw [clientResult_bind, hcs_n, hres_n]
-          simp only [hmod0, ↓reduceIte, hcnt_div, wp_large_wVal hth]
-          rw [clientResult_bind, clientState_swarRankGenProg,
-            clientResult_swarRankGenProg hth, clientResult_laneGetGenProg]
+          simp only [d0, pure_bind, clientResult_bind, hcs_n, hres_n, hmod0, ↓reduceIte,
+            hcnt_div, wp_large_wVal hth, clientResult_swarRankGenProg hth,
+            clientResult_laneGetGenProg]
           exact hval_r
-        · simp only [descendToLeaf, hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta,
-            Bool.false_eq_true, ↓reduceIte]
-          rw [hval_r]
+        · dsimp only [r_fin] at hval_r ⊢
+          simp [descendToLeaf, hmeta, hval_r]
     obtain ⟨isRoot', cur', lo', hi', T', hstep_res, hdesc_eq, hrt', hlo', hhi', hhi_lt', hv'⟩ :=
       hnext
     obtain ⟨ih_st, ih_res, ih_mc, ih_vp, ih_safe⟩ := ih hrt' hlo' hhi' hhi_lt' hv'
     dsimp only [descendLoopGenProg, iterate] at ih_st ih_res ih_mc ih_vp ⊢
     refine ⟨?_, ?_, ?_, validProg_bind hstep_vp ?_, hsafe1, ?_⟩
-    · rw [clientState_bind, hstep_st, hstep_res]
-      exact ih_st
-    · rw [clientResult_bind, hstep_st, hstep_res, hdesc_eq]
-      exact ih_res
+    · rwa [clientState_bind, hstep_st, hstep_res]
+    · rwa [clientResult_bind, hstep_st, hstep_res, hdesc_eq]
     · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_res, hstep_mc, ih_mc]
       omega
     · simpa only [hstep_st, hstep_res] using ih_vp

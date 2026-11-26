@@ -108,14 +108,12 @@ private theorem stage2_rebScan16_facts {c U V w n_max base : ℕ}
   set b := fs.dirtyBuckets fs.dirtyIdx
   set fsScan := rebScanSteps c U n_max θ b 16 fs
   have hrIdxS : fsScan.rebSliceIdx b < 3 * numBucketsWhp n_max := by
-    dsimp only [FastState.rebSliceIdx, FastState.rebRole]
-    rw [hpres.liveRole, hpres.overmarsRole]; exact hrIdx
+    simpa only [FastState.rebSliceIdx, FastState.rebRole, hpres.liveRole, hpres.overmarsRole]
+      using hrIdx
   have h8L_lt := (large_bounds_lt_n_max hth).2.2.2.1
   have hcandS_lt : fsScan.rebCandSalt < sMaxWhp c n_max := hpres.rebCandSalt ▸ hcs_lt
   have hinsS_le : fsScan.rebInsCount ≤ n_max := by have := hpres.rebInsCount_le; omega
   have hrv := hcore.roles_valid b hb
-  have hdiS : fsScan.dirtyIdx < fsScan.dirtyCount := by
-    rw [hpres.dirtyIdx, hpres.dirtyCount]; exact hdi_lt
   have hnxtS : fsScan.dirtyIdx + 1 < fsScan.dirtyCount →
       fsScan.dirtyBuckets (fsScan.dirtyIdx + 1) < numBucketsWhp n_max ∧
       ({ fsScan with liveRole := Function.update fsScan.liveRole b (fsScan.rebRole b) } :
@@ -137,7 +135,8 @@ private theorem stage2_rebScan16_facts {c U V w n_max base : ℕ}
     fun idx hidx => (hcore.backPtr_valid b hb idx hidx).1, fun _ => ⟨hcur16, hins16, rm0, hvr0⟩,
     ⟨hpres.liveRole ▸ hrv.1, hpres.overmarsRole ▸ hrv.2.1,
       by rw [hpres.liveRole, hpres.overmarsRole]; exact hrv.2.2⟩,
-    hrIdxS, hcandS_lt, hinsS_le, hdiS, hnxtS⟩
+    hrIdxS, hcandS_lt, hinsS_le,
+    by simpa only [fsScan, b, hpres.dirtyIdx, hpres.dirtyCount] using hdi_lt, hnxtS⟩
 
 /-- `Realizes .exact` certificate for `epochTickStage2GenProg`. -/
 theorem realizes_epochTickStage2Gen :
@@ -177,9 +176,8 @@ theorem realizes_epochTickStage2Gen :
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := off) (by omega) (s := s)
     obtain ⟨hdi_st, hdi_res, _, _⟩ := hdr hdrDirtyIdx (by decide)
     obtain ⟨hdc_st, hdc_res, _, _⟩ := hdr hdrDirtyCount (by decide)
-    rw [hh.dirtyIdx] at hdi_res
-    rw [hh.dirtyCount] at hdc_res
-    simp only [hcp_eq, hdi_st, hdi_res, hdc_st, hdc_res, wp_large_sMax hth] at *
+    simp only [hcp_eq, hdi_st, hdi_res.trans hh.dirtyIdx, hdc_st, hdc_res.trans hh.dirtyCount,
+      wp_large_sMax hth] at *
     first
     | exact h2w
     | exact henv.fits_const (by decide)
@@ -188,8 +186,7 @@ theorem realizes_epochTickStage2Gen :
     | (have hdi_lt : fs.dirtyIdx < fs.dirtyCount := by assumption
        obtain ⟨hrd_st, hrd_res, _, _⟩ := readDirtyBucketGenProg_spec henv hdi_lt hrep (s := s)
        obtain ⟨hcd_st, hcd_res, _, _⟩ := hdr hdrRebCandSalt (by decide)
-       rw [hh.rebCandSalt] at hcd_res
-       simp only [hrd_st, hrd_res, hcd_st, hcd_res] at *
+       simp only [hrd_st, hrd_res, hcd_st, hcd_res.trans hh.rebCandSalt] at *
        first
        | exact henv.fits_hdr_addr (by dsimp [hdrRebCandSalt]; omega)
        | exact ⟨c, U, V, w, n_max, henv, rfl⟩
@@ -231,8 +228,6 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
     (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := off) (by omega) (s := s)
   obtain ⟨hdi_st, hdi_res, hdi_mc, hdi_vp⟩ := hdr hdrDirtyIdx (by decide)
   obtain ⟨hdc_st, hdc_res, hdc_mc, hdc_vp⟩ := hdr hdrDirtyCount (by decide)
-  rw [hh.dirtyIdx] at hdi_res
-  rw [hh.dirtyCount] at hdc_res
   dsimp only
   let ok (acc : ℕ) (p : Memory.Prog Unit) (fs' : FastState) : Prop :=
     acc + memoryCost p s ≤ 32 * hashEvalCostWhp c + 43930 ∧
@@ -251,12 +246,12 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       exact hk.2.2
   unfold epochTickStage2GenProg
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+  rw [hwp1]
   simp only [pure_bind, hsmax_cp]
   dsimp only [epochTickStage2]
   rw [← Nat.zero_add (memoryCost _ s)]
-  apply step_read hdi_st hdi_res hdi_mc hdi_vp
-  apply step_read hdc_st hdc_res hdc_mc hdc_vp
+  apply step_read hdi_st (hdi_res.trans hh.dirtyIdx) hdi_mc hdi_vp
+  apply step_read hdc_st (hdc_res.trans hh.dirtyCount) hdc_mc hdc_vp
   by_cases hdi_lt : fs.dirtyIdx < fs.dirtyCount
   · simp only [ite_eq_left hdi_lt]
     dsimp only [ValidEpochStagePreTick] at hpre
@@ -268,9 +263,8 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
     obtain ⟨hrd_st, hrd_res, hrd_mc, hrd_vp⟩ :=
       readDirtyBucketGenProg_spec henv hdi_lt hrep (s := s)
     obtain ⟨hcd_st, hcd_res, hcd_mc, hcd_vp⟩ := hdr hdrRebCandSalt (by decide)
-    rw [hh.rebCandSalt] at hcd_res
     apply step_read hrd_st hrd_res hrd_mc hrd_vp
-    apply step_read hcd_st hcd_res hcd_mc hcd_vp
+    apply step_read hcd_st (hcd_res.trans hh.rebCandSalt) hcd_mc hcd_vp
     by_cases hcs_lt : fs.rebCandSalt < sMaxWhp c n_max
     · simp only [ite_eq_left hcs_lt]
       obtain ⟨_, hrIdx, hcnt_le, hq_all, hbp_v, hcoll_k, hrvS, hrIdxS, hcandS_lt,

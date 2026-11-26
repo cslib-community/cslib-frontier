@@ -78,19 +78,15 @@ theorem epochTickWillSucceed_fastInsert {c U V n_max : ℕ} {θ : SeedWhp c U n_
   cases hfl : fastFindLoc c U n_max θ fs u with
   | some loc =>
     rw [hfl] at hins
-    injection hins with hfs1
-    rw [← hfs1, overmarsStep_epochTickWillSucceed]
-    rfl
+    exact Option.some.inj hins ▸ overmarsStep_epochTickWillSucceed θ _
   | none =>
     rw [hfl] at hins
-    dsimp only at hins
     have hne : 1 - fs.curEp ≠ fs.curEp := by
       rcases hv.curEp_or with h01 | h01 <;> simp [h01]
-    split_ifs at hins <;>
-      · injection hins with hfs1
-        rw [← hfs1, overmarsStep_epochTickWillSucceed]
-        exact epochTickWillSucceed_eq_of_fields rfl rfl rfl
-          (by first | exact Function.update_of_ne hne _ _ | rfl)
+    split_ifs at hins <;> obtain ⟨rfl⟩ := hins <;>
+      exact (overmarsStep_epochTickWillSucceed θ _).trans
+        (epochTickWillSucceed_eq_of_fields rfl rfl rfl
+          (by first | exact Function.update_of_ne hne _ _ | rfl))
 
 private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
     (hce_or : fs.curEp = 0 ∨ fs.curEp = 1) {s : ℕ}
@@ -143,19 +139,18 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
         split_ifs with hlt_l
         · have hne_l := hno_old b hb (fs.bktCount b - 1) (by omega)
           dsimp only [fastDeleteMoveLast]
-          rw [show fs1.locState = fs.locState from rfl]
           exact (buf_oldEp_ite_locState hv.curEp_or
             (fun ho => by rwa [ho] at hne_l)
             (fun ho => by rwa [ho] at hne_l) _ _ _).trans hrem_buf
         · exact hrem_buf
       have hce2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).curEp = fs.curEp := by
         dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
-      have hold2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).oldEp = fs.oldEp := by
-        unfold FastState.oldEp; rw [hce2]
-      exact epochTickWillSucceed_eq_of_fields hclk2 hstg2 hce2 (by rw [hold2]; exact hmv_buf)
-    · unfold epochTickWillSucceed
-      rw [hclk2, hstg2]
-      simp [hs4]
+      have hold2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).oldEp = fs.oldEp :=
+        congrArg (1 - ·) hce2
+      refine epochTickWillSucceed_eq_of_fields hclk2 hstg2 hce2 ?_
+      rw [hold2]
+      exact hmv_buf
+    · simp [epochTickWillSucceed, hclk2, hstg2, hs4]
 
 /-- Read-only `O(1)` check returning `1` iff `epochTickWillSucceed n_max fs = true`
 (`d = (cp, base)`). -/

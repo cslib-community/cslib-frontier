@@ -391,22 +391,10 @@ private theorem matchingKey_endpoint [Finite E] {α : Type*} [LinearOrder α] [I
   classical
   have hmate : (if G.src e = v then G.tgt e else G.src e) = u := by
     rcases hopp with ⟨hs, rfl⟩ | ⟨hs, rfl⟩ <;> simp [hs]
-  have hh : (G.incidenceSet v \ {hex.choose}).ncard = 2 ∧
-      (G.incidenceSet
-        (if G.src hex.choose = v then G.tgt hex.choose else G.src hex.choose) \
-        {hex.choose}).ncard = 2 := by
-    rw [huniq, hmate]
-    exact ⟨hnv, hnu⟩
-  simp only [matchingKey, hex, ↓reduceDIte, hh]
-  have hp := (ncard_eq_two.mp hh.1).choose_spec.choose_spec
-  have hq := (ncard_eq_two.mp hh.2).choose_spec.choose_spec
-  have h1 : G.incidenceSet v \ {e} =
-      {(ncard_eq_two.mp hh.1).choose, (ncard_eq_two.mp hh.1).choose_spec.choose} := by
-    simpa only [huniq] using hp.2
-  have h2 : G.incidenceSet u \ {e} =
-      {(ncard_eq_two.mp hh.2).choose, (ncard_eq_two.mp hh.2).choose_spec.choose} := by
-    simpa only [huniq, hmate] using hq.2
-  exact (pairKey_eq_of_eq_pair score hv h1 hp.1 hu h2 hq.1).symm
+  simp only [matchingKey, hex, ↓reduceDIte, huniq, hmate, hnv, hnu, and_self]
+  have hp := (ncard_eq_two.mp hnv).choose_spec.choose_spec
+  have hq := (ncard_eq_two.mp hnu).choose_spec.choose_spec
+  exact (pairKey_eq_of_eq_pair score hv hp.2 hp.1 hu hq.2 hq.1).symm
 
 /-- At any matched edge `e ∈ M` with outer incident edge pairs `{a, b}` at `G.src e` and `{c, d}`
 at `G.tgt e`, `matchingKey` evaluates to `pairKey` of the four outer edge scores. -/
@@ -478,11 +466,9 @@ private theorem incidenceSet_eq_triple_of_sdiff {v : V} {e a b : E}
     (he : e ∈ G.incidenceSet v) (hdiff : G.incidenceSet v \ {e} = {a, b}) :
     G.incidenceSet v = {a, b, e} := by
   ext f
-  simp only [mem_insert_iff, mem_singleton_iff]
-  by_cases hfe : f = e
-  · subst hfe; simp [he]
-  · have hd : f ∈ G.incidenceSet v \ {e} ↔ f = a ∨ f = b := by simp [hdiff]
-    simpa [hfe] using hd
+  rcases eq_or_ne f e with rfl | hfe
+  · simp [he]
+  · simpa [hfe] using Set.ext_iff.mp hdiff f
 
 private theorem filter_notMem_incidenceSet_eq_pair [Fintype E] [DecidableEq E] {M : Set E}
     {v : V} [DecidablePred (fun f : E => f ∉ M ∧ f ∈ G.incidenceSet v)] {e a b : E}
@@ -521,10 +507,7 @@ private theorem sum_vertices_eq_unmatched_add_matching [Fintype V] [Fintype E]
       Mfin.biUnion fun e => ({G.src e, G.tgt e} : Finset V) := by
     ext v
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, matchedVertices, mem_ofPred_eq,
-      Finset.mem_biUnion, Finset.mem_insert, Finset.mem_singleton, mem_incidenceSet, Mfin]
-    constructor
-    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
-    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
+      Finset.mem_biUnion, Finset.mem_insert, Finset.mem_singleton, mem_incidenceSet, Mfin, eq_comm]
   have hdisj : (Mfin : Set E).PairwiseDisjoint
       (fun e => ({G.src e, G.tgt e} : Finset V)) := by
     intro e he f hf hne
@@ -677,13 +660,9 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
     have hfil_s := filter_notMem_incidenceSet_eq_pair hM heM (Or.inl rfl) hsrc
     have hfil_t := filter_notMem_incidenceSet_eq_pair hM heM (Or.inr rfl) htgt
     obtain ⟨hks, hkt⟩ := matchingKey_matched hM hloop h3 score heM hsrc htgt
-    have hsval : vsum (G.src e) =
-        boolDiff (col (G.src e)) (ecol a) + boolDiff (col (G.src e)) (ecol b) := by
-      dsimp [vsum]; rw [hfil_s, Finset.sum_pair hab]
-    have htval : vsum (G.tgt e) =
-        boolDiff (col (G.tgt e)) (ecol c) + boolDiff (col (G.tgt e)) (ecol d) := by
-      dsimp [vsum]; rw [hfil_t, Finset.sum_pair hcd]
-    rw [hsval, htval, ← twoVertexCost_eq_pairStraddles score t hsrc htgt,
+    dsimp only [vsum]
+    rw [hfil_s, Finset.sum_pair hab, hfil_t, Finset.sum_pair hcd,
+      ← twoVertexCost_eq_pairStraddles score t hsrc htgt,
       ← twoVertexEnergy_pairKey (score a) (score b) (score c) (score d) t]
     simp only [twoVertexEnergy, col, ecol, boolDiff, hks, hkt]
     omega

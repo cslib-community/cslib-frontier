@@ -13,8 +13,10 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpre
 /-!
 # The size of the program of low degree
 
-The sizes of the codes of formulas (`Interpreter.size_quote`, …, `Interpreter.size_app`). The
-program `Interpreter.accF` has size linear in its parameters (`Interpreter.size_accF`).
+The sizes of the codes of formulas (`Interpreter.size_quote`, …, `Interpreter.size_app`) and of
+lists of trees (`Interpreter.size_listT`, `Interpreter.size_listT_le`,
+`Interpreter.size_listT_le_mul`). The program `Interpreter.accF` has size linear in its parameters
+(`Interpreter.size_accF`).
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Acc.Main`.
 
@@ -64,6 +66,30 @@ theorem size_app (p : Tree) (e : Fm) : (app p e).code.size = p.size + e.code.siz
 
 theorem size_lett (e b : Fm) : (lett e b).code.size = b.code.size + e.code.size + 17 := by
   rw [lett, size_run, size_quote]; ring
+
+/-- The size of a list of trees. -/
+theorem size_listT (l : List Tree) : (listT l).size = (l.map fun t => t.size + 1).sum + 1 := by
+  induction l with
+  | nil => rfl
+  | cons a l ih => simp only [listT, Tree.size, ih, List.map_cons, List.sum_cons]; omega
+
+/-- A list of at most `X` trees of size at most `s` has size at most `X * (s + 1) + 1`. -/
+theorem size_listT_le {l : List Tree} {s X : ℕ} (hl : l.length ≤ X)
+    (h : ∀ t ∈ l, t.size ≤ s) : (listT l).size ≤ X * (s + 1) + 1 := by
+  rw [size_listT]
+  have := List.sum_le_length_nsmul (l.map fun t => t.size + 1) (s + 1) (by simpa using h)
+  have := Nat.mul_le_mul_right (s + 1) hl
+  simp only [List.length_map, smul_eq_mul] at *
+  omega
+
+/-- At most `X` trees of size at most `a * u` make a list of size at most `(a + 2) * (X * u)`. -/
+theorem size_listT_le_mul {l : List Tree} {X a u : ℕ} (hX : 1 ≤ X) (hu : 1 ≤ u)
+    (hl : l.length ≤ X) (h : ∀ t ∈ l, t.size ≤ a * u) : (listT l).size ≤ (a + 2) * (X * u) := by
+  have h1 := size_listT_le hl h
+  have h2 : X ≤ X * u := Nat.le_mul_of_pos_right X hu
+  have h3 : X * (a * u + 1) = a * (X * u) + X := by ring
+  have h4 : (a + 2) * (X * u) = a * (X * u) + 2 * (X * u) := by ring
+  omega
 
 private theorem size_gwd (M : ℕ) : (gwd M).code.size = 50 * M + 3 := by
   induction M with

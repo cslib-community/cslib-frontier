@@ -83,11 +83,8 @@ theorem stateOfMem_congr {N base : ℕ} {m₁ m₂ : ℕ → ℕ}
     stateOfMem N base m₁ = stateOfMem N base m₂ := by
   funext ⟨v, hv⟩
   simp only [stateOfMem]
-  have hp : base + 2 * N + 1 + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; wram_omega
-  have hk : base + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; wram_omega
-  rw [h _ hp, h _ hk]
+  rw [h _ (Block.mem_footprint.2 (by wram_omega))]
+  rw [h _ (Block.mem_footprint.2 (by wram_omega))]
 
 /-- **Structural binary-heap invariant**: positions `1, …, sz` store handles `< N`, and the `pos`
 array at `base + 2 * N + 1` is the partial inverse of `heap` at `base + N`. -/
@@ -272,28 +269,19 @@ theorem HeapInv.decrease (h : HeapInv N base S mem) {v c : ℕ} (hv : v < N)
   have hkS := h.pos_le v hv
   have hm_hi : ∀ a, base + N ≤ a → m' a = mem a :=
     fun a _ => Function.update_of_ne (by omega) _ _
-  have hval : ∀ j, heapEntry N base m' j =
+  have hval (j : ℕ) : heapEntry N base m' j =
       if mem (base + N + j) = v then (v, c) else heapEntry N base mem j := by
-    intro j
-    have hin := hm_hi (base + N + j) (by omega)
-    by_cases he : mem (base + N + j) = v
-    · simp only [heapEntry, hin, he, ↓reduceIte, m', Function.update_self]
-    · have hne : base + mem (base + N + j) ≠ base + v := by omega
-      simp only [heapEntry, hin, he, ↓reduceIte, m', Function.update_of_ne hne]
-  have hle' : ∀ j, IndexedMinPQ.RawPrioLE (heapEntry N base m' j) (heapEntry N base mem j) := by
-    intro j
+    simp only [heapEntry, hm_hi (base + N + j) (by omega), m', Function.update_apply, add_right_inj]
+    split_ifs with he <;> simp [he]
+  have hle' (j : ℕ) : IndexedMinPQ.RawPrioLE (heapEntry N base m' j) (heapEntry N base mem j) := by
     rw [hval]
     split_ifs with h1
-    · simp only [heapEntry, h1]; exact entryLE_of_key_le hle
+    · simp only [heapEntry, h1]
+      exact entryLE_of_key_le hle
     · exact IndexedMinPQ.RawPrioLE.refl _
-  have heq : ∀ j, 1 ≤ j → j ≤ S → j ≠ mem (base + 2 * N + 1 + v) →
+  have heq (j : ℕ) (h1 : 1 ≤ j) (h2 : j ≤ S) (hj : j ≠ mem (base + 2 * N + 1 + v)) :
       heapEntry N base m' j = heapEntry N base mem j := by
-    intro j h1 h2 hj
-    rw [hval]
-    split_ifs with he
-    · have := h.pos_vertex j h1 h2
-      rw [he] at this; omega
-    · rfl
+    rw [hval, ite_eq_right fun he => hj (he ▸ h.pos_vertex j h1 h2).symm]
   refine ⟨⟨h.size_le,
       fun i h1 h2 => (hm_hi (base + N + i) (by omega)).symm ▸ h.vertex_lt i h1 h2,
       fun i h1 h2 => by

@@ -258,20 +258,16 @@ theorem not_solvesByzantineAgreement [Fintype P] [Nontrivial V] {t R : ℕ}
       πB.state F adv x r = π.state F adv (fun i => if x i then v₁ else v₀) r := by
     induction r with
     | zero => rfl
-    | succ r ih =>
-      funext i
-      simp only [Protocol.state, state]
-      rw [ih]
+    | succ r ih => exact funext fun i => by rw [Protocol.state, state, ih]
   refine πB.not_solvesByzantineAgreement (R := R) h2 h3 ⟨?_, ?_⟩
   · intro F hF adv x i hi j hj
     simp only [Protocol.decision, πB, hstate]
     exact congrArg (fun v => decide (v = v₁)) (h.agreement F hF adv _ i hi j hj)
   · intro F hF adv x b hb i hi
     have hval := h.validity F hF adv (fun j => if x j then v₁ else v₀) (if b then v₁ else v₀)
-      (fun j hj => by rw [hb j hj]) i hi
+      (fun j hj => congrArg (if · then v₁ else v₀) (hb j hj)) i hi
     simp only [Protocol.decision, πB, hstate, MultivaluedProtocol.decision] at hval ⊢
-    rw [hval]
-    cases b <;> simp [hne]
+    cases b <;> simp [hval, hne]
 
 end MultivaluedProtocol
 
@@ -296,10 +292,9 @@ theorem uniqueAboveOn_eq_some_iff {P V : Type*} [DecidableEq V] {dom : Finset P}
     uniqueAboveOn dom k f = some v ↔
       k ≤ (dom.filter fun p => f p = v).card ∧
         ∀ w, k ≤ (dom.filter fun p => f p = w).card → w = v := by
-  have hmem : ∀ w,
+  have hmem (w : V) :
       w ∈ (dom.image f).filter (fun w => k ≤ (dom.filter fun p => f p = w).card) ↔
         k ≤ (dom.filter fun p => f p = w).card := by
-    intro w
     simp only [Finset.mem_filter, Finset.mem_image, and_iff_right_iff_imp]
     intro hw
     obtain ⟨p, hp⟩ := Finset.card_pos.1 (lt_of_lt_of_le hk hw)
@@ -578,9 +573,8 @@ theorem phaseKing_fails_four_one (kings : Fin 2 ↪ Fin 4) (R : ℕ) :
   let F : Finset (Fin 4) := {kings 1}
   let x : Fin 4 → Bool := fun i => decide (i ≠ kings 0)
   let adv : ℕ → Fin 4 → Fin 4 → Bool := fun r _ i => if r = 2 then true else decide (i = p)
-  have hmin : ∀ i, (phaseKing 1 kings).decision F adv x R i =
+  have hmin (i : Fin 4) : (phaseKing 1 kings).decision F adv x R i =
       (phaseKing 1 kings).decision F adv x (min R 4) i := by
-    intro i
     by_cases hR : 4 ≤ R
     · rw [Nat.min_eq_right hR]
       simp only [MultivaluedProtocol.decision, phaseKing_state_eq_of_le kings F adv x hR,
@@ -814,9 +808,7 @@ private theorem turpinCoan_decision_add_two (t : ℕ) (default : V) (πBool : Pr
           (turpinCoanAlert t default πBool F adv x) R₀ i
       then default else ((turpinCoan t default πBool).state F adv x 2 i).candidate := by
   obtain ⟨hc, hb⟩ := turpinCoan_state_add_two t default πBool F adv x R₀ i
-  change (if πBool.output i _ then default else _) = _
-  rw [hc, hb]
-  rfl
+  exact congrArg₂ (if πBool.output i · then default else ·) hb hc
 
 /-- Multivalued-to-binary reduction step toward `#7210` (after
 [Turpin and Coan, §§2–3, pp. 74–75][TurpinCoan1984]; inventory registration remains open under

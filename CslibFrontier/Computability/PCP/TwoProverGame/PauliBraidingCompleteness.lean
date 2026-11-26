@@ -122,10 +122,9 @@ private theorem honestCHSHObservable_isHermitian
     (secondRole question : Bool) (p : ↥(oddPairs (Fin n))) :
     (honestCHSHObservable secondRole question p).IsHermitian := by
   cases secondRole
-  · have hc : IsSelfAdjoint ((√2 / 2 : ℝ) : ℂ) := Complex.conj_ofReal _
-    cases question
-    · exact ((pauliXPow_isHermitian _).add (pauliZPow_isHermitian _)).smul hc
-    · exact ((pauliXPow_isHermitian _).sub (pauliZPow_isHermitian _)).smul hc
+  · cases question
+    · exact ((pauliXPow_isHermitian _).add (pauliZPow_isHermitian _)).smul (Complex.conj_ofReal _)
+    · exact ((pauliXPow_isHermitian _).sub (pauliZPow_isHermitian _)).smul (Complex.conj_ofReal _)
   · exact honestPauli_isHermitian _ _
 
 private theorem honestCHSHObservable_mul_self
@@ -236,10 +235,8 @@ private theorem sum_ite_prob_honest_sameBasis
     (h : ∀ u, accepts (f u) (g u)) :
     let S := (pauliBraidingHonestStrategy n).toCommuting
     (∑ a, ∑ b, if accepts a b then S.prob q r a b else 0) = 1 := by
-  apply sum_ite_prob_honest_mapped basis basis q r f g hf hg accepts
-  intro u v huv
-  obtain rfl := not_imp_comm.1 (basisStrategy_prob_eq_zero_of_ne basis) huv
-  exact h u
+  refine sum_ite_prob_honest_mapped basis basis q r f g hf hg accepts fun u v huv => ?_
+  exact not_imp_comm.1 (basisStrategy_prob_eq_zero_of_ne basis) huv ▸ h u
 
 private theorem honest_prob_swap (q r : PauliBraidingQuestion n Bool) (a b : BraidingAnswer) :
     let S := (pauliBraidingHonestStrategy n).toCommuting
@@ -315,19 +312,13 @@ private theorem correlation_honestCHSHStrategy (p : ↥(oddPairs (Fin n))) (x y 
   have hXt : Xᵀ = X := transpose_honestPauli false _
   have hZt : Zᵀ = Z := transpose_honestPauli true _
   have hXZ : trace (X * Z) = 0 := by
-    have ht : trace (Z * X) = -trace (X * Z) := by
-      rw [show Z * X = -(X * Z) from odd_pauli_anticommute p, trace_neg]
+    have ht : trace (Z * X) = -trace (X * Z) :=
+      (congrArg trace (odd_pauli_anticommute p)).trans (trace_neg _)
     rw [trace_mul_comm] at ht
     linear_combination ht / 2
   have hZX : trace (Z * X) = 0 := (trace_mul_comm _ _).trans hXZ
   have hN : (Fintype.card (Fin n → Bool) : ℂ) ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
-  have ha (r : Bool) : ((honestCHSHStrategy p).alice r).observable =
-      honestCHSHObservable false r p :=
-    honestCHSHMeasurement_observable _ _ _
-  have hb (r : Bool) : ((honestCHSHStrategy p).bob r).observable =
-      honestCHSHObservable true r p :=
-    honestCHSHMeasurement_observable true r p
-  rw [QuantumStrategy.correlation, ha, hb]
+  simp only [QuantumStrategy.correlation, honestCHSHStrategy, honestCHSHMeasurement_observable]
   change (star (maxEntangled (Fin n → Bool)).ofLp ⬝ᵥ
     ((honestCHSHObservable false x p ⊗ₖ honestCHSHObservable true y p) *ᵥ
       (maxEntangled (Fin n → Bool)).ofLp)).re = _
@@ -417,15 +408,12 @@ private theorem honest_sameBasis_accepts (roles basis : Bool) (p : ↥(oddPairs 
   intro game s S
   classical
   let qr := pauliBraidingSameBasisQuestions roles basis p dummy
-  have hq : honestMeasurement qr.1.toBraidingQuestion =
-      (honestBasisMeasurement basis).map (basisAnswer qr.1.braidingStrings) := by
-    cases roles <;> cases basis <;> rfl
-  have hr : honestMeasurement qr.2.toBraidingQuestion =
-      (honestBasisMeasurement basis).map (basisAnswer qr.2.braidingStrings) := by
-    cases roles <;> cases basis <;> rfl
   change (∑ a, ∑ b, if game.accepts s a b then
     S.prob qr.1.toBraidingQuestion qr.2.toBraidingQuestion a b else 0) = 1
-  apply sum_ite_prob_honest_sameBasis basis _ _ _ _ hq hr
+  apply sum_ite_prob_honest_sameBasis basis _ _
+    (basisAnswer qr.1.braidingStrings) (basisAnswer qr.2.braidingStrings)
+    (by cases roles <;> cases basis <;> rfl)
+    (by cases roles <;> cases basis <;> rfl)
   intro u
   change qr.1.braidingCheckedBit (qr.1.braidingStrings.1 ⬝ᵥ u, qr.1.braidingStrings.2 ⬝ᵥ u) =
     qr.2.braidingCheckedBit (qr.2.braidingStrings.1 ⬝ᵥ u, qr.2.braidingStrings.2 ⬝ᵥ u)

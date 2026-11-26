@@ -59,8 +59,7 @@ private theorem find?_sort_eq_some {s : Finset ℕ} {p : ℕ → Bool} {x : ℕ}
 
 private theorem find?_sort_eq_none {s : Finset ℕ} {p : ℕ → Bool}
     (h : (s.sort (· ≤ ·)).find? p = none) : ∀ x ∈ s, p x = false := fun x hx => by
-  have := List.find?_eq_none.1 h x ((Finset.mem_sort (· ≤ ·)).2 hx)
-  simpa using this
+  simpa using List.find?_eq_none.1 h x ((Finset.mem_sort (· ≤ ·)).2 hx)
 
 private theorem findSome?_sort_eq_some {α : Type*} {s : Finset ℕ} {g : ℕ → Option α} {b : α}
     (h : (s.sort (· ≤ ·)).findSome? g = some b) : ∃ x ∈ s, g x = some b := by
@@ -92,8 +91,7 @@ private theorem exists_findPair {S : State n} (hS : S.Valid f) {p : ℕ} (hp : S
 theorem findPair_eq_none {S : State n} (hS : S.Valid f) {p : ℕ} (h : findPair S p = none) :
     ¬ S.Paired p := fun hp => by
   obtain ⟨pr, hpr⟩ := exists_findPair hS hp
-  rw [h] at hpr
-  cases hpr
+  simp [h] at hpr
 
 /-- The children listed by `getChildren`. -/
 theorem mem_getChildren {S : State n} {p : ℕ} {N : ℕ ⊕ ℕ} :
@@ -213,18 +211,12 @@ theorem chooseStep?_spec {S : State n} {c : StepChoice} (h : chooseStep? S = som
                   exact h ▸ ⟨hN, h6, h7, h8⟩
               · simp only [h1, h2, h3, h4, h5, h6, h7, Option.some.injEq] at h
                 exact h ▸ ⟨hN, h6, h7⟩
-            · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4, h5, h6] using h.symm)
-              exact ⟨hN, h6⟩
-          · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4, h5] using h.symm)
-            exact ⟨h1, h2, h3, h4, h5⟩
-        · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4] using h.symm)
-          exact ⟨h1, h2, h3, h4⟩
-      · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3] using h.symm)
-        exact ⟨h1, h2, h3⟩
-    · obtain rfl := Option.some.inj (by simpa only [h1, h2] using h.symm)
-      exact ⟨h1, h2⟩
-  · obtain rfl := Option.some.inj (by simpa only [h1] using h.symm)
-    exact h1
+            · exact Option.some.inj (by simpa only [h1, h2, h3, h4, h5, h6] using h) ▸ ⟨hN, h6⟩
+          · exact Option.some.inj (by simpa [h1, h2, h3, h4, h5] using h) ▸ ⟨h1, h2, h3, h4, h5⟩
+        · exact Option.some.inj (by simpa only [h1, h2, h3, h4] using h) ▸ ⟨h1, h2, h3, h4⟩
+      · exact Option.some.inj (by simpa only [h1, h2, h3] using h) ▸ ⟨h1, h2, h3⟩
+    · exact Option.some.inj (by simpa only [h1, h2] using h) ▸ ⟨h1, h2⟩
+  · exact Option.some.inj (by simpa only [h1] using h) ▸ h1
 
 /-! ### Consequences of failed searches -/
 
@@ -235,9 +227,7 @@ private theorem findD1_eq_some {S : State n} {J : ℕ} (h : findD1 S = some J) :
 
 private theorem findD1_eq_none {S : State n} (h : findD1 S = none) :
     ∀ J ∈ S.gates, ¬ (S.gate J).Degenerate := fun J hJ hd => by
-  have := find?_sort_eq_none h J hJ
-  rw [(isDegenerate_iff _).2 hd] at this
-  cases this
+  simpa [(isDegenerate_iff _).2 hd] using find?_sort_eq_none h J hJ
 
 private theorem findD2_eq_some {S : State n} {J : ℕ} (h : findD2 S = some J) :
     J ∈ S.gates ∧ (∀ K ∈ S.gates, ¬ (S.gate K).Reads J) ∧ ¬ S.out.Reads J := by
@@ -429,12 +419,9 @@ private theorem unitDelete_eq {S : State n} (hS : S.Valid f) {x e : ℕ} (hx : x
     SemiCircuit.exists_affineIn_of_mem_terms hS.wf hx he hxe
   rcases hf : (S.aux.sort (· ≤ ·)).find? (fun Q => decide (x ∈ (findAffineRep S Q).2)) with
     _ | Q
-  · exfalso
-    have := find?_sort_eq_none hf Q₀ hQ₀
-    have hT := (SemiCircuit.AffineIn.unique (C := S.toSemiCircuit) hS.wf
+  · have hT := (SemiCircuit.AffineIn.unique (C := S.toSemiCircuit) hS.wf
       (findAffineRep_spec hS.wf hQ₀) haff₀).2
-    simp only [decide_eq_false_iff_not] at this
-    exact this (hT ▸ hxT₀)
+    simpa [hT, hxT₀] using find?_sort_eq_none hf Q₀ hQ₀
   · obtain ⟨hQ, hxQ⟩ := find?_sort_eq_some hf
     simp only [decide_eq_true_eq] at hxQ
     refine ⟨Q, hQ, hxQ, ?_⟩
@@ -569,9 +556,7 @@ private theorem exists_find_reader_gate {S : State n} (hS : S.Valid f) {u G : �
   have hK₀G : K₀ ≠ G := fun he => hS.not_reads_self hK₀ (he ▸ hK₀r)
   rcases hfK : (S.gates.sort (· ≤ ·)).find? (fun K => decide (K ≠ G ∧ (S.gate K).Reads G)) with
     _ | K
-  · exfalso
-    have := find?_sort_eq_none hfK K₀ hK₀
-    simp [hK₀G, hK₀r] at this
+  · simpa [hK₀G, hK₀r] using find?_sort_eq_none hfK K₀ hK₀
   · obtain ⟨hK_mem, hK_pred⟩ := find?_sort_eq_some hfK
     simp only [decide_eq_true_eq] at hK_pred
     exact ⟨K, rfl, hK_mem, hK_pred.2⟩
@@ -646,8 +631,7 @@ private theorem refuterStep_swapAuxIn {S : State n} (hS : S.Valid f) (hD1 : find
       deleteGate_gates_subset _ _ _⟩
   · rw [ite_eq_right hsub]
     obtain ⟨y, hyT, hyb⟩ : ∃ y ∈ (findAffineRep S a).2, y ≠ b := by
-      by_contra hc
-      push Not at hc
+      by_contra! hc
       exact hsub fun y hy => Finset.mem_singleton.2 (hc y hy)
     have hypar := haff.1 hyT
     obtain ⟨e, he, hye⟩ :=
@@ -655,9 +639,7 @@ private theorem refuterStep_swapAuxIn {S : State n} (hS : S.Valid f) (hD1 : find
     have hyunp : y ∈ S.unpaired := mem_unpaired.2 ⟨hypar, findPairInSystem_eq_none hS hPIS he hye⟩
     rcases hf : ((findAffineRep S a).2.sort (· ≤ ·)).find?
         (fun y => decide (y ≠ b ∧ y ∈ S.unpaired)) with _ | y'
-    · exfalso
-      have := find?_sort_eq_none hf y hyT
-      simp [hyb, hyunp] at this
+    · simpa [hyb, hyunp] using find?_sort_eq_none hf y hyT
     · obtain ⟨hy'T, hy'⟩ := find?_sort_eq_some hf
       simp only [decide_eq_true_eq] at hy'
       obtain ⟨hprep, hgeq, hlt⟩ :=

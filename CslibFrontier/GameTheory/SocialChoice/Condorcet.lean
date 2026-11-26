@@ -77,9 +77,7 @@ open Classical in
 
 @[simp] theorem support_self (P : Profile V A) (a : A) : support P a a = 0 := by
   classical
-  unfold support
-  rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  exact fun i _ => (P i).irrefl a
+  exact Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun i _ => (P i).irrefl a)
 
 /-- For distinct alternatives `a` and `b`, every voter ranks either `a` above `b` or `b` above
 `a`. -/
@@ -100,9 +98,7 @@ theorem support_eq_card_of_forall {P : Profile V A} {a b : A}
 theorem support_eq_zero_of_forall {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : support P b a = 0 := by
   classical
-  unfold support
-  rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  exact fun i _ => (P i).asymm (h i)
+  exact Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun i _ => (P i).asymm (h i))
 
 /-- Strictly more voters rank `a` above `b` than `b` above `a`. -/
 @[expose] def MajorityPrefers (P : Profile V A) (a b : A) : Prop :=
@@ -313,9 +309,7 @@ theorem pluralityCount_eq_card_of_forall_isTop {P : Profile V A} {a : A}
 theorem pluralityCount_eq_zero_of_forall_isTop {P : Profile V A} {a b : A} (hab : b ≠ a)
     (h : ∀ i, (P i).IsTop a) : pluralityCount P b = 0 := by
   classical
-  unfold pluralityCount
-  rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  exact fun i _ hi => hab (hi.unique (h i))
+  exact Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun _ _ hi => hab (hi.unique (h _)))
 
 /-- Each voter ranks a unique alternative at the top, so the plurality counts sum to `|V|`. -/
 theorem sum_pluralityCount [Fintype A] [Nonempty A] (P : Profile V A) :
@@ -389,11 +383,9 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
   obtain ⟨a, ham⟩ := exists_ne m
   let P : Profile V A := fun j => if j = i then t.toTop a else t.toTop m
   have hcnt_a : pluralityCount P a = 1 := Finset.card_eq_one.2 ⟨i, Finset.ext fun j => by
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-    by_cases hj : j = i
-    · simp [P, hj, t.isTop_toTop a]
-    · simp only [P, hj, ↓reduceIte, iff_false]
-      exact fun h => ham (h.unique (t.isTop_toTop m))⟩
+    rcases eq_or_ne j i with rfl | hj
+    · simp [P, t.isTop_toTop a]
+    · simpa [P, hj] using fun h => ham (h.unique (t.isTop_toTop m))⟩
   have hcnt_m : pluralityCount P m = Fintype.card V - 1 := by
     have hset : (Finset.univ.filter fun j : V => (P j).IsTop m) = Finset.univ.erase i :=
       Finset.ext fun j => by
@@ -405,9 +397,7 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
     rw [pluralityRanking_prefers, hcnt_m]
     rcases eq_or_ne x a with rfl | hxa
     · rw [hcnt_a]
-      by_cases hgt : 1 < Fintype.card V - 1
-      · exact .inl hgt
-      · exact .inr ⟨by omega, t.isTop_top x hxm⟩
+      exact (lt_or_eq_of_le (by omega)).imp_right fun h => ⟨h.symm, t.isTop_top x hxm⟩
     · have hcnt0 : pluralityCount P x = 0 :=
         Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2 fun j _ hjx => by
           by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte] at hjx
@@ -415,7 +405,8 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
           · exact hxm (hjx.unique (t.isTop_toTop m))
       exact .inl (hcnt0 ▸ by omega)
   have hdict := (isDictator_iff_of_surjective (surjective_plurality t)).1 hi P a (hPm ▸ ham)
-  rw [hPm, show P i = t.toTop a by simp [P]] at hdict
+  have hPi : P i = t.toTop a := ite_eq_left rfl
+  rw [hPm, hPi] at hdict
   exact (t.toTop a).asymm (t.isTop_toTop a m ham.symm) hdict
 
 /-- **Plurality rule is manipulable** ([Nisan2007], §9.2.2, pp. 211–212): with at least two voters

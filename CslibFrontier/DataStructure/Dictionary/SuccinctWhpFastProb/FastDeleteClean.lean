@@ -283,31 +283,16 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             exact hlk
           · rwa [hvr0.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
         obtain ⟨hprev_min, _, hfp_prev⟩ := (hrr0.2 _ prev_loc).mp hrm_prev
-        have hprev_lt_sc : prev_loc < fs.rebScanCursor :=
-          hprev_min.trans_le (Nat.min_le_right _ _)
-        have hprev_lt_cnt : prev_loc < fs.bktCount b :=
-          hprev_min.trans_le (Nat.min_le_left _ _)
+        have := hprev_min.trans_le (Nat.min_le_right _ _)
+        have hprev_lt_cnt : prev_loc < fs.bktCount b := hprev_min.trans_le (Nat.min_le_left _ _)
         obtain ⟨hm₁, hfb₁⟩ := hc.mem_dom_of_loc hb hprev_lt_cnt
         obtain ⟨hm₂, hfb₂⟩ := hc.mem_dom_of_loc hb hloc_last
-        let u₁ : Fin U :=
-          ⟨fs.keyValAt c U n_max θ.1 b prev_loc, (hc.active_item b hb prev_loc hprev_lt_cnt).1⟩
-        let u₂ : Fin U :=
-          ⟨fs.keyValAt c U n_max θ.1 b loc_last, (hc.active_item b hb loc_last hloc_last).1⟩
-        have hw₁ : u₁ ∈ W_keys.filter (fun w =>
-            feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
-              fs.dirtyBuckets fs.dirtyIdx) :=
-          mem_filter.mpr ⟨hdom_sub hm₁, hfb₁.trans hdb_eq.symm⟩
-        have hw₂ : u₂ ∈ W_keys.filter (fun w =>
-            feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
-              fs.dirtyBuckets fs.dirtyIdx) :=
-          mem_filter.mpr ⟨hdom_sub hm₂, hfb₂.trans hdb_eq.symm⟩
-        have hf₁ : fs.fpAt c U n_max θ fs.rebCandSalt b prev_loc =
-            fpHash c U n_max θ.2 s_opt u₁ := by
-          dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₁.isLt, u₁]
-        have hf₂ : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last =
-            fpHash c U n_max θ.2 s_opt u₂ := by
-          dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₂.isLt, u₂]
-        have hu_eq : u₁ = u₂ := hs_opt_inj hw₁ hw₂ (hf₁.symm.trans (hfp_prev.trans hf₂))
+        let u₁ : Fin U := ⟨_, (hc.active_item b hb prev_loc hprev_lt_cnt).1⟩
+        let u₂ : Fin U := ⟨_, (hc.active_item b hb loc_last hloc_last).1⟩
+        have hu_eq : u₁ = u₂ := hs_opt_inj
+          (mem_filter.mpr ⟨hdom_sub hm₁, hfb₁.trans hdb_eq.symm⟩)
+          (mem_filter.mpr ⟨hdom_sub hm₂, hfb₂.trans hdb_eq.symm⟩) <| by
+            simpa [FastState.fpAt, heq_s, s_opt.isLt, u₁.isLt, u₂.isLt, u₁, u₂] using hfp_prev
         have hkv_eq : fs.keyValAt c U n_max θ.1 b prev_loc =
             fs.keyValAt c U n_max θ.1 b loc_last := congrArg Fin.val hu_eq
         have hq₁ := (hc.active_item b hb prev_loc hprev_lt_cnt).2.2.1

@@ -159,14 +159,12 @@ theorem cost_adversaryRequests {k : Nat} (p₀ : α) {pages : List α}
     (hnodup : pages.Nodup) (hlen : pages.length = k + 1)
     (A : DetStrategy (problem α k)) {s₀ : Finset α} (hs₀ : ValidCache k s₀) (n : Nat) :
     A.cost s₀ (adversaryRequests p₀ pages A s₀ n) = n := by
-  have h := A.cost_adaptiveRequests_eq (chooseReq := missingPage p₀ pages) (w := 1) ?_ hs₀ n
-  · simpa only [adversaryRequests, Nat.mul_one] using h
-  · intro m hm
-    have hcard : (A.project m).card ≤ k := (A.valid_step p₀ hm).2.1
-    have hnot : missingPage p₀ pages (A.project m) ∉ A.project m :=
-      (missingPage_mem_and_notMem p₀ hnodup (by omega)).2
-    exact stepCost_of_notMem
-      (s' := A.project (A.step m (missingPage p₀ pages (A.project m)))) hnot
+  simpa only [adversaryRequests, Nat.mul_one] using
+    A.cost_adaptiveRequests_eq (chooseReq := missingPage p₀ pages) (w := 1)
+      (fun {m} hm => stepCost_of_notMem
+        (s' := A.project (A.step m (missingPage p₀ pages (A.project m))))
+        (missingPage_mem_and_notMem p₀ hnodup
+          (by have := (A.valid_step p₀ hm).2.1; omega)).2) hs₀ n
 
 /-! ### Computable `(k - 1)`-lookahead offline schedule over `k + 1` pages -/
 
@@ -229,9 +227,7 @@ theorem offlineLookahead_cons (k : Nat) (p₀ : α) (pages : List α) (s : Finse
           offlineLookahead k p₀ pages s' (rest.drop (k - 1))) := by
   rw [offlineLookahead, offlineLookaheadAux]
   split_ifs
-  · rfl
-  · rfl
-  · exact congrArg _ (offlineLookaheadAux_eq_replicate_append _ _ _ _ _ _)
+  exacts [rfl, rfl, congrArg _ (offlineLookaheadAux_eq_replicate_append _ _ _ _ _ _)]
 
 private theorem filter_mem_length_eq_card {pages : List α} {s : Finset α}
     (hnodup : pages.Nodup) (hsub : s ⊆ pages.toFinset) :
@@ -283,9 +279,7 @@ theorem validSchedule_offlineLookahead {k : Nat} (hk : 0 < k) (p₀ : α) {pages
       s ⊆ pages.toFinset →
       (∀ r ∈ reqs, r ∈ pages) →
       (problem α k).ValidSchedule s reqs (offlineLookahead k p₀ pages s reqs)
-  | s, [], _, _, _ => by
-    rw [offlineLookahead_nil]
-    trivial
+  | s, [], _, _, _ => trivial
   | s, p :: rest, hscard, hsub, hreqs => by
     have hp_pages : p ∈ pages := hreqs p List.mem_cons_self
     have hrest_pages : ∀ r ∈ rest, r ∈ pages :=
@@ -450,8 +444,7 @@ theorem exists_ratio_violation_of_lt {k : Nat} (hk : 0 < k) {pages : List α}
     refine Nat.lt_of_mul_lt_mul_left (a := k) ?_
     have := Nat.mul_sub_one k k
     have := Nat.le_mul_self k
-    rw [Nat.mul_add]
-    omega
+    rw [Nat.mul_add]; omega
   refine ⟨reqs, offStates, hv, ?_⟩
   rw [halg]
   have hp_opt := Nat.mul_le_mul_left p hopt_lt.le
@@ -473,8 +466,7 @@ theorem not_isCompetitiveFrom_of_lt {k : Nat} (hk : 0 < k) {pages : List α}
   intro hcomp
   obtain ⟨reqs, offStates, hv, hlt⟩ := exists_ratio_violation_of_lt hk hnodup hlen hs₀ hs₀_sub A
     (p := c) (q := 1) (by omega) b
-  have hle := hcomp reqs offStates hv
-  omega
+  exact Nat.not_le.mpr (Nat.one_mul (A.cost s₀ reqs) ▸ hlt) (hcomp reqs offStates hv)
 
 /-- No deterministic online paging strategy over a universe containing `k + 1` distinct pages is
 `(c, b)`-competitive for any `c < k` and `b : Nat`. -/

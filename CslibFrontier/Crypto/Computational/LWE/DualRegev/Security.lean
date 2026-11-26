@@ -98,10 +98,7 @@ def decodePublicKey (n m w : ℕ) (word : List Bool) : PublicKey n m w :=
 /-- Canonical public-key words roundtrip through `decodePublicKey`. -/
 @[simp] theorem decodePublicKey_serializePublicKey {n m w : ℕ} (pk : PublicKey n m w) :
     decodePublicKey n m w (serializePublicKey pk) = pk := by
-  unfold decodePublicKey serializePublicKey
-  dsimp only
-  rw [Cslib.Matrix.ofBinary_toBinary]
-  ext i j <;> simp
+  ext i j <;> simp [decodePublicKey, serializePublicKey, Cslib.Matrix.ofBinary_toBinary]
 
 /-- A serialized public key has exact bit length `(m + 1) * n * w`. -/
 @[simp] theorem length_serializePublicKey {n m w : ℕ} (pk : PublicKey n m w) :
@@ -318,12 +315,6 @@ private theorem encryptEntry_eq (n m w : ℕ) (publicWord : List Bool) (message 
   unfold encryptEntry decodeEncCoins encryptWithCoins decodePublicKey
   dsimp only
   rw [List.map_range_eq_ofFn, List.sum_ofFn]
-  have hsum : ((∑ j : Fin n,
-      Cslib.Matrix.binaryEntry n w publicWord idx.val j.val * s.getD j.val 0 : ℕ) :
-        ZMod (2 ^ w)) =
-      ∑ j : Fin n, (Cslib.Matrix.ofBinary (m + 1) n w publicWord idx j) *
-        (s.getD j.val 0 : ZMod (2 ^ w)) := by
-    simp only [Nat.cast_sum, Nat.cast_mul, Cslib.Matrix.ofBinary_apply]
   have hcast := congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w)
     (((∑ j : Fin n, Cslib.Matrix.binaryEntry n w publicWord idx.val j.val *
         s.getD j.val 0 : ℕ) : ℤ) +
@@ -332,11 +323,9 @@ private theorem encryptEntry_eq (n m w : ℕ) (publicWord : List Bool) (message 
   rw [Int.toNat_natCast, Nat.cast_pow, Nat.cast_ofNat] at hcast
   rw [← hcast]
   congr 1
-  simp only [Int.cast_add, Int.cast_natCast, hsum]
-  refine Fin.cases ?_ ?_ idx
-  · simp [dotProduct, LWE.encodeBit, add_assoc]
-  · intro i
-    simp [Matrix.mulVec, dotProduct, castVector]
+  simp only [Int.cast_add, Nat.cast_sum, Nat.cast_mul, Cslib.Matrix.ofBinary_apply]
+  refine Fin.cases (by simp [dotProduct, LWE.encodeBit, add_assoc])
+    (fun _ => by simp [Matrix.mulVec, dotProduct, castVector]) idx
 
 private theorem encryptWithCoinsSerialized_eq (n m w : ℕ) (publicWord : List Bool)
     (message : Bool) (coins : SerializedEncCoins) :
@@ -472,8 +461,7 @@ theorem isPPTOn_sampleKeyInputsSerialized
     (hw : ComputableInPolyTime w input encUnary) :
     IsPPTOn input encSerializedKeyInputs
       (fun a => sampleKeyInputsSerialized (n a) (m a) (w a)) := by
-  have hrow := hw.sampleBinaryNat.replicate hn
-  have hmat := hrow.replicate hm
+  have hmat := (hw.sampleBinaryNat.replicate hn).replicate hm
   have hbits := (isPPTOn_uniform_bool input).replicate_bool hm
   unfold sampleKeyInputsSerialized
   ppt
@@ -828,9 +816,7 @@ private theorem uniform_split_lweMatrix {m n w : ℕ} :
     ((((fun i j => M i.succ j.succ, fun j => M 0 j.succ) : PublicKey n m w),
       ((fun i => M i.succ 0, M 0 0) : Ciphertext m w))))
   · intro M₁ M₂ h
-    rcases Prod.mk.inj h with ⟨hpk, hc⟩
-    rcases Prod.mk.inj hpk with ⟨hA, hu⟩
-    rcases Prod.mk.inj hc with ⟨hb, hc₀⟩
+    obtain ⟨⟨hA, hu⟩, hb, hc₀⟩ := (Prod.mk.inj h).imp Prod.mk.inj Prod.mk.inj
     ext i j
     refine Fin.cases
       (Fin.cases hc₀ (fun c => congrFun hu c) j)
@@ -958,10 +944,9 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
       · simp only [distinguishingGame_eq_bind, realPK, cont, pmf_norm]
       · simp only [unifPK, uniformPublicKeyWord, distinguishingGame_eq_bind, cont,
           ← PMF.uniformOfFintype_prod, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, pmf_norm]
-    have hcoe : (hidingError (n security) (m security) (w security) : ℝ) =
-        Real.sqrt ((2 : ℝ) ^ (w security * n security) / (2 : ℝ) ^ m security) := by
-      simp [hidingError]
-    linarith
+    linarith [show (hidingError (n security) (m security) (w security) : ℝ) =
+      Real.sqrt ((2 : ℝ) ^ (w security * n security) / (2 : ℝ) ^ m security) by
+        simp [hidingError]]
   refine hhop1.trans ((add_comm _ _).le.trans (add_le_add ?_ (by exact_mod_cast hdistPK)))
   rw [distinguishingGame_realEnsemble, distinguishingGame_uniformEnsemble]
   simpa only [Game.advantage_self, add_zero] using Game.advantage_le_two_mul_uniform_bool_xor

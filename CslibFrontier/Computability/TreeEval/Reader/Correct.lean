@@ -81,18 +81,14 @@ private theorem runFrom_leaf_loop {p : ℕ} [Fact p.Prime] {st : List Frame} {v 
       rw [List.getD_eq_getElem?_getD, Tree.getElem_body_leaf T hv ⟨i, by omega⟩]; rfl
     refine ⟨_, by rw [ReadMachine.runFrom_add, h', ReadMachine.runFrom_one, next_leaf _ _ _ _
       (by omega), hbit], hR'.set_modifyAt hp _ _ _, ?_⟩
-    rw [toState_set_modifyAt R' t ⟨i, by omega⟩ (hR' t).1, hS']
-    funext r j
-    by_cases hr : r = t
-    · subst hr
-      by_cases hj : j = ⟨i, by omega⟩
-      · subst hj
-        have : ((R'.get r).getD i 0 : ZMod p) = R'.toState p ℓ r ⟨i, by omega⟩ := rfl
-        simp only [Function.update_self, cast_addMod, cast_ite_sgnVal, this, hS']
-        simp [add_comm]
-      · simp only [Function.update_self, Function.update_of_ne hj, Nat.lt_succ_iff_lt_or_eq,
-          Fin.val_ne_of_ne hj, or_false]
-    · simp [hr]
+    have hget : ((R'.get t).getD i 0 : ZMod p) = R'.toState p ℓ t ⟨i, by omega⟩ := rfl
+    rw [toState_set_modifyAt R' t ⟨i, by omega⟩ (hR' t).1]
+    simp only [cast_addMod, cast_ite_sgnVal, hget, hS', Function.update_idem, Function.update_self]
+    congr 1
+    funext j
+    rcases eq_or_ne j ⟨i, by omega⟩ with rfl | hj
+    · simp [add_comm]
+    · simp only [Function.update_of_ne hj, Nat.lt_succ_iff_lt_or_eq, Fin.val_ne_of_ne hj, or_false]
 
 /-- **The leaf phase**: a call on the leaf at the current path adds `±` its value to the target
 register and returns, in `ℓ + 2` steps. -/
@@ -431,9 +427,8 @@ private theorem exists_runFrom_search :
       (by omega) le_rfl (fun _ _ hlt => absurd hlt (by omega))
     exact ⟨n, by simpa only [primeFor_prime ℓ, ↓reduceIte] using hn⟩
   | k + 1, q, hq, hq2 => by
-    have hnot : ¬q.Prime := fun hp => by
-      have : primeFor ℓ ≤ q := Nat.find_min' _ ⟨hq2, hp⟩
-      omega
+    have hnot : ¬q.Prime := fun hp =>
+      (Nat.not_le_of_gt (by omega : q < primeFor ℓ)) (Nat.find_min' _ ⟨hq2, hp⟩)
     obtain ⟨n, hn⟩ := exists_runFrom_test (T := T) (q := q) (q - 2) 2 (by omega) le_rfl
       (fun _ _ hlt => absurd hlt (by omega))
     simp only [hnot, ↓reduceIte] at hn

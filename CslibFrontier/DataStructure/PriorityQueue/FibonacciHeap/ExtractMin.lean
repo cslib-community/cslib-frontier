@@ -217,17 +217,13 @@ theorem wp_link {g : Cell → ℕ} {T₁ T₂ : FHTree n} (h₁ : ValidRoot (vie
     rw [ValidSubtree.deg_root h₂.1]; change T₂.deg + 1 ≤ n; omega
   simp only [link, Record.wp_read_bind, Cell.ok]
   refine ⟨T₁.root.isLt, T₂.root.isLt, ?_⟩
-  by_cases hlt : IndexedMinPQ.PrioLT (T₂.root, (view n g).key T₂.root)
-      (T₁.root, (view n g).key T₁.root)
-  · simp only [show IndexedMinPQ.RawPrioLT (↑T₂.root, g (.key ↑T₂.root))
-      (↑T₁.root, g (.key ↑T₁.root)) from hlt, ite_true]
-    rw [Record.wp_bind]
+  by_cases hlt : IndexedMinPQ.RawPrioLT (↑T₂.root, g (.key ↑T₂.root))
+      (↑T₁.root, g (.key ↑T₁.root))
+  · simp only [hlt, ite_true, Record.wp_bind]
     exact wp_linkAs (ValidSubtree.exists_child h₂.1) hd₂ hfit fun g' t ht hl =>
       hQ g' _ (.node T₂.root (T₂.children ++ [T₁])) (by omega) ((LinksAs.linked h₂ h₁
         (List.perm_append_comm.nodup_iff.mp hnd) hdeg.symm hlt hl).symm hdeg)
-  · simp only [show ¬IndexedMinPQ.RawPrioLT (↑T₂.root, g (.key ↑T₂.root))
-      (↑T₁.root, g (.key ↑T₁.root)) from hlt, ite_false]
-    rw [Record.wp_bind]
+  · simp only [hlt, ite_false, Record.wp_bind]
     have hlt₁ := (IndexedMinPQ.prioLT_or_prioLT_of_ne (fun e : T₁.root = T₂.root =>
       List.disjoint_of_nodup_append hnd T₁.root_mem_nodes (by rw [e]; exact T₂.root_mem_nodes))
         _ _).resolve_right hlt
@@ -406,28 +402,21 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
   simp only [Record.wp_write_bind, Cell.ok, true_and]
   refine ⟨fits_zero w, fits_zero w, ?_⟩
   rw [Record.wp_bind]
-  have hv₄ : view n (Function.update (Function.update g₃ .minRoot 0) .numRoots 0) =
-      { view n g₃ with minRoot := 0, numRoots := 0 } := rfl
   refine Record.wp_mono ?_ (wp_gather hfit (md₂ + 1) (d := 0) (gs := [])
-    (by rw [hv₄]; exact hD.gathering hc₁ hc₂) (fun _ _ => Nat.zero_le _) (by omega))
+    (hD.gathering hc₁ hc₂) (fun _ _ => Nat.zero_le _) (by omega))
   rintro _ g' t₃ ⟨gs', hG, hlen, ht₃⟩
-  rw [hv₄] at hG
   obtain ⟨hfin, hnm', hmd⟩ := hD.finish hc₁ hc₂ hG
   obtain ⟨hI', habs'⟩ := inv_of_fibRawInv hfin
   simp only [Record.wp_pure]
-  refine ⟨?_, hI', ?_⟩
-  · rw [habs']
-    simp only [IndexedMinPQ.step, hD.findMin, hmn, dite_true, Prod.mk.injEq, Option.some.injEq,
-      true_and]
-    rfl
-  · -- Links are paid by the trees they remove; what remains is logarithmic.
-    have hF := SlotInv.length_le hc₂.table
-    have hnr' := hG.numRoots
-    have hdz := hD.degBound
-    have hnr₀ := hD.numRoots
-    simp only [ite_true, Bool.false_eq_true, ite_false, List.length_nil] at ht₁ ht₂ hlen
-    simp only [potential, credit, extractCharge]
-    omega
+  refine ⟨by simp [habs', IndexedMinPQ.step, hD.findMin, hmn]; rfl, hI', ?_⟩
+  -- Links are paid by the trees they remove; what remains is logarithmic.
+  have hF := SlotInv.length_le hc₂.table
+  have hnr' := hG.numRoots
+  have hdz := hD.degBound
+  have hnr₀ := hD.numRoots
+  simp only [ite_true, Bool.false_eq_true, ite_false, List.length_nil] at ht₁ ht₂ hlen
+  simp only [potential, credit, extractCharge]
+  omega
 
 end Programs
 

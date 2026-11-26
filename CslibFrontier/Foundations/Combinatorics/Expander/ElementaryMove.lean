@@ -92,10 +92,8 @@ private theorem half_le_expect_nz : (1 / 2 : ℝ) ≤ 𝔼 c : ZMod P, nz c := b
   have hP : (2 : ℝ) ≤ P := by exact_mod_cast (Fact.out : P.Prime).two_le
   simp only [h, expect_sub_distrib, Fintype.expect_eq_sum_div_card, sum_ite_eq', mem_univ,
     ite_true, sum_const, card_univ, ZMod.card, nsmul_eq_mul, mul_one]
+  have : (1 : ℝ) / P ≤ 1 / 2 := (div_le_div_iff₀ (by positivity) zero_lt_two).2 (by linarith)
   rw [div_self (by positivity)]
-  have : (1 : ℝ) / P ≤ 1 / 2 := by
-    rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-    linarith
   linarith
 
 /-- The weighted second moment about `a` is the weighted second moment about the weighted mean plus
@@ -126,11 +124,8 @@ private theorem expect_mul_sq_sub_ge {α : Type*} [Fintype α] (w X : α → ℝ
     (𝔼 x, w x) * ((𝔼 y, w y * X y) / 𝔼 y, w y - a) ^ 2 ≤ 𝔼 x, w x * (X x - a) ^ 2 ∧
       𝔼 x, w x * (X x - (𝔼 y, w y * X y) / 𝔼 y, w y) ^ 2 ≤ 𝔼 x, w x * (X x - a) ^ 2 := by
   rw [expect_mul_sq_sub_eq w X a hW]
-  have h1 : 0 ≤ 𝔼 x, w x * (X x - (𝔼 y, w y * X y) / 𝔼 y, w y) ^ 2 :=
-    expect_nonneg fun x _ ↦ mul_nonneg (hw x) (sq_nonneg _)
-  have h2 : 0 ≤ (𝔼 x, w x) * ((𝔼 y, w y * X y) / 𝔼 y, w y - a) ^ 2 :=
-    mul_nonneg (expect_nonneg fun x _ ↦ hw x) (sq_nonneg _)
-  exact ⟨by linarith, by linarith⟩
+  exact ⟨le_add_of_nonneg_left (expect_nonneg fun x _ ↦ mul_nonneg (hw x) (sq_nonneg _)),
+    le_add_of_nonneg_right (mul_nonneg (expect_nonneg fun x _ ↦ hw x) (sq_nonneg _))⟩
 
 /-- One coordinate of a uniformly random vector is uniform. -/
 private theorem expect_comp_eval (k : Fin H) (φ : ZMod P → ℝ) :
@@ -202,8 +197,7 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
   have hσ (i : Fin H) : ∃ j, j ≠ i ∧ j ≠ k := by
     obtain ⟨j, -, hj⟩ := exists_mem_notMem_of_card_lt_card (s := {i, k}) (t := univ)
       (card_le_two.trans_lt (by simp only [card_univ, Fintype.card_fin]; omega))
-    simp only [mem_insert, mem_singleton, not_or] at hj
-    exact ⟨j, hj⟩
+    exact ⟨j, by simpa only [mem_insert, mem_singleton, not_or] using hj⟩
   choose σ hσ using hσ
   -- Coordinates on the fiber `{F k = c}`: `F = update (c • w) k c`.
   set Ψ : ZMod P → (Fin H → ZMod P) → (Fin H → ZMod P) := fun c w ↦ update (c • w) k c with hΨ
@@ -356,8 +350,7 @@ elementary moves `F ↦ F + F b • e a`, `a ≠ b`. -/
 theorem exists_expect_sq_sub_le_elementaryMove (hH : 3 ≤ H) (g : (Fin H → ZMod P) → ℝ) :
     ∃ m : ℝ, 𝔼 F, (if F = 0 then 0 else (g F - m) ^ 2) ≤
       36864 * H ^ 2 * ∑ a, ∑ b ∈ univ.erase a, 𝔼 F, (g (elementaryMove a b F) - g F) ^ 2 := by
-  have h0 : 0 < H := by omega
-  set k₀ : Fin H := ⟨0, h0⟩
+  set k₀ : Fin H := ⟨0, by omega⟩
   set k₁ : Fin H := ⟨1, by omega⟩
   have h01 : k₀ ≠ k₁ := by simp [k₀, k₁, Fin.ext_iff]
   set B := 2048 * (H : ℝ) * dir g
@@ -395,8 +388,7 @@ theorem exists_expect_sq_sub_le_elementaryMove (hH : 3 ≤ H) (g : (Fin H → ZM
     _ = ∑ k, 𝔼 F, nz (F k) * (g F - ybar) ^ 2 := expect_sum_comm _ _ _
     _ ≤ ∑ _k : Fin H, 18 * B := sum_le_sum fun k _ ↦ hT k
     _ = 36864 * H ^ 2 * dir g := by
-        rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-        simp only [B]
+        simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, B]
         ring
 
 end Cslib.RotationMap

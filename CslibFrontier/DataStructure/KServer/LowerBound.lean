@@ -146,9 +146,8 @@ private theorem costFrom_lazify_le (A : DetStrategy (problem M k)) (m : A.Mem) (
 theorem cost_lazify_le (A : DetStrategy (problem M k)) (s₀ : Fin k → α) (reqs : List α) :
     (lazify M A).cost s₀ reqs ≤ A.cost s₀ reqs := by
   rw [(lazify M A).cost_eq_costFrom trivial, A.cost_eq_costFrom trivial]
-  have h := costFrom_lazify_le M A (A.init s₀) (A.valid_init trivial).1 s₀ reqs
-  rw [(A.valid_init (P := problem M k) trivial).2, moveCost_self, Nat.add_zero] at h
-  exact h
+  simpa [lazify, (A.valid_init (P := problem M k) trivial).2, moveCost_self] using
+    costFrom_lazify_le M A (A.init s₀) (A.valid_init trivial).1 s₀ reqs
 
 /-! ### Offline shadow schedules -/
 
@@ -182,11 +181,8 @@ private theorem moveCost_relocate {s : Fin k → α} (hs : Function.Injective s)
     (hq : ∃ i, s i = q) : moveCost M s (relocate s q r) = M.dist q r := by
   obtain ⟨i, rfl⟩ := hq
   unfold moveCost relocate
-  rw [Fintype.sum_eq_single i]
-  · simp only [↓reduceIte]
-  · intro j hj
-    have : s j ≠ s i := fun h => hj (hs h)
-    simp only [this, ↓reduceIte, M.dist_self]
+  refine (Fintype.sum_eq_single i fun j hj => ?_).trans (by simp only [↓reduceIte])
+  rw [ite_eq_right fun h => hj (hs h), M.dist_self]
 
 private theorem relocate_injective {s : Fin k → α} (hs : Function.Injective s) {q r : α}
     (hr : ∀ i, s i ≠ r) : Function.Injective (relocate s q r) := by
@@ -358,15 +354,15 @@ private theorem lazy_uncovered_step {S : Finset α} (hS : S.card = k + 1) (x₀ 
       r ≠ uncovered S x₀ c' := by
   intro r c'
   obtain ⟨hrS, hrc⟩ := uncovered_spec hS x₀ c
-  rcases (lazyNext_spec c a r ha).2 with h | ⟨j, _, h⟩
-  · exact absurd ((lazyNext_spec c a r ha).1) (by rw [h]; exact fun ⟨i, hi⟩ => hrc i hi)
-  · have hc' : c' = Function.update c j r := h
+  rcases (lazyNext_spec c a r ha).2 with h | ⟨j, _, hc'⟩
+  · exact (lazyNext_spec c a r ha).1.elim fun i hi =>
+      False.elim (hrc i ((congrFun h i).symm.trans hi))
+  · change c' = Function.update c j r at hc'
     have hinj : Function.Injective c' := by
-      rw [hc']
       intro i₁ i₂ hi
-      simp only [Function.update_apply] at hi
+      simp only [hc', Function.update_apply] at hi
       split_ifs at hi with h₁ h₂ h₂
-      · rw [h₁, h₂]
+      · exact h₁.trans h₂.symm
       · exact absurd hi.symm (hrc i₂)
       · exact absurd hi (hrc i₁)
       · exact hc hi
@@ -380,9 +376,8 @@ private theorem lazy_uncovered_step {S : Finset α} (hS : S.card = k + 1) (x₀ 
       rw [hc', Function.update_apply] at hi
       split_ifs at hi with hij
       exacts [hrc j hi.symm, hij (hc hi)]
-    refine ⟨hinj, hc'S, ?_, ?_⟩
-    · rw [hcj, hc', moveCost_update, M.dist_comm]
-    · exact hcj ▸ fun h => hrc j h.symm
+    refine ⟨hinj, hc'S, ?_, hcj ▸ fun h => hrc j h.symm⟩
+    rw [hcj, hc', moveCost_update, M.dist_comm]
 
 /-- Against the uncovered-point adversary, the lazy simulation pays the request path length, and
 at least `1` per request. -/

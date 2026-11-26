@@ -132,8 +132,7 @@ private theorem sum_powersetCard_chi (s : Finset ι) (x : ι → Bool) (m j : �
   have hV := Finset.prod_X_add_C_coeff s (fun l => ((-1 : ℝ) ^ (x l).toNat)) (k := #s - 2 * j)
     (by omega)
   rw [show #s - (#s - 2 * j) = 2 * j by omega] at hV
-  simp only [chi]
-  rw [← hV]
+  simp only [chi, ← hV]
   have hprod : ∏ l ∈ s, (X + C ((-1 : ℝ) ^ (x l).toNat)) =
       expand ℝ 2 ((X + C (-1)) ^ m) := by
     have h (b : Bool) : ∏ l ∈ s with x l = b, (X + C ((-1 : ℝ) ^ (x l).toNat)) =
@@ -166,8 +165,7 @@ theorem fourierCoeff_signVal_majority_two_mul_empty (m : ℕ) :
     Fintype.expect_equiv (Equiv.addRight (fun _ : Fin (2 * m) => true)) _ _ fun _ => rfl
   have hpair (x : Fin (2 * m) → Bool) :
       f x + f (x + fun _ => true) = (-2 : ℝ) * (if weight x = m then 1 else 0) := by
-    have hnot := weight_not_add x
-    simp only [Fintype.card_fin] at hnot
+    have hnot : weight (fun i => !x i) + weight x = 2 * m := by simpa using weight_not_add x
     have hhalf : (2 * m + 1) / 2 = m := by omega
     change signVal (majority (2 * m) x) +
       signVal (majority (2 * m) (x + fun _ => true)) = _
@@ -193,8 +191,7 @@ theorem fourierCoeff_signVal_majority_two_mul_empty (m : ℕ) :
       _ = 𝔼 x, (f x + f (x + fun _ => true)) := by rw [expect_add_distrib, hcomp]
       _ = (-2 : ℝ) * ((2 * m).choose m / (4 : ℝ) ^ m) := by
         simp only [hpair, ← mul_expect, htie]
-  rw [fourierCoeff_empty]
-  change (𝔼 x, f x) = _
+  simp only [fourierCoeff_empty, f] at hmean ⊢
   linarith
 
 /-- **The derivative of majority** in `i`, read as signs, is the indicator that exactly half of
@@ -259,8 +256,7 @@ theorem fourierCoeff_signVal_majority_of_card_eq (m j : ℕ) {S : Finset (Fin (2
     norm_num
   rw [sum_congr rfl hT, sum_const, card_powersetCard, card_erase_of_mem (mem_univ i), card_univ,
     Fintype.card_fin, show 2 * m + 1 - 1 = 2 * m by omega, nsmul_eq_mul] at hsum
-  rw [div_mul_eq_mul_div, eq_div_iff (Nat.cast_ne_zero.2 (Nat.choose_pos hjm).ne'), mul_comm]
-  exact hsum
+  rwa [div_mul_eq_mul_div, eq_div_iff (Nat.cast_ne_zero.2 (Nat.choose_pos hjm).ne'), mul_comm]
 
 /-! ### Levels of majority -/
 
@@ -454,9 +450,8 @@ theorem noiseStability_signVal_majority_succ_lt (m : ℕ) {ρ : ℝ} (h0 : 0 < �
     rw [noiseStability_eq_sum_levelWeight, Fintype.card_fin]
     exact hext hn _
   have hone {n : ℕ} (hn : n < 2 * m + 4) : ∑ k ∈ range (2 * m + 4), W n k = 1 := by
-    have h := sum_levelWeight_signVal (majority n)
-    rw [Fintype.card_fin] at h
-    simpa using (hext hn fun _ => 1).symm.trans (by simpa using h)
+    simpa using (hext hn fun _ => 1).symm.trans
+      (by simpa [Fintype.card_fin] using sum_levelWeight_signVal (majority n))
   rw [hstab (by omega), hstab (by omega), ← sub_pos, ← sum_sub_distrib]
   -- `∑ ρ ^ n (a k - b k) = 0`, and `(ρ ^ k - ρ ^ n) (a k - b k) ≥ 0` on every level, with strict
   -- inequality on the new top level

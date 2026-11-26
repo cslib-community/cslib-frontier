@@ -289,8 +289,7 @@ theorem solvesByzantinePartialSync_ownInput {P V : Type*} [DecidableEq P] [Subsi
     exact h₁
   agreement F _ deliver adv x r₁ r₂ i _ j _ v₁ v₂ h₁ h₂ := by
     rw [PartialSyncProtocol.byzantineDecision, ownInputProtocol_byzantineState] at h₁ h₂
-    rw [Subsingleton.elim i j] at h₁
-    exact Option.some.inj (h₁.symm.trans h₂)
+    exact Option.some.inj ((Subsingleton.elim i j ▸ h₁).symm.trans h₂)
   validity F _ deliver adv x v hv r i hi w hw := by
     rw [PartialSyncProtocol.byzantineDecision, ownInputProtocol_byzantineState, hv i hi] at hw
     exact (Option.some.inj hw).symm
@@ -609,12 +608,9 @@ theorem filterMap_fst_filter_length {P V : Type*}
   induction l with
   | nil => rfl
   | cons a tl ih =>
-    simp only [List.filterMap_cons, List.filter_cons]
-    cases f a with
-    | none => simp only [Option.map_none, ↓reduceIte, Bool.false_eq_true, ih]
-    | some p =>
-      simp only [Option.map_some, List.filter_cons]
-      by_cases hp : pred p.1 <;> simp [hp, ih]
+    rcases hfa : f a with _ | ⟨rep, _⟩
+    · simp [hfa, ih]
+    · cases hp : pred rep <;> simp [hfa, hp, ih]
 
 /-- Whether `prop : Proposal V` is acceptable to a voter holding state `st`. -/
 @[expose] def acceptsProposal {V : Type*} [DecidableEq V]
@@ -1071,10 +1067,8 @@ private theorem decision_step_locks [Fintype P] {F : Finset P} {deliver : ℕ �
         ((Finset.univ \ F).filter fun q =>
           ((byzQuorumProtocol P V procs leader t).byzantineState
             F deliver adv x (r + 1) q).locked = some ⟨r / 6, val₀⟩).card := by
-  have hr5 : r % 6 = 5 := by
-    by_contra hne
-    rw [byzState_decided_unchanged_of_ne_five leader F deliver adv x r hne i, hnone] at hsome
-    cases hsome
+  have hr5 : r % 6 = 5 := by_contra fun hne => by
+    simp [byzState_decided_unchanged_of_ne_five leader F deliver adv x r hne i, hnone] at hsome
   refine ⟨hr5, ?_⟩
   rw [byzQuorum_state_succ] at hsome
   simp only [byzUpdate, hr5] at hsome
@@ -1284,14 +1278,9 @@ private theorem properReport_unanimous {F : Finset P} {deliver : ℕ → P → P
     computeProperReport]
   let initFrom := fun j =>
     extractRawInit (byzIncoming procs leader t F deliver adv x (6 * v) i j)
-  have hhonest_val : ∀ h ∉ F, ∀ w, initFrom h = some w → w = val₀ := by
-    intro h hhF w hw
-    simp only [initFrom, byzIncoming, hhF, ↓reduceIte] at hw
-    split_ifs at hw
-    · simp only [byzSend, show 6 * v % 6 = 0 by omega, extractRawInit, byzState_input_eq,
-        Option.some.injEq] at hw
-      rw [← hw, hx h hhF]
-    · simp only [extractRawInit, reduceCtorEq] at hw
+  have hhonest_val : ∀ h ∉ F, ∀ w, initFrom h = some w → w = val₀ := fun h hhF w hw => by
+    have hw' := byzIncoming_honest_deliver (g := extractRawInit) leader hhF rfl hw
+    simpa [byzSend, Nat.mul_mod_right, extractRawInit, byzState_input_eq, hx h hhF] using hw'.symm
   constructor
   · rw [decide_eq_false_iff_not]
     rintro ⟨hrep_len, hall⟩
@@ -1615,10 +1604,8 @@ private theorem omission_decision_step_quorum [Fintype P] (hprocs : ∀ p : P, p
         (Finset.univ.filter fun q =>
           ((omissionQuorumProtocol P V procs leader t).omissionState
             deliver x (r + 1) q).locked = some ⟨r / 3, val₀⟩).card := by
-  have hr2 : r % 3 = 2 := by
-    by_contra hne
-    rw [omission_decided_unchanged_of_ne_two leader deliver x r hne i, hnone] at hsome
-    cases hsome
+  have hr2 : r % 3 = 2 := by_contra fun hne => by
+    simp [omission_decided_unchanged_of_ne_two leader deliver x r hne i, hnone] at hsome
   refine ⟨hr2, ?_⟩
   rw [omissionQuorum_state_succ] at hsome
   simp only [omissionUpdate, hr2] at hsome
@@ -1760,8 +1747,8 @@ private theorem omission_decided_quorum_view [Fintype P] (hprocs : ∀ p : P, p 
   obtain ⟨m, -, hmn, hms⟩ := omission_first_decision leader deliver x r i hdec
   obtain ⟨hr2, hQ⟩ := omission_decision_step_quorum leader hprocs hn deliver x hmn hms
   let u := m / 3
-  have hm_eq : m + 1 = 3 * (u + 1) := by omega
-  rw [hm_eq] at hQ
+  have hm1 : m + 1 = 3 * (u + 1) := by omega
+  rw [hm1] at hQ
   obtain ⟨q, hq⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hQ)
   exact ⟨u, _, q, hQ, fun p hp => (Finset.mem_filter.1 hp).2, (Finset.mem_filter.1 hq).2⟩
 

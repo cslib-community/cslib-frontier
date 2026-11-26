@@ -215,13 +215,10 @@ leaves: the first `t` entries go left and the rest go right. -/
 theorem exists_good_split_ofLeaf {entries : List (α × β)} (hlo : 2 * t - 1 < entries.length)
     (hhi : entries.length ≤ 2 * t - 1 + t) :
     ∃ l s r, ofLeaf t entries = split l s r ∧ Good t 1 l ∧ Good t 1 r := by
-  have hgt : ¬ entries.length ≤ 2 * t - 1 := by omega
   unfold ofLeaf
-  simp only [hgt, ↓reduceIte]
+  rw [ite_eq_right (by omega)]
   split
-  · next heq =>
-    rw [List.drop_eq_nil_iff] at heq
-    omega
+  · next heq => exact absurd (List.drop_eq_nil_iff.1 heq) (by omega)
   · next p right heq =>
     have hrl := congrArg List.length heq
     simp only [List.length_drop] at hrl
@@ -236,13 +233,10 @@ theorem exists_good_split_ofNode {first : BPlusTree α β} {rest : List (Branch 
     (hf : Good t h first) (hr : ∀ e ∈ rest, Good t h e.child)
     (hlo : 2 * t - 1 < rest.length) (hhi : rest.length ≤ 2 * t - 1 + t + 1) :
     ∃ l s r, ofNode t first rest = split l s r ∧ Good t (h + 1) l ∧ Good t (h + 1) r := by
-  have hgt : ¬ rest.length ≤ 2 * t - 1 := by omega
   unfold ofNode
-  simp only [hgt, ↓reduceIte]
+  rw [ite_eq_right (by omega)]
   split
-  · next heq =>
-    rw [List.drop_eq_nil_iff] at heq
-    omega
+  · next heq => exact absurd (List.drop_eq_nil_iff.1 heq) (by omega)
   · next s c right heq =>
     have hmem : (s, c) ∈ rest := List.mem_of_mem_drop (heq ▸ List.mem_cons_self ..)
     have hright : ∀ e ∈ right, e ∈ rest := fun e he =>
@@ -286,10 +280,9 @@ private theorem fits_ofNode {tr first : BPlusTree α β} {rest : List (Branch α
       .node hf.balanced (fun e he => (hr e he).balanced)
         fun e he => (hr e he).height_eq.trans hf.height_eq.symm
     simp only [ofNode, hle, ↓reduceIte]
-    refine ⟨hb, by rw [hb.height_node, hf.height_eq, hh], fun x hx => ?_, hw, hle⟩
-    simp only [children_node, List.mem_cons, List.mem_map] at hx
-    rcases hx with rfl | ⟨e, he, rfl⟩
-    exacts [hf.occupied, (hr e he).occupied]
+    exact ⟨hb, by rw [hb.height_node, hf.height_eq, hh],
+      List.forall_mem_cons.2 ⟨hf.occupied, List.forall_mem_map.2 fun e he => (hr e he).occupied⟩,
+      hw, hle⟩
   · -- the node overflowed by exactly one separator
     obtain ⟨l, s, r, heq, hl, hr'⟩ := exists_good_split_ofNode hf hr (by omega) (by omega)
     rw [heq]
@@ -314,11 +307,7 @@ private theorem fits_withRest {c : BPlusTree α β} {x : InsertResult α β} (hx
       exact .node (by simpa using this.trans hk₁) (by simpa using hk₂) (hco f List.mem_cons_self)
         fun e he => hco _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
   | split l s r =>
-    obtain ⟨hl, hr'⟩ := hx
-    refine ⟨hch ▸ hl, fun e he => ?_, Nat.le_succ _, le_rfl⟩
-    simp only [withRest, List.mem_cons] at he
-    rcases he with rfl | he
-    exacts [hch ▸ hr', hr e he]
+    exact ⟨hch ▸ hx.1, List.forall_mem_cons.2 ⟨hch ▸ hx.2, hr⟩, Nat.le_succ _, le_rfl⟩
 
 end InsertResult
 
@@ -933,30 +922,23 @@ theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr)
     rw [toList_insert h]
     exact SortedAssoc.isSortedAssoc_insert h.sorted
   rw [insert_eq_toTree] at hs ⊢
-  cases hx : insertOrSplit t k v tr with
-  | tree c =>
-    rw [hx] at hf hp hs
-    obtain ⟨hb, hh, hco, hk₁, hk₂⟩ := hf
+  rcases hx : insertOrSplit t k v tr with c | ⟨l, s, r⟩ <;> rw [hx] at hf hp hs
+  · obtain ⟨hb, hh, hco, hk₁, hk₂⟩ := hf
     refine ⟨ht, hk₂, fun hne => ?_, hco, hb, hp, hs⟩
     cases tr with
     | leaf entries =>
       obtain ⟨es, rfl⟩ := height_eq_one_iff.1 hh
       exact absurd rfl (hne es)
     | node first rest => exact (h.width_pos nofun).trans hk₁
-  | split l s r =>
-    rw [hx] at hf hp hs
-    obtain ⟨hl, hr⟩ := hf
+  · obtain ⟨hl, hr⟩ := hf
     obtain ⟨hpl, hpr, hlt, hle⟩ := hp
-    refine ⟨ht, by simp [InsertResult.toTree]; omega, fun _ => by simp [InsertResult.toTree],
-      fun c hc => ?_,
+    exact ⟨ht, by simp [InsertResult.toTree]; omega,
+      fun _ => by simp [InsertResult.toTree],
+      List.forall_mem_cons.2 ⟨hl.occupied, List.forall_mem_singleton.2 hr.occupied⟩,
       .node hl.balanced (by simpa using hr.balanced)
         (by simpa using hr.height_eq.trans hl.height_eq.symm),
       .node hpl (by simpa using hpr) (by simpa using hle) (List.pairwise_singleton _ _)
         (by simpa using hlt), hs⟩
-    simp only [InsertResult.toTree, children_node, List.map_cons, List.map_nil, List.mem_cons,
-      List.not_mem_nil, or_false] at hc
-    rcases hc with rfl | rfl
-    exacts [hl.occupied, hr.occupied]
 
 /-- On a well-formed tree, insertion keeps the height unless the root splits, and then raises
 it by one. -/
@@ -968,17 +950,12 @@ theorem height_insert (h : IsWF t tr) (k : α) (v : β) :
   have hf := fits_insertOrSplit (by have := h.two_le; omega) k v tr h.balanced
     h.occupied_of_mem_children h.width_le h.sorted
   rw [insert_eq_toTree]
-  cases hx : insertOrSplit t k v tr with
-  | tree c =>
-    rw [hx] at hf
-    exact hf.2.1
-  | split l s r =>
-    rw [hx] at hf
-    obtain ⟨hl, hr⟩ := hf
-    have hb : Balanced (.node l [(s, r)]) :=
-      .node hl.balanced (by simpa using hr.balanced)
-        (by simpa using hr.height_eq.trans hl.height_eq.symm)
-    exact hb.height_node.trans (by rw [hl.height_eq])
+  rcases hx : insertOrSplit t k v tr with c | ⟨l, s, r⟩ <;> rw [hx] at hf
+  · exact hf.2.1
+  · have hb : Balanced (.node l [(s, r)]) :=
+      .node hf.1.balanced (by simpa using hf.2.balanced)
+        (by simpa using hf.2.height_eq.trans hf.1.height_eq.symm)
+    exact hb.height_node.trans (congrArg (· + 1) hf.1.height_eq)
 
 /-- Insertion raises the height by at most one. -/
 theorem height_insert_le (h : IsWF t tr) (k : α) (v : β) :

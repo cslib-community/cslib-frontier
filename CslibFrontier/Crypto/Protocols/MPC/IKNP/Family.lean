@@ -187,8 +187,7 @@ theorem iknpSenderViewWords_injective :
   refine PartyView.ext ?_ (List.ofFn_injective hs) (Prod.ext ?_ (Prod.ext ?_ rfl))
   · funext j b
     cases b
-    · exact congrFun (List.ofFn_injective h₀) j
-    · exact congrFun (List.ofFn_injective h₁) j
+    exacts [congrFun (List.ofFn_injective h₀) j, congrFun (List.ofFn_injective h₁) j]
   · refine Round.received_oracle_ext fun sl hsl => ?_
     fin_cases sl
     · exact absurd hsl (by simp [iknpRoleReversal])
@@ -211,8 +210,7 @@ theorem iknpReceiverViewWords_injective :
     · exact absurd hsl (by simp [iknpRoleReversal])
   · refine Round.received_message_ext fun _ => funext fun j => funext fun b => ?_
     cases b
-    · exact congrFun (List.ofFn_injective h₀) j
-    · exact congrFun (List.ofFn_injective h₁) j
+    exacts [congrFun (List.ofFn_injective h₀) j, congrFun (List.ofFn_injective h₁) j]
 
 end ViewWords
 
@@ -531,10 +529,8 @@ private theorem reductionGuessWords_polyTime (hh : ComputableInPolyTime hash enc
   have houtputs : ComputableInPolyTime (fun c => encPi encBits fun i : Fin 2 =>
       Fin.cases (motive := fun _ => List Bool) []
         (fun _ => bitsZipWith4 chosenBit (r c) (p c).1 (p c).2 (r c)) i) enc encBits := by
-    refine (ComputableInPolyTime.pi fun i => ?_).encoding_comp
-    refine Fin.cases ?_ (fun _ => ?_) i
-    · exact ComputableInPolyTime.const []
-    · exact bitsZipWith4_polyTime _ hr hp.fst' hp.snd' hr
+    exact (ComputableInPolyTime.pi fun i => Fin.cases (ComputableInPolyTime.const [])
+      (fun _ => bitsZipWith4_polyTime _ hr hp.fst' hp.snd' hr) i).encoding_comp
   exact hk.prod ((ComputableInPolyTime.const ()).prod (hs.prod (hviews.prod houtputs)))
 
 /-- `iknpReceiverToCR Z` is uniform strict PPT whenever `Z` is and the hash is computed in
@@ -584,9 +580,7 @@ theorem isPPT_iknpReceiverToCR (hh : ComputableInPolyTime hash encBits encBool)
       ((iknpEncoding hash m).view.encCoalition_singleton x.level () 1 _).symm
     rfl
   · simp only [PartyEncoding.encAll, Function.Embedding.coeFn_mk, encDPi_apply]
-    congr 1
-    funext i
-    refine Fin.cases rfl (fun j => ?_) i
+    refine congrArg _ (funext fun i => Fin.cases rfl (fun j => ?_) i)
     obtain rfl := Fin.fin_one_eq_zero j
     refine congrArg List.ofFn (funext fun j => ?_)
     change (if r j then X j true else X j false) = X j (r j)

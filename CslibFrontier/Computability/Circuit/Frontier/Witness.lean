@@ -109,11 +109,10 @@ private theorem exists_rectangle_range_subset {X : Set ι} {A : Set (X → U)} {
   choose z hz using fun i => exists_domRestrict_eq X (a i) (b i)
   have hza : (fun i => X.domRestrict (z i)) = a := funext fun i => (hz i).1
   have hzb : (fun j => Xᶜ.domRestrict (z j)) = b := funext fun j => (hz j).2
-  refine ⟨z, ?_, ?_⟩
-  · rw [hza, hzb]
-    exact fun x hx => ⟨hA'A hx.1, hB'B hx.2⟩
-  · rw [hza, hzb, ncard_rectangle, ncard_range_of_injective ha, ncard_range_of_injective hb,
-      Nat.card_eq_fintype_card, Fintype.card_fin]
+  refine ⟨z, ?_⟩
+  rw [hza, hzb, ncard_rectangle, ncard_range_of_injective ha, ncard_range_of_injective hb,
+    Nat.card_eq_fintype_card, Fintype.card_fin]
+  exact ⟨fun x hx => ⟨hA'A hx.1, hB'B hx.2⟩, rfl⟩
 
 /-- Every rectangle with finite sides is spanned by inputs, one for each element of each side:
 its sides are the parts on `X` of the inputs `x i` and the parts off `X` of the inputs `y j`. -/
@@ -188,14 +187,12 @@ theorem exists_rectangleFree_two_pow_le_ncard :
   have hE (w : Set ι × (Fin K → ι → Bool)) : #(E w) * 2 ^ (K * K) ≤ 2 ^ N := by
     by_cases hw : (R w).ncard = K * K
     · have hEw : E w = ({f : (ι → Bool) → Bool |
-          ∀ x ∉ (R w).toFinsetᶜ, f x = (fun _ => true) x} : Finset _) := by
-        ext f
-        simp [E, hw]
+          ∀ x ∉ (R w).toFinsetᶜ, f x = (fun _ => true) x} : Finset _) :=
+        Finset.ext fun f => by simp [E, hw]
       have hle : K * K ≤ N := hw ▸ (ncard_le_card _).trans_eq Nat.card_eq_fintype_card
       rw [hEw, BitString.card_filter_forall_notMem_eq, card_compl, ← ncard_eq_toFinset_card', hw,
         ← pow_add, Nat.sub_add_cancel hle]
-    · have hEw : E w = ∅ := by ext f; simp [E, hw]
-      simp [hEw]
+    · simp [E, hw]
   -- Every set that is not `K`-rectangle-free contains a spanned rectangle with `K ^ 2` points.
   set bad : Finset ((ι → Bool) → Bool) :=
     {f : (ι → Bool) → Bool | ¬ RectangleFree {x | f x = true} K}
@@ -226,10 +223,7 @@ theorem exists_rectangleFree_two_pow_le_ncard :
     have h16 : 16 ≤ 2 ^ (n + 4) := by
       rw [pow_add]
       exact Nat.le_mul_of_pos_left _ (by positivity)
-    have hone : 1 ≤ 2 ^ N := Nat.one_le_two_pow
-    generalize 2 ^ N = P at hcount hlarge hone
-    generalize 2 ^ (n + 4) = Q at hcount h16
-    nlinarith
+    nlinarith [Nat.one_le_two_pow (n := N)]
   obtain ⟨f, hf, hfbad⟩ := exists_mem_notMem_of_card_lt_card hlt
   refine ⟨{x | f x = true}, by simpa [bad] using hfbad, ?_⟩
   rw [ncard_eq_toFinset_card']
@@ -253,9 +247,7 @@ private theorem card_filter_lt_abs_le {α : Type*} [Fintype α] [DecidableEq α]
   have hT : T.ncard = #R := ncard_eq_toFinset_card' T
   have hTS (f : α → Bool) : (T ∩ {x | f x = true}).ncard = #{x ∈ R | f x = true} := by
     rw [ncard_eq_toFinset_card']
-    congr 1
-    ext x
-    simp [R]
+    exact congrArg Finset.card (Finset.ext fun x => by simp [R])
   calc (#{f : α → Bool | b * T.ncard < |((T ∩ {x | f x = true}).ncard : ℝ) - T.ncard / 2|} : ℝ)
       ≤ #{f : α → Bool | b * #R ≤ |(#{x ∈ R | f x = true} : ℝ) - #R / 2|} := by
         refine Nat.cast_le.mpr (Finset.card_le_card fun f hf => ?_)

@@ -161,19 +161,13 @@ theorem realizedValue_some_of_not_inWindow {θ : AgentType τ} {t : τ} (ht : ¬
   simp only [realizedValue, ht, ↓reduceIte]
 
 theorem realizedValue_nonneg (θ : AgentType τ) (o : Option τ) : 0 ≤ θ.realizedValue o := by
-  cases o with
-  | none => exact le_rfl
-  | some t =>
-    simp only [realizedValue]
-    split_ifs <;> simp [θ.value_nonneg]
+  cases o <;> simp only [realizedValue, le_refl]
+  split_ifs <;> simp [θ.value_nonneg]
 
 theorem realizedValue_le_value (θ : AgentType τ) (o : Option τ) :
     θ.realizedValue o ≤ θ.value := by
-  cases o with
-  | none => exact θ.value_nonneg
-  | some t =>
-    simp only [realizedValue]
-    split_ifs <;> simp [θ.value_nonneg]
+  cases o <;> simp only [realizedValue, θ.value_nonneg]
+  split_ifs <;> simp [θ.value_nonneg]
 
 end AgentType
 
@@ -399,8 +393,7 @@ theorem criticalMechanism_isNPT (π : Policy ι τ) : π.criticalMechanism.IsNPT
 
 theorem criticalMechanism_isLoserZero (π : Policy ι τ) : π.criticalMechanism.IsLoserZero := by
   intro i θ hnone
-  simp only [criticalMechanism] at hnone ⊢
-  simp only [criticalPayment, hnone, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+  simp_all [criticalMechanism, criticalPayment]
 
 /-- The critical-value mechanism of any deterministic online policy is individually rational
 ([Parkes2007], Theorem 16.13, IR part, locator not verified against primary PDF). -/

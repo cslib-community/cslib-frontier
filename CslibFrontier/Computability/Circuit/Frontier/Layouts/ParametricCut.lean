@@ -505,16 +505,9 @@ theorem innerFrontierSet_eq_union (G : Multigraph V E) (h3 : ∀ v, (G.incidence
       G.innerFrontierClass y t 1 ∪ G.innerFrontierClass y t 2 ∪ G.innerFrontierClass y t 3 := by
   ext v
   rw [G.mem_innerFrontierSet_iff]
-  simp only [mem_union, innerFrontierClass, mem_ofPred_eq]
+  simp only [mem_union, innerFrontierClass, mem_ofPred_eq, ← and_or_left]
   have hle := (G.innerCrossDeg_le_ncard_incidenceSet y t v).trans_eq (h3 v)
-  constructor
-  · rintro ⟨hy, h1⟩
-    obtain hk | hk | hk : G.innerCrossDeg y t v = 1 ∨ G.innerCrossDeg y t v = 2 ∨
-        G.innerCrossDeg y t v = 3 := by omega
-    · exact Or.inl (Or.inl ⟨hy, hk⟩)
-    · exact Or.inl (Or.inr ⟨hy, hk⟩)
-    · exact Or.inr ⟨hy, hk⟩
-  · rintro ((⟨hy, hk⟩ | ⟨hy, hk⟩) | ⟨hy, hk⟩) <;> exact ⟨hy, by omega⟩
+  exact and_congr_right fun _ => by omega
 
 omit [Finite E] [LinearOrder α] in
 private theorem otherEnd_symm_of_loopless {G : Multigraph V E} (hloop : G.Loopless) {v : V}
@@ -741,10 +734,8 @@ theorem coe_switched_innerFrontier_eq {n : ℕ} (G : Multigraph (Fin n) E) (y : 
   constructor
   · rintro ⟨w, ⟨huw, e, hends⟩, htw⟩
     rcases Sym2.eq_iff.mp hends with ⟨hs, ht_eq⟩ | ⟨hs, ht_eq⟩
-    · refine ⟨e, Or.inl hs, ?_⟩
-      simp [otherEnd, hs, ht_eq, htw]
-    · refine ⟨e, Or.inr ht_eq, ?_⟩
-      simp [otherEnd, hs, huw.symm, htw]
+    · exact ⟨e, Or.inl hs, by simp [otherEnd, hs, ht_eq, htw]⟩
+    · exact ⟨e, Or.inr ht_eq, by simp [otherEnd, hs, huw.symm, htw]⟩
   · rintro ⟨e, he_inc, htw⟩
     refine ⟨G.otherEnd u e, ⟨fun heq => (hyu.trans_lt htw).ne (congrArg y heq), e, ?_⟩, htw⟩
     unfold otherEnd

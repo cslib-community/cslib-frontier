@@ -475,40 +475,25 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
         rw [Finset.sum_sub_distrib]
         linarith
       · -- Row sums equal 1.
-        have hrow_sum : ∀ f : Fin m → Fin n,
-            ∑ o : Fin n, ∑ j : Fin m, (if agent j = i ∧ f j = o then ε else 0) =
-              ∑ j : Fin m, (if agent j = i then ε else 0) := fun f => by
-          rw [Finset.sum_comm]
-          exact Finset.sum_congr rfl fun j _ => by by_cases hji : agent j = i <;> simp [hji]
-        simp only [Q, Matrix.of_apply, Finset.sum_add_distrib, Finset.sum_sub_distrib,
-          hrow_sum next, hrow_sum c, sub_self, add_zero, hPds.2.1 i]
+        simp only [Q, Matrix.of_apply, Finset.sum_add_distrib, hPds.2.1 i]
+        rw [Finset.sum_comm]
+        simp [Finset.sum_sub_distrib, ite_and, Finset.sum_ite_irrel]
       · -- Column sums equal 1 (cyclic shift permutes `c j` to `next j`).
-        have hcol_sum : ∀ f : Fin m → Fin n,
-            ∑ i : Fin n, ∑ j : Fin m, (if agent j = i ∧ f j = o then ε else 0) =
-              ∑ j : Fin m, (if f j = o then ε else 0) := fun f => by
-          rw [Finset.sum_comm]
-          exact Finset.sum_congr rfl fun j _ => by by_cases h : f j = o <;> simp [h]
-        simp only [Q, Matrix.of_apply, Finset.sum_add_distrib, Finset.sum_sub_distrib,
-          hcol_sum next, hcol_sum c]
-        rw [Equiv.sum_comp (finRotate m) (fun j => if c j = o then ε else 0),
-          sub_self, add_zero, hPds.2.2 o]
-    have hdiff : ∀ (i k : Fin n),
+        simp only [Q, Matrix.of_apply, Finset.sum_add_distrib, hPds.2.2 o]
+        rw [Finset.sum_comm]
+        simp only [Finset.sum_sub_distrib, ite_and, Finset.sum_ite_eq, Finset.mem_univ,
+          ↓reduceIte]
+        rw [Equiv.sum_comp (finRotate m) (fun j => if c j = o then ε else 0), sub_self, add_zero]
+    have hdiff (i k : Fin n) :
         upperContourSum (p i) (Q i) k - upperContourSum (p i) (P i) k =
           ∑ j : Fin m,
             ((if agent j = i ∧ (p i).symm (next j) ≤ k then ε else 0) -
              (if agent j = i ∧ (p i).symm (c j) ≤ k then ε else 0)) := by
-      intro i k
-      rw [upperContourSum_eq_sum_filter, upperContourSum_eq_sum_filter,
-        ← Finset.sum_sub_distrib]
+      rw [upperContourSum_eq_sum_filter, upperContourSum_eq_sum_filter, ← Finset.sum_sub_distrib]
       simp only [Q, Matrix.of_apply, add_sub_cancel_left]
       rw [Finset.sum_comm]
-      have hterm_uc : ∀ (f : Fin m → Fin n) (j : Fin m),
-          ∑ o ∈ Finset.univ.filter (fun o => (p i).symm o ≤ k),
-              (if agent j = i ∧ f j = o then ε else 0) =
-            if agent j = i ∧ (p i).symm (f j) ≤ k then ε else 0 := fun f j => by
-        by_cases hji : agent j = i <;> simp [hji]
-      exact Finset.sum_congr rfl fun j _ => by
-        rw [Finset.sum_sub_distrib, hterm_uc next j, hterm_uc c j]
+      simp only [Finset.sum_sub_distrib, ite_and, Finset.sum_ite_irrel, Finset.sum_ite_eq,
+        Finset.mem_filter, Finset.mem_univ, true_and, Finset.sum_const_zero]
     have hterm_nonneg : ∀ (i k : Fin n) (j : Fin m),
         0 ≤ (if agent j = i ∧ (p i).symm (next j) ≤ k then ε else 0) -
             (if agent j = i ∧ (p i).symm (c j) ≤ k then ε else 0) := by
@@ -605,9 +590,8 @@ theorem IsSDEfficient.isExPostEfficient {n : ℕ} {p : Profile n} {P : Matrix (F
     have hperm_uc (σ : Equiv.Perm (Fin n)) :
         ∑ r ∈ Finset.Iic k, σ.permMatrix ℝ i (p i r) =
           if (p i).symm (σ i) ≤ k then 1 else 0 := by
-      simpa only [upperContourSum] using
-        (by simp [upperContourSum_eq_sum_filter] :
-          upperContourSum (p i) (σ.permMatrix ℝ i) k = _)
+      rw [← upperContourSum, upperContourSum_eq_sum_filter]
+      simp
     simp only [upperContourSum, Q, Matrix.add_apply, Matrix.smul_apply, Matrix.sub_apply,
       smul_eq_mul, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_sub_distrib, hperm_uc]
   have hQ_dom : ∀ i : Fin n, SDDominates (p i) (Q i) (P i) := fun i k => by

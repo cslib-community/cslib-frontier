@@ -167,9 +167,7 @@ theorem putStrings_spec (hκ : κ.Injective) (hub : 0 < ub) {v : α → UnitCont
       refine ⟨t', fun ⟨_, h⟩ => ⟨fun hb => (h3 h).1 ((h1 hw).1 hb), fun a => ?_⟩, ?_⟩
       · rw [(h3 h).2, (h1 hw).2]
         simp only [List.flatMap_cons, List.mem_append]
-        by_cases ha : a ∈ w.1
-        · simp [ha]
-        · by_cases ha' : a ∈ W.flatMap Prod.fst <;> simp [ha, ha']
+        by_cases ha : a ∈ w.1 <;> by_cases ha' : a ∈ W.flatMap Prod.fst <;> simp [ha, ha']
       · rw [ite_eq_left hw, List.flatMap_singleton, h4]
         exact if_congr (and_iff_right hw).symm rfl rfl
     · exact ⟨t₁, fun h => absurd h.1 hw, by simp [hw]⟩
@@ -212,10 +210,8 @@ theorem ofBits_bits_injective (hub : 0 < ub) :
     Function.Injective fun w : UnitContent ub => ofBits w.bits := fun v w h => by
   have h' : v.bits = w.bits := by simpa using congrArg Tree.path h
   by_cases hv : v = none
-  · rw [hv, eq_comm, ← bits_eq_nil hub, ← h', hv]
-    rfl
-  · exact UnitContent.bits_injOn hv (fun hw => hv ((bits_eq_nil hub).1 (h'.trans (by
-      rw [hw]; rfl)))) h'
+  · exact hv.trans ((bits_eq_nil hub).1 (h'.symm.trans ((bits_eq_nil hub).2 hv))).symm
+  · exact UnitContent.bits_injOn hv (mt (bits_eq_nil hub).2 (h' ▸ mt (bits_eq_nil hub).1 hv)) h'
 
 /-! ### Comparisons -/
 
@@ -365,15 +361,13 @@ theorem simulates_role (hkey : key.Injective) (hub : 0 < ub) {r : M.Role}
     simp only [W, List.flatMap_map, List.mem_flatMap, List.mem_map, mem_indicesBelow, channelList,
       Finset.mem_toList, Finset.mem_univ, true_and, Fin.val_succ, Nat.lt_succ_iff, Fin.val_fin_le,
       eq_comm (a := c)]
-  split_ifs with ha hb hb
-  · rw [List.map_singleton, List.sum_singleton, mul_comm, hΨ t' _ ⟨(h1 ha).1 hst.1, fun c => ?_⟩,
-      mul_comm]
-    rw [(h1 ha).2]
-    by_cases hcc : c ∈ roleCells n o grp g r
-    · simp only [(hcells c).2 hcc, ite_true, Finset.piecewise, hcc]
-    · simp only [mt (hcells c).1 hcc, ite_false, Finset.piecewise, hcc, hst.2 c]
-  · exact absurd (hc.1 ha) hb
-  · exact absurd (hc.2 hb) ha
+  simp only [hc]
+  split_ifs with hb
+  · rw [List.map_singleton, List.sum_singleton, mul_comm,
+      hΨ t' _ ⟨(h1 (hc.2 hb)).1 hst.1, fun c => ?_⟩, mul_comm]
+    rw [(h1 (hc.2 hb)).2]
+    by_cases hcc : c ∈ roleCells n o grp g r <;>
+      simp [hcells c, hcc, Finset.piecewise, hst.2 c]
   · simp
 
 end Role

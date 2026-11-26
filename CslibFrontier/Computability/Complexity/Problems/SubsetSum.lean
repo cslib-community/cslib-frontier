@@ -211,11 +211,10 @@ variable {φ : CNF ℕ}
 /-- The variable of every literal of `φ` is listed in `φ.distinctVars`. -/
 private theorem mem_distinctVars_of_mem {j : ℕ} {l : Literal ℕ} (hl : l ∈ φ.getD j []) :
     l.1 ∈ φ.distinctVars := by
-  refine CNF.mem_distinctVars.2 ?_
   rcases Nat.lt_or_ge j φ.length with hj | hj
-  · exact List.mem_map.2 ⟨l, List.mem_flatten.2 ⟨_, List.getD_mem [] hj, hl⟩, rfl⟩
-  · rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none hj] at hl
-    simp at hl
+  · exact CNF.mem_distinctVars.2
+      (List.mem_map.2 ⟨l, List.mem_flatten.2 ⟨_, List.getD_mem [] hj, hl⟩, rfl⟩)
+  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none hj] at hl
 
 /-- Clause `j` covers the literal number `(i, b)` when it contains a literal of sign `b` whose
 variable is number `i` of `φ.distinctVars`. -/
@@ -278,9 +277,7 @@ private def itemSet (φ : CNF ℕ) : Finset Item :=
   (range φ.distinctVars.length ×ˢ univ).disjSum (range φ.length ×ˢ univ)
 
 private theorem mem_items {x : Item} : x ∈ items φ ↔ x ∈ itemSet φ := by
-  rcases x with ⟨i, b⟩ | ⟨j, c⟩
-  · cases b <;> simp [items, itemSet]
-  · cases c <;> simp [items, itemSet]
+  rcases x with ⟨_, _ | _⟩ | ⟨_, _ | _⟩ <;> simp [items, itemSet]
 
 private theorem nodup_items : (items φ).Nodup := by
   refine List.Nodup.append ?_ ?_ (by simp [List.disjoint_left])
@@ -325,11 +322,10 @@ private theorem mem_itemCol_inl_clause {a : ℕ × Bool} (ha : a.1 < φ.distinct
     (hj : j < φ.length) :
     φ.distinctVars.length + j ∈ itemCol φ (.inl a) ↔ covers φ a.1 a.2 j = true := by
   rw [itemCol, List.mem_toFinset, itemDigits, Sum.elim_inl, mem_literalDigits]
-  constructor
-  · rintro (h | ⟨j', -, hc, h⟩)
-    · lia
-    · rwa [Nat.add_left_cancel h]
-  · exact fun h => Or.inr ⟨j, hj, h, rfl⟩
+  refine ⟨?_, fun h => Or.inr ⟨j, hj, h, rfl⟩⟩
+  rintro (h | ⟨j', -, hc, h⟩)
+  · lia
+  · rwa [Nat.add_left_cancel h]
 
 private theorem mem_itemCol_inr {c : ℕ × Bool} {p : ℕ} :
     p ∈ itemCol φ (.inr c) ↔ p = φ.distinctVars.length + c.1 := by
@@ -383,9 +379,7 @@ private theorem card_filter_var {A B : Finset (ℕ × Bool)} {i : ℕ}
     #{x ∈ A.disjSum B | i ∈ itemCol φ x} = #{a ∈ A | a.1 = i} := by
   rw [card_filter_disjSum]
   simp_rw [mem_itemCol_inl_of_lt hi, mem_itemCol_inr]
-  have hB : ({c ∈ B | i = φ.distinctVars.length + c.1} : Finset (ℕ × Bool)) = ∅ :=
-    filter_false_of_mem fun c _ => by lia
-  rw [hB, card_empty, Nat.add_zero]
+  rw [filter_false_of_mem (s := B) fun c _ => by lia, card_empty, Nat.add_zero]
 
 /-- The count at a clause position. -/
 private theorem card_filter_clause {A B : Finset (ℕ × Bool)}
@@ -483,15 +477,13 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
       have := card_filter_fst_le B j
       lia
     obtain ⟨⟨i, b⟩, ha⟩ := card_pos.1 hpos
-    obtain ⟨haA, hcov⟩ := mem_filter.1 ha
-    obtain ⟨l, hl, hi, hb⟩ := covers_eq_true_iff.1 hcov
+    obtain ⟨l, hl, hi, hb⟩ := covers_eq_true_iff.1 (mem_filter.1 ha).2
     rw [List.getD_eq_getElem _ _ hj] at hl
     refine (Clause.eval_eq_true_iff _ _).2 ⟨l, hl, ?_⟩
-    simp only at hi hb
     rw [hi, hb]
     cases b
-    · exact decide_eq_false (hnot i haA)
-    · exact decide_eq_true haA
+    · exact decide_eq_false (hnot i (mem_filter.1 ha).1)
+    · exact decide_eq_true (mem_filter.1 ha).1
   · rintro ⟨σ, hσ⟩
     -- Choose the true literal of each variable, then fill each clause position with slack.
     set b : ℕ → Bool := fun i => σ (φ.distinctVars.getD i 0) with hb
@@ -567,8 +559,7 @@ theorem computableInPolyTime_covers :
 theorem computableInPolyTime_literalDigits :
     ComputableInPolyTime (fun p : (CNF ℕ × ℕ) × Bool => literalDigits p.1.1 p.1.2 p.2)
       (encPair (encPair encCNF encUnary) encBool) (encList encUnary) := by
-  unfold literalDigits
-  fun_prop
+  fun_prop [literalDigits]
 
 /-- Composition rule for `literalDigits`. -/
 @[fun_prop]
@@ -585,8 +576,7 @@ theorem computableInPolyTime_literalDigits' {α : Type} {input : α ↪ List Boo
 @[fun_prop]
 theorem computableInPolyTime_octal :
     ComputableInPolyTime octal (encList encUnary) encNat := by
-  unfold octal
-  fun_prop
+  fun_prop [octal]
 
 /-- The numbers of the digit construction are computed in polynomial time. -/
 @[fun_prop]
@@ -599,15 +589,13 @@ theorem computableInPolyTime_digitNumbers :
 @[fun_prop]
 theorem computableInPolyTime_digitTarget :
     ComputableInPolyTime digitTarget encCNF encNat := by
-  unfold digitTarget
-  fun_prop
+  fun_prop [digitTarget]
 
 /-- Sipser's reduction is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toSubsetSum :
     ComputableInPolyTime toSubsetSum encCNF encSubsetSum := by
-  unfold toSubsetSum encCNF
-  fun_prop
+  fun_prop [toSubsetSum, encCNF]
 
 end ThreeSAT
 

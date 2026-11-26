@@ -223,15 +223,11 @@ theorem eval_sampleUniformInterval_some (bound attempts value : ℕ) :
 theorem intervalFailure_le_half {bound : ℕ} (hbound : 0 < bound) :
     intervalFailure bound ≤ 1 / 2 := by
   have hsize : dyadicSize bound ≤ 2 * bound := by
-    have h := Nat.pow_log_le_self 2 hbound.ne'
-    unfold dyadicSize
-    rw [pow_succ]
-    omega
-  have hpos : (0 : ℝ≥0) < dyadicSize bound := by exact_mod_cast dyadicSize_pos bound
-  unfold intervalFailure
-  rw [div_le_div_iff₀ hpos (by norm_num : (0 : ℝ≥0) < 2)]
-  norm_num only [one_mul]
-  exact_mod_cast (show (dyadicSize bound - bound) * 2 ≤ dyadicSize bound by omega)
+    have := Nat.pow_log_le_self 2 hbound.ne'
+    simp only [dyadicSize, pow_succ]; omega
+  have hpos : (0 : ℝ≥0) < dyadicSize bound := mod_cast dyadicSize_pos bound
+  rw [intervalFailure, div_le_div_iff₀ hpos two_pos, one_mul]
+  exact_mod_cast (by omega : (dyadicSize bound - bound) * 2 ≤ dyadicSize bound)
 
 /-- Exhaustion is exponentially unlikely at a positive bound; zero remains a separate case. -/
 theorem eval_sampleUniformInterval_none_le {bound : ℕ} (hbound : 0 < bound) (attempts : ℕ) :
@@ -463,13 +459,7 @@ theorem collectBox_eq_some (values : List (Option ℤ)) (out : List ℤ) :
   | nil => cases out <;> simp [collectBox]
   | cons value values ih =>
     rw [collectBox_cons]
-    cases value with
-    | none => cases out <;> simp
-    | some z =>
-      cases out with
-      | nil => cases h : collectBox values <;> simp
-      | cons a out =>
-        cases h : collectBox values <;> simp [← ih, h]
+    cases value <;> cases out <;> cases h : collectBox values <;> simp [← ih, h]
 
 /-- Sample each coordinate of `[-radius,radius]^dimension` with its own finite attempt budget.
 The result is a list of exactly `dimension` integers on success. Radius is a unary resource in the
@@ -513,12 +503,9 @@ private theorem gather_iid_apply (μ : PMF (Option ℤ)) {n : ℕ} (f : Fin n �
 private theorem gather_off_length (μ : PMF (Option ℤ)) (n : ℕ) (out : List ℤ)
     (hlen : out.length ≠ n) :
     ((PMF.iid μ n).map (fun v => collectBox (List.ofFn v))) (some out) = 0 := by
-  rw [PMF.apply_eq_zero_iff]
-  intro h
+  refine (PMF.apply_eq_zero_iff _ _).mpr fun h => hlen ?_
   obtain ⟨v, _, hv⟩ := (PMF.mem_support_map_iff _ _ _).mp h
-  have heq := congrArg List.length ((collectBox_eq_some _ _).mp hv)
-  simp only [List.length_ofFn, List.length_map] at heq
-  exact hlen heq.symm
+  simpa using (congrArg List.length ((collectBox_eq_some _ _).mp hv)).symm
 
 private theorem iid_off_length (μ : PMF ℤ) (n : ℕ) (out : List ℤ)
     (hlen : out.length ≠ n) : ((PMF.iid μ n).map List.ofFn) out = 0 := by

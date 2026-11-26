@@ -125,8 +125,7 @@ private theorem Valid.preparation_swap {S : State n} (hS : S.Valid f) {x Q : ℕ
   have hW := W_add_le hN hN' _ _ hpt
   rw [Finset.sum_ite_eq_of_mem' _ _ _ (Finset.mem_insert_of_mem hxp),
     Finset.sum_ite_eq_of_mem' _ _ _ (Finset.mem_insert_self _ _), config_cs, config_cq] at hW
-  have hs : S₁.s = S.s := rfl
-  have hq : S₁.q = S.q := rfl
+  have hsq : S₁.s = S.s ∧ S₁.q = S.q := ⟨rfl, rfl⟩
   omega
 
 /-! ### Rewiring a gate -/
@@ -155,8 +154,7 @@ private theorem Valid.preparation_rewire {S : State n} (hS : S.Valid f) {J : ℕ
         · rwa [inr_mem_children_rewire] at hw
     · rw [wt_of_notMem (by rwa [unpaired_congr rfl rfl]), wt_of_notMem hu']
   have hW := W_add_le (S := S) (S' := S.rewire J g) le_rfl le_rfl _ _ hpt
-  have hs : (S.rewire J g).s = S.s := rfl
-  have hq : (S.rewire J g).q = S.q := rfl
+  have hsq : (S.rewire J g).s = S.s ∧ (S.rewire J g).q = S.q := ⟨rfl, rfl⟩
   simp only [Finset.sum_const_zero] at hW
   omega
 
@@ -277,14 +275,12 @@ private theorem Valid.exists_param_of_aux_input {S : State n} (hS : S.Valid f) (
     rcases T.eq_empty_or_nonempty with rfl | ⟨x, hx⟩
     · exact hN.no_deletion (deletionAvailable_of_const_input hG hGQ (c := c) fun val hval => by
         rw [hT.2 val hval, Finset.sum_empty, add_zero])
-    · have hxo := hTo x hx
-      subst hxo
+    · obtain rfl := hTo x hx
       have hTo' : T = {x} := Finset.eq_singleton_iff_unique_mem.2 ⟨hx, hTo⟩
-      refine hN.no_deletion (deletionAvailable_of_dependent hG (t := x) (t' := Q) (c := c) ?_
-        fun val hval => ?_)
-      · exact hargs.symm
-      · rw [hT.2 val hval, hTo', Finset.sum_singleton]
-        cases c <;> cases val x <;> rfl
+      refine hN.no_deletion
+        (deletionAvailable_of_dependent hG (c := c) hargs.symm fun val hval => ?_)
+      rw [hT.2 val hval, hTo', Finset.sum_singleton]
+      cases c <;> cases val x <;> rfl
 
 /-! ### The measures of the restructuring -/
 
@@ -388,9 +384,7 @@ theorem Valid.exists_preparation_childIn_lt {S : State n} (hS : S.Valid f)
   refine ⟨S.rewire K g', Valid.preparation_rewire hS hok fun t ht _ => by
     rcases hg'reads t ht with rfl | rfl; exacts [hxdeg, hydeg], rfl, ?_, ?_⟩
   · rw [auxIn_eq (S := S.rewire K g') hne, auxIn_eq hne]
-    change auxArgs (S.rewire K g') ((S.rewire K g').gate G) = S.auxArgs (S.gate G)
-    rw [show (S.rewire K g').gate G = S.gate G from Function.update_of_ne hKne.symm _ _]
-    rfl
+    exact congrArg (auxArgs S) (Function.update_of_ne hKne.symm _ _)
   · have hgate : ∀ K', K' ≠ K → (S.rewire K g').gate K' = S.gate K' := fun K' h =>
       Function.update_of_ne h _ _
     have hgateK : (S.rewire K g').gate K = g' := Function.update_self _ _ _
@@ -407,11 +401,8 @@ theorem Valid.exists_preparation_childIn_lt {S : State n} (hS : S.Valid f)
       rw [hgate K' hK'K] at hK'G hK't
       rw [hgate G hKne.symm] at hGt
       exact Finset.mem_filter.2 ⟨hK'g, hK'G, t, htp, hGt, hK't⟩
-    · have hKmem : K ∈ S.gates.filter fun K' => (S.gate K').Reads G ∧
-          ∃ t ∈ S.params, (S.gate G).Reads t ∧ (S.gate K').Reads t := by
-        exact Finset.mem_filter.2 ⟨hK, hKG,
-          hKt.elim (⟨t₁, hx, Or.inl hl, ·⟩) (⟨t₂, hy, Or.inr hr, ·⟩)⟩
-      exact hnot (hgateK ▸ (Finset.mem_filter.1 (hsub hKmem)).2.1)
+    · exact hnot (hgateK ▸ (Finset.mem_filter.1 (hsub (Finset.mem_filter.2
+        ⟨hK, hKG, hKt.elim (⟨t₁, hx, Or.inl hl, ·⟩) (⟨t₂, hy, Or.inr hr, ·⟩)⟩))).2.1)
 
 /-! ### Eliminating the minimal AND -/
 

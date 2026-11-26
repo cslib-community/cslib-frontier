@@ -186,16 +186,12 @@ private theorem card_unitSphere_three (hp : p % 4 = 3) :
 theorem card_row_brownMatrix (hp : p % 4 = 3) (x : Fin 3 → ZMod p) :
     #(univ.filter fun y : Fin 3 → ZMod p => brownMatrix p x y = true) = p * (p - 1) := by
   rw [← card_unitSphere_three hp]
-  refine card_bij (fun y _ => x - y) ?_ ?_ ?_
-  · intro y hy
-    simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
-      Pi.sub_apply] using hy
-  · intro y₁ _ y₂ _ h
-    exact sub_right_injective h
-  · intro z hz
-    refine ⟨x - z, ?_, sub_sub_cancel x z⟩
-    simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
-      Pi.sub_apply, sub_sub_cancel] using hz
+  refine card_bij (fun y _ => x - y)
+    (fun y hy => by simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply,
+      decide_eq_true_eq, Pi.sub_apply] using hy)
+    (fun _ _ _ _ h => sub_right_injective h) fun z hz => ⟨x - z, ?_, sub_sub_cancel x z⟩
+  simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
+    Pi.sub_apply, sub_sub_cancel] using hz
 
 /-- For prime `p ≡ 3 (mod 4)`, `brownMatrix p` has exact weight `p ^ 4 * (p - 1)` (twice the
 undirected edge count `(p ^ 5 - p ^ 4) / 2` of [Brown1966], §2, p. 282;
@@ -315,10 +311,8 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     have ht1 : (1 : ZMod p) ≠ t := fun h => hr₁₂ (by simp [ht, ← h])
     refine no_three_collinear_on_unit_sphere hp hr₁ one_ne_zero ht0 ht1
       (hdist ha₀ hb₀) ?_ ?_
-    · rw [one_smul, add_comm (a₀ - b₀), sub_add_sub_cancel]
-      exact hdist ha₁ hb₀
-    · rw [show a₀ - b₀ + t • r₁ = a₂ - b₀ by rw [← ht]; simp only [r₂]; abel]
-      exact hdist ha₂ hb₀
+    · simpa only [one_smul, r₁, sub_add_sub_cancel'] using hdist ha₁ hb₀
+    · simpa only [← ht, r₂, sub_add_sub_cancel'] using hdist ha₂ hb₀
   · set n := cross3 r₁ r₂
     have hnc {b : Fin 3 → ZMod p} (hb : b ∈ ({b₀, b₁, b₂} : Finset _)) :
         cross3 n (b - b₀) = 0 := by
@@ -334,10 +328,8 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     have hs₁₂ : s₁ ≠ s₂ := fun h => hc₁₂ (by rw [hs₁, hs₂, h])
     refine no_three_collinear_on_unit_sphere hp hcross hs₁0 hs₂0 hs₁₂
       (hdist_symm ha₀ hb₀) ?_ ?_
-    · rw [show b₀ - a₀ + s₁ • n = b₁ - a₀ by rw [← hs₁]; simp only [c₁]; abel]
-      exact hdist_symm ha₀ hb₁
-    · rw [show b₀ - a₀ + s₂ • n = b₂ - a₀ by rw [← hs₂]; simp only [c₂]; abel]
-      exact hdist_symm ha₀ hb₂
+    · simpa only [← hs₁, c₁, sub_add_sub_cancel'] using hdist_symm ha₀ hb₁
+    · simpa only [← hs₂, c₂, sub_add_sub_cancel'] using hdist_symm ha₀ hb₂
 
 end PrimeThreeModFour
 

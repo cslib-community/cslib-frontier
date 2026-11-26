@@ -337,9 +337,7 @@ private theorem migrateComputeArenaCode_exec {w L_peak newMeta offNew iwOld iwNe
     (by simp [x₄, x₃, RData.set]; rfl) hfit_peak
   set x₅ := x₄.set mPeakFront peakF
   have hiwo_le_aw : iwOld ≤ arenaW := (le_max_left _ _).trans (Nat.le_add_right _ 6)
-  have hfr_le_peak : frOld ≤ peakF := by
-    dsimp only [peakF, arenaB]
-    omega
+  have hfr_le_peak : frOld ≤ peakF := by omega
   obtain ⟨hex₆, hx₆b⟩ := exec_sub_bdd mK mPeakFront mFr (peakF - frOld) hx₅b hL
     (by simpa [x₅, x₄, x₃, x₂, x₁, RData.set, h_fr] using hfr_le_peak)
     (by simp [x₅, x₄, x₃, x₂, x₁, RData.set, h_fr])
@@ -479,9 +477,9 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
       (writeEpochParamsGenProg ((base, base + 63), (N_new, (n, n))))).mem :=
     congrArg Memory.State.mem hm_wp1
   have hs₄_out : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → s₄.mem a = x.mem a :=
-    fun a ha => by
-      rw [hs₄_mem_eq]
-      exact hframe_wp1 a (by unfold offScratch epochHdrWords at *; omega)
+    fun a ha => hs₄_mem_eq ▸ hframe_wp1 a (by
+      unfold offScratch epochHdrWords at *
+      omega)
   have hsplit₄ : CompactedSplitRep base newMeta U V w N_old n n_init θ_old s_abs
       ⟨s₄.mem, s₄.frontier⟩ :=
     compactedSplitRep_of_scratch_mod hw hsplit hs₄f_eq hs₄_out
@@ -510,16 +508,14 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
   have hs₆m_eq : s₆.mem = s₄.mem := hs₆m.trans hs₅m
   have hs₆f_eq : s₆.frontier = x.frontier := hs₆f.trans (hs₅f.trans hs₄f_eq)
   have hs₆_nhp_all : ∀ i : Fin 19, s₆.regs (mNewHp i) =
-      mkHashParams w (epochQBits U N_new) (epochHashB N_new) (totalMicroBits N_new) 3 i := fun i =>
-    by
+      mkHashParams w (epochQBits U N_new) (epochHashB N_new) (totalMicroBits N_new) 3 i :=
+    fun i => by
       rw [hs₆_r (mNewHp i) (mNewHp_ne_mReg i (Or.inl (by decide)))
         (fun j => by intro h; have hv := congrArg Fin.val h; simp at hv; omega),
-        hs₅_nhp i (by omega), hs₄_mem_eq,
-        show base + (63 + offHashParams) + i.val = (base + 63) + offHashParams + i.val by omega]
+        hs₅_nhp i (by omega), hs₄_mem_eq, ← Nat.add_assoc base 63]
       exact hpar_wp1.hp_eq i
   have hs₆_ncp_all : ∀ i : Fin 36, s₆.regs (mNewCp i) = mkCompParams U V w N_new i := fun i => by
-    rw [hs₆_ncp i (by omega), hs₅m, hs₄_mem_eq,
-      show base + (63 + offCompParams) + i.val = (base + 63) + offCompParams + i.val by omega]
+    rw [hs₆_ncp i (by omega), hs₅m, hs₄_mem_eq, ← Nat.add_assoc base 63]
     exact hpar_wp1.cp_eq i
   have hs₆_keep4 : ∀ {c : Fin 160}, (c.val < 90 ∨ 146 ≤ c.val) → c ≠ 9 →
       s₆.regs (mReg c) = s₄.regs (mReg c) := fun {c} hc h9 => by
@@ -577,15 +573,11 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
       hs₇_nm hs₇_off hs₇_iwo hs₇_iwn hs₇_fr_reg
   have hs₈m_eq : s₈.mem = s₄.mem := hs₈m.trans hs₇m_eq
   have hs₈f_eq : s₈.frontier = x.frontier := hs₈f.trans hs₇f_eq
-  have hc_wp1_mul : migFactor * (memoryCost
-      (writeEpochParamsGenProg ((base, base + 63), (N_new, (n, n)))) ⟨x.mem, x.frontier⟩ + 1) ≤
-      migFactor * (22 * n + 101) :=
-    Nat.mul_le_mul_left migFactor (by omega)
   have hf1 := one_le_migFactor
   have hex_params :=
     hex₁.seq_eq (hex₂.seq_eq (hex₃.seq_eq
-      ((hex_wp1.mono hc_wp1_mul (fun _ h => h)).seq_eq
-        (hex_nhp.seq_eq (hex_ncp.seq_eq (hex_niw.seq_eq hex_ca))))))
+      ((hex_wp1.mono (Nat.mul_le_mul_left migFactor (by omega : _ ≤ 22 * n + 101))
+        (fun _ h => h)).seq_eq (hex_nhp.seq_eq (hex_ncp.seq_eq (hex_niw.seq_eq hex_ca))))))
   have hs₈_new : ∀ reg : Fin rResize, 16 ≤ reg.val ∧ reg.val < 146 → s₈.regs reg = s₆.regs reg :=
     fun reg h => (hs₈_keep reg (by clear * - h; simp [Fin.ext_iff]; omega)).trans <|
       hs₇_keep6 reg (by clear * - h; simp [Fin.ext_iff]; omega) (by omega)

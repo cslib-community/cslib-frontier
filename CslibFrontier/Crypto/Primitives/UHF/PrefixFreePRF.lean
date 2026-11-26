@@ -318,7 +318,6 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
         cachedDistOracle (oracleValid n) dist request cache =
           dist.map (fun reply => (reply, (request, reply) :: cache)) := by
       simp [cachedDistOracle, hValid, memoize, hMiss, PMF.map, Function.comp_def]
-    have hFirst := hFresh (cache := []) hLeft rfl
     have hSecond (reply : List Bool) :
         cachedDistOracle (oracleValid n) dist right [(left, reply)] =
           dist.map (fun other => (other, [(right, other), (left, reply)])) := by
@@ -329,7 +328,8 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
     change ((cachedDistOracle (oracleValid n) dist left []).bind (fun a =>
       (cachedDistOracle (oracleValid n) dist right a.2).bind (fun b =>
         PMF.pure (decide (a.1.take (outLen n) = b.1.take (outLen n)), b.2)))).map Prod.fst true ≤ _
-    simp only [hFirst, PMF.bind_map, Function.comp_def, hSecond, PMF.map_bind, PMF.pure_map]
+    simp only [hFresh (cache := []) hLeft rfl, PMF.bind_map, Function.comp_def, hSecond,
+      PMF.map_bind, PMF.pure_map]
     refine PMF.bind_apply_le_on_support _ fun reply hReply => ?_
     rw [PMF.bind_congr_on_support dist _ (fun other => PMF.pure (decide (reply = other)))
       (fun other hOther => by
@@ -493,13 +493,10 @@ theorem isQueryBounded_prefixFreeBatchReduction (width outLen Q : ℕ → ℕ)
   rw [prefixFreeBatchReduction]
   nth_rw 2 [← Nat.zero_add (Q n)]
   refine (ProbOracleComp.IsQueryBounded.sample _).bind fun guesses => ?_
-  let queries := prefixFreeBatchQueries (width n) (Q n) (valid n) guesses
-  have hquery (word : List Bool) :
-      (List.take (outLen n) <$> ProbOracleComp.query
-        (spec := fun _ : Unit × List Bool => List Bool) ((), word)).IsQueryBounded 1 :=
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query _)
-  have htraverse := OracleComp.IsCostBounded.mapM (inputs := queries) fun word _ => hquery word
-  refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+  refine ((OracleComp.IsCostBounded.mapM
+    (inputs := prefixFreeBatchQueries (width n) (Q n) (valid n) guesses) fun word _ =>
+      (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query _)).bind
+        fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
   simpa only [Nat.mul_one, Nat.add_zero] using
     length_prefixFreeBatchQueries_le (width n) (Q n) (valid n) guesses
 
@@ -754,32 +751,29 @@ theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
   change ((ProbOracleComp.runWith (fun req => guarded req.2)
     (words.mapM fun word => List.take (outLen n) <$> send word) []).bind fun result =>
     PMF.pure (!decide result.1.Nodup)) true ≤ _
-  have hHandler : (fun word => ProbOracleComp.runWith (fun req => guarded req.2) (send word)) =
-      guarded :=
-    funext₂ fun word cache =>
-      ProbOracleComp.runWith_query (fun req => guarded req.2) ((), word) cache
-  rw [← hSim, ProbOracleComp.runWith_simulate, hHandler, hRun]
+  rw [← hSim, ProbOracleComp.runWith_simulate,
+    funext₂ fun word cache => ProbOracleComp.runWith_query _ ((), word) cache, hRun]
   let run := ProbOracleComp.runWith oracle program []
   have hBound : program.IsQueryBounded (Q n) :=
     (OracleComp.IsCostBounded.mapM fun word _ =>
       (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query word)).mono
       (by simpa only [Nat.mul_one] using
         length_prefixFreeBatchQueries_le (width n) (Q n) (valid n) guesses)
-  have hBirthday := RandomOracle.toOuterMeasure_not_nodup_snd_runWith_memoize_le dist
-    (fun y => by simpa only [one_div] using BitString.uniformList_apply_le (outLen n) y)
-    hBound (cache := []) List.nodup_nil
   change (run.map (fun result => !decide result.1.Nodup)) true ≤ _
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
     ← PMF.toOuterMeasure_apply_inter_support]
   refine (run.toOuterMeasure.mono (s₂ := {result | ¬(result.2.map Prod.snd).Nodup}) ?_).trans ?_
   · rintro result ⟨hAccept, hResult⟩ h
-    have hCache := mem_support_batchReplies
-      (nodup_prefixFreeBatchQueries (width n) (Q n) (valid n) guesses) (by simp) hResult
-    rw [← hCache, List.map_nil, List.append_nil, List.nodup_reverse] at h
+    rw [← mem_support_batchReplies
+      (nodup_prefixFreeBatchQueries (width n) (Q n) (valid n) guesses) (by simp) hResult,
+      List.map_nil, List.append_nil, List.nodup_reverse] at h
     exact absurd h (by simpa using hAccept)
   · change (ProbOracleComp.runWith (memoize (fun _ => dist)) program []).toOuterMeasure
       {result | ¬(result.2.map Prod.snd).Nodup} ≤ _
-    simpa only [List.length_nil, mul_zero, zero_add, div_eq_mul_inv] using hBirthday
+    simpa only [List.length_nil, mul_zero, zero_add, div_eq_mul_inv] using
+      RandomOracle.toOuterMeasure_not_nodup_snd_runWith_memoize_le dist
+        (fun y => by simpa only [one_div] using BitString.uniformList_apply_le (outLen n) y)
+        hBound (cache := []) List.nodup_nil
 
 /-- The concrete comparison in [BonehShoup2023], v0.6, Theorem 7.4
 (printed pp. 259–260, equation (7.9)). Multi-query collision success is at most the
@@ -890,12 +884,9 @@ theorem isMultiQueryUHF_of_extendable_prefixFreePRF
   filter_upwards [hRoom, hProbe] with n hRoomN hProbeN
   have hCapEq : cap n = outLen n := by
     simpa only [cap, List.length_replicate] using
-      hPRF.length_eq (List.replicate n false) (List.replicate (width n) false) (by simpa using
-        hProbeN)
-  have hProgram : prefixFreeBatchReduction width cap Q valid guessBatch n [] =
-      prefixFreeBatchReduction width outLen Q valid guessBatch n [] := by
-    simp only [prefixFreeBatchReduction, hCapEq]
-  simpa only [Pi.add_apply, prfRealGameOn, prfIdealGameOn, hProgram] using
+      hPRF.length_eq (List.replicate n false) (List.replicate (width n) false)
+        (by simpa using hProbeN)
+  simpa only [Pi.add_apply, prfRealGameOn, prfIdealGameOn, prefixFreeBatchReduction, hCapEq] using
     succProbability_multiQueryGame_le_prefixFreeBatchReduction (outLen := outLen)
       family guessBatch n (maxBlocks n) (hBudget n) (hBlocks n) hRoomN hDomain hExtend
 

@@ -282,11 +282,10 @@ theorem retention {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P))
 theorem density (role : Fin J) (L : ℕ) (hL : L ≤ P) (a : ZMod P) :
     (dens {σ : Environment P J | frameRetains P 4 L (σ role) a} : ℝ) = ((L: ℝ) / P) ^ 4 := by
   classical
-  rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 => frameRetains P 4 L A a)]
-  have h := congrArg (fun q : ℚ≥0 => (q : ℝ))
-    (dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1) (by decide) hL a)
-  push_cast at h
-  simpa only [nnratCast_dens] using h
+  rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 => frameRetains P 4 L A a),
+    dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1) (by decide) hL a]
+  push_cast
+  rfl
 
 /-- Concrete mixed rank / usage pair law from frame conditioning, not unrestricted
 seed independence. Usage may have any other positive side; only rank's admissible
@@ -712,14 +711,11 @@ theorem hierarchy_prefix_bound (HP : HierarchyParams 16 1 16 32 8)
       hierarchy HP e X Y S l *ᵥ 1 ≤ 1 ∧
       ∀ x y, hierarchy HP e X Y S l x y ≤ rate l := by
   classical
-  dsimp only
-  rw [rate_eq_source_grid]
-  apply hierarchy_invariant he (π := fun i => ((side P i: ℝ) / P) ^ 4)
-    (by norm_num) (by norm_num) hS hS0 hS1 l
-  intro i hi
-  have hh := retention_environment_ident R.source R.terminal (ids i) (idt i)
-    (his i hi) (hit i hi) H (show i ≤ H.maxExponent by omega)
-  rwa [rate_eq_source_grid] at hh
+  simp only [rate_eq_source_grid]
+  refine hierarchy_invariant he (π := fun i => ((side P i : ℝ) / P) ^ 4)
+    (by norm_num) (by norm_num) hS hS0 hS1 l fun i hi => ?_
+  simpa only [rate_eq_source_grid] using retention_environment_ident R.source R.terminal
+    (ids i) (idt i) (his i hi) (hit i hi) H (by omega)
 
 /-- Exact density of any actual channel whose real rate has a natural grid
 certificate; no density oracle remains in importance weights. -/
@@ -824,8 +820,7 @@ theorem normalizedRequest_formula [Fintype V] {k : ℕ} (D : ZMod P) (ident : V 
 /-- The source grid has exactly the requested adjacent-bin ratio. -/
 theorem adjacent_rate_ratio (k : ℕ) : rate k / rate (k + 1) = 16 := by
   rw [rate_eq_source_grid, rate_eq_source_grid, pow_succ]
-  have h : (16: ℝ)⁻¹ ^ k ≠ 0 := by positivity
-  field_simp
+  field_simp [show (16 : ℝ)⁻¹ ^ k ≠ 0 by positivity]
 
 omit [Fact P.Prime] in
 /-- Every actual residual request stays on the natural-exponent grid (the usage min is a max

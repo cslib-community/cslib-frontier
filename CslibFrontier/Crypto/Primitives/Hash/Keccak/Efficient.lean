@@ -89,30 +89,26 @@ private theorem computableInPolyTime_bytesToBitsLE :
 
 private theorem computableInPolyTime_pad10star1 (rate : ℕ) :
     ComputableInPolyTime (pad10star1 rate) encUnary encBits := by
-  unfold pad10star1
-  fun_prop
+  fun_prop [pad10star1]
 
 private theorem computableInPolyTime_toBlocks (rate : ℕ) :
     ComputableInPolyTime (BitString.toBlocks rate) encBits
       (encList (encBitString rate)) := by
-  have hcount : ComputableInPolyTime (fun bits : List Bool => bits.length / rate)
-      encBits encUnary := unary_div_const rate |>.comp length_bits
   have hraw : ComputableInPolyTime
       (fun p : (List Bool × ℕ) =>
         (List.range rate).map fun i => p.1.getD (p.2 * rate + i) false)
-      (encPair encBits encUnary) encBits := by
-    apply mapToBitsWithInput (range.comp (const rate))
-    fun_prop
+      (encPair encBits encUnary) encBits :=
+    mapToBitsWithInput (range.comp (const rate)) (by fun_prop)
   have hblock : ComputableInPolyTime
       (fun p : (List Bool × ℕ) =>
         fun i : Fin rate => p.1.getD (p.2 * rate + i) false)
       (encPair encBits encUnary) (encBitString rate) :=
     hraw.of_enc_eq fun _ => by simp [encBitString, List.map_range_eq_ofFn]
-  have hblocks := mapWithInput
+  exact (mapWithInput
     (f := fun bits b => fun i : Fin rate => bits.getD (b * rate + i) false)
     (list := fun bits : List Bool => List.range (bits.length / rate))
-    (range.comp hcount) hblock
-  exact hblocks.of_enc_eq fun bits => by rw [BitString.toBlocks_eq_map_range]
+    (range.comp ((unary_div_const rate).comp length_bits)) hblock).of_enc_eq fun bits => by
+      rw [BitString.toBlocks_eq_map_range]
 
 private theorem computableInPolyTime_keccakP1600Bits : ComputableInPolyTime
     (fun bits : BitString 1600 => stateBits (keccakP1600Rounds24 (stateOfBits bits)))
@@ -225,12 +221,12 @@ private theorem computableInPolyTime_squeezeRates (layout : SpongeLayout) :
     (fst (encBitString (64 * layout.rateLanes))
       (encBitString (64 * layout.capacityLanes))).comp
       ((computableInPolyTime_iteratePermutation layout).comp hiterInput)
-  have h := mapWithInput
+  exact (mapWithInput
     (f := fun p : SpongeView layout × ℕ => fun i =>
       ((keccakP1600Rounds24View layout)^[i] p.1).1)
     (list := fun p : SpongeView layout × ℕ => List.range p.2)
-    (range.comp (snd (encSpongeView layout) encUnary)) hbody
-  exact h.of_enc_eq fun _ => by rw [squeeze_eq_map_range]
+    (range.comp (snd (encSpongeView layout) encUnary)) hbody).of_enc_eq fun _ => by
+      rw [squeeze_eq_map_range]
 
 private theorem computableInPolyTime_hashBlocks (layout : SpongeLayout) :
     ComputableInPolyTime
@@ -270,12 +266,11 @@ polynomial-time in the framed input bytes and the unary requested output length.
       encByteXofInput encByteStringLE := by
   let rate := 64 * layout.rateLanes
   let rateBytes := 8 * layout.rateLanes
-  have hinput : ComputableInPolyTime (fun p : List (Fin 256) × ℕ => p.1)
-      encByteXofInput encByteStringLE := fst encByteStringLE encUnary
   have hsuffixed : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ => bytesToBitsLE p.1 ++ suffix)
       encByteXofInput encBits :=
-    bitsAppend (computableInPolyTime_bytesToBitsLE.comp hinput) (const suffix)
+    bitsAppend (computableInPolyTime_bytesToBitsLE.comp (fst encByteStringLE encUnary))
+      (const suffix)
   have hpadded : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ =>
         let suffixed := bytesToBitsLE p.1 ++ suffix
@@ -293,10 +288,10 @@ polynomial-time in the framed input bytes and the unary requested output length.
       encByteXofInput encUnary := snd encByteStringLE encUnary
   have hblockCount : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ => p.2 ⌈/⌉ rateBytes)
-      encByteXofInput encUnary := by
-    have h := (unary_div_const rateBytes).comp
-      (unary_sub' (unary_add' houtput (const rateBytes)) (const 1))
-    exact h.of_enc_eq fun _ => by congr 1
+      encByteXofInput encUnary :=
+    ((unary_div_const rateBytes).comp
+      (unary_sub' (unary_add' houtput (const rateBytes)) (const 1))).of_enc_eq fun _ => by
+      congr 1
   have hsqueezed : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ =>
         let suffixed := bytesToBitsLE p.1 ++ suffix

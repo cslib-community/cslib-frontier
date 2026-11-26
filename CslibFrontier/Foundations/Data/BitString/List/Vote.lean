@@ -49,8 +49,7 @@ def signedVote (vote truth : Bool) : ℝ := if vote = truth then 1 else -1
 
 /-- Each vote contributes `±1` to the margin: `|signedVote vote truth| = 1`. -/
 @[simp] theorem abs_signedVote (vote truth : Bool) : |signedVote vote truth| = 1 := by
-  unfold signedVote
-  split <;> norm_num
+  by_cases h : vote = truth <;> simp [signedVote, h]
 
 /-- The empty vote list has margin zero. -/
 @[simp] theorem listVoteMargin_nil (truth : Bool) : listVoteMargin [] truth = 0 := by
@@ -77,28 +76,24 @@ private theorem count_false_add_true (votes : List Bool) :
 /-- Reversing the label negates the signed margin of the same observable vote word. -/
 @[simp] theorem listVoteMargin_not (votes : List Bool) (truth : Bool) :
     listVoteMargin votes (!truth) = -listVoteMargin votes truth := by
-  have htotal : (votes.count false : ℝ) + votes.count true = votes.length := by
-    exact_mod_cast count_false_add_true votes
-  cases truth <;> simp only [Bool.not_true, Bool.not_false, listVoteMargin] <;> linarith
+  cases truth <;> simp only [Bool.not_true, Bool.not_false, listVoteMargin] <;>
+    linarith [show (votes.count false : ℝ) + votes.count true = votes.length from
+      mod_cast count_false_add_true votes]
 
 /-- The magnitude of the signed margin is at most the number of votes. -/
 theorem abs_listVoteMargin_le (votes : List Bool) (truth : Bool) :
     |listVoteMargin votes truth| ≤ votes.length := by
-  have hcount : (votes.count truth : ℝ) ≤ votes.length := by
-    exact_mod_cast (show votes.count truth ≤ votes.length from List.count_le_length)
-  have hnonneg : (0 : ℝ) ≤ votes.count truth := by positivity
-  rw [abs_le]
-  constructor <;> dsimp only [listVoteMargin] <;> linarith
+  have hcount : (votes.count truth : ℝ) ≤ votes.length := mod_cast List.count_le_length
+  rw [abs_le, listVoteMargin]
+  constructor <;> linarith [Nat.cast_nonneg (α := ℝ) (votes.count truth)]
 
 /-- A positive signed margin guarantees that the executable majority predicts the label. -/
 theorem listStrictMajority_eq_of_pos {votes : List Bool} {truth : Bool}
     (hmargin : 0 < listVoteMargin votes truth) :
     listStrictMajority votes = truth := by
-  have hcount : votes.length < 2 * votes.count truth := by
-    have h : (votes.length : ℝ) < 2 * (votes.count truth : ℝ) := by
-      dsimp only [listVoteMargin] at hmargin
-      linarith
-    exact_mod_cast h
+  have hcount : votes.length < 2 * votes.count truth := mod_cast
+    (by linarith [show 0 < 2 * (votes.count truth : ℝ) - votes.length from hmargin] :
+      (votes.length : ℝ) < 2 * votes.count truth)
   have htotal := count_false_add_true votes
   cases truth <;>
     simp only [listStrictMajority_eq_decide_count, decide_eq_false_iff_not, decide_eq_true_eq] <;>

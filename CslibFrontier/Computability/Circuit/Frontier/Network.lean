@@ -167,13 +167,11 @@ theorem Satisfies.splice {N : Network U ι V E} {L : Set V} {x y z : ι → U} {
   · -- Away from `L`, it is `β` and the input reads like `y`; the two agree on the cut.
     have hinputs : ∀ i, N.site i = some v → y i = z i := fun i hi =>
       (hzy fun ⟨u, hu, hiu⟩ => hv (Option.some.inj (hiu.symm.trans hi) ▸ hu)).symm
-    have hedges : ∀ e, N.src e = v ∨ N.tgt e = v → β e = (N.touching L).piecewise α β e := by
-      intro e he
+    have hedges (e : E) (he : N.src e = v ∨ N.tgt e = v) :
+        β e = (N.touching L).piecewise α β e := by
       by_cases ht : e ∈ N.touching L
-      · rw [piecewise_eq_of_mem _ _ _ ht]
-        exact (hcut (by
-          rcases he with h | h <;> rcases ht with h' | h' <;>
-            simp_all [Multigraph.mem_edgeCut])).symm
+      · refine (hcut ?_).symm.trans (piecewise_eq_of_mem _ _ _ ht).symm
+        rcases he with h | h <;> rcases ht with h' | h' <;> simp_all [Multigraph.mem_edgeCut]
       · exact (piecewise_eq_of_notMem _ _ _ ht).symm
     exact N.constraint_congr v y z β _ hinputs hedges (hy v)
 
@@ -224,11 +222,8 @@ theorem revealedBy_mono : Monotone (N.revealedBy π) := by
   intro s t hst
   unfold revealedBy
   split_ifs with hs ht ht
-  · rintro i ⟨v, hv, hi⟩
-    exact ⟨v, lt_of_lt_of_le hv hst, hi⟩
-  · exact subset_univ _
-  · exact absurd (hst.trans ht) hs
-  · exact le_rfl
+  exacts [fun i ⟨v, hv, hi⟩ => ⟨v, lt_of_lt_of_le hv hst, hi⟩, subset_univ _,
+    absurd (hst.trans ht) hs, le_rfl]
 
 /-- The inputs revealed while processing the vertex numbered `t` are those read at that
 vertex. -/
@@ -535,10 +530,8 @@ theorem abs_signedCount_accepted_le [Finite ι] [Finite U] [Nonempty U] [Finite 
     (hm : ∀ v, (N.readAt v).ncard ≤ m) :
     |signedCount S N.accepted| ≤ 2 * b * N.accepted.ncard +
       ((K - 1) ^ 2 * (Nat.card V * Nat.card U ^ (w + d + m) + Nat.card U ^ N.readᶜ.ncard) : ℕ) := by
-  have h := (N.branchingProgram π).abs_signedCount_accepted_le
-    (N.unambiguous_branchingProgram π hunique) (Nat.succ_pos _) hb hS
-  rw [accepted_branchingProgram] at h
-  refine h.trans (add_le_add le_rfl ?_)
+  refine (N.accepted_branchingProgram π ▸ (N.branchingProgram π).abs_signedCount_accepted_le
+    (N.unambiguous_branchingProgram π hunique) (Nat.succ_pos _) hb hS).trans (add_le_add le_rfl ?_)
   exact_mod_cast Nat.mul_le_mul_left _ (N.size_branchingProgram_le π hw hd hm)
 
 end BranchingProgram

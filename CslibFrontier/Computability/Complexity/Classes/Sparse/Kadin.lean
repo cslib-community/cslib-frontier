@@ -137,12 +137,11 @@ theorem mem_language_false_iff {a : α} {k : ℕ} :
   constructor
   · rintro ⟨ℓ, hnd, rfl, hmem, -⟩
     exact length_le_length_shortMembers hnd hmem
-  · intro hk
-    refine ⟨(shortMembers S (m.eval (enc a).length)).take k,
+  · exact fun hk => ⟨(shortMembers S (m.eval (enc a).length)).take k,
       (nodup_shortMembers _ _).sublist (List.take_sublist _ _),
-      by rw [List.length_take]; exact Nat.min_eq_left hk, fun s hs => ?_,
+      List.length_take.trans (Nat.min_eq_left hk),
+      fun _ hs => mem_shortMembers.mp (List.mem_of_mem_take hs),
       fun h => absurd h Bool.false_ne_true⟩
-    exact mem_shortMembers.mp (List.mem_of_mem_take hs)
 
 /-- **At the exact census, a request with `finalQuery = true` asks for the first quantifier.**
 If `G` computes `g` whenever its list agrees with `S` on the words of length at most `m |enc a|`,
@@ -210,17 +209,15 @@ theorem language_eq_setOf_check {VS : List Bool × List Bool → Bool} {pS : Pol
         ∃ c, c.length = pS.eval s.length ∧ VS (s, c) = true := (hSV s).1 hs
     let cert : List Bool → List Bool := fun s => if hs : s ∈ S then (hcert s hs).choose else []
     have hmap : (ℓ.map fun s => (s, cert s)).map Prod.fst = ℓ := by
-      rw [List.map_map]
-      exact List.map_id' ℓ
+      simp [List.map_map, Function.comp_def]
     refine ⟨(ℓ.map fun s => (s, cert s),
       if h : finalQuery = true then (hw h).choose else []), check_eq_true_iff.mpr
-      ⟨by rw [hmap]; exact hnd, by rw [hmap]; exact hlen, fun sc hsc => ?_, fun h => ?_⟩⟩
-    · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hsc
-      have hsS := (hmem s hs).1
-      simp only [cert, hsS, ↓reduceDIte]
-      exact ⟨(hmem s hs).2, (hcert s hsS).choose_spec.1, (hcert s hsS).choose_spec.2⟩
-    · simp only [h, ↓reduceDIte, hmap]
-      exact (hw h).choose_spec
+      ⟨by rwa [hmap], by rwa [hmap], fun sc hsc => ?_,
+        fun h => by simpa only [h, ↓reduceDIte, hmap] using (hw h).choose_spec⟩⟩
+    obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hsc
+    have hsS := (hmem s hs).1
+    simp only [cert, hsS, ↓reduceDIte]
+    exact ⟨(hmem s hs).2, (hcert s hsS).choose_spec.1, (hcert s hsS).choose_spec.2⟩
   · rintro ⟨⟨pairs, w⟩, hy⟩
     obtain ⟨hnd, hlen, hpairs, hw⟩ := check_eq_true_iff.mp hy
     refine ⟨pairs.map Prod.fst, hnd, hlen, fun s hs => ?_, fun h => ⟨w, hw h⟩⟩
@@ -236,7 +233,7 @@ theorem computableInPolyTime_check {VS : List Bool × List Bool → Bool} {pS : 
       (encPair (encPair enc (encPair encUnary encBool))
         (encPair (encList (encPair encBits encBits)) encBits)) encBool := by
   -- the same function, with its components read by projections
-  have h : ComputableInPolyTime
+  change ComputableInPolyTime
       (fun z : (α × ℕ × Bool) × (List (List Bool × List Bool) × List Bool) =>
         !((z.2.1.map Prod.fst).any fun s =>
             decide (1 < (z.2.1.map Prod.fst).countP fun t => decide (t = s))) &&
@@ -246,9 +243,8 @@ theorem computableInPolyTime_check {VS : List Bool × List Bool → Bool} {pS : 
           (!z.1.2.2 || (decide (z.2.2.length = p.eval (enc z.1.1).length) &&
             !G ((z.1.1, z.2.2), z.2.1.map Prod.fst))))
       (encPair (encPair enc (encPair encUnary encBool))
-        (encPair (encList (encPair encBits encBits)) encBits)) encBool := by
-    fun_prop
-  exact h
+        (encPair (encList (encPair encBits encBits)) encBits)) encBool
+  fun_prop
 
 /-- **The requests form a problem in `NP`** when `S` is a sparse problem in `NP` and `G` is
 polynomial-time: a witness lists the guessed members with their certificates, and the word `w`.
@@ -483,9 +479,7 @@ theorem SigmaP_two_subset_PNPLog_of_sparse (hsparse : S ∈ SPARSE encBits) (hS 
     .of_eq fun _ => rfl
   have hreqb (b : Bool) : ComputableInPolyTime (fun x : α × ℕ => encCNF (red (x.1, x.2, b)))
       (encPair enc encUnary) encBits :=
-    henc.comp (hred.comp (g := fun x : α × ℕ => (x.1, x.2, b))
-      ((ComputableInPolyTime.fst _ _).prod ((ComputableInPolyTime.snd _ _).prod
-        (ComputableInPolyTime.const b))))
+    henc.comp (hred.comp (by fun_prop))
   have hmemA (x : α × ℕ × Bool) :
       encCNF (red x) ∈ encCNF '' SAT ↔ x ∈ KadinCensus.language S enc m p G := by
     rw [hDred x]

@@ -457,10 +457,9 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
   let e : V₀ ≃ Fin n := eBase.trans (Equiv.swap (eBase w₀) lastIdx)
   let G : TrustGraph (Fin n) := G₀.relabel e
   let v : Fin n := e v₀
+  have hew₀ : e w₀ = lastIdx := by simp [e]
   have hv_lt : F G v < F G lastIdx := by
-    have h1 := hSym G₀ e v₀
-    have h2 := hSym G₀ e w₀
-    rw [show e w₀ = lastIdx by simp [e]] at h2; linarith
+    linarith [hSym G₀ e v₀, hew₀ ▸ hSym G₀ e w₀]
   have hvw : v ≠ lastIdx := fun h => hv_lt.ne (h ▸ rfl)
   let H : ∀ k : ℕ, 1 ≤ k → TrustGraph (Fin k) := fun k hk => G.contract (clampFin hk)
   -- Step 0: G → G ⊔ H 1 adds a single isolated Sybil `Sum.inr 0` for `v`.
@@ -484,22 +483,18 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
           · have hflt : ∀ u : Fin n,
                 univ.filter (fun x : Fin n ⊕ Fin 1 => Sum.elim id (fun _ => v) x = u) =
                   if u = v then {Sum.inl v, Sum.inr 0} else {Sum.inl u} := fun u => by
-              ext x
-              cases x with
-              | inl _ => split_ifs with h <;> simp [h]
-              | inr z =>
-                fin_cases z
-                split_ifs with h <;> simp [h, eq_comm]
+              ext (_ | z)
+              · by_cases h : u = v <;> simp [h]
+              · fin_cases z
+                by_cases h : u = v <;> simp [h, eq_comm]
             rw [TrustGraph.contract_weight_of_ne _ _ hab, hflt a, hflt b]
             rcases eq_or_ne a v with rfl | hav <;> rcases eq_or_ne b v with rfl | hbv
             · exact absurd rfl hab
             all_goals simp [*, TrustGraph.disjointUnion] }
     have hcard : S₀.sybils.card ≤ 2 :=
-      (card_le_card (t := {Sum.inl v, Sum.inr 0}) fun x hx => by
-        rw [SybilStrategy.mem_sybils] at hx
-        rcases x with a | z
-        · simpa [S₀] using hx
-        · simp [Subsingleton.elim z 0]).trans (card_insert_le _ _)
+      (card_le_card (t := {Sum.inl v, Sum.inr 0}) fun
+        | .inl _, hx => by simpa [S₀] using S₀.mem_sybils.mp hx
+        | .inr z, _ => by simp [Subsingleton.elim z 0]).trans (card_insert_le _ _)
     exact hSP1 G v S₀ hcard (Sum.inr 0) (by simp [S₀, SybilStrategy.sybils]) lastIdx hvw.symm hv_lt
   -- Inductive step: `Sum.inr ⟨k - 1, _⟩` stays strictly below `Sum.inl lastIdx` (`1 ≤ k ≤ n`).
   have hind : ∀ (k : ℕ) (hk1 : 1 ≤ k), k ≤ n →
@@ -523,12 +518,8 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
             instDecidableEq := inferInstance
             graph := G.disjointUnion (H (m + 1) (by omega))
             collapse := πStep
-            exists_collapse_eq := ⟨Sum.inr ⟨m, by omega⟩, by
-              simp [πStep, target, stepFin]⟩
-            honestEmbed := fun w =>
-              match w.1 with
-              | Sum.inl i => Sum.inl i
-              | Sum.inr j => Sum.inr ⟨j.1, by omega⟩
+            exists_collapse_eq := ⟨Sum.inr ⟨m, by omega⟩, by simp [πStep, target, stepFin]⟩
+            honestEmbed := fun w => Sum.map id (Fin.castLE (by omega)) w.1
             collapse_honestEmbed := fun ⟨w, hw⟩ => by
               rcases w with i | j
               · rfl
@@ -556,23 +547,20 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
                   rw [← hcomp, TrustGraph.contract_weight_of_ne (stepFin hm_ge1) _ hab']
                   simp [sum_filter, Fintype.sum_sum_type, πStep] }
         have hcard : Sk.sybils.card ≤ 2 :=
-          (card_le_card (t := {Sum.inr ⟨m - 1, by omega⟩, Sum.inr ⟨m, by omega⟩})
-            fun x hx => by
-              rw [SybilStrategy.mem_sybils] at hx
-              rcases x with i | j
-              · simp [Sk, πStep, target] at hx
-              · simp only [Sk, πStep, Sum.map_inr, stepFin, target,
-                  Sum.inr.injEq, Fin.ext_iff] at hx
-                simp only [mem_insert, mem_singleton, Sum.inr.injEq, Fin.ext_iff]
-                omega).trans (card_insert_le _ _)
+          (card_le_card (t := {Sum.inr ⟨m - 1, by omega⟩, Sum.inr ⟨m, by omega⟩}) fun
+            | .inl _, hx => absurd (Sk.mem_sybils.mp hx) (by simp [Sk, πStep, target])
+            | .inr j, hx => by
+              have hjm := Sk.mem_sybils.mp hx
+              simp only [Sk, πStep, Sum.map_inr, stepFin, target, Sum.inr.injEq, Fin.ext_iff] at hjm
+              simp only [mem_insert, mem_singleton, Sum.inr.injEq, Fin.ext_iff]
+              omega).trans (card_insert_le _ _)
         simpa [Sk, SybilStrategy.honest] using hSP1 (G.disjointUnion (H m hm_ge1)) target Sk hcard
           (Sum.inr ⟨m, by omega⟩) (by simp [Sk, SybilStrategy.sybils, πStep, target, stepFin])
           (Sum.inl lastIdx) (by simp [target]) hprev
   have hfinal := hind n (by omega) le_rfl
   have hHn : H n (by omega) = G := by
-    have hclamp_id : clampFin (n := n) (k := n) (by omega) = id :=
-      funext fun i => Fin.ext (Nat.min_eq_left (by omega))
-    simp [H, hclamp_id]
+    simp [H, (funext fun i => Fin.ext (Nat.min_eq_left (by omega)) :
+      clampFin (n := n) (k := n) (by omega) = id)]
   rw [hHn] at hfinal
   have hrelabel : (G.disjointUnion G).relabel (Equiv.sumComm _ _) = G.disjointUnion G := by
     ext (_ | _) (_ | _) <;> rfl
@@ -597,9 +585,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
   let n := Fintype.card V₀
   let e : V₀ ≃ Fin n := Fintype.equivFin V₀
   let G : TrustGraph (Fin n) := G₀.relabel e
-  have hlt : F G (e v₀) < F G (e w₀) := by
-    rw [hSym G₀ e v₀, hSym G₀ e w₀]
-    exact hlt₀
+  have hlt : F G (e v₀) < F G (e w₀) := by rwa [hSym G₀ e v₀, hSym G₀ e w₀]
   -- Prefix graphs `G_pref k` turn on outgoing edges of vertices `< k` one vertex at a time.
   let G_pref : ℕ → TrustGraph (Fin n) := fun k =>
     { weight := fun u v => if u.1 < k then G.weight u v else 0
@@ -614,9 +600,8 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
     induction k with
     | zero =>
       intro _ x y
-      have hrel : (G_pref 0).relabel (Equiv.swap x y) = G_pref 0 := by
-        ext
-        simp [G_pref]
+      have hrel : (G_pref 0).relabel (Equiv.swap x y) = G_pref 0 :=
+        TrustGraph.ext (funext₂ fun _ _ => rfl)
       simpa [hrel] using (hSym (G_pref 0) (Equiv.swap x y) x).symm
     | succ k ih =>
       intro hkn x y
@@ -624,16 +609,15 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
       let uk : Fin n := ⟨k, hkn⟩
       have hout : ∀ a : Fin n, a ≠ uk → ∀ b : Fin n,
           (G_pref (k + 1)).weight a b = (G_pref k).weight a b := fun a ha _ => by
-        have : a.1 ≠ k := fun hv => ha (Fin.ext hv)
-        simp [G_pref, show a.1 < k + 1 ↔ a.1 < k by omega]
+        have hak : a.1 < k + 1 ↔ a.1 < k := ⟨fun h => Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp h)
+          fun hv => ha (Fin.ext hv), Nat.lt_succ_of_lt⟩
+        simp [G_pref, hak]
       have heq_uk : ∀ z : Fin n, F (G_pref (k + 1)) uk = F (G_pref (k + 1)) z := fun z =>
         le_antisymm ((hRSP (G_pref k) (G_pref (k + 1)) uk hout z).2 (ihk uk z).le) <|
           not_lt.mp fun hlt_z => ((hRSP (G_pref (k + 1)) (G_pref k) uk
             (fun a ha b => (hout a ha b).symm) z).1 hlt_z).ne (ihk uk z)
       exact (heq_uk x).symm.trans (heq_uk y)
-  have hGn : G_pref n = G := by
-    ext u v
-    simp [G_pref, u.2]
+  have hGn : G_pref n = G := TrustGraph.ext (funext₂ fun u _ => ite_eq_left u.2)
   exact hlt.ne (hGn ▸ hconst n le_rfl (e v₀) (e w₀))
 
 end GlobalRepFn
@@ -706,11 +690,9 @@ theorem isValueSybilproof_maxFlowRep : SeededRepFn.IsValueSybilproof maxFlowRep 
   intro V _ _ G s v hsv S u hu
   obtain ⟨X, hsX, hvX, hXeq⟩ := exists_cutWeight_eq_minRealCutBetween G.weight hsv.symm
   let X' : Finset S.Vertex := univ.filter fun x' => S.collapse x' ∈ X
-  have hsX' : S.honest s hsv.symm ∈ X' := by
-    simp [X', S.collapse_honest s hsv.symm, hsX]
-  have huX' : u ∉ X' := by
-    rw [S.mem_sybils] at hu
-    simp [X', hu, hvX]
+  have hsX' : S.honest s hsv.symm ∈ X' :=
+    mem_filter.mpr ⟨mem_univ _, (S.collapse_honest s hsv.symm).symm ▸ hsX⟩
+  have huX' : u ∉ X' := fun h => hvX ((S.mem_sybils.mp hu) ▸ (mem_filter.mp h).2)
   calc maxFlowRep S.graph (S.honest s hsv.symm) u
       ≤ cutWeight S.graph.weight X' := minRealCutBetween_le_cutWeight S.graph.weight hsX' huX'
     _ = cutWeight (S.graph.contract S.collapse).weight X :=
@@ -1120,34 +1102,34 @@ theorem isRankStrategyproof_pathrankRep :
         hp_valid.1 hp_valid.2 hmem))
     exact ((pathrankDist_le_of_walk G' hp_valid).trans_eq (hw_congr p hv_not)
       |>.trans_lt hp).trans_eq heq_v.symm
-  refine ⟨fun hlt => ?_, fun hle => ?_⟩
-  · rw [pathrankRep_lt_iff] at hlt ⊢
-    exact hstrict hlt
-  · rw [pathrankRep_le_iff] at hle ⊢
-    rcases eq_or_lt_of_le hle with hd_eq | hd_lt
-    · by_cases hwv : w = v
-      · subst hwv; exact le_rfl
-      · by_cases htop : pathrankDist G s v = ⊤
-        · rw [heq_v, htop]; exact le_top
-        · refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
-          let δ : ℝ≥0∞ := min (ε : ℝ≥0∞) (minEdgeStep G)
-          have hδ_pos : 0 < δ := lt_min (ENNReal.coe_pos.mpr hε) (minEdgeStep_pos G)
-          have hlt_δ : pathrankDist G s w < pathrankDist G s v + δ := by
-            rw [hd_eq]
-            exact ENNReal.lt_add_right htop hδ_pos.ne'
-          obtain ⟨p, hp_valid, hp⟩ := exists_walk_lt_of_pathrankDist_lt G hlt_δ
-          have hv_not : v ∉ p := fun hmem =>
-            (hp.trans_le (add_le_add le_rfl (min_le_right _ _))).not_ge
-              (pathrankDist_add_minEdgeStep_le_of_mem G (Ne.symm hwv) p s
-                hp_valid.1 hp_valid.2 hmem)
-          calc pathrankDist G' s w
-              ≤ walkInvTrustLen G' p := pathrankDist_le_of_walk G' hp_valid
-            _ = walkInvTrustLen G p := hw_congr p hv_not
-            _ ≤ pathrankDist G s v + δ := hp.le
-            _ ≤ pathrankDist G' s v + ε := by
-                rw [heq_v]
-                exact add_le_add le_rfl (min_le_left _ _)
-    · exact (hstrict hd_lt).le
+  refine ⟨fun hlt => (pathrankRep_lt_iff ..).mpr (hstrict ((pathrankRep_lt_iff ..).mp hlt)),
+    fun hle => ?_⟩
+  rw [pathrankRep_le_iff] at hle ⊢
+  rcases eq_or_lt_of_le hle with hd_eq | hd_lt
+  · by_cases hwv : w = v
+    · subst hwv; exact le_rfl
+    · by_cases htop : pathrankDist G s v = ⊤
+      · rw [heq_v, htop]
+        exact le_top
+      · refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
+        let δ : ℝ≥0∞ := min (ε : ℝ≥0∞) (minEdgeStep G)
+        have hδ_pos : 0 < δ := lt_min (ENNReal.coe_pos.mpr hε) (minEdgeStep_pos G)
+        have hlt_δ : pathrankDist G s w < pathrankDist G s v + δ := by
+          rw [hd_eq]
+          exact ENNReal.lt_add_right htop hδ_pos.ne'
+        obtain ⟨p, hp_valid, hp⟩ := exists_walk_lt_of_pathrankDist_lt G hlt_δ
+        have hv_not : v ∉ p := fun hmem =>
+          (hp.trans_le (add_le_add le_rfl (min_le_right _ _))).not_ge
+            (pathrankDist_add_minEdgeStep_le_of_mem G (Ne.symm hwv) p s
+              hp_valid.1 hp_valid.2 hmem)
+        calc pathrankDist G' s w
+            ≤ walkInvTrustLen G' p := pathrankDist_le_of_walk G' hp_valid
+          _ = walkInvTrustLen G p := hw_congr p hv_not
+          _ ≤ pathrankDist G s v + δ := hp.le
+          _ ≤ pathrankDist G' s v + ε := by
+              rw [heq_v]
+              exact add_le_add le_rfl (min_le_left _ _)
+  · exact (hstrict hd_lt).le
 
 private theorem walkInvTrustLen_anti_pointwise {V : Type*} {G G' : TrustGraph V}
     (hle : ∀ x y, G.weight x y ≤ G'.weight x y) :

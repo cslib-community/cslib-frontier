@@ -343,10 +343,10 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
         rw [card_sdiff_of_subset (subset_univ S), card_univ, Fintype.card_fin, hcard2]
       obtain ⟨i₃, hi₃_eq⟩ := card_eq_one.mp hcard_comp
       have hi₃_notS : i₃ ∉ S := (mem_sdiff.mp (hi₃_eq ▸ mem_singleton_self i₃)).2
-      have hAi₁ : A i₁ = jstar :=
-        (mem_filter.mp (show i₁ ∈ S from hS_eq ▸ mem_insert_self i₁ {i₂})).2
+      have hmemS {i} (hi : i ∈ ({i₁, i₂} : Finset (Fin 3))) : i ∈ S := hS_eq ▸ hi
+      have hAi₁ : A i₁ = jstar := (mem_filter.mp (hmemS (mem_insert_self i₁ _))).2
       have hAi₂ : A i₂ = jstar :=
-        (mem_filter.mp (show i₂ ∈ S from hS_eq ▸ mem_insert_of_mem (mem_singleton_self i₂))).2
+        (mem_filter.mp (hmemS (mem_insert_of_mem (mem_singleton_self i₂)))).2
       have hload_jstar : G.load A jstar = G.weight i₁ + G.weight i₂ := by
         rw [hload_S, hS_eq, sum_pair hi₁₂]
       have hload_other : G.load A jother = G.weight i₃ := by
@@ -355,17 +355,14 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
       have hNE₂ := (G.isPureNash_iff A).mp hA i₂ jother (hAi₂ ▸ hjne)
       rw [hAi₁, hload_jstar, hload_other, hId jother, div_one] at hNE₁
       rw [hAi₂, hload_jstar, hload_other, hId jother, div_one] at hNE₂
-      have hi₁₃ : i₁ ≠ i₃ := fun h => hi₃_notS (h ▸ hS_eq ▸ mem_insert_self i₁ {i₂})
+      have hi₁₃ : i₁ ≠ i₃ := fun h => hi₃_notS (h ▸ hmemS (mem_insert_self i₁ _))
       have hi₂₃ : i₂ ≠ i₃ := fun h =>
-        hi₃_notS (h ▸ hS_eq ▸ mem_insert_of_mem (mem_singleton_self i₂))
+        hi₃_notS (h ▸ hmemS (mem_insert_of_mem (mem_singleton_self i₂)))
       have hpig : τ i₁ = τ i₂ ∨ τ i₁ = τ i₃ ∨ τ i₂ = τ i₃ := by
         generalize τ i₁ = a, τ i₂ = b, τ i₃ = c
         fin_cases a <;> fin_cases b <;> fin_cases c <;> decide
       rw [hload_jstar]
-      rcases hpig with h | h | h
-      · exact hpair_le hi₁₂ h
-      · linarith [hpair_le hi₁₃ h]
-      · linarith [hpair_le hi₂₃ h]
+      rcases hpig with h | h | h <;> linarith [hpair_le (by assumption) h]
 
 /-- **Small-job pure Nash bound on identical machines** ([Vocking2007]): if
 every job has weight at most `B`, then every pure Nash equilibrium `A` satisfies
@@ -378,19 +375,15 @@ theorem IsIdentical.makespan_le_optMakespan_add_of_weight_le {G : LoadBalancingG
   have hm_pos : (0 : ℝ) < Fintype.card M := Nat.cast_pos.mpr Fintype.card_pos
   have hm_ge1 : (1 : ℝ) ≤ Fintype.card M := Nat.one_le_cast.mpr Fintype.card_pos
   obtain ⟨jstar, hjstar⟩ := G.exists_load_eq_makespan A
-  set S : Finset ι := univ.filter fun i => A i = jstar
-  by_cases hSne : S.Nonempty
-  · obtain ⟨i₀, hi₀⟩ := hSne
-    have hbound := hId.card_mul_load_sub_le_card_mul_optMakespan hA (mem_filter.mp hi₀).2
+  rcases (univ.filter fun i => A i = jstar).eq_empty_or_nonempty with hS0 | ⟨i₀, hi₀⟩
+  · rw [← hjstar, G.load_eq_sum_div, hS0, sum_empty, zero_div]
+    nlinarith [G.optMakespan_nonneg, (div_le_one hm_pos).mpr hm_ge1]
+  · have hbound := hId.card_mul_load_sub_le_card_mul_optMakespan hA (mem_filter.mp hi₀).2
     have heq : (Fintype.card M : ℝ) * (G.optMakespan + (1 - 1 / (Fintype.card M : ℝ)) * B) =
         (Fintype.card M : ℝ) * G.optMakespan + ((Fintype.card M : ℝ) - 1) * B := by
       field_simp
     rw [← hjstar]
     nlinarith [hw i₀]
-  · rw [← hjstar, G.load_eq_sum_div,
-      (not_nonempty_iff_eq_empty.mp hSne : (univ.filter fun i => A i = jstar) = ∅),
-      sum_empty, zero_div]
-    nlinarith [G.optMakespan_nonneg, (div_le_one hm_pos).mpr hm_ge1]
 
 end IdenticalPurePoA
 
@@ -600,8 +593,7 @@ theorem card_speedPrefix_step_of_sum_speed_le (G : LoadBalancingGame ι M) (L : 
     set smin : ℝ := G.speed jmin
     have hsmin_pos : 0 < smin := G.speed_pos jmin
     have hsdiff_lt : ∀ j ∈ P k \ P (k + 1), G.speed j ≤ smin := fun j hj => by
-      by_contra hgt
-      push Not at hgt
+      by_contra! hgt
       exact (mem_sdiff.mp hj).2 ((hP (k + 1) j).mpr fun j' hj' =>
         (hP (k + 1) jmin).mp hjmin j' (hgt.le.trans hj'))
     have hsplit_sum : ∑ j ∈ P k, G.speed j =
@@ -786,9 +778,9 @@ theorem le_log_div_log_log_add_three_mul_of_factorial_le {m : ℕ} (hm : 3 ≤ m
       have hr_gt_sqrt : √x < (r : ℝ) := hsqrt_lt.trans_le hge_r
       have hsqrt_gt1 : 1 < √x := Real.sqrt_one ▸ Real.sqrt_lt_sqrt (by norm_num) hlogm_gt1
       have hr_pos : (0 : ℝ) < r := by linarith
-      have hlogr_gt : Real.log x / 2 < Real.log (r : ℝ) := by
-        rw [← Real.log_sqrt (by linarith)]
-        exact Real.log_lt_log (by linarith) hr_gt_sqrt
+      have hlogr_gt : Real.log x / 2 < Real.log (r : ℝ) :=
+        Real.log_sqrt (zero_lt_one.trans hlogm_gt1).le ▸
+          Real.log_lt_log (zero_lt_one.trans hsqrt_gt1) hr_gt_sqrt
       have hmul_gt : x < (r : ℝ) * Real.log (r : ℝ) := by
         have h1 : (2 * x / Real.log x) * (Real.log x / 2) = x := by field_simp [hloglog_pos.ne']
         linarith [mul_le_mul_of_nonneg_right hge_r (by positivity : 0 ≤ Real.log x / 2),

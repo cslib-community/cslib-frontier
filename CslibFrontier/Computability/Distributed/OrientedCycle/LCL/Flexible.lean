@@ -206,18 +206,13 @@ theorem anchorRule_exists {k n : ℕ} {c : ZMod n → ℕ}
     -- some node within distance `k` of `v` has a smaller colour
     obtain ⟨s, hs, hcs⟩ : ∃ s : ℤ, |s| ≤ k ∧ c (v + s) < c v := by
       by_cases h1 : c v < c (v + (m + 1))
-      · have h2 := hc (v - (m + 1)) m hm
-        rw [sub_add_cancel] at h2
-        refine ⟨-(m + 1), ?_, ?_⟩
-        · rw [abs_le]
-          omega
-        · simpa only [Int.cast_neg, Int.cast_add, Int.cast_natCast, Int.cast_one,
-            ← sub_eq_add_neg] using Nat.lt_of_le_of_ne (hle h1) h2
-      · refine ⟨m + 1, ?_, ?_⟩
-        · rw [abs_le]
-          omega
-        · simpa only [Int.cast_add, Int.cast_natCast, Int.cast_one] using
-            Nat.lt_of_le_of_ne (not_lt.1 h1) (hc v m hm).symm
+      · have h2 := sub_add_cancel v (m + 1) ▸ hc (v - (m + 1)) m hm
+        refine ⟨-(m + 1), by rw [abs_le]; omega, ?_⟩
+        simpa only [Int.cast_neg, Int.cast_add, Int.cast_natCast, Int.cast_one,
+          ← sub_eq_add_neg] using Nat.lt_of_le_of_ne (hle h1) h2
+      · refine ⟨m + 1, by rw [abs_le]; omega, ?_⟩
+        simpa only [Int.cast_add, Int.cast_natCast, Int.cast_one] using
+          Nat.lt_of_le_of_ne (not_lt.1 h1) (hc v m hm).symm
     obtain ⟨e, he, hae⟩ := ih (v + s) (by omega)
     refine ⟨s + e, (abs_add_le s e).trans (by push_cast; linarith), ?_⟩
     rwa [Int.cast_add, ← add_assoc]
@@ -343,11 +338,8 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
   intro v
   rw [happly v, happly (v + 1)]
   by_cases hnext : a (v + 1) = true
-  · have hQ0 : Q v = 0 := by
-      by_contra h0
-      have := (hQspec v).2.2 0 (by omega)
-      rw [Nat.cast_zero, zero_add, hnext] at this
-      exact absurd this (by decide)
+  · have hQ0 : Q v = 0 := Nat.eq_zero_of_not_pos fun h0 => by
+      simpa [hnext] using (hQspec v).2.2 0 h0
     have hnext0 : a (v + 1 - ((0 : ℕ) : ZMod n)) = true := by
       rwa [Nat.cast_zero, sub_zero]
     have hP1 : P (v + 1) = 0 :=
@@ -358,11 +350,8 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
     rw [hW0 _ hg1, ← hWm (P v + 1) hg]
     exact hWR _ hg _ (Nat.lt_succ_self _)
   · have hnext' : a (v + 1) = false := by simpa using hnext
-    have hQpos : 1 ≤ Q v := by
-      by_contra h0
-      have h2 := (hQspec v).2.1
-      rw [show Q v = 0 by omega, Nat.cast_zero, zero_add, hnext'] at h2
-      exact absurd h2 (by decide)
+    have hQpos : 1 ≤ Q v := Nat.pos_of_ne_zero fun h0 => by
+      simpa [h0, hnext'] using (hQspec v).2.1
     have hP1 : P (v + 1) = P v + 1 := by
       obtain ⟨d, hd, had⟩ := hcov (v + 1)
       refine firstTrue_eq _ _ ?_ ?_ ⟨d, by omega, had⟩

@@ -369,8 +369,7 @@ theorem exists_augmentingWalk_start_ne (h : EdgeInstance F)
     (hcard.trans_lt hlt) x
   obtain ⟨w, k, _, hw, hstart, hlen, hdist, _⟩ :=
     h.buildWalk_from_start hM hf hvalid hsub r hrf hrg
-  refine ⟨w, hw, hstart ▸ hrx, ?_⟩
-  omega
+  exact ⟨w, hw, hstart ▸ hrx, by omega⟩
 
 /-- First original defect absent from the comparison labeling, excluding the specified start.
 Incidences are scanned in positional order; no arbitrary occurrence is chosen. -/
@@ -404,22 +403,16 @@ theorem augmentingWalk_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bo
   obtain ⟨hvalid, hcard, hrepair, hsub⟩ := h.repair_full_spec hM hf hg
   cases hs : findStart F f fixed.1 x with
   | none =>
-    obtain ⟨r, hrx, hrf, hrg⟩ := h.exists_start_ne hM hf hvalid
-      (hcard.trans_lt hlt) x
-    obtain ⟨o, p, hor, hpr, hop⟩ := hrf
-    have hn := List.find?_eq_none.mp hs o (mem_incidenceList o)
-    exact (hn (by simpa only [hor, decide_eq_true_eq] using
-      (show r ≠ x ∧ Inconsistent f r ∧ ¬ Inconsistent fixed.1 r from
-        ⟨hrx, ⟨o, p, hor, hpr, hop⟩, hrg⟩))).elim
+    obtain ⟨_, hrx, ⟨o, p, rfl, hpr, hop⟩, hrg⟩ :=
+      h.exists_start_ne hM hf hvalid (hcard.trans_lt hlt) x
+    exact (List.find?_eq_none.mp hs o (mem_incidenceList o)
+      (decide_eq_true ⟨hrx, ⟨o, p, rfl, hpr, hop⟩, hrg⟩)).elim
   | some o =>
-    have ho : o.var ≠ x ∧ Inconsistent f o.var ∧ ¬ Inconsistent fixed.1 o.var :=
-      of_decide_eq_true (List.find?_some (p := fun o : Occurrence F =>
-        decide (o.var ≠ x ∧ Inconsistent f o.var ∧ ¬ Inconsistent fixed.1 o.var)) hs)
+    have hfind := List.find?_some (l := incidenceList F) hs
+    have ho := of_decide_eq_true hfind
     obtain ⟨w, k, hw, ha, hstart, hlen, hdist, _⟩ :=
       h.buildWalk_from_start hM hf hvalid hsub o.var ho.2.1 ho.2.2
-    exact ⟨w, by simpa only [augmentingWalk,
-        show findStart F f (repair sem f (hammingDist f g) g).1 x = some o from hs] using hw,
-      ha, hstart ▸ ho.1, by omega⟩
+    exact ⟨w, by simpa only [augmentingWalk, fixed, hs] using hw, ha, hstart ▸ ho.1, by omega⟩
 
 /-- Nonoptimality is equivalent to existence of an augmenting walk, without assuming a solver. -/
 theorem exists_improvement_iff_exists_augmentingWalk (h : EdgeInstance F)
@@ -434,9 +427,8 @@ theorem exists_improvement_iff_exists_augmentingWalk (h : EdgeInstance F)
     obtain ⟨w, hw, _, _⟩ := h.exists_augmentingWalk_start_ne hM hf hg hlt x
     exact ⟨w, hw⟩
   · rintro ⟨w, hw⟩
-    refine ⟨w.flip f, hw.1.1.valid_flip, ?_⟩
     have hd := hw.card_defects_flip_add_two h
-    omega
+    exact ⟨w.flip f, hw.1.1.valid_flip, by omega⟩
 
 /-- An optimal valid labeling has no augmenting walk, and conversely. -/
 theorem isOptimalLabeling_iff_no_augmentingWalk (h : EdgeInstance F)

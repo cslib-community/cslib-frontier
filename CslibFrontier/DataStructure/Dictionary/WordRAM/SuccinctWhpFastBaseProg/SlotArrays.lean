@@ -81,7 +81,6 @@ theorem realizes_readQuotGen :
       (fun _ _ => 0) := by
   unfold readQuotGenProg
   realize [realizes_readPackedGen]
-  rcases d with ⟨⟨cp, base⟩, p⟩
   exact quot_pre_safe h
 
 theorem readQuotGenProg_spec {c U V w n_max base p : ℕ} {fs : FastState} {s : Memory.State}
@@ -113,7 +112,6 @@ theorem realizes_writeQuotGen :
       (fun _ _ => 0) := by
   unfold writeQuotGenProg
   realize [realizes_writePackedGen]
-  rcases d with ⟨⟨⟨cp, base⟩, p⟩, q_val⟩
   exact quot_pre_safe h
 
 theorem writeQuotGenProg_fastStep {c U V w n_max base p q_val : ℕ}
@@ -183,7 +181,6 @@ theorem realizes_readValGen :
       (fun _ _ => 0) := by
   unfold readValGenProg
   realize [realizes_readPackedGen]
-  rcases d with ⟨⟨cp, base⟩, p⟩
   exact val_pre_safe h
 
 theorem readValGenProg_spec {c U V w n_max base p : ℕ} {fs : FastState} {s : Memory.State}
@@ -215,7 +212,6 @@ theorem realizes_writeValGen :
       (fun _ _ => 0) := by
   unfold writeValGenProg
   realize [realizes_writePackedGen]
-  rcases d with ⟨⟨⟨cp, base⟩, p⟩, v_val⟩
   exact val_pre_safe h
 
 theorem writeValGenProg_fastStep {c U V w n_max base p v_val : ℕ}
@@ -300,11 +296,8 @@ theorem realizes_readBackPtrGen :
       (fun _ _ => 0) := by
   unfold readBackPtrGenProg
   realize [realizes_readPackedGen]
-  all_goals (
-    rcases d with ⟨⟨⟨cp, base⟩, b⟩, k⟩
-    obtain ⟨h2, h3⟩ := backPtr_realize_bounds h
-    first | exact h2 | exact h3
-  )
+  · exact (backPtr_realize_bounds h).1
+  · exact (backPtr_realize_bounds h).2
 
 theorem readBackPtrGenProg_spec {c U V w n_max base b k : ℕ} {fs : FastState}
     {s : Memory.State}
@@ -341,11 +334,8 @@ theorem realizes_writeBackPtrGen :
       (fun _ _ => 0) := by
   unfold writeBackPtrGenProg
   realize [realizes_writePackedGen]
-  all_goals (
-    rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, k⟩, pSlot⟩
-    obtain ⟨h2, h3⟩ := backPtr_realize_bounds h
-    first | exact h2 | exact h3
-  )
+  · exact (backPtr_realize_bounds h).1
+  · exact (backPtr_realize_bounds h).2
 
 theorem writeBackPtrGenProg_fastStep {c U V w n_max base b k pSlot : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {s : Memory.State}

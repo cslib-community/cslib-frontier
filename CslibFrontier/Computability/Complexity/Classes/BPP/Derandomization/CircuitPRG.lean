@@ -282,9 +282,8 @@ theorem seedDecider_eq_true_iff_of_advantage_lt {A : Set α} {V : α × List Boo
       List.ofFn_getD_eq_of_length false (by rw [hlen, List.length_ofFn])]
   have hstrings : (#{y : BitString (ℓ k) | test y = true} : ℝ) / 2 ^ ℓ k =
       #{r : Fin m → Bool | V (x, List.ofFn r) = true} / 2 ^ m := by
-    have hcount := BitString.card_filter_take hm fun w => V (x, w) = true
-    simp only [test]
-    rw [hcount, ← pow_sub_mul_pow 2 hm]
+    simp only [test, BitString.card_filter_take hm fun w => V (x, w) = true]
+    rw [← pow_sub_mul_pow 2 hm]
     push_cast
     field_simp
   rw [hseeds, hstrings] at hadv
@@ -412,31 +411,23 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
     certificate (ℓ k) (k ^ c) (C k).code.1 ((C k).outputs 0).toNat
   -- the output length is polynomial-time and polynomially bounded
   have hℓ : ComputableInPolyTime ℓ encUnary encUnary := by
-    have h : ℓ = fun k => (G (List.replicate k false)).length :=
-      funext fun k => by rw [hG.length_eq, List.length_replicate]
-    rw [h]
-    exact ComputableInPolyTime.length_bits.comp
-      (hG.polyTime.comp (ComputableInPolyTime.bitsReplicate false))
-  have hℓpoly : PolynomiallyBounded ℓ := ComputableInPolyTime.polynomiallyBounded hℓ
+    simpa only [Function.comp_def, hG.length_eq, List.length_replicate] using
+      ComputableInPolyTime.length_bits.comp
+        (hG.polyTime.comp (ComputableInPolyTime.bitsReplicate false))
+  have hℓpoly : PolynomiallyBounded ℓ := hℓ.polynomiallyBounded
   have hadvice : PolynomiallyBounded fun k => (advice k).length := by
-    have hlen : (fun k => (advice k).length) = fun k => certLength (ℓ k) (k ^ c) :=
-      funext fun k => length_certificate_code (C k) (hCsize k)
-    rw [hlen]
-    simp only [certLength]
+    simp only [advice, length_certificate_code _ (hCsize _), certLength]
     fun_prop
   -- the advised test reads the certificate and evaluates its circuit on the challenge
   set test : (ℕ × List Bool) × List Bool → ProbComp Bool := fun q =>
     pure (evalOutput q.2 (readCertificate q.2.length (q.1.1 ^ c) q.1.2).1
       (readCertificate q.2.length (q.1.1 ^ c) q.1.2).2)
   have htest : IsPPTOn encAdvisedInput encBool test := by
-    have hk : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1)
-        encAdvisedInput encUnary := (ComputableInPolyTime.fst _ _).comp (.fst _ _)
-    have hx : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.2)
-        encAdvisedInput encBits := .snd _ _
-    have hread := computableInPolyTime_readCertificate (ComputableInPolyTime.length_bits.comp hx)
+    have hread := computableInPolyTime_readCertificate
+      (ComputableInPolyTime.length_bits.comp (.snd _ _))
       (by fun_prop : ComputableInPolyTime (fun q => q.1.1 ^ c) encAdvisedInput encUnary)
       ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
-    exact (computableInPolyTime_evalOutput hx ((ComputableInPolyTime.fst _ _).comp hread)
+    exact (computableInPolyTime_evalOutput (.snd _ _) ((ComputableInPolyTime.fst _ _).comp hread)
       ((ComputableInPolyTime.snd _ _).comp hread)).isPPTOn
   have hneg := hG.secure advice hadvice test htest
   -- its advantage at seed length `k` is that of the chosen circuit

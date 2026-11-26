@@ -469,18 +469,15 @@ private theorem exists_empirical_tuple {α β : Type*} [Fintype α] [Fintype β]
           rw [sum_const, card_univ, nsmul_eq_mul]
           ring
   have hcompl_pos : 0 < (μ.toOuterMeasure (⋃ i : α, bad i)ᶜ).toReal := by
-    have hadd := toOuterMeasure_toReal_add_compl μ (⋃ i : α, bad i)
-    linarith
+    linarith [toOuterMeasure_toReal_add_compl μ (⋃ i : α, bad i)]
   obtain ⟨ω, hω_good, hω_supp⟩ := (toOuterMeasure_toReal_pos_iff μ _).1 hcompl_pos
   refine ⟨ω, fun t => ?_, fun i => ?_⟩
   · exact (mem_support_mixedToPMF_iff hp (ω t)).1 ((mem_support_pi_iff _ ω).1 hω_supp t)
-  · have hni : ω ∉ bad i := fun hi => hω_good (Set.mem_iUnion.2 ⟨i, hi⟩)
-    have hlt : |(∑ t : Fin k, g i (ω t)) - ∑ _t : Fin k, ∑ b : β, (q b).toReal * g i b| <
-        (k : ℝ) * δ := not_le.1 hni
-    have hmean : (∑ _t : Fin k, ∑ b : β, (q b).toReal * g i b) = (k : ℝ) * (p ⬝ᵥ g i) := by
-      simp only [q, mixedToPMF_toReal hp, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-      rfl
-    rw [hmean] at hlt
+  · have hni : |(∑ t : Fin k, g i (ω t)) - ∑ _t : Fin k, ∑ b : β, (q b).toReal * g i b| <
+        (k : ℝ) * δ := not_le.1 fun hi => hω_good (Set.mem_iUnion.2 ⟨i, hi⟩)
+    have hlt : |(∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)| < (k : ℝ) * δ := by
+      simpa only [q, mixedToPMF_toReal hp, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul,
+        dotProduct] using hni
     have heq : (∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i) =
         ((∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)) / k := by
       field_simp
@@ -496,15 +493,11 @@ private theorem lmm_payoff_bound {α : Type*} [Fintype α] [DecidableEq α] {k :
     (hub : ∀ a : α, uStar a ≤ v) (a : α) :
     uHat a ≤ uniformMultiset ((univ : Finset (Fin k)).val.map ω) ⬝ᵥ uHat + ε := by
   have hlb : v - ε / 2 ≤ uniformMultiset ((univ : Finset (Fin k)).val.map ω) ⬝ᵥ uHat := by
-    rw [uniformMultiset_dotProduct_of_map_univ ω]
-    have hterm : ∀ t : Fin k, v - ε / 2 ≤ uHat (ω t) := fun t => by
-      have habs := abs_le.1 (happrox (ω t))
-      linarith [heq_supp t]
-    have hsum := sum_le_sum fun t (_ : t ∈ univ) => hterm t
-    rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] at hsum
-    exact (le_div_iff₀' hk).2 hsum
-  have habs := abs_le.1 (happrox a)
-  linarith [hub a]
+    rw [uniformMultiset_dotProduct_of_map_univ ω, le_div_iff₀' hk]
+    simpa only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] using
+      sum_le_sum (s := univ) (f := fun _ => v - ε / 2) (g := fun t => uHat (ω t)) fun t _ =>
+        by linarith [(abs_le.1 (happrox (ω t))).1, heq_supp t]
+  linarith [(abs_le.1 (happrox a)).2, hub a]
 
 /-- **Uniform-multiset small-support `ε`-approximate Nash existence (`[0, 1]`-normalized form of
 [TardosVazirani2007], Exercise 1.6, p. 27)**: in any nonempty finite rectangular bimatrix game with
@@ -627,9 +620,7 @@ theorem exists_uniformMultiset_isApproxNash_of_nonneg [DecidableEq M] [Decidable
       · simp only [smul_smul, mul_inv_cancel₀ hK0, one_smul]
   obtain ⟨m₁, m₂, hm₁, hm₂, happrox⟩ :=
     G'.exists_uniformMultiset_isApproxNash (hscale G.A hA) (hscale G.B hB) hε
-  refine ⟨m₁, m₂, hm₁, hm₂, ?_⟩
-  have hscaled := happrox.smul hK
-  rwa [hG', mul_comm K ε] at hscaled
+  exact ⟨m₁, m₂, hm₁, hm₂, mul_comm K ε ▸ hG' ▸ happrox.smul hK⟩
 
 end LiptonMarkakisMehta
 

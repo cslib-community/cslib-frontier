@@ -326,9 +326,7 @@ theorem refSrc_eval {t : ℕ} (j tag p : ℕ) (r : Ref k State) :
     ((Key.ofFields (slotBits k State) (colBits T) X n T j tag p).refSrc r).eval (slotBits k State)
         (colBits T) p (colOf (slotBits k State) (colBits T) p) t T =
       r.label n T t (colOf (slotBits k State) (colBits T) p) := by
-  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩
-  · rfl
-  · rfl
+  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩ <;> try rfl
   · simp only [Key.refSrc, Ref.label, Key.ofFields, Bool.and_eq_true, Bool.not_eq_true',
       decide_eq_false_iff_not, ← Nat.one_le_iff_ne_zero, not_lt]
     split_ifs <;> rfl
@@ -382,12 +380,10 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
                 show κ.t0 = decide (p / 2 ^ slotBits k State / 2 ^ colBits T = 0) from rfl,
                 decide_eq_true_eq]
               split_ifs with ht
-              · simp only [relabel_tseitinClause]
-                rw [hκ, Key.initBit_ofFields]
+              · rw [relabel_tseitinClause, hκ, Key.initBit_ofFields]
                 rfl
               · rcases table tm l with ⟨op, a, b⟩
-                simp only [relabel_tseitinClause]
-                rw [hκ, refSrc_eval, refSrc_eval]
+                rw [relabel_tseitinClause, hκ, refSrc_eval, refSrc_eval]
                 rfl
             · rfl
         · simp only [show κ.p0 = decide (p = 0) from rfl, h0, h1, h2, ↓reduceIte, decide_eq_true_eq]
@@ -592,16 +588,14 @@ theorem refSrc_inRange {j tag p : ℕ} {r : Ref k State}
     (hr : r.InWindow n T (colOf (slotBits k State) (colBits T) p)) :
     ((Key.ofFields (slotBits k State) (colBits T) X n T j tag p).refSrc r).InRange
       (slotBits k State) (colBits T) (colOf (slotBits k State) (colBits T) p) T := by
-  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩
-  · trivial
-  · trivial
+  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩ <;> try trivial
   · simp only [Key.refSrc]; split <;> trivial
   · simp only [Key.refSrc, Key.guard_ofFields]
     split
     · rename_i hg
       refine ⟨slot_lt_two_pow l, ?_⟩
       rw [colSrcOf_eval]
-      exact lt_of_le_of_lt (Loc.labelCol_le l _) (lt_of_lt_of_le (hr hg) (numCols_le_two_pow T))
+      exact (Loc.labelCol_le l _).trans_lt ((hr hg).trans_le (numCols_le_two_pow T))
     · trivial
 
 /-- A property of every literal of every branch of `shapeOf` holds of its literals. -/

@@ -127,10 +127,8 @@ private theorem angle_set_eq {k : ℝ} (hk : 0 ≤ k) :
     exacts [Or.inl this, Or.inr ⟨by linarith, by linarith⟩]
   · have hθ : π / 2 - a ≤ |θ| ∧ |θ| ≤ π / 2 + a := by
       rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩
-      · rw [abs_of_nonneg (by linarith)]
-        exact ⟨h1, h2⟩
-      · rw [abs_of_neg (by linarith)]
-        exact ⟨by linarith, by linarith⟩
+      · exact ⟨le_abs.2 (Or.inl h1), abs_le.2 ⟨by linarith, h2⟩⟩
+      · exact ⟨le_abs.2 (Or.inr (le_neg.1 h2)), abs_le.2 ⟨h1, by linarith⟩⟩
     have hb := abs_lt.1 (show |θ| < π by linarith)
     exact ⟨cos_abs θ ▸ (hmem |θ| ⟨abs_nonneg _, by linarith⟩).2 hθ, by linarith, by linarith⟩
 
@@ -217,8 +215,8 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs_of_ne_zero {s r : ℝ≥0} (hs : 
         {p : ℝ × ℝ | |p.1| ≤ k * √(r : ℝ) / √(s : ℝ) * |p.2|} := by
     ext p
     simp only [mem_preimage, Prod.map_fst, Prod.map_snd, mem_ofPred_eq, abs_mul,
-      abs_of_nonneg (sqrt_nonneg _), div_mul_eq_mul_div, le_div_iff₀ hs']
-    exact ⟨fun h => by linarith, fun h => by linarith⟩
+      abs_of_nonneg (sqrt_nonneg _), div_mul_eq_mul_div, le_div_iff₀ hs', mul_comm √(s : ℝ),
+      mul_assoc]
   rw [hpre, gaussianReal_prod_setOf_abs_le_mul_abs (by positivity)]
 
 /-! ### Sheppard's bound -/
@@ -244,10 +242,8 @@ private theorem gaussianReal_prod_setOf_abs_sub_le_abs_le (s : ℝ≥0) (ν : Me
   rw [Measure.prod_apply_symm (measurableSet_le (by fun_prop) (by fun_prop)),
     Measure.prod_apply_symm (measurableSet_le (by fun_prop) (by fun_prop))]
   refine lintegral_mono fun y => ?_
-  have h0 := e 0 y
-  simp only [sub_zero] at h0
-  rw [e c y, h0]
-  exact gaussianReal_Icc_le 0 s c |y|
+  rw [e c y]
+  simpa only [← e 0 y, sub_zero] using gaussianReal_Icc_le 0 s c |y|
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
   [MeasurableSpace E] [BorelSpace E]
@@ -326,11 +322,9 @@ private theorem measureReal_stdGaussian_zero_mem_uIoc_eq_angle_of_norm_eq {u v :
     rw [measureReal_def, nonpos_iff_eq_zero.1 ((stdGaussian_inner_mem_le hv
       (measurableSet_singleton 0)).trans (by simp)), ENNReal.toReal_zero]
   have hcompl : {x : E | (0 : ℝ) ∈ Ι ⟪u, x⟫ ⟪v, x⟫}ᶜ ⊆
-      {x | (0 : ℝ) ∈ Ι ⟪u, x⟫ ⟪-v, x⟫} ∪ {x | ⟪v, x⟫ ∈ ({0} : Set ℝ)} := fun x hx => by
-    by_cases h0 : ⟪v, x⟫ = 0
-    · exact Or.inr h0
-    · exact Or.inl (by simpa only [mem_ofPred_eq, inner_neg_left] using
-        zero_mem_uIoc_neg_of_notMem hx h0)
+      {x | (0 : ℝ) ∈ Ι ⟪u, x⟫ ⟪-v, x⟫} ∪ {x | ⟪v, x⟫ ∈ ({0} : Set ℝ)} := fun x hx =>
+    (eq_or_ne ⟪v, x⟫ 0).symm.imp
+      (fun h0 => by simpa [inner_neg_left] using zero_mem_uIoc_neg_of_notMem hx h0) id
   have h := (measureReal_mono (μ := stdGaussian E) hcompl).trans (measureReal_union_le _ _)
   rw [probReal_compl_eq_one_sub hmeas, hnull, add_zero] at h
   have hneg := measureReal_stdGaussian_mem_uIoc_le_angle (huv.trans (norm_neg v).symm) 0

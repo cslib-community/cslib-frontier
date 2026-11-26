@@ -180,10 +180,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
   have htot_fix : totalSlots N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
       s_fix.mem) < N := by rw [← hcpl.gm_eq]; exact htot
   by_cases hb0 : bucketBits N = 0
-  · have hb_eq : b = 0 := by
-      have hnb : numBuckets N = 1 := by simp [numBuckets, hb0]
-      omega
-    subst hb_eq
+  · obtain rfl : b = 0 := Nat.lt_one_iff.mp (by simpa only [numBuckets, hb0, pow_zero] using hb)
     unfold totalSlots at htot hm_cap; rw [ite_eq_left hb0] at htot hm_cap
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
     have hc_cap : gm₀ 0 < m_cap := by omega
@@ -247,22 +244,19 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
       unfold FixedCoupled
       have htot3 : epochTotalSlots N (compGmAt metaBase U w N s₃.mem) = gm₀ 0 + 1 := by
         rw [epochTotalSlots, ite_eq_left hb0, hgm3, Function.update_self]
-      have htd3 : compTDAt metaBase U w N s₃.mem = compTDAt metaBase U w N s.mem := by
-        rw [hfr3.td_eq, hs2_mem, fv.2.2.1, hs1_mem, fq.2.2.1]
-      have hdt3 : compDTAt metaBase U w N s₃.mem = compDTAt metaBase U w N s.mem := by
-        rw [hfr3.dt_eq, hs2_mem, fv.2.2.2, hs1_mem, fq.2.2.2]
-      have hlm3 : compLmAt metaBase U w N s₃.mem = compLmAt metaBase U w N s.mem := by
-        rw [hfr3.lm_eq, hs2_mem, fv.1, hs1_mem, fq.1]
       have hp_idx (idx : ℕ) : physByBase N (compGmAt metaBase U w N s₃.mem 0 * slabSize N)
           (compDTAt metaBase U w N s₃.mem) idx = idx := ite_eq_left hb0
       have het0 : epochTotalSlots N (compGmAt metaBase U w N s.mem) = gm₀ 0 := ite_eq_left hb0
       refine ⟨hgm3.trans (by rw [hg_f3, hg_f2, hg_f1, ← hcpl.gm_eq]),
-        hlm3.trans (by rw [hl_f3, hl_f2, hl_f1, ← hcpl.lm_eq]),
+        by rw [hfr3.lm_eq, hs2_mem, fv.1, hs1_mem, fq.1, hl_f3, hl_f2, hl_f1, ← hcpl.lm_eq],
         by simp only [hb0, ↓reduceIte]; exact windowInv_zero _ _ _ _,
-        fun i => by rw [htd3]; exact hcpl.td_lt i,
-        fun i => by rw [hdt3]; exact hcpl.dt_lt i,
-        fun idx hidx => ?_,
-        fun idx hidx => ?_⟩
+        fun i => by
+          rw [hfr3.td_eq, hs2_mem, fv.2.2.1, hs1_mem, fq.2.2.1]
+          exact hcpl.td_lt i,
+        fun i => by
+          rw [hfr3.dt_eq, hs2_mem, fv.2.2.2, hs1_mem, fq.2.2.2]
+          exact hcpl.dt_lt i,
+        fun idx hidx => ?_, fun idx hidx => ?_⟩
       · rw [htot3] at hidx ⊢
         rw [congrFun hfr3.quot_eq idx, hs2_mem, compQuotAt_writeCompVal henv.pos_w, hs1_mem,
           hq_f3, hq_f2, hq_f1, hp_idx]

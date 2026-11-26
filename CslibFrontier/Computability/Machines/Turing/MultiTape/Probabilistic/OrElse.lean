@@ -433,10 +433,8 @@ private theorem eval_cont_of_not_flag (second : MultiTapePTM k₂ Bool S₂) (hF
         (liftCfg (embed₂ W P F)) := by
   set q := (moveInputPos pos (-1)).val with hq
   have hqle : q ≤ input.length := by
-    have := val_moveInputPos_eq pos (-1)
-    have := pos.isLt
-    simp only [SignType.cast] at *
-    omega
+    have hmv := val_moveInputPos_eq pos (-1)
+    simp only [SignType.cast] at hmv; omega
   rw [show input.length + 2 + t = t + (input.length - q) + (q + 1) + 1 by omega,
     eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_check W P F second bit pos [],
     ite_eq_right hF, eval_cont_rewind W P F second [] _ q _ hq.symm hqle]
@@ -578,10 +576,8 @@ private theorem reachable_ctrl_step (bit : Bool) (coins : List Bool) (W : Fin k�
     split_ifs
     · exact .inr (.inr (.inl ⟨coins, W, F, pos, _, rfl⟩))
     · refine .inr (.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
-      have := val_moveInputPos_eq pos (-1)
-      have := pos.isLt
-      simp only [SignType.cast] at *
-      omega
+      have hmv := val_moveInputPos_eq pos (-1)
+      simp only [SignType.cast] at hmv; omega
   | true =>
     rw [step_cont_rewind]
     by_cases h0 : pos = 0
@@ -697,9 +693,7 @@ theorem orElse_halted :
   rw [OrElse.eval_runClosedConfigFrom_orElse first second input t₁ t₂ h₁ h₂] at hfinal
   obtain ⟨c, -, hc⟩ := (PMF.mem_support_bind_iff _ _ _).mp hfinal
   obtain ⟨d, hd, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hc
-  change (d.tapes.state).map Sum.inr = none
-  rw [OrElse.halted_of_mem_support_contResult second t₂ h₂ c hd]
-  rfl
+  simp [Sequential.right, Cfg.mapState, OrElse.halted_of_mem_support_contResult second t₂ h₂ c hd]
 
 /-- **The output distribution of `first.orElse second`**: run `first`; if it outputs `[true]`,
 output `[true]`, and otherwise run `second` with fresh coins. Both machines must halt on every
@@ -716,8 +710,7 @@ theorem eval_runClosed_orElse :
   simp only [Function.comp_apply, OrElse.contResult, PMF.map_comp]
   split_ifs with hacc
   · exact PMF.pure_map _ _
-  · rw [runClosed_eq_map, ProbComp.eval_map, PMF.map_comp]
-    rfl
+  · rw [runClosed_eq_map, ProbComp.eval_map, PMF.map_comp]; rfl
 
 end Main
 

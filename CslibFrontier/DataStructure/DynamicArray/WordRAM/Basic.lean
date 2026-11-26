@@ -385,28 +385,22 @@ theorem dispatch_exec {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
   unfold dispatch
   cases o with
   | append v =>
-    have harg : x₁.regs arg = v := by
-      simp +decide [x₁, x₀, Data.set, implementation, DynamicProgram.prepare]
+    have harg : x₁.regs arg = v := rfl
     have hw : Fits w (x₁.regs frontier + 2 * x₁.regs cap) :=
       hv.2.of_le (by have := hx₁_rep.frontier_add_two_cap_le; omega)
     obtain ⟨y, n, he, hy_rep, hy_frame, hy_pot, _⟩ := append_exec hx₁_rep hw
     rw [harg] at hy_rep hy_pot
-    have hdest : ((implementation w).prepare (.append v) x).regs dest = 0 := by
-      simp +decide [implementation, DynamicProgram.prepare]
+    have hdest : ((implementation w).prepare (.append v) x).regs dest = 0 := rfl
     wram_exec [hdest]
     refine WP.Exact.of_exec he fun hb => ⟨rfl, ⟨hb, hy_rep⟩, fun a ha => hy_frame a (.inr ha), ?_⟩
     simp only [charge]
     omega
   | get idx =>
-    have hfront : Fits w (x₁.regs frontier) := by
-      simpa +decide [x₁, x₀, Data.set, implementation, DynamicProgram.prepare] using
-        hr.bounded.1 frontier
-    have harg : x₁.regs arg = idx := by
-      simp +decide [x₁, x₀, Data.set, implementation, DynamicProgram.prepare]
+    have hfront : Fits w (x₁.regs frontier) := hr.bounded.1 frontier
+    have harg : x₁.regs arg = idx := rfl
     obtain ⟨y, he, htemp, hy_rep, hy_mem, hy_pot⟩ :=
       get_exec hx₁_rep (by rw [harg]; exact hv.1) hfront
-    have hdest : ((implementation w).prepare (.get idx) x).regs dest = 1 := by
-      simp +decide [implementation, DynamicProgram.prepare]
+    have hdest : ((implementation w).prepare (.get idx) x).regs dest = 1 := rfl
     wram_exec [hdest]
     refine WP.Exact.of_exec he fun hb => ⟨?_, ⟨hb, hy_rep⟩, fun a _ => congrFun hy_mem a, ?_⟩
     · simp [htemp, harg, spec]
@@ -525,9 +519,9 @@ theorem validHistory_appendAll {w : ℕ} {vs us : List ℕ}
     simp only [appendAll, DataStructure.StateTransitionSpec.clientHistory,
       DataStructure.StateTransitionSpec.runClient_liftBind,
       DataStructure.StateTransitionSpec.validHistory_cons, spec]
-    refine ⟨⟨hvals v (List.mem_cons_self ..), hlen.of_le (by simp)⟩, ?_⟩
-    exact ih (fun u hu => hvals u (List.mem_cons_of_mem v hu))
-      (hlen.of_le (by simp only [List.length_append, List.length_cons, List.length_nil]; omega))
+    exact ⟨⟨hvals v (List.mem_cons_self ..), hlen.of_le (by simp)⟩,
+      ih (fun u hu => hvals u (List.mem_cons_of_mem v hu))
+        (hlen.of_le (by simp only [List.length_append, List.length_cons, List.length_nil]; omega))⟩
 
 /-- Any sequence of `m = vs.length` appends starting from the charged initializer executes in at
 most `15 + 52 * m` total charged instructions and uses fewer than `4 * m` total allocated words

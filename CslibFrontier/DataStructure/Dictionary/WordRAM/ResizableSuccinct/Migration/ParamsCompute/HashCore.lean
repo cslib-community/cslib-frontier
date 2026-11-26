@@ -129,8 +129,7 @@ private theorem trinomLoop_spec {w hdrAddr B : ℕ} {s₀ : Memory.State}
           hs', ?_⟩
         rw [hres]
         split_ifs with h2 <;> dsimp only
-        · have hrec : trinomialStepAux rem = trinomialStepAux ((rem + 2) / 3) + 1 := by
-            rw [trinomialStepAux, ite_eq_right (by omega)]
+        · rw [trinomialStepAux, ite_eq_right (by omega)] at hsum
           exact ⟨by omega, by omega, by omega⟩
         · exact ⟨hle_B, by omega, hsum⟩)
       (B, 0) s₀ ⟨rfl, le_rfl, by omega, Nat.zero_add _⟩
@@ -343,19 +342,13 @@ private theorem computeHashTargetProg_exec {w hdrBase qBitsVal logN : ℕ} {s : 
     trinomProg_spec (B := max (min (max qBitsVal 1) ((logN + 1) * 3)) (max logN 1)) hhdr hB2_fit
       (h225.of_le (by decide))
   dsimp only [d, computeHashTargetProg]
+  iterate 4 (
+    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+      Realization.memoryCost_bind']
+    first
+      | rw [clientState_maxNatProg, clientResult_maxNatProg, memoryCost_maxNatProg]
+      | rw [clientState_minNatProg, clientResult_minNatProg, memoryCost_minNatProg])
   rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', clientState_maxNatProg, clientResult_maxNatProg,
-    memoryCost_maxNatProg,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', clientState_minNatProg, clientResult_minNatProg,
-    memoryCost_minNatProg,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', clientState_maxNatProg, clientResult_maxNatProg,
-    memoryCost_maxNatProg,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-    Realization.memoryCost_bind', clientState_maxNatProg, clientResult_maxNatProg,
-    memoryCost_maxNatProg,
-    validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
     Realization.memoryCost_bind', hst_tr, hres_tr, StateTransitionSpec.clientState_pure,
     prog_clientResult_pure, memoryCost_pure]
   exact ⟨⟨validHistory_maxNatProg _ _, validHistory_minNatProg _ _, validHistory_maxNatProg _ _,

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.GroupProgram.GroupScript
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.MoveIdentity
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccSize
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Guess
 import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.FilterMap
@@ -66,20 +67,9 @@ theorem oneIn_iff {U A G : Type*} {h : U → Bool → A} {grp : A → G} {g : G}
 
 section Sizes
 
-private theorem size_listT (l : List Tree) :
-    (listT l).size = (l.map fun t => t.size + 1).sum + 1 := by
-  induction l with
-  | nil => rfl
-  | cons a l ih => simp only [listT, Tree.size, ih, List.map_cons, List.sum_cons]; omega
-
 private theorem sum_map_le {α : Type*} {l : List α} {f : α → ℕ} {X s : ℕ} (hl : l.length ≤ X)
     (h : ∀ a ∈ l, f a ≤ s) : (l.map f).sum ≤ X * s :=
   (List.sum_le_length_nsmul _ s (by simpa using h)).trans (by simpa using Nat.mul_le_mul_right s hl)
-
-private theorem size_listT_le {l : List Tree} {s X : ℕ} (hl : l.length ≤ X)
-    (h : ∀ t ∈ l, t.size ≤ s) : (listT l).size ≤ X * (s + 1) + 1 := by
-  rw [size_listT]
-  exact Nat.add_le_add_right (sum_map_le hl fun t ht => Nat.add_le_add_right (h t ht) 1) 1
 
 private theorem size_wordsEnc_le {ks : List (List Bool)} {X Lc : ℕ} (hl : ks.length ≤ X)
     (h : ∀ k ∈ ks, k.length ≤ Lc) : (wordsEnc ks).size ≤ X * (4 * Lc + 2) + 1 :=

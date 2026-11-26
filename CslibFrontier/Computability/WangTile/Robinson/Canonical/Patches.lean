@@ -199,8 +199,8 @@ theorem supertile_validShadeRectangle (level : Nat) (root : Node) :
       (fun i r => (supertileNodeGrid level root i (y / 2)).block.at r (y % 2))
       (n := 4 ^ level) ?_ ?_ hx
     · intro i _
-      have internal := (supertileNodeGrid level root i (y / 2)).block_internal
-      rcases Nat.mod_two_eq_zero_or_one y with hy | hy <;> simp [ShadeBlock.at, hy, internal]
+      rcases Nat.mod_two_eq_zero_or_one y with hy | hy <;>
+        simp [ShadeBlock.at, hy, (supertileNodeGrid level root i (y / 2)).block_internal]
     · intro i hi
       have blockMatch := ((supertileNodeGrid_compatible level root).hmatch
         i (y / 2) hi (by omega)).2
@@ -212,8 +212,8 @@ theorem supertile_validShadeRectangle (level : Nat) (root : Node) :
       (fun i r => (supertileNodeGrid level root (x / 2) i).block.at (x % 2) r)
       (n := 4 ^ level) ?_ ?_ hy
     · intro i _
-      have internal := (supertileNodeGrid level root (x / 2) i).block_internal
-      rcases Nat.mod_two_eq_zero_or_one x with hx | hx <;> simp [ShadeBlock.at, hx, internal]
+      rcases Nat.mod_two_eq_zero_or_one x with hx | hx <;>
+        simp [ShadeBlock.at, hx, (supertileNodeGrid level root (x / 2) i).block_internal]
     · intro i hi
       have blockMatch := ((supertileNodeGrid_compatible level root).vmatch
         (x / 2) i (by omega) hi).2
@@ -322,17 +322,13 @@ theorem intervalEdge_eq_none_of_between_borders
     (afterOpening : opening < position) (atMostClosing : position ≤ closing)
     (closingBeforeEnd : closing < length) :
     intervalEdge interior length position = .none := by
-  rw [intervalEdge_eq_none_iff]
-  constructor
-  · apply nextInterior_eq_of_no_opposite_before closingBorder
-      (atMostBorder := atMostClosing) (borderBeforeEnd := closingBeforeEnd)
-    intro candidate positionLe beforeClosing
-    rw [noBorder candidate (afterOpening.trans_le positionLe) beforeClosing]
-    simp
-  · rw [previousInterior_eq_of_none_between openingBorder
-      (fun candidate lower upper =>
-        noBorder candidate lower (upper.trans_le atMostClosing)) afterOpening]
-    simp
+  refine (intervalEdge_eq_none_iff ..).mpr ⟨nextInterior_eq_of_no_opposite_before closingBorder
+    (fun candidate positionLe beforeClosing => by
+      simp [noBorder candidate (afterOpening.trans_le positionLe) beforeClosing])
+    atMostClosing closingBeforeEnd, ?_⟩
+  simp [previousInterior_eq_of_none_between openingBorder
+    (fun candidate lower upper => noBorder candidate lower (upper.trans_le atMostClosing))
+    afterOpening]
 
 /-- Nearest-border flows satisfy the one-dimensional local obstruction rule. -/
 theorem intervalEdge_allowed (interior : ℕ → Option Bool) (length position : ℕ)
@@ -466,9 +462,7 @@ theorem lt_side (level : ℕ) : level < side level := by
 /-- The concrete decorated Robinson scaffold has a plane tiling, by compactness of its
 canonical finite squares. This proves scaffold nonemptiness, not payload realization. -/
 theorem scaffold_tilesPlane : TilesPlane scaffold.tiles := by
-  apply (tilesPlane_iff_squares _).mpr
-  intro n
-  have growth := (lt_side (n + 1)).le
-  exact ⟨(canonicalPatch (n + 1) seedNode).crop growth growth⟩
+  exact (tilesPlane_iff_squares _).mpr fun n =>
+    ⟨(canonicalPatch (n + 1) seedNode).crop (lt_side (n + 1)).le (lt_side (n + 1)).le⟩
 
 end Cslib.WangTile.Robinson.Canonical

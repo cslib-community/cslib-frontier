@@ -334,18 +334,15 @@ lemma nodeCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B)
   have hLp : (eProb (simDC.left (d, n, w))).length ≤ 5 * Z + 2 := by
     change (eProb (d, firstHalf n, extract (firstHalf n) w)).length ≤ _
     simp only [length_eProb, firstHalf] at sL ⊢; omega
-  have hB₁ : (eSol b₁).length ≤ 3 * Z + 1 := by
-    rw [length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]; omega
+  have hB₁ : (eSol b₁).length ≤ 3 * Z + 1 := by rw [length_encPair (enc₁ := eWin)]; omega
   have hMp : (eProb (simDC.mid ((d, n, w), b₁)).1).length ≤ 5 * Z + 2 := by
     change (eProb (d, n / 2, extract (n / 2) w₁)).length ≤ _
     simp only [length_eProb]; omega
   have hS : (eSaved (simDC.mid ((d, n, w), b₁)).2).length ≤ 4 * Z + 2 := by
     change (eSaved (n / 2, w₁, b₁.2)).length ≤ _
-    rw [length_encPair (enc₁ := encUnary) (enc₂ := encPair eWin (encList encUnary)),
-      length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]
+    rw [length_encPair (enc₁ := encUnary), length_encPair (enc₁ := eWin)]
     simp only [encUnary_apply, List.length_replicate]; omega
-  have hB₂ : (eSol b₂).length ≤ 3 * Z + 1 := by
-    rw [length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]; omega
+  have hB₂ : (eSol b₂).length ≤ 3 * Z + 1 := by rw [length_encPair (enc₁ := eWin)]; omega
   have hJs : (eSol (simDC.join ((simDC.mid ((d, n, w), b₁)).2, b₂))).length ≤ 3 * Z + 1 := by
     change (eSol (restore (n / 2) w₁ b₂.1, b₁.2 ++ b₂.2)).length ≤ _
     rw [length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]
@@ -378,9 +375,8 @@ lemma nodeCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B)
 lemma eval_base {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B) (hn : n ≤ 1)
     (hw : WInv (descLen d) B 0 (2 * n + 1) w) :
     ∃ c, simDC.Eval baseCost nodeCost (d, n, w) (sim d n w) c ∧ c ≤ costA (descLen d) B := by
-  refine ⟨baseCost (d, n, w), ?_, baseCost_le hDB hn hw⟩
-  rw [← simDC_base_eq hn]
-  exact .base (by simp only [simDC, decide_eq_true_eq]; exact hn)
+  exact ⟨baseCost (d, n, w), simDC_base_eq hn w ▸ .base (by simp [simDC, hn]),
+    baseCost_le hDB hn hw⟩
 
 /-- **The cost recurrence**: on `n ≤ 2 ^ k` steps, the windowed simulation costs at most
 `2 ^ (k + 1) * (k + 1) * costA D B`. -/
@@ -398,8 +394,7 @@ lemma eval_le (d : Desc) {B : ℕ} (hDB : descLen d ≤ B) (k : ℕ) :
     have hA : costA (descLen d) B ≤ 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B :=
       Nat.le_mul_of_pos_left _ (Nat.mul_pos (Nat.pow_pos (by omega)) (by omega))
     by_cases hn1 : n ≤ 1
-    · obtain ⟨c, hc, hle⟩ := eval_base hDB hn1 hw
-      exact ⟨c, hc, hle.trans hA⟩
+    · exact (eval_base hDB hn1 hw).imp fun _ ⟨hc, hle⟩ => ⟨hc, hle.trans hA⟩
     have iL := (hw.extract (firstHalf n)).mono (h' := 0) (L' := 2 * firstHalf n + 1) le_rfl
       (min_le_right _ _)
     obtain ⟨c₁, h₁, hc₁⟩ := ih (firstHalf n) _ (by unfold firstHalf; omega) iL

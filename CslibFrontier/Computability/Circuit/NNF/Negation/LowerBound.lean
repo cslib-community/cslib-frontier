@@ -139,12 +139,9 @@ theorem mem_edgeNbhd_iff {c : Fin 3} {u t : V} :
       M.toSimpleGraph.Adj (M.mate c u) t := by
   simp only [edgeNbhd, mem_insert, toSimpleGraph_adj]
   constructor
-  · rintro (h | h | h)
-    · exact .inl h
-    · exact .inr (.inl h)
-    · simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true] at h
-      rcases h with ⟨c', -, h⟩ | ⟨c', -, h⟩
-      exacts [.inr (.inr (.inl ⟨c', h⟩)), .inr (.inr (.inr ⟨c', h⟩))]
+  · simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true]
+    rintro (h | h | ⟨c', -, h⟩ | ⟨c', -, h⟩)
+    exacts [.inl h, .inr (.inl h), .inr (.inr (.inl ⟨c', h⟩)), .inr (.inr (.inr ⟨c', h⟩))]
   · rintro (h | h | ⟨c', rfl⟩ | ⟨c', rfl⟩)
     · exact .inl h
     · exact .inr (.inl h)
@@ -472,12 +469,9 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
               · have : v = M.mate c' w := by rw [← hmv, M.mate_mate]
                 rw [hyb v hv, this, hnbr] at h1; exact absurd h1 (by simp)
               · rw [hyb v hv] at h1; rw [hyb _ hmv] at h2; exact hbI c' v ⟨h1, h2⟩
-            have hyF : y ∈ F := by
-              refine mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hyI⟩, ?_⟩
-              funext t
-              by_cases ht : t ∈ T
-              · rw [clearOn_eq_of_mem ht]; exact (clearOn_eq_of_mem ht).symm
-              · rw [clearOn_eq_of_notMem ht, hyb t fun h => ht (h ▸ hwT)]
+            have hyF : y ∈ F := mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hyI⟩, funext fun t =>
+              if ht : t ∈ T then (clearOn_eq_of_mem ht).trans (clearOn_eq_of_mem ht).symm
+              else (clearOn_eq_of_notMem ht).trans (hyb t fun h => ht (h ▸ hwT))⟩
             have hay : a y = 0 := by
               have hwy : M.witness c S R u y = w := witness_congr fun t ht =>
                 (hyb t fun h => ht (h ▸ hT w hwT)).trans (hoff x t ht)
@@ -720,9 +714,8 @@ theorem le_size_of_isDecomposable {γ : ℝ} (hG : IsBalancedCutExpander M.toSim
     (hf : ∀ x, D.toFun x = !M.someButNotAllColors x) :
     (48 / 47 : ℝ) ^ (γ * Fintype.card V / 126) ≤ D.size := by
   obtain ⟨R, hR⟩ := Circuits.NNF.exists_isCover hD hn
-  have : D.toFun ⁻¹' {true} = M.someButNotAllColors ⁻¹' {false} := by ext x; simp [hf]
-  rw [this] at hR
-  exact le_card_of_isCover hG hR
+  have : D.toFun ⁻¹' {true} = M.someButNotAllColors ⁻¹' {false} := Set.ext fun x => by simp [hf]
+  exact le_card_of_isCover hG (this ▸ hR)
 
 end Expander
 

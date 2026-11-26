@@ -325,9 +325,7 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
       exact mem_childPassList_le (adj := inst.adj) hinit_le
         (fun t ht => hcand_le t (lt_trans ht hcur_lt)) _ (List.getElem_mem hkey_lt)
     have hcand_val_le : cand ≤ cap := by
-      change fw + st.mem (args.tblBPtr + curC) ≤ cap
-      rw [hfc_eq]
-      exact hcand_le curC hcur_lt
+      simpa only [cand, fc, hfc_eq] using hcand_le curC hcur_lt
     have hnext_fit : Fits w nextVal := hfit_cap.of_le <| by
       dsimp only [nextVal]
       split_ifs <;> omega
@@ -355,9 +353,7 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
         by_cases hind : indepInst inst.adj LB curC = true
         · simp only [hind, ↓reduceIte]
           congr 1
-          split_ifs with hlt
-          · exact (Nat.max_eq_right hlt.le).symm
-          · exact (Nat.max_eq_left (Nat.not_lt.1 hlt)).symm
+          split_ifs <;> omega
         · have hlt' : keyMask LB LP curC <
               (childPassList inst.adj inst.wt LB LP tblB initL curC).length := hkey_lt
           simp only [Bool.eq_false_iff.2 hind, Bool.false_eq_true, ↓reduceIte,
@@ -380,10 +376,8 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
     obtain ⟨hv_rem, hfr_rem, hp_rem, hbest_rem, hc_rem⟩ :=
       ih (curC + 1) st₁ (by omega) hfr
         (hpres.trans (preservesBelow_write (Nat.le_add_right _ _) hbest_addr_lt)) hbest_next
-    have hiter_eq : iterate childPassStep args (rem + 1) curC =
-        (childPassStep (args, curC) >>= iterate childPassStep args rem) := rfl
     have hadd : curC + (rem + 1) = curC + 1 + rem := by omega
-    rw [hiter_eq]
+    rw [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_⟩
     rw [StateTransitionSpec.clientState_bind, memoryCost_bind', hst_step, hres_step, hadd]
     refine ⟨hfr_rem, hp_rem, hbest_rem, ?_⟩

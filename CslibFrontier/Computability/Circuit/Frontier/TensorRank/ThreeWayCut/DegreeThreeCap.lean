@@ -184,18 +184,23 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
       (by linarith [(hpair_mem p hp_off).1]) hne_vec
   let RC (p : F × F) (c : Fin 3) : Set (W → BlockSample) :=
     {ω | rayCross c (edgeVec2 Q q R ω p.1) (edgeVec2 Q q R ω p.2)}
-  set Conv : Set (W → BlockSample) :=
-    {ω | ∃ w₀ w₁ w₂ : ℝ, 0 ≤ w₀ ∧ 0 ≤ w₁ ∧ 0 ≤ w₂ ∧ w₀ + w₁ + w₂ = 1 ∧
-      w₀ * (edgeVec2 Q q R ω e₀).1 + w₁ * (edgeVec2 Q q R ω e₁).1 +
-        w₂ * (edgeVec2 Q q R ω e₂).1 = 0 ∧
-      w₀ * (edgeVec2 Q q R ω e₀).2 + w₁ * (edgeVec2 Q q R ω e₁).2 +
-        w₂ * (edgeVec2 Q q R ω e₂).2 = 0}
+  set Sconv : Set ((W → ℝ) × (W → ℝ)) :=
+    {g | ∃ w₀ w₁ w₂ : ℝ, 0 ≤ w₀ ∧ 0 ≤ w₁ ∧ 0 ≤ w₂ ∧ w₀ + w₁ + w₂ = 1 ∧
+      w₀ * ⟪edgeVector Q q R e₀, WithLp.toLp 2 g.1⟫ +
+        w₁ * ⟪edgeVector Q q R e₁, WithLp.toLp 2 g.1⟫ +
+        w₂ * ⟪edgeVector Q q R e₂, WithLp.toLp 2 g.1⟫ = 0 ∧
+      w₀ * ⟪edgeVector Q q R e₀, WithLp.toLp 2 g.2⟫ +
+        w₁ * ⟪edgeVector Q q R e₁, WithLp.toLp 2 g.2⟫ +
+        w₂ * ⟪edgeVector Q q R e₂, WithLp.toLp 2 g.2⟫ = 0}
+  set Conv : Set (W → BlockSample) := proj2 ⁻¹' Sconv
   have hRC_m (p : F × F) (c : Fin 3) : MeasurableSet (RC p c) :=
     measurableSet_rayCross_edgeVec2 Q q R c p.1 p.2
-  have hConv_m : MeasurableSet Conv := by
-    have hc (e : F) : Continuous fun ω : W → BlockSample => edgeVec2 Q q R ω e := by
-      unfold edgeVec2 edgeScore; fun_prop
-    exact measurableSet_convex_zero_three (hc e₀) (hc e₁) (hc e₂)
+  have hSconv_m : MeasurableSet Sconv := by
+    have hcg (e : F) : Continuous fun g : (W → ℝ) × (W → ℝ) =>
+        (⟪edgeVector Q q R e, WithLp.toLp 2 g.1⟫, ⟪edgeVector Q q R e, WithLp.toLp 2 g.2⟫) := by
+      fun_prop
+    exact measurableSet_convex_zero_three (hcg e₀) (hcg e₁) (hcg e₂)
+  have hConv_m : MeasurableSet Conv := hSconv_m.preimage hmp_proj2.measurable
   have hint_bad : Integrable (fun ω => (badCount Q q R ω B : ℝ)) P :=
     integrable_badCount hdeg q R B
   have hint1 {S : Set (W → BlockSample)} (hSm : MeasurableSet S) :
@@ -259,24 +264,6 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
       _ ≤ 3 / (2 * π) * (6 * arccos ((1 + 3 * ρ₀) / 4)) := by gcongr
       _ = 6 * straddleBound ρ₀ := by unfold straddleBound; ring
   have hpart2 : P.real Conv ≤ 1 - √((1 + ρ₀) / 2) := by
-    set Sconv : Set ((W → ℝ) × (W → ℝ)) :=
-      {g | ∃ w₀ w₁ w₂ : ℝ, 0 ≤ w₀ ∧ 0 ≤ w₁ ∧ 0 ≤ w₂ ∧ w₀ + w₁ + w₂ = 1 ∧
-        w₀ * ⟪edgeVector Q q R e₀, WithLp.toLp 2 g.1⟫ +
-          w₁ * ⟪edgeVector Q q R e₁, WithLp.toLp 2 g.1⟫ +
-          w₂ * ⟪edgeVector Q q R e₂, WithLp.toLp 2 g.1⟫ = 0 ∧
-        w₀ * ⟪edgeVector Q q R e₀, WithLp.toLp 2 g.2⟫ +
-          w₁ * ⟪edgeVector Q q R e₁, WithLp.toLp 2 g.2⟫ +
-          w₂ * ⟪edgeVector Q q R e₂, WithLp.toLp 2 g.2⟫ = 0}
-    have hSconv_m : MeasurableSet Sconv :=
-      measurableSet_convex_zero_three
-        (f₀ := fun g : (W → ℝ) × (W → ℝ) =>
-          (⟪edgeVector Q q R e₀, WithLp.toLp 2 g.1⟫, ⟪edgeVector Q q R e₀, WithLp.toLp 2 g.2⟫))
-        (f₁ := fun g : (W → ℝ) × (W → ℝ) =>
-          (⟪edgeVector Q q R e₁, WithLp.toLp 2 g.1⟫, ⟪edgeVector Q q R e₁, WithLp.toLp 2 g.2⟫))
-        (f₂ := fun g : (W → ℝ) × (W → ℝ) =>
-          (⟪edgeVector Q q R e₂, WithLp.toLp 2 g.1⟫, ⟪edgeVector Q q R e₂, WithLp.toLp 2 g.2⟫))
-        (by fun_prop) (by fun_prop) (by fun_prop)
-    change P.real (proj2 ⁻¹' Sconv) ≤ _
     rw [hmp_proj2.measureReal_preimage hSconv_m.nullMeasurableSet]
     exact measureReal_pi_prod_convex_zero_le (norm_unitKernelRow q R B)
       (sqrt_pos.mpr (by linarith)) (sqrt_le_one.mpr (by linarith))

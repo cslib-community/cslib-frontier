@@ -213,13 +213,11 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     refine .of_le_linear (60 * cD + 20) (60 * cD + 200) fun x => ?_
     have hB : budgetSpace (universalInput G x) ≤ _ :=
       budgetSpace_le (decodeDesc (tinyCut x)) (x.map eBit) (G x.length) (2 ^ G x.length)
-    have hD : (eDesc (decodeDesc (tinyCut x))).length ≤ cD * (Nat.log2 x.length + 1) := hcD x
-    have hclk := length_encNat_two_pow (G x.length)
     have hn : (encNat ((x.map eBit).length + 1)).length ≤ Nat.log2 x.length + 2 := by
       rw [List.length_map]; exact length_encNat_le_log2_add_two le_rfl
     have hmax : (x.map eBit).foldr max 0 ≤ 1 := listMax_le fun b _ => by cases b <;> decide
     simp only [descLen] at hB
-    nlinarith [Nat.zero_le (cD * G x.length)]
+    nlinarith [hcD x, length_encNat_two_pow (G x.length), Nat.zero_le (cD * G x.length)]
   have hO : (fun x => (eOut (budgetedUniversal (universalInput G x))).length) ≼
       fun x : List Bool => G x.length + Nat.log2 x.length :=
     (BigOLe.of_le fun x => length_eOut_budgetedUniversal_le (decodeDesc (tinyCut x)) (x.map eBit)
@@ -227,24 +225,20 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   have hE : (fun x => (encNat ((eInS (universalInput G x)).length + 1)).length) ≼
       fun x : List Bool => G x.length + Nat.log2 x.length := by
     refine .of_le_linear (2 * cD + 4) (2 * cD + 20) fun x => ?_
-    have hD : (eDesc (decodeDesc (tinyCut x))).length ≤ cD * (Nat.log2 x.length + 1) := hcD x
     have hS : (encList encUnary (x.map eBit)).length ≤ (x.map eBit).length * (2 * 1 + 1) :=
       length_encList_le _ _ fun b hb => by
         obtain ⟨c, -, rfl⟩ := List.mem_map.mp hb
         rw [encUnary_apply, List.length_replicate]
         cases c <;> decide
-    have hclk := length_encNat_two_pow (G x.length)
     have hlen : (eInS (universalInput G x)).length + 1 ≤
         (2 * (eDesc (decodeDesc (tinyCut x))).length + 3 * G x.length + 12) * (x.length + 1) := by
-      simp only [universalInput, eInS, length_encPair, encUnary_apply, List.length_replicate, hclk,
-        List.length_map] at hS ⊢
+      simp only [universalInput, eInS, length_encPair, encUnary_apply, List.length_replicate,
+        length_encNat_two_pow (G x.length), List.length_map] at hS ⊢
       nlinarith
     have h₁ := (length_encNat_mono hlen).trans (length_encNat_mul_le _ _)
-    have h₂ := length_encNat_le_self (2 * (eDesc (decodeDesc (tinyCut x))).length +
-      3 * G x.length + 12)
-    have h₃ : (encNat (x.length + 1)).length ≤ Nat.log2 x.length + 2 :=
-      length_encNat_le_log2_add_two le_rfl
-    nlinarith [Nat.zero_le (cD * G x.length)]
+    nlinarith [hcD x, length_encNat_le_self (2 * (eDesc (decodeDesc (tinyCut x))).length +
+      3 * G x.length + 12), length_encNat_le_log2_add_two (j := x.length + 1) le_rfl,
+      Nat.zero_le (cD * G x.length)]
   obtain ⟨K, hK⟩ := exists_space_of_bigOLe
     (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
     (V := fun x : List Bool => G x.length + Nat.log2 x.length) (by
@@ -342,10 +336,8 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
   -- the configurations of the simulation fit within the budget
   have hbudget : cfgSpace (desc eS eBit tm) (x.map eBit) (2 ^ G x.length) ≤ G x.length := by
     have hsp : simSpace (desc eS eBit tm) (x.map eBit) (2 ^ G x.length) ≤ s := by
-      rw [simSpace_desc]
-      exact space_le_of_runsInSpace hrun.2.2 _
-    have hk : (desc eS eBit tm).tapes ≤ D := tapes_le _
-    refine le_trans ?_ (h₂ _ hk)
+      simpa only [simSpace_desc] using space_le_of_runsInSpace hrun.2.2 _
+    refine le_trans ?_ (h₂ _ (tapes_le _))
     simp only [cfgSpace, cfgSpaceBound, List.length_map, ← hD]
     gcongr
   -- so the diagonal negates the answer of the decider

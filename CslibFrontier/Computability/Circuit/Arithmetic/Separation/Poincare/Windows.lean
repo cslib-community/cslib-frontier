@@ -60,19 +60,17 @@ private theorem dist_P_sq_add_le {q : Z} (hq : A.Fix q) (z : Z) :
   have e : ∀ {y : Z}, A.Fix y → ∀ g, dist y (A g z) = dist y z := fun {y} hy g => by
     rw [← (A g).dist_eq y z, hy g]
   simp only [one_mul, e (A.P_fix z), e hq, sum_const, card_univ, nsmul_eq_mul, mul_one] at h
-  have hc : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
   rw [dist_comm q, dist_comm (A.P z) z, dist_comm q z] at h
-  exact le_of_mul_le_mul_left (by linarith) hc
+  exact le_of_mul_le_mul_left (by linarith) (Nat.cast_pos.2 (Fintype.card_pos (α := G)))
 
 theorem dist_P_le {y : Z} (hy : A.Fix y) (z : Z) : dist z (A.P z) ≤ dist z y :=
   (pow_le_pow_iff_left₀ dist_nonneg dist_nonneg two_ne_zero).1
     (by linarith [dist_P_sq_add_le A hy z, sq_nonneg (dist (A.P z) y)])
 
 private theorem eq_P_of_dist_le {y : Z} (hy : A.Fix y) {z : Z} (h : dist z y ≤ dist z (A.P z)) :
-    y = A.P z := by
-  have h1 := dist_P_sq_add_le A hy z
-  have h2 := pow_le_pow_left₀ dist_nonneg h 2
-  exact (dist_eq_zero.1 ((sq_nonpos_iff _).1 (by linarith))).symm
+    y = A.P z :=
+  (dist_eq_zero.1 ((sq_nonpos_iff _).1
+    (by linarith [dist_P_sq_add_le A hy z, pow_le_pow_left₀ dist_nonneg h 2]))).symm
 
 /-- "By Lemma C.4(c) … `|z, P z|² ≤ E_g |z, g z|²`." -/
 private theorem dist_P_sq_le (z : Z) :
@@ -164,11 +162,9 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
   set R := dist a ((A.W p (3 * u)).P a)
   set B : ℕ → Z := fun k => (A.W (p + k) (3 * u - k)).P a
   have hBfix : ∀ k, (A.W (p + k) (3 * u - k)).Fix (B k) := fun k => IsoAct.P_fix _ a
-  have hBu : B u = (A.W (p + u) (2 * u)).P a := by
-    simp only [B]
-    rw [show 3 * u - u = 2 * u by omega]
-  have hu1 : (1 : ℝ) ≤ (u : ℝ) - 1 := by
-    linarith [(Nat.ofNat_le_cast (α := ℝ)).2 hu]
+  have hBu : B u = (A.W (p + u) (2 * u)).P a :=
+    congrArg (fun n => (A.W (p + u) n).P a) (by omega : 3 * u - u = 2 * u)
+  have hu1 : (1 : ℝ) ≤ (u : ℝ) - 1 := by linarith [(Nat.ofNat_le_cast (α := ℝ)).2 hu]
   -- Lemma C.4(d) at `b_k`
   have hstep : ∀ k < 3 * u,
       dist (B k) (B (k + 1)) ^ 2 ≤ dist a (B k) ^ 2 - dist a (B (k + 1)) ^ 2 := fun k hk => by
@@ -251,9 +247,8 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
       _ = 4 * (kappa μ s (3 * u) ^ 2 * (3 * u : ℕ)) * R ^ 2 := by ring
       _ ≤ ζ ^ 2 * ((u : ℝ) - 1) ^ 2 * R ^ 2 := mul_le_mul_of_nonneg_right hC (sq_nonneg R)
       _ = ((u : ℝ) - 1) ^ 2 * (ζ * R) ^ 2 := by ring
-  have h1 := dist_P_le _ ((A.W p (3 * u)).P_fix b) a
   rw [← hBu]
-  linarith [dist_triangle a b ((A.W p (3 * u)).P b)]
+  linarith [dist_P_le _ ((A.W p (3 * u)).P_fix b) a, dist_triangle a b ((A.W p (3 * u)).P b)]
 
 /-- The proof of Lemma F.5 for two finite groups of isometries with a common fixed point `v`. If
 every point `q` at fraction `σ ∈ (0, 1]` from `v` to `a = P₁ z` has `(1 − c²)|vq|² ≤ |q, P₂ q|²`,
@@ -302,10 +297,8 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
     have h2 := hq q σ hσ0 hσ1 hq1
     have h4 : dist q (A₂.P q) ^ 2 ≤ dist q q' ^ 2 := pow_le_pow_left₀ dist_nonneg
       (dist_P_le A₂ (fix_of_isPointAt A₂ hv2 (A₂.P_fix z) hτ0.le hτ1 hq2) q) 2
-    have h5 := hq2 q
-    have h6 := hq1 a'
-    rw [dist_comm a' q, dist_comm a' v, dist_comm a' a] at h6
-    rw [dist_comm q v, q1] at h5
+    have h5 := by simpa only [dist_comm q v, q1] using hq2 q
+    have h6 := by simpa only [dist_comm a' q, dist_comm a' v, dist_comm a' a] using hq1 a'
     rw [q1] at h2
     have h8 := mul_le_mul_of_nonneg_left h6 hτ0.le
     have e1 : τ * β = c * (σ * α) := by simp only [τ, σ]; field_simp
@@ -324,8 +317,7 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
   obtain ⟨g, hg⟩ := exists_isPointAt z v ht0 ht1
   have h1 := mul_le_mul_of_nonneg_left (hm z) (show 0 ≤ 1 - t by linarith)
   have h2 := mul_le_mul_of_nonneg_left (hm v) ht0
-  have h3 := hg m
-  rw [dist_comm m z, dist_comm m v] at h3
+  have h3 := by simpa only [dist_comm m z, dist_comm m v] using hg m
   linarith [sq_nonneg (dist m g)]
 
 /-- **Lemma F.5** (p. 40): for `u`, `p`, `ζ` as in Lemma F.4, `0 ≤ ζ ≤ 1`, `c > 0` and

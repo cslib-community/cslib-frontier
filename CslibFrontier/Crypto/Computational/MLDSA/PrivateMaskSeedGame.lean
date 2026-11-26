@@ -80,13 +80,10 @@ private theorem verify_eq_of_reads {G H : Xofs} {bits : ℕ} (s : Level) (pk : L
     (good : ∀ m, G.messageRepresentative pk m = H.messageRepresentative pk m) (f : Forgery) :
     G.verify s pk f.message f.context f.signature =
       H.verify s pk f.message f.context f.signature := by
-  apply Xofs.verify_congr_of_reads
-  · exact Xofs.expandA_congr hA s _
-  · intro d hd
-    have : digestBytes s ≤ 64 := by cases s <;> decide
-    exact challenge_unchanged raw s (by lia)
-  · exact fun _ _ => good _
-  · exact fun w => raw _ (hw w (length_messageRepresentative ..)) _
+  refine Xofs.verify_congr_of_reads _ _ _ _ _ (Xofs.expandA_congr hA s _) (fun d hd => ?_)
+    (fun _ _ => good _) (fun w => raw _ (hw w (length_messageRepresentative ..)) _)
+  have : digestBytes s ≤ 64 := by cases s <;> decide
+  exact challenge_unchanged raw s (by lia)
 
 section Coupled
 
@@ -347,8 +344,7 @@ private theorem fixed_rows_bound (C : QuantumSigningForger) (s : Level) (base : 
       obtain ⟨_, hp, ⟨⟩⟩ := (PMF.mem_support_map_iff ..).mp hp
       exact score_eq_rows C hp hgood hn)
   have marg : joint.map Prod.snd = tapes.bind draw := by
-    simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def]
-    exact congrArg tapes.bind (funext fun t => PMF.map_id (draw t))
+    simp [joint, PMF.map]
   have eq (t) : (draw t).bind (fun p => right p.background) =
       (base.uniformPrefixes a b).bind right := by
     simpa only [PMF.bind_map, Function.comp_def] using

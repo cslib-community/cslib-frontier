@@ -235,10 +235,8 @@ noncomputable def polynomialSmoothMu (d : ℕ) : ℝ :=
 
 theorem polynomialSmoothMu_nonneg (d : ℕ) : 0 ≤ polynomialSmoothMu d := by
   unfold polynomialSmoothMu
-  split_ifs
-  · exact le_rfl
-  · have := polynomialRoot_pos d
-    positivity
+  have := polynomialRoot_pos d
+  split_ifs <;> positivity
 
 theorem polynomialSmoothMu_lt_one (d : ℕ) : polynomialSmoothMu d < 1 := by
   unfold polynomialSmoothMu
@@ -286,10 +284,7 @@ theorem polynomialSmoothMu_mono {j d : ℕ} (hjd : j ≤ d) :
   have hφ_lt := polynomialRoot_strictMono hj hlt
   have hφj := polynomialRoot_pos j
   have hφd := polynomialRoot_pos d
-  have hj0 : j ≠ 0 := by omega
-  have hd0 : d ≠ 0 := by omega
-  unfold polynomialSmoothMu
-  simp only [hj0, hd0, ↓reduceIte]
+  simp only [polynomialSmoothMu, hj.ne', (hj.trans hlt).ne', ↓reduceIte]
   have hjd' : (j : ℝ) ≤ d := Nat.cast_le.2 hjd
   have hf1 : (j : ℝ) / ((j : ℝ) + 1) ≤ (d : ℝ) / ((d : ℝ) + 1) := by
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
@@ -321,10 +316,7 @@ theorem polynomialSmoothLam_mono {j d : ℕ} (hjd : j ≤ d) :
     have hφm_gt1 := polynomialRoot_gt_one hm1
     have hφs_gt1 := polynomialRoot_gt_one hm_succ
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le' hm1
-    have hk0 : k + 1 ≠ 0 := by omega
-    have hks0 : k + 1 + 1 ≠ 0 := by omega
-    unfold polynomialSmoothLam
-    simp only [hk0, hks0, ↓reduceIte,
+    simp only [polynomialSmoothLam, Nat.succ_ne_zero, ↓reduceIte,
       polynomialRoot_pow_eq hm1, polynomialRoot_pow_eq hm_succ]
     have h1m : 1 + polynomialRoot (k + 1) ≠ 0 := by linarith
     have h1s : 1 + polynomialRoot (k + 1 + 1) ≠ 0 := by linarith
@@ -490,9 +482,8 @@ private theorem isSmooth_of_latency_bound {lam μ : ℝ}
 [AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_of_hasPolynomialLatencies {d : ℕ} (h : C.HasPolynomialLatencies d) :
     C.toCostGame.IsSmooth (polynomialSmoothLam d) (polynomialSmoothMu d) := by
-  have hmono := h.monotone_latency
+  refine isSmooth_of_latency_bound h.monotone_latency fun e y z => ?_
   obtain ⟨c, hc, hl⟩ := h
-  refine isSmooth_of_latency_bound hmono fun e y z => ?_
   rw [hl, hl, hl, mul_sum, mul_sum, mul_sum, mul_sum, mul_sum, ← sum_add_distrib]
   refine sum_le_sum fun j hj => ?_
   have hjd : j ≤ d := Nat.lt_succ_iff.1 (mem_range.1 hj)
@@ -586,9 +577,8 @@ variable {ι : Type*} {S : ι → Type*} {E : Type*} [Fintype ι] [DecidableEq �
 ([AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_quadratic (h : C.HasPolynomialLatencies 2) :
     C.toCostGame.IsSmooth (115 / 19) (7 / 19) := by
-  have hmono := h.monotone_latency
+  refine isSmooth_of_latency_bound h.monotone_latency fun e y z => ?_
   obtain ⟨c, hc, hl⟩ := h
-  refine isSmooth_of_latency_bound hmono fun e y z => ?_
   rw [hl, hl, hl]
   simp only [sum_range_succ, sum_range_zero, zero_add, pow_zero, pow_one]
   push_cast

@@ -205,8 +205,7 @@ section Diophantine
 private theorem sq_ne_two_mul_sq {a b : ℤ} (hab : a ≠ 0 ∨ b ≠ 0) : a ^ 2 ≠ 2 * b ^ 2 := by
   intro h
   rcases eq_or_ne b 0 with rfl | hb
-  · simp only [ne_eq, not_true_eq_false, or_false] at hab
-    exact hab (pow_eq_zero_iff two_ne_zero |>.mp (by simpa using h))
+  · exact hab.resolve_right (not_not.mpr rfl) (pow_eq_zero_iff two_ne_zero |>.mp (by simpa using h))
   · refine irrational_sqrt_two.ne_rational |a| |b| ?_
     have hb' : (0 : ℝ) < |(b : ℝ)| := abs_pos.mpr (Int.cast_ne_zero.mpr hb)
     have hR : ((a : ℝ)) ^ 2 = 2 * (b : ℝ) ^ 2 := by exact_mod_cast h
@@ -355,14 +354,10 @@ theorem IsSetMultilinear.card_le_one_or_polynomial_eq_zero [CommSemiring K] {F :
     have hd (j : Fin _) : (F j).productDepth = 0 :=
       Nat.eq_zero_of_le_zero (h0 ▸ Finset.le_sup (f := fun j => (F j).productDepth)
         (Finset.mem_univ j))
-    by_cases hS : S.card ≤ 1
-    · exact Or.inl hS
-    · refine Or.inr ?_
+    exact or_iff_not_imp_left.2 fun hS => by
       rw [polynomial_add]
       exact Finset.sum_eq_zero fun j _ => by rw [(ih j (hd j)).resolve_left hS, mul_zero]
-  | mul F T _ _ _ =>
-    rw [productDepth_mul] at h0
-    exact absurd h0 (Nat.succ_ne_zero _)
+  | mul _ _ _ _ _ => exact absurd (productDepth_mul _ ▸ h0) (Nat.succ_ne_zero _)
 
 variable [Field K]
 

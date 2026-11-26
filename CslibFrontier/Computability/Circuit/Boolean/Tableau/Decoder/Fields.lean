@@ -68,20 +68,15 @@ def AllGates (p : ℕ → Op × List ℕ → Prop) (base : ℕ) (gates : List (O
 
 theorem allGates_append {p : ℕ → Op × List ℕ → Prop} {b : ℕ} {l₁ l₂ : List (Op × List ℕ)} :
     AllGates p b (l₁ ++ l₂) ↔ AllGates p b l₁ ∧ AllGates p (b + l₁.length) l₂ := by
-  constructor
-  · intro h
-    refine ⟨fun g hg => ?_, fun g hg => ?_⟩
-    · have := h g (by simp only [List.length_append]; omega)
-      rwa [List.getElem_append_left hg] at this
-    · have := h (l₁.length + g) (by simp only [List.length_append]; omega)
-      simpa [List.getElem_append_right, Nat.add_assoc] using this
-  · rintro ⟨h₁, h₂⟩ g hg
-    by_cases hg₁ : g < l₁.length
-    · rw [List.getElem_append_left hg₁]
-      exact h₁ g hg₁
-    · rw [List.getElem_append_right (by omega)]
-      have := h₂ (g - l₁.length) (by simp only [List.length_append] at hg; omega)
-      rwa [show b + l₁.length + (g - l₁.length) = b + g by omega] at this
+  refine ⟨fun h => ⟨fun g hg => ?_, fun g hg => ?_⟩, fun ⟨h₁, h₂⟩ g hg => ?_⟩
+  · exact List.getElem_append_left hg ▸ h g (by simp; omega)
+  · have := h (l₁.length + g) (by simp; omega)
+    simpa [List.getElem_append_right, Nat.add_assoc] using this
+  · by_cases hg₁ : g < l₁.length
+    · exact List.getElem_append_left hg₁ ▸ h₁ g hg₁
+    · have hb : b + l₁.length + (g - l₁.length) = b + g := by omega
+      simpa only [AllGates, List.getElem_append_right (Nat.le_of_not_lt hg₁), hb] using
+        h₂ (g - l₁.length) (by simp at hg; omega)
 
 @[simp] theorem allGates_nil {p : ℕ → Op × List ℕ → Prop} {b : ℕ} : AllGates p b [] := by
   simp [AllGates]
@@ -452,29 +447,21 @@ theorem allGates_fieldGates {p : ℕ → Op × List ℕ → Prop}
     List.length_map, List.length_range, hlen, length_treeGates, allGates_cons, allGates_nil,
     and_true]
   refine ⟨⟨⟨⟨⟨hc₀, hc₁⟩, ?_⟩, ?_⟩, ?_⟩, ?_⟩
-  · rw [allGates_map_range]
-    intro i hi
-    simpa [Nat.add_assoc] using hnot i hi
-  · rw [allGates_flatMap_range]
-    intro k hk
-    rw [sum_range_map_const (len := s + cb + tb) (fun j => by simp), allGates_map_range]
+  · exact allGates_map_range.2 fun i hi => by simpa [Nat.add_assoc] using hnot i hi
+  · refine allGates_flatMap_range.2 fun k hk => ?_
+    rw [sum_range_map_const (len := s + cb + tb) (fun _ => by simp), allGates_map_range]
     intro i hi
     convert hchain k hk i hi using 2
-    simp only [chainBase]
-    omega
+    simp only [chainBase]; omega
   · rw [treeGates, allGates_flatMap_range]
     intro ℓ hℓ
-    simp only [List.length_map, List.length_range]
-    rw [sum_range_two_pow, allGates_map_range]
+    simp only [List.length_map, List.length_range, sum_range_two_pow, allGates_map_range]
     intro q hq
     convert htree ℓ (by omega) q hq using 2
-    simp only [treeBase, chainBase]
-    omega
-  · rw [allGates_map_range]
-    intro i hi
+    simp only [treeBase, chainBase]; omega
+  · refine allGates_map_range.2 fun i hi => ?_
     convert hor i hi using 2
-    simp only [orBase, treeBase, chainBase]
-    omega
+    simp only [orBase, treeBase, chainBase]; omega
 
 /-- **The field stage is a well-formed gate list**, when the decoder tree reads only payload
 bits. -/
@@ -536,10 +523,8 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
   · rw [treeGate]
     by_cases h₀ : ℓ = 0
     · subst h₀
-      simp only [↓reduceIte]
-      rw [consistentAt_const, fieldVal_tree idx hℓ hq]
-      simp only [pow_zero, Nat.lt_one_iff] at hq
-      simp [hq, Nat.mod_one]
+      rw [ite_eq_left rfl, consistentAt_const, fieldVal_tree idx hℓ hq]
+      simp [Nat.lt_one_iff.1 hq, Nat.mod_one]
     · simp only [h₀, ↓reduceIte]
       obtain ⟨ℓ, rfl⟩ : ∃ ℓ', ℓ = ℓ' + 1 := ⟨ℓ - 1, by omega⟩
       simp only [Nat.add_sub_cancel]
@@ -561,9 +546,8 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
     rw [hsel]
     by_cases h₀ : i = 0
     · subst h₀
-      simp only [↓reduceIte]
-      rw [fieldVal_false]
-      cases h : decide (idx / 16 % 2 ^ Nat.size x.length = 0) <;> simp_all [Op.value]
+      cases h : decide (idx / 16 % 2 ^ Nat.size x.length = 0) <;>
+        simp_all [fieldVal_false, Op.value]
     · simp only [h₀, ↓reduceIte]
       rw [fieldVal_or idx]
       by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i

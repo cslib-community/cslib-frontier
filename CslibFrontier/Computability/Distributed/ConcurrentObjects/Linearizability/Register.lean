@@ -115,11 +115,9 @@ private theorem dekker_write_not_lt_stale_read
     (eB1 : [c0, c1, c2, c3][jB1] = ⟨!reg, reg, .read, .readRet false⟩) :
     ¬ jA0 < jB1 := by
   intro hlt
-  have hother : ∀ (k : ℕ) (hk : k < 4), k ≠ jA0 → k ≠ jB1 →
+  have hother (k : ℕ) (hk : k < 4) (h1 : k ≠ jA0) (h2 : k ≠ jB1) :
       decide (([c0, c1, c2, c3][k]'hk).obj = reg) = false := by
-    intro k hk h1 h2
-    have hor : k = jA1 ∨ k = jB0 := by omega
-    rcases hor with rfl | rfl
+    rcases (by omega : k = jA1 ∨ k = jB0) with rfl | rfl
     · rw [eA1]; cases reg <;> rfl
     · rw [eB0]; cases reg <;> rfl
   have h6 : (jA0 = 0 ∧ jB1 = 1) ∨ (jA0 = 0 ∧ jB1 = 2) ∨ (jA0 = 0 ∧ jB1 = 3) ∨
@@ -254,13 +252,10 @@ theorem exists_obj_sequentiallyConsistent_not_global :
     rw [List.append_nil] at hwf' heqS
     have hevS := History.even_length_of_equivalent_complete hwf' hseqS heqS
     obtain ⟨cs, rfl⟩ := History.exists_calls_of_isSequential_even hseqS hevS
-    have hc_cnt : ∀ b : Bool, countProcCalls b cs = 2 := by
-      intro b
+    have hc_cnt (b : Bool) : countProcCalls b cs = 2 := by
       have hb := congrArg List.length (heqS b)
-      rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents] at hb
-      have hb_val : (History.procSubhistory (History.complete H) b).length = 4 := by
-        cases b <;> rfl
-      rw [hb_val] at hb
+      rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents,
+        (by cases b <;> rfl : (History.procSubhistory (History.complete H) b).length = 4)] at hb
       dsimp only [countProcCalls]; omega
     have hcF0 := hc_cnt false
     have hcT0 := hc_cnt true
@@ -278,13 +273,12 @@ theorem exists_obj_sequentiallyConsistent_not_global :
         [⟨true, true, .write true, .writeAck⟩, ⟨true, false, .read, .readRet false⟩] :=
       flatMap_toEvents_injective
         (by rw [← History.procSubhistory_flatMap_toEvents, ← heqS true]; rfl)
-    have hc_S : ∀ b i, i < 2 → History.IsCompletedOp (cs.flatMap OpCall.toEvents) ⟨b, i⟩ := by
-      intro b i hi
+    have hc_S (b : Bool) (i : ℕ) (hi : i < 2) :
+        History.IsCompletedOp (cs.flatMap OpCall.toEvents) ⟨b, i⟩ := by
       rw [History.isCompletedOp_iff_lt_length, History.procSubhistory_flatMap_toEvents,
         History.length_flatMap_toEvents]
       have hb := hc_cnt b
-      dsimp only [countProcCalls] at hb ⊢
-      omega
+      dsimp only [countProcCalls] at hb ⊢; omega
     have hj_ord b {j0 j1} (hj0 : j0 < cs.length) (hj1 : j1 < cs.length)
         (hop0 : opIdAt cs j0 hj0 = ⟨b, 0⟩) (hop1 : opIdAt cs j1 hj1 = ⟨b, 1⟩) : j0 < j1 := by
       have hpr := History.prec_of_same_proc_lt (e₀ := ⟨b, 0⟩) (e₁ := ⟨b, 1⟩) rfl

@@ -110,15 +110,11 @@ theorem run_interpret_popAnswer_congr (program : Complexity.WordQueryComp Operat
     rw [show (PFunctor.FreeM.lift q).bind cont = OracleComp.query q >>= cont from rfl,
       OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
       StateT.run_bind]
-    have h0 : s.headD false = s'.headD false := by
-      have := h 0
-      cases s <;> cases s' <;> simp_all
+    have h0 : s.headD false = s'.headD false := by cases s <;> cases s' <;> exact h 0
     change ((OracleComp.interpret popAnswer (cont [s.headD false])).run s.tail).1 =
       ((OracleComp.interpret popAnswer (cont [s'.headD false])).run s'.tail).1
     rw [h0]
-    exact ih _ fun i => by
-      have := h (i + 1)
-      cases s <;> cases s' <;> simp_all [List.getD_eq_getElem?_getD]
+    exact ih _ fun i => by cases s <;> cases s' <;> exact h (i + 1)
 
 end Cslib.OracleComp
 
@@ -245,15 +241,14 @@ theorem computableInPolyTime_popRun [Finite Operation] {α : Type} {input : α �
   have hit := ComputableInPolyTime.iterate hcount hinit
     machine.computableInPolyTime_popStep hbound fun x i hi => by
       obtain ⟨h₁, h₂⟩ := hspace x i
-      have hx₁ : (input x.1).length ≤ (encPair input encBits x).length := by
-        simp; omega
-      have hx₂ : x.2.length ≤ (encPair input encBits x).length := by simp
+      have hlen : (encPair input encBits x).length = 2 * (input x.1).length + 1 + x.2.length :=
+        length_encPair x
       have hpow : c * ((input x.1).length + 1) ^ d ≤
           c * ((encPair input encBits x).length + 1) ^ d :=
         Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
-      have hc := (hcf _ _ _ _ h₁).trans (Nat.mul_le_mul_left cf
-        (show (input x.1).length + i + 1 + 1 ≤ (encPair input encBits x).length +
-          c * ((encPair input encBits x).length + 1) ^ d + 1 + 1 by omega))
+      have hc : _ ≤ cf * ((encPair input encBits x).length +
+          c * ((encPair input encBits x).length + 1) ^ d + 1 + 1) :=
+        (hcf _ _ _ _ h₁).trans (Nat.mul_le_mul_left cf (by omega))
       rw [length_encPair, encBits_apply]
       omega
   have hout : ComputableInPolyTime

@@ -176,9 +176,8 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
         γ * (‖grad t (x t)‖ ^ 2 / √(S (t + 1))) := by
   set x := adaGradNorm proj grad γ ε x₀
   set S := adaGradNormSqSum proj grad γ ε x₀
-  have hSn : 0 ≤ S t := by
-    rw [show S t = adaGradNormSqSum proj grad γ ε x₀ t from rfl, adaGradNormSqSum_eq]
-    exact add_nonneg hε (sum_nonneg fun _ _ => sq_nonneg _)
+  have hSn : 0 ≤ S t := (add_nonneg hε (sum_nonneg fun _ _ => sq_nonneg _)).trans_eq
+    (adaGradNormSqSum_eq proj grad γ ε x₀ t).symm
   have hS1_nn : 0 ≤ S (t + 1) := add_nonneg hSn (sq_nonneg _)
   rcases hS1_nn.eq_or_lt with hzero | hpos
   · have hg0 : ‖grad t (x t)‖ ^ 2 = 0 := by
@@ -203,8 +202,7 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
     have hR : (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) / η =
         r / γ * (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) +
           γ * (‖grad t (x t)‖ ^ 2 / r) := by
-      simp only [η]
-      field_simp
+      simp only [η]; field_simp
     rwa [mul_div_right_comm, mul_div_cancel_right₀ _ hη.ne', hR] at hdiv
 
 /-- Linearized dynamic regret bound for scalar `AdaGrad-Norm` against any sequence of comparators
@@ -264,7 +262,6 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
           show √(S (k + 2)) / γ * (D ^ 2 - ‖x (k + 1) - u (k + 1)‖ ^ 2) +
             √(S (k + 2)) / γ * (‖x (k + 1) - u (k + 1)‖ ^ 2 - ‖x (k + 2) - u (k + 1)‖ ^ 2) =
             √(S (k + 2)) / γ * (D ^ 2 - ‖x (k + 2) - u (k + 1)‖ ^ 2) by ring]
-    have hk := key T
     have hrem : 0 ≤ √(S (T + 1)) / γ * ‖x (T + 1) - u T‖ ^ 2 := by positivity
     have heq (t : ℕ) : ε + ∑ s ∈ range t, ‖grad s (x s)‖ ^ 2 = S t :=
       (adaGradNormSqSum_eq _ _ _ _ _ t).symm
@@ -272,7 +269,7 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
     simp only [heq] at hcs
     have hmul := mul_le_mul_of_nonneg_left hcs hγ.le
     rw [← adaGradNormSqSum_eq proj grad γ ε x₀ (T + 1)]
-    linarith [show √(S (T + 1)) / γ * (D ^ 2 - ‖x (T + 1) - u T‖ ^ 2) =
+    linarith [key T, show √(S (T + 1)) / γ * (D ^ 2 - ‖x (T + 1) - u T‖ ^ 2) =
         D ^ 2 / γ * √(S (T + 1)) - √(S (T + 1)) / γ * ‖x (T + 1) - u T‖ ^ 2 by ring,
       show 2 * ((D ^ 2 / (2 * γ) + D / γ * pathLength u (T + 1) + γ) * √(S (T + 1)) - γ * √ε) =
         D ^ 2 / γ * √(S (T + 1)) + (2 * D / γ) * pathLength u (T + 1) * √(S (T + 1)) +
@@ -318,12 +315,11 @@ theorem adaGradNorm_regret_le_optimal {K : Set E} {proj : E → E} {f : ℕ → 
       √2 * D * √(ε + ∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) ε x₀ t)‖ ^ 2) -
         D / √2 * √ε := by
   have hsq2 : 0 < √(2 : ℝ) := sqrt_pos.mpr (by norm_num)
-  have h := adaGradNorm_regret_le (f := f) (grad := grad) hP hx₀ hD (div_pos hD0 hsq2) hε hsub hu T
   have heq : D ^ 2 / (2 * (D / √2)) + D / √2 = √2 * D := by
-    have h2 : √(2 : ℝ) * √(2 : ℝ) = 2 := mul_self_sqrt (by norm_num)
     field_simp
-    nlinarith [h2]
-  rwa [heq] at h
+    nlinarith [mul_self_sqrt (by norm_num : (0 : ℝ) ≤ 2)]
+  simpa only [heq] using
+    adaGradNorm_regret_le (f := f) (grad := grad) hP hx₀ hD (div_pos hD0 hsq2) hε hsub hu T
 
 /-- Worst-case `O(G * D * √T)` bound for `AdaGrad-Norm`: when `‖grad t x‖ ≤ G` on `K` and
 `ε = 0`, `AdaGrad-Norm` with `γ = D / √2` guarantees regret at most `√2 * G * D * √T`. -/
@@ -443,8 +439,7 @@ theorem adaGradBox_regret_le {ι : Type*} [Fintype ι] {l r : ι → ℝ} (hlr :
     rw [← sum_comm]
     refine sum_le_sum fun t _ => ?_
     have h := hsub t (x t) (adaGradBox_mem hlr grad γ ε hx₀ t) u hu
-    simp only [mul_sub, sum_sub_distrib] at h ⊢
-    linarith
+    simp only [mul_sub, sum_sub_distrib] at h ⊢; linarith
   have hcoord (i : ι) : ∑ t ∈ range T, grad t (x t) i * (x t i - u i) ≤
       ((r i - l i) ^ 2 / (2 * γ) + γ) * √(ε + ∑ t ∈ range T, (grad t (x t) i) ^ 2) - γ * √ε := by
     have hDi : ∀ a ∈ Set.Icc (l i) (r i), ∀ b ∈ Set.Icc (l i) (r i), ‖a - b‖ ≤ r i - l i :=

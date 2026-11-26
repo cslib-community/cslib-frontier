@@ -79,10 +79,8 @@ private theorem V_one_le (k d h : ℕ) : (1 : ℝ) ≤ V k d h := by
     | zero => rw [V_zero_left]
     | succ d =>
       rw [V_succ_eq d.add_one_ne_zero rfl]
-      have hsum : (0 : ℝ) ≤ ∑ i ∈ Finset.Ico 1 (min (d + 1) (k - 1)), V k (d + 1 - i) h :=
-        Finset.sum_nonneg fun i _ => ( zero_le_one.trans (ih _) )
-      have hlast := ih (d + 1 - min (d + 1) (k - 1))
-      linarith
+      linarith [Finset.sum_nonneg fun i (_ : i ∈ Finset.Ico 1 (min (d + 1) (k - 1))) =>
+        zero_le_one.trans (ih (d + 1 - i)), ih (d + 1 - min (d + 1) (k - 1))]
 
 /-- `V k d h` is nonnegative for all `k, d, h`. -/
 theorem V_nonneg (k d h : ℕ) : (0 : ℝ) ≤ V k d h :=
@@ -168,17 +166,11 @@ private theorem V_mono_right {k : ℕ} (hk : 3 ≤ k) :
   intro d h
   induction h generalizing d with
   | zero =>
-    cases d with
-    | zero => simp only [V_zero_left, le_rfl]
-    | succ m =>
-      cases m with
-      | zero =>
-        rw [V_zero_right, pow_one, V_one_left (by omega)]
-        norm_num
-      | succ n =>
-        rw [V_zero_right]
-        exact (pow_le_pow_right₀ (by norm_num) (Nat.le_succ _)).trans
-          (pow_le_V_one hk _ (by omega))
+    rcases d with _ | _ | n
+    · simp only [V_zero_left, le_rfl]
+    · norm_num [V_zero_right, V_one_left (by omega : 2 ≤ k)]
+    · exact (V_zero_right k _).trans_le ((pow_le_pow_right₀ (by norm_num) (Nat.le_succ _)).trans
+        (pow_le_V_one hk _ (by omega)))
   | succ h ih =>
     cases d with
     | zero => simp only [V_zero_left, le_rfl]
@@ -366,16 +358,14 @@ theorem W_mono_left (k : ℕ) :
 `W k (r - 1) d (h + 1) + V k d h = W k r (d + 1) (h + 1)`. -/
 theorem W_split_depth_one {k r d h : ℕ} (hr : 2 ≤ r) :
     W k (r - 1) d (h + 1) + V k d h = W k r (d + 1) (h + 1) := by
-  have hr0 : r ≠ 0 := by omega
-  have hr1 : r ≠ 1 := by omega
+  obtain ⟨hr0, hr1⟩ : r ≠ 0 ∧ r ≠ 1 := by omega
   by_cases hr2 : r = 2
   · subst hr2
     have hl : min (d + 1) (2 - 1) = 1 := Nat.min_eq_right (by omega)
     simp only [W, Nat.add_sub_cancel, ↓reduceIte, hr0, hr1, Nat.succ_ne_zero, hl,
       Finset.Ico_self, Finset.sum_empty, zero_add]
     ring
-  · have hr_m1_0 : r - 1 ≠ 0 := by omega
-    have hr_m1_1 : r - 1 ≠ 1 := by omega
+  · obtain ⟨hr_m1_0, hr_m1_1⟩ : r - 1 ≠ 0 ∧ r - 1 ≠ 1 := by omega
     cases d with
     | zero =>
       have hl : min 1 (r - 1) = 1 := Nat.min_eq_left (by omega)
@@ -394,8 +384,7 @@ theorem W_split_depth_one {k r d h : ℕ} (hr : 2 ≤ r) :
 `W k r d (h + 2) + V k d h ≤ W k r (d + 1) (h + 2)` for `k ≥ 3` and `2 ≤ r ≤ k`. -/
 theorem W_split_depth_two {k r d h : ℕ} (hk : 3 ≤ k) (hr : 2 ≤ r) (_hrk : r ≤ k) :
     W k r d (h + 2) + V k d h ≤ W k r (d + 1) (h + 2) := by
-  have hr0 : r ≠ 0 := by omega
-  have hr1 : r ≠ 1 := by omega
+  obtain ⟨hr0, hr1⟩ : r ≠ 0 ∧ r ≠ 1 := by omega
   cases d with
   | zero =>
     have hl : min 1 (r - 1) = 1 := Nat.min_eq_left (by omega)

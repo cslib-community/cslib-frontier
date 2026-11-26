@@ -54,9 +54,7 @@ theorem sameCycle_mul_swap_iff_of_separating {f : Perm α} {a b : α}
       ⟨fun hz => hz.trans (hstep z), fun hz => hz.trans (hstep z).symm⟩) h).mp .rfl
   have hinvariant (q : α → Prop) (hq : ∀ z, q (g z) ↔ q z) (hqa : q a ↔ q b)
       (z : α) : q (f z) ↔ q z := by
-    have hz : g (swap a b z) = f z := by simp [g, Perm.mul_apply]
-    rw [← hz]
-    exact (hq _).trans (Equiv.predicate_swap q a b hqa z)
+    simpa [g] using (hq (swap a b z)).trans (Equiv.predicate_swap q a b hqa z)
   change g.SameCycle x y ↔ _
   refine ⟨fun h => ⟨hsub h, sameCycle_predicate hp h⟩, ?_⟩
   rintro ⟨hxy, hpxy⟩
@@ -186,8 +184,7 @@ omit [DecidableEq α] in
 theorem card_orbits_permCongr {β : Type} [Finite β] (e : α ≃ β) (f : Perm α) :
     Nat.card (Quotient (Perm.SameCycle.setoid (e.permCongr f))) =
       Nat.card (Quotient (Perm.SameCycle.setoid f)) := by
-  apply (Nat.card_congr (Quotient.congr e ?_)).symm
-  intro x y
+  refine (Nat.card_congr (Quotient.congr e fun x y => ?_)).symm
   exact (Perm.sameCycle_equiv_iff e f (e.permCongr f)
     (fun z => by simp only [Equiv.permCongr_apply, Equiv.symm_apply_apply]) x y).symm
 
@@ -254,9 +251,7 @@ theorem card_orbits_mul_swap (f : Perm α) (a b : α) (hab : a ≠ b) :
       let a' : {x : α // x ≠ c} := ⟨a, hca.symm⟩
       let b' : {x : α // x ≠ c} := ⟨b, hcb.symm⟩
       have hab' : a' ≠ b' := fun h => hab (congrArg Subtype.val h)
-      have hlt : Nat.card {x : α // x ≠ c} < n := by
-        rw [← hn]
-        exact Finite.card_subtype_lt (not_not.mpr rfl)
+      have hlt : Nat.card {x : α // x ≠ c} < n := hn ▸ Finite.card_subtype_lt (not_not.mpr rfl)
       have hi := ih _ hlt (removeNone f') a' b' hab' rfl
       have hsame : Perm.SameCycle (removeNone f') a' b' ↔ f.SameCycle a b := by
         rw [sameCycle_removeNone]
@@ -328,9 +323,7 @@ theorem removeNone_splice (f : Perm α) (h k : α) :
       swap (some k) none * (swap h k * f).optionCongr := by
   apply Equiv.optionCongr_injective
   rw [map_equiv_removeNone]
-  apply Equiv.ext
-  intro z
-  rcases z with _ | (_ | a)
+  ext (_ | _ | a)
   · simp [splice, swap_apply_def]
   · by_cases hk : h = k <;> simp [splice, swap_apply_def, hk, Ne.symm]
   · rcases eq_or_ne h k with rfl | hk

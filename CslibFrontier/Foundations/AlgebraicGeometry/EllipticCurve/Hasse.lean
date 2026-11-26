@@ -364,12 +364,8 @@ private lemma d1Exp_cases (hF : ringChar F ≠ 2) (c : F) :
   by_cases ha : (cubicPoly α β γ).eval c = 0
   · exact Or.inl ⟨ha, by rw [d1Exp, ha, quadraticChar_zero]; rfl⟩
   rcases quadraticChar_dichotomy ha with h | h
-  · refine Or.inr (Or.inl ⟨ha, by rw [← hpow, h, Int.cast_one], ?_⟩)
-    rw [d1Exp, h]
-    rfl
-  · refine Or.inr (Or.inr ⟨by rw [← hpow, h, Int.cast_neg, Int.cast_one], ?_⟩)
-    rw [d1Exp, h]
-    rfl
+  · exact Or.inr (Or.inl ⟨ha, by simp [← hpow, h], congrArg (fun x => (1 + x).toNat) h⟩)
+  · exact Or.inr (Or.inr ⟨by simp [← hpow, h], congrArg (fun x => (1 + x).toNat) h⟩)
 
 /-- `G` divides `N`: `T - c` divides both summands of `N` when `g(c) = 0`, and `(T - c)²` does
 when `χ(g(c)) = -1`. -/
@@ -457,11 +453,9 @@ theorem d_P₁_sub_zsmul_P₀ (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β γ).
     (fun m ↦ ?_) (fun _ ↦ by ring) n
   have h := parallelogram hΔ (P₁ α β γ - m • P₀ α β γ) (P₀ α β γ)
   have e1 : P₁ α β γ - m • P₀ α β γ + P₀ α β γ = P₁ α β γ - (m - 1) • P₀ α β γ := by
-    rw [sub_zsmul, one_zsmul]
-    abel
+    rw [sub_zsmul, one_zsmul]; abel
   have e2 : P₁ α β γ - m • P₀ α β γ - P₀ α β γ = P₁ α β γ - (m + 1) • P₀ α β γ := by
-    rw [add_zsmul, one_zsmul]
-    abel
+    rw [add_zsmul, one_zsmul]; abel
   rw [d_P₀ hΔ, e1, e2] at h
   omega
 
@@ -478,9 +472,8 @@ theorem cubicCharSum_sq_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
     cubicCharSum α β γ ^ 2 ≤ 4 * (Fintype.card F : ℤ) := by
   have hodd : Odd (Fintype.card F : ℤ) :=
     mod_cast Nat.odd_iff.2 (FiniteField.odd_card_of_char_ne_two hF)
-  exact Manin.sq_le_of_forall_nonneg hodd fun n ↦ by
-    rw [← Manin.d_P₁_sub_zsmul_P₀ hF hΔ n]
-    exact Nat.cast_nonneg _
+  exact Manin.sq_le_of_forall_nonneg hodd fun n ↦
+    Manin.d_P₁_sub_zsmul_P₀ hF hΔ n ▸ Nat.cast_nonneg _
 
 /-- **Hasse's bound**: an elliptic curve `E` over a finite field `F` of odd characteristic with
 `q` elements has `(#E(F) - (q + 1))² ≤ 4 q`. -/
@@ -514,8 +507,7 @@ theorem hasse_bound_zmod {p : ℕ} [Fact p.Prime] (W : WeierstrassCurve (ZMod p)
   · obtain ⟨h1, h5⟩ := natCard_point_zmod_two W
     have : 1 ≤ Real.sqrt 2 := Real.one_le_sqrt.2 (by norm_num)
     simp only [Nat.cast_ofNat]
-    refine ⟨?_, by cast_linarith⟩
-    cast_linarith [h5, h1]
+    constructor <;> cast_linarith
   · obtain ⟨h1, h2⟩ := abs_le.1
       (ZMod.card p ▸ abs_natCard_point_sub_le (ZMod.ringChar_zmod_n p ▸ hp) W)
     exact ⟨by linarith, by linarith⟩

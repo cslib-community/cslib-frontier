@@ -295,13 +295,11 @@ theorem answerStep_inO {g : List Bool → Bool} {Tg Sg : List Bool → ℕ}
   have h := hc.inO.ite (hv.inO.comp (hi.inO.prod (hg.comp hr.inO))) hl.inO
   refine ⟨dc + dr + dv + dl + di,
     ((h.mono (4 ^ dv + 5) (fun cfg => ?_) fun cfg => ?_).of_enc_eq
-      fun cfg => by rw [answerStep_bit]; rfl)⟩
+      fun cfg => congrArg encFiniteConfig (machine.answerStep_bit g cfg))⟩
   all_goals
     simp only [Function.comp_apply, length_encPair, encBool_apply, List.length_singleton]
     generalize (encFiniteConfig cfg).length = L
-    have hL : 1 ≤ L + 1 := by omega
-    have hpow (d : ℕ) (hd : d ≤ dc + dr + dv + dl + di) :
-        (L + 1) ^ d ≤ (L + 1) ^ (dc + dr + dv + dl + di) := Nat.pow_le_pow_right hL hd
+    have hpow (d : ℕ) (hd : d ≤ dc + dr + dv + dl + di) := Nat.pow_le_pow_right (Nat.succ_pos L) hd
     have h2 : (2 * L + 1 + 1 + 1) ^ dv ≤ 4 ^ dv * (L + 1) ^ dv :=
       (Nat.pow_le_pow_left (by omega) dv).trans_eq (Nat.mul_pow _ _ _)
     have h4 : 1 ≤ 4 ^ dv := Nat.one_le_pow _ _ (by omega)
@@ -398,32 +396,30 @@ theorem exists_computableInO_run [Finite Operation] {α : Type}
     (machine.length_pendingRequest_le (machine.spaceBound_iterate_answerStep g (input a) i)).trans
       hi
   -- the iteration, with every request answered within the space of `g` on a short word
-  have hit := (ComputableInO.iterate hn.inO hinit.inO
-    hstep
+  have hit := ComputableInO.iterate hn.inO hinit.inO hstep
     (R := fun a => (B a + 1) ^ e + wordMax Tg (n a))
     (Q := fun a => (B a + 1) ^ e + cg * (n a + 1) ^ dg) (B := B)
-    (fun a i hi => Nat.add_le_add (Nat.pow_le_pow_left (by have := hlen a hi; omega) e)
+    (fun a i hi => Nat.add_le_add (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a hi) 1) e)
       (le_wordMax Tg (hreq a hi)))
-    (fun a i hi => Nat.add_le_add (Nat.pow_le_pow_left (by have := hlen a hi; omega) e)
-      ((hSg _).trans (Nat.mul_le_mul_left cg (Nat.pow_le_pow_left (by
-        have := hreq a hi; omega) dg))))
-    (fun a _ hi => hlen a hi))
+    (fun a i hi => Nat.add_le_add (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a hi) 1) e)
+      ((hSg _).trans (Nat.mul_le_mul_left cg
+        (Nat.pow_le_pow_left (Nat.add_le_add_right (hreq a hi) 1) dg))))
+    fun a _ => hlen a
   have h := (hout.inO.comp hit).mono_le (T' := fun a => _ + (B a + 1) ^ do')
     (S' := fun a => ((input a).length + 1) ^ dn + ((input a).length + 1) ^ di +
       ((B a + 1) ^ e + cg * (n a + 1) ^ dg) + B a + (n a + 1) + (B a + 1) ^ do')
-    (fun a => Nat.add_le_add_left (Nat.pow_le_pow_left (by
-      have := hlen a (le_refl (n a)); omega) do') _)
-    (fun a => by
-      have h₁ := hlen a (le_refl (n a))
+    (fun a =>
+      Nat.add_le_add_left (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a le_rfl) 1) do') _)
+    fun a => by
+      have h₁ := hlen a le_rfl
       have h₂ : (encNat (n a)).length ≤ n a + 1 := by
         simpa only [encNat_apply, Nat.size_eq_bits_len] using
           (Nat.size_le.mpr Nat.lt_two_pow_self).trans (Nat.le_succ _)
       have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) do'
-      omega)
-  refine ⟨_, _, by growth_poly, h.of_enc_eq (g := fun a => OracleComp.interpret (m := Id)
-    (fun q => [g q.2]) (machine.run (pure false) (fun op word => OracleComp.query (op, word))
-      (c * ((input a).length + 1) ^ d) (input a))) fun a => by
-    rw [interpret_run_pure_false]; rfl⟩
+      omega
+  exact ⟨_, _, by growth_poly, h.of_enc_eq fun a => congrArg encBits
+    (machine.interpret_run_pure_false (fun q => [g q.2]) (c * ((input a).length + 1) ^ d)
+      (input a))⟩
 
 /-- **An instruction against a polynomial-time oracle is polynomial-time.** Against an oracle
 answering `[g w]` to a request `w`, with `g` polynomial-time, an instruction is polynomial-time in
@@ -454,19 +450,18 @@ theorem computableInPolyTime_run [Finite Operation] {α : Type} {input : α ↪ 
       encUnary :=
     ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
       (ComputableInPolyTime.encoding_length input)).of_enc_eq fun a => by simp
-  have hinit : ComputableInPolyTime
-      (fun a => FiniteConfig.init (k := k) (Oracle := Operation) machine.initial (input a))
-      input encFiniteConfig :=
-    ComputableInPolyTime.finiteConfig_init (by fun_prop) _
-  have hbound : PolyBounded (fun a => (input a).length)
-      (fun a => cf * ((input a).length + c * ((input a).length + 1) ^ d + 1 + 1)) := by growth_poly
-  have hit := ComputableInPolyTime.iterate hcount hinit
-    (machine.computableInPolyTime_answerStep hg) hbound fun a i hi =>
-      (hcf _ _ _ _ (machine.spaceBound_iterate_answerStep g (input a) i)).trans
-        (Nat.mul_le_mul_left cf (by omega))
+  have hit := ComputableInPolyTime.iterate hcount
+    (ComputableInPolyTime.finiteConfig_init (by fun_prop) machine.initial)
+    (machine.computableInPolyTime_answerStep hg)
+    (by growth_poly : PolyBounded (fun a => (input a).length)
+      (fun a => cf * ((input a).length + c * ((input a).length + 1) ^ d + 1 + 1)))
+    fun a i hi => (hcf _ _ _ _ (machine.spaceBound_iterate_answerStep g (input a) i)).trans
+      (Nat.mul_le_mul_left cf (by omega))
   have hout : ComputableInPolyTime
       (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output) encFiniteConfig
       encBits := by fun_prop
-  exact (hout.comp hit).of_enc_eq fun a => by rw [interpret_run_pure_false]; rfl
+  exact (hout.comp hit).of_enc_eq fun a => congrArg encBits
+    (machine.interpret_run_pure_false (fun q => [g q.2]) (c * ((input a).length + 1) ^ d)
+      (input a))
 
 end Turing.MultiTapePTM

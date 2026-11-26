@@ -25,7 +25,9 @@ literal axioms `aᵢ • ℓᵢ ≥ 0` of `Cslib.Logic.PL.Literal.toIneq` and `0
 solutions (`Cslib.Logic.PL.PBConstr.holds_toIneq_iff`), and a clause's constraint is its cutting
 planes inequality (`Cslib.Logic.PL.Clause.toIneq_toPB`). By refutation completeness of cutting
 planes, the inequalities of a list of constraints are refutable iff the constraints have no common
-0/1 solution (`Cslib.Logic.PL.PBConstr.exists_refutableInSize_toIneq_iff`).
+0/1 solution (`Cslib.Logic.PL.PBConstr.exists_refutableInSize_toIneq_iff`), and by implicational
+completeness the inequality of a constraint is derivable from them iff it holds at all their
+common 0/1 solutions (`Cslib.Logic.PL.PBConstr.exists_derivableInSize_toIneq_iff`).
 
 A VeriPB proof whose steps are `pol` steps without saturation, and deletions, translates into a
 cutting planes proof (`Cslib.Logic.PL.CuttingPlanes.IsProof`) of the same contradiction: if the
@@ -70,6 +72,8 @@ while every cutting planes refutation of it uses each axiom `-xᵥ ≥ -1` for `
 * `Cslib.Logic.PL.PBConstr.holds_toIneq_iff`: the translation is faithful.
 * `Cslib.Logic.PL.PBConstr.exists_refutableInSize_toIneq_iff`: cutting planes refute a list of
   constraints iff it has no 0/1 solution.
+* `Cslib.Logic.PL.PBConstr.exists_derivableInSize_toIneq_iff`: cutting planes derive a
+  constraint from a list iff the list implies it over 0/1 assignments.
 * `Cslib.Logic.PL.VeriPB.refutableInSize_of_check`,
   `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check`: a checked proof of `UNSAT` made of
   such steps gives a cutting planes refutation, with at most `16 (|S| + 1) (|F| + m + 1)` lines.
@@ -189,6 +193,21 @@ theorem PBConstr.exists_refutableInSize_toIneq_iff {F : List PBConstr} :
   · exact (holds_toIneq_iff σ c).1 (h _ ⟨c, hc, rfl⟩)
   · rintro h _ ⟨c, hc, rfl⟩
     exact (holds_toIneq_iff σ c).2 (h c hc)
+
+/-- **Implicational completeness of cutting planes for pseudo-Boolean constraints**: the
+inequality of a constraint `d` is derivable from the inequalities of a list of constraints iff
+every common 0/1 solution of the list satisfies `d`. This is
+`Cslib.Logic.PL.CuttingPlanes.exists_derivableInSize_iff_forall_holds` read through the faithful
+translation `Cslib.Logic.PL.PBConstr.holds_toIneq_iff`. -/
+theorem PBConstr.exists_derivableInSize_toIneq_iff {F : List PBConstr} {d : PBConstr} :
+    (∃ s, CuttingPlanes.DerivableInSize {I | ∃ c ∈ F, c.toIneq = I} d.toIneq s) ↔
+      ∀ σ : ℕ → Bool, (∀ c ∈ F, c.Holds σ) → d.Holds σ := by
+  rw [CuttingPlanes.exists_derivableInSize_iff_forall_holds]
+  refine forall_congr' fun σ => ?_
+  rw [holds_toIneq_iff]
+  refine imp_congr_left ⟨fun h c hc => (holds_toIneq_iff σ c).1 (h _ ⟨c, hc, rfl⟩), ?_⟩
+  rintro h _ ⟨c, hc, rfl⟩
+  exact (holds_toIneq_iff σ c).2 (h c hc)
 
 /-! ### Coefficients and bounds of term lists -/
 

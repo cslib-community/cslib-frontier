@@ -326,14 +326,11 @@ private theorem toOuterMeasure_memoize_not_fsTraceSound_step [BEq α] (V : PCPVe
       q tr_FS).toOuterMeasure {out | ¬ FSTraceSound V L tr out.2} ≤ (1 / 2) ^ m := by
   rcases q with ⟨x, rt⟩
   cases hlookup : tr_FS.lookup (x, rt) with
-  | some ρs =>
-    rw [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply]
-    simp [htr]
+  | some ρs => simp [memoize_of_some _ _ _ _ hlookup, htr]
   | none =>
     rw [memoize_of_none _ _ _ hlookup]
     change ((ProbComp.eval (kilianChallenges V m x)).map
-      (fun ρs => (ρs, ((x, rt), ρs) :: tr_FS))).toOuterMeasure
-      {out | ¬ FSTraceSound V L tr out.2} ≤ _
+      (fun ρs => (ρs, ((x, rt), ρs) :: tr_FS))).toOuterMeasure _ ≤ _
     rw [PMF.toOuterMeasure_map_apply]
     by_cases hx : x ∈ L
     · simp [fsTraceSound_cons_iff, hx, htr]
@@ -578,14 +575,11 @@ private theorem toOuterMeasure_micaliMemoize_not_goodState_step [BEq α]
       simp only [micaliMTCost, micaliFSCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul,
         add_zero, RandomOracle.memoizeSum_inl, PMF.toOuterMeasure_map_apply]
       cases hlookup : tr_MT.lookup msg with
-      | some ans =>
-        rw [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply]
-        simp [hst]
+      | some ans => simp [memoize_of_some _ _ _ _ hlookup, hst]
       | none =>
         rw [memoize_of_none _ _ _ hlookup]
         change ((BitString.uniformList σ).map
-          (fun ans => (ans, (msg, ans) :: tr_MT))).toOuterMeasure
-          {x | ¬ MicaliGoodState V L (x.2, tr_FS)} ≤ _
+          (fun ans => (ans, (msg, ans) :: tr_MT))).toOuterMeasure _ ≤ _
         rw [PMF.toOuterMeasure_map_apply]
         refine ((BitString.uniformList σ).toOuterMeasure.mono (s₂ :=
           {ans | ans ∈ micaliForbiddenDigests (tr_MT, tr_FS)})
@@ -645,8 +639,7 @@ private theorem toOuterMeasure_run_micaliMemoize_not_goodState_le [BEq α] {β :
     hMT hFS (s := ([], [])) (not_not.mpr (micaliGoodState_nil V L))
   refine h.trans (le_of_eq ?_)
   simp only [List.length_nil, mul_zero, add_zero, u]
-  push_cast
-  ring
+  push_cast; ring
 
 /-! #### Support invariants of `memoize`, `kilianVerifyProg` and `micaliVerify` -/
 
@@ -681,8 +674,7 @@ private theorem allOpenings_of_mem_support_mapM_kilianCheckProg
       (fun ⟨_, _⟩ => rfl) hcons₁
     rintro p hp ⟨a, opening⟩ ho
     rcases List.mem_cons.mp hp with rfl | htl
-    · intro q hq
-      exact hsub₂ _ (hhd (a, opening) ho q hq)
+    · exact fun q hq => hsub₂ _ (hhd (a, opening) ho q hq)
     · exact ih hnodup₁ hsupp₁ hcs p htl (a, opening) ho
 
 /-- Running `kilianVerifyProg V x root ρs response` under `memoize dist` records every opening path
@@ -911,9 +903,8 @@ theorem exists_micaliCSProof_of_npRelation [DecidableEq α] {enc : α ↪ List B
           micaliProofBits (micaliProvePure hTree hFS V x table) ≤
             C * (σ + m + 1) ^ 2 * (Nat.log 2 (enc x).length + 1) := by
   obtain ⟨V, compile, c, d, hV, hpcp, hcompile, hacc⟩ := exists_pcpVerifier_of_npRelation enc R
-  have hq : ∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d := by
-    intro x ρ hρ
-    simpa using hpcp.length_queries_le x ρ hρ
+  have hq (x : α) (ρ : List Bool) (hρ : ρ.length = V.coins x) : (V.queries (x, ρ)).length ≤ d :=
+    by simpa using hpcp.length_queries_le x ρ hρ
   exact ⟨V, compile, c, d, hV, hpcp.coins_le, hq, hcompile, hpcp.mem_iff_exists_tableVerifier,
     hacc, fun x w hw σ m => micaliHonestGame_eq_pure_true V (hacc x w hw) σ m,
     fun P t_FS Q_MT σ m hFS hMT => micaliSoundness_bound V R.language σ m hpcp.sound hFS hMT,

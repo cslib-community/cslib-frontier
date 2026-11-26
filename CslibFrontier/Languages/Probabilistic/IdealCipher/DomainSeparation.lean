@@ -431,22 +431,12 @@ private lemma game1Step_simulate {f : U → V} (q : IdealCipher.Query U X)
       have hu_ne : (freshAnswers (st.1 q.1) q.2).Nonempty :=
         hv_ne.mono freshAnswers_fiber_subset
       simp only [hu_ne, ↓reduceDIte]
-      refine (?_ : _ = ((PMF.uniformOfFinset _ hu_ne).bind fun a =>
-          if a ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2 then PMF.pure a
-          else PMF.uniformOfFinset _ hv_ne).bind fun a =>
-            (IdealCipher.complete (Function.update (fiberCache f st.1) (f q.1)
-              (PermQuery.toCacheEntry ⟨q.2, a⟩ :: fiberCache f st.1 (f q.1)))).map
-                (a, ·)).trans ?_
-      · simp only [PMF.bind_bind]
-        refine congr_arg _ (funext fun a => ?_)
-        by_cases ha : a ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2
-        · simp [ha, complete_fiber_update_eq]
-        · simp only [ha, ↓reduceIte, hv_ne, ↓reduceDIte, PMF.bind_map]
-          refine congr_arg _ (funext fun a' => ?_)
-          simp [complete_fiber_update_eq]
-      · rw [Probability.PMF.unifOn_rehash_eq freshAnswers_fiber_subset hu_ne hv_ne,
-          answer_eq_map_of_cachedAnswer_eq_none (q := (f q.1, q.2)) hqv hv_ne, PMF.bind_map]
-        rfl
+      rw [answer_eq_map_of_cachedAnswer_eq_none (q := (f q.1, q.2)) hqv hv_ne, PMF.bind_map,
+        Function.comp_def, ← Probability.PMF.unifOn_rehash_eq freshAnswers_fiber_subset hu_ne hv_ne]
+      simp only [PMF.bind_bind]
+      refine congr_arg _ (funext fun a => ?_)
+      by_cases ha : a ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2 <;>
+        simp [ha, hv_ne, PMF.bind_map, Function.comp_def, complete_fiber_update_eq]
 
 private lemma coalescedExperiment_eq_game1 (f : U → V)
     (A : ProbOracleComp (IdealCipher.Spec U X) α) :
@@ -506,35 +496,31 @@ private lemma splitExperiment_eq_answer (A : ProbOracleComp (IdealCipher.Spec U 
     (fun uCache => ∀ μ, IsPartialBijection (uCache μ))
     IdealCipher.answer_preserve_isPartialBijection
     (fun q uCache hcache => by
-      have hdom_step :
-          (IdealCipher.answer q uCache).bind (fun (a, u') =>
-            ((IdealCipher.complete u').map (·, fun μ => cacheDomains (u' μ))).map (a, ·)) =
-          (IdealCipher.answer q uCache).bind (fun (a, u') =>
-            (IdealCipher.complete u').map fun πFam =>
-              (a, (πFam, recordQueryDomain (fun μ => cacheDomains (uCache μ)) q a))) := by
-        refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨a, u'⟩ hmem => ?_
-        have hdom : (fun μ => cacheDomains (u' μ)) =
-            recordQueryDomain (fun μ => cacheDomains (uCache μ)) q a := by
-          cases hhit : cachedAnswer (uCache q.1) q.2 with
-          | some b₀ =>
-            rw [answer_eq_pure_of_cachedAnswer_eq_some hhit, PMF.mem_support_pure_iff,
-              Prod.mk.injEq] at hmem
-            rcases hmem with ⟨rfl, rfl⟩
-            exact (recordQueryDomain_of_cacheDomains_mem
-              (toCacheEntry_mem_of_cachedAnswer_eq_some hhit)).symm
-          | none =>
-            rw [answer_eq_map_of_cachedAnswer_eq_none hhit
-              ((hcache q.1).freshAnswers_nonempty hhit), PMF.mem_support_map_iff] at hmem
-            obtain ⟨_, _, heq'⟩ := hmem
-            rcases Prod.mk.inj heq' with ⟨rfl, rfl⟩
-            funext μ
-            by_cases hμ : μ = q.1 <;> simp [recordQueryDomain, cacheDomains_cons, hμ]
-        simp [PMF.map_comp, Function.comp_def, hdom]
       have hcomp := congrArg (PMF.map fun (a, πFam) =>
         (a, (πFam, recordQueryDomain (fun μ => cacheDomains (uCache μ)) q a)))
         (IdealCipher.answer_complete q uCache hcache)
-      simp only [PMF.map_bind, PMF.map_comp, Function.comp_def] at hcomp
-      simpa [target, PMF.map_bind, Function.comp_def] using hdom_step.trans hcomp)
+      simp only [PMF.map_bind, PMF.monad_map_eq_map, PMF.map_comp, PMF.pure_map,
+        Function.comp_def] at hcomp
+      simp only [target, PMF.bind_map, Function.comp_def]
+      rw [← hcomp]
+      refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨a, u'⟩ hmem => ?_
+      have hdom : (fun μ => cacheDomains (u' μ)) =
+          recordQueryDomain (fun μ => cacheDomains (uCache μ)) q a := by
+        cases hhit : cachedAnswer (uCache q.1) q.2 with
+        | some b₀ =>
+          rw [answer_eq_pure_of_cachedAnswer_eq_some hhit, PMF.mem_support_pure_iff,
+            Prod.mk.injEq] at hmem
+          rcases hmem with ⟨rfl, rfl⟩
+          exact (recordQueryDomain_of_cacheDomains_mem
+            (toCacheEntry_mem_of_cachedAnswer_eq_some hhit)).symm
+        | none =>
+          rw [answer_eq_map_of_cachedAnswer_eq_none hhit
+            ((hcache q.1).freshAnswers_nonempty hhit), PMF.mem_support_map_iff] at hmem
+          obtain ⟨_, _, heq'⟩ := hmem
+          rcases Prod.mk.inj heq' with ⟨rfl, rfl⟩
+          funext μ
+          by_cases hμ : μ = q.1 <;> simp [recordQueryDomain, cacheDomains_cons, hμ]
+      simp [PMF.map_comp, Function.comp_def, hdom])
     A (fun _ => []) (fun _ => isPartialBijection_nil)
   have hconst (p : PMF (U → Equiv.Perm X)) (y : α × QueryDomains U X) :
       p.map (fun _ => y) = PMF.pure y := PMF.map_const p y

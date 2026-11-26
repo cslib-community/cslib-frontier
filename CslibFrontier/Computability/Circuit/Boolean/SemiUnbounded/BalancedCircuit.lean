@@ -162,19 +162,16 @@ theorem reindex_eval_iff (C : LayeredSemiUnboundedCircuit G) (e : G ≃ G') (g :
     subst hn
     match hk : C.kind g with
     | .leaf b =>
-      have hk' : (C.reindex e).kind (e g) = .leaf b := by simp [reindex, hk, GateKind.map]
-      rw [(C.reindex e).eval_leaf hk', C.eval_leaf hk]
+      rw [(C.reindex e).eval_leaf (b := b) (by simp [reindex, hk, GateKind.map]), C.eval_leaf hk]
     | .and (.unary c) =>
-      have hk' : (C.reindex e).kind (e g) = .and (.unary (e c)) := by
-        simp [reindex, hk, GateKind.map, AndInputs.map]
       have := C.layer_andUnary hk
-      rw [(C.reindex e).eval_andUnary hk', C.eval_andUnary hk]
+      rw [(C.reindex e).eval_andUnary (c := e c)
+        (by simp [reindex, hk, GateKind.map, AndInputs.map]), C.eval_andUnary hk]
       exact ih _ (by omega) c rfl
     | .and (.binary l r) =>
-      have hk' : (C.reindex e).kind (e g) = .and (.binary (e l) (e r)) := by
-        simp [reindex, hk, GateKind.map, AndInputs.map]
       have := C.layer_andBinary hk
-      rw [(C.reindex e).eval_andBinary hk', C.eval_andBinary hk]
+      rw [(C.reindex e).eval_andBinary (l := e l) (r := e r)
+        (by simp [reindex, hk, GateKind.map, AndInputs.map]), C.eval_andBinary hk]
       exact and_congr (ih _ (by omega) l rfl) (ih _ (by omega) r rfl)
     | .or =>
       rw [(C.reindex e).eval_or (by simp [reindex, hk, GateKind.map]), C.eval_or hk]
@@ -667,9 +664,7 @@ private lemma eval_orQ_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (h : (C start accept stay pushPop R).Eval (.orQ ⟨r₁, by omega⟩ u v x y)) :
     (C start accept stay pushPop R).Eval (.orQ ⟨r₂, hr₂⟩ u v x y) := by
   induction r₂ with
-  | zero =>
-    obtain rfl := Nat.eq_zero_of_le_zero hle
-    exact h
+  | zero => exact Nat.eq_zero_of_le_zero hle ▸ h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
     · exact (eval_orQ_succ_iff hr₂ u v x y).mpr
@@ -680,9 +675,7 @@ private lemma eval_orP_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (h : (C start accept stay pushPop R).Eval (.orP ⟨r₁, by omega⟩ u v)) :
     (C start accept stay pushPop R).Eval (.orP ⟨r₂, hr₂⟩ u v) := by
   induction r₂ with
-  | zero =>
-    obtain rfl := Nat.eq_zero_of_le_zero hle
-    exact h
+  | zero => exact Nat.eq_zero_of_le_zero hle ▸ h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
     · exact (eval_orP_succ_iff hr₂ u v).mpr
@@ -886,17 +879,14 @@ theorem le_balancedGateCount (S R : ℕ) : S + 3 ≤ balancedGateCount S R := by
 theorem balancedGateCount_le (S R : ℕ) :
     balancedGateCount S R ≤ 6 * (R + 1) * (S + 1) ^ 6 := by
   unfold balancedGateCount
-  have hd (d : ℕ) (hd6 : d ≤ 6) : S ^ d ≤ (S + 1) ^ 6 :=
-    (Nat.pow_le_pow_left (Nat.le_succ S) d).trans (Nat.pow_le_pow_right (Nat.succ_pos S) hd6)
-  have h2 : S * S ≤ (S + 1) ^ 6 := by simpa only [sq] using hd 2 (by decide)
-  have h4 : (S * S) * (S * S) ≤ (S + 1) ^ 6 := by
-    simpa only [show (S * S) * (S * S) = S ^ 4 by ring] using hd 4 (by decide)
-  have h5 : ((S * S) * (S * S)) * S ≤ (S + 1) ^ 6 := by
-    simpa only [show ((S * S) * (S * S)) * S = S ^ 5 by ring] using hd 5 (by decide)
-  have h6 : ((S * S) * (S * S)) * (S * S) ≤ (S + 1) ^ 6 := by
-    simpa only [show ((S * S) * (S * S)) * (S * S) = S ^ 6 by ring] using hd 6 le_rfl
-  nlinarith [Nat.one_le_pow 6 (S + 1) (Nat.succ_pos S),
-    (Nat.le_succ S).trans (Nat.le_self_pow (by decide : 6 ≠ 0) (S + 1))]
+  have hpow (x d : ℕ) (hx : x = S ^ d) (hd6 : d ≤ 6) : x ≤ (S + 1) ^ 6 :=
+    hx ▸ (Nat.pow_le_pow_left (Nat.le_succ S) d).trans (Nat.pow_le_pow_right (Nat.succ_pos S) hd6)
+  nlinarith [hpow (S * S) 2 (by ring) (Nat.le_of_ble_eq_true rfl),
+    hpow ((S * S) * (S * S)) 4 (by ring) (Nat.le_of_ble_eq_true rfl),
+    hpow (((S * S) * (S * S)) * S) 5 (by ring) (Nat.le_of_ble_eq_true rfl),
+    hpow (((S * S) * (S * S)) * (S * S)) 6 (by ring) le_rfl,
+    Nat.one_le_pow 6 (S + 1) (Nat.succ_pos S),
+    (Nat.le_succ S).trans (Nat.le_self_pow (Nat.succ_ne_zero 5) (S + 1))]
 
 /-- The `Fin N`-indexed balanced-depth normal-form semi-unbounded circuit over `Fin S`. -/
 def balancedCircuitFin {S : ℕ} (start : Fin S) (accept : Fin S → Prop)

@@ -353,13 +353,12 @@ private theorem toReal_eval_smoothSlotCoins_some (P : Scheme ι S R Q A) [Fintyp
     have hinj : Function.Injective embed := (Option.some_injective _).comp sigma_mk_injective
     rw [Probability.PMF.map_apply_of_injective _ hinj idx']
     simp [PMF.uniformOfFintype_apply, div_eq_mul_inv]
-  · rw [ite_eq_right hsq]
-    have hz : ((PMF.uniformOfFintype (Fin (smoothCopies P i₀ (s, q)))).map embed)
-        (some ⟨sq', idx'⟩) = 0 := by
-      rw [PMF.apply_eq_zero_iff, PMF.support_map]
-      rintro ⟨u, _, hu⟩
-      exact hsq (congrArg Sigma.fst (Option.some.inj hu)).symm
-    simp [hz]
+  · have hz : ((PMF.uniformOfFintype (Fin (smoothCopies P i₀ (s, q)))).map embed)
+        (some ⟨sq', idx'⟩) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun h => by
+        obtain ⟨_, _, hu⟩ := (PMF.mem_support_map_iff _ _ _).mp h
+        exact hsq (congrArg Sigma.fst (Option.some.inj hu)).symm
+    simp [hsq, hz]
 
 private theorem eval_smoothSlotCoins_none (P : Scheme ι S R Q A) [Fintype S]
     [Fintype Q] [DecidableEq Q] (i₀ i : ι) (s : S) (q : Q) :
@@ -447,8 +446,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
   have hl_pos : (0 : ℝ) < l := by
     exact_mod_cast Nat.mul_pos (Fintype.card_pos_iff.mpr ⟨s₀⟩) (Fintype.card_pos_iff.mpr ⟨q₀⟩)
   have hm_pos : (0 : ℝ) < Fintype.card (SmoothPos P i₀) := by
-    have : Nonempty (SmoothPos P i₀) := ⟨⟨(s₀, q₀), idx₀⟩⟩
-    exact_mod_cast Fintype.card_pos
+    exact_mod_cast Fintype.card_pos_iff.mpr ⟨(⟨(s₀, q₀), idx₀⟩ : SmoothPos P i₀)⟩
   ennreal_to_real at hexp
   have hk_val (k : Fin (Fintype.card S)) :
       (((ProbComp.eval (smoothCoins P i₀ i)).map (fun st => st.slots k))
@@ -478,13 +476,9 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
   have hn₀_pos : (0 : ℝ) < smoothCopies P i₀ (s₀, q₀) := by
     exact_mod_cast smoothCopies_pos P i₀ (s₀, q₀)
   have hceil : p₀ * l ≤ smoothCopies P i₀ (s₀, q₀) := by
-    have hq : ProbComp.evalRat (P.serverQuery s₀ i₀) q₀ * (l : ℚ) ≤
-        (smoothCopies P i₀ (s₀, q₀) : ℚ) :=
-      (Nat.le_ceil _).trans (by
-        rw [smoothCopies_eq]
-        exact_mod_cast le_max_right 1 _)
-    simpa [p₀, l, ProbComp.coe_evalRat_eq_toReal_eval] using
-      (mod_cast hq : ((ProbComp.evalRat (P.serverQuery s₀ i₀) q₀ * (l : ℚ) : ℚ) : ℝ) ≤ _)
+    dsimp only [p₀]
+    rw [← ProbComp.coe_evalRat_eq_toReal_eval, smoothCopies_eq]
+    exact_mod_cast (Nat.le_ceil _).trans (Nat.cast_le.mpr (le_max_right 1 _))
   have hstep1 : min p₀ pᵢ / smoothCopies P i₀ (s₀, q₀) ≤ 1 / l := by
     rw [div_le_div_iff₀ hn₀_pos hl_pos, one_mul]
     exact (mul_le_mul_of_nonneg_right (min_le_left p₀ pᵢ) hl_pos.le).trans hceil
@@ -854,15 +848,12 @@ theorem card_mul_sq_le_card_answer_sub_one_of_statPrivate (P : Scheme ι S R Q A
   let _ : Fintype S := Unique.fintype
   cases nonempty_fintype Q
   rcases isEmpty_or_nonempty ι with hι | hne
-  · rw [Fintype.card_eq_zero, Nat.cast_zero, zero_mul]
-    have hA : (1 : ℝ) ≤ Fintype.card A := by exact_mod_cast Fintype.card_pos (α := A)
-    linarith
+  · simp only [Fintype.card_eq_zero, Nat.cast_zero, zero_mul, sub_nonneg, Nat.one_le_cast]
+    exact Fintype.card_pos
   · obtain ⟨i₀⟩ := hne
     have hsm := isSmoothDecoder_smoothDecoder P i₀ hδ (hpriv.isStatPrivateAt i₀) hrec
-    rw [Fintype.card_unique] at hsm
-    simp only [Nat.cast_one, one_add_one_eq_two, one_mul] at hsm
-    have hfour := hsm.four_mul_card_mul_sq_le (by linarith)
-    linarith
+    simp only [Fintype.card_unique, Nat.cast_one, one_add_one_eq_two, one_mul] at hsm
+    linarith [hsm.four_mul_card_mul_sq_le (by linarith)]
 
 /-- **Noisy perfectly-private single-server PIR answer-size lower bound** (`δ = 0` case of
 `card_mul_sq_le_card_answer_sub_one_of_statPrivate`): any perfectly private one-server PIR scheme

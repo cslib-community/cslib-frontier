@@ -54,10 +54,9 @@ private theorem realizes_checkLeafHitBody :
       (fun _ _ => 0) := by
   have hlg := realizes_laneGetGen
   realize
-  all_goals obtain ⟨hw1, h1, h2⟩ := h
-  · exact Nat.one_lt_two_pow (by omega)
-  · exact h1
-  · exact h2
+  · exact Nat.one_lt_two_pow (by linarith [h.1])
+  · exact h.2.1
+  · exact h.2.2
 
 /-- Opaque helper checking `r < cnt ∧ laneGet wKey keysWord r = q` (`d = (((wKey, keysWord), (r,
   cnt)), q)`),
@@ -299,11 +298,8 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
   by_cases hhit : r < cnt ∧ laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r = q
   · obtain ⟨hrc, hkeq⟩ := hhit
     have hhit_res : (Memory.spec 0).clientResult s hitProg = 1 := by
-      dsimp only [hitProg]
-      simp only [hrc, ↓reduceIte]
-      rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
-      dsimp only [keyLaneBitsWhp]
-      simp [hkeq, StateTransitionSpec.clientResult_pure]
+      simp [hitProg, hrc, clientResult_bind, clientResult_laneGetGenProg, keyLaneBitsWhp, hkeq,
+        StateTransitionSpec.clientResult_pure]
     let nd' : BTreeNode :=
       ⟨(sl.nodes leafIdx).metaWord, (sl.nodes leafIdx).keysWord,
         wordUpdateAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩
@@ -328,10 +324,8 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
     have hhit_res : (Memory.spec 0).clientResult s hitProg = 0 := by
       dsimp only [hitProg]
       by_cases hrc : r < cnt
-      · simp only [hrc, ↓reduceIte]
-        rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
-        dsimp only [keyLaneBitsWhp]
-        simp [hne hrc, StateTransitionSpec.clientResult_pure]
+      · simp [hrc, clientResult_bind, clientResult_laneGetGenProg, keyLaneBitsWhp, hne hrc,
+          StateTransitionSpec.clientResult_pure]
       · simp [hrc, StateTransitionSpec.clientResult_pure]
     let nd' : BTreeNode :=
       ⟨mkNodeMeta true (cnt + 1),
@@ -394,10 +388,7 @@ theorem realizes_finishLeafInsertGen :
     have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
-    simp only [wp_large_M hth] at *
-    try simp only [wp_large_nSlice hth] at *
-    try simp only [wp_large_wKey hth] at *
-    try simp only [wp_large_wVal hth] at *
+    simp only [wp_large_M hth, wp_large_nSlice hth, wp_large_wKey hth, wp_large_wVal hth] at *
     try first
       | decide
       | exact henv.fits_const (by decide)
@@ -435,12 +426,10 @@ theorem realizes_finishLeafInsertGen :
     refine ⟨cntL, by unfold valLaneBitsWhp; positivity, hrc,
       (Nat.mul_le_mul_right _ (by omega)).trans_lt hvw_lt, hval, hv_leaf.2.2.2.2.1⟩
   · have hkl2 : 2 ≤ keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp fpBitsWhp; omega
-    have : 1 + 2 * (cntL + 1) < w := by
-      have : 2 * (2 * tMinWhp n_max) ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max := by
-        rw [Nat.mul_comm 2 (2 * tMinWhp n_max)]
-        exact Nat.mul_le_mul_left _ hkl2
+    have hlt : 1 + 2 * (cntL + 1) < w := by
+      have := Nat.mul_le_mul_left (2 * tMinWhp n_max) hkl2
       omega
-    exact this.trans Nat.lt_two_pow_self
+    exact hlt.trans Nat.lt_two_pow_self
   · have : cntL + 1 < w :=
       (by omega : cntL + 1 ≤ 2 * tMinWhp n_max).trans_lt
         ((Nat.le_mul_of_pos_right _ (by unfold keyLaneBitsWhp; positivity)).trans_lt hkw_lt)

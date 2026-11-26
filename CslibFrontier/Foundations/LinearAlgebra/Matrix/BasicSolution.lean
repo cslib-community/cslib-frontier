@@ -78,8 +78,8 @@ theorem exists_nonneg_mulVec_eq_forall_mulVec_eq_zero {A : Matrix m n K} {b : m 
   obtain ⟨w, hws, hwA, j₀, hwj₀⟩ : ∃ w : n → K, (∀ j, x j = 0 → w j = 0) ∧ A *ᵥ w = 0 ∧
       ∃ j₀, 0 < w j₀ := by
     rcases lt_or_gt_of_ne hj₀ with h | h
-    · refine ⟨-w₀, fun j hj => by simp [hw₀s j hj], by simp [mulVec_neg, hw₀A], j₀, ?_⟩
-      simpa using h
+    · exact ⟨-w₀, fun j hj => neg_eq_zero.2 (hw₀s j hj),
+        by simp [mulVec_neg, hw₀A], j₀, neg_pos.2 h⟩
     · exact ⟨w₀, hw₀s, hw₀A, j₀, h⟩
   have hs : ({j | 0 < w j} : Finset n).Nonempty := ⟨j₀, by simp [hwj₀]⟩
   obtain ⟨j₁, hj₁s, hj₁⟩ := Finset.exists_min_image _ (fun j => x j / w j) hs
@@ -92,12 +92,9 @@ theorem exists_nonneg_mulVec_eq_forall_mulVec_eq_zero {A : Matrix m n K} {b : m 
     simp only [x', Pi.sub_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply, sub_nonneg]
     rcases le_or_gt (w j) 0 with h | h
     · exact (mul_nonpos_of_nonneg_of_nonpos ht h).trans (hx j)
-    · have := hj₁ j (by simp [h])
-      rwa [le_div_iff₀ h] at this
-  have hAx' : A *ᵥ x' = b := by
-    simp [x', mulVec_sub, mulVec_smul, hwA, hAx]
-  have hsub : ∀ j, x j = 0 → x' j = 0 := fun j hj => by
-    simp [x', hj, hws j hj]
+    · exact (le_div_iff₀ h).1 (hj₁ j (by simp [h]))
+  have hAx' : A *ᵥ x' = b := by simp [x', mulVec_sub, mulVec_smul, hwA, hAx]
+  have hsub (j) (hj : x j = 0) : x' j = 0 := by simp [x', hj, hws j hj]
   have hx'j₁ : x' j₁ = 0 := by simp [x', t, div_mul_cancel₀ _ hwj₁.ne']
   have hxj₁ : x j₁ ≠ 0 := fun h => hwj₁.ne' (hws j₁ h)
   have hlt : #{j | x' j ≠ 0} < #{j | x j ≠ 0} := Finset.card_lt_card ⟨fun j => by
@@ -160,8 +157,7 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
   have hGy : GK *ᵥ y = fun j => (c j : K) := by
     funext j
     by_cases hj : y j = 0
-    · rw [hG0 y j hj]
-      simp [c, hj]
+    · simp [hG0 y j hj, c, hj]
     · rw [hG1 y (fun _ h => h) j hj, ← mulVec_mulVec, hAy]
       simp [c, hj, mulVec, dotProduct, AK]
   -- `G` is nonsingular: a kernel vector `v` is supported in that of `y` and `‖A v‖² = 0`.
@@ -175,9 +171,7 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
       rw [← dotProduct_self_eq_zero]
       conv_lhs => rw [dotProduct_mulVec, ← mulVec_transpose]
       refine Finset.sum_eq_zero fun j _ => ?_
-      by_cases hj : y j = 0
-      · simp [hv0 j hj]
-      · simp [hv1 j hj]
+      by_cases hj : y j = 0 <;> simp [hv0, hv1, hj]
     exact hymin v hv0 hAv
   have hdet : G.det ≠ 0 := fun h => by
     have hcast : ((G.det : ℤ) : K) = GK.det := (Int.castRingHom K).map_det G
@@ -271,13 +265,13 @@ theorem exists_int_mulVec_le {A : Matrix m n ℤ} {b : m → ℤ} {B : ℕ}
   have hA' := abs_nonnegForm_le hA
   have hb' : ∀ i, |b i| ≤ (B + 1 : ℕ) := fun i => (hb i).trans (by simp)
   obtain ⟨z, hz, hAz⟩ := nonnegForm_solution hAx
-  have hAz' : A'.map (Int.cast : ℤ → K) *ᵥ z = fun i => (b i : K) := by
-    rw [show A'.map (Int.cast : ℤ → K) = nonnegForm AK from
-      nonnegForm_map A (Int.castRingHom K)]
-    exact hAz
+  have hAz' : A'.map (Int.cast : ℤ → K) *ᵥ z = fun i => (b i : K) :=
+    (congrArg (· *ᵥ z) (nonnegForm_map A (Int.castRingHom K))).trans hAz
   obtain ⟨d, p', hd, hp', hAp', hdN, hpN⟩ := exists_int_nonneg_mulVec_eq hA' hb' hz hAz'
-  rw [show Fintype.card (n ⊕ n ⊕ m) = 2 * Fintype.card n + Fintype.card m by
-    simp only [Fintype.card_sum]; omega] at hdN hpN
+  have hcard : Fintype.card (n ⊕ n ⊕ m) = 2 * Fintype.card n + Fintype.card m := by
+    simp only [Fintype.card_sum]
+    omega
+  rw [hcard] at hdN hpN
   refine ⟨d, fun j => p' (Sum.inl j) - p' (Sum.inr (Sum.inl j)), hd, fun i => ?_, hdN, fun j => ?_⟩
   · rw [nonnegForm_mulVec] at hAp'
     have h := congrFun hAp' i
@@ -308,7 +302,7 @@ theorem exists_int_farkas_certificate {A : Matrix m n ℤ} {b : m → ℤ} {B : 
     exacts [(hA i j).trans (by push_cast; linarith), (hb i).trans (by push_cast; linarith)]
   have he : ∀ r, |e r| ≤ (B + 1 : ℕ) := by
     rintro (j | u)
-    · simp only [e, Sum.elim_inl, Pi.zero_apply, abs_zero]; positivity
+    · exact abs_zero.trans_le (Nat.cast_nonneg _)
     · simp [e]
   set s : K := y ⬝ᵥ (fun i => (b i : K)) with hs
   have hy' : 0 ≤ (-s⁻¹) • y := smul_nonneg (neg_nonneg.2 (inv_nonpos.2 hyb.le)) hy
@@ -323,7 +317,7 @@ theorem exists_int_farkas_certificate {A : Matrix m n ℤ} {b : m → ℤ} {B : 
         Int.cast_neg, Int.cast_one, dotProduct_comm _ y]
       rw [neg_mul, inv_mul_cancel₀ hyb.ne]
   obtain ⟨d, q, hd, hq, hMq, -, hqN⟩ := exists_int_nonneg_mulVec_eq hM he hy' hMy
-  rw [show Fintype.card (n ⊕ Unit) = Fintype.card n + 1 by simp] at hqN
+  rw [Fintype.card_sum, Fintype.card_unit] at hqN
   refine ⟨q, hq, ?_, ?_, hqN⟩
   · rw [← mulVec_transpose]
     funext j

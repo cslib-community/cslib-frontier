@@ -190,9 +190,7 @@ theorem isQueryBounded_ctrMaskQueriesFrom (counter : BitString n → ℕ → Bit
     (iv : BitString n) (i k : ℕ) :
     ProbOracleComp.IsQueryBounded (ctrMaskQueriesFrom counter iv i k) k := by
   induction k generalizing i with
-  | zero =>
-    simp only [ctrMaskQueriesFrom]
-    exact OracleComp.IsCostBounded.pure _ _
+  | zero => exact OracleComp.IsCostBounded.pure _ _
   | succ k ih =>
     simp only [ctrMaskQueriesFrom]
     exact OracleComp.IsCostBounded.mono
@@ -230,9 +228,7 @@ private theorem length_ctrCache (c : List (BitString n × BitString n))
     (ctrCache c counter iv i us).length = c.length + us.length := by
   induction us generalizing c i with
   | nil => simp [ctrCache]
-  | cons u us ih =>
-    simp only [ctrCache, ih, List.length_cons]
-    omega
+  | cons u us ih => simp only [ctrCache, ih, List.length_cons]; omega
 
 private theorem ctrAnyHit_cons_eq (c : List (BitString n × BitString n))
     (counter : BitString n → ℕ → BitString n) (iv : BitString n) (u : BitString n)
@@ -453,15 +449,11 @@ private theorem toOuterMeasure_bad_fresh_le
       rw [PMF.snd_eq_of_mem_support_lift hx]
       exact le_add_right (le_add_right le_rfl)
     | inr q =>
-      have hlen := length_of_mem_support_freshQuery counter ℓ b q s hintra hx
-      simp only [hlen, blockModeCost, Sum.elim_inr]
-      refine le_of_eq ?_
-      push_cast
-      ring
+      simp only [length_of_mem_support_freshQuery counter ℓ b q s hintra hx, blockModeCost,
+        Sum.elim_inr, Nat.cast_add]
+      exact le_of_eq (by ring)
   · exact fun _ _ _ _ _ _ => zero_le
-  · simp only [List.length_nil, Nat.cast_mul, Nat.cast_zero, zero_mul, zero_add, add_zero,
-      mul_zero]
-    ring
+  · simp only [List.length_nil, Nat.cast_mul, Nat.cast_zero, zero_mul, zero_add, add_zero]; ring
 
 /-! ### Section 4: Security of CTR Mode and Modular Counter Instantiation -/
 
@@ -500,11 +492,9 @@ theorem advantage_ctrCpaGame_randomFunction_le
         (ctrCpaGame counter (fun f : BitString n → BitString n => f) ℓ false adversary)
         (ctrCpaGame counter (fun f : BitString n → BitString n => f) ℓ true adversary) : ℝ) ≤
       2 * ((K : ℝ) ^ 2 / 2 ^ n) := by
-  have e (b : Bool) :
-      ctrCpaGame counter (fun f : BitString n → BitString n => f) ℓ b adversary =
-        ProbComp.eval (PRF.idealExperiment (ctrReduction counter ℓ b adversary)) :=
-    ctrCpaGame_eq_realExperiment counter _ ℓ b adversary
-  rw [e, e]
+  rw [ctrCpaGame_eq_realExperiment, ctrCpaGame_eq_realExperiment]
+  change (Game.advantage (ProbComp.eval (PRF.idealExperiment _))
+    (ProbComp.eval (PRF.idealExperiment _)) : ℝ) ≤ _
   have h₀ := advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv
   have h₁ := advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv
   exact (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans

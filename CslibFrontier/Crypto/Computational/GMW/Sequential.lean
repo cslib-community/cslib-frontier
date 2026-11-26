@@ -446,11 +446,9 @@ theorem acceptProb_replicate_all_le {Operation : Type}
     have hfalse (s' : P.State) :
         ProbOracleComp.acceptProbWith P.respond
           ((fun bs => false && bs.all id) <$> OracleComp.replicate k verifier) s' = 0 := by
-      let P' : Prover Operation := ⟨P.State, s', P.respond⟩
-      change acceptProb ((fun _ => false) <$> OracleComp.replicate k verifier) P' = 0
-      refine acceptProb_eq_zero P' fun x hx => ?_
-      rw [Prover.run_map, PMF.mem_support_map_iff] at hx
-      obtain ⟨y, _, rfl⟩ := hx; rfl
+      refine acceptProb_eq_zero ⟨P.State, s', P.respond⟩ fun x hx => ?_
+      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp (Prover.run_map _ _ _ _ ▸ hx)
+      rfl
     have htrue (s' : P.State) :
         ProbOracleComp.acceptProbWith P.respond
           ((fun bs => true && bs.all id) <$> OracleComp.replicate k verifier) s' ≤ c ^ k := by
@@ -622,16 +620,13 @@ theorem mem_support_oneSessionStep {k : ℕ} {Control : Type}
     (hrem : rem ≤ T) (hcfg : FiniteConfig.SpaceBound W (T - rem) limit cfg)
     (hnext : (rem', q', cfg') ∈ OracleComp.support (oneSessionStep machine limit (rem, q, cfg))) :
     rem' ≤ rem ∧ q' ≤ q ∧ FiniteConfig.SpaceBound W (T - rem') limit cfg' := by
-  suffices h : ∀ next ∈ OracleComp.support (oneSessionStep machine limit (rem, q, cfg)),
-      next.1 ≤ rem ∧ next.2.1 ≤ q ∧ FiniteConfig.SpaceBound W (T - next.1) limit next.2.2 from
-    h _ hnext
-  intro next hnext
   simp only [oneSessionStep] at hnext
   split_ifs at hnext with hzero
-  · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hnext
+  · rcases OracleComp.eq_of_mem_supportWith_pure hnext with ⟨rfl, rfl, rfl⟩
     exact ⟨le_rfl, le_rfl, hcfg⟩
   · simp only [Bool.or_eq_true, decide_eq_true_eq, not_or] at hzero
-    obtain ⟨p, hp, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+    obtain ⟨p, hp, hmk⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+    rcases hmk with ⟨rfl, rfl, rfl⟩
     have hstep : T - (rem - 1) = (T - rem) + 1 := by omega
     cases hs : cfg.tapes.state with
     | none =>
@@ -649,7 +644,7 @@ theorem mem_support_oneSessionStep {k : ℕ} {Control : Type}
         exact ⟨by omega, le_rfl, hstep ▸ hcfg.step action symbol move⟩
       | query channel nextState =>
         simp only [htr, sessionQueryHandler, Functor.map_map] at hp
-        obtain ⟨⟨ans, q'⟩, hans, hp⟩ := OracleComp.mem_supportWith_bind_iff.mp hp
+        obtain ⟨⟨ans, q₁⟩, hans, hp⟩ := OracleComp.mem_supportWith_bind_iff.mp hp
         obtain rfl := OracleComp.eq_of_mem_supportWith_pure hp
         obtain ⟨raw, -, hraw⟩ := OracleComp.mem_supportWith_map_iff.mp hans
         rcases Prod.mk.inj hraw with ⟨rfl, rfl⟩; dsimp only
@@ -804,8 +799,7 @@ private theorem runSeq_sessionStep_split {k : ℕ} {Control : Type}
     rw [hQ, sessionStep_succ, hq, sessionStep_succ]
     cases hs : cfg.tapes.state with
     | none =>
-      simp only [OpenOracleSimulation.step, hs, pure_bind]
-      rw [← hQ, ← hq]; exact ih inRound2 cfg
+      simpa only [OpenOracleSimulation.step, hs, pure_bind, ← hQ, ← hq] using ih inRound2 cfg
     | some control =>
       simp only [OpenOracleSimulation.step, hs, bind_pure_comp, bind_map_left,
         runSeq_bind, runTwoRound_bind, runSeq_sample, runTwoRound_sample, map_bind, bind_assoc]
@@ -813,8 +807,8 @@ private theorem runSeq_sessionStep_split {k : ℕ} {Control : Type}
       cases machine.tr control cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
           cfg.answerSymbols coin with
       | step action symbol move =>
-        simp only [pure_bind, runSeq_pure, runTwoRound_pure]
-        rw [← hQ, ← hq]; exact ih inRound2 (cfg.step action symbol move)
+        simpa only [pure_bind, runSeq_pure, runTwoRound_pure, ← hQ, ← hq] using
+          ih inRound2 (cfg.step action symbol move)
       | query channel next =>
         cases inRound2
         · simp only [Bool.cond_false, sessionQueryHandler, Functor.map_map,

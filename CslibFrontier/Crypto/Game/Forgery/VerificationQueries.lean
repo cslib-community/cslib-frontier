@@ -665,27 +665,22 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
           ((ProbComp.eval ((vqToForgerOn admit index A pk).runLogWith (signer sk))).bind
             fun x => PMF.pure
               (verify pk sk x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true := by
-      have hforger_eq :
-          ((ProbComp.eval ((vqToForgerOn admit index A pk).runLogWith (signer sk))).bind
-            fun x => PMF.pure
-              (verify pk sk x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true =
-          ∑' j, ProbComp.eval index j * W j := by
-        rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
-        dsimp only [vqToForgerOn]
-        rw [ProbOracleComp.runWith_sample_bind, PMF.bind_bind, PMF.bind_apply]
-        refine tsum_congr fun j => congrArg (ProbComp.eval index j * ·) ?_
-        rw [ProbOracleComp.runWith_bind]
-        have hstep := run_vqToForgerHandler_eq_plantedHandler admit signer verify pk sk
-          hadmit' hsign' (A pk) j
-        rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState] at hstep
-        rw [hstep, PMF.bind_map, PMF.bind_bind]
-        change ((ProbOracleComp.runWith _ (A pk) _).bind fun x => _) true = W j
-        dsimp only [W]
-        congr 2 with x : 1
-        simp [ProbOracleComp.runWith_pure]
-      rw [hforger_eq]
-      exact Summable.sum_le_tsum (Finset.range Q_v) (fun _ _ => zero_le)
-        CompleteLattice.summable
+      refine (Summable.sum_le_tsum (Finset.range Q_v) (fun _ _ => zero_le)
+        CompleteLattice.summable).trans_eq ?_
+      symm
+      rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
+      dsimp only [vqToForgerOn]
+      rw [ProbOracleComp.runWith_sample_bind, PMF.bind_bind, PMF.bind_apply]
+      refine tsum_congr fun j => congrArg (ProbComp.eval index j * ·) ?_
+      rw [ProbOracleComp.runWith_bind]
+      have hstep := run_vqToForgerHandler_eq_plantedHandler admit signer verify pk sk
+        hadmit' hsign' (A pk) j
+      rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState] at hstep
+      rw [hstep, PMF.bind_map, PMF.bind_bind]
+      change ((ProbOracleComp.runWith _ (A pk) _).bind fun x => _) true = W j
+      dsimp only [W]
+      congr 2 with x : 1
+      simp [ProbOracleComp.runWith_pure]
     rw [hlhs_eq]
     exact le_mul_add_of_le_sum (PMF.toOuterMeasure_le_one _ _) hunion hrhs_ge hindex
   exact PMF.bind_apply_le_mul_bind_apply_add_on_support (ProbComp.eval keyGen) hkey
@@ -987,17 +982,8 @@ theorem eval_realExperiment_vqMacToPrfAdversary {Key D R : Type} [Fintype Key] [
           (fun _ k m σ => decide (F k m = σ)) A) := by
   simp only [PRF.realExperiment, vqForgeExperiment, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun key _ => ?_
-  rw [eval_run_vqMacToPrfAdversary_pure]
-  have hkey_oracle :
-      (fun q st => ProbComp.eval
-        (vqOracle (Signer.ofSign fun g : D → R => fun m => pure (g m))
-          (fun (_ : Unit) (g : D → R) m σ => decide (g m = σ)) () (F key) q st)) =
-      (fun q st => ProbComp.eval
-        (vqOracle (Signer.ofSign fun k : Key => fun m => pure (F k m))
-          (fun (_ : Unit) (k : Key) m σ => decide (F k m = σ)) () key q st)) := by
-    funext q st
-    cases q <;> rfl
-  rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState, hkey_oracle]
+  rw [eval_run_vqMacToPrfAdversary_pure, ProbOracleComp.eval_runState, ProbOracleComp.eval_runState]
+  congr 2
 
 private def recordQueriesHandler {D R : Type} (q : D) :
     StateT (List D) (ProbOracleComp (fun _ : D => R)) R :=
@@ -1159,12 +1145,7 @@ theorem succProbability_vqForgeExperiment_prf_le {Key D R : Type} [Fintype Key] 
   have hideal_le :
       Experiment.succProbability (PRF.idealExperiment (vqMacToPrfAdversary A)) ≤
         Q_v / Fintype.card R := by
-    change Game.succProbability (ProbComp.eval (PRF.idealExperiment (vqMacToPrfAdversary A))) ≤ _
-    rw [hideal]
-    change Experiment.succProbability
-        (vqForgeExperiment (((), ·) <$> ProbComp.uniform (D → R))
-          (Signer.ofSign fun f m => pure (f m))
-          (fun _ f m σ => decide (f m = σ)) A) ≤ _
+    rw [Experiment.succProbability, hideal, ← Experiment.succProbability]
     by_cases hD : Nonempty D
     · let _ : Inhabited D := Classical.inhabited_of_nonempty hD
       calc Experiment.succProbability

@@ -128,10 +128,8 @@ size, ensuring $M \ge 3$ and $8 n_{\max} \le 2^M < 16 \max(n_{\max}, 1)$. -/
 
 /-- `tableLog n_max` is always at least `3`. -/
 theorem three_le_tableLog (n_max : ℕ) : 3 ≤ tableLog n_max := by
-  dsimp only [tableLog]
-  have h8 : 8 ≤ max (8 * n_max) 8 := le_max_right _ _
   calc 3 = Nat.clog 2 8 := by decide
-    _ ≤ Nat.clog 2 (max (8 * n_max) 8) := Nat.clog_mono_right 2 h8
+    _ ≤ tableLog n_max := Nat.clog_mono_right 2 (le_max_right _ _)
 
 /-- `tableLog n_max` is always positive. -/
 theorem tableLog_pos (n_max : ℕ) : 0 < tableLog n_max :=
@@ -162,10 +160,8 @@ theorem n_max_lt_tableSize (n_max : ℕ) : n_max < tableSize n_max := by
 
 /-- `tableSize n_max` is strictly less than $16 \max(n_{\max}, 1)$. -/
 theorem tableSize_lt_sixteen_mul (n_max : ℕ) : tableSize n_max < 16 * max n_max 1 := by
-  dsimp only [tableSize, tableLog]
-  have hlt : 2 ^ Nat.clog 2 (max (8 * n_max) 8) < 2 * max (8 * n_max) 8 :=
+  have hlt : tableSize n_max < 2 * max (8 * n_max) 8 :=
     Nat.pow_clog_lt_mul Nat.one_lt_two (by omega)
-  have hmax : max (8 * n_max) 8 = 8 * max n_max 1 := by omega
   omega
 
 /-- `tableSize n_max` is at most $16 \max(n_{\max}, 1) = O(n_{\max})$. -/
@@ -506,24 +502,21 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
     dsimp only [δ]
     linarith [show (1 : ℝ) ≤ 2 ^ (j - 1) from mod_cast Nat.one_le_two_pow]
   have h2j_eq : (2 ^ j : ℝ) = 4 * δ := by
-    have hj_eq : j = (j - 1) + 1 := by omega
-    conv_lhs => rw [hj_eq, pow_succ]
-    dsimp only [δ]; ring
-  have hcardY : (Fintype.card (Fin (2 ^ M)) : ℝ) = 2 ^ M := by simp
+    rw [← Nat.sub_add_cancel hj, pow_succ]
+    dsimp only [δ]
+    ring
   have h2M_pos : (0 : ℝ) < 2 ^ M := by positivity
   have hmean_le (b : Fin (2 ^ M)) :
       (#S : ℝ) * ((#(scaleWindow M b j) : ℝ) / (Fintype.card (Fin (2 ^ M)) : ℝ)) ≤ δ := by
-    rw [hcardY, ← mul_div_assoc, div_le_iff₀ h2M_pos]
-    have hW : (#(scaleWindow M b j) : ℝ) ≤ (2 ^ (j + 1) : ℝ) := by
-      exact_mod_cast card_scaleWindow_le M b j
-    have hj1 : (2 ^ (j + 1) : ℝ) = 4 * (2 ^ (j - 1) : ℝ) := by
-      rw [show j + 1 = (j - 1) + 2 by omega, pow_add]; ring
-    have hSn : (#S : ℝ) ≤ n_max := by exact_mod_cast hS
-    have h8n : (8 * (n_max : ℝ)) ≤ 2 ^ M := by exact_mod_cast hM
+    rw [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, ← mul_div_assoc, div_le_iff₀ h2M_pos]
     calc (#S : ℝ) * (#(scaleWindow M b j) : ℝ)
-        ≤ (n_max : ℝ) * (2 ^ (j + 1) : ℝ) := by gcongr
-      _ = (8 * (n_max : ℝ)) * δ := by rw [hj1]; dsimp only [δ]; ring
-      _ ≤ (2 ^ M : ℝ) * δ := by gcongr
+        ≤ (n_max : ℝ) * (2 ^ (j + 1) : ℝ) :=
+          mul_le_mul (mod_cast hS) (mod_cast card_scaleWindow_le M b j) (by positivity)
+            (by positivity)
+      _ = (8 * (n_max : ℝ)) * δ := by
+          rw [pow_succ, h2j_eq]
+          ring
+      _ ≤ (2 ^ M : ℝ) * δ := mul_le_mul_of_nonneg_right (mod_cast hM) hδ_pos.le
       _ = δ * (2 ^ M : ℝ) := mul_comm _ _
   have hpt_le (i : ι) :
       δ ^ 4 * (if scaleOverload M h S u j i then (1 : ℝ) else 0) ≤
@@ -533,14 +526,15 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
     simp only [boole_mul, Fintype.sum_ite_eq]
     by_cases hov : scaleOverload M h S u j i
     · simp only [hov, ↓reduceIte, mul_one]
-      have hov_real : (2 ^ (j - 1) : ℝ) ≤
-          #(S.filter fun x => h i x ∈ scaleWindow M (h i u) j) := mod_cast hov
       have hdiff : δ ≤ ∑ x ∈ S, bucketCentered (scaleWindow M (h i u) j) (h i x) := by
-        rw [sum_bucketCentered_eq]
-        have : (2 ^ (j - 1) : ℝ) = 2 * δ := by dsimp only [δ]; ring
-        linarith [hmean_le (h i u)]
+        rw [sum_bucketCentered_eq, le_sub_iff_add_le]
+        refine le_trans ?_ (mod_cast hov : (2 ^ (j - 1) : ℝ) ≤ _)
+        have hmean := hmean_le (h i u)
+        dsimp only [δ] at hmean ⊢
+        linarith
       exact pow_le_pow_left₀ hδ_pos.le hdiff 4
-    · simp only [hov, ↓reduceIte, mul_zero]; positivity
+    · simp only [hov, ↓reduceIte, mul_zero]
+      positivity
   have hexp_b (b : Fin (2 ^ M)) :
       𝔼 i, (if h i u = b then (1 : ℝ) else 0) *
           (∑ x ∈ S, bucketCentered (scaleWindow M b j) (h i x)) ^ 4 ≤
@@ -601,10 +595,9 @@ theorem le_sum_scaleOverload_of_cyclicInterval {ι X : Type*} {M : ℕ}
     (k : ℝ) ≤
       ∑ j ∈ Finset.Icc 1 M,
         (2 ^ j : ℝ) * (if scaleOverload M h S u j i then (1 : ℝ) else 0) := by
-  have hj_le_M : Nat.log 2 x + 1 ≤ M := by
-    have := (Nat.pow_lt_pow_iff_right (by decide)).mp
+  have hj_le_M : Nat.log 2 x + 1 ≤ M :=
+    (Nat.pow_lt_pow_iff_right (by decide)).mp
       ((Nat.pow_log_le_self 2 (by omega)).trans_lt hxM)
-    omega
   have hov : scaleOverload M h S u (Nat.log 2 x + 1) i := by
     dsimp only [scaleOverload]
     rw [Nat.add_sub_cancel]

@@ -131,10 +131,9 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
         | none =>
           have hvis0 : z.mem (visBase g + v) = 0 :=
             (hzFr _ (by wram_omega)).trans (hT0.vis_none v hv hgv)
-          have hpws := prefix_write_step hzOut hzFr
-            (show Function.update z.mem (outBaseAddr g + 2 + v) 0 =
-              Function.update z.mem (outBaseAddr g + 2 + v) (labVal v) by
-              simp only [labVal, labelling, hgv, Option.elim_none, default, Fin.val_zero])
+          have h0 : 0 = labVal v := by
+            simp only [labVal, labelling, hgv, Option.elim_none, default, Fin.val_zero]
+          have hpws := prefix_write_step hzOut hzFr (congrArg _ h0)
           unfold extractBody
           wram_exec [hzC.zero, hzC.one, hzC.two, hzC.visB, hzC.outB, hv_reg, hvis0]
           refine ⟨⟨by wram_simp [hzC], ?_, ?_⟩, by wram_simp⟩
@@ -150,10 +149,9 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
               htab_fn 0 (NeZero.pos L)
           have : Fits w (v * L) := fits_top hw (by wram_omega)
           have : Fits w (tabBase g + v * L) := fits_top hw (by wram_omega)
-          have hpws := prefix_write_step hzOut hzFr
-            (show Function.update z.mem (outBaseAddr g + 2 + v) (fn default).val =
-              Function.update z.mem (outBaseAddr g + 2 + v) (labVal v) by
-              simp only [labVal, labelling, hgv, Option.elim_some])
+          have hfn : (fn default).val = labVal v := by
+            simp only [labVal, labelling, hgv, Option.elim_some]
+          have hpws := prefix_write_step hzOut hzFr (congrArg _ hfn)
           unfold extractBody
           wram_exec [hzC.one, hzC.two, hzC.regL, hzC.visB, hzC.tabB, hzC.outB, hv_reg, hvis1',
             hf0_mem]
@@ -165,9 +163,8 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
   rw [hidx0, Nat.sub_zero] at hy
   refine ⟨y, (hx0.seq hy).mono (by omega), hyC,
     hT0.inp.frame (fun a ha => hyFr a (by wram_omega)), fun i => ?_⟩
-  change y.mem (outBaseAddr g + 2 + i.val) = _
-  rw [hyOut i.val (by simpa only [List.length_map, List.length_range] using i.isLt)]
-  simp only [labVal, Fin.getElem_fin, List.getElem_map, List.getElem_range]
+  simpa only [Block.read, labVal, Fin.getElem_fin, List.getElem_map, List.getElem_range] using
+    hyOut i.val (by simpa only [List.length_map, List.length_range] using i.isLt)
 
 /-- Specification for `checkCode`. -/
 theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x : Data 34)
@@ -272,8 +269,7 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
     unfold finishCode
     wram_exec [hc.one, hc.regN, hc.outB, hok1]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
-    · wram_simp [hok1]
-      simp only [hsolve, Option.isSome_some, Bool.toNat_true]
+    · wram_simp [hok1, hsolve, Option.isSome_some, Bool.toNat_true]
     · wram_simp [hc.outB]
       rw [hsolve, outputList_eq_iff]
       refine ⟨?_, holdsList_cons_iff.mpr ⟨Function.update_self .., hout.frame fun a _ _ => ?_⟩⟩
@@ -292,8 +288,7 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
     unfold finishCode
     wram_exec [hc.zero, hc.one, hc.outB, hok0]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
-    · wram_simp [hok0]
-      simp only [hsolve, Option.isSome_none, Bool.toNat_false]
+    · wram_simp [hok0, hsolve, Option.isSome_none, Bool.toNat_false]
     · wram_simp [hc.outB]
       rw [hsolve, outputList_eq_iff]
       refine ⟨?_, holdsList_cons_iff.mpr ⟨Function.update_self .., holdsList_nil _ _⟩⟩

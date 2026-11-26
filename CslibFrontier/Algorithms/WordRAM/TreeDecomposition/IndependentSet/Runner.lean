@@ -132,10 +132,8 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
   have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
       (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
     Nat.mul_le_mul_right _ (by omega)
-  have hfit_init_peak : Fits w (s₀.frontier + 4 * (n + 1) + (n + 1) * 2 ^ M) := hw.of_le (by
-    dsimp only [s₀, n, M]
-    rw [hfr₀]
-    simp only [MWISInstance.wordBound]; omega)
+  have hfit_init_peak : Fits w (s₀.frontier + 4 * (n + 1) + (n + 1) * 2 ^ M) :=
+    hw.of_le (by simp only [s₀, n, M, hfr₀, MWISInstance.wordBound]; omega)
   have hfit_raw : Fits w s₀.frontier := hfit_init_peak.of_le (by omega)
   obtain ⟨hv_init, _, hfr₁, hlay₁, hc_init⟩ :=
     initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak hfit_raw
@@ -145,12 +143,10 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
   have hfr₁' : s₁.frontier ≤ inst.encode.length + 1 + 4 * (n + 1) + (n + 1) * 2 ^ M := by
     dsimp only [s₁, rawBagsPtr, m, n, M, s₀] at hfr₁ ⊢; omega
   have h2n1 : (n + 1) * 2 ^ M + n * 2 ^ M = (2 * n + 1) * 2 ^ M := by ring
-  have hfit_proc_peak : Fits w (s₁.frontier + n * 2 ^ M) := hw.of_le (by
-    dsimp only [n, M] at hfr₁' h2n1 ⊢
-    simp only [MWISInstance.wordBound]; omega)
-  have hfit_val : Fits w ((n + 1) * M * inst.maxWeight) := hw.of_le (by
-    dsimp only [n, M]
-    simp only [MWISInstance.wordBound]; omega)
+  have hfit_proc_peak : Fits w (s₁.frontier + n * 2 ^ M) :=
+    hw.of_le (by simp only [n, M, MWISInstance.wordBound] at hfr₁' h2n1 ⊢; omega)
+  have hfit_val : Fits w ((n + 1) * M * inst.maxWeight) :=
+    hw.of_le (by simp only [n, M, MWISInstance.wordBound]; omega)
   obtain ⟨hv_proc, _, ⟨tblFinal, hlay₂, _, hagree₂⟩, hc_proc⟩ :=
     processNodesProg_spec (w := w) inst descBase hlay₁ hfit_proc_peak hfit_val
   let procArgs : ProcessNodesArgs := ⟨m, 3 + m, 3, 3 + m + m * m, descBase, n⟩
@@ -169,10 +165,7 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     (L0 := inst.bagAt zeroFin) (tbl0 := tblFinal zeroFin)
     (arr0 := (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[zeroFin]) (s := s₂)
     hlay₂.adj_holds hlay₂.wt_holds rfl h0_bag h0_len.symm (inst.bagAt_mem_lt zeroFin)
-    h0_tbl (h0_tlen.trans h0_pow.symm) (by
-      dsimp only [rpArgs]
-      rw [h0_pow]
-      exact hagree₂ zeroFin)
+    h0_tbl (h0_tlen.trans h0_pow.symm) (h0_pow.symm ▸ hagree₂ zeroFin)
   have hd_lt (off : ℕ) (_ : off < 4) : descBase + off < s₂.frontier := by
     have : descBase + 4 * (n + 1) ≤ s₂.frontier := hlay₂.desc_hi
     omega

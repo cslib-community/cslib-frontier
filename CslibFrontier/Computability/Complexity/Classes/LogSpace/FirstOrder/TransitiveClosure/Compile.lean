@@ -352,17 +352,13 @@ theorem correct_ofFO (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
       res = true := hres.symm
   refine ⟨Sound.of_reaches hE.one_le hP' hreach ?_, fun hs => Complete.of_reaches hP' hreach ?_⟩
   · cases s <;> cases res <;>
-      simp only [Bool.cond_true, Bool.cond_false, Bool.false_eq_true, ↓reduceIte]
-    · exact Sound.exit ⟨hk, by simp [Sat, hX]⟩
-    · exact Sound.halt hE.one_le hE.halts (fun _ => hE.post _ rfl) hk.bounded
-    · exact Sound.halt hE.one_le hE.halts (fun _ => hE.post _ rfl) hk.bounded
-    · exact Sound.exit ⟨hk, by simp [Sat, hX]⟩
+      first
+      | exact Sound.exit ⟨hk, by simp [Sat, hX]⟩
+      | exact Sound.halt hE.one_le hE.halts (fun _ => hE.post _ rfl) hk.bounded
   · cases s <;> cases res <;>
-      simp only [Bool.cond_true, Bool.cond_false, Bool.false_eq_true, ↓reduceIte]
-    · exact Complete.refl hk
-    · exact absurd (hX.mpr rfl) hs
-    · exact absurd hs (by simp [Sat, hX])
-    · exact Complete.refl hk
+      first
+      | exact Complete.refl hk
+      | exact absurd hs (by simp [Sat, hX])
 
 theorem correct_neg {Γ : List ℕ} {α : Type} {φ : Formula (language L) TC.shape Γ α}
     (ih : Correct v a P B Post R φ) : Correct v a P B Post R φ.neg := by
@@ -435,14 +431,12 @@ theorem correct_ex (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
   have hdepth : base + 1 + scratch φ ≤ regs.length := by
     simp only [scratch] at hd; omega
   have hlen : base < regs.length := by omega
-  have hfv' : ∀ y : Option α, y.elim base fv < base + 1 := fun y => by
-    cases y with
-    | none => simp
-    | some y => have := hfv y; simp only [Option.elim_some]; omega
-  have hset : ∀ m ≤ a.1, ∀ r ∈ regs.set base m, r ≤ B := fun m hm =>
+  have hfv' (y : Option α) : y.elim base fv < base + 1 :=
+    y.casesOn (Nat.lt_succ_self _) fun y => Nat.lt_succ_of_lt (hfv y)
+  have hset (m : ℕ) (hm : m ≤ a.1) : ∀ r ∈ regs.set base m, r ≤ B :=
     List.forall_mem_set_of_forall_mem hregs (hm.trans hE.card_le)
-  have h0set : ∀ m, (regs.set base m).getD 0 0 = a.1 := fun m => by
-    rw [List.getD_set_ne (by omega), h0]
+  have h0set (m : ℕ) : (regs.set base m).getD 0 0 = a.1 :=
+    (List.getD_set_ne (by omega) ..).trans h0
   cases s with
   | true =>
     have hP' : P.CodeAt b (guessCode b base (reg 0) (b + 4) R ++
@@ -514,13 +508,12 @@ theorem correct_ex (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
       have := hE.card_le; have := hk₂.bounded
       refine ⟨by cp_step [hx₂], hk.trans ((hk₂.mono (by omega)).set_right le_rfl (by omega)),
         List.getD_set_self (by rw [hk₂.length_eq, hk.length_eq]; exact hlen)⟩
-    have key : ∀ e m (regs₁ : List ℕ), a.1 - m = e → m ≤ a.1 → Kept B base regs regs₁ →
+    have key (e : ℕ) : ∀ m (regs₁ : List ℕ), a.1 - m = e → m ≤ a.1 → Kept B base regs regs₁ →
         regs₁.getD base 0 = m →
         (∀ x : Fin a.1, (x : ℕ) < m → ¬ φ.Realize TC.interpretation ρ (Option.elim · x val)) →
         Sound P (encStructure a) B Post (b + 1) regs₁ T
           (fun regs' => Kept B base regs regs' ∧
             Sat false (φ.ex.Realize TC.interpretation ρ val)) := by
-      intro e
       induction e with
       | zero =>
         intro m regs₁ he hm hk hx hall
@@ -538,10 +531,9 @@ theorem correct_ex (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
           (ih' (m + 1) _ (by omega) hmn hk' hx' fun x hxm => ?_)
         exact (Nat.lt_succ_iff_lt_or_eq.mp hxm).elim (hall x) fun hxm =>
           (Fin.ext hxm : x = ⟨m, hmn⟩) ▸ hn₂
-    have keyC : ∀ e m (regs₁ : List ℕ), a.1 - m = e → m ≤ a.1 → Kept B base regs regs₁ →
+    have keyC (e : ℕ) : ∀ m (regs₁ : List ℕ), a.1 - m = e → m ≤ a.1 → Kept B base regs regs₁ →
         regs₁.getD base 0 = m → ¬ φ.ex.Realize TC.interpretation ρ val →
         Complete P (encStructure a) (b + 1) regs₁ T (Kept B base regs) := by
-      intro e
       induction e with
       | zero =>
         intro m regs₁ he hm hk hx hn

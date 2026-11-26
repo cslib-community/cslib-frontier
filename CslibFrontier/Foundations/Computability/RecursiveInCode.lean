@@ -380,8 +380,7 @@ theorem prefixOf_prefix (f : ℕ → ℕ) {N₁ N₂ : ℕ} (h : N₁ ≤ N₂) 
 theorem prefixOf_mem (f : ℕ → ℕ) (N : ℕ) :
     ∀ i (h : i < (prefixOf f N).length), (prefixOf f N)[i] ∈ (f : ℕ →. ℕ) i := by
   intro i h
-  rw [getElem_prefixOf]
-  exact Part.mem_some _
+  simpa only [getElem_prefixOf, PFun.coe_val] using Part.mem_some (f i)
 
 -- As in Mathlib's `Nat.Partrec.Code.evaln_complete`: the `simp` calls unfold `PFun` coercions.
 set_option backward.isDefEq.respectTransparency false in
@@ -394,10 +393,8 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
   · exact ⟨N, k + 1, h⟩
   induction c generalizing n x with
   | oracle =>
-    refine ⟨n + 1, n, ?_⟩
     simp only [eval, PFun.coe_val, Part.mem_some_iff] at h
-    subst h
-    simp [evaln, prefixOf]
+    exact ⟨n + 1, n, by simp [evaln, prefixOf, ← h]⟩
   | pair cf cg hf hg =>
     simp only [eval, Seq.seq, Part.map_eq_map, Part.mem_bind_iff, Part.mem_map_iff,
       evaln, Option.map_eq_map, Option.bind_eq_bind, Option.mem_def, Option.bind_eq_some_iff,
@@ -470,15 +467,14 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
         fun {i} hi ↦ by
           simpa [Nat.succ_eq_add_one, add_comm, add_left_comm] using
             hy₂ (Nat.succ_lt_succ hi) with ⟨N₂, k₂, hk₂⟩
-      use max N₁ N₂, (max k₁ k₂).succ
       rw [zero_add] at hk₁
-      use Nat.le_succ_of_le <| le_max_of_le_left <| Nat.le_of_lt_succ <| evaln_bound hk₁
-      use a
-      use evaln_mono (prefixOf_prefix f (le_max_left _ _))
-        (Nat.succ_le_succ <| Nat.le_succ_of_le <| le_max_left _ _) hk₁
-      simpa [a0, add_comm, add_left_comm] using
-        evaln_mono (prefixOf_prefix f (le_max_right _ _)) (Nat.succ_le_succ <| le_max_right _ _)
-          hk₂
+      exact ⟨max N₁ N₂, (max k₁ k₂).succ,
+        Nat.le_succ_of_le <| le_max_of_le_left <| Nat.le_of_lt_succ <| evaln_bound hk₁, a,
+        evaln_mono (prefixOf_prefix f (le_max_left _ _))
+          (Nat.succ_le_succ <| Nat.le_succ_of_le <| le_max_left _ _) hk₁,
+        by simpa [a0, add_comm, add_left_comm] using
+          evaln_mono (prefixOf_prefix f (le_max_right _ _)) (Nat.succ_le_succ <| le_max_right _ _)
+            hk₂⟩
   | _ =>
     refine ⟨0, ?_⟩
     simp only [eval, evaln, pure, PFun.pure, PFun.coe_val, Part.mem_some_iff, Option.bind_eq_bind,
@@ -497,10 +493,9 @@ theorem mem_eval_iff_exists_evaln {f : ℕ → ℕ} {c n x} :
 /-- Evaluation relative to a total oracle is the limit of the stage-bounded approximations. -/
 theorem eval_eq_rfindOpt (f : ℕ → ℕ) (c : Code) (n : ℕ) :
     eval (f : ℕ →. ℕ) c n = Nat.rfindOpt fun s => evaln (prefixOf f s) s c n :=
-  Part.ext fun x => by
-    refine mem_eval_iff_exists_evaln.trans (Nat.rfindOpt_mono ?_).symm
-    intro a m n hl
-    exact evaln_mono (prefixOf_prefix f hl) hl
+  Part.ext fun _ =>
+    mem_eval_iff_exists_evaln.trans
+      (Nat.rfindOpt_mono fun hl => evaln_mono (prefixOf_prefix f hl) hl).symm
 
 /-- The use principle: if a computation relative to the total oracle `f` converges, then there is
 a bound `N` such that the computation converges to the same value relative to every total oracle
@@ -509,8 +504,7 @@ theorem exists_use {f : ℕ → ℕ} {c n x} (h : x ∈ eval (f : ℕ →. ℕ) 
     ∃ N, ∀ g : ℕ → ℕ, (∀ i < N, g i = f i) → x ∈ eval (g : ℕ →. ℕ) c n := by
   obtain ⟨N, k, hk⟩ := evaln_complete.1 h
   refine ⟨N, fun g hg => evaln_sound (fun i hi => ?_) hk⟩
-  have hiN : i < N := by simpa using hi
-  rw [getElem_prefixOf, ← hg i hiN]
+  rw [getElem_prefixOf, ← hg i (by simpa using hi)]
   exact Part.mem_some _
 
 end Code

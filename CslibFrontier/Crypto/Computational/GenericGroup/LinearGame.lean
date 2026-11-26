@@ -241,11 +241,7 @@ private theorem map_run_tabulateM {I I' K R R' Q Q' : Type} {spec : OracleSpec I
     ((OracleComp.interpret h (tabulateM act l)).run s).map (fun x => (fun k => φ (x.1 k), r x.2)) =
       (OracleComp.interpret h' (tabulateM act' l)).run (r s) := by
   induction l generalizing s with
-  | nil =>
-    simp only [tabulateM, interp_norm, pmf_norm]
-    congr 2
-    funext k
-    exact hφ
+  | nil => simp [tabulateM, interp_norm, pmf_norm, Pi.zero_def, hφ]
   | cons k l ih =>
     simp only [tabulateM, interp_norm, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure]
@@ -729,21 +725,19 @@ private theorem length_le_of_mem_support_symOracle (p : Prim ι q) (tab : Tab ι
     tab'.length ≤ tab.length + 1 := by
   cases p with
   | fwd K =>
-    rcases h₁ : tab.lookup K with _ | ℓ <;>
+    cases h₁ : tab.lookup K <;>
       simp only [symOracle, h₁, PMF.mem_support_map_iff, PMF.mem_support_pure_iff,
         Prod.mk.injEq] at h
     · obtain ⟨_, -, -, rfl⟩ := h
       exact le_rfl
-    · obtain ⟨-, rfl⟩ := h
-      omega
+    · exact h.2 ▸ Nat.le_succ _
   | inv ℓ =>
-    rcases h₂ : keyOf tab ℓ with _ | K <;>
+    cases h₂ : keyOf tab ℓ <;>
       simp only [symOracle, h₂, PMF.mem_support_map_iff, PMF.mem_support_pure_iff,
         Prod.mk.injEq] at h
     · obtain ⟨_, -, -, rfl⟩ := h
       exact le_rfl
-    · obtain ⟨-, rfl⟩ := h
-      omega
+    · exact h.2 ▸ Nat.le_succ _
 
 end Tables
 
@@ -979,9 +973,8 @@ private theorem real_eq_lazy (x : ι → ZMod q)
   refine map_bind_eq_of_step (fun (t : Option ι → ZMod q) o => id (t o)) ψ r I
     (map_run_tabulateM _ _ _ _ id rfl r I hpres
       (fun o s hs => by
-        simp only [OracleComp.interpret_query, id]
-        rw [← ev_startKey]
-        exact realFl_fwd_map hs (startKey o))
+        simpa only [OracleComp.interpret_query, id, ev_startKey] using
+          realFl_fwd_map hs (startKey o))
       _ ([], false) h0)
     (fun y hy => OracleComp.run_interpret_invariant _ _ hpres _ ([], false) h0 y.1 y.2 hy) _ _ ?_
   intro u s₁ hs₁
@@ -996,9 +989,7 @@ private theorem real_eq_lazy (x : ι → ZMod q)
   dsimp only [id]
   refine map_bind_eq_of_step (fun (t : κ → (ι → ZMod q) × ZMod q) k => ev x (t k)) ψ r I
     (map_run_tabulateM _ _ _ _ (ev x) (by simp [ev]) r I hpres
-      (fun k s hs => by
-        simp only [OracleComp.interpret_query]
-        exact realFl_inv_map hs (out.2 k))
+      (fun k s hs => by simpa only [OracleComp.interpret_query] using realFl_inv_map hs (out.2 k))
       _ s₂ hs₂)
     (fun y hy => OracleComp.run_interpret_invariant _ _ hpres _ s₂ hs₂ y.1 y.2 hy) _ _ ?_
   intro F s₃ _

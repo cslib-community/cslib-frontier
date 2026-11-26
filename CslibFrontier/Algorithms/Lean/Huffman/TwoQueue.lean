@@ -399,25 +399,18 @@ private theorem popMin_correct {α β : Type u} [LinearOrder β]
     have hs₂' := List.pairwise_cons.mp (h2 ▸ hs₂)
     by_cases hle : x.wt ≤ y.wt
     · simp only [hle, ↓reduceIte] at hspec
-      refine ⟨x, xs, q₂, hspec, hwf, hs₁'.2, h2 ▸ hs₂, fun _ hz => h2 ▸ hz,
-        by simp [h2], fun z hz => ?_⟩
-      rcases List.mem_append.mp hz with hxs | hq2
-      · exact hs₁'.1 z hxs
-      · rw [h2] at hq2
-        rcases List.mem_cons.mp hq2 with rfl | htail
-        · exact hle
-        · exact le_trans hle (hs₂'.1 z htail)
+      exact ⟨x, xs, q₂, hspec, hwf, hs₁'.2, h2 ▸ hs₂, fun _ hz => h2 ▸ hz, by simp [h2],
+        List.forall_mem_append.mpr ⟨hs₁'.1, fun z hz => (List.forall_mem_cons
+          (p := fun z => x.wt ≤ z.wt)).mpr ⟨hle, fun _ h => le_trans hle (hs₂'.1 _ h)⟩ z
+          (h2 ▸ hz)⟩⟩
     · simp only [hle, ↓reduceIte] at hspec
       rcases hspec with ⟨q₂', hpop, hwf', hto'⟩
       have hyx : y.wt ≤ x.wt := le_of_not_ge hle
-      refine ⟨y, x :: xs, q₂', hpop, hwf', h1 ▸ hs₁, hto' ▸ hs₂'.2,
-        fun _ hz => List.mem_cons_of_mem y (hto' ▸ hz),
-        hto' ▸ List.perm_middle, fun z hz => ?_⟩
-      rcases List.mem_append.mp hz with hxs | hq2'
-      · rcases List.mem_cons.mp hxs with rfl | hxs'
-        · exact hyx
-        · exact le_trans hyx (hs₁'.1 z hxs')
-      · exact hs₂'.1 z (hto' ▸ hq2')
+      exact ⟨y, x :: xs, q₂', hpop, hwf', h1 ▸ hs₁, hto' ▸ hs₂'.2,
+        fun _ hz => List.mem_cons_of_mem y (hto' ▸ hz), hto' ▸ List.perm_middle,
+        List.forall_mem_append.mpr
+          ⟨List.forall_mem_cons.mpr ⟨hyx, fun _ h => le_trans hyx (hs₁'.1 _ h)⟩,
+            fun z hz => hs₂'.1 z (hto' ▸ hz)⟩⟩
 
 private theorem pairwise_snoc_of_le {γ : Type*} {R : γ → γ → Prop} {L : List γ} {m : γ}
     (hL : L.Pairwise R) (hm : ∀ z ∈ L, R z m) : (L ++ [m]).Pairwise R := by
@@ -531,10 +524,7 @@ theorem huffmanFromSorted_spec {α β : Type u}
   have hinv : TwoQueueInv w q₁ FifoQueue.empty := by
     refine ⟨FifoQueue.wf_empty, ?_, by simpa [q₁, List.pairwise_map] using hsorted, by simp,
       fun _ _ _ _ _ hz => by simp at hz⟩
-    intro e he
-    simp only [FifoQueue.toList_empty, List.append_nil, q₁, List.mem_map] at he
-    rcases he with ⟨a, ha, rfl⟩
-    exact ⟨rfl, hw a ha⟩
+    simpa [q₁, FifoQueue.toList_empty] using hw
   rcases twoQueueLoop_correct hinv (by simpa [q₁, FifoQueue.toList_empty] using hne) with
     ⟨T, hT_ret, hT_build⟩
   have hT_build' : IsHuffmanBuild w (syms.map .leaf) T := by

@@ -144,9 +144,8 @@ theorem flTightInstance_isMetric (m k : ℕ) : (flTightInstance m k).IsMetric :=
 private theorem flTightInstance_planCost {m k : ℕ} (F' : Finset (Fin m)) (hF' : F'.Nonempty) :
     (flTightInstance m k).planCost Finset.univ F' hF' =
       3 * (m : ℝ) + (k : ℝ) + (F'.card : ℝ) := by
-  have hconn_l : ∀ j : Fin m, F'.inf' hF' (fun i => (flTightInstance m k).connCost i (.inl j)) =
+  have hconn_l (j : Fin m) : F'.inf' hF' (fun i => (flTightInstance m k).connCost i (.inl j)) =
       if j ∈ F' then 1 else 3 := by
-    intro j
     refine le_antisymm ?_ (Finset.le_inf' _ _ fun i hi => ?_)
     · obtain ⟨i₀, hi₀⟩ := hF'
       split_ifs with hj
@@ -155,9 +154,8 @@ private theorem flTightInstance_planCost {m k : ℕ} (F' : Finset (Fin m)) (hF' 
           (by simp [flTightInstance, show i₀ ≠ j from fun h => hj (h ▸ hi₀)])
     · dsimp only [flTightInstance]
       split_ifs <;> first | (subst_vars; contradiction) | norm_num
-  have hconn_r : ∀ r : Fin k,
+  have hconn_r (r : Fin k) :
       F'.inf' hF' (fun i => (flTightInstance m k).connCost i (.inr r)) = 1 := by
-    intro r
     refine le_antisymm ?_ (Finset.le_inf' _ _ fun i _ => by simp [flTightInstance])
     obtain ⟨i₀, hi₀⟩ := hF'
     exact (Finset.inf'_le _ hi₀).trans (by simp [flTightInstance])
@@ -197,11 +195,9 @@ theorem flTightInstance_flCostShareScheme_sum (m k : ℕ) [NeZero m] (hk : 1 ≤
   have ht_le3 : t ≤ 3 := by
     have h : 3 / ((k : ℝ) + 1) ≤ 2 := (div_le_iff₀ hk1_pos).2 (by linarith)
     dsimp only [t]; linarith
-  have hopen_eq : ∀ i : Fin m, (flTightInstance m k).openTime i Finset.univ = t := by
-    intro i
-    symm
-    refine (flTightInstance m k).eq_openTime_of_sum_max_eq
-      ⟨.inl 0, Finset.mem_univ _⟩ (by norm_num [flTightInstance]) ?_
+  have hopen_eq (i : Fin m) : (flTightInstance m k).openTime i Finset.univ = t := by
+    refine ((flTightInstance m k).eq_openTime_of_sum_max_eq
+      ⟨.inl 0, Finset.mem_univ _⟩ (by norm_num [flTightInstance]) ?_).symm
     rw [Fintype.sum_sum_type]
     have hl : ∑ j : Fin m, max 0 (t - (flTightInstance m k).connCost i (.inl j)) = t - 1 := by
       rw [Fintype.sum_eq_single i fun j hj => by simp [flTightInstance, Ne.symm hj]; linarith]
@@ -214,9 +210,8 @@ theorem flTightInstance_flCostShareScheme_sum (m k : ℕ) [NeZero m] (hk : 1 ≤
     dsimp only [t]
     field_simp [hk1_pos.ne']
     ring
-  have hshare : ∀ j : Fin m ⊕ Fin k,
+  have hshare (j : Fin m ⊕ Fin k) :
       (flTightInstance m k).flCostShareScheme.share Finset.univ j = t := by
-    intro j
     rw [(flTightInstance m k).flCostShareScheme_share_of_mem (Finset.mem_univ j)]
     refine le_antisymm ?_ (Finset.le_inf' _ _ fun i _ => (hopen_eq i) ▸ le_max_left _ _)
     refine (Finset.inf'_le _ (Finset.mem_univ (j.elim id fun _ => 0))).trans ?_
@@ -287,10 +282,9 @@ private theorem diagCoalition_update_subset_slice {k m : ℕ} (i : Fin k) (b : F
     (x : Fin m) :
     diagCoalition (Function.update b i x) ⊆ sliceCoalition i b := by
   rw [diagCoalition_update_eq]
-  intro a ha
-  rcases Finset.mem_insert.1 ha with rfl | hmem
-  · exact Finset.mem_union_left _ (Finset.mem_image_of_mem _ (Finset.mem_univ x))
-  · exact Finset.mem_union_right _ hmem
+  exact Finset.insert_subset
+    (Finset.mem_union_left _ (Finset.mem_image_of_mem _ (Finset.mem_univ x)))
+    Finset.subset_union_right
 
 private theorem card_punctureCoalition {k m : ℕ} [NeZero k] (i : Fin k) (b : Fin k → Fin m) :
     ((punctureCoalition i b).card : ℝ) = k - 1 := by
@@ -407,11 +401,10 @@ theorem flHardInstance_budgetBalance_le {k m : ℕ} [NeZero k] [NeZero m]
     rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, Nat.cast_pow]
   have hmk_pos : (0 : ℝ) < (m : ℝ) ^ k := pow_pos hm_pos k
   -- Pointwise upper bound on `∑ a ∈ sliceCoalition i b, ξ.share (sliceCoalition i b) a`.
-  have hslice_le : ∀ (i : Fin k) (b : Fin k → Fin m),
+  have hslice_le (i : Fin k) (b : Fin k → Fin m) :
       ∑ a ∈ sliceCoalition i b, ξ.share (sliceCoalition i b) a ≤
         (∑ x : Fin m, ξ.share (diagCoalition (Function.update b i x)) (i, x)) +
           ((k : ℝ) + 2) := by
-    intro i b
     have hsplit : ∑ a ∈ sliceCoalition i b, ξ.share (sliceCoalition i b) a =
         (∑ a ∈ rowCoalition i, ξ.share (sliceCoalition i b) a) +
           ∑ a ∈ punctureCoalition i b, ξ.share (sliceCoalition i b) a :=
@@ -436,15 +429,13 @@ theorem flHardInstance_budgetBalance_le {k m : ℕ} [NeZero k] [NeZero m]
       ∑ i : Fin k, ∑ b : Fin k → Fin m,
         ∑ x : Fin m, ξ.share (diagCoalition (Function.update b i x)) (i, x) =
       (m : ℝ) * ∑ c : Fin k → Fin m, ∑ i : Fin k, ξ.share (diagCoalition c) (i, c i) := by
-    have hper_i : ∀ i : Fin k,
+    have hper_i (i : Fin k) :
         ∑ b : Fin k → Fin m, ∑ x : Fin m, ξ.share (diagCoalition (Function.update b i x)) (i, x) =
           (m : ℝ) * ∑ c : Fin k → Fin m, ξ.share (diagCoalition c) (i, c i) := by
-      intro i
       rw [← Fintype.sum_prod_type']
-      have hterm : ∀ p : (Fin k → Fin m) × Fin m,
+      have hterm (p : (Fin k → Fin m) × Fin m) :
           ξ.share (diagCoalition (Function.update p.1 i p.2)) (i, p.2) =
             ξ.share (diagCoalition (swapCoordEquiv i p).1) (i, (swapCoordEquiv i p).1 i) := by
-        intro p
         simp only [swapCoordEquiv, Equiv.coe_fn_mk, Function.update_self]
       simp_rw [hterm]
       rw [Equiv.sum_comp (swapCoordEquiv i)

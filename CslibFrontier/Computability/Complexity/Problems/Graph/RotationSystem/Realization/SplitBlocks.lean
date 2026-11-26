@@ -81,9 +81,8 @@ theorem vertex_contractionLift (G : Graph) (u v : ℕ)
     change ((contractLastEdgeDartEquiv G u v).trans
       (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)) (contractionLift G u v d) = _
     rw [contractionLift_coordinates, retainedLastEdgeDart, Equiv.apply_symm_apply]
-  have hv := congrArg Dart.vertex he
-  rw [vertex_contractLastEdgeDartEquiv, vertex_retainedLastEdgeDart] at hv
-  exact hv
+  simpa only [vertex_contractLastEdgeDartEquiv, vertex_retainedLastEdgeDart] using
+    congrArg Dart.vertex he
 
 /-- Retained darts at the contracted name originate from precisely the two source
 endpoint fibers. This includes both occurrences of a source edge that became a loop. -/
@@ -150,17 +149,10 @@ theorem contractionBlock_injective {G : Graph} {u v : ℕ}
   intro a b heq
   apply Subtype.ext
   apply contractionLift_injective G u v
-  by_cases ha : (contractionLift G u v a.val).vertex = v
-  · by_cases hb : (contractionLift G u v b.val).vertex = v
-    · simp only [contractionBlock, dite_eq_left ha, dite_eq_left hb] at heq
-      exact congrArg Subtype.val ((r.sourceTailEquiv _).injective (Sum.inl.inj heq))
-    · simp only [contractionBlock, dite_eq_left ha, dite_eq_right hb] at heq
-      cases heq
-  · by_cases hb : (contractionLift G u v b.val).vertex = v
-    · simp only [contractionBlock, dite_eq_right ha, dite_eq_left hb] at heq
-      cases heq
-    · simp only [contractionBlock, dite_eq_right ha, dite_eq_right hb] at heq
-      exact congrArg Subtype.val ((r.sourceTailEquiv _).injective (Sum.inr.inj heq))
+  unfold contractionBlock at heq
+  split_ifs at heq
+  · exact congrArg Subtype.val ((r.sourceTailEquiv _).injective (Sum.inl.inj heq))
+  · exact congrArg Subtype.val ((r.sourceTailEquiv _).injective (Sum.inr.inj heq))
 
 /-- Every entry of either retained source block is an actual contracted-vertex dart.
 An empty block remains empty; no corner or port is supplied for it. -/
@@ -482,9 +474,7 @@ theorem exists_contractionRank_origin {G : Graph} {u v : ℕ}
     | succ n ih =>
       rw [pow_succ', Equiv.Perm.mul_apply, hstep, ih, Nat.mod_add_mod, Nat.add_assoc]
   have hval (n : ℕ) (d) : ((S ^ n) d).val = (s.rotate ^ n) d.val := by
-    dsimp [S]
-    rw [Equiv.Perm.subtypePerm_pow]
-    rfl
+    rw [Equiv.Perm.subtypePerm_pow]; rfl
   refine ⟨o, fun d => s.rotationDistance_eq o.val d.val (o.property.trans d.property.symm)
     (r.contractionRank d).val ?_ ?_⟩
   · have heq : (S ^ (r.contractionRank d).val) o = d := by

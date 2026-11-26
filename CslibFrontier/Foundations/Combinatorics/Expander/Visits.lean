@@ -259,11 +259,8 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
     rw [show ε * a ^ 2 = 2 * (ε ^ 3 * t ^ 2 / (2 * n ^ 2)) by rw [ha]; field_simp]
     linarith
   -- Chebyshev
-  have hS : ∀ k : Fin t → D, visitSum G f u k = (G.visits u v k : ℝ) - t / n := by
-    intro k
-    simp only [visitSum, f, sum_sub_distrib, sum_const, card_range, nsmul_eq_mul, visits]
-    rw [sum_boole]
-    simp [div_eq_mul_inv]
+  have hS (k : Fin t → D) : visitSum G f u k = (G.visits u v k : ℝ) - t / n := by
+    simp [visitSum, f, sum_sub_distrib, sum_boole, visits, div_eq_mul_inv]
   have hgood (k : Fin t → D) (hk : |visitSum G f u k| ≤ a) :
       (G.visits u v k : ℝ) ∈ Set.Icc ((1 - ε) * t / n) ((1 + ε) * t / n) := by
     rw [hS, abs_le] at hk
@@ -272,18 +269,13 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
   -- Chebyshev: Markov's inequality for `S²` at level `a²`
   have hcard : (Fintype.card (Fin t → D) : ℝ) = (Fintype.card D : ℝ) ^ t := by simp
   have hd : (0 : ℝ) < (Fintype.card D : ℝ) ^ t := by positivity
-  have hmk := Fintype.mul_dens_filter_le_expect
-    (fun k : Fin t → D => sq_nonneg (visitSum G f u k)) (a ^ 2)
   have hbad : (#{k : Fin t → D | a ^ 2 ≤ visitSum G f u k ^ 2} : ℝ) ≤
       ε * (Fintype.card D : ℝ) ^ t := by
-    rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
-      hcard] at hmk
-    have ha2 : 0 < a ^ 2 := by positivity
-    have h := hmk.trans hq'
-    rw [mul_div_assoc', div_le_iff₀ hd,
-      show ε * a ^ 2 * (Fintype.card D : ℝ) ^ t = a ^ 2 * (ε * (Fintype.card D : ℝ) ^ t) by
-        ring] at h
-    exact le_of_mul_le_mul_left h ha2
+    have h := (Fintype.mul_dens_filter_le_expect
+      (fun k : Fin t → D => sq_nonneg (visitSum G f u k)) (a ^ 2)).trans hq'
+    rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast, hcard,
+      mul_div_assoc', div_le_iff₀ hd] at h
+    exact le_of_mul_le_mul_left (h.trans_eq (by ring)) (sq_pos_of_pos ha0)
   have hsplit' : (#{k : Fin t → D | ¬ a ^ 2 ≤ visitSum G f u k ^ 2} : ℝ) +
       #{k : Fin t → D | a ^ 2 ≤ visitSum G f u k ^ 2} = (Fintype.card D : ℝ) ^ t := by
     rw [← hcard, ← card_univ, add_comm, ← Nat.cast_add, card_filter_add_card_filter_not]

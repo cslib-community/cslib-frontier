@@ -124,21 +124,13 @@ theorem compress_polyTime (hnum : ComputableInPolyTime num encBits encNat)
   have hloD : ComputableInPolyTime (loDen den) encBits encNat := by
     unfold loDen
     polytime
-  have hP : ComputableInPolyTime (cP num den) encBits encNat := by
-    unfold cP
-    polytime
-  have hR : ComputableInPolyTime (cR num den) encBits encNat := by
-    unfold cR
-    polytime
-  have hQ : ComputableInPolyTime (cQ den) encBits encNat := by
-    unfold cQ
-    polytime
+  have hP : ComputableInPolyTime (cP num den) encBits encNat := .binary_mul' hlo hden
+  have hR : ComputableInPolyTime (cR num den) encBits encNat := .binary_mul' hnum hloD
+  have hQ : ComputableInPolyTime (cQ den) encBits encNat := .binary_mul' hloD hden
   have h2 : ComputableInPolyTime (fun x : List Bool => 2 ^ x.length) encBits encNat :=
     ComputableInPolyTime.binary_two_pow.comp ComputableInPolyTime.length_bits
-  have hP2 : ComputableInPolyTime (fun x => cP num den x * 2 ^ x.length) encBits encNat := by
-    polytime
-  have hR2 : ComputableInPolyTime (fun x => cR num den x * 2 ^ x.length) encBits encNat := by
-    polytime
+  have hP2 := ComputableInPolyTime.binary_mul' hP h2
+  have hR2 := ComputableInPolyTime.binary_mul' hR h2
   have hA : ComputableInPolyTime (cA num den) encBits encNat :=
     ComputableInPolyTime.binary_div.comp (hP2.prod hQ)
   have hB : ComputableInPolyTime (cB num den) encBits encNat :=
@@ -220,9 +212,8 @@ theorem cdfLo_eq (x : List Bool) : D.cdfLo x = ENNReal.ofReal (aR num den x) := 
     rw [D.cdfLo_eq_cdf_predWord h, hcdf, natCast_div_eq_ofReal (hden _)]
 
 /-- `D_n({y ≤ x}) = b`. -/
-theorem cdf_eq (x : List Bool) : D.cdf x = ENNReal.ofReal (bR num den x) := by
-  rw [hcdf, natCast_div_eq_ofReal (hden x)]
-  rfl
+theorem cdf_eq (x : List Bool) : D.cdf x = ENNReal.ofReal (bR num den x) :=
+  (hcdf x).trans (natCast_div_eq_ofReal (hden x))
 
 omit hcdf hden in
 theorem aR_nonneg (x : List Bool) : 0 ≤ aR num den x := by
@@ -232,10 +223,8 @@ omit hcdf hden in
 theorem bR_nonneg (x : List Bool) : 0 ≤ bR num den x := by
   unfold bR; positivity
 
-theorem bR_le_one (x : List Bool) : bR num den x ≤ 1 := by
-  have := D.cdf_le_one x
-  rw [cdf_eq hcdf hden] at this
-  exact ENNReal.ofReal_le_one.mp this
+theorem bR_le_one (x : List Bool) : bR num den x ≤ 1 :=
+  ENNReal.ofReal_le_one.mp (cdf_eq hcdf hden x ▸ D.cdf_le_one x)
 
 /-- `D_n(x) = b - a`. -/
 theorem dist_eq (x : List Bool) :

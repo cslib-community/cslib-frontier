@@ -194,18 +194,15 @@ private theorem card_filter_critical_le (c : Clause (Fin N)) (i : Fin N) :
     #{x : BitString N | Critical x c i} ≤ 2 ^ (N - (c.map Prod.fst).toFinset.card) := by
   refine (BitString.card_le_of_forall_agree fun x hx x₀ hx₀ u hu => ?_).trans_eq
     (by rw [Fintype.card_fin])
-  have hx := (mem_filter.1 hx).2
-  have hx₀ := (mem_filter.1 hx₀).2
   obtain ⟨l, hl, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hu)
   by_cases hli : l = (i, x i)
   · -- the literal of `i` true under `x₀` is in the clause too, so it is `l`
     subst hli
-    by_contra hne
-    exact (hx.2 (i, x₀ i) hx₀.1 fun h => hne (Prod.mk.inj h).2.symm).1 rfl
-  · have h₁ := hx.2 l hl hli
-    have h₂ := hx₀.2 l hl fun h => h₁.1 (by rw [h])
-    have key : ∀ a b e : Bool, a ≠ e → b ≠ e → a = b := by decide
-    exact key _ _ _ h₁.2 h₂.2
+    exact by_contra fun hne => ((mem_filter.1 hx).2.2 (i, x₀ i) (mem_filter.1 hx₀).2.1
+      fun h => hne (Prod.mk.inj h).2.symm).1 rfl
+  · have h₁ := (mem_filter.1 hx).2.2 l hl hli
+    have h₂ := (mem_filter.1 hx₀).2.2 l hl fun h => h₁.1 (congrArg Prod.fst h)
+    exact (by decide : ∀ a b e : Bool, a ≠ e → b ≠ e → a = b) _ _ _ h₁.2 h₂.2
 
 /-- A clause with `v` variables is critical for at most `v 2 ^ (N - v)` pairs of an input and a
 direction. -/
@@ -329,10 +326,8 @@ theorem sum_two_rpow_card_isolated_div_le {k : ℕ} (hk1 : 1 ≤ k) (hk : ∀ c 
           exact Nat.mul_le_mul_left _ (sum_le_sum_of_subset (filter_subset _ _))
       _ = k * ∑ σ : Equiv.Perm (Fin N), (φ.forced σ x).card := by
           rw [sum_card_filter_mem_forced]
-  rw [div_le_div_iff₀ (mod_cast hk1) (mod_cast N.factorial_pos)]
-  have hcountR : ((univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card : ℝ) *
-      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ) := mod_cast hcount
-  linarith
+  rw [div_le_div_iff₀ (mod_cast hk1) (mod_cast N.factorial_pos), mul_comm _ (k : ℝ)]
+  exact_mod_cast hcount
 
 /-- **Few isolated solutions** [Paturi, Pudlák and Zane, Lemma 4][PaturiPudlakZane1999]: a formula
 whose clauses have at most `k ≥ 1` literals has at most `2 ^ ((1 - 1 / k) N)` solutions isolated in
@@ -376,8 +371,7 @@ private theorem critWidth_eq_zero {x : BitString N} {i : Fin N} (h : ¬ ∃ c �
 theorem critWidth_pos {x : BitString N} {i : Fin N} (h : ∃ c ∈ φ, Critical x c i) :
     0 < φ.critWidth x i := by
   obtain ⟨c, -, hcrit, hcard⟩ := exists_critical_card_eq_critWidth h
-  rw [← hcard]
-  exact card_pos.2 ⟨i, List.mem_toFinset.2 (List.mem_map.2 ⟨_, hcrit.1, rfl⟩)⟩
+  exact hcard ▸ card_pos.2 ⟨i, List.mem_toFinset.2 (List.mem_map.2 ⟨_, hcrit.1, rfl⟩)⟩
 
 /-- The average number of variables forced on `x` is at least its *weight*
 `∑ᵢ 1 / critWidth φ x i`. -/

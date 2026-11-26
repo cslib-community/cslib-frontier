@@ -341,10 +341,8 @@ private lemma run_triple (X : ℕ) (cs : Fin (k + k + 1) → ℕ)
   have hne := target_ne_tmp j (dir tm q inp sc j)
   induction X generalizing cs with
   | zero =>
-    have e : update (update cs (target j (dir tm q inp sc j)) 0) tmp (cs tmp + 3 * 0) = cs :=
-      funext_two tmp (target j (dir tm q inp sc j)) (by simp only [update_self]; omega)
-        (by simp only [update_of_ne hne, update_self, hX]) fun i h1 h2 => by
-          simp only [update_of_ne h1, update_of_ne h2]
+    have e : update (update cs (target j (dir tm q inp sc j)) 0) tmp (cs tmp + 3 * 0) = cs := by
+      rw [congrArg (update cs _) hX.symm, update_eq_self, mul_zero, add_zero, update_eq_self]
     rw [e, runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .back j⟩) (mv := fun _ => 0)
       (fun _ => by simp [ctl, hX]), moveCounters_zero]
     rfl
@@ -376,8 +374,7 @@ private lemma run_drainTmp {p p' : Control k State} (dst : Fin (k + k + 1)) (hne
   induction T generalizing cs with
   | zero =>
     have e : update (update cs tmp 0) dst (cs dst + 0) = cs := by
-      rw [(congrArg (update cs tmp) hT.symm).trans (update_eq_self tmp cs)]
-      simp only [Nat.add_zero, update_eq_self]
+      rw [congrArg (update cs _) hT.symm, update_eq_self, add_zero, update_eq_self]
     rw [e, runFrom_succ_of_ctl tm pos out (hz hT), moveCounters_zero]
     rfl
   | succ T ih =>
@@ -434,10 +431,9 @@ private lemma run_count (Y r : ℕ) (hr : r < 3) (cs : Fin (k + k + 1) → ℕ)
   induction Y generalizing r cs with
   | zero =>
     have e : update (update cs (source j (dir tm q inp sc j)) 0) tmp (cs tmp + (r + 0) / 3) =
-        cs :=
-      funext_two tmp (source j (dir tm q inp sc j)) (by simp only [update_self]; omega)
-        (by simp only [update_of_ne hne, update_self, hY]) fun i h1 h2 => by
-          simp only [update_of_ne h1, update_of_ne h2]
+        cs := by
+      rw [congrArg (update cs _) hY.symm, update_eq_self, add_zero, Nat.div_eq_of_lt hr, add_zero,
+        update_eq_self]
     have hrem : rem3 (r + 0) = ⟨r, hr⟩ := by fin_index [rem3]
     rw [e, hrem, runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .restore j ⟨r, hr⟩⟩)
       (mv := fun _ => 0) (fun _ => by simp [ctl, hY]), moveCounters_zero]
@@ -504,10 +500,8 @@ private lemma run_move (hd : dir tm q inp sc j ≠ 0) (cs : Fin (k + k + 1) → 
   refine funext_two tmp (target j (dir tm q inp sc j))
     (by simp [moveCounters_zero, hx.symm, hy.symm, h0])
     (by simp [moveCounters_zero, hx, hxy.symm, h0]) fun i h1 h2 => ?_
-  by_cases h3 : i = source j (dir tm q inp sc j)
-  · subst h3
-    simp [moveCounters_zero, h1, h0]
-  · simp [moveCounters_zero, h1, h2, h3]
+  rcases eq_or_ne i (source j (dir tm q inp sc j)) with rfl | h3 <;>
+    simp [moveCounters_zero, *]
 
 end Stages
 
@@ -594,13 +588,11 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
     exact henc.write _
   · -- move left
     rw [SignType.neg_eq_neg_one] at hd
-    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by rw [hdir, hd]; decide
+    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by
+      rw [hdir, hd]
+      decide
     obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd' cs h0
-    have ht : target j (dir tm q c.inputSymbol c.workTapeSymbols j) = hi j := by
-      simp [target, hdir, hd]
-    have hs : source j (dir tm q c.inputSymbol c.workTapeSymbols j) = lo j := by
-      simp [source, hdir, hd]
-    rw [ht, hs] at hn
+    simp only [target, source, hdir, hd, reduceCtorEq, ↓reduceIte] at hn
     refine ⟨n, _, _, hn, hother _ _ ?_ (fun i hi => update_of_ne hi _ _) (fun i hi => ?_)
       (fun i hi => ?_) ?_⟩
     · simp [(lo_ne_tmp j).symm, (hi_ne_tmp j).symm, h0]
@@ -608,27 +600,27 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
     · rw [update_of_ne (fun e => lo_ne_hi j i e.symm), update_of_ne (fun e => hi (hi_inj.mp e))]
     · have hpos : (tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapePos j =
           c.workTapePos j - 1 := by
-        simp only [Action.apply_workTapePos, hd, SignType.coe_neg_one]; omega
+        simp only [Action.apply_workTapePos, hd, SignType.coe_neg_one]
+        omega
+      have hne_pos : c.workTapePos j - 1 ≠ c.workTapePos j := by omega
       simp only [Cfg.workTapeSymbols, hw, hpos, update_self, update_of_ne (lo_ne_hi j j).symm,
-        update_of_ne (show c.workTapePos j - 1 ≠ c.workTapePos j by omega)]
+        update_of_ne hne_pos]
       exact ⟨henc.symbol_left.symm, henc.move_left _⟩
   · -- move right
     rw [SignType.pos_eq_one] at hd
-    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by rw [hdir, hd]; decide
+    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by
+      rw [hdir, hd]
+      decide
     obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd' cs h0
-    have ht : target j (dir tm q c.inputSymbol c.workTapeSymbols j) = lo j := by
-      simp [target, hdir, hd]
-    have hs : source j (dir tm q c.inputSymbol c.workTapeSymbols j) = hi j := by
-      simp [source, hdir, hd]
-    rw [ht, hs] at hn
+    simp only [target, source, hdir, hd, ↓reduceIte] at hn
     refine ⟨n, _, _, hn, hother _ _ ?_ (fun i hi => update_of_ne hi _ _) (fun i hi => ?_)
       (fun i hi => ?_) ?_⟩
     · simp [(lo_ne_tmp j).symm, (hi_ne_tmp j).symm, h0]
     · rw [update_of_ne (lo_ne_hi i j), update_of_ne (fun e => hi (lo_inj.mp e))]
     · rw [update_of_ne (fun e => hi (hi_inj.mp e)), update_of_ne (fun e => lo_ne_hi j i e.symm)]
-    · simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd, SignType.coe_one,
-        update_self, update_of_ne (lo_ne_hi j j),
-        update_of_ne (show c.workTapePos j + 1 ≠ c.workTapePos j by omega)]
+    · have hne_pos : c.workTapePos j + 1 ≠ c.workTapePos j := by omega
+      simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd, SignType.coe_one,
+        update_self, update_of_ne (lo_ne_hi j j), update_of_ne hne_pos]
       exact ⟨henc.symbol_right.symm, henc.move_right _⟩
 
 /-- Simulate the step on all tapes from tape `j` on. -/

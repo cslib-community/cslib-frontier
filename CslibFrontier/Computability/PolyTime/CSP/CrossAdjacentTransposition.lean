@@ -100,17 +100,13 @@ private theorem left_accepted (I : State Rel) (n : ℕ) (h : I.Accepted) :
     ((rotateLeft^[n]) I).Accepted := by
   induction n with
   | zero => exact h
-  | succ n ih =>
-    rw [Function.iterate_succ_apply']
-    exact accepted_rotateLeft _ ih
+  | succ n ih => exact Function.iterate_succ_apply' _ _ _ ▸ accepted_rotateLeft _ ih
 
 private theorem right_accepted (I : State Rel) (n : ℕ) (h : I.Accepted) :
     ((rotateRight^[n]) I).Accepted := by
   induction n with
   | zero => exact h
-  | succ n ih =>
-    rw [Function.iterate_succ_apply']
-    exact accepted_rotateRight _ ih
+  | succ n ih => exact Function.iterate_succ_apply' _ _ _ ▸ accepted_rotateRight _ ih
 
 /-- Every table check is derived from actual preceding accepted output, including both loops. -/
 theorem accepted_transposeAdjacent (I : State Rel) (j : ℕ) (h : I.Accepted) :
@@ -148,12 +144,8 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
       L.map (2 * ·) ++ [5, 7] ++ R.map (2 * ·) := by
   intro I J
   have hstate := positioned_state F L x y R c
-  have hvalid : L.length + 1 < I.ports.length := by
-    simp only [I, List.length_append, List.length_cons, List.length_nil]
-    omega
-  have hr : I.ports.length - (L.length + 2) = R.length := by
-    simp only [I, List.length_append, List.length_cons, List.length_nil]
-    omega
+  have hvalid : L.length + 1 < I.ports.length := by simp [I]
+  have hr : I.ports.length - (L.length + 2) = R.length := by simp [I]; omega
   have hp := ports_transposeTail g w F (R ++ L) x y J.rotation
   rw [← hstate] at hp
   rw [transposeAdjacent, ite_eq_left hvalid, hr]
@@ -322,11 +314,9 @@ private theorem turn_body (b : Bool) (I : State Rel) : (turn b I).body = I.body 
 private theorem turn_ports_perm (b : Bool) (I : State Rel) :
     (turn b I).ports.Perm I.ports := by
   cases b
-  · rw [turn, ite_eq_right (by decide), rotateLeft_ports]
-    exact List.rotate_perm _ _
-  · rw [turn, ite_eq_left rfl, rotateRight_ports]
-    exact (List.reverse_perm _).trans
-      ((List.rotate_perm _ _).trans (List.reverse_perm _))
+  · exact (rotateLeft_ports I).symm ▸ List.rotate_perm _ _
+  · exact (rotateRight_ports I).symm ▸
+      (List.reverse_perm _).trans ((List.rotate_perm _ _).trans (List.reverse_perm _))
 
 private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
     (he : ∀ v ∈ I.rotation.successor, v.size ≤ B)
@@ -345,8 +335,7 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
     have hN : 1 < N := by simp [N]
     have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
       by_cases hi : i < c.successor.length
-      · rw [List.getD_eq_getElem _ _ hi]
-        exact he _ (List.getElem_mem hi)
+      · simpa only [List.getD_eq_getElem _ _ hi] using he _ (List.getElem_mem hi)
       · rw [List.getD_eq_default _ _ (by omega)]
         simp
     have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
@@ -357,12 +346,10 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
         rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
         show ¬(x :: y :: ps).length ≤ 1 from by simp, ↓reduceIte]
     all_goals
-      constructor
-      · rw [RotationCertificate.length_reindex]
-        exact le_max_right _ _
-      · intro v hv
-        obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
-        exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
+      refine ⟨(RotationCertificate.length_reindex _ _ _ _).trans_le (le_max_right _ _),
+        fun v hv => ?_⟩
+      obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
+      exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
 
 private theorem enc_ports_perm {xs ys : List ℕ} (h : xs.Perm ys) :
     (encList encNat xs).length = (encList encNat ys).length :=

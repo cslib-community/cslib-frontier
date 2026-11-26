@@ -599,12 +599,11 @@ theorem eval_shiftClipResProg {Struct : Type v} (v : ℤ) (s : ℕ)
   have hb_sign := clipBoundStream_isSignedStream (s + 4) K
   have hb_pref : intPrefix (clipBoundStream (s + 4) K) K = B :=
     intPrefix_clipBoundStream_eq (by omega) (by omega)
-  have hB0 : 0 ≤ B := by positivity
   simp only [hsmall, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
     cmpPrefix_nonneg_iff hx hb_sign K, hb_pref]
   by_cases hcHi : B ≤ intPrefix (env ()) K
   · simp only [hcHi, ↓reduceIte, QueryProg.eval, posClipRes_eq, min_eq_left hcHi,
-      max_eq_right (by omega : -B ≤ B), B]
+      max_eq_right (neg_le_self (by positivity : 0 ≤ B)), B]
   simp only [hcHi, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
     cmpPrefix_nonpos_iff hx hb_sign.neg K, intPrefix_neg_eq, hb_pref]
   have hle : intPrefix (env ()) K ≤ B := by omega
@@ -759,8 +758,7 @@ theorem balancedAvgDigitProg_emits {Struct : Type v} (r : ℕ)
       linarith [abs_add_le (streamVal (cEnv 0)) (streamVal (cEnv 1)), hval0 ▸ hbnd0, hval1 ▸ hbnd1]
     have happrox := pairAvgApprox_isScaledApprox hs0 hs1
     have heval : (fun t => (balancedAvgDigitProg (r + 1) t).eval env sEnv) =
-        diffDigit (pairAvgApprox (cEnv 0) (cEnv 1)) := by
-      ext t
+        diffDigit (pairAvgApprox (cEnv 0) (cEnv 1)) := funext fun t => by
       simp only [balancedAvgDigitProg, QueryProg.eval_substDigits, QueryProg.eval_reindexOp]
       exact eval_diffDigitProg pairAvgResProg _ hbound happrox
         (fun s => eval_pairAvgResProg s cEnv sEnv) t
@@ -910,9 +908,7 @@ private theorem bandStart_le_of_lt_maxBand {s k : ℕ} (hk : k < maxBand s) :
   | zero => simp
   | succ m =>
     unfold maxBand at hk
-    have hm : m ≤ Nat.log 2 (s + mulBaseMargin) := by omega
-    unfold bandStart
-    exact (Nat.pow_le_pow_right (by decide) hm).trans
+    exact (Nat.pow_le_pow_right (by decide) (by omega)).trans
       (Nat.pow_log_le_self 2 (by unfold mulBaseMargin; omega))
 
 private theorem bandWindowSum_eq_double_sum (x y : ℕ → ℤ) (s k : ℕ) :
@@ -1013,17 +1009,15 @@ theorem eval_mulResProg {Struct : Type v} (s : ℕ)
   | succ rem ih =>
     intro hsum
     simp only [bandOuterAux, QueryProg.eval_bindOverhead, eval_bandScanI, Nat.zero_add,
-      ← Finset.range_eq_Ico]
+      ← Finset.range_eq_Ico, rowSumTerm, ← bandWindowSum_eq_double_sum]
     set k := maxBand s - (step + 1)
-    rw [show ∑ i ∈ range (s + bandMargin k + 1), ∑ j ∈ range (s + bandMargin k + 1),
-        rowSumTerm (env 0) (env 1) s k i j = bandWindowSum (env 0) (env 1) s 4 k from
-      (bandWindowSum_eq_double_sum (env 0) (env 1) s k).symm,
-      show ((bandFoldMod (env 0) (env 1) s 4 step /
-            (2 : ℤ) ^ (bandMargin (k + 1) - bandMargin k)) % (2 : ℤ) ^ (4 + bandMargin k) +
-          bandWindowSum (env 0) (env 1) s 4 k) % (2 : ℤ) ^ (4 + bandMargin k) =
-          bandFoldMod (env 0) (env 1) s 4 (step + 1) by
-        simp only [bandFoldMod]
-        rw [add_comm, Int.add_emod (bandWindowSum _ _ _ _ _), Int.emod_emod, ← Int.add_emod]]
+    have hfold : ((bandFoldMod (env 0) (env 1) s 4 step /
+          (2 : ℤ) ^ (bandMargin (k + 1) - bandMargin k)) % (2 : ℤ) ^ (4 + bandMargin k) +
+        bandWindowSum (env 0) (env 1) s 4 k) % (2 : ℤ) ^ (4 + bandMargin k) =
+        bandFoldMod (env 0) (env 1) s 4 (step + 1) := by
+      simp only [bandFoldMod]
+      rw [add_comm, Int.add_emod (bandWindowSum _ _ _ _ _), Int.emod_emod, ← Int.add_emod]
+    rw [hfold]
     exact ih (step + 1) (by omega)
 
 /-! ### Active queries, allowance, and intrinsic bit bounds -/
@@ -1198,16 +1192,14 @@ growing prefix accumulator). -/
 theorem eval_intPrefixProg {Op : Type u} {Struct : Type v} (op : Op) (K : ℕ)
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) :
     (intPrefixProg op K).eval env sEnv = intPrefix (env op) K := by
-  have haux : ∀ rem n,
+  have haux (rem n : ℕ) :
       (intPrefixAux op K (n + 1) rem (intPrefix (env op) n)).eval env sEnv =
         intPrefix (env op) (n + rem) := by
-    intro rem
-    induction rem with
-    | zero => exact fun _ => rfl
+    induction rem generalizing n with
+    | zero => rfl
     | succ rem ih =>
-      intro n
-      rw [intPrefixAux, QueryProg.eval, ← intPrefix_succ, ih (n + 1)]
-      exact congrArg _ (by omega)
+      rw [intPrefixAux, QueryProg.eval, ← intPrefix_succ, ih (n + 1), Nat.add_right_comm,
+        Nat.add_assoc]
   rw [intPrefixProg, intPrefixAux, QueryProg.eval, mul_zero, Int.zero_add,
     ← intPrefix_zero (env op), haux K 0, Nat.zero_add]
 
@@ -1507,9 +1499,8 @@ private theorem mem_activeQueries_recipOuterProg_digit {Struct : Type v} (s : �
       (w : ℤ) ≤ ((26 + H.coeffA + 8 * H.coeffB : ℕ) : ℤ) +
         (H.coeffB : ℤ) * ((s : ℤ) - (r : ℤ)) := by
   rcases mem_activeQueries_recipOuterProg s vEnv sEnv h with
-    ⟨_, _, _, hEq⟩ | ⟨_, _, _, hr, hw, hEq⟩
-  · nomatch hEq
-  · cases hEq; exact ⟨hr, hw⟩
+    ⟨_, _, _, ⟨⟩⟩ | ⟨_, _, _, hr, hw, ⟨⟩⟩
+  exact ⟨hr, hw⟩
 
 private theorem allowance_recipEarly {Struct : Type v} {d s wOut : ℕ} (hd : 1 ≤ d)
     (env : Unit → ℕ → ℤ) (sEnv : Struct → Bool)

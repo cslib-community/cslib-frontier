@@ -140,11 +140,11 @@ private theorem common_open_iff {a b c d : ℂ} (hab : a.im < b.im) (hcd : c.im 
   · obtain ⟨⟨ha, hb⟩, hre1⟩ := (mem_openSegment_height_iff hab z).mp hz1
     obtain ⟨⟨hc, hd⟩, hre2⟩ := (mem_openSegment_height_iff hcd z).mp hz2
     exact ⟨z.im, ⟨⟨ha, hc⟩, ⟨hb, hd⟩⟩, hre1.symm.trans hre2⟩
-  · refine ⟨heightMap a b h, ?_, ?_⟩
-    · simpa only [mem_openSegment_height_iff hab, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re,
-        and_true] using ⟨ha, hb⟩
-    · simp only [mem_openSegment_height_iff hcd, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re]
-      exact ⟨⟨hc, hd⟩, hf⟩
+  · have him := heightMap_im hab.ne h
+    exact ⟨heightMap a b h,
+      (mem_openSegment_height_iff hab _).mpr ⟨him.symm ▸ ⟨ha, hb⟩, him.symm ▸ heightMap_re a b h⟩,
+      (mem_openSegment_height_iff hcd _).mpr
+        ⟨him.symm ▸ ⟨hc, hd⟩, him.symm ▸ (heightMap_re a b h).trans hf⟩⟩
 
 private theorem difference_boundary_ne_zero {a b c d : ℂ}
     (hab : a.im < b.im) (hcd : c.im < d.im)
@@ -184,16 +184,16 @@ private theorem common_open_indicator {a b c d : ℂ}
   let L := max a.im c.im
   let H := min b.im d.im
   by_cases hLH : L < H
-  · have hL : differenceMap a b c d L ≠ 0 := by
-      apply difference_boundary_ne_zero hab hcd ha hb hc hd
-      · exact ⟨le_max_left _ _, (hLH.trans_le (min_le_left _ _)).le⟩
-      · exact ⟨le_max_right _ _, (hLH.trans_le (min_le_right _ _)).le⟩
-      · rcases max_choice a.im c.im with h | h <;> simp [L, h]
-    have hH : differenceMap a b c d H ≠ 0 := by
-      apply difference_boundary_ne_zero hab hcd ha hb hc hd
-      · exact ⟨((le_max_left _ _).trans_lt hLH).le, min_le_left _ _⟩
-      · exact ⟨((le_max_right _ _).trans_lt hLH).le, min_le_right _ _⟩
-      · rcases min_choice b.im d.im with h | h <;> simp [H, h]
+  · have hL : differenceMap a b c d L ≠ 0 :=
+      difference_boundary_ne_zero hab hcd ha hb hc hd
+        ⟨le_max_left _ _, (hLH.trans_le (min_le_left _ _)).le⟩
+        ⟨le_max_right _ _, (hLH.trans_le (min_le_right _ _)).le⟩
+        ((max_choice a.im c.im).imp id (Or.inr ∘ Or.inl))
+    have hH : differenceMap a b c d H ≠ 0 :=
+      difference_boundary_ne_zero hab hcd ha hb hc hd
+        ⟨((le_max_left _ _).trans_lt hLH).le, min_le_left _ _⟩
+        ⟨((le_max_right _ _).trans_lt hLH).le, min_le_right _ _⟩
+        ((min_choice b.im d.im).elim (Or.inr ∘ Or.inl) (Or.inr ∘ Or.inr ∘ Or.inr))
     have hroot : (∃ h ∈ Set.Ioo L H, differenceMap a b c d h = 0) ↔
         0 ∈ openSegment ℝ (differenceMap a b c d L) (differenceMap a b c d H) := by
       rw [← image_openSegment ℝ (differenceMap a b c d) L H]
@@ -257,21 +257,17 @@ private theorem sweep_identity {a b c d : ℂ}
   rcases lt_or_gt_of_ne hab with hab | hab
   · rcases lt_or_gt_of_ne hcd with hcd | hcd
     · exact sweep_identity_ordered hab hcd ha hb hc hd
-    · have h := sweep_identity_ordered hab hcd
-        (by simpa only [segment_symm] using ha) (by simpa only [segment_symm] using hb)
-        hd hc
-      simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using
-        (show decide (RayCrosses a b c) + decide (RayCrosses a b d) = _ from h)
+    · simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using
+        sweep_identity_ordered hab hcd (segment_symm ℝ c d ▸ ha) (segment_symm ℝ c d ▸ hb) hd hc
   · have h : decide (RayCrosses b a d) + decide (RayCrosses b a c) =
         decide ((openSegment ℝ b a ∩ openSegment ℝ c d).Nonempty) +
           decide (Sweep c d b) + decide (Sweep c d a) := by
       rcases lt_or_gt_of_ne hcd with hcd | hcd
       · exact sweep_identity_ordered hab hcd hb ha
-          (by simpa only [segment_symm] using hc) (by simpa only [segment_symm] using hd)
-      · have h := sweep_identity_ordered hab hcd
-          (by simpa only [segment_symm] using hb) (by simpa only [segment_symm] using ha)
-          (by simpa only [segment_symm] using hd) (by simpa only [segment_symm] using hc)
-        simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using h
+          (segment_symm ℝ a b ▸ hc) (segment_symm ℝ a b ▸ hd)
+      · simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using
+          sweep_identity_ordered hab hcd (segment_symm ℝ c d ▸ hb) (segment_symm ℝ c d ▸ ha)
+            (segment_symm ℝ a b ▸ hd) (segment_symm ℝ a b ▸ hc)
     simpa [rayCrosses_reverse, openSegment_symm, add_comm, add_left_comm, add_assoc] using h
 
 open Classical in

@@ -146,16 +146,14 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
       have hrect_univ : rectangle X (univ : Set (X → U)) univ = univ :=
         Set.ext fun _ => by simp [rectangle]
       have hcard_univ : ((univ : Set (Fin n → U)).ncard : ℝ) = (q : ℝ) ^ n := by
-        rw [ncard_univ, Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
-        push_cast
-        rfl
+        simp [q, ncard_univ, Nat.card_fun]
       have hbias_n := hbn X univ univ hA hB
       rw [hrect_univ, univ_inter, hcard_univ] at hbias_n
       have hb_le : b n ≤ c' := hbcn.trans (le_max_left c 0)
       have hqn_pos : (0 : ℝ) < (q : ℝ) ^ n := by positivity
       have hS_lower : (1 / 2 - c') * (q : ℝ) ^ n ≤ (S n).ncard := by
-        have h2 : b n * (q : ℝ) ^ n ≤ c' * (q : ℝ) ^ n := by gcongr
-        linarith [neg_le_abs ((S n).ncard - (q : ℝ) ^ n / 2)]
+        linarith [neg_le_abs ((S n).ncard - (q : ℝ) ^ n / 2),
+          mul_le_mul_of_nonneg_right hb_le hqn_pos.le]
       have hS_pos : (0 : ℝ) < (S n).ncard := lt_of_lt_of_le (by positivity) hS_lower
       have hS_upper : ((S n).ncard : ℝ) ≤ (q : ℝ) ^ n := by
         rw [← hcard_univ]
@@ -248,11 +246,8 @@ private theorem le_minEntropy_uniformOfFintype_map {α β : Type*} [Fintype α] 
     rw [Real.rpow_natCast]
     exact_mod_cast hk
   · push Not at hy
-    have hzero : ((PMF.uniformOfFintype α).map f) y = 0 := by
-      rw [PMF.map_apply, tsum_eq_zero_iff]
-      intro a
-      simp [Ne.symm (hy a)]
-    rw [hzero, ENNReal.toReal_zero]
+    rw [PMF.map_apply, tsum_eq_zero_iff.2 fun a => ite_eq_right (Ne.symm (hy a)),
+      ENNReal.toReal_zero]
     positivity
 
 private def eqBoolEquiv (val : Bool) : Bool ≃ Bool where
@@ -325,14 +320,10 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
       hcard R, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   rw [hpOut_true] at hdist
   have hR_pos : (0 : ℝ) < R.ncard := by exact_mod_cast hcard R ▸ Fintype.card_pos (α := R)
-  have hmul := mul_le_mul_of_nonneg_right hdist hR_pos.le
-  have h_abs : |((R ∩ S).ncard : ℝ) / R.ncard - 1 / 2| * R.ncard =
-      |((R ∩ S).ncard : ℝ) - R.ncard / 2| := by
-    conv_lhs => rhs; rw [← abs_of_pos hR_pos]
-    rw [← abs_mul]
-    congr 1
-    field_simp
-  rwa [h_abs] at hmul
+  have h_eq : ((R ∩ S).ncard : ℝ) - R.ncard / 2 =
+      (((R ∩ S).ncard : ℝ) / R.ncard - 1 / 2) * R.ncard := by field_simp
+  rw [h_eq, abs_mul, abs_of_pos hR_pos]
+  exact mul_le_mul_of_nonneg_right hdist hR_pos.le
 
 private theorem isLittleO_log_two_pow {k : ℕ → ℕ}
     (hk : (fun n => (k n : ℝ)) =o[atTop] fun n => (n : ℝ)) :

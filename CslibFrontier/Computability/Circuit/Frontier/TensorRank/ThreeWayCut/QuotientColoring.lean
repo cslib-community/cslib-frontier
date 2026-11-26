@@ -115,9 +115,7 @@ private theorem secCount_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     secCount Q q R (fun B' => rotSample (ω B')) B (c + 1) = secCount Q q R ω B c := by
   classical
   have := Fintype.ofFinite F
-  dsimp [secCount]
-  congr 1
-  ext e
+  refine congrArg Finset.card (Finset.ext fun e => ?_)
   simp only [Finset.mem_filter, edgeVec2_rotSample, inOpenSector_rot120]
 
 /-- Lexicographic sector comparison `(secCount, tieBreaker)`. -/
@@ -129,10 +127,8 @@ private def beats (Q : Multigraph W F) (q : ℝ) (R : ℕ)
 private theorem beats_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     (ω : W → BlockSample) (B : W) (c c' : Fin 3) :
     beats Q q R (fun B' => rotSample (ω B')) B (c + 1) (c' + 1) ↔ beats Q q R ω B c c' := by
-  unfold beats
-  rw [secCount_rotSample, secCount_rotSample]
-  dsimp [rotSample]
-  rw [shiftTie_add_one, shiftTie_add_one]
+  rw [beats, secCount_rotSample, secCount_rotSample]
+  simp only [beats, rotSample, shiftTie_add_one]
 
 private theorem beats_asymm {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} {c c' : Fin 3}
@@ -219,18 +215,15 @@ private theorem blockColor_of_strict_majority {Q : Multigraph W F} {q : ℝ} {R 
 private theorem blockColor_rotSample {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2) :
     blockColor Q q R (fun B' => rotSample (ω B')) B = blockColor Q q R ω B + 1 := by
-  have hinj' : Function.Injective (((fun B' => rotSample (ω B')) B).2) := by
-    intro c₁ c₂ h
-    dsimp [rotSample, shiftTie] at h
-    exact add_right_cancel (hinj h)
+  have hinj' : Function.Injective (((fun B' => rotSample (ω B')) B).2) :=
+    fun _ _ h => add_right_cancel (hinj h)
   set c := blockColor Q q R ω B
   have hall := (blockColor_eq_iff_of_injective hinj c).mp rfl
   refine (blockColor_eq_iff_of_injective (Q := Q) (q := q) (R := R)
       (ω := fun B' => rotSample (ω B')) hinj' (c + 1)).mpr fun c' hc' => ?_
   have hc'_eq : c' = (c' + 2) + 1 := by fin_cases c' <;> decide
   rw [hc'_eq, beats_rotSample]
-  refine hall (c' + 2) fun h => hc' ?_
-  rw [hc'_eq, h]
+  exact hall (c' + 2) fun h => hc' (hc'_eq.trans (congrArg (· + 1) h))
 
 
 omit [Finite F] in
@@ -282,17 +275,12 @@ private theorem measurableSet_blockColor_eq (Q : Multigraph W F) (q : ℝ) (R : 
 private theorem dependsOn_blockColor (Q : Multigraph W F) (q : ℝ) (R : ℕ) (B : W) :
     DependsOn (fun ω => blockColor Q q R ω B) (closedBall Q.toSimpleGraph B (R + 1)) := by
   intro ω₁ ω₂ h12
-  have hB : B ∈ closedBall Q.toSimpleGraph B (R + 1) := by
-    simp [closedBall]
   have hsec (c : Fin 3) : secCount Q q R ω₁ B c = secCount Q q R ω₂ B c := by
     classical
-    dsimp [secCount]
-    congr 1; ext e
-    simp only [Finset.mem_filter, @Set.mem_toFinset _ _ (Fintype.ofFinite _)]
-    refine and_congr_right fun he => ?_
-    rw [edgeVec2_congr he h12]
+    refine congrArg Finset.card (Finset.filter_congr fun e he => ?_)
+    rw [edgeVec2_congr ((@Set.mem_toFinset _ _ (Fintype.ofFinite _)).mp he) h12]
   have hbeats (c c' : Fin 3) : beats Q q R ω₁ B c c' ↔ beats Q q R ω₂ B c c' := by
-    simp only [beats, hsec, h12 B hB]
+    rw [beats, beats, hsec, hsec, h12 B (by simp [closedBall])]
   dsimp only [blockColor]
   rw [hbeats 0 1, hbeats 0 2, hbeats 1 2]
 
@@ -381,16 +369,11 @@ private theorem dependsOn_cutPairEvent (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     DependsOn (· ∈ cutPairEvent Q q R c e)
       (closedBall Q.toSimpleGraph (Q.src e) (R + 2)) := by
   intro ω₁ ω₂ h12
-  have hsrc_sub : closedBall Q.toSimpleGraph (Q.src e) (R + 1) ⊆
-      closedBall Q.toSimpleGraph (Q.src e) (R + 2) := by
-    intro z hz
+  have hcs := dependsOn_blockColor Q q R (Q.src e) fun z hz => h12 z <| by
     simp only [closedBall, mem_ofPred_eq] at hz ⊢
-    exact hz.trans (Nat.cast_le.mpr (by omega))
-  have htgt_sub : closedBall Q.toSimpleGraph (Q.tgt e) (R + 1) ⊆
-      closedBall Q.toSimpleGraph (Q.src e) (R + 2) :=
-    closedBall_tgt_subset e (R + 1)
-  have hcs := dependsOn_blockColor Q q R (Q.src e) fun z hz => h12 z (hsrc_sub hz)
-  have hct := dependsOn_blockColor Q q R (Q.tgt e) fun z hz => h12 z (htgt_sub hz)
+    exact hz.trans (Nat.cast_le.mpr (Nat.le_succ _))
+  have hct := dependsOn_blockColor Q q R (Q.tgt e) fun z hz =>
+    h12 z (closedBall_tgt_subset e (R + 1) hz)
   simp only [cutPairEvent, mem_ofPred_eq, hcs, hct]
 
 

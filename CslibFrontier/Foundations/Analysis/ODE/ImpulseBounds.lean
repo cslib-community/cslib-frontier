@@ -152,13 +152,11 @@ theorem integrableOn_Ioi_and_integral_le
     (hR : ∀ y, y ⬝ᵥ (Aᵀ * W + W * A + Cᵀ * C) *ᵥ y ≤ 0) (hW : ∀ y, 0 ≤ y ⬝ᵥ W *ᵥ y) :
     IntegrableOn (fun t => C *ᵥ x t ⬝ᵥ C *ᵥ x t) (Ioi 0) ∧
       ∫ t in Ioi 0, C *ᵥ x t ⬝ᵥ C *ᵥ x t ≤ x 0 ⬝ᵥ W *ᵥ x 0 := by
-  have hbound : ∀ T, 0 ≤ T → ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t ≤ x 0 ⬝ᵥ W *ᵥ x 0 := by
-    intro T hT
+  have hbound (T : ℝ) (hT : 0 ≤ T) : ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t ≤ x 0 ⬝ᵥ W *ᵥ x 0 := by
     rw [integral_mulVec_dotProduct_eq (W := W) hx hT]
     have := intervalIntegral.integral_nonneg_of_forall (μ := volume) hT fun t =>
       neg_nonneg.2 (hR (x t))
-    rw [intervalIntegral.integral_neg] at this
-    linarith [hW (x T)]
+    rw [intervalIntegral.integral_neg] at this; linarith [hW (x T)]
   have hint := integrableOn_Ioi_of_bounded (fun t => dotProduct_self_nonneg' _)
     (integrableOn_Ioc_mulVec_dotProduct hx) (eventually_atTop.2 ⟨0, hbound⟩)
   exact ⟨hint, le_of_tendsto (intervalIntegral_tendsto_integral_Ioi 0 hint tendsto_id)
@@ -175,12 +173,11 @@ theorem integrableOn_Ioi_and_integral_eq
   have hpart : ∀ T, 0 ≤ T →
       ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t = x 0 ⬝ᵥ W *ᵥ x 0 - x T ⬝ᵥ W *ᵥ x T := fun T hT => by
     simp [integral_mulVec_dotProduct_eq (W := W) hx hT, hR]
-  have hV : Tendsto (fun T => x T ⬝ᵥ W *ᵥ x T) atTop (𝓝 0) := by
-    simpa [Function.comp_def] using ((continuous_dotProduct_mulVec W).tendsto 0).comp hx₀
   have hlim : Tendsto (fun T => ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t) atTop
       (𝓝 (x 0 ⬝ᵥ W *ᵥ x 0)) := by
     refine (tendsto_congr' (eventually_atTop.2 ⟨0, fun T hT => (hpart T hT).symm⟩)).1 ?_
-    simpa using hV.const_sub (x 0 ⬝ᵥ W *ᵥ x 0)
+    simpa [Function.comp_def] using
+      (((continuous_dotProduct_mulVec W).tendsto 0).comp hx₀).const_sub (x 0 ⬝ᵥ W *ᵥ x 0)
   have hint := integrableOn_Ioi_of_bounded (fun t => dotProduct_self_nonneg' _)
     (integrableOn_Ioc_mulVec_dotProduct hx) (hlim.eventually (eventually_le_nhds (lt_add_one _)))
   exact ⟨hint, tendsto_nhds_unique (intervalIntegral_tendsto_integral_Ioi 0 hint tendsto_id) hlim⟩
@@ -276,9 +273,8 @@ theorem tendsto_exp_smul_mulVec [DecidableEq n]
   have hx := (isTrajectoryOn_toEuclideanCLM_iff (x := fun t => exp (t • A) *ᵥ y)
     (s := Ici (0 : ℝ))).2 (hasDerivWithinAt_exp_smul_mulVec A y)
   have hlim : Tendsto (fun t => M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 y‖) atTop (𝓝 0) := by
-    have : Tendsto (fun t => Real.exp (-(α * t))) atTop (𝓝 0) :=
-      Real.tendsto_exp_atBot.comp (tendsto_neg_atTop_atBot.comp (tendsto_id.const_mul_atTop hα))
-    simpa using (this.const_mul M).mul_const ‖WithLp.toLp 2 y‖
+    simpa using ((Real.tendsto_exp_atBot.comp
+      (tendsto_neg_atTop_atBot.comp (tendsto_id.const_mul_atTop hα))).const_mul M).mul_const _
   have h0 : Tendsto (fun t : ℝ => WithLp.toLp 2 (exp (t • A) *ᵥ y)) atTop (𝓝 0) := by
     refine squeeze_zero_norm' ?_ hlim
     filter_upwards [eventually_ge_atTop 0] with t ht
@@ -496,8 +492,7 @@ theorem frobeniusSq_responseKernel_le {α γ : ℝ}
   classical
   rw [sum_sq_eq_sum_mulVec_single, trace_eq_sum, Finset.mul_sum, Finset.sum_mul]
   refine Finset.sum_le_sum fun j _ => ?_
-  have := responseKernel_mulVec_sq_le_aux hP hC hγ (Pi.single j 1) ht
-  linarith
+  linarith [responseKernel_mulVec_sq_le_aux hP hC hγ (Pi.single j 1) ht]
 
 /-- **Certified energy tail.** If `α > 0`, `Aᵀ P + P A + 2 α P ⪯ 0` and `Cᵀ C ⪯ γ P` with
 `γ ≥ 0`, then for `T ≥ 0` the tail `‖h t‖_F²` is integrable on `(T, ∞)` and

@@ -271,17 +271,14 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
   let h : R → L := fun r =>
     if hr : (N r).Nonempty then Classical.choose ((N r).exists_max_image w hr)
     else Classical.choice hL
-  have hh_mem : ∀ r ∈ Ract, h r ∈ N r := by
-    intro r hr
+  have hh_mem : ∀ r ∈ Ract, h r ∈ N r := fun r hr => by
     obtain ⟨l, hl⟩ := (Finset.mem_filter.mp hr).2
     have hne : (N r).Nonempty := ⟨l, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hl⟩⟩
-    simp only [h, hne, ↓reduceDIte]
-    exact (Classical.choose_spec ((N r).exists_max_image w hne)).1
-  have hh_max : ∀ r ∈ Ract, ∀ l ∈ N r, w l ≤ w (h r) := by
-    intro r hr l hl
+    simpa only [h, hne, ↓reduceDIte] using (Classical.choose_spec ((N r).exists_max_image w hne)).1
+  have hh_max : ∀ r ∈ Ract, ∀ l ∈ N r, w l ≤ w (h r) := fun r _ l hl => by
     have hne : (N r).Nonempty := ⟨l, hl⟩
-    simp only [h, hne, ↓reduceDIte]
-    exact (Classical.choose_spec ((N r).exists_max_image w hne)).2 l hl
+    simpa only [h, hne, ↓reduceDIte] using
+      (Classical.choose_spec ((N r).exists_max_image w hne)).2 l hl
   let H : Finset L := Ract.image h
   -- Claim 1: `∑ e ∈ M, w e.1 ≤ d * ∑ l ∈ H, w l`.
   have hclaim1 : ∑ e ∈ M, w e.1 ≤ (d : ℝ) * ∑ l ∈ H, w l := by
@@ -403,15 +400,15 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
           ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
             ∑ e ∈ priceSamplingMatch G w σ with e.1 = l, w e.1 := by
         refine Finset.sum_le_sum fun σ _ => ?_
-        rw [mul_assoc]
-        refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
         split_ifs with hs
         · obtain ⟨r', hr'⟩ := hmatched σ hs.1 hs.2
-          rw [one_mul]
-          exact Finset.single_le_sum (fun e _ => hw e.1)
-            (Finset.mem_filter (p := fun e => e.1 = l).mpr ⟨hr', rfl⟩)
-        · rw [zero_mul]
-          exact Finset.sum_nonneg fun e _ => hw e.1
+          rw [mul_one]
+          exact mul_le_mul_of_nonneg_left
+            (Finset.single_le_sum (fun e _ => hw e.1)
+              (Finset.mem_filter (p := fun e => e.1 = l).mpr ⟨hr', rfl⟩))
+            ENNReal.toReal_nonneg
+        · simpa only [mul_zero, zero_mul] using mul_nonneg ENNReal.toReal_nonneg
+            (Finset.sum_nonneg fun e _ => hw e.1)
       linarith [hw_mul.trans hterm_le]
     calc ∑ l ∈ H, w l
         ≤ ∑ l ∈ H, 4 * ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
@@ -552,11 +549,9 @@ private theorem alloc_none_of_notMem_post (profile : L → USVType R)
   cases h : priceSamplingUSVAlloc profile σ l with
   | none => rfl
   | some r =>
-    rcases mem_foldl_priceSamplingStep_imp (profileGraph profile) (profileWeight profile) _
-        (postSampleList σ _) ∅ ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h)
-      with h0 | hl'
-    · simp at h0
-    · exact absurd hl' hl
+    exact absurd ((mem_foldl_priceSamplingStep_imp (profileGraph profile) (profileWeight profile) _
+      (postSampleList σ _) ∅ ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h)).resolve_left
+      (Finset.notMem_empty _)) hl
 
 /-- **Ex-post individual rationality** ([BabaioffImmorlicaKleinberg2007], Theorem 4.2): under
 truthful reporting, every agent's utility is nonnegative for every arrival order `σ` (regardless of

@@ -240,10 +240,8 @@ inductive Rule (M : TM0.Machine Γ Λ) : Domino (Letter Γ Λ) → Prop
 
 theorem finite_rule [Finite Γ] [Finite Λ] (M : TM0.Machine Γ Λ) : {d | Rule M d}.Finite := by
   have hfin : {w : List (Letter Γ Λ) | w.length ≤ 3}.Finite := List.finite_length_le _ _
-  refine ((hfin.prod hfin).image fun p => (⟨p.1, p.2⟩ : Domino (Letter Γ Λ))).subset ?_
-  intro d hd
-  refine ⟨(d.top, d.bottom), ?_, rfl⟩
-  cases hd <;> simp
+  exact ((hfin.prod hfin).image fun p => (⟨p.1, p.2⟩ : Domino (Letter Γ Λ))).subset fun d hd =>
+    ⟨(d.top, d.bottom), by cases hd <;> simp, rfl⟩
 
 /-- The dominoes of the MPCP instance simulating `M`: the rules and a copy domino for every
 letter. -/
@@ -373,11 +371,9 @@ private theorem reflTransGen_of_reaches {M : TM0.Machine Γ Λ} {c c' : TM0.Cfg 
       (halt_reflTransGen L R)
   | @head c₀ c₁ hstep _ ih =>
     rintro q a L R rfl
-    rcases hM : M q a with _ | ⟨q', _ | b⟩
-    · rw [Option.mem_def, step_of_eq_none hM] at hstep
-      cases hstep
-    · rename_i dir
-      cases dir with
+    rcases hM : M q a with _ | ⟨q', dir | b⟩
+    · simp [Option.mem_def, step_of_eq_none hM] at hstep
+    · cases dir with
       | left =>
         rw [Option.mem_def, step_of_eq_left hM, Option.some_inj] at hstep
         rcases L with _ | ⟨c', L'⟩
@@ -413,14 +409,13 @@ theorem eval_dom_iff_solvable [Fintype Γ] [Fintype Λ] (M : TM0.Machine Γ Λ) 
       (fun x => mem_dominoes.mpr (Or.inr ⟨x, rfl⟩))
       (reflTransGen_of_reaches hr hc _ _ _ _ (init_eq l))
   · intro h
-    have hD : ∀ d ∈ dominoes M, Rule M d ∨ d.top = d.bottom := fun d hd =>
-      (mem_dominoes.mp hd).imp_right fun ⟨x, hx⟩ => hx ▸ rfl
-    have he : ∀ d ∈ dominoes M, rb ∈ d.top → ∃ t, d.top = t ++ [rb] ∧ rb ∉ t := by
-      intro d hd hrb
+    have hD (d : Domino (Letter Γ Λ)) (hd : d ∈ dominoes M) : Rule M d ∨ d.top = d.bottom :=
+      (mem_dominoes.mp hd).imp_right fun ⟨_, hx⟩ => hx ▸ rfl
+    have he (d : Domino (Letter Γ Λ)) (hd : d ∈ dominoes M) (hrb : rb ∈ d.top) :
+        ∃ t, d.top = t ++ [rb] ∧ rb ∉ t := by
       rcases mem_dominoes.mp hd with hd | ⟨x, rfl⟩
       · exact rb_mem_top hd hrb
-      · simp only [copy, List.mem_singleton] at hrb
-        exact ⟨[], by rw [hrb]; rfl, List.not_mem_nil⟩
+      · exact ⟨[], List.mem_singleton.mp hrb ▸ rfl, List.not_mem_nil⟩
     have hrt := reflTransGen_of_mSolvable hD he
       (fun u hu => good_ends (good_of_reflTransGen hu)) h
     rcases good_of_reflTransGen hrt with ⟨q, a, L, R, -, h⟩ | ⟨hh, -⟩

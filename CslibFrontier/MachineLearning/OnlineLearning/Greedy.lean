@@ -111,10 +111,8 @@ theorem minCumLoss_mono_succ [Finite ι] {ℓ : ℕ → ι → ℝ} {t : ℕ} (h
 
 theorem minCumLoss_congr {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ} (h : ∀ s < t, ℓ s = ℓ' s) :
     minCumLoss ℓ t = minCumLoss ℓ' t := by
-  unfold minCumLoss
-  congr 1
-  funext i
-  exact sum_congr rfl fun s hs => by rw [h s (mem_range.mp hs)]
+  simp only [minCumLoss,
+    funext fun i => sum_congr rfl fun s hs => congrFun (h s (mem_range.mp hs)) i]
 
 variable [Fintype ι]
 
@@ -139,9 +137,8 @@ theorem leaders_nonempty [Nonempty ι] (ℓ : ℕ → ι → ℝ) (t : ℕ) : (l
 theorem leaders_congr {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ} (h : ∀ s < t, ℓ s = ℓ' s) :
     leaders ℓ t = leaders ℓ' t := by
   ext i
-  have hsum : ∑ s ∈ range t, ℓ s i = ∑ s ∈ range t, ℓ' s i :=
-    sum_congr rfl fun s hs => by rw [h s (mem_range.mp hs)]
-  simp only [mem_leaders, hsum, minCumLoss_congr h]
+  simp only [mem_leaders, minCumLoss_congr h,
+    sum_congr rfl fun s hs => congrFun (h s (mem_range.mp hs)) i]
 
 /-! ### Deterministic Greedy (Follow-the-Leader) and Theorem 4.2 -/
 
@@ -321,8 +318,7 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
     set S := leaders ℓ t
     set S' := leaders ℓ (t + 1)
     set A := S.filter fun i => ℓ t i = 0
-    have hS_ne : S.Nonempty := leaders_nonempty ℓ t
-    have hS_pos : (0 : ℝ) < S.card := Nat.cast_pos.mpr hS_ne.card_pos
+    have hS_pos : (0 : ℝ) < S.card := Nat.cast_pos.mpr (leaders_nonempty ℓ t).card_pos
     have hstep_loss : ∑ i, randGreedyProb ℓ t i * ℓ t i = ((S.card : ℝ) - A.card) / S.card := by
       simp only [randGreedyProb, S, ite_mul, zero_mul, ← sum_filter, filter_mem_eq_inter,
         univ_inter, one_div, inv_mul_eq_div, ← sum_div]
@@ -353,17 +349,15 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
         by_cases hmem : i ∈ leaders ℓ t
         · exact ⟨mem_leaders.mp hmem, by linarith [mem_leaders.mp hmem]⟩
         · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i]
-      have hharm :
-          ((S.card : ℝ) - S'.card) / S.card ≤ (harmonic S.card : ℝ) - harmonic S'.card := by
-        exact_mod_cast sub_div_le_harmonic_sub
-          (le_of_eq_of_le (congrArg Finset.card hS'_eq) (card_filter_le S _))
-      rw [hm_eq, ← hS'_eq]
+      have hharm : ((S.card : ℝ) - A.card) / S.card ≤ (harmonic S.card : ℝ) - harmonic A.card := by
+        exact_mod_cast sub_div_le_harmonic_sub (card_filter_le S _)
+      rw [hm_eq, hS'_eq]
       linarith
     · have hA1 (i : ι) (hi : i ∈ S) : ℓ t i = 1 :=
         (hℓ_t i).resolve_left fun h0 => hA ⟨i, mem_filter.mpr ⟨hi, h0⟩⟩
       rw [not_nonempty_iff_eq_empty.mp hA, card_empty, Nat.cast_zero, sub_zero,
         div_self hS_pos.ne']
-      obtain ⟨i₀, hi₀⟩ := hS_ne
+      obtain ⟨i₀, hi₀⟩ := leaders_nonempty ℓ t
       have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t + 1 := by
         refine le_antisymm ?_ (le_minCumLoss_iff.mpr fun i => ?_)
         · calc minCumLoss ℓ (t + 1) ≤ ∑ s ∈ range (t + 1), ℓ s i₀ := minCumLoss_le ℓ (t + 1) i₀

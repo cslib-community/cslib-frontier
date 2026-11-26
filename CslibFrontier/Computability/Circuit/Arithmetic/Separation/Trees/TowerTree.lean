@@ -152,12 +152,8 @@ private theorem exists_node_of_mem_cur {u : PlanUnit R FL Pl U0 U1}
   have hgo := goodOutcome_of_good hg (moveChannelEquiv R FL Pl ν).1
   have halive : alive lhat (initialCounts n) (outcomeOf R FL Pl o)
       (moveChannelEquiv R FL Pl ν) = o ν := by
-    rw [alive_eq_of_goodOutcome hgo]
-    simp [outcomeOf]
-  have hal : IsAlive R FL Pl lhat n o (.new ν k) := by
-    simp only [IsAlive, halive]
-    exact hlt
-  have hdone := unitTarget_eq_done_of_mem_cur hu hal
+    simp [alive_eq_of_goodOutcome hgo, outcomeOf]
+  have hdone := unitTarget_eq_done_of_mem_cur hu (hlt.trans_eq halive.symm)
   have hhold (d : Bool) : UnitId.holder (moves R FL Pl).channelParty
       (.new ν k : PlanUnit R FL Pl U0 U1) d = Pl.party ((moveChannelEquiv R FL Pl ν).1.party
         ((moveChannelEquiv R FL Pl ν).1.law.channelEnd (moveChannelEquiv R FL Pl ν).2 d)) := rfl
@@ -177,9 +173,8 @@ private theorem exists_node_of_mem_cur {u : PlanUnit R FL Pl U0 U1}
     simp only [channelHolders] at hch
     refine ⟨_, fun h0 => hne ?_, hmem _ ⟨hdone, rfl⟩, by rw [← Sym2.map_mk, hch, Sym2.map_mk]⟩
     rw [h0] at hch
-    rcases Sym2.eq_iff.1 hch with ⟨h1, h2⟩ | ⟨h1, h2⟩
-    · exact congrArg Pl.party (h1.trans h2.symm)
-    · exact congrArg Pl.party (h1.trans h2.symm)
+    rcases Sym2.eq_iff.1 hch with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+      exact congrArg Pl.party (h1.trans h2.symm)
   · intro _ hdone
     exact absurd hdone (by simp [Move.target])
 
@@ -323,14 +318,8 @@ private theorem lift_le (hh : 0 < h) (Lf : ∀ j, T.Ed j → ℕ) (P : T.Node) :
       8 * (P.lift (T.parentUnits Lf) 0 + ∑ Q ∈ univ.filter (fun Q : T.Node => Q ≠ .root ∧
         Q.parent hh Lf = P), Q.lift (T.parentUnits Lf) 0) := by
   have h1 := Tower.Node.lift_childUnits_le hh Lf P
-  cases P with
-  | root =>
-    have h2 : ∑ c, T.parentUnits Lf J c = 2 * ∑ e, Lf J e := T.sum_incidentSum (Lf J)
-    simp only [Tower.Node.lift] at h1 ⊢
-    omega
-  | chamber j c =>
-    simp only [Tower.Node.lift] at h1 ⊢
-    omega
+  have h2 : ∑ c, T.parentUnits Lf J c = 2 * ∑ e, Lf J e := T.sum_incidentSum (Lf J)
+  cases P <;> simp only [Tower.Node.lift] at h1 ⊢ <;> omega
 
 /-- A party has at most two ends of channels for every dead unit at it. -/
 private theorem channelEndCount_le (p : Fin (A + A')) : channelEndCount R FL Pl p ≤

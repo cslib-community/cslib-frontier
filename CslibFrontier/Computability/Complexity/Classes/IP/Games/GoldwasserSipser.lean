@@ -121,11 +121,9 @@ theorem threshold_le (c B : ℕ) (hc : 0 < c) : threshold c B < B + 2 * (6 * c *
 
 private theorem complete_arith (c B : ℕ) (hc : 0 < c) :
     (c : ℚ) * ((B + 1) * 2 ^ B / 2 ^ threshold c B) ≤ 1 / 6 := by
-  obtain ⟨h1, -, -⟩ := clog_bounds _ (one_lt_six_mul c B hc)
-  unfold threshold
-  generalize Nat.clog 2 (6 * c * (B + 1)) = e at h1 ⊢
-  have h1' : (6 : ℚ) * c * (B + 1) ≤ 2 ^ e := by exact_mod_cast h1
-  rw [show ((B : ℚ) + 1) * 2 ^ B / 2 ^ (B + e) = (B + 1) / 2 ^ e by rw [pow_add]; field_simp,
+  have h1 : (6 : ℚ) * c * (B + 1) ≤ 2 ^ Nat.clog 2 (6 * c * (B + 1)) :=
+    mod_cast (clog_bounds _ (one_lt_six_mul c B hc)).1
+  rw [threshold, pow_add, mul_comm (2 ^ B) (2 ^ _), mul_div_mul_right _ _ (by positivity),
     mul_div_assoc', div_le_iff₀ (by positivity)]
   linarith
 
@@ -135,13 +133,12 @@ private theorem sound_arith (c B N κ : ℕ) (hc : 0 < c)
         2 ^ B)) + ((6 * c * (B + 1) * 2 ^ (threshold c B - B) : ℕ) : ℚ) ^ c * N / 2 ^ κ ≤
       1 / 3 := by
   obtain ⟨-, h2, -⟩ := clog_bounds _ (one_lt_six_mul c B hc)
-  rw [show threshold c B - B = Nat.clog 2 (6 * c * (B + 1)) by unfold threshold; omega]
-  unfold threshold
+  rw [threshold, Nat.add_sub_cancel_left]
   generalize Nat.clog 2 (6 * c * (B + 1)) = e at h2 ⊢
   have hμ : 6 * c * (B + 1) * 2 ^ e ≤ 72 * c ^ 2 * (B + 1) ^ 2 := by
     calc 6 * c * (B + 1) * 2 ^ e ≤ 6 * c * (B + 1) * (2 * (6 * c * (B + 1))) := by gcongr
       _ = 72 * c ^ 2 * (B + 1) ^ 2 := by ring
-  have hN' : 6 * ((6 * c * (B + 1) * 2 ^ e) ^ c * N) ≤ 2 ^ κ :=
+  have hN' : (6 : ℚ) * (((6 * c * (B + 1) * 2 ^ e : ℕ) : ℚ) ^ c * N) ≤ 2 ^ κ := mod_cast
     calc 6 * ((6 * c * (B + 1) * 2 ^ e) ^ c * N) ≤ 6 * ((72 * c ^ 2 * (B + 1) ^ 2) ^ c * N) := by
           gcongr
       _ = 6 * (72 * c ^ 2 * (B + 1) ^ 2) ^ c * N := (Nat.mul_assoc _ _ _).symm
@@ -150,12 +147,8 @@ private theorem sound_arith (c B N κ : ℕ) (hc : 0 < c)
   have h1 : (c : ℚ) * ((B + 1) * 2 ^ (B + e) / ((6 * c * (B + 1) * 2 ^ e : ℕ) * 2 ^ B)) =
       1 / 6 := by
     push_cast
-    rw [pow_add]
-    field_simp
-  have h2' : (((6 * c * (B + 1) * 2 ^ e : ℕ) : ℚ) ^ c * N) / 2 ^ κ ≤ 1 / 6 := by
-    rw [div_le_iff₀ (by positivity)]
-    linarith [show (6 : ℚ) * (((6 * c * (B + 1) * 2 ^ e : ℕ) : ℚ) ^ c * N) ≤ 2 ^ κ by
-      exact_mod_cast hN']
+    rw [pow_add]; field_simp
+  rw [h1, ← le_sub_iff_add_le', div_le_iff₀ (by positivity)]
   linarith
 
 /-- **Completeness with the default threshold**: with `c > 0` verifier moves of at most `B` bits
@@ -350,9 +343,8 @@ theorem le_two_pow_sub {x r ρ : ℕ} (h : x * 2 ^ r ≤ 2 ^ ρ) : x ≤ 2 ^ (ρ
 theorem two_pow_sub_le {N r ρ : ℕ} (h : 2 ^ r * 2 ^ ρ ≤ 3 ^ r * N) :
     2 ^ (ρ - r) ≤ N := by
   rcases le_or_gt r ρ with hr | hr
-  · have h3 : 3 ^ r ≤ 2 ^ r * 2 ^ r := by
-      rw [← mul_pow]
-      exact Nat.pow_le_pow_left (by decide) r
+  · have h3 : 3 ^ r ≤ 2 ^ r * 2 ^ r :=
+      (Nat.pow_le_pow_left (by decide) r).trans_eq (mul_pow 2 2 r)
     have hmul : 2 ^ r * (2 ^ r * 2 ^ (ρ - r)) ≤ 2 ^ r * (2 ^ r * N) := by
       calc 2 ^ r * (2 ^ r * 2 ^ (ρ - r)) = 2 ^ r * 2 ^ ρ := by
             rw [← pow_add, Nat.add_sub_cancel' hr]
@@ -362,9 +354,7 @@ theorem two_pow_sub_le {N r ρ : ℕ} (h : 2 ^ r * 2 ^ ρ ≤ 3 ^ r * N) :
     exact Nat.le_of_mul_le_mul_left (Nat.le_of_mul_le_mul_left hmul (Nat.two_pow_pos r))
       (Nat.two_pow_pos r)
   · rw [Nat.sub_eq_zero_of_le hr.le, pow_zero]
-    exact Nat.pos_of_ne_zero fun hN => by
-      rw [hN, mul_zero] at h
-      exact absurd h (Nat.not_le_of_gt (by positivity))
+    exact Nat.pos_of_ne_zero fun hN => by simp [hN] at h
 
 /-- `D r ^ d 2 ^ r ≤ 3 ^ r` for all large `r`. -/
 private theorem eventually_mul_pow_mul_two_pow_le (D d : ℕ) :
@@ -450,14 +440,15 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
       _ = 6 * (288 * c ^ 2) ^ c * R.eval n ^ (4 * c) * 2 ^ R.eval n := by
           rw [mul_pow, ← pow_mul]; ring
       _ ≤ 3 ^ R.eval n := hA₀ _ hAr
-  rw [show (G₀.map Prod.fst).count .verifier + 1 = c from rfl, ← hc']
+  have hc_def : (G₀.map Prod.fst).count .verifier + 1 = c := rfl
+  have hRρ : (R * ρ₀).eval n = R.eval n * ρ₀.eval n := Polynomial.eval_mul
+  rw [hc_def, ← hc']
   refine ⟨fun ha => ?_, fun ha => ?_⟩
   · refine two_le_three_mul_value _ _ _ _ (by omega) (by rw [hc', hZn]) hg _ hκ ?_
     rw [hN]
     exact two_pow_sub_le <| calc
       2 ^ R.eval n * 2 ^ (R * ρ₀).eval n = (2 * 2 ^ ρ₀.eval n) ^ R.eval n := by
-        rw [show (R * ρ₀).eval n = R.eval n * ρ₀.eval n from Polynomial.eval_mul,
-          mul_pow, ← pow_mul, mul_comm (ρ₀.eval n)]
+        rw [hRρ, mul_pow, ← pow_mul, mul_comm (ρ₀.eval n)]
       _ ≤ (3 * N₀) ^ R.eval n := Nat.pow_le_pow_left (h1 ha) _
       _ = 3 ^ R.eval n * N₀ ^ R.eval n := mul_pow _ _ _
   · refine three_mul_value_le_one _ _ _ _ (by omega) _ hκ ?_
@@ -468,9 +459,7 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
       _ ≤ 3 ^ R.eval n * N₀ ^ R.eval n := Nat.mul_le_mul_right _ hgap
       _ = (3 * N₀) ^ R.eval n := (mul_pow _ _ _).symm
       _ ≤ (2 ^ ρ₀.eval n) ^ R.eval n := Nat.pow_le_pow_left (h2 ha) _
-      _ = 2 ^ (R * ρ₀).eval n := by
-          rw [show (R * ρ₀).eval n = R.eval n * ρ₀.eval n from Polynomial.eval_mul,
-            ← pow_mul, mul_comm]
+      _ = 2 ^ (R * ρ₀).eval n := by rw [hRρ, ← pow_mul, mul_comm]
 
 /-- **Private coins versus public coins** in terms of `AM`: every fixed-pattern private-coin game
 is in `AM`. -/

@@ -126,8 +126,7 @@ theorem isProperBorderLen_iff_exists_border {α : Type*} {w : List α} {k : ℕ}
     refine ⟨w.take k, ?_, ?_, List.take_prefix k w, hsuf⟩ <;>
       simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt hk), hk]
   · rintro ⟨b, rfl, hk, hpref, hsuf⟩
-    have htake : b = w.take b.length := List.prefix_iff_eq_take.mp hpref
-    exact ⟨hk, htake ▸ hsuf⟩
+    exact ⟨hk, List.prefix_iff_eq_take.mp hpref ▸ hsuf⟩
 
 /-- Border-period duality: `k < w.length` is a proper border length of `w` iff `w.length - k` is
 a period of `w`. -/
@@ -325,12 +324,8 @@ theorem mem_borderChain_iff {α : Type*} [DecidableEq α] {p : List α} {q j : �
   | case2 q _ k hk0 =>
     have hlen : (p.take q).length = q := List.length_take_of_le hqp
     simp only [List.mem_singleton]
-    constructor
-    · rintro rfl
-      exact isProperBorderLen_zero (by rw [hlen]; omega)
-    · intro hj
-      have hle : j ≤ k := le_maxBorderLen_of_isProperBorderLen hj
-      omega
+    exact ⟨fun h => h ▸ isProperBorderLen_zero (by rw [hlen]; omega),
+      fun hj => le_antisymm (hk0 ▸ le_maxBorderLen_of_isProperBorderLen hj) (Nat.zero_le _)⟩
   | case3 q hcond k hk0 ih =>
     have hlen : (p.take q).length = q := List.length_take_of_le hqp
     have hb_proper : IsProperBorderLen (p.take q) k :=
@@ -431,10 +426,8 @@ private theorem nextLen_eq_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α]
     nextLen p m c = maxPrefixSuffixUpTo p (p.take m ++ [c]) (m + 1) := by
   fun_induction nextLen p m c with
   | case1 m hm hmatch =>
-    apply eq_maxPrefixSuffixUpTo_iff.mpr
-    refine ⟨Nat.le_refl _, by omega, ?_, fun s hslt hs_le _ _ => by omega⟩
-    rw [take_succ_isSuffix_append_iff hm]
-    exact ⟨List.suffix_rfl, hmatch⟩
+    exact eq_maxPrefixSuffixUpTo_iff.mpr ⟨Nat.le_refl _, by omega,
+      (take_succ_isSuffix_append_iff hm).mpr ⟨List.suffix_rfl, hmatch⟩, fun _ _ _ _ => by omega⟩
   | case2 hm hmatch =>
     apply eq_maxPrefixSuffixUpTo_iff.mpr
     refine ⟨Nat.zero_le _, Nat.zero_le _, List.nil_suffix, fun s hslt hs_le _ hssuf => ?_⟩

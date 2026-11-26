@@ -58,16 +58,14 @@ theorem highestDiff_mem_relevantBits_of_lt {n w : ℕ} {keys : Fin n → ℕ}
   suffices h : ∀ d (i j : Fin n), j.val = i.val + d + 1 →
       highestDiff w (keys i) (keys j) ∈ relevantBits w keys by
     exact h (j.val - i.val - 1) i j (by omega)
-  intro d
-  induction d with
+  intro d i j hgap
+  induction d generalizing i j with
   | zero =>
-    intro i j hgap
     exact Finset.mem_image.mpr ⟨⟨i.val, by omega⟩, Finset.mem_univ _, by
       congr 2; exact Fin.ext (by change i.val + 1 = j.val; omega)⟩
   | succ d ih =>
-    intro i j hgap
     let k : Fin n := ⟨i.val + 1, by omega⟩
-    have hik : i < k := by change i.val < i.val + 1; omega
+    have hik : i < k := Nat.lt_succ_self i.val
     have hkj : k < j := by change i.val + 1 < j.val; omega
     let p := highestDiff w (keys i) (keys j)
     obtain ⟨hp, hdiff, habove⟩ := highestDiff_spec (hbound i) (hbound j)
@@ -78,16 +76,11 @@ theorem highestDiff_mem_relevantBits_of_lt {n w : ℕ} {keys : Fin n → ℕ}
       Nat.shiftRight_eq_of_between (hsorted hik).le (hsorted hkj).le hprefix
     have hkabove : ∀ b, p < b → (keys k).testBit b = (keys i).testBit b :=
       fun _ hb => Nat.testBit_eq_of_shiftRight_eq hkprefix (by omega)
-    change p ∈ relevantBits w keys
     by_cases hbit : (keys i).testBit p = (keys k).testBit p
-    · have heq : highestDiff w (keys k) (keys j) = p :=
-        highestDiff_eq_of_testBit hp (by simpa only [← hbit] using hdiff)
-          (fun b hb => (hkabove b hb).trans (habove b hb))
-      rw [← heq]
+    · rw [← highestDiff_eq_of_testBit hp (hbit ▸ hdiff)
+        (fun b hb => (hkabove b hb).trans (habove b hb))]
       exact ih k j (by change j.val = (i.val + 1) + d + 1; omega)
-    · have heq : highestDiff w (keys i) (keys k) = p :=
-        highestDiff_eq_of_testBit hp hbit (fun b hb => (hkabove b hb).symm)
-      rw [← heq]
+    · rw [← highestDiff_eq_of_testBit hp hbit (fun b hb => (hkabove b hb).symm)]
       exact Finset.mem_image.mpr ⟨⟨i.val, by omega⟩, Finset.mem_univ _, rfl⟩
 
 /-- A query sharing the larger stored key's prefix lies strictly above every sketch of a
@@ -308,12 +301,11 @@ theorem boundaryRank_eq_upperRank {n w q : ℕ} {keys : Fin n → ℕ}
   have hmin := min_highestDiff_of_sketchNeighbor hsorted hbound hq hmiss j hbest
   unfold boundaryRank lowerRank upperRank
   dsimp only
-  split <;> congr 1 <;> ext i <;> simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-  · exact (le_iff_sketch_le_lowerBoundary hsorted hbound hq hmiss j hmin
-      (by assumption) i).symm
-  · exact (le_iff_sketch_lt_upperBoundary hsorted hbound hq hmiss j hmin
-      (by simpa only [Bool.not_eq_true] using ‹¬q.testBit (highestDiff w (keys j) q) = true›)
-      i).symm
+  cases hbit : q.testBit (highestDiff w (keys j) q) <;>
+    simp only [Bool.false_eq_true, ↓reduceIte] <;> congr 1 <;> ext i <;>
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+  · exact (le_iff_sketch_lt_upperBoundary hsorted hbound hq hmiss j hmin hbit i).symm
+  · exact (le_iff_sketch_le_lowerBoundary hsorted hbound hq hmiss j hmin hbit i).symm
 
 /-- The inclusive rank of a stored key is its index plus one. -/
 theorem upperRank_apply {n : ℕ} {values : Fin n → ℕ} (hsorted : StrictMono values)
@@ -414,13 +406,12 @@ theorem bestSketchNeighbor_spec {n w q : ℕ} {keys : Fin n → ℕ} {j : Fin n}
 /-- A nonempty node always has at least one of the two sketch neighbors. -/
 theorem bestSketchNeighbor_eq_none_iff {n w q : ℕ} {keys : Fin n → ℕ} :
     bestSketchNeighbor w keys q = none ↔ n = 0 := by
-  refine ⟨fun h => by_contra fun hn => ?_, fun hn => ?_⟩
+  refine ⟨fun h => by_contra fun hn => ?_, ?_⟩
   · obtain ⟨hleft, hright⟩ := (chooseByScore_eq_none_iff _ _ _).mp h
-    by_cases ht : 0 < sketchRank w keys q
+    rcases ht : sketchRank w keys q with _ | t
+    · simp [sketchSuccessor, ht, Nat.pos_of_ne_zero hn] at hright
     · simp [sketchPredecessor, ht] at hleft
-    · have ht : sketchRank w keys q = 0 := by omega
-      simp [sketchSuccessor, ht, Nat.pos_of_ne_zero hn] at hright
-  · subst n
+  · rintro rfl
     simp [bestSketchNeighbor, sketchPredecessor, sketchSuccessor, sketchRank, upperRank,
       chooseByScore]
 

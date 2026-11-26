@@ -298,8 +298,7 @@ every player. -/
 theorem toExtensiveTreeOn_perfectRecall {ι : Type u} [DecidableEq ι] {H : ι → Type v}
     {Act : ∀ i, H i → Type} {T : PerfectInfoTree ι} (f : ∀ j, T.InfoSet j → H j)
     (eqv : ∀ j h, Act j (f j h) ≃ h.Act) (hf : ∀ j, Function.Injective (f j)) (i : ι) :
-    (T.toExtensiveTreeOn f eqv).PerfectRecall i := by
-  intro _ _ _ hv₁ hv₂
+    (T.toExtensiveTreeOn f eqv).PerfectRecall i := fun _ _ _ hv₁ hv₂ => by
   rw [eq_of_isDecisionOf_toExtensiveTreeOn hf hv₁ hv₂]
 
 /-- **Perfect recall of perfect-information games** ([vonStengel2007], Section 3.7, p. 67, and
@@ -422,9 +421,8 @@ private theorem toExtensive_ofExtensive {ι : Type u} [DecidableEq ι] {i : ι} 
 theorem toExtensive_ofExtensive_eq {ι : Type u} [DecidableEq ι] {i : ι}
     (T : PerfectInfoTree ι)
     (sE : Cslib.GameTheory.Extensive.PureStrategy (fun j => T.InfoSet j) (fun _ h => h.Act) i) :
-    (ofExtensive T sE).toExtensive = sE := by
-  ext h
-  exact toExtensive_ofExtensive h sE
+    (ofExtensive T sE).toExtensive = sE :=
+  funext fun h => toExtensive_ofExtensive h sE
 
 /-- Canonical bijection between `PerfectInfoTree.PureStrategy i T` and extensive-form pure
 strategies on `T.toExtensiveTree`. -/
@@ -569,20 +567,15 @@ theorem toExtensiveTreeOn_evalPure {ι : Type u} {H : ι → Type v} {Act : ∀ 
       simp only [toExtensiveTreeOn, ExtensiveTree.evalPure_chance, expectedPayoff_chance]
       refine sum_congr rfl fun c _ => congrArg (prob c * ·) (congrFun (toExtensiveTreeOn_evalPure
         (fun j h => f j (.chance c h)) (fun j h => eqv j (.chance c h))
-        (fun j => (s j).childChance c) sE fun j h => ?_) k)
-      simpa only [InfoSet.Act, PureStrategy.toExtensive_chance] using hmatch j (.chance c h)
+        (fun j => (s j).childChance c) sE fun j h => hmatch j (.chance c h)) k)
   | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, s, sE, hmatch => by
       simp only [toExtensiveTreeOn, ExtensiveTree.evalPure_decision, expectedPayoff_decision]
-      have hhead : eqv p .here (sE p (f p .here)) = (s p).headChoice := by
-        simpa only [InfoSet.Act, PureStrategy.toExtensive_here] using hmatch p .here
-      rw [hhead]
+      rw [hmatch p .here, PureStrategy.toExtensive_here]
       exact toExtensiveTreeOn_evalPure (T := next (s p).headChoice)
         (fun j h => f j (.decision (s p).headChoice h))
         (fun j h => eqv j (.decision (s p).headChoice h))
         (fun j => (s j).childDecision (s p).headChoice) sE
-        fun j h => by
-          simpa only [InfoSet.Act, PureStrategy.toExtensive_decision] using
-            hmatch j (.decision (s p).headChoice h)
+        fun j h => hmatch j (.decision (s p).headChoice h)
 
 /-- Pure payoffs of `T.toExtensiveTree` equal `T.expectedPayoff` when strategies are translated
 via `PureStrategy.toExtensive`. -/

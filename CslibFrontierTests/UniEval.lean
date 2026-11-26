@@ -7,6 +7,7 @@ Authors: Anthropic, PBC, Aviv Bar Natan
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.Automaton
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.Exact
 import Mathlib.Algebra.Ring.Int.Defs
 
@@ -18,7 +19,9 @@ import Mathlib.Algebra.Ring.Int.Defs
   that multiplies by the constant with the name `[true]`, for a weight `θ₁` supported on
   `{[true]}` with `θ₁ [true] = 5`. The accepting runs of the machine are checked globally
   (`Mach.GV`), their weights sum to `θ₁ [true]` and they have at most `181` steps; the series is
-  bounded at the word of `z₁` and has the value `θ₁ [true]` there. -/
+  bounded at the word of `z₁` and has the value `θ₁ [true]` there; and the universal automaton
+  (Proposition I.1) has two different letters and the value `θ₁ [true]` at the word of `z₁` in
+  `775 * C` steps or more. -/
 
 set_option linter.privateModule false
 
@@ -101,5 +104,21 @@ example : ∃ S₀ : Series ℤ (Zc RecKind × Sy (Mode (Name {[true]})) RecKind
   obtain ⟨S₀, h₁, C, h₂⟩ := exists_series_universal θ₁ {[true]} θ₁_eq_zero
   obtain ⟨h₃, h₄⟩ := h₂ 2 z₁ plain₁
   exact ⟨S₀, h₁, C, h₃, h₄.trans pv₁⟩
+
+/-- The universal automaton at the word of `z₁`: its two letters are different, and in
+`C * (29 + 2) * lg (29 + 2) ^ 2 = 775 * C` steps or more its value there is `θ₁ [true]`. -/
+example : ∃ (S Γ Q : Type) (_ : Fintype S) (_ : DecidableEq S) (_ : Fintype Γ)
+    (_ : DecidableEq Γ) (_ : Fintype Q) (_ : DecidableEq Q)
+    (mu : Letter S Unit Γ → Matrix Q Q ℤ) (i e : Q) (bt : Bool → Γ) (C : ℕ), bt false ≠ bt true ∧
+      ∀ t, 775 * C ≤ t → runVal mu i e t (fun _ => (tbits z₁).map bt) = θ₁ [true] := by
+  obtain ⟨S, Γ, Q, iS, dS, iΓ, dΓ, iQ, dQ, mu, i, e, bt, C, hbt, hU⟩ :=
+    exists_universal_automaton θ₁ ((Set.finite_singleton [true]).subset fun q hq =>
+      by_contra fun h => hq (θ₁_eq_zero q (by simpa using h)))
+  have hlg : lg (29 + 2) = 5 :=
+    congrArg (· + 1) ((Nat.log_eq_iff (.inl (by decide))).2 ⟨by decide, by decide⟩)
+  refine ⟨S, Γ, Q, iS, dS, iΓ, dΓ, iQ, dQ, mu, i, e, bt, C, hbt.ne Bool.false_ne_true,
+    fun t ht => (hU 2 z₁ t plain₁ ?_).trans pv₁⟩
+  rw [runLength₁.1, hlg]
+  omega
 
 end CslibFrontierTests.UniEval

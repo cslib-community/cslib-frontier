@@ -66,13 +66,11 @@ private theorem argument_source_aux (i : Fin 6) :
 theorem argument_source (i : Fin 6) : argument i = Backend.src family (.inl 2) i :=
   argument_source_aux i
 
-private theorem argument_injective : Function.Injective argument := by
-  intro i j h
-  exact Backend.src_injective family (.inl 2) h
+private theorem argument_injective : Function.Injective argument :=
+  Backend.src_injective family (.inl 2)
 
-private theorem bank_injective : Function.Injective bank := by
-  intro i j h
-  exact Fin.ext (Fin.mk.inj (Backend.tmp_injective family (.inr 1) h))
+private theorem bank_injective : Function.Injective bank := fun _ _ h =>
+  Fin.ext (Fin.mk.inj (Backend.tmp_injective family (.inr 1) h))
 
 private theorem bank_ne_argument (i : Fin 4) (j : Fin 6) : bank i ≠ argument j :=
   (Backend.src_ne_tmp family (.inl 2) (.inr 1) j _).symm
@@ -311,19 +309,17 @@ theorem method_arguments {n K : ℕ} (L : Memory.Layout n) (x : Data registers)
     x.regs ∘ Backend.src family (.inl ((backend n K L).tag o)) =
       (certificates ((backend n K L).tag o)).input ((backend n K L).arg o) := by
   cases o with
-  | isEmpty =>
-    exact funext (src_layoutWords hl 0 id (fun _ => rfl))
+  | isEmpty => exact funext (src_layoutWords hl 0 id fun _ => rfl)
   | getKey v =>
     rcases ha with ⟨_, _, _, hv⟩
-    exact funext (src_indexWords hl hv 1 id (fun _ => rfl))
+    exact funext (src_indexWords hl hv 1 id fun _ => rfl)
   | insert v k =>
     rcases ha with ⟨_, _, _, hv, hk⟩
-    exact funext (src_updateWords hl hv hk 2 id (fun _ => rfl))
+    exact funext (src_updateWords hl hv hk 2 id fun _ => rfl)
   | decreaseKey v k =>
     rcases ha with ⟨_, _, _, hv, hk⟩
-    exact funext (src_updateWords hl hv hk 3 id (fun _ => rfl))
-  | extractMin =>
-    exact funext (src_layoutWords hl 4 id (fun _ => rfl))
+    exact funext (src_updateWords hl hv hk 3 id fun _ => rfl)
+  | extractMin => exact funext (src_layoutWords hl 4 id fun _ => rfl)
 
 private noncomputable def finish {n : ℕ} (o : IndexedMinPQ.Op n)
     (y : Data registers) : Data registers :=
@@ -346,33 +342,29 @@ private theorem dispatch_exec {w n K : ℕ} (L : Memory.Layout n) (x : Data regi
       (x.set (bank 3) 0) y N) :
     ExecWithin w code.code x (finish o y) (N + 6) := by
   have hc := ExecWithin.const (B := Basis.exact) (x := x) (d := bank 3) (fits_zero w)
-  have hp0 := (staged_zero_cond x 0 (by decide))
-  have hp1 := (staged_zero_cond x 1 (by decide))
-  have hp2 := (staged_zero_cond x 2 (by decide))
+  have hp0 := staged_zero_cond x 0 (by decide)
+  have hp1 := staged_zero_cond x 1 (by decide)
+  have hp2 := staged_zero_cond x 2 (by decide)
   cases o with
   | isEmpty =>
     rcases ha with ⟨h2, h1, h0⟩
-    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
-      (ExecWithin.branch_pos (hp1.mpr h1) (ExecWithin.branch_pos (hp2.mpr h0) he)))).mono
-        (by omega)
+    exact (hc.seq (.branch_pos (hp0.mpr h2)
+      (.branch_pos (hp1.mpr h1) (.branch_pos (hp2.mpr h0) he)))).mono (by omega)
   | getKey v =>
     rcases ha with ⟨h2, h1, h0, _⟩
     have hget := he.seq (ExecWithin.copy (x := y) (d := bank 2) (s := bank 1))
-    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
-        (ExecWithin.branch_pos (hp1.mpr h1)
-          (ExecWithin.branch_neg (fun h => h0 (hp2.mp h)) hget)))).mono (by omega)
+    exact (hc.seq (.branch_pos (hp0.mpr h2)
+      (.branch_pos (hp1.mpr h1) (.branch_neg (mt hp2.mp h0) hget)))).mono (by omega)
   | insert v k =>
     rcases ha with ⟨h2, h1, h0, _, _⟩
-    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
-        (ExecWithin.branch_neg (fun h => h1 (hp1.mp h))
-          (ExecWithin.branch_pos (hp2.mpr h0) he)))).mono (by omega)
+    exact (hc.seq (.branch_pos (hp0.mpr h2)
+      (.branch_neg (mt hp1.mp h1) (.branch_pos (hp2.mpr h0) he)))).mono (by omega)
   | decreaseKey v k =>
     rcases ha with ⟨h2, h1, h0, _, _⟩
-    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
-        (ExecWithin.branch_neg (fun h => h1 (hp1.mp h))
-          (ExecWithin.branch_neg (fun h => h0 (hp2.mp h)) he)))).mono (by omega)
+    exact (hc.seq (.branch_pos (hp0.mpr h2)
+      (.branch_neg (mt hp1.mp h1) (.branch_neg (mt hp2.mp h0) he)))).mono (by omega)
   | extractMin =>
-    exact (hc.seq (ExecWithin.branch_neg (fun h => ha (hp0.mp h)) he)).mono (by omega)
+    exact (hc.seq (.branch_neg (mt hp0.mp ha) he)).mono (by omega)
 
 /-- The paid zero staging preserves the source memory and all persistent layout words. -/
 theorem stage_zero {w : ℕ} (x : Data registers) (hx : x.Bounded w) :
@@ -420,24 +412,20 @@ private theorem reserve_layout :
     Function.Injective reserveScratch ∧
       (∀ (_i : Fin 1) j, argument 0 ≠ reserveScratch j) ∧
       (∀ j, reserveScratch j ≠ Backend.frontier family) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro i j he
-    dsimp only [reserveScratch] at he
-    split_ifs at he with hi hj
-    · apply Fin.ext; omega
-    · exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 0) (3 : Fin 6) _ he)
-    · exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 0) (3 : Fin 6) _ he.symm)
-    · have hv : i.val - 1 = j.val - 1 :=
-        congrArg Fin.val (Backend.tmp_injective family (.inr 0) he)
-      exact Fin.ext (by omega)
-  · intro i j
-    dsimp only [reserveScratch]
-    split
+  refine ⟨fun i j he => ?_, fun _ j => ?_, fun j => ?_⟩
+  · dsimp only [reserveScratch] at he
+    split_ifs at he
+    · exact Fin.ext (by omega)
+    · exact (Backend.src_ne_tmp family (.inl 2) (.inr 0) (3 : Fin 6) _ he).elim
+    · exact (Backend.src_ne_tmp family (.inl 2) (.inr 0) (3 : Fin 6) _ he.symm).elim
+    · have hv := congrArg Fin.val (Backend.tmp_injective family (.inr 0) he)
+      exact Fin.ext (by dsimp only at hv; omega)
+  · dsimp only [reserveScratch]
+    split_ifs
     exacts [argument_injective.ne (by decide),
       Backend.src_ne_tmp family (.inl 2) (.inr 0) (0 : Fin 6) _]
-  · intro j
-    dsimp only [reserveScratch]
-    split
+  · dsimp only [reserveScratch]
+    split_ifs
     exacts [argument_ne_frontier 3, Backend.tmp_ne_frontier family (.inr 0) _]
 
 /-- Actual compact reservation from arbitrary bounded native data. It preserves every cell and

@@ -92,28 +92,24 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     simp only [List.length_cons] at hbud ⊢
     have hq_maxS : x.regs r4 < inp.maxS := lt_of_lt_of_le hq_lt hT_maxS
     obtain ⟨hqn_lt, hqn_dec⟩ := hB.outNext_spec (x.regs r4) hq_lt hqpos
-    have hd_read : x.mem (inp.depthBase + x.regs r4) = inp.trie.depth (x.regs r4) :=
-      hM.depth_cell _ hq_maxS
-    have hon_read : x.mem (inp.outNextBase + x.regs r4) = inp.bfs.outNext (x.regs r4) :=
-      hM.outNext_cell _ hq_maxS
     have hf_dp : Fits w (inp.depthBase + x.regs r4) := hw.of_le (by omega)
     have hf_p1 : Fits w (inp.outBase + 1 + acc.length + 1) := hw.of_le (by omega)
     have hf_p2 : Fits w (inp.outBase + 1 + acc.length + 1 + 1) := hw.of_le (by omega)
     have hf_on : Fits w (inp.outNextBase + x.regs r4) := hw.of_le (by omega)
-    have hst : ∃ x₁, ExecWithin w emitStepCode x x₁ 8 ∧
-        x₁.regs r4 = inp.bfs.outNext (x.regs r4) ∧
-        x₁.regs r2 = inp.outBase + 1 + acc.length + 2 ∧
-        x₁.regs rState = x.regs rState ∧ x₁.regs r1 = x.regs r1 ∧ x₁.regs r3 = x.regs r3 ∧
-        x₁.mem = Function.update
-          (Function.update x.mem (inp.outBase + 1 + acc.length) (x.regs r3))
-          (inp.outBase + 1 + acc.length + 1) (inp.trie.depth (x.regs r4)) :=
+    obtain ⟨x₁, he_st, hx₁_r4, hx₁_r2, hx₁_rS, hx₁_r1, hx₁_r3, hx₁_mem⟩ :
+        ∃ x₁, ExecWithin w emitStepCode x x₁ 8 ∧
+          x₁.regs r4 = inp.bfs.outNext (x.regs r4) ∧
+          x₁.regs r2 = inp.outBase + 1 + acc.length + 2 ∧
+          x₁.regs rState = x.regs rState ∧ x₁.regs r1 = x.regs r1 ∧ x₁.regs r3 = x.regs r3 ∧
+          x₁.mem = Function.update
+            (Function.update x.mem (inp.outBase + 1 + acc.length) (x.regs r3))
+            (inp.outBase + 1 + acc.length + 1) (inp.trie.depth (x.regs r4)) :=
       WP.exists_execWithin <| by
         unfold emitStepCode
-        wram_exec [hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2, hd_read, hon_read,
-          hf_dp, hf_p1, hf_p2, hf_on]
+        wram_exec [hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2,
+          hM.depth_cell _ hq_maxS, hM.outNext_cell _ hq_maxS, hf_dp, hf_p1, hf_p2, hf_on]
         exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
           by wram_simp⟩
-    obtain ⟨x₁, he_st, hx₁_r4, hx₁_r2, hx₁_rS, hx₁_r1, hx₁_r3, hx₁_mem⟩ := hst
     have hL₁ := hL.of_preserves he_st
     have hM₁ : BFSMem inp inp.trie inp.bfs x₁.mem :=
       bfsMem_of_eq_below_outBase hM fun addr hlt_ob => by
@@ -168,14 +164,12 @@ private theorem exec_emitCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     lt_of_le_of_lt (depth_le_self hT _ hoh_lt) hoh_lt
   have hfol_eq := hB.follow_spec (x.regs rState) hu_lt
   have hfol_len := (congrArg List.length hfol_eq).trans (List.length_map _)
-  have hoh_read : x.mem (inp.outHeadBase + x.regs rState) = inp.bfs.outHead (x.regs rState) :=
-    hM.outHead_cell _ hu_maxS
   have hf_oh : Fits w (inp.outHeadBase + x.regs rState) := fits_of_le_outBase hw (by omega)
   have hld : ∃ x₀, ExecWithin w (ram[ r6 ← outHeadBase + rState; r4 ← *r6 ]) x x₀ 2 ∧
       x₀.regs r4 = inp.bfs.outHead (x.regs rState) ∧
       x₀.regs r2 = x.regs r2 ∧ x₀.regs rState = x.regs rState ∧
       x₀.regs r1 = x.regs r1 ∧ x₀.regs r3 = x.regs r3 ∧ x₀.mem = x.mem := WP.exists_execWithin <| by
-    wram_exec [hL.h_outHeadBase, hoh_read, hf_oh]
+    wram_exec [hL.h_outHeadBase, hM.outHead_cell _ hu_maxS, hf_oh]
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
   obtain ⟨x₀, he₀, hx₀_r4, hx₀_r2, hx₀_rS, hx₀_r1, hx₀_r3, hx₀_mem⟩ := hld
   have hL₀ := hL.of_preserves he₀

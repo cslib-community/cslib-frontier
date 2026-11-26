@@ -254,16 +254,13 @@ private theorem home_iff {P : Equiv.Perm (Fin N × Bool × SimonWork m n)} {i₀
       (q.1 = i₀ ∧ q.2.1 = false ∧ q.2.2.ys = G q.2.2.xs) := by
   constructor
   · rintro ⟨h1, h2, h3⟩
-    have e : P.symm q = (i₀, false, ⟨(P.symm q).2.2.xs, 0⟩) :=
-      Prod.ext h1 (Prod.ext h2 (SimonWork.ext rfl h3))
-    have hq := congrArg P e
+    have hq := congrArg P (show P.symm q = (i₀, false, ⟨(P.symm q).2.2.xs, 0⟩) from
+      Prod.ext h1 (Prod.ext h2 (SimonWork.ext rfl h3)))
     rw [P.apply_symm_apply, hP] at hq
-    rw [hq]
-    exact ⟨rfl, rfl, rfl⟩
-  · obtain ⟨i, b, ⟨xs, ys⟩⟩ := q
-    rintro ⟨h1, h2, h3⟩
-    simp only at h1 h2 h3
-    subst h1 h2 h3
+    exact hq ▸ ⟨rfl, rfl, rfl⟩
+  · rcases q with ⟨i, b, ⟨xs, ys⟩⟩
+    dsimp only
+    rintro ⟨rfl, rfl, rfl⟩
     rw [← hP, P.symm_apply_apply]
     exact ⟨rfl, rfl, rfl⟩
 
@@ -341,9 +338,7 @@ private theorem sum_signVal_eq_zero {E : Fin N ≃ (Fin n → Bool) × Fin n} {X
     · subst hk
       have hc : Function.curry (a + δ) r = Function.curry a r + s := funext fun i => by simp [hδ]
       rw [hc, ← (hX (Function.curry a r) (Function.curry a r + s)).mpr (Or.inr rfl)]
-    · congr 1
-      funext i
-      simp [hδ, hk, Bool.zero_eq_false]
+    · exact congrArg (simonFun E X · j) (funext fun i => by simp [hδ, hk, Bool.zero_eq_false])
   set F : (Fin m × Fin n → Bool) → ℂ := fun a =>
     if simonG E X a = ys then ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ) else 0 with hF
   have hFδ : ∀ a, F (a + δ) = -F a := by
@@ -519,9 +514,8 @@ theorem measureProb_simonAlg_le_of_injective (E : Fin N ≃ (Fin n → Bool) × 
   have h := measureProb_simonAlg_le E i₀ ((simonPromise_zero_iff _).mpr hf) hfib A
   rw [hA', Nat.cast_one, one_mul, ← hacc] at h
   have hreal : (#A : ℝ) * 2 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
-    have := Nat.cast_le (α := ℝ).2 (card_kernel_rows_mul_le (m := m) (n := n))
-    push_cast [Nat.cast_sub Nat.one_le_two_pow] at this
-    exact this
+    simpa [Nat.cast_sub Nat.one_le_two_pow] using
+      (Nat.cast_le (α := ℝ)).2 (card_kernel_rows_mul_le (m := m) (n := n))
   refine h.trans ?_
   rw [div_le_div_iff₀ (by positivity) (by positivity)]
   linarith

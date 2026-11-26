@@ -394,14 +394,10 @@ def waitCap (ℓ : ℕ) : ℕ :=
   2 * P.delta ℓ
 
 theorem nLow_pos {ℓ : ℕ} (hℓ : ℓ ≤ P.depth) : 1 ≤ P.nLow ℓ := by
-  dsimp only [nLow]
-  rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-  · simp only [↓reduceIte]
-    have := P.two_le_cap
-    omega
-  · rw [ite_eq_right hpos.ne']
-    have := P.delta_lt_nFloor ℓ hpos hℓ
-    omega
+  unfold nLow
+  split_ifs with h0
+  · exact Nat.le_sub_one_of_lt P.two_le_cap
+  · exact Nat.sub_pos_of_lt (P.delta_lt_nFloor ℓ (Nat.pos_of_ne_zero h0) hℓ)
 
 theorem nLow_le_nHigh (ℓ : ℕ) : P.nLow ℓ ≤ P.nHigh ℓ := by
   dsimp only [nLow, nHigh]
@@ -437,9 +433,7 @@ theorem quotUniv_pos (ℓ : ℕ) : 1 ≤ P.quotUniv ℓ := by
 
 theorem quotUniv_succ_of_pos {ℓ : ℕ} (h1 : 1 ≤ ℓ) :
     P.quotUniv (ℓ + 1) = P.quotUniv ℓ * 2 ^ P.remBits ℓ := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le h1
-  rw [Nat.add_comm 1 d]
-  rfl
+  obtain ⟨_ | d, rfl⟩ := Nat.exists_eq_add_of_le h1 <;> rfl
 
 /-- **Exact ID-quotient universe conservation**: `N_ℓ * 2 ^ I_ℓ * Q_ℓ = U_pad` across all
 `1 ≤ ℓ ≤ depth`. -/
@@ -615,8 +609,8 @@ theorem two_pow_eighteen_mul_targetSize_succ_le {n U r ℓ : ℕ}
     rw [ite_eq_right (by omega), ite_eq_left (by omega), ite_eq_left rfl]
     simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using hn
   · rw [targetSize_eq_levelScale_pow (by omega), targetSize_eq_levelScale_pow hpos]
-    have h4pow : (2 : ℕ) ^ 18 = 4 ^ 9 := by decide
-    rw [h4pow, ← Nat.mul_pow]
+    change 4 ^ 9 * (levelScale U r k (ℓ + 1)) ^ 9 ≤ _
+    rw [← Nat.mul_pow]
     refine Nat.pow_le_pow_left ?_ 9
     dsimp only [levelScale]
     rw [ite_eq_left hlt]
@@ -643,10 +637,7 @@ theorem targetSize_le_of_step {n U r k : ℕ}
   intro ℓ hℓ
   induction ℓ with
   | zero => simp [targetSize]
-  | succ j ih =>
-    have h1 := hstep j (Nat.lt_of_succ_le hℓ)
-    have h2 := ih (Nat.le_of_succ_le hℓ)
-    omega
+  | succ j ih => linarith [hstep j (Nat.lt_of_succ_le hℓ), ih (Nat.le_of_succ_le hℓ)]
 
 theorem targetSize_pos {n U r k ℓ : ℕ}
     (hn : 1 ≤ n) (hr : 1 ≤ r) (hU : 4 * r ≤ Nat.log 2 U) (hℓ : ℓ ≤ treeDepth U r)

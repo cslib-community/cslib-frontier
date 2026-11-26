@@ -531,8 +531,7 @@ theorem computableInPolyTime_shiftCodeWire {n offset i : α → ℕ}
     (hoffset : ComputableInPolyTime offset enc encNat)
     (hi : ComputableInPolyTime i enc encNat) :
     ComputableInPolyTime (fun a => shiftCodeWire (n a) (offset a) (i a)) enc encNat := by
-  unfold shiftCodeWire
-  fun_prop
+  fun_prop [shiftCodeWire]
 
 /-- Relocating a circuit-code block is polynomial-time with binary offsets. -/
 @[fun_prop]
@@ -616,8 +615,7 @@ theorem computableInPolyTime_compCodeWire {n i : α → ℕ}
     (length_list_binary (encGate encOp)).comp hc.fst'
   have hlookup : ComputableInPolyTime (fun a => (c a).2.getD (i a) 0) enc encNat :=
     listGetD_binary 0 hc.snd' hi
-  unfold compCodeWire
-  fun_prop
+  fun_prop [compCodeWire]
 
 /-- Construct sequential circuit codes in polynomial time. All wire indices and input counts
 are binary; list lengths, input lookup, gate relocation and the whole output code are charged. -/
@@ -639,8 +637,7 @@ theorem computableInPolyTime_replicateWire {n s k t i : α → ℕ}
     (ht : ComputableInPolyTime t enc encNat)
     (hi : ComputableInPolyTime i enc encNat) :
     ComputableInPolyTime (fun a => replicateWire (n a) (s a) (k a) (t a) (i a)) enc encNat := by
-  unfold replicateWire
-  fun_prop
+  fun_prop [replicateWire]
 
 /-- Replicating a raw code is polynomial-time, with a binary input count and a unary number of
 copies. -/
@@ -780,22 +777,14 @@ private theorem opBitsLe_mono {Op : Type} {encOp : Op ↪ List Bool}
 private theorem opBitsLe_append {Op : Type} {encOp : Op ↪ List Bool} (n : ℕ)
     {c d : List (Op × List ℕ) × List ℕ} {B : ℕ}
     (hc : OpBitsLe encOp c B) (hd : OpBitsLe encOp d B) :
-    OpBitsLe encOp (appendCode n c d) B := by
-  intro gate hg
-  rcases List.mem_append.mp hg with hg | hg
-  · exact hc gate hg
-  · obtain ⟨g, hmem, rfl⟩ := List.mem_map.mp hg
-    exact hd g hmem
+    OpBitsLe encOp (appendCode n c d) B :=
+  List.forall_mem_append.2 ⟨hc, List.forall_mem_map.2 hd⟩
 
 private theorem opBitsLe_comp {Op : Type} {encOp : Op ↪ List Bool} (n : ℕ)
     {d c : List (Op × List ℕ) × List ℕ} {B : ℕ}
     (hc : OpBitsLe encOp c B) (hd : OpBitsLe encOp d B) :
-    OpBitsLe encOp (compCode n d c) B := by
-  intro gate hg
-  rcases List.mem_append.mp hg with hg | hg
-  · exact hc gate hg
-  · obtain ⟨g, hmem, rfl⟩ := List.mem_map.mp hg
-    exact hd g hmem
+    OpBitsLe encOp (compCode n d c) B :=
+  List.forall_mem_append.2 ⟨hc, List.forall_mem_map.2 hd⟩
 
 private theorem wireBitsLe_mono {Op : Type*} {c : List (Op × List ℕ) × List ℕ} {a b : ℕ}
     (h : WireBitsLe c a) (hab : a ≤ b) : WireBitsLe c b :=
@@ -860,17 +849,11 @@ private theorem compCodeWire_bits {Op : Type*} (n : ℕ)
 private theorem wireBitsLe_comp {Op : Type*} (n : ℕ)
     {d c : List (Op × List ℕ) × List ℕ} {a b : ℕ}
     (hc : WireBitsLe c a) (hd : WireBitsLe d b) :
-    WireBitsLe (compCode n d c) (a + b + (encNat n).length + codeMass c + 2) := by
-  constructor
-  · intro gate hg wire hw
-    rcases List.mem_append.mp hg with hg | hg
-    · exact (hc.1 gate hg wire hw).trans (by omega)
-    · obtain ⟨g, hmem, rfl⟩ := List.mem_map.mp hg
-      obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hw
-      exact compCodeWire_bits n hc (hd.1 g hmem i hi)
-  · intro wire hw
-    obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hw
-    exact compCodeWire_bits n hc (hd.2 i hi)
+    WireBitsLe (compCode n d c) (a + b + (encNat n).length + codeMass c + 2) :=
+  ⟨List.forall_mem_append.2 ⟨fun g hg w hw => (hc.1 g hg w hw).trans (by omega),
+    List.forall_mem_map.2 fun g hmem => List.forall_mem_map.2 fun i hi =>
+      compCodeWire_bits n hc (hd.1 g hmem i hi)⟩,
+    List.forall_mem_map.2 fun i hi => compCodeWire_bits n hc (hd.2 i hi)⟩
 
 private theorem referenceCode_bounds {Op : Type} {encOp : Op ↪ List Bool}
     (n : ℕ) (op unit : List (Op × List ℕ) × List ℕ)

@@ -197,17 +197,15 @@ theorem potentialPred_of_false (h : hasPotentialIn n P S V a u = false) :
 
 theorem length_potentialSucc (hS : ∀ u, u.length = n a → (S (a, u)).length = n a)
     (hu : u.length = n a) : (potentialSucc n P S V (a, u)).length = n a := by
-  unfold potentialSucc
-  split_ifs
-  · exact hS u hu
-  · exact hu
+  cases h : hasPotentialOut n P S V a u
+  · simpa [potentialSucc, h] using hu
+  · simpa [potentialSucc, h] using hS u hu
 
 theorem length_potentialPred (hP : ∀ u, u.length = n a → (P (a, u)).length = n a)
     (hu : u.length = n a) : (potentialPred n P S V (a, u)).length = n a := by
-  unfold potentialPred
-  split_ifs
-  · exact hP u hu
-  · exact hu
+  cases h : hasPotentialIn n P S V a u
+  · simpa [potentialPred, h] using hu
+  · simpa [potentialPred, h] using hP u hu
 
 /-- The active outgoing edges of the pruned maps are the potential-increasing active outgoing edges
 of the original maps. -/
@@ -271,12 +269,9 @@ theorem endOfPotentialLineRel_iff :
     endOfPotentialLineRel n P S V a u ↔ sinkOfPotentialLineRel n P S V a u ∨
       (u.length = n a ∧ u ≠ zeroVertex (n a) ∧ hasPotentialIn n P S V a u = false ∧
         hasPotentialOut n P S V a u = true) := by
-  by_cases hu : u = zeroVertex (n a)
-  · subst hu
-    cases hout : hasPotentialOut n P S V a (zeroVertex (n a)) <;>
-      simp [endOfPotentialLineRel, sinkOfPotentialLineRel, hout]
-  · cases hin : hasPotentialIn n P S V a u <;> cases hout : hasPotentialOut n P S V a u <;>
-      simp [endOfPotentialLineRel, sinkOfPotentialLineRel, hu, hin, hout]
+  by_cases hu : u = zeroVertex (n a) <;>
+    cases hin : hasPotentialIn n P S V a u <;> cases hout : hasPotentialOut n P S V a u <;>
+    simp_all [endOfPotentialLineRel, sinkOfPotentialLineRel]
 
 /-- Every sink of a potential line is an end of it. -/
 theorem endOfPotentialLineRel_of_sinkOfPotentialLineRel (h : sinkOfPotentialLineRel n P S V a u) :
@@ -412,20 +407,14 @@ private theorem sinkViolation_of_sinkOfPotentialLineRel (hprom : LineSourcePromi
     (h : sinkOfPotentialLineRel n P S V a u) :
     P (a, S (a, u)) ≠ u ∨ (u ≠ S (a, u) ∧ P (a, S (a, u)) = u ∧ V (a, S (a, u)) ≤ V (a, u)) := by
   obtain ⟨-, hout, hu⟩ := h
-  obtain ⟨hP0, hS0⟩ := hprom
   refine or_iff_not_imp_left.mpr fun hPS => ?_
   push Not at hPS
-  have hSu : S (a, u) ≠ u := fun hSu => by
-    rcases hu with rfl | hin
-    · exact hS0 hSu
-    · exact (hasPotentialIn_eq_true_iff.mp hin).2.1 (by rwa [hSu] at hPS)
-  have hSz : S (a, u) ≠ zeroVertex (n a) := fun hSz => by
-    rcases hu with rfl | hin
-    · exact hS0 hSz
-    · rw [hSz, hP0] at hPS
-      exact (hasPotentialIn_eq_true_iff.mp hin).2.2.1 hPS.symm
-  refine ⟨hSu.symm, hPS, not_lt.mp fun hV => ?_⟩
-  exact Bool.false_ne_true (hout ▸ hasPotentialOut_eq_true_iff.mpr ⟨hPS, hSu, hSz, hV⟩)
+  have hSu : S (a, u) ≠ u := fun hSu => hu.elim (fun h0 => hprom.2 (h0 ▸ hSu)) fun hin =>
+    (hasPotentialIn_eq_true_iff.mp hin).2.1 (by rwa [hSu] at hPS)
+  have hSz : S (a, u) ≠ zeroVertex (n a) := fun hSz => hu.elim (fun h0 => hprom.2 (h0 ▸ hSz))
+    fun hin => (hasPotentialIn_eq_true_iff.mp hin).2.2.1 (Eq.symm (by rwa [hSz, hprom.1] at hPS))
+  exact ⟨hSu.symm, hPS, not_lt.mp fun hV =>
+    Bool.false_ne_true (hout ▸ hasPotentialOut_eq_true_iff.mpr ⟨hPS, hSu, hSz, hV⟩)⟩
 
 /-- **Sinks yield circuit-style sink violations.** -/
 theorem sinkOfPotentialLineViolationRel_potentialLineBack
@@ -841,9 +830,7 @@ private theorem sinkOfPotentialLineRel_of_localOptRel {B : α → ℕ}
     sinkOfPotentialLineRel n P S V a u := by
   obtain ⟨hlen, hle⟩ := h
   by_cases hon : onPotentialLine n P S V (a, u) = true
-  · refine ⟨hlen, ?_, by simpa [onPotentialLine] using hon⟩
-    by_contra hout
-    simp only [Bool.not_eq_false] at hout
+  · refine ⟨hlen, Bool.eq_false_iff.mpr fun hout => ?_, by simpa [onPotentialLine] using hon⟩
     have hnext : onPotentialLine n P S V (a, S (a, u)) = true := by
       simp [onPotentialLine, hasPotentialIn_of_hasPotentialOut hout]
     have hV := (hasPotentialOut_eq_true_iff.mp hout).2.2.2

@@ -236,15 +236,11 @@ theorem expect_fkBasicEstimate_sq_le {k : ℕ} (hk : k ≠ 0) (s : List α) :
     simp only [fkBasicEstimate, mul_pow]
     rw [← mul_sum, Fin.sum_univ_eq_sum_range (fun p => ((suffixCount s p ^ (j + 1) -
       (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2), div_le_iff₀ (Nat.cast_pos.2 hpos)]
-    have h : ∑ p ∈ range s.length, ((suffixCount s p ^ (j + 1) -
-        (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2 ≤
-        ((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s := by
-      exact_mod_cast sum_range_sq_pow_sub_pow_suffixCount_le j s
     calc (s.length : ℝ) ^ 2 * _
-        ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) := by gcongr
-      _ = _ := by
-        push_cast
-        ring
+        ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) :=
+          mul_le_mul_of_nonneg_left
+            (by exact_mod_cast sum_range_sq_pow_sub_pow_suffixCount_le j s) (by positivity)
+      _ = _ := by push_cast; ring
 
 /-- The group size condition `(3 k) ^ k n ^ (k - 1) ≤ (K η²) ^ k` bounds three times the second
 moment bound `k F₁ F_{2k-1}` by `K (η F_k)²` on streams with at most `n` distinct items, through
@@ -266,9 +262,7 @@ theorem three_mul_length_mul_freqMoment_le {k K n : ℕ} (hk : k ≠ 0) {η : �
       = (3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) *
           ((s.length * freqMoment (2 * j + 1) s : ℕ) : ℝ) ^ (j + 1) := by
         rw [← mul_pow]
-        congr 1
-        push_cast
-        ring
+        exact congrArg (· ^ (j + 1)) (by push_cast; ring)
     _ ≤ (3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) *
           ((n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1))) := by gcongr
     _ = ((3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) * (n : ℝ) ^ j) *
@@ -382,16 +376,14 @@ theorem state_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) (s : List α) :
 theorem run_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) (s : List α) :
     (fkSketch k m r K ω).run s = median fun i => 𝔼 l, (m : ℝ) *
       ((suffixCount s (ω i l) ^ k - (suffixCount s (ω i l) - 1) ^ k : ℕ) : ℝ) := by
-  rw [Algorithm.run, state_fkSketch]
-  rfl
+  rw [Algorithm.run, state_fkSketch]; rfl
 
 /-- On a stream of exactly `m` items, the answer of the `F_k` sketch is the median of means of the
 basic estimator at the sampled positions. -/
 theorem run_fkSketch_eq_medianOfMeans (s : List α) (ω : Fin (2 * r) → Fin K → Fin s.length) :
     (fkSketch k s.length r K ω).run s =
-      medianOfMeans (fun p : Fin s.length => fkBasicEstimate k s p) ω := by
-  rw [run_fkSketch]
-  rfl
+      medianOfMeans (fun p : Fin s.length => fkBasicEstimate k s p) ω :=
+  run_fkSketch ω s
 
 /-- **The AMS sketch estimates `F_k`** [AlonMatiasSzegedy1999, Theorem 2.1]: on a stream of `m`
 items with at most `n` distinct items, if `k ≠ 0`, `η > 0` and `(3 k) ^ k n ^ (k - 1) ≤ (K η²) ^ k`,

@@ -273,8 +273,7 @@ private theorem may_atLeast_iff_card_le [Fintype V] {B : Type*}
     have hFQ : F Q₂ = (F Q₁).relabel (Equiv.swap a b) := by
       rw [← hrel]
       exact (hneut (Equiv.swap a b) (Q₁ ∘ σ)).trans (by rw [hanon σ Q₁])
-    rw [hFQ]
-    simp only [WeakRanking.relabel_atLeast, Equiv.symm_swap, Equiv.swap_apply_left,
+    simp only [hFQ, WeakRanking.relabel_atLeast, Equiv.symm_swap, Equiv.swap_apply_left,
       Equiv.swap_apply_right, and_self]
   -- Strict majority in either direction forces strict social preference.
   have hstrict {u v : A} (huv : u = a ∧ v = b ∨ u = b ∧ v = a)
@@ -286,19 +285,17 @@ private theorem may_atLeast_iff_card_le [Fintype V] {B : Type*}
     obtain ⟨S, hSsub, hScard⟩ :=
       Finset.exists_subset_card_eq (s := s_uv) (Nat.sub_le s_uv.card s_vu.card)
     let P₀ : V → B := fun i => if i ∈ S then rev (P i) else P i
+    have hi_uv : ∀ i ∈ S, pref (P i) u v := fun i hi => (Finset.mem_filter.1 (hSsub hi)).2
     have hd_P : Disjoint s_uv s_vu :=
       Finset.disjoint_left.2 fun i hi₁ hi₂ =>
         hasymm (P i) (Finset.mem_filter.1 hi₁).2 (Finset.mem_filter.1 hi₂).2
     have hcnt_uv : (Finset.univ.filter fun i => pref (P₀ i) u v) = s_uv \ S :=
       Finset.ext fun i => by
-        by_cases hi : i ∈ S
-        · simp [s_uv, P₀, hi, hrev, hasymm (P i) (Finset.mem_filter.1 (hSsub hi)).2]
-        · simp [s_uv, P₀, hi]
+        by_cases hi : i ∈ S <;>
+          simp [s_uv, P₀, hi, hrev, fun h : i ∈ S => hasymm (P i) (hi_uv i h)]
     have hcnt_vu : (Finset.univ.filter fun i => pref (P₀ i) v u) = s_vu ∪ S :=
       Finset.ext fun i => by
-        by_cases hi : i ∈ S
-        · simp [s_vu, P₀, hi, hrev, (Finset.mem_filter.1 (hSsub hi)).2]
-        · simp [s_vu, P₀, hi]
+        by_cases hi : i ∈ S <;> simp [s_vu, P₀, hi, hrev, hi_uv]
     have hc_uv : (Finset.univ.filter fun i => pref (P₀ i) u v).card = s_vu.card := by
       rw [hcnt_uv, Finset.card_sdiff_of_subset hSsub, hScard]
       omega
@@ -311,9 +308,8 @@ private theorem may_atLeast_iff_card_le [Fintype V] {B : Type*}
       · exact (hswap_counts hc_uv.symm hc_vu.symm).2.2 hvu
     have hSne : S.Nonempty := Finset.card_pos.1 (by omega)
     refine hpr_finset hSne (fun j hj => by simp [P₀, hj]) (fun i hi => ?_) hP₀_uv hvu
-    have hi_uv : pref (P i) u v := (Finset.mem_filter.1 (hSsub hi)).2
     simp only [P₀, hi, ite_true, hrev]
-    exact ⟨hasymm (P i) hi_uv, hi_uv⟩
+    exact ⟨hasymm (P i) (hi_uv i hi), hi_uv i hi⟩
   rcases lt_trichotomy
       (Finset.univ.filter fun i => pref (P i) b a).card
       (Finset.univ.filter fun i => pref (P i) a b).card
@@ -386,13 +382,9 @@ high as `b` when `a = b` or at least as many voters prefer `a` to `b` as `b` to 
         exact Or.inl (((hA a b c).resolve_left h1).resolve_left h2) }
 
 theorem isAnonymous_twoAltMajority [Fintype V] (hA : ∀ x y z : A, x = y ∨ y = z ∨ x = z) :
-    (twoAltMajority (V := V) hA).IsAnonymous := by
-  intro σ P
+    (twoAltMajority (V := V) hA).IsAnonymous := fun σ P => by
   ext a b
-  change (a = b ∨ support (P ∘ σ) b a ≤ support (P ∘ σ) a b) ↔
-    (a = b ∨ support P b a ≤ support P a b)
-  unfold support
-  simp only [Function.comp_apply]
+  simp only [twoAltMajority, support, Function.comp_apply]
   rw [card_filter_comp_perm σ fun i => (P i).Prefers b a,
     card_filter_comp_perm σ fun i => (P i).Prefers a b]
 
@@ -521,13 +513,9 @@ to `b` as strictly prefer `b` to `a`. -/
         exact Or.inl (((hA a b c).resolve_left h1).resolve_left h2) }
 
 theorem isAnonymous_twoAltMajority [Fintype V] (hA : ∀ x y z : A, x = y ∨ y = z ∨ x = z) :
-    (twoAltMajority (V := V) hA).IsAnonymous := by
-  intro σ P
+    (twoAltMajority (V := V) hA).IsAnonymous := fun σ P => by
   ext a b
-  change (a = b ∨ weakSupport (P ∘ σ) b a ≤ weakSupport (P ∘ σ) a b) ↔
-    (a = b ∨ weakSupport P b a ≤ weakSupport P a b)
-  unfold weakSupport
-  simp only [Function.comp_apply]
+  simp only [twoAltMajority, weakSupport, Function.comp_apply]
   rw [card_filter_comp_perm σ fun i => (P i).Prefers b a,
     card_filter_comp_perm σ fun i => (P i).Prefers a b]
 

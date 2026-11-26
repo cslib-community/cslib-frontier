@@ -264,9 +264,7 @@ private theorem chosen_branch_eq {q : ℕ} [Module (ZMod q) G] (g m : G) (a b r 
       let e := r • g + s • (a • g)
       (e, b • e + m) := by
   dsimp only [ddhOTEncryptBranch]
-  refine Prod.ext rfl ?_
-  dsimp only
-  module
+  exact Prod.ext rfl (by module)
 
 /-- Algebraic identity for the unchosen branch ciphertext in `ddhOTProtocol`. -/
 private theorem unchosen_branch_eq {q : ℕ} [Module (ZMod q) G] (g m : G) (a b r s : ZMod q) :
@@ -274,8 +272,7 @@ private theorem unchosen_branch_eq {q : ℕ} [Module (ZMod q) G] (g m : G) (a b 
       let u' := (r + a * s) • g
       let w_ddh := (a * (r + a * s)) • g
       (u', w_ddh - b • u' + m) := by
-  dsimp only [ddhOTEncryptBranch]
-  refine Prod.ext ?_ ?_ <;> dsimp only <;> module
+  refine Prod.ext ?_ ?_ <;> dsimp only [ddhOTEncryptBranch] <;> module
 
 /-- Round 3 sender reply in the unchecked variant: omits the `w.1 + w.2 = u` verification. -/
 @[expose] def ddhOTSenderReplyUnchecked {q : ℕ} [Module (ZMod q) G] (g : G) (m : G × G)
@@ -816,18 +813,11 @@ theorem real_receiver_eq_ddhRealExperiment_of (g : G) (q : ℕ) [NeZero q] [Modu
   simp only [pmf_norm, sampleDDHOTSenderCoins, ddhRealExperiment, ddhOTReductionOf,
     ProbComp.eval_uniform]
   congr 1 with a : 1
-  obtain ⟨σ, hσ⟩ : ∃ σ : Bool, x 1 = σ := ⟨_, rfl⟩
-  refine Eq.trans ?_ (uniform_bind_branch (ProbComp.eval sample₁) a σ fun raw₁ r s k =>
+  refine Eq.trans ?_ (uniform_bind_branch (ProbComp.eval sample₁) a (x 1) fun raw₁ r s k =>
     ProbComp.eval (ddhOTReductionWithCoinsOf g proj₁ x D raw₁ r s (a • g) (k • g) ((a * k) • g)))
-  simp only [PMF.monad_bind_eq_bind]
-  congr 1 with r₀ : 1
-  congr 1 with s₀ : 1
-  congr 1 with r₁ : 1
-  congr 1 with s₁ : 1
-  congr 1 with raw₁ : 1
-  simp_rw [ddhOTReductionWithCoinsOf, hσ]
-  cases σ <;> simp only [ddhOTReceiverMsg, ddhOTSenderReplyUnchecked, Bool.false_eq_true,
-    ↓reduceIte, chosen_branch_eq, unchosen_branch_eq]
+  cases hσ : x 1 <;> simp only [PMF.monad_bind_eq_bind, ddhOTReductionWithCoinsOf, hσ,
+    ddhOTReceiverMsg, ddhOTSenderReplyUnchecked, Bool.false_eq_true, ↓reduceIte, chosen_branch_eq,
+    unchosen_branch_eq]
 
 /-- The real execution for a corrupted receiver is the real DDH world
 `Cslib.Crypto.ddhRealExperiment q g` run on `ddhOTReduction`. -/

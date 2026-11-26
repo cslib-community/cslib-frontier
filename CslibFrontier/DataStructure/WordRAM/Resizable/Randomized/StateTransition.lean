@@ -597,9 +597,7 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
         (fun t ht => hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩))
         hex_rest⟩
     rw [hstep_split]
-    refine hamort₁.trans_eq ?_
-    simp_rw [hpot_prep, mul_add, tsum_add]
-    rfl
+    exact (hamort₁.trans_eq hpot_prep).trans_eq (by simp only [C₁, ← tsum_add, ← mul_add])
   obtain ⟨ν_final, T_ops, C_ops, hex, hfinal, hamort⟩ :=
     Cslib.DataStructure.expectedAmortizedSequence
       (fun μ => ∑' q, μ q * (C.potential q.seed q.data : ℝ≥0∞)) inv C.ExecSteps
@@ -629,8 +627,7 @@ private theorem steps_expected_amortized_map_state
       ∀ θ, (ν_rel.map CoupledRState.seed) θ ≤ C.seedSlack * C.seedLaw s' θ := fun s' hs' θ => by
     obtain ⟨t₀, ht₀⟩ := ν_rel.support_nonempty
     obtain rfl : s' = s := (hs' t₀ ht₀).symm.trans (hs₀ t₀ ht₀)
-    rw [PMF.map_comp]
-    exact hseed θ
+    simpa only [ν_rel, PMF.map_comp, Function.comp_def] using hseed θ
   have hrep_rel : ∀ t ∈ ν_rel.support, C.rep t.seed t.state t.data := fun _ ht =>
     let ⟨p, hp, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
     heq ▸ hrep p hp
@@ -709,8 +706,8 @@ theorem ExecSteps.toOfFn {C : StateTransitionImpl P D w base params s₀}
   | @cons o ops ν_rel ν_final μ_step T_step T_rest C_rest hstep _ ih =>
     let proj : CoupledRState C.Seed D.State r_ds → C.Seed × RData r_ds := fun t => (t.seed, t.data)
     let lift : C.Seed × RData r_ds → CoupledRState C.Seed D.State r_ds := fun p => ⟨p.1, s, p.2⟩
-    have hlift_proj : ∀ t ∈ ν_rel.support, lift (proj t) = t := by
-      intro ⟨θ, s_t, x⟩ ht; have heq := hs ⟨θ, s_t, x⟩ ht; subst heq; rfl
+    have hlift_proj : ∀ t ∈ ν_rel.support, lift (proj t) = t :=
+      fun ⟨θ, _, x⟩ ht => congrArg (CoupledRState.mk θ · x) (hs _ ht).symm
     have hs₁ : ∀ q ∈ (ν_rel.bind μ_step).support, q.state = (D.stepFn s o).1 := by
       intro q hq; rw [PMF.mem_support_bind_iff] at hq; obtain ⟨t, ht, hq_s⟩ := hq
       obtain ⟨a, hstep_a, _, _, _⟩ := (hstep t ht).2 q hq_s; rw [hs t ht] at hstep_a
@@ -763,13 +760,10 @@ theorem steps_expected_amortized_ofFn (C : StateTransitionImpl P D w base params
       ((peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s ops).mpr hfit) hseed hrep
   obtain ⟨hex_det, rfl, hs_final⟩ := hex_rel.toOfFn hs₀
   have hproj_lift :
-      (ν.map fun p => (⟨p.1, s, p.2⟩ : CoupledRState C.Seed D.State r_ds)).map proj = ν := by
-    rw [PMF.map_comp]
-    exact PMF.map_id ν
+      (ν.map fun p => (⟨p.1, s, p.2⟩ : CoupledRState C.Seed D.State r_ds)).map proj = ν :=
+    (PMF.map_comp ..).trans (PMF.map_id ν)
   refine ⟨ν_final_rel.map proj, T_ops, hproj_lift ▸ hex_det,
-    fun θ => by
-      rw [PMF.map_comp]
-      exact hseed_final (D.run s ops).1 hs_final θ,
+    fun θ => (PMF.map_comp ..).symm ▸ hseed_final (D.run s ops).1 hs_final θ,
     fun _ hp =>
       let ⟨q, hq, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
       heq ▸ hs_final q hq ▸ hrep_final q hq, ?_⟩

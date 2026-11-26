@@ -99,14 +99,11 @@ theorem numNodes_mul_tableCap_le {U V n R p_min q_min p_max q_max : ℕ}
   · rw [canonicalSchedule_nFloor_eq h (ℓ + 1), canonicalSchedule_nFloor_eq h ℓ,
       canonicalSchedule_branchFactor_eq h ℓ]
     exact nFloor_succ_eq_div (by omega)
-  · intro hℓ1
-    subst hℓ1
-    have hx8 : 8 ≤ nFloor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) 2 := by
-      rw [← canonicalSchedule_nFloor_eq h 2]
-      exact (by decide : 8 ≤ 256 ^ 9).trans (nFloor_ge_pow_256 h hlt)
+  · rintro rfl
     rw [canonicalSchedule_delta_eq h 1, canonicalSchedule_branchFactor_eq h 1,
       canonicalSchedule_delta_eq h 2]
-    exact ten_mul_delta_le_branchFactor_mul_delta_succ hS17 hx8
+    exact ten_mul_delta_le_branchFactor_mul_delta_succ hS17
+      (canonicalSchedule_nFloor_eq h 2 ▸ (by decide : 8 ≤ 256 ^ 9).trans (nFloor_ge_pow_256 h hlt))
 
 private theorem leaf_and_deficit_of_schedule (P : TreeSchedule) {n r : ℕ}
     (hcap : P.cap = n)
@@ -277,9 +274,8 @@ theorem nonLeaf_tables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
     (nFloor_ge_pow_256 h hlt.le) (by rw [canonicalSchedule_idBits_eq h ℓ,
       canonicalSchedule_nFloor_eq h ℓ]; rfl) ?_
     (numNodes_mul_tableCap_le h h1 hlt) (delta_pos_of_le_depth h hlt) ?_
-  · have hpred := idBits_pred_le_mul_levelScale hr256 (by omega : 2 ≤ ℓ + 1) hlt_k
-      (hT_pos ℓ hlt_k.le) (hT_le ℓ hlt_k.le)
-    simp only [Nat.add_sub_cancel] at hpred
+  · have := Nat.add_sub_cancel ℓ 1 ▸ idBits_pred_le_mul_levelScale hr256 (by omega : 2 ≤ ℓ + 1)
+      hlt_k (hT_pos ℓ hlt_k.le) (hT_le ℓ hlt_k.le)
     rw [canonicalSchedule_idBits_eq h ℓ]
     omega
   · rw [canonicalSchedule_numNodes_eq h hlt, canonicalSchedule_delta_eq h (ℓ + 1)]
@@ -526,10 +522,9 @@ theorem waitingLists_and_hashSeeds_slack_le {U V n R p_min q_min p_max q_max : �
   · rw [canonicalSchedule_numNodes_eq h hle, canonicalSchedule_delta_eq h ℓ, hk]
     exact numNodes_mul_delta_mul_levelScale_cubed_le h1 (hT_pos ℓ (hk ▸ hle))
       (hT_le ℓ (hk ▸ hle))
-  · have hNT := (numNodes_mul_targetSize_bounds (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1
-    have hlo := (targetSize_le_nFloor_and_lt (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1
-    rw [targetSize_eq_levelScale_pow h1] at hNT hlo
-    rw [canonicalSchedule_numNodes_eq h hle, canonicalSchedule_nFloor_eq h ℓ, hk]
-    exact ⟨hNT, hlo, Nat.mul_div_le n _⟩
+  · rw [canonicalSchedule_numNodes_eq h hle, canonicalSchedule_nFloor_eq h ℓ, hk,
+      ← targetSize_eq_levelScale_pow h1]
+    exact ⟨(numNodes_mul_targetSize_bounds (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1,
+      (targetSize_le_nFloor_and_lt (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1, Nat.mul_div_le ..⟩
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

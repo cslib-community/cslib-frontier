@@ -170,19 +170,17 @@ theorem card_quotHash_eq_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ 
     have hsq : (2 ^ b) ^ 2 * #{β : Bot | H β x' = H β y'} = 2 ^ b * Fintype.card Bot := by
       rw [Finset.card_eq_sum_card_fiberwise (f := fun β => H β x') (t := Finset.univ)
           (fun _ _ => Finset.mem_univ _), Finset.mul_sum]
-      trans ∑ _v : Fin (2 ^ b), Fintype.card Bot
-      · refine Finset.sum_congr rfl fun v _ => ?_
-        have hset : (Finset.univ.filter fun β : Bot => H β x' = H β y').filter
-              (fun β => H β x' = v) = Finset.univ.filter fun β : Bot =>
-                ({x', y'} : Finset _).restrict (H β) = fun _ => v := by
-          ext β
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, funext_iff, Subtype.forall,
-            Finset.mem_insert, Finset.mem_singleton, Finset.restrict, forall_eq_or_imp, forall_eq]
-          exact ⟨fun ⟨h1, h2⟩ => ⟨h2, h1.symm.trans h2⟩, fun ⟨h1, h2⟩ => ⟨h1.trans h2.symm, h1⟩⟩
-        have hc := hk.card_filter_restrict_eq (T := {x', y'})
-          (by rw [Finset.card_pair hne]; decide) (fun _ => v)
-        rwa [← hset, Finset.card_pair hne, Fintype.card_fin (2 ^ b)] at hc
-      · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+      refine (Finset.sum_congr (g := fun _ => Fintype.card Bot) rfl fun v _ => ?_).trans (by simp)
+      have hset : (Finset.univ.filter fun β : Bot => H β x' = H β y').filter
+            (fun β => H β x' = v) = Finset.univ.filter fun β : Bot =>
+              ({x', y'} : Finset _).restrict (H β) = fun _ => v := by
+        ext β
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and, funext_iff, Subtype.forall,
+          Finset.mem_insert, Finset.mem_singleton, Finset.restrict, forall_eq_or_imp, forall_eq]
+        exact ⟨fun ⟨h1, h2⟩ => ⟨h2, h1.symm.trans h2⟩, fun ⟨h1, h2⟩ => ⟨h1.trans h2.symm, h1⟩⟩
+      have hc := hk.card_filter_restrict_eq (T := {x', y'})
+        (by rw [Finset.card_pair hne]; decide) (fun _ => v)
+      rwa [← hset, Finset.card_pair hne, Fintype.card_fin (2 ^ b)] at hc
     exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos b) (by linear_combination hsq :
       2 ^ b * (#{β : Bot | H β x' = H β y'} * 2 ^ b) = 2 ^ b * Fintype.card Bot)).le
   have hprod : #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ y} =
@@ -266,17 +264,16 @@ theorem toOuterMeasure_falsePositive_le {U w₀ n k : ℕ} (hw₀ : 0 < w₀) (h
           remHash U w₀ k p.2 x = remHash U w₀ k p.2 u} ≤
       (1 / 2 : ℝ≥0∞) ^ k := by
   classical
-  set FP : Finset (FilterSeed w₀ n) :=
-    Finset.univ.filter fun p : FilterSeed w₀ n =>
-      ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
-        remHash U w₀ k p.2 x = remHash U w₀ k p.2 u
-  rw [show {p : FilterSeed w₀ n | ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
-      remHash U w₀ k p.2 x = remHash U w₀ k p.2 u} = (FP : Set (FilterSeed w₀ n)) by ext; simp [FP],
-    filterSeedLaw, PMF.toOuterMeasure_apply_finset]
-  simp only [PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul, one_div]
+  set E : Set (FilterSeed w₀ n) := {p |
+    ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
+      remHash U w₀ k p.2 x = remHash U w₀ k p.2 u}
+  rw [← E.coe_toFinset, filterSeedLaw, PMF.toOuterMeasure_apply_finset]
+  simp only [E, Set.toFinset_ofPred, PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul,
+    one_div]
   rw [← ENNReal.inv_pow, ENNReal.le_inv_iff_mul_le, mul_right_comm, ← div_eq_mul_inv]
-  exact ENNReal.div_le_of_le_mul
-    (by rw [one_mul]; exact_mod_cast card_falsePositive_mul_le (k := k) hw₀ hU hS hu)
+  refine ENNReal.div_le_of_le_mul ?_
+  rw [one_mul]
+  exact_mod_cast card_falsePositive_mul_le (k := k) hw₀ hU hS hu
 
 /-- Minimum exponent `k = max 1 ⌈log₂(1 / ε)⌉` such that `(1 / 2 : ℝ≥0∞) ^ k ≤ ε` for any
 `ε : ℝ≥0∞` with `ε ≠ 0`. -/
@@ -323,15 +320,9 @@ theorem FilterInv.clusterLen_le_seedClusterBound {U w₀ n f : ℕ}
     hinv.clusterLen hS_lt (quotHash U w₀ n θ u) ≤ seedClusterBound U w₀ n S u θ := by
   dsimp only [seedClusterBound]
   split_ifs with hgood
-  · have h1 : hinv.clusterLen hS_lt (quotHash U w₀ n θ u) - 1 ≤
-        ∑ j ∈ Finset.Icc 1 (quotBits w₀ n),
-          if scaleOverload (quotBits w₀ n) (fun β' x => quotHash U w₀ n (θ.1, β') x)
-            (S.erase u) u j θ.2 then 2 ^ j else 0 :=
-      Nat.cast_le (α := ℝ).mp <|
-        (hinv.clusterLen_sub_one_le_sum_scaleOverload
-          (fun β' x => quotHash U w₀ n (θ.1, β') x) θ.2 hS_lt u).trans_eq <| by
-          rw [Nat.cast_sum]; exact Finset.sum_congr rfl fun _ _ => by split_ifs <;> simp
-    omega
+  · rw [← Nat.sub_le_iff_le_add', ← Nat.cast_le (α := ℝ)]
+    simpa [Nat.cast_ite, mul_ite] using hinv.clusterLen_sub_one_le_sum_scaleOverload
+      (fun β' x => quotHash U w₀ n (θ.1, β') x) θ.2 hS_lt u
   · exact (hinv.clusterLen_le_card hS_lt _).trans hS_lt.le
 
 /-- For any top-level seed `α ∈ reducedGoodTop U w₀ (3 * quotBits w₀ n) (insert u (S.erase u))`

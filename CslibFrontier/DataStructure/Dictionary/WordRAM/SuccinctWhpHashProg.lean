@@ -177,12 +177,10 @@ private theorem realizes_evalHashGen :
       (WordEncoding.encode (α := ℕ))
       EvalHashPre
       (fun _ _ => 0) := by
-  have heq : evalHashGenProg = BitPackedDoubleTabulation.evalGenProg :=
-    funext evalHashGenProg_eq_evalGenProg
-  have hpre : EvalHashPre = BitPackedDoubleTabulation.EvalGenPre := by
-    ext w ⟨hp, ⟨hBase, salt⟩, u_val⟩ s; rfl
-  rw [heq, hpre]
-  exact BitPackedDoubleTabulation.realizes_evalGen
+  have hpre : EvalHashPre = BitPackedDoubleTabulation.EvalGenPre :=
+    funext fun _ => funext fun ⟨_, ⟨_, _⟩, _⟩ => funext fun _ => rfl
+  simpa only [funext evalHashGenProg_eq_evalGenProg, hpre] using
+    BitPackedDoubleTabulation.realizes_evalGen
 
 private theorem validWhpProg_innerLoop {w w₀ R c_tab d b_char M_out hBase F j : ℕ}
     (hw : 0 < w) (hj : j < d)
@@ -460,11 +458,8 @@ private theorem realizes_bktHashRt :
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_hrt, hseed⟩ := h
     have hth := henv.2.2.2.1
     have hw := henv.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
-    have hU_eq : hrULim hrt = U := by rw [heq_hrt]; rfl
-    have hHp_eq : hrHpBkt hrt = mkHashParams w (w0Whp U) (rRedWhp c n_max)
-        (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) := by rw [heq_hrt]; rfl
+    obtain rfl := henv.2.2.1
+    have hU_eq : hrULim hrt = U := congrArg hrULim heq_hrt
     obtain ⟨henv1, _⟩ := hashEnvs_of_large hw hth henv.2.2.2.2.1 henv.2.2.2.2.2.1 henv.2.2.2.2.2.2.2
     dsimp only [hrBase] at *
     try exact henv.fits_const (by decide)
@@ -477,13 +472,11 @@ private theorem realizes_bktHashRt :
     dsimp only [offHashBkt] at hseg1
     omega
   · dsimp only [EvalHashPre]
-    rw [hHp_eq]
-    dsimp only [offHashBkt] at henv1
+    rw [congrArg hrHpBkt heq_hrt]
+    dsimp only [hrHpBkt, mkHashRt, offHashBkt] at henv1 ⊢
     refine ⟨henv1, ?_, by simp [hpPowB_mk], ?_⟩
     · dsimp only [hpMaskM_mk]
-      change s.mem (hrt.2.1.1 + offHashBkt) ≤ _
-      rw [hseed.1.1]
-      have := θ.1.1.isLt; omega
+      exact (hseed.1.1 : s.mem (hrt.2.1.1 + offHashBkt) = _) ▸ Nat.le_sub_one_of_lt θ.1.1.isLt
     · dsimp only [hpMaskM_mk]
       exact le_maskM_shiftLeft_of_lt (by rwa [← hU_eq] : q < U)
 
@@ -535,8 +528,7 @@ theorem realizes_feistelSplitRt :
     rcases d with ⟨hrt, u_val⟩
     dsimp only at h
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_hrt, hseed⟩ := h
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
     have hM_lt : numBucketsWhp n_max < 2 ^ w :=
       henv.numBuckets_le_n_max.trans_lt (henv.2.2.2.2.1.trans_lt henv.2.2.2.2.2.1)
     first
@@ -609,8 +601,7 @@ private theorem realizes_feistelReconstructRt :
     rcases d with ⟨⟨hrt, b⟩, q⟩
     dsimp only at h
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_hrt, hseed, hq_lt⟩ := h
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
     have hnU := henv.2.2.2.2.1
     have hU := henv.2.2.2.2.2.1
     have hM_lt : numBucketsWhp n_max < 2 ^ w :=
@@ -688,12 +679,9 @@ theorem realizes_fpReducedKeyOptRt :
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_hrt, hseed⟩ := h
     have hth := henv.2.2.2.1
     have hw := henv.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
-    have hU_eq : hrULim hrt = U := by rw [heq_hrt]; rfl
-    have hOff_eq : hrOffFp hrt = offHashFp c w n_max := by rw [heq_hrt]; rfl
-    have hHp_eq : hrHpFp hrt = mkHashParams w (w0Whp U) (rRedWhp c n_max)
-        (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (fpBitsWhp n_max) := by rw [heq_hrt]; rfl
+    obtain rfl := henv.2.2.1
+    have hU_eq : hrULim hrt = U := congrArg hrULim heq_hrt
+    have hOff_eq : hrOffFp hrt = offHashFp c w n_max := congrArg hrOffFp heq_hrt
     obtain ⟨_, henv2⟩ := hashEnvs_of_large hw hth henv.2.2.2.2.1 henv.2.2.2.2.2.1 henv.2.2.2.2.2.2.2
     dsimp only [hrBase] at *
   )
@@ -701,11 +689,11 @@ theorem realizes_fpReducedKeyOptRt :
     exact henv.fits_largeSpace.of_le (hashRt_segments_le (c := c) (U := U) (V := V) (w := w)
       (n_max := n_max) (base := hrt.2.1.1)).2.2.le
   · dsimp only [Stage1RedPre]
-    rw [hOff_eq, hHp_eq]
+    rw [hOff_eq, congrArg hrHpFp heq_hrt]
+    dsimp only [hrHpFp, mkHashRt]
     refine ⟨henv2, ?_, ?_⟩
     · dsimp only [hpMaskM_mk]
-      rw [hseed.2.1]
-      have := θ.2.1.isLt; omega
+      exact hseed.2.1 ▸ Nat.le_sub_one_of_lt θ.2.1.isLt
     · dsimp only [hpMaskM_mk]
       exact le_maskM_shiftLeft_of_lt (by rwa [← hU_eq] : kv < U)
 
@@ -762,13 +750,10 @@ theorem realizes_fpOfSaltOptRt :
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_hrt, hseed⟩ := h
     have hth := henv.2.2.2.1
     have hw := henv.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
-    have hU_eq : hrULim hrt = U := by rw [heq_hrt]; rfl
-    have hS_eq : hrSMax hrt = sMaxWhp c n_max := by rw [heq_hrt]; rfl
-    have hOff_eq : hrOffFp hrt = offHashFp c w n_max := by rw [heq_hrt]; rfl
-    have hHp_eq : hrHpFp hrt = mkHashParams w (w0Whp U) (rRedWhp c n_max)
-        (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (fpBitsWhp n_max) := by rw [heq_hrt]; rfl
+    obtain rfl := henv.2.2.1
+    have hU_eq : hrULim hrt = U := congrArg hrULim heq_hrt
+    have hS_eq : hrSMax hrt = sMaxWhp c n_max := congrArg hrSMax heq_hrt
+    have hOff_eq : hrOffFp hrt = offHashFp c w n_max := congrArg hrOffFp heq_hrt
     obtain ⟨_, henv2⟩ := hashEnvs_of_large hw hth henv.2.2.2.2.1 henv.2.2.2.2.2.1 henv.2.2.2.2.2.2.2
     dsimp only [hrBase] at *
   )
@@ -776,11 +761,11 @@ theorem realizes_fpOfSaltOptRt :
     exact henv.fits_largeSpace.of_le (hashRt_segments_le (c := c) (U := U) (V := V) (w := w)
       (n_max := n_max) (base := hrt.2.1.1)).2.2.le
   · dsimp only [EvalHashPre]
-    rw [hOff_eq, hHp_eq]
+    rw [hOff_eq, congrArg hrHpFp heq_hrt]
+    dsimp only [hrHpFp, mkHashRt]
     refine ⟨henv2, ?_, ?_, ?_⟩
     · dsimp only [hpMaskM_mk]
-      rw [hseed.2.1]
-      have := θ.2.1.isLt; omega
+      exact hseed.2.1 ▸ Nat.le_sub_one_of_lt θ.2.1.isLt
     · dsimp only [hpPowB_mk]
       exact (by rwa [← hS_eq] : salt < sMaxWhp c n_max).trans_le (sMaxWhp_le_pow_bChar hth)
     · dsimp only [hpMaskM_mk]
@@ -837,15 +822,11 @@ theorem realizes_rKeyOfQuotRt :
     rcases d with ⟨⟨hrt, b⟩, q⟩
     dsimp only at h
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_hrt, hseed, hq_lt⟩ := h
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
   )
   · exact ⟨c, U, V, w, n_max, θ, henv, heq_hrt, hseed, hq_lt⟩
-  · have hst : (Memory.spec 0).clientState s (feistelReconstructRtProg ((hrt, b), q)) = s := by
-      rw [heq_hrt] at henv hseed ⊢
-      exact (feistelReconstructRtProg_spec henv hseed).1
-    rw [hst]
-    exact ⟨c, U, V, w, n_max, θ, henv, heq_hrt, hseed⟩
+  · rw [heq_hrt, (feistelReconstructRtProg_spec henv hseed).1]
+    exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed⟩
 
 theorem rKeyOfQuotRtProg_spec {c U V w n_max base b q : ℕ} {θ : SeedWhp c U n_max}
     {s : Memory.State}
@@ -890,15 +871,11 @@ theorem realizes_fpOfQuotRt :
     rcases d with ⟨⟨⟨hrt, salt⟩, b⟩, q⟩
     dsimp only at h
     obtain ⟨c, U, V, w₀, n_max, θ, henv, heq_hrt, hseed, hq_lt⟩ := h
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
   )
   · exact ⟨c, U, V, w, n_max, θ, henv, heq_hrt, hseed, hq_lt⟩
-  · have hst : (Memory.spec 0).clientState s (feistelReconstructRtProg ((hrt, b), q)) = s := by
-      rw [heq_hrt] at henv hseed ⊢
-      exact (feistelReconstructRtProg_spec henv hseed).1
-    rw [hst]
-    exact ⟨c, U, V, w, n_max, θ, henv, heq_hrt, hseed⟩
+  · rw [heq_hrt, (feistelReconstructRtProg_spec henv hseed).1]
+    exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed⟩
 
 theorem fpOfQuotRtProg_spec {c U V w n_max base salt b q : ℕ} {θ : SeedWhp c U n_max}
     {s : Memory.State}

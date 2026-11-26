@@ -1115,20 +1115,17 @@ theorem childRouter_conc_of_two_pow_mul_pow_four_le {s n : ℕ}
         _ ≤ s * s ^ 3 := Nat.mul_le_mul_right _ (by omega)
         _ = s ^ 4 := (pow_succ' s 3).symm
         _ ≤ x := hs4_x
-    · have hs_lt : s < Lx := not_le.mp hLx
-      have hpow_lt : 2 ^ (Lx - 1) < x := by
-        by_contra hge
-        have hclog_le := Nat.clog_le_of_le_pow (hmax_x.symm ▸ not_lt.mp hge)
+    · have hpow_lt : 2 ^ (Lx - 1) < x := by
+        by_contra! hge
+        have := Nat.clog_le_of_le_pow (hmax_x.symm ▸ hge)
         omega
       have h150 : 150 * childRouterHalfInd n ≤ 2100 * (Lx - 1) := by omega
-      have hpow4 : (Lx - 1) ^ 4 ≤ 2 ^ (Lx - 1) :=
-        Nat.pow_le_two_pow (by decide) (by omega)
       calc (150 * childRouterHalfInd n) ^ 3
           ≤ (2100 * (Lx - 1)) ^ 3 := Nat.pow_le_pow_left h150 3
         _ = 2100 ^ 3 * (Lx - 1) ^ 3 := by ring
         _ ≤ (Lx - 1) * (Lx - 1) ^ 3 := Nat.mul_le_mul_right _ (by omega)
         _ = (Lx - 1) ^ 4 := (pow_succ' (Lx - 1) 3).symm
-        _ ≤ 2 ^ (Lx - 1) := hpow4
+        _ ≤ 2 ^ (Lx - 1) := Nat.pow_le_two_pow (by decide) (by omega)
         _ ≤ x := hpow_lt.le
   calc 2 ^ s * (150 * childRouterHalfInd n) ^ 3
       ≤ 2 ^ s * x := Nat.mul_le_mul_left _ hcube_x
@@ -1158,14 +1155,14 @@ theorem dens_not_injOn_feistelHead_le {ι α : Type*} [Fintype ι] [Nonempty ι]
     · rw [ite_eq_right (not_not.mpr hbad), mul_zero]
       exact sum_nonneg fun p _ => by split_ifs <;> norm_num
     · rw [ite_eq_left hbad, mul_one, sum_boole]
-      unfold Set.InjOn at hbad
-      push Not at hbad
+      simp only [Set.InjOn, not_forall] at hbad
       obtain ⟨x, hx, y, hy, hhd, hne⟩ := hbad
       have hpair_ne : (x, y) ≠ (y, x) := fun hp => hne (congrArg Prod.fst hp)
       have hsub : ({(x, y), (y, x)} : Finset ((Fin (2 ^ s) × α) × (Fin (2 ^ s) × α))) ⊆
           {p ∈ S.offDiag | feistelHead (h i) p.1 = feistelHead (h i) p.2} :=
         insert_subset_iff.2 ⟨mem_filter.mpr ⟨mem_offDiag.mpr ⟨hx, hy, hne⟩, hhd⟩,
-          singleton_subset_iff.2 (mem_filter.mpr ⟨mem_offDiag.mpr ⟨hy, hx, hne.symm⟩, hhd.symm⟩)⟩
+          singleton_subset_iff.2
+            (mem_filter.mpr ⟨mem_offDiag.mpr ⟨hy, hx, Ne.symm hne⟩, hhd.symm⟩)⟩
       exact_mod_cast (card_pair hpair_ne).symm.trans_le (card_le_card hsub)
   have hpair : ∀ p ∈ S.offDiag,
       𝔼 i : ι, (if feistelHead (h i) p.1 = feistelHead (h i) p.2 then (1 : ℝ) else 0) ≤
@@ -1173,10 +1170,7 @@ theorem dens_not_injOn_feistelHead_le {ι α : Type*} [Fintype ι] [Nonempty ι]
     intro p hp
     rcases mem_offDiag.mp hp with ⟨_, _, hne⟩
     by_cases hsnd : p.1.2 = p.2.2
-    · have hzero (i : ι) :
-          (if feistelHead (h i) p.1 = feistelHead (h i) p.2 then (1 : ℝ) else 0) = 0 :=
-        ite_eq_right (feistelHead_ne_of_snd_eq_of_ne hsnd hne)
-      simp only [hzero, Fintype.expect_const]
+    · simp only [ite_eq_right (feistelHead_ne_of_snd_eq_of_ne hsnd hne), Fintype.expect_const]
       positivity
     · let e : Fin (2 ^ s) ≃ Fin (2 ^ s) := Equiv.xor (p.1.1 ^^^ p.2.1)
       have hiff (i : ι) :
@@ -1201,8 +1195,7 @@ theorem dens_not_injOn_feistelHead_le {ι α : Type*} [Fintype ι] [Nonempty ι]
       _ ≤ ∑ _p ∈ S.offDiag, ((2 ^ s : ℝ))⁻¹ := sum_le_sum hpair
       _ = ((#S * (#S - 1) : ℕ) : ℝ) / (2 ^ s : ℝ) := by
           rw [sum_const, offDiag_card, nsmul_eq_mul, div_eq_mul_inv, Nat.mul_sub_one]
-  rw [le_div_iff₀ (by positivity)]
-  rw [le_div_iff₀ (by positivity)] at hexp_le
+  rw [le_div_iff₀ (by positivity)] at hexp_le ⊢
   linarith
 
 /-- Concrete seed space `Fin 2 → Fin (2 ^ trinomialDeg T s)` for the `2`-wise trinomial
@@ -1359,10 +1352,8 @@ theorem dens_not_injOn_idCompressorHead_le_two_div_sq {s T n_bar n_next : ℕ}
       ¬ Set.InjOn (idCompressorHead s T θ) (S : Set (Fin (2 ^ s) × Fin T))} : ℝ) ≤
       2 / (n_next : ℝ) ^ 2 := by
   refine (dens_not_injOn_idCompressorHead_le s T S).trans ?_
-  have hS_sq : (#S : ℝ) ^ 2 ≤ (n_bar : ℝ) ^ 2 := by gcongr
   rw [div_le_div_iff₀ (by positivity) (by positivity)]
-  have hI_real : (n_bar : ℝ) ^ 2 * (n_next : ℝ) ^ 2 ≤ 4 * (2 ^ s : ℝ) := by exact_mod_cast hI
-  nlinarith [mul_le_mul_of_nonneg_right hS_sq (sq_nonneg (n_next : ℝ))]
+  exact_mod_cast (Nat.mul_le_mul_right (n_next ^ 2) (Nat.pow_le_pow_left hS 2)).trans (by omega)
 
 /-- **Unconditional flat-domain ID-compressor collision bound on `Fin (2 ^ L)`**
 ([LiLiangYuZhou2024], `arXiv:2310.20536v1`, Section 5.4, Lemma 5.2(c), PDF p. 33 / printed p. 32,

@@ -76,13 +76,11 @@ private noncomputable def diamLowerTerm [DecidableEq V] (G : SimpleGraph V) [Dec
 omit [Fintype V] in
 private theorem diamLowerTerm_le_dist [DecidableEq V] {G : SimpleGraph V} [DecidableRel G.Adj]
     (hc : G.Preconnected) (u v : V) : diamLowerTerm G u v ≤ (G.dist u v : ℝ) := by
-  unfold diamLowerTerm
-  by_cases huv : u = v
-  · subst huv; simp
+  rcases eq_or_ne u v with rfl | huv
+  · simp [diamLowerTerm]
   · by_cases hadj : G.Adj u v
-    · simp only [huv, ↓reduceIte, hadj, dist_eq_one_iff_adj.mpr hadj, Nat.cast_one]
-      norm_num
-    · simp only [huv, ↓reduceIte, hadj, sub_zero]
+    · norm_num [diamLowerTerm, huv, hadj, dist_eq_one_iff_adj.mpr hadj]
+    · simp only [diamLowerTerm, huv, ↓reduceIte, hadj, sub_zero]
       exact_mod_cast (hc u v).one_lt_dist_of_ne_of_not_adj huv hadj
 
 private theorem sum_sum_diamLowerTerm [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj] :
@@ -126,13 +124,11 @@ theorem networkCost_eq_iff_diam_le_two {α : ℝ} {G : SimpleGraph V} (hc : G.Pr
     sum_eq_sum_iff_of_le fun v _ => diamLowerTerm_le_dist hc _ v]
   refine forall₂_congr fun u v => ?_
   simp only [le_antisymm_iff, diamLowerTerm_le_dist hc u v, true_and]
-  unfold diamLowerTerm
-  by_cases heq : u = v
-  · subst heq; simp
+  rcases eq_or_ne u v with rfl | heq
+  · simp [diamLowerTerm]
   · by_cases hadj : G.Adj u v
-    · simp only [heq, ↓reduceIte, hadj, dist_eq_one_iff_adj.mpr hadj, Nat.cast_one]
-      norm_num
-    · simp only [heq, ↓reduceIte, hadj, sub_zero]
+    · norm_num [diamLowerTerm, heq, hadj, dist_eq_one_iff_adj.mpr hadj]
+    · simp only [diamLowerTerm, heq, ↓reduceIte, hadj, sub_zero]
       norm_cast
 
 private theorem networkCost_top_eq_diam_form (α : ℝ) :
@@ -170,11 +166,9 @@ theorem isOptimalNetwork_iff_eq_top_of_lt_two {α : ℝ} (hα₀ : 0 ≤ α) (h�
     IsOptimalNetwork α G ↔ G = ⊤ := by
   classical
   refine ⟨fun hopt => ?_, fun htop => htop ▸ isOptimalNetwork_top hα₀ hα.le⟩
-  rcases isEmpty_or_nonempty V with hE | hNE
-  · have := hE
-    exact Subsingleton.elim G ⊤
-  · have : Nonempty V := hNE
-    have hconn : G.Connected :=
+  rcases isEmpty_or_nonempty V with _ | _
+  · exact Subsingleton.elim G ⊤
+  · have hconn : G.Connected :=
       connected_of_isOptimalNetwork_of_preconnected hα₀ hopt preconnected_top
     have hleE := hopt ⊤
     rw [networkECost_eq_ofReal_of_connected hα₀ hconn,
@@ -346,10 +340,8 @@ private theorem sum_dist_sub_addLink_le {α : ℝ} (hα₀ : 0 ≤ α) {s : Prof
 theorem IsPureNash.dist_le_alpha_add_one {α : ℝ} (hα₀ : 0 ≤ α) {s : Profile V}
     (hs : IsPureNash α s) (u v : V) :
     ((formedGraph s).dist u v : ℝ) ≤ α + 1 := by
-  by_cases huv : u = v
-  · subst huv
-    simp only [SimpleGraph.dist_self, Nat.cast_zero]
-    linarith
+  rcases eq_or_ne u v with rfl | huv
+  · simpa using add_nonneg hα₀ zero_le_one
   · have h := sum_dist_sub_addLink_le hα₀ hs u v {v}
     rw [sum_singleton, dist_eq_one_iff_adj.mpr (adj_addLink huv), Nat.cast_one] at h
     linarith
@@ -362,9 +354,8 @@ theorem IsPureNash.formedGraph_eq_top_of_lt_one {α : ℝ} (hα₀ : 0 ≤ α) (
   ext u v
   simp only [top_adj]
   refine ⟨fun h => h.ne, fun huv => ?_⟩
-  have hd : ((formedGraph s).dist u v : ℝ) < 2 := by
-    linarith [hs.dist_le_alpha_add_one hα₀ u v]
-  have hd_nat : (formedGraph s).dist u v < 2 := by exact_mod_cast hd
+  have hd_nat : (formedGraph s).dist u v < 2 :=
+    mod_cast (by linarith [hs.dist_le_alpha_add_one hα₀ u v] : ((formedGraph s).dist u v : ℝ) < 2)
   have hd_pos : 0 < (formedGraph s).dist u v := (hs.preconnected u v).pos_dist_of_ne huv
   exact dist_eq_one_iff_adj.mp (by omega)
 
@@ -378,9 +369,8 @@ theorem IsPureNash.isSocialOptimum_of_lt_one {α : ℝ} (hα₀ : 0 ≤ α) (hα
 /-- When `0 ≤ α < 2`, every pure Nash equilibrium has diameter at most `2`. -/
 theorem IsPureNash.dist_le_two_of_lt_two {α : ℝ} (hα₀ : 0 ≤ α) (hα : α < 2)
     {s : Profile V} (hs : IsPureNash α s) (u v : V) : (formedGraph s).dist u v ≤ 2 := by
-  have hd : ((formedGraph s).dist u v : ℝ) < 3 := by
-    linarith [hs.dist_le_alpha_add_one hα₀ u v]
-  have hd_nat : (formedGraph s).dist u v < 3 := by exact_mod_cast hd
+  have hd_nat : (formedGraph s).dist u v < 3 :=
+    mod_cast (by linarith [hs.dist_le_alpha_add_one hα₀ u v] : ((formedGraph s).dist u v : ℝ) < 3)
   omega
 
 private theorem IsPureNash.socialCost_eq_zero_of_subsingleton [Subsingleton V] {α : ℝ} (hα₀ : 0 ≤ α)
@@ -730,23 +720,18 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
         · simpa [par, hx0] using (hex_par x hx0).choose_spec.1
         · rw [not_not.1 hx0] at hx
           exact absurd hpar0 hx
-      have hH₀_le : H₀ ≤ H := by
-        intro x y hxy
-        rw [parentGraph_adj] at hxy
-        rcases hxy.2 with hp | hp
-        · rw [← hp]
-          exact (hpar_adj x (hp ▸ hxy.1.symm)).symm
-        · rw [← hp]
-          exact hpar_adj y (hp ▸ hxy.1)
+      have hH₀_le : H₀ ≤ H := fun x y hxy => by
+        obtain ⟨hne, hp | hp⟩ := parentGraph_adj.mp hxy
+        · exact hp ▸ (hpar_adj x (hp ▸ hne.symm)).symm
+        · exact hp ▸ hpar_adj y (hp ▸ hne)
       have hH₀_dist_root : ∀ k : ℕ, ∀ x : V, H.dist v₀ x = k →
           H₀.Reachable v₀ x ∧ H₀.dist v₀ x ≤ k := by
         intro k
         induction k with
         | zero =>
           intro x hx
-          have hxv : v₀ = x := hconn.dist_eq_zero_iff.mp hx
-          subst x
-          exact ⟨Reachable.refl v₀, by simp⟩
+          obtain rfl := hconn.dist_eq_zero_iff.mp hx
+          exact ⟨.refl v₀, by simp⟩
         | succ k ih =>
           intro x hx
           have hxv : x ≠ v₀ := fun h => by subst x; simp at hx
@@ -781,14 +766,10 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
             rw [mem_edgeFinset, mem_edgeSet, parentGraph_adj] at he
             rw [mem_image]
             rcases he.2 with hp | hp
-            · have hx : x ≠ v₀ := fun h => he.1 <| by
-                rw [h] at hp ⊢
-                exact hpar0.symm.trans hp
-              exact ⟨x, mem_erase.mpr ⟨hx, mem_univ x⟩, by rw [hp]⟩
-            · have hy : y ≠ v₀ := fun h => he.1 <| by
-                rw [h] at hp ⊢
-                exact hp.symm.trans hpar0
-              exact ⟨y, mem_erase.mpr ⟨hy, mem_univ y⟩, by rw [hp, Sym2.eq_swap]⟩
+            · exact ⟨x, mem_erase.mpr ⟨fun h => he.1 (h.trans (hpar0.symm.trans (h ▸ hp))),
+                mem_univ x⟩, hp ▸ rfl⟩
+            · exact ⟨y, mem_erase.mpr ⟨fun h => he.1 (((h ▸ hp).symm.trans hpar0).trans h.symm),
+                mem_univ y⟩, by rw [hp, Sym2.eq_swap]⟩
         calc H₀.edgeFinset.card
           _ ≤ ((univ.erase v₀).image fun x => s(x, par x)).card := card_le_card hsub
           _ ≤ (univ.erase v₀).card := card_image_le
@@ -807,19 +788,15 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
           rw [formedGraph_adj] at habH ⊢
           rcases habH with hb | ha
           · left
-            by_cases hau : a = u
-            · subst hau
-              simp only [s_dev, Function.update_self, keep, LinkSet.mem_ofFinset, mem_filter]
-              exact ⟨hab_ne.symm, hb, hab⟩
-            · simp only [s_dev, Function.update_of_ne hau]
-              exact hb
+            rcases eq_or_ne a u with rfl | hau
+            · simpa only [s_dev, Function.update_self, keep, LinkSet.mem_ofFinset, mem_filter] using
+                ⟨hab_ne.symm, hb, hab⟩
+            · simpa only [s_dev, Function.update_of_ne hau] using hb
           · right
-            by_cases hbu : b = u
-            · subst hbu
-              simp only [s_dev, Function.update_self, keep, LinkSet.mem_ofFinset, mem_filter]
-              exact ⟨hab_ne, ha, hab.symm⟩
-            · simp only [s_dev, Function.update_of_ne hbu]
-              exact ha
+            rcases eq_or_ne b u with rfl | hbu
+            · simpa only [s_dev, Function.update_self, keep, LinkSet.mem_ofFinset, mem_filter] using
+                ⟨hab_ne, ha, hab.symm⟩
+            · simpa only [s_dev, Function.update_of_ne hbu] using ha
         have hconn_dev : (formedGraph s_dev).Connected := hH₀_conn.mono hle_dev
         have hne_u := hs.playerCost_le hα₀ fun x => hconn_dev u x
         rw [playerCost_def, playerCost_def, Function.update_self] at hne_u

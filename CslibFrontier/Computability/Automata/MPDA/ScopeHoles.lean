@@ -126,17 +126,14 @@ private theorem wellMatched_of_isContextOf {M : MPDA n State α Γ} {c c' : Conf
       List.extract_eq_singleton hppush, List.extract_eq_singleton hmpop]
     rfl
   refine wellNested_of_isContextOf hrun' hctx ?_ fun k => ?_
-  · rw [e, net_cons, net_append, hnet, net_cons, net_nil]
-    simp [Op.net]
+  · simp [e, net_cons, net_append, hnet, net_nil, Op.net]
   · rw [e]
     rcases k with _ | k
     · simp
     · rw [List.take_succ_cons, net_cons, List.take_append, net_append]
       have h₁ := hk k
       rcases Nat.eq_zero_or_pos (k - (w.extract (p + 1) m).length) with h | h
-      · rw [h, List.take_zero, net_nil]
-        simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte]
-        omega
+      · simp only [h, List.take_zero, net_nil, Op.net, Op.kind, OpKind.net, ↓reduceIte]; omega
       · rw [List.take_of_length_le (l := w.extract (p + 1) m) (by omega),
           List.take_of_length_le (l := [(b, Op.pop i δ)]) (by rw [List.length_singleton]; omega),
           hnet]
@@ -181,8 +178,8 @@ private theorem PendingAt.lt_of_matches {w : List (α × Op n Γ)} {i : Fin n} {
     (h : PendingAt w p x) (hp : IsPushOn w i p) (hm : Matches w p m) : x < m := by
   obtain ⟨-, -, hk⟩ := h.of_isPushOn hp
   obtain ⟨hpm, ⟨b, δ, hmpop⟩, -, hnet⟩ := hm.of_isPushOn hp
-  by_contra hxm
-  exact absurd (hk _) (not_le.mpr (net_neg_of_pop (by omega) (by omega) hmpop hnet))
+  exact not_le.mp fun hxm =>
+    (hk _).not_gt (net_neg_of_pop (by omega) (Nat.lt_succ_of_le hxm) hmpop hnet)
 
 /-! ## Open holes and contexts -/
 
@@ -235,13 +232,11 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   -- The last open hole push on stack `j` before `b`.
   let P := (Finset.range b).filter fun p => a ≤ p ∧ OpenHolePush w x p ∧ IsPushOn w j p
   have hPne : P.Nonempty := ⟨a, by simp [P, hab, ha, hai]⟩
-  obtain ⟨hp'b, hap', hp'open, hp'j⟩ :
-      P.max' hPne < b ∧ a ≤ P.max' hPne ∧ OpenHolePush w x (P.max' hPne) ∧
-        IsPushOn w j (P.max' hPne) := by
-    simpa only [P, Finset.mem_filter, Finset.mem_range] using P.max'_mem hPne
-  have hmax : ∀ s, a ≤ s → s < b → OpenHolePush w x s → IsPushOn w j s → s ≤ P.max' hPne :=
-    fun s h₁ h₂ h₃ h₄ => P.le_max' s (by simp [P, h₁, h₂, h₃, h₄])
   set p' := P.max' hPne
+  obtain ⟨hp'b, hap', hp'open, hp'j⟩ := Finset.mem_filter.mp (P.max'_mem hPne)
+  rw [Finset.mem_range] at hp'b
+  have hmax : ∀ s, a ≤ s → s < b → OpenHolePush w x s → IsPushOn w j s → s ≤ p' :=
+    fun s h₁ h₂ h₃ h₄ => P.le_max' s (by simp [P, h₁, h₂, h₃, h₄])
   apply hbrep
   refine ⟨p', hp'b, hp'open, hb, ⟨j, hp'j, hbj⟩, ?_⟩
   obtain ⟨-, -, hbk⟩ := hbpend.of_isPushOn hbj
@@ -345,8 +340,7 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht
     have := hge a ha
     have := hle_m₁ a ha
-    simp
-    omega
+    simp; omega
   case hTP =>
     intro t ht t' ht' htt'
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht

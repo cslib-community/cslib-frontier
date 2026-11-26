@@ -202,10 +202,8 @@ theorem IsDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] {h h' : ℕ} {T : Te
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hh
   obtain ⟨α, β, γ, E, hE⟩ := hT
   refine ⟨α, β, (Polynomial.X ^ d : K[X]) • γ, E, ?_⟩
-  rw [restrict_smul_decoder, hE]
-  funext x y z
-  simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-  ring
+  rw [restrict_smul_decoder, hE, smul_add, smul_smul, smul_smul, ← pow_add, ← pow_add,
+    ← Nat.add_assoc, Nat.add_comm d h]
 
 theorem IsSLDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'}
     {h h' : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h T S)
@@ -213,10 +211,8 @@ theorem IsSLDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hh
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨β, (Polynomial.X ^ d : K[X]) • γ, E, ?_⟩
-  rw [restrict_smul_decoder, hE]
-  funext x y z
-  simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-  ring
+  rw [restrict_smul_decoder, hE, smul_add, smul_smul, smul_smul, ← pow_add, ← pow_add,
+    ← Nat.add_assoc, Nat.add_comm d h]
 
 /-- Substituting `ε ↦ ε ^ N` in a degeneration witness of order `k` gives a witness of order
 `N k` whose error is divisible by `ε ^ (N k + N)`. -/
@@ -624,12 +620,8 @@ theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
   cases nonempty_fintype Z
   classical
   obtain ⟨α, β, γ, E, hw⟩ := hT
-  obtain ⟨D, hD⟩ : ∃ D : ℕ, ∀ x y z, (restrict α β γ ((unit r).map C) x y z).natDegree ≤ D :=
-    ⟨univ.sup fun p : X × Y × Z => (restrict α β γ ((unit r).map C) p.1 p.2.1 p.2.2).natDegree,
-      fun x y z => Finset.le_sup (f := fun p : X × Y × Z =>
-        (restrict α β γ ((unit r).map C) p.1 p.2.1 p.2.2).natDegree) (b := (x, y, z))
-        (Finset.mem_univ _)⟩
-  refine ⟨D, fun m => ?_⟩
+  let f : X × Y × Z → ℕ := fun ⟨x, y, z⟩ => (restrict α β γ ((unit r).map C) x y z).natDegree
+  refine ⟨univ.sup f, fun m => ?_⟩
   obtain ⟨R, hR⟩ := exists_tprodPi_eq (fun _ : Fin m => h) (fun _ => T) fun _ => E
   rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at hR
   obtain ⟨α₁, β₁, γ₁, h₁⟩ := Rank.tpow (IsRestriction.refl (unit r : Tensor K _ _ _)) m
@@ -638,14 +630,15 @@ theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
         (restrict (α₁.map C) (β₁.map C) (γ₁.map C) ((unit (r ^ m)).map C)) =
       Tensor.tprodPi fun _ => restrict α β γ ((unit r).map C) := by
     rw [← map_restrict, h₁, Tensor.tpow, tprodPi_map, ← restrict_tprodPi]
-  refine IsDegen.rank_of_natDegree_le (h := m * h) (D := D * m)
+  refine IsDegen.rank_of_natDegree_le (h := m * h) (D := univ.sup f * m)
     (α₁.map C * piKronecker fun _ => α) (β₁.map C * piKronecker fun _ => β)
     ((piKronecker fun _ => γ) * γ₁.map C) R ?_ ?_
   · rwa [← restrict_restrict, h₂, hw]
   · intro x y z
     rw [← restrict_restrict, h₂, tprodPi_apply]
     exact (Polynomial.natDegree_prod_le _ _).trans <|
-      (Finset.sum_le_card_nsmul _ _ D fun _ _ => hD _ _ _).trans_eq (by simp [mul_comm])
+      (Finset.sum_le_card_nsmul _ _ (univ.sup f) fun i _ =>
+        Finset.le_sup (f := f) (Finset.mem_univ (x i, y i, z i))).trans_eq (by simp [mul_comm])
 
 end Bini
 

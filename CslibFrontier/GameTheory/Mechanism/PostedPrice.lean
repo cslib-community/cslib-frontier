@@ -656,23 +656,19 @@ theorem expectedWelfare_postedPrice_tightBidderLaws_le_one (k : ℕ) (p : Fin 2 
       ⟨hp0, fun j hj => absurd hj (Fin.not_lt_zero j)⟩
     have hl1 : ¬ AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 1 :=
       fun hw => hw.2 0 Fin.zero_lt_one hp0
-    have hs0 : stop [v 0] = true := decide_eq_true hp0
-    simp only [postedPrice, acceptMechanism, acceptAllocation_eq_one_iff.mpr hw0,
-      acceptAllocation_eq_zero_iff.mpr hl1, mul_one, mul_zero, add_zero, hs0, ↓reduceIte, reward,
-      ENNReal.ofReal_coe_nnreal, le_rfl]
+    simp only [stop, postedPrice, acceptMechanism, acceptAllocation_eq_one_iff.mpr hw0,
+      acceptAllocation_eq_zero_iff.mpr hl1, mul_one, mul_zero, add_zero, decide_eq_true hp0,
+      ↓reduceIte, reward, ENNReal.ofReal_coe_nnreal, le_rfl]
   · have hl0 : ¬ AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 0 := fun hw => hp0 hw.1
-    have hs0 : stop [v 0] = false := decide_eq_false hp0
-    rw [hs0, payoff_cons]
+    simp only [stop, decide_eq_false hp0, Bool.false_eq_true, ↓reduceIte, payoff_cons]
     by_cases hp1 : p 1 ≤ (v 1 : ℝ)
     · have hw1 : AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 1 :=
         ⟨hp1, fun j hj => (Fin.ext (Nat.lt_one_iff.mp hj) : j = 0) ▸ hp0⟩
-      have hs1 : stop [v 1, v 0] = true := decide_eq_true hp1
-      simp only [Bool.false_eq_true, ↓reduceIte, postedPrice, acceptMechanism,
+      simp only [decide_eq_true hp1, ↓reduceIte, postedPrice, acceptMechanism,
         acceptAllocation_eq_zero_iff.mpr hl0, acceptAllocation_eq_one_iff.mpr hw1, mul_zero,
-        mul_one, zero_add, hs1, reward, ENNReal.ofReal_coe_nnreal, le_rfl]
+        mul_one, zero_add, reward, ENNReal.ofReal_coe_nnreal, le_rfl]
     · have hl1 : ¬ AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 1 := fun hw => hp1 hw.1
-      have hs1 : stop [v 1, v 0] = false := decide_eq_false hp1
-      simp [hs1, payoff_nil, postedPrice, acceptMechanism,
+      simp [decide_eq_false hp1, payoff_nil, postedPrice, acceptMechanism,
         acceptAllocation_eq_zero_iff.mpr hl0, acceptAllocation_eq_zero_iff.mpr hl1]
 
 /-- Approaching the long-shot bidder first at price `k + 1` and then the sure-value bidder at price
@@ -733,10 +729,9 @@ theorem exists_postedPrice_revenue_lt {c : ℝ≥0∞} (hc : 1 < 2 * c) :
   refine ⟨k, fun p => ?_⟩
   have hgap : (1 : ℝ≥0∞) < c * ((2 * k + 1) / (k + 1)) := by
     have hstop := hk (fun _ => true)
-    have h1 : expectedReward (fun _ => true) (tightLaws k) = 1 := by
-      rw [expectedReward, tightLaws_eq, tsum_jointLaw_cons_mul, tsum_pure_mul]
-      simp [payoff_cons, reward]
-    rwa [h1, expectedMax_tightLaws] at hstop
+    rw [expectedMax_tightLaws, expectedReward, tightLaws_eq, tsum_jointLaw_cons_mul,
+      tsum_pure_mul] at hstop
+    simpa [payoff_cons, reward] using hstop
   have hwel : expectedWelfare (postedPrice p).allocation (tightBidderLaws k) <
       c * ((2 * k + 1) / (k + 1)) :=
     (expectedWelfare_postedPrice_tightBidderLaws_le_one k p).trans_lt hgap
@@ -890,9 +885,8 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
     intro i v
     dsimp only [priorReject, allReject]
     split_ifs with hprev
-    · have hnn : 0 ≤ ∑ k, (postedPrice p).allocation v k :=
-        Finset.sum_nonneg fun k _ => acceptAllocation_nonneg _ v k
-      linarith
+    · linarith [(Finset.sum_nonneg fun k _ => acceptAllocation_nonneg _ v k :
+        0 ≤ ∑ k, (postedPrice p).allocation v k)]
     · push Not at hprev
       obtain ⟨j, _, hpj⟩ := hprev
       -- Since `p j ≤ v j`, the smallest `w` with `p w ≤ v w` wins, so `∑ k, alloc v k = 1`!
@@ -995,8 +989,7 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
       simp only [priorReject, hiff]
     rw [integral_apply_eval_eq_integral_integral μ (Φ := fun v z => priorReject i v * excess i z)
       hindep (hint_prod i)]
-    simp_rw [integral_const_mul]
-    rw [integral_mul_const]
+    simp only [integral_const_mul, integral_mul_const]
   -- Prophet upper bound on `E_opt`: `posVirtualSurplus v ≤ t + ∑ i, excess i (v i)`.
   have hprophet_pt : ∀ v : ι → ℝ, posVirtualSurplus μ f v ≤ t + ∑ i, excess i (v i) := fun v => by
     refine (Finset.fold_max_le _).mpr
@@ -1031,8 +1024,7 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
     rw [integral_congr_ae hae_decomp,
       integral_add (hint_one_sub.const_mul t) (integrable_finsetSum _ fun i _ => hint_prod i),
       integral_const_mul, h1_sub_R, integral_finsetSum _ fun i _ => hint_prod i]
-    congr 1
-    exact Finset.sum_congr rfl fun i _ => hfactor i
+    exact congrArg (t * (1 - R) + ·) (Finset.sum_congr rfl fun i _ => hfactor i)
   have hsum_ge : R * (E_opt - t) ≤
       ∑ i, (∫ v, priorReject i v ∂Measure.pi μ) * ∫ z, excess i z ∂μ i := by
     calc R * (E_opt - t)

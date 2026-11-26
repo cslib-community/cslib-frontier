@@ -98,9 +98,7 @@ theorem column_injective {u v : ℕ} {s t : Fin 3} (h : column u s = column v t)
   have hs := s.isLt
   have ht := t.isLt
   simp only [column] at h
-  have huv : u = v := by omega
-  subst v
-  exact ⟨rfl, Fin.ext (by omega)⟩
+  exact ⟨by omega, Fin.ext (by omega)⟩
 
 /-- All points of the local fan stay in its vertex's small diagonal box. -/
 theorem fan_bounds {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} (hp : p ∈ fan v s) :
@@ -152,10 +150,7 @@ theorem mem_fan {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
   all_goals
     constructor
     · rintro ⟨h, h' | h'⟩ <;> exact ⟨h, by constructor <;> linarith⟩
-    · rintro ⟨h, h'⟩
-      first
-      | exact ⟨h, Or.inl h'⟩
-      | exact ⟨h, Or.inr h'⟩
+    · exact fun ⟨h, h'⟩ => ⟨h, by tauto⟩
 
 /-- Every edge row lies strictly above every vertex box. -/
 theorem elbow_below_track {n e v : ℕ} (hv : v < n) (s : Fin 3) :
@@ -195,8 +190,7 @@ theorem route_orthogonal {n e u v : ℕ} (hu : u < n) (hv : v < n) (huv : u ≠ 
   rcases ha with rfl | rfl | rfl | rfl | rfl
   · exact hus
   · exact ⟨Or.inl rfl, fun h => (ne_of_lt hut) (congrArg Prod.snd h)⟩
-  · refine ⟨Or.inr rfl, fun h => huv ?_⟩
-    exact (column_injective (congrArg Prod.fst h)).1
+  · exact ⟨Or.inr rfl, fun h => huv (column_injective (congrArg Prod.fst h)).1⟩
   · exact ⟨Or.inl rfl, fun h => (ne_of_gt hvt') (congrArg Prod.snd h)⟩
   · exact ⟨hvt.1.imp Eq.symm Eq.symm, hvt.2.symm⟩
 
@@ -285,8 +279,7 @@ theorem fan_bridge_disjoint {n e u v w : ℕ} (hw : w < n) (s t q : Fin 3) :
 /-- Distinct edge tracks give disjoint upper bridges. -/
 theorem bridge_disjoint {n e f u v a b : ℕ} (hef : e ≠ f) (s t q r : Fin 3) :
     Disjoint (bridge n e u v s t) (bridge n f a b q r) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
+  refine Set.disjoint_left.2 fun p hp hq => hef ?_
   have htrack : track n e = track n f := by
     exact_mod_cast (mem_bridge.1 hp).1.symm.trans (mem_bridge.1 hq).1
   simp only [track] at htrack

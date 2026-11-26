@@ -186,16 +186,13 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
         acc + forgetWeight wt LP ys curT ∧
       memoryCost (iterate forgetWeightStep env ys.length ⟨curB, curT, acc⟩) s ≤
         ys.length * (args.bagPLen + 2) by
-    have hrun := this LB args.bagBPtr args.mask 0 hLB hLB_lt
-    rw [hlenB] at hrun
+    have hrun := hlenB ▸ this LB args.bagBPtr args.mask 0 hLB hLB_lt
     refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _),
-      forgetWeightProg_state args s, ?_, ?_⟩
-    · unfold forgetWeightProg
-      rw [StateTransitionSpec.clientResult_bind]
-      exact hrun.2.1.trans (Nat.zero_add _)
-    · unfold forgetWeightProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hrun.2.2
+      forgetWeightProg_state args s, ?_,
+      by simpa only [forgetWeightProg, memoryCost_bind', memoryCost_pure, Nat.add_zero] using
+        hrun.2.2⟩
+    rw [forgetWeightProg, StateTransitionSpec.clientResult_bind]
+    exact hrun.2.1.trans (Nat.zero_add _)
   intro ys
   induction ys with
   | nil =>
@@ -207,9 +204,8 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
     have hu_lt : u < wtL.length := hus u List.mem_cons_self
     have hwt_lt : args.wtPtr + u < s.frontier := by have := hwt.1; omega
     have hwt_read : s.mem (args.wtPtr + u) = wt u := by
-      rw [hwt.get u hu_lt]
-      dsimp only [wt]
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hu_lt, Option.getD_some]
+      simp only [wt, hwt.get u hu_lt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hu_lt,
+        Option.getD_some]
     obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
       bagMemProg_spec (w := w) ⟨u, args.bagPPtr, args.bagPLen⟩ hLP hlenP
     let addW := if curT % 2 = 1 ∧ memBag u LP = false then wt u else 0
@@ -242,10 +238,8 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
         memoryCost_bind', memoryCost_read, hr_st, hr_res,
         memoryCost_bind', hst_bm, memoryCost_pure, Nat.add_zero]
       omega
-    have hiter_eq : iterate forgetWeightStep env (rest.length + 1) ⟨curB, curT, acc⟩ =
-        (forgetWeightStep (env, ⟨curB, curT, acc⟩) >>=
-          iterate forgetWeightStep env rest.length) := rfl
-    simp only [List.length_cons, hiter_eq]
+    simp only [List.length_cons]
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
       dsimp only [addW, forgetWeight]; omega
@@ -324,8 +318,7 @@ theorem forgetWeightProg_realizes :
   refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
     Nat.le_of_succ_le hj_le, ?_, by rwa [hst_body], ?_, ?_⟩
   · simp only [hres_body]; omega
-  · rw [hst_body, hres_body]
-    exact hrem_next
+  · rwa [hst_body, hres_body]
   · simp only [hres_body]
     exact (Nat.add_le_add_left hadd_le _).trans hacc_next_le
 

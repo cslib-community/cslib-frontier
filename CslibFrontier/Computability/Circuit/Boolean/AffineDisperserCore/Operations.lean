@@ -352,9 +352,8 @@ structure DeleteGateLocusOK (S : State cfg n) (J : ℕ) (ℓ : Lit) : Prop where
 /-- Deleting a gate decreases the size of the state by `1`. -/
 theorem deleteGate_size {S : State cfg n} {J : ℕ} {ℓ : Lit} (hJ : J ∈ S.gates) :
     (S.deleteGate J ℓ).size + 1 = S.size := by
-  have := Finset.card_erase_add_one hJ
-  simp only [SemiCircuit.size] at *
-  change (S.gates.erase J).card + S.eqns.card + 1 = _
+  have h := Finset.card_erase_add_one hJ
+  change (S.gates.erase J).card + S.eqns.card + 1 = S.gates.card + S.eqns.card
   omega
 
 /-- After deleting gate `J` with replacement `ℓ`, the children of `z` are contained in the
@@ -375,9 +374,9 @@ theorem deleteGate_children_subset {S : State cfg n} {J : ℕ} {ℓ : Lit} (z : 
 theorem deleteGate_children_of_ne {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit}
     (hJ : J ∈ S.gates) {z : ℕ} (hz : z ∈ S.params) (hzℓ : ¬ ℓ.Reads z) :
     (S.deleteGate J ℓ).children z ⊆ (S.children z).erase (.inl J) := by
-  have hzJ : z ≠ J := fun he => hS.wf.notMem_gates_of_mem_params hz (he ▸ hJ)
-  have := deleteGate_children_subset (S := S) (J := J) (ℓ := ℓ) z
-  rwa [SemiCircuit.children_subst hzJ hzℓ] at this
+  simpa only [SemiCircuit.children_subst
+    (fun he : z = J => hS.wf.notMem_gates_of_mem_params hz (he ▸ hJ)) hzℓ] using
+    deleteGate_children_subset (S := S) (J := J) (ℓ := ℓ) z
 
 /-- Deleting a gate preserves validity on admissible assignments. -/
 theorem Valid.deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit}
@@ -447,9 +446,8 @@ to `ℓ`. -/
 /-- Deleting an equation decreases the size of the state by `1`. -/
 theorem deleteEqn_size {S : State cfg n} {e v : ℕ} {ℓ : Lit} (h : S.DeleteEqnOK e v ℓ) :
     (S.deleteEqn e v ℓ).size + 1 = S.size := by
-  have := Finset.card_erase_add_one h.mem
-  simp only [SemiCircuit.size] at *
-  change S.gates.card + (S.eqns.erase e).card + 1 = _
+  have h1 := Finset.card_erase_add_one h.mem
+  change S.gates.card + (S.eqns.erase e).card + 1 = S.gates.card + S.eqns.card
   omega
 
 /-- After deleting equation `e` and auxiliary variable `v` with replacement `ℓ`, the children of
@@ -470,9 +468,9 @@ theorem deleteEqn_children_subset {S : State cfg n} {e v : ℕ} {ℓ : Lit} (z :
 theorem deleteEqn_children_of_ne {S : State cfg n} (hS : S.Valid f) {e v : ℕ} {ℓ : Lit}
     (h : S.DeleteEqnOK e v ℓ) {z : ℕ} (hz : z ∈ S.params) (hzℓ : ¬ ℓ.Reads z) :
     (S.deleteEqn e v ℓ).children z ⊆ (S.children z).erase (.inr e) := by
-  have hzv : z ≠ v := fun he => hS.wf.notMem_aux_of_mem_params hz (he ▸ h.aux)
-  have := deleteEqn_children_subset (S := S) (e := e) (v := v) (ℓ := ℓ) z
-  rwa [SemiCircuit.children_subst hzv hzℓ] at this
+  simpa only [SemiCircuit.children_subst
+    (fun he : z = v => hS.wf.notMem_aux_of_mem_params hz (he ▸ h.aux)) hzℓ] using
+    deleteEqn_children_subset (S := S) (e := e) (v := v) (ℓ := ℓ) z
 
 /-- Deleting an equation `v = ℓ` with its auxiliary variable preserves validity. -/
 theorem Valid.deleteEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} {ℓ : Lit}
@@ -614,8 +612,7 @@ theorem inl_mem_children_rewire (S : State cfg n) (J : ℕ) (g : Gate) (z K : �
 /-- Rewiring a gate preserves the equation children of every variable. -/
 theorem inr_mem_children_rewire (S : State cfg n) (J : ℕ) (g : Gate) (z e : ℕ) :
     Sum.inr e ∈ (S.rewire J g).children z ↔ Sum.inr e ∈ S.children z := by
-  simp only [SemiCircuit.inr_mem_children]
-  rfl
+  simp only [SemiCircuit.inr_mem_children]; rfl
 
 /-- Rewiring a gate preserves validity. -/
 theorem Valid.rewire {S : State cfg n} (hS : S.Valid f) {J : ℕ} {g : Gate} (h : S.RewireOK J g) :
@@ -749,13 +746,10 @@ theorem Valid.swap_W_le_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : B
               ⟨huS₁, fun hp => hup ((paired_congr (swap_pairs S x Q c T)).1 hp)⟩
             have hu0 : u ∈ S.unpaired := mem_unpaired.2 ⟨huS, hup⟩
             rw [wt_of_mem hu1, wt_of_mem hu0, SemiCircuit.deg, SemiCircuit.deg, swap_children]
-  have hs1 : S₁.s = S.s := swap_size S x Q c T
-  have hq1 : S₁.q = S.q := rfl
-  dsimp only [S₁] at hW hs1 hq1
+  dsimp only [S₁] at hW
   rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_of_mem h.mem),
-    Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_self _ _), hs1, hq1] at hW
-  have hcongr_cs := congrArg (cfg.cs * ·) hs1
-  have hcongr_cq := congrArg (cfg.cq * ·) hq1
+    Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_self _ _)] at hW
+  dsimp only [State.s, State.q, swap_size, swap_pairs] at hW ⊢
   omega
 
 end State

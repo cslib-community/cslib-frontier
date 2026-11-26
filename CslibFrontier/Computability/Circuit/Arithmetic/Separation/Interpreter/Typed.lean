@@ -138,28 +138,25 @@ theorem lett_enc_enc {enc' : γ → Tree} {f : β → List (A × γ)}
 /-- `let`, with the argument kept, typed values. -/
 theorem letk_enc (hF : Does θ F x (l.map (Prod.map id enc)) c)
     (hG : ∀ b ∈ l, Does θ G (.cons x (enc b.2)) (f b.2) d) :
-    Does θ (Interpreter.lett (.cons .id F) G) x (l.weightedBind f) (c + d + 4) := by
-  have h1 : Does θ (.cons .id F) x (l.map (Prod.map id fun b => .cons x (enc b))) (1 + c + 1) :=
-    (Does.cons (Gives.id x) hF).of_eq (by simp [Prod.map])
-  exact (lett_enc h1 hG).mono (by omega)
+    Does θ (Interpreter.lett (.cons .id F) G) x (l.weightedBind f) (c + d + 4) :=
+  (lett_enc ((Does.cons (Gives.id x) hF).of_eq
+    (Q' := l.map (Prod.map id fun b => .cons x (enc b))) (by simp [Prod.map])) hG).mono (by omega)
 
 /-- The first of two formulas has the empty value, with a weight: go on with the last one. -/
 theorem ite_nil {a : A} (hF : Does θ F x [(a, .nil)] c) (hH : Does θ H x Q d) :
     Does θ (.ite F G H) x (Q.map fun r => (a * r.1, r.2)) (c + d + 1) := by
   obtain ⟨l, e1, e2, e3⟩ := hF
   obtain ⟨l', f1, f2, f3⟩ := hH
-  have hout : ∀ r ∈ l, r.out = .nil := fun r hr => by
-    obtain ⟨-, -, q, hq, h⟩ := e2 r hr
+  have hout (r) (hr : r ∈ l) : r.out = .nil := by
+    obtain ⟨-, -, _, hq, h⟩ := e2 r hr
     exact h.symm.trans (congrArg Prod.snd (List.mem_singleton.1 hq))
-  refine ⟨_, Ev.ite (L := fun _ => l') e1 (fun r hr h => absurd (hout r hr) h) fun _ _ _ => f1,
+  refine ⟨_, Ev.ite (L := fun _ => l') e1 (fun r hr => absurd (hout r hr)) fun _ _ _ => f1,
     fun u hu => ?_, fun φ => ?_⟩
-  · simp only [List.mem_flatMap, List.mem_map] at hu
-    obtain ⟨r, hr, s, hs, rfl⟩ := hu
+  · obtain ⟨r, hr, s, hs, rfl⟩ := by simpa only [List.mem_flatMap, List.mem_map] using hu
     obtain ⟨a1, a2, -⟩ := e2 r hr
     obtain ⟨b1, b2, q, hq, b3⟩ := f2 s hs
     refine ⟨by simp [Run.seq, Run.tick, a1, b1], ?_, _, List.mem_map.2 ⟨q, hq, rfl⟩, b3⟩
-    simp only [Run.seq, Run.tick]
-    omega
+    simp only [Run.seq, Run.tick]; omega
   · have h1 : ∀ r ∈ l, ((l'.map fun s => (r.seq s).tick s.out).map fun u => u.th * φ u.out).sum =
         r.th * wsum Q φ := fun r _ => by
       rw [List.map_map, ← f3 φ, ← List.sum_map_mul_left]
@@ -203,9 +200,8 @@ private theorem foldB_does_enc {step : Fm} {f : ε → β → List (A × β)}
         rw [Fm.ofTree_code]
         exact ih (fun y ys s hy => h y ys s (List.mem_cons_of_mem _ hy)) (h2 b hb)
     rw [← List.map_weightedBind] at e2
-    refine (Does.ite_true hX.tl.tl (by simp [X, listT]) e2).mono ?_
-    simp only [List.map_cons, List.sum_cons]
-    omega
+    exact (Does.ite_true hX.tl.tl (by simp [X, listT]) e2).mono
+      (by simp only [List.map_cons, List.sum_cons]; omega)
 
 /-- A fold with a typed state over a list of typed elements. -/
 theorem foldF_does_enc {step s l : Fm} {x : Tree} {f : ε → β → List (A × β)} {cs cl : ℕ} {s₀ : β}

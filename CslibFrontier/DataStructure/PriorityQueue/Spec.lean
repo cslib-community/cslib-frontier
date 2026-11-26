@@ -376,11 +376,9 @@ theorem findMin_eq_some_iff {n : ℕ} {s : State n} {u : Fin n} {k : ℕ} :
       s u = some k ∧ ∀ v k', s v = some k' → k < k' ∨ (k = k' ∧ u.val ≤ v.val) := by
   refine ⟨fun h => ⟨findMin_eq_some_state h, findMin_le h⟩, fun ⟨hsu, hle⟩ => ?_⟩
   rcases hm : findMin s with _ | ⟨u', k'⟩
-  · have hmem : u ∈ dom s := mem_dom_iff.mpr ⟨k, hsu⟩
-    rw [findMin_eq_none_iff.mp hm] at hmem
-    exact absurd hmem (Finset.notMem_empty u)
-  · have h2 : PrioLE (u, k) (u', k') := hle u' k' (findMin_eq_some_state hm)
-    rw [PrioLE.antisymm h2 (findMin_le hm u k hsu)]
+  · exact absurd (mem_dom_iff.mpr ⟨k, hsu⟩) (findMin_eq_none_iff.mp hm ▸ Finset.notMem_empty u)
+  · rw [PrioLE.antisymm (a := (u, k)) (b := (u', k'))
+      (hle u' k' (findMin_eq_some_state hm)) (findMin_le hm u k hsu)]
 
 /-- Domain evolution of `extractMin` when `findMin s = some (u, k)`. -/
 theorem dom_extractMin {n K_max : ℕ} {s : State n} {u : Fin n} {k : ℕ}
@@ -561,9 +559,8 @@ theorem findMin_eq_none_iff {n_max : ℕ} {s : State n_max} :
   unfold findMin
   rcases hfm : IndexedMinPQ.findMin (toIndexed s) with _ | ⟨h, u⟩
   · simpa [← dom_toIndexed, ← IndexedMinPQ.findMin_eq_none_iff] using hfm
-  · have hmem : toIndexed s h = some u := (IndexedMinPQ.findMin_eq_some_iff.mp hfm).1
-    simp only [toIndexed_apply, Option.map_eq_some_iff] at hmem
-    obtain ⟨⟨_, v⟩, hsh, rfl⟩ := hmem
+  · obtain ⟨⟨_, v⟩, hsh, rfl⟩ :=
+      Option.map_eq_some_iff.mp (IndexedMinPQ.findMin_eq_some_state hfm)
     simp only [hsh, reduceCtorEq, false_iff]
     exact fun hemp => Finset.notMem_empty h (hemp ▸ mem_dom_iff.mpr ⟨_, v, hsh⟩)
 
@@ -735,19 +732,15 @@ theorem allocHandle_spec {n_max : ℕ} {s : AllocState n_max}
     let hfin : Fin n_max := ⟨s.fresh, hfr_lt⟩
     have hh_none : s.entries hfin = none := hbump hfin le_rfl
     refine ⟨hfin, [], s.fresh + 1, by simp only [allocHandle, hfl, hfr_lt, ↓reduceDIte, hfin],
-      hh_none, ?_⟩
-    dsimp only [AllocState.WellFormed]
-    refine ⟨by omega, List.nodup_nil, fun _ hm => absurd hm List.not_mem_nil,
+      hh_none, Nat.succ_le_of_lt hfr_lt, List.nodup_nil, fun _ hm => absurd hm List.not_mem_nil,
       bump_update_of_lt _ (Nat.lt_succ_self _) (fun x hx => hbump x (Nat.le_of_succ_le hx)), ?_⟩
     simpa [hfl, size_update_some_of_none hh_none] using hsum
-  · have hh_mem : h ∈ s.freeList := hfl ▸ List.mem_cons_self
-    obtain ⟨hh_lt, hh_none⟩ := hfree h hh_mem
+  · obtain ⟨hh_lt, hh_none⟩ := hfree h (hfl ▸ List.mem_cons_self)
     obtain ⟨hh_not_tl, htl_nd⟩ := List.nodup_cons.mp (hfl ▸ hnd)
-    refine ⟨h, tl, s.fresh, by simp only [allocHandle, hfl], hh_none, ?_⟩
-    dsimp only [AllocState.WellFormed]
-    refine ⟨hfr_le, htl_nd,
+    refine ⟨h, tl, s.fresh, by simp only [allocHandle, hfl], hh_none, hfr_le, htl_nd,
       free_update_of_notMem _ hh_not_tl (fun x hx => hfree x (hfl ▸ List.mem_cons_of_mem h hx)),
       bump_update_of_lt _ hh_lt hbump, ?_⟩
+    dsimp only
     rw [size_update_some_of_none hh_none]
     rw [hfl, List.length_cons] at hsum
     omega
@@ -786,12 +779,12 @@ theorem stepAlloc_refines_spec {n_max U V : ℕ} {s : AllocState n_max} (hwf : s
       have hsz_pos : 1 ≤ size s.entries :=
         Finset.card_pos.mpr ⟨h, mem_dom_iff.mpr ⟨u, v, hsh⟩⟩
       simp only [stepAlloc, hfm']
-      dsimp only [AllocState.WellFormed]
       refine ⟨Or.inr ⟨h, u, v, hmin, rfl, rfl⟩,
         hfr_le, List.nodup_cons.mpr ⟨hh_not_free, hnd⟩,
         List.forall_mem_cons.mpr ⟨⟨hh_lt, Function.update_self _ _ _⟩,
           free_update_of_notMem _ hh_not_free hfree⟩,
         bump_update_of_lt _ hh_lt hbump, ?_⟩
+      dsimp only
       rw [size_update_none_of_some hsh, List.length_cons]
       omega
 

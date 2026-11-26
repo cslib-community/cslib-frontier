@@ -626,15 +626,11 @@ private theorem callBounded_blsDecodedForger (P : DecodablePairingGroupFamily) (
       (fun q => OracleComp.query (Sum.inr q))
   have hroute (cost : List Bool ⊕ List Bool → ℕ) (q : List Bool ⊕ List Bool) :
       OracleComp.IsCostBounded cost (route q) (cost q) := by
-    cases q with
-    | inl msg =>
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    | inr q => exact OracleComp.IsCostBounded.query _
-  constructor
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (OracleComp.IsCostBounded.interpret (hroute signingCost) (hA (P.G₁.encode d u) s).1)
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (OracleComp.IsCostBounded.interpret (hroute hashCost) (hA (P.G₁.encode d u) s).2)
+    cases q
+    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (.query _)
+    · exact .query _
+  exact ⟨(OracleComp.isCostBounded_map_iff _ _ _).mpr (.interpret (hroute _) (hA _ s).1),
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr (.interpret (hroute _) (hA _ s).2)⟩
 
 private theorem interpret_handler_blsNative_eq_decoded (P : DecodablePairingGroupFamily)
     (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)]
@@ -727,9 +723,8 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
     split_ifs with hwin1 hwin2 hwin2'
     · exact le_rfl
     · exfalso
-      have hwin' := hwin1.symm
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin'
-      obtain ⟨⟨helem, hpair⟩, hfresh⟩ := hwin'
+      simp only [eq_comm (a := true), Bool.and_eq_true, decide_eq_true_eq] at hwin1
+      obtain ⟨⟨helem, hpair⟩, hfresh⟩ := hwin1
       obtain ⟨σ', hdec, hσ⟩ := P.toDecodableG₀.exists_decode_eq_some_of_isElem helem
       let σ : P.G₀.Carrier d := σ'
       have hσ' : P.G₀.encode d σ = forged.1.2 := hσ
@@ -883,22 +878,18 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
       rw [hstepW, hrep, hisSome, hid, hid]
       cases hfl : tabT.lookup word with
       | some entry =>
-        rcases entry with ⟨⟨cT, ρT⟩, idxT⟩
-        have hsT : sT = (cT, ρT) := by simp only [sT, hfl, Option.map_some, Option.getD_some]
-        simp only [Option.isSome_some, ↓reduceIte, Bool.not_false, Bool.true_and, hc, hsT]
-        cases cT <;>
-          (simp only [Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
-           exact ih _ tabW tabT _ (count + 1) htab)
+        simp only [sT, hfl, Option.map_some, Option.getD_some, Option.isSome_some, ↓reduceIte,
+          Bool.not_false, Bool.true_and, hc]
+        cases entry.1.1 <;> simp only [Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
+        all_goals exact ih _ tabW tabT _ (count + 1) htab
       | none =>
-        have hsT : sT = samplesT.getD count (false, 0) := by
-          simp only [sT, hfl, Option.map_none, Option.getD_none]
-        simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte, Bool.not_false,
-          Bool.true_and, hc, hsT]
-        rw [hc, hsT] at htab_cons
-        cases hc' : (samplesT.getD count (false, 0)).1 <;>
-          (simp only [hc', Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
-             at htab_cons ⊢
-           exact ih _ _ _ _ (count + 1) htab_cons)
+        simp only [sT, samplesT, hfl, Option.map_none, Option.getD_none, Option.isSome_none,
+          Bool.false_eq_true, ↓reduceIte, Bool.not_false, Bool.true_and, hc] at htab_cons ⊢
+        cases hc' : ((samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD count
+          (false, 0)).1 <;>
+          simp only [hc', Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
+            at htab_cons ⊢
+        all_goals exact ih _ _ _ _ (count + 1) htab_cons
     | true =>
       have hrep : blsBankReplyWord P.toPairingGroupFamily d (P.G₀.encode d u₀) (P.G₀.encode d v₀)
           true sW = P.G₀.encode d (P.toPairingGroupFamily.coronSampleElem d v₀ sT) := by
@@ -913,15 +904,13 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
       rw [hstepW, hrep, hisSome, hid, hid]
       cases hfl : tabT.lookup word with
       | some entry =>
-        simp only [Option.isSome_some, ↓reduceIte, Bool.not_true, Bool.false_and, Bool.or_false,
-          show sT = entry.1 by simp only [sT, hfl, Option.map_some, Option.getD_some]]
+        simp only [sT, hfl, Option.map_some, Option.getD_some, Option.isSome_some, ↓reduceIte,
+          Bool.not_true, Bool.false_and, Bool.or_false]
         exact ih _ tabW tabT aborted (count + 1) htab
       | none =>
-        have hsT : sT = samplesT.getD count (false, 0) := by
-          simp only [sT, hfl, Option.map_none, Option.getD_none]
-        simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte, Bool.not_true,
-          Bool.false_and, Bool.or_false, hsT]
-        rw [hsT] at htab_cons
+        simp only [sT, hfl, Option.map_none, Option.getD_none, Option.isSome_none,
+          Bool.false_eq_true, ↓reduceIte, Bool.not_true, Bool.false_and, Bool.or_false]
+          at htab_cons ⊢
         exact ih _ _ _ aborted (count + 1) htab_cons
 
 private theorem blsWordBankFinish_eq
@@ -987,14 +976,10 @@ private theorem runWith_pure_interpret_rawWordSpec {Store α : Type}
         (OracleComp.interpret (fun req => ProbOracleComp.query req) prog) st =
       PMF.pure ((OracleComp.interpret handler prog).run st) := by
   induction prog using OracleComp.induction generalizing st with
-  | pure a =>
-    simp only [OracleComp.interpret_pure, ProbOracleComp.runWith_pure]
-    rfl
+  | pure a => rfl
   | query_bind q cont ih =>
-    rw [show PFunctor.FreeM.bind (OracleComp.query (spec := RawWordSpec) q) cont =
-      (OracleComp.query (spec := RawWordSpec) q >>= cont) from rfl]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, ProbOracleComp.runWith_bind,
-      ProbOracleComp.runWith_query, PMF.pure_bind, StateT.run_bind]
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind, OracleComp.interpret_query,
+      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, PMF.pure_bind, StateT.run_bind]
     exact ih _ _
 
 private theorem coCdhExperiment_blsBanked_det

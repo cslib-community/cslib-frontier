@@ -152,13 +152,11 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
   intro ys
   induction ys with
   | nil =>
-    intro cur ok _ hok
-    refine ⟨validHistory_pure w s _, ?_, by simp [iterate, memoryCost_pure]⟩
-    rcases hok with rfl | rfl <;> rfl
+    rintro cur _ _ (rfl | rfl) <;>
+      exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
   | cons u rest ih =>
     intro cur ok hcur hok
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, hmem_u, hrest⟩ := hcur
+    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     have hlt : cur < s.frontier := by omega
     obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
       bagMemProg_spec (w := w) ⟨u, args.bagPtr, args.bagLen⟩ hbag hbag_len
@@ -190,9 +188,7 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
       refine if_congr ?_ rfl rfl
       dsimp only [ok']
       rw [memBag_eq_decide]
-      rcases hok with rfl | rfl
-      · simp
-      · by_cases hu : u ∈ bagL <;> simp [hu]
+      rcases hok with rfl | rfl <;> by_cases hu : u ∈ bagL <;> simp [hu]
     · rw [memoryCost_bind', hst_step, hres_step', Nat.succ_mul, Nat.add_comm _ stepCost]
       exact Nat.add_le_add hc_step hc_rem
 
@@ -372,14 +368,12 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
   induction ys with
   | nil =>
     intro srcCur written skipped t _ _ hfr hpres _ hwr hsk hconcat
-    have hwr_eq : written = xs.erase args.target := by
+    obtain rfl : written = xs.erase args.target := by
       rcases hsk with rfl | rfl <;> simpa using hconcat
-    rw [hwr_eq] at hwr
     exact ⟨validHistory_pure w t _, ⟨hfr, hpres, hwr⟩, by simp [iterate, memoryCost_pure]⟩
   | cons x rest ih =>
     intro srcCur written skipped t hfit_ys hsrc_end hfr hpres hys hwr hsk hconcat
-    rw [HoldsIn.cons_iff] at hys
-    obtain ⟨_, hmem_x, hrest⟩ := hys
+    obtain ⟨_, hmem_x, hrest⟩ := HoldsIn.cons_iff.mp hys
     have hsrc_lt : srcCur < t.frontier := by simp only [List.length_cons] at hsrc_end; omega
     have hx_fit : Fits w (t.mem srcCur) := hmem_x ▸ hfit_ys x List.mem_cons_self
     have hfit_rest : ∀ u ∈ rest, Fits w u := fun u hu => hfit_ys u (List.mem_cons_of_mem _ hu)
@@ -407,8 +401,7 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
           (if skipped = 1 then x :: rest else (x :: rest).erase args.target) =
             x :: (if skipped = 1 then rest else rest.erase args.target) := by
         rcases hsk with rfl | rfl
-        · have hne : x ≠ args.target := fun hx => hskip_cond ⟨rfl, hx⟩
-          simp [beq_eq_false_iff_ne.2 hne]
+        · simp [beq_eq_false_iff_ne.2 fun hx => hskip_cond ⟨rfl, hx⟩]
         · simp
       have hlen_sum : written.length + 1 +
           (if skipped = 1 then rest else rest.erase args.target).length = bagLen := by
@@ -494,8 +487,7 @@ theorem eraseBagProg_realizes :
       rw [List.drop_eq_getElem_cons hidx_lt]
       congr 2
       omega
-    rw [hdrop_cons, HoldsIn.cons_iff] at hdrop_t
-    obtain ⟨_, hmem_cur, hrest_t⟩ := hdrop_t
+    obtain ⟨_, hmem_cur, hrest_t⟩ := HoldsIn.cons_iff.mp (hdrop_cons ▸ hdrop_t)
     have hx_fit : Fits w (t.mem st.srcCur) := hmem_cur ▸ hfit_elems _ (List.getElem_mem hidx_lt)
     have hfit_src1 : Fits w (st.srcCur + 1) := hfit_fr.of_le (by omega)
     have hfit_dst : Fits w st.dstCur := hfit_fr.of_le (by omega)

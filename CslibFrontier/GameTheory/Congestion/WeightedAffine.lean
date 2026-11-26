@@ -117,11 +117,9 @@ namespace WeightedCongestionGame
 /-! ### Golden-ratio smoothness algebra -/
 
 private lemma sqrt_five_bounds : 2 < Real.sqrt 5 ∧ Real.sqrt 5 < 3 := by
-  constructor
-  · rw [← Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 2)]
-    exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)
-  · rw [← Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 3)]
-    exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)
+  refine ⟨Real.lt_sqrt_of_sq_lt (by norm_num), ?_⟩
+  rw [Real.sqrt_lt' (by norm_num)]
+  norm_num
 
 /-- Real smoothness inequality underlying Awerbuch–Azar–Epstein's `(3 + √5) / 2` bound:
 `x² + x y ≤ (5 + √5) / 4 * x² + (√5 - 1) / 4 * y²` for all real numbers `x` and `y`, with equality
@@ -186,8 +184,7 @@ theorem unitCost_le_of_isPureNash {a b : E → ℝ} (ha : ∀ e, 0 ≤ a e)
     (hs : W.toCostGame.IsPureNash s) {i : ι} (hi : 0 < W.weight i) (a' : S i) :
     ∑ e ∈ W.resources i (s i), (a e * W.load s e + b e) ≤
       ∑ e ∈ W.resources i a', (a e * (W.load s e + W.weight i) + b e) := by
-  have hcost := hs i a'
-  simp only [toCostGame_cost, mul_le_mul_iff_right₀ hi] at hcost
+  have hcost := (mul_le_mul_iff_right₀ hi).mp (hs i a')
   simpa only [unitCost, hl] using hcost.trans (W.unitCost_update_le ha hl hi.le a')
 
 omit [DecidableEq ι] in
@@ -220,7 +217,7 @@ theorem sum_cost_update_le_socialCost_add [Fintype E] {a b : E → ℝ} (ha : �
     have h1 (i : ι) : (∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2) =
         ∑ e : E, if e ∈ W.resources i (s' i) then a e * W.weight i ^ 2 else 0 := by
       rw [Finset.sum_ite_mem, Finset.univ_inter]
-    simp only [h1]
+    simp_rw [h1]
     rw [Finset.sum_comm]
     exact Finset.sum_congr rfl fun e _ => by rw [← Finset.sum_filter, Finset.mul_sum]
   calc ∑ i, W.toCostGame.cost i (Function.update s i (s' i))
@@ -392,12 +389,10 @@ theorem aaeTriangleGame_weighted_golden :
     simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
     norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
     ring
-  refine ⟨fun i a => ?_, ?_, ?_⟩
+  refine ⟨fun i a => ?_, htrue ▸ by positivity, ?_⟩
   · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
       norm_num [aaeTriangleGame, aaeTrianglePaths, Function.update, Fin.isValue] <;>
       nlinarith [hφ_sq, hφ_pos]
-  · rw [htrue]
-    positivity
   · calc (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => false)
       _ = 2 * φ * (φ + (φ + 1)) + 2 * (φ + 1) := by
             simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
@@ -447,15 +442,13 @@ theorem exists_three_player_socialCost_eq_golden_mul :
     simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]
     norm_num [W, threePlayerGoldenPaths, Fin.isValue]
     ring
-  refine ⟨W, fun _ => false, fun _ => true, ?_, ?_, fun i a => ?_, ?_, ?_⟩
-  · exact ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun _ x => by simp [W]⟩
-  · intro i
-    fin_cases i <;> simp [W, hφ_pos]
+  refine ⟨W, fun _ => false, fun _ => true,
+    ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun _ x => by simp [W]⟩,
+    fun i => by fin_cases i <;> simp [W, hφ_pos], fun i a => ?_,
+    htrue ▸ by positivity, ?_⟩
   · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, hload] <;>
       norm_num [W, threePlayerGoldenPaths, Function.update, Fin.isValue] <;>
       nlinarith [hφ_sq, hφ_pos]
-  · rw [htrue]
-    positivity
   · calc W.toCostGame.socialCost (fun _ => false)
       _ = 2 * (1 + φ) + 2 * φ * (φ + (1 + φ)) := by
             simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]

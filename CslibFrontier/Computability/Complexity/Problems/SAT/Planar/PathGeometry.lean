@@ -239,10 +239,8 @@ theorem pathMidpoints_nodup {φ : CNF ℕ}
     obtain ⟨r, hr, he⟩ := List.mem_flatMap.mp he
     obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
     exact paths_step_unit hi he
-  have hp : (steps.flatMap stepPorts).Nodup := by
-    have h := pathPorts_nodup hw hv
-    change ((paths φ).flatMap fun r => r.consecutivePairs.flatMap stepPorts).Nodup at h
-    simpa only [steps, List.flatMap_assoc] using h
+  have hp : (steps.flatMap stepPorts).Nodup := List.flatMap_assoc.symm ▸
+    (pathPorts_nodup hw hv : ((paths φ).flatMap (·.consecutivePairs.flatMap stepPorts)).Nodup)
   rw [← List.map_flatMap, List.Nodup, List.pairwise_map]
   refine (List.nodup_flatMap.mp hp).2.imp_of_mem fun {e f} he hf hd heq => ?_
   have hx : (e.1, side e.1 e.2) ∈ stepPorts e := by simp [stepPorts]
@@ -254,21 +252,16 @@ theorem pathMidpoints_nodup {φ : CNF ℕ}
 theorem center_injective : Function.Injective center := by
   intro p q h
   have hp := center_mem_openCell (r := 120) (by decide) p
-  have hq := center_mem_openCell (r := 120) (by decide) q
-  change realPoint (center p) ∈ openCell 120 p at hp
-  change realPoint (center q) ∈ openCell 120 q at hq
-  rw [← h] at hq
-  exact cell_eq_of_mem_open_closed (by decide) hp
-    ⟨hq.1.le, hq.2.1.le, hq.2.2.1.le, hq.2.2.2.le⟩
+  have hq : realPoint (center p) ∈ openCell 120 q :=
+    h ▸ center_mem_openCell (r := 120) (by decide) q
+  exact cell_eq_of_mem_open_closed (by decide) hp ⟨hq.1.le, hq.2.1.le, hq.2.2.1.le, hq.2.2.2.le⟩
 
 /-- Original clause cells are declared source centers and are never selected as crossings. -/
 theorem clause_cell_not_mem_crossingSites (φ : CNF ℕ) {i : ℕ} (hi : i < φ.length) :
     Layout.center (φ.distinctVars.length + i) ∉ crossingSites φ := by
   intro h
-  apply ((mem_crossingSites φ _).mp h).2.1
-  refine List.mem_map.mpr ⟨φ.distinctVars.length + i, List.mem_range.mpr ?_, rfl⟩
-  simp only [SAT.incidenceGraph, List.length_range]
-  omega
+  exact ((mem_crossingSites φ _).mp h).2.1 (List.mem_map.mpr
+    ⟨_, List.mem_range.mpr (by simp only [SAT.incidenceGraph, List.length_range]; omega), rfl⟩)
 
 private theorem occurrencePath_clause_center_iff {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) {i : ℕ} (hi : i < φ.length) :
@@ -296,11 +289,9 @@ theorem clause_cell_not_mem_path_dropLast {φ : CNF ℕ} {o : Occurrence ℕ}
   have hlen := occurrencePath_length_ge_two ho
   have hend := (occurrencePath_endpoints ho).2
   rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hend
-  have heq : (occurrencePath φ o)[k]'(by simp only [List.length_dropLast] at hk; omega) =
-      (occurrencePath φ o)[(occurrencePath φ o).length - 1] := by
-    rw [Option.some.inj hend]
-    simpa only [List.getElem_dropLast] using hget
   simp only [List.length_dropLast] at hk
+  have heq : (occurrencePath φ o)[k] = (occurrencePath φ o)[(occurrencePath φ o).length - 1] :=
+    (List.getElem_dropLast ..).symm.trans (hget.trans (Option.some.inj hend).symm)
   have := (occurrencePath_nodup ho).eq_of_getElem_eq (by omega) (by omega) heq
   omega
 

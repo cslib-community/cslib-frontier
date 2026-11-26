@@ -146,9 +146,8 @@ private theorem isBoundedComp_coinStep_bind {t i n : ℕ} {cfg : FiniteConfig k 
         ((hbuf op).trans hit)
         (fun y => by simp only [List.take_take, min_self])
         (fun y => hcont _ fun op' => ?_)
-      by_cases heq : op' = op
-      · subst heq
-        simp [FiniteConfig.receive]
+      rcases eq_or_ne op' op with rfl | heq
+      · simp [FiniteConfig.receive]
       · simpa [FiniteConfig.receive, heq] using (hbuf op').trans (Nat.le_succ i)
 
 /-- Folding `coinStep M t` over a list of coins `r` produces a bounded query program. -/
@@ -246,9 +245,8 @@ private theorem mapM_lookup_eq [BEq α] [LawfulBEq α] (f : α → PMF β) (quer
     simp only [List.mapM_cons, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure, PMF.bind_map, PMF.map_bind, PMF.pure_map,
       Function.comp_def]
-    by_cases hma : m = a
-    · subst hma
-      simp only [List.lookup, beq_self_eq_true, PMF.bind_const]
+    rcases eq_or_ne m a with rfl | hma
+    · simp only [List.lookup, beq_self_eq_true, PMF.bind_const]
       rfl
     · simp only [List.lookup, beq_false_of_ne hma, PMF.bind_const]
       exact ih (List.mem_of_ne_of_mem hma hm)
@@ -307,18 +305,14 @@ private theorem listPiPMF_extract [DecidableEq ι] (default : α) (μ : ι → P
   | nil => cases hi₀
   | cons i rest ih =>
     obtain ⟨_, hl_rest⟩ := List.nodup_cons.mp hl
-    by_cases h : i₀ = i
-    · subst h
-      simp [listPiPMF]
-    · have herase : (i :: rest).erase i₀ = i :: rest.erase i₀ := by simp [Ne.symm h]
-      rw [herase, listPiPMF, ih hl_rest (List.mem_of_ne_of_mem h hi₀)]
+    rcases eq_or_ne i₀ i with rfl | h
+    · simp [listPiPMF]
+    · rw [List.erase_cons_tail (not_beq_of_ne h.symm), listPiPMF,
+        ih hl_rest (List.mem_of_ne_of_mem h hi₀)]
       simp only [listPiPMF, Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.map_comp,
         Function.comp_def]
-      rw [PMF.bind_comm]
-      congr 1 with a₀ : 1
-      congr 1 with a : 1
-      congr 1 with f : 1
-      exact Function.update_comm h a₀ a f
+      exact (PMF.bind_comm _ _ _).trans (congrArg _ (funext fun a₀ => congrArg _ (funext fun a =>
+        congrArg (PMF.map · _) (funext (Function.update_comm (β := fun _ => α) h a₀ a)))))
 
 /-- Presample an independent tuple of `Sigma TreeStrategy` across all channels `i : ι`. -/
 private noncomputable def piPresample [Fintype ι] [DecidableEq ι] (P : ι → Prover Unit) (L : ℕ)

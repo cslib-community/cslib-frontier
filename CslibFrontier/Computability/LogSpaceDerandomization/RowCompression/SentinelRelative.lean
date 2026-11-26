@@ -177,22 +177,18 @@ private theorem sentinel_reference_bounds {s : Finset ι} {K : ℕ} {η L₀ z :
   classical
   intro marked b
   have hL₀0 : 0 ≤ L₀ := hη.trans hL₀
-  have hshape : (∀ y ∈ s, -η ≤ b.row y 0) ∧ (∀ y ∈ s, |b.row y 1| ≤ η) := by
-    constructor
-    · intro y hy
-      change -η ≤ sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 0
-      by_cases hm : y ∈ marked
-      · rw [sentinelFirst_zero_of_mem hm]
-        linarith
-      · rw [sentinelFirst_of_not_mem hm]
-        have hl := (abs_le.mp (hloss y hy 0)).1
-        change -η ≤ truth y 0 + loss y 0
-        linarith [hfirst y hy]
-    · intro y hy
-      change |sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 1| ≤ η
-      rw [sentinelFirst_one]
-      exact (abs_add_le _ _).trans (by linarith [hsecond y hy, hloss y hy 1])
-  refine ⟨hshape.1, hshape.2, max_le (by change z ≤ 2 * L₀; linarith) ?_⟩
+  refine ⟨fun y hy => ?_, fun y hy => ?_, max_le (hz.trans (by linarith)) ?_⟩
+  · change -η ≤ sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 0
+    by_cases hm : y ∈ marked
+    · rw [sentinelFirst_zero_of_mem hm]
+      linarith
+    · rw [sentinelFirst_of_not_mem hm]
+      have hl := (abs_le.mp (hloss y hy 0)).1
+      change -η ≤ truth y 0 + loss y 0
+      linarith [hfirst y hy]
+  · change |sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 1| ≤ η
+    rw [sentinelFirst_one]
+    exact (abs_add_le _ _).trans (by linarith [hsecond y hy, hloss y hy 1])
   by_contra hq
   have hcard := (lt_kthLargest_iff hK (by positivity : 0 ≤ 2 * L₀)).mp (lt_of_not_ge hq)
   have hsub : ({y ∈ s | 2 * L₀ < b.row y 0} : Finset ι) ⊆
@@ -343,9 +339,7 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
   have hsmall' : c * prefixErrorBudget ε m ≤ 1 / 8 := hsmall
   have hE : prefixErrorBudget ε m ≤ 1 / 8 :=
     (le_mul_of_one_le_left (prefixErrorBudget_nonneg hε) hc1).trans hsmall'
-  have hεlt (i : ℕ) (hi : i ≤ m) : ε i < 1 := by
-    have h := (le_prefixErrorBudget hε hi).trans hE
-    linarith
+  have hεlt (i : ℕ) (hi : i ≤ m) : ε i < 1 := by linarith [(le_prefixErrorBudget hε hi).trans hE]
   have hreference := sentinel_reference_bounds hη hL₀ hK hzη hfirst hsecond hloss hcount
   obtain ⟨hΔbound, hstates⟩ := iterate_sentinelState_stability_of_clippedError_le
     (ρ := ρ) (z := z) (loss := loss) (L := L) m (by dsimp only [L]; positivity) hK
@@ -376,10 +370,9 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
       reference_iterate_firstRank_le hη (by linarith) hK hreference.1 hreference.2.1
         hreference.2.2 i (fun k hk => hKn k (hk.trans hi)) (fun k hk => hρ k (hk.trans hi))
     have huref : threshold s (n i) (ρ i) (B i).defaultValue (B i).row ≤ 2 * L₀ := by
-      have h := reference_stepThreshold_le hη (by linarith) hK hreference.1 hreference.2.1
-        hreference.2.2 i (fun k hk => hKn k (hk.trans_lt hi))
-        (fun k hk => hρ k (hk.trans_lt hi))
-      simpa only [stepThreshold, inputRow, add_zero] using h
+      simpa only [stepThreshold, inputRow, add_zero] using reference_stepThreshold_le hη
+        (by linarith) hK hreference.1 hreference.2.1 hreference.2.2 i
+        (fun k hk => hKn k (hk.trans_lt hi)) (fun k hk => hρ k (hk.trans_lt hi))
     have hqdiff : |firstRank s K (modified i).defaultValue
         (inputRow s n (fun _ => K) ρ Δ' a' i) -
           firstRank s K (B i).defaultValue (B i).row| ≤ D :=
@@ -408,11 +401,8 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
       have hi := mem_range.mp hi
       exact (abs_increment_le_of_clippedError_le (truth := truth y) (hfirst y hys)
         (hεlt i hi.le) (hεlt (i + 1) hi) (herr i hi.le y hys) (herr (i + 1) hi y hys)).1
-    have he : (1 + truth y 0) * (ε 0 + ∑ i ∈ range m, (ε i + ε (i + 1))) ≤
-        (1 + truth y 0) / 8 := by
-      have h := mul_le_mul_of_nonneg_left ((sum_add_le_prefixErrorBudget hε).trans hE)
-        (by linarith [hfirst y hys] : 0 ≤ 1 + truth y 0)
-      linarith
+    have he := mul_le_mul_of_nonneg_left ((sum_add_le_prefixErrorBudget hε).trans hE)
+      (by linarith [hfirst y hys] : 0 ≤ 1 + truth y 0)
     change 3 * R + ∑ i ∈ range m, |Δ i y 0| < raw₀ y 0 + loss y 0
     dsimp only [L] at hd
     dsimp only [R]

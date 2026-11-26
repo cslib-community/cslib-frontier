@@ -166,8 +166,7 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   have hv_top (x : X) : v x ≠ ⊤ := ne_top_of_le_ne_top hV (le_tsum v x)
   have hUV0 : U / V ≠ 0 := ENNReal.div_ne_zero.mpr ⟨hU0, hV⟩
   have hUV_top : U / V ≠ ⊤ := ENNReal.div_ne_top hU hV0
-  set R : ℝ := (U / V).toReal
-  have hR : 0 < R := by dsimp only [R]; ennreal_to_real using pos_iff_ne_zero.mpr hUV0
+  have hR : 0 < U.toReal / V.toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hUV0
   have hUV_rpow_t : (U / V) ^ t ≠ ⊤ := ENNReal.rpow_ne_top_of_nonneg ht.le hUV_top
   have hUV_rpow_α : (U / V) ^ α ≠ ⊤ := ENNReal.rpow_ne_top_of_nonneg hα0.le hUV_top
   have hpt (x : X) :
@@ -183,12 +182,7 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
     have hb : 0 < (v x).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hvx0
     have huv_rpow : (u x / v x) ^ t ≠ ⊤ :=
       ENNReal.rpow_ne_top_of_nonneg ht.le (ENNReal.div_ne_top hux_top hvx0)
-    have hyoung : (u x).toReal * ((U / V).toReal) ^ t ≤
-        1 / α * ((u x).toReal * ((u x).toReal / (v x).toReal) ^ t) +
-          t / α * ((v x).toReal * ((U / V).toReal) ^ α) := young_mul_rpow hα ha hb hR
-    ennreal_to_real
-    ennreal_to_real at hyoung
-    exact hyoung
+    ennreal_to_real using young_mul_rpow hα ha hb hR
   have hsum_ineq :
       U * (U / V) ^ t ≤
         ENNReal.ofReal (1 / α) * M + ENNReal.ofReal (t / α) * (V * (U / V) ^ α) := by
@@ -371,8 +365,8 @@ theorem renyiDiv_bind_pair_le {α : ℝ} (hα : 1 < α) (p q : PMF X) {K L : X �
         refine tsum_le_tsum fun x => ?_
         classical
         by_cases hx : x ∈ p.support
-        · refine mul_le_mul_right ?_ _
-          exact (renyiDiv_le_ofReal_iff hα (K x) (L x) hε₂_nn).mp (hB_eq ▸ hKL x hx)
+        · exact mul_le_mul_right
+            ((renyiDiv_le_ofReal_iff hα (K x) (L x) hε₂_nn).mp (hB_eq ▸ hKL x hx)) _
         · rw [(p.apply_eq_zero_iff x).mpr hx, zero_mul, zero_mul, zero_mul]
     _ = renyiMoment α p q * ENNReal.ofReal (Real.exp ((α - 1) * ε₂)) := by
         rw [ENNReal.tsum_mul_right, renyiMoment]

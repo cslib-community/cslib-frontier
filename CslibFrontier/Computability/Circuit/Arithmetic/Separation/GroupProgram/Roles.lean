@@ -153,10 +153,9 @@ private theorem streamF_does {ub : ℕ} {t : Tree} (ht : StoreBound ub t) (es : 
       by_cases h : (tget k t).path = []
       · rw [h] at g
         exact ((Does.ite_false g (Does.fail y)).of_eq (by simp [h])).mono (by omega)
-      · refine ((Does.ite_true g (by cases e : (tget k t).path <;> simp_all [ofBits])
+      · exact ((Does.ite_true g (by cases e : (tget k t).path <;> simp_all [ofBits])
           ((Gives.id y).tl.hd.cons (appF_gives_ofBits g (Gives.id y).tl.tl))).of_eq
-          (by simp [h, y])).mono ?_
-        omega) trivial
+          (by simp [h, y])).mono (by omega)) trivial
   rw [List.weightedFoldl_ite (fun k => (tget k t).path ≠ []) (fun k acc => (tget k t).path ++ acc),
     foldl_append_flatMap, List.append_nil] at h1
   have h2 := Does.lett_enc_enc (G := .tl .id) (f := fun acc => [((1 : A), acc)]) (enc' := ofBits)
@@ -210,9 +209,7 @@ private theorem streamsF_does {ub : ℕ} {t : Tree} (ht : StoreBound ub t)
     (g := fun es => 400 * ((es.map fun k => ub + k.length + 1).sum + 1)) fun k _ => by omega
   have h4 := List.length_le_sum_of_one_le (slots.map fun es =>
     (es.map fun k => ub + k.length + 1).sum + 1) (by simp)
-  rw [List.sum_map_mul_left] at h3
-  rw [List.length_map] at h4
-  simp only [putCost]
+  simp only [List.sum_map_mul_left, List.length_map, putCost] at h3 h4 ⊢
   omega
 
 /-! ### The number of steps and the end -/
@@ -233,11 +230,11 @@ private theorem yardF_gives (ub tt : ℕ) (t y : Tree) :
     (x := .cons (num ub) (.cons t (.cons (num tt) y))) ((Gives.id _).hd.cons (Gives.quote _ _))
     (by simpa [← num_eq_listT_replicate] using hy) (fun _ _ k _ _ => by
       have ga : Gives θ (.hd (.tl .id)) (.cons .nil (.cons (num ub) (num k)))
-          (listT (List.replicate ub .nil)) 3 := by
-        rw [← num_eq_listT_replicate]; exact (Gives.id _).tl.hd
+          (listT (List.replicate ub .nil)) 3 :=
+        num_eq_listT_replicate ub ▸ (Gives.id _).tl.hd
       have gb : Gives θ (.tl (.tl .id)) (.cons .nil (.cons (num ub) (num k)))
-          (listT (List.replicate k .nil)) 3 := by
-        rw [← num_eq_listT_replicate]; exact (Gives.id _).tl.tl
+          (listT (List.replicate k .nil)) 3 :=
+        num_eq_listT_replicate k ▸ (Gives.id _).tl.tl
       have g := appF_gives ga gb
       rw [← List.replicate_add, ← num_eq_listT_replicate, List.length_replicate] at g
       exact ⟨((Gives.id _).tl.hd.cons g).mono (by omega), trivial⟩) trivial
@@ -270,8 +267,7 @@ private theorem endF_gives {nC nI nO m : ℕ} (ub : ℕ) (t y sl ks : Tree)
         (listT_ofBits (s.outputs j) ▸ (Gives.id (.cons .nil (listT ((s.outputs j).map bit)))).tl)
       rw [listT_ofBits, path_ofBits]
       exact this.mono (by have := hm j; omega)
-  simp only [List.map_ofFn, Function.comp_def, listT_ofBits, path_ofBits] at h
-  simp only [wordsEnc, List.map_ofFn, Function.comp_def]
+  simp only [wordsEnc, List.map_ofFn, Function.comp_def, listT_ofBits, path_ofBits] at h ⊢
   refine ((Gives.id _).hd.hd.cons ((Gives.id _).hd.tl.tl.tl.tl.cons (h.cons
     (Gives.id _).hd.tl.hd))).mono ?_
   simp only [List.ofFn_const, List.sum_replicate, smul_eq_mul]

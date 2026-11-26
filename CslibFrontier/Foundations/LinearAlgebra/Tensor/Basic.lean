@@ -204,8 +204,7 @@ summand. -/
 theorem swap23_slSum [Zero R] {ι : Type*} [DecidableEq ι] (G : ι → Tensor R X Y Z) :
     swap23 (slSum G) = slSum fun i => swap23 (G i) := by
   ext x ⟨i, z⟩ ⟨j, y⟩
-  simp only [swap23_apply, slSum_apply]
-  grind
+  grind [swap23_apply, slSum_apply]
 
 /-- The unit tensor `⟨n⟩`: `n` independent scalar multiplications. -/
 def unit [Zero R] [One R] (n : ℕ) : Tensor R (Fin n) (Fin n) (Fin n) :=
@@ -230,8 +229,7 @@ def mm [Zero R] [One R] (p q r : ℕ) :
 theorem dsum_const [MulZeroOneClass R] (n : ℕ) (T : Tensor R X Y Z) :
     dsum (fun _ : Fin n => T) = tprod (unit n) T := by
   ext
-  simp only [dsum_apply, tprod_apply, unit_apply]
-  split_ifs <;> simp
+  simp only [dsum_apply, tprod_apply, unit_apply, ite_mul, one_mul, zero_mul]
 
 end Structural
 
@@ -354,8 +352,7 @@ theorem swap12_restrict [Fintype X'] [Fintype Y'] [Fintype Z'] (α : Matrix X' X
     (β : Matrix Y' Y R) (γ : Matrix Z Z' R) (S : Tensor R X' Y' Z') :
     swap12 (restrict α β γ S) = restrict β α γ (swap12 S) := by
   funext
-  simp only [swap12_apply, restrict]
-  rw [Finset.sum_comm]
+  simp only [swap12_apply, restrict, Finset.sum_comm (γ := Y') (α := X')]
   exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
     Finset.sum_congr rfl fun _ _ => by ring
 
@@ -569,9 +566,8 @@ theorem isRestriction_dsum_comp {ι κ : Type*} [Fintype ι] [DecidableEq ι] [D
     (he : Function.Injective e) : IsRestriction (dsum (G ∘ e)) (dsum G) := by
   classical
   refine ⟨incl (Prod.map e id), incl (Prod.map e id), (incl (Prod.map e id))ᵀ, ?_⟩
-  rw [restrict_incl]
   ext ⟨a, x⟩ ⟨b, y⟩ ⟨c, z⟩
-  simp [he.eq_iff]
+  simp [restrict_incl, he.eq_iff]
 
 /-- Deleting and reordering summands of a shared-left sum is a restriction with the identity on
 the left leg. -/
@@ -579,9 +575,8 @@ theorem slSum_comp_eq_restrict {ι κ : Type*} [Fintype ι] [DecidableEq ι] [De
     [Fintype X] [Fintype Y] [Fintype Z] [DecidableEq X] [DecidableEq Y] [DecidableEq Z]
     (G : ι → Tensor R X Y Z) (e : κ → ι) (he : Function.Injective e) :
     restrict 1 (incl (Prod.map e id)) (incl (Prod.map e id))ᵀ (slSum G) = slSum (G ∘ e) := by
-  rw [← incl_id, restrict_incl]
   ext x ⟨b, y⟩ ⟨c, z⟩
-  simp [he.eq_iff]
+  simp [← incl_id, restrict_incl, he.eq_iff]
 
 theorem isRestriction_slSum_comp {ι κ : Type*} [Fintype ι] [DecidableEq ι] [DecidableEq κ]
     [Fintype X] [Fintype Y] [Fintype Z] (G : ι → Tensor R X Y Z) (e : κ → ι)
@@ -673,14 +668,12 @@ theorem swap23_tprod (T : Tensor R X Y Z) (T' : Tensor R X' Y' Z') :
 theorem swap12_dsum {ι : Type*} [DecidableEq ι] (G : ι → Tensor R X Y Z) :
     swap12 (dsum G) = dsum fun i => swap12 (G i) := by
   ext ⟨i, y⟩ ⟨j, x⟩ ⟨k, z⟩
-  simp only [swap12_apply, dsum_apply]
-  grind
+  grind [swap12_apply, dsum_apply]
 
 theorem swap13_dsum {ι : Type*} [DecidableEq ι] (G : ι → Tensor R X Y Z) :
     swap13 (dsum G) = dsum fun i => swap13 (G i) := by
   ext ⟨k, z⟩ ⟨j, y⟩ ⟨i, x⟩
-  simp only [swap13_apply, dsum_apply]
-  grind
+  grind [swap13_apply, dsum_apply]
 
 /-- The tensor product of two direct sums is a direct sum over pairs of summands. -/
 theorem tprod_dsum {ι κ : Type*} [DecidableEq ι] [DecidableEq κ] (G : ι → Tensor R X Y Z)
@@ -717,9 +710,8 @@ theorem isRestriction_dsum_const [Fintype X] [Fintype Y] [Fintype Z] {ι : Type*
     [DecidableEq ι] (i : ι) (T : Tensor R X Y Z) : IsRestriction T (dsum fun _ : ι => T) := by
   classical
   refine ⟨incl (i, ·), incl (i, ·), (incl (i, ·))ᵀ, ?_⟩
-  rw [restrict_incl]
   funext
-  simp
+  simp [restrict_incl]
 
 /-- Fewer copies of `T` are a restriction of more copies. -/
 theorem isRestriction_dsum_const_of_card_le [Fintype X] [Fintype Y] [Fintype Z] {ι κ : Type*}
@@ -765,9 +757,8 @@ theorem Rank.of_isRestriction [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor
 theorem isRestriction_unit_of_le {r r' : ℕ} (h : r ≤ r') :
     IsRestriction (unit r : Tensor R _ _ _) (unit r') := by
   refine ⟨incl (Fin.castLE h), incl (Fin.castLE h), (incl (Fin.castLE h))ᵀ, ?_⟩
-  rw [restrict_incl]
   funext
-  simp [Fin.ext_iff]
+  simp [restrict_incl, Fin.ext_iff]
 
 theorem Rank.mono {T : Tensor R X Y Z} {r r' : ℕ} (h : Rank r T) (hr : r ≤ r') : Rank r' T :=
   h.trans (isRestriction_unit_of_le hr)

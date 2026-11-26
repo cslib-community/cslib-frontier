@@ -623,8 +623,8 @@ private theorem acceptRequest_of_acceptDraftIssue
   · nomatch h
   · split_ifs at h with hcond
     obtain rfl := Option.some.inj h
-    simp only [Conservation.acceptRequest, Conservation.acceptLocal, decide_eq_true_eq]
-    exact hcond.2.2.2
+    simpa only [Conservation.acceptRequest, Conservation.acceptLocal, decide_eq_true_eq] using
+      hcond.2.2.2
 
 private theorem acceptRequest_of_acceptDraftSpendPre
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
@@ -716,8 +716,8 @@ theorem eval_extractedDraftConservationExperiment_eq
       Function.comp_def, PMF.mem_support_bind_iff, ProbOracleComp.runWith_pure,
       PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
     obtain ⟨σ, _, h1, rfl⟩ := hmem
-    rw [show st' = (commit σ).2 from congrArg Prod.snd h1]
-    simp [hacc σ, hrej]
+    have hst' : st' = (commit σ).2 := congrArg Prod.snd h1
+    simp [hst', hacc σ, hrej]
   have hcertify_eq {β : Type}
       (creq : Conservation.Request Nullifier Context Opening Commitment Sig)
       (rejSt : IssuerState Nullifier Context Opening Commitment Sig PolicyState)
@@ -746,9 +746,8 @@ theorem eval_extractedDraftConservationExperiment_eq
         intro ans next hnext
         simp only [jointOracle, bridgeHandler, draftQueryStep, StateT.run, draftReply,
           ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, PMF.bind_map,
-          Function.comp_def, PMF.map_bind] at hnext
+          Function.comp_def, PMF.map_bind, ProbOracleComp.runWith_pure, PMF.pure_map] at hnext
         obtain ⟨⟨amt?, _⟩, _, hmem⟩ := (PMF.mem_support_bind_iff ..).mp hnext
-        simp only [ProbOracleComp.runWith_pure, PMF.pure_map] at hmem
         obtain ⟨_, rfl⟩ := (PMF.mem_support_pure_iff ..).mp hmem
         cases amt? <;> exact hstate
     | issue req =>
@@ -757,12 +756,10 @@ theorem eval_extractedDraftConservationExperiment_eq
         cases hacc : acceptDraftIssue com bound req st with
         | none =>
             simp only [hacc, ProbOracleComp.runWith_pure, PMF.pure_map] at hnext
-            obtain ⟨_, rfl⟩ := (PMF.mem_support_pure_iff ..).mp hnext
-            exact hstate
+            exact (Prod.mk.inj ((PMF.mem_support_pure_iff ..).mp hnext)).2 ▸ hstate
         | some creq =>
             simp only [hacc] at hnext
-            obtain ⟨⟨p, log'⟩, hmem, heq⟩ := (PMF.mem_support_map_iff ..).mp hnext
-            cases heq
+            obtain ⟨⟨_, log'⟩, hmem, ⟨⟩⟩ := (PMF.mem_support_map_iff ..).mp hnext
             exact hcertify_mem creq st (commitDraftIssue req.ticket creq · st) log
               (hstate ▸ acceptRequest_of_acceptDraftIssue hacc) hstate (fun _ => rfl) hmem
     | spend req =>
@@ -775,20 +772,17 @@ theorem eval_extractedDraftConservationExperiment_eq
           cases haccRef : acceptedSpendRefund bound refund? with
           | none =>
               simp only [haccRef, ProbOracleComp.runWith_pure, PMF.pure_map] at hmem
-              obtain ⟨_, rfl⟩ := (PMF.mem_support_pure_iff ..).mp hmem
-              exact hstate
+              exact (Prod.mk.inj ((PMF.mem_support_pure_iff ..).mp hmem)).2 ▸ hstate
           | some refund =>
               simp only [haccRef] at hmem
-              obtain ⟨⟨p, log'⟩, hmem', heq⟩ := (PMF.mem_support_map_iff ..).mp hmem
-              cases heq
+              obtain ⟨⟨_, log'⟩, hmem', ⟨⟩⟩ := (PMF.mem_support_map_iff ..).mp hmem
               let st' := { st with policyState := pst' }
               exact hcertify_mem (.spend (req.toSpendRequest refund)) st'
                 (commitDraftSpend refund _ · st') log
                 (hstate ▸ acceptRequest_of_acceptDraftSpendPre hpre refund) hstate
                 (fun _ => rfl) hmem'
         · simp only [ProbOracleComp.runWith_pure, PMF.pure_map] at hnext
-          obtain ⟨_, rfl⟩ := (PMF.mem_support_pure_iff ..).mp hnext
-          exact hstate
+          exact (Prod.mk.inj ((PMF.mem_support_pure_iff ..).mp hnext)).2 ▸ hstate
   have hinv := ProbOracleComp.runWith_invariant jointOracle
     (fun p => p.1.accepted = p.2.map Prod.fst) hpreserve (A pk) (st₀, []) rfl
   have hproj : (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).map
@@ -836,8 +830,8 @@ theorem eval_extractedDraftConservationExperiment_eq
   refine PMF.map_congr_on_support _ _ _ fun ⟨ctx, st, log⟩ hmem => ?_
   dsimp only [Function.comp_def, extractedDraftConservationAccept,
     Conservation.extractedConservationAccept]
-  simp only [show st.accepted = log.map Prod.fst from hinv ctx (st, log) hmem,
-    List.map_map, Function.comp_def]
+  have hacc_eq : st.accepted = log.map Prod.fst := hinv ctx (st, log) hmem
+  simp only [hacc_eq, List.map_map, Function.comp_def]
 
 private theorem succProbability_extractedDraftConservationExperiment_eq
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]

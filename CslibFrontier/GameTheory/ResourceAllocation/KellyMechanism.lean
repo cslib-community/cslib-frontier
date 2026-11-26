@@ -269,9 +269,7 @@ theorem allocation_eq_div_price {w : ι → ℝ} (hC : G.capacity ≠ 0) (i : ι
 
 theorem allocation_nonneg {w : ι → ℝ} (hC : 0 ≤ G.capacity) (hw : ∀ j, 0 ≤ w j) (i : ι) :
     0 ≤ G.allocation w i := by
-  unfold allocation
-  have hW : 0 ≤ ∑ j, w j := Finset.sum_nonneg fun j _ => hw j
-  exact div_nonneg (mul_nonneg hC (hw i)) hW
+  exact div_nonneg (mul_nonneg hC (hw i)) (Finset.sum_nonneg fun j _ => hw j)
 
 theorem sum_allocation_eq_capacity {w : ι → ℝ} (hW : ∑ j, w j ≠ 0) :
     ∑ i, G.allocation w i = G.capacity := by
@@ -709,11 +707,9 @@ theorem modifiedUtility_strictConcaveOn {G : KellyGame ι} (hC : 0 < G.capacity)
     have hux : 0 < derivWithin (G.utility i) (Ici 0) x := hu.derivWithin_pos hx.1.le
     have huy : derivWithin (G.utility i) (Ici 0) y ≤ derivWithin (G.utility i) (Ici 0) x :=
       hu.derivWithin_antitoneOn hx.1.le hy.1.le hxy.le
-    have h1y : 0 < 1 - y / G.capacity := by
-      rw [sub_pos, div_lt_one hC]; exact hy.2
-    have h1lt : 1 - y / G.capacity < 1 - x / G.capacity := by
-      have : x / G.capacity < y / G.capacity := div_lt_div_of_pos_right hxy hC
-      linarith
+    have h1y : 0 < 1 - y / G.capacity := sub_pos.mpr ((div_lt_one hC).mpr hy.2)
+    have h1lt : 1 - y / G.capacity < 1 - x / G.capacity :=
+      sub_lt_sub_left (div_lt_div_of_pos_right hxy hC) 1
     calc (1 - y / G.capacity) * derivWithin (G.utility i) (Ici 0) y
         ≤ (1 - y / G.capacity) * derivWithin (G.utility i) (Ici 0) x :=
           mul_le_mul_of_nonneg_left huy h1y.le
@@ -774,11 +770,9 @@ theorem IsNashEquilibrium.price_pos [Nonempty ι] {G : KellyGame ι} (hC : 0 < G
     (hmono : ∀ i, StrictMonoOn (G.utility i) (Ici 0)) {w : ι → ℝ} (hne : G.IsNashEquilibrium w) :
     0 < G.price w := by
   obtain ⟨i₀⟩ := ‹Nonempty ι›
-  have h1 := hne.sum_erase_pos hC hmono i₀
-  have hsum : 0 < ∑ j, w j := by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₀)]
-    linarith [hne.1 i₀]
-  exact div_pos hsum hC
+  refine div_pos ?_ hC
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₀)]
+  linarith [hne.1 i₀, hne.sum_erase_pos hC hmono i₀]
 
 /-- At any Nash equilibrium with strictly increasing utilities, total equilibrium allocation equals
 the resource capacity. -/
@@ -792,11 +786,8 @@ theorem IsNashEquilibrium.allocation_lt_capacity {G : KellyGame ι} (hC : 0 < G.
     (hmono : ∀ i, StrictMonoOn (G.utility i) (Ici 0)) {w : ι → ℝ} (hne : G.IsNashEquilibrium w)
     (i : ι) : G.allocation w i < G.capacity := by
   have herase := hne.sum_erase_pos hC hmono i
-  have hsum : ∑ j, w j = w i + ∑ j ∈ Finset.univ.erase i, w j :=
-    (Finset.add_sum_erase Finset.univ w (Finset.mem_univ i)).symm
-  have hW : 0 < ∑ j, w j := by linarith [hne.1 i]
-  simp only [allocation]
-  rw [div_lt_iff₀ hW]
+  have hsum := (Finset.add_sum_erase Finset.univ w (Finset.mem_univ i)).symm
+  rw [allocation, div_lt_iff₀ (by linarith [hne.1 i])]
   nlinarith
 
 /-- Concavity of a user's single-variable allocation response `t ↦ C · t / (t + s)` on `[0, ∞)`
@@ -1005,12 +996,9 @@ theorem existsUnique_isNashEquilibrium {G : KellyGame ι} (hcard : 2 ≤ Fintype
   have hneStar : G.IsNashEquilibrium wStar := by
     rw [isNashEquilibrium_iff_kkt hC hU]
     refine ⟨fun i => mul_nonneg hμStar_pos.le (hdStar.1 i), fun i => ?_,
-      fun i => by
-        rw [hallocStar, hpriceStar, mul_comm]
-        exact hleStar i,
+      fun i => by simpa only [hallocStar, hpriceStar, mul_comm] using hleStar i,
       fun i hdi => by
-        rw [hallocStar, hpriceStar, mul_comm]
-        exact heqStar i (hallocStar ▸ hdi)⟩
+        simpa only [hallocStar, hpriceStar, mul_comm] using heqStar i (hallocStar ▸ hdi)⟩
     have hsum_e : ∑ j ∈ Finset.univ.erase i, dStar j = G.capacity - dStar i := by
       linarith [Finset.add_sum_erase Finset.univ dStar (Finset.mem_univ i)]
     simp only [wStar, ← Finset.mul_sum, hsum_e]
@@ -1191,8 +1179,7 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
   have hu_eq : ∀ i, (kellyTightGame n).utility i =
       fun t => (if i = 0 then 1 else (n : ℝ) / (2 * (n : ℝ) - 1)) * t := fun i =>
     funext fun _ => by
-      unfold kellyTightGame
-      dsimp only
+      dsimp only [kellyTightGame]
       split_ifs <;> ring
   have hU : ∀ i, IsAdmissibleUtility ((kellyTightGame n).utility i) := fun i => by
     rw [hu_eq i]
@@ -1222,27 +1209,23 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
   have hne : (kellyTightGame n).IsNashEquilibrium (kellyTightBid n) := by
     rw [isNashEquilibrium_iff_kkt (by simp [kellyTightGame] : 0 < (kellyTightGame n).capacity) hU]
     have herase : ∀ i, 0 < ∑ j ∈ Finset.univ.erase i, kellyTightBid n j := fun i => by
-      have h := Finset.add_sum_erase Finset.univ (kellyTightBid n) (Finset.mem_univ i)
-      rw [hsum_bid] at h
       have hlt : kellyTightBid n i < 1 / 2 := by
         unfold kellyTightBid
         split_ifs
         · norm_num
-        · rw [div_lt_div_iff₀ (by positivity) (by norm_num)]; linarith
-      linarith
+        · rw [div_lt_div_iff₀ (by positivity) (by norm_num)]
+          linarith
+      linarith [Finset.add_sum_erase Finset.univ (kellyTightBid n) (Finset.mem_univ i)]
     have hfoc : ∀ i, derivWithin ((kellyTightGame n).utility i) (Ici 0)
         ((kellyTightGame n).allocation (kellyTightBid n) i) *
         (1 - (kellyTightGame n).allocation (kellyTightBid n) i / (kellyTightGame n).capacity) =
         (kellyTightGame n).price (kellyTightBid n) := fun i => by
       rw [hprice, hu_eq i]
-      by_cases hi : i = 0
-      · subst hi
-        rw [halloc0, derivWithin_linear (by norm_num)]
-        simp only [kellyTightGame, ↓reduceIte, div_one]
-        norm_num
+      rcases eq_or_ne i 0 with rfl | hi
+      · rw [halloc0, derivWithin_linear (by norm_num)]
+        norm_num [kellyTightGame]
       · rw [halloc_ne i hi, derivWithin_linear (by positivity)]
-        dsimp only [kellyTightGame]
-        simp only [hi, ↓reduceIte, div_one]
+        simp only [kellyTightGame, hi, ↓reduceIte, div_one]
         have hn0 : (n : ℝ) ≠ 0 := by linarith
         rw [div_mul_eq_mul_div, div_eq_iff h2n1_pos.ne']
         field_simp [hn0]
@@ -1302,19 +1285,13 @@ theorem exists_nash_welfare_lt_three_fourths_add {ε : ℝ} (hε : 0 < ε) :
   set n := max N 2
   have hn2 : 2 ≤ n := le_max_right N 2
   have hnN : (N : ℝ) ≤ (n : ℝ) := by exact_mod_cast le_max_left N 2
-  have h2n1_pos : (0 : ℝ) < 2 * (n : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn2
-    linarith
+  have hn_real : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn2
   obtain ⟨hU, hU0, hne, hopt, hopt_w, hne_w⟩ := kellyTightGame_spec hn2
   refine ⟨n, kellyTightGame n, kellyTightBid n, Pi.single (M := fun _ => ℝ) 0 1,
     by simp [kellyTightGame], hU, fun i => (hU0 i).ge, hne, hopt, by linarith, ?_⟩
-  rw [hopt_w, hne_w, mul_one]
-  have hgap : 1 / (4 * (2 * (n : ℝ) - 1)) < ε := by
-    rw [div_lt_iff₀ (by positivity)]
-    have h1 : 1 / (8 * ε) < (n : ℝ) - 1 := by linarith
-    have h2 : 1 < ((n : ℝ) - 1) * (8 * ε) := (div_lt_iff₀ (by positivity : (0 : ℝ) < 8 * ε)).mp h1
-    nlinarith
-  linarith
+  rw [hopt_w, hne_w, mul_one, add_lt_add_iff_left, div_lt_iff₀ (by linarith)]
+  have h2 : 1 < ((n : ℝ) - 1) * (8 * ε) := (div_lt_iff₀ (by positivity)).mp (by linarith)
+  nlinarith
 
 end Tightness
 

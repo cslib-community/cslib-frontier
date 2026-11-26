@@ -95,12 +95,9 @@ theorem TableAt.snoc {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
       simp only [tcell, encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb ⊢
       omega) _ _
   intro j
-  by_cases hj : i = j
-  · subst hj
-    refine ⟨fun hn => by simp [List.find?_append, hi] at hn, fun e he => ?_⟩
-    simp only [List.find?_append, hi, Option.none_or, List.find?_cons, beq_self_eq_true,
-      Option.some.injEq] at he
-    subst he
+  rcases eq_or_ne i j with rfl | hj
+  · refine ⟨fun hn => by simp [List.find?_append, hi] at hn, fun e he => ?_⟩
+    obtain rfl : (i, c) = e := by simpa [List.find?_append, hi] using he
     simpa only [Function.update_self] using ⟨ha, haT, hfr haT hc⟩
   · have hfind : (db ++ [(i, c)]).find? (·.1 == j) = db.find? (·.1 == j) := by
       simp [List.find?_append, hj]
@@ -142,11 +139,9 @@ theorem loadLoop_spec (done ψ : CNF ℕ) (x : Data 28) (M T : ℕ)
     obtain ⟨hcl, hrest⟩ := holdsList_append_iff.mp hl
     obtain ⟨hlen, -⟩ := holdsList_cons_iff.mp hcl
     simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hrest
-    have hnone : (numbered done 1).find? (·.1 == done.length + 1) = none := by
-      rw [List.find?_eq_none]
-      intro e he
-      have := fst_lt_of_mem_numbered he
-      simp only [beq_iff_eq]; omega
+    have hnone : (numbered done 1).find? (·.1 == done.length + 1) = none :=
+      List.find?_eq_none.mpr fun _ he => by
+        simpa [Nat.add_comm] using (fst_lt_of_mem_numbered he).ne
     have htab' := htab.snoc (done.length + 1) c hnone (x.regs ptr) (by omega) (by omega) hcl
     have hdone : (done ++ [c]).length = done.length + 1 := by simp
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
@@ -210,9 +205,8 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   have hmem : ∀ a, (Data.init input : Data 28).mem a =
       if a = 0 then L else input.getD (a - 1) 0 := fun _ => rfl
   have hzeroT : ∀ a, T ≤ a → (Data.init input : Data 28).mem a = 0 := fun a ha => by
-    rw [hmem, ite_eq_right_iff.mpr (fun h => absurd h (by omega)),
-      List.getD_eq_getElem?_getD, List.getElem?_eq_none (by simp only [T, L] at ha; omega)]
-    rfl
+    simp [hmem, (Nat.succ_pos L |>.trans_le ha).ne', List.getD_eq_getElem?_getD,
+      List.getElem?_eq_none (Nat.le_sub_one_of_lt ha)]
   have hFC : HoldsList 2 (F ++ C) (Data.init input : Data 28).mem := fun i => by
     change (Data.init input : Data 28).mem (2 + i.val) = (F ++ C)[i.val]
     rw [show 2 + i.val = (1 + i.val) + 1 by omega, Data.init_mem_succ]
@@ -239,10 +233,9 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
     have hinv : StepInv w M T 1 (numbered φ 1) y :=
       ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
         by regs_frame, by regs_frame, by regs_frame, hytab, hyfr,
-        fun e he l hl => hM _ (by
-          rw [hinputeq]
-          exact List.mem_cons_of_mem _ (List.mem_append_left _ (List.mem_flatMap.mpr
-            ⟨e.2, snd_mem_of_mem_numbered he, List.mem_cons_of_mem _ (List.mem_map_of_mem hl)⟩))),
+        fun e he l hl => hM _ (hinputeq ▸ List.mem_cons_of_mem _ (List.mem_append_left _
+          (List.mem_flatMap.mpr ⟨e.2, snd_mem_of_mem_numbered he,
+            List.mem_cons_of_mem _ (List.mem_map_of_mem hl)⟩))),
         hw', by rw [hyp]; omega⟩
     wram_call (stepLoop_spec (w := w) cert.toList (numbered φ 1) y M T 1) [hinv, hyp, hSW]
       with z hzo
@@ -250,8 +243,7 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
       have := length_le_length_flatMap_encodeClause φ
       simp only [certWork, hdb]; omega
     · rw [hyp]; exact hC.frame fun a _ _ => hym a (by omega)
-    · exact fun v hv => hM v (by
-        rw [hinputeq]; exact List.mem_cons_of_mem _ (List.mem_append_right _ hv))
+    · exact fun v hv => hM v (hinputeq ▸ List.mem_cons_of_mem _ (List.mem_append_right _ hv))
   · wram_simp
     exact fun i => ⟨fun _ => hzeroT _ (by simp only [tcell]; omega),
       fun e he => by simp [numbered] at he⟩

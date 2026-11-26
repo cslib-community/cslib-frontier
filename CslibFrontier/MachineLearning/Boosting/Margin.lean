@@ -312,13 +312,11 @@ theorem signVal_mul_normalizedScore_nonpos_of_adaBoost_ne {S : Fin m → α × B
       ite_eq_right hne]
     norm_num
   · rw [adaBoost_of_not_exists_error_zero S A hz] at hne
-    rw [normalizedScore_of_not_exists_error_zero S A hz,
-      show signVal y * (-score S A T x / totalVote S A T) =
-        -(score S A T x * signVal y) / totalVote S A T by ring]
-    have hscore : 0 ≤ score S A T x * signVal y := by
+    have hscore : signVal y * -score S A T x ≤ 0 := by
       cases y <;> simp only [ne_eq, decide_eq_true_eq, decide_eq_false_iff_not, Classical.not_not,
         signVal_false, signVal_true] at hne ⊢ <;> linarith
-    exact div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hscore) (hZ hz).le
+    rw [normalizedScore_of_not_exists_error_zero S A hz, ← mul_div_assoc]
+    exact div_nonpos_of_nonpos_of_nonneg hscore (hZ hz).le
 
 /-- **Uniform `T`-independent margin bound for AdaBoost**
 [SchapireFreundBartlettLee1998, Theorem 2] [MohriRostamizadehTalwalkar2018, Section 7.3.3,
@@ -431,31 +429,27 @@ private theorem two_mul_log_lt_sub_inv {y : ℝ} (hy : 1 < y) : 2 * Real.log y <
 private theorem log_margin_factor_neg {x : ℝ} (hx₀ : 0 < x) (hx₁ : x < 1) :
     (1 - x / 2) * Real.log (1 - x) + (1 + x / 2) * Real.log (1 + x) < 0 := by
   let f : ℝ → ℝ := fun t => (1 - t / 2) * Real.log (1 - t) + (1 + t / 2) * Real.log (1 + t)
-  have hf_cont : ContinuousOn f (Set.Icc 0 x) :=
-    ((continuousOn_const.sub (continuousOn_id.div_const 2)).mul
-      ((Real.continuousOn_log.comp (continuousOn_const.sub continuousOn_id)
-        fun t ht => show 1 - t ≠ 0 by linarith [ht.2]))).add
-    ((continuousOn_const.add (continuousOn_id.div_const 2)).mul
-      ((Real.continuousOn_log.comp (continuousOn_const.add continuousOn_id)
-        fun t ht => show 1 + t ≠ 0 by linarith [ht.1])))
-  have hanti : StrictAntiOn f (Set.Icc 0 x) := by
-    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x) hf_cont fun t ht => ?_
-    rw [interior_Icc] at ht
-    have h1m : 0 < 1 - t := by linarith [ht.2]
-    have h1p : 0 < 1 + t := by linarith [ht.1]
+  have hdf {t : ℝ} (h1m : 0 < 1 - t) (h1p : 0 < 1 + t) : HasDerivAt f
+      ((2 * Real.log ((1 + t) / (1 - t)) -
+        ((1 + t) / (1 - t) - ((1 + t) / (1 - t))⁻¹)) / 4) t := by
     have hd1 := ((hasDerivAt_const t (1 : ℝ)).sub ((hasDerivAt_id t).div_const 2)).mul
       ((Real.hasDerivAt_log h1m.ne').comp t ((hasDerivAt_const t 1).sub (hasDerivAt_id t)))
     have hd2 := ((hasDerivAt_const t (1 : ℝ)).add ((hasDerivAt_id t).div_const 2)).mul
       ((Real.hasDerivAt_log h1p.ne').comp t ((hasDerivAt_const t 1).add (hasDerivAt_id t)))
-    have hderiv : deriv f t =
-        (2 * Real.log ((1 + t) / (1 - t)) -
-          ((1 + t) / (1 - t) - ((1 + t) / (1 - t))⁻¹)) / 4 := by
-      rw [(show HasDerivAt f _ t from hd1.add hd2).deriv, Real.log_div h1p.ne' h1m.ne']
-      simp only [Function.comp_apply, Pi.sub_apply, Pi.add_apply, id_eq]
-      field_simp
-      ring
-    rw [hderiv]
-    have hy : 1 < (1 + t) / (1 - t) := (one_lt_div h1m).2 (by linarith [ht.1])
+    convert (show HasDerivAt f _ t from hd1.add hd2) using 1
+    rw [Real.log_div h1p.ne' h1m.ne']
+    simp only [Function.comp_apply, Pi.sub_apply, Pi.add_apply, id_eq]
+    field_simp
+    ring
+  have hanti : StrictAntiOn f (Set.Icc 0 x) := by
+    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x)
+      (fun t ht => (hdf (sub_pos.mpr (ht.2.trans_lt hx₁))
+        (add_pos_of_pos_of_nonneg zero_lt_one ht.1)).continuousAt.continuousWithinAt)
+      fun t ht => ?_
+    rw [interior_Icc] at ht
+    rw [(hdf (sub_pos.mpr (ht.2.trans hx₁)) (add_pos zero_lt_one ht.1)).deriv]
+    have hy : 1 < (1 + t) / (1 - t) :=
+      (one_lt_div (sub_pos.mpr (ht.2.trans hx₁))).2 (by linarith [ht.1])
     exact div_neg_of_neg_of_pos (sub_neg.mpr (two_mul_log_lt_sub_inv hy)) (by norm_num)
   simpa [f] using hanti ⟨le_rfl, hx₀.le⟩ ⟨hx₀.le, le_rfl⟩ hx₀
 
@@ -561,16 +555,12 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
       exp (-(ρ * totalVote S A T)) ≤ potential exp (lossSeq S A) T := by
     rw [card_filter, Nat.cast_sum, sum_mul, potential]
     refine sum_le_sum fun i _ => ?_
-    have hw : 0 < weight exp (lossSeq S A) T i := weight_pos (fun _ _ _ => exp_pos _) i
     split_ifs with hi
     · rw [Nat.cast_one, one_mul, weight, ← exp_sum, sum_lossSeq]
-      rw [normalizedScore_of_not_exists_error_zero S A hz] at hi
-      have hmul : signVal (S i).2 * (-score S A T (S i).1 / totalVote S A T) =
-          -(score S A T (S i).1 * signVal (S i).2) / totalVote S A T := by ring
-      rw [hmul, div_le_iff₀ hZ] at hi
+      rw [normalizedScore_of_not_exists_error_zero S A hz, ← mul_div_assoc, div_le_iff₀ hZ,
+        mul_neg, mul_comm] at hi
       exact Real.exp_le_exp.mpr (by linarith)
-    · rw [Nat.cast_zero, zero_mul]
-      exact hw.le
+    · simpa only [Nat.cast_zero, zero_mul] using (weight_pos (fun _ _ _ => exp_pos _) i).le
   have hpot : potential exp (lossSeq S A) T =
       m * ∏ t ∈ range T, 2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) :=
     potential_lossSeq_eq S A hz hε₁
@@ -617,15 +607,11 @@ theorem marginCount_normalizedScore_le_pow (S : Fin m → α × Bool)
         (1 - (rounds S A t).error S) ^ ((1 + ρ) / 2) ≤
       √((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ)) := by
     intro t ht
-    have ht' := mem_range.mp ht
-    set ε := (rounds S A t).error S
-    have hε0 : 0 ≤ ε := rounds_error_nonneg S A t
-    have hεb : ε ≤ 1 / 2 - γ := hε t ht'
-    rcases eq_or_lt_of_le hε0 with h0 | hpos
-    · have hne : (1 - ρ) / 2 ≠ 0 := by linarith
-      rw [← h0, Real.zero_rpow hne, mul_zero, zero_mul]
+    rcases eq_or_lt_of_le (rounds_error_nonneg S A t) with h0 | hpos
+    · rw [← h0, Real.zero_rpow (by linarith), mul_zero, zero_mul]
       exact Real.sqrt_nonneg _
-    · have hmono := rpow_mul_one_sub_rpow_le hpos hεb
+    · set ε := (rounds S A t).error S
+      have hmono := rpow_mul_one_sub_rpow_le hpos (hε t (mem_range.mp ht))
         (show 1 / 2 - γ ≤ (1 - ρ) / 2 by linarith) (show (1 - ρ) / 2 < 1 by linarith)
       rw [show 1 - (1 - ρ) / 2 = (1 + ρ) / 2 by ring] at hmono
       have h1m : 0 < 1 - 2 * γ := by linarith

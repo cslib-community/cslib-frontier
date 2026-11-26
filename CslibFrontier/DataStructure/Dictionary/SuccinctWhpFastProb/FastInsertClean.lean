@@ -165,14 +165,12 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
           have hpt : ∀ b' : Fin (numBucketsWhp n_max),
               X' b' - capFrontWhp n_max =
                 (fs.bktCount b'.val - capFrontWhp n_max) + (if b' = ⟨b, hb⟩ then 1 else 0) := by
-            intro b'; rw [hX'_eq b']
-            by_cases hbb : b' = ⟨b, hb⟩
-            · subst hbb; simp; omega
-            · have hv_ne : b'.val ≠ b := fun h => hbb (Fin.ext h)
-              simp [hbb, hv_ne]
-          simp_rw [hpt]
-          rw [Finset.sum_add_distrib]
-          simp
+            intro b'
+            rcases eq_or_ne b' ⟨b, hb⟩ with rfl | hbb
+            · simp only [hX'_eq, ↓reduceIte]
+              omega
+            · simp [hX'_eq, hbb, Fin.ext_iff.not.mp hbb]
+          simp only [hpt, Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
         have hcons := hc.pool_conservation
         omega
     rw [ite_eq_right hg1]
@@ -185,8 +183,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       rintro (hcur_some | ⟨hs3, hold_some⟩)
       · obtain ⟨_, _, cm, hvc, hrc⟩ := hc.bufCur_valid
         exact not_mem_dom_of_bufLookup_some hc hu_ndom hdom_sub hu_W hinj_rkey hvc hrc hcur_some
-      · have hbo := hc.bufOld_valid; rw [ite_eq_left hs3] at hbo
-        obtain ⟨_, _, om, hvo, hro⟩ := hbo
+      · obtain ⟨_, _, om, hvo, hro⟩ := ite_eq_left hs3 ▸ hc.bufOld_valid
         exact not_mem_dom_of_bufLookup_some hc hu_ndom hdom_sub hu_W hinj_rkey hvo hro hold_some
     rw [ite_eq_right hg2]
     -- 3. Guard 3 (`2 * sMaxWhp ≤ itemAlloc`) is false since `itemAlloc ≤ #BadIns`:
@@ -213,8 +210,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       refine stageWorkRemaining_eq_of_meta c n_max (q4.trans r1) (q5.trans r2)
         (q6.trans r3) (q7.trans r4) (q9.trans r5) (q10.trans r6) ?_
       dsimp only [FastState.oldEp]
-      rw [q2, q3]
-      exact r7
+      rwa [q2, q3]
     have hst_i : ∀ (s_i : FastState),
         s_i.rebStage = fs.rebStage → s_i.dirtyCount = fs.dirtyCount →
         s_i.dirtyIdx = fs.dirtyIdx → s_i.dirtyBuckets = fs.dirtyBuckets →
@@ -257,14 +253,11 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
               (fpReducedKey c U n_max θ.2 x)) ⊆
             BadIns.filter (fun x =>
               bufEverPresent (cTabWhp c) (bCharWhp n_max) tr'
-                (fpReducedKey c U n_max θ.2 x)) := by
-          intro x hx
-          rw [mem_filter] at hx ⊢
-          refine ⟨hx.1, ?_⟩
-          rw [hins.2.2.2.2.1 _ (fpReducedKey_lt c U n_max θ.2 x)]
+                (fpReducedKey c U n_max θ.2 x)) := fun x hx => by
+          obtain ⟨hx1, hx2⟩ := mem_filter.mp hx
+          rw [mem_filter, hins.2.2.2.2.1 _ (fpReducedKey_lt c U n_max θ.2 x)]
           split_ifs
-          · rfl
-          · exact hx.2
+          exacts [⟨hx1, rfl⟩, ⟨hx1, hx2⟩]
         by_cases hev : bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey = true
         · rw [(hins.2.2.2.2.2.1 hev).2]
           exact hcw.buf_alloc.trans (Finset.card_le_card hsub_ev)

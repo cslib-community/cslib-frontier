@@ -143,14 +143,12 @@ private theorem link_step {R : ℕ → ℕ → Prop} {a b : ℕ} (hrow : R (rowN
     (hclause : ∀ j, o a = some j → R (clauseNode j) (rowNode i b)) :
     ∀ x ∈ (step i o a).getLast?, ∀ y ∈ (step i o b).head?, R x y := by
   intro x hx y hy
-  rw [head?_step, Option.mem_some_iff] at hy
-  subst hy
+  obtain rfl := Option.mem_some_iff.1 hy
   unfold step at hx
   cases hv : o a <;>
     simp only [hv, Option.map_none, Option.map_some, Option.toList_none, Option.toList_some,
-      List.getLast?_cons_cons, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx <;>
-    subst hx
-  exacts [hrow, hclause _ hv]
+      List.getLast?_cons_cons, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
+  exacts [hx ▸ hrow, hx ▸ hclause _ hv]
 
 /-- Steps over distinct row nodes, visiting each clause after at most one of them, have no
 repetitions. -/
@@ -264,16 +262,13 @@ private theorem rowPath_spec {i : ℕ} (hi : i < N) :
       exact ((arc_detour (N := N) (slots := slots) hpick hj).1 hd).2
     · intro x hx
       rw [List.head?_flatMap_range hpos (step_ne_nil 0), head?_step, Option.mem_some_iff] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · intro x hx
+      have hdiv : (rowLength slots i - 1) / 3 = slots i := by omega
       rw [List.getLast?_flatMap_range hpos (step_ne_nil _)] at hx
-      unfold step rightVisit at hx
-      rw [show (rowLength slots i - 1) / 3 = slots i by omega, visit_last hD hpick] at hx
-      simp only [ite_self, Option.map_none, Option.toList_none, List.getLast?_singleton,
-        Option.mem_def, Option.some.injEq] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      simp only [step, rightVisit, hdiv, visit_last hD hpick, ite_self, Option.map_none,
+        Option.toList_none, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · simpa using ⟨0, hpos, step_ne_nil 0⟩
   · have hd' : dir i = false := by simpa using hd
     refine ⟨List.isChain_flatMap_reverse_range (fun a _ => step_ne_nil a)
@@ -287,14 +282,12 @@ private theorem rowPath_spec {i : ℕ} (hi : i < N) :
     · intro x hx
       rw [List.head?_flatMap_reverse_range hpos (step_ne_nil _), head?_step,
         Option.mem_some_iff] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · intro x hx
       rw [List.getLast?_flatMap_reverse_range hpos (step_ne_nil 0)] at hx
       simp only [step, leftVisit, lt_irrefl, and_false, ite_false, Option.map_none,
         Option.toList_none, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
-      subst hx
-      exact hdiam _ (by simp [diamondArcs])
+      exact hx ▸ hdiam _ (by simp [diamondArcs])
     · simpa using ⟨0, hpos, step_ne_nil 0⟩
 
 /-- Steps over the nodes of row `i` visit its row nodes and the nodes of the clauses picked
@@ -331,12 +324,10 @@ private theorem mem_rowPath {i v : ℕ} :
 private theorem nodup_rowPath (i : ℕ) : (rowPath slots M dir pick i).Nodup := by
   unfold rowPath
   split_ifs
-  · refine nodup_flatMap_step List.nodup_range fun a b j ha hb => ?_
-    rw [rightVisit_eq_some_iff hD hpick] at ha hb
-    omega
-  · refine nodup_flatMap_step (List.nodup_reverse.2 List.nodup_range) fun a b j ha hb => ?_
-    rw [leftVisit_eq_some_iff hD hpick] at ha hb
-    omega
+  · exact nodup_flatMap_step List.nodup_range fun a b j ha hb => by
+      rw [rightVisit_eq_some_iff hD hpick] at ha hb; omega
+  · exact nodup_flatMap_step (List.nodup_reverse.2 List.nodup_range) fun a b j ha hb => by
+      rw [leftVisit_eq_some_iff hD hpick] at ha hb; omega
 
 /-- The Hamiltonian path read off directions of the rows satisfying every clause. -/
 private theorem isDirHamPath_hamPath :

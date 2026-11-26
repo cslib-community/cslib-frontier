@@ -279,15 +279,14 @@ theorem wellFormed_transposeTail_iff (I : State Rel) :
   by_cases hs : I.ports.length < 2
   · rw [transposeTail_short g w I hs]
   · rcases I with ⟨F, ports, c⟩
-    induction ports using List.reverseRecOn with
+    cases ports using List.reverseRecOn with
     | nil => simp at hs
-    | append_singleton ps y _ =>
+    | append_singleton ps y =>
       cases ps using List.reverseRecOn with
       | nil => simp at hs
       | append_singleton L x =>
-        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
-          simp only [List.append_assoc, List.cons_append, List.nil_append]]
-        rw [(long_fields g w F L x y c).1, hrel, hrel, wellFormed_insert_iff]
+        simp only [List.append_assoc, List.cons_append, List.nil_append,
+          (long_fields g w F L x y c).1, hrel, wellFormed_insert_iff]
 
 /-- Long-branch rows are exactly the old rows plus the fixed actual gadget rows. -/
 theorem length_transposeTail_body (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
@@ -445,16 +444,14 @@ theorem relations_transposeTail (I : State Rel) :
   by_cases hs : I.ports.length < 2
   · rw [transposeTail_short g w I hs, ite_eq_left hs, List.append_nil]
   · rcases I with ⟨F, ps, c⟩
-    induction ps using List.reverseRecOn with
+    cases ps using List.reverseRecOn with
     | nil => simp at hs
-    | append_singleton ps y _ =>
+    | append_singleton ps y =>
       cases ps using List.reverseRecOn with
       | nil => simp at hs
       | append_singleton L x =>
-        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
-          simp only [List.append_assoc, List.cons_append, List.nil_append],
-          (long_fields g w F L x y c).1]
-        simp [insert, CSP.relabel, Constraint.relabel, List.map_map, Function.comp_def]
+        simp [List.append_assoc, (long_fields g w F L x y c).1, insert, CSP.relabel,
+          Constraint.relabel, List.map_map, Function.comp_def]
 
 private theorem left_storage (J : State Rel) (B : ℕ)
     (hl : J.rotation.successor.length = 2 * (J.body.occurrences.length + J.ports.length))
@@ -493,30 +490,18 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
   let J := hideHead H
   have hout : transposeTail g w I = rotateLeft (rotateLeft J) := by
     rw [transposeTail, ite_eq_right (by omega)]
-  have hcounts : (transposeTail g w I).ports.length = I.ports.length ∧
+  have ⟨hports, hocc⟩ : (transposeTail g w I).ports.length = I.ports.length ∧
       (transposeTail g w I).body.occurrences.length =
         I.body.occurrences.length + g.body.occurrences.length := by
-    let n := I.ports.length-2
-    have hn : n+1<I.ports.length := by dsimp only [n]; omega
-    have hs := List.take_append_drop n I.ports
-    rw [List.drop_eq_getElem_cons (by omega : n<I.ports.length),
-      List.drop_eq_getElem_cons hn,
-      show n+1+1=I.ports.length from by dsimp only [n]; omega, List.drop_length] at hs
-    let L := I.ports.take n
-    let x := I.ports[n]
-    let y := I.ports[n+1]
-    have hI : I=(⟨I.body,L++[x,y],I.rotation⟩ : State Rel) := by
-      cases I
-      simpa only [L,x,y,List.append_assoc,List.cons_append,List.nil_append] using
-        congrArg (fun ps => CrossInsertion.State.mk _ ps _) hs.symm
-    have hlen : I.ports.length=L.length+2 := by
-      dsimp only [L]
-      rw [List.length_take_of_le (by omega : n≤I.ports.length)]
-      dsimp only [n]
-      omega
-    exact ⟨by simpa only [← hI,hlen] using length_transposeTail_ports g w I.body L x y I.rotation,
-      by simpa only [← hI] using length_transposeTail_occurrences g w I.body L x y I.rotation⟩
-  obtain ⟨hports, hocc⟩ := hcounts
+    rcases I with ⟨F, ps, c⟩
+    cases ps using List.reverseRecOn with
+    | nil => simp at h
+    | append_singleton ps y =>
+      cases ps using List.reverseRecOn with
+      | nil => simp at h
+      | append_singleton L x =>
+        simpa [List.append_assoc] using ⟨length_transposeTail_ports g w F L x y c,
+          length_transposeTail_occurrences g w F L x y c⟩
   have hpJ : J.ports.length = I.ports.length := by
     rwa [hout, rotateLeft_ports, List.length_rotate, rotateLeft_ports, List.length_rotate] at hports
   have hmJ : J.body.occurrences.length =

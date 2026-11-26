@@ -112,8 +112,8 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
       (he : z ∈ (ref.route e).support) (hf : z ∈ (ref.route f).support) :
       z = ref.vertex v := by
     by_contra hne
-    have hc : z ∈ C := ⟨e, f, hef, hinterior hv hz hne e he, hinterior hv hz hne f hf⟩
-    linarith [hdist (Or.inr hc) (hmem v hv) hne, Metric.mem_closedBall.mp hz]
+    linarith [hdist (Or.inr ⟨e, f, hef, hinterior hv hz hne e he, hinterior hv hz hne f hf⟩)
+      (hmem v hv) hne, Metric.mem_closedBall.mp hz]
   refine ⟨ρ, hρ, δ₀, hδ₀, hdisj, hcontact, ?_⟩
   intro δ hδ
   let port (a : Dart G) :=
@@ -160,20 +160,15 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
   refine ⟨hstub, ?_, ?_⟩
   · rintro ⟨e, s⟩ ⟨f, t⟩ heq
     change port (e, s) = port (f, t) at heq
-    have hv : Dart.vertex (e, s) = Dart.vertex (f, t) := by
-      by_contra h
-      exact Set.disjoint_left.mp (hdisj _ (hvertex (e, s)) _ (hvertex (f, t)) h)
+    have hv : Dart.vertex (e, s) = Dart.vertex (f, t) := by_contra fun h =>
+      Set.disjoint_left.mp (hdisj _ (hvertex (e, s)) _ (hvertex (f, t)) h)
         (hport (e, s)).1 (heq.symm ▸ (hport (f, t)).1)
-    have he : e = f := by
-      by_contra h
-      exact hcenter (e, s) (hcontact _ (hvertex (e, s)) _ _ h _ (hport (e, s)).1
+    obtain rfl : e = f := by_contra fun h =>
+      hcenter (e, s) (hcontact _ (hvertex (e, s)) _ _ h _ (hport (e, s)).1
         (hport (e, s)).2 (heq.symm ▸ (hport (f, t)).2))
-    subst f
     cases s <;> cases t
-    · rfl
-    · exact ((subdivision_endpoint_spec hI e).2 hv).elim
-    · exact ((subdivision_endpoint_spec hI e).2 hv.symm).elim
-    · rfl
+    exacts [rfl, ((subdivision_endpoint_spec hI e).2 hv).elim,
+      ((subdivision_endpoint_spec hI e).2 hv.symm).elim, rfl]
   · rintro a ⟨v, hv, heq⟩
     by_cases he : v = a.vertex
     · exact hcenter a (heq.symm.trans (congrArg ref.vertex he))
@@ -257,13 +252,10 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       exact hne side hs
     by_cases hfixed : frozen e
     · refine ⟨ref.route e, fun _ => rfl, fun _ => rfl,
-        fun _ => ⟨1, one_pos, (one_smul ℝ _).symm⟩, ?_, ?_, fun h => (h hfixed).elim⟩
-      · intro v hne
-        change point v ∉ (Route.line a b).support
-        rw [Route.support_line]
-        exact havoid v hne
-      · intro v
-        rw [hread, hfrozen idx v hfixed, ← Bool.zero_eq_false, add_zero]
+        fun _ => ⟨1, one_pos, (one_smul ℝ _).symm⟩,
+        fun v hne => (Route.support_line a b).symm ▸ havoid v hne, fun v => ?_,
+        fun h => (h hfixed).elim⟩
+      rw [hread, hfrozen idx v hfixed, ← Bool.zero_eq_false, add_zero]
     let odd := (Finset.univ.filter fun v : V => moves idx v = true).map point
     have hsub : odd ⊆ points := Finset.map_subset_map.mpr (Finset.filter_subset _ _)
     have hbit (v : V) : decide (point v ∈ odd) = readMove F moves e.val v.val := by
@@ -329,12 +321,10 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       rw [Route.endpoint_concat _ _ hright, Route.endpoint_concat _ _ hleft]
       cases side <;> rfl
     · intro side
-      refine ⟨δ / 2, by linarith [hδ.1], ?_⟩
+      refine ⟨δ / 2, half_pos hδ.1, ?_⟩
       rw [Route.germ_concat _ _ hright, Route.germ_concat _ _ hleft]
       cases side
-      · change c - a = (δ / 2) • (b - a)
-        rw [hc]
-        exact AffineMap.lineMap_vsub_left a b _
+      · exact (congrArg (· - a) hc).trans (AffineMap.lineMap_vsub_left a b (δ / 2))
       · change d - b = (δ / 2) • (a - b)
         rw [hd]
         calc

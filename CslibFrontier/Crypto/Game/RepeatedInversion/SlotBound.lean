@@ -113,9 +113,7 @@ private theorem exists_slotHit {idx : Q → ℕ} {f : X → X} {n d : ℕ} (hd :
   have hP : ∃ m, m + 1 = d ∨ ∃ r ∈ log, idx r.1 / d = idx q / d ∧ idx r.1 % d = m + 1 :=
     ⟨d - 1, Or.inl (by omega)⟩
   have hp := Nat.find_spec hP
-  have hmin : ∀ m < Nat.find hP,
-      ¬ (m + 1 = d ∨ ∃ r ∈ log, idx r.1 / d = idx q / d ∧ idx r.1 % d = m + 1) :=
-    fun _ => Nat.find_min hP
+  have hmin := fun m => Nat.find_min hP (m := m)
   generalize Nat.find hP = p at hp hmin
   have ⟨hpd, hbp⟩ : p < d ∧ idx q % d ≤ p := by
     rcases hp with hp | ⟨r, hr, hra, hrp⟩
@@ -184,8 +182,7 @@ private theorem map_true_le_map_true_of_le {α : Type} (μ ν : PMF α) {E F : �
   refine tsum_le_tsum fun a => ?_
   cases hE : E a
   · simp
-  · obtain ⟨hle, hF⟩ := h a hE
-    simp [hF, hle]
+  · simp [(h a hE).1, (h a hE).2]
 
 /-- **The plug-and-pray step.** A win of the repeated game names a chain and, on it, the highest
 slot below everything revealed; planting the challenge above that slot inverts `f` on the law of
@@ -234,21 +231,9 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
             (slotHit idx f d g (front ++ x₀ :: back)) := by
       rw [hD, ← hrep]
       simp only [pmf_norm]
-    have hR : ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
-          (slotInverter idx sample f n d g A)) =
-        (ProbComp.eval sample).bind fun x₀ =>
-        (ProbComp.eval (OracleComp.replicate (g / d) sample)).bind fun front =>
-        (ProbComp.eval (OracleComp.replicate (n - g / d - 1) sample)).bind fun back =>
-        (ProbComp.eval ((A (front.map f^[d] ++ f^[d - 1 - g % d] (f (f^[g % d] x₀)) ::
-            back.map f^[d])).runLog fun q =>
-          pure (if idx q / d = g / d then
-              if g % d < idx q % d then f^[idx q % d - g % d - 1] (f (f^[g % d] x₀)) else default
-            else chainSlot f d (front ++ default :: back) (idx q)))).map fun z =>
-          f (if idx z.1.1 / d = g / d ∧ idx z.1.1 % d ≤ g % d then
-            f^[g % d - idx z.1.1 % d] z.1.2 else default) == f (f^[g % d] x₀) := by
-      simp only [inversionExperiment, slotInverter, ← ProbOracleComp.map_fst_eval_runLog, pmf_norm]
-      rfl
-    rw [hL, hR]
+    rw [hL]
+    simp only [inversionExperiment, slotInverter, ← ProbOracleComp.map_fst_eval_runLog, pmf_norm,
+      Function.comp_def]
     refine PMF.bind_apply_mono_on_support _ _ fun x₀ _ => ?_
     refine PMF.bind_apply_mono_on_support _ _ fun front hfront => ?_
     refine PMF.bind_apply_mono_on_support _ _ fun back _ => ?_

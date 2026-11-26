@@ -238,12 +238,11 @@ private theorem doubleJointOracle_planted {S : IndexedSignatureScheme} {b : Bool
       (ProbComp.eval (S.sign challengeSk 0 (requestDecoder.decode w).2)).bind fun σ =>
         PMF.pure (List.take (bound n (requestDecoder.decode w).2.length) σ,
           requestDecoder.decode w :: signed, (0, (requestDecoder.decode w).2) :: ext) := by
-  have hpos : 0 < S.capacity n := hcap
   have hnot0 : 0 ∉ ext.map Prod.fst := fun h0 => hfresh.2 (hslot ▸ hinv.1.mp h0)
   simp only [doubleJointOracle, doubleHandler, hfresh.1, hfresh.2, not_false_eq_true, and_self,
     ↓reduceIte]
-  simp only [hslot, ↓reduceIte, indexedSigningOracle, requestDecoder.decode_enc, hpos, hnot0,
-    not_false_eq_true, and_self, runWith_norm, pmf_norm]
+  simp only [hslot, ↓reduceIte, indexedSigningOracle, requestDecoder.decode_enc,
+    Nat.succ_le_iff.mp hcap, hnot0, not_false_eq_true, and_self, runWith_norm, pmf_norm]
 
 private theorem doubleJointOracle_unplanted {S : IndexedSignatureScheme} {b : Bool}
     {challengeSk otherSk : List Bool} {bound : ℕ → ℕ → ℕ} {n : ℕ}
@@ -281,10 +280,8 @@ private theorem doubleLogInv_preserve {S : IndexedSignatureScheme} {b : Bool}
   · by_cases hslot : (requestDecoder.decode w).1 = b.toNat
     · supp_cases hmem [doubleJointOracle_planted hcap hinv hfresh hslot]
       refine ⟨by simp [hslot.symm], fun m hm => ?_⟩
-      rcases List.mem_cons.mp hm with heq | hm
-      · rcases Prod.mk.inj heq with ⟨-, rfl⟩
-        exact List.mem_cons.mpr (Or.inl (Prod.ext hslot.symm rfl))
-      · exact List.mem_cons_of_mem _ (hinv.2 m hm)
+      rcases List.mem_cons.mp hm with ⟨-, rfl⟩ | hm
+      exacts [List.mem_cons.mpr (.inl (Prod.ext hslot.symm rfl)), .tail _ (hinv.2 m hm)]
     · supp_cases hmem [doubleJointOracle_unplanted hfresh hslot]
       exact ⟨by simpa [Ne.symm hslot] using hinv.1,
         fun m hm => List.mem_cons_of_mem _ (hinv.2 m hm)⟩
@@ -313,12 +310,10 @@ private theorem map_run_doubleJointOracle {S : IndexedSignatureScheme}
   intro bundledSk
   refine ⟨?_, fun r hr => ProbOracleComp.runWith_invariant
     (oracle := doubleJointOracle S b challengeSk otherSk bound n) (invariant := doubleLogInv b)
-    (fun q st hst a next hmem => doubleLogInv_preserve (hcap n) q st hst a next hmem)
-    program ([], []) ⟨by simp, by simp⟩ r.1 r.2 hr⟩
+    (doubleLogInv_preserve (hcap n)) program ([], []) ⟨by simp, by simp⟩ r.1 r.2 hr⟩
   rw [ProbOracleComp.eval_run_interpret_eq_runWith]
   refine ProbOracleComp.runWith_map_state_of_invariant _ _ Prod.fst (doubleLogInv b)
-    (fun q st hst a next hmem => doubleLogInv_preserve (hcap n) q st hst a next hmem)
-    ?_ program ([], []) ⟨by simp, by simp⟩
+    (doubleLogInv_preserve (hcap n)) ?_ program ([], []) ⟨by simp, by simp⟩
   rintro ⟨⟨⟩, w⟩ ⟨signed, ext⟩ hinv
   by_cases hfresh :
       (requestDecoder.decode w).1 < 2 ∧ (requestDecoder.decode w).1 ∉ signed.map Prod.fst
@@ -386,10 +381,9 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true +
           (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary true) n)) true := by
     rw [hsplit, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-    have hunif (b : Bool) : (ProbComp.eval (ProbComp.uniform Bool)) b = (2 : ℝ≥0∞)⁻¹ := by
-      simp [ProbComp.eval_uniform, PMF.uniformOfFintype_apply]
-    rw [hunif false, hunif true, ← mul_add, ← mul_assoc,
-      ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul, add_comm]
+    simp only [ProbComp.eval_uniform, PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
+    rw [← mul_add, ← mul_assoc, ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top,
+      one_mul, add_comm]
   let slotEvent (b : Bool) (k₀ k₁ : List Bool × List Bool) : PMF Bool :=
     (ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
@@ -480,16 +474,15 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
         decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
           (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst))
       encDoubleHandlerIn encBool := by
-    have heq : (fun pair : DoubleHandlerIn =>
-        decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
-          (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst)) =
-      fun pair =>
-        decide ((requestDecoder.decode pair.2.1.2).1 < 2) &&
-          !(pair.2.2.any fun e => (requestDecoder.decode pair.2.1.2).1 == e.1) := by
-      funext pair; rw [Bool.eq_iff_iff]
+    convert (?_ : ComputableInPolyTime (fun pair : DoubleHandlerIn =>
+      decide ((requestDecoder.decode pair.2.1.2).1 < 2) &&
+        !(pair.2.2.any fun e => (requestDecoder.decode pair.2.1.2).1 == e.1))
+      encDoubleHandlerIn encBool) using 1
+    · funext pair
+      rw [Bool.eq_iff_iff]
       simp only [decide_eq_true_eq, Bool.and_eq_true, Bool.not_eq_true', List.any_eq_false,
         List.mem_map, not_exists, not_and, beq_iff_eq, eq_comm (a := (requestDecoder.decode _).1)]
-    rw [heq]; polytime
+    · polytime
   have hslotDec : ComputableInPolyTime
       (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat))
@@ -558,12 +551,11 @@ theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
   apply IndexedEUFCMA.of_negligible
   intro adversary hadversary
-  have hneg := hS.negligible (S.doubleForger bound adversary)
-    (isOraclePPT_doubleForger S hboundPoly hadversary)
-  refine negligible_of_le (hneg.const_mul 2) fun n => ?_
-  simpa only [Pi.mul_apply] using
-    succProbability_indexedEufCmaGame_double_le hcap
-      (fun keys hkeys => hbound n keys hkeys 0 (hcap n)) adversary
+  refine negligible_of_le
+    ((hS.negligible (S.doubleForger bound adversary)
+      (isOraclePPT_doubleForger S hboundPoly hadversary)).const_mul 2) fun n => ?_
+  simpa only [Pi.mul_apply] using succProbability_indexedEufCmaGame_double_le hcap
+    (fun keys hkeys => hbound n keys hkeys 0 (hcap n)) adversary
 
 end IndexedSignatureScheme
 

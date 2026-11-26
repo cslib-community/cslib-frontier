@@ -145,25 +145,18 @@ private theorem cf_eq_zero_of_forall {ts : List (ℕ × Literal ℕ)} (h : ∀ t
   induction ts with
   | nil => exact ⟨rfl, rfl, rfl⟩
   | cons t ts ih =>
-    obtain ⟨hcf, hns, hcs⟩ := ih fun t' ht' => h t' (List.mem_cons_of_mem _ ht')
-    have ht := h t List.mem_cons_self
     obtain ⟨a, v, b⟩ := t
-    simp only at ht
-    subst ht
-    refine ⟨?_, ?_, ?_⟩
-    · cases b <;> simp [cf_cons, hcf, termCoeff]
-    · cases b <;> simp [negSum_cons, hns]
-    · simp [coeffSum_cons, hcs]
+    obtain rfl : a = 0 := h (a, v, b) List.mem_cons_self
+    obtain ⟨hcf, hns, hcs⟩ := ih fun t' ht' => h t' (List.mem_cons_of_mem _ ht')
+    cases b <;> simp [cf_cons, negSum_cons, coeffSum_cons, termCoeff, hcf, hns, hcs]
 
 /-- With `k` dividing `a`, rounding `a / k` up is exact. -/
 private theorem mul_ceilDiv_of_dvd {a k : ℕ} (hk : 0 < k) (h : k ∣ a) : k * ceilDiv a k = a := by
   obtain ⟨q, rfl⟩ := h
-  have h1 := le_mul_ceilDiv (k * q) hk
-  have h2 := VeriPB.mul_ceilDiv_lt (k * q) hk
-  have hle : ceilDiv (k * q) k ≤ q :=
-    Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_left (a := k) (by rw [Nat.mul_succ]; exact h2))
-  have hge : q ≤ ceilDiv (k * q) k := Nat.le_of_mul_le_mul_left h1 hk
-  rw [le_antisymm hle hge]
+  have hlt : k * ceilDiv (k * q) k < k * (q + 1) := by
+    simpa [Nat.mul_succ] using VeriPB.mul_ceilDiv_lt (k * q) hk
+  rw [le_antisymm (Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_left hlt))
+    (Nat.le_of_mul_le_mul_left (le_mul_ceilDiv (k * q) hk) hk)]
 
 /-- **Division** of a constraint dominating `I` by `k` dividing every coefficient of `I`
 represents the exact division `I.div k`. -/
@@ -364,10 +357,8 @@ theorem exists_runSteps_of_isProof {Γ : Set (Ineq ℕ)} {db : List (ℕ × PBCo
       have := hn e he
       rw [hE, List.mem_reverse, List.mem_range'_1]
       omega
-    have := hcI.represents_mul 1
-    rw [one_smul] at this
     exact Compiled.cons ann E hlen hrun hE hls (.hyp i) _ rfl _
-      (by simp only [polEval, hi, Option.bind_some]) this
+      (by simp only [polEval, hi, Option.bind_some]) (one_smul ℕ I ▸ hcI.represents_mul 1)
   | @nonneg ls _ v ih =>
     obtain ⟨ann, E, hlen, hrun, hE, hls⟩ := ih
     exact Compiled.cons ann E hlen hrun hE hls (.nonneg v) _ rfl _ rfl

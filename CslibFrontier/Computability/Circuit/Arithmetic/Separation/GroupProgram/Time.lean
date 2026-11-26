@@ -100,16 +100,13 @@ variable {n : Fin (K + K) → Fin (K + K) → Fin (U0 + 1)} {o : M.Channel → F
 private theorem card_groupCells : #(groupCells n o grp g) = cellCount n o grp g := by
   rw [card_eq_sum_card_fiberwise (f := Cell.party) (t := univ.filter fun a => grp a = g)
     fun c hc => mem_filter.2 ⟨mem_univ _, (mem_groupCells.1 hc).1⟩]
-  refine sum_congr rfl fun a ha => card_nbij' Cell.unit (fun u => ⟨a, u⟩) ?_ ?_ ?_ fun _ _ => rfl
-  · intro c hc
-    simp only [coe_filter, Set.mem_ofPred_eq, mem_groupCells] at hc ⊢
+  refine sum_congr rfl fun a ha => card_nbij' Cell.unit (fun u => ⟨a, u⟩)
+    (fun c hc => ?_) (fun u hu => ?_) (fun c hc => (Finset.mem_filter.1 hc).2 ▸ rfl)
+    fun _ _ => rfl
+  · simp only [coe_filter, Set.mem_ofPred_eq, mem_groupCells] at hc ⊢
     exact ⟨hc.1.2.1, hc.2 ▸ hc.1.2.2⟩
-  · intro u hu
-    simp only [coe_filter, Set.mem_ofPred_eq, mem_groupCells] at hu ⊢
+  · simp only [coe_filter, Set.mem_ofPred_eq, mem_groupCells] at hu ⊢
     exact ⟨⟨(mem_filter.1 ha).2, hu⟩, trivial⟩
-  · intro c hc
-    simp only [coe_filter, Set.mem_ofPred_eq] at hc
-    exact hc.2 ▸ rfl
 
 end Counts
 
@@ -303,11 +300,9 @@ theorem groupTime_le {cap ι lh ev pd : ℕ} {bT bub : List Bool}
       obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hy
       have := hlh p (mem_baseParties.1 hp)
       exact (cost_baseInstructions hx hk hd hS hA p).trans (by gcongr)
-  have hG := nodup_groupRoles grp g M
-  have hGf : (groupRoles grp g M).toFinset = univ.filter fun r => grp (M.roleParty r) = g := by
-    ext r
-    simp [mem_groupRoles]
-  rw [← List.sum_toFinset _ hG, hGf]
+  have hGf : (groupRoles grp g M).toFinset = univ.filter fun r => grp (M.roleParty r) = g :=
+    Finset.ext fun r => by simp [mem_groupRoles]
+  rw [← List.sum_toFinset _ (nodup_groupRoles grp g M), hGf]
   have c2 := sum_le_sum (s := univ.filter fun r => grp (M.roleParty r) = g) fun r _ =>
     cost_roleInstruction (T := T) (ub := ub) (P := P) (n := n) (o := o) (key := key) (tg := tg)
       hP hk hsl hcn r

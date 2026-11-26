@@ -245,10 +245,9 @@ theorem isLocallyNonsatiated_linearUtility_iff (v : G → ℝ) :
       (g := fun g => v g * b' g) (by simpa [linearUtility] using hpos)
     exact ⟨g, pos_of_mul_pos_left hg (hb'_nn g)⟩
   · rintro ⟨g₀, hg₀⟩ b hb_nn ε hε
-    refine ⟨Function.update b g₀ (b g₀ + ε / 2), ?_, ?_, ?_⟩
-    · exact le_update_iff.2 ⟨by linarith [hb_nn g₀], fun j _ => hb_nn j⟩
-    · intro g
-      rcases eq_or_ne g g₀ with rfl | h
+    refine ⟨Function.update b g₀ (b g₀ + ε / 2),
+      le_update_iff.2 ⟨by linarith [hb_nn g₀], fun j _ => hb_nn j⟩, fun g => ?_, ?_⟩
+    · rcases eq_or_ne g g₀ with rfl | h
       · simpa [abs_of_pos (half_pos hε)] using half_lt_self hε
       · simp only [Function.update_of_ne h, sub_self, abs_zero, hε]
     · have hdiff : linearUtility v (Function.update b g₀ (b g₀ + ε / 2)) - linearUtility v b =
@@ -299,11 +298,8 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
   classical
   have hlns : IsLocallyNonsatiated (linearUtility v) :=
     (isLocallyNonsatiated_linearUtility_iff v).2 hns
-  constructor
-  · intro hb
-    refine ⟨hb.1.1, hlns.expenditure_eq_of_mem_demandSet hb, ?_⟩
-    intro g hbg g'
-    obtain rfl | hgg' := eq_or_ne g' g
+  refine ⟨fun hb => ⟨hb.1.1, hlns.expenditure_eq_of_mem_demandSet hb, fun g hbg g' => ?_⟩, ?_⟩
+  · obtain rfl | hgg' := eq_or_ne g' g
     · exact le_rfl
     · let b' : G → ℝ := Function.update (Function.update b g 0) g' (b g' + p g * b g / p g')
       have hb'_nn (k : G) : 0 ≤ b' k := by
@@ -513,10 +509,9 @@ theorem excessDemand_eq_zero_of_other_goods {p : G → ℝ} {x : I → G → ℝ
     (hother : ∀ g, g ≠ g₀ → E.excessDemand x g = 0) :
     E.excessDemand x g₀ = 0 := by
   classical
-  have hsingle : expenditure p (E.excessDemand x) = p g₀ * E.excessDemand x g₀ := by
-    exact Finset.sum_eq_single g₀ (fun g _ hne => by rw [hother g hne, mul_zero]) (by simp)
-  rw [hsingle] at hwalras
-  exact (mul_eq_zero.1 hwalras).resolve_left hp₀.ne'
+  have hsingle : expenditure p (E.excessDemand x) = p g₀ * E.excessDemand x g₀ :=
+    Finset.sum_eq_single g₀ (fun g _ hne => by rw [hother g hne, mul_zero]) (by simp)
+  exact (mul_eq_zero.1 (hsingle ▸ hwalras)).resolve_left hp₀.ne'
 
 /-- A **competitive (Walrasian) equilibrium** ([ArrowDebreu1954]; [CodenottiVaradarajan2007],
 Section 6.1.1, p. 136) consists of an allocation `x` and nonnegative prices `p` such that every
@@ -837,9 +832,8 @@ theorem isEquilibrium_smul_of_toExchangeMarket {x : I → G → ℝ} {p : G → 
     (heq : M.toExchangeMarket.IsCompetitiveEquilibrium x p)
     (hval : 0 < expenditure p M.supply) :
     M.IsEquilibrium x ((M.totalBudget / expenditure p M.supply) • p) := by
-  rw [M.isEquilibrium_iff_toExchangeMarket hB hlns]
-  refine ⟨?_, heq.smul (div_pos hB hval)⟩
-  rw [expenditure_smul_left, div_mul_cancel₀ _ hval.ne']
+  exact (M.isEquilibrium_iff_toExchangeMarket hB hlns).2
+    ⟨by rw [expenditure_smul_left, div_mul_cancel₀ _ hval.ne'], heq.smul (div_pos hB hval)⟩
 
 end FisherMarket
 

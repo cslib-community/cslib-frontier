@@ -391,12 +391,9 @@ theorem IsEnvyFree.isEFX {A : BundleAllocation n m} (hEF : V.IsEnvyFree A) : V.I
   fun i j _ _ => (V.mono i Finset.sdiff_subset).trans (hEF i j)
 
 /-- Every `EFX` allocation is `EF1`. -/
-theorem IsEFX.isEF1 {A : BundleAllocation n m} (hEFX : V.IsEFX A) : V.IsEF1 A := by
-  intro i j
+theorem IsEFX.isEF1 {A : BundleAllocation n m} (hEFX : V.IsEFX A) : V.IsEF1 A := fun i j => by
   rcases (A.bundle j).eq_empty_or_nonempty with hEmpty | ⟨g, hg⟩
-  · left
-    rw [hEmpty]
-    exact V.mono i (Finset.empty_subset _)
+  · exact Or.inl (hEmpty ▸ V.mono i (Finset.empty_subset _))
   · exact Or.inr ⟨g, hg, hEFX i j g hg⟩
 
 theorem isEnvyFree_empty : V.IsEnvyFree BundleAllocation.empty :=
@@ -476,8 +473,7 @@ variable {n m : ℕ} {R : Type*} [AddCommMonoid R] [PartialOrder R]
 
 theorem bundleVal_insert {i : Fin n} {g : Fin m} {S : Finset (Fin m)} (hg : g ∉ S) :
     W.bundleVal i (insert g S) = W.bundleVal i S + W.weight i g := by
-  rw [bundleVal, Finset.sum_insert hg, add_comm]
-  rfl
+  simp only [bundleVal, Finset.sum_insert hg, add_comm]
 
 theorem bundleVal_sdiff_singleton_add {i : Fin n} {g : Fin m} {S : Finset (Fin m)} (hg : g ∈ S) :
     W.bundleVal i (S \ {g}) + W.weight i g = W.bundleVal i S := by
@@ -544,16 +540,13 @@ private theorem rrRemaining_antitone (hn : 0 < n) :
   induction hst with
   | refl => exact Finset.Subset.rfl
   | step _ ih =>
-    refine Finset.Subset.trans ?_ ih
     rw [rrRemaining]
     split_ifs
-    · exact Finset.sdiff_subset
-    · exact Finset.empty_subset _
+    exacts [Finset.sdiff_subset.trans ih, Finset.empty_subset _]
 
 theorem rrRemaining_nonempty (hn : 0 < n) (t : Fin m) :
-    (W.rrRemaining hn t.val).Nonempty := by
-  have hc := W.card_rrRemaining hn t.val t.isLt.le
-  exact Finset.card_pos.1 (by have := t.isLt; omega)
+    (W.rrRemaining hn t.val).Nonempty :=
+  Finset.card_pos.1 (by have := W.card_rrRemaining hn t.val t.isLt.le; omega)
 
 /-- The good picked at turn `t : Fin m` of Round-Robin. -/
 @[expose] def rrPick (hn : 0 < n) (t : Fin m) : Fin m :=
@@ -576,9 +569,7 @@ theorem rrPick_injective (hn : 0 < n) : Function.Injective (W.rrPick hn) := by
     exact (Finset.mem_sdiff.1 hmem).2 (Finset.mem_singleton.2 heq.symm)
   intro s t hst
   rcases lt_trichotomy s t with hlt | rfl | hgt
-  · exact False.elim (hlt_ne hlt hst)
-  · rfl
-  · exact False.elim (hlt_ne hgt hst.symm)
+  exacts [(hlt_ne hlt hst).elim, rfl, (hlt_ne hgt hst.symm).elim]
 
 private theorem weight_rrPick_le_of_le (hn : 0 < n) {s t : Fin m} (hst : s ≤ t) :
     W.weight ⟨s.val % n, Nat.mod_lt s.val hn⟩ (W.rrPick hn t) ≤
@@ -604,17 +595,15 @@ private theorem weight_rrPick_le_of_le (hn : 0 < n) {s t : Fin m} (hst : s ≤ t
     exact hij (Fin.ext (hi_mod.symm.trans hj_mod))
 
 /-- Round-Robin allocates every good (`IsComplete`). -/
-theorem isComplete_roundRobin (hn : 0 < n) : (W.roundRobin hn).IsComplete := by
-  intro g
+theorem isComplete_roundRobin (hn : 0 < n) : (W.roundRobin hn).IsComplete := fun g => by
   obtain ⟨t, rfl⟩ := (Finite.injective_iff_bijective.1 (W.rrPick_injective hn)).2 g
-  refine ⟨⟨t.val % n, Nat.mod_lt t.val hn⟩, ?_⟩
-  exact Finset.mem_image.2 ⟨t, Finset.mem_filter.2 ⟨Finset.mem_univ t, rfl⟩, rfl⟩
+  exact ⟨⟨t.val % n, Nat.mod_lt t.val hn⟩,
+    Finset.mem_image.2 ⟨t, Finset.mem_filter.2 ⟨Finset.mem_univ t, rfl⟩, rfl⟩⟩
 
 private theorem bundleVal_roundRobin (hn : 0 < n) (i j : Fin n) :
     W.bundleVal i ((W.roundRobin hn).bundle j) =
-      ∑ t ∈ rrTurns n m j, W.weight i (W.rrPick hn t) := by
-  dsimp only [roundRobin, bundleVal]
-  exact Finset.sum_image fun x _ y _ hxy => W.rrPick_injective hn hxy
+      ∑ t ∈ rrTurns n m j, W.weight i (W.rrPick hn t) :=
+  Finset.sum_image fun _ _ _ _ hxy => W.rrPick_injective hn hxy
 
 end RoundRobinDefs
 

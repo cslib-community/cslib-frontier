@@ -202,8 +202,7 @@ theorem synthesis_batched_power (c : Circuit signature n n) (s : Set (BooleanFun
           4 * n)) := by
   obtain ⟨result, hresult, hs⟩ := synthesis_batched_power_on c s init hi hc T L hL hLN hT
     cp hcp Set.univ (fun x _ => hcover x)
-  refine hs.mono Set.Subset.rfl ?_ le_rfl
-  intro g hg
+  refine hs.mono Set.Subset.rfl (fun _ hg => ?_) le_rfl
   obtain ⟨member, bit, rfl⟩ := Set.mem_iUnion.mp hg
   exact Set.mem_iUnion.mpr
     ⟨member, bit, funext fun x => congrFun (hresult member x (Set.mem_univ _)) bit⟩
@@ -229,8 +228,7 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
       ring
     rw [he, show r * (2 * L + 1) = 2 * (r * L) + r by ring]
     have hp : r * L ≤ U * U := Nat.mul_le_mul hrN hLN
-    have hr1 : r ≤ U * U := hrN.trans (Nat.le_mul_of_pos_right U hU)
-    have hMU2 : M ≤ U * U := hMU.trans (Nat.le_mul_of_pos_right U hU)
+    have hU2 : U ≤ U * U := Nat.le_mul_of_pos_right U hU
     omega
   have hP : 1 ≤ P := Nat.one_le_pow _ _ (by omega)
   have hn1 : n + 1 ≤ P := by
@@ -357,19 +355,13 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
   let output : BitString (r * n) → BitString (r * n) := fun x i =>
     result (finProdFinEquiv.symm i).1 x (finProdFinEquiv.symm i).2
   obtain ⟨out, hout, hsize⟩ := ((hconst.trans hs).mono Set.Subset.rfl
-    (show wires output ⊆ ⋃ member, wires (result member) from by
-      rintro _ ⟨i, rfl⟩
-      exact Set.mem_iUnion.mpr
-        ⟨(finProdFinEquiv.symm i).1, (finProdFinEquiv.symm i).2, rfl⟩)
+    (Set.range_subset_iff.mpr fun i => Set.mem_iUnion.mpr
+      ⟨(finProdFinEquiv.symm i).1, (finProdFinEquiv.symm i).2, rfl⟩)
     le_rfl).exists_circuit_outputs
-  refine ⟨out, ?_, hsize.trans ?_⟩
-  · intro x hx
-    rw [hout x]
-    funext i
-    exact congrFun (hresult (finProdFinEquiv.symm i).1 x (hx _)) (finProdFinEquiv.symm i).2
-  · apply batch_construction_cost n c.size H.card S.card r L
-      (by simpa using Finset.card_le_univ S) hrN hL hLN
-    exact (Nat.le_div_iff_mul_le hL).mpr hcard
+  refine ⟨out, fun x hx => (hout x).trans
+    (funext fun i => congrFun (hresult _ x (hx _)) _), hsize.trans ?_⟩
+  exact batch_construction_cost n c.size H.card S.card r L
+    (by simpa using Finset.card_le_univ S) hrN hL hLN ((Nat.le_div_iff_mul_le hL).mpr hcard)
 
 /-- **Batched powers on an invariant set.** The checkpoint storage term `S.card / L` is shared
 by all `r` trajectories. The batch may have more members than `S` has states. -/

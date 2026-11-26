@@ -167,10 +167,9 @@ theorem mem_searchLeftFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
     m ∈ searchLeftFrom Q s N r := by
   have hsplit : (List.range (r + 1)).reverse =
       (List.range' (m + 1) (r - m)).reverse ++ m :: (List.range m).reverse := by
-    have hrange : List.range (r + 1) = List.range m ++ m :: List.range' (m + 1) (r - m) := by
-      rw [List.range_eq_range', List.range_eq_range']
-      simpa using range'_split (Nat.zero_le m) (show m < r + 1 by omega)
-    rw [hrange, List.reverse_append, List.reverse_cons, List.append_assoc, List.singleton_append]
+    have hr := range'_split (Nat.zero_le m) (Nat.lt_add_one_of_le hmr)
+    simp only [Nat.sub_zero, Nat.add_sub_add_right, ← List.range_eq_range'] at hr
+    rw [hr, List.reverse_append, List.reverse_cons, List.append_assoc, List.singleton_append]
   rw [searchLeftFrom, hsplit]
   refine mem_searchRight (K := K) hc (fun x hx w hw => ?_) fun z hz => ?_
   · have hx' : m ≤ x ∧ x ≤ r := by
@@ -258,13 +257,10 @@ theorem length_prunePositions_le (n d : ℕ) (starts : List ℕ) :
       calc 2 * n * left.length * X ≤ 2 * n * (starts.length * P ^ 2) * X := by gcongr
         _ = 2 * n * Y := by ring
     have hgoal : 2 * (n + 1) * starts.length * P ^ (2 * (n + 1)) = 2 * (n + 1) * Y := by
-      rw [show 2 * (n + 1) = 2 + 2 * n by ring, pow_add]
+      rw [Nat.mul_add, mul_one, pow_add]
       ring
     rw [hgoal]
-    have := hright.trans h1
-    have := hleft.trans h2
-    have := hrec.trans h3
-    nlinarith
+    nlinarith [hright.trans h1, hleft.trans h2, hrec.trans h3]
 
 /-- **`PRUNE` keeps at most `2 D (s + 2) ^ (2 D)` nodes.** -/
 theorem length_prune_le : (prune Q s D N).length ≤ 2 * D * (s + 2) ^ (2 * D) := by
@@ -487,15 +483,9 @@ theorem computableInPolyTime_prune {Q : γ → ℕ → α → List κ} {s : γ �
   have hpos : ComputableInPolyTime (fun x => prunePositions (Q x) (s x) (N x) D 0 [0]) encIn
       (encList encUnary) :=
     (computableInPolyTime_prunePositions hQ hs hN D 0).comp (id'.prod (const _))
-  have hzip : ComputableInPolyTime (fun x => (N x).zip (List.range (N x).length)) encIn
-      (encList (encPair encA encUnary)) :=
-    (zip encA encUnary).comp (hN.prod (range.comp ((length_list encA).comp hN)))
-  have htest : ComputableInPolyTime
-      (fun q : γ × (α × ℕ) => decide (q.2.2 ∈ prunePositions (Q q.1) (s q.1) (N q.1) D 0 [0]))
-      (encPair encIn (encPair encA encUnary)) encBool :=
-    decide_mem (hpos.comp (fst _ _)) ((snd encA encUnary).comp (snd _ _))
   have hfilter := filterWithInput (list := fun x => (N x).zip (List.range (N x).length))
-    (test := fun x p => decide (p.2 ∈ prunePositions (Q x) (s x) (N x) D 0 [0])) hzip htest
+    (test := fun x p => decide (p.2 ∈ prunePositions (Q x) (s x) (N x) D 0 [0])) (by fun_prop)
+    (decide_mem (hpos.comp (fst _ _)) ((snd encA encUnary).comp (snd _ _)))
   unfold prune
   fun_prop
 

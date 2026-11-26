@@ -156,53 +156,46 @@ private theorem held_step {s : State n} {p : Fin n} (hp : I.Outranked s p)
 
 private theorem ne_of_outranks {s : State n} {p q : Fin n}
     (h : I.RecvPrefers (I.target s p) q p) : q ≠ p := by
-  rintro rfl
-  exact lt_irrefl _ h
+  exact fun hqp => lt_irrefl _ (hqp ▸ h)
 
 /-- Once some proposer has reached its last choice, every receiver is proposed to. -/
 private theorem target_surjective_of_last {s : State n} (hs : I.Inv s) {p : Fin n}
     (hp : s p + 1 = n) : Function.Surjective (I.target s) := by
   intro r
-  set k := (I.propPref p).symm r with hk
-  have hr : I.propPref p k = r := by rw [hk, Equiv.apply_symm_apply]
+  obtain ⟨k, rfl⟩ := (I.propPref p).surjective r
   rcases Nat.lt_or_ge k.val (s p) with h | h
-  · obtain ⟨q, hq, -⟩ := hs.rejected p k h
-    exact ⟨q, hq.trans hr⟩
-  · have := k.isLt
-    have hk_eq : k = ⟨s p, hs.lt p⟩ := Fin.ext (by simp only; omega)
-    exact ⟨p, by rw [I.target_of_lt (hs.lt p), ← hk_eq, hr]⟩
+  · exact (hs.rejected p k h).imp fun _ hq => hq.1
+  · have hk : k = ⟨s p, hs.lt p⟩ :=
+      Fin.ext (Nat.le_antisymm (Nat.le_of_lt_succ (k.isLt.trans_eq hp.symm)) h)
+    exact ⟨p, by rw [I.target_of_lt (hs.lt p), hk]⟩
 
 private theorem not_outranked_of_last {s : State n} (hs : I.Inv s) {p : Fin n}
     (hp : s p + 1 = n) (x : Fin n) : ¬ I.Outranked s x := by
   rintro ⟨q, hq, hqx⟩
-  have hinj := Finite.injective_iff_surjective.2 (I.target_surjective_of_last hs hp)
-  exact I.ne_of_outranks hqx (hinj hq)
+  exact I.ne_of_outranks hqx
+    (Finite.injective_iff_surjective.2 (I.target_surjective_of_last hs hp) hq)
 
 private theorem inv_update_lt {s : State n} (hs : I.Inv s) {p : Fin n} (hp : I.Outranked s p)
     (x : Fin n) : Function.update s p (s p + 1) x < n := by
-  by_cases hxp : x = p
-  · subst hxp
-    rw [Function.update_self]
-    have h1 := hs.lt x
-    have h2 : s x + 1 ≠ n := fun h => I.not_outranked_of_last hs h x hp
+  rcases eq_or_ne x p with rfl | hxp
+  · rw [Function.update_self]
+    have := hs.lt x
+    have : s x + 1 ≠ n := fun h => I.not_outranked_of_last hs h x hp
     omega
-  · rw [Function.update_of_ne hxp]
-    exact hs.lt x
+  · simpa only [Function.update_of_ne hxp] using hs.lt x
 
 private theorem inv_update {s : State n} (hs : I.Inv s) {p : Fin n} (hp : I.Outranked s p) :
     I.Inv (Function.update s p (s p + 1)) where
   lt := I.inv_update_lt hs hp
   rejected x k hk := by
-    by_cases hxp : x = p
-    · subst hxp
-      rw [Function.update_self] at hk
+    rcases eq_or_ne x p with rfl | hxp
+    · rw [Function.update_self] at hk
       rcases Nat.lt_or_ge k.val (s x) with h | h
       · obtain ⟨q, hq, hqx⟩ := hs.rejected x k h
         exact I.held_step hp hq hqx
-      · have hkx : k = ⟨s x, hs.lt x⟩ := by ext; simp only; omega
-        have ht : I.target s x = I.propPref x k := by rw [I.target_of_lt (hs.lt x), hkx]
+      · obtain rfl : k = ⟨s x, hs.lt x⟩ := Fin.ext (Nat.le_antisymm (Nat.le_of_lt_succ hk) h)
         obtain ⟨y, hy, hyx⟩ := hp
-        rw [← ht]
+        rw [← I.target_of_lt (hs.lt x)]
         exact I.held_step ⟨y, hy, hyx⟩ hy hyx
     · rw [Function.update_of_ne hxp] at hk
       obtain ⟨q, hq, hqx⟩ := hs.rejected x k hk
@@ -303,8 +296,7 @@ theorem inv_finalState : I.Inv I.finalState := I.inv_run _
 
 /-- One more round of the run is one more step. -/
 theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) := by
-  rw [run, Function.iterate_succ_apply']
-  rfl
+  exact Function.iterate_succ_apply' _ _ _
 
 /-- Rejection counts never decrease along the run. -/
 theorem run_le_run_succ (k : ℕ) (p : Fin n) : I.run k p ≤ I.run (k + 1) p := by
@@ -334,10 +326,8 @@ theorem run_le_finalState (k : ℕ) (p : Fin n) : I.run k p ≤ I.finalState p :
 theorem not_outranked_finalState (p : Fin n) : ¬ I.Outranked I.finalState p := by
   rcases I.step_cases I.finalState with ⟨-, h⟩ | ⟨q, -, h⟩
   · exact h p
-  · have h' := I.step_run_fixed
-    rw [← finalState, h] at h'
-    have := congrFun h' q
-    simp only [Function.update_self] at this
+  · have h' := congrFun (h.symm.trans I.step_run_fixed) q
+    simp only [finalState, Function.update_self] at h'
     omega
 
 /-- Distinct proposers end at distinct receivers. -/

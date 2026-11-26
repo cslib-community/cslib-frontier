@@ -241,10 +241,8 @@ private theorem relatedMixedLowerOpt_injective (k B : ℕ) :
       simpa only [relatedMixedLowerOpt, Fin.val_cast] using congrArg (fun m => m.slot.val) h))
     cases hp
     rfl
-  · have hval := congrArg (fun m => m.tier.val) h
-    simp only [relatedMixedLowerOpt] at hval; omega
-  · have hval := congrArg (fun m => m.tier.val) h
-    simp only [relatedMixedLowerOpt] at hval; omega
+  · exact (t₁.isLt.ne (congrArg (fun m => m.tier.val) h)).elim
+  · exact (t₂.isLt.ne' (congrArg (fun m => m.tier.val) h)).elim
   · exact congrArg Sum.inr <| finProdFinEquiv.symm.injective <| Prod.ext
       (Fin.ext (by simpa only [relatedMixedLowerOpt] using congrArg (fun m => m.slot.val) h))
       (congrArg RelatedMixedLowerMachine.copy h)
@@ -903,10 +901,8 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
     have hembedM_inj : Function.Injective embedM := fun _ _ h =>
       eM.symm.injective (Fin.ext (by simpa only [embedM] using congrArg Fin.val h))
     have hp_embed : ∀ i x, p i (embedM x) = relatedMixedLowerNE k B (eJ i) x := fun i x => by
-      have hlt : (embedM x).val < Mfn k := (eM.symm x).isLt
-      simp only [p, dite_eq_left hlt]
-      rw [show (⟨(embedM x).val, hlt⟩ : Fin (Mfn k)) = eM.symm x from Fin.ext rfl,
-        eM.apply_symm_apply]
+      dsimp only [p]
+      rw [dite_eq_left (eM.symm x).isLt, eM.apply_symm_apply]
     -- Expected load of `G` under `p` matches `relatedMixedLower k B` on the first `Mfn k` machines.
     have hE_eq : ∀ j : Fin m,
         G.expectedLoad p j =
@@ -914,22 +910,19 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
             (relatedMixedLower k B).expectedLoad (relatedMixedLowerNE k B) (eM ⟨j.val, h⟩)
           else 0 := fun j => by
       rw [expectedLoad]
-      by_cases h : j.val < Mfn k
-      · rw [dite_eq_left h]
-        simp only [G, p, dite_eq_left h]
+      split_ifs with h
+      · simp only [G, p, dite_eq_left h]
         exact Fintype.sum_equiv eJ _ _ fun _ => rfl
-      · rw [dite_eq_right h]
-        exact sum_eq_zero fun _ _ => by simp only [p, dite_eq_right h, zero_mul]
+      · exact sum_eq_zero fun _ _ => by simp only [p, dite_eq_right h, zero_mul]
     have hbase_NE := isMixedNash_relatedMixedLowerNE (k := k) (B := B) (by omega)
     have hp_isNE : G.toCostGame.IsMixedNash p := by
       rw [G.isMixedNash_iff]
       refine ⟨fun i => ?_, fun i j hpos j' => ?_⟩
       · rw [isMixedStrategy_iff]
-        refine ⟨fun j => by
-          simp only [p]
+        refine ⟨fun j => ?_, ?_⟩
+        · simp only [p]
           split_ifs
-          · exact (hbase_NE.1 (eJ i)).nonneg _
-          · exact le_rfl, ?_⟩
+          exacts [(hbase_NE.1 (eJ i)).nonneg _, le_rfl]
         rw [← sum_subset (subset_univ (univ.image embedM)) fun j _ hnot => by
           have hge : ¬ j.val < Mfn k := fun hlt => hnot <| mem_image.mpr
             ⟨eM ⟨j.val, hlt⟩, mem_univ _, Fin.ext (by simp [embedM])⟩
@@ -963,8 +956,7 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
         congr 1
         refine sum_congr rfl fun x _ => ?_
         have hiff : embedM (A x) = j ↔ A x = eM ⟨j.val, h⟩ :=
-          ⟨fun heq => eM.symm_apply_eq.mp (Fin.ext (by
-              simpa only [embedM] using congrArg Fin.val heq)),
+          ⟨fun heq => eM.symm_apply_eq.mp (Fin.ext (congrArg (·.val) heq)),
             fun heq => Fin.ext (by simp [embedM, heq])⟩
         simp only [hiff]
       · rw [dite_eq_right h, sum_eq_zero fun x _ => by
@@ -975,10 +967,7 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
       (relatedMixedLower k B) (relatedMixedLowerNE k B) G p eJ hembedM_inj
       (fun i j => (hp_isNE.1 i).nonneg j) hp_embed
       (fun A₀ x => by
-        have hlt : (embedM x).val < Mfn k := (eM.symm x).isLt
-        rw [hload_embed A₀ (embedM x), dite_eq_left hlt,
-          show (⟨(embedM x).val, hlt⟩ : Fin (Mfn k)) = eM.symm x from Fin.ext rfl,
-          eM.apply_symm_apply])
+        rw [hload_embed A₀ (embedM x), dite_eq_left (eM.symm x).isLt, eM.apply_symm_apply])
       (fun A₀ j => by
         rw [hload_embed A₀ j]
         split_ifs

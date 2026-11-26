@@ -28,6 +28,7 @@ of `i` (`Codes.pickStep`); the sum over the states after the phase is a sum over
 
 ## Main results
 
+* `Codes.exec_pickStep`: a pick on a state by names.
 * `sum_execAll_append`: the sum over the states after two lists of steps.
 * `sum_execAll_pickSteps`: a phase of picks.
 * `execAll_writeSteps`: a phase of steps that write one name each.
@@ -53,7 +54,8 @@ the empty name. -/
     (o : α → List (PlanName S M U0 U1 pS × Tree)) : DStep :=
   .pick (C.name .empty) (.cons (listT (opts.map fun a => optionTree C.name (o a))) .nil)
 
-private theorem Codes.exec_pickStep {α : Type*} {st : PlanName S M U0 U1 pS → Tree}
+/-- A pick from a state whose empty name is empty makes the assignments of every option. -/
+theorem Codes.exec_pickStep {α : Type*} {st : PlanName S M U0 U1 pS → Tree}
     (hz : st .empty = .nil) (opts : List α) (o : α → List (PlanName S M U0 U1 pS × Tree)) :
     (C.pickStep opts o).exec m (extend C.name st fun _ => .nil) =
       opts.map fun a => extend C.name (assignAll st (o a)) fun _ => .nil := by

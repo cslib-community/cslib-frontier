@@ -284,11 +284,10 @@ private theorem greedyIndependentSubset_mem (vbl : ι → Finset V) (P : ι → 
   | cons x xs ih =>
     simp only [greedyIndependentSubset] at hi
     split_ifs at hi with hcond
-    · rw [Bool.and_eq_true] at hcond
-      rcases List.mem_cons.1 hi with rfl | hxs
-      · exact ⟨List.mem_cons_self, hcond.1⟩
-      · exact ⟨List.mem_cons_of_mem _ (ih hxs).1, (ih hxs).2⟩
-    · exact ⟨List.mem_cons_of_mem _ (ih hi).1, (ih hi).2⟩
+    · rcases List.mem_cons.1 hi with rfl | hxs
+      · exact ⟨List.mem_cons_self, (Eq.mp (Bool.and_eq_true _ _) hcond).1⟩
+      · exact (ih hxs).imp_left (List.mem_cons_of_mem _)
+    · exact (ih hi).imp_left (List.mem_cons_of_mem _)
 
 private theorem greedyIndependentSubset_pairwise (vbl : ι → Finset V) (P : ι → Bool)
     (cand : List ι) :
@@ -396,13 +395,11 @@ private theorem mem_pushList_spec (R : ι → ι → Prop) [DecidableRel R] [Dec
   | nil => simp [pushList]
   | cons x b ih =>
     rw [List.pairwise_cons] at hpw
-    have hnot : ∀ y ∈ b, ¬R x y := hpw.1
     have ih' := ih hpw.2 (pushRel R x S)
     have hlev : ∀ y ∈ b, levelRel R y (pushRel R x S) = levelRel R y S := fun y hy =>
-      levelRel_pushRel_of_not_rel R (hnot y hy) S
+      levelRel_pushRel_of_not_rel R (hpw.1 y hy) S
     constructor
     · intro p hp
-      change p ∈ pushList R b (pushRel R x S) at hp
       rcases ih'.1 p hp with hp1 | ⟨j, hjb, hne, rfl⟩
       · by_cases hx : levelRel R x S = 0
         · rw [pushRel_of_eq_zero hx] at hp1
@@ -414,13 +411,10 @@ private theorem mem_pushList_spec (R : ι → ι → Prop) [DecidableRel R] [Dec
       · rw [hlev j hjb] at hne ⊢
         exact Or.inr ⟨j, List.mem_cons_of_mem _ hjb, hne, rfl⟩
     · intro j hj hne
-      change (j, levelRel R j S) ∈ pushList R b (pushRel R x S)
       rcases List.mem_cons.1 hj with rfl | hjb
-      · exact subset_pushList R b (pushRel R j S) (by
-          rw [pushRel_of_ne_zero hne]
-          exact mem_insert_self _ _)
-      · have hlevj := hlev j hjb
-        rw [← hlevj] at hne ⊢
+      · exact subset_pushList R b (pushRel R j S)
+          ((pushRel_of_ne_zero hne).symm ▸ mem_insert_self _ _)
+      · rw [← hlev j hjb] at hne ⊢
         exact ih'.2 j hjb hne
 
 private theorem witnessRel_prefix_eq_singleton (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι]
@@ -553,12 +547,10 @@ theorem parallel_witness_depth [DecidableEq V] [DecidableEq ι] [Fintype ι]
     ⟨(i, 0), mem_singleton_self _, rfl, by rw [zero_add, hsplit]; simp⟩
   rw [zero_add, ← hS_eq] at hdepth
   have hroot : RootedRel (Adj vbl) i S := by
-    change RootedRel (Adj vbl) i (witness vbl i (suff ++ parallelRun psel T k))
-    rw [witness_eq_witnessRel]
-    exact rooted_witnessRel (Adj vbl) i _
-  have hshape : S ∈ shapes vbl i k := by
-    rw [shapes_eq_shapesRel]
-    exact mem_shapesRel (Adj vbl) k hroot hdepth.1
+    dsimp only [S]
+    exact witness_eq_witnessRel (vbl := vbl) i _ ▸ rooted_witnessRel (Adj vbl) i _
+  have hshape : S ∈ shapes vbl i k :=
+    shapes_eq_shapesRel (vbl := vbl) i k ▸ mem_shapesRel (Adj vbl) k hroot hdepth.1
   have hprop : Proper vbl S := proper_witness vbl i _
   have hchk : Check vbl A S T := check_witness vbl A hA i _ T <| by
     simpa using isLog_append_of_pairwise vbl A hA T (isLog_parallelRun vbl A hA hrule T k)

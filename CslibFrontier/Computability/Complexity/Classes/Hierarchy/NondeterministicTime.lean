@@ -169,13 +169,12 @@ private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
       ((Nat.mul_le_mul_right _ (Nat.le_succ _)).trans
         (Nat.mul_le_mul_left (d + 4) (by omega))))
     (fun y v => Nat.one_le_pow _ _ (Nat.succ_pos _))
+  have hring : 2 * d + 6 = (d + 3) * 2 := by omega
   have e (q : List Bool × List Bool × List Bool) :
-      accBound d D q =
-        ((q.1.length + 1) ^ D + q.2.1.length + q.2.2.length + 1) ^ 4 *
-          ((q.2.1.length + 1) ^ (d + 3)) ^ 2 := by
-    rw [accBound, ← pow_mul, show (d + 3) * 2 = 2 * d + 6 by ring]
-  exact ⟨D, (h.mono_le (fun q => le_of_eq (e q).symm)
-    (fun q => le_of_eq (e q).symm)).of_enc_eq fun _ => rfl⟩
+      ((q.1.length + 1) ^ D + q.2.1.length + q.2.2.length + 1) ^ 4 *
+        ((q.2.1.length + 1) ^ (d + 3)) ^ 2 ≤ accBound d D q :=
+    le_of_eq (by rw [accBound, hring, pow_mul])
+  exact ⟨D, (h.mono_le e e).of_enc_eq fun _ => rfl⟩
 
 /-- The brute force at the end of an interval runs within time exponential in the description,
 the input and the certificate length. -/
@@ -190,12 +189,8 @@ private theorem exists_computableInO_brute (d : ℕ) : ∃ K, ComputableInO
       (fun q : List Bool × List Bool × List Bool =>
         (encPair encBits (encPair encBits encBits) q).length) (accBound d D) := by
     growth_poly
-  have hpacc := hacc.computableInPolyTime hpoly hpoly
-  have hℓ : ComputableInPolyTime (fun q : List Bool × List Bool => certLen d q.2.length)
-      (encPair encBits encBits) encUnary := by
-    unfold certLen
-    fun_prop
-  exact Diagonal.exists_computableInO_lazyBrute hpacc ComputableInPolyTime.id' hℓ
+  exact Diagonal.exists_computableInO_lazyBrute (hacc.computableInPolyTime hpoly hpoly)
+    ComputableInPolyTime.id' (by fun_prop [certLen])
 
 /-- The cost of the tests of the verifier: quadratic in the encoded input, times a power of the
 length of the input that pays for the clock in unary. -/
@@ -239,7 +234,7 @@ private theorem exists_computableInO_verifier (d : ℕ) :
     have hn : p.1.length ≤ (encPair encBits encBits p).length := by enc_len
     have hz := Nat.le_self_pow two_ne_zero
       ((2 * (unframe p.1).length + 1 + 1) ^ (d + 3) + 1)
-    simp only [Function.comp_apply, length_frame] at ⊢
+    simp only [Function.comp_apply, length_frame]
     have he : (4 + 2 * (G + 4) ^ 2) * (cheap d p + 1) =
         4 * cheap d p + 2 * ((G + 4) ^ 2 * cheap d p) + (4 + 2 * (G + 4) ^ 2) := by ring
     omega

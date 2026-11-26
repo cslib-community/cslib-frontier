@@ -45,13 +45,10 @@ private theorem synthesis_prefixThresholds (s : Set (BooleanFunction a))
   let q (t : ℕ) : Set (BooleanFunction a) := {fun x => decide ((v x).val < t)}
   refine (Synthesis.steps (I := interpretation) (s := s) q 1 k (by simpa [q] using hz)
     fun t ht => ?_).mono Set.Subset.rfl ?_ (by simp)
-  · let i : Fin k := ⟨t, ht⟩
-    refine ((Synthesis.of_mem (Or.inr (Synthesis.subset_stages q le_rfl rfl)) :
+  · refine ((Synthesis.of_mem (Or.inr (Synthesis.subset_stages q le_rfl rfl)) :
       Synthesis interpretation (s ∪ Synthesis.stages q t) {fun x => decide ((v x).val < t)} 0).or
-      (Synthesis.of_mem (Or.inl (hv i)))).mono Set.Subset.rfl ?_ le_rfl
-    rintro _ rfl
-    refine Set.mem_singleton_iff.mpr (funext fun _ => Bool.eq_iff_iff.mpr ?_)
-    simp only [Bool.or_eq_true, decide_eq_true_eq, Fin.ext_iff, i]
+      (Synthesis.of_mem (Or.inl (hv ⟨t, ht⟩)))).congr_iff fun _ => ?_
+    simp only [Bool.or_eq_true, decide_eq_true_eq, Fin.ext_iff]
     lia
   · rintro _ ⟨j, rfl⟩
     exact Synthesis.subset_stages q j.isLt
@@ -151,8 +148,7 @@ private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitStrin
       grind
   refine ((hlo.union hhi).trans (Synthesis.family (s := src) _ _ row)).mono
     Set.Subset.rfl Set.Subset.rfl ?_
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
-  dsimp only [k]
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul, k]
   lia
 
 private def beforeFlag (flags : Fin M → Bool) (t : ℕ) : Bool :=
@@ -194,10 +190,8 @@ private theorem synthesis_firstFlag (s : Set (BooleanFunction a))
       Synthesis interpretation (src ∪ Synthesis.stages q t) {fun x => beforeFlag (flags x) t} 0).or
       (Synthesis.of_mem (Or.inl (Or.inl (hf i))))).congr_iff fun x => ?_
     simp only [beforeFlag, Bool.or_eq_true, decide_eq_true_eq, Nat.lt_succ_iff, le_iff_lt_or_eq]
-    refine ⟨?_, fun ⟨j, hj, he⟩ => hj.imp (⟨j, ·, he⟩) fun h => (Fin.ext (Eq.symm h) : i = j) ▸ he⟩
-    rintro (⟨j, hj, he⟩ | he)
-    · exact ⟨j, .inl hj, he⟩
-    · exact ⟨i, .inr rfl, he⟩
+    exact ⟨fun h => h.elim (fun ⟨j, hj, he⟩ => ⟨j, .inl hj, he⟩) (⟨i, .inr rfl, ·⟩),
+      fun ⟨j, hj, he⟩ => hj.imp (⟨j, ·, he⟩) fun h => (Fin.ext (Eq.symm h) : i = j) ▸ he⟩
 
 private def windowFlags (q target : Fin (2 ^ b)) (lo hi floor height : Fin M → Fin (2 ^ b))
     (j : Fin M) : Bool := decide (lo j ≤ q ∧ q ≤ hi j ∧ floor j ≤ target ∧ target ≤ height j)
@@ -400,12 +394,10 @@ theorem transient_window_circuit {n : ℕ} (c : Circuit signature n n) (H : Fins
     (wires (fun z => pre.eval interpretation (start z)) ∪
       wires fun z => dep.eval interpretation (start z)))
   have hz : (fun _ : BitString (n + m) => false) ∈ src := Or.inr (Or.inl rfl)
-  have htimes : wordWires time ⊆ src := by
-    rintro _ ⟨i, rfl⟩
-    exact Or.inl ⟨Fin.natAdd n i, by simp [time]⟩
-  have hheight : wordWires htWord ⊆ src := by
-    rintro _ ⟨i, rfl⟩
-    exact Or.inr (Or.inr (Or.inr ⟨i, by simp [htWord]⟩))
+  have htimes : wordWires time ⊆ src :=
+    Set.range_subset_iff.mpr fun i => Or.inl ⟨Fin.natAdd n i, by simp [time]⟩
+  have hheight : wordWires htWord ⊆ src :=
+    Set.range_subset_iff.mpr fun i => Or.inr (Or.inr (Or.inr ⟨i, by simp [htWord]⟩))
   have hsub := Synthesis.word_sub (s := src) htWord (fun z => (time z).setWidth n)
     (fun i => hheight ⟨i, rfl⟩) (fun i => wordWires_setWidth_subset htimes hz ⟨i, rfl⟩)
   have hflag := Synthesis.word_ult (s := src)
@@ -414,10 +406,9 @@ theorem transient_window_circuit {n : ℕ} (c : Circuit signature n n) (H : Fins
     (fun i => wordWires_setWidth_subset hheight hz ⟨i, rfl⟩)
   let ready := src ∪ ({flag} ∪ wordWires targetWord)
   obtain ⟨result, hr, hresult⟩ := transient_from_labels ready c K marks start v target
-    (by rintro _ ⟨i, rfl⟩
-        simp only [v, bitCode, Equiv.symm_apply_apply]
-        exact Or.inl (Or.inr (Or.inr (Or.inl ⟨i, rfl⟩))))
-    (by rintro _ ⟨i, rfl⟩; simp only [target, bitCode_toFin]; exact Or.inr (Or.inr ⟨i, rfl⟩))
+    (Set.range_subset_iff.mpr fun i => Or.inl (Or.inr (Or.inr (Or.inl
+      ⟨i, by simp only [v, bitCode, Equiv.symm_apply_apply]⟩))))
+    (Set.range_subset_iff.mpr fun i => Or.inr (Or.inr ⟨i, by simp only [target, bitCode_toFin]⟩))
   let output : BitString (n + m) → BitString (n + 1) := fun z => Fin.cons (flag z) (result z)
   have hs : Synthesis interpretation (inputs (n + m)) (wires output)
       (28 * H.card + 96 * 2 ^ ((n + 1) / 2) + K * c.size +

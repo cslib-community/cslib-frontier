@@ -164,10 +164,10 @@ theorem mem_Reach_configurationGraphInterpretation
       (Relation.reflTransGen_equiv_iff E hstep x y).mp hxy, hc, ho⟩
   · rintro ⟨x, y, hx, hxy, hc, ho⟩
     refine ⟨E.symm x, E.symm y, ?_, ?_, ?_⟩
-    · exact (hsrc _).mpr (by simpa only [Equiv.apply_symm_apply] using hx)
+    · simpa only [hsrc, Equiv.apply_symm_apply] using hx
     · exact (Relation.reflTransGen_equiv_iff E hstep (E.symm x) (E.symm y)).mpr
         (by simpa only [Equiv.apply_symm_apply] using hxy)
-    · exact (htgt _).mpr (by simpa only [Equiv.apply_symm_apply] using ⟨hc, ho⟩)
+    · simpa only [htgt, Equiv.apply_symm_apply] using ⟨hc, ho⟩
 
 end Cslib.Complexity.ConfigurationGraph
 
@@ -269,15 +269,10 @@ theorem exists_fullTupleInterpretation_Reach_of_encodedLanguage_mem_NL {L : Lang
   change ∀ u, _ → Fits (M.size ^ K') _ at hfit
   have hcomp := mem_Reach_comp (hcomp := (J.comp I).admissible_toDomainInterpretation hd)
     (hJ := J.admissible_toDomainInterpretation hl) hK' hl I J M
-  have he : I.inputStructure (n := M.size) = v.powerStructure a (M.size ^ K') :=
-    v.inputStructure_orderedPowerInterpretation K' har hK' M
   let P : Structure v.powerLanguage :=
     ⟨M.size ^ K', FullTupleInterpretation.two_le_pow (n := M.size) hK',
       v.powerStructure a (M.size ^ K')⟩
-  have hM' : (⟨M.size ^ K', FullTupleInterpretation.two_le_pow (n := M.size) hK',
-      I.inputStructure (n := M.size)⟩ : Structure v.powerLanguage) = P := by
-    simp only [P, he]
-  rw [hM'] at hcomp
+  rw [v.inputStructure_orderedPowerInterpretation K' har hK' M] at hcomp
   let _ : Fact (2 ≤ M.size ^ K') := ⟨FullTupleInterpretation.two_le_pow (n := M.size) hK'⟩
   let _ := v.powerStructure a (M.size ^ K')
   have hJ_reach : J.toDomainInterpretation.map (J.admissible_toDomainInterpretation hl) P ∈ Reach ↔
@@ -373,9 +368,7 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
         ((u.val = 0 ∧ w.val = I.s.val + 1) ∨
           (∃ a b : Fin I.n, u.val = a.val + 1 ∧ w.val = b.val + 1 ∧ I.adj a b = true) ∨
           (u.val = I.t.val + 1 ∧ w.val = I.n + 1)) := Iff.rfl
-  have hval : (I.toOrderedGraph.maxElem : Fin (I.n + 2)).val = I.n + 1 := by
-    change I.n + 2 - 1 = I.n + 1
-    omega
+  have hval : (I.toOrderedGraph.maxElem : Fin (I.n + 2)).val = I.n + 1 := rfl
   constructor
   · intro hpath
     let Inv (w : Fin (I.n + 2)) : Prop :=
@@ -461,11 +454,9 @@ private theorem takeUnaryT_eq_replicate (q : Bool) (w : List Bool) :
   | nil => cases q <;> rfl
   | cons b w ih =>
     cases q
-    · rw [takeUnaryT_run_false]
-      rfl
+    · simp [takeUnaryT_step_false, takeUnaryT_run_false]
     · cases b
-      · rw [Transducer.run_cons, takeUnaryT_step_true_false, List.nil_append, takeUnaryT_run_false]
-        rfl
+      · simp [Transducer.run_cons, takeUnaryT_step_true_false, takeUnaryT_run_false]
       · rw [Transducer.run_cons, takeUnaryT_step_true_true, List.singleton_append,
           List.length_cons, List.replicate_succ]
         exact congrArg (true :: ·) (ih true)
@@ -563,11 +554,9 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
       ⟨fun ⟨_, h⟩ => h, fun h => ⟨hn2, h⟩⟩
     rw [hex, mem_STReach, mem_STCON]
     have htuple1 (x : Fin I.n) : tupleIndex ![x] = x.val := by
-      rw [tupleIndex_apply, Fin.sum_univ_one]
-      simp
+      simp [tupleIndex_apply]
     have htuple2 (x y : Fin I.n) : tupleIndex ![x, y] = y.val * I.n + x.val := by
-      rw [tupleIndex_apply, Fin.sum_univ_two]
-      simp [Nat.add_comm]
+      simp [tupleIndex_apply, Fin.sum_univ_two, Nat.add_comm]
     have honeHot (u x : Fin I.n) :
         (rawOneHot I.n u.val).getD (tupleIndex ![x]) false = true ↔ x = u := by
       rw [htuple1, getD_rawOneHot u.isLt x.isLt, decide_eq_true_eq, Fin.ext_iff]

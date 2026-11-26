@@ -101,9 +101,8 @@ theorem IsDensityLimit.mono_right {Y : Finset (ι → Bool)} {p k k' : ℝ} {x :
     IsDensityLimit Y p k' x := by
   refine hlim.trans (bernoulliAverage_mono hp hp' fun P => ?_)
   by_cases h : (2 : ℝ) ^ (-k) ≤ coordinateDensity Y P x
-  · have h' : (2 : ℝ) ^ (-k') ≤ coordinateDensity Y P x :=
-      (Real.rpow_le_rpow_of_exponent_le (by norm_num) (neg_le_neg hkk')).trans h
-    simp only [ite_eq_left h, ite_eq_left h', le_refl]
+  · rw [ite_eq_left h, ite_eq_left
+      ((Real.rpow_le_rpow_of_exponent_le (by norm_num) (neg_le_neg hkk')).trans h)]
   · rw [ite_eq_right h]
     split_ifs <;> norm_num
 
@@ -232,12 +231,10 @@ private theorem bad_modifications_probability_of_rate (X : Finset (ι → Bool))
         (1 : ℝ) else 0)) := by
     rw [bernoulliAverage_union_difference_subtype p q r hjoint
       (fun S R => 𝔼 x ∈ X, if good S R x then (1 : ℝ) else 0)]
-    have hs (S : ι → Bool) : 31 / 32 ≤ bernoulliAverage r (fun R =>
-        𝔼 x ∈ X, if good S R x then (1 : ℝ) else 0) := by
-      rw [bernoulliAverage_expect_comm]
-      exact coordinateFiber_light_patterns X hX S hk hdef hr hr'
     simpa only [bernoulliAverage_const] using
-      bernoulliAverage_mono htheta.1 htheta.2 hs
+      bernoulliAverage_mono htheta.1 htheta.2 (f := fun _ => 31 / 32) fun S => by
+        rw [bernoulliAverage_expect_comm]
+        exact coordinateFiber_light_patterns X hX S hk hdef hr hr'
   refine hg.trans (bernoulliAverage_mono hp hp' fun P =>
     bernoulliAverage_mono hq hq' fun Q => expect_le_expect (s := X) fun x hx => ?_)
   by_cases hg : good (fun i => P i || Q i) (fun i => P i && !Q i) x
@@ -348,15 +345,11 @@ private theorem guidedAverage_bound (X Y : Finset (ι → Bool)) {p k : ℝ}
 private theorem guidingDensity_hits (Y : Finset (ι → Bool)) (k : ℝ) (P x : ι → Bool) :
     (if (2 : ℝ) ^ (-k) ≤ coordinateDensity Y P x then (1 : ℝ) else 0) ≤
       𝔼 y, guidingDensity Y k P x y * (if resample P x y ∈ Y then 1 else 0) := by
-  by_cases h : (2 : ℝ) ^ (-k) ≤ coordinateDensity Y P x
-  · have he (y : ι → Bool) : guidingDensity Y k P x y *
-        (if resample P x y ∈ Y then 1 else 0) = guidingDensity Y k P x y := by
-      simp only [guidingDensity, ite_eq_left h]
-      split_ifs <;> ring
-    simp_rw [he, expect_guidingDensity, ite_eq_left h]
-    exact le_rfl
-  · rw [ite_eq_right h]
-    exact expect_nonneg fun y _ => mul_nonneg (guidingDensity_nonneg Y k P x y)
+  split_ifs with h
+  · refine le_of_eq ((expect_guidingDensity Y k P x).symm.trans (expect_congr rfl fun y _ => ?_))
+    simp only [guidingDensity, h, ↓reduceIte]
+    split_ifs <;> ring
+  · exact expect_nonneg fun y _ => mul_nonneg (guidingDensity_nonneg Y k P x y)
       (by split_ifs <;> norm_num)
 
 private theorem guidedAverage_hits (X Y : Finset (ι → Bool)) (hX : X.Nonempty) {p k : ℝ}

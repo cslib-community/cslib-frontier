@@ -257,9 +257,8 @@ theorem erase_cons : erase k (p :: l) = if p.1 = k then erase k l else p :: eras
   by_cases hp : p.1 = k <;> simp [erase, hp]
 
 /-- Erasure distributes over concatenation. -/
-@[simp, grind =] theorem erase_append : erase k (l₁ ++ l₂) = erase k l₁ ++ erase k l₂ := by
-  unfold erase
-  exact List.filter_append l₁ l₂
+@[simp, grind =] theorem erase_append : erase k (l₁ ++ l₂) = erase k l₁ ++ erase k l₂ :=
+  List.filter_append l₁ l₂
 
 /-- Erasure keeps exactly the entries whose key differs from the erased one. -/
 @[simp, grind =] theorem mem_erase_iff : p ∈ erase k l ↔ p ∈ l ∧ p.1 ≠ k := by
@@ -345,8 +344,7 @@ variable {l l₁ l₂ : List (α × β)} {k k' : α} {v : β} {p q : α × β}
 
 theorem insert_cons :
     insert k v (p :: l) =
-      if k < p.1 then (k, v) :: p :: l else if k = p.1 then (k, v) :: l else p :: insert k v l := by
-  obtain ⟨a₁, a₂⟩ := p
+      if k < p.1 then (k, v) :: p :: l else if k = p.1 then (k, v) :: l else p :: insert k v l :=
   rfl
 
 /-- An entry of `insert k v l` is the new entry or an entry of `l`. -/
@@ -408,9 +406,8 @@ other keys. -/
 /-- Lookup of the inserted key finds the new value, on any list. -/
 @[simp, grind =] theorem lookup_insert_self : List.lookup k (insert k v l) = some v := by
   induction l with
-  | nil => simp
+  | nil => exact List.lookup_cons_self
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
     split_ifs with h₁ h₂
     · exact List.lookup_cons_self
@@ -423,16 +420,11 @@ other keys. -/
   induction l with
   | nil => exact List.lookup_cons_of_ne hne
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
-    dsimp only
     split_ifs with h₁ h₂
     · exact List.lookup_cons_of_ne hne
     · rw [List.lookup_cons_of_ne hne, List.lookup_cons_of_ne (h₂ ▸ hne)]
-    · by_cases hka : k' = a₁
-      · subst hka
-        rw [List.lookup_cons_self, List.lookup_cons_self]
-      · rw [List.lookup_cons_of_ne hka, List.lookup_cons_of_ne hka, ih]
+    · rw [List.lookup_cons, List.lookup_cons, ih]
 
 /-- On a sorted list, insertion keeps the length if the key was present and adds one
 otherwise. -/
@@ -616,9 +608,8 @@ theorem isSortedAssoc_range {lo hi : α} (h : l.IsSortedAssoc) :
 
 /-- Range restriction distributes over concatenation. -/
 @[simp, grind =] theorem range_append {lo hi : α} :
-    range lo hi (l₁ ++ l₂) = range lo hi l₁ ++ range lo hi l₂ := by
-  unfold range
-  exact List.filter_append l₁ l₂
+    range lo hi (l₁ ++ l₂) = range lo hi l₁ ++ range lo hi l₂ :=
+  List.filter_append l₁ l₂
 
 /-- Rank is additive over concatenation. -/
 @[simp, grind =] theorem rank_append : rank k (l₁ ++ l₂) = rank k l₁ + rank k l₂ := by

@@ -195,9 +195,7 @@ theorem negMulLogb_le_knuthYaoCost (hx0 : 0 ≤ x) (hx1 : x ≤ 1) :
 theorem knuthYaoCost_lt_negMulLogb_add (hx : 0 < x) (hx1 : x ≤ 1) :
     knuthYaoCost x < x * -Real.logb 2 x + 2 * x := by
   obtain ⟨m, hm1, hm2⟩ := exists_scale hx hx1
-  have h1 := knuthYaoCost_le hx hm1
-  have h2 := negMulLogb_gt hx hm2
-  linarith
+  linarith [knuthYaoCost_le hx hm1, negMulLogb_gt hx hm2]
 
 theorem knuthYaoCost_le_negMulLogb_add (hx0 : 0 ≤ x) (hx1 : x ≤ 1) :
     knuthYaoCost x ≤ x * -Real.logb 2 x + 2 * x := by
@@ -291,10 +289,10 @@ theorem knuthYao_generates (p : PMF α) : (knuthYao p).Generates p := by
   simp only [run_knuthYao_some_eq_ofReal]
   rw [← ENNReal.ofReal_toReal (p.apply_ne_top a)]
   refine ENNReal.tendsto_ofReal ?_
-  have hzero : Tendsto (fun n => truncErr (p a).toReal n) atTop (𝓝 0) :=
-    squeeze_zero (fun n => truncErr_nonneg ENNReal.toReal_nonneg n) (fun n => (truncErr_lt n).le)
-      (tendsto_pow_atTop_nhds_zero_of_lt_one (by norm_num) (by norm_num))
-  simpa using (tendsto_const_nhds (x := (p a).toReal)).sub hzero
+  simpa using (tendsto_const_nhds (x := (p a).toReal)).sub
+    (squeeze_zero (fun n => truncErr_nonneg ENNReal.toReal_nonneg n) (fun n => (truncErr_lt n).le)
+      (tendsto_pow_atTop_nhds_zero_of_lt_one (inv_nonneg.mpr zero_le_two)
+        (inv_lt_one_of_one_lt₀ one_lt_two)))
 
 /-- The Knuth–Yao tree needs more than `n` flips with probability `∑ₐ (p a - ⌊2ⁿ p a⌋ / 2ⁿ)`. -/
 theorem run_knuthYao_none (p : PMF α) (n : ℕ) :
@@ -414,10 +412,10 @@ theorem expectedFlips_knuthYao_eq_entropy_iff (p : PMF α) :
     · exact absurd (by ennreal_to_real using h) hpa
     · exact ⟨m, by ennreal_to_real using hm⟩
   · intro h
-    by_cases hpa : p a = 0
-    · left; simp [hpa]
-    · obtain ⟨m, hm⟩ := h hpa
-      exact Or.inr ⟨m, by ennreal_to_real using hm⟩
+    rcases eq_or_ne (p a) 0 with hpa | hpa
+    · exact Or.inl (by simp [hpa])
+    · exact let ⟨m, hm⟩ := h hpa
+        Or.inr ⟨m, by ennreal_to_real using hm⟩
 
 /-- **Dyadic case** ([CoverThomas2006], Theorem 5.11.2 and its converse): some tree generating `p`
 reads exactly `H(p)` fair bits in expectation if and only if every positive probability `p a` is a
@@ -427,11 +425,8 @@ theorem exists_generates_expectedFlips_eq_entropy_iff {α : Type*} [Finite α] (
       ∀ a ∈ p.support, ∃ m : ℕ, p a = 2⁻¹ ^ m := by
   have := Fintype.ofFinite α
   rw [← expectedFlips_knuthYao_eq_entropy_iff]
-  constructor
-  · rintro ⟨T, hT, he⟩
-    exact le_antisymm (he ▸ expectedFlips_knuthYao_le hT) (entropy_le_expectedFlips
-      (knuthYao_generates p))
-  · intro h
-    exact ⟨knuthYao p, knuthYao_generates p, h⟩
+  exact ⟨fun ⟨_, hT, he⟩ => le_antisymm (he ▸ expectedFlips_knuthYao_le hT)
+      (entropy_le_expectedFlips (knuthYao_generates p)),
+    fun h => ⟨knuthYao p, knuthYao_generates p, h⟩⟩
 
 end Cslib.Probability.DDGTree

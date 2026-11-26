@@ -416,13 +416,12 @@ theorem totalBTreeNodesWhp_le_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_
     rw [show 11 = 1 + 10 from rfl, ← Nat.add_assoc, Nat.pow_add]
     have hm_lt : m < (q + 1) * 1024 := by dsimp only [q]; omega
     exact hm_lt.trans_le (Nat.mul_le_mul_right 1024 hq_lt)
-  have hlog_m : Nat.log 2 m ≤ Nat.log 2 q + 10 := by
-    have := Nat.log_lt_of_lt_pow (by omega : m ≠ 0) hm_lt_pow
-    omega
+  have hlog_m : Nat.log 2 m ≤ Nat.log 2 q + 10 :=
+    Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega : m ≠ 0) hm_lt_pow)
   have hn4 : 4 ≤ n_max := by
     by_contra hlt
-    have hor : n_max = 0 ∨ n_max = 1 ∨ n_max = 2 ∨ n_max = 3 := by omega
-    rcases hor with rfl | rfl | rfl | rfl <;> revert hm_ge <;> decide
+    rcases (by omega : n_max = 0 ∨ n_max = 1 ∨ n_max = 2 ∨ n_max = 3) with
+      rfl | rfl | rfl | rfl <;> revert hm_ge <;> decide
   have hell : logLogFactor n_max ≤ Nat.log 2 q + 12 := by
     unfold logLogFactor
     rw [max_eq_left hn4]
@@ -611,11 +610,9 @@ theorem btMeta_safe (h : WhpLargeEnv c U V w₀ n_max w base) {idx : ℕ}
     ∃ N, w = w₀ ∧ 0 < w ∧ nodeMetaBitsWhp n_max ≤ w ∧ idx < N ∧
       Fits w (base + offBtMeta c U V w₀ n_max + packedWords N (nodeMetaBitsWhp n_max) w) := by
   have hnm : nodeMetaBitsWhp n_max ≤ w₀ := by
-    have h1 := (Nat.mul_le_mul_right _ (le_codeExpWhp c)).trans
-      (codeExpWhp_mul_ell_le_bCharWhp h.2.2.2.1)
+    have h1 := log_ge_mul_ell h.2.2.2.1
     have h2 := one_le_logLogFactor n_max
     have h3 := log_n_max_lt_w h.2.2.2.1 h.2.2.2.2.1 h.2.2.2.2.2.1
-    unfold bCharWhp at h1
     unfold nodeMetaBitsWhp
     omega
   exact h.packed_safe_of_le hnm hidx (seg_end_le c U V w₀ n_max).2.2.2.2.2.2.2.2.2.1
@@ -1020,23 +1017,14 @@ theorem clientResult_splitFullNodeGenProg {c U V w n_max : ℕ} (hth : whpThresh
       ((out.left.metaWord, (out.left.keysWord, out.left.valsWord)),
        (out.sep, (out.right.metaWord, (out.right.keysWord, out.right.valsWord)))) := by
   have hmod : (nd.metaWord % 2 = 1) ↔ (metaIsLeaf nd.metaWord = true) := by
-    unfold metaIsLeaf
-    have : nd.metaWord % 2 < 2 := Nat.mod_lt _ (by decide)
-    rcases (by omega : nd.metaWord % 2 = 0 ∨ nd.metaWord % 2 = 1) with h | h <;> simp [h]
+    rcases Nat.mod_two_eq_zero_or_one nd.metaWord with h | h <;> simp [metaIsLeaf, h]
   unfold splitFullNodeGenProg splitFullNode
   simp only [wp_large_tMin hth, wp_large_wKey hth, wp_large_wVal hth, pure_bind]
-  rw [clientResult_bind, clientState_laneGetGenProg,
-    clientResult_laneGetGenProg]
-  by_cases h : metaIsLeaf nd.metaWord = true
-  · rw [ite_eq_left (hmod.mpr h), ite_eq_left h]
-    simp only [clientResult_bind,
+  rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
+  cases h : metaIsLeaf nd.metaWord <;>
+    simp only [hmod, h, Bool.false_eq_true, ↓reduceIte, clientResult_bind,
       clientResult_wordTakeLowGenProg, clientResult_wordDropLowGenProg,
-      StateTransitionSpec.clientResult_pure, mkNodeMeta, ↓reduceIte, keyLaneBitsWhp]
-  · rw [ite_eq_right (mt hmod.mp h), ite_eq_right h]
-    simp only [clientResult_bind,
-      clientResult_wordTakeLowGenProg, clientResult_wordDropLowGenProg,
-      StateTransitionSpec.clientResult_pure, mkNodeMeta, Bool.false_eq_true, ↓reduceIte,
-      Nat.zero_add, keyLaneBitsWhp]
+      StateTransitionSpec.clientResult_pure, mkNodeMeta, Nat.zero_add, keyLaneBitsWhp]
 
 theorem clientState_splitFullNodeGenProg (d : WhpCoreParams × (ℕ × (ℕ × ℕ))) (s : Memory.State) :
     (Memory.spec 0).clientState s (splitFullNodeGenProg d) = s := by
@@ -1536,13 +1524,10 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
       fun v hv => ?_⟩
     have hv_ns : v < nSliceWhp n_max := hv.trans_le hrep'.1
     have hne_idx : sIdx' * nSliceWhp n_max + v ≠ idx := by
-      dsimp only [idx]
       rcases lt_or_gt_of_ne hne with hlt | hgt
-      · have hle := Nat.mul_le_mul_right (nSliceWhp n_max) (Nat.succ_le_of_lt hlt)
-        rw [Nat.succ_mul] at hle
+      · have := Nat.add_one_mul sIdx' (nSliceWhp n_max) ▸ Nat.mul_le_mul_right _ hlt
         omega
-      · have hle := Nat.mul_le_mul_right (nSliceWhp n_max) (Nat.succ_le_of_lt hgt)
-        rw [Nat.succ_mul] at hle
+      · have := Nat.add_one_mul sIdx (nSliceWhp n_max) ▸ Nat.mul_le_mul_right _ hgt
         omega
     obtain ⟨e1, e2, e3⟩ := hnode_ne (sliceNodeIdx_lt hsIdx' hv_ns) hne_idx
     obtain ⟨p1, p2, p3⟩ := hrep'.2.2.2 v hv

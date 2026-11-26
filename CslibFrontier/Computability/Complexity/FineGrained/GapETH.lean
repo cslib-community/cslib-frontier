@@ -268,17 +268,11 @@ enc_structure encLeaf : Leaf where
 open ComputableInPolyTime in
 theorem computableInPolyTime_leafAccepts :
     ComputableInPolyTime leafAccepts encLeaf encBool := by
-  have heq : leafAccepts = fun q : Leaf =>
-      decide (q.cutoff ≤
-        q.formula.length -
-          q.formula.countP fun c =>
-            !Clause.eval (fun v => q.index.bits.getD (q.varsList.idxOf v) false) c) := by
-    funext q
-    have hfun : bitsAssignment q.varsList q.index =
-        fun v => q.index.bits.getD (q.varsList.idxOf v) false := by
-      funext v
-      exact bitsAssignment_eq_getD q.varsList q.index v
-    simp only [leafAccepts, CNF.countUnsat, hfun]
+  have heq : leafAccepts = fun q : Leaf => decide (q.cutoff ≤ q.formula.length -
+      q.formula.countP fun c =>
+        !Clause.eval (fun v => q.index.bits.getD (q.varsList.idxOf v) false) c) :=
+    funext fun q => by
+      simp only [leafAccepts, CNF.countUnsat, funext (bitsAssignment_eq_getD _ _)]
   rw [heq]
   have hlen : ComputableInPolyTime (fun q : Leaf => q.formula.length) encLeaf encUnary :=
     CNF.computableInPolyTime_length (encV := encNat) (by fun_prop)
@@ -320,9 +314,8 @@ theorem MaxKSATThreshold_decidableInExpTime_one (k : ℕ) :
     fun_prop
   have hν : ComputableInPolyTime MaxSATThresholdInput.numVars encMaxSATThresholdInput encUnary := by
     have := SAT.computableInPolyTime_distinctVars
-    have heq : MaxSATThresholdInput.numVars = fun x => x.formula.distinctVars.length := by
-      funext x
-      exact x.formula.length_distinctVars.symm
+    have heq : MaxSATThresholdInput.numVars = fun x => x.formula.distinctVars.length :=
+      funext fun x => x.formula.length_distinctVars.symm
     rw [heq]
     fun_prop
   let Aunb : Set MaxSATThresholdInput :=
@@ -335,10 +328,8 @@ theorem MaxKSATThreshold_decidableInExpTime_one (k : ℕ) :
     · rintro ⟨σ, hσ⟩
       obtain ⟨r, hr, hrσ⟩ :=
         exists_lt_two_pow_bitsAssignment_eq (vs := x.formula.distinctVars) σ
-      rw [x.formula.length_distinctVars] at hr
-      refine ⟨r, hr, ?_⟩
-      rw [CNF.countUnsat_congr fun v hv => hrσ v (CNF.mem_distinctVars.mpr hv)]
-      exact hσ
+      exact ⟨r, x.formula.length_distinctVars ▸ hr,
+        (CNF.countUnsat_congr fun v hv => hrσ v (CNF.mem_distinctVars.mpr hv)) ▸ hσ⟩
     · rintro ⟨r, -, hr⟩
       exact ⟨bitsAssignment x.formula.distinctVars r, hr⟩
   have hAunb : DecidableInExpTime Aunb encMaxSATThresholdInput MaxSATThresholdInput.numVars 1 := by
@@ -350,13 +341,11 @@ theorem MaxKSATThreshold_decidableInExpTime_one (k : ℕ) :
       encMaxSATThresholdInput encBool :=
     (computableInPolyTime_all_length_le k).comp (by fun_prop)
   have hinter : MaxKSATThreshold k =
-      {x : MaxSATThresholdInput |
-        (x.formula.all fun c => decide (c.length ≤ k)) = true} ∩ Aunb := by
-    ext x
-    simp only [MaxKSATThreshold, Aunb, Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true,
-      decide_eq_true_eq]
-  rw [hinter]
-  exact hAunb.inter hwidth zero_le_one
+      {x | (x.formula.all fun c => decide (c.length ≤ k)) = true} ∩ Aunb :=
+    Set.ext fun x => by
+      simp only [MaxKSATThreshold, Aunb, Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true,
+        decide_eq_true_eq]
+  exact hinter ▸ hAunb.inter hwidth zero_le_one
 
 /-- **Rational-midpoint reduction from `GapKSAT P` to `MaxKSATThreshold P.width`.**
 Choosing a rational `num / den` strictly inside `(P.soundness, P.completeness)` and setting

@@ -121,8 +121,7 @@ variable {I}
 theorem topChoice_mem {R : Finset (Fin n)} (hR : R.Nonempty) (i : Fin n) : I.topChoice R i ∈ R := by
   rw [topChoice, dite_eq_left hR]
   obtain ⟨h, hh, hmin⟩ := Finset.mem_image.1 ((R.image (I.rank i)).min'_mem (hR.image _))
-  rw [← hmin, pref_rank]
-  exact hh
+  rwa [← hmin, pref_rank]
 
 /-- An agent weakly prefers its favourite house in `R` to every house in `R`. -/
 theorem rank_topChoice_le {R : Finset (Fin n)} {h : Fin n} (hh : h ∈ R) (i : Fin n) :
@@ -287,10 +286,7 @@ private theorem eq_ttcRounds_of_le {k : ℕ} {R : Finset (Fin n)} (hk : R.card �
     (hle : ∀ i ∈ S, I.rank i (ν i) ≤ I.rank i (I.ttcRounds k R i)) :
     ∀ i ∈ S, ν i = I.ttcRounds k R i := by
   induction k generalizing R S with
-  | zero =>
-    intro i hi
-    have := hSR hi
-    simp_all
+  | zero => simp_all
   | succ k ih =>
     intro i hi
     have hk' := card_sdiff_cycleAgents_le (I := I) hk ⟨i, hSR hi⟩
@@ -319,9 +315,8 @@ variable (I)
 ([RothPostlewaite1977]; [SchummerVohra2007], Theorem 10.6). -/
 theorem inStrictCore_ttc : I.InStrictCore I.ttc := by
   rintro S ⟨ν, hS, hle, i, hi, hlt⟩
-  have h := eq_ttcRounds_of_le (I := I) (by simp) ν S (Finset.subset_univ S) hS hle i hi
-  rw [ttc_apply, h] at hlt
-  exact lt_irrefl _ hlt
+  exact lt_irrefl _
+    (ttc_apply I i ▸ eq_ttcRounds_of_le (by simp) ν S (Finset.subset_univ S) hS hle i hi ▸ hlt)
 
 /-- The TTC allocation is in the core ([ShapleyScarf1974]; the existence half of
 [Roughgarden2013CS364A], Lecture 9, Theorem 3.2). That theorem also claims uniqueness for this

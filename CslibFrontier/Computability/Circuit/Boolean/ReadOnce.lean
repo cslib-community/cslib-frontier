@@ -635,8 +635,7 @@ private theorem image_castSucc_priorFrontier (frontier : Finset (Wire n (g + 1))
     Finset.mem_erase, priorFrontier]
   refine ⟨?_, ?_⟩
   · rintro ⟨w', hw', rfl⟩
-    refine ⟨?_, hw'⟩
-    cases w' <;> simp [Fin.castSucc_ne_last]
+    exact ⟨by cases w' <;> simp [Fin.castSucc_ne_last], hw'⟩
   · rintro ⟨hne, hw⟩
     induction w using Wire.lastCases with
     | last => exact absurd rfl hne
@@ -720,13 +719,10 @@ private theorem openedFrontier_tight (p : Program signature n g) (op : Op)
     split_ifs with hlast
     · have := Finset.card_erase_add_one hlast
       omega
-    · rw [hprior_card, Finset.erase_eq_of_notMem hlast]
-      omega
+    · simp [hprior_card, Finset.erase_eq_of_notMem hlast]
   refine ⟨by omega, by omega, fun hlast => ?_⟩
   have := Finset.card_erase_add_one hlast
-  have hdef : openedFrontier frontier wires =
-      priorFrontier frontier ∪ Finset.univ.image wires := ite_eq_left hlast
-  rw [← hdef] at hunion
+  rw [openedFrontier, ite_eq_left hlast] at hp_bound hcard_sub
   exact ⟨Finset.disjoint_iff_inter_eq_empty.mpr (Finset.card_eq_zero.mp (by omega)),
     by omega, by omega⟩
 
@@ -750,15 +746,14 @@ private theorem sum_lastCases_leafSize (hn : 0 < n) (p : Program signature n g) 
     simp [← image_castSucc_priorFrontier,
       Finset.sum_image fun _ _ _ _ h => Wire.castSucc_injective h]
   rw [hopened_eq] at hF'_sum
-  by_cases hlast : Wire.gate (Fin.last g) ∈ frontier
+  simp only [openedFrontier] at hF'_sum
+  split_ifs at hF'_sum with hlast
   · obtain ⟨hdisj, hcard_li, harity_eq⟩ := hlast_tight hlast
-    simp only [openedFrontier, hlast, ↓reduceIte] at hF'_sum
     rw [← Finset.sum_erase_add _ _ hlast, hsum_prior]
     simp only [wire_lastCases_last, leafSize_lineLitFormula hn F' op wires harity_eq hcard_li,
       ← Finset.sum_union hdisj, hF'_sum, Program.cost_gate]
     omega
   · rw [Finset.erase_eq_of_notMem hlast] at hsum_prior
-    simp only [openedFrontier, hlast, ↓reduceIte] at hF'_sum
     simp only [hsum_prior, hF'_sum, Program.cost_gate]
     omega
 
@@ -838,8 +833,8 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
     exact ⟨y₀, y₁, hdiff, fun h => by simpa [hy₀, hy₁] using congrFun h 0⟩
   have hsupp_eq : c.inputSupport = Finset.univ :=
     Finset.eq_univ_iff_forall.mpr fun i => (hess i).mem_support (c.dependsOn_eval interpretation)
-  have hsupp : n ≤ c.inputSupport.card := by simp [hsupp_eq]
-  obtain ⟨T, hT_eval, hT_leaf⟩ := c.exists_litFormula_of_cost_binaryCost_le hn hsupp hcost
+  obtain ⟨T, hT_eval, hT_leaf⟩ :=
+    c.exists_litFormula_of_cost_binaryCost_le hn (by simp [hsupp_eq]) hcost
   have hpos_univ : T.posSupport = Finset.univ := by
     refine Finset.eq_univ_iff_forall.mpr fun i => ?_
     by_contra hi
@@ -858,10 +853,7 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
     Finset.Subset.antisymm (Finset.subset_univ _) (hpos_univ ▸ T.posSupport_subset_leafSupport)
   have hF_ro : F.IsReadOnce := by
     simp [PosFormula.isReadOnce_iff_card_leafSupport_eq_leafSize, hF_supp, hF_leaf]
-  have hF_size : F.size = n - 1 := by
-    have := F.size_add_one
-    omega
-  refine ⟨F, hF_ro, hF_leaf, hF_size, hF_supp, fun x => ?_⟩
-  rw [T.eval_toPosFormula_of_posLeafCount_eq_leafSize hcount_eq x, hT_eval x]
+  exact ⟨F, hF_ro, hF_leaf, by have := F.size_add_one; omega, hF_supp, fun x =>
+    (T.eval_toPosFormula_of_posLeafCount_eq_leafSize hcount_eq x).trans (hT_eval x)⟩
 
 end Cslib.Circuits

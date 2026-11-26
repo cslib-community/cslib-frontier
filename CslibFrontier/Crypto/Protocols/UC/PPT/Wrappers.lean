@@ -227,10 +227,9 @@ theorem WordInterface.isOraclePPTOn_lowerWith_adapt {ιJ ιK α β : Type}
     rcases hmem with ⟨u, ⟨w, rfl⟩, rfl⟩
     have hle := hreplyBound (req.1, List.take (r a) w)
     simp only [length_encPair, encBits_apply] at hle
-    refine hle.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left ?_ d))
     have := length_encFinite_lt req.1
     have := List.length_take_le (r a) w
-    omega
+    exact hle.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d))
   convert hprogram.interpret_preprocess_open' (operationEncoding := encFinite iJ.Channel)
       (handler := handler) (prepare := id) (resources := resources)
       ComputableInPolyTime.id' hhandler hresources hbound using 2 with a
@@ -258,12 +257,10 @@ theorem WordInterface.PortMap.support_lowerWith_adapt {ιJ ιK α : Type}
     OracleComp.substitute_eq_interpret, OracleComp.substitute_eq_interpret]
   unfold OracleComp.support
   rw [OracleComp.supportWith_interpret, OracleComp.supportWith_interpret]
-  congr 1
-  funext q
-  cases q with
-  | inl k => rfl
-  | inr j =>
-    simp only [OracleComp.sumHandler, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
+  refine congrArg (OracleComp.supportWith · program) (funext ?_)
+  rintro (_ | j)
+  · rfl
+  · simp only [OracleComp.sumHandler, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
       WordInterface.lowerQuery, Functor.map_map]
     ext v
     simp only [OracleComp.mem_supportWith_map_iff, ProbOracleComp.supportWith_query,
@@ -330,11 +327,8 @@ private theorem PPTCertificate.isOraclePPTOn_adapt_wordHandle
   have hlim : ComputableInPolyTime
       (fun x : PPTParam n × (chOut × List Bool) × List Bool => x.1.replyBound)
       EIn encUnary := by dsimp only [EIn]; unfold encHandlerCall; fun_prop
-  have hfit (x : PPTParam n × (chOut × List Bool) × List Bool) (c : iJ.Channel) (w : List Bool) :
-      (m.replyMap c (List.take x.1.replyBound w)).length ≤ x.1.replyBound := by
-    rw [hreply]
-    exact List.length_take_le x.1.replyBound w
-  refine (WordInterface.isOraclePPTOn_lowerWith_adapt m hprog hlim hfit).congr fun x _ _ _ => ?_
+  refine (WordInterface.isOraclePPTOn_lowerWith_adapt m hprog hlim
+    fun x c w => hreply c _ ▸ List.length_take_le x.1.replyBound w).congr fun x _ _ _ => ?_
   simp only [prog, WordInterface.PortMap.adapt, ProbOracleComp.lowerWith,
     ProbOracleComp.simulate_map]
 
@@ -437,9 +431,8 @@ private theorem wordHandle_routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type
           ProbOracleComp.simulate_pure, map_pure, encSum_inl]
         rfl
     · rw [ite_eq_left rfl]
-      dsimp only [UC.routeCorrupt]
-      simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map,
-        Functor.map_map, encSum_inr]
+      simp only [UC.routeCorrupt, StateT.run_map, ProbOracleComp.lowerWith,
+        ProbOracleComp.simulate_map, Functor.map_map, encSum_inr]
       rfl
 
 /-- Library construction (no cited definition): lift a `PPTCertificate` through `routeCorrupt`,
@@ -690,8 +683,7 @@ private theorem wordHandle_hybridWrap {n : ℕ} {In Out NetQ NetR SubIn SubOut N
           (Sum.inr (Sum.inl (net.queryDecoder.decode w.tail))) = encSum net.reply nq.reply := rfl
       rw [hq]
       dsimp only
-      rw [hrep]
-      simp only [Bool.false_eq_true, ↓reduceIte, StateT.run_map, liftParty_map]
+      simp only [hrep, Bool.false_eq_true, ↓reduceIte, StateT.run_map, liftParty_map]
       simp only [StateT.run, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map,
         Functor.map_map, encSum_inl]
       rfl
@@ -703,8 +695,7 @@ private theorem wordHandle_hybridWrap {n : ℕ} {In Out NetQ NetR SubIn SubOut N
           (Sum.inr (Sum.inr (nq.queryDecoder.decode w.tail))) = encSum net.reply nq.reply := rfl
       rw [hq]
       dsimp only
-      rw [hrep]
-      simp only [↓reduceIte, StateT.run_lift, bind_pure_comp,
+      simp only [hrep, ↓reduceIte, StateT.run_lift, bind_pure_comp,
         ProbOracleComp.lowerWith, ProbOracleComp.simulate_map, Functor.map_map, encSum_inr]
       rfl
 

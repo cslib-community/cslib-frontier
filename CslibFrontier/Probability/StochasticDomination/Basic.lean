@@ -192,8 +192,7 @@ theorem le_Iic {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSp
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] (h : StochasticallyDominates μ ν)
     (a : α) :
     μ (Set.Iic a) ≤ ν (Set.Iic a) := by
-  rw [← Set.compl_Ioi]
-  exact measure_compl_le_of_le measurableSet_Ioi (h.Ioi_le a)
+  exact Set.compl_Ioi (a := a) ▸ measure_compl_le_of_le measurableSet_Ioi (h.Ioi_le a)
 
 /-- Real-valued version of `StochasticallyDominates.le_Iic`. -/
 theorem le_real_Iic {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSpace α]
@@ -210,8 +209,7 @@ theorem le_Iio {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSp
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] (h : StochasticallyDominates μ ν)
     (a : α) :
     μ (Set.Iio a) ≤ ν (Set.Iio a) := by
-  rw [← Set.compl_Ici]
-  exact measure_compl_le_of_le measurableSet_Ici (h.Ici_le a)
+  exact Set.compl_Ici (a := a) ▸ measure_compl_le_of_le measurableSet_Ici (h.Ici_le a)
 
 /-- Real-valued version of `StochasticallyDominates.le_Iio`. -/
 theorem le_real_Iio {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSpace α]
@@ -378,11 +376,8 @@ theorem stochasticallyDominates_iff_lintegral {α : Type*} [MeasurableSpace α] 
     StochasticallyDominates μ ν ↔
       ∀ f : α → ℝ≥0∞, Measurable f → Monotone f → ∫⁻ x, f x ∂ν ≤ ∫⁻ x, f x ∂μ := by
   refine ⟨fun h _ hf hf_mono => h.lintegral_le hf hf_mono, fun h U hUm hU => ?_⟩
-  have hind_mono : Monotone (U.indicator (1 : α → ℝ≥0∞)) := by
-    intro x y hxy
-    by_cases hx : x ∈ U
-    · simp [hx, hU hxy hx]
-    · simp [hx]
+  have hind_mono : Monotone (U.indicator (1 : α → ℝ≥0∞)) := fun x y hxy => by
+    by_cases hx : x ∈ U <;> simp [hx, hU hxy]
   simpa [lintegral_indicator hUm] using h (U.indicator 1) (measurable_one.indicator hUm) hind_mono
 
 /-- Stochastic domination of probability measures is equivalent to domination of all integrable
@@ -621,16 +616,14 @@ linear order. -/
 theorem le_Iic {α : Type*} [LinearOrder α] {p q : PMF α} (h : StochasticallyDominates p q)
     (a : α) :
     p.toOuterMeasure (Set.Iic a) ≤ q.toOuterMeasure (Set.Iic a) := by
-  rw [← Set.compl_Ioi]
-  exact compl_le_of_le (h.Ioi_le a)
+  exact Set.compl_Ioi (a := a) ▸ compl_le_of_le (h.Ioi_le a)
 
 /-- Strict lower-ray inequality `p.toOuterMeasure (Set.Iio a) ≤ q.toOuterMeasure (Set.Iio a)` on
 a linear order. -/
 theorem le_Iio {α : Type*} [LinearOrder α] {p q : PMF α} (h : StochasticallyDominates p q)
     (a : α) :
     p.toOuterMeasure (Set.Iio a) ≤ q.toOuterMeasure (Set.Iio a) := by
-  rw [← Set.compl_Ici]
-  exact compl_le_of_le (h.Ici_le a)
+  exact Set.compl_Ici (a := a) ▸ compl_le_of_le (h.Ici_le a)
 
 /-- Bridge from `PMF.StochasticallyDominates` to `Measure`-level stochastic domination. -/
 theorem toMeasure [MeasurableSpace α] (h : StochasticallyDominates p q) :
@@ -785,14 +778,12 @@ theorem stochasticallyDominates_bool_iff {p q : PMF Bool} :
     simpa [hIci, PMF.toOuterMeasure_apply_singleton] using h (Set.Ici true) (IsUpperSet.Ici true)
   · by_cases ht : true ∈ U
     · by_cases hf : false ∈ U
-      · rw [(Set.eq_univ_iff_forall (s := U)).mpr fun b => by cases b <;> assumption]
-        have huniv (r : PMF Bool) : r.toOuterMeasure Set.univ = 1 := by
-          simpa using toOuterMeasure_add_compl_ennreal r ∅
-        rw [huniv p, huniv q]
+      · have huniv : U = Set.univ := Set.ext fun b => by cases b <;> simp [ht, hf]
+        simpa only [huniv, Set.compl_empty] using
+          StochasticallyDominates.compl_le_of_le (p := q) (q := p) (U := ∅) (by simp)
       · have hUs : U = {true} := Set.ext fun b => by cases b <;> simp [ht, hf]
         simpa [hUs, PMF.toOuterMeasure_apply_singleton] using h
-    · have hUe : U = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun b hb =>
-        ht (hU (by cases b <;> decide) hb)
+    · have hUe : U = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun b => mt (hU (Bool.le_true b)) ht
       simp [hUe]
 
 end Cslib.Probability.PMF

@@ -145,18 +145,16 @@ theorem rel_edgePartition_iff_reachable {n : ℕ} {W : Type}
       obtain ⟨e, he, rfl, rfl⟩ := huv
       rcases eq_or_ne e.u e.v with heq | hne
       · rw [heq]
-      · refine SimpleGraph.Adj.reachable ?_
-        rw [toSimpleGraph_adj]
-        exact ⟨List.mem_map_of_mem he, hne⟩
-    | refl u => exact SimpleGraph.Reachable.rfl
+      · exact SimpleGraph.Adj.reachable ((toSimpleGraph_adj es e.u e.v).mpr
+          ⟨List.mem_map_of_mem he, hne⟩)
+    | refl _ => exact SimpleGraph.Reachable.rfl
     | symm _ _ _ ih => exact ih.symm
     | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
   · rintro ⟨w⟩
     induction w with
     | nil => exact .refl _
     | @cons a b c hadj _ ih =>
-      rw [toSimpleGraph_adj] at hadj
-      obtain ⟨e, he, hsym⟩ := List.mem_map.mp hadj.1
+      obtain ⟨e, he, hsym⟩ := List.mem_map.mp ((toSimpleGraph_adj es a b).mp hadj).1
       rcases Sym2.eq_iff.mp hsym with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
       · exact .trans _ _ _ (.rel _ _ ⟨e, he, rfl, rfl⟩) ih
       · exact .trans _ _ _ (.symm _ _ (.rel _ _ ⟨e, he, rfl, rfl⟩)) ih
@@ -167,13 +165,9 @@ theorem edgePartition_eq_iff_reachable_eq {n : ℕ} {W₁ W₂ : Type}
     (es₁ : List (WeightedEdge n W₁)) (es₂ : List (WeightedEdge n W₂)) :
     edgePartition es₁ = edgePartition es₂ ↔
       (toSimpleGraph es₁).Reachable = (toSimpleGraph es₂).Reachable := by
-  constructor
-  · intro h
-    ext x y
-    rw [← rel_edgePartition_iff_reachable, ← rel_edgePartition_iff_reachable, h]
-  · intro h
-    ext x y
-    rw [Bool.eq_iff_iff, rel_edgePartition_iff_reachable, rel_edgePartition_iff_reachable, h]
+  refine ⟨fun h => ?_, fun h => ?_⟩ <;> ext x y
+  · rw [← rel_edgePartition_iff_reachable, ← rel_edgePartition_iff_reachable, h]
+  · rw [Bool.eq_iff_iff, rel_edgePartition_iff_reachable, rel_edgePartition_iff_reachable, h]
 
 /-- `edgePartition es` has a single connected component iff `toSimpleGraph es` is `Connected`
 (including the empty-graph boundary `n = 0`, where both sides are false). -/
@@ -182,14 +176,13 @@ theorem numComponents_edgePartition_eq_one_iff_connected {n : ℕ} {W : Type}
     (edgePartition es).numComponents = 1 ↔ (toSimpleGraph es).Connected := by
   constructor
   · intro hcomp
-    have hn : 0 < n := Nat.pos_of_ne_zero fun h => by
-      subst h
-      simp at hcomp
-    have : Nonempty (Fin n) := ⟨⟨0, hn⟩⟩
-    refine ⟨fun x y => (rel_edgePartition_iff_reachable es x y).mp ?_⟩
-    exact Partition.classOf_eq_iff.mp (Finset.card_le_one.mp hcomp.le
-      _ ((edgePartition es).classOf_mem_components x)
-      _ ((edgePartition es).classOf_mem_components y))
+    rcases Nat.eq_zero_or_pos n with rfl | hn
+    · simp at hcomp
+    · have : Nonempty (Fin n) := ⟨⟨0, hn⟩⟩
+      exact ⟨fun x y => (rel_edgePartition_iff_reachable es x y).mp
+        (Partition.classOf_eq_iff.mp (Finset.card_le_one.mp hcomp.le
+          _ ((edgePartition es).classOf_mem_components x)
+          _ ((edgePartition es).classOf_mem_components y)))⟩
   · intro hconn
     obtain ⟨v₀⟩ := hconn.nonempty
     have hcomp : (edgePartition es).components = {(edgePartition es).classOf v₀} := by
@@ -202,19 +195,15 @@ theorem numComponents_edgePartition_eq_one_iff_connected {n : ℕ} {W : Type}
 private theorem isAcyclic_append_singleton {n : ℕ} {W : Type}
     (F : List (WeightedEdge n W)) (e : WeightedEdge n W) :
     IsAcyclic (F ++ [e]) ↔ IsAcyclic F ∧ (edgePartition F).rel e.u e.v = false := by
-  rw [isAcyclic_iff, isAcyclic_iff]
-  have hep : edgePartition (F ++ [e]) = (edgePartition F).merge e.u e.v := by
-    simp [edgePartition]
-  rw [hep, List.length_append, List.length_singleton]
+  have hep : edgePartition (F ++ [e]) = (edgePartition F).merge e.u e.v := by simp [edgePartition]
   have hlow : n ≤ (edgePartition F).numComponents + F.length := by
-    simpa [edgePartition] using
-      numComponents_le_edgePartitionFrom_add_length (Partition.discrete n) F
+    simpa [edgePartition] using numComponents_le_edgePartitionFrom_add_length (.discrete n) F
+  rw [isAcyclic_iff, isAcyclic_iff, hep, List.length_append, List.length_singleton]
   cases hrel : (edgePartition F).rel e.u e.v
   · have hm := Partition.numComponents_merge_of_not_rel hrel
     simp only [and_true]
     omega
-  · rw [Partition.merge_of_rel hrel]
-    simp only [Bool.true_eq_false, and_false, iff_false]
+  · simp only [Partition.merge_of_rel hrel, Bool.true_eq_false, and_false, iff_false]
     omega
 
 /-- Exact equivalence between edge-list acyclicity `IsAcyclic F` and simple-graph acyclicity
@@ -233,29 +222,20 @@ theorem isAcyclic_iff_toSimpleGraph {n : ℕ} {W : Type} (F : List (WeightedEdge
     constructor
     · rintro ⟨⟨hacyc, hnodup, hloop⟩, hrel⟩
       have hnreach : ¬(toSimpleGraph F₀).Reachable e.u e.v := by
-        rw [← rel_edgePartition_iff_reachable, hrel]
-        decide
+        simpa only [← rel_edgePartition_iff_reachable, hrel] using Bool.false_ne_true
       have hne : e.u ≠ e.v := fun heq => hnreach (heq ▸ SimpleGraph.Reachable.rfl)
-      have hnot_mem : e.sym2 ∉ F₀.map WeightedEdge.sym2 := fun hmem =>
-        hnreach (SimpleGraph.Adj.reachable ((toSimpleGraph_adj F₀ e.u e.v).mpr ⟨hmem, hne⟩))
-      refine ⟨hacyc.sup_edge_of_not_reachable hnreach, ⟨hnodup, hnot_mem⟩, ?_⟩
-      intro f hf
-      rcases List.mem_append.mp hf with hf₀ | hfe
-      · exact hloop f hf₀
-      · rwa [List.mem_singleton.mp hfe]
+      refine ⟨hacyc.sup_edge_of_not_reachable hnreach,
+        ⟨hnodup, fun hmem =>
+          hnreach (SimpleGraph.Adj.reachable ((toSimpleGraph_adj F₀ e.u e.v).mpr ⟨hmem, hne⟩))⟩,
+        fun f hf => (List.mem_append.mp hf).elim (hloop f) fun hfe =>
+          List.mem_singleton.mp hfe ▸ hne⟩
     · rintro ⟨hacyc_sup, ⟨hnodup, hnot_mem⟩, hloop⟩
-      have hne : e.u ≠ e.v := hloop e (by simp)
-      have hloop₀ : ∀ f ∈ F₀, f.u ≠ f.v := fun f hf => hloop f (List.mem_append_left _ hf)
-      have hnadj : ¬(toSimpleGraph F₀).Adj e.u e.v := fun hadj =>
-        hnot_mem ((toSimpleGraph_adj F₀ e.u e.v).mp hadj).1
       obtain ⟨hacyc₀, hreach_imp⟩ := SimpleGraph.isAcyclic_sup_fromEdgeSet_iff.mp hacyc_sup
       have hnreach : ¬(toSimpleGraph F₀).Reachable e.u e.v := fun hr =>
-        (hreach_imp hr).elim hne hnadj
-      have hrel : (edgePartition F₀).rel e.u e.v = false := by
-        cases h : (edgePartition F₀).rel e.u e.v
-        · rfl
-        · exact absurd ((rel_edgePartition_iff_reachable F₀ e.u e.v).mp h) hnreach
-      exact ⟨⟨hacyc₀, hnodup, hloop₀⟩, hrel⟩
+        (hreach_imp hr).elim (hloop e (by simp)) fun hadj =>
+          hnot_mem ((toSimpleGraph_adj F₀ e.u e.v).mp hadj).1
+      exact ⟨⟨hacyc₀, hnodup, fun f hf => hloop f (List.mem_append_left _ hf)⟩,
+        Bool.eq_false_iff.mpr (mt (rel_edgePartition_iff_reachable F₀ e.u e.v).mp hnreach)⟩
 
 theorem IsAcyclic.toSimpleGraph_isAcyclic {n : ℕ} {W : Type} {F : List (WeightedEdge n W)}
     (hF : IsAcyclic F) : (toSimpleGraph F).IsAcyclic :=
@@ -322,12 +302,10 @@ theorem toSimpleGraph_kruskalEdges_isTree {n : ℕ} {W : Type} [LE W] [Decidable
     {es : List (WeightedEdge n W)} (hconn : (toSimpleGraph es).Connected) :
     (toSimpleGraph (kruskalEdges es)).IsTree ∧ (kruskalEdges es).length + 1 = n := by
   have hmax := toSimpleGraph_kruskalEdges_maximal_isAcyclic es
-  have hle : toSimpleGraph (kruskalEdges es) ≤ toSimpleGraph es := hmax.prop.1
-  have htree : (toSimpleGraph (kruskalEdges es)).IsTree :=
-    (hconn.maximal_le_isAcyclic_iff_isTree hle).mp hmax
-  have hcard := htree.card_edgeFinset
-  rw [(kruskalEdges_isAcyclic es).card_edgeFinset_toSimpleGraph, Fintype.card_fin] at hcard
-  exact ⟨htree, hcard⟩
+  have htree := (hconn.maximal_le_isAcyclic_iff_isTree hmax.prop.1).mp hmax
+  refine ⟨htree, ?_⟩
+  simpa only [(kruskalEdges_isAcyclic es).card_edgeFinset_toSimpleGraph, Fintype.card_fin] using
+    htree.card_edgeFinset
 
 /-! ### Canonical Kruskal runner on weighted `SimpleGraph (Fin n)` -/
 
@@ -469,11 +447,9 @@ theorem sum_edgeFinset_toSimpleGraph_kruskalGraph {n : ℕ} {W : Type}
     [AddCommMonoid W] [LE W] [DecidableLE W]
     (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
     (∑ z ∈ (toSimpleGraph (kruskalGraph G w)).edgeFinset, w z) =
-      totalWeight (kruskalGraph G w) := by
-  refine (kruskalEdges_isAcyclic (graphEdges G w)).sum_edgeFinset_toSimpleGraph w ?_
-  intro e he
-  have he_mem : e ∈ graphEdges G w := (kruskalEdges_subperm (graphEdges G w)).subset he
-  exact ((mem_graphEdges G w e).mp he_mem).2.2
+      totalWeight (kruskalGraph G w) :=
+  (kruskalEdges_isAcyclic (graphEdges G w)).sum_edgeFinset_toSimpleGraph w fun e he =>
+    ((mem_graphEdges G w e).mp ((kruskalEdges_subperm (graphEdges G w)).subset he)).2.2
 
 /-- **Simple-graph Kruskal spanning-forest optimality** (generalizing [Cormen et al., Section 23.2,
 `MST-KRUSKAL`, p. 631][CLRS2009] from connected real-weighted graphs to arbitrary finite simple

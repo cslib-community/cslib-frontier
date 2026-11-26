@@ -374,12 +374,11 @@ theorem ker_refinementColoring_eq {m : ℕ}
     rw [ker_refinementColoring_eq_of_succ_eq h (hi.trans hm),
       ker_refinementColoring_eq_of_succ_eq h hi]
   by_contra! hne
-  have key (i : ℕ) : i ≤ N + 1 →
+  have key (i : ℕ) (hi : i ≤ N + 1) :
       blocks (Setoid.ker χ₀) + i ≤ blocks (Setoid.ker (G.refinementColoring χ₀ i)) := by
     induction i with
-    | zero => exact fun _ => le_rfl
+    | zero => exact le_rfl
     | succ i ih =>
-      intro hi
       have := blocks_ker_refinementColoring_lt_succ (hne i (by omega))
       have := ih (by omega)
       omega
@@ -416,9 +415,8 @@ theorem isGreatest_ker_stableColoring :
       (Setoid.ker (G.stableColoring χ₀)) := by
   refine ⟨⟨ker_stableColoring_le, isEquitablePartition_ker_iff.2 isEquitable_stableColoring⟩,
     fun r ⟨hr, hq⟩ => ?_⟩
-  rw [isEquitablePartition_iff_isEquitable_mk] at hq
   rw [← Setoid.ker_mk_eq r] at hr ⊢
-  exact hq.ker_le_ker_stableColoring hr
+  exact (isEquitablePartition_iff_isEquitable_mk.1 hq).ker_le_ker_stableColoring hr
 
 end Stabilization
 
@@ -445,10 +443,9 @@ theorem refinementColoring_apply_of_neighborFinset_map (f : V ↪ W)
   induction n generalizing v with
   | zero => exact h₀ v
   | succ n ih =>
-    rw [refinementColoring_succ, refinementColoring_succ, refineColoring, refineColoring,
-      ih, hf, Finset.map_val, Multiset.map_map]
-    congr 2
-    exact funext ih
+    simp only [refinementColoring_succ, refineColoring, ih, hf, Finset.map_val, Multiset.map_map,
+      Function.comp_def]
+    rfl
 
 /-- An isomorphism of colored graphs preserves the colors of every round. -/
 theorem Iso.refinementColoring_apply (e : G ≃g H) {χ₀ : V → α} {ψ₀ : W → α}
@@ -516,9 +513,8 @@ theorem refinementColoring_sum_inr (χ₀ : V ⊕ W → α) (n : ℕ) (w : W) :
 theorem colorHistogram_sum [Fintype V] [Fintype W] (χ₀ : V ⊕ W → α) (n : ℕ) :
     (G ⊕g H).colorHistogram χ₀ n =
       G.colorHistogram (χ₀ ∘ .inl) n + H.colorHistogram (χ₀ ∘ .inr) n := by
-  rw [colorHistogram, ← Finset.univ_disjSum_univ, Finset.val_disjSum, Multiset.map_disjSum]
-  simp only [refinementColoring_sum_inl, refinementColoring_sum_inr]
-  rfl
+  simp [colorHistogram, ← Finset.univ_disjSum_univ, Multiset.map_disjSum,
+    refinementColoring_sum_inl, refinementColoring_sum_inr]
 
 end Sum
 
@@ -553,9 +549,7 @@ variable [Fintype V] [Fintype W]
 /-- The histogram of round `n + k` determines the histogram of round `n`. -/
 theorem colorHistogram_map_truncate (χ₀ : V → α) (n k : ℕ) :
     (G.colorHistogram χ₀ (n + k)).map (RefinementColor.truncate n k) = G.colorHistogram χ₀ n := by
-  rw [colorHistogram, colorHistogram, Multiset.map_map]
-  congr 1
-  exact funext (truncate_refinementColoring χ₀ n k)
+  simp only [colorHistogram, Multiset.map_map, Function.comp_def, truncate_refinementColoring]
 
 /-- Histograms that agree in some round agree in every earlier round. -/
 theorem colorHistogram_eq_of_le {H : SimpleGraph W} [H.LocallyFinite] {χ₀ : V → α}
@@ -590,11 +584,11 @@ theorem forall_refinementColoring_eq_iff {χ₀ : V → α} {ψ₀ : W → α} {
   rcases le_total m (Fintype.card V + Fintype.card W) with hm | hm
   · exact refinementColoring_eq_of_le hm h
   let χ : V ⊕ W → α := Sum.elim χ₀ ψ₀
-  have hsum : (G ⊕g H).refinementColoring χ (Fintype.card V + Fintype.card W) (.inl v) =
-      (G ⊕g H).refinementColoring χ (Fintype.card V + Fintype.card W) (.inr w) := by
-    rwa [refinementColoring_sum_inl, refinementColoring_sum_inr]
   have hm' : (G ⊕g H).refinementColoring χ m (.inl v) =
-      (G ⊕g H).refinementColoring χ m (.inr w) := ker_refinementColoring_sum_le hm hsum
+      (G ⊕g H).refinementColoring χ m (.inr w) :=
+    ker_refinementColoring_sum_le hm (by
+      simpa only [Setoid.ker_def, refinementColoring_sum_inl, refinementColoring_sum_inr,
+        Sum.elim_comp_inl, Sum.elim_comp_inr] using h)
   rwa [refinementColoring_sum_inl, refinementColoring_sum_inr] at hm'
 
 /-- Color refinement distinguishes two graphs in some round exactly when it distinguishes them in

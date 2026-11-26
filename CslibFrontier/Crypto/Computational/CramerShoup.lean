@@ -578,20 +578,8 @@ private theorem advantage_cramerShoupGame2_game3_le_exactCollision
       cases bit <;> simp [m, h]
     have htarget : F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple ct ad) = true :=
       F.isCramerShoupHashInput_extractCramerShoupTuple_challenge hasAD hmem H d sk _ _ hm (hAD _)
-    refine runStatelessOracle_le_runFinderOracle
-      (F.cramerShoupPhase2Reply hasAD H isElem d sk ct ad)
-      (F.cramerShoupCollisionPhase2Reply hasAD H isElem d sk ct ad)
-      (fun req =>
-        let q := splitCramerShoupQuery hasAD req
-        F.isCramerShoupCollision H d q.1 q.2 ct ad &&
-          F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple q.1 q.2))
-      (fun req =>
-        let q := splitCramerShoupQuery hasAD req
-        extractCramerShoupTuple q.1 q.2)
-      (fun cand => isCollisionFor (F.cramerShoupHashMod H)
-        (fun _ => F.isCramerShoupHashInput hasAD isElem) n d cand (extractCramerShoupTuple ct ad))
-      (fun req hbad => ?_) (fun req hbad => ?_)
-      (adversary.guess n (csChoiceState choiceOut.1) ct) PMF.pure true
+    refine runStatelessOracle_le_runFinderOracle _ _ _ _ _
+      (fun req hbad => ?_) (fun req hbad => ?_) _ _ _
     · have hq : hasAD = true ∨ (splitCramerShoupQuery hasAD req).2 = [] := by
         cases hasAD <;> simp [splitCramerShoupQuery]
       dsimp only [cramerShoupPhase2Reply, cramerShoupCollisionPhase2Reply] at hbad ⊢
@@ -602,8 +590,7 @@ private theorem advantage_cramerShoupGame2_game3_le_exactCollision
         rw [F.decodeCramerShoup_eq_none_of_isCramerShoupHashInput_eq_false hasAD H isElem d sk _ _
           hq hbad]
         simp only [Bool.or_true, ↓reduceIte, encOption_none, ite_self]
-    · dsimp only at hbad
-      rw [Bool.and_eq_true, F.isCramerShoupCollision_eq_isCollisionFor H n d,
+    · rw [Bool.and_eq_true, F.isCramerShoupCollision_eq_isCollisionFor H n d,
         isCollisionFor_eq_true_iff] at hbad
       exact (isCollisionFor_eq_true_iff ..).mpr ⟨hbad.2, htarget, hbad.1.2.2⟩
   · simp only [h, Bool.false_eq_true, ↓reduceIte]
@@ -963,9 +950,7 @@ private theorem length_encodeCramerShoupPublicKey_le {d : F.Desc} {B : ℕ}
     (F.encodeCramerShoupPublicKey d (F.encode d (α • F.generator d)) sk).length ≤
       2 * (F.encDesc d).length + 44 * B + 30 := by
   rw [F.encodeCramerShoupPublicKey_encode]
-  suffices h : ∀ pk, (F.encodeCramerShoupPublicKeyValues d pk).length ≤
-      2 * (F.encDesc d).length + 44 * B + 30 by exact h _
-  intro pk
+  generalize F.cramerShoupPublicKey d α _ _ _ _ _ _ = pk
   unfold encodeCramerShoupPublicKeyValues
   have h4 := F.length_encBits4_encode_le hB (csPkU pk) (csPkH pk) (csPkH₁ pk) (csPkH₂ pk)
   enc_len
@@ -1047,15 +1032,10 @@ theorem DDH.cramerShoupMsgIdealINDCCA2
     have hpk := hpk_le hd α δ δ₁ δ₂
     have hst : (csChoiceState choiceOut.1).length ≤ Lst n :=
       (hstate n _ Unit _ () choiceOut.2 choiceOut.1 hchoice).trans (by dsimp only [Lst]; gcongr)
-    have hct := F.length_encBits4_encode_le (hB_le hd)
-      (β • F.generator d) (γ • F.generator d)
-      (projHash F d (δ - α * τ) τ (β • F.generator d) (γ • F.generator d) + mElem)
-      ((β * (δ₁ + F.cramerShoupHashMod H d
-        (encBits4 (F.encode d (β • F.generator d), F.encode d (γ • F.generator d),
-          F.encode d (projHash F d (δ - α * τ) τ (β • F.generator d) (γ • F.generator d) + mElem),
-          encodeAD (d, csChoiceAD choiceOut.1))) * δ₂) + (γ - α * β) * ξ) • F.generator d)
     refine (hQ₂_raw n (csChoiceState choiceOut.1) _).mono ?_
-    dsimp only [Q₂, Lct] at hct ⊢; gcongr
+    dsimp only [Q₂, Lct]
+    gcongr
+    exact F.length_encBits4_encode_le (hB_le hd) _ _ _ _
 
 /-- Ideal-sampling step toward `DDH.indcca2ADOn_cramerShoup_bitStringAD`, not the cited result
 (after [BonehShoup2023], Theorem 12.9 & Exercise 12.27): for group-element messages with associated

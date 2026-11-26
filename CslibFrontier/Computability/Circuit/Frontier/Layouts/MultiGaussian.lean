@@ -84,8 +84,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
   have hScross0 : 0 ≤ S_cross :=
     Finset.sum_nonneg fun e _ => div_nonneg (arccos_nonneg _) pi_pos.le
   have hmh : m ≤ d * h := by
-    rw [hm, hh]
-    exact_mod_cast G.card_le_mul_card hdeg
+    simpa only [m, h, Nat.cast_mul] using (Nat.cast_le (α := ℝ)).mpr (G.card_le_mul_card hdeg)
   have hcardV : (Fintype.card V : ℝ) = h := by rw [hh, Nat.card_eq_fintype_card]
   have hcardE : (Fintype.card E : ℝ) = m := by rw [hm, Nat.card_eq_fintype_card]
   let score (ω : V → ℝ) (v : V) : ℝ := ⟪row v, WithLp.toLp 2 ω⟫
@@ -160,7 +159,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
     rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv]
     exact div_le_div_of_nonneg_right (arccos_le_arccos (hcorr e)) pi_pos.le
   have htop : -T + M * δ = T := by rw [hδ]; field_simp; ring
-  obtain ⟨σ, hσ⟩ := G.exists_width_le_of_vertexScore hdeg (score ω) hδpos M (a := -T) (B := B)
+  exact G.exists_width_le_of_vertexScore hdeg (score ω) hδpos M (a := -T) (B := B)
     (tail (· < -T) (fun x hx => by rw [abs_of_neg (by linarith)]; linarith) hlow)
     (by
       rw [htop]
@@ -182,7 +181,6 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
       have hidentity : B = (S_cross + c) + d * (h * (δ / √(2 * π)) + c) + h * (d / T ^ 2) := by
         simp only [B, hc]; ring
       linarith [mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg (α := ℝ) d)])
-  exact ⟨σ, hσ⟩
 
 /-- **A good sample.** Let `G` be a loopless multigraph of maximum degree `d ≥ 2`, and let `ρ`
 be at most the truncated kernel bound `2 q / (1 + q ^ 2) - d ((d - 1) q ^ 2) ^ R`. If `G` has
@@ -231,8 +229,7 @@ theorem exists_width_le_of_unitRows_add_mul {d : ℕ} (hd : 2 ≤ d) (R : ℕ) {
   have hMR : 8 * D * T / ξ ≤ (M : ℝ) := (Nat.le_ceil _).trans (by simp [M])
   have htail : D / T ^ 2 ≤ ξ / 4 := by
     have hsq : 4 * D / ξ ≤ T ^ 2 := by
-      have hx : 0 ≤ 4 * D / ξ := by positivity
-      simp only [T]; nlinarith [sq_nonneg (4 * D / ξ)]
+      simp only [T]; nlinarith [sq_nonneg (4 * D / ξ + 1 / 2)]
     rw [div_le_iff₀ (sq_pos_of_pos hT)]
     linarith [(div_le_iff₀ hξ).mp hsq]
   have hgrid : D * (2 * T / M) / √(2 * π) ≤ ξ / 4 := by
@@ -290,8 +287,7 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
   refine ⟨σ, hσ.trans ?_⟩
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
   have hE : (Nat.card E : ℝ) ≤ D * Nat.card V := by
-    simp only [D]
-    exact_mod_cast G.card_le_mul_card hdeg
+    simpa only [D, Nat.cast_mul] using (Nat.cast_le (α := ℝ)).mpr (G.card_le_mul_card hdeg)
   have herror : ξ / (4 * D) * Nat.card E ≤ ξ / 4 * Nat.card V := by
     refine (mul_le_mul_of_nonneg_left hE (by positivity)).trans_eq ?_
     field_simp

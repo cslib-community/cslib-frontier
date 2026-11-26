@@ -319,8 +319,7 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
   let bestL := childPassList inst.adj inst.wt (inst.bagAt jFin) (inst.bagAt pFin)
     (tblList jFin) (List.replicate tblPLen 0) (2 ^ (inst.bagAt jFin).length)
   have hbestL_le : ∀ x ∈ bestL, x ≤ capB :=
-    mem_childPassList_le
-      (fun x hx => by rw [List.eq_of_mem_replicate hx]; exact Nat.zero_le _) hcand_le
+    mem_childPassList_le (fun _ hx => List.eq_of_mem_replicate hx ▸ Nat.zero_le _) hcand_le
   have hbestL_len : bestL.length = tblPLen := by
     rw [length_childPassList, List.length_replicate]
   have hp_mem_c (off : ℕ) (hoff : off < 4) :
@@ -421,8 +420,7 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
   refine ⟨hv_step, by rw [hres_ev]; omega, ?_,
     by rwa [hst_eq], hpfx_next, hc_step, fun h4 => ?_⟩
   · rw [hst_eq, hfr_pp, hfr_cp]
-    change t.frontier + tblPLen ≤ t.frontier + 2 ^ M
-    omega
+    exact Nat.add_le_add_left hp_pow_le _
   · have h2 : Fits w 2 := h4.of_le (by decide)
     have hfit_tfr : Fits w t.frontier := hfit_fr.of_le (Nat.le_add_right _ _)
     dsimp only [a]
@@ -539,11 +537,9 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
   induction k with
   | zero =>
     intro st tblList _ hfr hlay hpfx hagree
-    have h0 : iterate processNodeStep args 0 0 = pure 0 := rfl
-    rw [h0]
     simp only [Nat.sub_zero] at hfr hpfx hagree
     exact ⟨validHistory_pure w st 0, ⟨hfr, tblList, hlay, hpfx, hagree⟩,
-      by simp [memoryCost_pure]⟩
+      by simp [iterate, memoryCost_pure]⟩
   | succ k ih =>
     intro st tblList hk hfr hlay hpfx hagree
     have hfr_sub : st.frontier + 2 ^ M ≤ s₁.frontier + (n - k) * 2 ^ M := by
@@ -592,12 +588,9 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
     let st₁ := (Memory.spec 0).clientState st (processNodeStep (args, k + 1))
     obtain ⟨hv_rem, hprops_rem, hc_rem⟩ := ih st₁ tblList' (by omega)
       (hfr_step.trans hfr_sub) hlay_next hpfx_next hagree_next
-    have hiter_eq : iterate processNodeStep args (k + 1) (k + 1) =
-        (processNodeStep (args, k + 1) >>= iterate processNodeStep args k) := rfl
-    rw [hiter_eq]
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hres_step]), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hres_step]
-      exact hprops_rem
+    · rwa [StateTransitionSpec.clientState_bind, hres_step]
     · rw [memoryCost_bind', hres_step]
       calc memoryCost (processNodeStep (args, k + 1)) st +
             memoryCost (iterate processNodeStep args k k) st₁
@@ -623,22 +616,19 @@ theorem processNodesProg_realizes :
   unfold processNodesProg
   realize [childPassProg_realizes, parentPassProg_realizes]
   obtain ⟨h4, inst, tblInit, hnv, hadjP, hwtP, hparP, hnn, hlay₀, hpfx₀, hfit_peak, hfit_val⟩ := h
-  have hd_eq : d = ⟨inst.numVerts, 3 + inst.numVerts, 3,
-      3 + inst.numVerts + inst.numVerts * inst.numVerts, d.descBase, inst.numNodes⟩ := by
-    cases d
-    dsimp only at hnv hadjP hwtP hparP hnn
-    subst hnv hadjP hwtP hparP hnn
-    rfl
+  rcases d with ⟨_, _, _, _, descBase, _⟩
+  dsimp only at hnv hadjP hwtP hparP hnn
+  subst hnv hadjP hwtP hparP hnn
   let M := inst.maxBagLen
-  refine iterationSafe_of_stepInv _ _ w d
+  refine iterationSafe_of_stepInv _ _ w _
     (fun (j : ℕ) (curNode : ℕ) (t : Memory.State) =>
       j ≤ inst.numNodes ∧ curNode = j ∧
       t.frontier ≤ s.frontier + (inst.numNodes - j) * 2 ^ M ∧
       ∃ tblList : Fin (inst.numNodes + 1) → List ℕ,
-        NodeLayout inst d.descBase tblList t ∧
+        NodeLayout inst descBase tblList t ∧
         prefixMaxSum tblList j ≤ (inst.numNodes - j) * (M * inst.maxWeight))
     (fun j curNode t ⟨hj_le, hcur_eq, hfr_t, tblList, hlay_t, hpfx_t⟩ => ?_)
-    ⟨by rw [hnn], rfl, by rw [hnn]; simp, tblInit, hlay₀, by rw [hnn, hpfx₀]; simp⟩
+    ⟨le_rfl, rfl, Nat.le_add_right _ _, tblInit, hlay₀, hpfx₀.le.trans (Nat.zero_le _)⟩
   subst hcur_eq
   have hfr_sub : t.frontier + 2 ^ M ≤ s.frontier + (inst.numNodes - j) * 2 ^ M := by
     calc t.frontier + 2 ^ M
@@ -650,9 +640,7 @@ theorem processNodesProg_realizes :
   have hfit_fr : Fits w (t.frontier + 2 ^ M) := hfit_peak.of_le
     (hfr_sub.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ (Nat.sub_le _ _)) _))
   obtain ⟨_, hres_s, hfr_s, hlay_s, hpfx_s, _, hsafe_fn⟩ :=
-    processNodeStep_full (w := w) inst d.descBase hd_eq hj_le hlay_t hpfx_t hfit_fr hfit_val
-  refine ⟨?_, Nat.le_of_succ_le hj_le, hres_s, hfr_s.trans hfr_sub, _, hlay_s, hpfx_s⟩
-  dsimp only [processNodeStep]
-  exact hsafe_fn h4
+    processNodeStep_full (w := w) inst descBase rfl hj_le hlay_t hpfx_t hfit_fr hfit_val
+  exact ⟨hsafe_fn h4, Nat.le_of_succ_le hj_le, hres_s, hfr_s.trans hfr_sub, _, hlay_s, hpfx_s⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

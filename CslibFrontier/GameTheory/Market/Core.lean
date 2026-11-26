@@ -278,18 +278,14 @@ theorem eq_of_isInCore_replica {E : ExchangeMarket I G} {r : ℕ} [NeZero r]
     exact hcore.1.2 g
   · intro ic hic
     obtain ⟨k, -, rfl⟩ := mem_map.1 hic
-    simp only [emb, replica_utility, z]
-    have hjensen : ∑ c : Fin r, (1 / (r : ℝ)) * E.utility k (y (k, c)) ≤ E.utility k (avg k) := by
-      simpa only [smul_eq_mul] using
-        (hsc k).concaveOn.le_map_sum (fun c hc => (hw_pos c hc).le) hw_sum
-          (fun c _ => hcore.1.1 (k, c))
-    exact (hmin_le k).trans hjensen
+    simp only [hemb, replica_utility, z]
+    exact (hmin_le k).trans (by
+      simpa only [smul_eq_mul] using (hsc k).concaveOn.le_map_sum (fun c hc => (hw_pos c hc).le)
+        hw_sum fun c _ => hcore.1.1 (k, c))
   · refine ⟨emb i, mem_map.2 ⟨i, mem_univ i, rfl⟩, ?_⟩
-    simp only [emb, replica_utility, z]
-    have hstrict : ∑ c : Fin r, (1 / (r : ℝ)) * E.utility i (y (i, c)) < E.utility i (avg i) :=
-      StrictConcaveOn.sum_mul_lt_of_ne (hsc i) hw_pos hw_sum (fun c _ => hcore.1.1 (i, c))
-        ⟨c₁, mem_univ c₁, c₂, mem_univ c₂, hne⟩
-    exact lt_of_le_of_lt (hmin_le i) hstrict
+    simp only [hemb, replica_utility, z]
+    exact (hmin_le i).trans_lt (StrictConcaveOn.sum_mul_lt_of_ne (hsc i) hw_pos hw_sum
+      (fun c _ => hcore.1.1 (i, c)) ⟨c₁, mem_univ c₁, c₂, mem_univ c₂, hne⟩)
 
 end Replica
 
@@ -371,14 +367,11 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
         by_cases hi₁ : i ∈ S₁
         · by_cases hi₂ : i ∈ S₂
           · have hαi : 0 < α i := hα_pos i hi
-            have hc₁_nn : 0 ≤ w₁ i / α i := div_nonneg (hw₁_nn i) hαi.le
-            have hc₂_nn : 0 ≤ w₂ i / α i := div_nonneg (hw₂_nn i) hαi.le
-            have hc_sum : w₁ i / α i + w₂ i / α i = 1 := by
-              rw [← add_div, div_self hαi.ne']
-            have hcomb := hconv i (hx_feas.1 i) ⟨hb₁_nn i hi₁, hb₁_gt i hi₁⟩
-              ⟨hb₂_nn i hi₂, hb₂_gt i hi₂⟩ hc₁_nn hc₂_nn hc_sum
+            obtain ⟨h1, h2⟩ := hconv i (hx_feas.1 i) ⟨hb₁_nn i hi₁, hb₁_gt i hi₁⟩
+              ⟨hb₂_nn i hi₂, hb₂_gt i hi₂⟩ (div_nonneg (hw₁_nn i) hαi.le)
+              (div_nonneg (hw₂_nn i) hαi.le) (by rw [← add_div, div_self hαi.ne'])
             simp only [b, hi₁, hi₂, ↓reduceIte]
-            refine ⟨hcomb.1, hcomb.2, fun g => ?_⟩
+            refine ⟨h1, h2, fun g => ?_⟩
             simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
             field_simp [hαi.ne']
             dsimp only [α]
@@ -504,13 +497,9 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       ⟨univ, α, b, univ_nonempty, fun _ _ => one_div_pos.2 hm_pos, by simp [α, m, hm_pos.ne'],
         fun i _ => hb_nn i, fun i _ => hb_gt i, fun g => le_max_left _ _⟩, fun g => ?_⟩
     have havg_le : ∑ i : I, α i * (b i g - E.endowment i g) ≤ ε / 2 := by
-      have hrew : ∑ i : I, α i * (b i g - E.endowment i g) =
-          (1 / m) * ((∑ i : I, b i g) - E.totalSupply g) := by
-        rw [E.totalSupply_eq_sum, ← sum_sub_distrib, mul_sum]
-      have h1m_le : 1 / m ≤ 1 := div_le_one_of_le₀ hm_ge_1 hm_pos.le
-      have hmul : (1 / m) * ((∑ i : I, b i g) - E.totalSupply g) ≤ (1 / m) * (ε / 2) :=
-        mul_le_mul_of_nonneg_left (hb_le g) (by positivity)
-      nlinarith [hrew]
+      simp only [α, ← mul_sum, sum_sub_distrib, ← E.totalSupply_eq_sum]
+      exact (mul_le_mul_of_nonneg_left (hb_le g) (one_div_nonneg.2 hm_pos.le)).trans
+        (mul_le_of_le_one_left (half_pos hε).le (div_le_one_of_le₀ hm_ge_1 hm_pos.le))
     rw [abs_of_nonneg (le_max_right _ _)]
     exact max_lt (havg_le.trans_lt (half_lt_self hε)) hε
   obtain ⟨p, hp_nn, hp_pos, hsep⟩ :=

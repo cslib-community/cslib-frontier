@@ -195,12 +195,11 @@ theorem mem_iff_exists_verifier (a : NEXPBoundedAcceptanceInstance) :
   rw [mem_iff]
   constructor
   · rintro ⟨c, hc, hacc⟩
-    refine ⟨frame c ++ List.replicate (2 * a.steps - 2 * c.length) false, ?_, ?_⟩
-    · rw [List.length_append, length_frame, List.length_replicate]
-      omega
-    · simp only [verifier_eq_true_iff, unframe_frame_append, List.length_append, length_frame,
-        List.length_replicate]
-      rwa [Nat.min_eq_right (by omega)]
+    refine ⟨frame c ++ List.replicate (2 * a.steps - 2 * c.length) false,
+      by simp only [List.length_append, length_frame, List.length_replicate]; omega, ?_⟩
+    simp only [verifier_eq_true_iff, unframe_frame_append, List.length_append, length_frame,
+      List.length_replicate]
+    rwa [Nat.min_eq_right (by omega)]
   · rintro ⟨w, hw, hV⟩
     simp only [verifier_eq_true_iff, hw, Nat.min_eq_right (by omega : a.steps ≤ 2 * a.steps + 1)]
       at hV
@@ -250,13 +249,10 @@ theorem mem_NE : NEXPBoundedAcceptance ∈ NE encNEXPBoundedAcceptanceInstance :
   have hℓ := ComputableInO.comp ComputableInO.natToUnary hcert_deg.inO
   obtain ⟨dV, _, hV_deg⟩ := computableInPolyTime_verifier.exists_degree
   let k := dC + dV + 1
-  refine ⟨k, ?_⟩
-  have hset : NEXPBoundedAcceptance =
-      {a | ∃ w : List Bool, w.length = 2 * a.steps + 1 ∧ verifier (a, w) = true} :=
-    Set.ext mem_iff_exists_verifier
-  rw [hset]
-  refine setOf_exists_mem_NTIME (t := fun n => 2 ^ (k * n)) hℓ hV_deg.inO (C := 5 + 4 ^ dV)
-    fun a w hw => ?_
+  rw [Set.ext (b := {a | ∃ w, w.length = 2 * a.steps + 1 ∧ verifier (a, w) = true})
+    mem_iff_exists_verifier]
+  refine ⟨k, setOf_exists_mem_NTIME (t := fun n => 2 ^ (k * n)) hℓ hV_deg.inO (C := 5 + 4 ^ dV)
+    fun a w hw => ?_⟩
   set n := (encNEXPBoundedAcceptanceInstance a).length
   have hsteps : a.steps < 2 ^ n := steps_lt_two_pow_length a
   have hn1 : n + 1 ≤ 2 ^ n := Nat.lt_two_pow_self
@@ -358,17 +354,15 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
       exact ⟨c, hc_step, (NEXPBoundedAcceptanceInstance.accepts_desc_iff eSV tm (enc a)
         (stepBound a) c).mpr ⟨hhalt, hout.trans (congrArg List.singleton hc_acc)⟩⟩
     · rintro ⟨c, -, hacc⟩
-      rw [NEXPBoundedAcceptanceInstance.accepts_desc_iff] at hacc
-      rcases hacc with ⟨hhalt, hout⟩
+      obtain ⟨hhalt, hout⟩ := (NEXPBoundedAcceptanceInstance.accepts_desc_iff _ _ _ _ _).mp hacc
       let T' := max (stepBound a) (tV (enc a, c))
       have hrun_eq := tm.runFrom_eq_of_halt _ (Nat.le_max_left (stepBound a) (tV (enc a, c))) hhalt
       obtain ⟨-, hout'⟩ := (htm (enc a, c)).runFrom_of_le (Nat.le_max_right (stepBound a) _)
       change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) T').output =
         [ntm.checkChoices encBits (enc a, c)] at hout'
       rw [hrun_eq, hout, List.singleton_inj] at hout'
-      have hcheck : ntm.choiceTable.runClosedCoins c (enc a) = [true] :=
-        of_decide_eq_true hout'.symm
-      exact (hdec a).2.mpr (ntm.accepts_of_runClosedCoins_choiceTable hcheck)
+      exact (hdec a).2.mpr
+        (ntm.accepts_of_runClosedCoins_choiceTable (of_decide_eq_true hout'.symm))
 
 /-- **`NEXPBoundedAcceptance` is hard for `NE`** under polynomial-time many-one reductions. -/
 theorem polyTimeHard_NE : PolyTimeHard @NE encNEXPBoundedAcceptanceInstance NEXPBoundedAcceptance :=

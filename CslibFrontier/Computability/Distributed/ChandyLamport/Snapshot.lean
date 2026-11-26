@@ -566,12 +566,10 @@ theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
     cases e with
     | internal p st' sent =>
       refine ⟨hen, GlobalState.ext (funext fun r => ?_) (funext fun u => funext fun v => ?_)⟩
-      · simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
-          GlobalState.applyLocal]
-        split_ifs <;> rfl
-      · simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
-          GlobalState.applyLocal]
-        split_ifs <;> simp
+      · by_cases hr : r = p <;> simp [project, stepSnap, SnapGlobalState.applyApp,
+          GlobalState.applyEvent, GlobalState.applyLocal, hr]
+      · by_cases hu : u = p <;> simp [project, stepSnap, SnapGlobalState.applyApp,
+          GlobalState.applyEvent, GlobalState.applyLocal, hu]
     | recv src dest msg st' sent =>
       obtain ⟨t, ht⟩ := List.head?_eq_some_iff.mp hen.2.1
       refine ⟨⟨hen.1, by simp [project, ht], hen.2.2.1, hen.2.2.2⟩,
@@ -581,9 +579,8 @@ theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
         split_ifs <;> rfl
       · simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
           GlobalState.applyLocal, GlobalState.popChan]
-        by_cases hp : u = src ∧ v = dest
-        · rcases hp with ⟨rfl, rfl⟩
-          simp only [and_self, ↓reduceIte, ht, List.tail_cons, unmarker_cons_app]
+        rcases Decidable.em (u = src ∧ v = dest) with ⟨rfl, rfl⟩ | hp
+        · simp only [and_self, ↓reduceIte, ht, List.tail_cons, unmarker_cons_app]
           by_cases hu : u = v <;> simp [hu]
         · simp only [hp, ↓reduceIte]
           by_cases hu : u = dest <;> simp [hu]
@@ -704,12 +701,8 @@ theorem isPreSnapshot_liftState {s : GlobalState P S M} (hwf : sys.WellFormedCha
 
 private lemma countP_isMarker_eq_zero_iff {M : Type*} {ws : List (WireMsg M)} :
     ws.countP WireMsg.isMarker = 0 ↔ .marker ∉ ws := by
-  rw [List.countP_eq_zero]
-  constructor
-  · intro h hm
-    exact absurd rfl (WireMsg.isMarker_eq_true_iff.not.mp (h .marker hm))
-  · intro h w hw hmk
-    exact h (WireMsg.isMarker_eq_true_iff.mp hmk ▸ hw)
+  simp only [List.countP_eq_zero, WireMsg.isMarker_eq_true_iff]
+  exact ⟨fun h hm => h _ hm rfl, fun h _ hw heq => h (heq ▸ hw)⟩
 
 private lemma countP_isMarker_append_app {M : Type*} (ws : List (WireMsg M)) (ms : List M) :
     (ws ++ ms.map WireMsg.app).countP WireMsg.isMarker = ws.countP WireMsg.isMarker := by

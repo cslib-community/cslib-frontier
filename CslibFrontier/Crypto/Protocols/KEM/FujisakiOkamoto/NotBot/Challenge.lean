@@ -413,9 +413,7 @@ private theorem eval_genHandler_decaps_self (S : Scheme PK SK M R CT K)
     (d : List (M × R) → CT → Bool) (t : M → CT → R → Prop) [∀ m c, DecidablePred (t m c)]
     (gs : M → ProbComp R) (hs : CT → ProbComp K) (cStar : CT) (s : SimState M R CT K) :
     ProbComp.eval (S.genHandler d t gs hs cStar (.decaps cStar) s) = PMF.pure (none, s) := by
-  change ProbComp.eval ((if cStar = cStar then (return none : StateT (SimState M R CT K)
-    ProbComp (Option K)) else filterDecaps (genHashHq hs) d cStar) s) = _
-  simp only [↓reduceIte]
+  simp only [genHandler, ROQuery.dispatch, ↓reduceIte]
   exact ProbComp.eval_pure _
 
 /-! ### Cache growth -/
@@ -802,13 +800,9 @@ private theorem eval_simHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (mStar 
       (ProbComp.eval S.sampleKey).map fun kq =>
         (kq, ({ gCache := [(mStar, rStar)], hqCache := [(S.pke.encDet pk mStar rStar, kq)] } :
           SimState M R CT K)) := by
-  change ProbComp.eval (simHashG S.pke.sampleCoins mStar { gCache := [(mStar, rStar)] } >>=
-    fun z => (if S.pke.encDet pk mStar z.1 = S.pke.encDet pk mStar rStar then
-      simHashHq S.sampleKey (S.pke.encDet pk mStar rStar)
-      else simHashHRaw S.sampleKey (false, mStar, S.pke.encDet pk mStar rStar)) z.2) = _
-  rw [ProbComp.eval_bind, eval_simHashG_singleton, PMF.pure_bind]
-  simp only [↓reduceIte, simHashHq, RandomOracle.eval_zoomStateT_memoize, memoize, List.lookup_nil,
-    pmf_norm]
+  rw [simHashH, StateT.run_bind, ProbComp.eval_bind]
+  simp only [StateT.run, eval_simHashG_singleton, PMF.pure_bind, ↓reduceIte, simHashHq,
+    RandomOracle.eval_zoomStateT_memoize, memoize, List.lookup_nil, pmf_norm]
   rfl
 
 /-- The outer randomness of `simFilterGame`: key pair, challenge message and coins, real and random
@@ -1115,12 +1109,8 @@ private theorem eval_coupledHashH_run_init (S : Scheme PK SK M R CT K) (pk : PK)
     ProbComp.eval ((S.coupledHashH pk sk (false, mStar, S.pke.encDet pk mStar rStar)).run
         { gCache := [(mStar, rStar)] }) =
       (ProbComp.eval S.sampleKey).map fun kq => (kq, S.coupledInit pk sk mStar rStar kq) := by
-  change ProbComp.eval (simHashG S.pke.sampleCoins mStar { gCache := [(mStar, rStar)] } >>=
-    fun z => (if S.pke.encDet pk mStar z.1 = S.pke.encDet pk mStar rStar ∧
-        S.pke.dec sk (S.pke.encDet pk mStar rStar) = some mStar then
-      simHashHq S.sampleKey (S.pke.encDet pk mStar rStar)
-      else simHashHRaw S.sampleKey (false, mStar, S.pke.encDet pk mStar rStar)) z.2) = _
-  rw [ProbComp.eval_bind, eval_simHashG_singleton, PMF.pure_bind]
+  rw [coupledHashH, StateT.run_bind, ProbComp.eval_bind]
+  simp only [StateT.run, eval_simHashG_singleton, PMF.pure_bind]
   by_cases hr : S.pke.dec sk (S.pke.encDet pk mStar rStar) = some mStar <;>
     simp only [hr, true_and, ↓reduceIte, coupledInit, simHashHq, simHashHRaw,
       RandomOracle.eval_zoomStateT_memoize, memoize, List.lookup_nil, pmf_norm] <;> rfl

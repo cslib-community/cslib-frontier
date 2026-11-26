@@ -415,15 +415,14 @@ private theorem isValidPartition_scBuildTrimmed {c1 c2 : ℝ}
   · dsimp only [scBuildTrimmed]
     revert ht_l hu2_r
     fin_cases p0 <;> intro ht_l hu2_r
-    · exact ⟨ht_l, hu1_t, hu2_u1, hu2_r, hc12, hc2⟩
-    · exact ⟨hc1, ht_l, hu1_t, hu2_u1, hu2_r, hc2⟩
-    · exact ⟨hc1, hc12, ht_l, hu1_t, hu2_u1, hu2_r⟩
+    exacts [⟨ht_l, hu1_t, hu2_u1, hu2_r, hc12, hc2⟩,
+      ⟨hc1, ht_l, hu1_t, hu2_u1, hu2_r, hc2⟩,
+      ⟨hc1, hc12, ht_l, hu1_t, hu2_u1, hu2_r⟩]
   · dsimp only [scBuildTrimmed, Y, T_sub, r]
     clear hall_perm hY_perm hT_perm s2 s1 q0 hq21 q1 T_sub Y r ht_l hu2_r hp01
     fin_cases p0
-    · exact List.Perm.cons _ (List.perm_append_comm ..)
-    · exact List.Perm.cons _ (List.Perm.cons _ (List.perm_append_comm ..))
-    · exact List.Perm.refl _
+    exacts [List.Perm.cons _ (List.perm_append_comm ..),
+      List.Perm.cons _ (List.Perm.cons _ (List.perm_append_comm ..)), List.Perm.refl _]
 
 /-- `selfridgeConwayQ` produces a valid interval partition of `[0, 1]` against every oracle. -/
 theorem isValidPartition_selfridgeConwayQ
@@ -455,8 +454,7 @@ theorem isValidPartition_selfridgeConwayQ
     set r := (scInitialPieces c1 c2 p0).right
     set t := (RWQuery.cutIn (1 : Fin 3) l r (u1 p1)).eval oracle
     have ht : t ∈ Set.Icc l r := RWQuery.eval_cutIn_mem_Icc oracle 1 hlr (u1 p1)
-    set u2 := (evalThree 2 (scTrimmedPieces c1 c2 p0 t)).eval oracle
-    set q2 := topChoice u2
+    set q2 := topChoice ((evalThree 2 (scTrimmedPieces c1 c2 p0 t)).eval oracle)
     set pd : Fin 3 := if q2 = p0 then 1 else 2
     set w_pd := (RWQuery.evalAsk pd t r).eval oracle
     set u_cut1 := (RWQuery.cutIn pd t r (w_pd / 3)).eval oracle
@@ -496,8 +494,6 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
   have hu1_p1_le_p0 : u1 p1 ≤ u1 p0 :=
     Tuple.antitone_sortDesc u1 (by decide : (0 : Fin 3) ≤ 1)
   have hu1_top : ∀ k : Fin 3, u1 k ≤ u1 p0 := le_topChoice u1
-  have hbundle1 : ∀ (u : CakeValuation) (p : CakePiece), u.bundleVal [p] = u.pieceVal p :=
-    fun u p => u.bundleVal_singleton p
   by_cases htie : u1 p0 ≤ u1 p1
   · -- Branch A: Player 1's top two pieces are tied (`u1 p0 = u1 p1`), 2 cuts total.
     rw [ite_eq_left htie]
@@ -517,7 +513,7 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
       (congrFun hu2_eq k).symm.le.trans ((le_topChoice u2 k).trans (congrFun hu2_eq q2).le)
     intro i j
     fin_cases i <;> fin_cases j <;> simp only [scBuildUntrimmed, Fin.zero_eta, Fin.mk_one,
-      Fin.reduceFinMk, Fin.isValue, hbundle1]
+      Fin.reduceFinMk, Fin.isValue, CakeValuation.bundleVal_singleton]
     exacts [le_rfl, (hv0_X q1).trans_le (hv0_X q0).ge, (hv0_X q2).trans_le (hv0_X q0).ge,
       h1_fav q0, le_rfl, h1_fav q2, h2_fav q0, h2_fav q1, le_rfl]
   · -- Branch B: Trim needed (`u1 p1 < u1 p0`), 5 cuts total.
@@ -526,9 +522,8 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     set l := (X p0).left
     set r := (X p0).right
     obtain ⟨hl0, hlr, hr1⟩ := hX_bounds p0
-    have hu1_p1_nonneg : 0 ≤ u1 p1 := by
-      rw [congrFun hu1_eq p1]
-      exact (v 1).val_nonneg (hX_bounds p1).1 (hX_bounds p1).2.2
+    have hu1_p1_nonneg : 0 ≤ u1 p1 :=
+      congrFun hu1_eq p1 ▸ (v 1).val_nonneg (hX_bounds p1).1 (hX_bounds p1).2.2
     have hu1_p1_le_lr : u1 p1 ≤ v 1 l r := by
       simpa only [congrFun hu1_eq p0, CakeValuation.pieceVal] using hu1_p1_le_p0
     obtain ⟨⟨ht_l, ht_r⟩, hvt1⟩ :=
@@ -608,16 +603,12 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
           (v 0).val_add (ht0.trans hu1_t) hu2_u1 hu2_r hr1]
       have hT_perm_sum := sum_three_of_ne hspa0 (fun m => (v 0).pieceVal (T_sub m))
       have hYp0_T : (v 0).pieceVal (Y p0) + v 0 t r = 1 / 3 := by
-        dsimp only [Y, scTrimmedPieces, CakeValuation.pieceVal]
-        rw [ite_eq_left rfl, show (scInitialPieces c1 c2 p0).left = l from rfl,
-          (v 0).val_add hl0 ht_l ht_r hr1]
+        dsimp only [Y, scTrimmedPieces, CakeValuation.pieceVal, X, l, r] at hl0 ht_l ht_r hr1 ⊢
+        rw [ite_eq_left rfl, (v 0).val_add hl0 ht_l ht_r hr1]
         exact hv0_X p0
       linarith [hT_nonneg 0 s_0, hT_nonneg 0 s_pd]
     set s1 : Fin 3 := if q2 = p0 then s_pd else s_pa
     set s2 : Fin 3 := if q2 = p0 then s_pa else s_pd
-    have hbundle2 : ∀ (u : CakeValuation) (a b : CakePiece),
-        u.bundleVal [a, b] = u.pieceVal a + u.pieceVal b :=
-      fun u a b => by rw [CakeValuation.bundleVal_cons, hbundle1]
     -- Case split on who holds the trimmed piece: q2 = p0 vs q2 ≠ p0.
     have h1_T : ∀ m : Fin 3, (v 1).pieceVal (T_sub m) ≤ (v 1).pieceVal (T_sub s1) := fun m => by
       by_cases hq : q2 = p0 <;> simp only [pd, pa, s1, hq, ↓reduceIte] at hv_pd_T hv_pa_T_le ⊢
@@ -638,18 +629,18 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
           simp only [Y, scTrimmedPieces, hne, ↓reduceIte, hv0_X qk]
         linarith [hv0_Y_q0, hY, hv0_T_pd_le_0]
     intro i j
-    fin_cases i
-    · fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
-        Fin.isValue, hbundle2]
-      · exact le_rfl
-      · exact h0_other q1 s1 (by by_cases hq : q2 = p0 <;> simp [q1, s1, hq, hp0_ne_p1.symm])
-      · exact h0_other q2 s2 (by by_cases hq : q2 = p0 <;> simp [s2, hq])
-    · fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
-        Fin.isValue, hbundle2] <;>
-        linarith [hv1_Y_q1, hv1_Y_le q0, hv1_Y_le q2, h1_T s_0, h1_T s1, h1_T s2]
-    · fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
-        Fin.isValue, hbundle2] <;>
-        linarith [hv2_Y_le q0, hv2_Y_le q1, h2_T s_0, h2_T s1, h2_T s2]
+    fin_cases i <;> fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one,
+      Fin.reduceFinMk, Fin.isValue, CakeValuation.bundleVal_cons, CakeValuation.bundleVal_nil,
+      add_zero]
+    · exact le_rfl
+    · exact h0_other q1 s1 (by by_cases hq : q2 = p0 <;> simp [q1, s1, hq, hp0_ne_p1.symm])
+    · exact h0_other q2 s2 (by by_cases hq : q2 = p0 <;> simp [s2, hq])
+    · linarith [hv1_Y_q1, hv1_Y_le q0, h1_T s_0]
+    · exact le_rfl
+    · linarith [hv1_Y_q1, hv1_Y_le q2, h1_T s2]
+    · linarith [hv2_Y_le q0, h2_T s_0]
+    · linarith [hv2_Y_le q1, h2_T s1]
+    · exact le_rfl
 
 /-- **Selfridge–Conway Proportionality Corollary:** under any valid Robertson–Webb oracle, every
 player receives at least `1 / 3` of the cake according to their own valuation. -/

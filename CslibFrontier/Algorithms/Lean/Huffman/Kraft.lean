@@ -209,14 +209,10 @@ private theorem kraftAssign_spec {α : Type*} {L : ℕ} {ℓ : α → ℕ} (xs :
       rcases hp with rfl | htail
       · dsimp only; rw [hca_start]; exact ⟨le_rfl, by omega⟩
       · rcases hbds p htail with ⟨hlo, hhi⟩; exact ⟨by omega, by omega⟩
-    · simp only [kraftAssign, List.map_cons, List.pairwise_cons]
-      refine ⟨?_, hpw_tail⟩
-      intro c hc
-      rcases List.mem_map.mp hc with ⟨p, hp, rfl⟩
-      have hp_L : p.2.length ≤ L := by
-        rw [length_snd_of_mem_kraftAssign hp]
-        exact hL' p.1 (map_fst_kraftAssign L ℓ (offset + 2 ^ (L - ℓ a)) xs ▸
-          List.mem_map.mpr ⟨p, hp, rfl⟩)
+    · simp only [kraftAssign, List.map_cons, List.pairwise_cons, List.forall_mem_map]
+      refine ⟨fun p hp => ?_, hpw_tail⟩
+      have hp_L : p.2.length ≤ L := (length_snd_of_mem_kraftAssign hp).symm ▸
+        hL' p.1 (map_fst_kraftAssign L ℓ (offset + 2 ^ (L - ℓ a)) xs ▸ List.mem_map_of_mem hp)
       rcases hbds p hp with ⟨hp_lo, _⟩
       exact ⟨fun h => by
           have := (dyadicStart_bounds_of_prefix h hp_L).2
@@ -264,19 +260,14 @@ theorem exists_isPrefixFree_of_kraft_nat {α : Type*} (s : Finset α) (ℓ : α 
       have hq1 : q.1 = p.1 := by simpa using List.find?_some hfind
       dsimp only [code]; rw [hfind, ← hq1]
       exact List.mem_of_find?_eq_some hfind
-  have hinj_pairs : ∀ {a b : α}, a ∈ s → b ∈ s → code a = code b → a = b := by
-    intro a b ha hb hEq
-    by_contra hne
-    have hrel := CodeTree.pairwise_rel_of_ne (fun h => ⟨h.2, h.1⟩) (List.pairwise_map.mp hspec)
-      (hcode_mem a ha) (hcode_mem b hb) (fun h => hne (Prod.mk.inj h).1)
-    exact hrel.1 (hEq ▸ List.prefix_refl _)
-  refine ⟨code, fun a ha b hb hEq => hinj_pairs ha hb hEq, ?_, ?_⟩
-  · rintro _ ⟨a, ha, rfl⟩ _ ⟨b, hb, rfl⟩ hpref
-    by_contra hne
-    exact (CodeTree.pairwise_rel_of_ne (fun h => ⟨h.2, h.1⟩) hspec
-      (List.mem_map.mpr ⟨_, hcode_mem a ha, rfl⟩)
-      (List.mem_map.mpr ⟨_, hcode_mem b hb, rfl⟩) hne).1 hpref
-  · exact fun a ha => length_snd_of_mem_kraftAssign (hcode_mem a ha)
+  have hnc : ∀ {a b : α}, a ∈ s → b ∈ s → code a <+: code b → a = b := fun ha hb hpref =>
+    by_contra fun hne => (CodeTree.pairwise_rel_of_ne (fun h => ⟨h.2, h.1⟩)
+      (List.pairwise_map.mp hspec) (hcode_mem _ ha) (hcode_mem _ hb)
+      (fun h => hne (Prod.mk.inj h).1)).1 hpref
+  refine ⟨code, fun _ ha _ hb hEq => hnc ha hb (hEq ▸ List.prefix_refl _), ?_,
+    fun a ha => length_snd_of_mem_kraftAssign (hcode_mem a ha)⟩
+  rintro _ ⟨_, ha, rfl⟩ _ ⟨_, hb, rfl⟩ hpref
+  exact congrArg code (hnc ha hb hpref)
 
 /-- **Binary Kraft Theorem** ([Kraft1949]; [CoverThomas2006], Theorem 5.2.1 specialized to binary
 alphabet `Bool`, $D = 2$, on finite codebooks `s : Finset α`): a finite symbol set `s` admits an
@@ -295,8 +286,7 @@ theorem exists_isPrefixFree_iff_kraft_le_one {α : Type*} (s : Finset α) (ℓ :
         ((s.image code : Finset (List Bool)) : Set (List Bool)) := by
       simpa [Finset.coe_image] using hpf
     have hkraft := hS.finsetSum_one_div_card_pow_length_le_one
-    have hcard : (Fintype.card Bool : ℝ) = 2 := by simp
-    rw [hcard, Finset.sum_image (fun a ha b hb hEq => hinj ha hb hEq)] at hkraft
+    rw [Fintype.card_bool, Nat.cast_ofNat, Finset.sum_image hinj] at hkraft
     exact (Finset.sum_congr rfl fun a ha => by rw [hlen a ha]).symm.trans_le hkraft
   · intro hkraft
     let L : ℕ := s.sup ℓ
@@ -559,13 +549,10 @@ theorem exists_codeTree_of_isPrefixFree {α β : Type*}
     have hcne : code a ≠ code b := fun hEq => hab (hinj ha hb hEq)
     exact ⟨fun hp => hcne (hpf _ ⟨a, ha, rfl⟩ _ ⟨b, hb, rfl⟩ hp),
       fun hp => hcne.symm (hpf _ ⟨b, hb, rfl⟩ _ ⟨a, ha, rfl⟩ hp)⟩
-  have hw_pairs : ∀ p ∈ pairs, 0 ≤ w p.1 := fun _ hp => by
-    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hp
-    exact hw a ha
+  have hw_pairs : ∀ p ∈ pairs, 0 ≤ w p.1 := List.forall_mem_map.mpr hw
   rcases treeOfCodebook_spec hpairs_ne hinc hw_pairs with ⟨T, _, hperm, hwpl⟩
-  refine ⟨T, ?_, ?_⟩
-  · simpa [pairs, List.map_map, Function.comp_def] using hperm
-  · simpa [pairs, List.map_map, Function.comp_def] using hwpl
+  exact ⟨T, by simpa [pairs, List.map_map, Function.comp_def] using hperm,
+    by simpa [pairs, List.map_map, Function.comp_def] using hwpl⟩
 
 /-- **McMillan Code Tree Reduction** (derived from McMillan's forward inequality [McMillan1956] /
 [CoverThomas2006], Theorem 5.5.1 in Mathlib together with the finite binary Kraft converse of
@@ -590,15 +577,13 @@ theorem exists_codeTree_of_isUniquelyDecodable {α β : Type*}
       ((s.image code : Finset (List Bool)) : Set (List Bool)) := by
     simpa [Finset.coe_image, hs_coe] using hud
   have hmc := hS_ud.finsetSum_one_div_card_pow_length_le_one
-  have hcard : (Fintype.card Bool : ℝ) = 2 := by simp
-  rw [hcard, Finset.sum_image (fun a ha b hb hEq => hinj (hs_coe ▸ ha) (hs_coe ▸ hb) hEq)] at hmc
+  rw [Fintype.card_bool, Nat.cast_ofNat, Finset.sum_image (hs_coe.symm ▸ hinj)] at hmc
   rcases (exists_isPrefixFree_iff_kraft_le_one s (fun a => (code a).length)).mpr hmc with
     ⟨code', hinj', hpf', hlen'⟩
   rw [hs_coe] at hinj' hpf'
   rcases exists_codeTree_of_isPrefixFree hne hnodup hinj' hpf' hw with ⟨T, hperm, hwpl⟩
-  have hcost_eq : (syms.map fun a => (code' a).length • w a) =
-      syms.map fun a => (code a).length • w a :=
-    List.map_congr_left fun a ha => by rw [hlen' a (List.mem_toFinset.mpr ha)]
-  exact ⟨T, hperm, hcost_eq ▸ hwpl⟩
+  exact ⟨T, hperm, by
+    rwa [← List.map_congr_left fun a ha =>
+      congrArg (· • w a) (hlen' a (List.mem_toFinset.mpr ha))]⟩
 
 end Cslib.Algorithms.Lean.Huffman

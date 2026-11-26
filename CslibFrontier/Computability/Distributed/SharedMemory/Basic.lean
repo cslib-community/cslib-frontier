@@ -337,8 +337,7 @@ theorem reachable_initConfig (π : Protocol P objs S V) (inp : P → V) :
 
 theorem Reachable.trans {π : Protocol P objs S V} {inp : P → V} {c c' : Config P ObjState S V}
     (hr : π.Reachable inp c) (hc : π.lts.CanReach c c') : π.Reachable inp c' := by
-  obtain ⟨ps₁, h₁⟩ := hr
-  obtain ⟨ps₂, h₂⟩ := hc
+  rcases hr, hc with ⟨⟨ps₁, h₁⟩, ⟨ps₂, h₂⟩⟩
   exact ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩
 
 /-- Accessibility under `StepRel` propagates forward along any active multi-step path. -/
@@ -378,8 +377,7 @@ theorem canReach_run (π : Protocol P objs S V) (sched : List P) (c : Config P O
   induction sched generalizing c with
   | nil => exact LTS.CanReach.refl _ _
   | cons p sched ih =>
-    obtain ⟨ps₁, h₁⟩ := π.canReach_step p c
-    obtain ⟨ps₂, h₂⟩ := ih (π.step p c)
+    rcases π.canReach_step p c, ih (π.step p c) with ⟨⟨ps₁, h₁⟩, ⟨ps₂, h₂⟩⟩
     exact ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩
 
 theorem reachable_run (π : Protocol P objs S V) (inp : P → V) (sched : List P) :
@@ -403,8 +401,7 @@ def soloRun (π : Protocol P objs S V) (p : P) (c : Config P ObjState S V)
 theorem soloRun_of_not_active (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) (h : ¬ c.Active p) :
     π.soloRun p c ha = c := by
-  rw [soloRun, WellFounded.fixF_eq]
-  simp only [h, ↓reduceDIte]
+  simp [soloRun, WellFounded.fixF_eq, h]
 
 theorem soloRun_of_active (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) (h : c.Active p) :
@@ -458,12 +455,10 @@ theorem soloRun_mem_proc_eq (π : Protocol P objs S V) (p : P)
     · have h₂ : c₂.Active p := by simpa only [Config.Active, ← hproc] using h₁
       rw [π.soloRun_of_active p (Acc.intro c₁ ha₁) h₁, π.soloRun_of_active p ha₂ h₂]
       apply ih (π.step p c₁) ⟨p, h₁, rfl⟩ (ha₂.inv ⟨p, h₂, rfl⟩)
-      · rw [π.step_of_active h₁, π.step_of_active h₂]
-        dsimp only
-        rw [hproc, hmem]
-      · rw [π.step_of_active h₁, π.step_of_active h₂]
-        dsimp only
-        rw [hproc, hmem, Function.update_self, Function.update_self]
+      · simp only [π.step_of_active h₁, π.step_of_active h₂, hmem]
+        rw [hproc]
+      · simp only [π.step_of_active h₁, π.step_of_active h₂, Function.update_self, hmem]
+        rw [hproc]
     · have h₂ : ¬ c₂.Active p := by simpa only [Config.Active, ← hproc] using h₁
       rw [π.soloRun_of_not_active p (Acc.intro c₁ ha₁) h₁, π.soloRun_of_not_active p ha₂ h₂]
       exact ⟨hmem, hproc⟩
@@ -474,9 +469,7 @@ def CanDecide (π : Protocol P objs S V) (c : Config P ObjState S V) (v : V) : P
 
 theorem CanDecide.of_canReach {π : Protocol P objs S V} {c₁ c₂ : Config P ObjState S V} {v : V}
     (hreach : π.lts.CanReach c₁ c₂) (hdec : π.CanDecide c₂ v) : π.CanDecide c₁ v := by
-  obtain ⟨c₃, h₂₃, hd⟩ := hdec
-  obtain ⟨ps₁, h₁⟩ := hreach
-  obtain ⟨ps₂, h₂⟩ := h₂₃
+  rcases hreach, hdec with ⟨⟨ps₁, h₁⟩, ⟨c₃, ⟨ps₂, h₂⟩, hd⟩⟩
   exact ⟨c₃, ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩, hd⟩
 
 /-- From every accessible configuration `c` and any process `p`, `p`'s solo execution reaches a
@@ -645,10 +638,9 @@ theorem exists_critical_config (π : Protocol P objs S Bool)
       π.IsUnivalent (π.step q cstar) true := by
   have hex_crit : ∀ {c₀}, Acc π.StepRel c₀ → π.IsBivalent c₀ →
       ∃ cstar, π.lts.CanReach c₀ cstar ∧ π.IsCritical cstar := by
-    intro c₀ ha
+    intro c₀ ha hbiv₀
     induction ha with
     | intro c₀ _ ih =>
-      intro hbiv₀
       by_cases hex : ∃ p, c₀.Active p ∧ π.IsBivalent (π.step p c₀)
       · obtain ⟨p, hact, hbiv'⟩ := hex
         obtain ⟨cstar, ⟨ps, hmtr⟩, hcrit⟩ := ih (π.step p c₀) ⟨p, hact, rfl⟩ hbiv'

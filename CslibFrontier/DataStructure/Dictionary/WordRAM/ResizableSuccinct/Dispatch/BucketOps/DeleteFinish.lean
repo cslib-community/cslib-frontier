@@ -184,9 +184,7 @@ private theorem compUnlinkIfIndexed_step {metaBase itemBase U V w N m_cap b j_de
       (j_del < bCount N (compGmAt metaBase U w N s.mem) b - 1 →
         bCount N (compGmAt metaBase U w N s.mem) b - 1 < effBucketCap N →
         bCount N (compGmAt metaBase U w N s.mem) b - 1 ∈ L₁ b m_last) := by
-  have hwg : 0 < ghostW w := by
-    unfold ghostW
-    omega
+  have hwg : 0 < ghostW w := by grind [ghostW]
   have hj_del_n : j_del < N := lt_of_lt_of_le hj_del_bc (bCount_le_n_max hslot b)
   have hbounds_del : j_del < effBucketCap N →
       lmPrev N (compLmAt metaBase U w N s.mem) b j_del ≤ effBucketCap N ∧
@@ -299,9 +297,6 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
       (compDeleteSwapGenProg
         (((((mkCompParams U V w N, (metaBase, itemBase)), (b, j_del)), phys_del),
           (m_last, j_last))))
-    set sf₂ := (Memory.spec 0).clientState sf₁
-      (deleteSwapProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-        ((((0, b), j_del), phys_del), (m_last, j_last)))
     have hgm2 : compGmAt metaBase U w N s₂.mem = compGmAt metaBase U w N s.mem :=
       (hphys_eq1 ▸ compGmAt_compDeleteSwapGenProg
         henv1 hcpl1 hslot1 hm_cap1 hb hm_last hlt hj_last_bc1 hval₁ (hmem_last₁ hlt)).trans hgm1
@@ -378,16 +373,14 @@ private theorem validProg_compDeleteFoundGen {w : ℕ}
   set j_last := bCount N (compGmAt metaBase U w N s.mem) b - 1
   have hj_last_bc1 : j_last < bCount N (compGmAt metaBase U w N s₁.mem) b :=
     hgm1.symm ▸ Nat.sub_lt hbc_pos Nat.one_pos
-  have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del =
-      slotOf N (compGmAt metaBase U w N s.mem) b j_del := by rw [hgm1]
   refine validProg_bind
     (validProg_compDeleteSwapGen
       ⟨U, V, N, m_cap, sf₁, L₁, rfl, henv1, hcpl1, hslot1, hm_cap1, hb, hm_last,
-        hlt, hj_last_bc1, hphys_eq1.symm, hval₁, hmem_last₁ hlt⟩) ?_
+        hlt, hj_last_bc1, by rw [hgm1], hval₁, hmem_last₁ hlt⟩) ?_
   have hpop_pre := compDeleteFoundTail_popPre
     henv1 hcpl1 hslot1 hm_cap1 hb hm_last (hgm1.symm ▸ hj_del_bc)
     (hgm1.symm ▸ hlt) hval₁ (hgm1.symm ▸ hmem_last₁ hlt)
-  rw [hphys_eq1, hgm1] at hpop_pre
+  rw [hgm1] at hpop_pre
   exact validProg_compPopBackSlotGen hpop_pre
 
 /-- Compacted Phase 2 of `delete` at bucket level (`¬ReadsWidth`):

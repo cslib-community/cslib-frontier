@@ -322,14 +322,10 @@ theorem regs_pairSrc {r : ℕ} {α β : Type} [WordEncoding α] [WordEncoding β
   obtain ⟨rfl, hf₁⟩ := h₁
   obtain ⟨rfl, hf₂⟩ := h₂
   refine ⟨rfl, fun i => i.addCases (fun j => ?_) (fun j => ?_)⟩
-  · change x.regs (Fin.append s₁ s₂ (Fin.castAdd _ j)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.castAdd _ j)
-    rw [Fin.append_left, Fin.append_left]
-    exact hf₁ j
-  · change x.regs (Fin.append s₁ s₂ (Fin.natAdd _ j)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.natAdd _ j)
-    rw [Fin.append_right, Fin.append_right]
-    exact hf₂ j
+  · exact (congrArg x.regs (Fin.append_left _ _ j)).trans
+      ((hf₁ j).trans (Fin.append_left _ _ j).symm)
+  · exact (congrArg x.regs (Fin.append_right _ _ j)).trans
+      ((hf₂ j).trans (Fin.append_right _ _ j).symm)
 
 theorem pairSrc_forall {r : ℕ} {P : Fin r → Prop} {k₁ k₂ : ℕ}
     {s₁ : Fin k₁ → Fin r} {s₂ : Fin k₂ → Fin r}
@@ -1052,9 +1048,7 @@ theorem loadAtOffCode_exec {r w L_peak base off : ℕ} {rAddr rDst rTmp : Fin r}
   rw [hx2] at s2
   have s3 := RDemonicExec.load (B := .exact) (d := rDst) (a := rTmp) (w := w)
     (L_peak := L_peak) (x := x.set rTmp (base + off)) hL (by simp [hlt])
-  have hmem_eq : (x.set rTmp (base + off)).mem ((x.set rTmp (base + off)).regs rTmp) =
-      x.mem (base + off) := by simp
-  rw [hmem_eq] at s3
+  simp only [RData.set_regs, Function.update_self] at s3
   exact ⟨(s1.seq_eq (s2.seq_eq s3)).mono le_rfl (fun _ h => h),
     (hx.set hadd_fit).set (hx.mem_fits (base + off))⟩
 
@@ -1467,15 +1461,11 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
     Memory.State.ext rfl hrFr
   let u_q : Fin (2 ^ quotientBits U N) := ⟨q, hq_lt⟩
   obtain ⟨hpre_eh, hv_eh, hcost_eh, hres_eh, hfr_eh, hout_eh⟩ :=
-    evalHashGenProg_spec (w := w) (U := 2 ^ quotientBits U N)
-      (w₀ := qBits U N) (b := hashB N) (b' := totalMicroBits N) (k := 3)
-      (hashBase := base + epochHdrWords) (scratchBase := base + offScratch)
-      (θ := θ) (u := u_q) (s₀ := memoryState rFr x.toData)
+    evalHashGenProg_spec (u := u_q) (s₀ := memoryState rFr x.toData)
       (qBits_pos U N) (qBits_le_of_le_pow hw hU.le)
       (two_pow_quotientBits_le_two_pow_qBits U N)
       (totalMicroBits_le_of_le_pow hNU hU.le) (by decide) hc_lt
-      (by rw [hms_eq]; exact hfr_h) hfit_h
-      (by rw [hms_eq]; exact hfr_s) hfit_s hdisj hsplit.hash_rep
+      (hms_eq.symm ▸ hfr_h) hfit_h (hms_eq.symm ▸ hfr_s) hfit_s hdisj hsplit.hash_rep
   set hp := mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3
   set d_eh := (hp, base + epochHdrWords, base + offScratch, q)
   have hin_eh : x.regs ∘ srcEvalHash = WordEncoding.encode d_eh :=

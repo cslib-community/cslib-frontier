@@ -225,8 +225,7 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
         ≤ 2 ^ B * 2 ^ (cs.length * B) :=
           Nat.mul_le_mul (htB q hq).1 ((Nat.div_le_self _ _).trans hD_le)
       _ = 2 ^ ((cs.length + 1) * B) := by rw [Nat.add_one_mul, add_comm, pow_add]
-  have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := by
-    rw [← pow_mul, mul_comm _ 2, pow_mul]; rfl
+  have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := pow_right_comm 2 _ 2
   have hsq : sqNormList ns ≤ t.length * 4 ^ ((cs.length + 1) * B) := by
     simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map] using
       foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
@@ -278,10 +277,8 @@ theorem DyadicBounded.mono {b e e' : ℕ} {q : ℚ} (hq : DyadicBounded b e q) (
     DyadicBounded b e' q := by
   obtain ⟨z, rfl, hz⟩ := hq
   refine ⟨z * (2 : ℤ) ^ (e' - e), ?_, ?_⟩
-  · have hpow : (2 : ℚ) ^ e' = (2 : ℚ) ^ e * (2 : ℚ) ^ (e' - e) := by
-      rw [← pow_add, Nat.add_sub_of_le he]
-    rw [hpow, Int.cast_mul, Int.cast_pow, Int.cast_ofNat]
-    exact (mul_div_mul_right (z : ℚ) ((2 : ℚ) ^ e) (by positivity)).symm
+  · rw [Int.cast_mul, Int.cast_pow, Int.cast_ofNat, div_eq_div_iff (by positivity) (by positivity)]
+    rw [mul_assoc, ← pow_add, Nat.sub_add_cancel he]
   · rw [Int.natAbs_mul, Int.natAbs_pow]
     change Int.natAbs z * 2 ^ (e' - e) ≤ b * 2 ^ e'
     calc Int.natAbs z * 2 ^ (e' - e)
@@ -314,15 +311,13 @@ theorem DyadicBounded.den_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :
 /-- Numerator magnitude bound `Int.natAbs q.num ≤ b * 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.natAbs_num_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :
     Int.natAbs q.num ≤ b * 2 ^ e := by
-  have hden := hq.den_le
-  obtain ⟨z, hq_eq, hz⟩ := hq
+  have ⟨z, hq_eq, hz⟩ := hq
   have hcrossZ : q.num * (2 : ℤ) ^ e = z * (q.den : ℤ) := by
     exact_mod_cast (div_eq_div_iff (Nat.cast_ne_zero.mpr q.den_nz) (by positivity)).mp
       ((Rat.num_div_den q).trans hq_eq)
   have hcrossN : Int.natAbs q.num * 2 ^ e = Int.natAbs z * q.den := by
     simpa [Int.natAbs_mul, Int.natAbs_pow] using congrArg Int.natAbs hcrossZ
-  exact Nat.le_of_mul_le_mul_right (hcrossN ▸ Nat.mul_le_mul hz hden)
-    (Nat.pow_pos zero_lt_two)
+  exact Nat.le_of_mul_le_mul_right (hcrossN ▸ Nat.mul_le_mul hz hq.den_le) (Nat.pow_pos zero_lt_two)
 
 /-- Dyadic bound for `refineLeftLoop`: starting from `DyadicBounded b e` endpoints, `fuel` steps
 produce endpoints satisfying `DyadicBounded b (e + fuel)`. -/
@@ -369,8 +364,8 @@ theorem isolateIoc_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBo
     split_ifs with hc0 hc1
     · simp
     · simp only [List.mem_singleton, forall_eq]
-      have href := refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv
-      exact ⟨href.1.mono (by omega), href.2.mono (by omega)⟩
+      exact ⟨(refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv).1.mono (by omega),
+        (refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv).2.mono (by omega)⟩
     · cases fuel with
       | zero => simp
       | succ fuel' =>

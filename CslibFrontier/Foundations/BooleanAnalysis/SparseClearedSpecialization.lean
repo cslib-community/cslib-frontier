@@ -140,11 +140,10 @@ theorem eval_coeff_prod_parityFactorCleared [CommRing R] (I : Finset κ) (ℓ : 
     (Δ : Polynomial R) (A_i : κ → Polynomial R) (s : ℕ) (t : R) :
     ((∏ i ∈ I, parityFactorCleared ℓ Δ (A_i i)).coeff s).eval t =
       (∏ i ∈ I, parityFactorCleared ℓ (Δ.eval t) ((A_i i).eval t)).coeff s := by
-  let φ : Polynomial R →+* R := Polynomial.evalRingHom t
-  change φ ((∏ i ∈ I, parityFactorCleared ℓ Δ (A_i i)).coeff s) = _
+  change (Polynomial.evalRingHom t) _ = _
   rw [← Polynomial.coeff_map, Polynomial.map_prod]
-  refine congrArg (fun Q : Polynomial R => Q.coeff s) (prod_congr rfl fun i _ => ?_)
-  exact map_parityFactorCleared φ ℓ Δ (A_i i)
+  exact congrArg (·.coeff s)
+    (prod_congr rfl fun i _ => map_parityFactorCleared (Polynomial.evalRingHom t) ℓ Δ (A_i i))
 
 /-- When `Δ` has `natDegree = 0` and `A_i` has `natDegree ≤ d`, `parityBaseDigitCleared ℓ j Δ A_i`
 has `natDegree ≤ d`. -/
@@ -610,16 +609,12 @@ theorem emod_sum_cramer_ediv_eq_commonZeroCount [Fintype ι] [DecidableEq ι] (I
     (∑ s ∈ range ℓ, N_H s / (clearedProductDenom d_den k ℓ #I * D_H)) % ((2 : ℤ) ^ ℓ) =
       commonZeroCount I P := by
   have hℓ1 : 1 ≤ ℓ := by omega
-  have hcongr : ∀ s ∈ range ℓ,
-      N_H s / (clearedProductDenom d_den k ℓ #I * D_H) =
-        (univariateClearedParityCoord I P d_den k ℓ θ s).eval 0 /
-          clearedProductDenom d_den k ℓ #I := fun s hs => by
-    rw [hcramer s hs, eval_zero_univariateClearedParityCoord I P d_den hℓ1 θ hk hθ s,
-      ← mul_assoc, mul_comm D_H,
-      Int.mul_ediv_cancel_left _ (mul_ne_zero (clearedProductDenom_ne_zero hd k ℓ #I) hDH),
-      Int.mul_ediv_cancel_left _ (clearedProductDenom_ne_zero hd k ℓ #I)]
-  rw [sum_congr rfl hcongr]
-  exact emod_sum_ediv_eval_zero_univariateClearedParityCoord_eq_commonZeroCount I P hd hℓ θ hk hθ
+  rw [← emod_sum_ediv_eval_zero_univariateClearedParityCoord_eq_commonZeroCount I P hd hℓ θ hk hθ]
+  refine congrArg (· % _) (sum_congr rfl fun s hs => ?_)
+  rw [hcramer s hs, eval_zero_univariateClearedParityCoord I P d_den hℓ1 θ hk hθ s,
+    ← mul_assoc, mul_comm D_H,
+    Int.mul_ediv_cancel_left _ (mul_ne_zero (clearedProductDenom_ne_zero hd k ℓ #I) hDH),
+    Int.mul_ediv_cancel_left _ (clearedProductDenom_ne_zero hd k ℓ #I)]
 
 /-- **§5.5 & Appendix B.3 (branch-summed exact integer division recovery at shared precision
 $\ell = n + 1$)**: summing the branch modular residues of
