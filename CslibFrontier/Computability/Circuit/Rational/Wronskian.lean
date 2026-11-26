@@ -75,10 +75,9 @@ lemma det_factor_column_orders {K ι : Type*} [CommRing K]
       (∀ i j, (B i j).coeff 0 = (A i j).coeff (d j)) := by
   classical
   choose B hB using hd
-  refine ⟨Matrix.of B, ?_, ?_⟩
-  · have hA : A = Matrix.of (fun i j => X ^ d j * (Matrix.of B) i j) := Matrix.ext hB
-    rw [hA, Matrix.det_mul_row, ← Finset.prod_pow_eq_pow_sum]
-  · exact fun i j => by simp [hB i j, coeff_X_pow_mul']
+  refine ⟨Matrix.of B, ?_, fun i j => by simp [hB i j, coeff_X_pow_mul']⟩
+  have hA : A = Matrix.of (fun i j => X ^ d j * (Matrix.of B) i j) := Matrix.ext hB
+  rw [hA, Matrix.det_mul_row, ← Finset.prod_pow_eq_pow_sum]
 
 lemma coeff_scaled_derivative_at {K : Type*} [CommRing K]
     (f : K[X]) (r d : ℕ) :
@@ -92,8 +91,7 @@ lemma coeff_scaled_derivative_at {K : Type*} [CommRing K]
 
 lemma scaled_derivative_order {K : Type*} [CommRing K]
     (f : K[X]) (r : ℕ) : X ^ f.natTrailingDegree ∣ X ^ r * derivative^[r] f := by
-  apply X_pow_dvd_iff.mpr
-  intro a ha
+  refine X_pow_dvd_iff.mpr fun a ha => ?_
   rw [coeff_scaled_derivative_at, coeff_eq_zero_of_lt_natTrailingDegree ha, mul_zero]
 
 /-- A square matrix of falling factorials `(d j).descFactorial i` at distinct natural numbers `d j`
@@ -102,13 +100,13 @@ private lemma det_descFactorial_ne_zero {K : Type*} [Field K] [CharZero K]
     {h : ℕ} (d : Fin h → ℕ) (hd : Function.Injective d) :
     Matrix.det (Matrix.of fun i j : Fin h => ((d j).descFactorial i.val : K)) ≠ 0 := by
   let p : Fin h → K[X] := fun j => descPochhammer K j.val
-  have hp := Matrix.det_eval_matrixOfPolynomials_eq_det_vandermonde
-    (fun j : Fin h => (d j : K)) p (fun j => by simp [p]) (fun j => monic_descPochhammer K j.val)
   have he : (Matrix.of fun i j : Fin h => ((d j).descFactorial i.val : K)) =
-      (Matrix.of fun i j : Fin h => (p j).eval (d i : K)).transpose := by
-    ext i j
-    simp [p, descPochhammer_eval_eq_descFactorial]
-  rw [he, Matrix.det_transpose, ← hp, Matrix.det_vandermonde_ne_zero_iff]
+      (Matrix.of fun i j : Fin h => (p j).eval (d i : K)).transpose :=
+    Matrix.ext fun i j => by simp [p, descPochhammer_eval_eq_descFactorial]
+  rw [he, Matrix.det_transpose,
+    ← Matrix.det_eval_matrixOfPolynomials_eq_det_vandermonde (fun j : Fin h => (d j : K)) p
+      (fun j => by simp [p]) (fun j => monic_descPochhammer K j.val),
+    Matrix.det_vandermonde_ne_zero_iff]
   exact (Nat.cast_injective (R := K)).comp hd
 
 /-- The local order formula at zero, before translation to an arbitrary point.
@@ -162,19 +160,19 @@ private lemma span_finCons_eq_of_coeff_ne_zero {K : Type*} [Field K] {d h : ℕ}
     {g : Fin h → K[X]} (hgspan : Submodule.span K (Set.range g) = V ⊓ LinearMap.ker (lcoeff K d)) :
     Submodule.span K (Set.range (Fin.cons f g)) = V := by
   apply le_antisymm
-  · apply Submodule.span_le.mpr
+  · refine Submodule.span_le.mpr ?_
     rintro _ ⟨j, rfl⟩
     exact Fin.cases hfV (fun i => (hgspan.le (Submodule.subset_span ⟨i, rfl⟩)).1) j
   · intro u hu
     let c : K := u.coeff d / f.coeff d
-    have hr : u - c • f ∈ V ⊓ LinearMap.ker (lcoeff K d) := by
-      refine ⟨V.sub_mem hu (V.smul_mem c hfV), ?_⟩
-      change (u - c • f).coeff d = 0
-      simp [c, div_mul_cancel₀ _ hfc]
+    have hr : u - c • f ∈ V ⊓ LinearMap.ker (lcoeff K d) :=
+      ⟨V.sub_mem hu (V.smul_mem c hfV), by
+        change (u - c • f).coeff d = 0
+        simp [c, div_mul_cancel₀ _ hfc]⟩
     have hsub : V ⊓ LinearMap.ker (lcoeff K d) ≤ Submodule.span K (Set.range (Fin.cons f g)) :=
       hgspan.ge.trans (Submodule.span_mono (Fin.range_cons f g ▸ Set.subset_insert f _))
-    rw [← sub_add_cancel u (c • f)]
-    exact add_mem (hsub hr) (Submodule.smul_mem _ c (Submodule.subset_span ⟨0, rfl⟩))
+    exact sub_add_cancel u (c • f) ▸
+      add_mem (hsub hr) (Submodule.smul_mem _ c (Submodule.subset_span ⟨0, rfl⟩))
 
 /-- Polynomial row reduction, derived rather than assumed: every bounded-degree
 subspace has a basis with distinct largest degrees. -/
@@ -275,8 +273,7 @@ lemma wronskian_linearCombination {K : Type*} [CommRing K] {h : ℕ}
   have he : (Matrix.of fun r j : Fin h =>
         derivative^[r.val] (∑ i, A i j • f i)) =
       (Matrix.of fun r i : Fin h => derivative^[r.val] (f i)) * A.map C := by
-    apply Matrix.ext
-    intro r j
+    refine Matrix.ext fun r j => ?_
     simp only [Matrix.of_apply, Matrix.mul_apply, Matrix.map_apply]
     calc
       derivative^[r.val] (∑ i, A i j • f i) =
@@ -285,10 +282,8 @@ lemma wronskian_linearCombination {K : Type*} [CommRing K] {h : ℕ}
       _ = _ := by
         simp only [iterate_derivative_smul]
         simp only [smul_eq_C_mul, mul_comm]
-  unfold wronskianFamily
-  rw [he, Matrix.det_mul]
-  congr 1
-  exact (C.map_det A).symm
+  rw [wronskianFamily, he, Matrix.det_mul]
+  exact congrArg (_ * ·) (C.map_det A).symm
 
 lemma wronskian_basis_change {K : Type*} [Field K] {h : ℕ}
     {V : Submodule K K[X]} (b b' : Basis (Fin h) K V) :

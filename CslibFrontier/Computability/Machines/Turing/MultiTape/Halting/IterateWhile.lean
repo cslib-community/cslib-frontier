@@ -149,11 +149,9 @@ private theorem computesTidily_loopMachine {tm : MultiTapeTM k Symbol State}
     intro inp ws out hws
     obtain ⟨p', ws', e, hrun, ⟨hp', hws', he⟩, hsp⟩ := hwhileAt inp 1 ws out ⟨rfl, hws, rfl⟩
     subst hp'
-    have hsum : (∑ _n ∈ Finset.range r, (t + 10 * l + 23 + 1)) + 1 =
-        r * (t + 10 * l + 24) + 1 := by
-      simp [Finset.sum_const, Finset.card_range]
-    rw [hsum] at hrun hsp
-    exact ⟨ws', e, hrun, ⟨hws', he⟩, hsp⟩
+    have hsum : (∑ _ ∈ Finset.range r, (t + 10 * l + 23 + 1)) + 1 = r * (t + 10 * l + 24) + 1 := by
+      simp [Finset.sum_const]
+    exact ⟨ws', e, hsum ▸ hrun, ⟨hws', he⟩, hsum ▸ hsp⟩
   refine ((transformsTapes_load (k := k) (w 0)).seq_eq
     ((hfirstRound.seq_eq (hwhile.seq_eq
       ((transformsTapes_emit mark (w r)).seq_eq (transformsTapes_clearCur Symbol (w r) [])))))).imp
@@ -376,12 +374,9 @@ theorem exists_partial_iterateWhile {α β γ : Type}
       (w := fun n => encState (step^[n] (init a))) (r := r)
       (t := cs * (l + 1) ^ ds) (s := cs * (l + 1) ^ ds) (l := l)
       (fun n hn => by
-        have h := (hs (step^[n] (init a))).mono
-          (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left
-            (Nat.add_le_add_right (hl n hn) 1) ds))
-          (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left
-            (Nat.add_le_add_right (hl n hn) 1) ds))
-        simpa only [Function.iterate_succ_apply'] using h)
+        let bound :=
+          Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (Nat.add_le_add_right (hl n hn) 1) ds)
+        simpa only [Function.iterate_succ_apply'] using (hs (step^[n] (init a))).mono bound bound)
       hl hne hnil true
     have hmain := (hi a).comp hloop true
     have hraw := hmain.comp (hf (step^[r] (init a))) true
@@ -447,8 +442,6 @@ theorem exists_partial_iterateWhile {α β γ : Type}
       not_halts_loopMachine (w := fun n => encState (step^[n] (init a)))
         (fun n => ⟨_, _, by simpa only [Function.iterate_succ_apply'] using hs (step^[n] (init a))⟩)
         hne true
-    have hmainDiv : ¬main.Halts (encIn a) :=
-      not_halts_comp_of_right (hi a) hiterDiv true
-    exact not_halts_comp_of_left hmainDiv true
+    exact not_halts_comp_of_left (not_halts_comp_of_right (hi a) hiterDiv true) true
 
 end Turing.MultiTapeTM

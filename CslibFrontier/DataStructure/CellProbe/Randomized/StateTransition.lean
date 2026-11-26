@@ -858,10 +858,8 @@ theorem _root_.Cslib.CellProbe.Randomized.Scheme.expectedProbesFrom_cons
           ((Q.runFrom z.1.2 ops).map (fun ((tr, m''), p₂) =>
             ((⟨o, z.1.1⟩ :: tr, m''), z.2 + p₂))) z₂ * (z₂.2 : ℝ≥0∞)) =
       ((Q.step o).run m) z * (z.2 : ℝ≥0∞) +
-        ((Q.step o).run m) z * Q.expectedProbesFrom z.1.2 ops := by
-    rintro ⟨⟨a, m'⟩, p₁⟩
-    rw [PMF.tsum_map_mul]
-    simp only [Nat.cast_add, mul_add, tsum_add, ENNReal.tsum_mul_right,
+        ((Q.step o).run m) z * Q.expectedProbesFrom z.1.2 ops := fun ⟨⟨_, m'⟩, _⟩ => by
+    simp only [PMF.tsum_map_mul, Nat.cast_add, mul_add, tsum_add, ENNReal.tsum_mul_right,
       (Q.runFrom m' ops).tsum_coe, one_mul,
       Cslib.CellProbe.Randomized.Scheme.expectedProbesFrom]
   simp only [hterm, tsum_add]
@@ -957,8 +955,7 @@ private theorem steps_trace_amortized (C : StateTransitionImpl D P s₀)
         exact hs_eq u hu
     have hseed_c : ∀ θ, (ν_c.map CoupledState.seed) θ ≤ C.seedSlack * C.seedLaw θ := by
       rwa [PMF.map_comp]
-    have hsupp_c : ∀ t ∈ ν_c.support, D.valid t.state o ∧ C.rep t.seed t.state t.mem := by
-      intro t ht
+    have hsupp_c (t) (ht : t ∈ ν_c.support) : D.valid t.state o ∧ C.rep t.seed t.state t.mem := by
       obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
       exact ⟨(hsupp u hu).2.2.1.1, (hsupp u hu).2.2.2⟩
     obtain ⟨μ_step, hstep, hseed₁, hsingle₁, hamort₁⟩ :=
@@ -984,15 +981,13 @@ private theorem steps_trace_amortized (C : StateTransitionImpl D P s₀)
         exact PMF.bind_pure_comp _ _
       rw [hrhs, ← hmarg, PMF.bind_map, PMF.map_bind]
       refine PMF.bind_congr_on_support ν _ _ fun u hu => ?_
-      have hm_u := (hstep (traceToCoupled u) (hc u hu)).1
       dsimp only [Function.comp_def]
       change ((μ_step (traceToCoupled u)).map (liftStep u)).map
           (fun w => (w.trace.labels, w.mem)) =
         (((P.step o).run (traceToCoupled u).mem).map Prod.fst).map
           (fun (a, m₂) => (u.trace.labels ++ [⟨o, a⟩], m₂))
-      rw [hm_u, PMF.map_comp, PMF.map_comp]
-      refine congrArg (PMF.map · (μ_step (traceToCoupled u))) (funext fun q => ?_)
-      simp [liftStep, CoupledOutcome.resultMem]
+      rw [(hstep (traceToCoupled u) (hc u hu)).1, PMF.map_comp, PMF.map_comp]
+      exact congrArg (PMF.map · _) (funext fun q => by simp [liftStep, CoupledOutcome.resultMem])
     have hseed_ν₁ : ∀ θ, (ν₁.map TraceState.seed) θ ≤ C.seedSlack * C.seedLaw θ := by
       simpa only [ν₁, ν_c, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def] using hseed₁
     have hmem₁ (u₁) (hu₁ : u₁ ∈ ν₁.support) :
@@ -1003,12 +998,11 @@ private theorem steps_trace_amortized (C : StateTransitionImpl D P s₀)
       (hsingle₁ hs).imp fun s' hs' u₁ hu₁ => by
         obtain ⟨u, hu, q, hq, rfl⟩ := hmem₁ u₁ hu₁
         exact hs' q ((PMF.mem_support_bind_iff _ _ _).mpr ⟨_, hc u hu, hq⟩)
-    have hsupp_ν₁ : ∀ u₁ ∈ ν₁.support,
+    have hsupp_ν₁ (u₁) (hu₁ : u₁ ∈ ν₁.support) :
         u₁.trace.ops = prefOps ++ [o] ∧
         D.ValidTranscript s₀ u₁.trace u₁.state ∧
         D.ValidOpSeq u₁.state rest ∧
         C.rep u₁.seed u₁.state u₁.mem := by
-      intro u₁ hu₁
       obtain ⟨u, hu, q, hq, rfl⟩ := hmem₁ u₁ hu₁
       obtain ⟨hops_u, htr_u, hv_u, _⟩ := hsupp u hu
       obtain ⟨hdstep, hrep_q⟩ := (hstep (traceToCoupled u) (hc u hu)).2 q hq
@@ -1038,19 +1032,17 @@ private theorem steps_trace_amortized (C : StateTransitionImpl D P s₀)
             (∑' u, ν u * (D.totalCostTranscript C.charge s₀ u.trace : ℝ≥0∞)) +
               ∑' u, ν u * (C.charge u.state o : ℝ≥0∞) := by
         rw [PMF.tsum_bind_mul]
-        have hinner : ∀ u : TraceState C.Seed D cells w,
+        have hinner (u : TraceState C.Seed D cells w) :
             ν u * (∑' u₁, ((μ_step (traceToCoupled u)).map (liftStep u)) u₁ *
                 (D.totalCostTranscript C.charge s₀ u₁.trace : ℝ≥0∞)) =
               ν u * (D.totalCostTranscript C.charge s₀ u.trace : ℝ≥0∞) +
                 ν u * (C.charge u.state o : ℝ≥0∞) := by
-          intro u
           by_cases hu : u ∈ ν.support
-          · rw [PMF.tsum_map_mul]
-            have htot (q) : (D.totalCostTranscript C.charge s₀ (liftStep u q).trace : ℝ≥0∞) =
+          · have htot (q) : (D.totalCostTranscript C.charge s₀ (liftStep u q).trace : ℝ≥0∞) =
                 (D.totalCostTranscript C.charge s₀ u.trace : ℝ≥0∞) +
                   (C.charge u.state o : ℝ≥0∞) := by
               simp [liftStep, D.totalCostTranscript_append C.charge (hsupp u hu).2.1]
-            simp only [htot, mul_add, tsum_add, ENNReal.tsum_mul_right,
+            simp only [PMF.tsum_map_mul, htot, mul_add, tsum_add, ENNReal.tsum_mul_right,
               (μ_step (traceToCoupled u)).tsum_coe, one_mul]
           · simp [(PMF.apply_eq_zero_iff _ _).mpr hu]
         simp only [hinner, tsum_add]
@@ -1094,12 +1086,11 @@ theorem seq_expected_amortized (C : StateTransitionImpl D P s₀)
     rwa [PMF.map_comp]
   have hsingle₀ : C.singleState → ∃ s, ∀ u ∈ ν₀_tr.support, u.state = s := fun _ =>
     ⟨s₀, fun u hu => by obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hu; rfl⟩
-  have hsupp₀_tr : ∀ u ∈ ν₀_tr.support,
+  have hsupp₀_tr (u) (hu : u ∈ ν₀_tr.support) :
       u.trace.ops = [] ∧
       D.ValidTranscript s₀ u.trace u.state ∧
       D.ValidOpSeq u.state ops ∧
       C.rep u.seed u.state u.mem := by
-    intro u hu
     obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hu
     exact ⟨rfl, .nil s₀, hv, (hsupp₀ p hp).1⟩
   have hamort₀ :
@@ -1115,9 +1106,8 @@ theorem seq_expected_amortized (C : StateTransitionImpl D P s₀)
     C.steps_trace_amortized [] ops ν₀_tr hmarg₀ hseed₀_tr hsingle₀ hsupp₀_tr hamort₀
   rw [List.nil_append] at hmarg_f hamort_f hsupp_f
   have hrunSeq_fst : (P.runSeq ops).map Prod.fst = ν_final.map (fun u => u.trace.labels) := by
-    have := congrArg (PMF.map Prod.fst) hmarg_f.symm
     simpa only [Cslib.CellProbe.Randomized.Scheme.runSeq, PMF.map_bind, PMF.map_comp,
-      Function.comp_def] using this
+      Function.comp_def] using congrArg (PMF.map Prod.fst) hmarg_f.symm
   exact ⟨ν_final, hrunSeq_fst, hseed_f, hsingle_f, hsupp_f, hamort_f⟩
 
 /-- Zero-error transcript correctness of `P.runSeq ops` in `D.toObliviousSequenceSpec s₀` across any

@@ -118,13 +118,11 @@ private theorem MatchImplies.exists_card_le_one {α : Finset (Fin m × Fin n)}
   have hfalse : ∀ {γ : Finset (Fin m × Fin n)}, c.eval (fun x => decide (x ∈ γ)) = false →
       ∀ l ∈ c, decide (l.1 ∈ γ) ≠ l.2 := fun {γ} hγ l hl hl' => by
     simpa [hγ] using (Clause.eval_eq_true_iff (fun x => decide (x ∈ γ)) c).2 ⟨l, hl, hl'⟩
-  have hN : ∀ y ∈ N, (y, false) ∈ c := by
-    simp only [N, List.mem_toFinset, List.mem_map, List.mem_filter, decide_eq_true_eq]
-    rintro _ ⟨⟨z, b⟩, ⟨hz, rfl⟩, rfl⟩
-    exact hz
   have hNβ : ∀ {γ : Finset (Fin m × Fin n)}, c.eval (fun x => decide (x ∈ γ)) = false →
       N ⊆ γ := fun {γ} hγ y hy => by
-    simpa using hfalse hγ _ (hN y hy)
+    simp only [N, List.mem_toFinset, List.mem_map, List.mem_filter, decide_eq_true_eq] at hy
+    obtain ⟨⟨_, _⟩, ⟨hlc, rfl⟩, rfl⟩ := hy
+    simpa using hfalse hγ _ hlc
   have hPβ : ∀ {γ : Finset (Fin m × Fin n)}, c.eval (fun x => decide (x ∈ γ)) = false →
       ∀ z, (z, true) ∈ c → z ∉ γ := fun {γ} hγ z hz hzγ => by
     simpa [hzγ] using hfalse hγ _ hz
@@ -259,16 +257,12 @@ private theorem Inv.step {s : ℕ} (hs : s ≤ n + 1) {M M' : Finset (Clause (Fi
     obtain ⟨α, hα⟩ := hins rfl hcM
     rcases CNF.mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, hii', rfl⟩
     · exact .inr ⟨i, α, hα.mono (erase_insert_subset _ _)⟩
-    · refine .inl ⟨α, hα.1, fun d hd => ?_⟩
-      rcases mem_insert.1 hd with rfl | hd
-      exacts [matchImplies_holeClause α hii'.ne j, hα.2 d hd]
+    · exact .inl ⟨α, hα.1, (forall_mem_insert _ _ _).2 ⟨matchImplies_holeClause α hii'.ne j, hα.2⟩⟩
   | @infer c₁ c₂ v h₁ h₂ hv₁ hv₂ =>
     by_cases hcM : c₁.resolvent c₂ v ∈ M
     · rwa [insert_eq_of_mem hcM]
     obtain ⟨α, hα⟩ := hins rfl hcM
-    refine .inl ⟨α, hα.1, fun d hd => ?_⟩
-    rcases mem_insert.1 hd with rfl | hd
-    exacts [(hα.2 _ h₁).resolvent v (hα.2 _ h₂), hα.2 d hd]
+    exact .inl ⟨α, hα.1, (forall_mem_insert _ _ _).2 ⟨(hα.2 _ h₁).resolvent v (hα.2 _ h₂), hα.2⟩⟩
 
 private theorem Inv.mTr {s : ℕ} (hs : s ≤ n + 1) {M M' : Finset (Clause (Fin m × Fin n))}
     {ms : List (ConfigMove (Fin m × Fin n))}
@@ -341,11 +335,9 @@ private theorem finds_holeChain {σ : Fin m × Fin n → Bool} {i : Fin m} {h : 
         ⟨CNF.mem_pigeonhole.2 (.inr ⟨i, i', h, hR i' (by simp), rfl⟩), ?_⟩
       simp [DecisionTree.eval, CNF.holeClause, hi, hσ]
     · rw [Bool.not_eq_true] at hσ
-      refine Finds.node_of_false hσ
-        (finds_holeChain hi (fun i'' h'' => hR i'' (by simp [h''])) fun h' => ?_)
-      refine ht fun i'' h'' => ?_
-      rcases List.mem_cons.1 h'' with rfl | h''
-      exacts [hσ, h' i'' h'']
+      exact Finds.node_of_false hσ (finds_holeChain hi
+        (fun i'' h'' => hR i'' (List.mem_cons_of_mem _ h''))
+        fun h' => ht (List.forall_mem_cons.2 ⟨hσ, h'⟩))
 
 /-- The DPLL tree finds a falsified clause on every assignment that puts the pigeons `P`, in
 increasing order and more numerous than the free holes `H`, in no other hole. -/

@@ -100,8 +100,7 @@ theorem lowbit_dvd (n : ℕ) : lowbit n ∣ n := by
   | case1 => exact Nat.dvd_refl 0 -- n = 0
   | case2 n => exact one_dvd n -- n odd
   | case3 n _ _ ih => -- n even: 2 * lowbit (n / 2)
-    obtain ⟨q, hq⟩ := ih
-    exact ⟨q, by rw [Nat.mul_assoc, ← hq]; omega⟩
+    exact ih.imp fun q hq => by rw [Nat.mul_assoc, ← hq]; omega
 
 /-- Odd-quotient power-of-two factorization of a positive natural via `lowbit`. -/
 theorem exists_odd_mul_lowbit {n : ℕ} (hn : 0 < n) :
@@ -190,10 +189,8 @@ theorem fenwick_parent_bridge {m idx : ℕ} (hm : 0 < m) (hlt : m < idx) :
     · refine (not_dvd_two_pow_succ_between ⟨(2 * q + 1) * 2 ^ (k - (j + 1)), ?_⟩
         (hisub ▸ hlo) (hi_eq ▸ hlt.le)).elim
       rw [hm_eq, mul_left_comm, ← pow_add, Nat.add_sub_cancel' (by omega)]
-    · rw [hisub, hm_eq] at hlo
-      rw [hm_eq, hi_eq] at hlt
-      have := Nat.lt_of_mul_lt_mul_right hlo
-      have := Nat.lt_of_mul_lt_mul_right hlt
+    · have := Nat.lt_of_mul_lt_mul_right (hisub ▸ hm_eq ▸ hlo)
+      have := Nat.lt_of_mul_lt_mul_right (hm_eq ▸ hi_eq ▸ hlt)
       omega
     · have hi_k : idx = 2 * ((2 * r + 1) * 2 ^ (j - 1 - k)) * 2 ^ k := by
         rw [hi_eq, hp hkj]; ring
@@ -259,9 +256,8 @@ private theorem length_downChain_add_exp_le {m k : ℕ} (hm : 0 < m) (hlb : lowb
 /-- Every downward Fenwick query chain from `m > 0` has length at most `⌊log₂ m⌋ + 1`. -/
 theorem length_downChain_le_log {m : ℕ} (hm : 0 < m) :
     (downChain m).length ≤ Nat.log 2 m + 1 := by
-  obtain ⟨_, k, hlb, _⟩ := exists_odd_mul_lowbit hm
-  have h := length_downChain_add_exp_le hm hlb
-  omega
+  obtain ⟨_, _, hlb, _⟩ := exists_odd_mul_lowbit hm
+  exact Nat.le_of_add_right_le (length_downChain_add_exp_le hm hlb)
 
 /-- Uniform `⌈log₂ (n + 1)⌉` bound on `downChain m` for all `m ≤ n` (`0` when `n = 0`). -/
 theorem length_downChain_le_clog {m n : ℕ} (hmn : m ≤ n) :
@@ -296,9 +292,8 @@ private theorem length_upChain_add_exp_le {n m k : ℕ}
 /-- Every upward Fenwick update chain from `1 ≤ m ≤ n` has length at most `⌊log₂ n⌋ + 1`. -/
 theorem length_upChain_le_log {n m : ℕ} (hm : 0 < m) (hmn : m ≤ n) :
     (upChain n m).length ≤ Nat.log 2 n + 1 := by
-  obtain ⟨_, k, hlb, _⟩ := exists_odd_mul_lowbit hm
-  have h := length_upChain_add_exp_le hm hmn hlb
-  omega
+  obtain ⟨_, _, hlb, _⟩ := exists_odd_mul_lowbit hm
+  exact Nat.le_of_add_right_le (length_upChain_add_exp_le hm hmn hlb)
 
 /-- Uniform `⌈log₂ (n + 1)⌉` bound on `upChain n m` (`0` when `n = 0`). -/
 theorem length_upChain_le_clog (n m : ℕ) :
@@ -376,8 +371,7 @@ private theorem exists_child_of_mem_upChain {idx m : ℕ}
       · refine ⟨m, ?_, List.mem_cons_self⟩
         simp only [fenwickChildren, Finset.mem_filter, Finset.mem_Icc]
         omega
-      · obtain ⟨c, hc_child, hc_mem⟩ := ih (by omega) hlt' htail
-        exact ⟨c, hc_child, List.mem_cons_of_mem _ hc_mem⟩
+      · exact (ih (by omega) hlt' htail).imp fun _ ⟨hc, hm⟩ => ⟨hc, List.mem_cons_of_mem _ hm⟩
   | case2 => simp only [List.not_mem_nil] at hmem -- otherwise: []
 
 /-- Intervals `[c - lowbit c, c)` of distinct immediate Fenwick children of `idx` are disjoint. -/

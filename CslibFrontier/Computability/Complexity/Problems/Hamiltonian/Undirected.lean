@@ -129,12 +129,10 @@ and its position is `0`, `1` or `2`. -/
 theorem splitVertex_mem_split_fst_iff {G : Graph} {v r : ℕ} :
     G.splitVertex v r ∈ G.split.vertices ↔ v ∈ G.vertices ∧ r < 3 := by
   rw [mem_split_fst_iff]
-  constructor
-  · rintro ⟨w, hw, r', hr', h⟩
-    obtain ⟨rfl, rfl⟩ := (splitVertex_eq_splitVertex_iff_of_mem hw).1 h
-    exact ⟨hw, hr'⟩
-  · rintro ⟨hv, hr⟩
-    exact ⟨v, hv, r, hr, rfl⟩
+  refine ⟨?_, fun ⟨hv, hr⟩ => ⟨v, hv, r, hr, rfl⟩⟩
+  rintro ⟨w, hw, r', hr', h⟩
+  obtain ⟨rfl, rfl⟩ := (splitVertex_eq_splitVertex_iff_of_mem hw).1 h
+  exact ⟨hw, hr'⟩
 
 /-! ### Adjacency in the split graph -/
 
@@ -240,9 +238,7 @@ private theorem nodup_gadgets_iff {G : Graph} {p : List ℕ} (hp : ∀ v ∈ p, 
   rw [gadgets, List.nodup_flatMap]
   constructor
   · rintro ⟨-, h⟩
-    refine h.imp fun {a b} hab => ?_
-    rintro rfl
-    exact hab (List.mem_cons_self ..) (List.mem_cons_self ..)
+    exact h.imp fun {a b} hab (h : a = b) => hab (List.mem_cons_self ..) (h ▸ List.mem_cons_self ..)
   · intro h
     refine ⟨fun v _ => ?_, h.imp_of_mem fun {a b} _ hb hab x hxa hxb => ?_⟩
     · simp [splitVertex_eq_splitVertex_iff]
@@ -259,10 +255,9 @@ private theorem forall_mem_iff_of_mem_gadgets_iff {G : Graph} {p : List ℕ}
     (hp : ∀ v ∈ p, v ∈ G.vertices) (hcov : ∀ x, x ∈ gadgets G p ↔ x ∈ G.split.vertices) (v : ℕ) :
     v ∈ p ↔ v ∈ G.vertices := by
   refine ⟨hp v, fun hv => ?_⟩
-  obtain ⟨w, hw, r, -, h⟩ :=
-    mem_gadgets.1 ((hcov _).2 (splitVertex_mem_split_fst_iff.2 ⟨hv, (by omega : 1 < 3)⟩))
-  rw [((splitVertex_eq_splitVertex_iff_of_mem (hp w hw)).1 h).1]
-  exact hw
+  obtain ⟨w, hw, _, -, h⟩ :=
+    mem_gadgets.1 ((hcov _).2 (splitVertex_mem_split_fst_iff.2 ⟨hv, (by decide : 1 < 3)⟩))
+  exact ((splitVertex_eq_splitVertex_iff_of_mem (hp w hw)).1 h).1 ▸ hw
 
 /-- Along declared vertices, a chain of gadgets is a directed walk. -/
 private theorem isChain_gadgets_iff {G : Graph} {p : List ℕ} (hp : ∀ v ∈ p, v ∈ G.vertices) :
@@ -317,9 +312,8 @@ private theorem exists_eq_gadgets {G : Graph} (n : ℕ) : ∀ (l : List ℕ) (v 
     ∃ p, (∀ u ∈ p, u ∈ G.vertices) ∧ l = gadgets G p := by
   induction n with
   | zero =>
-    intro l v hlen _ _ _ hhead
-    rw [List.length_eq_zero_iff.1 (Nat.le_zero.1 hlen)] at hhead
-    simp at hhead
+    rintro (_ | _) _ hlen _ _ _ ⟨⟩
+    cases hlen
   | succ n ih =>
     intro l v hlen hch hnd hdecl hhead hlast hmid
     obtain ⟨l₁, rfl⟩ := List.head?_eq_some_iff.1 hhead
@@ -408,13 +402,12 @@ theorem split_mem_HamPath_iff (G : Graph) (s t : ℕ) :
       (fun u hu _ => (hcov _).2 (splitVertex_mem_split_fst_iff.2 ⟨hu, by omega⟩))
     refine ⟨p, (nodup_gadgets_iff hp).1 hnd, forall_mem_iff_of_mem_gadgets_iff hp hcov, ?_, ?_,
       (isChain_gadgets_iff hp).1 hch⟩
-    · rw [head?_gadgets, Option.map_eq_some_iff] at hs
-      obtain ⟨a, ha, h⟩ := hs
-      rw [ha, ((splitVertex_eq_splitVertex_iff_of_mem (hp a (List.mem_of_head? ha))).1 h.symm).1]
-    · rw [getLast?_gadgets, Option.map_eq_some_iff] at ht
-      obtain ⟨b, hb, h⟩ := ht
-      rw [hb, ((splitVertex_eq_splitVertex_iff_of_mem (hp b (List.mem_of_getLast? hb))).1
-        h.symm).1]
+    · obtain ⟨a, ha, h⟩ := Option.map_eq_some_iff.1 (head?_gadgets G p ▸ hs)
+      rwa [← ((splitVertex_eq_splitVertex_iff_of_mem (hp a (List.mem_of_head? ha))).1 h.symm).1]
+        at ha
+    · obtain ⟨b, hb, h⟩ := Option.map_eq_some_iff.1 (getLast?_gadgets G p ▸ ht)
+      rwa [← ((splitVertex_eq_splitVertex_iff_of_mem (hp b (List.mem_of_getLast? hb))).1 h.symm).1]
+        at hb
   · rintro ⟨p, hnd, hcov, hs, ht, hch⟩
     have hp : ∀ v ∈ p, v ∈ G.vertices := fun v hv => (hcov v).1 hv
     exact ⟨gadgets G p, (nodup_gadgets_iff hp).2 hnd, mem_gadgets_iff_of_forall_mem_iff hcov,
@@ -480,17 +473,13 @@ theorem split_mem_HamCycle_iff (G : Graph) : G.split ∈ HamCycle ↔ G ∈ DirH
     obtain ⟨p, hp, hL⟩ := exists_eq_gadgets _ _ u le_rfl hchL hndL (fun x hx => (hcovL x).1 hx)
       rfl hlast' (fun w hw _ => (hcovL _).2 (splitVertex_mem_split_fst_iff.2 ⟨hw, by omega⟩))
     rw [hL] at hndL hcovL hchC
-    refine ⟨p, (nodup_gadgets_iff hp).1 hndL, forall_mem_iff_of_mem_gadgets_iff hp hcovL, ?_,
-      (chain_gadgets_iff hp).1 hchC⟩
-    rintro rfl
-    simp [gadgets_nil] at hL
+    refine ⟨p, (nodup_gadgets_iff hp).1 hndL, forall_mem_iff_of_mem_gadgets_iff hp hcovL,
+      (fun h : p = [] => by cases h ▸ hL), (chain_gadgets_iff hp).1 hchC⟩
   · rintro ⟨p, hnd, hcov, hne, hch⟩
     have hp : ∀ v ∈ p, v ∈ G.vertices := fun v hv => (hcov v).1 hv
-    refine ⟨gadgets G p, (nodup_gadgets_iff hp).2 hnd, mem_gadgets_iff_of_forall_mem_iff hcov, ?_,
+    exact ⟨gadgets G p, (nodup_gadgets_iff hp).2 hnd, mem_gadgets_iff_of_forall_mem_iff hcov,
+      (length_gadgets G p).symm ▸ Nat.le_mul_of_pos_right 3 (List.length_pos_of_ne_nil hne),
       (chain_gadgets_iff hp).2 hch⟩
-    rw [length_gadgets]
-    have := List.length_pos_of_ne_nil hne
-    omega
 
 /-! ### Polynomial-time reductions -/
 

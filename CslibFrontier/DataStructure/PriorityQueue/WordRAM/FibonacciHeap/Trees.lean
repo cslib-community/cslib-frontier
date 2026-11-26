@@ -335,16 +335,12 @@ theorem ValidSubtree.frame {n : ℕ} {st st' : RawState n} {pending pending' : O
     have hc_root_desc : ∀ c ∈ cs, c.root ∈ forestNodes cs := fun c hc =>
       mem_forestNodes_iff.mpr ⟨c, hc, c.root_mem_nodes⟩
     refine ⟨by rw [hu.1]; exact hin, by rw [hu.2.1]; exact hmark, by rw [hu.2.2.1]; exact hdeg,
-      ?_, ?_, ?_, ?_, ?_⟩
+      ?_, fun c hc => (hdesc c.root (hc_root_desc c hc)).1.trans (hpar c hc), ?_, ?_, ?_⟩
     · rcases hchild with ⟨rfl, hc0⟩ | ⟨h, tail, hcu, hcirc, hperm⟩
       · exact Or.inl ⟨rfl, hu.2.2.2.1.trans hc0⟩
       · refine Or.inr ⟨h, tail, hu.2.2.2.1.trans hcu, hcirc.frame fun x hx => ?_, hperm⟩
-        have hx_map : x ∈ cs.map FHTree.root := hperm.subset hx
-        obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hx_map
-        have hd := hdesc c.root (hc_root_desc c hc)
-        exact ⟨hd.2.1, hd.2.2.1⟩
-    · intro c hc
-      exact (hdesc c.root (hc_root_desc c hc)).1.trans (hpar c hc)
+        obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (hperm.subset hx)
+        exact ⟨(hdesc c.root (hc_root_desc c hc)).2.1, (hdesc c.root (hc_root_desc c hc)).2.2.1⟩
     · intro c hc
       have hcn := hnode c.root (List.mem_cons_of_mem u (hc_root_desc c hc))
       rw [hu.2.2.2.2, hcn.2.2.2.2]
@@ -355,8 +351,7 @@ theorem ValidSubtree.frame {n : ℕ} {st st' : RawState n} {pending pending' : O
       have hd := hdesc (cs[i]).root (hc_root_desc cs[i] hmem)
       rw [hcn.2.2.1, hcn.2.1, if_congr hd.2.2.2 rfl rfl]
       exact hrank i hi
-    · intro c hc
-      exact ih c hc
+    · exact fun c hc => ih c hc
         (fun x hx => hnode x (List.mem_cons_of_mem u (mem_forestNodes_iff.mpr ⟨c, hc, hx⟩)))
         (fun x hx => hdesc x (mem_forestNodes_iff.mpr ⟨c, hc,
           c.nodes_eq ▸ List.mem_cons_of_mem c.root hx⟩))
@@ -384,14 +379,10 @@ theorem ValidSubtree.prioLT_of_mem_children {n : ℕ} {st : RawState n} {pending
   induction hT with
   | @mk u cs _ _ _ _ _ hprio _ _ ih =>
     intro x hx
-    obtain ⟨c, hc, hxc⟩ := mem_forestNodes_iff.mp hx
-    cases hc_eq : c with
-    | node w cs_w =>
-      rw [hc_eq] at hc hxc
-      have hlt_uw : IndexedMinPQ.PrioLT (u, st.key u) (w, st.key w) := hprio (.node w cs_w) hc
-      rcases List.mem_cons.mp hxc with rfl | hdesc
-      · exact hlt_uw
-      · exact hlt_uw.trans (ih (.node w cs_w) hc x hdesc)
+    obtain ⟨⟨w, cs_w⟩, hc, hxc⟩ := mem_forestNodes_iff.mp hx
+    rcases List.mem_cons.mp hxc with rfl | hdesc
+    · exact hprio _ hc
+    · exact (hprio _ hc).trans (ih _ hc x hdesc)
 
 theorem ValidSubtree.prioLE_of_mem {n : ℕ} {st : RawState n} {pending : Option (Fin n)}
     {T : FHTree n} (hT : ValidSubtree st pending T) {x : Fin n} (hx : x ∈ T.nodes) :
@@ -508,15 +499,10 @@ theorem ValidRoot.link {n : ℕ} {st st' : RawState n} {T₁ T₂ : FHTree n}
     cases T₂ with
     | node v cs₂ =>
       rcases h₁ with ⟨⟨hin₁, hm₁, hd₁, _, hpar₁, hprio₁, hrank₁, hsub₁⟩, _, hm₁0⟩
-      rcases h₂ with ⟨hsub₂_self, _, hm₂0⟩
-      rcases hsub₂_self with ⟨hin₂, hm₂, hd₂, hchild₂, hpar₂, hprio₂, hrank₂, hsub₂⟩
-      simp only [FHTree.root_node, FHTree.deg_node] at hdeg_eq hprio_lt hdeg'
-      simp only [FHTree.root_node] at hpar'
-      simp only [ValidRoot, FHTree.root_node, FHTree.children_node] at hchild' hlr' hm₁0 hm₂0 ⊢
-      have hnd₁ : (u :: forestNodes cs₁).Nodup := (List.nodup_append.mp hnd).1
-      have hnd₂ : (v :: forestNodes cs₂).Nodup := (List.nodup_append.mp hnd).2.1
-      have hdisj_all : ∀ x ∈ u :: forestNodes cs₁, ∀ y ∈ v :: forestNodes cs₂, x ≠ y :=
-        (List.nodup_append.mp hnd).2.2
+      rcases h₂ with ⟨⟨hin₂, hm₂, hd₂, hchild₂, hpar₂, hprio₂, hrank₂, hsub₂⟩, _, hm₂0⟩
+      simp only [ValidRoot, FHTree.root_node, FHTree.children_node,
+        FHTree.deg_node] at hdeg_eq hprio_lt hdeg' hpar' hchild' hlr' hm₁0 hm₂0 ⊢
+      obtain ⟨hnd₁, hnd₂, hdisj_all⟩ := List.nodup_append.mp hnd
       have hu_mem : u ∈ (FHTree.node u cs₁).nodes ++ (FHTree.node v cs₂).nodes :=
         List.mem_append_left _ List.mem_cons_self
       have hv_mem : v ∈ (FHTree.node u cs₁).nodes ++ (FHTree.node v cs₂).nodes :=

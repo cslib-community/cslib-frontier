@@ -371,11 +371,7 @@ theorem isAverageCaseHard_encodedSlice_of {L : Language Bool} {M N σ : ℕ} (hM
   intro g hg
   by_contra hcon
   push Not at hcon
-  have hslice : encodedSlice L M N = fun y => hardnessEncode (BinaryField.equivBits hw0).toEquiv
-      (BinaryField.embed hw0 (by omega)) (L.slice (M * b))
-      (fun i => y (Fin.castLE (encodedLength_le M N) i)) := by
-    rw [encodedSlice, dite_eq_right hb0]
-  rw [hslice, lt_div_iff₀ (by positivity)] at hcon
+  rw [encodedSlice, dite_eq_right hb0, lt_div_iff₀ (by positivity)] at hcon
   obtain ⟨C, hC, hCagree⟩ := exists_complexity_le_of_agree_prefix (encodedLength_le M N) _ g hcon
   -- the reconstruction
   have hrec := complexity_le_pow_of_agree_hardnessEncode (BinaryField.equivBits hw0).toEquiv
@@ -405,12 +401,10 @@ theorem eventually_isAverageCaseHard_encodedSlice {L : Language Bool} {γ : ℝ}
   set M := blockFactor γ with hM_def
   have hM : 1 ≤ M := Nat.le_add_left 1 _
   have hγM : 40 ≤ γ * M := by
-    have h := Nat.le_ceil (40 / γ)
-    have : (M : ℝ) = ⌈40 / γ⌉₊ + 1 := by rw [hM_def, blockFactor]; push_cast; rfl
-    rw [this]
-    have h' : 40 / γ ≤ (⌈40 / γ⌉₊ : ℝ) + 1 := by linarith
-    rw [div_le_iff₀ hγ] at h'
-    linarith
+    have h : 40 / γ ≤ M := by
+      simpa only [hM_def, blockFactor, Nat.cast_add, Nat.cast_one] using
+        (Nat.le_ceil (40 / γ)).trans (le_add_of_nonneg_right zero_le_one)
+    rwa [div_le_iff₀ hγ, mul_comm] at h
   -- the block length tends to infinity
   have hblock : Tendsto (blockLength M) atTop atTop :=
     Nat.tendsto_div_const_atTop (by positivity)
@@ -429,8 +423,7 @@ theorem eventually_isAverageCaseHard_encodedSlice {L : Language Bool} {γ : ℝ}
   have hev := Nat.eventually_mul_pow_le_pow_div (2 ^ 27 * M ^ 3 + 4608 * M + 128) 6 4
     one_lt_two (by positivity)
   filter_upwards [hblock.eventually (hhard.and (hev.and (eventually_ge_atTop 1)))] with N hN
-  obtain ⟨hNhard, hNev, hNb⟩ := hN
-  refine isAverageCaseHard_encodedSlice_of hM hNb hNev ?_ hNhard
+  refine isAverageCaseHard_encodedSlice_of hM hN.2.2 hN.2.1 ?_ hN.1
   -- `50 ⌊N / c⌋ ≤ b + 1`
   have h1 := Nat.div_mul_le_self N (hardnessDivisor γ)
   have h2 := Nat.lt_div_mul_add (a := N) (b := 4 * (M + 1)) (by positivity)

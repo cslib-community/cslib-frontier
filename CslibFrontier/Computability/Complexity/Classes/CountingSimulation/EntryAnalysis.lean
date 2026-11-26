@@ -88,14 +88,11 @@ theorem onSchedule_rootCall_logPrecision {P C r : ℕ} {G : DescribedNetwork T}
     (hg : EntryContraction.guard (P, modulus G.numEdges, r, G) = true) (hC : 1 ≤ C)
     (hp : P ≤ C * G.numEdges * (Nat.log 2 G.numEdges + 1)) :
     OnSchedule C G.numEdges (rootCall (P, modulus G.numEdges, r, G)) := by
-  have hdeg : ∀ v ∈ G.vertices, v.1.length ≤ degreeBound G.numEdges := by
-    simp only [EntryContraction.guard, decide_eq_true_eq] at hg
-    exact hg.2.2
   refine FastContraction.onSchedule_root_logPrecision hC rfl rfl rfl (wf_rootCall hg)
     (fun v hv => ?_) rfl rfl hp
-  simp only [rootCall, FastContraction.rootNet, List.mem_map] at hv
-  obtain ⟨w, hw, rfl⟩ := hv
-  exact hdeg w hw
+  simp only [EntryContraction.guard, decide_eq_true_eq] at hg
+  obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hv
+  exact hg.2.2 w hw
 
 /-- Linear root precision is also allowed. -/
 theorem onSchedule_rootCall {P C r : ℕ} {G : DescribedNetwork T}
@@ -108,21 +105,20 @@ theorem onSchedule_rootCall {P C r : ℕ} {G : DescribedNetwork T}
 /-- Dividing the precision by the logarithmic allowance restores a linear root bound. -/
 theorem normalizedPrecision_le {m s P D : ℕ} (hsm : s ≤ m)
     (hP : P ≤ D * s * (Nat.log 2 s + 1)) : normalizedPrecision m P ≤ D * s := by
-  have hlog : Nat.log 2 s + 1 ≤ Nat.log 2 m + 1 := by gcongr
-  have hp := hP.trans (Nat.mul_le_mul_left (D * s) hlog)
-  have h := Nat.div_le_div_right (c := Nat.log 2 m + 1) hp
-  rwa [Nat.mul_div_cancel _ (Nat.succ_pos _)] at h
+  have hp :=
+    hP.trans (Nat.mul_le_mul_left (D * s) (Nat.add_le_add_right (Nat.log_mono_right hsm) 1))
+  simpa only [normalizedPrecision, Nat.mul_div_cancel _ (Nat.succ_pos _)] using
+    Nat.div_le_div_right (c := Nat.log 2 m + 1) hp
 
 /-- The integer constant read from normalized precision bounds the original precision. -/
 theorem le_normalizedPrecision_root {m P : ℕ} (hm : 0 < m) :
     P ≤ (normalizedPrecision m P / m + 1) * m * (Nat.log 2 m + 1) := by
   have hp : P ≤ (normalizedPrecision m P + 1) * (Nat.log 2 m + 1) := by
-    have h := (Nat.lt_div_mul_add (a := P) (b := Nat.log 2 m + 1) (Nat.succ_pos _)).le
-    simpa only [normalizedPrecision, add_mul, one_mul] using h
+    simpa only [normalizedPrecision, add_mul, one_mul] using
+      (Nat.lt_div_mul_add (a := P) (b := Nat.log 2 m + 1) (Nat.succ_pos _)).le
   have hq : normalizedPrecision m P + 1 ≤ (normalizedPrecision m P / m + 1) * m := by
-    have h := Nat.lt_div_mul_add (a := normalizedPrecision m P) (b := m) hm
     rw [add_mul, one_mul]
-    omega
+    exact Nat.lt_div_mul_add (a := normalizedPrecision m P) (b := m) hm
   exact hp.trans (Nat.mul_le_mul_right _ hq)
 
 /-- **The root call's schedule constant.** With `m` edges, `D + 2 ≤ m` and normalized precision
@@ -180,26 +176,22 @@ theorem entry_length_le_of_reach {x : ℕ × List ℕ × ℕ × DescribedNetwork
   have hparts := length_parts_le_encInput (encT := encT) P fl r G
   have hmv := DescribedNetwork.length_numEdges_vertices_le (encT := encT) G
   rw [← hn] at hparts
-  have hfl : fl = modulus m := by
-    simp only [EntryContraction.guard, decide_eq_true_eq] at hg
-    exact hg.1
+  have hg' := hg
+  simp only [EntryContraction.guard, decide_eq_true_eq] at hg'
   have hn2 : n + 1 ≤ (n + 1) ^ 2 := Nat.le_self_pow (by norm_num) _
   have hV : x₀.net.vertices.length + (encNat x₀.rows).length ≤ 2 * (n + 1) := by
     have hV : x₀.net.vertices.length = G.vertices.length := List.length_map _
     change _ + (encNat r).length ≤ _
     omega
-  have hR₀ : ∀ w ∈ x₀.net.vertices, (VertexDesc.enc encT w.2).length ≤ n + 1 := by
-    intro w hw
-    change w ∈ List.map _ G.vertices at hw
+  have hR₀ (w) (hw : w ∈ x₀.net.vertices) : (VertexDesc.enc encT w.2).length ≤ n + 1 := by
     obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hw
-    rw [length_encSum]
-    simp only [Sum.elim_inl]
+    rw [length_encSum, Sum.elim_inl]
     have h1 := G.length_vertex_le (encT := encT) hu
     enc_len [DescribedNetwork.encVertex] at h1
   obtain ⟨hc, hv, hf⟩ := (FastContraction.Reach.shape (x₀ := x₀) rfl rfl (wf_rootCall hg)
     hy).length_le_pow entry rfl rfl rfl (show m + 1 ≤ n + 1 by omega)
     (show P + 1 ≤ n + 1 by omega) hV (show fl.length ≤ 32 * (n + 1) ^ 2 by omega)
-    (fun z hz => le_one_of_mem_modulus (by rw [← hfl]; exact hz)) hR₀
+    (fun z (hz : z ∈ fl) => le_one_of_mem_modulus (hg'.1 ▸ hz)) hR₀
   exact ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => hac ▸ hf ha _ c, hv⟩
 
 /-! ### The leaves -/
@@ -233,9 +225,7 @@ theorem entry_reach_facts (C D : ℕ) : ∃ s₀, ∀ (s P r : ℕ) (G : Describ
     rw [hsc]
     exact hsh.prec_le_pow_four rfl rfl (show D + 81 ≤ m by omega) hp₂
   · obtain ⟨hB, hroot⟩ := activeBounds_onSchedule_rootCall hg (by omega) hq₀ rfl (hsA m (by omega))
-    have h := hy.onSchedule hB hroot
-    rw [hsc]
-    exact h.edges_le_leafSize hB hl
+    exact hsc ▸ (hy.onSchedule hB hroot).edges_le_leafSize hB hl
 
 /-- `2 ^ (C ⌈s ^ (9/10)⌉) ≤ 2 ^ (C s₁) 2 ^ (s / √⌊log₂ s⌋)` once `C ⌈s ^ (9/10)⌉` fits the budget
 from `s₁` on. -/
@@ -291,16 +281,13 @@ theorem exists_entryLeaves_le
   obtain ⟨hsc, hE2, hbig⟩ := hs₀ s P r G hs hPD hsm hmC hg y hy
   obtain ⟨-, hshape⟩ := hy.wf_packetShape (wf_rootCall hg) (packetShape_rootCall _)
   -- The root entries at the leaf.
-  have hroot : ∀ v ∈ y.net.vertices, ∀ t, v.2 = .inl t → ∀ bs : List Bool,
-      bs.length = v.1.length →
+  have hroot (v) (hv : v ∈ y.net.vertices) (t) (ht : v.2 = .inl t) (bs : List Bool)
+      (hbs : bs.length = v.1.length) :
       ce.time (t, bs) ≤ C * (s + L + 1) ^ C * 2 ^ (C * ceilNineTenths s) ∧
         ce.space (t, bs) ≤ C * (s + L + 1) ^ C := by
-    intro v hv t ht bs hbs
     obtain ⟨w, hw, hwt, hwlen⟩ := hy.exists_root_of_inl hv ht
-    change w ∈ List.map _ G.vertices at hw
     obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hw
-    obtain rfl := Sum.inl_injective hwt
-    exact hent u hu bs (hbs.trans hwlen.symm)
+    exact Sum.inl_injective hwt ▸ hent u hu bs (hbs.trans hwlen.symm)
   obtain ⟨hT, hSp⟩ := hKB nativeMk s y _ _ hs (hsc ▸ hsm) (hsc ▸ hmC) hshape hE2
     (fun h => ⟨(hbig h).2 hl, (hbig h).1⟩) hroot
   have hny := (entry_length_le_of_reach (encT := encT) (entry := entry) hg hy).1

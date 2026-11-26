@@ -220,29 +220,25 @@ private theorem decodeAux_stageCode {t : Term ι} {W : List ι}
     rw [Term.stageCode, List.cons_append,
       decodeAux_cons (cur := some t) (θ := θ) (t := t) rfl
         (List.getElem?_idxOf (hW v List.mem_cons_self))]
+    have hass (W : List ι) :
+        PartialAssignment.assign (Function.update θ v (some (x v))) W.toFinset x =
+          θ.assign (v :: W).toFinset x := by
+      funext i
+      by_cases hi : i ∈ W.toFinset
+      · simp [PartialAssignment.assign_of_mem, hi]
+      · rcases eq_or_ne i v with rfl | hne <;>
+          simp [PartialAssignment.assign_of_mem, PartialAssignment.assign_of_notMem, hi, hne]
+    have hset (W : List ι) : insert v Q ∪ W.toFinset = Q ∪ (v :: W).toFinset := by
+      rw [List.toFinset_cons, union_insert, insert_union]
     cases W with
     | nil =>
-      simp only [List.isEmpty_nil, ↓reduceIte, List.nil_append, Term.stageCode]
-      congr 1
-      · funext i
-        by_cases hi : i = v <;> simp [hi]
-      · ext i
-        simp
+      simp only [List.isEmpty_nil, ↓reduceIte, List.nil_append, Term.stageCode, ← hass [],
+        ← hset [], List.toFinset_nil, union_empty]
+      rw [PartialAssignment.assign, piecewise_empty]
     | cons w W =>
       simp only [List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte]
-      rw [ih (fun u hu => hW u (List.mem_cons_of_mem _ hu)) (List.cons_ne_nil _ _)]
-      congr 1
-      · funext i
-        by_cases hi' : i ∈ (w :: W).toFinset
-        · rw [PartialAssignment.assign_of_mem hi', PartialAssignment.assign_of_mem
-            (List.mem_toFinset.2 (List.mem_cons_of_mem _ (List.mem_toFinset.1 hi')))]
-        · rw [PartialAssignment.assign_of_notMem hi']
-          rcases eq_or_ne i v with rfl | hi
-          · rw [PartialAssignment.assign_of_mem (by simp), Function.update_self]
-          · rw [Function.update_of_ne hi, PartialAssignment.assign_of_notMem (by simp_all)]
-      · ext i
-        simp only [mem_union, mem_insert, List.mem_toFinset, List.mem_cons]
-        tauto
+      rw [ih (fun u hu => hW u (List.mem_cons_of_mem _ hu)) (List.cons_ne_nil _ _),
+        hass (w :: W), hset (w :: W)]
 
 /-- At the start of a stage, the decoder reads the first term not falsified. -/
 private theorem decodeAux_none {c : List (ℕ × Bool × Bool)} (hc : c ≠ []) (θ : PartialAssignment ι)
@@ -484,11 +480,10 @@ theorem card_switching_le {k : ℕ} (hk : ∀ t ∈ F, t.length ≤ k)
     (hnd : ∀ t ∈ F, (t.map Prod.fst).Nodup) (ρ₀ : PartialAssignment ι) (ℓ s : ℕ) :
     #((ρ₀.extensions ℓ).filter fun ρ => s ≤ complexity fun x => DNF.eval (ρ.fill x) F) ≤
       #(ρ₀.extensions (ℓ - s)) * (4 * k) ^ s := by
-  refine (card_le_card fun ρ hρ => ?_).trans (card_filter_pathLength_le hk hnd ρ₀ ℓ s)
-  obtain ⟨hρ, hs⟩ := mem_filter.1 hρ
-  refine mem_filter.2 ⟨hρ, ?_⟩
+  refine (card_le_card (monotone_filter_right _ fun ρ _ hs => ?_)).trans
+    (card_filter_pathLength_le hk hnd ρ₀ ℓ s)
   by_contra! h
-  exact absurd hs (not_le.2 (complexity_lt_of_forall_pathLength_lt h))
+  exact hs.not_gt (complexity_lt_of_forall_pathLength_lt h)
 
 end DNF
 

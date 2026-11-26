@@ -142,12 +142,11 @@ theorem decidableInSingleSubexpTime_iff_exists_computableInSingleSubexpTime {A :
     DecidableInSingleSubexpTime A enc μ ↔
       ∃ g : α → Bool, (∀ a, a ∈ A ↔ g a = true) ∧
         ComputableInSingleSubexpTime g enc encBool μ := by
-  constructor
-  · rintro ⟨s, e, hnn, hs_o, h⟩
-    obtain ⟨g, hA, hg⟩ := decidableInTimeO_iff_exists_computableInTimeO.mp h
-    exact ⟨g, hA, s, e, hnn, hs_o, hg⟩
-  · rintro ⟨g, hA, s, e, hnn, hs_o, hg⟩
-    exact ⟨s, e, hnn, hs_o, decidableInTimeO_iff_exists_computableInTimeO.mpr ⟨g, hA, hg⟩⟩
+  refine ⟨fun ⟨s, e, hnn, hs_o, h⟩ =>
+      let ⟨g, hA, hg⟩ := decidableInTimeO_iff_exists_computableInTimeO.mp h
+      ⟨g, hA, s, e, hnn, hs_o, hg⟩,
+    fun ⟨g, hA, s, e, hnn, hs_o, hg⟩ =>
+      ⟨s, e, hnn, hs_o, decidableInTimeO_iff_exists_computableInTimeO.mpr ⟨g, hA, hg⟩⟩⟩
 
 /-- **Single-machine implies family subexponential decision.** -/
 theorem DecidableInSingleSubexpTime.decidableInSubexpTime {A : Set α} {enc : α ↪ List Bool}
@@ -260,13 +259,12 @@ theorem decidableInSingleSubexpTime_iff_exists_machine {A : Set α} {enc : α �
         ∀ δ : ℝ, 0 < δ → ∃ c : ℕ,
           ∀ a, (t a : ℝ) ≤ c * (2 ^ (δ * μ a) * ((enc a).length + 1) ^ e) + c := by
   rw [decidableInSingleSubexpTime_iff_exists_computableInSingleSubexpTime]
-  constructor
-  · rintro ⟨g, hA, hg⟩
-    obtain ⟨t, sp, e, hcomp, h⟩ := computableInSingleSubexpTime_iff_exists_machine.mp hg
-    exact ⟨t, sp, e, decidableInTimeAndSpace_iff.mpr ⟨g, hcomp, hA⟩, h⟩
-  · rintro ⟨t, sp, e, hdec, h⟩
-    obtain ⟨g, hcomp, hA⟩ := decidableInTimeAndSpace_iff.mp hdec
-    exact ⟨g, hA, computableInSingleSubexpTime_iff_exists_machine.mpr ⟨t, sp, e, hcomp, h⟩⟩
+  refine ⟨fun ⟨g, hA, hg⟩ =>
+      let ⟨t, sp, e, hcomp, h⟩ := computableInSingleSubexpTime_iff_exists_machine.mp hg
+      ⟨t, sp, e, decidableInTimeAndSpace_iff.mpr ⟨g, hcomp, hA⟩, h⟩,
+    fun ⟨t, sp, e, hdec, h⟩ =>
+      let ⟨g, hcomp, hA⟩ := decidableInTimeAndSpace_iff.mp hdec
+      ⟨g, hA, computableInSingleSubexpTime_iff_exists_machine.mpr ⟨t, sp, e, hcomp, h⟩⟩⟩
 
 /-! ### Measure rescaling and reduction transfers -/
 
@@ -306,16 +304,16 @@ theorem DecidableInSingleSubexpTime.of_computableInPolyTime {A : Set α} {μ : �
     {g : α → Bool} (hg : ComputableInPolyTime g encIn encBool) (hA : ∀ a, a ∈ A ↔ g a = true) :
     DecidableInSingleSubexpTime A encIn μ := by
   obtain ⟨e, hO⟩ := DecidableInExpTime.of_computableInPolyTime (μ := μ) hg hA
-  refine ⟨fun _ => 0, e, fun _ => le_rfl, by simp, ?_⟩
-  simpa only [zero_mul] using hO
+  exact ⟨fun _ => 0, e, fun _ => le_rfl, by simp,
+    by simpa only [zero_mul] using hO⟩
 
 /-- Polynomial-time computable functions are computable in single-machine subexponential time. -/
 theorem ComputableInSingleSubexpTime.of_computableInPolyTime {f : α → β} {μ : α → ℕ}
     (hf : ComputableInPolyTime f encIn encMid) :
     ComputableInSingleSubexpTime f encIn encMid μ := by
   obtain ⟨e, hO⟩ := ComputableInExpTime.of_computableInPolyTime (μ := μ) hf
-  refine ⟨fun _ => 0, e, fun _ => le_rfl, by simp, ?_⟩
-  simpa only [zero_mul] using hO
+  exact ⟨fun _ => 0, e, fun _ => le_rfl, by simp,
+    by simpa only [zero_mul] using hO⟩
 
 /-- Guarding a single-machine subexponential function by a polynomial-time test and fallback
 preserves single-machine subexponential time. -/
@@ -450,11 +448,8 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
     set L1 : ℝ := ((encIn a).length : ℝ) + 1
     have hL1 : 1 ≤ L1 := le_add_of_nonneg_left (Nat.cast_nonneg _)
     have hsched_bound : ((sched a : ℝ) + 1) ^ d ≤ (C_sched : ℝ) * L1 ^ (ds * d) := by
-      have hsl := hs_len a
-      rw [encUnary_apply, List.length_replicate] at hsl
       have hcast : (sched a : ℝ) ≤ cs * L1 ^ ds := by
-        dsimp only [L1]
-        exact_mod_cast hsl
+        simpa [L1] using Nat.cast_le (α := ℝ).mpr (hs_len a)
       calc ((sched a : ℝ) + 1) ^ d
           ≤ ((cs + 1 : ℝ) * L1 ^ ds) ^ d := by
             gcongr
@@ -552,12 +547,10 @@ theorem DecidableInSingleSubexpTime.KSAT_of_SharpKSAT {k : ℕ}
   have hpos : ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool :=
     ComputableInPolyTime.binary_lt.comp
       ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
-  have hdec := DecidableInSingleSubexpTime.of_computableInSingleSubexpTime_polyBounded h
+  have heq : {φ : CNF ℕ | decide (0 < SharpKSAT k φ) = true} = KSAT k :=
+    Set.ext fun _ => by simp [mem_KSAT_iff_pos_SharpKSAT]
+  exact heq ▸ .of_computableInSingleSubexpTime_polyBounded h
     (polyBounded_length_encNat_SharpKSAT k) hpos
-  have heq : {φ : CNF ℕ | decide (0 < SharpKSAT k φ) = true} = KSAT k := by
-    ext φ
-    simp only [Set.mem_ofPred_eq, decide_eq_true_eq, mem_KSAT_iff_pos_SharpKSAT]
-  rwa [heq] at hdec
 
 /-- Single-machine decision hardness implies single-machine counting hardness
 (`SingleETH → SingleSharpETH`). -/

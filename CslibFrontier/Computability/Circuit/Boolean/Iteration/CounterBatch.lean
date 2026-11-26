@@ -147,18 +147,15 @@ to `counterBlock x member`. -/
 /-- The batched power is the `T`-th iterate of the single-step batched update. -/
 theorem iterate_counterBatchPower (T : ℕ) :
     (counterBatchPower (r := r) (k := k) 1)^[T] = counterBatchPower T := by
-  funext x
   induction T with
   | zero =>
-    funext i
+    ext x i
     obtain ⟨⟨member, bit⟩, rfl⟩ := finProdFinEquiv.surjective i
     simp [counterBlock]
   | succ T ih =>
-    rw [Function.iterate_succ_apply', ih]
-    funext i
+    ext x i
     obtain ⟨⟨member, bit⟩, rfl⟩ := finProdFinEquiv.surjective i
-    rw [counterBatchPower_apply, counterBatchPower_apply, counterBlock_counterBatchPower,
-      ModulusCounter.power_add]
+    simp [Function.iterate_succ_apply', ih, ModulusCounter.power_add]
 
 /-- The left half (the modulus) of every state is preserved by `ModulusCounter.power T`. -/
 private theorem counterStep_iterate_left (T : ℕ) (y : BitString (k + k)) (i : Fin k) :
@@ -243,14 +240,10 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
     have hj1 : j.val + 1 = (a member x).toNat := Nat.sub_add_cancel hpos
     have hkey : residueKeys k j = queries x member := by
       funext bit
-      change (BitVec.ofNat k (j.val + 1)).getLsbD bit.val =
-        counterBlock x member (Fin.castAdd k bit)
-      rw [hj1, BitVec.ofNat_toNat, BitVec.setWidth_eq]
-      exact BitString.getLsbD_equivBitVec (fun i => counterBlock x member (Fin.castAdd k i)) bit
+      simp [residueKeys, queries, hj1, a, ModulusCounter.leftWord]
     have hrw : rem member x = BitVec.ofNat k (T % (a member x).toNat) := by
       simp only [rem, lookupOr_of_eq (residueValues k T) (residueKeys_injective k) hkey]
-      change BitString.equivBitVec
-        (fun bit : Fin k => (BitVec.ofNat k (T % (j.val + 1))).getLsbD bit.val) = _
+      unfold residueValues
       rw [BitString.equivBitVec_getLsbD, hj1]
     rw [hrw, BitVec.toNat_ofNat,
       Nat.mod_eq_of_lt ((Nat.mod_lt _ hpos).trans (a member x).isLt)]

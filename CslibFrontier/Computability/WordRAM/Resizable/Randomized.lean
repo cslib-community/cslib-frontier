@@ -361,8 +361,8 @@ private theorem supExpectedStepsWithin_loop_geometric {cond : Cond r} {body : RC
         have hback := tsum_supExpectedStepsWithin_jump (w := w) (N := n) hp.loop_back (μ_body z)
         have hbind : (∑' u, μ_body z u * ∑' y, loopExitRPMF cond μ_body u y * K_cont y) =
             ∑' y, loopExitRPMF cond μ_body z y * K_cont y := by
-          rw [loopExitRPMF_of_holds hp_pos hp_top hinv hp_exit hIz hcz]
-          exact (Cslib.Probability.PMF.tsum_bind_mul _ _ _).symm
+          rw [loopExitRPMF_of_holds hp_pos hp_top hinv hp_exit hIz hcz,
+            Probability.PMF.tsum_bind_mul]
         have hih : (∑' u, μ_body z u * supExpectedStepsWithin w p n (.running ⟨pc, u⟩)) ≤
             (∑' u, μ_body z u * (if cond.Holds u.toData then M else 0)) + 2 +
               ∑' y, loopExitRPMF cond μ_body z y * K_cont y :=
@@ -421,9 +421,7 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
     refine (ih₁ hp.append_left N).trans <| (add_le_add le_rfl ?_).trans_eq (add_assoc _ _ _).symm
     refine (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y hy =>
       ih₂ y hy hp.seq_right N).trans_eq ?_
-    simp_rw [mul_add, tsum_add]
-    congr 1; simp only [RCode.size, Nat.add_assoc]
-    exact (Cslib.Probability.PMF.tsum_bind_mul μ₁ μ₂ _).symm
+    simp_rw [mul_add, tsum_add, RCode.size, Nat.add_assoc, ← Probability.PMF.tsum_bind_mul]
   | @branch_pos _ cond pos neg x μ T hc _ ih =>
     have hpc : pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) := by omega
     refine ((supExpectedStepsWithin_le_of_const fun _ =>
@@ -624,9 +622,7 @@ theorem le_haltedReach_assemble (h : ExecRCodeDist w c x μ T L_peak) {p : RProg
     rw [tsum_pure_mul]
     exact (le_iInf₂ fun z hz => hz ▸ le_rfl).trans (hd.le_haltedReach_assemble hp)
   | @rand _ dst src x _ hfit =>
-    refine (Cslib.Probability.PMF.tsum_map_mul (ProbComp.unifFin (x.regs src)).eval
-      (fun k => x.set dst k.val) (haltedReach w p v d (pc + 1))).trans_le ?_
-    exact haltedReach_le_of_rand hp.head hfit
+    exact (Probability.PMF.tsum_map_mul _ _ _).trans_le (haltedReach_le_of_rand hp.head hfit)
   | mono _ _ ih | mono_peak _ _ ih => exact ih hp
   | @seq _ c₁ c₂ x μ₁ μ₂ _ _ _ _ ih₁ ih₂ =>
     simp only [RCode.size, ← Nat.add_assoc]
@@ -865,8 +861,7 @@ theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
     subst hx
     obtain ⟨_, hcont, heq⟩ :=
       rename_bind_step (extra := 2) hf x hl fun z₁ hz₁ {_} h => ihl z₁ hz₁ h
-    simp only [Code.rename] at hcont ⊢
-    simpa only [← heq] using
+    simpa only [Code.rename, ← heq] using
       ExecRandBounded.loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl) hcont
 
 end ExecRandBounded

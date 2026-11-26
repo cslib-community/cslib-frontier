@@ -132,8 +132,7 @@ theorem le_of_beats {b : ι → ℝ} {j i : ι} (h : Beats b j i) : b i ≤ b j 
   exact h.elim le_of_lt fun h => h.1.le
 
 theorem le_of_not_beats {b : ι → ℝ} {j i : ι} (h : ¬ Beats b j i) : b j ≤ b i := by
-  by_contra hlt
-  exact h (Or.inl (not_le.1 hlt))
+  exact not_lt.1 fun hlt => h (Or.inl hlt)
 
 variable [Fintype ι]
 
@@ -208,11 +207,9 @@ noncomputable def allocation (k : ℕ) (b : ι → ℝ) (i : ι) : ℝ :=
   if Wins k b i then 1 else 0
 
 theorem allocation_one : allocation (ι := ι) 1 = Vickrey.allocation := by
-  funext b i
-  unfold allocation Vickrey.allocation
-  by_cases h : Wins 1 b i
-  · rw [ite_eq_left h, ite_eq_left (wins_one_iff.1 h)]
-  · rw [ite_eq_right h, ite_eq_right (mt wins_one_iff.2 h)]
+  classical
+  ext b i
+  simp only [allocation, Vickrey.allocation, wins_one_iff]
 
 theorem allocation_eq_one_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
     allocation k b i = 1 ↔ Wins k b i := by
@@ -224,9 +221,7 @@ theorem allocation_eq_zero_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
 
 theorem allocation_binary (k : ℕ) (b : ι → ℝ) (i : ι) :
     allocation k b i = 0 ∨ allocation k b i = 1 := by
-  unfold allocation
-  split_ifs
-  exacts [Or.inr rfl, Or.inl rfl]
+  by_cases h : Wins k b i <;> simp [allocation, h]
 
 theorem isBinary_allocation (k : ℕ) : IsBinary (allocation (ι := ι) k) :=
   fun b _ i => allocation_binary k b i
@@ -459,18 +454,16 @@ open Classical in
 theorem nextBidMechanism_isDSIC_of_card_le_one (k : ℕ) (hn : Fintype.card ι ≤ 1) :
     (nextBidMechanism (ι := ι) k).IsDSIC := by
   intro i b v _ _
-  have hp0 : ∀ c : ι → ℝ, (nextBidMechanism k).payment c i = 0 := fun c => by
-    simp only [nextBidMechanism]
-    rw [bidAtRank_of_card_le c (by omega), zero_mul]
+  have hp0 (c : ι → ℝ) : (nextBidMechanism k).payment c i = 0 := by
+    simp only [nextBidMechanism_payment, bidAtRank_of_card_le (r := rank c i + 1) c (by omega),
+      zero_mul]
   have ha : ∀ c : ι → ℝ, allocation k c i = if 0 < k then 1 else 0 := fun c => by
     have hsub : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.1 hn
     have hr0 : rank c i = 0 := by
       rw [rank, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro j _ hjb
-      exact beats_irrefl c i (hsub.elim j i ▸ hjb)
+      exact fun j _ hjb => beats_irrefl c i (hsub.elim j i ▸ hjb)
     simp only [allocation, Wins, hr0]
-  simp only [Mechanism.utility, hp0]
-  simp only [nextBidMechanism, ha, sub_zero, le_rfl]
+  simp only [Mechanism.utility, hp0, nextBidMechanism_allocation, ha, sub_zero, le_rfl]
 
 open Classical in
 /-- If bidder `i`'s bid strictly exceeds every other bid, `rank b i = 0`. -/

@@ -47,9 +47,8 @@ private theorem packedWords_eq_wordOffset_add {len k w : ℕ} (hw : 0 < w) :
     packedWords len k w =
       wordOffset k w len + (if bitOffset k w len = 0 then 2 else 3) := by
   unfold packedWords
-  have hid := wordOffset_mul_add_bitOffset (k := k) (w := w) (idx := len)
   have hb_lt : bitOffset k w len < w := bitOffset_lt hw
-  rw [← hid]
+  rw [← wordOffset_mul_add_bitOffset (k := k) (w := w) (idx := len)]
   set W := wordOffset k w len
   set B := bitOffset k w len
   split_ifs with hB0
@@ -199,14 +198,13 @@ private theorem computeMetaWordsProg_spec {w U dstMetaBase N : ℕ} {s : Memory.
   · dsimp only [d, computeMetaWordsProg]
     rw [htotMicro_eq, hgmBits_eq, validHistory_bind', clientState_maxSlabsProg,
       clientResult_maxSlabsProg, validHistory_bind', clientState_ifEqZeroProg,
-      clientResult_ifEqZeroProg, hgmLen_eq, validHistory_bind', clientState_compPackedWordsProg,
-      validHistory_bind', clientState_compPackedWordsProg, validHistory_bind',
-      clientState_compPackedWordsProg]
+      clientResult_ifEqZeroProg, hgmLen_eq]
+    repeat rw [validHistory_bind', clientState_compPackedWordsProg]
     exact ⟨validHistory_maxSlabsProg _ _, validHistory_ifEqZeroProg _ _,
       hv_pw _ s, hv_pw _ s, hv_pw _ s, trivial⟩
-  · simp only [d, computeMetaWordsProg, prog_runClient_state_bind, runClient_state_maxSlabsProg,
-      runClient_state_compPackedWordsProg, prog_runClient_state_pure]
-    exact clientState_ifEqZeroProg _ _
+  · simpa only [d, computeMetaWordsProg, prog_runClient_state_bind, runClient_state_maxSlabsProg,
+      runClient_state_compPackedWordsProg, prog_runClient_state_pure] using
+      clientState_ifEqZeroProg _ _
   all_goals simp only [d, computeMetaWordsProg, prog_clientResult_bind,
     Realization.memoryCost_bind', clientResult_maxSlabsProg, memoryCost_maxSlabsProg,
     clientResult_ifEqZeroProg, memoryCost_ifEqZeroProg, clientResult_compPackedWordsProg hw,
@@ -234,8 +232,7 @@ private theorem realizesBounded_computeMetaWords :
     obtain ⟨hlogN_lt, _, _, _, _, _, _⟩ := computeLogScales_arith hN hNU hU h225
     have hgmBits_eq : Nat.log 2 N + 1 = globalPtrBits N := (clog2_succ_eq_log2_add_one hN).symm
     have htotMicro_eq : (1 <<< Nat.log 2 N) = totalMicroBuckets N := by
-      rw [Nat.shiftLeft_eq, one_mul, ← totalMicroBits_eq_log]
-      rfl
+      rw [Nat.shiftLeft_eq, one_mul, ← totalMicroBits_eq_log, ← totalMicroBuckets]
     repeat first
       | rw [hgmBits_eq] | rw [htotMicro_eq]
       | rw [clientState_maxSlabsProg] | rw [clientResult_maxSlabsProg]
@@ -267,9 +264,7 @@ private theorem realizesBounded_computeMetaWords :
            tailCapPerBucket, dirSlabsPerBucket, maxFullSlabs, numBuckets, hb0, ↓reduceIte,
            pow_zero, mul_zero, add_zero]
          exact h225.of_le (by decide)
-       · have hgm_pos : gmSlabMetaBase N + maxFullSlabs N * 4 = globalMetaLen N := by
-           simpa only [hb0, ↓reduceIte] using globalMetaLen_cond_eq N
-         exact hgmLen_fit.of_le (by omega)))
+       · simpa only [← globalMetaLen_cond_eq N, hb0, ↓reduceIte] using hgmLen_fit))
 
 /-! ## Sub-Block Writers (`SubA`..`SubE`, `writeCompScalesGmDProg`, `writeCompABProg`) -/
 

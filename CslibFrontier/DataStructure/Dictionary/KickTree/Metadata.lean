@@ -469,9 +469,7 @@ through `.branch l r`. -/
 theorem query_pruneBranch (l r : PrefixTrie α) (k : List Bool) :
     query (pruneBranch l r) k = query (.branch l r) k := by
   cases l <;> cases r <;> try rfl
-  cases k with
-  | nil => rfl
-  | cons b bs => cases b <;> rfl
+  rcases k with _ | ⟨⟨⟩, _⟩ <;> rfl
 
 /-- Delete a prefix from the prefix trie, removing the target leaf and contracting
 empty branches back to `.empty`. -/
@@ -526,10 +524,9 @@ theorem query_insert_two_distinct (v1 v2 : α) (p : List Bool) (b1 b2 : Bool) (h
     (hins1 : insert? v1 .empty (p ++ (b1 :: s1)) = some t1)
     (hins2 : insert? v2 t1 (p ++ (b2 :: s2)) = some t2) :
     query t2 (p ++ (b1 :: s1)) = some v1 ∧ query t2 (p ++ (b2 :: s2)) = some v2 := by
-  constructor
-  · rw [query_insert_of_diverge v2 p b2 b1 (Ne.symm hb) s2 s1 t1 t2 hins2]
-    exact query_insert_same v1 .empty t1 (p ++ b1 :: s1) hins1
-  · exact query_insert_same v2 t1 t2 (p ++ b2 :: s2) hins2
+  exact ⟨(query_insert_of_diverge v2 p b2 b1 hb.symm s2 s1 t1 t2 hins2).trans
+      (query_insert_same v1 .empty t1 _ hins1),
+    query_insert_same v2 t1 t2 _ hins2⟩
 
 /-- Deleting from the left branch does not alter queries routed to the right branch. -/
 theorem query_delete_branch_other_dir_false (l r : PrefixTrie α) (bs bs' : List Bool) :
@@ -602,8 +599,7 @@ theorem decode_encode (t : PrefixTrie α) :
     decode (encodeE1 t) (encodeE2 t) = some t := by
   have h := decodeHelper_encode t ((encodeE1 t).length + 1)
     (Nat.le_succ_of_le (nodeCount_le_encodeE1_length t)) [] []
-  simp only [List.append_nil] at h
-  simp [decode, h]
+  simp_all [decode]
 
 @[simp] theorem query_leaf_nil (v : α) : query (.leaf v) [] = some v := rfl
 
@@ -795,27 +791,19 @@ theorem findFree?_complete : ∀ {h : ℕ} (t : FreeSlotTree B h), Valid t →
 theorem hasFree_iff_exists_isFree : ∀ {h : ℕ} (t : FreeSlotTree B h), Valid t →
     (hasFree t = true ↔ ∃ i : ℕ, isFree t i = true)
   | 0, .leaf freeBits => fun _ => by
-    dsimp [hasFree]
-    rw [ofFn_any_id_iff]
-    constructor
-    · rintro ⟨i, hi⟩
-      exact ⟨i.val, by simp [isFree, i.isLt, hi]⟩
-    · rintro ⟨idx, hfree⟩
-      dsimp [isFree] at hfree
-      split_ifs at hfree with hlt
-      · exact ⟨⟨idx, hlt⟩, hfree⟩
+    rw [hasFree, ofFn_any_id_iff]
+    refine ⟨fun ⟨i, hi⟩ => ⟨i.val, by simp [isFree, i.isLt, hi]⟩, fun ⟨idx, hfree⟩ => ?_⟩
+    simp only [isFree] at hfree
+    split_ifs at hfree with hlt
+    exact ⟨⟨idx, hlt⟩, hfree⟩
   | h + 1, .node _ summary children => fun hv => by
-    change (List.ofFn summary).any id = true ↔ ∃ i : ℕ, isFree (.node h summary children) i = true
-    rw [ofFn_any_id_iff]
-    constructor
-    · rintro ⟨c, hc⟩
-      obtain ⟨off, hoff⟩ :=
+    rw [hasFree, ofFn_any_id_iff]
+    refine ⟨fun ⟨c, hc⟩ => ?_, fun ⟨idx, hfree⟩ => ?_⟩
+    · obtain ⟨off, hoff⟩ :=
         (hasFree_iff_exists_isFree (children c) (hv.1 c)).mp ((hv.2 c).symm.trans hc)
       exact ⟨c.val * B ^ (h + 1) + off,
         by rwa [isFree_node_mul_add summary children c (isFree_lt _ off hoff)]⟩
-    · rintro ⟨idx, hfree⟩
-      rw [isFree] at hfree
-      dsimp only at hfree
+    · simp only [isFree] at hfree
       split_ifs at hfree with h0 hc'
       exact ⟨⟨idx / B ^ (h + 1), hc'⟩,
         (hv.2 _).trans ((hasFree_iff_exists_isFree _ (hv.1 _)).mpr ⟨_, hfree⟩)⟩
@@ -828,18 +816,13 @@ theorem findFree?_complete_of_exists_isFree {h : ℕ} (t : FreeSlotTree B h) (hv
 /-- Updating a slot to `b` correctly sets the slot occupancy at `idx` across all tree heights. -/
 theorem isFree_setSlot_self : ∀ {h : ℕ} (t : FreeSlotTree B h) (b : Bool) (idx : ℕ),
     idx < B ^ (h + 1) → isFree (setSlot b idx t) idx = b
-  | 0, .leaf freeBits, b, idx, hlt => by
-    have hltB : idx < B := by simpa using hlt
-    dsimp [setSlot, isFree]
-    simp [hltB]
+  | 0, .leaf _, _, _, hlt => by simp_all [setSlot, isFree]
   | h + 1, .node _ summary children, b, idx, hlt => by
     rw [pow_succ] at hlt
     have hstride_pos : B ^ (h + 1) > 0 := Nat.pos_of_ne_zero fun h0 => by simp [h0] at hlt
     have hc : idx / B ^ (h + 1) < B := Nat.div_lt_of_lt_mul hlt
-    rw [setSlot]
-    simp only [hstride_pos, hc, ↓reduceDIte]
-    rw [isFree]
-    simp only [hstride_pos.ne', ↓reduceIte, hc, ↓reduceDIte, Function.update_self]
+    simp only [setSlot, isFree, hstride_pos, hstride_pos.ne', ↓reduceIte, hc, ↓reduceDIte,
+      Function.update_self]
     exact isFree_setSlot_self _ b _ (Nat.mod_lt _ hstride_pos)
 
 /-- Updating slot `idx` preserves the occupancy of any distinct slot `j ≠ idx`. -/

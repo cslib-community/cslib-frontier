@@ -295,11 +295,8 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
           ∃ qc : ∀ i, S i → ℝ, qc v = xv ∧ qc c.1 = u c ∧
             (∀ z ∈ hT.treeSide c.1 v, qc z ∈ allowed z) ∧
             (∀ z ∈ hT.treeSide c.1 v, M.IsApproxBestResponse ε z (qc z) (fun j => qc j.1)) := by
-        intro c
-        have hm := hlt_up c
-        have htab := hchild c
-        rcases c with ⟨c, hc_ne, rfl⟩
-        exact ((ih _ hm hc_ne rfl).mp htab).2
+        rintro ⟨c, hc_ne, rfl⟩
+        exact ((ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne rfl).mp (hchild ⟨c, hc_ne, rfl⟩)).2
       classical
       choose qc hqc_par hqc_c hqc_allow hqc_br using hchild_eq
       -- Glue `qc` across the disjoint upstream subtrees, placing `xv` at `v` and `xw` elsewhere
@@ -326,8 +323,7 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
         · rwa [hq_v]
         · obtain ⟨c₀, hc₀, hzc⟩ := mem_iUnion₂.mp hz_union
           let c : UpstreamNeighbors hT r v := ⟨c₀, (upstream_neighbor_iff hT r hv).mp hc₀⟩
-          rw [hq_on_child c hzc]
-          exact hqc_allow c z hzc
+          simpa only [hq_on_child c hzc] using hqc_allow c z hzc
       · rw [hT.treeSide_eq_insert_biUnion hadj_vp] at hz
         rcases mem_insert_iff.mp hz with rfl | hz_union
         · have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
@@ -354,11 +350,10 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
     · rintro ⟨hxw, q, hq_p, hq_v, hq_allow, hq_br⟩
       have hv_mem : v ∈ hT.treeSide v (hT.parent r v) := hT.self_mem_treeSide_of_adj hadj_vp
       refine ⟨fun c => q c.1, hxw, hq_v ▸ hq_allow v hv_mem, fun c => ?_, ?_⟩
-      · have hm := hlt_up c
-        have hsub := hsub_up c
+      · have hsub := hsub_up c
         rcases c with ⟨c, hc_ne, rfl⟩
-        exact (ih _ hm hc_ne rfl).mpr ⟨hq_v ▸ hq_allow _ hv_mem, q, hq_v, rfl,
-          fun z hz => hq_allow z (hsub hz), fun z hz => hq_br z (hsub hz)⟩
+        exact (ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne rfl).mpr ⟨hq_v ▸ hq_allow _ hv_mem, q, hq_v,
+          rfl, fun z hz => hq_allow z (hsub hz), fun z hz => hq_br z (hsub hz)⟩
       · simpa only [← hq_p, assembleNeighbors_restrict, ← hq_v] using hq_br v hv_mem
 
 /-- **Root table characterization** ([Kearns2007], §7.3, p. 166): `rootPassTable` accepts `xr` iff
@@ -510,8 +505,7 @@ noncomputable def treePassUpstream {M : GraphicalGame ι S} (hT : M.graph.IsTree
     {allowed : ∀ i, Set (S i → ℝ)} {ε : ℝ} {xr : S r → ℝ}
     (hroot : rootPassTable M hT r allowed ε xr) :
     treePassUpstream hT hroot r = xr := by
-  unfold treePassUpstream
-  rw [treePassNode]
+  rw [treePassUpstream, treePassNode]
   simp
 
 theorem isTreePassOutput_treePassUpstream {M : GraphicalGame ι S} (hT : M.graph.IsTree) {r : ι}
@@ -521,11 +515,9 @@ theorem isTreePassOutput_treePassUpstream {M : GraphicalGame ι S} (hT : M.graph
   have hwit_fun : ∀ i : ι,
       (fun c : UpstreamNeighbors hT r i => treePassUpstream hT hroot c.1) =
         (treePassNode hT hroot i).witness := fun i => funext fun ⟨c, hc_ne, hc_par⟩ => by
-    unfold treePassUpstream
-    conv_lhs => rw [treePassNode]
+    subst hc_par
+    rw [treePassUpstream, treePassNode]
     simp only [hc_ne, ↓reduceDIte]
-    cases hc_par
-    rfl
   refine ⟨?_, fun v hv => ?_⟩
   · rw [treePassUpstream_root, hwit_fun r, treePassNode]
     simp only [↓reduceDIte, NodeChoice.ofEq_rfl]
@@ -576,9 +568,8 @@ theorem exists_treeNashRootTable (M : GraphicalGame ι S) (hT : M.graph.IsTree) 
     [∀ i, Nonempty (S i)] :
     ∃ xr, M.treeNashRootTable hT r xr := by
   obtain ⟨p, hp⟩ := M.toCostGame.exists_isMixedNash
-  refine ⟨p r, ?_⟩
-  rw [treeNashRootTable, rootPassTable_iff_exists_isApproxNash]
-  exact ⟨p, rfl, hp.1, M.isApproxNash_zero_iff.mpr hp⟩
+  exact ⟨p r, rootPassTable_iff_exists_isApproxNash.mpr
+    ⟨p, rfl, hp.1, M.isApproxNash_zero_iff.mpr hp⟩⟩
 
 /-- Algorithm **`TreeNash`** ([Kearns2007], Figure 7.1 & Theorem 7.3, pp. 165–166): computes an
 exact mixed Nash equilibrium of a finite tree graphical game by running the downstream table pass to

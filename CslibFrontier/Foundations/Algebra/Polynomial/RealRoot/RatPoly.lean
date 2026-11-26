@@ -96,9 +96,8 @@ private theorem sturmSeqAux_spec : ∀ (n : ℕ) (p q : List ℚ),
   | succ n ih =>
     intro p q hp hp0 hq hqn
     by_cases hqe : q.isEmpty = true
-    · have hnil : q = [] := List.isEmpty_iff.mp hqe
-      subst hnil
-      simpa only [sturmSeqAux, hqe, ↓reduceIte, List.length_nil] using base hp hp0
+    · obtain rfl := List.isEmpty_iff.mp hqe
+      simpa only [sturmSeqAux, List.isEmpty_nil, ↓reduceIte, List.length_nil] using base hp hp0
     · have hq0 : q ≠ [] := fun hnil => hqe (List.isEmpty_iff.mpr hnil)
       have hr_len_q : (CoeffList.negMod p q).length < q.length :=
         (CoeffList.length_negMod_lt (hq.ofCoeffList_ne_zero hq0)).trans_le
@@ -174,9 +173,8 @@ theorem sturmVariationsList_eq_sturmVariations (cs : List ℚ) (x : ℚ) :
       (sturmSeqList cs).map ((eval (x : ℝ) ∘ Polynomial.map (algebraMap ℚ ℝ)) ∘ ofCoeffList) := by
     rw [List.map_map]
     refine List.map_congr_left fun g _ => ?_
-    change _ = eval ((algebraMap ℚ ℝ) x) ((ofCoeffList g).map (algebraMap ℚ ℝ))
-    rw [Polynomial.eval_map, Polynomial.eval₂_hom, eval_ofCoeffList]
-    rfl
+    simpa only [Function.comp_apply, Polynomial.eval_map, eval_ofCoeffList, eq_ratCast] using
+      (Polynomial.eval₂_hom (p := ofCoeffList g) (algebraMap ℚ ℝ) x).symm
   rw [← hlist, sturmVariationsList]
   refine (List.signVariations_map (fun q => ?_) _).symm
   change SignType.sign (q : ℝ) = SignType.sign q
@@ -234,9 +232,8 @@ theorem abs_lt_cauchyBoundNat_of_isRoot {cs : List ℚ} (hcs : ofCoeffList cs �
   have ht : CoeffList.IsTrimmed t := CoeffList.isTrimmed_trim cs
   have ht0 : ofCoeffList t ≠ 0 := (CoeffList.ofCoeffList_trim cs).symm ▸ hcs
   have htnil : t ≠ [] := mt (CoeffList.trim_eq_nil_iff cs).mp hcs
-  have hdeg : t.length = (ofCoeffList t).natDegree + 1 := by
-    rw [CoeffList.ofCoeffList_trim]
-    exact CoeffList.length_trim_eq_natDegree_add_one hcs
+  have hdeg : t.length = (ofCoeffList t).natDegree + 1 :=
+    CoeffList.ofCoeffList_trim cs ▸ CoeffList.length_trim_eq_natDegree_add_one hcs
   have hr' : ((ofCoeffList t).map (algebraMap ℚ ℝ)).IsRoot r :=
     (CoeffList.ofCoeffList_trim cs).symm ▸ hr
   dsimp only [cauchyBoundNat]
@@ -278,9 +275,7 @@ theorem abs_lt_cauchyBoundNat_of_isRoot {cs : List ℚ} (hcs : ofCoeffList cs �
 theorem one_le_lcmDens (cs : List ℚ) : 1 ≤ lcmDens cs := by
   induction cs with
   | nil => simp only [lcmDens, le_refl]
-  | cons q qs ih =>
-    simp only [lcmDens]
-    exact Nat.pos_of_ne_zero (Nat.lcm_ne_zero (Rat.den_nz q) (by omega))
+  | cons q qs ih => exact Nat.pos_of_ne_zero (Nat.lcm_ne_zero (Rat.den_nz q) (by omega))
 
 /-- Every element's denominator divides `lcmDens cs`. -/
 theorem dvd_lcmDens {cs : List ℚ} {q : ℚ} (hq : q ∈ cs) : q.den ∣ lcmDens cs := by
@@ -308,8 +303,7 @@ private theorem ofCoeffList_clearDenoms_aux (D : ℕ) (cs : List ℚ)
     simp only [List.map_cons, ofCoeffList_cons, Polynomial.map_add, Polynomial.map_C,
       Polynomial.map_mul, Polynomial.map_X]
     have hcast_div : ((D / q.den : ℕ) : ℚ) = (D : ℚ) / (q.den : ℚ) := by
-      have hd_pos : (q.den : ℚ) ≠ 0 := by exact_mod_cast Rat.den_nz q
-      rw [eq_div_iff hd_pos]
+      rw [eq_div_iff (by exact_mod_cast Rat.den_nz q)]
       exact_mod_cast Nat.div_mul_cancel (hD q List.mem_cons_self)
     have hterm : ((q.num * ((D / q.den : ℕ) : ℤ) : ℤ) : ℚ) = (D : ℚ) * q := by
       rw [Int.cast_mul, Int.cast_natCast, hcast_div, mul_div_assoc',
@@ -352,9 +346,8 @@ theorem coeffSqNorm_ofCoeffList_le (ns : List ℤ) :
   by_cases h0 : ofCoeffList ns = 0
   · simp only [h0, natDegree_zero, zero_add, Finset.range_one, Finset.sum_singleton, coeff_zero,
       Int.natAbs_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, Nat.zero_le]
-  · have hne : ns ≠ [] := fun hnil => h0 (by rw [hnil, ofCoeffList_nil])
-    have := natDegree_ofCoeffList_le ns
-    have := List.length_pos_of_ne_nil hne
+  · have := natDegree_ofCoeffList_le ns
+    have := List.length_pos_of_ne_nil (l := ns) fun hnil => h0 (by rw [hnil, ofCoeffList_nil])
     exact (Finset.sum_le_sum_of_subset (Finset.range_mono (by omega))).trans_eq
       (Finset.sum_congr rfl fun i _ => by rw [coeff_ofCoeffList])
 
