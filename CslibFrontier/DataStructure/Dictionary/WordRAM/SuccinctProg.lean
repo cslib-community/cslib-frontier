@@ -642,15 +642,13 @@ theorem slabSize_le_max_n_one (n_max : ℕ) : slabSize n_max ≤ max n_max 1 := 
 
 theorem dirSlabsPerBucket_le_globalMetaLen {n_max : ℕ} (hb : 0 < bucketBits n_max) :
     dirSlabsPerBucket n_max ≤ globalMetaLen n_max := by
-  rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase
+  rw [← gmSlabMetaBase_add_eq_globalMetaLen hb, gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase]
   have := Nat.le_mul_of_pos_left (dirSlabsPerBucket n_max) (numBuckets_pos n_max)
   omega
 
 theorem tailCapPerBucket_le_globalMetaLen {n_max : ℕ} (hb : 0 < bucketBits n_max) :
     tailCapPerBucket n_max ≤ globalMetaLen n_max := by
-  rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabMetaBase gmTailOwnerBase maxTailItems
+  rw [← gmSlabMetaBase_add_eq_globalMetaLen hb, gmSlabMetaBase, gmTailOwnerBase, maxTailItems]
   have := Nat.le_mul_of_pos_left (tailCapPerBucket n_max) (numBuckets_pos n_max)
   omega
 
@@ -862,8 +860,7 @@ theorem realizes_resolveIndexedSlotGen :
     simp only [bCount, ‹¬bucketBits n_max = 0›, ↓reduceIte, hb, gmQIdx] at hbc
     exact fits_of_le_max_n_one hdict hw hnU hU (by omega)
   · exact Nat.ne_of_gt (slabSize_pos n_max)
-  · have : d.2 % slabSize n_max < slabSize n_max := Nat.mod_lt d.2 (slabSize_pos n_max)
-    omega
+  · exact Nat.le_sub_one_of_lt (Nat.mod_lt d.2 (slabSize_pos n_max))
   · exact resolveIndexedSlot_slab_fit hw hnU hU hb_pos d s hdict hinv hb hj_cap hc
   · omega
   · exact resolveIndexedSlot_tail_le hb_pos d s hinv hb hj_bc hc
@@ -1014,20 +1011,18 @@ theorem writeLMProg_effect {U V w n_max h_space c base idx val : ℕ}
       Function.update (lmAt base U V w n_max h_space s.mem) (c, idx) val ∧
     gmAt base U V w n_max h_space s'.mem = gmAt base U V w n_max h_space s.mem := by
   intro s'
-  have hmem : s'.mem = writePacked (base + offLMSub U V w n_max h_space c)
-      (effBucketPosBits n_max) w s.mem idx val := rfl
   have hw_out := writePacked_writeOutside (base := base + offLMSub U V w n_max h_space c)
     (k := effBucketPosBits n_max) (val := val) hw hidx_lt (lo := base + offLM U V w n_max h_space)
     (hi := base + offGM U V w n_max h_space) (by wram_omega) (by stride_omega) s.mem
   have hlm : lmAt base U V w n_max h_space s'.mem =
       Function.update (lmAt base U V w n_max h_space s.mem) (c, idx) val := by
     funext ⟨c', j⟩
-    unfold lmAt
-    rw [hmem]
+    change lmAt base U V w n_max h_space (writePacked (base + offLMSub U V w n_max h_space c)
+      (effBucketPosBits n_max) w s.mem idx val) (c', j) = _
     rcases eq_or_ne (c', j) (c, idx) with hp_eq | hp_eq
     · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hp_eq
-      simp [hc, hidx_lt, readPacked_writePacked_self _ _ _ _ _ hval_lt]
-    · rw [Function.update_of_ne hp_eq]
+      simp [lmAt, hc, hidx_lt, readPacked_writePacked_self _ _ _ _ _ hval_lt]
+    · rw [Function.update_of_ne hp_eq, lmAt, lmAt]
       split_ifs with hp_lt
       · rcases eq_or_ne c' c with rfl | hc_eq
         · exact readPacked_writePacked_of_ne hw s.mem (fun h => hp_eq (congrArg _ h)) _

@@ -103,11 +103,11 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
       (D_det := D_det) fun ℓ hℓ b hb => by
         obtain ⟨_, hF_lo, hF_hi, hR_out, hR_in⟩ := hlevels ℓ hℓ
         have hℓ_ge : 1 ≤ ℓ := (Finset.mem_Ico.mp hℓ).1
-        have hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (T.blockSize ℓ : ℝ) :=
-          hm_lo_1.trans (by exact_mod_cast T.blockSize_strictMono.monotone hℓ_ge)
-        have ht_stop : T.nodeStop (ℓ + 1) b ≤ n :=
-          (T.nodeStop_le_horizon hb).trans_eq (iterLogMetaTree_horizon n k' c_tree)
-        exact hnode hspace_R T ht_pos hℓ_ge ht_stop hF_lo h11_logU ht_hi hm_lo hF_hi hR_out hR_in
+        exact hnode hspace_R T ht_pos hℓ_ge
+          ((T.nodeStop_le_horizon hb).trans_eq (iterLogMetaTree_horizon n k' c_tree))
+          hF_lo h11_logU ht_hi
+          (hm_lo_1.trans (by exact_mod_cast T.blockSize_strictMono.monotone hℓ_ge))
+          hF_hi hR_out hR_in
     refine (?_ : c * (n : ℝ) * (k : ℝ) ≤ ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ)).trans htree
     calc c * (n : ℝ) * (k : ℝ)
         ≤ (γ / 1600) * (n : ℝ) * (k : ℝ) := by gcongr
@@ -128,8 +128,7 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
 private theorem fanout_geomMetaTree_of_two_le (n m₁_half : ℕ) {ℓ : ℕ} (hℓ : 2 ≤ ℓ) :
     (geomMetaTree n m₁_half).fanout ℓ = 2 ^ 64 := by
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hℓ
-  rw [Nat.add_comm 2 d, geomMetaTree_fanout]
-  rfl
+  rw [Nat.add_comm 2 d, geomMetaTree_fanout]; rfl
 
 private theorem height_geomMetaTree_le_logb {n : ℕ} (hn : 2 ≤ n) (m₁_half : ℕ) :
     ((geomMetaTree n m₁_half).height : ℝ) ≤ Real.logb 2 n := by
@@ -137,7 +136,7 @@ private theorem height_geomMetaTree_le_logb {n : ℕ} (hn : 2 ≤ n) (m₁_half 
   set H := T.height
   rcases Nat.eq_zero_or_pos H with h0 | hpos
   · rw [h0, Nat.cast_zero]
-    exact Real.logb_nonneg (by norm_num) (by exact_mod_cast (show 1 ≤ n by omega))
+    exact Real.logb_nonneg (by norm_num) (by exact_mod_cast Nat.le_of_succ_le hn)
   · have hb : T.blockSize H ≤ n :=
       ((le_height_geomMetaTree_iff hn m₁_half H).mp le_rfl).trans (Nat.div_le_self n 2)
     exact real_le_logb_of_two_pow_le ((T.two_pow_le_blockSize H).trans hb)
@@ -156,11 +155,10 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
           ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ) := by
   generalize hM_exp : max (Nat.ceil (2 * ((2 ^ 64 : ℕ) : ℝ) / γ)) (Nat.ceil (11 / γ)) = M_exp
   have hM_fan : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * (M_exp : ℝ) := by
-    have h1 : 2 * ((2 ^ 64 : ℕ) : ℝ) / γ ≤ (M_exp : ℝ) :=
-      (Nat.le_ceil _).trans (by rw [← hM_exp]; exact_mod_cast _root_.le_max_left _ _)
-    rw [div_le_iff₀ hγ] at h1
-    generalize ((2 ^ 64 : ℕ) : ℝ) = A at h1 ⊢
-    linarith
+    have h1 : 2 * ((2 ^ 64 : ℕ) : ℝ) ≤ (M_exp : ℝ) * γ :=
+      (div_le_iff₀ hγ).mp ((Nat.le_ceil _).trans
+        (Nat.cast_le.mpr (hM_exp ▸ _root_.le_max_left _ _)))
+    exact le_of_mul_le_mul_left (h1.trans_eq (by ring)) two_pos
   have hM11 : 11 / γ ≤ (M_exp : ℝ) :=
     (Nat.le_ceil _).trans (by rw [← hM_exp]; exact_mod_cast _root_.le_max_right _ _)
   clear hM_exp
@@ -201,11 +199,9 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
   set T := geomMetaTree n m₁_half
   set H := T.height
   have hlog_H : Real.logb 2 ((n : ℝ) / R₁) ≤ (2 / γ) * (3 + 64 * (H : ℝ)) := by
-    have hlt_nat := lt_mul_pow_height_geomMetaTree n m₁_half
-    rw [max_eq_right hm₁_pos] at hlt_nat
+    have hlt_nat := max_eq_right hm₁_pos ▸ lt_mul_pow_height_geomMetaTree n m₁_half
     have hpow_eq : (8 : ℝ) * (((2 ^ 64 : ℕ) : ℝ) ^ H) = (2 : ℝ) ^ (3 + 64 * H) := by
-      rw [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul, pow_add]
-      ring
+      rw [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul, pow_add]; ring
     have hle_max : (n : ℝ) ≤ max R₁ ((n : ℝ) ^ (1 - γ / 2)) * (2 : ℝ) ^ (3 + 64 * H) :=
       calc (n : ℝ) ≤ 4 * (m₁_half : ℝ) * ((2 ^ 64 : ℕ) : ℝ) ^ H := by exact_mod_cast hlt_nat.le
         _ ≤ 4 * (2 * max R₁ ((n : ℝ) ^ (1 - γ / 2))) * (((2 ^ 64 : ℕ) : ℝ) ^ H) := by gcongr
@@ -246,9 +242,8 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
     have ht_hi : 6 * t ≤ γ * Real.logb 2 U := probeThresh_le_gamma_logb hγ.le hH_logU
     have hspace_R1 : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R₁ := hspace.trans (by linarith)
     have hb1_ge : 2 * (m₁_half : ℝ) ≤ (T.blockSize 1 : ℝ) := by
-      have hb1 := blockSize_geomMetaTree n m₁_half le_rfl
-      rw [Nat.sub_self, pow_zero, mul_one, max_eq_right hm₁_pos] at hb1
-      exact_mod_cast hb1.symm.le
+      simpa [T, max_eq_right hm₁_pos] using
+        Nat.cast_le (α := ℝ).mpr (blockSize_geomMetaTree n m₁_half le_rfl).symm.le
     have htree := det_expectedSeqProbes_ge_of_outer_tree withQueries hU hV T
       (geomMetaTree_horizon n m₁_half) hH_ge
       (fun ℓ hℓ => (le_height_geomMetaTree_iff hn m₁_half (ℓ + 1)).mp (Finset.mem_Ico.mp hℓ).2)

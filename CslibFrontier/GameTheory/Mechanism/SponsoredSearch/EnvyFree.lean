@@ -106,9 +106,7 @@ theorem slotAlloc_apply_slot [DecidableEq ι] (μ : Fin k → ℝ) (σ : Fin k �
 /-- An unassigned bidder `j ∉ Set.range σ` receives click-through rate `0`. -/
 theorem slotAlloc_of_not_mem_range [DecidableEq ι] (μ : Fin k → ℝ) (σ : Fin k ↪ ι) {j : ι}
     (hj : j ∉ Set.range σ) : slotAlloc μ σ j = 0 :=
-  Finset.sum_eq_zero fun i _ => by
-    have hne : σ i ≠ j := fun h => hj ⟨i, h⟩
-    simp only [hne, ↓reduceIte]
+  Finset.sum_eq_zero fun i _ => ite_eq_right fun h => hj ⟨i, h⟩
 
 private theorem slotAlloc_nonneg [DecidableEq ι] {μ : Fin k → ℝ} (hμ : ∀ i, 0 ≤ μ i)
     (σ : Fin k ↪ ι) (j : ι) : 0 ≤ slotAlloc μ σ j :=
@@ -143,11 +141,8 @@ structure IsAssortative (v : ι → ℝ) (σ : Fin k ↪ ι) : Prop where
 private theorem antitone_fin_of_succ {f : Fin k → ℝ}
     (h : ∀ (i : ℕ) (hi : i + 1 < k), f ⟨i + 1, hi⟩ ≤ f ⟨i, by omega⟩) : Antitone f := by
   intro a b hab
-  have hdiff : ∀ d (ha : a.val + d < k), f ⟨a.val + d, ha⟩ ≤ f a := by
-    intro d
-    induction d with
-    | zero => intro ha; exact le_of_eq (by congr 1)
-    | succ n ih => intro ha; exact (h (a.val + n) ha).trans (ih (by omega))
+  have hdiff (d : ℕ) : ∀ ha : a.val + d < k, f ⟨a.val + d, ha⟩ ≤ f a :=
+    Nat.rec (fun _ => le_rfl) (fun n ih ha => (h (a.val + n) ha).trans (ih (by omega))) d
   simpa [Fin.ext_iff, Nat.add_sub_of_le hab] using hdiff (b.val - a.val) (by omega)
 
 private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
@@ -204,8 +199,7 @@ theorem IsAssortative.isOptimal [Finite ι] {μ : Fin k → ℝ} {v : ι → ℝ
         = welfare μ (v ∘ π) σ := sum_slotAlloc_mul μ (v ∘ π) σ
       _ = welfare μ v τ := Finset.sum_congr rfl fun i _ => by
           simp only [Function.comp_apply, hπ i]
-  rw [hlhs, sum_slotAlloc_mul] at hrearr
-  exact hrearr
+  rwa [hlhs, sum_slotAlloc_mul] at hrearr
 
 /-- Under strictly decreasing positive CTRs, every optimal assignment is assortative. -/
 theorem IsOptimal.isAssortative {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin k ↪ ι}
@@ -372,15 +366,11 @@ private theorem fin_rev_induction {P : Fin k → Prop} (hk : 0 < k)
     (hlast : P ⟨k - 1, by omega⟩)
     (hstep : ∀ (i : ℕ) (hi : i + 1 < k), P ⟨i + 1, hi⟩ → P ⟨i, by omega⟩)
     (r : Fin k) : P r := by
-  have hdown : ∀ d (hd : d < k), P ⟨k - 1 - d, by omega⟩ := by
-    intro d
-    induction d with
-    | zero => intro _; exact hlast
-    | succ n ih =>
-      intro hd
-      have hfinEq : (⟨k - 1 - (n + 1) + 1, by omega⟩ : Fin k) = ⟨k - 1 - n, by omega⟩ := by
-        apply Fin.ext; dsimp; omega
-      exact hstep (k - 1 - (n + 1)) (by omega) (hfinEq.symm ▸ ih (by omega))
+  have hdown (d : ℕ) : ∀ hd : d < k, P ⟨k - 1 - d, by omega⟩ :=
+    Nat.rec (fun _ => hlast) (fun n ih hd =>
+      have hfinEq : (⟨k - 1 - (n + 1) + 1, by omega⟩ : Fin k) = ⟨k - 1 - n, by omega⟩ :=
+        Fin.ext (by dsimp; omega)
+      hstep (k - 1 - (n + 1)) (by omega) (hfinEq.symm ▸ ih (by omega))) d
   simpa [Fin.ext_iff, Nat.sub_sub_self (Nat.le_sub_one_of_lt r.isLt)] using
     hdown (k - 1 - r.val) (by omega)
 
@@ -422,9 +412,7 @@ theorem maxUnassignedValue_nonneg [Fintype ι] [DecidableEq ι] {v : ι → ℝ}
     (σ : Fin k ↪ ι) : 0 ≤ maxUnassignedValue v σ := by
   unfold maxUnassignedValue
   split_ifs with h
-  · obtain ⟨j, hj⟩ := h
-    exact (hv j).trans (Finset.le_sup' v hj)
-  · exact le_rfl
+  exacts [h.elim fun j hj => (hv j).trans (Finset.le_sup' v hj), le_rfl]
 
 /-- Upper bound for `maxUnassignedValue v σ` by splitting on whether an unassigned bidder
 exists. -/
@@ -434,8 +422,7 @@ theorem maxUnassignedValue_le [Fintype ι] [DecidableEq ι] {v : ι → ℝ} {σ
     maxUnassignedValue v σ ≤ c := by
   unfold maxUnassignedValue
   split_ifs with h
-  · exact Finset.sup'_le h v fun j hj => hc0 h j ((mem_unassigned_iff σ j).mp hj)
-  · exact hcEmpty h
+  exacts [Finset.sup'_le h v fun j hj => hc0 h j ((mem_unassigned_iff σ j).mp hj), hcEmpty h]
 
 /-- `maxUnassignedValue` depends only on the values of unassigned bidders. -/
 theorem maxUnassignedValue_congr [Fintype ι] [DecidableEq ι] {v₁ v₂ : ι → ℝ} {σ : Fin k ↪ ι}
@@ -443,8 +430,7 @@ theorem maxUnassignedValue_congr [Fintype ι] [DecidableEq ι] {v₁ v₂ : ι �
     maxUnassignedValue v₁ σ = maxUnassignedValue v₂ σ := by
   unfold maxUnassignedValue
   split_ifs with hne
-  · exact Finset.sup'_congr hne rfl fun j hj => h j ((mem_unassigned_iff σ j).mp hj)
-  · rfl
+  exacts [Finset.sup'_congr hne rfl fun j hj => h j ((mem_unassigned_iff σ j).mp hj), rfl]
 
 /-- The value directly below slot `i : Fin k` under assignment `σ`: `v (σ (i + 1))` when
 `i.val + 1 < k`, and the fallback `base` at the last slot `i = k - 1`. -/
@@ -602,12 +588,12 @@ theorem isOptimal_iff_exists_isLocallyEnvyFree [Finite ι] {μ : Fin k → ℝ}
       (fun i => (hμ_pos i).le) (fun hk => ?_) (fun j hj => ?_)⟩
     · dsimp only [base]
       split_ifs with hne
-      · exact Finset.sup'_le hne v fun j hj => hσ.unassigned_le _ j ((mem_unassigned_iff σ j).mp hj)
-      · exact le_rfl
+      exacts [Finset.sup'_le hne v fun j hj =>
+        hσ.unassigned_le _ j ((mem_unassigned_iff σ j).mp hj), le_rfl]
     · have hmem := (mem_unassigned_iff σ j).mpr hj
       have hne : (Finset.univ \ Finset.univ.map σ).Nonempty := ⟨j, hmem⟩
       simpa only [base, hne, ↓reduceDIte] using Finset.le_sup' v hmem
-  · rintro ⟨p, hlef⟩
-    exact (hlef.isAssortative hμ hμ_pos).isOptimal hμ.antitone fun i => (hμ_pos i).le
+  · exact fun ⟨_, hlef⟩ =>
+      (hlef.isAssortative hμ hμ_pos).isOptimal hμ.antitone fun i => (hμ_pos i).le
 
 end Cslib.GameTheory.SponsoredSearch

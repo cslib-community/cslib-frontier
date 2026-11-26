@@ -182,9 +182,8 @@ section Definitions
     diffMatrix i x y = if x i ≠ y i then 1 else 0 :=
   rfl
 
-theorem diffMatrix_transpose (i : Fin N) : (diffMatrix i)ᵀ = diffMatrix i := by
-  ext x y
-  simp [ne_comm]
+theorem diffMatrix_transpose (i : Fin N) : (diffMatrix i)ᵀ = diffMatrix i :=
+  Matrix.ext fun _ _ => by simp [ne_comm]
 
 /-- Maximum coordinate-masked operator norm `max_{i < N} ‖Γ ∘ Dᵢ‖` (`0` when `N = 0`). -/
 noncomputable def maxDiffNorm (Γ : Matrix (BitString N) (BitString N) ℝ) : ℝ :=
@@ -363,8 +362,7 @@ private theorem advForm_step_eq (Γ : Matrix (BitString N) (BitString N) ℝ)
     rw [(U (t + 1)).inner_map_map, inner_phaseOracle_phaseOracle, ← map_sub, sub_sub_cancel, hre2,
       map_sum, Finset.sum_filter]
     refine congrArg (2 * ·) (sum_congr rfl fun i _ => ?_)
-    simp only [diffMatrix_apply, ne_eq]
-    split_ifs <;> simp only [one_mul, zero_mul]
+    by_cases h : x i ≠ y i <;> simp [h]
   simp only [advForm, ← sum_sub_distrib, ← mul_sub, hdiff, mul_sum]
   conv_lhs => enter [2, x]; rw [Finset.sum_comm]
   rw [Finset.sum_comm]
@@ -703,8 +701,8 @@ theorem one_sub_mul_spectralAdversary_le_of_inner {α : Type*} {P : BitString N 
   · exact (mul_nonpos_of_nonpos_of_nonneg hc0 (spectralAdversary_nonneg P f)).trans (by positivity)
   · rw [← le_div_iff₀' hcpos]
     refine (spectralAdversary_le_iff (by positivity)).2 fun Γ _ hnonneg hΓ => ?_
-    rw [div_mul_eq_mul_div, le_div_iff₀' hcpos]
-    exact one_sub_mul_opNorm_le_spectral hnonneg hΓ U hψ₀ T hδ
+    simpa only [div_mul_eq_mul_div, le_div_iff₀' hcpos] using
+      one_sub_mul_opNorm_le_spectral hnonneg hΓ U hψ₀ T hδ
 
 /-- **Nonnegative spectral adversary lower bound `ADV(f)`** for finite-output algorithms with
 error probability at most `ε ≤ 1/2`: `(1 - 2√(ε(1-ε))) ADV(f) ≤ 2 T`. -/
@@ -778,10 +776,8 @@ private noncomputable def wsMatrix (S : WeightScheme N) : Matrix (BitString N) (
   Matrix.of fun x y =>
     (wsRaw S x y + wsRaw S y x) / (√(S.wtFst x + S.wtSnd x) * √(S.wtFst y + S.wtSnd y))
 
-private theorem wsMatrix_isSymm (S : WeightScheme N) : (wsMatrix S).IsSymm := by
-  ext x y
-  simp only [Matrix.transpose_apply, wsMatrix, Matrix.of_apply]
-  ring
+private theorem wsMatrix_isSymm (S : WeightScheme N) : (wsMatrix S).IsSymm :=
+  Matrix.ext fun _ _ => by simp only [Matrix.transpose_apply, wsMatrix, Matrix.of_apply]; ring
 
 private theorem wsMatrix_nonneg (S : WeightScheme N) (x y : BitString N) : 0 ≤ wsMatrix S x y := by
   classical
@@ -849,10 +845,9 @@ private theorem wsMatrix_opNorm_ge_one (S : WeightScheme N) (hW : 0 < S.weightSu
       fun _ _ => mem_univ _
   have hW2 : 0 ≤ 2 * S.weightSum := by positivity
   have hw₀ : ‖w₀‖ = 1 := (pow_eq_one_iff_of_nonneg (norm_nonneg w₀) two_ne_zero).1 <| by
-    rw [EuclideanSpace.real_norm_sq_eq]
-    dsimp only [w₀, z]
-    simp_rw [div_pow, Real.sq_sqrt (add_nonneg (S.wtFst_nonneg _) (S.wtSnd_nonneg _)),
-      Real.sq_sqrt hW2, ← sum_div, sum_add_distrib, hfst, hsnd, ← two_mul]
+    simp only [EuclideanSpace.real_norm_sq_eq, w₀, z, div_pow,
+      Real.sq_sqrt (add_nonneg (S.wtFst_nonneg _) (S.wtSnd_nonneg _)), Real.sq_sqrt hW2,
+      ← sum_div, sum_add_distrib, hfst, hsnd, ← two_mul]
     exact div_self (by positivity)
   have hA_sum : ∑ x, ∑ y, wsRaw S x y = S.weightSum := by
     simpa only [mul_one, WeightScheme.weightSum] using sum_wsRaw_mul S fun _ _ => 1
@@ -960,12 +955,9 @@ private theorem wsMatrix_pair_bound (S : WeightScheme N) (i : Fin N)
     (by positivity) (by positivity) hsq
   have h2 := two_mul_mul_le_of_sq_le_mul (abs_nonneg (b.ofLp p.1)) (abs_nonneg (a.ofLp p.2))
     (by positivity) (by positivity) hsq
-  simp only [sq_abs] at h1 h2
-  have hsum : (a.ofLp p.1 ^ 2 + b.ofLp p.1 ^ 2) * (c * S.u p i) / (S.wtFst p.1 + S.wtSnd p.1) +
-      (a.ofLp p.2 ^ 2 + b.ofLp p.2 ^ 2) * (S.v p i / c) / (S.wtFst p.2 + S.wtSnd p.2) =
-      (u' * a.ofLp p.1 ^ 2 + v' * b.ofLp p.2 ^ 2) +
-        (u' * b.ofLp p.1 ^ 2 + v' * a.ofLp p.2 ^ 2) := by
-    dsimp only [u', v']; ring
+  simp only [sq_abs, u', v'] at h1 h2
+  rw [mul_div_assoc (_ + _), mul_div_assoc (_ + _), add_mul, add_mul, mul_comm (a.ofLp p.1 ^ 2),
+    mul_comm (b.ofLp p.1 ^ 2), mul_comm (a.ofLp p.2 ^ 2), mul_comm (b.ofLp p.2 ^ 2)]
   linarith
 
 private theorem wsMatrix_maxDiffNorm_le (S : WeightScheme N) {vA vB : ℝ}
@@ -1104,9 +1096,9 @@ theorem spectralAdversary_le_div_of_hammingDist_ge {α : Type*} {P : BitString N
     (hk : ∀ x y, P x → P y → f x ≠ f y → k ≤ #{i : Fin N | x i ≠ y i}) :
     spectralAdversary P f ≤ (N : ℝ) / k := by
   refine (spectralAdversary_le_iff (by positivity)).2 fun Γ _ hnonneg hΓ => ?_
-  rw [div_mul_eq_mul_div, le_div_iff₀' (Nat.cast_pos.2 hk0)]
-  exact mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge hnonneg fun x y hxy =>
-    hk x y (hΓ x y hxy).1 (hΓ x y hxy).2.1 (hΓ x y hxy).2.2
+  simpa only [div_mul_eq_mul_div, le_div_iff₀' (Nat.cast_pos (α := ℝ).2 hk0)] using
+    mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge hnonneg fun x y hxy =>
+      hk x y (hΓ x y hxy).1 (hΓ x y hxy).2.1 (hΓ x y hxy).2.2
 
 end HierarchyAndBarriers
 

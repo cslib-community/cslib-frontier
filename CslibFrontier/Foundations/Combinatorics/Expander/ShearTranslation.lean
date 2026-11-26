@@ -121,21 +121,17 @@ private theorem sum_norm_sub_sq_pow_le (f : α → ℂ) (σ : Equiv.Perm α) (m 
         refine sum_le_sum fun v _ ↦ ?_
         rw [htel]
         calc ‖∑ j ∈ range m, (f (σ ((σ ^ j) v)) - f ((σ ^ j) v))‖ ^ 2
-            ≤ (∑ j ∈ range m, ‖f (σ ((σ ^ j) v)) - f ((σ ^ j) v)‖) ^ 2 := by
-              gcongr
-              exact norm_sum_le _ _
+            ≤ (∑ j ∈ range m, ‖f (σ ((σ ^ j) v)) - f ((σ ^ j) v)‖) ^ 2 :=
+              pow_le_pow_left₀ (norm_nonneg _) (norm_sum_le _ _) 2
           _ ≤ _ := by
               simpa using sq_sum_le_card_mul_sum_sq (s := range m)
                 (f := fun j ↦ ‖f (σ ((σ ^ j) v)) - f ((σ ^ j) v)‖)
     _ = m * ∑ j ∈ range m, ∑ v, ‖f (σ ((σ ^ j) v)) - f ((σ ^ j) v)‖ ^ 2 := by
         rw [← mul_sum, sum_comm]
-    _ = m * ∑ _j ∈ range m, ∑ v, ‖f (σ v) - f v‖ ^ 2 := by
-        congr 1
-        exact sum_congr rfl fun j _ ↦
-          Equiv.sum_comp (σ ^ j) (fun v ↦ ‖f (σ v) - f v‖ ^ 2)
-    _ = _ := by
-        rw [sum_const, card_range, nsmul_eq_mul]
-        ring
+    _ = m * ∑ _j ∈ range m, ∑ v, ‖f (σ v) - f v‖ ^ 2 :=
+        congrArg ((m : ℝ) * ·) (sum_congr rfl fun j _ ↦
+          Equiv.sum_comp (σ ^ j) (fun v ↦ ‖f (σ v) - f v‖ ^ 2))
+    _ = _ := by rw [sum_const, card_range, nsmul_eq_mul]; ring
 
 /-- The squared change of `f` along `σ⁻¹` equals that along `σ`. -/
 private theorem sum_norm_sub_sq_symm (f : α → ℂ) (σ : Equiv.Perm α) :
@@ -149,7 +145,7 @@ private theorem sum_norm_sub_sq_pow_four_le (f : α → ℂ) (σ : Equiv.Perm α
     ∑ v, ‖f ((σ ^ 4) v) - f v‖ ^ 2 ≤ 16 * ∑ v, ‖f (σ v) - f v‖ ^ 2 ∧
       ∑ v, ‖f ((σ ^ 4).symm v) - f v‖ ^ 2 ≤ 16 * ∑ v, ‖f (σ v) - f v‖ ^ 2 := by
   have hle := sum_norm_sub_sq_pow_le f σ 4
-  rw [show ((4 : ℕ) : ℝ) ^ 2 = 16 by norm_num] at hle
+  norm_num at hle
   exact ⟨hle, (sum_norm_sub_sq_symm f _).trans_le hle⟩
 
 omit [Fintype α] in
@@ -157,8 +153,8 @@ omit [Fintype α] in
 private theorem sum_norm_sq_le_add_of_subset [DecidableEq α] (F : α → ℂ) {s t u : Finset α}
     (h : s ⊆ t ∪ u) : ∑ z ∈ s, ‖F z‖ ^ 2 ≤ ∑ z ∈ t, ‖F z‖ ^ 2 + ∑ z ∈ u, ‖F z‖ ^ 2 := by
   rw [← sum_union_inter]
-  refine (sum_le_sum_of_subset_of_nonneg h fun _ _ _ ↦ by positivity).trans ?_
-  exact le_add_of_nonneg_right (sum_nonneg fun _ _ ↦ by positivity)
+  exact (sum_le_sum_of_subset_of_nonneg h fun _ _ _ ↦ sq_nonneg _).trans
+    (le_add_of_nonneg_right (sum_nonneg fun _ _ ↦ sq_nonneg _))
 
 /-- **Mass transfer**: moving a set of points by a permutation `g` changes the mass `‖F z‖ ^ 2`
 on it by at most `8` times the squared change of `F` along `g` plus `1 / 8` of the total mass. -/
@@ -169,8 +165,6 @@ private theorem sum_norm_sq_le_sum_comp (F : α → ℂ) (g : Equiv.Perm α) (E 
     have h : ‖x‖ - ‖y‖ ≤ ‖y - x‖ := norm_sub_rev y x ▸ norm_sub_norm_le x y
     nlinarith [mul_le_mul_of_nonneg_right h (add_nonneg (norm_nonneg x) (norm_nonneg y)),
       sq_nonneg (‖x‖ + ‖y‖ - 16 * ‖y - x‖), sq_nonneg (‖x‖ - ‖y‖)]
-  have hE (u : α → ℝ) (hu : ∀ z, 0 ≤ u z) : ∑ z ∈ E, u z ≤ ∑ z, u z :=
-    sum_le_univ_sum_of_nonneg hu
   have hg : ∑ z, ‖F (g z)‖ ^ 2 = ∑ z, ‖F z‖ ^ 2 := Equiv.sum_comp g fun z ↦ ‖F z‖ ^ 2
   calc ∑ z ∈ E, ‖F z‖ ^ 2
       ≤ ∑ z ∈ E, (‖F (g z)‖ ^ 2 + 8 * ‖F (g z) - F z‖ ^ 2 +
@@ -179,9 +173,9 @@ private theorem sum_norm_sq_le_sum_comp (F : α → ℂ) (g : Equiv.Perm α) (E 
           (∑ z ∈ E, ‖F z‖ ^ 2 + ∑ z ∈ E, ‖F (g z)‖ ^ 2) / 16 := by
         rw [sum_add_distrib, sum_add_distrib, ← mul_sum, ← sum_div, sum_add_distrib]
     _ ≤ _ := by
-        linarith [hE (fun z ↦ ‖F (g z) - F z‖ ^ 2) fun _ ↦ sq_nonneg _,
-          hE (fun z ↦ ‖F z‖ ^ 2) fun _ ↦ sq_nonneg _,
-          hE (fun z ↦ ‖F (g z)‖ ^ 2) fun _ ↦ sq_nonneg _]
+        linarith [sum_le_univ_sum_of_nonneg (s := E) fun z ↦ sq_nonneg ‖F (g z) - F z‖,
+          sum_le_univ_sum_of_nonneg (s := E) fun z ↦ sq_nonneg ‖F z‖,
+          sum_le_univ_sum_of_nonneg (s := E) fun z ↦ sq_nonneg ‖F (g z)‖]
 
 omit [Fintype α] in
 /-- **Two disjoint images**: if `g₁` and `g₂` map `E` into `T` with disjoint images, the mass of
@@ -234,11 +228,9 @@ private theorem abs_lt_abs_add_mul {p q k : ℤ} (hk : |k| = 4) (hpq : |p| ≤ |
 
 /-- The images of a frequency `(p, q)` with `|p| ≤ |q|` under the shears by `4` and `-4` differ. -/
 private theorem add_four_mul_ne {p p' q : ℤ} (hp : |p| ≤ |q|) (hp' : |p'| ≤ |q|) (hq : q ≠ 0) :
-    p + 4 * q ≠ p' + -4 * q := by
-  intro h
-  have h₁ := abs_sub p' p
-  rw [show p' - p = 8 * q by linarith, abs_mul, show |(8 : ℤ)| = 8 by norm_num] at h₁
-  linarith [abs_pos.2 hq]
+    p + 4 * q ≠ p' + -4 * q := fun h ↦ by
+  rcases abs_cases q with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+    linarith [abs_le.mp hp, abs_le.mp hp', abs_pos.2 hq]
 
 /-- A frequency outside the small box is moved far by one of the unit translations: the
 corresponding root of unity is at distance at least `1 / sqrt 8` from `1`. -/
@@ -248,7 +240,7 @@ private theorem one_div_eight_le_norm_stdAddChar_sub_one {a : ZMod n}
   have hn : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne n)
   have hhalf : 2 * |(A : ℝ)| ≤ n := by
     rw [← Int.cast_abs, ← Int.natCast_natAbs]
-    exact_mod_cast (show 2 * A.natAbs ≤ n by have := ZMod.natAbs_valMinAbs_le a; omega)
+    exact_mod_cast (Nat.mul_le_mul_left 2 (ZMod.natAbs_valMinAbs_le a)).trans (Nat.mul_div_le n 2)
   have hbig : (n : ℝ) < 11 * |(A : ℝ)| := by rw [← Int.cast_abs]; exact_mod_cast ha
   have hexp : ZMod.stdAddChar a = Complex.exp (Complex.I * ((2 * Real.pi * A / n : ℝ) : ℂ)) := by
     rw [← ZMod.coe_valMinAbs a, ← hA, ZMod.stdAddChar_coe]
@@ -262,8 +254,9 @@ private theorem one_div_eight_le_norm_stdAddChar_sub_one {a : ZMod n}
       (div_le_iff₀ hn).mpr (by nlinarith [Real.pi_pos])
     rw [Real.abs_sin_eq_sin_abs_of_abs_le_pi (by rw [he]; linarith [Real.pi_pos]), he]
     have hsin_le := Real.mul_le_sin (by positivity) hle
-    rw [show 2 / Real.pi * (Real.pi * |(A : ℝ)| / n) = 2 * |(A : ℝ)| / n by field_simp] at hsin_le
-    linarith [(le_div_iff₀ hn).mpr (show 2 / 11 * (n : ℝ) ≤ 2 * |(A : ℝ)| by linarith)]
+    have hsimp : 2 / Real.pi * (Real.pi * |(A : ℝ)| / n) = 2 * |(A : ℝ)| / n := by field_simp
+    have hdiv : 2 / 11 ≤ 2 * |(A : ℝ)| / n := (le_div_iff₀ hn).mpr (by linarith)
+    linarith
   nlinarith [abs_nonneg (Real.sin (2 * Real.pi * A / n / 2))]
 
 end Frequencies
@@ -313,9 +306,7 @@ private theorem two_mul_sum_le_pingPong (F : ZMod n × ZMod n → ℂ)
       rw [h, h₂, ← hv'] at h₁
       exact add_four_mul_ne (hE ξ hξ).2.1 (hv' ▸ (hE ξ' hξ').2.1) (hE ξ hξ).2.2 h₁.symm
   -- Mass transfer along the two shears.
-  have t₁ := sum_norm_sq_le_sum_comp F (g 4) E
-  have t₂ := sum_norm_sq_le_sum_comp F (g (-4)) E
-  linarith
+  linarith [sum_norm_sq_le_sum_comp F (g 4) E, sum_norm_sq_le_sum_comp F (g (-4)) E]
 
 /-- **The ping-pong inequality** for a function on the frequencies vanishing at `0`: its mass is
 at most `6` times its mass outside the small box plus `16` times its squared changes along the
@@ -345,17 +336,15 @@ private theorem sum_norm_sq_le_pingPong (F : ZMod n × ZMod n → ℂ) (h0 : F 0
       sum_norm_sq_le_add_of_subset F (subset_refl (Out ∪ X))]
   -- A frequency with a larger second coordinate is small and in `Y`, or large.
   have hY' : ∑ ξ ∈ univ.filter (fun ξ : ZMod n × ZMod n ↦ |ξ.1.valMinAbs| < |ξ.2.valMinAbs|),
-      ‖F ξ‖ ^ 2 ≤ ∑ ξ ∈ Y, ‖F ξ‖ ^ 2 + ∑ ξ ∈ Out, ‖F ξ‖ ^ 2 := by
-    refine sum_norm_sq_le_add_of_subset F fun ξ hξ ↦ ?_
-    simp only [hOut, hY, mem_union, mem_filter, mem_univ, true_and] at hξ ⊢
-    by_cases hs : IsSmall ξ
-    exacts [Or.inl ⟨hs, hξ.le, by rintro rfl; simp at hξ⟩, Or.inr hs]
+      ‖F ξ‖ ^ 2 ≤ ∑ ξ ∈ Y, ‖F ξ‖ ^ 2 + ∑ ξ ∈ Out, ‖F ξ‖ ^ 2 :=
+    sum_norm_sq_le_add_of_subset F fun ξ hξ ↦ by
+      simp only [hOut, hY, mem_union, mem_filter, mem_univ, true_and] at hξ ⊢
+      exact (em (IsSmall ξ)).imp (fun hs ↦ ⟨hs, hξ.le, fun h ↦ by simp [h] at hξ⟩) id
   have hX' : ∑ ξ ∈ univ.filter (fun ξ : ZMod n × ZMod n ↦ |ξ.2.valMinAbs| < |ξ.1.valMinAbs|),
-      ‖F ξ‖ ^ 2 ≤ ∑ ξ ∈ X, ‖F ξ‖ ^ 2 + ∑ ξ ∈ Out, ‖F ξ‖ ^ 2 := by
-    refine sum_norm_sq_le_add_of_subset F fun ξ hξ ↦ ?_
-    simp only [hOut, hX, mem_union, mem_filter, mem_univ, true_and] at hξ ⊢
-    by_cases hs : IsSmall ξ
-    exacts [Or.inl ⟨hs, hξ⟩, Or.inr hs]
+      ‖F ξ‖ ^ 2 ≤ ∑ ξ ∈ X, ‖F ξ‖ ^ 2 + ∑ ξ ∈ Out, ‖F ξ‖ ^ 2 :=
+    sum_norm_sq_le_add_of_subset F fun ξ hξ ↦ by
+      simp only [hOut, hX, mem_union, mem_filter, mem_univ, true_and] at hξ ⊢
+      exact (em (IsSmall ξ)).imp (fun hs ↦ ⟨hs, hξ⟩) id
   -- The dual shears `(a, b) ↦ (a, b ± 4 a)` move `X` into two disjoint sets with `|a| < |b|`.
   have s₁ := two_mul_sum_le_pingPong F Prod.snd Prod.fst shearSnd (fun _ _ ↦ rfl)
     (fun _ _ ↦ rfl) X fun ξ hξ ↦ by
@@ -384,25 +373,22 @@ change along the four moves. -/
 theorem sum_norm_sq_le_shearTranslation (f : ZMod n × ZMod n → ℂ) (hf : ∑ v, f v = 0) :
     ∑ v, ‖f v‖ ^ 2 ≤ 512 * ∑ k, ∑ v, ‖f (shearTranslationMove n k v) - f v‖ ^ 2 := by
   set F := ZMod.dftProd f with hF
-  have h0 : F 0 = 0 := by simp [F, hf]
-  have hpp := sum_norm_sq_le_pingPong F h0
+  have hpp := sum_norm_sq_le_pingPong F (by simp [F, hf])
   have hM : ∑ ξ, ‖F ξ‖ ^ 2 = n ^ 2 * ∑ v, ‖f v‖ ^ 2 := ZMod.sum_norm_sq_dftProd f
   -- Large frequencies are paid for by the translations.
   have hOut : ∑ ξ ∈ univ.filter (fun ξ ↦ ¬ IsSmall ξ), ‖F ξ‖ ^ 2 ≤
       8 * (n ^ 2 * ∑ v, ‖f (v + (1, 0)) - f v‖ ^ 2 + n ^ 2 * ∑ v, ‖f (v + (0, 1)) - f v‖ ^ 2) := by
-    have hw (ξ : ZMod n × ZMod n) (hs : ¬ IsSmall ξ) :
-        1 / 8 ≤ ‖ZMod.stdAddChar ξ.1 - 1‖ ^ 2 + ‖ZMod.stdAddChar ξ.2 - 1‖ ^ 2 := by
-      unfold IsSmall at hs
-      rcases not_and_or.1 hs with hs | hs <;>
-        linarith [one_div_eight_le_norm_stdAddChar_sub_one (not_le.1 hs),
-          sq_nonneg ‖ZMod.stdAddChar ξ.1 - 1‖, sq_nonneg ‖ZMod.stdAddChar ξ.2 - 1‖]
     rw [← ZMod.sum_norm_sq_dftProd_translate, ← ZMod.sum_norm_sq_dftProd_translate,
       ← sum_add_distrib, mul_sum, sum_filter]
     refine sum_le_sum fun ξ _ ↦ ?_
     simp only [mul_one, mul_zero, add_zero, zero_add]
     split_ifs with hs
     · positivity
-    · linarith [mul_le_mul_of_nonneg_right (hw ξ hs) (sq_nonneg ‖F ξ‖)]
+    · have hw : 1 / 8 ≤ ‖ZMod.stdAddChar ξ.1 - 1‖ ^ 2 + ‖ZMod.stdAddChar ξ.2 - 1‖ ^ 2 := by
+        rcases not_and_or.1 hs with h | h <;>
+          linarith [one_div_eight_le_norm_stdAddChar_sub_one (not_le.1 h),
+            sq_nonneg ‖ZMod.stdAddChar ξ.1 - 1‖, sq_nonneg ‖ZMod.stdAddChar ξ.2 - 1‖]
+      linarith [mul_le_mul_of_nonneg_right hw (sq_nonneg ‖F ξ‖)]
   -- The dual shears are paid for by the primal shears.
   have hD₁ := ZMod.sum_norm_sq_dftProd_shearFst_sub f f (-4 : ZMod n)
   have hD₂ := ZMod.sum_norm_sq_dftProd_shearFst_sub f f (4 : ZMod n)
@@ -432,10 +418,9 @@ theorem secondEigenvalue_shearTranslation_le (n : ℕ) [NeZero n] :
   rw [shearTranslation]
   refine (secondEigenvalue_ofPerms_le (shearTranslationMove n) (c := 1 / 512)
     fun f hf ↦ ?_).trans_eq (by norm_num)
-  have hsum : ∑ v, (f v : ℂ) = 0 := by
+  have hP := sum_norm_sq_le_shearTranslation (fun v ↦ (f v : ℂ)) <| by
     rw [Fintype.expect_eq_sum_div_card, div_eq_zero_iff] at hf
     exact_mod_cast hf.resolve_right (by positivity)
-  have hP := sum_norm_sq_le_shearTranslation (fun v ↦ (f v : ℂ)) hsum
   simp only [← Complex.ofReal_sub, Complex.norm_real, Real.norm_eq_abs, sq_abs] at hP
   simp only [Fintype.expect_eq_sum_div_card, ← sum_div, ← mul_div_assoc]
   exact (div_le_div_iff_of_pos_right (by positivity)).mpr (by linarith)

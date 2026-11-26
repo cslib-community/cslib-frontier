@@ -157,9 +157,7 @@ theorem CostMechanism.IsDSIC.isAntitoneWork [DecidableEq ι] {M : CostMechanism 
   rcases hab.lt_or_eq with hlt | rfl
   · have h1 := hM (Function.update c i b) (update_mem_posCosts hc i hb) i a ha
     have h2 := hM (Function.update c i a) (update_mem_posCosts hc i ha) i b hb
-    simp only [CostMechanism.utility, Function.update_idem] at h1 h2
-    change M.work (Function.update c i b) i ≤ M.work (Function.update c i a) i
-    nlinarith
+    simp only [CostMechanism.utility, Function.update_idem] at h1 h2 ⊢; nlinarith
   · exact le_rfl
 
 private theorem setIntegral_Ioc_bounds_of_antitoneOn {f : ℝ → ℝ}
@@ -216,16 +214,13 @@ theorem utility_archerTardosMechanism [DecidableEq ι] (q : (ι → ℝ) → ι 
     (c : ι → ℝ) :
     (archerTardosMechanism q).utility i (c i) c =
       ∫ x in Set.Ioi (c i), q (Function.update c i x) i := by
-  simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment]
-  ring
+  simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment]; ring
 
 /-- With nonnegative work, Archer–Tardos payments are individually rational. -/
 theorem archerTardosMechanism_isIR [DecidableEq ι] {q : (ι → ℝ) → ι → ℝ}
     (hq0 : ∀ c ∈ posCosts, ∀ i, 0 ≤ q c i) :
-    (archerTardosMechanism q).IsIR := by
-  intro c hc i
-  rw [utility_archerTardosMechanism]
-  exact setIntegral_nonneg measurableSet_Ioi fun x hx =>
+    (archerTardosMechanism q).IsIR := fun c hc i =>
+  utility_archerTardosMechanism q i c ▸ setIntegral_nonneg measurableSet_Ioi fun _ hx =>
     hq0 _ (update_mem_posCosts hc i ((hc i).trans hx)) i
 
 /-- With nonnegative work, Archer–Tardos payments are nonnegative on positive cost profiles. -/
@@ -321,8 +316,7 @@ theorem CostMechanism.IsDSIC.payment_eq_archerTardosPayment [DecidableEq ι] {M 
     simp only [id_eq, intervalIntegral.integral_of_le hb, CostMechanism.utility, f] at hid ⊢
     linarith
   have heq := tendsto_nhds_unique tendsto_const_nhds hconst_lim
-  simp only [CostMechanism.utility, archerTardosPayment] at heq ⊢
-  linarith
+  simp only [CostMechanism.utility, archerTardosPayment] at heq ⊢; linarith
 
 end ArcherTardos
 

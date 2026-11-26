@@ -257,9 +257,8 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
         popBackSlotProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)
       else
         popBackSlotProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
-    dsimp only [s_fix', sf₁, j_last, c_b]
-    unfold deleteFoundProg deleteFoundGenProg
-    simp only [unlinkIfIndexedGenProg_mk, readBucketCountGenProg_mk, deleteSwapGenProg_mk,
+    simp only [s_fix', sf₁, j_last, c_b, deleteFoundProg, deleteFoundGenProg,
+      unlinkIfIndexedGenProg_mk, readBucketCountGenProg_mk, deleteSwapGenProg_mk,
       popBackSlotGenProg_mk, pure_bind]
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       clientState_readBucketCountProg, clientResult_readBucketCountProg (0, b) sf₁ hb,
@@ -280,8 +279,7 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
       (((mkCompParams U V w N, metaBase), (b, m)), j_del) s
     have hc2 := memoryCost_readCompBucketCountGenProg_le
       ((mkCompParams U V w N, metaBase), b) s₁
-    dsimp only [s₁, j_last, c_b] at hc2 ⊢
-    omega
+    dsimp only [s₁, j_last, c_b] at hc2 ⊢; omega
   by_cases hlt : j_del < j_last
   · have hj_last_bc1 : j_last < bCount N (compGmAt metaBase U w N s₁.mem) b :=
       hgm1.symm ▸ Nat.sub_lt hbc_pos Nat.one_pos
@@ -306,16 +304,14 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
     have hc3 := memoryCost_compDeleteSwapGenProg_le
       (((((mkCompParams U V w N, (metaBase, itemBase)), (b, j_del)), phys_del),
         (m_last, j_last))) s₁
-    dsimp only [s₂, s₁, j_last, c_b] at hc3 hcost_pre hcost_pop ⊢
-    omega
+    dsimp only [s₂, s₁, j_last, c_b] at hc3 hcost_pre hcost_pop ⊢; omega
   · obtain ⟨hfr_pop, hcpl_pop, hcost_pop⟩ := compPopBackSlotGenProg_effect
       henv1 hcpl1 hslot1 hb (hgm1.symm ▸ hbc_pos) hm_cap1
     rw [hgm1] at hcost_pop
     rw [hs'_tail, hs_fix'_tail, ite_eq_right hlt, ite_eq_right hlt]
     rw [ite_eq_right hlt] at hcost_pre
     refine ⟨hfr1.trans hfr_pop, hcpl_pop, ?_⟩
-    dsimp only [s₁, j_last, c_b] at hcost_pop hcost_pre ⊢
-    omega
+    dsimp only [s₁, j_last, c_b] at hcost_pop hcost_pre ⊢; omega
 
 private theorem realizesBounded_compDeleteFoundGen :
     RealizesBounded .exact compDeleteFoundGenProg
@@ -355,8 +351,7 @@ private theorem validProg_compDeleteFoundGen {w : ℕ}
     (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), m), j_del))
   have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
   have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := hgm1.symm ▸ hm_cap
-  dsimp only [compDeleteFoundGenProg, compDeleteFoundTailProg]
-  simp only [pure_bind]
+  simp only [compDeleteFoundGenProg, compDeleteFoundTailProg, pure_bind]
   refine validProg_bind (validProg_compUnlinkIfIndexedGen hpre_u)
     (validProg_bind (validProg_readCompBucketCountGen
       ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
@@ -416,8 +411,7 @@ private theorem validProg_compDeleteFinishGen {w : ℕ}
     (h : CompDeleteFinishPre w d s) : ValidProg w 0 s (compDeleteFinishGenProg d) := by
   rcases d with ⟨⟨⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩, ⟨found, j_del⟩⟩, phys_del⟩, m⟩, m_last⟩
   obtain ⟨_, hfound⟩ := h
-  dsimp only [compDeleteFinishGenProg]
-  simp only [pure_bind]
+  simp only [compDeleteFinishGenProg, pure_bind]
   exact validProg_ite (fun hc => validProg_compDeleteFoundGen (hfound hc))
     (fun _ => validProg_pure _)
 
@@ -467,8 +461,7 @@ theorem validProg_compDeleteFinishWithHashGen {w : ℕ}
   obtain ⟨_, _, hdf_pre⟩ := h
   dsimp only [compDeleteFinishWithHashGenProg]
   refine validProg_bind (validProg_compFeistelCoords _ s) ?_
-  rw [clientState_compFeistelCoordsProg]
-  simp only [pure_bind]
+  rw [clientState_compFeistelCoordsProg, pure_bind]
   exact validProg_compDeleteFinishGen hdf_pre
 
 

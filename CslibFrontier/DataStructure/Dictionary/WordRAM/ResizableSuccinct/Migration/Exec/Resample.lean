@@ -93,18 +93,19 @@ theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
   set z := (((((y.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0)
   have cst (d : Fin rResize) (u : RData rResize) (hu : u.frontier ≤ L_peak) :=
     RDemonicExec.const (B := .exact) (d := d) (v := 0) (x := u) hu hfz
+  have hz_fr : z.frontier = x.frontier := hy_fr
   refine ⟨z, rfl, ((cst mCur y hyL).seq_eq ((cst mIdx (y.set mCur 0) hyL).seq_eq
     ((cst mK ((y.set mCur 0).set mIdx 0) hyL).seq_eq
       ((cst mOne (((y.set mCur 0).set mIdx 0).set mK 0) hyL).seq_eq
         (cst mRes ((((y.set mCur 0).set mIdx 0).set mK 0).set mOne 0) hyL))))).mono
           (by omega) (fun _ h => h),
-    ⟨⟨fun j => ?_, fun a => ?_⟩, hy_fr ▸ hx.frontier_fits, fun a ha => ?_⟩,
-    rfl, hy_fr, fun j hj => ?_⟩
+    ⟨⟨fun j => ?_, fun a => ?_⟩, hy_fr ▸ hx.frontier_fits,
+      fun a ha => (hframe_mem a (Or.inr (by omega))).trans (hx.zero_above (hz_fr ▸ ha))⟩,
+    rfl, hz_fr, fun j hj => by rw [zeroResampleRegs_regs, ite_eq_right hj, hframe_reg j hj]⟩
   · dsimp only [z, RData.toData]
     rw [zeroResampleRegs_regs]
     split_ifs with hj
-    · exact hfz
-    · exact hframe_reg j hj ▸ hx.regs_fits j
+    exacts [hfz, hframe_reg j hj ▸ hx.regs_fits j]
   · dsimp only [z, RData.set, RData.toData]
     by_cases ha_out : a < hashBase ∨ hashBase + ReducedKWise.seedWords w₀ b b' 3 ≤ a
     · rw [hframe_mem a ha_out]; exact hx.mem_fits a
@@ -113,11 +114,6 @@ theorem zeroResampleRegsCode_exec {w L_peak w₀ b b' hashBase : ℕ}
     · rw [hseed.1]; exact θ.1.isLt.trans_le (Nat.pow_le_pow_right two_pos (by omega))
     · rw [hseed.2 j m]
       exact (getLimb_lt _ _ _).trans_le (Nat.pow_le_pow_right two_pos (by omega))
-  · dsimp only [z, RData.set] at ha ⊢
-    rw [hframe_mem a (Or.inr (by omega))]
-    exact hx.zero_above (hy_fr ▸ ha)
-  · dsimp only [z]
-    rw [zeroResampleRegs_regs, ite_eq_right hj, hframe_reg j hj]
 
 
 /-- Shared post-resample step executing `.op (.copy mTmpA rMeta)` followed by `wInitNewMeta.code`
@@ -307,8 +303,7 @@ theorem exec_setup_resample_finish
     · funext j
       rw [zeroResampleRegs_regs, zeroResampleRegs_regs]
       split_ifs with hj
-      · rfl
-      · exact (hreg₁ j hj).trans (hreg₂ j hj).symm
+      exacts [rfl, (hreg₁ j hj).trans (hreg₂ j hj).symm]
     · funext a
       dsimp only [RData.set]
       by_cases ha_out :

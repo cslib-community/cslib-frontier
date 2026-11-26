@@ -201,8 +201,8 @@ theorem decodeSelfDelimiting?_selfDelimitingCode (b : List Bool) :
 theorem isPrefixFree_range_selfDelimitingCode :
     InformationTheory.IsPrefixFree (Set.range selfDelimitingCode) := by
   rintro _ ⟨b₁, rfl⟩ _ ⟨b₂, rfl⟩ ⟨r, hr⟩
-  obtain ⟨rfl, rfl⟩ := selfDelimitingCode_append_inj (q' := []) (by simpa using hr)
-  simp
+  obtain ⟨rfl, -⟩ := selfDelimitingCode_append_inj (q' := []) (by simpa using hr)
+  rfl
 
 theorem primrec_two_pow : Primrec (fun n : ℕ => 2 ^ n) :=
   (Primrec₂.unpaired'.1 Nat.Primrec.pow).comp (Primrec.const 2) Primrec.id
@@ -573,11 +573,10 @@ theorem partrec₂_ofPrefixCode_eval :
 
 private theorem ofPrefixCode_produces_iff_mem_rfindOpt {c : Code} {p : List Bool} {x : ℕ} :
     (ofPrefixCode c).Produces p x ↔
-      x ∈ Nat.rfindOpt fun n => (prefixAccepted c n).lookup p := by
-  rw [ofPrefixCode_produces_iff]
-  refine Iff.trans (exists_congr fun n => ?_)
-    (Nat.rfindOpt_mono fun {y m n} hmn hy => lookup_prefixAccepted_mono hmn hy).symm
-  rw [mem_prefixAccepted_iff_lookup, Option.mem_def]
+      x ∈ Nat.rfindOpt fun n => (prefixAccepted c n).lookup p :=
+  ofPrefixCode_produces_iff.trans <|
+    (exists_congr fun _ => mem_prefixAccepted_iff_lookup.trans Option.mem_def.symm).trans
+      (Nat.rfindOpt_mono fun hmn => lookup_prefixAccepted_mono hmn).symm
 
 /-- Every `ofPrefixCode c` is partial recursive. -/
 theorem isPartrec_ofPrefixCode (c : Code) : (ofPrefixCode c).IsPartrec :=
@@ -603,9 +602,9 @@ private theorem exists_produces_ofPrefixCode_of_exists {c : Code}
     | succ m ih =>
       have hm_lt : m < k₀ := by omega
       simp [prefixAccepted, ih hm_lt.le, Option.not_isSome_iff_eq_none.mp (Nat.find_min hex hm_lt)]
-  refine ⟨p₀, x₀, ofPrefixCode_produces_iff.mpr ⟨k₀ + 1, ?_⟩⟩
-  rw [prefixAccepted, hacc0, hcand]
-  exact .head []
+  exact ⟨p₀, x₀, ofPrefixCode_produces_iff.mpr ⟨k₀ + 1, by
+    rw [prefixAccepted, hacc0, hcand]
+    exact .head []⟩⟩
 
 /-! ### The universal prefix-free description method -/
 
@@ -729,17 +728,12 @@ theorem IsAdditivelyOptimal.minorizesPrefixPartrec {U : DescriptionMethod ℕ}
     U.MinorizesPrefixPartrec := by
   intro g hg hg_pf
   obtain ⟨c, hc⟩ := Code.exists_code.mp hg
-  have hcode_pf : (ofCode c).IsPrefixFree := by
-    rintro p₁ ⟨x₁, h₁⟩ p₂ ⟨x₂, h₂⟩ hp
-    have h₁' : (g p₁).Dom :=
-      Part.dom_iff_mem.mpr ⟨x₁, by simpa [hc, encodek] using ofCode_produces_iff.mp h₁⟩
-    have h₂' : (g p₂).Dom :=
-      Part.dom_iff_mem.mpr ⟨x₂, by simpa [hc, encodek] using ofCode_produces_iff.mp h₂⟩
-    exact hg_pf p₁ h₁' p₂ h₂' hp
+  have hcode_pf : (ofCode c).IsPrefixFree := fun p₁ ⟨x₁, h₁⟩ p₂ ⟨x₂, h₂⟩ =>
+    hg_pf p₁ (Part.dom_iff_mem.mpr ⟨x₁, by simpa [hc, encodek] using ofCode_produces_iff.mp h₁⟩)
+      p₂ (Part.dom_iff_mem.mpr ⟨x₂, by simpa [hc, encodek] using ofCode_produces_iff.mp h₂⟩)
   obtain ⟨d, hd⟩ := hU.exists_ecomplexity_le (ofCode c) ⟨isPartrec_ofCode c, hcode_pf⟩
-  refine ⟨d, fun p x hx => (hd x).trans (add_le_add_left (ecomplexity_le_length ?_) d)⟩
-  rw [ofCode_produces_iff, hc]
-  simpa [encodek] using hx
+  exact ⟨d, fun p x hx => (hd x).trans (add_le_add_left (ecomplexity_le_length
+    (ofCode_produces_iff.mpr (by simpa [hc, encodek] using hx))) d)⟩
 
 /-- `universalPrefix` minorizes every prefix-free partial recursive decoder. -/
 theorem minorizesPrefixPartrec_universalPrefix : universalPrefix.MinorizesPrefixPartrec :=
@@ -794,11 +788,10 @@ theorem minorizesPrefixPartrec_universalPrefixBits : universalPrefixBits.Minoriz
   minorizesPrefixPartrec_universalPrefix.map Computable.encode fun y => by simp [encodek]
 
 theorem ecomplexity_universalPrefixBits_ne_top (x : List Bool) :
-    universalPrefixBits.ecomplexity x ≠ ⊤ := by
-  have hle : universalPrefixBits.ecomplexity x ≤ universalPrefix.ecomplexity (encode x) := by
+    universalPrefixBits.ecomplexity x ≠ ⊤ :=
+  ne_top_of_le_ne_top (ecomplexity_universalPrefix_ne_top (encode x)) (by
     simpa [universalPrefixBits, encodek] using
-      universalPrefix.ecomplexity_map_le (fun n => (decode (α := List Bool) n).getD []) (encode x)
-  exact ne_top_of_le_ne_top (ecomplexity_universalPrefix_ne_top (encode x)) hle
+      universalPrefix.ecomplexity_map_le (fun n => (decode (α := List Bool) n).getD []) (encode x))
 
 @[simp]
 theorem natCast_complexity_universalPrefixBits (x : List Bool) :
@@ -816,9 +809,9 @@ theorem exists_ecomplexity_universalPrefixBits_le_of_partrec_eval
   minorizesPrefixPartrec_universalPrefixBits.exists_ecomplexity_le_of_partrec_eval hM_pf heval hprod
 
 private theorem mem_range_selfDelimitingCode_of_snd_nil {q : List Bool}
-    (h : ∃ b, decodeSelfDelimiting? q = some (b, [])) : q ∈ Set.range selfDelimitingCode := by
-  obtain ⟨b, hb⟩ := h
-  exact ⟨b, by simpa using decodeSelfDelimiting?_eq_some_iff.mp hb⟩
+    (h : ∃ b, decodeSelfDelimiting? q = some (b, [])) : q ∈ Set.range selfDelimitingCode :=
+  let ⟨b, hb⟩ := h
+  ⟨b, by simpa using decodeSelfDelimiting?_eq_some_iff.mp hb⟩
 
 /-- **Self-delimiting upper bound**: `K(x) ≤ |x| + 2 size |x| + O(1)` for every binary string. -/
 theorem exists_ecomplexity_universalPrefixBits_le_selfDelimiting :

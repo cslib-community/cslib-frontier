@@ -69,9 +69,8 @@ private theorem sum_map_cuts (G : List (List Bool) → M) (f : ℕ) (fs : List �
             G).sum else 0
   | [], tk, cur => by rw [cuts_eq]; split_ifs <;> simp [cutsTake, *]
   | a :: rest, tk, cur => by
-    rw [cuts_eq, List.map_append, List.sum_append, sum_range_succ', add_comm]
-    simp only [cutsTake]
-    rw [sum_map_cuts G f fs as out rest true (a ++ cur)]
+    rw [cuts_eq, List.map_append, List.sum_append, sum_range_succ', add_comm, cutsTake,
+      sum_map_cuts G f fs as out rest true (a ++ cur)]
     congr 1
     · exact sum_congr rfl fun j _ => by simp
     · split_ifs <;> simp_all
@@ -182,12 +181,14 @@ private theorem sum_map_cutTapes {F : Type} [CommRing F] {m : ℕ} (hm : 0 < m) 
     rw [Fintype.piFinset_of_isEmpty, Fintype.sum_unique]
     simp [cutTapes]
   | N + 1, fl, l, hl, acc, G => by
-    rw [List.ofFn_succ, show ∀ it items accs, cutTapes F sep (it :: items) accs =
-      (cutTape F sep it accs).weightedBind (cutTapes F sep items) from fun _ _ _ => rfl,
-      List.map_snd_weightedBind, List.sum_map_flatMap, Fin.sum_piFinset_const_snoc,
-      show ∀ (it : CutItem) accs (H : List (List Bool) → M), ((cutTape F sep it accs).map
-        Prod.snd).map H = (tapeCuts sep it.flags accs it.letters).map fun out => H out.reverse
-        from fun _ _ _ => by simp [cutTape]]
+    have hcons (it items accs) : cutTapes F sep (it :: items) accs =
+        (cutTape F sep it accs).weightedBind (cutTapes F sep items) := rfl
+    have hcut (it : CutItem) accs (H : List (List Bool) → M) :
+        ((cutTape F sep it accs).map Prod.snd).map H =
+          (tapeCuts sep it.flags accs it.letters).map (H ·.reverse) := by
+      simp [cutTape]
+    rw [List.ofFn_succ, hcons, List.map_snd_weightedBind, List.sum_map_flatMap,
+      Fin.sum_piFinset_const_snoc, hcut]
     simp only [Fin.rev_zero, Fin.rev_succ]
     rw [sum_map_tapeCuts sep code T hm _ _ _ (hl _)]
     refine sum_congr rfl fun Y _ => ?_
@@ -271,9 +272,7 @@ private theorem exists_of_mem_run_simTable (mu : Tape.Letter S Unit Γ → Matri
       {r : F × Transducer.State (Fintype.card Q) 0 (tapeCount S + tapeCount S) (List Bool)},
       r ∈ Transducer.run θ (simTable θ mu cb) k s → ∃ u : List (Tape.Letter S Unit Γ),
         u.length = k ∧ ∀ j, r.2.outputs j = u.reverse.flatMap (letterPush cb · j) ++ s.outputs j
-  | 0, s, r, h => by
-    rw [Transducer.run_zero, List.mem_singleton] at h
-    exact ⟨[], rfl, fun j => by simp [h]⟩
+  | 0, s, r, h => ⟨[], rfl, fun _ => by simp_all [Transducer.run_zero]⟩
   | k + 1, s, r, h => by
     rw [Transducer.run_succ] at h
     obtain ⟨a, ha, r, hr, rfl⟩ := List.mem_weightedBind_iff.1 h
@@ -291,8 +290,7 @@ theorem exists_of_mem_simSem (mu : Tape.Letter S Unit Γ → Matrix Q Q F)
   obtain ⟨a, ha, r', hr', rfl⟩ := List.mem_weightedBind_iff.1 h
   obtain ⟨u, hu, hout⟩ := exists_of_mem_run_simTable mu cb ha
   split_ifs at hr'
-  · rw [List.mem_singleton] at hr'
-    exact ⟨u, hu, by simpa [hr', ← flatMap_letterPush] using funext hout⟩
+  · exact ⟨u, hu, by simpa [List.mem_singleton.1 hr', ← flatMap_letterPush] using funext hout⟩
   · simp at hr'
 
 variable [DecidableEq Q]
@@ -311,8 +309,8 @@ private theorem weightedSum_run_simTable (mu : Tape.Letter S Unit Γ → Matrix 
     rw [Transducer.weightedSum_run_succ _ rfl, Fintype.sum_prod_type,
       ← (Fin.consEquiv fun _ => Tape.Letter S Unit Γ).sum_comp, Fintype.sum_prod_type]
     refine sum_congr rfl fun a _ => ?_
-    simp only [Transducer.Choice.apply, val_termOf (hmu _ _ _), Equiv.symm_apply_apply,
-      show (fun i : Fin 0 => (Fin.elim0 i : List Bool).tail) = Fin.elim0 from funext (·.elim0),
+    have helim : (fun i : Fin 0 => (Fin.elim0 i : List Bool).tail) = Fin.elim0 := funext (·.elim0)
+    simp only [Transducer.Choice.apply, val_termOf (hmu _ _ _), Equiv.symm_apply_apply, helim,
       weightedSum_run_simTable mu cb hmu k, mul_sum, Fin.consEquiv_apply, List.ofFn_succ,
       Fin.cons_zero, Fin.cons_succ, List.map_cons, List.prod_cons, Matrix.mul_apply, sum_mul,
       List.reverse_cons, List.flatMap_append, List.flatMap_singleton, List.append_assoc, mul_assoc]
@@ -329,9 +327,8 @@ theorem weightedSum_simSem (mu : Tape.Letter S Unit Γ → Matrix Q Q F)
         G fun j => ((sideLetters (List.ofFn u) (outputSide j)).map (letterCode cb)).reverse := by
   rw [simSem, List.weightedSum_weightedBind, weightedSum_run_simTable mu cb hmu]
   refine sum_congr rfl fun u _ => ?_
-  rw [sum_eq_single q' fun q'' _ h => by simp [(Fintype.equivFin Q).injective.ne h]]
-  · simp [flatMap_letterPush]
-  · simp
+  rw [sum_eq_single q' (fun q'' _ h => by simp [(Fintype.equivFin Q).injective.ne h]) (by simp)]
+  simp [flatMap_letterPush]
 
 end Sim
 
@@ -365,8 +362,8 @@ private theorem sum_map_cutTapes_tapes (cb : Option Γ → Fin c → Bool) {m : 
           G (List.ofFn fun b => segmentString cb (fun s => X s b) ++ [true]).reverse else 0 := by
   let e : Fin (tapeCount S) ≃ Option S := (nodup_toList _).getEquivOfForallMemList _ fun s =>
     mem_toList.2 (mem_univ s)
-  rw [show List.replicate m [true] = (List.ofFn fun _ : Fin m => [true]).reverse by simp,
-    sum_map_cutTapes (separator cb) (letterCode cb) T hm (fun i => fl ((tapes S).get i))
+  have hrep : List.replicate m [true] = (List.ofFn fun _ : Fin m => [true]).reverse := by simp
+  rw [hrep, sum_map_cutTapes (separator cb) (letterCode cb) T hm (fun i => fl ((tapes S).get i))
       (fun i => l ((tapes S).get i)) fun i => hl _]
   refine sum_equiv (e.arrowCongr (Equiv.refl _)) (fun X => by simpa [Fintype.mem_piFinset] using
     (e.symm.forall_congr_right (q := fun i => ∀ b, (X i b).length ≤ T)).symm) fun X _ => ?_
@@ -375,7 +372,8 @@ private theorem sum_map_cutTapes_tapes (cb : Option Γ → Fin c → Bool) {m : 
       (tapes S).flatMap fun s => (X (e.symm s) b).flatMap (letterCode cb) ++ separator cb := by
     rw [List.flatMap_def, ← List.ofFn_getElem_eq_map]
     congr! 3 with i
-    rw [show e.symm (tapes S)[(i : ℕ)] = i from e.symm_apply_apply i]
+    exact congrArg (fun j => (X j b).flatMap (letterCode cb) ++ separator cb)
+      (e.symm_apply_apply i).symm
   simp only [Equiv.arrowCongr_apply, Equiv.coe_refl, Function.comp_apply, id,
     ← e.forall_congr_right (q := fun s => cat (X (e.symm s)) = l s ∧ _), e.symm_apply_apply,
     segmentString_eq, hs]
@@ -391,12 +389,10 @@ private theorem forall_flagAllows_rowFlag {A : ℕ} {d : RowData A}
   cases he : d.empty
   · have hfl := hd he
     simp only [rowFlag, he, Bool.false_eq_true, ite_false]
-    refine ⟨fun h => ⟨?_, ?_, fun b hb => ?_⟩, fun ⟨h1, h2, h3⟩ b => ?_⟩
-    · simpa [flagAllows] using h d.first
-    · simpa [flagAllows] using h d.last
-    · have := h b
-      split_ifs at this with h1 h2 <;> grind [flagAllows]
-    · split_ifs with h4 h5 <;> grind [flagAllows]
+    refine ⟨fun h => ⟨by simpa [flagAllows] using h d.first, by simpa [flagAllows] using h d.last,
+      fun b hb => ?_⟩, fun ⟨h1, h2, h3⟩ b => by split_ifs <;> grind [flagAllows]⟩
+    have := h b
+    split_ifs at this <;> grind [flagAllows]
   · simp [rowFlag, he, flagAllows]
 
 private theorem one_of_mem_cutTapes (sep : List Bool) :
@@ -445,7 +441,6 @@ theorem sum_map_packSem (cb : Option Γ → Fin c → Bool)
                   (List.ofFn fun b => segmentString cb (fun s => C s b) ++ [true]) t₁).map G).sum
               else 0).sum
         else 0 := by
-  have hK : 0 < K + K := Nat.lt_of_le_of_lt (Nat.zero_le _) p.2
   have hwi : writeItems (baseBody ρ n key dkey p).flags o = List.ofFn fun i : Fin (tapeCount S) =>
       ⟨(List.ofFn fun b => rowFlag (ρ ((tapes S).get i.rev) p) b).reverse,
         ((w ((tapes S).get i.rev, false)).map (letterCode cb)).reverse⟩ :=
@@ -458,13 +453,14 @@ theorem sum_map_packSem (cb : Option Γ → Fin c → Bool)
     simp [readItems, ho, outputSide, -Fin.natAdd_eq_addNat]
   have hm : (baseBody ρ n key dkey p).writeKeys.length = K + K := List.length_ofFn
   rw [packSem, List.map_snd_weightedBind, List.sum_map_flatMap, map_snd_cutPut,
-    List.sum_map_flatMap, hm, hwi, sum_map_cutTapes_tapes cb hK (fun s b => rowFlag (ρ s p) b)
+    List.sum_map_flatMap, hm, hwi,
+    sum_map_cutTapes_tapes cb (Fin.pos p) (fun s b => rowFlag (ρ s p) b)
       (fun s => w (s, false)) fun s => hw _]
   refine sum_congr rfl fun R _ => ?_
   simp only [forall_and, forall_flagAllows_rowFlag (hρ _), List.reverse_reverse]
   congr! 4 with t₁
-  rw [map_snd_cutPut, List.sum_map_flatMap, hri, sum_map_cutTapes_tapes cb hK (fun _ _ => 2)
-    (fun s => w (s, true)) fun s => hw _]
+  rw [map_snd_cutPut, List.sum_map_flatMap, hri,
+    sum_map_cutTapes_tapes cb (Fin.pos p) (fun _ _ => 2) (fun s => w (s, true)) fun s => hw _]
   simp [flagAllows]
 
 end Pack

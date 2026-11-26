@@ -68,9 +68,7 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
   | append_singleton ts t ih =>
     simp only [List.length_append, List.length_singleton] at hlen
     obtain ⟨f, hb, hp, hn, _, _⟩ := ih (by omega)
-    let J := ts.foldl (fun J _ => fuseHead J) I
-    change J.body = I.body.relabel f at hb
-    change J.ports = (I.ports.drop ts.length).map f at hp
+    set J := ts.foldl (fun J _ => fuseHead J) I with hJ_def
     have hP : J.ports.length = I.ports.length - ts.length := by simp [hp]
     have htwo : 2 ≤ J.ports.length := by omega
     cases he : J.ports with
@@ -84,16 +82,14 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
           obtain ⟨z, hz, rfl⟩ := List.mem_map.mp (hp ▸ he ▸ List.mem_cons_self)
           exact hn z (List.mem_append_right _ ((List.drop_sublist _ _).subset hz))
         refine ⟨u ∘ f,?_,?_,?_,by simp,?_⟩
-        · simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
-          change (fuseHead J).body=_
+        · rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← hJ_def]
           simp only [fuseHead, he, hb, CSP.relabel, List.map_map]
           exact List.map_congr_left fun c _ => by
             cases c; simp [Constraint.relabel, Function.comp_def, List.map_map, u]
-        · simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
-          change (fuseHead J).ports=_
-          have ht : (y::ps)=(I.ports.drop ts.length).tail.map f := by
+        · have ht : (y::ps)=(I.ports.drop ts.length).tail.map f := by
             simpa only [he,List.tail_cons,← List.map_tail] using congrArg List.tail hp
-          simp only [fuseHead,he]
+          rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← hJ_def]
+          simp only [fuseHead, he]
           rw [ht,List.map_map]
           simp [← List.drop_one,List.drop_drop,u]
         · intro z hz
@@ -108,11 +104,7 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
               2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length) := by
             simp only [he, List.length_cons] at hP
             simp only [List.length_append, List.length_singleton]; omega
-          simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
-          change (fuseHead J).rotation.successor.length =
-            2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length) ∧
-            ∀ v ∈ (fuseHead J).rotation.successor,
-              v < 2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length)
+          rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← hJ_def]
           simp only [fuseHead, he, equalDropCertificate, length_restrictPrefix]
           exact ⟨hsize, fun v hv => (entries_restrictPrefix_lt _ _ v hv).trans_eq hsize⟩
 

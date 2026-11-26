@@ -82,12 +82,10 @@ private theorem resp_ext_eq_nil_of_even_proc {P Obj : Type*} {Op Resp : Obj → 
     cases e with
     | inv _ _ _ => exact Bool.noConfusion (hrespR _ List.mem_cons_self)
     | resp p x res =>
-      have hp := hwf' p
-      rw [History.procSubhistory_append] at hp
-      have hresp_p : History.IsRespList (History.procSubhistory (.resp p x res :: rs) p) :=
-        fun a ha => hrespR a (List.mem_filter.mp ha).1
-      have hnil_p :=
-        History.isRespList_eq_nil_of_isSequential_even (hwf p) (hev p) hresp_p hp
+      have hnil_p := History.isRespList_eq_nil_of_isSequential_even
+        (R := History.procSubhistory (.resp p x res :: rs) p) (hwf p) (hev p)
+        (fun a ha => hrespR a (List.mem_filter.mp ha).1)
+        (History.procSubhistory_append H (.resp p x res :: rs) p ▸ hwf' p)
       simp only [History.procSubhistory_cons, Event.proc_resp, ↓reduceIte] at hnil_p
       nomatch hnil_p
 
@@ -183,10 +181,9 @@ theorem exists_sequentiallyConsistent_not_linearizable :
         SeqSpec.mem_ofMachine_allowed] at hleg0
       cases hp₀ : c₀.proc
       · cases hp₁ : c₁.proc
-        · have ht := heqS true
-          simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
-            Bool.false_eq_true, decide_false, List.flatMap_nil] at ht
-          nomatch ht
+        · suffices H.complete.procSubhistory true = [] by nomatch this
+          simpa only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
+            Bool.false_eq_true, decide_false, List.flatMap_nil] using heqS true
         · obtain rfl : c₀ = ⟨false, (), .write true, .writeAck⟩ :=
             List.singleton_injective <| flatMap_toEvents_injective <| ((heqS false).trans (by
               simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
@@ -206,10 +203,9 @@ theorem exists_sequentiallyConsistent_not_linearizable :
             Nat.zero_add, decide_true, decide_false, Bool.true_eq_false, ↓reduceIte,
             Option.map_some, Option.some.injEq] at hr hi
           omega
-        · have hf := heqS false
-          simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
-            Bool.true_eq_false, decide_false, List.flatMap_nil] at hf
-          nomatch hf
+        · suffices H.complete.procSubhistory false = [] by nomatch this
+          simpa only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
+            Bool.true_eq_false, decide_false, List.flatMap_nil] using heqS false
 
 /-- Original explicit 2-process, 2-register **non-locality of sequential consistency** witness
 (register counterpart of two-queue history `H_8` in [HerlihyWing1990], §3.3, p. 472): there exists a

@@ -82,8 +82,7 @@ empty. -/
   ∀ k, ∃ w : List Bool, tget k t = ofBits w ∧ w.length ≤ ub
 
 private theorem length_padTake (ub : ℕ) (r : List Bool) : (padTake ub r).length = ub := by
-  simp only [padTake, List.length_append, List.length_take, List.length_replicate]
-  omega
+  simp only [padTake, List.length_append, List.length_take, List.length_replicate]; omega
 
 theorem StoreBound.nil (ub : ℕ) : StoreBound ub .nil := fun _ => ⟨[], tget_nil _, Nat.zero_le _⟩
 
@@ -180,9 +179,8 @@ private theorem putStep_does (ub : ℕ) (k : List Bool) (s : List Bool × Tree) 
       (setF_gives (Gives.id _).hd.hd (rev_gives_ofBits (Gives.quote (ofBits []) _)
         (Gives.id _).tl.tl) (Gives.id _).hd.tl.tl.tl)))
     simp only [hd_cons, tl_cons, List.reverse_reverse, List.append_nil, path_ofBits] at h2
-    refine (Does.ite_true (Gives.id _).tl.tl.hd (by simp [ofBits]) h2).mono ?_
-    simp only [List.length_reverse, length_padTake, len_ofBits]
-    omega
+    exact (Does.ite_true (Gives.id _).tl.tl.hd (by simp [ofBits]) h2).mono
+      (by simp only [List.length_reverse, length_padTake, len_ofBits]; omega)
 
 /-- Write the units of a string: the argument is (yardstick, (keys, (string, trie))). -/
 private def putF : Fm := lett (foldF putStep (.cons (.hd .id) (.tl (.tl .id))) (.hd (.tl .id)))
@@ -217,11 +215,10 @@ private theorem putF_does (ub : ℕ) (keys : List (List Bool)) (r : List Bool) (
       · simp only [List.weightedFoldl_cons, putOne, putUnits, h, ↓reduceIte,
           List.weightedBind_singleton_one, ih]
   rw [e] at h2
-  refine h2.mono ?_
-  have := List.sum_le_sum (l := keys) (f := fun k => 400 * (ub + k.length + 1) + 30)
-    (g := fun k => 430 * (ub + k.length + 1)) fun k _ => by omega
-  rw [List.sum_map_mul_left] at this
-  omega
+  have := (List.sum_le_sum (l := keys) (f := fun k => 400 * (ub + k.length + 1) + 30)
+    (g := fun k => 430 * (ub + k.length + 1)) fun k _ => by omega).trans_eq
+    (List.sum_map_mul_left ..)
+  exact h2.mono (by omega)
 
 /-- Write one string of several: the argument is (keys, (yardstick, (strings, trie))). -/
 private def putsStep : Fm := .cons (.hd (.tl .id)) (.cons (.tl (.hd (.tl (.tl .id))))
@@ -248,9 +245,8 @@ theorem exists_formula_putStrings : ∃ F, ∀ (ub : ℕ) (kss : List (List (Lis
       have e := Does.of_gives ((Gives.id y).tl.hd.cons ((Gives.id y).hd.cons
         ((hd_wordsEnc s.1 ▸ g.hd).cons (Gives.id y).tl.tl.tl)))
         (putF_does (θ := θ) (A := A) ub ks (s.1.headD []) s.2)
-      refine ⟨((Does.cons (Gives.id y).tl.hd (Does.cons (tl_wordsEnc s.1 ▸ g.tl) e)).of_eq
-        ?_).mono (by omega), fun _ _ => trivial⟩
-      simp [y, Function.comp_def]) trivial
+      exact ⟨((Does.cons (Gives.id y).tl.hd (Does.cons (tl_wordsEnc s.1 ▸ g.tl) e)).of_eq
+        (by simp [y, Function.comp_def])).mono (by omega), fun _ _ => trivial⟩) trivial
   have h2 := Does.lett_enc (G := .tl (.tl .id))
     (f := fun s : List (List Bool) × Tree => [((1 : A), s.2)]) (d := 3) h1
     fun _ _ => (Gives.id _).tl.tl
@@ -264,12 +260,10 @@ theorem exists_formula_putStrings : ∃ F, ∀ (ub : ℕ) (kss : List (List (Lis
       rw [List.weightedFoldl_cons, List.weightedBind_assoc, List.weightedBind_map_one]
       simp only [ih, putStrings, List.map_flatMap]
   rw [e] at h2
-  refine h2.mono ?_
-  have := List.sum_le_sum (l := kss)
+  have := (List.sum_le_sum (l := kss)
     (f := fun ks => 430 * (ks.map fun k => ub + k.length + 1).sum + 140 + 30)
     (g := fun ks => 600 * ((ks.map fun k => ub + k.length + 1).sum + 1)) fun k _ => by omega
-  rw [List.sum_map_mul_left] at this
-  simp only [putCost]
-  omega
+    ).trans_eq (List.sum_map_mul_left ..)
+  exact h2.mono (by simp only [putCost]; omega)
 
 end Cslib.Circuits.Arithmetic.Separation.GroupProgram

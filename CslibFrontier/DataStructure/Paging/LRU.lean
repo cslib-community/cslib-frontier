@@ -130,19 +130,17 @@ theorem lruFaults_cons (k : Nat) (q : List α) (p : α) (ps : List α) :
 /-- `lruNext` preserves `List.Nodup`. -/
 theorem nodup_lruNext {k : Nat} {q : List α} (hq : q.Nodup) (p : α) :
     (lruNext k q p).Nodup := by
-  unfold lruNext
-  split_ifs with hp
-  · exact List.nodup_cons.mpr ⟨hq.not_mem_erase, hq.erase p⟩
-  · exact (List.nodup_cons.mpr ⟨hp, hq⟩).take
+  by_cases hp : p ∈ q <;> simp only [lruNext, hp, ↓reduceIte]
+  exacts [List.nodup_cons.mpr ⟨hq.not_mem_erase, hq.erase p⟩,
+    (List.nodup_cons.mpr ⟨hp, hq⟩).take]
 
 /-- `lruNext k` preserves `length ≤ k`. -/
 theorem length_lruNext_le {k : Nat} {q : List α} (hq : q.length ≤ k) (p : α) :
     (lruNext k q p).length ≤ k := by
-  unfold lruNext
-  split_ifs with hp
-  · simpa only [List.length_cons, List.length_erase_of_mem hp,
-      Nat.sub_add_cancel (List.length_pos_of_mem hp)] using hq
-  · exact List.length_take_le k (p :: q)
+  by_cases hp : p ∈ q <;> simp only [lruNext, hp, ↓reduceIte]
+  exacts [by simpa [List.length_erase_of_mem hp,
+    Nat.sub_add_cancel (List.length_pos_of_mem hp)] using hq,
+    List.length_take_le k (p :: q)]
 
 /-- On a hit `p ∈ q`, `lruNext` preserves the underlying set of cached pages. -/
 theorem toFinset_lruNext_of_mem {k : Nat} {q : List α} {p : α} (hp : p ∈ q) :
@@ -159,18 +157,17 @@ private theorem lruNext_of_notMem {k : Nat} (hk : 0 < k) {q : List α} {p : α} 
 
 /-- For `0 < k`, `p` always resides in `lruNext k q p`. -/
 theorem mem_lruNext {k : Nat} (hk : 0 < k) (q : List α) (p : α) :
-    p ∈ lruNext k q p := by
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk.ne'
-  by_cases hp : p ∈ q <;> simp [lruNext, hp]
+    p ∈ lruNext k q p :=
+  if hp : p ∈ q then by simp [lruNext, hp]
+  else by simp [lruNext_of_notMem hk hp]
 
 /-- Every page in `lruNext k q p` comes from `insert p q.toFinset`. -/
 theorem toFinset_lruNext_subset {k : Nat} (q : List α) (p : α) :
-    (lruNext k q p).toFinset ⊆ insert p q.toFinset := by
-  intro x hx
+    (lruNext k q p).toFinset ⊆ insert p q.toFinset := fun x hx => by
   simp only [List.mem_toFinset, Finset.mem_insert, lruNext] at hx ⊢
   split at hx
-  · exact (List.mem_cons.mp hx).imp_right List.mem_of_mem_erase
-  · exact List.mem_cons.mp (List.mem_of_mem_take hx)
+  exacts [(List.mem_cons.mp hx).imp_right List.mem_of_mem_erase,
+    List.mem_cons.mp (List.mem_of_mem_take hx)]
 
 /-- For `0 < k`, `lruNext` induces a valid demand-paging transition on `q.toFinset`. -/
 theorem validStep_lruNext {k : Nat} (hk : 0 < k) {q : List α}
@@ -275,10 +272,9 @@ theorem maxWeightFrom_take_le (w : Nat) (s : Finset α) (q : List α) (n : Nat) 
   induction q generalizing w n with
   | nil => simp
   | cons x xs ih =>
-    cases n with
-    | zero => simp
-    | succ n =>
-      have := ih (w - 1) n
+    rcases n with _ | n
+    · simp
+    · have := ih (w - 1) n
       simp only [List.take_succ_cons, maxWeightFrom_cons]
       split <;> omega
 
@@ -304,8 +300,7 @@ theorem maxWeightFrom_pred_zero_or_lt (w : Nat) (s : Finset α) (q : List α) :
   | cons x xs ih =>
     simp only [maxWeightFrom_cons]
     split
-    · exact ih (w - 1)
-    · omega
+    exacts [ih (w - 1), by omega]
 
 /-- Erasing a page `x ∉ q` from `s` leaves `maxWeightFrom w s q` unchanged. -/
 private theorem maxWeightFrom_erase_finset_of_notMem {s : Finset α} {x : α} {q : List α}
@@ -349,8 +344,8 @@ private theorem one_add_sdiff_le_maxWeightFrom_snoc :
 
 /-- `lruPotential k s q` never exceeds `k` when `s.card ≤ k`. -/
 theorem lruPotential_le {k : Nat} {s : Finset α} (hs : s.card ≤ k) (q : List α) :
-    lruPotential k s q ≤ k := by
-  exact max_le (maxWeightFrom_le k s q) ((Finset.card_le_card Finset.sdiff_subset).trans hs)
+    lruPotential k s q ≤ k :=
+  max_le (maxWeightFrom_le k s q) ((Finset.card_le_card Finset.sdiff_subset).trans hs)
 
 /-- `lruPotential k s q` vanishes whenever `q` represents the exact same page set as `s`. -/
 theorem lruPotential_eq_zero_of_toFinset_eq (k : Nat) {s : Finset α} {q : List α}
@@ -363,10 +358,8 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
     (hq : q.Nodup ∧ q.length ≤ k) (hv : ValidStep k s p s') :
     stepCost q.toFinset p (lruNext k q p).toFinset + lruPotential k s' (lruNext k q p) ≤
       k * stepCost s p s' + lruPotential k s q := by
-  rcases hq with ⟨hnodup, hlen⟩
-  have hs_card : s.card ≤ k := hv.1
-  have hs'_card : s'.card ≤ k := hv.2.1
-  have hps' : p ∈ s' := hv.2.2.1
+  obtain ⟨hnodup, hlen⟩ := hq
+  have ⟨hs_card, hs'_card, hps', _⟩ := hv
   by_cases hps : p ∈ s
   · -- Offline hit (`stepCost s p s' = 0`, `s' = s`)
     obtain rfl : s = s' := (validStep_hit_eq hv hps).symm
@@ -385,9 +378,11 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
       have hpred := maxWeightFrom_pred_zero_or_lt k s q
       have hsdiff : 1 + (s \ (p :: q.take (k - 1)).toFinset).card ≤ lruPotential k s q := by
         by_cases hfull : q.length < k
-        · rw [List.take_of_length_le (by omega : q.length ≤ k - 1)]
-          exact (show 1 + (s \ (p :: q).toFinset).card ≤ (s \ q.toFinset).card by
-            finset_card [List.toFinset_cons]).trans (le_max_right _ _)
+        · have hle' : q.length ≤ k - 1 := by omega
+          have hsub : 1 + (s \ (p :: q).toFinset).card ≤ (s \ q.toFinset).card := by
+            finset_card [List.toFinset_cons]
+          rw [List.take_of_length_le hle']
+          exact hsub.trans (le_max_right _ _)
         · obtain ⟨init, last, rfl⟩ : ∃ init last, q = init ++ [last] :=
             ⟨q.dropLast, q.getLast (by grind), (List.dropLast_append_getLast _).symm⟩
           obtain rfl : k = init.length + 1 := by simp at hlen hfull; omega
@@ -395,10 +390,10 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
           by_cases hlast : last ∈ s
           · exact (one_add_sdiff_le_maxWeightFrom_snoc init hnodup hs_card hps hpq hlast).trans
               (le_max_left _ _)
-          · exact (show 1 + (s \ (p :: init).toFinset).card ≤
-                (s \ (init ++ [last]).toFinset).card by
-              finset_card [List.toFinset_cons, List.toFinset_append, List.toFinset_nil]).trans
-              (le_max_right _ _)
+          · have hsub : 1 + (s \ (p :: init).toFinset).card ≤
+                (s \ (init ++ [last]).toFinset).card := by
+              finset_card [List.toFinset_cons, List.toFinset_append, List.toFinset_nil]
+            exact hsub.trans (le_max_right _ _)
       simp only [lruPotential, maxWeightFrom_cons, hps, ↓reduceIte] at hsdiff ⊢
       omega
   · -- Offline miss (`stepCost s p s' = 1`, `p ∈ s'`)
@@ -408,8 +403,7 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
       rw [stepCost_of_mem (List.mem_toFinset.mpr hpq), Nat.zero_add]
       exact (lruPotential_le hs'_card (lruNext k q p)).trans (Nat.le_add_right _ _)
     · -- Online miss (`p ∉ q`)
-      rw [stepCost_of_notMem (by simpa only [List.mem_toFinset] using hpq),
-        lruNext_of_notMem hk hpq]
+      rw [stepCost_of_notMem (mt List.mem_toFinset.mp hpq), lruNext_of_notMem hk hpq]
       have hmaxW := maxWeightFrom_le (k - 1) s' (q.take (k - 1))
       have hsdiff : (s' \ (p :: q.take (k - 1)).toFinset).card ≤ k - 1 := by
         finset_card [List.toFinset_cons]
@@ -437,8 +431,8 @@ theorem lruFaults_amortized_bound {k : Nat} (hk : 0 < k) {s_off : Finset α} {q 
     lruFaults k q reqs +
         lruPotential k ((problem α k).finalState s_off offStates) (lruRun k q reqs) ≤
       k * (problem α k).scheduleCost s_off reqs offStates + lruPotential k s_off q := by
-  have h := (lruStrategy (α := α) k hk).amortized_bound (lruAmortized k hk) hq hv
-  simpa only [lruStrategy_costFrom_eq, lruStrategy_runMem_eq] using h
+  simpa only [lruStrategy_costFrom_eq, lruStrategy_runMem_eq] using
+    (lruStrategy (α := α) k hk).amortized_bound (lruAmortized k hk) hq hv
 
 /-- **LRU `k`-competitiveness from a common initial cache** ([SleatorTarjan1985], Theorem 6 at
 `n_LRU = n_MIN = k` with identical initial caches): when online and offline algorithms start from

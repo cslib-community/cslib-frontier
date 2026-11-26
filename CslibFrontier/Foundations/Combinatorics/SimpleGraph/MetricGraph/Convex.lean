@@ -137,11 +137,10 @@ theorem helly_theorem (hT : W.graph.IsTree) {ι : Type*} {K : ι → Set (Metric
     · exact (hpair i₀ h₀ i₀ h₀).imp fun _ hz => by simpa using hz.1
     obtain ⟨z, hz⟩ := ih (K := fun i => K i ∩ K i₀) hsne
       (fun i hi => (hconv i (hs' hi)).inter (hconv i₀ h₀))
-      (fun i hi j hj => by
-        obtain ⟨z, ⟨hzi, hzj⟩, hz₀⟩ := IsConvex.inter_inter_nonempty hT (hconv i (hs' hi))
-          (hconv j (hs' hj)) (hconv i₀ h₀) (hpair i (hs' hi) j (hs' hj))
-          (hpair j (hs' hj) i₀ h₀) (hpair i₀ h₀ i (hs' hi))
-        exact ⟨z, ⟨hzi, hz₀⟩, hzj, hz₀⟩)
+      (fun i hi j hj =>
+        (IsConvex.inter_inter_nonempty hT (hconv i (hs' hi)) (hconv j (hs' hj)) (hconv i₀ h₀)
+          (hpair i (hs' hi) j (hs' hj)) (hpair j (hs' hj) i₀ h₀) (hpair i₀ h₀ i (hs' hi))).imp
+          fun _ ⟨⟨hzi, hzj⟩, hz₀⟩ => ⟨⟨hzi, hz₀⟩, hzj, hz₀⟩)
     simp only [Set.mem_iInter, Set.mem_inter_iff] at hz
     obtain ⟨i₁, hi₁⟩ := hsne
     exact ⟨z, Set.mem_iInter₂.mpr
@@ -190,15 +189,15 @@ theorem IsConvex.exists_gate (hT : W.graph.IsTree) {K : Set (MetricGraph W)} (hK
   linarith [hle, mem_interval_iff.mp (treeMedian_mem_xy hT y p z), _root_.dist_pos.mpr hmp]
 
 theorem IsConvex.gate_mem (hT : W.graph.IsTree) {K : Set (MetricGraph W)} (hK : IsConvex K)
-    (hKc : IsClosed K) (hKn : K.Nonempty) (y : MetricGraph W) : gate K y ∈ K := by
-  obtain ⟨p, hp, h⟩ := hK.exists_gate hT hKc hKn y
-  exact gate_eq_of_forall_mem_interval hp h ▸ hp
+    (hKc : IsClosed K) (hKn : K.Nonempty) (y : MetricGraph W) : gate K y ∈ K :=
+  let ⟨_, hp, h⟩ := hK.exists_gate hT hKc hKn y
+  gate_eq_of_forall_mem_interval hp h ▸ hp
 
 theorem IsConvex.gate_mem_interval (hT : W.graph.IsTree) {K : Set (MetricGraph W)}
     (hK : IsConvex K) (hKc : IsClosed K) (y : MetricGraph W) {z : MetricGraph W} (hz : z ∈ K) :
-    gate K y ∈ interval y z := by
-  obtain ⟨p, hp, h⟩ := hK.exists_gate hT hKc ⟨z, hz⟩ y
-  exact gate_eq_of_forall_mem_interval hp h ▸ h z hz
+    gate K y ∈ interval y z :=
+  let ⟨_, hp, h⟩ := hK.exists_gate hT hKc ⟨z, hz⟩ y
+  gate_eq_of_forall_mem_interval hp h ▸ h z hz
 
 /-- A point lies in a branch based in a closed convex set exactly when its gate does. -/
 theorem IsConvex.mem_branch_gate_iff (hT : W.graph.IsTree) {K : Set (MetricGraph W)}
@@ -382,12 +381,10 @@ theorem IsSubtreeVertexSet.exists_subtree_eq_interval (hT : W.graph.IsTree) {S :
     by_contra hu_not
     obtain ⟨u', hu'S, v', hv'p, hu'not, hadj⟩ :=
       hstep q hq hu (Walk.start_mem_support p) hu_not
-    by_cases hva : v' = a
-    · subst hva
-      exact hext p hp hp_len hb hu'S hu'not hadj
-    by_cases hvb : v' = b
-    · subst hvb
-      exact hext p.reverse hp.reverse (by simp [hp_len]) ha hu'S
+    rcases eq_or_ne v' a with rfl | hva
+    · exact hext p hp hp_len hb hu'S hu'not hadj
+    rcases eq_or_ne v' b with rfl | hvb
+    · exact hext p.reverse hp.reverse (by simp [hp_len]) ha hu'S
         (by simpa [Walk.support_reverse] using hu'not) hadj
     have hv'_S : v' ∈ S := hp_in_S v' hv'p
     let p₁ := p.takeUntil v' hv'p
@@ -457,9 +454,8 @@ theorem exists_adj_mem_branch_of_mem_subtree (hT : W.graph.IsTree) {S : Finset V
     hr_pos.ne' (by simpa only [heq, _root_.dist_self] using hp_dist.symm)
   have hp_bry : edgePoint d t ∈ branch (vertex c) y :=
     mem_branch_of_mem_interval hT (mem_branch_self hy_ne) hp_mem hp_ne
-  refine ⟨d.snd, hd_S.2, hadj, ?_⟩
-  rw [← branch_eq_of_mem hT hp_br, branch_eq_of_mem hT hp_bry]
-  exact mem_branch_self hy_ne
+  exact ⟨d.snd, hd_S.2, hadj,
+    branch_eq_of_mem hT hp_br ▸ branch_eq_of_mem hT hp_bry ▸ mem_branch_self hy_ne⟩
 
 end Subtree
 
@@ -509,10 +505,10 @@ theorem IsSubtreeVertexSet.removeBranch (hT : W.graph.IsTree) {S : Finset V}
 
 theorem card_removeBranch_lt (hT : W.graph.IsTree) {S : Finset V}
     {c w : V} (hw : w ∈ S) (hadj : W.graph.Adj c w) :
-    (removeBranch W S c w).card < S.card := by
-  refine Finset.card_lt_card ⟨removeBranch_subset W S c w, fun hsub => ?_⟩
-  have hw_rem := (mem_removeBranch_iff hT hadj).mp (hsub hw)
-  exact (isBridge_iff.mp (isAcyclic_iff_forall_adj_isBridge.mp hT.isAcyclic hadj)) hw_rem.2.symm
+    (removeBranch W S c w).card < S.card :=
+  Finset.card_lt_card ⟨removeBranch_subset W S c w, fun hsub =>
+    (isBridge_iff.mp (isAcyclic_iff_forall_adj_isBridge.mp hT.isAcyclic hadj))
+      ((mem_removeBranch_iff hT hadj).mp (hsub hw)).2.symm⟩
 
 /-- Removing the branch at `c ∈ S` toward a neighbour `w` cuts that branch out of the subtree. -/
 theorem subtree_removeBranch (hT : W.graph.IsTree) {S : Finset V}
@@ -558,8 +554,7 @@ theorem gate_subtree_removeBranch (hT : W.graph.IsTree) {S : Finset V}
     gate (subtree W (removeBranch W S c w)) z = vertex c := by
   refine gate_eq_of_forall_mem_interval
     (vertex_mem_subtree W ((mem_removeBranch_iff hT hadj).mpr ⟨hc, .refl c⟩)) fun z' hz' => ?_
-  rw [subtree_removeBranch hT hS hc hadj, Set.mem_inter_iff, Set.mem_compl_iff,
-    ← branch_eq_of_mem hT hbr] at hz'
+  rw [subtree_removeBranch hT hS hc hadj, ← branch_eq_of_mem hT hbr] at hz'
   exact of_not_not hz'.2
 
 end RemoveBranch

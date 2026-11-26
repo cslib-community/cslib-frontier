@@ -115,7 +115,7 @@ theorem card_filter_extensions_free_eq (ρ₀ : PartialAssignment ι) (ℓ : ℕ
     simp only [mem_filter, mem_univ, true_and, mem_sdiff, and_comm]
   rw [this, Fintype.card_piFinset]
   simp only [apply_ite card, card_singleton,
-    card_pair (by decide : some false ≠ some true)]
+    card_pair (Bool.false_ne_true ∘ Option.some.inj)]
   rw [prod_ite, prod_const_one, one_mul, prod_ite, prod_const,
     prod_const_one, mul_one, filter_filter, hsdiff, card_sdiff_of_subset hSsub, hScard]
 
@@ -134,10 +134,8 @@ theorem card_extensions (ρ₀ : PartialAssignment ι) (ℓ : ℕ) :
 theorem card_filter_extensions_free_subset (ρ₀ : PartialAssignment ι) (ℓ : ℕ)
     {U : Finset ι} (hU : U ⊆ ρ₀.free) :
     #{ρ ∈ ρ₀.extensions ℓ | ρ.free ⊆ U} = (#U).choose ℓ * 2 ^ (#ρ₀.free - ℓ) := by
-  rw [card_eq_sum_card_fiberwise (f := free) (t := powersetCard ℓ U)
-    fun ρ hρ => by
-      obtain ⟨hρ_ext, hρ_sub⟩ := mem_filter.1 hρ
-      exact mem_powersetCard.2 ⟨hρ_sub, (mem_extensions.1 hρ_ext).2⟩]
+  rw [card_eq_sum_card_fiberwise (f := free) (t := powersetCard ℓ U) fun ρ hρ =>
+    mem_powersetCard.2 ⟨(mem_filter.1 hρ).2, (mem_extensions.1 (mem_filter.1 hρ).1).2⟩]
   rw [sum_congr rfl (g := fun _ => 2 ^ (#ρ₀.free - ℓ)), sum_const, card_powersetCard, smul_eq_mul]
   intro S hS
   obtain ⟨hSsub, hScard⟩ := mem_powersetCard.1 hS
@@ -181,8 +179,7 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
     (hℓ : #ρ'.free ≤ ℓ) :
     #((withFree ι ℓ).filter fun ρ => ρ'.Extends ρ) =
       (Fintype.card ι - #ρ'.free).choose (ℓ - #ρ'.free) := by
-  rw [show Fintype.card ι = #(univ : Finset ι) from card_univ.symm,
-    ← card_filter_powersetCard_subset ρ'.free univ ℓ (subset_univ _) hℓ]
+  rw [← card_univ, ← card_filter_powersetCard_subset ρ'.free univ ℓ (subset_univ _) hℓ]
   -- Freeing the coordinates of a superset `F` of `ρ'.free` leaves exactly `F` free.
   have hfree {F : Finset ι} (hsub : ρ'.free ⊆ F) :
       free (fun i => if i ∈ F then none else ρ' i) = F := by
@@ -232,14 +229,12 @@ theorem sum_card_filter_outside (Q : PartialAssignment ι → Prop) [DecidablePr
     have hfree : #ρ.free = ℓ := mem_withFree.1 (mem_filter.1 hρ).1
     rw [← hfree, ← card_filter_outside_eq ρ]
     refine card_nbij' (fun p => p.2) (fun z => ⟨ρ.free, z⟩) (fun p hp => ?_) (fun z hz => ?_)
-      (fun p hp => ?_) (fun z _ => rfl)
+      (fun p hp => Sigma.ext ((mem_filter.1 hp).2 ▸ free_outside p.1 p.2) HEq.rfl) (fun _ _ => rfl)
     · obtain ⟨-, hpρ⟩ := mem_filter.1 hp
       exact mem_filter.2 ⟨mem_univ _, (hpρ ▸ free_outside p.1 p.2) ▸ hpρ⟩
     · have hz' : outside ρ.free z = ρ := (mem_filter.1 hz).2
       exact mem_filter.2 ⟨mem_sigma.2 ⟨mem_powersetCard.2 ⟨subset_univ _, rfl⟩,
         mem_filter.2 ⟨mem_univ _, hz'.symm ▸ (mem_filter.1 hρ).2⟩⟩, hz'⟩
-    · obtain ⟨-, hpρ⟩ := mem_filter.1 hp
-      exact Sigma.ext (hpρ ▸ free_outside p.1 p.2) HEq.rfl
   · obtain ⟨hJ, hz⟩ := mem_sigma.1 hp
     exact mem_filter.2 ⟨mem_withFree.2 (by rw [free_outside]; exact (mem_powersetCard.1 hJ).2),
       (mem_filter.1 hz).2⟩
@@ -271,20 +266,21 @@ theorem sum_extensions_update (ρ₀ : PartialAssignment ι) {t : ℕ} (ht1 : 1 
     ∑ ρ ∈ ρ₀.extensions t, ∑ i ∈ ρ.free,
         (g (update ρ i (some false)) + g (update ρ i (some true))) =
       (#ρ₀.free - (t - 1)) * ∑ ρ' ∈ ρ₀.extensions (t - 1), g ρ' := by
-  rw [show ∑ ρ ∈ ρ₀.extensions t, ∑ i ∈ ρ.free,
+  have hlhs : ∑ ρ ∈ ρ₀.extensions t, ∑ i ∈ ρ.free,
         (g (update ρ i (some false)) + g (update ρ i (some true))) =
       ∑ x ∈ ((ρ₀.extensions t).sigma fun ρ => ρ.free) ×ˢ (univ : Finset Bool),
-        g (update x.1.1 x.1.2 (some x.2)) by
+        g (update x.1.1 x.1.2 (some x.2)) := by
     rw [sum_product, sum_sigma]
-    refine sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => ?_
-    rw [show (univ : Finset Bool) = {false, true} by decide, sum_pair (by decide)]]
-  rw [show (#ρ₀.free - (t - 1)) * ∑ ρ' ∈ ρ₀.extensions (t - 1), g ρ' =
-      ∑ p ∈ (ρ₀.extensions (t - 1)).sigma (fun ρ' => ρ₀.free \ ρ'.free), g p.1 by
+    exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ =>
+      ((Fintype.sum_bool _).trans (add_comm _ _)).symm
+  have hrhs : (#ρ₀.free - (t - 1)) * ∑ ρ' ∈ ρ₀.extensions (t - 1), g ρ' =
+      ∑ p ∈ (ρ₀.extensions (t - 1)).sigma (fun ρ' => ρ₀.free \ ρ'.free), g p.1 := by
     rw [sum_sigma, mul_sum]
     refine sum_congr rfl fun ρ' hρ' => ?_
     obtain ⟨hext, hfree⟩ := mem_extensions.1 hρ'
     dsimp only
-    rw [sum_const, smul_eq_mul, card_sdiff_of_subset hext.free_subset, hfree]]
+    rw [sum_const, smul_eq_mul, card_sdiff_of_subset hext.free_subset, hfree]
+  rw [hlhs, hrhs]
   refine sum_nbij' (fun x => ⟨update x.1.1 x.1.2 (some x.2), x.1.2⟩)
     (fun y => ⟨⟨update y.1 y.2 none, y.2⟩, (y.1 y.2).getD false⟩)
     (fun x hx => ?_) (fun y hy => ?_) (fun x hx => ?_) (fun y hy => ?_) (fun _ _ => rfl)
@@ -336,11 +332,9 @@ theorem card_extensions_le_two_mul_card_filter_forall_nonempty
   set A := {ρ ∈ E | ∀ j : Fin b, (ρ.free ∩ B j).Nonempty}
   set Bad : Fin b → Finset (PartialAssignment ι) :=
     fun j => {ρ ∈ E | ¬(ρ.free ∩ B j).Nonempty}
-  have hcompl_sub : E \ A ⊆ univ.biUnion Bad := by
-    intro ρ hρ
+  have hcompl_sub : E \ A ⊆ univ.biUnion Bad := fun ρ hρ => by
     obtain ⟨hρE, hρA⟩ := mem_sdiff.1 hρ
-    rw [mem_filter, not_and] at hρA
-    obtain ⟨j, hj⟩ := not_forall.1 (hρA hρE)
+    obtain ⟨j, hj⟩ := not_forall.1 fun h => hρA (mem_filter.2 ⟨hρE, h⟩)
     exact mem_biUnion.2 ⟨j, mem_univ j, mem_filter.2 ⟨hρE, hj⟩⟩
   have hBad_card (j : Fin b) : #(Bad j) = (b * m - m).choose k * 2 ^ (b * m - k) := by
     rw [card_filter_extensions_not_nonempty_inter ρ₀ k (hBsub j), hfree, hBcard j]
@@ -376,7 +370,6 @@ theorem mul_card_filter_withFree_le {n c G H G' ℓ ℓ' : ℕ} (hℓ'ℓ : ℓ'
     c * #{ρ ∈ withFree (Fin n) ℓ' | B' ρ} ≤ G' * #(withFree (Fin n) ℓ') := by
   set W := withFree (Fin n) ℓ
   set F := (n - ℓ').choose (ℓ - ℓ')
-  have hF : 0 < F := Nat.choose_pos (by omega)
   set T := ℓ.choose ℓ' * 2 ^ (ℓ - ℓ')
   have hT : ∀ ρ ∈ W, #(ρ.extensions ℓ') = T := fun ρ hρ => by
     rw [card_extensions, mem_withFree.1 hρ]
@@ -393,7 +386,7 @@ theorem mul_card_filter_withFree_le {n c G H G' ℓ ℓ' : ℕ} (hℓ'ℓ : ℓ'
   simp only [filter_true] at hall
   rw [Fintype.card_fin] at hdc hall
   rw [sum_congr rfl hT, sum_const, smul_eq_mul] at hall
-  refine Nat.le_of_mul_le_mul_right (?_ : _ * F ≤ _ * F) hF
+  refine Nat.le_of_mul_le_mul_right (?_ : _ * F ≤ _ * F) (Nat.choose_pos (by omega))
   calc c * #{ρ ∈ withFree (Fin n) ℓ' | B' ρ} * F
       = ∑ ρ ∈ W, c * #{ρ' ∈ ρ.extensions ℓ' | B' ρ'} := by
         rw [mul_assoc, ← hdc, mul_sum]

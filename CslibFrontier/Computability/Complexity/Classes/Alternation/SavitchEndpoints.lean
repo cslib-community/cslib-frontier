@@ -84,16 +84,13 @@ def lastMidpoint (w : ℕ) : ℕ → List Bool → Bool → Option (List Bool)
 private theorem getD_drop_level (z : List Bool) (j k : ℕ) :
     (z.drop (2 * w + 2)).getD ((2 * w + 2) * j + k) false =
       z.getD ((2 * w + 2) * (j + 1) + k) false := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_drop]
-  congr 2
-  ring
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_drop, Nat.mul_succ, Nat.add_assoc,
+    Nat.add_comm (2 * w + 2)]
 
 /-- Level `j` of the moves after the first level is level `j + 1` of the moves: its moves. -/
 private theorem drop_drop_level (z : List Bool) (j : ℕ) :
     (z.drop (2 * w + 2)).drop ((2 * w + 2) * j) = z.drop ((2 * w + 2) * (j + 1)) := by
-  rw [List.drop_drop]
-  congr 1
-  ring
+  rw [List.drop_drop, Nat.mul_succ, Nat.add_comm]
 
 /-- **No level with half `d`.** `lastMidpoint w i z d` is `none` exactly when no level `j < i` of
 the moves `z` has half `d`; the half of level `j` is the move `(2 * w + 2) * j + (2 * w + 1)`. -/
@@ -274,8 +271,7 @@ private theorem blockT_run (n : ℕ) :
 
 /-- The level marks have one mark per move. -/
 private theorem length_levelMarks (w i : ℕ) : (levelMarks w i).length = (2 * w + 2) * i := by
-  simp [levelMarks]
-  ring
+  simp [levelMarks, mul_comm]
 
 /-- The level marks are written in one streaming pass, in time linear in their length. -/
 private theorem computableInO_levelMarks :
@@ -475,10 +471,8 @@ private theorem computableInO_endpointWord (d : Bool) :
       (fun q => (encPair encBits encBits q).length) :=
     .of_bounds (endpointZip d).computableInTimeAndSpace_run 3 (fun q => by omega)
       (fun q => by simp only [length_encPair, encBits_apply]; omega)
-      (fun q => by
-        have := length_run_le (endpointZip d) .seek q.1 q.2
-        simp only [length_encPair, encBits_apply] at this ⊢
-        omega)
+      (fun q => (length_run_le (endpointZip d) .seek q.1 q.2).trans
+        (by simp only [length_encPair, encBits_apply]; omega))
   have hpair := (ComputableInO.fst encUnary (encPair encUnary encBits)).prod
     (ComputableInO.snd encUnary (encPair encUnary encBits)).fst'
   have hmarks := computableInO_levelMarks.comp hpair

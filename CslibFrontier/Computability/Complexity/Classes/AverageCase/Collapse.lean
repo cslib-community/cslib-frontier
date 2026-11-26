@@ -169,9 +169,7 @@ theorem binaryValue_collapse_add_one {r : List Bool} (hv : H.valid r = true) :
 theorem binaryValue_le_binaryValue_collapse (r : List Bool) :
     BitString.binaryValue r ≤ BitString.binaryValue (H.collapse r) := by
   by_cases hv : H.valid r = true
-  · have := H.binaryValue_collapse_add_one hv
-    have := (H.mem_block hv).2
-    omega
+  · exact Nat.lt_add_one_iff.mp ((H.binaryValue_collapse_add_one hv).symm ▸ (H.mem_block hv).2)
   · simp [collapse, hv]
 
 /-- Two words of the same length collapse to the same word as a valid `r` exactly when they lie in
@@ -208,9 +206,8 @@ theorem cdfNum_le_two_pow (y : List Bool) : H.cdfNum y ≤ 2 ^ y.length := by
   have hb := BitString.binaryValue_lt_two_pow y
   unfold cdfNum
   split_ifs with hy
-  · omega
-  · have := (H.mem_block (H.valid_of_collapse_ne hy)).1
-    omega
+  · exact hb
+  · exact (H.mem_block (H.valid_of_collapse_ne hy)).1.trans hb.le
 
 /-- **Monotonicity of collapsing.** A word `r` of the length of `y` collapses to a word of value at
 most that of `y` exactly when the value of `r` is below `cdfNum y`. -/
@@ -351,10 +348,8 @@ theorem ensemble_dist_collapse {r : List Bool} (hv : H.valid r = true) :
       Set.disjoint_left.mpr fun _ h1 h2 => not_le_of_gt h1 h2.1
     have hunion : {r' : List Bool | BitString.binaryValue r' < H.hi r} =
         {r' | BitString.binaryValue r' < H.lo r} ∪
-          {r' | H.lo r ≤ BitString.binaryValue r' ∧ BitString.binaryValue r' < H.hi r} := by
-      ext r'
-      simp only [Set.mem_ofPred_eq, Set.mem_union]
-      omega
+          {r' | H.lo r ≤ BitString.binaryValue r' ∧ BitString.binaryValue r' < H.hi r} :=
+      Set.ext fun _ => by simp only [Set.mem_ofPred_eq, Set.mem_union]; omega
     rw [hunion, Probability.PMF.toOuterMeasure_union_of_disjoint _ hdisj, ensemble_dist,
       ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
     congr 1
