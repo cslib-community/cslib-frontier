@@ -240,9 +240,9 @@ private theorem trInv_root_parent {P : Type*} [DecidableEq P] (root : P) :
 
 /-- `root` never acquires a `parent` pointer in any reachable configuration. -/
 theorem Reachable.root_parent_eq_none {P : Type*} [DecidableEq P] {root : P} {s : State P}
-    (hr : Reachable root s) : (s.proc root).parent = none := by
-  obtain ⟨tr, hmtr⟩ := hr
-  exact LTS.mtrInv_of_trInv (trInv_root_parent root) _ tr s hmtr rfl
+    (hr : Reachable root s) : (s.proc root).parent = none :=
+  let ⟨tr, hmtr⟩ := hr
+  LTS.mtrInv_of_trInv (trInv_root_parent root) _ tr s hmtr rfl
 
 private theorem trInv_neutral_of_parent_none {P : Type*} [DecidableEq P] (root : P) :
     (lts root).TrInv (fun s =>
@@ -650,7 +650,8 @@ theorem Reachable.terminated_implies_quiescent {P : Type*} [Finite P] [Decidable
     · subst hpr; exact hr.root_parent_eq_none
     · by_contra hpar
       obtain ⟨k, _, hk_pos, hk⟩ := hr.engaged_reaches_root hpr hpar
-      rw [show k = (k - 1) + 1 by omega, State.ancestor?_add, Option.bind_eq_some_iff] at hk
+      have hk1 : k = (k - 1) + 1 := by omega
+      rw [hk1, State.ancestor?_add, Option.bind_eq_some_iff] at hk
       obtain ⟨c, -, hstep_c⟩ := hk
       cases hcp : (s.proc c).parent with
       | none => simp [State.ancestor?, hcp] at hstep_c
@@ -803,18 +804,13 @@ theorem Reachable.isTerminal_iff_terminated_of_computationIdle {P : Type*} [Fini
         have heq := ancestor?_eq_root_unique hr.root_parent_eq_none hc_anc hc_step
         have hle := hp_max c hc_mem
         omega
-      have hp_def0 : (s.proc p).deficit = 0 := by
-        rw [hdef_eq p, hp_leaf, Finset.card_empty]
       cases hq : (s.proc p).parent with
       | none => exact hp_eng.2 hq
       | some q =>
-        have hstep : (lts root).Tr s (.detach p q) (s.detachState p q) :=
-          tr_detach_iff.mpr ⟨⟨hp_eng.1, hidle.1 p, hp_def0, hq⟩, rfl⟩
-        exact hterm (.detach p q) (s.detachState p q) hstep
+        exact hterm (.detach p q) _
+          (tr_detach_iff.mpr ⟨⟨hp_eng.1, hidle.1 p, by simp [hdef_eq p, hp_leaf], hq⟩, rfl⟩)
     · obtain ⟨p, hp⟩ := Multiset.exists_mem_of_ne_zero hsig
-      have hstep : (lts root).Tr s (.recvSignal p) (s.recvSignalState p) :=
-        tr_recvSignal_iff.mpr ⟨hp, rfl⟩
-      exact hterm (.recvSignal p) (s.recvSignalState p) hstep
+      exact hterm (.recvSignal p) _ (tr_recvSignal_iff.mpr ⟨hp, rfl⟩)
   · intro ht a s' htr
     have hq := hr.terminated_implies_quiescent ht
     cases a with
@@ -865,13 +861,10 @@ theorem Reachable.quiescent_drains_to_terminated {P : Type*} [Fintype P] [Decida
         tr.length ≤ 2 * Fintype.card P + s.inFlightSignals ∧
           ((lts root).IsTerminal s' → s'.Terminated root)) := by
   have hbound := s.drainMeasure_le root
-  refine ⟨?_, ?_⟩
-  · obtain ⟨tr, s', hmtr, ht, hlen⟩ := exists_drain_mtr (s.drainMeasure root) hr hidle rfl
-    exact ⟨tr, s', hmtr, ht, by omega⟩
-  · intro tr s' hmtr
-    obtain ⟨hidle', hlen⟩ := hidle.mtr_drainMeasure hmtr
-    refine ⟨by omega, fun hterm => ?_⟩
-    exact ((hr.mtr hmtr).isTerminal_iff_terminated_of_computationIdle hidle').mp hterm
+  obtain ⟨tr₀, s₀', hmtr₀, ht₀, hlen₀⟩ := exists_drain_mtr (s.drainMeasure root) hr hidle rfl
+  refine ⟨⟨tr₀, s₀', hmtr₀, ht₀, by omega⟩, fun tr s' hmtr => ?_⟩
+  obtain ⟨hidle', hlen⟩ := hidle.mtr_drainMeasure hmtr
+  exact ⟨by omega, ((hr.mtr hmtr).isTerminal_iff_terminated_of_computationIdle hidle').mp⟩
 
 /-! ### Sequential-polling phantom termination counterexample -/
 

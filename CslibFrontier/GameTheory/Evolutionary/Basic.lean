@@ -170,16 +170,11 @@ theorem isESS_iff_isNash_and_forall_lt (hG : G.B = G.Aᵀ) :
     refine ⟨⟨hs, fun t ht => ?_⟩, fun t ⟨ht, hbr⟩ hne => ?_⟩
     · rcases eq_or_ne t s with rfl | hne
       · exact le_rfl
-      · rcases h t ht hne with hlt | ⟨heq, -⟩
-        exacts [hlt.le, heq.le]
-    · rcases h t ht hne with hlt | ⟨-, hlt⟩
-      · exact absurd (hbr s hs) hlt.not_ge
-      · exact hlt
+      · exact (h t ht hne).elim le_of_lt fun heq => heq.1.le
+    · exact (h t ht hne).elim (fun hlt => absurd (hbr s hs) hlt.not_ge) And.right
   · rintro ⟨⟨hs, hbr⟩, hst⟩
-    refine ⟨hs, fun t ht hne => ?_⟩
-    rcases (hbr t ht).lt_or_eq with hlt | heq
-    · exact Or.inl hlt
-    · exact Or.inr ⟨heq, hst t ⟨ht, fun x' hx' => heq ▸ hbr x' hx'⟩ hne⟩
+    exact ⟨hs, fun t ht hne => (hbr t ht).lt_or_eq.imp_right fun heq =>
+      ⟨heq, hst t ⟨ht, fun x' hx' => heq ▸ hbr x' hx'⟩ hne⟩⟩
 
 /-! ### Two pure strategies -/
 

@@ -78,10 +78,8 @@ private theorem borrowed_view_memSnapshot {τ : SnapshotTrace ord dInit} {t : �
     rcases τ.reg_step_iff (t := w₂) k (by omega) with
         ⟨-, hnw⟩ | ⟨_, _, _, -, -, hreg', -⟩
     · exact absurd hw₂_write hnw
-    · have hmono := (τ.seq_mono_and_const_of_eq (t₁ := w₂ + 1) k hw₂_hi
-        (le_trans htB₂ ht)).1
-      have hseq_w₂ : ((τ.stateAt (w₂ + 1)).reg k).seq =
-          ((τ.stateAt w₂).reg k).seq + 1 := by rw [hreg']
+    · have hmono := (τ.seq_mono_and_const_of_eq (t₁ := w₂ + 1) k hw₂_hi (le_trans htB₂ ht)).1
+      simp only [hreg'] at hmono
       omega
   obtain ⟨w_star, hw_star_lt, hw_star_write, hw_star_reg, hnow_after⟩ :=
     τ.exists_last_writeStep_of_seq_pos k (le_trans htB₂ ht) hpos
@@ -191,10 +189,8 @@ private theorem TraceInv.of_scanning {τ : SnapshotTrace ord dInit} {t : ℕ}
     (hstep : stepSnapshot ord dInit (τ.stateAt t) (.step i) = some (τ.stateAt (t + 1))) :
     TraceInv τ (t + 1) := by
   have ht_le : t ≤ τ.events.length := Nat.le_of_lt ht_lt
-  have hnow : ¬∃ j, τ.isWriteStep j t := by
-    rintro ⟨j, _, _, _, _, h1, h2⟩
-    obtain rfl := SnapshotEvent.step.inj (h1.symm.trans hev)
-    rw [hpi] at h2; cases h2
+  have hnow : ¬∃ j, τ.isWriteStep j t := fun ⟨j, _, opId, val, sn, h1, h2⟩ => by
+    cases hpi.symm.trans (SnapshotEvent.step.inj (h1.symm.trans hev) ▸ h2)
   obtain ⟨-, -, -, hloop⟩ := inv.proc_scan i st hpi
   simp only [stepSnapshot, hpi] at hstep
   cases hph : st.phase with
@@ -251,17 +247,14 @@ theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
     have ht_lt : t < τ.events.length := Nat.lt_of_succ_le ht
     have inv := ih (Nat.le_of_succ_le ht)
     have hstep := τ.stateAt_step ht_lt
-    rcases hev : τ.events[t] with i | ⟨i, val⟩ | i
-    · rw [hev] at hstep
-      obtain ⟨hpi, hs₁⟩ := stepSnapshot_invokeScan_eq hstep
+    rcases hev : τ.events[t]'ht_lt with i | ⟨i, val⟩ | i <;> rw [hev] at hstep
+    · obtain ⟨hpi, hs₁⟩ := stepSnapshot_invokeScan_eq hstep
       exact inv.of_invoke i .external hpi
-        (by rintro ⟨_, _, _, _, _, h1, _⟩; rw [hev] at h1; cases h1) hs₁
-    · rw [hev] at hstep
-      obtain ⟨hpi, hs₁⟩ := stepSnapshot_invokeUpdate_eq hstep
+        (fun ⟨j, _, opId, v, sn, h1, _⟩ => nomatch hev.symm.trans h1) hs₁
+    · obtain ⟨hpi, hs₁⟩ := stepSnapshot_invokeUpdate_eq hstep
       exact inv.of_invoke i (.embedded val) hpi
-        (by rintro ⟨_, _, _, _, _, h1, _⟩; rw [hev] at h1; cases h1) hs₁
-    · rw [hev] at hstep
-      cases hpi : (τ.stateAt t).proc i with
+        (fun ⟨j, _, opId, v, sn, h1, _⟩ => nomatch hev.symm.trans h1) hs₁
+    · cases hpi : (τ.stateAt t).proc i with
       | idle => unfold stepSnapshot at hstep; simp only [hpi] at hstep; nomatch hstep
       | readyToWrite opId val snap =>
         simp only [stepSnapshot, hpi, Option.some.injEq] at hstep

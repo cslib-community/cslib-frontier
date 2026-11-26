@@ -118,26 +118,19 @@ theorem repair_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
       (hammingDist f g ≤ fuel → defects g' ⊆ defects f) := by
   fun_induction repair sem f fuel g with
   | case1 g => -- fuel exhausted
-    refine ⟨hg, le_rfl, by simp, le_rfl, fun hd => ?_⟩
-    obtain rfl : f = g := hammingDist_eq_zero.mp (by omega)
-    exact Subset.rfl
+    exact ⟨hg, le_rfl, by simp, le_rfl,
+      fun hd => hammingDist_eq_zero.mp (Nat.eq_zero_of_le_zero hd) ▸ Subset.rfl⟩
   | case2 n g hs => -- no repair move
-    refine ⟨hg, le_rfl, by simp, Nat.zero_le _, ?_⟩
-    intro _ v hvg
-    by_contra hvf
-    obtain ⟨a, ha⟩ := exists_repairMove hM hf hg
-      (mt mem_defects.mpr hvf) (mem_defects.mp hvg)
+    refine ⟨hg, le_rfl, by simp, Nat.zero_le _, fun _ v hvg => by_contra fun hvf => ?_⟩
+    obtain ⟨a, ha⟩ := exists_repairMove hM hf hg (mt mem_defects.mpr hvf) (mem_defects.mp hvg)
     exact findPair_none hs a.1 a.2 ha
   | case3 n g o p hs g' k hrep ih => -- repair move (o, p): flip and recurse
     obtain ⟨hc, hne, ho, hp, hcf, hcg, hv⟩ := findPair_spec hs
-    have hrec := ih hv
-    rw [hrep] at hrec
+    obtain ⟨hv', hcard', hdist', hle', hsub'⟩ := hrep ▸ ih hv
     have hd := hammingDist_flipOn_pair_add_two hne ho hp
     rw [hammingDist_comm g f, hammingDist_comm (flipOn {o, p} g) f] at hd
     have hcard := h.card_defects_flipOn_pair_le g hne hcg
-    dsimp only at hrec ⊢
-    exact ⟨hrec.1, hrec.2.1.trans hcard, by omega, by omega,
-      fun hb => hrec.2.2.2.2 (by omega)⟩
+    exact ⟨hv', hcard'.trans hcard, by omega, by omega, fun hb => hsub' (by omega)⟩
 
 /-- Two fewer defects and containment provide a starting defect different from any specified
 variable. Only the start is excluded; the walk may end at that variable. -/
@@ -148,11 +141,9 @@ theorem exists_start_ne (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
     ∃ r, r ≠ x ∧ Inconsistent f r ∧ ¬ Inconsistent g r := by
   have hp := h.card_defects_mod_two_eq hM hf hg
   by_contra hn
-  have hcover : defects f ⊆ insert x (defects g) := fun v hv => by
-    by_cases he : v = x
-    · exact mem_insert.mpr (Or.inl he)
-    · exact mem_insert_of_mem (mem_defects.mpr (of_not_not fun hh =>
-        hn ⟨v, he, mem_defects.mp hv, hh⟩))
+  have hcover : defects f ⊆ insert x (defects g) := fun v hv =>
+    mem_insert.mpr (or_iff_not_imp_left.mpr fun he =>
+      mem_defects.mpr (of_not_not fun hh => hn ⟨v, he, mem_defects.mp hv, hh⟩))
   have := (card_le_card hcover).trans (card_insert_le x (defects g))
   omega
 
@@ -292,8 +283,8 @@ theorem buildWalk_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
       hammingDist (w'.flip f) g + 2 * k = hammingDist (w.flip f) g ∧ k ≤ fuel := by
   induction fuel generalizing w with
   | zero =>
-    have he : w.flip f = g := hammingDist_eq_zero.mp (by omega)
-    exact (hw.target_endpoint (he ▸ hw.endpoint_defect)).elim
+    exact (hw.target_endpoint
+      (hammingDist_eq_zero.mp (Nat.eq_zero_of_le_zero hclock) ▸ hw.endpoint_defect)).elim
   | succ n ih =>
     match hs : findPair F (WalkMove sem g (w.flip f) w.finish) with
     | none =>
@@ -337,8 +328,8 @@ theorem buildWalk_from_start (h : EdgeInstance F) {sem : Rel → List Bool → B
     target_start := hrg
     used_agrees := by simp [Walk.edges, Walk.edgesOf]
     start_cleared := by simp }
-  have hb := h.buildWalk_spec hM hg hsub (hammingDist f g) hw (by rw [he])
-  simpa only [he, List.length_nil, Nat.zero_add] using hb
+  simpa only [he, List.length_nil, Nat.zero_add] using
+    h.buildWalk_spec hM hg hsub (hammingDist f g) hw (by rw [he])
 
 private theorem repair_full_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
     (hM : EvenConstraints sem F) {f g : OccurrenceLabeling F Bool}
@@ -402,10 +393,10 @@ theorem augmentingWalk_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bo
       (decide_eq_true ⟨hrx, ⟨o, p, rfl, hpr, hop⟩, hrg⟩)).elim
   | some o =>
     have hfind := List.find?_some (l := incidenceList F) hs
-    have ho := of_decide_eq_true hfind
+    obtain ⟨hox, hof, hog⟩ := of_decide_eq_true hfind
     obtain ⟨w, k, hw, ha, hstart, hlen, hdist, _⟩ :=
-      h.buildWalk_from_start hM hf hvalid hsub o.var ho.2.1 ho.2.2
-    exact ⟨w, by simpa only [augmentingWalk, fixed, hs] using hw, ha, hstart ▸ ho.1, by omega⟩
+      h.buildWalk_from_start hM hf hvalid hsub o.var hof hog
+    exact ⟨w, by simpa only [augmentingWalk, fixed, hs] using hw, ha, hstart ▸ hox, by omega⟩
 
 /-- Nonoptimality is equivalent to existence of an augmenting walk, without assuming a solver. -/
 theorem exists_improvement_iff_exists_augmentingWalk (h : EdgeInstance F)

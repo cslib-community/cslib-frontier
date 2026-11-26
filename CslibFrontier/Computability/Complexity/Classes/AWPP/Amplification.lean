@@ -64,19 +64,15 @@ private theorem card_outcome_fiber {β : Type} [Fintype β] (V : β → Bool) {T
         #{b | V b = false} ^ (T - (List.ofFn w).countP id) := by
   classical
   have heq : (univ.filter fun x : Fin T → β => (fun i => V (x i)) = w) =
-      Fintype.piFinset (fun i => univ.filter fun b => V b = w i) := by
+      Fintype.piFinset fun i => univ.filter fun b => V b = w i := by
     ext x
     simp [funext_iff]
-  rw [heq, Fintype.card_piFinset]
   have hrow (i : Fin T) : #{b | V b = w i} =
       if w i then #{b | V b = true} else #{b | V b = false} := by cases w i <;> rfl
+  have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin T))) (w · = true)
+  rw [heq, Fintype.card_piFinset]
   simp_rw [hrow]
-  rw [Finset.prod_ite]
-  have hc : (List.ofFn w).countP id = #{i | w i = true} := by
-    simp only [List.countP_ofFn, id_eq]
-  simp only [Finset.prod_const, hc]
-  have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin T)))
-    (fun i => w i = true)
+  simp only [Finset.prod_ite, Finset.prod_const, List.countP_ofFn, id_eq]
   simp only [card_univ, Fintype.card_fin] at hsum
   congr 2
   omega
@@ -162,8 +158,8 @@ theorem majorityPolynomial_bounds {g : ℤ} {m e : ℕ}
       card_equiv BitString.blocksEquiv fun x => by
         simp only [mem_filter, mem_univ, true_and, List.countP_ofFn, id_eq,
           BitString.blocksEquiv_apply]
-    rw [heq, card_majority_eq, show (#{x | V x = true} : ℤ) + #{x | V x = false} = (2 : ℤ) ^ m
-      by exact_mod_cast htot, hv, hgcast]
+    have htotZ : (#{x | V x = true} : ℤ) + #{x | V x = false} = (2 : ℤ) ^ m := mod_cast htot
+    rw [heq, card_majority_eq, htotZ, hv, hgcast]
   have hMle : M ≤ 2 ^ (2 * (6 * e) * m) := (card_filter_le _ _).trans (by simp)
   have hcompl : M + #{x : BitString (2 * (6 * e) * m) |
       #{i | V (BitString.block x i) = true} ≤ 6 * e} = 2 ^ (2 * (6 * e) * m) := by
@@ -172,15 +168,14 @@ theorem majorityPolynomial_bounds {g : ℤ} {m e : ℕ}
         (fun x => 6 * e < #{i | V (BitString.block x i) = true})
   dsimp only
   rw [← hM]
-  refine ⟨⟨by positivity, by exact_mod_cast hMle⟩, ?_, ?_⟩
-  · intro hy
-    have hv' : 2 * 2 ^ m ≤ 3 * #{x | V x = true} := by
-      rw [hv]; exact_mod_cast (hgcast ▸ hy : 2 * (2 : ℤ) ^ m ≤ 3 * (g.toNat : ℤ))
+  refine ⟨⟨by positivity, by exact_mod_cast hMle⟩, fun hy => ?_, fun hn => ?_⟩
+  · have hv' : 2 * 2 ^ m ≤ 3 * #{x | V x = true} := by
+      rw [hv]
+      exact_mod_cast (hgcast ▸ hy : 2 * (2 : ℤ) ^ m ≤ 3 * (g.toNat : ℤ))
     have htail := (Nat.cast_le (α := ℤ)).2 (Nat.eq_sub_of_add_eq' hcompl ▸
-      BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl (fun x => V x = true) hv')
+      BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl (V · = true) hv')
     simpa only [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, Nat.cast_sub hMle] using htail
-  · intro hn
-    have hg3 : 3 * g.toNat ≤ 2 ^ m := by
+  · have hg3 : 3 * g.toNat ≤ 2 ^ m := by
       exact_mod_cast (hgcast ▸ hn : 3 * (g.toNat : ℤ) ≤ (2 : ℤ) ^ m)
     have htail := BitString.two_pow_mul_card_filter_card_filter_block_le (e := e) rfl
       (fun x => V x = false) (by omega : 2 * 2 ^ m ≤ 3 * #{x | V x = false})

@@ -185,21 +185,20 @@ private theorem promoteStepProg_exec {U V w n_max h_space base b k : ℕ}
   simp only [promoteStepProg, promoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
     p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk,
     readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, removeLastTailItemGenProg_mk]
-  refine ⟨?_, ?_⟩
-  · repeat rw [StateTransitionSpec.clientResult_bind]
-    exact StateTransitionSpec.clientResult_pure _ _
-  · rw [StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_tu,
-      StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_ttop,
-      StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_p,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qu,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vu,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qtop,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vtop,
-      StateTransitionSpec.clientState_bind, hs1,
-      StateTransitionSpec.clientState_bind, hs2,
-      StateTransitionSpec.clientState_bind, hs3,
-      StateTransitionSpec.clientState_bind, hs4,
-      StateTransitionSpec.clientState_bind, hs5, StateTransitionSpec.clientState_pure]
+  refine ⟨by simp only [StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientResult_pure], ?_⟩
+  rw [StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_tu,
+    StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_ttop,
+    StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_p,
+    StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qu,
+    StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vu,
+    StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qtop,
+    StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vtop,
+    StateTransitionSpec.clientState_bind, hs1,
+    StateTransitionSpec.clientState_bind, hs2,
+    StateTransitionSpec.clientState_bind, hs3,
+    StateTransitionSpec.clientState_bind, hs4,
+    StateTransitionSpec.clientState_bind, hs5, StateTransitionSpec.clientState_pure]
 
 /-- Index and capacity bounds for one step of slab promotion, shared by
 `promoteStepProg_effect` and `promoteStep_bounds`. -/
@@ -505,8 +504,7 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
     (slotOf_tail_add hb0 (hq b hb)).symm
   have hgtop_eq_slot : g_top = slotOf n_max gm b (gm₀ (gmQIdx b) * slabSize n_max + r_top) :=
     (slotOf_tail_add hb0 (hq b hb)).symm
-  have harr1_ne : ∀ x ≠ g_u, arr₁ x = arr x := fun _ h => by
-    dsimp only [arr₁]; exact Function.update_of_ne h _ _
+  have harr1_ne : ∀ x ≠ g_u, arr₁ x = arr x := fun _ h => Function.update_of_ne h _ _
   have harr3_slot : ∀ b' < numBuckets n_max, ∀ j < bCount n_max (gmRemoveTail n_max gm b) b',
       arr₃ (slotOf n_max (gmRemoveTail n_max gm b) b' j) = arr₁ (slotOf n_max gm b' j) := by
     intro b' hb' j hj
@@ -576,12 +574,15 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
       simpa only [arr₁, Function.update_self, hgtop_eq_slot] using harr.high_tail u (by omega)
     · exact (harr_tail u' (by omega) heq).trans (harr.shifted_tail u' (by omega) hu'_lt)
   · dsimp only [arr₃]
+    have h0_mul : gm 0 * slabSize n_max = gm₀ 0 * slabSize n_max := by rw [h0]
     by_cases heq : k' = k
-    · subst heq; rw [← h0, Function.update_self, hgu_eq_slot]; exact harr.low_tail u (by omega)
-    · rw [Function.update_of_ne (by rw [← h0]; omega)]
-      dsimp only [arr₂, g_del, g_last]
-      rw [hupd_low _ (by rw [← h0]; omega),
-        harr1_ne _ (by rw [← h0]; omega)]
+    · subst heq
+      rw [← h0_mul, Function.update_self, hgu_eq_slot]
+      exact harr.low_tail u (by omega)
+    · dsimp only [arr₂, g_del, g_last, g_u, g_slab]
+      have hlow :=
+        (hupd_low (gm₀ 0 * slabSize n_max + k') (by omega)).trans (harr1_ne _ (by omega))
+      rw [Function.update_of_ne (by omega), hlow]
       exact harr.new_slab k' (by omega)
 
 /-- Loop invariant at step `k ≤ slabSize n_max` of `promoteLoopProg`. -/
@@ -633,15 +634,11 @@ theorem promoteLoopInv_step {U V w₀ n_max h_space base b k : ℕ} {s₀ s : Me
   have hstep := promoteStepInv_of_loopInv hinv hk
   obtain ⟨hres, hf, hout, hq, hv, hl, hgm⟩ :=
     promoteStepProg_effect hw hb_pos s hstep
-  have hr_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) := by
-    rw [hinv.rb_eq]
-    omega
+  have hr_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) := hinv.rb_eq ▸ by omega
   have hpres := gmRemoveTail_preserves_nonTail hinv.b_lt hr_pos hinv.tail_bij
   have htail' := tailBijection_gmRemoveTail hinv.b_lt hr_pos hinv.tail_bij
   have ⟨_, hslab'⟩ := slabBijection_gmRemoveTail hinv.b_lt hr_pos hinv.tail_bij hinv.slab_bij
-  have hgm1_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem 1 := by
-    have := r_le_ntails_of_tailBijection hinv.tail_bij hinv.b_lt
-    omega
+  have := r_le_ntails_of_tailBijection hinv.tail_bij hinv.b_lt
   have harr_step {arr₀ arr : ℕ → ℕ} :=
     promoteArrInv_step (arr₀ := arr₀) (arr := arr) hb_pos hinv.b_lt hk hinv.tail_bij hinv.slab_bij
       hinv.gm0_eq hinv.q_eq hinv.r_other hinv.rb_eq hinv.tot_le
@@ -672,9 +669,7 @@ theorem iterate_promoteStepProg_spec {U V w₀ n_max h_space w base b : ℕ} {s�
           w (base, b) m k s) := by
   intro m
   induction m with
-  | zero =>
-    intro k s _ hinv
-    exact ⟨hinv, rfl, fun _ => trivial⟩
+  | zero => exact fun _ _ _ hinv => ⟨hinv, rfl, fun _ => trivial⟩
   | succ m ih =>
     intro k s hkm hinv
     have hk_lt : k < slabSize n_max := by omega
@@ -991,7 +986,6 @@ theorem realizes_promoteSlabGen :
   · rcases d with ⟨base, b⟩
     have hloopK := (iterate_promoteStepProg_spec (w := w) hw h.2.2 (slabSize n_max) 0 s
       (by omega) (promoteLoopInv_zero h.2.1)).1
-    rw [Nat.zero_add] at hloopK
     have htot := hloopK.tot_le
     refine ⟨h.1, hloopK.slab_bij, h.2.1.1, nslabs_lt_maxFullSlabs_of_mul_le h.2.2 ?_, h.2.2⟩
     dsimp only [GmPushSlabPre, promoteLoopProg] at htot ⊢

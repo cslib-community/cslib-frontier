@@ -119,15 +119,13 @@ theorem weightedTrial_not (source : ProbComp α) (mask test : α → ProbComp Bo
       1 - Pr[weightedTrial source mask test] := by
   have hfair : ProbComp.eval (Bool.not <$> ProbComp.uniform Bool) =
       ProbComp.eval (ProbComp.uniform Bool) := by
-    ext bit
-    cases bit <;> simp [ProbComp.eval_map, PMF.map_apply,
-      PMF.uniformOfFintype_apply]
+    ext (_ | _) <;> simp [ProbComp.eval_map, PMF.map_apply, PMF.uniformOfFintype_apply]
   have hlaw : ProbComp.eval (weightedTrial source mask (fun value => Bool.not <$> test value)) =
       ProbComp.eval (Bool.not <$> weightedTrial source mask test) := by
     simp only [weightedTrial, map_bind, ProbComp.eval_bind]
-    congr 1 with value : 1
-    congr 1 with active : 1
-    cases active <;> simp only [Bool.false_eq_true, ite_false, ite_true, hfair]
+    refine congrArg (PMF.bind _ ·) (funext fun _ => congrArg (PMF.bind _ ·) (funext fun
+      | false => hfair.symm
+      | true => rfl))
   simpa only [hlaw, ProbComp.eval_map] using
     ProbComp.probability_not (weightedTrial source mask test)
 
@@ -201,11 +199,7 @@ theorem randomSign_good_probability (candidates : ProbComp (List Bool))
   have hpos : 0 ≤ positive := ENNReal.toReal_nonneg
   have hneg : 0 ≤ negative := ENNReal.toReal_nonneg
   dsimp only [threshold] at hpositive hnegative
-  rcases le_total 0 (Pr[candidates >>= test] - 1 / 2) with hsign | hsign
-  · rw [abs_of_nonneg hsign]
-    linarith
-  · rw [abs_of_nonpos hsign]
-    linarith
+  rcases abs_choice (Pr[candidates >>= test] - 1 / 2) with hsign | hsign <;> linarith
 
 /-- A bounded learner samples both orientations and selects by repeated validation trials. -/
 noncomputable def learn (candidates : ProbComp (List Bool)) (test : List Bool → ProbComp Bool)

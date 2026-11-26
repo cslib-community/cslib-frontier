@@ -688,8 +688,8 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
         · simpa [stepSnap, heq_nil] using hmsgs
       · simp only [hsd, ↓reduceIte]
         rcases eq_or_ne v dest with rfl | hv
-        · simp only [SnapGlobalState.applyApp, hact, show u ≠ src from fun h => hsd ⟨h, rfl⟩,
-            ↓reduceIte]
+        · have hus : u ≠ src := fun h => hsd ⟨h, rfl⟩
+          simp only [SnapGlobalState.applyApp, hact, hus, ↓reduceIte]
         · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
 
 /-! #### Adjacent inversion swaps in `CutMTr` -/
@@ -887,17 +887,16 @@ private lemma snapMTr_ordered_cutMTr [DecidableEq P] [DecidableRel sys.graph.Adj
     | app e =>
       cases hact : (S₀.proc e.actor).snapState with
       | none =>
-        have hstep := sys.ofSnap_step_app_pre hinv hen hact
         simp only [tracePreEvents, tracePostEvents, hact, Option.isNone_none, ↓reduceIte,
           Option.isSome_none, Bool.false_eq_true, eraseTrace, List.filterMap_cons,
           SnapEvent.toAppEvent]
-        exact ⟨ps, C₁, C₂, .stepL hstep hpre_m, hcross_m, hpost_m, hperm.cons e⟩
+        exact ⟨ps, C₁, C₂, .stepL (sys.ofSnap_step_app_pre hinv hen hact) hpre_m, hcross_m,
+          hpost_m, hperm.cons e⟩
       | some s_p =>
         have hact_some : (S₀.proc e.actor).snapState.isSome = true := by simp [hact]
         have hact_none : (S₀.proc e.actor).snapState.isNone = false := by simp [hact]
-        have hstep := sys.ofSnap_step_app_post hinv hen hact_some
-        obtain ⟨C₁', hpre_m', hpost₁⟩ :=
-          sys.push_post_past_pre (sys.valid_ofSnap hinv) hstep hpre_m
+        obtain ⟨C₁', hpre_m', hpost₁⟩ := sys.push_post_past_pre (sys.valid_ofSnap hinv)
+          (sys.ofSnap_step_app_post hinv hen hact_some) hpre_m
         obtain ⟨C₂', hcross_m', hpost₂⟩ := sys.push_post_past_cross hpost₁ hcross_m
         simp only [tracePreEvents, tracePostEvents, hact_none, Bool.false_eq_true, ↓reduceIte,
           hact_some, eraseTrace, List.filterMap_cons, SnapEvent.toAppEvent]
@@ -967,9 +966,7 @@ private lemma cutMTr_post_props [DecidableEq P] {C₂ C₃ : CutState P S M}
     obtain ⟨hmtr', hsnap₂, hbuf₂⟩ := ih hrest
     refine ⟨.stepL htr_e hmtr', hsnap₂.trans hsnap₁, fun u v => ?_⟩
     rw [hbuf₂ u v, hrec₁ u v, hpre₁ u v]
-    by_cases hp : e.popsFrom u v
-    · cases C₂.preChan u v <;> simp [hp, List.append_assoc]
-    · simp [hp]
+    cases C₂.preChan u v <;> by_cases hp : e.popsFrom u v <;> simp [hp, List.append_assoc]
 
 private lemma cutMTr_preserves_valid [DecidableEq P] {C₁ C₂ : CutState P S M}
     {sts : List (CutStep P S M)} (hv : C₁.Valid) (hmtr : CutMTr sys C₁ sts C₂) : C₂.Valid := by
@@ -1029,9 +1026,9 @@ theorem chandyLamport_consistent_cut [DecidableEq P] [DecidableRel sys.graph.Adj
     (hmtr : sys.snapLts.MTr S_init xl S_final)
     (hcomp : IsSnapshotComplete S_final) :
     sys.lts.CanReach (project S_init) (extractSnapshot S_final) ∧
-    sys.lts.CanReach (extractSnapshot S_final) (project S_final) := by
-  obtain ⟨h₁, h₂, _⟩ := sys.chandyLamport_perm_mTr hpre hmtr hcomp
-  exact ⟨⟨_, h₁⟩, ⟨_, h₂⟩⟩
+    sys.lts.CanReach (extractSnapshot S_final) (project S_final) :=
+  let ⟨h₁, h₂, _⟩ := sys.chandyLamport_perm_mTr hpre hmtr hcomp
+  ⟨⟨_, h₁⟩, ⟨_, h₂⟩⟩
 
 /-! ### Part 3: Stable-property detection corollary -/
 
@@ -1047,9 +1044,9 @@ theorem stablePred_transfer [DecidableEq P] [DecidableRel sys.graph.Adj]
     (hmtr : sys.snapLts.MTr S_init xl S_final)
     (hcomp : IsSnapshotComplete S_final) :
     (Φ (extractSnapshot S_final) → Φ (project S_final)) ∧
-    (¬ Φ (extractSnapshot S_final) → ¬ Φ (project S_init)) := by
-  obtain ⟨hr₁, hr₂⟩ := sys.chandyLamport_consistent_cut hpre hmtr hcomp
-  exact ⟨hΦ.canReach hr₂, hΦ.not_of_canReach hr₁⟩
+    (¬ Φ (extractSnapshot S_final) → ¬ Φ (project S_init)) :=
+  let ⟨hr₁, hr₂⟩ := sys.chandyLamport_consistent_cut hpre hmtr hcomp
+  ⟨hΦ.canReach hr₂, hΦ.not_of_canReach hr₁⟩
 
 end System
 
@@ -1272,8 +1269,7 @@ private lemma marker_eventually_delivered [DecidableEq P] [DecidableRel sys.grap
       dsimp only [stepSnap, applyRecvMarker]
       cases ((ss (k + d)).proc v).snapState <;> simp [ChannelRec.isDone]
   | succ n ih =>
-    intro k pre suf hlen hch
-    obtain _ | ⟨w, pre'⟩ := pre
+    rintro k (_ | ⟨w, pre'⟩) suf hlen hch
     · simp at hlen
     obtain ⟨d, ex₁, hd_spec, hex₁⟩ :=
       sys.exists_delivery_prefix hexec hfair (q := q) (p := p) (k := k) (by simp [hch])
@@ -1462,9 +1458,8 @@ private lemma drainEdges_spec {P S M : Type*} [DecidableEq P]
       by_cases hd : a₀.deliversOn src dest
       · exact ⟨a₀, List.mem_cons_self, hd⟩
       obtain ⟨extra, hex⟩ := sys.chan_append_of_not_deliversOn htr₀ hd
-      obtain ⟨a₂, ha₂, hdel₂⟩ :=
-        hmem src dest hin' (hex ▸ List.append_ne_nil_of_left_ne_nil hne extra)
-      exact ⟨a₂, List.mem_cons_of_mem a₀ ha₂, hdel₂⟩
+      exact (hmem src dest hin' (hex ▸ List.append_ne_nil_of_left_ne_nil hne extra)).imp
+        fun _ ⟨ha₂, hdel₂⟩ => ⟨List.mem_cons_of_mem a₀ ha₂, hdel₂⟩
 
 private noncomputable def fairPhase {P S M : Type*} [Fintype P] [DecidableEq P]
     (sys : System P S M) [DecidableRel sys.graph.Adj]

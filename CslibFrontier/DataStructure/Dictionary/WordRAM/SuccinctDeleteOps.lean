@@ -88,8 +88,7 @@ def deletePrepProg (U V w n_max h_space : ℕ)
 theorem deletePrepGenProg_mk (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     deletePrepGenProg (mkDictParams U V w n_max h_space, d) =
-      deletePrepProg U V w n_max h_space d := by
-  rfl
+      deletePrepProg U V w n_max h_space d := rfl
 
 /-- When `searchBucketProg` reports `found = 1`, the returned logical index is `< bCount`, so
 `1 ≤ bCount`. -/
@@ -102,9 +101,7 @@ private theorem searchBucketProg_found_imp_pos_bCount {U V w₀ n_max h_space w 
   obtain ⟨L, hchain, hc_lt⟩ := h.2.2.2.2
   have hres := (searchBucketProg_spec h.1 h.2.1 h.2.2.1 h.2.2.2.1 hchain hc_lt).2.2
   dsimp only [ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfSearchFound, ovfSearchIdx] at hres
-  split_ifs at hres
-  · have := hres.2.1; omega
-  · omega
+  split_ifs at hres <;> omega
 
 theorem realizes_deletePrepGen :
     Realizes .exact deletePrepGenProg
@@ -240,8 +237,7 @@ def deleteSwapProg (U V w n_max h_space : ℕ)
 theorem deleteSwapGenProg_mk (U V w n_max h_space : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) :
     deleteSwapGenProg (mkDictParams U V w n_max h_space, d) =
-      deleteSwapProg U V w n_max h_space d := by
-  rfl
+      deleteSwapProg U V w n_max h_space d := rfl
 
 theorem memoryCost_deleteSwapProg_le (U V w n_max h_space : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
@@ -441,8 +437,7 @@ def deleteFoundProg (U V w n_max h_space : ℕ)
 theorem deleteFoundGenProg_mk (U V w n_max h_space : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) :
     deleteFoundGenProg (mkDictParams U V w n_max h_space, d) =
-      deleteFoundProg U V w n_max h_space d := by
-  rfl
+      deleteFoundProg U V w n_max h_space d := rfl
 
 /-- Precondition for `deleteFoundProg` in `Realizes`. -/
 @[expose]
@@ -594,8 +589,7 @@ def deleteFinishProg (U V w n_max h_space : ℕ)
 theorem deleteFinishGenProg_mk (U V w n_max h_space : ℕ)
     (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) :
     deleteFinishGenProg (mkDictParams U V w n_max h_space, d) =
-      deleteFinishProg U V w n_max h_space d := by
-  rfl
+      deleteFinishProg U V w n_max h_space d := rfl
 
 /-- Precondition for `deleteFinishProg` in `Realizes`. -/
 @[expose]
@@ -981,13 +975,11 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     have hnf : deleteFinishFound d_fin ≠ 1 := ne_of_eq_of_ne hprep.1 (by decide)
     have hfin : deleteFinishProg U V w₀ n_max h_space d_fin = pure () := by
       simp only [deleteFinishProg, deleteFinishGenProg, pure_bind, ite_eq_right hnf]
-    have hs'_eq : s' = s := by dsimp only [s']; rw [hfin]; rfl
+    have hs'_eq : s' = s := congrArg ((Memory.spec 0).clientState s) hfin
     exact ⟨⟨henv, fun h => absurd h hnf⟩,
       hs'_eq ▸ rfl, fun _ _ => hs'_eq ▸ rfl, ⟨L, hs'_eq.symm ▸ hB_eq.symm ▸ hinv⟩,
-      by dsimp only [gm', gm₀]; rw [hs'_eq, ite_eq_right hnot_some],
-      by
-        dsimp only [gm', gm₀]
-        rw [hs'_eq, hfin, memoryCost_pure]; omega⟩
+      by simp only [gm', gm₀, hs'_eq, ite_eq_right hnot_some],
+      by simp only [gm', gm₀, hs'_eq, hfin, memoryCost_pure]; omega⟩
 
 end
 

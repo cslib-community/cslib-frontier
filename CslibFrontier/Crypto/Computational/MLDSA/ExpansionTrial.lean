@@ -107,13 +107,12 @@ private theorem find_updated (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : P
         h (Fin.ext (Nat.eq_of_mul_eq_mul_right pos eq))
       rw [Function.update_of_ne h, Function.update_of_ne ne]
       simp only [rowMasks, signingAttemptCounter, Nat.zero_add, raw, step]
+  have h814 : 814 = j.val + (1 + (813 - j.val)) := by lia
   have full : tupleReply s G A sk m (Function.update (rowMasks s r) j y) =
-      firstAccepted step attempt 814 0 := by
-    rw [firstAccepted_eq_terminal]
+      firstAccepted step attempt (j.val + (1 + (813 - j.val))) 0 := by
+    rw [← h814, firstAccepted_eq_terminal]
     simp only [tupleReply, Nat.zero_add, addr, attempt]
-  rw [full, congrArg (fun n => firstAccepted step attempt n 0)
-    (show 814 = j.val + (1 + (813 - j.val)) by lia), split_firstAccepted,
-    ← Fin.findSome?_eq_findSome?_finRange]
+  rw [full, split_firstAccepted, ← Fin.findSome?_eq_findSome?_finRange]
   have before (i : Fin j.val) : attempt (i.val * step) =
       G.attemptWithMask s sk A m (raw (i.val * step)) := by
     have ne : i.val * step ≠ cutAt := Nat.ne_of_lt (Nat.mul_lt_mul_of_pos_right i.isLt pos)
@@ -187,11 +186,10 @@ private theorem prefixRun_step (C : QuantumSigningForger) (s : Level) (G keys)
       (fun row => C.signingCommand G (fun q => G.signWithExpansionRow s keys.secretKey q row))
       cmd).run ((dev, log), rows)).bind fun (b, (d, l), t) =>
         C.prefixRun s G keys (k b) i' d l t resume := by
-  simp only [prefixRun, prefixInteraction, push,
-    show PFunctor.FreeM.liftBind cmd (fun b => cut (C := C) (k b) i') =
-    (OracleComp.query cmd >>= fun b => cut (C := C) (k b) i') from rfl,
-    OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
-    PMF.monad_bind_eq_bind, PMF.bind_bind]
+  have hbind : PFunctor.FreeM.liftBind cmd (fun b => cut (C := C) (k b) i') =
+      (OracleComp.query cmd >>= fun b => cut (C := C) (k b) i') := rfl
+  simp only [prefixRun, prefixInteraction, push, hbind, OracleComp.run_interpret_bind,
+    OracleComp.run_interpret_query, PMF.monad_bind_eq_bind, PMF.bind_bind]
   rfl
 
 -- Past native replies depend only on the rows they have consumed. At a signing boundary all
@@ -342,15 +340,13 @@ private theorem uniform_tape_eq (s : Level) {n : ℕ} (i : Fin n)
   intro U
   have split (v : Fin n → Row s) (r : Row s) : List.ofFn (Function.update v i r) =
       (List.ofFn v).take i.val ++ r :: (List.ofFn v).drop (i.val + 1) := by
-    rw [← show (List.ofFn v).set i.val r = _ from List.set_eq_take_append_cons_drop.trans
-      (ite_eq_left (by simp))]
-    refine List.ext_getElem (by simp) fun h h₁ h₂ => ?_
+    rw [← (List.set_eq_take_append_cons_drop ..).trans (ite_eq_left (by simp))]
+    refine List.ext_getElem (by simp) fun h h₁ _ => ?_
     rw [List.getElem_ofFn, List.getElem_set]
-    by_cases eq : i.val = h
-    · subst h
-      simp
-    · have ne : (⟨h, by simpa using h₁⟩ : Fin n) ≠ i := fun e => eq (congrArg Fin.val e).symm
-      simp [eq, Function.update_of_ne ne]
+    rcases eq_or_ne i.val h with rfl | ne
+    · simp
+    · have hne : (⟨h, by simpa using h₁⟩ : Fin n) ≠ i := Fin.ne_of_val_ne ne.symm
+      simp [ne, Function.update_of_ne hne]
   have mix (f : List (Row s) → Game) :
       (U.bind fun v => (PMF.uniformOfFintype (Row s)).bind fun r =>
         f (List.ofFn (Function.update v i r))) = U.bind (fun v => f (List.ofFn v)) :=
@@ -516,14 +512,11 @@ theorem abs_expansionTrialGame_write_sub_freshExpansionGame_le (C : QuantumSigni
         take_encodePublic, mat]
       apply abs_common_bind
       intro rs
-      have h := C.abs_commitmentTrialGame_write_sub_read_le s H keys i j (List.ofFn rs) hash
       simpa only [Game.coe_succProbability, prob, sk, mat, Option.bind_eq_bind, Option.bind_some,
-        Option.pure_def, Option.getD_some, cost, Option.elim_some] using h
-  rw [show orig = Game.succProbability (C.expansionTrialGame s base a b i j false) from
-    congrArg Game.succProbability (C.expansionTrialGame_read_eq_freshExpansionGame
-      s base ha hb calls i j).symm]
-  simp only [win, Game.coe_succProbability, expansionTrialGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure]
+        Option.pure_def, Option.getD_some, cost, Option.elim_some] using
+        C.abs_commitmentTrialGame_write_sub_read_le s H keys i j (List.ofFn rs) hash
+  simp only [win, orig, ← C.expansionTrialGame_read_eq_freshExpansionGame s base ha hb calls i j,
+    Game.coe_succProbability, expansionTrialGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   change |prob ((base.uniformPrefixes a b).bind fun H => law.bind (test true H)) -
     prob ((base.uniformPrefixes a b).bind fun H => law.bind (test false H))| ≤
     ∑ A, (matrices A).toReal * cost A

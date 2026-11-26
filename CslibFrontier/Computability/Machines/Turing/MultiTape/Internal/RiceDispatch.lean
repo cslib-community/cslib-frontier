@@ -144,17 +144,16 @@ theorem state_redirectEntries {b : Bool} {e : Key × Act} (he : e ∈ redirectEn
 /-- Each transition writing the marker, rewinding or branching is the one found for its key. -/
 theorem find?_prep {e : Key × Act} (he : e ∈ markerEntries eS tm d ++ branchEntries d k) :
     (dispatch eS tm d).table.find? (·.1 = e.1) = some e := by
-  refine find?_eq_some_of_mem ?_ fun e' he' hk => ?_
-  · simp only [table_dispatch, List.mem_append] at he ⊢
-    tauto
-  · have hs := hk ▸ (prep_spec eS tm d he).1
-    simp only [table_dispatch, List.mem_append] at he'
-    rcases he' with (((he' | he') | he') | he') | he'
-    · rw [(prep_spec eS tm d (List.mem_append_left _ he')).2, (prep_spec eS tm d he).2, hk]
-    · have := state_runEntries eS tm d he'; omega
-    · rw [(prep_spec eS tm d (List.mem_append_right _ he')).2, (prep_spec eS tm d he).2, hk]
-    · have := state_redirectEntries d he'; simp only [Bool.toNat_false] at this; omega
-    · have := state_redirectEntries d he'; simp only [Bool.toNat_true] at this; omega
+  refine find?_eq_some_of_mem (by simp only [table_dispatch, List.mem_append] at he ⊢; tauto)
+    fun e' he' hk => ?_
+  have hs := hk ▸ (prep_spec eS tm d he).1
+  simp only [table_dispatch, List.mem_append] at he'
+  rcases he' with (((he' | he') | he') | he') | he'
+  · rw [(prep_spec eS tm d (List.mem_append_left _ he')).2, (prep_spec eS tm d he).2, hk]
+  · have := state_runEntries eS tm d he'; omega
+  · rw [(prep_spec eS tm d (List.mem_append_right _ he')).2, (prep_spec eS tm d he).2, hk]
+  · have := state_redirectEntries d he'; simp only [Bool.toNat_false] at this; omega
+  · have := state_redirectEntries d he'; simp only [Bool.toNat_true] at this; omega
 
 /-- For the states of `tm`, the transitions found are those of `tm`, writing the output on the
 virtual input tape. -/
@@ -188,7 +187,7 @@ theorem find?_redirectEntries (b : Bool) (q : ℕ) (ws : List (Option ℕ)) :
   have hprep : ∀ e ∈ markerEntries eS tm d ++ runEntries eS tm d ++ branchEntries d k,
       decide (e.1 = ⟨dstate b q, none, ws⟩) = false := fun e he =>
     decide_eq_false fun h => by
-      have hb := Bool.toNat_le b
+      have := Bool.toNat_le b
       simp only [List.mem_append] at he
       rcases he with (he | he) | he
       · have := h ▸ (prep_spec eS tm d (List.mem_append_left _ he)).1
@@ -246,8 +245,8 @@ theorem stepOut_runCfg {X : List ℕ} {c : SCfg} {q : ℕ} (hq : c.state = some 
       none :: (c.workTapes.map Tape.read ++ List.replicate (width d) none)⟩ := by
     simp [runCfg, SCfg.key]
   have hf := find?_run eS tm d q (inputSymbol X c.inputPos) (c.workTapes.map Tape.read)
-  rw [show (⟨q, inputSymbol X c.inputPos, c.workTapes.map Tape.read⟩ : Key) = c.key X q from rfl,
-    he, Option.map_some, ← hkey] at hf
+  change _ = ((desc eS eBit tm).table.find? (·.1 = c.key X q)).map _ at hf
+  rw [he, Option.map_some, ← hkey] at hf
   rw [stepOut, step_of_find? (c := runCfg d c out) (q := 4 * q + 1) (by simp [runCfg, hq]) hf,
     step_of_find? hq he]
   obtain ⟨st, p, ws⟩ := c
@@ -304,9 +303,8 @@ theorem exists_run_of_computesTidily {w : List Bool} {o : List Bool} {t₀ s₀ 
       (descRun eS tm (w.map eBit) u).2 = o.map eBit := by
   classical
   obtain ⟨p, hhead, hlast, -, -⟩ := computesTidily_iff.mp htm
-  have hNp : tm.runFrom (tm.initCfg w) p.time = wordsCfg w none (fun _ => []) o := by
-    rw [initCfg_eq_wordsCfg, ← hhead]
-    exact (runPath_last_eq_runFrom p).symm.trans hlast
+  have hNp : tm.runFrom (tm.initCfg w) p.time = wordsCfg w none (fun _ => []) o :=
+    (initCfg_eq_wordsCfg w).symm ▸ hhead ▸ (runPath_last_eq_runFrom p).symm.trans hlast
   have hp : (tm.runFrom (tm.initCfg w) p.time).state = none := congrArg Cfg.state hNp
   have hex : ∃ t, (tm.runFrom (tm.initCfg w) t).state = none := ⟨p.time, hp⟩
   have hNu : tm.runFrom (tm.initCfg w) (Nat.find hex) = wordsCfg w none (fun _ => []) o :=
@@ -319,12 +317,10 @@ theorem exists_run_of_computesTidily {w : List Bool} {o : List Bool} {t₀ s₀ 
         (congrArg Cfg.state h₁).symm
     have hkey : (descRun eS tm (w.map eBit) t).1.key (w.map eBit) (eS q) =
         key (eS q) ((tm.runFrom (tm.initCfg w) t).inputSymbol.map eBit)
-          (Option.map eBit ∘ (tm.runFrom (tm.initCfg w) t).workTapeSymbols) := by
-      simp only [descRun]
-      rw [key_toCfg h₂ _, ← h₁, Cfg.inputSymbol_map]
-      rfl
-    refine ⟨eS q, _, hst, by rw [hkey, find?_desc], ?_⟩
-    simp [Act.ofAction, h₂.length_workTapes, descRun]
+          (Option.map eBit ∘ (tm.runFrom (tm.initCfg w) t).workTapeSymbols) :=
+      (key_toCfg h₂ _ (eS q)).trans (by rw [← h₁, Cfg.inputSymbol_map]; rfl)
+    exact ⟨eS q, _, hst, by rw [hkey, find?_desc],
+      by simp [Act.ofAction, h₂.length_workTapes, descRun]⟩
   · obtain ⟨h₁, h₂⟩ := toCfg_iterate eS eBit tm w (Nat.find hex)
     rw [hNu] at h₁
     simp only [descRun]

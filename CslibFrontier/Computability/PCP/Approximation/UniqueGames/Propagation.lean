@@ -208,17 +208,14 @@ theorem check_eq_true_iff (g : Graph (α → α)) (σ : ℕ → α) :
     check g σ = true ↔ ∀ i, (g.toGraph permutationEval).Satisfies σ i := by
   simp only [check, List.all_eq_true, decide_eq_true_eq, ConstraintGraph.Satisfies,
     Graph.toGraph, permutationEval]
-  refine ⟨fun h i => h _ (List.get_mem _ _), fun h _ he => ?_⟩
-  obtain ⟨i, rfl⟩ := List.get_of_mem he
-  exact h i
+  exact ⟨fun h i => h _ (List.get_mem _ _),
+    fun h _ he => (List.get_of_mem he).elim fun i hi => hi ▸ h i⟩
 
 /-- **Soundness**: an answer of `solve` satisfies every edge, for any instance. -/
 theorem solve_sound [Inhabited α] {labels : List α} {g : Graph (α → α)} {σ : ℕ → α}
     (h : solve labels g = some σ) : ∀ i, (g.toGraph permutationEval).Satisfies σ i := by
-  unfold solve at h
-  split_ifs at h with hc
-  cases h
-  exact (check_eq_true_iff g _).1 hc
+  obtain ⟨hc, hσ⟩ := Option.ite_none_right_eq_some.1 h
+  exact Option.some.inj hσ ▸ (check_eq_true_iff g _).1 hc
 
 end Soundness
 
@@ -635,16 +632,12 @@ private theorem scan_cons (labels : List α) (g : Graph (α → α)) {S : State 
 theorem length_scan (labels : List α) (g : Graph (α → α)) (S : State α) :
     (scan labels g S).table.length = S.table.length := by
   unfold scan
-  split
-  · rfl
-  · exact foldl_visit_length _ _ _
+  split <;> first | rfl | exact foldl_visit_length _ _ _
 
 private theorem get_scan (labels : List α) (g : Graph (α → α)) {S : State α} {v : ℕ}
     {f : α → α} (hv : S.get v = some f) : (scan labels g S).get v = some f := by
   unfold scan
-  split
-  · exact hv
-  · exact foldl_visit_get labels _ hv
+  split <;> first | exact hv | exact foldl_visit_get labels _ hv
 
 /-- Repeated scanning keeps the number of slots. -/
 theorem length_iterate_scan (labels : List α) (g : Graph (α → α)) (k : ℕ) (S : State α) :
@@ -1115,7 +1108,6 @@ theorem solvedBy_gapUniqueGames_one [DecidableEq α] [Inhabited α] {labels : Li
   · obtain ⟨⟨h1, h2⟩, hu⟩ := hg
     refine Bool.eq_false_iff.2 fun h => ?_
     have h0 := (solve_isSome_iff_unsatVal_eq_zero hlabels hu).1 h
-    dsimp only at h1 h2
-    linarith
+    dsimp only at h1 h2; linarith
 
 end Cslib.Complexity

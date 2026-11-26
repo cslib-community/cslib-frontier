@@ -133,19 +133,17 @@ theorem cyclic_labels_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL
         (shortLabel f K x) (K + 1) (by obtain ⟨j, hj⟩ := hh; exact ⟨j, j.isLt, hj⟩)
       rw [he]
       obtain ⟨i, hi, -⟩ := (decide_eq_true_iff.mp hj : ∃ i, cp i = _ ∧ stored i 0 = true)
-      have hrecord : records x j = canonicalLabel f (f^[j.val] x) := by
-        funext bit
-        change lookupOr cp stored _ bit.succ = _
-        rw [lookupOr_of_eq stored hcp hi]
-        simp only [stored, Fin.cons_succ, hi]
-        rfl
+      have hrecord : records x j = canonicalLabel f (f^[j.val] x) :=
+        funext fun bit => by
+          change lookupOr cp stored _ bit.succ = _
+          rw [lookupOr_of_eq stored hcp hi]
+          simp only [stored, Fin.cons_succ, hi]; rfl
       change correctLabel (records x j) j.val = _
       rw [hrecord]
       apply correctLabel_canonicalLabel
       have := j.isLt
       have := Nat.one_le_two_pow (n := n)
-      simp only [K, Nat.pow_succ] at *
-      omega
+      simp only [K, Nat.pow_succ] at *; omega
     · have hnone : ∀ j, flags x j = false := fun j => Bool.eq_false_iff.mpr fun hj => hh ⟨j, hj⟩
       rw [chooseRecord_of_forall_eq_false _ _ _ hnone]
       apply shortLabel_eq_canonicalLabel f K hx
@@ -168,10 +166,8 @@ private theorem labelCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
   set P := (n + 1) ^ 3
   have hN : 1 ≤ N := Nat.one_le_two_pow
   have hMN : M ≤ N := hM.trans (Nat.div_le_self _ _)
-  have hd : d ≤ n + 2 := by
-    apply Nat.clog_le_of_le_pow
-    have h4 : 2 ^ (n + 2) = 4 * N := by rw [hNdef, pow_add]; ring
-    omega
+  have h4 : 2 ^ (n + 2) = 4 * N := by rw [hNdef, pow_add]; ring
+  have hd : d ≤ n + 2 := Nat.clog_le_of_le_pow (by omega)
   have hP : 1 ≤ P := Nat.one_le_pow _ _ (by omega)
   have hn1 : n + 1 ≤ P := by
     simpa only [pow_one] using Nat.pow_le_pow_right (show 0 < n + 1 by omega) (by decide : 1 ≤ 3)
@@ -220,9 +216,8 @@ private theorem canonicalLabel_iterate_factorial (f : BitString n → BitString 
 /-- Iterating `f` on `BitString n` for `(2 ^ n)!` steps lands on a periodic point. -/
 theorem iterate_factorial_mem_periodicPts (f : BitString n → BitString n) (x : BitString n) :
     f^[(2 ^ n).factorial] x ∈ Function.periodicPts f := by
-  apply (iterate_mem_periodicPts_iff f x _).mpr
-  have hd : transientDepth f x < 2 ^ n := by simpa using transientDepth_lt_card f x
-  exact hd.le.trans (Nat.self_le_factorial _)
+  refine (iterate_mem_periodicPts_iff f x _).mpr (le_trans ?_ (Nat.self_le_factorial _))
+  simpa using (transientDepth_lt_card f x).le
 
 /-- **Cycle labels.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most
 `60000 * powerBudget n c.size (2 ^ n) L` computes the canonical label of every state: the
@@ -233,10 +228,9 @@ theorem cycle_label_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (
       out.size ≤ 60000 * powerBudget n c.size (2 ^ n) L := by
   obtain ⟨project, hp, hps⟩ := fixed_power n c (2 ^ n).factorial L hL hLN
   obtain ⟨labels, hl, hls⟩ := cyclic_label_circuit c L hL hLN
-  refine ⟨labels.comp project, fun x => ?_, ?_⟩
-  · rw [Circuit.eval_comp, hp x, hl _ (iterate_factorial_mem_periodicPts _ x),
-      canonicalLabel_iterate_factorial]
-  · rw [Circuit.size_comp]; omega
+  refine ⟨labels.comp project, fun x => ?_, by rw [Circuit.size_comp]; omega⟩
+  rw [Circuit.eval_comp, hp x, hl _ (iterate_factorial_mem_periodicPts _ x),
+    canonicalLabel_iterate_factorial]
 
 /-- **Square-root cycle labels.** Some circuit of size at most
 `120000 * optimizedBudget n c.size (2 ^ n)` computes the canonical label of every state. -/

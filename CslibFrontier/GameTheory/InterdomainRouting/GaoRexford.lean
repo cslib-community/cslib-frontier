@@ -276,20 +276,12 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
         by_contra hne
         have hlt := hGR.preferCustomer (W.node i) (nextHop i) w (pivTail i) t'
           (hpiv_eq i ▸ W.pivot_permitted i) (hrp_eq ▸ hrp_perm i) hcust_i hne
-        have hpref := W.prefers i
-        change S.rank (W.node i) (some (W.pivot i)) <
-          S.rank (W.node i) (some (W.rim i ++ W.pivot (W.next i))) at hpref
+        have hpref : S.rank (W.node i) (some (W.pivot i)) <
+            S.rank (W.node i) (some (W.rim i ++ W.pivot (W.next i))) := W.prefers i
         rw [hpiv_eq i, hrp_eq] at hpref
         omega
-      have hfirst :
-          (match W.rim i ++ W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i) with
-           | a :: b :: _ => hGR.rel a b = .customer | _ => False) := by
-        rw [← hpiv_eq (W.next i)]
-        change (match W.rim i ++ W.pivot (W.next i) with
-          | a :: b :: _ => hGR.rel a b = .customer | _ => False)
-        rw [hrp_eq]
-        exact hcust_rim
-      exact valleyFree_customer_propagate (hrim_head i) (hchain i) (hvf i) hfirst
+      exact valleyFree_customer_propagate (hrim_head i) (hchain i) (hvf i)
+        (by simpa only [← hpiv_eq (W.next i), hrp_eq] using hcust_rim)
     obtain ⟨i₀, hi₀⟩ := hex
     -- The customer property spreads from `i₀` to spoke `(i₀ + m) % W.size` for every `m`, hence to
     -- every spoke.
@@ -305,11 +297,9 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
           Fin.ext (by simp only [DisputeWheel.next, Nat.mod_add_mod, Nat.add_assoc])
         simpa only [hidx] using (hprop _ ihm).2
     have hall_cust : ∀ i : Fin W.size, hGR.rel (W.node i) (nextHop i) = .customer := fun i => by
+      have hadd : i₀.val + (i.val + W.size - i₀.val) = i.val + W.size := by omega
       have hidx : (⟨(i₀.val + (i.val + W.size - i₀.val)) % W.size, Nat.mod_lt _ W.size_pos⟩ :
-          Fin W.size) = i := Fin.ext (by
-        dsimp only
-        rw [show i₀.val + (i.val + W.size - i₀.val) = i.val + W.size by omega, Nat.add_mod_right,
-          Nat.mod_eq_of_lt i.isLt])
+          Fin W.size) = i := Fin.ext (by simp [hadd, Nat.mod_eq_of_lt i.isLt])
       simpa only [hidx] using hshift (i.val + W.size - i₀.val)
     have hcyc := transGen_cycle_forward W.size_pos W.node fun i => (hprop i (hall_cust i)).1
     exact hGR.noCustomerProviderCycle _ hcyc

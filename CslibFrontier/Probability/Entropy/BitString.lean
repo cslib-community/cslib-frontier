@@ -51,17 +51,13 @@ open scoped BigOperators ENNReal
 /-- Auxiliary bound: for any $q \in (0, 1]$, $-q \log_2 q \le 2$. -/
 private theorem mul_neg_logb_two_le_two {q : ℝ} (hq0 : 0 < q) :
     q * (-Real.logb 2 q) ≤ 2 := by
-  have hlog_half := Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 1 / 2)
-  rw [one_div, Real.log_inv] at hlog_half
-  have hlog2 : (1 : ℝ) / 2 ≤ Real.log 2 := by linarith
-  have hlog_inv : Real.log (1 / q) ≤ 1 / q - 1 :=
-    Real.log_le_sub_one_of_pos (one_div_pos.mpr hq0)
-  have hq_log : q * (-Real.log q) ≤ 1 - q := by
-    rw [← Real.log_inv, ← one_div]
-    have hmul := mul_le_mul_of_nonneg_left hlog_inv hq0.le
-    rwa [mul_sub, mul_one_div_cancel hq0.ne', mul_one] at hmul
+  have hlog2 : (1 : ℝ) / 2 ≤ Real.log 2 := by
+    linarith [Real.log_inv (2 : ℝ), Real.log_le_sub_one_of_pos (inv_pos.mpr zero_lt_two)]
+  have hnum : q * -Real.log q ≤ 1 := by
+    have hmul := mul_le_mul_of_nonneg_left (Real.log_le_sub_one_of_pos (inv_pos.mpr hq0)) hq0.le
+    rw [Real.log_inv, mul_sub, mul_inv_cancel₀ hq0.ne', mul_one] at hmul
+    linarith
   rw [Real.logb, ← neg_div, ← mul_div_assoc]
-  have hnum : q * -Real.log q ≤ 1 := by linarith
   calc
     (q * -Real.log q) / Real.log 2 ≤ 1 / Real.log 2 :=
       div_le_div_of_nonneg_right hnum (by linarith)
@@ -76,16 +72,12 @@ theorem entropy_ge_of_dist_uniform {n : ℕ} (hn : 1 ≤ n) (p : PMF (BitString 
     ((n : ℝ) - 1) * (1 - 2 * dist p (PMF.uniformOfFintype (BitString n))) ≤ entropy p := by
   classical
   let U := PMF.uniformOfFintype (BitString n)
-  have hU_apply (x : BitString n) : (U x).toReal = (2 : ℝ) ^ (-(n : ℝ)) := by
-    rw [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_natCast]
-    simp [U, uniformOfFintype_apply]
-  have htwo_pow : (2 : ℝ) ^ (-((n : ℝ) - 1)) = 2 * (2 : ℝ) ^ (-(n : ℝ)) := by
-    rw [show -((n : ℝ) - 1) = 1 + -(n : ℝ) by ring, Real.rpow_add (by norm_num), Real.rpow_one]
   let S₁ : Finset (BitString n) :=
     Finset.univ.filter fun x => (p x).toReal ≤ (2 : ℝ) ^ (-((n : ℝ) - 1))
   have hgt (x : BitString n) (hx : x ∈ S₁ᶜ) : 2 * (U x).toReal < (p x).toReal := by
-    simp only [S₁, Finset.mem_compl, Finset.mem_filter, Finset.mem_univ, true_and, not_le] at hx
-    linarith [hU_apply x]
+    simp only [S₁, Finset.mem_compl, Finset.mem_filter, Finset.mem_univ, true_and, not_le,
+      neg_sub, Real.rpow_sub zero_lt_two, Real.rpow_one, Real.rpow_natCast] at hx
+    simpa [U, uniformOfFintype_apply, div_eq_mul_inv] using hx
   -- Outcomes outside `S₁` have more than twice the uniform mass, so they carry at most
   -- `2 * dist p U`.
   have hS₂_mass : ∑ x ∈ S₁ᶜ, (p x).toReal ≤ 2 * dist p U := by
@@ -156,8 +148,8 @@ theorem sum_filter_mass_le_ge_of_entropy_ge {m : ℕ} (hm : 1 ≤ m) (p : PMF (B
   have hin : ∑ y ∈ S, (p y).toReal * surprisal p y ≤ q * (m : ℝ) + 2 := by
     rcases (Finset.sum_nonneg fun _ _ => ENNReal.toReal_nonneg : 0 ≤ q).eq_or_lt with hq0 | hq_pos
     · have hall0 := (Finset.sum_eq_zero_iff_of_nonneg fun _ _ => ENNReal.toReal_nonneg).mp hq0.symm
-      rw [Finset.sum_eq_zero fun y hy => by simp [hall0 y hy], show q = 0 from hq0.symm, zero_mul]
-      norm_num
+      rw [Finset.sum_eq_zero fun y hy => by simp [hall0 y hy]]
+      simp [q, ← hq0]
     obtain ⟨y₀, hy₀, hpy₀⟩ := Finset.exists_ne_zero_of_sum_ne_zero hq_pos.ne'
     let pS := p.filter (S : Set (BitString m))
       ⟨y₀, hy₀, (p.mem_support_iff y₀).2 fun h => hpy₀ (by simp [h])⟩

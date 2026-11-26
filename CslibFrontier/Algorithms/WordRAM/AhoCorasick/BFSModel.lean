@@ -252,8 +252,6 @@ theorem tablesInv_push {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
       Function.update B.outHead s (if 0 < T.isTerm s then s else B.outHead df))
     (houtNext' : B'.outNext = Function.update B.outNext s (B.outHead df)) :
     TablesInv P T B' := by
-  have h0_disc : 0 ∈ B.disc := Finset.mem_insert_self 0 _
-  have hs_ne0 : s ≠ 0 := by omega
   have hdf_lt : df < T.numStates := mem_disc_lt hT.one_le hq_pos hdf_disc
   have hs_str_ne : T.strOf s ≠ [] := hT.str_ne_nil s hs_pos hs_lt
   have hdf_depth_lt : T.depth df < T.depth s := by
@@ -266,7 +264,7 @@ theorem tablesInv_push {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     followOut_congr_on (fun x hx hxp => (htab.outNext_spec x hx hxp).1) fun x hx => by
       rw [houtNext', Function.update_of_ne (ne_of_mem_of_not_mem hx hs_not)]
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [hfail', houtHead', houtNext', Function.update_of_ne hs_ne0.symm] using
+  · simpa only [hfail', houtHead', houtNext', Function.update_of_ne hs_pos.ne] using
       htab.zero_vals
   · intro x hx hxp
     rw [hdisc'] at hx ⊢
@@ -301,15 +299,13 @@ theorem tablesInv_push {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
       · simp only [Nat.zero_lt_one, ↓reduceIte, List.map_cons, List.map_nil, List.singleton_append]
         have hs_depth_lt : T.depth s < T.numStates :=
           lt_of_le_of_lt (depth_le_self hT s hs_lt) hs_lt
-        cases hN : T.numStates with
-        | zero => omega
-        | succ m =>
-          rw [followOut_pos _ _ hs_pos, houtNext', Function.update_self, ← houtNext',
-            hcongr m (B.outHead df) hoh_disc, ← hT.depth_eq s hs_lt,
-            followOut_fuel_eq (fun y hy hyp => htab.outNext_spec y hy hyp) m T.numStates
-              (B.outHead df) hoh_disc (Or.inr (by omega))
-              (Or.inr (lt_of_le_of_lt (depth_le_self hT _ hoh_lt) hoh_lt)),
-            htab.follow_spec df hdf_disc]
+        obtain ⟨m, hN⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.pos_iff_ne_zero.mp hT.one_le)
+        rw [hN, followOut_pos _ _ hs_pos, houtNext', Function.update_self, ← houtNext',
+          hcongr m (B.outHead df) hoh_disc, ← hT.depth_eq s hs_lt,
+          followOut_fuel_eq (fun y hy hyp => htab.outNext_spec y hy hyp) m T.numStates
+            (B.outHead df) hoh_disc (Or.inr (by omega))
+            (Or.inr (lt_of_le_of_lt (depth_le_self hT _ hoh_lt) hoh_lt)),
+          htab.follow_spec df hdf_disc]
       · simpa only [lt_self_iff_false, ↓reduceIte, List.map_nil, List.nil_append,
           hcongr T.numStates (B.outHead df) hoh_disc] using htab.follow_spec df hdf_disc
     · rw [houtHead', Function.update_of_ne (ne_of_mem_of_not_mem hx_old hs_not),
@@ -349,66 +345,65 @@ theorem rootStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
   by_cases hs_pos : 0 < s
   · simp only [hs_pos, ↓reduceIte]
     have hs_lt : s < T.numStates := hT.trie_lt 0 hT.one_le a ha
-    rcases hT.trie_spec 0 hT.one_le a ha with h0 | ⟨_, hs_str⟩
-    · omega
-    · rw [hT.str_zero, List.nil_append] at hs_str
-      have hs_depth : T.depth s = 1 := by simp [hT.depth_eq s hs_lt, s, hs_str]
-      have hs_not : s ∉ B.disc := fun hmem => by
-        rcases (hinv.disc_iff s hs_lt).mp hmem with hs0 | ⟨c, hca, htc⟩
-        · exact hs_pos.ne' hs0
-        · exact hca.ne
-            (parent_unique hT hT.one_le ha hT.one_le (hca.trans ha) hs_pos htc.symm).2.symm
-      set B' : PBFS :=
-        { delta := fun u c => if u = 0 ∧ c = a then s else B.delta u c
-          fail := Function.update B.fail s 0
-          outHead := Function.update B.outHead s (if 0 < T.isTerm s then s else 0)
-          outNext := Function.update B.outNext s 0
-          queue := Function.update B.queue B.qTail s
-          qHead := B.qHead
-          qTail := B.qTail + 1 }
-      have hdisc' : B'.disc = insert s B.disc := disc_push_queue B s
-      have hnode_a : IsNode P [a] := htrie_iff.mpr hs_pos
-      have hfail_s : T.strOf 0 = failure P (T.strOf s) := by
-        rw [hT.str_zero, hs_str, failure_eq_nil_of_length_le_one P (by simp)]
-      refine
-        { qHead_zero := hinv.qHead_zero
-          q_bounds := fun i hi => by
-            dsimp only [B'] at hi ⊢
-            rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hlt | rfl
-            · exact (Function.update_of_ne hlt.ne s B.queue).symm ▸ hinv.q_bounds i hlt
-            · rw [Function.update_self]
-              exact ⟨hs_pos, hs_lt, hs_depth⟩
-          q_inj := fun i hi j hj hij => by
-            dsimp only [B'] at hi hj hij
-            have hold : ∀ k < B.qTail, B.queue k ≠ s := fun k hk h => hs_not
-              (h ▸ Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_range.2 hk)))
-            rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hil | rfl <;>
-              rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj) with hjl | rfl
-            · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)] at hij
-              exact hinv.q_inj i hil j hjl hij
-            · rw [Function.update_of_ne (by omega), Function.update_self] at hij
-              exact absurd hij (hold i hil)
-            · rw [Function.update_self, Function.update_of_ne (by omega)] at hij
-              exact absurd hij.symm (hold j hjl)
-            · rfl
-          disc_iff := fun w hw => by
-            rw [hdisc', Finset.mem_insert, hinv.disc_iff w hw, Nat.exists_lt_succ_right,
-              @eq_comm _ w s]
-            exact or_left_comm.trans (or_congr_right or_comm)
-          delta_zero := fun c hc => by
-            rw [hdisc']
-            dsimp only [B']
-            rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hc) with hlt | rfl
-            · simp only [true_and, hlt.ne, ↓reduceIte]
-              exact (hinv.delta_zero c hlt).imp_left Finset.mem_insert_of_mem
-            · simp only [and_self, ↓reduceIte]
-              exact ⟨Finset.mem_insert_self s _, by
-                rw [hs_str, nextMove_of_isNode hnode_a, List.nil_append]⟩
-          tables := tablesInv_push hT hterm hinv.tables
-            (fun i hi => ⟨(hinv.q_bounds i hi).1, (hinv.q_bounds i hi).2.1⟩)
-            hs_pos hs_lt hs_not (Finset.mem_insert_self 0 _) hfail_s hdisc' rfl
-            (by dsimp only [B']; rw [hinv.tables.zero_vals.2.1])
-            (by dsimp only [B']; rw [hinv.tables.zero_vals.2.1]) }
+    obtain ⟨_, hs_str⟩ := (hT.trie_spec 0 hT.one_le a ha).resolve_left hs_pos.ne'
+    rw [hT.str_zero, List.nil_append] at hs_str
+    have hs_depth : T.depth s = 1 := by simp [hT.depth_eq s hs_lt, s, hs_str]
+    have hs_not : s ∉ B.disc := fun hmem => by
+      rcases (hinv.disc_iff s hs_lt).mp hmem with hs0 | ⟨c, hca, htc⟩
+      · exact hs_pos.ne' hs0
+      · exact hca.ne
+          (parent_unique hT hT.one_le ha hT.one_le (hca.trans ha) hs_pos htc.symm).2.symm
+    set B' : PBFS :=
+      { delta := fun u c => if u = 0 ∧ c = a then s else B.delta u c
+        fail := Function.update B.fail s 0
+        outHead := Function.update B.outHead s (if 0 < T.isTerm s then s else 0)
+        outNext := Function.update B.outNext s 0
+        queue := Function.update B.queue B.qTail s
+        qHead := B.qHead
+        qTail := B.qTail + 1 }
+    have hdisc' : B'.disc = insert s B.disc := disc_push_queue B s
+    have hnode_a : IsNode P [a] := htrie_iff.mpr hs_pos
+    have hfail_s : T.strOf 0 = failure P (T.strOf s) := by
+      rw [hT.str_zero, hs_str, failure_eq_nil_of_length_le_one P (by simp)]
+    refine
+      { qHead_zero := hinv.qHead_zero
+        q_bounds := fun i hi => by
+          dsimp only [B'] at hi ⊢
+          rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hlt | rfl
+          · exact (Function.update_of_ne hlt.ne s B.queue).symm ▸ hinv.q_bounds i hlt
+          · rw [Function.update_self]
+            exact ⟨hs_pos, hs_lt, hs_depth⟩
+        q_inj := fun i hi j hj hij => by
+          dsimp only [B'] at hi hj hij
+          have hold : ∀ k < B.qTail, B.queue k ≠ s := fun k hk h => hs_not
+            (h ▸ Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_range.2 hk)))
+          rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hil | rfl <;>
+            rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj) with hjl | rfl
+          · exact hinv.q_inj i hil j hjl
+              (by simpa only [Function.update_of_ne hil.ne, Function.update_of_ne hjl.ne] using hij)
+          · exact absurd (by simpa only [Function.update_of_ne hil.ne, Function.update_self]
+              using hij) (hold i hil)
+          · exact absurd (by simpa only [Function.update_self, Function.update_of_ne hjl.ne]
+              using hij.symm) (hold j hjl)
+          · rfl
+        disc_iff := fun w hw => by
+          rw [hdisc', Finset.mem_insert, hinv.disc_iff w hw, Nat.exists_lt_succ_right,
+            @eq_comm _ w s]
+          exact or_left_comm.trans (or_congr_right or_comm)
+        delta_zero := fun c hc => by
+          rw [hdisc']
+          dsimp only [B']
+          rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hc) with hlt | rfl
+          · simp only [true_and, hlt.ne, ↓reduceIte]
+            exact (hinv.delta_zero c hlt).imp_left Finset.mem_insert_of_mem
+          · simp only [and_self, ↓reduceIte]
+            exact ⟨Finset.mem_insert_self s _, by
+              rw [hs_str, nextMove_of_isNode hnode_a, List.nil_append]⟩
+        tables := tablesInv_push hT hterm hinv.tables
+          (fun i hi => ⟨(hinv.q_bounds i hi).1, (hinv.q_bounds i hi).2.1⟩)
+          hs_pos hs_lt hs_not (Finset.mem_insert_self 0 _) hfail_s hdisc' rfl
+          (by dsimp only [B']; rw [hinv.tables.zero_vals.2.1])
+          (by dsimp only [B']; rw [hinv.tables.zero_vals.2.1]) }
   · simp only [hs_pos, ↓reduceIte]
     have hs0 : s = 0 := by omega
     have hnot_node : ¬IsNode P ([] ++ [a]) := by

@@ -222,10 +222,8 @@ private theorem filterMap_replayAuxResult
             ((machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
               cfg.answerSymbols)[index]?).toList.flatMap (following index) := by
         simp only [replayAuxResult_live machine cfg state hs]
-        cases (machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbols)[index]? with
-        | none => simp
-        | some action => cases action <;> simp [following]
+        rcases (machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
+          cfg.answerSymbols)[index]? with _ | (_ | _) <;> simp [following]
       simp_rw [hf]
       rw [flatMap_range_getElem? _ following bound (hbound ..),
         interpret_runOccurrenceProgram_succ machine fuel cfg state hs oracle trace s,
@@ -305,8 +303,7 @@ private theorem runOccurrenceProgram_empty (machine : MultiTapeCTM k Symbol Cont
       OracleComp.interpret
         (fun n => OracleComp.query (spec := occurrenceOracleSpec Empty Symbol) (.inl n))
         (machine.runConfigFrom MultiTapeCTM.chooseOccurrence Empty.elim fuel cfg) := by
-  rw [interpret_runConfigFrom]
-  unfold runOccurrenceProgram
+  rw [runOccurrenceProgram, interpret_runConfigFrom]
   congr 1 with op : 1
   exact op.elim
 
@@ -333,8 +330,7 @@ theorem runOccurrenceTrace_empty (machine : MultiTapeCTM k Symbol Control) (fuel
         (fun q : Empty × List Symbol => q.1.elim) s).map
         (fun ((_, final), state) => (final.tapes, state)) =
       (machine.runList fuel cfg).map (fun final => (final, s)) := by
-  have heq := congrArg (List.map (fun (result : Config k Symbol Control Empty input × S) =>
-      (result.1.tapes, result.2)))
+  have heq := congrArg (List.map fun r => (r.1.tapes, r.2))
     (machine.runOccurrenceTrace_erase fuel (Config.emptyOracleEquiv.symm cfg)
       (fun q : Empty × List Symbol => q.1.elim) s)
   rw [interpret_runOccurrenceProgram_empty] at heq

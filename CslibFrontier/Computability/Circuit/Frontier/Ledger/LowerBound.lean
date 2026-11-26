@@ -131,14 +131,12 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
   have hV : (V : ℝ) ≤ 7 * s + 3 * n + 3 := by
     have h := hse ▸ Compiler.card_vertex_le hfan'
     have hlive := hse ▸ card_live_le (p := c.program) (special := special)
-    have hV_nat : V ≤ 7 * ((r - 1) * se) + 3 * n := by
+    have hV_nat : V ≤ 7 * ((r - 1) * se) + 3 * n + 3 := by
       have h7 : 2 * r + 3 ≤ 7 * (r - 1) := by omega
       simp only [V]
       nlinarith [Nat.mul_le_mul_right se h7]
-    have hV' : (V : ℝ) ≤ 7 * s + 3 * n := by
-      simpa only [s, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] using
-        (Nat.cast_le (α := ℝ)).mpr hV_nat
-    linarith
+    dsimp only [s]
+    exact_mod_cast hV_nat
   set E : ℕ := min (q ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M
   have hEpos : 0 < E :=
     Nat.mul_pos (lt_min (Nat.pow_pos Nat.card_pos) Nat.card_pos) Nat.card_pos
@@ -198,9 +196,8 @@ theorem eventually_lt_mul_card_of_ledger_readout {r : ℕ} (hr : 2 ≤ r) {A : �
             (r - 1) * (c.program.innerGates.filter fun g => ¬special g).card := by
   filter_upwards [eventually_lt_mul_card_of_ledger_min.{u, v, w} hr hA hlayout hSK hβ hε] with n hn
   intro σ I Acc c special _ M _ _ hfan L hM hS
-  refine hn σ I Acc c special M hfan L ?_ hS
-  rw [log_ledger_factor Nat.card_pos Nat.card_pos]
-  exact (add_le_add (min_le_left _ _) le_rfl).trans hM
+  exact hn σ I Acc c special M hfan L ((log_ledger_factor Nat.card_pos Nat.card_pos _).trans_le
+    ((add_le_add (min_le_left _ _) le_rfl).trans hM)) hS
 
 /-- **The frontier lower bound with a ledger.** Let `r ≥ 2` and assume the layout hypothesis for
 maximum degree `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be `K_n`-rectangle-free sets over
@@ -223,9 +220,8 @@ theorem eventually_lt_mul_card_of_ledger {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA 
   have hβ2 : (fun n => 2 * β n) =o[atTop] fun n => (n : ℝ) := hβ.const_mul_left 2
   filter_upwards [eventually_lt_mul_card_of_ledger_min.{u, v, w} hr hA hlayout hSK hβ2 hε] with n hn
   intro σ I Acc c special _ M _ _ hfan L hM hS
-  refine hn σ I Acc c special M hfan L ?_ hS
-  rw [log_ledger_factor Nat.card_pos Nat.card_pos, two_mul]
-  exact (add_le_add (min_le_right _ _) le_rfl).trans (add_le_add hM hM)
+  exact hn σ I Acc c special M hfan L ((log_ledger_factor Nat.card_pos Nat.card_pos _).trans_le
+    ((add_le_add (min_le_right _ _) le_rfl).trans (by linarith))) hS
 
 /-- **The frontier lower bound with aggregate gates.** Under the hypotheses of
 `eventually_lt_mul_card_of_ledger`, for every `ε > 0` and all large `n`, every circuit deciding

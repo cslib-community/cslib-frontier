@@ -54,9 +54,7 @@ private theorem realizes_checkLeafHitBody :
       (fun _ _ => 0) := by
   have hlg := realizes_laneGetGen
   realize
-  · exact Nat.one_lt_two_pow (by linarith [h.1])
-  · exact h.2.1
-  · exact h.2.2
+  exacts [Nat.one_lt_two_pow (by linarith [h.1]), h.2.1, h.2.2]
 
 /-- Opaque helper checking `r < cnt ∧ laneGet wKey keysWord r = q` (`d = (((wKey, keysWord), (r,
   cnt)), q)`),
@@ -314,10 +312,8 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       (by
         rw [Realization.memoryCost_bind', clientState_wordUpdateAtGenProg,
           memoryCost_wordUpdateAtGenProg, memoryCost_writeBTreeNodeGenProg])
-      fun hwn_vp => ?_
-    refine validProg_bind (validWhpProg_wordUpdateAtGenProg _) ?_
-    rw [clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg]
-    exact hwn_vp
+      fun hwn_vp => validProg_bind (validWhpProg_wordUpdateAtGenProg _)
+        (by rwa [clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg])
   · -- Miss: insert `(q, val)` at lane `r` (`cnt + 1 ≤ 2 * tMin - 1`)
     have hne : r < cnt → laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r ≠ q :=
       fun hrc heq => hhit ⟨hrc, heq⟩
@@ -357,12 +353,10 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
           memoryCost_wordInsertAtGenProg, Realization.memoryCost_bind',
           clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
           memoryCost_writeBTreeNodeGenProg])
-      fun hwn_vp => ?_
-    refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
-    rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
-    refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
-    rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
-    exact hwn_vp
+      fun hwn_vp => validProg_bind (validWhpProg_wordInsertAtGenProg _) (by
+        rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
+        exact validProg_bind (validWhpProg_wordInsertAtGenProg _)
+          (by rwa [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]))
 
 theorem realizes_finishLeafInsertGen :
     Realizes .exact finishLeafInsertGenProg
@@ -424,11 +418,10 @@ theorem realizes_finishLeafInsertGen :
       (Nat.mul_le_mul_right _ (by omega)).trans_lt hvw_lt, hval, hv_leaf.2.2.2.2.1⟩
   · exact (by omega : 1 + 2 * (cntL + 1) < w).trans Nat.lt_two_pow_self
   · exact (by omega : cntL + 1 < w).trans Nat.lt_two_pow_self
-  · refine ⟨cntL, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hkw_lt,
+  · exact ⟨cntL, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hkw_lt,
       (hqhi.trans_lt hhi).trans
         (Nat.pow_lt_pow_right Nat.one_lt_two (Nat.lt_add_of_pos_right two_pos)),
-      ?_⟩
-    rwa [← hcnt_eq_L]
+      hcnt_eq_L ▸ hkw_cnt⟩
   · exact ⟨cntL, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hvw_lt, hval,
       hv_leaf.2.2.2.2.1⟩
 

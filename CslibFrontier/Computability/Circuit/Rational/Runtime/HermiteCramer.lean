@@ -208,10 +208,9 @@ theorem ofRows_hermiteRows (nodes : List ℤ) (J : ℕ) :
   ext k m
   obtain ⟨r, rfl⟩ := e.surjective k
   obtain ⟨c, rfl⟩ := e.surjective m
-  have her : (e r : ℕ) = (finProdFinEquiv r : ℕ) := rfl
-  have hec : (e c : ℕ) = (finProdFinEquiv c : ℕ) := rfl
-  simp only [ofRows, Matrix.of_apply, Matrix.reindex_apply, Matrix.submatrix_apply,
-    Equiv.symm_apply_apply, her, hec, rowEntry_hermiteRows]
+  rw [ofRows, Matrix.of_apply, Matrix.reindex_apply, Matrix.submatrix_apply,
+    e.symm_apply_apply, e.symm_apply_apply]
+  simp only [e, Equiv.trans_apply, finCongr_apply, Fin.val_cast, rowEntry_hermiteRows]
 
 /-- `detRows (hermiteRows nodes J)` equals the determinant of `Polynomial.hermiteMatrix`. -/
 theorem detRows_hermiteRows (nodes : List ℤ) (J : ℕ) :
@@ -378,10 +377,8 @@ theorem hermiteRecoverZero_eq {nodes : List ℤ} {J : ℕ} {Ω H_zero : ℤ}
     hermiteRecoverZero nodes J Ω jets = H_zero := by
   refine hermiteRecoverZero_eq_of_rowEntry hnodup hΩ hdeg hH0 hjets_row fun i j => ?_
   have hi : i.val < jets.length := by omega
-  have hj : j.val < (jets[i.val]'hi).length := by
-    rw [hjets_row _ (List.getElem_mem hi)]; exact j.isLt
-  rw [rowEntry, List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj]
-  exact hjets i j
+  have hj : j.val < jets[i.val].length := j.isLt.trans_eq (hjets_row _ (List.getElem_mem hi)).symm
+  simpa only [rowEntry, List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj] using hjets i j
 
 /-- Modular recovery of a count `count ∈ [0, 2 ^ ℓ)` congruent to `H(0)` modulo `2 ^ ℓ`. -/
 theorem hermiteRecoverModPowTwo_eq {nodes : List ℤ} {J ℓ : ℕ} {Ω H_zero count : ℤ}
@@ -505,15 +502,13 @@ theorem intBits_le_of_mem_cramerColZeroRows {mat : List (List ℤ)} {rhs : List 
     (hrhs : ∀ w ∈ rhs, intBits w ≤ B + 1)
     {row : List ℤ} (hrow : row ∈ cramerColZeroRows mat rhs) {z : ℤ} (hz : z ∈ row) :
     intBits z ≤ B + 1 := by
-  rw [cramerColZeroRows, List.mem_map] at hrow
-  obtain ⟨⟨r, k⟩, hmem, rfl⟩ := hrow
+  obtain ⟨⟨r, k⟩, hmem, rfl⟩ := List.mem_map.mp hrow
   have hr_mem : r ∈ mat := (List.mem_zipIdx hmem).2.2 ▸ List.getElem_mem _
   rcases List.mem_cons.mp hz with rfl | htail
   · rcases Nat.lt_or_ge k rhs.length with hk | hk
-    · rw [List.getD_eq_getElem _ _ hk]
-      exact hrhs _ (List.getElem_mem hk)
-    · rw [List.getD_eq_default _ _ hk, intBits_le_iff]
-      exact Nat.two_pow_pos B
+    · exact List.getD_eq_getElem rhs 0 hk ▸ hrhs _ (List.getElem_mem hk)
+    · simpa only [List.getD_eq_default _ _ hk, intBits_le_iff, Int.natAbs_zero] using
+        Nat.two_pow_pos B
   · exact hmat r hr_mem z (List.mem_of_mem_tail htail)
 
 /-! ### Plain polynomial-time certificates -/

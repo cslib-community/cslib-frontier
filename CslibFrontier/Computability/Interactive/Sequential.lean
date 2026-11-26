@@ -601,9 +601,7 @@ theorem Verifier.Sound.append {V₁ : Verifier OracleSpec.empty s₁ S₁ S₂}
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_exists, not_and] at hr₁
   rw [PMF.toOuterMeasure_map_apply]
   cases hout : V₁.outputOn x r₁.1 with
-  | none =>
-    refine (MeasureTheory.measure_mono (t := ∅) ?_).trans (by simp)
-    simp [outputOn_append, Spec.Transcript.split_append, hout]
+  | none => simp [outputOn_append, Spec.Transcript.split_append, hout]
   | some y =>
     have hl₂ := h₂ y (fun hy => hr₁ y hy hout) _ (pure r₁.2)
     simp only [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, plainLaw_bind,
@@ -650,28 +648,18 @@ theorem Verifier.KnowledgeSound.append {V₁ : Verifier OracleSpec.empty s₁ S�
         fun τ₁ st₂ => (fun r₂ => E₂ ((V₁.outputOn x τ₁).getD y₀) r₂.1 r₂.2) <$>
           runStrategy s₂ V₂.samplers st₂
     have hl₁ := h₁ x P₁
-    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁
-    have hlaw₁ : plainLaw (P₁ >>= runStrategy s₁ V₁.samplers) =
-        (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
-          fun r₁ => (plainLaw (runStrategy s₂ V₂.samplers r₁.2)).map
-            fun r₂ => (r₁.1, E₂ ((V₁.outputOn x r₁.1).getD y₀) r₂.1 r₂.2) :=
+    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply,
       plainLaw_split_bindLeaf_run s₁ s₂ V₁.samplers V₂.samplers P
-        fun τ₁ r₂ => E₂ ((V₁.outputOn x τ₁).getD y₀) r₂.1 r₂.2
-    rw [hlaw₁] at hl₁
-    refine le_trans (le_of_eq ?_) hl₁
-    rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-    refine tsum_congr fun r₁ => ?_
-    congr 1
-    rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
-    congr 1
+        fun τ₁ r₂ => E₂ ((V₁.outputOn x τ₁).getD y₀) r₂.1 r₂.2] at hl₁
+    refine le_of_eq_of_le ?_ hl₁
+    simp only [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_map_apply]
+    refine tsum_congr fun r₁ => congrArg _ (congrArg _ ?_)
     ext r₂
     cases hout : V₁.outputOn x r₁.1 <;> simp [T₁, Spec.Transcript.split_append, hout]
   · refine Probability.PMF.toOuterMeasure_bind_le _ _ _ fun r₁ => ?_
     rw [PMF.toOuterMeasure_map_apply]
     cases hout : V₁.outputOn x r₁.1 with
-    | none =>
-      refine (MeasureTheory.measure_mono (t := ∅) ?_).trans (by simp)
-      simp [T₂, Spec.Transcript.split_append, hout]
+    | none => simp [T₂, Spec.Transcript.split_append, hout]
     | some y =>
       have hl₂ := h₂ y (pure r₁.2)
       simp only [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, plainLaw_bind,

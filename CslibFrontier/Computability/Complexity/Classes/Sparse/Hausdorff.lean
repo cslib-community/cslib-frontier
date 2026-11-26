@@ -99,12 +99,8 @@ private theorem count_le_of_forall₂ {v w : List Bool} (h : List.Forall₂ (· 
   induction h with
   | nil => exact le_rfl
   | @cons a b _ _ hab _ ih =>
-    rw [List.count_cons, List.count_cons]
-    cases a <;> cases b
-    · simpa using ih
-    · simp; omega
-    · exact absurd hab (by decide)
-    · simpa using ih
+    revert hab
+    cases a <;> cases b <;> simp [Bool.le_iff_imp, ih, Nat.le_succ_of_le ih]
 
 private theorem count_lt_of_forall₂ {v w : List Bool} (h : List.Forall₂ (· ≤ ·) v w)
     (hne : v ≠ w) : v.count true < w.count true := by
@@ -263,8 +259,7 @@ private def ones (v : List Bool) : List ℕ := (v.zipIdx.filter (·.1)).map Prod
 
 private theorem mem_ones {v : List Bool} {i : ℕ} : i ∈ ones v ↔ v[i]? = some true := by
   simp only [ones, List.mem_map, List.mem_filter, List.mem_zipIdx_iff_getElem?]
-  exact ⟨fun ⟨⟨x, _⟩, ⟨hx, hx1⟩, rfl⟩ => by simpa [show x = true from hx1] using hx,
-    fun h => ⟨(true, i), ⟨h, rfl⟩, rfl⟩⟩
+  exact ⟨fun ⟨⟨_, _⟩, ⟨hx, rfl⟩, rfl⟩ => hx, fun h => ⟨(true, i), ⟨h, rfl⟩, rfl⟩⟩
 
 /-- **The Hausdorff sets of a bounded truth-table reduction reduce conjunctively to tally
 problems**, when the target of the reduction does. Here `r`, `q` and `d` are the query count, the

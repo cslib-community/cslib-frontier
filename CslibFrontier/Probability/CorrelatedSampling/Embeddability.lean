@@ -301,11 +301,9 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
     ext ⟨⟨x, y⟩, s, t⟩
     rw [bind_prod_apply, hmarg, hJ]
     by_cases hF0 : ∑' s, f x s = 0
-    · rw [tsum_eq_zero_iff.mp hF0 s, hF0]
-      simp only [mul_zero, zero_mul]
+    · simp only [tsum_eq_zero_iff.mp hF0 s, hF0, mul_zero, zero_mul]
     by_cases hG0 : ∑' t, g y t = 0
-    · rw [tsum_eq_zero_iff.mp hG0 t, hG0]
-      simp only [mul_zero, zero_mul]
+    · simp only [tsum_eq_zero_iff.mp hG0 t, hG0, mul_zero, zero_mul]
     simp only [KS, KT, dite_eq_right hF0, dite_eq_right hG0, PMF.normalize_apply]
     calc c x y * (∑' s, f x s) * (∑' t, g y t) *
           (f x s * (∑' s, f x s)⁻¹ * (g y t * (∑' t, g y t)⁻¹))
@@ -359,9 +357,7 @@ private theorem dist_withKernel_cond_le {A B : Type*} [Fintype A]
     conv_lhs => rw [← hK]
     simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, hproj, Λ]
     pmf_swap
-  have hM : M.map Prod.fst = (J.map Prod.fst).map proj := by
-    simp only [M, PMF.map_comp]
-    rfl
+  have hM : M.map Prod.fst = (J.map Prod.fst).map proj := by simp only [M, PMF.map_comp]; rfl
   rw [hR, hT]
   calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
         dist ((M.map Prod.fst).bind Λ) ((P₀.map proj).bind Λ) := dist_triangle _ _ _

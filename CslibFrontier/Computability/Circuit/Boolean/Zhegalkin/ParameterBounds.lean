@@ -80,9 +80,8 @@ theorem exists_log_threshold (C : ℕ) :
   refine ⟨L₁, le_trans (le_max_left 8 C) hge₀, le_trans (le_max_right 8 C) hge₀,
     fun {L} hL => ?_⟩
   obtain ⟨_, hlog, hpow⟩ := hL₁ L hL
-  refine ⟨?_, ?_, by simpa only [one_mul] using hpow⟩
-  · exact (Nat.mul_le_mul_right _ (le_max_left C 6)).trans hlog
-  · exact (Nat.mul_le_mul_right _ (le_max_right C 6)).trans hlog
+  exact ⟨(Nat.mul_le_mul_right _ (le_max_left C 6)).trans hlog,
+    (Nat.mul_le_mul_right _ (le_max_right C 6)).trans hlog, one_mul (L ^ 2) ▸ hpow⟩
 
 theorem log_param_props {M : ℕ} (hL8 : 8 ≤ Nat.log 2 M)
     (hlog6 : 6 * Nat.log 2 (Nat.log 2 M) ≤ Nat.log 2 M)
@@ -98,25 +97,19 @@ theorem log_param_props {M : ℕ} (hL8 : 8 ≤ Nat.log 2 M)
   have hs_pos : 0 < s := by omega
   have hs_le : s ≤ L := Nat.sub_le _ _
   have hL_2s : L ≤ 2 * s := by omega
-  have hlogL1 : 1 ≤ Nat.log 2 L :=
-    Nat.le_log_of_pow_le one_lt_two (by omega : 2 ^ 1 ≤ L)
+  have hlogL1 : 1 ≤ Nat.log 2 L := Nat.le_log_of_pow_le one_lt_two (by omega)
   have hL2M : L ^ 2 ≤ M := hpow2.trans hpowM
   have hL_lt : L ≤ 2 * 2 ^ Nat.log 2 L :=
     (pow_succ' 2 _ ▸ Nat.lt_pow_succ_log_self one_lt_two L).le
   have hcubes : (2 * 2 ^ Nat.log 2 L) ^ 3 = 8 * 2 ^ (3 * Nat.log 2 L) := by
-    rw [mul_pow, ← pow_mul, mul_comm (Nat.log 2 L) 3]
-    norm_num
+    rw [mul_pow, ← pow_mul, mul_comm (Nat.log 2 L) 3]; norm_num
   have hL3 : L ^ 3 * 2 ^ s ≤ 8 * M := by
     calc L ^ 3 * 2 ^ s
         ≤ (2 * 2 ^ Nat.log 2 L) ^ 3 * 2 ^ s :=
           Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hL_lt 3)
-      _ = 8 * (2 ^ (3 * Nat.log 2 L) * 2 ^ s) := by
-          rw [hcubes]
-          ring
+      _ = 8 * (2 ^ (3 * Nat.log 2 L) * 2 ^ s) := by rw [hcubes]; ring
       _ = 8 * 2 ^ (3 * Nat.log 2 L + s) := by rw [← pow_add]
-      _ = 8 * 2 ^ L := by
-          congr 2
-          omega
+      _ = 8 * 2 ^ L := congrArg (8 * 2 ^ ·) (by omega)
       _ ≤ 8 * M := Nat.mul_le_mul_left 8 hpowM
   exact ⟨hs_pos, hs_le, hL_2s, hlogL1, hL2M, hL3⟩
 
@@ -132,9 +125,8 @@ private theorem logb_le_natLog_add_one {m : ℕ} (hm : 1 ≤ m) :
   exact_mod_cast (Nat.lt_pow_succ_log_self one_lt_two m).le
 
 theorem logb_two_ge_one {m : ℕ} (hm : 2 ≤ m) :
-    1 ≤ Real.logb 2 m := by
-  have h1 : 1 ≤ Nat.log 2 m := Nat.le_log_of_pow_le one_lt_two hm
-  exact le_trans (by exact_mod_cast h1) (natLog_le_logb (by omega))
+    1 ≤ Real.logb 2 m :=
+  le_trans (mod_cast Nat.le_log_of_pow_le one_lt_two hm) (natLog_le_logb (by omega))
 
 theorem div_two_sub_add_rem_le {M S U rem K : ℕ} {ε : ℝ} (hε : 0 < ε)
     (hL8 : 8 ≤ Nat.log 2 M)

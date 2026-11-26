@@ -924,32 +924,25 @@ private theorem eval_toForgeExperiment_limitToOneQuery (M : MACScheme)
           fresh adversary n) := by
   simp only [toForgeExperiment, forgeExperiment, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-  have hrev :
-      (ProbComp.eval (((SignatureScheme.limitToOneQuery (fun n m => m.length == M.msgLen n) bound
-          adversary).toTyped n []).runLogWith
-          ((Signer.ofSign M.sign).restrict (·.length == M.msgLen n) sk))).map
-          (fun (a, log) => (a, log.reverse)) =
-        (ProbComp.eval ((adversary.toTyped n []).runLogWith
-          (((Signer.ofSign M.sign).restrict (·.length == M.msgLen n)).oneTime sk))).map
-          (fun (a, log) => (a, log.reverse)) := by
-    rw [Forger.toTyped, Forger.toTyped,
-      Forger.eval_runLogWith_rename_state
-        (SignatureScheme.limitToOneQuery (fun n m => m.length == M.msgLen n) bound adversary n [])
-        (fun w => w) ((Signer.ofSign M.sign).restrict (·.length == M.msgLen n) sk)
-        (M.signingPairOracle n sk) List.reverse
-        (M.logOracle_restrict_eq_signingPairOracle n sk),
-      Forger.eval_runLogWith_rename_state (adversary n []) (fun w => w)
-        (((Signer.ofSign M.sign).restrict (·.length == M.msgLen n)).oneTime sk)
-        (M.oneTimeSigningPairOracle n sk) List.reverse
-        (M.logOracle_restrict_oneTime_eq_oneTimeSigningPairOracle n sk)]
-    dsimp only [List.reverse_nil]
-    unfold SignatureScheme.limitToOneQuery
-    rw [OracleComp.interpret_map, StateT.run_map]
-    exact run_limitToOneQuery_eq_oneTimeSigningPairOracle M bound n sk (hbound sk hsk)
-      (adversary n [])
-  rw [Cslib.Probability.PMF.map_injective
+  congr 1
+  refine Cslib.Probability.PMF.map_injective
     (f := fun p : (List Bool × List Bool) × List (List Bool × List Bool) => (p.1, p.2.reverse))
-    (fun _ _ h => Prod.ext (Prod.mk.inj h).1 (List.reverse_injective (Prod.mk.inj h).2)) hrev]
+    (fun _ _ h => Prod.ext (Prod.mk.inj h).1 (List.reverse_injective (Prod.mk.inj h).2)) ?_
+  rw [Forger.toTyped, Forger.toTyped,
+    Forger.eval_runLogWith_rename_state
+      (SignatureScheme.limitToOneQuery (fun n m => m.length == M.msgLen n) bound adversary n [])
+      (fun w => w) ((Signer.ofSign M.sign).restrict (·.length == M.msgLen n) sk)
+      (M.signingPairOracle n sk) List.reverse
+      (M.logOracle_restrict_eq_signingPairOracle n sk),
+    Forger.eval_runLogWith_rename_state (adversary n []) (fun w => w)
+      (((Signer.ofSign M.sign).restrict (·.length == M.msgLen n)).oneTime sk)
+      (M.oneTimeSigningPairOracle n sk) List.reverse
+      (M.logOracle_restrict_oneTime_eq_oneTimeSigningPairOracle n sk)]
+  dsimp only [List.reverse_nil]
+  unfold SignatureScheme.limitToOneQuery
+  rw [OracleComp.interpret_map, StateT.run_map]
+  exact run_limitToOneQuery_eq_oneTimeSigningPairOracle M bound n sk (hbound sk hsk)
+    (adversary n [])
 
 private theorem oneTime_of_full_forge (M : MACScheme)
     {fullGame oneTimeGame : Forger → ℕ → ProbComp Bool}
@@ -1416,11 +1409,10 @@ private theorem step_prfRealLogHandler
       ProbComp.eval_pure, PMF.pure_bind, hsk]
     dsimp only [Functor.map, StateT.map]
     simp only [List.take_of_length_le hlen_eq.le, pmf_norm]
-  · simp only [beq_eq_false_iff_ne.mpr hmsg, Bool.false_eq_true, ↓reduceIte,
-      OracleComp.interpret_pure, ProbComp.eval_pure]
-    rw [show (pure ([], queried) : StateT Unit PMF _) PUnit.unit =
-        PMF.pure (([], queried), PUnit.unit) from rfl]
-    simp only [PMF.pure_map]
+  · have hpure : (pure (([], queried) : List Bool × List (List Bool)) :
+        StateT Unit PMF (List Bool × List (List Bool))) PUnit.unit =
+        PMF.pure ((([] : List Bool), queried), PUnit.unit) := rfl
+    simp [beq_eq_false_iff_ne.mpr hmsg, OracleComp.interpret_pure, ProbComp.eval_pure, hpure]
 
 private theorem run_macLogHandler_eq_signingOracle
     {family : List Bool → List Bool → List Bool}
@@ -1447,8 +1439,8 @@ private theorem run_macLogHandler_eq_signingOracle
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (macLogHandler n))
       prog).run []) ())
-  simp only [PMF.map_comp, Function.comp_def, show (fun x : (List Bool × List Bool) ×
-      List (List Bool) => x) = id from rfl, PMF.map_id] at hfst
+  have hid : (fun x : (List Bool × List Bool) × List (List Bool) => x) = id := rfl
+  simp only [PMF.map_comp, Function.comp_def, hid, PMF.map_id] at hfst
   simp only [ProbOracleComp.eval_interpret, ProbComp.eval_pure]
   rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret,
     ProbOracleComp.eval_run_interpret_eq_runWith]
@@ -1575,11 +1567,13 @@ private theorem prfIdealLogOracle_inv (adversary : Forger) (n : ℕ)
       exact fun x hx => List.mem_cons.mpr <| (eq_or_ne x (BitString.ofList n msg)).imp
         (fun (h : x = BitString.ofList n msg) => h ▸ BitString.ofFn_ofList hmsg)
         (fun h => hstate x (by simpa [Function.update_of_ne h] using hx))
-  · simp only [beq_eq_false_iff_ne.mpr hmsg, Bool.false_eq_true, ↓reduceIte,
-      OracleComp.interpret_pure] at hstep
-    rw [show (pure ([], queried) : StateT _ PMF _) cache =
-        PMF.pure (([], queried), cache) from rfl] at hstep
-    simp only [PMF.pure_map, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+  · have hpure : (pure (([], queried) : List Bool × List (List Bool)) :
+        StateT (RandomOracle.Cache fun _ : BitString n => BitString n) PMF
+          (List Bool × List (List Bool))) cache =
+        PMF.pure ((([] : List Bool), queried), cache) := rfl
+    simp only [beq_eq_false_iff_ne.mpr hmsg, Bool.false_eq_true, ↓reduceIte,
+      OracleComp.interpret_pure, hpure, PMF.pure_map, PMF.mem_support_pure_iff, Prod.mk.injEq]
+      at hstep
     rcases hstep with ⟨-, rfl, rfl⟩
     exact hstate
 
@@ -2091,14 +2085,13 @@ theorem succProbability_eufCmaGame_le_sufCmaGame (M : NonceMACScheme)
   refine PMF.bind_apply_mono_on_support _ _ fun sk _ => ?_
   refine PMF.bind_apply_mono_on_support _ _ fun ⟨⟨⟨msg, nonce⟩, tag⟩, tr⟩ _ => ?_
   dsimp only
-  cases hpair : tr.contains ((msg, nonce), tag)
-  · cases (tr.map (fun e => e.1.1)).contains msg <;>
-      cases (msg.length == M.msgLen n) && (nonce.length == M.nonceLen n) &&
-        decide (tr.map (fun e => e.1.2)).Nodup <;>
-      cases M.verify sk msg nonce tag <;> simp
-  · rw [show (tr.map (fun ⟨⟨qmsg, _⟩, _⟩ => qmsg)).contains msg = true from
-        List.contains_iff_mem.mpr
-          (List.mem_map_of_mem (f := fun ⟨⟨qmsg, _⟩, _⟩ => qmsg) (List.contains_iff_mem.mp hpair))]
+  by_cases hmsg : (tr.map (fun ⟨⟨qmsg, _⟩, _⟩ => qmsg)).contains msg = true
+  · rw [hmsg]
+    simp
+  · have hpair : tr.contains ((msg, nonce), tag) = false :=
+      Bool.eq_false_iff.mpr fun h => hmsg (List.contains_iff_mem.mpr
+        (List.mem_map_of_mem (f := fun ⟨⟨qmsg, _⟩, _⟩ => qmsg) (List.contains_iff_mem.mp h)))
+    rw [Bool.eq_false_iff.mpr hmsg, hpair]
 
 /-- Strong unforgeability (`SUFCMA`) implies fresh-message unforgeability (`EUFCMA`) for every
 `NonceMACScheme`. -/

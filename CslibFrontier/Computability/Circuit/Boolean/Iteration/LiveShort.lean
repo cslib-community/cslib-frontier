@@ -187,12 +187,7 @@ theorem live_short_circuit (c : Circuit signature n n) (m K : ℕ) (hK : 0 < K)
       synthesis_available)
   have hpack : wires packed ⊆ b.wires := by
     rintro _ ⟨i, rfl⟩
-    induction i using Fin.addCases with
-    | left =>
-      simp only [packed, Fin.append_left]
-      synthesis_available
-    | right =>
-      simp only [packed, Fin.append_right]
+    induction i using Fin.addCases <;> simp only [packed, Fin.append_left, Fin.append_right] <;>
       synthesis_available
   have hw : 2 * K ≤ 2 ^ w := by
     change 2 * K ≤ 2 ^ (n + 2)

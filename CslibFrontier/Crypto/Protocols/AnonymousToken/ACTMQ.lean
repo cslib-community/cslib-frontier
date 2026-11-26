@@ -361,10 +361,8 @@ theorem clawExperiment_eq_false_of_claims_nil [DecidableEq Target]
     (A : ClawAdversary PK M R Sig)
     (hnil : ∀ run ∈ (ProbComp.eval (runClaw S J A)).support, run.claims = []) :
     ProbComp.eval (clawExperiment S J A) = PMF.pure false := by
-  simp only [clawExperiment, ProbComp.eval_map]
-  apply PMF.map_eq_pure_iff.mpr
-  intro run hrun
-  simp [clawAccept, hnil run hrun]
+  rw [clawExperiment, ProbComp.eval_map]
+  exact PMF.map_eq_pure_iff.mpr fun run hrun => by simp [clawAccept, hnil run hrun]
 
 /-- When `S.Correct` holds, `invalidReplyExperiment` has success probability zero. -/
 theorem invalidReplyExperiment_eq_zero_of_correct
@@ -578,20 +576,18 @@ private theorem eval_runClaw_clawReduction_eq [DecidableEq Target]
               (fun r => (r, log ++ [(payload, r)])) <$>
                 S.sign sk (target payload.message payload.opening)).run [])).map
           fun ⟨token, extLog⟩ => ((token, (represent extLog).1), (represent extLog).2) := by
-    rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState]
-    rw [ProbOracleComp.runWith_run_interpret
-      (clawReductionHandler S J embed pk)
-      (fun q log => ProbComp.eval ((fun r => (r, log ++ [(q, r)])) <$> S.sign sk (J q.1 q.2)))
-      (B pk) [] []]
-    rw [← hsim, PMF.map_comp]
+    rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState,
+      ProbOracleComp.runWith_run_interpret (clawReductionHandler S J embed pk)
+        (fun q log => ProbComp.eval ((fun r => (r, log ++ [(q, r)])) <$> S.sign sk (J q.1 q.2)))
+        (B pk) [] [],
+      ← hsim, PMF.map_comp]
     rfl
   simp only [ProbOracleComp.runLog] at hrun ⊢
   rw [ProbOracleComp.runState_bind, StateT.run_bind, ProbComp.eval_bind, hrun, PMF.bind_map,
     PMF.bind_bind]
   refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨token, extLog⟩ _ => ?_
-  dsimp only [Function.comp_def, represent]
-  rw [PMF.pure_map]
-  dsimp only [clawExecutionOfExtracted]
+  rw [Function.comp_apply, PMF.pure_map]
+  dsimp only [represent, clawExecutionOfExtracted]
   split_ifs <;> simp [ProbOracleComp.runState_pure]
 
 private theorem foldl_stepValidClaim_subset [DecidableEq Target]
@@ -602,11 +598,9 @@ private theorem foldl_stepValidClaim_subset [DecidableEq Target]
   induction xs generalizing acc with
   | nil => exact hc
   | cons x xs ih =>
-    apply ih
+    refine ih _ ?_
     simp only [stepValidClaim]
-    split_ifs
-    · exact List.mem_append_left _ hc
-    · exact hc
+    split_ifs <;> simp [hc]
 
 private theorem stepValidClaim_invariant [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (J : M → R → Target) (embed : Message → M)
@@ -912,9 +906,7 @@ private theorem actMQConservationExperiment_zero_eq_pure_false
     refine ProbOracleComp.runWith_invariant _ (fun log => log = []) ?_ (A keys.1) [] rfl
       res.1 res.2 hres
     intro req log rfl a log' hstep
-    have hfalse : requestInRange (Opening := Opening) (Commitment := Commitment)
-        (Sig := Sig) 0 req = false := by
-      cases req <;> simp [requestInRange]
+    have hfalse : requestInRange 0 req = false := by cases req <;> simp [requestInRange]
     simp only [hfalse, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
       PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
     exact hstep.2
@@ -1257,13 +1249,10 @@ theorem clawExperiment_zeroOpeningClawAttack_eq_pure_true {K : Type} [Field K]
           (zeroOpeningClawAttack scaleSig scalars μ)) =
       PMF.pure true := by
   simp only [clawExperiment, runClaw, zeroOpeningClawAttack, ProbComp.eval_map,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.runLog_query_bind_pure, PMF.bind_map]
-  rw [PMF.map_bind]
-  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys => ?_
-  rw [PMF.map_bind]
-  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun σ hσ => ?_
-  dsimp only [Function.comp_def]
-  rw [PMF.pure_map]
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.runLog_query_bind_pure, PMF.bind_map,
+    PMF.map_bind, Function.comp_def, PMF.pure_map]
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys =>
+    Probability.PMF.bind_eq_pure_of_forall_mem_support fun σ hσ => ?_
   dsimp only [clawAccept]
   let claims := scalars.map fun a =>
     (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ : ClawClaim Message R Sig)

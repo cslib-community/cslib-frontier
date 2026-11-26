@@ -152,8 +152,7 @@ private theorem card_lineApprox_disagree_le {f : (Fin n → F) → F} {δ : ℝ}
       δ * Fintype.card F := by
   have hx' : IsApproxAffine δ (lineRestrict f (update x i 0) i) := by
     simpa [wrongPointsApprox, lineRestrict_update] using hx
-  rw [← lineRestrict_update f x i 0]
-  simpa [lineApprox, hx'] using hx'.choose_spec.2
+  simpa [lineApprox, hx', ← lineRestrict_update f x i 0] using hx'.choose_spec.2
 
 open Classical in
 /-- Points lying on a non-`δ`-wrong line in direction `i` where `f` disagrees with the chosen
@@ -196,8 +195,7 @@ private theorem card_corruptPoints_le (f : (Fin n → F) → F) {δ : ℝ} (hδ 
         ≤ ∑ _u ∈ bases, (δ * Fintype.card F) := by
           refine sum_le_sum fun u _ => ?_
           split_ifs with hu
-          · simp only [card_empty, CharP.cast_eq_zero]
-            positivity
+          · simpa using mul_nonneg hδ (Nat.cast_nonneg _)
           · exact card_lineApprox_disagree_le hu
       _ = #bases * (δ * Fintype.card F) := by rw [sum_const, nsmul_eq_mul]
       _ = (Fintype.card F : ℝ) ^ (n - 1) * (δ * Fintype.card F) := by rw [hfib]; push_cast; rfl
@@ -292,7 +290,8 @@ theorem IsMultilinear.hammingDist_le_of_two_mul_le_approx {f g : (Fin n → F) �
       _ = n * δ * (Fintype.card F : ℝ) ^ n := by simp [mul_assoc]
   have hWC : (#(W ∪ C) : ℝ) ≤ ∑ i, (#(wrongPointsApprox f δ i) : ℝ) +
       n * δ * (Fintype.card F : ℝ) ^ n := by
-    linarith only [show (#(W ∪ C) : ℝ) ≤ #W + #C from mod_cast card_union_le W C, hW, hC]
+    have hWC0 : (#(W ∪ C) : ℝ) ≤ #W + #C := mod_cast card_union_le W C
+    linarith only [hWC0, hW, hC]
   have hI : #I ≤ n * Fintype.card F ^ (n - 1) := by
     refine card_biUnion_le.trans ?_
     calc ∑ i, #(agreePointsApprox f g δ i) ≤ ∑ _i : Fin n, Fintype.card F ^ (n - 1) :=
@@ -355,8 +354,7 @@ private theorem sum_sum_card_wrongPointsApprox_le (f : (Fin (n + 1) → F) → F
     ∑ t, ∑ j : Fin n, #(wrongPointsApprox (fun y => f (Fin.cons t y)) δ j) ≤
       ∑ i, #(wrongPointsApprox f δ i) := by
   rw [Fin.sum_univ_succ, sum_comm]
-  simp only [← card_wrongPointsApprox_succ]
-  exact Nat.le_add_left _ _
+  simpa only [← card_wrongPointsApprox_succ] using Nat.le_add_left _ _
 
 open Classical in
 /-- Slice interpolation for `δ`-approximate affineness: interpolating multilinear approximations
@@ -512,12 +510,10 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
       linarith only [mul_le_mul_of_nonneg_right h1 hq.le, hm_sq, hqm,
         mul_le_mul_of_nonneg_right hm_sq (by positivity : 0 ≤ δ * Fintype.card F)]
     have hlt : #badW + #badC + 1 < Fintype.card F := by
-      have : ((#badW + #badC + 1 : ℕ) : ℝ) < Fintype.card F := by
-        push_cast
-        linarith only [hbadW_lt, hbadC_le, hgap,
-          show (1 - 1 / (2 * (m : ℝ))) * Fintype.card F =
-            Fintype.card F - Fintype.card F / (2 * m) by ring]
-      exact_mod_cast this
+      suffices ((#badW + #badC + 1 : ℕ) : ℝ) < Fintype.card F from mod_cast this
+      have hsub : (1 - 1 / (2 * (m : ℝ))) * Fintype.card F =
+          Fintype.card F - Fintype.card F / (2 * m) := by ring
+      push_cast; linarith only [hbadW_lt, hbadC_le, hgap, hsub]
     let good : Finset F := (badW ∪ badC)ᶜ
     have hcompl_le : #goodᶜ ≤ #badW + #badC := by
       simpa [good, compl_compl] using card_union_le badW badC
@@ -606,7 +602,7 @@ theorem exists_isMultilinear_hammingDist_lt_of_approx (f : (Fin n → F) → F) 
     have h1n : 1 / (2 * (n : ℝ)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith only [hnr])
     have hb := one_add_mul_le_pow (a := -(1 / (2 * (n : ℝ)))) (by linarith only [h1n]) n
     have hn2n : (n : ℝ) * (1 / (2 * (n : ℝ))) = 1 / 2 := by
-      have hn0 : (n : ℝ) ≠ 0 := by linarith only [hnr]
+      have hn0 : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn.ne'
       field_simp
     rw [← sub_eq_add_neg] at hb
     linarith only [hb, hn2n, mul_neg (n : ℝ) (1 / (2 * (n : ℝ)))]
@@ -617,7 +613,7 @@ theorem exists_isMultilinear_hammingDist_lt_of_approx (f : (Fin n → F) → F) 
       mul_le_mul_of_nonneg_right (by linarith only [hnr]) (by positivity)
     linarith only [hle, hεn, hδn, hqn]
   have hnε : (n : ℝ) * ε ≤ 1 / 2 * (3 * n * ε) := by
-    linarith only [show (0 : ℝ) ≤ n * ε by positivity]
+    linarith only [mul_nonneg (Nat.cast_nonneg (α := ℝ) n) hεpos.le]
   obtain ⟨g, hg, hfg⟩ := exists_isMultilinear_hammingDist_le_mul_approx (F := F) hn hδ0 hδ hqr
     (by positivity) hγ1 n hγ2 f (by
       calc (∑ i, (#(wrongPointsApprox f δ i) : ℝ)) < n * ε * (Fintype.card F : ℝ) ^ n := hsum
@@ -634,10 +630,9 @@ theorem exists_isMultilinear_hammingDist_lt_of_approx (f : (Fin n → F) → F) 
         2 * (n : ℝ) ^ 2 * (Fintype.card F : ℝ) ^ (n - 1) := by gcongr
     _ ≤ 3 * n ^ 2 * (ε + δ) * (Fintype.card F : ℝ) ^ n +
           2 * (n : ℝ) ^ 2 * (Fintype.card F : ℝ) ^ (n - 1) := by
-        rw [show (3 : ℝ) * n ^ 2 * (ε + δ) * (Fintype.card F : ℝ) ^ n =
-            3 * n * (n * ε * (Fintype.card F : ℝ) ^ n + n * δ * (Fintype.card F : ℝ) ^ n) by ring]
-        gcongr
-        linarith only [hnr]
+        have : 0 ≤ ((n : ℝ) - 1) * ((n : ℝ) * (ε + δ) * (Fintype.card F : ℝ) ^ n) :=
+          mul_nonneg (sub_nonneg.mpr hnr) (by positivity)
+        linarith
     _ ≤ 3 * n ^ 2 * (ε + δ + 1 / Fintype.card F) * (Fintype.card F : ℝ) ^ n := by
         rw [← hqn1, ← sub_nonneg]; field_simp; ring_nf; positivity
 

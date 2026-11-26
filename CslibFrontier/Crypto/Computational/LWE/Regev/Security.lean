@@ -505,13 +505,9 @@ theorem eval_lorDistinguisherSerialized_toBinary (n m w Q : ℕ → ℕ)
     ProbComp.eval (lorDistinguisherSerialized n m w Q adversary bit security
         (Cslib.Matrix.toBinary A)) =
       lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit A := by
-  unfold lorDistinguisherSerialized Encryption.lorDistinguisher Encryption.lorDistinguisherOn
-    lorDistinguisher lorGame
-  have hstart : (typedLoRAdversary adversary security).start A =
-      (ProbComp.eval (adversary.start security (Cslib.Matrix.toBinary A))).map (·, []) := rfl
-  simp only [ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.pure_bind, hstart, PMF.bind_map,
-    Function.comp_def, ← eval_lorRunSerialized_toBinary]
-  rfl
+  simp only [lorDistinguisherSerialized, Encryption.lorDistinguisher, Encryption.lorDistinguisherOn,
+    ProbComp.eval_bind, eval_lorRunSerialized_toBinary]
+  simp [lorDistinguisher, lorGame, typedLoRAdversary, PMF.bind_map, Function.comp_def]
 
 /-- On canonical public-matrix words, the hidden-bit reduction `lorLweDistinguisher` draws a fair
 challenge bit `bit` and outputs the guess of typed `Regev.lorDistinguisher` at `bit`, XOR `bit`. -/
@@ -653,15 +649,11 @@ theorem lorGameSerialized_advantage_le (n m w η Q : ℕ → ℕ) (adversary : E
             (lorDistinguisherSerialized n m w Q adversary true security)) +
         Q security * hidingError (n security) (m security) (w security) := by
   apply NNReal.coe_le_coe.mp
-  rw [eval_lorGameSerialized, eval_lorGameSerialized,
-    distinguishingGame_realEnsemble_lorDistinguisherSerialized,
-    distinguishingGame_uniformEnsemble_lorDistinguisherSerialized,
-    distinguishingGame_realEnsemble_lorDistinguisherSerialized,
-    distinguishingGame_uniformEnsemble_lorDistinguisherSerialized]
-  simpa only [hidingError, NNReal.coe_add, NNReal.coe_mul, NNReal.coe_natCast, Real.coe_sqrt,
-    NNReal.coe_div, NNReal.coe_pow, NNReal.coe_ofNat] using
-    lorGame_advantage_le (LWE.noiseLaw (w security) (η security)) (Q security)
-      (typedLoRAdversary adversary security)
+  simpa only [eval_lorGameSerialized, distinguishingGame_realEnsemble_lorDistinguisherSerialized,
+    distinguishingGame_uniformEnsemble_lorDistinguisherSerialized, hidingError, NNReal.coe_add,
+    NNReal.coe_mul, NNReal.coe_natCast, Real.coe_sqrt, NNReal.coe_div, NNReal.coe_pow,
+    NNReal.coe_ofNat] using lorGame_advantage_le (LWE.noiseLaw (w security) (η security))
+      (Q security) (typedLoRAdversary adversary security)
 
 /-- Concrete adaptive `Q`-query left-or-right security for `lorGameSerialized` via the single
 hidden-bit reduction `lorLweDistinguisher`: the advantage is at most twice its `DecisionLWE`

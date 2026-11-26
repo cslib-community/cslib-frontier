@@ -143,14 +143,11 @@ theorem HeapInv.congr_mem {m₂ : ℕ → ℕ} (h : HeapInv N base S mem)
       heapEntry N base m₂ i = heapEntry N base mem i := by
     have hv := h.vertex_lt i h1 h2
     simp only [heapEntry, hh i h1 h2, hk _ hv]
-  refine ⟨⟨hSN, fun i h1 h2 => ?_, fun i h1 h2 => ?_, fun v hv => ?_, fun v hv hv0 => ?_⟩,
-    fun i h1 h2 => ?_⟩
-  · rw [hh i h1 h2]; exact h.vertex_lt i h1 h2
-  · rw [hh i h1 h2, hp _ (h.vertex_lt i h1 h2)]; exact h.pos_vertex i h1 h2
-  · rw [hp v hv]; exact h.pos_le v hv
+  refine ⟨⟨hSN, fun i h1 h2 => hh i h1 h2 ▸ h.vertex_lt i h1 h2,
+    fun i h1 h2 => by rw [hh i h1 h2, hp _ (h.vertex_lt i h1 h2), h.pos_vertex i h1 h2],
+    fun v hv => hp v hv ▸ h.pos_le v hv, fun v hv hv0 => ?_⟩, fun i h1 h2 => ?_⟩
   · rw [hp v hv] at hv0 ⊢
-    rw [hh _ (Nat.one_le_iff_ne_zero.2 hv0) (h.pos_le v hv)]
-    exact h.vertex_pos v hv hv0
+    rw [hh _ (Nat.one_le_iff_ne_zero.2 hv0) (h.pos_le v hv), h.vertex_pos v hv hv0]
   · rw [hent (i / 2) (by omega) (by omega), hent i (by omega) h2]
     exact h.ordered i h1 h2
 
@@ -164,11 +161,10 @@ theorem HeapShape.size_lt (h : HeapShape N base S mem) {v : ℕ} (hv : v < N)
       at hcard
     omega
   · rw [Finset.mem_coe, Finset.mem_Icc] at hi
-    rw [Finset.mem_coe, Finset.mem_erase, Finset.mem_range]
-    refine ⟨fun (he : mem (base + N + i) = v) => ?_, h.vertex_lt i hi.1 hi.2⟩
-    have := h.pos_vertex i hi.1 hi.2
-    rw [he, hp] at this
-    omega
+    exact Finset.mem_coe.2 (Finset.mem_erase.2
+      ⟨fun (he : mem (base + N + i) = v) =>
+        by have := he ▸ h.pos_vertex i hi.1 hi.2; omega,
+        Finset.mem_range.2 (h.vertex_lt i hi.1 hi.2)⟩)
   · rw [Finset.mem_coe, Finset.mem_Icc] at hi hj
     rw [← h.pos_vertex i hi.1 hi.2, ← h.pos_vertex j hj.1 hj.2]
     exact congrArg (fun x => mem (base + 2 * N + 1 + x)) he
@@ -183,9 +179,8 @@ theorem HeapShape.stateOfMem_zero (h : HeapShape N base 0 mem) :
 /-- Size `S = 0` iff the represented `dom` is empty. -/
 theorem HeapShape.size_eq_zero_iff (h : HeapShape N base S mem) :
     S = 0 ↔ IndexedMinPQ.dom (stateOfMem N base mem) = ∅ := by
-  refine ⟨?_, fun hdom => ?_⟩
-  · rintro rfl
-    rw [h.stateOfMem_zero, IndexedMinPQ.dom_empty]
+  refine ⟨fun h0 => (congrArg IndexedMinPQ.dom (h0 ▸ h).stateOfMem_zero).trans
+    (IndexedMinPQ.dom_empty N), fun hdom => ?_⟩
   · by_contra h0
     have h1 : 1 ≤ S := Nat.pos_of_ne_zero h0
     have hu_mem : (⟨mem (base + N + 1), h.vertex_lt 1 le_rfl h1⟩ : Fin N) ∈

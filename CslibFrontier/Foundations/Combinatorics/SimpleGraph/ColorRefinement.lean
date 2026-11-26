@@ -271,9 +271,8 @@ theorem isEquitable_iff_card_filter [DecidableEq β] {χ : V → β} :
 private theorem encard_neighborSet_inter (v : V) (p : V → Prop) [DecidablePred p] :
     (G.neighborSet v ∩ {x | p x}).encard = ((G.neighborFinset v).filter p).card := by
   rw [← Set.encard_coe_eq_coe_finsetCard, Finset.coe_filter]
-  congr 1
-  ext x
-  simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, mem_neighborSet, mem_neighborFinset]
+  simp only [mem_neighborFinset]
+  rfl
 
 /-- A partition is equitable exactly when its quotient map is an equitable coloring. -/
 theorem isEquitablePartition_iff_isEquitable_mk {r : Setoid V} :
@@ -432,7 +431,7 @@ theorem Iso.neighborFinset_apply (e : G ≃g H) (v : V) :
   ext w
   obtain ⟨w, rfl⟩ := e.surjective w
   simp only [mem_neighborFinset, mem_map_equiv, Iso.map_adj_iff]
-  rw [show e.toEquiv.symm (e w) = w from e.toEquiv.symm_apply_apply w]
+  erw [e.toEquiv.symm_apply_apply]
 
 /-- An embedding that maps the neighbors of every `v` onto the neighbors of its image transports
 every round of color refinement. -/
@@ -605,12 +604,10 @@ theorem forall_colorHistogram_eq_iff {χ₀ : V → α} {ψ₀ : W → α} :
   let χ : V ⊕ W → α := Sum.elim χ₀ ψ₀
   have hG (n : ℕ) : G.colorHistogram χ₀ n =
       ((univ : Finset V).val.map Sum.inl).map ((G ⊕g H).refinementColoring χ n) := by
-    rw [colorHistogram, Multiset.map_map]
-    exact congrArg (Multiset.map · _) (funext fun v => (refinementColoring_sum_inl χ n v).symm)
+    simp [colorHistogram, Multiset.map_map, Function.comp_def, refinementColoring_sum_inl, χ]
   have hH (n : ℕ) : H.colorHistogram ψ₀ n =
       ((univ : Finset W).val.map Sum.inr).map ((G ⊕g H).refinementColoring χ n) := by
-    rw [colorHistogram, Multiset.map_map]
-    exact congrArg (Multiset.map · _) (funext fun w => (refinementColoring_sum_inr χ n w).symm)
+    simp [colorHistogram, Multiset.map_map, Function.comp_def, refinementColoring_sum_inr, χ]
   rw [hG, hH] at h ⊢
   exact Multiset.map_eq_map_of_ker_le (ker_refinementColoring_sum_le hm) h
 
@@ -632,11 +629,9 @@ private theorem refinementColoring_of_isRegularOfDegree {G : SimpleGraph V} [G.L
   induction n generalizing v with
   | zero => rfl
   | succ n ih =>
-    have hc : G.refinementColoring (fun _ => ()) n = fun _ => regularColor d n := funext ih
-    change (G.refinementColoring (fun _ => ()) n v,
-        (G.neighborFinset v).val.map (G.refinementColoring (fun _ => ()) n)) =
-      (regularColor d n, Multiset.replicate d (regularColor d n))
-    rw [hc, Multiset.map_const', Finset.card_val, card_neighborFinset_eq_degree, hG.degree_eq]
+    simp only [refinementColoring_succ, refineColoring_apply, funext ih, Multiset.map_const',
+      Finset.card_val, card_neighborFinset_eq_degree, hG.degree_eq, regularColor]
+    rfl
 
 /-- **Incompleteness of the color refinement test**: two `d`-regular graphs with the same number of
 vertices have the same color histograms in every round. -/

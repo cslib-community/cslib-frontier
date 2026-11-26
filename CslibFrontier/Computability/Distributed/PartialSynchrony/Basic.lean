@@ -285,8 +285,7 @@ every fault bound `t`. -/
 theorem solvesByzantinePartialSync_ownInput {P V : Type*} [DecidableEq P] [Subsingleton P]
     (t : ℕ) : (ownInputProtocol P V).SolvesByzantinePartialSync t where
   irrevocable F _ deliver adv x r₁ r₂ _ i _ v h₁ := by
-    rw [PartialSyncProtocol.byzantineDecision, ownInputProtocol_byzantineState] at h₁ ⊢
-    exact h₁
+    simpa only [PartialSyncProtocol.byzantineDecision, ownInputProtocol_byzantineState] using h₁
   agreement F _ deliver adv x r₁ r₂ i _ j _ v₁ v₂ h₁ h₂ := by
     rw [PartialSyncProtocol.byzantineDecision, ownInputProtocol_byzantineState] at h₁ h₂
     exact Option.some.inj ((Subsingleton.elim i j ▸ h₁).symm.trans h₂)
@@ -344,13 +343,9 @@ private theorem findQuorumVal_sound {P V : Type*} [DecidableEq P] [DecidableEq V
     {procs : List P} {q : ℕ} {f : P → Option V} {v : V}
     (h : findQuorumVal procs q f = some v) : q ≤ countVal procs f v := by
   obtain ⟨_, j, _, _, hj, _⟩ := List.findSome?_eq_some_iff.1 h
-  cases hfj : f j with
-  | none => simp only [hfj, reduceCtorEq] at hj
-  | some w =>
-    simp only [hfj] at hj
-    split_ifs at hj with hq
-    cases hj
-    exact hq
+  rcases hfj : f j with _ | w <;> simp only [hfj, reduceCtorEq] at hj
+  split_ifs at hj with hq
+  exact Option.some.inj hj ▸ hq
 
 /-- When `Fintype.card P < 2 * q`, at most one value can have `q` senders, so `findQuorumVal`
 returns `some v` if and only if at least `q` senders carry `some v`. -/
@@ -927,9 +922,9 @@ private theorem certPairs_sound {F : Finset P} {deliver : ℕ → P → P → Bo
       F deliver adv x (6 * v + 1) i).certPairs) :
     lk.view < v ∧ ∃ h ∉ F, lk ∈ ((byzQuorumProtocol P V procs leader t).byzantineState
       F deliver adv x (6 * v) h).votedViews := by
-  have hm0 : 6 * v % 6 = 0 := by omega
+  have hd0 : 6 * v / 6 = v := by omega
   rw [byzQuorum_state_succ] at hlk
-  simp only [byzUpdate, hm0, show 6 * v / 6 = v by omega, computeCertPairs, List.mem_filter,
+  simp only [byzUpdate, Nat.mul_mod_right, hd0, computeCertPairs, List.mem_filter,
     decide_eq_true_eq, rawVoteCount] at hlk
   obtain ⟨-, hcnt⟩ := hlk
   split_ifs at hcnt with hlt
@@ -937,7 +932,7 @@ private theorem certPairs_sound {F : Finset P} {deliver : ℕ → P → P → Bo
       exists_mem_notMem_of_lt_length hF ((List.nodup_dedup procs).filter _) hcnt
     simp only [List.mem_filter, byzIncoming, hhF, ↓reduceIte, decide_eq_true_eq] at hh
     split_ifs at hh <;>
-      simp only [byzSend, hm0, extractRawVotes, List.not_mem_nil, and_false] at hh
+      simp only [byzSend, Nat.mul_mod_right, extractRawVotes, List.not_mem_nil, and_false] at hh
     exact ⟨hlt, h, hhF, hh.2⟩
   · omega
 
@@ -1268,9 +1263,9 @@ private theorem properReport_unanimous {F : Finset P} {deliver : ℕ → P → P
     let rep := ((byzQuorumProtocol P V procs leader t).byzantineState
       F deliver adv x (6 * v + 1) i).properReport
     rep.allProper = false ∧ ∀ w ∈ rep.freqVals, w = val₀ := by
+  have hd0 : 6 * v / 6 = v := by omega
   rw [byzQuorum_state_succ]
-  simp only [byzUpdate, show 6 * v % 6 = 0 by omega, show 6 * v / 6 = v by omega,
-    computeProperReport]
+  simp only [byzUpdate, Nat.mul_mod_right, hd0, computeProperReport]
   let initFrom := fun j =>
     extractRawInit (byzIncoming procs leader t F deliver adv x (6 * v) i j)
   have hhonest_val : ∀ h ∉ F, ∀ w, initFrom h = some w → w = val₀ := fun h hhF w hw => by
@@ -1781,8 +1776,8 @@ theorem omission_validity [Fintype P] (hprocs : ∀ p : P, p ∈ procs)
       intro r p w hlk
       obtain ⟨_, cv, hlp⟩ := omissionState_locked_origin leader deliver x r p hlk
       dsimp only at hlp
-      rw [show 3 * u + 1 = (3 * u) + 1 by rfl, omissionQuorum_state_succ] at hlp
-      simp only [omissionUpdate, show (3 * u) % 3 = 0 by omega] at hlp
+      rw [omissionQuorum_state_succ] at hlp
+      simp only [omissionUpdate, Nat.mul_mod_right] at hlp
       split_ifs at hlp with hcnt
       split at hlp <;> simp only [Option.some.injEq, Proposal.mk.injEq] at hlp
       · next best hpm =>

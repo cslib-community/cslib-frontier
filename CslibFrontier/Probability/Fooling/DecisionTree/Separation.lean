@@ -111,9 +111,8 @@ private def pointerTest {D : Type*} [DecidableEq D]
 private theorem eval_pointerTest {D : Type*} [DecidableEq D] (key : (Fin m → Bool) → D)
     (target : (Fin m → Bool) → Bool) (z : Fin m ⊕ D → Bool) :
     (pointerTest key target).eval z = decide (z (point key z) = target (address z)) := by
-  rw [pointerTest, eval_graft, eval_checkBit]
-  simp only [point, address, Function.comp_def, List.mem_map, List.mem_finRange, true_and,
-    exists_eq, reduceIte, Sum.inl.injEq]
+  simp only [pointerTest, eval_graft, eval_checkBit, point, address, Function.comp_def,
+    List.mem_map, List.mem_finRange, true_and, exists_eq, reduceIte, Sum.inl.injEq]
   exact Bool.decide_congr Iff.rfl
 
 private theorem depth_pointerTest {D : Type*} [DecidableEq D] (key : (Fin m → Bool) → D)
@@ -143,15 +142,12 @@ private theorem map_eval_forceBit {J : Type*} [Fintype J] [DecidableEq J]
     ((PMF.uniformOfFintype (J → Bool)).map
       (fun z => Function.update z (p z) (b z))).map T.eval = PMF.pure true ∧
       (PMF.uniformOfFintype (J → Bool)).map T.eval = PMF.uniformOfFintype Bool := by
-  refine ⟨?_, ?_⟩
-  · have h : T.eval ∘ (fun z => Function.update z (p z) (b z)) = Function.const _ true :=
-      funext fun z => by simp [heval, hp, hb]
-    simp [PMF.map_comp, h]
-  · rw [funext heval, ← PMF.bind_pure_comp]
-    simpa only [heval, hp, hb, Function.update_self, bind_checkBit_uniform, PMF.bind_const,
-      Function.comp_def] using
-      (Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp
-        (fun z => PMF.pure (T.eval z))).symm
+  refine ⟨by simp [PMF.map, Function.comp_def, heval, hp, hb], ?_⟩
+  rw [funext heval, ← PMF.bind_pure_comp]
+  simpa only [heval, hp, hb, Function.update_self, bind_checkBit_uniform, PMF.bind_const,
+    Function.comp_def] using
+    (Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp
+      (fun z => PMF.pure (T.eval z))).symm
 
 private def forcePointer {D : Type*} [DecidableEq D] (key : (Fin m → Bool) → D)
     (target : (Fin m → Bool) → Bool) (z : Fin m ⊕ D → Bool) : Fin m ⊕ D → Bool :=
@@ -231,9 +227,9 @@ private theorem forcePointer_eq_on {D : Type*} [DecidableEq D]
     (h : point key z ∈ S → z (point key z) = target (address z)) :
     S.restrict (forcePointer key target z) = S.restrict z := by
   ext i
-  by_cases hi : (i : Fin m ⊕ D) = point key z
-  · simp [Finset.restrict, forcePointer, hi, h (hi ▸ i.property)]
-  · simp [Finset.restrict, forcePointer, Function.update_of_ne hi]
+  simp only [Finset.restrict, forcePointer, Function.update_apply, ite_eq_right_iff]
+  intro hi
+  rw [hi, h (hi ▸ i.property)]
 
 /-- A matching of address-cube edges with one edge in each coordinate direction. -/
 private structure PointerMatching (m : ℕ) where
@@ -403,7 +399,7 @@ private theorem dist_map_restrict_le (M : PointerMatching m) (S : Finset (Fin m 
   change S.restrict (forcePointer M.key M.target z) ≠ S.restrict (M.compareWord S z) at hz
   have hhidden : ¬ ∃ i, ∃ s, address z = M.endpoint i s ∧ Sum.inl i ∉ S := fun ⟨i, s, ha, hi⟩ =>
     hz (M.compareWord_of_hidden ha hi ▸ M.restrict_force_eq_swapWord S i s z ha hi)
-  rw [show M.compareWord S z = z by rw [compareWord, dite_eq_right hhidden]] at hz
+  rw [compareWord, dite_eq_right hhidden] at hz
   obtain ⟨hmem, hne⟩ : point M.key z ∈ S ∧ z (point M.key z) ≠ M.target (address z) :=
     not_imp.mp fun h => hz (forcePointer_eq_on M.key M.target S z h)
   refine ⟨?_, hne⟩
@@ -543,9 +539,7 @@ private theorem eval_fourTest (z : Fin 4 → Bool) :
 
 private theorem fourTarget_update (z : Fin 4 → Bool) (v : Bool) :
     fourTarget (Function.update z 1 v) = fourTarget z := by
-  unfold fourTarget
-  rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide),
-    Function.update_of_ne (by decide)]
+  simp [fourTarget]
 
 private theorem map_eval_fourTest :
     ((PMF.uniformOfFintype (Fin 4 → Bool)).map fourForce).map fourTest.eval = PMF.pure true ∧
@@ -585,10 +579,11 @@ private theorem four_hasSeparation : HasSeparation (Fin 4) 3 := by
   refine (dist_restrict_map_uniform_le S fourForce e).trans
     ((ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top U E)
       (U.toOuterMeasure.mono hsub)).trans ?_)
-  rw [Probability.PMF.toOuterMeasure_uniformOfFintype_toReal,
-    show Fintype.card (Fin 4 → Bool) = 16 by simp]
-  exact (div_le_div_of_nonneg_right (by exact_mod_cast fourMismatch_card i : _ ≤ (4 : ℝ))
-    (by norm_num)).trans (by norm_num)
+  rw [Probability.PMF.toOuterMeasure_uniformOfFintype_toReal]
+  have hcard : (#{z | z ∈ E} : ℝ) ≤ 4 := by exact_mod_cast fourMismatch_card i
+  simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool]
+  norm_num
+  linarith
 
 /-- **Goldreich's separation at the printed length.**
 [Goldreich, Exercise 8.32(1)][Goldreich2007DraftR4] (March 2007, printed pp. 377–378).
@@ -607,14 +602,11 @@ theorem exists_dist_map_restrict_le_and_map_eval_eq_printed_length (t : ℕ) (ht
       ∃ T : DecisionTree (Fin (2 ^ (t - 1))) Bool, T.depth ≤ t ∧
         X.map T.eval = PMF.pure true ∧
         (PMF.uniformOfFintype _).map T.eval = PMF.uniformOfFintype Bool := by
-  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' ht
-  rw [Nat.add_sub_cancel_right]
-  change HasSeparation (Fin (2 ^ m)) (m + 1)
-  match m with
-  | 0 => exact PointerMatching.empty.hasSeparation
-  | 1 => exact PointerMatching.one.hasSeparation
-  | 2 => exact four_hasSeparation
-  | k + 3 => exact (PointerMatching.cyclic k).hasSeparation
+  match t, ht with
+  | 1, _ => exact PointerMatching.empty.hasSeparation
+  | 2, _ => exact PointerMatching.one.hasSeparation
+  | 3, _ => exact four_hasSeparation
+  | k + 4, _ => exact (PointerMatching.cyclic k).hasSeparation
 
 end Pointer
 

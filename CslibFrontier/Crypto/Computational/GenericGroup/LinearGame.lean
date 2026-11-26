@@ -593,10 +593,8 @@ private theorem consistent_of_mem_support_realStep {x : ι → ZMod q} {tab : Ta
         have hℓ' := mem_of_mem_support_draw (freshLabels_nonempty hlen) hℓ
         simp only [freshLabels, Finset.mem_filter, Finset.mem_univ, true_and] at hℓ'
         exact ⟨List.nodup_cons.mpr ⟨hK, hcon.1⟩, List.nodup_cons.mpr ⟨hℓ', hcon.2⟩⟩
-      · simp only [realStep, h₁, h₂, PMF.mem_support_pure_iff] at hy
-        subst hy; exact hcon
-    · simp only [realStep, h₁, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hcon
+      · exact ((PMF.mem_support_pure_iff _ _).mp (by simpa [realStep, h₁, h₂] using hy)).symm ▸ hcon
+    · exact ((PMF.mem_support_pure_iff _ _).mp (by simpa [realStep, h₁] using hy)).symm ▸ hcon
   | inv ℓ =>
     rcases h : keyOf tab ℓ with _ | K
     · have hℓ : ℓ ∉ tab.map Prod.snd := keyOf_eq_none_iff.mp h
@@ -616,8 +614,7 @@ private theorem consistent_of_mem_support_realStep {x : ι → ZMod q} {tab : Ta
       simp only [freshValues, Finset.mem_filter, Finset.mem_univ, true_and] at hv
       exact ⟨List.nodup_cons.mpr ⟨by simpa [ev_zero_left] using hv, hcon.1⟩,
         List.nodup_cons.mpr ⟨hℓ, hcon.2⟩⟩
-    · simp only [realStep, h, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hcon
+    · exact ((PMF.mem_support_pure_iff _ _).mp (by simpa [realStep, h] using hy)).symm ▸ hcon
 
 omit [NeZero q] [Fintype ι] [DecidableEq ι] in
 /-- An outcome with a lowered flag has probability zero under a distribution that always raises
@@ -822,12 +819,9 @@ private theorem isQueryBounded_primGame {T : ℕ}
   have hquery (p : Prim ι q) : (OracleComp.query (spec := PrimSpec ι q) p).IsQueryBounded 1 :=
     IsCostBounded.query p
   have htoPrim : ∀ query : GroupQuery q (ZMod q),
-      (toPrim (ι := ι) query).IsQueryBounded ((fun _ : GroupQuery q (ZMod q) => 3) query) := by
-    intro query
-    cases query with
-    | label β => exact (hquery _).mono (by norm_num)
-    | op ℓ₁ ℓ₂ c₁ c₂ =>
-      exact ((hquery _).bind fun _ => (hquery _).bind fun _ =>
+      (toPrim (ι := ι) query).IsQueryBounded ((fun _ : GroupQuery q (ZMod q) => 3) query) := fun
+    | .label _ => (hquery _).mono (by norm_num)
+    | .op _ _ _ _ => ((hquery _).bind fun _ => (hquery _).bind fun _ =>
         (hquery _).bind fun _ => IsCostBounded.pure _ 0).mono (by norm_num)
   have hD' (g : ZMod q) (u : ι → ZMod q) :
       IsCostBounded (fun _ : GroupQuery q (ZMod q) => 3) (D g u) (T * 3) :=
@@ -1019,12 +1013,9 @@ private theorem detGame_eq (W : (ι → ZMod q) → γ → (κ → ZMod q) → B
           (OracleComp.interpret (fun query => PMF.pure (answer σ query))
             (D (σ 1) fun i => σ (x i))).map fun out => (out.1, fun k => σ.symm (out.2 k))).bind
             fun r => PMF.pure (W x r.1 r.2) := by
-        rw [PMF.bind_bind]
-        simp_rw [PMF.bind_map]
-        rfl
+        simp only [PMF.bind_bind, PMF.bind_map]; rfl
     _ = _ := by
-        rw [uniform_interpret_eq_real, PMF.bind_map]
-        rfl
+        rw [uniform_interpret_eq_real, PMF.bind_map]; rfl
 
 /-- For a fixed `x`, the real game is won at most as often as the symbolic one, plus the
 probability that the symbolic table has two distinct keys that agree at `x`. -/

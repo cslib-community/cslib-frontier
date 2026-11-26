@@ -221,16 +221,15 @@ theorem CNF.mul_two_rpow_div_le_two_pow_mul_sum_critWidth
     μ * 2 ^ (n / μ) ≤
       2 ^ n * ∑ i : Fin n, 1 / ((φ.critWidth x i : ℝ) * 2 ^ (n - φ.critWidth x i)) := by
   have hn0 : (0 : ℝ) < n :=
-    (mul_pos_iff_of_pos_right (by positivity : 0 < Real.log 2)).1 (hμ.trans_le hμn)
+    (mul_pos_iff_of_pos_right (Real.log_pos one_lt_two)).1 (hμ.trans_le hμn)
   have hpos : ∀ i, 0 < φ.critWidth x i := fun i => CNF.critWidth_pos (hcrit i)
   have hle : ∀ i, φ.critWidth x i ≤ n := fun i => by
     obtain ⟨c, -, -, hc⟩ := CNF.exists_critical_card_eq_critWidth (hcrit i)
     rw [← hc]
     exact (card_le_univ _).trans_eq (Fintype.card_fin n)
   have htan := card_mul_mul_two_rpow_inv_le_sum (univ : Finset (Fin n))
-    (fun i => 1 / (φ.critWidth x i : ℝ)) (fun i _ => by
-      have := hpos i
-      positivity) (a := μ / n) (by positivity)
+    (fun i => 1 / (φ.critWidth x i : ℝ)) (fun i _ => one_div_pos.2 (Nat.cast_pos.2 (hpos i)))
+    (a := μ / n) (by positivity)
     (by rw [div_le_iff₀ hn0]; linarith)
     (by rw [card_univ, Fintype.card_fin, mul_div_cancel₀ _ hn0.ne']; exact hw)
   rw [card_univ, Fintype.card_fin, mul_div_cancel₀ _ hn0.ne', one_div_div] at htan
@@ -361,9 +360,8 @@ theorem CNF.two_rpow_sqrt_sub_one_le_of_any_eval_eq_parity (hn : 3 ≤ n)
   have h1 : 1 ≤ √(n : ℝ) := Real.one_le_sqrt.2 (by linarith)
   -- `√n ≤ n log 2`, as `√n ≥ 1.7` and `log 2 > 0.69`
   have hμn : √(n : ℝ) ≤ n * Real.log 2 := by
-    have hlog := Real.log_two_gt_d9
     have h17 : (1.7 : ℝ) ≤ √n := (Real.le_sqrt (by norm_num) (by linarith)).2 (by linarith)
-    nlinarith
+    nlinarith [Real.log_two_gt_d9]
   have h := CNF.two_pow_mul_min_le_of_any_eval_eq_parity (by omega) hsq hμn hFs
   rw [Real.div_sqrt, min_eq_left (le_mul_of_one_le_left (by positivity) h1)] at h
   rw [Real.rpow_sub_one two_ne_zero]
@@ -403,7 +401,7 @@ theorem CNF.card_isolatedInputs_mul_rpow_mul_two_rpow_sqrt_le (hn : 4 ≤ n)
   have hμn : √(n : ℝ) + b ≤ n * Real.log 2 := by
     have hf : 0 ≤ 2 * Real.log 2 ^ 2 * (√n + 2) - 2 * Real.log 2 - 1 := by nlinarith
     have := mul_nonneg (sub_nonneg.2 hs2) hf
-    refine le_of_mul_le_mul_left ?_ (by positivity : (0 : ℝ) < 4 * Real.log 2)
+    refine le_of_mul_le_mul_left ?_ (mul_pos zero_lt_four (Real.log_pos one_lt_two))
     conv_rhs => rw [← hss]
     nlinarith
   have h := CNF.card_isolatedInputs_mul_min_le (μ := √n + b) (by positivity) hμn hFs
@@ -418,9 +416,7 @@ theorem CNF.card_isolatedInputs_mul_rpow_mul_two_rpow_sqrt_le (hn : 4 ≤ n)
         field_simp
     _ = √n * 2 ^ (√n - b) := by rw [hsq, Real.rpow_sub two_pos, h2b]
     _ ≤ (√n + b) * 2 ^ (n / (√n + b)) := by
-        gcongr
-        · linarith
-        · norm_num
+        gcongr <;> linarith
 
 /-- **ORs of formulas in conjunctive normal form for parity need `n ^ (1 / 4) 2 ^ (√n - 1)`
 gates**, [Paturi, Pudlák and Zane, Theorem 6][PaturiPudlakZane1999]: an OR of `m` formulas with

@@ -170,9 +170,7 @@ theorem eval_coalitionQuery_shamir {ι : Type} [Fintype ι] [DecidableEq ι] [De
 theorem isTPrivate_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
     (shamir ι params).IsTPrivate params.threshold := by
   classical
-  rw [Scheme.isTPrivate_iff]
-  intro T hT i i'
-  rw [eval_coalitionQuery_shamir params T hT i, eval_coalitionQuery_shamir params T hT i']
+  exact (Scheme.isTPrivate_iff _ _).2 fun T hT i i' => by simp [eval_coalitionQuery_shamir, hT]
 
 /-- On every supported query draw of `PIR.shamir`, Lagrange interpolation at `0` of the honest
 server answers equals `1` if `x i = true` and `0` if `x i = false`. -/
@@ -202,9 +200,8 @@ theorem reconstruct_answer_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
 theorem isCorrect_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
     (shamir ι params).IsCorrect := by
   classical
-  refine (Scheme.isCorrect_iff _).2 fun x i r q hrq => ?_
-  rw [reconstruct_shamir, reconstruct_answer_shamir params x i hrq]
-  cases x i <;> simp
+  exact (Scheme.isCorrect_iff _).2 fun x i r q hrq => by
+    by_cases hxi : x i <;> simp [reconstruct_shamir, reconstruct_answer_shamir params x i hrq, hxi]
 
 /-- **Sharpness of the collusion threshold**: `(params.threshold + 1)` servers are authorized in
 Shamir secret sharing and can reconstruct the target index, so `PIR.shamir` is not
@@ -257,9 +254,8 @@ theorem isTPrivate_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype
     (params : Shamir.Params F S) :
     (shamirCube D ι params).IsTPrivate params.threshold := by
   classical
-  rw [Scheme.isTPrivate_iff]
-  intro T hT i i'
-  rw [eval_coalitionQuery_shamirCube params T hT i, eval_coalitionQuery_shamirCube params T hT i']
+  exact (Scheme.isTPrivate_iff _ _).2 fun T hT i i' => by
+    simp [eval_coalitionQuery_shamirCube, hT]
 
 /-- **Sharpness of the collusion threshold for `PIR.shamirCube`**: even when `|S| > |D| * t`
 servers are used for degree-`d t` reconstruction, any `params.threshold + 1` colluding servers can

@@ -246,8 +246,7 @@ private theorem card_ne_le_of_step {Ω T S : Type*} [Fintype Ω] [Fintype T] [De
       n * β * (Fintype.card Ω * Fintype.card T ^ n) := by
   induction n with
   | zero =>
-    rw [Finset.filter_false_of_mem fun p _ => not_not.2 (h0 p.1 p.2)]
-    simp
+    simp [Finset.filter_false_of_mem fun (p : Ω × (Fin 0 → T)) _ => not_not.2 (h0 p.1 p.2)]
   | succ n ih =>
     let e : (Ω × (Fin n → T)) × T ≃ Ω × (Fin (n + 1) → T) :=
       { toFun := fun q => (q.1.1, Fin.snoc q.1.2 q.2)
@@ -287,8 +286,7 @@ private theorem card_ne_le_of_step {Ω T S : Type*} [Fintype Ω] [Fintype T] [De
       _ = (n + 1 : ℕ) * β * (Fintype.card Ω * Fintype.card T ^ (n + 1)) := by
           rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
           simp only [Fintype.card_fun, Fintype.card_fin]
-          push_cast
-          ring
+          push_cast; ring
 
 /-- One round against a fixed reference matrix `R`: the pairs `(y, z)` for which
 `Snap_d(pow R y, z) ≠ Snap_d(R ^ n₁, z)` have density at most `ε + w ^ 2 (2 ^ d ε + 2 ^ (-d))`. -/
@@ -302,24 +300,20 @@ private theorem card_snap_pow_ne_le {Ω : Type*} [Fintype Ω] (d n₁ : ℕ)
   have hq : (0 : ℝ) < 2 ^ d := by positivity
   rw [entryFarSet] at hR
   set c : ℝ := Fintype.card ι * Fintype.card ι * (4 ^ d * ε + 1) with hc
-  have hy : ∀ y : Ω,
+  have hy (y : Ω) :
       (#{t : Fin (2 ^ d) | snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t} : ℝ) ≤
         (if ∃ i j, ε < |pow R y i j - (R ^ n₁) i j| then (2 ^ d : ℝ) else 0) + c := by
-    intro y
     by_cases hb : ∃ i j, ε < |pow R y i j - (R ^ n₁) i j|
     · rw [ite_eq_left hb]
-      have h1 : (#{t : Fin (2 ^ d) | snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t} : ℝ) ≤
-          2 ^ d := by exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin _)
-      linarith [show (0 : ℝ) ≤ c by positivity]
+      refine le_add_of_le_of_nonneg ?_ (by positivity)
+      exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin _)
     · rw [ite_eq_right hb, zero_add]
       exact card_snapMatrix_ne_le d fun i j => not_lt.mp fun h => hb ⟨i, j, h⟩
   rw [Finset.natCast_card_filter, Fintype.sum_prod_type]
   calc ∑ y : Ω, ∑ t : Fin (2 ^ d),
         (if snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t then (1 : ℝ) else 0)
       ≤ ∑ y : Ω, ((if ∃ i j, ε < |pow R y i j - (R ^ n₁) i j| then (2 ^ d : ℝ) else 0) + c) :=
-        Finset.sum_le_sum fun y _ => by
-          rw [← Finset.natCast_card_filter]
-          exact hy y
+        Finset.sum_le_sum fun y _ => (Finset.natCast_card_filter (R := ℝ) _ _).symm.trans_le (hy y)
     _ = 2 ^ d * #{y : Ω | ∃ i j, ε < |pow R y i j - (R ^ n₁) i j|} + Fintype.card Ω * c := by
         rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
           Finset.natCast_card_filter, Finset.mul_sum]
@@ -360,8 +354,7 @@ theorem dens_snapIter_ne_le {Ω : Type*} [Fintype Ω] (d n₁ n₂ : ℕ)
     (fun n z => card_snap_pow_ne_le d n₁ pow _ hε (card_le_of_dens_le (hpow _ (hmem n z))))
     n₂).trans_eq ?_
   rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
-  push_cast
-  ring
+  push_cast; ring
 
 /-- **The Saks–Zhou iteration** [ChattopadhyayLiao2020, Lemma A.4], with the exact error sum.
 Under the hypotheses of `dens_snapIter_ne_le`, the pairs `(y, z)` for which some row of

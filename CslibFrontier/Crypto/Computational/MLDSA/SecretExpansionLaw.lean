@@ -339,16 +339,11 @@ theorem uniformPrefixes_expandS (base : Xofs) (s : Level) (rho : FixedBytes 64) 
           (MatrixOracle.shortVectorLaw s s.params.k).map fun y => some (x, y)
       else PMF.pure none := by
   intro R
-  let U := PMF.uniformOfFintype (Fin s.params.ℓ → FixedBytes 481)
-  let V := PMF.uniformOfFintype (Fin s.params.k → FixedBytes 481)
-  let parse x y := vectors s (x, y)
-  have joint : (R.map fun H => H.expandS s rho.toList) = U.bind fun x => V.map (parse x) :=
-    uniformPrefixes_secretRows base s rho ha hb
   let test (o : Option ((Fin s.params.ℓ → Poly) × (Fin s.params.k → Poly))) : PMF _ :=
     if o.isSome then (MatrixOracle.shortVectorLaw s s.params.ℓ).bind fun x =>
       (MatrixOracle.shortVectorLaw s s.params.k).map fun y => some (x, y) else PMF.pure none
   change _ = R.bind (test ∘ fun H => H.expandS s rho.toList)
-  rw [← PMF.bind_map, joint, PMF.bind_bind]
-  simpa only [PMF.bind_map, Function.comp_def, parse, test, vectors] using uniform_vector_pair s
+  rw [← PMF.bind_map, uniformPrefixes_secretRows base s rho ha hb, PMF.bind_bind]
+  simpa only [PMF.bind_map, Function.comp_def, test, vectors] using uniform_vector_pair s
 
 end Cslib.Crypto.MLDSA.FIPS204

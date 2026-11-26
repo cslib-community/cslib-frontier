@@ -27,7 +27,8 @@ literal `¬x` is `1 - x`, so the constraint is `∑ᵥ cᵥ xᵥ ≥ D` with int
 (`Cslib.Logic.PL.PBConstr.toLinear`); terms on the same variable are merged and terms with
 coefficient `0` dropped, and the result is turned back into literals with positive coefficients,
 the degree rising by the coefficients of the negative literals and clamped at `0`. Normalization
-changes no satisfying assignment (`Cslib.Logic.PL.PBConstr.holds_normalize`).
+changes no satisfying assignment (`Cslib.Logic.PL.PBConstr.holds_normalize`) and introduces no
+variable (`Cslib.Logic.PL.PBConstr.mem_vars_of_mem_vars_normalize`).
 
 The rules of the cutting-planes fragment of VeriPB [Gocht and Nordström][GochtNordstrom2021] are
 sound (`Cslib.Logic.PL.PBConstr.Holds.add`, …): addition, multiplication by a natural, division by
@@ -40,6 +41,7 @@ coefficients), and the literal axioms `ℓ ≥ 0`. The negation of `∑ aᵢ ℓ
 
 * `Cslib.Logic.PL.PBConstr`, `Cslib.Logic.PL.PBConstr.Holds`: constraints and their satisfaction.
 * `Cslib.Logic.PL.PBConstr.normalize`: the normal form.
+* `Cslib.Logic.PL.PBConstr.vars`: the variables of the terms of a constraint.
 * `Cslib.Logic.PL.PBConstr.add`, `Cslib.Logic.PL.PBConstr.mul`, `Cslib.Logic.PL.PBConstr.div`,
   `Cslib.Logic.PL.PBConstr.saturate`, `Cslib.Logic.PL.PBConstr.weaken`,
   `Cslib.Logic.PL.PBConstr.litAxiom`, `Cslib.Logic.PL.PBConstr.negate`: the rules.
@@ -171,6 +173,14 @@ theorem linVal_map_neg (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
   | nil => simp
   | cons e L ih => rw [List.map_cons, linVal_cons, linVal_cons, ih, neg_add, neg_mul]
 
+/-- A linear form has the same value at assignments agreeing on its variables. -/
+theorem linVal_congr {σ τ : ℕ → Bool} {L : List (ℕ × ℤ)} (h : ∀ e ∈ L, σ e.1 = τ e.1) :
+    linVal σ L = linVal τ L := by
+  induction L with
+  | nil => rfl
+  | cons e L ih =>
+    simp only [linVal_cons, h e List.mem_cons_self, ih fun e he => h e (List.mem_cons_of_mem _ he)]
+
 theorem linVal_insertCoeff (σ : ℕ → Bool) (v : ℕ) (a : ℤ) (L : List (ℕ × ℤ)) :
     linVal σ (insertCoeff v a L) = a * ((σ v).toNat : ℤ) + linVal σ L := by
   fun_induction insertCoeff v a L with
@@ -187,6 +197,47 @@ theorem insertCoeff_of_not_mem {v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)} (h : 
     obtain ⟨u, b⟩ := e
     simp only [List.map_cons, List.mem_cons, not_or] at h
     simp [insertCoeff, Ne.symm h.1, ih h.2]
+
+theorem mem_map_fst_insertCoeff {x v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)} :
+    x ∈ (insertCoeff v a L).map Prod.fst ↔ x = v ∨ x ∈ L.map Prod.fst := by
+  induction L with
+  | nil => simp [insertCoeff]
+  | cons e L ih =>
+    obtain ⟨u, b⟩ := e
+    by_cases h : u = v
+    · subst h; simp only [insertCoeff, ↓reduceIte, List.map_cons, List.mem_cons]; tauto
+    · simp only [insertCoeff, h, ↓reduceIte, List.map_cons, List.mem_cons] at ih ⊢
+      rw [ih]; tauto
+
+theorem nodup_map_fst_insertCoeff {v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)}
+    (h : (L.map Prod.fst).Nodup) : ((insertCoeff v a L).map Prod.fst).Nodup := by
+  induction L with
+  | nil => simp [insertCoeff]
+  | cons e L ih =>
+    obtain ⟨u, b⟩ := e
+    simp only [List.map_cons, List.nodup_cons] at h
+    by_cases huv : u = v
+    · subst huv; simpa [insertCoeff] using h
+    · simp only [insertCoeff, huv, ↓reduceIte, List.map_cons, List.nodup_cons]
+      exact ⟨fun hm => (mem_map_fst_insertCoeff.1 hm).elim huv h.1, ih h.2⟩
+
+/-- The linear form of terms has one entry per variable. -/
+theorem nodup_map_fst_toLinear (ts : List (ℕ × Literal ℕ)) :
+    ((toLinear ts).map Prod.fst).Nodup := by
+  induction ts with
+  | nil => simp [toLinear]
+  | cons t ts ih => exact nodup_map_fst_insertCoeff ih
+
+/-- The linear form of terms has no variable other than theirs. -/
+theorem fst_mem_of_mem_toLinear {ts : List (ℕ × Literal ℕ)} {e : ℕ × ℤ} (h : e ∈ toLinear ts) :
+    e.1 ∈ ts.map termVar := by
+  induction ts generalizing e with
+  | nil => simp [toLinear] at h
+  | cons t ts ih =>
+    rcases mem_map_fst_insertCoeff.1 (List.mem_map_of_mem (f := Prod.fst) h) with h | h
+    · simp [h]
+    · obtain ⟨e', he', heq⟩ := List.mem_map.1 h
+      exact List.mem_cons_of_mem _ (heq ▸ ih he')
 
 /-- The value of a term is its signed coefficient times its variable, plus its coefficient if
 its literal is negative. -/
@@ -271,6 +322,19 @@ theorem holds_iff_linVal (σ : ℕ → Bool) (c : PBConstr) :
 @[simp] theorem holds_normalize (σ : ℕ → Bool) (c : PBConstr) :
     c.normalize.Holds σ ↔ c.Holds σ := by
   rw [normalize, holds_fromLinear_iff, holds_iff_linVal]
+
+/-- The variables of the terms of a constraint. -/
+def vars (c : PBConstr) : List ℕ := c.terms.map termVar
+
+/-- **Normalization introduces no variable.** -/
+theorem mem_vars_of_mem_vars_normalize {c : PBConstr} {x : ℕ} (h : x ∈ c.normalize.vars) :
+    x ∈ c.vars := by
+  obtain ⟨t, ht, rfl⟩ := List.mem_map.1 h
+  obtain ⟨e, he, het⟩ := List.mem_filterMap.1 ht
+  have hv : termVar t = e.1 := by
+    unfold entryTerm at het
+    split_ifs at het <;> cases het <;> rfl
+  exact hv ▸ fst_mem_of_mem_toLinear he
 
 /-! ### The rules -/
 

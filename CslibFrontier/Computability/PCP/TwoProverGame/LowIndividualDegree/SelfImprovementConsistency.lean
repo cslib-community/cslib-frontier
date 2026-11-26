@@ -127,10 +127,6 @@ theorem successfulMass_sub_sandwichedAgreement_le
     rw [hS]; exact ((hLT u g _).mul_left (hUT h g)).mul_left (hLT u g _)
   have hSR (u v g b) : Commute (S u g) ((R v).effect b) := by
     rw [hS]; exact ((hLR u v _ b).mul_left (hUR g v b)).mul_left (hLR u v _ b)
-  have hD u : D u ∈ Set.Icc (0 : A) 1 := by
-    refine ⟨sum_nonneg fun g _ => (H u).nonneg (some g), ?_⟩
-    rw [← sub_nonneg, ← (H u).effect_none_eq_one_sub_successfulEffect]
-    exact (H u).nonneg none
   have hDT (u g) : Commute (D u) (T.effect g) :=
     Commute.sum_left _ _ _ fun h _ => hST u h g
   have hP (B : BoundedPolynomial F m d → A) : (∑ g, (φ (P.effect (some g) * B g)).re) =
@@ -147,7 +143,6 @@ theorem successfulMass_sub_sandwichedAgreement_le
   rw [← hP] at ht
   let w (u : Point F m) (g h : BoundedPolynomial F m d) :=
     (φ (X u g * (U.effect h * T.effect g) * X u g)).re
-  have hxproj (u g) : X u g * X u g = X u g := hL u _
   have hink (u g h) : S u h * T.effect g * X u g =
       if f u h = f u g then X u g * (U.effect h * T.effect g) * X u g else 0 := by
     rw [hS, mul_assoc (X u h * U.effect h) (X u h) (T.effect g), (hLT u g (f u h)).eq]
@@ -163,9 +158,7 @@ theorem successfulMass_sub_sandwichedAgreement_le
       _ = (X u g * X u g) * U.effect g * (X u g * X u g) * T.effect g := by
         simp only [mul_assoc]
       _ = _ := by
-        have hc : Commute (X u g) (T.effect g) := hLT u g (f u g)
-        simp only [hxproj, mul_assoc]
-        rw [hc.eq]
+        simp only [X, hL u (f u g), mul_assoc, (hLT u g (f u g)).eq]
   have hs (u g) : (φ (D u * T.effect g * X u g)).re =
       (φ (X u g * S u g * X u g * T.effect g)).re +
         ∑ h with h ≠ g ∧ f u h = f u g, w u g h := by
@@ -183,7 +176,8 @@ theorem successfulMass_sub_sandwichedAgreement_le
   have hcollision := average_polynomialCollision_sandwich_le φ L U T hUT
   change (𝔼 u : Point F m, ∑ g, ∑ h with h ≠ g ∧ f u h = f u g, w u g h) ≤ _
     at hcollision
-  have htransport := average_majorant_mul_le φ L R T Z hslack D hD hDT
+  have htransport := average_majorant_mul_le φ L R T Z hslack D
+    (fun u => (H u).successfulEffect_mem_Icc) hDT
   change _ ≤ (𝔼 u : Point F m, ∑ g, (φ (D u * T.effect g * X u g)).re) + _ + _
     at htransport
   rw [hsplit] at htransport

@@ -120,13 +120,12 @@ theorem not_isGoodNodeSeed_at_changed {seeds : P.SeedAssignment}
       (seeds.primSetAt S' ℓ₀ hℓ₀ (seeds.nodeAt ℓ₀ hℓ₀ z)) := by
   rcases eq_or_ne w_bad (seeds.nodeAt ℓ₀ hℓ₀ z) with rfl | hwz
   · exact hw_bad
-  · have hact_eq : seeds.activeAt S' ℓ₀ hℓ₀ w_bad = seeds.activeAt S_cur ℓ₀ hℓ₀ w_bad := by
-      ext y
-      rcases hdiff_z y with hiff | rfl
-      · simp only [SeedAssignment.mem_activeAt_iff, hiff]
-      · simp [SeedAssignment.mem_activeAt_iff, Ne.symm hwz]
-    rw [SeedAssignment.primSetAt, hact_eq, ← SeedAssignment.primSetAt] at hw_bad
-    exact (hw_bad (hgood.2 ℓ₀ hℓ₀ w_bad)).elim
+  · have hact_eq : seeds.activeAt S' ℓ₀ hℓ₀ w_bad = seeds.activeAt S_cur ℓ₀ hℓ₀ w_bad :=
+      Finset.ext fun y => (hdiff_z y).elim
+        (fun hiff => by simp [SeedAssignment.mem_activeAt_iff, hiff])
+        fun hy => by simp [hy, SeedAssignment.mem_activeAt_iff, Ne.symm hwz]
+    exact absurd (by simpa only [SeedAssignment.primSetAt, hact_eq] using hgood.2 ℓ₀ hℓ₀ w_bad)
+      hw_bad
 
 private theorem exists_hasBadSeedOn_of_not_allGoodSeeds {seeds : P.SeedAssignment}
     {S' : Finset (Fin P.paddedUniv)} (hcard' : P.nLow 0 ≤ #S' ∧ #S' ≤ P.nHigh 0)
@@ -203,10 +202,9 @@ private theorem rehashBeforeUpdate_spec (hcr : P.ConcentrationReady)
     hℓ₀ u₀ hdiff hbelow
   obtain ⟨hout, hg_cur, hg_new⟩ := Classical.choose_spec hex
   have hsd₁ := st.seeds_rehashSubtree hwf ℓ₀ hℓ₀ u₀ (Classical.choose hex) hout hg_cur
-  refine ⟨st.sentCount_rehashSubtree hwf ℓ₀ hℓ₀ u₀ (Classical.choose hex) hout hg_cur,
-    by rw [hsd₁]; exact hg_new,
-    ⟨ℓ₀, hℓ₀, not_isGoodNodeSeed_at_changed hwf.goodSeeds hdiff_z hℓ₀ hw_bad, fun j hj w hnot => by
-      rw [hsd₁]; exact hout j hj w hnot⟩,
+  exact ⟨st.sentCount_rehashSubtree hwf ℓ₀ hℓ₀ u₀ (Classical.choose hex) hout hg_cur,
+    by rwa [hsd₁], ⟨ℓ₀, hℓ₀, not_isGoodNodeSeed_at_changed hwf.goodSeeds hdiff_z hℓ₀ hw_bad,
+      fun j hj w hnot => (congrArg (fun s => s.seed j hj w) hsd₁).trans (hout j hj w hnot)⟩,
     st.wellFormedPadded_rehashSubtree hwf ℓ₀ hℓ₀ u₀ (Classical.choose hex) hout hg_cur⟩
 
 open scoped Classical in
@@ -432,9 +430,8 @@ theorem MatchesExternal.overwrite {P : TreeSchedule} {d : P.PaddedDict} {sc : �
     {u : Fin P.univ} (hmem : (d (P.embedReal u)).isSome) (v : Fin P.valBound) :
     P.MatchesExternal (Function.update d (P.embedReal u) (some v)) sc
       (Function.update dict u (some v.val)) := by
-  have hx_dom : P.embedReal u ∈ P.paddedDom d := (P.mem_paddedDom_iff d _).mpr hmem
   have hdom_eq : P.paddedDom (Function.update d (P.embedReal u) (some v)) = P.paddedDom d := by
-    rw [P.paddedDom_update_some, insert_eq_of_mem hx_dom]
+    rw [P.paddedDom_update_some, insert_eq_of_mem ((P.mem_paddedDom_iff d _).mpr hmem)]
   exact hm.update_real u (some v) (hdom_eq ▸ hm.card_lo) (hdom_eq ▸ hm.card_hi)
 
 theorem MatchesExternal.insert_fresh_lt {P : TreeSchedule} {d : P.PaddedDict} {sc : ℕ}
@@ -557,9 +554,8 @@ theorem MatchesExternal.delete_lt {P : TreeSchedule} {d : P.PaddedDict} {sc : �
       (sc + 1) (Function.update dict u none) := by
   intro s_new
   obtain ⟨hm₁, hdom₁⟩ := hm.push_sentinel hnot_ge hsc_lt
-  have hx_dom₁ : P.embedReal u ∈
-      P.paddedDom (Function.update d s_new (some ⟨0, P.val_pos⟩)) := by
-    rw [P.paddedDom_update_some, mem_insert]; exact Or.inr hx_dom
+  have hx_dom₁ : P.embedReal u ∈ P.paddedDom (Function.update d s_new (some ⟨0, P.val_pos⟩)) :=
+    P.paddedDom_update_some d s_new _ ▸ mem_insert_of_mem hx_dom
   exact hm₁.delete_ge hx_dom₁ (by rw [hdom₁])
 
 namespace TreeState
@@ -631,8 +627,8 @@ theorem wellFormed_insert (hcr : P.ConcentrationReady)
       obtain ⟨_, _, sl₁, hwfp₁⟩ :=
         st.wellFormedPadded_rawDeleteMem hcr hwfp hs_mem
           (card_erase_bounds_of_eq_cap hs_mem hcard_d)
-      have hx_fresh₁ : x ∉ P.paddedDom (Function.update d s_last none) := by
-        rw [P.paddedDom_update_none, mem_erase]; exact fun h => hx_fresh h.2
+      have hx_fresh₁ :=
+        P.paddedDom_update_none d s_last ▸ Finset.notMem_mono (erase_subset _ _) hx_fresh
       obtain ⟨hsc₂, _, sl₂, hwfp₂⟩ :=
         wellFormedPadded_rawInsertFresh hcr (hwfp₁.withSentCount (st.sentCount - 1)) hx_fresh₁ v
           (card_insert_bounds_of_eq_pred_cap hx_fresh₁ (hm.pop_sentinel hlt_pad hsc_ok).2)
@@ -704,8 +700,8 @@ theorem wellFormed_delete (hcr : P.ConcentrationReady)
       obtain ⟨_, _, sl₁, hwfp₁⟩ :=
         st.wellFormedPadded_rawInsertFresh hcr hwfp hs_fresh ⟨0, P.val_pos⟩
           (card_insert_bounds_of_eq_pred_cap hs_fresh hcard_d)
-      have hx_dom₁ : x ∈ P.paddedDom (Function.update d s_new (some ⟨0, P.val_pos⟩)) := by
-        rw [P.paddedDom_update_some, mem_insert]; exact Or.inr hx_dom
+      have hx_dom₁ : x ∈ P.paddedDom (Function.update d s_new (some ⟨0, P.val_pos⟩)) :=
+        P.paddedDom_update_some d s_new _ ▸ mem_insert_of_mem hx_dom
       obtain ⟨hsc₂, _, sl₂, hwfp₂⟩ :=
         wellFormedPadded_rawDeleteMem hcr (hwfp₁.withSentCount (st.sentCount + 1)) hx_dom₁
           (card_erase_bounds_of_eq_cap hx_dom₁ (hm.push_sentinel hge_cap hsc_lt).2)

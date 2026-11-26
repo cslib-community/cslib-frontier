@@ -65,15 +65,13 @@ theorem fst_lt_of_mem_numbered {ψ : CNF ℕ} {j : ℕ} {e : ℕ × Clause ℕ} 
     e.1 < j + ψ.length := by
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp he
   simp only [numbered, List.length_map, List.length_zipIdx] at hi
-  simp only [numbered, List.getElem_map, List.getElem_zipIdx]
-  omega
+  simpa [numbered] using Nat.add_lt_add_left hi j
 
 /-- The database `checkLRAT` starts from. -/
 theorem zipIdx_map_eq_numbered (φ : CNF ℕ) :
     φ.zipIdx.map (fun e => (e.2 + 1, e.1)) = numbered φ 1 := by
   refine List.ext_getElem (by simp [numbered]) fun i _ _ => ?_
-  simp only [numbered, List.getElem_map, List.getElem_zipIdx]
-  exact Prod.ext (by omega) rfl
+  simp [numbered, Nat.add_comm]
 
 theorem map_snd_numbered (ψ : CNF ℕ) (j : ℕ) : (numbered ψ j).map Prod.snd = ψ :=
   List.ext_getElem (by simp [numbered]) fun _ _ _ => by simp [numbered]
@@ -200,11 +198,10 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   set C := cert.toList.flatMap encodeAction
   have hinputeq : input = φ.length :: (F ++ C) := rfl
   have hL : L = 1 + F.length + C.length := by simp [L, hinputeq]; omega
-  have hmem : ∀ a, (Data.init input : Data 28).mem a =
-      if a = 0 then L else input.getD (a - 1) 0 := fun _ => rfl
-  have hzeroT : ∀ a, T ≤ a → (Data.init input : Data 28).mem a = 0 := fun a ha => by
-    simp [hmem, (Nat.succ_pos L |>.trans_le ha).ne', List.getD_eq_getElem?_getD,
-      List.getElem?_eq_none (Nat.le_sub_one_of_lt ha)]
+  have hzeroT (a : ℕ) (ha : T ≤ a) : (Data.init input : Data 28).mem a = 0 := by
+    obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : a ≠ 0)
+    rw [Data.init_mem_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega),
+      Option.getD_none]
   have hFC : HoldsList 2 (F ++ C) (Data.init input : Data 28).mem := fun i => by
     change (Data.init input : Data 28).mem (2 + i.val) = (F ++ C)[i.val]
     rw [Nat.add_comm 2 i.val, Data.init_mem_succ]
@@ -303,15 +300,13 @@ theorem certWork_le (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
     have ih' := fun db hdb => ih db hdb fun i c hints h => hl' i c hints (List.mem_cons_of_mem _ h)
     cases a with
     | addEmpty _ hints =>
-      have := hintsWork_le hdb hints.toList
-      simp only [stepsWork, CNF.lratHintCount, Array.length_toList, Nat.add_mul] at this ⊢
-      omega
+      simpa only [stepsWork, CNF.lratHintCount, Array.length_toList] using
+        (hintsWork_le hdb hints.toList).trans (Nat.mul_le_mul_right W (Nat.le_add_right _ _))
     | addRup i c hints =>
-      have h1 := hintsWork_le hdb hints.toList
       have h2 := ih' ((i, Clause.ofDIMACS c.toList) :: db) <| List.forall_mem_cons.mpr
         ⟨hl' i c hints List.mem_cons_self, hdb⟩
-      simp only [stepsWork, CNF.lratHintCount, Array.length_toList, Nat.add_mul] at h1 ⊢
-      omega
+      simpa only [stepsWork, CNF.lratHintCount, Array.length_toList, Nat.add_mul] using
+        Nat.add_le_add (hintsWork_le hdb hints.toList) h2
     | addRat => simp [stepsWork]
     | del ids =>
       simpa [stepsWork, CNF.lratHintCount] using
@@ -348,9 +343,8 @@ theorem program_spec_dbWidth (φ : CNF ℕ) (cert : Array LRAT.IntAction) {w : �
     simp [encode, stepWords]; omega
   have hW := (certWork_le φ cert).trans <| Nat.mul_le_mul
     (lratHintCount_le_length_stepWords cert.toList) (le_max_right 1 (dbWidth φ cert))
-  have hC : (stepWords cert.toList).length ≤
-      (stepWords cert.toList).length * max 1 (dbWidth φ cert) :=
-    Nat.le_mul_of_pos_right _ (lt_of_lt_of_le Nat.one_pos (le_max_left _ _))
+  have hC := Nat.le_mul_of_pos_right (stepWords cert.toList).length
+    (lt_of_lt_of_le Nat.one_pos (le_max_left 1 (dbWidth φ cert)))
   rw [hL] at hn
   generalize (stepWords cert.toList).length * max 1 (dbWidth φ cert) = k at hW hC ⊢
   omega

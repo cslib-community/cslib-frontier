@@ -172,9 +172,8 @@ theorem lt_two_pow_rompelTruncWidth (n : ℕ) : n < 2 ^ rompelTruncWidth n := by
 theorem two_pow_rompelTruncWidth_le (n : ℕ) : 2 ^ rompelTruncWidth n ≤ 2 * (n + 1) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · decide
-  · have hle := Nat.pow_log_le_self 2 hn.ne'
-    rw [rompelTruncWidth, Nat.pow_succ]
-    omega
+  · rw [rompelTruncWidth, Nat.pow_succ]
+    linarith [Nat.pow_log_le_self 2 hn.ne']
 
 /-- Structured input `(preimage, hashRows, hashShift, truncBits)` to `[HHRVW2020]`'s base function
 $F_0$ (Section 4.2, Theorem 4.5, p. 21). -/
@@ -481,10 +480,10 @@ theorem rompelAccessibleSet_subset_fiber (c : ℕ) (g : List Bool → List Bool)
           (rompelBaseEvalWord g outLen n) b) := by
   intro b' hb'
   obtain ⟨z', hz', rfl⟩ := mem_map.mp hb'
-  have hz'_fib := (mem_fiberSet _ _ _).mp (rompelAccessibleInputSet_subset_fiber c _ _ hz')
   rw [mem_fiberSet]
   conv_rhs => rw [← (rompelBaseInputEquiv n (outLen n)).apply_symm_apply b]
-  simp only [Equiv.coe_toEmbedding, wordToFinMap_rompelBaseEvalWord, hz'_fib]
+  simp only [Equiv.coe_toEmbedding, wordToFinMap_rompelBaseEvalWord,
+    (mem_fiberSet _ _ _).mp (rompelAccessibleInputSet_subset_fiber c _ _ hz')]
 
 /-- Uniform strict-PPT inverter reduction (`[HHRVW2020]`, Section 4.2, Claim 4.6, pp. 21–22):
 on challenge image `y`, sample uniform `x` and `rBits`, sample a prefix-colliding affine seed via
@@ -618,8 +617,7 @@ private theorem rompelBase_inversion_succProbability_eq (c : ℕ) (g : List Bool
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, heval, PMF.bind_apply_toReal,
     mul_sum]
   rw [sum_comm]
-  refine sum_congr rfl fun x _ => ?_
-  rw [sum_comm]
+  refine sum_congr rfl fun x _ => sum_comm.trans ?_
   exact sum_congr rfl fun rBits _ => sum_congr rfl fun y _ => sum_congr rfl fun s _ => by ring
 
 open Classical in
@@ -654,10 +652,10 @@ private theorem rompelBase_escape_seed_toReal_le (c : ℕ) (g : List Bool → Li
     let z' := RompelBaseInput.unpackWord n m raw
     have hpack' : z'.packWord = raw := RompelBaseInput.packWord_unpackWord hlen_raw
     have hhash : rompelBaseHashFin gFin z' = rompelBaseHashFin gFin z := by
-      apply (rompelBaseOutputEquiv n m).injective
-      rw [← wordToFinMap_rompelBaseEvalWord, ← wordToFinMap_rompelBaseEvalWord,
-        wordToFinMap, wordToFinMap, ofFn_rompelBaseInputEquiv, ofFn_rompelBaseInputEquiv,
-        hpack', heval_raw]
+      have heq : rompelBaseEvalWord g outLen n z'.packWord =
+          rompelBaseEvalWord g outLen n z.packWord := hpack'.symm ▸ heval_raw
+      simpa only [rompelBaseEvalWord_packWord, RompelBaseOutput.unpackWord_packWord] using
+        congrArg (RompelBaseOutput.unpackWord n (outLen n)) heq
     refine ⟨mem_compl.mpr fun hlight => hnot_acc ?_,
       ((rompelBaseHashFin_eq_iff gFin z' z).mp hhash).2.2.2, ?_⟩
     · rw [rompelAccessibleSet, mem_map]
@@ -979,8 +977,8 @@ theorem rompelBase_heavy_sibling_prob_ge {n m : ℕ} (gFin : BitString n → Bit
         have hmem_s := (hmem_input s xStar).mpr (mem_filter.mp (mem_filter.mp hs).1).2
         have hfib_card : #(fiberSet (rompelBaseHashFin gFin)
             (rompelBaseHashFin gFin ⟨x, s.1, s.2, rBits⟩)) = #(collInputs s) := by
-          rw [card_subset_rompelBaseHashFin_fiber_eq gFin x s rBits _ Subset.rfl]
-          simp only [collInputs, hmem_input s]
+          simp [card_subset_rompelBaseHashFin_fiber_eq gFin x s rBits _ Subset.rfl, collInputs,
+            hmem_input s]
         simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
           hmem_s, ↓reduceIte, hfib_card, one_div]
         have hpos : (0 : ℝ) < #(collInputs s) :=
@@ -1047,26 +1045,28 @@ private theorem rompelBase_goodLightPair_term_ge {n m : ℕ} (c : ℕ)
   have hterm (j : ℕ) (hj : j ∈ range (t + 1)) :
       ((2 : ℝ) ^ n)⁻¹ / (8 * (2 ^ rompelTruncWidth n : ℝ)) ≤ F (rBitsOf j) := by
     have hj_lt := mem_range.mp hj
+    have hsub_r : n - rOf j = k + 1 + j := by dsimp only [rOf]; omega
     have hstar_le : #(fiberSet gFin (gFin xStar)) ≤
         2 ^ (n - Cslib.BitString.boundedBinaryValue n (List.ofFn (rBitsOf j))) := by
-      rw [hbv j, show n - rOf j = k + 1 + j by dsimp only [rOf]; omega]
+      rw [hbv j, hsub_r]
       exact hlt_pow_succ.le.trans (Nat.pow_le_pow_right (by decide) (by omega))
     have hnot_light : gFin xStar ∉ rompelLightImages c gFin (gFin x) (rOf j) := by
       intro hmem
       rcases mem_insert.mp hmem with heq | hfilt
       · exact hne heq.symm
       · have hle4 := (mem_filter.mp hfilt).2
-        rw [Nat.min_eq_left (Nat.sub_le _ _), show n - rOf j = k + 1 + j by
-          dsimp only [rOf]; omega] at hle4
-        have hlow : 2 ^ (k + t + 2) ≤ 4 * (n + 1) ^ c * #(fiberSet gFin (gFin xStar)) := by
-          rw [show 2 ^ (k + t + 2) = 4 * 2 ^ t * 2 ^ k by ring]
-          exact Nat.mul_le_mul (Nat.mul_le_mul_left 4 (two_pow_mul_log_le_succ_pow c n)) hpow_k_le
+        rw [Nat.min_eq_left (Nat.sub_le _ _), hsub_r] at hle4
+        have hpow_eq : 2 ^ (k + t + 2) = 4 * 2 ^ t * 2 ^ k := by ring
+        have hlow := Nat.mul_le_mul (Nat.mul_le_mul_left 4 (two_pow_mul_log_le_succ_pow c n))
+          hpow_k_le
+        rw [← hpow_eq] at hlow
         have hhigh : 2 ^ (k + 1 + j) < 2 ^ (k + t + 2) :=
           Nat.pow_lt_pow_right (by decide) (by omega)
         omega
     have hclaim := rompelBase_heavy_sibling_prob_ge gFin (rBits := rBitsOf j) hne hfib_le hstar_le
-    rw [show ((2 : ℝ) ^ n)⁻¹ / (8 * (2 ^ rompelTruncWidth n : ℝ)) =
-      (2 ^ rompelTruncWidth n : ℝ)⁻¹ * (((2 : ℝ) ^ n)⁻¹ / 8) by ring]
+    have hdiv : ((2 : ℝ) ^ n)⁻¹ / (8 * (2 ^ rompelTruncWidth n : ℝ)) =
+        (2 ^ rompelTruncWidth n : ℝ)⁻¹ * (((2 : ℝ) ^ n)⁻¹ / 8) := by ring
+    rw [hdiv]
     refine mul_le_mul_of_nonneg_left (hclaim.trans (sum_le_sum fun s _ =>
       mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg)) (by positivity)
     have hsdiff :
@@ -1103,8 +1103,7 @@ private theorem rompelBase_escape_density_sum_eq {n m : ℕ} (c : ℕ)
   have hcard_Z : (Fintype.card (RompelBaseInput n m) : ℝ) =
       (2 ^ n : ℝ) * (2 ^ rompelTruncWidth n : ℝ) * (Fintype.card S : ℝ) := by
     rw [← Fintype.card_congr (rompelTupleEquiv n m), Fintype.card_prod, Fintype.card_prod]
-    simp only [Cslib.BitString.card, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
-    ring
+    simp only [Cslib.BitString.card, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]; ring
   conv_lhs => rw [← (rompelTupleEquiv n m).sum_comp, Fintype.sum_prod_type]
   conv_rhs => rw [Fintype.sum_prod_type]
   refine sum_congr rfl fun x _ => ?_
@@ -1170,8 +1169,7 @@ private theorem rompelBase_goodLightPairs_frac_ge {n m : ℕ} (c : ℕ)
     rw [← Fintype.sum_prod_type fun p : BitString n × BitString n =>
         if gFin p.1 = gFin p.2 then ((2 : ℝ) ^ n)⁻¹ * ((2 : ℝ) ^ n)⁻¹ else 0,
       ← sum_filter, sum_const, nsmul_eq_mul]
-    change (#eqPairs : ℝ) * (((2 : ℝ) ^ n)⁻¹ * ((2 : ℝ) ^ n)⁻¹) = _
-    ring
+    dsimp only [eqPairs]; ring
   have hcover : 2 ^ n * 2 ^ n ≤ #eqPairs + #badNeqPairs + #lightNeqPairs := by
     have huniv : (univ : Finset (BitString n × BitString n)) ⊆
         eqPairs ∪ badNeqPairs ∪ lightNeqPairs := fun p _ => by
@@ -1215,14 +1213,15 @@ private theorem rompelBase_goodLightPairs_frac_ge {n m : ℕ} (c : ℕ)
           _ = 2 * 2 ^ t * #eqPairs := by ring
       have hpow2 : (2 : ℝ) ≤ (2 : ℝ) ^ t :=
         mod_cast Nat.pow_le_pow_right (by decide : 0 < 2) ht_pos
-      nlinarith [Nat.cast_nonneg (α := ℝ) #eqPairs,
-        show (#badNeqPairs : ℝ) ≤ 2 * (2 : ℝ) ^ t * (#eqPairs : ℝ) from mod_cast hbad_nat]
+      have hbad_r : (#badNeqPairs : ℝ) ≤ 2 * (2 : ℝ) ^ t * (#eqPairs : ℝ) := mod_cast hbad_nat
+      nlinarith [Nat.cast_nonneg (α := ℝ) #eqPairs]
   rw [hcoll_eq, div_le_div_iff₀ (by norm_num) (by positivity),
     sub_mul, one_mul, mul_assoc, div_mul_cancel₀ _ (by positivity)]
   have hcover_r : (2 ^ n : ℝ) * (2 ^ n : ℝ) ≤
       (#eqPairs : ℝ) + (#badNeqPairs : ℝ) + (#lightNeqPairs : ℝ) := mod_cast hcover
+  have hlight_r : (#lightNeqPairs : ℝ) ≤ 2 * (#goodLightPairs : ℝ) := mod_cast hlightNeq_le
   dsimp only [t] at hbad_bound ⊢
-  linarith [show (#lightNeqPairs : ℝ) ≤ 2 * (#goodLightPairs : ℝ) from mod_cast hlightNeq_le]
+  linarith
 
 /-- **`[HHRVW2020]`, Section 4.2, Claim 4.7 (pp. 21, 23–25)**: unconditional finite-`n` lower bound
 on the entropy gap between `PMF.conditionalEntropy` of `rompelBaseHashFin gFin` and
@@ -1298,15 +1297,6 @@ theorem rompelBase_accessible_le_conditionalEntropy_sub (c : ℕ) (g : List Bool
     rw [accessibleSetExpectation, accessibleSetExpectation, ← eIn.sum_comp]
     refine sum_congr rfl fun z _ => ?_
     simp [PMF.uniformOfFintype_apply, Fintype.card_congr eIn, rompelAccessibleSet, eIn, gFin, m]
-  have hjoint :
-      ((PMF.uniformOfFintype (BitString (rompelBaseInLen n m))).map fun b =>
-        (wordToFinMap (rompelBaseInLen n m) (rompelBaseOutLen n m)
-          (rompelBaseEvalWord g outLen n) b, b)) =
-      ((PMF.uniformOfFintype (RompelBaseInput n m)).map fun z =>
-        (rompelBaseHashFin gFin z, z)).map (Equiv.prodCongr eOut eIn) := by
-    rw [← PMF.uniformOfFintype_map_equiv eIn, PMF.map_comp, PMF.map_comp]
-    exact congrArg _ (funext fun z => by
-      simp [eIn, eOut, gFin, m, wordToFinMap_rompelBaseEvalWord])
   have hcond :
       PMF.conditionalEntropy
         ((PMF.uniformOfFintype (BitString (rompelBaseInLen n m))).map fun b =>
@@ -1315,8 +1305,13 @@ theorem rompelBase_accessible_le_conditionalEntropy_sub (c : ℕ) (g : List Bool
       PMF.conditionalEntropy
         ((PMF.uniformOfFintype (RompelBaseInput n m)).map fun z =>
           (rompelBaseHashFin gFin z, z)) := by
+    rw [← PMF.uniformOfFintype_map_equiv eIn, PMF.map_comp]
+    have hfn : ((fun b => (wordToFinMap (rompelBaseInLen n m) (rompelBaseOutLen n m)
+          (rompelBaseEvalWord g outLen n) b, b)) ∘ ⇑eIn) =
+        ⇑(Equiv.prodCongr eOut eIn) ∘ fun z => (rompelBaseHashFin gFin z, z) :=
+      funext fun z => by simp [eIn, eOut, gFin, m, wordToFinMap_rompelBaseEvalWord]
     have hfst : Prod.fst ∘ ⇑(Equiv.prodCongr eOut eIn) = ⇑eOut ∘ Prod.fst := rfl
-    rw [PMF.conditionalEntropy, PMF.conditionalEntropy, hjoint,
+    rw [hfn, ← PMF.map_comp, PMF.conditionalEntropy, PMF.conditionalEntropy,
       PMF.entropy_map_of_injective _ (Equiv.prodCongr eOut eIn).injective, PMF.map_comp,
       hfst, ← PMF.map_comp, PMF.entropy_map_of_injective _ eOut.injective]
   have hcoll_fin : (4 * (2 : ℝ) ^ (c * Nat.log 2 n) - 3) *
@@ -1352,13 +1347,14 @@ theorem inv_rompelGapDenom_le (c n : ℕ) :
 theorem logGap_le_inv_rompelGapDenom {d : ℝ} (hd : 0 < d) {c n : ℕ}
     (hc : 256 * d ≤ c) (hn : 2 ≤ n) (ht : c * Nat.log 2 n ≤ n) :
     d * Real.logb 2 n / n ≤ 1 / (rompelGapDenom c n : ℝ) := by
-  have hlog1 : 1 ≤ Nat.log 2 n := Nat.le_log_of_pow_le Nat.one_lt_two (by simpa using hn)
+  have hlog1 : (1 : ℝ) ≤ Nat.log 2 n :=
+    mod_cast Nat.le_log_of_pow_le Nat.one_lt_two (by simpa using hn)
   have hlogb : Real.logb 2 n ≤ 2 * (Nat.log 2 n : ℝ) := by
-    have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
-      (by positivity) (mod_cast (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le :
+    have h1 := Real.logb_le_logb_of_le one_lt_two (by positivity)
+      (mod_cast (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le :
         (n : ℝ) ≤ (2 : ℝ) ^ (Nat.log 2 n + 1))
     simp only [Nat.cast_ofNat, Real.logb_two_pow, Nat.cast_add, Nat.cast_one] at h1
-    linarith [show (1 : ℝ) ≤ (Nat.log 2 n : ℝ) from mod_cast hlog1]
+    linarith
   have hprod_nat : rompelGapDenom c n * (c * Nat.log 2 n) ≤ 128 * n := by
     let b := c * Nat.log 2 n + 1
     calc
@@ -1367,8 +1363,7 @@ theorem logGap_le_inv_rompelGapDenom {d : ℝ} (hd : 0 < d) {c n : ℕ}
       _ = 64 * (n + 1) / b * b + b := by dsimp only [rompelGapDenom, b]; ring
       _ ≤ 64 * (n + 1) + (n + 1) := Nat.add_le_add (Nat.div_mul_le_self _ _) (by omega)
       _ ≤ 128 * n := by omega
-  have hprod : (rompelGapDenom c n : ℝ) * ((c : ℝ) * (Nat.log 2 n : ℝ)) ≤ 128 * n :=
-    mod_cast hprod_nat
+  have hprod : (rompelGapDenom c n : ℝ) * (c * Nat.log 2 n) ≤ 128 * n := mod_cast hprod_nat
   have hdmul : 128 * (d * Real.logb 2 n) ≤ (c : ℝ) * (Nat.log 2 n : ℝ) :=
     calc
       128 * (d * Real.logb 2 n) ≤ 128 * (d * (2 * (Nat.log 2 n : ℝ))) := by gcongr

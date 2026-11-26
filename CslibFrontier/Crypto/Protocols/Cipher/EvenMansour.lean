@@ -831,8 +831,8 @@ private theorem toOuterMeasure_uniformOfFintype_singleton_pred {p : G → Prop} 
     (target : G) (htarget : ∀ k, p k ↔ k = target) :
     (PMF.uniformOfFintype G).toOuterMeasure {k : G | decide (p k) = true} =
       (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  rw [show {k : G | decide (p k) = true} = {target} by ext k; simp [htarget k],
-    PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
+  have hset : {k : G | decide (p k) = true} = {target} := Set.ext fun k => by simp [htarget k]
+  rw [hset, PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
 
 /-- Under a uniform key `k₀ ← G`, the probability of an input collision `x + k₀ = u` is exactly
 `|G|⁻¹`. -/
@@ -874,10 +874,10 @@ private theorem toOuterMeasure_isBadKeyPair_union_le {K : Type*} (μ : PMF K) (f
     (h₂ : μ.toOuterMeasure {k | decide (e.2 - f₂ k = p.2) = true} = (Fintype.card G : ℝ≥0∞)⁻¹) :
     μ.toOuterMeasure {k | isBadKeyPair e p (f₁ k, f₂ k) = true} ≤
       2 * (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  rw [show {k | isBadKeyPair e p (f₁ k, f₂ k) = true} =
-      {k | decide (e.1 + f₁ k = p.1) = true} ∪ {k | decide (e.2 - f₂ k = p.2) = true} by
-    ext k; simp only [isBadKeyPair, Bool.or_eq_true, Set.mem_ofPred_eq, Set.mem_union]]
-  exact (MeasureTheory.measure_union_le _ _).trans_eq (by rw [h₁, h₂, two_mul])
+  have hunion : {k | isBadKeyPair e p (f₁ k, f₂ k) = true} =
+      {k | decide (e.1 + f₁ k = p.1) = true} ∪ {k | decide (e.2 - f₂ k = p.2) = true} :=
+    Set.ext fun k => by simp only [isBadKeyPair, Bool.or_eq_true, Set.mem_ofPred_eq, Set.mem_union]
+  exact (hunion ▸ MeasureTheory.measure_union_le _ _).trans_eq (by rw [h₁, h₂, two_mul])
 
 /-- For a single pair `(e, p)`, a uniform key pair `k ← G × G` satisfies `isBadKeyPair e p k` with
 probability at most `2 * |G|⁻¹`. -/
@@ -904,13 +904,14 @@ private theorem toOuterMeasure_any_any_le {K : Type*} (μ : PMF K)
     μ.toOuterMeasure {k | (T_e.any fun e => T_π.any fun p => badPair e p k) = true} ≤
       (c : ℝ≥0∞) * T_e.length * T_π.length * (Fintype.card G : ℝ≥0∞)⁻¹ := by
   classical
-  rw [show {k | (T_e.any fun e => T_π.any fun p => badPair e p k) = true} =
-      ⋃ x ∈ T_e.toFinset ×ˢ T_π.toFinset, {k | badPair x.1 x.2 k = true} by
-    ext k
-    simp only [Set.mem_ofPred_eq, List.any_eq_true, Set.mem_iUnion, Finset.mem_product,
-      List.mem_toFinset, Prod.exists, exists_prop]
-    exact ⟨fun ⟨a, b, hab, c', d, hcd, h⟩ => ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩,
-      fun ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩ => ⟨a, b, hab, c', d, hcd, h⟩⟩]
+  have hset : {k | (T_e.any fun e => T_π.any fun p => badPair e p k) = true} =
+      ⋃ x ∈ T_e.toFinset ×ˢ T_π.toFinset, {k | badPair x.1 x.2 k = true} :=
+    Set.ext fun k => by
+      simp only [Set.mem_ofPred_eq, List.any_eq_true, Set.mem_iUnion, Finset.mem_product,
+        List.mem_toFinset, Prod.exists, exists_prop]
+      exact ⟨fun ⟨a, b, hab, c', d, hcd, h⟩ => ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩,
+        fun ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩ => ⟨a, b, hab, c', d, hcd, h⟩⟩
+  rw [hset]
   calc μ.toOuterMeasure
         (⋃ x ∈ T_e.toFinset ×ˢ T_π.toFinset, {k | badPair x.1 x.2 k = true})
       ≤ ∑ x ∈ T_e.toFinset ×ˢ T_π.toFinset, μ.toOuterMeasure {k | badPair x.1 x.2 k = true} :=
@@ -1201,13 +1202,11 @@ def shiftPair (k : G × G) (e : G × G) : G × G :=
 
 omit [DecidableEq G] [Fintype G] [Nonempty G] in
 @[simp] theorem unshiftPair_shiftPair (k e : G × G) : unshiftPair k (shiftPair k e) = e := by
-  rcases e with ⟨x, y⟩
-  simp [unshiftPair, shiftPair]
+  simp only [unshiftPair, shiftPair, add_sub_cancel_right, sub_add_cancel, Prod.mk.eta]
 
 omit [DecidableEq G] [Fintype G] [Nonempty G] in
 @[simp] theorem shiftPair_unshiftPair (k p : G × G) : shiftPair k (unshiftPair k p) = p := by
-  rcases p with ⟨u, v⟩
-  simp [unshiftPair, shiftPair]
+  simp only [unshiftPair, shiftPair, sub_add_cancel, add_sub_cancel_right, Prod.mk.eta]
 
 omit [AddGroup G] [Fintype G] [Nonempty G] in
 private theorem lookup_eq_some_iff_mem {cache : Cache G} (hc : IsPartialBijection cache)
@@ -1689,13 +1688,11 @@ private theorem advantage_le_of_forall_bool_le {g₁ g₂ : Game} {ε : ℝ≥0�
     (Game.advantage g₁ g₂ : ℝ) ≤ ε.toReal := by
   have htoReal (b : Bool) : (g₂ b).toReal ≤ (g₁ b).toReal + ε.toReal := by
     ennreal_to_real using hle b
-  have h1 := PMF.sum_toReal g₁
-  have h2 := PMF.sum_toReal g₂
-  rw [Fintype.sum_bool] at h1 h2
+  have hsum (g : Game) : (g true).toReal + (g false).toReal = 1 := by
+    simpa only [Fintype.sum_bool] using PMF.sum_toReal g
   rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
-  refine abs_sub_le_iff.mpr ⟨?_, ?_⟩
-  · linarith [htoReal false]
-  · linarith [htoReal true]
+  exact abs_sub_le_iff.mpr ⟨by linarith [htoReal false, hsum g₁, hsum g₂],
+    by linarith [htoReal true, hsum g₁, hsum g₂]⟩
 
 private theorem advantage_keyDist_evenMansourIdealGame_le (keyDist : PMF (G × G))
     {program : OracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
@@ -1709,13 +1706,11 @@ private theorem advantage_keyDist_evenMansourIdealGame_le (keyDist : PMF (G × G
       (evenMansourIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
   let ε : ℝ≥0∞ := 2 * Q_e * Q_π * (Fintype.card G : ℝ≥0∞)⁻¹
-  have hε : ε ≠ ⊤ := ENNReal.mul_ne_top (ENNReal.mul_ne_top
-    (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.natCast_ne_top _))
-    (ENNReal.natCast_ne_top _)) (by simp [Fintype.card_ne_zero])
-  have hle (b : Bool) := idealGame_apply_le_realGame_add_of_keyDist keyDist hcall
-    (fun c_e c_π he hπ => (hbad c_e c_π).trans
-      (mul_le_mul' (mul_le_mul' (mul_le_mul' le_rfl (Nat.cast_le.mpr he))
-        (Nat.cast_le.mpr hπ)) le_rfl)) b
+  have hε : ε ≠ ⊤ := by simp [ε, ENNReal.mul_eq_top, ENNReal.inv_eq_top, Fintype.card_ne_zero]
+  have hle (b : Bool) := idealGame_apply_le_realGame_add_of_keyDist keyDist hcall (ε := ε)
+    (fun c_e c_π he hπ => (hbad c_e c_π).trans <| by
+      dsimp only [ε]
+      gcongr) b
   simpa [ε, ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
     advantage_le_of_forall_bool_le hε hle
 
@@ -1748,9 +1743,8 @@ theorem advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
   simpa only [pmf_norm, singleKeyEvenMansourRealGame] using
     advantage_keyDist_evenMansourIdealGame_le ((PMF.uniformOfFintype G).map fun k => (k, k)) hcall
-      fun c_e c_π => by
-        rw [PMF.toOuterMeasure_map_apply]
-        exact toOuterMeasure_isBadSingleKeyEvenMansour_le c_e c_π
+      fun c_e c_π => (PMF.toOuterMeasure_map_apply _ _ _).trans_le
+        (toOuterMeasure_isBadSingleKeyEvenMansour_le c_e c_π)
 
 end Coupling
 

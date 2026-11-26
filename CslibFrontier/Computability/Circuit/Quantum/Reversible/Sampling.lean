@@ -123,11 +123,8 @@ theorem isClassical_outputCopyCodes {W z base : ℕ} {outputs : List ℕ} (hzb :
     simpa only [Nat.zero_add] using (List.mem_zipIdx hp).2.1
   have hout : outQubit z p.1 ≤ z := by unfold outQubit; omega
   refine ⟨rfl, by simp, ?_, ?_⟩
-  · simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, List.nodup_nil,
-      not_false_eq_true, and_true]
-    omega
-  · simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-    omega
+  · simp; omega
+  · simp; omega
 
 /-- The classical suffix is well formed for the sampler's declared width. -/
 theorem isClassical_samplerClassicalCodes (n : ℕ)
@@ -161,24 +158,21 @@ theorem readBit_classicalRun_outputCopyCodes {W z base : ℕ} {outputs : List �
     (hj : j < outputs.length) :
     readBit (classicalRun (outputCopyCodes z base outputs) X) (base + j) =
       readBit X (outQubit z (outputs.getD j 0)) := by
-  have hlt : ∀ g ∈ outputCopyCodes z base outputs, g.2.1 < W := fun g hg => by
+  have hlt (g : GateCode) (hg : g ∈ outputCopyCodes z base outputs) : g.2.1 < W := by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hg
     have := (List.mem_zipIdx hp).2.1
-    dsimp only
-    omega
+    dsimp only; omega
   have hnd : ((outputCopyCodes z base outputs).map fun g => g.2.1).Nodup := by
     rw [outputCopyCodes, List.map_map]
     change (outputs.zipIdx.map ((fun i => base + i) ∘ Prod.snd)).Nodup
     simpa only [List.map_map] using
       (List.nodup_zipIdx_map_snd outputs).map fun i j h => by omega
-  have hread : ∀ g ∈ outputCopyCodes z base outputs,
-      ∀ g' ∈ outputCopyCodes z base outputs, g.2.1 ∉ g'.2.2 := by
-    intro g hg g' hg'
+  have hread (g : GateCode) (hg : g ∈ outputCopyCodes z base outputs)
+      (g' : GateCode) (hg' : g' ∈ outputCopyCodes z base outputs) : g.2.1 ∉ g'.2.2 := by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hg
     obtain ⟨p', hp', rfl⟩ := List.mem_map.mp hg'
     have hout : outQubit z p'.1 ≤ z := by unfold outQubit; omega
-    simp only [List.mem_cons, List.not_mem_nil, or_false]
-    omega
+    simp only [List.mem_cons, List.not_mem_nil, or_false]; omega
   have hmem : ((false, base + j, [outQubit z (outputs.getD j 0)]) : GateCode) ∈
       outputCopyCodes z base outputs :=
     List.mem_map.mpr ⟨(outputs[j], j),
@@ -241,12 +235,9 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
   let U : Qubits W →ₗᵢ[ℂ] Qubits W :=
     (Circuit.eval (Circuit.ofCodes W (samplerClassicalCodes n C.code))).toLinearIsometry
   have hnW : 0 + n ≤ W := by
-    simp only [W, samplerWidth, samplerOutputStart, samplerZero]
-    omega
-  have hX (r : BitString n) : X r = glue (blockEmb 0 hnW) r X₀ := by
-    dsimp only [X, X₀]
-    rw [glue_blockEmb_inputState hnW [] rfl]
-    rfl
+    simp only [W, samplerWidth, samplerOutputStart, samplerZero]; omega
+  have hX (r : BitString n) : X r = glue (blockEmb 0 hnW) r X₀ :=
+    (glue_blockEmb_inputState hnW [] rfl r).symm
   have hXinj : Function.Injective X := by
     intro r r' h
     rw [hX, hX] at h

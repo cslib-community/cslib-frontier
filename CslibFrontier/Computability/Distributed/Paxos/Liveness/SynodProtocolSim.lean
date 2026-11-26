@@ -74,11 +74,8 @@ private lemma out_preserved_of_nonlearn {P V : Type*} [DecidableEq P] [Decidable
         { nextState := nst, outgoing := out, decideVal := none }
           s).proc q).state.learn.learned := by
   intro q
-  by_cases hqd : q = dest
-  · subst hqd
-    simp only [AsyncQuorumProtocol.applyResult, ↓reduceIte, hl_eq]
-    exact out_eq_after_nonlearn _ _ (hout q)
-  · simp only [AsyncQuorumProtocol.applyResult, hqd, ↓reduceIte]; exact hout q
+  by_cases hqd : q = dest <;> simp only [AsyncQuorumProtocol.applyResult, hqd, ↓reduceIte, hl_eq]
+  exacts [out_eq_after_nonlearn _ _ (hout dest), hout q]
 
 /-- Commutation of `netToSynod` with `AsyncQuorumProtocol.applyResult`. -/
 private lemma netToSynod_applyResult {P V : Type*} [DecidableEq P] [DecidableEq V]
@@ -283,10 +280,9 @@ private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [Decidab
       refine netToSynod_prop_recv_sim qs s hout src dest a
         (s.proc dest).state.learn.crashed _ (.recvPhase2b dest a b v)
         (fun hlive => ⟨hlive, hbody_mem⟩) ⟨fun q => ?_, ?_⟩
-      · dsimp only [AsyncQuorumProtocol.applyResult]
-        rcases eq_or_ne q dest with rfl | hqd
-        · simp only [↓reduceIte]; rw [hout q]; cases (s.proc q).state.learn.learned <;> rfl
-        · simp only [hqd, ↓reduceIte]; exact hout q
+      · by_cases hqd : q = dest <;>
+          simp only [AsyncQuorumProtocol.applyResult, hqd, ↓reduceIte, hout]
+        cases (s.proc dest).state.learn.learned <;> rfl
       · rw [netToSynod_applyResult s dest ⟨_, ∅, _⟩ (netToSynod s).msgs
           (by simp only [Finset.image_empty, Finset.union_empty]; rfl)]
         refine SynodState.ext rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl)
@@ -318,12 +314,10 @@ lemma netToSynod_reach {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
       obtain ⟨ho', hsim⟩ := netToSynod_step qs hstep ho
       rcases hsim with heq | ⟨sact, hstr⟩
       exacts [ih (heq ▸ hr) ho', ih (hr.trans ⟨[sact], LTS.MTr.single _ hstr⟩) ho']
-  have hinit_eq : netToSynod ((synodQuorumProtocol qs).start inp) = initState inp := by
-    refine SynodState.ext ?_ rfl rfl rfl
-    simp only [netToSynod, AsyncQuorumProtocol.start, Finset.image_empty, initState]
-  have hr₀ : Reachable qs inp (netToSynod ((synodQuorumProtocol qs).start inp)) := by
-    rw [hinit_eq]; exact ⟨[], LTS.MTr.refl⟩
-  exact hgen hmtr hr₀ (fun _ => rfl)
+  have hinit_eq : netToSynod ((synodQuorumProtocol qs).start inp) = initState inp :=
+    SynodState.ext (by simp [netToSynod, AsyncQuorumProtocol.start, initState]) rfl rfl rfl
+  exact hgen hmtr (hinit_eq.symm ▸ (⟨[], LTS.MTr.refl⟩ : Reachable qs inp (initState inp)))
+    fun _ => rfl
 
 
 end Cslib.Distributed.Paxos

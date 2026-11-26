@@ -371,11 +371,7 @@ private theorem exec_map_eq_self {n : ℕ} [NeZero n] {α : Type*} {f : α → A
 private theorem update_shift {n : ℕ} {α : Type*} (f : Fin n → α) (a k : Fin n) (v : α)
     (i : Fin n) :
     Function.update (fun j => f (j + k)) a v i = Function.update f (a + k) v (i + k) := by
-  by_cases h : i = a
-  · subst h
-    simp only [Function.update_self]
-  · have hk : i + k ≠ a + k := fun heq => h (add_right_cancel heq)
-    simp only [Function.update_of_ne h, Function.update_of_ne hk]
+  simp only [Function.update_apply, add_right_cancel_iff]
 
 private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
     (cfg : AnonAsyncConfig n S M) :
@@ -429,9 +425,7 @@ private theorem fin_sub_one_val {n : ℕ} [NeZero n] (i : Fin n) :
   · have hi : i.val < 1 := i.isLt
     have hsub : (i - 1).val < 1 := (i - 1).isLt
     split_ifs <;> omega
-  · have h1 : (1 : Fin n).val = 1 := by
-      rw [Fin.val_one']
-      exact Nat.mod_eq_of_lt (by omega)
+  · have h1 : (1 : Fin n).val = 1 := (Fin.val_one' (n := n)).trans (Nat.mod_eq_of_lt (by omega))
     rw [Fin.sub_def, h1]
     change (n - 1 + i.val) % n = if i.val = 0 then n - 1 else i.val - 1
     split_ifs with hi
@@ -632,11 +626,7 @@ private theorem reflectConfig_involutive {n : ℕ} (cfg : AnonAsyncConfig n S M)
 private theorem update_neg {n : ℕ} {α : Type*} (f : Fin n → α) (a : Fin n) (v : α)
     (i : Fin n) :
     Function.update (fun j => f (-j)) a v (-i) = Function.update f (-a) v i := by
-  by_cases h : i = -a
-  · subst h
-    simp only [neg_neg, Function.update_self]
-  · have h' : -i ≠ a := fun heq => h (by rw [← heq, neg_neg])
-    simp only [Function.update_of_ne h', Function.update_of_ne h, neg_neg]
+  simp only [Function.update_apply, neg_eq_iff_eq_neg, neg_neg]
 
 private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
@@ -675,9 +665,7 @@ private theorem mtr_reflect_counter {n : ℕ} [NeZero n] {xs : List (Fin n)}
     (hmtr : (P.dual.lts n).MTr c₁ (xs.map (AnonEvent.mk .clockwise)) c₂) :
     (P.lts n).MTr (reflectConfig c₁) (xs.map fun i => ⟨.counter, -i⟩) (reflectConfig c₂) := by
   induction xs generalizing c₁ with
-  | nil =>
-    cases hmtr
-    exact LTS.MTr.refl
+  | nil => exact match hmtr with | .refl => .refl
   | cons i is ih =>
     simp only [List.map_cons] at hmtr ⊢
     rcases LTS.MTr.cons_iff.mp hmtr with ⟨cmid, ⟨hen, rfl⟩, hrest⟩

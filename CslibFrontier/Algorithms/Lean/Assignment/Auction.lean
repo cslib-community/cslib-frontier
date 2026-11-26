@@ -242,8 +242,7 @@ theorem bidPrice_epsCS {p : Fin n → ℤ} {i j : Fin n} (k : Fin n) (hk : k ≠
     c (i, j) + bidPrice c ε p i j ≤ c (i, k) + p k + ε := by
   unfold bidPrice
   split
-  · have hle := (secondBest_some ‹_›).1 k hk
-    dsimp only [redCost] at hle
+  · have hle : _ ≤ c (i, k) + p k := (secondBest_some ‹_›).1 k hk
     omega
   · exact absurd (secondBest_none ‹_› k) hk
 
@@ -406,10 +405,8 @@ theorem bids_auctionLoop_le (fuel : ℕ) (s : AuctionState n) :
   | succ fuel ih =>
     rcases hs : s.free with _ | ⟨i, rest⟩
     · simp [auctionLoop, hs]
-    · simp only [auctionLoop, hs]
-      have := ih (bidStep c ε s)
-      rw [bids_bidStep hs] at this
-      omega
+    · rw [auctionLoop, hs, ← Nat.add_assoc, Nat.add_right_comm]
+      simpa only [bids_bidStep hs] using ih (bidStep c ε s)
 
 /-- The fuel `bidBound n C ε` exceeds the initial measure `n (C + ε)` divided by `ε`. -/
 theorem lt_bidBound_mul (hε : 0 < ε) (C : ℤ) :
@@ -540,10 +537,8 @@ theorem sum_scaledAuctionPerm_le (τ : Equiv.Perm (Fin n)) :
   have h := sum_auctionPerm_le (c := fun e => ((n : ℤ) + 1) * c e) one_pos τ
   rw [← mul_sum, ← mul_sum, mul_one] at h
   change ((n : ℤ) + 1) * ∑ i, c (i, scaledAuctionPerm c i) ≤ _ at h
-  by_contra hlt
-  have hlt' : ∑ i, c (i, τ i) + 1 ≤ ∑ i, c (i, scaledAuctionPerm c i) := by omega
-  have := mul_le_mul_of_nonneg_left hlt' (by positivity : (0 : ℤ) ≤ n + 1)
-  linarith
+  by_contra! hlt
+  nlinarith [Nat.cast_nonneg (α := ℤ) n]
 
 /-- **Bid bound for the exact algorithm**: if every row cost range is at most `C`, the exact
 auction `scaledAuction` makes at most `n ((n + 1) C + 1) + 1` bids. -/
@@ -649,9 +644,8 @@ theorem auction_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε
   unfold auction
   rw [auctionLoop_add_const]
   have hf2 :
-      (auctionLoop c ε (bidBound n (costSpread fun e => c e + d) ε) (auctionInit n)).free = [] := by
-    rw [← auctionLoop_add_const c d ε]
-    exact auction_free (c := fun e => c e + d) hε
+      (auctionLoop c ε (bidBound n (costSpread fun e => c e + d) ε) (auctionInit n)).free = [] :=
+    auctionLoop_add_const c d ε _ _ ▸ auction_free (c := fun e => c e + d) hε
   rcases le_total (bidBound n (costSpread c) ε)
       (bidBound n (costSpread fun e => c e + d) ε) with hle | hle
   · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auction_free hε)]
@@ -660,7 +654,6 @@ theorem auction_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε
 /-- Shifting every cost by a constant `d` leaves `auctionPerm` unchanged. -/
 theorem auctionPerm_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε : 0 < ε) :
     auctionPerm (fun e => c e + d) hε = auctionPerm c hε := by
-  ext i
-  simp only [auctionPerm, Equiv.coe_fn_mk, auction_add_const c d hε]
+  exact Equiv.ext fun i => congrArg (·.objectOf i) (auction_add_const c d hε)
 
 end Cslib.Algorithms.Lean.Assignment

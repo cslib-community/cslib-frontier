@@ -684,13 +684,9 @@ theorem exec_dfsPhaseCode {w bOff k : ℕ} {inst : SparseInstance}
     wram_exec
   have hb₂ : BaseRegs inst bOff y₂ :=
     hb.of_eq fun i hi => by dsimp only [y₂]; wram_simp [hr₁ i (by omega)]
-  have hclear_out : ∀ a, ¬(bOff + inst.m + 1 + inst.numEdges + inst.r + 3 * inst.m ≤ a ∧
-      a < bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 3 * inst.m) → y₂.mem a = x.mem a :=
-    fun a ha => hkeep₁ a (by omega)
-  have hcsr₂ : CSRMem inst bOff y₂.mem := hcsr.of_outside fun a ha => hclear_out a (by omega)
-  have hmate₂ : MateMem inst bOff mate y₂.mem :=
-    hmate.of_outside fun a ha => hclear_out a (by omega)
-  have hdM₂ : DistMem inst bOff dist y₂.mem := hdM.of_outside fun a ha => hclear_out a (by omega)
+  have hcsr₂ : CSRMem inst bOff y₂.mem := hcsr.of_outside fun a ha => hkeep₁ a (by omega)
+  have hmate₂ : MateMem inst bOff mate y₂.mem := hmate.of_outside fun a ha => hkeep₁ a (by omega)
+  have hdM₂ : DistMem inst bOff dist y₂.mem := hdM.of_outside fun a ha => hkeep₁ a (by omega)
   have hvis₂ : VisMem inst bOff (Vector.replicate inst.r false) y₂.mem := fun v' => by
     simpa only [y₂, Data.set, vget_replicate, Bool.false_eq_true, ↓reduceIte] using
       hzero₁ v'.val v'.isLt
@@ -702,10 +698,10 @@ theorem exec_dfsPhaseCode {w bOff k : ℕ} {inst : SparseInstance}
       (by dsimp only [y₂]; wram_simp [hr₁ rk (by decide), hrk])
       (by dsimp only [y₂]; wram_simp; rfl) (by dsimp only [y₂]; wram_simp; rfl) hfit
   have hlen_aug : augPairs'.length ≤ inst.r := hcov₃.length_le
-  have hb₃ : BaseRegs inst bOff y₃ := hb₂.of_eq fun i hi => hr₃ i (by omega)
   have hmate₃ : MateMem inst bOff mate y₃.mem := hmate₂.of_outside fun a ha => hf₃ a (by omega)
   obtain ⟨y₄, he₄, hr₄, hmate₄, hf₄⟩ :=
-    exec_applyAugCode augPairs' hlen_aug y₃ hb₃ hmate₃ haug₃ hal₃ hfit
+    exec_applyAugCode augPairs' hlen_aug y₃ (hb₂.of_eq fun i hi => hr₃ i (by omega))
+      hmate₃ haug₃ hal₃ hfit
   rw [hkApplyEdges_eq_of_toFinset_eq mate hcov₃.1
     (hkDfsRoots_nodup_snd mate dist k (List.finRange inst.m)
       (Vector.replicate inst.r false) [] hcov₀) hfin₃] at hmate₄
@@ -720,7 +716,7 @@ theorem exec_dfsPhaseCode {w bOff k : ℕ} {inst : SparseInstance}
     fun i hi => (hr₄ i hi).trans ((hr₃ i hi).trans
       (by dsimp only [y₂]; wram_simp [hr₁ i (by omega)])),
     hmate₄, fun a ha =>
-      (hf₄ a (by omega)).trans ((hf₃ a (by omega)).trans (hclear_out a (by omega)))⟩
+      (hf₄ a (by omega)).trans ((hf₃ a (by omega)).trans (hkeep₁ a (by omega)))⟩
   simp only [List.length_nil, Nat.sub_zero] at he₃
   omega
 

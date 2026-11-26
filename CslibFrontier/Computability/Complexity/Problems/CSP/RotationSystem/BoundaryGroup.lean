@@ -48,21 +48,13 @@ private theorem collapse_step (x y : ℕ) (ys : List ℕ) :
     collapseTo x (ys.map (Function.update id y x)) ∘ Function.update id y x =
       collapseTo x (y :: ys) := by
   funext z
-  simp only [Function.comp_apply, collapseTo, List.mem_cons, List.mem_map]
   by_cases hzy : z = y
-  · subst z; simp
-  · simp only [Function.update_of_ne hzy, id_eq, hzy, false_or]
-    by_cases hzs : z ∈ ys
-    · simp only [hzs, ↓reduceIte]
-      exact ite_eq_left ⟨z, hzs, by simp [hzy]⟩
-    · simp only [hzs, ↓reduceIte]
-      split_ifs with h₁
-      · obtain ⟨v, hv, he⟩ := h₁
-        rcases eq_or_ne v y with rfl | hvy
-        · simpa using he
-        · simp only [Function.update_of_ne hvy, id_eq] at he
-          exact (hzs (he ▸ hv)).elim
-      · rfl
+  · simp [hzy, collapseTo]
+  · by_cases hzx : z = x
+    · simp [hzx, collapseTo, Function.update_of_ne (hzx ▸ hzy)]
+    · have hiff (v : ℕ) : Function.update id y x v = z ↔ v = z := by
+        by_cases hvy : v = y <;> simp [hvy, Ne.symm hzx, Ne.symm hzy]
+      simp [collapseTo, hzy, hiff]
 
 private theorem fusion_fields (tasks : List ℕ) (F : CSP Rel ℕ) (x : ℕ)
     (xs rest : List ℕ) (c : RotationCertificate) (hlen : tasks.length = xs.length) :
@@ -109,12 +101,10 @@ theorem fields_closeFirstMetadataRun (I : State Rel) (a : ℕ) (ks : List ℕ)
   cases ports with
   | nil => simp only [List.length_cons,List.length_nil] at hl; omega
   | cons x ps =>
-    let R := ks.takeWhile (fun b => decide (b = a))
+    set R := ks.takeWhile (fun b => decide (b = a)) with hR_def
     have hR : R.length ≤ ps.length := by
       have := (List.takeWhile_sublist (fun b => decide (b = a)) (l := ks)).length_le
-      simp only [List.length_cons] at hl
-      dsimp only [R]
-      omega
+      simp only [List.length_cons, ← hR_def] at hl this; omega
     let pre := ps.take R.length
     let rest := ps.drop R.length
     let J := R.foldl (fun J _ => fuseHead J) (⟨F,x::ps,c⟩ : State Rel)
@@ -132,9 +122,8 @@ theorem fields_closeFirstMetadataRun (I : State Rel) (a : ℕ) (ks : List ℕ)
     have hK : closeFirstMetadataRun (⟨F,x::ps,c⟩ : State Rel) (a::ks) = hideHead J := by
       simp [closeFirstMetadataRun,hl,J,R]
     dsimp only
-    simp only [List.takeWhile_cons, decide_true, ↓reduceIte,
-      List.length_cons]
-    rw [show (ks.takeWhile (fun b => decide (b = a))).length+1 = R.length+1 from rfl,hC,hK]
+    simp only [List.takeWhile_cons, decide_true, ↓reduceIte, List.length_cons, ← hR_def]
+    rw [hC, hK]
     have hd : (hideHead J).rotation =
         restrictPrefix (2*(F.occurrences.length+rest.length)) J.rotation := by
       simp only [hideHead,hf.2,hm,List.length_map]
@@ -144,10 +133,8 @@ theorem fields_closeFirstMetadataRun (I : State Rel) (a : ℕ) (ks : List ℕ)
     · rw [hd, length_restrictPrefix]; simp only [rest, List.length_drop]; omega
     · rw [hd]
       intro v hv
-      have hv' := entries_restrictPrefix_lt
-        (2 * (F.occurrences.length + rest.length)) J.rotation v hv
-      simp only [rest, List.length_drop] at hv' ⊢
-      omega
+      have hv' := entries_restrictPrefix_lt _ _ v hv
+      simp only [rest, List.length_drop] at hv' ⊢; omega
 
 /-- Mismatch and empty metadata retain every raw field, without normalization. -/
 theorem closeFirstMetadataRun_eq_self (I : State Rel) (keys : List ℕ)
@@ -170,9 +157,7 @@ theorem accepted_closeFirstMetadataRun (I : State Rel) (keys : List ℕ) (hI : I
   · exact hI
   · cases keys with
     | nil => exact hI
-    | cons a ks =>
-      apply accepted_hideHead
-      exact accepted_fusion_fold _ I hI
+    | cons a ks => exact accepted_hideHead _ (accepted_fusion_fold _ I hI)
 
 /-- Rows, every indexed relation/scope-width pair, occurrences and residual port count are
 preserved exactly as the raw first-run program specifies. No semantic guard is used. -/

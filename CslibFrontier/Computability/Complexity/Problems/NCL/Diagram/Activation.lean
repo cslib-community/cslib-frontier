@@ -96,18 +96,16 @@ private theorem sweep_reverse [DecidableEq E] {rank : E → ℕ} (hrank : Functi
   funext f
   rcases eq_or_ne f e with rfl | hf
   · simp only [sweep, he, Nat.lt_succ_self, Nat.lt_irrefl, ite_true, ite_false, reverse_self]
-    cases hs : s f
-    all_goals cases ht : t f <;> simp_all
+    cases hs : s f <;> cases ht : t f <;> simp_all
   · have hn : rank f ≠ n := fun h => hf (hrank (h.trans he.symm))
+    have hlt : rank f < n + 1 ↔ rank f < n := ⟨by omega, by omega⟩
     rw [reverse_of_ne _ hf]
-    simp only [sweep, show rank f < n + 1 ↔ rank f < n by omega]
+    simp only [sweep, hlt]
 
 private theorem sweep_path {rank : E → ℕ} (s t : E → Bool) {r : (E → Bool) → (E → Bool) → Prop}
     (hstep : ∀ n e, rank e = n → s e ≠ t e → r (sweep rank s t n) (sweep rank s t (n + 1))) :
     ∀ n, Relation.ReflTransGen r s (sweep rank s t n)
-  | 0 => by
-    have h0 : sweep rank s t 0 = s := funext fun e => by simp [sweep]
-    rw [h0]
+  | 0 => (funext fun _ => ite_eq_right (Nat.not_lt_zero _) : sweep rank s t 0 = s) ▸ .refl
   | n + 1 => by
     classical
     by_cases h : ∃ e, rank e = n ∧ s e ≠ t e
@@ -116,7 +114,8 @@ private theorem sweep_path {rank : E → ℕ} (s t : E → Bool) {r : (E → Boo
     · have heq : sweep rank s t (n + 1) = sweep rank s t n := funext fun e => by
         by_cases he : rank e = n
         · simp [sweep, he, not_not.1 fun hne => h ⟨e, he, hne⟩]
-        · simp only [sweep, show rank e < n + 1 ↔ rank e < n by omega]
+        · have hlt : rank e < n + 1 ↔ rank e < n := by omega
+          simp only [sweep, hlt]
       rw [heq]
       exact sweep_path s t hstep n
 
@@ -139,15 +138,12 @@ theorem legal_top_mono (hI : I.Forward) (D : Diagram Γ a b) {s t : D.Edge → B
     refine fun v => Vertex.Sat.mono (fun p hp hin => ?_) (hs v)
     have hd := hI g _ (List.get_mem _ v) p hp
     change s p.port.edge = p.port.dir at hin
-    rcases he : p.port.edge with i | e
-    · have hdir : p.port.dir = true := by rw [he] at hd; exact hd
-      change t p.port.edge = p.port.dir
-      rw [he, hdir]
-      exact Bool.eq_true_of_true_le
-        (by simpa only [show s (.inl i) = true by simpa only [he, hdir] using hin] using htop i)
-    · change t p.port.edge = p.port.dir
-      rw [he, ← hinner e]
-      simpa only [he] using hin
+    change t p.port.edge = p.port.dir
+    rcases he : p.port.edge with i | e <;> rw [he] at hd hin
+    · have hdir : p.port.dir = true := hd
+      rw [hdir] at hin ⊢
+      exact Bool.eq_true_of_true_le (hin ▸ htop i)
+    · exact (hinner e).symm.trans hin
   | id a | swap x y => exact fun v => v.elim
   | comp D₁ D₂ ih₁ ih₂ =>
     obtain ⟨h₁, h₂⟩ := (legal_comp_iff D₁ D₂ s).1 hs

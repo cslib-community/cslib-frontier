@@ -78,20 +78,17 @@ theorem probeThresh_le_gamma_logb {γ U : ℝ} {H : ℕ} (hγ : 0 ≤ γ)
 
 private theorem floorLogStar_sub_one_le_logb {n U : ℕ} (hn : 2 ≤ n) (hnU : n ≤ U) :
     ((Nat.floorLogStar n - 1 : ℕ) : ℝ) ≤ Real.logb 2 U := by
-  have hf : Nat.floorLogStar n = Nat.floorLogStar (Nat.log 2 n) + 1 :=
-    Nat.floorLogStar_of_gt_one (by omega)
   have hle1 : Nat.floorLogStar n - 1 ≤ Nat.log 2 n := by
-    rw [hf, Nat.add_sub_cancel]; exact Nat.floorLogStar_le_self _
-  have hle3 : Real.logb 2 n ≤ Real.logb 2 U :=
-    Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast (show 0 < n by omega))
-      (by exact_mod_cast hnU)
-  exact ((Nat.cast_le.mpr hle1).trans (Real.natLog_le_logb n 2)).trans hle3
+    rw [Nat.floorLogStar_of_gt_one (by omega), Nat.add_sub_cancel]
+    exact Nat.floorLogStar_le_self _
+  exact ((Nat.cast_le.mpr hle1).trans (Real.natLog_le_logb n 2)).trans
+    (Real.logb_le_logb_of_le one_lt_two (Nat.cast_pos.mpr (by omega)) (Nat.cast_le.mpr hnU))
 
 private theorem eight_mul_le_two_pow {q : ℕ} (hq : 6 ≤ q) : 8 * q ≤ 2 ^ q := by
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hq
   induction d with
   | zero => decide
-  | succ d ih => rw [show 6 + (d + 1) = (6 + d) + 1 by omega, Nat.pow_succ]; omega
+  | succ d ih => rw [← Nat.add_assoc, Nat.pow_succ]; omega
 
 theorem logb_le_rpow_of_ge_pow {γ : ℝ} (hγ : 0 < γ) {n : ℕ}
     (hn_big : 2 ^ (2 * (Nat.ceil (4 / γ) + 1) * (2 * (Nat.ceil (4 / γ) + 1) + 2)) ≤ n) :
@@ -311,9 +308,8 @@ theorem exists_gamma_query {α c_w : ℝ} (hα : 0 < α) (hcw : 0 ≤ c_w) :
     by field_simp⟩
 
 theorem exists_gamma_update {α_V c_w : ℝ} (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
-    ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16) := by
-  have hη : 0 < min (1 / 4) (α_V / 16) := by positivity
-  exact ⟨min (1 / 20) (min (1 / 4) (α_V / 16) / (5 + c_w)), by positivity,
+    ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16) :=
+  ⟨min (1 / 20) (min (1 / 4) (α_V / 16) / (5 + c_w)), by positivity,
     (min_le_left _ _).trans (by norm_num),
     (mul_le_mul_of_nonneg_left (min_le_right _ _) (by positivity)).trans_eq
       (mul_div_cancel₀ _ (by positivity))⟩
@@ -356,12 +352,11 @@ theorem iterLog_logStar_space_le {U V n cells w : ℕ} {c_R : ℝ} (hn : 2 ≤ n
       ((cells * w : ℕ) : ℝ) ≤
         benchmarkBits U V n +
           c_R * (n : ℝ) * ((max (Nat.iterLog (Nat.logStar n) n) 1 : ℕ) : ℝ) := by
-  have hk1 : 1 ≤ Nat.logStar n :=
-    (by decide : 1 ≤ Nat.logStar 2).trans (Nat.logStar_mono hn)
   have hle : Nat.iterLog (Nat.logStar n) n ≤ 1 :=
     (Nat.iterLog_anti_left n (Nat.floorLogStar_le_logStar n)).trans
       (Nat.iterLog_floorLogStar_le_one n)
-  exact ⟨hk1, by simpa only [max_eq_right hle, Nat.cast_one, mul_one] using hspace⟩
+  exact ⟨(by decide : 1 ≤ Nat.logStar 2).trans (Nat.logStar_mono hn),
+    by simpa only [max_eq_right hle, Nat.cast_one, mul_one] using hspace⟩
 
 theorem combine_iterLogStar_and_sublinear {c₁ c₂ L R E : ℝ} {n : ℕ}
     (hn : 2 ≤ n) (hL_nn : 0 ≤ L) (hE_nn : 0 ≤ E)

@@ -106,11 +106,9 @@ theorem moveCost_lazyNext_add_le (c a a' : Fin k → α) (r : α) (ha : ∃ j, a
       moveCost M c a + moveCost M a a' := by
   have htri := moveCost_triangle M c a a'
   rcases (lazyNext_spec c a' r ha).2 with h | ⟨j, hj, h⟩
-  · rw [h, moveCost_self]
-    omega
+  · rw [h, moveCost_self]; omega
   · have := moveCost_update_add_le M c a' j r hj
-    rw [h]
-    omega
+    rw [h]; omega
 
 /-- Lazy normalization of an online strategy: simulate `A` and move at most one server per
 request, only when the request is uncovered. -/
@@ -391,11 +389,9 @@ private theorem lazy_costFrom_ge {S : Finset α} (hS : S.card = k + 1) (x₀ : �
     set r := uncovered S x₀ c
     have hstep := A.valid_step r hm
     set c' := lazyNext c (A.project (A.step m r)) r
-    obtain ⟨hinj, hc'S, hcost, hne⟩ := lazy_uncovered_step M hS x₀ hc hcS hstep.2
-    change moveCost M c c' = M.dist r (uncovered S x₀ c') at hcost
-    change r ≠ uncovered S x₀ c' at hne
-    change Function.Injective c' at hinj
-    change ∀ i, c' i ∈ S at hc'S
+    obtain ⟨hinj, hc'S, hcost, hne⟩ : Function.Injective c' ∧ (∀ i, c' i ∈ S) ∧
+        moveCost M c c' = M.dist r (uncovered S x₀ c') ∧ r ≠ uncovered S x₀ c' :=
+      lazy_uncovered_step M hS x₀ hc hcS hstep.2
     obtain ⟨ih1, ih2⟩ := ih (A.step m r) c' hstep.1 hinj hc'S
     have hpos := M.dist_pos_of_ne hne
     change pathLen M r ((lazify M A).adaptiveRequestsFrom (uncovered S x₀) (A.step m r, c') n) ≤
@@ -468,8 +464,7 @@ theorem not_isCompetitiveFrom_of_lt {s₀ : Fin k → α} (hs₀ : Function.Inje
     ¬ A.IsCompetitiveFrom s₀ c b := by
   intro h
   obtain ⟨reqs, off, hv, hlt⟩ := exists_ratio_violation M hs₀ hz A (p := c) (q := 1) (by omega) b
-  have := h reqs off hv
-  omega
+  exact Nat.not_le_of_gt (by simpa only [one_mul] using hlt) (h reqs off hv)
 
 /-- On any metric with `k + 1` distinct points, no deterministic online `k`-server strategy is
 `(c, b)`-competitive for `c < k`. -/

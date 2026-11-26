@@ -267,24 +267,20 @@ theorem exists_iterate_step_call (φ : QBF ℕ) (input : List (QBF.Kind × ℕ))
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
     simp only [QBF.tokens, List.cons_append, List.append_assoc, callSteps, QBF.eval_and,
       QBF.eval_or, closedIn_and, closedIn_or]
-    apply exists_iterate_step_two
-    · exact ihφ _ _ _
-    · exact ihψ _ _ _
-    · dsimp only [step]
-      rw [assignment_cons_of_binds_eq_false (fun _ => rfl),
-        assignment_cons_of_binds_eq_false (fun _ => rfl),
-        closedIn_cons_of_binds_eq_false (fun _ => rfl),
-        closedIn_cons_of_binds_eq_false (fun _ => rfl), Bool.and_assoc]
+    refine exists_iterate_step_two (ihφ _ _ _) (ihψ _ _ _) ?_
+    dsimp only [step]
+    rw [assignment_cons_of_binds_eq_false (fun _ => rfl),
+      assignment_cons_of_binds_eq_false (fun _ => rfl),
+      closedIn_cons_of_binds_eq_false (fun _ => rfl),
+      closedIn_cons_of_binds_eq_false (fun _ => rfl), Bool.and_assoc]
   | ex x φ ih | all x φ ih =>
     simp only [QBF.tokens, List.cons_append, callSteps, two_mul, QBF.eval_ex, QBF.eval_all,
       closedIn_all]
-    apply exists_iterate_step_two
-    · exact ih _ _ _
-    · exact ih _ _ _
-    · dsimp only [step]
-      rw [assignment_cons_quant (by simp) rfl, assignment_cons_quant (by simp) rfl,
-        closedIn_cons_quant (by simp) rfl, closedIn_cons_quant (by simp) rfl]
-      simp
+    refine exists_iterate_step_two (ih _ _ _) (ih _ _ _) ?_
+    dsimp only [step]
+    rw [assignment_cons_quant (by simp) rfl, assignment_cons_quant (by simp) rfl,
+      closedIn_cons_quant (by simp) rfl, closedIn_cons_quant (by simp) rfl]
+    simp
 
 /-- An empty stack holding a value is a fixed point. -/
 private theorem iterate_step_done (input : List (QBF.Kind × ℕ)) (b ok : Bool) (n : ℕ) :
@@ -309,9 +305,8 @@ private theorem callSteps_lt (φ : QBF ℕ) : callSteps φ < 4 ^ φ.tokens.lengt
 theorem callSteps_le (φ : QBF ℕ) : callSteps φ ≤ 2 ^ (encQBF φ).length := by
   have h₁ := callSteps_lt φ
   have h₂ := three_mul_length_tokens_le φ
-  have h₃ : 4 ^ φ.tokens.length ≤ 2 ^ (encQBF φ).length := by
-    rw [show 4 = 2 ^ 2 by rfl, ← pow_mul]
-    exact Nat.pow_le_pow_right two_pos (by omega)
+  have h₃ : 4 ^ φ.tokens.length ≤ 2 ^ (encQBF φ).length :=
+    pow_mul 2 2 φ.tokens.length ▸ Nat.pow_le_pow_right two_pos (by omega)
   omega
 
 /-! ### The evaluator -/
@@ -331,10 +326,11 @@ def evaluate (φ : QBF ℕ) : Bool := (step^[2 ^ (encQBF φ).length] (init φ)).
 /-- **The evaluator computes closedness and the value.** -/
 theorem evaluate_eq (φ : QBF ℕ) : evaluate φ = (decide φ.Closed && φ.eval fun _ => false) := by
   obtain ⟨T, hT, h⟩ := exists_iterate_step_call φ [] [] true
-  have hN := callSteps_le φ
+  have hsplit : 2 ^ (encQBF φ).length = 2 ^ (encQBF φ).length - T + T :=
+    (Nat.sub_add_cancel (hT.trans (callSteps_le φ))).symm
   rw [List.append_nil] at h
-  rw [evaluate, init, show 2 ^ (encQBF φ).length = 2 ^ (encQBF φ).length - T + T by omega,
-    Function.iterate_add_apply, h, iterate_step_done, State.answer, closedIn_nil, assignment_nil]
+  rw [evaluate, init, hsplit, Function.iterate_add_apply, h, iterate_step_done, State.answer,
+    closedIn_nil, assignment_nil]
   simp
 
 /-- **The evaluator decides `TQBF`.** -/

@@ -81,17 +81,14 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
         simp only [CNF.eval, List.all_cons, Bool.and_eq_true] at h
         obtain ⟨ls, hls, hl⟩ := ih h.2
         obtain ⟨l, hlc, hlσ⟩ := List.any_eq_true.mp h.1
-        refine ⟨l :: ls, ?_, ?_⟩
-        · simp only [List.sections, List.mem_flatMap, List.mem_map]
-          exact ⟨ls, hls, l, hlc, rfl⟩
-        · exact List.forall_mem_cons.2 ⟨by simpa [Literal.eval] using hlσ, hl⟩
+        exact ⟨l :: ls, List.mem_flatMap.2 ⟨ls, hls, List.mem_map.2 ⟨l, hlc, rfl⟩⟩,
+          List.forall_mem_cons.2 ⟨by simpa [Literal.eval] using hlσ, hl⟩⟩
     obtain ⟨ls, hls, hl⟩ := key ψ hψ
     refine ⟨ls, hls, ?_⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq]
-    refine ⟨fun l hl' h => ?_, fun l hl' l' hl'' h => ?_⟩
+    refine ⟨fun l hl' h => ?_, fun l hl' _ hl'' h => ?_⟩
     · grind [hσρ _ _ h, hl l hl']
-    · subst h
-      grind [hl _ hl'', hl l hl']
+    · grind [hl _ hl'', hl l hl']
   · rintro ⟨ls, hls, hc⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq] at hc
     obtain ⟨hρ, hpair⟩ := hc
@@ -139,10 +136,7 @@ theorem satExt_nil (ρ : Fin n → Option Bool) : SatExt ρ [] :=
 /-- Satisfiability by an extension depends only on the set of clauses. -/
 theorem satExt_congr {ρ : Fin n → Option Bool} {ψ ψ' : CNF (Fin n)}
     (h : ∀ c, c ∈ ψ ↔ c ∈ ψ') : SatExt ρ ψ ↔ SatExt ρ ψ' := by
-  have he : ∀ σ : Fin n → Bool, ψ.eval σ = ψ'.eval σ := fun σ => by
-    rw [Bool.eq_iff_iff]
-    simp only [CNF.eval, List.all_eq_true, h]
-  simp only [SatExt, he]
+  simp only [SatExt, CNF.eval, List.all_eq_true, h]
 
 /-- Sections of `n` copies of `l` are the lists of length `n` with entries in `l`. -/
 theorem mem_sections_replicate {α : Type*} {l : List α} {k : ℕ} {f : List α} :
@@ -201,13 +195,11 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
       refine ⟨c₀ :: ψ' ++ List.replicate (w - (ψ'.length + 1)) c₀, ?_, ?_⟩
       · rw [mem_sections_replicate]
         refine ⟨by simp at hlen ⊢; omega, fun c hc => ?_⟩
-        rcases List.mem_append.mp hc with hc | hc
-        · exact hsub c hc
-        · exact List.eq_of_mem_replicate hc ▸ hsub c₀ List.mem_cons_self
+        exact (List.mem_append.mp hc).elim (hsub c)
+          fun h => List.eq_of_mem_replicate h ▸ hsub c₀ List.mem_cons_self
       · rwa [satExt_congr fun c => ⟨fun hc => ?_, List.mem_append_left _⟩]
-        rcases List.mem_append.mp hc with hc | hc
-        · exact hc
-        · exact List.eq_of_mem_replicate hc ▸ List.mem_cons_self
+        exact (List.mem_append.mp hc).elim id fun h =>
+          List.eq_of_mem_replicate h ▸ List.mem_cons_self
     · rintro ⟨cs, hcs, hsat⟩
       rw [mem_sections_replicate] at hcs
       exact ⟨cs, hcs.2, hcs.1.le, hsat⟩
@@ -215,14 +207,12 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
     grind [satExt_iff]
   unfold WImplied
   simp only [hone, impliedTest, Bool.or_eq_true, beq_iff_eq, List.any_eq_true, ← hρ, ← hdec]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨ψ, hsub, hlen, hτx | hsat⟩
-    · exact Or.inl hτx
-    · exact Or.inr (hsearch.mp ⟨ψ, hsub, hlen, hsat⟩)
+    exacts [.inl hτx, .inr (hsearch.mp ⟨ψ, hsub, hlen, hsat⟩)]
   · rintro (hτx | h)
-    · exact ⟨[], by simp, by simp, Or.inl hτx⟩
-    · obtain ⟨ψ, hsub, hlen, hsat⟩ := hsearch.mpr h
-      exact ⟨ψ, hsub, hlen, Or.inr hsat⟩
+    exacts [⟨[], by simp, Nat.zero_le _, .inl hτx⟩,
+      (hsearch.mpr h).imp fun ψ ⟨hsub, hlen, hsat⟩ => ⟨hsub, hlen, .inr hsat⟩]
 
 /-- **The implied value through the search**: `true` if the search accepts `x = true`, otherwise
 `false` if it accepts `x = false`, and none otherwise. -/

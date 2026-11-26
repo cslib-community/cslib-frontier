@@ -302,13 +302,9 @@ private theorem lt_ackermann_ackLevel_succ {r p : ℕ} (hr : 1 ≤ r) (hrp : r <
   exact Nat.find_spec (exists_lt_ackermann hr p)
 
 private theorem le_ackLevel_of_ackermann_le {r p k : ℕ} (hr : 1 ≤ r) (hrp : r < p)
-    (hle : Nat.ackermann k r ≤ p) : k ≤ ackLevel r p := by
-  by_contra h
-  have hsucc : ackLevel r p + 1 ≤ k := Nat.lt_of_not_ge h
-  have hlt := lt_ackermann_ackLevel_succ hr hrp
-  have hmono : Nat.ackermann (ackLevel r p + 1) r ≤ Nat.ackermann k r :=
-    Nat.ackermann_monotone_left r hsucc
-  omega
+    (hle : Nat.ackermann k r ≤ p) : k ≤ ackLevel r p :=
+  Nat.le_of_not_lt fun h =>
+    (hle.trans_lt (lt_ackermann_ackLevel_succ hr hrp)).not_ge (Nat.ackermann_monotone_left r h)
 
 private theorem ackLevel_lt_of_lt_ackermann {r p q : ℕ} (hr : 1 ≤ r) (hrp : r < p)
     (hlt : p < Nat.ackermann q r) : ackLevel r p < q := by
@@ -370,15 +366,10 @@ private theorem lt_iterate_ackermann_ackIter_succ {r p : ℕ} (hr : 1 ≤ r) (hr
   exact Nat.find_spec (exists_lt_iterate_ackermann hr hrp)
 
 private theorem le_ackIter_of_iterate_le {r p i : ℕ} (hr : 1 ≤ r) (hrp : r < p)
-    (hle : (Nat.ackermann (ackLevel r p))^[i] r ≤ p) : i ≤ ackIter r p := by
-  by_contra h
-  have hsucc : ackIter r p + 1 ≤ i := Nat.lt_of_not_ge h
-  have hlt := lt_iterate_ackermann_ackIter_succ hr hrp
-  have hmono : (Nat.ackermann (ackLevel r p))^[ackIter r p + 1] r ≤
-      (Nat.ackermann (ackLevel r p))^[i] r :=
-    Function.monotone_iterate_of_id_le (f := Nat.ackermann (ackLevel r p))
-      (fun x => Nat.le_of_lt (Nat.lt_ackermann _ x)) hsucc r
-  omega
+    (hle : (Nat.ackermann (ackLevel r p))^[i] r ≤ p) : i ≤ ackIter r p :=
+  Nat.le_of_not_lt fun h =>
+    (hle.trans_lt (lt_iterate_ackermann_ackIter_succ hr hrp)).not_ge <|
+      Function.monotone_iterate_of_id_le (fun x => (Nat.lt_ackermann _ x).le) h r
 
 private noncomputable def nonRootPhi (q r p : ℕ) : ℕ :=
   (q - ackLevel r p) * r - ackIter r p

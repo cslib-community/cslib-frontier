@@ -84,18 +84,17 @@ theorem card_le_two_mul_card_filter_mem_candidates (predictor : BitString n → 
       2 * #{masks : Fin k → BitString n | x ∈ candidates predictor masks} := by
   classical
   have hfail := decode_failure_le_half predictor x ε hε hk h hsize
-  rw [decode, PMF.toOuterMeasure_map_apply,
-    show (candidates predictor ⁻¹' {list | x ∉ list}) = {masks | x ∉ candidates predictor masks}
-      from rfl, PMF.toOuterMeasure_uniformOfFintype, ← div_eq_mul_inv,
-    ENNReal.div_le_iff (by exact_mod_cast Fintype.card_ne_zero) (ENNReal.natCast_ne_top _)] at hfail
-  have hfail' : (#{masks : Fin k → BitString n | x ∉ candidates predictor masks} : ℝ≥0∞) ≤
-      1 / 2 * Fintype.card (Fin k → BitString n) := by simpa using hfail
+  have hcard0 : (Fintype.card (Fin k → BitString n) : ℝ≥0∞) ≠ 0 := mod_cast Fintype.card_ne_zero
+  rw [decode, PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq,
+    PMF.toOuterMeasure_uniformOfFintype, ← div_eq_mul_inv,
+    ENNReal.div_le_iff hcard0 (ENNReal.natCast_ne_top _)] at hfail
   have hbad : 2 * #{masks : Fin k → BitString n | x ∉ candidates predictor masks} ≤
       Fintype.card (Fin k → BitString n) := by
     have h2 : (2 : ℝ≥0∞) * #{masks : Fin k → BitString n | x ∉ candidates predictor masks} ≤
         Fintype.card (Fin k → BitString n) :=
       calc (2 : ℝ≥0∞) * #{masks : Fin k → BitString n | x ∉ candidates predictor masks}
-          ≤ 2 * (1 / 2 * Fintype.card (Fin k → BitString n)) := by gcongr
+          ≤ 2 * (1 / 2 * Fintype.card (Fin k → BitString n)) :=
+            mul_le_mul_of_nonneg_left (by simpa using hfail) zero_le
         _ = Fintype.card (Fin k → BitString n) := by
             rw [← mul_assoc, one_div, ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top,
               one_mul]
@@ -164,14 +163,11 @@ theorem exists_card_candidate_eq {X : Type*} [Fintype X] (pred : X → BitString
     simpa only [mul_sum, sum_const, card_univ, Fintype.card_prod, BitString.card, smul_eq_mul]
       using sum_lt_sum_of_nonempty (univ_nonempty (α := (Fin k → BitString n) × BitString k))
         fun mg _ => hcon mg.1 mg.2
-  have hge : 2 ^ k * (#good * Fintype.card (Fin k → BitString n)) ≤
-      2 ^ (k + 1) * ∑ mg : (Fin k → BitString n) × BitString k,
-        #{x | candidate (pred x) mg.1 mg.2 = target x} := by
-    rw [pow_succ, mul_assoc]
-    exact Nat.mul_le_mul_left (2 ^ k) hsum
+  have hge := Nat.mul_le_mul_left (2 ^ k) hsum
   have heq : (Fintype.card (Fin k → BitString n) * 2 ^ k) * #good =
       2 ^ k * (#good * Fintype.card (Fin k → BitString n)) := by ring
-  omega
+  rw [pow_succ, mul_assoc (2 ^ k) 2, heq] at hlt
+  exact hlt.not_ge hge
 
 /-- **Nonuniform Goldreich–Levin decoding, density form.** Under the hypotheses of
 `exists_card_candidate_eq`, the corrected-majority candidate equals the target for at least
@@ -197,9 +193,7 @@ theorem dens_filter_candidate_eq_ge {X : Type*} [Fintype X] [Nonempty X]
   have hsum := card_mul_le_two_mul_sum_card_candidate_eq pred target ε hε hk hsize good hgood
   have hM : (Fintype.card ((Fin k → BitString n) × BitString k) : ℝ) =
       Fintype.card (Fin k → BitString n) * 2 ^ k := by
-    rw [Fintype.card_prod, BitString.card]
-    push_cast
-    ring
+    simp [Fintype.card_prod]
   have hMpos : (0 : ℝ) < Fintype.card (Fin k → BitString n) := Nat.cast_pos.2 Fintype.card_pos
   have hexp : (#good : ℝ) / (2 ^ (k + 1) * Fintype.card X) ≤ 𝔼 mg, F mg := by
     rw [Finset.expect_eq_sum_div_card, Finset.card_univ, hM]

@@ -461,16 +461,8 @@ theorem Xofs.length_signInternal {H : Xofs} {s : Level} {key : List Byte} {forma
     {rnd : FixedBytes 32} {sig : List Byte}
     (h : H.signInternal s key formatted rnd = some sig) :
     sig.length = signatureBytes s := by
-  unfold Xofs.signInternal Xofs.runSigning Xofs.startSigning Xofs.startSigningWithSeed
-    Xofs.startDecodedSigning Xofs.signingRetries at h
-  cases hd : decodePrivate s key with
-  | none => simp [hd] at h
-  | some sk =>
-    cases ha : H.expandA s sk.rho with
-    | none => simp [hd, ha] at h
-    | some A =>
-      simp only [hd, ha, Option.bind_eq_bind, Option.bind_some, Option.pure_def] at h
-      exact length_of_firstAccepted_attempt h
+  obtain ⟨_, -, hret⟩ := Option.bind_eq_some_iff.mp h
+  exact length_of_firstAccepted_attempt hret
 
 private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey s.params)
     (rho : FixedBytes 32) {key tr maskSeed : List Byte} {κ : ℕ} {f : Forgery}

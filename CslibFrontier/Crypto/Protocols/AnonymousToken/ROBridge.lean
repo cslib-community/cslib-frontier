@@ -125,14 +125,12 @@ private theorem isCostBounded_sample_ite_query {ι R S : Type} {spec : OracleSpe
     IsCostBounded (Sum.elim (fun _ => 0) (fun _ => 1))
       (ProbOracleComp.sample m >>= fun (ok, s') =>
         if ok then ProbOracleComp.query q >>= fun r => pure (f s' r) else pure (g s')) 1 := by
-  rw [show (1 : ℕ) = 0 + 1 from rfl]
-  refine (ProbOracleComp.isCostBounded_sample _ _).bind fun (ok, s') => ?_
+  change IsCostBounded _ _ (0 + 1)
+  refine (ProbOracleComp.isCostBounded_sample _ m).bind fun (ok, s') => ?_
   cases ok
   · exact OracleComp.IsCostBounded.pure _ 1
-  · dsimp only
-    simp only [↓reduceIte]
-    rw [show (1 : ℕ) = 1 + 0 from rfl]
-    exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr _)).bind
+  · change IsCostBounded _ (ProbOracleComp.query q >>= fun r => pure (f s' r)) (1 + 0)
+    exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr q)).bind
       fun _ => OracleComp.IsCostBounded.pure _ 0
 
 
@@ -173,8 +171,7 @@ private theorem eval_runState_voleithMemoizeProg {d sdLen comLen rowLen : ℕ}
       ProbOracleComp.runWith voleithMemoize prog roSt := by
   change ProbComp.eval ((ProbOracleComp.runState prog voleithMemoizeProg).run roSt) = _
   rw [ProbOracleComp.eval_runState]
-  congr 2
-  exact funext fun q' => funext fun s' => eval_voleithMemoizeProg q' s'
+  exact congrArg (ProbOracleComp.runWith · prog roSt) (funext₂ eval_voleithMemoizeProg)
 
 /-! ### Bridge to `AnonymousToken.Basic` -/
 
@@ -499,9 +496,8 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
       (romTokenRel targetFn) ROMTokenRequest.stmt ROMTokenRequest.proof checkRel hSound none
       (romTokenAcceptReal S keys) (romTokenAcceptExt expand decWit targetFn S keys)
       (fun tr req _ hrel => by
-        have hrel' : targetFn req.message (extractWitnessFromTrace expand decWit tr req.proof) =
-            req.target := of_decide_eq_true hrel
-        simp [romTokenAcceptReal, romTokenAcceptExt, hrel'])
+        simp [romTokenAcceptReal, romTokenAcceptExt,
+          of_decide_eq_true (p := targetFn req.message _ = req.target) hrel])
       [] (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
       (fun (tok, (_, msgs)) =>
         Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)))
@@ -1156,8 +1152,7 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
         cases ok
         · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind,
             repCons]
-        · dsimp only
-          simp only [↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+        · simp only [↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
             ProbOracleComp.runWith_pure, issuerH, repCons, Function.comp_def]
           set extReq := romConservationToExtractedRequest req
             (extractWitnessFromTrace expand decWit roSt.1 req.proof)

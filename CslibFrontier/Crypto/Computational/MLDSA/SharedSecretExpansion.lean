@@ -37,12 +37,9 @@ private def matrixSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedByte
 private theorem matrixSeed_bytes (H : Xofs) (s : Level) (seed : FixedBytes 32) :
     (matrixSeed H s seed).toList = (H.expandKeySeed s seed).take 32 := by
   have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
-  obtain ⟨r, eq⟩ := FixedBytes.exists_toList
-    (show ((H.expandKeySeed s seed).take 32).length = 32 by simp [len])
-  change FixedBytes.toList (n := 32) (fun i => ((H.expandKeySeed s seed).take 32)[i.val]!) = _
-  rw [← eq]
-  exact congrArg FixedBytes.toList (funext fun i => by
-    simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn])
+  refine List.ext_getElem (by simp [FixedBytes.toList, len]) fun i _ h2 => ?_
+  simp only [FixedBytes.toList, List.getElem_ofFn, matrixSeed,
+    getElem!_pos ((H.expandKeySeed s seed).take 32) i h2]
 
 private def expansionSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedBytes 64 :=
   fun j => ((H.expandKeySeed s seed).drop 32)[j.val]!
@@ -50,11 +47,9 @@ private def expansionSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedB
 private theorem expansionSeed_bytes (H : Xofs) (s : Level) (seed : FixedBytes 32) :
     (expansionSeed H s seed).toList = ((H.expandKeySeed s seed).drop 32).take 64 := by
   have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
-  refine List.ext_getElem (by simp [len]) fun i hi _ => ?_
-  have small : i < 64 := by simpa using hi
+  refine List.ext_getElem (by simp [len]) fun i _ h2 => ?_
   have hd : i < ((H.expandKeySeed s seed).drop 32).length := by
-    simp only [List.length_drop, len]
-    omega
+    simp only [List.length_take, List.length_drop, len] at h2 ⊢; omega
   simp only [FixedBytes.toList, List.getElem_ofFn, expansionSeed, List.getElem_take,
     getElem!_pos ((H.expandKeySeed s seed).drop 32) i hd]
 
@@ -86,10 +81,8 @@ private theorem fixed_expansion {a b : ℕ} (s : Level) (base : Xofs) (seed : Fi
       (atTable base T).expandKeySeed s seed := by
   refine read_off_slots s base seed ha hb T v _ (fun j h => ?_) _
   have len := congrArg List.length h
-  rw [length_keySeedInput] at len
-  change 272 = (Keccak.bytesToBitsLE (nonceInput _ _)).length at len
-  rw [length_nonceInput_bits] at len
-  contradiction
+  simp only [nonceWord, length_keySeedInput, length_nonceInput_bits] at len
+  nomatch len
 
 private theorem uniform_secret_resample {a b : ℕ} (s : Level) (base : Xofs)
     (seed : FixedBytes 32) (ha : 528 ≤ a) (hb : 481 ≤ b) {α : Type} (run : Xofs → PMF α) :

@@ -278,11 +278,9 @@ private theorem mem_items {x : Item} : x ∈ items φ ↔ x ∈ itemSet φ := by
   rcases x with ⟨_, _ | _⟩ | ⟨_, _ | _⟩ <;> simp [items, itemSet]
 
 private theorem nodup_items : (items φ).Nodup := by
-  refine List.Nodup.append ?_ ?_ (by simp [List.disjoint_left])
-  all_goals
-    refine List.nodup_flatMap.2 ⟨by simp, ?_⟩
-    exact List.nodup_range.pairwise_of_forall_ne fun _ _ _ _ h => by
-      simpa [Function.onFun] using h.symm
+  refine List.Nodup.append ?_ ?_ (by simp [List.disjoint_left]) <;>
+    exact List.nodup_flatMap.2 ⟨by simp, List.nodup_range.pairwise_of_forall_ne
+      fun _ _ _ _ h => by simpa [Function.onFun] using h.symm⟩
 
 /-- The digit positions of an item, as a finite set. -/
 private def itemCol (φ : CNF ℕ) (x : Item) : Finset ℕ := (itemDigits φ x).toFinset
@@ -334,9 +332,7 @@ private theorem card_filter_disjSum (A B : Finset (ℕ × Bool)) (p : ℕ) :
     #{x ∈ A.disjSum B | p ∈ itemCol φ x} =
       #{a ∈ A | p ∈ itemCol φ (.inl a)} + #{c ∈ B | p ∈ itemCol φ (.inr c)} := by
   rw [← card_disjSum]
-  congr 1
-  ext x
-  rcases x with a | c <;> simp
+  exact congrArg card (Finset.ext fun x => by rcases x with a | c <;> simp)
 
 /-- The target as a number with base-8 digits: one at variable positions, three at clause
 positions. -/
@@ -528,8 +524,7 @@ theorem toSubsetSum_mem_iff (φ : CNF ℕ) : toSubsetSum φ ∈ SubsetSum ↔ φ
     exact ⟨fun hs => ⟨hφ, hs⟩, fun h => h.2⟩
   · refine iff_of_false ?_ fun h' => h (by simpa using h'.1)
     rintro ⟨s, hs, hsum⟩
-    rw [Multiset.coe_nil, Multiset.le_zero] at hs
-    simp [hs] at hsum
+    simp [Multiset.le_zero.1 hs] at hsum
 
 end Correctness
 

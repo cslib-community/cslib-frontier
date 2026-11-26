@@ -116,12 +116,9 @@ theorem min_le_scheduleCost {B : Nat} {reqs : List Unit} {states : List Bool}
     rcases states with _ | ⟨_ | _, bs⟩
     · cases hv
     · have := ih hv.2
-      rw [Problem.scheduleCost, List.length_cons]
-      change _ ≤ stepCost B false r false + _
-      rw [stepCost_false_false]; omega
-    · rw [Problem.scheduleCost]
-      change _ ≤ stepCost B false r true + _
-      rw [stepCost_false_true]; omega
+      simp only [Problem.scheduleCost, problem, List.length_cons, stepCost_false_false] at this ⊢
+      omega
+    · simp only [Problem.scheduleCost, problem, stepCost_false_true]; omega
 
 /-- The constant schedule `replicate n b` is valid from `b₀` whenever `b₀ = true → b = true`. -/
 theorem validSchedule_replicate {B : Nat} {b₀ b : Bool} (h : b₀ = true → b = true)
@@ -336,12 +333,9 @@ private theorem bool_list_cases (L : List Bool) :
 private theorem ski_arith {B d : Nat} (h : d + 1 ≤ B) :
     (2 * B - 1) * (d + 1) ≤ B * (d + B) := by
   obtain ⟨e, rfl⟩ : ∃ e, B = d + 1 + e := ⟨B - (d + 1), by omega⟩
-  rw [show 2 * (d + 1 + e) - 1 = d + 1 + e + (d + e) by omega]
-  have h₁ : (d + 1 + e + (d + e)) * (d + 1) + (e * d + e * e) =
-      (d + 1 + e) * (d + (d + 1 + e)) := by
-    simp only [Nat.add_mul, Nat.mul_add, Nat.one_mul, Nat.mul_one, Nat.mul_comm e d]
-    omega
-  omega
+  have hsub : 2 * (d + 1 + e) - 1 = d + 1 + e + (d + e) := by omega
+  rw [hsub]
+  simp only [Nat.add_mul, Nat.mul_add, Nat.one_mul, Nat.mul_one, Nat.mul_comm e d]; omega
 
 /-- **Deterministic lower-bound witness.** For every deterministic online ski-rental strategy
 (`1 ≤ B`) there are a request sequence and a valid offline schedule with offline cost at least `1`
@@ -452,9 +446,9 @@ theorem exists_rentThenBuy_cost_eq {B : Nat} (A : DetStrategy (problem B)) (N : 
     split_ifs with hnd
     · rw [List.take_append_of_le_length (by rw [List.length_replicate]; exact hnd),
         List.take_replicate, Nat.min_eq_left hnd, hrep]
-    · rw [List.take_append, List.take_of_length_le (by rw [List.length_replicate]; omega),
-        List.length_replicate, show n - d = (n - d - 1) + 1 by omega, List.take_succ_cons]
-        at hvn ⊢
+    · have hnd1 : n - d = (n - d - 1) + 1 := by omega
+      rw [List.take_append, List.take_of_length_le (by rw [List.length_replicate]; omega),
+        List.length_replicate, hnd1, List.take_succ_cons] at hvn ⊢
       exact scheduleCost_replicate_false_append_true_cons hvn
 
 end Cslib.DataStructure.Online.SkiRental

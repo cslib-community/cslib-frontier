@@ -154,8 +154,7 @@ private theorem schedule_bounds {M b : ℕ} (hb : 1 ≤ b)
 /-- `2 ^ K = 4 ^ σ * 4 * 2 ^ ⌊log₂ (4 b)⌋` for the number of masks `K`. -/
 private theorem two_pow_masks (σ b : ℕ) :
     2 ^ (2 * σ + Nat.log 2 (4 * b) + 2) = 4 ^ σ * 4 * 2 ^ Nat.log 2 (4 * b) := by
-  rw [pow_add, pow_add, pow_mul, show (2 : ℕ) ^ 2 = 4 by norm_num]
-  ring
+  rw [pow_add, pow_add, pow_mul]; ring
 
 private theorem two_pow_masks_le (σ : ℕ) {b : ℕ} (hb : 1 ≤ b) :
     2 ^ (2 * σ + Nat.log 2 (4 * b) + 2) ≤ 16 * b * 4 ^ σ := by
@@ -183,9 +182,8 @@ private theorem masks_size {w σ K : ℕ} (hK : 2 * w * 4 ^ σ + 1 ≤ 2 ^ K) :
     exact_mod_cast Nat.le_sub_one_of_lt hK
   have hpos : (0 : ℝ) < 2 ^ σ := by positivity
   have h4 : (2 : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ) / 2) ^ 2 * (2 * w * 4 ^ σ) = w := by
-    rw [show (4 : ℝ) ^ σ = (2 ^ σ) ^ 2 by rw [← pow_mul, mul_comm σ 2, pow_mul]; norm_num]
-    push_cast
-    field_simp
+    have h42 : (4 : ℝ) ^ σ = ((2 : ℝ) ^ σ) ^ 2 := by rw [← pow_mul, mul_comm σ 2, pow_mul]; norm_num
+    push_cast [h42]; field_simp
   calc (w : ℝ) = 2 * (1 / ((2 ^ σ : ℕ) : ℝ) / 2) ^ 2 * (2 * w * 4 ^ σ) := h4.symm
     _ ≤ 2 * (1 / ((2 ^ σ : ℕ) : ℝ) / 2) ^ 2 * ((2 ^ K - 1 : ℕ) : ℝ) := by gcongr
 
@@ -226,19 +224,18 @@ private theorem margin_le {b σ : ℕ} (hb : 1 ≤ b) (hB : 128 * b ≤ 2 ^ (b /
       2 ^ (4 * b) :=
     calc 2 ^ (2 * σ + Nat.log 2 (4 * b) + 2 + 3) * 2 ^ (3 * b - b / 4) * 2 ^ σ
         = 2 ^ (2 * σ + Nat.log 2 (4 * b) + 2) * 8 * 2 ^ (3 * b - b / 4) * 2 ^ σ := by
-          rw [pow_add _ _ 3, show (2 : ℕ) ^ 3 = 8 by norm_num]
+          rw [pow_add _ _ 3]; ring
       _ ≤ 16 * b * 4 ^ σ * 8 * 2 ^ (3 * b - b / 4) * 2 ^ σ := by
+          have := two_pow_masks_le σ hb
           gcongr
-          exact two_pow_masks_le σ hb
       _ = 128 * b * 2 ^ (3 * σ) * 2 ^ (3 * b - b / 4) := by
-          rw [show 3 * σ = 2 * σ + σ by ring, pow_add, pow_mul, show (2 : ℕ) ^ 2 = 4 by norm_num]
-          ring
+          have h3 : 2 ^ (3 * σ) = 4 ^ σ * 2 ^ σ := by rw [Nat.succ_mul 2 σ, pow_add, pow_mul]; ring
+          rw [h3]; ring
       _ ≤ 2 ^ (b / 4) * 2 ^ b * 2 ^ (3 * b - b / 4) := by
           gcongr
       _ = 2 ^ (4 * b) := by
           rw [← pow_add, ← pow_add]
-          congr 1
-          omega
+          exact congrArg (2 ^ ·) (by omega)
   have hpos : (0 : ℝ) < ((2 ^ σ : ℕ) : ℝ) := by positivity
   rw [mul_one_div, le_div_iff₀ hpos]
   exact_mod_cast hnat
@@ -269,12 +266,13 @@ private theorem errors_le {M b σ : ℕ} (hM : 1 ≤ M) (hb : 1 ≤ b)
   have hT2 : 18 * (d + 1) * 2 ^ (K + 4) * 2 ^ σ ≤ q :=
     calc 18 * (d + 1) * 2 ^ (K + 4) * 2 ^ σ
         ≤ 18 * (M * 2 ^ b) * (16 * b * 4 ^ σ * 16) * 2 ^ σ := by
-          rw [pow_add _ K 4, show (2 : ℕ) ^ 4 = 16 by norm_num]
+          have := two_pow_masks_le σ hb
+          have hK4 : 2 ^ (K + 4) = 2 ^ K * 16 := pow_add 2 K 4
+          rw [hK4]
           gcongr
-          exact two_pow_masks_le σ hb
       _ = 4608 * M * b * 2 ^ b * 2 ^ (3 * σ) := by
-          rw [show 3 * σ = 2 * σ + σ by ring, pow_add, pow_mul, show (2 : ℕ) ^ 2 = 4 by norm_num]
-          ring
+          have h3 : 2 ^ (3 * σ) = 4 ^ σ * 2 ^ σ := by rw [Nat.succ_mul 2 σ, pow_add, pow_mul]; ring
+          rw [h3]; ring
       _ ≤ 2 ^ (b / 4) * 2 ^ b * 2 ^ b := by
           gcongr
       _ = 2 ^ (b / 4 + b + b) := by rw [pow_add, pow_add]
@@ -296,12 +294,11 @@ private theorem errors_le {M b σ : ℕ} (hM : 1 ≤ M) (hb : 1 ≤ b)
   have e2 : (2 : ℝ) ^ (K + 4) / ((q : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ))) ≤
       1 / (18 * ((d : ℝ) + 1)) := by
     rw [mul_one_div, div_div_eq_mul_div, div_le_div_iff₀ (by linarith) hdpos, one_mul]
-    have : ((18 * (d + 1) * 2 ^ (K + 4) * 2 ^ σ : ℕ) : ℝ) ≤ q := by exact_mod_cast hT2
-    push_cast at this ⊢; linarith
+    have hT2' : 2 ^ (K + 4) * 2 ^ σ * (18 * (d + 1)) = 18 * (d + 1) * 2 ^ (K + 4) * 2 ^ σ := by ring
+    exact_mod_cast hT2'.trans_le hT2
   have e3 : (D : ℝ) / ((q : ℝ) - 1) ≤ 1 / (18 * ((d : ℝ) + 1)) := by
-    rw [div_le_div_iff₀ (by linarith) hdpos, one_mul]
-    have : ((18 * (d + 1) * D + 1 : ℕ) : ℝ) ≤ q := by exact_mod_cast hT3
-    push_cast at this; linarith
+    rw [div_le_div_iff₀ (by linarith) hdpos, one_mul, le_sub_iff_add_le]
+    exact_mod_cast (congrArg (· + 1) (mul_comm D (18 * (d + 1)))).trans_le hT3
   have hne : (d : ℝ) + 1 ≠ 0 := by positivity
   calc _ ≤ 6 * ((d : ℝ) + 1) * (3 * (1 / (18 * ((d : ℝ) + 1)))) := by gcongr; linarith
     _ = 1 := by field_simp; ring
@@ -411,11 +408,8 @@ theorem eventually_isAverageCaseHard_encodedSlice {L : Language Bool} {γ : ℝ}
   have hhard : ∀ᶠ b : ℕ in atTop,
       2 ^ (40 * b) ≤ complexity interpretation (single (L.slice (M * b))) := by
     filter_upwards [hMb.eventually hard] with b hb
-    have h1 : (2 : ℝ) ^ ((40 * b : ℕ) : ℝ) ≤ (2 : ℝ) ^ (γ * ((M * b : ℕ) : ℝ)) :=
-      Real.rpow_le_rpow_of_exponent_le (by norm_num)
-        (by push_cast; nlinarith)
-    rw [Real.rpow_natCast] at h1
-    exact_mod_cast h1.trans hb
+    exact_mod_cast (Real.rpow_natCast 2 (40 * b)).symm.le.trans
+      ((Real.rpow_le_rpow_of_exponent_le one_le_two (by push_cast; nlinarith)).trans hb)
   have hev := Nat.eventually_mul_pow_le_pow_div (2 ^ 27 * M ^ 3 + 4608 * M + 128) 6 4
     one_lt_two (by positivity)
   filter_upwards [hblock.eventually (hhard.and (hev.and (eventually_ge_atTop 1)))] with N hN

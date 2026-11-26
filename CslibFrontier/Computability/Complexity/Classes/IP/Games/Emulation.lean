@@ -241,11 +241,10 @@ private theorem card_padding (Z d : ℕ) :
     #{z : Fin Z → Bool | (!((List.ofFn z).take d).any fun b => b) = true} = 2 ^ (Z - d) := by
   have hmin : ∀ z : Fin Z → Bool, (List.ofFn z).take d = (List.ofFn z).take (min d Z) := by
     grind [List.take_eq_take_min, List.length_ofFn]
-  simp only [hmin]
-  rw [BitString.card_filter_take (min_le_right d Z) fun w => (!w.any fun b => b) = true,
+  simp only [hmin,
+    BitString.card_filter_take (min_le_right d Z) fun w => (!w.any fun b => b) = true,
     BitString.card_filter_not_any, mul_one]
-  congr 1
-  omega
+  exact congrArg (2 ^ ·) (by omega)
 
 /-! ### Soundness -/
 
@@ -379,8 +378,7 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
       have hsum := sum_le_sum hb'
       rw [sum_const, card_range, nsmul_eq_mul] at hsum
       push_cast at hsum ⊢
-      refine (add_le_add hsum le_rfl).trans_eq ?_
-      ring
+      exact (add_le_add hsum le_rfl).trans_eq (by ring)
     · -- prover move
       rw [shape, AMGame.value_merlin_true, verifierMoves_prover, countFrom_prover]
       refine sup'_le _ _ fun y _ => ?_
@@ -409,15 +407,12 @@ private theorem le_sum_two_pow (B x : ℕ) (hx : x < 2 ^ (B + 1)) :
   · exact Nat.zero_le _
   have hlog : Nat.log 2 x ≤ B := Nat.lt_succ_iff.1 (Nat.log_lt_of_lt_pow hpos.ne' hx)
   have hiff (β : ℕ) : 2 ^ β ≤ x ↔ β < Nat.log 2 x + 1 := by
-    rw [Nat.lt_succ_iff]
-    exact (Nat.le_log_iff_pow_le (by norm_num) hpos.ne').symm
+    rw [Nat.lt_succ_iff, Nat.le_log_iff_pow_le (by norm_num) hpos.ne']
   have hsplit : (∑ β ∈ range (B + 1), if 2 ^ β ≤ x then 2 ^ β else 0) =
       ∑ β ∈ range (Nat.log 2 x + 1), 2 ^ β := by
     rw [← sum_filter]
-    congr 1
-    ext β
-    simp only [mem_filter, mem_range, hiff]
-    omega
+    refine sum_congr (Finset.ext fun β => ?_) fun _ _ => rfl
+    simp only [mem_filter, mem_range, hiff]; omega
   rw [hsplit, Nat.geomSum_eq le_rfl]
   have := Nat.lt_pow_succ_log_self (b := 2) (by norm_num) x
   omega
@@ -502,14 +497,9 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
               AMGame.value true (shape B Z g) fun t => ((check B Z K V ((.verifier, n) :: g) κ p
                 (List.ofFn r ++ (List.ofFn y ++ t))).toNat : ℚ) := by
         split_ifs with hr
-        · have h0 := AMGame.value_nonneg true (shape B Z g) (f := fun t =>
-            ((check B Z K V ((.verifier, n) :: g) κ p (List.ofFn r ++
-              (List.ofFn (fun _ : Fin (B + (n + Z)) => false) ++ t))).toNat : ℚ))
-            fun t => by positivity
-          refine le_trans ?_ (le_trans h0 (le_sup' (fun y : Fin (B + (n + Z)) → Bool =>
-            AMGame.value true (shape B Z g) fun t => ((check B Z K V ((.verifier, n) :: g) κ p
-              (List.ofFn r ++ (List.ofFn y ++ t))).toNat : ℚ)) (mem_univ _)))
-          linarith
+        · refine le_trans ?_ (le_sup' _ (mem_univ fun _ => false))
+          exact le_trans (b := 0) (by linarith)
+            (AMGame.value_nonneg _ _ fun _ => Nat.cast_nonneg _)
         · rw [sub_zero]
           have h0 : 0 ∈ S.image (affineHash (affineSeedEquiv B (n + Z) r)) :=
             by_contra fun h => hr (mem_filter.2 ⟨mem_univ _, h⟩)

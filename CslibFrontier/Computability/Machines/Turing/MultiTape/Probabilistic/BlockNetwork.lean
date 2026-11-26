@@ -132,9 +132,8 @@ theorem blockIndex_intervalStart_eq_scheduleBlock (machine : MultiTapePTM k Bool
       scheduleBlock σ i := by
   induction i with
   | zero =>
-    funext head
-    rw [intervalStart_zero, Cfg.blockIndex, Cfg.headPos_init, Int.zero_ediv]
-    rfl
+    exact funext fun _ => by simp only [intervalStart_zero, Cfg.blockIndex, Cfg.headPos_init,
+      Int.zero_ediv, scheduleBlock_zero]
   | succ i ih =>
     funext head
     have hiq : i < q := by omega
@@ -374,10 +373,6 @@ private noncomputable abbrev trueRun (machine : MultiTapePTM k Bool State) (inpu
 /-- The interval bits of a choice string: `y` split into `q` strings of `b` bits. -/
 private def intervalBits : (Fin (q * b) → Bool) ≃ (Fin q → Fin b → Bool) :=
   (finProdFinEquiv.arrowCongr (Equiv.refl Bool)).symm.trans (Equiv.curry _ _ _)
-
-omit [NeZero b] in
-private theorem intervalBits_apply (y : Fin (q * b) → Bool) (i : Fin q) :
-    intervalBits y i = fun r => y (finProdFinEquiv (i, r)) := rfl
 
 /-- The letters of the true run: the control records and window contents at the end of every
 interval. -/
@@ -695,13 +690,11 @@ omit [NeZero b] in
 /-- Every edge goes forward in time, from its interval to a later interval or to a sink. -/
 private theorem edgeTarget_eq_inl {e : BlockEdge k q} {i : Fin q}
     (h : edgeTarget σ e = .inl i) : e.elim id Prod.fst < i := by
-  rcases e with i' | ⟨i', hd, d⟩
-  · simp only [edgeTarget] at h
-    split_ifs at h with hi
-    · cases h
-      fin_index [Sum.elim_inl, id_eq]
-  · simp only [edgeTarget] at h
-    exact (firstAfter_eq_some_iff.mp (eq_some_of_elim_eq_inl h)).1
+  rcases e with i' | ⟨i', hd, d⟩ <;> simp only [edgeTarget] at h
+  · split_ifs at h with hi
+    cases h
+    fin_index [Sum.elim_inl, id_eq]
+  · exact (firstAfter_eq_some_iff.mp (eq_some_of_elim_eq_inl h)).1
 
 omit [NeZero b] in
 /-- A block-counting network has no loops. -/
@@ -760,12 +753,10 @@ theorem maxDegreeLE_blockNetwork :
       calc {e : BlockEdge k q | e.elim id Prod.fst = i}.ncard
           ≤ (Set.range (Sum.elim (fun _ : Unit => (Sum.inl i : BlockEdge k q))
               fun p : Fin k × Fin 3 => Sum.inr (i, p))).ncard := by
-            refine Set.ncard_le_ncard ?_ (Set.toFinite _)
-            rintro (i' | ⟨i', h, d⟩) he
-            · simp only [Set.mem_ofPred_eq, Sum.elim_inl, id_eq] at he
-              exact ⟨.inl (), by simp [he]⟩
-            · simp only [Set.mem_ofPred_eq, Sum.elim_inr] at he
-              exact ⟨.inr (h, d), by simp [he]⟩
+            refine Set.ncard_le_ncard (fun e he => ?_) (Set.toFinite _)
+            rcases e with i' | ⟨i', h, d⟩ <;>
+              simp_all only [Set.mem_ofPred_eq, Sum.elim_inl, Sum.elim_inr, id_eq]
+            exacts [⟨.inl (), by simp⟩, ⟨.inr (h, d), by simp⟩]
         _ = Nat.card (Unit ⊕ Fin k × Fin 3) := Set.ncard_range_of_injective (by
             rintro (_ | p) (_ | p') h <;> simp_all)
         _ = 3 * k + 1 := by

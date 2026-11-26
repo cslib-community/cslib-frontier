@@ -186,8 +186,6 @@ theorem maxLoad_le_numBlocks_mul : maxLoad rowOf colOf ρ κ ≤ numBlocks rowOf
   have hL : 0 < 2 ^ a := Nat.two_pow_pos a
   have h := Nat.lt_div_mul_add (a := maxLoad rowOf colOf ρ κ + (2 ^ a - 1)) hL
   rw [numBlocks]
-  generalize 2 ^ a = L at hL h ⊢
-  generalize (maxLoad rowOf colOf ρ κ + (L - 1)) / L * L = q at h ⊢
   omega
 
 /-- Rounding up to whole blocks adds fewer than `2 ^ a` slots. -/
@@ -203,12 +201,10 @@ theorem maxLoad_mul_le {B : ℕ}
     (hocc : ∀ γ, occupancy (pairLabel rowOf colOf ρ κ) γ * r ^ (2 * a) ≤ B) :
     maxLoad rowOf colOf ρ κ * r ^ (2 * a) ≤ B := by
   rcases Nat.eq_zero_or_pos (r ^ (2 * a)) with hD | hD
-  · rw [hD, Nat.mul_zero]
-    exact Nat.zero_le _
-  have hle : maxLoad rowOf colOf ρ κ ≤ B / r ^ (2 * a) := by
-    refine Finset.sup_le fun e _ => ?_
-    rw [Nat.le_div_iff_mul_le hD]
-    exact (Nat.mul_le_mul_right _ (classIndex_lt_occupancy rowOf colOf ρ κ e)).trans (hocc _)
+  · simp [hD]
+  have hle : maxLoad rowOf colOf ρ κ ≤ B / r ^ (2 * a) := Finset.sup_le fun e _ =>
+    (Nat.le_div_iff_mul_le hD).2
+      ((Nat.mul_le_mul_right _ (classIndex_lt_occupancy rowOf colOf ρ κ e)).trans (hocc _))
   exact (Nat.mul_le_mul_right _ hle).trans (Nat.div_mul_le_self _ _)
 
 end Classes
@@ -245,10 +241,9 @@ symbols and, where they differ, digit `i` of the number. -/
 
 /-- The block of an edge is below the number of blocks. -/
 theorem packetData_fst_lt (e : E) :
-    (packetData rowOf colOf ρ κ e).1 < numBlocks rowOf colOf ρ κ := by
-  have h1 := classIndex_lt_maxLoad rowOf colOf ρ κ e
-  have h2 := maxLoad_le_numBlocks_mul rowOf colOf ρ κ
-  exact Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; omega)
+    (packetData rowOf colOf ρ κ e).1 < numBlocks rowOf colOf ρ κ :=
+  Nat.div_lt_of_lt_mul (Nat.mul_comm (2 ^ a) _ ▸
+    (classIndex_lt_maxLoad rowOf colOf ρ κ e).trans_le (maxLoad_le_numBlocks_mul rowOf colOf ρ κ))
 
 /-- The orientation digit orients the sorted pair of two symbols. -/
 private theorem pair_eq_orient {α : Type*} [LinearOrder α] (x y : α) (b : Bool) :
@@ -355,10 +350,7 @@ private theorem card_filter_apply_eq (i : Fin a) (σ : Fin r) :
     #{f : Fin a → Fin r | f i = σ} * r = r ^ a := by
   have h := Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset (Fin r)) i (mem_univ σ)
   rw [Fintype.piFinset_univ] at h
-  rw [h, card_univ, Fintype.card_fin, Fintype.card_fin, ← pow_succ]
-  congr 1
-  have := i.pos
-  omega
+  rw [h, card_univ, Fintype.card_fin, Fintype.card_fin, ← pow_succ, Nat.sub_add_cancel i.pos]
 
 omit [LinearOrder E] in
 private theorem ports_ofLabels_le_aux (γ : E → (Fin a → Fin r) × (Fin a → Fin r))
@@ -554,10 +546,7 @@ theorem exists_packing [Fintype E] [DecidableEq R] [DecidableEq C] [Finite R] [F
   let _ : FinEnum R := FinEnum.ofEquiv _ (@Fintype.equivFin R (Fintype.ofFinite R))
   let _ : FinEnum C := FinEnum.ofEquiv _ (@Fintype.equivFin C (Fintype.ofFinite C))
   refine ⟨packing rowOf colOf a r, numPackets_packing_mul_le rowOf colOf a r hrow hcol hM hL,
-    fun i σ => ?_, fun i σ => ?_⟩
-  · have := row_ports_packing_le rowOf colOf a r hrow hcol hM i σ
-    omega
-  · have := col_ports_packing_le rowOf colOf a r hrow hcol hM i σ
-    omega
+    fun i σ => (row_ports_packing_le rowOf colOf a r hrow hcol hM i σ).trans (by omega),
+    fun i σ => (col_ports_packing_le rowOf colOf a r hrow hcol hM i σ).trans (by omega)⟩
 
 end Cslib.PacketPacking

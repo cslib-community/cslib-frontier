@@ -528,10 +528,8 @@ private theorem holds_elimClauseAt {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin 
 /-- Every guard of `Φ.elimGuards` is quantifier-free. -/
 theorem isQF_elimGuards (Φ : Sentence (language (succLanguage L))) : Φ.elimGuards.IsQF := by
   intro C hC
-  change C ∈ elimClausesList Φ at hC
   obtain ⟨idx, ⟨C₀, hC₀, rfl⟩ | rfl⟩ := mem_elimClausesList.mp hC
-  · exact isQF_auxClauses (Φ.clauses.get idx).guard C₀ hC₀
-  · exact .top
+  exacts [isQF_auxClauses (Φ.clauses.get idx).guard C₀ hC₀, .top]
 
 /-- **Guard elimination preserves truth** on canonical ordered successor structures `Fin n` with
 `2 ≤ n`. -/
@@ -547,22 +545,18 @@ theorem realize_elimGuards {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)]
       (holds_mapClause (fun v => Sum.inr ⟨idx, v⟩) D R').mp
         (hR' _ (mem_elimClausesList.mpr ⟨idx, .inl ⟨D, hD, rfl⟩⟩))
     have hroot := rootTarget_le_of_holds_auxClauses (Φ.clauses.get idx).guard haux true
-    have hcl : (elimClauseAt Φ idx).Holds R' :=
-      hR' _ (mem_elimClausesList.mpr ⟨idx, .inr rfl⟩)
     intro w hg hb
-    exact (holds_elimClauseAt Φ idx R').mp hcl w
+    exact (holds_elimClauseAt Φ idx R').mp (hR' _ (mem_elimClausesList.mpr ⟨idx, .inr rfl⟩)) w
       (hroot ((evalSub_zero (Φ.clauses.get idx).guard w).mpr hg)) hb
   · rintro ⟨R, hR⟩
     let R' : ∀ j : ElimVar Φ, Set (Fin (elimArity Φ j) → Fin n) := fun
       | .inl i => R i
       | .inr ⟨idx, v⟩ => auxTarget (n := n) (Φ.clauses.get idx).guard v
     refine ⟨R', fun C hC => ?_⟩
-    change C ∈ elimClausesList Φ at hC
     obtain ⟨idx, ⟨D, hD, rfl⟩ | rfl⟩ := mem_elimClausesList.mp hC
     · exact (holds_mapClause (fun v => Sum.inr ⟨idx, v⟩) D R').mpr
         (holds_auxClauses_auxTarget (Φ.clauses.get idx).guard D hD)
-    · refine (holds_elimClauseAt Φ idx R').mpr fun w hroot hbody => ?_
-      exact hR (Φ.clauses.get idx) (List.get_mem _ _) w
-        ((evalSub_zero (Φ.clauses.get idx).guard w).mp hroot) hbody
+    · exact (holds_elimClauseAt Φ idx R').mpr fun w hroot =>
+        hR _ (List.get_mem _ _) w ((evalSub_zero (Φ.clauses.get idx).guard w).mp hroot)
 
 end Cslib.Logic.ESO.Horn.Sentence

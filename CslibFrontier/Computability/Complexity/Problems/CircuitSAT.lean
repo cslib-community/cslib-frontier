@@ -207,8 +207,7 @@ theorem isSome_ofCode_circuitCode (φ : CNF ℕ) :
   refine ⟨(Program.isCodeFrom_append _ _ _).2 ⟨by simp [Program.IsCodeFrom],
     by simpa using isCodeFrom_circuitBlocks φ (circuitSteps φ) 0 fun s hs =>
       mem_vars_of_mem_circuitSteps hs⟩, rfl, ?_⟩
-  simp only [circuitCode, length_circuitGates, List.mem_singleton, forall_eq]
-  omega
+  simp only [circuitCode, length_circuitGates, List.mem_singleton, forall_eq]; omega
 
 /-- **The circuit of a formula**: one input for each literal occurrence, and the gates of
 `circuitCode`. -/
@@ -251,9 +250,7 @@ private theorem evalCode_flatMap (φ : CNF ℕ) (x : List Bool) (hx : x.length =
       (φ.vars.length + 3 * (k + steps.length) + 2) false =
       (steps.foldl (circuitState (assignment φ x)) s).2 := by
   induction steps generalizing k V s with
-  | nil =>
-    rw [List.zipIdx_nil, List.flatMap_nil, evalCode_nil]
-    simpa using h₂
+  | nil => rwa [List.zipIdx_nil, List.flatMap_nil, evalCode_nil]
   | cons t steps ih =>
     obtain ⟨⟨v, b⟩, e⟩ := t
     have hv : e = false → φ.vars.idxOf v < φ.vars.length := fun he =>
@@ -262,19 +259,17 @@ private theorem evalCode_flatMap (φ : CNF ℕ) (x : List Bool) (hx : x.length =
       evalCode_circuitBlock V (φ.vars.length + 3 * k) (φ.vars.idxOf v) b e hV
         fun he => by have := hv he; omega,
       show k + (steps.length + 1) = k + 1 + steps.length by ring]
-    have hread (he : e = false) : V.getD (φ.vars.idxOf v) false = assignment φ x v := by
+    have hread (he : e = false) : V[φ.vars.idxOf v]?.getD false = assignment φ x v := by
       have := hv he
-      rw [assignment, List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega),
-        hx'.getElem]
+      rw [assignment, List.getElem?_eq_getElem (by omega), Option.getD_some,
+        List.getD_eq_getElem _ _ (by omega), hx'.getElem]
     refine ih (fun t ht => hsteps t (List.mem_cons_of_mem _ ht)) (k + 1) _ _ ?_
       (hx'.trans (List.prefix_append _ _)) ?_ ?_
-    · rw [List.length_append, hV]
-      cases e <;> rfl
+    · cases e <;> exact (List.length_append ..).trans (congrArg (· + 3) hV)
     · rw [show φ.vars.length + 3 * (k + 1) + 1 = V.length + 1 by omega,
         List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h₁]
       cases e
-      · rw [hread rfl]
-        simp [circuitState]
+      · simp [circuitState, hread rfl]
       · simp [circuitState]
     · rw [show φ.vars.length + 3 * (k + 1) + 2 = V.length + 2 by omega,
         List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h₁, h₂]

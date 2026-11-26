@@ -871,8 +871,9 @@ reachable state `s`, if `p` is in its critical section, `q` is in the bakery, an
 `p`'s ticket strictly precedes `q`'s ticket lexicographically. -/
 theorem bakery_cs_lt [Fintype P] [LinearOrder P] {s : BakeryState P}
     (hr : s.Reachable) {p q : P} (hcs : s.inCS p) (hbak : s.inBakery q) (hne : p ≠ q) :
-    s.ticket p < s.ticket q :=
-  hr.bakeryInv.l3_ticket p q hne (by simp [passedL3, show s.phase p = .cs from hcs]) (Or.inr hbak)
+    s.ticket p < s.ticket q := by
+  unfold BakeryState.inCS at hcs
+  exact hr.bakeryInv.l3_ticket p q hne (by simp [passedL3, hcs]) (Or.inr hbak)
 
 /-- **Mutual Exclusion** ([Lamport1974], p. 455): in every reachable state of Lamport's Bakery
 algorithm — even under arbitrary nondeterministic safe-register overlapping reads and mid-entry
@@ -1058,14 +1059,12 @@ private theorem exists_measure_zero [Fintype P] [LinearOrder P]
   | succ m ih =>
     intro j hij hm
     by_cases hall : ∀ k ≥ j, 0 < f ((ss k).phase q)
-    · have hstay : ∀ k ≥ j, f ((ss k).phase q) ≤ m + 1 := by
-        intro k hjk
-        induction k, hjk using Nat.le_induction with
-        | base => exact hm
-        | succ k hjk ihk =>
+    · have hstay : ∀ k ≥ j, f ((ss k).phase q) ≤ m + 1 := fun k hjk =>
+        Nat.le_induction hm (fun k hjk _ => by
           by_cases hact : (μs k).actor = some q
-          · have := hdec k (by omega) hact (hall k hjk); omega
-          · rwa [(step_actor_frame (hexec k) hact).1]
+          · have := hdec k (by omega) hact (hall k hjk)
+            omega
+          · rwa [(step_actor_frame (hexec k) hact).1]) k hjk
       obtain ⟨k₀, hk₀_ge, hact₀⟩ := hfair q j fun k hk => hrem k (by omega) (hall k hk)
       have hlt := (hdec k₀ (by omega) hact₀ (hall k₀ hk₀_ge)).trans_le (hstay k₀ hk₀_ge)
       exact (ih (k₀ + 1) (by omega) (Nat.le_of_lt_succ hlt)).imp fun _ ⟨hk, h0⟩ => ⟨by omega, h0⟩
@@ -1175,11 +1174,8 @@ private theorem exists_forall_eq_of_antitone_finset
     · exact ⟨t₁, le_rfl, hall⟩
     push Not at hall
     obtain ⟨k₀, hk₀, hne⟩ := hall
-    have hsub : f k₀ ⊆ f t₁ := by
-      clear hne
-      induction k₀, hk₀ using Nat.le_induction with
-      | base => exact Finset.Subset.refl _
-      | succ k hk ihk => exact (hanti k hk).trans ihk
+    have hsub : f k₀ ⊆ f t₁ :=
+      Nat.le_induction (Finset.Subset.refl _) (fun k hk ihk => (hanti k hk).trans ihk) k₀ hk₀
     obtain ⟨t, ht, hstab⟩ := ih _ (hc ▸ Finset.card_lt_card
       (Finset.ssubset_iff_subset_ne.mpr ⟨hsub, hne⟩)) k₀ (fun k hk => hanti k (by omega)) rfl
     exact ⟨t, by omega, hstab⟩
@@ -1368,8 +1364,8 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     intro k hk r hr_cs
     rcases eq_or_ne r q_star with rfl | hr_eq
     · have hw := hq_star_wait k hk
-      simp [BakeryState.inWaiting, BakeryPhase.isWaiting, show (ss k).phase r = .cs from hr_cs]
-        at hw
+      unfold BakeryState.inCS at hr_cs
+      simp [BakeryState.inWaiting, BakeryPhase.isWaiting, hr_cs] at hw
     · exact lt_asymm (bakery_cs_lt (hreach_all k) hr_cs (hq_star_bak k hk) hr_eq)
         (hq_star_global_min k hk r (.inr hr_cs) hr_eq)
   -- Step 4a: Drain all processes initially in `.failed` or `.writeNumberZero` at `t_s`.
@@ -1377,20 +1373,16 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
       ∃ u ≥ t_s, (ss u).phase r ≠ .failed ∧ (ss u).phase r ≠ .writeNumberZero := by
     obtain ⟨u, hu_ge, hu_zero⟩ := exists_nonBakeryMeasure_zero hexec hfair (q := r) (i := t_s)
       (fun k hk => hbound k (by omega) r)
-    refine ⟨u, hu_ge, ?_⟩
-    cases hph : (ss u).phase r <;> simp_all [nonBakeryMeasure]
+    exact ⟨u, hu_ge, by cases hph : (ss u).phase r <;> simp_all [nonBakeryMeasure]⟩
   choose v_of hv_ge hv_clean using hex_clean_rf
-  have hv_clean_from : ∀ r j, v_of r ≤ j →
-      (ss j).phase r ≠ .failed ∧ (ss j).phase r ≠ .writeNumberZero := fun r j hj =>
-    have hv_ge_r := hv_ge r
-    Nat.le_induction (hv_clean r) (fun m hm ihm => step_clean_reset_fail (hexec m)
-      (hbound m (by omega) r) (hno_cs_after m (by omega) r) ihm) j hj
   let t_A := Finset.univ.sup v_of ⊔ t_s
   have ht_A_ge : t_s ≤ t_A := le_sup_right
   have hclean_after_tA : ∀ k ≥ t_A, ∀ r,
-      (ss k).phase r ≠ .failed ∧ (ss k).phase r ≠ .writeNumberZero :=
-    fun k hk r =>
-      hv_clean_from r k (((Finset.le_sup (Finset.mem_univ r)).trans le_sup_left).trans hk)
+      (ss k).phase r ≠ .failed ∧ (ss k).phase r ≠ .writeNumberZero := fun k hk r =>
+    have hv_ge_r := hv_ge r
+    Nat.le_induction (hv_clean r) (fun m _ ihm => step_clean_reset_fail (hexec m)
+      (hbound m (by omega) r) (hno_cs_after m (by omega) r) ihm) k
+      (((Finset.le_sup (Finset.mem_univ r)).trans le_sup_left).trans hk)
   -- Step 4b: From `t_A` onward, any doorway completion enters `inWaiting` permanently.
   have hstay_waiting_after_tA : ∀ r k, t_A ≤ k → (ss k).inWaiting r →
       ∀ j ≥ k, (ss j).inWaiting r := fun r k hk hw_r j hj =>

@@ -318,16 +318,13 @@ theorem pairwise_incomparable_codewords (T : CodeTree α) :
   induction T with
   | leaf _ => simp [codewords]
   | branch l r ihl ihr =>
-    have hmap (b : Bool) (L : List (α × List Bool)) :
-        (L.map fun p => (p.1, b :: p.2)).map Prod.snd = (L.map Prod.snd).map (b :: ·) := by
-      simp [List.map_map, Function.comp_def]
-    have hcons (b : Bool) {L : List (List Bool)}
-        (h : L.Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁)) :
-        (L.map (b :: ·)).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁) :=
-      List.pairwise_map.mpr <| h.imp fun h' =>
+    have hcons (b : Bool) {L : List (α × List Bool)}
+        (h : (L.map Prod.snd).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁)) :
+        (L.map fun p => b :: p.2).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁) :=
+      List.pairwise_map.mpr <| (List.pairwise_map.mp h).imp fun h' =>
         ⟨fun hp => h'.1 (List.cons_prefix_cons.mp hp).2,
          fun hp => h'.2 (List.cons_prefix_cons.mp hp).2⟩
-    rw [codewords, List.map_append, hmap, hmap, List.pairwise_append]
+    rw [codewords, List.map_append, List.map_map, List.map_map, List.pairwise_append]
     exact ⟨hcons false ihl, hcons true ihr,
       List.forall_mem_map.2 fun _ _ => List.forall_mem_map.2 fun _ _ => by simp⟩
 
@@ -345,9 +342,8 @@ theorem isPrefixFree_codewordSet (T : CodeTree α) :
     (List.mem_map.mpr ⟨_, ha, rfl⟩) (List.mem_map.mpr ⟨_, hb, rfl⟩) hne).1 hpref
 
 theorem nil_notMem_codewordSet_branch (l r : CodeTree α) :
-    [] ∉ (branch l r).codewordSet := by
-  rintro ⟨a, ha⟩
-  simp [codewords] at ha
+    [] ∉ (branch l r).codewordSet :=
+  fun ⟨_, ha⟩ => by simp [codewords] at ha
 
 /-- Every non-leaf `CodeTree` codebook satisfies Mathlib's
 `InformationTheory.IsUniquelyDecodable`. -/
@@ -490,9 +486,8 @@ theorem decode_encode [DecidableEq α] (l r : CodeTree α) {msg : List α} {bits
     simp only [encode, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at henc
     rcases henc with ⟨_ | ⟨b, bs⟩, hc, rest, hrest, rfl⟩
     · exact absurd ⟨a, mem_codewords_of_encodeSym hc⟩ (nil_notMem_codewordSet_branch l r)
-    · have hd1 : decodeOne (branch l r) (b :: (bs ++ rest)) = some (a, rest) :=
-        decodeOne_append_of_mem_codewords (mem_codewords_of_encodeSym hc) rest
-      rw [List.cons_append, decode]
+    · have hd := decodeOne_append_of_mem_codewords (mem_codewords_of_encodeSym hc) rest
+      simp only [List.cons_append, decode] at hd ⊢
       split <;> simp_all
 
 private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List Bool)}

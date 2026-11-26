@@ -328,8 +328,7 @@ private theorem runFrom_liftAdversary_liftParty {AdvQ AdvR : Type}
   cases q with
   | inl k => exact runFrom_query_sample _ k s
   | inr p =>
-    refine (Machine.runFrom_query _ _ s).trans ?_
-    exact (StateT.run_lift _ s).trans (by rw [bind_pure_comp])
+    exact (Machine.runFrom_query _ _ s).trans ((StateT.run_lift _ s).trans (by rw [bind_pure_comp]))
 
 /-! #### Activations, one case at a time -/
 
@@ -357,10 +356,7 @@ theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C : Finset 
     ((routeCorrupt C P).handle (.inr (.inl (i, x)))).run s =
       if i ∈ C then (fun p => (Sum.inl p.1, p.2)) <$> (P.handle (.inl (i, x))).run s
       else pure (.inl none, s) := by
-  dsimp only [routeCorrupt]
-  split_ifs
-  · exact StateT.run_map _ _ _
-  · rfl
+  by_cases hi : i ∈ C <;> simp [routeCorrupt, hi, StateT.run_map]
 
 theorem routeCorrupt_handle_inr_inr {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (q : NetQ) (s : P.State) :
@@ -705,9 +701,8 @@ theorem EmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial �
     (hρ : ρ.PolyBounded pρ) (h : EmulatesDummyWithin π φ pD ε) :
     EmulatesDummyWithin (compose ρ π) (compose ρ φ) (pD + 1) (fun pZ => ε (absorbPoly pZ pρ)) := by
   obtain ⟨S, hS, hadv⟩ := h
-  refine ⟨hybridSim S, hybridSim_polyBounded hS, fun C Z pZ hZ κ z => ?_⟩
-  rw [advantage_compose]
-  exact hadv C _ _ (absorbHybrid_polyBounded C hρ hZ) κ z
+  exact ⟨hybridSim S, hybridSim_polyBounded hS, fun C Z pZ hZ κ z =>
+    (advantage_compose ..).trans_le (hadv C _ _ (absorbHybrid_polyBounded C hρ hZ) κ z)⟩
 
 /-- Concrete composition for `EmulatesWithin`, this library's novel call-bounded, fixed-`n`-party,
 port-model emulation notion, a step toward Canetti's computational UC composition theorem but not
@@ -741,9 +736,8 @@ theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : 
   obtain ⟨S, pD, hS, hadv⟩ := h
   refine ⟨hybridSim S, pD + 1, hybridSim_polyBounded hS, fun pZ => ?_⟩
   obtain ⟨ν, hν, hbound⟩ := hadv (absorbPoly pZ pρ)
-  refine ⟨ν, hν, fun C Z hZ κ z => ?_⟩
-  rw [advantage_compose]
-  exact hbound C _ (absorbHybrid_polyBounded C hρ hZ) κ z
+  exact ⟨ν, hν, fun C Z hZ κ z =>
+    (advantage_compose ..).trans_le (hbound C _ (absorbHybrid_polyBounded C hρ hZ) κ z)⟩
 
 /-- Replacing an ideal functionality by a protocol that realizes it in the sense of `Realizes`,
 this library's novel call-bounded, fixed-`n`-party, port-model notion: a step after corollary (a)

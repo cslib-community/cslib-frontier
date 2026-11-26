@@ -155,10 +155,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         s (s.write G.outAddrBase 0) 3 ∧
       outputList (s.write G.outAddrBase 0).mem G.outAddrBase = answerWords G := by
     have hn : ¬ (Cond.eq compIdxReg cOne).Holds s := by rw [Cond.holds_eq, hok, h1]; omega
-    have hneg : ExecWithin (B := .standard) w (ram[ *outBase ← cZero ])
-        s (s.write G.outAddrBase 0) 1 := by
-      wram_exec [hob, h0]
-    exact ⟨hneg.branch_neg hn,
+    exact ⟨(by wram_exec [hob, h0] : ExecWithin w _ s _ 1).branch_neg hn,
       hans ▸ outputList_eq_iff.mpr ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩⟩
   cases hchk : checkClauses G.φ
   · -- Invalid clause width: return `[]`
@@ -226,9 +223,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               kRevEdgeAddr, kCurAddr, kVisAddr, kOrdAddr, kStkAddr, kCompAddr]
           all_goals omega
         all_goals
-          exact hfit_top.of_le (by
-            dsimp only [wb, N, Mc, Instance.workBase, kTopAddr]
-            omega)
+          exact hfit_top.of_le (by dsimp only [wb, N, Mc, Instance.workBase, kTopAddr]; omega)
       have hcm₃ : ClauseMemAt s₃.mem 3 G.φ :=
         hs₃_mem ▸ hs₂_mem ▸ hs₀_mem ▸ clauseMemAt_init G
       obtain ⟨s₄, hs₄_ex, hs₄_csr, _, hs₄_fr⟩ :=
@@ -277,9 +272,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           obtain ⟨hbr, hout⟩ := hwrite_nil s₈ hs₈_0 hs₈_1
             (hs₈_ok.trans (congrArg Bool.toNat hok_all)) hs₈_ob hans
           exact ⟨_, hbr.mono (by omega), hs₈_ob, hout⟩
-        · have hs₈_ok1 : s₈.regs compIdxReg = 1 := by rw [hs₈_ok, hok_all]; rfl
-          have hcond_ok : (Cond.eq compIdxReg cOne).Holds s₈ := by
-            rw [Cond.holds_eq, hs₈_ok1, hs₈_1]
+        · have hcond_ok : (Cond.eq compIdxReg cOne).Holds s₈ := by
+            rw [Cond.holds_eq, hs₈_ok, hok_all, hs₈_1]; rfl
           have hf_n1 : Fits w (G.n + 1) :=
             G.fits_of_le hfit (by unfold Instance.wordBound; omega)
           let y_sat := (((s₈.set addr (G.n + 1)).write G.outAddrBase (G.n + 1)).set
@@ -304,7 +298,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           rcases i with _ | q
           · wram_simp [Block.read, y_sat]; rfl
           · have hq : q < G.n := by simpa using hi
-            rw [Block.read, show G.outAddrBase + 1 + (q + 1) = G.outAddrBase + 2 + q by omega]
+            have haddr : G.outAddrBase + 1 + (q + 1) = G.outAddrBase + 2 + q := by omega
+            rw [Block.read, haddr]
             wram_simp [y_sat, hs₈_bits ⟨q, hq⟩ (hdist_all ⟨q, hq⟩)]
             simp
       obtain ⟨y, hy_br, hy_ob, hy_list⟩ := hfin_ext

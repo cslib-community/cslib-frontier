@@ -211,10 +211,7 @@ private theorem two_mul_card_filter_firstFlagUnset (S : Finset α) (k : ℕ) :
       (fun a ha => by simpa only [coe_filter, Set.mem_ofPred_eq, hP] using ha)
       (fun a ha => by simpa only [coe_filter, Set.mem_ofPred_eq, hP, flipFirst_flipFirst] using ha)
       (fun a _ => flipFirst_flipFirst a) (fun a _ => flipFirst_flipFirst a)
-  have hsum : ∑ a ∈ P, (((if FirstFlagUnset g a then 1 else 0) +
-      if FirstFlagUnset g (flipFirst g a) then 1 else 0) : ℕ) =
-        ∑ a ∈ P, (1 + if ∀ i, ¬g (a i).1 then 1 else 0) :=
-    sum_congr rfl fun a _ => ite_firstFlagUnset_add_flipFirst a
+  have hsum := sum_congr (s₁ := P) rfl fun a _ => ite_firstFlagUnset_add_flipFirst (g := g) a
   simp only [sum_add_distrib, ← card_filter, hflip, sum_const, smul_eq_mul, mul_one] at hsum
   have hnone : {a ∈ P | ∀ i, ¬g (a i).1} =
       Fintype.piFinset fun _ : Fin k => {A ∈ S | ¬g A} ×ˢ (univ : Finset Bool) := by
@@ -484,11 +481,9 @@ private theorem exists_mem_span_firstFlagUnset_eq {d : ℕ}
       refine Submodule.span_le.2 ?_
       rintro _ ⟨a, ⟨ha, h0⟩, rfl⟩
       refine ⟨gen a, Submodule.subset_span ⟨a, ⟨ha, fun i _ _ => ?_⟩, rfl⟩, fun _ _ => rfl⟩
-      cases hb : (a i).2
-      · rfl
-      · have hge := genWeight_eq a i
-        simp only [atomWeight, hb, ↓reduceIte] at hge
-        omega
+      by_contra hb
+      simpa [atomWeight, Bool.eq_true_of_not_eq_false hb] using
+        (genWeight_eq a i).symm.trans_le h0
     | succ n ih =>
       refine Submodule.span_le.2 ?_
       rintro _ ⟨a, ⟨ha, hn⟩, rfl⟩
@@ -605,18 +600,18 @@ theorem abs_expect_signVal_xorMajority_mul_signVal_le_card {k m d : ℕ}
 coefficients. -/
 private theorem card_filter_card_le_le_choose (m d : ℕ) :
     #{A : Finset (Fin (2 * m + 1)) | #A ≤ m ∧ m < #A + d} ≤ d * (2 * m + 1).choose m := by
+  have hdiv : (2 * m + 1) / 2 = m := by omega
   calc
     _ ≤ #((Icc (m + 1 - d) m).biUnion fun s => powersetCard s (univ : Finset (Fin (2 * m + 1)))) :=
       card_le_card fun A hA => by
-        simp only [mem_filter, mem_univ, true_and] at hA
-        simp only [mem_biUnion, mem_Icc, mem_powersetCard]
-        exact ⟨#A, ⟨by omega, hA.1⟩, subset_univ A, rfl⟩
+        obtain ⟨hle, hgt⟩ := (mem_filter.1 hA).2
+        exact mem_biUnion.2
+          ⟨#A, mem_Icc.2 ⟨by omega, hle⟩, mem_powersetCard.2 ⟨subset_univ A, rfl⟩⟩
     _ ≤ ∑ s ∈ Icc (m + 1 - d) m, #(powersetCard s (univ : Finset (Fin (2 * m + 1)))) :=
       card_biUnion_le
-    _ ≤ ∑ _s ∈ Icc (m + 1 - d) m, (2 * m + 1).choose m := by
-      refine sum_le_sum fun s _ => ?_
-      rw [card_powersetCard, card_univ, Fintype.card_fin]
-      simpa [show (2 * m + 1) / 2 = m by omega] using Nat.choose_le_middle s (2 * m + 1)
+    _ ≤ ∑ _s ∈ Icc (m + 1 - d) m, (2 * m + 1).choose m :=
+      sum_le_sum fun s _ => by
+        simpa [card_powersetCard, hdiv] using Nat.choose_le_middle s (2 * m + 1)
     _ ≤ d * (2 * m + 1).choose m := by
       rw [sum_const, Nat.card_Icc, smul_eq_mul]
       exact Nat.mul_le_mul_right _ (by omega)

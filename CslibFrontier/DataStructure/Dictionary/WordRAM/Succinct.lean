@@ -153,8 +153,7 @@ theorem span_exec_succinct {U V w n_max base : ℕ}
       (.op (.exactBin .add frontierReg frontierReg curReg)) s₂ s₃ 1 := by
     apply ExecWithin.op
     have hfr₂ : s₂.regs frontierReg = base := by simp [s₂, s₁, hfr]
-    have hcur₂ : s₂.regs curReg = space U V w n_max := by simp [s₂]
-    rw [Op.eval_exactBin, hfr₂, hcur₂]
+    rw [Op.eval_exactBin, hfr₂]
     exact Data.put_of_fits hfit
   refine ⟨s₃, ExecWithin.copy.seq ((ExecWithin.const (by fits)).seq e₃), rfl, ?_, ?_,
     fun j => Fin.elim0 j⟩
@@ -239,10 +238,9 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
     have hz_base : z.regs baseReg = base := by
       change (z.comap coreReg).regs 0 = base
       rwa [Data.comap_extend coreReg_injective]
-    have h240 : 240 ≤ frontierReg.val := le_rfl
     have hz_fr : z.regs frontierReg = base + space U V w n_max := by
-      rwa [Data.extend_regs_of_notMem _ _ (notMem_range_coreReg h240),
-        Data.extend_regs_of_notMem _ _ (notMem_range_coreReg h240)]
+      rwa [Data.extend_regs_of_notMem _ _ (notMem_range_coreReg le_rfl),
+        Data.extend_regs_of_notMem _ _ (notMem_range_coreReg le_rfl)]
     have htable_zero : ∀ a, base + hashSpace U w n_max ≤ a →
         a < base + space U V w n_max → z.mem a = 0 := fun a ha1 ha2 =>
       ((hq_mod a (by simp only [Block.mem_footprint, Block.Owns]; omega) : z.mem a = x₂.mem a).trans
@@ -251,17 +249,15 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
     obtain ⟨hdict0, hpot0⟩ := dictStateInv_of_zero (s := memoryState frontierReg z) q.latent
       (congrFun (gmAt_zero_of_init hwf.1 htable_zero))
       (congrFun (lmAt_zero_of_init hwf.1 htable_zero))
-    have hmod_all : Modifies (Block.mk base (space U V w n_max)).footprint x₁.mem z.mem := by
-      intro a ha
-      simp only [Block.mem_footprint, Block.Owns] at ha
+    refine ⟨hz_fr, ⟨hz_bdd, hz_base, hz_fr, hq_tab, hq_seed, hdict0⟩, ?_, fun a ha => ?_⟩
+    · dsimp only [potential, memoryState] at hpot0 ⊢
+      rw [hpot0, Nat.mul_zero]
+    · simp only [Block.mem_footprint, Block.Owns] at ha
       refine (hq_mod a ?_).trans (hy_mod a ?_)
       · simp only [Block.mem_footprint, Block.Owns]
         omega
       · simp only [ReducedKWise.tabBase, hashSpace, ReducedKWise.space] at hhs ⊢
         omega
-    refine ⟨hz_fr, ⟨hz_bdd, hz_base, hz_fr, hq_tab, hq_seed, hdict0⟩, ?_, hmod_all⟩
-    dsimp only [potential, memoryState] at hpot0 ⊢
-    rw [hpot0, Nat.mul_zero]
 
 theorem tsum_mul_probeExcess_le {U V w n_max base : ℕ} (hnU : n_max ≤ U)
     {s_abs : Dictionary.State U} (u : Fin U)
@@ -618,9 +614,7 @@ theorem seq_expected_amortized {U V w n_max base : ℕ}
     C.seq_expected_amortized_ofFn ops hx hfr (fun j => Fin.elim0 j) hz hv
   refine ⟨ν₀, ν_final, T_ops, he_init, hex_steps,
     fun θ => (hseed_final θ).trans_eq (one_mul _), hrep_final, ?_⟩
-  have hp0 : C.initPotential = 0 := rfl
-  have hch : C.charge = charge := rfl
-  have hpot : C.potential = potential U V w n_max base := rfl
-  simpa only [hp0, hch, hpot, totalCost_charge_eq, Nat.cast_zero, add_zero] using hamort
+  simpa only [C, impl, Randomized.StateTransitionImpl.ofFn, totalCost_charge_eq,
+    Nat.cast_zero, add_zero] using hamort
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

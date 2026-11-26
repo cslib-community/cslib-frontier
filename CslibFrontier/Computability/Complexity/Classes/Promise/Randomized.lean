@@ -244,9 +244,9 @@ theorem rpReducible_iff_exists_seeded :
     refine ⟨R, hR, fun a ha b hb => ?_, fun a ha => ?_⟩
     · supp_cases hb [R, BitString.eval_sampleList, BitString.mem_support_uniformList_iff] with
         ⟨w, hw, rfl⟩
-      have hr := hyes a ha fun i => w[i.val]'(by omega)
-      rwa [show (List.ofFn fun i : Fin (p.eval (encA a).length) => w[i.val]'(by omega)) = w from
-        List.ext_getElem (by simp [hw]) fun i _ _ => by simp] at hr
+      have heq : (List.ofFn fun i : Fin (p.eval (encA a).length) => w[i.val]'(by omega)) = w :=
+        List.ext_getElem (by simp [hw]) fun _ _ _ => by simp
+      simpa only [heq] using hyes a ha fun i => w[i.val]'(by omega)
     · simp only [R, ProbComp.eval_map, BitString.eval_sampleList]
       rw [BitString.toOuterMeasure_map_uniformList_toReal,
         div_le_div_iff₀ (by norm_num) (by positivity), mul_comm _ (3 : ℝ)]
@@ -434,10 +434,8 @@ theorem RPReducible.mem_PromiseCoRP (hXY : RPReducible encA encB X Y)
   let M (b : β) : ProbComp Bool :=
     (fun w => V (b, w)) <$> BitString.sampleList (p.eval (encB b).length)
   have hM (b : β) (hb : b ∈ Y.no) : 3 / 4 ≤ Pr[M b] := by
-    have h : 1 - 1 / (2 : ℝ) ^ 2 ≤ Pr[M b] := by
-      simpa only [Polynomial.eval_ofNat] using
-        probability_sampleList_ge_of_errorExponentAt_true ((hYV b).1 hb)
-    linarith
+    have h := probability_sampleList_ge_of_errorExponentAt_true ((hYV b).1 hb)
+    rw [Polynomial.eval_ofNat] at h; linarith
   -- on a no-instance of `X`, the composition accepts with probability at least `2 / 3 * 3 / 4`
   refine compl_mem_PromiseRP_iff.1 (mem_PromiseRP_iff_exists_isPPTOn.2
     ⟨fun a => R a >>= M, hR.bind (IsPPTOn.of_seeded ((ComputableInPolyTime.unary_eval p).comp
@@ -477,16 +475,12 @@ theorem RPReducible.mem_PromiseBPP (hXY : RPReducible encA encB X Y)
   let M (b : β) : ProbComp Bool :=
     (fun w => V (b, w)) <$> BitString.sampleList (p.eval (encB b).length)
   have hMyes (b : β) (hb : b ∈ Y.yes) : 7 / 8 ≤ Pr[M b] := by
-    have h : 1 - 1 / (2 : ℝ) ^ 3 ≤ Pr[M b] := by
-      simpa only [Polynomial.eval_ofNat] using
-        probability_sampleList_ge_of_errorExponentAt_true ((hYV b).1 hb)
-    linarith
+    have h := probability_sampleList_ge_of_errorExponentAt_true ((hYV b).1 hb)
+    rw [Polynomial.eval_ofNat] at h; linarith
   have hMno (b : β) (hb : b ∈ Y.no) : Pr[M b] ≤ 1 / 8 := by
-    rw [probability_sampleList_verifier, div_le_div_iff₀ (by positivity) (by positivity)]
-    have h := errorExponentAt_false_iff.1 ((hYV b).2 hb)
-    simp only [Polynomial.eval_ofNat] at h
-    linarith [show (8 : ℝ) * acceptCount V b (p.eval (encB b).length) ≤
-      2 ^ p.eval (encB b).length by exact_mod_cast h]
+    have h := Nat.cast_le (α := ℝ).mpr (errorExponentAt_false_iff.1 ((hYV b).2 hb))
+    simp only [Polynomial.eval_ofNat, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat] at h
+    rw [probability_sampleList_verifier, div_le_div_iff₀ (by positivity) (by positivity)]; linarith
   -- one run of `R` followed by `M` accepts yes-instances with probability at least `7 / 8` and
   -- no-instances with probability at most `1 / 3 + 1 / 8`; two runs must both accept
   let T (a : α) : ProbComp Bool := R a >>= M
@@ -517,8 +511,7 @@ theorem RPReducible.mem_PromiseBPP (hXY : RPReducible encA encB X Y)
       calc Pr[T a] * Pr[T a] ≤ (11 / 24) * (11 / 24) :=
             mul_le_mul hT_no hT_no ENNReal.toReal_nonneg (by norm_num)
         _ ≤ 1 / 3 := by norm_num
-    rw [ProbComp.probability_not]
-    linarith
+    rw [ProbComp.probability_not]; linarith
 
 /-- If a decision problem `A` is `RPReducible` to `Y` and `Y ∈ PromiseBPP encB`, then
 `A ∈ BPP encA`. -/

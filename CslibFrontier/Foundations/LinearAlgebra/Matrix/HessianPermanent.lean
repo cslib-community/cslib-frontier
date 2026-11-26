@@ -73,9 +73,8 @@ private theorem sandwich_eq_zero {K R : Type*} [Field K] [Ring R] [Algebra K R] 
   have hJDJ' : ∀ Y, J * (D * (J * Y)) = (N - 1) • (J * Y) := fun Y => by
     rw [← mul_assoc, ← mul_assoc, hJDJ, smul_mul_assoc]
   have hDD' : ∀ Y, D * (D * Y) = D * Y := fun Y => by rw [← mul_assoc, hDD]
-  have cancel : ∀ {c : K} {Y : R}, c ≠ 0 → c • Y = 0 → Y = 0 := by
-    intro c Y hc hY
-    rw [← one_smul K Y, ← inv_mul_cancel₀ hc, mul_smul, hY, smul_zero]
+  have cancel {c : K} {Y : R} (hc : c ≠ 0) (hY : c • Y = 0) : Y = 0 :=
+    (inv_smul_smul₀ hc Y).symm.trans (by simp [hY])
   set E := (N - 1) • D - D * J * D with hE
   have h1 : (p * (N - 1) ^ 2) • (D * X * D) + s • (E * X * E) = 0 := by
     have key := congrArg (fun Z => D * (J - (N - 1) • 1) * Z * ((J - (N - 1) • 1) * D)) h
@@ -113,10 +112,9 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι] {K : Type*} [Field K]
 
 private theorem sum_ite_eq_zero_else_one (o : ι) :
     ∑ k : ι, (if k = o then (0 : K) else 1) = (Fintype.card ι : K) - 1 := by
-  have : ∀ k : ι, (if k = o then (0 : K) else 1) = 1 - if k = o then 1 else 0 := fun k => by
+  have : ∀ k : ι, (if k = o then (0 : K) else 1) = 1 - if k = o then 1 else 0 := fun _ => by
     split_ifs <;> simp
-  simp only [this, Finset.sum_sub_distrib, Finset.sum_ite_eq', Finset.mem_univ, ite_true,
-    Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one]
+  simp [this]
 
 /-- The structured matrix behind the Mignon–Ressayre Hessian is invertible. -/
 private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι : K) - 1 ≠ 0)
@@ -134,9 +132,8 @@ private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι :
     Matrix.ext fun _ _ => by
       rw [Matrix.mul_apply]
       simp [hJ, hD, sum_ite_eq_zero_else_one]
-  have hDD : D * D = D := by
-    ext i j
-    by_cases hij : i = j <;> simp [hD, hij]
+  have hDD : D * D = D :=
+    Matrix.ext fun i j => by by_cases hij : i = j <;> simp [hD, hij]
   have hA : ∀ i j, (J - 1) i j = if i = j then 0 else 1 := fun i j => by
     by_cases h : i = j <;> simp [hJ, h]
   have hB : ∀ i j, (D * (J - 1) * D) i j = if i = j ∨ i = o ∨ j = o then 0 else 1 :=
@@ -156,15 +153,10 @@ private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι :
       Finset.sum_mul, Finset.mul_sum, add_mul, Finset.sum_add_distrib]
     refine congrArg₂ (· + ·) ?_ ?_ <;> rw [Finset.sum_comm] <;>
       exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
-  have hinj : Function.Injective H.mulVec := by
-    intro u w huw
-    have hX := sandwich_eq_zero hJJ hJDJ hDD hN hp hps
-      (X := Matrix.of fun r c => (u - w) (r, c)) (by
-        ext r c
-        rw [← hmul, Matrix.mulVec_sub, huw, sub_self]
-        rfl)
-    funext ⟨r, c⟩
-    exact sub_eq_zero.1 (congrFun (congrFun hX r) c)
+  have hinj : Function.Injective H.mulVec := fun u w huw => by
+    have hX := sandwich_eq_zero hJJ hJDJ hDD hN hp hps (X := Matrix.of fun r c => (u - w) (r, c))
+      (Matrix.ext fun r c => (hmul (u - w) r c).symm.trans (by simp [Matrix.mulVec_sub, huw]))
+    exact funext fun ⟨r, c⟩ => sub_eq_zero.1 (congrFun (congrFun hX r) c)
   rw [Matrix.rank_of_isUnit _ (Matrix.mulVec_injective_iff_isUnit.1 hinj), Fintype.card_prod]
 
 /-- The Mignon–Ressayre point: the all-ones matrix with `1 - card ι` at `(o, o)`. -/
@@ -284,25 +276,25 @@ theorem rank_hessian_permanent_mignonRessayrePoint (o : ι)
     (hfact : ((Fintype.card ι - 1).factorial : K) ≠ 0) (hN : 2 ≤ Fintype.card ι) :
     (hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent).rank =
       Fintype.card ι * Fintype.card ι := by
-  rw [show hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent = Matrix.of _
-    from Matrix.ext (hessian_permanent_mignonRessayrePoint o)]
+  rw [Matrix.ext (hessian_permanent_mignonRessayrePoint (K := K) o)]
   obtain ⟨k, hk⟩ : ∃ k, Fintype.card ι = k + 2 := ⟨_, (Nat.sub_add_cancel hN).symm⟩
   have h2 : ∀ j, k = j + 1 → (2 : K) ≠ 0 := fun j hj h2 => hfact (by
     obtain ⟨c, hc⟩ := Nat.dvd_factorial two_pos (show 2 ≤ Fintype.card ι - 1 by omega)
     rw [hc, Nat.cast_mul, Nat.cast_two, h2, zero_mul])
-  rw [hk, show k + 2 - 1 = k + 1 from rfl, Nat.factorial_succ, Nat.cast_mul] at hfact
+  rw [hk, Nat.add_succ_sub_one, Nat.factorial_succ, Nat.cast_mul] at hfact
   obtain ⟨hk1, hkf⟩ := mul_ne_zero_iff.1 hfact
   refine rank_of_ite_sandwich o ?_ ?_ ?_ <;> rw [hk]
   · convert hk1 using 1
-    push_cast; ring
+    push_cast
+    ring
   · exact hkf
   · rcases k with _ | j
     · norm_num
-    · rw [show j + 1 + 2 - 2 = j + 1 from rfl, show j + 1 + 2 - 3 = j from rfl,
-        Nat.factorial_succ]
+    · rw [Nat.add_sub_cancel, Nat.add_assoc j 1 2, Nat.add_sub_cancel, Nat.factorial_succ]
       rw [Nat.factorial_succ, Nat.cast_mul] at hkf
       convert mul_ne_zero (neg_ne_zero.2 (h2 j rfl)) (right_ne_zero_of_mul hkf) using 1
-      push_cast; ring
+      push_cast
+      ring
 
 /-- **Mignon–Ressayre inequality**: if the generic `N × N` permanent is the determinant of a
 `κ × κ` matrix of affine polynomials, then `N ^ 2 ≤ 2 · card κ`, provided `(N - 1)! ≠ 0` in `K`

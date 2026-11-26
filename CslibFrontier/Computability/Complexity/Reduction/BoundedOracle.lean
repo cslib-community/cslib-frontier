@@ -709,17 +709,17 @@ private theorem comp_isOraclePPTOn {oracle₁ oracle₂ : List Bool → List Boo
       (R₂.isOraclePPTOn.preprocess (input := EIn) (prepare := fun ⟨_, _, w⟩ => w)
         (by dsimp only [EIn]; fun_prop)).map_with
         (f := fun ⟨a, _⟩ reply => reply.take (R₁.alenCap a)) htake_pt
-  have hsub := R₁.isOraclePPTOn.interpret_preprocess_open'
-    (operationEncoding := encFinEnum Unit)
-    (handler := fun a q => OracleComp.interpret ProbOracleComp.query
-      (List.take (R₁.alenCap a) <$> R₂.program q.2))
-    (prepare := _root_.id) (resources := fun a _ => R₁.alenCap a)
-    .id' hhandler (R₁.computableInPolyTime_alenCap.comp (.fst encA encBits))
-    fun _ _ _ hreply => by
-      rw [OracleComp.interpret_map] at hreply
-      obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
-      exact List.length_take_le _ _
-  simpa only [_root_.id, OracleComp.interpret_interpret, ProbOracleComp.interpret_query] using hsub
+  simpa only [_root_.id, OracleComp.interpret_interpret, ProbOracleComp.interpret_query] using
+    R₁.isOraclePPTOn.interpret_preprocess_open'
+      (operationEncoding := encFinEnum Unit)
+      (handler := fun a q => OracleComp.interpret ProbOracleComp.query
+        (List.take (R₁.alenCap a) <$> R₂.program q.2))
+      (prepare := _root_.id) (resources := fun a _ => R₁.alenCap a)
+      .id' hhandler (R₁.computableInPolyTime_alenCap.comp (.fst encA encBits))
+      fun _ _ _ hreply => by
+        rw [OracleComp.interpret_map] at hreply
+        obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+        exact List.length_take_le _ _
 
 private theorem comp_respects_bound {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
     (R₁ : BoundedOracleProgram encA encB oracle₁ f)
@@ -829,14 +829,8 @@ theorem totalQueryLength_comp_affine {oracle₁ oracle₂ : List Bool → List B
   dsimp only [comp]
   rw [(comp_interpret_and_queriesWith R₁ R₂ a).2, List.map_flatMap, List.flatMap_def,
     List.sum_flatten, List.map_map]
-  set qs₁ := OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)
-  have hstep := list_sum_affine_le
-    (fun q : Unit × List Bool =>
-      ((OracleComp.queriesWith (fun q' => oracle₂ q'.2) (R₂.program q.2)).map
-        fun q' => q'.2.length).sum)
-    (fun q => q.2.length) scale offset qs₁ fun q _ =>
-      (R₂.respects_bound q.2).2.2.1.trans (haff q.2)
-  exact hstep.trans
+  exact (list_sum_affine_le _ (fun q => q.2.length) scale offset _ fun q _ =>
+      (R₂.respects_bound q.2).2.2.1.trans (haff q.2)).trans
     (Nat.add_le_add (Nat.mul_le_mul_left scale htql₁) (Nat.mul_le_mul_left offset hqc₁))
 
 /-- Composed `BoundedOracleProgram` refining `comp` with the sharper linear `totalQlen` budget
@@ -1256,12 +1250,10 @@ theorem mem_PSPACE {A : Set α} {B : Set β} (D : Decoder encB)
       ((ComputableInPolySpace.of_inSpace hS ⟨_, c, htm, hout⟩).comp
         (.of_polyTime D.computableInPolyTime))
       (.of_polyTime (.const false))
-  have horacle : ComputableInPolySpace (encodedDecisionOracle encB B) encBits encBits := by
-    have heq : encodedDecisionOracle encB B = _ :=
-      funext fun w => congrArg List.singleton (decide_mem_image_eq_of_decoder D hgB w)
-    rw [heq]
-    exact (ComputableInPolySpace.of_polyTime
-      (ComputableInPolyTime.id'.of_enc_eq fun b => (encBool_apply b).symm)).comp hdecB_ps
+  have horacle : ComputableInPolySpace (encodedDecisionOracle encB B) encBits encBits :=
+    ((ComputableInPolySpace.of_polyTime
+      (ComputableInPolyTime.id'.of_enc_eq fun b => (encBool_apply b).symm)).comp hdecB_ps).congr
+      fun w => (congrArg List.singleton (decide_mem_image_eq_of_decoder D hgB w)).symm
   exact ⟨_, R.toProgram.computableInPolySpace horacle, fun _ => by simp⟩
 
 /-! ### Parameterized exponential and subexponential oracle transfer -/
@@ -1398,6 +1390,8 @@ private theorem expTime_step_dom {dn di da e Cp E clk stepPoly stateB clockLen l
   set C_big : ℝ := (Cp : ℝ) + Cp * (k_cost * 2 ^ (δ * offset) + (k_cost + 1))
   have hY1 : 1 ≤ Y := Real.one_le_rpow (by norm_num) (by positivity)
   have hYP : P ≤ Y * P := le_mul_of_one_le_left (by positivity) hY1
+  have hCpY : (Cp : ℝ) * P ≤ Cp * (Y * P) :=
+    mul_le_mul_of_nonneg_left hYP (Nat.cast_nonneg Cp)
   have hbase : ((lenA + 1) ^ dn + (lenA + 1) ^ di + (finLen + 1) ^ da +
       (clk + 1) * (stepPoly + stateB + (clockLen + 1) ^ 2) : ℝ) ≤ Cp * P := by
     have hf := Nat.pow_le_pow_left (Nat.add_le_add_right hfin 1) da
@@ -1406,12 +1400,11 @@ private theorem expTime_step_dom {dn di da e Cp E clk stepPoly stateB clockLen l
       (show stepPoly + stateB + (clockLen + 1) ^ 2 ≤
         stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1 by omega)
     dsimp only [P]
-    exact_mod_cast (by omega : _ ≤ Cp * (lenA + 1) ^ E)
+    exact_mod_cast (show _ ≤ Cp * (lenA + 1) ^ E by omega)
   have hsub {x : ℕ} (hx : x ≤ stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1) :
       ((clk : ℝ) + 1) * x ≤ Cp * P := by
-    have hm := Nat.mul_le_mul_left (clk + 1) hx
     dsimp only [P]
-    exact_mod_cast (by omega : (clk + 1) * x ≤ Cp * (lenA + 1) ^ E)
+    exact_mod_cast (Nat.mul_le_mul_left (clk + 1) hx).trans ((Nat.le_add_left _ _).trans hCp)
   have hcpow : ((clk : ℝ) + 1) * ((clk : ℝ) + 1) ^ e ≤ Cp * P := by
     simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one] using hsub (x := (clk + 1) ^ e) (by omega)
   have hclk1 : (clk : ℝ) + 1 ≤ Cp * P := by
@@ -1419,17 +1412,12 @@ private theorem expTime_step_dom {dn di da e Cp E clk stepPoly stateB clockLen l
   have hexp : (2 : ℝ) ^ (δ * (scale * μA + offset : ℕ)) = 2 ^ (δ * offset) * Y := by
     push_cast; rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]; congr 1; ring
   rw [hexp] at hleaf
-  have hmul : ((clk : ℝ) + 1) * leafMax ≤
-      (k_cost * 2 ^ (δ * offset)) * Y * (Cp * P) + (k_cost + 1 : ℝ) * (Cp * P) := by
-    have h1 := mul_le_mul_of_nonneg_left hleaf (show (0 : ℝ) ≤ clk + 1 by positivity)
-    have h2 := mul_le_mul_of_nonneg_left hcpow
-      (show (0 : ℝ) ≤ (k_cost : ℝ) * 2 ^ (δ * offset) * Y by positivity)
-    have h3 := mul_le_mul_of_nonneg_left hclk1 (show (0 : ℝ) ≤ (k_cost : ℝ) + 1 by positivity)
-    linarith
-  have hbase_Y := mul_le_mul_of_nonneg_left hYP (show (0 : ℝ) ≤ Cp by positivity)
-  have hk_Y := mul_le_mul_of_nonneg_left hYP
-    (show (0 : ℝ) ≤ (Cp : ℝ) * (k_cost + 1) by positivity)
-  refine (by push_cast at hbase ⊢; linarith : _ ≤ C_big * (Y * P)).trans
+  have h1 := mul_le_mul_of_nonneg_left hleaf (by positivity : (0 : ℝ) ≤ clk + 1)
+  have h2 := mul_le_mul_of_nonneg_left hcpow
+    (by positivity : (0 : ℝ) ≤ (k_cost : ℝ) * 2 ^ (δ * offset) * Y)
+  have h3 := mul_le_mul_of_nonneg_left (hclk1.trans hCpY) (by positivity : (0 : ℝ) ≤ k_cost + 1)
+  have h4 := hbase.trans hCpY
+  refine (show _ ≤ C_big * (Y * P) by push_cast at h4 ⊢; linarith).trans
     (mul_le_mul_of_nonneg_right (Nat.le_ceil C_big) (by positivity))
 
 open _root_.Turing.MultiTapeMachine in
@@ -1521,7 +1509,8 @@ theorem decidableInExpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB : �
     have hst : (encPair encNat encFiniteConfig st).length ≤ stateBound a := hstate a i hi
     have hp1 := Nat.pow_le_pow_left (Nat.add_le_add_right hst 1) d_step
     have hp2 : ((encPair encNat encFiniteConfig st).length + 1 + 1) ^ d_step ≤
-        (stateBound a + 2) ^ d_step := Nat.pow_le_pow_left (by omega) d_step
+        (stateBound a + 2) ^ d_step :=
+      Nat.pow_le_pow_left (Nat.add_le_add_right (Nat.add_le_add_right hst 1) 1) d_step
     split_ifs with hact
     · rcases Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp hact).2 with ⟨hcan_b, hle_b⟩
       set b := D.decode r

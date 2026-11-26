@@ -806,8 +806,7 @@ theorem eval_exec_honestCommitEnv [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     pure_bind, map_bind]
   rw [handle_plainRouter_commit scheme κ ∅ (Finset.notMem_empty 0)]
   simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
-  congr 1
-  refine bind_congr fun co => ?_
+  refine congrArg ProbComp.eval (bind_congr fun co => ?_)
   rw [handle_plainRouter_readCommit]
   simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.closeProgram_bind, map_bind]
@@ -854,7 +853,8 @@ theorem corruptReceiverEnv_polyBounded {scheme : PlainCommitmentScheme CommitMsg
     {pV : Polynomial ℕ} (hV : ∀ κ c o, (scheme.verify κ c o).IsQueryBounded (pV.eval κ))
     (b : Bool) : (corruptReceiverEnv scheme b).PolyBounded (pV + 4) := fun κ _ => by
   simp only [Polynomial.eval_add, Polynomial.eval_ofNat, corruptReceiverEnv]
-  rw [show pV.eval κ + 4 = 1 + (1 + (1 + (1 + pV.eval κ))) by omega]
+  have hbud : pV.eval κ + 4 = 1 + (1 + (1 + (1 + pV.eval κ))) := by omega
+  rw [hbud]
   refine (OracleComp.IsCostBounded.query _).bind fun _ =>
     (OracleComp.IsCostBounded.query _).bind fun r₁ => ?_
   rcases r₁ with _ | ⟨(_ | c) | _ | _⟩ <;> try exact OracleComp.IsCostBounded.pure _ _
@@ -878,8 +878,7 @@ theorem eval_exec_real_corruptReceiverEnv [DecidableEq CommitMsg] [DecidableEq O
     pure_bind, map_bind]
   rw [handle_plainRouter_commit scheme κ {1} (by decide)]
   simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
-  congr 1
-  refine bind_congr fun co => ?_
+  refine congrArg ProbComp.eval (bind_congr fun co => ?_)
   rw [handle_plainRouter_readCommit]
   simp only [Machine.closeProgram_pure, pure_bind, bind_pure_comp, Machine.runFrom_bind,
     Machine.runFrom_query, Machine.closeProgram_bind, map_bind]
@@ -924,12 +923,11 @@ queries. -/
 theorem isQueryBounded_simOpen {S₁ : PlainCommitmentSim CommitMsg OpenMsg} {κ t : ℕ}
     (hS : (S₁ κ {1}).IsBounded t) (b : Bool) (st₁ : (S₁ κ {1}).State) (recDel₁ : Bool) :
     (simOpen S₁ b κ st₁ recDel₁).IsQueryBounded t := by
-  refine (OracleComp.isCostBounded_map_iff _ _ _).mpr ?_
-  have hrun := Machine.isQueryBounded_runFrom (corruptRouter_fcom_isBounded κ {1})
+  refine (OracleComp.isCostBounded_map_iff _ _ _).mpr (Machine.isQueryBounded_closeProgram ?_)
+  simpa only [Nat.zero_add, Nat.mul_one, liftNet] using Machine.isQueryBounded_runFrom
+    (corruptRouter_fcom_isBounded κ {1})
     (Machine.isQueryBounded_liftRightProgram _ (hS.2 (.inr .readOpen) st₁))
     (fcomRouterState κ {1} (.opened b recDel₁))
-  rw [Nat.mul_one] at hrun
-  exact Machine.isQueryBounded_closeProgram hrun
 
 /-- First phase of the Canetti–Fischlin corrupted-committer environment (`C = {0}`), completely
 independent of the target bit `b`: run `simCommit S₁ κ` and, if it produces a commit message `c`,
@@ -991,7 +989,8 @@ theorem corruptCommitterEnv_polyBounded {S₁ : PlainCommitmentSim CommitMsg Ope
     (corruptCommitterEnv S₁ b).PolyBounded (3 * pS + 4) := fun κ _ => by
   simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat, corruptCommitterEnv,
     corruptCommitterPrefix]
-  rw [show 3 * pS.eval κ + 4 = (2 * pS.eval κ + 1) + (1 + (pS.eval κ + (1 + 1))) by omega]
+  have hbud : 3 * pS.eval κ + 4 = (2 * pS.eval κ + 1) + (1 + (pS.eval κ + (1 + 1))) := by omega
+  rw [hbud]
   refine ((Machine.isQueryBounded_sample (isQueryBounded_simCommit (hS κ))).bind fun x => ?_).bind
     fun pre => ?_
   · rcases x with ⟨⟨r₁, _⟩, _⟩
@@ -1332,8 +1331,7 @@ theorem succProbability_exec_fcom_corruptCommitterEnv_add_le_one
       NNReal.coe_le_coe.mpr (succProbability_corruptCommitterSuffix_add_le_one S₁ S₀ κ x)
   rw [hexec false z₁, hexec true z₂, ← NNReal.coe_le_coe]
   simp only [NNReal.coe_add, NNReal.coe_one, Game.coe_succProbability,
-    Probability.PMF.bind_apply_toReal_tsum]
-  rw [← (hsum false).tsum_add (hsum true)]
+    Probability.PMF.bind_apply_toReal_tsum, ← (hsum false).tsum_add (hsum true)]
   calc
     ∑' x, ((preDist x).toReal * (sufDist false x true).toReal +
         (preDist x).toReal * (sufDist true x true).toReal) =
@@ -1400,8 +1398,7 @@ theorem acceptProb_add_le_one_add_advantage [DecidableEq CommitMsg] [DecidableEq
   have htrue := acceptProb_le_ideal_add_advantage scheme S₁ S₀ true κ z z
   have hideal := succProbability_exec_fcom_corruptCommitterEnv_add_le_one S₁ S₀ κ z z
   rw [← NNReal.coe_le_coe] at hfalse htrue hideal ⊢
-  push_cast at hfalse htrue hideal ⊢
-  linarith
+  push_cast at hfalse htrue hideal ⊢; linarith
 
 /-- **Concrete Impossibility against the Dummy Adversary:** if `scheme.verify` has polynomial call
 budget `pV` and at security parameter `κ` the error bound `ε` satisfies
@@ -1439,9 +1436,8 @@ theorem not_realizesWithin_fcom [DecidableEq CommitMsg] [DecidableEq OpenMsg]
       1 + 2 * ε 1 (pV + 4) κ + 2 * ε 1 (3 * pD + 4) κ <
         scheme.acceptProb κ false + scheme.acceptProb κ true) :
     ¬ RealizesWithin scheme.toProtocol fcom g ε := by
-  rintro hreal
-  obtain ⟨pD, hg, hdummy⟩ := hreal.emulatesDummyWithin
-  exact not_emulatesDummyWithin_fcom hV pD (ε 1) κ (hgap pD hg) hdummy
+  exact fun h => h.emulatesDummyWithin.elim fun pD ⟨hg, hd⟩ =>
+    not_emulatesDummyWithin_fcom hV pD (ε 1) κ (hgap pD hg) hd
 
 /-- **Canetti–Fischlin Impossibility, Special Case** (adapted from [CanettiFischlin2001],
 Theorem 6): no plain-model two-party commitment scheme with one commitment message and one

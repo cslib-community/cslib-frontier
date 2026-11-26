@@ -264,7 +264,6 @@ theorem eval_eq_decide_exists_of_numAnd_eq_zero {F : PosFormula n} (h : F.numAnd
   | or L R ihL ihR =>
     simp only [numAnd_or, Nat.add_eq_zero_iff] at h
     rw [eval_or, ihL h.1, ihR h.2, ← Bool.decide_or, leafSupport_or]
-    congr 1
     simp [or_and_right, exists_or]
 
 /-! ### Embedding into De Morgan and monotone formulas and circuits -/
@@ -416,16 +415,14 @@ theorem card_flipSensitive_le_numOr_add_one (w₀ : BitString n) {F : PosFormula
     simpa [flipSensitive] using (Finset.card_filter_le ({i} : Finset (Fin n)) _)
   | and L R ihL ihR =>
     obtain ⟨hroL, hroR, _⟩ := hro
-    by_cases hL₀ : L.eval w₀ = true
-    · have hsub : flipSensitive w₀ (and L R) ⊆ flipSensitive w₀ R := fun v hv => by
-        simp only [mem_flipSensitive_iff, eval_and, hL₀, Bool.true_and, Bool.and_eq_true] at hv ⊢
-        exact ⟨hv.1, hv.2.2⟩
-      exact (Finset.card_le_card hsub).trans ((ihR hroR).trans (by rw [numOr_and]; omega))
-    · simp only [Bool.not_eq_true] at hL₀
-      have hsub : flipSensitive w₀ (and L R) ⊆ flipSensitive w₀ L := fun v hv => by
-        rw [mem_flipSensitive_iff] at hv ⊢
-        exact ⟨hL₀, ((Bool.and_eq_true _ _).mp hv.2).1⟩
-      exact (Finset.card_le_card hsub).trans ((ihL hroL).trans (by rw [numOr_and]; omega))
+    rw [numOr_and]
+    cases hL₀ : L.eval w₀
+    · refine (Finset.card_le_card fun v hv => ?_).trans ((ihL hroL).trans (by omega))
+      rw [mem_flipSensitive_iff] at hv ⊢
+      exact ⟨hL₀, ((Bool.and_eq_true _ _).mp hv.2).1⟩
+    · refine (Finset.card_le_card fun v hv => ?_).trans ((ihR hroR).trans (by omega))
+      simp only [mem_flipSensitive_iff, eval_and, hL₀, Bool.true_and, Bool.and_eq_true] at hv ⊢
+      exact ⟨hv.1, hv.2.2⟩
   | or L R ihL ihR =>
     obtain ⟨hroL, hroR, _⟩ := hro
     have hsub : flipSensitive w₀ (or L R) ⊆ flipSensitive w₀ L ∪ flipSensitive w₀ R :=
@@ -694,9 +691,8 @@ private theorem openedFrontier_tight (p : Program signature n g) (op : Op)
   have hcard_sub := Finset.card_le_card (biUnion_wireSupport_gate_subset p op wires frontier)
   have hp_bound := p.card_biUnion_wireSupport_le_cost_binaryCost (openedFrontier frontier wires)
   have hprior_card := card_priorFrontier frontier
-  have harity_li : (Finset.univ.image wires).card ≤ signature.Arity op := by
-    simpa using (Finset.card_image_le :
-      (Finset.univ.image wires).card ≤ (Finset.univ : Finset (Fin (signature.Arity op))).card)
+  have harity_li : (Finset.univ.image wires).card ≤ signature.Arity op :=
+    Finset.card_image_le.trans_eq (by simp)
   have harity_le := Boolean.arity_le_one_add_binaryCost op
   have hunion :=
     Finset.card_union_add_card_inter (priorFrontier frontier) (Finset.univ.image wires)
@@ -742,8 +738,7 @@ private theorem sum_lastCases_leafSize (hn : 0 < n) (p : Program signature n g) 
       ← Finset.sum_union hdisj, hF'_sum, Program.cost_gate]
     omega
   · rw [Finset.erase_eq_of_notMem hlast] at hsum_prior
-    simp only [hsum_prior, hF'_sum, Program.cost_gate]
-    omega
+    simp only [hsum_prior, hF'_sum, Program.cost_gate]; omega
 
 /-- When a frontier of wires in a De Morgan program achieves the binary-cost support bound
 `frontier.card + p.cost binaryCost ≤ (frontier.biUnion p.wireSupport).card`, every wire in the
@@ -799,8 +794,7 @@ theorem Circuit.exists_litFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
   obtain ⟨F, hF_eval, hF_sum⟩ :=
     c.program.exists_litFormula_of_card_biUnion_wireSupport_ge hn frontier (by omega)
   refine ⟨F (c.outputs 0), fun x => hF_eval _ (Finset.mem_singleton_self _) x, ?_⟩
-  rw [Finset.sum_singleton] at hF_sum
-  omega
+  rw [Finset.sum_singleton] at hF_sum; omega
 
 /-- **Unfolding a tight binary-cost circuit into a positive read-once formula**
 [Ilango2020FOCS, Section III.B; ECCC TR20-183, Section 3, Claim 13, p. 24]: if `c` is a one-output
@@ -831,10 +825,9 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
     rw [hT_eval y₀, hT_eval y₁, hc₀, hc₁] at hle
     exact absurd hle (by decide)
   have hcard_pos : T.posSupport.card = n := by simp [hpos_univ]
-  have hcount_eq : T.posLeafCount = T.leafSize := by
-    have := T.card_posSupport_le_posLeafCount
-    have := T.posLeafCount_le_leafSize
-    omega
+  have hcount_eq : T.posLeafCount = T.leafSize :=
+    le_antisymm T.posLeafCount_le_leafSize
+      ((hT_leaf.trans hcard_pos.symm).trans_le T.card_posSupport_le_posLeafCount)
   let F := T.toPosFormula
   have hF_leaf : F.leafSize = n := (LitFormula.leafSize_toPosFormula T).trans hT_leaf
   have hF_supp : F.leafSupport = Finset.univ :=

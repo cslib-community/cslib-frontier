@@ -714,21 +714,16 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
     split_ifs with hwin1 hwin2 hwin2'
     · exact le_rfl
     · exfalso
-      simp only [eq_comm (a := true), Bool.and_eq_true, decide_eq_true_eq] at hwin1
+      simp only [eq_comm (a := true), Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
+        decide_eq_false_iff_not, decide_eq_true_eq] at hwin1
       obtain ⟨⟨helem, hpair⟩, hfresh⟩ := hwin1
       obtain ⟨σ', hdec, hσ⟩ := P.toDecodableG₀.exists_decode_eq_some_of_isElem helem
       let σ : P.G₀.Carrier d := σ'
       have hσ' : P.G₀.encode d σ = forged.1.2 := hσ
       rw [← hσ', P.pairEncoded_encode, P.pairEncoded_encode,
         (P.GT.encode_injective d).eq_iff] at hpair
-      have hbeq : @List.contains (List Bool) List.instBEq forged.2.2 forged.1.1 =
-          @List.contains (List Bool) instBEqOfDecidableEq forged.2.2 forged.1.1 :=
-        Bool.eq_iff_iff.mpr (by simp)
-      have hfresh' : @List.contains (List Bool) instBEqOfDecidableEq forged.2.2 forged.1.1 =
-          false := by simpa only [hbeq, Bool.not_eq_true'] using hfresh
-      exact hwin2 (by
-        simp only [show P.decode₀ d forged.1.2 = some σ from hdec, Option.getD_some, hpair,
-          hfresh', Bool.not_false, decide_true, Bool.true_and])
+      change P.decode₀ d forged.1.2 = some σ at hdec
+      exact hwin2 (by simp [List.contains_eq_mem, hdec, hpair, hfresh])
     · exact zero_le
     · exact zero_le
   calc
@@ -853,8 +848,7 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
               aborted || (!op && sW.coin), samples.drop (count + 1)⟩) := by
       simp only [blsBankWordStep, stW, sW, hdrop]
     dsimp only
-    rw [show PFunctor.FreeM.bind (OracleComp.query (spec := RawWordSpec) (op, word)) cont =
-      (OracleComp.query (spec := RawWordSpec) (op, word) >>= cont) from rfl]
+    rw [PFunctor.FreeM.bind_eq_bind]
     cases op with
     | false =>
       have hrep : blsBankReplyWord P.toPairingGroupFamily d (P.G₀.encode d u₀) (P.G₀.encode d v₀)

@@ -325,9 +325,7 @@ theorem isMerlinArthurOneVerifier_sigmaTwoVerifier {e q k p : Polynomial ℕ}
     (hshifts : ∀ n, 2 * k.eval n ≤ 2 ^ e.eval n) :
     IsMerlinArthurOneVerifier enc (q + k * p) p (sigmaTwoVerifier enc q k p W) A := by
   have halt := isAlternatingVerifier_sigmaTwoVerifier h hcover fun n => by
-    have : 0 < 2 ^ e.eval n := by positivity
-    have := hshifts n
-    omega
+    linarith [hshifts n, @Nat.one_le_two_pow (e.eval n)]
   refine fun a => ⟨fun ha => ?_, fun ha w => ?_⟩
   · obtain ⟨w, hw, hall⟩ := (halt a).1 ha
     simp only [List.map_cons, List.map_nil, alternation_false_cons,
@@ -377,20 +375,18 @@ theorem isArthurMerlinOneVerifier_piTwoVerifier {e k p q : Polynomial ℕ}
       card_nbij' BitString.blocksEquiv BitString.blocksEquiv.symm
         (fun _ hu => by simpa using hu) (fun _ hu => by simpa using hu)
         (fun _ _ => by simp) (fun _ _ => by simp)
-    rw [show (k * p).eval (enc a).length = K * m from Polynomial.eval_mul]
+    rw [Polynomial.eval_mul]
     refine (Nat.mul_le_mul_left 2 (card_le_card fun u hu => ?_)).trans
       (hbij.symm ▸ BitString.two_mul_card_filter_exists_forall_add_mem_le S ((h a).2 ha) (hcover _))
     obtain ⟨v, hv⟩ := (mem_filter.1 hu).2
     have hall := (piTwoVerifier_append List.length_ofFn (List.ofFn v)).1 hv
-    rw [BitString.ofList_ofFn] at hall
     exact mem_filter.2 ⟨mem_univ _, BitString.ofList m (List.ofFn v),
-      fun i => mem_filter.2 ⟨mem_univ _, _, hall i⟩⟩
+      fun i => mem_filter.2 ⟨mem_univ _, _, by simpa only [BitString.ofList_ofFn] using hall i⟩⟩
 
 /-- Twice `12 p(n) + 1` is at most `2 ^ (12 p(n) + 1)`. -/
 private theorem two_mul_eval_le_two_pow (p : Polynomial ℕ) (n : ℕ) :
     2 * (12 * p + 1).eval n ≤ 2 ^ (12 * p + 1).eval n := by
-  simp only [Polynomial.eval_add, Polynomial.eval_one]
-  rw [pow_succ']
+  rw [Polynomial.eval_add, Polynomial.eval_one, pow_succ']
   exact Nat.mul_le_mul_left 2 Nat.lt_two_pow_self
 
 end ArthurMerlin

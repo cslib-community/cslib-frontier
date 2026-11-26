@@ -95,8 +95,7 @@ theorem binaryKL_eq_mul_log {q p : ℝ} (hp0 : 0 < p) (hp1 : p < 1) :
     binaryKL q p = q * Real.log (q / p) + (1 - q) * Real.log ((1 - q) / (1 - p)) := by
   have : 1 - p ≠ 0 := (sub_pos.2 hp1).ne'
   rw [binaryKL_def, klFun_apply, klFun_apply]
-  field_simp
-  ring
+  field_simp; ring
 
 private theorem exp_mul_log_eq_pow {y : ℝ} {n : ℕ} (h : 0 < y ∨ n = 0) :
     Real.exp (n * Real.log y) = y ^ n := by
@@ -205,14 +204,11 @@ variable {α : Type*} {mα : MeasurableSpace α} {μ : Measure α}
 private theorem klFun_add_log_mul_sub_le {t x : ℝ} (ht : 0 < t) (hx : 0 ≤ x) :
     klFun t + Real.log t * (x - t) ≤ klFun x := by
   rcases hx.eq_or_lt with rfl | hx
-  · rw [klFun_apply, klFun_zero]
-    linarith
+  · rw [klFun_apply, klFun_zero]; linarith
   · have h := mul_nonneg ht.le (klFun_nonneg (div_nonneg hx.le ht.le))
     have he : t * klFun (x / t) = x * Real.log x - x * Real.log t + t - x := by
-      rw [klFun_apply, Real.log_div hx.ne' ht.ne']
-      field_simp
-    rw [klFun_apply, klFun_apply]
-    linarith
+      rw [klFun_apply, Real.log_div hx.ne' ht.ne']; field_simp
+    rw [klFun_apply, klFun_apply]; linarith
 
 /-- **The log-sum inequality** [CoverThomas2006, Theorem 2.7.1] in integral form: Jensen for the
 perspective of `klFun`: for nonnegative integrable `a` and `b` with `a = 0` wherever `b = 0`,
@@ -315,12 +311,9 @@ private theorem hasDerivAt_binaryKL_right {q p : ℝ} (hp0 : 0 < p) (hp1 : p < 1
   have h1p := (sub_pos.mpr hp1).ne'
   have hd₁ := ((hasDerivAt_log hp0.ne').const_sub (log q)).const_mul q
   have hd₂ := ((((hasDerivAt_id p).const_sub 1).log h1p).const_sub (log (1 - q))).const_mul (1 - q)
-  refine HasDerivAt.congr_of_eventuallyEq ?_ heq
-  convert hd₁.add hd₂ using 1
-  · rfl
-  · simp only [id_eq]
-    field_simp [hp0.ne', h1p]
-    ring
+  refine ((hd₁.add hd₂).congr_deriv ?_).congr_of_eventuallyEq heq
+  simp only [id_eq]
+  field_simp [hp0.ne', h1p]; ring
 
 private theorem le_of_hasDerivAt_nonneg {f f' : ℝ → ℝ} {a b : ℝ} (hab : a ≤ b)
     (hc : ContinuousOn f (Icc a b)) (hd : ∀ t ∈ Ioo a b, HasDerivAt f (f' t) t)
@@ -385,9 +378,8 @@ theorem sub_sq_div_two_mul_le_binaryKL {q p : ℝ} (hq0 : 0 ≤ q) (hqp : q ≤ 
 `|p - q| ≤ √(c / 2)`. -/
 theorem abs_sub_le_sqrt_of_binaryKL_le {q p c : ℝ} (hq : q ∈ Icc (0 : ℝ) 1) (hp0 : 0 < p)
     (hp1 : p < 1) (hle : binaryKL q p ≤ c) :
-    |p - q| ≤ sqrt (c / 2) := by
-  rw [abs_sub_comm]
-  exact abs_le_sqrt (by linarith [two_mul_sq_le_binaryKL hq hp0 hp1])
+    |p - q| ≤ sqrt (c / 2) :=
+  abs_sub_comm q p ▸ abs_le_sqrt (by linarith [two_mul_sq_le_binaryKL hq hp0 hp1])
 
 /-- Sharp quadratic inversion of `binaryKL q p ≤ c`: for `0 ≤ q`, `p < 1`, and `0 ≤ c`,
 `p ≤ q + c + √(c ^ 2 + 2 * q * c)`. -/
@@ -398,8 +390,9 @@ theorem le_add_add_sqrt_of_binaryKL_le {q p c : ℝ} (hq0 : 0 ≤ q) (hp1 : p < 
   · linarith [sqrt_nonneg (c ^ 2 + 2 * q * c)]
   have hp_pos : 0 < p := lt_of_le_of_lt hq0 hgt
   have hbern := (sub_sq_div_two_mul_le_binaryKL hq0 hgt.le hp_pos hp1).trans hle
-  rw [div_le_iff₀ (by linarith : 0 < 2 * p)] at hbern
-  linarith [(abs_le.mp (abs_le_sqrt (show (p - (q + c)) ^ 2 ≤ c ^ 2 + 2 * q * c by nlinarith))).2]
+  rw [div_le_iff₀ (mul_pos zero_lt_two hp_pos)] at hbern
+  have hsq : (p - (q + c)) ^ 2 ≤ c ^ 2 + 2 * q * c := by nlinarith
+  linarith [(abs_le.mp (abs_le_sqrt hsq)).2]
 
 /-- Standard relaxed fast-rate inversion [TolstikhinSeldin2013] (locator unverified):
 `binaryKL q p ≤ c ⟹ p ≤ q + √(2 * q * c) + 2 * c`. -/
@@ -409,7 +402,8 @@ theorem le_add_sqrt_two_mul_add_two_mul_of_binaryKL_le {q p c : ℝ} (hq0 : 0 �
   have h := le_add_add_sqrt_of_binaryKL_le hq0 hp1 hc hle
   have hsqrt : sqrt (c ^ 2 + 2 * q * c) ≤ c + sqrt (2 * q * c) := by
     refine sqrt_le_iff.mpr ⟨by positivity, ?_⟩
-    nlinarith [mul_nonneg hc (sqrt_nonneg (2 * q * c)), sq_sqrt (show 0 ≤ 2 * q * c by positivity)]
+    nlinarith [mul_nonneg hc (sqrt_nonneg (2 * q * c)),
+      sq_sqrt (mul_nonneg (mul_nonneg zero_le_two hq0) hc)]
   linarith
 
 /-- Zero-empirical-risk inversion: for `p ∈ [0, 1)`, `binaryKL 0 p ≤ c` gives
@@ -421,7 +415,8 @@ theorem le_one_sub_exp_neg_of_binaryKL_zero_le {p c : ℝ} (hp0 : 0 ≤ p) (hp1 
   · rw [binaryKL_self] at hle; linarith [exp_le_one_iff.mpr (neg_nonpos.mpr hle)]
   · rw [binaryKL_eq_mul_log hp_pos hp1, zero_mul, zero_add, sub_zero, one_mul, one_div,
       log_inv] at hle
-    linarith [exp_log (sub_pos.mpr hp1) ▸ exp_le_exp.mpr (show -c ≤ log (1 - p) by linarith)]
+    have hlog : -c ≤ log (1 - p) := by linarith
+    linarith [exp_log (sub_pos.mpr hp1) ▸ exp_le_exp.mpr hlog]
 
 end LowerBounds
 

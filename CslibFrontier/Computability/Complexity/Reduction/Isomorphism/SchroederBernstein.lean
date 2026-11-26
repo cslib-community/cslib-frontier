@@ -119,8 +119,7 @@ private theorem chain_eq_of_le : ∀ (n m : ℕ) (a : α), (encA a).length ≤ n
     · have h1 := ha ▸ hg (g' a)
       have h2 := hb ▸ hf (f' (g' a))
       exact chain_eq_of_le n m _ (by omega) (by omega)
-    · rfl
-    · rfl
+    all_goals rfl
 
 end
 
@@ -173,11 +172,7 @@ private theorem stop_swap (b : β) (hb : f (f' b) = b) :
     rfl
 termination_by (encB b).length
 decreasing_by
-  have h1 := hg (g' (f' b))
-  have h2 := hf (f' b)
-  rw [hc] at h1
-  rw [hb] at h2
-  exact h1.trans h2
+  simpa only [hb] using (lt_of_lt_of_eq (hg (g' (f' b))) (by rw [hc])).trans (hf (f' b))
 
 end
 
@@ -261,14 +256,8 @@ private theorem length_step_le (s : α × Bool × Bool) :
   unfold step
   split_ifs with h1 h2 h3
   · exact le_rfl
-  · have := hg (g' s.1)
-    have := hf (f' (g' s.1))
-    rw [h2] at *
-    rw [h3] at *
-    simp only
-    omega
-  · exact le_rfl
-  · exact le_rfl
+  · exact ((h3 ▸ hf (f' (g' s.1))).trans (h2 ▸ hg (g' s.1))).le
+  all_goals exact le_rfl
 
 include hf hg in
 private theorem length_step_iterate_le (n : ℕ) (s : α × Bool × Bool) :

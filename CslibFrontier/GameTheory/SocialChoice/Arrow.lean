@@ -245,31 +245,26 @@ private theorem IsPivot.prefers (hI : F.IsIIA) {b : A} {n : V} (hn : IsPivot F b
   -- Society ranks `x` above `b` at `Q`, as at `P₁`.
   have h1 : (F Q).Prefers x b := by
     refine (hI.prefers_iff fun j => ?_).1 (hF₁ x hxb)
-    by_cases hj : j = n
-    · subst hj
-      refine iff_of_true (h₁n x hxb) ?_
-      simpa only [Q, ite_true] using ((P j).toTop b).isTop_toTop x b hxb.symm
+    rcases eq_or_ne j n with rfl | hj
+    · exact iff_of_true (h₁n x hxb)
+        (by simpa only [Q, ite_true] using ((P j).toTop b).isTop_toTop x b hxb.symm)
     · exact prefers_iff_of_extremal (hQ j hj) (Or.inr rfl)
   -- Society ranks `b` above `y` at `Q`, as at `P₂`.
   have h2 : (F Q).Prefers b y := by
     refine (hI.prefers_iff fun j => ?_).1 (hF₂ y hyb)
-    by_cases hj : j = n
-    · subst hj
-      refine iff_of_true (h₂n y hyb) ?_
+    rcases eq_or_ne j n with rfl | hj
+    · refine iff_of_true (h₂n y hyb) ?_
       simpa only [Q, ite_true, ((P j).toTop b).toTop_prefers_of_ne hxb.symm (Ne.symm hxy')]
         using (P j).isTop_toTop b y hyb
-    · rw [← hP₁₂ j hj]
-      exact prefers_iff_of_extremal (hQ j hj) (Or.inl rfl)
+    · exact hP₁₂ j hj ▸ prefers_iff_of_extremal (hQ j hj) (Or.inl rfl)
   -- `Q` agrees with `P` on `x` versus `y`.
   refine (hI.prefers_iff fun j => ?_).2 ((F Q).prefers_trans h1 h2)
-  by_cases hj : j = n
-  · subst hj
-    refine iff_of_true hxy ?_
-    simpa only [Q, ite_true] using ((P j).toTop b).isTop_toTop x y (Ne.symm hxy')
+  rcases eq_or_ne j n with rfl | hj
+  · exact iff_of_true hxy
+      (by simpa only [Q, ite_true] using ((P j).toTop b).isTop_toTop x y (Ne.symm hxy'))
   · simp only [Q, hj, ite_false]
     split_ifs
-    · exact ((P j).toTop_prefers_of_ne hxb hyb).symm
-    · exact ((P j).toBottom_prefers_of_ne hxb hyb).symm
+    exacts [((P j).toTop_prefers_of_ne hxb hyb).symm, ((P j).toBottom_prefers_of_ne hxb hyb).symm]
 
 /-- The extremely pivotal voters for two different alternatives coincide. -/
 private theorem IsPivot.eq (hI : F.IsIIA) (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c)
@@ -334,11 +329,10 @@ theorem isDictatorial_of_isPareto_of_isIIA [Finite V] (hP : F.IsPareto) (hI : F.
   refine ⟨n, fun P x y hxy => ?_⟩
   obtain ⟨d, hdx, hdy⟩ := exists_ne_ne h3 x y
   obtain ⟨m, hm⟩ := exists_isPivot hP hI h3 d
-  by_cases hbd : b = d
-  · subst hbd
-    exact hn.prefers hI P (Ne.symm hdx) (Ne.symm hdy) hxy
-  · obtain rfl := IsPivot.eq hI h3 hbd hn hm
-    exact hm.prefers hI P (Ne.symm hdx) (Ne.symm hdy) hxy
+  obtain rfl | hbd := eq_or_ne b d
+  · exact hn.prefers hI P (Ne.symm hdx) (Ne.symm hdy) hxy
+  · exact ((IsPivot.eq hI h3 hbd hn hm).symm ▸ hm : IsPivot F d n).prefers hI P
+      (Ne.symm hdx) (Ne.symm hdy) hxy
 
 /-- **Arrow's impossibility theorem** for a finite set of at least three alternatives. -/
 theorem isDictatorial_of_three_le_card [Fintype A] [Finite V] (hP : F.IsPareto)

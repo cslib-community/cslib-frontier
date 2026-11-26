@@ -140,15 +140,11 @@ private theorem offCompItems_le_div_eightyFour_logLog {U w N : ℕ}
       epochHashSpace epochQBits epochHashB lmSubWords
     unfold hashSpace qBits hashB at hh
     omega
-  have hll_N1 := Dynamic.one_le_logLogFactor N
-  have hlm := localMetaLen_mul_effBucketPosBits_le N
-  have hgm := globalMetaLen_mul_globalPtrBits_le N
-  have htail := maxTailItems_mul_globalPtrBits_le N
   have h84N : (2 * N) * 1 + localMetaLen N * effBucketPosBits N +
       globalMetaLen N * globalPtrBits N + (2 * maxTailItems N) * globalPtrBits N ≤
       84 * N * Dynamic.logLogFactor N := by
-    have h10 : 10 * N ≤ 10 * N * Dynamic.logLogFactor N := Nat.le_mul_of_pos_right _ hll_N1
-    nlinarith
+    nlinarith [Dynamic.one_le_logLogFactor N, localMetaLen_mul_effBucketPosBits_le N,
+      globalMetaLen_mul_globalPtrBits_le N, maxTailItems_mul_globalPtrBits_le N]
   exact hmeta_le.trans (Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 439)
 
 /-- Compacted metadata word offset bound in terms of `n` when `N ≤ 4 * n`. -/
@@ -246,18 +242,16 @@ theorem compactedItemWords_le_linear {U V w N n : ℕ}
   calc (n * (quotientBits U N + valBits V) + w - 1) / w + 2
       ≤ ((w - 1) + (2 * n) * w) / w + 2 := Nat.add_le_add_right (Nat.div_le_div_right hle) 2
     _ = 2 * n + 2 := by
-        rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (by omega : w - 1 < w), Nat.zero_add]
+        rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (Nat.sub_lt hw zero_lt_one),
+          Nat.zero_add]
 
 private theorem logLogFactor_le_three_mul_w {w N : ℕ} (hw : 0 < w) (hN : Fits w N) :
     Dynamic.logLogFactor N ≤ 3 * w := by
   unfold Dynamic.logLogFactor
   have hmax : max N 4 ≤ 2 ^ (w + 2) := by
-    have h4 : 4 ≤ 2 ^ (w + 2) := by
-      calc 4 = 2 ^ 2 := by decide
-        _ ≤ 2 ^ (w + 2) := Nat.pow_le_pow_right two_pos (by omega)
-    have hNw : N ≤ 2 ^ (w + 2) :=
-      hN.le.trans (Nat.pow_le_pow_right two_pos (by omega))
-    exact max_le hNw h4
+    refine max_le (hN.le.trans (Nat.pow_le_pow_right two_pos (by omega))) ?_
+    calc 4 = 2 ^ 2 := by decide
+      _ ≤ 2 ^ (w + 2) := Nat.pow_le_pow_right two_pos (by omega)
   have hc1 : Nat.clog 2 (max N 4) ≤ w + 2 :=
     (Nat.clog_le_iff_le_pow one_lt_two).mpr hmax
   exact (Nat.clog_mono_right 2 hc1).trans
@@ -277,7 +271,8 @@ theorem offCompItems_le_linear {U w N : ℕ}
   have hdiv : (84 * N * Dynamic.logLogFactor N + w - 1) / w ≤ 252 * N := by
     calc _ ≤ ((w - 1) + (252 * N) * w) / w := Nat.div_le_div_right (by omega)
       _ = 252 * N := by
-          rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (by omega : w - 1 < w), Nat.zero_add]
+          rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (Nat.sub_lt hw zero_lt_one),
+            Nat.zero_add]
   omega
 
 /-- Parameter-free `O(n)` linear word bound on `migratePeakWords` (`≤ 1514 * n + 886`), ensuring

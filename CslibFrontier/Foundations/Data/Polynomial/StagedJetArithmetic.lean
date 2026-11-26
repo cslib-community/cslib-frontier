@@ -212,10 +212,8 @@ private theorem sum_prod_assoc_left {J ℓ : ℕ} {M : Type*} [AddCommMonoid M]
     rw [Fintype.sum_eq_single p₁₂₀]
     · simp only [p₁₂₀, h.1, h.2, and_self, ↓reduceIte]
     · intro p₁₂ hp₁₂
-      have hne : ¬((p₁.1 : ℕ) + (p₂.1 : ℕ) = (p₁₂.1 : ℕ) ∧
-          (p₁.2 : ℕ) + (p₂.2 : ℕ) = (p₁₂.2 : ℕ)) :=
-        fun ⟨h1, h2⟩ => hp₁₂ (Prod.ext (Fin.ext h1.symm) (Fin.ext h2.symm))
-      simp only [hne, ↓reduceIte, ite_self]
+      rw [if_congr Iff.rfl (ite_eq_right fun ⟨h1, h2⟩ =>
+        hp₁₂ (Prod.ext (Fin.ext h1.symm) (Fin.ext h2.symm))) rfl, ite_self]
   · simp only [h, ↓reduceIte]
     refine sum_eq_zero fun p₁₂ _ => ?_
     split_ifs with h1 h2
@@ -578,18 +576,15 @@ theorem mul_vPow_apply (A : JetTable J ℓ R) (s : ℕ) (j : Fin J) (u : Fin ℓ
     rw [Fintype.sum_eq_single p₁₀]
     · rw [Fintype.sum_eq_single p₂₀]
       · simp [p₁₀, p₂₀, vPow_apply, Nat.sub_add_cancel hs]
-      · intro p₂ hp₂
-        by_cases hv : (p₂.1 : ℕ) = 0 ∧ (p₂.2 : ℕ) = s
-        · exact False.elim (hp₂ (Prod.ext (Fin.ext hv.1) (Fin.ext hv.2)))
-        · simp only [vPow_apply, hv, ↓reduceIte, mul_zero, ite_self]
+      · exact fun p₂ hp₂ => ite_eq_right fun ⟨h1, h2⟩ =>
+          (hp₂ (Prod.ext (Fin.ext (by dsimp [p₁₀, p₂₀] at h1 ⊢; omega))
+            (Fin.ext (by dsimp [p₁₀, p₂₀] at h2 ⊢; omega)))).elim
     · intro p₁ hp₁
       refine sum_eq_zero fun p₂ _ => ?_
-      by_cases hv : (p₂.1 : ℕ) = 0 ∧ (p₂.2 : ℕ) = s
-      · have hne : ¬((p₁.1 : ℕ) + (p₂.1 : ℕ) = (j : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (u : ℕ)) :=
-          fun ⟨h1, h2⟩ => hp₁ (Prod.ext (Fin.ext (by dsimp [p₁₀]; omega))
-            (Fin.ext (by dsimp [p₁₀]; omega)))
-        simp only [hne, ↓reduceIte]
-      · simp only [vPow_apply, hv, ↓reduceIte, mul_zero, ite_self]
+      rw [vPow_apply]
+      split_ifs with hsum hv
+      exacts [(hp₁ (Prod.ext (Fin.ext (by dsimp [p₁₀]; omega))
+        (Fin.ext (by dsimp [p₁₀]; omega)))).elim, mul_zero _, rfl]
   · simp only [hs, ↓reduceDIte]
     refine sum_eq_zero fun p₁ _ => sum_eq_zero fun p₂ _ => ?_
     simp only [vPow_apply]
@@ -905,13 +900,10 @@ theorem l1Norm_clearedParityFactorJet_le {Δ : ℤ} {B E_ℓ : ℕ} {A_int : Jet
               Nat.mul_le_mul (Nat.pow_le_pow_left hΔM _)
                 (hv.trans (Nat.mul_le_mul hE (Nat.pow_le_pow_left hH _)))
           _ = E_ℓ * (M ^ (2 * (ℓ - 1 - (s : ℕ))) * M * M ^ (2 * (s : ℕ))) := by
-              rw [← pow_mul]
-              ring
+              rw [← pow_mul]; ring
           _ = E_ℓ * M ^ (2 * ℓ - 1) := by
-              congr 1
               rw [← pow_succ, ← pow_add]
-              congr 1
-              omega
+              exact congrArg (E_ℓ * M ^ ·) (by omega)
     _ = ℓ * E_ℓ * M ^ (2 * ℓ - 1) := by
         simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_assoc]
 
@@ -1000,14 +992,12 @@ theorem cast_signedPrefixJet (Ω : ℤ)
     Ω • signedPrefixJet updates_rat t = castRingHom K (signedPrefixJet updates_int t) := by
   rw [signedPrefixJet, signedPrefixJet, List.smul_sum, map_list_sum, List.map_map, List.map_map]
   congr 1
-  refine List.ext_getElem ?_ fun idx h1 _ => ?_
-  · simp only [List.length_map, List.length_take, hlen]
-  · simp only [List.getElem_map, List.getElem_take, Function.comp_apply, map_zsmul]
-    have hr : idx < updates_rat.length := by
-      simp only [List.length_map, List.length_take] at h1
-      omega
-    obtain ⟨hsgn, hval⟩ := hrel idx hr (hlen ▸ hr)
-    rw [hsgn, smul_comm Ω, hval]
+  refine List.ext_getElem (by simp [hlen]) fun idx h1 _ => ?_
+  simp only [List.getElem_map, List.getElem_take, Function.comp_apply, map_zsmul]
+  have hr : idx < updates_rat.length :=
+    lt_of_lt_of_le (by simpa using h1) (Nat.min_le_right _ _)
+  obtain ⟨hsgn, hval⟩ := hrel idx hr (hlen ▸ hr)
+  rw [hsgn, smul_comm Ω, hval]
 
 /-- **Intermediate prefix accumulator `ℓ₁`-norm bound (Appendix B.2, p. 49).** If every signed
 contribution `(ε, Π_int)` has `|ε| ≤ 1` and `‖Π_int‖₁ ≤ 2 ^ n * B₁ ^ m_test`, then at every step
@@ -1023,8 +1013,7 @@ theorem l1Norm_signedPrefixJet_le {n m_test B₁ M_star : ℕ}
     intro x hx
     obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hx
     obtain ⟨hsgn, hnrm⟩ := hbound p (List.mem_of_mem_take hp)
-    rw [l1Norm_smul]
-    exact (Nat.mul_le_mul hsgn hnrm).trans (Nat.one_mul C).le
+    exact (l1Norm_smul _ _).trans_le ((Nat.mul_le_mul hsgn hnrm).trans (Nat.one_mul C).le)
   calc
     l1Norm (signedPrefixJet updates_int t)
       ≤ (((updates_int.take t).map fun p => p.1 • p.2).map l1Norm).sum :=

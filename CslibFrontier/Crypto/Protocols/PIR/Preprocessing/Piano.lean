@@ -258,10 +258,9 @@ theorem findHint_update_self [DecidableEq Offset] (T : Fin M₁ → Chunk → Of
     (x : Chunk × Offset) (i : Fin M₁) (S' : Chunk → Offset) (hfind : findHint T x = some i)
     (hS' : S' x.1 = x.2) :
     findHint (Function.update T i S') x = some i := by
-  have hTi := findHint_eq_some hfind
   have hpred : (fun k : Fin M₁ => decide (Function.update T i S' k x.1 = x.2)) =
       (fun k : Fin M₁ => decide (T k x.1 = x.2)) :=
-    funext fun k => by by_cases hk : k = i <;> simp [hk, hTi, hS']
+    funext fun k => by by_cases hk : k = i <;> simp [hk, findHint_eq_some hfind, hS']
   simpa [findHint, hpred] using hfind
 
 /-- The joint transformation of the primary set table `T : Fin M₁ → Chunk → Offset` and the active
@@ -350,8 +349,7 @@ theorem eval_pianoRefreshedTable_uniform (x : Chunk × Offset) :
       pure (pianoStepSets x (T, B)).1) =
       PMF.uniformOfFintype (Fin M₁ → Chunk → Offset) := by
   simp only [pmf_norm, ProbComp.eval_uniform]
-  rw [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.1)]
-  simp [PMF.bind_const]
+  simp [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.1), PMF.bind_const]
 
 /-- **Single-query server view privacy** (Theorem 3.2 of
 [Zhou, Park, Zheng and Shi][ZhouParkZhengShi2024]): for any queried index `x`, the set sent to the
@@ -363,8 +361,7 @@ theorem eval_pianoServerQuery_uniform (x : Chunk × Offset) :
       pure (pianoStepSets x (T, B)).2) =
       PMF.uniformOfFintype (Chunk → Offset) := by
   simp only [pmf_norm, ProbComp.eval_uniform]
-  rw [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.2)]
-  simp [PMF.bind_const]
+  simp [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.2), PMF.bind_const]
 
 omit [DecidableEq Offset] in
 /-- Overwriting chunk `j` of a uniform set `B : Chunk → Offset` with an independent uniform offset
@@ -534,10 +531,9 @@ theorem streamChunk_streamUpTo [DecidableEq Chunk] (db : Chunk × Offset → Boo
   · by_cases hjeq : i = j <;> simp [streamChunk, streamUpTo, hjeq]
   · rfl
   · by_cases hjeq : i = j
-    · subst hjeq
-      simp [streamChunk, streamUpTo, Finset.erase_insert hj, Finset.erase_eq_of_notMem hj]
+    · simp [hjeq, streamChunk, streamUpTo, Finset.erase_insert hj, Finset.erase_eq_of_notMem hj]
     · simp [streamChunk, streamUpTo, hjeq, Finset.erase_insert_of_ne (Ne.symm hjeq),
-        Finset.sum_insert (show j ∉ s.erase i from fun h => hj (Finset.mem_of_mem_erase h))]
+        Finset.sum_insert (mt Finset.mem_of_mem_erase hj)]
   · rfl
 
 /-- Folding `streamChunk` over any duplicate-free list of chunks `js` starting from
@@ -641,8 +637,7 @@ theorem onlineStep_correct [Fintype Chunk] [DecidableEq Chunk] [DecidableEq Offs
       reconstructBit_setParity_eq db _ x _ (findHint_eq_some hi)]
   refine ⟨hβ, fun i' => ?_, hvalid.valid_repl, hvalid.valid_backup⟩
   by_cases hieq : i' = i
-  · subst hieq
-    simp only [Function.update_self, hβ, hvalid.valid_backup, refreshParity_eq_setParity]
+  · simp only [hieq, Function.update_self, hβ, hvalid.valid_backup, refreshParity_eq_setParity]
   · simp only [Function.update_of_ne hieq, hvalid.valid_primary i']
 
 /-- **The full client moves its sets by `pianoStepSets`.** Suppose primary hint `i` is the first

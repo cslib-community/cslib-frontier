@@ -240,10 +240,8 @@ theorem succProbability_secondPreimageGame_keyDigest_le
       Game.succProbability
         (ProbComp.eval
           (collisionGame H (fun _ _ => true) (secondPreimageToCollisionFinder adversary r) n)) := by
-  have hsplit : BitString.uniformList (3 * n + r) = (BitString.uniformList n).bind
-      (fun key => (BitString.uniformList (2 * n + r)).map (key ++ ·)) := by
-    rw [show 3 * n + r = n + (2 * n + r) by ring]
-    exact BitString.uniformList_add n (2 * n + r)
+  have h3 : 3 * n + r = n + (2 * n + r) := by omega
+  have hsplit := h3 ▸ BitString.uniformList_add n (2 * n + r)
   apply Game.succProbability_mono
   simp only [secondPreimageGame, secondPreimageExperiment, collisionGame,
     secondPreimageToCollisionFinder, BitString.eval_sampleList, hsplit, pmf_norm]
@@ -456,12 +454,8 @@ theorem not_oneWayOn_plantEasyBranch (k : ℕ) (H : List Bool → List Bool)
       Game.succProbability (ProbComp.eval
         (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n)) := by
     filter_upwards [Filter.eventually_ge_atTop k] with n hn
-    have hsplit :
-        BitString.uniformList n =
-          (BitString.uniformList k).bind fun pref =>
-            (BitString.uniformList (n - k)).map (pref ++ ·) := by
-      conv_lhs => rw [show n = k + (n - k) by omega]
-      exact BitString.uniformList_add k (n - k)
+    have hsplit := (congrArg BitString.uniformList (Nat.add_sub_of_le hn).symm).trans
+      (BitString.uniformList_add k (n - k))
     have henn : (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) ≤
         ProbComp.eval
           (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n) true := by

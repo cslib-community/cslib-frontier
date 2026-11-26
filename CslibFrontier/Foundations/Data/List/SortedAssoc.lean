@@ -98,12 +98,11 @@ theorem lookup_eq_some_iff_mem (h : (l.map Prod.fst).Nodup) :
   induction l with
   | nil => cases hm
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     obtain ⟨h1, h2⟩ := List.nodup_cons.1 h
-    rcases List.mem_cons.1 hm with h_eq | hm'
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h_eq
-      exact List.lookup_cons_self
-    · rw [lookup_cons_of_ne fun hk => h1 (List.mem_map.2 ⟨(k, b), hm', hk⟩)]
+    rcases List.mem_cons.1 hm with rfl | hm'
+    · exact List.lookup_cons_self
+    · obtain ⟨a₁, a₂⟩ := a
+      rw [lookup_cons_of_ne fun hk => h1 (List.mem_map.2 ⟨(k, b), hm', hk⟩)]
       exact ih h2 hm'
 
 end Lookup
@@ -278,9 +277,8 @@ theorem erase_of_forall_ne (h : ∀ p ∈ l, p.1 ≠ k) : erase k l = l :=
   rcases hl : List.lookup k' l with _ | w
   · exact List.Sublist.lookup_eq_none List.filter_sublist hl
   · obtain ⟨l₁, l₂, rfl, hl₁⟩ := List.lookup_eq_some_iff.1 hl
-    refine List.lookup_eq_some_iff.2
-      ⟨erase k l₁, erase k l₂, ?_, fun p hp => hl₁ p (mem_erase_iff.1 hp).1⟩
-    simp only [erase_append, erase_cons, hne, ↓reduceIte]
+    exact List.lookup_eq_some_iff.2 ⟨erase k l₁, erase k l₂,
+      by simp [erase_cons, hne], fun p hp => hl₁ p (mem_erase_iff.1 hp).1⟩
 
 /-- Erasing an absent key is the identity. -/
 @[simp] theorem erase_of_lookup_eq_none (h : List.lookup k l = none) : erase k l = l :=
@@ -440,10 +438,9 @@ theorem length_insert (h : l.IsSortedAssoc) :
     · rw [ite_eq_left h₁, List.lookup_eq_none_of_forall_ne fun p hp =>
         (List.mem_cons.1 hp).elim (fun hp => hp ▸ h₁.ne') fun hp => (h₁.trans (h.1 p hp)).ne']
       rfl
-    · rw [ite_eq_right h₁]
-      rcases Decidable.eq_or_ne k a₁ with rfl | h₂
+    · rcases Decidable.eq_or_ne k a₁ with rfl | h₂
       · simp
-      · simp only [h₂, ↓reduceIte, List.length_cons, ih h.2, List.lookup_cons_of_ne h₂]
+      · simp only [h₁, h₂, ↓reduceIte, List.length_cons, ih h.2, List.lookup_cons_of_ne h₂]
         split_ifs <;> rfl
 
 /-- Insertion skips a prefix whose keys are all below `k`. -/
@@ -569,8 +566,7 @@ theorem range_def {lo hi : α} : range lo hi l = l.filter fun p => lo ≤ p.1 �
 /-- The range is empty exactly when every entry lies outside the closed interval. -/
 @[simp] theorem range_eq_nil_iff {lo hi : α} :
     range lo hi l = [] ↔ ∀ p ∈ l, p.1 < lo ∨ hi < p.1 := by
-  simp only [range, List.filter_eq_nil_iff, decide_eq_true_eq]
-  grind
+  simp only [range, List.filter_eq_nil_iff, decide_eq_true_eq]; grind
 
 theorem rank_def : rank k l = (l.filter fun p => p.1 < k).length := rfl
 
@@ -615,7 +611,6 @@ theorem rank_eq_length_takeWhile (h : l.IsSortedAssoc) :
   | nil => rfl
   | cons a l ih =>
     rw [List.isSortedAssoc_cons_iff] at h
-    rw [rank_cons, List.takeWhile_cons]
     by_cases ha : a.1 < k
     · simp [ha, ih h.2]
     · simp [ha, rank_eq_zero_iff.2 fun q hq => (not_lt.1 ha).trans (h.1 q hq).le]

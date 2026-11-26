@@ -75,9 +75,9 @@ private theorem decode_body {w n K : ℕ} (L : Memory.Layout n) (e : Memory.Stat
   cases o with
   | isEmpty =>
     have hz : z.regs Program.code.outFlag =
-        ((Memory.spec w).clientResult e (Memory.isEmpty L)).toNat := by
-      rw [hflag, Program.code_outFlag, ← Program.output_bank 0 (0 : Fin 2) 0 rfl]
-      exact hout (0 : Fin 2)
+        ((Memory.spec w).clientResult e (Memory.isEmpty L)).toNat :=
+      hflag.trans
+        (Program.code_outFlag.symm ▸ Program.output_bank 0 (0 : Fin 2) 0 rfl ▸ hout (0 : Fin 2))
     refine ⟨PQCode.decode_isEmpty _ _ (by simpa only [Memory.ops] using hz),
       (nativeObservation_eq_some_iff _ _ _).mpr (cast_eq _ _ ▸ ?_)⟩
     cases hb : (Memory.spec w).clientResult e (Memory.isEmpty L) <;>
@@ -205,25 +205,21 @@ private theorem raw_exec
     Memory.State.ext hmz (Program.code_frontier ▸ hfz)
   have hrZ : Representation.Rep base hn hK s' z := hrY.congr
     (fun c _ => congrFun hmz c) (le_of_eq (congrArg Memory.State.frontier hzstate).symm) hlz hbz
-  obtain ⟨hdecode, hnative⟩ : Program.code.decode (K_max := K) o z.regs =
-      some ((Memory.spec w).clientResult e (Memory.ops L o)) ∧
-      nativeObservation (K := K) o z.regs =
-        some ((Memory.spec w).clientResult e (Memory.ops L o)) := by
-    cases o <;> exact decode_body L e _ y z hout hflag hvalue hkey
+  obtain ⟨hdecode, hnative⟩ :=
+    decode_body L e o y z hout hflag hvalue (by cases o <;> exact hkey)
   have hanswer : (Memory.spec w).clientResult e (Memory.ops L o) = a := congrArg Prod.fst hrun
   have hstateY : memoryState (Backend.frontier Program.family) y =
       (Memory.spec w).clientState e (Memory.ops L o) :=
     hstate.trans (congrArg (fun t => t.2.1) hrun).symm
   obtain ⟨steps, hsteps, hez⟩ := hez
-  refine ⟨z, s', a, steps, hez, hstep, hdecode.trans (congrArg some hanswer), hrZ, ?_,
-    by omega, ?_, hnative.trans (congrArg some hanswer)⟩
-  · intro c hc
-    have hc' : c ∉ L.footprint := Memory.compactLayout_footprint n base ▸ hc
-    exact (congrFun hmz c).trans (hmodY c (by
+  refine ⟨z, s', a, steps, hez, hstep, hdecode.trans (congrArg some hanswer), hrZ,
+    fun c hc => (congrFun hmz c).trans (hmodY c (by
       simpa only [Memory.Framed.region_eq_footprint (Memory.framed hL) rfl,
-        Memory.framed_footprint] using hc'))
-  · rw [hzstate, hstateY]
-    exact congrArg (fun e => (Memory.spec w).clientState e (Memory.ops L o)) hm₀
+        Memory.framed_footprint, Memory.compactLayout_footprint n base] using hc)),
+    by omega,
+    (hzstate.trans hstateY).trans
+      (congrArg (fun e => (Memory.spec w).clientState e (Memory.ops L o)) hm₀),
+    hnative.trans (congrArg some hanswer)⟩
 
 private noncomputable def implementationImpl {w n K base : ℕ}
     (hS : Fits w (base + space n)) (hK : Fits w K) :

@@ -347,11 +347,8 @@ theorem IsHuffmanBuild.of_perm {α β : Type*} [Add β] [LE β] {w : α → β}
     (hperm : F₁.Perm F₂) (hbuild : IsHuffmanBuild w F₂ T) :
     IsHuffmanBuild w F₁ T := by
   cases hbuild with
-  | single =>
-    rw [List.Perm.eq_singleton hperm]
-    exact .single T
-  | step hmin hsub =>
-    exact .step ⟨hperm.trans hmin.perm, hmin.weight_le⟩ hsub
+  | single => exact hperm.eq_singleton ▸ .single T
+  | step hmin hsub => exact .step ⟨hperm.trans hmin.perm, hmin.weight_le⟩ hsub
 
 private structure TwoQueueInv {α β : Type u} [AddCommMonoid β] [LinearOrder β]
     (w : α → β) (q₁ : List (WeightedTree α β)) (q₂ : FifoQueue (WeightedTree α β)) : Prop where
@@ -517,15 +514,13 @@ theorem huffmanFromSorted_spec {α β : Type u}
       IsHuffmanBuild w (syms.map .leaf) T ∧
       T.leaves.Perm syms := by
   let q₁ := syms.map fun a => (⟨.leaf a, w a⟩ : WeightedTree α β)
-  have hinv : TwoQueueInv w q₁ FifoQueue.empty := by
-    refine ⟨FifoQueue.wf_empty, ?_, by simpa [q₁, List.pairwise_map] using hsorted, by simp,
-      fun _ _ _ _ _ hz => by simp at hz⟩
-    simpa [q₁, FifoQueue.toList_empty] using hw
+  have hinv : TwoQueueInv w q₁ FifoQueue.empty :=
+    ⟨FifoQueue.wf_empty, by simpa [q₁, FifoQueue.toList_empty] using hw,
+      by simpa [q₁, List.pairwise_map] using hsorted, .nil, fun _ _ _ _ _ hz => nomatch hz⟩
   rcases twoQueueLoop_correct hinv (by simpa [q₁, FifoQueue.toList_empty] using hne) with
     ⟨T, hT_ret, hT_build⟩
-  have hT_build' : IsHuffmanBuild w (syms.map .leaf) T := by
-    simpa [q₁, List.map_map, Function.comp_def] using hT_build
-  exact ⟨T, hT_ret, hT_build', hT_build'.leaves_perm⟩
+  rw [FifoQueue.toList_empty, List.append_nil, List.map_map] at hT_build
+  exact ⟨T, hT_ret, hT_build, hT_build.leaves_perm⟩
 
 /-- **End-to-End Correctness of `huffman`**: on any nonempty symbol list `syms` with nonnegative
 weights, `huffman w syms` returns `some T` satisfying `IsHuffmanBuild w (syms.map .leaf) T` and
@@ -538,14 +533,12 @@ theorem huffman_spec {α β : Type u}
     ∃ T, huffman w syms = some T ∧
       IsHuffmanBuild w (syms.map .leaf) T ∧
       T.leaves.Perm syms := by
-  let cmp : α → α → Bool := fun a b => decide (w a ≤ w b)
-  let sorted := syms.mergeSort cmp
-  have hperm : sorted.Perm syms := List.mergeSort_perm syms cmp
+  let sorted := syms.mergeSort fun a b => decide (w a ≤ w b)
+  have hperm : sorted.Perm syms := List.mergeSort_perm syms _
   have hsorted_ne : sorted ≠ [] := fun hnil => hne (List.Perm.nil_eq (hnil ▸ hperm)).symm
   have hpw : sorted.Pairwise (fun a b => w a ≤ w b) := by
-    have htot : ∀ a b, (cmp a b || cmp b a) = true := by grind
-    have htr : ∀ a b c, cmp a b = true → cmp b c = true → cmp a c = true := by grind
-    simpa [cmp, decide_eq_true_eq] using List.pairwise_mergeSort htr htot syms
+    simpa [decide_eq_true_eq] using
+      List.pairwise_mergeSort (le := fun a b => decide (w a ≤ w b)) (by grind) (by grind) syms
   rcases huffmanFromSorted_spec hsorted_ne hpw (fun a ha => hw a (hperm.subset ha)) with
     ⟨T, hT_eq, hT_build, hT_perm⟩
   exact ⟨T, hT_eq, IsHuffmanBuild.of_perm (hperm.symm.map CodeTree.leaf) hT_build,

@@ -118,9 +118,8 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
   have hr_not_exp : r ∉ B.expAt qHead₀ := by
     simp only [PBFS.expAt, Finset.mem_insert, Finset.mem_image, Finset.mem_range, not_or,
       not_exists, not_and]
-    refine ⟨by omega, fun i hi hqi => ?_⟩
-    have := hinv.q_inj i (lt_trans hi hqh_lt) qHead₀ hqh_lt (hqi.trans hinv.r_eq.symm)
-    omega
+    exact ⟨hr_pos.ne', fun i hi hqi => (lt_irrefl qHead₀
+      (hinv.q_inj i (lt_trans hi hqh_lt) qHead₀ hqh_lt (hqi.trans hinv.r_eq.symm) ▸ hi))⟩
   obtain ⟨hdf_disc, hdf_str⟩ := hinv.delta_exp fr hinv.fr_mem a ha
   have htrie_iff := hchar r hr_lt a ha
   dsimp only [PBFS.innerStep]
@@ -132,14 +131,12 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     have hs_depth : T.depth s = T.depth r + 1 := by
       rw [hT.depth_eq s hs_lt, hs_str, List.length_append, List.length_singleton,
         ← hT.depth_eq r hr_lt]
-    have hs_not : s ∉ B.disc := by
-      intro hmem
+    have hs_not : s ∉ B.disc := fun hmem => by
       rcases (hinv.disc_iff s hs_lt).mp hmem with hs0 | ⟨u, hu_exp, c, hc, htuc⟩ | ⟨c, hca, htrc⟩
-      · omega
-      · have hu_lt := mem_disc_lt hT.one_le hinv.q_bounds (hexp_sub hu_exp)
-        exact hr_not_exp ((parent_unique hT hr_lt ha hu_lt hc hs_pos htuc.symm).1 ▸ hu_exp)
-      · have := (parent_unique hT hr_lt ha hr_lt (lt_trans hca ha) hs_pos htrc.symm).2
-        omega
+      · exact absurd hs0 hs_pos.ne'
+      · exact hr_not_exp ((parent_unique hT hr_lt ha
+          (mem_disc_lt hT.one_le hinv.q_bounds (hexp_sub hu_exp)) hc hs_pos htuc.symm).1 ▸ hu_exp)
+      · exact hca.ne (parent_unique hT hr_lt ha hr_lt (lt_trans hca ha) hs_pos htrc.symm).2.symm
     have hq_ne : ∀ i < B.qTail, B.queue i ≠ s := fun i hi h =>
       hs_not (h ▸ Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_range.2 hi)))
     set oh := B.outHead (B.delta fr a)
@@ -201,19 +198,17 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
           (by rw [hdf_str, hinv.fr_str, hs_str, failure_append_singleton P hr_ne_nil a])
           hdisc' rfl rfl rfl }
   · simp only [hs_pos, ↓reduceIte]
-    have hs0 : T.trie r a = 0 := by omega
     obtain ⟨hδe, hδr⟩ := delta_update_spec (σ := σ) hr_not_exp subset_rfl hdf_disc
       (by rw [hdf_str, hinv.fr_str, nextMove_of_not_isNode (mt htrie_iff.mp hs_pos) hr_ne_nil])
       hinv.delta_exp hinv.delta_r
-    exact
+    refine
       { hinv with
-        disc_iff := fun w hw => by
-          change w ∈ B.disc ↔ w = 0 ∨ (∃ u ∈ B.expAt qHead₀, _) ∨ _
-          rw [hinv.disc_iff w hw, Nat.exists_lt_succ_right, hs0, @eq_comm _ 0 w]
-          simp only [or_comm, or_assoc, or_self_left]
-        delta_exp := hδe
-        delta_r := hδr
-        tables := { hinv.tables with } }
+        delta_exp := hδe, delta_r := hδr, tables := { hinv.tables with },
+        disc_iff := fun w hw => ?_ }
+    change w ∈ B.disc ↔ w = 0 ∨ (∃ u ∈ B.expAt qHead₀, _) ∨ _
+    rw [hinv.disc_iff w hw, Nat.exists_lt_succ_right, Nat.eq_zero_of_not_pos hs_pos,
+      @eq_comm _ 0 w]
+    simp only [or_comm, or_assoc, or_self_left]
 
 private theorem innerLoop_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     (hT : TreeInv σ T)
@@ -303,38 +298,27 @@ theorem outerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
   have hexp₂ : B₂.expAt B₂.qHead = insert r (B₂.expAt qh) := by
     rw [hInner.qHead_eq, expAt_succ, hInner.r_eq]
   change BFSInv P σ T B₂ ∧ B₂.qHead = B.qHead + 1
-  refine ⟨?_, hInner.qHead_eq⟩
-  refine
-    { qHead_le := hInner.qHead_le
-      q_bounds := hInner.q_bounds
-      q_inj := hInner.q_inj
-      disc_iff := fun w hw => by
-        rw [hexp₂, hInner.disc_iff w hw, Finset.exists_mem_insert]
-        simp only [or_comm]
-      q_mono := hInner.q_mono
-      q_depth_ub := fun j hj hlt₂ => by
-        have hge : T.depth r ≤ T.depth (B₂.queue B₂.qHead) := by
-          rw [← hInner.r_eq]
-          exact hInner.q_mono qh B₂.qHead (by rw [hInner.qHead_eq]; omega) hlt₂
-        have hub := hInner.q_depth_ub j hj
-        omega
-      lt_depth_mem_exp := fun v hv hlt₂ hdv => by
-        have hub := hInner.q_depth_ub B₂.qHead hlt₂
-        rcases lt_or_ge (T.depth v) (T.depth r) with hlt_r | hge_r
-        · rw [hexp₂]; exact Finset.mem_insert_of_mem (hInner.lt_depth_mem_exp v hv hlt_r)
-        · rcases Finset.mem_insert.mp (hInner.le_depth_mem_disc v hv (by omega)) with rfl | hmem
-          · exact Finset.mem_insert_self 0 _
-          · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hmem
-            have hi_lt : i < B₂.qHead := not_le.mp fun hge => by
-              have := hInner.q_mono B₂.qHead i hge (Finset.mem_range.mp hi)
-              omega
-            exact Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_range.mpr hi_lt))
-      delta_spec := fun u hu c hc => by
-        rw [hexp₂] at hu
-        rcases Finset.mem_insert.mp hu with rfl | hu'
-        · exact hInner.delta_r c hc
-        · exact hInner.delta_exp u hu' c hc
-      tables := hInner.tables }
+  refine ⟨{
+    qHead_le := hInner.qHead_le, q_bounds := hInner.q_bounds, q_inj := hInner.q_inj,
+    q_mono := hInner.q_mono, tables := hInner.tables, disc_iff := fun w hw => ?_,
+    q_depth_ub := fun j hj hlt₂ => (hInner.q_depth_ub j hj).trans (Nat.add_le_add_right
+      (hInner.r_eq ▸ hInner.q_mono qh B₂.qHead (by rw [hInner.qHead_eq]; omega) hlt₂) 1),
+    lt_depth_mem_exp := fun v hv hlt₂ hdv => ?_,
+    delta_spec := fun u hu c hc => ?_ }, hInner.qHead_eq⟩
+  · rw [hexp₂, hInner.disc_iff w hw, Finset.exists_mem_insert]
+    simp only [or_comm]
+  · have hub := hInner.q_depth_ub B₂.qHead hlt₂
+    rcases lt_or_ge (T.depth v) (T.depth r) with hlt_r | hge_r
+    · rw [hexp₂]; exact Finset.mem_insert_of_mem (hInner.lt_depth_mem_exp v hv hlt_r)
+    · rcases Finset.mem_insert.mp (hInner.le_depth_mem_disc v hv (by omega)) with rfl | hmem
+      · exact Finset.mem_insert_self 0 _
+      · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hmem
+        have hi_lt : i < B₂.qHead := not_le.mp fun hge => by
+          have := hInner.q_mono B₂.qHead i hge (Finset.mem_range.mp hi)
+          omega
+        exact Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_range.mpr hi_lt))
+  · rcases Finset.mem_insert.mp (hexp₂ ▸ hu) with rfl | hu'
+    exacts [hInner.delta_r c hc, hInner.delta_exp u hu' c hc]
 
 private theorem outerLoop_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     (hT : TreeInv σ T)

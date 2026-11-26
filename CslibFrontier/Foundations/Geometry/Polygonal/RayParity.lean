@@ -119,10 +119,8 @@ theorem rayCrosses_iff_exists (a b z : ℂ) :
       have ht' : t = (z.im - a.im) / (b.im - a.im) := (eq_div_iff hden).mpr (by linarith)
       refine ⟨?_, hhi, ?_⟩
       · rcases le_total a.im b.im with hab | hab
-        · rw [min_eq_left hab]
-          nlinarith [ht.1]
-        · rw [min_eq_right hab]
-          nlinarith [ht.2]
+        · rw [min_eq_left hab]; nlinarith [ht.1]
+        · rw [min_eq_right hab]; nlinarith [ht.2]
       · simpa only [lineMap_re, ht', horizontalIntercept] using hre
 
 private theorem intercept_lineMap_left {a b : ℂ} (hab : a.im ≠ b.im)
@@ -156,8 +154,7 @@ private theorem decide_rayCrosses_split_of_im_lt {a b : ℂ} (hab : a.im < b.im)
     max_eq_right ham.le, max_eq_right hmb.le, max_eq_right hab.le, hleft, hright]
   by_cases hz : z.im < m.im
   · simp [hz, not_le.mpr hz, hz.trans hmb, Bool.add_eq_xor]
-  · have hmz : m.im ≤ z.im := le_of_not_gt hz
-    simp [hz, hmz, ham.le.trans hmz, Bool.add_eq_xor]
+  · simp [hz, le_of_not_gt hz, ham.le.trans (le_of_not_gt hz), Bool.add_eq_xor]
 
 open Classical in
 /-- Splitting a segment at an interior affine parameter preserves its ray-crossing
@@ -193,8 +190,7 @@ theorem eventually_rayCrosses_iff (a b z : ℂ) (ha : z.im ≠ a.im) (hb : z.im 
   have hmin : z.im ≠ min a.im b.im := by rcases min_choice a.im b.im with h | h <;> rwa [h]
   have hmax : z.im ≠ max a.im b.im := by rcases max_choice a.im b.im with h | h <;> rwa [h]
   have hcont : Continuous (fun w : ℂ => horizontalIntercept a b w.im) := by
-    unfold horizontalIntercept
-    fun_prop
+    dsimp [horizontalIntercept]; fun_prop
   have him := Complex.continuous_im.continuousAt (x := z)
   filter_upwards [eventually_lt_iff_of_ne him continuousAt_const hmin,
     eventually_lt_iff_of_ne him continuousAt_const hmax,
@@ -244,8 +240,7 @@ theorem eventually_rayCrosses_endpoint_jump (a b z : ℂ) (hab : a.im ≠ b.im)
       (decide (RayCrosses a b w) ^^ decide (RayCrosses a b z)) =
         (decide (z.re < a.re) && !decide (z.im ≤ w.im)) := by
   have hcont : Continuous (fun w : ℂ => horizontalIntercept a b w.im) := by
-    unfold horizontalIntercept
-    fun_prop
+    dsimp [horizontalIntercept]; fun_prop
   have hcompare : ∀ᶠ w in nhds z, w.re < horizontalIntercept a b w.im ↔ z.re < a.re := by
     simpa only [hz, horizontalIntercept_left] using
       eventually_lt_iff_of_ne (z := z) Complex.continuous_re.continuousAt hcont.continuousAt

@@ -224,16 +224,14 @@ theorem occupied_iff (e : Fin r) (i : Fin (arity p)) (c : Fin s) :
     occupied hk bits scalar menu x e i c = true ↔
       T (pending hk i) + (scalar c : K) • menu e i ∈ occupiedPoints (acceptedLines a T dirs) := by
   rw [occupied, decide_eq_true_iff, mem_occupiedPoints_acceptedLines]
-  constructor
-  · rintro ⟨m, c', h⟩
-    rw [(hline _ m.isLt).2, candidate_eq bits scalar menu htarget] at h
+  refine ⟨fun ⟨m, c', h⟩ => ?_, fun ⟨m, hm, hw⟩ => ?_⟩
+  · rw [(hline _ m.isLt).2, candidate_eq bits scalar menu htarget] at h
     exact ⟨accepted hk m, m.isLt, (mem_puncturedLine_iff scalar).mpr
       ⟨c', pointBits_injective bits h⟩⟩
-  · rintro ⟨m, hm, hw⟩
-    obtain ⟨c', hc'⟩ := (mem_puncturedLine_iff scalar).mp hw
-    refine ⟨⟨m.val, hm⟩, c', ?_⟩
-    rw [show accepted hk ⟨m.val, hm⟩ = m from Fin.ext rfl, (hline m hm).2,
-      candidate_eq bits scalar menu htarget, hc']
+  · obtain ⟨c', hc'⟩ := (mem_puncturedLine_iff scalar).mp hw
+    have hm_eq : accepted hk ⟨m.val, hm⟩ = m := Fin.ext rfl
+    exact ⟨⟨m.val, hm⟩, c', by
+      rw [hm_eq, (hline m hm).2, candidate_eq bits scalar menu htarget, hc']⟩
 
 omit hline [Fintype K] [DecidableEq K] in
 /-- A candidate is a duplicate exactly when another candidate of its entry is the same point. -/
@@ -296,10 +294,9 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
   simp only [mem_filter, mem_univ, true_and, id] at he hmin
   have hchosen (e' : Fin r) : chosen hk bits scalar menu x e' = true ↔ e' = e := by
     rw [chosen, decide_eq_true_iff]
-    refine ⟨fun ⟨hs, hfirst⟩ => (hmin e' hs).antisymm' (not_lt.mp fun h => ?_), ?_⟩
-    · simp [hfirst e h] at he
-    · rintro rfl
-      exact ⟨he, fun e'' h'' => Bool.eq_false_iff.mpr fun hn => (hmin e'' hn).not_gt h''⟩
+    refine ⟨fun ⟨hs, hfirst⟩ =>
+      (hmin e' hs).antisymm' (not_lt.mp fun h => by simp [hfirst e h] at he), fun h =>
+        h ▸ ⟨he, fun e'' h'' => Bool.eq_false_iff.mpr fun hn => (hmin e'' hn).not_gt h''⟩⟩
   have hflag (i : Fin (arity p)) :
       flag hk bits scalar menu x i = clean hk bits scalar menu x e i := by
     rw [Bool.eq_iff_iff, flag, decide_eq_true_iff]
@@ -318,10 +315,8 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
     rw [hsorted, enriched, Fin.append_left, hflag]
   have hfront (j : Fin (arity p)) (hj : j.val < (arity p + 1) / 2) :
       IsClean (occupiedPoints (acceptedLines a T dirs)) P (menu e) (σ j) := by
-    refine (hclean e (σ j)).mp ?_
-    rw [← hflagbit]
-    refine (sort_flag_eq_true_iff (fun record => record ∘ flagKey) p
-      (enriched hk bits scalar menu x) j).mpr ?_
+    refine (hclean e (σ j)).mp (hflagbit j ▸ (sort_flag_eq_true_iff
+      (fun record => record ∘ flagKey) p (enriched hk bits scalar menu x) j).mpr ?_)
     simp only [Function.comp_apply, flagKey, enriched, Fin.append_left, hflag]
     have := of_decide_eq_true he
     lia

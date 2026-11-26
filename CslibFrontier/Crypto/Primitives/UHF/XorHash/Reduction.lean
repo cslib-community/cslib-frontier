@@ -343,9 +343,8 @@ private theorem prfOracle_xorHashTaggedWord {ℓ blockWidth width : ℕ}
     let req := xorHashTaggedWord ℓ (List.ofFn block) i.val
     prfOracle family (ℓ + blockWidth) key req =
       List.ofFn (BitString.ofList width (family key req)) := by
-  have hreq : (xorHashTaggedWord ℓ (List.ofFn block) i.val).length = ℓ + blockWidth :=
-    taggedRequest_length (block, i)
-  simp only [prfOracle, hreq, ite_true, BitString.ofFn_ofList (hlength _ hreq)]
+  simp only [prfOracle, taggedRequest_length (block, i), ite_true,
+    BitString.ofFn_ofList (hlength _ (taggedRequest_length (block, i)))]
 
 /-- With the security parameter as public setup, running the reduction in the real PRF game gives
 exactly the computational collision game's law. The length hypothesis is the PRF's
@@ -440,17 +439,13 @@ private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
   simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, hrun, ProbComp.eval_pure]
   rw [PMF.bind_comm]
   refine Probability.PMF.bind_apply_le_on_support _ fun guess _ => ?_
-  by_cases h₁ : xorHashWordValid (ℓ n) (blockWidth n) guess.first = true
-  · by_cases h₂ : xorHashWordValid (ℓ n) (blockWidth n) guess.second = true
-    · by_cases hne : guess.first = guess.second
-      · simp [hne]
-      · let decode := decodeWordMessage (ℓ n) (blockWidth n)
-        rw [Probability.PMF.bind_pure_decide_apply_true]
-        simp only [ne_eq, hne, not_false_eq_true, h₁, h₂, true_and]
-        exact hU (decode guess.first) (decode guess.second)
-          fun heq => hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
-    · simp [h₂]
-  · simp [h₁]
+  rw [Probability.PMF.bind_pure_decide_apply_true]
+  let decode := decodeWordMessage (ℓ n) (blockWidth n)
+  by_cases hd : decode guess.first = decode guess.second
+  · refine (MeasureTheory.measure_mono (t := ∅) ?_).trans (by simp)
+    exact fun _ ⟨hne, h₁, h₂, _⟩ => hne (eq_of_decodeWordMessage_eq h₁ h₂ hd)
+  · refine (MeasureTheory.measure_mono ?_).trans (hU (decode guess.first) (decode guess.second) hd)
+    exact fun _ ⟨_hne, _h₁, _h₂, heq⟩ => heq
 
 private theorem eval_prfIdealGame_xorHashWordMultiQueryReduction_le
     (ℓ blockWidth width Q : ℕ → ℕ)

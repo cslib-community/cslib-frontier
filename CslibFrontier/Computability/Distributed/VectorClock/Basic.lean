@@ -660,43 +660,36 @@ theorem IsConsistentCut.mem_of_happensBeforeLe {E : Execution P} {C : Finset E.E
   isConsistentCut_iff_happensBeforeLe.mp hc hle he₂
 
 @[simp] theorem isConsistentCut_empty (E : Execution P) : E.IsConsistentCut ∅ := by
-  intro _ _ _ hmem
-  exact absurd hmem (Finset.notMem_empty _)
+  exact fun _ _ _ hmem => absurd hmem (Finset.notMem_empty _)
 
 @[simp] theorem isConsistentCut_univ (E : Execution P) : E.IsConsistentCut Finset.univ := by
-  intro _ _ _ _
-  exact Finset.mem_univ _
+  exact fun _ _ _ _ => Finset.mem_univ _
 
 /-- Consistent cuts are closed under binary union. -/
 theorem IsConsistentCut.union {E : Execution P} {C₁ C₂ : Finset E.Event}
     (h₁ : E.IsConsistentCut C₁) (h₂ : E.IsConsistentCut C₂) :
     E.IsConsistentCut (C₁ ∪ C₂) := by
-  intro e₁ e₂ hhb hmem
-  rcases Finset.mem_union.mp hmem with hm₁ | hm₂
-  · exact Finset.mem_union_left _ (h₁ hhb hm₁)
-  · exact Finset.mem_union_right _ (h₂ hhb hm₂)
+  exact fun _ _ hhb hmem => (Finset.mem_union.mp hmem).elim
+    (fun hm₁ => Finset.mem_union_left _ (h₁ hhb hm₁))
+    (fun hm₂ => Finset.mem_union_right _ (h₂ hhb hm₂))
 
 /-- Consistent cuts are closed under binary intersection. -/
 theorem IsConsistentCut.inter {E : Execution P} {C₁ C₂ : Finset E.Event}
     (h₁ : E.IsConsistentCut C₁) (h₂ : E.IsConsistentCut C₂) :
     E.IsConsistentCut (C₁ ∩ C₂) := by
-  intro e₁ e₂ hhb hmem
-  obtain ⟨hm₁, hm₂⟩ := Finset.mem_inter.mp hmem
-  exact Finset.mem_inter.mpr ⟨h₁ hhb hm₁, h₂ hhb hm₂⟩
+  exact fun _ _ hhb hmem =>
+    Finset.mem_inter.mpr ⟨h₁ hhb (Finset.mem_inter.mp hmem).1, h₂ hhb (Finset.mem_inter.mp hmem).2⟩
 
 /-- The strict causal past of any event is a consistent cut. -/
 theorem isConsistentCut_causalPast [DecidableEq P] (E : Execution P) (e : E.Event) :
     E.IsConsistentCut (E.causalPast e) := by
-  intro e₁ e₂ h₁₂ he₂
-  rw [mem_causalPast] at he₂ ⊢
-  exact h₁₂.trans he₂
+  exact fun _ _ h₁₂ he₂ => E.mem_causalPast.mpr (h₁₂.trans (E.mem_causalPast.mp he₂))
 
 /-- The reflexive causal past of any event is a consistent cut. -/
 theorem isConsistentCut_causalPastLe [DecidableEq P] (E : Execution P) (e : E.Event) :
     E.IsConsistentCut (E.causalPastLe e) := by
-  intro e₁ e₂ h₁₂ he₂
-  rw [mem_causalPastLe] at he₂ ⊢
-  exact h₁₂.happensBeforeLe.trans he₂
+  exact fun _ _ h₁₂ he₂ =>
+    E.mem_causalPastLe.mpr (h₁₂.happensBeforeLe.trans (E.mem_causalPastLe.mp he₂))
 
 /-- Absence of orphan receives: if a consistent cut `C` contains a receive event `e`, it also
 contains the matching earlier send event `eSend`. -/

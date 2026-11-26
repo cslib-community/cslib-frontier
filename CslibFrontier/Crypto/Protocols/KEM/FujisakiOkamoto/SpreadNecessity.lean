@@ -126,10 +126,7 @@ theorem unspreadPointPKE_msgFailProb_le (P : ExplicitCoinPKE PK SK M R CT) (m₀
     (pk : PK) (sk : SK) (m : M) :
     (unspreadPointPKE P m₀).msgFailProb pk sk m ≤ P.msgFailProb pk sk m := by
   rcases eq_or_ne m m₀ with rfl | hm
-  · have h0 : (unspreadPointPKE P m).msgFailProb pk sk m = 0 := by
-      simp [ExplicitCoinPKE.msgFailProb, unspreadPointPKE]
-    rw [h0]
-    exact P.msgFailProb_nonneg pk sk m
+  · simp [ExplicitCoinPKE.msgFailProb, unspreadPointPKE]
   · suffices {r : R | (unspreadPointPKE P m₀).dec sk
         ((unspreadPointPKE P m₀).encDet pk m r) ≠ some m} =
         {r : R | P.dec sk (P.encDet pk m r) ≠ some m} by
@@ -235,9 +232,8 @@ private theorem gCache_eq_of_mem_support_simHashH_singleton (S : Scheme PK SK M 
       else simHashHRaw S.sampleKey (false, mStar, cStar)) a.2)).support at hz
   rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hz
   obtain ⟨⟨r, st₁⟩, hr, hz⟩ := hz
-  rw [simHashG, RandomOracle.eval_zoomStateT_memoize,
-    memoize_of_some _ _ _ _ (show ([(mStar, rStar)] : List (M × R)).lookup mStar = some rStar
-      by simp),
+  have hmem_m : ([(mStar, rStar)] : List (M × R)).lookup mStar = some rStar := by simp
+  rw [simHashG, RandomOracle.eval_zoomStateT_memoize, memoize_of_some _ _ _ _ hmem_m,
     PMF.monad_pure_eq_pure, PMF.pure_map, PMF.mem_support_pure_iff] at hr
   cases hr
   split_ifs at hz
@@ -312,8 +308,8 @@ theorem eval_roIndCcaBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (
       simp [S, unspreadScheme, unspreadPointPKE, hm]
     have henc (r' : R) : S.pke.encDet pk m₀ r' = none := by
       simp [S, unspreadScheme, unspreadPointPKE]
-    simp [StateT.run_bind, hc, show S.pke.dec sk none = some m₀ from rfl, henc, hm, pmf_norm,
-      Scheme.decapsBotM_eq]
+    have hdec : S.pke.dec sk none = some m₀ := rfl
+    simp [StateT.run_bind, hc, hdec, henc, hm, pmf_norm, Scheme.decapsBotM_eq]
 
 /-- **Necessity of the `qD · 2^{-γ}` spreadness term in `FO^⊥`**: for a uniform message sampler on a
 finite message space `M`, the 1-query adversary `probeDecapsAdv` (`qG = 0, qH = 0, qD = 1`)
@@ -335,10 +331,8 @@ theorem advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv
   change (((PMF.uniformOfFintype M).map (fun mStar => decide (mStar ≠ m₀))) true).toReal = _
   have hmap : (PMF.uniformOfFintype M).map (fun mStar => decide (mStar ≠ m₀)) true =
       (Finset.univ.filter (fun mStar : M => mStar ≠ m₀)).card / (Fintype.card M : ℝ≥0∞) := by
-    rw [PMF.map_apply]
-    simp only [PMF.uniformOfFintype_apply, true_eq_decide_iff, div_eq_mul_inv]
-    rw [tsum_fintype, ← Finset.sum_filter]
-    simp
+    simp only [PMF.map_apply, PMF.uniformOfFintype_apply, true_eq_decide_iff, div_eq_mul_inv,
+      tsum_fintype, ← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
   rw [hmap, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ m₀), Finset.card_univ,
     ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
     Nat.cast_sub Fintype.card_pos, Nat.cast_one, sub_div,

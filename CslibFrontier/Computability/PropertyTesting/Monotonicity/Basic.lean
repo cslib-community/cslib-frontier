@@ -142,14 +142,12 @@ theorem mem_violatedEdges {f : (ι → Bool) → Bool} {i : ι} {x : ι → Bool
 /-- A Boolean function is monotone exactly when it has no violated edge in any direction. -/
 theorem monotone_iff_forall_violatedEdges_eq_empty {f : (ι → Bool) → Bool} :
     Monotone f ↔ ∀ i, violatedEdges f i = ∅ := by
-  rw [monotone_iff_forall_update_le]
-  refine ⟨fun h i => eq_empty_iff_forall_notMem.2 fun x hx => ?_,
-    fun h x i => by_contra fun hlt => ?_⟩
-  · obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 hx
-    simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, h1, h2, Bool.le_iff_imp] using h x i
-  · have h1 : f (update x i false) = true ∧ f (update x i true) = false := by
-      revert hlt; cases f (update x i false) <;> cases f (update x i true) <;> decide
-    exact notMem_empty _ (h i ▸ mem_violatedEdges.2 ⟨update_self .., by simpa using h1⟩)
+  simp only [monotone_iff_forall_update_le, eq_empty_iff_forall_notMem, mem_violatedEdges,
+    Bool.le_iff_imp]
+  exact ⟨fun h i x ⟨hxi, h1, h2⟩ =>
+      by simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, h1, h2] using h x i,
+    fun h x i h1 => by_contra fun h2 => h i (update x i false)
+      ⟨update_self .., by simpa using h1, by simpa using Bool.eq_false_iff.2 h2⟩⟩
 
 end ViolatedEdges
 
@@ -203,12 +201,9 @@ private theorem viol_sortAlong_square (f : (ι → Bool) → Bool) {i j : ι} (h
       (if Viol (sortAlong i f) j (update y i true) then 1 else 0) : ℕ) ≤
     (if Viol f j (update y i false) then 1 else 0) +
       (if Viol f j (update y i true) then 1 else 0) := by
-  simp only [Viol]
-  simp only [update_comm hij, sortAlong_update_false, sortAlong_update_true]
-  generalize f (update (update y j false) i false) = a
-  generalize f (update (update y j false) i true) = b
-  generalize f (update (update y j true) i false) = c
-  generalize f (update (update y j true) i true) = d
+  simp only [Viol, update_comm hij, sortAlong_update_false, sortAlong_update_true]
+  generalize f (update (update y j false) i false) = a, f (update (update y j false) i true) = b,
+    f (update (update y j true) i false) = c, f (update (update y j true) i true) = d
   revert a b c d
   decide
 

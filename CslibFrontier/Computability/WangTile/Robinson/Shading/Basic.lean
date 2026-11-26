@@ -263,8 +263,9 @@ theorem componentAt_double_add (grid : Nat → Nat → Index)
     (x y dx dy : Nat) (hdx : dx < 2) (hdy : dy < 2) :
     componentAt grid (2 * x + dx) (2 * y + dy) =
       indexThick (grid x y) := by
-  simp only [componentAt, show (2 * x + dx) / 2 = x by omega,
-    show (2 * y + dy) / 2 = y by omega]
+  have hx : (2 * x + dx) / 2 = x := by omega
+  have hy : (2 * y + dy) / 2 = y := by omega
+  simp only [componentAt, hx, hy]
 
 /-- The inward south quarter has its north-facing bit set. -/
 theorem quadrantAt_quarterSouth_yBit (x south : Nat) :
@@ -633,14 +634,10 @@ theorem Related.trans {first second third : Option Shade}
     Related (Bool.xor firstParity secondParity) first third := by
   cases firstParity <;> cases secondParity
   · exact Eq.trans firstRelation secondRelation
-  · subst second
-    exact secondRelation
-  · subst second
-    exact firstRelation
-  · rcases firstRelation with ⟨firstShade, rfl, rfl⟩
-    rcases secondRelation with ⟨secondShade, heq, hthird⟩
-    obtain rfl := Option.some.inj heq
-    simpa [Related] using Eq.symm hthird
+  · exact firstRelation.symm ▸ secondRelation
+  · exact secondRelation ▸ firstRelation
+  · rcases firstRelation, secondRelation with ⟨⟨_, rfl, rfl⟩, ⟨_, ⟨⟩, rfl⟩⟩
+    simp [Related]
 
 private theorem related_true_of_ne_of_present
     {first second : Option Shade}
@@ -732,8 +729,8 @@ private theorem ne_of_related_true
 tile and edge-matching rules. -/
 theorem validShadeGrid {indexGrid : Nat → Nat → Index}
     (labeling : ValidPortLabeling indexGrid) :
-    ValidShadeGrid indexGrid labeling.stateGrid := by
-  exact ⟨fun x y => allowedFor_iff.mpr
+    ValidShadeGrid indexGrid labeling.stateGrid :=
+  ⟨fun x y => allowedFor_iff.mpr
     ⟨labeling.present ⟨x, y, .west⟩, labeling.present ⟨x, y, .east⟩,
      labeling.present ⟨x, y, .south⟩, labeling.present ⟨x, y, .north⟩,
      fun h => labeling.related (.horizontal x y h),
@@ -885,21 +882,20 @@ theorem CycleShade.coarsen {grid : Nat → Nat → Index} {fine : Nat → Nat �
     (hfine : ValidShadeGrid (iterateRefine 2 grid) fine)
     (cycle : CycleOn grid west east south north)
     (shaded : CycleShade fine (4 * west) (4 * east) (4 * south) (4 * north) shade) :
-    CycleShade (coarsen fine) west east south north shade := by
-  exact
-    ⟨coarse_value hfine ⟨quarterWest west, quarterSouth south, .east⟩
+    CycleShade (coarsen fine) west east south north shade :=
+  ⟨coarse_value hfine ⟨quarterWest west, quarterSouth south, .east⟩
       (by simp [portPresent, hasEast, cycle.southwest_corner.1])
       (by simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterSouth,
         Nat.add_div, ← Nat.mul_assoc] using shaded.southwest),
-     coarse_value hfine ⟨quarterEast east, quarterSouth south, .west⟩
+    coarse_value hfine ⟨quarterEast east, quarterSouth south, .west⟩
       (by simp [portPresent, hasWest, cycle.southeast_corner.1])
       (by simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterSouth,
         Nat.add_div, ← Nat.mul_assoc] using shaded.southeast),
-     coarse_value hfine ⟨quarterEast east, quarterNorth north, .west⟩
+    coarse_value hfine ⟨quarterEast east, quarterNorth north, .west⟩
       (by simp [portPresent, hasWest, cycle.northeast_corner.1])
       (by simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterNorth,
         ← Nat.mul_assoc] using shaded.northeast),
-     coarse_value hfine ⟨quarterWest west, quarterNorth north, .east⟩
+    coarse_value hfine ⟨quarterWest west, quarterNorth north, .east⟩
       (by simp [portPresent, hasEast, cycle.northwest_corner.1])
       (by simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterNorth,
         Nat.add_div, ← Nat.mul_assoc] using shaded.northwest)⟩

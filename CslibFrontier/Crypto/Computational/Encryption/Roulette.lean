@@ -169,12 +169,8 @@ theorem succProbability_idealRouletteExperiment {K C : Type}
       ProbComp.eval (idealRouletteExperiment E sampleKey A) =
         (ProbComp.eval (sampleKey >>= fun k => E.encrypt k 0 >>= A)).bind fun bet =>
           (PMF.uniformOfFintype (Fin 37)).map fun r => rouletteWin r bet := by
-    simp only [idealRouletteExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.bind_bind]
-    rw [PMF.bind_comm]
-    congr 1; funext k
-    rw [PMF.bind_comm]
-    congr 1; funext ct
+    simp only [idealRouletteExperiment, ← bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform,
+      ProbComp.eval_pure]
     rw [PMF.bind_comm]
     rfl
   have htrue :
@@ -184,8 +180,9 @@ theorem succProbability_idealRouletteExperiment {K C : Type}
     refine Probability.PMF.bind_apply_of_forall _ fun bet => ?_
     rw [← ENNReal.ofReal_toReal (PMF.apply_ne_top _ true)]
     exact congrArg ENNReal.ofReal (succProbability_uniform_rouletteWin bet)
+  have hnn : (0 : ℝ) ≤ 18 / 37 := by norm_num
   change ((ProbComp.eval (idealRouletteExperiment E sampleKey A)) true).toReal = 18 / 37
-  rw [htrue, ENNReal.toReal_ofReal (by norm_num)]
+  rw [htrue, ENNReal.toReal_ofReal hnn]
 
 /-- Internet roulette advantage `IRadv[A] := |Pr[W(r, bet) = 1] - 18 / 37|` ([BonehShoup2023],
 Section 2.2.4, p. 22), packaged as a nonnegative real via `nndist`. -/
@@ -413,20 +410,10 @@ theorem rouletteDEMAdvantage_le_demKeyGame_add (width keyLen : ℕ → ℕ)
         (74 : ℝ≥0) / 2 ^ width n := by
   let E : Cipher (List Bool) (Fin 37) (List Bool) := wordCipher encryptSym (fun _ _ _ => none) n
   let sampleKey := BitString.sampleList (keyLen n)
-  let realExp := rouletteExperiment E sampleKey (A n)
-  let idealExp := idealRouletteExperiment E sampleKey (A n)
-  let dem0 := demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) false n
-  let dem1 := demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) true n
-  have h0 : Game.advantage (ProbComp.eval realExp) (ProbComp.eval dem0) ≤
-      (37 : ℝ≥0) / 2 ^ width n := by
-    rw [Game.advantage_comm]
-    simpa [realExp, dem0, E, sampleKey, rouletteDEMExperiment] using
-      advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A false n
-  have h1 : Game.advantage (ProbComp.eval idealExp) (ProbComp.eval dem1) ≤
-      (37 : ℝ≥0) / 2 ^ width n := by
-    rw [Game.advantage_comm]
-    simpa [idealExp, dem1, E, sampleKey] using
-      advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A true n
+  have h0 := (Game.advantage_comm _ _).trans_le
+    (advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A false n)
+  have h1 := (Game.advantage_comm _ _).trans_le
+    (advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A true n)
   change rouletteAdvantage E sampleKey (A n) ≤ _
   rw [rouletteAdvantage_eq_advantage_ideal]
   exact (Game.advantage_four_hop_le h0 h1).trans_eq (by ring)

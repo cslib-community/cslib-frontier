@@ -295,8 +295,7 @@ theorem eval_of_forall_ne {σ : ℕ → Bool} {c : Clause ℕ} {l : Literal ℕ}
   by_cases hne : l' = l
   · subst hne; simpa [Literal.eval] using hl'σ
   · have := hM _ (hfalse l' hl' hne)
-    rw [Literal.eval_negate] at this
-    simp [Literal.eval, hl'σ] at this
+    simp [Literal.eval, Std.Sat.Literal.negate, hl'σ] at this
 
 end Trail
 
@@ -343,15 +342,11 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
       obtain ⟨l, hl, hlσ⟩ := (Clause.eval_eq_true_iff σ c).1
         ((CNF.eval_eq_true_iff σ F).1 (h.models σ ▸ hσ) c hc)
       have := hM _ (hconf l hl)
-      rw [Literal.eval_negate] at this
-      simp [Literal.eval, hlσ] at this
+      simp [Literal.eval, Std.Sat.Literal.negate, hlσ] at this
     | @backjump N M₀ F d c C l hc hconf hC hl hfalse hundef hocc =>
-      have hnodup : (Trail.vars M₀).Nodup := by
-        have := h.nodup
-        simp only [Trail.vars, List.map_append, List.map_cons] at this
-        exact (List.nodup_cons.1 (List.nodup_append.1 this).2.1).2
-      refine ⟨h.models, h.pmodels, List.nodup_cons.2 ⟨hundef, hnodup⟩, fun x hx => ?_,
-        h.db_vars, .implied l (Trail.entailed_append (N := N ++ [⟨d, true⟩])
+      obtain ⟨-, hdM₀, -⟩ := List.nodup_append.1 (by simpa [Trail.vars] using h.nodup)
+      refine ⟨h.models, h.pmodels, List.nodup_cons.2 ⟨hundef, (List.nodup_cons.1 hdM₀).2⟩,
+        fun x hx => ?_, h.db_vars, .implied l (Trail.entailed_append (N := N ++ [⟨d, true⟩])
           (by simpa using h.entailed)) fun σ hσ hM =>
           Trail.eval_of_forall_ne (hC σ (h.models σ ▸ hσ)) hM hfalse⟩
       rcases List.mem_cons.1 hx with rfl | hx
@@ -452,9 +447,7 @@ theorem RunInv.backjump_decisions {φ : CNF ℕ} {V : List ℕ} {N M₀ : Trail}
     (hN : ∀ e ∈ N, e.decision = false) {c : Clause ℕ} (hc : c ∈ F)
     (hcM : Trail.Falsifies (N ++ ⟨d, true⟩ :: M₀) c) :
     BasicStep (.run (N ++ ⟨d, true⟩ :: M₀) F) (.run (⟨d.negate, false⟩ :: M₀) F) := by
-  have hnodup := h.nodup
-  simp only [Trail.vars, List.map_append, List.map_cons] at hnodup
-  obtain ⟨-, hdM₀, -⟩ := List.nodup_append.1 hnodup
+  obtain ⟨-, hdM₀, -⟩ := List.nodup_append.1 (by simpa [Trail.vars] using h.nodup)
   refine BasicStep.backjump (C := d.negate :: Trail.decisionClause M₀) (l := d.negate)
     hc hcM ?_ List.mem_cons_self ?_ ?_ (.inr (by simp [Trail.vars, Std.Sat.Literal.negate]))
   · -- the decisions cannot all hold in a model
@@ -471,8 +464,7 @@ theorem RunInv.backjump_decisions {φ : CNF ℕ} {V : List ℕ} {N M₀ : Trail}
     obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1
       ((CNF.eval_eq_true_iff σ F).1 hFσ c hc)
     have := hsat _ (hcM l' hl')
-    rw [Literal.eval_negate] at this
-    simp [Literal.eval, hl'σ] at this
+    simp [Literal.eval, Std.Sat.Literal.negate, hl'σ] at this
   · intro l' hl' hne
     rcases List.mem_cons.1 hl' with rfl | hl'
     · exact absurd rfl hne
@@ -525,12 +517,10 @@ theorem Inv.final {φ : CNF ℕ} {V : List ℕ} {S : State} (h : Inv φ V S)
   | run M F =>
     have hdone : (∀ c ∈ F, ¬ Trail.Falsifies M c) ∧ ∀ x ∈ F.vars, x ∈ Trail.vars M := by
       by_contra hne
-      obtain ⟨S', hS'⟩ := RunInv.exists_basicStep h hne
-      exact hfinal S' hS'
+      exact (RunInv.exists_basicStep h hne).elim hfinal
     have hmodel := h.eval_model hdone.1 hdone.2
     refine ⟨⟨fun hS => absurd hS (by simp), fun hns => absurd ⟨_, hmodel⟩ hns⟩, ?_⟩
-    rintro M' F' hS
-    cases hS
+    rintro M' F' ⟨⟩
     exact ⟨h.trail_model hdone.1 hdone.2, hmodel⟩
 
 /-- The states reachable from the initial state satisfy the invariant. -/
@@ -687,8 +677,6 @@ theorem wellFounded_learnOrForget_basicStep (φ : CNF ℕ) :
   refine Subrelation.wf (r := InvImage (· < ·) (rank φ.vars)) ?_ (InvImage.wf _ wellFounded_lt)
   rintro S' S ⟨hreach, S₁, hlearn, hstep⟩
   obtain ⟨hreach₁, hrank⟩ := reachable_rank_of_learnOrForget hreach hlearn
-  have := hstep.rank_lt (inv_of_reachable hreach₁)
-  simp only [InvImage]
-  omega
+  exact (hstep.rank_lt (inv_of_reachable hreach₁)).trans_eq hrank
 
 end Cslib.Algorithms.Lean.CDCL

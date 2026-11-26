@@ -127,21 +127,19 @@ private theorem Valid.exists_reduction_sharedGate {S : State n} (hS : S.Valid f)
   have hBGr : ¬ (S.gate B).Reads G := fun hr =>
     (Gate.eq_or_eq_of_reads h.ne hBx hBy hr).elim (fun he => h.ne_gate hS h.mem_params_x he.symm)
       fun he => h.ne_gate hS h.mem_params_y he.symm
-  have hconst : ∀ x' (c : Bool), ∀ t, (Lit.const c).Reads t → t ∈ S.params ∧ t ≠ x' ∧
-      S.children x' ⊆ S.children t ∧ (S.Paired x' → S.IsPartner x' t) := fun _ _ _ ht => nomatch ht
   rcases exists_line_const (h := ψ) hφ with ⟨c, hφc, hψc⟩ | ⟨c, hφc, hψc⟩ | ⟨c, hφc, hψc⟩
   · -- the line `x = c`
-    obtain ⟨S', hred⟩ := Valid.exists_reduction_restrict_deleteConst hS h.mem_params_x
-      (hconst x c) h.mem hB hBG hBGr (c₁ := φ c false) (c₂ := ψ c false)
+    exact (Valid.exists_reduction_restrict_deleteConst hS (ℓ := .const c) h.mem_params_x
+      (fun _ ht => nomatch ht) h.mem hB hBG hBGr
       (fun val => by simpa [hG, Lit.eval_const, Function.update_of_ne hyx] using hφc (val y))
-      (fun val => by simpa [hBψ, Lit.eval_const, Function.update_of_ne hyx] using hψc (val y))
-    exact ⟨S', x, y, Or.inl ⟨rfl, rfl⟩, hred⟩
+      fun val => by simpa [hBψ, Lit.eval_const, Function.update_of_ne hyx] using hψc (val y)).imp
+      fun _ hred => ⟨x, y, Or.inl ⟨rfl, rfl⟩, hred⟩
   · -- the line `y = c`
-    obtain ⟨S', hred⟩ := Valid.exists_reduction_restrict_deleteConst hS h.mem_params_y
-      (hconst y c) h.mem hB hBG hBGr (c₁ := φ false c) (c₂ := ψ false c)
+    exact (Valid.exists_reduction_restrict_deleteConst hS (ℓ := .const c) h.mem_params_y
+      (fun _ ht => nomatch ht) h.mem hB hBG hBGr
       (fun val => by simpa [hG, Lit.eval_const, Function.update_of_ne h.ne] using hφc (val x))
-      (fun val => by simpa [hBψ, Lit.eval_const, Function.update_of_ne h.ne] using hψc (val x))
-    exact ⟨S', y, x, Or.inr ⟨rfl, rfl⟩, hred⟩
+      fun val => by simpa [hBψ, Lit.eval_const, Function.update_of_ne h.ne] using hψc (val x)).imp
+      fun _ hred => ⟨y, x, Or.inr ⟨rfl, rfl⟩, hred⟩
   · -- the line `x = y + c`
     obtain ⟨S', hred⟩ := Valid.exists_reduction_restrict_deleteConst hS (ℓ := ⟨.node y, c⟩)
       h.mem_params_x (fun _ ht => Arg.node.inj ht ▸ ⟨h.mem_params_y, hyx, by rw [hcx, hcy],
@@ -317,14 +315,10 @@ theorem Reduction.wt_add_le_fixInput {S S' : State n} (hS : S.Valid f) (hN : S.N
         exact (h.children K hK hKG).2 ((SemiCircuit.inl_mem_children _).1 hNy).2
     have hcard : (S.children u \ (Sum.inl G :: (S.fixInputDeleted G x).toList).toFinset).card
         ≤ 1 := by
-      refine (Finset.card_le_card fun N hN' => Finset.mem_erase.2
-        ⟨fun he => (Finset.mem_sdiff.1 hN').2 (he ▸ List.mem_toFinset.2 List.mem_cons_self),
-          (Finset.mem_sdiff.1 hN').1⟩).trans ?_
-      rw [Finset.card_erase_of_mem h.mem_children_y]
-      exact Nat.sub_le_of_le_add hy2.le
-    have hwt := (hred.wt_le_weight (fun N hN' => hT N (by simpa using hN'))).trans
-      (weight_mono hcard)
-    rw [weight_one] at hwt
+      rw [List.toFinset_cons, Finset.sdiff_insert]
+      exact (Finset.card_le_card (Finset.erase_subset_erase _ Finset.sdiff_subset)).trans
+        (by rw [Finset.card_erase_of_mem h.mem_children_y, ← SemiCircuit.deg, hy2])
+    have hwt := (hred.wt_le_weight hT).trans ((weight_mono hcard).trans_eq weight_one)
     rw [wt_of_mem h.unpaired_y, config_weight, weight_of_two_le hy2.ge]
     omega
   · rw [ite_eq_right huy]
@@ -385,13 +379,11 @@ theorem Valid.step_fixInput {S : State n} (hS : S.Valid f) (hN : S.Normal) {G x 
     hS.card_pairsMeeting_singleton, ite_eq_right hxu, h.length_fixInput hS,
     config_cs, config_cq] at hW
   rw [Finset.card_singleton, hS.card_pairsMeeting_singleton, ite_eq_right hxu, config_ca]
-  by_cases hx2' : S.deg x = 2
-  · by_cases hG1 : S.deg G = 1
-    · rw [ite_eq_left hx2', Finset.sum_eq_zero fun u _ =>
-        ite_eq_right (h.not_isolatedBelow hS hbot hx2' hG1)] at hW
-      omega
-    · rw [ite_eq_left hx2'] at hW; omega
-  · rw [ite_eq_right hx2'] at hW; omega
+  by_cases h1 : S.deg x = 2 ∧ S.deg G = 1
+  · rw [ite_eq_left h1.1, Finset.sum_eq_zero fun u _ =>
+      ite_eq_right (h.not_isolatedBelow hS hbot h1.1 h1.2)] at hW
+    omega
+  · split_ifs at hW <;> omega
 
 /-! ### Cases 9 and 10: the bottleneck -/
 
@@ -402,25 +394,23 @@ private theorem QuadOK.wt_add_le {S : State n} (hS : S.Valid f) {x y z G D : ℕ
     ∀ u ∈ insert D S.params, (S.quad x y z G D α β γ c).wt u + ((if u = x then 7 else 0) +
       (if u = y then 7 else 0) + (if u = z then 6 else 0)) ≤ S.wt u + (if u = D then 7 else 0) := by
   have hDp := hS.wf.notMem_params_of_mem_gates h.mem_D
-  have hDz : D ≠ z := fun he => hDp (he ▸ h.mem_z)
-  have hDx : D ≠ x := fun he => hDp (he ▸ h.mem_x)
-  have hDy : D ≠ y := fun he => hDp (he ▸ h.mem_y)
+  have hneD {w} (hw : w ∈ S.params) : w ≠ D := fun he => hDp (he ▸ hw)
   have hpaired : ∀ {u}, u = x ∨ u = y → (S.quad x y z G D α β γ c).Paired u := fun hu =>
     ⟨(x, y), Finset.mem_insert_self _ _, hu.imp Eq.symm Eq.symm⟩
   intro u _
   rcases eq_or_ne u x with rfl | hux
   · rw [wt_of_paired (hpaired (Or.inl rfl)), wt_of_mem (mem_unpaired.2 ⟨h.mem_x, h.unpaired_x⟩),
       config_weight, weight_of_two_le hx]
-    simp [h.x_ne_y, h.x_ne_z, hDx.symm]
+    simp [h.x_ne_y, h.x_ne_z, hneD h.mem_x]
   rcases eq_or_ne u y with rfl | huy
   · rw [wt_of_paired (hpaired (Or.inr rfl)), wt_of_mem (mem_unpaired.2 ⟨h.mem_y, h.unpaired_y⟩),
       config_weight, weight_of_two_le hy]
-    simp [h.x_ne_y.symm, h.y_ne_z, hDy.symm]
+    simp [h.x_ne_y.symm, h.y_ne_z, hneD h.mem_y]
   rcases eq_or_ne u z with rfl | huz
-  · have hnot : u ∉ (S.quad x y u G D α β γ c).params := by simp [quad_params, hDz.symm]
+  · have hnot : u ∉ (S.quad x y u G D α β γ c).params := by simp [quad_params, hneD h.mem_z]
     rw [wt_of_notMem_params hnot, wt_of_mem (mem_unpaired.2 ⟨h.mem_z, h.unpaired_z⟩),
       config_weight, SemiCircuit.deg, h.children_z, Finset.card_singleton, weight_one]
-    simp [hux, huy, hDz.symm]
+    simp [hux, huy, hneD h.mem_z]
   rw [ite_eq_right hux, ite_eq_right huy, ite_eq_right huz]
   by_cases huD : u = D
   · rw [huD, wt_of_notMem_params hDp, ite_eq_left rfl]

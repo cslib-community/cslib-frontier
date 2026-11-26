@@ -631,11 +631,7 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
       rw [ProbOracleComp.eval_runState, PMF.bind_apply, PMF.toOuterMeasure_eq_tsum_mul_indicator]
       refine tsum_congr fun x => ?_
       cases hwon : x.2.won <;> simp [hwon]
-    have hunion :
-        (ProbOracleComp.runWith
-          (fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
-          (A pk) ⟨[], false⟩).toOuterMeasure {x | x.2.won = true} ≤
-          ∑ j ∈ Finset.range Q_v, W j :=
+    have hunion :=
       ProbOracleComp.toOuterMeasure_bad_le_sum_planted_candidate_of_cost
         (badHandler := fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
         (bad := fun st => st.won = true)
@@ -671,10 +667,7 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
         hadmit' hsign' (A pk) j
       rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState] at hstep
       rw [hstep, PMF.bind_map, PMF.bind_bind]
-      change ((ProbOracleComp.runWith _ (A pk) _).bind fun x => _) true = W j
-      dsimp only [W]
-      congr 2 with x : 1
-      simp [ProbOracleComp.runWith_pure]
+      simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, Function.comp_def, W]
     rw [hlhs_eq]
     exact le_mul_add_of_le_sum (PMF.toOuterMeasure_le_one _ _) hunion hrhs_ge hindex
   exact PMF.bind_apply_le_mul_bind_apply_add_on_support (ProbComp.eval keyGen) hkey
@@ -914,17 +907,13 @@ private theorem eval_run_vqMacToPrfAdversary_pure {D R : Type} [Inhabited R] [De
         (vqOracle (Signer.ofSign fun g : D → R => fun m => pure (g m))
           (fun (_ : Unit) (g : D → R) m σ => decide (g m = σ)) () f)).run ⟨[], false⟩)).bind
         fun x => PMF.pure x.2.won := by
-  have hlhs :
-      ProbComp.eval (OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifFin fun x => pure (f x))
-        ((OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-            vqMacToPrfHandler)
-          (A ())).run ⟨[], false⟩)) =
-      (ProbOracleComp.runWith (validPrfVqStep f) (A ()) ⟨⟨[], false⟩, by simp⟩).map
-        (fun x => (x.1, x.2.val)) := by
-    rw [eval_interpret_pure_run_interpret]
+  unfold vqMacToPrfAdversary
+  simp only [ProbOracleComp.run, OracleComp.interpret_bind, OracleComp.interpret_pure,
+    ProbComp.eval_bind, ProbComp.eval_pure]
+  congr 1
+  trans (ProbOracleComp.runWith (validPrfVqStep f) (A ()) ⟨⟨[], false⟩, by simp⟩).map
+      (fun x => (x.1, x.2.val))
+  · rw [eval_interpret_pure_run_interpret]
     have hsim := ProbOracleComp.runWith_map_state
       (oracle := validPrfVqStep f)
       (oracle' := fun q state =>
@@ -943,26 +932,17 @@ private theorem eval_run_vqMacToPrfAdversary_pure {D R : Type} [Inhabited R] [De
           · simp [hmem, s.property (m, σ) hmem, freshPair]
           · simp [hmem, freshPair, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query])
       (A ()) ⟨⟨[], false⟩, by simp⟩
-    rw [← hsim, PMF.map_comp]; rfl
-  have hrhs :
-      ProbComp.eval (((A ()).runState
-        (vqOracle (Signer.ofSign fun g : D → R => fun m => pure (g m))
-          (fun (_ : Unit) (g : D → R) m σ => decide (g m = σ)) () f)).run ⟨[], false⟩) =
-      (ProbOracleComp.runWith (validPrfVqStep f) (A ()) ⟨⟨[], false⟩, by simp⟩).map
-        (fun x => (x.1, x.2.val)) := by
-    rw [ProbOracleComp.eval_runState]
-    exact (ProbOracleComp.runWith_map_state
+    rw [← hsim, PMF.map_comp]
+    rfl
+  · rw [ProbOracleComp.eval_runState]
+    exact ProbOracleComp.runWith_map_state
       (oracle := validPrfVqStep f)
       (oracle' := fun q st => ProbComp.eval
         (vqOracle (Signer.ofSign fun g : D → R => fun m => pure (g m))
           (fun (_ : Unit) (g : D → R) m σ => decide (g m = σ)) () f q st))
       (represent := Subtype.val)
       (step := fun q s => by cases q <;> simp [validPrfVqStep, vqOracle, Signer.ofSign])
-      (A ()) ⟨⟨[], false⟩, by simp⟩).symm
-  unfold vqMacToPrfAdversary
-  simp only [ProbOracleComp.run, OracleComp.interpret_bind, OracleComp.interpret_pure,
-    ProbComp.eval_bind, ProbComp.eval_pure]
-  rw [hlhs, hrhs]
+      (A ()) ⟨⟨[], false⟩, by simp⟩
 
 /-- Running `vqMacToPrfAdversary A` in `PRF.realExperiment F` has the exact Boolean law of
 `vqForgeExperiment` against the deterministic MAC `(k, m) ↦ F k m`. -/

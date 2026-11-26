@@ -137,11 +137,8 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
       (AffineMap.homothety_apply o s z).trans (add_comm _ _)
     have hFt (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
         F (AffineMap.lineMap a b t) = T (AffineMap.lineMap a b t) := by
-      have hm : AffineMap.lineMap a b t ∈ (Q.route f).support := by
-        rw [hQ, Route.support_line]
-        exact lineMap_mem_segment ℝ a b ht
       rw [hT]
-      exact hFspoke d hd _ hm
+      exact hFspoke d hd _ ((Route.support_line a b).symm ▸ lineMap_mem_segment ℝ a b ht)
     have ha : F a = T a := by
       simpa only [AffineMap.lineMap_apply_zero] using hFt 0 ⟨le_rfl, zero_le_one⟩
     have hb : F b = T b := by
@@ -178,22 +175,24 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
     by_cases he : frozen e
     · simpa only [E, ite_eq_left he] using referenceDrawing_simple hI e
     · simpa only [E, ite_eq_right he] using (hP.mapAtCuts (c := c) hline F.symm.injective).simple e
-  refine ⟨E, hP.of_route_map F.symm.injective (fun _ => rfl) hSimple ?_, ?_, ?_⟩
+  refine ⟨E, hP.of_route_map F.symm.injective (fun _ => rfl) hSimple ?_, ?_,
+    fun e he => ite_eq_left he⟩
   · intro e
     by_cases he : frozen e
     · obtain ⟨hshort, hFt⟩ := hparam e he
-      rw [show E.route e = Q.route e from ite_eq_left he]
+      dsimp only [E]
+      rw [ite_eq_left he]
       intro i
       rw [hshort]
       refine ⟨0, 0, 1, le_rfl, zero_lt_one, le_rfl, fun t ht => ?_⟩
-      rw [show AffineMap.lineMap (0 : ℝ) 1 t = t by
-        simp only [AffineMap.lineMap_apply_ring, mul_zero, mul_one, zero_add]]
+      simp only [AffineMap.lineMap_apply_ring, mul_zero, mul_one, zero_add]
       change (Route.line (Q.route e).start (Q.route e).finish).eval i t = _ ∧ _
-      refine ⟨?_, fun side => ?_⟩
-      · exact (Route.eval_line _ _ i t).trans
-          (F.injective ((hFt t ht).trans (F.apply_symm_apply _).symm))
-      · exact (Route.atEnd_line_iff _ _ i t side).trans (Route.atEnd_line_iff _ _ 0 t side).symm
-    · rw [show E.route e = (P.route e).mapAtCuts cuts c F.symm from ite_eq_right he]
+      exact ⟨(Route.eval_line _ _ i t).trans
+          (F.injective ((hFt t ht).trans (F.apply_symm_apply _).symm)),
+        fun side => (Route.atEnd_line_iff _ _ i t side).trans
+          (Route.atEnd_line_iff _ _ 0 t side).symm⟩
+    · dsimp only [E]
+      rw [ite_eq_right he]
       intro i
       obtain ⟨j, a, b, ha, hab, hb, _, h⟩ :=
         Route.eval_mapAtCuts (c := c) hline (P.route e) i
@@ -201,8 +200,5 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
   · intro v hv
     change F.symm (P.vertex v) = _
     exact F.injective ((F.apply_symm_apply _).trans ((hcenter v hv).trans (hFcenter v hv).symm))
-  · intro e he
-    change (if frozen e then Q.route e else M.route e) = Q.route e
-    exact ite_eq_left he
 
 end Cslib.Complexity.Graph.RotationRecognition

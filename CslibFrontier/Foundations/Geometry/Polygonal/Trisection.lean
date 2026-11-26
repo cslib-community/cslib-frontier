@@ -235,15 +235,12 @@ theorem support_trisect (p : Route) {s t : ℝ}
         refine Set.mem_iUnion.mpr
           ⟨1, ((p.trisect s t 1).mem_support_iff _).mpr ⟨i, u, hu, ?_⟩⟩
         exact (p.eval_cutEnds s t i u).trans (congrArg (p.eval i) he)
-      · obtain rfl : i = Fin.last p.bends := Fin.ext <| by
-          rw [Fin.val_last]
-          by_contra h
-          have hn : i.val + 1 ≠ p.segments := by
-            unfold segments
-            omega
+      · have hi : i.val + 1 = p.segments := by
+          by_contra hn
           exact not_lt_of_ge hr.2 (by simpa only [cutUpper, ite_eq_right hn] using hupp)
+        obtain rfl : i = Fin.last p.bends := Fin.ext (Nat.add_right_cancel hi)
         have hupp' : 1 - t < r := by simpa [cutUpper, segments] using hupp
-        obtain ⟨u, hu, he⟩ := preimage (show 1 - t ≤ (1 : ℝ) by linarith) ⟨hupp'.le, hr.2⟩
+        obtain ⟨u, hu, he⟩ := preimage (sub_le_self 1 ht.le) ⟨hupp'.le, hr.2⟩
         have hr' : 1 - t + t * u = r := by rw [AffineMap.lineMap_apply_ring'] at he; linarith
         refine Set.mem_iUnion.mpr
           ⟨2, ((p.trisect s t 2).mem_support_iff _).mpr ⟨0, u, hu, ?_⟩⟩
@@ -297,12 +294,10 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
   have hcuts (k : Fin q.segments) :
       r.cutLower s k = (if (e k).val = i then s else 0) ∧
       r.cutUpper (1 - t) k = (if (e k).val = j then t else 1) := by
-    have hki : k.val = 0 ↔ (e k).val = i := by
-      rw [Fin.ext_iff]
-      dsimp [e, source]; omega
-    have hkj : k.val + 1 = r.segments ↔ (e k).val = j := by
-      rw [Fin.ext_iff]
-      dsimp [e, source, r, segments]; omega
+    have hki : k.val = 0 ↔ (e k).val = i :=
+      Iff.trans (by dsimp [e, source]; omega) Fin.ext_iff.symm
+    have hkj : k.val + 1 = r.segments ↔ (e k).val = j :=
+      Iff.trans (by dsimp [e, source, r, segments]; omega) Fin.ext_iff.symm
     exact ⟨by simp only [cutLower, hki], by simp only [cutUpper, hkj, sub_sub_cancel]⟩
   have hbounds (k : Fin q.segments) :
       0 ≤ r.cutLower s k ∧ r.cutLower s k < r.cutUpper (1 - t) k ∧
@@ -335,9 +330,8 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
       _ = p.eval (e k).val (sourceTime k u) := congrArg (p.eval (e k).val) (htime k u)
   · intro k l u v hu hv he
     change p.position (e k).val (sourceTime k u) = p.position (e l).val (sourceTime l v) at he
-    have hsource (m : Fin q.segments) : ((e m).val.val : ℝ) = (i.val : ℝ) + m.val := by
-      change ((i.val + m.val : ℕ) : ℝ) = _
-      rw [Nat.cast_add]
+    have hsource (m : Fin q.segments) : ((e m).val.val : ℝ) = (i.val : ℝ) + m.val :=
+      Nat.cast_add i.val m.val
     apply position_cutEnds_eq_of_source_position_eq (p := r) hbounds k l hu hv
     simp only [position, htime]
     simp only [position, hsource] at he

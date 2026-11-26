@@ -235,8 +235,7 @@ private theorem two_pow_mul_ceilNineTenths_le {C s₁ : ℕ}
   rw [← pow_add]
   refine Nat.pow_le_pow_right (by norm_num) ?_
   rcases le_or_gt s₁ s with h | h
-  · have := hs₁ s h
-    omega
+  · exact le_add_of_le_right (hs₁ s h)
   · exact (Nat.mul_le_mul_left C ((ceilNineTenths_le_self s).trans h.le)).trans
       (Nat.le_add_right _ _)
 
@@ -290,9 +289,8 @@ theorem exists_entryLeaves_le
     exact Sum.inl_injective hwt ▸ hent u hu bs (hbs.trans hwlen.symm)
   obtain ⟨hT, hSp⟩ := hKB nativeMk s y _ _ hs (hsc ▸ hsm) (hsc ▸ hmC) hshape hE2
     (fun h => ⟨(hbig h).2 hl, (hbig h).1⟩) hroot
-  have hny := (entry_length_le_of_reach (encT := encT) (entry := entry) hg hy).1
-  rw [← hn] at hny
-  change _ ≤ 2 ^ 55 * Y ^ 24 at hny
+  have hny : (encCall encT y).length ≤ 2 ^ 55 * Y ^ 24 := by
+    simpa only [← hn, ← hY] using (entry_length_le_of_reach (encT := encT) (entry := entry) hg hy).1
   -- The arithmetic against `Y = n + 1`.
   have hY1 : 1 ≤ Y := by omega
   have hsLY : s + L + 1 ≤ 2 * Y := by omega
@@ -416,9 +414,7 @@ theorem exists_entryAnalysis
     fun y a ha => (entry_length_le_of_reach (entry := entry) hg ha.1).2.1 a ha,
     fun v ⟨y, hy, hv⟩ => hv ▸ (entry_length_le_of_reach (entry := entry) hg hy).2.2, ?_, ?_⟩
   · exact hKL' y hy (by simpa [scheme] using hl)
-  · have h1 : H ≤ 1 * (n + 1) ^ K := by
-      have : n + 1 ≤ (n + 1) ^ K := Nat.le_self_pow (by omega) _
-      omega
+  · have h1 : n + 1 ≤ (n + 1) ^ K := Nat.le_self_pow (by omega) _
     have h2 : 2 ^ 55 * (n + 1) ^ 24 ≤ 2 ^ 55 * (n + 1) ^ K :=
       Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hB1 (by omega))
     have h3 : KL * (n + 1) ^ KL ≤ KL * (n + 1) ^ K :=

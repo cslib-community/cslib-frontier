@@ -409,6 +409,28 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
         ∀ a < visBase g, y.mem a = x.mem a :=
     ⟨x1, hex, hext.symm ▸ hS1, he1, hs1, hd1, hr1.curNode, hr1.rem, hr1.outerIdx,
       fun a _ => by rw [hm1]⟩
+  have mkPush {xb xp y : Data 34} {v : ℕ} {fn : Fin L → Fin L} (hSb : StateAt g S xb)
+      (hcy : ConstRegs g y) (hv : v < slots g) (hn : S.get v = none)
+      (hrow : ∀ a (ha : a < L), xp.mem (tabBase g + v * L + a) = (fn ⟨a, ha⟩).val)
+      (hfr : ∀ a, ¬ (tabBase g + v * L ≤ a ∧ a < tabBase g + v * L + L) → xp.mem a = xb.mem a)
+      (hsl : y.regs rStackLen = S.stack.length + 1) (hcl : y.regs rCompLen = S.comp.length)
+      (hym : y.mem = Function.update (Function.update xp.mem (visBase g + v) 1)
+        (stackBase g + S.stack.length) v) : StateAt g (push S v fn) y := by
+    have := tabRow_hi_le_candBase (g := g) hv
+    have := hstk_of hv hn
+    have hstk : HoldsList (stackBase g) (S.stack.reverse ++ [v]) y.mem := by
+      simpa only [hym, List.length_reverse] using
+        (hSb.stack_mem.frame fun a ha1 ha2 => by
+          rw [Function.update_of_ne (by wram_omega),
+            hfr _ (by wram_omega)]).append_one v
+    exact hSb.push_slot hcy hv hn
+      (fun a ha => by
+        rw [hym, Function.update_of_ne (by wram_omega)]
+        rw [Function.update_of_ne (by wram_omega)]
+        exact hrow a ha)
+      (by rw [hym, Function.update_of_ne (by wram_omega), Function.update_self]) hstk hsl hcl
+      (fun a hnr hnv hns => by
+        rw [hym, Function.update_of_ne hns, Function.update_of_ne hnv, hfr a hnr])
   cases hgs : S.get e.src with
   | some f =>
     obtain ⟨hvis_s, htab_s⟩ := hS.vis_some e.src hs_lt f hgs
@@ -416,11 +438,9 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
       simp only [Cond.holds_eq, ht1_1, ← he_def, hvis_s, hc1.one]
     cases hgd : S.get e.dst with
     | none =>
-      have hvis_d : x.mem (visBase g + e.dst) = 0 := hS.vis_none e.dst hd_lt hgd
       have hsd : e.src ≠ e.dst := by intro h0; rw [← h0, hgs] at hgd; nomatch hgd
       have hc_inner : (Cond.eq rTmp2 rZero).Holds x1 := by
-        simp only [Cond.holds_eq, ht2_1, ← he_def, hvis_d, hc1.zero]
-      have hstk_lt : S.stack.length < slots g := hstk_of hd_lt hgd
+        simp only [Cond.holds_eq, ht2_1, ← he_def, hS.vis_none e.dst hd_lt hgd, hc1.zero]
       obtain ⟨x2, hx2, hc2, ht2_2, ht3_2, hlab2, hr2', hm2'⟩ :=
         extendPrep_spec (w := w) g rSrc rDst x1 e.src e.dst (Or.inl ⟨rfl, rfl⟩)
           hc1 hs_lt hd_lt hs1 hd1 hw
@@ -432,29 +452,18 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
       have hr3 := hr3'.trans hr2
       simp only [← he_def] at hrow3 hfr3
       obtain ⟨y, hx4, hc4, he4', hs4', hd4', hsl4, hcl4', hcn4', hrem4', hidx4', hym⟩ :=
-        extendPush_spec (w := w) g rDst x3 e.dst S.stack.length (Or.inr rfl)
-          hc3 hd_lt hstk_lt (hr3.dst.trans hdst_reg) (hr3.stackLen.trans hS.stack_len) hw
+        extendPush_spec (w := w) g rDst x3 e.dst S.stack.length (Or.inr rfl) hc3
+          hd_lt (hstk_of hd_lt hgd) (hr3.dst.trans hdst_reg) (hr3.stackLen.trans hS.stack_len) hw
       have hcb_d := tabRow_hi_le_candBase (g := g) hd_lt
-      have hstk_mem : HoldsList (stackBase g) (S.stack.reverse ++ [e.dst]) y.mem := by
-        simpa only [hym, List.length_reverse] using
-          (hS.stack_mem.frame fun a ha1 ha2 => by
-            rw [Function.update_of_ne (by wram_omega),
-              hfr3 _ (by wram_omega), hm2]).append_one e.dst
-      have hSy : StateAt g (push S e.dst (e.constraint ∘ f)) y :=
-        hS.push_slot hc4 hd_lt hgd
-          (fun a ha => by
-            rw [hym, Function.update_of_ne (by wram_omega), Function.update_of_ne (by wram_omega)]
-            exact hrow3 a ha)
-          (by rw [hym, Function.update_of_ne (by wram_omega), Function.update_self])
-          hstk_mem hsl4 (hcl4'.trans (hr3.compLen.trans hS.comp_len))
-          (fun a hnr hnv hns => by
-            rw [hym, Function.update_of_ne hns, Function.update_of_ne hnv, hfr3 a hnr, hm2])
+      have hSy := mkPush (fn := e.constraint ∘ f) hS hc4 hd_lt hgd hrow3
+        (fun a ha => (hfr3 a ha).trans (congrFun hm2 a))
+        hsl4 (hcl4'.trans (hr3.compLen.trans hS.comp_len)) hym
+      simp only [extend, hgs, hgd]
       refine ⟨y, (hx1.seq (ExecWithin.branch_pos hc_outer
           (ExecWithin.branch_pos hc_inner (hx2.seq (hx3.seq hx4))))).mono (by omega),
-        ?_, he4'.trans (hr3.edgeIdx.trans heptr),
+        hSy, he4'.trans (hr3.edgeIdx.trans heptr),
         hs4'.trans (hr3.src.trans hsrc_reg), hd4'.trans (hr3.dst.trans hdst_reg),
         hcn4'.trans hr3.curNode, hrem4'.trans hr3.rem, hidx4'.trans hr3.outerIdx, fun a ha => ?_⟩
-      · simpa only [extend, hgs, hgd] using hSy
       · rw [hym, Function.update_of_ne (by wram_omega), Function.update_of_ne (by omega),
           hfr3 _ (by wram_omega), hm2]
     | some h =>
@@ -465,16 +474,14 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
         ((hx1.seq (ExecWithin.branch_pos hc_outer (ExecWithin.branch_neg hc_inner hnop))).mono
           (by omega))
   | none =>
-    have hvis_s : x.mem (visBase g + e.src) = 0 := hS.vis_none e.src hs_lt hgs
     have hc_outer : ¬ (Cond.eq rTmp1 rOne).Holds x1 := by
-      simp [Cond.holds_eq, ht1_1, ← he_def, hvis_s, hc1.one]
+      simp [Cond.holds_eq, ht1_1, ← he_def, hS.vis_none e.src hs_lt hgs, hc1.one]
     cases hgd : S.get e.dst with
     | some h =>
       obtain ⟨hvis_d, htab_d⟩ := hS.vis_some e.dst hd_lt h hgd
       have hsd : e.src ≠ e.dst := by intro h0; rw [← h0, hgs] at hgd; nomatch hgd
       have hc_inner : (Cond.eq rTmp2 rOne).Holds x1 := by
         simp only [Cond.holds_eq, ht2_1, ← he_def, hvis_d, hc1.one]
-      have hstk_lt : S.stack.length < slots g := hstk_of hs_lt hgs
       have hcb_s := tabRow_hi_le_candBase (g := g) hs_lt
       have hcb_d := tabRow_hi_le_candBase (g := g) hd_lt
       obtain ⟨x2, hx2, hc2, hr2', hinv2, hfr2⟩ :=
@@ -492,38 +499,25 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
       have hr4 := hr4'.trans hr3
       simp only [← he_def] at hrow4 hfr4
       obtain ⟨y, hx5, hc5, he5', hs5', hd5', hsl5, hcl5', hcn5', hrem5', hidx5', hym⟩ :=
-        extendPush_spec (w := w) g rSrc x4 e.src S.stack.length (Or.inl rfl)
-          hc4 hs_lt hstk_lt (hr4.src.trans hsrc_reg) (hr4.stackLen.trans hS.stack_len) hw
-      have hstk_mem : HoldsList (stackBase g) (S.stack.reverse ++ [e.src]) y.mem := by
-        simpa only [hym, List.length_reverse] using
-          (hS.stack_mem.frame fun a ha1 ha2 => by
-            rw [Function.update_of_ne (by wram_omega),
-              hfr4 _ (by wram_omega), hm3,
-              hfr2 _ (by wram_omega), hm1]).append_one e.src
+        extendPush_spec (w := w) g rSrc x4 e.src S.stack.length (Or.inl rfl) hc4
+          hs_lt (hstk_of hs_lt hgs) (hr4.src.trans hsrc_reg) (hr4.stackLen.trans hS.stack_len) hw
       have hS' : StateAt g S x2 :=
         hS.frame_inv hc2 (hr2.stackLen.trans hS.stack_len) (hr2.compLen.trans hS.comp_len)
           (fun a ha => by rw [hfr2 a ha, hm1])
-      have hSy : StateAt g (push S e.src (preimage (List.finRange L) e.constraint ∘ h)) y :=
-        hS'.push_slot hc5 hs_lt hgs
-          (fun a ha => by
-            rw [hym, Function.update_of_ne (by wram_omega), Function.update_of_ne (by wram_omega)]
-            exact hrow4 a ha)
-          (by rw [hym, Function.update_of_ne (by wram_omega), Function.update_self])
-          hstk_mem hsl5 (hcl5'.trans (hr4.compLen.trans hS.comp_len))
-          (fun a hnr hnv hns => by
-            rw [hym, Function.update_of_ne hns, Function.update_of_ne hnv, hfr4 a hnr, hm3])
+      have hSy := mkPush (fn := preimage (List.finRange L) e.constraint ∘ h) hS' hc5 hs_lt hgs
+        hrow4 (fun a ha => (hfr4 a ha).trans (congrFun hm3 a))
+        hsl5 (hcl5'.trans (hr4.compLen.trans hS.comp_len)) hym
+      simp only [extend, hgs, hgd]
       refine ⟨y, (hx1.seq (ExecWithin.branch_neg hc_outer
           (ExecWithin.branch_pos hc_inner (hx2.seq (hx3.seq (hx4.seq hx5)))))).mono (by omega),
-        ?_, he5'.trans (hr4.edgeIdx.trans heptr),
+        hSy, he5'.trans (hr4.edgeIdx.trans heptr),
         hs5'.trans (hr4.src.trans hsrc_reg), hd5'.trans (hr4.dst.trans hdst_reg),
         hcn5'.trans hr4.curNode, hrem5'.trans hr4.rem, hidx5'.trans hr4.outerIdx, fun a ha => ?_⟩
-      · simpa only [extend, hgs, hgd] using hSy
       · rw [hym, Function.update_of_ne (by wram_omega), Function.update_of_ne (by omega),
           hfr4 _ (by wram_omega), hm3, hfr2 _ (by wram_omega), hm1]
     | none =>
-      have hvis_d : x.mem (visBase g + e.dst) = 0 := hS.vis_none e.dst hd_lt hgd
       have hc_inner : ¬ (Cond.eq rTmp2 rOne).Holds x1 := by
-        simp [Cond.holds_eq, ht2_1, ← he_def, hvis_d, hc1.one]
+        simp [Cond.holds_eq, ht2_1, ← he_def, hS.vis_none e.dst hd_lt hgd, hc1.one]
       exact retSame (by simp only [extend, hgs, hgd])
         ((hx1.seq (ExecWithin.branch_neg hc_outer (ExecWithin.branch_neg hc_inner hnop))).mono
           (by omega))

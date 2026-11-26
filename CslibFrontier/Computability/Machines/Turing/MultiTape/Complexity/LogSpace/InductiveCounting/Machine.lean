@@ -212,11 +212,10 @@ theorem step_counting {B : ℕ} {checked : Bool} {c : Cslib.InductiveCounting.St
   simp only [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, Option.any_some,
     NondeterministicQueryMachine.read]
   by_cases hh : (c.phase == .reject || (checked && c.phase == .accept)) = true
-  · simp only [hh, ↓reduceIte]
-    have hc : Cslib.InductiveCounting.halted c = true := by
+  · have hc : Cslib.InductiveCounting.halted c = true := by
       simp only [Bool.or_eq_true, beq_iff_eq, Bool.and_eq_true] at hh
       rcases hh with hp | ⟨_, hp⟩ <;> simp [Cslib.InductiveCounting.halted, hp]
-    rw [ctlStep, Cslib.InductiveCounting.step, Cslib.InductiveCounting.advance_halted _ _ hc]
+    simp [hh, ctlStep, Cslib.InductiveCounting.step, Cslib.InductiveCounting.advance_halted _ _ hc]
   · cases checked <;> simp_all [runtimeNext, runtimeQuery, localAnswer_eq, ctlStep,
       Cslib.InductiveCounting.step]
 
@@ -464,10 +463,9 @@ private theorem exists_accepting_from_round (hJ : ∃ j, Closed ntm (roundRadix 
         (queryMachine ntm).accept ((queryMachine ntm).replay input choices
           ⟨input.length, roundRadix State input.length j, false,
             some (install ntm (roundRadix State input.length j))⟩) = true := by
-  intro m
-  induction m with
+  intro m j hm hj
+  induction m generalizing j with
   | zero =>
-    intro j hm hj
     obtain rfl : j = Nat.find hJ := by omega
     have hB := card_lt_roundRadix (State := State) input.length (Nat.find hJ)
     have hcl := Nat.find_spec hJ
@@ -477,14 +475,12 @@ private theorem exists_accepting_from_round (hJ : ∃ j, Closed ntm (roundRadix 
     obtain ⟨cs, t, hcs, ht⟩ := exists_replay_unchecked_of_accept ntm input
       (install ntm B) bs hbs
     obtain ⟨bs', hbs'⟩ := Cslib.InductiveCounting.accepts_complete (startID_lt (ntm := ntm) hB)
-      (vertexBound_lt_two_pow_vertexWidth k B).le
-      ((safe_iff_not_accepts hB hcl).mpr hna)
-    refine ⟨cs ++ false :: bs', ?_, ?_⟩ <;>
-    · rw [NondeterministicQueryMachine.replay_append, hcs,
-        NondeterministicQueryMachine.replay_cons, step_switch ntm input ht, replay_checked]
-      simp [queryMachine, runtimeHalted, runtimeAccept, ctlReplay, graphBad, install, hbs']
+      (vertexBound_lt_two_pow_vertexWidth k B).le ((safe_iff_not_accepts hB hcl).mpr hna)
+    refine ⟨cs ++ false :: bs', ?_⟩
+    rw [NondeterministicQueryMachine.replay_append, hcs,
+      NondeterministicQueryMachine.replay_cons, step_switch ntm input ht, replay_checked]
+    simp [queryMachine, runtimeHalted, runtimeAccept, ctlReplay, graphBad, install, hbs']
   | succ m ih =>
-    intro j hm hj
     have hjJ : j < Nat.find hJ := by omega
     have hB := card_lt_roundRadix (State := State) input.length j
     have hncl := Nat.find_min hJ hjJ
@@ -494,17 +490,17 @@ private theorem exists_accepting_from_round (hJ : ∃ j, Closed ntm (roundRadix 
     obtain ⟨bs, hd, hf, hsel⟩ := Cslib.InductiveCounting.exists_replay_done_final
       (edge := graphEdge ntm B input) (bad := graphOverflow ntm B input)
       (startID_lt (ntm := ntm) hB) (vertexBound_lt_two_pow_vertexWidth k B).le
-    let t := ctlReplay ntm input B false (install ntm B) bs
     have hinv : Cslib.InductiveCounting.Invariant (vertexBound (k := k) B) (graphEdge ntm B input)
-        (graphOverflow ntm B input) (startID ntm B) t :=
+        (graphOverflow ntm B input) (startID ntm B)
+        (ctlReplay ntm input B false (install ntm B) bs) :=
       Cslib.InductiveCounting.invariant_replay (startID_lt hB)
         (Cslib.InductiveCounting.invariant_initial (startID_lt hB)) bs
-    have ho : overflowed t = true := by
-      simpa [t, ctlReplay, install, graphBad, overflowed, hd, hf, hsel] using
+    have ho : overflowed (ctlReplay ntm input B false (install ntm B) bs) = true := by
+      simpa [ctlReplay, install, graphBad, overflowed, hd, hf, hsel] using
         (hit_eq_true_iff_not_closed hB hinv hd hf hsel).mpr hncl
-    have hrep := replay_unchecked_of_done ntm input (B := B) (install ntm B) bs ⟨hd, hf⟩
     refine ⟨bs ++ false :: cs, ?_⟩
-    rwa [NondeterministicQueryMachine.replay_append, hrep,
+    rwa [NondeterministicQueryMachine.replay_append,
+      replay_unchecked_of_done ntm input (B := B) (install ntm B) bs ⟨hd, hf⟩,
       NondeterministicQueryMachine.replay_cons, step_overflowed ntm input ho]
 
 /-- **The machine accepts exactly the inputs the source does not accept**, provided some round's

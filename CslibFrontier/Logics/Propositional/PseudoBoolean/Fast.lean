@@ -162,37 +162,6 @@ private theorem toLinearFast_eq (ts : List (ℕ × Literal ℕ)) : toLinearFast 
     | cons t ts ih => exact ih.linStep t
   exact (key ts _ ⟨by simp [Array.emptyWithCapacity], fun v => by simp⟩).1
 
-private theorem mem_insertCoeff {v : ℕ} {a : ℤ} :
-    ∀ {L : List (ℕ × ℤ)} {e : ℕ × ℤ}, e ∈ insertCoeff v a L → e.1 = v ∨ e.1 ∈ L.map (·.1)
-  | [], e, h => by simp [insertCoeff] at h; simp [h]
-  | (u, b) :: L, e, h => by
-    unfold insertCoeff at h
-    split at h
-    · rename_i huv
-      rcases List.mem_cons.1 h with rfl | h
-      · simp [huv]
-      · exact .inr (List.mem_cons_of_mem _ (List.mem_map_of_mem h))
-    · rcases List.mem_cons.1 h with rfl | h
-      · simp
-      · exact (mem_insertCoeff h).imp_right (List.mem_cons_of_mem _)
-
-private theorem map_modify_fst {f : ℕ × ℤ → ℕ × ℤ} (hf : ∀ e, (f e).1 = e.1) :
-    ∀ (L : List (ℕ × ℤ)) (i : ℕ), (L.modify i f).map (·.1) = L.map (·.1)
-  | [], _ => by simp
-  | e :: L, 0 => by simp [hf]
-  | e :: L, i + 1 => by simp [map_modify_fst hf L i]
-
-/-- The variables of the linear form of a list of terms are those of the terms. -/
-theorem fst_mem_toLinear {ts : List (ℕ × Literal ℕ)} {e : ℕ × ℤ}
-    (h : e ∈ toLinear ts) : e.1 ∈ ts.map termVar := by
-  induction ts generalizing e with
-  | nil => simp [toLinear] at h
-  | cons t ts ih =>
-    rcases mem_insertCoeff (L := toLinear ts) h with h | h
-    · simp [h]
-    · obtain ⟨e', he', heq⟩ := List.mem_map.1 h
-      exact List.mem_cons_of_mem _ (heq ▸ ih he')
-
 /-- The linear form of terms on distinct variables lists them in reverse order. -/
 private theorem toLinear_of_nodup :
     ∀ {ts : List (ℕ × Literal ℕ)}, (ts.map termVar).Nodup →
@@ -201,27 +170,10 @@ private theorem toLinear_of_nodup :
   | t :: ts, h => by
     rw [List.map_cons, List.nodup_cons] at h
     have hn : (toLinear ts).findIdx? (·.1 == termVar t) = none := List.findIdx?_eq_none_iff.2
-      fun e he => beq_eq_false_iff_ne.2 fun heq => h.1 (heq ▸ fst_mem_toLinear he)
+      fun e he => beq_eq_false_iff_ne.2 fun heq => h.1 (heq ▸ fst_mem_of_mem_toLinear he)
     change insertCoeff (termVar t) (termCoeff t) (toLinear ts) = _
     rw [insertCoeff_of_findIdx?_eq_none hn, toLinear_of_nodup h.2]
     simp
-
-private theorem nodup_toLinear :
-    ∀ ts : List (ℕ × Literal ℕ), ((toLinear ts).map (·.1)).Nodup
-  | [] => by simp [toLinear]
-  | t :: ts => by
-    have ih := nodup_toLinear ts
-    change ((insertCoeff (termVar t) (termCoeff t) (toLinear ts)).map (·.1)).Nodup
-    rcases h : (toLinear ts).findIdx? (·.1 == termVar t) with _ | i
-    · rw [insertCoeff_of_findIdx?_eq_none h, List.map_append, List.nodup_append]
-      refine ⟨ih, by simp, ?_⟩
-      simp only [List.map_cons, List.map_nil, List.mem_singleton]
-      rintro a ha b rfl rfl
-      obtain ⟨e, he, heq⟩ := List.mem_map.1 ha
-      simpa [heq] using List.findIdx?_eq_none_iff.1 h e he
-    · rw [insertCoeff_of_findIdx?_eq_some h,
-        map_modify_fst (f := fun e => (e.1, e.2 + termCoeff t)) (fun _ => rfl)]
-      exact ih
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` in linear time. -/
 private def normalizeFast (c : PBConstr) : PBConstr :=
@@ -250,7 +202,14 @@ theorem nodup_termVar_fromLinear {L : List (ℕ × ℤ)} (h : (L.map (·.1)).Nod
 
 /-- The variables of a normalized constraint are distinct. -/
 theorem nodup_termVar_normalize (c : PBConstr) : (c.normalize.terms.map termVar).Nodup :=
-  nodup_termVar_fromLinear (nodup_toLinear c.terms) _
+  nodup_termVar_fromLinear (nodup_map_fst_toLinear c.terms) _
+
+/-- The terms of a normalized constraint have positive coefficients. -/
+theorem pos_of_mem_normalize {c : PBConstr}
+    {t : ℕ × Literal ℕ} (ht : t ∈ c.normalize.terms) : 0 < t.1 := by
+  obtain ⟨e, -, he⟩ := List.mem_filterMap.1 ht
+  unfold entryTerm at he
+  split_ifs at he <;> cases he <;> omega
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` of terms on distinct variables, without merging. -/
 private def normalizeDistinct (c : PBConstr) : PBConstr :=

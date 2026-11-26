@@ -178,14 +178,10 @@ theorem two_mul_card_filter_decide_le_eq {ι : Type*} [Fintype ι] [DecidableEq 
       simp only [Bool.toNat_false, Bool.toNat_true, zero_add, Bool.not_false, Bool.not_true,
         decide_eq_true_eq, decide_eq_false_iff_not, not_le] <;>
       split_ifs <;> omega
-  have hsum :
-      (∑ w : ι → Bool, ((if P w then 1 else 0) + (if P (flip w) then 1 else 0))) =
-        ∑ w : ι → Bool, (1 + (if #{i ∈ R | w i = true} = K - 1 then 1 else 0)) :=
-    sum_congr rfl fun w _ => hpair w
-  rw [sum_add_distrib, Equiv.sum_comp flip (fun w => if P w then 1 else 0), ← two_mul,
+  have hsum := sum_congr (s₁ := (univ : Finset (ι → Bool))) rfl fun w _ => hpair w
+  rwa [sum_add_distrib, Equiv.sum_comp flip (fun w => if P w then 1 else 0), ← two_mul,
     ← card_filter, sum_add_distrib, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
     smul_eq_mul, mul_one, ← card_filter, card_filter_card_filter_eq] at hsum
-  exact hsum
 
 /-- Recurrence `(K + 1) * (2 * K + 1).choose K = 2 * (2 * K + 1) * (2 * K - 1).choose (K - 1)`
 for `1 ≤ K`. -/
@@ -237,8 +233,7 @@ parities. -/
 theorem andreevTable_shiftTableFun (b m : ℕ) (w : BitString (2 ^ b + b * m)) (c : BitString b) :
     andreevTable b m (andreevShiftTableFun b m w) c =
       andreevTable b m w (c + andreevParities b m w) := by
-  rw [andreevTable, andreevShiftTableFun_tableIndex, Equiv.symm_apply_apply]
-  rfl
+  rw [andreevTable, andreevShiftTableFun_tableIndex, Equiv.symm_apply_apply]; rfl
 
 @[simp]
 theorem andreevParities_shiftTableFun (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
@@ -408,8 +403,7 @@ theorem card_not_andreevInWindow_le (b m r B : ℕ) {t : ℝ} (ht : 0 ≤ t)
     fun S _ => (Nat.cast_add _ _).trans_le (add_le_add
       (card_filter_le_abs_andreevTableScore b m S ht)
       (card_filter_le_abs_andreevBlockSum_sub_half_bm b m S ht))))).trans_eq ?_
-  simp only [sum_const, nsmul_eq_mul]
-  ring
+  simp only [sum_const, nsmul_eq_mul]; ring
 
 /-- **High-probability `(1 - δ)`-agreement depth-two threshold circuit upper bound (`r = b`)**:
 `andreevWindowedCircuit b m b B` has `4 * 2 ^ b * B + 1` gates and depth at most `2`, and disagrees
@@ -458,13 +452,12 @@ theorem card_eval_andreevWindowedCircuit_eq_andreev_ge {b r : ℕ} (hr : r < b) 
         (exp (-(2 * t ^ 2 / (2 ^ b : ℝ))) + exp (-(2 * t ^ 2 / (b * m : ℝ)))) ≤
       (#{w : BitString (2 ^ b + b * m) |
         (andreevWindowedCircuit b m r B).eval interpretation w o = andreev b m w} : ℝ) := by
-  have hsub := cast_two_mul_card_andreevSubcubeEval_eq_andreev hr m
   have hsplit := Nat.cast_le (α := ℝ).mpr
     (card_andreevSubcubeEval_eq_le_card_eval_andreevWindowedCircuit_add b m r B o)
   rw [Nat.cast_add] at hsplit
   have htail := card_not_andreevInWindow_le b m r B ht hB
   rw [card_andreevPrefixSubsets hr.le, Nat.cast_pow, Nat.cast_ofNat] at htail
-  linarith
+  linarith [cast_two_mul_card_andreevSubcubeEval_eq_andreev hr m]
 
 /-- The central binomial lower bound in the form used by the vote: the exact agreement count of
 `two_mul_card_andreevSubcubeEval_eq_andreev` is at least `2 ^ n (1 / 2 + 1 / (2 √(2 L)))` for

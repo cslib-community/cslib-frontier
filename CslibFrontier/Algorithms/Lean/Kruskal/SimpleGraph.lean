@@ -201,10 +201,8 @@ private theorem isAcyclic_append_singleton {n : ℕ} {W : Type}
   rw [isAcyclic_iff, isAcyclic_iff, hep, List.length_append, List.length_singleton]
   cases hrel : (edgePartition F).rel e.u e.v
   · have hm := Partition.numComponents_merge_of_not_rel hrel
-    simp only [and_true]
-    omega
-  · simp only [Partition.merge_of_rel hrel, Bool.true_eq_false, and_false, iff_false]
-    omega
+    simp only [and_true]; omega
+  · simp only [Partition.merge_of_rel hrel, Bool.true_eq_false, and_false, iff_false]; omega
 
 /-- Exact equivalence between edge-list acyclicity `IsAcyclic F` and simple-graph acyclicity
 `(toSimpleGraph F).IsAcyclic` without parallel edges or self-loops. -/
@@ -250,15 +248,11 @@ theorem edgeFinset_toSimpleGraph_of_no_loops {n : ℕ} {W : Type}
     {es : List (WeightedEdge n W)} (hloop : ∀ e ∈ es, e.u ≠ e.v) :
     (toSimpleGraph es).edgeFinset = (es.map WeightedEdge.sym2).toFinset := by
   ext z
-  induction z using Sym2.ind with
-  | _ x y =>
-    simp only [SimpleGraph.mem_edgeFinset, SimpleGraph.mem_edgeSet, toSimpleGraph_adj,
-      List.mem_toFinset, and_iff_left_iff_imp]
-    intro hmem
-    obtain ⟨e, he, hsym⟩ := List.mem_map.mp hmem
-    rcases Sym2.eq_iff.mp hsym with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact hloop e he
-    · exact (hloop e he).symm
+  refine Sym2.ind (fun x y => ?_) z
+  simp only [SimpleGraph.mem_edgeFinset, SimpleGraph.mem_edgeSet, toSimpleGraph_adj,
+    List.mem_toFinset, and_iff_left_iff_imp, List.mem_map, WeightedEdge.sym2_eq, Sym2.eq_iff]
+  rintro ⟨e, he, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩
+  exacts [hloop e he, (hloop e he).symm]
 
 /-- An acyclic edge list `F` has `(toSimpleGraph F).edgeFinset.card = F.length`. -/
 theorem IsAcyclic.card_edgeFinset_toSimpleGraph {n : ℕ} {W : Type}

@@ -191,9 +191,9 @@ private theorem foldl_aliveStep (t : ℕ) (l : List Bool)
   induction l generalizing cfg h with
   | nil => rfl
   | cons b l ih =>
-    simp only [List.foldl_cons, aliveStep_eq_replayStep, ite_true]
-    rw [show (Except.ok (cfg, h)).bind (fun p => replayStep MUnit t p b) =
-      replayStep MUnit t (cfg, h) b from rfl]
+    have hbind : (Except.ok (cfg, h)).bind (fun p => replayStep MUnit t p b) =
+        replayStep MUnit t (cfg, h) b := rfl
+    simp only [List.foldl_cons, aliveStep_eq_replayStep, ite_true, hbind]
     rcases hr : replayStep MUnit t (cfg, h) b with e | ⟨cfg', h'⟩
     · simp only [foldl_bind_error, foldl_aliveStep_false, true_and]
       rintro m rfl
@@ -325,9 +325,7 @@ private theorem computableInPolyTime_aliveStep :
   · intro tag
     match tag with
     | (false, _) | (true, none) => exact (fst _ _).snd'
-    | (true, some (.step action symbol move)) =>
-      simp only [taggedStep]
-      fun_prop
+    | (true, some (.step action symbol move)) => fun_prop [taggedStep]
     | (true, some (.query op next)) =>
       exact computableInPolyTime_answerFromHistory matchOp entryPair hmatch hpair op next
 
@@ -357,12 +355,11 @@ private theorem aliveStep_spaceBound {n i t : ℕ} {h : List Entry}
         | cons e rest =>
           simp only [List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte, List.headD_cons,
             List.tail_cons]
-          by_cases hcond : (matchOp op e && (entryPair e).1 == (cfg.channels op).1) = true
-          · simp only [hcond, ↓reduceIte]
-            exact ⟨hspace.receive op next _ (List.length_take_le _ _),
+          by_cases hcond : (matchOp op e && (entryPair e).1 == (cfg.channels op).1) = true <;>
+            simp only [hcond, ↓reduceIte]
+          · exact ⟨hspace.receive op next _ (List.length_take_le _ _),
               (List.suffix_cons _ _).trans hsuffix⟩
-          · simp only [hcond]
-            exact ⟨hspace.mono le_rfl (by lia) le_rfl, hsuffix⟩
+          · exact ⟨hspace.mono le_rfl (by lia) le_rfl, hsuffix⟩
 
 include hmatch hpair in
 /-- **The live replay is polynomial-time** in the input, the coins and the history. -/
@@ -408,8 +405,7 @@ theorem computableInPolyTime_accepts [Finite Operation] :
       (encPair encBits (encPair encBits (encList encEntry))) encBool := by
   cases nonempty_fintype Operation
   have := computableInPolyTime_aliveRun matchOp entryPair M (encEntry := encEntry) hmatch hpair
-  unfold accepts
-  fun_prop
+  fun_prop [accepts]
 
 end PolyTime
 

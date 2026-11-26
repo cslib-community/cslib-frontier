@@ -73,15 +73,13 @@ theorem satisfies_repair (pairs : List (α × α)) (fallback : α × α) {R : α
     (hR : pairs.any (fun p => R p.1 p.2) = true) (p : α × α) :
     R (repair pairs fallback R p).1 (repair pairs fallback R p).2 = true := by
   unfold repair
-  split
-  · assumption
+  split_ifs with hp
+  · exact hp
   · cases hfind : pairs.find? (fun q => R q.1 q.2) with
     | none =>
       obtain ⟨q, hq, hRq⟩ := List.any_eq_true.mp hR
-      exact False.elim ((List.find?_eq_none.mp hfind q hq) hRq)
-    | some q =>
-      simpa only [Option.getD_some] using
-        (List.find?_some (p := fun q : α × α => R q.1 q.2) hfind)
+      exact absurd hRq (List.find?_eq_none.mp hfind q hq)
+    | some q => simpa only [Option.getD_some] using List.find?_some hfind
 
 /-- The two incidence projections associated to source edge occurrence `i`. -/
 def block (pairs : List (α × α)) (fallback : α × α) (d : Edge (α → α → Bool))
@@ -167,10 +165,11 @@ private theorem count_violations_le_incidence (pairs : List (α × α)) (fallbac
     g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) ≤
       (incidence pairs fallback g).edges.countP
         (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) := by
-  rw [show g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) =
+  have hcnt : g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) =
       g.edges.zipIdx.countP
-        ((fun d : Edge (α → α → Bool) => !d.constraint (τ d.src).2 (τ d.dst).2) ∘ Prod.fst)
-      by rw [← List.countP_map, List.zipIdx_map_fst], incidence, List.countP_flatMap]
+        ((fun d : Edge (α → α → Bool) => !d.constraint (τ d.src).2 (τ d.dst).2) ∘ Prod.fst) := by
+    rw [← List.countP_map, List.zipIdx_map_fst]
+  rw [hcnt, incidence, List.countP_flatMap]
   refine List.countP_le_sum_map fun ⟨d, i⟩ hdi hbad => ?_
   have hgood := satisfies_repair pairs fallback (hR d (List.fst_mem_of_mem_zipIdx hdi))
     ((τ i).1)
@@ -278,11 +277,9 @@ omit [DecidableEq α] [Fintype α] in
 private theorem zipIdx_edges_eq (g : Graph (α → α → Bool)) : g.edges.zipIdx =
     (List.range g.edges.length).map fun i =>
       (g.edges.getD i ⟨0, 0, fun _ _ => false⟩, i) := by
-  apply List.ext_getElem (by simp)
-  intro i hi hi'
-  have hi'' : i < g.edges.length := by simpa only [List.length_zipIdx] using hi
-  simp only [List.getElem_zipIdx, List.getElem_map, List.getElem_range,
-    List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi'', Option.getD_some, Nat.zero_add]
+  refine List.ext_getElem (by simp) fun i hi _ => ?_
+  simp only [List.length_zipIdx] at hi
+  simp [List.getD_eq_getElem?_getD, hi]
 
 omit [DecidableEq α] in
 private theorem isPolyTime_incidence (pairs : List (α × α)) (fallback : α × α)
@@ -338,10 +335,8 @@ theorem polyTimeReducible_GapTwoCSP_GapLabelCover {α : Type} [Fintype α] [Deci
   refine ⟨LabelCoverIncidence.reduce pairs a b,
     LabelCoverIncidence.isPolyTime_reduce pairs a b encA, ?_, ?_⟩
   · intro g hg
-    have hs := LabelCoverIncidence.satisfiable_reduce pairs hpairs a b
-      (mem_yes_GapTwoCSP.mp hg)
-    rw [GapLabelCover, PromiseProblem.mem_yes_gapMax,
-      (ConstraintGraph.unsatVal_eq_zero_iff _).mpr hs]
+    rw [GapLabelCover, PromiseProblem.mem_yes_gapMax, (ConstraintGraph.unsatVal_eq_zero_iff _).mpr
+      (LabelCoverIncidence.satisfiable_reduce pairs hpairs a b (mem_yes_GapTwoCSP.mp hg))]
     norm_num
   · intro g hg
     simp only [GapTwoCSP, GapLabelCover, PromiseProblem.mem_no_gapMax] at hg ⊢

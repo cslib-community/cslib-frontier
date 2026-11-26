@@ -165,7 +165,7 @@ private theorem ite_check_does {P : Prop} [Decidable P] {C G : Fm} {x t : Tree} 
     Does θ (.ite C G .fail) x (if P then [((1 : A), t)] else []) (c + d + 1) := by
   split_ifs with h
   · exact (Does.ite_true e (by simp [h, bit, one]) hG).mono (by omega)
-  · rw [show bit (decide P) = .nil by simp [h, bit]] at e
+  · simp only [h, decide_false, bit] at e
     exact (Does.ite_false e (Does.fail x)).mono (by omega)
 
 /-- **One instruction.** -/
@@ -196,6 +196,7 @@ private theorem exists_formula_instruction (mu : Tape.Letter S Unit Γ → Matri
     K + 10, fun T ub i t hi ht => ?_⟩
   have hc1 : 1 ≤ i.cost T ub := by
     cases i <;> simp only [Instruction.cost, Body.cost] <;> omega
+  have h400 : 400 ≤ K := by omega
   set x := Tree.cons i.enc (groupState T ub t)
   have hx : Gives θ .id x x 1 := Gives.id x
   suffices h : Does θ (switchF (.hd (.hd .id)) fs) x (instructionSem θ mu cb kinds T ub i t)
@@ -221,20 +222,16 @@ private theorem exists_formula_instruction (mu : Tape.Letter S Unit Γ → Matri
   | agree k k' =>
     have g := getF_gives (θ := θ) (p := ofBits k') (t := t) hx.hd.tl.tl hx.tl.tl.tl
     rw [path_ofBits, len_ofBits] at g
-    have hD : Does θ (fs.getD 2 .fail) x (instructionSem θ mu cb kinds T ub (.agree k k') t)
-        (30 * (k.length + k'.length) + 240 * ub + 140) :=
-      (ite_check_does (compare_gives ht hx.hd.tl.hd hx.tl.tl.tl g) hx.tl.tl.tl).mono (by omega)
-    refine (switchF_does (j := 2) hx.hd.hd rfl hD).mono ?_
+    refine (switchF_does (j := 2) hx.hd.hd rfl
+      (ite_check_does (compare_gives ht hx.hd.tl.hd hx.tl.tl.tl g) hx.tl.tl.tl)).mono ?_
     simp only [Instruction.cost]
-    exact le_trans (by omega) (Nat.mul_le_mul_right _ (show 400 ≤ K by omega))
+    exact le_trans (by omega) (Nat.mul_le_mul_right _ h400)
   | fixed k w =>
-    have hD : Does θ (fs.getD 3 .fail) x (instructionSem θ mu cb kinds T ub (.fixed k w) t)
-        (30 * k.length + 240 * ub + 120) :=
-      (ite_check_does (compare_gives ht hx.hd.tl.hd hx.tl.tl.tl hx.hd.tl.tl) hx.tl.tl.tl).mono
-        (by omega)
-    refine (switchF_does (j := 3) hx.hd.hd rfl hD).mono ?_
+    refine (switchF_does (j := 3) hx.hd.hd rfl
+      (ite_check_does (compare_gives ht hx.hd.tl.hd hx.tl.tl.tl hx.hd.tl.tl)
+        hx.tl.tl.tl)).mono ?_
     simp only [Instruction.cost]
-    exact le_trans (by omega) (Nat.mul_le_mul_right _ (show 400 ≤ K by omega))
+    exact le_trans (by omega) (Nat.mul_le_mul_right _ h400)
   | role j tt slots keys =>
     obtain ⟨z, hz, hsl⟩ := hi
     have hj : j < kinds.length := (List.getElem?_eq_some_iff.1 hz).1
@@ -258,23 +255,21 @@ private def unF (b : Fm) : Fm := foldF (.ite (.hd .id) (.cons (.quote .nil)
 private theorem unF_gives {b : Fm} {x : Tree} {w : List Bool} {c : ℕ}
     (h : Gives θ b x (ofBits w) c) : Gives θ (unF b) x (num (BitString.binaryValue w))
       (c + w.length * (62 * BitString.binaryValue w + 120) + 30) := by
-  have le_foldl : ∀ (ys : List Bool) a, a ≤ ys.foldl (fun a b => 2 * a + b.toNat) a := by
-    intro ys
+  have le_foldl (ys : List Bool) : ∀ a, a ≤ ys.foldl (fun a b => 2 * a + b.toNat) a := by
     induction ys with
     | nil => exact fun _ => le_rfl
-    | cons b ys ih => exact fun a => le_trans (show a ≤ 2 * a + b.toNat by omega) (ih _)
+    | cons b ys ih =>
+      exact fun a => (Nat.le_mul_of_pos_left a (by decide)).trans
+        ((Nat.le_add_right _ _).trans (ih _))
   have h1 := foldF_gives_enc (θ := θ) (encE := bit) (xs := w) (enc := num) (s₀ := 0)
     (g := fun b a => 2 * a + b.toNat) (d := fun _ => 62 * BitString.binaryValue w + 90)
     (step := .ite (.hd .id) (.cons (.quote .nil) (appF (.tl .id) (.tl .id)))
       (appF (.tl .id) (.tl .id)))
     (Inv := fun ys a => ys.foldl (fun a b => 2 * a + b.toNat) a = BitString.binaryValue w)
     (Gives.quote _ _) (listT_ofBits w ▸ h) (fun b ys a _ hinv => by
-      have ha : a ≤ BitString.binaryValue w := by
-        rw [← hinv]
-        exact le_trans (show a ≤ 2 * a + b.toNat by omega) (le_foldl ys (2 * a + b.toNat))
-      have g : Gives θ (.tl .id) (.cons (bit b) (num a)) (listT (List.replicate a .nil)) 2 := by
-        rw [← num_eq_listT_replicate]
-        exact (Gives.id _).tl
+      have ha : a ≤ BitString.binaryValue w := hinv ▸ le_foldl (b :: ys) a
+      have g : Gives θ (.tl .id) (.cons (bit b) (num a)) (listT (List.replicate a .nil)) 2 :=
+        num_eq_listT_replicate a ▸ (Gives.id _).tl
       have hg := appF_gives g g
       rw [← List.replicate_add, ← num_eq_listT_replicate, List.length_replicate, ← two_mul] at hg
       refine ⟨?_, hinv⟩

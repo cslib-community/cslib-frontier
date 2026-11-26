@@ -184,11 +184,9 @@ private theorem sound_step {k : ℕ} {found : List (α × List α)} (hS : Sound 
     obtain ⟨hne, hhead, hlast, ⟨hmem, hchain⟩, hlen⟩ := hS e he
     refine ⟨by simp [hx2], by simpa [hx2, List.head_append_of_ne_nil hne] using hhead,
       by simp [hx2], ⟨?_, ?_⟩, ?_⟩
-    · rw [hx2]
-      exact List.forall_mem_append.mpr ⟨hmem, List.forall_mem_singleton.mpr hv⟩
-    · rw [hx2]
-      exact List.IsChain.append hchain (List.isChain_singleton _) fun a ha b hb => by
-        simp_all [List.getLast?_eq_some_getLast hne]
+    · exact hx2 ▸ List.forall_mem_append.mpr ⟨hmem, List.forall_mem_singleton.mpr hv⟩
+    · refine hx2 ▸ List.IsChain.append hchain (List.isChain_singleton _) fun a ha b hb => ?_
+      simp_all [List.getLast?_eq_some_getLast hne]
     · simp [hx2]; omega
 
 private theorem complete_step {k : ℕ} {found : List (α × List α)}
@@ -225,9 +223,7 @@ private theorem noShort_step {k : ℕ} {found : List (α × List α)}
   intro q ⟨hne, hhead, hlast, hwalk⟩
   by_contra hlt
   obtain ⟨e, he, heq⟩ := hC q hne hhead hwalk (by omega)
-  have := List.find?_eq_none.mp hnone e he
-  rw [heq] at this
-  exact this hlast
+  exact (heq ▸ List.find?_eq_none.mp hnone e he) hlast
 
 omit [DecidableEq α] in
 private theorem keys_subset {k : ℕ} {found : List (α × List α)} (hS : Sound V arc src k found) :
@@ -269,9 +265,7 @@ private theorem inl_of_find?_eq_some {k : ℕ} {found : List (α × List α)} {e
     IsShortestSrcTgtWalk V arc src tgt e.2 := by
   obtain ⟨hne, hhead, hlast, hwalk, hlen⟩ := hS e (List.mem_of_find?_eq_some hfind)
   have htgt : tgt e.1 = true := by simpa using List.find?_some hfind
-  refine ⟨⟨hne, hhead, hlast ▸ htgt, hwalk⟩, fun q hq => ?_⟩
-  have := hN q hq
-  omega
+  exact ⟨⟨hne, hhead, hlast ▸ htgt, hwalk⟩, fun q hq => hlen.trans (hN q hq)⟩
 
 private theorem bfsLoop_spec (fuel k : ℕ) (found : List (α × List α))
     (hS : Sound V arc src k found) (hC : Complete V arc src k found)

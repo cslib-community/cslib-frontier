@@ -65,9 +65,9 @@ theorem PL.sum {ι : Type*} (S : Finset ι) (M : ι → Matrix (Fin h) (Fin h) (
   induction S using Finset.induction_on with
   | empty => simpa using PL.zero (h2 := h2) (n := n) 0
   | insert p S hp ih =>
-    rw [Finset.sum_insert hp, Finset.card_insert_of_notMem hp]
-    have h1 := (hM p (mem_insert_self _ _)).add (ih fun q hq => hM q (mem_insert_of_mem hq))
-    rwa [show (S.card + 1) * N = N + S.card * N by ring]
+    rw [Finset.sum_insert hp, Finset.card_insert_of_notMem hp, Nat.add_one_mul,
+      Nat.add_comm (S.card * N) N]
+    exact (hM p (mem_insert_self _ _)).add (ih fun q hq => hM q (mem_insert_of_mem hq))
 
 /-- The bound for one elementary matrix of the layer. -/
 @[expose] def bQ (h n : ℕ) : ℕ := 4 ^ (h + 3) * (9 * (n + 2) ^ 3) * (n + 1) ^ 3
@@ -80,11 +80,10 @@ omit [NeZero h] in
 theorem lay_single (i j : Fin h) (hij : i ≠ j) (htr : (Matrix.single i j (1 : ZMod 2)).trace = 0) :
     lay (n := n) (Matrix.single i j 1) htr =
         SpecialLinearGroup.transvection hij (s (n + 2) ^ (n + 1)) := by
-  refine Subtype.ext ?_
-  rw [lay_val, layMat, SpecialLinearGroup.transvection_coe]
+  refine Subtype.ext <| Matrix.ext fun a b => ?_
+  simp only [lay_val, layMat, SpecialLinearGroup.transvection_coe, Matrix.add_apply,
+    Matrix.smul_apply, Matrix.map_apply, Matrix.single_apply, smul_eq_mul]
   congr 1
-  ext a b
-  simp only [Matrix.smul_apply, Matrix.map_apply, Matrix.single_apply, smul_eq_mul]
   split_ifs <;> simp
 
 
@@ -148,7 +147,8 @@ theorem PL.diag (h3 : 3 ≤ h) (i : Fin h) : PL h2 n (Matrix.single i i 1 + Matr
     (5 * bQ h n) := by
   by_cases hi : i = 0
   · subst hi
-    rw [← Matrix.single_add, show (1 + 1 : ZMod 2) = 0 by decide, Matrix.single_zero]
+    have h11 : (1 + 1 : ZMod 2) = 0 := rfl
+    rw [← Matrix.single_add, h11, Matrix.single_zero]
     exact PL.zero _
   · refine ⟨trace_diag i, ?_⟩
     rw [lay_diag i hi]
@@ -185,16 +185,11 @@ theorem sum_layer (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) :
     · rw [ite_eq_right hij, ite_eq_right hij, Matrix.single_apply, add_zero]
       split_ifs <;> simp
   rw [Finset.sum_congr rfl fun p _ => h1 p, Finset.sum_add_distrib, Finset.sum_ite_eq' univ (a, b),
-      ite_eq_left (mem_univ _)]
-  have h3 :
-      (∑ p : Fin h × Fin h, if p.1 = p.2 then (if 0 = a ∧ 0 = b then A p.1 p.2 else 0) else 0) =
-          0 := by
-    rw [Fintype.sum_prod_type]
-    by_cases hab : 0 = a ∧ 0 = b
-    · rcases hab with ⟨rfl, rfl⟩
-      simpa [Matrix.trace] using hA
-    · simp [hab]
-  rw [h3, add_zero]
+      ite_eq_left (mem_univ _), Fintype.sum_prod_type]
+  by_cases hab : 0 = a ∧ 0 = b
+  · rcases hab with ⟨rfl, rfl⟩
+    simpa [Matrix.trace] using hA
+  · simp [hab]
 
 theorem PL.all (h3 : 3 ≤ h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) :
     PL h2 n A (h * h * (5 * bQ h n)) := by
@@ -237,8 +232,7 @@ theorem WL.lift (h3 : 3 ≤ h) {N : ℕ} (hN : ∀ g : G h n, WL h2 g N) (g : G 
     rw [map_mul, map_inv, h5, inv_mul_cancel]
   obtain ⟨A, hA, h7⟩ := exists_lay h6
   obtain ⟨hA', h8⟩ := PL.all (h2 := h2) (n := n) h3 A hA
-  have h9 : g = (l.map (Cslib.SLTower.gen h2)).prod * lay A hA := by rw [← h7, mul_inv_cancel_left]
-  rw [h9]
+  rw [eq_mul_of_inv_mul_eq h7]
   exact (show WL h2 ((l.map (Cslib.SLTower.gen h2)).prod : G h (n + 1)) N from ⟨l, h1, rfl⟩).mul h8
 
 end Cslib.SLTower

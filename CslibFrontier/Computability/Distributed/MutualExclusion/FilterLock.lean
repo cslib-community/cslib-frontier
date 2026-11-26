@@ -657,19 +657,14 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
     refine ⟨hloc', ?_, ?_, ?_⟩
     · intro r cleared hw
       rcases eq_or_ne r r₀ with rfl | hrr
-      · dsimp only [s₁] at hw
-        rw [Function.update_self, Function.update_self] at hw
-        injection hw with _ hcl_eq
-        subst hcl_eq
+      · simp only [s₁, Function.update_self, FilterPhase.waitRoom.injEq] at hw
+        rcases hw with ⟨_, rfl⟩
         exact fun q hq => absurd hq (Finset.notMem_empty q)
       · rw [hat_ne r hrr]
-        dsimp only [s₁] at hw
-        rw [Function.update_of_ne hrr] at hw
-        have hvp : s.victim r ≠ p := by
-          rintro rfl
-          rw [Function.update_self] at hw
-          injection hw with hr_eq _
-          exact hrr hr_eq.symm
+        simp only [s₁, Function.update_of_ne hrr] at hw
+        have hvp : s.victim r ≠ p := fun heq => by
+          simp only [heq, Function.update_self, FilterPhase.waitRoom.injEq] at hw
+          exact hrr hw.1.symm
         rw [Function.update_of_ne hvp] at hw
         exact hinv.cleared_disjoint r cleared hw
     · intro r hv
@@ -677,8 +672,7 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       rcases eq_or_ne r r₀ with rfl | hrr
       · simp [s₁, aboveRoomSet, hph, FilterPhase.aboveRoom] at hv
       · rw [hat_ne r hrr]
-        dsimp only [s₁] at hv ⊢
-        rw [Function.update_of_ne hrr] at hv ⊢
+        simp only [s₁, Function.update_of_ne hrr] at hv ⊢
         exact hinv.victim_unique_above r hv
     · intro r hne
       rcases eq_or_ne r r₀ with rfl | hrr
@@ -815,11 +809,12 @@ private theorem potential_le {n : ℕ} (s : FilterState n) :
     | remainder => exact Nat.zero_le _
     | ready ℓ => simp only [FilterPhase.potential]; nlinarith [ℓ.isLt]
     | writeVictim r =>
-      simp only [FilterPhase.potential]; nlinarith [show r.val + 1 ≤ n by omega]
+      have hr : r.val + 1 ≤ n := by omega
+      simp only [FilterPhase.potential]; nlinarith
     | waitRoom r cleared =>
+      have hr : r.val + 2 ≤ n := by omega
       simp only [FilterPhase.potential]
-      nlinarith [show r.val + 2 ≤ n by omega,
-        (Finset.card_le_univ cleared).trans_eq (Fintype.card_fin n)]
+      nlinarith [(Finset.card_le_univ cleared).trans_eq (Fintype.card_fin n)]
     | cs => exact le_rfl
   calc Finset.univ.sum (fun p => (s.phase p).potential)
       ≤ Finset.univ.sum (fun _ : Fin n => n * (n + 2)) := Finset.sum_le_sum fun p _ => hterm p
@@ -839,10 +834,11 @@ private theorem potential_update_gt {n : ℕ} {s s' : FilterState n} {p : Fin n}
 
 private theorem nextAfterRoom_potential_gt {n : ℕ} (r : Fin (n - 1)) (c : ℕ) (hc : c < n) :
     r.val * (n + 2) + 3 + c < (nextAfterRoom r).potential := by
+  have hr : r.val + 2 ≤ n := by omega
   unfold nextAfterRoom
   split
   · simp only [FilterPhase.potential]; ring_nf; omega
-  · simp only [FilterPhase.potential]; nlinarith [show r.val + 2 ≤ n by omega]
+  · simp only [FilterPhase.potential]; nlinarith
 
 /-- Single-step potential-progress lemma (proof infrastructure for
 `filterLock_exists_cs_execution`): in any reachable state where the set of trying processes is
@@ -1419,8 +1415,7 @@ private theorem solo_enters_cs_from_init {π : MutexProtocol P Reg Val State}
       have hexec : π.lts.OmegaExecution ss μs := fun m => by
         change π.lts.Tr (soloIter π p m c_enter) (.step p) (soloIter π p (m + 1) c_enter)
         rw [soloIter_succ_right]
-        have hact : (soloIter π p m c_enter).isActive π p := Or.inl (hall_try m)
-        simp [MutexProtocol.lts, MutexProtocol.step?, hact]
+        exact Option.ite_none_right_eq_some.mpr ⟨Or.inl (hall_try m), rfl⟩
       have hfair : π.WeakFair ss μs := fun q i hact_all => by
         rcases eq_or_ne q p with rfl | hqp
         · exact ⟨i, le_rfl, rfl⟩
@@ -1518,9 +1513,8 @@ theorem not_deadlockFreeMutex_of_single_register
   have hc₁_try₀ : c₁.isTrying π p₀ := by
     simpa only [MutexConfig.isTrying, hc₁_p₀] using htry₀ j hj_lt
   let c₂ := π.execRegStep c₁ p₀
-  have htr_c₂ : π.lts.Tr c₁ (.step p₀) c₂ :=
-    Option.ite_none_right_eq_some.mpr ⟨Or.inl hc₁_try₀, rfl⟩
-  have hr_c₂ : π.Reachable c₂ := hr_c₁.step_tr htr_c₂
+  have hr_c₂ : π.Reachable c₂ :=
+    hr_c₁.step_tr (μ := .step p₀) (Option.ite_none_right_eq_some.mpr ⟨Or.inl hc₁_try₀, rfl⟩)
   have hc₂_cs₁ : c₂.inCS π p₁ := by
     simpa only [MutexConfig.inCS, execRegStep_other hp_ne.symm, c₂] using hc₁_cs₁
   let a₂ := soloIter π p₀ (j + 1) c_enter₀

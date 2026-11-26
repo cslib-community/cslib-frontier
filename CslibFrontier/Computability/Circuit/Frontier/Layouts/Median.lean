@@ -109,9 +109,8 @@ theorem exists_isMedian {v : V} (hv : (G.incidenceSet v).ncard = 3) (score : E �
   -- Counting the edges at `v` with a property.
   have hcount (p : E → Prop) [DecidablePred p] : {e ∈ G.incidenceSet v | p e}.ncard =
       (if p e₀ then 1 else 0) + (if p e₁ then 1 else 0) + (if p e₂ then 1 else 0) := by
-    have : {e ∈ G.incidenceSet v | p e} = ↑(({e₀, e₁, e₂} : Finset E).filter p) := by
-      ext e
-      simp [hs]
+    have : {e ∈ G.incidenceSet v | p e} = ↑(({e₀, e₁, e₂} : Finset E).filter p) :=
+      Set.ext fun e => by simp [hs]
     rw [this, ncard_coe_finset, Finset.card_filter, Finset.sum_insert (by simp [h01, h02]),
       Finset.sum_insert (by simp [h12]), Finset.sum_singleton, add_assoc]
   obtain ⟨h₁, h₂⟩ := two_le_median3 (score e₀) (score e₁) (score e₂)
@@ -139,15 +138,12 @@ private theorem eq_of_score_lt (h : G.IsMedian score v m) (hv : (G.incidenceSet 
     {e e' : E} (he : e ∈ G.incidenceSet v) (he' : e' ∈ G.incidenceSet v) (hlt : score e < m)
     (hlt' : score e' < m) : e = e' := by
   by_contra hne
-  have hsub : {f ∈ G.incidenceSet v | m ≤ score f} ⊆ G.incidenceSet v \ {e, e'} := by
-    rintro f ⟨hf, hmf⟩
-    refine ⟨hf, ?_⟩
-    rintro (rfl | rfl)
-    exacts [hmf.not_gt hlt, hmf.not_gt hlt']
-  have := ncard_le_ncard hsub
-  rw [ncard_sdiff (by simp [insert_subset_iff, he, he']), ncard_pair hne, hv] at this
-  have := h.2
-  omega
+  have hsub : {f ∈ G.incidenceSet v | m ≤ score f} ⊆ G.incidenceSet v \ {e, e'} :=
+    fun f ⟨hf, hmf⟩ => ⟨hf, fun h => (Set.mem_insert_iff.mp h).elim
+      (fun heq => (hmf.trans_eq (congrArg score heq)).not_gt hlt)
+      (fun heq => (hmf.trans_eq (congrArg score (Set.mem_singleton_iff.mp heq))).not_gt hlt')⟩
+  have := h.2.trans (ncard_le_ncard hsub)
+  rw [ncard_sdiff (by simp [insert_subset_iff, he, he']), ncard_pair hne, hv] at this; omega
 
 /-- At a vertex with three edges, at most one edge scores above a median. -/
 private theorem eq_of_lt_score (h : G.IsMedian score v m) (hv : (G.incidenceSet v).ncard = 3)

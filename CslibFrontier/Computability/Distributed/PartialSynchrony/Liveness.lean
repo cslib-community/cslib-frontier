@@ -136,8 +136,8 @@ private theorem subround0_lock_in_certPairs {F : Finset P}
   have hlt : lk.view < vStar := by omega
   refine ⟨hlt, fun i hi => ?_⟩
   rw [byzQuorum_state_succ]
-  simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega,
-    show (6 * vStar) / 6 = vStar by omega, computeCertPairs, List.mem_filter, List.mem_dedup,
+  simp only [byzUpdate, Nat.mul_mod_right, Nat.mul_div_cancel_left _ (Nat.succ_pos 5),
+    computeCertPairs, List.mem_filter, List.mem_dedup,
     List.mem_flatMap, decide_eq_true_eq, rawVoteCount, hlt, ↓reduceIte]
   have hW_mem : ∀ h ∈ (Finset.univ \ F).filter (fun h =>
       lk ∈ ((byzQuorumProtocol P V procs leader t).byzantineState
@@ -166,15 +166,15 @@ private theorem subround0_proper_complete {F : Finset P}
       F deliver adv x (6 * vStar + 1) i).properReport.allProper = true) := by
   have hH_card : Fintype.card P - t ≤ (Finset.univ \ F).card := card_compl_ge_sub hF
   have hH_init : ∀ i ∉ F, ∀ h ∉ F,
-      extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i h) = some (x h) := by
-    intro i hi h hhF
-    simp only [byzIncoming, hhF, ↓reduceIte, hdel0 h hhF i hi, byzSend,
-      show (6 * vStar) % 6 = 0 by omega, extractRawInit, byzState_input_eq]
+      extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i h) = some (x h) :=
+    fun i hi h hhF => by
+      simp only [byzIncoming, hhF, ↓reduceIte, hdel0 h hhF i hi, byzSend,
+        Nat.mul_mod_right, extractRawInit, byzState_input_eq]
   by_cases hex : ∃ w₀ : V, t + 1 ≤ ((Finset.univ \ F).filter fun h => x h = w₀).card
   · obtain ⟨w₀, hw₀⟩ := hex
     refine Or.inl ⟨w₀, fun i hi => ?_⟩
     rw [byzQuorum_state_succ]
-    simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
+    simp only [byzUpdate, Nat.mul_mod_right, computeProperReport,
       List.mem_filter, List.mem_dedup, List.mem_filterMap, decide_eq_true_eq]
     obtain ⟨h₀, hh₀⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hw₀)
     simp only [Finset.mem_filter, Finset.mem_sdiff, Finset.mem_univ, true_and] at hh₀
@@ -186,8 +186,7 @@ private theorem subround0_proper_complete {F : Finset P}
       rw [hH_init i hi h hh.1, hh.2]
   · refine Or.inr fun i hi => ?_
     rw [byzQuorum_state_succ]
-    simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
-      decide_eq_true_eq]
+    simp only [byzUpdate, Nat.mul_mod_right, computeProperReport, decide_eq_true_eq]
     constructor
     · rw [length_filter_dedup_eq_card hprocs]
       refine le_trans (by omega) (card_sub_le_filter_of_compl hF fun h hhF => ?_)
@@ -662,22 +661,15 @@ theorem not_solvesByzantinePartialSync {P V S M : Type*}
   obtain ⟨v₀, v₁, hne⟩ := exists_pair_ne V
   let e := Fintype.equivFin P
   let g : P → Fin 3 := fun i => ⟨2 * (e i : ℕ) % 3, Nat.mod_lt _ (by omega)⟩
-  have hcard : ∀ k : Fin 3, (Finset.univ.filter fun i => g i = k).card ≤ t := by
-    intro k
+  have hcard : ∀ k : Fin 3, (Finset.univ.filter fun i => g i = k).card ≤ t := fun k =>
     calc (Finset.univ.filter fun i => g i = k).card
         ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun i => (e i : ℕ) / 3)
-          (fun i _ => by
-            have := (e i).isLt
-            simp only [Finset.coe_range, Set.mem_Iio]
-            omega)
-          (fun i hi j hj hij => by
-            simp only [Finset.coe_filter, Finset.mem_univ, true_and,
-              Set.mem_ofPred_eq] at hi hj
-            apply e.injective
-            have hi' := congrArg Fin.val hi
-            have hj' := congrArg Fin.val hj
-            simp only [g] at hi' hj' hij
-            ext
+          (fun i _ => Finset.mem_coe.2
+            (Finset.mem_range.2 (Nat.div_lt_of_lt_mul ((e i).isLt.trans_le h3))))
+          (fun i hi j hj hij => e.injective <| Fin.ext <| by
+            have hi' := congrArg Fin.val (Finset.mem_filter.1 hi).2
+            have hj' := congrArg Fin.val (Finset.mem_filter.1 hj).2
+            dsimp only [g] at hi' hj' hij
             omega)
       _ = t := Finset.card_range t
   let a : P := e.symm ⟨0, by omega⟩

@@ -258,7 +258,6 @@ theorem finiteCfg_moveInputPos (move : SignType) : ComputableInO
     refine ((unaryPred'.comp_linear finiteCfg_inputPos).of_enc_eq fun cfg =>
       congrArg encUnary ?_).mono 1 (fun _ => by nlinarith) fun _ => by omega
     have h := val_moveInputPos_eq cfg.inputPos .neg
-    have hp := cfg.inputPos.isLt
     simp only [SignType.cast, Function.comp_def] at h ⊢
     lia
   | zero =>
@@ -278,11 +277,7 @@ theorem finiteCfg_moveInputPos (move : SignType) : ComputableInO
       split_ifs with hc <;> simp only [decide_eq_true_eq] at hc <;> omega
     all_goals
       have hfields := length_fields_le cfg
-      have hpair : (encPair encUnary encUnary (cfg.inputPos.val, cfg.input.length)).length ≤
-          3 * (encFiniteCfg cfg).length + 1 := by
-        simp only [length_encPair, encUnary_apply, List.length_replicate]
-        omega
-      simp only [Function.comp_def] at *
+      simp only [Function.comp_def, length_encPair, encUnary_apply, List.length_replicate] at *
       split_ifs <;> nlinarith
 
 /-- Execute fixed native actions on all work tapes, in linear time and space. -/

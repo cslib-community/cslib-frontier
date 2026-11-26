@@ -107,11 +107,7 @@ theorem gaifmanGraph_structure {V : Type*} (G : SimpleGraph V) :
   rw [gaifmanGraph_adj]
   constructor
   · rintro ⟨hne, _, ⟨⟩, t, hR, ⟨i, rfl⟩, j, rfl⟩
-    fin_cases i <;> fin_cases j
-    · exact absurd rfl hne
-    · exact hR
-    · exact hR.symm
-    · exact absurd rfl hne
+    fin_cases i <;> fin_cases j <;> first | exact absurd rfl hne | exact hR | exact hR.symm
   · intro h
     exact ⟨h.ne, 2, .adj, ![x, y], h, ⟨0, rfl⟩, 1, rfl⟩
 
@@ -305,9 +301,8 @@ theorem restrict {m : ℕ} {x : Fin m → M} {l d : ℕ} (H : IsNbhdIso L r a b 
     rwa [H.bijOn.invOn_invFunOn.1 (ball_mono (by omega) (hx i))] at this
 
 /-- Restriction to a smaller radius ([Libkin, Lemma 4.8][Libkin2004], first item). -/
-theorem mono {d : ℕ} (H : IsNbhdIso L r a b h) (hd : d ≤ r) : IsNbhdIso L d a b h := by
-  have := H.restrict (x := a) (l := 0) (d := d) (fun i => mem_ball_self a 0 i) (by omega)
-  rwa [show h ∘ a = b from funext H.map_tuple] at this
+theorem mono {d : ℕ} (H : IsNbhdIso L r a b h) (hd : d ≤ r) : IsNbhdIso L d a b h :=
+  funext H.map_tuple ▸ H.restrict (fun i => mem_ball_self a 0 i) (by simpa using hd)
 
 open Classical in
 /-- Neighborhoods of far-apart tuples combine ([Libkin, Lemma 4.8][Libkin2004], third item, for a
@@ -333,8 +328,7 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
     simpa [hyz] using farN y hy z hz
   let H : M → N := fun x => if x ∈ S then h₁ x else h₂ x
   have HS : Set.EqOn H h₁ S := fun x hx => by simp [H, hx]
-  have HS' : Set.EqOn H h₂ S' := fun x hx => by
-    simp [H, show x ∉ S from fun h => neM x h x hx rfl]
+  have HS' : Set.EqOn H h₂ S' := fun x hx => ite_eq_right fun h => neM x h x hx rfl
   have hb1 : Set.BijOn H S T := H₁.bijOn.congr HS.symm
   have hb2 : Set.BijOn H S' T' := H₂.bijOn.congr HS'.symm
   refine ⟨H, ⟨?_, fun i => ?_, fun R t ht => ?_⟩⟩
@@ -348,11 +342,9 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
     | cast i => simpa only [Fin.snoc_castSucc, HS (mem_ball_self _ r i)] using H₁.map_tuple i
   · have ht' : ∀ i, t i ∈ S ∨ t i ∈ S' := fun i => mem_ball_snoc.1 (ht i)
     by_cases hS : ∀ i, t i ∈ S
-    · rw [show H ∘ t = h₁ ∘ t from funext fun i => HS (hS i)]
-      exact H₁.relMap_iff R t hS
+    · exact (funext fun i => HS (hS i) : H ∘ t = h₁ ∘ t) ▸ H₁.relMap_iff R t hS
     by_cases hS' : ∀ i, t i ∈ S'
-    · rw [show H ∘ t = h₂ ∘ t from funext fun i => HS' (hS' i)]
-      exact H₂.relMap_iff R t hS'
+    · exact (funext fun i => HS' (hS' i) : H ∘ t = h₂ ∘ t) ▸ H₂.relMap_iff R t hS'
     simp only [not_forall] at hS hS'
     obtain ⟨i, hi⟩ := hS
     obtain ⟨j, hj⟩ := hS'

@@ -138,8 +138,7 @@ theorem RatLe.normal {n : ℕ} {f : Series F Ω} (hf : RatLe n f) :
       | some (some q), some (some q') => r.mu a q q'
   have hsink (o : List Ω) (ho : o ≠ []) : (o.map mu).prod (some none) (some none) = 0 := by
     obtain ⟨b, o', rfl⟩ := List.exists_cons_of_ne_nil ho
-    rw [List.map_cons, List.prod_cons, Matrix.mul_apply]
-    simp [mu]
+    simp [Matrix.mul_apply, mu]
   have key (o : List Ω) : ∀ q, o ≠ [] →
       (o.map mu).prod (some (some q)) (some none) = r.tail o q := by
     induction o with
@@ -183,14 +182,10 @@ theorem RatLe.idle {n : ℕ} {P : Series F Ω} (hP : RatLe n P) :
       | nil => rfl
       | cons a o ih =>
         rw [Rep.tail, ih]
-        cases a with
-        | none => simp
-        | some a =>
-          by_cases h : o.all Option.isSome <;>
-            simp [h, List.reduceOption_cons_of_some, Rep.tail]
+        cases a <;> by_cases h : o.all Option.isSome <;>
+          simp [h, List.reduceOption_cons_of_some, Rep.tail]
     funext o
-    rw [Rep.series, key]
-    by_cases h : o.all Option.isSome <;> simp [h, Rep.series]
+    by_cases h : o.all Option.isSome <;> simp [Rep.series, key, h]
   · refine ⟨Unit, inferInstance, ⟨1, fun a => a.elim 1 fun _ => 0, 1⟩, by simp, ?_⟩
     have key (o : List (Option Ω)) :
         (⟨1, fun a => a.elim 1 fun _ => 0, 1⟩ : Rep F (Option Ω) Unit).tail o =
@@ -201,8 +196,7 @@ theorem RatLe.idle {n : ℕ} {P : Series F Ω} (hP : RatLe n P) :
         rw [Rep.tail, ih]
         cases a <;> simp
     funext o
-    rw [Rep.series, key]
-    by_cases h : o.all Option.isNone <;> simp [h]
+    by_cases h : o.all Option.isNone <;> simp [Rep.series, key, h]
 
 theorem idle_apply (P : Series F Ω) (w : List Ω) (j : ℕ) :
     Series.idle P (w.map some ++ List.replicate j none) = P w := by
