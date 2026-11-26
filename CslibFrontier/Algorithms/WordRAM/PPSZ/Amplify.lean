@@ -202,18 +202,6 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       RoundFrame φ 6 ((s :: a :: b :: c :: encode φ).length + 1) (ampSetupData s a b c φ).mem
         (ampSetupData s a b c φ) := by
   have hL : 5 ≤ (s :: a :: b :: c :: encode φ).length := by simp [encode]
-  have : Fits w 2 := hw.of_le (by omega)
-  have : Fits w 3 := hw.of_le (by omega)
-  have : Fits w 4 := hw.of_le (by omega)
-  have : Fits w 5 := hw.of_le (by omega)
-  have : Fits w 6 := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s + s) :=
-    hw.of_le (by omega)
-  have : Fits w (a * n + b) := hw.of_le (by omega)
   have : Fits w ((a * n + b - 1) / b) := hw.of_le (by
     have := Nat.div_le_self (a * n + b - 1) b; omega)
   have hm0 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 0 =
@@ -230,10 +218,10 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
   iterate 7 wram_simp [ampSetupData]
   have hi : i.val < (encodeClauses φ).length := i.isLt
+  have h6 : 6 + i.val = i.val + 1 + 1 + 1 + 1 + 1 + 1 := by omega
   change (ampSetupData s a b c φ).mem (6 + i.val) = (encodeClauses φ)[i.val]
-  rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
-    show 6 + i.val = (5 + i.val) + 1 by omega, Data.init_mem_succ]
-  simp [encode, show 5 + i.val = (i.val + 1) + 1 + 1 + 1 + 1 by omega]
+  rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega), h6]
+  simp [encode, Data.init_mem_succ]
 
 /-! ### The algorithm -/
 

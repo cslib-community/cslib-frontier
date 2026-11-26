@@ -206,13 +206,11 @@ private theorem joinFillProg_realizes :
       (radixProjProg ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩) <
         d.q ^ d.rBagLen :=
     radixProjProg_result_lt hq_pos t
-  have hlv_le : t.mem (d.lTblPtr + m) ≤ lCap := by
-    rw [hl_t.get m (hl_len ▸ hm_lt)]
-    exact hl_le _ (List.getElem_mem _)
+  have hlv_le : t.mem (d.lTblPtr + m) ≤ lCap :=
+    hl_t.get m (hl_len ▸ hm_lt) ▸ hl_le _ (List.getElem_mem _)
   have hrv_le : t.mem (d.rTblPtr + (Memory.spec 0).clientResult t
-      (radixProjProg ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩)) ≤ rCap := by
-    rw [hr_t.get _ (hr_len ▸ hmr_lt)]
-    exact hr_le _ (List.getElem_mem _)
+      (radixProjProg ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩)) ≤ rCap :=
+    hr_t.get _ (hr_len ▸ hmr_lt) ▸ hr_le _ (List.getElem_mem _)
   have hfit_mul : Fits w (t.mem (d.lTblPtr + m) * t.mem (d.rTblPtr +
       (Memory.spec 0).clientResult t
         (radixProjProg ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩))) :=
@@ -287,9 +285,6 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
         ((bagList right).length * ((bagList left).length + 1) + 3) := by
   have hd_l := hleft.desc_hi
   have hd_r := hright.desc_hi
-  have hm_lbLen : s.mem (a.dLeft + 1) = (bagList left).length := hleft.bag_len
-  have hm_ltLen : s.mem (a.dLeft + 3) = a.q ^ (bagList left).length := hleft.tbl_len
-  have hm_rbLen : s.mem (a.dRight + 1) = (bagList right).length := hright.bag_len
   let lBagPtr := s.mem a.dLeft
   let lBagLen := (bagList left).length
   let lTblPtr := s.mem (a.dLeft + 2)
@@ -310,10 +305,10 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
     joinFillProg_spec (w := w) counting fillArgs hq
       (hleft.bag_holds.mono_frontier hp₁) rfl hleft.bag_holds.1
       (hleft.tbl_holds.mono_frontier hp₁)
-      (by have := hleft.tbl_holds.1; rw [length_dpInstTree] at this; exact this)
+      (by simpa only [length_dpInstTree] using hleft.tbl_holds.1)
       (hright.bag_holds.mono_frontier hp₁) rfl hright.bag_holds.1
       (hright.tbl_holds.mono_frontier hp₁)
-      (by have := hright.tbl_holds.1; rw [length_dpInstTree] at this; exact this)
+      (by simpa only [length_dpInstTree] using hright.tbl_holds.1)
       rfl (by rw [hs₁_fr]) hfit_cap
   let s₂ := (Memory.spec 0).clientState s₁ (joinFillProg fillArgs)
   have hs₂_fr : s₂.frontier = tblPtr + lTblLen := by rw [hfr_fill, hs₁_fr]
@@ -335,13 +330,13 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
   have hsEnd_eq : (Memory.spec 0).clientState s (joinNodeProg a) = sEnd := by
     unfold joinNodeProg
     iterate 7 rw [clientState_bind_read]
-    rw [hm_lbLen, hm_ltLen, hm_rbLen,
+    rw [hleft.bag_len, hleft.tbl_len, hright.bag_len,
       StateTransitionSpec.clientState_bind, ha1_s, ha1_r,
       StateTransitionSpec.clientState_bind]
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · unfold joinNodeProg
     iterate 7 (refine validHistory_read_bind (by omega) ?_)
-    rw [hm_lbLen, hm_ltLen, hm_rbLen]
+    rw [hleft.bag_len, hleft.tbl_len, hright.bag_len]
     refine validHistory_bind_step hv₁ ?_
     rw [ha1_s, ha1_r]
     exact validHistory_bind_step hv_fill hv_wd
@@ -355,8 +350,8 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
       hm2 ▸ htbl_fill.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd⟩
   · unfold joinNodeProg
     iterate 7 rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read]
-    rw [hm_lbLen, hm_ltLen, hm_rbLen, memoryCost_bind', memoryCost_allocDirty, ha1_s, ha1_r,
-      memoryCost_bind']
+    rw [hleft.bag_len, hleft.tbl_len, hright.bag_len, memoryCost_bind', memoryCost_allocDirty,
+      ha1_s, ha1_r, memoryCost_bind']
     dsimp only [s₂, fillArgs, lBagPtr, lBagLen, lTblPtr, lTblLen, rBagPtr, rBagLen, rTblPtr,
       tblPtr] at hc_fill hc_wd ⊢
     omega
