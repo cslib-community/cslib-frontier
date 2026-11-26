@@ -200,8 +200,7 @@ theorem mem_bagList_le_maxTreeVert :
   | .introduce v child, u, h => by
     simp only [bagList, List.mem_cons] at h
     rcases h with rfl | hc
-    · exact le_max_left _ _
-    · exact (mem_bagList_le_maxTreeVert child hc).trans (le_max_right _ _)
+    exacts [le_max_left _ _, (mem_bagList_le_maxTreeVert child hc).trans (le_max_right _ _)]
   | .forget v child, u, h =>
     (mem_bagList_le_maxTreeVert child (List.mem_of_mem_erase h)).trans (le_max_right _ _)
   | .join left _, u, h =>
@@ -283,9 +282,8 @@ theorem encodeNiceTreeAux_max_le (offset : ℕ) (T : NiceTree ℕ) :
 private theorem getD_le_of_forall_le {xs : List ℕ} {c : ℕ} (h : ∀ x ∈ xs, x ≤ c) (i : ℕ) :
     xs.getD i 0 ≤ c := by
   rw [List.getD_eq_getElem?_getD]
-  cases hg : xs[i]? with
-  | none => exact Nat.zero_le _
-  | some y => exact h y (List.mem_of_getElem? hg)
+  cases hg : xs[i]?
+  exacts [Nat.zero_le _, h _ (List.mem_of_getElem? hg)]
 
 /-- Entry magnitude bound for `dpInstTree`: `≤ 1` in decision mode and `≤ q ^ T.size` in counting
 mode. -/
@@ -408,9 +406,7 @@ private theorem dpAlgFold_bool_toNat (k : ℕ) (g : ℕ → Bool) :
 private theorem getD_map_boolToNat (xs : List Bool) (k : ℕ) :
     (xs.map fun b => if b then 1 else 0).getD k 0 = if xs.getD k false then 1 else 0 := by
   simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
-  cases xs[k]? with
-  | none => rfl
-  | some b => cases b <;> rfl
+  rcases xs[k]? with _ | (_ | _) <;> rfl
 
 private theorem all_ofConstraint_leaf {Rel V : Type*} {q m : ℕ} (hq : 0 < q)
     (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :

@@ -489,16 +489,11 @@ private theorem lastAct_hist_stable {i : Code} {e S s : ℕ} (hSs : S ≤ s)
   cases hS : lastAct (hist Φ i S) e S with
   | none =>
     rw [lastAct_hist_eq_none] at hS ⊢
-    intro a ha
-    by_cases haS : a < S
-    · exact hS a haS
-    · exact h a (by omega) ha
+    exact fun a ha => if haS : a < S then hS a haS else h a (by omega) ha
   | some a =>
     obtain ⟨ha, hae, hb⟩ := lastAct_hist_eq_some.1 hS
-    refine lastAct_hist_eq_some.2 ⟨by omega, hae, fun b hab hbs => ?_⟩
-    by_cases hbS : b < S
-    · exact hb b hab hbS
-    · exact h b (by omega) hbs
+    exact lastAct_hist_eq_some.2 ⟨by omega, hae, fun b hab hbs =>
+      if hbS : b < S then hb b hab hbS else h b (by omega) hbs⟩
 
 private theorem key_hist_stable {i : Code} {e S s : ℕ} (hSs : S ≤ s)
     (h : ∀ b, S ≤ b → b < s → act Φ i b ≠ some e) :
@@ -599,12 +594,9 @@ private theorem le_key_hist (i : Code) (e s : ℕ) : e ≤ key (hist Φ i s) e s
 
 private theorem Defd.unique {i : Code} {x z₁ z₂ : ℕ} (h₁ : Defd Φ i x z₁) (h₂ : Defd Φ i x z₂) :
     z₁ = z₂ := by
-  by_contra hne
-  rcases lt_or_gt_of_ne hne with h | h
-  · obtain ⟨hh, ha⟩ := h₂.1 z₁ h
-    exact h₁.2.elim (fun h' => h' ha) hh
-  · obtain ⟨hh, ha⟩ := h₁.1 z₂ h
-    exact h₂.2.elim (fun h' => h' ha) hh
+  refine le_antisymm (not_lt.1 fun h => ?_) (not_lt.1 fun h => ?_)
+  · exact h₂.2.elim (· (h₁.1 _ h).2) (h₁.1 _ h).1
+  · exact h₁.2.elim (· (h₂.1 _ h).2) (h₂.1 _ h).1
 
 private theorem exists_defd {i : Code} {x c : ℕ} (hc : Halts Φ i x c) : ∃ z, Defd Φ i x z := by
   classical
@@ -620,9 +612,8 @@ private theorem exists_defd {i : Code} {x c : ℕ} (hc : Halts Φ i x c) : ∃ z
 
 private theorem le_val (i : Code) (x z : ℕ) : z ≤ val Φ i x z := by
   unfold val
-  cases act Φ i (Nat.pair x z) with
-  | none => exact le_max_left _ _
-  | some _ => exact le_rfl
+  cases act Φ i (Nat.pair x z)
+  exacts [le_max_left _ _, le_rfl]
 
 private theorem val_of_act {i : Code} {x z e : ℕ} (h : act Φ i (Nat.pair x z) = some e) :
     val Φ i x z = z := by simp [val, h]
@@ -688,13 +679,10 @@ theorem computablePred_mem_name :
     Defd Φ q.1 q.2.1 z ∧ val Φ q.1 q.2.1 z = q.2.2) hp
     (Computable.succ.comp (Computable.snd.comp Computable.snd))).of_eq fun q => ?_
   rw [mem_name]
-  constructor
-  · rintro ⟨z, -, hz⟩
-    exact ⟨z, hz⟩
-  · rintro ⟨z, hd, hv⟩
-    dsimp only [nameInput, nameValue] at hv
-    have := le_val (Φ := Φ) q.1 q.2.1 z
-    exact ⟨z, by omega, hd, hv⟩
+  refine ⟨fun ⟨z, _, hz⟩ => ⟨z, hz⟩, fun ⟨z, hd, hv⟩ => ?_⟩
+  dsimp only [nameInput, nameValue] at hv
+  have := le_val (Φ := Φ) q.1 q.2.1 z
+  exact ⟨z, by omega, hd, hv⟩
 
 variable {Φ}
 

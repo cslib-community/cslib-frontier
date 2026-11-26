@@ -162,10 +162,7 @@ private theorem petal_unit_potential_bound {c h z : ℕ} (h1 : 1 ≤ h) (hlt : h
     z * 2 ^ (c - h) + 2 * h < z * 2 ^ c := by
   have hpow_j : 2 ^ (c - h) ≤ 2 ^ (c - 1) := Nat.pow_le_pow_right (by omega) (by omega)
   have hh_lt : h < 2 ^ (c - 1) := lt_of_le_of_lt (by omega : h ≤ c - 1) Nat.lt_two_pow_self
-  have hc_pow : 2 ^ c = 2 * 2 ^ (c - 1) := by
-    cases c with
-    | zero => omega
-    | succ c => simp [Nat.pow_succ']
+  have hc_pow : 2 ^ c = 2 * 2 ^ (c - 1) := by rw [← pow_succ', Nat.sub_add_cancel (by omega)]
   calc z * 2 ^ (c - h) + 2 * h
       ≤ z * 2 ^ (c - 1) + 2 * h :=
         Nat.add_le_add_right (Nat.mul_le_mul_left z hpow_j) _
@@ -244,9 +241,8 @@ theorem chooseBranch_eq_of_choice_unique {θ : ℕ → ℕ} {ψ : ClauseSet V} {
   have hcb : Choice θ ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 := choice_chooseBranch hns
   have hc_eq : (chooseBranch θ ψ).1 = c :=
     le_antisymm (hcb.2.1 c H hch.1) (hch.2.1 _ _ hcb.1)
-  have hH_heavy : Heavy θ ψ c (chooseBranch θ ψ).2 := hc_eq ▸ hcb.1
   have hH_le : H.card ≤ (chooseBranch θ ψ).2.card := (hc_eq ▸ hcb.2.2) H hch.1
-  exact Prod.ext hc_eq (huniq _ hH_heavy hH_le)
+  exact Prod.ext hc_eq (huniq _ (hc_eq ▸ hcb.1) hH_le)
 
 /-! ### Recursive leaf enumeration -/
 
@@ -358,9 +354,8 @@ theorem of_mem_countingLeaves {θ : ℕ → ℕ} {P : ClauseSet V → Prop}
   fun_induction countingLeaves θ ψ with
   | case1 ψ h ch ih₀ ih₁ =>
     have hch := choice_chooseBranch h.1
-    rcases List.mem_append.mp hL with hL | hL
-    · exact ih₀ (step _ _ _ hch h.2 hψ false) hL
-    · exact ih₁ (step _ _ _ hch h.2 hψ true) hL
+    exact (List.mem_append.mp hL).elim (ih₀ (step _ _ _ hch h.2 hψ false))
+      (ih₁ (step _ _ _ hch h.2 hψ true))
   | case2 ψ h => exact List.mem_singleton.mp hL ▸ hψ
 
 /-- **Variable-support preservation.** If all variables occurring in `ψ` belong to `declared`, then

@@ -221,9 +221,8 @@ private theorem isChain_shifted_boundaryColors
           fun j => (Dart.colorAtIndex (replacementColors gadgets B F Pg K) (2 * j),
             Dart.colorAtIndex (replacementColors gadgets B F Pg K) (2 * j + 1))) ++
         [(exit ^^ K i, exit ^^ K i)]) := by
-  rw [map_shiftBlock_replacementColors gadgets B F Pg K i _ (fun j hj => by
-    obtain ⟨o, ho, _⟩ := (mem_boundaryBlock_iff _ _ v j).mp hj
-    exact ⟨o, ho⟩)]
+  rw [map_shiftBlock_replacementColors gadgets B F Pg K i _ fun j hj =>
+    ((mem_boundaryBlock_iff _ _ v j).mp hj).imp fun _ h => h.1]
   have h := List.isChain_map_of_isChain
     (S := fun p q : Bool × Bool => p.2 = q.1)
     (fun p : Bool × Bool => (p.1 ^^ K i, p.2 ^^ K i))
@@ -360,16 +359,13 @@ theorem numericalGenusZero_replacementRotation
   · intro o
     obtain ⟨i, p, rfl⟩ := exists_replacementOccurrence gadgets B F o
     have h := replacementColors_rotate_constraint gadgets witnesses B F hB hF c hraw Pg K hg i p
-    rw [respectsArgumentOrder_replacementRotation] at h
-    exact h
+    rwa [respectsArgumentOrder_replacementRotation] at h
   · intro word hw
     rw [mem_replacementCycles_iff] at hw
-    rcases hw with hw | hw
-    · obtain ⟨v, hv, rfl⟩ := hw
-      exact isChain_variableBlock_colors gadgets witnesses B F hF c hraw Ps hs Pg K hg
+    rcases hw with ⟨v, hv, rfl⟩ | ⟨i, block, hb, rfl⟩
+    · exact isChain_variableBlock_colors gadgets witnesses B F hF c hraw Ps hs Pg K hg
         hKvar hKcenter v (CSP.mem_distinctVars.mp hv)
-    · obtain ⟨i, block, hb, rfl⟩ := hw
-      obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hb
+    · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hb
       let a : Fin (gadgets F[i.val].rel).numAux := ⟨j, by
         simpa only [length_auxiliaryBoundaryBlocks] using hj⟩
       obtain ⟨color, hc⟩ := isChain_auxiliaryBoundaryBlock_colors

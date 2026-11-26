@@ -77,8 +77,8 @@ theorem ancestry_times_pairwise (es : Log F) (v : V) :
     simp only [ancestry]
     split
     · rw [List.pairwise_append]
-      refine ⟨ih e.input.var, by simp, fun a ha b hb => ?_⟩
-      exact List.mem_singleton.mp hb ▸ ancestry_time_lt es e.input.var ha
+      exact ⟨ih e.input.var, by simp, fun a ha b hb =>
+        List.mem_singleton.mp hb ▸ ancestry_time_lt es e.input.var ha⟩
     · exact ih v
 
 end Log
@@ -654,10 +654,7 @@ theorem Trace.copy_fresh (h : Trace sem f m) {v : V}
   intro hm
   obtain ⟨s, hs, he⟩ := (h.expansion.grown.ancestry_directed hv).mem_copies.mp hm
   have ht := (m.older.mem_arcs (h.expansion.grown.ancestry_arcs v hs).1).2
-  have he := congrArg Prod.snd he
-  change m.older.stamp s.1 = m.older.length at he
-  change m.older.stamp s.1 < m.older.length at ht
-  omega
+  exact ht.ne (congrArg Prod.snd he)
 
 /-- Both ancestral paths and the terminal pair give valid flips at every prefix of the
 actual returned augmentation walk. Reversed prefixes are justified by directed suffixes. -/
@@ -817,9 +814,7 @@ theorem run_event_roots (sem : Rel → List Bool → Bool) (f : OccurrenceLabeli
     split
     next os o =>
       dsimp only
-      split
-      · assumption
-      · assumption
+      split <;> assumption
     next os => exact run_event_roots sem f rs _ _
 termination_by remaining.length
 decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some ‹_›)
@@ -842,7 +837,7 @@ theorem search_augment_correct (sem : Rel → List Bool → Bool)
   rw [hr] at he
   have ha := hs.augment_isAugmenting hF hf hM he
   refine ⟨ha, ?_, ha.card_defects_flip_add_two hF⟩
-  have hv := hs.augment_valid_take hF hf hM he m.walk.steps.length
-  simpa only [Walk.take, List.take_length] using hv
+  simpa only [Walk.take, List.take_length] using
+    hs.augment_valid_take hF hf hM he m.walk.steps.length
 
 end Cslib.Logic.PL.CSP.Forest
