@@ -623,6 +623,7 @@ theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (fun w => ![(r₀, w)])
     fun π hπ => ⟨(π (l₀, r₀)).2, Finset.mem_univ _,
       Fin.forall_fin_one.mpr (Prod.ext hπ rfl)⟩).trans_eq ?_
+  have hN : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
   simp [Finset.card_univ, Fintype.card_prod]
 
 /-- `feistel1CPAAttack l₀ r₀` distinguishes any 1-round Feistel network `feistelRoundEquiv f` from

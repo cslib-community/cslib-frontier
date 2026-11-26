@@ -400,7 +400,8 @@ theorem runWithAnswers_program (default : C) (σ : Signer Req Reply Point C Log 
       obtain ⟨hq, hc⟩ := hpos _ _ _ hmem
       refine ⟨fun hwin => by simpa using hwin, fun j hj => ?_⟩
       simp only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] at hj
-      exact hj.2 ▸ ⟨hq, hc, hj.1.1⟩
+      rcases hj with ⟨⟨hacc, -⟩, rfl⟩
+      exact ⟨hq, hc, hacc⟩
   | none =>
     simp only [finish, hl, runWithAnswers_map_query, verdict, Prod.mk.injEq] at hout
     obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hout

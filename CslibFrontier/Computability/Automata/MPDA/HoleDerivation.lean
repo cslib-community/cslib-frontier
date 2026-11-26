@@ -550,7 +550,8 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     refine ⟨⟨a, ?_⟩, hstay c' hc' e he' hne⟩
     rw [List.getElem?_append_left (h.lt_length hc' he'), hea, hst]
   · refine chained_append ?_ fun e he =>
-      (hmap c hc e he).elim fun _ hc' => h.lt_length hc'.1 hc'.2.1
+      let ⟨_, hc', he', _⟩ := hmap c hc e he
+      h.lt_length hc' he'
     rcases List.mem_append.mp hc with hc | hc
     · exact h₃ c (by simp [hc])
     · exact (List.mem_cons.mp hc).elim (fun h => h ▸ (h₃ c₀ hc₀).tail)
