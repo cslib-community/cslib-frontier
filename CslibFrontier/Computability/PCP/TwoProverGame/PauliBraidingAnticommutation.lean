@@ -103,13 +103,10 @@ theorem commutingWinProb_pauliBraidingCHSHGame_le [Nonempty (Fin n)]
   let q₁ (x : Bool) : PauliBraidingQuestion n Bool := .anticommutation false x p
   let q₂ (y : Bool) : PauliBraidingQuestion n Bool := .anticommutation true y p
   let read : (Bool × Bool) ⊕ Bool → Bool := Sum.elim (fun _ => false) id
-  change game.commutingWinProb S ≤ _
-  rw [SeededGame.commutingWinProb_eq_sum]
-  unfold TwoProverGame.commutingWinProb
-  change _ ≤ TwoProverGame.chsh.toSeeded.commutingWinProb _
+  change game.commutingWinProb S ≤ TwoProverGame.chsh.toSeeded.commutingWinProb _
   let : ∀ q a b, Decidable (TwoProverGame.chsh.toSeeded.accepts q a b) :=
     fun q a b => inferInstanceAs (Decidable (TwoProverGame.chsh.accepts q.1 q.2 a b))
-  rw [SeededGame.commutingWinProb_eq_sum]
+  rw [SeededGame.commutingWinProb_eq_sum, SeededGame.commutingWinProb_eq_sum]
   refine sum_le_sum fun ⟨x, y⟩ _ =>
     mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
   change (∑ a, ∑ b, if game.accepts (x, y) a b then
@@ -117,15 +114,14 @@ theorem commutingWinProb_pauliBraidingCHSHGame_le [Nonempty (Fin n)]
       (∑ a, ∑ b, if TwoProverGame.chsh.accepts x y a b then
         (logical.map q₁ q₂ (fun _ => read) (fun _ => read)).prob x y a b else 0)
   rw [logical.sum_ite_prob_map]
-  have hquery : game.query (x, y) = cond roles Prod.swap id (q₁ x, q₂ y) := rfl
   have hswap : (∑ a, ∑ b, if game.accepts (x, y) a b then
       S.prob (game.query (x, y)).1 (game.query (x, y)).2 a b else 0) =
       ∑ a, ∑ b, if game.accepts (x, y) (cond roles b a) (cond roles a b) then
         logical.prob (q₁ x) (q₂ y) a b else 0 := by
-    rw [hquery]
     cases roles
     · rfl
-    · simp only [logical, Bool.cond_true, Prod.swap_prod_mk, S.prob_swap]
+    · change (∑ a, ∑ b, if game.accepts (x, y) a b then S.prob (q₂ y) (q₁ x) a b else 0) = _
+      simp only [logical, Bool.cond_true, S.prob_swap]
       exact sum_comm
   rw [hswap]
   refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
@@ -153,18 +149,15 @@ theorem commutingWinProb_pauliBraidingAnticommutation_eq_expect
         (pauliBraidingCHSHGame n roles p).commutingWinProb S := by
   let game := pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)
   let := oddPairs_nonempty (ι := Fin n)
-  let law (roles : Bool) (p : ↥(oddPairs (Fin n))) :=
-    TwoProverGame.chsh.questions.map fun (x, y) => PauliBraidingSeed.anticommutation roles p x y
-  let odd := Probability.PMF.uniformOfFintype ↥(oddPairs (Fin n))
-  let sampler := (Probability.PMF.uniformOfFintype Bool).bind fun roles => odd.bind (law roles)
-  change ({ game with seed := sampler }).answersWinProb S.answers = _
-  dsimp only [sampler]
+  change ({ game with seed := (Probability.PMF.uniformOfFintype Bool).bind fun roles =>
+    (Probability.PMF.uniformOfFintype ↥(oddPairs (Fin n))).bind fun p =>
+      TwoProverGame.chsh.questions.map fun (q : Bool × Bool) =>
+        PauliBraidingSeed.anticommutation roles p q.1 q.2 }).answersWinProb S.answers = _
   rw [SeededGame.answersWinProb_bind_uniformSeed]
   refine Finset.expect_congr rfl fun roles _ => ?_
   rw [SeededGame.answersWinProb_bind_uniformSeed]
-  refine Finset.expect_congr rfl fun p _ => ?_
-  exact (game.answersWinProb_pullbackSeed TwoProverGame.chsh.questions
-    (fun (x, y) => .anticommutation roles p x y) S.answers).symm
+  exact Finset.expect_congr rfl fun p _ => (game.answersWinProb_pullbackSeed
+    TwoProverGame.chsh.questions (fun (x, y) => .anticommutation roles p x y) S.answers).symm
 
 variable [StarModule ℂ 𝒜] [SelfAdjointDecompose 𝒜]
 
@@ -199,25 +192,15 @@ theorem expect_chshDeficit_pauliBraiding_le
     Finset.expect_nonneg fun p _ => sub_nonneg.mpr <|
       (commutingWinProb_pauliBraidingCHSHGame_le S r p).trans
         (TwoProverGame.commutingWinProb_chsh_le _)
-  have hcompare :
-      (𝔼 p : ↥(oddPairs (Fin n)), (Real.cos (π / 8) ^ 2 -
-        TwoProverGame.chsh.commutingWinProb (pauliBraidingCHSHStrategy S roles p))) ≤
-      deficit roles :=
-    Finset.expect_le_expect fun p _ => sub_le_sub_left
-      (commutingWinProb_pauliBraidingCHSHGame_le S roles p) _
-  refine hcompare.trans ?_
+  refine (Finset.expect_le_expect fun p _ => sub_le_sub_left
+    (commutingWinProb_pauliBraidingCHSHGame_le S roles p) _ : _ ≤ deficit roles).trans ?_
   rw [commutingWinProb_pauliBraidingAnticommutation_eq_expect]
   have hdef : (𝔼 r : Bool, deficit r) = Real.cos (π / 8) ^ 2 -
       (𝔼 r : Bool, 𝔼 p : ↥(oddPairs (Fin n)),
         (pauliBraidingCHSHGame n r p).commutingWinProb S) := by
-    have hrow (r : Bool) : deficit r = Real.cos (π / 8) ^ 2 -
-        (𝔼 p : ↥(oddPairs (Fin n)), (pauliBraidingCHSHGame n r p).commutingWinProb S) := by
-      unfold deficit
-      let := oddPairs_nonempty (ι := Fin n)
-      rw [Finset.expect_sub_distrib, Fintype.expect_const]
-    simp_rw [hrow]
-    rw [Finset.expect_sub_distrib, Fintype.expect_const]
-  rw [← hdef, Fintype.expect_eq_sum_div_card, Fintype.sum_bool, Fintype.card_bool]
+    let := oddPairs_nonempty (ι := Fin n)
+    simp only [deficit, Finset.expect_sub_distrib, Fintype.expect_const]
+  rw [← hdef, Fintype.expect_eq_sum_div_card (ι := Bool), Fintype.sum_bool, Fintype.card_bool]
   cases roles <;> push_cast <;> linarith [hnonneg false, hnonneg true]
 
 omit [IsOrderedAddMonoid 𝒜] [StarModule ℂ 𝒜] [SelfAdjointDecompose 𝒜] in
@@ -245,13 +228,9 @@ theorem expect_norm_pauliBraidingSpecial_anticomm_sq_le
       S.state.norm (special false id p * special true id p +
         special true id p * special false id p) ^ 2 ≤ chshAnticommConst * deficit p := by
     let G := pauliBraidingCHSHStrategy S roles p
-    have hwin : Real.cos (π / 8) ^ 2 - deficit p ≤ TwoProverGame.chsh.commutingWinProb G.swap :=
-      (sub_sub_cancel _ _).trans_le (chsh_swap_score G).ge
-    have h := norm_anticomm_sq_le_of_chsh G.swap hwin
-    change G.state.norm ((G.bob false).observable * (G.bob true).observable +
-      (G.bob true).observable * (G.bob false).observable) ^ 2 ≤ _ at h
-    simpa only [G, pauliBraidingCHSHStrategy_state, pauliBraidingCHSHStrategy_bob_observable]
-      using h
+    simpa only [G, CommutingStrategy.swap, pauliBraidingCHSHStrategy_state,
+      pauliBraidingCHSHStrategy_bob_observable] using
+      norm_anticomm_sq_le_of_chsh G.swap ((sub_sub_cancel _ _).trans_le (chsh_swap_score G).ge)
   refine (Finset.expect_le_expect fun p _ => hlocal p).trans ?_
   rw [← Finset.mul_expect, mul_comm (2 : ℝ), mul_assoc]
   exact mul_le_mul_of_nonneg_left (expect_chshDeficit_pauliBraiding_le S roles)
@@ -286,10 +265,8 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
       (fun _ => Sum.elim (fun _ : Bool × Bool => false) id)
   let M := pauliBraidingBasisBitMeasurement measure
   have hspecial (q : Bool) (p : P) : star (special q id p) * special q id p ≤ 1 := by
-    have heq : ((pauliBraidingCHSHStrategy S roles p).bob q).observable = special q id p :=
-      pauliBraidingCHSHStrategy_bob_observable S roles p q
-    rw [← heq]
-    exact ((pauliBraidingCHSHStrategy S roles p).bob q).star_observable_mul_self_le_one
+    simpa only [special, pauliBraidingCHSHStrategy_bob_observable] using
+      ((pauliBraidingCHSHStrategy S roles p).bob q).star_observable_mul_self_le_one
   have hcomm (basis q : Bool) (x : Fin n → Bool) (p : P) :
       Commute (𝔼 d, (M basis x d).observable) (special q id p) := by
     rw [← Measurement.observable_average]
@@ -317,12 +294,9 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
     (hspecial false) (hspecial true)
     (fun p => hcomm false true p.val.1 p) (fun p => hcomm true false p.val.2 p) (by simp)
   simp only [neg_one_smul, sub_neg_eq_add, add_comm (Z _ * X _)] at h
-  have hx := hclose false
-  have hz := hclose true
-  have hac := expect_norm_pauliBraidingSpecial_anticomm_sq_le S roles
-  change (𝔼 p : P, S.state.norm (X p.val.1 - special false id p) ^ 2) ≤ _ at hx
-  change (𝔼 p : P, S.state.norm (Z p.val.2 - special true id p) ^ 2) ≤ _ at hz
-  linarith only [h, hx, hz, hac]
+  have hx : (𝔼 p : P, S.state.norm (X p.val.1 - special false id p) ^ 2) ≤ _ := hclose false
+  have hz : (𝔼 p : P, S.state.norm (Z p.val.2 - special true id p) ^ 2) ≤ _ := hclose true
+  linarith only [h, hx, hz, expect_norm_pauliBraidingSpecial_anticomm_sq_le S roles]
 
 end Scores
 

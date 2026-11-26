@@ -65,8 +65,8 @@ theorem Inv.add {s : DenseNames} (hs : s.Inv) (v : ℕ) : (s.add v).Inv := by
   split
   · exact hs
   · rename_i hv
-    have hnone : s.index[v]? = none :=
-      Std.HashMap.getElem?_eq_none_of_contains_eq_false (by simpa using hv)
+    have hnone : s.index[v]? = none := Std.HashMap.getElem?_eq_none_of_contains_eq_false
+      (by simpa using hv)
     refine ⟨fun w i h => ?_, fun i hi => ?_⟩
     · simp only [Std.HashMap.getElem?_insert, beq_iff_eq] at h
       split at h
@@ -75,11 +75,12 @@ theorem Inv.add {s : DenseNames} (hs : s.Inv) (v : ℕ) : (s.add v).Inv := by
       · obtain ⟨hi, hw⟩ := hs.name w i h
         exact ⟨by simp; omega, by simp [Array.getElem_push_lt hi, hw]⟩
     · simp only [Array.size_push] at hi
-      rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hi) with hlt | rfl
+      by_cases hlt : i < s.names.size
       · have hidx := hs.index i hlt
-        have hne : v ≠ s.names[i] := fun h => by simp [← h, hnone] at hidx
+        have hne : v ≠ s.names[i] := fun h => by rw [← h, hnone] at hidx; cases hidx
         simp [Array.getElem_push_lt hlt, Std.HashMap.getElem?_insert, hne, hidx]
-      · simp
+      · obtain rfl : i = s.names.size := by omega
+        simp
 
 /-- Adding a variable keeps the numbers already given. -/
 theorem getElem?_add_of_isSome {s : DenseNames} {w : ℕ} (hw : (s.index[w]?).isSome)
@@ -108,10 +109,11 @@ theorem Inv.foldl {s : DenseNames} (hs : s.Inv) (vs : List ℕ) :
   | cons v vs ih =>
     obtain ⟨h₁, h₂, h₃⟩ := ih (hs.add v)
     refine ⟨h₁, fun w hw => ?_, fun u hu => ?_⟩
-    · simpa only [List.foldl_cons, getElem?_add_of_isSome hw] using
-        h₂ w (by rwa [getElem?_add_of_isSome hw])
-    · rcases List.mem_cons.1 hu with rfl | hu
-      · simpa only [List.foldl_cons, h₂ u (isSome_add s u)] using isSome_add s u
+    · simp only [List.foldl_cons]
+      rw [h₂ w (by rw [getElem?_add_of_isSome hw]; exact hw), getElem?_add_of_isSome hw]
+    · simp only [List.foldl_cons]
+      rcases List.mem_cons.1 hu with rfl | hu
+      · simpa only [h₂ u (isSome_add s u)] using isSome_add s u
       · exact h₃ u hu
 
 end CNF.DenseNames
@@ -166,7 +168,8 @@ theorem le_foldl_max (a : Array ℕ) (i : ℕ) (h : i < a.size) : a[i] ≤ a.fol
     induction l with
     | nil => simp
     | cons y l ih =>
-      intro b; simp only [List.foldl_cons]
+      intro b
+      simp only [List.foldl_cons]
       exact ⟨fun x hx => (List.mem_cons.1 hx).elim
         (fun h => h ▸ (le_max_right b y).trans (ih _).2) ((ih (max b y)).1 x),
         (le_max_left b y).trans (ih _).2⟩
@@ -180,9 +183,10 @@ theorem fromDense_injective (φ : CNF ℕ) : Function.Injective φ.denseRenaming
   split at h <;> split at h
   · rename_i hi hj
     exact Option.some.inj ((hinv.index i hi).symm.trans (h ▸ hinv.index j hj))
-  · have := le_foldl_max φ.denseNames.names i ‹_›; omega
-  · have := le_foldl_max φ.denseNames.names j ‹_›; omega
-  · omega
+  all_goals
+    try have := le_foldl_max φ.denseNames.names i ‹_›
+    try have := le_foldl_max φ.denseNames.names j ‹_›
+    omega
 
 /-- **Renaming along `toDense` and back gives `φ`.** -/
 theorem relabel_relabel (φ : CNF ℕ) :

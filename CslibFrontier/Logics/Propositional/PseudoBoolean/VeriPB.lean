@@ -150,39 +150,28 @@ theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBCon
     (hρ : Consistent σ ρ) (hc : c.Holds σ) :
     ∃ ρ', propagate ρ c = some ρ' ∧ Consistent σ ρ' := by
   -- A term whose literal is true is not falsified.
-  have hnf : ∀ t ∈ c.terms, Literal.eval σ t.2 = true → falsified ρ t = false := by
-    intro t _ ht
-    unfold falsified
-    by_contra hf
-    simp only [Bool.not_eq_false, List.contains_iff_mem] at hf
-    have := hρ _ hf
-    rw [Literal.eval_negate] at this
-    simp [ht] at this
+  have hnf : ∀ t ∈ c.terms, Literal.eval σ t.2 = true → falsified ρ t = false :=
+    fun t _ ht => Bool.eq_false_iff.mpr fun hf => by
+      have := hρ _ (List.contains_iff_mem.mp hf)
+      simp [Literal.eval_negate, ht] at this
   have hsplit := coeffSum_filter_add c.terms (fun t => !falsified ρ t)
     (fun t => Literal.eval σ t.2)
   have htrue : (c.terms.filter fun t => !falsified ρ t && Literal.eval σ t.2) =
-      c.terms.filter fun t => Literal.eval σ t.2 := by
-    apply List.filter_congr
-    intro t ht
-    grind
+      c.terms.filter fun t => Literal.eval σ t.2 :=
+    List.filter_congr fun t ht => by grind
   rw [htrue, ← lhs_eq_coeffSum_filter] at hsplit
   unfold Holds at hc
   have hs : 0 ≤ slack ρ c := by unfold slack; omega
-  refine ⟨_, by
-    unfold propagate
-    split
-    · exact absurd ‹_› (not_lt.mpr hs)
-    · rfl, fun l hl => ?_⟩
+  refine ⟨_, by rw [propagate, ite_eq_right (not_lt.mpr hs)], fun l hl => ?_⟩
   rcases List.mem_append.mp hl with hl | hl
   · obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hl
     obtain ⟨htm, hp⟩ := List.mem_filter.mp ht
-    simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq] at hp
-    obtain ⟨⟨hf, -⟩, hlt⟩ := hp
+    simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq, and_assoc] at hp
+    obtain ⟨hf, -, hlt⟩ := hp
     by_contra hev
-    have hmem : t ∈ c.terms.filter fun t => !falsified ρ t && !Literal.eval σ t.2 := by
-      simp only [Bool.not_eq_true] at hev
-      simp [List.mem_filter, htm, hf, hev]
-    have := le_coeffSum_of_mem hmem
+    have := le_coeffSum_of_mem
+      (ts := c.terms.filter fun t => !falsified ρ t && !Literal.eval σ t.2) (t := t)
+      (by simp [htm, hf, Bool.eq_false_of_ne_true hev])
     unfold slack at hlt
     omega
   · exact hρ l hl
@@ -216,9 +205,8 @@ def namesContra (db : List (ℕ × PBConstr)) (n : ℕ) : Bool :=
 /-- A database naming a contradiction has no solution. -/
 theorem AllHold.not_namesContra {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (h : AllHold σ db)
     {n : ℕ} : namesContra db n = false := by
-  rw [Bool.eq_false_iff]
-  intro hq
-  obtain ⟨c, hc, hcon⟩ := (Option.any_eq_true _ _).mp hq
+  refine Bool.eq_false_iff.mpr fun hq => ?_
+  obtain ⟨_, hc, hcon⟩ := (Option.any_eq_true _ _).mp hq
   exact (of_decide_eq_true hcon).not_holds σ (h.lookup hc)
 
 /-! ### Reverse unit propagation -/
@@ -278,18 +266,16 @@ theorem rupHints_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {neg : 
     ∀ (hs : List Hint) (ρ : List (Literal ℕ)), Consistent σ ρ → rupHints db neg hs ρ = false
   | [], _, _ => rfl
   | h :: hs, ρ, hρ => by
-    have hc : ∀ c, resolve db neg h = some c → c.Holds σ := by
-      intro c hc
-      cases h with
-      | neg => cases hc; exact hneg
-      | id n => exact hdb.lookup (by simpa [resolve] using hc)
     unfold rupHints
     split
     · rfl
     · rename_i c hcm
-      obtain ⟨ρ', hp, hρ'⟩ := propagate_sound hρ (hc c hcm)
-      simp only [hp]
-      exact rupHints_sound hdb hneg hs ρ' hρ'
+      have hc : c.Holds σ := by
+        cases h with
+        | neg => exact Option.some.inj hcm ▸ hneg
+        | id n => exact hdb.lookup hcm
+      obtain ⟨ρ', hp, hρ'⟩ := propagate_sound hρ hc
+      simpa only [hp] using rupHints_sound hdb hneg hs ρ' hρ'
 
 theorem propRound_sound {σ : ℕ → Bool} :
     ∀ (cs : List PBConstr) (ρ : List (Literal ℕ)), (∀ c ∈ cs, c.Holds σ) → Consistent σ ρ →
@@ -493,22 +479,18 @@ theorem runStep_sound {σ : ℕ → Bool} :
     split at h <;> cases h
     exact List.forall_mem_cons.2 ⟨polEval_sound hdb ops [] _ (by simp) ‹_› _ (by simp), hdb⟩
   | db, n, .rup c hs, db', n', hdb, h => by
-    simp only [runStep] at h
-    split at h <;> cases h
-    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rup_sound hdb ‹_›), hdb⟩
+    obtain ⟨hrup, rfl, rfl⟩ := by simpa [runStep] using h
+    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rup_sound hdb hrup), hdb⟩
   | db, n, .rupSearch c, db', n', hdb, h => by
-    simp only [runStep] at h
-    split at h <;> cases h
-    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rupSearch_sound hdb ‹_›), hdb⟩
+    obtain ⟨hrup, rfl, rfl⟩ := by simpa [runStep] using h
+    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rupSearch_sound hdb hrup), hdb⟩
   | db, n, .pbc c sub q, db', n', hdb, h => by
-    simp only [runStep, Option.map_eq_some_iff] at h
-    obtain ⟨n'', hq, h⟩ := h
-    cases h
+    obtain ⟨n'', hq, rfl, rfl⟩ := by
+      simpa only [runStep, Option.map_eq_some_iff, Prod.mk.injEq] using h
     exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (holds_of_subproofRefutes
       (fun _ _ hext hsub => runSteps_sound _ _ sub _ _ hext hsub) hdb hq), hdb⟩
   | db, n, .del ids, db', n', hdb, h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact fun e he => hdb e (List.mem_of_mem_filter he)
 
 theorem runSteps_sound {σ : ℕ → Bool} :
@@ -516,8 +498,7 @@ theorem runSteps_sound {σ : ℕ → Bool} :
       AllHold σ db → runSteps db n ss = some (db', n') → AllHold σ db'
   | db, n, [], db', n', hdb, h => by
     simp only [runSteps, Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, -⟩ := h
-    exact hdb
+    exact h.1 ▸ hdb
   | db, n, s :: ss, db', n', hdb, h => by
     simp only [runSteps] at h
     split at h
@@ -527,9 +508,8 @@ theorem runSteps_sound {σ : ℕ → Bool} :
 end
 
 theorem allHold_initDb {σ : ℕ → Bool} {F : List PBConstr} (hF : ∀ c ∈ F, c.Holds σ) :
-    AllHold σ (initDb F) := by
-  intro e he
-  obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp he
+    AllHold σ (initDb F) := fun e he => by
+  obtain ⟨⟨c, _⟩, hci, rfl⟩ := List.mem_map.mp he
   exact (holds_normalize σ c).2 (hF c (List.fst_mem_of_mem_zipIdx hci))
 
 /-! ### Fresh numbers -/
@@ -575,15 +555,12 @@ end IdOk
 
 /-- The input database is numbered from `1` to the number of its constraints. -/
 theorem idOk_initDb (F : List PBConstr) : IdOk (initDb F) (F.length + 1) := by
+  have hfn : ((·.1) ∘ fun e : PBConstr × ℕ => (e.2 + 1, e.1.normalize)) =
+      (1 + ·) ∘ Prod.snd := funext fun _ => Nat.add_comm _ _
   have hmap : (initDb F).map (·.1) = List.range' 1 F.length := by
-    simp only [initDb, List.map_map]
-    rw [show ((·.1) ∘ fun e : PBConstr × ℕ => (e.2 + 1, e.1.normalize)) =
-      (1 + ·) ∘ Prod.snd from funext fun _ => Nat.add_comm _ _, ← List.map_map,
-      List.zipIdx_map_snd, List.map_add_range']
-  refine ⟨fun e he => ?_, hmap ▸ List.nodup_range'⟩
-  have := List.mem_map_of_mem (f := (·.1)) he
-  rw [hmap, List.mem_range'_1] at this
-  omega
+    rw [initDb, List.map_map, hfn, ← List.map_map, List.zipIdx_map_snd, List.map_add_range']
+  exact ⟨fun e he => Nat.add_comm 1 F.length ▸
+    (List.mem_range'_1.1 (hmap ▸ List.mem_map_of_mem (f := (·.1)) he)).2, hmap ▸ List.nodup_range'⟩
 
 /-- **The shape of a successful step on the database `db`, whose next number is `n`**: which
 constraint it adds, at which number, and what it deletes. Each addition puts its constraint in
@@ -652,26 +629,21 @@ theorem runStep_effect :
     split at h <;> cases h
     exact .pol _
   | db, n, .rup c hs, db', n', h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact .rup
   | db, n, .rupSearch c, db', n', h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact .rupSearch
   | db, n, .pbc c sub q, db', n', h => by
-    simp only [runStep, Option.map_eq_some_iff] at h
-    obtain ⟨n'', hq, h⟩ := h
-    cases h
+    obtain ⟨n'', hq, rfl, rfl⟩ := by
+      simpa only [runStep, Option.map_eq_some_iff, Prod.mk.injEq] using h
     unfold subproofRefutes at hq
     split at hq
-    · rename_i db₁ n₁ hsub
-      simp only [Option.ite_none_right_eq_some, Option.some.injEq] at hq
-      exact .pbc (hq.2 ▸ Nat.lt_of_lt_of_le (Nat.lt_succ_self n) (runSteps_le _ _ sub _ _ hsub))
+    · obtain ⟨-, rfl⟩ := by simpa using hq
+      exact .pbc (Nat.lt_of_lt_of_le (Nat.lt_succ_self n) (runSteps_le _ _ sub _ _ ‹_›))
     · cases hq
   | db, n, .del ids, db', n', h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact .del ids
 
 /-- Steps only advance the numbering. -/
@@ -710,11 +682,9 @@ theorem not_satisfiable_of_check {F : List PBConstr} {P : Proof} (h : check F P 
 /-- **Soundness for CNF**: a CNF whose clauses, as pseudo-Boolean constraints, have a checked
 proof of `UNSAT` is unsatisfiable. -/
 theorem not_satisfiable_cnf_of_check {φ : CNF ℕ} {P : Proof}
-    (h : check (φ.map Clause.toPB) P = true) : ¬ φ.Satisfiable := by
-  rintro ⟨σ, hσ⟩
-  refine not_satisfiable_of_check h σ fun c hc => ?_
-  obtain ⟨cl, hcl, rfl⟩ := List.mem_map.mp hc
-  exact (Clause.holds_toPB_iff σ cl).2 ((CNF.eval_eq_true_iff σ φ).1 hσ cl hcl)
+    (h : check (φ.map Clause.toPB) P = true) : ¬ φ.Satisfiable := fun ⟨σ, hσ⟩ =>
+  not_satisfiable_of_check h σ (List.forall_mem_map.2 fun cl hcl =>
+    (Clause.holds_toPB_iff σ cl).2 ((CNF.eval_eq_true_iff σ φ).1 hσ cl hcl))
 
 end VeriPB
 

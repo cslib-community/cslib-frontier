@@ -59,15 +59,11 @@ theorem realize_orderedPower_rel (hk : 1 ≤ k) (M : FO.Ordered.Structure L)
   let _ := ESO.varLanguage.structure (arity := fun _ : Unit => 2)
     (ESO.orderRelOfEquiv (Equiv.refl M))
   let _ := v.powerStructure (FO.Ordered.encode v M) (M.size ^ k)
-  rw [orderedPowerInterpretation, Formula.realize_relabel]
-  change ((strictOrderInterpretation L).onFormula ((v.powerInterpretation k har).rel R)).Realize
-    (fun p => x p.1.1 p.1.2.rev) ↔ _
-  rw [realize_strictOrder_onFormula M ((v.powerInterpretation k har).rel R)
-    (fun p => x p.1 p.2.rev)]
-  let y : Fin r → (v.powerInterpretation k har).Model M :=
-    fun i => ⟨fun j => x i j.rev, Formula.realize_top.mpr trivial⟩
-  have h := (v.powerEquiv k hk har M (Equiv.refl M)).map_rel R y
-  exact h.symm
+  simp only [orderedPowerInterpretation, Formula.realize_relabel, Function.comp_def,
+    realize_strictOrder_onFormula M ((v.powerInterpretation k har).rel R)
+      (fun p => x p.1 p.2.rev)]
+  exact ((v.powerEquiv k hk har M (Equiv.refl M)).map_rel R
+    fun i => ⟨fun j => x i j.rev, Formula.realize_top.mpr trivial⟩).symm
 
 /-- The input relations of the full-tuple interpretation agree exactly with the canonical
 power structure of the native input encoding. -/
@@ -77,7 +73,7 @@ theorem inputStructure_orderedPowerInterpretation (hk : 1 ≤ k) (M : FO.Ordered
   refine FirstOrder.Language.Structure.ext_of_isRelational fun R x => ?_
   change ((v.orderedPowerInterpretation k har).rel R).Realize
     (fun p => lexEquiv.symm (x p.1) p.2) ↔ _
-  have h := v.realize_orderedPower_rel k har hk M R (fun i => lexEquiv.symm (x i))
-  simpa only [Equiv.apply_symm_apply] using h
+  simpa only [Equiv.apply_symm_apply] using
+    v.realize_orderedPower_rel k har hk M R (fun i => lexEquiv.symm (x i))
 
 end Cslib.Logic.Vocabulary

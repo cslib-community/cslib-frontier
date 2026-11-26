@@ -47,16 +47,13 @@ theorem crossing_axes_exist {φ : CNF ℕ}
   have hc := ((PlanarCompile.mem_crossingSites φ p).1 hp).2.2
   rw [← PlanarCompile.occurrencePaths_eq_paths] at hc
   obtain ⟨i, j, hi, hj, hij, hpi, hpj⟩ := (List.two_le_filter_contains_iff _ p).1 hc
-  have hi' : i < (Cslib.Logic.PL.occurrences φ).length := by
-    simpa only [List.length_map] using hi
-  have hj' : j < (Cslib.Logic.PL.occurrences φ).length := by
-    simpa only [List.length_map] using hj
+  have hi' : i < (Cslib.Logic.PL.occurrences φ).length := by simpa using hi
+  have hj' : j < (Cslib.Logic.PL.occurrences φ).length := by simpa using hj
   simp only [List.getElem_map] at hpi hpj
   have hoi := List.getElem_mem hi'
   have hoj := List.getElem_mem hj'
-  have hot : (Cslib.Logic.PL.occurrences φ)[i] ≠ (Cslib.Logic.PL.occurrences φ)[j] := by
-    intro he
-    exact hij ((Cslib.Logic.PL.occurrences_nodup φ).getElem_inj_iff.1 he)
+  have hot : (Cslib.Logic.PL.occurrences φ)[i] ≠ (Cslib.Logic.PL.occurrences φ)[j] := fun he =>
+    hij ((Cslib.Logic.PL.occurrences_nodup φ).getElem_inj_iff.1 he)
   rcases PlanarCompile.occurrencePath_crossing_straight hw hv hoi hp hpi with hs | hs <;>
     rcases PlanarCompile.occurrencePath_crossing_straight hw hv hoj hp hpj with ht | ht
   · exact False.elim (hot (PlanarCompile.crossing_axis_occurrence_eq hw hv hoi hoj hp
@@ -90,13 +87,10 @@ theorem ordinary_value_source {φ : CNF ℕ}
       List.getD_eq_default _ _ hlen.ge] at hpo
     exact List.not_mem_nil hpo
   obtain ⟨k, hk, heq⟩ := List.mem_iff_getElem.mp hpo
-  have hk' : k < (occurrencePath φ o).length - 1 := by
-    simpa only [List.length_dropLast] using hk
-  have hwi : k < (wire (crossingSites φ) (occurrencePath φ o)).length := by
-    rwa [length_wire]
-  have hc := (wire_values_source hw hv h ho _ (List.getElem_mem hwi) 0).1
-  rw [getElem_wire _ _ _ hk'] at hc
-  rw [← List.getElem_dropLast hk, heq] at hc
+  have hk' : k < (occurrencePath φ o).length - 1 := by simpa using hk
+  have hc := (wire_values_source hw hv h ho _
+    (List.getElem_mem ((length_wire _ _).symm ▸ hk')) 0).1
+  rw [getElem_wire _ _ _ hk', ← List.getElem_dropLast hk, heq] at hc
   simpa only [signal, ordinary_port_value h hp] using hc
 
 /-- Each crossover input is exactly the source value on its occupying axis. -/
@@ -112,13 +106,11 @@ theorem crossing_axis_value {φ : CNF ℕ}
   obtain ⟨k, hk, heq⟩ := List.mem_iff_getElem.mp hpo
   obtain ⟨_, hnext, hnb⟩ := hs.getD_neighbors (PlanarCompile.occurrencePath_nodup ho) hk heq
   have hk' : k < (occurrencePath φ o).length - 1 := by omega
-  have hwi : k < (wire (crossingSites φ) (occurrencePath φ o)).length := by
-    rwa [length_wire]
-  have hc := (wire_values_source hw hv h ho _ (List.getElem_mem hwi) 0).1
+  have hc := (wire_values_source hw hv h ho _
+    (List.getElem_mem ((length_wire _ _).symm ▸ hk')) 0).1
   rw [getElem_wire _ _ _ hk', heq] at hc
   obtain ⟨hl, hr, hb, ht⟩ := PlanarCompile.side_cardinal p
-  simp only [signal] at hc
-  rw [crossing_port_value h hp] at hc
+  simp only [signal, crossing_port_value h hp] at hc
   cases axis <;> rcases hnb with ⟨hprev, _⟩ | ⟨hprev, _⟩ <;>
     (rw [hprev] at hc; simpa [hl, hr, hb, ht] using hc)
 

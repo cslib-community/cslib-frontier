@@ -85,16 +85,14 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
     have hbest_j : y.mem (bC + n * n + 6 * n + y.regs idx2) = u.val := by
       rw [hf _ (by simp only [dC]; omega), hj_eq]
       exact hSM.hbest j
-    have hcol_upd : ∀ k : Fin n,
+    have hcol_upd (k : Fin n) :
         Function.update y.mem (dC + j.val) u.val (dC + k.val) =
           encodeOptFin (vget (vset (hgApplyEdges s.mate pref) j (some u)) k) := by
-      intro k
-      by_cases hkj : k = j
-      · subst hkj
-        simp [encodeOptFin]
-      · have hne : dC + k.val ≠ dC + j.val := fun h => hkj (Fin.ext (by omega))
-        rw [Function.update_of_ne hne, hcol_pref k, vget_vset_ne _ _ (Ne.symm hkj)]
-    have hstep : ∃ z, ExecWithin w augBody y z 7 ∧
+      rcases eq_or_ne k j with rfl | hkj
+      · simp [encodeOptFin]
+      · rw [Function.update_of_ne (fun h => hkj (Fin.ext (by omega))), hcol_pref k,
+          vget_vset_ne _ _ hkj.symm]
+    obtain ⟨z, he, hmz, hrz, hiz⟩ : ∃ z, ExecWithin w augBody y z 7 ∧
         z.mem = Function.update y.mem (dC + j.val) u.val ∧
         (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
         z.regs idx2 = y.mem (bC + n * n + 7 * n + 1 + u.val) := by
@@ -103,7 +101,6 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
       have := u.isLt
       wram_exec [hby.hbaseBestRow, hby.hbaseRowMate, hby.hbaseColMate, hbest_j]
       exact ⟨by wram_simp [dC, hj_eq], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-    obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
     have hfz : ∀ a, ¬(dC ≤ a ∧ a < dC + n) → z.mem a = x.mem a := fun a ha => by
       rw [hmz, Function.update_of_ne (by have := j.isLt; omega)]
       exact hf a ha
@@ -115,22 +112,18 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
       have hp_cons := hSI.path_eq_cons (j := j) hj'
       refine ⟨z, he, ⟨hrz, hfz, .inr ⟨j', pref ++ [(u, j)], hiz', ?_, ?_⟩⟩, ?_⟩
       · rw [hpath_eq, hp_cons, List.append_assoc, List.singleton_append]
-      · intro k
-        rw [hmz, hcol_upd k]
-        simp [hgApplyEdges, List.foldl_append]
+      · exact fun k => by simp [hmz, hcol_upd k, hgApplyEdges, List.foldl_append]
       · simp only [rank, hlt, hj_fin, hiz', j'.isLt, dite_true, Fin.eta, hp_cons, List.length_cons]
         omega
     · have hfree : ∀ j' : Fin n, vget s.mate j' ≠ some u := fun j' h => hex ⟨j', h⟩
       have hiz' : z.regs idx2 = n := by rw [hiz, hrow, hSM.hrow_none u hfree]
       have hp_sing := hSI.path_eq_singleton (j := j) hfree
       refine ⟨z, he, ⟨hrz, hfz, .inl ⟨hiz', fun k => ?_⟩⟩, ?_⟩
-      · rw [hmz, hcol_upd k, hpath_eq, hp_sing]
-        simp only [hgApplyEdges, List.foldl_append, List.foldl_cons, List.foldl_nil]
-        rfl
+      · simp [hmz, hcol_upd k, hpath_eq, hp_sing, hgApplyEdges, List.foldl_append, u]
       · simp only [rank, hlt, hj_fin, hiz', lt_self_iff_false, dite_true, dite_false, hp_sing,
           List.length_singleton]
         omega
-  have hsetup : ∃ y₀,
+  obtain ⟨y₀, hs₀, hI₀, hrank₀⟩ : ∃ y₀,
       ExecWithin w (ram[ idx2 ← rj1 ] : Code .standard 28) x y₀ 1 ∧ I y₀ ∧ rank y₀ ≤ n := by
     refine WP.exists_execWithin ?_
     wram_exec [hrj1]
@@ -139,18 +132,14 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
     simp only [rank]
     wram_simp [j₁.isLt]
     exact hSI.length_path_le j₁
-  obtain ⟨y₀, hs₀, hI₀, hrank₀⟩ := hsetup
   obtain ⟨y, hl, hIy, hcy⟩ := ExecWithin.loop_invariant (cond := .lt idx2 rn) (body := augBody)
     I rank (T := 7) hstepBody hI₀
   obtain ⟨hr, hf, hstate⟩ := hIy
   have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
   rcases hstate with ⟨_, hcol_final⟩ | ⟨j, _, hj_eq, _, _⟩
-  · refine ⟨y, (hs₀.seq hl).mono ?_, hr, hcol_final,
+  · exact ⟨y, (hs₀.seq hl).mono (by linarith [Nat.mul_le_mul_right 9 hrank₀]), hr, hcol_final,
       fun a ha => hf a (by simp only [dC]; omega)⟩
-    have := Nat.mul_le_mul_right 9 hrank₀
-    omega
-  · simp only [Cond.holds_lt, hj_eq, hby.hrn] at hcy
-    exact absurd j.isLt hcy
+  · exact absurd j.isLt (by simpa only [Cond.holds_lt, hj_eq, hby.hrn] using hcy)
 
 private theorem exec_rebuildRowMateCode {w n bC M : ℕ} {mate : Vector (Option (Fin n)) n}
     (hM : IsMatching (fun _ => true) (mateMatching mate)) (x : Data 28)
@@ -201,36 +190,27 @@ private theorem exec_rebuildRowMateCode {w n bC M : ℕ} {mate : Vector (Option 
       refine ⟨⟨fun i hi => by wram_simp [hr i hi], fun a ha => ?_,
         fun j hj i hm => ?_, fun i hall => ?_⟩, by wram_simp⟩
       · change Function.update y.mem (bRM + i₀.val) (y.regs idx) a = x.mem a
-        rw [Function.update_of_ne (by omega)]
-        exact hf a ha
+        rw [Function.update_of_ne (by omega), hf a ha]
       · change Function.update y.mem (bRM + i₀.val) (y.regs idx) (bRM + i.val) = j.val
         by_cases hii : i = i₀
         · subst hii
-          have hjj : j = j₀ := hM.2.1 i (j) (j₀)
+          obtain rfl : j = j₀ := hM.2.1 i j j₀
             (mem_mateMatching.mpr hm) (mem_mateMatching.mpr hmj)
-          subst hjj
           exact Function.update_self _ _ _
-        · have hne : bRM + i.val ≠ bRM + i₀.val := fun h => hii (Fin.ext (by omega))
-          have hjj : j ≠ j₀ := fun h => by
-            subst h
-            rw [hmj] at hm
-            exact hii (Option.some.inj hm).symm
-          have hj_ne : j.val ≠ y.regs idx := fun h => hjj (Fin.ext h)
-          rw [Function.update_of_ne hne]
+        · have hj_ne : j.val ≠ y.regs idx := fun h =>
+            hii (Option.some.inj (hm.symm.trans ((congrArg (vget mate) (Fin.ext h)).trans hmj)))
+          rw [Function.update_of_ne (fun h => hii (Fin.ext (by omega)))]
           exact hsome j (by omega) i hm
       · change Function.update y.mem (bRM + i₀.val) (y.regs idx) (bRM + i.val) = n
-        have hii : i ≠ i₀ := fun h => by subst h; exact hall j₀ (Nat.lt_succ_self _) hmj
-        have hne : bRM + i.val ≠ bRM + i₀.val := fun h => hii (Fin.ext (by omega))
-        rw [Function.update_of_ne hne]
+        have hii : i ≠ i₀ := fun h => hall j₀ (Nat.lt_succ_self _) (h ▸ hmj)
+        rw [Function.update_of_ne (fun h => hii (Fin.ext (by omega)))]
         exact hnone i fun j hj => hall j (by omega)
   obtain ⟨y₃, hl₃, hr₃, hf₃, hsome₃, hnone₃⟩ := exec_forLoop P
     (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbody (x := y₁)
     ⟨fun i hi => by wram_simp [hr₁ i hi],
       fun a ha => hf₁ a (by rw [hb.hbaseRowMate]; simp only [bRM] at ha; omega),
       fun _ hj => by omega,
-      fun i _ => by
-        have := hrm₁ i.val i.isLt
-        rwa [hb.hbaseRowMate, hb.hrn] at this⟩
+      fun i _ => by simpa only [bRM, Data.set, hb.hbaseRowMate, hb.hrn] using hrm₁ i.val i.isLt⟩
   exact ⟨y₃, (he₁.seq hl₃).mono (by omega), hr₃,
     fun j i hm => hsome₃ j j.isLt i hm,
     fun i hall => hnone₃ i (fun j _ => hall j),
@@ -255,13 +235,9 @@ theorem exec_augmentCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁
   have hb₁ : BaseRegs n bC M y₁ := hb.of_eq fun i hi => hr₁ i (by omega)
   obtain ⟨y₂, he₂, hr₂, hsome₂, hnone₂, hf₂⟩ :=
     exec_rebuildRowMateCode hOB'.matching y₁ hb₁ hcol₁ hfit_a
-  have hstep₃ : ∃ y₃,
-      ExecWithin w (ram[ augmented ← #1 ] : Code .standard 28) y₂ y₃ 1 ∧
-      y₃ = y₂.set augmented 1 := by
-    refine WP.exists_execWithin ?_
+  have he₃ :
+      ExecWithin w (ram[ augmented ← #1 ] : Code .standard 28) y₂ (y₂.set augmented 1) 1 := by
     wram_exec
-    rfl
-  obtain ⟨y₃, he₃, rfl⟩ := hstep₃
   have hout : ∀ a, ¬(bC + n * n + 2 * n ≤ a ∧ a < bC + n * n + 3 * n) ∧
       ¬(bC + n * n + 7 * n + 1 ≤ a ∧ a < bC + n * n + 8 * n + 1) → y₂.mem a = x.mem a :=
     fun a ⟨ha1, ha2⟩ => (hf₂ a ha2).trans (hf₁ a ha1)
@@ -272,9 +248,8 @@ theorem exec_augmentCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁
      fun j => (hf₂ _ (by have := j.isLt; omega)).trans (hcol₁ j),
      hsome₂, hnone₂⟩,
     hout⟩
-  have h2 := hr₂ i (by omega)
-  have h1 := hr₁ i (by omega)
-  wram_simp [h2, h1]
+  have hi21 : i.val < 21 := by omega
+  wram_simp [hr₂ i hi21, hr₁ i hi21]
 
 
 end Cslib.Algorithms.WordRAM.Hungarian

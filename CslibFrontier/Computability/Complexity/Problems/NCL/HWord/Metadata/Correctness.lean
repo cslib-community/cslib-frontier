@@ -43,11 +43,8 @@ private theorem branches_eq : branches q n = (PortGraph.network H n).branches.ma
 
 private theorem incident_eq (c : Fin n × Fin q) :
     incident n c.1.val c.2 = ((PortGraph.network H n).incident c).map lowerBranch := by
-  rw [incident, branches_eq H, List.filter_map]
-  unfold SelectorNetwork.incident
-  congr 1
-  apply List.filter_congr
-  intro e _
+  rw [incident, SelectorNetwork.incident, branches_eq H, List.filter_map]
+  refine congrArg (List.map lowerBranch) (List.filter_congr fun e _ => ?_)
   have hr : endpointRow n (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).1.val :=
     (PortGraph.network_endpoint_row H e.1 e.2).symm
   have hs : endpointSymbol (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).2 :=
@@ -62,10 +59,7 @@ private theorem filter_product_left {α β : Type*} [DecidableEq α] (xs : List 
   induction xs with
   | nil => rfl
   | cons a xs ih =>
-    by_cases ha : a = i
-    · subst a
-      simp [List.filter_map, Function.comp_def, ih]
-    · simp [List.filter_map, Function.comp_def, ha, ih]
+    rcases eq_or_ne a i with rfl | ha <;> simp [List.filter_map, Function.comp_def, *]
 
 private theorem rowInputs_eq (i : Fin n) :
     rowInputs (PortGraph.network H n) (AndOr.rowSection H hq) i =
@@ -73,18 +67,13 @@ private theorem rowInputs_eq (i : Fin n) :
   unfold rowInputs
   rw [PortGraph.network_characters]
   simp only [PortGraph.network_row]
-  dsimp only [AndOr.rowSection]
   change ((List.finRange n).product (List.finRange q)).filter
     (fun c => decide (c.1 = i ∧ c ≠ (i, ⟨0, hq⟩))) = _
   have hp : (fun c : Fin n × Fin q => decide (c.1 = i ∧ c ≠ (i, ⟨0, hq⟩))) =
-      (fun c => decide (c.1 = i) && decide (c.2.val ≠ 0)) := by
-    funext c
-    by_cases hi : c.1 = i
-    · simp [hi, Prod.ext_iff, Fin.ext_iff]
-    · simp [hi]
-  rw [hp, filter_product_left (List.finRange n) (List.finRange q) i
-    (fun a => decide (a.val ≠ 0)), List.filter_eq,
-    List.count_eq_one_of_mem (List.nodup_finRange n) (List.mem_finRange i)]
+      (fun c => decide (c.1 = i) && decide (c.2.val ≠ 0)) := funext fun c => by
+    by_cases hi : c.1 = i <;> simp [hi, Prod.ext_iff, Fin.ext_iff]
+  rw [hp, filter_product_left (List.finRange n) (List.finRange q) i (fun a => decide (a.val ≠ 0)),
+    List.filter_eq, List.count_eq_one_of_mem (List.nodup_finRange n) (List.mem_finRange i)]
   simp [List.product]
 
 private theorem name_eq (v : SelectorNetwork.Vert (Fin n) (Fin n × Fin q) (RelationSite q n))
@@ -101,14 +90,9 @@ private theorem selector_eq (c : Fin n × Fin q) : selector c.1.val c.2 =
 private theorem branchName_eq (e : RelationSite q n × Bool) : branchName (lowerBranch e) =
     Sparse.code (PortGraph.network H n) (AndOr.rowSection H hq)
       (PortGraph.bandwidthCertificate H).order (stride q) (.inl (.inr e)) := by
-  rcases e with ⟨r, b⟩
-  cases b
-  · change name r.position.val (.inr (.inr (r.first, r.second))) 0 =
-      stride q * ((PortGraph.bandwidthCertificate H).order (.inr (.inr r))).val + 0
-    exact name_eq H (.inr (.inr r)) 0
-  · change name r.position.val (.inr (.inr (r.first, r.second))) 1 =
-      stride q * ((PortGraph.bandwidthCertificate H).order (.inr (.inr r))).val + 1
-    exact name_eq H (.inr (.inr r)) 1
+  rcases e with ⟨r, _ | _⟩
+  · exact name_eq H (.inr (.inr r)) 0
+  · exact name_eq H (.inr (.inr r)) 1
 
 private theorem shape_eq (v : SelectorNetwork.Vert (Fin n) (Fin n × Fin q) (RelationSite q n)) :
     (shape H hq n (PortGraph.vertexRow v).val (PortGraph.rowTag v).2).val =
@@ -137,13 +121,11 @@ private theorem boundaryNames_eq
   rcases v with i | (c | r)
   · simp only [PortGraph.vertexRow, PortGraph.rowTag, Equiv.coe_fn_mk, boundaryNames,
       boundaryList, rowInputs_eq H hq, List.map_append, List.map_map, List.map_cons, List.map_nil,
-      Function.comp_def]
-    simp only [f, ← selector_eq H hq]
+      Function.comp_def, f, ← selector_eq H hq]
     rfl
   · simp only [PortGraph.vertexRow, PortGraph.rowTag, Equiv.coe_fn_mk, boundaryNames,
       boundaryList, incident_eq H, List.map_append, List.map_map, List.map_cons, List.map_nil,
-      Function.comp_def]
-    simp only [f, branchName_eq H hq, selector_eq H hq]
+      Function.comp_def, f, branchName_eq H hq, selector_eq H hq]
   · change [branchName (lowerBranch (r, false)), branchName (lowerBranch (r, true))] =
       [f (.inr (r, false)), f (.inr (r, true))]
     rw [branchName_eq H hq, branchName_eq H hq]
@@ -157,8 +139,7 @@ private theorem ownedNames_eq
   · rfl
   · exact congrArg (fun e => [e]) (selector_eq H hq c)
   · change [branchName (lowerBranch (r, false)), branchName (lowerBranch (r, true))] = _
-    rw [branchName_eq H hq, branchName_eq H hq]
-    rfl
+    rw [branchName_eq H hq, branchName_eq H hq]; rfl
 
 private theorem block_eq
     (v : SelectorNetwork.Vert (Fin n) (Fin n × Fin q) (RelationSite q n)) :
@@ -175,10 +156,8 @@ private theorem block_eq
   refine ⟨Subtype.ext (shape_eq H hq v), ⟨boundaryNames_eq H hq v, name_eq H v 2, ?_, ?_⟩,
     ownedNames_eq H hq v, rfl⟩
   · rcases v with i | (c | r) <;> rfl
-  · rcases v with i | (c | r)
-    · exact selector_eq H hq (i, ⟨0, hq⟩)
-    · rfl
-    · rfl
+  · rcases v with i | (_ | _) <;>
+      first | exact selector_eq H hq (i, ⟨0, hq⟩) | rfl
 
 private theorem scan_eq_source {α : Type*} (f : ℕ → Tag q → α)
     (g : SelectorNetwork.Vert (Fin n) (Fin n × Fin q) (RelationSite q n) → α)
@@ -187,15 +166,13 @@ private theorem scan_eq_source {α : Type*} (f : ℕ → Tag q → α)
       (List.ofFn (PortGraph.bandwidthCertificate H).order.symm).map g := by
   rw [← List.map_coe_finRange_eq_range, List.flatMap_map, PortGraph.sourceList_eq,
     List.map_flatMap]
-  apply List.flatMap_congr
-  intro i _
+  refine List.flatMap_congr fun i _ => ?_
   rw [List.map_map]
-  apply List.map_congr_left
-  intro tag _
+  refine List.map_congr_left fun tag _ => ?_
   have hpos : PortGraph.vertexRow (PortGraph.rowTag.symm (i, tag)) = i := by
     rcases tag with _ | (_ | _) <;> rfl
-  have htag := congrArg Prod.snd (PortGraph.rowTag.apply_symm_apply (i, tag))
-  simpa only [hpos, htag, Function.comp_def] using hf (PortGraph.rowTag.symm (i, tag))
+  simpa only [hpos, congrArg Prod.snd (PortGraph.rowTag.apply_symm_apply (i, tag)),
+    Function.comp_def] using hf (PortGraph.rowTag.symm (i, tag))
 
 /-- The natural-coordinate scan is the actual certified source-cell block enumeration. -/
 private theorem blocks_eq : blocks H hq n =
@@ -220,16 +197,15 @@ private theorem branchBit_eq (word : List (Fin q)) (w : Fin n → Fin q)
     (hw : ∀ i, word.getD i.val ⟨0, hq⟩ = w i) (e : RelationSite q n × Bool) :
     branchBit hq n word (lowerBranch e) =
       (PortGraph.network H n).encode (oneHot w) (.inr e) := by
-  have hr := (PortGraph.network_endpoint_row H e.1 e.2).symm
-  have hs := (PortGraph.network_endpoint_symbol H e.1 e.2).symm
+  have hr : endpointRow n (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).1.val :=
+    (PortGraph.network_endpoint_row H e.1 e.2).symm
+  have hs : endpointSymbol (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).2 :=
+    (PortGraph.network_endpoint_symbol H e.1 e.2).symm
   change decide (word.getD (endpointRow n (lowerBranch e)) ⟨0, hq⟩ =
       endpointSymbol (lowerBranch e)) =
     decide (w ((PortGraph.network H n).endpoint e.1 e.2).1 =
       ((PortGraph.network H n).endpoint e.1 e.2).2)
-  rw [show endpointRow n (lowerBranch e) =
-      ((PortGraph.network H n).endpoint e.1 e.2).1.val from hr,
-    show endpointSymbol (lowerBranch e) = ((PortGraph.network H n).endpoint e.1 e.2).2 from hs,
-    hw]
+  rw [hr, hs, hw]
 
 private theorem ownedBits_eq (word : List (Fin q)) (w : Fin n → Fin q)
     (hw : ∀ i, word.getD i.val ⟨0, hq⟩ = w i)
@@ -241,8 +217,7 @@ private theorem ownedBits_eq (word : List (Fin q)) (w : Fin n → Fin q)
   · exact congrArg (fun b => [b]) (selected_eq H hq word w hw c)
   · change [branchBit hq n word (lowerBranch (r, false)),
       branchBit hq n word (lowerBranch (r, true))] = _
-    rw [branchBit_eq H hq word w hw, branchBit_eq H hq word w hw]
-    rfl
+    rw [branchBit_eq H hq word w hw, branchBit_eq H hq word w hw]; rfl
 
 private theorem rowSelector_bit (word : List (Fin q)) (w : Fin n → Fin q)
     (hw : ∀ i, word.getD i.val ⟨0, hq⟩ = w i) (i : Fin n) (a : Fin q) :
@@ -250,10 +225,8 @@ private theorem rowSelector_bit (word : List (Fin q)) (w : Fin n → Fin q)
       (PortGraph.network H n).encode (oneHot w)) (.inl (i, a)) =
       if a = ⟨0, hq⟩ then !(selected hq word i.val a) else selected hq word i.val a := by
   simp only [selected_eq H hq word w hw (i, a)]
-  by_cases ha : a = ⟨0, hq⟩
-  · subst a
-    simp [polarity, AndOr.rowSection, Pi.add_apply, Bool.add_eq_xor]
-  · simp [polarity, AndOr.rowSection, Pi.add_apply, Bool.add_eq_xor, ha]
+  rcases eq_or_ne a ⟨0, hq⟩ with rfl | ha <;>
+    simp [polarity, AndOr.rowSection, Pi.add_apply, Bool.add_eq_xor, *]
 
 private theorem boundaryBits_eq (word : List (Fin q)) (w : Fin n → Fin q)
     (hw : ∀ i, word.getD i.val ⟨0, hq⟩ = w i)
@@ -274,18 +247,15 @@ private theorem boundaryBits_eq (word : List (Fin q)) (w : Fin n → Fin q)
   · simp only [PortGraph.vertexRow, PortGraph.rowTag, Equiv.coe_fn_mk, boundaryBits,
       boundaryList, rowInputs_eq H hq, List.map_append, List.map_map, List.map_cons, List.map_nil,
       Function.comp_def]
-    apply congrArg₂ (fun a b : List Bool => a ++ b)
-    · apply List.map_congr_left
-      intro a ha
-      have hne : a ≠ ⟨0, hq⟩ := fun he =>
+    refine congrArg₂ (· ++ ·) (List.map_congr_left fun a ha => ?_) ?_
+    · have hne : a ≠ ⟨0, hq⟩ := fun he =>
         (of_decide_eq_true (List.mem_filter.mp ha).2) (congrArg Fin.val he)
       simp only [f, s, rowSelector_bit H hq word w hw, ite_eq_right hne]
     · change [!selected hq word i.val ⟨0, hq⟩] = [f (.inl (i, ⟨0, hq⟩))]
       simp only [f, s, rowSelector_bit H hq word w hw, ite_true]
   · simp only [PortGraph.vertexRow, PortGraph.rowTag, Equiv.coe_fn_mk, boundaryBits,
       boundaryList, incident_eq H, List.map_append, List.map_map, List.map_cons, List.map_nil,
-      Function.comp_def]
-    simp only [branchBit_eq H hq word w hw, selected_eq H hq word w hw,
+      Function.comp_def, branchBit_eq H hq word w hw, selected_eq H hq word w hw,
       f, polarity, Pi.add_apply, Bool.add_eq_xor, Bool.false_xor, s]
   · change [branchBit hq n word (lowerBranch (r, false)),
       branchBit hq n word (lowerBranch (r, true))] = _

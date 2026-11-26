@@ -90,9 +90,8 @@ private theorem monomial_divided_differences (x : Fin n → A) (e : Fin n →₀
       exact (totalDegree_add _ _).trans (by rw [hC]; omega)
     · rw [← hq, pderiv_mul]
       simp only [D, map_add, map_mul, eval_X, hdiag]
-      by_cases hj : j = i
-      · subst j
-        simp [q]
+      rcases eq_or_ne j i with rfl | hj
+      · simp [q]
       · simp [q, hj, Ne.symm hj]
 termination_by e.degree
 decreasing_by exact hlt
@@ -121,10 +120,8 @@ theorem polynomial_divided_differences (x : Fin n → A)
         simp_rw [hdiff]
         rw [Finset.sum_comm]
         simp only [Finset.sum_mul]
-  · rw [map_sum]
-    simp_rw [hdiag]
-    conv_rhs => rw [p.as_sum]
-    simp only [map_sum]
+  · conv_rhs => rw [p.as_sum]
+    simp only [map_sum, hdiag]
 
 /-- The polynomial quotient of `x^ell - Y^ell` by `x - Y`, with
  `ell = d + 1`. -/
@@ -136,11 +133,8 @@ theorem purePowerDifference_mul (x : A) (i : Fin n) (d : ℕ) :
     purePowerDifference x i d * (C x - X i) = C (x ^ (d + 1)) - X i ^ (d + 1) := by
   classical
   have h := (Commute.all (X i : MvPolynomial (Fin n) A) (C x)).mul_neg_geom_sum₂ (d + 1)
-  have heq : (∑ k ∈ Finset.range (d + 1), X i ^ k * C x ^ (d + 1 - 1 - k)) =
-      purePowerDifference x i d := by
-    simp only [purePowerDifference, Nat.add_sub_cancel, ← map_pow, mul_comm]
-  rw [heq, ← map_pow] at h
-  simpa only [mul_comm] using h
+  simp only [Nat.add_sub_cancel, ← map_pow] at h
+  simpa only [purePowerDifference, mul_comm] using h
 
 theorem purePowerDifference_degree (x : A) (i : Fin n) (d : ℕ) :
     (purePowerDifference x i d).totalDegree ≤ d := by
@@ -153,11 +147,8 @@ theorem purePowerDifference_degree (x : A) (i : Fin n) (d : ℕ) :
 theorem purePowerDifference_lower_degree (x : A) (i : Fin n) {d : ℕ} (hd : 1 ≤ d) :
     (purePowerDifference x i d - X i ^ d).totalDegree < d := by
   classical
-  have heq : purePowerDifference x i d - X i ^ d =
-      ∑ k ∈ Finset.range d, C (x ^ (d - k)) * X i ^ k := by
-    simp only [purePowerDifference, Finset.sum_range_succ, Nat.sub_self, pow_zero,
-      C_1, one_mul, add_sub_cancel_right]
-  rw [heq]
+  simp only [purePowerDifference, Finset.sum_range_succ, Nat.sub_self, pow_zero,
+    C_1, one_mul, add_sub_cancel_right]
   refine lt_of_le_of_lt (totalDegree_finsetSum_le (d := d - 1) fun k hk => ?_) (by omega)
   rw [C_mul_X_pow_eq_monomial]
   have := Finset.mem_range.mp hk

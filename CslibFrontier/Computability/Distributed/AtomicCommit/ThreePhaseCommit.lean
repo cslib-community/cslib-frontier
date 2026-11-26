@@ -350,10 +350,8 @@ variable {P : Type*} [DecidableEq P] [Fintype P] {coord₀ : P} {votes : P → V
 
 private theorem threePC_canReach_trans {s₁ s₂ s₃ : ThreePCState P}
     (h₁ : (threePCLts votes).CanReach s₁ s₂) (h₂ : (threePCLts votes).CanReach s₂ s₃) :
-    (threePCLts votes).CanReach s₁ s₃ := by
-  rcases h₁ with ⟨tr₁, hm₁⟩
-  rcases h₂ with ⟨tr₂, hm₂⟩
-  exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
+    (threePCLts votes).CanReach s₁ s₃ :=
+  h₁.elim fun _ hm₁ => h₂.elim fun _ hm₂ => ⟨_, hm₁.comp _ hm₂⟩
 
 omit [Fintype P] in
 private theorem threePC_decision_update {st : P → ThreePCLocalState} {q p : P}
@@ -361,40 +359,28 @@ private theorem threePC_decision_update {st : P → ThreePCLocalState} {q p : P}
     (hq : ∀ d', (st q).decision = some d' → newSt.decision = some d')
     (hd : (st p).decision = some d) :
     (Function.update st q newSt p).decision = some d := by
-  by_cases hp : p = q
-  · subst hp; rw [Function.update_self]; exact hq d hd
+  rcases eq_or_ne p q with rfl | hp
+  · simpa only [Function.update_self] using hq d hd
   · rwa [Function.update_of_ne hp]
 
 private theorem step_threePC_decision_stable {s s' : ThreePCState P} {act : ThreePCAction P}
     (hstep : threePCStep? votes s act = some s') {p : P} {d : Decision}
     (hd : s.decision p = some d) : s'.decision p = some d := by
-  cases act <;> dsimp only [threePCStep?] at hstep <;> split at hstep <;> cases hstep <;>
-    dsimp only [ThreePCState.decision] at hd ⊢
-  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2]) hd
-  · rename_i hg; exact threePC_decision_update (by simp [hg.2.2.2 s.coord hg.1]) hd
-  · rename_i hg
-    exact threePC_decision_update
-      (by have := hg.2.2.1; cases h : s.localState s.coord <;>
-            simp_all [ThreePCLocalState.isCommittable]) hd
-  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2.2]) hd
-  · rename_i hg
-    exact threePC_decision_update
-      (by have := hg.2.2.1; cases h : s.localState s.coord <;> simp_all) hd
-  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2.2]) hd
-  · rename_i q hg
-    exact threePC_decision_update (by rcases hg.2.2.2 with h | h <;> simp [h]) hd
-  · exact hd
-  · exact hd
+  cases act <;> dsimp only [threePCStep?] at hstep <;> split_ifs at hstep <;> cases hstep
+  all_goals first
+    | exact hd
+    | refine threePC_decision_update (fun d' hd' => ?_) hd
+      cases d' <;> simp_all [ThreePCLocalState.decision_eq_some_commit_iff,
+        ThreePCLocalState.decision_eq_some_abort_iff, ThreePCLocalState.isCommittable]
 
 /-- Global-phase FSA step toward [Skeen1981], §5 (pp. 140–141), not the cited message-passing `3PC`
 result (#7289): local decisions are irreversible along all reachable transitions of `threePCLts`
 (normal phase steps, crashes, and backup coordinator failovers). -/
 theorem threePC_decision_stable_globalPhase {s s' : ThreePCState P}
     (hreach : (threePCLts votes).CanReach s s') {p : P} {d : Decision}
-    (hd : s.decision p = some d) : s'.decision p = some d := by
-  rcases hreach with ⟨tr, hmtr⟩
-  exact (threePCLts votes).mtrInv_of_trInv
-    (fun _ _ _ hstep hd' => step_threePC_decision_stable hstep hd') _ _ _ hmtr hd
+    (hd : s.decision p = some d) : s'.decision p = some d :=
+  hreach.elim fun _ hmtr => (threePCLts votes).mtrInv_of_trInv
+    (fun _ _ _ h => step_threePC_decision_stable h) _ _ _ hmtr hd
 
 /-- Inductive global invariant of Skeen's `3PC` across arbitrary single-site transitions, crashes,
 and recursive backup coordinator elections. -/
@@ -511,9 +497,9 @@ private theorem threePCInvariant_of_all_noncommittable {s : ThreePCState P}
   have hnew_nc := functionUpdate_forall r v (·.isCommittable = false) hv_nc hno_comm
   { noninit_votes := fun p hp => by
       dsimp only at hp ⊢
-      by_cases hpr : p = r
-      · subst hpr; rw [Function.update_self] at hp ⊢; exact hv_vote hp
-      · rw [Function.update_of_ne hpr] at hp ⊢; exact hinv.noninit_votes p hp
+      rw [Function.update_apply] at hp ⊢
+      split_ifs at hp ⊢ with hpr
+      exacts [hpr ▸ hv_vote hp, hinv.noninit_votes p hp]
     committable_all_yes := fun ⟨p, hp⟩ => by rw [hnew_nc p] at hp; cases hp
     aborted_disjoint_alive_committable := fun _ p _ => hnew_nc p
     committed_disjoint_aborted := fun p _ hp =>
@@ -611,9 +597,8 @@ private theorem threePCInvariant_step {s s' : ThreePCState P} {act : ThreePCActi
       rw [halive_nc b hg.2] at hb_comm; cases hb_comm
 
 private theorem threePCInvariant_of_reachable {s : ThreePCState P}
-    (hreach : ThreePCReachable coord₀ votes s) : ThreePCInvariant votes s := by
-  rcases hreach with ⟨tr, hmtr⟩
-  exact (threePCLts votes).mtrInv_of_trInv
+    (hreach : ThreePCReachable coord₀ votes s) : ThreePCInvariant votes s :=
+  hreach.elim fun _ hmtr => (threePCLts votes).mtrInv_of_trInv
     (fun _ _ _ hstep hinv => threePCInvariant_step hinv hstep) _ _ _ hmtr
     (threePCInvariant_start coord₀)
 
@@ -625,11 +610,10 @@ theorem threePC_no_uncertain_and_committed_globalPhase {s : ThreePCState P}
     (hreach : ThreePCReachable coord₀ votes s)
     (hunc : ∃ q ∈ s.alive, s.localState q = .init ∨ s.localState q = .uncertain) :
     ∀ p, s.decision p ≠ some .commit := by
-  have hinv := threePCInvariant_of_reachable hreach
   rcases hunc with ⟨q, hq_al, hq_st⟩
   intro p hp
-  have hpc : s.localState p = .committed := ThreePCLocalState.decision_eq_some_commit_iff.mp hp
-  have hcomm := hinv.committed_imp_alive_committable ⟨p, hpc⟩ q hq_al
+  have hcomm := (threePCInvariant_of_reachable hreach).committed_imp_alive_committable
+    ⟨p, ThreePCLocalState.decision_eq_some_commit_iff.mp hp⟩ q hq_al
   rcases hq_st with h | h <;> simp [h, ThreePCLocalState.isCommittable] at hcomm
 
 /-- Global-phase FSA step toward [Skeen1981], §§4–5 (pp. 138–141), not the cited message-passing
@@ -652,11 +636,10 @@ configuration of `threePCLts` (`AC2`). -/
 theorem threePC_abort_of_vote_no_globalPhase {s : ThreePCState P}
     (hreach : ThreePCReachable coord₀ votes s) :
     AbortValidity votes s.decision := by
-  have hinv := threePCInvariant_of_reachable hreach
   intro ⟨p, hp⟩ q hq
-  have hcomm : (s.localState q).isCommittable = true := by
-    rw [ThreePCLocalState.decision_eq_some_commit_iff.mp hq]; rfl
-  simpa [hp] using (hinv.committable_all_yes ⟨q, hcomm⟩ p).1
+  have hcomm : (s.localState q).isCommittable = true :=
+    (ThreePCLocalState.decision_eq_some_commit_iff.mp hq).symm ▸ rfl
+  simpa [hp] using ((threePCInvariant_of_reachable hreach).committable_all_yes ⟨q, hcomm⟩ p).1
 
 /-! ### Crash-free batch execution helpers, `AC3`, and non-blocking backup termination -/
 
@@ -668,16 +651,15 @@ private theorem CrashFreeMTr.refl (s : ThreePCState P) : CrashFreeMTr votes s s 
 
 private theorem CrashFreeMTr.step {s₁ s₂ s₃ : ThreePCState P} {a : ThreePCAction P}
     (ha : a.isCrashFree = true) (htr : threePCStep? votes s₁ a = some s₂)
-    (hrest : CrashFreeMTr votes s₂ s₃) : CrashFreeMTr votes s₁ s₃ := by
-  rcases hrest with ⟨tr, hcf, hmtr⟩
-  exact ⟨a :: tr, List.forall_mem_cons.mpr ⟨ha, hcf⟩, .stepL htr hmtr⟩
+    (hrest : CrashFreeMTr votes s₂ s₃) : CrashFreeMTr votes s₁ s₃ :=
+  let ⟨tr, hcf, hmtr⟩ := hrest
+  ⟨a :: tr, List.forall_mem_cons.mpr ⟨ha, hcf⟩, .stepL htr hmtr⟩
 
 private theorem CrashFreeMTr.trans {s₁ s₂ s₃ : ThreePCState P}
     (h₁ : CrashFreeMTr votes s₁ s₂) (h₂ : CrashFreeMTr votes s₂ s₃) :
-    CrashFreeMTr votes s₁ s₃ := by
-  rcases h₁ with ⟨tr₁, hcf₁, hm₁⟩
-  rcases h₂ with ⟨tr₂, hcf₂, hm₂⟩
-  exact ⟨tr₁ ++ tr₂, List.forall_mem_append.mpr ⟨hcf₁, hcf₂⟩, hm₁.comp _ hm₂⟩
+    CrashFreeMTr votes s₁ s₃ :=
+  h₁.elim fun _ ⟨hcf₁, hm₁⟩ => h₂.elim fun _ ⟨hcf₂, hm₂⟩ =>
+    ⟨_, List.forall_mem_append.mpr ⟨hcf₁, hcf₂⟩, hm₁.comp _ hm₂⟩
 
 private theorem CrashFreeMTr.invariant {s₁ s₂ : ThreePCState P} (h : CrashFreeMTr votes s₁ s₂)
     (hinv : ThreePCInvariant votes s₁) : ThreePCInvariant votes s₂ :=
@@ -741,13 +723,11 @@ private theorem crashFree_sweep_alive_to {s : ThreePCState P} {ph : ThreePCPhase
   have hcf := crashFree_sweep (votes := votes) (target := fun _ => dst) hcf_act hstep_of R
     (Finset.filter_subset _ _) s.localState (fun _ hr => (Finset.mem_filter.mp hr).2)
   have hfinal_eq : (fun p => if p ∈ R then dst else s.localState p) =
-      (fun p => if p ∈ s.alive then dst else s.localState p) := by
-    funext p
-    by_cases hpal : p ∈ s.alive
-    · by_cases hp : pred (s.localState p)
-      · simp [R, hpal, hp]
-      · simp [R, hpal, halive_exhaust p hpal hp]
-    · simp [R, hpal]
+      (fun p => if p ∈ s.alive then dst else s.localState p) := funext fun p => by
+    by_cases hpal : p ∈ s.alive <;>
+      simp only [R, Finset.mem_filter, hpal, true_and, false_and, ↓reduceIte]
+    split_ifs with hp
+    exacts [rfl, halive_exhaust p hpal hp]
   rwa [hfinal_eq] at hcf
 
 private theorem crashFree_castVotes (c : P) (al : Finset P) :
@@ -761,9 +741,7 @@ private theorem crashFree_castVotes (c : P) (al : Finset P) :
             localState := fun p =>
               if p ∈ R then (if votes p = .yes then .uncertain else .aborted) else st p } :=
   crashFree_sweep (pred := (· = .init)) (fun _ => rfl) fun q st hq_al hq_init => by
-    have hg : q ∈ al ∧ ThreePCPhase.collectingVotes = .collectingVotes ∧ st q = .init :=
-      ⟨hq_al, rfl, hq_init⟩
-    rw [threePCStep?, ite_eq_left hg]
+    rw [threePCStep?, ite_eq_left ⟨hq_al, rfl, hq_init⟩]
 
 /-- Complete an active `.committing` phase (under `ThreePCInvariant`) into unanimous `.committed`
 across `s.alive`. -/
@@ -777,9 +755,7 @@ private theorem crashFree_finish_from_committing {s : ThreePCState P}
   obtain ⟨_, _, halive_c⟩ := hinv.phase_committing hph
   refine crashFree_sweep_alive_to (actOf := .stepCommit) (pred := (· = .preCommitted)) hph
     (fun _ => rfl) (fun q st hq_al hq_pre => ?_) (fun p hpal hnpre => ?_)
-  · have hg : s.coord ∈ s.alive ∧ q ∈ s.alive ∧ ThreePCPhase.committing = .committing ∧
-        st q = .preCommitted := ⟨hc, hq_al, rfl, hq_pre⟩
-    rw [threePCStep?, ite_eq_left hg]
+  · rw [threePCStep?, ite_eq_left ⟨hc, hq_al, rfl, hq_pre⟩]
   · have hcomm_p := halive_c p hpal
     cases hstp : s.localState p <;>
       simp [hstp, ThreePCLocalState.isCommittable] at hcomm_p hnpre ⊢
@@ -797,9 +773,7 @@ private theorem crashFree_finish_from_aborting {s : ThreePCState P}
   refine crashFree_sweep_alive_to (actOf := .stepAbort)
     (pred := fun st => st = .init ∨ st = .uncertain) hph (fun _ => rfl)
     (fun q st hq_al hq_iu => ?_) (fun p hpal hniu => ?_)
-  · have hg : s.coord ∈ s.alive ∧ q ∈ s.alive ∧ ThreePCPhase.aborting = .aborting ∧
-        (st q = .init ∨ st q = .uncertain) := ⟨hc, hq_al, rfl, hq_iu⟩
-    rw [threePCStep?, ite_eq_left hg]
+  · rw [threePCStep?, ite_eq_left ⟨hc, hq_al, rfl, hq_iu⟩]
   · have hnc := halive_nc p hpal
     cases hstp : s.localState p <;> simp [hstp, ThreePCLocalState.isCommittable] at hnc hniu ⊢
 
@@ -815,42 +789,32 @@ private theorem crashFree_finish_from_preCommitting {s : ThreePCState P}
         localState := fun p => if p ∈ s.alive then .committed else s.localState p } := by
   obtain ⟨hyes_ni, hnab⟩ := hinv.phase_preCommitting hph
   let R₁ := s.alive.filter (fun p => s.localState p = .uncertain)
-  have hsub₁ : R₁ ⊆ s.alive := Finset.filter_subset _ _
   have hs_eq : s = { s with phase := .preCommitting } := by cases s; simp_all
   have hcf₁ := crashFree_sweep (votes := votes) (actOf := .stepPreCommit)
     (pred := (· = .uncertain)) (target := fun _ => .preCommitted) (fun _ => rfl)
-    (fun q st hq_al hq_unc => by
-      have hg : s.coord ∈ s.alive ∧ q ∈ s.alive ∧ ThreePCPhase.preCommitting = .preCommitting ∧
-          st q = .uncertain := ⟨hc, hq_al, rfl, hq_unc⟩
-      rw [threePCStep?, ite_eq_left hg])
-    R₁ hsub₁ s.localState (fun _ hr => (Finset.mem_filter.mp hr).2)
+    (fun q st hq_al hq_unc => by rw [threePCStep?, ite_eq_left ⟨hc, hq_al, rfl, hq_unc⟩])
+    R₁ (Finset.filter_subset _ _) s.localState (fun _ hr => (Finset.mem_filter.mp hr).2)
   rw [← hs_eq] at hcf₁
   let st₁ : P → ThreePCLocalState := fun p => if p ∈ R₁ then .preCommitted else s.localState p
   let s₁ : ThreePCState P :=
     { coord := s.coord, phase := .preCommitting, alive := s.alive, localState := st₁ }
   have hinv₁ : ThreePCInvariant votes s₁ := hcf₁.invariant hinv
-  have halive_comm₁ : ∀ q ∈ s.alive, (st₁ q).isCommittable = true := by
-    intro q hq
+  have halive_comm₁ : ∀ q ∈ s.alive, (st₁ q).isCommittable = true := fun q hq => by
     have h₁ := (hyes_ni q).2
     have h₂ := hnab q
     cases hstq : s.localState q <;>
       simp [st₁, R₁, hstq, hq, ThreePCLocalState.isCommittable] at h₁ h₂ ⊢
-  have hc_nab₁ : st₁ s.coord ≠ .aborted := (hinv₁.phase_preCommitting rfl).2 s.coord
   let s₂ : ThreePCState P :=
     { coord := s.coord
       phase := .committing
       alive := s.alive
       localState := Function.update st₁ s.coord .committed }
   have hstep_fin : threePCStep? votes s₁ .finishPreCommit = some s₂ := by
-    have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .preCommitting ∧ s₁.localState s₁.coord ≠ .aborted ∧
-        ∀ q ∈ s₁.alive, (s₁.localState q).isCommittable = true :=
-      ⟨hc, rfl, hc_nab₁, halive_comm₁⟩
-    rw [threePCStep?, ite_eq_left hg]
-  have hinv₂ : ThreePCInvariant votes s₂ := threePCInvariant_step hinv₁ hstep_fin
-  have hcf₂ := crashFree_finish_from_committing hinv₂ hc rfl
+    rw [threePCStep?,
+      ite_eq_left ⟨hc, rfl, (hinv₁.phase_preCommitting rfl).2 s.coord, halive_comm₁⟩]
+  have hcf₂ := crashFree_finish_from_committing (threePCInvariant_step hinv₁ hstep_fin) hc rfl
   have hfinal_eq : (fun p => if p ∈ s.alive then .committed else s₂.localState p) =
-      (fun p => if p ∈ s.alive then .committed else s.localState p) := by
-    funext p
+      (fun p => if p ∈ s.alive then .committed else s.localState p) := funext fun p => by
     by_cases hpal : p ∈ s.alive
     · simp [hpal]
     · simp [hpal, s₂, st₁, R₁, (ne_of_mem_of_not_mem hc hpal).symm]
@@ -869,8 +833,7 @@ theorem threePC_failureFree_commit_globalPhase (coord₀ : P) (hyes : ∀ p, vot
     (Finset.subset_univ _) (fun _ => .init) (fun _ _ => rfl)
   have hloc₁ : (fun p : P => if p ∈ (Finset.univ : Finset P) then
       (if votes p = .yes then ThreePCLocalState.uncertain else .aborted) else .init) =
-      (fun _ => .uncertain) := by
-    funext p; simp [hyes p]
+      (fun _ => .uncertain) := funext fun p => by simp [hyes p]
   rw [hloc₁] at hcf₁
   let s₁ : ThreePCState P :=
     { coord := coord₀, phase := .collectingVotes, alive := Finset.univ,
@@ -879,10 +842,7 @@ theorem threePC_failureFree_commit_globalPhase (coord₀ : P) (hyes : ∀ p, vot
     { coord := coord₀, phase := .preCommitting, alive := Finset.univ,
       localState := Function.update (fun _ => .uncertain) coord₀ .preCommitted }
   have hstep_pre : threePCStep? votes s₁ .startPreCommit = some s₂ := by
-    have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .collectingVotes ∧ s₁.alive = Finset.univ ∧
-        ∀ q ∈ s₁.alive, s₁.localState q = .uncertain :=
-      ⟨Finset.mem_univ coord₀, rfl, rfl, fun _ _ => rfl⟩
-    rw [threePCStep?, ite_eq_left hg]
+    rw [threePCStep?, ite_eq_left ⟨Finset.mem_univ coord₀, rfl, rfl, fun _ _ => rfl⟩]
   have hinv₂ := threePCInvariant_step (hcf₁.invariant (threePCInvariant_start coord₀)) hstep_pre
   have hcf₂ := crashFree_finish_from_preCommitting hinv₂ (Finset.mem_univ coord₀) rfl
   obtain ⟨tr, hcf, hmtr⟩ := hcf₁.trans (CrashFreeMTr.step rfl hstep_pre hcf₂)
@@ -904,11 +864,9 @@ theorem threePCTerminate_mTr_globalPhase {s : ThreePCState P}
   let sB : ThreePCState P :=
     { s with coord := b, phase := backupPhase s.alive s.localState }
   have hstep_el : threePCStep? votes s (.electBackup b) = some sB := by
-    have hg : s.coord ∉ s.alive ∧ b ∈ s.alive := ⟨hcrashed, hb⟩
-    rw [threePCStep?, ite_eq_left hg]
-  have hreachB : ThreePCReachable coord₀ votes sB :=
-    threePC_canReach_trans hreach ⟨[.electBackup b], LTS.MTr.single _ hstep_el⟩
-  have hinvB := threePCInvariant_of_reachable hreachB
+    rw [threePCStep?, ite_eq_left ⟨hcrashed, hb⟩]
+  have hinvB := threePCInvariant_of_reachable
+    (threePC_canReach_trans hreach ⟨[.electBackup b], LTS.MTr.single _ hstep_el⟩)
   have hcf_tail : CrashFreeMTr votes sB (threePCTerminate b s) := by
     dsimp only [threePCTerminate]
     cases hph : backupPhase s.alive s.localState with
@@ -921,11 +879,8 @@ theorem threePCTerminate_mTr_globalPhase {s : ThreePCState P}
     threePC_canReach_trans hreach ⟨tr, hmtr⟩
   obtain ⟨d, hdec⟩ : ∃ d, OperationalDecided s.alive (threePCTerminate b s).decision d := by
     dsimp only [threePCTerminate]
-    cases backupPhase s.alive s.localState with
-    | committing | preCommitting =>
-      exact ⟨.commit, fun p hp => by simp [ThreePCState.decision, hp]⟩
-    | collectingVotes | aborting =>
-      exact ⟨.abort, fun p hp => by simp [ThreePCState.decision, hp]⟩
+    cases backupPhase s.alive s.localState <;>
+      exact ⟨_, fun p hp => by simp only [ThreePCState.decision, hp, ↓reduceIte]; rfl⟩
   exact ⟨tr, d, hcf, hmtr, hdec, threePC_agreement_globalPhase hreach_fin,
     threePC_abort_of_vote_no_globalPhase hreach_fin⟩
 
@@ -984,10 +939,7 @@ theorem threePC_nonblocking_termination_globalPhase {s : ThreePCState P}
           { coord := s.coord, phase := .preCommitting, alive := s.alive,
             localState := Function.update st₁ s.coord .preCommitted }
         have hstep_pre : threePCStep? votes s₁ .startPreCommit = some s₂ := by
-          have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .collectingVotes ∧ s₁.alive = Finset.univ ∧
-              ∀ q ∈ s₁.alive, s₁.localState q = .uncertain :=
-            ⟨hc, rfl, hall_ok.1, hall_ok.2⟩
-          rw [threePCStep?, ite_eq_left hg]
+          rw [threePCStep?, ite_eq_left ⟨hc, rfl, hall_ok.1, hall_ok.2⟩]
         exact threePC_termination_of_crashFree hreach (hcf₀.trans (CrashFreeMTr.step rfl hstep_pre
           (crashFree_finish_from_preCommitting (threePCInvariant_step hinv₁ hstep_pre) hc rfl)))
           rfl .commit fun p hp => by simp [ThreePCState.decision, s₂, hp]
@@ -1007,11 +959,7 @@ theorem threePC_nonblocking_termination_globalPhase {s : ThreePCState P}
         have hstep_ab : threePCStep? votes s₁ .primaryAbort = some s₂ := by
           have hc_nc : ¬(st₁ s.coord).isCommittable = true := by
             rw [hinv₁.phase_collecting rfl s.coord]; decide
-          have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .collectingVotes ∧
-              ¬(s₁.localState s₁.coord).isCommittable ∧
-              (s₁.alive ≠ Finset.univ ∨ ∃ q, s₁.localState q = .aborted) :=
-            ⟨hc, rfl, hc_nc, hab_guard⟩
-          rw [threePCStep?, ite_eq_left hg]
+          rw [threePCStep?, ite_eq_left ⟨hc, rfl, hc_nc, hab_guard⟩]
         exact threePC_termination_of_crashFree hreach (hcf₀.trans (CrashFreeMTr.step rfl hstep_ab
           (crashFree_finish_from_aborting (threePCInvariant_step hinv₁ hstep_ab) hc rfl)))
           rfl .abort fun p hp => by simp [ThreePCState.decision, s₂, hp]
@@ -1214,10 +1162,8 @@ structure IsPartitionCutResilient (π : CommitProtocol P S M) (G₁ G₂ : Finse
 private theorem partition_canReach_trans {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     {s₁ s₂ s₃ : PartitionState P S M}
     (h₁ : (π.lts G₁ G₂).CanReach s₁ s₂) (h₂ : (π.lts G₁ G₂).CanReach s₂ s₃) :
-    (π.lts G₁ G₂).CanReach s₁ s₃ := by
-  rcases h₁ with ⟨tr₁, hm₁⟩
-  rcases h₂ with ⟨tr₂, hm₂⟩
-  exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
+    (π.lts G₁ G₂).CanReach s₁ s₃ :=
+  h₁.elim fun _ hm₁ => h₂.elim fun _ hm₂ => ⟨_, hm₁.comp _ hm₂⟩
 
 private def GroupViewEq (G : Finset P) (c₁ c₂ : CommitConfig P S M) : Prop :=
   (∀ p ∈ G, c₁.localState p = c₂.localState p) ∧ intraMsgs G c₁.msgs = intraMsgs G c₂.msgs
@@ -1241,24 +1187,19 @@ private theorem intraMsgs_erase_of_pos {G : Finset P} {ms : Multiset (CommitEnve
     {e : CommitEnvelope P M} (he : e ∈ ms) (hG : e.src ∈ G ∧ e.dest ∈ G) :
     intraMsgs G (ms.erase e) = (intraMsgs G ms).erase e := by
   obtain ⟨t, rfl⟩ := Multiset.exists_cons_of_mem he
-  simp only [intraMsgs, Multiset.erase_cons_head]
-  rw [Multiset.filter_cons_of_pos (p := fun d => d.src ∈ G ∧ d.dest ∈ G) t hG,
-    Multiset.erase_cons_head]
+  simp [intraMsgs, hG]
 
 private theorem intraMsgs_erase_of_neg {G : Finset P} {ms : Multiset (CommitEnvelope P M)}
     {e : CommitEnvelope P M} (he : e ∈ ms) (hG : ¬(e.src ∈ G ∧ e.dest ∈ G)) :
     intraMsgs G (ms.erase e) = intraMsgs G ms := by
-  obtain ⟨t, rfl⟩ := Multiset.exists_cons_of_mem he
-  simp only [intraMsgs, Multiset.erase_cons_head]
-  rw [Multiset.filter_cons_of_neg (p := fun d => d.src ∈ G ∧ d.dest ∈ G) t hG]
+  rcases Multiset.exists_cons_of_mem he with ⟨t, rfl⟩
+  simp [intraMsgs, hG]
 
 omit [DecidableEq M] in
 private theorem intraMsgs_eq_zero_of_src_notMem {G : Finset P} {p : P} (hp : p ∉ G)
     {out : Multiset (CommitEnvelope P M)} (hout : ∀ m ∈ out, m.src = p) :
-    intraMsgs G out = 0 := by
-  rw [intraMsgs, Multiset.filter_eq_nil]
-  intro m hm hmem
-  exact hp (hout m hm ▸ hmem.1)
+    intraMsgs G out = 0 :=
+  Multiset.filter_eq_nil.mpr fun m hm hmem => hp (hout m hm ▸ hmem.1)
 
 /-- Any step by a process `p ∉ G` leaves `G`'s local states and `intraMsgs G` completely
 unchanged. -/
@@ -1283,26 +1224,20 @@ private theorem groupViewEq_of_normalStep_outside {π : CommitProtocol P S M} {G
     (hstep : π.ConfigNormalStep p recv cfg cfg') : GroupViewEq G cfg cfg' := by
   rcases hstep with ⟨s', out, hout, _, hrec⟩
   have ⟨hnone, hsome⟩ := groupViewEq_of_step_outside (cfg := cfg) (s' := s') hp hout
-  cases recv with
-  | none => subst hrec; exact hnone
-  | some e =>
-    rcases hrec with ⟨he, hdest, rfl⟩
-    exact hsome he hdest
+  rcases recv with _ | e
+  · exact hrec ▸ hnone
+  · exact hrec.2.2 ▸ hsome hrec.1 hrec.2.1
 
 private theorem groupViewEq_of_groupStep_disjoint {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (hdisj : Disjoint G₁ G₂) {p : P} {recv : Option (CommitEnvelope P M)}
     {cfg cfg' : CommitConfig P S M} (hstep : π.GroupStepOn G₁ p recv cfg cfg') :
     GroupViewEq G₂ cfg cfg' := by
   rcases hstep with ⟨hp₁, s', out, hout, hrec⟩
-  have hp₂ : p ∉ G₂ := Finset.disjoint_left.mp hdisj hp₁
-  have ⟨hnone, hsome⟩ := groupViewEq_of_step_outside (cfg := cfg) (s' := s') hp₂ hout
-  cases recv with
-  | none =>
-    rcases hrec with ⟨_, rfl⟩
-    exact hnone
-  | some e =>
-    rcases hrec with ⟨he, _, hdest, _, rfl⟩
-    exact hsome he hdest
+  have ⟨hnone, hsome⟩ :=
+    groupViewEq_of_step_outside (cfg := cfg) (s' := s') (Finset.disjoint_left.mp hdisj hp₁) hout
+  rcases recv with _ | e
+  · exact hrec.2 ▸ hnone
+  · exact hrec.2.2.2.2 ▸ hsome hrec.1 hrec.2.2.1
 
 omit [DecidableEq M] in
 private theorem groupViewEq_cutCfg_left (G₁ G₂ : Finset P) (hdisj : Disjoint G₁ G₂)
@@ -1364,10 +1299,8 @@ private theorem canReach_of_normalSteps {π : CommitProtocol P S M} {G₁ G₂ :
     (π.lts G₁ G₂).CanReach ⟨false, c₁⟩ ⟨false, c₂⟩ := by
   induction h with
   | refl => exact LTS.CanReach.refl _ _
-  | @tail c_mid c_end p recv _ hstep ih =>
-    have htr : (π.lts G₁ G₂).Tr ⟨false, c_mid⟩ (.normal p recv) ⟨false, c_end⟩ :=
-      ⟨rfl, rfl, hstep⟩
-    exact partition_canReach_trans ih ⟨[.normal p recv], LTS.MTr.single _ htr⟩
+  | @tail _ _ p recv _ hstep ih =>
+    exact partition_canReach_trans ih ⟨[.normal p recv], LTS.MTr.single _ ⟨rfl, rfl, hstep⟩⟩
 
 private theorem canReach_of_groupSteps {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (side : Bool) {c₁ c₂ : CommitConfig P S M}
@@ -1375,10 +1308,9 @@ private theorem canReach_of_groupSteps {π : CommitProtocol P S M} {G₁ G₂ : 
     (π.lts G₁ G₂).CanReach ⟨true, c₁⟩ ⟨true, c₂⟩ := by
   induction h with
   | refl => exact LTS.CanReach.refl _ _
-  | @stepL c_start c_mid _ p recv hstep _ ih =>
-    have htr : (π.lts G₁ G₂).Tr ⟨true, c_start⟩ (.groupStep side p recv) ⟨true, c_mid⟩ :=
-      ⟨rfl, rfl, hstep⟩
-    exact partition_canReach_trans ⟨[.groupStep side p recv], LTS.MTr.single _ htr⟩ ih
+  | @stepL _ _ _ p recv hstep _ ih =>
+    exact partition_canReach_trans
+      ⟨[.groupStep side p recv], LTS.MTr.single _ ⟨rfl, rfl, hstep⟩⟩ ih
 
 private theorem groupSteps_preserve_outside {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (hdisj : Disjoint G₁ G₂) {c₁ c₂ : CommitConfig P S M} (h : π.GroupSteps G₁ c₁ c₂) :
@@ -1412,14 +1344,12 @@ private theorem canReach_swapGroups {π : CommitProtocol P S M} {G₁ G₂ : Fin
   induction hmtr with
   | refl => exact LTS.CanReach.refl _ _
   | @stepL s_a act s_b _ _ htr _ ih =>
-    have htr' : (π.lts G₂ G₁).Tr s_a (swapPartitionSide act) s_b := by
-      cases act with
-      | normal p recv => exact htr
-      | cutPartition =>
+    have htr' : (π.lts G₂ G₁).Tr s_a (swapPartitionSide act) s_b :=
+      match act with
+      | .normal _ _ | .groupStep false _ _ | .groupStep true _ _ => htr
+      | .cutPartition => by
         dsimp only [lts, swapPartitionSide] at htr ⊢
-        rw [cutCfg_comm G₂ G₁]
-        exact htr
-      | groupStep side p recv => cases side <;> exact htr
+        rwa [cutCfg_comm G₂ G₁]
     exact partition_canReach_trans ⟨[swapPartitionSide act], LTS.MTr.single _ htr'⟩ ih
 
 /-- `IsPartitionCutResilient` is symmetric in the two isolated groups `(G₁, G₂)`. -/
@@ -1438,21 +1368,16 @@ private theorem not_canGroupCommit_init_left {π : CommitProtocol P S M} {G₁ G
   rintro ⟨cfg₁, hsteps₁, p₁, hp₁, hdec₁⟩
   let votes₁ : P → Vote := fun r => if r ∈ G₁ then .yes else .no
   obtain ⟨q₀, hq₀⟩ := hG₂
-  have hq₀_not : q₀ ∉ G₁ := Finset.disjoint_right.mp hdisj hq₀
-  have hv_no : ∃ r, votes₁ r = .no := ⟨q₀, by simp [votes₁, hq₀_not]⟩
   have hview : GroupViewEq G₁ (cutCfg G₁ G₂ (π.initConfig (fun _ => .yes)))
-      (cutCfg G₁ G₂ (π.initConfig votes₁)) := by
-    refine ⟨fun p hp => ?_, rfl⟩
-    simp [cutCfg, initConfig, votes₁, hp]
+      (cutCfg G₁ G₂ (π.initConfig votes₁)) :=
+    ⟨fun p hp => by simp [cutCfg, initConfig, votes₁, hp], rfl⟩
   obtain ⟨cfg₁', hsteps₁', heq'⟩ := groupSteps_congr hsteps₁ hview
-  have hcut_tr : (π.lts G₁ G₂).Tr (π.start votes₁) .cutPartition
-      ⟨true, cutCfg G₁ G₂ (π.initConfig votes₁)⟩ := ⟨rfl, rfl⟩
   have hreach : (π.lts G₁ G₂).CanReach (π.start votes₁) ⟨true, cfg₁'⟩ :=
-    partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
+    partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ ⟨rfl, rfl⟩⟩
       (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) false hsteps₁')
-  have hdec₁' : π.configDecision cfg₁' p₁ = some .commit := by
-    simpa [configDecision, ← heq'.1 p₁ hp₁] using hdec₁
-  exact hres.abortValidity votes₁ ⟨true, cfg₁'⟩ hreach hv_no p₁ hdec₁'
+  exact hres.abortValidity votes₁ ⟨true, cfg₁'⟩ hreach
+    ⟨q₀, ite_eq_right (Finset.disjoint_right.mp hdisj hq₀)⟩ p₁
+    (by simpa [configDecision, ← heq'.1 p₁ hp₁] using hdec₁)
 
 /-- Core split-decision contradiction at the critical single-site step `c_prev →[pStar] c_next`
 when `pStar ∉ G₂`: `G₂` sees the same view at `c_next` as at `c_prev` and must decide `.abort`,
@@ -1469,11 +1394,9 @@ private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S
       CanGroupCommit π G₂ (cutCfg G₁ G₂ c_next)) : False := by
   let allYes : P → Vote := fun _ => .yes
   have hview_step := groupViewEq_of_normalStep_outside hp_not₂ hstep_star
-  have hview_cut₂ : GroupViewEq G₂ (cutCfg G₁ G₂ c_prev) (cutCfg G₁ G₂ c_next) := by
-    have hc₁ := groupViewEq_cutCfg_right G₁ G₂ hdisj c_prev
-    have hc₂ := (groupViewEq_cutCfg_right G₁ G₂ hdisj c_next).symm
-    exact ⟨fun q hq => (hc₁.1 q hq).trans ((hview_step.1 q hq).trans (hc₂.1 q hq)),
-      hc₁.2.trans (hview_step.2.trans hc₂.2)⟩
+  have hview_cut₂ : GroupViewEq G₂ (cutCfg G₁ G₂ c_prev) (cutCfg G₁ G₂ c_next) :=
+    ⟨hview_step.1, ((groupViewEq_cutCfg_right G₁ G₂ hdisj c_prev).2.trans hview_step.2).trans
+      (groupViewEq_cutCfg_right G₁ G₂ hdisj c_next).2.symm⟩
   have hn₂_next : ¬ CanGroupCommit π G₂ (cutCfg G₁ G₂ c_next) :=
     fun hc => hn₂ (canGroupCommit_of_viewEq hview_cut₂.symm hc)
   have hcan₁_next : CanGroupCommit π G₁ (cutCfg G₁ G₂ c_next) :=
@@ -1484,25 +1407,20 @@ private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S
   obtain ⟨d₂, hd₂⟩ := Option.isSome_iff_exists.mp (hterm₂ u₂ hu₂)
   obtain rfl : d₂ = .abort := by
     cases d₂ <;> first | rfl | exact (hn₂_next ⟨cfg₂, hsteps₂, u₂, hu₂, hd₂⟩).elim
-  have hpres₂ : GroupViewEq G₂ (cutCfg G₁ G₂ c_next) cfg₁ :=
-    groupSteps_preserve_outside hdisj hsteps₁
-  obtain ⟨cfg₁₂, hsteps₂', heq₂'⟩ := groupSteps_congr hsteps₂ hpres₂
-  have hpres₁ : GroupViewEq G₁ cfg₁ cfg₁₂ :=
-    groupSteps_preserve_outside hdisj.symm hsteps₂'
-  have hcut_tr : (π.lts G₁ G₂).Tr ⟨false, c_next⟩ .cutPartition
-      ⟨true, cutCfg G₁ G₂ c_next⟩ := ⟨rfl, rfl⟩
+  obtain ⟨cfg₁₂, hsteps₂', heq₂'⟩ :=
+    groupSteps_congr hsteps₂ (groupSteps_preserve_outside hdisj hsteps₁)
   have hreach₁₂ : (π.lts G₁ G₂).CanReach (π.start allYes) ⟨true, cfg₁₂⟩ :=
     partition_canReach_trans (canReach_of_normalSteps hnext_steps)
-      (partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
+      (partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ ⟨rfl, rfl⟩⟩
         (partition_canReach_trans
           (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) false hsteps₁)
           (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) true hsteps₂')))
   have hdec_u₁ : π.configDecision cfg₁₂ u₁ = some .commit := by
-    simpa [configDecision, ← hpres₁.1 u₁ hu₁] using hcommit₁
+    simpa [configDecision, ← (groupSteps_preserve_outside hdisj.symm hsteps₂').1 u₁ hu₁] using
+      hcommit₁
   have hdec_u₂ : π.configDecision cfg₁₂ u₂ = some .abort := by
     simpa [configDecision, ← heq₂'.1 u₂ hu₂] using hd₂
-  have := hres.agreement allYes ⟨true, cfg₁₂⟩ hreach₁₂ u₁ u₂ .commit .abort hdec_u₁ hdec_u₂
-  cases this
+  cases hres.agreement allYes ⟨true, cfg₁₂⟩ hreach₁₂ u₁ u₂ .commit .abort hdec_u₁ hdec_u₂
 
 end CommitProtocol
 
@@ -1528,46 +1446,25 @@ theorem not_nonblocking_atomicCommit_of_partitionCut {P S M : Type*} [DecidableE
   -- Step 2: Walk the partition-free all-`.yes` commit execution (`AC3`) to find an adjacent
   -- single-site transition `c_prev →[p*] c_next` crossing from both-abort-only to some-can-commit.
   obtain ⟨cfg_m, hnorm_m, hcommit_m⟩ := hres.failureFreeCommit
+  have ⟨u₁, hu₁⟩ := hG₁
   have hcan_m : CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ cfg_m) ∨
-      CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ cfg_m) := by
-    obtain ⟨u₁, hu₁⟩ := hG₁
-    exact Or.inl ⟨cutCfg G₁ G₂ cfg_m, .refl _, u₁, hu₁, hcommit_m u₁⟩
-  have hcross_gen : ∀ {c : CommitConfig P S M},
-      π.NormalSteps (π.initConfig allYes) c →
-      (CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c) ∨
-        CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c)) →
-      ∃ (c_prev c_next : CommitConfig P S M) (pStar : P)
-        (recv : Option (CommitEnvelope P M)),
-        π.NormalSteps (π.initConfig allYes) c_prev ∧
-        π.ConfigNormalStep pStar recv c_prev c_next ∧
-        ¬ CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_prev) ∧
-        ¬ CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_prev) ∧
-        (CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_next) ∨
-          CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_next)) := by
-    intro c hsteps
-    induction hsteps with
-    | refl =>
-      intro hcan₀
-      exact False.elim (hcan₀.elim hno_commit_init₁ hno_commit_init₂)
-    | @tail c_prev c_next pStar recv hprev hstep ih =>
-      intro hcan_next
-      by_cases hprev_can : CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_prev) ∨
-          CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_prev)
-      · exact ih hprev_can
-      · push Not at hprev_can
-        exact ⟨c_prev, c_next, pStar, recv, hprev, hstep, hprev_can.1, hprev_can.2, hcan_next⟩
-  obtain ⟨c_prev, c_next, pStar, recv, hprev_steps, hstep_star, hn₁, hn₂, hnext_can⟩ :=
-    hcross_gen hnorm_m hcan_m
-  have hnext_steps : π.NormalSteps (π.initConfig allYes) c_next := .tail hprev_steps hstep_star
-  -- Step 3: Because `Disjoint G₁ G₂`, `pStar ∉ G₂` or `pStar ∉ G₁`; apply the crossing lemma
-  -- directly or symmetrically via `hres.symm`.
-  by_cases hp₂ : pStar ∈ G₂
-  · have hp_not₁ : pStar ∉ G₁ := Finset.disjoint_right.mp hdisj hp₂
-    rw [cutCfg_comm G₁ G₂] at hn₁ hnext_can
-    exact CommitProtocol.contradiction_of_crossing_outside_right hG₁ hdisj.symm hres.symm
-      hnext_steps hstep_star hp_not₁ hn₁ hnext_can.symm
-  · exact CommitProtocol.contradiction_of_crossing_outside_right hG₂ hdisj hres
-      hnext_steps hstep_star hp₂ hn₂ hnext_can
+      CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ cfg_m) :=
+    Or.inl ⟨cutCfg G₁ G₂ cfg_m, .refl _, u₁, hu₁, hcommit_m u₁⟩
+  clear hcommit_m
+  induction hnorm_m with
+  | refl => exact hcan_m.elim hno_commit_init₁ hno_commit_init₂
+  | @tail c_prev c_next pStar recv hprev hstep ih =>
+    obtain ⟨hn₁, hn₂⟩ := not_or.mp ih
+    have hnext_steps : π.NormalSteps (π.initConfig allYes) c_next := .tail hprev hstep
+    -- Step 3: Because `Disjoint G₁ G₂`, `pStar ∉ G₂` or `pStar ∉ G₁`; apply the crossing lemma
+    -- directly or symmetrically via `hres.symm`.
+    by_cases hp₂ : pStar ∈ G₂
+    · have hp_not₁ : pStar ∉ G₁ := Finset.disjoint_right.mp hdisj hp₂
+      rw [cutCfg_comm G₁ G₂] at hn₁ hcan_m
+      exact CommitProtocol.contradiction_of_crossing_outside_right hG₁ hdisj.symm hres.symm
+        hnext_steps hstep hp_not₁ hn₁ hcan_m.symm
+    · exact CommitProtocol.contradiction_of_crossing_outside_right hG₂ hdisj hres
+        hnext_steps hstep hp₂ hn₂ hcan_m
 
 /-- Partition-cut step after [SkeenStonebraker1983], §V-A, Theorem 4 (p. 225), not the cited
 crash-recovery endpoint (#7289): on any process set with `2 ≤ Fintype.card P`, there exists a
@@ -1579,16 +1476,12 @@ theorem not_exists_partitionCutResilient_atomicCommit {P S M : Type*} [Decidable
     ¬ (∀ G₁ G₂ : Finset P, G₁.Nonempty → G₂.Nonempty → Disjoint G₁ G₂ →
         G₁ ∪ G₂ = Finset.univ → π.IsPartitionCutResilient G₁ G₂) := by
   intro hall
-  have hnt : Nontrivial P := Fintype.one_lt_card_iff_nontrivial.mp (by omega)
-  obtain ⟨p, q, hpq⟩ := hnt
-  let G₁ : Finset P := {p}
-  let G₂ : Finset P := Finset.univ.erase p
-  have hG₁ : G₁.Nonempty := Finset.singleton_nonempty p
-  have hG₂ : G₂.Nonempty := ⟨q, Finset.mem_erase.mpr ⟨hpq.symm, Finset.mem_univ q⟩⟩
-  have hdisj : Disjoint G₁ G₂ := Finset.disjoint_singleton_left.mpr (Finset.notMem_erase p _)
-  have hunion : G₁ ∪ G₂ = Finset.univ := by
-    ext r; by_cases hrp : r = p <;> simp [G₁, G₂, hrp]
-  exact not_nonblocking_atomicCommit_of_partitionCut hG₁ hG₂ hdisj π
-    (hall G₁ G₂ hG₁ hG₂ hdisj hunion)
+  obtain ⟨p, q, hpq⟩ := Fintype.one_lt_card_iff_nontrivial.mp (by omega : 1 < Fintype.card P)
+  have hG₂ : (Finset.univ.erase p).Nonempty :=
+    ⟨q, Finset.mem_erase.mpr ⟨hpq.symm, Finset.mem_univ q⟩⟩
+  have hdisj : Disjoint ({p} : Finset P) (Finset.univ.erase p) :=
+    Finset.disjoint_singleton_left.mpr (Finset.notMem_erase p _)
+  exact not_nonblocking_atomicCommit_of_partitionCut (Finset.singleton_nonempty p) hG₂ hdisj π
+    (hall _ _ (Finset.singleton_nonempty p) hG₂ hdisj (by simp))
 
 end Cslib.Distributed.AtomicCommit

@@ -19,14 +19,17 @@ public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate
   (`setlvl`, `wiplvl`) and `conclusion UNSAT` without a constraint;
 * the `pol` operations `n`, `c`, `m` and `-`, the cuts checked by `e`;
 * a `red` step whose goal is autoproven by RUP, and `pbc` without a subproof;
+* `red` steps whose goals are autoproven by syntactic implication: by `¬C`, by `D` for the goal
+  `D|ω`, by another constraint, and, with the propagated assignment substituted, VeriPB's
+  `autoproving` instance and a checked deletion whose goal `¬C` implies;
 * `core range` and `del range`;
 * a DIMACS formula with a hintless proof;
 * the names of an instance, `x01` apart from `x1`, and the standard name `x1099511627777` next to
   an auxiliary name.
 
 And rejections: a step that is not RUP, a wrong `e` check, a reference to a deleted constraint,
-a premise that does not imply the `ia` constraint, and an `ENUMERATION` count that is not a
-number. The checks run by `#guard`; the soundness
+a premise that does not imply the `ia` constraint, goals that no constraint implies, and an
+`ENUMERATION` count that is not a number. The checks run by `#guard`; the soundness
 theorems (`Cslib.Logic.PL.VeriPB.Elab.not_satisfiable_of_checkAugmented`, …) apply to any
 accepted pair of texts. -/
 
@@ -129,6 +132,114 @@ end pseudo-Boolean proof;
 "
 
 #guard checkAugmented php32 redProof == some (.unsat 11)
+
+/-! Goals autoproven by syntactic implication (§5.5.2), as VeriPB 3.0.2 autoproves them
+(`Proofgoal::autoprove`): by the additional premise `¬C`, by `D` for the goal `D|ω`, by another
+constraint of the database, and by a constraint of the database once the assignment propagated at
+the root is substituted. None of these goals follows by RUP, and the kernel format autoproves
+none of them. Each rejected variant is rejected by VeriPB too. -/
+
+/-- A red step without a subproof. -/
+def redOnly (f : ℕ) (red : String) : String := s!"pseudo-Boolean proof version 3.0
+f {f};
+{red}
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+/-- The goal `D|ω` of the first constraint is `y₁ + ⋯ + y₅ ≥ 2`, which the second implies. -/
+def implOther : String := "* #variable= 6 #constraint= 2
+1 x1 1 y1 1 y2 1 y3 1 y4 1 y5 >= 2 ;
+1 y1 1 y2 1 y3 1 y4 >= 2 ;
+"
+
+#guard checkAugmented implOther (redOnly 2 "red 1 ~x1 >= 1 : x1 -> 0 ;") == some .noClaim
+-- With `y₆` in the second constraint, nothing implies the goal.
+#guard checkAugmented (implOther.replace "1 y4 >= 2" "1 y4 1 y6 >= 2")
+  (redOnly 2 "red 1 ~x1 >= 1 : x1 -> 0 ;") == none
+
+/-- The goal `D|ω` is `2 y₁ + y₂ + ⋯ + y₅ ≥ 2`, which `¬C` implies by saturation, but not
+weakly. -/
+def implPremise : String := "* #variable= 7 #constraint= 1
+1 x2 2 y1 1 y2 1 y3 1 y4 1 y5 >= 2 ;
+"
+
+#guard checkAugmented implPremise
+  (redOnly 1 "red 5 ~y1 1 ~y2 1 ~y3 1 ~y5 7 ~x1 7 ~x2 >= 7 : x2 -> 0 ;") == some .noClaim
+#guard checkAugmented implPremise
+  (redOnly 1 "red 3 ~y1 1 ~y2 1 ~y3 1 ~y5 7 ~x1 7 ~x2 >= 7 : x2 -> 0 ;") == none
+
+/-- With `x₁ ↦ ¬y₁`, the goal `D|ω` is `3 y₁ + y₂ + y₃ + y₅ ≥ 2`, which `D` implies by saturation,
+but not weakly. -/
+def implSelf : String := "* #variable= 7 #constraint= 1
+2 x1 5 y1 1 y2 1 y3 1 y5 >= 4 ;
+"
+
+#guard checkAugmented implSelf (redOnly 1 "red 1 z1 >= 1 : z1 -> 1 x1 -> ~y1 ;") == some .noClaim
+-- With `x₁ ↦ y₂`, the goal `5 y₁ + 3 y₂ + y₃ + y₅ ≥ 4` is not implied.
+#guard checkAugmented implSelf (redOnly 1 "red 1 z1 >= 1 : z1 -> 1 x1 -> y2 ;") == none
+
+/-- VeriPB's instance `tests/instances/correct/version3/autoproving.opb`: `¬C` propagates
+`a₃ = a₄ = 0`, and with these values substituted the first constraint implies its goal
+`a₁ + a₂ + x₁ + ⋯ + x₄ ≥ 3`. -/
+def implSubst : String := "* #variable= 2 #constraint= 10
+1 a1 1 a2 1 a3 1 x1 1 x2 1 x3 1 x4 >= 3 ;
+1 a1 1 z1 1 z2 >= 1 ;
+1 z1 1 z2 1 z3 >= 1 ;
+1 z1 1 z2 1 ~z3 >= 1 ;
+1 a1 1 y1 1 y2 1 y3 1 y4 1 y5 >= 3 ;
+1 a2 1 y1 1 y2 1 y3 1 y4 1 y5 >= 3 ;
+"
+
+/-- VeriPB's proof `autoproving.pbp`. -/
+def implSubstProof : String := "pseudo-Boolean proof version 3.0
+red 1 a3 1 a4 >= 1 : a1 a2 a2 a1 a3 0 a4 1;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+#guard checkAugmented implSubst implSubstProof == some .noClaim
+-- The unit `¬a₃`, the propagated value on the variables of the constraint and the goal, is
+-- derived by a hinted `rup` before the implication.
+#guard match elaborate (((Text.parseOPB implSubst).map (·.constraints)).getD []) none none
+    implSubstProof (Text.opbNames implSubst) with
+  | .ok ⟨⟨[.red _ _ (some items) _], _⟩, _, N⟩ =>
+    items.any fun
+      | .goal _ (.rup c _ :: _) _ => c.degree == 1 &&
+        c.terms.map (fun t => (N.name (PBConstr.termVar t), PBConstr.termPos t)) == [("a3", false)]
+      | _ => false
+  | _ => false
+-- With `¬a₄` in place of `a₃`, the substituted constraint `a₁ + a₂ + x₁ + ⋯ + x₄ ≥ 2` is too
+-- weak.
+#guard checkAugmented (implSubst.replace "1 a2 1 a3 1 x1" "1 a2 1 ~a4 1 x1") implSubstProof ==
+  none
+
+/-- The goal `C₃|ω` of a checked deletion of the first constraint with `x₁ ↦ 1` is
+`y₁ + ⋯ + y₄ ≥ 2`. `C₂` and `¬C₁` propagate `a₁ = x₁ = 0`, and with these values substituted
+`¬C₁` becomes `y₁ + y₂ + y₃ ≥ 2`, which implies the goal. -/
+def implCore : String := "* #variable= 6 #constraint= 3
+3 x1 1 ~a1 1 ~y1 1 ~y2 1 ~y3 >= 3 ;
+1 ~a1 >= 1 ;
+1 ~x1 1 y1 1 y2 1 y3 1 y4 >= 2 ;
+"
+
+/-- A checked deletion of the first constraint with `x₁ ↦ 1`, ending with `e`. -/
+def delcX1 (e : String) : String := s!"pseudo-Boolean proof version 3.0
+f 3;
+delc 1 : x1 -> 1 {e}
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+-- In a core-only subproof, `¬C₁` is a core constraint (VeriPB 3.0.2, `checker.rs`), so it is a
+-- candidate.
+#guard checkAugmented implCore (delcX1 ": subproof qed;") == some .noClaim
+-- Without a subproof, `¬C₁` is not in VeriPB's database and is no candidate (VeriPB 3.0.2
+-- rejects it with `--force-checked-deletion`, and otherwise falls back to unchecked deletion).
+#guard checkAugmented implCore (delcX1 ";") == none
 
 /-- A DIMACS formula, PHP(3, 2) as clauses, with a hintless proof that deletes by
 specification. -/

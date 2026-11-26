@@ -96,7 +96,8 @@ theorem structProb_nonneg (P : L.Structure α → Prop) : 0 ≤ structProb μ P 
 theorem structProb_not (P : L.Structure α → Prop) :
     structProb μ (fun S => ¬P S) = 1 - structProb μ P := by
   rw [structProb, structProb, ← PMF.toOuterMeasure_toReal_add_compl μ {S | P S},
-    add_sub_cancel_left]; rfl
+    add_sub_cancel_left]
+  rfl
 
 theorem structProb_le_one (P : L.Structure α → Prop) : structProb μ P ≤ 1 := by
   linarith [structProb_not μ P, structProb_nonneg μ fun S => ¬P S]
@@ -112,8 +113,9 @@ theorem structProb_false : structProb μ (fun _ => False) = 0 := by
 
 @[simp]
 theorem structProb_true : structProb μ (fun _ => True) = 1 := by
-  have := structProb_not μ fun _ => True
-  simp only [not_true_eq_false, structProb_false] at this; linarith
+  have h := structProb_not μ fun _ => True
+  simp only [not_true_eq_false, structProb_false] at h
+  linarith
 
 variable {μ} in
 /-- A property of positive probability holds of some structure. -/
@@ -125,12 +127,15 @@ theorem exists_of_structProb_pos {P : L.Structure α → Prop} (h : 0 < structPr
 /-- **Union bound.** -/
 theorem structProb_exists_le {ι : Type*} (I : Finset ι) (P : ι → L.Structure α → Prop) :
     structProb μ (fun S => ∃ i ∈ I, P i S) ≤ ∑ i ∈ I, structProb μ (P i) := by
-  rw [structProb, (Set.ext fun _ => by simp only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop] :
-    {S | ∃ i ∈ I, P i S} = ⋃ i ∈ I, {S | P i S})]
+  have hset : {S | ∃ i ∈ I, P i S} = ⋃ i ∈ I, {S | P i S} := by
+    ext S
+    simp only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]
+  rw [structProb, hset]
   exact Cslib.Probability.PMF.toOuterMeasure_toReal_biUnion_finset_le μ I fun i => {S | P i S}
 
 theorem sentenceProb_not (φ : L.Sentence) : sentenceProb μ φ.not = 1 - sentenceProb μ φ := by
-  rw [sentenceProb, sentenceProb, ← structProb_not]; rfl
+  rw [sentenceProb, sentenceProb, ← structProb_not]
+  rfl
 
 end API
 
@@ -146,16 +151,18 @@ theorem tendsto_structProb_forall_finset (T₀ : Finset L.Sentence)
     (h : ∀ φ ∈ T₀, Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 1)) :
     Tendsto (fun n => structProb (μ n) fun S => ∀ φ ∈ T₀, @Sentence.Realize L _ S φ)
       atTop (nhds 1) := by
-  have hsum : Tendsto (fun n => ∑ φ ∈ T₀, sentenceProb (μ n) φ.not) atTop (nhds 0) := by
-    rw [← Finset.sum_const_zero (s := T₀)]
-    exact tendsto_finsetSum T₀ fun φ hφ => by
-      simpa only [sub_self, ← sentenceProb_not] using (h φ hφ).const_sub 1
-  have hbad : Tendsto (fun n => structProb (μ n) fun S => ¬∀ φ ∈ T₀, @Sentence.Realize L _ S φ)
-      atTop (nhds 0) :=
-    squeeze_zero (fun _ => structProb_nonneg _ _) (fun n => (structProb_mono fun S hS => by
-      push Not at hS; obtain ⟨φ, hφ, hS⟩ := hS
-      exact ⟨φ, hφ, (@Sentence.realize_not L _ S φ).2 hS⟩).trans
-      (structProb_exists_le (μ n) T₀ _)) hsum
+  have hfail (φ) (hφ : φ ∈ T₀) : Tendsto (fun n => sentenceProb (μ n) φ.not) atTop (nhds 0) := by
+    simpa only [sub_self, ← sentenceProb_not] using (h φ hφ).const_sub 1
+  have hsum := tendsto_finsetSum T₀ hfail
+  simp only [Finset.sum_const_zero] at hsum
+  have hbad : Tendsto
+      (fun n => structProb (μ n) fun S => ¬∀ φ ∈ T₀, @Sentence.Realize L _ S φ)
+      atTop (nhds 0) := by
+    refine squeeze_zero (fun n => structProb_nonneg _ _) (fun n => ?_) hsum
+    refine (structProb_mono fun S hS => ?_).trans (structProb_exists_le (μ n) T₀ _)
+    push Not at hS
+    obtain ⟨φ, hφ, hS⟩ := hS
+    exact ⟨φ, hφ, (@Sentence.realize_not L _ S φ).2 hS⟩
   simpa only [sub_zero, structProb_not, sub_sub_cancel] using hbad.const_sub 1
 
 /-- **Compactness.** If every sentence of `T` holds with probability tending to `1`, then `T` is
@@ -249,9 +256,9 @@ theorem not_tendsto_structProb_even (c : ℝ) :
     ¬Tendsto (fun n => structProb (μ n) fun _ => Even n) atTop (nhds c) := by
   intro h
   have hval (n : ℕ) : structProb (μ n) (fun _ => Even n) = if Even n then 1 else 0 := by
-    by_cases hn : Even n <;> [simp only [hn, ↓reduceIte, structProb_true];
-      simp only [hn, ↓reduceIte, structProb_false] ]
+    by_cases hn : Even n <;> simp [hn]
   have hev : Tendsto (2 * ·) atTop atTop := tendsto_id.const_mul_atTop' two_pos
+  -- Along even `n` the probability is `1`, along odd `n` it is `0`.
   have h1 := h.comp hev
   have h0 := h.comp (tendsto_atTop_mono (fun m => Nat.le_succ (2 * m)) hev)
   simp only [Function.comp_def, hval, even_two_mul, Nat.not_even_two_mul_add_one, ↓reduceIte]

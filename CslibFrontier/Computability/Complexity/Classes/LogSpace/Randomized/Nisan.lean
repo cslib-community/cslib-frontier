@@ -138,14 +138,15 @@ theorem abs_acceptNisanSeeds_div_sub_le {input : List Bool} {V : Finset (FiniteC
   have h := Nisan.abs_dens_eval_bitGenerator_sub_le n r (machine.coinProgram hV hinit (2 ^ r * n))
   rw [Fintype.card_coe, Finset.nnratCast_dens, Finset.nnratCast_dens, Nisan.card_bitSeed,
     Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
-  rw [show machine.acceptNisanSeeds input n r =
+  have hseeds : machine.acceptNisanSeeds input n r =
       (Finset.univ.filter fun z : Nisan.BitSeed n r =>
-        (machine.coinProgram hV hinit (2 ^ r * n)).eval (Nisan.bitGenerator n r z) = true).card from
-      congrArg Finset.card (Finset.filter_congr fun _ _ => (eval_coinProgram_iff hV hinit _).symm),
-    show machine.acceptCoins input (2 ^ r * n) =
+        (machine.coinProgram hV hinit (2 ^ r * n)).eval (Nisan.bitGenerator n r z) = true).card :=
+    congrArg Finset.card (Finset.filter_congr fun _ _ => (eval_coinProgram_iff hV hinit _).symm)
+  have hcoins : machine.acceptCoins input (2 ^ r * n) =
       (Finset.univ.filter fun w : Fin (2 ^ r * n) → Bool =>
-        (machine.coinProgram hV hinit (2 ^ r * n)).eval w = true).card from
-      congrArg Finset.card (Finset.filter_congr fun w _ => (eval_coinProgram_iff hV hinit w).symm)]
+        (machine.coinProgram hV hinit (2 ^ r * n)).eval w = true).card :=
+    congrArg Finset.card (Finset.filter_congr fun w _ => (eval_coinProgram_iff hV hinit w).symm)
+  rw [hseeds, hcoins]
   exact_mod_cast h
 
 end Turing.MultiTapePTM

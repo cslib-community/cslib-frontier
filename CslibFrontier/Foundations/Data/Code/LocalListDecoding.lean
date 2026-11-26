@@ -77,19 +77,16 @@ private def seeds (m : ℕ) (F : Type*) [Fintype F] [DecidableEq F] [Zero F] :
     Finset ((Fin m → F) × (Fin m → F)) := univ.filter fun xu => xu.2 ≠ 0
 
 private theorem card_seeds : #(seeds m F) = Fintype.card F ^ m * (Fintype.card F ^ m - 1) := by
-  rw [seeds, show (univ.filter fun xu : (Fin m → F) × (Fin m → F) => xu.2 ≠ 0) =
-    univ ×ˢ (univ.filter fun u : Fin m → F => u ≠ 0) by ext; simp, card_product, card_univ,
-    Fintype.card_fun, Fintype.card_fin, filter_ne', card_erase_of_mem (mem_univ _), card_univ,
-    Fintype.card_fun, Fintype.card_fin]
+  have h : seeds m F = univ ×ˢ (univ : Finset (Fin m → F)).erase 0 :=
+    Finset.ext fun _ => by simp [seeds]
+  simp [h, card_erase_of_mem]
 
 /-- Each point of a random line is uniformly distributed. -/
 private theorem card_seeds_mem (A : Finset (Fin m → F)) (t : F) :
     #{xu ∈ seeds m F | xu.1 + t • xu.2 ∈ A} = #A * (Fintype.card F ^ m - 1) := by
-  rw [show #A * (Fintype.card F ^ m - 1) = #(A ×ˢ (univ : Finset (Fin m → F)).erase 0) by
-    rw [card_product, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fun,
-      Fintype.card_fin]]
-  refine card_nbij' (fun xu => (xu.1 + t • xu.2, xu.2)) (fun yu => (yu.1 - t • yu.2, yu.2))
-    ?_ ?_ ?_ ?_ <;> intro xu hxu <;> simp_all [seeds]
+  refine (card_nbij' (t := A ×ˢ (univ : Finset (Fin m → F)).erase 0)
+    (fun xu => (xu.1 + t • xu.2, xu.2)) (fun yu => (yu.1 - t • yu.2, yu.2))
+    ?_ ?_ ?_ ?_).trans (by simp [card_erase_of_mem]) <;> intro xu hxu <;> simp_all [seeds]
 
 omit [Fintype F] [DecidableEq F] in
 /-- The base point and direction of the line through `y` at `t` and `y'` at `t'`. -/
@@ -106,26 +103,19 @@ private theorem card_seeds_mem_mem (A : Finset (Fin m → F)) {t t' : F} (htt : 
   rw [← offDiag_card]
   have hsub : t - t' ≠ 0 := sub_ne_zero.2 htt
   have hdir : ∀ x u : Fin m → F, (t - t')⁻¹ • (x + t • u - (x + t' • u)) = u := fun x u => by
-    rw [show x + t • u - (x + t' • u) = (t - t') • u by rw [sub_smul]; abel, smul_smul,
-      inv_mul_cancel₀ hsub, one_smul]
+    rw [add_sub_add_left_eq_sub, ← sub_smul, smul_smul, inv_mul_cancel₀ hsub, one_smul]
   refine card_nbij' (fun xu => (xu.1 + t • xu.2, xu.1 + t' • xu.2))
     (fun yy => (yy.1 - t • (t - t')⁻¹ • (yy.1 - yy.2), (t - t')⁻¹ • (yy.1 - yy.2)))
-    (fun xu hxu => ?_) (fun yy hyy => ?_) (fun xu _ => ?_) (fun yy _ => ?_)
-  · obtain ⟨x, u⟩ := xu
-    simp only [mem_coe, seeds, filter_filter, mem_filter, mem_offDiag] at hxu ⊢
+    (fun ⟨x, u⟩ hxu => ?_) (fun ⟨y, y'⟩ hyy => ?_) (fun ⟨x, u⟩ _ => ?_) (fun ⟨y, y'⟩ _ => ?_)
+  · simp only [mem_coe, seeds, filter_filter, mem_filter, mem_offDiag] at hxu ⊢
     exact ⟨hxu.2.2.1, hxu.2.2.2, fun heq => hxu.2.1 (by rw [← hdir x u, heq, sub_self, smul_zero])⟩
-  · obtain ⟨y, y'⟩ := yy
-    rw [mem_coe, mem_offDiag] at hyy
-    rw [mem_coe, seeds, filter_filter, mem_filter]
+  · simp only [mem_coe, mem_offDiag, seeds, filter_filter, mem_filter] at hyy ⊢
     obtain ⟨h₁, h₂⟩ := line_through hsub y y'
     exact ⟨mem_univ _, fun h0 => hyy.2.2 (sub_eq_zero.1 ((smul_eq_zero.1 h0).resolve_left
       (inv_ne_zero hsub))), by simpa only [h₁] using hyy.1, by simpa only [h₂] using hyy.2.1⟩
-  · obtain ⟨x, u⟩ := xu
-    simp only [hdir, Prod.mk.injEq, and_true]
+  · simp only [hdir, Prod.mk.injEq, and_true]
     abel
-  · obtain ⟨y, y'⟩ := yy
-    obtain ⟨h₁, h₂⟩ := line_through hsub y y'
-    exact Prod.ext h₁ h₂
+  · exact (line_through hsub y y').elim Prod.ext
 
 /-- `lineAgree` as a sum of indicators. -/
 private theorem lineAgree_cast_eq_sum (A : Finset (Fin m → F)) (x u : Fin m → F) :
@@ -183,15 +173,11 @@ private theorem sum_lineAgree_sub_sq_le (A : Finset (Fin m → F)) :
   generalize (Fintype.card F : ℝ) ^ m = Q at *
   generalize (Fintype.card F : ℝ) = q at *
   generalize (#A : ℝ) = a at *
-  have hQ0 : Q ≠ 0 := by linarith
-  have key : 0 ≤ q * a * ((q - 1) * (Q - a) + a * (Q - 1)) / Q := by
-    have := mul_nonneg (sub_nonneg.2 hq1) (sub_nonneg.2 haQ)
-    have := mul_nonneg ha0 (sub_nonneg.2 hQ1)
-    exact div_nonneg (by positivity) (by linarith)
+  have hQ0 : 0 < Q := by linarith
+  have hnum : 0 ≤ q * a * ((q - 1) * (Q - a) + a * (Q - 1)) :=
+    mul_nonneg (by positivity) (by nlinarith)
   rw [← sub_nonneg]
-  convert key using 1
-  field_simp
-  ring
+  exact (div_nonneg hnum hQ0.le).trans_eq (by field_simp; ring)
 
 /-- **Random lines sample a set well.** Over all points `x` and nonzero directions `u`, the
 number of pairs for which the line `t ↦ x + t • u` has at most `D` points in `A` is at most
@@ -202,10 +188,7 @@ theorem card_filter_lineAgree_le_mul_sq_le (A : Finset (Fin m → F)) {D : ℝ}
     (#{xu : (Fin m → F) × (Fin m → F) | xu.2 ≠ 0 ∧ (lineAgree A xu.1 xu.2 : ℝ) ≤ D} : ℝ) *
         (Fintype.card F * #A / Fintype.card F ^ m - D) ^ 2 ≤
       Fintype.card F * #A * (Fintype.card F ^ m - 1) := by
-  have hfilter : ({xu : (Fin m → F) × (Fin m → F) |
-      xu.2 ≠ 0 ∧ (lineAgree A xu.1 xu.2 : ℝ) ≤ D} : Finset _) =
-      {xu ∈ seeds m F | (lineAgree A xu.1 xu.2 : ℝ) ≤ D} := by rw [seeds, filter_filter]
-  rw [hfilter]
+  rw [← filter_filter (p := fun xu : (Fin m → F) × (Fin m → F) => xu.2 ≠ 0), ← seeds]
   refine (card_filter_mul_le_sum _ _ _ (fun _ _ => sq_nonneg _) fun xu _ hxu => ?_).trans
     (sum_lineAgree_sub_sq_le A)
   nlinarith [sq_nonneg ((lineAgree A xu.1 xu.2 : ℝ) - Fintype.card F * #A / Fintype.card F ^ m)]
@@ -251,13 +234,10 @@ private theorem card_hintDecode_line_ne_le {d D : ℕ} (hd : 1 ≤ d)
     #{τ | hintDecode id (fun t : F => g (x + t • v)) d D τ (p (x + τ • v)) ≠ p x} ≤ D - d := by
   obtain ⟨P, hP, hPeval⟩ := exists_natDegree_le_eval_eq_of_mem_reedMuller hp x v
   have hx : p x = P.eval 0 := by rw [hPeval, zero_smul, add_zero]
-  have hag : #{t : F | P.eval (id t) = g (x + t • v)} = lineAgree {y | g y = p y} x v := by
-    simp only [lineAgree]
-    congr 1
-    ext t
-    simp [hPeval, eq_comm]
+  have hag : #{t : F | P.eval (id t) = g (x + t • v)} = lineAgree {y | g y = p y} x v :=
+    congrArg card (Finset.ext fun t => by simp [hPeval, eq_comm])
   simpa only [← hPeval, hx] using card_hintDecode_ne_le (α := id)
-    (w := fun t : F => g (x + t • v)) Function.injective_id hd hn hDq hP (by rwa [hag])
+    (w := fun t : F => g (x + t • v)) Function.injective_id hd hn hDq hP (hag.symm ▸ hagree)
 
 /-- The normalized directions: those whose first nonzero entry is `1`. -/
 private def normDirs (m : ℕ) (F : Type*) [Field F] [Fintype F] [DecidableEq F] :

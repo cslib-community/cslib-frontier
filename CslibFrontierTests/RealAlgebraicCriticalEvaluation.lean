@@ -8,8 +8,12 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
@@ -83,7 +87,8 @@ example :
     (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
   exact ⟨y, z, φ, hz, hlim, hcrit⟩
 
--- The finite coordinate root grid meets the real zero set of the integer polynomial X².
+-- A fixed-width word selects a point in the finite coordinate root grid of X².
+-- The selected point extends to a zero of the extra coordinate, but never of the constant one.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
     let hF : F.totalDegree ≤ 3 := (totalDegree_pow (X (R := ℤ) (0 : Fin 1)) 2).trans
@@ -93,7 +98,14 @@ example :
     let G := coordinateRootGrid (by decide : 1 ≤ 3) F hF
     let p := (Polynomial.Bivariate.swap
       (parametricCoordinatePolynomial (by decide) F hF 0)).leadingCoeff.map (Int.castRingHom ℝ)
-    G.Finite ∧ ∃ x ∈ G, eval x (F.map (Int.castRingHom ℝ)) = 0 ∧ p.IsRoot (x 0) := by
+    G.Finite ∧ ∃ x ∈ G, eval x (F.map (Int.castRingHom ℝ)) = 0 ∧ p.IsRoot (x 0) ∧
+      ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 3 1 ∧
+        0 < (wordCoordinateFingerprintLabel (d := 2) F hF 0 (by decide) word 0).eval₂
+          (Int.castRingHom ℝ) (x 0) ∧
+        (∃ z : Fin 3 → ℝ, eval₂ (Int.castRingHom ℝ) z
+          (selectionCounterexamplePolynomial (d := 2) (u := 1) F (X 1) hF 0 (by decide) word) = 0) ∧
+        ¬ ∃ z : Fin 3 → ℝ, eval₂ (Int.castRingHom ℝ) z
+          (selectionCounterexamplePolynomial (d := 2) (u := 1) F 1 hF 0 (by decide) word) = 0 := by
   intro F hF G p
   refine ⟨coordinateRootGrid_finite _ F hF, ?_⟩
   have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
@@ -101,7 +113,24 @@ example :
   have hzero : eval (fun _ => 0) (F.map (Int.castRingHom ℝ)) = 0 := by simp [F]
   obtain ⟨z, _, hz⟩ := exists_mem_coordinateRootGrid_of_isClopen (by decide) (by decide) F hF hFn
     Set.univ isClopen_univ ⟨⟨fun _ => 0, hzero⟩, Set.mem_univ _⟩
-  exact ⟨z.val, hz, z.property, mem_coordinateRootGrid.mp hz 0⟩
+  have hmass : F.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [F, coeffNorm1_X, one_pow, pow_zero] using
+      coeffNorm1_pow_le (X (R := ℤ) (0 : Fin 1)) 2
+  obtain ⟨word, hlen, hselect⟩ :=
+    exists_coordinateSelectionWitness (d := 2) (mass := 0) F hF hmass (by decide) (by decide) hz
+  have hlabels := ((hselect z.val).mpr rfl).2
+  refine ⟨z.val, hz, z.property, mem_coordinateRootGrid.mp hz 0, word, hlen, hlabels 0, ?_, ?_⟩
+  · apply (exists_selectionCounterexamplePolynomial_zero_iff (d := 2) (u := 1)
+      F (X 1) hF 0 (by decide) word).mpr
+    refine ⟨z.val, fun _ => 0, ?_, hz, hlabels, ?_⟩
+    · simpa only [eval₂_eq_eval_map] using z.property
+    · rw [eval₂_X]
+      change Fin.addCases (motive := fun _ => ℝ) z.val (fun _ => 0) (Fin.natAdd 1 (0 : Fin 1)) = 0
+      simp only [Fin.addCases_right]
+  · intro h
+    obtain ⟨_, _, _, _, _, hR⟩ := (exists_selectionCounterexamplePolynomial_zero_iff
+      (d := 2) (u := 1) F 1 hF 0 (by decide) word).mp h
+    simp at hR
 
 -- Zero is a critical point of the deformation of X² at every parameter.
 example :
@@ -437,7 +466,7 @@ example :
     let labels := C.criticalCoordinateFingerprintLabels (d := fun _ => 1) Decoder.nat
       (fun _ => 0) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
       (.const 1) (.const 0) (.const 5) (.const 2) (.const (-1)) (fun _ => by decide)
-      (fun _ => by decide)
+      (.const 7) (fun _ => by decide) (fun _ => by decide)
     labels.evaluate ∈ CountingFunction 20 (encEvaluation encNat) encNat := by
   intro F C labels
   exact labels.evaluate_mem
@@ -452,25 +481,33 @@ example : ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 
   obtain ⟨word, hw, hd⟩ := exists_coordinateFingerprintWitness f hf
   exact ⟨word, hw, hd 0, hd 1⟩
 
--- Both the raw witness word and the binary address are evaluator inputs.
-example :
+-- The word and address are evaluator inputs, but the bounds are shared by all addresses.
+example (w : List Bool) (j : ℕ) :
     let F : MvPolynomial (Fin 1) ℤ := X 0
     let C : Controlled (fun _ : List Bool => F) encBits 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
-    let labels := C.wordCoordinateFingerprintLabels (d := fun _ => 1) Decoder.bits
+    let labels := C.wordCoordinateFingerprintTests (d := fun _ => 1) Decoder.bits
       (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
       (.const 1) id ComputableInPolyTime.id'
-    labels.evaluate ∈ CountingFunction 20 (encEvaluation (encPair encBits encNat)) encNat := by
+    labels.evaluate ∈ CountingFunction 20 (encEvaluation (encPair encBits encNat)) encNat ∧
+      labels.degreeBound (w, j) = labels.degreeBound (w, 0) ∧
+      labels.massExponent (w, j) = labels.massExponent (w, 0) ∧
+      labels.cutoff (w, j) = labels.cutoff (w, 0) := by
   intro F C labels
-  exact labels.evaluate_mem
+  exact ⟨labels.evaluate_mem, C.wordCoordinateFingerprintTests_bounds_eq
+    (n := fun _ : List Bool => 1) (d := fun _ => 1) Decoder.bits
+    (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+    (.const 1) id ComputableInPolyTime.id' w j⟩
 
 -- Lifting the single variable to coordinate 1 reads the second input with zero padding.
 example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
     let C : Controlled (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ)) encNat 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
     let lifted := C.onCoordinate (n := fun _ => 2) (.const 2) (fun _ => 1) (.const 1)
-    lifted.cutoff w < p → lifted.evaluate (w, p, z) = z.getD 1 0 % p := by
-  intro C lifted hcut
+    lifted.evaluate (w, p, z) = z.getD 1 0 % p := by
+  intro C lifted
+  have hcut : lifted.cutoff w < p := by
+    simpa only [lifted, Controlled.cutoff_onCoordinate, C, Controlled.coordinate] using hp.pos
   rw [lifted.evaluate_eq w p z hp hcut]
   simp only [evaluation, MvPolynomial.rename_X, MvPolynomial.eval₂_X, ZMod.val_natCast,
     List.getD_eq_getElem?_getD, Fin.val_one]
@@ -491,8 +528,146 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   intro F hF C equations Q
   refine ⟨equations.evaluate_mem, fun hcut => ?_⟩
   rw [equations.evaluate_eq (w, 3) p z hp hcut]
-  simp only [evaluation, MvPolynomial.eval₂_rename, MvPolynomial.eval₂_uniqueAlgEquiv_symm]
+  simp only [evaluation, eval₂_indexedCoordinateEquation]
   rw [List.getD_eq_getElem?_getD]
   rfl
+
+-- The cutoff at any binary address suffices to evaluate the source at row zero.
+example (w j p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let rows := C.selectionEquations (d := fun _ => 1) Decoder.nat
+      (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+      (.const 1)
+    rows.evaluate ∈ CountingFunction 18 (encEvaluation (encPair encNat encNat)) encNat ∧
+      (rows.cutoff (w, j) < p → rows.evaluate ((w, 0), p, z) = z.getD 0 0 % p) := by
+  intro F C rows
+  refine ⟨rows.evaluate_mem, fun hcut => ?_⟩
+  obtain ⟨_, _, hc⟩ := C.selectionEquations_bounds_eq
+    (n := fun _ : ℕ => 1) (d := fun _ => 1) Decoder.nat
+    (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+    (.const 1) w j
+  rw [rows.evaluate_eq (w, 0) p z hp (hc ▸ hcut), selectionEquation_zero]
+  simp only [F, evaluation, MvPolynomial.eval₂_X, ZMod.val_natCast,
+    List.getD_eq_getElem?_getD, Fin.val_zero]
+
+-- Squaring the two addressed rows and adding their values costs one counting level.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let C : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let squares := C.sumSquares Decoder.nat (.const 1) (fun _ => 2) (fun _ => 1)
+      (fun _ => 0) (fun _ => 0) (.const 2) (.const 1) (.const 0) (.const 0)
+      (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp) (fun _ _ _ => le_rfl)
+    squares.evaluate ∈ CountingFunction 1 (encEvaluation encNat) encNat ∧
+      (squares.cutoff w < p →
+        squares.evaluate (w, p, z) = (z.getD 0 0 ^ 2 + z.getD 0 0 ^ 2) % p) := by
+  intro C squares
+  refine ⟨squares.evaluate_mem, fun hcut => ?_⟩
+  rw [squares.evaluate_eq w p z hp hcut]
+  simp only [evaluation, MvPolynomial.eval₂_sum, MvPolynomial.eval₂_pow, MvPolynomial.eval₂_X,
+    Fin.val_zero, List.getD_eq_getElem?_getD]
+  rw [Finset.sum_const, Finset.card_range, two_nsmul, ← Nat.cast_pow, ← Nat.cast_add,
+    ZMod.val_natCast]
+
+-- The in-range row reads the appended coordinate. Extra list entries do not extend the arity.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let CQ : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let rows := CQ.positivityEquations (n := fun _ : ℕ => 1) (fun _ => 1) (.const 1)
+    rows.evaluate ∈ CountingFunction 0 (encEvaluation (encPair encNat encNat)) encNat ∧
+      rows.evaluate ((w, 0), p, z) =
+        ((z.getD 0 0 : ZMod p) * (z.getD 1 0 : ZMod p) ^ 2 - 1).val ∧
+      rows.evaluate ((w, 2), p, z) = (-1 : ZMod p).val := by
+  intro CQ rows
+  have hcut (j : ℕ) : rows.cutoff (w, j) < p := by
+    simpa only [rows, Controlled.cutoff_positivityEquations, CQ, Controlled.coordinate]
+      using hp.pos
+  refine ⟨rows.evaluate_mem, ?_, ?_⟩
+  · rw [rows.evaluate_eq (w, 0) p z hp (hcut 0), positivityEquation_of_lt _ (by decide : 0 < 1)]
+    simp [evaluation, List.getD_eq_getElem?_getD, sub_eq_add_neg]
+  · rw [rows.evaluate_eq (w, 2) p z hp (hcut 2), positivityEquation_of_le _ (by decide : 1 ≤ 2)]
+    simp [evaluation]
+
+-- The system x = 0, 1 > 0 has a real zero and evaluates both rows modulo a prime.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let CP : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let CQ : Controlled (fun _ : ℕ × ℕ => (1 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.constant (.const 1) (fun _ => 1) (.const 1)
+    let system := CP.indexedFeasibility (n := fun _ : ℕ => 1) CQ Decoder.nat
+      (fun _ => 1) (fun _ => 1) (fun _ => 1) (fun _ => 0) (fun _ => 0)
+      (.const 1) (.const 1) (.const 1) (.const 0) (.const 0)
+      (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp)
+      (fun _ _ _ => by simp) (fun _ _ _ => by simp) (fun _ _ _ => le_rfl) (fun _ _ _ => le_rfl)
+    system.evaluate ∈ CountingFunction 1 (encEvaluation encNat) encNat ∧
+      (system.cutoff w < p → system.evaluate (w, p, z) =
+        ((z.getD 0 0 : ZMod p) ^ 2 + ((z.getD 1 0 : ZMod p) ^ 2 - 1) ^ 2).val) ∧
+      ∃ z : Fin 2 → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+        (indexedFeasibilityPolynomial (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+          (fun _ => 1) 1 1) = 0 := by
+  intro CP CQ system
+  refine ⟨system.evaluate_mem, fun hcut => ?_, ?_⟩
+  · rw [system.evaluate_eq w p z hp hcut, evaluation,
+      eval₂_indexedFeasibilityPolynomial (n := 1) _ (fun _ => X 0) (fun _ => 1) 1 1]
+    simp [List.getD_eq_getElem?_getD]
+  · apply (exists_indexedFeasibilityPolynomial_zero_iff (n := 1)
+      (fun _ => X 0) (fun _ => 1) 1 1).mpr
+    exact ⟨fun _ => 0, fun _ _ => by simp, fun _ _ => by simp⟩
+
+-- The system x = 0, x > 0 has no real zero even with an auxiliary coordinate.
+example :
+    ¬ ∃ z : Fin 2 → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+      (indexedFeasibilityPolynomial (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (fun _ => X 0) 1 1) = 0 := by
+  intro h
+  obtain ⟨x, he, hq⟩ :=
+    (exists_indexedFeasibilityPolynomial_zero_iff (n := 1) (fun _ => X 0) (fun _ => X 0) 1 1).mp h
+  exact (ne_of_gt (hq 0 (by decide))) (he 0 (by decide))
+
+-- The selection system has a level-21 evaluator for every word.
+-- A nonzero constant source cannot gain a zero from its fingerprint or auxiliary variables.
+example (word : List Bool) :
+    let F : MvPolynomial (Fin 1) ℤ := 1
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let C : Controlled (fun _ : List Bool => F) encBits 0 :=
+      Controlled.constant (.const 1) (fun _ => 1) (.const 1)
+    let system := C.selectionFeasibility (n := fun _ : List Bool => 1) (d := fun _ => 1)
+      Decoder.bits (fun _ => by decide) (fun _ => by decide) (fun _ => hF) (.const 1)
+      id ComputableInPolyTime.id'
+    system.evaluate ∈ CountingFunction 21 (encEvaluation encBits) encNat ∧
+      ¬ ∃ z : Fin 2 → ℝ,
+        MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+          (selectionFeasibilityPolynomial (d := 1) F hF (C.massExponent word) (by decide) word)
+          = 0 := by
+  intro F hF C system
+  refine ⟨system.evaluate_mem, fun hz => ?_⟩
+  obtain ⟨_, hzero, _, _⟩ :=
+    (exists_selectionFeasibilityPolynomial_zero_iff (d := 1) F hF
+      (C.massExponent word) (by decide) word).mp hz
+  simp [F] at hzero
+
+-- The first parameter coordinate is unused, and the two remaining blocks retain their values.
+example :
+    let P : MvPolynomial (Fin (2 + 1)) ℤ := X (Fin.castAdd 1 1) + 2 * X (Fin.natAdd 2 0)
+    let c (i : Fin (1 + 1)) : ℤ := if i = 0 then 99 else 3
+    let z (i : Fin 2) : ℤ := if i = 0 then 10 else 20
+    MvPolynomial.eval₂ (RingHom.id ℤ) (Fin.addCases c z)
+      (counterexamplePolynomial (n := 2) (m := 1) P) = 26 := by
+  intro P c z
+  rw [eval₂_counterexamplePolynomial]
+  norm_num [P, c, z, MvPolynomial.eval₂_add, MvPolynomial.eval₂_mul, MvPolynomial.eval₂_X]
+  decide
+
+-- The reordered evaluator is available at the original counting level.
+example (P : MvPolynomial (Fin (2 + 1)) ℤ) (a : ℕ)
+    (C : Controlled (fun _ : List Bool => P) encBits a) :
+    (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate ∈
+      CountingFunction a (encEvaluation encBits) encNat :=
+  (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate_mem
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

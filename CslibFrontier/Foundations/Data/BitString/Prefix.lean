@@ -55,8 +55,7 @@ namespace Cslib.BitString
 theorem restrictBitsAddHom_eq_zeroExtend {q M : ℕ} (hM : M ≤ q) (v : BitString q) :
     restrictBitsAddHom hM v = zeroExtend (d' := M) v := by
   funext j
-  have hj : j.val < q := lt_of_lt_of_le j.isLt hM
-  simp [restrictBitsAddHom, zeroExtend, hj, Fin.castLE]
+  simp [restrictBitsAddHom, zeroExtend, j.isLt.trans_le hM, Fin.castLE]
 
 /-- Zero-extending an `M`-bit string to `q ≥ M` bits is a right inverse to
 `restrictBitsAddHom hM`. -/
@@ -79,21 +78,16 @@ theorem val_equivFin_eq_div_mod_of_testBit {d s N : ℕ} {z : BitString d}
   refine Nat.eq_of_testBit_eq fun i => ?_
   rw [Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow]
   by_cases hi : i < d
-  · rw [testBit_equivFin z ⟨i, hi⟩, hz, Nat.add_comm s i]
-    simp [hi]
-  · simp only [hi, decide_false, Bool.false_and]
-    exact Nat.testBit_lt_two_pow
+  · simpa [hi, Nat.add_comm s i] using (testBit_equivFin z ⟨i, hi⟩).trans (hz ⟨i, hi⟩)
+  · simpa [hi] using Nat.testBit_lt_two_pow
       ((equivFin d z).isLt.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
 
 /-- Taking the first `M ≤ q` bits of `v : BitString q` corresponds to taking its unsigned integer
 value modulo `2 ^ M`. -/
 theorem val_equivFin_restrictBitsAddHom {q M : ℕ} (hM : M ≤ q) (v : BitString q) :
     (equivFin M (restrictBitsAddHom hM v)).val = (equivFin q v).val % 2 ^ M := by
-  rw [val_equivFin_eq_div_mod_of_testBit (s := 0) (N := equivFin q v)
-    (z := restrictBitsAddHom hM v) fun i => ?_]
-  · simp
-  · rw [Nat.zero_add]
-    exact (testBit_equivFin v (Fin.castLE hM i)).symm
+  simpa using val_equivFin_eq_div_mod_of_testBit (s := 0) (N := equivFin q v) fun i => by
+    simpa [restrictBitsAddHom] using (testBit_equivFin v (Fin.castLE hM i)).symm
 
 /-- Taking the `M`-bit prefix of `v : BitString q` via `zeroExtend` when `M ≤ q` reduces its
 unsigned integer value modulo `2 ^ M`. -/

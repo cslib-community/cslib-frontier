@@ -98,12 +98,11 @@ theorem lookup_eq_some_iff_mem (h : (l.map Prod.fst).Nodup) :
   induction l with
   | nil => cases hm
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     obtain ⟨h1, h2⟩ := List.nodup_cons.1 h
-    rcases List.mem_cons.1 hm with h_eq | hm'
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h_eq
-      exact List.lookup_cons_self
-    · rw [lookup_cons_of_ne fun hk => h1 (List.mem_map.2 ⟨(k, b), hm', hk⟩)]
+    rcases List.mem_cons.1 hm with rfl | hm'
+    · exact List.lookup_cons_self
+    · obtain ⟨a₁, a₂⟩ := a
+      rw [lookup_cons_of_ne fun hk => h1 (List.mem_map.2 ⟨(k, b), hm', hk⟩)]
       exact ih h2 hm'
 
 end Lookup
@@ -257,9 +256,8 @@ theorem erase_cons : erase k (p :: l) = if p.1 = k then erase k l else p :: eras
   by_cases hp : p.1 = k <;> simp [erase, hp]
 
 /-- Erasure distributes over concatenation. -/
-@[simp, grind =] theorem erase_append : erase k (l₁ ++ l₂) = erase k l₁ ++ erase k l₂ := by
-  unfold erase
-  exact List.filter_append l₁ l₂
+@[simp, grind =] theorem erase_append : erase k (l₁ ++ l₂) = erase k l₁ ++ erase k l₂ :=
+  List.filter_append l₁ l₂
 
 /-- Erasure keeps exactly the entries whose key differs from the erased one. -/
 @[simp, grind =] theorem mem_erase_iff : p ∈ erase k l ↔ p ∈ l ∧ p.1 ≠ k := by
@@ -279,9 +277,8 @@ theorem erase_of_forall_ne (h : ∀ p ∈ l, p.1 ≠ k) : erase k l = l :=
   rcases hl : List.lookup k' l with _ | w
   · exact List.Sublist.lookup_eq_none List.filter_sublist hl
   · obtain ⟨l₁, l₂, rfl, hl₁⟩ := List.lookup_eq_some_iff.1 hl
-    refine List.lookup_eq_some_iff.2
-      ⟨erase k l₁, erase k l₂, ?_, fun p hp => hl₁ p (mem_erase_iff.1 hp).1⟩
-    simp only [erase_append, erase_cons, hne, ↓reduceIte]
+    exact List.lookup_eq_some_iff.2 ⟨erase k l₁, erase k l₂,
+      by simp [erase_cons, hne], fun p hp => hl₁ p (mem_erase_iff.1 hp).1⟩
 
 /-- Erasing an absent key is the identity. -/
 @[simp] theorem erase_of_lookup_eq_none (h : List.lookup k l = none) : erase k l = l :=
@@ -345,8 +342,7 @@ variable {l l₁ l₂ : List (α × β)} {k k' : α} {v : β} {p q : α × β}
 
 theorem insert_cons :
     insert k v (p :: l) =
-      if k < p.1 then (k, v) :: p :: l else if k = p.1 then (k, v) :: l else p :: insert k v l := by
-  obtain ⟨a₁, a₂⟩ := p
+      if k < p.1 then (k, v) :: p :: l else if k = p.1 then (k, v) :: l else p :: insert k v l :=
   rfl
 
 /-- An entry of `insert k v l` is the new entry or an entry of `l`. -/
@@ -408,9 +404,8 @@ other keys. -/
 /-- Lookup of the inserted key finds the new value, on any list. -/
 @[simp, grind =] theorem lookup_insert_self : List.lookup k (insert k v l) = some v := by
   induction l with
-  | nil => simp
+  | nil => exact List.lookup_cons_self
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
     split_ifs with h₁ h₂
     · exact List.lookup_cons_self
@@ -423,16 +418,11 @@ other keys. -/
   induction l with
   | nil => exact List.lookup_cons_of_ne hne
   | cons a l ih =>
-    obtain ⟨a₁, a₂⟩ := a
     rw [insert_cons]
-    dsimp only
     split_ifs with h₁ h₂
     · exact List.lookup_cons_of_ne hne
     · rw [List.lookup_cons_of_ne hne, List.lookup_cons_of_ne (h₂ ▸ hne)]
-    · by_cases hka : k' = a₁
-      · subst hka
-        rw [List.lookup_cons_self, List.lookup_cons_self]
-      · rw [List.lookup_cons_of_ne hka, List.lookup_cons_of_ne hka, ih]
+    · rw [List.lookup_cons, List.lookup_cons, ih]
 
 /-- On a sorted list, insertion keeps the length if the key was present and adds one
 otherwise. -/
@@ -444,18 +434,13 @@ theorem length_insert (h : l.IsSortedAssoc) :
     obtain ⟨a₁, a₂⟩ := a
     rw [List.isSortedAssoc_cons_iff] at h
     rw [insert_cons]
-    dsimp only
     by_cases h₁ : k < a₁
-    · rw [ite_eq_left h₁]
-      have hnone : List.lookup k ((a₁, a₂) :: l) = none :=
-        List.lookup_eq_none_of_forall_ne fun p hp =>
-          (List.mem_cons.1 hp).elim (fun hp => hp ▸ h₁.ne') fun hp => (h₁.trans (h.1 p hp)).ne'
-      simp [hnone]
-    · rw [ite_eq_right h₁]
-      by_cases h₂ : k = a₁
-      · subst h₂
-        simp
-      · simp only [h₂, ↓reduceIte, List.length_cons, ih h.2, List.lookup_cons_of_ne h₂]
+    · rw [ite_eq_left h₁, List.lookup_eq_none_of_forall_ne fun p hp =>
+        (List.mem_cons.1 hp).elim (fun hp => hp ▸ h₁.ne') fun hp => (h₁.trans (h.1 p hp)).ne']
+      rfl
+    · rcases Decidable.eq_or_ne k a₁ with rfl | h₂
+      · simp
+      · simp only [h₁, h₂, ↓reduceIte, List.length_cons, ih h.2, List.lookup_cons_of_ne h₂]
         split_ifs <;> rfl
 
 /-- Insertion skips a prefix whose keys are all below `k`. -/
@@ -480,14 +465,11 @@ theorem insert_append_of_forall_gt (h : ∀ p ∈ l₂, k < p.1) :
     insert k v (l₁ ++ l₂) = insert k v l₁ ++ l₂ := by
   induction l₁ with
   | nil =>
-    cases l₂ with
-    | nil => rfl
-    | cons b l₂ =>
-      obtain ⟨b₁, b₂⟩ := b
-      simp only [List.nil_append, insert_nil, insert_cons, h _ List.mem_cons_self, ↓reduceIte,
+    rcases l₂ with _ | ⟨⟨b₁, b₂⟩, l₂⟩
+    · rfl
+    · simp only [List.nil_append, insert_nil, insert_cons, h _ List.mem_cons_self, ↓reduceIte,
         List.cons_append]
   | cons a l₁ ih =>
-    obtain ⟨a₁, a₂⟩ := a
     simp only [List.cons_append, insert_cons]
     split_ifs <;> simp only [List.cons_append, ih]
 
@@ -584,8 +566,7 @@ theorem range_def {lo hi : α} : range lo hi l = l.filter fun p => lo ≤ p.1 �
 /-- The range is empty exactly when every entry lies outside the closed interval. -/
 @[simp] theorem range_eq_nil_iff {lo hi : α} :
     range lo hi l = [] ↔ ∀ p ∈ l, p.1 < lo ∨ hi < p.1 := by
-  simp only [range, List.filter_eq_nil_iff, decide_eq_true_eq]
-  grind
+  simp only [range, List.filter_eq_nil_iff, decide_eq_true_eq]; grind
 
 theorem rank_def : rank k l = (l.filter fun p => p.1 < k).length := rfl
 
@@ -616,9 +597,8 @@ theorem isSortedAssoc_range {lo hi : α} (h : l.IsSortedAssoc) :
 
 /-- Range restriction distributes over concatenation. -/
 @[simp, grind =] theorem range_append {lo hi : α} :
-    range lo hi (l₁ ++ l₂) = range lo hi l₁ ++ range lo hi l₂ := by
-  unfold range
-  exact List.filter_append l₁ l₂
+    range lo hi (l₁ ++ l₂) = range lo hi l₁ ++ range lo hi l₂ :=
+  List.filter_append l₁ l₂
 
 /-- Rank is additive over concatenation. -/
 @[simp, grind =] theorem rank_append : rank k (l₁ ++ l₂) = rank k l₁ + rank k l₂ := by
@@ -631,7 +611,6 @@ theorem rank_eq_length_takeWhile (h : l.IsSortedAssoc) :
   | nil => rfl
   | cons a l ih =>
     rw [List.isSortedAssoc_cons_iff] at h
-    rw [rank_cons, List.takeWhile_cons]
     by_cases ha : a.1 < k
     · simp [ha, ih h.2]
     · simp [ha, rank_eq_zero_iff.2 fun q hq => (not_lt.1 ha).trans (h.1 q hq).le]

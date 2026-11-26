@@ -196,7 +196,7 @@ theorem fastDeleteShrinkGenProg_fastStep {c U V w n_max base b loc_last : ℕ}
   unfold fastDeleteShrinkGenProg fastDeleteShrink
   simp only [cp, wp_large_capFront hth, pure_bind]
   by_cases hcf : capFrontWhp n_max ≤ loc_last
-  · simp only [hcf, ↓reduceIte]
+  · simp only [hcf, ↓reduceIte, delShrinkBackyardProg.eq_1, wp_large_capFront hth, pure_bind]
     have hk : loc_last - capFrontWhp n_max < capBackWhp n_max := by
       unfold totalLocalCoordsWhp at hll; omega
     obtain ⟨hbp_lt, htop_lt⟩ := hcf_fn hcf
@@ -217,44 +217,26 @@ theorem fastDeleteShrinkGenProg_fastStep {c U V w n_max base b loc_last : ℕ}
       (by intro h; cases h) hws_step.2.1 hws_step.2.2.1
       (val := fs2.poolFreeTop + 1) (s := s3)
     dsimp only [updateFastHdr] at hwh_step
-    have hs'_eq : (Memory.spec 0).clientState s
-        (writeFastLocGenProg ((((cp, base), b), loc_last), 0) >>= fun _ =>
-          writeBktFieldGenProg ((((cp, base), b), 0), loc_last) >>= fun _ =>
-          delShrinkBackyardProg (((cp, base), b), loc_last)) =
-        (Memory.spec 0).clientState s3
-          (writeHdrProg ((base, hdrPoolFreeTop), fs2.poolFreeTop + 1)) := by
-      rw [clientState_bind, clientState_bind]
-      unfold delShrinkBackyardProg; dsimp only
-      simp only [cp, wp_large_capFront hth, pure_bind]
-      rw [clientState_bind, hrb_st, hrb_res, clientState_bind, hrh_st, hrh_res,
-        clientState_bind]
-    rw [hs'_eq]
-    refine ⟨?_, ?_, ((hwl_step.trans hwb_step).trans hws_step).trans hwh_step⟩
+    refine ⟨?_, ?_, ?_⟩
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      unfold delShrinkBackyardProg; dsimp only
-      simp only [wp_large_capFront hth, pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
       dsimp only [s1, s2, s3, cp]
         at hwl_mc hwb_mc hrb_st hrb_res hrb_mc hrh_st hrh_res hrh_mc hws_mc hwh_mc ⊢
       rw [hrb_st, hrb_res, hrb_mc, hrh_st, hrh_res, hrh_mc]; omega
-    · refine validProg_bind hwl_vp ?_
-      refine validProg_bind hwb_vp ?_
-      unfold delShrinkBackyardProg; dsimp only
-      simp only [wp_large_capFront hth, pure_bind]
-      refine validProg_bind hrb_vp ?_; rw [hrb_st, hrb_res]
-      refine validProg_bind hrh_vp ?_; rw [hrh_st, hrh_res]
+    · refine validProg_bind hwl_vp (validProg_bind hwb_vp (validProg_bind hrb_vp ?_))
+      rw [hrb_st, hrb_res]
+      refine validProg_bind hrh_vp ?_
+      rw [hrh_st, hrh_res]
       exact validProg_bind hws_vp hwh_vp
+    · rw [clientState_bind, clientState_bind, clientState_bind, hrb_st, hrb_res,
+        clientState_bind, hrh_st, hrh_res, clientState_bind]
+      exact ((hwl_step.trans hwb_step).trans hws_step).trans hwh_step
   · simp only [hcf, ↓reduceIte]
-    have hs'_eq : (Memory.spec 0).clientState s
-        (writeFastLocGenProg ((((cp, base), b), loc_last), 0) >>= fun _ =>
-          writeBktFieldGenProg ((((cp, base), b), 0), loc_last) >>= fun _ =>
-          pure ()) = s2 := by
-      rw [clientState_bind, clientState_bind]; rfl
-    rw [hs'_eq]
-    refine ⟨?_, ?_, hwl_step.trans hwb_step⟩
+    refine ⟨?_, validProg_bind hwl_vp (validProg_bind hwb_vp (validProg_pure _)), ?_⟩
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
       dsimp only [s1, cp] at hwl_mc hwb_mc ⊢
       omega
-    · exact validProg_bind hwl_vp (validProg_bind hwb_vp (validProg_pure _))
+    · rw [clientState_bind, clientState_bind]
+      exact hwl_step.trans hwb_step
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

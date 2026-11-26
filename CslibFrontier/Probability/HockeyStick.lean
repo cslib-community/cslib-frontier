@@ -119,11 +119,8 @@ theorem hockeyStick_ne_top (c : ℝ≥0∞) (p q : PMF α) : hockeyStick c p q �
 theorem toOuterMeasure_le_mul_add_hockeyStick (c : ℝ≥0∞) (p q : PMF α) (S : Set α) :
     p.toOuterMeasure S ≤ c * q.toOuterMeasure S + hockeyStick c p q := by
   calc p.toOuterMeasure S = ∑' a, S.indicator p a := _root_.PMF.toOuterMeasure_apply p S
-    _ ≤ ∑' a, (c * S.indicator q a + (p a - c * q a)) := by
-      refine tsum_le_tsum fun a => ?_
-      by_cases ha : a ∈ S
-      · simp only [Set.indicator_of_mem ha]; exact le_add_tsub
-      · simp [Set.indicator_of_notMem ha]
+    _ ≤ ∑' a, (c * S.indicator q a + (p a - c * q a)) :=
+      tsum_le_tsum fun a => by by_cases ha : a ∈ S <;> simp [ha, le_add_tsub]
     _ = c * q.toOuterMeasure S + hockeyStick c p q := by
       rw [tsum_add, ENNReal.tsum_mul_left, _root_.PMF.toOuterMeasure_apply, hockeyStick]
 
@@ -141,12 +138,10 @@ theorem forall_toOuterMeasure_le_iff_hockeyStick_le {c : ℝ≥0∞} (hc : c ≠
         ← ENNReal.tsum_mul_left, ← tsum_add]
       refine tsum_congr fun a => ?_
       by_cases ha : a ∈ T
-      · simp only [Set.indicator_of_mem ha]; exact (add_tsub_cancel_of_le ha.le).symm
-      · have hle : p a ≤ c * q a := not_lt.mp ha
-        simp only [Set.indicator_of_notMem ha, mul_zero, zero_add, tsub_eq_zero_of_le hle]
-    have hfin : c * q.toOuterMeasure T ≠ ⊤ :=
-      ENNReal.mul_ne_top hc (toOuterMeasure_ne_top q T)
-    exact (ENNReal.add_le_add_iff_left hfin).mp (by rw [← hsplit]; exact h T)
+      · simpa only [Set.indicator_of_mem ha] using (add_tsub_cancel_of_le ha.le).symm
+      · simpa [Set.indicator_of_notMem ha] using (tsub_eq_zero_of_le (not_lt.mp ha)).symm
+    exact (ENNReal.add_le_add_iff_left (ENNReal.mul_ne_top hc (toOuterMeasure_ne_top q T))).mp
+      (hsplit ▸ h T)
   · exact fun h S => (toOuterMeasure_le_mul_add_hockeyStick c p q S).trans (add_le_add le_rfl h)
 
 /-- The hockey-stick divergence vanishes if and only if `p` is pointwise bounded by `c · q`. -/
@@ -207,8 +202,7 @@ theorem hockeyStick_bind_le (c : ℝ≥0∞) (p q : PMF α) (K : α → PMF β) 
 /-- Deterministic post-processing cannot increase the hockey-stick divergence. -/
 theorem hockeyStick_map_le (c : ℝ≥0∞) (p q : PMF α) (f : α → β) :
     hockeyStick c (p.map f) (q.map f) ≤ hockeyStick c p q := by
-  rw [← _root_.PMF.bind_pure_comp, ← _root_.PMF.bind_pure_comp]
-  exact hockeyStick_bind_le c p q _
+  simpa only [_root_.PMF.bind_pure_comp] using hockeyStick_bind_le c p q (_root_.PMF.pure ∘ f)
 
 /-- **Multiplicative triangle inequality** (group privacy step): comparing `p` to `r` at factor
 `c₁ * c₂` is bounded by `hockeyStick c₁ p q + c₁ * hockeyStick c₂ q r`. -/
@@ -236,20 +230,18 @@ theorem hockeyStick_bind_pair_le {c₁ c₂ : ℝ≥0∞} (hc₁ : c₁ ≠ ⊤)
   intro S
   have hsec (M : α → PMF β) (a : α) :
       ((M a).bind fun b => _root_.PMF.pure (a, b)).toOuterMeasure S =
-        (M a).toOuterMeasure (Prod.mk a ⁻¹' S) := by
-    rw [← _root_.PMF.toOuterMeasure_map_apply]
-    rfl
+        (M a).toOuterMeasure (Prod.mk a ⁻¹' S) :=
+    _root_.PMF.toOuterMeasure_map_apply (Prod.mk a) (M a) S
   simp only [_root_.PMF.toOuterMeasure_bind_apply, hsec]
   set A : α → ℝ≥0∞ := fun a => (K a).toOuterMeasure (Prod.mk a ⁻¹' S)
   set B : α → ℝ≥0∞ := fun a => (L a).toOuterMeasure (Prod.mk a ⁻¹' S)
   have hA (a : α) : p a * A a ≤ p a * (min 1 (c₂ * B a) + δ₂) := by
     by_cases h0 : p a = 0
     · simp [h0]
-    gcongr
     rw [← min_add_add_right]
-    exact le_min ((toOuterMeasure_le_one _ _).trans le_self_add)
+    exact mul_le_mul_of_nonneg_left (le_min ((toOuterMeasure_le_one _ _).trans le_self_add)
       ((toOuterMeasure_le_mul_add_hockeyStick c₂ (K a) (L a) _).trans
-        (add_le_add le_rfl (hKL a h0)))
+        (add_le_add le_rfl (hKL a h0)))) zero_le
   calc ∑' a, p a * A a
       ≤ ∑' a, (p a * min 1 (c₂ * B a) + p a * δ₂) :=
         tsum_le_tsum fun a => by rw [← mul_add]; exact hA a
@@ -260,9 +252,7 @@ theorem hockeyStick_bind_pair_le {c₁ c₂ : ℝ≥0∞} (hc₁ : c₁ ≠ ⊤)
     _ ≤ (c₁ * ∑' a, q a * (c₂ * B a) + hockeyStick c₁ p q) + δ₂ := by
         gcongr with a; exact min_le_right _ _
     _ = c₁ * c₂ * ∑' a, q a * B a + (hockeyStick c₁ p q + δ₂) := by
-        rw [add_assoc]
-        congr 1
-        simp only [mul_left_comm _ c₂, ENNReal.tsum_mul_left, mul_assoc]
+        simp only [add_assoc, mul_left_comm _ c₂, ENNReal.tsum_mul_left, mul_assoc]
 
 /-- **Markov conversion** for `PMF`s: `hockeyStick (exp ε') p q` is bounded by `exp (-t ε')` times
 the power-ratio moment `∑' a, p a · (p a / q a) ^ t`. -/
@@ -278,10 +268,9 @@ section Subprob
 private theorem min_le_mul_min {c : ℝ≥0∞} (hc : 1 ≤ c) (x y : ℝ≥0∞) :
     min y (c * x) ≤ c * min x (c * y) := by
   rcases le_total x (c * y) with h | h
-  · rw [min_eq_left h]
-    exact min_le_right _ _
-  · rw [min_eq_right h]
-    exact (min_le_left _ _).trans ((le_mul_of_one_le_left' hc).trans (le_mul_of_one_le_left' hc))
+  · simpa only [min_eq_left h] using min_le_right y (c * x)
+  · simpa only [min_eq_right h] using (min_le_left y (c * x)).trans
+      ((le_mul_of_one_le_left' hc).trans (le_mul_of_one_le_left' hc))
 
 private theorem exists_mix {P : α → ℝ≥0∞} {c : ℝ≥0∞} (hc : 1 ≤ c) (p₀ q₀ : α → ℝ≥0∞)
     (hp₀ : ∀ a, p₀ a ≤ P a) (hpq : ∀ a, p₀ a ≤ c * q₀ a) (hqp : ∀ a, q₀ a ≤ c * p₀ a)
@@ -305,11 +294,10 @@ private theorem exists_mix {P : α → ℝ≥0∞} {c : ℝ≥0∞} (hc : 1 ≤ 
   have hsden : s * (mp.toReal - mu.toReal) = mp.toReal - mq.toReal := div_mul_cancel₀ _ hden.ne'
   have hθ : ENNReal.ofReal (1 - s) + ENNReal.ofReal s = 1 := by
     rw [← ENNReal.ofReal_add (by linarith) hs0, sub_add_cancel, ENNReal.ofReal_one]
-  have hcu : ∀ a, q₀ a ≤ c * u a := fun a => by
-    change q₀ a ≤ c * min (p₀ a) (q₀ a)
+  have hcu (a : α) : q₀ a ≤ c * u a := by
     rcases le_total (p₀ a) (q₀ a) with h | h
-    · rw [min_eq_left h]; exact hqp a
-    · rw [min_eq_right h]; exact le_mul_of_one_le_left' hc
+    · simpa only [u, min_eq_left h] using hqp a
+    · simpa only [u, min_eq_right h] using le_mul_of_one_le_left' hc
   refine ⟨fun a => ENNReal.ofReal (1 - s) * p₀ a + ENNReal.ofReal s * u a, fun a => ?_,
     fun a => ?_, fun a => ?_, ?_⟩
   · calc ENNReal.ofReal (1 - s) * p₀ a + ENNReal.ofReal s * u a
@@ -352,13 +340,10 @@ theorem exists_subprob_of_hockeyStick_le (P Q : PMF α) {c : ℝ≥0∞} (hc : 1
   rcases le_or_gt (∑' a, min (P a) (c * Q a)) (∑' a, min (Q a) (c * P a)) with hle | hlt
   · exact ⟨_, _, fun a => min_le_left _ _, fun a => min_le_left _ _, hpq, hqp, hle,
       hmass P Q hPQ⟩
-  · have hfin : ∑' a, min (P a) (c * Q a) ≠ ⊤ :=
-      ne_top_of_le_ne_top ENNReal.one_ne_top
-        ((tsum_le_tsum fun a => min_le_left _ _).trans P.tsum_coe.le)
-    obtain ⟨p, hpP, hpq', hqp', hsum⟩ := exists_mix hc _ _ (fun a => min_le_left _ _) hpq hqp
-      hfin hlt
-    refine ⟨p, _, hpP, fun a => min_le_left _ _, hpq', hqp', hsum.le, ?_⟩
-    exact hsum ▸ hmass Q P hQP
+  · obtain ⟨p, hpP, hpq', hqp', hsum⟩ := exists_mix hc _ _ (fun a => min_le_left _ _) hpq hqp
+      (ne_top_of_le_ne_top ENNReal.one_ne_top
+        ((tsum_le_tsum fun a => min_le_left _ _).trans P.tsum_coe.le)) hlt
+    exact ⟨p, _, hpP, fun a => min_le_left _ _, hpq', hqp', hsum.le, hsum ▸ hmass Q P hQP⟩
 
 end Subprob
 

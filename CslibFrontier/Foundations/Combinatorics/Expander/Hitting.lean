@@ -111,11 +111,11 @@ theorem expect_prod_walkAt (t : ℕ) (h : ℕ → V → ℝ) (v : V) :
   induction t generalizing h v with
   | zero => simp
   | succ t ih =>
-    rw [Fin.expect_univ_cons, weightedWalk_succ, Pi.mul_apply, walk_apply, mul_expect]
-    refine expect_congr rfl fun a _ => ?_
-    simp only [prod_range_succ' _ (t + 1), walkAt_cons_succ, walkAt_zero,
-      ← expect_mul, ih (fun i => h (i + 1))]
-    exact mul_comm _ _
+    rw [Fin.expect_univ_cons, weightedWalk_succ, Pi.mul_apply, walk_apply, mul_comm (h 0 v),
+      expect_mul]
+    exact expect_congr rfl fun a _ => by
+      simp only [prod_range_succ' _ (t + 1), walkAt_cons_succ, walkAt_zero, ← expect_mul,
+        ih (fun i => h (i + 1))]
 
 /-- The average of the weighted walk is the expected product of the weights along a uniformly
 random walk. -/
@@ -141,20 +141,17 @@ theorem expect_walk_sub_one_sub_spectralExpansion_sq_le [Nonempty V] [Nonempty D
   set w : V → ℝ := G.walk (fun v => x v - α)
   have hw₀ : 𝔼 v, (x v - α) = 0 := Fintype.expect_balance x
   have hyw (v : V) : G.walk x v - (1 - ℓ) * α = ℓ * α + w v := by
-    have : G.walk x = (fun _ => α) + w := by
-      rw [← G.walk_const α, ← map_add]
-      exact congrArg G.walk (funext fun _ => by simp)
-    rw [this, Pi.add_apply]
-    ring
+    have hw : w v = G.walk x v - α := by
+      simpa [w, Pi.sub_def] using congrFun (map_sub G.walk x (fun _ => α)) v
+    linarith
   have hvar : 𝔼 v, (x v - α) ^ 2 = 𝔼 v, x v ^ 2 - α ^ 2 := by
-    simp_rw [show ∀ v, (x v - α) ^ 2 = x v ^ 2 - 2 * α * x v + α ^ 2 from fun _ => by ring,
-      expect_add_distrib, expect_sub_distrib, ← mul_expect, Fintype.expect_const]
+    simp_rw [sub_sq, expect_add_distrib, expect_sub_distrib, mul_assoc, ← mul_expect, ← expect_mul,
+      Fintype.expect_const]
     ring
   calc 𝔼 v, (G.walk x v - (1 - ℓ) * α) ^ 2
       = ℓ ^ 2 * α ^ 2 + 2 * (ℓ * α) * 𝔼 v, w v + 𝔼 v, w v ^ 2 := by
-        simp_rw [hyw, show ∀ v, (ℓ * α + w v) ^ 2 =
-          ℓ ^ 2 * α ^ 2 + 2 * (ℓ * α) * w v + w v ^ 2 from fun _ => by ring,
-          expect_add_distrib, ← mul_expect, Fintype.expect_const]
+        simp_rw [hyw, add_sq, expect_add_distrib, mul_assoc, ← mul_expect, Fintype.expect_const]
+        ring
     _ ≤ ℓ ^ 2 * α ^ 2 + 2 * (ℓ * α) * 0 + ℓ ^ 2 * (𝔼 v, x v ^ 2 - α ^ 2) := by
         rw [G.expect_walk_eq_zero hw₀, ← hvar]
         gcongr
@@ -175,8 +172,9 @@ theorem expect_ite_mem_walk_sq_le [Nonempty D] {B C : Finset V} {μ : ℝ} (hB :
   set ℓ := G.spectralExpansion
   set α := 𝔼 v, x v
   have hμ : 0 ≤ μ := (by positivity : (0 : ℝ) ≤ dens B).trans hB
-  simp_rw [show ∀ v, (if v ∈ B then G.walk x v else 0) = (1 - ℓ) * (if v ∈ B then α else 0) +
-    1 * (if v ∈ B then G.walk x v - (1 - ℓ) * α else 0) from fun _ => by split_ifs <;> simp]
+  have hsplit (v : V) : (if v ∈ B then G.walk x v else 0) = (1 - ℓ) * (if v ∈ B then α else 0) +
+      1 * (if v ∈ B then G.walk x v - (1 - ℓ) * α else 0) := by split_ifs <;> simp
+  simp only [hsplit]
   refine (Fintype.expect_add_sq_le (by linarith [G.spectralExpansion_le_one]) zero_le_one hμ
     G.spectralExpansion_nonneg (expect_nonneg fun _ _ => sq_nonneg _) ?_ ?_).trans_eq (by ring)
   · calc 𝔼 v, (if v ∈ B then α else 0) ^ 2 = dens B * α ^ 2 := by
@@ -213,14 +211,19 @@ private theorem expect_weightedWalk_ite_sq_le [Nonempty D] {μ : ℝ} (t : ℕ) 
       using hB 0
   | succ t ih =>
     intro B hB
-    simp_rw [show ∀ v, G.weightedWalk (t + 1) (fun i v => if v ∈ B i then (1 : ℝ) else 0) v =
-      if v ∈ B 0 then G.walk (G.weightedWalk t
-        (fun i v => if v ∈ B (i + 1) then (1 : ℝ) else 0)) v else 0 from fun _ => by
+    have heq (v : V) : G.weightedWalk (t + 1) (fun i v => if v ∈ B i then (1 : ℝ) else 0) v =
+        if v ∈ B 0 then G.walk (G.weightedWalk t
+          (fun i v => if v ∈ B (i + 1) then (1 : ℝ) else 0)) v else 0 := by
       rw [weightedWalk_succ, Pi.mul_apply]
-      split_ifs <;> simp]
-    refine (G.expect_ite_mem_walk_sq_le (hB 0) (hB 1) fun _ =>
-      G.weightedWalk_ite_eq_zero_of_notMem t (fun i => B (i + 1))).trans ?_
-    exact (mul_le_mul_of_nonneg_left (ih _ fun i => hB (i + 1)) (sq_nonneg c)).trans_eq (by ring)
+      split_ifs <;> simp
+    simp only [heq]
+    calc _ ≤ c ^ 2 * 𝔼 v, G.weightedWalk t
+            (fun i v => if v ∈ B (i + 1) then (1 : ℝ) else 0) v ^ 2 :=
+          G.expect_ite_mem_walk_sq_le (hB 0) (hB 1) fun _ =>
+            G.weightedWalk_ite_eq_zero_of_notMem t (fun i => B (i + 1))
+      _ ≤ c ^ 2 * (c ^ (2 * t) * μ) :=
+          mul_le_mul_of_nonneg_left (ih _ fun i => hB (i + 1)) (sq_nonneg c)
+      _ = c ^ (2 * (t + 1)) * μ := by ring
 
 /-- **The hitting property of expander walks**, following [Vadhan, Theorem 4.17][Vadhan2012]
 (the sharp bound is due to [Kahale][Kahale1995]), with varying sets and the initial density
@@ -236,17 +239,19 @@ theorem dens_filter_forall_walkAt_mem_le [Nonempty D] {B : ℕ → Finset V} {μ
   have hμ : 0 ≤ μ := (by positivity : (0 : ℝ) ≤ dens (B 0)).trans (hB 0)
   have hc : 0 ≤ c := by have := G.spectralExpansion_le_one; positivity
   set h : ℕ → V → ℝ := fun i v => if v ∈ B i then 1 else 0
-  rw [show (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∈ B i} : ℝ) =
-      𝔼 v, G.weightedWalk t h v by
+  have hprob : (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∈ B i} : ℝ) =
+      𝔼 v, G.weightedWalk t h v := by
     rw [expect_weightedWalk, ← Fintype.expect_boole]
     exact expect_congr rfl fun _ _ => by
-      simp only [h, prod_ite_zero, prod_const_one, mem_range, Nat.lt_succ_iff]]
+      simp only [h, prod_ite_zero, prod_const_one, mem_range, Nat.lt_succ_iff]
+  rw [hprob]
   have hbound : (𝔼 v, G.weightedWalk t h v) ^ 2 ≤ (μ * c ^ t) ^ 2 :=
     (Fintype.sq_expect_le_dens_mul_expect_sq_of_eq_zero fun _ =>
       G.weightedWalk_ite_eq_zero_of_notMem t B).trans <|
       (mul_le_mul (hB 0) (G.expect_weightedWalk_ite_sq_le t B hB)
         (expect_nonneg fun _ _ => sq_nonneg _) hμ).trans_eq (by ring)
-  exact (abs_le_of_sq_le_sq' hbound (by positivity)).2.trans_eq (by ring)
+  calc 𝔼 v, G.weightedWalk t h v ≤ μ * c ^ t := (abs_le_of_sq_le_sq' hbound (by positivity)).2
+    _ = μ * (μ + ℓ * (1 - μ)) ^ t := by ring
 
 /-- The usual power form of the hitting bound: the probability that every vertex belongs to its
 specified set is at most `(μ + λ(G) (1 - μ)) ^ (t + 1)`. -/
@@ -255,22 +260,22 @@ theorem dens_filter_forall_walkAt_mem_le_pow [Nonempty D] {B : ℕ → Finset V}
     (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∈ B i} : ℝ) ≤
       (μ + G.spectralExpansion * (1 - μ)) ^ (t + 1) := by
   have hμ₀ : 0 ≤ μ := (by positivity : (0 : ℝ) ≤ dens (B 0)).trans (hB 0)
-  have hℓ := G.spectralExpansion_nonneg
   rw [pow_succ']
   refine (G.dens_filter_forall_walkAt_mem_le hB t).trans ?_
   gcongr
-  exact le_add_of_nonneg_right (mul_nonneg hℓ (sub_nonneg.mpr hμ))
+  exact le_add_of_nonneg_right (mul_nonneg G.spectralExpansion_nonneg (sub_nonneg.mpr hμ))
 
 /-- A uniformly started walk misses a set of density `δ` with probability at most
 `(1 - δ) (1 - (1 - λ(G)) δ) ^ t`. -/
 theorem dens_filter_forall_walkAt_notMem_le [Nonempty V] [Nonempty D] (A : Finset V) (t : ℕ) :
     (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∉ A} : ℝ) ≤
       (1 - (dens A : ℝ)) * (1 - (1 - G.spectralExpansion) * (dens A : ℝ)) ^ t := by
-  have hsum : (dens Aᶜ : ℝ) + dens A = 1 := by
-    exact_mod_cast (by simpa only [compl_eq_univ_sdiff, dens_univ] using
-      dens_sdiff_add_dens_eq_dens (subset_univ A) : dens Aᶜ + dens A = 1)
-  simpa only [mem_compl, show 1 - (dens A : ℝ) + G.spectralExpansion * (1 - (1 - dens A)) =
-    1 - (1 - G.spectralExpansion) * dens A by ring] using
+  have hsum : (dens Aᶜ : ℝ) + dens A = 1 :=
+    mod_cast (compl_eq_univ_sdiff (s := A) ▸
+      (dens_sdiff_add_dens_eq_dens (subset_univ A)).trans dens_univ)
+  have hring : 1 - (dens A : ℝ) + G.spectralExpansion * (1 - (1 - dens A)) =
+      1 - (1 - G.spectralExpansion) * dens A := by ring
+  simpa only [mem_compl, hring] using
     G.dens_filter_forall_walkAt_mem_le (B := fun _ => Aᶜ) (μ := 1 - dens A)
       (fun _ => by linarith) t
 

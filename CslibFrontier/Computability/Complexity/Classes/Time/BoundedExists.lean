@@ -70,19 +70,15 @@ theorem exists_computableInO_any_enumList {β : Type} {encB : β ↪ List Bool}
   let S := fun p : β × ℕ => c * (size p + 1) ^ d
   have hT : PolyBounded size T := PolyBounded.of_forall_le a b fun _ => le_rfl
   have hS : PolyBounded size S := PolyBounded.of_forall_le c d fun _ => le_rfl
+  have hlen_eq (p : β × ℕ) (w : List Bool) (hw : w.length = p.2) :
+      (encPair encB encBits (p.1, w)).length = size p := by
+    simp [size, hw]
   obtain ⟨overhead, ho, h⟩ := hf.exists_bits (T := T) (S := S)
-    (fun p w hw => by
-      apply (ht (p.1, w)).trans_eq
-      simp only [T, size, length_encPair, encBits_apply, encUnary_apply,
-        List.length_replicate, hw])
-    (fun p w hw => by
-      apply (hs (p.1, w)).trans_eq
-      simp only [S, size, length_encPair, encBits_apply, encUnary_apply,
-        List.length_replicate, hw])
+    (fun p w hw => (ht (p.1, w)).trans_eq (congrArg (fun n => a * (n + 1) ^ b) (hlen_eq p w hw)))
+    (fun p w hw => (hs (p.1, w)).trans_eq (congrArg (fun n => c * (n + 1) ^ d) (hlen_eq p w hw)))
   obtain ⟨C, hC⟩ := PolyBounded.exists_le_mul_two_pow ((ho.add hT).add hS)
-  have hin : ComputableInPolyTime (fun x => (x, ℓ x)) encB (encPair encB encUnary) :=
-    ComputableInPolyTime.id'.prod hℓ
-  obtain ⟨Ti, Si, hTi, hSi, hi⟩ := hin.exists_computableInO
+  obtain ⟨Ti, Si, hTi, hSi, hi⟩ :=
+    (ComputableInPolyTime.id'.prod hℓ).exists_computableInO
   obtain ⟨CI, hCI⟩ := PolyBounded.exists_le_mul_two_pow hTi
   obtain ⟨CJ, hCJ⟩ := PolyBounded.exists_le_mul_two_pow hSi
   refine ⟨3, (h.comp hi).mono (8 * (CI + CJ + C + 1)) (fun x => ?_) (fun x => ?_)⟩

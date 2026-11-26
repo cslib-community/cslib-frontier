@@ -135,9 +135,7 @@ private theorem abs_sum_filter_mul_eval_le (A : Finset ι → Prop) (d : (ι →
               d z * g ((cond b t₁ t₀).eval z) := by
         rw [filter_congr fun z _ => hcube b z]
         refine sum_congr rfl fun z hz => ?_
-        have hzi : z i = b := by
-          simpa using (mem_filter.1 hz).2 i (mem_insert_self i P)
-        simp only [eval_node, hzi]
+        simp only [eval_node, ((hcube b z).2 (mem_filter.1 hz).2).2]
         cases b <;> rfl
       have hsub (b : Bool) : ∀ z, (∀ j ∈ insert i P, z j = Function.update a i b j) →
           A (insert i P ∪ (cond b t₁ t₀).queries z) ∧
@@ -151,12 +149,10 @@ private theorem abs_sum_filter_mul_eval_le (A : Finset ι → Prop) (d : (ι →
           cases b <;> exact ⟨rfl, rfl⟩
         rw [hq.1, union_insert, ← insert_union] at hA
         refine ⟨hA, ?_, hq.2 ▸ hg⟩
-        rw [hq.1, insert_sdiff_of_notMem _ hi] at hk
         have hsd : insert i ((cond b t₁ t₀).queries z \ P) =
-            insert i ((cond b t₁ t₀).queries z \ insert i P) := by
-          ext j
-          by_cases hj : j = i <;> simp [hj]
-        rw [hsd, card_insert_of_notMem (by simp)] at hk
+            insert i ((cond b t₁ t₀).queries z \ insert i P) :=
+          Finset.ext fun j => by by_cases hj : j = i <;> simp [hj]
+        rw [hq.1, insert_sdiff_of_notMem _ hi, hsd, card_insert_of_notMem (by simp)] at hk
         omega
       have hsplit := sum_filter_add_sum_filter_not
         (({z | ∀ j ∈ P, z j = a j} : Finset (ι → Bool))) (fun z => z i = true)
@@ -225,10 +221,9 @@ theorem abs_map_eval_apply_sub_le {X : PMF (ι → Bool)} {t : ℕ} {ε : ℝ}
     |((X.map T.eval) true).toReal -
         (((PMF.uniformOfFintype (ι → Bool)).map T.eval) true).toReal| ≤ 2 ^ t * ε := by
   rw [map_eval_apply_toReal_sub]
-  have h := abs_sum_mul_eval_le (fun P => #P ≤ t) _
+  simpa using abs_sum_mul_eval_le (fun P => #P ≤ t) _
     (abs_sum_filter_sub_le_of_dist_map_restrict_le ht hX) T hT hT
     (fun c => if true = c then (1 : ℝ) else 0) (C := 1) fun z => by split_ifs <;> simp
-  rwa [one_mul] at h
 
 /-- **Adaptive tests of almost `t`-wise independence** [Goldreich, Exercise 8.32(2)]
 [Goldreich2007DraftR4]. If every `t` fixed positions of `X` are `ε`-close to uniform, then every
@@ -268,12 +263,9 @@ private theorem sum_filter_uniformOfFintype_map {Ω : Type*} [Fintype Ω] [Nonem
     ∑ z with ∀ i ∈ P, z i = a i, (((PMF.uniformOfFintype Ω).map u) z).toReal =
       𝔼 s, if ∀ i ∈ P, u s i = a i then (1 : ℝ) else 0 := by
   classical
-  rw [sum_filter]
-  rw [sum_congr rfl fun z _ => (mul_boole (∀ i ∈ P, z i = a i)
-    (((PMF.uniformOfFintype Ω).map u) z).toReal).symm]
-  have h := Probability.PMF.sum_map_mul (PMF.uniformOfFintype Ω) u
-    fun z => if ∀ i ∈ P, z i = a i then (1 : ℝ) else 0
-  rw [h]
+  rw [sum_filter, sum_congr rfl fun z _ => (mul_boole (∀ i ∈ P, z i = a i)
+      (((PMF.uniformOfFintype Ω).map u) z).toReal).symm,
+    Probability.PMF.sum_map_mul]
   simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
     Fintype.expect_eq_sum_div_card, inv_mul_eq_div, sum_div]
 
@@ -299,8 +291,8 @@ private theorem sum_filter_eq (hG : IsKWiseIndependentHash t G) (P : Finset (Pos
   rw [sum_sub_distrib, ← Probability.PMF.uniformOfFintype_map_equiv (Equiv.curry Pos κ Bool).symm,
     sum_filter_uniformOfFintype_map, sum_filter_uniformOfFintype_map]
   simp only [Equiv.curry_symm_apply]
-  have hid := expect_cube_eq (f := id) (isKWiseIndependentHash_id t) P hP a
-  simp only [id] at hid
+  have hid : (𝔼 s, if ∀ i ∈ P, Function.uncurry s i = a i then (1 : ℝ) else 0) = _ :=
+    expect_cube_eq (isKWiseIndependentHash_id t) P hP a
   rw [expect_cube_eq hG P hP, hid, sub_self]
 
 /-- **`t`-wise independent generators fool adaptive block tests, deterministic case.** If `G` is a
@@ -317,12 +309,10 @@ theorem map_eval_eq (hG : IsKWiseIndependentHash t G) (T : DecisionTree (Pos × 
   ext b
   rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
     ← sub_eq_zero, DecisionTree.map_eval_apply_toReal_sub]
-  have h := DecisionTree.abs_sum_mul_eval_le (fun P => #(P.image Prod.fst) ≤ t) _
-    (fun P hP a => by rw [sum_filter_eq hG P hP a, abs_zero]) T hT
-    (fun z => card_le_univ _) (fun c => if b = c then (1 : ℝ) else 0) (C := 1)
-    fun z => by split_ifs <;> simp
-  rw [mul_zero, mul_zero] at h
-  exact abs_nonpos_iff.1 h
+  exact abs_nonpos_iff.1 <| (DecisionTree.abs_sum_mul_eval_le (fun P => #(P.image Prod.fst) ≤ t) _
+    (fun P hP a => by rw [sum_filter_eq hG P hP a, abs_zero]) T hT (fun _ => card_le_univ _)
+    (fun c => if b = c then (1 : ℝ) else 0) (C := 1)
+    fun _ => by split_ifs <;> simp).trans_eq (mul_eq_zero_of_right _ (mul_zero 1))
 
 /-- **`t`-wise independent generators fool adaptive tests of `t` blocks**
 [Goldreich, Exercise 8.29][Goldreich2007DraftR4]. Let `G` be a `t`-wise independent generator:

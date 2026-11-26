@@ -92,23 +92,20 @@ theorem exists_three_mul_card_toMINKTStar_mem_le (Δ k : ℕ) (hk : Odd k) {δ�
   obtain ⟨lam₀, hlam₀, h⟩ := exists_three_mul_card_le_of_card_le_two_pow Δ k hk hδ₀ hδ₀' hkδ 6
     (4 * Δ + 4 + c) (by exact_mod_cast hg)
   refine ⟨lam₀, hlam₀, fun I hI lam hlam t => ?_⟩
-  obtain ⟨hwf, -, -⟩ := mem_no_GapCMMSA_one.1 hI
-  have hθ : 1 ≤ I.threshold := hwf.threshold_pos
   set N := (CMMSAInstance.encoding I).length
   set s := GenWitness.sizeBound Δ I lam + c
   let F := Finset.univ.filter fun h : BooleanFunction (inputLength I Δ k lam) =>
     timeBoundedAt t (List.ofFn fun i => h ((BitString.equivFin _).symm i)) ≤ s
-  have hF : #F ≤ 2 ^ (6 * I.threshold * lam + (4 * Δ + 4 + c) * (N + 1)) := by
-    refine (card_filter_timeBoundedAt_truthTable_le_lt _ t s).le.trans
-      (Nat.pow_le_pow_right two_pos ?_)
-    have hθlam : lam ≤ I.threshold * lam := Nat.le_mul_of_pos_left _ hθ
-    simp only [s, GenWitness.sizeBound]
-    nlinarith
+  have hF : #F ≤ 2 ^ (6 * I.threshold * lam + (4 * Δ + 4 + c) * (N + 1)) :=
+    (card_filter_timeBoundedAt_truthTable_le_lt _ t s).le.trans <| Nat.pow_le_pow_right two_pos <|
+      by
+        have := Nat.le_mul_of_pos_left lam (mem_no_GapCMMSA_one.1 hI).1.threshold_pos
+        simp only [s, GenWitness.sizeBound]; nlinarith
   refine h I hI N (CMMSAInstance.length_formulas_le I) (CMMSAInstance.length_weights_le I)
     (fun w hw => CMMSAInstance.le_of_mem_weights I hw) lam hlam F hF _ fun f hf => ?_
   obtain ⟨h', hagree, hK⟩ := mk_ofFn_mem_iff_exists_booleanFunction.1 hf
-  refine ⟨h', Finset.mem_filter.2 ⟨Finset.mem_univ _, hK⟩, fun x b hx => ?_⟩
-  simpa using hagree (BitString.equivFin _ x) b (by simpa using hx)
+  exact ⟨h', Finset.mem_filter.2 ⟨Finset.mem_univ _, hK⟩,
+    fun x b hx => by simpa using hagree (BitString.equivFin _ x) b (by simpa using hx)⟩
 
 /-- **`GapCMMSA` reduces to `MINKT*`** by a polynomial-time randomized reduction with one-sided
 error, for an odd `k`, a bias `δ₀ ≤ 1/2` with `(1 - 2 δ₀)^k ≤ 1/(2 Δ²)` and a gap with
@@ -143,10 +140,9 @@ theorem rpReducible_GapCMMSA_MINKTStar {Δ k : ℕ} (hk : Odd k) {δ₀ g : ℝ}
   have hlam : lam₀ * ((CMMSAInstance.encoding I).length + 1) ≤ lamOf lam₀ I :=
     (Nat.mul_le_mul_left _ (Nat.le_self_pow two_ne_zero _)).trans (mul_sq_le_lamOf le_rfl)
   convert hno I hI _ hlam (pG.eval (GenWitness.sizeBound Δ I (lamOf lam₀ I) + c)) using 3
-  ext f
   classical
-  rw [Finset.mem_filter, Finset.mem_filter]
-  simp [ofSet]
+  ext f
+  simp [Finset.mem_filter, ofSet]
 
 /-- **`MINKT*` is `NP`-hard under randomized reductions** [Hirahara2022, Theorem I.2, "In
 particular", p. 971]: every `NP` problem reduces to `MINKT*`, with the step budget and the size

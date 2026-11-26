@@ -126,7 +126,7 @@ theorem glueComp_reverse_right (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (
   · obtain rfl | h := eq_or_ne e' e
     · simp [glueComp]
     · dsimp only [glueComp]
-      rw [reverse_of_ne _ (fun hc => h (Sum.inr_injective hc))]
+      rw [reverse_of_ne _ (Sum.inr_injective.ne h)]
       exact (reverse_of_ne (glueComp D₁ D₂ t₁ t₂)
         (fun hc => h (Sum.inr_injective (Sum.inr_injective hc)))).symm
 
@@ -182,10 +182,9 @@ theorem innerReach_glueComp_left {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c}
   induction h with
   | refl => exact .refl
   | @tail u u' hr hs ih =>
-    have hu : ∀ j, t₂ (.inl j) = u (D₁.bottom j) := fun j =>
+    have hu (j) : t₂ (.inl j) = u (D₁.bottom j) :=
       (hag j).trans (InnerReach.boundary hr (Or.inr ⟨j, rfl⟩)).symm
-    have hu' : ∀ j, t₂ (.inl j) = u' (D₁.bottom j) := fun j =>
-      (hu j).trans (hs.boundary (Or.inr ⟨j, rfl⟩)).symm
+    have hu' (j) := (hu j).trans (hs.boundary (Or.inr ⟨j, rfl⟩)).symm
     obtain ⟨hl, hl', y, hy, rfl⟩ := hs
     exact ih.tail ⟨legal_glueComp hl h₂ hu, legal_glueComp hl' h₂ hu', compLeft D₁ D₂ y,
       not_isBoundary_compLeft hy, glueComp_reverse_left ..⟩
@@ -198,10 +197,9 @@ theorem innerReach_glueComp_right {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c
   induction h with
   | refl => exact .refl
   | @tail u u' hr hs ih =>
-    have hu : ∀ j, u (.inl j) = t₁ (D₁.bottom j) := fun j =>
+    have hu (j) : u (.inl j) = t₁ (D₁.bottom j) :=
       (InnerReach.boundary hr (Or.inl ⟨j, rfl⟩)).trans (hag j)
-    have hu' : ∀ j, u' (.inl j) = t₁ (D₁.bottom j) := fun j =>
-      (hs.boundary (Or.inl ⟨j, rfl⟩)).trans (hu j)
+    have hu' (j) := (hs.boundary (Or.inl ⟨j, rfl⟩)).trans (hu j)
     obtain ⟨hl, hl', z, hz, rfl⟩ := hs
     rcases z with j | e
     · exact absurd (Or.inl ⟨j, rfl⟩) hz
@@ -291,12 +289,10 @@ private theorem tensor_ext {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d}
 
 theorem legal_glueTensor {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d} {t₁ : D₁.Edge → Bool}
     {t₂ : D₂.Edge → Bool} (h₁ : (D₁.graph I).Legal t₁) (h₂ : (D₂.graph I).Legal t₂) :
-    ((tensor D₁ D₂).graph I).Legal (glueTensor D₁ D₂ t₁ t₂) :=
-  (legal_tensor_iff _ _ _).2
-    ⟨by rwa [show glueTensor D₁ D₂ t₁ t₂ ∘ tensorLeft D₁ D₂ = t₁ from
-          funext fun _ => glueTensor_tensorLeft ..],
-     by rwa [show glueTensor D₁ D₂ t₁ t₂ ∘ tensorRight D₁ D₂ = t₂ from
-          funext fun _ => glueTensor_tensorRight ..]⟩
+    ((tensor D₁ D₂).graph I).Legal (glueTensor D₁ D₂ t₁ t₂) := by
+  rw [legal_tensor_iff, Function.comp_def, Function.comp_def,
+    funext (glueTensor_tensorLeft D₁ D₂ t₁ t₂), funext (glueTensor_tensorRight D₁ D₂ t₁ t₂)]
+  exact ⟨h₁, h₂⟩
 
 theorem glueTensor_reverse_left (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (t₁ : D₁.Edge → Bool) (t₂ : D₂.Edge → Bool) (y : D₁.Edge) :

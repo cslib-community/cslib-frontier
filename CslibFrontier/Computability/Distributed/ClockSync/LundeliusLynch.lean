@@ -86,8 +86,7 @@ private theorem validDelays_prefixShift {P : Type u} {K : Type v}
   by_cases hp : (e p).val < m <;> by_cases hq : (e q).val < m
   · simp only [hp, hq, ↓reduceIte, add_sub_cancel_right]
     split_ifs
-    · exact ⟨le_rfl, hd⟩
-    · exact ⟨hd, le_rfl⟩
+    exacts [⟨le_rfl, hd⟩, ⟨hd, le_rfl⟩]
   · have hpq : e p ≤ e q := Fin.le_def.mpr (by omega)
     simp only [hp, hq, hpq, ↓reduceIte, sub_zero, add_sub_cancel]
     exact ⟨hd, le_rfl⟩
@@ -96,8 +95,7 @@ private theorem validDelays_prefixShift {P : Type u} {K : Type v}
     exact ⟨le_rfl, hd⟩
   · simp only [hp, hq, ↓reduceIte, sub_zero, add_zero]
     split_ifs
-    · exact ⟨le_rfl, hd⟩
-    · exact ⟨hd, le_rfl⟩
+    exacts [⟨le_rfl, hd⟩, ⟨hd, le_rfl⟩]
 
 /-- A synchronous lockstep, drift-free `R`-round step towards
 [Lundelius and Lynch][LundeliusLynch1984], and not the cited asynchronous event-driven lower bound
@@ -146,8 +144,9 @@ theorem lockstepClockSync_lower_bound {P : Type u} [Fintype P] [Nonempty P]
         dsimp only [δ₀]
         split_ifs
         exacts [⟨le_rfl, hd⟩, ⟨hd, le_rfl⟩]
-      have h0 := hπ c₀ δ₀ hδ₀ (e.symm ⟨n - 1, by omega⟩) (e.symm ⟨0, by omega⟩)
-      simp only [z, show n - 1 < n by omega, show 0 < n by omega, ↓reduceDIte]
+      have h0 := hπ c₀ δ₀ hδ₀ (e.symm ⟨n - 1, Nat.sub_lt hn_pos zero_lt_one⟩)
+        (e.symm ⟨0, zero_lt_one.trans_le hn_pos⟩)
+      simp only [z, Nat.sub_lt hn_pos zero_lt_one, zero_lt_one.trans_le hn_pos, ↓reduceDIte]
       exact (le_abs_self _).trans h0
     rw [Nat.cast_sub hn_pos, Nat.cast_one] at hsum
     rw [div_mul_eq_mul_div, div_le_iff₀ hnK]
@@ -186,15 +185,12 @@ theorem lockstepClockAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] [
       (sub_nonneg.mpr hd)
   · let recv : P → P → K := fun x r => arrivalReading c δ 0 r x 0
     let xEst : P → P → K := fun x r => c x + estDiff d_min d_max x (recv x) r
-    have hsync : ∀ x : P,
+    have hsync (x : P) :
         (lockstepClockAvg d_min d_max).syncOffset c δ x = (∑ r : P, xEst x r) / n := by
-      intro x
-      have hsum : ∑ r : P, xEst x r = n * c x + ∑ r : P, estDiff d_min d_max x (recv x) r := by
-        simp only [xEst, Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
-          n]
       dsimp only [LockstepProtocol.syncOffset, LockstepProtocol.adj, lockstepClockAvg,
-        LockstepProtocol.localView, LocalView.lastArrival, n]
-      rw [hsum, add_div, mul_div_cancel_left₀ (c x) hnK_ne]
+        LockstepProtocol.localView, LocalView.lastArrival, xEst, n]
+      rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, add_div,
+        mul_div_cancel_left₀ (c x) hnK_ne]
       rfl
     have herr : ∀ x r : P, |xEst x r - c r| ≤ u / 2 := fun x r =>
       abs_add_estDiff_sub_le hd c x r (recv x)
@@ -202,19 +198,15 @@ theorem lockstepClockAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] [
         (fun _ => (hδ 0 r x).1) (fun _ => (hδ 0 r x).2)
     have hself : ∀ x : P, xEst x x = c x := fun x => by
       simp only [xEst, estDiff, ↓reduceIte, add_zero]
-    have hp_term : |xEst p p - xEst q p| ≤ u / 2 := by
-      rw [hself p, abs_sub_comm]
-      exact herr q p
-    have hq_term : |xEst p q - xEst q q| ≤ u / 2 := by
-      rw [hself q]
-      exact herr p q
+    have hp_term : |xEst p p - xEst q p| ≤ u / 2 :=
+      hself p ▸ (abs_sub_comm _ _).trans_le (herr q p)
+    have hq_term : |xEst p q - xEst q q| ≤ u / 2 := hself q ▸ herr p q
     have hq_mem : q ∈ (Finset.univ.erase p : Finset P) :=
       Finset.mem_erase.mpr ⟨Ne.symm hpq, Finset.mem_univ q⟩
     let rest : Finset P := (Finset.univ.erase p).erase q
     have hcard_rest : rest.card = n - 2 := by
-      have hc1 : (Finset.univ.erase p : Finset P).card = n - 1 :=
-        Finset.card_erase_of_mem (Finset.mem_univ p)
-      rw [Finset.card_erase_of_mem hq_mem, hc1]
+      simp only [rest, Finset.card_erase_of_mem hq_mem,
+        Finset.card_erase_of_mem (Finset.mem_univ p), Finset.card_univ, n]
       omega
     have hn2 : 2 ≤ n := Fintype.one_lt_card_iff.mpr ⟨p, q, hpq⟩
     have hsum_bound : ∑ r : P, |xEst p r - xEst q r| ≤ ((n : K) - 1) * u := by
@@ -241,11 +233,8 @@ theorem exists_achievesLockstepSkew_iff {P : Type u} [Fintype P] [Nonempty P]
     {d_min d_max γ : K} (hd : d_min ≤ d_max) :
     (∃ (R : ℕ) (π : LockstepProtocol P K R), AchievesLockstepSkew π d_min d_max γ) ↔
       ((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ := by
-  constructor
-  · rintro ⟨R, π, hπ⟩
-    exact lockstepClockSync_lower_bound hd hπ
-  · intro hγ
-    let _ := Classical.decEq P
-    exact ⟨1, lockstepClockAvg d_min d_max, (lockstepClockAvg_achievesSkew hd).mono hγ⟩
+  let _ := Classical.decEq P
+  exact ⟨fun ⟨_, _, hπ⟩ => lockstepClockSync_lower_bound hd hπ,
+    fun hγ => ⟨1, lockstepClockAvg d_min d_max, (lockstepClockAvg_achievesSkew hd).mono hγ⟩⟩
 
 end Cslib.Distributed.ClockSync

@@ -99,31 +99,22 @@ theorem position_mem (i : Fin p.segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
 /-- At the first chain parameter the segment point is the first listed point. -/
 theorem at_eq_start (i : Fin p.segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1)
     (h : p.position i t = 0) : p.eval i t = p.start := by
-  have hi : (i.val : ℝ) = 0 := by
-    have := ht.1
-    have := Nat.cast_nonneg (α := ℝ) i.val
-    dsimp [position] at h
-    linarith
-  have hiNat : i.val = 0 := by exact_mod_cast hi
-  have hi' : i = 0 := Fin.ext hiNat
-  have ht' : t = 0 := by simpa only [hi', position, Fin.val_zero, Nat.cast_zero, zero_add] using h
-  subst i
-  subst t
+  obtain rfl : t = 0 := by
+    linarith [ht.1, Nat.cast_nonneg (α := ℝ) i.val, show (i.val : ℝ) + t = 0 from h]
+  have hi : (i.val : ℝ) = 0 := by simpa [position] using h
+  obtain rfl : i = 0 := Fin.ext (Nat.cast_eq_zero.mp hi)
   simp [eval, start]
 
 /-- At the last chain parameter the segment point is the last listed point. -/
 theorem at_eq_finish (i : Fin p.segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1)
     (h : p.position i t = p.segments) : p.eval i t = p.finish := by
   have hi : (i.val : ℝ) + 1 ≤ p.segments := by exact_mod_cast i.isLt
-  have ht' : t = 1 := by dsimp [position] at h; linarith [ht.2]
-  have hi' : i = Fin.last p.bends := by
-    apply Fin.ext
-    dsimp [position, segments] at h
-    simp only [ht'] at h
-    have : (i.val : ℝ) = p.bends := by push_cast at h; linarith
-    exact_mod_cast this
-  subst i
-  subst t
+  obtain rfl : t = 1 := by
+    linarith [ht.2, show (i.val : ℝ) + t = p.segments from h]
+  have hib : (i.val : ℝ) = p.bends := by
+    push_cast [position, segments] at h
+    linarith
+  obtain rfl : i = Fin.last p.bends := Fin.ext (Nat.cast_inj.mp hib)
   simp [eval, finish, segments]
 
 /-- The point of a parameter at a selected end is that endpoint. -/

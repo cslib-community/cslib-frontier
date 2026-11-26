@@ -98,21 +98,25 @@ with at most that many AND and OR gates on every path. -/
 theorem mem_NC_one_iff_formulaDepth_le :
     L ∈ NC 1 ↔ ∃ c, ∀ n, formulaDepth (L.slice n) ≤ c * (Nat.log 2 n + 1) := by
   simp only [NC, PolylogDepth, DepthClass, pow_one, Set.mem_ofPred_eq]
-  refine ⟨?_, ?_⟩
+  constructor
   · rintro ⟨c, s, -, hC⟩
     refine ⟨c, fun n => ?_⟩
     obtain ⟨C, hCc, hCd, -⟩ := hC n
-    exact (formulaDepth_le (hCc.toFormula 0)).trans
-      (((C.toFormula 0).depthWith_le_depth binaryCost_le_one).trans
-        ((C.depth_toFormula_le 0).trans hCd))
+    calc formulaDepth (L.slice n) ≤ (C.toFormula 0).depthWith binaryCost :=
+          formulaDepth_le (hCc.toFormula 0)
+      _ ≤ (C.toFormula 0).depth := (C.toFormula 0).depthWith_le_depth binaryCost_le_one
+      _ ≤ C.depth := C.depth_toFormula_le 0
+      _ ≤ c * (Nat.log 2 n + 1) := hCd
   · rintro ⟨c, hc⟩
     refine ⟨c + 1, fun n => 2 ^ ((c + 1) * (Nat.log 2 n + 1)),
       polynomiallyBounded_two_pow_mul_log _, fun n => ?_⟩
     obtain ⟨F, hF, hd⟩ := exists_computes_depth_le_formulaDepth_add_one (L.slice n)
     have hd' : F.depth ≤ (c + 1) * (Nat.log 2 n + 1) := by grind
-    refine ⟨F.toCircuit, hF.toCircuit, F.depth_toCircuit_le.trans hd', F.size_toCircuit.trans_le ?_⟩
+    refine ⟨F.toCircuit, hF.toCircuit, F.depth_toCircuit_le.trans hd', ?_⟩
+    rw [F.size_toCircuit]
     exact (Formula.size_lt_pow_depth (Formula.fanInAtMost_of_arity_le Boolean.arity_le_two F)
-      le_rfl).le.trans (Nat.pow_le_pow_right two_pos hd')
+      le_rfl).le.trans
+      (Nat.pow_le_pow_right two_pos hd')
 
 /-- The formula depth of a Boolean function is at most `4 ⌈log₂ L(f)⌉`, where `L(f)` is its
 formula leaf size (`formulaSize f`). -/
@@ -130,18 +134,24 @@ theorem formulaSize_le_two_pow_formulaDepth {n : ℕ} (f : BooleanFunction n) :
 
 /-- Every language with polynomial-size De Morgan formulas is in `NC 1`
 ([Spira1971], [AroraBarak07, Chapter 6, Exercise 10]). -/
-theorem FormulaPoly_subset_NC_one : FormulaPoly ⊆ NC 1 := fun L hL => by
+theorem FormulaPoly_subset_NC_one : FormulaPoly ⊆ NC 1 := by
+  intro L hL
   obtain ⟨a, ha⟩ := hL.exists_clog_le_mul_log
-  exact mem_NC_one_iff_formulaDepth_le.2 ⟨4 * a, fun n =>
-    (formulaDepth_le_four_mul_clog_formulaSize (L.slice n)).trans
-      ((Nat.mul_le_mul_left 4 (ha n)).trans_eq (mul_assoc 4 a _).symm)⟩
+  refine mem_NC_one_iff_formulaDepth_le.2 ⟨4 * a, fun n => ?_⟩
+  calc formulaDepth (L.slice n)
+      ≤ 4 * Nat.clog 2 (formulaSize (L.slice n)) :=
+        formulaDepth_le_four_mul_clog_formulaSize (L.slice n)
+    _ ≤ 4 * (a * (Nat.log 2 n + 1)) := Nat.mul_le_mul_left 4 (ha n)
+    _ = 4 * a * (Nat.log 2 n + 1) := (mul_assoc 4 a _).symm
 
 /-- Every language in `NC 1` has polynomial-size De Morgan formulas
 ([AroraBarak07, Chapter 6, Exercise 10]). -/
-theorem NC_one_subset_FormulaPoly : NC 1 ⊆ FormulaPoly := fun L hL => by
+theorem NC_one_subset_FormulaPoly : NC 1 ⊆ FormulaPoly := by
+  intro L hL
   obtain ⟨c, hc⟩ := mem_NC_one_iff_formulaDepth_le.1 hL
-  exact (polynomiallyBounded_two_pow_mul_log c).mono_of_le fun n =>
-    (formulaSize_le_two_pow_formulaDepth (L.slice n)).trans (Nat.pow_le_pow_right two_pos (hc n))
+  refine (polynomiallyBounded_two_pow_mul_log c).mono_of_le fun n => ?_
+  exact (formulaSize_le_two_pow_formulaDepth (L.slice n)).trans
+    (Nat.pow_le_pow_right two_pos (hc n))
 
 /-- **Polynomial-size De Morgan formulas characterize `NC 1`**
 ([Spira1971], [AroraBarak07, Chapter 6, Exercise 10]): a language has polynomial-size De Morgan
@@ -163,10 +173,10 @@ theorem exists_four_pow_formulaDepth_le_of_mem_NC_one (hL : L ∈ NC 1) :
     ∃ s : ℕ → ℕ, PolynomiallyBounded s ∧ ∀ n, 4 ^ formulaDepth (L.slice n) ≤ s n := by
   obtain ⟨c, hc⟩ := mem_NC_one_iff_formulaDepth_le.1 hL
   refine ⟨fun n => 2 ^ (2 * c * (Nat.log 2 n + 1)), polynomiallyBounded_two_pow_mul_log _,
-    fun n => (Nat.pow_le_pow_right (by decide) (hc n)).trans_eq ?_⟩
-  dsimp only
-  rw [mul_assoc, pow_mul 2 2]
-  rfl
+    fun n => ?_⟩
+  calc 4 ^ formulaDepth (L.slice n) ≤ 4 ^ (c * (Nat.log 2 n + 1)) :=
+        Nat.pow_le_pow_right (by decide) (hc n)
+    _ = 2 ^ (2 * c * (Nat.log 2 n + 1)) := by rw [mul_assoc, pow_mul 2 2]; rfl
 
 /-- **Barrington's theorem for NC¹ over `A₅`.** For a language in NC¹ there is a polynomially
 bounded `s` such that, at every length `n ≠ 0` and for every `5`-cycle `σ`, a program over the
@@ -218,7 +228,8 @@ private def leftMulEnd {M : Type*} [Monoid M] {k : ℕ} (e : M ≃ Fin k) :
     show e (m * m' * e.symm i) = e (m * e.symm (e (m' * e.symm i))) by simp [mul_assoc]
 
 private theorem leftMulEnd_apply {M : Type*} [Monoid M] {k : ℕ} (e : M ≃ Fin k) (m : M)
-    (i : Fin k) : leftMulEnd e m i = e (m * e.symm i) := rfl
+    (i : Fin k) : leftMulEnd e m i = e (m * e.symm i) :=
+  rfl
 
 /-- **Polynomial-length programs over a finite monoid decide languages in NC¹**
 [BarringtonTherien1988]: by left multiplication, a program over a finite monoid is a branching
@@ -233,13 +244,15 @@ theorem polyLength_subset_NC_one (M : Type*) [Monoid M] [Finite M] : PolyLength 
   obtain ⟨F, hF, hd, -⟩ := (P.map (leftMulEnd e)).exists_formula (e 1)
     (Finset.univ.filter fun i => e.symm i ∈ S)
   have hFc : F.Computes interpretation (L.slice n) := fun x => by
-    rw [hF x, Bool.eq_iff_iff, decide_eq_true_iff, hPS x]; simp [leftMulEnd_apply]
-  have hd' : F.depthWith binaryCost ≤
-      (Nat.clog 2 k + 1) * Nat.clog 2 P.toList.length + Nat.clog 2 k := by
-    simpa only [MonoidProgram.length_map] using hd
-  refine (formulaDepth_le hFc).trans (hd'.trans ?_)
-  exact (Nat.add_le_add (Nat.mul_le_mul_left _ ((Nat.clog_mono_right 2 hlen).trans (ha n)))
-    (Nat.le_mul_of_pos_right _ (show 0 < Nat.log 2 n + 1 by positivity))).trans_eq (by ring)
+    rw [hF x, Bool.eq_iff_iff, decide_eq_true_iff, hPS x]
+    simp [leftMulEnd_apply]
+  calc formulaDepth (L.slice n) ≤ F.depthWith binaryCost := formulaDepth_le hFc
+    _ ≤ (Nat.clog 2 k + 1) * Nat.clog 2 P.toList.length + Nat.clog 2 k := by
+        simpa only [MonoidProgram.length_map] using hd
+    _ ≤ (Nat.clog 2 k + 1) * (a * (Nat.log 2 n + 1)) + Nat.clog 2 k * (Nat.log 2 n + 1) :=
+        Nat.add_le_add (Nat.mul_le_mul_left _ ((Nat.clog_mono_right 2 hlen).trans (ha n)))
+          (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
+    _ = ((Nat.clog 2 k + 1) * a + Nat.clog 2 k) * (Nat.log 2 n + 1) := by ring
 
 /-- **Barrington's theorem** [Barrington1989]: NC¹ is the class of languages decided by
 permutation branching programs of width `5` and polynomial length. -/

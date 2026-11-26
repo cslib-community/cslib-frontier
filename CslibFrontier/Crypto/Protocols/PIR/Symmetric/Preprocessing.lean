@@ -281,12 +281,10 @@ is identical. -/
 theorem isCorrect_iff_isCorrectWith_one : P.IsCorrect ↔ P.IsCorrectWith 1 := by
   refine forall_congr' fun D => forall_congr' fun Q => ⟨fun h => ?_, fun h => ?_⟩
   · rw [h, PMF.pure_apply_self, ENNReal.toReal_one]
-  · have hsupp : (ProbComp.eval (P.run D Q)).support = {D ∘ Q} :=
-      (PMF.apply_eq_one_iff _ _).mp
-        (le_antisymm (PMF.coe_le_one _ _) (ENNReal.ofReal_one ▸ ENNReal.ofReal_le_of_le_toReal h))
-    rw [← PMF.map_id (ProbComp.eval (P.run D Q)), Cslib.Probability.PMF.map_eq_pure_iff]
+  · rw [← PMF.map_id (ProbComp.eval (P.run D Q)), Cslib.Probability.PMF.map_eq_pure_iff]
     intro y hy
-    rwa [hsupp, Set.mem_singleton_iff] at hy
+    rwa [(PMF.apply_eq_one_iff _ _).mp (le_antisymm (PMF.coe_le_one _ _)
+      (ENNReal.ofReal_one ▸ ENNReal.ofReal_le_of_le_toReal h)), Set.mem_singleton_iff] at hy
 
 theorem IsCorrect.isCorrectWith_one {P : Scheme n k R St Toff Tu Td} (h : P.IsCorrect) :
     P.IsCorrectWith 1 :=
@@ -477,10 +475,15 @@ private theorem eval_onlineTranscript_eq_of_marginal {P : Scheme n k R St Toff T
     ProbComp.eval (P.onlineTranscript D₀ Q₀) = ProbComp.eval (P.onlineTranscript D₁ Q₁) := by
   have := Fin.nontrivial_iff_two_le.mpr hn
   obtain ⟨j₀, j₁, hj⟩ := exists_pair_ne (Fin n)
-  exact (hpriv_on _ _ (fun _ => j₀)).trans <|
-    (hdpriv_on (D₁ := Function.update D₁ j₀ (D₀ j₀)) (by funext; simp)).trans <|
-      (hpriv_on _ _ (fun _ => j₁)).trans <|
-        (hdpriv_on (by funext; simp [hj.symm])).trans (hpriv_on _ _ _)
+  calc ProbComp.eval (P.onlineTranscript D₀ Q₀)
+      = ProbComp.eval (P.onlineTranscript D₀ fun _ => j₀) := hpriv_on _ _ _
+    _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₀) :=
+        hdpriv_on (funext fun _ => by simp)
+    _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₁) :=
+        hpriv_on _ _ _
+    _ = ProbComp.eval (P.onlineTranscript D₁ fun _ => j₁) :=
+        hdpriv_on (funext fun _ => by simp [hj.symm])
+    _ = ProbComp.eval (P.onlineTranscript D₁ Q₁) := hpriv_on _ _ _
 
 /-- **Online transcript independence** (the first step of the proof of
 [Hoover, Persiano and Yeo, Theorem 6.2, p. 52][HooverPersianoYeo2026]): when `2 ≤ n`, perfect
@@ -549,9 +552,7 @@ private def candidateOutputs [Fintype St] (Q : Fin k → Fin n) (τd : Td) :
 
 private theorem card_candidateOutputs_le [Fintype St] (Q : Fin k → Fin n) (τd : Td) :
     (P.candidateOutputs Q τd).card ≤ Fintype.card St := by
-  simpa only [candidateOutputs, Finset.card_univ] using
-    Finset.card_image_le (s := (Finset.univ : Finset St))
-      (f := fun st : St => P.reconstruct st Q τd)
+  simpa only [candidateOutputs, Finset.card_univ] using Finset.card_image_le (s := Finset.univ)
 
 private theorem eval_run_le_onlineDownload_candidateOutputs [Fintype St]
     (D : Fin n → Bool) (Q : Fin k → Fin n) (y : Fin k → Bool) :
@@ -562,12 +563,7 @@ private theorem eval_run_le_onlineDownload_candidateOutputs [Fintype St]
     P.eval_onlineDownload_eq_map_stateAndDownload D Q, PMF.map_comp,
     PMF.map_apply, PMF.map_apply]
   refine tsum_le_tsum fun ⟨st, τd⟩ => ?_
-  split_ifs with hy hmem
-  · exact le_rfl
-  · exact absurd (by simpa only [Function.comp_apply, true_eq_decide_iff, candidateOutputs, hy]
-      using Finset.mem_image_of_mem (fun st => P.reconstruct st Q τd) (Finset.mem_univ st)) hmem
-  · exact zero_le
-  · exact zero_le
+  by_cases hy : y = P.reconstruct st Q τd <;> simp [hy, candidateOutputs]
 
 /-- Extend a `k`-bit string `y : Fin k → Bool` to an `n`-bit database, padding coordinates
 `i ≥ k` with `false`. -/
@@ -613,7 +609,8 @@ private theorem correct_le_card_div_two_pow_of_onlineDownload_eq [Fintype St] {�
   have hsum_real :
       (∑ y : Fin k → Bool, (ProbComp.eval (P.run (padDB y) Q) y).toReal) ≤
         (Fintype.card St : ℝ) := by ennreal_to_real using hsum_ennreal
-  rw [le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ k), mul_comm]
+  have hpos : (0 : ℝ) < 2 ^ k := by positivity
+  rw [le_div_iff₀ hpos, mul_comm]
   calc (2 : ℝ) ^ k * ε = ∑ _y : Fin k → Bool, ε := by simp [Finset.sum_const, Fintype.card_bool]
     _ ≤ ∑ y : Fin k → Bool, (ProbComp.eval (P.run (padDB y) Q) y).toReal :=
         Finset.sum_le_sum fun y _ => by
@@ -644,9 +641,8 @@ theorem correct_le_two_pow_sub [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) 
     ε ≤ (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) := by
   have hcore := P.correct_le_card_div_two_pow hn hkn hpriv hdpriv hcorr
   have hcard : (Fintype.card St : ℝ) ≤ (2 : ℝ) ^ s := by exact_mod_cast hst
-  have hpow : (2 : ℝ) ^ s / (2 : ℝ) ^ k = (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) := by
-    rw [zpow_sub₀ (by norm_num), zpow_natCast, zpow_natCast]
-  linarith [div_le_div_of_nonneg_right hcard (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ k)]
+  rw [zpow_sub₀ two_ne_zero, zpow_natCast, zpow_natCast]
+  exact hcore.trans (div_le_div_of_nonneg_right hcard (by positivity))
 
 /-- In the restricted model of `correct_le_card_div_two_pow` (not Theorem 6.2), a perfectly
 correct, perfectly private, and perfectly data-private `k`-batch SPIR scheme with `2 ≤ n` and
@@ -654,9 +650,9 @@ correct, perfectly private, and perfectly data-private `k`-batch SPIR scheme wit
 theorem two_pow_le_card_state [Fintype St] (hn : 2 ≤ n) (hkn : k ≤ n)
     (hpriv : P.IsPerfectlyPrivate) (hdpriv : P.IsPerfectlyDataPrivate) (hcorr : P.IsCorrect) :
     2 ^ k ≤ Fintype.card St := by
+  have hpos : (0 : ℝ) < 2 ^ k := by positivity
   have hle := P.correct_le_card_div_two_pow hn hkn hpriv hdpriv hcorr.isCorrectWith_one
-  rwa [le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ k), one_mul, ← Nat.cast_ofNat, ← Nat.cast_pow,
-    Nat.cast_le] at hle
+  rwa [le_div_iff₀ hpos, one_mul, ← Nat.cast_ofNat, ← Nat.cast_pow, Nat.cast_le] at hle
 
 /-- **Restricted-model batch limitation.** This is not Theorem 6.2 of
 [Hoover, Persiano and Yeo][HooverPersianoYeo2026], which is stated in the random oracle model and
@@ -673,8 +669,11 @@ theorem batchSPIR_limitation [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) (h
     (hdpriv : P.IsPerfectlyDataPrivate) : ¬ P.IsCorrectWith ε := by
   intro hcorr
   have hle := P.correct_le_two_pow_sub hn hkn hst hpriv hdpriv hcorr
+  have hexp_le : (s : ℤ) - k ≤ -1 := by omega
   have hpow : (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ 1 / 2 :=
-    (zpow_le_zpow_right₀ (by norm_num) (by omega : (s : ℤ) - k ≤ -1)).trans_eq (by norm_num)
+    calc (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ (2 : ℝ) ^ (-1 : ℤ) :=
+          zpow_le_zpow_right₀ (by norm_num) hexp_le
+      _ = 1 / 2 := by norm_num
   linarith
 
 end Scheme
@@ -815,16 +814,13 @@ theorem correct_le_card_mul_card_div_two_pow [Fintype St] [Fintype Ω] {ε : ℝ
     ε ≤ (Fintype.card St * Fintype.card Ω : ℝ) / 2 ^ k := by
   have hpriv_prod : P.toProductScheme.IsPerfectlyPrivate := fun D Q₀ Q₁ => by
     simp only [serverView_toProductScheme, hpriv D Q₀ Q₁]
-  have hdpriv_on : ∀ {D₀ D₁ : Fin n → Bool} {Q : Fin k → Fin n}, D₀ ∘ Q = D₁ ∘ Q →
-      ProbComp.eval (P.toProductScheme.onlineTranscript D₀ Q) =
-        ProbComp.eval (P.toProductScheme.onlineTranscript D₁ Q) := fun hD => by
-    simp only [onlineTranscript_toProductScheme, ProbComp.eval_map, hdpriv _ _ _ hD]
-  have hle := P.toProductScheme.correct_le_card_div_two_pow_of_onlineDownload_eq hkn
-    (fun D₁ D₂ => by simp only [Scheme.onlineDownload, ProbComp.eval_map,
-      Scheme.eval_onlineTranscript_eq_of_marginal hn hpriv_prod.eval_onlineTranscript_eq
-        hdpriv_on D₁ D₂ (Fin.castLE hkn) (Fin.castLE hkn)])
-    fun D Q => P.run_toProductScheme D Q ▸ hcorr D Q
-  rwa [Fintype.card_prod, Nat.cast_mul] at hle
+  simpa only [Fintype.card_prod, Nat.cast_mul] using
+    P.toProductScheme.correct_le_card_div_two_pow_of_onlineDownload_eq hkn
+      (fun D₁ D₂ => by simp only [Scheme.onlineDownload, ProbComp.eval_map,
+        Scheme.eval_onlineTranscript_eq_of_marginal hn hpriv_prod.eval_onlineTranscript_eq
+          (fun hD => by simp only [onlineTranscript_toProductScheme, ProbComp.eval_map,
+            hdpriv _ _ _ hD]) D₁ D₂ (Fin.castLE hkn) (Fin.castLE hkn)])
+      fun D Q => P.run_toProductScheme D Q ▸ hcorr D Q
 
 end RandomizedScheme
 

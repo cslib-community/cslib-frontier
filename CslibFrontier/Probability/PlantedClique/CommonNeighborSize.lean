@@ -42,16 +42,12 @@ private theorem seedEdgeIndex_injective {n : ℕ} (S T : Finset (Fin n)) (hT : T
   · simp only [min_eq_left htv, min_eq_left huw] at hmin
     simp only [max_eq_right htv, max_eq_right huw] at hmax
     exact Prod.ext (Subtype.ext hmax) (Subtype.ext hmin)
-  · have hwu := le_of_lt (lt_of_not_ge huw)
-    simp only [min_eq_left htv, min_eq_right hwu] at hmin
+  · simp only [min_eq_left htv, min_eq_right (le_of_not_ge huw)] at hmin
     exact False.elim (hw (hmin ▸ hT t.property))
-  · have hvt := le_of_lt (lt_of_not_ge htv)
-    simp only [min_eq_right hvt, min_eq_left huw] at hmin
+  · simp only [min_eq_right (le_of_not_ge htv), min_eq_left huw] at hmin
     exact False.elim (hv (hmin.symm ▸ hT u.property))
-  · have hvt := le_of_lt (lt_of_not_ge htv)
-    have hwu := le_of_lt (lt_of_not_ge huw)
-    simp only [min_eq_right hvt, min_eq_right hwu] at hmin
-    simp only [max_eq_left hvt, max_eq_left hwu] at hmax
+  · simp only [min_eq_right (le_of_not_ge htv), min_eq_right (le_of_not_ge huw)] at hmin
+    simp only [max_eq_left (le_of_not_ge htv), max_eq_left (le_of_not_ge huw)] at hmax
     exact Prod.ext (Subtype.ext hmin) (Subtype.ext hmax)
 
 /-- The seed-edge rows for distinct outside vertices are independent uniform Boolean rows.
@@ -88,17 +84,12 @@ theorem commonNeighborhood_card_eq {n : ℕ} (S T : Finset (Fin n)) (hT : T ⊆ 
       SimpleGraph.mem_commonNeighborhood, U]
     constructor
     · rintro ⟨⟨_, hseed⟩, hvS⟩
-      refine ⟨hvS, fun t => ?_⟩
-      exact ((hseed t t.property).2.resolve_left (fun h => hvS h.2))
+      exact ⟨hvS, fun t => (hseed t t.property).2.resolve_left fun h => hvS h.2⟩
     · rintro ⟨hvS, hrow⟩
-      refine ⟨⟨fun hvT => hvS (hT hvT), fun t ht => ?_⟩, hvS⟩
-      exact ⟨fun h => hvS (h ▸ hT ht), Or.inr (hrow ⟨t, ht⟩)⟩
-  have hcount : (U \ S).card =
-      ∑ v : ↥Sᶜ, if ∀ t : ↥T, ω (min (t : Fin n) v, max (t : Fin n) v) = true
-        then 1 else 0 := by
-    rw [houtside, Finset.card_filter]
-    exact (Finset.sum_coe_sort Sᶜ _).symm
-  rw [← Finset.card_inter_add_card_sdiff U S, hinside, Finset.card_sdiff_of_subset hT, hcount]
+      exact ⟨⟨fun hvT => hvS (hT hvT),
+        fun t ht => ⟨fun h => hvS (h ▸ hT ht), Or.inr (hrow ⟨t, ht⟩)⟩⟩, hvS⟩
+  rw [← Finset.card_inter_add_card_sdiff U S, hinside, Finset.card_sdiff_of_subset hT,
+    houtside, Finset.card_filter, ← Finset.sum_coe_sort]
 
 private theorem mean_allTrue {ι : Type*} [Fintype ι] [DecidableEq ι] :
     (∑ row : ι → Bool, ((PMF.uniformOfFintype (ι → Bool)) row).toReal *

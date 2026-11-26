@@ -441,16 +441,19 @@ theorem eval_honestProtocol_eq_pure {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m
         honestPartiesRun q m hm dd.1 dd.2) =
       PMF.pure (true, true) := by
   have : Nonempty (Challenge q m) := nonempty_challenge q m (succ_lt_of_two_mul_lt hm)
-  rw [ProbComp.eval_bind, show (ProbComp.eval (deal t₁ t₂)).bind
-      (fun dd => ProbComp.eval (honestPartiesRun q m hm dd.1 dd.2)) =
-      (ProbComp.eval (deal t₁ t₂)).bind (fun _ => PMF.pure (true, true)) from
-    Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun dd hdd => ?_, PMF.bind_const]
-  simp only [deal, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-    PMF.mem_support_pure_iff] at hdd
-  obtain ⟨e₁, -, a02, -, b02, -, rfl⟩ := hdd
-  ext y
-  rw [honestPartiesRun, ProbComp.eval_bind]
-  exact Cslib.Probability.PMF.bind_apply_of_forall _ fun r => by
-    rw [ProbComp.eval_pure, verifyPair_of_honest hm hrel e₁ a02 b02 r]
+  have hsub : ProbComp.eval (do
+        let dd ← deal t₁ t₂
+        honestPartiesRun q m hm dd.1 dd.2) =
+      (ProbComp.eval (deal t₁ t₂)).bind fun _ => PMF.pure (true, true) := by
+    rw [ProbComp.eval_bind]
+    refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun dd hdd => ?_
+    simp only [deal, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+      PMF.mem_support_pure_iff] at hdd
+    obtain ⟨e₁, -, a02, -, b02, -, rfl⟩ := hdd
+    ext y
+    rw [honestPartiesRun, ProbComp.eval_bind]
+    exact Cslib.Probability.PMF.bind_apply_of_forall _ fun r => by
+      rw [ProbComp.eval_pure, verifyPair_of_honest hm hrel e₁ a02 b02 r]
+  rw [hsub, PMF.bind_const]
 
 end Cslib.Crypto.Protocols.MPC.ProductRelation

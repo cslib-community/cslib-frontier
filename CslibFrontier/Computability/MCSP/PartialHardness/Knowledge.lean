@@ -131,9 +131,8 @@ private def Parts.toInput (p : Parts I Δ k lam) : BitString (inputLength I Δ k
   simp [formulaIndex]
 
 @[simp] private theorem Parts.seed_toInput (p : Parts I Δ k lam) (t q : Fin Δ) (i : Fin k) :
-    seed p.toInput t q i = p.seeds (t, q) i := by
-  funext r
-  simp [seed]
+    seed p.toInput t q i = p.seeds (t, q) i :=
+  funext fun _ => by simp [seed]
 
 private theorem Parts.slotBit_toInput (f : VarFunctions I lam) (p : Parts I Δ k lam) (t q : Fin Δ) :
     slotBit f p.toInput t q =
@@ -143,10 +142,8 @@ private theorem Parts.slotBit_toInput (f : VarFunctions I lam) (p : Parts I Δ k
 
 private theorem card_parts : Fintype.card (Parts I Δ k lam) = 2 ^ inputLength I Δ k lam := by
   simp only [Fintype.card_congr (Parts.equivProd I Δ k lam), Fintype.card_prod, Fintype.card_fun,
-    Fintype.card_fin, Fintype.card_bool, inputLength, slotWidth]
-  rw [← pow_mul, ← pow_mul, ← pow_add, ← pow_add]
-  congr 1
-  ring
+    Fintype.card_fin, Fintype.card_bool, inputLength, slotWidth, ← pow_mul, ← pow_add]
+  exact congrArg (2 ^ ·) (by ring)
 
 /-! ### Seeds carrying a word -/
 
@@ -161,11 +158,9 @@ private theorem sum_evalVar_seedsOf (f : VarFunctions I lam) (v : Fin I.weights.
     ∑ i : Fin k, evalVar f v (seedsOf (I := I) (lam := lam) z i) = xorPower (f v) k z := by
   rw [xorPower_apply]
   refine Finset.sum_congr rfl fun i _ => ?_
-  have hle := varLength_le_seedWidth (I := I) (lam := lam) v.isLt
   simp only [evalVar, v.isLt, dite_true, seedsOf]
-  congr 1
-  funext r
-  simp [BitString.zeroExtend, r.isLt, lt_of_lt_of_le r.isLt hle]
+  exact congrArg (f v) <| funext fun r => by
+    simp [BitString.zeroExtend, r.isLt, lt_of_lt_of_le r.isLt (varLength_le_seedWidth v.isLt)]
 
 /-- Writing the word `z` into the seeds of slot `tq`. -/
 private def Parts.write (p : Parts I Δ k lam) (tq : Fin Δ × Fin Δ) {ℓ : ℕ} (z : BitString (k * ℓ)) :
@@ -203,20 +198,17 @@ theorem card_cand_le (hk : Odd k) (hΔ : 0 < Δ) {δ₀ : ℝ} (hδ₀ : 0 ≤ �
     univ.filter fun g => (1 / 2 + 1 / (2 * Δ) : ℝ) * 2 ^ (k * varLength I lam v) ≤
       #{z : BitString (k * varLength I lam v) |
         xorPower g k z = a.2.2 + h (a.1.write a.2.1 z).toInput}
-  have hsub : cand h v ⊆ univ.biUnion L := by
-    intro g hg
-    obtain ⟨p, tq, c, hp⟩ := (mem_filter.1 hg).2
-    exact mem_biUnion.2 ⟨(p, tq, c), mem_univ _, mem_filter.2 ⟨mem_univ _, hp⟩⟩
+  have hsub : cand h v ⊆ univ.biUnion L := fun g hg =>
+    let ⟨p, tq, c, hp⟩ := (mem_filter.1 hg).2
+    mem_biUnion.2 ⟨(p, tq, c), mem_univ _, mem_filter.2 ⟨mem_univ _, hp⟩⟩
   have hL (a : Parts I Δ k lam × (Fin Δ × Fin Δ) × Bool) :
       (#(L a) : ℝ) ≤ 2 * Δ ^ 2 * Real.exp (2 ^ varLength I lam v * Real.binEntropy δ₀) := by
     have := card_filter_xorPower_mul_two_mul_sq_le_exp (n := varLength I lam v) hk
       (fun z => a.2.2 + h (a.1.write a.2.1 z).toInput) hε0 hδ₀ hδ₀' (h2ε ▸ hkδ)
-    rw [h2ε, mul_one_div, div_le_iff₀ (by positivity)] at this
-    linarith
+    rw [h2ε, mul_one_div, div_le_iff₀ (by positivity)] at this; linarith
   have hcard : Fintype.card (Parts I Δ k lam × (Fin Δ × Fin Δ) × Bool) =
       2 ^ inputLength I Δ k lam * (Δ ^ 2 * 2) := by
-    simp only [Fintype.card_prod, card_parts, Fintype.card_fin, Fintype.card_bool]
-    ring
+    simp only [Fintype.card_prod, card_parts, Fintype.card_fin, Fintype.card_bool]; ring
   calc (#(cand h v) : ℝ) ≤ #(univ.biUnion L) := by exact_mod_cast card_le_card hsub
     _ ≤ ∑ a, (#(L a) : ℝ) := by exact_mod_cast card_biUnion_le
     _ ≤ ∑ _a : Parts I Δ k lam × (Fin Δ × Fin Δ) × Bool,
@@ -224,8 +216,7 @@ theorem card_cand_le (hk : Odd k) (hΔ : 0 < Δ) {δ₀ : ℝ} (hδ₀ : 0 ≤ �
         sum_le_sum fun a _ => hL a
     _ = _ := by
         rw [sum_const, card_univ, hcard, nsmul_eq_mul]
-        push_cast
-        ring
+        push_cast; ring
 
 /-! ### The knowledge set is heavy -/
 
@@ -251,9 +242,8 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   set K := (univ.filter fun v : Fin I.weights.length => f v ∈ cand h v).map Fin.valEmbedding
     with hK
   by_contra hlt
-  obtain ⟨φ', hφ'mem, hφ'⟩ := hno K (fun v hv => by
-    obtain ⟨u, -, rfl⟩ := mem_map.1 hv
-    exact mem_range.2 u.isLt) (not_lt.1 hlt)
+  obtain ⟨φ', hφ'mem, hφ'⟩ := hno K
+    (fun _ hv => Exists.elim (mem_map.1 hv) fun u ⟨_, hu⟩ => hu ▸ mem_range.2 u.isLt) (not_lt.1 hlt)
   obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hφ'mem
   set φ := I.formulas[j] with hφ
   set T := φ.length with hT
@@ -263,12 +253,10 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   have hlit (τ : Fin T) : ∃ q : ℕ, ∃ hq : q < φ[(τ : ℕ)].length,
       ∃ hv : φ[(τ : ℕ)][q].1 < I.weights.length, f ⟨_, hv⟩ ∉ cand h ⟨_, hv⟩ := by
     have hτ : φ[(τ : ℕ)] ∈ φ := List.getElem_mem _
-    have hfalse : Term.eval (fun i => decide (i ∈ K)) φ[(τ : ℕ)] = false := by
-      simp only [DNF.eval, List.any_eq_false] at hφ'
-      simpa using hφ' _ hτ
     obtain ⟨l, hl, hlK⟩ : ∃ l ∈ φ[(τ : ℕ)], decide (l.1 ∈ K) ≠ l.2 := by
       by_contra! hall
-      simp [(Term.eval_eq_true_iff (fun i => decide (i ∈ K)) _).2 hall] at hfalse
+      simp only [DNF.eval, List.any_eq_false] at hφ'
+      simpa [(Term.eval_eq_true_iff (fun i => decide (i ∈ K)) _).2 hall] using hφ' _ hτ
     obtain ⟨q, hq, rfl⟩ := List.getElem_of_mem hl
     have hv := hwf.var_lt _ hφ'mem _ hτ _ hl
     refine ⟨q, hq, hv, fun hmem => hlK ?_⟩
@@ -281,21 +269,17 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   let vs (τ : Fin T) : Fin I.weights.length := ⟨_, hvs τ⟩
   let sl (τ : Fin T) : Fin Δ × Fin Δ := (⟨τ, hTΔ' τ⟩, ⟨qs τ, hqΔ τ⟩)
   -- the term chosen at a slot, if any
-  obtain ⟨inv, hinv_sl, hinv_none, hinv_ne⟩ : ∃ inv : Fin Δ × Fin Δ → Option (Fin T),
-      (∀ τ, inv (sl τ) = some τ) ∧ (∀ τ q, q ≠ (sl τ).2 → inv ((sl τ).1, q) = none) ∧
-      (∀ τ tq, tq ≠ sl τ → inv tq ≠ some τ) := by
-    refine ⟨fun tq => if ht : (tq.1 : ℕ) < T then
-      if (tq.2 : ℕ) = qs ⟨tq.1, ht⟩ then some ⟨tq.1, ht⟩ else none else none, ?_, ?_, ?_⟩
-    · intro τ
-      simp [sl, τ.isLt]
-    · intro τ q hq
-      have hq' : (q : ℕ) ≠ qs τ := fun he => hq (Fin.ext he)
-      simp [sl, τ.isLt, hq']
-    · intro τ tq htq he
-      simp only at he
-      split_ifs at he with h1 h2
-      cases he
-      exact htq (Prod.ext (Fin.ext rfl) (Fin.ext h2))
+  let inv (tq : Fin Δ × Fin Δ) : Option (Fin T) :=
+    if ht : (tq.1 : ℕ) < T then
+      if (tq.2 : ℕ) = qs ⟨tq.1, ht⟩ then some ⟨tq.1, ht⟩ else none else none
+  have hinv_sl (τ : Fin T) : inv (sl τ) = some τ := by simp [inv, sl, τ.isLt]
+  have hinv_none (τ : Fin T) (q : Fin Δ) (hq : q ≠ (sl τ).2) : inv ((sl τ).1, q) = none := by
+    simp [inv, sl, τ.isLt, mt Fin.ext hq]
+  have hinv_ne (τ : Fin T) (tq : Fin Δ × Fin Δ) (htq : tq ≠ sl τ) : inv tq ≠ some τ := by
+    intro he
+    dsimp only [inv] at he
+    split_ifs at he with h1 h2
+    exact htq (Prod.ext (Fin.ext (Option.some.inj he ▸ rfl)) (Fin.ext (Option.some.inj he ▸ h2)))
   -- the formula-index bits of `j`
   have hjW : j < 2 ^ indexWidth I := lt_of_lt_of_le hj (Nat.le_pow_clog one_lt_two _)
   let a : BitString (indexWidth I) := (BitString.equivFin _).symm ⟨j, hjW⟩
@@ -318,43 +302,33 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   -- `h` decodes the XOR-shared bit
   have hD (z : ∀ τ : Fin T, BitString (k * varLength I lam (vs τ))) (b : Bool) :
       D (fun τ => (z τ, E τ (z τ) + b)) = b := by
-    set w : ∀ τ : Fin T, BitString (k * varLength I lam (vs τ)) × Bool :=
-      fun τ => (z τ, E τ (z τ) + b) with hw
-    have hidx := hmk_idx w
+    set w := fun τ => (z τ, E τ (z τ) + b) with hw
     apply hh
     change entry f ((BitString.equivFin _).symm (BitString.equivFin _ (mk w).toInput)) = some b
     rw [Equiv.symm_apply_apply]
     have hlen : (I.formulas.getD j []).length = T := by
       simp [List.getD_eq_getElem?_getD, hj, hT, hφ]
-    refine entry_eq_some_of_forall_termParity (by rw [hidx]; exact hj)
-      ⟨⟨0, lt_of_lt_of_le hT0 hTΔ⟩, by rw [hidx, hlen]; exact hT0⟩ ?_
+    refine entry_eq_some_of_forall_termParity ((hmk_idx w).symm ▸ hj)
+      ⟨⟨0, lt_of_lt_of_le hT0 hTΔ⟩, (hmk_idx w).symm ▸ hlen.symm ▸ hT0⟩ ?_
     intro t ht
-    rw [hidx, hlen] at ht
+    rw [hmk_idx w, hlen] at ht
     obtain ⟨τ, rfl⟩ : ∃ τ : Fin T, (sl τ).1 = t := ⟨⟨t, ht⟩, Fin.ext rfl⟩
     have hterm : term I j (sl τ).1 = φ[(τ : ℕ)] := term_eq_getElem hj τ.isLt
     have hq₀ : ((sl τ).2 : ℕ) < (term I (formulaIndex (mk w).toInput) (sl τ).1).length := by
-      rw [hidx, hterm]; exact hqs τ
+      simpa only [hmk_idx w, hterm, sl] using hqs τ
     have hvar : var I j (sl τ).1 (sl τ).2 = (vs τ : ℕ) := by
-      simp only [var, hterm, List.getD_eq_getElem?_getD]
-      simp [sl, vs, hqs τ]
-    have hfirst : slotBit f (mk w).toInput (sl τ).1 (sl τ).2 =
-        E τ (z τ) + b + xorPower (f (vs τ)) k (z τ) := by
-      rw [Parts.slotBit_toInput, ha, hvar]
-      simp only [mk, hinv_sl, Option.elim_some, hw]
-      rw [sum_evalVar_seedsOf]
+      simp [var, hterm, List.getD_eq_getElem?_getD, sl, vs, hqs τ]
     have hrest : (∑ q ∈ univ.erase (sl τ).2,
         if (q : ℕ) < (term I (formulaIndex (mk w).toInput) (sl τ).1).length then
           slotBit f (mk w).toInput (sl τ).1 q else 0) = R τ := by
-      rw [hidx]
-      refine sum_congr rfl fun q hq => ?_
-      have hnone := hinv_none τ q (ne_of_mem_erase hq)
-      split_ifs
-      · rw [Parts.slotBit_toInput, ha]
-        simp only [mk, hnone, Option.elim_none]
-        exact zero_add _
-      · rfl
-    rw [termParity_eq_add hq₀, hfirst, hrest]
-    simp only [E]
+      rw [hmk_idx w]
+      refine sum_congr rfl fun q hq => if_congr Iff.rfl ?_ rfl
+      simp only [Parts.slotBit_toInput, ha, mk, hinv_none τ q (ne_of_mem_erase hq),
+        Option.elim_none]
+      exact zero_add _
+    rw [termParity_eq_add hq₀, hrest]
+    simp only [Parts.slotBit_toInput, ha, hvar, mk, hinv_sl, Option.elim_some, hw,
+      sum_evalVar_seedsOf, E]
     cases xorPower (f (vs τ)) k (z τ) <;> cases R τ <;> cases b <;> rfl
   -- the hybrid argument finds a channel `h` predicts
   obtain ⟨τ, base, y₀, hcount⟩ := exists_card_add_decode_update_eq E D hD
@@ -376,18 +350,13 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
           xorPower (f (vs τ)) k z = y₀ + R τ + h (p₀.write (sl τ) z).toInput} =
         #{z : BitString (k * varLength I lam (vs τ)) |
           y₀ + D (update base τ (z, y₀)) = E τ z} := by
-      congr 1
-      refine filter_congr fun z _ => ?_
-      rw [hwrite]
-      simp only [D, E]
+      refine congrArg card (filter_congr fun z _ => ?_)
+      simp only [hwrite, D, E]
       cases h (mk (update base τ (z, y₀))).toInput <;> cases xorPower (f (vs τ)) k z <;>
         cases R τ <;> cases y₀ <;> decide
     rw [hcard]
-    have hc : (2 : ℝ) ^ (k * varLength I lam (vs τ)) * (T + 1) ≤
-        2 * T * #{z : BitString (k * varLength I lam (vs τ)) |
-          y₀ + D (update base τ (z, y₀)) = E τ z} := by
-      rw [BitString.card] at hcount
-      exact_mod_cast hcount
+    have hc := (Nat.cast_le (α := ℝ)).mpr (BitString.card ▸ hcount)
+    push_cast at hc
     have hT' : (0 : ℝ) < T := by exact_mod_cast hT0
     have hTΔ' : (T : ℝ) ≤ Δ := by exact_mod_cast hTΔ
     calc (1 / 2 + 1 / (2 * Δ) : ℝ) * 2 ^ (k * varLength I lam (vs τ))

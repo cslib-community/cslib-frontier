@@ -93,11 +93,9 @@ private theorem mul_eq_mul_of_divInt_eq {r t : ℤ} {q : ℚ} (ht : t ≠ 0)
   exact h.symm
 
 theorem height_inv {q : ℚ} (hq : q ≠ 0) : height q⁻¹ = height q := by
-  have hnum_nz : q.num ≠ 0 := Rat.num_ne_zero.mpr hq
-  have hinv_num : (q⁻¹).num.natAbs = q.den := by
-    rw [Rat.num_inv, Int.natAbs_mul, Int.natAbs_sign_of_ne_zero hnum_nz, Int.natAbs_natCast,
-      one_mul]
-  rw [height, height, hinv_num, Rat.den_inv_of_ne_zero hq, max_comm]
+  rw [height, height, Rat.num_inv, Int.natAbs_mul,
+    Int.natAbs_sign_of_ne_zero (Rat.num_ne_zero.mpr hq), Int.natAbs_natCast, one_mul,
+    Rat.den_inv_of_ne_zero hq, max_comm]
 
 theorem height_divInt_le (a b : ℤ) (hb : b ≠ 0) :
     height (Rat.divInt a b) ≤ max a.natAbs b.natAbs :=
@@ -111,11 +109,10 @@ theorem height_mul_le (p q : ℚ) : height (p * q) ≤ height p * height q :=
     ((den_mul_le p q).trans (Nat.mul_le_mul (den_le_height p) (den_le_height q)))
 
 theorem height_add_le (p q : ℚ) : height (p + q) ≤ 2 * height p * height q := by
-  have h₁ := Nat.mul_le_mul (natAbs_num_le_height p) (den_le_height q)
-  have h₂ := Nat.mul_le_mul (natAbs_num_le_height q) (den_le_height p)
-  have h₃ := Nat.mul_le_mul (den_le_height p) (den_le_height q)
   refine max_le ((natAbs_num_add_le p q).trans ?_) ((den_add_le p q).trans ?_) <;>
-    linarith [Nat.zero_le (height p * height q)]
+    linarith [Nat.mul_le_mul (natAbs_num_le_height p) (den_le_height q),
+      Nat.mul_le_mul (natAbs_num_le_height q) (den_le_height p),
+      Nat.mul_le_mul (den_le_height p) (den_le_height q), Nat.zero_le (height p * height q)]
 
 /-- Two products that agree modulo `M`, each of absolute value at most `N * D`, are equal once
 `2 * N * D < M`. -/
@@ -123,10 +120,8 @@ private theorem mul_eq_mul_of_modEq_of_le {M N D : ℕ} {a b c d : ℤ}
     (hmod : a * b ≡ c * d [ZMOD M]) (hM : 2 * N * D < M)
     (h₁ : a.natAbs * b.natAbs ≤ N * D) (h₂ : c.natAbs * d.natAbs ≤ N * D) : a * b = c * d := by
   refine sub_eq_zero.mp (Int.eq_zero_of_dvd_of_natAbs_lt_natAbs hmod.symm.dvd ?_)
-  have := Int.natAbs_sub_le (a * b) (c * d)
-  rw [Int.natAbs_mul, Int.natAbs_mul] at this
-  rw [Int.natAbs_natCast]
-  linarith
+  linarith [Int.natAbs_sub_le (a * b) (c * d), Int.natAbs_mul a b, Int.natAbs_mul c d,
+    Int.natAbs_natCast M]
 
 /-- Uniqueness of modular rational recovery: if `a₁ * b₂ ≡ a₂ * b₁ [ZMOD M]` with
 `|aᵢ| ≤ N`, `0 < bᵢ ≤ D`, and `2 * N * D < M`, then `(a₁ : ℚ) / b₁ = (a₂ : ℚ) / b₂`. -/
@@ -187,8 +182,7 @@ private structure StepInv (M : ℕ) (u r0 t0 r1 t1 : ℤ) : Prop where
 private theorem t_prod_neg_step {r0 t0 r1 t1 : ℤ} (ht_sign : t0 * t1 ≤ 0) (ht1_ne : t1 ≠ 0)
     (hr1_pos : 0 < r1) (hr1_lt : r1 < r0) : t1 * (t0 - (r0 / r1) * t1) ≤ -1 := by
   have hdiv_ge : 1 ≤ r0 / r1 := Int.le_ediv_of_mul_le hr1_pos (by linarith)
-  have ht1_sq : 0 < t1 * t1 := mul_self_pos.mpr ht1_ne
-  nlinarith
+  nlinarith [mul_self_pos.mpr ht1_ne]
 
 private theorem stepInv_step {M N : ℕ} {u r0 t0 r1 t1 : ℤ}
     (hinv : StepInv M u r0 t0 r1 t1) (hlt : (N : ℤ) < r1) :
@@ -203,8 +197,7 @@ private theorem stepInv_step {M N : ℕ} {u r0 t0 r1 t1 : ℤ}
       r1_lt := Int.emod_lt_of_pos r0 hr1_pos
       mod0 := hinv.mod1
       mod1 := by
-        rw [heq]
-        simpa only [sub_mul, mul_assoc] using hinv.mod0.sub ((hinv.mod1).mul_left (r0 / r1))
+        simpa only [heq, sub_mul, mul_assoc] using hinv.mod0.sub (hinv.mod1.mul_left (r0 / r1))
       t_sign := by linarith
       t1_ne := fun ht2 => by rw [ht2, mul_zero] at hprod; omega
       bezout := ⟨-s, by linear_combination hs1, by rw [heq]; linear_combination -hs2⟩ }
@@ -219,11 +212,9 @@ private theorem reconstructLoop_spec {M N : ℕ} {u r0 t0 r1 t1 : ℤ}
   split_ifs with hlt
   · have hr1_pos : 0 < r1 := lt_of_le_of_lt (Int.natCast_nonneg N) hlt
     obtain ⟨hs, hle, hor⟩ := reconstructLoop_spec (M := M) (N := N) (u := u) (stepInv_step hinv hlt)
-    refine ⟨hs, hle, Or.inr ?_⟩
-    rcases hor with ⟨hr0_eq, ht0_eq, -, ht1_eq⟩ | hrec
-    · rw [hr0_eq, ht0_eq, ht1_eq]
-      exact ⟨hlt, by linarith [t_prod_neg_step hinv.t_sign hinv.t1_ne hr1_pos hinv.r1_lt]⟩
-    · exact hrec
+    refine ⟨hs, hle, Or.inr (hor.elim (fun ⟨hr0_eq, ht0_eq, _, ht1_eq⟩ => ?_) id)⟩
+    rw [hr0_eq, ht0_eq, ht1_eq]
+    exact ⟨hlt, by linarith [t_prod_neg_step hinv.t_sign hinv.t1_ne hr1_pos hinv.r1_lt]⟩
   · exact ⟨hinv, not_lt.mp hlt, Or.inl ⟨rfl, rfl, rfl, rfl⟩⟩
 termination_by r1.toNat
 decreasing_by
@@ -245,19 +236,12 @@ def reconstruct (M : ℕ) (u : ℤ) (N D : ℕ) : Option ℚ :=
       none
 
 private theorem initial_stepInv {M : ℕ} (hM : 0 < M) (u : ℤ) :
-    StepInv M u (M : ℤ) 0 (u % (M : ℤ)) 1 := by
-  have hMz : (0 : ℤ) < (M : ℤ) := Int.natCast_pos.mpr hM
-  refine
-    { r0_pos := hMz
-      r1_nonneg := Int.emod_nonneg u hMz.ne'
-      r1_lt := Int.emod_lt_of_pos u hMz
-      mod0 := by simp [Int.ModEq]
-      mod1 := by
-        show u % (M : ℤ) ≡ 1 * u [ZMOD M]
-        rw [one_mul, Int.ModEq, Int.emod_emod]
-      t_sign := by simp
-      t1_ne := one_ne_zero
-      bezout := ⟨1, rfl, by ring⟩ }
+    StepInv M u (M : ℤ) 0 (u % (M : ℤ)) 1 :=
+  let hMz : (0 : ℤ) < (M : ℤ) := Int.natCast_pos.mpr hM
+  ⟨hMz, Int.emod_nonneg u hMz.ne', Int.emod_lt_of_pos u hMz,
+    by simp [Int.ModEq],
+    by simpa only [one_mul, Int.ModEq] using Int.emod_emod u M,
+    (zero_mul 1).le, one_ne_zero, ⟨1, rfl, by ring⟩⟩
 
 private theorem natAbs_add_of_mul_nonneg {a b : ℤ} (h : 0 ≤ a * b) :
     (a + b).natAbs = a.natAbs + b.natAbs := by
@@ -269,29 +253,22 @@ theorem reconstruct_eq_some {M N D : ℕ} {u : ℤ} {q : ℚ}
     (hq : reconstruct M u N D = some q) :
     0 < M ∧ q.num.natAbs ≤ N ∧ q.den ≤ D ∧ Nat.Coprime q.den M ∧
       q.num ≡ u * (q.den : ℤ) [ZMOD M] := by
-  rw [reconstruct] at hq
-  by_cases hM : M = 0
-  · simp [hM] at hq
+  simp only [reconstruct] at hq
+  split_ifs at hq with hM hcond
   have hMpos : 0 < M := Nat.pos_of_ne_zero hM
-  simp only [hM, ↓reduceIte] at hq
-  let st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
-  change (if decide (st.t1.natAbs ≤ D ∧ Nat.Coprime st.t1.natAbs M) then
-    some (Rat.divInt st.r1 st.t1) else none) = some q at hq
-  split_ifs at hq with hcond
+  obtain ⟨hinv, hrN, -⟩ := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
+  set st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
   rcases of_decide_eq_true hcond with ⟨htD, htM⟩
-  have hqr : Rat.divInt st.r1 st.t1 = q := Option.some.inj hq
-  have hspec := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
-  change StepInv M u st.r0 st.t0 st.r1 st.t1 ∧ st.r1 ≤ (N : ℤ) ∧ _ at hspec
-  obtain ⟨hinv, hrN, -⟩ := hspec
-  have hden : q.den ∣ st.t1.natAbs := Int.natCast_dvd.mp (hqr ▸ Rat.den_dvd st.r1 st.t1)
+  obtain rfl := Option.some.inj hq
+  have hden : (Rat.divInt st.r1 st.t1).den ∣ st.t1.natAbs :=
+    Int.natCast_dvd.mp (Rat.den_dvd st.r1 st.t1)
   -- Cancel the unit `t1` from `q.num * t1 = r1 * q.den ≡ t1 * u * q.den`.
   have hq_mod := Int.ModEq.cancel_right_div_gcd (Int.natCast_pos.mpr hMpos)
-    (c := st.t1) (a := q.num) (b := u * q.den) <| by
-      rw [mul_eq_mul_of_divInt_eq hinv.t1_ne hqr]
-      calc st.r1 * q.den ≡ st.t1 * u * q.den [ZMOD M] := hinv.mod1.mul_right _
-        _ = u * q.den * st.t1 := by ring
-  rw [show Int.gcd M st.t1 = 1 from htM.symm, Nat.cast_one, Int.ediv_one] at hq_mod
-  subst hqr
+    (c := st.t1) (a := (Rat.divInt st.r1 st.t1).num) (b := u * (Rat.divInt st.r1 st.t1).den) <| by
+      rw [mul_eq_mul_of_divInt_eq hinv.t1_ne rfl]
+      calc st.r1 * (Rat.divInt st.r1 st.t1).den ≡ st.t1 * u * _ [ZMOD M] := hinv.mod1.mul_right _
+        _ = u * (Rat.divInt st.r1 st.t1).den * st.t1 := by ring
+  rw [Int.gcd, Int.natAbs_natCast, htM.symm, Nat.cast_one, Int.ediv_one] at hq_mod
   exact ⟨hMpos, (natAbs_num_divInt_le _ _ hinv.t1_ne).trans (by have := hinv.r1_nonneg; omega),
     (den_divInt_le _ _ hinv.t1_ne).trans htD, Nat.Coprime.coprime_dvd_left hden htM, hq_mod⟩
 
@@ -304,16 +281,9 @@ theorem reconstruct_of_eq {M N D : ℕ} {u : ℤ} {q : ℚ}
     reconstruct M u N D = some q := by
   have hMpos : 0 < M := Nat.zero_lt_of_lt hM
   have hM0 : (M : ℤ) ≠ 0 := Int.natCast_ne_zero.mpr hMpos.ne'
-  rw [reconstruct]
-  simp only [hMpos.ne', ↓reduceIte]
-  let st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
-  change (if decide (st.t1.natAbs ≤ D ∧ Nat.Coprime st.t1.natAbs M) then
-    some (Rat.divInt st.r1 st.t1) else none) = some q
-  have hspec := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
-  change StepInv M u st.r0 st.t0 st.r1 st.t1 ∧ st.r1 ≤ (N : ℤ) ∧
-    ((st.r0 = (M : ℤ) ∧ st.t0 = 0 ∧ st.r1 = u % (M : ℤ) ∧ st.t1 = 1) ∨
-      ((N : ℤ) < st.r0 ∧ st.t0 * st.t1 < 0)) at hspec
-  rcases hspec with ⟨hinv, hrN, hcase⟩
+  simp only [reconstruct, hMpos.ne', ↓reduceIte]
+  obtain ⟨hinv, hrN, hcase⟩ := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
+  set st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
   have hmod_rt : q.num * st.t1 ≡ (q.den : ℤ) * st.r1 [ZMOD M] :=
     calc q.num * st.t1 ≡ u * q.den * st.t1 [ZMOD M] := hmod.mul_right _
       _ = q.den * (st.t1 * u) := by ring
@@ -346,16 +316,15 @@ theorem reconstruct_of_eq {M N D : ℕ} {u : ℤ} {q : ℚ}
         -- `x` and `y` have opposite signs, since otherwise `|q.num| ≥ r0 > N`.
         have hxy : x * y < 0 := by
           by_contra hxy
-          have h := natAbs_add_of_mul_nonneg (a := x * st.r0) (b := y * st.r1) (by
-            rw [mul_mul_mul_comm]
-            exact mul_nonneg (not_lt.mp hxy) (mul_nonneg hinv.r0_pos.le hinv.r1_nonneg))
+          have h := natAbs_add_of_mul_nonneg (a := x * st.r0) (b := y * st.r1)
+            (mul_mul_mul_comm x st.r0 y st.r1 ▸
+              mul_nonneg (not_lt.mp hxy) (mul_nonneg hinv.r0_pos.le hinv.r1_nonneg))
           rw [← ha, Int.natAbs_mul, Int.natAbs_mul] at h
           have := Nat.le_mul_of_pos_left st.r0.natAbs (Int.natAbs_pos.mpr hx0)
           omega
         -- Hence `x * t0` and `y * t1` have the same sign, so `|t1| ≤ q.den ≤ D`.
-        have h := natAbs_add_of_mul_nonneg (a := x * st.t0) (b := y * st.t1) (by
-          rw [mul_mul_mul_comm]
-          exact (mul_pos_of_neg_of_neg hxy ht01).le)
+        have h := natAbs_add_of_mul_nonneg (a := x * st.t0) (b := y * st.t1)
+          (mul_mul_mul_comm x st.t0 y st.t1 ▸ (mul_pos_of_neg_of_neg hxy ht01).le)
         rw [← hb, Int.natAbs_natCast, Int.natAbs_mul, Int.natAbs_mul] at h
         have := Nat.le_mul_of_pos_left st.t1.natAbs
           (Int.natAbs_pos.mpr (right_ne_zero_of_mul hxy.ne))
@@ -394,19 +363,15 @@ theorem reconstructPi_of_eq {k : ℕ} {m : Fin k → ℕ} (hcop : Pairwise (Nat.
     (hres : ∀ i, (q.num : ZMod (m i)) = res i * (q.den : ZMod (m i))) :
     reconstructPi m hcop res N D = some q := by
   let M := ∏ i, m i
-  have : NeZero M := ⟨by have : 0 < M := Nat.zero_lt_of_lt hM; omega⟩
+  have : NeZero M := ⟨(Nat.zero_lt_of_lt hM).ne'⟩
   let uZ : ZMod M := (ZMod.prodEquivPi m hcop).symm res
-  have hcopM : Nat.Coprime q.den M := Nat.Coprime.prod_right fun i _ => hcop_den i
-  have hcast : (q.num : ZMod M) = uZ * (q.den : ZMod M) := by
-    apply (ZMod.prodEquivPi m hcop).injective
-    ext i
-    rw [map_mul, map_intCast, map_natCast, RingEquiv.apply_symm_apply]
-    exact hres i
-  have hmod : q.num ≡ (uZ.val : ℤ) * (q.den : ℤ) [ZMOD M] := by
-    rw [← ZMod.intCast_eq_intCast_iff]
-    rw [← ZMod.natCast_zmod_val uZ] at hcast
-    exact_mod_cast hcast
-  exact reconstruct_of_eq hN hD hM hcopM hmod
+  have hcast : (q.num : ZMod M) = (uZ.val : ℤ) * (q.den : ZMod M) :=
+    (ZMod.prodEquivPi m hcop).injective <| by
+      rw [Int.cast_natCast, ZMod.natCast_zmod_val, map_mul, map_intCast, map_natCast,
+        RingEquiv.apply_symm_apply]
+      exact funext hres
+  exact reconstruct_of_eq hN hD hM (Nat.Coprime.prod_right fun i _ => hcop_den i)
+    ((ZMod.intCast_eq_intCast_iff _ _ M).mp (by simpa using hcast))
 
 end CRTReconstruction
 

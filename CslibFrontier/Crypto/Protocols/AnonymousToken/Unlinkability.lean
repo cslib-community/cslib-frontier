@@ -119,11 +119,9 @@ theorem OpeningCommitment.toScheme_correct {CommitKey Message C Opening : Type}
     Com.toScheme.Correct := by
   intro ck _ m c r hmem
   simp only [OpeningCommitment.toScheme, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-  rcases hmem with ⟨r', _, heq⟩
-  injection heq with hc hr
-  subst c r'
-  simp [OpeningCommitment.toScheme]
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq, decide_eq_true_eq] at hmem ⊢
+  rcases hmem with ⟨_, _, rfl, rfl⟩
+  rfl
 
 /-- Message committed inside a VOLE-ACT note commitment `Com(nf, ctx, t, r)`. -/
 structure CommitMsg (Nullifier Context : Type) where
@@ -143,10 +141,8 @@ reductions where two distinct messages must be committed to check collisions. -/
 
 /-- `CommitMsg.bumpBal` is always distinct from the original message. -/
 theorem CommitMsg.bumpBal_ne {Nullifier Context : Type} (m : CommitMsg Nullifier Context) :
-    m.bumpBal ≠ m := by
-  intro h
-  have hb : m.bal + 1 = m.bal := congrArg CommitMsg.bal h
-  omega
+    m.bumpBal ≠ m :=
+  fun h => Nat.succ_ne_self m.bal (congrArg CommitMsg.bal h)
 
 /-- Public statement for a VOLE-ACT initial issuance proof ([VOLEACT2026], `#issuance`). -/
 structure IssueStmt (C Context : Type) where
@@ -680,28 +676,19 @@ private lemma eval_unlinkOracleProgram_mkSig_issue
         ⟨nf1, t1, r1, Com.eval ck ⟨nf1, ctx, t1⟩ r1, 0,
           mkSig (tag (Com.eval ck ⟨nf1, ctx, t1⟩ r1) 0)⟩
         ()).run (realProofOracle Com tag S bound sys ck)) := by
-  simp only [unlinkOracleProgram, hinit, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
-  have hcond : (0 < t0 && t0 < bound && 0 < t1 && t1 < bound) = true := by
-    simp only [Bool.and_eq_true, decide_eq_true_eq]
-    exact ⟨⟨⟨ht0.1, ht0.2⟩, ht1.1⟩, ht1.2⟩
-  simp only [hcond, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
-    ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind]
+  simp only [unlinkOracleProgram, hinit, ht0.1, ht0.2, ht1.1, ht1.2, decide_true, Bool.and_self,
+    Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
+    ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.pure_bind]
   refine pmfBind_congr _ fun nf0 => pmfBind_congr _ fun r0 => ?_
-  have hv0 : validStatement Com tag S bound ck
-      (.issue ⟨ctx, Com.eval ck ⟨nf0, ctx, t0⟩ r0, t0⟩) (.issue ⟨nf0, r0⟩) = true := by
-    simp [validStatement, ht0.1, ht0.2]
-  rw [bind_realProofOracle_valid Com tag S bound sys ck hv0]
-  dsimp only
+  rw [bind_realProofOracle_valid Com tag S bound sys ck
+    (by simp [validStatement, ht0.1, ht0.2])]
   refine pmfBind_congr _ fun pi0 => ?_
   simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
     ProbComp.eval_bind]
   refine pmfBind_congr _ fun nf1 => pmfBind_congr _ fun r1 => ?_
-  have hv1 : validStatement Com tag S bound ck
-      (.issue ⟨ctx, Com.eval ck ⟨nf1, ctx, t1⟩ r1, t1⟩) (.issue ⟨nf1, r1⟩) = true := by
-    simp [validStatement, ht1.1, ht1.2]
-  rw [bind_realProofOracle_valid Com tag S bound sys ck hv1]
-  dsimp only
+  rw [bind_realProofOracle_valid Com tag S bound sys ck
+    (by simp [validStatement, ht1.1, ht1.2])]
   refine pmfBind_congr _ fun pi1 => ?_
   simp only [hissue, ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.pure_bind, hmksig, Bool.and_self, Bool.not_true, Bool.false_eq_true,
@@ -741,18 +728,15 @@ private lemma eval_challengeLoop_debit2_true
           noteAct.bal + noteAct.ref - 2, rC⟩))).bind fun _ =>
         PMF.pure true := by
   have hj0 : (⟨1 - (0 + 1), by omega⟩ : Fin 1) = 0 := rfl
+  have h2 : 2 < bound := by omega
   simp only [challengeLoopOracle, hj0, hchoose, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, spendAdmissible]
   have hadm1 : decide (2 < bound ∧ 2 ≤ noteAct.bal + noteAct.ref ∧
-      noteAct.bal + noteAct.ref - 2 < bound) = true := by
-    simp only [decide_eq_true_eq]
-    exact ⟨by omega, by omega, by omega⟩
+      noteAct.bal + noteAct.ref - 2 < bound) = true :=
+    decide_eq_true ⟨h2, hsum⟩
   have hadm2 : (!guardBoth || decide (2 < bound ∧ 2 ≤ balOther + refOther ∧
       balOther + refOther - 2 < bound)) = true := by
-    cases guardBoth
-    · rfl
-    · have ho := hoth rfl
-      simp [show 2 < bound by omega, ho.1, ho.2]
+    cases guardBoth <;> simp [h2, hoth]
   simp only [hadm1, hadm2, Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
     ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
     ProbComp.eval_bind]
@@ -763,12 +747,11 @@ private lemma eval_challengeLoop_debit2_true
       (.spend ⟨noteAct.bal, noteAct.r, noteAct.ref, noteAct.sig, nfC,
         noteAct.bal + noteAct.ref - 2, rC⟩) = true := by
     simp only [validStatement, ← hnote_com, hnote_sig, Bool.true_and, decide_eq_true_eq]
-    exact ⟨by simp, by omega, by simp, hnote_bal, hnote_ref, by omega, by omega⟩
+    exact ⟨by simp, by omega, by simp, hnote_bal, hnote_ref, by omega, h2⟩
   rw [bind_realProofOracle_valid Com tag S bound sys ck hv]
-  dsimp only
   refine pmfBind_congr _ fun piC => ?_
   simp only [hfin, ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, hmksig, show (0 : ℕ) < bound by omega, decide_true,
+    ProbComp.eval_pure, PMF.pure_bind, hmksig, Nat.zero_lt_of_lt h2, decide_true,
     Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte, hguess]
 
 /-- Helper showing a `challengeLoopOracle` debit-`2` call aborts immediately (`PMF.pure false`)
@@ -790,15 +773,7 @@ private lemma eval_challengeLoop_debit2_false
   have hj0 : (⟨1 - (0 + 1), by omega⟩ : Fin 1) = 0 := rfl
   simp only [challengeLoopOracle, hj0, hchoose, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, spendAdmissible]
-  rcases habort with h1 | ⟨rfl, h2⟩
-  · have hadm : decide (2 < bound ∧ 2 ≤ noteAct.bal + noteAct.ref ∧
-        noteAct.bal + noteAct.ref - 2 < bound) = false := by
-      simp only [decide_eq_false_iff_not]; omega
-    simp [hadm]
-  · have hadm : decide (2 < bound ∧ 2 ≤ balOther + refOther ∧
-        balOther + refOther - 2 < bound) = false := by
-      simp only [decide_eq_false_iff_not]; omega
-    simp [hadm]
+  rcases habort with h1 | ⟨rfl, h2⟩ <;> simp [not_le.mpr ‹_›]
 
 /-- Shared evaluation helper for `balancePartitionInitAdversary` across worlds. -/
 private lemma eval_balancePartitionInit_eq
@@ -821,16 +796,12 @@ private lemma eval_balancePartitionInit_eq
         (balancePartitionInitAdversary tag pk ctx mkSig) guardBoth b ck).run
         (realProofOracle Com tag S bound sys ck)) = PMF.pure res := by
   simp only [ProbComp.eval_bind]
-  trans (ProbComp.eval Com.keyGen).bind fun _ => PMF.pure res
-  · refine pmfBind_congr _ fun ck => ?_
-    rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys _ pk ctx 2 1 mkSig
-      (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) guardBoth b ck]
-    cases b
-    · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte] at htail ⊢
-      simp only [htail ck, PMF.bind_const]
-    · simp only [preLoopOracle, ↓reduceIte] at htail ⊢
-      simp only [htail ck, PMF.bind_const]
-  · simp only [PMF.bind_const]
+  refine (pmfBind_congr _ fun ck => ?_).trans (PMF.bind_const _ _)
+  rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys _ pk ctx 2 1 mkSig
+    (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) guardBoth b ck]
+  cases b <;>
+  · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte] at htail ⊢
+    simp only [htail ck, PMF.bind_const]
 
 private lemma eval_balancePartitionInit_abort
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
@@ -846,12 +817,9 @@ private lemma eval_balancePartitionInit_abort
         (balancePartitionInitAdversary tag pk ctx mkSig) guardBoth b ck).run
         (realProofOracle Com tag S bound sys ck)) = PMF.pure false := by
   refine eval_balancePartitionInit_eq Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
-    guardBoth b false fun ck nf r => ?_
-  cases b
-  · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth _ 1 0 (Or.inr ⟨hbad, by simp⟩)
-  · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth _ 2 0 (Or.inl (by simp))
+    guardBoth b false fun ck nf r =>
+      eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
+        guardBoth _ _ 0 (by cases b <;> simp_all)
 
 /-- Without the cross-branch non-abort guard, `balancePartitionInitAdversary` achieves
 unlinkability advantage `1` whenever `bound ≥ 3` and `mkSig` produces valid signatures under
@@ -902,14 +870,10 @@ theorem balancePartitionInit_guarded_advantage_eq_zero
         (balancePartitionInitAdversary tag pk ctx mkSig) false)
       (unlinkabilityExperiment Com nfGen tag S bound sys
         (balancePartitionInitAdversary tag pk ctx mkSig) true) = 0 := by
-  have hzero (b : Bool) :
-      unlinkabilityExperiment Com nfGen tag S bound sys
-        (balancePartitionInitAdversary tag pk ctx mkSig) b = PMF.pure false := by
-    cases b
-    · exact eval_balancePartitionInit_abort Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
-        true false rfl
-    · exact eval_balancePartitionInit_abort Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
-        true true trivial
+  have hzero (b : Bool) : unlinkabilityExperiment Com nfGen tag S bound sys
+      (balancePartitionInitAdversary tag pk ctx mkSig) b = PMF.pure false :=
+    eval_balancePartitionInit_abort Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
+      true b (by cases b <;> trivial)
   rw [hzero false, hzero true, Game.advantage_self]
 
 /-- Negative balance-partitioning adversary with equal initial balances `T₀ = T₁ = 2` and
@@ -978,28 +942,51 @@ private lemma eval_refund_preLoopOracle
   simp only [preLoopOracle, balancePartitionRefundAdversary, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, ↓reduceIte,
     Bool.false_eq_true, spendAdmissible]
-  have hadm0 : decide (1 < bound ∧ 1 ≤ 2 + 0 ∧ 2 + 0 - 1 < bound) = true := by
-    simp only [decide_eq_true_eq]; omega
+  have hadm0 : decide (1 < bound ∧ 1 ≤ 2 + 0 ∧ 2 + 0 - 1 < bound) = true :=
+    decide_eq_true (by omega)
   simp only [hadm0, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind]
   refine pmfBind_congr _ fun nf0' => pmfBind_congr _ fun r0' => ?_
   rw [bind_realProofOracle_valid Com tag S bound sys ck
     (spendValid_mkSig_note2 Com tag S bound hbound ck pk ctx mkSig hmksig nf0 r0 nf0' r0')]
-  dsimp only
   refine pmfBind_congr _ fun pi0' => ?_
+  have h2lt : 2 < bound := by omega
   simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, hmksig, Bool.and_true, show (2 : ℕ) < bound by omega,
-    decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-  have h1ne0 : ¬((2 - (0 + 1) : ℕ) = 0) := by omega
-  simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, h1ne0, ↓reduceIte, hadm0, Bool.not_true, Bool.false_eq_true,
+    ProbComp.eval_pure, PMF.pure_bind, hmksig, Bool.and_true, h2lt, decide_true, Bool.not_true,
+    Bool.false_eq_true, ↓reduceIte, Nat.reduceAdd, Nat.reduceSub, Nat.one_ne_zero, hadm0,
     ProbOracleComp.run_query]
   refine pmfBind_congr _ fun nf1' => pmfBind_congr _ fun r1' => ?_
   rw [bind_realProofOracle_valid Com tag S bound sys ck
     (spendValid_mkSig_note2 Com tag S bound hbound ck pk ctx mkSig hmksig nf1 r1 nf1' r1')]
-  dsimp only
   refine pmfBind_congr _ fun pi1' => ?_
-  simp [hmksig, show bound ≠ 0 by omega]
+  simp [hmksig, (Nat.zero_lt_of_lt h2lt).ne']
+
+private lemma eval_balancePartitionRefund_eq
+    (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
+    (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig) (bound : ℕ)
+    (sys : ProverSystem CommitKey PK C Context Nullifier O Sig Proof)
+    (hbound : 5 ≤ bound) (pk : PK) (ctx : Context) (mkSig : Target → Sig)
+    (hmksig : ∀ t, S.verify pk t (mkSig t) = true) (guardBoth b res : Bool)
+    (hchal : ∀ ck nf0' r0' nf1' r1',
+      ProbComp.eval ((preLoopOracle Com nfGen tag S bound
+        (balancePartitionRefundAdversary tag pk ctx mkSig) ck pk ctx guardBoth b 0 (by omega)
+        ⟨nf0', 1, r0', Com.eval ck ⟨nf0', ctx, 1⟩ r0', 2,
+          mkSig (tag (Com.eval ck ⟨nf0', ctx, 1⟩ r0') 2)⟩
+        ⟨nf1', 1, r1', Com.eval ck ⟨nf1', ctx, 1⟩ r1', 0,
+          mkSig (tag (Com.eval ck ⟨nf1', ctx, 1⟩ r1') 0)⟩ ()).run
+        (realProofOracle Com tag S bound sys ck)) = PMF.pure res) :
+    ProbComp.eval (do
+      let ck ← Com.keyGen
+      (unlinkOracleProgram Com nfGen tag S bound
+        (balancePartitionRefundAdversary tag pk ctx mkSig) guardBoth b ck).run
+        (realProofOracle Com tag S bound sys ck)) = PMF.pure res := by
+  simp only [ProbComp.eval_bind]
+  refine (pmfBind_congr _ fun ck => ?_).trans (PMF.bind_const _ _)
+  rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys _ pk ctx 2 2 mkSig
+    (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) guardBoth b ck]
+  simp only [eval_refund_preLoopOracle Com nfGen tag S bound sys hbound pk ctx mkSig hmksig ck
+    guardBoth b, hchal ck, PMF.bind_const]
 
 /-- Even when `T₀ = T₁`, omitting the cross-branch non-abort guard lets
 `balancePartitionRefundAdversary` achieve advantage `1` whenever `bound ≥ 5`. -/
@@ -1017,55 +1004,21 @@ theorem balancePartitionRefund_unguarded_advantage_eq_one
         (balancePartitionRefundAdversary tag pk ctx mkSig) true) = 1 := by
   let adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig Unit 2 1 :=
     balancePartitionRefundAdversary tag pk ctx mkSig
-  have hside : ∀ b : Bool,
-      unguardedUnlinkabilityExperiment Com nfGen tag S bound sys adv b = PMF.pure (!b) := by
-    intro b
-    simp only [unguardedUnlinkabilityExperiment, ProbComp.eval_bind]
-    trans (ProbComp.eval Com.keyGen).bind fun _ => PMF.pure (!b)
-    · refine pmfBind_congr _ fun ck => ?_
-      rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys adv pk ctx 2 2 mkSig
-        (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) false b ck]
-      have hstep : ∀ nf0 r0 nf1 r1,
-          ProbComp.eval ((preLoopOracle Com nfGen tag S bound adv ck pk ctx false b 2
-            (by omega)
-            ⟨nf0, 2, r0, Com.eval ck ⟨nf0, ctx, 2⟩ r0, 0,
-              mkSig (tag (Com.eval ck ⟨nf0, ctx, 2⟩ r0) 0)⟩
-            ⟨nf1, 2, r1, Com.eval ck ⟨nf1, ctx, 2⟩ r1, 0,
-              mkSig (tag (Com.eval ck ⟨nf1, ctx, 2⟩ r1) 0)⟩ ()).run
-            (realProofOracle Com tag S bound sys ck)) = PMF.pure (!b) := by
-        intro nf0 r0 nf1 r1
-        rw [eval_refund_preLoopOracle Com nfGen tag S bound sys hbound pk ctx mkSig hmksig ck
-          false b nf0 nf1 r0 r1]
-        have hchal : ∀ nf0' r0' nf1' r1',
-            ProbComp.eval ((preLoopOracle Com nfGen tag S bound adv ck pk ctx false b 0
-              (by omega)
-              ⟨nf0', 1, r0', Com.eval ck ⟨nf0', ctx, 1⟩ r0', 2,
-                mkSig (tag (Com.eval ck ⟨nf0', ctx, 1⟩ r0') 2)⟩
-              ⟨nf1', 1, r1', Com.eval ck ⟨nf1', ctx, 1⟩ r1', 0,
-                mkSig (tag (Com.eval ck ⟨nf1', ctx, 1⟩ r1') 0)⟩ ()).run
-              (realProofOracle Com tag S bound sys ck)) = PMF.pure (!b) := by
-          intro nf0' r0' nf1' r1'
-          cases b
-          · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte, Bool.not_false]
-            rw [eval_challengeLoop_debit2_true Com nfGen tag S bound sys adv (by omega) pk ctx
-              mkSig hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) (fun _ => rfl) ck false _
-              1 0 ⟨by simp, by simp; omega⟩ (by simp) rfl (by simp; omega) (by simp; omega)
-              (by simp [hmksig])]
-            simp only [PMF.bind_const]
-          · simp only [preLoopOracle, ↓reduceIte, Bool.not_true]
-            exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv (fun _ => rfl) ck
-              pk ctx false _ 1 2 (Or.inl (by simp))
-        dsimp only [adv] at hchal
-        simp only [hchal, PMF.bind_const]
-      simp only [hstep, PMF.bind_const]
-    · simp only [PMF.bind_const]
-  have hfalse :
-      unguardedUnlinkabilityExperiment Com nfGen tag S bound sys adv false = PMF.pure true :=
-    hside false
-  have htrue :
-      unguardedUnlinkabilityExperiment Com nfGen tag S bound sys adv true = PMF.pure false :=
-    hside true
-  rw [hfalse, htrue]
+  have hside (b : Bool) :
+      unguardedUnlinkabilityExperiment Com nfGen tag S bound sys adv b = PMF.pure (!b) :=
+    eval_balancePartitionRefund_eq Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
+      false b (!b) fun ck nf0' r0' nf1' r1' => by
+      cases b
+      · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte, Bool.not_false]
+        rw [eval_challengeLoop_debit2_true Com nfGen tag S bound sys adv (by omega) pk ctx
+          mkSig hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) (fun _ => rfl) ck false _
+          1 0 ⟨by simp, by simp; omega⟩ (by simp) rfl (by simp; omega) (by simp; omega)
+          (by simp [hmksig])]
+        simp only [PMF.bind_const]
+      · simp only [preLoopOracle, ↓reduceIte, Bool.not_true]
+        exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv (fun _ => rfl) ck
+          pk ctx false _ 1 2 (Or.inl (by simp))
+  rw [hside false, hside true]
   exact NNReal.eq_iff.mpr (by simp [Game.coe_succProbability])
 
 /-- With the cross-branch non-abort guard enabled, `balancePartitionRefundAdversary` also aborts
@@ -1085,43 +1038,11 @@ theorem balancePartitionRefund_guarded_advantage_eq_zero
   let adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig Unit 2 1 :=
     balancePartitionRefundAdversary tag pk ctx mkSig
   have hzero (b : Bool) : unlinkabilityExperiment Com nfGen tag S bound sys adv b =
-      PMF.pure false := by
-    simp only [unlinkabilityExperiment, ProbComp.eval_bind]
-    trans (ProbComp.eval Com.keyGen).bind fun _ => PMF.pure false
-    · refine pmfBind_congr _ fun ck => ?_
-      rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys adv pk ctx 2 2 mkSig
-        (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) true b ck]
-      have hstep : ∀ nf0 r0 nf1 r1,
-          ProbComp.eval ((preLoopOracle Com nfGen tag S bound adv ck pk ctx true b 2
-            (by omega)
-            ⟨nf0, 2, r0, Com.eval ck ⟨nf0, ctx, 2⟩ r0, 0,
-              mkSig (tag (Com.eval ck ⟨nf0, ctx, 2⟩ r0) 0)⟩
-            ⟨nf1, 2, r1, Com.eval ck ⟨nf1, ctx, 2⟩ r1, 0,
-              mkSig (tag (Com.eval ck ⟨nf1, ctx, 2⟩ r1) 0)⟩ ()).run
-            (realProofOracle Com tag S bound sys ck)) = PMF.pure false := by
-        intro nf0 r0 nf1 r1
-        rw [eval_refund_preLoopOracle Com nfGen tag S bound sys hbound pk ctx mkSig hmksig ck true b
-          nf0 nf1 r0 r1]
-        have hchal : ∀ nf0' r0' nf1' r1',
-            ProbComp.eval ((preLoopOracle Com nfGen tag S bound adv ck pk ctx true b 0
-              (by omega)
-              ⟨nf0', 1, r0', Com.eval ck ⟨nf0', ctx, 1⟩ r0', 2,
-                mkSig (tag (Com.eval ck ⟨nf0', ctx, 1⟩ r0') 2)⟩
-              ⟨nf1', 1, r1', Com.eval ck ⟨nf1', ctx, 1⟩ r1', 0,
-                mkSig (tag (Com.eval ck ⟨nf1', ctx, 1⟩ r1') 0)⟩ ()).run
-              (realProofOracle Com tag S bound sys ck)) = PMF.pure false := by
-          intro nf0' r0' nf1' r1'
-          cases b
-          · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte]
-            exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv (fun _ => rfl) ck pk
-              ctx true _ 1 0 (Or.inr ⟨rfl, by simp⟩)
-          · simp only [preLoopOracle, ↓reduceIte]
-            exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv (fun _ => rfl) ck pk
-              ctx true _ 1 2 (Or.inl (by simp))
-        dsimp only [adv] at hchal
-        simp only [hchal, PMF.bind_const]
-      simp only [hstep, PMF.bind_const]
-    · simp only [PMF.bind_const]
+      PMF.pure false :=
+    eval_balancePartitionRefund_eq Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
+      true b false fun ck _ _ _ _ => by
+      cases b <;> exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv
+        (fun _ => rfl) ck pk ctx true _ _ _ (by simp)
   rw [hzero false, hzero true, Game.advantage_self]
 
 end BalancePartitionAttacks
@@ -1181,24 +1102,21 @@ private lemma challengeLoopOracle_isQueryBounded
     simp only [challengeLoopOracle]
     exact ProbOracleComp.IsQueryBounded.sample _
   | succ rem' ih =>
+    have hcost : rem' + 1 = 0 + (0 + (0 + (1 + (0 + rem')))) := by omega
     simp only [challengeLoopOracle]
-    conv_rhs => rw [← Nat.zero_add (rem' + 1)]
+    conv_rhs => rw [hcost]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs
-    · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-    · conv_rhs => rw [← Nat.zero_add (rem' + 1)]
-      refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-      conv_rhs => rw [← Nat.zero_add (rem' + 1)]
-      refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-      conv_rhs => rw [show rem' + 1 = 1 + rem' by omega]
-      refine (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
+    · exact OracleComp.IsCostBounded.pure _ _
+    · refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+        (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+          (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
       cases pi? with
-      | none => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+      | none => exact OracleComp.IsCostBounded.pure _ _
       | some pi =>
-        conv_rhs => rw [← Nat.zero_add rem']
-        refine (ProbOracleComp.IsQueryBounded.sample _).bind fun resp => ?_
+        refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
         split_ifs
-        · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+        · exact OracleComp.IsCostBounded.pure _ _
         · exact ih (by omega) _ _ _ _
 
 /-- Query bound for `preLoopOracle`: at most `rem + challengeSpends` queries. -/
@@ -1222,25 +1140,22 @@ private lemma preLoopOracle_isQueryBounded
       exact challengeLoopOracle_isQueryBounded Com nfGen tag S bound adv ck pk ctx guardBoth
         challengeSpends (le_refl _) _ _ _ _
   | succ rem' ih =>
+    have hcost : rem' + 1 + challengeSpends =
+        0 + (0 + (0 + (1 + (0 + (rem' + challengeSpends))))) := by omega
     simp only [preLoopOracle]
-    conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
+    conv_rhs => rw [hcost]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs <;> first
-      | exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-      | (conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
-         refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-         conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
-         refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-         conv_rhs =>
-           rw [show rem' + 1 + challengeSpends = 1 + (rem' + challengeSpends) by omega]
-         refine (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
+      | exact OracleComp.IsCostBounded.pure _ _
+      | (refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+           (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+             (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
          cases pi? with
-         | none => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+         | none => exact OracleComp.IsCostBounded.pure _ _
          | some pi =>
-           conv_rhs => rw [← Nat.zero_add (rem' + challengeSpends)]
            refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
            split_ifs <;> first
-             | exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+             | exact OracleComp.IsCostBounded.pure _ _
              | exact ih (by omega) _ _ _)
 
 private lemma issueStep_isQueryBounded
@@ -1276,22 +1191,18 @@ theorem zkDistinguisher_isQueryBounded
       preRounds challengeSpends) (ck : CommitKey) :
     ProbOracleComp.IsQueryBounded (zkDistinguisher Com nfGen tag S bound adv ck)
       (2 + preRounds + challengeSpends) := by
-  simp only [zkDistinguisher]
-  conv_rhs => rw [← Nat.zero_add (2 + preRounds + challengeSpends)]
-  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-  refine (?_ : ProbOracleComp.IsQueryBounded _ (2 + preRounds + challengeSpends)).bind
-    (fun _ => OracleComp.IsCostBounded.pure _ 0)
-  simp only [unlinkOracleProgram]
-  conv_rhs => rw [← Nat.zero_add (2 + preRounds + challengeSpends)]
-  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun initOut => ?_
+  simp only [zkDistinguisher, unlinkOracleProgram]
+  refine (?_ : ProbOracleComp.IsQueryBounded _
+    (0 + ((0 + (1 + (1 + (0 + (preRounds + challengeSpends))))) + 0))).mono (by omega)
+  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+    ((ProbOracleComp.IsQueryBounded.sample _).bind fun initOut => ?_).bind
+      fun _ => OracleComp.IsCostBounded.pure _ 0
   split_ifs
   · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-  · rw [show 2 + preRounds + challengeSpends = 1 + (1 + (preRounds + challengeSpends)) by omega]
-    refine issueStep_isQueryBounded nfGen Com.openSample _ _
+  · refine issueStep_isQueryBounded nfGen Com.openSample _ _
       (fun _ _ => (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)) fun _ _ _ => ?_
     refine issueStep_isQueryBounded nfGen Com.openSample _ _
       (fun _ _ => (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)) fun _ _ _ => ?_
-    conv_rhs => rw [← Nat.zero_add (preRounds + challengeSpends)]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs
     · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
@@ -1480,12 +1391,7 @@ private lemma preLoopSim_cutoff_congr {preRounds challengeSpends : ℕ}
       preLoopSim env adv pk ctx b hop2 rem hrem note0 note1 st := by
   induction rem generalizing note0 note1 st with
   | zero =>
-    simp only [preLoopSim]
-    cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact challengeLoopSim_cutoff_congr env adv pk ctx hop1 hop2 challengeSpends
-        (le_refl _) (by omega) (by omega) _ _ _ _
-    · simp only [↓reduceIte]
+    cases b <;>
       exact challengeLoopSim_cutoff_congr env adv pk ctx hop1 hop2 challengeSpends
         (le_refl _) (by omega) (by omega) _ _ _ _
   | succ rem' ih =>
@@ -1493,12 +1399,11 @@ private lemma preLoopSim_cutoff_congr {preRounds challengeSpends : ℕ}
     have hf2 : ¬ (2 + (preRounds - (rem' + 1)) < hop2) := by omega
     simp only [preLoopSim, hf1, hf2, ↓reduceIte]
     congr 1 with choice
-    by_cases hguard : spendAdmissible env.bound
+    cases spendAdmissible env.bound
         (if choice.client then note1 else note0).bal
-        (if choice.client then note1 else note0).ref choice.debit = false
-    · simp only [hguard, Bool.not_false, ↓reduceIte]
-    · have hguardT := Bool.eq_true_of_not_eq_false hguard
-      simp only [hguardT, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+        (if choice.client then note1 else note0).ref choice.debit
+    · simp only [Bool.not_false, ↓reduceIte]
+    · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
       congr 1 with nfPrime
       congr 1 with rPrime
       congr 1 with pi
@@ -1547,11 +1452,10 @@ private lemma eval_simGate [DecidableEq C]
     ProbComp.eval ((if !(c1 && c2) then pure false else kOra).run
         (simProofOracle Com tag S bound sys ck)) =
       ProbComp.eval (if !(c1 && c2) then pure false else kSim) := by
-  by_cases hfin : (c1 && c2) = false
-  · simp only [hfin, Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
-  · have hfinAnd := Bool.eq_true_of_not_eq_false hfin
-    simp only [hfinAnd, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-    have hc := Bool.and_eq_true _ _ |>.mp hfinAnd
+  cases hfin : c1 && c2
+  · simp only [Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
+  · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+    have hc := (Bool.and_eq_true _ _).mp hfin
     exact hk hc.1 hc.2
 
 private lemma issueValid_of_pos_lt [DecidableEq C]
@@ -1581,23 +1485,21 @@ private lemma challengeLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpe
   | zero =>
     simp [challengeLoopOracle, challengeLoopSim, ProbOracleComp.run_sample]
   | succ rem' ih =>
-    have htrueOr : ∀ x : Bool, (!true || x) = x := fun x => by cases x <;> rfl
-    simp only [challengeLoopOracle, challengeLoopSim, ClientNote.toSim, Nat.not_lt_zero, htrueOr,
-      ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind]
+    simp only [challengeLoopOracle, challengeLoopSim, ClientNote.toSim, Nat.not_lt_zero,
+      Bool.not_true, Bool.false_or, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+      ProbComp.eval_bind]
     refine pmfBind_congr _ fun choice => ?_
-    by_cases hguard : (spendAdmissible env.bound noteAct.bal noteAct.ref choice.debit &&
-        spendAdmissible env.bound balOther refOther choice.debit) = false
-    · simp only [hguard, Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
-    · have hguardT := Bool.eq_true_of_not_eq_false hguard
-      simp only [hguardT, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
+    cases hguard : spendAdmissible env.bound noteAct.bal noteAct.ref choice.debit &&
+        spendAdmissible env.bound balOther refOther choice.debit
+    · simp only [Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
+    · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
         ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind]
       have hokAct : spendAdmissible env.bound noteAct.bal noteAct.ref choice.debit = true :=
-        (Bool.and_eq_true _ _ |>.mp hguardT).1
+        ((Bool.and_eq_true _ _).mp hguard).1
       have hokAct' := by simpa only [spendAdmissible, decide_eq_true_eq] using hokAct
       refine pmfBind_congr _ fun nfPrime => pmfBind_congr _ fun rPrime => ?_
       rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
         (spendValid_of_noteInv env pk ctx noteAct choice.debit nfPrime rPrime hinv hokAct)]
-      dsimp only
       refine pmfBind_congr _ fun pi => ?_
       simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind]
       refine pmfBind_congr _ fun resp => eval_simGate env.Com env.tag env.S env.bound env.sys
@@ -1621,26 +1523,17 @@ private lemma preLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpends : 
       ProbComp.eval (preLoopSim env adv pk ctx b 0 rem hrem note0.toSim note1.toSim st) := by
   induction rem generalizing note0 note1 st with
   | zero =>
-    simp only [preLoopOracle, preLoopSim]
-    cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
-        note0 note1.bal note1.ref st h0
-    · simp only [↓reduceIte]
-      exact challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
-        note1 note0.bal note0.ref st h1
+    cases b <;> refine challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
+      _ _ _ st ‹_›
   | succ rem' ih =>
     simp only [preLoopOracle, preLoopSim, Nat.not_lt_zero, ↓reduceIte, ProbOracleComp.run_bind,
       ProbOracleComp.run_sample, ProbComp.eval_bind]
     refine pmfBind_congr _ fun choice => ?_
+    rw [← apply_ite ClientNote.toSim]
     set noteSel := if choice.client then note1 else note0
     have hsel : NoteInv env.Com env.tag env.S env.bound env.ck pk ctx noteSel := by
-      cases hcl : choice.client <;> simp only [noteSel, hcl, ↓reduceIte, Bool.false_eq_true]
-      · exact h0
-      · exact h1
-    have hsimSel : (if choice.client then note1.toSim else note0.toSim) = noteSel.toSim := by
-      cases hcl : choice.client <;> simp [noteSel, hcl]
-    rw [hsimSel]
+      cases hcl : choice.client <;> simp only [noteSel, hcl, ↓reduceIte, Bool.false_eq_true] <;>
+        assumption
     by_cases hguard : spendAdmissible env.bound noteSel.bal noteSel.ref choice.debit = false
     · simp only [hguard, Bool.not_false, ↓reduceIte, ClientNote.toSim, ProbOracleComp.run_pure,
         ProbComp.eval_pure]
@@ -1652,7 +1545,6 @@ private lemma preLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpends : 
       refine pmfBind_congr _ fun nfPrime => pmfBind_congr _ fun rPrime => ?_
       rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
         (spendValid_of_noteInv env pk ctx noteSel choice.debit nfPrime rPrime hsel hokSel)]
-      dsimp only
       refine pmfBind_congr _ fun pi => ?_
       simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind]
       refine pmfBind_congr _ fun resp => eval_simGate env.Com env.tag env.S env.bound env.sys
@@ -1676,19 +1568,17 @@ private lemma unlinkOracleProgram_sim_eq [DecidableEq C] {preRounds challengeSpe
   simp only [unlinkOracleProgram, runSimProgram, Nat.not_lt_zero, ↓reduceIte,
     ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind]
   refine pmfBind_congr _ fun initOut => ?_
-  by_cases hinit : (decide (0 < initOut.t0) && decide (initOut.t0 < env.bound) &&
-      decide (0 < initOut.t1) && decide (initOut.t1 < env.bound)) = false
-  · simp only [hinit, Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
-  · have hinitAnd := Bool.eq_true_of_not_eq_false hinit
-    simp only [hinitAnd, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
+  cases hinit : decide (0 < initOut.t0) && decide (initOut.t0 < env.bound) &&
+      decide (0 < initOut.t1) && decide (initOut.t1 < env.bound)
+  · simp only [Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
+  · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind,
       ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbComp.eval_bind]
     obtain ⟨ht0pos, ht0ub, ht1pos, ht1ub⟩ := by
-      simpa only [Bool.and_eq_true, decide_eq_true_eq, and_assoc] using hinitAnd
+      simpa only [Bool.and_eq_true, decide_eq_true_eq, and_assoc] using hinit
     refine pmfBind_congr _ fun nf0 => pmfBind_congr _ fun r0 => ?_
     rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
       (issueValid_of_pos_lt env.Com env.tag env.S env.bound env.ck initOut.ctx initOut.t0
         nf0 r0 ht0pos ht0ub)]
-    dsimp only
     refine pmfBind_congr _ fun pi0 => ?_
     simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbOracleComp.run_query,
       ProbComp.eval_bind]
@@ -1696,29 +1586,12 @@ private lemma unlinkOracleProgram_sim_eq [DecidableEq C] {preRounds challengeSpe
     rw [bind_simProofOracle_valid env.Com env.tag env.S env.bound env.sys env.ck
       (issueValid_of_pos_lt env.Com env.tag env.S env.bound env.ck initOut.ctx initOut.t1
         nf1 r1 ht1pos ht1ub)]
-    dsimp only
     refine pmfBind_congr _ fun pi1 => ?_
     simp only [ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind]
-    refine pmfBind_congr _ fun issResp => ?_
-    by_cases hiss : (env.S.verify initOut.pk (env.tag
-        (env.Com.eval env.ck ⟨nf0, initOut.ctx, initOut.t0⟩ r0) 0) issResp.s0 &&
-        env.S.verify initOut.pk (env.tag
-        (env.Com.eval env.ck ⟨nf1, initOut.ctx, initOut.t1⟩ r1) 0) issResp.s1) = false
-    · simp only [hiss, Bool.not_false, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure]
-    · have hissAnd := Bool.eq_true_of_not_eq_false hiss
-      simp only [hissAnd, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      have hsigs :
-          env.S.verify initOut.pk (env.tag (env.Com.eval env.ck ⟨nf0, initOut.ctx, initOut.t0⟩ r0)
-            0) issResp.s0 = true ∧
-          env.S.verify initOut.pk (env.tag (env.Com.eval env.ck ⟨nf1, initOut.ctx, initOut.t1⟩ r1)
-            0) issResp.s1 = true := by
-        simpa only [Bool.and_eq_true] using hissAnd
-      exact preLoopOracle_sim_eq env adv initOut.pk initOut.ctx b preRounds (le_refl _)
-        ⟨nf0, initOut.t0, r0, env.Com.eval env.ck ⟨nf0, initOut.ctx, initOut.t0⟩ r0, 0, issResp.s0⟩
-        ⟨nf1, initOut.t1, r1, env.Com.eval env.ck ⟨nf1, initOut.ctx, initOut.t1⟩ r1, 0, issResp.s1⟩
-        issResp.st
-        ⟨rfl, ht0ub, show (0 : ℕ) < env.bound by omega, hsigs.1⟩
-        ⟨rfl, ht1ub, show (0 : ℕ) < env.bound by omega, hsigs.2⟩
+    refine pmfBind_congr _ fun issResp =>
+      eval_simGate env.Com env.tag env.S env.bound env.sys env.ck _ _ _ _ fun hs0 hs1 =>
+        preLoopOracle_sim_eq env adv initOut.pk initOut.ctx b preRounds (le_refl _) _ _ issResp.st
+          ⟨rfl, ht0ub, Nat.zero_lt_of_lt ht0ub, hs0⟩ ⟨rfl, ht1ub, Nat.zero_lt_of_lt ht1ub, hs1⟩
 
 /-- Challenge pause step: stops right before commitment slot `idx` equals `pauseSlot`. -/
 private def challengeLoopPause {preRounds challengeSpends : ℕ}
@@ -1931,19 +1804,17 @@ private lemma challengeLoopPause_resume_eq {preRounds challengeSpends : ℕ}
   | succ rem' ih =>
     simp only [challengeLoopPause, challengeLoopSim, ProbComp.eval_bind, PMF.bind_bind]
     refine pmfBind_congr _ fun choice => ?_
-    by_cases hguard : (spendAdmissible env.bound noteAct.bal noteAct.ref choice.debit &&
-        spendAdmissible env.bound balOther refOther choice.debit) = false
-    · simp only [hguard, Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
+    cases spendAdmissible env.bound noteAct.bal noteAct.ref choice.debit &&
+        spendAdmissible env.bound balOther refOther choice.debit
+    · simp only [Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
         PMF.pure_bind, PMF.bind_const]
-    · have hguardT := Bool.eq_true_of_not_eq_false hguard
-      simp only [hguardT, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind,
+    · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind,
         PMF.bind_bind]
       refine pmfBind_congr _ fun nfPrime => ?_
       by_cases heq : 2 + preRounds + (challengeSpends - (rem' + 1)) = pauseSlot
       · have hrem_eq : challengeSpends - (challengeSpends - (rem' + 1) + 1) = rem' := by omega
         cases isDummy
-        · have hltF : ¬ (2 + preRounds + (challengeSpends - (rem' + 1)) < pauseSlot) := by omega
-          simp only [heq, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind, ProbComp.eval_pure,
+        · simp only [heq, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind, ProbComp.eval_pure,
             PMF.pure_bind, resumeAfterCom, hrem_eq, Nat.lt_irrefl]
           refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
             pmfBind_congr _ fun resp => ?_
@@ -1960,18 +1831,15 @@ private lemma challengeLoopPause_resume_eq {preRounds challengeSpends : ℕ}
         simp only [heq, ↓reduceIte, hlt, hlt', ProbComp.eval_bind, PMF.bind_bind]
         refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
           pmfBind_congr _ fun resp => ?_
-        by_cases hfin : (decide (resp.refund < env.bound) &&
+        cases decide (resp.refund < env.bound) &&
             env.S.verify pk (env.tag (env.Com.eval env.ck
-              ⟨env.dummyNf, ctx, 0⟩ rPrime) resp.refund) resp.sig) = false
-        · simp only [hfin, Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
+              ⟨env.dummyNf, ctx, 0⟩ rPrime) resp.refund) resp.sig
+        · simp only [Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
             PMF.pure_bind, PMF.bind_const]
-        · have hfinT := Bool.eq_true_of_not_eq_false hfin
-          simp only [hfinT, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-          have hih := ih (by omega) (by omega)
+        · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          simpa only [ProbComp.eval_bind] using ih (by omega) (by omega)
             ⟨nfPrime, noteAct.bal + noteAct.ref - choice.debit, resp.refund⟩
             (balOther + refOther - choice.debit) resp.refund resp.st
-          simp only [ProbComp.eval_bind] at hih
-          exact hih
 
 /-- Pausing `preLoopPause` at `pauseSlot` and committing `msgReal` (`isDummy = false`) or
 `msgDummy` (`isDummy = true`) reconstructs `preLoopSim` at cutoff `pauseSlot` or
@@ -1992,23 +1860,16 @@ private lemma preLoopPause_resume_eq {preRounds challengeSpends : ℕ}
         (if isDummy then pauseSlot + 1 else pauseSlot) rem hrem note0 note1 st) := by
   induction rem generalizing note0 note1 st with
   | zero =>
-    simp only [preLoopPause, preLoopSim]
-    cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
-        (le_refl _) (by omega) note0 note1.bal note1.ref st
-    · simp only [↓reduceIte]
-      exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
-        (le_refl _) (by omega) note1 note0.bal note0.ref st
+    cases b <;> exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
+      (le_refl _) (by omega) _ _ _ st
   | succ rem' ih =>
     simp only [preLoopPause, preLoopSim, ProbComp.eval_bind, PMF.bind_bind]
     refine pmfBind_congr _ fun choice => ?_
     set noteSel := if choice.client then note1 else note0
-    by_cases hguard : spendAdmissible env.bound noteSel.bal noteSel.ref choice.debit = false
-    · simp only [hguard, Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
+    cases spendAdmissible env.bound noteSel.bal noteSel.ref choice.debit
+    · simp only [Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
         PMF.pure_bind, PMF.bind_const]
-    · have hguardT := Bool.eq_true_of_not_eq_false hguard
-      simp only [hguardT, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind,
+    · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind,
         PMF.bind_bind]
       refine pmfBind_congr _ fun nfPrime => ?_
       by_cases heq : 2 + (preRounds - (rem' + 1)) = pauseSlot
@@ -2017,17 +1878,9 @@ private lemma preLoopPause_resume_eq {preRounds challengeSpends : ℕ}
         · simp only [heq, ↓reduceIte, Bool.false_eq_true, ProbComp.eval_bind, ProbComp.eval_pure,
             PMF.pure_bind, resumeAfterCom, hrem_eq, Nat.lt_irrefl, noteSel]
           refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
-            pmfBind_congr _ fun resp => ?_
-          by_cases hfin : (decide (resp.refund < env.bound) &&
-              env.S.verify pk (env.tag (env.Com.eval env.ck
-                ⟨nfPrime, ctx, (if choice.client then note1 else note0).bal +
-                  (if choice.client then note1 else note0).ref - choice.debit⟩ rPrime)
-                resp.refund) resp.sig) = false
-          · simp only [hfin, Bool.not_false, ↓reduceIte]
-          · have hfinT := Bool.eq_true_of_not_eq_false hfin
-            simp only [hfinT, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-            exact congrArg ProbComp.eval (preLoopSim_cutoff_congr env adv pk ctx b (pauseSlot + 1)
-              pauseSlot rem' (by omega) (by omega) (by omega) _ _ _)
+            pmfBind_congr _ fun resp => congrArg ProbComp.eval ?_
+          exact ite_congr rfl (fun _ => rfl) fun _ => preLoopSim_cutoff_congr env adv pk ctx b
+            (pauseSlot + 1) pauseSlot rem' (by omega) (by omega) (by omega) _ _ _
         · simp only [heq, ↓reduceIte, Nat.lt_succ_self, ProbComp.eval_bind, ProbComp.eval_pure,
             PMF.pure_bind, resumeAfterCom, hrem_eq, noteSel]
       · have hlt : 2 + (preRounds - (rem' + 1)) < pauseSlot := by omega
@@ -2037,22 +1890,19 @@ private lemma preLoopPause_resume_eq {preRounds challengeSpends : ℕ}
         simp only [heq, ↓reduceIte, hlt, hlt', ProbComp.eval_bind, PMF.bind_bind]
         refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
           pmfBind_congr _ fun resp => ?_
-        by_cases hfin : (decide (resp.refund < env.bound) &&
+        cases decide (resp.refund < env.bound) &&
             env.S.verify pk (env.tag (env.Com.eval env.ck
-              ⟨env.dummyNf, ctx, 0⟩ rPrime) resp.refund) resp.sig) = false
-        · simp only [hfin, Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
+              ⟨env.dummyNf, ctx, 0⟩ rPrime) resp.refund) resp.sig
+        · simp only [Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
             PMF.pure_bind, PMF.bind_const]
-        · have hfinT := Bool.eq_true_of_not_eq_false hfin
-          simp only [hfinT, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-          have hih := ih (by omega) (by omega)
+        · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          simpa only [ProbComp.eval_bind] using ih (by omega) (by omega)
             (if choice.client then note0
               else ⟨nfPrime, noteSel.bal + noteSel.ref - choice.debit, resp.refund⟩)
             (if choice.client
               then ⟨nfPrime, noteSel.bal + noteSel.ref - choice.debit, resp.refund⟩
               else note1)
             resp.st
-          simp only [ProbComp.eval_bind] at hih
-          exact hih
 
 /-- Full prefix `runPause` with `msgReal` (`isDummy = false`) or `msgDummy` (`isDummy = true`)
 reconstructs `runSimProgram` at cutoff `pauseSlot` or `pauseSlot + 1`. -/
@@ -2069,12 +1919,11 @@ private lemma runPause_resume_eq {preRounds challengeSpends : ℕ}
       ProbComp.eval (runSimProgram env adv b (if isDummy then pauseSlot + 1 else pauseSlot)) := by
   simp only [runPause, runSimProgram, ProbComp.eval_bind, PMF.bind_bind]
   refine pmfBind_congr _ fun initOut => ?_
-  by_cases hinit : (decide (0 < initOut.t0) && decide (initOut.t0 < env.bound) &&
-      decide (0 < initOut.t1) && decide (initOut.t1 < env.bound)) = false
-  · simp only [hinit, Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
+  cases decide (0 < initOut.t0) && decide (initOut.t0 < env.bound) &&
+      decide (0 < initOut.t1) && decide (initOut.t1 < env.bound)
+  · simp only [Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
       PMF.pure_bind, PMF.bind_const]
-  · have hinitT := Bool.eq_true_of_not_eq_false hinit
-    simp only [hinitT, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind,
+  · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind,
       PMF.bind_bind]
     refine pmfBind_congr _ fun nf0 => ?_
     by_cases h0 : 0 = pauseSlot
@@ -2089,7 +1938,7 @@ private lemma runPause_resume_eq {preRounds challengeSpends : ℕ}
         · exact congrArg ProbComp.eval (preLoopSim_cutoff_congr env adv initOut.pk initOut.ctx b 1 0
             preRounds (le_refl _) (by omega) (by omega) _ _ _)
       · simp only [↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
-          resumeAfterCom, show (0 : ℕ) < 1 by omega, eq_false (by omega : ¬((1 : ℕ) < 0 + 1))]
+          resumeAfterCom, Nat.zero_lt_one, Nat.zero_add, Nat.lt_irrefl]
     · have h0lt' : 0 < (if isDummy then pauseSlot + 1 else pauseSlot) := by
         cases isDummy <;> simp
         omega
@@ -2107,25 +1956,23 @@ private lemma runPause_resume_eq {preRounds challengeSpends : ℕ}
           · exact congrArg ProbComp.eval (preLoopSim_cutoff_congr env adv initOut.pk initOut.ctx b
               2 1 preRounds (le_refl _) (by omega) (by omega) _ _ _)
         · simp only [↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
-            resumeAfterCom, show (1 : ℕ) < 2 by omega]
+            resumeAfterCom, Nat.lt_succ_self]
       · have h1lt' : 1 < (if isDummy then pauseSlot + 1 else pauseSlot) := by
           cases isDummy <;> simp <;> omega
         simp only [h1, h1lt', ↓reduceIte, ProbComp.eval_bind, PMF.bind_bind]
         refine pmfBind_congr _ fun r1 => pmfBind_congr _ fun pi1 =>
           pmfBind_congr _ fun issResp => ?_
-        by_cases hfin : (env.S.verify initOut.pk (env.tag (env.Com.eval env.ck
+        cases env.S.verify initOut.pk (env.tag (env.Com.eval env.ck
               ⟨env.dummyNf, initOut.ctx, 0⟩ r0) 0) issResp.s0 &&
             env.S.verify initOut.pk (env.tag (env.Com.eval env.ck
-              ⟨env.dummyNf, initOut.ctx, 0⟩ r1) 0) issResp.s1) = false
-        · simp only [hfin, Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
+              ⟨env.dummyNf, initOut.ctx, 0⟩ r1) 0) issResp.s1
+        · simp only [Bool.not_false, ↓reduceIte, resumeAfterCom, ProbComp.eval_pure,
             PMF.pure_bind, PMF.bind_const]
-        · have hfinT := Bool.eq_true_of_not_eq_false hfin
-          simp only [hfinT, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-          have hsub := preLoopPause_resume_eq env adv initOut.pk initOut.ctx b isDummy pauseSlot
-            preRounds (le_refl _) (by omega) ⟨nf0, initOut.t0, 0⟩ ⟨nf1, initOut.t1, 0⟩
-            issResp.st
-          simp only [ProbComp.eval_bind] at hsub
-          exact hsub
+        · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          simpa only [ProbComp.eval_bind] using
+            preLoopPause_resume_eq env adv initOut.pk initOut.ctx b isDummy pauseSlot
+              preRounds (le_refl _) (by omega) ⟨nf0, initOut.t0, 0⟩ ⟨nf1, initOut.t1, 0⟩
+              issResp.st
 
 /-- Full prefix `runPause` with `msgReal` reconstructs `runSimProgram` at cutoff `pauseSlot`. -/
 private lemma runPause_real_eq {preRounds challengeSpends : ℕ}
@@ -2175,6 +2022,20 @@ private lemma pmfBind_comm2 {α β γ δ : Type} (p : PMF α) (q : PMF β) (r : 
       r.bind fun c => p.bind fun a => q.bind fun b => k a b c := by
   conv_lhs => enter [2, a]; rw [PMF.bind_comm]
   rw [PMF.bind_comm]
+
+/-- Pushes two independent leading `PMF.bind` draws past three sequential `PMF.bind` steps. -/
+private lemma pmfBind_push3_2 {α₁ α₂ β₁ β₂ β₃ γ : Type} (p₁ : PMF α₁) (p₂ : PMF α₂)
+    (q₁ : PMF β₁) (q₂ : β₁ → PMF β₂) (q₃ : β₁ → β₂ → PMF β₃)
+    (k : α₁ → α₂ → β₁ → β₂ → β₃ → PMF γ) :
+    (p₁.bind fun a₁ => p₂.bind fun a₂ => q₁.bind fun b₁ => (q₂ b₁).bind fun b₂ =>
+      (q₃ b₁ b₂).bind (k a₁ a₂ b₁ b₂)) =
+    q₁.bind fun b₁ => (q₂ b₁).bind fun b₂ => (q₃ b₁ b₂).bind fun b₃ =>
+      p₁.bind fun a₁ => p₂.bind fun a₂ => k a₁ a₂ b₁ b₂ b₃ := by
+  rw [pmfBind_comm2]
+  refine pmfBind_congr _ fun b₁ => ?_
+  rw [pmfBind_comm2]
+  refine pmfBind_congr _ fun b₂ => ?_
+  exact pmfBind_comm2 _ _ _ _
 
 /-- Explicit `TwoStage` commitment-hiding reduction for the adaptive unlinkability reduction
 (concrete query-bounded step, `#7068`): samples `dummyNf ← nfGen`, uniform challenge bit
@@ -2253,11 +2114,7 @@ private lemma challengeLoopG4Skeleton_symm {preRounds challengeSpends : ℕ}
   | succ rem' ih =>
     simp only [challengeLoopG4Skeleton]
     congr 1 with choice
-    have hcomm : (spendAdmissible env.bound bal0 ref0 choice.debit &&
-        spendAdmissible env.bound bal1 ref1 choice.debit) =
-        (spendAdmissible env.bound bal1 ref1 choice.debit &&
-        spendAdmissible env.bound bal0 ref0 choice.debit) := Bool.and_comm _ _
-    simp only [hcomm]
+    rw [Bool.and_comm (spendAdmissible env.bound bal0 ref0 choice.debit)]
     split_ifs
     · rfl
     · congr 1 with nfAct; congr 1 with rPrime; congr 1 with pi; congr 1 with resp
@@ -2352,14 +2209,12 @@ private lemma preLoopSim_G4_eq_skeleton {preRounds challengeSpends : ℕ}
   | zero =>
     simp only [preLoopSim, preLoopG4Skeleton]
     cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
-        (le_refl _) bal0 ref0 bal1 ref1 st
-      simpa only [PMF.bind_const] using hsub
+    · simpa only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const] using
+        challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends (le_refl _)
+          bal0 ref0 bal1 ref1 st
     · simp only [↓reduceIte]
-      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
-        (le_refl _) bal1 ref1 bal0 ref0 st
-      rw [PMF.bind_const, hsub]
+      rw [PMF.bind_const, challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
+        (le_refl _) bal1 ref1 bal0 ref0 st]
       exact congrArg ProbComp.eval (challengeLoopG4Skeleton_symm env adv pk ctx challengeSpends
         (le_refl _) bal1 ref1 bal0 ref0 st)
   | succ rem' ih =>
@@ -2369,34 +2224,26 @@ private lemma preLoopSim_G4_eq_skeleton {preRounds challengeSpends : ℕ}
     refine pmfBind_congr _ fun choice => ?_
     cases choice.client
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      by_cases hguard : spendAdmissible env.bound bal0 ref0 choice.debit = false
-      · simp only [hguard, Bool.not_false, ↓reduceIte, ProbComp.eval_pure, PMF.bind_const]
-      · have hguardT := Bool.eq_true_of_not_eq_false hguard
-        simp only [hguardT, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind]
+      cases spendAdmissible env.bound bal0 ref0 choice.debit
+      · simp only [Bool.not_false, ↓reduceIte, ProbComp.eval_pure, PMF.bind_const]
+      · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind]
         refine pmfBind_congr _ fun nf0 => ?_
-        rw [pmfBind_comm2]
-        refine pmfBind_congr _ fun rPrime => ?_
-        rw [pmfBind_comm2]
-        refine pmfBind_congr _ fun pi => ?_
-        rw [pmfBind_comm2]
-        refine pmfBind_congr _ fun resp => ?_
+        rw [pmfBind_push3_2]
+        refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
+          pmfBind_congr _ fun resp => ?_
         split_ifs
         · simp [ProbComp.eval_pure, PMF.bind_const]
         · rw [PMF.bind_comm]
           exact ih (by omega) _ _ _ _ _
     · simp only [↓reduceIte]
-      by_cases hguard : spendAdmissible env.bound bal1 ref1 choice.debit = false
-      · simp only [hguard, Bool.not_false, ↓reduceIte, ProbComp.eval_pure, PMF.bind_const]
-      · have hguardT := Bool.eq_true_of_not_eq_false hguard
-        simp only [hguardT, Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind]
+      cases spendAdmissible env.bound bal1 ref1 choice.debit
+      · simp only [Bool.not_false, ↓reduceIte, ProbComp.eval_pure, PMF.bind_const]
+      · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind]
         rw [PMF.bind_comm]
         refine pmfBind_congr _ fun nf1 => ?_
-        rw [pmfBind_comm2]
-        refine pmfBind_congr _ fun rPrime => ?_
-        rw [pmfBind_comm2]
-        refine pmfBind_congr _ fun pi => ?_
-        rw [pmfBind_comm2]
-        refine pmfBind_congr _ fun resp => ?_
+        rw [pmfBind_push3_2]
+        refine pmfBind_congr _ fun rPrime => pmfBind_congr _ fun pi =>
+          pmfBind_congr _ fun resp => ?_
         split_ifs
         · simp [ProbComp.eval_pure, PMF.bind_const]
         · exact ih (by omega) _ _ _ _ _
@@ -2442,12 +2289,9 @@ private lemma g4_false_eq_true {preRounds challengeSpends : ℕ}
       refine pmfBind_congr _ fun r0 => ?_
       rw [PMF.bind_comm]
       refine pmfBind_congr _ fun pi0 => ?_
-      rw [pmfBind_comm2]
-      refine pmfBind_congr _ fun r1 => ?_
-      rw [pmfBind_comm2]
-      refine pmfBind_congr _ fun pi1 => ?_
-      rw [pmfBind_comm2]
-      refine pmfBind_congr _ fun issResp => ?_
+      rw [pmfBind_push3_2]
+      refine pmfBind_congr _ fun r1 => pmfBind_congr _ fun pi1 =>
+        pmfBind_congr _ fun issResp => ?_
       split_ifs
       · simp [ProbComp.eval_pure, PMF.bind_const]
       · exact preLoopSim_G4_eq_skeleton env adv initOut.pk initOut.ctx b preRounds (le_refl _)
@@ -2517,20 +2361,11 @@ theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challeng
     simp only [hybFn, multiProofZKSimGame, zkDistinguisher, bitGame, ProbOracleComp.run_bind,
       ProbOracleComp.run_sample, ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform,
       ProbComp.eval_pure]
-    have hstep : ∀ dummyNf,
-        ((ProbComp.eval Com.keyGen).bind fun ck =>
-          (uniformOfFintype Bool).bind fun b =>
-            (ProbComp.eval (runSimProgram (envOf ck dummyNf) adv b 0)).bind fun g =>
-              PMF.pure (decide (g = b))) =
-        ((ProbComp.eval Com.keyGen).bind fun ck =>
-          (uniformOfFintype Bool).bind fun b =>
-            (ProbComp.eval ((unlinkOracleProgram Com nfGen tag S bound adv true b ck).run
-              (simProofOracle Com tag S bound sys ck))).bind fun g =>
-              PMF.pure (decide (g = b))) := by
-      intro dummyNf
-      refine pmfBind_congr _ fun ck => pmfBind_congr _ fun b => ?_
-      rw [← unlinkOracleProgram_sim_eq (envOf ck dummyNf) adv b]
-    simp_rw [hstep, PMF.bind_const]
+    symm
+    refine Eq.trans ?_ (PMF.bind_const nfGen.eval _)
+    refine pmfBind_congr _ fun dummyNf =>
+      pmfBind_congr _ fun ck => pmfBind_congr _ fun b => ?_
+    rw [← unlinkOracleProgram_sim_eq (envOf ck dummyNf) adv b]
   have hg4_eq : g4 false = g4 true := by
     refine pmfBind_congr _ fun dummyNf => ?_
     simp only [ProbComp.eval_bind]
@@ -2554,23 +2389,21 @@ theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challeng
     refine pmfBind_congr _ fun h => pmfBind_congr _ fun b => ?_
     cases bHide
     · simp only [MessagePair.select_false, Bool.false_eq_true, ↓reduceIte]
-      have hreal := runPause_real_eq (envOf ck dummyNf) adv b h.val
       calc _ = ((ProbComp.eval (do
               let res ← runPause (envOf ck dummyNf) adv b h.val
               let r ← Com.openSample
               resumeAfterCom (envOf ck dummyNf) adv h.val res.cont
                 (Com.eval ck res.msgReal r))).bind fun g => PMF.pure (decide (g = b))) := by
             simp only [envOf, ProbComp.eval_bind, PMF.bind_bind]
-        _ = _ := by rw [hreal]
+        _ = _ := by rw [runPause_real_eq (envOf ck dummyNf) adv b h.val]
     · simp only [MessagePair.select_true, ↓reduceIte]
-      have hdummy := runPause_dummy_eq (envOf ck dummyNf) adv b h.val
       calc _ = ((ProbComp.eval (do
               let res ← runPause (envOf ck dummyNf) adv b h.val
               let r ← Com.openSample
               resumeAfterCom (envOf ck dummyNf) adv h.val res.cont
                 (Com.eval ck res.msgDummy r))).bind fun g => PMF.pure (decide (g = b))) := by
             simp only [envOf, ProbComp.eval_bind, PMF.bind_bind]
-        _ = _ := by rw [hdummy]
+        _ = _ := by rw [runPause_dummy_eq (envOf ck dummyNf) adv b h.val]
   have hxor_not (fn : Bool → Game) :
       ((uniformOfFintype Bool).bind fun b => (fn b).map (fun g => g ^^ b)).map Bool.not =
         (uniformOfFintype Bool).bind fun b => (fn b).map (fun g => decide (g = b)) := by
@@ -2596,23 +2429,16 @@ theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challeng
   rw [← Game.advantage_not _ ((uniformOfFintype Bool).bind fun b => (g4 b).map fun g => g ^^ b),
     hxor0, hxor4, hg4_eq, Game.advantage_self, add_zero] at hxor_bound
   have : NeZero N := ⟨by omega⟩
+  have hhybSide (bHide : Bool) :
+      ((uniformOfFintype (Fin N)).bind fun i =>
+        if i.val < N then hybFn (if bHide then i.val + 1 else i.val) else PMF.pure false) =
+      ProbComp.eval (Com.toScheme.hidingExperiment
+        (unlinkHidingReduction Com nfGen tag S bound sys adv) bHide) := by
+    rw [hhide_eq bHide]
+    exact pmfBind_congr _ fun i => ite_eq_left i.isLt
   have hhyb := Game.advantage_hybrid_average hybFn N N le_rfl
-  have hhybL :
-      ((uniformOfFintype (Fin N)).bind fun i =>
-        if i.val < N then hybFn i.val else PMF.pure false) =
-      ProbComp.eval (Com.toScheme.hidingExperiment
-        (unlinkHidingReduction Com nfGen tag S bound sys adv) false) := by
-    rw [hhide_eq false]
-    refine pmfBind_congr _ fun i => ?_
-    simp [i.isLt]
-  have hhybR :
-      ((uniformOfFintype (Fin N)).bind fun i =>
-        if i.val < N then hybFn (i.val + 1) else PMF.pure false) =
-      ProbComp.eval (Com.toScheme.hidingExperiment
-        (unlinkHidingReduction Com nfGen tag S bound sys adv) true) := by
-    rw [hhide_eq true]
-    refine pmfBind_congr _ fun i => ?_
-    simp [i.isLt]
+  have hhybL := by simpa only [Bool.false_eq_true, ↓reduceIte] using hhybSide false
+  have hhybR := by simpa only [↓reduceIte] using hhybSide true
   rw [hhybL, hhybR] at hhyb
   have htri : Game.advantage (bitGame g0Fn) (hybFn N) ≤
       Game.advantage

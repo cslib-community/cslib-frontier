@@ -50,11 +50,8 @@ noncomputable abbrev intLatticeReal : Submodule ℤ ℝ :=
 
 /-- Membership in `intLatticeReal` characterizes integer real numbers. -/
 theorem mem_intLatticeReal_iff (x : ℝ) : x ∈ intLatticeReal ↔ ∃ n : ℤ, (n : ℝ) = x := by
-  have hspan : Set.range (Module.Basis.singleton Unit ℝ) = {(1 : ℝ)} := by
-    ext y
-    simp
-  rw [intLatticeReal, hspan, Submodule.mem_span_singleton]
-  simp only [zsmul_eq_mul, mul_one]
+  rw [intLatticeReal, Set.range_unique, Submodule.mem_span_singleton]
+  simp
 
 /-- Additive equivalence identifying `ℤ` with `intLatticeReal ⊂ ℝ`. -/
 noncomputable def intLatticeRealEquiv : ℤ ≃+ intLatticeReal where
@@ -95,20 +92,12 @@ theorem covolume_intLatticeReal :
 theorem one_le_norm_of_mem_dualSubmodule_intLatticeReal
     {y : LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal} (hy : y ≠ 0) :
     (1 : ℝ) ≤ ‖(y : ℝ)‖ := by
-  have h1 : (1 : ℝ) ∈ intLatticeReal := (mem_intLatticeReal_iff 1).mpr ⟨1, by simp⟩
-  have hm := y.property 1 h1
-  obtain ⟨k, hk⟩ := Submodule.mem_one.mp hm
-  have hk' : (k : ℝ) = (y : ℝ) := by
-    simpa [real_inner_comm] using hk
-  have hkn : k ≠ 0 := by
-    intro h
-    apply hy
-    apply Subtype.ext
-    change (y : ℝ) = 0
-    rw [h, Int.cast_zero] at hk'
-    exact hk'.symm
-  have ha : (1 : ℝ) ≤ |(k : ℝ)| := by exact_mod_cast (Int.one_le_abs hkn)
-  rwa [hk', ← Real.norm_eq_abs] at ha
+  obtain ⟨k, hk⟩ := Submodule.mem_one.mp
+    (y.property 1 ((mem_intLatticeReal_iff 1).mpr ⟨1, by simp⟩))
+  have hk' : (k : ℝ) = (y : ℝ) := by simpa [real_inner_comm] using hk
+  have hkn : k ≠ 0 := fun h => hy (Subtype.ext (by simpa [h] using hk'.symm))
+  rw [Real.norm_eq_abs, ← hk']
+  exact_mod_cast Int.one_le_abs hkn
 
 /-- Canonical discrete Gaussian on `ℤ` induced by `ZLattice.discreteGaussian` on `ℤ ⊂ ℝ`. -/
 noncomputable def discreteGaussianInt (s : ℝ) (hs : 0 < s) (c : ℝ) : PMF ℤ :=
@@ -131,11 +120,6 @@ theorem discreteGaussianInt_apply (s : ℝ) (hs : 0 < s) (c : ℝ) (x : ℤ) :
   · simp only [AddEquiv.symm_apply_apply, ↓reduceIte, ZLattice.discreteGaussian_apply]
     rfl
   · intro z hz
-    have hne : x ≠ intLatticeRealEquiv.symm z := by
-      intro heq
-      apply hz
-      have := congrArg intLatticeRealEquiv heq
-      simpa using this.symm
-    simp [hne]
+    exact ite_eq_right fun heq => hz (by simpa using (congrArg intLatticeRealEquiv heq).symm)
 
 end ZLattice

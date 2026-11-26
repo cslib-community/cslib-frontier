@@ -81,7 +81,7 @@ variable (𝕜) in
 theorem gramSchmidt_mem_orthogonal_span_Iio (f : ι → E) (i : ι) :
     gramSchmidt 𝕜 f i ∈ (span 𝕜 (f '' Set.Iio i))ᗮ :=
   (mem_orthogonal' _ _).2 fun _ hu => span_induction
-    (by rintro _ ⟨j, hj, rfl⟩; exact gramSchmidt_inv_triangular 𝕜 f hj)
+    (fun _ ⟨_, hj, hfx⟩ => hfx ▸ gramSchmidt_inv_triangular 𝕜 f hj)
     (inner_zero_right _)
     (fun _ _ _ _ hx hy => by rw [inner_add_right, hx, hy, add_zero])
     (fun _ _ _ hx => by rw [inner_smul_right, hx, mul_zero]) hu
@@ -144,8 +144,7 @@ variable (𝕜) in
 /-- The diagonal coefficient `μᵢᵢ` is `1` when `f*ᵢ ≠ 0`. -/
 theorem gramSchmidtCoeff_self {f : ι → E} {i : ι} (h : gramSchmidt 𝕜 f i ≠ 0) :
     gramSchmidtCoeff 𝕜 f i i = 1 := by
-  rw [gramSchmidtCoeff, inner_gramSchmidt_self_right, div_self]
-  simpa using h
+  simp [gramSchmidtCoeff, inner_gramSchmidt_self_right, h]
 
 variable (𝕜) in
 /-- The coefficients above the diagonal vanish: `μⱼₗ = 0` for `j < l`. -/
@@ -156,10 +155,11 @@ theorem gramSchmidtCoeff_eq_zero_of_lt (f : ι → E) {j l : ι} (hjl : j < l) :
 variable (𝕜) in
 /-- Orthogonalization does not increase lengths: `‖f*ᵢ‖ ≤ ‖fᵢ‖`. -/
 theorem norm_gramSchmidt_le (f : ι → E) (i : ι) : ‖gramSchmidt 𝕜 f i‖ ≤ ‖f i‖ := by
+  -- Cauchy–Schwarz applied to `‖f*ᵢ‖² = ⟪f*ᵢ, fᵢ⟫`
   have hcs := norm_inner_le_norm (𝕜 := 𝕜) (gramSchmidt 𝕜 f i) (f i)
   rw [inner_gramSchmidt_self_right, norm_pow, RCLike.norm_ofReal, abs_norm, sq] at hcs
   rcases (norm_nonneg (gramSchmidt 𝕜 f i)).eq_or_lt with h0 | hpos
-  · rw [← h0]; exact norm_nonneg _
+  · simp [← h0]
   · exact le_of_mul_le_mul_left hcs hpos
 
 /-- `⟪f*ᵢ, ∑ⱼ cⱼ fⱼ⟫ = cᵢ ‖f*ᵢ‖²` for integer coefficients that vanish above `i`. -/
@@ -182,10 +182,12 @@ theorem norm_gramSchmidt_le_norm_sum_zsmul [Fintype ι] (f : ι → E) (c : ι �
   have hcs := norm_inner_le_norm (𝕜 := 𝕜) (gramSchmidt 𝕜 f i) (∑ j, c j • f j)
   rw [inner_gramSchmidt_sum_zsmul f c hc, norm_mul, norm_pow, RCLike.norm_ofReal, abs_norm] at hcs
   have hc1 : (1 : ℝ) ≤ ‖(c i : 𝕜)‖ := by
-    rw [← RCLike.ofReal_intCast, RCLike.norm_ofReal]; exact_mod_cast Int.one_le_abs hci
+    rw [← RCLike.ofReal_intCast, RCLike.norm_ofReal]
+    exact_mod_cast Int.one_le_abs hci
   rcases eq_or_ne (gramSchmidt 𝕜 f i) 0 with h0 | h0
   · simp [h0]
-  · have := norm_pos_iff.2 h0; nlinarith [norm_nonneg (∑ j, c j • f j)]
+  · have := norm_pos_iff.2 h0
+    nlinarith [norm_nonneg (∑ j, c j • f j)]
 
 /-- Every nonzero vector of the integer span of a finite family `f` is at least as long as some
 Gram–Schmidt vector `f*ᵢ`. -/
@@ -203,22 +205,21 @@ theorem exists_norm_gramSchmidt_le_of_mem_span_int [Finite ι] {f : ι → E} {x
 
 /-- Gram–Schmidt vectors depend only on the vectors up to their index. -/
 theorem gramSchmidt_congr_Iic {f g : ι → E} {i : ι} (h : ∀ j ≤ i, f j = g j) :
-    gramSchmidt 𝕜 f i = gramSchmidt 𝕜 g i := by
-  refine gramSchmidt_eq_of_span_eq
-    (congrArg _ (Set.image_congr fun j hj => h j (le_of_lt hj))) ?_
-  rw [h i le_rfl, sub_self]; exact zero_mem _
+    gramSchmidt 𝕜 f i = gramSchmidt 𝕜 g i :=
+  gramSchmidt_eq_of_span_eq (congrArg _ (Set.image_congr fun j hj => h j hj.le))
+    (by simp [h i le_rfl])
 
 /-- Gram–Schmidt commutes with restriction along an order embedding onto an initial segment. -/
 theorem gramSchmidt_comp {ι' : Type*} [LinearOrder ι'] [LocallyFiniteOrderBot ι']
     (f : ι → E) {e : ι' → ι} (he : StrictMono e) (hlow : IsLowerSet (Set.range e)) (i : ι') :
     gramSchmidt 𝕜 (f ∘ e) i = gramSchmidt 𝕜 f (e i) := by
-  refine gramSchmidt_eq_of_span_eq (congrArg _ ?_)
-    (by rw [Function.comp_apply, sub_self]; exact zero_mem _)
+  refine gramSchmidt_eq_of_span_eq (congrArg _ ?_) (by simp)
   rw [Set.image_comp]
   congr 1
   ext j
-  exact ⟨fun ⟨_, hj', heq⟩ => heq ▸ he hj',
-    fun hj => let ⟨j', heq⟩ := hlow hj.le ⟨i, rfl⟩; ⟨j', he.lt_iff_lt.1 (heq ▸ hj), heq⟩⟩
+  refine ⟨fun ⟨_, hj', heq⟩ => heq ▸ he hj', fun hj => ?_⟩
+  obtain ⟨j', heq⟩ := hlow hj.le ⟨i, rfl⟩
+  exact ⟨j', he.lt_iff_lt.1 (heq ▸ hj), heq⟩
 
 /-- The Gram determinant is the product of the squared lengths of the Gram–Schmidt vectors. -/
 theorem det_gram_eq_prod_norm_gramSchmidt_sq [Fintype ι] [DecidableEq ι] (f : ι → E) :
@@ -229,7 +230,8 @@ theorem det_gram_eq_prod_norm_gramSchmidt_sq [Fintype ι] [DecidableEq ι] (f : 
     have hsplit (j : ι) : L i j • gramSchmidt 𝕜 f j =
         (if j ∈ Iio i then gramSchmidtCoeff 𝕜 f i j • gramSchmidt 𝕜 f j else 0) +
           (if i = j then gramSchmidt 𝕜 f j else 0) := by
-      simp only [L, Matrix.of_apply, Finset.mem_Iio]; split_ifs <;> simp_all
+      simp only [L, Matrix.of_apply, Finset.mem_Iio]
+      split_ifs <;> simp_all
     rw [Finset.sum_congr rfl fun j _ => hsplit j, Finset.sum_add_distrib, Finset.sum_ite_eq,
       ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
     simpa only [Finset.mem_univ, ↓reduceIte, add_comm] using gramSchmidt_add_sum_coeff f i
@@ -256,10 +258,7 @@ theorem det_gram_eq_prod_norm_gramSchmidt_sq [Fintype ι] [DecidableEq ι] (f : 
 unchanged. -/
 theorem gramSchmidt_update_add [DecidableEq ι] (f : ι → E) {i : ι} {v : E}
     (hv : v ∈ span 𝕜 (f '' Set.Iio i)) :
-    gramSchmidt 𝕜 (Function.update f i (f i + v)) = gramSchmidt 𝕜 f := by
-  refine gramSchmidt_eq_of_sub_mem_span fun j => ?_
-  rcases eq_or_ne j i with rfl | hj
-  · rw [Function.update_self, add_sub_cancel_left]; exact hv
-  · rw [Function.update_of_ne hj, sub_self]; exact zero_mem _
+    gramSchmidt 𝕜 (Function.update f i (f i + v)) = gramSchmidt 𝕜 f :=
+  gramSchmidt_eq_of_sub_mem_span fun j => by rcases eq_or_ne j i with rfl | hj <;> simp [*]
 
 end InnerProductSpace

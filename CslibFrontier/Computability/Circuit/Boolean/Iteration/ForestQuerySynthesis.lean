@@ -152,49 +152,34 @@ theorem synthesis_transient_forest_reachability
       else inputLeft z
     have hjeq (hf : foundH z = true) :
         hChosen = f^[(Classical.choose ((hmarkSpec z).1 hf)).val] (inputLeft z) :=
-      dite_eq_left_of_eq_true (eq_true hf)
+      dite_eq_left hf
     have hHsound : foundH z = true →
         hChosen ∈ forestMarks f tables.H ∧
           ∃ d ≤ 2 * L, f^[d] (inputLeft z) = hChosen := fun hf =>
       ⟨hjeq hf ▸ (Classical.choose_spec ((hmarkSpec z).1 hf)).1, _,
         Nat.le_of_lt_succ (Classical.choose ((hmarkSpec z).1 hf)).isLt, (hjeq hf).symm⟩
     have hHcomplete : (∃ d ≤ 2 * L, f^[d] (inputLeft z) ∈ forestMarks f tables.H) →
-        foundH z = true := by
-      rintro ⟨d, hd, hmem⟩
-      exact (hmarkSpec z).2 ⟨⟨d, Nat.lt_succ_of_le hd⟩, hmem⟩
-    have hAsound : foundA z = true → ForestAnchor f tables.H L (inputRight z) (anchorState z) :=
-      fun hf => ((hanchorSpec z).1 hf).1
-    have hAcomplete : (∃ b, ForestAnchor f tables.H L (inputRight z) b) → foundA z = true :=
-      (hanchorSpec z).2
+        foundH z = true := fun ⟨d, hd, hmem⟩ =>
+      (hmarkSpec z).2 ⟨⟨d, Nat.lt_succ_of_le hd⟩, hmem⟩
     have hnav := forest_navigation_spec f tables.H L hL tables.cover tables.low tables.high
       tables.interval (inputLeft z) (inputRight z) hChosen (anchorState z) hyPos
-      (foundH z) (foundA z) hHsound hHcomplete hAsound hAcomplete
+      (foundH z) (foundA z) hHsound hHcomplete (fun hf => ((hanchorSpec z).1 hf).1)
+      (hanchorSpec z).2
     rw [hnav]
-    have hshortIff : shortBit z = true ↔ ∃ i ≤ 2 * L, f^[i] (inputLeft z) = inputRight z := by
-      simp only [shortBit, decide_eq_true_eq, Fin.exists_iff, Q, K, Nat.lt_add_one_iff, exists_prop]
-    have hverifyIff : verifyBit z = true ↔
-        ∃ i ≤ 2 * L, f^[i] (anchorState z) = inputRight z := by
-      simp only [verifyBit, decide_eq_true_eq, Fin.exists_iff, Q, K, Nat.lt_add_one_iff,
-        exists_prop]
     have hintIff (hfH : foundH z = true) (hfA : foundA z = true) :
         intervalBit z = true ↔
           (tables.low (anchorState z) ≤ tables.low hChosen ∧
             tables.low hChosen ≤ tables.high (anchorState z)) := by
-      have hmEq : markLabels z = forestLabelWord tables.low tables.high hChosen := by
-        rw [hjeq hfH]
-        exact (Classical.choose_spec ((hmarkSpec z).1 hfH)).2
-      have haEq : anchorLabels z = forestLabelWord tables.low tables.high (anchorState z) :=
-        ((hanchorSpec z).1 hfA).2
       dsimp only [intervalBit]
-      rw [hmEq, haEq]
+      rw [(Classical.choose_spec ((hmarkSpec z).1 hfH)).2, ← hjeq hfH,
+        ((hanchorSpec z).1 hfA).2]
       exact forest_label_interval tables.low tables.high (anchorState z) hChosen
-    rw [Bool.or_eq_true, Bool.and_eq_true, Bool.and_eq_true, Bool.and_eq_true,
-      hshortIff, hverifyIff]
+    simp only [shortBit, verifyBit, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
+      Fin.exists_iff, Q, K, Nat.lt_add_one_iff, exists_prop]
     exact or_congr_right ⟨fun ⟨⟨⟨hfH, hfA⟩, hv⟩, hi⟩ => ⟨hfH, hfA, hv, (hintIff hfH hfA).mp hi⟩,
       fun ⟨hfH, hfA, hv, hi⟩ => ⟨⟨⟨hfH, hfA⟩, hv⟩, (hintIff hfH hfA).mpr hi⟩⟩
   · dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start] at hsize ⊢
-    unfold transientForestCost
-    rw [show 2 * L + 1 + 1 = 2 * L + 2 by omega]
+    rw [transientForestCost, Nat.add_assoc (2 * L) 1 1]
     nlinarith
 
 end Cslib.Circuits.Boolean.Iteration

@@ -120,9 +120,7 @@ private theorem isOrderStatistic_iff_list {ι α : Type*} [Fintype ι] [LinearOr
     simp only [Finset.mem_val, Finset.mem_univ, true_and]
   have hlt : (Finset.univ.filter fun i => x i < y).card = s.countP (fun a => ¬ y ≤ a) := by
     rw [countP_sorted_eq_card_filter x (fun a => decide (¬ y ≤ a))]
-    congr 1
-    ext i
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq, not_le]
+    simp only [decide_eq_true_eq, not_le]
   have hle : (Finset.univ.filter fun i => x i ≤ y).card = s.countP (fun a => a ≤ y) := by
     rw [countP_sorted_eq_card_filter x (fun a => decide (a ≤ y))]
     simp only [decide_eq_true_eq]
@@ -142,10 +140,8 @@ theorem orderStatistic_isOrderStatistic [Nonempty ι] (x : ι → α) {k : ℕ}
   have hlen : k < ((Finset.univ.val.map x).sort (· ≤ ·)).length := by
     rw [Multiset.length_sort, Multiset.card_map, Finset.card_val, Finset.card_univ]
     exact hk
-  have hmin : min k (Fintype.card ι - 1) = k := min_eq_left (Nat.le_pred_of_lt hk)
-  have hlist := List.isOrderStatistic_getElem_of_perm (List.Perm.refl _)
-    (Multiset.pairwise_sort _ _) hlen
-  simpa only [orderStatistic, hmin] using hlist
+  simpa only [orderStatistic, min_eq_left (Nat.le_sub_one_of_lt hk)] using
+    List.isOrderStatistic_getElem_of_perm (List.Perm.refl _) (Multiset.pairwise_sort _ _) hlen
 
 theorem orderStatistic_eq_of_isOrderStatistic [Nonempty ι] {x : ι → α} {k : ℕ}
     (hk : k < Fintype.card ι) {y : α} (h : IsOrderStatistic x k y) :
@@ -197,13 +193,10 @@ theorem orderStatistic_comp_equiv {ι' : Type*} [Fintype ι'] [Nonempty ι] [Non
       (fun i hi => ⟨e.symm i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
         simpa only [Function.comp_apply, Equiv.apply_symm_apply] using
           (Finset.mem_filter.mp hi).2⟩, e.apply_symm_apply i⟩)
-  refine ⟨?_, ?_, ?_⟩
-  · obtain ⟨i, hi⟩ := hos.1
-    exact ⟨e.symm i, by simp only [Function.comp_apply, Equiv.apply_symm_apply, hi]⟩
-  · rw [hcard (· < orderStatistic x k')]
-    exact hos.2.1
-  · rw [hcard (· ≤ orderStatistic x k')]
-    exact hos.2.2
+  obtain ⟨i, hi⟩ := hos.1
+  exact ⟨⟨e.symm i, by simp only [Function.comp_apply, Equiv.apply_symm_apply, hi]⟩,
+    (hcard (· < orderStatistic x k')).trans_le hos.2.1,
+    hos.2.2.trans_eq (hcard (· ≤ orderStatistic x k')).symm⟩
 
 end Lemmas
 

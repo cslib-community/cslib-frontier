@@ -82,28 +82,32 @@ theorem card_orderedTriangles (V : Type*) [Fintype V] [DecidableEq V] (G : Simpl
       6 * #(G.cliqueFinset 3) := by
   set T : Finset (V × V × V) :=
     univ.filter fun x => G.Adj x.1 x.2.1 ∧ G.Adj x.2.1 x.2.2 ∧ G.Adj x.1 x.2.2 with hT
-  rw [show (∑ u, ∑ v, ∑ w, if G.Adj u v ∧ G.Adj v w ∧ G.Adj u w then 1 else 0 : ℕ) = #T by
-    simp only [hT, Finset.card_filter, Fintype.sum_prod_type]]
+  have hsum : (∑ u, ∑ v, ∑ w, if G.Adj u v ∧ G.Adj v w ∧ G.Adj u w then 1 else 0 : ℕ) = #T := by
+    simp only [hT, Finset.card_filter, Fintype.sum_prod_type]
+  rw [hsum]
   have hmaps : ∀ x ∈ T, ({x.1, x.2.1, x.2.2} : Finset V) ∈ G.cliqueFinset 3 := by
     rintro ⟨u, v, w⟩ hx
-    rw [hT, Finset.mem_filter] at hx
-    exact SimpleGraph.mem_cliqueFinset_iff.2
-      (SimpleGraph.is3Clique_triple_iff.2 ⟨hx.2.1, hx.2.2.2, hx.2.2.1⟩)
+    simp only [hT, Finset.mem_filter, Finset.mem_univ, true_and] at hx
+    rw [SimpleGraph.mem_cliqueFinset_iff, SimpleGraph.is3Clique_triple_iff]
+    exact ⟨hx.1, hx.2.2, hx.2.1⟩
   rw [Finset.card_eq_sum_card_fiberwise hmaps, mul_comm, ← smul_eq_mul, ← Finset.sum_const]
   refine Finset.sum_congr rfl fun t ht => ?_
-  obtain ⟨a, b, c, hab, hac, hbc, rfl⟩ :=
-    SimpleGraph.is3Clique_iff.1 (SimpleGraph.mem_cliqueFinset_iff.1 ht)
+  rw [SimpleGraph.mem_cliqueFinset_iff, SimpleGraph.is3Clique_iff] at ht
+  obtain ⟨a, b, c, hab, hac, hbc, rfl⟩ := ht
   have hfib : T.filter (fun x => ({x.1, x.2.1, x.2.2} : Finset V) = {a, b, c}) =
       {(a, b, c), (a, c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a)} := by
     ext ⟨u, v, w⟩
     simp only [hT, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
       Finset.mem_singleton, Prod.mk.injEq]
-    refine ⟨fun ⟨⟨h1, h2, h3⟩, heq⟩ => ?_, ?_⟩
-    · have hmem (x : V) (hx : x ∈ ({u, v, w} : Finset V)) : x = a ∨ x = b ∨ x = c := by
-        simpa using (heq ▸ hx : x ∈ ({a, b, c} : Finset V))
-      rcases hmem u (by simp) with rfl | rfl | rfl <;>
-        rcases hmem v (by simp) with rfl | rfl | rfl <;>
-        rcases hmem w (by simp) with rfl | rfl | rfl <;> simp_all
+    constructor
+    · rintro ⟨⟨h1, h2, h3⟩, heq⟩
+      have hu : u ∈ ({a, b, c} : Finset V) := heq ▸ by simp
+      have hv : v ∈ ({a, b, c} : Finset V) := heq ▸ by simp
+      have hw : w ∈ ({a, b, c} : Finset V) := heq ▸ by simp
+      clear heq
+      simp only [Finset.mem_insert, Finset.mem_singleton] at hu hv hw
+      rcases hu with rfl | rfl | rfl <;> rcases hv with rfl | rfl | rfl <;>
+        rcases hw with rfl | rfl | rfl <;> simp_all
     · rintro (⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ |
           ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩) <;>
         refine ⟨⟨?_, ?_, ?_⟩, ?_⟩ <;>
@@ -112,8 +116,7 @@ theorem card_orderedTriangles (V : Type*) [Fintype V] [DecidableEq V] (G : Simpl
         | exact (‹_› : G.Adj _ _).symm
         | (ext; simp only [Finset.mem_insert, Finset.mem_singleton, or_comm, or_left_comm])
   rw [hfib]
-  simp [Finset.card_insert_of_notMem, hab.ne, hac.ne, hbc.ne,
-    hab.ne.symm, hac.ne.symm, hbc.ne.symm]
+  simp [Finset.card_insert_of_notMem, hab.ne, hac.ne, hbc.ne, hab.ne', hac.ne', hbc.ne']
 
 /-! ### The triangle tester -/
 
@@ -148,7 +151,8 @@ theorem isQueryBounded_triangleTrial (m : ℕ) :
 /-- The tester with `k` trials asks at most `3 k` queries. -/
 theorem isQueryBounded_triangleTester (n k : ℕ) :
     ProbOracleComp.IsQueryBounded (triangleTester n k) (3 * k) := by
-  cases n; exacts [.pure _ _, isQueryBounded_repeatAll (isQueryBounded_triangleTrial _) k]
+  cases n
+  exacts [.pure _ _, isQueryBounded_repeatAll (isQueryBounded_triangleTrial _) k]
 
 private theorem evalWith_triangleTrial (m : ℕ) (G : SimpleGraph (Fin (m + 1)))
     [DecidableRel G.Adj] :
@@ -172,15 +176,17 @@ private theorem toReal_pure_not_and (A B C : Prop) [Decidable A] [Decidable B] [
 theorem acceptProb_triangleTrial (m : ℕ) (G : SimpleGraph (Fin (m + 1))) [DecidableRel G.Adj] :
     acceptProb (triangleTrial m) G = 1 - 6 * #(G.cliqueFinset 3) / (m + 1 : ℝ) ^ 3 := by
   have hcount : (∑ u, ∑ v, ∑ w, if G.Adj u v ∧ G.Adj v w ∧ G.Adj u w then (1 : ℝ) else 0) =
-      6 * #(G.cliqueFinset 3) := by exact_mod_cast card_orderedTriangles (Fin (m + 1)) G
+      6 * #(G.cliqueFinset 3) := by
+    exact_mod_cast card_orderedTriangles (Fin (m + 1)) G
   rw [acceptProb_eq, evalWith_triangleTrial]
   simp only [Probability.PMF.bind_apply_toReal, Probability.PMF.uniformOfFintype_apply,
     ENNReal.toReal_inv, ENNReal.toReal_natCast, Fintype.card_fin, toReal_pure_not_and,
     Finset.mul_sum, mul_sub, mul_one]
   simp only [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
     nsmul_eq_mul, ← Finset.mul_sum, hcount]
-  have : (m + 1 : ℝ) ≠ 0 := by positivity
-  push_cast; field_simp
+  have hm : (m + 1 : ℝ) ≠ 0 := by positivity
+  push_cast
+  field_simp
 
 /-- The tester with `k` trials accepts a graph on `n` vertices with `t` triangles with
 probability `(1 - 6 t / n³) ^ k`. -/
@@ -219,10 +225,11 @@ the number of vertices. -/
 theorem oneSidedTestable_cliqueFree_three :
     OneSidedTestable (fun _ G => G.CliqueFree 3)
       (fun ε => 3 * ⌈(3 * triangleRemovalBound ε)⁻¹⌉₊) := by
-  refine oneSidedTestable_iff.mpr fun ε hε n =>
-    ⟨triangleTester n _, isOneSidedTester_triangleTester hε ?_⟩
-  have hpos : 0 < 3 * triangleRemovalBound ε := mul_pos three_pos (triangleRemovalBound_pos hε)
-  exact (mul_inv_cancel₀ hpos.ne').symm.trans_le
-    (mul_le_mul_of_nonneg_left (Nat.le_ceil _) hpos.le)
+  refine oneSidedTestable_iff.mpr fun ε hε n => ?_
+  refine ⟨triangleTester n _, isOneSidedTester_triangleTester hε ?_⟩
+  have hpos : 0 < 3 * triangleRemovalBound ε := by linarith [triangleRemovalBound_pos hε]
+  calc (1 : ℝ) = 3 * triangleRemovalBound ε * (3 * triangleRemovalBound ε)⁻¹ :=
+        (mul_inv_cancel₀ hpos.ne').symm
+    _ ≤ _ := mul_le_mul_of_nonneg_left (Nat.le_ceil _) hpos.le
 
 end Cslib.DenseGraphTesting

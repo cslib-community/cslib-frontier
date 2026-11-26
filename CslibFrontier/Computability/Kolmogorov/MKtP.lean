@@ -328,8 +328,9 @@ theorem mem_E : MKtP ∈ E encMKtP := by
   obtain ⟨C, D, h⟩ := ComputableInPolyTime.exists_computableInO_pad
     (f := fun q : MKtPInstance × ℕ => boundedSearch q.1 q.2)
     (ν := fun i => i.threshold + 1) (by fun_prop) (by fun_prop)
-  rw [show MKtP = {i | boundedSearch i (2 ^ (i.threshold + 1)) = true} from
-    Set.ext fun _ => (boundedSearch_eq_true_iff_of_two_pow_le le_rfl).symm]
+  have heq : MKtP = {i | boundedSearch i (2 ^ (i.threshold + 1)) = true} :=
+    Set.ext fun _ => (boundedSearch_eq_true_iff_of_two_pow_le le_rfl).symm
+  rw [heq]
   refine mem_E_iff.mpr ⟨2 * D, DTIME_mono_of_le_mul_add (C := C) (fun _ => le_rfl)
     (setOf_mem_DTIME_of_computableInO (t := fun n => C * 2 ^ (2 * D * n) + C) h fun i => ?_)⟩
   have hn : i.threshold + 1 ≤ (encMKtP i).length := by enc_len [encMKtP_apply]

@@ -137,15 +137,11 @@ theorem length_starBefore (w : List α) : (starBefore w).length = 2 * w.length :
 theorem starBefore_injective : Function.Injective (starBefore : List α → List (Marked α)) := by
   intro u
   induction u with
-  | nil =>
-    rintro (_ | ⟨b, v⟩) h
-    · rfl
-    · simp at h
+  | nil => rintro (_ | ⟨b, v⟩) h <;> simp at h ⊢
   | cons a u ih =>
-    rintro (_ | ⟨b, v⟩) h
-    · simp at h
-    · simp only [starBefore_cons, List.cons.injEq, letter.injEq, true_and] at h
-      rw [h.1, ih h.2]
+    rintro (_ | ⟨b, v⟩) h <;> simp only [starBefore_cons, starBefore_nil, reduceCtorEq,
+      List.cons.injEq, letter.injEq, true_and] at h
+    exact congrArg₂ List.cons h.1 (ih h.2)
 
 theorem start_notMem_starBefore (w : List α) : start ∉ starBefore w := by
   simp [starBefore]
@@ -197,15 +193,10 @@ private theorem tops_filter (ds : List (Domino α)) :
   induction ds with
   | nil => exact ⟨rfl, rfl⟩
   | cons d ds ih =>
-    rcases d with ⟨t, b⟩
-    by_cases h : 0 < t.length + b.length
-    · rw [List.filter_cons_of_pos (by simpa using h)]
-      simp only [tops_cons, bottoms_cons, ih.1, ih.2, and_self]
-    · rw [List.filter_cons_of_neg (by simpa using h)]
-      have ht : t = [] := List.eq_nil_of_length_eq_zero (by omega)
-      have hb : b = [] := List.eq_nil_of_length_eq_zero (by omega)
-      subst ht hb
-      exact ih
+    rcases d with ⟨_ | ⟨a, t⟩, _ | ⟨b, u⟩⟩ <;>
+      simp only [List.filter_cons, List.length_nil, List.length_cons, Nat.add_zero, Nat.zero_add,
+        Nat.lt_irrefl, Nat.zero_lt_succ, Nat.add_pos_left, decide_false, decide_true,
+        Bool.false_eq_true, ↓reduceIte, tops_cons, bottoms_cons, List.nil_append, ih, and_self]
 
 /-- The marked pieces after the start domino: if their tops follow `⋆T` and their bottoms follow
 `⋆B⋆`, then a sequence of dominoes of the instance completes `T` over `B`. -/
@@ -229,8 +220,7 @@ private theorem complete_of_marked (I : MInstance α) :
       obtain ⟨h'', -⟩ := (List.append_cons_inj_of_notMem_prefix (start_notMem_starBefore T)
         (by simp [start_notMem_starBefore])).mp h'
       have := congrArg List.length h''
-      simp only [List.length_append, length_starBefore, List.length_singleton] at this
-      omega
+      simp only [List.length_append, length_starBefore, List.length_singleton] at this; omega
     · -- the end domino: then `T = B`
       have h' : (starBefore T ++ [sep]) ++ stop :: tops ρ =
           (starBefore B ++ [sep]) ++ stop :: bottoms ρ := by
@@ -238,7 +228,7 @@ private theorem complete_of_marked (I : MInstance α) :
       obtain ⟨h'', -⟩ := (List.append_cons_inj_of_notMem_prefix (by simp [stop_notMem_starBefore])
         (by simp [stop_notMem_starBefore])).mp h'
       have hTB : T = B := starBefore_injective (List.append_cancel_right h'')
-      exact ⟨[], fun _ h => absurd h List.not_mem_nil, by rw [hTB, tops_nil, bottoms_nil]⟩
+      exact ⟨[], by simp, by simp [hTB]⟩
     · -- a marked domino of the instance
       have key : starBefore B ++ sep :: (starAfter e.bottom ++ bottoms ρ) =
           starBefore (B ++ e.bottom) ++ sep :: bottoms ρ := by
@@ -253,15 +243,9 @@ private theorem head?_flatMap {β : Type*} {p : α → Prop} {f : β → List α
     ∀ {l : List β}, (∀ b ∈ l, ∀ x ∈ (f b).head?, p x) → ∀ x ∈ (l.flatMap f).head?, p x
   | [], _ => by simp
   | b :: l, h => by
-    rw [List.flatMap_cons]
-    intro x hx
     cases hfb : f b with
-    | nil =>
-      rw [hfb, List.nil_append] at hx
-      exact head?_flatMap (fun c hc => h c (List.mem_cons_of_mem b hc)) x hx
-    | cons y w =>
-      rw [hfb, List.cons_append, List.head?_cons, Option.mem_some_iff] at hx
-      exact h b List.mem_cons_self x (by rw [hfb, ← hx]; rfl)
+    | nil => simpa [hfb] using head?_flatMap (fun c hc => h c (List.mem_cons_of_mem b hc))
+    | cons y w => simpa [hfb] using h b List.mem_cons_self y
 
 /-- **Sipser's reduction is correct.** An MPCP instance is solvable exactly when the PCP instance
 `toPCP I` is. -/
@@ -272,8 +256,7 @@ theorem solvable_toPCP_iff (I : MInstance α) : Solvable (toPCP I) ↔ I.Solvabl
     · obtain ⟨ρ₁, _, ρ₂, rfl, rfl, hρ₁⟩ :=
         List.exists_eq_append_cons_of_exists_mem (p := (· = startPiece I.start)) ⟨_, hs, rfl⟩
       -- no domino before the start domino contains `▷`
-      have hnot : ∀ d ∈ ρ₁, start ∉ d.top ∧ start ∉ d.bottom := by
-        intro d hd
+      have hnot (d : Domino (Marked α)) (hd : d ∈ ρ₁) : start ∉ d.top ∧ start ∉ d.bottom := by
         have hd' := hρ d (List.mem_append_left _ hd)
         simp only [toPCP, List.mem_cons, List.mem_map, List.mem_filter] at hd'
         rcases hd' with rfl | rfl | ⟨e, -, rfl⟩
@@ -293,59 +276,35 @@ theorem solvable_toPCP_iff (I : MInstance α) : Solvable (toPCP I) ↔ I.Solvabl
         rw [heq, sep_cons_starAfter_append])
     · -- without the start domino, tops begin with `⋆` and bottoms do not
       exfalso
-      have hρ' : ∀ d ∈ ρ, d = stopPiece ∨ ∃ e ∈ I.dominoes, 0 < e.top.length + e.bottom.length ∧
-          d = markPiece e := by
-        intro d hd
-        have hd' := hρ d hd
-        simp only [toPCP, List.mem_cons, List.mem_map, List.mem_filter, decide_eq_true_eq] at hd'
-        rcases hd' with rfl | rfl | ⟨e, ⟨he, hpos⟩, rfl⟩
-        · exact absurd hd hs
-        · exact Or.inl rfl
-        · exact Or.inr ⟨e, he, hpos, rfl⟩
+      have hρ' (d : Domino (Marked α)) (hd : d ∈ ρ) :
+          d = stopPiece ∨ ∃ e, (e ∈ I.dominoes ∧ 0 < e.top.length + e.bottom.length) ∧
+            markPiece e = d := by
+        simpa [toPCP, show d ≠ startPiece I.start from fun h => hs (h ▸ hd)] using hρ d hd
       have htop : ∀ x ∈ (tops ρ).head?, x = sep := head?_flatMap fun d hd => by
-        rcases hρ' d hd with rfl | ⟨e, -, -, rfl⟩
-        · simp [stopPiece]
-        · exact head?_starBefore e.top
+        rcases hρ' d hd with rfl | ⟨e, -, rfl⟩
+        exacts [by simp [stopPiece], head?_starBefore e.top]
       have hbot : ∀ x ∈ (bottoms ρ).head?, x ≠ sep := head?_flatMap fun d hd => by
-        rcases hρ' d hd with rfl | ⟨e, -, -, rfl⟩
-        · simp [stopPiece]
-        · exact head?_starAfter e.bottom
-      have hnil : tops ρ = [] := by
-        cases h : tops ρ with
-        | nil => rfl
-        | cons x w =>
-          have hx := htop x (by rw [h]; rfl)
-          rw [heq] at h
-          exact absurd hx (hbot x (by rw [h]; rfl))
+        rcases hρ' d hd with rfl | ⟨e, -, rfl⟩
+        exacts [by simp [stopPiece], head?_starAfter e.bottom]
       obtain ⟨d, ρ', rfl⟩ := List.exists_cons_of_ne_nil hne
-      have hdt : d.top = [] := List.append_eq_nil_iff.mp (by simpa using hnil) |>.1
-      have hdb : d.bottom = [] := by
-        rw [heq] at hnil
-        exact (List.append_eq_nil_iff.mp (by simpa using hnil)).1
-      rcases hρ' d List.mem_cons_self with rfl | ⟨e, -, hpos, rfl⟩
-      · simp [stopPiece] at hdt
-      · have h1 : e.top = [] := by
-          have := congrArg List.length hdt
-          simp only [markPiece, length_starBefore, List.length_nil] at this
-          exact List.eq_nil_of_length_eq_zero (by omega)
-        have h2 : e.bottom = [] := by
-          cases hb : e.bottom with
-          | nil => rfl
-          | cons y w => simp [markPiece, hb] at hdb
-        rw [h1, h2] at hpos
-        simp at hpos
+      have hnil : tops (d :: ρ') = [] := by
+        rcases h : (tops (d :: ρ')).head? with _ | x
+        · exact List.head?_eq_none_iff.mp h
+        · exact absurd (htop x h) (hbot x (heq ▸ h))
+      rcases hρ' d List.mem_cons_self with rfl | ⟨e, ⟨-, hpos⟩, rfl⟩
+      · simp [stopPiece, tops_cons] at hnil
+      · rw [hnil] at heq
+        cases ht : e.top <;> cases hb : e.bottom <;>
+          simp [ht, hb, markPiece, tops_cons, bottoms_cons] at heq hnil hpos
   · rintro ⟨ds, hds, heq⟩
     obtain ⟨ht, hb⟩ := tops_filter ds
     refine ⟨startPiece I.start ::
         ((ds.filter fun d => 0 < d.top.length + d.bottom.length).map markPiece ++ [stopPiece]),
       List.cons_ne_nil _ _, fun d hd => ?_, ?_⟩
-    · simp only [List.mem_cons, List.mem_append, List.mem_map, List.not_mem_nil, or_false] at hd
-      simp only [toPCP, List.mem_cons, List.mem_map]
-      rcases hd with rfl | ⟨e, he, rfl⟩ | rfl
-      · exact Or.inl rfl
-      · rw [List.mem_filter] at he
-        exact Or.inr (Or.inr ⟨e, List.mem_filter.mpr ⟨hds e he.1, he.2⟩, rfl⟩)
-      · exact Or.inr (Or.inl rfl)
+    · simp only [List.mem_cons, List.mem_append, List.mem_map, List.mem_filter,
+        List.not_mem_nil, or_false, toPCP] at hd ⊢
+      rcases hd with rfl | ⟨e, ⟨he, hpos⟩, rfl⟩ | rfl
+      exacts [Or.inl rfl, Or.inr (Or.inr ⟨e, ⟨hds e he, hpos⟩, rfl⟩), Or.inr (Or.inl rfl)]
     · simp only [tops_cons, tops_append, tops_map_markPiece, startPiece, bottoms_cons,
         bottoms_append, bottoms_map_markPiece, stopPiece, ht, hb, tops_nil, bottoms_nil,
         List.append_nil, List.cons_append, List.cons.injEq, true_and]

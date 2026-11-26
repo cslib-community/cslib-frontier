@@ -103,11 +103,14 @@ theorem IsSolution.isEll2Solution {q : ℕ} {ρ ι : Type*} [Fintype ι]
     {A : Matrix ρ ι (ZMod q)} {β : ℕ} {z : ι → ℤ} (hz : IsSolution A β z) :
     IsEll2Solution A (Real.sqrt (Fintype.card ι) * β) z := by
   refine ⟨hz.1, ?_, hz.2.2⟩
-  rw [← sq_le_sq₀ (norm_nonneg _) (by positivity), EuclideanSpace.norm_sq_eq, mul_pow,
-    Real.sq_sqrt (Nat.cast_nonneg _)]
-  exact (Finset.sum_le_sum (g := fun _ => (β : ℝ) ^ 2) fun i _ => by
-    rw [WithLp.ofLp_toLp, Real.norm_eq_abs]
-    exact pow_le_pow_left₀ (abs_nonneg _) (by exact_mod_cast hz.2.1 i) 2).trans_eq (by simp)
+  rw [← sq_le_sq₀ (norm_nonneg _) (by positivity), EuclideanSpace.norm_sq_eq]
+  calc ∑ i : ι, ‖(z i : ℝ)‖ ^ 2
+      ≤ ∑ _i : ι, (β : ℝ) ^ 2 := Finset.sum_le_sum fun i _ => by
+        rw [Real.norm_eq_abs]
+        exact pow_le_pow_left₀ (abs_nonneg _) (by exact_mod_cast hz.2.1 i) 2
+    _ = (Fintype.card ι : ℝ) * (β : ℝ) ^ 2 := by simp
+    _ = (Real.sqrt (Fintype.card ι) * (β : ℝ)) ^ 2 := by
+        rw [mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]
 
 /-- Every `ℓ₂`-SIS solution with real bound `β` is an `ℓ_∞`-SIS solution with bound `⌊β⌋₊`. -/
 theorem IsEll2Solution.isSolution {q : ℕ} {ρ ι : Type*} [Fintype ι]
@@ -150,9 +153,11 @@ theorem exists_isEll2Solution {q n m : ℕ} [NeZero q] (hm : 0 < m)
        simp only [z, abs_le]
        omega,
      by
-       rw [InKernelLattice, show (Int.cast ∘ z : Fin m → ZMod q) =
-         (fun i => ((x i : ℕ) : ZMod q)) - (fun i => ((y i : ℕ) : ZMod q)) by ext i; simp [z],
-         Matrix.mulVec_sub]
+       have hcast : (Int.cast ∘ z : Fin m → ZMod q) =
+           (fun i => ((x i : ℕ) : ZMod q)) - (fun i => ((y i : ℕ) : ZMod q)) := by
+         ext i
+         simp [z]
+       rw [InKernelLattice, hcast, Matrix.mulVec_sub]
        exact sub_eq_zero.mpr hf⟩
   exact ⟨z, hsol.isEll2Solution.mono <| by
     rw [Fintype.card_fin]

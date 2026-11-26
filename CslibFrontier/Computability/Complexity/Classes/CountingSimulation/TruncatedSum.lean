@@ -112,18 +112,14 @@ theorem truncSum_modEq {c : C} {P ℓ : ℕ} (hmod : modulus c = 2 ^ P) (G : ℕ
       q j [ZMOD 2 ^ P]) :
     (truncSum entry build modulus count c : ℤ) ≡ ∑ j ∈ range ℓ, q j [ZMOD 2 ^ P] := by
   have hterm : ∀ i ∈ range (count c), truncCoeffSum entry (build (c, i)) =
-      ∑ j ∈ range ℓ, ((G i).polyContraction entry).coeff j % 2 ^ P := by
-    intro i hi
+      ∑ j ∈ range ℓ, ((G i).polyContraction entry).coeff j % 2 ^ P := fun i hi => by
     obtain ⟨r, hr⟩ := hbuild i (mem_range.mp hi)
     rw [hr, truncCoeffSum_eq]
   rw [truncSum_eq, hmod, sum_congr rfl hterm, sum_comm]
   push_cast
-  refine (Int.mod_modEq _ _).trans ((Int.ModEq.sum fun j _ =>
-    Int.ModEq.sum fun i _ => Int.mod_modEq _ _).trans ?_)
-  refine Int.ModEq.sum fun j hj => ?_
-  have h := hq j (mem_range.mp hj)
-  push_cast at h
-  exact h
+  exact (Int.mod_modEq _ _).trans <| Int.ModEq.sum fun j hj =>
+    (Int.ModEq.sum fun i _ => Int.mod_modEq _ _).trans
+      (by simpa only [Nat.cast_sum] using hq j (mem_range.mp hj))
 
 /-! ### Resources -/
 
@@ -195,9 +191,7 @@ theorem exists_truncSum_certificate {Adm : ℕ → ℕ → ℕ × DescribedNetwo
     obtain ⟨hP1, hPD, hℓ1, hℓD, hadm⟩ := hgood i hi
     have hq : (encPair encC encNat (c, i)).length ≤ Lq c := by
       have := length_encNat_mono (le_of_lt hi)
-      rw [length_encPair]
-      simp only [Lq, L, lk] at this ⊢
-      omega
+      simp only [length_encPair, Lq, L, lk] at this ⊢; omega
     have hxlen : (encTrunc encT (build (c, i))).length ≤ Lb c := (bBL (c, i)).trans (mBL hq)
     obtain ⟨hAt, hAs⟩ := hK₀ (s c) (build (c, i)).1 (build (c, i)).2.1 (build (c, i)).2.2.1
       (build (c, i)).2.2.2 hs hP1 hPD hℓ1 hℓD hadm
@@ -211,9 +205,7 @@ theorem exists_truncSum_certificate {Adm : ℕ → ℕ → ℕ × DescribedNetwo
     have hpair : (encPair (encList encNat) encC
         ((build (c, i)).2.2.2.truncContraction entry (build (c, i)).1 (build (c, i)).2.1,
           c)).length ≤ Lp c := by
-      rw [length_encPair]
-      simp only [Lp, L]
-      omega
+      simp only [length_encPair, Lp, L]; omega
     have h1 := (bB (c, i)).imp (·.trans (mB hq)) (·.trans (mB hq))
     have h2 := (bF (c, i)).imp (·.trans (mF hq)) (·.trans (mF hq))
     have h3 := (bP _).imp (·.trans (mP hpair)) (·.trans (mP hpair))

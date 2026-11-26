@@ -195,15 +195,11 @@ theorem not_isExtractor_bool_of_subsingleton [Nonempty Input] [Subsingleton Seed
   obtain ⟨source, b, hentropy, hmap⟩ := exists_minEntropy_map_eq_pure_bool (fun x => ext x s₀)
   have hseed : PMF.uniformOfFintype Seed = PMF.pure s₀ := by
     ext s
-    have hcard : Fintype.card Seed = 1 :=
-      Fintype.card_eq_one_iff.mpr ⟨s₀, fun y => Subsingleton.elim y s₀⟩
-    rw [Subsingleton.elim s s₀]
-    simp [hcard]
-  have hconst : (source.bind fun x =>
-      (PMF.uniformOfFintype Seed).map fun s => ext x s) = PMF.pure b := by
-    simpa only [hseed, PMF.map, PMF.pure_bind, Function.comp_def] using hmap
+    simp [Fintype.card_eq_one_iff.mpr ⟨s₀, fun y => Subsingleton.elim y s₀⟩,
+      Subsingleton.elim s s₀]
   have hdist := h _ hentropy
-  rw [hconst, dist_uniformOfFintype_bool] at hdist
+  simp only [hseed, PMF.map, PMF.pure_bind, Function.comp_def] at hmap hdist
+  rw [hmap, dist_uniformOfFintype_bool] at hdist
   cases b <;> norm_num at hdist <;> linarith
 
 /-- Explicit seedless impossibility on bit strings: a source of real min-entropy at least
@@ -238,11 +234,10 @@ theorem not_isExtractor_bitString {n m : ℕ} (hn : 1 ≤ n) (hm : 1 ≤ m)
     (f : BitString n → BitString m) (hε : ε < 1 / 2) :
     ¬ IsExtractor (fun x (_ : Unit) => f x) ((n : ℝ) - 1) ε := by
   intro h
-  obtain ⟨source, b, hentropy, _, hdist⟩ := exists_minEntropy_map_first_eq_pure hn hm f
+  obtain ⟨source, _, hentropy, _, hdist⟩ := exists_minEntropy_map_first_eq_pure hn hm f
   have hupper := h source hentropy
-  have hunit : PMF.uniformOfFintype Unit = PMF.pure () := by ext u; simp
-  simp only [hunit, PMF.map, PMF.pure_bind, Function.comp_def] at hupper
-  change dist (source.map f) _ ≤ ε at hupper
-  linarith
+  rw [show PMF.uniformOfFintype Unit = PMF.pure () from PMF.ext fun _ => by simp] at hupper
+  exact not_le.mpr (hupper.trans_lt hε)
+    (by simpa only [PMF.map, PMF.pure_bind, Function.comp_def] using hdist)
 
 end Cslib.Probability

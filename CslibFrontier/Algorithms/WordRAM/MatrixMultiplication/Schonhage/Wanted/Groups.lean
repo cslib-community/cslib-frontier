@@ -83,30 +83,24 @@ theorem code_span_eq_wantedStrings {L m N : ℕ} (hm : m ≤ L)
     nlinarith only [Nat.mul_le_mul_right (numBands L m N) (Nat.succ_le_of_lt hb.1), hb.2]
   have hv (i : ℕ) (hi : i < qs.length) :
       μ (codeAddress L m N qs.length + CountingSort.position key qs.length i) = values i := by
-    dsimp only [values]
-    rw [inputPairs_get qs ⟨i, hi⟩]
-    exact hvalues ⟨i, hi⟩
-  rw [hoffsets _ ht.le, hoffsets _ (Nat.succ_le_of_lt ht)]
-  rw [CountingSort.scatter_span_image key qs.length t _ values hv]
+    simpa only [values, inputPairs_get qs ⟨i, hi⟩] using hvalues ⟨i, hi⟩
+  rw [hoffsets _ ht.le, hoffsets _ (Nat.succ_le_of_lt ht),
+    CountingSort.scatter_span_image key qs.length t _ values hv]
   simp only [wantedStrings, image_image, Function.comp_def]
   ext code
   simp only [mem_image, mem_filter, mem_range, List.mem_toFinset]
   constructor
   · rintro ⟨i, ⟨hiQ, hik⟩, hc⟩
-    have hp : inputPairs qs i = ((qs.get ⟨i, hiQ⟩).1.val, (qs.get ⟨i, hiQ⟩).2.val) :=
-      inputPairs_get qs ⟨i, hiQ⟩
-    have hk : tileKey L m N ((qs.get ⟨i, hiQ⟩).1.val, (qs.get ⟨i, hiQ⟩).2.val) = t := by
-      simpa only [key, Function.comp_def, hp] using hik
-    have hband := (tileKey_eq_iff hm (qs.get ⟨i, hiQ⟩).1 (qs.get ⟨i, hiQ⟩).2 T hT).mp hk
+    have hp := inputPairs_get qs ⟨i, hiQ⟩
+    have hband := (tileKey_eq_iff hm (qs.get ⟨i, hiQ⟩).1 (qs.get ⟨i, hiQ⟩).2 T hT).mp
+      (by simpa only [key, Function.comp_def, hp] using hik)
     exact ⟨qs.get ⟨i, hiQ⟩, ⟨List.get_mem _ _, hband⟩, by simpa only [values, hp] using hc⟩
   · rintro ⟨q, ⟨hq, hband⟩, hc⟩
     obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hq
     have hp := inputPairs_get qs i
-    have hk : key i.val = t := by
-      dsimp only [key, Function.comp_def]
-      rw [hp]
-      exact (tileKey_eq_iff hm (qs.get i).1 (qs.get i).2 T hT).mpr hband
-    exact ⟨i.val, ⟨i.isLt, hk⟩, by simpa only [values, hp] using hc⟩
+    refine ⟨i.val, ⟨i.isLt, ?_⟩, by simpa only [values, hp] using hc⟩
+    simpa only [key, Function.comp_def, hp] using
+      (tileKey_eq_iff hm (qs.get i).1 (qs.get i).2 T hT).mpr hband
 
 /-- The actual stored original indices are in range, injective, and cover every input
 position. Equal original coordinate pairs therefore retain their separate occurrences. -/
@@ -136,13 +130,8 @@ theorem originals_permutation {L m N : ℕ} (qs : List (Fin N × Fin N)) (μ : �
     have hab : a.val = b.val := hia.symm.trans (hij.trans hjb)
     exact Fin.ext (ha.symm.trans ((congrArg (CountingSort.position key qs.length) hab).trans hb))
   · ext i
-    constructor
-    · intro hi
-      obtain ⟨j, hj, rfl⟩ := mem_image.mp hi
-      exact mem_range.mpr (hrange j (mem_range.mp hj))
-    · intro hi
-      have hin := mem_range.mp hi
-      exact mem_image.mpr ⟨CountingSort.position key qs.length i,
-        mem_range.mpr (CountingSort.position_lt key hin), h ⟨i, hin⟩⟩
+    simp only [mem_image, mem_range]
+    refine ⟨fun ⟨j, hj, hij⟩ => hij ▸ hrange j hj, fun hin =>
+      ⟨CountingSort.position key qs.length i, CountingSort.position_lt key hin, h ⟨i, hin⟩⟩⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

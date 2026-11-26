@@ -151,13 +151,11 @@ theorem ValidSchedule.induction {motive : (s : P.State) → (reqs : List P.Req) 
     (hv : P.ValidSchedule s reqs states) : motive s reqs states hv := by
   induction reqs generalizing s states with
   | nil =>
-    cases states with
-    | nil => exact nil s
-    | cons _ _ => cases hv
+    match states, hv with
+    | [], _ => exact nil s
   | cons r rs ih =>
-    cases states with
-    | nil => cases hv
-    | cons s' ss => exact cons s r rs s' ss hv.1 hv.2 (ih hv.2)
+    match states, hv with
+    | s' :: ss, ⟨hstep, hrest⟩ => exact cons s r rs s' ss hstep hrest (ih hrest)
 
 @[simp]
 theorem scheduleCost_nil (s : P.State) : P.scheduleCost s [] [] = 0 := rfl
@@ -214,10 +212,7 @@ theorem scheduleCost_append {s : P.State} {reqs₁ reqs₂ : List P.Req}
       P.scheduleCost s reqs₁ states₁ +
         P.scheduleCost (P.finalState s states₁) reqs₂ states₂ := by
   induction reqs₁ generalizing s states₁ with
-  | nil =>
-    rw [List.length_nil, List.length_eq_zero_iff] at hlen
-    subst hlen
-    simp
+  | nil => simp [List.length_eq_zero_iff.mp hlen]
   | cons r rs ih =>
     rcases states₁ with _ | ⟨s', ss⟩
     · cases hlen
@@ -246,10 +241,8 @@ theorem runClient_scheduleClient {s : P.State} {reqs : List P.Req} {states : Lis
   induction hv using ValidSchedule.induction with
   | nil => rfl
   | cons _ r rs s' ss _ _ ih =>
-    change (let rest := P.offlineSpec.runClient s' (P.scheduleClient rs ss)
-      (rest.1, rest.2.1, (r, s') :: rest.2.2)) = _
-    rw [ih]
-    rfl
+    dsimp only [scheduleClient, StateTransitionSpec.runClient]
+    rw [ih]; rfl
 
 /-- Every `ValidSchedule` yields an admissible `offlineSpec` operation history. -/
 theorem validHistory_zip {s : P.State} {reqs : List P.Req} {states : List P.State}
@@ -267,10 +260,8 @@ theorem totalCost_zip (c : Nat) {s : P.State} {reqs : List P.Req} {states : List
   induction hv using ValidSchedule.induction with
   | nil => rfl
   | cons s r rs s' ss _ _ ih =>
-    change c * P.stepCost s r s' +
-        P.offlineSpec.totalCost (fun s₀ o => c * P.stepCost s₀ o.1 o.2) s' (rs.zip ss) = _
-    rw [ih]
-    simp only [scheduleCost_cons, Nat.mul_add]
+    dsimp only [List.zip_cons_cons, StateTransitionSpec.totalCost]
+    rw [ih, scheduleCost_cons, Nat.mul_add]
 
 end Problem
 
@@ -537,13 +528,9 @@ theorem amortized_bound {potential : P.State → A.Mem → Nat} {c : Nat}
   have hrun := P.runClient_scheduleClient hv
   have hvh : P.offlineSpec.ValidHistory s_off
       (P.offlineSpec.runClient s_off (P.scheduleClient reqs offStates)).2.2 := by
-    rw [hrun]
-    exact P.validHistory_zip hv
-  have hclient := Cert.client (s := s_off) hm hvh hexec
-  rw [StateTransitionSpec.clientState, StateTransitionSpec.clientHistory, hrun] at hclient
-  dsimp only at hclient
-  rw [htot, P.totalCost_zip c hv] at hclient
-  exact hclient
+    simpa only [hrun] using P.validHistory_zip hv
+  simpa only [StateTransitionSpec.clientState, StateTransitionSpec.clientHistory, hrun, htot,
+    P.totalCost_zip c hv] using Cert.client (s := s_off) hm hvh hexec
 
 /-- A `Cslib.DataStructure.Amortized` certificate whose initial potential on `(s₀, A.init s₀)` is at
 most `b` establishes `A.IsCompetitive c b`. -/
@@ -651,8 +638,7 @@ theorem cost_adaptiveRequests_eq {chooseReq : P.State → P.Req} {w : Nat}
         (A.project (A.step m (chooseReq (A.project m)))) = w)
     {s₀ : P.State} (hs₀ : P.ValidInit s₀) (n : Nat) :
     A.cost s₀ (A.adaptiveRequests chooseReq s₀ n) = n * w := by
-  rw [A.cost_eq_costFrom hs₀]
-  exact A.costFrom_adaptiveRequestsFrom_eq hw (A.valid_init hs₀).1 n
+  exact A.cost_eq_costFrom hs₀ _ ▸ A.costFrom_adaptiveRequestsFrom_eq hw (A.valid_init hs₀).1 n
 
 /-- If `chooseReq` forces step cost at least `w` at every reachable state of `A`, then `n` generated
 requests force online cost at least `n * w`. -/
@@ -665,10 +651,8 @@ theorem le_costFrom_adaptiveRequestsFrom {chooseReq : P.State → P.Req} {w : Na
   induction n generalizing m with
   | zero => simp only [Nat.zero_mul, Nat.zero_le]
   | succ n ih =>
-    simp only [adaptiveRequestsFrom_succ, costFrom_cons, Nat.add_mul, Nat.one_mul]
-    have h₁ := hw hm
-    have h₂ := ih (A.valid_step (chooseReq (A.project m)) hm).1
-    omega
+    rw [adaptiveRequestsFrom_succ, costFrom_cons, Nat.succ_mul, Nat.add_comm]
+    exact Nat.add_le_add (hw hm) (ih (A.valid_step _ hm).1)
 
 /-- From an admissible initial state `s₀`, if `chooseReq` forces step cost at least `w` at every
 reachable state, then `A.adaptiveRequests chooseReq s₀ n` has online cost at least `n * w`. -/

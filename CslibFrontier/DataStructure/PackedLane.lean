@@ -72,16 +72,10 @@ theorem testBit_laneGet (W word j b : ℕ) :
 /-- Two words are equal when all of their `W`-bit lanes (`0 < W`) agree. -/
 theorem eq_of_forall_laneGet_eq {W a b : ℕ} (hW : 0 < W)
     (h : ∀ k, laneGet W a k = laneGet W b k) : a = b := by
-  apply Nat.eq_of_testBit_eq
-  intro t
-  have ht : t = (t / W) * W + t % W := by
-    rw [Nat.mul_comm, Nat.div_add_mod]
-  have hmod : t % W < W := Nat.mod_lt t hW
-  have ha := testBit_laneGet W a (t / W) (t % W)
-  have hb := testBit_laneGet W b (t / W) (t % W)
-  rw [h (t / W)] at ha
-  simp only [hmod, decide_true, Bool.true_and, ← ht] at ha hb
-  exact ha.symm.trans hb
+  refine Nat.eq_of_testBit_eq fun t => ?_
+  have h1 := congrArg (·.testBit (t % W)) (h (t / W))
+  simpa only [testBit_laneGet, Nat.mod_lt t hW, decide_true, Bool.true_and,
+    Nat.mul_comm _ W, Nat.div_add_mod] using h1
 
 private theorem sum_mul_pow_lt {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) :
     ∑ j ∈ range n, f j * 2 ^ (j * W) < 2 ^ (n * W) := by
@@ -142,14 +136,12 @@ theorem word_eq_sum_laneGet {W n word : ℕ} (hW : 0 < W) (hw : word < 2 ^ (n * 
   rw [laneGet_sum_mul_pow (fun j _ => laneGet_lt W word j)]
   split_ifs with hk
   · rfl
-  · apply Nat.eq_of_testBit_eq
-    intro b
+  · refine Nat.eq_of_testBit_eq fun b => ?_
     rw [testBit_laneGet, Nat.zero_testBit]
     by_cases hb : b < W
     · simp only [hb, decide_true, Bool.true_and]
-      refine Nat.testBit_lt_two_pow (hw.trans_le (Nat.pow_le_pow_right (by decide) ?_))
-      have : n * W ≤ k * W := Nat.mul_le_mul_right W (Nat.le_of_not_lt hk)
-      omega
+      exact Nat.testBit_lt_two_pow (hw.trans_le (Nat.pow_le_pow_right (by decide)
+        (by have := Nat.mul_le_mul_right W (Nat.le_of_not_lt hk); omega)))
     · simp [hb]
 
 /-- Words `< 2 ^ (n * W)` are uniquely determined by their first `n` `W`-bit lanes. -/

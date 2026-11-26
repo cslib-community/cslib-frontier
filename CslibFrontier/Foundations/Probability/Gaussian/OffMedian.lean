@@ -81,13 +81,10 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
   have hg0 : ∀ ψ, 0 ≤ g ψ := fun ψ => by simp only [g]; split_ifs <;> norm_num
   have hg1 : ∀ ψ, g ψ ≤ 1 := fun ψ => by simp only [g]; split_ifs <;> norm_num
   have hint_bdd : ∀ f : ℝ → ℝ, Measurable f → (∀ x, 0 ≤ f x) → (∀ x, f x ≤ 2) →
-      IntervalIntegrable f volume (-π) π := fun f hf h0 h2 => by
-    rw [intervalIntegrable_iff]
-    refine Measure.integrableOn_of_bounded (M := 2) measure_Ioc_lt_top.ne
-      hf.aestronglyMeasurable ?_
-    filter_upwards with x
-    rw [Real.norm_eq_abs, abs_of_nonneg (h0 x)]
-    exact h2 x
+      IntervalIntegrable f volume (-π) π := fun f hf h0 h2 =>
+    intervalIntegrable_iff.mpr <| Measure.integrableOn_of_bounded measure_Ioc_lt_top.ne
+      hf.aestronglyMeasurable <| ae_of_all _ fun x => by
+        simpa [Real.norm_eq_abs, abs_of_nonneg (h0 x)] using h2 x
   have hg_ii : IntervalIntegrable g volume (-π) π :=
     hint_bdd g hg_meas hg0 fun x => (hg1 x).trans (by norm_num)
   have hg_shift_ii : IntervalIntegrable (fun φ => g (φ - θ)) volume (-π) π :=
@@ -105,23 +102,16 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
       inter_eq_left.mpr (Icc_subset_Icc ha hb), setIntegral_const, smul_eq_mul, mul_one,
       Real.volume_real_Icc_of_le hab]
   have hint_g : ∫ φ in (-π)..π, g φ = 2 * c := by
-    have hcongr : ∫ φ in (-π)..π, g φ =
-        ∫ φ in (-π)..π, (Icc (-c) c).indicator (fun _ => (1 : ℝ)) φ :=
-      intervalIntegral.integral_congr (by
-        rw [uIcc_of_le (by linarith [pi_pos])]
-        exact hg_Icc)
-    rw [hcongr, hint_Icc (by linarith) (by linarith) hcπ]
+    rw [intervalIntegral.integral_congr (uIcc_of_le (a := -π) (b := π) (by linarith [pi_pos]) ▸
+      hg_Icc), hint_Icc (by linarith) (by linarith) hcπ]
     ring
   have hint_g_shift : ∫ φ in (-π)..π, g (φ - θ) = 2 * c := by
     rw [intervalIntegral.integral_comp_sub_right, ← hint_g]
-    simpa only [show -π - θ + 2 * π = π - θ by ring, show -π + 2 * π = π by ring] using
-      hg_per.intervalIntegral_add_eq (-π - θ) (-π)
+    convert hg_per.intervalIntegral_add_eq (-π - θ) (-π) using 2 <;> ring
   let cross : ℝ → ℝ := fun φ => if ¬(cos c ≤ cos φ ↔ cos c ≤ cos (φ - θ)) then 1 else 0
-  have hcross_eq : ∀ φ, cross φ = g φ + g (φ - θ) - 2 * (g φ * g (φ - θ)) := by
-    intro φ
-    simp only [cross, g]
-    by_cases h1 : cos c ≤ cos φ <;> by_cases h2 : cos c ≤ cos (φ - θ) <;> simp [h1, h2]
-    norm_num
+  have hcross_eq (φ : ℝ) : cross φ = g φ + g (φ - θ) - 2 * (g φ * g (φ - θ)) := by
+    by_cases h1 : cos c ≤ cos φ <;> by_cases h2 : cos c ≤ cos (φ - θ) <;>
+      norm_num [cross, g, h1, h2]
   have hprod_ii : IntervalIntegrable (fun φ => g φ * g (φ - θ)) volume (-π) π :=
     hint_bdd _ (hg_meas.mul (hg_meas.comp (measurable_id.sub_const θ)))
       (fun x => mul_nonneg (hg0 _) (hg0 _))
@@ -134,27 +124,23 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
     intervalIntegral.integral_add hg_ii hg_shift_ii, intervalIntegral.integral_const_mul,
     hint_g, hint_g_shift]
   rcases le_or_gt (2 * c) θ with hcθ | hθc
-  · have hprod_nonneg : 0 ≤ ∫ φ in (-π)..π, g φ * g (φ - θ) :=
-      intervalIntegral.integral_nonneg (by linarith [pi_pos]) fun φ _ => mul_nonneg (hg0 _) (hg0 _)
-    linarith
+  · linarith [intervalIntegral.integral_nonneg (μ := volume) (by linarith [pi_pos] : -π ≤ π)
+      fun φ _ => mul_nonneg (hg0 φ) (hg0 (φ - θ))]
   · have hover : 2 * c - θ ≤ ∫ φ in (-π)..π, g φ * g (φ - θ) := by
       let indI : ℝ → ℝ := (Icc (θ - c) c).indicator fun _ => (1 : ℝ)
       have hind_ii : IntervalIntegrable indI volume (-π) π :=
         hint_bdd indI (measurable_const.indicator measurableSet_Icc)
           (fun _ => indicator_nonneg (fun _ _ => zero_le_one) _)
           (fun _ => indicator_apply_le' (fun _ => one_le_two) fun _ => zero_le_two)
-      have hpt : ∀ φ ∈ Icc (-π) π, indI φ ≤ g φ * g (φ - θ) := by
-        intro φ _
+      have hpt φ (_ : φ ∈ Icc (-π) π) : indI φ ≤ g φ * g (φ - θ) := by
         by_cases hφ : φ ∈ Icc (θ - c) c
         · have h1 : |φ| ≤ c := abs_le.mpr ⟨by linarith [hφ.1], hφ.2⟩
           have h2 : |φ - θ| ≤ c := abs_le.mpr ⟨by linarith [hφ.1], by linarith [hφ.2]⟩
           simp [indI, hφ, g, (hiff _ (h1.trans hcπ)).mpr h1, (hiff _ (h2.trans hcπ)).mpr h2]
         · simp only [indI, indicator_of_notMem hφ]
           exact mul_nonneg (hg0 _) (hg0 _)
-      have hmono := intervalIntegral.integral_mono_on (by linarith [pi_pos]) hind_ii hprod_ii hpt
-      refine le_trans ?_ hmono
-      rw [hint_Icc (by linarith) (by linarith) hcπ]
-      linarith
+      linarith [intervalIntegral.integral_mono_on (by linarith [pi_pos]) hind_ii hprod_ii hpt,
+        hint_Icc (a := θ - c) (b := c) (by linarith) (by linarith) hcπ]
     linarith
 
 private theorem integrable_mul_exp_neg_sq_div_two :
@@ -187,15 +173,11 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
       exp (-t ^ 2 / 2) * (InnerProductGeometry.angle u v / π) := by
   classical
   set ρ := ⟪u, v⟫
-  have hρ_abs : |ρ| ≤ 1 := by
-    simpa [ρ, hu, hv] using abs_real_inner_le_norm u v
-  have hρ_bounds := abs_le.mp hρ_abs
+  have hρ_bounds := abs_le.mp (show |ρ| ≤ 1 by simpa [ρ, hu, hv] using abs_real_inner_le_norm u v)
   set θ := arccos ρ
   have hθ0 : 0 ≤ θ := arccos_nonneg ρ
   have hθπ : θ ≤ π := arccos_le_pi ρ
-  have hangle : InnerProductGeometry.angle u v = θ :=
-    InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv
-  rw [hangle]
+  rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv]
   have hcosθ : cos θ = ρ := cos_arccos hρ_bounds.1 hρ_bounds.2
   have hsinθ : sin θ = √(1 - ρ ^ 2) := sin_arccos ρ
   let S : Set (ℝ × ℝ) := {p | t ∈ Ι p.1 p.2}
@@ -209,19 +191,17 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
   have hmap2 : (correlatedGaussian ρ).real S =
       ((gaussianReal 0 1).prod (gaussianReal 0 1)).real A := by
     rw [correlatedGaussian_def, map_measureReal_apply (by fun_prop) hSm]
-    congr 1
-    ext g
-    simp [S, A, hcosθ, hsinθ]
+    exact congrArg _ (Set.ext fun g => by simp [S, A, hcosθ, hsinθ])
   rw [hmap1, hmap2]
   let rad : ℝ → ℝ := fun r => (2 * π)⁻¹ * (r * exp (-(r ^ 2) / 2))
-  have hrad_nonneg : ∀ r ≥ 0, 0 ≤ rad r := fun r hr => by
-    dsimp [rad]; positivity
+  have hrad_nonneg (r : ℝ) (_ : 0 ≤ r) : 0 ≤ rad r := by dsimp [rad]; positivity
+  have hrad_meas : Measurable fun r : ℝ => (2 * π)⁻¹ * (r * exp (-(r ^ 2) / 2)) := by fun_prop
+  have hπ_le : -π ≤ π := by linarith [pi_pos]
   have hrad_int : IntegrableOn rad (Ioi 0) :=
     (integrable_mul_exp_neg_sq_div_two.const_mul _).integrableOn
-  have hdens : ∀ r φ,
+  have hdens (r φ : ℝ) :
       gaussianPDFReal 0 1 (r * cos φ) * gaussianPDFReal 0 1 (r * sin φ) =
         (2 * π)⁻¹ * exp (-(r ^ 2) / 2) := by
-    intro r φ
     simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
     rw [mul_mul_mul_comm, ← mul_inv, mul_self_sqrt (by positivity), ← exp_add]
     congr 2
@@ -232,8 +212,8 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
     rw [← integral_indicator_one hAm]
     change ∫ z, A.indicator (fun _ => (1 : ℝ)) z ∂((gaussianReal 0 1).prod (gaussianReal 0 1)) = _
     rw [gaussianReal_of_var_ne_zero 0 one_ne_zero,
-      prod_withDensity (measurable_gaussianPDF 0 1) (measurable_gaussianPDF 0 1)]
-    rw [integral_withDensity_eq_integral_toReal_smul]
+      prod_withDensity (measurable_gaussianPDF 0 1) (measurable_gaussianPDF 0 1),
+      integral_withDensity_eq_integral_toReal_smul]
     · rw [← Measure.volume_eq_prod, ← integral_comp_polarCoord_symm]
       trans ∫ p in Ioi (0 : ℝ) ×ˢ Ioo (-π) π,
           rad p.1 * A.indicator (fun _ => (1 : ℝ)) (p.1 * cos p.2, p.1 * sin p.2)
@@ -246,14 +226,11 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
             (fun p : ℝ × ℝ =>
               rad p.1 * A.indicator (fun _ => (1 : ℝ)) (p.1 * cos p.2, p.1 * sin p.2))
             (Ioi 0 ×ˢ Ioo (-π) π) := by
-          have hprod : Integrable (fun p : ℝ × ℝ => ‖rad p.1‖ * (1 : ℝ))
-              ((volume.restrict (Ioi 0)).prod (volume.restrict (Ioo (-π) π))) :=
-            hrad_int.norm.mul_prod (integrable_const 1)
           rw [IntegrableOn, Measure.volume_eq_prod, ← Measure.prod_restrict]
-          refine hprod.mono' ?_ (ae_of_all _ fun p => ?_)
-          · refine Measurable.aestronglyMeasurable ?_
-            exact (by unfold rad; fun_prop : Measurable rad).comp measurable_fst |>.mul
-              ((measurable_const.indicator hAm).comp (by fun_prop))
+          refine (hrad_int.norm.mul_prod (integrable_const (1 : ℝ))).mono' ?_
+            (ae_of_all _ fun p => ?_)
+          · exact ((hrad_meas.comp measurable_fst).mul
+              ((measurable_const.indicator hAm).comp (by fun_prop))).aestronglyMeasurable
           · rw [norm_mul, mul_one]
             exact mul_le_of_le_one_right (norm_nonneg _)
               ((norm_indicator_le_norm_self _ _).trans_eq norm_one)
@@ -276,42 +253,30 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
     have hr0 : 0 < r := hr
     refine mul_le_mul_of_nonneg_left ?_ (hrad_nonneg r hr0.le)
     rcases lt_or_gt_of_ne hne with hlt | hgt
-    · rw [indicator_of_notMem (not_lt.mpr hlt.le)]
-      have hzero : ∀ φ, A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) = 0 := by
-        intro φ
-        refine indicator_of_notMem ?_ _
-        simp only [A, mem_ofPred_eq]
-        rw [hrot]
-        exact not_mem_uIoc_of_lt_abs hr0 hlt
-      simp [angInt, hzero]
+    · have hzero (φ : ℝ) : (r * cos φ, r * sin φ) ∉ A :=
+        fun (hA : t ∈ Ι _ (cos θ * (r * cos φ) + sin θ * (r * sin φ))) =>
+          not_mem_uIoc_of_lt_abs hr0 hlt (hrot r φ ▸ hA)
+      simp [angInt, not_lt.mpr hlt.le, indicator_of_notMem (hzero _)]
     · rw [indicator_of_mem hgt]
       set c := arccos (t / r)
-      have htr_abs : |t / r| < 1 := by
-        rw [abs_div, abs_of_pos hr0, div_lt_one hr0]
-        exact hgt
-      have hcos_c : cos c = t / r :=
-        cos_arccos (abs_lt.mp htr_abs).1.le (abs_lt.mp htr_abs).2.le
-      have hpt : ∀ φ, A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) =
+      have htr := abs_lt.mp (show |t / r| < 1 by rwa [abs_div, abs_of_pos hr0, div_lt_one hr0])
+      have hcos_c : cos c = t / r := cos_arccos htr.1.le htr.2.le
+      have hpt (φ : ℝ) : A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) =
           if ¬(cos c ≤ cos φ ↔ cos c ≤ cos (φ - θ)) then 1 else 0 := by
-        intro φ
-        have hiff1 : ∀ ψ, t ≤ r * cos ψ ↔ cos c ≤ cos ψ := fun ψ => by
+        have hiff1 (ψ : ℝ) : t ≤ r * cos ψ ↔ cos c ≤ cos ψ := by
           rw [hcos_c, div_le_iff₀ hr0, mul_comm]
-        have hiff2 : ∀ ψ, r * cos ψ < t ↔ ¬cos c ≤ cos ψ := fun ψ => by
-          rw [← not_le, hiff1]
-        simp only [indicator_apply, A, mem_ofPred_eq, hrot, mem_uIoc, hiff1, hiff2]
+        simp only [indicator_apply, A, mem_ofPred_eq, hrot, mem_uIoc, ← not_le, hiff1]
         by_cases h1 : cos c ≤ cos φ <;> by_cases h2 : cos c ≤ cos (φ - θ) <;> simp [h1, h2]
-      dsimp [angInt]
-      simp_rw [hpt]
+      simp_rw [angInt, hpt]
       exact angular_crossing_integral_le (arccos_nonneg _) (arccos_le_pi _) hθ0 hθπ
   have hang_meas : Measurable angInt := by
     have hj : Measurable (Function.uncurry fun r φ =>
         A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ)) :=
       (measurable_const.indicator hAm).comp (by fun_prop)
-    dsimp [angInt]
-    simp_rw [intervalIntegral.integral_of_le (by linarith [pi_pos] : -π ≤ π)]
+    simp_rw [angInt, intervalIntegral.integral_of_le hπ_le]
     exact (hj.stronglyMeasurable.integral_prod_right (ν := volume.restrict (Ioc (-π) π))).measurable
   have hang_bdd : ∀ r, 0 ≤ angInt r ∧ angInt r ≤ 2 * π := fun r => by
-    refine ⟨intervalIntegral.integral_nonneg (by linarith [pi_pos])
+    refine ⟨intervalIntegral.integral_nonneg hπ_le
       fun _ _ => indicator_nonneg (fun _ _ => zero_le_one) _, ?_⟩
     calc angInt r ≤ ‖angInt r‖ := Real.le_norm_self _
       _ ≤ 1 * |π - -π| := intervalIntegral.norm_integral_le_of_norm_le_const
@@ -319,7 +284,7 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
       _ = 2 * π := by rw [abs_of_nonneg (by linarith [pi_pos])]; ring
   have hLHS_int : IntegrableOn (fun r => rad r * angInt r) (Ioi 0) := by
     refine (hrad_int.mul_const (2 * π)).mono'
-      ((by unfold rad; fun_prop : Measurable rad).mul hang_meas).aestronglyMeasurable ?_
+      (hrad_meas.mul hang_meas).aestronglyMeasurable ?_
     filter_upwards [ae_restrict_mem measurableSet_Ioi] with r hr
     rw [norm_mul, Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (hrad_nonneg r (le_of_lt hr)),
       abs_of_nonneg (hang_bdd r).1]
@@ -327,13 +292,10 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
   have hrewrite : (fun r => rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r) =
       (Ioi |t|).indicator (fun r => rad r * (2 * θ)) :=
     funext fun _ => (indicator_mul_right _ _ _).symm
-  have hRHS_int :
-      IntegrableOn (fun r => rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r) (Ioi 0) := by
-    rw [hrewrite]
-    exact (hrad_int.mul_const _).indicator measurableSet_Ioi
   calc ∫ r in Ioi (0 : ℝ), rad r * angInt r
       ≤ ∫ r in Ioi (0 : ℝ), rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r :=
-        integral_mono_ae hLHS_int hRHS_int hang_ae
+        integral_mono_ae hLHS_int
+          (hrewrite ▸ (hrad_int.mul_const _).indicator measurableSet_Ioi) hang_ae
     _ = ∫ r in Ioi |t|, rad r * (2 * θ) := by
         rw [hrewrite, setIntegral_indicator measurableSet_Ioi,
           inter_eq_right.mpr (Ioi_subset_Ioi (abs_nonneg t))]
@@ -348,17 +310,13 @@ theorem measureReal_pi_gaussianReal_inner_eq_zero {ι : Type*} [Fintype ι]
     {u : EuclideanSpace ℝ ι} (hu : ‖u‖ = 1) :
     (Measure.pi fun _ : ι => gaussianReal 0 1).real {ω | ⟪u, WithLp.toLp 2 ω⟫ = 0} = 0 := by
   have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-  have hnn : ‖u‖₊ ^ 2 = 1 := by ext; simp [hu]
+  have hnn : ‖u‖₊ ^ 2 = 1 := Subtype.ext (by simp [hu])
   have hmp : MeasurePreserving (fun ω : ι → ℝ => ⟪u, WithLp.toLp 2 ω⟫)
-      (Measure.pi fun _ : ι => gaussianReal 0 1) (gaussianReal 0 1) := by
-    have h1 := measurePreserving_toLp_pi_gaussianReal ι
-    have h2 : MeasurePreserving (fun x : EuclideanSpace ℝ ι => ⟪u, x⟫)
-        (stdGaussian (EuclideanSpace ℝ ι)) (gaussianReal 0 1) :=
-      ⟨by fun_prop, by rw [stdGaussian_map_inner, hnn]⟩
-    exact h2.comp h1
-  have hpre : {ω : ι → ℝ | ⟪u, WithLp.toLp 2 ω⟫ = 0} =
-      (fun ω => ⟪u, WithLp.toLp 2 ω⟫) ⁻¹' ({0} : Set ℝ) := rfl
-  rw [hpre, hmp.measureReal_preimage (measurableSet_singleton 0).nullMeasurableSet,
+      (Measure.pi fun _ : ι => gaussianReal 0 1) (gaussianReal 0 1) :=
+    MeasurePreserving.comp ⟨by fun_prop, by rw [stdGaussian_map_inner, hnn]⟩
+      (measurePreserving_toLp_pi_gaussianReal ι)
+  rw [show {ω : ι → ℝ | ⟪u, WithLp.toLp 2 ω⟫ = 0} = (⟪u, WithLp.toLp 2 ·⟫) ⁻¹' {0} from rfl,
+    hmp.measureReal_preimage (measurableSet_singleton 0).nullMeasurableSet,
     measureReal_def, measure_singleton, ENNReal.toReal_zero]
 
 end ProbabilityTheory

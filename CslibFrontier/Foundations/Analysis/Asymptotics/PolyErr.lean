@@ -187,18 +187,14 @@ theorem mul (hf : PolyErr f) (hg : PolyErr g) : PolyErr fun x => f x * g x := by
   refine ⟨4 * (C * D), a + c, b + d, by positivity, by linarith, by linarith, fun x => ?_⟩
   set t := |x|
   have ht : 0 ≤ t := abs_nonneg x
-  have e : ∀ u v : ℝ, 0 < u → 0 < v → t ^ u * t ^ v = t ^ (u + v) := fun u v hu hv =>
-    (rpow_add' ht (by linarith)).symm
-  have b₂ := rpow_le_rpow_add_rpow ht (by linarith : 0 < a + c) (by linarith : a + c ≤ a + d)
-    (by linarith : a + d ≤ b + d)
-  have b₃ := rpow_le_rpow_add_rpow ht (by linarith : 0 < a + c) (by linarith : a + c ≤ b + c)
-    (by linarith : b + c ≤ b + d)
+  have hac : 0 < a + c := add_pos ha hc
+  have b₂ := rpow_le_rpow_add_rpow ht hac (add_le_add le_rfl hcd) (add_le_add hab le_rfl)
+  have b₃ := rpow_le_rpow_add_rpow ht hac (add_le_add hab le_rfl) (add_le_add le_rfl hcd)
   have hprod : (t ^ a + t ^ b) * (t ^ c + t ^ d) ≤ 4 * (t ^ (a + c) + t ^ (b + d)) := by
-    have hsum : (t ^ a + t ^ b) * (t ^ c + t ^ d) =
-        t ^ (a + c) + t ^ (a + d) + t ^ (b + c) + t ^ (b + d) := by
-      rw [add_mul, mul_add, mul_add, e a c ha hc, e a d ha (by linarith),
-        e b c (by linarith) hc, e b d (by linarith) (by linarith)]
-      ring
+    rw [add_mul, mul_add, mul_add, ← rpow_add' ht hac.ne',
+      ← rpow_add' ht (hac.trans_le (add_le_add le_rfl hcd)).ne',
+      ← rpow_add' ht (hac.trans_le (add_le_add hab le_rfl)).ne',
+      ← rpow_add' ht (add_pos (ha.trans_le hab) (hc.trans_le hcd)).ne']
     linarith [rpow_nonneg ht (a + c), rpow_nonneg ht (b + d)]
   rw [abs_mul]
   calc |f x| * |g x| ≤ (C * (t ^ a + t ^ b)) * (D * (t ^ c + t ^ d)) :=
@@ -226,10 +222,8 @@ theorem comp {f g : ℝ → ℝ} (hf : PolyErr f) (hg : PolyErr g) : PolyErr fun
     have he : 0 ≤ e := by linarith
     set t := |x|
     have ht : 0 ≤ t := abs_nonneg x
-    have h₁ : |g x| ^ e ≤ (D * (t ^ c + t ^ d)) ^ e :=
-      rpow_le_rpow (abs_nonneg _) (hg x) he
-    have h₂ : (D * (t ^ c + t ^ d)) ^ e = D ^ e * (t ^ c + t ^ d) ^ e :=
-      mul_rpow hD (by positivity)
+    have h₁ : |g x| ^ e ≤ D ^ e * (t ^ c + t ^ d) ^ e :=
+      (rpow_le_rpow (abs_nonneg _) (hg x) he).trans_eq (mul_rpow hD (by positivity))
     have h₃ := add_rpow_le_two_rpow_mul (rpow_nonneg ht c) (rpow_nonneg ht d) he
     rw [← rpow_mul ht, ← rpow_mul ht] at h₃
     have hlo : 0 < c * a := mul_pos hc ha
@@ -238,11 +232,9 @@ theorem comp {f g : ℝ → ℝ} (hf : PolyErr f) (hg : PolyErr g) : PolyErr fun
     have h₅ := rpow_le_rpow_add_rpow ht hlo
       ((mul_le_mul_of_nonneg_right hcd ha.le).trans (mul_le_mul_of_nonneg_left hae (by linarith)))
       (mul_le_mul_of_nonneg_left heb (by linarith))
-    have hDe : 0 ≤ D ^ e := rpow_nonneg hD e
-    have h2e : 0 ≤ (2 : ℝ) ^ e := rpow_nonneg (by norm_num) e
     rw [mul_rpow (by norm_num) hD]
-    calc |g x| ^ e ≤ D ^ e * (2 ^ e * (t ^ (c * e) + t ^ (d * e))) := by
-          rw [h₂] at h₁; exact h₁.trans (mul_le_mul_of_nonneg_left h₃ hDe)
+    calc |g x| ^ e ≤ D ^ e * (2 ^ e * (t ^ (c * e) + t ^ (d * e))) :=
+          h₁.trans (mul_le_mul_of_nonneg_left h₃ (rpow_nonneg hD e))
       _ ≤ D ^ e * (2 ^ e * (2 * (t ^ (c * a) + t ^ (d * b)))) := by gcongr; linarith
       _ = 2 ^ e * D ^ e * (2 * (t ^ (c * a) + t ^ (d * b))) := by ring
   refine ⟨C * ((2 * D) ^ a * 2 + (2 * D) ^ b * 2), c * a, d * b, by positivity,
@@ -296,7 +288,7 @@ theorem tendsto_zero (hf : PolyErr f) : Filter.Tendsto f (nhds 0) (nhds 0) := by
     have : Continuous fun x : ℝ => C * (|x| ^ lo + |x| ^ hi) :=
       continuous_const.mul ((continuous_abs.rpow_const fun _ => Or.inr hlo.le).add
         (continuous_abs.rpow_const fun _ => Or.inr (by linarith)))
-    simpa [zero_rpow hlo.ne', zero_rpow (by linarith : hi ≠ 0)] using this.tendsto 0
+    simpa [zero_rpow hlo.ne', zero_rpow (hlo.trans_le hle).ne'] using this.tendsto 0
   exact squeeze_zero_norm h hb
 
 end PolyErr

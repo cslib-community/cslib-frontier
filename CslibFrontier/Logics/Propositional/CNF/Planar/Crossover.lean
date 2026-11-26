@@ -148,26 +148,12 @@ theorem boundary_eq_of_holds
     (holds : formula.eval σ = true) :
     σ .aLeft = σ .aRight ∧
       σ .bTop = σ .bBottom := by
-  apply (extends_iff
-    (σ .aLeft) (σ .aRight)
-    (σ .bTop) (σ .bBottom)).mp
-  refine ⟨σ .aInnerLeft, σ .upperLeft,
-    σ .lowerLeft, σ .bInnerTop, σ .center,
-    σ .bInnerBottom, σ .upperRight,
-    σ .lowerRight, σ .aInnerRight, ?_⟩
-  have assignment_eq :
-      assignment
-        (σ .aLeft) (σ .aRight)
-        (σ .bTop) (σ .bBottom)
-        (σ .aInnerLeft) (σ .upperLeft)
-        (σ .lowerLeft) (σ .bInnerTop)
-        (σ .center) (σ .bInnerBottom)
-        (σ .upperRight) (σ .lowerRight)
-        (σ .aInnerRight) = σ := by
-    funext x
-    cases x <;> rfl
-  rw [assignment_eq]
-  exact holds
+  apply (extends_iff (σ .aLeft) (σ .aRight) (σ .bTop) (σ .bBottom)).mp
+  refine ⟨σ .aInnerLeft, σ .upperLeft, σ .lowerLeft, σ .bInnerTop, σ .center,
+    σ .bInnerBottom, σ .upperRight, σ .lowerRight, σ .aInnerRight, ?_⟩
+  convert holds using 2
+  ext x
+  cases x <;> rfl
 
 /-- Conversely, two independently propagated boundary values can always be
 extended to a satisfying assignment of the whole crossover. -/
@@ -180,17 +166,10 @@ theorem exists_holds_of_boundary_eq
         σ .aRight = aRight ∧
         σ .bTop = bTop ∧
         σ .bBottom = bBottom := by
-  have hExtends :
-      Extends aLeft aRight bTop bBottom :=
-    (extends_iff aLeft aRight bTop bBottom).mpr
-      ⟨horizontal, vertical⟩
-  rcases hExtends with
-    ⟨aInnerLeft, upperLeft, lowerLeft, bInnerTop, center, bInnerBottom,
-      upperRight, lowerRight, aInnerRight, holds⟩
-  refine ⟨assignment aLeft aRight bTop bBottom
-    aInnerLeft upperLeft lowerLeft bInnerTop center bInnerBottom
-    upperRight lowerRight aInnerRight, holds, ?_⟩
-  simp [assignment]
+  obtain ⟨aInnerLeft, upperLeft, lowerLeft, bInnerTop, center, bInnerBottom,
+    upperRight, lowerRight, aInnerRight, holds⟩ :=
+    (extends_iff aLeft aRight bTop bBottom).mpr ⟨horizontal, vertical⟩
+  exact ⟨_, holds, rfl, rfl, rfl, rfl⟩
 
 /-- The four boundary variables, in left/right/top/bottom order. -/
 def terminal : Fin 4 → Variable

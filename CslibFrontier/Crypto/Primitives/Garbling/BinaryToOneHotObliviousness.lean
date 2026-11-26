@@ -140,7 +140,7 @@ private theorem interpret_oracleSteps {m : Type → Type*} [Monad m] [LawfulMona
         (oracleSteps H tw n x A) = pure (runSteps H tw f n x A) := by
   induction n with
   | zero => simp only [oracleSteps, OracleComp.interpret_pure, runSteps]
-  | succ n ih => simp only [oracleSteps, interp_norm, ih, pure_bind]; rfl
+  | succ n ih => simp [oracleSteps, interp_norm, ih, runSteps]
 
 /-- The reduction's evaluation makes one oracle query per doubling step. -/
 private theorem isQueryBounded_oracleSteps (H : L → T → L)
@@ -178,16 +178,14 @@ private theorem isCostBounded_oracleSteps_tweak [DecidableEq T] (H : L → T →
           ⟨prev.2 (Fin.init x), tw n (Fin.init x), x (Fin.last (n + 1))⟩).bind fun _ =>
         OracleComp.IsCostBounded.pure _ 0
     · by_cases h1 : ∃ s < n, ∃ j, tw s j = τ
-      · obtain ⟨s, hs, j, hst⟩ := h1
+      · have ⟨s, hs, j, hst⟩ := h1
         have h2 : tw n (Fin.init x) ≠ τ := fun h2 =>
-          absurd (htw s n j (Fin.init x) (by omega) (by omega) (hst.trans h2.symm)) (by omega)
-        simp only [show ∃ s < n, ∃ j, tw s j = τ from ⟨s, hs, j, hst⟩, h2,
-          show ∃ s < n + 1, ∃ j, tw s j = τ from ⟨s, by omega, j, hst⟩,
-          ↓reduceIte, Nat.add_zero, le_refl]
+          absurd (htw s n j _ (by omega) (by omega) (hst.trans h2.symm)) (by omega)
+        rw [ite_eq_left h1, ite_eq_right h2, ite_eq_left ⟨s, by omega, j, hst⟩]
       · by_cases h2 : tw n (Fin.init x) = τ
-        · simp only [h1, h2, show ∃ s < n + 1, ∃ j, tw s j = τ from ⟨n, by omega, Fin.init x, h2⟩,
-            ↓reduceIte, Nat.add_zero, zero_add, le_refl]
-        · simp only [h1, h2, ↓reduceIte, Nat.add_zero, Nat.zero_le]
+        · rw [ite_eq_right h1, ite_eq_left h2, ite_eq_left ⟨n, by omega, _, h2⟩]
+        · rw [ite_eq_right h1, ite_eq_right h2]
+          omega
 
 /-- Against the keyed oracle with offset `Δ`, on the labels of the bits of `x` with zero-labels
 `X`, the reduction's evaluation gives the garbled ciphertexts and the one-hot labels. -/
@@ -201,9 +199,10 @@ private theorem runSteps_oracle [Module (ZMod 2) L] (H : L → T → L)
     exact Prod.ext (funext fun i => i.elim0)
       (by simpa only [evaluate, runSteps] using evaluate_garble H tw Δ 0 X x)
   | succ n ih =>
+    have hA : (Fin.init fun t => X t + bitOffset Δ (x t)) =
+        fun t => Fin.init X t + bitOffset Δ (Fin.init x t) := rfl
     simp only [runSteps]
-    rw [show (Fin.init fun t => X t + bitOffset Δ (x t)) =
-      fun t => Fin.init X t + bitOffset Δ (Fin.init x t) from rfl, ih (Fin.init x) (Fin.init X)]
+    rw [hA, ih (Fin.init x) (Fin.init X)]
     set G := (garble H tw Δ n (Fin.init X)).1
     have hrest : ∑ j ∈ Finset.univ.erase (Fin.init x),
         H (G j + bitOffset Δ (oneHot (Fin.init x) j)) (tw n j) =
@@ -222,7 +221,10 @@ private theorem runSteps_oracle [Module (ZMod 2) L] (H : L → T → L)
       exact sub_eq_zero.mp ((by abel : _ = bitOffset Δ (x (Fin.last (n + 1))) +
         bitOffset Δ (x (Fin.last (n + 1)))).trans (ZModModule.add_self _))
     rw [hct]
-    exact Prod.ext rfl (by simp only; rw [evalStep_garbleStep, Fin.snoc_init_self]; rfl)
+    refine Prod.ext rfl ?_
+    dsimp only
+    rw [evalStep_garbleStep, Fin.snoc_init_self]
+    rfl
 
 variable [Fintype L]
 
@@ -261,11 +263,11 @@ noncomputable def reduction (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1)
 theorem isQueryBounded_reduction (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1) → Bool) → T)
     (n : ℕ) (x : Fin (n + 1) → Bool) (D : OneHotView L n → ProbComp Bool) :
     (reduction H tw n x D).IsQueryBounded n := by
-  have h := (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L)
-    (ProbComp.uniform (Fin (n + 1) → L))).bind fun A =>
-    (isQueryBounded_oracleSteps H tw n x A).bind fun steps =>
-    ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L) (D (A, steps.1))
-  simpa only [reduction, Nat.zero_add, Nat.add_zero] using h
+  simpa only [reduction, Nat.zero_add, Nat.add_zero] using
+    (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L)
+      (ProbComp.uniform (Fin (n + 1) → L))).bind fun A =>
+      (isQueryBounded_oracleSteps H tw n x A).bind fun steps =>
+      ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L) (D (A, steps.1))
 
 /-- When different steps use different tweaks, the reduction makes at most one query with each
 tweak. -/
@@ -324,13 +326,22 @@ private theorem eval_run_oracleSteps_bind_fst {β : Type} (H : L → T → L)
     simp only [oracleSteps, ProbOracleComp.run_bind, ProbOracleComp.run_query,
       ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
       PMF.bind_bind, PMF.pure_bind]
-    refine (congrArg _ (funext fun prev => ?_)).trans
-      ((ih (Fin.init x) (Fin.init A) fun ct =>
-        (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c)).trans ?_)
-    · relabel_uniform (Equiv.addLeft (A (Fin.last (n + 1)) +
-        ∑ j ∈ Finset.univ.erase (Fin.init x), H (prev.2 j) (tw n j))) with r
-      congr 2; simp only [Equiv.coe_addLeft]; abel
-    · relabel_uniform ((Equiv.prodComm (Fin n → L) L).trans (Fin.snocEquiv fun _ => L))
+    calc _
+        = (ProbComp.eval ((oracleSteps H tw n (Fin.init x) (Fin.init A)).run
+            fun _ => ProbComp.uniform L)).bind fun prev =>
+              (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc prev.1 c) := by
+          refine congrArg _ (funext fun prev => ?_)
+          relabel_uniform (Equiv.addLeft (A (Fin.last (n + 1)) +
+            ∑ j ∈ Finset.univ.erase (Fin.init x), H (prev.2 j) (tw n j))) with r
+          congr 2
+          simp only [Equiv.coe_addLeft]
+          abel
+      _ = (PMF.uniformOfFintype (Fin n → L)).bind fun ct =>
+            (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c) :=
+          ih (Fin.init x) (Fin.init A) fun ct =>
+            (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c)
+      _ = (PMF.uniformOfFintype (Fin (n + 1) → L)).bind g := by
+          relabel_uniform ((Equiv.prodComm (Fin n → L) L).trans (Fin.snocEquiv fun _ => L))
 
 variable [DecidableEq L] [Fintype T] [DecidableEq T]
 

@@ -1055,15 +1055,18 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
   have hterm {i : ℕ} (hi : i ∈ I) :
       f i ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by
     obtain ⟨p, _, hpt, -, -, hfi⟩ := hsym hi
-    have hsub : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) ≤ 2 ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := by
-      have h1 : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) =
-          2 ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁ - k + k) := by
-        rw [pow_add, mul_left_comm, ← mul_pow, mul_inv_cancel₀ two_ne_zero, one_pow, mul_one]
-      rw [h1]
-      gcongr 2 ^ k * ?_
-      exact pow_le_pow_of_le_one (by positivity) (by norm_num) (by omega)
-    rw [hfi, show prog i = p by simp [prog, hpt]]
-    exact hsub.trans_eq (by rw [pow_add]; ring)
+    have hprog : prog i = p := by simp [prog, hpt]
+    have hsub : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := by
+      calc (2 : ℝ)⁻¹ ^ (p.length + c₁ - k)
+          = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁ - k + k) := by
+            rw [pow_add, mul_left_comm, ← mul_pow, mul_inv_cancel₀ two_ne_zero, one_pow, mul_one]
+        _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := by
+            gcongr (2 : ℝ) ^ k * ?_
+            exact pow_le_pow_of_le_one (by positivity) (by norm_num) (by omega)
+    calc f i = (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) := hfi
+      _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := hsub
+      _ = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by
+          rw [hprog, pow_add]; ring
   calc ∑ i ∈ I, f i
       ≤ ∑ i ∈ I, (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length :=
         Finset.sum_le_sum fun i hi => hterm hi

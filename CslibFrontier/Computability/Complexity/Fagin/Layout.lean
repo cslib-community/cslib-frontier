@@ -206,8 +206,9 @@ theorem realize_frameChunkSentence_of_canonical
     have hp0 : (p0 : ℕ) = base + 2 * (v 0 : ℕ) := rfl
     have hp1 : (p1 : ℕ) = base + 2 * (v 0 : ℕ) + 1 := rfl
     refine ⟨![p0, p1, ⟨base + 2 * ((v 0 : ℕ) + 1), by omega⟩, ⟨(v 0 : ℕ) + 1, by omega⟩],
-      ⟨⟨⟨⟨⟨⟨(hmap _ _).2 ⟨by omega, rfl⟩, rfl⟩, by simp [hp1]; omega⟩, rfl⟩,
-        (hmap _ _).2 ⟨by change (v 0 : ℕ) + 1 ≤ _; omega, rfl⟩⟩,
+      ⟨⟨⟨⟨⟨⟨(hmap _ _).2 ⟨by omega, rfl⟩, rfl⟩,
+        by simp [hp1]; omega⟩, rfl⟩,
+        (hmap _ _).2 ⟨Nat.succ_le_of_lt hj, rfl⟩⟩,
         (hout p0 (by omega) (by omega)).2 (by simpa [p0] using getElem?_frame_two_mul hj)⟩, ?_⟩⟩
     change RelMap outBitRel ![p1] ↔ inBit.Realize ![v 0]
     rw [hbit (v 0) hj, hout p1 (by omega) (by omega),
@@ -584,8 +585,9 @@ private theorem realize_layoutMatrix_complete {a : EncodedStructure} (ha : v.Wel
           Nat.add_sub_cancel]
         rfl)
       (fun p hlo hhi => ?_)
-    rw [hraw_prefix (idx.1 + 1) p (by rw [hsucc_eq, List.length_append]; exact hhi),
-      hsucc_eq, List.getElem?_append_right hlo]
+    have hp' : (p : ℕ) < (v.encStructurePrefix a (idx.1 + 1)).length := by
+      rwa [hsucc_eq, List.length_append]
+    rw [hraw_prefix (idx.1 + 1) p hp', hsucc_eq, List.getElem?_append_right hlo]
   · refine FO.realize_frameChunkSentence_of_canonical hlt (by omega)
       (v.realize_layoutInRaw_iff a hB I_in R fun z => by
         rw [hbase_char]
@@ -593,7 +595,9 @@ private theorem realize_layoutMatrix_complete {a : EncodedStructure} (ha : v.Wel
       (fun _ _ => Iff.rfl) hbase0
       (fun z => by rw [Nat.zero_add]; exact huLen z)
       (fun j p => by rw [Nat.zero_add]; rfl)
-      (fun p _ hp => by rw [Nat.sub_zero]; exact huBit p (by omega))
+      (fun p _ hp => by
+        rw [Nat.sub_zero]
+        exact huBit p (by omega))
 
 /-- **Characterization of `layoutESOSentence`**: on `(Fin B, v.powerStructure a B)` for a
 well-formed input `a` with `(frame (encStructure a)).length < B`, an interpretation `I_in` of

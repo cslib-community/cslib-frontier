@@ -67,19 +67,16 @@ theorem exec_cells {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
     have hyinput (a : Fin 7) :
         y.mem (s + (y.regs cell / (10 * n) * 7 + a.val) * n + y.regs cell % n) =
           encode (v (y.regs cell) a) := by
-      have hp : y.regs cell / (10 * n) < P := by
-        apply (Nat.div_lt_iff_lt_mul (by positivity : 0 < 10 * n)).mpr
-        dsimp only [N] at hi
-        nlinarith
+      have hp : y.regs cell / (10 * n) < P :=
+        (Nat.div_lt_iff_lt_mul (by positivity)).mpr
+          (by dsimp only [N] at hi; nlinarith)
       have hmod := Nat.mod_lt (y.regs cell) hnpos
-      have hprefix : y.regs cell / (10 * n) * 7 + a.val < P * 7 := by omega
-      have hproduct := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hprefix)
+      have hproduct : (y.regs cell / (10 * n) * 7 + a.val + 1) * n ≤ 7 * P * n :=
+        Nat.mul_le_mul_right n (by omega)
       have hoff : (y.regs cell / (10 * n) * 7 + a.val) * n + y.regs cell % n <
-          P * 7 * n := by nlinarith only [hproduct, hmod]
-      rw [Nat.mul_comm P 7] at hoff
-      rw [hf _ ?_]
-      · exact hmem _ hi a
-      · rcases hdisj with h | h <;> dsimp only [N] at hi <;> omega
+          7 * P * n := by nlinarith only [hproduct, hmod]
+      rw [hf _ (by rcases hdisj with h | h <;> dsimp only [N] at hi <;> omega)]
+      exact hmem _ hi a
     obtain ⟨z, he, hzmem, hzcell, hzreg⟩ := exec_cell hw side y P n s d (y.regs cell)
       hP hnpos hi (by regs_frame) (by regs_frame) rfl (by regs_frame) (by regs_frame)
       (by regs_frame) (by regs_frame) (v (y.regs cell)) B hB (hv _ hi) hyinput hval haddr
@@ -124,10 +121,9 @@ theorem exec_stageBody {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
   have h10P : Fits (w + 2) (P * 10) := haddr.of_le (by nlinarith)
   have hN : Fits (w + 2) (P * 10 * n) := haddr.of_le (by nlinarith)
   have hnfit : Fits (w + 2) n := haddr.of_le (by nlinarith)
-  have hdiv : 7 * n / 7 = n := by omega
   refine WP.exists_execWithin ?_
   unfold stageBody stageHead stageTail
-  wram_exec [hn, hseven, hp, hten, hdiv, hnfit, h10P, hN]
+  wram_exec [hn, hseven, hp, hten, Nat.mul_div_right n (by decide : 0 < 7), hnfit, h10P, hN]
   wram_call (exec_cells hw side _ P n s d hP hnpos (by wram_simp [hsrc]) (by wram_simp [hdst])
     (by wram_simp) (by wram_simp) (by wram_simp [hseven]) (by wram_simp [hten])
     (by wram_simp [hone]) (by wram_simp; ring) v B hB hv hmem hval haddr hdisj)

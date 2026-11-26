@@ -47,11 +47,9 @@ lemma mem_msgs_synodStep_of_mem {Proposer Acceptor Learner V : Type*}
     split_ifs <;> first | exact Finset.mem_insert_of_mem hm | exact hm
   | recvPhase1b p _ _ _ =>
     dsimp only [synodStep, synodStepCore]
-    cases (s.proposers p).round
-    · exact hm
-    · dsimp only []; split_ifs <;> first | exact Finset.mem_insert_of_mem hm | exact hm
-  | drop m' =>
-    exact Finset.mem_erase.mpr ⟨fun heq => hne (heq ▸ rfl), hm⟩
+    cases (s.proposers p).round <;> dsimp only [] <;>
+      (repeat split) <;> first | exact Finset.mem_insert_of_mem hm | exact hm
+  | drop _ => exact Finset.mem_erase.mpr ⟨fun heq => hne (heq ▸ rfl), hm⟩
   | _ => exact hm
 
 /-- Case analysis on packets present after a single `synodStep`. -/
@@ -162,13 +160,8 @@ lemma proposers_synodStep_cases {Proposer Acceptor Learner V : Type*}
             exact Or.inr (Or.inr (Or.inr (Or.inl
               ⟨a, b, mv, r, rfl, rfl, hg.1, hg.2, hq_cond, ite_eq_left rfl⟩)))
         · rw [ite_eq_right hg]; exact Or.inl rfl
-    · cases (s.proposers q).round with
-      | none => exact Or.inl rfl
-      | some _ =>
-        dsimp only []
-        split
-        · split <;> exact Or.inl (ite_eq_right (Ne.symm hqp))
-        · exact Or.inl rfl
+    · cases (s.proposers q).round <;> dsimp only [] <;> (repeat split) <;>
+        first | exact Or.inl (ite_eq_right (Ne.symm hqp)) | exact Or.inl rfl
   | crashProposer q =>
     dsimp only [synodStep, synodStepCore]
     rcases eq_or_ne p q with rfl | hpq
@@ -199,10 +192,6 @@ lemma acceptors_synodStep_cases {Proposer Acceptor Learner V : Type*}
       · exact Or.inr (Or.inl ⟨b, rfl, hab, ite_eq_left rfl, Finset.mem_insert_self _ _⟩)
       · exact Or.inl (ite_eq_right haa)
     · rw [ite_eq_right hab]; exact Or.inl rfl
-  | recvPhase1b q _ _ _ =>
-    dsimp only [synodStep, synodStepCore]; cases (s.proposers q).round
-    · exact Or.inl rfl
-    · dsimp only []; (repeat split) <;> exact Or.inl rfl
   | recvPhase2a a' b v =>
     dsimp only [synodStep, synodStepCore]
     by_cases hal : allowsVote (s.acceptors a').maxBal b = true
@@ -211,6 +200,9 @@ lemma acceptors_synodStep_cases {Proposer Acceptor Learner V : Type*}
       · exact Or.inr (Or.inr (Or.inl ⟨b, v, rfl, hal, ite_eq_left rfl⟩))
       · exact Or.inl (ite_eq_right haa)
     · rw [ite_eq_right hal]; exact Or.inl rfl
+  | recvPhase1b q _ _ _ =>
+    dsimp only [synodStep, synodStepCore]
+    cases (s.proposers q).round <;> dsimp only [] <;> (repeat split) <;> exact Or.inl rfl
   | crashAcceptor a' =>
     dsimp only [synodStep, synodStepCore]
     rcases eq_or_ne a a' with rfl | haa
@@ -238,16 +230,16 @@ lemma learners_synodStep_cases {Proposer Acceptor Learner V : Type*}
         (synodStep qs s act).learners l = { s.learners l with crashed := true }) := by
   cases act with
   | recvPhase1a _ _ | recvPhase2a _ _ _ =>
-    dsimp only [synodStep, synodStepCore]; split <;> exact Or.inl rfl
-  | recvPhase1b q _ _ _ =>
-    dsimp only [synodStep, synodStepCore]; cases (s.proposers q).round
-    · exact Or.inl rfl
-    · dsimp only []; (repeat split) <;> exact Or.inl rfl
+    dsimp only [synodStep, synodStepCore]
+    split_ifs <;> exact Or.inl rfl
   | recvPhase2b l₀ a b v =>
     dsimp only [synodStep, synodStepCore]
     rcases eq_or_ne l l₀ with rfl | hll
     · exact Or.inr (Or.inl ⟨a, b, v, rfl, ite_eq_left rfl⟩)
     · exact Or.inl (ite_eq_right hll)
+  | recvPhase1b q _ _ _ =>
+    dsimp only [synodStep, synodStepCore]
+    cases (s.proposers q).round <;> dsimp only [] <;> (repeat split) <;> exact Or.inl rfl
   | crashLearner l₀ =>
     dsimp only [synodStep, synodStepCore]
     rcases eq_or_ne l l₀ with rfl | hll
@@ -283,10 +275,7 @@ lemma learned_none_of_mTr {Proposer Acceptor Learner V : Type*}
       (fun u => (u.learners l).learned ≠ none) := by
     rintro u₁ act _ ⟨_, rfl⟩ hne
     rcases learners_synodStep_cases qs u₁ act l with heq | ⟨_, _, _, _, heq⟩ | ⟨_, heq⟩ <;>
-      rw [heq]
-    · exact hne
-    · split <;> first | exact hne | exact nofun
-    · exact hne
+      rw [heq] <;> (try split) <;> first | exact hne | exact nofun
   by_contra h₁
   exact LTS.mtrInv_of_trInv htr_inv _ _ _ hmtr h₁ h₂
 

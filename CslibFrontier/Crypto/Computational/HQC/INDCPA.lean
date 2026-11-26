@@ -267,12 +267,15 @@ private theorem mixedTwoUniform_bind_coins_eq_mixedThreeReal
     (mixedTwoUniformLaw P).bind (fun sample =>
       (ProbComp.eval (pkeSampleCoins P)).map (truncateEncryptionSample P sample)) =
       mixedThreeRealLaw P := by
+  have heLaw :
+      PMF.uniformOfFinset (weightLayer P.n P.omegaE)
+          (weightLayer_nonempty P.omegaE_le_n) =
+        PMF.uniformOfFinset (weightLayer P.n P.omegaR)
+          (weightLayer_nonempty P.omegaR_le_n) := by
+    simp only [hweight]
   simp only [mixedTwoUniformLaw, uniformSyndromeLaw, mixedThreeRealLaw,
     realTruncatedSyndromeLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.bind_bind, PMF.pure_bind, PMF.map, eval_pkeSampleCoins_bind,
-    show PMF.uniformOfFinset (weightLayer P.n P.omegaE) (weightLayer_nonempty P.omegaE_le_n) =
-      PMF.uniformOfFinset (weightLayer P.n P.omegaR) (weightLayer_nonempty P.omegaR_le_n) by
-        simp only [hweight],
+    PMF.bind_bind, PMF.pure_bind, PMF.map, eval_pkeSampleCoins_bind, heLaw,
     truncateEncryptionSample, Function.comp_apply, truncate]
   pmf_swap
 

@@ -161,8 +161,7 @@ theorem csaCarry_eq_false_of_lt {t : ℕ} (x y : BitString w)
     csaCarry x y (fun _ => false) i = false := by
   simp only [csaCarry]
   split_ifs with h
-  · have hlt : (⟨(i : ℕ) - 1, by omega⟩ : Fin w).val < t := by dsimp; omega
-    rw [hy _ hlt]
+  · rw [hy _ (by dsimp; omega)]
     cases x ⟨(i : ℕ) - 1, by omega⟩ <;> rfl
   · rfl
 
@@ -279,21 +278,17 @@ def csa4to2 (w : ℕ) : Circuit signature ((w + w) + (w + w)) (w + w) :=
 theorem pairVal_eval_csa4to2_mod (p₁ p₂ : BitString (w + w)) :
     pairVal ((csa4to2 w).eval interpretation (Fin.append p₁ p₂)) % 2 ^ w =
       (pairVal p₁ + pairVal p₂) % 2 ^ w := by
+  have h1 : Fin.append p₁ p₂ ∘ (Fin.natAdd (w + w) ∘ Fin.natAdd w) = sndBits p₂ :=
+    funext fun i => by simp [sndBits, -Fin.natAdd_eq_addNat]
+  have h2 : fstBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) = fstBits p₁ :=
+    funext fun i => by simp [fstBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat]
+  have h3 : sndBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) = Fin.append (sndBits p₁) (fstBits p₂) :=
+    funext fun i => Fin.addCases
+      (fun j => by simp [fstBits, sndBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat])
+      (fun j => by simp [fstBits, sndBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat]) i
   rw [csa4to2, Circuit.eval_comp, pairVal_eval_csa3to2_mod, Circuit.eval_append, fstBits_append,
     sndBits_append, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_wiring,
-     ← Nat.add_mod_mod, pairVal_eval_csa3to2_mod, Nat.add_mod_mod]
-  have h1 : Fin.append p₁ p₂ ∘ (Fin.natAdd (w + w) ∘ Fin.natAdd w) = sndBits p₂ := by
-    funext i
-    simp [sndBits, -Fin.natAdd_eq_addNat]
-  have h2 : fstBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) = fstBits p₁ := by
-    funext i
-    simp [fstBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat]
-  have h3 : sndBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) =
-      Fin.append (sndBits p₁) (fstBits p₂) := by
-    funext i
-    refine Fin.addCases (fun j => ?_) (fun j => ?_) i <;>
-      simp [fstBits, sndBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat]
-  rw [h1, h2, h3, pairVal_append]
+    ← Nat.add_mod_mod, pairVal_eval_csa3to2_mod, Nat.add_mod_mod, h1, h2, h3, pairVal_append]
   congr 1
   unfold pairVal
   ring
@@ -327,23 +322,11 @@ theorem eval_finishStep (p : BitString (w + w)) :
       Fin.append (csaSum (fstBits p) (sndBits p) (fun _ => false))
         (csaCarry (fstBits p) (sndBits p) (fun _ => false)) := by
   rw [finishStep, Circuit.eval_comp, Circuit.eval_comp, eval_csa3to2]
-  have h1 : fstBits ((Circuit.wiring signature (finishStepIn w)).eval interpretation
-      (((Circuit.id signature (w + w)).append
-        (Circuit.oneGate (Op.const false) Fin.elim0)).eval interpretation p)) = fstBits p := by
-    funext i
-    simp [fstBits, finishStepIn, -Fin.natAdd_eq_addNat]
-  have h2 : fstBits (sndBits ((Circuit.wiring signature (finishStepIn w)).eval interpretation
-      (((Circuit.id signature (w + w)).append
-        (Circuit.oneGate (Op.const false) Fin.elim0)).eval interpretation p))) = sndBits p := by
-    funext i
-    simp [fstBits, sndBits, finishStepIn, -Fin.natAdd_eq_addNat]
-  have h3 : sndBits (sndBits ((Circuit.wiring signature (finishStepIn w)).eval interpretation
-      (((Circuit.id signature (w + w)).append
-        (Circuit.oneGate (Op.const false) Fin.elim0)).eval interpretation p))) =
-      fun _ => false := by
-    funext i
-    simp [sndBits, finishStepIn, interpretation, -Fin.natAdd_eq_addNat]
-  rw [h1, h2, h3]
+  congr 1
+  · congr 1 <;> funext i <;>
+      simp [fstBits, sndBits, finishStepIn, interpretation, -Fin.natAdd_eq_addNat]
+  · congr 1 <;> funext i <;>
+      simp [fstBits, sndBits, finishStepIn, interpretation, -Fin.natAdd_eq_addNat]
 
 /-- `finishStep w` preserves the carry-save value modulo `2 ^ w`. -/
 theorem pairVal_eval_finishStep_mod (p : BitString (w + w)) :
@@ -444,17 +427,13 @@ theorem pairVal_eval_bitPairCircuit_mod (j : Fin k) (x : BitString k) :
     pairVal ((bitPairCircuit k w j).eval interpretation x) % 2 ^ w = (x j).toNat % 2 ^ w := by
   rcases w with _ | w
   · simp [Nat.mod_one]
-  · rw [pairVal]
-    have hsnd : sndBits ((bitPairCircuit k (w + 1) j).eval interpretation x) =
-        fun _ => false := by
-      funext i
-      simp [bitPairCircuit, interpretation, -Fin.natAdd_eq_addNat]
-    rw [hsnd, val_equivFin_false, add_zero, val_equivFin_eq_sum, Fin.sum_univ_succ]
-    have h0 : fstBits ((bitPairCircuit k (w + 1) j).eval interpretation x) 0 = x j := by
-      simp [bitPairCircuit, -Fin.natAdd_eq_addNat]
-    have hsucc : ∀ i : Fin w,
-        fstBits ((bitPairCircuit k (w + 1) j).eval interpretation x) i.succ = false := fun i => by
-      simp [bitPairCircuit, interpretation, -Fin.natAdd_eq_addNat]
+  · set y := (bitPairCircuit k (w + 1) j).eval interpretation x
+    have hsnd : sndBits y = fun _ => false :=
+      funext fun i => by simp [y, bitPairCircuit, interpretation, -Fin.natAdd_eq_addNat]
+    have h0 : fstBits y 0 = x j := by simp [y, bitPairCircuit, -Fin.natAdd_eq_addNat]
+    have hsucc (i : Fin w) : fstBits y i.succ = false := by
+      simp [y, bitPairCircuit, interpretation, -Fin.natAdd_eq_addNat]
+    rw [pairVal, hsnd, val_equivFin_false, add_zero, val_equivFin_eq_sum, Fin.sum_univ_succ]
     simp [h0, hsucc, -fstBits_apply]
 
 /-- `bitPairCircuit k w j` has size `1`. -/
@@ -548,14 +527,10 @@ theorem val_eval_weightCircuit (x : BitString k) :
     (BitString.equivFin (Nat.clog 2 (k + 1)) ((weightCircuit k).eval interpretation x) : ℕ) =
       BitString.weight x := by
   set w := Nat.clog 2 (k + 1)
-  have hlt : BitString.weight x < 2 ^ w :=
-    (BitString.weight_le_length x).trans_lt
-      ((Nat.lt_succ_self k).trans_le (Nat.le_pow_clog one_lt_two (k + 1)))
-  have heval :
-      ((BitString.equivFin w ((weightCircuit k).eval interpretation x) : Fin (2 ^ w)) : ℕ) <
-        2 ^ w := (BitString.equivFin w ((weightCircuit k).eval interpretation x)).isLt
-  rw [← Nat.mod_eq_of_lt heval, ← Nat.mod_eq_of_lt hlt, weightCircuit, Circuit.eval_comp,
-    Circuit.eval_comp, Circuit.eval_wiring]
+  have hlt : BitString.weight x < 2 ^ w := (BitString.weight_le_length x).trans_lt
+    ((Nat.lt_succ_self k).trans_le (Nat.le_pow_clog one_lt_two (k + 1)))
+  rw [← Nat.mod_eq_of_lt (BitString.equivFin w _).isLt, ← Nat.mod_eq_of_lt hlt, weightCircuit,
+    Circuit.eval_comp, Circuit.eval_comp, Circuit.eval_wiring]
   exact (val_fstBits_eval_finishCircuit_mod _).trans (pairVal_eval_weightPairCircuit_mod x)
 
 /-- `weightCircuit k` has size `O(k log k)`. -/

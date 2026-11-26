@@ -93,54 +93,25 @@ theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → 
       iI (WordInterface.protocol party (WordPort.sum party netPort)) := by
   obtain ⟨bound, hpoly, hle⟩ := h
   refine ⟨fun p => bound p + (party.reply none).length + 1,
-    (hpoly.add (PolyBounded.const _)).add (PolyBounded.const 1), fun p q s x hx => ?_⟩
-  let s' : (M p.secParam p.corrupted).State := s
-  cases q with
-  | inl ix =>
-    rcases ix with ⟨i, inp⟩
-    change x ∈ OracleComp.support (ProbOracleComp.lowerWith iI p.replyBound
-      ((if i ∈ p.corrupted then pure none
-        else (M p.secParam p.corrupted).handle (.inl (i, inp))).run s')) at hx
-    by_cases hi : i ∈ p.corrupted
-    · simp only [hi, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_pure] at hx
-      obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net]
-      omega
-    · simp only [hi, ↓reduceIte] at hx
-      have h1 := hle p (.inl (i, inp)) s' x hx
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net] at h1 ⊢
-      omega
-  | inr rq =>
-    cases rq with
-    | inl ix =>
-      rcases ix with ⟨i, inp⟩
-      change x ∈ OracleComp.support (ProbOracleComp.lowerWith iI p.replyBound
-        ((if i ∈ p.corrupted then Sum.inl <$> (M p.secParam p.corrupted).handle (.inl (i, inp))
-          else pure (.inl none)).run s')) at hx
-      by_cases hi : i ∈ p.corrupted
-      · simp only [hi, ↓reduceIte, StateT.run_map, ProbOracleComp.lowerWith,
-          ProbOracleComp.simulate_map] at hx
-        obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-        have h1 := hle p (.inl (i, inp)) s' y hy
-        simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-          encSum_inl, List.length_cons] at h1 ⊢
-        omega
-      · simp only [hi, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
-          ProbOracleComp.simulate_pure] at hx
-        obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
-        simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-          encSum_inl, List.length_cons]
-        omega
-    | inr nq =>
-      change x ∈ OracleComp.support (ProbOracleComp.lowerWith iI p.replyBound
-        ((Sum.inr <$> (M p.secParam p.corrupted).handle (.inr nq)).run s')) at hx
-      simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
+    (hpoly.add (PolyBounded.const _)).add (PolyBounded.const 1), fun p q => ?_⟩
+  rcases q with ⟨i, inp⟩ | ⟨i, inp⟩ | nq <;>
+    simp only [UC.routeCorrupt, WordInterface.protocol, WordInterface.sum, WordInterface.net,
+      WordPort.sum] <;> intro s x hx
+  · split_ifs at hx with hi
+    · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
+      exact (Nat.le_add_left _ _).trans (Nat.le_add_right _ _)
+    · exact (hle p (.inl (i, inp)) s x hx).trans (by omega)
+  · split_ifs at hx with hi
+    · simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
       obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-      have h1 := hle p (.inr nq) s' y hy
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-        encSum_inr, List.length_cons] at h1 ⊢
-      omega
+      rw [encSum_inl, List.length_cons]
+      exact Nat.succ_le_succ ((hle p (.inl (i, inp)) s y hy).trans (Nat.le_add_right _ _))
+    · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
+      rw [encSum_inl, List.length_cons]; omega
+  · simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
+    obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
+    rw [encSum_inr, List.length_cons]
+    exact Nat.succ_le_succ ((hle p (.inr nq) s y hy).trans (Nat.le_add_right _ _))
 
 /-- Library infrastructure (no cited result): a reply word truncated at `p.replyBound`, decoded and
 re-encoded through a `WordInterface`, has length at most a polynomial in
@@ -151,29 +122,19 @@ theorem WordInterface.exists_polyBounded_reply_take {n : ℕ} {ι : Type} {E : �
       ∀ (p : PPTParam n) (q : ι) (w : List Bool),
         (I.reply q (I.decodeReply q (List.take p.replyBound w))).length ≤ bound p := by
   obtain ⟨c, d, hnorm⟩ := I.computable_replyNormalize.polyBounded_length.exists_le
-  have hrb : PolyBounded (fun p : PPTParam n => (encPPTParam n p).length)
-      (fun p => p.replyBound) := by
-    have hc : ComputableInPolyTime (fun p : PPTParam n => p.replyBound)
-        (encPPTParam n) encUnary := by
-      fun_prop
-    simpa only [encUnary_apply, List.length_replicate] using hc.polyBounded_length
+  have hrb : PolyBounded (fun p : PPTParam n => (encPPTParam n p).length) (·.replyBound) := by
+    simpa only [encUnary_apply, List.length_replicate] using
+      (by fun_prop : ComputableInPolyTime (fun p : PPTParam n => p.replyBound)
+        (encPPTParam n) encUnary).polyBounded_length
   refine ⟨fun p => c * (2 * Nat.card I.Channel + 2 + p.replyBound) ^ d,
     (PolyBounded.const c).mul
       (((PolyBounded.const (2 * Nat.card I.Channel + 2)).add hrb).pow d),
     fun p q w => ?_⟩
   rw [I.reply_decodeReply]
-  have h1 : (I.replyNormalize (I.channel q) (List.take p.replyBound w)).length ≤
-      c * ((encPair (encFinite I.Channel) encBits
-        (I.channel q, List.take p.replyBound w)).length + 1) ^ d := by
-    simpa only [encBits_apply] using hnorm (I.channel q, List.take p.replyBound w)
-  have hch : (encFinite I.Channel (I.channel q)).length ≤ Nat.card I.Channel :=
-    (length_encFinite_lt _).le
-  have hlen : (encPair (encFinite I.Channel) encBits
-      (I.channel q, List.take p.replyBound w)).length + 1 ≤
-      2 * Nat.card I.Channel + 2 + p.replyBound := by
-    simp only [length_encPair, encBits_apply, List.length_take]
-    omega
-  exact h1.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hlen d))
+  have hch := length_encFinite_lt (I.channel q)
+  refine (hnorm (I.channel q, List.take p.replyBound w)).trans
+    (Nat.mul_le_mul_left c (Nat.pow_le_pow_left ?_ d))
+  simp only [length_encPair, encBits_apply, List.length_take]; omega
 
 /-- Every supported output of forwarding a single lowered query and keeping state `s` decodes a
 reply word truncated at `limit`. -/
@@ -219,17 +180,12 @@ theorem Machine.IsReplyBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
   | inl qL =>
     obtain ⟨w, hw⟩ := exists_word_of_mem_support_lowerWith_query_bind_pure
       (iL.sum iR) p.replyBound (.inl qL) s' hx
-    have h1 : (iL.reply qL x.1).length ≤ boundL p := by
-      simpa only [WordInterface.sum] using hw ▸ hleL p qL w
-    change (iL.reply qL x.1).length ≤ bound p + boundL p
-    omega
+    simpa only [WordInterface.sum] using (hw ▸ hleL p qL w).trans (Nat.le_add_left _ _)
   | inr qE =>
     change x ∈ OracleComp.support (ProbOracleComp.lowerWith (iL.sum iR) p.replyBound
       (Machine.liftRightProgram L (((M p.secParam p.corrupted).handle qE).run s'))) at hx
     rw [support_lowerWith_liftRightProgram iL iR] at hx
-    have h1 := hle p qE s' x hx
-    change (iE.reply qE x.1).length ≤ bound p + boundL p
-    omega
+    exact (hle p qE s' x hx).trans (Nat.le_add_right _ _)
 
 /-- Library infrastructure (no cited result), toward #6043: `hybridWrap` preserves
 `Machine.IsReplyBounded`; network replies gain one sum bit, and forwarded subroutine-network replies
@@ -245,55 +201,29 @@ theorem Machine.IsReplyBounded.hybridWrap
       (WordInterface.protocol party (WordPort.sum net nq)) := by
   obtain ⟨bρ, hbρ, hle⟩ := h
   obtain ⟨bN, hbN, hleN⟩ := (WordInterface.net nq).exists_polyBounded_reply_take (n := n)
-  refine ⟨fun p => bρ p + 1 + bN p, (hbρ.add (PolyBounded.const 1)).add hbN, fun p q s x hx => ?_⟩
-  let s' : (ρ p.secParam p.corrupted).State := s
-  cases q with
-  | inl qp =>
-    change x ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-      p.replyBound (liftParty (((ρ p.secParam p.corrupted).handle (.inl qp)).run s'))) at hx
-    rw [support_lowerWith_liftParty subParty nq] at hx
-    have h1 := hle p (.inl qp) s' x hx
-    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net] at h1 ⊢
+  refine ⟨fun p => bρ p + 1 + bN p, (hbρ.add (PolyBounded.const 1)).add hbN, fun p q => ?_⟩
+  rcases q with qp | qm | qs <;> simp only [UC.hybridWrap] <;> intro s x hx
+  · rw [StateT.run, support_lowerWith_liftParty subParty nq] at hx
+    exact (hle p (.inl qp) s x hx).trans ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _))
+  · simp only [StateT.run_map] at hx
+    simp only [StateT.run, liftParty_map, ProbOracleComp.lowerWith,
+      ProbOracleComp.simulate_map] at hx
+    obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
+    rw [← OracleComp.support, ← ProbOracleComp.lowerWith,
+      support_lowerWith_liftParty subParty nq] at hy
+    have h1 := hle p (.inr qm) s y hy
+    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+      encSum_inl, List.length_cons] at h1 ⊢
     omega
-  | inr qnet =>
-    cases qnet with
-    | inl qm =>
-      change x ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-        p.replyBound
-        (liftParty ((Sum.inl <$> (ρ p.secParam p.corrupted).handle (.inr qm)).run s')))
-        at hx
-      rw [StateT.run_map, liftParty_map, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_map] at hx
-      obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-      change y ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-        p.replyBound (liftParty (((ρ p.secParam p.corrupted).handle (.inr qm)).run s'))) at hy
-      rw [support_lowerWith_liftParty subParty nq] at hy
-      have h1 := hle p (.inr qm) s' y hy
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-        encSum_inl, List.length_cons] at h1 ⊢
-      omega
-    | inr qs =>
-      let x' : (NetR ⊕ NR) × (ρ p.secParam p.corrupted).State := x
-      change x' ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
-        p.replyBound ((StateT.lift (Sum.inr (α := NetR) <$>
-          ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs))).run s'))
-        at hx
-      have hrun : (StateT.lift (Sum.inr (α := NetR) <$>
-            ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs))).run s' =
-          (fun y : NR × _ => (Sum.inr y.1, y.2)) <$>
-            (ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs) >>=
-              fun r => pure (r, s')) := by
-        simp only [StateT.run_lift, bind_map_left, map_bind, map_pure]
-      rw [hrun, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
-      obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-      obtain ⟨w, hw⟩ := exists_word_of_mem_support_lowerWith_query_bind_pure
-        (WordInterface.protocol subParty nq) p.replyBound (.inr qs) s' hy
-      have h1 : (nq.reply y.1).length ≤ bN p := by
-        simpa only [WordInterface.protocol, WordInterface.sum, WordInterface.net] using
-          hw ▸ hleN p qs w
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-        encSum_inr, List.length_cons]
-      omega
+  · simp only [StateT.run_lift, bind_map_left, ProbOracleComp.lowerWith,
+      ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure,
+      WordInterface.lowerQuery] at hx
+    obtain ⟨w, _, hx'⟩ := OracleComp.mem_supportWith_bind_iff.mp hx
+    obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx'
+    have h1 : (nq.reply _).length ≤ bN p := hleN p qs w
+    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+      encSum_inr, List.length_cons] at h1 ⊢
+    omega
 
 /-! ### Linking -/
 
@@ -341,17 +271,12 @@ private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
   | liftBind q cont ih =>
     cases q with
     | inl k =>
-      change ProbOracleComp.runWith oracle
-          ((OracleComp.interpret H
-            (ProbOracleComp.lowerWith iE L
-              (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont))).run (cod.enc s0)) s =
-        (ProbOracleComp.runWith oracle
-          (ProbOracleComp.lowerWith iI p.replyBound
-            (m.runFrom (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont) s0)) s).map
-          (fun x => ((x.1.1, cod.enc x.1.2), x.2))
-      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample,
-        Machine.runFrom_bind, Machine.runFrom_sample, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_bind, ProbOracleComp.simulate_map, ProbOracleComp.simulate_sample]
+      have hk : PFunctor.FreeM.liftBind (Sum.inl k : ℕ ⊕ ιE) cont =
+          (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont) := rfl
+      rw [hk, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
+        ProbOracleComp.simulate_sample, Machine.runFrom_bind, Machine.runFrom_sample,
+        ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_map,
+        ProbOracleComp.simulate_sample]
       simp only [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.interpret_sample,
         ProbComp.unifFin, OracleComp.interpret_query, H, StateT.run_lift,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
@@ -359,25 +284,17 @@ private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
         Function.comp_def, Prod.map_apply, id_eq]
       exact congrArg _ (funext fun a => ih a s0 s)
     | inr eQ =>
-      change ProbOracleComp.runWith oracle
-          ((OracleComp.interpret H
-            (ProbOracleComp.lowerWith iE L
-              (ProbOracleComp.query eQ >>= cont))).run (cod.enc s0)) s =
-        (ProbOracleComp.runWith oracle
-          (ProbOracleComp.lowerWith iI p.replyBound
-            (m.runFrom (ProbOracleComp.query eQ >>= cont) s0)) s).map
-          (fun x => ((x.1.1, cod.enc x.1.2), x.2))
-      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query,
-        WordInterface.lowerQuery, Machine.runFrom_bind, Machine.runFrom_query,
-        ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind]
+      have hq_eq : PFunctor.FreeM.liftBind (Sum.inr eQ : ℕ ⊕ ιE) cont =
+          (ProbOracleComp.query eQ >>= cont) := rfl
+      rw [hq_eq, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
+        ProbOracleComp.simulate_query, WordInterface.lowerQuery, Machine.runFrom_bind,
+        Machine.runFrom_query, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind]
       have hwh : wordHandle M iI iE codec p (iE.channel eQ, iE.request eQ) (cod.enc s0) =
           (fun res => (iE.reply eQ res.1, cod.enc res.2)) <$>
             ProbOracleComp.lowerWith iI p.replyBound ((m.handle eQ).run s0) := by
         unfold wordHandle
-        have hq : iE.decodeQuery (iE.channel eQ) (iE.request eQ) = eQ :=
-          iE.decodeQuery_request eQ
-        generalize iE.decodeQuery (iE.channel eQ) (iE.request eQ) = q' at hq ⊢
-        subst hq
+        generalize hq : iE.decodeQuery (iE.channel eQ) (iE.request eQ) = q'
+        obtain rfl := hq.symm.trans (iE.decodeQuery_request eQ)
         simp only [cod, m, (codec p.secParam p.corrupted).decode_enc]
       simp only [OracleComp.interpret_bind, OracleComp.interpret_map, StateT.run_bind,
         StateT.run_map, ProbOracleComp.interpret_query, H]
@@ -412,32 +329,23 @@ theorem Environment.IsPPT.isOraclePPTOn_lowerWith_link
   let cap : EnvParam → ℕ := fun e => c * ((encPPTParam n (param e)).length + 1) ^ d
   let envParam : EnvParam → EnvParam := fun e => ⟨e.secParam, cap e, e.aux⟩
   have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
-      encEnvParam (encFinite (Finset (Fin n))) :=
-    ComputableInPolyTime.const C
+      encEnvParam (encFinite (Finset (Fin n))) := .const C
   have hparam : ComputableInPolyTime param encEnvParam (encPPTParam n) := by fun_prop
-  have hcap : ComputableInPolyTime cap encEnvParam encUnary := by
-    have hpolyFn : ComputableInPolyTime (fun k : ℕ => c * (k + 1) ^ d) encUnary encUnary := by
-      fun_prop
-    exact hpolyFn.comp ((ComputableInPolyTime.encoding_length (encPPTParam n)).comp hparam)
+  have hcap : ComputableInPolyTime cap encEnvParam encUnary :=
+    (show ComputableInPolyTime (fun k : ℕ => c * (k + 1) ^ d) encUnary encUnary by fun_prop).comp
+      ((ComputableInPolyTime.encoding_length (encPPTParam n)).comp hparam)
   have henv : ComputableInPolyTime envParam encEnvParam encEnvParam := by fun_prop
-  have hrun := hZ.isOraclePPTOn_run_wordHandle cert hparam henv
-  refine hrun.congr fun e State oracle s => ?_
+  refine (hZ.isOraclePPTOn_run_wordHandle cert hparam henv).congr fun e State oracle s => ?_
   simp only [wordRun, wordRunFrom, Machine.link, ProbOracleComp.lowerWith,
     ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample, ProbOracleComp.simulate_map,
     ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
     ProbComp.eval_map, PMF.bind_map, Function.comp_def]
   refine congrArg _ (funext fun s0 => ?_)
-  have hfit : ∀ (q : (Fin n × In) ⊕ AdvQ)
-      (st : (M (param e).secParam (param e).corrupted).State)
-      (x : execSpec n In Out AdvQ AdvR q × (M (param e).secParam (param e).corrupted).State),
-      x ∈ OracleComp.support (ProbOracleComp.lowerWith iI (param e).replyBound
-        (((M (param e).secParam (param e).corrupted).handle q).run st)) →
-      ((WordInterface.exec party adv).reply q x.1).length ≤ cap e :=
-    fun q st x hx => (hle (param e) q st x hx).trans (hcd (param e))
-  have hstep := runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom M iI
-    (WordInterface.exec party adv) cert.codec (param e) (cap e) hfit
-    (Z (envParam e).secParam (envParam e).aux) oracle s0 s
-  have hstep' := congrArg (PMF.map (Prod.map Prod.fst id)) hstep
+  have hstep' := congrArg (PMF.map (Prod.map Prod.fst id))
+    (runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom M iI
+      (WordInterface.exec party adv) cert.codec (param e) (cap e)
+      (fun q st x hx => (hle (param e) q st x hx).trans (hcd (param e)))
+      (Z (envParam e).secParam (envParam e).aux) oracle s0 s)
   simp only [param, envParam, ProbOracleComp.lowerWith, PMF.map_comp] at hstep'
   exact hstep'
 

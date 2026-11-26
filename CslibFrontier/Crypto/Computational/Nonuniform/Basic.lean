@@ -109,12 +109,10 @@ def NonuniformlyIndistinguishable (X Y : ℕ → PMF (List Bool)) : Prop :=
 that ignores its advice, and an advice test run on empty advice is a uniform test. -/
 theorem computationallyIndistinguishable_iff_indistinguishableWithAdvice_nil
     {X Y : ℕ → PMF (List Bool)} :
-    ComputationallyIndistinguishable X Y ↔ IndistinguishableWithAdvice (fun _ => []) X Y := by
-  constructor
-  · intro h test htest
-    exact h (fun n word => test ((n, []), word)) htest.nilAdvice
-  · intro h adversary hadversary
-    exact h (fun input => adversary input.1.1 input.2) hadversary.dropAdvice
+    ComputationallyIndistinguishable X Y ↔ IndistinguishableWithAdvice (fun _ => []) X Y :=
+  ⟨fun h test htest => h (fun n word => test ((n, []), word)) htest.nilAdvice,
+    fun h adversary hadversary =>
+      h (fun input => adversary input.1.1 input.2) hadversary.dropAdvice⟩
 
 /-- Efficient parameter-dependent deterministic postprocessing preserves indistinguishability
 with advice. -/
@@ -125,14 +123,12 @@ theorem IndistinguishableWithAdvice.map {advice : ℕ → List Bool} {X Y : ℕ 
   intro test htest
   have hprepare : ComputableInPolyTime
       (fun input : (ℕ × List Bool) × List Bool => (input.1, f input.1.1 input.2))
-      encAdvisedInput encAdvisedInput := by
-    have hpair : ComputableInPolyTime (fun input : (ℕ × List Bool) × List Bool =>
-        (input.1.1, input.2)) encAdvisedInput
-        (encPair encUnary encBits) := by fun_prop
-    exact (ComputableInPolyTime.fst _ _).prod (hf.comp hpair)
-  have hneg := h (fun input => test (input.1, f input.1.1 input.2)) (htest.preprocess hprepare)
-  simpa only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def]
-    using hneg
+      encAdvisedInput encAdvisedInput :=
+    (ComputableInPolyTime.fst _ _).prod
+      (hf.comp (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod (.snd _ _)))
+  simpa only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, PMF.bind_map,
+    Function.comp_def] using
+    h (fun input => test (input.1, f input.1.1 input.2)) (htest.preprocess hprepare)
 
 /-- Every ensemble is nonuniformly indistinguishable from itself. -/
 theorem NonuniformlyIndistinguishable.refl (X : ℕ → PMF (List Bool)) :
@@ -198,18 +194,17 @@ theorem not_computationallyIndistinguishable_pure_uniformList (target : ℕ → 
     ¬ ComputationallyIndistinguishable (fun n => PMF.pure (target n))
       (fun n => BitString.uniformList (length n)) := by
   intro h
-  have hfirst : IsPPT encBool (fun _ word => pure (word.headD false)) :=
-    ((ComputableInPolyTime.headD false).comp (ComputableInPolyTime.snd encUnary encBits)).isPPTOn
-  have hneg := h _ hfirst
-  refine not_negligible_const (c := 1 / 2) (by norm_num) (negligible_of_eventually_le hneg ?_)
+  refine not_negligible_const (c := 1 / 2) (by norm_num) (negligible_of_eventually_le
+    (h (fun _ word => pure (word.headD false))
+      (((ComputableInPolyTime.headD false).comp
+        (ComputableInPolyTime.snd encUnary encBits)).isPPTOn)) ?_)
   filter_upwards [hlength] with n hn
-  obtain ⟨m, hm⟩ : ∃ m, length n = m + 1 := ⟨length n - 1, by omega⟩
   have hreal : distinguishingGame (PMF.pure (target n)) (fun word => pure (word.headD false)) =
       PMF.pure ((target n).headD false) := by
     simp [distinguishingGame_eq_bind]
   have hideal : distinguishingGame (BitString.uniformList (length n))
       (fun word => pure (word.headD false)) = PMF.uniformOfFintype Bool := by
-    rw [hm, BitString.uniformList_succ]
+    rw [show length n = (length n - 1) + 1 by omega, BitString.uniformList_succ]
     simp [distinguishingGame_eq_bind, PMF.bind_map, Function.comp_def]
   rw [← NNReal.coe_le_coe, Game.coe_advantage, hreal, hideal]
   cases (target n).headD false <;> norm_num [Game.succProbability, ENNReal.toNNReal_ofNat]
@@ -278,14 +273,11 @@ theorem InversionHardWithAdvice.inversion_negligible_encoded {f : List Bool → 
 that ignores its advice, and an advice inverter run on empty advice is a uniform inverter. -/
 theorem oneWay_iff_inversionHardWithAdvice_nil {f : List Bool → List Bool} :
     OneWay f ↔
-      ComputableInPolyTime f encBits encBits ∧ InversionHardWithAdvice f (fun _ => []) := by
-  constructor
-  · intro h
-    exact ⟨h.polyTime, .of_inversion_negligible fun adversary hPPT =>
-      h.inversion_negligible (fun n image => adversary ((n, []), image)) hPPT.nilAdvice⟩
-  · rintro ⟨hf, h⟩
-    exact OneWay.of_inversion_negligible hf fun adversary hPPT =>
-      h.inversion_negligible (fun input => adversary input.1.1 input.2) hPPT.dropAdvice
+      ComputableInPolyTime f encBits encBits ∧ InversionHardWithAdvice f (fun _ => []) :=
+  ⟨fun h => ⟨h.polyTime, .of_inversion_negligible fun adversary hPPT =>
+      h.inversion_negligible (fun n image => adversary ((n, []), image)) hPPT.nilAdvice⟩,
+    fun ⟨hf, h⟩ => OneWay.of_inversion_negligible hf fun adversary hPPT =>
+      h.inversion_negligible (fun input => adversary input.1.1 input.2) hPPT.dropAdvice⟩
 
 /-- A function is **nonuniformly one-way** when one deterministic polynomial-time algorithm
 evaluates it and inversion is hard with every polynomially bounded advice family.

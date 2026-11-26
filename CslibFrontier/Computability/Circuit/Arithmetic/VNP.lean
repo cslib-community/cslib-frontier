@@ -75,9 +75,8 @@ noncomputable def booleanSum (m : ℕ) (P : MvPolynomial (Fin (n + m)) K) :
 
 /-- A Boolean sum over no variables is the polynomial itself. -/
 @[simp] theorem booleanSum_zero (P : MvPolynomial (Fin (n + 0)) K) : booleanSum 0 P = P := by
-  have h (e : Fin 0 → Bool) : (booleanAssignment e : Fin (n + 0) → Fin n ⊕ K) = Sum.inl := by
-    rw [booleanAssignment, Fin.append_right_nil _ _ rfl]
-    rfl
+  have h (e : Fin 0 → Bool) : (booleanAssignment e : Fin (n + 0) → Fin n ⊕ K) = Sum.inl :=
+    (Fin.append_right_nil _ _ rfl).trans rfl
   rw [booleanSum, Fintype.sum_unique, h, projection_inl]
   rfl
 
@@ -95,9 +94,7 @@ private theorem projection_booleanSum (ρ : Fin k → Fin n ⊕ K) (P : MvPolyno
   rw [projection_projection, projection_projection]
   congr 2 with i : 1
   induction i using Fin.addCases with
-  | left i =>
-    rcases h : ρ i with j | a <;>
-      simp [booleanAssignment, liftProjection, h]
+  | left i => cases h : ρ i <;> simp [booleanAssignment, liftProjection, h]
   | right i => cases e i <;> simp [booleanAssignment, liftProjection]
 
 /-- A Boolean sum has no larger degree than the summed polynomial. -/
@@ -120,9 +117,8 @@ theorem VP_subset_VNP : VP K ⊆ VNP K := fun f hf =>
 /-- The members of `VNP` are p-families. -/
 theorem VNP.isPFamily {f : PolynomialFamily K} (hf : f ∈ VNP K) : f.IsPFamily := by
   obtain ⟨m, g, ⟨⟨hvars, hdeg⟩, -⟩, hfg⟩ := hf
-  refine ⟨hvars.mono_of_le fun n => Nat.le_add_right _ _, hdeg.mono_of_le fun n => ?_⟩
-  rw [hfg n]
-  exact totalDegree_booleanSum_le _
+  exact ⟨hvars.mono_of_le fun _ => Nat.le_add_right _ _,
+    hdeg.mono_of_le fun n => hfg n ▸ totalDegree_booleanSum_le _⟩
 
 /-- `VNP` is closed under p-projections [Bürgisser, Chapter 2][Burgisser2000]. As for `VP`, the
 number of variables is required to be polynomially bounded. -/
@@ -133,8 +129,8 @@ theorem VNP.of_isPProjection {f g : PolynomialFamily K} (hg : g ∈ VNP K)
   choose ρ hρ using hproj
   have hm : PolynomiallyBounded m := (VP.isPFamily hh).1.mono_of_le fun n => Nat.le_add_left _ _
   refine ⟨fun n => m (t n), fun n => projection (liftProjection (ρ n)) (h (t n)),
-    VP.of_isPProjection hh ⟨t, ht, fun n => ⟨_, rfl⟩⟩ (hvars.add (hm.comp ht)), fun n => ?_⟩
-  rw [← hρ n, hgh, projection_booleanSum]
+    VP.of_isPProjection hh ⟨t, ht, fun n => ⟨_, rfl⟩⟩ (hvars.add (hm.comp ht)),
+    fun n => by rw [← hρ n, hgh, projection_booleanSum]⟩
 
 /-- A family is *VNP-complete* over `K` [Valiant1979Algebra; Bürgisser, Chapter 2][Burgisser2000]
 when it is in `VNP K` and every family in `VNP K` is a p-projection of it. -/

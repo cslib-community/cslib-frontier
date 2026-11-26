@@ -193,12 +193,10 @@ private theorem advance_inSpace :
 private theorem advance_lengths (g : List Bool) (s : Registers) (bit : Bool) (d : ℕ)
     (hs : s.shift.length ≤ d) (ha : s.product.length ≤ d) (hg : g.length - 1 ≤ d) :
     (advance g s bit).shift.length ≤ d ∧ (advance g s bit).product.length ≤ d := by
-  constructor
-  · change (mulXMod g s.shift).length ≤ d
-    unfold mulXMod
-    exact Nat.le_trans (List.length_take_le _ _) hg
-  · simp only [advance]
-    split <;> simp_all only [List.length_zipWith]; omega
+  refine ⟨(List.length_take_le _ _).trans hg, ?_⟩
+  simp only [advance]
+  split <;> simp_all only [List.length_zipWith]
+  omega
 
 private theorem fold_lengths (g bits : List Bool) (s : Registers) (d : ℕ)
     (hs : s.shift.length ≤ d) (ha : s.product.length ≤ d) (hg : g.length - 1 ≤ d) :
@@ -207,8 +205,7 @@ private theorem fold_lengths (g bits : List Bool) (s : Registers) (d : ℕ)
   induction bits generalizing s with
   | nil => exact ⟨hs, ha⟩
   | cons bit bits ih =>
-    have h := advance_lengths g s bit d hs ha hg
-    exact ih _ h.1 h.2
+    exact ih _ (advance_lengths g s bit d hs ha hg).1 (advance_lengths g s bit d hs ha hg).2
 
 private theorem fold_agrees (g bits : List Bool) (s : Registers) :
     (bits.foldl (advance g) s).product =

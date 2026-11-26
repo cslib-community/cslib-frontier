@@ -105,9 +105,8 @@ private theorem clauseNode_nbrs {j u : ℕ} (h : (u, clauseNode j) ∈ arcs N sl
   rcases mem_arcs.1 h with
       ⟨i', hi', ⟨h₁, h₂ | h₂⟩ | ⟨h₁ | h₁, h₂⟩ | ⟨a', ha', ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩⟩⟩ |
       ⟨d, hd, ⟨hb, ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩⟩ | ⟨hb, ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩⟩⟩ <;>
-    simp only [clauseNode_inj, clauseNode_ne_topNode, clauseNode_ne_rowNode] at h₂
-  · exact ⟨d, hd, h₂.symm, by simp [h₁, hb]⟩
-  · exact ⟨d, hd, h₂.symm, by simp [h₁, hb]⟩
+    simp only [clauseNode_inj, clauseNode_ne_topNode, clauseNode_ne_rowNode] at h₂ <;>
+      exact ⟨d, hd, h₂.symm, by simp [h₁, hb]⟩
 
 /-! ### Successors in a list -/
 
@@ -133,10 +132,8 @@ private theorem Follows.left_unique {p : List ℕ} (hnd : p.Nodup) {u u' v : ℕ
     (h : Follows p u v) (h' : Follows p u' v) : u = u' := by
   obtain ⟨i, hu, hv⟩ := h
   obtain ⟨j, hu', hv'⟩ := h'
-  obtain rfl : i = j := by
-    have := (hnd.getElem?_inj (List.getElem?_eq_some_iff.1 hv).1).1 (hv.trans hv'.symm)
-    omega
-  exact Option.some_injective _ (hu.symm.trans hu')
+  have hij := (hnd.getElem?_inj (List.getElem?_eq_some_iff.1 hv).1).1 (hv.trans hv'.symm)
+  exact Option.some_injective _ ((Nat.succ.inj hij ▸ hu).symm.trans hu')
 
 private theorem Follows.asymm {p : List ℕ} (hnd : p.Nodup) {u v : ℕ} (h : Follows p u v) :
     ¬Follows p v u := by
@@ -181,17 +178,15 @@ private theorem clauseNode_mem_vertices {j : ℕ} (hj : j < M) :
 private theorem exists_pred
     (hp : (graph N slots M D).IsDirHamPath (topNode 0) (topNode N) p) {v : ℕ}
     (hv : v ∈ vertices N slots M) (hne : v ≠ topNode 0) : ∃ u, Follows p u v :=
-  exists_follows_of_ne_head ((hp.2.1 v).2 hv) (by
-    rw [hp.2.2.1]
-    exact fun h => hne (Option.some_injective _ h).symm)
+  exists_follows_of_ne_head ((hp.2.1 v).2 hv) fun h =>
+    hne (Option.some_injective _ (h.symm.trans hp.2.2.1))
 
 /-- In a Hamiltonian path, every node other than the end has a successor. -/
 private theorem exists_succ
     (hp : (graph N slots M D).IsDirHamPath (topNode 0) (topNode N) p) {v : ℕ}
     (hv : v ∈ vertices N slots M) (hne : v ≠ topNode N) : ∃ w, Follows p v w :=
-  exists_follows_of_ne_getLast ((hp.2.1 v).2 hv) (by
-    rw [hp.2.2.2.1]
-    exact fun h => hne (Option.some_injective _ h).symm)
+  exists_follows_of_ne_getLast ((hp.2.1 v).2 hv) fun h =>
+    hne (Option.some_injective _ (h.symm.trans hp.2.2.2.1))
 
 /-- A separator is traversed either rightwards or leftwards. -/
 private theorem separator_dir
@@ -207,10 +202,7 @@ private theorem separator_dir
   obtain ⟨w, hw⟩ := exists_succ hp hmem (rowNode_ne_topNode _ _ _)
   rcases separator_nbrs (Or.inl (hu.rel hp.2.2.2.2)) with rfl | rfl <;>
     rcases separator_nbrs (Or.inr (hw.rel hp.2.2.2.2)) with rfl | rfl
-  · exact absurd hw (hu.asymm hp.1)
-  · exact Or.inl ⟨hu, hw⟩
-  · exact Or.inr ⟨hu, hw⟩
-  · exact absurd hw (hu.asymm hp.1)
+  exacts [absurd hw (hu.asymm hp.1), Or.inl ⟨hu, hw⟩, Or.inr ⟨hu, hw⟩, absurd hw (hu.asymm hp.1)]
 
 /-- Separator `s + 1` written with the positions of slot `s`. -/
 private theorem separator_dir_succ
@@ -249,7 +241,8 @@ private theorem pair_rightwards (hD : WellFormed N slots M D)
       Follows p (rowNode i (3 * s + 4)) (rowNode i (3 * s + 5)) := by
     rcases pairRight_nbrs (Or.inr (hw.rel hch)) with rfl | rfl | ⟨d, hd, hdi, hds, rfl⟩
     · exact (h₁ rfl).elim
-    · exact (separator_dir_succ hp hi hs).elim And.right fun ⟨_, h'⟩ => absurd h' (hw.asymm hnd)
+    · -- Leaving the right pair node towards the right separator makes it rightward.
+      exact (separator_dir_succ hp hi hs).elim And.right fun ⟨_, h'⟩ => absurd h' (hw.asymm hnd)
     · exact (h₂ d hd hdi hds rfl).elim
   obtain ⟨w, hw⟩ := exists_succ hp hpp (rowNode_ne_topNode _ _ _)
   obtain ⟨w', hw'⟩ := exists_succ hp hq (rowNode_ne_topNode _ _ _)
@@ -262,10 +255,11 @@ private theorem pair_rightwards (hD : WellFormed N slots M D)
     · exact clauseNode_ne_rowNode _ _ _ (hw'.right_unique hnd h₁)
     · simpa using hw.left_unique hnd h₁
   · -- `p → c`: the successor of `q` is neither `p` nor a clause node of the slot.
-    exact hsucc_q hw' (fun he => by subst he; simpa using hw'.left_unique hnd h)
-      fun d' hd' hdi' hds' he => by
-        rw [he, ← clauseNode_eq_of_slot hD hd hd' hdi hds hdi' hds'] at hw'
-        simpa using hw'.left_unique hnd hw
+    refine hsucc_q hw' ?_ fun d' hd' hdi' hds' he => ?_
+    · rintro rfl
+      simpa using hw'.left_unique hnd h
+    · rw [he, ← clauseNode_eq_of_slot hD hd hd' hdi hds hdi' hds'] at hw'
+      simpa using hw'.left_unique hnd hw
 
 /-- The separator before slot `s` cannot be traversed leftwards while the separator after it is
 traversed rightwards. -/
@@ -350,8 +344,7 @@ private theorem exists_detour (hD : WellFormed N slots M D)
       (fun ⟨h₁, _⟩ => by simpa using hu.right_unique hnd h₁)
       (fun ⟨_, h₁⟩ => by simpa using h₁.right_unique hnd h)
   · simp only [hb, ite_true] at hu
-    simp only [iff_true]
-    rw [← rightwards_iff hD hp hi d.slot hs.le]
+    rw [iff_true_right rfl, ← rightwards_iff hD hp hi d.slot hs.le]
     exact (separator_dir hp hi (s := d.slot) hs.le).elim And.right
       fun ⟨h₁, _⟩ => by simpa using hu.right_unique hnd h₁
 
@@ -364,8 +357,7 @@ theorem satisfiable_of_mem_DirHamPath (hD : WellFormed N slots M D)
   obtain ⟨p, hp⟩ := h
   refine ⟨fun i => decide (Follows p (topNode i) (rowNode i 0)), fun j hj => ?_⟩
   obtain ⟨d, hd, hdj, hiff⟩ := exists_detour hD hp hj
-  refine ⟨d, hd, hdj, ?_⟩
-  cases hb : d.leftToRight <;> simp_all
+  exact ⟨d, hd, hdj, by cases hb : d.leftToRight <;> simp_all⟩
 
 end PathToDirections
 

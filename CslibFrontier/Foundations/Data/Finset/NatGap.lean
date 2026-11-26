@@ -33,16 +33,12 @@ theorem exists_gap_le_mul_card (s : Finset ℕ) (d : ℕ) :
   induction s using Finset.induction_on_max with
   | empty => exact ⟨0, by simp, by simp⟩
   | insert m s hm ih =>
-    have hms : m ∉ s := fun h => (lt_irrefl m) (hm m h)
-    rw [card_insert_of_notMem hms, Nat.mul_succ]
+    rw [card_insert_of_notMem fun h => lt_irrefl m (hm m h), Nat.mul_succ]
     by_cases h : m ≤ d * s.card
-    · refine ⟨d * s.card + d, le_rfl, fun t ht => Or.inl ?_⟩
-      have ht' : t ≤ m := (mem_insert.mp ht).elim (·.le) (fun ht => (hm t ht).le)
-      omega
+    · exact ⟨d * s.card + d, le_rfl, (forall_mem_insert _ _ _).2 ⟨Or.inl (by omega),
+        fun t ht => Or.inl (Nat.add_le_add_right ((hm t ht).le.trans h) d)⟩⟩
     · obtain ⟨D, hD, hgap⟩ := ih
-      refine ⟨D, by omega, fun t ht => ?_⟩
-      rcases mem_insert.mp ht with rfl | ht
-      · exact Or.inr (by omega)
-      · exact hgap t ht
+      exact ⟨D, hD.trans (Nat.le_add_right _ _),
+        (forall_mem_insert _ _ _).2 ⟨Or.inr (hD.trans_lt (not_le.1 h)), hgap⟩⟩
 
 end Finset

@@ -301,9 +301,7 @@ theorem exists_right_min_of_unlink {n : ℕ} {st : RawState n} {cur p m : Fin n}
     obtain ⟨r₂, l₂, -, -, hl₂, -, hl₂m, -⟩ := hcirc.remove hcur hlen
     obtain rfl : l₂ = l := Fin.ext (hl₂.symm.trans hl)
     have hml : m ≠ l₂ := fun e => by
-      have := hroots_par0 m List.mem_cons_self
-      rw [e, hpar l₂ hl₂m] at this
-      omega
+      simpa [e, hpar l₂ hl₂m] using hroots_par0 m List.mem_cons_self
     exact ⟨r', by rw [Function.update_of_ne hml]; exact hr'⟩
 
 /-! ## Forest mathematics of cascading cuts -/
@@ -378,9 +376,7 @@ theorem CutsNode.cascading {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawS
   have hnd_Ti : (ts[i]).nodes.Nodup := forestNodes_nodup_tree h.nodup hTi
   have hTi_ne_v : (ts[i]).root ≠ v := hcur_ne_v _ hTi hcur_Ti
   have hcur_ne_root : cur ≠ (ts[i]).root := fun e => by
-    have := (h.valid _ hTi).2.1
-    rw [← e] at this
-    omega
+    simpa [← e, hpar_cur] using (h.valid _ hTi).2.1
   have hcur_desc : cur ∈ forestNodes (ts[i]).children := by
     rw [(ts[i]).nodes_eq] at hcur_Ti
     exact (List.mem_cons.mp hcur_Ti).resolve_left hcur_ne_root
@@ -435,15 +431,12 @@ theorem CutsNode.cascading {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawS
     rcases List.mem_cons.mp hT with rfl | hT
     · exact ⟨hvalid_cut.1.weaken_pending _, hvalid_cut.2.1, hvalid_cut.2.2⟩
     · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hT
-      have hj' : j < ts.length := by simpa using hj
-      by_cases hji : j = i
-      · subst hji
-        simp only [List.getElem_set_self]
-        refine ⟨hvalid_T', ?_, ?_⟩
-        · rw [hcut.par_ne _ hT'_ne_cur, hT'_r]; exact (h.valid _ hTi).2.1
-        · rw [hcut.mark_ne _ hT'_ne_cur, hT'_r]; exact (h.valid _ hTi).2.2
+      rcases eq_or_ne j i with rfl | hji
+      · simp only [List.getElem_set_self]
+        exact ⟨hvalid_T', (hcut.par_ne _ hT'_ne_cur).trans (hT'_r.symm ▸ (h.valid _ hTi).2.1),
+          (hcut.mark_ne _ hT'_ne_cur).trans (hT'_r.symm ▸ (h.valid _ hTi).2.2)⟩
       · rw [List.getElem_set_ne (Ne.symm hji)]
-        exact hother j hj' hji
+        exact hother j (by simpa using hj) hji
   have hroots' : (m :: cur :: rtail).Perm (ts'.map FHTree.root) := by
     simp only [ts', List.map_cons, hcut_r, map_root_set_eq ts i hi T' hT'_r]
     exact (List.Perm.swap cur m rtail).trans (List.Perm.cons cur hperm_r)
@@ -477,13 +470,10 @@ theorem CutsNode.cascading {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawS
     · rw [hcut_r] at hTv ⊢
       exact (h.min_le _ hTi hTi_ne_v).trans ((h.valid _ hTi).1.prioLE_of_mem hcur_Ti)
     · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hT
-      have hj' : j < ts.length := by simpa using hj
-      by_cases hji : j = i
-      · subst hji
-        simp only [List.getElem_set_self, hT'_r] at hTv ⊢
-        exact h.min_le _ hTi hTi_ne_v
+      rcases eq_or_ne j i with rfl | hji
+      · simpa only [List.getElem_set_self, hT'_r] using h.min_le _ hTi hTi_ne_v
       · simp only [List.getElem_set_ne (Ne.symm hji)] at hTv ⊢
-        exact h.min_le _ (List.getElem_mem hj') hTv
+        exact h.min_le _ (List.getElem_mem (by simpa using hj)) hTv
   · rcases hv_root with rfl | ⟨Tv, hTv, hTv_r⟩
     · exact ⟨T_cut, List.mem_cons_self, hcut_r⟩
     · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hTv
@@ -525,11 +515,9 @@ theorem Cascading.cut_pre {n K : ℕ} {s : IndexedMinPQ.State n} {st : RawState 
     obtain ⟨R, hR, rfl⟩ := List.mem_map.mp hu
     exact (h.valid R hR).2.1
   have hcur_roots : cur ∉ ts.map FHTree.root := fun hm => by
-    have := hroot0 cur hm
-    omega
-  have hnd_roots : (cur :: ts.map FHTree.root).Nodup :=
-    List.nodup_cons.mpr ⟨hcur_roots, map_root_nodup h.nodup⟩
-  have hnr : (cur :: ts.map FHTree.root).length ≤ n := by simpa using hnd_roots.length_le_card
+    simpa [hpar_cur] using hroot0 cur hm
+  have hnr : (cur :: ts.map FHTree.root).length ≤ n := by
+    simpa using (List.nodup_cons.mpr ⟨hcur_roots, map_root_nodup h.nodup⟩).length_le_card
   simp only [List.length_cons, List.length_map] at hnr
   refine ⟨hdp, hdp2, by omega, fun u hu => hroot0 u (hperm_r.subset hu), by rw [h.numRoots]; omega,
     h.numMarked ▸ markedCount_le_n st⟩
@@ -567,8 +555,7 @@ theorem Cascading.mark {n K : ℕ} {s : IndexedMinPQ.State n} {st : RawState n}
           simp [Function.update_of_ne (fun e : x = z => hzT' (e ▸ hx))], rfl, rfl, rfl⟩)
         (fun _ _ => ⟨rfl, rfl, rfl, Iff.rfl⟩)
   · simpa [Function.update_of_ne (hz_ne_root T hT)] using (h.valid T hT).2.2
-  · obtain ⟨T, hT, hzT⟩ := mem_forestNodes_iff.mp hz
-    have hin_z : st.inHeap z ≠ 0 := ((h.inHeap z).1).mpr ((h.dom z).mp hz)
+  · have hin_z : st.inHeap z ≠ 0 := ((h.inHeap z).1).mpr ((h.dom z).mp hz)
     rw [h.numMarked]
     exact (markedCount_set_one (st := st)
       (st' := { st with mark := Function.update st.mark z 1, numMarked := st.numMarked + 1 })
@@ -612,8 +599,7 @@ theorem Cascading.lowerRootKey {n K : ℕ} {s : IndexedMinPQ.State n} {st : RawS
     obtain rfl | hmv := eq_or_ne m Tv.root
     · simp only [Function.update_self]
       refine IndexedMinPQ.PrioLE.trans ?_ hle
-      dsimp only [IndexedMinPQ.PrioLE, IndexedMinPQ.RawPrioLE]
-      omega
+      dsimp only [IndexedMinPQ.PrioLE, IndexedMinPQ.RawPrioLE]; omega
     · simpa [Function.update_of_ne hmv] using hle
 
 /-- **Lowering a key without a cut.** If `v` keeps its heap order with its parent `p`, the heap
@@ -628,9 +614,7 @@ theorem FibRawInv.lowerKey_noCut {n K : ℕ} {s : IndexedMinPQ.State n} {st : Ra
   obtain ⟨Tv, hTv, hvT⟩ := mem_forestNodes_iff.mp ((hc.dom v).mpr (by simp [hsv]))
   have hkv : st.key v = k₀ := (hc.keys v k₀ hsv).1
   have hv_ne_root : ∀ T ∈ ts, T.root ≠ v := fun T hT e => by
-    have := (hc.valid T hT).2.1
-    rw [e] at this
-    omega
+    simpa [e, hpv] using (hc.valid T hT).2.1
   let st₁ : RawState n := { st with key := Function.update st.key v k }
   have hvalid : ∀ T ∈ ts, ValidRoot st₁ none T := by
     intro T hT
@@ -794,9 +778,8 @@ theorem wp_cascade {K : ℕ} {s : IndexedMinPQ.State n} {v m : Fin n} (hfit : Fi
     have hzn := z.isLt
     simp only [cascade, Record.wp_read_bind, Cell.ok]
     refine ⟨hzn, ?_⟩
-    by_cases hpz : (view n g).par z = 0
-    · have hpz' : g (.par z) = 0 := hpz
-      simp only [hpz', ite_true, Record.wp_pure]
+    by_cases hpz : g (.par z) = 0
+    · simp only [hpz, ite_true, Record.wp_pure]
       exact ⟨ts, h.clear_root hz hpz, hv, by omega⟩
     obtain ⟨T, hT, hdesc⟩ := h.desc_of_par hz hpz
     obtain ⟨p, -, hpar⟩ := (h.valid T hT).1.par_of_mem_children z hdesc
@@ -820,23 +803,18 @@ theorem wp_cascade {K : ℕ} {s : IndexedMinPQ.State n} {v m : Fin n} (hfit : Fi
         simp only [potential, credit, view_update_mark, view_update_numMarked]
         omega
     · have hmz' : g (.mark z) ≠ 0 := hmz
-      simp only [hmz', ite_false]
-      rw [Record.wp_bind]
+      simp only [hmz', ite_false, Record.wp_bind]
       obtain ⟨rtail, hcirc, hperm⟩ := h.roots
       obtain ⟨hdp, hdp2, hdp_le, hroots0, hnr, hnm⟩ := h.cut_pre hperm hz hpar
       refine wp_cut hdp hdp2 hdp_le h.minRoot hcirc hroots0 hpar hfit hnr hnm
         fun g₁ t₁ ht₁ hcut => ?_
       obtain ⟨ts₁, hc₁, hv₁, hpv₁, hp₁⟩ :=
         hcut.cascading h hperm (Or.inr rfl) (Or.inr hv) hzv hz hpar
-      have hpos : 1 ≤ (view n g).numMarked := by
-        rw [h.numMarked]
-        exact Finset.card_pos.mpr ⟨z, by simp [markedSet, hinz, hmz]⟩
-      have hnm₁ : (view n g₁).numMarked + 1 = (view n g).numMarked := by
-        rw [hcut.numMarked]; omega
+      have hpos : 1 ≤ (view n g).numMarked :=
+        h.numMarked ▸ Finset.card_pos.mpr ⟨z, by simp [markedSet, hinz, hmz]⟩
       refine Record.wp_mono (fun _ g' t ⟨ts', hc', hv', hcost⟩ => ⟨ts', hc', hv', ?_⟩)
-        (wp_cascade hfit fuel hc₁ hv₁ hpv₁ hp₁ (by omega))
-      simp only [potential, credit] at hcost ⊢
-      rw [hcut.numRoots] at hcost
+        (wp_cascade hfit fuel hc₁ hv₁ hpv₁ hp₁ (by rw [hcut.numMarked]; omega))
+      simp only [potential, credit, hcut.numRoots, hcut.numMarked] at hcost ⊢
       omega
 
 /-- **Storing the key.** With the forest ready (`v` a root, or `v` not preceding the minimum
@@ -858,22 +836,20 @@ theorem wp_setKey {K : ℕ} {s' : IndexedMinPQ.State n} {g : Cell → ℕ} {v m 
     reduceCtorEq, ite_false, hm', Nat.add_sub_cancel, Cell.ok, true_and]
   rw [← Function.update_apply (f := g), hkm]
   refine ⟨⟨v.isLt, hk⟩, m.isLt, ?_⟩
-  by_cases hlt : IndexedMinPQ.PrioLT (v, k) (m, Function.update (view n g).key v k m)
-  · have hlt' : IndexedMinPQ.RawPrioLT (↑v, k) (↑m, Function.update (view n g).key v k m) := hlt
-    simp only [hlt', ite_true, Record.wp_write, Cell.ok, true_and]
+  by_cases hlt : IndexedMinPQ.RawPrioLT (↑v, k) (↑m, Function.update (view n g).key v k m)
+  · simp only [hlt, ite_true, Record.wp_write, Cell.ok, true_and]
     refine ⟨hfit.of_le v.isLt, hQ _ _ (by omega) ?_ rfl rfl⟩
     rcases hpost with hcut | ⟨-, hnlt⟩
     · simp only [view_update_minRoot, view_update_key]
       exact CutInv.to_fibRawInv hcut ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-        (Or.inl ⟨by simpa using hlt, rfl⟩)
+        (Or.inl ⟨by simpa [IndexedMinPQ.PrioLT] using hlt, rfl⟩)
     · exact (hnlt hlt).elim
-  · have hlt' : ¬IndexedMinPQ.RawPrioLT (↑v, k) (↑m, Function.update (view n g).key v k m) := hlt
-    simp only [hlt', ite_false, Record.wp_pure]
+  · simp only [hlt, ite_false, Record.wp_pure]
     refine hQ _ _ (by omega) ?_ rfl rfl
     rcases hpost with hcut | ⟨hinv, -⟩
     · simp only [view_update_key]
       exact CutInv.to_fibRawInv hcut ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-        (Or.inr ⟨by simpa using hlt, hm⟩)
+        (Or.inr ⟨by simpa [IndexedMinPQ.PrioLT] using hlt, hm⟩)
     · simpa only [view_update_key] using hinv
 
 /-- **Decreasing a key.** `decreaseKey n v k` lowers the key of the present handle `v` to `k`,
@@ -884,7 +860,6 @@ theorem wp_decreaseKey {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k₀ k : ℕ} (
     Record.wp (Cell.ok n) w (decreaseKey n v k) (fun _ g' t =>
       abs n g' = Function.update (abs n g) v (some k) ∧ Inv n K g' ∧
         t + potential n g' ≤ 104 + potential n g) g := by
-  have hvn := v.isLt
   have hkfit : Fits w k := hKfit.of_le hK
   obtain ⟨m, ts, hc⟩ := cascading_of_fibRawInv (v := v) hI (by simp [hsv])
   have hv_fn : v ∈ forestNodes ts := (hc.dom v).mpr (by simp [hsv])
@@ -893,29 +868,25 @@ theorem wp_decreaseKey {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k₀ k : ℕ} (
   have hdone : ∀ g' t, FibRawInv n K (Function.update (abs n g) v (some k)) (view n g') →
       t + potential n g' ≤ 104 + potential n g →
       abs n g' = Function.update (abs n g) v (some k) ∧ Inv n K g' ∧
-        t + potential n g' ≤ 104 + potential n g := fun g' t hinv hcost => by
-    obtain ⟨hI', habs⟩ := inv_of_fibRawInv hinv
-    exact ⟨habs, hI', hcost⟩
+        t + potential n g' ≤ 104 + potential n g := fun g' t hinv hcost =>
+    ⟨(inv_of_fibRawInv hinv).2, (inv_of_fibRawInv hinv).1, hcost⟩
   simp only [decreaseKey, Record.wp_read_bind, Cell.ok]
-  refine ⟨hvn, ?_⟩
-  by_cases hpv : (view n g).par v = 0
-  · have hpv' : g (.par v) = 0 := hpv
-    have hvr : v = Tv.root := ((hc.valid Tv hTv).par_eq_zero_iff_root hvT).mp hpv
-    simp only [hpv', ne_eq, not_true_eq_false, ite_false]
+  refine ⟨v.isLt, ?_⟩
+  by_cases hpv : g (.par v) = 0
+  · have hvr : v = Tv.root := ((hc.valid Tv hTv).par_eq_zero_iff_root hvT).mp hpv
+    simp only [hpv, ne_eq, not_true_eq_false, ite_false]
     refine wp_setKey hc.minRoot hkfit hfit
-      (Or.inl (hc.lowerRootKey ⟨Tv, hTv, hvr.symm⟩ hsv hk₀ hK)) fun g' t ht hinv hnr hnm => ?_
-    have hpot : potential n g' = potential n g := by simp only [potential, hnr, hnm]
-    exact hdone g' (t + 1) hinv (by omega)
+      (Or.inl (hc.lowerRootKey ⟨Tv, hTv, hvr.symm⟩ hsv hk₀ hK)) fun g' t ht hinv hnr hnm =>
+      hdone g' (t + 1) hinv (by simp only [potential, hnr, hnm]; omega)
   · obtain ⟨T, hT, hdesc⟩ := hc.desc_of_par hv_fn hpv
     obtain ⟨p, -, hpar⟩ := (hc.valid T hT).1.par_of_mem_children v hdesc
     have hpar' : g (.par v) = p.val + 1 := hpar
     simp only [hpar', ne_eq, Nat.add_one_ne_zero, not_false_eq_true, ite_true, Nat.add_sub_cancel,
       Record.wp_read_bind, Cell.ok]
     refine ⟨p.isLt, ?_⟩
-    by_cases hlt : IndexedMinPQ.PrioLT (v, k) (p, (view n g).key p)
+    by_cases hlt : IndexedMinPQ.RawPrioLT (↑v, k) (↑p, g (.key ↑p))
     · -- `v` now precedes its parent: cut it, cascade, and store the key.
-      have hlt' : IndexedMinPQ.RawPrioLT (↑v, k) (↑p, g (.key ↑p)) := hlt
-      simp only [hlt', ite_true]
+      simp only [hlt, ite_true]
       rw [Record.wp_bind]
       obtain ⟨rtail, hcirc, hperm⟩ := hc.roots
       obtain ⟨hdp, hdp2, hdp_le, hroots0, hnr, hnm⟩ := hc.cut_pre hperm hv_fn hpar
@@ -931,19 +902,14 @@ theorem wp_decreaseKey {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k₀ k : ℕ} (
       rintro _ g₂ t₂ ⟨ts₂, hc₂, hv₂, hcost₂⟩
       refine wp_setKey hc₂.minRoot hkfit hfit (Or.inl (hc₂.lowerRootKey hv₂ hsv hk₀ hK))
         fun g' t ht hinv hnr' hnm' => hdone g' _ hinv ?_
-      have hΦ₁ : potential n g₁ ≤ potential n g + 24 := by
-        simp only [potential, credit, hcut.numRoots, hcut.numMarked]
-        omega
-      have hΦ' : potential n g' = potential n g₂ := by simp only [potential, hnr', hnm']
+      simp only [potential, credit, hcut.numRoots, hcut.numMarked, hnr', hnm'] at hcost₂ ⊢
       omega
     · -- `v` keeps its heap order: only the key changes.
-      have hlt' : ¬IndexedMinPQ.RawPrioLT (↑v, k) (↑p, g (.key ↑p)) := hlt
-      simp only [hlt', ite_false]
+      simp only [hlt, ite_false]
       obtain ⟨hinv, hnot⟩ := FibRawInv.lowerKey_noCut hI hsv hk₀ hK hpar hlt
       refine wp_setKey hc.minRoot hkfit hfit (Or.inr ⟨hinv, hnot m hc.minRoot⟩)
-        fun g' t ht hinv' hnr hnm => ?_
-      have hpot : potential n g' = potential n g := by simp only [potential, hnr, hnm]
-      exact hdone g' (t + 1 + 1) hinv' (by omega)
+        fun g' t ht hinv' hnr hnm =>
+        hdone g' (t + 1 + 1) hinv' (by simp only [potential, hnr, hnm]; omega)
 
 end Programs
 

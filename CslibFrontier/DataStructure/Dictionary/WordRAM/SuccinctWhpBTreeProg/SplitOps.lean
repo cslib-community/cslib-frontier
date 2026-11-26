@@ -53,13 +53,8 @@ theorem splitFullNode_bits_lt {c n_max : ℕ} {nd : BTreeNode}
   have hsep_lt : laneGet (fpBitsWhp n_max + 2) nd.keysWord (tMinWhp n_max - 1) <
       2 ^ keyLaneBitsWhp n_max := by
     rw [laneGet_eq_div_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have htk_lt : wordTakeLow (fpBitsWhp n_max + 2) (tMinWhp n_max) nd.keysWord <
-      2 ^ keysWordBitsWhp n_max := by
-    unfold keysWordBitsWhp keyLaneBitsWhp
-    exact (wordTakeLow_lt _ _ _).trans_le
-      (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
-  have htk1_lt : wordTakeLow (fpBitsWhp n_max + 2) (tMinWhp n_max - 1) nd.keysWord <
-      2 ^ keysWordBitsWhp n_max := by
+  have htk_lt (m : ℕ) (hm : m ≤ tMinWhp n_max) :
+      wordTakeLow (fpBitsWhp n_max + 2) m nd.keysWord < 2 ^ keysWordBitsWhp n_max := by
     unfold keysWordBitsWhp keyLaneBitsWhp
     exact (wordTakeLow_lt _ _ _).trans_le
       (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
@@ -74,12 +69,9 @@ theorem splitFullNode_bits_lt {c n_max : ℕ} {nd : BTreeNode}
   have hdv_lt : wordDropLow (valLaneBitsWhp n_max) (tMinWhp n_max) nd.valsWord <
       2 ^ valsWordBitsWhp n_max := by
     rw [wordDropLow_eq_div]; exact (Nat.div_le_self _ _).trans_lt hv
-  unfold splitFullNode
-  by_cases hlf : metaIsLeaf nd.metaWord = true
-  · simp only [hlf, ↓reduceIte, mkNodeMeta]
-    exact ⟨by omega, htk_lt, htv_lt, hsep_lt, by omega, hdk_lt, hdv_lt⟩
-  · simp only [hlf, Bool.false_eq_true, ↓reduceIte, mkNodeMeta]
-    exact ⟨by omega, htk1_lt, htv_lt, hsep_lt, by omega, hdk_lt, hdv_lt⟩
+  unfold splitFullNode mkNodeMeta
+  split_ifs <;> dsimp only <;> refine ⟨by omega, htk_lt _ ?_, htv_lt, hsep_lt,
+    by omega, hdk_lt, hdv_lt⟩ <;> omega
 
 /-- Shared 4-write frame lemma for proactive root/child splits: writing 3 nodes `(idx1, nd1)`,
 `(idx2, nd2)`, `(idx3, nd3)` below `newA` followed by `writeSliceAllocGenProg` establishes
@@ -193,21 +185,8 @@ theorem threeNodeWrites_and_alloc_sliceRep
         (nodes3 u).valsWord := fun u hu => by
     have heq_u : Function.update (Function.update (Function.update aux0 idx1 nd1) idx2 nd2)
         idx3 nd3 u = nodes3 u := by
-      dsimp only [nodes3]
-      by_cases h3 : u = idx3
-      · subst h3; simp
-      · rw [Function.update_of_ne h3, Function.update_of_ne h3]
-        by_cases h2 : u = idx2
-        · subst h2; simp
-        · rw [Function.update_of_ne h2, Function.update_of_ne h2]
-          by_cases h1 : u = idx1
-          · subst h1; simp
-          · rw [Function.update_of_ne h1, Function.update_of_ne h1]
-            rcases hcov u hu with hlt | h1' | h2' | h3'
-            · simp [aux0, hlt]
-            · exact absurd h1' h1
-            · exact absurd h2' h2
-            · exact absurd h3' h3
+      rcases hcov u hu with hlt | rfl | rfl | rfl <;>
+        simp [nodes3, aux0, Function.update_apply, *]
     simpa only [heq_u] using hs3_nd u hu
   have hroot_s3 : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s3.mem
       (16 * (sIdx / 3) + 11 + 2 * (sIdx % 3)) = sl.root :=
@@ -221,20 +200,15 @@ theorem threeNodeWrites_and_alloc_sliceRep
     rw [clientState_bind, clientState_bind, clientState_bind]
   dsimp only [w1, w2, w3, w4] at hs'_eq ⊢
   rw [hs'_eq]
-  refine ⟨hfr4.trans (hfr3.trans (hfr2.trans hfr1)), ?_, ?_, hrep4, ?_, ?_, ?_⟩
+  refine ⟨hfr4.trans (hfr3.trans (hfr2.trans hfr1)), ?_,
+    validProg_bind hvp1 (validProg_bind hvp2 (validProg_bind hvp3 hvp4)), hrep4,
+    fun sIdx' hsIdx' hne sl₂ hr₂ => hoth4 sIdx' hsIdx' hne sl₂
+      (hoth3 sIdx' hsIdx' hne sl₂ (hoth2 sIdx' hsIdx' hne sl₂ (hoth1 sIdx' hsIdx' hne sl₂ hr₂))),
+    fun idx hidx hneA => (hbm4 idx hidx hneA).trans (hbm_s3 idx hidx), fun a ha => ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     change memoryCost w1 s + (memoryCost w2 s1 + (memoryCost w3 s2 + memoryCost w4 s3)) = 40
     rw [hmc1, hmc2, hmc3, hmc4]
-  · refine validProg_bind hvp1 ?_
-    refine validProg_bind hvp2 ?_
-    exact validProg_bind hvp3 hvp4
-  · intro sIdx' hsIdx' hne sl₂ hr₂
-    exact hoth4 sIdx' hsIdx' hne sl₂
-      (hoth3 sIdx' hsIdx' hne sl₂ (hoth2 sIdx' hsIdx' hne sl₂ (hoth1 sIdx' hsIdx' hne sl₂ hr₂)))
-  · intro idx hidx hneA
-    exact (hbm4 idx hidx hneA).trans (hbm_s3 idx hidx)
-  · intro a ha
-    rcases ha with ha1 | ⟨ha2, ha3⟩ | ha4
+  · rcases ha with ha1 | ⟨ha2, ha3⟩ | ha4
     · exact (hout4 a (Or.inl ha1)).trans (hout123 a (Or.inl (by omega)))
     · exact (hout4 a (Or.inr ha2)).trans (hout123 a (Or.inl ha3))
     · exact (hout4 a (Or.inr (by omega))).trans (hout123 a (Or.inr ha4))
@@ -333,8 +307,7 @@ private theorem realizes_writeSplitFourBody :
         d.2.1.2.1 < wpNSlice d.1.1.1 ∧
         d.2.2.1.1 < wpNSlice d.1.1.1)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, ⟨⟨⟨u1, nd1⟩, ⟨u2, nd2⟩⟩, ⟨⟨u3, nd3⟩, newA⟩⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx, hu1, hu2, hu3⟩ := h
@@ -355,19 +328,10 @@ private theorem realizes_writeSplitFourBody :
     first
     | decide
     | exact henv.fits_const (by decide)
-    | exact henv.fits_of_le_n_max (hidx1.le.trans htot_le)
-    | exact henv.fits_of_le_n_max (hidx2.le.trans htot_le)
-    | exact henv.fits_of_le_n_max (hidx3.le.trans htot_le)
     | exact henv.fits_of_le_n_max (by omega)
-    | exact henv.btMeta_safe hidx1
-    | exact henv.btKeys_safe hidx1
-    | exact henv.btVals_safe hidx1
-    | exact henv.btMeta_safe hidx2
-    | exact henv.btKeys_safe hidx2
-    | exact henv.btVals_safe hidx2
-    | exact henv.btMeta_safe hidx3
-    | exact henv.btKeys_safe hidx3
-    | exact henv.btVals_safe hidx3
+    | exact henv.btMeta_safe ‹_›
+    | exact henv.btKeys_safe ‹_›
+    | exact henv.btVals_safe ‹_›
     | exact henv.bktMeta_safe (by omega)
 
 

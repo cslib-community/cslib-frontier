@@ -158,13 +158,11 @@ theorem array_values {input : List ℤ} {rs : List (ℕ × ℕ)}
   split_ifs at hu
   · exact .inl (List.mem_singleton.mp hu)
   · obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hu
-    obtain ⟨z, hz, he⟩ := List.mem_map.mp ((hkeys p.1).mp (List.mem_map.mpr
-      ⟨p, (List.mem_filter.mp hp).1, rfl⟩))
+    obtain ⟨z, hz, he⟩ := List.mem_map.mp ((hkeys p.1).mp
+      (List.mem_map_of_mem (List.mem_of_mem_filter hp)))
     refine .inr ⟨z, hz, ?_⟩
-    rw [← he]
     unfold value
-    split_ifs
-    exacts [.inr (twice_encode z), .inl rfl]
+    split_ifs <;> simp [← he, twice_encode]
 
 /-- Every compact output word is a canonical signed encoding. -/
 theorem array_canonical {input : List ℤ} {rs : List (ℕ × ℕ)}
@@ -190,13 +188,10 @@ theorem array_magnitude {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
     |Signed.decode u| ≤ (2 * U : ℕ) := by
   rcases array_values hkeys U Λ j u hu with rfl | ⟨z, hz, rfl | rfl⟩
   · simp [Signed.decode]
-  · rw [Signed.decode_encode]
-    have := hvalues z hz
-    omega
-  · rw [Signed.decode_encode]
+  · simpa only [Signed.decode_encode] using (hvalues z hz).trans (by omega)
+  · rw [Signed.decode_encode, abs_le]
     have := abs_le.mp (hvalues z hz)
-    apply abs_le.mpr
-    constructor <;> omega
+    omega
 
 /-- The compact root lists before their native layout is assigned. -/
 def roots (U : ℕ) (rs : List (ℕ × ℕ)) : List (List ℕ × List ℕ × List ℕ) :=
@@ -220,20 +215,14 @@ theorem roots_decoded {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
     (hvalues : ∀ z ∈ input, |z| ≤ (U : ℤ)) :
     (roots U rs).map decodeRoot =
       Cslib.Algorithms.ThreeSum.inputs U (fun i : Fin input.length => input[i]) := by
+  have hB1 := select_B hkeys hcounts hvalues (w := false)
+  have hB2 := select_B hkeys hcounts hvalues (w := true)
+  simp only [Bool.false_eq_true, ↓reduceIte] at hB1 hB2
   simp only [roots, Cslib.Algorithms.ThreeSum.inputs, List.map_append, List.map_flatMap,
-    decodeRoot, select_A hkeys hcounts hvalues,
-    show ∀ β β' v, ((select U β β' v.toNat 1 rs).map Signed.decode).toFinset =
-      Cslib.Algorithms.ThreeSum.splitB (2 * U) β β' v false
-        (Finset.univ.image (fun i : Fin input.length => input[i]))
-      from fun β β' v => select_B hkeys hcounts hvalues β β' v false,
-    show ∀ β β' v, ((select U β β' v.toNat 2 rs).map Signed.decode).toFinset =
-      Cslib.Algorithms.ThreeSum.splitB (2 * U) β β' v true
-        (Finset.univ.image (fun i : Fin input.length => input[i]))
-      from fun β β' v => select_B hkeys hcounts hvalues β β' v true,
-    List.map_cons, List.map_nil, List.toFinset_cons, List.toFinset_nil,
-    Signed.decode, Nat.zero_mod, ↓reduceIte, Nat.zero_div, Int.natCast_zero,
-    Finset.insert_empty, select_twice hkeys hcounts, select_original hkeys hcounts,
-    select_zero hkeys hcounts]
+    decodeRoot, select_A hkeys hcounts hvalues, hB1, hB2, List.map_cons, List.map_nil,
+    List.toFinset_cons, List.toFinset_nil, Signed.decode, Nat.zero_mod, ↓reduceIte,
+    Nat.zero_div, Int.natCast_zero, Finset.insert_empty, select_twice hkeys hcounts,
+    select_original hkeys hcounts, select_zero hkeys hcounts]
 
 private theorem map_range_mul {α : Type*} (a b : ℕ) (f : ℕ → α) :
     (List.range (a * b)).map f =
@@ -304,12 +293,8 @@ theorem Output.read_array {l : Layout} {U : ℕ} {rs : List (ℕ × ℕ)} {mem :
     (h : Output l U rs mem) {j : ℕ} (hj : j < l.arrays) :
     readArray mem (l.descriptors + 2 * j) = Math.array U l.digits rs j := by
   obtain ⟨hl, hp, hm⟩ := h j hj
-  unfold readArray
-  rw [hl, hp]
-  apply List.ext_getElem
-  · simp
-  · intro i hi hi'
-    simpa only [List.getElem_map, List.getElem_range] using hm.get i hi'
+  refine List.ext_getElem (by simp [readArray, hl]) fun i _ hi' => ?_
+  simpa only [readArray, hp, List.getElem_map, List.getElem_range] using hm.get i hi'
 
 /-- The descriptor table reads back as exactly the existing finite frontend list, in order. -/
 theorem Output.readback {n U : ℕ} {input : List ℤ} {rs : List (ℕ × ℕ)} {mem : ℕ → ℕ}
@@ -332,8 +317,9 @@ theorem Output.readback {n U : ℕ} {input : List ℤ} {rs : List (ℕ × ℕ)} 
     simpa only [Math.root, Nat.mul_zero, Nat.add_zero, Nat.mul_one] using
       congrArg Math.decodeRoot (congrArg₂ Prod.mk (hs 0 (by decide))
         (congrArg₂ Prod.mk (hs 1 (by decide)) (hs 2 (by decide))))
-  rw [he, show (List.range l.count).map (Math.root U l.digits rs) = Math.roots U rs from
-    Math.roots_indexed U rs]
+  have hi : (List.range l.count).map (Math.root U l.digits rs) = Math.roots U rs :=
+    Math.roots_indexed U rs
+  rw [he, hi]
   exact Math.roots_decoded hkeys hcounts hvalues
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend

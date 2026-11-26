@@ -73,12 +73,10 @@ private theorem start_inSpace {k : ℕ} {State : Type} [Fintype State] {T S : α
       enc encLocalState S := by
   have hn : ComputableInSpace (fun a => (enc a).length) enc encNat S :=
     (inputLength_inSpace enc).mono_le hlog
-  have hw : ComputableInSpace (fun a => outWire k State (enc a).length (T a)) enc encNat S :=
-    outWire_inSpace (k := k) (State := State) hT hn
-  have hc : ComputableInSpace (fun a => (⟨(enc a).length, T a,
-      outWire k State (enc a).length (T a), true⟩ : LocalClaim)) enc encLocalClaim S :=
-    encLocalClaim_mk_budget hn hT hw (budget_const true)
-  exact budget_prod hc (budget_const (encB := encOption encBool) none)
+  exact budget_prod
+    (encLocalClaim_mk_budget hn hT (outWire_inSpace (k := k) (State := State) hT hn)
+      (budget_const true))
+    (budget_const (encB := encOption encBool) none)
 
 /-- **A run is decided in alternating space `O(S)`** when its step count `T` is computable within
 space `S ≥ log₂ n + 1` and has `O(S)` bits: if the instance `a` is in `A` exactly when `tm`, run for
@@ -111,12 +109,10 @@ theorem exists_decidesInSpace_of_runFrom {A : Set α} {k : ℕ} {State : Type} [
       (encLocalState ((localMachine tm lc₀).replay (enc a) choices
         (⟨(enc a).length, T a, outWire k State (enc a).length (T a), true⟩, none))).length ≤
         (8 + 12 * cT + cs) * S a := by
-    have h := hcs lc₀ (enc a) (T a) _ true choices (outWire_lt _ _)
     have hn : Nat.size (enc a).length ≤ S a :=
       (Nat.size_le.mpr Nat.lt_log2_self).trans (hlog a)
-    have h1 : 1 ≤ S a := le_of_add_le_right (hlog a)
-    have := hcT a
-    nlinarith
+    nlinarith [hcs lc₀ (enc a) (T a) _ true choices (outWire_lt _ _),
+      le_of_add_le_right (hlog a), hcT a]
   exact AlternatingQueryMachine.exists_decidesInSpace (localMachine tm lc₀) localQuery_inSpace
     localNext_inSpace localHalted_inSpace localAccept_inSpace localUniversal_inSpace _
     (fun a => outWire k State (enc a).length (T a) + 1)
@@ -160,9 +156,8 @@ theorem P_subset_AL : P enc ⊆ AL enc := by
   obtain ⟨D, hD, hle⟩ := exists_pow_bound c₁ c₂ e
   have hT := budget_natPow (budget_natAdd (inputLength_inSpace enc) (budget_const 2)) D
   refine exists_decidesInSpace_of_runFrom tm (fun a => ((enc a).length + 2) ^ D) _ hT
-    (fun _ => le_rfl) ⟨2 * D, fun a => ?_⟩ (fun a => ?_) (fun a => ?_)
-  · have := size_pow_le (enc a).length hD
-    nlinarith
+    (fun _ => le_rfl) ⟨2 * D, fun a => by nlinarith [size_pow_le (enc a).length hD]⟩
+    (fun a => ?_) (fun a => ?_)
   · have := Nat.le_self_pow hD ((enc a).length + 2)
     omega
   · obtain ⟨-, hout⟩ := (htm a).runFrom_of_le (hle (enc a).length)

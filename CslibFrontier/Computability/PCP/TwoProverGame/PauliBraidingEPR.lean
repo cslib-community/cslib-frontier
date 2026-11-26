@@ -70,12 +70,8 @@ private theorem squared_disagreement_after_local_isometries
         (φ (oneKronecker (DBᴴ * DB))).re) := by
   intro T D DA DB φ
   let C := kroneckerOne (κ := K) A - oneKronecker (ι := I) B
-  have ha : DA ⊗ₖ W = (V * A) ⊗ₖ W - (A' * V) ⊗ₖ W := by
-    ext ⟨p, p'⟩ ⟨q, q'⟩
-    simp only [DA, kronecker_apply, Matrix.sub_apply, sub_mul]
-  have hb : V ⊗ₖ DB = V ⊗ₖ (W * B) - V ⊗ₖ (B' * W) := by
-    ext ⟨p, p'⟩ ⟨q, q'⟩
-    simp only [DB, kronecker_apply, Matrix.sub_apply, mul_sub]
+  have ha : DA ⊗ₖ W = (V * A) ⊗ₖ W - (A' * V) ⊗ₖ W := Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => sub_mul ..
+  have hb : V ⊗ₖ DB = V ⊗ₖ (W * B) - V ⊗ₖ (B' * W) := Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => mul_sub ..
   have hD : D = T * C + V ⊗ₖ DB - DA ⊗ₖ W := by
     simp only [D, T, C, Matrix.sub_mul, Matrix.mul_sub, ha, hb, kroneckerOne_apply,
       oneKronecker_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
@@ -86,31 +82,24 @@ private theorem squared_disagreement_after_local_isometries
   let v := applyState (T * C)
   let w := applyState (V ⊗ₖ DB)
   have htriangle : ‖v + w - u‖ ^ 2 ≤ 3 * (‖u‖ ^ 2 + ‖v‖ ^ 2 + ‖w‖ ^ 2) := by
-    have ht := (norm_sub_le (v + w) u).trans
-      (add_le_add_left (norm_add_le v w) ‖u‖)
-    have hs := (sq_le_sq₀ (norm_nonneg _) (by positivity)).mpr ht
-    nlinarith only [hs, sq_nonneg (‖u‖ - ‖v‖), sq_nonneg (‖u‖ - ‖w‖),
-      sq_nonneg (‖v‖ - ‖w‖)]
+    have hs := (sq_le_sq₀ (norm_nonneg _) (by positivity)).mpr
+      ((norm_sub_le (v + w) u).trans (add_le_add_left (norm_add_le v w) ‖u‖))
+    nlinarith only [hs, sq_nonneg (‖u‖ - ‖v‖), sq_nonneg (‖u‖ - ‖w‖), sq_nonneg (‖v‖ - ‖w‖)]
   have hu : ‖u‖ ^ 2 = (φ (kroneckerOne (DAᴴ * DA))).re := by
-    dsimp only [u, applyState, φ]
     rw [norm_toLp_mulVec_sq_eq, AlgState.vector_apply, conjTranspose_kronecker,
       ← mul_kronecker_mul, hW, kroneckerOne_apply]
   have hv : ‖v‖ ^ 2 = φ.norm C ^ 2 := by
     have hT : Tᴴ * T = 1 := by
       simp only [T, conjTranspose_kronecker, ← mul_kronecker_mul, hV, hW, one_kronecker_one]
-    dsimp only [v, applyState, φ]
     rw [norm_toLp_mulVec_sq_eq, AlgState.norm_sq, AlgState.vector_apply,
       Matrix.star_eq_conjTranspose, conjTranspose_mul, Matrix.mul_assoc,
       ← Matrix.mul_assoc Tᴴ T, hT, Matrix.one_mul]
   have hw : ‖w‖ ^ 2 = (φ (oneKronecker (DBᴴ * DB))).re := by
-    dsimp only [w, applyState, φ]
     rw [norm_toLp_mulVec_sq_eq, AlgState.vector_apply, conjTranspose_kronecker,
       ← mul_kronecker_mul, hV, oneKronecker_apply]
-  change ‖applyState D‖ ^ 2 ≤ _
-  rw [hD]
-  simp only [applyState, sub_mulVec, add_mulVec, WithLp.toLp_sub, WithLp.toLp_add]
-  change ‖v + w - u‖ ^ 2 ≤ _
-  simpa only [hu, hv, hw, C] using htriangle
+  rw [hu, hv, hw] at htriangle
+  simpa only [hD, u, v, w, applyState, sub_mulVec, add_mulVec, WithLp.toLp_sub,
+    WithLp.toLp_add, C] using htriangle
 
 private theorem norm_compressed_action_sub_sq_le
     {I H : Type*} [Fintype I] [Fintype H]
@@ -139,14 +128,9 @@ private theorem norm_compressed_action_sub_sq_le
   let u' : EuclideanSpace ℂ H := WithLp.toLp 2 (P *ᵥ u.ofLp)
   let v' : EuclideanSpace ℂ H := WithLp.toLp 2 (Q *ᵥ v.ofLp)
   have hPc : (1 - Pᴴ * P).PosSemidef := by
-    rw [hP, hPP]
-    change Q.PosSemidef
-    simpa only [hQ, hQQ] using posSemidef_conjTranspose_mul_self Q
+    simpa only [hP, hPP, hQ, hQQ] using posSemidef_conjTranspose_mul_self Q
   have hQc : (1 - Qᴴ * Q).PosSemidef := by
-    rw [hQ, hQQ]
-    change (1 - (1 - P)).PosSemidef
-    rw [sub_sub_cancel]
-    simpa only [hP, hPP] using posSemidef_conjTranspose_mul_self P
+    simpa only [hQ, hQQ, Q, sub_sub_cancel, hP, hPP] using posSemidef_conjTranspose_mul_self P
   have horth : inner ℂ u' (-v') = 0 := by
     rw [inner_neg_right, EuclideanSpace.inner_eq_star_dotProduct, dotProduct_comm]
     change -(star (P *ᵥ u.ofLp) ⬝ᵥ (Q *ᵥ v.ofLp)) = 0
@@ -159,9 +143,8 @@ private theorem norm_compressed_action_sub_sq_le
   change ‖u' + -v'‖ ^ 2 ≤ ‖u‖ ^ 2 + ‖v‖ ^ 2
   simp only [pow_two, norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero u' (-v') horth,
     norm_neg]
-  have hu : ‖u'‖ ≤ ‖u‖ := norm_toLp_mulVec_le_of_posSemidef hPc u
-  have hv : ‖v'‖ ≤ ‖v‖ := norm_toLp_mulVec_le_of_posSemidef hQc v
-  gcongr
+  exact add_le_add (mul_self_le_mul_self (norm_nonneg _) (norm_toLp_mulVec_le_of_posSemidef hPc u))
+    (mul_self_le_mul_self (norm_nonneg _) (norm_toLp_mulVec_le_of_posSemidef hQc v))
 
 private theorem expect_norm_compressed_action_sub_sq_le
     {I H K F : Type*} [Fintype I] [Fintype H] [DecidableEq H] [Fintype K] [Fintype F]
@@ -183,25 +166,22 @@ private theorem expect_norm_compressed_action_sub_sq_le
         (φ (Mᴴ * M)).re) ≤ ξ) :
     (𝔼 x, ‖(WithLp.toLp 2 (((D * E) * A₀ x - C x * (D * E)) *ᵥ ψ.ofLp) :
       EuclideanSpace ℂ K)‖ ^ 2) ≤ if exactIntertwines then δ + η else 2 * (δ + η + ξ) := by
-  dsimp only at hr hc
   simp only [AlgState.norm_vector] at hr hc
   let before (x : F) : EuclideanSpace ℂ H :=
     WithLp.toLp 2 ((E * A₀ x - R x * E) *ᵥ ψ.ofLp)
   let after (x : F) : EuclideanSpace ℂ K :=
     WithLp.toLp 2 ((D * R x - C x * D) *ᵥ (E *ᵥ ψ.ofLp))
-  have h := expect_le_expect (s := (univ : Finset F)) fun x _ =>
-    norm_compressed_action_sub_sq_le ψ E P (A x) (B x) (R x) hP hPP hPE (hPB x) (A₀ x) (hA₀ x)
-  dsimp only at h
-  rw [expect_add_distrib] at h
-  have hb : (𝔼 x, ‖before x‖ ^ 2) ≤ δ + η := h.trans (add_le_add hr hc)
+  have hb : (𝔼 x, ‖before x‖ ^ 2) ≤ δ + η :=
+    (expect_le_expect fun x _ => norm_compressed_action_sub_sq_le ψ E P (A x) (B x) (R x)
+      hP hPP hPE (hPB x) (A₀ x) (hA₀ x)).trans ((expect_add_distrib ..).le.trans (add_le_add hr hc))
   have hsplit (x : F) :
       (WithLp.toLp 2 (((D * E) * A₀ x - C x * (D * E)) *ᵥ ψ.ofLp) : EuclideanSpace ℂ K) =
         WithLp.toLp 2 (D *ᵥ (before x).ofLp) + after x := by
-    rw [show (D * E) * A₀ x - C x * (D * E) =
-      D * (E * A₀ x - R x * E) + (D * R x - C x * D) * E by
-        simp only [Matrix.mul_assoc, Matrix.mul_sub, Matrix.sub_mul]
-        abel]
-    simp only [before, after, add_mulVec, WithLp.toLp_add, ← mulVec_mulVec]
+    have hmat : (D * E) * A₀ x - C x * (D * E) =
+        D * (E * A₀ x - R x * E) + (D * R x - C x * D) * E := by
+      simp only [Matrix.mul_assoc, Matrix.mul_sub, Matrix.sub_mul]
+      abel
+    simp only [hmat, before, after, add_mulVec, WithLp.toLp_add, ← mulVec_mulVec]
   simp_rw [hsplit]
   split_ifs with hexact
   · have hzero (x : F) : after x = 0 := by simp [after, he hexact x]
@@ -229,10 +209,8 @@ private theorem map_average_basisObservable
     e (𝔼 d, pauliBraidingBasisObservable M b x d) =
       𝔼 d, pauliBraidingBasisObservable N b x d := by
   classical
-  have he := map_expect (e.restrictScalars ℚ≥0) (fun d => pauliBraidingBasisObservable M b x d) univ
-  change e _ = 𝔼 d, e _ at he
-  rw [he]
-  refine expect_congr rfl fun d _ => ?_
+  refine (map_expect (e.restrictScalars ℚ≥0)
+    (fun d => pauliBraidingBasisObservable M b x d) univ).trans (expect_congr rfl fun d _ => ?_)
   let q := PauliConsistencyQuestion.ofChecked b x d
   let f : (Bool × Bool) ⊕ Bool → Bool := Sum.elim q.braidingCheckedBit fun _ => false
   change e (((M q.toBraidingQuestion).map f).observable) =
@@ -404,8 +382,8 @@ theorem exists_pauliBraidingExtraction
   have hscore :
       (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).quantumWinProb T =
         (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).quantumWinProb S := by
-    rw [SeededGame.quantumWinProb, SeededGame.quantumWinProb, show T.answers = S.answers from
-      funext fun x => funext fun y => S.answers_dilate a₀ a₀ x y]
+    rw [SeededGame.quantumWinProb, SeededGame.quantumWinProb]
+    exact congrArg _ (funext₂ (S.answers_dilate a₀ a₀))
   obtain ⟨P, Q, _, hclose, hcross, ⟨J, _, _, V, hV⟩, ⟨L, _, _, W, hW⟩⟩ :=
     exists_local_pauliCompression_of_pauliBraidingGame T
       (fun b q => S.isProjective_alice_dilate a₀ a₀ (.basis b q))
@@ -414,29 +392,26 @@ theorem exists_pauliBraidingExtraction
   have h := norm_sub_extractedEprProjection_sq_le T.state T.norm_state
     (fun b => (P b).charObs) (fun b => (Q b).charObs) V W hV hW hcross
   let E := extractedEprProjection (Q := Fin n → Bool) (J := J) (K := L)
-  let U := V * ancillaEmbed a₀
-  let R := W * ancillaEmbed a₀
-  let D := V ⊗ₖ W
   let e₁ := ancillaEmbed (ι := I) a₀
   let e₂ := ancillaEmbed (ι := K) a₀
+  let U := V * e₁
+  let R := W * e₂
+  let D := V ⊗ₖ W
   let F := QuantumStrategy.dilateEmbed (ι := I) (κ := K) a₀ a₀
   have he₁ : e₁ᴴ * e₁ = 1 := conjTranspose_ancillaEmbed_mul a₀
   have he₂ : e₂ᴴ * e₂ = 1 := conjTranspose_ancillaEmbed_mul a₀
   have hD : Dᴴ * D = 1 := by
     simp only [D, conjTranspose_kronecker, ← mul_kronecker_mul, hV.isometry, hW.isometry,
       one_kronecker_one]
-  have hDF : D * F = U ⊗ₖ R := by
-    change (V ⊗ₖ W) * (e₁ ⊗ₖ e₂) = _
-    rw [← mul_kronecker_mul]
-  let r := pauliBraidingRoundingError (3 * ε)
+  have hDF : D * F = U ⊗ₖ R := (mul_kronecker_mul V e₁ W e₂).symm
   let η := pauliBraidingRoundedConsistencyError (3 * ε)
   let ξ := pauliBraidingTwistedCommutationError (3 * ε)
   refine ⟨J, inferInstance, inferInstance, L, inferInstance, inferInstance, U, R,
     ⟨?_, ?_, ?_, ?_, ?_⟩⟩
-  · rw [show U = V * ancillaEmbed a₀ from rfl, conjTranspose_mul, Matrix.mul_assoc,
-      ← Matrix.mul_assoc Vᴴ V, hV.isometry, Matrix.one_mul, conjTranspose_ancillaEmbed_mul]
-  · rw [show R = W * ancillaEmbed a₀ from rfl, conjTranspose_mul, Matrix.mul_assoc,
-      ← Matrix.mul_assoc Wᴴ W, hW.isometry, Matrix.one_mul, conjTranspose_ancillaEmbed_mul]
+  · rw [conjTranspose_mul, Matrix.mul_assoc, ← Matrix.mul_assoc Vᴴ, hV.isometry,
+      Matrix.one_mul, he₁]
+  · rw [conjTranspose_mul, Matrix.mul_assoc, ← Matrix.mul_assoc Wᴴ, hW.isometry,
+      Matrix.one_mul, he₂]
   · change ‖(WithLp.toLp 2 (((E - 1) * (V ⊗ₖ W)) *ᵥ
       (QuantumStrategy.dilateEmbed a₀ a₀ *ᵥ S.state.ofLp)) :
         EuclideanSpace ℂ (((Fin n → Bool) × J) × (Fin n → Bool) × L))‖ ^ 2 ≤ _ at h
@@ -451,7 +426,6 @@ theorem exists_pauliBraidingExtraction
     let C (x : Fin n → Bool) := (cond b (pauliZPow x) (pauliXPow x)) ⊗ₖ
       (1 : Matrix J J ℂ)
     let G := kroneckerOne (κ := K × ((Bool × Bool) ⊕ Bool)) (e₁ * e₁ᴴ)
-    let φ := T.toCommuting.state
     have hG : Gᴴ = G := by
       simp only [G, kroneckerOne_apply, conjTranspose_kronecker, conjTranspose_mul,
         conjTranspose_conjTranspose, conjTranspose_one]
@@ -460,11 +434,9 @@ theorem exists_pauliBraidingExtraction
         he₁, Matrix.one_mul]
     have hGF : G * F = F := by
       simp only [G, F, QuantumStrategy.dilateEmbed, kroneckerOne_apply, ← mul_kronecker_mul,
-        Matrix.mul_assoc, show (ancillaEmbed (ι := I) a₀) = e₁ from rfl,
-        he₁, Matrix.mul_one, Matrix.one_mul]
+        Matrix.mul_assoc, e₁, he₁, Matrix.mul_one, Matrix.one_mul]
     have hcompress (x : Fin n → Bool) : G * A x * F = F * A₀ x := by
-      change G * (𝔼 d, pauliBraidingBasisObservable T.toCommuting.alice b x d) * F =
-        F * (𝔼 d, pauliBraidingBasisObservable S.toCommuting.alice b x d)
+      dsimp only [A, A₀]
       have hT := map_average_basisObservable kroneckerOne.toLinearMap
         (fun q => (T.alice q).toMeasurement) T.toCommuting.alice (fun _ _ => rfl) b x
       have hS := map_average_basisObservable kroneckerOne.toLinearMap
@@ -474,29 +446,25 @@ theorem exists_pauliBraidingExtraction
       simp only [G, F, QuantumStrategy.dilateEmbed, kroneckerOne_apply, ← mul_kronecker_mul,
         Matrix.one_mul, Matrix.mul_one]
       congr 1
-      change (e₁ * e₁ᴴ) * _ * e₁ = e₁ * _
       rw [Matrix.mul_assoc e₁ e₁ᴴ, Matrix.mul_assoc e₁]
       exact congrArg (e₁ * ·) (compress_average_basisObservable S.alice a₀ b x)
-    have hc : (𝔼 x, φ.norm (M x - O x) ^ 2) ≤ η := hcross b
     have he (hb : b) (x : Fin n → Bool) : D * M x = kroneckerOne (C x) * D := by
       subst hb
       simp only [D, M, C, Bool.cond_true, kroneckerOne_apply, ← mul_kronecker_mul,
         Matrix.mul_one, Matrix.one_mul, hV.intertwinesZ]
     have hi (hb : ¬b) : (𝔼 x, let N := D * M x - kroneckerOne (C x) * D
-        (φ (Nᴴ * N)).re) ≤ ξ := by
-      have hg (x : Fin n → Bool) :
-          D * M x - kroneckerOne (C x) * D =
-            (V * (P b).charObs x - C x * V) ⊗ₖ W := by
-        simp only [D, M, kroneckerOne_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
-        ext ⟨i, j⟩ ⟨i', j'⟩
-        simp only [Matrix.sub_apply, kronecker_apply, sub_mul]
-      simp only [hg, conjTranspose_kronecker, ← mul_kronecker_mul,
-        hW.isometry, ← kroneckerOne_apply]
+        (T.toCommuting.state (Nᴴ * N)).re) ≤ ξ := by
       obtain rfl := Bool.eq_false_iff.2 hb
+      have hg (x : Fin n → Bool) :
+          D * M x - kroneckerOne (C x) * D = (V * (P false).charObs x - C x * V) ⊗ₖ W := by
+        simp only [D, M, kroneckerOne_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
+        exact Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => (sub_mul ..).symm
+      simp only [hg, conjTranspose_kronecker, ← mul_kronecker_mul, hW.isometry,
+        ← kroneckerOne_apply]
       exact hV.intertwinesX
     have hh := expect_norm_compressed_action_sub_sq_le S.state F D hD G hG hGG hGF
       A O M A₀ (kroneckerOne ∘ C) (fun _ => commute_kroneckerOne_oneKronecker _ _)
-      hcompress T.norm_state (hclose b).1 hc b he hi
+      hcompress T.norm_state (hclose b).1 (hcross b) b he hi
     rwa [hDF] at hh
   · intro b
     let A (x : Fin n → Bool) := 𝔼 d, pauliBraidingBasisObservable T.toCommuting.bob b x d
@@ -517,11 +485,9 @@ theorem exists_pauliBraidingExtraction
         he₂, Matrix.one_mul]
     have hGF : G * F = F := by
       simp only [G, F, QuantumStrategy.dilateEmbed, oneKronecker_apply, ← mul_kronecker_mul,
-        Matrix.mul_assoc, show (ancillaEmbed (ι := K) a₀) = e₂ from rfl,
-        he₂, Matrix.mul_one, Matrix.one_mul]
+        Matrix.mul_assoc, e₂, he₂, Matrix.mul_one, Matrix.one_mul]
     have hcompress (x : Fin n → Bool) : G * A x * F = F * A₀ x := by
-      change G * (𝔼 d, pauliBraidingBasisObservable T.toCommuting.bob b x d) * F =
-        F * (𝔼 d, pauliBraidingBasisObservable S.toCommuting.bob b x d)
+      dsimp only [A, A₀]
       have hT := map_average_basisObservable oneKronecker.toLinearMap
         (fun q => (T.bob q).toMeasurement) T.toCommuting.bob (fun _ _ => rfl) b x
       have hS := map_average_basisObservable oneKronecker.toLinearMap
@@ -531,28 +497,23 @@ theorem exists_pauliBraidingExtraction
       simp only [G, F, QuantumStrategy.dilateEmbed, oneKronecker_apply, ← mul_kronecker_mul,
         Matrix.one_mul, Matrix.mul_one]
       congr 1
-      change (e₂ * e₂ᴴ) * _ * e₂ = e₂ * _
       rw [Matrix.mul_assoc e₂ e₂ᴴ, Matrix.mul_assoc e₂]
       exact congrArg (e₂ * ·) (compress_average_basisObservable S.bob a₀ b x)
     have hc : (𝔼 x, φ.norm (M x - O x) ^ 2) ≤ η := by
-      simp_rw [show ∀ x, φ.norm (M x - O x) = φ.norm (O x - M x) from
-        fun x => φ.norm_sub_comm _ _]
-      exact hcross b
+      simpa only [φ.norm_sub_comm (M _) (O _)] using hcross b
     have he (hb : b) (x : Fin n → Bool) : D * M x = oneKronecker (C x) * D := by
       subst hb
       simp only [D, M, C, Bool.cond_true, oneKronecker_apply, ← mul_kronecker_mul,
         Matrix.mul_one, Matrix.one_mul, hW.intertwinesZ]
     have hi (hb : ¬b) : (𝔼 x, let N := D * M x - oneKronecker (C x) * D
         (φ (Nᴴ * N)).re) ≤ ξ := by
-      have hg (x : Fin n → Bool) :
-          D * M x - oneKronecker (C x) * D =
-            V ⊗ₖ (W * (Q b).charObs x - C x * W) := by
-        simp only [D, M, oneKronecker_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
-        ext ⟨i, j⟩ ⟨i', j'⟩
-        simp only [Matrix.sub_apply, kronecker_apply, mul_sub]
-      simp only [hg, conjTranspose_kronecker, ← mul_kronecker_mul,
-        hV.isometry, ← oneKronecker_apply]
       obtain rfl := Bool.eq_false_iff.2 hb
+      have hg (x : Fin n → Bool) :
+          D * M x - oneKronecker (C x) * D = V ⊗ₖ (W * (Q false).charObs x - C x * W) := by
+        simp only [D, M, oneKronecker_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
+        exact Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => (mul_sub ..).symm
+      simp only [hg, conjTranspose_kronecker, ← mul_kronecker_mul, hV.isometry,
+        ← oneKronecker_apply]
       exact hW.intertwinesX
     have hh := expect_norm_compressed_action_sub_sq_le S.state F D hD G hG hGG hGF
       A O M A₀ (oneKronecker ∘ C) (fun _ => (commute_kroneckerOne_oneKronecker _ _).symm)

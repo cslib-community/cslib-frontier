@@ -84,25 +84,21 @@ theorem rawPositiveSample_sub_le (l bin : ℕ) (t : RawTask k)
     (fun z => estimated R.right z y) (fun z => canonical R.right z y)
     (fun z _ => hleft z) (fun z _ => hright z)
   rw [← he, ← hc] at hs
-  unfold rawPositiveSample positiveChildError
-  dsimp only
-  rw [show b * usageRatio channels endpoint R.direct y * estimated R.direct x y +
-      b * usageRatio channels endpoint R.right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ)) *
-        (∑ z, estimated R.left x z * estimated R.right z y) -
-      (b * usageRatio channels endpoint R.direct y * canonical R.direct x y +
-      b * usageRatio channels endpoint R.right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ)) *
-        (∑ z, canonical R.left x z * canonical R.right z y)) =
+  have hdiff : rawPositiveSample channels l bin t source midpoint endpoint b estimated x y -
+      rawPositiveSample channels l bin t source midpoint endpoint b canonical x y =
       b * usageRatio channels endpoint R.direct y *
         (estimated R.direct x y - canonical R.direct x y) +
-      (b * usageRatio channels endpoint R.right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ))) *
+      b * usageRatio channels endpoint R.right y *
+        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ)) *
         ((∑ z, estimated R.left x z * estimated R.right z y) -
-          ∑ z, canonical R.left x z * canonical R.right z y) by ring]
-  exact (abs_add_le _ _).trans (by
-    simp only [abs_mul]
-    exact add_le_add le_rfl (mul_le_mul_of_nonneg_left hs (by positivity)))
+          ∑ z, canonical R.left x z * canonical R.right z y) := by
+    unfold rawPositiveSample
+    dsimp only; ring
+  rw [hdiff]
+  unfold positiveChildError
+  refine (abs_add_le _ _).trans ?_
+  simp only [abs_mul]
+  exact add_le_add le_rfl (mul_le_mul_of_nonneg_left hs (by positivity))
 
 omit [Fintype V] in
 /-- Literal special-negative perturbation, including the zero/base case. -/
@@ -128,7 +124,7 @@ theorem rawSample_sub_le (l bin : ℕ) (t : RawTask k)
       positiveChildError channels l bin t source midpoint endpoint b CA CB estimated canonical x y +
       negativeChildError channels l bin t source midpoint endpoint b estimated canonical x y := by
   unfold rawSample
-  rw [show ∀ a b c d : ℝ, (a-b)-(c-d) = (a-c)-(b-d) by intros; ring]
+  rw [sub_sub_sub_comm]
   exact (abs_sub _ _).trans (add_le_add
     (rawPositiveSample_sub_le channels l bin t source midpoint endpoint b CA CB
       estimated canonical x y hleft hright)
@@ -157,19 +153,15 @@ theorem residual_bins_sub_le (S : Finset Ω) (bins : Finset ℕ) (l : ℕ)
       negativeChildError channels l 0 .residual source midpoint endpoint (b 0)
         (estimated 0 σ) (canonical 0 σ) x y) := by
   rw [← expect_sub_distrib]
-  apply (abs_expect_le _ _).trans
-  apply expect_le_expect
-  intro σ hσ
-  rw [show ∀ a b c d : ℝ, (a-b)-(c-d) = (a-c)-(b-d) by intros; ring]
-  apply (abs_sub _ _).trans
-  apply add_le_add
-  · rw [← sum_sub_distrib]
-    exact (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun i hi =>
-      rawPositiveSample_sub_le channels l i .residual source midpoint endpoint (b i)
-        CA (CB i) (estimated i σ) (canonical i σ) x y
-        (hleft i hi σ hσ) (hright i hi σ hσ))
-  · exact (rawNegativeSample_sub_abs channels l 0 .residual source midpoint endpoint (b 0)
-      (estimated 0 σ) (canonical 0 σ) x y).le
+  refine (abs_expect_le _ _).trans (expect_le_expect fun σ hσ => ?_)
+  rw [sub_sub_sub_comm]
+  refine (abs_sub _ _).trans (add_le_add ?_
+    (rawNegativeSample_sub_abs channels l 0 .residual source midpoint endpoint (b 0)
+      (estimated 0 σ) (canonical 0 σ) x y).le)
+  rw [← sum_sub_distrib]
+  exact (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun i hi =>
+    rawPositiveSample_sub_le channels l i .residual source midpoint endpoint (b i)
+      CA (CB i) (estimated i σ) (canonical i σ) x y (hleft i hi σ hσ) (hright i hi σ hσ))
 
 end Matrix.HierarchyParams.HierarchyTask
 
@@ -219,11 +211,10 @@ theorem incomingChildren_zero_off_usage {q : ℕ}
     incomingChildren HP D ident Kc cutoff raw prep maximum r σ x y = 0 := by
   cases ht : r.task with
   | row stage task =>
-    cases task <;> simp only [incomingChildren, ht]
-    all_goals first
-    | rfl
-    | exact correctionRequest_eq_zero_of_not_usage D ident r _ _ _ _ _ _ _ _ _ _ σ x y hy
-    | exact normalizedRequest_zero_off_usage D ident r _ _ _ _ _ σ x y hy
+    cases task <;> simp only [incomingChildren, ht] <;> first
+      | rfl
+      | exact correctionRequest_eq_zero_of_not_usage D ident r _ _ _ _ _ _ _ _ _ _ σ x y hy
+      | exact normalizedRequest_zero_off_usage D ident r _ _ _ _ _ σ x y hy
   | _ =>
     simp only [incomingChildren, ht]
     exact normalizedRequest_zero_off_usage D ident r _ _ _ _ _ σ x y hy
@@ -337,9 +328,7 @@ theorem denseChild_congr_cutoff (D : ZMod P) (ident : V → ZMod P)
       denseChild D ident r b h ρ K C σ := by
   ext x y
   unfold denseChild normalizedRequest
-  split_ifs
-  · simp only [DenseRowRecipe.normalized, hab]
-  · rfl
+  split_ifs <;> simp [DenseRowRecipe.normalized, hab]
 
 /-- The genuine dense child range is inherited from the same normalized evaluator.
 This remains valid on empty source/usage events. -/

@@ -130,16 +130,11 @@ private lemma transfer {n N e : ℕ} (x : Fin 3 → ℕ) (f : Formula n)
       (fun i => (↑z⁻¹ : Matrix _ _ _) * specializedLift n N e x i.succ) v)
     (hu : IsUnit v) :
     ∃ a, Evaluates f (tupleAt n N e x) a ∧ IsUnit a := by
-  have hzinv : regular e (↑z⁻¹ : Matrix _ _ _) = (rationalLift n N e x 0)⁻¹ := by
-    symm
-    apply Matrix.inv_eq_left_inv
-    change regular e (↑z⁻¹ : Matrix _ _ _) * regular e (specializedLift n N e x 0) = 1
-    simp only [← map_mul, ← hz, Units.inv_mul, map_one]
+  have hzinv : regular e (↑z⁻¹ : Matrix _ _ _) = (rationalLift n N e x 0)⁻¹ :=
+    (Matrix.inv_eq_left_inv
+      (by simp only [rationalLift, ← map_mul, ← hz, Units.inv_mul, map_one])).symm
   refine ⟨regular e v, ?_, hu.map (regular e)⟩
-  change f.Eval (algebraMap ℚ _) (tupleAt n N e x) (regular e v)
-  change f.Eval (algebraMap ℚ _)
-    (fun i => (regular e (specializedLift n N e x 0))⁻¹ * regular e
-      (specializedLift n N e x i.succ)) (regular e v)
+  unfold Evaluates tupleAt
   simpa only [map_mul, hzinv, rationalLift] using hf.map_algebraMap (regular e)
 
 private lemma emitted {n N e H : ℕ} (x : Fin 3 → Fin H)
@@ -174,9 +169,7 @@ private lemma finPencil_unit {n : ℕ} {R : Type*} [Ring R] (c : ℚ →+* R)
     IsUnit ((finPencil f).map (Affine.eval c X)) ↔ IsUnit (Formula.realized c X f) := by
   let E := Matrix.reindexRingEquiv R (Fintype.equivFin f.Index)
   change IsUnit (E (Formula.realized c X f)) ↔ IsUnit (Formula.realized c X f)
-  constructor
-  · intro h; simpa using h.map E.symm
-  · exact fun h => h.map E
+  exact ⟨fun h => by simpa [E] using h.map E.symm, fun h => h.map E⟩
 
 /-- A one-by-one constant pencil used to enforce normalization. -/
 private def onePencil (n : ℕ) :
@@ -207,32 +200,26 @@ private lemma condition_nonzero {n s N e : ℕ} (hs : 1 ≤ s) (f : Formula n) (
   · apply PencilCertificates.determinant_ne_zero (CyclotomicRing.character e)
       (CyclotomicRing.character_primitive e) (witnessEmbedding e) (onePencil n)
       (2 * s + 1) 1 (by omega) (by omega) hN hMN hM (by omega) (fun _ => 0)
-    have heq : (onePencil n).map (Affine.eval (algebraMap ℚ (Matrix (Fin 1) (Fin 1)
-        (LaurentReduction.F WitnessField))) (fun _ => 0)) = 1 := by
-      ext i j
-      simp [onePencil, Affine.eval_constant, Matrix.one_apply, Subsingleton.elim i j]
-    rw [heq]
-    exact isUnit_one
+    convert isUnit_one
+    ext i j
+    simp [onePencil, Affine.eval_constant, Matrix.one_apply, Subsingleton.elim i j]
   · obtain ⟨h, hh, rfl⟩ := List.mem_map.mp hp
     have hb := (Formula.certificate_bounds f s hs hf).2 h hh
-    apply PencilCertificates.determinant_ne_zero (CyclotomicRing.character e)
+    exact PencilCertificates.determinant_ne_zero (CyclotomicRing.character e)
       (CyclotomicRing.character_primitive e) (witnessEmbedding e) (finPencil h)
-      (2 * s + 1) d hb.1 hb.2 hN hMN hM hd Y
-    exact (finPencil_unit _ _ h).mpr (hcert h hh)
+      (2 * s + 1) d hb.1 hb.2 hN hMN hM hd Y ((finPencil_unit _ _ h).mpr (hcert h hh))
 
 private lemma condition_degree {n s N e : ℕ} (hs : 1 ≤ s) (f : Formula n) (hf : f.nodeCount ≤ s) :
     (conditions N e f).length ≤ s + 2 ∧
     ∀ p ∈ conditions N e f, p.totalDegree ≤ 3 * (2 * s + 1) * (CyclotomicRing.dimension e) ^ 2 := by
-  refine ⟨?_, ?_⟩
-  · have hh := (Formula.certificate_bounds f s hs hf).1
-    simpa only [conditions, List.length_cons, List.length_map] using Nat.succ_le_succ hh
-  · intro p hp
-    rcases List.mem_cons.mp hp with rfl | hp
-    · exact (PencilCertificates.degree_le _ _).trans (by gcongr; omega)
-    · obtain ⟨h, hh, rfl⟩ := List.mem_map.mp hp
-      exact (PencilCertificates.degree_le _ _).trans (by
-        gcongr
-        exact ((Formula.certificate_bounds f s hs hf).2 h hh).2)
+  have hb := Formula.certificate_bounds f s hs hf
+  refine ⟨by simpa only [conditions, List.length_cons, List.length_map] using Nat.succ_le_succ hb.1,
+    fun p hp => ?_⟩
+  rcases List.mem_cons.mp hp with rfl | hp
+  · exact (PencilCertificates.degree_le _ _).trans (by gcongr; omega)
+  · obtain ⟨h, hh, rfl⟩ := List.mem_map.mp hp
+    exact (PencilCertificates.degree_le _ _).trans
+      (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (hb.2 h hh).2))
 
 lemma integer_grid {K : Type*} [Field K] [CharZero K] (P : List (MvPolynomial (Fin 3) K))
     (hP : ∀ p ∈ P, p ≠ 0) (d H : ℕ) (hd : ∀ p ∈ P, p.totalDegree ≤ d)
@@ -244,11 +231,9 @@ lemma integer_grid {K : Type*} [Field K] [CharZero K] (P : List (MvPolynomial (F
     rw [Finset.card_image_of_injective _ fun _ _ h => Nat.add_right_cancel (Nat.cast_injective h),
       Finset.card_range]
   obtain ⟨x, hx, hxp⟩ := FiniteGrid.simultaneous P hP d hd S (hS ▸ hH)
-  have hm (i : Fin 3) : ∃ k : Fin H, ((k.val + 1 : ℕ) : K) = x i := by
-    obtain ⟨k, hk, he⟩ := Finset.mem_image.mp (hx i)
-    exact ⟨⟨k, Finset.mem_range.mp hk⟩, he⟩
-  choose y hy using hm
-  exact ⟨y, fun p hp => funext hy ▸ hxp p hp⟩
+  choose y hy using fun i => Finset.mem_image.mp (hx i)
+  exact ⟨fun i => ⟨y i, Finset.mem_range.mp (hy i).1⟩,
+    fun p hp => (funext fun i => (hy i).2) ▸ hxp p hp⟩
 
 private lemma specialized_unit {K : Type*} [Field K] [CharZero K] {n q M N : ℕ} [NeZero M]
     (χ : AddChar (ZMod M) K) (L : Matrix (Fin q) (Fin q) (Affine.Form n)) (x : Fin 3 → K)
@@ -264,14 +249,11 @@ private lemma onePencil_unit {K : Type*} [Field K] [CharZero K] {n : ℕ}
     {ι : Type*} [Fintype ι] [DecidableEq ι] (rationalLift : Fin (n + 1) → Matrix ι ι K)
     (h : IsUnit ((onePencil n).map (Affine.homogeneous (algebraMap ℚ _) rationalLift))) : IsUnit
       (rationalLift 0) := by
-  have hh := h.map (Matrix.uniqueRingEquiv (m := Fin 1) (A := Matrix ι ι K)).toRingHom
-  have heq : (Matrix.uniqueRingEquiv (m := Fin 1) (A := Matrix ι ι K))
-      ((onePencil n).map (Affine.homogeneous (algebraMap ℚ _) rationalLift)) = rationalLift 0 := by
-    change Affine.homogeneous (algebraMap ℚ _) rationalLift (Affine.constant 1) = rationalLift 0
-    simp [Affine.homogeneous, Affine.coeff, Affine.constant, Fin.sum_univ_succ]
-  change IsUnit ((Matrix.uniqueRingEquiv (m := Fin 1) (A := Matrix ι ι K))
-      ((onePencil n).map (Affine.homogeneous (algebraMap ℚ _) rationalLift))) at hh
-  rwa [heq] at hh
+  have hh : IsUnit ((Matrix.uniqueRingEquiv (m := Fin 1) (A := Matrix ι ι K))
+      ((onePencil n).map (Affine.homogeneous (algebraMap ℚ _) rationalLift))) :=
+    h.map (Matrix.uniqueRingEquiv (m := Fin 1) (A := Matrix ι ι K)).toRingHom
+  simpa [Matrix.uniqueRingEquiv, onePencil, Affine.homogeneous, Affine.coeff, Affine.constant,
+    Fin.sum_univ_succ] using hh
 
 /-- The finite formula-independent list hits every admissible nonzero formula
 at a defined and invertible original-tree value. -/
@@ -325,24 +307,20 @@ private theorem threshold_lt (n s : ℕ) : rankBound s * delta n s < ambientDime
   Nat.lt_pow_succ_log_self (by omega) _
 
 private theorem M_le (n s : ℕ) : ambientDimension n s ≤ 2 * (rankBound s * delta n s) := by
-  unfold ambientDimension
-  rw [pow_succ]
   have h := Nat.pow_log_le_self 2 (threshold_pos n s).ne'
-  unfold exponent
-  omega
+  unfold ambientDimension exponent at *
+  rw [pow_succ]; omega
 
 /-- `ambientDimension n s` is at most any power of two strictly above
 `rankBound s * delta n s`. -/
 theorem M_minimal (n s k : ℕ) (hk : rankBound s * delta n s < 2 ^ k) :
     ambientDimension n s ≤ 2 ^ k := by
-  apply Nat.pow_le_pow_right (by omega)
-  exact Nat.succ_le_of_lt (Nat.log_lt_of_lt_pow (threshold_pos n s).ne' hk)
+  exact Nat.pow_le_pow_right (by omega) (Nat.log_lt_of_lt_pow (threshold_pos n s).ne' hk)
 
 /-- The truncation parameter `truncation n s` is at least `1`. -/
 theorem N_pos (n s : ℕ) : 1 ≤ truncation n s := by
   have hh := threshold_lt n s
-  have hb : 1 ≤ rankBound s := by unfold rankBound; omega
-  have hd : delta n s ≤ rankBound s * delta n s := by nlinarith
+  have hd : delta n s ≤ rankBound s * delta n s := Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
   unfold truncation
   omega
 
@@ -363,20 +341,15 @@ private theorem w_bound (n s : ℕ) : w n ≤ n + s + 1 := by unfold w; omega
 private theorem B_bound (n s : ℕ) : rankBound s ≤ 2 * (n + s + 1) := by unfold rankBound; omega
 
 private theorem delta_bound (n s : ℕ) : delta n s ≤ 4 * (n + s + 1) ^ 4 := by
-  calc delta n s ≤ 2 * (n + s + 1) ^ 3 * (2 * (n + s + 1)) := by
-         unfold delta
-         gcongr
-         · exact w_bound n s
-         · exact B_bound n s
+  calc delta n s ≤ 2 * (n + s + 1) ^ 3 * (2 * (n + s + 1)) :=
+         Nat.mul_le_mul (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (w_bound n s) 3)) (B_bound n s)
        _ = _ := by ring
 
 /-- `ambientDimension n s` is at most `16 * (n + s + 1) ^ 5`. -/
 theorem polynomial_M (n s : ℕ) : ambientDimension n s ≤ 16 * (n + s + 1) ^ 5 := by
   calc ambientDimension n s ≤ 2 * (rankBound s * delta n s) := M_le n s
-       _ ≤ 2 * ((2 * (n + s + 1)) * (4 * (n + s + 1) ^ 4)) := by
-          gcongr
-          · exact B_bound n s
-          · exact delta_bound n s
+       _ ≤ 2 * ((2 * (n + s + 1)) * (4 * (n + s + 1) ^ 4)) :=
+          Nat.mul_le_mul_left 2 (Nat.mul_le_mul (B_bound n s) (delta_bound n s))
        _ = _ := by ring
 
 /-- The grid side length is polynomial in `n + s + 1`, for every `n`, including `n = 0`: the

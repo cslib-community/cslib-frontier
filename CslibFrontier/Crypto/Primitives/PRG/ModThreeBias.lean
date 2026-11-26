@@ -305,11 +305,10 @@ theorem two_div_three_sub_le_advantage_modThreeTest (n : ℕ) :
     2 / 3 - 2 / (3 * 2 ^ n) ≤ (modThreeGenerator n).advantage (modThreeTest n) := by
   have htest : modThreeTest n = fun y => PMF.pure (decide (weight y % 3 = 0)) := rfl
   have hreal : ((modThreeGenerator n).realExperiment (modThreeTest n) true).toReal = 1 := by
-    rw [htest, Generator.toReal_realExperiment_pure,
-      show ({z | decide (weight (modThreeGenerator n z) % 3 = 0) = true} :
-        Finset (modThreeWords n)) = univ from
-          eq_univ_of_forall fun z => by simp [mem_modThreeWords.1 z.2],
-      dens_univ, NNRat.cast_one]
+    have huniv : ({z | decide (weight (modThreeGenerator n z) % 3 = 0) = true} :
+        Finset (modThreeWords n)) = univ :=
+      eq_univ_of_forall fun z => by simp [mem_modThreeWords.1 z.2]
+    rw [htest, Generator.toReal_realExperiment_pure, huniv, dens_univ, NNRat.cast_one]
   have hideal : (Generator.idealExperiment (modThreeTest n) true).toReal =
       #(modThreeWords n) / 2 ^ n := by
     rw [htest, Generator.toReal_idealExperiment_pure, nnratCast_dens]

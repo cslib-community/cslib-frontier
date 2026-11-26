@@ -75,9 +75,7 @@ private theorem read_halves {n : ℕ} (s : Level) (t : FixedBytes n) :
   have two : List.finRange 2 = [0, 1] := rfl
   simp only [rejBoundedPoly, List.ofFn_eq_map, List.flatMap_map, positions,
     List.product, List.filterMap_flatMap, List.filterMap_map, two]
-  congr 1
-  apply List.flatMap_congr
-  intro i _
+  refine congrArg asPoly (List.flatMap_congr fun i _ => ?_)
   have eq : ∀ b : Byte, ((byteHalves b 0).val, (byteHalves b 1).val) = (b.val % 16, b.val / 16) :=
     by decide +kernel
   simp only [show halves n t (i, 0) = byteHalves (t i) 0 from rfl,
@@ -119,8 +117,7 @@ private theorem selected_poly {n : ℕ} (s : Level) (l : List (Pos n)) (hl : l.N
     have parse (d : Pos n → Digit s) :
         asPoly (l.map fun j => shortCoeff s (d j)) = value (fun i => d (e i)) := by
       simp only [asPoly, List.size_toArray, List.length_map, Nat.not_lt.mpr enough, ↓reduceIte]
-      apply congrArg some
-      funext j
+      refine congrArg some (funext fun j => ?_)
       rw [getElem!_pos _ _ (by simpa using j.isLt.trans_le enough)]
       simp [e, List.get_eq_getElem]
     simp_rw [parse]
@@ -149,12 +146,11 @@ theorem uniform_rejBoundedPoly (s : Level) (n : ℕ) :
     if (nibbleRead s t).isSome then (MatrixOracle.shortPolyLaw s).map some else PMF.pure none
   change _ = U.bind (score ∘ halves n)
   rw [← PMF.bind_map, half]
-  have swap := PMF.uniformOfFintype_bind_map_fst_equiv (tapeExchange s n)
-  have law := congrArg (PMF.map (nibbleRead s)) swap
+  have law := congrArg (PMF.map (nibbleRead s))
+    (PMF.uniformOfFintype_bind_map_fst_equiv (tapeExchange s n))
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, exchanged_poly] at law
   rw [← law]
-  apply congrArg (PMF.bind V ·)
-  funext t
+  refine congrArg (PMF.bind V ·) (funext fun t => ?_)
   have nd : (acceptedPositions s t).Nodup :=
     ((List.nodup_finRange n).product (List.nodup_finRange 2)).filter _
   rw [selected_poly s (acceptedPositions s t) nd]
@@ -186,8 +182,7 @@ private theorem vector_law (s : Level) (n r : ℕ) :
   let B := PMF.uniformOfFintype (FixedBytes n)
   have single : B.map decode = B.bind fun t => P.map fun p => (decode t).map fun _ => p := by
     rw [uniform_rejBoundedPoly]
-    apply congrArg (PMF.bind B ·)
-    funext t
+    refine congrArg (PMF.bind B ·) (funext fun t => ?_)
     change (if (decode t).isSome then P.map some else PMF.pure none) = _
     cases decode t
     exacts [(PMF.map_const ..).symm, rfl]
@@ -199,8 +194,7 @@ private theorem vector_law (s : Level) (n r : ℕ) :
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.pi_map] at score
   change U.map (fun v => tabulate r fun i => decode (v i)) = _
   rw [score]
-  apply congrArg (PMF.bind U ·)
-  funext v
+  refine congrArg (PMF.bind U ·) (funext fun v => ?_)
   have exchange (p : Fin r → Poly) : tabulate r (fun i => (decode (v i)).map fun _ => p i) =
       (rejBoundedVector s v).map fun _ => p := by
     simp only [tabulate, rejBoundedVector, Vector.ofFnM_option_replace, Functor.map, Option.map_map]
@@ -236,12 +230,9 @@ private theorem uniform_vector_pair (s : Level) :
     (vector_law s 481 s.params.ℓ) (vector_law s 481 s.params.k)
   simp only [PMF.bind_map, PMF.map_comp, Function.comp_def, PMF.map_bind, PMF.bind_bind] at law
   change (U.bind _) = _ at law
-  apply law.trans
-  apply congrArg (PMF.bind U ·)
-  funext x
+  refine law.trans (congrArg (PMF.bind U ·) (funext fun x => ?_))
   rw [PMF.bind_comm _ V]
-  apply congrArg (PMF.bind V ·)
-  funext y
+  refine congrArg (PMF.bind V ·) (funext fun y => ?_)
   cases hx : rejBoundedVector s x <;> cases hy : rejBoundedVector s y <;>
     simp only [parse, pair, hx, hy, Option.isSome_some, Option.isSome_none, Bool.false_eq_true,
       ↓reduceIte, Option.bind_eq_bind, Option.bind_none, Option.bind_some, Option.pure_def,
@@ -322,12 +313,12 @@ private theorem uniformPrefixes_secretRows (base : Xofs) (s : Level) (rho : Fixe
         vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j))) :=
     expandS_install s rho ha hb {base with h128 := install base.h128 u} t
   simp_rw [read]
+  let take (t : Table a b) := rowPair s (fun j => t (secretPoint s rho ha hb j))
+  have ignore (t : Table a b) : (PMF.uniformOfFintype (Table a b)).map
+      (fun _ => vectors s (take t)) = PMF.pure (vectors s (take t)) := PMF.map_const ..
   change (PMF.uniformOfFintype (Table a b)).bind (fun t =>
-    (PMF.uniformOfFintype (Table a b)).map fun _ =>
-      vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j)))) = _
-  simp_rw [show ∀ t : Table a b, (PMF.uniformOfFintype (Table a b)).map (fun _ =>
-    vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j)))) = PMF.pure _ from
-      fun _ => PMF.map_const ..]
+    (PMF.uniformOfFintype (Table a b)).map fun _ => vectors s (take t)) = _
+  simp_rw [ignore]
   change (PMF.uniformOfFintype (Table a b)).map
     ((vectors s ∘ rowPair s) ∘ fun t j => t (secretPoint s rho ha hb j)) = _
   have eq := congrArg (PMF.map (vectors s ∘ rowPair s))
@@ -348,16 +339,11 @@ theorem uniformPrefixes_expandS (base : Xofs) (s : Level) (rho : FixedBytes 64) 
           (MatrixOracle.shortVectorLaw s s.params.k).map fun y => some (x, y)
       else PMF.pure none := by
   intro R
-  let U := PMF.uniformOfFintype (Fin s.params.ℓ → FixedBytes 481)
-  let V := PMF.uniformOfFintype (Fin s.params.k → FixedBytes 481)
-  let parse x y := vectors s (x, y)
-  have joint : (R.map fun H => H.expandS s rho.toList) = U.bind fun x => V.map (parse x) :=
-    uniformPrefixes_secretRows base s rho ha hb
   let test (o : Option ((Fin s.params.ℓ → Poly) × (Fin s.params.k → Poly))) : PMF _ :=
     if o.isSome then (MatrixOracle.shortVectorLaw s s.params.ℓ).bind fun x =>
       (MatrixOracle.shortVectorLaw s s.params.k).map fun y => some (x, y) else PMF.pure none
   change _ = R.bind (test ∘ fun H => H.expandS s rho.toList)
-  rw [← PMF.bind_map, joint, PMF.bind_bind]
-  simpa only [PMF.bind_map, Function.comp_def, parse, test, vectors] using uniform_vector_pair s
+  rw [← PMF.bind_map, uniformPrefixes_secretRows base s rho ha hb, PMF.bind_bind]
+  simpa only [PMF.bind_map, Function.comp_def, test, vectors] using uniform_vector_pair s
 
 end Cslib.Crypto.MLDSA.FIPS204

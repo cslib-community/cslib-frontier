@@ -71,8 +71,7 @@ theorem encodeCode_lt_prec (cf cg : Code) :
 
 /-- The subcode of `Code.rfind' cf` has a strictly smaller Gödel number than `rfind' cf`. -/
 theorem encodeCode_lt_rfind' (cf : Code) : encodeCode cf < encodeCode (rfind' cf) := by
-  simp only [encodeCode]
-  omega
+  simp only [encodeCode]; omega
 
 /-- Structural recursion on `Nat.RecursiveIn.Code` with tupled branch functions is primitive
 recursive. Adapted from `Nat.Partrec.Code.primrec_recOn'` with an additional `oracle` branch. -/
@@ -145,19 +144,16 @@ theorem primrec_recOn' {α σ}
   refine (nat_strong_rec (fun a n => F a (ofNat Code n)) this.to₂ fun a n => ?_)
     |>.comp .id (encode_iff.2 hc) |>.of_eq fun a => by simp
   iterate 5 rcases n with - | n; · simp [ofNatCode_eq, Code.ofNatCode]; rfl
-  simp only [G]; rw [List.length_map, List.length_range]
+  simp only [G, List.length_map, List.length_range]
   let m := n.div2.div2
   change G₁ ((a, (List.range (n + 5)).map fun n => F a (ofNat Code n)), n, m) =
     some (F a (ofNat Code (n + 5)))
-  have hm : m < n + 5 := by
-    simp only [m, div2_val]
-    omega
+  have hm : m < n + 5 := by simp only [m, div2_val]; omega
   have m1 : m.unpair.1 < n + 5 := lt_of_le_of_lt m.unpair_left_le hm
   have m2 : m.unpair.2 < n + 5 := lt_of_le_of_lt m.unpair_right_le hm
   simp only [List.length_map, List.length_range, List.getElem?_eq_getElem, hm, m1, m2,
-    List.getElem_map, List.getElem_range, Option.bind_some, Option.map_some, G₁, m]
-  rw [show ofNat Code (n + 5) = Code.ofNatCode (n + 5) from rfl]
-  simp only [Code.ofNatCode]
+    List.getElem_map, List.getElem_range, Option.bind_some, Option.map_some, G₁, m,
+    ofNatCode_eq, Code.ofNatCode]
   cases n.bodd <;> cases n.div2.bodd <;> rfl
 
 
@@ -282,13 +278,9 @@ private theorem hG : Primrec₂ G := by
 
 private theorem evaln_map (σ k c n) :
     ((List.range k)[n]?.bind fun a ↦ evaln σ k c a) = evaln σ k c n := by
-  by_cases kn : n < k
-  · simp [List.getElem?_range kn]
-  · rw [List.getElem?_eq_none]
-    · cases e : evaln σ k c n
-      · rfl
-      exact kn.elim (evaln_bound e)
-    simpa using kn
+  cases e : evaln σ k c n
+  · by_cases kn : n < k <;> simp [kn, e]
+  · simp [List.getElem?_range (evaln_bound e), e]
 
 /-- The `Nat.RecursiveIn.Code.evaln` function is primitive recursive. -/
 theorem primrec_evaln :
@@ -303,24 +295,19 @@ theorem primrec_evaln :
       simp only [G, prod_ofNat_val, ofNat_nat, List.length_map, List.length_range,
         Nat.pair_unpair, Option.some_inj]
       refine List.map_congr_left fun n => ?_
-      have : List.range p = List.range (Nat.pair p.unpair.1 (encode (ofNat Code p.unpair.2))) := by
-        simp
-      rw [this]
-      generalize p.unpair.1 = k
-      generalize ofNat Code p.unpair.2 = c
+      have hrange : List.range p =
+          List.range (Nat.pair p.unpair.1 (encode (ofNat Code p.unpair.2))) := by simp
+      rw [hrange]
+      generalize p.unpair.1 = k, ofNat Code p.unpair.2 = c
       intro nk
       rcases k with - | k'
       · simp [evaln]
       let k := k' + 1
-      simp only
       simp only [List.mem_range, Nat.lt_succ_iff] at nk
-      have hg :
-        ∀ {k' c' n},
-          Nat.pair k' (encode c') < Nat.pair k (encode c) →
-            lup ((List.range (Nat.pair k (encode c))).map fun n =>
-              (List.range n.unpair.1).map (evaln σ n.unpair.1 (ofNat Code n.unpair.2))) (k', c') n =
-            evaln σ k' c' n := by
-        intro k₁ c₁ n₁ hl
+      have hg {k' c' n} (hl : Nat.pair k' (encode c') < Nat.pair k (encode c)) :
+          lup ((List.range (Nat.pair k (encode c))).map fun n =>
+            (List.range n.unpair.1).map (evaln σ n.unpair.1 (ofNat Code n.unpair.2))) (k', c') n =
+          evaln σ k' c' n := by
         simp [lup, List.getElem?_range hl, evaln_map, Bind.bind, Option.bind_map]
       obtain - | - | - | - | - | ⟨cf, cg⟩ | ⟨cf, cg⟩ | ⟨cf, cg⟩ | cf := c <;>
         simp only [evaln, bind, nk, guard_true, pure, Option.bind_some, unpaired, pair_unpair]
@@ -334,14 +321,11 @@ theorem primrec_evaln :
         rw [hg (Nat.pair_lt_pair_right _ lf)]
         rcases n.unpair.2 with - | y
         · rfl
-        simp only
-        rw [hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
+        simp only [k, hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
         cases evaln σ k' _ _ <;> simp [k, hg (Nat.pair_lt_pair_right _ lg)]
       · rw [hg (Nat.pair_lt_pair_right _ (encodeCode_lt_rfind' cf))]
-        rcases evaln σ k cf n with - | - | x
-        · rfl
-        · simp
-        · simpa using hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)
+        rcases evaln σ k cf n with - | - | x <;>
+          simp [k, hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
   (Primrec.option_bind
     (Primrec.list_getElem?.comp (this.comp Primrec.fst
       (Primrec.encode_iff.2 (Primrec.fst.comp Primrec.snd))) (Primrec.snd.comp Primrec.snd))

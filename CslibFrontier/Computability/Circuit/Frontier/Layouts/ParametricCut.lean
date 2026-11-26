@@ -92,18 +92,14 @@ section RFIM
 theorem ncard_edgeCut_inter_add_union_le [Finite E] (G : Multigraph V E) (A B : Set V) :
     (G.edgeCut (A ∩ B)).ncard + (G.edgeCut (A ∪ B)).ncard ≤
       (G.edgeCut A).ncard + (G.edgeCut B).ncard := by
-  have hsub₁ : G.edgeCut (A ∩ B) ∪ G.edgeCut (A ∪ B) ⊆ G.edgeCut A ∪ G.edgeCut B := by
-    intro e
-    simp only [mem_union, mem_edgeCut, mem_inter_iff]
-    tauto
-  have hsub₂ : G.edgeCut (A ∩ B) ∩ G.edgeCut (A ∪ B) ⊆ G.edgeCut A ∩ G.edgeCut B := by
-    intro e
-    simp only [mem_inter_iff, mem_edgeCut, mem_union]
-    tauto
+  have hle₁ : (G.edgeCut (A ∩ B) ∪ G.edgeCut (A ∪ B)).ncard ≤
+      (G.edgeCut A ∪ G.edgeCut B).ncard := ncard_le_ncard fun e => by
+    simp only [mem_union, mem_edgeCut, mem_inter_iff]; tauto
+  have hle₂ : (G.edgeCut (A ∩ B) ∩ G.edgeCut (A ∪ B)).ncard ≤
+      (G.edgeCut A ∩ G.edgeCut B).ncard := ncard_le_ncard fun e => by
+    simp only [mem_inter_iff, mem_edgeCut, mem_union]; tauto
   have h₁ := ncard_union_add_ncard_inter (G.edgeCut (A ∩ B)) (G.edgeCut (A ∪ B))
   have h₂ := ncard_union_add_ncard_inter (G.edgeCut A) (G.edgeCut B)
-  have hle₁ := ncard_le_ncard hsub₁
-  have hle₂ := ncard_le_ncard hsub₂
   omega
 
 /-- Parametric random-field Ising (`s`–`t` cut) energy
@@ -129,33 +125,18 @@ theorem rfimEnergy_crossing_le [DecidableEq V] [Finite E] (G : Multigraph V E) (
       ((G.edgeCut (A : Set V)).ncard : ℝ) + ((G.edgeCut (B : Set V)).ncard : ℝ) := by
     rw [Finset.coe_inter, Finset.coe_union]
     exact_mod_cast G.ncard_edgeCut_inter_add_union_le (A : Set V) (B : Set V)
-  have hA_eq : A = (A ∩ B) ∪ (A \ B) := by
-    ext v; simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]; tauto
-  have hA_disj : Disjoint (A ∩ B) (A \ B) :=
-    Finset.disjoint_left.mpr fun _ h₁ h₂ => (Finset.mem_sdiff.mp h₂).2 (Finset.mem_inter.mp h₁).2
-  have hA : ∑ v ∈ A, (y v - t₁) =
-      (∑ v ∈ A ∩ B, (y v - t₁)) + ∑ v ∈ A \ B, (y v - t₁) := by
-    conv_lhs => rw [hA_eq]
-    exact Finset.sum_union hA_disj
-  have hB_eq : A ∪ B = B ∪ (A \ B) := by
-    ext v; simp only [Finset.mem_union, Finset.mem_sdiff]; tauto
-  have hB_disj : Disjoint B (A \ B) :=
-    Finset.disjoint_left.mpr fun _ h₁ h₂ => (Finset.mem_sdiff.mp h₂).2 h₁
+  have hA : ∑ v ∈ A, (y v - t₁) = (∑ v ∈ A ∩ B, (y v - t₁)) + ∑ v ∈ A \ B, (y v - t₁) := by
+    conv_lhs => rw [← Finset.sdiff_union_inter A B]
+    rw [Finset.sum_union (Finset.disjoint_sdiff_inter A B), add_comm]
   have hB : ∑ v ∈ A ∪ B, (y v - t₂) =
-      (∑ v ∈ B, (y v - t₂)) + ∑ v ∈ A \ B, (y v - t₂) := by
-    rw [hB_eq, Finset.sum_union hB_disj]
+      (∑ v ∈ A \ B, (y v - t₂)) + ∑ v ∈ B, (y v - t₂) := by
+    rw [← Finset.sdiff_union_self_eq_union, Finset.sum_union
+      (Finset.disjoint_left.mpr fun _ h₁ h₂ => (Finset.mem_sdiff.mp h₁).2 h₂)]
   have hdiff : (∑ v ∈ A \ B, (y v - t₂)) - (∑ v ∈ A \ B, (y v - t₁)) =
       -(t₂ - t₁) * ((A \ B).card : ℝ) := by
-    rw [← Finset.sum_sub_distrib]
-    have hconst : ∀ v ∈ A \ B, (y v - t₂) - (y v - t₁) = -(t₂ - t₁) := fun _ _ => by ring
-    rw [Finset.sum_congr rfl hconst, Finset.sum_const, nsmul_eq_mul]
+    simp only [← Finset.sum_sub_distrib, sub_sub_sub_cancel_left, Finset.sum_const, nsmul_eq_mul]
     ring
-  have hlin : α * ((∑ v ∈ A ∩ B, (y v - t₁)) - ∑ v ∈ A, (y v - t₁)) +
-      α * ((∑ v ∈ A ∪ B, (y v - t₂)) - ∑ v ∈ B, (y v - t₂)) =
-      -α * (t₂ - t₁) * ((A \ B).card : ℝ) := by
-    rw [hA, hB]
-    linarith [congrArg (α * ·) hdiff]
-  linarith
+  linarith [congrArg (α * ·) hA, congrArg (α * ·) hB, congrArg (α * ·) hdiff]
 
 /-- At any fixed threshold `t` and coupling `α`, `rfimEnergy G y α t` is submodular. -/
 theorem rfimEnergy_inter_add_union_le [DecidableEq V] [Finite E] (G : Multigraph V E)
@@ -172,35 +153,25 @@ theorem IsRFIMMinCut.subset_of_lt [Finite E] {G : Multigraph V E} {y : V → ℝ
     {A B : Finset V} (hA : G.IsRFIMMinCut y α t₁ A) (hB : G.IsRFIMMinCut y α t₂ B)
     (hα : 0 < α) (ht : t₁ < t₂) : A ⊆ B := by
   classical
-  have hcross := G.rfimEnergy_crossing_le y α t₁ t₂ A B
-  have h1 : 0 ≤ G.rfimEnergy y α t₁ (A ∩ B) - G.rfimEnergy y α t₁ A :=
-    sub_nonneg.mpr (hA (A ∩ B))
-  have h2 : 0 ≤ G.rfimEnergy y α t₂ (A ∪ B) - G.rfimEnergy y α t₂ B :=
-    sub_nonneg.mpr (hB (A ∪ B))
-  have hpos : 0 < α * (t₂ - t₁) := mul_pos hα (sub_pos.mpr ht)
-  have hcard0 : ((A \ B).card : ℝ) ≤ 0 := by nlinarith
-  have hempty : (A \ B).card = 0 := Nat.le_zero.mp (by exact_mod_cast hcard0)
-  exact Finset.sdiff_eq_empty_iff_subset.mp (Finset.card_eq_zero.mp hempty)
+  intro v hvA
+  by_contra hvB
+  have hpos : 0 < α * (t₂ - t₁) * ((A \ B).card : ℝ) := mul_pos (mul_pos hα (sub_pos.mpr ht))
+    (Nat.cast_pos.mpr (Finset.card_pos.mpr ⟨v, Finset.mem_sdiff.mpr ⟨hvA, hvB⟩⟩))
+  linarith [G.rfimEnergy_crossing_le y α t₁ t₂ A B, hA (A ∩ B), hB (A ∪ B)]
 
 /-- Minimizers of `rfimEnergy G y α t` are closed under intersection. -/
 theorem IsRFIMMinCut.inter [DecidableEq V] [Finite E] {G : Multigraph V E} {y : V → ℝ} {α t : ℝ}
     {A B : Finset V} (hA : G.IsRFIMMinCut y α t A) (hB : G.IsRFIMMinCut y α t B) :
     G.IsRFIMMinCut y α t (A ∩ B) := by
   intro T
-  have hsub := G.rfimEnergy_inter_add_union_le y α t A B
-  have hu : G.rfimEnergy y α t B ≤ G.rfimEnergy y α t (A ∪ B) := hB (A ∪ B)
-  have hAT : G.rfimEnergy y α t A ≤ G.rfimEnergy y α t T := hA T
-  linarith
+  linarith [G.rfimEnergy_inter_add_union_le y α t A B, hB (A ∪ B), hA T]
 
 /-- Minimizers of `rfimEnergy G y α t` are closed under union. -/
 theorem IsRFIMMinCut.union [DecidableEq V] [Finite E] {G : Multigraph V E} {y : V → ℝ} {α t : ℝ}
     {A B : Finset V} (hA : G.IsRFIMMinCut y α t A) (hB : G.IsRFIMMinCut y α t B) :
     G.IsRFIMMinCut y α t (A ∪ B) := by
   intro T
-  have hsub := G.rfimEnergy_inter_add_union_le y α t A B
-  have hi : G.rfimEnergy y α t A ≤ G.rfimEnergy y α t (A ∩ B) := hA (A ∩ B)
-  have hBT : G.rfimEnergy y α t B ≤ G.rfimEnergy y α t T := hB T
-  linarith
+  linarith [G.rfimEnergy_inter_add_union_le y α t A B, hA (A ∩ B), hB T]
 
 /-- Existence of a global minimizer of `rfimEnergy G y α t`. -/
 theorem exists_isRFIMMinCut [Finite V] (G : Multigraph V E) (y : V → ℝ) (α t : ℝ) :
@@ -224,14 +195,11 @@ theorem isRFIMMinCut_rfimMinCut [Finite V] [Finite E] (G : Multigraph V E) (y : 
   unfold rfimMinCut
   let _ := Fintype.ofFinite V
   obtain ⟨S₀, hS₀⟩ := G.exists_isRFIMMinCut y α t
-  have hclosed : ∀ s : Finset (Finset V), s.Nonempty → (∀ S ∈ s, G.IsRFIMMinCut y α t S) →
-      G.IsRFIMMinCut y α t (s.inf id) := by
-    intro s hs
+  have hclosed (s : Finset (Finset V)) (hs : s.Nonempty) :
+      (∀ S ∈ s, G.IsRFIMMinCut y α t S) → G.IsRFIMMinCut y α t (s.inf id) := by
     induction hs using Finset.Nonempty.cons_induction with
-    | singleton a =>
-      intro ha
-      simpa using ha a (Finset.mem_singleton_self a)
-    | cons a s hnot hne ih =>
+    | singleton a => exact fun ha => by simpa using ha a (Finset.mem_singleton_self a)
+    | cons a s _ _ ih =>
       intro hall
       rw [Finset.inf_cons]
       exact (hall a (Finset.mem_cons_self a s)).inter
@@ -276,38 +244,31 @@ theorem exists_isMedianAt (G : Multigraph V E) (y : V → α) {v : V}
 
 variable [Finite E]
 
+omit [DecidableEq V] [LinearOrder α] in
+private theorem ncard_sep_add_not (s : Set E) (p : E → Prop) :
+    {e ∈ s | p e}.ncard + {e ∈ s | ¬p e}.ncard = s.ncard := by
+  have hdisj : Disjoint {e ∈ s | p e} {e ∈ s | ¬p e} :=
+    disjoint_left.mpr fun _ ha hb => hb.2 ha.2
+  have hunion : {e ∈ s | p e} ∪ {e ∈ s | ¬p e} = s := by
+    ext e
+    by_cases hp : p e <;> simp [hp]
+  rw [← ncard_union_eq hdisj, hunion]
+
 /-- At a vertex incident to three edges, the neighbor median is unique. -/
 theorem IsMedianAt.eq_of_ncard_eq_three {G : Multigraph V E} {y : V → α} {v : V} {m₁ m₂ : α}
     (h₁ : G.IsMedianAt y v m₁) (h₂ : G.IsMedianAt y v m₂)
     (hv : (G.incidenceSet v).ncard = 3) : m₁ = m₂ := by
-  have hpart (p : E → Prop) :
-      {e ∈ G.incidenceSet v | p e}.ncard + {e ∈ G.incidenceSet v | ¬p e}.ncard = 3 := by
-    have hdisj : Disjoint {e ∈ G.incidenceSet v | p e} {e ∈ G.incidenceSet v | ¬p e} :=
-      disjoint_left.mpr fun _ ha hb => hb.2 ha.2
-    have hunion : {e ∈ G.incidenceSet v | p e} ∪ {e ∈ G.incidenceSet v | ¬p e} =
-        G.incidenceSet v := by
-      ext e; by_cases hp : p e <;> simp [hp]
-    rw [← ncard_union_eq hdisj, hunion, hv]
   suffices hle : ∀ {a b : α}, G.IsMedianAt y v a → G.IsMedianAt y v b → ¬(a < b) from
     le_antisymm (not_lt.mp (hle h₂ h₁)) (not_lt.mp (hle h₁ h₂))
   intro a b ha hb hab
-  have hp₁ := hpart fun e => y (G.otherEnd v e) ≤ a
-  have ha' : {e ∈ G.incidenceSet v | ¬y (G.otherEnd v e) ≤ a} =
-      {e ∈ G.incidenceSet v | a < y (G.otherEnd v e)} := by
-    ext e; simp [not_le]
-  rw [ha'] at hp₁
-  have hge₁ : 2 ≤ {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ a}.ncard := by
-    have := ha.1; omega
-  have hp₂ := hpart fun e => b ≤ y (G.otherEnd v e)
-  have hb' : {e ∈ G.incidenceSet v | ¬b ≤ y (G.otherEnd v e)} =
-      {e ∈ G.incidenceSet v | y (G.otherEnd v e) < b} := by
-    ext e; simp [not_le]
-  rw [hb'] at hp₂
-  have hge₂ : 2 ≤ {e ∈ G.incidenceSet v | b ≤ y (G.otherEnd v e)}.ncard := by
-    have := hb.2; omega
+  have hp₁ := (ncard_sep_add_not (G.incidenceSet v) fun e => y (G.otherEnd v e) ≤ a).trans hv
+  have hp₂ := (ncard_sep_add_not (G.incidenceSet v) fun e => b ≤ y (G.otherEnd v e)).trans hv
+  simp only [not_le] at hp₁ hp₂
+  have := ha.1
+  have := hb.2
   have hdisj : Disjoint {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ a}
       {e ∈ G.incidenceSet v | b ≤ y (G.otherEnd v e)} :=
-    disjoint_left.mpr fun e he₁ he₂ => (he₁.2.trans_lt hab).not_ge he₂.2
+    disjoint_left.mpr fun _ he₁ he₂ => (he₁.2.trans_lt hab).not_ge he₂.2
   have hsub : {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ a} ∪
       {e ∈ G.incidenceSet v | b ≤ y (G.otherEnd v e)} ⊆ G.incidenceSet v :=
     union_subset (fun _ h => h.1) fun _ h => h.1
@@ -349,15 +310,12 @@ theorem exists_nbrMedian_eq_otherEnd (G : Multigraph V E) (y : V → α) {v : V}
     ∃ e ∈ G.incidenceSet v, G.nbrMedian y v = y (G.otherEnd v e) := by
   obtain ⟨e₀, e₁, e₂, h01, h02, h12, hs⟩ := ncard_eq_three.mp hv
   rw [G.nbrMedian_eq_median3 y h01 h02 h12 hs]
-  have hmem : ∀ a b c : α, median3 a b c = a ∨ median3 a b c = b ∨ median3 a b c = c := by
-    intro a b c
+  have hmem (a b c : α) : median3 a b c = a ∨ median3 a b c = b ∨ median3 a b c = c := by
     rcases le_total a b with hab | hab <;> rcases le_total b c with hbc | hbc <;>
       rcases le_total a c with hac | hac <;> simp [median3, hab, hbc, hac]
   rcases hmem (y (G.otherEnd v e₀)) (y (G.otherEnd v e₁)) (y (G.otherEnd v e₂)) with
       h | h | h
-  · exact ⟨e₀, by simp [hs], h⟩
-  · exact ⟨e₁, by simp [hs], h⟩
-  · exact ⟨e₂, by simp [hs], h⟩
+  exacts [⟨e₀, by simp [hs], h⟩, ⟨e₁, by simp [hs], h⟩, ⟨e₂, by simp [hs], h⟩]
 
 omit [Finite E] in
 /-- Lower one-sided median key `key_-(v) = max (y v) (med₃(N(v)))`. -/
@@ -403,12 +361,7 @@ private theorem mem_incidenceSet_otherEnd_eq {G : Multigraph V E} {v w : V} {e :
   unfold otherEnd at hw ⊢
   by_cases hs : G.src e = v
   · simp only [hs, ↓reduceIte] at hw
-    refine ⟨Or.inr hw, ?_⟩
-    by_cases hvw : v = w
-    · exact Or.inl hvw
-    · right
-      have hne : w ≠ v := Ne.symm hvw
-      simp [hs, Ne.symm hne]
+    exact ⟨Or.inr hw, or_iff_not_imp_left.mpr fun hvw => (ite_eq_right (hs.trans_ne hvw)).trans hs⟩
   · have ht : G.tgt e = v := he.resolve_left hs
     simp only [hs, ↓reduceIte] at hw
     exact ⟨Or.inl hw, Or.inr (by simp [hw, ht])⟩
@@ -419,14 +372,12 @@ private theorem ncard_key_eq_le_four (G : Multigraph V E)
     {v : V | key v = c}.ncard ≤ 4 := by
   rcases {v : V | key v = c}.eq_empty_or_nonempty with hemp | ⟨v₀, hv₀⟩
   · simp [hemp]
-  · have hc_range : ∃ w : V, y w = c := by
+  · obtain ⟨w, rfl⟩ : ∃ w : V, y w = c := by
       simp only [mem_ofPred_eq] at hv₀
       rcases hchoice v₀ with hm | hm
       · exact ⟨v₀, hm.symm.trans hv₀⟩
       · obtain ⟨e, -, he⟩ := G.exists_nbrMedian_eq_otherEnd y (h3 v₀)
         exact ⟨G.otherEnd v₀ e, he.symm.trans (hm.symm.trans hv₀)⟩
-    obtain ⟨w, hw⟩ := hc_range
-    rw [← hw]
     have hsub : {v : V | key v = y w} ⊆
         insert w ((G.otherEnd w) '' G.incidenceSet w) := by
       intro v hv
@@ -486,19 +437,8 @@ omit [DecidableEq V] [Finite E] [LinearOrder α] in
 private theorem innerCrossDeg_add_low_eq {G : Multigraph V E} {v : V} {d : ℕ}
     (hv : (G.incidenceSet v).ncard = d) (y : V → α) (t : α) :
     G.innerCrossDeg y t v + {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ t}.ncard = d := by
-  rw [innerCrossDeg]
-  have hdisj : Disjoint {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)}
-      {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ t} :=
-    disjoint_left.mpr fun _ ha hb => ha.2.not_ge hb.2
-  have hunion : {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)} ∪
-      {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ t} = G.incidenceSet v := by
-    ext e
-    simp only [mem_union, mem_sep_iff]
-    refine ⟨fun h => h.elim And.left And.left, fun he => ?_⟩
-    rcases lt_or_ge t (y (G.otherEnd v e)) with h | h
-    · exact Or.inl ⟨he, h⟩
-    · exact Or.inr ⟨he, h⟩
-  rw [← ncard_union_eq hdisj, hunion, hv]
+  simpa only [innerCrossDeg, not_lt] using
+    (ncard_sep_add_not (G.incidenceSet v) fun e => t < y (G.otherEnd v e)).trans hv
 
 /-- On a degree-`3` vertex `v`, `nbrMedian G y v ≤ t` holds iff at most one incident edge at `v`
 enters `{y > t}`. -/
@@ -506,37 +446,18 @@ theorem nbrMedian_le_iff_innerCrossDeg_le_one (G : Multigraph V E) (y : V → α
     (hv : (G.incidenceSet v).ncard = 3) (t : α) :
     G.nbrMedian y v ≤ t ↔ G.innerCrossDeg y t v ≤ 1 := by
   obtain ⟨hm₁, hm₂⟩ := G.isMedianAt_nbrMedian y hv
-  constructor
-  · intro hmt
-    have hsum := innerCrossDeg_add_low_eq hv y (G.nbrMedian y v)
-    rw [innerCrossDeg] at hsum
-    have hm_le1 : {e ∈ G.incidenceSet v | G.nbrMedian y v < y (G.otherEnd v e)}.ncard ≤ 1 := by
-      omega
-    exact (ncard_le_ncard (s := {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)})
-      (t := {e ∈ G.incidenceSet v | G.nbrMedian y v < y (G.otherEnd v e)})
-      fun e he => ⟨he.1, hmt.trans_lt he.2⟩).trans hm_le1
-  · intro hdeg
-    by_contra hnot
-    have htm : t < G.nbrMedian y v := not_le.mp hnot
-    have hdisj : Disjoint {e ∈ G.incidenceSet v | y (G.otherEnd v e) < G.nbrMedian y v}
-        {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)} :=
-      disjoint_left.mpr fun _ ha hb => ha.2.not_ge hb.2
-    have hunion : {e ∈ G.incidenceSet v | y (G.otherEnd v e) < G.nbrMedian y v} ∪
-        {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)} = G.incidenceSet v := by
-      ext e
-      simp only [mem_union, mem_sep_iff]
-      refine ⟨fun h => h.elim And.left And.left, fun he => ?_⟩
-      rcases lt_or_ge (y (G.otherEnd v e)) (G.nbrMedian y v) with h | h
-      · exact Or.inl ⟨he, h⟩
-      · exact Or.inr ⟨he, h⟩
-    have hsum : {e ∈ G.incidenceSet v | y (G.otherEnd v e) < G.nbrMedian y v}.ncard +
-        {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)}.ncard = 3 := by
-      rw [← ncard_union_eq hdisj, hunion, hv]
-    have hge2 : 2 ≤ {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)}.ncard := by omega
+  refine ⟨fun hmt => ?_, fun hdeg => by_contra fun hnot => ?_⟩
+  · have hsum := innerCrossDeg_add_low_eq hv y (G.nbrMedian y v)
+    rw [innerCrossDeg] at hsum ⊢
+    have hle : {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)}.ncard ≤
+        {e ∈ G.incidenceSet v | G.nbrMedian y v < y (G.otherEnd v e)}.ncard :=
+      ncard_le_ncard fun e he => ⟨he.1, hmt.trans_lt he.2⟩
+    omega
+  · have hsum := (ncard_sep_add_not (G.incidenceSet v)
+      fun e => G.nbrMedian y v ≤ y (G.otherEnd v e)).trans hv
+    simp only [not_le] at hsum hnot
     have hle : {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)}.ncard ≤
-        G.innerCrossDeg y t v :=
-      ncard_le_ncard (t := {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)})
-        fun e he => ⟨he.1, htm.trans_le he.2⟩
+        G.innerCrossDeg y t v := ncard_le_ncard fun e he => ⟨he.1, hnot.trans_le he.2⟩
     omega
 
 /-- Exact characterization of `L_-(t)` on a cubic multigraph: `v ∈ L_-(t)` iff `y v ≤ t` and
@@ -567,16 +488,9 @@ theorem innerFrontierSet_eq_union (G : Multigraph V E) (h3 : ∀ v, (G.incidence
       G.innerFrontierClass y t 1 ∪ G.innerFrontierClass y t 2 ∪ G.innerFrontierClass y t 3 := by
   ext v
   rw [G.mem_innerFrontierSet_iff]
-  simp only [mem_union, innerFrontierClass, mem_ofPred_eq]
+  simp only [mem_union, innerFrontierClass, mem_ofPred_eq, ← and_or_left]
   have hle := (G.innerCrossDeg_le_ncard_incidenceSet y t v).trans_eq (h3 v)
-  constructor
-  · rintro ⟨hy, h1⟩
-    obtain hk | hk | hk : G.innerCrossDeg y t v = 1 ∨ G.innerCrossDeg y t v = 2 ∨
-        G.innerCrossDeg y t v = 3 := by omega
-    · exact Or.inl (Or.inl ⟨hy, hk⟩)
-    · exact Or.inl (Or.inr ⟨hy, hk⟩)
-    · exact Or.inr ⟨hy, hk⟩
-  · rintro ((⟨hy, hk⟩ | ⟨hy, hk⟩) | ⟨hy, hk⟩) <;> exact ⟨hy, by omega⟩
+  exact and_congr_right fun _ => by omega
 
 omit [Finite E] [LinearOrder α] in
 private theorem otherEnd_symm_of_loopless {G : Multigraph V E} (hloop : G.Loopless) {v : V}
@@ -728,10 +642,8 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
     have := Fintype.ofFinite E
     let F_U : Finset V := Finset.univ.filter (· ∈ U₂int)
     let F_E : Finset E := Finset.univ.filter (· ∈ E₂₂)
-    have hcU : U₂int.ncard = F_U.card := by
-      rw [← ncard_coe_finset]; congr 1; ext u; simp [F_U]
-    have hcE : E₂₂.ncard = F_E.card := by
-      rw [← ncard_coe_finset]; congr 1; ext e; simp [F_E]
+    have hcU : U₂int.ncard = F_U.card := by simp [← ncard_coe_finset, F_U]
+    have hcE : E₂₂.ncard = F_E.card := by simp [← ncard_coe_finset, F_E]
     rw [hcU, hcE]
     have h1 : F_U.card = ∑ u ∈ F_U, ∑ e ∈ F_E, if e ∈ G.incidenceSet u then 1 else 0 := by
       rw [Finset.card_eq_sum_ones]
@@ -780,9 +692,7 @@ theorem ncard_edgeCut_lowerSublevel_le_innerFrontier [Finite V] (G : Multigraph 
     (G.edgeCut (G.lowerSublevel y t)).ncard ≤ (G.innerFrontierSet y t).ncard := by
   have hcut := G.ncard_edgeCut_lowerSublevel_add_two_mul hloop h3 y t
   have hsub : G.innerFrontierClass y t 1 ∪ G.innerFrontierClass y t 2 ⊆
-      G.innerFrontierSet y t := by
-    rw [G.innerFrontierSet_eq_union h3 y t]
-    exact subset_union_left
+      G.innerFrontierSet y t := G.innerFrontierSet_eq_union h3 y t ▸ subset_union_left
   have hdisj : Disjoint (G.innerFrontierClass y t 1) (G.innerFrontierClass y t 2) :=
     disjoint_left.mpr fun _ h₁ h₂ => by
       simp only [innerFrontierClass, mem_ofPred_eq] at h₁ h₂; omega
@@ -803,19 +713,14 @@ theorem coe_switched_innerFrontier_eq {n : ℕ} (G : Multigraph (Fin n) E) (y : 
   constructor
   · rintro ⟨w, ⟨huw, e, hends⟩, htw⟩
     rcases Sym2.eq_iff.mp hends with ⟨hs, ht_eq⟩ | ⟨hs, ht_eq⟩
-    · refine ⟨e, Or.inl hs, ?_⟩
-      simp [otherEnd, hs, ht_eq, htw]
-    · refine ⟨e, Or.inr ht_eq, ?_⟩
-      have hwu : w ≠ u := huw.symm
-      simp [otherEnd, hs, hwu, htw]
+    · exact ⟨e, Or.inl hs, by simp [otherEnd, hs, ht_eq, htw]⟩
+    · exact ⟨e, Or.inr ht_eq, by simp [otherEnd, hs, huw.symm, htw]⟩
   · rintro ⟨e, he_inc, htw⟩
     refine ⟨G.otherEnd u e, ⟨fun heq => (hyu.trans_lt htw).ne (congrArg y heq), e, ?_⟩, htw⟩
     unfold otherEnd
     rcases he_inc with hs | ht_eq
     · simp [ends, hs]
-    · by_cases hs : G.src e = u
-      · simp [ends, hs, ht_eq]
-      · simp [ends, hs, ht_eq, Sym2.eq_swap]
+    · by_cases hs : G.src e = u <;> simp [ends, hs, ht_eq, Sym2.eq_swap]
 
 /-- Specialization of `ncard_edgeCut_lowerSublevel_le_innerFrontier` to `Fin n` and
 `Switched.innerFrontier`: `|δ(L_-(t))| ≤ |Switched.innerFrontier G.toSimpleGraph y t|`. -/

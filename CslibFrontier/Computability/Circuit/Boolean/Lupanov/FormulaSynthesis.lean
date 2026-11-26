@@ -40,18 +40,13 @@ open Filter Formula
 private theorem two_le_formulaBound (a c r s : ℕ) :
     2 ≤ formulaBound a c (2 ^ r) s := by
   have hd : 0 < 2 ^ r := Nat.two_pow_pos r
-  have hq : 0 < 2 ^ (2 ^ r) / 2 ^ r :=
-    Nat.div_pos (Nat.lt_two_pow_self.le) hd
-  have hb : 2 ≤ (2 ^ r) ^ 2 + (2 ^ c / s + 1) * (2 ^ s * c * s + 2 ^ r) := by
-    have hsquare : 1 ≤ (2 ^ r) ^ 2 := Nat.one_le_pow _ _ hd
-    have hprod : 1 ≤ (2 ^ c / s + 1) * (2 ^ s * c * s + 2 ^ r) :=
-      Nat.mul_pos (Nat.succ_pos _) (Nat.lt_of_lt_of_le hd (Nat.le_add_left _ _))
-    omega
-  have hm := Nat.mul_le_mul hq hb
-  have ha := Nat.mul_le_mul (Nat.two_pow_pos a) (show 2 ≤ a +
-      (2 ^ (2 ^ r) / 2 ^ r) *
-        ((2 ^ r) ^ 2 + (2 ^ c / s + 1) * (2 ^ s * c * s + 2 ^ r)) by omega)
-  simpa only [Nat.one_mul, formulaBound] using ha
+  have hq : 1 ≤ 2 ^ (2 ^ r) / 2 ^ r := Nat.div_pos Nat.lt_two_pow_self.le hd
+  have hprod : 1 ≤ (2 ^ c / s + 1) * (2 ^ s * c * s + 2 ^ r) :=
+    Nat.mul_pos (Nat.succ_pos _) (hd.trans_le (Nat.le_add_left _ _))
+  have hb : 2 ≤ (2 ^ r) ^ 2 + (2 ^ c / s + 1) * (2 ^ s * c * s + 2 ^ r) :=
+    Nat.add_le_add (Nat.one_le_pow _ _ hd) hprod
+  simpa only [Nat.one_mul, formulaBound] using
+    Nat.mul_le_mul (Nat.two_pow_pos a) (le_trans (Nat.mul_le_mul hq hb) (Nat.le_add_left _ _))
 
 /-- The finite synthesis bound can be attained in the literal-only model: no constant gates,
 negations only directly on inputs, and the same numerical bound. -/
@@ -80,7 +75,6 @@ theorem eventually_exists_computes_leafSize_le {ε : ℝ} (hε : 0 < ε) :
   obtain ⟨a, c, r, s, hs, rfl, hbound⟩ := hparams
   obtain ⟨F, hF, hNNF, hf, hsize⟩ :=
     exists_constantFree_isNNF_leafSize_le_formulaBound a c r s hs f
-  refine ⟨F, hF, hNNF, hf, ?_⟩
-  exact (Nat.cast_le.mpr hsize).trans hbound
+  exact ⟨F, hF, hNNF, hf, (Nat.cast_le.mpr hsize).trans hbound⟩
 
 end Cslib.Circuits.Boolean.LupanovFormula

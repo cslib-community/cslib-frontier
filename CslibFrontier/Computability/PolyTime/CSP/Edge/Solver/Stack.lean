@@ -50,9 +50,7 @@ inductive Stack (F : CSP Table ℕ) (D : ℕ) : EdgeForest.Input → List Frame 
 /-- The current baseline is a valid actual member of the contraction history. -/
 theorem Stack.current {F : CSP Table ℕ} {D : ℕ} {input : EdgeForest.Input}
     {frames : List Frame} (h : Stack F D input frames) : InputGood F D input := by
-  cases h with
-  | nil good => exact good
-  | cons f w blossom parents bits good => exact good
+  cases h <;> assumption
 
 /-- Preparation changes only the current baseline. It preserves the actual parent/body links. -/
 theorem Stack.relabel {F : CSP Table ℕ} {D : ℕ} {input : EdgeForest.Input}
@@ -135,15 +133,13 @@ theorem StateGood.step {F : CSP Table ℕ} {D : ℕ} {state : State}
       have edge := chain.edge hF
       cases hs : Forest.search Table.sem f with
       | exhausted es =>
-        have hh : StateGood F D ⟨⟨G, buffer f⟩, [], budget, some none⟩ :=
-          ⟨.nil h.stack.current, trivial, by simp only [List.length_nil]; omega⟩
-        simpa only [Program.step, hr, hs, EdgeForest.code] using hh
+        simp only [Program.step, hr, hs, EdgeForest.code]
+        exact ⟨.nil h.stack.current, trivial, by simp only [List.length_nil]; omega⟩
       | augment m =>
         have ha := (Forest.search_augment_correct Table.sem f edge valid even hs).2
-        have hh : StateGood F D
-            ⟨⟨G, buffer f⟩, frames, budget, some (some (buffer (m.walk.flip f)))⟩ :=
-          ⟨h.stack, ⟨m.walk.flip f, rfl, ha.1, by omega⟩, by dsimp only; omega⟩
-        simpa only [Program.step, hr, hs, EdgeForest.code, augment_code] using hh
+        simp only [Program.step, hr, hs, EdgeForest.code, augment_code]
+        exact ⟨h.stack, ⟨m.walk.flip f, rfl, ha.1, by omega⟩,
+          by dsimp only; omega⟩
       | blossom m =>
         obtain ⟨b, hb, blossom, preparedValid, preparedCount⟩ :=
           Forest.search_blossom_correct Table.sem f edge valid even hs
@@ -157,12 +153,9 @@ theorem StateGood.step {F : CSP Table ℕ} {D : ℕ} {state : State}
             Blossom.valid_reference preparedValid vs nonempty,
             Blossom.even_contract preparedValid even vs nonempty, rfl,
             (Blossom.card_defects_reference_blossom edge blossom).trans (preparedCount.trans count)⟩
-        have newstack := Stack.cons prepared b.cycle blossom newparents _ childGood
-        have hh : StateGood F D
-            ⟨⟨Blossom.contract prepared vs, buffer (Blossom.reference prepared vs)⟩,
-              ⟨⟨G, buffer prepared⟩, EdgeAugmenting.code b.cycle⟩ :: frames, budget, none⟩ :=
-          ⟨newstack, trivial, by simp only [List.length_cons]; omega⟩
-        simpa only [Program.step, hr, hs, EdgeForest.code, push_code, hb, Option.map_some] using hh
+        simp only [Program.step, hr, hs, EdgeForest.code, push_code, hb, Option.map_some]
+        exact ⟨.cons prepared b.cycle blossom newparents _ childGood, trivial,
+          by simp only [List.length_cons]; omega⟩
 
 /-- The original valid model internally supplies the initial stack invariant. -/
 theorem StateGood.initial (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
@@ -170,9 +163,7 @@ theorem StateGood.initial (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
     StateGood F (defects f).card
       ⟨⟨F, buffer f⟩, [], (CSP.occurrences F).length + 1, none⟩ := by
   refine ⟨.nil ⟨0, f, .nil, hf, hM, rfl, rfl⟩, trivial, ?_⟩
-  dsimp only
-  simp only [List.length_nil, Nat.zero_add, CSP.length_occurrences]
-  simp [vars, List.length_flatMap]
+  simp [CSP.length_occurrences, vars, List.length_flatMap]
 
 /-- Every actual iteration internally retains the derived stack invariant. -/
 theorem StateGood.iterate {F : CSP Table ℕ} {D : ℕ} {state : State}

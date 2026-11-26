@@ -921,6 +921,89 @@ theorem exists_disjoint_walk_iff_forall_isSeparator [Finite V] (G : SimpleGraph 
 
 /-! ### Global `k`-connectivity Menger -/
 
+/-- After deleting a finite set `Z` from a `(k + Z.card)`-vertex-connected graph,
+any two surviving sets of at least `k` vertices are joined by `k` vertex-disjoint
+paths in the induced graph. The endpoint convention is that of
+`exists_disjoint_walk_iff_forall_isSeparator`. -/
+theorem exists_disjoint_walk_induce_compl_of_isVertexConnected [Finite V]
+    {G : SimpleGraph V} {k : ℕ} {Z : Finset V} (hG : G.IsVertexConnected (k + Z.card))
+    (A B : Finset ((↑Z : Set V)ᶜ : Set V)) (hA : k ≤ A.card) (hB : k ≤ B.card) :
+    ∃ (a b : Fin k → ((↑Z : Set V)ᶜ : Set V))
+      (W : ∀ i, (G.induce (↑Z : Set V)ᶜ).Walk (a i) (b i)),
+      (∀ i, a i ∈ A) ∧ (∀ i, b i ∈ B) ∧ (∀ i, (W i).IsPath) ∧
+        Pairwise fun i j => (W i).support.Disjoint (W j).support := by
+  classical
+  let survivors : Set V := (↑Z : Set V)ᶜ
+  let H := G.induce survivors
+  apply (exists_disjoint_walk_iff_forall_isSeparator H ↑A ↑B k).mpr
+  intro Y hY
+  by_contra! hcard
+  obtain ⟨a, haA, haY⟩ := Finset.not_subset.mp
+    fun hsub => (not_le_of_gt hcard) (hA.trans (Finset.card_le_card hsub))
+  obtain ⟨b, hbB, hbY⟩ := Finset.not_subset.mp
+    fun hsub => (not_le_of_gt hcard) (hB.trans (Finset.card_le_card hsub))
+  let deleted : Set V := ↑Z ∪ Subtype.val '' (↑Y : Set survivors)
+  have hdeleted : deleted.encard < (↑(k + Z.card) : ℕ∞) := by
+    calc
+      _ ≤ (↑Z : Set V).encard + (Subtype.val '' (↑Y : Set survivors)).encard :=
+        Set.encard_union_le _ _
+      _ = (Z.card : ℕ∞) + Y.card := by
+        rw [Subtype.val_injective.encard_image, Set.encard_coe_eq_coe_finsetCard,
+          Set.encard_coe_eq_coe_finsetCard]
+      _ < _ := by exact_mod_cast (show Z.card + Y.card < k + Z.card by omega)
+  have survives {u : survivors} (hu : u ∉ Y) : u.val ∈ deletedᶜ := by
+    rintro (hZ | ⟨w, hw, heq⟩)
+    · exact u.property hZ
+    · exact hu (Subtype.ext heq ▸ hw)
+  let embed : G.induce deletedᶜ →g H.induce (↑Y : Set survivors)ᶜ :=
+    ⟨fun u => ⟨⟨u.val, fun h => u.property (Or.inl h)⟩,
+      fun h => u.property (Or.inr ⟨_, h, rfl⟩)⟩, fun h => h⟩
+  have hsep : H.IsVertexSeparator a b Y :=
+    isVertexSeparator_iff_forall_walk.mpr ⟨haY, hbY, hY.exists_mem_support haA hbB⟩
+  obtain ⟨_, _, hnoPath⟩ := isVertexSeparator_iff_not_reachable_induce.mp hsep
+  exact hnoPath (((hG.2 deleted hdeleted).preconnected
+    ⟨a.val, survives haY⟩ ⟨b.val, survives hbY⟩).map embed)
+
+/-- After deleting `Z` from a `(2 + Z.card)`-vertex-connected graph, two distinct surviving
+starts can be joined to two distinct surviving finishes by vertex-disjoint paths. The two
+paths determine which start is paired with which finish. -/
+theorem exists_two_disjoint_walk_induce_compl_of_isVertexConnected [Finite V]
+    {G : SimpleGraph V} {Z : Finset V} (hG : G.IsVertexConnected (2 + Z.card))
+    {a b c d : ((↑Z : Set V)ᶜ : Set V)} (hab : a ≠ b) (hcd : c ≠ d) :
+    let H := G.induce (↑Z : Set V)ᶜ
+    ∃ c' d', (c' = c ∧ d' = d ∨ c' = d ∧ d' = c) ∧
+      ∃ (p : H.Walk a c') (q : H.Walk b d'), p.IsPath ∧ q.IsPath ∧
+        p.support.Disjoint q.support := by
+  classical
+  let H := G.induce (↑Z : Set V)ᶜ
+  obtain ⟨s, t, W, hs, ht, hpath, hdisj⟩ :=
+    exists_disjoint_walk_induce_compl_of_isVertexConnected hG {a, b} {c, d}
+      (by simp [hab]) (by simp [hcd])
+  have starts (i : Fin 2) : s i = a ∨ s i = b := by
+    simpa only [Finset.mem_insert, Finset.mem_singleton] using hs i
+  have finishes (i : Fin 2) : t i = c ∨ t i = d := by
+    simpa only [Finset.mem_insert, Finset.mem_singleton] using ht i
+  have starts_ne {i j : Fin 2} (hne : i ≠ j) : s i ≠ s j := fun he =>
+    hdisj hne (W i).start_mem_support (he.symm ▸ (W j).start_mem_support)
+  have finishes_ne {i j : Fin 2} (hne : i ≠ j) : t i ≠ t j := fun he =>
+    hdisj hne (W i).end_mem_support (he.symm ▸ (W j).end_mem_support)
+  have ordered {i j : Fin 2} (hne : i ≠ j) (hi : s i = a) (hj : s j = b) :
+      ∃ c' d', (c' = c ∧ d' = d ∨ c' = d ∧ d' = c) ∧
+        ∃ (p : H.Walk a c') (q : H.Walk b d'), p.IsPath ∧ q.IsPath ∧
+          p.support.Disjoint q.support := by
+    refine ⟨t i, t j, ?_, (W i).copy hi rfl, (W j).copy hj rfl, ?_, ?_, ?_⟩
+    · rcases finishes i with hc | hd
+      · exact .inl ⟨hc, (finishes j).resolve_left (fun he => finishes_ne hne (hc.trans he.symm))⟩
+      · exact .inr ⟨hd, (finishes j).resolve_right (fun he => finishes_ne hne (hd.trans he.symm))⟩
+    · simpa only [Walk.isPath_copy] using hpath i
+    · simpa only [Walk.isPath_copy] using hpath j
+    · simpa only [Walk.support_copy] using hdisj hne
+  rcases starts 0 with h0 | h0
+  · have hne : (0 : Fin 2) ≠ 1 := by decide
+    exact ordered hne h0 ((starts 1).resolve_left fun h1 => starts_ne hne (h0.trans h1.symm))
+  · have hne : (1 : Fin 2) ≠ 0 := by decide
+    exact ordered hne ((starts 1).resolve_right fun h1 => starts_ne hne (h1.trans h0.symm)) h0
+
 /-- **Menger's theorem, global edge-connectivity form** ([Diestel2025], Theorem 3.3.6 (ii)): a
 finite simple graph is `k`-edge-connected iff every pair of vertices is joined by `k` pairwise
 edge-disjoint paths.

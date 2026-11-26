@@ -131,18 +131,15 @@ theorem two_pow_mul_mod_mod_two {N : ℕ} (hN : Odd N) {k : ℕ} (hk : k ≠ 0) 
   obtain ⟨t, rfl⟩ := hN
   obtain ⟨j, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk
   have hdiv := Nat.div_add_mod (2 ^ (j + 1) * x) (2 * t + 1)
-  generalize 2 ^ (j + 1) * x / (2 * t + 1) = q at hdiv ⊢
-  generalize 2 ^ (j + 1) * x % (2 * t + 1) = r at hdiv ⊢
-  rw [show 2 ^ (j + 1) * x = 2 * (2 ^ j * x) by ring,
-    show (2 * t + 1) * q = 2 * (t * q) + q by ring] at hdiv
+  rw [pow_succ', mul_assoc] at hdiv ⊢
+  rw [add_one_mul, mul_assoc] at hdiv
   omega
 
 /-- The doubling query `2 ^ (k * e) * y % N` is the RSA image of `2 ^ k * x % N` when
 `y = x ^ e % N`. -/
 theorem two_pow_mul_rsaEval (N e k x : ℕ) :
     2 ^ (k * e) * rsaEval N e x % N = rsaEval N e (2 ^ k * x % N) := by
-  unfold rsaEval
-  rw [← Nat.pow_mod, mul_pow, ← pow_mul, Nat.mul_mod_mod]
+  rw [rsaEval, rsaEval, ← Nat.pow_mod, mul_pow, ← pow_mul, Nat.mul_mod_mod]
 
 /-- The public doubling queries `2 ^ (k * e) * y % N` for `k = 1, …, m`. -/
 @[expose] def lsbQueries (N e y m : ℕ) : List ℕ :=
@@ -175,13 +172,10 @@ theorem binaryValue_testBit_two_pow_mul_mod {N x : ℕ} (hN : Odd N) (hx : x < N
 /-- Rounding `⌊2 ^ m * x / N⌋ * N / 2 ^ m` up recovers `x` once `N ≤ 2 ^ m`. -/
 theorem lsbRecover_eq {N x m : ℕ} (hx : x < N) (hm : N ≤ 2 ^ m) (bits : List Bool)
     (hbits : BitString.binaryValue bits = 2 ^ m * x / N) : lsbRecover N m bits = x := by
-  have hN : 0 < N := by omega
-  have hP : 0 < 2 ^ m := Nat.two_pow_pos m
-  unfold lsbRecover
-  rw [hbits]
+  rw [lsbRecover, hbits]
   have hlo := Nat.div_mul_le_self (2 ^ m * x) N
-  have hhi := Nat.lt_div_mul_add (a := 2 ^ m * x) hN
-  apply Nat.div_eq_of_lt_le
+  have hhi := Nat.lt_div_mul_add (a := 2 ^ m * x) (Nat.zero_lt_of_lt hx)
+  refine Nat.div_eq_of_lt_le ?_ ?_
   · rw [mul_comm x]
     omega
   · rw [add_mul, one_mul, mul_comm x]
@@ -192,13 +186,10 @@ from the `m` doubling queries, once `N ≤ 2 ^ m`. -/
 theorem lsbRecover_lsbQueries {N e x m : ℕ} (hN : Odd N) (hx : x < N) (hm : N ≤ 2 ^ m)
     (oracle : ℕ → Bool) (horacle : ∀ z < N, oracle (rsaEval N e z) = z.testBit 0) :
     lsbRecover N m ((lsbQueries N e (rsaEval N e x) m).map oracle) = x := by
-  apply lsbRecover_eq hx hm
-  rw [← binaryValue_testBit_two_pow_mul_mod hN hx m, lsbQueries, List.map_map]
-  congr 1
-  apply List.map_congr_left
-  intro k _
-  simp only [Function.comp_apply]
-  rw [two_pow_mul_rsaEval, horacle _ (Nat.mod_lt _ (by omega))]
+  refine lsbRecover_eq hx hm _ (by
+    rw [← binaryValue_testBit_two_pow_mul_mod hN hx m, lsbQueries, List.map_map]
+    exact congrArg _ (List.map_congr_left fun k _ => by
+      rw [Function.comp_apply, two_pow_mul_rsaEval, horacle _ (Nat.mod_lt _ (by omega))]))
 
 /-! ### The inverter -/
 
@@ -223,42 +214,21 @@ an odd `N`, then `lsbInverter P` returns the preimage of every `y = x ^ e % N` w
 theorem eval_lsbInverter {P : RSAPredictor} {n : ℕ} {pk : RSAPublicKey} (hN : Odd pk.N)
     (hP : ∀ z : Fin pk.N, ProbComp.eval (P n pk (pk.eval z)) = PMF.pure ((z : ℕ).testBit 0))
     (x : Fin pk.N) : ProbComp.eval (lsbInverter P n pk (pk.eval x)) = PMF.pure x := by
-  classical
   have hpos : 0 < pk.N := x.pos
-  let oracle : ℕ → Bool := fun query =>
-    if h : ∃ z : Fin pk.N, rsaEval pk.N pk.e z = query then (Classical.choose h).val.testBit 0
-    else false
-  have hcorrect : ∀ z < pk.N, oracle (rsaEval pk.N pk.e z) = z.testBit 0 := by
-    intro z hz
-    have hex : ∃ z' : Fin pk.N, rsaEval pk.N pk.e z' = rsaEval pk.N pk.e z := ⟨⟨z, hz⟩, rfl⟩
-    have heq : pk.eval (Classical.choose hex) = pk.eval ⟨z, hz⟩ :=
-      Fin.ext (Classical.choose_spec hex)
-    have h1 := congrArg PMF.support (hP (Classical.choose hex))
-    rw [heq, hP ⟨z, hz⟩, PMF.support_pure, PMF.support_pure,
-      Set.singleton_eq_singleton_iff] at h1
-    simp only [oracle, dite_eq_left_of_eq_true (eq_true hex)]
-    exact h1.symm
-  have hqueries : ∀ query ∈ lsbQueries pk.N pk.e (pk.eval x) pk.N.size,
-      ProbComp.eval (P n pk ⟨query % pk.N, Nat.mod_lt _ (pk.eval x).pos⟩) =
-        PMF.pure (oracle query) := by
-    intro query hq
-    simp only [lsbQueries, List.mem_map, List.mem_range] at hq
-    obtain ⟨k, -, rfl⟩ := hq
+  have hqueries : ∀ k ∈ List.range pk.N.size,
+      ProbComp.eval (P n pk ⟨2 ^ ((k + 1) * pk.e) * (pk.eval x : ℕ) % pk.N % pk.N,
+        Nat.mod_lt _ (pk.eval x).pos⟩) = PMF.pure ((2 ^ (k + 1) * x % pk.N).testBit 0) := by
+    intro k _
     have hpoint : (⟨2 ^ ((k + 1) * pk.e) * (pk.eval x : ℕ) % pk.N % pk.N,
         Nat.mod_lt _ (pk.eval x).pos⟩ : Fin pk.N) =
-        pk.eval ⟨2 ^ (k + 1) * x % pk.N, Nat.mod_lt _ hpos⟩ := by
-      ext
-      simp only [RSAPublicKey.val_eval, two_pow_mul_rsaEval]
-      exact Nat.mod_mod _ _
-    rw [hpoint, hP, RSAPublicKey.val_eval, two_pow_mul_rsaEval,
-      hcorrect _ (Nat.mod_lt _ hpos)]
-  simp only [lsbInverter, ProbComp.eval_bind, ProbComp.eval_pure,
-    eval_mapM_of_pure _ oracle _ hqueries, PMF.pure_bind]
+        pk.eval ⟨2 ^ (k + 1) * x % pk.N, Nat.mod_lt _ hpos⟩ :=
+      Fin.ext ((Nat.mod_mod _ _).trans (by simp only [RSAPublicKey.val_eval, two_pow_mul_rsaEval]))
+    rw [hpoint, hP]
+  simp only [lsbInverter, lsbQueries, List.mapM_map, Function.comp_def, ProbComp.eval_bind,
+    ProbComp.eval_pure, eval_mapM_of_pure _ _ _ hqueries, PMF.pure_bind]
   congr 1
-  ext
-  simp only [RSAPublicKey.val_eval]
-  rw [lsbRecover_lsbQueries hN x.isLt (Nat.lt_size_self pk.N).le oracle hcorrect,
-    Nat.mod_eq_of_lt x.isLt]
+  exact Fin.ext ((congrArg (· % pk.N) (lsbRecover_eq x.isLt (Nat.lt_size_self pk.N).le _
+    (binaryValue_testBit_two_pow_mul_mod hN x.isLt pk.N.size))).trans (Nat.mod_eq_of_lt x.isLt))
 
 /-- A predictor that is always correct on the odd moduli produced by `gen n` yields an inverter
 that wins the RSA inversion experiment with probability one. -/
@@ -300,14 +270,9 @@ theorem computableInPolyTime_lsbQueries {α : Type} {enc : α ↪ List Bool} {N 
   have hstep : ComputableInPolyTime
       (fun p : α × ℕ => 2 ^ ((p.2 + 1) * e p.1) * y p.1 % N p.1)
       (encPair enc encUnary) encNat := by
-    have hmul : ComputableInPolyTime
-        (fun p : α × ℕ => (2 ^ ((p.2 + 1) * e p.1) % N p.1) * y p.1 % N p.1)
-        (encPair enc encUnary) encNat :=
-      ComputableInPolyTime.binary_mod'
-        (ComputableInPolyTime.binary_mul' hpow
-          (hy.comp (ComputableInPolyTime.fst enc encUnary)))
-        (hN.comp (ComputableInPolyTime.fst enc encUnary))
-    simpa only [Nat.mod_mul_mod] using hmul
+    simpa only [Nat.mod_mul_mod, Function.comp_def] using ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hpow (hy.comp (ComputableInPolyTime.fst enc encUnary)))
+      (hN.comp (ComputableInPolyTime.fst enc encUnary))
   exact ComputableInPolyTime.mapWithInput hrange hstep
 
 /-- Computing `lsbRecover N m bits = (BitString.binaryValue bits * N + 2 ^ m - 1) / 2 ^ m` is
@@ -336,25 +301,17 @@ theorem isPPT_lsbInverter {P : RSAPredictor} (hP : P.IsPPT) : (lsbInverter P).Is
       (fun p : RSAInput × ℕ =>
         ({ secParam := p.1.secParam, publicKey := p.1.publicKey,
            challenge := ⟨p.2 % p.1.publicKey.N, Nat.mod_lt _ p.1.challenge.pos⟩ } : RSAInput))
-      (encPair encRSAInput encNat) encRSAInput := by
-    have hraw : ComputableInPolyTime
-        (fun p : RSAInput × ℕ =>
-          (p.1.secParam, p.1.publicKey, p.2 % p.1.publicKey.N))
-        (encPair encRSAInput encNat) (encPair encUnary (encPair encRSAPublicKey encNat)) :=
+      (encPair encRSAInput encNat) encRSAInput :=
+    (ComputableInPolyTime.prod (by fun_prop)
       (ComputableInPolyTime.prod (by fun_prop)
-        (ComputableInPolyTime.prod (by fun_prop)
-          (ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop))))
-    exact hraw.of_enc_eq fun _ => rfl
-  have hqueryPPT : IsPPTOn (encPair encRSAInput encNat) encBool
-      (fun p : RSAInput × ℕ =>
-        P p.1.secParam p.1.publicKey ⟨p.2 % p.1.publicKey.N, Nat.mod_lt _ p.1.challenge.pos⟩) :=
-    hP.preprocess hprepare
+        (ComputableInPolyTime.binary_mod' (by fun_prop)
+          (by fun_prop)))).of_enc_eq fun _ => rfl
   have hmapM : IsPPTOn encRSAInput (encList encBool)
       (fun x : RSAInput =>
         (lsbQueries x.publicKey.N x.publicKey.e x.challenge x.publicKey.N.size).mapM
           fun query => P x.secParam x.publicKey
             ⟨query % x.publicKey.N, Nat.mod_lt _ x.challenge.pos⟩) :=
-    IsPPTOn.mapMWith hqueryPPT hqueries
+    IsPPTOn.mapMWith (hP.preprocess hprepare) hqueries
   have hpost : ComputableInPolyTime
       (fun p : RSAInput × List Bool =>
         lsbRecover p.1.publicKey.N p.1.publicKey.N.size p.2 % p.1.publicKey.N)

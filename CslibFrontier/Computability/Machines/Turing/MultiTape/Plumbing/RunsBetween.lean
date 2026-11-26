@@ -179,12 +179,9 @@ theorem of_runFrom (h : tm.runFrom (c.withState (some tm.q₀)) t = c'.withState
 
 /-- A run between shifted configurations. -/
 theorem shift (h : RunsBetween tm c c' t s) (δ : Fin k → ℤ) :
-    RunsBetween tm (c.shift δ) (c'.shift δ) t s := by
-  refine ⟨?_, ?_⟩
-  · rw [Cfg.shift_withState, runFrom_shift, h.1]
-    rfl
-  · rw [Cfg.shift_withState, space_shift]
-    exact h.2
+    RunsBetween tm (c.shift δ) (c'.shift δ) t s :=
+  ⟨by rw [Cfg.shift_withState, runFrom_shift, h.1]; rfl,
+    by simpa only [Cfg.shift_withState, space_shift] using h.2⟩
 
 /-- **Sequential composition.** -/
 theorem seq {State₁ : Type*} {tm₁ : MultiTapeTM k Symbol State₁} {c'' : Cfg k Symbol Unit input}
@@ -194,10 +191,7 @@ theorem seq {State₁ : Type*} {tm₁ : MultiTapeTM k Symbol State₁} {c'' : Cf
       (c.withState (some tm.q₀)).mapState (handOver tm₁.q₀) := rfl
   refine ⟨by rw [hl, runFrom_seq h₀.1 rfl h₁.1 rfl]; rfl, ?_⟩
   rw [hl]
-  refine (space_seq_le h₀.1 rfl ?_).trans (Nat.add_le_add h₀.2 h₁.2)
-  rw [show (c'.withState (none : Option State)).withState _ = c'.withState (some tm₁.q₀) from rfl,
-    h₁.1]
-  rfl
+  exact (space_seq_le h₀.1 rfl (congrArg Cfg.state h₁.1)).trans (Nat.add_le_add h₀.2 h₁.2)
 
 /-- **A run on the tapes selected by an embedding.** The other tapes are left alone; each costs
 one cell. -/
@@ -384,8 +378,7 @@ theorem runsBetween_whileCond {c : Option Symbol → (Fin k → Option Symbol) �
   change (whileCond c tm).runFrom start τ = _ at hrun
   change (MultiTapeNTM.RunPath.ofDeterministic (whileCond c tm) start τ).space ≤ _ at hsp
   have hfinal : (whileCond c tm).runFrom start (τ + 1) = (cfg n).withState none := by
-    rw [runFrom_succ, hrun, step_check, hstop]
-    rfl
+    rw [runFrom_succ, hrun, step_check, hstop]; rfl
   have hhalt : ((whileCond c tm).runFrom start (τ + 1)).state = none := by rw [hfinal]; rfl
   refine ⟨by rw [runFrom_eq_of_halt _ _ (by lia) hhalt, hfinal], ?_⟩
   rw [space_eq_of_halt _ (by lia) hhalt]

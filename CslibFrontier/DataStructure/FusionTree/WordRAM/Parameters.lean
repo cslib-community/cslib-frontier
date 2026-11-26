@@ -244,10 +244,7 @@ theorem upperRank_eq (p : NodeParameters w keys) (hn : 0 < n)
           sketch (relevantBits w keys) q)).card := by
   rw [upperRankExpr_eq_card _ hn (p.count_lt_radix hsorted hbound)
     (fun i _ => p.sketches_lt i) (p.compressed_lt q)]
-  congr 1
-  apply Finset.filter_congr
-  intro i _
-  exact p.compressed_le_iff _ q
+  exact congrArg Finset.card (Finset.filter_congr fun _ _ => p.compressed_le_iff _ q)
 
 /-- Strict arithmetic rank agrees with the perfect-sketch strict rank for every query,
 including zero and queries with the same sketch as a stored key. -/
@@ -259,10 +256,7 @@ theorem lowerRank_eq (p : NodeParameters w keys) (hn : 0 < n)
           sketch (relevantBits w keys) q)).card := by
   rw [LowerRankProgram.countGuards_complement _ hn (p.count_lt_radix hsorted hbound)
     (fun i _ => p.sketches_lt i) (p.compressed_lt q)]
-  congr 1
-  apply Finset.filter_congr
-  intro i _
-  exact p.compressed_lt_iff _ q
+  exact congrArg Finset.card (Finset.filter_congr fun _ _ => p.compressed_lt_iff _ q)
 
 /-- Slot order: input mask, three multiplier digits, retained mask, copies,
 complemented packed sketches, original packed sketches, guards, payload width,
@@ -314,9 +308,8 @@ theorem words_fit (p : NodeParameters w keys) (hn : 2 ≤ n)
 theorem exists_parameters (hn : 2 ≤ n) (hsorted : StrictMono keys)
     (hbound : ∀ i, keys i < 2 ^ w) (hnB : n ≤ branching w)
     (hw : 9 ≤ Nat.log 2 w) : Nonempty (NodeParameters w keys) := by
-  have hr : 0 < relevantCount w keys := by
-    apply Finset.card_pos.mpr
-    exact ⟨_, Finset.mem_image.mpr ⟨⟨0, by omega⟩, Finset.mem_univ _, rfl⟩⟩
+  have hr : 0 < relevantCount w keys :=
+    Finset.card_pos.mpr ⟨_, Finset.mem_image.mpr ⟨⟨0, by omega⟩, Finset.mem_univ _, rfl⟩⟩
   have hsource (i : Fin (relevantCount w keys)) : sourcePositions w keys i < w :=
     Finset.mem_range.mp (relevantBits_subset_range hsorted hbound
       (Finset.orderEmbOfFin_mem _ rfl i))

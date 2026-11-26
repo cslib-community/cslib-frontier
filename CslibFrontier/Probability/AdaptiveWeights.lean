@@ -111,9 +111,15 @@ theorem acceptWeight_bounds {D : ℤ} {p : σ → ℤ} (step : σ → Bool → �
     obtain ⟨ht₀, ht₁⟩ := ih (step s true)
     obtain ⟨hp₀, hp₁⟩ := hp s
     rw [acceptWeight, pow_succ]
-    exact ⟨add_nonneg (mul_nonneg (sub_nonneg.mpr hp₁) hf₀) (mul_nonneg hp₀ ht₀),
-      (add_le_add (mul_le_mul_of_nonneg_left hf₁ (sub_nonneg.mpr hp₁))
-        (mul_le_mul_of_nonneg_left ht₁ hp₀)).trans_eq (by ring)⟩
+    constructor
+    · exact add_nonneg (mul_nonneg (sub_nonneg.mpr hp₁) hf₀) (mul_nonneg hp₀ ht₀)
+    · calc
+        (D - p s) * acceptWeight D p step accept n (step s false) +
+            p s * acceptWeight D p step accept n (step s true) ≤
+            (D - p s) * D ^ n + p s * D ^ n :=
+          add_le_add (mul_le_mul_of_nonneg_left hf₁ (sub_nonneg.mpr hp₁))
+            (mul_le_mul_of_nonneg_left ht₁ hp₀)
+        _ = D ^ n * D := by ring
 
 private theorem abs_sub_indicator_le {v E : ℤ} (hv : 0 ≤ v ∧ v ≤ E) (b : Bool) :
     |v - E * (if b then 1 else 0)| ≤ E := by
@@ -128,20 +134,25 @@ private theorem error_step {D E M wg wo vg vo n : ℤ} (c : Bool)
     M * |wg * vg + wo * vo - (D * E) * (if c then 1 else 0)| ≤
       (n + 1) * (D * E) := by
   have hbad := abs_sub_indicator_le hvo c
-  rw [show wg * vg + wo * vo - (D * E) * (if c then 1 else 0) =
-    wg * (vg - E * (if c then 1 else 0)) + wo * (vo - E * (if c then 1 else 0)) by
-      rw [← hsum]; ring]
-  have htri : M * |wg * (vg - E * (if c then 1 else 0)) + wo * (vo - E * (if c then 1 else 0))| ≤
-      wg * (M * |vg - E * (if c then 1 else 0)|) +
-        (M * wo) * |vo - E * (if c then 1 else 0)| :=
-    (mul_le_mul_of_nonneg_left (by
-      simpa only [abs_mul, abs_of_nonneg hg, abs_of_nonneg ho] using
-        abs_add_le (wg * (vg - E * (if c then 1 else 0))) (wo * (vo - E * (if c then 1 else 0))))
-      hM).trans_eq (by ring)
-  refine htri.trans ((add_le_add (mul_le_mul_of_nonneg_left hvg hg)
-    (mul_le_mul herr hbad (abs_nonneg _) hD)).trans ?_)
-  exact (add_le_add (mul_le_mul_of_nonneg_right (by omega : wg ≤ D) (mul_nonneg hn hE))
-    le_rfl).trans_eq (by ring)
+  have hdecomp : wg * vg + wo * vo - (D * E) * (if c then 1 else 0) =
+      wg * (vg - E * (if c then 1 else 0)) + wo * (vo - E * (if c then 1 else 0)) := by
+    rw [← hsum]
+    ring
+  rw [hdecomp]
+  calc
+    M * |wg * (vg - E * (if c then 1 else 0)) +
+        wo * (vo - E * (if c then 1 else 0))| ≤
+        M * (wg * |vg - E * (if c then 1 else 0)| +
+          wo * |vo - E * (if c then 1 else 0)|) := by
+      apply mul_le_mul_of_nonneg_left _ hM
+      simpa only [abs_mul, abs_of_nonneg hg, abs_of_nonneg ho] using abs_add_le
+        (wg * (vg - E * (if c then 1 else 0))) (wo * (vo - E * (if c then 1 else 0)))
+    _ = wg * (M * |vg - E * (if c then 1 else 0)|) +
+        (M * wo) * |vo - E * (if c then 1 else 0)| := by ring
+    _ ≤ wg * (n * E) + D * E := by gcongr
+    _ ≤ D * (n * E) + D * E :=
+      add_le_add (mul_le_mul_of_nonneg_right (show wg ≤ D by omega) (mul_nonneg hn hE)) le_rfl
+    _ = (n + 1) * (D * E) := by ring
 
 /-- If every step gives weight at most `D / M` to the wrong answer, the total acceptance weight
 differs from the ideal deterministic answer by at most `n / M` of the total mass. Answers and
@@ -175,21 +186,32 @@ theorem sum_error {m n : ℕ} {E : ℤ} (hE : 0 ≤ E)
       |f w - E * (if ideal w then 1 else 0)| ≤ (n : ℤ) * E) :
     16 * |(∑ w, f w) - E * ∑ w, (if ideal w then (1 : ℤ) else 0)| ≤ E := by
   let M : ℤ := 2 ^ (m + n + 4)
-  have hM : 0 < M := by positivity
-  rw [mul_sum, ← sum_sub_distrib]
+  have hM : 0 < M := by dsimp [M]; positivity
+  have hdiff : (∑ w, f w) - E * ∑ w, (if ideal w then (1 : ℤ) else 0) =
+      ∑ w, (f w - E * (if ideal w then 1 else 0)) := by
+    rw [sum_sub_distrib, mul_sum]
   have hsum : M * |∑ w, (f w - E * (if ideal w then (1 : ℤ) else 0))| ≤
       (2 : ℤ) ^ m * ((n : ℤ) * E) := by
-    refine (mul_le_mul_of_nonneg_left (abs_sum_le_sum_abs _ _) hM.le).trans ?_
-    rw [mul_sum]
-    refine (sum_le_sum fun w _ => herr w).trans_eq ?_
-    simp
-  have hn : (n : ℤ) ≤ (2 : ℤ) ^ n := mod_cast Nat.lt_two_pow_self.le
+    calc
+      M * |∑ w, (f w - E * (if ideal w then (1 : ℤ) else 0))| ≤
+          M * ∑ w, |f w - E * (if ideal w then (1 : ℤ) else 0)| :=
+        mul_le_mul_of_nonneg_left (abs_sum_le_sum_abs _ _) hM.le
+      _ = ∑ w, M * |f w - E * (if ideal w then (1 : ℤ) else 0)| := by rw [mul_sum]
+      _ ≤ ∑ _w : Fin m → Bool, (n : ℤ) * E := sum_le_sum fun w _ => herr w
+      _ = (2 : ℤ) ^ m * ((n : ℤ) * E) := by
+        simp only [sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
+          Fintype.card_fin, nsmul_eq_mul, Nat.cast_pow, Nat.cast_ofNat]
+  have hn : (n : ℤ) ≤ (2 : ℤ) ^ n := by exact_mod_cast (Nat.lt_two_pow_self (n := n)).le
   have hscale : 16 * ((2 : ℤ) ^ m * n) ≤ M := by
-    dsimp [M]; rw [pow_add, pow_add, show (2 : ℤ) ^ 4 = 16 by norm_num]
-    linarith only [mul_le_mul_of_nonneg_left hn (show 0 ≤ 16 * (2 : ℤ) ^ m by positivity)]
-  refine (mul_le_mul_iff_right₀ hM).mp ?_
-  rw [mul_left_comm M 16]
-  exact ((mul_le_mul_of_nonneg_left hsum (by norm_num)).trans_eq (by ring)).trans
-    (mul_le_mul_of_nonneg_right hscale hE)
+    dsimp [M]
+    rw [pow_add, pow_add, show (2 : ℤ) ^ 4 = 16 by norm_num]
+    nlinarith [mul_le_mul_of_nonneg_left hn (show 0 ≤ (2 : ℤ) ^ m by positivity)]
+  rw [hdiff]
+  apply (mul_le_mul_iff_right₀ hM).mp
+  calc
+    M * (16 * |∑ w, (f w - E * (if ideal w then (1 : ℤ) else 0))|) =
+        16 * (M * |∑ w, (f w - E * (if ideal w then (1 : ℤ) else 0))|) := by ring
+    _ ≤ 16 * ((2 : ℤ) ^ m * ((n : ℤ) * E)) := mul_le_mul_of_nonneg_left hsum (by norm_num)
+    _ ≤ M * E := by nlinarith [mul_le_mul_of_nonneg_right hscale hE]
 
 end Cslib.Probability.AdaptiveWeights

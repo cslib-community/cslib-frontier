@@ -162,18 +162,14 @@ private theorem isProof_resolveOn {ls : List (Clause ℕ)} (h : φ.IsProof ls) {
     (hl₁ : Literal.negate l ∈ d₁) :
     φ.IsProof (resolveOn l d₀ d₁ :: ls) ∧ ∀ m ∈ resolveOn l d₀ d₁,
       (m ∈ d₀ ∧ m ≠ l) ∨ (m ∈ d₁ ∧ m ≠ Literal.negate l) := by
-  obtain ⟨v, b⟩ := l
-  cases b
-  · refine ⟨h.resolvent v h₁ h₀ hl₁ hl₀, fun m hm => ?_⟩
-    rcases Clause.mem_resolvent.1 hm with hm | hm
-    exacts [.inr hm, .inl hm]
+  obtain ⟨v, _ | _⟩ := l
+  · exact ⟨h.resolvent v h₁ h₀ hl₁ hl₀, fun m hm => (Clause.mem_resolvent.1 hm).symm⟩
   · exact ⟨h.resolvent v h₀ h₁ hl₀ hl₁, fun m hm => Clause.mem_resolvent.1 hm⟩
 
 /-- The checker's lookup in the database it sees is the lookup in the translation's. -/
 private theorem find?_map_toPair (db : List LRATEntry) (h : ℕ) :
     (db.map LRATEntry.toPair).find? (·.1 == h) = (db.find? (·.id == h)).map LRATEntry.toPair := by
-  rw [List.find?_map]
-  rfl
+  rw [List.find?_map]; rfl
 
 /-- **The chain of a RUP step.** If unit propagation along the hints succeeds in the checker's
 database, the chain is defined: it extends the proof by at most one line for each hint and at most
@@ -194,8 +190,7 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
     rw [propagateHints_cons, find?_map_toPair] at hprop
     rcases hfind : db.find? (·.id == h) with _ | e
     · simp [hfind] at hprop
-    have he := List.mem_of_find?_eq_some hfind
-    obtain ⟨hd₀, hsub⟩ := hdb e he
+    obtain ⟨hd₀, hsub⟩ := hdb _ (List.mem_of_find?_eq_some hfind)
     simp only [hfind, Option.map_some, LRATEntry.toPair] at hprop
     rcases hres : e.clause.residual t with _ | l | _
     · -- every literal of the hinted clause is false: the chain ends with its line
@@ -229,8 +224,8 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
             simp only [freeVars, Finset.mem_filter, List.mem_toFinset]
             refine ⟨hls.fst_mem_vars hd₀ hl₀, ?_⟩
             cases b
-            · exact ⟨by simpa [Literal.negate] using hlnew, hA.2⟩
-            · exact ⟨hA.2, by simpa [Literal.negate] using hlnew⟩
+            exacts [⟨by simpa [Literal.negate] using hlnew, hA.2⟩,
+              ⟨hA.2, by simpa [Literal.negate] using hlnew⟩]
           exact Nat.succ_le_of_lt (hvar₁.trans_lt (Finset.card_erase_lt_of_mem hv))
       · simp only [hl₀, ↓reduceIte]
         exact ⟨[], e.line, rfl, hls, hd₀, fun m hm => (hopen m hm).resolve_right
@@ -258,49 +253,35 @@ private theorem lratToProofAux_spec :
     obtain ⟨ls', d, hc, hp, hd, hf, hlen, hvar⟩ := rupChain_spec hls hdb _ _ h
     obtain rfl : d = [] := List.eq_nil_iff_forall_not_mem.2 fun m hm => by simpa using hf m hm
     refine ⟨ls', by simp [lratToProofAux, hc], hp, hd, ?_, ?_⟩
-    · simp only [lratHintCount]
-      simp at hlen
-      omega
+    · simp only [lratHintCount, Array.length_toList] at hlen ⊢; omega
     · have := hvar.trans (Finset.card_filter_le _ _)
-      simp only [List.length_cons, Nat.succ_mul]
-      omega
+      simp only [List.length_cons, Nat.succ_mul]; omega
   | .addRup id c hints :: rest, db, ls, hls, hdb, h => by
     simp only [checkLRATAux, Bool.and_eq_true] at h
     obtain ⟨ls₁, d, hc, hp₁, hd, hf, hlen₁, hvar₁⟩ := rupChain_spec hls hdb _ _ h.1
     have hdb' : ∀ e ∈ (⟨id, Clause.ofDIMACS c.toList, d⟩ :: db : List LRATEntry),
-        e.line ∈ ls₁ ++ ls ∧ ∀ l ∈ e.line, l ∈ e.clause := by
-      intro e he
-      rcases List.mem_cons.1 he with rfl | he
-      · refine ⟨hd, fun m hm => ?_⟩
+        e.line ∈ ls₁ ++ ls ∧ ∀ l ∈ e.line, l ∈ e.clause :=
+      List.forall_mem_cons.2 ⟨⟨hd, fun m hm => by
         obtain ⟨m', hm', hmm'⟩ := List.mem_map.1 (hf m hm)
-        rwa [← show m' = m by simpa using negate_eq_iff.1 hmm']
-      · exact ⟨List.mem_append_right _ (hdb e he).1, (hdb e he).2⟩
+        simpa [negate_eq_iff.1 hmm'] using hm'⟩,
+        fun e he => ⟨List.mem_append_right _ (hdb e he).1, (hdb e he).2⟩⟩
     obtain ⟨ls₂, hc₂, hp₂, hnil, hlen₂, hvar₂⟩ :=
       lratToProofAux_spec rest _ _ hp₁ hdb' (by simpa [LRATEntry.toPair] using h.2)
-    refine ⟨ls₂ ++ ls₁, ?_, by simpa using hp₂, by simpa using hnil, ?_, ?_⟩
-    · simp [lratToProofAux, hc, hc₂]
-    · simp only [lratHintCount, List.length_append]
-      simp at hlen₁
-      omega
+    refine ⟨ls₂ ++ ls₁, by simp [lratToProofAux, hc, hc₂], by simpa using hp₂,
+      by simpa using hnil, ?_, ?_⟩
+    · simp only [lratHintCount, List.length_append, Array.length_toList] at hlen₁ ⊢; omega
     · have := hvar₁.trans (Finset.card_filter_le _ _)
-      simp only [List.length_append, List.length_cons, Nat.succ_mul]
-      omega
+      simp only [List.length_append, List.length_cons, Nat.succ_mul]; omega
   | .addRat .. :: _, _, _, _, _, h => by simp [checkLRATAux] at h
   | .del ids :: rest, db, ls, hls, hdb, h => by
-    simp only [checkLRATAux] at h
-    have hmap : (db.map LRATEntry.toPair).filter (fun e => !ids.toList.contains e.1) =
-        (db.filter fun e => !ids.toList.contains e.id).map LRATEntry.toPair := by
-      rw [List.filter_map]
-      rfl
-    rw [hmap] at h
+    simp only [checkLRATAux, List.filter_map] at h
     obtain ⟨ls', hc, hp, hnil, hlen, hvar⟩ := lratToProofAux_spec rest
       (db.filter fun e => !ids.toList.contains e.id) ls hls
       (fun e he => hdb e (List.mem_filter.1 he).1)
       h
-    refine ⟨ls', by simpa [lratToProofAux] using hc, hp, hnil, ?_, ?_⟩
-    · simpa [lratHintCount] using hlen
-    · simp only [List.length_cons, Nat.succ_mul]
-      omega
+    exact ⟨ls', by simpa [lratToProofAux] using hc, hp, hnil,
+      by simpa [lratHintCount] using hlen,
+      hvar.trans (Nat.mul_le_mul_right _ (Nat.le_succ _))⟩
 
 /-- **The resolution proof of an accepted LRAT certificate is a refutation**: it is a resolution
 proof from `φ` containing the empty clause, with at most `|φ|` lines plus the smaller of the
@@ -310,16 +291,12 @@ theorem isProof_lratToProof {cert : Array LRAT.IntAction} (h : φ.checkLRAT cert
     ∃ ls, φ.lratToProof cert = some ls ∧ φ.IsProof ls ∧ [] ∈ ls ∧
       ls.length ≤
         φ.length + min (lratHintCount cert.toList) (cert.size * φ.vars.toFinset.card) := by
-  have hdb : (φ.zipIdx.map fun e => (⟨e.2 + 1, e.1, e.1⟩ : LRATEntry)).map LRATEntry.toPair =
-      φ.lratDB := by
-    simp [lratDB, LRATEntry.toPair, Function.comp_def]
   obtain ⟨ls', hc, hp, hnil, hlen, hvar⟩ := lratToProofAux_spec cert.toList
     (φ.zipIdx.map fun e => (⟨e.2 + 1, e.1, e.1⟩ : LRATEntry)) φ
     (isProof_of_subset fun _ => id)
-    (fun e he => by
-      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
-      exact ⟨List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp), fun _ hl => hl⟩)
-    (by rw [hdb]; exact h)
+    (List.forall_mem_map.2 fun _ hp =>
+      ⟨List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp), fun _ hl => hl⟩)
+    (by simpa [checkLRAT, lratDB, LRATEntry.toPair, Function.comp_def] using h)
   refine ⟨_, hc, hp, hnil, ?_⟩
   simp only [List.length_append, Array.length_toList] at hlen hvar ⊢
   omega

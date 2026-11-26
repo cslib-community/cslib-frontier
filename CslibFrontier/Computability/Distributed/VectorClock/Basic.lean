@@ -277,11 +277,7 @@ theorem recv_sendEvent {E : Execution P} {e : E.Event} {p : P} {sIdx : ℕ}
     ∃ eSend : E.Event, eSend.idx.val = sIdx ∧ eSend.idx < e.idx ∧
       p = e.actor ∧ ∃ src : P, eSend.step = .send src p := by
   obtain ⟨hs, src, hsend⟩ := E.recv_valid e.idx p sIdx hrecv
-  have hp : e.actor = p := by
-    unfold Event.actor
-    rw [hrecv]
-    rfl
-  exact ⟨⟨⟨sIdx, hs.trans e.idx.isLt⟩⟩, rfl, hs, hp.symm, src, hsend⟩
+  exact ⟨⟨⟨sIdx, hs.trans e.idx.isLt⟩⟩, rfl, hs, by simp [Event.actor, hrecv], src, hsend⟩
 
 /-! ### Direct causality and Lamport's happens-before poset -/
 
@@ -310,13 +306,7 @@ of `CausalStep`. -/
 /-- If `e₂.step = .recv p e₁.idx.val`, then `MessageOrder e₁ e₂` holds. -/
 theorem messageOrder_of_recv {E : Execution P} {e₁ e₂ : E.Event} {p : P}
     (h : e₂.step = .recv p e₁.idx.val) : E.MessageOrder e₁ e₂ := by
-  have hp : e₂.actor = p := by
-    unfold Event.actor
-    rw [h]
-    rfl
-  unfold MessageOrder
-  rw [hp]
-  exact h
+  simp [MessageOrder, Event.actor, h]
 
 /-- Direct causal steps strictly advance the execution trace index. -/
 theorem causalStep_idx_lt {E : Execution P} {e₁ e₂ : E.Event} (h : E.CausalStep e₁ e₂) :
@@ -337,8 +327,7 @@ theorem happensBefore_idx_lt {E : Execution P} {e₁ e₂ : E.Event} (h : E.Happ
 /-- Reflexive causal precedence implies non-strict trace-index ordering. -/
 theorem happensBeforeLe_idx_le {E : Execution P} {e₁ e₂ : E.Event} (h : E.HappensBeforeLe e₁ e₂) :
     e₁.idx ≤ e₂.idx := by
-  rw [HappensBeforeLe, Relation.reflTransGen_iff_eq_or_transGen] at h
-  rcases h with rfl | hlt
+  rcases Relation.reflTransGen_iff_eq_or_transGen.mp h with rfl | hlt
   · exact le_rfl
   · exact (happensBefore_idx_lt hlt).le
 
@@ -374,11 +363,8 @@ theorem HappensBeforeLe.trans {E : Execution P} {e₁ e₂ e₃ : E.Event}
 /-- `HappensBeforeLe` is antisymmetric. -/
 theorem happensBeforeLe_antisymm {E : Execution P} {e₁ e₂ : E.Event}
     (h₁₂ : E.HappensBeforeLe e₁ e₂) (h₂₁ : E.HappensBeforeLe e₂ e₁) : e₁ = e₂ := by
-  rcases happensBeforeLe_iff.mp h₁₂ with rfl | hlt₁
-  · rfl
-  · rcases happensBeforeLe_iff.mp h₂₁ with rfl | hlt₂
-    · rfl
-    · exact absurd hlt₂ (happensBefore_asymm hlt₁)
+  refine (happensBeforeLe_iff.mp h₁₂).elim id fun h₁ =>
+    (happensBeforeLe_iff.mp h₂₁).elim Eq.symm fun h₂ => absurd h₂ (happensBefore_asymm h₁)
 
 /-- Every strict `HappensBefore` edge implies `HappensBeforeLe`. -/
 theorem HappensBefore.happensBeforeLe {E : Execution P} {e₁ e₂ : E.Event}
@@ -424,23 +410,19 @@ theorem ofInternal_happensBeforeLe_iff {procs : List P}
     {e₁ e₂ : (Execution.ofInternal procs).Event} :
     (Execution.ofInternal procs).HappensBeforeLe e₁ e₂ ↔
       e₁ = e₂ ∨ (e₁.actor = e₂.actor ∧ e₁.idx < e₂.idx) := by
-  have hstep_iff : ∀ x y : (Execution.ofInternal procs).Event,
-      (Execution.ofInternal procs).CausalStep x y ↔ x.actor = y.actor ∧ x.idx < y.idx := by
-    refine fun x y => ⟨fun h => h.resolve_right fun hmsg => ?_, .inl⟩
-    change (procs.map Step.internal)[y.idx.val] = _ at hmsg
-    simp at hmsg
-  constructor
-  · intro hle
-    induction hle with
-    | refl => exact .inl rfl
-    | tail _ hcs ih =>
-      obtain ⟨hact₂, hlt₂⟩ := (hstep_iff _ _).mp hcs
-      rcases ih with rfl | ⟨hact₁, hlt₁⟩
-      · exact .inr ⟨hact₂, hlt₂⟩
-      · exact .inr ⟨hact₁.trans hact₂, hlt₁.trans hlt₂⟩
-  · rintro (rfl | ⟨hact, hlt⟩)
-    · exact (Execution.ofInternal procs).happensBeforeLe_refl _
-    · exact ((Execution.ofInternal procs).programOrder_happensBefore hact hlt).happensBeforeLe
+  have hstep_iff (x y : (Execution.ofInternal procs).Event) :
+      (Execution.ofInternal procs).CausalStep x y ↔ x.actor = y.actor ∧ x.idx < y.idx :=
+    ⟨fun h => h.resolve_right fun hmsg => by
+      simp [Execution.MessageOrder, Event.step, Execution.ofInternal] at hmsg, .inl⟩
+  refine ⟨fun hle => ?_, fun h => h.elim
+    (fun h => h ▸ (Execution.ofInternal procs).happensBeforeLe_refl _) fun ⟨hact, hlt⟩ =>
+      ((Execution.ofInternal procs).programOrder_happensBefore hact hlt).happensBeforeLe⟩
+  induction hle with
+  | refl => exact .inl rfl
+  | tail _ hcs ih =>
+    obtain ⟨hact₂, hlt₂⟩ := (hstep_iff _ _).mp hcs
+    exact ih.elim (fun h => h ▸ .inr ⟨hact₂, hlt₂⟩)
+      fun ⟨hact₁, hlt₁⟩ => .inr ⟨hact₁.trans hact₂, hlt₁.trans hlt₂⟩
 
 instance instIsStrictOrderEventHappensBefore (E : Execution P) :
     IsStrictOrder E.Event E.HappensBefore where
@@ -495,13 +477,9 @@ direction, or `Concurrent`. -/
 theorem causal_trichotomy (E : Execution P) (e₁ e₂ : E.Event) :
     e₁ = e₂ ∨ E.HappensBefore e₁ e₂ ∨ E.HappensBefore e₂ e₁ ∨ E.Concurrent e₁ e₂ := by
   by_cases h12 : E.HappensBeforeLe e₁ e₂
-  · rcases happensBeforeLe_iff.mp h12 with rfl | hlt
-    · exact .inl rfl
-    · exact .inr (.inl hlt)
+  · exact (happensBeforeLe_iff.mp h12).imp_right .inl
   · by_cases h21 : E.HappensBeforeLe e₂ e₁
-    · rcases happensBeforeLe_iff.mp h21 with rfl | hlt
-      · exact .inl rfl
-      · exact .inr (.inr (.inl hlt))
+    · exact (happensBeforeLe_iff.mp h21).elim (fun h => .inl h.symm) fun h => .inr (.inr (.inl h))
     · exact .inr (.inr (.inr ⟨h12, h21⟩))
 
 /-! ### Executable causal-past dynamic programming and decidability -/
@@ -557,10 +535,8 @@ private theorem length_causalPastLists [DecidableEq P] (E : Execution P) {k : �
   induction k with
   | zero => rfl
   | succ k ih =>
-    have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
-    rw [E.causalPastLists_succ_of_lt hlt]
-    simp only [causalPastStep, List.length_append, List.length_singleton]
-    rw [ih hlt.le]
+    simp [E.causalPastLists_succ_of_lt (Nat.lt_of_succ_le hk), causalPastStep,
+      ih (Nat.lt_of_succ_le hk).le]
 
 private theorem causalPastLists_getElem?_lt [DecidableEq P] (E : Execution P) {i k : ℕ}
     (hik : i < k) (hk : k ≤ E.steps.length) :
@@ -570,12 +546,8 @@ private theorem causalPastLists_getElem?_lt [DecidableEq P] (E : Execution P) {i
   | succ k ih =>
     have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hik) with hik' | rfl
-    · rw [E.causalPastLists_succ_of_lt hlt]
-      simp only [causalPastStep]
-      have hlen : i < (E.causalPastLists k).length := by
-        rw [E.length_causalPastLists hlt.le]
-        exact hik'
-      rw [List.getElem?_append_left hlen]
+    · rw [E.causalPastLists_succ_of_lt hlt, causalPastStep,
+        List.getElem?_append_left (by simpa [E.length_causalPastLists hlt.le] using hik')]
       exact ih hik' hlt.le
     · rfl
 
@@ -588,12 +560,10 @@ private theorem contains_causalPastLists_iff [DecidableEq P] (E : Execution P) :
   | ind j ih =>
     intro hj x
     have hlen : (E.causalPastLists j).length = j := E.length_causalPastLists hj.le
-    rw [E.causalPastLists_succ_of_lt hj]
-    simp only [causalPastStep]
-    rw [List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero,
-      Option.getD_some, List.contains_eq_mem, List.decide_mem_cons, Bool.or_eq_true,
-      beq_iff_eq, decide_eq_true_eq, List.mem_filter, List.mem_range, List.any_eq_true,
-      happensBeforeLe_iff]
+    rw [E.causalPastLists_succ_of_lt hj, causalPastStep, List.getElem?_append_right hlen.le, hlen,
+      Nat.sub_self, List.getElem?_cons_zero, Option.getD_some, List.contains_eq_mem,
+      List.decide_mem_cons, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq, List.mem_filter,
+      List.mem_range, List.any_eq_true, happensBeforeLe_iff]
     constructor
     · rintro (hxeq | ⟨_, m, hm_mem, hm_ok⟩)
       · exact .inl (Event.ext (Fin.ext hxeq))
@@ -603,16 +573,12 @@ private theorem contains_causalPastLists_iff [DecidableEq P] (E : Execution P) :
         exact .inr (.tail' ((ih m hmj (hmj.trans hj) x).mp hm_ok.2) hm_ok.1)
     · rintro (rfl | hhb)
       · exact .inl rfl
-      · right
-        obtain ⟨em, hxem, hcstep⟩ := Relation.TransGen.tail'_iff.mp hhb
+      · obtain ⟨em, hxem, hcstep⟩ := Relation.TransGen.tail'_iff.mp hhb
         have hmj : em.idx.val < j := E.causalStep_idx_lt hcstep
-        have hx_lt_j : x.idx.val < j :=
-          Nat.lt_of_le_of_lt (E.happensBeforeLe_idx_le hxem) hmj
-        refine ⟨hx_lt_j, em.idx.val, List.mem_range.mpr hmj, ?_⟩
-        have hem_eq : (⟨⟨em.idx.val, hmj.trans hj⟩⟩ : E.Event) = em := by ext; rfl
-        simp only [hmj, ↓reduceDIte, hem_eq, hcstep, decide_true, Bool.true_and]
-        rw [E.causalPastLists_getElem?_lt hmj hj.le]
-        exact (ih em.idx.val hmj em.idx.isLt x).mpr hxem
+        refine .inr ⟨Nat.lt_of_le_of_lt (E.happensBeforeLe_idx_le hxem) hmj, em.idx.val,
+          List.mem_range.mpr hmj, ?_⟩
+        simpa only [hmj, ↓reduceDIte, hcstep, decide_true, Bool.true_and,
+          E.causalPastLists_getElem?_lt hmj hj.le] using (ih em.idx.val hmj em.idx.isLt x).mpr hxem
 
 /-- Executable Boolean decision procedure for `E.HappensBeforeLe e₁ e₂`. -/
 @[expose] def decideHappensBeforeLe [DecidableEq P] (E : Execution P) (e₁ e₂ : E.Event) : Bool :=
@@ -640,12 +606,8 @@ theorem decideHappensBeforeLe_eq_true_iff [DecidableEq P] (E : Execution P)
 @[simp] theorem mem_causalPast [DecidableEq P] (E : Execution P) {x e : E.Event} :
     x ∈ E.causalPast e ↔ E.HappensBefore x e := by
   simp only [causalPast, Finset.mem_erase, mem_causalPastLe, happensBeforeLe_iff]
-  constructor
-  · rintro ⟨hne, rfl | hhb⟩
-    · exact absurd rfl hne
-    · exact hhb
-  · intro hhb
-    exact ⟨fun heq => E.happensBefore_irrefl e (heq ▸ hhb), .inr hhb⟩
+  exact ⟨fun ⟨hne, h⟩ => h.resolve_left hne,
+    fun h => ⟨fun heq => E.happensBefore_irrefl e (heq ▸ h), .inr h⟩⟩
 
 instance instDecidableHappensBeforeLe [DecidableEq P] (E : Execution P)
     (e₁ e₂ : E.Event) : Decidable (E.HappensBeforeLe e₁ e₂) :=
@@ -684,13 +646,8 @@ instance instDecidableIsConsistentCut [DecidableEq P] (E : Execution P)
 /-- Characterization of consistent cuts via reflexive `HappensBeforeLe`. -/
 theorem isConsistentCut_iff_happensBeforeLe {E : Execution P} {C : Finset E.Event} :
     E.IsConsistentCut C ↔ ∀ ⦃e₁ e₂ : E.Event⦄, E.HappensBeforeLe e₁ e₂ → e₂ ∈ C → e₁ ∈ C := by
-  constructor
-  · intro hc e₁ e₂ hle he₂
-    rcases happensBeforeLe_iff.mp hle with rfl | hlt
-    · exact he₂
-    · exact hc hlt he₂
-  · intro hc e₁ e₂ hlt he₂
-    exact hc hlt.happensBeforeLe he₂
+  refine ⟨fun hc e₁ e₂ hle he₂ => ?_, fun hc _ _ hlt => hc hlt.happensBeforeLe⟩
+  exact (happensBeforeLe_iff.mp hle).elim (fun h => h ▸ he₂) (hc · he₂)
 
 /-- Consistent cuts are downward closed under `HappensBeforeLe`. -/
 theorem IsConsistentCut.mem_of_happensBeforeLe {E : Execution P} {C : Finset E.Event}
@@ -699,43 +656,36 @@ theorem IsConsistentCut.mem_of_happensBeforeLe {E : Execution P} {C : Finset E.E
   isConsistentCut_iff_happensBeforeLe.mp hc hle he₂
 
 @[simp] theorem isConsistentCut_empty (E : Execution P) : E.IsConsistentCut ∅ := by
-  intro _ _ _ hmem
-  exact absurd hmem (Finset.notMem_empty _)
+  exact fun _ _ _ hmem => absurd hmem (Finset.notMem_empty _)
 
 @[simp] theorem isConsistentCut_univ (E : Execution P) : E.IsConsistentCut Finset.univ := by
-  intro _ _ _ _
-  exact Finset.mem_univ _
+  exact fun _ _ _ _ => Finset.mem_univ _
 
 /-- Consistent cuts are closed under binary union. -/
 theorem IsConsistentCut.union {E : Execution P} {C₁ C₂ : Finset E.Event}
     (h₁ : E.IsConsistentCut C₁) (h₂ : E.IsConsistentCut C₂) :
     E.IsConsistentCut (C₁ ∪ C₂) := by
-  intro e₁ e₂ hhb hmem
-  rcases Finset.mem_union.mp hmem with hm₁ | hm₂
-  · exact Finset.mem_union_left _ (h₁ hhb hm₁)
-  · exact Finset.mem_union_right _ (h₂ hhb hm₂)
+  exact fun _ _ hhb hmem => (Finset.mem_union.mp hmem).elim
+    (fun hm₁ => Finset.mem_union_left _ (h₁ hhb hm₁))
+    (fun hm₂ => Finset.mem_union_right _ (h₂ hhb hm₂))
 
 /-- Consistent cuts are closed under binary intersection. -/
 theorem IsConsistentCut.inter {E : Execution P} {C₁ C₂ : Finset E.Event}
     (h₁ : E.IsConsistentCut C₁) (h₂ : E.IsConsistentCut C₂) :
     E.IsConsistentCut (C₁ ∩ C₂) := by
-  intro e₁ e₂ hhb hmem
-  obtain ⟨hm₁, hm₂⟩ := Finset.mem_inter.mp hmem
-  exact Finset.mem_inter.mpr ⟨h₁ hhb hm₁, h₂ hhb hm₂⟩
+  exact fun _ _ hhb hmem =>
+    Finset.mem_inter.mpr ⟨h₁ hhb (Finset.mem_inter.mp hmem).1, h₂ hhb (Finset.mem_inter.mp hmem).2⟩
 
 /-- The strict causal past of any event is a consistent cut. -/
 theorem isConsistentCut_causalPast [DecidableEq P] (E : Execution P) (e : E.Event) :
     E.IsConsistentCut (E.causalPast e) := by
-  intro e₁ e₂ h₁₂ he₂
-  rw [mem_causalPast] at he₂ ⊢
-  exact h₁₂.trans he₂
+  exact fun _ _ h₁₂ he₂ => E.mem_causalPast.mpr (h₁₂.trans (E.mem_causalPast.mp he₂))
 
 /-- The reflexive causal past of any event is a consistent cut. -/
 theorem isConsistentCut_causalPastLe [DecidableEq P] (E : Execution P) (e : E.Event) :
     E.IsConsistentCut (E.causalPastLe e) := by
-  intro e₁ e₂ h₁₂ he₂
-  rw [mem_causalPastLe] at he₂ ⊢
-  exact h₁₂.happensBeforeLe.trans he₂
+  exact fun _ _ h₁₂ he₂ =>
+    E.mem_causalPastLe.mpr (h₁₂.happensBeforeLe.trans (E.mem_causalPastLe.mp he₂))
 
 /-- Absence of orphan receives: if a consistent cut `C` contains a receive event `e`, it also
 contains the matching earlier send event `eSend`. -/
@@ -784,16 +734,12 @@ theorem IsConsistentCut.send_mem_of_recv_mem {E : Execution P} {C : Finset E.Eve
 private theorem map_causalStep_iff {Q : Type*} {f : P → Q} (hf : Function.Injective f)
     {E : Execution P} {e₁ e₂ : E.Event} :
     (E.map f).CausalStep (E.mapEvent f e₁) (E.mapEvent f e₂) ↔ E.CausalStep e₁ e₂ := by
-  have hstep : ∀ e : E.Event, (E.mapEvent f e).step = e.step.map f := fun _ =>
-    List.getElem_map _
-  have hact : ∀ e : E.Event, (E.mapEvent f e).actor = f e.actor := fun _ => by
-    simp only [Event.actor, hstep, Step.actor_map]
-  have hrecv : ∀ (s : Step P) a n, s.map f = .recv (f a) n ↔ s = .recv a n := by
-    intro s a n
+  have hstep (e : E.Event) : (E.mapEvent f e).step = e.step.map f := List.getElem_map _
+  have hrecv (s : Step P) (a : P) (n : ℕ) : s.map f = .recv (f a) n ↔ s = .recv a n := by
     cases s <;> simp [Step.map, hf.eq_iff]
-  have hidx : ∀ e : E.Event, (E.mapEvent f e).idx.val = e.idx.val := fun _ => rfl
-  simp only [CausalStep, ProgramOrder, MessageOrder, hstep, hact, hf.eq_iff, hrecv, Fin.lt_def,
-    hidx]
+  simp only [CausalStep, ProgramOrder, MessageOrder, Event.actor, hstep, Step.actor_map,
+    hf.eq_iff, hrecv, Fin.lt_def]
+  rfl
 
 /-- An injective process renaming preserves and reflects `HappensBeforeLe`. -/
 theorem map_happensBeforeLe_iff {Q : Type*} {f : P → Q} (hf : Function.Injective f)

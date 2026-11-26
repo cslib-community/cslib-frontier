@@ -133,7 +133,8 @@ theorem mem_eval_joinFormula {r : ℕ} (seed : Bool) (fs : List (Formula Monoton
       seed = true ∨ ∃ f ∈ fs, point ∈ f.eval (Monotone.setInterpretation U) values := by
   induction fs with
   | nil => cases seed <;> simp [joinFormula, Monotone.const]
-  | cons f fs ih => simp [joinFormula, Monotone.or, ih, or_left_comm]
+  | cons f fs ih =>
+    simp [joinFormula, Monotone.or, ih, or_left_comm]
 
 /-- Every union tree has an operation at its root, including the empty tree. -/
 private theorem joinFormula_isGate {r : ℕ} (seed : Bool)
@@ -194,22 +195,27 @@ private theorem outputGate_pi {r m : ℕ} (cs : Fin m → Circuit Monotone.signa
     induction i using Fin.lastCases with
     | last =>
       obtain ⟨j, hj⟩ := h (Fin.last m)
-      exact ⟨Fin.natAdd _ j, by
-        change ((Circuit.pi _).append _).outputs (Fin.natAdd m 0) = _
-        rw [Circuit.outputs_append_natAdd, hj]; rfl⟩
+      refine ⟨Fin.natAdd _ j, ?_⟩
+      change ((Circuit.pi _).append _).outputs (Fin.natAdd m 0) = _
+      rw [Circuit.outputs_append_natAdd, hj]
+      rfl
     | cast i =>
       obtain ⟨j, hj⟩ := ih (fun i => cs i.castSucc) (fun i => h i.castSucc) i
-      exact ⟨Fin.castAdd _ j, by
-        change ((Circuit.pi _).append _).outputs (Fin.castAdd 1 i) = _
-        rw [Circuit.outputs_append_castAdd, hj]; rfl⟩
+      refine ⟨Fin.castAdd _ j, ?_⟩
+      change ((Circuit.pi _).append _).outputs (Fin.castAdd 1 i) = _
+      rw [Circuit.outputs_append_castAdd, hj]
+      rfl
 
 /-- Every compiled update output is an internal gate, so closing feedback adds no operations. -/
 theorem updateCircuit_outputs (i : Fin (pairs.length + 1)) :
     ∃ j, (updateCircuit target input pairs).outputs i = .gate j := by
   refine outputGate_pi _ (fun j => ?_) i
   obtain ⟨op, args, h⟩ : ∃ op args, updateFormula target input pairs j = .gate op args :=
-    Fin.lastCases (by rw [updateFormula, Fin.lastCases_last]; exact joinFormula_isGate _ _)
-      (fun j => ⟨_, _, by rw [updateFormula, Fin.lastCases_castSucc]; rfl⟩) j
+    Fin.lastCases
+      (by simpa only [updateFormula, Fin.lastCases_last, readFormula] using joinFormula_isGate _ _)
+      (fun j => by
+        rw [updateFormula, Fin.lastCases_castSucc]
+        exact ⟨_, _, rfl⟩) j
   exact h ▸ ⟨Fin.natAdd _ (0 : Fin 1), rfl⟩
 
 /-- The update uses exactly one charged conjunction per listed pair occurrence. -/
@@ -248,10 +254,11 @@ theorem eval_circuit :
         Fin.lastCases (pairClosure target input pairs ∅) (pairValues target input pairs) := by
   let values : Fin (pairs.length + 1) → Set U :=
     Fin.lastCases (pairClosure target input pairs ∅) (pairValues target input pairs)
+  have hvalues : values ∘ Fin.castSucc = pairValues target input pairs :=
+    funext fun _ => by simp [values]
   have hfixed : (updateCircuit target input pairs).eval (Monotone.setInterpretation U)
       (Fin.append input values) = values := by
-    rw [eval_updateCircuit, show values ∘ Fin.castSucc = pairValues target input pairs by
-      funext i; simp [values], readState_pairValues]
+    rw [eval_updateCircuit, hvalues, readState_pairValues]
     rfl
   refine le_antisymm ((updateCircuit target input pairs).eval_feedback_le _ _
     Monotone.setInterpretation_mono input hfixed.le) ?_

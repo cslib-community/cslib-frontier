@@ -130,8 +130,10 @@ theorem isCycleOn_cyclePermutation (cycles : List (List α))
     induction k with
     | zero => rfl
     | succ k ih =>
-      rw [pow_succ', Equiv.Perm.mul_apply, ih, cyclePermutation_apply_of_mem cycles hc word hw _
-        (hword.isCycleOn_formPerm.1.mapsTo.perm_pow k ha), ← Equiv.Perm.mul_apply, ← pow_succ']
+      rw [pow_succ', Equiv.Perm.mul_apply, ih,
+        cyclePermutation_apply_of_mem cycles hc word hw _
+          (hword.isCycleOn_formPerm.1.mapsTo.perm_pow k ha),
+        ← Equiv.Perm.mul_apply, ← pow_succ']
   exact ⟨(n : ℤ), by rw [zpow_natCast, hp, hn]⟩
 
 /-- A point in a stored word has exactly that word as its complete orbit, with no

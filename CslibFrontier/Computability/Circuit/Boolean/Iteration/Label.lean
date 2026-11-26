@@ -120,16 +120,16 @@ theorem cycleLength_le_two_pow (f : BitString n → BitString n) (x : BitString 
 
 /-- The `(n + 3)`-bit encoding of `cycleLength f x` evaluates to `cycleLength f x`. -/
 theorem toNat_ofNat_cycleLength (f : BitString n → BitString n) (x : BitString n) :
-    (BitVec.ofNat (n + 3) (cycleLength f x)).toNat = cycleLength f x := by
-  have := cycleLength_le_two_pow f x
-  have := cycleLength_pos f x
-  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by simp only [Nat.pow_succ]; omega)]
+    (BitVec.ofNat (n + 3) (cycleLength f x)).toNat = cycleLength f x :=
+  (BitVec.toNat_ofNat _ _).trans (Nat.mod_eq_of_lt ((cycleLength_le_two_pow f x).trans_lt
+    (Nat.pow_lt_pow_right Nat.one_lt_two (Nat.lt_add_of_pos_right (Nat.succ_pos 2)))))
 
 /-- The `(n + 3)`-bit encoding of `phase f x` evaluates to `phase f x`. -/
 theorem toNat_ofNat_phase (f : BitString n → BitString n) (x : BitString n) :
-    (BitVec.ofNat (n + 3) (phase f x)).toNat = phase f x := by
-  have := (phase_lt f x).trans_le (cycleLength_le_two_pow f x)
-  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by simp only [Nat.pow_succ]; omega)]
+    (BitVec.ofNat (n + 3) (phase f x)).toNat = phase f x :=
+  (BitVec.toNat_ofNat _ _).trans (Nat.mod_eq_of_lt (((phase_lt f x).trans_le
+    (cycleLength_le_two_pow f x)).trans
+    (Nat.pow_lt_pow_right Nat.one_lt_two (Nat.lt_add_of_pos_right (Nat.succ_pos 2)))))
 
 /-! ### Correcting labels along an orbit -/
 
@@ -170,17 +170,15 @@ theorem synthesis_correctLabel (s : Set (BooleanFunction a))
     (r : BitString a → BitString (n + (w + w))) (hr : wires r ⊆ s)
     (hc : ∀ b : Bool, (fun _ : BitString a => b) ∈ s) (j : ℕ) :
     Synthesis interpretation s (wires fun x => correctLabel (r x) j) (50 * (w + 1) ^ 2) := by
-  have hlen : wordWires (fun x => labelLength (r x)) ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    simpa only [labelLength, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩
-  refine ((synthesis_subMod s (fun x => labelPhase (r x)) (fun _ => BitVec.ofNat w j)
+  have hlen : wordWires (fun x => labelLength (r x)) ⊆ s := fun _ ⟨_, hi⟩ => by
+    simpa only [← hi, labelLength, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩
+  exact ((synthesis_subMod s (fun x => labelPhase (r x)) (fun _ => BitVec.ofNat w j)
     (fun x => labelLength (r x))
     (fun i => by simpa only [labelPhase, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩)
     (fun _ => hc _) (fun i => hlen ⟨i, rfl⟩) (hc false)).trans
-    (Synthesis.of_subset (labelBits_wires_subset _ _ _ _ ?_ (fun _ h => Or.inl (hlen h))
+    (Synthesis.of_subset (labelBits_wires_subset _ _ _ _
+      (fun _ ⟨_, hi⟩ => hi ▸ Or.inl (hr ⟨_, rfl⟩)) (fun _ h => Or.inl (hlen h))
       fun _ h => Or.inr h))).mono Set.Subset.rfl Set.Subset.rfl (by omega)
-  rintro _ ⟨_, rfl⟩
-  exact Or.inl (hr ⟨_, rfl⟩)
 
 /-! ### Short cycles -/
 
@@ -213,9 +211,9 @@ include hx hK in
 private theorem shortRepresentative_eq : shortRepresentative f K x = canonicalCycle f x := by
   have hs := scanMin_spec (fun j : Fin (K + 1) => f^[j.val] x) x (K + 1)
   refine @le_antisymm _ (lexOrder n).toPartialOrder _ _ ?_ (canonicalCycle_le f x ?_)
-  · have := canonicalTime_lt_cycleLength f x hx
-    have h := hs.2.2 ⟨canonicalTime f x, by omega⟩ (by simp only; omega)
-    rwa [canonicalTime_spec] at h
+  · have hlt := (canonicalTime_lt_cycleLength f x hx).trans_le hK
+    exact canonicalTime_spec f x ▸ hs.2.2 ⟨canonicalTime f x, Nat.lt_succ_of_lt hlt⟩
+      (Nat.lt_succ_of_lt hlt)
   · rcases hs.1 with hh | ⟨j, -, hh⟩ <;> rw [shortRepresentative, hh]
     · simpa using iterate_mem_cycleSet f hx 0
     · exact iterate_mem_cycleSet f hx j.val
@@ -224,16 +222,14 @@ include hx hK in
 /-- The scanned first positive return is the cycle length when that return fits the scan. -/
 theorem shortLength_eq : shortLength (w := w) f K x = BitVec.ofNat w (cycleLength f x) := by
   have hmin := (cycleLength_eq_minimalPeriod_of_mem_periodicPts f hx).symm
-  refine firstIndex_spec _ ⟨cycleLength f x, by omega⟩ (decide_eq_true ⟨cycleLength_pos f x, ?_⟩)
+  exact firstIndex_spec _ ⟨cycleLength f x, by omega⟩
+    (decide_eq_true ⟨cycleLength_pos f x, hmin ▸ Function.isPeriodicPt_minimalPeriod f x⟩)
     fun i hi => decide_eq_false fun ⟨hip, he⟩ =>
       hi.not_ge (hmin ▸ Function.IsPeriodicPt.minimalPeriod_le hip he)
-  change f^[cycleLength f x] x = x
-  rw [← hmin]; exact Function.isPeriodicPt_minimalPeriod f x
 
 include hx hK in
 private theorem shortTime_eq : shortTime (w := w) f K x = BitVec.ofNat w (canonicalTime f x) := by
-  unfold shortTime
-  rw [shortRepresentative_eq f K hx hK]
+  rw [shortTime, shortRepresentative_eq f K hx hK]
   exact firstIndex_spec _ ⟨canonicalTime f x, (canonicalTime_lt_cycleLength f x hx).trans_le
     (by omega)⟩ (decide_eq_true (canonicalTime_spec f x))
     fun i hi => decide_eq_false (canonicalTime_min f x hi)
@@ -248,13 +244,14 @@ theorem shortLabel_eq_canonicalLabel : shortLabel f K x = canonicalLabel f x := 
   apply BitVec.eq_of_toNat_eq
   have hl := cycleLength_le_two_pow f x
   have hpos := cycleLength_pos f x
-  rw [toNat_subMod _ _ _ (by rwa [toNat_ofNat_cycleLength])
-      (by rw [toNat_ofNat_cycleLength, Nat.pow_succ, Nat.pow_succ, Nat.pow_succ]; omega),
-    toNat_ofNat_cycleLength, toNat_ofNat_phase, BitVec.toNat_ofNat,
-    show (0 : BitVec (n + 3)).toNat = 0 from rfl, Nat.zero_add,
-    Nat.mod_eq_of_lt ((canonicalTime_lt_cycleLength f x hx).trans_le hl |>.trans
-      (by simp only [Nat.pow_succ]; omega))]
-  rfl
+  have hlt1 : 2 * (BitVec.ofNat (n + 3) (cycleLength f x)).toNat ≤ 2 ^ (n + 3) := by
+    rw [toNat_ofNat_cycleLength, Nat.pow_succ, Nat.pow_succ, Nat.pow_succ]; omega
+  have hlt2 : canonicalTime f x < 2 ^ (n + 3) :=
+    ((canonicalTime_lt_cycleLength f x hx).trans_le hl).trans
+      (Nat.pow_lt_pow_right Nat.one_lt_two (Nat.lt_add_of_pos_right (Nat.succ_pos 2)))
+  rw [toNat_subMod _ _ _ ((toNat_ofNat_cycleLength f x).symm ▸ hpos) hlt1,
+    toNat_ofNat_cycleLength, toNat_ofNat_phase, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt2]
+  erw [Nat.zero_add]; rfl
 
 end Short
 
@@ -307,7 +304,7 @@ theorem synthesis_shortLabel (s : Set (BooleanFunction a)) (f : BitString n → 
   let time := fun x => shortTime (w := n + 3) f K (init x)
   let src2 := s ∪ (wires rep ∪ (wordWires ell ∪ wordWires time))
   have hphase := synthesis_subMod src2 (fun _ => (0 : BitVec (n + 3))) time ell
-    (fun i => by dsimp [src2]; simpa using Or.inl (hc false))
+    (fun _ => Or.inl (by simpa using hc false))
     (fun i => Or.inr (Or.inr (Or.inr ⟨i, rfl⟩)))
     (fun i => Or.inr (Or.inr (Or.inl ⟨i, rfl⟩))) (Or.inl (hc false))
   have hout := Synthesis.of_subset (I := interpretation)

@@ -235,13 +235,13 @@ private theorem computableInPolyTime_coronSampleWord (P : PairingGroupFamily) :
       (encPair P.G₀.encDesc (encPair encBits encBLSBankSample)) encBits := by
   let E := encPair P.G₀.encDesc (encPair encBits encBLSBankSample)
   have hd : ComputableInPolyTime (fun p : _ => p.1) E P.G₀.encDesc := by fun_prop
-  have hv : ComputableInPolyTime (fun p : _ => p.2.1) E encBits := by fun_prop
   have hc : ComputableInPolyTime (fun p : _ => p.2.2.coin) E encBool := by fun_prop
-  have hr : ComputableInPolyTime (fun p : _ => p.2.2.exponent) E encNat := by fun_prop
   have hmask := P.G₀.computableInPolyTime_smul.comp
-    (hd.prod (hr.prod (PrimeOrderGroupFamily.computableInPolyTime_encode_generator hd)))
-  exact (hc.ite (P.G₀.computableInPolyTime_add.comp (hd.prod (hv.prod hmask))) hmask).of_enc_eq
-    fun _ => rfl
+    (hd.prod (ComputableInPolyTime.prod (f := fun p => p.2.2.exponent) (by fun_prop)
+      (PrimeOrderGroupFamily.computableInPolyTime_encode_generator hd)))
+  exact (hc.ite (P.G₀.computableInPolyTime_add.comp
+    (hd.prod (ComputableInPolyTime.prod (f := fun p => p.2.1) (by fun_prop) hmask)))
+      hmask).of_enc_eq fun _ => rfl
 
 private theorem computableInPolyTime_blsBankReplyWord (P : PairingGroupFamily) :
     ComputableInPolyTime
@@ -252,15 +252,13 @@ private theorem computableInPolyTime_blsBankReplyWord (P : PairingGroupFamily) :
   let E := encPair P.G₀.encDesc
     (encPair encBits (encPair encBits (encPair encBool encBLSBankSample)))
   have hd : ComputableInPolyTime (fun p : _ => p.1) E P.G₀.encDesc := by fun_prop
-  have hu : ComputableInPolyTime (fun p : _ => p.2.1) E encBits := by fun_prop
-  have hv : ComputableInPolyTime (fun p : _ => p.2.2.1) E encBits := by fun_prop
   have hhash : ComputableInPolyTime (fun p : _ => p.2.2.2.1) E encBool := by fun_prop
-  have hs : ComputableInPolyTime (fun p : _ => p.2.2.2.2) E encBLSBankSample := by fun_prop
   have hcoin : ComputableInPolyTime (fun p : _ => p.2.2.2.2.coin) E encBool := by fun_prop
-  have hexp : ComputableInPolyTime (fun p : _ => p.2.2.2.2.exponent) E encNat := by fun_prop
-  exact (hhash.ite ((computableInPolyTime_coronSampleWord P).comp (hd.prod (hv.prod hs)))
+  exact (hhash.ite ((computableInPolyTime_coronSampleWord P).comp
+      (hd.prod (ComputableInPolyTime.prod (by fun_prop) (by fun_prop))))
     (hcoin.ite (PrimeOrderGroupFamily.computableInPolyTime_encode_zero hd)
-      (P.G₀.computableInPolyTime_smul.comp (hd.prod (hexp.prod hu))))).of_enc_eq fun _ => rfl
+      (P.G₀.computableInPolyTime_smul.comp
+        (hd.prod (ComputableInPolyTime.prod (by fun_prop) (by fun_prop)))))).of_enc_eq fun _ => rfl
 
 private theorem computableInPolyTime_blsBankLookupEntry {α : Type} {encIn : α ↪ List Bool}
     {tab : α → List BLSBankEntry} {q : α → List Bool}
@@ -367,9 +365,7 @@ private theorem length_encList_tail_le {α : Type} (enc : α ↪ List Bool) (l :
     (encList enc l.tail).length ≤ (encList enc l).length := by
   cases l with
   | nil => exact le_rfl
-  | cons hd tl =>
-    simp only [List.tail_cons, encList_cons, List.length_append]
-    exact Nat.le_add_left _ _
+  | cons _ _ => simp [encList_cons]
 
 private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
     {k : ℕ} {Control : Type} [Finite Control]
@@ -391,14 +387,9 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
   have hprepare : ComputableInPolyTime
       (fun caller : BLSBankCaller P =>
         (caller.secParam, caller.leftOneWord, caller.forgerCoins))
-      (encBLSBankCaller P) encReplayInput := by
-    have hs : ComputableInPolyTime BLSBankCaller.secParam (encBLSBankCaller P) encUnary := by
-      fun_prop
-    have ho : ComputableInPolyTime BLSBankCaller.leftOneWord (encBLSBankCaller P) encBits := by
-      fun_prop
-    have hf : ComputableInPolyTime BLSBankCaller.forgerCoins (encBLSBankCaller P) encBits := by
-      fun_prop
-    exact (hs.prod (ho.prod hf)).of_enc_eq fun _ => rfl
+      (encBLSBankCaller P) encReplayInput :=
+    (ComputableInPolyTime.prod (by fun_prop)
+      (ComputableInPolyTime.prod (by fun_prop) (by fun_prop))).of_enc_eq fun _ => rfl
   have hinitial : ComputableInPolyTime
       (fun caller : BLSBankCaller P => (⟨[], false, caller.bank⟩ : BLSBankState))
       (encBLSBankCaller P) encBLSBankState :=
@@ -407,41 +398,29 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
   have hresources : ComputableInPolyTime
       (fun pair : BLSBankCaller P × List Bool => resources pair.1 pair.2)
       (encPair (encBLSBankCaller P) encBits) encUnary := by
+    open Turing.MultiTapeTM.ComputableInPolyTime in
     let E := encPair (encBLSBankCaller P) encBits
-    have hdl : ComputableInPolyTime (fun p : _ => (P.G₀.encDesc p.1.groupParameters).length)
-        E encUnary :=
-      (ComputableInPolyTime.encoding_length P.G₀.encDesc).comp (by fun_prop)
-    have hbl : ComputableInPolyTime (fun p : _ => (encList encBLSBankSample p.1.bank).length)
-        E encUnary :=
-      (ComputableInPolyTime.encoding_length (encList encBLSBankSample)).comp (by fun_prop)
-    have hbankMax := ComputableInPolyTime.unary_add.comp
-      (hbl.prod (ComputableInPolyTime.const (encBLSBankSample ⟨false, 0⟩).length))
-    have hlenL : ComputableInPolyTime (fun p : _ => p.1.leftZeroWord.length) E encUnary :=
-      ComputableInPolyTime.length_bits.comp (by fun_prop)
-    have hlenR : ComputableInPolyTime (fun p : _ => p.1.rightZeroWord.length) E encUnary :=
-      ComputableInPolyTime.length_bits.comp (by fun_prop)
-    have hlenReq : ComputableInPolyTime (fun p : _ => p.2.length) E encUnary :=
-      ComputableInPolyTime.length_bits.comp (by fun_prop)
-    have hmul (k : ℕ) {f : BLSBankCaller P × List Bool → ℕ}
-        (hf : ComputableInPolyTime f E encUnary) :=
-      ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const k).prod hf)
-    have hadd {f g : BLSBankCaller P × List Bool → ℕ}
-        (hf : ComputableInPolyTime f E encUnary) (hg : ComputableInPolyTime g E encUnary) :=
-      ComputableInPolyTime.unary_add.comp (hf.prod hg)
+    let k (n : ℕ) := const (encIn := E) (encOut := encUnary) n
+    have hbankMax : ComputableInPolyTime (fun p : _ => bankMax p.1) E encUnary :=
+      unary_add' (input := E) ((encoding_length (encList encBLSBankSample)).comp (by fun_prop))
+        (k (encBLSBankSample ⟨false, 0⟩).length)
     have hargLen : ComputableInPolyTime (fun p : _ => argLen p.1) E encUnary :=
-      hadd (hadd (hadd (hadd (hmul 2 hdl) (hmul 2 hlenL)) (hmul 2 hlenR)) hbankMax) (.const 64)
-    have hleft := hmul cR
-      ((ComputableInPolyTime.unary_pow dR).comp (hadd hargLen (.const 1)))
-    have hright := hadd (hadd (hmul 8 hlenReq) (hmul 4 hbankMax)) (.const 64)
-    exact ComputableInPolyTime.unary_max.comp (hleft.prod hright)
+      unary_add' (unary_add' (unary_add' (unary_add'
+        (unary_mul' (k 2) ((encoding_length P.G₀.encDesc).comp (by fun_prop)))
+        (unary_mul' (k 2) (length_bits.comp (by fun_prop))))
+        (unary_mul' (k 2) (length_bits.comp (by fun_prop)))) hbankMax) (k 64)
+    exact unary_max.comp
+      ((unary_mul' (k cR) ((unary_pow dR).comp (unary_add' hargLen (k 1)))).prod
+        (unary_add' (unary_add' (unary_mul' (k 8) (length_bits.comp (snd _ _)))
+          (unary_mul' (k 4) hbankMax)) (k 64)))
   refine IsOraclePPTOn.isPPTOn_runState (isOraclePPTOn_savedWordReplay machine c e keyC keyD)
     hprepare (computableInPolyTime_blsBankWordStep P).isPPTOn hinitial invariant
     (fun caller => ⟨fun _ h => (by cases h), fun s hs =>
       (length_le_encList_of_mem encBLSBankSample hs).trans (Nat.le_add_right _ _)⟩)
     hresources ?_
   intro caller request state hinv result hres
-  rw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hres
-  subst hres
+  obtain rfl : result = blsBankWordStep P caller request state := by
+    simpa only [ProbComp.eval_pure, PMF.mem_support_pure_iff] using hres
   dsimp only [blsBankWordStep]
   set found := blsBankLookupEntry state.table request.2
   set sample : BLSBankSample :=
@@ -461,20 +440,12 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
         ⟨if found.isSome then state.table
           else ⟨request.2, sample.coin, sample.exponent⟩ :: state.table,
           state.aborted || (!request.1 && sample.coin), state.remaining.tail⟩ := by
-    refine ⟨fun entry hentry => ?_, fun s hs => ?_⟩
-    · cases hf : found with
-      | some _ =>
-        simp only [hf, Option.isSome_some, ↓reduceIte] at hentry
-        exact hinv.1 entry hentry
-      | none =>
-        simp only [hf, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
-          List.mem_cons] at hentry
-        exact hentry.elim (fun h => h ▸ hsampleLen) (hinv.1 entry)
-    · cases hrem : state.remaining with
-      | nil =>
-        rw [hrem] at hs
-        cases hs
-      | cons hd tl => exact hinv.2 s (hrem ▸ List.mem_cons_of_mem _ (by simpa [hrem] using hs))
+    refine ⟨fun entry hentry => ?_, fun s hs => hinv.2 s (List.mem_of_mem_tail hs)⟩
+    cases hf : found with
+    | some _ => exact hinv.1 entry (by simpa [hf] using hentry)
+    | none =>
+      simp only [hf, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, List.mem_cons] at hentry
+      exact hentry.elim (fun h => h ▸ hsampleLen) (hinv.1 entry)
   have hreplyLen :
       (blsBankReplyWord P caller.groupParameters caller.leftZeroWord caller.rightZeroWord
         request.1 sample).length ≤ resources caller request.2 := by
@@ -497,28 +468,22 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
     cases hf : found with
     | some _ =>
       simp only [Option.isSome_some, ↓reduceIte]
-      have hs0 :
-          (encBLSBankState ⟨state.table, state.aborted || (!request.1 && sample.coin),
-            state.remaining.tail⟩).length ≤ (encBLSBankState state).length := by
-        enc_len [encBLSBankState_apply]
-      exact hs0.trans (Nat.le_add_right _ _)
+      refine (?_ : _ ≤ (encBLSBankState state).length).trans (Nat.le_add_right _ _)
+      enc_len [encBLSBankState_apply]
     | none =>
       simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
       have hEntry :
           (encBLSBankEntry ⟨request.2, sample.coin, sample.exponent⟩).length ≤
             2 * request.2.length + bankMax caller + 8 := by
-        have hsmp := hsampleLen
         have hboolS : (encBool sample.coin).length = 1 := by cases sample.coin <;> rfl
-        simp only [encBLSBankSample_apply, length_encPair, hboolS] at hsmp
+        simp only [encBLSBankSample_apply, length_encPair, hboolS] at hsampleLen
         simp only [encBLSBankEntry_apply, encBLSBankEntryFields, length_encPair, encBits_apply,
           hboolS]
         omega
-      have hs1 :
-          (encBLSBankState ⟨⟨request.2, sample.coin, sample.exponent⟩ :: state.table,
-            state.aborted || (!request.1 && sample.coin), state.remaining.tail⟩).length ≤
-            (encBLSBankState state).length + (8 * request.2.length + 4 * bankMax caller + 64) := by
-        enc_len [encBLSBankState_apply]
-      exact hs1.trans (Nat.add_le_add_left (le_max_right _ _) _)
+      refine (?_ : _ ≤ (encBLSBankState state).length +
+          (8 * request.2.length + 4 * bankMax caller + 64)).trans
+        (Nat.add_le_add_left (le_max_right _ _) _)
+      enc_len [encBLSBankState_apply]
   exact ⟨hinv', hreplyLen, hstateLen⟩
 
 private def blsBankAdversaryCaller (P : PairingGroupFamily)
@@ -533,14 +498,11 @@ private theorem computableInPolyTime_savedCoinBudget (F : PrimeOrderGroupFamily)
     (c e keyC keyD : ℕ) :
     ComputableInPolyTime (fun x : F.CoCDHInput C => savedCoinBudget c e keyC keyD x.secParam)
       (F.encCoCDHInput C) encUnary := by
-  have hn0 := F.encCoCDHInput_secParam_polyTime C ComputableInPolyTime.id'
-  have h1 := ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hn0)
-  have h2 := ComputableInPolyTime.unary_add.comp (h1.prod (.const 2))
-  have h3 := ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const keyC).prod
-    ((ComputableInPolyTime.unary_pow keyD).comp
-      (ComputableInPolyTime.unary_add.comp (hn0.prod (.const 1)))))
-  exact ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const c).prod
-    ((ComputableInPolyTime.unary_pow e).comp (ComputableInPolyTime.unary_add.comp (h2.prod h3))))
+  open Turing.MultiTapeTM.ComputableInPolyTime in
+  have hn0 := F.encCoCDHInput_secParam_polyTime C id'
+  exact unary_mul' (const c) ((unary_pow e).comp (unary_add'
+    (unary_add' (unary_mul' (const 2) hn0) (const 2))
+    (unary_mul' (const keyC) ((unary_pow keyD).comp (unary_add' hn0 (const 1))))))
 
 private theorem computableInPolyTime_blsBankAdversaryCaller (P : PairingGroupFamily) :
     ComputableInPolyTime
@@ -655,15 +617,11 @@ private theorem callBounded_blsDecodedForger (P : DecodablePairingGroupFamily) (
       (fun q => OracleComp.query (Sum.inr q))
   have hroute (cost : List Bool ⊕ List Bool → ℕ) (q : List Bool ⊕ List Bool) :
       OracleComp.IsCostBounded cost (route q) (cost q) := by
-    cases q with
-    | inl msg =>
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    | inr q => exact OracleComp.IsCostBounded.query _
-  constructor
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (OracleComp.IsCostBounded.interpret (hroute signingCost) (hA (P.G₁.encode d u) s).1)
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (OracleComp.IsCostBounded.interpret (hroute hashCost) (hA (P.G₁.encode d u) s).2)
+    cases q
+    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (.query _)
+    · exact .query _
+  exact ⟨(OracleComp.isCostBounded_map_iff _ _ _).mpr (.interpret (hroute _) (hA _ s).1),
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr (.interpret (hroute _) (hA _ s).2)⟩
 
 private theorem interpret_handler_blsNative_eq_decoded (P : DecodablePairingGroupFamily)
     (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)]
@@ -683,20 +641,13 @@ private theorem interpret_handler_blsNative_eq_decoded (P : DecodablePairingGrou
                 (P.G₀.Carrier d) (P.G₀.Carrier d)) (Sum.inr q)))
           prog)).run state) := by
   have hsk : (Turing.MultiTapeTM.ofBits (P.G₁.toFamily.encScalar d α) : ZMod (P.G₀.order d)) =
-      α := by
-    change ((Turing.MultiTapeTM.ofBits (Turing.MultiTapeTM.encNat α.val) : ℕ) :
-      ZMod (P.G₀.order d)) = α
-    have hnat : Turing.MultiTapeTM.ofBits (Turing.MultiTapeTM.encNat α.val) = α.val :=
-      Turing.MultiTapeTM.Decoder.nat.decode_enc α.val
-    rw [hnat, ZMod.natCast_zmod_val]
+      α :=
+    (congrArg Nat.cast (Turing.MultiTapeTM.Decoder.nat.decode_enc α.val)).trans
+      (ZMod.natCast_zmod_val α)
   induction prog using OracleComp.induction generalizing state with
-  | pure a =>
-    simp only [OracleComp.interpret_pure, StateT.run_pure]
+  | pure a => rfl
   | query_bind q cont ih =>
-    change (OracleComp.interpret (handler (P.blsNativeROMScheme n d)
-      (P.G₁.toFamily.encScalar d α)) (OracleComp.query q >>= cont)).run state =
-      (OracleComp.interpret (handler (P.toPairingGroupFamily.blsTypedROMScheme d) α)
-        (OracleComp.interpret _ (OracleComp.query q >>= cont))).run state
+    rw [PFunctor.FreeM.bind_eq_bind]
     cases q with
     | inl m =>
       simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
@@ -714,8 +665,7 @@ private theorem interpret_handler_blsNative_eq_decoded (P : DecodablePairingGrou
         PMF.monad_bind_eq_bind]
       dsimp only [StateT.run, OracleComp.sumHandler_inr]
       simp only [PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
-      refine PMF.bind_congr_on_support _ _ _ fun r _ => ?_
-      exact ih r.1 (r.2, state.2)
+      exact PMF.bind_congr_on_support _ _ _ fun r _ => ih r.1 (r.2, state.2)
 
 private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
     (P : DecodablePairingGroupFamily) (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)]
@@ -738,16 +688,17 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
           (blsDecodedForger P d A)) := by
     apply Game.succProbability_mono
     unfold eufCmaGame
-    rw [show idealScheme.keyGen = P.G₁.toFamily.schnorrIdealKeyGen d from rfl]
+    have hkg : idealScheme.keyGen = P.G₁.toFamily.schnorrIdealKeyGen d := rfl
+    rw [hkg]
     dsimp only [PrimeOrderGroupFamily.schnorrIdealKeyGen,
       PairingGroupFamily.blsTypedROMScheme, blsDecodedForger,
       PrimeOrderGroupFamily.Companion.toFamily]
     simp only [PMF.monad_bind_eq_bind, PMF.bind_map]
     refine PMF.bind_apply_mono_on_support _ _ fun α _ =>
       PMF.bind_apply_mono_on_support _ _ fun s _ => ?_
+    have hhand : handler idealScheme = handler (P.blsNativeROMScheme n d) := rfl
     dsimp only
-    rw [show handler idealScheme = handler (P.blsNativeROMScheme n d) from rfl,
-      interpret_handler_blsNative_eq_decoded]
+    rw [hhand, interpret_handler_blsNative_eq_decoded]
     simp only [OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]
     refine PMF.bind_apply_mono_on_support _ _ fun forged _ => ?_
     dsimp only [idealScheme, blsNativeROMScheme, PairingGroupFamily.blsTypedROMScheme]
@@ -759,28 +710,18 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
     split_ifs with hwin1 hwin2 hwin2'
     · exact le_rfl
     · exfalso
-      have hwin' := hwin1.symm
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin'
-      obtain ⟨⟨helem, hpair⟩, hfresh⟩ := hwin'
+      simp only [eq_comm (a := true), Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
+        decide_eq_false_iff_not, decide_eq_true_eq] at hwin1
+      obtain ⟨⟨helem, hpair⟩, hfresh⟩ := hwin1
       obtain ⟨σ', hdec, hσ⟩ := P.toDecodableG₀.exists_decode_eq_some_of_isElem helem
       let σ : P.G₀.Carrier d := σ'
-      have hσ' : P.G₀.encode d σ = forged.1.2 := hσ
-      rw [← hσ', P.pairEncoded_encode, P.pairEncoded_encode,
+      change P.G₀.encode d σ = _ at hσ
+      rw [← hσ, P.pairEncoded_encode, P.pairEncoded_encode,
         (P.GT.encode_injective d).eq_iff] at hpair
-      have hbeq : @List.contains (List Bool) List.instBEq forged.2.2 forged.1.1 =
-          @List.contains (List Bool) instBEqOfDecidableEq forged.2.2 forged.1.1 :=
-        Bool.eq_iff_iff.mpr (by simp)
-      have hfresh' : @List.contains (List Bool) instBEqOfDecidableEq forged.2.2 forged.1.1 =
-          false := by simpa only [hbeq, Bool.not_eq_true'] using hfresh
-      exact hwin2 (by
-        simp only [show P.decode₀ d forged.1.2 = some σ from hdec, Option.getD_some, hpair,
-          hfresh', Bool.not_false, decide_true, Bool.true_and])
+      change P.decode₀ d forged.1.2 = some σ at hdec
+      exact hwin2 (by simp [List.contains_eq_mem, hdec, hpair, hfresh])
     · exact zero_le
     · exact zero_le
-  have hreal : (Game.succProbability (eufCmaGame idealScheme A) : ℝ) ≤
-      (Game.succProbability (eufCmaGame (P.toPairingGroupFamily.blsTypedROMScheme d)
-        (blsDecodedForger P d A)) : ℝ) := by
-    exact_mod_cast hideal_le
   calc
     (Game.succProbability (eufCmaGame (P.blsNativeROMScheme n d) A) : ℝ)
         ≤ (Game.succProbability (eufCmaGame idealScheme A) : ℝ) +
@@ -788,7 +729,7 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
     _ ≤ (Game.succProbability (eufCmaGame (P.toPairingGroupFamily.blsTypedROMScheme d)
           (blsDecodedForger P d A)) : ℝ) + (1 : ℝ) / 2 ^ n := by
         push_cast
-        exact add_le_add hreal le_rfl
+        exact add_le_add (mod_cast hideal_le) le_rfl
 
 private theorem blsBankLookupEntry_map_eq (q : ℕ) (key : List Bool)
     (tabW : List BLSBankEntry) (tabT : List (List Bool × ((Bool × ZMod q) × ℕ)))
@@ -876,8 +817,7 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
     have hlook := blsBankLookupEntry_map_eq (P.G₀.order d) word tabW tabT htab
     have hsel := blsBankSelectSample_eq (P.G₀.order d) word samples stW tabT count rfl htab
     have hisSome : (blsBankLookupEntry tabW word).isSome = (tabT.lookup word).isSome := by
-      have := congrArg Option.isSome hlook
-      simpa only [Option.isSome_map] using this
+      simpa only [Option.isSome_map] using congrArg Option.isSome hlook
     let sW : BLSBankSample :=
       ((blsBankLookupEntry stW.table word).map fun e => ⟨e.coin, e.exponent⟩).getD
         (stW.remaining.headD ⟨false, 0⟩)
@@ -904,8 +844,7 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
               aborted || (!op && sW.coin), samples.drop (count + 1)⟩) := by
       simp only [blsBankWordStep, stW, sW, hdrop]
     dsimp only
-    rw [show PFunctor.FreeM.bind (OracleComp.query (spec := RawWordSpec) (op, word)) cont =
-      (OracleComp.query (spec := RawWordSpec) (op, word) >>= cont) from rfl]
+    rw [PFunctor.FreeM.bind_eq_bind]
     cases op with
     | false =>
       have hrep : blsBankReplyWord P.toPairingGroupFamily d (P.G₀.encode d u₀) (P.G₀.encode d v₀)
@@ -920,22 +859,18 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
       rw [hstepW, hrep, hisSome, hid, hid]
       cases hfl : tabT.lookup word with
       | some entry =>
-        rcases entry with ⟨⟨cT, ρT⟩, idxT⟩
-        have hsT : sT = (cT, ρT) := by simp only [sT, hfl, Option.map_some, Option.getD_some]
-        simp only [Option.isSome_some, ↓reduceIte, Bool.not_false, Bool.true_and, hc, hsT]
-        cases cT <;>
-          (simp only [Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
-           exact ih _ tabW tabT _ (count + 1) htab)
+        simp only [sT, hfl, Option.map_some, Option.getD_some, Option.isSome_some, ↓reduceIte,
+          Bool.not_false, Bool.true_and, hc]
+        cases entry.1.1 <;> simp only [Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
+        all_goals exact ih _ tabW tabT _ (count + 1) htab
       | none =>
-        have hsT : sT = samplesT.getD count (false, 0) := by
-          simp only [sT, hfl, Option.map_none, Option.getD_none]
-        simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte, Bool.not_false,
-          Bool.true_and, hc, hsT]
-        rw [hc, hsT] at htab_cons
-        cases hc' : (samplesT.getD count (false, 0)).1 <;>
-          (simp only [hc', Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
-             at htab_cons ⊢
-           exact ih _ _ _ _ (count + 1) htab_cons)
+        simp only [sT, samplesT, hfl, Option.map_none, Option.getD_none, Option.isSome_none,
+          Bool.false_eq_true, ↓reduceIte, Bool.not_false, Bool.true_and, hc] at htab_cons ⊢
+        cases hc' : ((samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD count
+          (false, 0)).1 <;>
+          simp only [hc', Bool.false_eq_true, ↓reduceIte, Bool.or_true, Bool.or_false]
+            at htab_cons ⊢
+        all_goals exact ih _ _ _ _ (count + 1) htab_cons
     | true =>
       have hrep : blsBankReplyWord P.toPairingGroupFamily d (P.G₀.encode d u₀) (P.G₀.encode d v₀)
           true sW = P.G₀.encode d (P.toPairingGroupFamily.coronSampleElem d v₀ sT) := by
@@ -950,16 +885,13 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
       rw [hstepW, hrep, hisSome, hid, hid]
       cases hfl : tabT.lookup word with
       | some entry =>
-        have hsT : sT = entry.1 := by simp only [sT, hfl, Option.map_some, Option.getD_some]
-        simp only [Option.isSome_some, ↓reduceIte, Bool.not_true, Bool.false_and, Bool.or_false,
-          hsT]
+        simp only [sT, hfl, Option.map_some, Option.getD_some, Option.isSome_some, ↓reduceIte,
+          Bool.not_true, Bool.false_and, Bool.or_false]
         exact ih _ tabW tabT aborted (count + 1) htab
       | none =>
-        have hsT : sT = samplesT.getD count (false, 0) := by
-          simp only [sT, hfl, Option.map_none, Option.getD_none]
-        simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte, Bool.not_true,
-          Bool.false_and, Bool.or_false, hsT]
-        rw [hsT] at htab_cons
+        simp only [sT, hfl, Option.map_none, Option.getD_none, Option.isSome_none,
+          Bool.false_eq_true, ↓reduceIte, Bool.not_true, Bool.false_and, Bool.or_false]
+          at htab_cons ⊢
         exact ih _ _ _ aborted (count + 1) htab_cons
 
 private theorem blsWordBankFinish_eq
@@ -985,9 +917,8 @@ private theorem blsWordBankFinish_eq
   dsimp only at hab hrem htab
   cases abortedT with
   | true =>
-    dsimp only [blsBankWordFinish, PairingGroupFamily.blsBankedReductionFinish, caller]
-    rw [hab]
-    simp only [↓reduceIte, P.decode₀_encode, Option.getD_some]
+    simp [blsBankWordFinish, PairingGroupFamily.blsBankedReductionFinish, caller, hab,
+      P.decode₀_encode]
   | false =>
     let sW : BLSBankSample :=
       ((blsBankLookupEntry stW.table msig.1).map fun e => ⟨e.coin, e.exponent⟩).getD
@@ -1000,9 +931,7 @@ private theorem blsWordBankFinish_eq
       unfold PairingGroupFamily.blsBankedReductionFinish
       cases hfl : tabT.lookup msig.1 <;> simp [sT, hfl]
     rw [hfinT]
-    dsimp only [blsBankWordFinish, caller]
-    rw [hab]
-    simp only [Bool.false_eq_true, ↓reduceIte]
+    simp only [blsBankWordFinish, caller, hab, Bool.false_eq_true, ↓reduceIte]
     have hsel := blsBankSelectSample_eq (P.G₀.order d) msig.1 samples stW tabT countT hrem htab
     have hc : sW.coin = sT.1 := congrArg Prod.fst hsel
     have hre : (sW.exponent : ZMod (P.G₀.order d)) = sT.2 := congrArg Prod.snd hsel
@@ -1026,14 +955,10 @@ private theorem runWith_pure_interpret_rawWordSpec {Store α : Type}
         (OracleComp.interpret (fun req => ProbOracleComp.query req) prog) st =
       PMF.pure ((OracleComp.interpret handler prog).run st) := by
   induction prog using OracleComp.induction generalizing st with
-  | pure a =>
-    simp only [OracleComp.interpret_pure, ProbOracleComp.runWith_pure]
-    rfl
+  | pure a => rfl
   | query_bind q cont ih =>
-    rw [show PFunctor.FreeM.bind (OracleComp.query (spec := RawWordSpec) q) cont =
-      (OracleComp.query (spec := RawWordSpec) q >>= cont) from rfl]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, ProbOracleComp.runWith_bind,
-      ProbOracleComp.runWith_query, PMF.pure_bind, StateT.run_bind]
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind, OracleComp.interpret_query,
+      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, PMF.pure_bind, StateT.run_bind]
     exact ih _ _
 
 private theorem coCdhExperiment_blsBanked_det
@@ -1266,9 +1191,7 @@ theorem CoCDH.eufCma_blsNativeROMScheme (P : DecodablePairingGroupFamily)
   let budget := savedCoinBudget c e keyC keyD
   let K (n : ℕ) := budget n + budget n + 1
   have hbudget : PolynomiallyBounded budget := polynomiallyBounded_savedCoinBudget c e keyC keyD
-  have hK : PolynomiallyBounded K := by
-    dsimp only [K]
-    fun_prop
+  have hK : PolynomiallyBounded K := by fun_prop
   have hKdiv : Negligible (fun n => (K n : ℝ≥0) / 2 ^ n) :=
     Negligible.polynomiallyBounded_div hK negligible_inv_two_pow
   have hsum : Negligible (fun n =>
@@ -1311,10 +1234,7 @@ theorem CoCDH.eufCma_blsNativeROMScheme (P : DecodablePairingGroupFamily)
           ((Game.succProbability
             (P.G₀.coCdhGame P.G₁ (fun m => PMF.pure (description m)) adv n) : ℝ) +
             (K n : ℝ) / 2 ^ n) + 1 / 2 ^ n := by
-        have hK_eq : (budget n : ℝ) + (budget n : ℝ) + 1 = (K n : ℝ) := by
-          dsimp only [K]
-          push_cast
-          ring
+        have hK_eq : (budget n : ℝ) + (budget n : ℝ) + 1 = (K n : ℝ) := by simp [K]
         rw [hK_eq] at hadv
         exact add_le_add (mul_le_mul_of_nonneg_left hadv (by positivity)) le_rfl
     _ ≤ 3 * ((2 * (budget n + 1) : ℕ) : ℝ) *

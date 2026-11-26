@@ -130,10 +130,7 @@ strictly maximizes expected net MSR payoff by updating the current report `p₁`
 theorem msrStepPayoff_expected_lt [Fintype Ω] {S : ScoringRule Ω} {P : Set (Ω → ℝ)}
     (hS : S.IsStrictlyProperOn P) {q p₁ p₂ : Ω → ℝ} (hq : q ∈ P) (hp₂ : p₂ ∈ P) (hne : p₂ ≠ q) :
     ∑ ω, q ω * msrStepPayoff S p₁ p₂ ω < ∑ ω, q ω * msrStepPayoff S p₁ q ω := by
-  have h1 : ∀ r, ∑ ω, q ω * msrStepPayoff S p₁ r ω =
-      S.expectedScore q r - S.expectedScore q p₁ := fun r => by
-    simp only [msrStepPayoff_apply, mul_sub, sum_sub_distrib, ScoringRule.expectedScore_apply]
-  rw [h1 p₂, h1 q]
+  simp only [msrStepPayoff_apply, mul_sub, sum_sub_distrib, ← ScoringRule.expectedScore_apply]
   linarith [hS.expectedScore_lt hq hp₂ hne]
 
 end MSR
@@ -226,18 +223,14 @@ share vector `ω ↦ b * log (p ω)` induces price vector `p`. -/
 theorem lmsrPrice_log_eq {b : ℝ} (hb : 0 < b) {p : Ω → ℝ} (hp : p ∈ openProbSimplex Ω) :
     lmsrPrice b (fun ω => b * Real.log (p ω)) = p := by
   funext ω
-  simp only [lmsrPrice_apply]
-  have hexp : ∀ i, Real.exp (b * Real.log (p i) / b) = p i := fun i => by
-    rw [mul_div_cancel_left₀ _ hb.ne', Real.exp_log (hp.2 i)]
-  simp only [hexp, hp.1.sum_eq_one, div_one]
+  simp only [lmsrPrice_apply, mul_div_cancel_left₀ _ hb.ne', Real.exp_log (hp.2 ω)]
+  rw [sum_congr rfl fun i _ => Real.exp_log (hp.2 i), hp.1.sum_eq_one, div_one]
 
 /-- The log-inverted share vector `ω ↦ b * log (p ω)` has zero LMSR cost. -/
 theorem lmsrCost_log_eq_zero {b : ℝ} (hb : 0 < b) {p : Ω → ℝ} (hp : p ∈ openProbSimplex Ω) :
     lmsrCost b (fun ω => b * Real.log (p ω)) = 0 := by
-  simp only [lmsrCost_apply]
-  have hexp : ∀ i, Real.exp (b * Real.log (p i) / b) = p i := fun i => by
-    rw [mul_div_cancel_left₀ _ hb.ne', Real.exp_log (hp.2 i)]
-  simp only [hexp, hp.1.sum_eq_one, Real.log_one, mul_zero]
+  simp only [lmsrCost_apply, mul_div_cancel_left₀ _ hb.ne']
+  rw [sum_congr rfl fun i _ => Real.exp_log (hp.2 i), hp.1.sum_eq_one, Real.log_one, mul_zero]
 
 /-! ### Instantaneous price as gradient of `lmsrCost` -/
 
@@ -295,25 +288,17 @@ theorem lmsrCost_bregmanDivergence_eq [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q₁
     bregmanDivergence (lmsrCost b) (lmsrPrice b) q₂ q₁ =
       b * ((logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₁) -
         (logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₂)) := by
-  rw [bregmanDivergence_apply]
-  have hpoint (ω : Ω) : (q₂ ω - q₁ ω) - (lmsrCost b q₂ - lmsrCost b q₁) =
-      b * Real.log (lmsrPrice b q₂ ω) - b * Real.log (lmsrPrice b q₁ ω) := by
-    linarith [sub_lmsrCost_eq_mul_log_lmsrPrice hb q₁ ω,
-      sub_lmsrCost_eq_mul_log_lmsrPrice hb q₂ ω]
-  have hsum : ∑ ω, lmsrPrice b q₁ ω * ((q₂ ω - q₁ ω) - (lmsrCost b q₂ - lmsrCost b q₁)) =
-      (q₂ - q₁) ⬝ᵥ lmsrPrice b q₁ - (lmsrCost b q₂ - lmsrCost b q₁) := by
-    simp only [mul_sub, sum_sub_distrib, ← sum_mul, sum_lmsrPrice b q₁, one_mul, dotProduct,
-      Pi.sub_apply]
-    congr 1
-    rw [← sum_sub_distrib]
-    exact sum_congr rfl fun _ _ => by ring
-  have hrhs : ∑ ω, lmsrPrice b q₁ ω * ((q₂ ω - q₁ ω) - (lmsrCost b q₂ - lmsrCost b q₁)) =
-      b * ((logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₂) -
-        (logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₁)) := by
-    simp only [hpoint, ScoringRule.expectedScore_apply, logScore_score, mul_sub, sum_sub_distrib,
-      mul_sum]
-    congr 1 <;> exact sum_congr rfl fun _ _ => by ring
-  linarith
+  rw [bregmanDivergence_apply, ← one_mul (lmsrCost b q₂ - lmsrCost b q₁), ← sum_lmsrPrice b q₁,
+    sum_mul]
+  simp only [dotProduct, Pi.sub_apply, ScoringRule.expectedScore_apply, logScore_score, mul_sub,
+    mul_sum, ← sum_sub_distrib]
+  exact sum_congr rfl fun ω _ => by
+    have hsub : lmsrCost b q₂ =
+        lmsrCost b q₁ + (q₂ ω - q₁ ω) + b * Real.log (lmsrPrice b q₁ ω) -
+          b * Real.log (lmsrPrice b q₂ ω) := by
+      linarith [sub_lmsrCost_eq_mul_log_lmsrPrice hb q₁ ω,
+        sub_lmsrCost_eq_mul_log_lmsrPrice hb q₂ ω]
+    rw [hsub]; ring
 
 /-- First-order subgradient inequality for `lmsrCost b`: every trade costs at least its
 instantaneous price valuation `(q₂ - q₁) ⬝ᵥ lmsrPrice b q₁`. -/
@@ -397,12 +382,10 @@ theorem lmsrTraderPayoff_le_neg_mul_log_price [Nonempty Ω] {b : ℝ} (hb : 0 < 
   rw [lmsrTraderPayoff_eq_msrStepPayoff hb]
   simp only [msrStepPayoff_apply, ScoringRule.affine_score, logScore_score, Pi.zero_apply,
     add_zero]
-  have hp_le : lmsrPrice b q ω ≤ 1 := by
-    have h1 := single_le_sum (fun i _ => (lmsrPrice_pos b q i).le) (mem_univ ω)
-    linarith [sum_lmsrPrice b q]
-  have hlog_nonpos : Real.log (lmsrPrice b q ω) ≤ 0 :=
-    Real.log_nonpos (lmsrPrice_pos b q ω).le hp_le
-  nlinarith
+  have hp_le : lmsrPrice b q ω ≤ 1 :=
+    (single_le_sum (fun i _ => (lmsrPrice_pos b q i).le) (mem_univ ω)).trans_eq
+      (sum_lmsrPrice b q)
+  linarith [mul_nonpos_of_nonneg_of_nonpos hb.le (Real.log_nonpos (lmsrPrice_pos b q ω).le hp_le)]
 
 /-- **Worst-case LMSR market-maker loss bound**
 [PennockSami2007, §26.4.1, pp. 663–664; Hanson2007]: starting from zero initial shares (`q₀ = 0`,
@@ -410,9 +393,8 @@ uniform initial prices), for every final share vector `q` and every outcome `ω`
 loses at most `b * Real.log |Ω|`. -/
 theorem lmsrTraderPayoff_zero_le [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q : Ω → ℝ) (ω : Ω) :
     lmsrTraderPayoff b 0 q ω ≤ b * Real.log (Fintype.card Ω) := by
-  have h := lmsrTraderPayoff_le_neg_mul_log_price hb 0 q ω
-  rw [lmsrPrice_zero, Real.log_inv] at h
-  linarith
+  simpa only [lmsrPrice_zero, Real.log_inv, mul_neg, neg_neg] using
+    lmsrTraderPayoff_le_neg_mul_log_price hb 0 q ω
 
 /-- Sequential form of the worst-case LMSR loss bound: starting from `qs 0 = 0`, the cumulative
 market-maker loss over any number `T` of trades and any outcome `ω` is at most
@@ -450,12 +432,11 @@ theorem exists_lmsrTraderPayoff_zero_gt [Nonempty Ω] {b : ℝ} (hb : 0 < b)
       add_zero, lmsrPrice_zero, Real.log_inv]
     have hω_term : Real.exp (q ω / b) = M := by
       simp only [q, Pi.single_eq_same, mul_div_cancel_left₀ _ hb.ne', Real.exp_log hM_pos]
+    have hone (i : Ω) (hi : i ∈ univ.erase ω) : Real.exp (q i / b) = 1 := by
+      simp [q, Pi.single_eq_of_ne (mem_erase.mp hi).1]
     have hsum_q : ∑ i : Ω, Real.exp (q i / b) = M + ((Fintype.card Ω : ℝ) - 1) := by
-      rw [← Finset.add_sum_erase univ _ (mem_univ ω), hω_term,
-        sum_congr rfl (g := fun _ => (1 : ℝ)) fun i hi => by
-          simp [q, Pi.single_eq_of_ne (mem_erase.mp hi).1],
-        sum_const, card_erase_of_mem (mem_univ ω), card_univ, nsmul_eq_mul, mul_one,
-        Nat.cast_sub Fintype.card_pos, Nat.cast_one]
+      rw [← Finset.add_sum_erase univ _ (mem_univ ω), hω_term, sum_congr rfl hone]
+      simp [card_erase_of_mem (mem_univ ω), Nat.cast_sub Fintype.card_pos]
     have hprice_gt : Real.exp (-(ε / b)) < lmsrPrice b q ω := by
       rw [lmsrPrice_apply, hω_term, hsum_q, lt_div_iff₀ (by linarith), mul_add]
       have hM_eq : Real.exp (-(ε / b)) * M + δ * M = M := by rw [hδ_def]; ring
@@ -463,8 +444,8 @@ theorem exists_lmsrTraderPayoff_zero_gt [Nonempty Ω] {b : ℝ} (hb : 0 < b)
       linarith [mul_lt_of_lt_one_left (sub_pos.mpr hcard_gt) (sub_pos.mp hδ_pos)]
     have hlog_gt : -(ε / b) < Real.log (lmsrPrice b q ω) := by
       simpa only [Real.log_exp] using Real.log_lt_log (Real.exp_pos _) hprice_gt
-    have hcancel : b * -(ε / b) = -ε := by rw [mul_neg, mul_div_cancel₀ _ hb.ne']
-    linarith [mul_lt_mul_of_pos_left hlog_gt hb]
+    linarith [mul_lt_mul_of_pos_left hlog_gt hb,
+      (mul_neg b (ε / b)).trans (congrArg Neg.neg (mul_div_cancel₀ ε hb.ne'))]
 
 end LMSR
 

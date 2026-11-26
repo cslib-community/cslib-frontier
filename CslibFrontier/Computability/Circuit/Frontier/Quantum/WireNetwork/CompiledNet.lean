@@ -162,7 +162,9 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
       (hf : ∀ i, f i ∈ Comp → inVert (embA i) ∈ Comp) :
       {i : Fin n | f i ∈ Comp}.ncard ≤ {q : ↥Aset | inVert q ∈ Comp}.ncard := by
     rw [← ncard_image_of_injective _ embA.injective]
-    exact ncard_le_ncard (by rintro _ ⟨i, hi, rfl⟩; exact hf i hi) (toFinite _)
+    refine ncard_le_ncard ?_ (toFinite _)
+    rintro _ ⟨i, hi, rfl⟩
+    exact hf i hi
   have hout_le (Comp : Set V_fin) (hcut : G.edgeCut Comp = ∅) :=
     hcard_le Comp leafOut fun i hi => (mem_closed_iff_of_reachable hcut (hreach (embA i))).mpr hi
   refine ⟨{
@@ -170,10 +172,12 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
     loopless := hG_loop, maxDeg := hG_deg, card_V_le := hV_ub, leafIn, leafOut, leaf2n
     cycleRank_leafIn_le := fun Comp hcut hconn => by
       have := hcard_le Comp leafIn fun _ h => h
-      have := hG_ρ Comp hcut hconn; omega
+      have := hG_ρ Comp hcut hconn
+      omega
     cycleRank_leafOut_le := fun Comp hcut hconn => by
       have := hout_le Comp hcut
-      have := hG_ρ Comp hcut hconn; omega
+      have := hG_ρ Comp hcut hconn
+      omega
     cycleRank_leaf2n_le := fun Comp hcut hconn => by
       have hsub2n : {k : Fin (2 * n) | leaf2n k ∈ Comp} ⊆
           inl2n n '' {i | leafIn i ∈ Comp} ∪ inr2n n '' {j | leafOut j ∈ Comp} := fun k hk => by
@@ -182,14 +186,23 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
         · simp only [hk_lt, ↓reduceDIte] at hk
           exact .inl ⟨⟨k.1, hk_lt⟩, hk, Fin.ext rfl⟩
         · simp only [hk_lt, ↓reduceDIte] at hk
-          exact .inr ⟨⟨k.1 - n, by omega⟩, hk, Fin.ext (by simp [inr2n]; omega)⟩
+          refine .inr ⟨⟨k.1 - n, by omega⟩, hk, Fin.ext ?_⟩
+          simp only [inr2n]
+          omega
       have hcard2n : {k : Fin (2 * n) | leaf2n k ∈ Comp}.ncard ≤
-          2 * {q : ↥Aset | inVert q ∈ Comp}.ncard := by
-        refine (ncard_le_ncard hsub2n (toFinite _)).trans ((ncard_union_le _ _).trans ?_)
-        rw [ncard_image_of_injective _ (inl2n_injective n),
-          ncard_image_of_injective _ (inr2n_injective n), two_mul]
-        exact add_le_add (hcard_le Comp leafIn fun _ h => h) (hout_le Comp hcut)
-      have := hG_ρ Comp hcut hconn; omega
+          2 * {q : ↥Aset | inVert q ∈ Comp}.ncard :=
+        calc {k : Fin (2 * n) | leaf2n k ∈ Comp}.ncard
+            ≤ (inl2n n '' {i | leafIn i ∈ Comp}).ncard +
+                (inr2n n '' {j | leafOut j ∈ Comp}).ncard :=
+              (ncard_le_ncard hsub2n (toFinite _)).trans (ncard_union_le _ _)
+          _ = {i : Fin n | leafIn i ∈ Comp}.ncard + {j : Fin n | leafOut j ∈ Comp}.ncard := by
+              rw [ncard_image_of_injective _ (inl2n_injective n),
+                ncard_image_of_injective _ (inr2n_injective n)]
+          _ ≤ 2 * {q : ↥Aset | inVert q ∈ Comp}.ncard := by
+              rw [two_mul]
+              exact add_le_add (hcard_le Comp leafIn fun _ h => h) (hout_le Comp hcut)
+      have := hG_ρ Comp hcut hconn
+      omega
     sq_quantumCorrelation_mul_le := fun x₀ Q P =>
       sq_quantumCorrelation_mul_le_of_capped (x₀ := x₀) heA hqA hsplit G inVert outVert F
         hcontract hloc_in hloc_out hloc_edge Q P
@@ -201,7 +214,8 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
         hcontract hloc_in hloc_out hloc_edge Q P
     cutRank_linBlockMatrix_le := fun x₀ {_} hlin P =>
       cutRank_linBlockMatrix_le_of_capped (x₀ := x₀) heA hsplit G inVert outVert F
-        hcontract hloc_in hloc_out hloc_edge _ hlin leaf2n hleaf_in hleaf_out P }⟩
+        hcontract hloc_in hloc_out hloc_edge _ hlin leaf2n hleaf_in hleaf_out P
+  }⟩
 
 
 end Cslib.Circuits.Frontier

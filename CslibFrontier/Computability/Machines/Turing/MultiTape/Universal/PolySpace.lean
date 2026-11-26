@@ -93,15 +93,13 @@ theorem step_of_state_eq_none {c : SCfg} (h : c.state = none) :
 theorem stepOut_iterate_eq_of_state_eq_none {t T : ℕ}
     (hhalt : (run d x t).state = none) (hT : t ≤ T) :
     (stepOut d x)^[T] (init d, []) = (stepOut d x)^[t] (init d, []) := by
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hT
-  clear hT
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    rw [← Nat.add_assoc, Function.iterate_succ_apply', ih]
+  induction hT with
+  | refl => rfl
+  | step _ ih =>
+    rw [Function.iterate_succ_apply', ih]
     have hcfg : ((stepOut d x)^[t] (init d, [])).1 = run d x t := rfl
     simp only [stepOut, hcfg, step_of_state_eq_none d x hhalt, Option.toList_none, List.append_nil]
-    exact Prod.mk.eta
+    exact Prod.ext hcfg.symm rfl
 
 /-- Once `run d x t` has halted, `run d x T = run d x t` for all `T ≥ t`. -/
 theorem run_eq_of_state_eq_none {t T : ℕ}
@@ -154,10 +152,8 @@ private lemma le_two_pow_of_first_halt {t₀ : ℕ}
     · exact False.elim (hlt_false hlt hj (eCfg.injective hij))
     · rfl
     · exact False.elim (hlt_false hgt hi (eCfg.injective hij.symm))
-  have hsub : (Finset.range t₀).image (fun k => eCfg (run d x (k + 1))) ⊆ shortWords b := by
-    intro w hw
-    obtain ⟨k, hk, rfl⟩ := Finset.mem_image.mp hw
-    exact mem_shortWords.mpr (hcfg_le k (Finset.mem_range.mp hk))
+  have hsub : (Finset.range t₀).image (fun k => eCfg (run d x (k + 1))) ⊆ shortWords b :=
+    Finset.image_subset_iff.mpr fun k hk => mem_shortWords.mpr (hcfg_le k (Finset.mem_range.mp hk))
   calc t₀ = (Finset.range t₀).card := (Finset.card_range t₀).symm
     _ = ((Finset.range t₀).image (fun k => eCfg (run d x (k + 1)))).card :=
       (Finset.card_image_of_injOn hinj).symm
@@ -197,14 +193,12 @@ theorem exists_simSpace_le_and_universal_eq_true_iff (s : ℕ) (out : List ℕ) 
     (∃ t, simSpace d x t ≤ s ∧ universal (d, x, t) = (out, true)) ↔
       (simSpace d x T ≤ s ∧ universal (d, x, T) = (out, true)) := by
   refine ⟨fun ⟨t, hsp, ht⟩ => ?_, fun h => ⟨T, h⟩⟩
-  have hhalt : (universal (d, x, t)).2 = true := by rw [ht]
   obtain ⟨t₀, ht₀_le, ht₀_sp, ht₀_eq⟩ :=
-    exists_simSpace_le_and_universal_le_two_pow d x hsp hhalt hb
+    exists_simSpace_le_and_universal_le_two_pow d x hsp (by rw [ht]) hb
   have ht₀_halt : (universal (d, x, t₀)).2 = true := by rw [ht₀_eq, ht]
-  have ht₀_state : (run d x t₀).state = none := Option.isNone_iff_eq_none.mp ht₀_halt
   have hT_le : t₀ ≤ T := ht₀_le.trans hT
-  exact ⟨simSpace_eq_of_state_eq_none d x ht₀_state hT_le ▸ ht₀_sp,
-    by rw [universal_eq_of_snd d x ht₀_halt hT_le, ht₀_eq, ht]⟩
+  exact ⟨simSpace_eq_of_state_eq_none d x (Option.isNone_iff_eq_none.mp ht₀_halt) hT_le ▸ ht₀_sp,
+    (universal_eq_of_snd d x ht₀_halt hT_le).trans (ht₀_eq.trans ht)⟩
 
 /-! ### Configuration-count clock and polynomial-space certificate for `budgetedUniversal` -/
 
@@ -222,16 +216,13 @@ every later step `T ≥ t`. -/
 theorem budgetStep_iterate_eq_of_le {t T : ℕ}
     (hhalt : ((budgetStep d x b)^[t] (init d, [])).1.state.isNone = true) (hT : t ≤ T) :
     (budgetStep d x b)^[T] (init d, []) = (budgetStep d x b)^[t] (init d, []) := by
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hT
-  clear hT
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    rw [← Nat.add_assoc, Function.iterate_succ_apply', ih]
-    refine budgetStep_of_state_eq_none d x b (Option.isNone_iff_eq_none.mp hhalt) ?_
-    obtain ⟨j, -, heq, -⟩ := budgetStep_iterate d x b t
-    rw [heq]
-    exact List.length_take_le _ _
+  induction hT with
+  | refl => rfl
+  | step _ ih =>
+    rw [Function.iterate_succ_apply', ih]
+    obtain ⟨_, -, heq, -⟩ := budgetStep_iterate d x b t
+    exact budgetStep_of_state_eq_none d x b (Option.isNone_iff_eq_none.mp hhalt)
+      (by simpa only [heq] using List.length_take_le _ _)
 
 /-- Once `budgetedUniversal (d, x, t, b)` reports halting, increasing the step count `t ≤ T` leaves
 its result unchanged. -/
@@ -253,28 +244,21 @@ theorem exists_budgetedUniversal_le_two_pow {t : ℕ}
   let t₀ := Nat.find hex
   have ht₀ : ((budgetStep d x b)^[t₀] (init d, [])).1.state.isNone = true := Nat.find_spec hex
   have ht₀_le : t₀ ≤ t := Nat.find_min' hex hhalt
-  have hstep :
-      ∀ k < t₀, (eCfg (step d x ((budgetStep d x b)^[k] (init d, [])).1).1).length ≤ b := by
-    intro k hk
+  have hstep (k : ℕ) (hk : k < t₀) :
+      (eCfg (step d x ((budgetStep d x b)^[k] (init d, [])).1).1).length ≤ b := by
     by_contra hnot
-    have hfix : budgetStep d x b ((budgetStep d x b)^[k] (init d, [])) =
-        (budgetStep d x b)^[k] (init d, []) := by
-      simp only [budgetStep, hnot, ↓reduceIte]
-    have hstay : (budgetStep d x b)^[t₀] (init d, []) =
-        (budgetStep d x b)^[k] (init d, []) := by
-      rw [← Nat.sub_add_cancel hk.le, Function.iterate_add_apply,
-        Function.iterate_fixed hfix (t₀ - k)]
-    exact Nat.find_min hex hk (hstay ▸ ht₀)
+    have hfix : Function.IsFixedPt (budgetStep d x b) ((budgetStep d x b)^[k] (init d, [])) := by
+      simp only [Function.IsFixedPt, budgetStep, hnot, ↓reduceIte]
+    rw [← Nat.sub_add_cancel hk.le, Function.iterate_add_apply, hfix.iterate (t₀ - k)] at ht₀
+    exact Nat.find_min hex hk ht₀
   have hfst : ∀ k ≤ t₀, ((budgetStep d x b)^[k] (init d, [])).1 = run d x k := by
-    intro k hk
+    intro k
     induction k with
-    | zero => rfl
+    | zero => exact fun _ => rfl
     | succ k ih =>
-      have hk_lt : k < t₀ := Nat.lt_of_succ_le hk
-      have hle := hstep k hk_lt
-      rw [Function.iterate_succ_apply', budgetStep]
-      split_ifs
-      rw [ih hk_lt.le, run_succ]
+      intro hk
+      rw [Function.iterate_succ_apply', budgetStep, ite_eq_left (hstep k (Nat.lt_of_succ_le hk)),
+        ih (Nat.le_of_succ_le hk), run_succ]
   have hb : ∀ k < t₀, (eCfg (run d x (k + 1))).length ≤ b := fun k hk => by
     simpa only [hfst k hk.le, ← run_succ] using hstep k hk
   exact ⟨t₀,
@@ -289,10 +273,9 @@ theorem exists_budgetedUniversal_eq_true_iff (out : List ℕ) {T : ℕ} (hT : 2 
     (∃ t, budgetedUniversal (d, x, t, b) = (out, true)) ↔
       budgetedUniversal (d, x, T, b) = (out, true) := by
   refine ⟨fun ⟨t, ht⟩ => ?_, fun h => ⟨T, h⟩⟩
-  have hhalt : (budgetedUniversal (d, x, t, b)).2 = true := by rw [ht]
-  obtain ⟨t₀, ht₀_le, ht₀_eq⟩ := exists_budgetedUniversal_le_two_pow d x b hhalt
-  rw [← ht, ← ht₀_eq]
-  exact budgetedUniversal_eq_of_le_of_snd d x b (by rw [ht₀_eq, ht]) (ht₀_le.trans hT)
+  obtain ⟨t₀, ht₀_le, ht₀_eq⟩ := exists_budgetedUniversal_le_two_pow d x b (by rw [ht])
+  exact (budgetedUniversal_eq_of_le_of_snd d x b (by rw [ht₀_eq, ht])
+    (ht₀_le.trans hT)).trans (ht₀_eq.trans ht)
 
 private lemma listMax_le_length_encList_encUnary (x : List ℕ) :
     x.foldr max 0 ≤ (encList encUnary x).length := by
@@ -393,37 +376,22 @@ theorem visited_eq_Icc_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
       -(((boundsAt d x j).getD i (0, 0)).1 : ℤ) ≤ headAt d x j i ∧
       headAt d x j i ≤ (((boundsAt d x j).getD i (0, 0)).2 : ℤ) := by
   induction j with
-  | zero =>
-    have hget : (boundsAt d x 0).getD i (0, 0) = (0, 0) := by
-      simp [boundsAt, initBounds, hi]
-    rw [hget, headAt_zero]
-    simp [visited, headAt_zero]
+  | zero => simp [boundsAt, initBounds, hi, visited, headAt_zero]
   | succ j ih =>
     obtain ⟨hvis, hlo, hhi⟩ := ih
-    have hlen_tapes : (run d x (j + 1)).workTapes.length = d.tapes :=
-      length_run_workTapes d x (j + 1)
-    have hlen_bounds : (boundsAt d x j).length = d.tapes := length_boundsAt d x j
-    have hi_tapes : i < (run d x (j + 1)).workTapes.length := hlen_tapes ▸ hi
-    have hi_bounds : i < (boundsAt d x j).length := hlen_bounds ▸ hi
-    have hget : (boundsAt d x (j + 1)).getD i (0, 0) =
-        (max ((boundsAt d x j).getD i (0, 0)).1 (-(headAt d x (j + 1) i)).toNat,
-          max ((boundsAt d x j).getD i (0, 0)).2 (headAt d x (j + 1) i).toNat) := by
-      rw [boundsAt_succ, getD_updateBounds _ _ hi_tapes hi_bounds, headAt]
-    obtain ⟨a, ha⟩ := step_tape d x (run d x j) i
-    have hstep : headAt d x (j + 1) i = headAt d x j i - 1 ∨
-        headAt d x (j + 1) i = headAt d x j i ∨
-        headAt d x (j + 1) i = headAt d x j i + 1 := by
-      simp only [headAt, run_succ, ha]
-      exact head_apply _ a
     set l := ((boundsAt d x j).getD i (0, 0)).1
     set r := ((boundsAt d x j).getD i (0, 0)).2
+    have hget : (boundsAt d x (j + 1)).getD i (0, 0) =
+        (max l (-(headAt d x (j + 1) i)).toNat, max r (headAt d x (j + 1) i).toNat) := by
+      rw [boundsAt_succ, getD_updateBounds _ _ ((length_run_workTapes d x (j + 1)).symm ▸ hi)
+        ((length_boundsAt d x j).symm ▸ hi), headAt]
     set h' := headAt d x (j + 1) i
-    have hl' : -((max l (-h').toNat : ℕ) : ℤ) = min (-(l : ℤ)) h' := by omega
-    have hr' : ((max r h'.toNat : ℕ) : ℤ) = max (r : ℤ) h' := by omega
-    rw [hget]
-    dsimp only
-    rw [visited_succ, hvis, insert_Icc_of_step ⟨hlo, hhi⟩ hstep, hl', hr']
-    exact ⟨rfl, by omega, by omega⟩
+    obtain ⟨a, ha⟩ := step_tape d x (run d x j) i
+    have hstep : h' = headAt d x j i - 1 ∨ h' = headAt d x j i ∨ h' = headAt d x j i + 1 := by
+      simpa only [h', headAt, run_succ, ha] using head_apply _ a
+    rw [hget, visited_succ, hvis, insert_Icc_of_step ⟨hlo, hhi⟩ hstep]
+    refine ⟨?_, by omega, by omega⟩
+    congr 1 <;> omega
 
 theorem card_visited_eq_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
     (visited d x j i).card =
@@ -433,10 +401,9 @@ theorem card_visited_eq_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
 
 /-- **`boundsSpace (boundsAt d x j)` equals `simSpace d x j`.** -/
 theorem boundsSpace_boundsAt (j : ℕ) : boundsSpace (boundsAt d x j) = simSpace d x j := by
-  rw [boundsSpace_eq_sum_map, sum_map_eq_sum_range (0, 0),
-    length_boundsAt, simSpace]
-  refine Finset.sum_congr rfl fun i hi => ?_
-  exact (card_visited_eq_boundsAt d x j (Finset.mem_range.mp hi)).symm
+  rw [boundsSpace_eq_sum_map, sum_map_eq_sum_range (0, 0), length_boundsAt, simSpace]
+  exact Finset.sum_congr rfl fun i hi =>
+    (card_visited_eq_boundsAt d x j (Finset.mem_range.mp hi)).symm
 
 /-- At step `0`, `simSpace d x 0 = d.tapes`. -/
 theorem simSpace_zero : simSpace d x 0 = d.tapes := by
@@ -540,9 +507,8 @@ theorem spaceLoopStep_iterate (t s k : ℕ) :
         have hb : ¬ boundsSpace (boundsAt d x (k + 1)) ≤ s := by rwa [boundsSpace_boundsAt]
         simp only [spaceLoopStep, ↓reduceIte, decide_eq_true_eq, ← run_succ, ← boundsAt_succ, hb]
       · obtain ⟨j, hj, hj_sp, heq⟩ := ih_gt hk
-        refine ⟨j, hj.trans (Nat.le_succ k), hj_sp, ?_⟩
-        rw [Function.iterate_succ_apply', heq]
-        rfl
+        exact ⟨j, hj.trans (Nat.le_succ k), hj_sp,
+          (Function.iterate_succ_apply' _ _ _).trans (congrArg spaceLoopStep heq)⟩
 
 /-- Every reachable state of `spaceLoopStep` from `spaceLoopInit (d, x, t, s)` is at some step
 `j ≤ k` of `run d x` with `j = 0 ∨ simSpace d x j ≤ s`. -/
@@ -560,9 +526,7 @@ symbols of `universal (d, x, t)` and whether it has halted. -/
 theorem spaceBoundedUniversal_eq_of_simSpace_le {t s : ℕ} (hsp : simSpace d x t ≤ s) :
     spaceBoundedUniversal (d, x, t, s) =
       ((universal (d, x, t)).1.take 2, (universal (d, x, t)).2) := by
-  simp only [spaceBoundedUniversal, (spaceLoopStep_iterate d x t s t).1 hsp, Bool.true_and,
-    universal, simulate]
-  rfl
+  simp [spaceBoundedUniversal, (spaceLoopStep_iterate d x t s t).1 hsp, universal, simulate, run]
 
 /-- When `¬ simSpace d x t ≤ s`, `spaceBoundedUniversal (d, x, t, s)` reports `false` in its second
 component. -/
@@ -640,16 +604,14 @@ theorem computableInPolyTime_keepTwo :
 @[fun_prop]
 theorem computableInPolyTime_initBounds :
     ComputableInPolyTime initBounds eDesc eBounds := by
-  unfold initBounds eBounds
-  fun_prop
+  fun_prop [initBounds, eBounds]
 
 /-- `updateBounds` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_updateBounds :
     ComputableInPolyTime (fun p : List Tape × List (ℕ × ℕ) => updateBounds p.1 p.2)
       (encPair (encList eTape) eBounds) eBounds := by
-  unfold updateBounds eBounds
-  fun_prop
+  fun_prop [updateBounds, eBounds]
 
 /-- `boundsSpace` is computable in polynomial time. -/
 @[fun_prop]
@@ -662,8 +624,7 @@ theorem computableInPolyTime_boundsSpace :
 @[fun_prop]
 theorem computableInPolyTime_spaceLoopInit :
     ComputableInPolyTime spaceLoopInit eInS eSpaceLoopState := by
-  unfold spaceLoopInit
-  fun_prop
+  fun_prop [spaceLoopInit]
 
 /-- `spaceLoopStep` is computable in polynomial time on `eSpaceLoopState`. -/
 @[fun_prop]
@@ -686,11 +647,9 @@ private lemma le_of_mem_boundsAt {j s : ℕ} (hsp : j = 0 ∨ simSpace d x j ≤
     {p : ℕ × ℕ} (hp : p ∈ boundsAt d x j) : p.1 ≤ s ∧ p.2 ≤ s := by
   rcases hsp with rfl | hsp
   · simp [List.eq_of_mem_replicate hp]
-  · have hmem : p.1 + p.2 + 1 ∈ (boundsAt d x j).map (fun q => q.1 + q.2 + 1) :=
-      List.mem_map_of_mem hp
-    have hle : p.1 + p.2 + 1 ≤ s :=
-      (List.le_sum_of_mem hmem).trans
-        (by rw [← boundsSpace_eq_sum_map, boundsSpace_boundsAt]; exact hsp)
+  · have hle : p.1 + p.2 + 1 ≤ s :=
+      (List.le_sum_of_mem (List.mem_map_of_mem (f := fun q => q.1 + q.2 + 1) hp)).trans
+        (((boundsSpace_eq_sum_map _).symm.trans (boundsSpace_boundsAt d x j)).trans_le hsp)
     omega
 
 private lemma length_boundsAt_le {j s : ℕ} (hsp : j = 0 ∨ simSpace d x j ≤ s) :
@@ -723,28 +682,23 @@ private lemma length_eSpaceLoopState_iterate_le (i : Desc × List ℕ × ℕ × 
   have htapes : d.tapes ≤ N := (tapes_le d).trans hd
   have hcfg : (eCfg (run d x j)).length ≤ 12 * N ^ 2 + 41 * N + 6 := by
     rcases hsp with rfl | hsp'
-    · have hinit := length_eCfg_init_le d
-      change (eCfg (init d)).length ≤ _
-      nlinarith
+    · exact (length_eCfg_init_le d).trans (by nlinarith)
     · have hsp_le := length_eCfg_le_space d x j
       have hmul : (2 * descLen d + 5) * simSpace d x j ≤ (2 * N + 5) * N :=
         Nat.mul_le_mul (by omega) (hsp'.trans hs)
       nlinarith
-  have hout_len : (((stepOut d x)^[j] (init d, [])).2.take 2).length ≤ 2 :=
-    List.length_take_le 2 _
   have hout : (encList encUnary (((stepOut d x)^[j] (init d, [])).2.take 2)).length ≤
       4 * N + 2 := by
-    have h₁ := length_encList_le encUnary (((stepOut d x)^[j] (init d, [])).2.take 2)
+    have h₁ := (length_encList_le encUnary (((stepOut d x)^[j] (init d, [])).2.take 2)
       (b := descLen d) fun o ho => by
         rw [encUnary_apply, List.length_replicate]
-        exact (inv_iterate d x j).2.2 o (List.mem_of_mem_take ho)
-    have h₂ := Nat.mul_le_mul_right (2 * descLen d + 1) hout_len
+        exact (inv_iterate d x j).2.2 o (List.mem_of_mem_take ho)).trans
+      (Nat.mul_le_mul_right (2 * descLen d + 1) (List.length_take_le 2 _))
     nlinarith
   have hbounds : (encList (encPair encUnary encUnary) (boundsAt d x j)).length ≤
       6 * N ^ 2 + 3 * N := by
-    have h₁ := length_boundsAt_le d x hsp
-    have h₂ : descLen d * (6 * s + 3) ≤ N * (6 * N + 3) :=
-      Nat.mul_le_mul hd (by omega)
+    have h₁ := (length_boundsAt_le d x hsp).trans
+      (Nat.mul_le_mul hd (show 6 * s + 3 ≤ 6 * N + 3 by omega))
     nlinarith
   simp only [eSpaceLoopState_apply, length_encPair, encUnary_apply, List.length_replicate,
     encBool_apply, List.length_singleton, descLen] at *
@@ -764,20 +718,16 @@ theorem computableInPolySpace_spaceBoundedUniversal :
       (ComputableInPolySpace.of_polyTime computableInPolyTime_spaceLoopStep)
       (PolyBounded.of_forall_le 1200 2 fun _ => le_rfl)
       (fun i k _ => length_eSpaceLoopState_iterate_le i k)
-  have hisNone : ComputableInPolyTime (fun o : Option ℕ => o.isNone) eSym encBool := by
-    have hisSome : ComputableInPolyTime (fun o : Option ℕ => o.isSome) eSym encBool :=
-      ComputableInPolyTime.optionIsSome .id'
-    refine (ComputableInPolyTime.bool_not.comp hisSome).of_enc_eq fun o => ?_
-    cases o <;> rfl
-  have hid : ComputableInPolyTime (fun st : SpaceLoopState => st)
-      eSpaceLoopState eSpaceLoopState := .id'
+  have hisNone : ComputableInPolyTime (fun o : Option ℕ => o.isNone) eSym encBool :=
+    (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.optionIsSome .id')).of_enc_eq
+      fun o => by cases o <;> rfl
   have hfinish : ComputableInPolyTime
       (fun st : SpaceLoopState => (st.output, st.withinSpace && st.cfg.state.isNone))
       eSpaceLoopState eOut :=
-    (eSpaceLoopState_output_polyTime hid).prod
+    (eSpaceLoopState_output_polyTime .id').prod
       (ComputableInPolyTime.bool_and.comp
-        ((eSpaceLoopState_withinSpace_polyTime hid).prod
-          (hisNone.comp (eCfg_state_polyTime (eSpaceLoopState_cfg_polyTime hid)))))
+        ((eSpaceLoopState_withinSpace_polyTime .id').prod
+          (hisNone.comp (eCfg_state_polyTime (eSpaceLoopState_cfg_polyTime .id')))))
   exact (ComputableInPolySpace.of_polyTime hfinish).comp hiter
 
 end Turing.MultiTapeTM.Universal

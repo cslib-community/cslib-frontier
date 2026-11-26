@@ -113,10 +113,8 @@ theorem domRestrict_prodMk_injective (X : Set ι) :
 every assignment and whose side on `Dᶜ` is the set of its parts there. -/
 theorem eq_rectangle_of_dependsOn {T : Set (ι → U)} {D : Set ι} (hD : DependsOn (· ∈ T) Dᶜ) :
     T = rectangle D univ (Dᶜ.domRestrict '' T) := by
-  refine subset_antisymm (fun x hx => ⟨mem_univ _, x, hx, rfl⟩) ?_
-  rintro z ⟨-, y, hy, hyz⟩
-  have : (y ∈ T) = (z ∈ T) := hD fun i hi => congrFun hyz ⟨i, hi⟩
-  exact this ▸ hy
+  exact subset_antisymm (fun x hx => ⟨mem_univ _, x, hx, rfl⟩) fun _ ⟨_, _, hy, hyz⟩ =>
+    (hD fun i hi => congrFun hyz ⟨i, hi⟩).mp hy
 
 /-- **Thick or small.** Let `T` depend only on the coordinates in `R`, and let the other
 coordinates carry at least `K ≥ 1` assignments. Then `T` is a rectangle with both sides of size
@@ -143,21 +141,26 @@ theorem exists_thick_or_ncard_lt [Finite ι] [Finite U] [Nonempty U] {T : Set (�
   · exact Or.inl ⟨D, univ, B, eq_rectangle_of_dependsOn (hR.mono (subset_compl_comm.mp hDR)),
       by rwa [hA, hD], hB⟩
   refine Or.inr ?_
-  have hcard : T.ncard ≤ Nat.card U ^ D.ncard * (K - 1) :=
-    (ncard_le_ncard_of_injOn _ (t := (univ : Set (D → U)) ×ˢ B)
-      (fun x hx => ⟨mem_univ _, x, hx, rfl⟩) (domRestrict_prodMk_injective D).injOn).trans
-      (by rw [ncard_prod, hA]; exact Nat.mul_le_mul_left _ (by omega))
+  have hcard : T.ncard ≤ Nat.card U ^ D.ncard * (K - 1) := by
+    calc T.ncard
+        ≤ ((univ : Set (D → U)) ×ˢ B).ncard :=
+          ncard_le_ncard_of_injOn _ (fun x hx => ⟨mem_univ _, x, hx, rfl⟩)
+            (domRestrict_prodMk_injective D).injOn
+      _ = Nat.card U ^ D.ncard * B.ncard := by rw [ncard_prod, hA]
+      _ ≤ Nat.card U ^ D.ncard * (K - 1) := Nat.mul_le_mul_left _ (by omega)
+  -- Minimality of `|D|` gives `|U| ^ |D| ≤ |U| (K - 1)` once `D` is nonempty.
   rcases Nat.eq_zero_or_pos D.ncard with hd | hd
   · rw [hd, pow_zero, one_mul] at hcard
-    exact (hcard.trans_lt (by omega : K - 1 < K)).trans_le
-      ((Nat.le_self_pow two_ne_zero K).trans (Nat.le_mul_of_pos_left _ hq))
+    calc T.ncard ≤ K - 1 := hcard
+      _ < K := by omega
+      _ ≤ Nat.card U * K ^ 2 :=
+          (Nat.le_self_pow two_ne_zero K).trans (Nat.le_mul_of_pos_left _ hq)
   · have hlt : Nat.card U ^ (D.ncard - 1) < K := hdmin _ (by omega)
     have hpow : Nat.card U ^ D.ncard = Nat.card U * Nat.card U ^ (D.ncard - 1) := by
-      rw [← pow_succ']
-      congr 1
-      omega
+      rw [← pow_succ', Nat.sub_add_cancel hd]
     calc T.ncard ≤ Nat.card U ^ D.ncard * (K - 1) := hcard
-      _ ≤ Nat.card U * (K - 1) * (K - 1) := by rw [hpow]; gcongr; omega
+      _ ≤ Nat.card U * (K - 1) * (K - 1) :=
+          hpow ▸ Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_sub_one_of_lt hlt))
       _ < Nat.card U * K ^ 2 := by
           rw [mul_assoc, sq]
           exact Nat.mul_lt_mul_of_pos_left (Nat.mul_lt_mul'' (by omega) (by omega)) hq
@@ -242,10 +245,12 @@ on the others. -/
 theorem signedCount_eq_sum [Fintype ι] [Fintype U] [DecidableEq ι] (S R : Set (ι → U))
     [DecidablePred (· ∈ S)] [DecidablePred (· ∈ R)] :
     signedCount S R = ∑ x with x ∈ R, if x ∈ S then (1 : ℝ) else -1 := by
+  have h₁ : (R ∩ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∈ S :=
+    Finset.ext fun _ => by simp
+  have h₂ : (R \ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∉ S :=
+    Finset.ext fun _ => by simp
   rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const, nsmul_eq_mul, nsmul_eq_mul, mul_one,
-    mul_neg_one, signedCount, ncard_eq_toFinset_card', ncard_eq_toFinset_card',
-    show (R ∩ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∈ S by ext; simp,
-    show (R \ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∉ S by ext; simp,
+    mul_neg_one, signedCount, ncard_eq_toFinset_card', ncard_eq_toFinset_card', h₁, h₂,
     Finset.filter_filter, Finset.filter_filter, sub_eq_add_neg]
 
 section Finite
@@ -273,9 +278,7 @@ theorem signedCount_eq_add_sdiff (S : Set (ι → U)) {R D : Set (ι → U)} (h 
   have hi := hsplit S ▸ ncard_union_eq (hdisj S)
   have hd := hsplit Sᶜ ▸ ncard_union_eq (hdisj Sᶜ)
   simp only [← sdiff_eq] at hd
-  rw [signedCount, signedCount, signedCount, hi, hd]
-  push_cast
-  ring
+  rw [signedCount, signedCount, signedCount, hi, hd, Nat.cast_add, Nat.cast_add]; ring
 
 /-- The signed count is twice the deviation of `|R ∩ S|` from `|R| / 2`. -/
 theorem signedCount_eq_two_mul (S R : Set (ι → U)) :

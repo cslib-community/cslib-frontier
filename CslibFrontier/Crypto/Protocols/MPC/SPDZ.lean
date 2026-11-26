@@ -298,10 +298,8 @@ audited in batch by `MACCheck`. -/
 
 @[simp] theorem secret_addConst {p n : ℕ} [NeZero n] (e : ZMod p) (s : AuthShare p n) :
     (addConst e s).secret = s.secret + e := by
-  have h0 : ∀ i : Fin n,
-      (if i = 0 then s.valShares i + e else s.valShares i) =
-        s.valShares i + if i = 0 then e else 0 := fun i => by
-    by_cases hi : i = 0 <;> simp [hi]
+  have h0 (i : Fin n) : (if i = 0 then s.valShares i + e else s.valShares i) =
+      s.valShares i + if i = 0 then e else 0 := by split_ifs <;> simp
   simp [secret, addConst, h0, Finset.sum_add_distrib]
 
 @[simp] theorem macSum_addConst {p n : ℕ} (e : ZMod p) (s : AuthShare p n) :
@@ -628,12 +626,9 @@ theorem eval_linearCombZeroGame_eq {p T : ℕ} [Fact (Nat.Prime p)]
     (ProbComp.eval (linearCombZeroGame p T err)) true = (p : ℝ≥0∞)⁻¹ := by
   obtain ⟨l₀, hl₀⟩ := Function.ne_iff.mp herr
   simp only [linearCombZeroGame, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_uniform,
-    ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-  have hpre : (fun e : Fin T → ZMod p => decide (linearCombAddHom err e = 0)) ⁻¹' {true} =
-      {e | ∑ l, e l * err l = 0} := by
-    ext e
-    simp
-  rw [hpre, toOuterMeasure_uniform_linearComb_eq_zero hl₀, ZMod.card, one_div]
+    ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply, Set.preimage,
+    Set.mem_singleton_iff, decide_eq_true_eq, linearCombAddHom_apply]
+  rw [toOuterMeasure_uniform_linearComb_eq_zero hl₀, ZMod.card, one_div]
 
 /-- Stage 1 upper bound in `ℝ≥0∞`. -/
 theorem eval_linearCombZeroGame_le {p T : ℕ} [Fact (Nat.Prime p)]
@@ -662,9 +657,7 @@ theorem eval_macKey_guess_le {p : ℕ} [Fact (Nat.Prime p)] (L d : ZMod p) :
       PMF.toOuterMeasure_map_apply]
     have hpre : (Equiv.funUnique Unit (ZMod p) ⁻¹'
         ((fun alpha : ZMod p => decide (alpha * L = d)) ⁻¹' {true})) =
-        {r : Unit → ZMod p | ∑ i : Unit, r i * L = d} := by
-      ext r
-      simp
+        {r : Unit → ZMod p | ∑ i : Unit, r i * L = d} := Set.ext fun _ => by simp
     rw [hpre, toOuterMeasure_uniform_linearComb_eq (d := fun _ => L) (i₀ := ()) hL d,
       ZMod.card, one_div]
 

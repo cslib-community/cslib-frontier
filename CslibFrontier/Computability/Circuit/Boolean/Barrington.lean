@@ -135,23 +135,20 @@ theorem exists_monoidProgram_computes_of_forall_commutator {G : Type*} [Group G]
       obtain ⟨α, hα, β, hβ, rfl⟩ := hcomm σ hσ
       obtain ⟨P, hPlen, hP⟩ := ih 0 hα
       obtain ⟨Q, hQlen, hQ⟩ := ih 1 hβ
-      refine ⟨P * Q * P.inv * Q.inv, (length_commutator_le hPlen hQlen).trans_eq ?_,
+      exact ⟨P * Q * P.inv * Q.inv,
+        (length_commutator_le hPlen hQlen).trans_eq (by simp [Fin.univ_succ]),
         fun x => (hP.and hQ x).trans rfl⟩
-      simp [Fin.univ_succ]
     | or =>
       obtain ⟨α, hα, β, hβ, hαβ⟩ := hcomm σ⁻¹ (hinv σ hσ)
       obtain ⟨P, hPlen, hP⟩ := ih 0 (hinv α hα)
       obtain ⟨Q, hQlen, hQ⟩ := ih 1 (hinv β hβ)
       let R := mulLeft α P * mulLeft β Q * (mulLeft α P).inv * (mulLeft β Q).inv
       have hR : R.Computes σ⁻¹ fun x => !(args 0).eval interpretation x &&
-          !(args 1).eval interpretation x := by
-        rw [← hαβ]
-        exact hP.not.and hQ.not
-      refine ⟨mulLeft σ R, length_mulLeft_le σ ((length_commutator_le
-        (length_mulLeft_le α hPlen) (length_mulLeft_le β hQlen)).trans_eq ?_), fun x => ?_⟩
-      · simp [Fin.univ_succ]
-      · rw [hR.not x]
-        simp [interpretation]
+          !(args 1).eval interpretation x := hαβ ▸ hP.not.and hQ.not
+      exact ⟨mulLeft σ R, length_mulLeft_le σ ((length_commutator_le
+        (length_mulLeft_le α hPlen) (length_mulLeft_le β hQlen)).trans_eq
+          (by simp [Fin.univ_succ])),
+        fun x => by simp [hR.not x, interpretation]⟩
 
 /-- **Barrington's theorem in `A₅`.** For every `5`-cycle `σ`, a De Morgan formula of depth `d`,
 with negations and constants free, is `σ`-computed by a program of length at most `4 ^ d` over the
@@ -265,33 +262,31 @@ def entryFormula (P : MonoidProgram (Fin n) Bool (Function.End (Fin w))) (a b : 
     (a b : Fin w) (x : BitString n) :
     (P.entryFormula a b).eval interpretation x = decide ((P.eval x) a = b) := by
   rw [eval_eq_prod, entryFormula]
-  revert a b
-  refine List.balancedFold_induction (op := entryFormulaMul)
+  exact List.balancedFold_induction (op := entryFormulaMul)
     (e := fun a b => .const (decide (a = b))) (f := Instruction.entryFormula)
     (p := fun l (T : Fin w → Fin w → Formula signature n) =>
       ∀ a b, (T a b).eval interpretation x =
         decide (((l.map (·.eval x)).prod : Function.End (Fin w)) a = b))
-    (fun a b => by simp; rfl) (fun I a b => by simp) (fun l₁ l₂ u v _ _ hu hv a b => ?_) P.toList
-  rw [entryFormulaMul, Formula.eval_orList, List.map_append, List.prod_append, Bool.eq_iff_iff,
-    List.any_eq_true, decide_eq_true_iff]
-  simp only [List.mem_map, List.mem_finRange, true_and, exists_exists_eq_and, Formula.eval_and,
-    hu, hv, Bool.and_eq_true, decide_eq_true_eq]
-  exact ⟨fun ⟨c, hc, hcb⟩ => by subst hc; exact hcb, fun h => ⟨_, rfl, h⟩⟩
+    (fun _ _ => rfl) (fun I a b => by simp)
+    (fun l₁ l₂ u v _ _ hu hv a b => by
+      rw [entryFormulaMul, Formula.eval_orList, List.map_append, List.prod_append, Bool.eq_iff_iff,
+        List.any_eq_true, decide_eq_true_iff]
+      simp only [List.mem_map, List.mem_finRange, true_and, exists_exists_eq_and, Formula.eval_and,
+        hu, hv, Bool.and_eq_true, decide_eq_true_eq]
+      exact ⟨fun ⟨_, rfl, hcb⟩ => hcb, fun h => ⟨_, rfl, h⟩⟩) P.toList a b
 
 /-- The formula saying that a branching program maps `a` to `b` has negations only at the
 leaves. -/
 private theorem isNNF_entryFormula (P : MonoidProgram (Fin n) Bool (Function.End (Fin w)))
     (a b : Fin w) :
-    (P.entryFormula a b).IsNNF := by
-  rw [entryFormula]
-  revert a b
-  refine List.balancedFold_induction (op := entryFormulaMul)
+    (P.entryFormula a b).IsNNF :=
+  List.balancedFold_induction (op := entryFormulaMul)
     (e := fun a b => .const (decide (a = b))) (f := Instruction.entryFormula)
     (p := fun _ (T : Fin w → Fin w → Formula signature n) => ∀ a b, (T a b).IsNNF)
-    (fun a b => .const _) (fun I => I.isNNF_entryFormula)
-    (fun _ _ u v _ _ hu hv a b => .orList fun F hF => ?_) P.toList
-  obtain ⟨c, -, rfl⟩ := List.mem_map.1 hF
-  exact .and (hv a c) (hu c b)
+    (fun _ _ => .const _) (fun I => I.isNNF_entryFormula)
+    (fun _ _ u v _ _ hu hv a b => .orList fun F hF => by
+      obtain ⟨c, -, rfl⟩ := List.mem_map.1 hF
+      exact .and (hv a c) (hu c b)) P.toList a b
 
 /-- The entry formula of a width-`w` branching program `P` has binary-gate depth at most
 `(⌈log₂ w⌉ + 1) ⌈log₂ P.toList.length⌉`. -/
@@ -362,9 +357,7 @@ theorem Computes.exists_formula {P : MonoidProgram (Fin n) Bool (Perm (Fin w))} 
       List.mem_product, List.mem_finRange, true_and, decide_eq_true_eq, Prod.exists, ne_eq]
     cases hf : f x
     · simp only [MulAction.toEndHom, Bool.false_eq_true, ↓reduceIte, map_one, iff_false]
-      simp only [not_exists, not_and]
-      intro a b hab h
-      exact hab h
+      exact fun ⟨_, _, hab, h⟩ => hab h
     · simp only [↓reduceIte, iff_true]
       obtain ⟨a, ha⟩ := not_forall.1 fun h => hσ (Perm.ext h)
       exact ⟨a, σ a, fun h => ha h.symm, rfl⟩
@@ -372,9 +365,8 @@ theorem Computes.exists_formula {P : MonoidProgram (Fin n) Bool (Perm (Fin w))} 
       (Nat.clog_mono_right 2 ?_) _)
     · obtain ⟨p, -, rfl⟩ := List.mem_map.1 hF
       simpa [Q] using depthWith_entryFormula_le Q p.1 p.2
-    · rw [List.length_map]
-      exact (List.length_filter_le _ _).trans
-        (by rw [List.length_product, List.length_finRange])
+    · simpa [pairs, List.length_product] using
+        List.length_filter_le _ (List.finRange w ×ˢ List.finRange w)
   · obtain ⟨p, -, rfl⟩ := List.mem_map.1 hF
     exact Q.isNNF_entryFormula p.1 p.2
 

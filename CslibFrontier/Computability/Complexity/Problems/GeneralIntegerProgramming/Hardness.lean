@@ -114,32 +114,27 @@ theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :
   constructor
   · rintro ⟨x, hx, hC⟩
     let z : ℕ → ℤ := fun j => if hj : j < n then x ⟨j, hj⟩ else 0
-    have hz : ∀ j, z j = 0 ∨ z j = 1 := by
-      intro j
-      by_cases hj : j < n
-      · have h := hx ⟨j, hj⟩
-        simpa only [z, dite_eq_left hj] using
-          (show x ⟨j, hj⟩ = 0 ∨ x ⟨j, hj⟩ = 1 by omega)
-      · simp [z, hj]
+    have heq (j : ℕ) : ((decide (z j = 1)).toNat : ℤ) = z j := by
+      dsimp only [z]
+      split_ifs with hj
+      · have := hx ⟨j, hj⟩
+        by_cases h1 : x ⟨j, hj⟩ = 1
+        · simp [h1]
+        · simp [h1]; omega
+      · simp
     refine ⟨fun j => decide (z j = 1), fun c hc => ?_⟩
-    have h := hC c hc
-    have h' : ∑ j : Fin n, (c.coeffs.getD j 0 : ℤ) * z j = c.rhs := by
-      simpa only [z, Fin.is_lt, dite_true, Fin.eta] using h
-    rw [hsum c hc z] at h'
-    have heq : ∀ j, ((decide (z j = 1)).toNat : ℤ) = z j := by
-      intro j
-      rcases hz j with h | h <;> simp [h]
+    have h' : ∑ j ∈ range c.coeffs.length, (c.coeffs.getD j 0 : ℤ) * z j = c.rhs := by
+      rw [← hsum c hc z]
+      simpa only [z, Fin.is_lt, dite_true, Fin.eta] using hC c hc
     apply Int.ofNat_inj.mp
     push_cast
     simpa only [heq] using h'
   · rintro ⟨x, hx⟩
-    refine ⟨fun j => ((x j).toNat : ℤ), fun j => ?_, fun c hc => ?_⟩
-    · have h := Bool.toNat_le (x j)
-      exact ⟨by positivity, show ((x j.val).toNat : ℤ) ≤ 1 by exact_mod_cast h⟩
-    · have h := hx c hc
-      have h' : ∑ j ∈ range c.coeffs.length,
-          (c.coeffs.getD j 0 : ℤ) * ((x j).toNat : ℤ) = c.rhs := by exact_mod_cast h
-      rwa [← hsum c hc (fun j => ((x j).toNat : ℤ))] at h'
+    refine ⟨fun j => ((x j).toNat : ℤ), fun j => ⟨by positivity, ?_⟩, fun c hc => ?_⟩
+    · dsimp only
+      exact_mod_cast Bool.toNat_le (x j)
+    · rw [hsum c hc (fun j => ((x j).toNat : ℤ))]
+      exact_mod_cast hx c hc
 
 open scoped ZeroOneIP IntegerProgram in
 /-- The reduction to integer inequalities runs in native polynomial time. -/

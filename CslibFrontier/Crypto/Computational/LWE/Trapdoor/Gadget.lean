@@ -215,9 +215,7 @@ theorem natAbs_gadgetDecompMatrix_le_one (w : ℕ) (U : Matrix ι κ (ZMod (2 ^ 
 @[simp] theorem gadgetMatrix_mulVec_gadgetDecomp [Fintype ι] [DecidableEq ι] (w : ℕ)
     (u : ι → ZMod (2 ^ w)) :
     gadgetMatrix w *ᵥ (Int.cast ∘ gadgetDecomp w u) = u := by
-  rw [gadgetMatrix_mulVec]
-  simp only [Function.comp_def, gadgetDecomp, Int.cast_natCast]
-  exact GSW.bitCompose_bitDecomp w u
+  simp [gadgetMatrix_mulVec, Function.comp_def, gadgetDecomp]
 
 /-- `scalarDecomp w` is a deterministic right inverse of `x ↦ ⟨g, x⟩ mod 2 ^ w`. -/
 @[simp] theorem gadgetVector_dotProduct_scalarDecomp (w : ℕ) (u : ZMod (2 ^ w)) :
@@ -261,8 +259,7 @@ def scalarBasis (w : ℕ) : Matrix (Fin w) (Fin w) ℤ :=
 
 theorem scalarBasis_eq_zero_of_lt {w : ℕ} {i j : Fin w} (hij : i < j) :
     scalarBasis w i j = 0 := by
-  have hlt : i.val < j.val := hij
-  simp [scalarBasis, show i.val ≠ j.val by omega, show i.val ≠ j.val + 1 by omega]
+  simp [scalarBasis, Nat.ne_of_lt hij, Nat.ne_of_lt (Nat.lt_succ_of_lt hij)]
 
 theorem scalarBasis_isLowerTriangular (w : ℕ) :
     (scalarBasis w).IsLowerTriangular := fun _ _ => scalarBasis_eq_zero_of_lt
@@ -282,23 +279,19 @@ private theorem sum_scalarBasis_col {M : Type*} [AddCommMonoid M] (w : ℕ) (j :
     (f : Fin w → ℤ → M) (hf0 : ∀ i, f i 0 = 0) :
     (∑ i : Fin w, f i (scalarBasis w i j)) =
       if hj : j.val + 1 < w then f j 2 + f ⟨j.val + 1, hj⟩ (-1) else f j 2 := by
-  simp only [scalarBasis, show ∀ i : Fin w, i.val = j.val ↔ i = j from fun _ => Fin.ext_iff.symm]
+  simp only [scalarBasis, Fin.val_inj]
   split_ifs with hj
   · let j' : Fin w := ⟨j.val + 1, hj⟩
-    have hne : j' ≠ j := fun h => by
-      have : j.val + 1 = j.val := congrArg Fin.val h
-      omega
-    simp only [show ∀ i : Fin w, i.val = j.val + 1 ↔ i = j' from
-      fun i => (Fin.ext_iff (a := i) (b := j')).symm]
-    rw [Finset.sum_eq_add j j' hne.symm
-      (fun i _ ⟨hij, hij'⟩ => by simp [hij, hij', hf0])
-      (fun h => (h (Finset.mem_univ j)).elim)
-      (fun h => (h (Finset.mem_univ j')).elim)]
-    simp [hne, j']
-  · simp only [show ∀ i : Fin w, i.val ≠ j.val + 1 from fun _ => by omega, ↓reduceIte]
-    rw [Finset.sum_eq_single j (fun i _ hij => by simp [hij, hf0])
-      (fun h => (h (Finset.mem_univ j)).elim)]
-    simp
+    have hne : j ≠ j' := Fin.ne_of_val_ne (Nat.ne_of_lt (Nat.lt_succ_self _))
+    have hsub (i : Fin w) : i.val = j.val + 1 ↔ i = j' := (Fin.ext_iff (a := i) (b := j')).symm
+    simp only [hsub]
+    rw [Finset.sum_eq_add j j' hne (fun i _ ⟨hij, hij'⟩ => by simp [hij, hij', hf0])
+      (fun h => (h (Finset.mem_univ j)).elim) (fun h => (h (Finset.mem_univ j')).elim)]
+    simp [hne.symm, j']
+  · have hno (i : Fin w) : i.val ≠ j.val + 1 := fun h => hj (h ▸ i.isLt)
+    simp only [hno, ↓reduceIte]
+    exact (Finset.sum_eq_single j (fun i _ hij => by simp [hij, hf0])
+      (fun h => (h (Finset.mem_univ j)).elim)).trans (by simp)
 
 /-- Every column of `S_w` belongs to `Λ^⊥(gᵀ)` ([MicciancioPeikert2012], Section 4.1). -/
 theorem scalarBasis_col_inScalarKernel (w : ℕ) (j : Fin w) :
@@ -310,11 +303,11 @@ theorem scalarBasis_col_inScalarKernel (w : ℕ) (j : Fin w) :
   split_ifs with hj
   · simp only [gadgetVector_apply, Int.cast_ofNat, Int.cast_neg, Int.cast_one, pow_succ]
     ring
-  · simp only [gadgetVector_apply, Int.cast_ofNat]
+  · have hjw : j.val + 1 = w := Nat.le_antisymm j.isLt (not_lt.mp hj)
+    simp only [gadgetVector_apply, Int.cast_ofNat]
     calc
       (2 : ZMod (2 ^ w)) ^ j.val * 2 = 2 ^ (j.val + 1) := (pow_succ 2 j.val).symm
-      _ = ((2 ^ w : ℕ) : ZMod (2 ^ w)) := by
-        rw [show j.val + 1 = w by omega, Nat.cast_pow, Nat.cast_ofNat]
+      _ = ((2 ^ w : ℕ) : ZMod (2 ^ w)) := by rw [hjw, Nat.cast_pow, Nat.cast_ofNat]
       _ = 0 := CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w)
 
 /-- Matrix form of `gᵀ S_w ≡ 0 (mod 2 ^ w)` ([MicciancioPeikert2012], Section 4.1). -/
@@ -357,9 +350,7 @@ theorem natAbs_gadgetBasis_le_two [DecidableEq ι] (w : ℕ) (p q : ι × Fin w)
     simp only [↓reduceIte]
     exact scalarBasis_col_inScalarKernel w j
   · refine Finset.sum_eq_zero fun r _ => Finset.sum_eq_zero fun _ _ => ?_
-    rcases eq_or_ne i r with rfl | hir
-    · simp [hii']
-    · simp [hir]
+    split_ifs <;> simp_all
 
 /-- Every column of `gadgetBasis w` belongs to `Λ^⊥(G)`. -/
 theorem gadgetBasis_col_inKernelLattice [Fintype ι] [DecidableEq ι] (w : ℕ) (q : ι × Fin w) :
@@ -372,12 +363,9 @@ theorem gadgetBasis_col_inKernelLattice [Fintype ι] [DecidableEq ι] (w : ℕ) 
 theorem sum_sq_gadgetBasis_col_le_five [Fintype ι] [DecidableEq ι] (w : ℕ) (q : ι × Fin w) :
     (∑ p : ι × Fin w, (gadgetBasis w p q) ^ 2) ≤ 5 := by
   rcases q with ⟨i, j⟩
-  simp only [Fintype.sum_prod_type, gadgetBasis_apply]
-  rw [Finset.sum_eq_single i
-    (fun r _ hri => by simp [hri])
+  rw [Fintype.sum_prod_type, Finset.sum_eq_single i (fun r _ hri => by simp [hri])
     (fun h => (h (Finset.mem_univ i)).elim)]
-  simp only [↓reduceIte]
-  exact sum_sq_scalarBasis_col_le_five w j
+  simpa only [gadgetBasis_apply, ↓reduceIte] using sum_sq_scalarBasis_col_le_five w j
 
 /-! ### Deterministic `g_G`-inversion (`Theorem 4.1`, `Section 4.1`) -/
 
@@ -432,9 +420,9 @@ private theorem shifted_sub_mod_eq (w l : ℕ) (hl : l < w) (s : ZMod (2 ^ w)) :
   have hnat : 2 ^ (w - 1 - l) * s.val = 2 ^ (w - 1 - l) * (s.val % 2 ^ l) +
       (s.val.testBit l).toNat * 2 ^ (w - 1) + 2 ^ w * (s.val / 2 ^ (l + 1)) := by
     have h1 : 2 ^ (w - 1 - l) * 2 ^ l = 2 ^ (w - 1) := by
-      rw [← pow_add, show w - 1 - l + l = w - 1 by omega]
+      rw [← pow_add, Nat.sub_add_cancel (Nat.le_sub_one_of_lt hl)]
     have h2 : 2 ^ (w - 1 - l) * 2 ^ (l + 1) = 2 ^ w := by
-      rw [← pow_add, show w - 1 - l + (l + 1) = w by omega]
+      rw [← pow_add, Nat.sub_sub, Nat.add_comm 1 l, Nat.sub_add_cancel hl]
     calc
       2 ^ (w - 1 - l) * s.val =
           2 ^ (w - 1 - l) * (s.val % 2 ^ l) +
@@ -444,10 +432,11 @@ private theorem shifted_sub_mod_eq (w l : ℕ) (hl : l < w) (s : ZMod (2 ^ w)) :
         ring
       _ = 2 ^ (w - 1 - l) * (s.val % 2 ^ l) + (s.val.testBit l).toNat * 2 ^ (w - 1) +
             2 ^ w * (s.val / 2 ^ (l + 1)) := by rw [h1, h2]
+  have hpow0 : (2 : ZMod (2 ^ w)) ^ w = 0 := by
+    simpa only [Nat.cast_pow, Nat.cast_ofNat] using CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w)
   have hcast := congrArg (fun k : ℕ => (k : ZMod (2 ^ w))) hnat
   push_cast at hcast
-  rw [ZMod.natCast_zmod_val, (by exact_mod_cast CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w) :
-    ((2 : ZMod (2 ^ w)) ^ w) = 0), zero_mul, add_zero] at hcast
+  rw [ZMod.natCast_zmod_val, hpow0, zero_mul, add_zero] at hcast
   rw [hcast]
   ring
 

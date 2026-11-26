@@ -113,9 +113,10 @@ private theorem edist_le_of_not_disjoint {v w : V} {r : ℕ}
     (h : ¬Disjoint (closedBall G.toSimpleGraph v r) (closedBall G.toSimpleGraph w r)) :
     G.toSimpleGraph.edist v w ≤ ((2 * r : ℕ) : ℕ∞) := by
   obtain ⟨z, hvz, hwz⟩ := not_disjoint_iff.mp h
-  push_cast; rw [two_mul]
-  exact SimpleGraph.edist_triangle.trans
-    (add_le_add hvz ((SimpleGraph.edist_comm (u := z) (v := w)).trans_le hwz))
+  calc G.toSimpleGraph.edist v w ≤ G.toSimpleGraph.edist v z + G.toSimpleGraph.edist z w :=
+        SimpleGraph.edist_triangle
+    _ ≤ r + r := add_le_add hvz ((SimpleGraph.edist_comm (u := z) (v := w)).trans_le hwz)
+    _ = ((2 * r : ℕ) : ℕ∞) := by push_cast; ring
 
 omit [Fintype V] in
 /-- The closed ball of radius `r` around one end of an edge lies in the closed ball of radius
@@ -355,8 +356,9 @@ noncomputable def vertexCorrelation (d : ℕ) : ℝ :=
 
 /-- The limiting adjacent correlation `vertexCorrelation d` is positive for `d ≥ 2`. -/
 theorem vertexCorrelation_pos {d : ℕ} (hd : 2 ≤ d) : 0 < vertexCorrelation d := by
-  have : 0 < (d : ℝ) - 1 := by linarith [show (2 : ℝ) ≤ d by exact_mod_cast hd]
-  unfold vertexCorrelation; positivity
+  have : 0 < (d : ℝ) - 1 := by linarith [(Nat.ofNat_le_cast.mpr hd : (2 : ℝ) ≤ d)]
+  unfold vertexCorrelation
+  positivity
 
 /-- **Decay rate and radius.** In maximum degree `d ≥ 2`, every correlation below
 `vertexCorrelation d` is met by the truncated kernel bound for some decay rate `q ≥ 0` and some
@@ -386,9 +388,11 @@ theorem exists_decay_radius_degree {d : ℕ} (hd : 2 ≤ d) {ρ : ℝ}
     rw [Real.dist_eq, show q - q₀ = -(min δ q₀ / 2) by dsimp [q]; ring, abs_neg,
       abs_of_pos (by positivity)]
     linarith [min_le_left δ q₀]
-  have H := hκ hdist; rw [Real.dist_eq, hlim] at H
+  have H := hκ hdist
+  rw [Real.dist_eq, hlim] at H
   have hdecay : (D - 1) * q ^ 2 < 1 := by
-    have hq2 := mul_lt_mul_of_pos_left (show q ^ 2 < q₀ ^ 2 by gcongr; dsimp [q]; linarith) hu
+    have hqq : q < q₀ := by dsimp [q]; linarith
+    have hq2 := mul_lt_mul_of_pos_left (show q ^ 2 < q₀ ^ 2 by gcongr) hu
     rwa [hsq, mul_one_div_cancel hu.ne'] at hq2
   obtain ⟨R, hR⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < (g - ρ) / (2 * D)) hdecay
   have hR' := mul_lt_mul_of_pos_left hR (by linarith : 0 < D)

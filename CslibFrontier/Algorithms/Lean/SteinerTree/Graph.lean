@@ -138,9 +138,12 @@ variable {w}
 /-- A shortest-walk oracle computes the metric completion. -/
 theorem IsShortestWalkOracle.walkWeight_eq {P : ∀ u v : V, G.Walk u v}
     (hP : IsShortestWalkOracle w G P) (u v : V) :
-    walkWeight w (P u v) = metricCompletion w G u v := by
-  obtain ⟨p, hp⟩ := Nat.sInf_mem (s := {c | ∃ p : G.Walk u v, walkWeight w p = c}) ⟨_, P u v, rfl⟩
-  exact le_antisymm ((hP u v p).trans_eq hp) (Nat.sInf_le ⟨P u v, rfl⟩)
+    walkWeight w (P u v) = metricCompletion w G u v :=
+  le_antisymm (by
+      obtain ⟨p, hp⟩ := Nat.sInf_mem (s := {c | ∃ p : G.Walk u v, walkWeight w p = c})
+        ⟨_, P u v, rfl⟩
+      exact (hP u v p).trans_eq hp)
+    (Nat.sInf_le ⟨P u v, rfl⟩)
 
 theorem IsShortestWalkOracle.symm {P : ∀ u v : V, G.Walk u v}
     (hP : IsShortestWalkOracle w G P) (u v : V) :
@@ -196,10 +199,11 @@ theorem reachable_expandEdges (P : ∀ u v : V, G.Walk u v) {T : List (V × V)} 
     (h : Relation.EqvGen (fun x y => (x, y) ∈ T) a b) :
     (fromEdgeSet (↑(expandEdges P T) : Set (Sym2 V))).Reachable a b := by
   induction h with
-  | rel x y hxy => exact ⟨(P x y).transfer _ fun e he => by
-      rw [edgeSet_fromEdgeSet]
-      exact ⟨List.mem_toFinset.2 (List.mem_flatMap.2 ⟨(x, y), hxy, he⟩),
-        G.not_isDiag_of_mem_edgeSet ((P x y).edges_subset_edgeSet he)⟩⟩
+  | rel x y hxy =>
+    refine ⟨(P x y).transfer _ fun e he => ?_⟩
+    rw [edgeSet_fromEdgeSet]
+    refine ⟨List.mem_toFinset.2 (List.mem_flatMap.2 ⟨(x, y), hxy, he⟩), ?_⟩
+    exact G.not_isDiag_of_mem_edgeSet ((P x y).edges_subset_edgeSet he)
   | refl => exact .refl _
   | symm _ _ _ ih => exact ih.symm
   | trans _ _ _ _ _ ih1 ih2 => exact ih1.trans ih2
@@ -207,12 +211,12 @@ theorem reachable_expandEdges (P : ∀ u v : V, G.Walk u v) {T : List (V × V)} 
 /-- The expanded edges cost at most the walks: shared edges are paid for once. -/
 theorem sum_expandEdges_le (P : ∀ u v : V, G.Walk u v) (T : List (V × V)) :
     (expandEdges P T).sum w ≤ edgeCost (fun u v => walkWeight w (P u v)) T := by
-  have hL : ∀ T : List (V × V), ((T.flatMap fun e => (P e.1 e.2).edges).map w).sum =
-      edgeCost (fun u v => walkWeight w (P u v)) T := fun T => by
-    induction T with
-    | nil => rfl
-    | cons e T ih => rw [List.flatMap_cons, List.map_append, List.sum_append, ih]; rfl
-  rw [expandEdges, ← hL, ← List.toFinset_dedup, List.sum_toFinset _ (List.nodup_dedup _)]
+  have hL : ((T.flatMap fun e => (P e.1 e.2).edges).map w).sum =
+      edgeCost (fun u v => walkWeight w (P u v)) T := by
+    simp only [edgeCost, walkWeight, List.flatMap_def, List.map_flatten, List.sum_flatten,
+      List.map_map, Function.comp_def]
+  unfold expandEdges
+  rw [← hL, ← List.toFinset_dedup, List.sum_toFinset _ (List.nodup_dedup _)]
   exact List.Sublist.sum_le_sum ((List.dedup_sublist _).map w) fun _ _ => Nat.zero_le _
 
 /-! ### From edge sets to pair lists -/
@@ -241,11 +245,13 @@ edges. -/
 private theorem edgeCost_out_le {P : ∀ u v : V, G.Walk u v} (hP : IsShortestWalkOracle w G P)
     {F : Finset (Sym2 V)} (hF : (↑F : Set (Sym2 V)) ⊆ G.edgeSet) :
     edgeCost (fun u v => walkWeight w (P u v)) (F.toList.map Quot.out) ≤ F.sum w := by
-  rw [edgeCost, List.map_map, ← Finset.sum_map_toList F w]
+  unfold edgeCost
+  rw [List.map_map, ← Finset.sum_map_toList F w]
   refine List.sum_le_sum fun e he => ?_
   have hq := Sym2.mk_fst_out_snd_out e
-  have := hP.le_of_adj (G.mem_edgeSet.1 (by rw [hq]; exact hF (Finset.mem_toList.1 he)))
-  rw [hq] at this; exact this
+  have hadj : G.Adj (Quot.out e).1 (Quot.out e).2 :=
+    G.mem_edgeSet.mp (hq.symm ▸ hF (Finset.mem_toList.1 he))
+  exact (hP.le_of_adj hadj).trans_eq (congrArg w hq)
 
 /-! ### The Kou–Markowsky–Berman heuristic -/
 
@@ -275,20 +281,30 @@ theorem isSteinerSubgraph_kmbEdges (P : ∀ u v : V, G.Walk u v) (R : List V) :
 of leaves of an optimal tree. -/
 theorem length_mul_sum_kmbEdges_le {P : ∀ u v : V, G.Walk u v} (hP : IsShortestWalkOracle w G P)
     (R : List V) {F : Finset (Sym2 V)} (hF : IsSteinerSubgraph G R F) :
-    R.length * (kmbEdges w P R).sum w ≤ 2 * (R.length - 1) * F.sum w :=
-  (Nat.mul_le_mul_left _ (sum_expandEdges_le P _)).trans
-    ((length_mul_edgeCost_steinerMST_le_of_diag hP.walkWeight_self hP.symm hP.triangle
-      fun a ha b hb => eqvGen_of_reachable (hF.2 a ha b hb)).trans
-      (Nat.mul_le_mul_left _ (edgeCost_out_le hP hF.1)))
+    R.length * (kmbEdges w P R).sum w ≤ 2 * (R.length - 1) * F.sum w := by
+  set δ : V → V → ℕ := fun u v => walkWeight w (P u v)
+  have hconn : Connects (F.toList.map Quot.out) R := fun a ha b hb =>
+    eqvGen_of_reachable (hF.2 a ha b hb)
+  calc R.length * (kmbEdges w P R).sum w
+      ≤ R.length * edgeCost δ (steinerMST δ R) :=
+        Nat.mul_le_mul_left _ (sum_expandEdges_le P _)
+    _ ≤ 2 * (R.length - 1) * edgeCost δ (F.toList.map Quot.out) :=
+        length_mul_edgeCost_steinerMST_le_of_diag (fun x => hP.walkWeight_self x) hP.symm
+          hP.triangle hconn
+    _ ≤ 2 * (R.length - 1) * F.sum w := Nat.mul_le_mul_left _ (edgeCost_out_le hP hF.1)
 
 /-- The heuristic costs at most twice any Steiner subgraph. -/
 theorem sum_kmbEdges_le_two_mul {P : ∀ u v : V, G.Walk u v} (hP : IsShortestWalkOracle w G P)
     (R : List V) {F : Finset (Sym2 V)} (hF : IsSteinerSubgraph G R F) :
-    (kmbEdges w P R).sum w ≤ 2 * F.sum w :=
-  (sum_expandEdges_le P _).trans
-    ((edgeCost_steinerMST_le_two_mul_of_diag hP.walkWeight_self hP.symm hP.triangle
-      fun a ha b hb => eqvGen_of_reachable (hF.2 a ha b hb)).trans
-      (Nat.mul_le_mul_left _ (edgeCost_out_le hP hF.1)))
+    (kmbEdges w P R).sum w ≤ 2 * F.sum w := by
+  set δ : V → V → ℕ := fun u v => walkWeight w (P u v)
+  have hconn : Connects (F.toList.map Quot.out) R := fun a ha b hb =>
+    eqvGen_of_reachable (hF.2 a ha b hb)
+  calc (kmbEdges w P R).sum w ≤ edgeCost δ (steinerMST δ R) := sum_expandEdges_le P _
+    _ ≤ 2 * edgeCost δ (F.toList.map Quot.out) :=
+        edgeCost_steinerMST_le_two_mul_of_diag (fun x => hP.walkWeight_self x) hP.symm
+          hP.triangle hconn
+    _ ≤ 2 * F.sum w := Nat.mul_le_mul_left _ (edgeCost_out_le hP hF.1)
 
 omit [DecidableEq V] in
 /-- If `G` has walks between all pairs of vertices, the optimum is attained. -/

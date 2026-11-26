@@ -114,17 +114,12 @@ theorem LogSpaceKDTTReducible.autoreducible_of_compl
   apply logSpaceKTruthTableAutoreducible_of_suppression (c := activeSelfQuery encA r q)
     (d := fun p => !p.2.any id) false hr hq (by fun_prop)
     (activeSelfQuery_logspace hr hq hk) hk
-  · intro a i hc hi heq
-    have : activeSelfQuery encA r q a = true := activeSelfQuery_eq_true.mpr ⟨i, hi, heq⟩
-    simp_all
+  · exact fun a i hc hi heq => Bool.false_ne_true (hc ▸ activeSelfQuery_eq_true.mpr ⟨i, hi, heq⟩)
   · intro a
     by_cases hc : activeSelfQuery encA r q a = true
     · obtain ⟨i, hi, heq⟩ := activeSelfQuery_eq_true.mp hc
-      have hnot : a ∉ A := by
-        intro ha
-        have := (hA a).mpr ⟨i, hi, heq.symm ▸ ha⟩
-        exact this ha
-      simp [hc, hnot]
+      rw [ite_eq_left hc]
+      exact iff_of_false (fun ha => (hA a).mpr ⟨i, hi, heq.symm ▸ ha⟩ ha) Bool.false_ne_true
     · simp only [hc, Bool.false_eq_true, ↓reduceIte, Bool.not_eq_true']
       rw [truthTableAnswers_eq_map_range]
       simpa using not_congr (hA a)

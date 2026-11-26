@@ -102,12 +102,7 @@ private theorem expect_localDistance_le :
       4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
   refine le_trans (expect_le_expect fun a _ => expect_le_expect fun b _ => ?_)
     (expect_roundDistance_le basis S)
-  let q := PauliConsistencyQuestion.ofChecked basis a b
-  let A := ((S.alice q).map q.checkedBit).observable
-  let B (c : ι → Bool) :=
-    let r := PauliConsistencyQuestion.ofChecked basis a c
-    ((S.bob r).map r.checkedBit).observable
-  exact S.state.norm_sub_expect_sq_le univ univ_nonempty A B
+  exact S.state.norm_sub_expect_sq_le univ univ_nonempty _ _
 
 /-- The mean squared distance between the two averaged observables is at most four times the
 same-basis game's rejection probability. -/
@@ -117,11 +112,7 @@ theorem expect_norm_sub_sq_le_of_pauliSameBasisTest :
         PauliConsistencyQuestion.averagedObservable S.bob basis a) ^ 2) ≤
       4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
   refine le_trans (expect_le_expect fun a _ => ?_) (expect_localDistance_le basis S)
-  let A (b : ι → Bool) :=
-    let q := PauliConsistencyQuestion.ofChecked basis a b
-    ((S.alice q).map q.checkedBit).observable
-  let B := PauliConsistencyQuestion.averagedObservable S.bob basis a
-  exact S.state.norm_expect_sub_sq_le univ univ_nonempty A B
+  exact S.state.norm_expect_sub_sq_le univ univ_nonempty _ _
 
 open BitString
 

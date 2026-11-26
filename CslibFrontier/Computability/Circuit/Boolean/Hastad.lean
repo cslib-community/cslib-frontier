@@ -148,16 +148,10 @@ private theorem exists_dnf_of_trees {m : ℕ} (c : Bool) (t : Fin m → Decision
     exact ⟨(length_le_depth_of_mem_toDNF hu).trans_lt (by rw [depth_map]; exact hd j),
       nodup_of_mem_toDNF hu⟩
   · rw [Bool.eq_iff_iff, DNF.eval_eq_true_iff, decide_eq_true_iff]
-    simp only [List.mem_flatten, List.mem_ofFn]
-    constructor
-    · rintro ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
-      refine ⟨j, ?_⟩
-      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff]
-      exact ⟨u, hu, hux⟩
-    · rintro ⟨j, hj⟩
-      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff] at hj
-      obtain ⟨u, hu, hux⟩ := hj
-      exact ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
+    simp_rw [List.mem_flatten, List.mem_ofFn, ← eval_map (· != c), ← eval_toDNF,
+      DNF.eval_eq_true_iff]
+    exact ⟨fun ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩ => ⟨j, u, hu, hux⟩,
+      fun ⟨j, u, hu, hux⟩ => ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩⟩
 
 /-- **Operations applied to shallow functions are narrow formulas in disjunctive normal form**, up
 to negation: a disjunction is the disjunction of the paths to `true` of decision trees for its
@@ -171,9 +165,7 @@ theorem exists_dnf_of_shallow {op : Op} (hop : op ≠ .not) {args : Fin op.arity
   | not => exact absurd rfl hop
   | and m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees true t hd
-    refine ⟨D, true, hD, fun y => ?_⟩
-    rw [heval, Bool.eq_iff_iff]
-    simp [ht]
+    exact ⟨D, true, hD, fun y => Bool.eq_iff_iff.2 (by simp [heval, ht])⟩
   | or m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees false t hd
     exact ⟨D, false, hD, fun y => by simp [heval, ht]⟩
@@ -192,10 +184,10 @@ private theorem card_filter_not_shallow_le_of_ne_not {op : Op} (hop : op ≠ .no
   obtain ⟨hρ', hdeep⟩ := mem_filter.1 hρ'
   refine mem_filter.2 ⟨hρ', ?_⟩
   have hext := (PartialAssignment.mem_extensions.1 hρ').1
-  rw [show (fun x => DNF.eval (ρ'.fill x) D) =
-      (· != b) ∘ fun x => interpretation op (fun j => args j (ρ.fill (ρ'.fill x))) from
-    funext fun x => by rw [heval, Function.comp_apply],
-    complexity_comp_of_injective (by cases b <;> decide)]
+  have hDNF : (fun x => DNF.eval (ρ'.fill x) D) =
+      (· != b) ∘ fun x => interpretation op (fun j => args j (ρ.fill (ρ'.fill x))) :=
+    funext fun x => by rw [heval, Function.comp_apply]
+  rw [hDNF, complexity_comp_of_injective (by cases b <;> decide)]
   simpa only [PartialAssignment.fill_fill_of_extends hext] using not_lt.1 hdeep
 
 /-- **The switching step for one operation.** If the arguments of an operation are shallow under
@@ -221,15 +213,12 @@ private theorem two_pow_mul_le_card_extensions {X k ℓ : ℕ}
   rw [PartialAssignment.card_extensions, PartialAssignment.card_extensions]
   set m := #ρ.free
   have hℓm : ℓ ≤ m := le_trans (Nat.le_mul_of_pos_left ℓ (by omega)) hℓ
-  have h2 : 2 ^ (m - (ℓ - s)) = 2 ^ (m - ℓ) * 2 ^ s := by
-    rw [← pow_add]
-    congr 1
-    omega
+  have h2 : 2 ^ (m - (ℓ - s)) = 2 ^ (m - ℓ) * 2 ^ s :=
+    (congrArg (2 ^ ·) (by omega)).trans (pow_add 2 (m - ℓ) s)
+  have h16 : (16 * k) ^ s = 2 ^ s * 2 ^ s * (4 * k) ^ s := by
+    rw [← mul_pow, ← mul_pow]; ring_nf
   calc 2 ^ s * (m.choose (ℓ - s) * 2 ^ (m - (ℓ - s)) * (4 * k) ^ s)
-      = (16 * k) ^ s * m.choose (ℓ - s) * 2 ^ (m - ℓ) := by
-        rw [h2, show (16 * k) ^ s = 2 ^ s * 2 ^ s * (4 * k) ^ s by
-          rw [← mul_pow, ← mul_pow]; ring_nf]
-        ring
+      = (16 * k) ^ s * m.choose (ℓ - s) * 2 ^ (m - ℓ) := by rw [h2, h16]; ring
     _ ≤ m.choose ℓ * 2 ^ (m - ℓ) :=
         Nat.mul_le_mul_right _ (Nat.pow_mul_choose_sub_le_choose_of_mul_le hsℓ hℓ)
 
@@ -370,8 +359,9 @@ theorem two_pow_le_size_of_computes_parity {C : Circuit signature n 1}
   obtain ⟨ρ, hρ, hgood⟩ := exists_mem_notMem_of_card_lt_card hlt
   have hout := shallow_output hs fun k hk =>
     by_contra fun hdeep => hgood (mem_filter.2 ⟨hρ, k, hk, hdeep⟩)
-  rw [show (fun x => C.program.trace interpretation x (C.outputs 0)) = parity n from
-    funext fun x => congrFun (hC x) 0] at hout
+  have hpar : (fun x => C.program.trace interpretation x (C.outputs 0)) = parity n :=
+    funext fun x => congrFun (hC x) 0
+  rw [hpar] at hout
   exact not_shallow_parity ((PartialAssignment.mem_withFree.1 hρ).symm ▸
     Nat.le_div_pow_of_mul_pow_le (by omega) le_rfl hn) hout
 

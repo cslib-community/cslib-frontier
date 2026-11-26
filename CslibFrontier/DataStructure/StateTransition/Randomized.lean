@@ -185,8 +185,7 @@ theorem exists_clientRun_of_mem_support {p : D.toSpec.Client α} {s s' : D.toSpe
     obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp ((PMF.mem_support_pure_iff _ _).mp h)
     exact ⟨[], .pure _ _⟩
   | liftBind o k hv_o _ ih =>
-    rw [run_liftBind, PMF.mem_support_bind_iff] at h
-    obtain ⟨⟨r, s₁⟩, hstep, hrest⟩ := h
+    obtain ⟨⟨r, s₁⟩, hstep, hrest⟩ := (PMF.mem_support_bind_iff _ _ _).mp h
     obtain ⟨tr, htr⟩ := ih s₁ r hstep hrest
     exact ⟨_, .liftBind o k r hv_o hstep htr⟩
 
@@ -321,11 +320,9 @@ theorem demonicValid_sample_bind {q : ProbComp β} {k : β → OracleComp D.with
   | liftBind n cont ih =>
     refine StateTransitionSpec.DemonicValid.liftBind (D := D.withCoins.toSpec) (Sum.inl n)
       (fun i => ProbOracleComp.sample (cont i) >>= k) trivial fun s' i hstep => ?_
-    have hs : s' = s := by
-      change (i, s') ∈ ((ProbComp.unifOracle n).bind fun i => PMF.pure (i, s)).support at hstep
-      obtain ⟨_, _, h⟩ := (PMF.mem_support_bind_iff _ _ _).mp hstep
-      exact (Prod.ext_iff.mp ((PMF.mem_support_pure_iff _ _).mp h)).2
-    subst hs
+    change (i, s') ∈ ((ProbComp.unifOracle n).bind fun i => PMF.pure (i, s)).support at hstep
+    obtain ⟨_, _, h⟩ := (PMF.mem_support_bind_iff _ _ _).mp hstep
+    obtain ⟨-, rfl⟩ := Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp h)
     exact ih i
 
 /-- A closed sampler followed by a continuation draws a value, then runs the continuation from
@@ -375,11 +372,9 @@ theorem expectedCost_liftRight (coin : ℕ → ℕ) (charge : D.State → D.Op �
   induction p generalizing s with
   | pure a => rfl
   | liftBind o k ih =>
-    change D.withCoins.expectedCost _
-      (.liftBind (Sum.inr o) fun a => OracleComp.liftRight (k a)) s = _
-    rw [expectedCost_liftBind, expectedCost_liftBind]
     change (charge s o : ℝ≥0∞) + ∑' x : D.Result o × D.State, D.law o s x *
-      D.withCoins.expectedCost _ (OracleComp.liftRight (k x.1)) x.2 = _
+      D.withCoins.expectedCost _ (OracleComp.liftRight (k x.1)) x.2 =
+      (charge s o : ℝ≥0∞) + ∑' x, D.law o s x * D.expectedCost charge (k x.1) x.2
     simp only [ih]
 
 end RandomizedSpec
@@ -591,10 +586,8 @@ theorem bind_apply_le_of_identicalUntilBad (real : Methods D.toSpec F.toSpec)
     ((F.run (link real p) e).bind fun (a, e') => next (a, M.abs e')) b ≤
       (D.run p (M.abs e)).bind next b +
         (F.run (link real p) e).toOuterMeasure {x | bad x.2} := by
-  have hle := h.bind_apply_le p e (fun (a, e') => next (a, M.abs e')) b
-  rw [run_interpret_handler, run_interpret_handler] at hle
-  rw [← M.run_link p he hv, PMF.bind_map]
-  exact hle
+  simpa only [run_interpret_handler, ← M.run_link p he hv, PMF.bind_map, Function.comp_def] using
+    h.bind_apply_le p e (fun (a, e') => next (a, M.abs e')) b
 
 /-- **The identical-until-bad step, two-sided.** The acceptance probabilities of the real client
 and of the specification differ by at most the probability that the real run reaches a bad
@@ -607,10 +600,8 @@ theorem abs_sub_le_of_identicalUntilBad (real : Methods D.toSpec F.toSpec)
     |(((F.run (link real p) e).bind fun (a, e') => next (a, M.abs e')) b).toReal -
         ((D.run p (M.abs e)).bind next b).toReal| ≤
       ((F.run (link real p) e).toOuterMeasure {x | bad x.2}).toReal := by
-  have hle := h.abs_sub_le p e (fun (a, e') => next (a, M.abs e')) b
-  rw [run_interpret_handler, run_interpret_handler] at hle
-  rw [← M.run_link p he hv, PMF.bind_map]
-  exact hle
+  simpa only [run_interpret_handler, ← M.run_link p he hv, PMF.bind_map, Function.comp_def] using
+    h.abs_sub_le p e (fun (a, e') => next (a, M.abs e')) b
 
 /-! ## Expected amortized costs -/
 
@@ -639,8 +630,7 @@ theorem ExpectedAmortized.client (A : M.ExpectedAmortized lower upper potential)
   induction p generalizing e with
   | pure a =>
     change 0 + ∑' x, PMF.pure (a, e) x * potential x.2 ≤ 0 + potential e
-    rw [tsum_eq_single (a, e) fun x hx => by simp [PMF.pure_apply, hx]]
-    simp
+    simp only [PMF.pure_apply, ite_mul, one_mul, zero_mul, tsum_ite_eq, le_refl]
   | liftBind o k ih =>
     obtain ⟨hv_o, hv_k⟩ := (D.toSpec.demonicValid_liftBind_iff _ o k).mp hv
     change F.expectedCost lower (M.methods o >>= fun r => link M.methods (k r)) e +
@@ -799,17 +789,13 @@ theorem ExpectedAmortized.withCoins (A : M.ExpectedAmortized lower upper potenti
   step {e} o hi hv := by
     cases o with
     | inl n =>
-      change F.withCoins.expectedCost _ (OracleComp.query (.inl n)) e +
-        ∑' x, F.withCoins.run (OracleComp.query (.inl n)) e x * potential x.2 ≤ coin n + potential e
-      rw [RandomizedSpec.expectedCost_query, RandomizedSpec.run_query,
+      rw [withCoins_methods_inl, RandomizedSpec.expectedCost_query, RandomizedSpec.run_query,
         RandomizedSpec.withCoins_law_inl, Probability.PMF.tsum_map_mul]
       simp only [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
       exact le_rfl
     | inr o =>
-      change F.withCoins.expectedCost _ (OracleComp.liftRight (M.methods o)) e +
-        ∑' x, F.withCoins.run (OracleComp.liftRight (M.methods o)) e x * potential x.2 ≤
-          upper (M.abs e) o + potential e
-      rw [RandomizedSpec.expectedCost_liftRight, RandomizedSpec.withCoins_run_liftRight]
+      rw [withCoins_methods_inr, RandomizedSpec.expectedCost_liftRight,
+        RandomizedSpec.withCoins_run_liftRight]
       exact A.step o hi hv
 
 /-- Merging coin streams costs one call per call, with zero potential. -/
@@ -885,10 +871,8 @@ theorem Amortized.toRandomized {M : Refinement D E} {lower : E.State → E.Op �
     have h := A.step o hi hv (E.clientRun_canonical e (M.methods o)
       ((E.demonicValid_iff_validHistory_runClient e _).mp (M.valid o hi hv)))
     rw [E.totalCostTranscript_canonicalTranscript] at h
-    change E.toRandomized.expectedCost lower (M.methods o) e +
-      ∑' x, E.toRandomized.run (M.methods o) e x * (potential x.2 : ℝ≥0∞) ≤
-        upper (M.abs e) o + potential e
-    rw [StateTransitionSpec.expectedCost_toRandomized, StateTransitionSpec.run_toRandomized,
+    rw [toRandomized_methods, StateTransitionSpec.expectedCost_toRandomized,
+      StateTransitionSpec.run_toRandomized,
       tsum_eq_single (DataStructure.eval E (M.methods o) e) fun x hx => by
         simp [PMF.pure_apply, hx], PMF.pure_apply_self, one_mul]
     exact_mod_cast h

@@ -99,15 +99,16 @@ theorem headCollisionCode_eq_code (bits offset count : ℕ) (j : Fin count) :
         (binary_mul' hb' (hj.comp (fst enc encUnary)))))).of_enc_eq
       fun _ => by simp only [Function.comp_apply, decide_eq_true_eq]
   have ht : ComputableInPolyTime
-      (fun a => (List.range (count a * bits a)).map (bits a + ·)) enc (encList encNat) :=
-    mapWithInput (encA := encUnary) (range.comp (by fun_prop)) <| by
-      have := unary_to_binary.comp (hb.comp (fst enc encUnary))
-      have := unary_to_binary.comp (snd enc encUnary)
-      fun_prop
+      (fun a => (List.range (count a * bits a)).map (bits a + ·)) enc (encList encNat) := by
+    apply mapWithInput (encA := encUnary) (range.comp (by fun_prop))
+    have := unary_to_binary.comp (hb.comp (fst enc encUnary))
+    have := unary_to_binary.comp (snd enc encUnary)
+    fun_prop
   have hstep := computableInPolyTime_collisionStepCircuit hb ho
   simp only [← collisionStepCode_eq_code] at hstep
   exact computableInPolyTime_appendCode hn
-    (computableInPolyTime_compCode hn hstep ((const []).prod hs)) ((const []).prod ht)
+    (computableInPolyTime_compCode hn hstep ((const []).prod hs))
+    ((const []).prod ht)
 
 /-- Emit the full increasing suffix scan; every composition keeps all suffix outputs. -/
 @[expose] def collisionScanCode (bits offset count : ℕ) : Code :=
@@ -198,10 +199,13 @@ private theorem length_collisionScanFold_le (bits offset count i : ℕ)
   obtain ⟨c, he, hs⟩ := exists_circuit_fold_head bits offset count
     ((List.range count).reverse.take i)
     fun _ hj => List.mem_range.mp (List.mem_reverse.mp (List.mem_of_mem_take hj))
-  unfold collisionScanFoldStep; rw [he]
+  unfold collisionScanFoldStep
+  rw [he]
   have hsize : c.size ≤ count * (13 * bits + 6) := hs ▸ Nat.mul_le_mul_right _
     ((List.length_take_le _ _).trans (by simpa using hi))
-  exact (length_encCode_le c).trans (by dsimp only [collisionScanCodeBound]; gcongr)
+  refine (length_encCode_le c).trans ?_
+  dsimp only [collisionScanCodeBound]
+  gcongr
 
 /-- The whole increasing suffix scan has a native polynomial-time generator in its unary
 parameters, with its complete encoded intermediate circuits charged by the loop bound. -/

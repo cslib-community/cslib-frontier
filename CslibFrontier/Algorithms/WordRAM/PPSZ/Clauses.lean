@@ -57,9 +57,8 @@ theorem sections_map_map {α β : Type*} (f : α → β) :
     ∀ L : List (List α), (L.map (List.map f)).sections = L.sections.map (List.map f)
   | [] => rfl
   | l :: L => by
-    simp only [List.map_cons, List.sections, sections_map_map f L, List.flatMap_map,
-      List.map_flatMap, List.map_map]
-    rfl
+    simp [List.sections, sections_map_map f L, List.flatMap_map, List.map_flatMap,
+      Function.comp_def]
 
 /-- `List.any` depends only on the values of the test on the list. -/
 theorem any_congr_of_mem {α : Type*} {l : List α} {f g : α → Bool} (h : ∀ a ∈ l, f a = g a) :
@@ -89,12 +88,10 @@ theorem bounds_of_mem_clauseAddrs :
       a ≤ p ∧ p + 1 + (clauseOf a φ p).length ≤ a + (encodeClauses φ).length
   | _, [], _, h => by simp [clauseAddrs] at h
   | a, c :: φ, p, h => by
-    simp only [clauseAddrs, List.mem_cons] at h
-    rcases h with rfl | h
+    rcases List.mem_cons.mp h with rfl | h
     · simp [clauseOf]; omega
     · obtain ⟨h1, h2⟩ := bounds_of_mem_clauseAddrs h
-      have hp : p ≠ a := by omega
-      simp only [clauseOf, hp, ↓reduceIte, encodeClauses_cons, List.length_append,
+      simp only [clauseOf, show p ≠ a by omega, ↓reduceIte, encodeClauses_cons, List.length_append,
         length_encodeClause]
       omega
 
@@ -122,8 +119,7 @@ theorem holdsList_clauseOf {mem : ℕ → ℕ} :
   | a, c :: φ, hφ, p, h => by
     rw [encodeClauses_cons] at hφ
     obtain ⟨hc, hrest⟩ := holdsList_append_iff.mp hφ
-    simp only [clauseAddrs, List.mem_cons] at h
-    rcases h with rfl | h
+    rcases List.mem_cons.mp h with rfl | h
     · simpa [clauseOf] using hc
     · have := (bounds_of_mem_clauseAddrs h).1
       simp only [clauseOf, show p ≠ a by omega, ↓reduceIte]
@@ -140,13 +136,10 @@ theorem mem_clauseAddr {mem : ℕ → ℕ} {a : ℕ} {φ : CNF (Fin n)}
 theorem map_range'_clauseOf {mem : ℕ → ℕ} {a : ℕ} {φ : CNF (Fin n)}
     (hφ : HoldsList a (encodeClauses φ) mem) {p : ℕ} (hp : p ∈ clauseAddrs a φ) :
     (List.range' (p + 1) (mem p)).map mem = (clauseOf a φ p).map litCode := by
-  have hc := holdsList_clauseOf hφ hp
   rw [mem_clauseAddr hφ hp]
-  apply List.ext_getElem (by simp)
-  intro i h1 h2
-  simp only [List.getElem_map, List.getElem_range']
-  have := hc.get (i + 1) (by simp at h2 ⊢; omega)
-  simpa [encodeClause_eq, Nat.add_assoc, Nat.add_comm 1 i] using this
+  refine List.ext_getElem (by simp) fun i h1 h2 => ?_
+  simpa [encodeClause_eq, Nat.add_assoc, Nat.add_comm 1 i] using
+    (holdsList_clauseOf hφ hp).get (i + 1) (by simp at h2 ⊢; omega)
 
 /-- **The odometer step of a clause address**: the next clause starts after the length word and
 the literals; after the last clause comes the end of the encoding. -/
@@ -157,17 +150,14 @@ theorem succIn_clauseAddrs :
         else some (p + 1 + (clauseOf a φ p).length)
   | _, [], _, h => by simp [clauseAddrs] at h
   | a, c :: φ, p, h => by
-    simp only [clauseAddrs, List.mem_cons] at h
-    rcases h with rfl | h
+    rcases List.mem_cons.mp h with rfl | h
     · simp only [clauseAddrs, succIn, ↓reduceIte, clauseOf, encodeClauses_cons,
         List.length_append, length_encodeClause]
       rcases φ with _ | ⟨c', φ⟩
       · simp [clauseAddrs]; omega
       · simp only [clauseAddrs, List.head?_cons, encodeClauses_cons, List.length_append,
           length_encodeClause]
-        split_ifs with h
-        · omega
-        · rfl
+        split_ifs <;> first | omega | rfl
     · have hb := bounds_of_mem_clauseAddrs h
       simp only [clauseAddrs, succIn, show p ≠ a by omega, ↓reduceIte, clauseOf,
         encodeClauses_cons, List.length_append, length_encodeClause]
@@ -176,10 +166,8 @@ theorem succIn_clauseAddrs :
 
 /-- The first clause address is the start of the encoding. -/
 theorem headD_clauseAddrs {a : ℕ} {φ : CNF (Fin n)} (hφ : φ ≠ []) (d : ℕ) :
-    (clauseAddrs a φ).headD d = a := by
-  rcases φ with _ | ⟨c, φ⟩
-  · exact absurd rfl hφ
-  · rfl
+    (clauseAddrs a φ).headD d = a :=
+  match φ with | [] => absurd rfl hφ | _ :: _ => rfl
 
 /-- **The odometer step of a literal address**: the next address, up to the end of the clause. -/
 theorem succIn_range' {s k e : ℕ} (he : e ∈ List.range' s k) :
@@ -187,15 +175,11 @@ theorem succIn_range' {s k e : ℕ} (he : e ∈ List.range' s k) :
   induction k generalizing s with
   | zero => simp at he
   | succ k ih =>
-    rw [List.range'_succ]
-    rw [List.range'_succ, List.mem_cons] at he
-    rcases he with rfl | he
-    · rcases k with _ | k
-      · simp [succIn]
-      · simp [succIn, List.range'_succ]
-    · have hs : e ≠ s := by rw [List.mem_range'_1] at he; omega
-      simp only [succIn, hs, ↓reduceIte]
-      rw [ih he, show s + 1 + k = s + (k + 1) by omega]
+    rw [List.range'_succ] at he ⊢
+    rcases List.mem_cons.mp he with rfl | he
+    · rcases k with _ | k <;> simp [succIn, List.range'_succ]
+    · simp only [succIn, show e ≠ s by rw [List.mem_range'_1] at he; omega, ↓reduceIte, ih he,
+        show s + 1 + k = s + (k + 1) by omega]
 
 /-! ### Compatibility through codes -/
 
@@ -224,28 +208,22 @@ theorem compatCodes_map_litCode {mem : ℕ → ℕ} {Tb : ℕ} {τ : Fin n → O
     (hτ : PartialAt mem Tb τ) (x : Fin n) (b : Bool) (ls : List (Literal (Fin n))) :
     compatCodes (fun v => mem (Tb + v)) x b.toNat (ls.map litCode) =
       compatible (Function.update τ x (some !b)) ls := by
-  have hfine : ∀ l : Literal (Fin n), litFine (fun v => mem (Tb + v)) x b.toNat (litCode l) =
+  have hfine (l : Literal (Fin n)) : litFine (fun v => mem (Tb + v)) x b.toNat (litCode l) =
       (Function.update τ x (some !b) l.1 != some (!l.2)) := by
-    intro l
     simp only [litFine, litCode_shiftRight, litCode_and_one]
     by_cases hlx : l.1 = x
     · subst hlx
       simp only [↓reduceIte, Function.update_self]
       cases l.2 <;> cases b <;> rfl
-    · have hv : l.1.val ≠ x.val := fun h => hlx (Fin.ext h)
-      simp only [hv, ↓reduceIte, Function.update_of_ne hlx, hτ l.1]
-      rw [Bool.eq_iff_iff]
+    · rw [ite_eq_right fun h => hlx (Fin.ext h), Function.update_of_ne hlx, hτ l.1, Bool.eq_iff_iff]
       simp only [bne_iff_ne, ne_eq, optCode_eq_one_sub_iff]
-  have hpair : ∀ l l' : Literal (Fin n), (litCode l' != litCode l ^^^ 1) = (l' != (l.1, !l.2)) := by
-    intro l l'
+  have hpair (l l' : Literal (Fin n)) :
+      (litCode l' != litCode l ^^^ 1) = (l' != (l.1, !l.2)) := by
     rw [litCode_xor_one, Bool.eq_iff_iff]
-    simp only [bne_iff_ne, ne_eq]
-    exact not_congr litCode_injective.eq_iff
+    simp only [bne_iff_ne, ne_eq, litCode_injective.eq_iff]
   simp only [compatCodes, compatible, List.all_map, Function.comp_def, hfine, hpair]
   rw [Bool.eq_iff_iff]
-  simp only [List.all_eq_true, Bool.and_eq_true]
-  exact ⟨fun h => ⟨fun l hl => (h l hl).1, fun l hl => (h l hl).2⟩,
-    fun h l hl => ⟨h.1 l hl, h.2 l hl⟩⟩
+  simp only [List.all_eq_true, Bool.and_eq_true, imp_and, forall_and]
 
 /-! ### The search on stored data -/
 
@@ -259,32 +237,25 @@ def addrTest (mem : ℕ → ℕ) (C Tb : ℕ) (φ : CNF (Fin n)) (s x b : ℕ) :
 
 /-- The word of a stored value is `b` exactly when the value is `b`. -/
 theorem optCode_eq_toNat_iff (o : Option Bool) (b : Bool) : optCode o = b.toNat ↔ o = some b := by
-  rcases o with _ | a
-  · cases b <;> simp [optCode]
-  · cases a <;> cases b <;> simp [optCode]
+  rcases o with _ | (_ | _) <;> cases b <;> simp [optCode]
 
 /-- **The search on stored data is the w-implication search** `Cslib.Complexity.PPSZ.impliedTest`,
 when the clauses of `φ` are stored from `C` and the partial assignment `τ` from `Tb`. -/
 theorem addrTest_eq {mem : ℕ → ℕ} {C Tb : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool}
     (hφ : HoldsList C (encodeClauses φ) mem) (hτ : PartialAt mem Tb τ) (s : ℕ) (x : Fin n)
     (b : Bool) : addrTest mem C Tb φ s x b.toNat = impliedTest φ s τ x b := by
-  have hinner : ∀ D ∈ (List.replicate s (clauseAddrs C φ)).sections,
+  have hinner (D : List ℕ) (hD : D ∈ (List.replicate s (clauseAddrs C φ)).sections) :
       ((D.map fun p => List.range' (p + 1) (mem p)).sections.any fun E =>
         compatCodes (fun v => mem (Tb + v)) x b.toNat (E.map mem)) =
       (D.map (clauseOf C φ)).sections.any (compatible (Function.update τ x (some !b))) := by
-    intro D hD
-    have hD' := (mem_sections_replicate.mp hD).2
     have hmap : (D.map fun p => List.range' (p + 1) (mem p)).map (List.map mem) =
         (D.map (clauseOf C φ)).map (List.map litCode) := by
-      simp only [List.map_map]
-      exact List.map_congr_left fun p hp => by
-        simp only [Function.comp_apply]
-        exact map_range'_clauseOf hφ (hD' p hp)
+      simpa only [List.map_map, Function.comp_def] using List.map_congr_left fun p hp =>
+        map_range'_clauseOf hφ ((mem_sections_replicate.mp hD).2 p hp)
     have h1 := congrArg
       (fun L => (List.sections L).any (compatCodes (fun v => mem (Tb + v)) x b.toNat)) hmap
     simp only [sections_map_map, List.any_map, Function.comp_def] at h1
-    rw [h1]
-    exact any_congr_of_mem fun ls _ => compatCodes_map_litCode hτ x b ls
+    exact h1.trans (any_congr_of_mem fun ls _ => compatCodes_map_litCode hτ x b ls)
   have houter : (List.replicate s (clauseAddrs C φ)).sections.map (List.map (clauseOf C φ)) =
       (List.replicate s φ).sections := by
     rw [← sections_map_map, List.map_replicate, map_clauseOf_clauseAddrs]

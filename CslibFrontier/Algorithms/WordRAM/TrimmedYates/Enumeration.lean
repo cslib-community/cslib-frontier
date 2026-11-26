@@ -59,35 +59,24 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
     ∀ {coords : List (Fin d)}, coords.Nodup →
       (prefixesUpTo k coords).Nodup ∧
       ∀ S, S ∈ prefixesUpTo k coords ↔ S ⊆ coords.toFinset ∧ #S ≤ k := by
-  intro coords
+  intro coords hnd
   induction coords using List.reverseRecOn with
-  | nil =>
-    intro _
-    simp [prefixesUpTo]
+  | nil => simp [prefixesUpTo]
   | append_singleton coords c ih =>
-    intro hnd
-    have hc_not : c ∉ coords := by
-      intro hc
-      exact (List.nodup_append.mp hnd).2.2 c hc c (by simp) rfl
-    have hnd_prev : coords.Nodup := (List.nodup_append.mp hnd).1
+    obtain ⟨hnd_prev, -, hdisj⟩ := List.nodup_append.mp hnd
+    have hc_not : c ∉ coords := fun hc => hdisj c hc c (List.mem_singleton_self c) rfl
     obtain ⟨hprev_nd, hprev_mem⟩ := ih hnd_prev
     rw [prefixesUpTo_append_singleton]
-    dsimp only
     set prev := prefixesUpTo k coords
     have hc_not_in_prev : ∀ S ∈ prev, c ∉ S := fun S hS hcS =>
       hc_not (List.mem_toFinset.mp (((hprev_mem S).mp hS).1 hcS))
-    have hmap_nd : ((prev.filter fun S => decide (#S < k)).map (insert c)).Nodup := by
-      refine (hprev_nd.filter _).map_on ?_
-      intro S₁ h₁ S₂ h₂ heq
-      have h₁m := (List.mem_filter.mp h₁).1
-      have h₂m := (List.mem_filter.mp h₂).1
-      have h₁c := hc_not_in_prev S₁ h₁m
-      have h₂c := hc_not_in_prev S₂ h₂m
-      ext x
-      by_cases hxc : x = c
-      · subst hxc; simp [h₁c, h₂c]
-      · have hx := Finset.ext_iff.mp heq x
-        simpa [Finset.mem_insert, hxc] using hx
+    have hmap_nd : ((prev.filter fun S => decide (#S < k)).map (insert c)).Nodup :=
+      (hprev_nd.filter _).map_on fun S₁ h₁ S₂ h₂ heq => by
+        ext x
+        obtain rfl | hxc := eq_or_ne x c
+        · simp [hc_not_in_prev S₁ (List.mem_filter.mp h₁).1,
+            hc_not_in_prev S₂ (List.mem_filter.mp h₂).1]
+        · simpa [Finset.mem_insert, hxc] using Finset.ext_iff.mp heq x
     refine ⟨List.nodup_append.mpr ⟨hprev_nd, hmap_nd, ?_⟩, fun S => ?_⟩
     · intro S₁ h₁ S₂ h₂ heq
       rcases List.mem_map.mp h₂ with ⟨T, _, rfl⟩
@@ -97,68 +86,45 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
         union_singleton]
       constructor
       · rintro (hS | ⟨T, ⟨hT, hTk⟩, rfl⟩)
-        · obtain ⟨hsub, hcard⟩ := (hprev_mem S).mp hS
-          exact ⟨hsub.trans (subset_insert c _), hcard⟩
-        · obtain ⟨hsub, _⟩ := (hprev_mem T).mp hT
-          rw [card_insert_of_notMem (hc_not_in_prev T hT)]
-          exact ⟨insert_subset_insert c hsub, by omega⟩
+        · exact ⟨((hprev_mem S).mp hS).1.trans (subset_insert c _), ((hprev_mem S).mp hS).2⟩
+        · rw [card_insert_of_notMem (hc_not_in_prev T hT)]
+          exact ⟨insert_subset_insert c ((hprev_mem T).mp hT).1, by omega⟩
       · rintro ⟨hsub, hcard⟩
         by_cases hcS : c ∈ S
-        · right
-          refine ⟨S.erase c, ⟨(hprev_mem _).mpr ⟨?_, ?_⟩, ?_⟩, insert_erase hcS⟩
-          · intro x hx
-            have hxS := mem_of_mem_erase hx
-            have hne := ne_of_mem_erase hx
-            exact (Finset.mem_insert.mp (hsub hxS)).resolve_left hne
-          · exact card_erase_le.trans hcard
-          · rw [card_erase_of_mem hcS]
-            have := Finset.card_pos.mpr ⟨c, hcS⟩
-            omega
-        · left
-          refine (hprev_mem S).mpr ⟨fun x hx => ?_, hcard⟩
-          exact (Finset.mem_insert.mp (hsub hx)).resolve_left fun h => hcS (h ▸ hx)
+        · refine .inr ⟨S.erase c, ⟨(hprev_mem _).mpr ⟨fun x hx =>
+              (Finset.mem_insert.mp (hsub (mem_of_mem_erase hx))).resolve_left
+                (ne_of_mem_erase hx), card_erase_le.trans hcard⟩,
+            (card_erase_lt_of_mem hcS).trans_le hcard⟩, insert_erase hcS⟩
+        · exact .inl ((hprev_mem S).mpr
+            ⟨fun x hx => (Finset.mem_insert.mp (hsub hx)).resolve_left fun h => hcS (h ▸ hx),
+              hcard⟩)
 
 theorem length_prefixesUpTo {d : ℕ} :
     ∀ (k : ℕ) {coords : List (Fin d)}, coords.Nodup →
       (prefixesUpTo k coords).length = ∑ j ∈ range (k + 1), coords.length.choose j := by
-  intro k coords
+  intro k coords hnd
   induction coords using List.reverseRecOn generalizing k with
-  | nil =>
-    intro _
-    rw [Finset.sum_range_succ']
-    simp [prefixesUpTo]
+  | nil => simp [prefixesUpTo, Finset.sum_range_succ']
   | append_singleton coords c ih =>
-    intro hnd
     have hnd_prev : coords.Nodup := (List.nodup_append.mp hnd).1
     rw [prefixesUpTo_append_singleton]
-    dsimp only
-    rw [List.length_append, List.length_map, List.length_append, List.length_singleton]
+    simp only [List.length_append, List.length_map, List.length_singleton]
     rcases k with _ | k
-    · have hflt : (prefixesUpTo 0 coords).filter (fun S => decide (#S < 0)) = [] := by
-        simp
-      rw [hflt, List.length_nil, add_zero, ih 0 hnd_prev]
-      simp
+    · simp [ih 0 hnd_prev]
     · obtain ⟨hp_nd, hp_mem⟩ := prefixesUpTo_spec (k + 1) hnd_prev
       obtain ⟨hk_nd, hk_mem⟩ := prefixesUpTo_spec k hnd_prev
       have hflt_eq : ((prefixesUpTo (k + 1) coords).filter fun S => decide (#S < k + 1)).length =
           (prefixesUpTo k coords).length := by
         rw [← List.toFinset_card_of_nodup (hp_nd.filter _), ← List.toFinset_card_of_nodup hk_nd]
-        congr 1
-        ext S
+        refine congrArg Finset.card (Finset.ext fun S => ?_)
         simp only [List.mem_toFinset, List.mem_filter, hp_mem, hk_mem, decide_eq_true_eq]
-        exact ⟨fun ⟨⟨hsub, _⟩, hlt⟩ => ⟨hsub, by omega⟩,
-          fun ⟨hsub, hle⟩ => ⟨⟨hsub, by omega⟩, by omega⟩⟩
-      rw [hflt_eq, ih (k + 1) hnd_prev, ih k hnd_prev, Finset.sum_range_succ' _ (k + 1)]
+        grind
+      rw [hflt_eq, ih (k + 1) hnd_prev, ih k hnd_prev, Finset.sum_range_succ' _ (k + 1),
+        Finset.sum_range_succ' _ (k + 1)]
       simp only [Nat.choose_zero_right]
-      have hsum : ∑ j ∈ range (k + 1), coords.length.choose (j + 1) +
-          ∑ j ∈ range (k + 1), coords.length.choose j =
-          ∑ j ∈ range (k + 1), (coords.length + 1).choose (j + 1) := by
-        rw [← Finset.sum_add_distrib]
-        refine Finset.sum_congr rfl fun j _ => ?_
-        rw [add_comm, Nat.choose_succ_succ]
-      rw [Finset.sum_range_succ' _ (k + 1)]
-      simp only [Nat.choose_zero_right]
-      omega
+      rw [add_right_comm, ← Finset.sum_add_distrib]
+      exact congrArg (· + 1) (Finset.sum_congr rfl fun j _ =>
+        by rw [add_comm, Nat.choose_succ_succ])
 
 /-- Inner step of `genLowSubsets`: extend `xs[rGenPos]` with `rGenBitMask` when `#xs[p] < k`. -/
 private def genInnerStep : Code .standard numRegs := ram[
@@ -265,12 +231,12 @@ theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d)
         rw [length_prefixesUpTo k (hnd.sublist (List.take_sublist _ _)),
           List.length_take_of_le (by omega), hLmax_def]
         exact Finset.sum_le_sum fun j _ => Nat.choose_le_choose j (by omega)
-      have hc_not_in_prev : ∀ S ∈ prev, c ∉ S := by
-        intro S hS hcS
-        have hnd_app : (coords.take idx ++ [c]).Nodup := by
-          rw [← List.take_succ_eq_append_getElem hlt]; exact hnd.sublist (List.take_sublist _ _)
-        have hc := List.mem_toFinset.mp ((((prefixesUpTo_spec k hnd_take).2 S).mp hS).1 hcS)
-        exact (List.nodup_append.mp hnd_app).2.2 c hc c (List.mem_singleton_self c) rfl
+      have hc_not_in_prev : ∀ S ∈ prev, c ∉ S := fun S hS hcS => by
+        have hnd_app : (coords.take idx ++ [c]).Nodup :=
+          List.take_succ_eq_append_getElem hlt ▸ hnd.sublist (List.take_sublist _ _)
+        exact (List.nodup_append.mp hnd_app).2.2 c
+          (List.mem_toFinset.mp ((((prefixesUpTo_spec k hnd_take).2 S).mp hS).1 hcS))
+          c (List.mem_singleton_self c) rfl
       let accAt (p : ℕ) := prev ++ ((prev.take p).filter fun S => decide (#S < k)).map (insert c)
       have hacc_len (p : ℕ) : prev.length ≤ (accAt p).length ∧ (accAt p).length ≤ Lmax := by
         refine ⟨by simp [accAt], le_trans ?_ hnext_len_le⟩
@@ -419,12 +385,8 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       ∃ z, ExecWithin w extractStep s z 9 ∧ P (s.regs rGenIdx + 1) z ∧
         z.regs rGenIdx = s.regs rGenIdx + 1 := by
     generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
-    dsimp only [P] at hs
     obtain ⟨hsz, hso, hsd, hscp, hscl, hsrem, hsmem, hsframe⟩ := hs
-    let cur := curAt b
-    change s.regs rCoordsLen = cur.length at hscl
-    change ∀ j (hj : j < cur.length), s.mem (coordsPtr + j) = cur[j].val at hsmem
-    change ∀ a, a < coordsPtr ∨ coordsPtr + cur.length ≤ a → s.mem a = x.mem a at hsframe
+    set cur := curAt b
     have hcur_len_le : cur.length ≤ b := by
       calc cur.length ≤ ((List.finRange d).take b).length := List.length_filter_le _ _
         _ ≤ b := by simp
@@ -439,23 +401,18 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
     have hshr_fit : Fits w (s.regs rTrieRem >>> 1) := by
       rw [Nat.shiftRight_eq_div_pow]; exact hrem_fit.of_le (Nat.div_le_self _ _)
     have hb1_fit : Fits w (b + 1) := hfit_d.of_le (by omega)
-    have hbit_iff : s.regs rTrieRem &&& 1 = (if ib ∈ C then 1 else 0) := by
-      have htb : setMask C / 2 ^ b % 2 = 1 ↔ ib ∈ C := by
-        simpa [Nat.testBit_eq_decide_div_mod_eq] using testBit_setMask C ib
+    have htb : (s.regs rTrieRem &&& 1 = 1) ↔ ib ∈ C := by
       rw [hsrem, Nat.and_one_is_mod]
-      split_ifs with hmemC <;> [exact htb.2 hmemC; exact Nat.mod_two_ne_one.1 (mt htb.1 hmemC)]
+      simpa [Nat.testBit_eq_decide_div_mod_eq] using testBit_setMask C ib
     have hshr_eq : s.regs rTrieRem >>> 1 = setMask C / 2 ^ (b + 1) := by
       rw [hsrem, Nat.shiftRight_eq_div_pow, pow_one, Nat.div_div_eq_div_mul, pow_succ]
     by_cases hmemC : ib ∈ C
-    · have hbit1 : s.regs rTrieRem &&& 1 = 1 := by simp [hbit_iff, hmemC]
-      have hf_addr : Fits w (coordsPtr + cur.length) := hfit_mem.of_le (by omega)
+    · have hf_addr : Fits w (coordsPtr + cur.length) := hfit_mem.of_le (by omega)
       have hf_cl1 : Fits w (cur.length + 1) := hfit_d.of_le (by omega)
       have hcur1 : curAt (b + 1) = cur ++ [ib] := by
-        dsimp only [curAt, cur]
-        rw [htake1, List.filter_append, List.filter_cons_of_pos (by simp [hmemC]),
-          List.filter_nil]
+        simp [curAt, cur, htake1, hmemC]
       unfold extractStep
-      wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
+      wram_exec [hsz, hso, hscp, hscl, hb_eq, htb.2 hmemC]
       dsimp only [P]
       rw [hcur1]
       simp only [List.length_append, List.length_singleton]
@@ -465,11 +422,10 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
         · wram_simp [List.getElem_append_left hj]; exact hsmem j hj
         · wram_simp [List.getElem_concat_length, ib]
       · wram_simp; exact hsframe a (by omega)
-    · have hbit0 : s.regs rTrieRem &&& 1 = 0 := by simp [hbit_iff, hmemC]
+    · have hbit0 : s.regs rTrieRem &&& 1 = 0 :=
+        Nat.and_one_is_mod _ ▸ Nat.mod_two_ne_one.1 (Nat.and_one_is_mod _ ▸ mt htb.1 hmemC)
       have hcur1 : curAt (b + 1) = cur := by
-        dsimp only [curAt, cur]
-        rw [htake1, List.filter_append, List.filter_cons_of_neg (by simp [hmemC]),
-          List.filter_nil, List.append_nil]
+        simp [curAt, cur, htake1, hmemC]
       unfold extractStep
       wram_exec [hsz, hso, hscl, hb_eq, hbit0]
       dsimp only [P]
@@ -482,14 +438,11 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       (ram[ rTrieRem ← rTrieKey; rCoordsLen ← #0; rGenIdx ← #0 ]) x x₀ 3 := by
     wram_exec [hk]
   have hx₀ : P (x₀.regs rGenIdx) x₀ := by
-    dsimp only [P, curAt]
-    simp [x₀, hz, ho, hd, hcptr]
+    simp [P, curAt, x₀, hz, ho, hd, hcptr]
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [x₀]) hx₀
   obtain ⟨_, _, _, _, hycl, _, hymem, hyframe⟩ := hyP
-  have hcur_d : curAt d = cList := by
-    dsimp only [curAt, cList]
-    rw [List.take_of_length_le (by simp)]
+  have hcur_d : curAt d = cList := congrArg (List.filter _) (List.take_of_length_le (by simp))
   rw [hcur_d] at hycl hymem hyframe
   have hcList_le : cList.length ≤ d := by
     calc cList.length ≤ (List.finRange d).length := List.length_filter_le _ _
@@ -544,7 +497,6 @@ theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
       ∃ z, ExecWithin w flipStep s z 10 ∧ P (s.regs rGenPos + 1) z ∧
         z.regs rGenPos = s.regs rGenPos + 1 := by
     generalize hp_eq : s.regs rGenPos = p at hs hp ⊢
-    dsimp only [P] at hs
     obtain ⟨hso, hsk, hscl, hsdp, hsdl, hdone, htodo, hsframe⟩ := hs
     obtain ⟨hmk_p, hsz_p⟩ := htodo p hp le_rfl
     have hsub_p : ys[p] ⊆ C := hys_sub ys[p] (List.getElem_mem hp)
@@ -563,17 +515,17 @@ theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
     · wram_simp; exact hsframe a ha
   let x₀ := x.set rGenPos 0
   have hinit : ExecWithin (B := .standard) w (ram[ rGenPos ← #0 ]) x x₀ 1 := by wram_exec
-  have hx₀ : P (x₀.regs rGenPos) x₀ := by
-    refine ⟨by simp [x₀, ho], by simp [x₀, hk], by simp [x₀, hcl], by simp [x₀, hdptr],
-      by simp [x₀, hdlen], by simp [x₀], fun j hj _ => hdom j hj, fun _ _ => rfl⟩
+  have hx₀ : P (x₀.regs rGenPos) x₀ :=
+    ⟨ho, hk, hcl, hdptr, hdlen, nofun, fun j hj _ => hdom j hj, fun _ _ => rfl⟩
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.2.2.1) hbody
     (by simp [x₀]) hx₀
   obtain ⟨_, _, _, _, _, hydone, _, hyframe⟩ := hyP
   have he : ExecWithin w flipHighDom x y (12 * ys.length + 3) :=
     (hinit.seq hloop).mono (by simp [x₀]; omega)
-  refine ⟨y, he, fun j hj => ?_, hyframe, fun i hi => he.regs_eq (flipHighDom_preserves i hi)⟩
-  rw [List.length_map] at hj
-  simpa only [List.getElem_map] using hydone j hj hj
+  exact ⟨y, he, fun j hj => by
+      have hj' : j < ys.length := by simpa using hj
+      simpa only [List.getElem_map] using hydone j hj' hj',
+    hyframe, fun i hi => he.regs_eq (flipHighDom_preserves i hi)⟩
 
 /-- Write `[0, 1, ..., d - 1]` (`List.finRange d`) to `rCoordsPtr[0 .. Reg.dim - 1]`. -/
 private def initCoordsStep : Code .standard numRegs := ram[
@@ -604,12 +556,12 @@ theorem exec_initIdentityCoords {w d coordsPtr : ℕ} (x : Data numRegs)
   have hbody (s : Data numRegs) (hs : P (s.regs rGenIdx) s) (hb : s.regs rGenIdx < d) :
       ∃ z, ExecWithin w initCoordsStep s z 3 ∧ P (s.regs rGenIdx + 1) z ∧
         z.regs rGenIdx = s.regs rGenIdx + 1 := by
-    generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
+    set b := s.regs rGenIdx with hb_eq
     obtain ⟨hso, hsd, hscp, hdone, hsframe⟩ := hs
     have hf_addr : Fits w (coordsPtr + b) := hfit_mem.of_le (by omega)
     have hf_b1 : Fits w (b + 1) := hfit_d.of_le (by omega)
     unfold initCoordsStep
-    wram_exec [hso, hscp, hb_eq]
+    wram_exec [hso, hscp, hb_eq.symm]
     refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, fun j hj => ?_, fun a ha => ?_⟩,
       by wram_simp⟩
     · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj
@@ -618,17 +570,13 @@ theorem exec_initIdentityCoords {w d coordsPtr : ℕ} (x : Data numRegs)
     · wram_simp; exact hsframe a (by omega)
   let x₀ := x.set rGenIdx 0
   have hinit : ExecWithin (B := .standard) w (ram[ rGenIdx ← #0 ]) x x₀ 1 := by wram_exec
-  have hx₀ : P (x₀.regs rGenIdx) x₀ :=
-    ⟨by simp [x₀, ho], by simp [x₀, hd], by simp [x₀, hcptr],
-     by simp [x₀], fun _ _ => rfl⟩
+  have hx₀ : P (x₀.regs rGenIdx) x₀ := ⟨ho, hd, hcptr, nofun, fun _ _ => rfl⟩
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.1) hbody
     (by simp [x₀]) hx₀
   obtain ⟨_, _, _, hydone, hyframe⟩ := hyP
   have he : ExecWithin w initIdentityCoords x y (5 * d + 3) :=
     (hinit.seq hloop).mono (by simp [x₀]; omega)
-  refine ⟨y, he, fun j hj => ?_, hyframe,
+  exact ⟨y, he, fun j hj => by simpa using hydone j (by simpa using hj), hyframe,
     fun i hi => he.regs_eq (initIdentityCoords_preserves i hi)⟩
-  rw [List.length_finRange] at hj
-  simpa using hydone j hj
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

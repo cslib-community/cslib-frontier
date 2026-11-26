@@ -218,9 +218,8 @@ private theorem eval_run_uniform [Fintype H] [Nonempty H]
       (pure (value, s) : ProbComp (H × Unit))) = fun _ s => (·, s) <$> ProbComp.uniform H :=
     funext fun _ => funext fun _ => (map_eq_bind_pure_comp ..).symm
   rw [interpret_interpret]
-  simp only [ProbOracleComp.interpret_query]
-  rw [hstate, run_interpret_stateless, ProbComp.eval_map]
-  simp only [ProbComp.eval_interpret, ProbComp.eval_uniform]
+  simp only [ProbOracleComp.interpret_query, hstate, run_interpret_stateless, ProbComp.eval_map,
+    ProbComp.eval_interpret, ProbComp.eval_uniform]
 
 /-- `q` uniform samples, collected in a list, are the entries of a uniform vector. -/
 private theorem eval_replicate_uniform [Fintype H] [Nonempty H] (q : ℕ) :
@@ -228,8 +227,9 @@ private theorem eval_replicate_uniform [Fintype H] [Nonempty H] (q : ℕ) :
       (PMF.uniformOfFintype (Fin q → H)).map List.ofFn := by
   induction q with
   | zero =>
-    simp [replicate_zero, show (List.ofFn : (Fin 0 → H) → List H) = Function.const _ [] from
-      funext fun _ => List.ofFn_zero]
+    have hconst : (List.ofFn : (Fin 0 → H) → List H) = Function.const _ [] :=
+      funext fun _ => List.ofFn_zero
+    simp [replicate_zero, hconst]
   | succ q ih =>
     rw [replicate_succ, ← Probability.PMF.pi_uniformOfFintype, Probability.PMF.pi_fin_succ,
       Probability.PMF.pi_uniformOfFintype]
@@ -248,10 +248,7 @@ theorem interpret_uniform_eq [Fintype H] [Nonempty H] (default : H)
     default (fun v _ s => (pure (v, s) : ProbComp (H × Unit))) ()
   simp only [eval_run_uniform, ProbComp.eval_bind, eval_replicate_uniform, eval_run_withSampleList,
     PMF.bind_map, PMF.map_bind, PMF.map_comp, PMF.pure_map, Function.comp_def] at hp
-  rw [show PMF.map (fun x => x) (interpret (fun _ => PMF.uniformOfFintype H) program) =
-    interpret (fun _ => PMF.uniformOfFintype H) program from PMF.map_id _] at hp
-  rw [← hp]
-  rfl
+  exact (PMF.map_id _).symm.trans hp.symm
 
 /-- Answer queries uniformly as they come, counting them in the state. -/
 noncomputable def countingUniform [Fintype H] [Nonempty H] (_ : Query) : StateT ℕ PMF H :=
@@ -305,8 +302,7 @@ theorem run_interpret_countingUniform_eq [Fintype H] [Nonempty H] (default : H)
     (fun v _ n => (pure (v, n + 1) : ProbComp (H × ℕ))) count
   simp only [eval_run_counting, ProbComp.eval_bind, eval_replicate_uniform,
     eval_run_withSampleList_count, PMF.bind_map, Function.comp_def] at hp
-  rw [← hp]
-  rfl
+  exact hp.symm
 
 /-! ### Forking -/
 
@@ -411,8 +407,7 @@ theorem mem_support_fork {first : PMF S}
     exact hagree ⟨i, by omega⟩ (Fin.mk_lt_of_lt_val (by omega))
   refine ⟨s, hs, h, h', hagree, hne, rfl, rfl, hpos, hpos', htake,
     _, List.getElem?_eq_getElem hlt, ?_⟩
-  have hget := congrArg (fun l : List Query => l[j.val]?) htake
   simpa only [List.getElem?_take, Nat.lt_succ_self, ite_true, List.getElem?_eq_getElem hlt] using
-    hget.symm
+    (congrArg (·[j.val]?) htake).symm
 
 end Cslib.OracleComp

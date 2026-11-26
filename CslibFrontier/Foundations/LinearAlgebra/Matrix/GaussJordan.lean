@@ -257,6 +257,7 @@ private theorem isReducedBefore_stage {A : Matrix m (Fin c) K} {j : Fin c}
     · exact Fin.ext hl ▸ pivotRow_eq_none_iff.mp h i hfree
   · obtain ⟨hpfree, hpne, -⟩ := pivotRow_eq_some_iff.mp h
     rw [stage_of_pivotRow_eq_some h]
+    -- the columns before `j` are unchanged, since the pivot row is zero there
     have hpre : ∀ l : Fin c, l.1 < j.1 → ∀ i, eliminate A j p i l = A i l :=
       fun l hl => eliminate_apply_of_eq_zero (hpfree l hl)
     intro i
@@ -300,9 +301,11 @@ private theorem rank_eq_card_of_isReducedBefore {B : Matrix m (Fin c) K}
       by_cases h : i = i'
       · simp [h]
       · simpa [diagonal_apply_ne _ h] using (hpiv i').2 i.1 fun h' => h (Subtype.ext h')
-  rw [← Fintype.card_subtype, ← Fintype.card_congr (Equiv.subtypeUnivEquiv fun i => (hpiv i).1),
-    ← rank_diagonal, ← hdiag]
-  exact rank_submatrix_le B _ _
+  calc #{i | B.row i ≠ 0} = Fintype.card N := (Fintype.card_subtype _).symm
+    _ = (diagonal fun i => B i.1 (piv i)).rank := by
+        rw [rank_diagonal]
+        exact (Fintype.card_congr (Equiv.subtypeUnivEquiv fun i => (hpiv i).1)).symm
+    _ ≤ B.rank := hdiag ▸ rank_submatrix_le B _ _
 
 /-- **Rank by Gauss–Jordan elimination**: the rank of `A` is the number of nonzero rows of
 `reduce A`. Each nonzero row owns a column where every other row is zero

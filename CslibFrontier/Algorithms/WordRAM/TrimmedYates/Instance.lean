@@ -63,23 +63,18 @@ theorem evalEntries_eq_sum_filter {d : ℕ} (es : List (Finset (Fin d) × ℤ)) 
   | nil => rfl
   | append_singleton es p ih =>
     rw [evalEntries_append_singleton, ih, List.filter_append, List.map_append, List.sum_append]
-    by_cases hSA : S = p.1
-    · simp [hSA]
-    · simp [hSA, Ne.symm hSA]
+    by_cases hSA : S = p.1 <;> simp [hSA, eq_comm]
 
 theorem evalEntries_ranked {d t : ℕ} {es : List (Finset (Fin d) × ℤ)}
     (hes : ∀ p ∈ es, p.2 ≠ 0 → #p.1 = t) (S : Finset (Fin d)) (hS : evalEntries es S ≠ 0) :
     #S = t := by
-  by_contra hne
-  apply hS
+  contrapose! hS
   rw [evalEntries_eq_sum_filter]
-  apply List.sum_eq_zero
-  intro v hv
+  refine List.sum_eq_zero fun v hv => ?_
   obtain ⟨p, hp_flt, rfl⟩ := List.mem_map.mp hv
   obtain ⟨hp_es, hp_eq⟩ := List.mem_filter.mp hp_flt
-  have hpS : p.1 = S := of_decide_eq_true hp_eq
   by_contra hv0
-  exact hne (hpS ▸ hes p hp_es hv0)
+  exact hS ((of_decide_eq_true hp_eq) ▸ hes p hp_es hv0)
 
 /-- Sum of `|v|` across sparse `(set, v)` entries. -/
 @[expose] def entryAbsSum {d : ℕ} (es : List (Finset (Fin d) × ℤ)) : ℕ :=

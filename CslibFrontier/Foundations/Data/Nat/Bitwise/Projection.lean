@@ -121,14 +121,12 @@ theorem shiftRight_highestDiff_ne {w x y : ℕ} (hx : x < 2 ^ w)
 theorem highestDiff_bits_of_lt {w x y : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)
     (hxy : x < y) :
     x.testBit (highestDiff w x y) = false ∧ y.testBit (highestDiff w x y) = true := by
-  obtain ⟨_, hdiff, habove⟩ := highestDiff_spec hx hy (Nat.ne_of_lt hxy)
-  cases hxb : x.testBit (highestDiff w x y) <;>
-    cases hyb : y.testBit (highestDiff w x y)
-  · exact False.elim (hdiff (hxb.trans hyb.symm))
+  obtain ⟨_, hdiff, habove⟩ := highestDiff_spec hx hy hxy.ne
+  cases hxb : x.testBit (highestDiff w x y) <;> cases hyb : y.testBit (highestDiff w x y)
+  · exact absurd (hxb.trans hyb.symm) hdiff
   · exact ⟨rfl, rfl⟩
-  · exact False.elim (Nat.not_lt_of_ge hxy.le
-      (Nat.lt_of_testBit _ hyb hxb fun i hi => (habove i hi).symm))
-  · exact False.elim (hdiff (hxb.trans hyb.symm))
+  · exact absurd (Nat.lt_of_testBit _ hyb hxb fun i hi => (habove i hi).symm) hxy.le.not_gt
+  · exact absurd (hxb.trans hyb.symm) hdiff
 
 /-- Pack the indicated bits, least significant position first. Repeated or unordered positions
 are allowed; order preservation additionally requires the list to be strictly increasing. -/
@@ -260,13 +258,10 @@ theorem testBit_upperBoundary (q p b : ℕ) :
 /-- Both correction boundaries keep the query's full prefix above `p`. -/
 theorem boundary_prefix (q p : ℕ) :
     lowerBoundary q p >>> (p + 1) = q >>> (p + 1) ∧
-      upperBoundary q p >>> (p + 1) = q >>> (p + 1) :=
-  ⟨Nat.eq_of_testBit_eq fun b => by
-      simp only [Nat.testBit_shiftRight, testBit_lowerBoundary, show p < p + 1 + b by omega,
-        ↓reduceIte],
-    Nat.eq_of_testBit_eq fun b => by
-      simp only [Nat.testBit_shiftRight, testBit_upperBoundary, show p < p + 1 + b by omega,
-        ↓reduceIte]⟩
+      upperBoundary q p >>> (p + 1) = q >>> (p + 1) := by
+  have hp (b : ℕ) : p < p + 1 + b := by omega
+  exact ⟨Nat.eq_of_testBit_eq fun b => by simp [Nat.testBit_shiftRight, testBit_lowerBoundary, hp],
+    Nat.eq_of_testBit_eq fun b => by simp [Nat.testBit_shiftRight, testBit_upperBoundary, hp]⟩
 
 /-- Pointwise implication between selected bits implies weak order of the packed sketches. -/
 theorem projectBits_le {positions : List ℕ} {x y : ℕ}
@@ -297,9 +292,7 @@ theorem sketch_le_lowerBoundary {positions : Finset ℕ} {x q p : ℕ}
     rw [testBit_lowerBoundary]
     split_ifs with hpb
     · exact (Nat.testBit_eq_of_shiftRight_eq hprefix (by omega)).symm.trans hb
-    · refine decide_eq_true (lt_of_le_of_ne (not_lt.mp hpb) fun h => ?_)
-      subst h
-      simp [hbit] at hb
+    · exact decide_eq_true (lt_of_le_of_ne (not_lt.mp hpb) fun h => by simp [h, hbit] at hb)
 
 /-- Within a prefix block whose bit `p` is one, the upper correction boundary has a sketch
 at most as large as every word in that block. -/

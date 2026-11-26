@@ -51,8 +51,7 @@ Waiting changes the layered vertex and therefore introduces no self edge. -/
 
 /-- Layering turns even a reflexive original relation into an irreflexive relation. -/
 theorem step_irrefl (a : LayeredVertex α) : ¬ Step r T a a := by
-  intro h
-  have := h.1
+  rintro ⟨h, -⟩
   omega
 
 private theorem lift_walk {a b : α} {n : ℕ}
@@ -68,19 +67,13 @@ original steps. In particular, early termination can be padded without changing 
 theorem reachable_iff (a b : α) :
     ReflTransGen (Step r T) ⟨0, a⟩ ⟨T, b⟩ ↔ RelatesWithinSteps r a b T := by
   rw [relatesWithinSteps_iff_relatesInSteps_reflGen]
-  constructor
-  · intro h
-    have invariant (v : LayeredVertex α)
-        (hv : ReflTransGen (Step r T) ⟨0, a⟩ v) :
-        RelatesInSteps (ReflGen r) a v.vertex v.layer := by
-      induction hv with
-      | refl => exact .refl a
-      | @tail u v h he ih =>
-        rw [he.1]
-        exact .tail _ _ _ _ ih he.2.2
-    exact invariant _ h
-  · intro h
-    exact lift_walk h le_rfl
+  refine ⟨fun h => ?_, fun h => lift_walk h le_rfl⟩
+  have invariant {v : LayeredVertex α} (hv : ReflTransGen (Step r T) ⟨0, a⟩ v) :
+      RelatesInSteps (ReflGen r) a v.vertex v.layer := by
+    induction hv with
+    | refl => exact .refl a
+    | tail _ he ih => exact he.1 ▸ .tail _ _ _ _ ih he.2.2
+  exact invariant h
 
 /-- Vertices in the finite window of layers from zero through the horizon. -/
 abbrev Bounded (α : Type*) (T : ℕ) := {v : LayeredVertex α // v.layer ≤ T}
@@ -103,15 +96,10 @@ theorem card_bounded {α : Type*} (T : ℕ) : Nat.card (Bounded α T) = (T + 1) 
 theorem bounded_reachable_iff (a b : Bounded α T) :
     ReflTransGen (fun u v : Bounded α T => Step r T u.val v.val) a b ↔
       ReflTransGen (Step r T) a.val b.val := by
-  apply reflTransGen_onFun_iff Subtype.val_injective
-  intro v hv
-  have hbound : v.layer ≤ T := by
-    cases hv with
-    | refl => exact a.property
-    | tail _ hstep =>
-      rw [hstep.1]
-      exact Nat.succ_le_of_lt hstep.2.1
-  exact ⟨⟨v, hbound⟩, rfl⟩
+  refine reflTransGen_onFun_iff Subtype.val_injective fun v hv => ⟨⟨v, ?_⟩, rfl⟩
+  cases hv with
+  | refl => exact a.property
+  | tail _ hstep => exact hstep.1.trans_le (Nat.succ_le_of_lt hstep.2.1)
 
 end LayeredVertex
 

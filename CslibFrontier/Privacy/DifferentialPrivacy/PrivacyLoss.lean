@@ -78,12 +78,9 @@ private theorem mul_div_rpow_add_le {E t P Q : ℝ} (hE : 1 < E) (ht : 0 ≤ t) 
     rw [div_mul_eq_mul_div, div_mul_eq_mul_div, ← add_div, div_eq_iff hD.ne']
     ring
   simp only [smul_eq_mul] at hconv
-  rw [hcomb] at hconv
-  rw [Real.rpow_add hw0, Real.rpow_one, Real.rpow_add (inv_pos.mpr hE0), Real.rpow_one,
-    Real.rpow_add hE0, Real.rpow_one, Real.inv_rpow hE0.le] at hconv
-  have hkey : P * (P / Q) ^ t = Q * (P / Q * (P / Q) ^ t) := by
-    field_simp
-  rw [hkey]
+  rw [hcomb, Real.rpow_add hw0, Real.rpow_one, Real.rpow_add (inv_pos.mpr hE0),
+    Real.rpow_one, Real.rpow_add hE0, Real.rpow_one, Real.inv_rpow hE0.le] at hconv
+  rw [show P * (P / Q) ^ t = Q * (P / Q * (P / Q) ^ t) by field_simp]
   calc Q * (P / Q * (P / Q) ^ t) + (E ^ t - (E ^ t)⁻¹) / (E - E⁻¹) * Q
       ≤ Q * ((E - P / Q) / (E - E⁻¹) * (E⁻¹ * (E ^ t)⁻¹) +
           (P / Q - E⁻¹) / (E - E⁻¹) * (E * E ^ t)) +
@@ -183,9 +180,8 @@ theorem renyiMoment_le_exp {p q : R → ℝ≥0∞} {ε α : ℝ} (hε : 0 ≤ �
       ENNReal.ofReal (Real.exp (Real.tanh (ε / 2) * (ε * (α - 1)) +
         (ε * (α - 1)) ^ 2 / 2)) * ∑' r, p r := by
   refine (renyiMoment_le_of_le_mul hε hα hpq hqp hsum hfin).trans (mul_le_mul' ?_ le_rfl)
-  refine ENNReal.ofReal_le_ofReal (Real.cosh_add_mul_sinh_le_exp ?_
-    (mul_nonneg hε (sub_nonneg.mpr hα)))
-  exact Real.tanh_nonneg_iff.mpr (by linarith)
+  exact ENNReal.ofReal_le_ofReal (Real.cosh_add_mul_sinh_le_exp
+    (Real.tanh_nonneg_iff.mpr (by linarith)) (mul_nonneg hε (sub_nonneg.mpr hα)))
 
 /-- For `1 < α`, if two discrete distributions `p, q : PMF R` have likelihood ratio in
 `[e^{-ε}, e^ε]`, their order-`α` Rényi divergence is at most
@@ -199,10 +195,9 @@ theorem renyiDiv_le_of_le_mul {p q : PMF R} {ε α : ℝ} (hε : 0 ≤ ε) (hα 
   have hε_rhs : 0 ≤ ε * Real.tanh (ε / 2) + (α - 1) * ε ^ 2 / 2 :=
     add_nonneg (mul_nonneg hε (Real.tanh_nonneg_iff.mpr (by linarith))) (by positivity)
   rw [Probability.PMF.renyiDiv_le_ofReal_iff hα p q hε_rhs]
-  have hmom := renyiMoment_le_exp hε hα.le hpq hqp (by rw [p.tsum_coe, q.tsum_coe])
-    (by rw [q.tsum_coe]; exact ENNReal.one_ne_top)
-  rw [p.tsum_coe, mul_one] at hmom
-  exact hmom.trans_eq (congrArg (ENNReal.ofReal ∘ Real.exp) (by ring))
+  refine (renyiMoment_le_exp hε hα.le hpq hqp (by simp) (by simp)).trans_eq ?_
+  rw [p.tsum_coe, mul_one]
+  exact congrArg (ENNReal.ofReal ∘ Real.exp) (by ring)
 
 end SingleRound
 

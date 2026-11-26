@@ -48,13 +48,13 @@ theorem groups_sq_le_sqrt (n : ℕ) : (groups n : ℝ) ^ 2 ≤ Real.sqrt (window
 /-- Two group factors fit in the actual finite box product's fractional window saving. -/
 theorem groups_sq_le_window_rpow (n : ℕ) :
     (groups n : ℝ) ^ 2 ≤ (window n : ℝ) ^ (8 / 125 : ℝ) := by
+  have hnat : (groups n ^ 2) ^ 125 ≤ window n ^ 8 := by
+    simp only [groups, window, level, ← pow_mul]
+    exact Nat.pow_le_pow_right (by decide) (by omega)
   refine le_of_pow_le_pow_left₀ (n := 125) (by decide) (by positivity) ?_
   rw [← Real.rpow_natCast ((window n : ℝ) ^ (8 / 125 : ℝ)), ← Real.rpow_mul (Nat.cast_nonneg _),
     show (8 / 125 : ℝ) * (125 : ℕ) = (8 : ℕ) by norm_num, Real.rpow_natCast]
-  simpa only [Nat.cast_pow] using (Nat.cast_le (α := ℝ)).mpr
-    (show (groups n ^ 2) ^ 125 ≤ window n ^ 8 by
-      simp only [groups, window, level, ← pow_mul]
-      exact Nat.pow_le_pow_right (by decide) (by omega))
+  exact_mod_cast hnat
 
 /-- The rounded group count gains an inverse input power with only a factor16 loss. -/
 theorem rpow_lt_sixteen_mul_groups (n : ℕ) :
@@ -68,19 +68,21 @@ theorem rpow_lt_sixteen_mul_groups (n : ℕ) :
 /-- The original nineteen-factor reserve controls every nonnegative real window power. -/
 theorem window_rpow_le_rpow {n : ℕ} (hn : 0 < n) {r : ℝ} (hr : 0 ≤ r) :
     (window n : ℝ) ^ r ≤ (n : ℝ) ^ (r / 19) := by
-  rw [show (window n : ℝ) ^ r = ((window n : ℝ) ^ 19) ^ (r / 19) by
-    rw [← Real.rpow_natCast_mul (by positivity)]
-    congr 1
-    push_cast; ring]
-  exact Real.rpow_le_rpow (by positivity) (by exact_mod_cast geometry_nineteen hn) (by positivity)
+  calc (window n : ℝ) ^ r
+    _ = ((window n : ℝ) ^ 19) ^ (r / 19) := by
+      rw [← Real.rpow_natCast_mul (by positivity)]
+      congr 1
+      push_cast; ring
+    _ ≤ (n : ℝ) ^ (r / 19) :=
+      Real.rpow_le_rpow (by positivity) (by exact_mod_cast geometry_nineteen hn) (by positivity)
 
 /-- Explicit raw saving before logarithmic factors are absorbed. -/
 theorem cubic_div_groups_le {n : ℕ} (hn : 0 < n) :
     (n : ℝ) ^ 3 / groups n ≤ 16 * (n : ℝ) ^ (3 - 2 / 1197 : ℝ) := by
   have hn0 : (0 : ℝ) < n := by exact_mod_cast hn
-  rw [div_le_iff₀ (by exact_mod_cast groups_pos n),
-    show (n : ℝ) ^ 3 = (n : ℝ) ^ (3 - 2 / 1197 : ℝ) * (n : ℝ) ^ (2 / 1197 : ℝ) by
-      rw [← Real.rpow_add hn0]; norm_num]
+  have hpow : (n : ℝ) ^ 3 = (n : ℝ) ^ (3 - 2 / 1197 : ℝ) * (n : ℝ) ^ (2 / 1197 : ℝ) := by
+    rw [← Real.rpow_add hn0]; norm_num
+  rw [div_le_iff₀ (by exact_mod_cast groups_pos n), hpow]
   nlinarith [mul_le_mul_of_nonneg_left (rpow_lt_sixteen_mul_groups n).le
     (Real.rpow_nonneg hn0.le (3 - 2 / 1197))]
 
@@ -97,19 +99,23 @@ theorem group_work_le {n : ℕ} (hn : 0 < n) :
     (n : ℝ) * groups n ≤ (n : ℝ) ^ 3 / groups n := by
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
   have hd1 : (1 : ℝ) ≤ window n := by exact_mod_cast window_pos n
-  refine (?_ : _ ≤ (n : ℝ) ^ 2 * window n * groups n).trans (preparation_le hn)
-  gcongr
-  exact (le_self_pow₀ hn1 (by decide)).trans (le_mul_of_one_le_right (sq_nonneg _) hd1)
+  calc (n : ℝ) * groups n
+    _ ≤ (n : ℝ) ^ 2 * window n * groups n := by
+      gcongr
+      exact (le_self_pow₀ hn1 (by decide)).trans (le_mul_of_one_le_right (sq_nonneg _) hd1)
+    _ ≤ (n : ℝ) ^ 3 / groups n := preparation_le hn
 
 /-- Root setup per group also fits the common scale. -/
 theorem root_work_le {n : ℕ} (hn : 0 < n) :
     (n : ℝ) * groups n * Nat.sqrt (window n) ≤ (n : ℝ) ^ 3 / groups n := by
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
   have hs : (Nat.sqrt (window n) : ℝ) ≤ window n := by exact_mod_cast Nat.sqrt_le_self _
-  refine (?_ : _ ≤ (n : ℝ) ^ 2 * window n * groups n).trans (preparation_le hn)
-  rw [mul_right_comm]
-  gcongr
-  exact le_self_pow₀ hn1 (by decide)
+  calc (n : ℝ) * groups n * Nat.sqrt (window n)
+    _ = (n : ℝ) * (Nat.sqrt (window n) : ℝ) * groups n := by ring
+    _ ≤ (n : ℝ) ^ 2 * window n * groups n := by
+      gcongr
+      exact le_self_pow₀ hn1 (by decide)
+    _ ≤ (n : ℝ) ^ 3 / groups n := preparation_le hn
 
 /-- The actual integer query capacity yields the same saving, without dropping rounding. -/
 theorem query_work_le {n : ℕ} (hn : 0 < n) :
@@ -121,9 +127,9 @@ theorem query_work_le {n : ℕ} (hn : 0 < n) :
   calc (n : ℝ) * groups n * queryCap n (window n)
     _ ≤ (n : ℝ) * groups n * ((n : ℝ) ^ 2 / Real.sqrt (window n)) := by gcongr
     _ = (n : ℝ) ^ 3 * ((groups n : ℝ) / Real.sqrt (window n)) := by ring
-    _ ≤ (n : ℝ) ^ 3 * (1 / groups n) :=
-      mul_le_mul_of_nonneg_left ((div_le_div_iff₀ hs hg).mpr
-        (by nlinarith only [groups_sq_le_sqrt n])) (by positivity)
+    _ ≤ (n : ℝ) ^ 3 * (1 / groups n) := by
+      refine mul_le_mul_of_nonneg_left ((div_le_div_iff₀ hs hg).mpr ?_) (by positivity)
+      nlinarith only [groups_sq_le_sqrt n]
     _ = _ := by ring
 
 /-- Product saving converts the additional group multiplier into one inverse group factor. -/
@@ -136,9 +142,9 @@ theorem product_work_le {n : ℕ} (hn : 0 < n) :
   calc (n : ℝ) ^ 3 * groups n * (window n : ℝ) ^ (-(8 / 125 : ℝ))
     _ = (n : ℝ) ^ 3 * ((groups n : ℝ) / (window n : ℝ) ^ (8 / 125 : ℝ)) := by
       rw [Real.rpow_neg (Nat.cast_nonneg _)]; ring
-    _ ≤ (n : ℝ) ^ 3 * (1 / groups n) :=
-      mul_le_mul_of_nonneg_left ((div_le_div_iff₀ hd hg).mpr
-        (by nlinarith only [groups_sq_le_window_rpow n])) (by positivity)
+    _ ≤ (n : ℝ) ^ 3 * (1 / groups n) := by
+      refine mul_le_mul_of_nonneg_left ((div_le_div_iff₀ hd hg).mpr ?_) (by positivity)
+      nlinarith only [groups_sq_le_window_rpow n]
     _ = _ := by ring
 
 end Cslib.Algorithms.ExactTriangle.ParameterChoice

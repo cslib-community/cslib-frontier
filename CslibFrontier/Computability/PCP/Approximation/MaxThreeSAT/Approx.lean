@@ -68,9 +68,9 @@ theorem GapThreeSAT_mem_PromiseP_of_approx {A : CNF ℕ → List ℕ} {ρ s : �
   set b := q.den
   have hab : (q : ℝ) = a / b := by
     have hnum : (0 : ℤ) ≤ q.num := Rat.num_nonneg.2 (by exact_mod_cast hq0.le)
-    rw [← Rat.num_div_den q]
+    rw [← Rat.num_div_den q, ← Int.toNat_of_nonneg hnum]
     push_cast
-    rw [show ((q.num : ℤ) : ℝ) = (a : ℝ) by exact_mod_cast (Int.toNat_of_nonneg hnum).symm]
+    rfl
   have hb : (0 : ℝ) < b := by exact_mod_cast q.den_pos
   set u : CNF ℕ → ℕ := fun φ => φ.countUnsat fun v => decide (v ∈ A φ)
   have hu (φ : CNF ℕ) : (u φ : ℝ) ≤ φ.length := by exact_mod_cast CNF.countUnsat_le_length _ φ
@@ -90,24 +90,21 @@ theorem GapThreeSAT_mem_PromiseP_of_approx {A : CNF ℕ → List ℕ} {ρ s : �
     exact binary_le' (binary_add' (binary_mul' (const a) hm) (binary_mul' (const b) hu'))
       (binary_mul' (const b) hm)
   · rw [yes_GapThreeSAT] at hφ
-    have hval : φ.unsatVal = 0 := (CNF.unsatVal_eq_zero_iff φ).2 hφ.2
     have h := happrox φ hφ.1
-    rw [hval, sub_zero, mul_one] at h
-    refine decide_eq_true ((hiff φ).2 (le_trans ?_ h))
-    exact mul_le_mul_of_nonneg_right hqρ.le (Nat.cast_nonneg _)
+    rw [(CNF.unsatVal_eq_zero_iff φ).2 hφ.2, sub_zero, mul_one] at h
+    exact decide_eq_true ((hiff φ).2
+      ((mul_le_mul_of_nonneg_right hqρ.le (Nat.cast_nonneg _)).trans h))
   · simp only [GapThreeSAT, PromiseProblem.no_restrict, Set.mem_inter_iff,
       PromiseProblem.mem_no_gapMax] at hφ
-    obtain ⟨⟨hval, hs1⟩, -⟩ := hφ
+    obtain ⟨⟨hval, _⟩, -⟩ := hφ
     refine decide_eq_false fun h => ?_
-    have h := (hiff φ).1 h
+    replace h := (hiff φ).1 h
     have hle : φ.unsatVal ≤ u φ / φ.length := CNF.unsatVal_le φ _
     rcases Nat.eq_zero_or_pos φ.length with h0 | hpos
     · rw [h0, Nat.cast_zero, div_zero] at hle
       linarith
-    · have hm : (0 : ℝ) < φ.length := by exact_mod_cast hpos
-      have hle' : φ.length - (u φ : ℝ) ≤ s * φ.length := by
-        rw [le_div_iff₀ hm] at hle
-        nlinarith
+    · have hm : (0 : ℝ) < φ.length := Nat.cast_pos.2 hpos
+      rw [le_div_iff₀ hm] at hle
       nlinarith
 
 /-- **Arora–Barak Corollary 18.7: MAX-3SAT has no polynomial-time `ρ`-approximation algorithm

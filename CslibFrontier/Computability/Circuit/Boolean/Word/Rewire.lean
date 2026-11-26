@@ -59,10 +59,9 @@ theorem wordWires_ushiftRight_subset {k : ℕ} {g : BitString n → BitVec w}
     wordWires (fun x => g x >>> k) ⊆ s := by
   refine wordWires_subset_of_forall hg hz fun i => ?_
   by_cases h : k + i.val < w
-  · exact Or.inr ⟨⟨k + i.val, h⟩, fun x => by rw [BitVec.getLsbD_ushiftRight]⟩
-  · exact Or.inl fun x => by
-      rw [BitVec.getLsbD_ushiftRight]
-      exact BitVec.getLsbD_of_ge _ _ (by omega)
+  · exact Or.inr ⟨⟨k + i.val, h⟩, fun x => BitVec.getLsbD_ushiftRight (g x) k i.val⟩
+  · exact Or.inl fun x => (BitVec.getLsbD_ushiftRight (g x) k i.val).trans
+      (BitVec.getLsbD_of_ge _ _ (by omega))
 
 /-- A left shift only rewires bits. -/
 theorem wordWires_shiftLeft_subset {k : ℕ} {g : BitString n → BitVec w}
@@ -94,15 +93,12 @@ variable {n w : ℕ} {s : Set (BooleanFunction n)}
 theorem word_mask {f : BooleanFunction n} {b : BitString n → BitVec w} (hf : f ∈ s)
     (hb : wordWires b ⊆ s) :
     Synthesis interpretation s (wordWires fun x => if f x then b x else 0) w := by
-  have h := family (I := interpretation) (s := s)
-    (fun i : Fin w => fun x => f x && (b x).getLsbD i.val) (fun _ => 1)
-    fun i => by simpa using (of_mem hf).and (of_mem (hb ⟨i, rfl⟩))
   have heq : (fun i : Fin w => fun x => (if f x then b x else 0).getLsbD i.val) =
-      fun i : Fin w => fun x => f x && (b x).getLsbD i.val := by
-    funext i x
-    cases f x <;> simp
+      fun i x => f x && (b x).getLsbD i.val :=
+    funext fun i => funext fun x => by cases f x <;> simp
   rw [wordWires, heq]
-  simpa using h
+  simpa using family (I := interpretation) (s := s) (fun _ : Fin w => _) (fun _ => 1) fun i => by
+    simpa using (of_mem hf).and (of_mem (hb ⟨i, rfl⟩))
 
 end Synthesis
 

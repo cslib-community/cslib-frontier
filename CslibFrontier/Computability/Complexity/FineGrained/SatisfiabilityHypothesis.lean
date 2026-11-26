@@ -81,25 +81,19 @@ private theorem decidable_KSAT_of_SAT {k : ℕ} {p : ℝ} (hp : 0 ≤ p)
   have hmem (φ : CNF ℕ) : φ ∈ KSAT k ↔ reduce φ ∈ SAT := by
     dsimp only [reduce]
     split_ifs with hw
-    · have hwidth : ∀ c ∈ φ, c.length ≤ k := by simpa using hw
-      exact ⟨fun hφ => hφ.2, fun hφ => ⟨hwidth, hφ⟩⟩
-    · have hnot : ¬ ∀ c ∈ φ, c.length ≤ k := by simpa using hw
-      exact ⟨fun hφ => (hnot hφ.1).elim, fun ⟨σ, hσ⟩ => (Bool.false_ne_true hσ).elim⟩
+    · exact ⟨fun hφ => hφ.2, fun hφ => ⟨by simpa using hw, hφ⟩⟩
+    · exact ⟨fun hφ => absurd hφ.1 (by simpa using hw),
+        fun ⟨_, hσ⟩ => (Bool.false_ne_true hσ).elim⟩
   have hsize (φ : CNF ℕ) :
       (((reduce φ).numVars + (reduce φ).length + (reduce φ).vars.length : ℕ) + 1 : ℝ) ≤
         (↑(k + 1 : ℕ) + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
     rw [Real.rpow_one]
+    suffices (reduce φ).numVars + (reduce φ).length + (reduce φ).vars.length + 1 ≤
+        (k + 1 + 1) * (φ.numVars + φ.length + 1) by exact_mod_cast this
     dsimp only [reduce]
     split_ifs with hw
-    · have hwidth : ∀ c ∈ φ, c.length ≤ k := by simpa using hw
-      have hvars := CNF.length_vars_le_mul_length hwidth
-      have hvars' : (φ.vars.length : ℝ) ≤ (k : ℝ) * φ.length := by exact_mod_cast hvars
-      push_cast
-      nlinarith
-    · have hfalse : CNF.numVars ([[]] : CNF ℕ) + ([[]] : CNF ℕ).length +
-          (CNF.vars ([[]] : CNF ℕ)).length = 1 := by decide
-      rw [hfalse]
-      push_cast
+    · nlinarith [CNF.length_vars_le_mul_length (show ∀ c ∈ φ, c.length ≤ k by simpa using hw)]
+    · change 1 + 1 ≤ _
       nlinarith
   simpa only [one_mul] using h.of_polyTime_reduction hcomp hmem (K := k + 1)
     hsize zero_le_one hp
@@ -107,29 +101,24 @@ private theorem decidable_KSAT_of_SAT {k : ℕ} {p : ℝ} (hp : 0 ≤ p)
 /-- The size formulation of SH [MITHardnessGroup2026SH, Lemma 2.1, decision case].
 For any fixed width `k ≥ 3`, SH holds exactly when `k`-SAT admits no fixed power saving in the
 exponent measured in the number of occurring variables plus the number of clauses.
-The counting formulation for #SH is tracked in #8457. -/
+The counting formulation is proved in `SharpSatisfiabilityHypothesis`. -/
 theorem SH_iff_KSAT {k : ℕ} (hk : 3 ≤ k) :
     SH ↔ ∀ p : ℝ, 0 < p → p < 1 →
       ¬DecidableInPowerExpTime (KSAT k) encCNF (fun φ => φ.numVars + φ.length) p := by
   constructor
   · intro h p hp hp1 hsolver
     apply h p hp hp1
-    have hmem (φ : CNF ℕ) : φ ∈ SAT ↔ toThreeSAT φ ∈ KSAT k := by
-      constructor
-      · intro hφ
-        obtain ⟨hw, hs⟩ := (mem_ThreeSAT_toThreeSAT_iff φ).mpr hφ
-        exact ⟨fun c hc => (hw c hc).trans hk, hs⟩
-      · intro hφ
-        exact (mem_ThreeSAT_toThreeSAT_iff φ).mp ⟨width_toThreeSAT φ, hφ.2⟩
+    have hmem (φ : CNF ℕ) : φ ∈ SAT ↔ toThreeSAT φ ∈ KSAT k :=
+      ⟨fun hφ => ⟨fun c hc => (width_toThreeSAT φ c hc).trans hk,
+        ((mem_ThreeSAT_toThreeSAT_iff φ).mpr hφ).2⟩,
+       fun hφ => (mem_ThreeSAT_toThreeSAT_iff φ).mp ⟨width_toThreeSAT φ, hφ.2⟩⟩
     have hsize (φ : CNF ℕ) :
         (((toThreeSAT φ).numVars + (toThreeSAT φ).length : ℕ) + 1 : ℝ) ≤
           (3 + 1 : ℝ) * ((φ.numVars + φ.length + φ.vars.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
       rw [Real.rpow_one]
-      have hlinear : ((toThreeSAT φ).numVars : ℝ) + (toThreeSAT φ).length ≤
-          4 * ((φ.numVars : ℝ) + φ.length + φ.vars.length) := by
-        exact_mod_cast toThreeSAT_size_le φ
-      push_cast
-      linarith
+      have := toThreeSAT_size_le φ
+      exact_mod_cast (by omega : (toThreeSAT φ).numVars + (toThreeSAT φ).length + 1 ≤
+        (3 + 1) * (φ.numVars + φ.length + φ.vars.length + 1))
     simpa only [one_mul] using hsolver.of_polyTime_reduction computableInPolyTime_toThreeSAT
       hmem (K := 3) hsize zero_le_one hp.le
   · intro h p hp hp1 hsolver
@@ -153,16 +142,13 @@ theorem SH.not_decidableInPowerExpTime_of_reduction (hSH : SH)
   intro h
   let η := (1 - b * p) / (2 * p)
   have hη : 0 < η := div_pos (sub_pos.mpr hbp) (by positivity)
-  have hmul : (b + η) * p = (b * p + 1) / 2 := by
-    dsimp only [η]
-    field_simp [ne_of_gt hp]
-    ring
   obtain ⟨K, hK⟩ := hsize η hη
-  apply (SH_iff_KSAT (k := 3) le_rfl).mp hSH (max q ((b + η) * p))
-  · exact lt_max_of_lt_right (mul_pos (add_pos hb hη) hp)
-  · rw [max_lt_iff, hmul]
-    exact ⟨hq, by linarith⟩
-  · exact h.of_reduction hf hmem hK hp.le
+  refine (SH_iff_KSAT (k := 3) le_rfl).mp hSH (max q ((b + η) * p))
+    (lt_max_of_lt_right (mul_pos (add_pos hb hη) hp))
+    (max_lt hq ?_) (h.of_reduction hf hmem hK hp.le)
+  dsimp only [η]
+  rw [add_mul, div_mul_eq_mul_div, mul_div_mul_right _ _ hp.ne']
+  linarith
 
 /-- Linear-size polynomial-time reductions from width-three satisfiability transfer SH with the
 same power threshold. On formulas of greater width the reduction can use the image of a fixed
@@ -208,10 +194,8 @@ theorem SH.not_decidableInPowerExpTime_of_linear_reduction (hSH : SH)
           _ ≤ 2 * K * (φ.numVars + φ.length + 1) := Nat.mul_le_mul_left _ (by omega)
     have hl : (μ (reduce φ) + 1 : ℝ) ≤
         (↑(2 * K) + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) := by
-      have hbound' : (μ (reduce φ) : ℝ) ≤
-          2 * K * ((φ.numVars : ℝ) + φ.length + 1) := by exact_mod_cast hbound
-      push_cast
-      nlinarith
+      exact_mod_cast (Nat.add_le_add hbound
+        (Nat.le_add_left 1 (φ.numVars + φ.length))).trans_eq (by ring)
     refine hl.trans (mul_le_mul_of_nonneg_left ?_ (by positivity))
     conv_lhs => rw [← Real.rpow_one (((φ.numVars + φ.length : ℕ) : ℝ) + 1)]
     exact Real.rpow_le_rpow_of_exponent_le

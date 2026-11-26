@@ -56,13 +56,10 @@ private theorem poolFreeTop_lt_of_backyard_active {c U V n_max b loc_last : ℕ}
     (hcf : capFrontWhp n_max ≤ loc_last) :
     fs.backPtr b (loc_last - capFrontWhp n_max) < poolSizeWhp n_max ∧
     fs.poolFreeTop < poolSizeWhp n_max := by
-  have hbp := (hv.backPtr_valid b hb (loc_last - capFrontWhp n_max) (by omega)).1
   have hpc := hv.pool_conservation
-  have hle_sum : fs.bktCount b - capFrontWhp n_max ≤
-      ∑ b' ∈ Finset.range (numBucketsWhp n_max), (fs.bktCount b' - capFrontWhp n_max) :=
-    Finset.single_le_sum (f := fun b' => fs.bktCount b' - capFrontWhp n_max)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hb)
-  exact ⟨hbp, by omega⟩
+  have hle_sum := Finset.single_le_sum (f := fun b' => fs.bktCount b' - capFrontWhp n_max)
+    (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hb)
+  exact ⟨(hv.backPtr_valid b hb (loc_last - capFrontWhp n_max) (by omega)).1, by omega⟩
 
 /-- Optional `fastDeleteMoveLast` wrapper (`if loc_del < loc_last`). -/
 @[irreducible] private def fastDeleteOptMoveGenProg :
@@ -82,8 +79,7 @@ private theorem realizes_fastDeleteOptMoveGen :
           FastDelMoveLastPre w ((((wp, base), b), (loc_del, loc_last)), rebAct) s)
       (fun _ _ => 0) := by
   unfold fastDeleteOptMoveGenProg
-  have hdm := realizes_fastDeleteMoveLastGen
-  realize
+  realize [realizes_fastDeleteMoveLastGen]
   rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, ⟨loc_del, loc_last⟩⟩, rebAct⟩
   exact h (by assumption)
 
@@ -111,9 +107,7 @@ private theorem realizes_delHitPrepGen :
           1 ≤ fs.bktCount b)
       (fun _ _ => 0) := by
   unfold delHitPrepGenProg
-  have hrb := realizes_readBktFieldGen
-  have hra := realizes_readRebActiveBGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_readRebActiveBGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -133,6 +127,38 @@ private theorem realizes_delHitPrepGen :
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     | omega
   )
+
+/-- A prefix `p` that leaves the state unchanged and returns `r` peels off `p >>= k`: the state,
+result and validity of `p >>= k` are those of `k r`, and its cost is that of `p` plus `k r`. -/
+private theorem bind_of_readOnly {α : Type} {w F : ℕ} {s : Memory.State} {p : Memory.Prog α}
+    {r : α} (hst : (Memory.spec 0).clientState s p = s)
+    (hres : (Memory.spec 0).clientResult s p = r) (hvp : ValidProg w F s p) :
+    ∀ (β : Type) (k : α → Memory.Prog β),
+    (Memory.spec 0).clientState s (p >>= k) = (Memory.spec 0).clientState s (k r) ∧
+    (Memory.spec 0).clientResult s (p >>= k) = (Memory.spec 0).clientResult s (k r) ∧
+    memoryCost (p >>= k) s = memoryCost p s + memoryCost (k r) s ∧
+    (ValidProg w F s (p >>= k) ↔ ValidProg w F s (k r)) := fun _ k => by
+  refine ⟨by rw [clientState_bind, hst, hres], by rw [clientResult_bind, hst, hres],
+    by rw [memoryCost_bind', hst, hres], fun h hm => ?_, fun h => validProg_bind hvp ?_⟩
+  · have := ((validHistory_bind' w p k s).1 (h hm)).2
+    rwa [hst, hres] at this
+  · rwa [hst, hres]
+
+private theorem delHitPrepGenProg_step {c U V w n_max base b : ℕ}
+    {fs : FastState} {s : Memory.State}
+    (henv : WhpLargeEnv c U V w n_max w base) (hb : b < numBucketsWhp n_max)
+    (hrep : FastMemRep base c U V w n_max fs s.mem) :
+    CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (delHitPrepGenProg ((mkWhpCoreParams c U V w n_max, base), b)) s
+      (fs.bktCount b - 1,
+       if decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
+         fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
+         fs.rebCollision = 0) then 1 else 0) 9 := by
+  simp only [delHitPrepGenProg.eq_1, pure_bind]
+  have hc0 := CostBoundedStep.of (readBktFieldGenProg_spec henv hb (by decide : 0 < 10) hrep)
+  simp only [getBktField] at hc0
+  obtain ⟨h1, h2, h3, h4⟩ := readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
+  exact .mono (.bind hc0 <| .bind ⟨h1, h2, h3, h4⟩ (.pure _ _)) (by decide)
 
 /-- Hit branch of `fastDeleteBodyGenProg` once `fastFindLoc = some loc_del`
 (`d = ((((wp, base), b), loc_del), u_val)`). -/
@@ -160,11 +186,8 @@ private theorem realizes_fastDeleteHitGen :
           u_val < U)
       (fun _ _ => 0) := by
   unfold fastDeleteHitGenProg
-  have hdp := realizes_delHitPrepGen
-  have hdr := realizes_fastDeleteRemoveGen
-  have hdm := realizes_fastDeleteOptMoveGen
-  have hds := realizes_fastDeleteShrinkGen
-  realize
+  realize [realizes_delHitPrepGen, realizes_fastDeleteRemoveGen,
+    realizes_fastDeleteOptMoveGen, realizes_fastDeleteShrinkGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, loc_del⟩, u_val⟩
     dsimp only at *
@@ -179,65 +202,33 @@ private theorem realizes_fastDeleteHitGen :
     have hcnt : fs.bktCount b = loc_last + 1 := by omega
     have hll_tl : loc_last < totalLocalCoordsWhp n_max :=
       (by omega : loc_last < fs.bktCount b).trans_le (hv.bktCount_le b hb)
-    obtain ⟨hc0_st, hc0_res, _, _⟩ :=
-      readBktFieldGenProg_spec henv hb (by decide : 0 < 10) hrep (s := s)
-    simp only [getBktField] at hc0_res
-    obtain ⟨hra_st, hra_res, _, _⟩ := readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
-    have hprep_st : (Memory.spec 0).clientState s
-        (delHitPrepGenProg ((mkWhpCoreParams c U V w n_max, base), b)) = s := by
-      unfold delHitPrepGenProg; simp only [pure_bind]
-      rw [clientState_bind, hc0_st, hc0_res, clientState_bind, hra_st, hra_res]; rfl
-    have hprep_res : (Memory.spec 0).clientResult s
-        (delHitPrepGenProg ((mkWhpCoreParams c U V w n_max, base), b)) =
-        (loc_last,
-         if decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-           fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-           fs.rebCollision = 0) then 1 else 0) := by
-      unfold delHitPrepGenProg; simp only [pure_bind]
-      rw [clientResult_bind, hc0_st, hc0_res, clientResult_bind, hra_st, hra_res]; rfl
+    have hp := delHitPrepGenProg_step henv hb hrep (s := s)
     obtain ⟨_, _, hdr_step⟩ :=
       fastDeleteRemoveGenProg_fastStep u henv hseed hrep hv hb hld (s := s)
     set s1 := (Memory.spec 0).clientState s
       (fastDeleteRemoveGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), u_val))
     rw [hcp_eq] at *
-    try rw [hprep_st]
-    try rw [hprep_res]
+    try rw [hp.clientState_eq]
+    try rw [hp.clientResult_eq]
     first
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, by omega⟩
     | exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hld, hu⟩
-    | (dsimp only
-       intro hlt_ll
-       exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hv, hb, hcnt, hlt_ll, rfl,
-         hdr_step.2.1, hdr_step.2.2.1⟩)
+    | (exact fun hlt_ll => ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hv, hb, hcnt, hlt_ll,
+        rfl, hdr_step.2.1, hdr_step.2.2.1⟩)
     | (dsimp only
        unfold fastDeleteOptMoveGenProg; dsimp only
+       have hback := fun hcf => poolFreeTop_lt_of_backyard_active (fs := fs) hv hb hcnt hcf
        by_cases hlt_ll : loc_del < loc_last
        · rw [ite_eq_left hlt_ll]
          obtain ⟨_, _, hdm_step⟩ :=
            fastDeleteMoveLastGenProg_fastStep u henv hv hb hcnt hlt_ll
              hdr_step.2.1 hdr_step.2.2.1 (s := s1)
          exact ⟨c, U, V, w, n_max, θ, _, henv, rfl, hdm_step.2.1, hdm_step.2.2.1, hb, hll_tl,
-           fun hcf => poolFreeTop_lt_of_backyard_active (fs := fs) hv hb hcnt hcf⟩
+           hback⟩
        · rw [ite_eq_right hlt_ll, clientState_pure_whp]
          exact ⟨c, U, V, w, n_max, θ, _, henv, rfl, hdr_step.2.1, hdr_step.2.2.1, hb, hll_tl,
-           fun hcf => poolFreeTop_lt_of_backyard_active (fs := fs) hv hb hcnt hcf⟩)
+           hback⟩)
   )
-
-/-- A prefix `p` that leaves the state unchanged and returns `r` peels off `p >>= k`: the state,
-result and validity of `p >>= k` are those of `k r`, and its cost is that of `p` plus `k r`. -/
-private theorem bind_of_readOnly {α : Type} {w F : ℕ} {s : Memory.State} {p : Memory.Prog α}
-    {r : α} (hst : (Memory.spec 0).clientState s p = s)
-    (hres : (Memory.spec 0).clientResult s p = r) (hvp : ValidProg w F s p) :
-    ∀ (β : Type) (k : α → Memory.Prog β),
-    (Memory.spec 0).clientState s (p >>= k) = (Memory.spec 0).clientState s (k r) ∧
-    (Memory.spec 0).clientResult s (p >>= k) = (Memory.spec 0).clientResult s (k r) ∧
-    memoryCost (p >>= k) s = memoryCost p s + memoryCost (k r) s ∧
-    (ValidProg w F s (p >>= k) ↔ ValidProg w F s (k r)) := fun _ k => by
-  refine ⟨by rw [clientState_bind, hst, hres], by rw [clientResult_bind, hst, hres],
-    by rw [memoryCost_bind', hst, hres], fun h hm => ?_, fun h => validProg_bind hvp ?_⟩
-  · have := ((validHistory_bind' w p k s).1 (h hm)).2
-    rwa [hst, hres] at this
-  · rwa [hst, hres]
 
 private theorem fastDeleteHitGenProg_fastStep {c U V w n_max base loc_del : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} {s : Memory.State}
@@ -277,11 +268,8 @@ private theorem fastDeleteHitGenProg_fastStep {c U V w n_max base loc_del : ℕ}
   have hcnt : fs.bktCount b = loc_last + 1 := by omega
   have hll_tl : loc_last < totalLocalCoordsWhp n_max :=
     (by omega : loc_last < fs.bktCount b).trans_le (hv.bktCount_le b hb)
-  obtain ⟨hc0_st, hc0_res, hc0_mc, hc0_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 0 < 10) hrep (s := s)
-  simp only [getBktField] at hc0_res
-  obtain ⟨hra_st, hra_res, hra_mc, hra_vp⟩ :=
-    readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
+  have hp := delHitPrepGenProg_step henv hb hrep (s := s)
+  have hp_mc := hp.memoryCost_le
   set rebActiveB : Bool := decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
       fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
       fs.rebCollision = 0)
@@ -291,44 +279,37 @@ private theorem fastDeleteHitGenProg_fastStep {c U V w n_max base loc_del : ℕ}
   set fs1 := fastDeleteRemove c U n_max θ fs u b loc_del
   set s1 := (Memory.spec 0).clientState s
     (fastDeleteRemoveGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), u.val))
+  have hback := fun hcf => poolFreeTop_lt_of_backyard_active (fs := fs) hv hb hcnt hcf
+  have hP := bind_of_readOnly hp.clientState_eq hp.clientResult_eq hp.validProg
   dsimp only
-  unfold fastDeleteHitGenProg delHitPrepGenProg fastDeleteOptMoveGenProg
-  simp only [pure_bind, bind_assoc]
-  have hC := bind_of_readOnly hc0_st hc0_res hc0_vp
-  have hR := bind_of_readOnly hra_st hra_res hra_vp
-  rw [hwp1, (hC _ _).1, (hC _ _).2.2.1, (hC _ _).2.2.2, hc0_mc, (hR _ _).1, (hR _ _).2.2.1,
-    (hR _ _).2.2.2, clientState_bind, memoryCost_bind']
+  rw [fastDeleteHitGenProg.eq_1, hwp1, (hP _ _).1, (hP _ _).2.2.1, (hP _ _).2.2.2,
+    clientState_bind, memoryCost_bind', fastDeleteOptMoveGenProg.eq_1]
   by_cases hlt_ll : loc_del < fs.bktCount b - 1
-  · have hlt_ll' : loc_del < loc_last := hlt_ll
-    simp only [hlt_ll, ↓reduceIte]
+  · simp only [hlt_ll, ↓reduceIte]
     obtain ⟨hdm_mc, hdm_vp, hdm_step⟩ :=
-      fastDeleteMoveLastGenProg_fastStep u henv hv hb hcnt hlt_ll' hdr_step.2.1 hdr_step.2.2.1
+      fastDeleteMoveLastGenProg_fastStep u henv hv hb hcnt hlt_ll hdr_step.2.1 hdr_step.2.2.1
         (s := s1)
     set s2 := (Memory.spec 0).clientState s1
       (fastDeleteMoveLastGenProg
         ((((mkWhpParams c U V w n_max, base), b), (loc_del, loc_last)), rebAct))
     set fs2_rel := fastDeleteMoveLast c U n_max θ b loc_del loc_last rebActiveB fs1
     obtain ⟨hds_mc, hds_vp, hds_step⟩ :=
-      fastDeleteShrinkGenProg_fastStep (fs2 := fs2_rel) henv hb hll_tl
-        (fun hcf => poolFreeTop_lt_of_backyard_active (fs := fs) hv hb hcnt hcf)
+      fastDeleteShrinkGenProg_fastStep (fs2 := fs2_rel) henv hb hll_tl hback
         hdm_step.2.1 hdm_step.2.2.1 (s := s2)
     obtain ⟨hc_rel, _, hom_rel, _⟩ := fastDelete_afterDel_reloc_spec hv u hld hq_del hlt_ll
     rw [clientState_bind, memoryCost_bind']
     refine ⟨?_, validProg_bind hdr_vp (validProg_bind hdm_vp hds_vp),
       (hdr_step.trans hdm_step).trans hds_step,
       OvermarsBucketStepBounds.of_core_and_pre hc_rel hb hom_rel⟩
-    dsimp only [s1, s2, loc_last, rebAct, rebActiveB, b] at hra_mc hdr_mc hdm_mc hds_mc ⊢
-    omega
+    dsimp only [s1, s2, loc_last, rebAct, rebActiveB, b] at hp_mc hdr_mc hdm_mc hds_mc ⊢; omega
   · simp only [hlt_ll, ↓reduceIte, pure_bind]
     obtain ⟨hds_mc, hds_vp, hds_step⟩ :=
-      fastDeleteShrinkGenProg_fastStep (fs2 := fs1) henv hb hll_tl
-        (fun hcf => poolFreeTop_lt_of_backyard_active (fs := fs) hv hb hcnt hcf)
+      fastDeleteShrinkGenProg_fastStep (fs2 := fs1) henv hb hll_tl hback
         hdr_step.2.1 hdr_step.2.2.1 (s := s1)
     obtain ⟨hc_last, _, hom_last, _⟩ := fastDelete_afterDel_last_spec hv u hld hq_del hlt_ll
     refine ⟨?_, validProg_bind hdr_vp hds_vp, hdr_step.trans hds_step,
       OvermarsBucketStepBounds.of_core_and_pre hc_last hb hom_last⟩
-    dsimp only [s1, loc_last, b] at hra_mc hdr_mc hds_mc ⊢
-    omega
+    dsimp only [s1, loc_last, b] at hp_mc hdr_mc hds_mc ⊢; omega
 
 /-- Foreground body of `fastDelete` prior to `overmarsStep`
 (`d = (((wp, base), bq), u_val)`). -/
@@ -358,9 +339,7 @@ private theorem realizes_fastDeleteBodyGen :
                 keyQuotient (bWhp n_max) u_val))
       (fun _ _ => 0) := by
   unfold fastDeleteBodyGenProg
-  have hfl := realizes_fastFindLocBqGen
-  have hhit := realizes_fastDeleteHitGen
-  realize
+  realize [realizes_fastFindLocBqGen, realizes_fastDeleteHitGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, ⟨b, q_val⟩⟩, u_val⟩
     dsimp only at *
@@ -383,15 +362,10 @@ private theorem realizes_fastDeleteBodyGen :
     | (rw [hcp_eq, wp_large_M hth]; exact hb)
     | (have hspec := hv.fastFindLoc_spec u
        cases hfind : fastFindLoc c U n_max θ fs u with
-       | none =>
-         have hhit : ((Memory.spec 0).clientResult s
-           (fastFindLocBqGenProg (((mkWhpParams c U V w n_max, base),
-             (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val,
-              keyQuotient (bWhp n_max) u_val)), u_val))).1 = 1 := by assumption
-         rw [hfind] at hfl_res; rw [hfl_res] at hhit; cases hhit
+       | none => simp_all [u]
        | some loc_del =>
          rw [hfind] at hfl_res hspec
-         rw [hfl_res]; dsimp only
+         rw [hfl_res]
          exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hspec.1, hu⟩)
   )
 
@@ -431,28 +405,20 @@ private theorem fastDeleteBodyGenProg_fastStep {c U V w n_max base : ℕ}
   obtain ⟨hfl_st, hfl_res, hfl_mc, hfl_vp⟩ :=
     fastFindLocBqGenProg_spec henv hseed hrep hv u (s := s)
   have hspec := hv.fastFindLoc_spec u
+  have hF := bind_of_readOnly hfl_st hfl_res hfl_vp
   dsimp only
-  unfold fastDeleteBodyGenProg
-  simp only [pure_bind]
+  simp only [fastDeleteBodyGenProg.eq_1, pure_bind]
+  rw [(hF _ _).1, (hF _ _).2.2.1, (hF _ _).2.2.2]
   cases hfind : fastFindLoc c U n_max θ fs u with
   | none =>
-    rw [hfind] at hfl_res
-    dsimp only at hfl_res ⊢
-    have hF := bind_of_readOnly hfl_st hfl_res hfl_vp
-    rw [(hF _ _).1, (hF _ _).2.2.1, (hF _ _).2.2.2]
     simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]
-    refine ⟨?_, validProg_pure _, FastStateStep.refl hseed hrep,
+    refine ⟨by omega, validProg_pure _, FastStateStep.refl hseed hrep,
       OvermarsBucketStepBounds.of_core_and_pre hv.toCore hb
         (OvermarsBucketInv.toPre (hv.overmars_valid b hb))⟩
-    omega
   | some loc_del =>
-    rw [hfind] at hfl_res hspec
-    dsimp only at hfl_res ⊢
-    obtain ⟨hld, hq_del⟩ := hspec
+    rw [hfind] at hspec
     obtain ⟨hhit_mc, hhit_vp, hhit_step, hhit_bnds⟩ :=
-      fastDeleteHitGenProg_fastStep u henv hseed hrep hv hld hq_del (s := s)
-    have hF := bind_of_readOnly hfl_st hfl_res hfl_vp
-    rw [(hF _ _).1, (hF _ _).2.2.1, (hF _ _).2.2.2]
+      fastDeleteHitGenProg_fastStep u henv hseed hrep hv hspec.1 hspec.2 (s := s)
     simp only [↓reduceIte]
     refine ⟨?_, hhit_vp, hhit_step, hhit_bnds⟩
     dsimp only [b, q_val] at hfl_mc hhit_mc ⊢; omega
@@ -473,11 +439,8 @@ theorem realizes_fastDeleteGen :
       (fun w ((wp, base), u_val) s => ValidFastMemPre w wp base s ∧ u_val < wpU wp.1)
       (fun _ _ => 0) := by
   unfold fastDeleteGenProg
-  have hmh := realizes_mkHashRtGen
-  have hfs := realizes_feistelSplitRt
-  have hdb := realizes_fastDeleteBodyGen
-  have hom := realizes_overmarsStepGen
-  realize
+  realize [realizes_mkHashRtGen, realizes_feistelSplitRt,
+    realizes_fastDeleteBodyGen, realizes_overmarsStepGen]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, u_val⟩
     dsimp only at *
@@ -531,14 +494,10 @@ theorem fastDeleteGenProg_fastStep {c U V w n_max base : ℕ}
   have hM := bind_of_readOnly hmh_st hmh_res hmh_vp
   have hS := bind_of_readOnly hfs_st hfs_res hfs_vp
   dsimp only
-  unfold fastDeleteGenProg fastDelete
-  rw [(hM _ _).1, (hM _ _).2.2.1, (hM _ _).2.2.2, hmh_mc, (hS _ _).1, (hS _ _).2.2.1,
-    (hS _ _).2.2.2, clientState_bind, memoryCost_bind']
+  rw [fastDeleteGenProg.eq_1, fastDelete, (hM _ _).1, (hM _ _).2.2.1, (hM _ _).2.2.2, hmh_mc,
+    (hS _ _).1, (hS _ _).2.2.1, (hS _ _).2.2.2, clientState_bind, memoryCost_bind']
   refine ⟨?_, validProg_bind hdb_vp hom_vp, hdb_step.trans hom_step⟩
-  have hfs_mc' : memoryCost (feistelSplitRtProg (mkHashRt c U w n_max base, u.val)) s ≤
-      hashEvalCostWhp c := hfs_mc
-  dsimp only [s1, bq] at hdb_mc hom_mc ⊢
-  omega
+  dsimp only [s1, bq] at hfs_mc hdb_mc hom_mc ⊢; omega
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

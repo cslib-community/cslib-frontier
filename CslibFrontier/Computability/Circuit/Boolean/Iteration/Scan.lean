@@ -128,9 +128,8 @@ theorem synthesis_scanMin (s : Set (BooleanFunction a)) (values : BitString a �
   · exact hs.mono Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
   · let src := s ∪ Synthesis.stages q t
     have hcur : wires (current t) ⊆ src := fun _ h => Or.inr (Synthesis.subset_stages q le_rfl h)
-    have hval : wires (fun x => values x ⟨t, ht⟩) ⊆ src := by
-      rintro _ ⟨bit, rfl⟩
-      exact Or.inl (hv _ bit)
+    have hval : wires (fun x => values x ⟨t, ht⟩) ⊆ src :=
+      fun _ ⟨bit, h⟩ => h ▸ Or.inl (hv _ bit)
     let less := fun x => decide (toLex (values x ⟨t, ht⟩) < toLex (current t x))
     have hl := synthesis_lexLt src (fun x => values x ⟨t, ht⟩) (current t) hval hcur
     have hm := synthesis_bits_mux (src ∪ {less}) (fun x => values x ⟨t, ht⟩) (current t) less
@@ -178,12 +177,9 @@ theorem chooseFirst_spec {α : Type*} (flags : Fin R → Bool) (records : Fin R 
     (fallback : α) (j : Fin R) (hj : flags j = true)
     (hfirst : ∀ i : Fin R, i.val < j.val → flags i = false) :
     chooseFirst flags records fallback = records j := by
-  have h := chooseRecord_eq_of_last (fun i => flags i.rev) (fun i => records i.rev)
-    fallback j.rev (by simpa using hj) R j.rev.isLt fun i hi _ => by
-      apply hfirst
-      simp only [Fin.val_rev] at hi ⊢
-      omega
-  simpa only [chooseFirst, Fin.rev_rev] using h
+  simpa only [chooseFirst, Fin.rev_rev] using chooseRecord_eq_of_last (fun i => flags i.rev)
+    (fun i => records i.rev) fallback j.rev (by simpa using hj) R j.rev.isLt fun i hi _ =>
+      hfirst i.rev (by simp only [Fin.val_rev] at hi ⊢; omega)
 
 /-- The first flagged position in `w` bits, or zero if none is flagged. -/
 def firstIndex (flags : Fin R → Bool) : BitVec w :=

@@ -106,8 +106,8 @@ theorem lt_length_succ_parameter {length : ℕ → ℕ} (hge : ∀ n, n + 1 ≤ 
 
 /-- Every fixed parameter eventually fits, so the selected parameter tends to infinity. -/
 theorem parameter_tendsto (length : ℕ → ℕ) : Tendsto (parameter length) atTop atTop :=
-  tendsto_atTop.2 fun n => (eventually_ge_atTop (max n (length n))).mono fun _ _ =>
-    Nat.le_findGreatest (by lia) (by lia)
+  tendsto_atTop.2 fun n => (eventually_ge_atTop (max n (length n))).mono fun _ h =>
+    Nat.le_findGreatest (max_le_iff.mp h).1 (max_le_iff.mp h).2
 
 /-- Search for a family member that fits, then preserve the remaining seed bits as padding. -/
 def generate (length : ℕ → ℕ) (generator : ℕ → List Bool → List Bool)

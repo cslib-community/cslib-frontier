@@ -219,8 +219,10 @@ theorem minCut_le_rowDeg (hV : 2 ≤ Fintype.card V) {W : V → V → ℕ} (hW :
 theorem mul_minCut_le_totalDoubledWeight (hV : 2 ≤ Fintype.card V) {W : V → V → ℕ}
     (hW : IsMultigraph W) :
     Fintype.card V * minCut W ≤ totalDoubledWeight W := by
-  simpa [totalDoubledWeight] using Finset.sum_le_sum fun u (_ : u ∈ Finset.univ) =>
-    minCut_le_rowDeg hV hW u
+  unfold totalDoubledWeight
+  calc
+    Fintype.card V * minCut W = ∑ _u : V, minCut W := by simp
+    _ ≤ ∑ u : V, rowDeg W u := Finset.sum_le_sum fun u _ => minCut_le_rowDeg hV hW u
 
 theorem totalDoubledWeight_pos_of_minCut_pos (hV : 2 ≤ Fintype.card V) {W : V → V → ℕ}
     (hW : IsMultigraph W) (hpos : 0 < minCut W) :
@@ -243,7 +245,8 @@ theorem mem_pullbackCut (part : V → U) (B : Finset U) (x : V) :
 
 theorem pullbackCut_empty (part : V → U) :
     pullbackCut part ∅ = ∅ := by
-  ext; simp [pullbackCut]
+  ext x
+  simp [pullbackCut]
 
 /-- `W : U → U → ℕ` is the contracted multigraph of `W₀ : V → V → ℕ` along the surjective
 supervertex assignment `part : V → U`: the weight between distinct supervertices is the total
@@ -259,7 +262,8 @@ variable [Fintype U]
 
 theorem pullbackCut_univ (part : V → U) :
     pullbackCut part Finset.univ = Finset.univ := by
-  ext; simp [pullbackCut]
+  ext x
+  simp [pullbackCut]
 
 theorem isNonTrivialCut_pullbackCut {part : V → U} (hsurj : Function.Surjective part)
     {B : Finset U} (hB : IsNonTrivialCut B) :
@@ -280,7 +284,8 @@ variable [DecidableEq V]
 
 theorem pullbackCut_compl (part : V → U) (B : Finset U) :
     pullbackCut part (Finset.univ \ B) = Finset.univ \ pullbackCut part B := by
-  ext; simp [pullbackCut]
+  ext x
+  simp [pullbackCut]
 
 theorem isContractionOf_id {W₀ : V → V → ℕ} (hW₀ : IsMultigraph W₀) :
     IsContractionOf W₀ id W₀ where
@@ -299,9 +304,16 @@ theorem cutWeight_pullbackCut {W₀ : V → V → ℕ} {part : V → U} {W : U �
     simp only [pullbackCut, Finset.mem_filter, Finset.mem_univ, true_and, and_iff_right_iff_imp]
     exact fun h => h ▸ ha
   simp only [cutWeight, ← pullbackCut_compl, hdecomp]
-  refine Finset.sum_congr rfl fun a ha => Finset.sum_comm.trans <|
-    Finset.sum_congr rfl fun b hb => ?_
-  exact (hC.offDiag a b fun h => (Finset.mem_sdiff.1 hb).2 (h ▸ ha)).symm
+  refine Finset.sum_congr rfl fun a ha => ?_
+  calc
+    ∑ x ∈ Finset.univ.filter (part · = a),
+        ∑ b ∈ Finset.univ \ B, ∑ y ∈ Finset.univ.filter (part · = b), W₀ x y
+      = ∑ b ∈ Finset.univ \ B,
+          ∑ x ∈ Finset.univ.filter (part · = a), ∑ y ∈ Finset.univ.filter (part · = b), W₀ x y :=
+        Finset.sum_comm
+    _ = ∑ b ∈ Finset.univ \ B, W a b :=
+        Finset.sum_congr rfl fun b hb =>
+          (hC.offDiag a b fun h => (Finset.mem_sdiff.1 hb).2 (h ▸ ha)).symm
 
 theorem minCut_le_of_isContractionOf (hU : 2 ≤ Fintype.card U) {W₀ : V → V → ℕ}
     {part : V → U} {W : U → U → ℕ} (hC : IsContractionOf W₀ part W) :

@@ -41,11 +41,10 @@ variable {R ι : Type*} [CommRing R] [Fintype ι] [DecidableEq ι]
 private theorem derivative_det_adjugate (M : Matrix ι ι R[X]) :
     derivative M.det = (M.adjugate * M.map derivative).trace := by
   classical
-  have h : derivative M.det = ∑ i, (M.updateCol i (fun j => derivative (M j i))).det :=
-    Derivation.map_det (Polynomial.derivative' (R := R)) M
-  rw [h, Matrix.trace]
-  exact Finset.sum_congr rfl fun i _ => by
-    rw [← Matrix.cramer_apply, Matrix.cramer_eq_adjugate_mulVec]; rfl
+  rw [id (α := derivative M.det = ∑ i, (M.updateCol i (fun j => derivative (M j i))).det)
+      (Derivation.map_det (Polynomial.derivative' (R := R)) M), Matrix.trace]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [← Matrix.cramer_apply, Matrix.cramer_eq_adjugate_mulVec]; rfl
 
 /-- The adjugate of `1 - X M`, regarded as a polynomial of matrices. -/
 private noncomputable def reverseAdjugate (M : Matrix ι ι R) : (Matrix ι ι R)[X] :=
@@ -55,7 +54,8 @@ private theorem reverseAdjugate_relation (M : Matrix ι ι R) :
     reverseAdjugate M * (1 - X * C M) =
       M.charpolyRev.map (algebraMap R (Matrix ι ι R)) := by
   classical
-  have h := congrArg (matPolyEquiv (R := R)) (Matrix.adjugate_mul (1 - (X : R[X]) • M.map C))
+  have h := congrArg (matPolyEquiv (R := R))
+    (Matrix.adjugate_mul (1 - (X : R[X]) • M.map C))
   simpa only [reverseAdjugate, Matrix.charpolyRev, map_mul, map_sub, map_one,
     matPolyEquiv_map_smul, map_X, matPolyEquiv_map_C, matPolyEquiv_smul_one, mul_one] using h
 
@@ -86,12 +86,14 @@ private theorem derivative_charpolyRev (M : Matrix ι ι R) :
   classical
   have h := derivative_det_adjugate (1 - (X : R[X]) • M.map C)
   have hder : (1 - (X : R[X]) • M.map C).map derivative = -M.map C := by
-    ext i j; by_cases hij : i = j <;> simp [hij, derivative_mul]
+    ext i j
+    by_cases hij : i = j <;> simp [hij, derivative_mul]
   rwa [hder, Matrix.mul_neg, Matrix.trace_neg] at h
 
 private theorem matrix_trace_coeff (M : Matrix ι ι R[X]) (k : ℕ) :
     M.trace.coeff k = ((matPolyEquiv M).coeff k).trace := by
-  classical simp only [Matrix.trace, Matrix.diag_apply, finsetSum_coeff, matPolyEquiv_coeff_apply]
+  classical
+  simp only [Matrix.trace, Matrix.diag_apply, finsetSum_coeff, matPolyEquiv_coeff_apply]
 
 /-- Newton's characteristic-coefficient recurrence over an arbitrary
  commutative ring. No inverses or eigenvalues occur in this identity. -/
@@ -137,13 +139,15 @@ theorem coefficients_eq_of_newton (D : ℕ) (t : ℕ → K) (P Q : K[X])
     (hQ : ∀ k < D, (k + 1 : ℕ) * Q.coeff (k + 1) =
       -(∑ j ∈ Finset.range (k + 1), Q.coeff (k - j) * t (j + 1)))
     (k : ℕ) (hk : k ≤ D) : P.coeff k = Q.coeff k := by
-  induction k using Nat.strong_induction_on with | ind k ih =>
-  rcases k with _ | k
-  · exact hzero
-  · refine mul_left_cancel₀ (hK (k + 1) (by omega) hk) ?_
+  classical
+  cases k with
+  | zero => exact hzero
+  | succ k =>
+    refine mul_left_cancel₀ (hK (k + 1) (by omega) hk) ?_
     rw [hP k (by omega), hQ k (by omega)]
-    exact congrArg Neg.neg (Finset.sum_congr rfl fun j _ => by
-      rw [ih (k - j) (by omega) (by omega)])
+    exact congrArg (- ·) (Finset.sum_congr rfl fun j _ => congrArg (· * t (j + 1))
+      (coefficients_eq_of_newton D t P Q hK hzero hP hQ (k - j) (by omega)))
+termination_by k
 
 end Polynomial
 
@@ -169,10 +173,12 @@ private theorem trace_exponential_newton {ι : Type*} [Fintype ι] [DecidableEq 
   let G := ofFn (D + 1) (fun j => -(M ^ (j : ℕ)).trace / ((j : ℕ) : K))
   have h := finiteExponential_differential_coeff D G (by simp [G]) hK k hk
   rw [coeff_derivative, coeff_mul, Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk] at h
-  have hsum : ∑ j ∈ Finset.range (k + 1),
-      (derivative G).coeff j * (finiteExponential D G).coeff (k - j) =
+  have hsum : (∑ j ∈ Finset.range (k + 1),
+      (derivative G).coeff j *
+        (finiteExponential D G).coeff (k - j)) =
       -(∑ j ∈ Finset.range (k + 1),
-        (finiteExponential D G).coeff (k - j) * (M ^ (j + 1)).trace) := by
+        (finiteExponential D G).coeff (k - j) *
+          (M ^ (j + 1)).trace) := by
     rw [← Finset.sum_neg_distrib]
     refine Finset.sum_congr rfl fun j hj => ?_
     have hjD : j < D := lt_of_lt_of_le (Finset.mem_range.mp hj) hk
@@ -192,9 +198,7 @@ theorem trace_exponential_coeff_eq_charpolyRev {ι : Type*} [Fintype ι] [Decida
       M.charpolyRev.coeff k := by
   refine coefficients_eq_of_newton D (fun j => (M ^ j).trace) _ _ hK ?_
     (trace_exponential_newton M D hK) (fun j _ => charpolyRev_newton M j) k hk
-  rw [finiteExponential_coeff_zero D
-      (ofFn (D + 1) fun j => -(M ^ (j : ℕ)).trace / ((j : ℕ) : K)) (by simp),
-    coeff_zero_eq_eval_zero, Matrix.eval_charpolyRev]
+  rw [finiteExponential_coeff_zero D _ (by simp), coeff_zero_eq_eval_zero, Matrix.eval_charpolyRev]
 
 /-- Reversal turns the constructed exponential coefficients into the
  actual characteristic polynomial coefficients of the matrix. -/

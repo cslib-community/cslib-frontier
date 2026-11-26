@@ -265,15 +265,19 @@ theorem abs_stationaryState_root_sub_le_weighted_dyadic {K : ℕ}
         (max_le (by simpa using hB) (hweighted y hy hd 0))
     · have hl := hlow y (not_le.mp hd)
       simpa only [max_eq_left hl.1, max_eq_left hl.2, sub_self, abs_zero] using hB
+  have hrank : |max η (firstRank s K b.defaultValue b.row) -
+      max η (firstRank s K 0 truth)| ≤ B :=
+    abs_clipped_firstRank_sub_le hK hη.le hB
+      (stationaryState_defaultValue_le_dyadic hη.le ha haη m j hj hno) hη.le hclipped
   by_cases hd : η / 2 ≤ truth y 0
   · rw [output_eq_lowerClipped hη.le hentry hflat _ _ _ firstRank_nonneg,
       output_eq_lowerClipped hη.le hentry hflat _ _ _ firstRank_nonneg]
-    refine (hroot _ _ _ _ _ _ (le_max_left _ _) (le_max_left _ _) (le_max_left _ _)
-      (le_max_left _ _)).trans <| (mul_le_mul_of_nonneg_left (add_le_add
-        (add_le_add (hclipped y hy) (hweighted y hy hd 1))
-        (abs_clipped_firstRank_sub_le hK hη.le hB
-          (stationaryState_defaultValue_le_dyadic hη.le ha haη m j hj hno) hη.le hclipped))
-        hC).trans_eq (by ring)
+    calc _ ≤ C * (|max η (b.row y 0) - max η (truth y 0)| + |b.row y 1 - truth y 1| +
+          |max η (firstRank s K b.defaultValue b.row) - max η (firstRank s K 0 truth)|) :=
+        hroot _ _ _ _ _ _ (le_max_left _ _) (le_max_left _ _) (le_max_left _ _) (le_max_left _ _)
+      _ ≤ C * (B + B + B) := mul_le_mul_of_nonneg_left
+        (add_le_add (add_le_add (hclipped y hy) (hweighted y hy hd 1)) hrank) hC
+      _ = 3 * C * B := by ring
   · have hl := hlow y (not_le.mp hd)
     rw [hentry _ _ _ hl.1, hentry _ _ _ hl.2, sub_self, abs_zero]
     positivity

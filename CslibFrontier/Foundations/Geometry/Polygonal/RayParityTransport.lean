@@ -67,12 +67,8 @@ theorem rayParity_lineMap_add_eq_sum_intersections_of_even {ι : Type*} [Fintype
   let point (u : ℝ) := AffineMap.lineMap (a i) (b i) u
   let y (j : ι) : Bool := if j = i then 0 else x j
   have hremove (u : ℝ) : rayParity a b x (point u) = rayParity a b y (point u) := by
-    apply Finset.sum_congr rfl
-    intro j _
-    by_cases hj : j = i
-    · subst j
-      simp only [point, not_rayCrosses_lineMap (hheight i), ↓reduceIte]
-    · simp only [y, hj, ↓reduceIte]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    by_cases hj : j = i <;> simp [point, y, hj, not_rayCrosses_lineMap (hheight i)]
   have hcut (z : ℂ) (hz : z ∈ segment ℝ (point s) (point t)) :
       ∃ u ∈ Set.Ioo (0 : ℝ) 1, point u = z := by
     rw [← image_segment ℝ (AffineMap.lineMap (a i) (b i)) s t] at hz
@@ -131,8 +127,7 @@ theorem rayParity_lineMap_eq_of_even {ι : Type*} [Fintype ι]
       rayParity a b x (AffineMap.lineMap (a i) (b i) t) := by
   classical
   by_cases hst : s = t
-  · subst t
-    rfl
+  · simp [hst]
   have h := rayParity_lineMap_add_eq_sum_intersections_of_even a b x hheight heven i
     (fun j hj _ u hu => ⟨
       fun he => hisolated j hj u hu (he ▸ left_mem_segment ℝ (a j) (b j)),
@@ -141,8 +136,7 @@ theorem rayParity_lineMap_eq_of_even {ι : Type*} [Fintype ι]
   have hzero : (∑ j, (if j = i then 0 else x j) * decide
       ((openSegment ℝ (a j) (b j) ∩ openSegment ℝ
         (AffineMap.lineMap (a i) (b i) s) (AffineMap.lineMap (a i) (b i) t)).Nonempty)) = 0 := by
-    apply Finset.sum_eq_zero
-    intro j _
+    refine Finset.sum_eq_zero fun j _ => ?_
     by_cases hj : j = i
     · simp [hj]
     have hno : ¬(openSegment ℝ (a j) (b j) ∩ openSegment ℝ

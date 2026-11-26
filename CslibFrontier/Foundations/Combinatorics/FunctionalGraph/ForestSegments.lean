@@ -70,11 +70,9 @@ theorem forest_cycle_entry_mem {x : α} (hx : x ∈ checkpointHull f H) :
 
 /-- For a hull state `x` and `i < transientDepth f x`, the state `f^[i] x` is a forest source. -/
 theorem forest_iterate_mem_sources {x : α} (hx : x ∈ checkpointHull f H)
-    {i : ℕ} (hi : i < transientDepth f x) : f^[i] x ∈ forestSources f H := by
-  apply (mem_forestSources f H _).mpr
-  refine ⟨checkpointHull_iterate f H hx hi.le, ?_⟩
-  rw [transientDepth_iterate]
-  omega
+    {i : ℕ} (hi : i < transientDepth f x) : f^[i] x ∈ forestSources f H :=
+  (mem_forestSources f H _).mpr ⟨checkpointHull_iterate f H hx hi.le,
+    by rw [transientDepth_iterate]; omega⟩
 
 /-- A compressed edge ends at the next mark, no later than cycle entry. -/
 structure IsForestEdge (x : α) (d : ℕ) : Prop where
@@ -106,12 +104,9 @@ private theorem forest_edge_pred_eq {a b : α} {d i j : ℕ}
 
 /-- The length of a compressed edge from `x` is unique. -/
 theorem IsForestEdge.unique {x : α} {d₁ d₂ : ℕ}
-    (h₁ : IsForestEdge f H x d₁) (h₂ : IsForestEdge f H x d₂) : d₁ = d₂ := by
-  apply le_antisymm
-  · by_contra h
-    exact h₁.interior d₂ h₂.pos (by omega) h₂.end_mem
-  · by_contra h
-    exact h₂.interior d₁ h₁.pos (by omega) h₁.end_mem
+    (h₁ : IsForestEdge f H x d₁) (h₂ : IsForestEdge f H x d₂) : d₁ = d₂ :=
+  le_antisymm (not_lt.mp fun h => h₁.interior d₂ h₂.pos h h₂.end_mem)
+    (not_lt.mp fun h => h₂.interior d₁ h₁.pos h h₁.end_mem)
 
 /-- Applying checkpoint coverage after one step bounds each compressed edge by `2 * L`. -/
 theorem exists_short_forest_edge {L : ℕ} (_hL : 0 < L)
@@ -122,23 +117,18 @@ theorem exists_short_forest_edge {L : ℕ} (_hL : 0 < L)
   have hxS := forestMarks_subset_hull f H hx
   have hroot := forest_cycle_entry_mem f H hxS
   have hex : ∃ d, 0 < d ∧ f^[d] x ∈ forestMarks f H := ⟨_, hd, hroot⟩
-  have hshort : ∃ t, 0 < t ∧ t ≤ 2 * L ∧ f^[t] x ∈ forestMarks f H := by
+  obtain ⟨t, ht, htL, htm⟩ : ∃ t, 0 < t ∧ t ≤ 2 * L ∧ f^[t] x ∈ forestMarks f H := by
     rcases hcover (f x) with ⟨i, j, hij, hj, he⟩ | ⟨t, ht, hmem⟩
     · have hperiod := transientDepth_add_cycleLength_le_of_iterate_eq f (f x) hij he
       have hdepth : transientDepth f (f x) = transientDepth f x - 1 := by
         simpa only [Function.iterate_one] using transientDepth_iterate f x 1
       exact ⟨_, hd, by omega, hroot⟩
-    · refine ⟨t + 1, by omega, by omega, ?_⟩
-      rw [Function.iterate_succ_apply]
-      exact subset_forestMarks f H hmem
+    · exact ⟨t + 1, by omega, by omega,
+        (Function.iterate_succ_apply f t x).symm ▸ subset_forestMarks f H hmem⟩
   let d := Nat.find hex
   have hspec := Nat.find_spec hex
-  have hdepth : d ≤ transientDepth f x := Nat.find_min' hex ⟨hd, hroot⟩
-  obtain ⟨t, ht, htL, htm⟩ := hshort
-  have hdt : d ≤ t := Nat.find_min' hex ⟨ht, htm⟩
-  refine ⟨d, hdt.trans htL, hx, hspec.1, hdepth, hspec.2, ?_⟩
-  intro i hi hid him
-  exact Nat.find_min hex hid ⟨hi, him⟩
+  exact ⟨d, (Nat.find_min' hex ⟨ht, htm⟩).trans htL, hx, hspec.1,
+    Nat.find_min' hex ⟨hd, hroot⟩, hspec.2, fun i hi hid him => Nat.find_min hex hid ⟨hi, him⟩⟩
 
 /-- Interiors of compressed edges are disjoint, including their starting marks. -/
 theorem forest_edge_interior_inj {x y : α} {d e : ℕ}
@@ -178,19 +168,16 @@ theorem forest_hull_partition {L : ℕ} (hL : 0 < L)
     induction t using Nat.strong_induction_on with
     | ind t ih =>
       intro a ha ht
-      by_cases hz : t = 0
-      · subst t
-        exact Or.inl ha
+      rcases eq_or_ne t 0 with rfl | hz
+      · exact Or.inl ha
       obtain ⟨d, hd, hedge⟩ := exists_short_forest_edge f H hL hcover ha (by omega)
       by_cases htd : t < d
       · exact Or.inr ⟨a, d, t, hedge, hd, htd, rfl⟩
       have hdpos := hedge.pos
       have he : f^[t - d] (f^[d] a) = f^[t] a := by
-        rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by omega : d ≤ t)]
-      have hh := ih (t - d) (by omega) (f^[d] a) hedge.end_mem (by
-        rw [transientDepth_iterate]
-        omega)
-      simpa only [he] using hh
+        rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by omega)]
+      simpa only [he] using ih (t - d) (by omega) (f^[d] a) hedge.end_mem
+        ((Nat.sub_le_sub_right ht d).trans_eq (transientDepth_iterate f a d).symm)
   obtain ⟨a, ha, t, ht, rfl⟩ := (mem_checkpointHull f H y).mp hy
   exact visit t a (subset_forestMarks f H ha) ht
 
@@ -213,16 +200,14 @@ theorem forest_segment_contains_of_depth {a y : α} {d k : ℕ}
     (ha : IsForestEdge f H a d) (hy : y ∈ checkpointHull f H)
     (hdepth : transientDepth f y ≤ transientDepth f a)
     (he : f^[k] y = f^[d - 1] a) : ∃ i < d, f^[i] a = y := by
-  have hd : d - 1 < d := by have := ha.pos; omega
+  have hd : d - 1 < d := Nat.sub_one_lt ha.pos.ne'
   have hlast := (mem_forestSources f H _).mp (ha.source f H hd)
   have hdy := transientDepth_iterate f y k
   have hda := transientDepth_iterate f a (d - 1)
   rw [he] at hdy
   have hbound := ha.le_depth
-  have hk : k < transientDepth f y := by omega
-  have hkd : k ≤ d - 1 := by omega
   exact ⟨d - 1 - k, by omega,
-    forest_backtrack_interior f H ha hy hd hkd hk he.symm⟩
+    forest_backtrack_interior f H ha hy hd (by omega) (by omega) he.symm⟩
 
 /-- A marked vertex reaches an edge interior only by passing its lower marked endpoint. -/
 theorem forest_reaches_through_edge {a h : α} {d i t : ℕ}
@@ -237,19 +222,16 @@ theorem forest_reaches_through_edge {a h : α} {d i t : ℕ}
       have htarget := (mem_forestSources f H _).mp (ha.source f H hi)
       have hdepth := transientDepth_iterate f h (t + 1)
       rw [he] at hdepth
-      have ht : t < transientDepth f h := by omega
-      have hpred := (forest_edge_pred_eq f H ha hi
-        (forest_iterate_mem_sources f H (forestMarks_subset_hull f H hh) ht) he.symm).symm
-      exact ih (by omega) hpred
+      exact ih (by omega) (forest_edge_pred_eq f H ha hi
+        (forest_iterate_mem_sources f H (forestMarks_subset_hull f H hh) (by omega))
+        he.symm).symm
 
 /-- A state of positive transient depth that is reachable from a hull state lies in the hull. -/
 theorem forest_transient_reachable_mem {x y : α} (hx : x ∈ checkpointHull f H)
     (hy : 0 < transientDepth f y) (hr : ∃ t, f^[t] x = y) : y ∈ checkpointHull f H := by
-  obtain ⟨t, ht⟩ := hr
+  obtain ⟨t, rfl⟩ := hr
   have hd := transientDepth_iterate f x t
-  rw [ht] at hd
-  have hmem := checkpointHull_iterate f H hx (t := t) (by omega)
-  exact ht ▸ hmem
+  exact checkpointHull_iterate f H hx (by omega)
 
 /-- A transient target beyond the inspected prefix lies above a prefix checkpoint. -/
 theorem checkpoint_before_distant_target {L : ℕ}

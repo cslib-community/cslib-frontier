@@ -177,9 +177,10 @@ theorem GridComplete.isAffineProjection_clauseSum {G : PolynomialFamily K} {c : 
   obtain ⟨M, hM, he⟩ := hG v (fun n : N => n.1) hv
     (fun κ => ⟨⟨κ, ⟨0, List.length_pos_iff.2 (hne κ)⟩⟩, rfl⟩) W o hW S (by simpa [N] using hS)
   refine ⟨M, hM, he.trans (Finset.sum_congr rfl fun x _ => ?_)⟩
-  simp only [show ∀ r : Θ → Bool, ∏ n : N, W n (x (v n)) (r n.1) =
-    ∏ κ, ∏ i : Fin (lits κ).length, W ⟨κ, i⟩ (x (v ⟨κ, i⟩)) (r κ) from
-      fun _ => Fintype.prod_sigma _]
+  have hprod (r : Θ → Bool) : ∏ n : N, W n (x (v n)) (r n.1) =
+      ∏ κ, ∏ i : Fin (lits κ).length, W ⟨κ, i⟩ (x (v ⟨κ, i⟩)) (r κ) :=
+    Fintype.prod_sigma _
+  simp only [hprod]
   rw [← Fintype.prod_sum fun κ b => ∏ i : Fin (lits κ).length, W ⟨κ, i⟩ (x (v ⟨κ, i⟩)) b]
   refine Finset.prod_congr rfl fun κ _ => ?_
   rw [Fintype.sum_bool]

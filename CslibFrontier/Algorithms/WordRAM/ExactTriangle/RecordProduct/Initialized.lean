@@ -109,13 +109,11 @@ theorem prepare_first_input {W m n g p A : ℕ} (values : List ℤ)
   have hw : PreparationInput.width n (D m) g p A ≤ W := by unfold admissionWidth at hW; omega
   obtain ⟨a, ha, houtput, hinput, -⟩ := PreparationInput.exec_input values hlen
     (by omega) hDn hg hp hv hw
-  have ha' : ExecWithin W Instances.program (.init (PreparationInput.input n (D m) g p values)) a
-      (preparationTime n (D m) g p values - 1) := ha
   let x₀ : Data 320 := .init (PreparationInput.input n (D m) g p values)
   let x := a.extend producerBank x₀
   have hx : ExecWithin W produce x₀ x (preparationTime n (D m) g p values - 1) :=
-    ha'.rename producerBank_injective
-  obtain ⟨t, ht, he⟩ := ha'
+    ha.rename producerBank_injective
+  obtain ⟨t, ht, he⟩ := ha
   have hr : Runs W PreparationInput.flatProgram
       (State.init (PreparationInput.input n (D m) g p values))
       ⟨Instances.program.size, a⟩ t := by
@@ -126,8 +124,6 @@ theorem prepare_first_input {W m n g p A : ℕ} (values : List ℤ)
   obtain ⟨idx, hidx, hord⟩ := first_index (n := n) (D := D m) (g := g) (p := p)
     (fun q => values.getD q 0) hD hDn hg (by omega)
   let z := x.set Reg.ordinal 0
-  have hz : ExecWithin (B := .standard) W (.op (.const Reg.ordinal 0)) x z 1 :=
-    ExecWithin.const (fits_zero W)
   have zmap : z.comap producerBank = a := by
     ext j
     · change Function.update x.regs Reg.ordinal 0 (producerBank j) = a.regs j
@@ -136,25 +132,24 @@ theorem prepare_first_input {W m n g p A : ℕ} (values : List ℤ)
       exact (Function.update_of_ne hne _ _).trans (producerBank_injective.extend_apply _ _ j)
     · rfl
   have hQ : recordQueryCount n (D m) p (fun q => values.getD q 0) idx ≤ n ^ 2 := by
-    unfold recordQueryCount
-    rw [pow_two]
+    rw [recordQueryCount, pow_two]
     exact (min_le_right _ _).trans ((Nat.sub_le _ _).trans (Nat.count_le _))
   have hfit := physical_fits (b := z.regs 42) (n := n) (D := D m) (g := g) (p := p) (A := A)
     (Q := recordQueryCount n (D m) p (fun q => values.getD q 0) idx)
     ((congrArg (fun d : Data 64 => d.regs Instances.heap) zmap).trans_le
       (hwords.1 Instances.heap).le) hQ hW
-  refine ⟨hinput, ⟨{
+  exact ⟨hinput, ⟨{
     producer := a
     index := idx
     state := z
     producerExec := ⟨t, ht, he⟩
     index_mem := hidx
     ordinal_zero := hord
-    exec_prefix := ?_
+    exec_prefix := (hx.seq (ExecWithin.const (fits_zero W))).mono
+      (by dsimp only [preparationTime, Instances.timeBound]; omega)
     comap_eq := zmap
     output := by rw [zmap]; exact houtput
     selected := by simpa only [z, Data.set_regs, Function.update_self] using hord.symm
     fits := hfit }⟩⟩
-  exact (hx.seq hz).mono (by dsimp only [preparationTime, Instances.timeBound]; omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct

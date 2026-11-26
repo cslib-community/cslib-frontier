@@ -107,20 +107,14 @@ theorem rowDeg_mergePair_other {k : ℕ} {W : Fin k → Fin k → ℕ} (hW : IsM
   unfold rowDeg
   rw [sum_eq_add_add_sum_erase_erase huv (mergePair W u v x),
     sum_eq_add_add_sum_erase_erase huv (W x)]
-  have h1 : mergePair W u v x u = W x u + W x v := by
-    unfold mergePair
-    simp [hxu, hxv, huv]
-  have h2 : mergePair W u v x v = 0 := mergePair_isolated_right W u v x
-  have h3 : ∑ y ∈ (Finset.univ.erase u).erase v, mergePair W u v x y =
-      ∑ y ∈ (Finset.univ.erase u).erase v, W x y := by
-    refine Finset.sum_congr rfl fun y hy => ?_
-    have hy_v : y ≠ v := (Finset.mem_erase.mp hy).1
-    have hy_u : y ≠ u := (Finset.mem_erase.mp (Finset.mem_erase.mp hy).2).1
-    unfold mergePair
-    by_cases hxy : x = y
-    · subst hxy; simp [hW.2 x]
-    · simp [hxy, hxv, hy_v, hxu, hy_u]
-  rw [h1, h2, h3, add_zero]
+  have h1 : mergePair W u v x u = W x u + W x v := by simp [mergePair, hxu, hxv, huv]
+  rw [h1, mergePair_isolated_right, add_zero]
+  refine congrArg (_ + ·) (Finset.sum_congr rfl fun y hy => ?_)
+  obtain ⟨hy_v, hy'⟩ := Finset.mem_erase.mp hy
+  have hy_u : y ≠ u := (Finset.mem_erase.mp hy').1
+  by_cases hxy : x = y
+  · simp [mergePair, hxy, hW.2 y]
+  · simp [mergePair, hxy, hxv, hy_v, hxu, hy_u]
 
 theorem rowDeg_mergePair_u {k : ℕ} {W : Fin k → Fin k → ℕ} (hW : IsMultigraph W)
     {u v : Fin k} (huv : u ≠ v) :
@@ -129,24 +123,20 @@ theorem rowDeg_mergePair_u {k : ℕ} {W : Fin k → Fin k → ℕ} (hW : IsMulti
   rw [sum_eq_add_add_sum_erase_erase huv (mergePair W u v u),
     sum_eq_add_add_sum_erase_erase huv (W u), sum_eq_add_add_sum_erase_erase huv (W v)]
   have h_uu : mergePair W u v u u = 0 := by simp [mergePair]
-  have h_uv : mergePair W u v u v = 0 := mergePair_isolated_right W u v u
   have h_rest : ∑ y ∈ (Finset.univ.erase u).erase v, mergePair W u v u y =
       (∑ y ∈ (Finset.univ.erase u).erase v, W u y) +
         ∑ y ∈ (Finset.univ.erase u).erase v, W v y := by
     rw [← Finset.sum_add_distrib]
     refine Finset.sum_congr rfl fun y hy => ?_
-    have hy_v : y ≠ v := (Finset.mem_erase.mp hy).1
-    have hy_u : y ≠ u := (Finset.mem_erase.mp (Finset.mem_erase.mp hy).2).1
-    have huy : u ≠ y := hy_u.symm
-    unfold mergePair
-    simp [huy, huv, hy_v]
-  rw [h_uu, h_uv, h_rest, hW.2 u, hW.2 v]
+    obtain ⟨hy_v, hy'⟩ := Finset.mem_erase.mp hy
+    have huy : u ≠ y := (Finset.mem_erase.mp hy').1.symm
+    simp [mergePair, huy, huv, hy_v]
+  rw [h_uu, mergePair_isolated_right, h_rest, hW.2 u, hW.2 v]
   omega
 
 theorem rowDeg_mergePair_v {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
     rowDeg (mergePair W u v) v = 0 := by
-  unfold rowDeg
-  simp [mergePair_isolated_left]
+  simp [rowDeg, mergePair_isolated_left]
 
 /-- Embedding `Fin m → Fin (m + 1)` corresponding to replacing removed slot `v` with `Fin.last m`
 and keeping all other slots `< m` in place. -/
@@ -157,11 +147,8 @@ theorem embedCompact_ne {m : ℕ} (v : Fin (m + 1)) (i : Fin m) :
     embedCompact v i ≠ v := by
   unfold embedCompact
   split_ifs with h
-  · intro hlast
-    have hv : v.val = m := by simpa [Fin.ext_iff] using hlast.symm
-    omega
-  · intro hcast
-    exact h (by simpa [Fin.ext_iff] using hcast)
+  · exact fun hlast => absurd (congrArg Fin.val hlast) (by simp; omega)
+  · exact fun hcast => h (congrArg Fin.val hcast)
 
 theorem embedCompact_injective {m : ℕ} (v : Fin (m + 1)) :
     Function.Injective (embedCompact v) := by
@@ -180,13 +167,10 @@ def compactIdx {m : ℕ} (v : Fin (m + 1)) (a : Fin (m + 1)) (ha : a ≠ v) : Fi
 theorem embedCompact_compactIdx {m : ℕ} (v : Fin (m + 1)) (a : Fin (m + 1)) (ha : a ≠ v) :
     embedCompact v (compactIdx v a ha) = a := by
   unfold embedCompact compactIdx
+  have hav : a.val ≠ v.val := fun h => ha (Fin.ext h)
   by_cases ham : a.val = m
-  · simp only [ham, ↓reduceDIte, ↓reduceIte]
-    exact Fin.ext ham.symm
-  · simp only [ham, ↓reduceDIte]
-    have hav : a.val ≠ v.val := fun h => ha (Fin.ext h)
-    simp only [hav, ↓reduceIte]
-    exact Fin.ext rfl
+  · simp only [ham, ↓reduceDIte, ↓reduceIte, Fin.ext_iff, Fin.val_last]
+  · simp only [ham, hav, ↓reduceDIte, ↓reduceIte, Fin.ext_iff, Fin.val_castSucc]
 
 @[simp]
 theorem compactIdx_embedCompact {m : ℕ} (v : Fin (m + 1)) (i : Fin m) :
@@ -206,17 +190,13 @@ theorem isMultigraph_contractMatrix {m : ℕ} {W : Fin (m + 1) → Fin (m + 1) �
   exact ⟨fun i j => hm.1 _ _, fun i => hm.2 _⟩
 
 theorem sum_embedCompact_eq_sum_erase {m : ℕ} (v : Fin (m + 1)) (f : Fin (m + 1) → ℕ) :
-    ∑ i : Fin m, f (embedCompact v i) = ∑ a ∈ Finset.univ.erase v, f a := by
-  refine Finset.sum_bij (fun i _ => embedCompact v i) ?_ ?_ ?_ ?_
-  · intro i _
-    exact Finset.mem_erase.mpr ⟨embedCompact_ne v i, Finset.mem_univ _⟩
-  · intro i _ j _ hij
-    exact embedCompact_injective v hij
-  · intro a ha
-    have hav : a ≠ v := (Finset.mem_erase.mp ha).1
-    exact ⟨compactIdx v a hav, Finset.mem_univ _, embedCompact_compactIdx v a hav⟩
-  · intros
-    rfl
+    ∑ i : Fin m, f (embedCompact v i) = ∑ a ∈ Finset.univ.erase v, f a :=
+  Finset.sum_bij (fun i _ => embedCompact v i)
+    (fun i _ => Finset.mem_erase.mpr ⟨embedCompact_ne v i, Finset.mem_univ _⟩)
+    (fun _ _ _ _ hij => embedCompact_injective v hij)
+    (fun a ha => ⟨compactIdx v a (Finset.mem_erase.mp ha).1, Finset.mem_univ _,
+      embedCompact_compactIdx v a _⟩)
+    fun _ _ => rfl
 
 theorem rowDeg_contractMatrix {m : ℕ} (W : Fin (m + 1) → Fin (m + 1) → ℕ)
     (u v : Fin (m + 1)) (i : Fin m) :
@@ -273,15 +253,9 @@ theorem filter_contractPart_eq {n m : ℕ} (part : Fin n → Fin (m + 1))
   have h_iff (x : Fin n) : (contractPart part u v huv x = i) ↔
       (if part x = v then u else part x) = embedCompact v i := by
     rw [← (embedCompact_injective v).eq_iff, embedCompact_contractPart]
-  split_ifs with hiu
-  · ext x
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union, h_iff, hiu]
-    by_cases hxv : part x = v <;> simp [hxv]
-  · ext x
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, h_iff]
-    by_cases hxv : part x = v
-    · simp [hxv, Ne.symm hiu, Ne.symm (embedCompact_ne v i)]
-    · simp [hxv]
+  split_ifs with hiu <;> ext x <;>
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union, h_iff] <;>
+    by_cases hxv : part x = v <;> simp [hxv, hiu, Ne.symm, (embedCompact_ne v i).symm]
 
 theorem isContractionOf_contract {n m : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {part : Fin n → Fin (m + 1)} {W : Fin (m + 1) → Fin (m + 1) → ℕ}
@@ -289,18 +263,15 @@ theorem isContractionOf_contract {n m : ℕ} {W₀ : Fin n → Fin n → ℕ}
     IsContractionOf W₀ (contractPart part u v huv) (contractMatrix W u v) where
   surj i := by
     rcases hC.surj (embedCompact v i) with ⟨x, hx⟩
-    refine ⟨x, embedCompact_injective v ?_⟩
-    rw [embedCompact_contractPart, hx]
-    simp [embedCompact_ne v i]
+    exact ⟨x, embedCompact_injective v (by simp [hx, embedCompact_ne v i])⟩
   multigraph := isMultigraph_contractMatrix hC.multigraph u v
   offDiag i j hij := by
     have he_ij : embedCompact v i ≠ embedCompact v j := fun h => hij (embedCompact_injective v h)
     have he_iv : embedCompact v i ≠ v := embedCompact_ne v i
     have he_jv : embedCompact v j ≠ v := embedCompact_ne v j
-    have hdisj : Disjoint (Finset.univ.filter (part · = u)) (Finset.univ.filter (part · = v)) := by
-      simp only [Finset.disjoint_left, Finset.mem_filter, Finset.mem_univ, true_and]
-      rintro x rfl hxv
-      exact huv hxv
+    have hdisj : Disjoint (Finset.univ.filter (part · = u)) (Finset.univ.filter (part · = v)) :=
+      Finset.disjoint_left.mpr fun x hxu hxv =>
+        huv ((Finset.mem_filter.mp hxu).2.symm.trans (Finset.mem_filter.mp hxv).2)
     rw [filter_contractPart_eq, filter_contractPart_eq]
     unfold contractMatrix mergePair
     simp only [he_ij, he_iv, he_jv, false_or, ↓reduceIte]
@@ -326,16 +297,12 @@ theorem pullbackCut_contractCut {n m : ℕ} (part : Fin n → Fin (m + 1))
   ext x
   simp only [mem_pullbackCut, contractCut, Finset.mem_filter, Finset.mem_univ, true_and,
     embedCompact_contractPart]
-  split_ifs with hxv
-  · rw [hxv]
-    exact hsame
-  · rfl
+  split_ifs with hxv <;> simp [hxv, hsame]
 
 /-- Pulling a cut back along the identity gives the same cut. -/
 theorem pullbackCut_id {V : Type*} [Fintype V] [DecidableEq V] (C : Finset V) :
-    pullbackCut id C = C := by
-  ext x
-  simp [pullbackCut]
+    pullbackCut id C = C :=
+  Finset.ext fun _ => by simp [pullbackCut]
 
 /-- Merging `t` into `s` preserves the weight of the cuts that do not separate `s` and `t`. -/
 theorem cutWeight_contractCut {k : ℕ} {W : Fin (k + 1) → Fin (k + 1) → ℕ} (hW : IsMultigraph W)

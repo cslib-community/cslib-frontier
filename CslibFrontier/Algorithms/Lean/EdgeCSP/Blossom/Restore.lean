@@ -175,10 +175,10 @@ theorem flip_reference_connectors (f : OccurrenceLabeling F Bool) (vs : List ℕ
       p.flip (reference f vs) o = reference f vs o := by
     simp [Walk.flip, BitString.flipOn_apply, show o ∉ p.edges from fun he => hno o he ho]
   refine ⟨fun i hi => ?_, fun k => ?_⟩
-  · rw [hunchanged _ (by rw [connectorPort_var]; exact List.mem_map.mpr ⟨i, hi, rfl⟩),
+  · rw [hunchanged _ (by simp [connectors, List.mem_map.mpr ⟨i, hi, rfl⟩]),
       reference_connectorPort]
-  · rw [hunchanged _ (by rw [centralPort_var]; exact List.getElem_mem k.isLt),
-      reference_centralPort, List.getD_eq_getElem _ _
+  · rw [hunchanged _ (by simp [List.getElem_mem k.isLt]), reference_centralPort,
+      List.getD_eq_getElem _ _
         (by simpa only [listSingle, List.length_map, List.length_range] using k.isLt)]
     simp [listSingle]
 
@@ -201,9 +201,9 @@ theorem restoreWalk_isFPrefix (hF : EdgeInstance F) {f : OccurrenceLabeling F Bo
     obtain ⟨hbits, hcentral⟩ := flip_reference_connectors f vs (p.take n) hno'
     have hv := valid_expandZero hF hf vs ((p.take n).flip (reference f vs))
       (hp.valid_take n hnp) hbits hcentral
-    rwa [← restoreWalk_flip hF f vs fallback (p.take n) hno',
-      show restoreWalk f vs fallback (p.take n) = (restoreWalk f vs fallback p).take n from
-        Walk.mapPorts_take ..,
+    have htake : restoreWalk f vs fallback (p.take n) = (restoreWalk f vs fallback p).take n :=
+      Walk.mapPorts_take ..
+    rwa [← restoreWalk_flip hF f vs fallback (p.take n) hno', htake,
       Walk.flip, Walk.edges, ← Walk.flipSteps_eq_flipOn f _ (hw.take n).2] at hv
 
 /-- Distinct endpoints are retained when restoring a contracted f-walk avoiding connectors. -/

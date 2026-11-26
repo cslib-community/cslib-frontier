@@ -72,9 +72,7 @@ theorem emit_congr (φ : J ≃ J') (o : List (Letter S J Γ)) (z : Ch S J) :
     congr 1
     rcases a with _ | ⟨z', γ⟩
     · rfl
-    · have : Letter.congr S Γ φ (some (z', γ)) = some (Ch.congr S φ z', γ) := rfl
-      rw [this, emit_some, emit_some]
-      simp
+    · simp [Letter.congr, emit_some]
 
 variable {F : Type*} [CommRing F] {Q : Type} [Fintype Q] [DecidableEq Q] [Fintype Γ]
   [DecidableEq Γ] [Fintype S] [Fintype J] [Fintype J']
@@ -86,19 +84,16 @@ theorem runVal_congr (φ : J ≃ J') (mu : Letter S J' Γ → Matrix Q Q F) (i e
   unfold runVal
   refine Fintype.sum_equiv (Equiv.arrowCongr (Equiv.refl _) (Letter.congr S Γ φ)) _ _ fun o => ?_
   have hl : List.ofFn (Equiv.arrowCongr (Equiv.refl (Fin t)) (Letter.congr S Γ φ) o) =
-      (List.ofFn o).map (Letter.congr S Γ φ) := by
-    rw [List.map_ofFn]
-    rfl
+      (List.ofFn o).map (Letter.congr S Γ φ) :=
+    (List.map_ofFn : List.map (Letter.congr S Γ φ) (List.ofFn o) = _).symm
   have hm : Matched (List.ofFn o) (fun j => u (φ j)) ↔
       Matched ((List.ofFn o).map (Letter.congr S Γ φ)) u := by
     unfold Matched
     refine and_congr (forall_congr' fun s => ?_) ⟨fun h j => ?_, fun h j => ?_⟩
     · rw [← emit_congr φ (List.ofFn o) (.tp s false), ← emit_congr φ (List.ofFn o) (.tp s true)]
       rfl
-    · have h1 := emit_congr φ (List.ofFn o) (.inp (φ.symm j))
-      rw [Ch.congr_inp, Equiv.apply_symm_apply] at h1
-      rw [h1, h (φ.symm j)]
-      exact congrArg u (φ.apply_symm_apply j)
+    · simpa [Ch.congr_inp] using (emit_congr φ (List.ofFn o) (.inp (φ.symm j))).trans
+        ((h (φ.symm j)).trans (congrArg u (φ.apply_symm_apply j)))
     · exact (emit_congr φ (List.ofFn o) (.inp j)).symm.trans (h (φ j))
   rw [hl]
   by_cases h : Matched (List.ofFn o) (fun j => u (φ j))

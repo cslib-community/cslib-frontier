@@ -93,8 +93,9 @@ theorem block_eval_batchOrCircuit {input sources requests k v : ℕ}
   change (batchOrCircuit sourceKeys sourceValues queryKeys).eval interpretation x
     (finProdFinEquiv (request, bit)) = true ↔ _
   rw [eval_batchOrCircuit_iff]
-  exact ⟨fun ⟨s, hk, hv⟩ => hall s hk ▸ hv,
-    let ⟨s, hk⟩ := hex; fun hV => ⟨s, hk, (hall s hk).symm ▸ hV⟩⟩
+  exact ⟨fun ⟨s, hk, hv⟩ => hall s hk ▸ hv, fun hV =>
+    let ⟨s, hk⟩ := hex
+    ⟨s, hk, (hall s hk).symm ▸ hV⟩⟩
 
 /-! ### Encodings -/
 

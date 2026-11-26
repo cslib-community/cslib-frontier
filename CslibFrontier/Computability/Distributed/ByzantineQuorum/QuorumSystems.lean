@@ -210,17 +210,15 @@ theorem IsThresholdMaskingQuorumSystem.toDissemination
 /-- Every `b`-threshold dissemination quorum system has at least one quorum. -/
 theorem IsThresholdDisseminationQuorumSystem.quorums_nonempty
     (h : qs.IsThresholdDisseminationQuorumSystem b) :
-    qs.quorums.Nonempty := by
-  obtain ⟨Q, hQ, _⟩ := h.1 ∅ (Nat.zero_le b)
-  exact ⟨Q, hQ⟩
+    qs.quorums.Nonempty :=
+  (h.1 ∅ (Nat.zero_le b)).imp fun _ h => h.1
 
 /-- Any two quorums in a `b`-threshold dissemination quorum system intersect. -/
 theorem IsThresholdDisseminationQuorumSystem.inter_nonempty
     (h : qs.IsThresholdDisseminationQuorumSystem b)
     {Q₁ Q₂ : Finset P} (hQ₁ : Q₁ ∈ qs.quorums) (hQ₂ : Q₂ ∈ qs.quorums) :
     (Q₁ ∩ Q₂).Nonempty := by
-  have hd := h.2 Q₁ hQ₁ Q₂ hQ₂ ∅ (Nat.zero_le b)
-  simpa only [Finset.sdiff_empty] using hd
+  simpa only [Finset.sdiff_empty] using h.2 Q₁ hQ₁ Q₂ hQ₂ ∅ (Nat.zero_le b)
 
 /-- Exact cardinality characterization of `b`-threshold dissemination quorum systems: availability
 against `|F| ≤ b` together with pairwise intersection of size at least `b + 1`. -/
@@ -311,9 +309,7 @@ private lemma thresholdQuorums_isAvailableFor {P : Type*} [Fintype P] {k b : ℕ
     (hk : k + b ≤ Fintype.card P) :
     (thresholdQuorums P k).IsAvailableFor (thresholdAdversary P b) := by
   classical
-  intro F hF
-  refine ⟨Finset.univ \ F, ?_, disjoint_sdiff_self_left⟩
-  rw [mem_thresholdQuorums_iff]
+  refine fun F hF => ⟨Finset.univ \ F, mem_thresholdQuorums_iff.mpr ?_, disjoint_sdiff_self_left⟩
   rw [mem_thresholdAdversary_iff] at hF
   finset_card
 
@@ -373,17 +369,13 @@ private lemma exists_quorum_pair_bounds {P : Type*} [Fintype P] [DecidableEq P]
       (Q₁ ∩ Q₂).card ≤ Fintype.card P - 2 * b ∧ b ≤ (Q₁ \ Q₂).card := by
   have hbn : b < Fintype.card P := by
     by_contra hle
-    obtain ⟨Q, hQ, hdisj⟩ :=
-      havail Finset.univ (by rw [mem_thresholdAdversary_iff]; finset_card)
+    obtain ⟨Q, hQ, hdisj⟩ := havail Finset.univ (mem_thresholdAdversary_iff.mpr (by finset_card))
     have := hgt Q hQ
     finset_card
-  obtain ⟨F₁, -, hF₁⟩ := Finset.exists_subset_card_eq (s := (Finset.univ : Finset P))
-    (le_of_lt hbn)
-  obtain ⟨Q₁, hQ₁, hdisj₁⟩ := havail F₁ (by rw [mem_thresholdAdversary_iff, hF₁])
-  have hQ₁_ub : Q₁.card ≤ Fintype.card P - b := by finset_card
-  obtain ⟨F₂, hF₂sub, hF₂⟩ := Finset.exists_subset_card_eq (s := Q₁) (n := b)
-    (le_of_lt (hgt Q₁ hQ₁))
-  obtain ⟨Q₂, hQ₂, hdisj₂⟩ := havail F₂ (by rw [mem_thresholdAdversary_iff, hF₂])
+  obtain ⟨F₁, -, hF₁⟩ := Finset.exists_subset_card_eq (s := (Finset.univ : Finset P)) hbn.le
+  obtain ⟨Q₁, hQ₁, hdisj₁⟩ := havail F₁ (mem_thresholdAdversary_iff.mpr hF₁.le)
+  obtain ⟨F₂, hF₂sub, hF₂⟩ := Finset.exists_subset_card_eq (hgt Q₁ hQ₁).le
+  obtain ⟨Q₂, hQ₂, hdisj₂⟩ := havail F₂ (mem_thresholdAdversary_iff.mpr hF₂.le)
   exact ⟨Q₁, hQ₁, Q₂, hQ₂, by finset_card, by finset_card⟩
 
 /-- Uniform `b`-threshold dissemination existence step toward `#7506` (specializing
@@ -399,10 +391,10 @@ theorem exists_thresholdDisseminationQuorumSystem_iff {P : Type*} [Fintype P] [D
     fun hn => ⟨disseminationThresholdQuorums P b,
       isThresholdDisseminationQuorumSystem_disseminationThresholdQuorums hn⟩⟩
   rw [QuorumSystem.isThresholdDisseminationQuorumSystem_iff_card_inter] at hqs
-  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
-    have := hqs.2 Q hQ Q hQ; finset_card
-  have hinter_lb := hqs.2 Q₁ hQ₁ Q₂ hQ₂
-  have hpos : 0 < Fintype.card P := Fintype.card_pos
+  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ :=
+    exists_quorum_pair_bounds hqs.1 fun Q hQ => Finset.inter_self Q ▸ hqs.2 Q hQ Q hQ
+  have := hqs.2 Q₁ hQ₁ Q₂ hQ₂
+  have := Fintype.card_pos (α := P)
   omega
 
 /-- Uniform `b`-threshold masking existence step toward `#7506` (specializing
@@ -417,10 +409,10 @@ theorem exists_thresholdMaskingQuorumSystem_iff {P : Type*} [Fintype P] [Decidab
     fun hn => ⟨maskingThresholdQuorums P b,
       isThresholdMaskingQuorumSystem_maskingThresholdQuorums hn⟩⟩
   rw [QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter] at hqs
-  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
-    have := hqs.2 Q hQ Q hQ; finset_card
-  have hinter_lb := hqs.2 Q₁ hQ₁ Q₂ hQ₂
-  have hpos : 0 < Fintype.card P := Fintype.card_pos
+  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ =>
+    Nat.lt_of_le_of_lt (by omega) (Finset.inter_self Q ▸ hqs.2 Q hQ Q hQ)
+  have := hqs.2 Q₁ hQ₁ Q₂ hQ₂
+  have := Fintype.card_pos (α := P)
   omega
 
 /-- Uniform `b`-threshold strong-opaque existence step toward `#7506` (formalizing the strict
@@ -437,10 +429,10 @@ theorem exists_thresholdStrongOpaqueQuorumSystem_iff {P : Type*} [Fintype P] [De
     fun hn => ⟨strongOpaqueThresholdQuorums P b,
       isThresholdStrongOpaqueQuorumSystem_strongOpaqueThresholdQuorums hn⟩⟩
   rw [QuorumSystem.isThresholdStrongOpaqueQuorumSystem_iff_card] at hqs
-  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, hsdiff_lb⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
-    have := hqs.2 Q hQ Q hQ; finset_card
-  have hop₂₁ := hqs.2 Q₂ hQ₂ Q₁ hQ₁
-  have hpos : 0 < Fintype.card P := Fintype.card_pos
+  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, hsdiff_lb⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ =>
+    Nat.lt_of_le_of_lt (by omega) (Finset.inter_self Q ▸ hqs.2 Q hQ Q hQ)
+  have := hqs.2 Q₂ hQ₂ Q₁ hQ₁
+  have := Fintype.card_pos (α := P)
   finset_card
 
 /-! ### Unauthenticated masking-quorum register read-after-write safety -/
@@ -473,36 +465,24 @@ private lemma applyWrites_mem_or_eq {T V : Type*} [LinearOrder T]
   induction delivered generalizing init with
   | nil => exact Or.inl rfl
   | cons w ws ih =>
-    change applyWrites (init.updateIfNewer w) ws = init ∨
-      applyWrites (init.updateIfNewer w) ws ∈ w :: ws
-    rcases ih (init.updateIfNewer w) with h | h
-    · rw [h]
-      unfold TimestampedVal.updateIfNewer
-      split_ifs
-      · exact Or.inr List.mem_cons_self
-      · exact Or.inl rfl
-    · exact Or.inr (List.mem_cons_of_mem w h)
+    refine (ih (init.updateIfNewer w)).elim (fun h => ?_) (Or.inr ∘ List.mem_cons_of_mem w)
+    rw [applyWrites, List.foldl_cons, ← applyWrites, h]
+    by_cases hlt : init.ts < w.ts <;> simp [TimestampedVal.updateIfNewer, hlt]
 
 private lemma ts_le_applyWrites {T V : Type*} [LinearOrder T]
     (init : TimestampedVal T V) (delivered : List (TimestampedVal T V)) :
     init.ts ≤ (applyWrites init delivered).ts ∧
       ∀ e ∈ delivered, e.ts ≤ (applyWrites init delivered).ts := by
   induction delivered generalizing init with
-  | nil =>
-    simp only [applyWrites, List.foldl_nil, le_refl, List.not_mem_nil, false_implies, implies_true,
-      and_self]
+  | nil => simp [applyWrites]
   | cons w ws ih =>
     simp only [applyWrites, List.foldl_cons]
     obtain ⟨hinit, hmem⟩ := ih (init.updateIfNewer w)
     have hcur : init.ts ≤ (init.updateIfNewer w).ts ∧ w.ts ≤ (init.updateIfNewer w).ts := by
       unfold TimestampedVal.updateIfNewer
       split_ifs with hlt
-      · exact ⟨le_of_lt hlt, le_rfl⟩
-      · exact ⟨le_rfl, not_lt.mp hlt⟩
-    refine ⟨le_trans hcur.1 hinit, fun e he => ?_⟩
-    rcases List.mem_cons.mp he with rfl | he'
-    · exact le_trans hcur.2 hinit
-    · exact hmem e he'
+      exacts [⟨hlt.le, le_rfl⟩, ⟨le_rfl, not_lt.mp hlt⟩]
+    exact ⟨hcur.1.trans hinit, List.forall_mem_cons.mpr ⟨hcur.2.trans hinit, hmem⟩⟩
 
 /-- Candidate `(ts, val)` entries returned by at least `b + 1` servers in read quorum `Q_r`
 ([MalkhiReiter1998], §4, p. 206, specialized to `thresholdAdversary P b`). -/
@@ -517,8 +497,7 @@ theorem mem_maskingCandidates_iff {P T V : Type*} [DecidableEq T] [DecidableEq V
   simp only [maskingCandidates, Finset.mem_filter, Finset.mem_image, and_iff_right_iff_imp]
   intro hcard
   obtain ⟨u, hu⟩ := Finset.card_pos.mp (lt_of_lt_of_le (Nat.zero_lt_succ b) hcard)
-  rw [Finset.mem_filter] at hu
-  exact ⟨u, hu.1, hu.2⟩
+  exact ⟨u, (Finset.mem_filter.mp hu).1, (Finset.mem_filter.mp hu).2⟩
 
 /-- Soundness of `(b + 1)`-multiplicity filtering without signatures: when `F.card ≤ b`, every entry
 in `maskingCandidates b Q_r resp` was returned by at least one correct server `u ∈ Q_r \ F`. -/
@@ -550,13 +529,11 @@ private lemma applyWrites_eq_latest {T V : Type*} [LinearOrder T]
     (hbound : ∀ e ∈ delivered, e = latest ∨ e.ts < latest.ts) :
     (applyWrites init delivered).ts ≤ latest.ts ∧
       ((applyWrites init delivered).ts = latest.ts → applyWrites init delivered = latest) := by
-  rcases applyWrites_mem_or_eq init delivered with heq | hmem
-  · rw [heq]
-    exact ⟨le_of_lt hinit, fun hts => absurd hts (ne_of_lt hinit)⟩
-  · rcases hbound _ hmem with heq | hlt
-    · rw [heq]
-      exact ⟨le_rfl, fun _ => rfl⟩
-    · exact ⟨le_of_lt hlt, fun hts => absurd hts (ne_of_lt hlt)⟩
+  rcases (applyWrites_mem_or_eq init delivered).imp_right (hbound _) with heq | heq | hlt
+  · exact ⟨(congrArg TimestampedVal.ts heq).trans_le hinit.le,
+      fun hts => absurd ((congrArg TimestampedVal.ts heq).symm.trans hts) hinit.ne⟩
+  · exact ⟨(congrArg TimestampedVal.ts heq).le, fun _ => heq⟩
+  · exact ⟨hlt.le, fun hts => absurd hts hlt.ne⟩
 
 /-- Unauthenticated `b`-threshold single-latest-write masking-register step toward `#7506` (after
 [Malkhi and Reiter, §§3.2, 4, Lemma 4.2, pp. 205–206][MalkhiReiter1998]): suppose `qs` is a
@@ -583,22 +560,16 @@ theorem threshold_masking_register_max_ts_eq {P T V : Type*} [DecidableEq P] [Li
         (∀ e' ∈ maskingCandidates b Q_r resp, e'.ts ≤ e.ts) → e = latest := by
   have hlatest_mem : latest ∈ maskingCandidates b Q_r resp := by
     rw [mem_maskingCandidates_iff]
-    have hinter : 2 * b + 1 ≤ (Q_w ∩ Q_r).card :=
-      (QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter.mp hqs).2 Q_w hQw Q_r hQr
+    have := (QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter.mp hqs).2 Q_w hQw Q_r hQr
     refine le_trans (show b + 1 ≤ ((Q_w ∩ Q_r) \ F).card by finset_card)
       (Finset.card_le_card fun u hu => ?_)
     rw [Finset.mem_sdiff, Finset.mem_inter] at hu
-    rw [Finset.mem_filter]
-    refine ⟨hu.1.2, ?_⟩
-    rw [hresp u hu.2]
-    have hge := (ts_le_applyWrites init (delivered u)).2 latest (hcompleted u hu.1.1 hu.2)
     obtain ⟨hle, heq⟩ := applyWrites_eq_latest hinit (hbound u hu.2)
-    exact heq (le_antisymm hle hge)
+    refine Finset.mem_filter.mpr ⟨hu.1.2, (hresp u hu.2).trans (heq (le_antisymm hle ?_))⟩
+    exact (ts_le_applyWrites init (delivered u)).2 latest (hcompleted u hu.1.1 hu.2)
   refine ⟨hlatest_mem, fun e he hmax => ?_⟩
-  obtain ⟨u, _, huF, hru⟩ := maskingCandidates_sound hF he
-  obtain ⟨hle, heq⟩ := applyWrites_eq_latest hinit (hbound u huF)
-  have he_eq : applyWrites init (delivered u) = e := (hresp u huF).symm.trans hru
-  rw [he_eq] at hle heq
+  obtain ⟨u, _, huF, rfl⟩ := maskingCandidates_sound hF he
+  obtain ⟨hle, heq⟩ := (hresp u huF).symm ▸ applyWrites_eq_latest hinit (hbound u huF)
   exact heq (le_antisymm hle (hmax latest hlatest_mem))
 
 /-- Computable `b`-threshold single-latest-write masking-read step toward `#7506` (after
@@ -617,25 +588,18 @@ theorem threshold_maskingRead_eq_some_latest_write {P T V : Type*} [DecidableEq 
     maskingRead b Q_r resp = some latest.val := by
   obtain ⟨hmem, huniq⟩ :=
     threshold_masking_register_max_ts_eq hqs hF hQw hQr hinit hcompleted hbound hresp
-  have hmax_latest : ∀ e' ∈ maskingCandidates b Q_r resp, e'.ts ≤ latest.ts := by
-    intro e' he'
-    obtain ⟨u, _, huF, hru⟩ := maskingCandidates_sound hF he'
-    rw [← hru, hresp u huF]
-    exact (applyWrites_eq_latest hinit (hbound u huF)).1
   let cands := maskingCandidates b Q_r resp
   have htop_eq : (cands.filter fun e => ∀ e' ∈ cands, e'.ts ≤ e.ts) = {latest} := by
     ext e
     simp only [Finset.mem_filter, Finset.mem_singleton]
-    exact ⟨fun ⟨he, hm⟩ => huniq e he hm, fun h => h ▸ ⟨hmem, hmax_latest⟩⟩
-  unfold maskingRead
-  dsimp only
-  have hcard : (cands.filter fun e => ∀ e' ∈ cands, e'.ts ≤ e.ts).card = 1 := by
-    rw [htop_eq, Finset.card_singleton]
+    refine ⟨fun ⟨he, hm⟩ => huniq e he hm, fun h => h ▸ ⟨hmem, fun e' he' => ?_⟩⟩
+    obtain ⟨u, _, huF, rfl⟩ := maskingCandidates_sound hF he'
+    exact hresp u huF ▸ (applyWrites_eq_latest hinit (hbound u huF)).1
+  simp only [maskingRead]
   split_ifs with hcard'
-  · congr 1
-    generalize_proofs hp
-    have hspec := (Finset.choose_spec (fun _ => True) _ hp).1
-    exact congrArg TimestampedVal.val (Finset.mem_singleton.mp (htop_eq ▸ hspec))
-  · exact absurd hcard hcard'
+  · generalize_proofs hp
+    exact congrArg (some ∘ TimestampedVal.val)
+      (Finset.mem_singleton.mp (htop_eq ▸ (Finset.choose_spec (fun _ => True) _ hp).1))
+  · exact absurd (htop_eq ▸ Finset.card_singleton latest) hcard'
 
 end Cslib.Distributed.ByzantineQuorum

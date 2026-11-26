@@ -231,7 +231,8 @@ theorem computableInPolyTime_polarizeCode {α : Type} {enc : α ↪ List Bool} (
     (hc₀ : ComputableInPolyTime c₀ enc encCode) (hc₁ : ComputableInPolyTime c₁ enc encCode) :
     ComputableInPolyTime
       (fun a => polarizeCode (n a) (m a) (lam a) (ell a) (k a) c (c₀ a) (c₁ a)) enc encCode := by
-  have hin : ComputableInPolyTime (fun a => lam a + (lam a + 1) * n a) enc encUnary := by fun_prop
+  have hin : ComputableInPolyTime (fun a => lam a + (lam a + 1) * n a) enc encUnary := by
+    fun_prop
   have hinb := unary_to_binary.comp hin
   exact computableInPolyTime_xorMixCode c (by fun_prop) (by fun_prop) hk
     (computableInPolyTime_replicateCode hinb hell

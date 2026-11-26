@@ -55,22 +55,15 @@ theorem iterate_of_bounds (cn : NativeCertificate count enc encNat)
   · have := maxRoundSpace_le cs (count a) (init a) (hs a)
     have := maxStateLength_le encState step (count a) (init a) (hb a)
     simp only [iterate_space]; omega
-  · have hmaxT := maxRoundTime_le cs (count a) (init a) (ht a)
-    have hmaxB := maxStateLength_le encState step (count a) (init a) (hb a)
-    have hKa := hK a; have hpos : 1 ≤ (count a + 1) * K a := Nat.mul_pos (Nat.succ_pos _) hKa
-    have hbody : maxRoundTime cs (count a) (init a) +
-        maxStateLength encState step (count a) (init a) +
-        ((encNat (count a)).length + 1) ^ 2 ≤
-          K a * (R a + B a + ((encNat (count a)).length + 1) ^ 2) := by
-      have := hmaxB.trans (Nat.le_mul_of_pos_left _ hKa)
-      have := Nat.le_mul_of_pos_left (((encNat (count a)).length + 1) ^ 2) hKa
-      have : K a * R a + K a * B a + K a * ((encNat (count a)).length + 1) ^ 2 =
-        K a * (R a + B a + ((encNat (count a)).length + 1) ^ 2) := by ring
-      omega
+  · have hbody := Nat.add_le_add (Nat.add_le_add (maxRoundTime_le cs (count a) (init a) (ht a))
+        ((maxStateLength_le encState step (count a) (init a) (hb a)).trans
+          (Nat.le_mul_of_pos_left _ (hK a))))
+        (Nat.le_mul_of_pos_left (((encNat (count a)).length + 1) ^ 2) (hK a))
     rw [iterate_time]
     calc _ ≤ ((count a + 1) * K a) * (cn.time a + ci.time a) +
-          (count a + 1) * (K a * (R a + B a + ((encNat (count a)).length + 1) ^ 2)) :=
-          Nat.add_le_add (Nat.le_mul_of_pos_left _ hpos) (Nat.mul_le_mul_left _ hbody)
+          (count a + 1) * (K a * R a + K a * B a + K a * ((encNat (count a)).length + 1) ^ 2) :=
+          Nat.add_le_add (Nat.le_mul_of_pos_left _ (Nat.mul_pos (Nat.succ_pos _) (hK a)))
+            (Nat.mul_le_mul_left _ hbody)
       _ = _ := by ring
 
 /-- **Binary-counted iteration of a `FactorTimePolySpace` step certificate** under a polynomial

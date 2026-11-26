@@ -89,16 +89,11 @@ open Finset
 section CharacteristicRoot
 
 private theorem exp_one_le_four : Real.exp 1 ≤ 4 := by
-  have h1 : (1 / 2 : ℝ) ≤ Real.exp (-1 / 2) := by linarith [Real.add_one_le_exp (-1 / 2 : ℝ)]
-  have h2 : Real.exp (1 / 2) ≤ 2 := by
-    have hmul := mul_le_mul_of_nonneg_right h1 (Real.exp_pos (1 / 2)).le
-    rw [← Real.exp_add] at hmul
-    norm_num at hmul
-    linarith
-  have h3 := mul_le_mul h2 h2 (Real.exp_pos _).le (by norm_num)
-  rw [← Real.exp_add] at h3
-  norm_num at h3
-  exact h3
+  have h := pow_le_pow_left₀ (by norm_num) (Real.add_one_le_exp (-1 / 2 : ℝ)) 2
+  have hmul := mul_le_mul_of_nonneg_right h (Real.exp_nonneg 1)
+  rw [← Real.exp_nat_mul, ← Real.exp_add] at hmul
+  norm_num at hmul
+  linarith
 
 private theorem add_two_pow_lt_add_one_pow_succ {d : ℕ} (hd : 1 ≤ d) :
     ((d : ℝ) + 2) ^ d < ((d : ℝ) + 1) ^ (d + 1) := by
@@ -107,9 +102,8 @@ private theorem add_two_pow_lt_add_one_pow_succ {d : ℕ} (hd : 1 ≤ d) :
   rcases eq_or_lt_of_le (Nat.succ_le_of_lt hd2) with rfl | hd3
   · norm_num
   set u : ℝ := (d : ℝ) + 1
-  have hu4 : 4 ≤ u := by
-    have : (3 : ℝ) ≤ d := by exact_mod_cast Nat.succ_le_of_lt hd3
-    linarith
+  have hd3' : (3 : ℝ) ≤ d := mod_cast hd3
+  have hu4 : 4 ≤ u := by linarith
   have hu_pos : 0 < u := by linarith
   have hpow : (1 + 1 / u) ^ d ≤ Real.exp (d * (1 / u)) := by
     rw [Real.exp_nat_mul]
@@ -119,9 +113,7 @@ private theorem add_two_pow_lt_add_one_pow_succ {d : ℕ} (hd : 1 ≤ d) :
     (hpow.trans_lt (Real.exp_lt_exp.2 (by rw [mul_one_div, div_lt_one hu_pos]; linarith))).trans_le
       (exp_one_le_four.trans hu4)
   have hdiv : (d : ℝ) + 2 = u * (1 + 1 / u) := by
-    dsimp [u]
-    field_simp [hu_pos.ne']
-    ring
+    rw [mul_add, mul_one, mul_one_div_cancel hu_pos.ne']; linarith
   rw [hdiv, mul_pow, pow_succ]
   exact mul_lt_mul_of_pos_left hexp_lt (pow_pos hu_pos d)
 
@@ -146,27 +138,19 @@ theorem existsUnique_polynomialRoot {d : ℕ} (hd : 1 ≤ d) :
   have hf_cont : ContinuousOn f (Set.Icc 1 ((d : ℝ) + 1)) :=
     (((continuous_const.add continuous_id).pow d).sub (continuous_id.pow (d + 1))).continuousOn
   have hf1 : 0 < f 1 := by
-    have h2 : (2 : ℝ) ^ 1 ≤ (2 : ℝ) ^ d := pow_le_pow_right₀ (by norm_num) hd
-    dsimp [f]
-    norm_num at h2 ⊢
-    linarith
+    simpa [f] using one_lt_pow₀ (by norm_num : (1 : ℝ) < 1 + 1) (Nat.ne_of_gt hd)
   have hfd : f ((d : ℝ) + 1) < 0 := by
-    dsimp [f]
-    rw [show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring]
-    linarith [add_two_pow_lt_add_one_pow_succ hd]
+    simpa only [f, add_left_comm (1 : ℝ) d 1, one_add_one_eq_two, sub_neg] using
+      add_two_pow_lt_add_one_pow_succ hd
   obtain ⟨φ, hφ_mem, hφ_zero⟩ := intermediate_value_Icc'
     (by linarith [Nat.cast_nonneg (α := ℝ) d]) hf_cont ⟨hfd.le, hf1.le⟩
   have hφ_pos : 0 < φ := zero_lt_one.trans_le hφ_mem.1
   have hφ_eq : φ ^ (d + 1) = (1 + φ) ^ d := by dsimp [f] at hφ_zero; linarith
   refine ⟨φ, ⟨hφ_pos, hφ_eq⟩, fun y ⟨hy_pos, hy_eq⟩ => ?_⟩
   rcases lt_trichotomy y φ with hlt | rfl | hgt
-  · have h := pow_succ_mul_one_add_pow_lt (d := d) hy_pos hlt
-    rw [hy_eq, hφ_eq, mul_comm] at h
-    exact absurd h (lt_irrefl _)
+  · simpa [hy_eq, hφ_eq, mul_comm] using pow_succ_mul_one_add_pow_lt (d := d) hy_pos hlt
   · rfl
-  · have h := pow_succ_mul_one_add_pow_lt (d := d) hφ_pos hgt
-    rw [hφ_eq, hy_eq, mul_comm] at h
-    exact absurd h (lt_irrefl _)
+  · simpa [hφ_eq, hy_eq, mul_comm] using pow_succ_mul_one_add_pow_lt (d := d) hφ_pos hgt
 
 /-- Characteristic root `φ_d` of `φ ^ (d + 1) = (1 + φ) ^ d` for `d ≥ 1` (and `1` for `d = 0`). -/
 noncomputable def polynomialRoot (d : ℕ) : ℝ :=
@@ -175,8 +159,7 @@ noncomputable def polynomialRoot (d : ℕ) : ℝ :=
 theorem polynomialRoot_pos (d : ℕ) : 0 < polynomialRoot d := by
   unfold polynomialRoot
   split_ifs with hd
-  · exact (Classical.choose_spec (existsUnique_polynomialRoot hd).exists).1
-  · exact zero_lt_one
+  exacts [(Classical.choose_spec (existsUnique_polynomialRoot hd).exists).1, zero_lt_one]
 
 theorem polynomialRoot_pow_eq {d : ℕ} (hd : 1 ≤ d) :
     polynomialRoot d ^ (d + 1) = (1 + polynomialRoot d) ^ d := by
@@ -186,24 +169,26 @@ theorem polynomialRoot_pow_eq {d : ℕ} (hd : 1 ≤ d) :
 theorem polynomialRoot_gt_one {d : ℕ} (hd : 1 ≤ d) : 1 < polynomialRoot d := by
   by_contra! hle
   have hpos := polynomialRoot_pos d
-  have h1 : polynomialRoot d ^ (d + 1) ≤ 1 := pow_le_one₀ hpos.le hle
-  have h2 : (1 : ℝ) < (1 + polynomialRoot d) ^ d :=
-    one_lt_pow₀ (by linarith) (by omega)
-  linarith [polynomialRoot_pow_eq hd]
+  linarith [polynomialRoot_pow_eq hd, pow_le_one₀ (n := d + 1) hpos.le hle,
+    one_lt_pow₀ (a := 1 + polynomialRoot d) (n := d) (by linarith) (by omega)]
 
 /-- For every `d ≥ 1`, the characteristic root satisfies `polynomialRoot d < d + 1`. -/
 theorem polynomialRoot_lt_succ {d : ℕ} (hd : 1 ≤ d) : polynomialRoot d < (d : ℝ) + 1 := by
   by_contra! hge
-  have hφ := polynomialRoot_pos d
-  have hlt := add_two_pow_lt_add_one_pow_succ hd
-  rcases eq_or_lt_of_le hge with heq | hgt
-  · have h := polynomialRoot_pow_eq hd
-    rw [← heq, show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring] at h
-    linarith
-  · have h := pow_succ_mul_one_add_pow_lt (d := d) (by positivity) hgt
-    rw [polynomialRoot_pow_eq hd, show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring] at h
-    have : 0 < (1 + polynomialRoot d) ^ d := by positivity
-    nlinarith
+  set φ := polynomialRoot d
+  have hφ : 0 < φ := polynomialRoot_pos d
+  have hφ_eq : φ ^ (d + 1) = (1 + φ) ^ d := polynomialRoot_pow_eq hd
+  have hpow : (((d : ℝ) + 1) * (1 + φ)) ^ d ≤ (φ * ((d : ℝ) + 2)) ^ d :=
+    pow_le_pow_left₀ (by positivity) (by nlinarith) d
+  have hle : φ ^ (d + 1) * ((d : ℝ) + 1) ^ (d + 1) ≤ φ ^ (d + 1) * ((d : ℝ) + 2) ^ d :=
+    calc φ ^ (d + 1) * ((d : ℝ) + 1) ^ (d + 1)
+        = ((d : ℝ) + 1) * (((d : ℝ) + 1) ^ d * (1 + φ) ^ d) := by rw [hφ_eq]; ring
+      _ ≤ φ * (φ ^ d * ((d : ℝ) + 2) ^ d) := by
+          rw [mul_pow, mul_pow] at hpow
+          exact mul_le_mul hge hpow (by positivity) hφ.le
+      _ = φ ^ (d + 1) * ((d : ℝ) + 2) ^ d := by ring
+  exact (add_two_pow_lt_add_one_pow_succ hd).not_ge
+    (le_of_mul_le_mul_left hle (pow_pos hφ (d + 1)))
 
 theorem polynomialRoot_strictMono {j d : ℕ} (hj : 1 ≤ j) (hjd : j < d) :
     polynomialRoot j < polynomialRoot d := by
@@ -213,13 +198,18 @@ theorem polynomialRoot_strictMono {j d : ℕ} (hj : 1 ≤ j) (hjd : j < d) :
   set φd := polynomialRoot d
   have hφd_pos : 0 < φd := polynomialRoot_pos d
   have hφj_pos : 0 < φj := polynomialRoot_pos j
-  have hstep1 : φd ^ (j + 1) ≤ (1 + φd) ^ j := by
-    rcases eq_or_lt_of_le hge with heq | hlt
-    · rw [heq, polynomialRoot_pow_eq hj]
-    · have h := pow_succ_mul_one_add_pow_lt (d := j) hφd_pos hlt
-      rw [polynomialRoot_pow_eq hj] at h
-      have hpos : 0 < (1 + φj) ^ j := by positivity
-      exact le_of_mul_le_mul_right (by linarith) hpos
+  have hpow : (φd * (1 + φj)) ^ j ≤ (φj * (1 + φd)) ^ j :=
+    pow_le_pow_left₀ (by positivity) (by nlinarith) j
+  rw [mul_pow, mul_pow, ← polynomialRoot_pow_eq hj] at hpow
+  have hcancel : φd ^ j * φj ≤ (1 + φd) ^ j :=
+    le_of_mul_le_mul_left
+      (calc φj ^ j * (φd ^ j * φj) = φd ^ j * φj ^ (j + 1) := by ring
+        _ ≤ φj ^ j * (1 + φd) ^ j := hpow)
+      (pow_pos hφj_pos j)
+  have hstep1 : φd ^ (j + 1) ≤ (1 + φd) ^ j :=
+    calc φd ^ (j + 1) = φd ^ j * φd := by ring
+      _ ≤ φd ^ j * φj := mul_le_mul_of_nonneg_left hge (by positivity)
+      _ ≤ (1 + φd) ^ j := hcancel
   obtain ⟨m, hm, rfl⟩ : ∃ m, 1 ≤ m ∧ d = j + m := ⟨d - j, by omega, by omega⟩
   have hφd1 := polynomialRoot_gt_one hd
   have hlt_m : φd ^ m < (1 + φd) ^ m := pow_lt_pow_left₀ (by linarith) hφd_pos.le (by omega)
@@ -243,18 +233,14 @@ noncomputable def polynomialSmoothMu (d : ℕ) : ℝ :=
 
 theorem polynomialSmoothMu_nonneg (d : ℕ) : 0 ≤ polynomialSmoothMu d := by
   unfold polynomialSmoothMu
-  split_ifs
-  · exact le_rfl
-  · have := polynomialRoot_pos d
-    positivity
+  have := polynomialRoot_pos d
+  split_ifs <;> positivity
 
 theorem polynomialSmoothMu_lt_one (d : ℕ) : polynomialSmoothMu d < 1 := by
   unfold polynomialSmoothMu
+  have := polynomialRoot_pos d
   split_ifs
-  · exact zero_lt_one
-  · have := polynomialRoot_pos d
-    rw [div_lt_one (by positivity)]
-    nlinarith
+  exacts [zero_lt_one, (div_lt_one (by positivity)).2 (by nlinarith)]
 
 theorem one_le_polynomialSmoothLam (d : ℕ) : 1 ≤ polynomialSmoothLam d := by
   unfold polynomialSmoothLam
@@ -267,7 +253,7 @@ theorem one_le_polynomialSmoothLam (d : ℕ) : 1 ≤ polynomialSmoothLam d := by
       ≤ ((d : ℝ) + 1 + polynomialRoot d) / (((d : ℝ) + 1) * (1 + polynomialRoot d)) *
           (1 + polynomialRoot d) := by
         rw [div_mul_eq_mul_div, one_le_div (by positivity)]
-        nlinarith [show (0 : ℝ) ≤ d by positivity]
+        nlinarith [Nat.cast_nonneg (α := ℝ) d]
     _ ≤ ((d : ℝ) + 1 + polynomialRoot d) / (((d : ℝ) + 1) * (1 + polynomialRoot d)) *
           polynomialRoot d ^ (d + 1) := by
         gcongr
@@ -278,39 +264,28 @@ theorem one_le_polynomialSmoothLam (d : ℕ) : 1 ≤ polynomialSmoothLam d := by
 `polynomialSmoothLam d / (1 - polynomialSmoothMu d) = polynomialRoot d ^ (d + 1)`. -/
 theorem polynomialSmoothRatio_eq {d : ℕ} (hd : 1 ≤ d) :
     polynomialSmoothLam d / (1 - polynomialSmoothMu d) = polynomialRoot d ^ (d + 1) := by
-  have hd0 : d ≠ 0 := by omega
   have hφ : 0 < polynomialRoot d := polynomialRoot_pos d
-  unfold polynomialSmoothLam polynomialSmoothMu
-  simp only [hd0, ↓reduceIte]
-  have hden1 : ((d : ℝ) + 1) * (1 + polynomialRoot d) ≠ 0 := by positivity
-  have h1mu : 1 - (d : ℝ) * polynomialRoot d / (((d : ℝ) + 1) * (1 + polynomialRoot d)) =
-      ((d : ℝ) + 1 + polynomialRoot d) / (((d : ℝ) + 1) * (1 + polynomialRoot d)) := by
-    field_simp; ring
-  rw [h1mu]
-  exact mul_div_cancel_left₀ _ (by positivity)
+  rw [div_eq_iff (sub_pos.2 (polynomialSmoothMu_lt_one d)).ne']
+  simp only [polynomialSmoothLam, polynomialSmoothMu, Nat.ne_of_gt hd, ↓reduceIte]
+  field_simp
+  ring
 
 theorem polynomialSmoothMu_mono {j d : ℕ} (hjd : j ≤ d) :
     polynomialSmoothMu j ≤ polynomialSmoothMu d := by
   rcases eq_or_lt_of_le hjd with rfl | hlt
   · exact le_rfl
   rcases Nat.eq_zero_or_pos j with rfl | hj
-  · simp only [polynomialSmoothMu, ↓reduceIte]
-    exact polynomialSmoothMu_nonneg d
+  · simpa [polynomialSmoothMu] using polynomialSmoothMu_nonneg d
   have hφ_lt := polynomialRoot_strictMono hj hlt
   have hφj := polynomialRoot_pos j
   have hφd := polynomialRoot_pos d
-  have hj0 : j ≠ 0 := by omega
-  have hd0 : d ≠ 0 := by omega
-  unfold polynomialSmoothMu
-  simp only [hj0, hd0, ↓reduceIte]
+  simp only [polynomialSmoothMu, hj.ne', (hj.trans hlt).ne', ↓reduceIte]
   have hjd' : (j : ℝ) ≤ d := Nat.cast_le.2 hjd
-  have hf1 : (j : ℝ) / ((j : ℝ) + 1) ≤ (d : ℝ) / ((d : ℝ) + 1) := by
-    rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    linarith
+  have hf1 : (j : ℝ) / ((j : ℝ) + 1) ≤ (d : ℝ) / ((d : ℝ) + 1) :=
+    (div_le_div_iff₀ (by positivity) (by positivity)).2 (by linarith)
   have hf2 : polynomialRoot j / (1 + polynomialRoot j) ≤
-      polynomialRoot d / (1 + polynomialRoot d) := by
-    rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    linarith
+      polynomialRoot d / (1 + polynomialRoot d) :=
+    (div_le_div_iff₀ (by positivity) (by positivity)).2 (by linarith)
   calc (j : ℝ) * polynomialRoot j / (((j : ℝ) + 1) * (1 + polynomialRoot j))
       = ((j : ℝ) / ((j : ℝ) + 1)) * (polynomialRoot j / (1 + polynomialRoot j)) := by
         field_simp
@@ -326,34 +301,23 @@ theorem polynomialSmoothLam_mono {j d : ℕ} (hjd : j ≤ d) :
   | @step m hjm ih =>
     refine ih.trans ?_
     rcases Nat.eq_zero_or_pos m with rfl | hm1
-    · simp only [polynomialSmoothLam, ↓reduceIte]
-      exact one_le_polynomialSmoothLam 1
+    · simpa [polynomialSmoothLam] using one_le_polynomialSmoothLam 1
     have hm_succ : 1 ≤ m + 1 := by omega
     have hφm_lt := polynomialRoot_lt_succ hm1
     have hφ_inc := polynomialRoot_strictMono hm1 (Nat.lt_succ_self m)
     have hφm_gt1 := polynomialRoot_gt_one hm1
     have hφs_gt1 := polynomialRoot_gt_one hm_succ
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le' hm1
-    have hk0 : k + 1 ≠ 0 := by omega
-    have hks0 : k + 1 + 1 ≠ 0 := by omega
-    unfold polynomialSmoothLam
-    simp only [hk0, hks0, ↓reduceIte,
+    simp only [polynomialSmoothLam, Nat.succ_ne_zero, ↓reduceIte,
       polynomialRoot_pow_eq hm1, polynomialRoot_pow_eq hm_succ]
-    have h1m : 1 + polynomialRoot (k + 1) ≠ 0 := by linarith
-    have h1s : 1 + polynomialRoot (k + 1 + 1) ≠ 0 := by linarith
-    have hrew1 : (((k + 1 : ℕ) : ℝ) + 1 + polynomialRoot (k + 1)) /
-        ((((k + 1 : ℕ) : ℝ) + 1) * (1 + polynomialRoot (k + 1))) *
-        (1 + polynomialRoot (k + 1)) ^ (k + 1) =
-        (1 + polynomialRoot (k + 1) / (((k + 1 : ℕ) : ℝ) + 1)) *
-        (1 + polynomialRoot (k + 1)) ^ k := by
-      rw [pow_succ]; field_simp [show (((k + 1 : ℕ) : ℝ) + 1) ≠ 0 by positivity]
-    have hrew2 : (((k + 1 + 1 : ℕ) : ℝ) + 1 + polynomialRoot (k + 1 + 1)) /
-        ((((k + 1 + 1 : ℕ) : ℝ) + 1) * (1 + polynomialRoot (k + 1 + 1))) *
-        (1 + polynomialRoot (k + 1 + 1)) ^ (k + 1 + 1) =
-        (1 + polynomialRoot (k + 1 + 1) / (((k + 1 + 1 : ℕ) : ℝ) + 1)) *
-        (1 + polynomialRoot (k + 1 + 1)) * (1 + polynomialRoot (k + 1 + 1)) ^ k := by
-      rw [pow_succ, pow_succ]; field_simp [show (((k + 1 + 1 : ℕ) : ℝ) + 1) ≠ 0 by positivity]
-    rw [hrew1, hrew2]
+    have hrew (n : ℕ) : (((n + 1 : ℕ) : ℝ) + 1 + polynomialRoot (n + 1)) /
+        ((((n + 1 : ℕ) : ℝ) + 1) * (1 + polynomialRoot (n + 1))) *
+        (1 + polynomialRoot (n + 1)) ^ (n + 1) =
+        (1 + polynomialRoot (n + 1) / (((n + 1 : ℕ) : ℝ) + 1)) *
+        (1 + polynomialRoot (n + 1)) ^ n := by
+      have : 0 < polynomialRoot (n + 1) := polynomialRoot_pos (n + 1)
+      rw [pow_succ]; field_simp
+    rw [hrew k, hrew (k + 1), pow_succ', ← mul_assoc]
     have hcoef : 1 + polynomialRoot (k + 1) / (((k + 1 : ℕ) : ℝ) + 1) ≤
         (1 + polynomialRoot (k + 1 + 1) / (((k + 1 + 1 : ℕ) : ℝ) + 1)) *
         (1 + polynomialRoot (k + 1 + 1)) := by
@@ -382,9 +346,10 @@ private theorem young_nat_pow {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (d : ℕ
     have hdiff : 0 ≤ b * (a ^ (k + 1) + (k : ℝ) * b ^ (k + 1) - ((k : ℝ) + 1) * a * b ^ k) :=
       mul_nonneg hb (by linarith)
     push_cast
-    linarith [show a ^ (k + 2) + ((k : ℝ) + 1) * b ^ (k + 2) - ((k : ℝ) + 2) * a * b ^ (k + 1) =
-      b * (a ^ (k + 1) + (k : ℝ) * b ^ (k + 1) - ((k : ℝ) + 1) * a * b ^ k) +
-      (a ^ (k + 1) - b ^ (k + 1)) * (a - b) by ring]
+    have hid : a ^ (k + 2) + ((k : ℝ) + 1) * b ^ (k + 2) - ((k : ℝ) + 2) * a * b ^ (k + 1) =
+        b * (a ^ (k + 1) + (k : ℝ) * b ^ (k + 1) - ((k : ℝ) + 1) * a * b ^ k) +
+        (a ^ (k + 1) - b ^ (k + 1)) * (a - b) := by ring
+    linarith
 
 private theorem add_pow_weighted_bound {x z φ : ℝ} (hx : 0 ≤ x) (hz : 0 ≤ z) (hφ : 0 ≤ φ) :
     ∀ m : ℕ, φ ^ m * (x + z) ^ (m + 1) ≤
@@ -398,11 +363,13 @@ private theorem add_pow_weighted_bound {x z φ : ℝ} (hx : 0 ≤ x) (hz : 0 ≤
     have hmon := pow_sub_mul_sub_nonneg (mul_nonneg hφ hx) hz (m + 1)
     have hgap : 0 ≤ (1 + φ) ^ m * (((φ * x) ^ (m + 1) - z ^ (m + 1)) * (φ * x - z)) :=
       mul_nonneg (by positivity) hmon
-    linarith [show φ ^ (m + 1) * (1 + φ) ^ (m + 1) * x ^ (m + 2) +
+    have hid1 : φ ^ (m + 1) * (1 + φ) ^ (m + 1) * x ^ (m + 2) +
         (1 + φ) ^ (m + 1) * z ^ (m + 2) -
         φ * (x + z) * (φ ^ m * (1 + φ) ^ m * x ^ (m + 1) + (1 + φ) ^ m * z ^ (m + 1)) =
-        (1 + φ) ^ m * (((φ * x) ^ (m + 1) - z ^ (m + 1)) * (φ * x - z)) by ring,
-      show φ * (x + z) * (φ ^ m * (x + z) ^ (m + 1)) = φ ^ (m + 1) * (x + z) ^ (m + 2) by ring]
+        (1 + φ) ^ m * (((φ * x) ^ (m + 1) - z ^ (m + 1)) * (φ * x - z)) := by ring
+    have hid2 : φ * (x + z) * (φ ^ m * (x + z) ^ (m + 1)) = φ ^ (m + 1) * (x + z) ^ (m + 2) := by
+      ring
+    linarith
 
 /-- **Real polynomial smoothness inequality**: for every degree `d ≥ 1` and nonnegative reals
 `x, z ≥ 0`,
@@ -418,51 +385,35 @@ theorem mul_add_pow_le_polynomialSmooth {d : ℕ} (hd : 1 ≤ d) {x z : ℝ} (hx
   have hyoung := young_nat_pow (a := (1 + φ) * x) (b := z + x) (by positivity) (by positivity) d
   have hw := add_pow_weighted_bound hx hz hφ.le d
   rw [← heq] at hw
-  have hw_cancel : (x + z) ^ (d + 1) ≤ φ ^ (d + 1) * x ^ (d + 1) + φ * z ^ (d + 1) := by
-    refine le_of_mul_le_mul_left ?_ (pow_pos hφ d)
-    linarith [show φ ^ d * (φ ^ (d + 1) * x ^ (d + 1) + φ * z ^ (d + 1)) =
-      φ ^ d * φ ^ (d + 1) * x ^ (d + 1) + φ ^ (d + 1) * z ^ (d + 1) by ring]
+  have hw_cancel : (x + z) ^ (d + 1) ≤ φ ^ (d + 1) * x ^ (d + 1) + φ * z ^ (d + 1) :=
+    le_of_mul_le_mul_left (hw.trans_eq (by ring)) (pow_pos hφ d)
   have hcomb : (x * (z + x) ^ d) * (((d : ℝ) + 1) * (1 + φ)) ≤
       ((d : ℝ) + 1 + φ) * φ ^ (d + 1) * x ^ (d + 1) + (d : ℝ) * φ * z ^ (d + 1) := by
     have h1 : ((1 + φ) * x) ^ (d + 1) = (1 + φ) * φ ^ (d + 1) * x ^ (d + 1) := by
       rw [mul_pow, pow_succ', ← heq]
     have h2 : (z + x) ^ (d + 1) = (x + z) ^ (d + 1) := by ring
     nlinarith
-  unfold polynomialSmoothLam polynomialSmoothMu
-  simp only [hd0, ↓reduceIte]
+  simp only [polynomialSmoothLam, polynomialSmoothMu, hd0, ↓reduceIte]
   have hden : 0 < ((d : ℝ) + 1) * (1 + φ) := by positivity
-  have hdiv : x * (z + x) ^ d ≤
-      (((d : ℝ) + 1 + φ) * φ ^ (d + 1) * x ^ (d + 1) + (d : ℝ) * φ * z ^ (d + 1)) /
-        (((d : ℝ) + 1) * (1 + φ)) :=
-    (le_div_iff₀ hden).2 hcomb
-  refine hdiv.trans_eq ?_
+  refine ((le_div_iff₀ hden).2 hcomb).trans_eq ?_
   dsimp [φ] at hden ⊢
-  have hden_ne : ((d : ℝ) + 1) * (1 + polynomialRoot d) ≠ 0 := hden.ne'
-  field_simp
+  field_simp [hden.ne']
 
 theorem nat_mul_add_one_pow_le_polynomialSmooth {j d : ℕ} (hjd : j ≤ d) (y z : ℕ) :
     (y : ℝ) * ((z : ℝ) + 1) ^ j ≤
       polynomialSmoothLam d * (y : ℝ) ^ (j + 1) + polynomialSmoothMu d * (z : ℝ) ^ (j + 1) := by
   rcases Nat.eq_zero_or_pos y with rfl | hy
-  · simp only [Nat.cast_zero, zero_mul]
-    have := polynomialSmoothMu_nonneg d
-    have := one_le_polynomialSmoothLam d
-    positivity
+  · simp only [Nat.cast_zero, zero_mul, zero_pow (Nat.succ_ne_zero j), mul_zero, zero_add]
+    exact mul_nonneg (polynomialSmoothMu_nonneg d) (pow_nonneg (Nat.cast_nonneg z) _)
   rcases Nat.eq_zero_or_pos j with rfl | hj
   · simp only [pow_zero, zero_add, pow_one, mul_one]
-    have hlam := one_le_polynomialSmoothLam d
-    have hmu := polynomialSmoothMu_nonneg d
-    nlinarith [show (0 : ℝ) ≤ y by positivity, show (0 : ℝ) ≤ z by positivity]
+    nlinarith [one_le_polynomialSmoothLam d, polynomialSmoothMu_nonneg d]
   have hy1 : (1 : ℝ) ≤ y := by exact_mod_cast hy
-  have hstep1 : (y : ℝ) * ((z : ℝ) + 1) ^ j ≤ (y : ℝ) * ((z : ℝ) + y) ^ j :=
-    mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) (by linarith) j) (by positivity)
-  have hstep2 := mul_add_pow_le_polynomialSmooth (d := j) hj (x := (y : ℝ)) (z := (z : ℝ))
-    (by positivity) (by positivity)
-  have hlam := polynomialSmoothLam_mono hjd
-  have hmu := polynomialSmoothMu_mono hjd
-  exact (hstep1.trans hstep2).trans (add_le_add
-    (mul_le_mul_of_nonneg_right hlam (by positivity))
-    (mul_le_mul_of_nonneg_right hmu (by positivity)))
+  refine ((mul_le_mul_of_nonneg_left
+      (pow_le_pow_left₀ (by positivity) (by linarith) j) (by positivity)).trans
+    (mul_add_pow_le_polynomialSmooth hj (by positivity) (by positivity))).trans
+    (add_le_add (mul_le_mul_of_nonneg_right (polynomialSmoothLam_mono hjd) (by positivity))
+      (mul_le_mul_of_nonneg_right (polynomialSmoothMu_mono hjd) (by positivity)))
 
 end CharacteristicRoot
 
@@ -513,21 +464,20 @@ private theorem isSmooth_of_latency_bound {lam μ : ℝ}
 [AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_of_hasPolynomialLatencies {d : ℕ} (h : C.HasPolynomialLatencies d) :
     C.toCostGame.IsSmooth (polynomialSmoothLam d) (polynomialSmoothMu d) := by
-  have hmono := h.monotone_latency
+  refine isSmooth_of_latency_bound h.monotone_latency fun e y z => ?_
   obtain ⟨c, hc, hl⟩ := h
-  refine isSmooth_of_latency_bound hmono fun e y z => ?_
   rw [hl, hl, hl, mul_sum, mul_sum, mul_sum, mul_sum, mul_sum, ← sum_add_distrib]
   refine sum_le_sum fun j hj => ?_
   have hjd : j ≤ d := Nat.lt_succ_iff.1 (mem_range.1 hj)
   have hbase := nat_mul_add_one_pow_le_polynomialSmooth hjd y z
   push_cast at hbase ⊢
-  have hscaled := mul_le_mul_of_nonneg_left hbase (hc e j)
-  linarith [show (y : ℝ) * (c e j * ((z : ℝ) + 1) ^ j) = c e j * ((y : ℝ) * ((z : ℝ) + 1) ^ j) by
-      ring,
-    show polynomialSmoothLam d * ((y : ℝ) * (c e j * (y : ℝ) ^ j)) +
-        polynomialSmoothMu d * ((z : ℝ) * (c e j * (z : ℝ) ^ j)) =
-      c e j * (polynomialSmoothLam d * (y : ℝ) ^ (j + 1) +
-        polynomialSmoothMu d * (z : ℝ) ^ (j + 1)) by ring]
+  calc (y : ℝ) * (c e j * ((z : ℝ) + 1) ^ j)
+      = c e j * ((y : ℝ) * ((z : ℝ) + 1) ^ j) := by ring
+    _ ≤ c e j * (polynomialSmoothLam d * (y : ℝ) ^ (j + 1) +
+          polynomialSmoothMu d * (z : ℝ) ^ (j + 1)) :=
+        mul_le_mul_of_nonneg_left hbase (hc e j)
+    _ = polynomialSmoothLam d * ((y : ℝ) * (c e j * (y : ℝ) ^ j)) +
+          polynomialSmoothMu d * ((z : ℝ) * (c e j * (z : ℝ) ^ j)) := by ring
 
 /-- **Robust price of anarchy `φ_d ^ (d + 1)` for degree-`d` polynomial congestion games**: for
 `d ≥ 1`, every coarse correlated equilibrium `σ` satisfies
@@ -537,9 +487,9 @@ theorem expected_socialCost_le_of_hasPolynomialLatencies {d : ℕ} (hd : 1 ≤ d
     (hσ : C.toCostGame.IsCoarseCorrelatedEquilibrium σ) (s' : ∀ i, S i) :
     σ.weights.sum (fun s w => w * C.toCostGame.socialCost s) ≤
       polynomialRoot d ^ (d + 1) * C.toCostGame.socialCost s' := by
-  have hsm := (isSmooth_of_hasPolynomialLatencies h).expected_socialCost_le
-    (polynomialSmoothMu_lt_one d) hσ s'
-  rwa [polynomialSmoothRatio_eq hd] at hsm
+  simpa only [polynomialSmoothRatio_eq hd] using
+    (isSmooth_of_hasPolynomialLatencies h).expected_socialCost_le
+      (polynomialSmoothMu_lt_one d) hσ s'
 
 /-- **Explicit closed-form `d^{O(d)}` robust price of anarchy** ([AwerbuchAzarEpstein2005];
 [Roughgarden2015], Example 2.5 and Theorem 3.2): for `d ≥ 1`, every coarse correlated equilibrium
@@ -553,14 +503,12 @@ theorem expected_socialCost_le_succ_pow_of_hasPolynomialLatencies {d : ℕ} (hd 
   have := Fintype.ofFinite E
   have hnonneg : 0 ≤ C.toCostGame.socialCost s' := by
     obtain ⟨c, hc, hl⟩ := h
-    rw [socialCost_toCostGame]
-    refine sum_nonneg fun e _ => mul_nonneg (Nat.cast_nonneg _) ?_
-    rw [hl]
-    exact sum_nonneg fun j _ => mul_nonneg (hc e j) (by positivity)
-  have hpow : polynomialRoot d ^ (d + 1) ≤ ((d : ℝ) + 1) ^ (d + 1) :=
-    pow_le_pow_left₀ (polynomialRoot_pos d).le (polynomialRoot_lt_succ hd).le (d + 1)
+    simp only [socialCost_toCostGame, hl]
+    exact sum_nonneg fun e _ => mul_nonneg (Nat.cast_nonneg _)
+      (sum_nonneg fun j _ => mul_nonneg (hc e j) (by positivity))
   exact (expected_socialCost_le_of_hasPolynomialLatencies hd h hσ s').trans
-    (mul_le_mul_of_nonneg_right hpow hnonneg)
+    (mul_le_mul_of_nonneg_right
+      (pow_le_pow_left₀ (polynomialRoot_pos d).le (polynomialRoot_lt_succ hd).le (d + 1)) hnonneg)
 
 end GeneralPolynomial
 
@@ -584,9 +532,10 @@ theorem mul_add_one_sq_le_quadraticSmooth (y z : ℕ) :
         exact mul_nonneg_of_nonpos_of_nonpos (by linarith) (by linarith)
       · have : (3 : ℝ) ≤ z := Nat.cast_le.2 hz3
         exact mul_nonneg (by linarith) (by linarith)
-    nlinarith [mul_nonneg hfac (by positivity : (0 : ℝ) ≤ 7 * (z : ℝ) + 16),
-      show 19 * (115 / 19 * (1 : ℝ) ^ 3 + 7 / 19 * (z : ℝ) ^ 3 - 1 * ((z : ℝ) + 1) ^ 2) =
-        ((z : ℝ) - 2) * ((z : ℝ) - 3) * (7 * (z : ℝ) + 16) by ring]
+    have hpos : (0 : ℝ) ≤ 7 * (z : ℝ) + 16 := by positivity
+    have hid : 19 * (115 / 19 * (1 : ℝ) ^ 3 + 7 / 19 * (z : ℝ) ^ 3 - 1 * ((z : ℝ) + 1) ^ 2) =
+        ((z : ℝ) - 2) * ((z : ℝ) - 3) * (7 * (z : ℝ) + 16) := by ring
+    nlinarith [mul_nonneg hfac hpos]
   have hy2 : (2 : ℝ) ≤ y := Nat.ofNat_le_cast.2 (by omega)
   have hstep : 4 * ((y : ℝ) * ((z : ℝ) + 1) ^ 2) ≤ (y : ℝ) * (2 * (z : ℝ) + y) ^ 2 := by
     have hle : 2 * ((z : ℝ) + 1) ≤ 2 * (z : ℝ) + y := by linarith
@@ -594,13 +543,13 @@ theorem mul_add_one_sq_le_quadraticSmooth (y z : ℕ) :
     nlinarith [Nat.cast_nonneg (α := ℝ) y]
   have hsos : 0 ≤ 36 * (115 * (y : ℝ) ^ 3 + 7 * (z : ℝ) ^ 3) -
       171 * (y : ℝ) * (2 * (z : ℝ) + y) ^ 2 := by
-    nlinarith [mul_nonneg (Nat.cast_nonneg (α := ℝ) z) (sq_nonneg ((z : ℝ) - 2 * y)),
-      mul_nonneg (Nat.cast_nonneg (α := ℝ) y) (sq_nonneg (18 * (z : ℝ) - 47 * y)),
-      sq_nonneg (y : ℝ), mul_nonneg (Nat.cast_nonneg (α := ℝ) y) (sq_nonneg (y : ℝ)),
-      show 36 * (115 * (y : ℝ) ^ 3 + 7 * (z : ℝ) ^ 3) -
+    have hid : 36 * (115 * (y : ℝ) ^ 3 + 7 * (z : ℝ) ^ 3) -
         171 * (y : ℝ) * (2 * (z : ℝ) + y) ^ 2 =
         252 * (z : ℝ) * ((z : ℝ) - 2 * y) ^ 2 +
-        (y : ℝ) * ((18 * (z : ℝ) - 47 * y) ^ 2 + 1760 * (y : ℝ) ^ 2) by ring]
+        (y : ℝ) * ((18 * (z : ℝ) - 47 * y) ^ 2 + 1760 * (y : ℝ) ^ 2) := by ring
+    nlinarith [mul_nonneg (Nat.cast_nonneg (α := ℝ) z) (sq_nonneg ((z : ℝ) - 2 * y)),
+      mul_nonneg (Nat.cast_nonneg (α := ℝ) y) (sq_nonneg (18 * (z : ℝ) - 47 * y)),
+      sq_nonneg (y : ℝ), mul_nonneg (Nat.cast_nonneg (α := ℝ) y) (sq_nonneg (y : ℝ))]
   linarith
 
 variable {ι : Type*} {S : ι → Type*} {E : Type*} [Fintype ι] [DecidableEq ι] [DecidableEq E]
@@ -610,9 +559,8 @@ variable {ι : Type*} {S : ι → Type*} {E : Type*} [Fintype ι] [DecidableEq �
 ([AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_quadratic (h : C.HasPolynomialLatencies 2) :
     C.toCostGame.IsSmooth (115 / 19) (7 / 19) := by
-  have hmono := h.monotone_latency
+  refine isSmooth_of_latency_bound h.monotone_latency fun e y z => ?_
   obtain ⟨c, hc, hl⟩ := h
-  refine isSmooth_of_latency_bound hmono fun e y z => ?_
   rw [hl, hl, hl]
   simp only [sum_range_succ, sum_range_zero, zero_add, pow_zero, pow_one]
   push_cast
@@ -636,9 +584,7 @@ theorem expected_socialCost_le_quadratic (h : C.HasPolynomialLatencies 2)
     (s' : ∀ i, S i) :
     σ.weights.sum (fun s w => w * C.toCostGame.socialCost s) ≤
       115 / 12 * C.toCostGame.socialCost s' := by
-  have h' := (isSmooth_quadratic h).expected_socialCost_le (by norm_num) hσ s'
-  norm_num at h' ⊢
-  linarith
+  linarith [(isSmooth_quadratic h).expected_socialCost_le (by norm_num) hσ s']
 
 /-- Resource sets of a symmetric four-player, eight-resource quadratic congestion game attaining
 exact pure Nash price of anarchy `115 / 12`: resources `0..3` form ring 1 (weight `11`) and
@@ -667,25 +613,18 @@ private theorem quadraticTightGame_socialCost_eq (s : Fin 4 → Bool) :
     quadraticTightGame.toCostGame.socialCost s =
       ((∑ e : Fin 8, quadraticTightGame.load s e *
         (quadraticTightWeight e * quadraticTightGame.load s e ^ 2) : ℕ) : ℝ) := by
-  rw [socialCost_toCostGame]
-  change ∑ e : Fin 8, (quadraticTightGame.load s e : ℝ) *
-    ((quadraticTightWeight e : ℝ) * (quadraticTightGame.load s e : ℝ) ^ 2) = _
-  push_cast
-  rfl
+  simp only [socialCost_toCostGame, quadraticTightGame]
+  norm_cast
 
 private theorem quadraticTightGame_socialCost_false :
     quadraticTightGame.toCostGame.socialCost (fun _ => false) = 460 := by
   rw [quadraticTightGame_socialCost_eq]
-  exact_mod_cast (by decide :
-    ∑ e : Fin 8, quadraticTightGame.load (fun _ => false) e *
-      (quadraticTightWeight e * quadraticTightGame.load (fun _ => false) e ^ 2) = 460)
+  norm_cast
 
 private theorem quadraticTightGame_socialCost_true :
     quadraticTightGame.toCostGame.socialCost (fun _ => true) = 48 := by
   rw [quadraticTightGame_socialCost_eq]
-  exact_mod_cast (by decide :
-    ∑ e : Fin 8, quadraticTightGame.load (fun _ => true) e *
-      (quadraticTightWeight e * quadraticTightGame.load (fun _ => true) e ^ 2) = 48)
+  norm_cast
 
 private theorem quadraticTightGame_isPureNash :
     quadraticTightGame.toCostGame.IsPureNash (fun _ => false) := by
@@ -693,10 +632,8 @@ private theorem quadraticTightGame_isPureNash :
   have hcast (s : Fin 4 → Bool) : quadraticTightGame.toCostGame.cost i s =
       ((∑ e ∈ quadraticTightResources i (s i),
         quadraticTightWeight e * quadraticTightGame.load s e ^ 2 : ℕ) : ℝ) := by
-    rw [toCostGame_cost]
-    dsimp only [quadraticTightGame]
-    push_cast
-    rfl
+    simp only [toCostGame_cost, quadraticTightGame]
+    norm_cast
   rw [hcast, hcast, Nat.cast_le]
   clear hcast
   revert i t
@@ -717,10 +654,8 @@ theorem exists_socialCost_eq_quadratic_poa :
     quadraticTightGame_isPureNash, ?_, ?_⟩
   · simp only [quadraticTightGame, sum_range_succ, sum_range_zero, Nat.reduceEqDiff, ↓reduceIte,
       zero_mul, zero_add]
-  · rw [quadraticTightGame_socialCost_true]
-    norm_num
-  · rw [quadraticTightGame_socialCost_false, quadraticTightGame_socialCost_true]
-    norm_num
+  · norm_num [quadraticTightGame_socialCost_true]
+  · norm_num [quadraticTightGame_socialCost_false, quadraticTightGame_socialCost_true]
 
 end Quadratic
 

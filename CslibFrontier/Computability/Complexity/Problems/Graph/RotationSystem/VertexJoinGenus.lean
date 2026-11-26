@@ -94,10 +94,10 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
     by_cases hh : hit
     · have hroot := (sameComponent_mergeGraph_iff_join h k hG a h).mpr
         (hh.imp id fun hh => Or.inr ⟨hh, .refl (vertex_mem hG h)⟩)
-      simpa only [p, hh, ite_true, q,
-        show SameComponent (mergeGraph h k) (e a).vertex (e b).vertex ↔
-          SameComponent (mergeGraph h k) (e h).vertex (e b).vertex from
-            ⟨hroot.symm.trans, hroot.trans⟩] using
+      have he : SameComponent (mergeGraph h k) (e a).vertex (e b).vertex ↔
+          SameComponent (mergeGraph h k) (e h).vertex (e b).vertex :=
+        ⟨hroot.symm.trans, hroot.trans⟩
+      simpa only [p, hh, ite_true, q, he] using
         (sameComponent_mergeGraph_left_iff h k hG b).symm
     · simpa only [p, hh, ite_false, q] using
         (sameComponent_mergeGraph_unaffected_iff h k hG a b (hh ∘ Or.inl) (hh ∘ Or.inr)).symm
@@ -111,8 +111,9 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
     · exact iff_of_false (hh ∘ .inr) not_false
   have hp (f : Perm (Dart G)) (hf : ∀ b, SameComponent G b.vertex (f b).vertex) (b : Dart G) :
       p (f b) ↔ p b := by
-    simp only [p, show ∀ v, SameComponent G v (f b).vertex ↔ SameComponent G v b.vertex from
-      fun _ => ⟨(·.trans (hf b).symm), (·.trans (hf b))⟩]
+    have ht (v : ℕ) : SameComponent G v (f b).vertex ↔ SameComponent G v b.vertex :=
+      ⟨(·.trans (hf b).symm), (·.trans (hf b))⟩
+    simp only [p, ht]
   have hpr := hp r.rotate (fun b => by
     rw [r.vertex_rotate]
     exact .refl (vertex_mem hG b))

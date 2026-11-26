@@ -126,12 +126,10 @@ theorem isSatExtension_update_iff {φ : CNF (Fin n)} {τ : Fin n → Option Bool
     IsSatExtension φ (update τ y (some b)) σ ↔ IsSatExtension φ τ σ ∧ σ y = b := by
   refine ⟨fun ⟨hext, hsat⟩ => ⟨⟨fun z c hz => hext z c ?_, hsat⟩,
     hext y b (update_self y _ τ)⟩, fun ⟨⟨hext, hsat⟩, hσy⟩ => ⟨fun z c hz => ?_, hsat⟩⟩
-  · rwa [update_of_ne (by
-      rintro rfl
-      simp [hy] at hz)]
-  · by_cases hzy : z = y
-    · subst hzy
-      simpa [hσy] using hz
+  · have hne : z ≠ y := ne_of_apply_ne τ (by simp [hz, hy])
+    rwa [update_of_ne hne]
+  · rcases eq_or_ne z y with rfl | hzy
+    · simpa [hσy] using hz
     · exact hext z c (by rwa [update_of_ne hzy] at hz)
 
 /-- `y = b` is a satisfying literal exactly when `y` is unassigned and `τ` updated by `y = b` has
@@ -160,9 +158,8 @@ a satisfying literal. -/
 theorem card_free_le_card_satLits {φ : CNF (Fin n)} {τ : Fin n → Option Bool}
     (h : ∃ σ, IsSatExtension φ τ σ) : (free τ).card ≤ (satLits φ τ).card := by
   obtain ⟨σ, hσ⟩ := h
-  refine card_le_card_of_injOn (fun y => (y, σ y)) (fun y hy => ?_)
-    fun _ _ _ _ h => congrArg Prod.fst h
-  exact mem_satLits.mpr ⟨mem_free.mp hy, σ, hσ, rfl⟩
+  exact card_le_card_of_injOn (fun y => (y, σ y))
+    (fun y hy => mem_satLits.mpr ⟨mem_free.mp hy, σ, hσ, rfl⟩) fun _ _ _ _ h => congrArg Prod.fst h
 
 /-- With a satisfying extension and an unassigned variable, there is a satisfying literal. -/
 theorem card_satLits_pos {φ : CNF (Fin n)} {τ : Fin n → Option Bool}
@@ -237,8 +234,7 @@ theorem assignProb_eq_sum {φ : CNF (Fin n)} {τ : Fin n → Option Bool}
   obtain ⟨k, hk⟩ := Nat.exists_eq_succ_of_ne_zero (card_ne_zero.mpr h)
   rw [assignProb, hk, assignProbAux]
   refine congrArg _ (sum_congr rfl fun l hl => ?_)
-  have := card_free_update (mem_satLits.mp hl).1 l.2
-  rw [assignProb, show (free (update τ l.1 (some l.2))).card = k by omega]
+  rw [assignProb, Nat.succ.inj ((card_free_update (mem_satLits.mp hl).1 l.2).trans hk)]
 
 /-- Output probabilities are nonnegative. -/
 theorem assignProb_nonneg (φ : CNF (Fin n)) (τ : Fin n → Option Bool) (α : Fin n → Bool) :
@@ -320,9 +316,7 @@ theorem card_satLits_mul_assignProb (φ : CNF (Fin n)) (τ : Fin n → Option Bo
     exact (sum_eq_zero fun y hy => assignProb_eq_zero fun h =>
       hα ((isSatExtension_update_iff (mem_free.mp hy)).mp h).1).symm
   rcases (free τ).eq_empty_or_nonempty with hτ | hne
-  · have h0 := hτ ▸ card_satLits_le φ τ
-    simp only [card_empty, mul_zero, nonpos_iff_eq_zero] at h0
-    simp [hτ, h0]
+  · simp [hτ, nonpos_iff_eq_zero.mp (hτ ▸ card_satLits_le φ τ)]
   have hs : ((satLits φ τ).card : ℝ) ≠ 0 :=
     Nat.cast_ne_zero.mpr (card_satLits_pos ⟨α, hα⟩ hne).ne'
   let e : Fin n ↪ Fin n × Bool := ⟨fun y => (y, α y), fun _ _ h => congrArg Prod.fst h⟩
@@ -391,7 +385,6 @@ theorem assignProb_le_assignProb_update (φ : CNF (Fin n)) (τ : Fin n → Optio
   · exact assignProb_le_assignProb_update_of_eq_none φ τ α y hy
   · by_cases hc : α y = c
     · rw [hc, ← hy, update_eq_self]
-    · rw [assignProb_eq_zero fun h => hc (h.1 y c hy)]
-      exact assignProb_nonneg _ _ _
+    · simp [assignProb_eq_zero fun h => hc (h.1 y c hy), assignProb_nonneg]
 
 end Cslib.Complexity.PPSZ

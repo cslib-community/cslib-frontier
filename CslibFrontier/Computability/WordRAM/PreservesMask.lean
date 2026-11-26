@@ -121,18 +121,14 @@ theorem preservesAll_eq_true_iff (keep : Fin r → Bool) (c : Code B r) :
     | none => simp
     | some d =>
       simp only [Bool.not_eq_true', ne_eq, Option.some.injEq]
-      exact ⟨fun h _ hi heq => by
-          subst heq
-          simp [hi] at h,
+      exact ⟨fun h _ hi heq => Bool.false_ne_true ((heq ▸ h).symm.trans hi),
         fun h => Bool.eq_false_iff.mpr fun hd => h d hd rfl⟩
   | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ =>
     simp only [preservesAll, Bool.and_eq_true, Preserves, ih₁, ih₂, forall_and]
   | loop _ _ ih => exact ih
   | rand dst _ =>
     simp only [preservesAll, Preserves, Bool.not_eq_true']
-    exact ⟨fun h _ hi heq => by
-        subst heq
-        simp [hi] at h,
+    exact ⟨fun h _ hi heq => Bool.false_ne_true ((heq ▸ h).symm.trans hi),
       fun h => Bool.eq_false_iff.mpr fun hd => h dst hd rfl⟩
 
 /-- Drop-in replacement for `∀ i : Fin r, P i → c.Preserves i := by decide`: evaluates `P` only on
@@ -186,11 +182,10 @@ private theorem preserves_of_lt_writeStart {c : Code B r} {i : Fin r} (hi : i.va
     c.Preserves i := by
   induction c with
   | op o =>
-    simp only [Preserves, writeStart, Op.writeStart] at hi ⊢
     cases h : o.dest with
-    | none => simp
+    | none => simp [Preserves, h]
     | some d =>
-      simp only [h] at hi
+      simp only [Preserves, writeStart, Op.writeStart, h] at hi ⊢
       exact fun heq => Nat.ne_of_lt hi (congrArg Fin.val (Option.some.inj heq)).symm
   | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ =>
     simp only [writeStart, lt_min_iff] at hi
@@ -207,11 +202,10 @@ private theorem preserves_of_writeEnd_le {c : Code B r} {i : Fin r} (hi : c.writ
     c.Preserves i := by
   induction c with
   | op o =>
-    simp only [Preserves, writeEnd, Op.writeEnd] at hi ⊢
     cases h : o.dest with
-    | none => simp
+    | none => simp [Preserves, h]
     | some d =>
-      simp only [h] at hi
+      simp only [Preserves, writeEnd, Op.writeEnd, h] at hi ⊢
       exact fun heq => absurd (congrArg Fin.val (Option.some.inj heq)) (by omega)
   | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ =>
     simp only [writeEnd, max_le_iff] at hi

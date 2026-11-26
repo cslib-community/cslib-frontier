@@ -146,8 +146,9 @@ theorem eval_bernoulliRat_true (p : ℚ) :
     have h2 : q.num ≤ q.den := by exact_mod_cast (div_le_one (Nat.cast_pos.mpr q.den_pos)).mp h1
     omega
   let _ : NeZero q.den := ⟨q.den_pos.ne'⟩
-  have hcast : eval (Fin.cast (Nat.sub_add_cancel q.den_pos) <$> unifFin (q.den - 1)) =
-      PMF.uniformOfFintype (Fin q.den) := by
+  have hcast :
+      eval (Fin.cast (Nat.sub_add_cancel q.den_pos) <$> unifFin (q.den - 1)) =
+        PMF.uniformOfFintype (Fin q.den) := by
     rw [eval_map, eval_unifFin]
     exact PMF.uniformOfFintype_map_equiv (finCongr (Nat.sub_add_cancel q.den_pos))
   rw [bernoulliRat, eval_map]

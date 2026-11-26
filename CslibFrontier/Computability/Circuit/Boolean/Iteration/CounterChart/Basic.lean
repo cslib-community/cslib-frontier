@@ -86,10 +86,13 @@ theorem length_le_period (hf : Function.Injective f) (j : Fin R) :
     simpa only [hdepth, Function.iterate_zero_apply] using (isPeriodicPt_cycleLength f x).eq
   by_contra hlen
   have he := congrArg BitVec.toNat (hp ▸ chart.path j _ (by lia))
-  have hfit : chart.start j + cycleLength f x < 2 ^ n := by have := chart.stop_le j; lia
+  have hfit : chart.start j + cycleLength f x < 2 ^ n := by
+    have := chart.stop_le j
+    lia
   simp only [x, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (chart.start_lt j),
     Nat.mod_eq_of_lt hfit] at he
-  have := cycleLength_pos f x; lia
+  have := cycleLength_pos f x
+  lia
 
 end CounterIntervalChart
 
@@ -107,8 +110,9 @@ private theorem counterIntervalStarts_bound (f : BitVec n → BitVec n) :
 private theorem counterIntervalStarts_lt (f : BitVec n → BitVec n) {a : ℕ}
     (ha : a ∈ counterIntervalStarts f) : a < 2 ^ n := by
   classical
-  exact (Finset.mem_insert.mp ha).elim (fun h => h ▸ Nat.two_pow_pos n)
-    fun h => (Finset.mem_filter.mp h).2
+  rcases Finset.mem_insert.mp ha with rfl | ha
+  · exact Nat.two_pow_pos n
+  · exact (Finset.mem_filter.mp ha).2
 
 /-- The next start, or the upper endpoint of the whole universe. -/
 def nextBoundary (S : Finset ℕ) (N a : ℕ) : ℕ :=
@@ -118,7 +122,8 @@ private theorem nextBoundary_gt (S : Finset ℕ) {N a : ℕ} (ha : a < N) :
     a < nextBoundary S N a := by
   rcases Finset.mem_insert.mp (Finset.min'_mem (insert N (S.filter fun b => a < b)) (by simp)) with
     he | he
-  · change nextBoundary S N a = N at he; exact he.symm ▸ ha
+  · change nextBoundary S N a = N at he
+    exact he.symm ▸ ha
   · exact (Finset.mem_filter.mp he).2
 
 private theorem nextBoundary_le (S : Finset ℕ) (N a : ℕ) : nextBoundary S N a ≤ N :=
@@ -137,16 +142,12 @@ private theorem exists_covering_interval (S : Finset ℕ) {N x : ℕ}
   let a := before.max' ⟨0, by simp [before, hzero]⟩
   obtain ⟨haS, hax⟩ := Finset.mem_filter.mp (Finset.max'_mem before _)
   refine ⟨a, haS, hax, ?_⟩
-  by_contra h
-  have hend : nextBoundary S N a ≤ x := by lia
+  by_contra! h
   rcases Finset.mem_insert.mp (Finset.min'_mem (insert N (S.filter fun b => a < b)) (by simp)) with
     he | he
-  · change nextBoundary S N a = N at he
-    lia
-  · have hle : nextBoundary S N a ≤ a := Finset.le_max' before _
-      (Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp he).1, hend⟩)
-    have := nextBoundary_gt S (hax.trans_lt hx)
-    lia
+  · exact (he.symm.trans_le h).not_gt hx
+  · exact (Finset.le_max' before _ (Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp he).1, h⟩)).not_gt
+      (nextBoundary_gt S (hax.trans_lt hx))
 
 /-- Before the next cut, the actual update agrees with numerical increment. -/
 private theorem counterInterval_step (f : BitVec n → BitVec n) {a i : ℕ}
@@ -158,7 +159,8 @@ private theorem counterInterval_step (f : BitVec n → BitVec n) {a i : ℕ}
     have hstart : i + 1 ∈ counterIntervalStarts f := Finset.mem_insert_of_mem
       (Finset.mem_filter.mpr ⟨Finset.mem_image.mpr ⟨BitVec.ofNat n i, hbad,
         by rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by lia : i < 2 ^ n)]⟩, hiN⟩)
-    have := nextBoundary_le_of_mem _ (2 ^ n) a (i + 1) hstart (by lia); lia
+    have := nextBoundary_le_of_mem _ (2 ^ n) a (i + 1) hstart (by lia)
+    lia
   simpa only [mem_disagreement, not_not, BitVec.ofNat_add, BitVec.ofNat_eq_ofNat] using hnot
 
 /-- Every sparse counter modification has a chart of at most `r+1` intervals.
@@ -168,21 +170,27 @@ theorem exists_counterIntervalChart (f : BitVec n → BitVec n) :
   classical
   let S := counterIntervalStarts f
   let e : Fin S.card ≃ S := (Fintype.equivFinOfCardEq (by simp)).symm
+  let start := fun j : Fin S.card => (e j).val
+  let stop := fun j => nextBoundary S (2 ^ n) (start j)
+  have hs (j : Fin S.card) : start j < 2 ^ n := counterIntervalStarts_lt f (e j).property
   refine ⟨S.card, counterIntervalStarts_bound f, ⟨{
-    start := fun j => (e j).val
-    stop := fun j => nextBoundary S (2 ^ n) (e j).val
-    start_lt_stop := fun j => nextBoundary_gt S (counterIntervalStarts_lt f (e j).property)
+    start := start
+    stop := stop
+    start_lt_stop := fun j => nextBoundary_gt S (hs j)
     stop_le := fun j => nextBoundary_le S _ _
-    covers := fun x => by
-      obtain ⟨a, ha, hlo, hhi⟩ := exists_covering_interval S
-        (by simp [S, counterIntervalStarts]) x.isLt
-      exact ⟨e.symm ⟨a, ha⟩, by simpa using hlo, by simpa using hhi⟩
-    path := fun j d hd => by
-      induction d with
-      | zero => simp
-      | succ d ih =>
-        rw [Function.iterate_succ_apply', ih (by lia)]
-        simpa only [Nat.add_assoc] using
-          counterInterval_step f (a := (e j).val) (i := (e j).val + d) (by lia) (by lia) }⟩⟩
+    covers := ?_
+    path := ?_ }⟩⟩
+  · intro x
+    obtain ⟨a, ha, hlo, hhi⟩ := exists_covering_interval S
+      (show 0 ∈ S by simp [S, counterIntervalStarts]) x.isLt
+    exact ⟨e.symm ⟨a, ha⟩, by simpa only [start, Equiv.apply_symm_apply] using hlo,
+      by simpa only [stop, start, Equiv.apply_symm_apply] using hhi⟩
+  · intro j d hd
+    induction d with
+    | zero => simp
+    | succ d ih =>
+      rw [Function.iterate_succ_apply', ih (by lia)]
+      simpa only [Nat.add_assoc] using counterInterval_step f (a := start j) (i := start j + d)
+        (Nat.le_add_right _ _) (by dsimp only [stop, S] at hd ⊢; omega)
 
 end Cslib.Circuits.Boolean.Iteration

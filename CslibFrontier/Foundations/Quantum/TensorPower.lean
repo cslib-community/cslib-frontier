@@ -89,8 +89,7 @@ theorem sum_norm_tensorPowerApply
   | n + 1, Φ => by
     rw [← (Fin.insertNthEquiv (fun _ => κ) 0).sum_comp, Fintype.sum_prod_type_right,
       ← (Fin.insertNthEquiv (fun _ => β) 0).sum_comp, Fintype.sum_prod_type]
-    simp only [Fin.insertNthEquiv, Equiv.coe_fn_mk, tensorPowerApply_insertNth]
-    simp only [hiso]
+    simp only [Fin.insertNthEquiv, Equiv.coe_fn_mk, tensorPowerApply_insertNth, hiso]
     rw [sum_comm]
     exact sum_congr rfl fun b _ =>
       sum_norm_tensorPowerApply hiso fun w => Φ ((0 : Fin (n + 1)).insertNth b w)
@@ -153,10 +152,8 @@ theorem sum_pow_card_filter_mul_norm_tensorPowerApply_le
       simp only [hsplit, sum_add_distrib, ← sum_filter, ← mul_sum]
       have hA' := sum_filter_mul_norm_tensorPowerApply_le A T s hA hiso Φ J
         (fun u => t ^ (S.filter fun j => u j ∈ T).card) (fun u => by positivity)
-        (fun u a => by
-          congr 2
-          refine filter_congr fun j hj => ?_
-          rw [Function.update_of_ne (show j ≠ J from fun h => hJ (h ▸ hj))])
+        (fun u a => congrArg (t ^ Finset.card ·) (filter_congr fun j hj => by
+          rw [Function.update_of_ne (fun (h : j = J) => hJ (h ▸ hj))]))
       rw [card_insert_of_notMem hJ, pow_succ]
       have h1 : 0 ≤ t - 1 := by linarith
       have h2 : 0 ≤ ∑ u, t ^ (S.filter fun j => u j ∈ T).card * μ u :=
@@ -186,9 +183,7 @@ theorem sum_card_filter_ge_norm_tensorPowerApply_le
   have hμ : 0 ≤ ∑ u, μ u := sum_nonneg fun u _ => by positivity
   have hpow : (1 + (2 - 1) * s) ^ (2 * r) ≤ (16 / 9 : ℝ) ^ r := by
     rw [pow_mul]
-    refine pow_le_pow_left₀ (by positivity) ?_ r
-    exact (by gcongr : (1 + (2 - 1) * s) ^ 2 ≤ (1 + (2 - 1) * (1 / 3 : ℝ)) ^ 2).trans_eq
-      (by norm_num)
+    exact pow_le_pow_left₀ (by positivity) (by nlinarith) r
   have hlow : (2 : ℝ) ^ r * ∑ u with r ≤ (univ.filter fun j => u j ∈ T).card, μ u ≤
       ∑ u, (2 : ℝ) ^ (univ.filter fun j => u j ∈ T).card * μ u := by
     rw [mul_sum]

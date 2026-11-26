@@ -192,11 +192,13 @@ theorem encard_literals_le_three_iff (c : M) :
 theorem isThreeCNF_iff_of_equiv (e : M ≃[cnf] N) : IsThreeCNF M ↔ IsThreeCNF N := by
   have hcard (c : M) : (literals (e c)).encard = (literals c).encard := by
     rw [← (Function.Injective.prodMap Function.injective_id e.injective).encard_image]
-    congr 1; ext ⟨b, y⟩
+    congr 1
+    ext ⟨b, y⟩
     simp only [mem_literals, Set.mem_image, Prod.exists, Prod.map, id, Prod.mk.injEq]
-    exact ⟨fun h => ⟨b, e.symm y, by simpa [← relMap_pair_equiv e] using h, rfl,
-        e.apply_symm_apply y⟩,
-      by rintro ⟨_, x, hx, rfl, rfl⟩; rwa [← relMap_pair_equiv e] at hx⟩
+    refine ⟨fun h => ⟨b, e.symm y, by simpa [← relMap_pair_equiv e] using h, rfl,
+      e.apply_symm_apply y⟩, ?_⟩
+    rintro ⟨_, x, hx, rfl, rfl⟩
+    rwa [← relMap_pair_equiv e] at hx
   exact ⟨fun h c => e.apply_symm_apply c ▸ (hcard _).trans_le (h _),
     fun h c => (hcard c).symm.trans_le (h _)⟩
 
@@ -263,11 +265,13 @@ theorem isThreeCNF_copies_iff [Nonempty J] : IsThreeCNF (Copies J M) ↔ IsThree
     have hinj : Function.Injective fun l : Bool × M => (l.1, (⟨j, l.2⟩ : Copies J M)) :=
       fun _ _ h => Prod.ext (Prod.mk.inj h).1 (Copies.mk.inj (Prod.mk.inj h).2).2
     rw [← hinj.encard_image]
-    congr 1; ext ⟨b, ⟨j', x⟩⟩
+    congr 1
+    ext ⟨b, ⟨j', x⟩⟩
     simp only [mem_literals, Copies.relMap_copies_two, Set.mem_image, Prod.exists, Prod.mk.injEq,
       Copies.mk.injEq]
-    exact ⟨fun ⟨rfl, hx⟩ => ⟨b, x, hx, rfl, rfl, rfl⟩,
-      by rintro ⟨_, _, hx, rfl, rfl, rfl⟩; exact ⟨rfl, hx⟩⟩
+    refine ⟨fun ⟨rfl, hx⟩ => ⟨b, x, hx, rfl, rfl, rfl⟩, ?_⟩
+    rintro ⟨_, _, hx, rfl, rfl, rfl⟩
+    exact ⟨rfl, hx⟩
   obtain ⟨j₀⟩ := ‹Nonempty J›
   exact ⟨fun h c => (hcard j₀ c).symm.trans_le (h _), fun h ⟨j, c⟩ => (hcard j c).trans_le (h c)⟩
 
@@ -317,7 +321,8 @@ theorem clauseSatisfied_iff_of_templates
     simp only [relMap_lit_of_templates hI b c]
     refine ⟨?_, fun ⟨τ, hτ, hg, y, hy, hc, hp⟩ => ⟨⟨τ.target, y, hy⟩, ⟨τ, hτ, hg, y, rfl, hc⟩, hp⟩⟩
     rintro ⟨⟨_, z, hz⟩, ⟨τ, hτ, hg, y, he, hc⟩, hp⟩
-    obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 he; cases eq_of_heq h
+    obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 he
+    cases eq_of_heq h
     exact ⟨τ, hτ, hg, z, hz, hc, hp⟩
   simpa only [ClauseSatisfied, exists_or, lit_true, lit_false] using
     or_congr (key true A) (key false _)

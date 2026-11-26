@@ -173,11 +173,15 @@ private theorem mFourierCoeff_torusPeriodization (f : E → ℂ) (hf : Integrabl
   change (∫ u in {u : ι → ℝ | ∀ i, u i ∈ Set.Ioc 0 1}, g (B u)) = _
   have hsets : {u : ι → ℝ | ∀ i, u i ∈ Set.Ioc 0 1} =ᵐ[volume]
       Set.pi Set.univ (fun _ : ι ↦ Set.Ico (0 : ℝ) 1) := by
-    rw [show {u : ι → ℝ | ∀ i, u i ∈ Set.Ioc 0 1} = Set.pi Set.univ fun _ ↦ Set.Ioc 0 1 by
-      ext; simp]
-    exact (Measure.univ_pi_Ioc_ae_eq_Icc (μ := fun _ : ι ↦ (volume : Measure ℝ))
-      (f := fun _ ↦ 0) (g := fun _ ↦ 1)).trans
-      (Measure.univ_pi_Ico_ae_eq_Icc (μ := fun _ : ι ↦ (volume : Measure ℝ))).symm
+    have heq : {u : ι → ℝ | ∀ i, u i ∈ Set.Ioc 0 1} =
+        Set.pi Set.univ (fun _ : ι ↦ Set.Ioc (0 : ℝ) 1) := by
+      ext
+      simp
+    rw [heq]
+    exact
+      (Measure.univ_pi_Ioc_ae_eq_Icc (μ := fun _ : ι ↦ (volume : Measure ℝ))
+        (f := fun _ ↦ 0) (g := fun _ ↦ 1)).trans
+        (Measure.univ_pi_Ico_ae_eq_Icc (μ := fun _ : ι ↦ (volume : Measure ℝ))).symm
   rw [setIntegral_congr_set hsets, ← basis_image_fundamentalDomain L b,
     setIntegral_comp_basis b g]
   congr 1

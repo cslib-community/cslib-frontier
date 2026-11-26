@@ -32,8 +32,9 @@ open Polygonal
 
 /-- All sufficiently short end segments of the reference drawing fit in disjoint
 closed balls at their declared vertices. Inside each ball, two distinct reference
-edges can meet only at the center. The cuts use the same fraction of each half-edge
-as the parity-move construction. -/
+edges can meet only at the center. For every allowed cut fraction the ports are
+distinct across darts and avoid all declared vertices. The cuts use the same
+fraction of each half-edge as the parity-move construction. -/
 theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Valid I) :
     let G := subdivisionGraph I
     let ref := referenceDrawing I
@@ -43,11 +44,13 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
       (∀ v ∈ G.vertices, ∀ (e f : Fin G.edges.length), e ≠ f → ∀ z,
         z ∈ Metric.closedBall (ref.vertex v) ρ →
         z ∈ (ref.route e).support → z ∈ (ref.route f).support → z = ref.vertex v) ∧
-      ∀ δ ∈ Set.Ioc 0 δ₀, ∀ a : Dart G,
-        let c := ref.vertex a.vertex
-        let m := (ref.route a.1).eval 0 (1 / 2)
-        segment ℝ c (AffineMap.lineMap c m δ) ⊆
-          Metric.closedBall c ρ ∩ (ref.route a.1).support := by
+      ∀ δ ∈ Set.Ioc 0 δ₀,
+        let port (a : Dart G) :=
+          AffineMap.lineMap (ref.vertex a.vertex) ((ref.route a.1).eval 0 (1 / 2)) δ
+        (∀ a : Dart G, segment ℝ (ref.vertex a.vertex) (port a) ⊆
+          Metric.closedBall (ref.vertex a.vertex) ρ ∩ (ref.route a.1).support) ∧
+        Function.Injective port ∧
+        ∀ a, port a ∉ ref.vertex '' {v | v ∈ G.vertices} := by
   classical
   let G := subdivisionGraph I
   let ref := referenceDrawing I
@@ -58,11 +61,9 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
   let pts := (hV.union hC).toFinset
   let gaps := ((pts ×ˢ pts).filter fun p => p.1 ≠ p.2).image
     (fun p => dist p.1 p.2 / 2)
-  obtain ⟨ρ, hpos, hgap⟩ := Finset.exists_between' ({0} : Finset ℝ) gaps (by
-    intro x hx y hy
-    rw [Finset.mem_singleton.mp hx]
+  obtain ⟨ρ, hpos, hgap⟩ := Finset.exists_between' ({0} : Finset ℝ) gaps fun x hx y hy => by
     obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hy
-    exact half_pos (dist_pos.mpr (Finset.mem_filter.mp hp).2))
+    exact (Finset.mem_singleton.mp hx).symm ▸ half_pos (dist_pos.mpr (Finset.mem_filter.mp hp).2)
   have hρ := hpos _ (Finset.mem_singleton_self _)
   have hdist {x y : ℂ} (hx : x ∈ V ∪ C) (hy : y ∈ V ∪ C) (hne : x ≠ y) :
       ρ < dist x y / 2 :=
@@ -72,76 +73,103 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
         hne⟩, rfl⟩)
   have hmem (v : ℕ) (hv : v ∈ G.vertices) : ref.vertex v ∈ V ∪ C :=
     Or.inl ⟨v, hv, rfl⟩
+  have hvertex (a : Dart G) : a.vertex ∈ G.vertices :=
+    RotationSystem.vertex_mem (subdivisionGraph_endpoints_declared hI) a
   have hdisj (v : ℕ) (hv : v ∈ G.vertices) (w : ℕ) (hw : w ∈ G.vertices) (hne : v ≠ w) :
-      Disjoint (Metric.closedBall (ref.vertex v) ρ) (Metric.closedBall (ref.vertex w) ρ) := by
-    have hne' : ref.vertex v ≠ ref.vertex w :=
-      fun h => hne (referenceDrawing_vertices_injective hI hv hw h)
-    exact Metric.closedBall_disjoint_closedBall (by linarith [hdist (hmem v hv) (hmem w hw) hne'])
+      Disjoint (Metric.closedBall (ref.vertex v) ρ) (Metric.closedBall (ref.vertex w) ρ) :=
+    Metric.closedBall_disjoint_closedBall (by
+      linarith [hdist (hmem v hv) (hmem w hw)
+        fun h => hne (referenceDrawing_vertices_injective hI hv hw h)])
   have hinterior {v : ℕ} (hv : v ∈ G.vertices) {z : ℂ}
       (hz : z ∈ Metric.closedBall (ref.vertex v) ρ) (hne : z ≠ ref.vertex v)
       (e : Fin G.edges.length) (he : z ∈ (ref.route e).support) :
       z ∈ openSegment ℝ (ref.route e).start (ref.route e).finish := by
     let a := ref.vertex (Dart.vertex (e, false))
     let b := ref.vertex (Dart.vertex (e, true))
-    change z ∈ (Route.line a b).support at he
-    rw [Route.support_line, segment_eq_image_lineMap] at he
-    obtain ⟨t, ht, rfl⟩ := he
+    obtain ⟨t, ht, rfl⟩ : z ∈ AffineMap.lineMap a b '' Set.Icc (0 : ℝ) 1 := by
+      rwa [← segment_eq_image_lineMap, ← Route.support_line]
     have hnot (side : Bool) (h : AffineMap.lineMap a b t = ref.vertex (Dart.vertex (e, side))) :
-        False := by
-      let w := Dart.vertex (e, side)
-      have hw : w ∈ G.vertices :=
-        RotationSystem.vertex_mem (subdivisionGraph_endpoints_declared hI) (e, side)
-      have hvw : v ≠ w := fun h' => hne (h.trans (congrArg ref.vertex h'.symm))
-      exact Set.disjoint_left.mp (hdisj v hv w hw hvw) hz
+        False :=
+      Set.disjoint_left.mp (hdisj v hv _ (hvertex (e, side))
+        fun h' => hne (h.trans (congrArg ref.vertex h'.symm))) hz
         (h.symm ▸ Metric.mem_closedBall_self hρ.le)
-    have ht0 : t ≠ 0 := fun h => hnot false (by rw [h, AffineMap.lineMap_apply_zero])
-    have ht1 : t ≠ 1 := fun h => hnot true (by rw [h, AffineMap.lineMap_apply_one])
-    exact lineMap_mem_openSegment ℝ a b ⟨lt_of_le_of_ne ht.1 ht0.symm, lt_of_le_of_ne ht.2 ht1⟩
+    exact lineMap_mem_openSegment ℝ a b
+      ⟨lt_of_le_of_ne ht.1 fun h => hnot false (h.symm ▸ AffineMap.lineMap_apply_zero a b),
+        lt_of_le_of_ne ht.2 fun h => hnot true (h ▸ AffineMap.lineMap_apply_one a b)⟩
   let length (a : Dart G) :=
     dist (ref.vertex a.vertex) ((ref.route a.1).eval 0 (1 / 2))
   let bounds := insert 1 (Finset.univ.image fun a : Dart G => ρ / (length a + 1))
-  obtain ⟨δ₀, hδpos, hbound⟩ := Finset.exists_between' ({0} : Finset ℝ) bounds (by
-    intro x hx y hy
+  obtain ⟨δ₀, hδpos, hbound⟩ := Finset.exists_between' ({0} : Finset ℝ) bounds fun x hx y hy => by
     rw [Finset.mem_singleton.mp hx]
     rcases Finset.mem_insert.mp hy with rfl | hy
     · exact one_pos
     · obtain ⟨a, _, rfl⟩ := Finset.mem_image.mp hy
-      exact div_pos hρ (add_pos_of_nonneg_of_pos dist_nonneg one_pos))
+      exact div_pos hρ (add_pos_of_nonneg_of_pos dist_nonneg one_pos)
   have hδ₀ : δ₀ ∈ Set.Ioo (0 : ℝ) 1 :=
     ⟨hδpos _ (Finset.mem_singleton_self _), hbound _ (Finset.mem_insert_self ..)⟩
-  refine ⟨ρ, hρ, δ₀, hδ₀, hdisj, ?_, ?_⟩
-  · intro v hv e f hef z hz he hf
+  have hcontact (v : ℕ) (hv : v ∈ G.vertices) (e f : Fin G.edges.length) (hef : e ≠ f)
+      (z : ℂ) (hz : z ∈ Metric.closedBall (ref.vertex v) ρ)
+      (he : z ∈ (ref.route e).support) (hf : z ∈ (ref.route f).support) :
+      z = ref.vertex v := by
     by_contra hne
-    have hc : z ∈ C := ⟨e, f, hef, hinterior hv hz hne e he, hinterior hv hz hne f hf⟩
-    have hd := hdist (Or.inr hc) (hmem v hv) hne
-    linarith [Metric.mem_closedBall.mp hz]
-  · intro δ hδ a
+    linarith [hdist (Or.inr ⟨e, f, hef, hinterior hv hz hne e he, hinterior hv hz hne f hf⟩)
+      (hmem v hv) hne, Metric.mem_closedBall.mp hz]
+  refine ⟨ρ, hρ, δ₀, hδ₀, hdisj, hcontact, ?_⟩
+  intro δ hδ
+  let port (a : Dart G) :=
+    AffineMap.lineMap (ref.vertex a.vertex) ((ref.route a.1).eval 0 (1 / 2)) δ
+  have hstub (a : Dart G) :
+      segment ℝ (ref.vertex a.vertex) (port a) ⊆
+        Metric.closedBall (ref.vertex a.vertex) ρ ∩ (ref.route a.1).support := by
     let c := ref.vertex a.vertex
     let m := (ref.route a.1).eval 0 (1 / 2)
     apply Set.subset_inter
     · apply (convex_closedBall c ρ).segment_subset (Metric.mem_closedBall_self hρ.le)
       rw [Metric.mem_closedBall, dist_lineMap_left, Real.norm_eq_abs, abs_of_pos hδ.1]
-      have ha := hbound _ (Finset.mem_insert_of_mem
-        (Finset.mem_image_of_mem (fun a : Dart G => ρ / (length a + 1)) (Finset.mem_univ a)))
-      have hδbound := hδ.2.trans_lt ha
-      have hd := (lt_div_iff₀ (add_pos_of_nonneg_of_pos (dist_nonneg : 0 ≤ length a) one_pos)).mp
-        hδbound
-      change δ * length a ≤ ρ
-      exact (mul_le_mul_of_nonneg_left (le_add_of_nonneg_right zero_le_one) hδ.1.le).trans hd.le
+      have hd := (lt_div_iff₀ (add_pos_of_nonneg_of_pos dist_nonneg one_pos)).mp (hδ.2.trans_lt
+        (hbound _ (Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_univ a)))))
+      linarith [hδ.1]
     · have hc : c ∈ (ref.route a.1).support := by
-        change ref.vertex a.vertex ∈ (ref.route a.1).support
+        change ref.vertex (Dart.vertex (a.1, a.2)) ∈ _
         rw [← ref.endpoint_eq a.1 a.2]
-        cases a.2
-        · exact (ref.route a.1).point_mem_support 0
-        · exact (ref.route a.1).point_mem_support (Fin.last _)
-      have hm : m ∈ (ref.route a.1).support :=
-        (ref.route a.1).at_mem_support 0 (by constructor <;> norm_num)
-      have hs : Convex ℝ (ref.route a.1).support := by
-        change Convex ℝ (Route.line _ _).support
-        rw [Route.support_line]
-        exact convex_segment _ _
-      exact hs.segment_subset hc (hs.segment_subset hc hm
+        cases a.2 <;> exact (ref.route a.1).point_mem_support _
+      have hs : Convex ℝ (ref.route a.1).support :=
+        (Route.support_line _ _).symm ▸ convex_segment _ _
+      exact hs.segment_subset hc (hs.segment_subset hc
+        ((ref.route a.1).at_mem_support 0 (by constructor <;> norm_num))
         (lineMap_mem_segment ℝ _ _ ⟨hδ.1.le, hδ.2.trans hδ₀.2.le⟩))
+  have hport (a : Dart G) :
+      port a ∈ Metric.closedBall (ref.vertex a.vertex) ρ ∩ (ref.route a.1).support :=
+    hstub a (right_mem_segment ℝ _ _)
+  have hcenter (a : Dart G) : port a ≠ ref.vertex a.vertex := by
+    rcases a with ⟨e, side⟩
+    have hxy : ref.vertex (Dart.vertex (e, false)) ≠ ref.vertex (Dart.vertex (e, true)) :=
+      fun h => (subdivision_endpoint_spec hI e).2
+        (referenceDrawing_vertices_injective hI (hvertex (e, false)) (hvertex (e, true)) h)
+    intro h
+    have hmid : AffineMap.lineMap (ref.vertex (Dart.vertex (e, false)))
+        (ref.vertex (Dart.vertex (e, true))) (1 / 2 : ℝ) = ref.vertex (Dart.vertex (e, side)) :=
+      (Route.eval_line _ _ 0 (1 / 2 : ℝ)).symm.trans
+        ((AffineMap.lineMap_eq_left_iff.mp h).resolve_right hδ.1.ne').symm
+    cases side <;>
+      simp [AffineMap.lineMap_eq_left_iff, AffineMap.lineMap_eq_right_iff, hxy] at hmid
+  refine ⟨hstub, ?_, ?_⟩
+  · rintro ⟨e, s⟩ ⟨f, t⟩ heq
+    change port (e, s) = port (f, t) at heq
+    have hv : Dart.vertex (e, s) = Dart.vertex (f, t) := by_contra fun h =>
+      Set.disjoint_left.mp (hdisj _ (hvertex (e, s)) _ (hvertex (f, t)) h)
+        (hport (e, s)).1 (heq.symm ▸ (hport (f, t)).1)
+    obtain rfl : e = f := by_contra fun h =>
+      hcenter (e, s) (hcontact _ (hvertex (e, s)) _ _ h _ (hport (e, s)).1
+        (hport (e, s)).2 (heq.symm ▸ (hport (f, t)).2))
+    cases s <;> cases t
+    exacts [rfl, ((subdivision_endpoint_spec hI e).2 hv).elim,
+      ((subdivision_endpoint_spec hI e).2 hv.symm).elim, rfl]
+  · rintro a ⟨v, hv, heq⟩
+    by_cases he : v = a.vertex
+    · exact hcenter a (heq.symm.trans (congrArg ref.vertex he))
+    · exact Set.disjoint_left.mp (hdisj _ (hvertex a) _ hv (Ne.symm he)) (hport a).1
+        (heq ▸ Metric.mem_closedBall_self hρ.le)
 
 /-- Realize the entire finite move table as ray-parity differences from the reference
 routes. Frozen routes remain literal. On free routes the initial and terminal segments
@@ -202,8 +230,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       simpa only [G, F, subdivisionGraph, frame, List.length_map] using e.isLt
     let idx : Fin F.segments.length := ⟨e.val, heIdx⟩
     have hread (v : V) : readMove F moves e.val v.val = moves idx v := by
-      simp only [readMove, heIdx, v.isLt, dite_true, idx]
-      rfl
+      simp only [readMove, heIdx, v.isLt, dite_true, idx]; rfl
     let a := ref.vertex (Dart.vertex (e, false))
     let b := ref.vertex (Dart.vertex (e, true))
     let L := AffineMap.lineMap (k := ℝ) a b
@@ -214,64 +241,46 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
         point v ∉ segment ℝ a b := by
       rw [segment_eq_image_lineMap]
       rintro ⟨t, ht, heq⟩
-      have hhit : (ref.route e).eval 0 t = ref.vertex v.val :=
-        (Route.eval_line a b 0 t).trans heq
-      obtain ⟨side, _, hs⟩ := referenceDrawing_vertex_contacts hI e 0 ht (hvertex v) hhit
+      obtain ⟨side, _, hs⟩ := referenceDrawing_vertex_contacts hI e 0 ht (hvertex v)
+        ((Route.eval_line a b 0 t).trans heq)
       exact hne side hs
     by_cases hfixed : frozen e
     · refine ⟨ref.route e, fun _ => rfl, fun _ => rfl,
-        fun _ => ⟨1, one_pos, (one_smul ℝ _).symm⟩, ?_, ?_, fun h => (h hfixed).elim⟩
-      · intro v hne
-        change point v ∉ (Route.line a b).support
-        rw [Route.support_line]
-        exact havoid v hne
-      · intro v
-        rw [hread, hfrozen idx v hfixed, ← Bool.zero_eq_false, add_zero]
+        fun _ => ⟨1, one_pos, (one_smul ℝ _).symm⟩,
+        fun v hne => (Route.support_line a b).symm ▸ havoid v hne, fun v => ?_,
+        fun h => (h hfixed).elim⟩
+      rw [hread, hfrozen idx v hfixed, ← Bool.zero_eq_false, add_zero]
     let odd := (Finset.univ.filter fun v : V => moves idx v = true).map point
     have hsub : odd ⊆ points := Finset.map_subset_map.mpr (Finset.filter_subset _ _)
     have hbit (v : V) : decide (point v ∈ odd) = readMove F moves e.val v.val := by
       rw [hread]
-      have hm : point v ∈ odd ↔ moves idx v = true := by
-        simp only [odd, Finset.mem_map' point, Finset.mem_filter, Finset.mem_univ, true_and]
-      calc
-        _ = decide (moves idx v = true) := Bool.decide_congr hm
-        _ = _ := by cases moves idx v <;> rfl
+      cases h : moves idx v <;> simp [odd, h]
     have hhalf : (1 / 2 : ℝ) ∈ Set.Ioo 0 1 := by constructor <;> norm_num
     have hδ' : 1 - δ ∈ Set.Ioo (0 : ℝ) 1 := ⟨sub_pos.mpr hδ.2, sub_lt_self _ hδ.1⟩
     have hc : c = L (δ / 2) := by
-      have h := L.apply_lineMap 0 (1 / 2) δ
-      rw [AffineMap.lineMap_apply_ring'] at h
-      simp only [L, AffineMap.lineMap_apply_zero] at h
-      convert h.symm using 2
-      ring
+      simpa only [c, m, L, AffineMap.lineMap_apply_zero] using
+        (L.apply_lineMap 0 (1 / 2) δ).symm.trans
+          (congrArg L (by rw [AffineMap.lineMap_apply_ring']; ring))
     have hd : d = L (1 - δ / 2) := by
-      have h := L.apply_lineMap (1 / 2) 1 (1 - δ)
-      rw [AffineMap.lineMap_apply_ring'] at h
-      simp only [L, AffineMap.lineMap_apply_one] at h
-      convert h.symm using 2
-      ring
+      simpa only [d, m, L, AffineMap.lineMap_apply_one] using
+        (L.apply_lineMap (1 / 2) 1 (1 - δ)).symm.trans
+          (congrArg L (by rw [AffineMap.lineMap_apply_ring']; ring))
     have hopen (v : V) : point v ∉ openSegment ℝ a b := by
       rw [openSegment_eq_image_lineMap]
       rintro ⟨t, ht, heq⟩
-      have hhit : (ref.route e).eval 0 t = ref.vertex v.val :=
-        (Route.eval_line a b 0 t).trans heq
-      obtain ⟨side, hs, _⟩ :=
-        referenceDrawing_vertex_contacts hI e 0 ⟨ht.1.le, ht.2.le⟩ (hvertex v) hhit
-      have htEnd := (Route.atEnd_line_iff a b 0 t side).mp hs
+      obtain ⟨side, hs, _⟩ := referenceDrawing_vertex_contacts hI e 0 ⟨ht.1.le, ht.2.le⟩
+        (hvertex v) ((Route.eval_line a b 0 t).trans heq)
       cases side
-      · exact ht.1.ne' htEnd
-      · exact ht.2.ne htEnd
+      · exact ht.1.ne' ((Route.atEnd_line_iff a b 0 t false).mp hs)
+      · exact ht.2.ne ((Route.atEnd_line_iff a b 0 t true).mp hs)
     have hm : m ∈ openSegment ℝ a b := lineMap_mem_openSegment ℝ a b hhalf
-    have hmid : m ∉ points := by
-      intro h
-      obtain ⟨v, _, hv⟩ := Finset.mem_map.mp h
-      exact hopen v (hv.symm ▸ hm)
-    have hcopen : c ∈ openSegment ℝ a b := by
-      rw [hc]
-      exact lineMap_mem_openSegment ℝ a b ⟨by linarith [hδ.1], by linarith [hδ.2]⟩
-    have hdopen : d ∈ openSegment ℝ a b := by
-      rw [hd]
-      exact lineMap_mem_openSegment ℝ a b ⟨by linarith [hδ.2], by linarith [hδ.1]⟩
+    have hmid : m ∉ points := fun h =>
+      let ⟨v, _, hv⟩ := Finset.mem_map.mp h
+      hopen v (hv.symm ▸ hm)
+    have hcopen : c ∈ openSegment ℝ a b :=
+      hc ▸ lineMap_mem_openSegment ℝ a b ⟨half_pos hδ.1, by linarith [hδ.2]⟩
+    have hdopen : d ∈ openSegment ℝ a b :=
+      hd ▸ lineMap_mem_openSegment ℝ a b ⟨by linarith [hδ.2], sub_lt_self 1 (half_pos hδ.1)⟩
     let p := Route.line c m
     let q := Route.line m d
     obtain ⟨middle, hend, _, _, hsupport, hpar, hsegments⟩ :=
@@ -284,12 +293,9 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
     have hmiddle (v : V) : point v ∉ middle.support := by
       intro hv
       rcases hsupport hv with h | h
-      · rw [Route.support_concat p q rfl] at h
-        change point v ∈ (Route.line c m).support ∪ (Route.line m d).support at h
-        rw [Route.support_line, Route.support_line] at h
-        exact hopen v (h.elim
-          (fun hcm => (convex_openSegment a b).segment_subset hcopen hm hcm)
-          (fun hmd => (convex_openSegment a b).segment_subset hm hdopen hmd))
+      · rw [Route.support_concat p q rfl, Route.support_line, Route.support_line] at h
+        exact hopen v (Set.union_subset ((convex_openSegment a b).segment_subset hcopen hm)
+          ((convex_openSegment a b).segment_subset hm hdopen) h)
       · exact h.2 (hpoint v)
     let left := Route.line a c
     let right := Route.line d b
@@ -303,23 +309,16 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       rw [Route.endpoint_concat _ _ hright, Route.endpoint_concat _ _ hleft]
       cases side <;> rfl
     · intro side
-      refine ⟨δ / 2, by linarith [hδ.1], ?_⟩
+      refine ⟨δ / 2, half_pos hδ.1, ?_⟩
       rw [Route.germ_concat _ _ hright, Route.germ_concat _ _ hleft]
       cases side
-      · change c - a = (δ / 2) • (b - a)
-        rw [hc]
-        exact AffineMap.lineMap_vsub_left a b _
+      · exact (congrArg (· - a) hc).trans (AffineMap.lineMap_vsub_left a b (δ / 2))
       · change d - b = (δ / 2) • (a - b)
         rw [hd]
-        calc
-          _ = (1 - (1 - δ / 2)) • (a - b) := AffineMap.lineMap_vsub_right a b _
-          _ = _ := by rw [sub_sub_cancel]
+        simpa only [vsub_eq_sub, sub_sub_cancel] using AffineMap.lineMap_vsub_right a b (1 - δ / 2)
     · intro v hne hv
-      change point v ∈ r.support at hv
-      rw [Route.support_concat _ _ hright, Route.support_concat _ _ hleft] at hv
-      change point v ∈ ((Route.line a c).support ∪ middle.support) ∪
-        (Route.line d b).support at hv
-      rw [Route.support_line, Route.support_line] at hv
+      rw [Route.support_concat _ _ hright, Route.support_concat _ _ hleft, Route.support_line,
+        Route.support_line] at hv
       have hconvex : Convex ℝ (segment ℝ a b) := convex_segment a b
       rcases hv with (h | h) | h
       · exact havoid v hne (hconvex.segment_subset (left_mem_segment ..)
@@ -329,15 +328,12 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
           (openSegment_subset_segment ℝ a b hdopen) (right_mem_segment ..) h)
     · intro v
       let z := point v
-      have hp := Route.rayParity_line_split a m u z hδ
-      have hq := Route.rayParity_line_split m b u z hδ'
-      have hsplit := Route.rayParity_line_split a b u z hhalf
-      change (left.concat p).rayParity u z = _ at hp
-      change (q.concat right).rayParity u z = _ at hq
-      change ((Route.line a m).concat (Route.line m b)).rayParity u z = _ at hsplit
-      rw [Route.rayParity_concat left p rfl] at hp
-      rw [Route.rayParity_concat q right rfl] at hq
-      rw [Route.rayParity_concat _ _ rfl] at hsplit
+      have hp := (Route.rayParity_concat left p rfl u z).symm.trans
+        (Route.rayParity_line_split a m u z hδ)
+      have hq := (Route.rayParity_concat q right rfl u z).symm.trans
+        (Route.rayParity_line_split m b u z hδ')
+      have hsplit := (Route.rayParity_concat _ _ rfl u z).symm.trans
+        (Route.rayParity_line_split a b u z hhalf)
       change r.rayParity u z = (Route.line a b).rayParity u z + _
       rw [← hbit v, Route.rayParity_concat _ _ hright, Route.rayParity_concat _ _ hleft,
         hpar z (hpoint v), Route.rayParity_concat p q rfl, ← hsplit, ← hp, ← hq]

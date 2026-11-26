@@ -68,15 +68,11 @@ theorem abs_mul_mass_sub_one_le_sum_abs_bias (p : PMF (ι → Bool)) (z : ι →
   have hsplit := sum_filter_add_sum_filter_not (univ : Finset (Finset ι))
     Finset.Nonempty (fun S => bias p S * chi ℝ S z)
   have hempty : (∑ S with ¬ S.Nonempty, bias p S * chi ℝ S z) = 1 := by
-    rw [sum_eq_single_of_mem ∅ (by simp)]
-    · simp
-    · intro S hS hne
-      exact False.elim (hne (not_nonempty_iff_eq_empty.mp (mem_filter.mp hS).2))
+    rw [sum_eq_single_of_mem ∅ (by simp) fun S hS hne =>
+      absurd (not_nonempty_iff_eq_empty.mp (mem_filter.mp hS).2) hne]
+    simp
   rw [hempty, sum_bias_mul_chi] at hsplit
-  have heq : 2 ^ Fintype.card ι * (p z).toReal - 1 =
-      ∑ S with S.Nonempty, bias p S * chi ℝ S z := by linarith
-  rw [heq]
-  exact abs_sum_mul_chi_le _ _ z
+  exact le_of_eq_of_le (congrArg abs (by linarith)) (abs_sum_mul_chi_le _ _ z)
 
 /-- **Small bias gives pointwise closeness to uniform** ([Goldreich2007DraftR4], Exercise 8.34):
 every atom of an `ε`-biased distribution on `n` bits has normalized mass within `(2 ^ n - 1) ε` of
@@ -119,12 +115,9 @@ private theorem le_minEntropy_of_mul_mass_le (p : PMF (ι → Bool)) {K : ℝ} (
     Fintype.card ι - Real.logb 2 K ≤ Cslib.Probability.PMF.minEntropy p := by
   rw [Cslib.Probability.PMF.le_minEntropy_iff]
   intro z
-  have heq : (2 : ℝ) ^ (-(Fintype.card ι - Real.logb 2 K)) =
-      K / 2 ^ Fintype.card ι := by
-    rw [neg_sub, Real.rpow_sub (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hK,
-      Real.rpow_natCast]
-  rw [heq]
-  exact (le_div_iff₀ (by positivity)).mpr (by simpa only [mul_comm] using h z)
+  rw [neg_sub, Real.rpow_sub (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hK,
+    Real.rpow_natCast, le_div_iff₀ (by positivity), mul_comm]
+  exact h z
 
 /-- A parity-bias sum below one forces full support. -/
 theorem mem_support_of_sum_abs_bias_lt_one (p : PMF (ι → Bool))

@@ -72,14 +72,13 @@ theorem separatingWordBlock_prefix_incomparable {width : ℕ} (hwidth : 0 < widt
     {u v : List Bool} (hu : width ∣ u.length) (hv : width ∣ v.length) (hne : u ≠ v) :
     let c := separatingWordBlock width u v
     (¬ u ++ c <+: v ++ c) ∧ (¬ v ++ c <+: u ++ c) := by
+  intro c
   let us := BitString.listRows (u.length / width) width u
   let vs := BitString.listRows (v.length / width) width v
-  let c := separatingWordBlock width u v
   have huf : us.flatten = u := BitString.flatten_listRows_of_length (Nat.div_mul_cancel hu).symm
   have hvf : vs.flatten = v := BitString.flatten_listRows_of_length (Nat.div_mul_cancel hv).symm
   have hblocks : List.replicate width false ≠ List.replicate width true := by
-    obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hwidth.ne'
-    simp [List.replicate_succ]
+    cases width <;> simp_all
   have hsep := separatingBlock_prefix_incomparable hblocks
     fun he => hne (huf.symm.trans ((congrArg List.flatten he).trans hvf))
   have rowWidth {rows : List (List Bool)} (h : ∀ row ∈ rows, row.length = width) :
@@ -88,7 +87,6 @@ theorem separatingWordBlock_prefix_incomparable {width : ℕ} (hwidth : 0 < widt
       ⟨h, length_separatingWordBlock width u v⟩
   have hus := rowWidth (rows := us) fun _ => BitString.length_of_mem_listRows
   have hvs := rowWidth (rows := vs) fun _ => BitString.length_of_mem_listRows
-  change (¬ u ++ c <+: v ++ c) ∧ (¬ v ++ c <+: u ++ c)
   rw [← huf, ← hvf, ← List.flatten_singleton (l := c),
     ← List.flatten_append, ← List.flatten_append]
   exact ⟨fun hp => hsep.1 (BitString.prefix_of_flatten_prefix hwidth hus hvs hp),
@@ -141,11 +139,13 @@ theorem isPrefixFree_append_of_freshBatchWordBlock_eq_some {width : ℕ}
     InformationTheory.IsPrefixFree ((fun msg => msg ++ block) '' {msg | msg ∈ messages}) := by
   have hlen := length_freshBatchWordBlock_of_eq_some hblock
   unfold freshBatchWordBlock findFreshBlock at hblock
+  have hnotMem : block ∉ messages.flatMap (completeRows width) := by
+    simpa using List.find?_some hblock
   have hprefix : InformationTheory.IsPrefixFree
       ((fun rows => rows ++ [block]) '' {rows | rows ∈ messages.map (completeRows width)}) :=
     isPrefixFree_append_of_notMem_flatten (by
       simpa only [List.flatten_eq_flatMap, List.flatMap_map, Function.comp_def, id_eq] using
-        (show block ∉ messages.flatMap (completeRows width) by simpa using List.find?_some hblock))
+        hnotMem)
   let extend (word : List Bool) := completeRows width word ++ [block]
   have hrows (word : List Bool) (row : List Bool) (hrow : row ∈ extend word) :
       row.length = width :=
@@ -182,11 +182,9 @@ theorem freshBatchWordBlock_eq_map_freshBatchBlock (width : ℕ) (messages : Lis
     simp only [used, List.map_flatMap, List.flatMap_map, List.flatten_eq_flatMap, id_eq]
   have hcontains (block : BitString width) :
       used.contains (List.ofFn block) = (used.map (BitString.ofList width)).contains block := by
-    apply Bool.eq_iff_iff.mpr
-    simp only [List.contains_iff_mem]
+    rw [Bool.eq_iff_iff, List.contains_iff_mem, List.contains_iff_mem]
     conv_lhs => rw [← hrows, List.mem_map]
-    exact ⟨fun ⟨other, hm, he⟩ => (List.ofFn_injective he) ▸ hm,
-      fun hm => ⟨block, hm, rfl⟩⟩
+    exact ⟨fun ⟨_, hm, he⟩ => List.ofFn_injective he ▸ hm, fun hm => ⟨block, hm, rfl⟩⟩
   change findFreshBlock (size := 2 ^ width) (fun i => BitString.lowBits width i.val) used =
     (freshBatchBlock (messages.map fun word => (completeRows width word).map
       (BitString.ofList width))).map List.ofFn
@@ -206,9 +204,7 @@ theorem freshBatchWordBlock_eq_map_freshBatchBlock (width : ℕ) (messages : Lis
     _ = ((List.range (min (2 ^ width) (used.length + 1))).map
         (BitString.lowBits width)).find? (fun block => !used.contains block) :=
       hsearch _ (min_le_left _ _)
-    _ = _ := by
-      refine Eq.trans ?_ (hsearch _ (min_le_left _ _)).symm
-      rw [List.length_map]
+    _ = _ := by rw [hsearch _ (min_le_left _ _), List.length_map]
 
 /-- With more alphabet elements than complete block occurrences, the flat search succeeds. -/
 theorem freshBatchWordBlock_isSome_of_sum_div_lt {width : ℕ} {messages : List (List Bool)}

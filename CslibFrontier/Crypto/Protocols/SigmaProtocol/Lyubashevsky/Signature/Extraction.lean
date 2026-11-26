@@ -93,21 +93,13 @@ theorem lyubashevsky_predict_difference_le {n m k q η : ℕ} [NeZero q] {Ω : T
         secrets (Function.update values j b)) *ᵥ delta out = 0 := by
       rw [Matrix.sub_mulVec, ← ha.2, ← hb.2, sub_self]
     have hi := congrFun heq i
-    simp only [Matrix.mulVec, dotProduct, Pi.zero_apply] at hi
-    rw [Finset.sum_eq_single j] at hi
-    · have hd : delta out j ≠ 0 := by
-        cases hc : c out j <;> cases hc' : c' out j <;>
-          simp_all [delta, lyubashevskyChallenge]
-      have hab : (a.val i - b.val i) * delta out j = 0 := by
-        change ((Function.update values j a j).val i -
-          (Function.update values j b j).val i) * delta out j = 0 at hi
-        simpa only [Function.update_self] using hi
-      exact sub_eq_zero.mp ((mul_eq_zero.mp hab).resolve_right hd)
-    · intro j' _ hj'
-      change ((Function.update values j a j').val i -
-        (Function.update values j b j').val i) * delta out j' = 0
-      simp [Function.update_of_ne hj']
-    · simp
+    simp only [Matrix.mulVec, dotProduct, Pi.zero_apply, secrets] at hi
+    rw [Finset.sum_eq_single j (fun j' _ hj' => by simp [Function.update_of_ne hj'])
+      (by simp)] at hi
+    have hd : delta out j ≠ 0 := by
+      cases hc : c out j <;> cases hc' : c' out j <;>
+        simp_all [delta, lyubashevskyChallenge]
+    exact sub_eq_zero.mp ((mul_eq_zero.mp (by simpa [secrets] using hi)).resolve_right hd)
   rw [hsource, PMF.bind_map]
   change ((uniformOfFintype (Fin k → Box)).bind fun values =>
     (kernel (A * (secrets values).map Int.cast)).map fun out =>

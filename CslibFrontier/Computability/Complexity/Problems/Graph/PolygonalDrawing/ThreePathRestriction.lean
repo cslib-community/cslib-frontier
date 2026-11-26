@@ -96,17 +96,12 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
     (finCongr (List.length_ofFn (f := fun j => G.edges[edge (coords.symm j)]))).trans coords.symm
   let edges : Fin H.edges.length ↪ Fin G.edges.length :=
     ⟨fun j => edge (index j), hedges.comp index.injective⟩
-  have edgeEq (j : Fin H.edges.length) : H.edges[j] = G.edges[edges j] := by
-    change (List.ofFn fun k => G.edges[edge (coords.symm k)])[j.val]'j.isLt = _
-    rw [List.getElem_ofFn]
-    rfl
+  have edgeEq (j : Fin H.edges.length) : H.edges[j] = G.edges[edges j] := List.getElem_ofFn ..
   have hEnds (j : Fin H.edges.length) (b : Bool) :
       Dart.vertex (G := G) (edges j, b) = Dart.vertex (G := H) (j, b) := by
     have he := (Dart.edge_eq_vertices (G := G) (edges j)).symm.trans
       ((edgeEq j).symm.trans (Dart.edge_eq_vertices (G := H) j))
-    cases b
-    · exact congrArg Prod.fst he
-    · exact congrArg Prod.snd he
+    exact Bool.rec (congrArg Prod.fst he) (congrArg Prod.snd he) b
   let lift : Dart H ↪ Dart G := ⟨fun d => (edges d.1, d.2), fun _ _ h =>
     Prod.ext (edges.injective (Prod.mk.inj h).1) (Prod.mk.inj h).2⟩
   have liftVertex (d : Dart H) : (lift d).vertex = d.vertex := hEnds d.1 d.2
@@ -133,14 +128,12 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
   let A := D.subdrawing edges id hEnds
   have hA : A.HasRegularContacts :=
     hD.subdrawing edges id hEnds hH (fun _ h => h) (fun _ _ _ _ h => h)
-  have dirEq (d : Dart H) : A.direction d = D.direction (lift d) := rfl
   have dirInj (a b : Dart H) (hab : a.vertex = b.vertex)
       (he : A.direction a = A.direction b) : a = b :=
     lift.injective (hR.directions_injective (lift a) (lift b)
       (by simpa only [liftVertex] using hab) he)
   let s := A.rotationOfDirections dirInj
   have hS : A.Realizes s := A.realizes_rotationOfDirections (fun d => hR.nonzero (lift d)) dirInj
-  have startAt (k : Fin 3) : (arm k 0).vertex = u := startVertex k 0
   have finishAt (k : Fin 3) : (arm k (Fin.last (length k))).reverse.vertex = v := by
     rw [finishVertex, Fin.lastCases_last]
   have armsNe {a b : Fin 3} (hab : a ≠ b) (i : Fin (length a + 1)) (j : Fin (length b + 1)) :
@@ -151,13 +144,13 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
       (∃ k, d = (arm k (Fin.last (length k))).reverse ∧ d.vertex = v) ∨
       ∃ k j, (d = arm k j.succ ∨ d = (arm k j.castSucc).reverse) ∧ d.vertex = site k j := by
     obtain ⟨k, i, rfl | rfl⟩ := allDarts d
-    · exact Fin.cases (Or.inl ⟨k, rfl, startAt k⟩)
+    · exact Fin.cases (Or.inl ⟨k, rfl, startVertex k 0⟩)
         (fun j => Or.inr (Or.inr ⟨k, j, Or.inl rfl, startVertex k j.succ⟩)) i
     · exact Fin.lastCases (Or.inr (Or.inl ⟨k, rfl, finishAt k⟩))
         (fun j => Or.inr (Or.inr ⟨k, j, Or.inr rfl,
           by rw [finishVertex, Fin.lastCases_castSucc]⟩)) i
   let start : Fin 3 ≃ {d : Dart H // d.vertex = u} :=
-    Equiv.ofBijective (fun k => ⟨arm k 0, startAt k⟩)
+    Equiv.ofBijective (fun k => ⟨arm k 0, startVertex k 0⟩)
       ⟨fun _ _ he => by_contra fun hab => armsNe hab 0 0 (congrArg (·.val.1) he), fun d => by
         rcases classifyDart d.val with ⟨k, hk, _⟩ | ⟨_, _, hv⟩ | ⟨k, j, _, hs⟩
         · exact ⟨k, Subtype.ext hk.symm⟩
@@ -181,14 +174,12 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
     rcases classifyDart d with ⟨_, _, hu⟩ | ⟨_, _, hv⟩ | ⟨a, l, hdl, hs⟩
     · exact absurd (ha.symm.trans (hd.symm.trans hu)) (havoid k j).1
     · exact absurd (ha.symm.trans (hd.symm.trans hv)) (havoid k j).2
-    · have he : (⟨a, l⟩ : (k : Fin 3) × Fin (length k)) = ⟨k, j⟩ :=
-        hsite (hs.symm.trans (hd.trans ha))
-      cases he
+    · cases @hsite ⟨a, l⟩ ⟨k, j⟩ (hs.symm.trans (hd.trans ha))
       exact hdl.symm
   have even (a b : Fin 3) (hab : a ≠ b) (i : Fin (length a + 1)) (j : Fin (length b + 1)) :
       (A.route (arm a i).1).intersectionParity (A.route (arm b j).1) = false := by
-    simpa only [show ∀ d : Dart H, A.route d.1 = D.route (lift d).1 from fun _ => rfl,
-      liftArm] using heven a b hab i j
+    change (D.route (lift (arm a i)).1).intersectionParity (D.route (lift (arm b j)).1) = false
+    simpa only [liftArm] using heven a b hab i j
   have compare := hA.inverse_rotate_iff_not_inverse_rotate_of_three_paths
     (fun e => hsimple (edges e)) hS hH arm start finish (fun _ => rfl) (fun _ => rfl)
     step index.symm.injective even
@@ -207,23 +198,14 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
     have nac : a ≠ c := ne (by decide)
     have hall (d : Dart H) (hd : d.vertex = a.vertex) : d = a ∨ d = b ∨ d = c := by
       obtain ⟨i, hi⟩ := ports.surjective ⟨d, hd.trans (ports 0).property⟩
-      have h := congrArg Subtype.val hi.symm
-      fin_cases i
-      · exact Or.inl h
-      · exact Or.inr (Or.inl h)
-      · exact Or.inr (Or.inr h)
+      have h : d = (ports i).val := congrArg Subtype.val hi.symm
+      fin_cases i <;> simp [h, a, b, c]
     have hlab : (lift a).vertex = (lift b).vertex := by simpa only [liftVertex] using hab
     have hlbc : (lift b).vertex = (lift c).vertex := by simpa only [liftVertex] using hbc
-    have small := hS.clockwise a b c hab hbc nab nbc nac
-    have large := hR.clockwise (lift a) (lift b) (lift c) hlab hlbc
-      (lift.injective.ne nab) (lift.injective.ne nbc) (lift.injective.ne nac)
     exact (inverse_rotate_eq_iff_interval s hab (hab.trans hbc) nab nac nbc hall).trans
-      (small.symm.trans large)
-  have out := (interval start).symm.trans (compare.trans (interval finish).not)
-  change lift (arm 1 0) ∈ r.rotationInterval (lift (arm 0 0)) (lift (arm 2 0)) ↔
-    lift (arm 1 (Fin.last (length 1))).reverse ∉
-      r.rotationInterval (lift (arm 0 (Fin.last (length 0))).reverse)
-        (lift (arm 2 (Fin.last (length 2))).reverse) at out
-  simpa only [liftReverse, liftArm] using out
+      ((hS.clockwise a b c hab hbc nab nbc nac).symm.trans (hR.clockwise (lift a) (lift b)
+        (lift c) hlab hlbc (lift.injective.ne nab) (lift.injective.ne nbc) (lift.injective.ne nac)))
+  simp only [← liftArm, ← liftReverse]
+  exact (interval start).symm.trans (compare.trans (interval finish).not)
 
 end Cslib.Complexity.Graph.PolygonalDrawing

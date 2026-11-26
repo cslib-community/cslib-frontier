@@ -104,18 +104,14 @@ private theorem instantiate_template
       ((cell N A v).diagram.vertexList Prim.interp).map (fun w =>
         ((w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v))).reorient
           (Sum.elim (polarity N A v) (fun _ => false))).map (localCode N A order budget v)) := by
-  simp only [Template.instantiate, Cell.template, List.map_map]
+  simp only [Template.instantiate, Cell.template, Template.instantiateVertex, List.map_map,
+    Function.comp_def]
   refine List.map_congr_left fun w _ => ?_
-  unfold Template.instantiateVertex
-  simp only [Function.comp_def]
   rw [Vertex.map_map, show WireRef.resolve (context N A order budget v) ∘ (cell N A v).wireRef =
-      localCode N A order budget v ∘
-        Diagram.Replacement.label (cell N A v).openSim (port N A v) from
-    funext (resolve_wireRef N A order budget v),
-    map_reorient (w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v)))
-      (localCode N A order budget v) (Sum.elim (polarity N A v) (fun _ => false))
-      (fun e : ℕ => (context N A order budget v).reverse &&
-        decide (e = (context N A order budget v).anchor))
+      localCode N A order budget v ∘ Diagram.Replacement.label (cell N A v).openSim (port N A v)
+      from funext (resolve_wireRef N A order budget v),
+    map_reorient _ _ _ (fun e : ℕ => (context N A order budget v).reverse &&
+      decide (e = (context N A order budget v).anchor))
       (mask_localCode N A order budget hbudget v), Vertex.map_map]
 
 /-- Portable-template vertices emitted in the source-cell order. -/
@@ -128,11 +124,7 @@ private theorem enumerated_vertices {a b : List Color} (D : Diagram Prim a b)
     (List.ofFn (Diagram.vertexEquiv Prim.interp D).symm).map (fun w => f (D.graph Prim.interp w)) =
       (D.vertexList Prim.interp).map f := by
   rw [List.map_ofFn]
-  simp only [Function.comp_def]
-  rw [show (fun i => f (D.graph Prim.interp ((Diagram.vertexEquiv Prim.interp D).symm i))) =
-      fun i => f ((D.vertexList Prim.interp).get i) from
-    funext fun i => congrArg f (get_vertexList Prim.interp D i).symm,
-    List.ofFn_comp', List.ofFn_get]
+  simp only [Function.comp_def, ← get_vertexList, List.ofFn_comp', List.ofFn_get]
 
 /-- Complete portable emission is the original standard graph with sparse edge names. -/
 private theorem rawVertices_eq
@@ -140,17 +132,14 @@ private theorem rawVertices_eq
     rawVertices N A order budget = (Numbering.vertexList N A order).map
       (fun v => (AndOr.graph N A v).map (code N A order budget)) := by
   simp only [rawVertices, Numbering.vertexList, List.sigma, List.map_flatMap, List.map_map]
-  apply List.flatMap_congr
-  intro v _
+  refine List.flatMap_congr fun v _ => ?_
   rw [instantiate_template N A order budget hbudget v]
   have hcode : localCode N A order budget v =
-      (fun e => code N A order budget (Sum.map id (Sigma.mk v) e)) := rfl
+      fun e => code N A order budget (Sum.map id (Sigma.mk v) e) := rfl
   simpa only [hcode, AndOr.graph, ConstraintGraph.Replacement.graph, localGraph,
     ConstraintGraph.reorient, ConstraintGraph.map, Diagram.Replacement.graph,
-    Vertex.map_map, Function.comp_def, localCode]
-    using (enumerated_vertices (cell N A v).diagram
-      (fun w => ((w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v))).reorient
-        (Sum.elim (polarity N A v) (fun _ => false))).map (localCode N A order budget v))).symm
+    Vertex.map_map, Function.comp_def] using
+    (enumerated_vertices (cell N A v).diagram _).symm
 
 end
 
@@ -178,11 +167,7 @@ private theorem idxOf_map_injective {E : Type*} [BEq E] [LawfulBEq E] (f : E →
   induction xs with
   | nil => rfl
   | cons x xs ih =>
-    by_cases hx : x = e
-    · subst x
-      simp
-    · have hfx : f x ≠ f e := fun h => hx (hf h)
-      simp [hx, hfx, ih]
+    by_cases hx : x = e <;> simp [hx, hf.eq_iff, ih]
 
 /-- The explicit standard graph program, with sparse addresses compacted by first-index lookup. -/
 @[expose] def data : AndOrGraph where

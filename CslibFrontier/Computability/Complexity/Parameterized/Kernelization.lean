@@ -129,18 +129,16 @@ theorem IsKernelization.mem_FPT {K : α → α} {g : ℕ → ℕ} (hK : IsKernel
   obtain ⟨dec, tt, c, hdec, hdecA, htt⟩ :=
     (mem_DTIME_iff_decidableInTimeO.mp hA).exists_computableInO
   obtain ⟨d, _, hKd⟩ := hK.polyTime.exists_degree
-  have htt' : ∀ a, tt (K a) ≤ c * (∑ j ∈ Finset.range (g (κ a) + 1), t j) + c := fun a => by
+  have htt' (a : α) : tt (K a) ≤ c * (∑ j ∈ Finset.range (g (κ a) + 1), t j) + c := by
     have h₁ : tt (K a) ≤ c * t (enc (K a)).length + c := by exact_mod_cast htt (K a)
-    have h₂ : t (enc (K a)).length ≤ ∑ j ∈ Finset.range (g (κ a) + 1), t j :=
-      Finset.single_le_sum (fun _ _ => Nat.zero_le _)
-        (Finset.mem_range.mpr (Nat.lt_succ_of_le (hK.length_le a)))
-    have := Nat.mul_le_mul_left c h₂
+    have h₂ := Nat.mul_le_mul_left c
+      (Finset.single_le_sum (s := Finset.range (g (κ a) + 1)) (f := t) (fun _ _ => Nat.zero_le _)
+        (Finset.mem_range.mpr (Nat.lt_succ_of_le (hK.length_le a))))
     omega
-  have key : ∀ a, ((enc a).length + 1) ^ d + tt (K a) ≤
+  have key (a : α) : ((enc a).length + 1) ^ d + tt (K a) ≤
       (1 + (c * (∑ j ∈ Finset.range (g (κ a) + 1), t j) + c)) * ((enc a).length + 1) ^ d := by
-    intro a
-    have hP : 1 ≤ ((enc a).length + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
-    have h₁ := (htt' a).trans (Nat.le_mul_of_pos_right _ hP)
+    have h₁ := (htt' a).trans
+      (Nat.le_mul_of_pos_right _ (Nat.one_le_pow d ((enc a).length + 1) (Nat.succ_pos _)))
     rw [Nat.add_mul, Nat.one_mul]
     omega
   exact mem_FPT_iff_computableInFPTTime.mpr ⟨dec ∘ K,
@@ -266,9 +264,7 @@ theorem hasPolyKernel_of_mem_P [Nonempty α] (hA : A ∈ P enc) : HasPolyKernel 
     fun _ => (enc y).length + (enc n).length + κ y + κ n, .const _,
     ⟨by fun_prop, fun a => ?_, fun a => ?_, fun a => ?_⟩⟩
   · rw [hdecA a]
-    cases dec a
-    · exact iff_of_false hnA Bool.false_ne_true
-    · exact iff_of_true hyA rfl
+    cases dec a <;> simp [hnA, hyA]
   all_goals split_ifs <;> omega
 
 end Cslib.Complexity

@@ -93,10 +93,8 @@ time is at most `2 ^ paddedTime t`, the residue of the sum of the network values
 theorem simulate_eq (F : NetworkFamily encN value Admissible count) {x : List Bool} {t : ℕ}
     (hx : x.length ≤ t) (ht : 2 ≤ t) (hcount : count x (paddedTime t) ≤ 2 ^ paddedTime t) :
     simulate F (x, t) = count x (paddedTime t) := by
-  rw [simulate, ite_eq_left_of_eq_true _ _ (eq_true (⟨hx, ht⟩ : x.length ≤ t ∧ 2 ≤ t)),
-    modSum_eq_sum_mod]
-  simp only [scheduleResidue]
-  rw [← Finset.sum_nat_mod, F.sum_value x t hx ht]
+  rw [simulate, ite_eq_left ⟨hx, ht⟩, modSum_eq_sum_mod]
+  simp only [scheduleResidue, ← Finset.sum_nat_mod, F.sum_value x t hx ht]
   exact Nat.mod_eq_of_lt (hcount.trans_lt (Nat.pow_lt_pow_right one_lt_two (Nat.lt_succ_self _)))
 
 /-! ### Polynomial-time parameters -/
@@ -112,7 +110,7 @@ private theorem computableInPolyTime_paddedTime_succ :
 
 private theorem computableInPolyTime_paddedTime :
     ComputableInPolyTime paddedTime encUnary encUnary := by
-  rw [show paddedTime = _ from funext paddedTime_eq]
+  rw [funext paddedTime_eq]
   fun_prop
 
 private theorem computableInPolyTime_two_pow_paddedTime :
@@ -122,12 +120,10 @@ private theorem computableInPolyTime_two_pow_paddedTime :
 
 private theorem computableInPolyTime_scheduleCount (heads : ℕ) :
     ComputableInPolyTime (scheduleCount heads) encUnary encNat := by
-  have h : ComputableInPolyTime
-      (fun t => 3 ^ (heads * ((t + Nat.clog 2 (t + 2) - 1) / Nat.clog 2 (t + 2)))) encUnary
-      encNat :=
-    ComputableInPolyTime.binary_pow' (ComputableInPolyTime.const (encOut := encNat) 3) (by fun_prop)
-  convert h using 2 with t
-  rw [scheduleCount, numBlocks, blockLength, Nat.ceilDiv_eq_add_pred_div]
+  have h : scheduleCount heads =
+      fun t => 3 ^ (heads * ((t + Nat.clog 2 (t + 2) - 1) / Nat.clog 2 (t + 2))) :=
+    funext fun _ => by rw [scheduleCount, numBlocks, blockLength, Nat.ceilDiv_eq_add_pred_div]
+  exact h ▸ .binary_pow' (.const (encOut := encNat) 3) (by fun_prop)
 
 /-! ### Resource bounds -/
 
@@ -207,32 +203,25 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
     have hZ : (encPair (encPair encBits encUnary) encNat (c, i)).length ≤ Z c := by
       have := (length_encNat_mono hi.le)
       enc_len [Z, sz] at this ⊢
-    have hG : (encN (F.net (c.1, c.2, i))).length ≤
-        an * ((encPair (encPair encBits encUnary) encNat (c, i)).length + 1) ^ dn := hnl (c, i)
     have hY : (encPair encNat encN (paddedTime c.2 + 1, F.net (c.1, c.2, i))).length ≤ Y c := by
-      have hG' := hG.trans
+      have hG' := (hnl (c, i)).trans
         (Nat.mul_le_mul_left an (Nat.pow_le_pow_left (Nat.add_le_add_right hZ 1) dn))
-      rw [length_encPair]
-      simp only [Y]
-      omega
+      simpa only [length_encPair, Y] using Nat.add_le_add_left hG' _
     have hA := hK c.2 (paddedTime c.2 + 1) (F.net (c.1, c.2, i)) hc.2 (by omega)
       (paddedTime_add_one_le hc.2) (F.admissible c.1 c.2 i hc.1 hc.2 hi)
     have hKY := Nat.mul_le_mul_left K (Nat.pow_le_pow_left (Nat.add_le_add_right hY 1) K)
-    have h1 := (bP (c, i)).1.trans (mP hZ)
-    have h2 := (bN (c, i)).1.trans (mN hZ)
-    have h3 := (bP (c, i)).2.trans (mP hZ)
-    have h4 := (bN (c, i)).2.trans (mN hZ)
-    have hEc := hE c
+    have hP' := (bP (c, i)).imp (·.trans (mP hZ)) (·.trans (mP hZ))
+    have hN' := (bN (c, i)).imp (·.trans (mN hZ)) (·.trans (mN hZ))
     simp only [cr, NativeCertificate.comp_time, NativeCertificate.comp_space,
       NativeCertificate.prod_time, NativeCertificate.prod_space]
     constructor
     · have hmul : K * ((encPair encNat encN (paddedTime c.2 + 1, F.net (c.1, c.2, i))).length +
           1) ^ K * E c ≤ K * (Y c + 1) ^ K * E c := Nat.mul_le_mul_right _ hKY
-      have hpe : pP (Z c) + pN (Z c) ≤ (pP (Z c) + pN (Z c)) * E c := Nat.le_mul_of_pos_right _ hEc
+      have hpe : pP (Z c) + pN (Z c) ≤ (pP (Z c) + pN (Z c)) * E c :=
+        Nat.le_mul_of_pos_right _ (hE c)
       simp only [U, E] at hA hmul hpe ⊢
-      nlinarith [hA.1]
-    · simp only [U] at hA ⊢
-      omega
+      nlinarith [hA.1, hP'.1, hN'.1]
+    · simp only [U] at hA ⊢; omega
   -- Collect the polynomial overhead.
   let V : List Bool × ℕ → ℕ := fun c => pG (sz c) + sz c + 2 * (a * (sz c + 1) ^ d + U c)
   have hVp : PolyBounded sz V := by growth_poly
@@ -250,19 +239,16 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
       have h1 := succ_mul_add_le (A := a * (sz c + 1) ^ d) (hcnt1 c) (hE c) hR
       simp only [V, sz, Nat.add_mul] at hG h1 h2 ⊢
       omega
-    · simp only [V, sz, Nat.add_mul] at hG h2 ⊢
-      omega
+    · simp only [V, sz, Nat.add_mul] at hG h2 ⊢; omega
   have hspace (c : List Bool × ℕ) : csim.space c ≤ V c := by
     have hG := (bG c).2
     simp only [csim, cms, NativeCertificate.congr, NativeCertificate.branch_space,
-      NativeCertificate.const_space]
+      NativeCertificate.const_space, V, sz] at hG ⊢
     split_ifs with hc
-    · have hc' : c.1.length ≤ c.2 ∧ 2 ≤ c.2 := of_decide_eq_true hc
-      have hQ : Q c ≤ U c := Finset.sup_le fun i hi => (hone c hc' i (Finset.mem_range.mp hi)).2
-      simp only [V, sz] at hG hQ ⊢
+    · have hQ : Q c ≤ U c := Finset.sup_le fun i hi =>
+        (hone c (of_decide_eq_true hc) i (Finset.mem_range.mp hi)).2
       omega
-    · simp only [V, sz] at hG ⊢
-      omega
+    · omega
   -- Absorb the constants.
   set k := k₀ * 2 ^ d₀ + d₀ + K with hk
   have hVk (c : List Bool × ℕ) : V c ≤ k * (c.1.length + c.2 + 1) ^ k := by
@@ -289,10 +275,6 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
       encBits (encPair encUnary encNat)
       (fun x => 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))))
       (fun x => T x.length ^ d) := by
-  let encβ := encPair encUnary encNat
-  let rule : ℕ × ℕ → ℕ × ℕ := id
-  have hrule : ComputableInPolyTime rule (encPair encUnary encNat) encβ :=
-    .of_eq fun _ => rfl
   obtain ⟨k, hsim⟩ := exists_computableInO_simulate F A
   -- Preparing the context `(x, c * T |x|)`, with the clock in unary.
   have hmul : ComputableInPolyTime (fun n : ℕ => c * n) encUnary encUnary := by fun_prop
@@ -308,13 +290,11 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
       (encPair encBits encUnary) :=
     cX.prod ((NativeCertificate.ofPolyTime hmul).comp (cU.comp cT))
   let csim : NativeCertificate (simulate F) (encPair encBits encUnary) encNat := ⟨_, _, hsim⟩
-  let ctotal := (NativeCertificate.ofPolyTime hrule).comp
-    (((NativeCertificate.ofPolyTime htau).prod csim).comp cpre)
+  let ctotal := ((NativeCertificate.ofPolyTime htau).prod csim).comp cpre
   -- Monotone polynomial bounds of the polynomial-time pieces.
   obtain ⟨pm, hpm, mm, bm⟩ := exists_mono_poly_cert hmul
   obtain ⟨pt, hpt, mt, bt⟩ := exists_mono_poly_cert htau
-  obtain ⟨pr, hpr, mr, br⟩ := exists_mono_poly_cert hrule
-  let W : ℕ → ℕ := fun n => 2 * n + (n + 1) ^ 2 + pm n + pt (3 * n + 1) + pr (6 * n + 3) +
+  let W : ℕ → ℕ := fun n => 2 * n + (n + 1) ^ 2 + pm n + pt (3 * n + 1) +
     k * (2 * n + 1) ^ k + (n + n + pm n)
   have hW : Cslib.PolynomiallyBounded W := by fun_prop
   obtain ⟨a, e, hWa⟩ := Cslib.polynomiallyBounded_iff_le.mp hW
@@ -328,35 +308,17 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
         ctotal.space x ≤ W (c * T x.length) := by
     simp only [ctotal, cpre, csim, cX, cT, cU, NativeCertificate.comp_time,
       NativeCertificate.comp_space, NativeCertificate.prod_time, NativeCertificate.prod_space,
-      NativeCertificate.linear_time, NativeCertificate.linear_space, encBits_apply,
-      Function.comp_apply]
+      NativeCertificate.linear_time, NativeCertificate.linear_space, encBits_apply]
     obtain ⟨hnt, h2t⟩ := hclock x.length
     set n := x.length
     set t := c * T n with ht
     have hTt : T n ≤ t := Nat.le_mul_of_pos_left _ hc
-    have hτ := paddedTime_add_one_le h2t
     have hcnt1 : 1 ≤ scheduleCount F.heads t := Nat.one_le_pow _ _ (by norm_num)
     have hE : 1 ≤ 2 ^ (k * t / Nat.sqrt (Nat.log 2 t)) := Nat.one_le_two_pow
     have hctx : (encPair encBits encUnary (x, t)).length ≤ 3 * t + 1 := by enc_len
-    have hsimx : simulate F (x, t) = count x (paddedTime t) :=
-      simulate_eq F hnt h2t (hcount x _)
-    have hout : (encPair encUnary encNat (paddedTime t, simulate F (x, t))).length ≤ 6 * t + 3 := by
-      have h1 : (encUnary (paddedTime t)).length = paddedTime t := by
-        simp only [encUnary_apply, List.length_replicate]
-      have h2 : (encNat (simulate F (x, t))).length ≤ paddedTime t + 1 := by
-        rw [hsimx]
-        calc _ ≤ (encNat (2 ^ paddedTime t)).length := length_encNat_mono (hcount x _)
-          _ = paddedTime t + 1 := by rw [length_encNat_eq_size, Nat.size_pow]
-      enc_len
-    have hTu : (encUnary (T n)).length ≤ t := by
-      simp only [encUnary_apply, List.length_replicate]
-      exact hTt
-    have hmT := (bm (T n)).1.trans (mm hTu)
-    have hmS := (bm (T n)).2.trans (mm hTu)
-    have htT := (bt (x, t)).1.trans (mt hctx)
-    have htS := (bt (x, t)).2.trans (mt hctx)
-    have hrT := (br (paddedTime t, simulate F (x, t))).1.trans (mr hout)
-    have hrS := (br (paddedTime t, simulate F (x, t))).2.trans (mr hout)
+    have hTu : (encUnary (T n)).length ≤ t := by simpa [encUnary_apply] using hTt
+    have hm' := (bm (T n)).imp (·.trans (mm hTu)) (·.trans (mm hTu))
+    have ht' := (bt (x, t)).imp (·.trans (mt hctx)) (·.trans (mt hctx))
     have hpow : k * (n + t + 1) ^ k ≤ k * (2 * t + 1) ^ k :=
       Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
     have hsq : (T n + 1) ^ 2 ≤ (t + 1) ^ 2 := Nat.pow_le_pow_left (by omega) _
@@ -364,50 +326,40 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
     · have := Nat.mul_le_mul_right (scheduleCount F.heads t * 2 ^ (k * t / Nat.sqrt (Nat.log 2 t)))
         hpow
       have := Nat.le_mul_of_pos_right
-        (2 * t + (t + 1) ^ 2 + pm t + pt (3 * t + 1) + pr (6 * t + 3) + (t + t + pm t))
+        (2 * t + (t + 1) ^ 2 + pm t + pt (3 * t + 1) + (t + t + pm t))
         (Nat.mul_pos hcnt1 hE)
       simp only [W]
-      linarith
-    · simp only [W]
-      omega
+      linarith [hm'.1, ht'.1]
+    · simp only [W]; omega
   -- Absorb the cost into `2 ^ O(T / √(log T))` and `T ^ O(1)`.
   obtain ⟨C, hC⟩ := Nat.exists_three_pow_mul_le_two_pow_div_sqrt_log_two F.heads c e k
-  refine ⟨(a + 0 + 1) * (C + 1), a * c ^ e + 0 + 2 * e,
-    (ctotal.computes.of_enc_eq fun x => congrArg encβ ?_).mono_le (fun x => ?_) fun x => ?_⟩
-  · obtain ⟨hnt, h2t⟩ := hclock x.length
-    simp only [Function.comp_apply]
-    rw [simulate_eq F hnt h2t (hcount x _)]
-    rfl
+  refine ⟨(a + 1) * (C + 1), a * c ^ e + 2 * e,
+    (ctotal.computes.of_enc_eq fun x => congrArg (encPair encUnary encNat) ?_).mono_le
+      (fun x => ?_) fun x => ?_⟩
+  · simp only [Function.comp_apply,
+      simulate_eq F (hclock x.length).1 (hclock x.length).2 (hcount x _)]
   · set n := x.length
     have h2T : 2 ≤ T n := (le_max_right _ _).trans (hTn n)
-    have hcostT := (hcost x).1
-    have hWt := hWa (c * T n)
-    have hmain : 3 ^ (F.heads * (c * T n ⌈/⌉ Nat.clog 2 (c * T n + 2))) * (c * T n + 1) ^ e *
-        2 ^ (k * (c * T n) / Nat.sqrt (Nat.log 2 (c * T n))) ≤
-        2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) := hC (T n) h2T
-    have habs := Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a) (b := 0) (C := C) h2T
     calc ctotal.time x ≤ W (c * T n) * scheduleCount F.heads (c * T n) *
-          2 ^ (k * (c * T n) / Nat.sqrt (Nat.log 2 (c * T n))) := hcostT
+          2 ^ (k * (c * T n) / Nat.sqrt (Nat.log 2 (c * T n))) := (hcost x).1
       _ ≤ a * (c * T n + 1) ^ e * scheduleCount F.heads (c * T n) *
           2 ^ (k * (c * T n) / Nat.sqrt (Nat.log 2 (c * T n))) :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hWt)
+          Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (hWa (c * T n)))
       _ = a * (3 ^ (F.heads * (c * T n ⌈/⌉ Nat.clog 2 (c * T n + 2))) * (c * T n + 1) ^ e *
           2 ^ (k * (c * T n) / Nat.sqrt (Nat.log 2 (c * T n)))) := by
           simp only [scheduleCount, numBlocks, blockLength]
           ring
-      _ ≤ a * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 0 := by
-          rw [Nat.add_zero]
-          exact Nat.mul_le_mul_left _ hmain
-      _ ≤ _ := habs
+      _ ≤ a * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 0 :=
+          Nat.mul_le_mul_left _ (hC (T n) h2T)
+      _ ≤ _ := Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a) (b := 0) (C := C) h2T
   · set n := x.length
     have h2T : 2 ≤ T n := (le_max_right _ _).trans (hTn n)
-    have hspace := (hcost x).2
-    have hWt := hWa (c * T n)
     have hct : c * T n + 1 ≤ c * (T n + 1) := by nlinarith
-    calc ctotal.space x ≤ a * (c * T n + 1) ^ e := hspace.trans hWt
+    calc ctotal.space x ≤ a * (c * T n + 1) ^ e := (hcost x).2.trans (hWa (c * T n))
       _ ≤ a * (c * (T n + 1)) ^ e := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hct _)
       _ = a * c ^ e * (T n + 1) ^ e + 0 := by rw [mul_pow, Nat.mul_assoc, add_zero]
-      _ ≤ T n ^ (a * c ^ e + 0 + 2 * e) := Nat.mul_add_one_pow_add_le_pow h2T
+      _ ≤ T n ^ (a * c ^ e + 2 * e) :=
+          Nat.mul_add_one_pow_add_le_pow (a := a * c ^ e) (b := 0) (d := e) h2T
 
 /-- Any polynomial-time function of the exact count and its padded clock has the same
 subexponential time and polynomial-space scale. This is postprocessing of
@@ -424,8 +376,7 @@ theorem exists_computableInO_countWith (F : NetworkFamily encN value Admissible 
       (fun x => 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))))
       (fun x => T x.length ^ d) := by
   obtain ⟨C, d, h⟩ := exists_computableInO_countPair F A hcount hT hTn hc
-  have hlength := h
-  obtain ⟨K, -, hlen⟩ := hlength
+  let ⟨K, _, hlen⟩ := h
   let g : List Bool → ℕ × ℕ := fun x =>
     (paddedTime (c * T x.length), count x (paddedTime (c * T x.length)))
   let cg : NativeCertificate g encBits (encPair encUnary encNat) := ⟨_, _, h⟩
@@ -440,28 +391,24 @@ theorem exists_computableInO_countWith (F : NetworkFamily encN value Admissible 
   · have h2 : 2 ≤ T x.length := (le_max_right _ _).trans (hTn _)
     have hpost : cr.time (g x) ≤ a * (T x.length + 1) ^ e :=
       ((bp (g x)).1.trans (mp (hlen x))).trans ((Nat.le_add_left _ _).trans (hPe _))
-    have hmain := hC' (T x.length) h2
-    simp only [Nat.zero_mul, pow_zero, Nat.one_mul] at hmain
-    have hpow : 1 ≤ (T x.length + 1) ^ e := Nat.one_le_pow _ _ (by omega)
-    have hE : 1 ≤ 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) :=
-      Nat.one_le_two_pow
+    have hmain := by
+      simpa only [Nat.zero_mul, pow_zero, Nat.one_mul] using hC' (T x.length) h2
+    have hcr := hpost.trans
+      (Nat.mul_le_mul_left a ((Nat.le_mul_of_pos_right _ Nat.one_le_two_pow).trans hmain))
     calc ctotal.time x = 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) +
           cr.time (g x) := rfl
       _ ≤ (a + 1) * 2 ^ (C' * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) := by
-        nlinarith [Nat.mul_le_mul_left a hmain, Nat.mul_le_mul_left a (Nat.le_mul_of_pos_right
-          ((T x.length + 1) ^ e) hE)]
+        linarith [(Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ (Nat.succ_pos _))).trans hmain]
       _ ≤ _ := by
         simpa only [Nat.add_zero, Nat.add_assoc] using
           Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a + 1) (b := 0) (C := C') h2
   · have h2 : 2 ≤ T x.length := (le_max_right _ _).trans (hTn _)
-    have hpost := (bp (g x)).2.trans (mp (hlen x))
-    have hpoly := hPe (T x.length)
     calc ctotal.space x = T x.length ^ d + cr.space (g x) := rfl
       _ ≤ a * (T x.length + 1) ^ e :=
-        (Nat.add_le_add_left hpost _).trans hpoly
+        (Nat.add_le_add_left ((bp (g x)).2.trans (mp (hlen x))) _).trans (hPe (T x.length))
       _ ≤ T x.length ^ (a + 2 * e) := by
-        have := Nat.mul_add_one_pow_add_le_pow (a := a) (b := 0) (d := e) h2
-        simpa only [Nat.add_zero] using this
+        simpa only [Nat.add_zero] using
+          Nat.mul_add_one_pow_add_le_pow (a := a) (b := 0) (d := e) h2
 
 /-- The exact count at the padded clock, with binary output, inherits the counting core's
 subexponential time and polynomial workspace. -/

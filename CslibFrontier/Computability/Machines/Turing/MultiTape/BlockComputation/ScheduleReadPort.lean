@@ -45,19 +45,14 @@ theorem port_inSpace (k c : ℕ) :
       (fun a => (encWindowArgs a).length) := by
   have hs := fst encNat (encPair encNat (encPair encNat encNat))
   have ht := snd encNat (encPair encNat (encPair encNat encNat))
-  have hi := budget_comp_linear (fst encNat (encPair encNat encNat)) ht
   have hdj := budget_comp_linear (snd encNat (encPair encNat encNat)) ht
-  have hd := budget_comp_linear (fst encNat encNat) hdj
-  have hj := budget_comp_linear (snd encNat encNat) hdj
-  have hpi := budget_comp_linear (read_inSpace k c 2) (budget_prod hs hi)
-  have hni := budget_comp_linear (read_inSpace k c 0) (budget_prod hs hi)
-  have hpj := budget_comp_linear (read_inSpace k c 2) (budget_prod hs hj)
-  have hnj := budget_comp_linear (read_inSpace k c 0) (budget_prod hs hj)
-  have hvalue := budget_natSub (budget_natAdd (budget_natAdd hpi hnj) hd)
-    (budget_natAdd hni hpj)
-  have hfin := budget_finMod (by decide : 0 < 3) hvalue
-  exact (budget_finite (encC := encFinite (Fin 3)) id hfin).of_enc_eq
-    fun ⟨σ, i, δ, j⟩ => rfl
+  have hsi := budget_prod hs (budget_comp_linear (fst encNat (encPair encNat encNat)) ht)
+  have hsj := budget_prod hs (budget_comp_linear (snd encNat encNat) hdj)
+  exact (budget_finite (encC := encFinite (Fin 3)) id (budget_finMod (by decide : 0 < 3)
+    (budget_natSub (budget_natAdd (budget_natAdd (budget_comp_linear (read_inSpace k c 2) hsi)
+      (budget_comp_linear (read_inSpace k c 0) hsj)) (budget_comp_linear (fst encNat encNat) hdj))
+      (budget_natAdd (budget_comp_linear (read_inSpace k c 0) hsi)
+        (budget_comp_linear (read_inSpace k c 2) hsj))))).of_enc_eq fun ⟨σ, i, δ, j⟩ => rfl
 
 /-- Locate the last earlier provider, returning its port or absence for a blank target block. -/
 @[expose] def providerPort (k c : ℕ) (a : SearchArgs) : Option (Fin 3) :=

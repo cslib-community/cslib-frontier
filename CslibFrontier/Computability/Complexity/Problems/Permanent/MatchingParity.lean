@@ -78,10 +78,9 @@ when its residue modulo two is one. -/
 /-- The determinant-parity algorithm is polynomial-time on framed lists of Boolean rows. -/
 @[fun_prop] theorem bipartiteMatchingParity_polyTime :
     ComputableInPolyTime bipartiteMatchingParity encBoolTable encBool := by
-  have hrows : ComputableInPolyTime integerRows encBoolTable Cslib.encIntTable := by
+  have : ComputableInPolyTime integerRows encBoolTable Cslib.encIntTable := by
     unfold integerRows
     fun_prop
-  have hdet := detRows_polytime.comp hrows
   change ComputableInPolyTime (fun A => decide ((detRows (integerRows A) % 2).toNat = 1))
     encBoolTable encBool
   fun_prop
@@ -107,13 +106,9 @@ theorem bipartiteMatchingParity_eq_true_iff (A : List (List Bool)) :
 /-- The unique-versus-none decision step of Goldreich Exercise 6.36(b): the determinant modulo
 two separates a unique perfect matching from no perfect matching, in polynomial time. -/
 theorem uniqueBipartiteMatching_mem_PromiseP :
-    uniqueBipartiteMatching ∈ PromiseP encBoolTable := by
-  refine mem_PromiseP_iff.mpr ⟨bipartiteMatchingParity, bipartiteMatchingParity_polyTime,
-    (fun A hA => (bipartiteMatchingParity_eq_true_iff A).mpr ?_), fun A hA => ?_⟩
-  · change BipartitePerfectMatchingCount A = 1 at hA
-    simp [hA]
-  · change BipartitePerfectMatchingCount A = 0 at hA
-    rw [Bool.eq_false_iff, ne_eq, bipartiteMatchingParity_eq_true_iff, hA]
-    decide
+    uniqueBipartiteMatching ∈ PromiseP encBoolTable :=
+  mem_PromiseP_iff.mpr ⟨bipartiteMatchingParity, bipartiteMatchingParity_polyTime,
+    fun A (hA : _ = 1) => (bipartiteMatchingParity_eq_true_iff A).mpr (by simp [hA]),
+    fun A (hA : _ = 0) => Bool.eq_false_iff.mpr (by simp [bipartiteMatchingParity_eq_true_iff, hA])⟩
 
 end Cslib.Complexity

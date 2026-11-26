@@ -56,40 +56,30 @@ private theorem filter_outer {L : ℕ} (u : Fin L → Fin 7)
       List.ofFn (fun k => f (Q.orderEmbOfFin hn k)) := by
   rw [Finset.ofFn_orderEmbOfFin, Finset.sort_eq_filter_finRange,
     List.ofFn_eq_map, List.filter_map]
-  have hp : (fun ℓ : Fin L => decide ((u ℓ).val < 3)) = (fun ℓ => decide (ℓ ∈ Q)) := by
-    funext ℓ
-    simp only [hQ]
+  have hp : (fun ℓ : Fin L => decide ((u ℓ).val < 3)) = (fun ℓ => decide (ℓ ∈ Q)) :=
+    funext fun ℓ => by simp only [hQ]
   simp only [Function.comp_def, hp]
-  apply List.map_congr_left
-  intro ℓ hℓ
-  exact (hf ℓ (by simpa only [List.mem_filter, List.mem_finRange, true_and,
-    decide_eq_true_eq] using hℓ)).symm
+  exact List.map_congr_left fun ℓ hℓ => (hf ℓ (by simpa using hℓ)).symm
 
 /-- Base-three compression follows the increasing outer positions used by `outerPartL`. -/
 theorem outer_digits_left {L m : ℕ} (u : Fin L → Fin 7)
     (h : (innerSetL (fun ℓ => leftAt (u ℓ))).card = m) :
     (List.ofFn fun ℓ => (u ℓ).val).filter (fun d => d < 3) =
       List.ofFn (fun k => (outerPartL (fun ℓ => leftAt (u ℓ)) h k).val) := by
-  have hQ : ∀ ℓ, ℓ ∈ (innerSetL (fun ℓ => leftAt (u ℓ)))ᶜ ↔ (u ℓ).val < 3 := by
-    intro ℓ
+  have hQ (ℓ : Fin L) : ℓ ∈ (innerSetL (fun ℓ => leftAt (u ℓ)))ᶜ ↔ (u ℓ).val < 3 := by
     simp [innerSetL, leftAt_isInner]
-  apply filter_outer u (innerSetL (fun ℓ => leftAt (u ℓ)))ᶜ hQ (L - m)
-    (Finset.card_compl_of_card_eq _ h) (fun ℓ => (leftAt (u ℓ)).outerIndex.val)
-  intro ℓ hℓ
-  exact leftAt_outer _ ((hQ ℓ).mp hℓ)
+  exact filter_outer u _ hQ (L - m) (Finset.card_compl_of_card_eq _ h)
+    (fun ℓ => (leftAt (u ℓ)).outerIndex.val) fun ℓ hℓ => leftAt_outer _ ((hQ ℓ).mp hℓ)
 
 /-- Base-three compression follows the increasing outer positions used by `outerPartR`. -/
 theorem outer_digits_right {L m : ℕ} (u : Fin L → Fin 7)
     (h : (innerSetR (fun ℓ => rightAt (u ℓ))).card = m) :
     (List.ofFn fun ℓ => (u ℓ).val).filter (fun d => d < 3) =
       List.ofFn (fun k => (outerPartR (fun ℓ => rightAt (u ℓ)) h k).val) := by
-  have hQ : ∀ ℓ, ℓ ∈ (innerSetR (fun ℓ => rightAt (u ℓ)))ᶜ ↔ (u ℓ).val < 3 := by
-    intro ℓ
+  have hQ (ℓ : Fin L) : ℓ ∈ (innerSetR (fun ℓ => rightAt (u ℓ)))ᶜ ↔ (u ℓ).val < 3 := by
     simp [innerSetR, rightAt_isInner]
-  apply filter_outer u (innerSetR (fun ℓ => rightAt (u ℓ)))ᶜ hQ (L - m)
-    (Finset.card_compl_of_card_eq _ h) (fun ℓ => (rightAt (u ℓ)).outerIndex.val)
-  intro ℓ hℓ
-  exact rightAt_outer _ ((hQ ℓ).mp hℓ)
+  exact filter_outer u _ hQ (L - m) (Finset.card_compl_of_card_eq _ h)
+    (fun ℓ => (rightAt (u ℓ)).outerIndex.val) fun ℓ hℓ => rightAt_outer _ ((hQ ℓ).mp hℓ)
 
 private theorem filter_inner {L : ℕ} (u : Fin L → Fin 7)
     (Q : Finset (Fin L)) (hQ : ∀ ℓ, ℓ ∈ Q ↔ ¬(u ℓ).val < 3)
@@ -99,40 +89,30 @@ private theorem filter_inner {L : ℕ} (u : Fin L → Fin 7)
       List.ofFn (fun k => f (Q.orderEmbOfFin hn k)) := by
   rw [Finset.ofFn_orderEmbOfFin, Finset.sort_eq_filter_finRange,
     List.ofFn_eq_map, List.filter_map, List.map_map]
-  have hp : (fun ℓ : Fin L => decide (¬(u ℓ).val < 3)) = (fun ℓ => decide (ℓ ∈ Q)) := by
-    funext ℓ
-    simp only [hQ]
+  have hp : (fun ℓ : Fin L => decide (¬(u ℓ).val < 3)) = (fun ℓ => decide (ℓ ∈ Q)) :=
+    funext fun ℓ => by simp only [hQ]
   simp only [Function.comp_def, hp]
-  apply List.map_congr_left
-  intro ℓ hℓ
-  exact (hf ℓ (by simpa only [List.mem_filter, List.mem_finRange, true_and,
-    decide_eq_true_eq] using hℓ)).symm
+  exact List.map_congr_left fun ℓ hℓ => (hf ℓ (by simpa using hℓ)).symm
 
 /-- Base-four compression follows the increasing inner positions used by `innerPartL`. -/
 theorem inner_digits_left {L m : ℕ} (u : Fin L → Fin 7)
     (h : (innerSetL (fun ℓ => leftAt (u ℓ))).card = m) :
     (((List.ofFn fun ℓ => (u ℓ).val).filter (fun d => ¬d < 3)).map fun d => d - 3) =
       List.ofFn (fun k => (finProdFinEquiv (innerPartL (fun ℓ => leftAt (u ℓ)) h k)).val) := by
-  have hQ : ∀ ℓ, ℓ ∈ innerSetL (fun ℓ => leftAt (u ℓ)) ↔ ¬(u ℓ).val < 3 := by
-    intro ℓ
+  have hQ (ℓ : Fin L) : ℓ ∈ innerSetL (fun ℓ => leftAt (u ℓ)) ↔ ¬(u ℓ).val < 3 := by
     simp [innerSetL, leftAt_isInner]
-  apply filter_inner u (innerSetL (fun ℓ => leftAt (u ℓ))) hQ m h
-    (fun ℓ => (finProdFinEquiv (leftAt (u ℓ)).innerIndex).val)
-  intro ℓ hℓ
-  exact leftAt_inner _ ((hQ ℓ).mp hℓ)
+  exact filter_inner u _ hQ m h (fun ℓ => (finProdFinEquiv (leftAt (u ℓ)).innerIndex).val)
+    fun ℓ hℓ => leftAt_inner _ ((hQ ℓ).mp hℓ)
 
 /-- The right inner index uses the identical four pair digits. -/
 theorem inner_digits_right {L m : ℕ} (u : Fin L → Fin 7)
     (h : (innerSetR (fun ℓ => rightAt (u ℓ))).card = m) :
     (((List.ofFn fun ℓ => (u ℓ).val).filter (fun d => ¬d < 3)).map fun d => d - 3) =
       List.ofFn (fun k => (finProdFinEquiv (innerPartR (fun ℓ => rightAt (u ℓ)) h k)).val) := by
-  have hQ : ∀ ℓ, ℓ ∈ innerSetR (fun ℓ => rightAt (u ℓ)) ↔ ¬(u ℓ).val < 3 := by
-    intro ℓ
+  have hQ (ℓ : Fin L) : ℓ ∈ innerSetR (fun ℓ => rightAt (u ℓ)) ↔ ¬(u ℓ).val < 3 := by
     simp [innerSetR, rightAt_isInner]
-  apply filter_inner u (innerSetR (fun ℓ => rightAt (u ℓ))) hQ m h
-    (fun ℓ => (finProdFinEquiv (rightAt (u ℓ)).innerIndex).val)
-  intro ℓ hℓ
-  exact rightAt_inner _ ((hQ ℓ).mp hℓ)
+  exact filter_inner u _ hQ m h (fun ℓ => (finProdFinEquiv (rightAt (u ℓ)).innerIndex).val)
+    fun ℓ hℓ => rightAt_inner _ ((hQ ℓ).mp hℓ)
 
 /-- Native mask compression agrees with the exact inner level set of the original array. -/
 theorem parts_mask_left {L : ℕ} (a : Fin (7 ^ L)) :
@@ -143,9 +123,7 @@ theorem parts_mask_left {L : ℕ} (a : Fin (7 ^ L)) :
     if ℓ ∈ innerSetL (fun ℓ => leftAt (finFunctionFinEquiv.symm a ℓ))
       then (1 : Fin 2) else 0)).val
   rw [← Nat.ofDigits_finFunctionFinEquiv, List.map_ofFn]
-  congr 1
-  apply congrArg List.ofFn
-  funext ℓ
+  refine congrArg _ (congrArg List.ofFn (funext fun ℓ => ?_))
   change (if (finFunctionFinEquiv.symm a ℓ).val < 3 then 0 else 1) = _
   by_cases h : (finFunctionFinEquiv.symm a ℓ).val < 3 <;>
     simp only [innerSetL, Finset.mem_filter, Finset.mem_univ, true_and,
@@ -161,9 +139,7 @@ theorem parts_mask_right {L : ℕ} (a : Fin (7 ^ L)) :
     if ℓ ∈ innerSetR (fun ℓ => rightAt (finFunctionFinEquiv.symm a ℓ))
       then (1 : Fin 2) else 0)).val
   rw [← Nat.ofDigits_finFunctionFinEquiv, List.map_ofFn]
-  congr 1
-  apply congrArg List.ofFn
-  funext ℓ
+  refine congrArg _ (congrArg List.ofFn (funext fun ℓ => ?_))
   change (if (finFunctionFinEquiv.symm a ℓ).val < 3 then 0 else 1) = _
   by_cases h : (finFunctionFinEquiv.symm a ℓ).val < 3 <;>
     simp only [innerSetR, Finset.mem_filter, Finset.mem_univ, true_and,
@@ -265,18 +241,14 @@ theorem bandValue_left {L m N : ℕ} (hm : m ≤ L)
     split <;> simp only [hf, Matrix.zero_apply]
   · obtain ⟨gh, hs, hset⟩ := exists_table_eq_of_lookup_ne_zero hm hmask hz
     have hcard : (innerSetL u).card = m := hset ▸ lay.table_card gh
-    have hf : bandFamilyL lay X β (innerSetL u) = rowBlock lay X (β * K0 L m + gh.1) := by
-      rw [← hset]
-      exact bandFamilyL_table lay X β gh.1 gh.2
+    have hf : bandFamilyL lay X β (innerSetL u) = rowBlock lay X (β * K0 L m + gh.1) :=
+      hset ▸ bandFamilyL_table lay X β gh.1 gh.2
     have ho : (parts L a.val).outer = (lay.rowIdx.symm (outerPartL u hcard)).val :=
       parts_outer_left a hcard
-    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartL u hcard)).val := by
-      change (parts L a.val).inner =
-        (finFunctionFinEquiv fun k => finProdFinEquiv (innerPartL u hcard k)).val
-      exact parts_inner_left a hcard
-    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) / K0 L m = gh.1.val := by
-      rw [← hs]
-      exact (MaskTable.lookup_blockPair gh).1
+    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartL u hcard)).val :=
+      parts_inner_left a hcard
+    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) / K0 L m = gh.1.val :=
+      hs ▸ (MaskTable.lookup_blockPair gh).1
     change bandValue L m N β false matrix a.val = (arrayL m (bandFamilyL lay X β)) u
     rw [arrayL, dite_eq_left hcard, hf]
     simp only [bandValue, hz, ↓reduceIte, Bool.false_eq_true, hg, ho, hi,
@@ -304,18 +276,14 @@ theorem bandValue_right {L m N : ℕ} (hm : m ≤ L)
     split <;> simp only [hf, Matrix.zero_apply]
   · obtain ⟨gh, hs, hset⟩ := exists_table_eq_of_lookup_ne_zero hm hmask hz
     have hcard : (innerSetR u).card = m := hset ▸ lay.table_card gh
-    have hf : bandFamilyR lay Y β (innerSetR u) = colBlock lay Y (β * K0 L m + gh.2) := by
-      rw [← hset]
-      exact bandFamilyR_table lay Y β gh.1 gh.2
+    have hf : bandFamilyR lay Y β (innerSetR u) = colBlock lay Y (β * K0 L m + gh.2) :=
+      hset ▸ bandFamilyR_table lay Y β gh.1 gh.2
     have ho : (parts L a.val).outer = (lay.colIdx.symm (outerPartR u hcard)).val :=
       parts_outer_right a hcard
-    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartR u hcard)).val := by
-      change (parts L a.val).inner =
-        (finFunctionFinEquiv fun k => finProdFinEquiv (innerPartR u hcard k)).val
-      exact parts_inner_right a hcard
-    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) % K0 L m = gh.2.val := by
-      rw [← hs]
-      exact (MaskTable.lookup_blockPair gh).2
+    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartR u hcard)).val :=
+      parts_inner_right a hcard
+    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) % K0 L m = gh.2.val :=
+      hs ▸ (MaskTable.lookup_blockPair gh).2
     change bandValue L m N β true matrix a.val = (arrayR m (bandFamilyR lay Y β)) u
     rw [arrayR, dite_eq_left hcard, hf]
     simp only [bandValue, hz, ↓reduceIte, hg, ho, hi, colBlock, padCols]
@@ -330,15 +298,11 @@ theorem selected_parts_bounds {L m : ℕ} (a : Fin (7 ^ L))
     (parts L a.val).outer < N0 L m ∧ (parts L a.val).inner < D m := by
   obtain ⟨gh, hs⟩ := MaskTable.exists_selectedMask_of_lookup hz
   let u : LeftStr L := fun ℓ => leftAt (finFunctionFinEquiv.symm a ℓ)
-  have hc : MaskTable.selectedMask gh = MaskTable.maskCode (innerSetL u) :=
-    Fin.ext (hs.trans (parts_mask_left a))
   have hset : MaskTable.maskSet (MaskTable.selectedMask gh) = innerSetL u := by
-    rw [hc, MaskTable.maskSet_maskCode]
+    rw [Fin.ext (hs.trans (parts_mask_left a)), MaskTable.maskSet_maskCode]
   have hcard : (innerSetL u).card = m := hset ▸ MaskTable.card_selectedMask gh
-  constructor
-  · rw [parts_outer_left a hcard]
-    exact (finFunctionFinEquiv (outerPartL u hcard)).isLt
-  · rw [parts_inner_left a hcard]
-    exact (finFunctionFinEquiv (fun k => finProdFinEquiv (innerPartL u hcard k))).isLt
+  exact ⟨parts_outer_left a hcard ▸ (finFunctionFinEquiv (outerPartL u hcard)).isLt,
+    parts_inner_left a hcard ▸
+      (finFunctionFinEquiv (fun k => finProdFinEquiv (innerPartL u hcard k))).isLt⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

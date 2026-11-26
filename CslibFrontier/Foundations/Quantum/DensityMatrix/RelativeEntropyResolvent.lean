@@ -67,7 +67,9 @@ private theorem quadraticObjective_isGreatest {n : Type*} [Fintype n]
   have hcross (x : n → ℂ) : (star y ⬝ᵥ A *ᵥ x).re = (star x ⬝ᵥ b).re := by
     rw [← hA.isHermitian.star_dotProduct_mulVec_comm x y, hy, Complex.star_def, Complex.conj_re]
   have hvalue : (star b ⬝ᵥ y).re = (star y ⬝ᵥ b).re := by
-    rw [← Complex.conj_re (star y ⬝ᵥ b), ← Complex.star_def, star_dotProduct]
+    calc
+      _ = (star (star y ⬝ᵥ b)).re := by rw [star_dotProduct]
+      _ = _ := Complex.conj_re _
   refine ⟨⟨y, by rw [quadraticObjective, hy, hvalue]; ring⟩, fun _ ⟨x, hx⟩ => ?_⟩
   have h : 0 ≤ (star (x - y) ⬝ᵥ A *ᵥ (x - y)).re := hA.re_dotProduct_nonneg (x - y)
   rw [star_sub, mulVec_sub, sub_dotProduct, dotProduct_sub, dotProduct_sub,
@@ -89,9 +91,11 @@ private theorem conjTranspose_eigenvectorUnitary_mul {A : Matrix ι ι ℂ} (hA 
     (hA.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ * A =
       diagonal (fun i => (hA.eigenvalues i : ℂ)) * (hA.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ := by
   have h := congrArg conjTranspose (eigenvectorUnitary_mul_diagonal hA)
-  rwa [conjTranspose_mul, conjTranspose_mul, hA.eq, diagonal_conjTranspose,
-    show star (fun i => (hA.eigenvalues i : ℂ)) = fun i => (hA.eigenvalues i : ℂ) from
-      funext fun _ => Complex.conj_ofReal _] at h
+  rw [conjTranspose_mul, conjTranspose_mul, hA.eq, diagonal_conjTranspose] at h
+  have hreal : star (fun i => (hA.eigenvalues i : ℂ)) = fun i => (hA.eigenvalues i : ℂ) := by
+    funext i
+    exact Complex.conj_ofReal _
+  rwa [hreal] at h
 
 private theorem trace_eigenbasis_pairing (U V : unitary (Matrix ι ι ℂ))
     (A B : Matrix ι ι ℂ) :
@@ -138,27 +142,31 @@ private theorem resolvent_solution {t : ℝ} (ht : 0 < t)
   · have hdiag : E * M + t • (M * D) = C := by
       ext i j
       simp only [Matrix.add_apply, diagonal_mul, Matrix.smul_apply, mul_diagonal, E, D, M, of_apply]
-      rw [show (b i : ℂ) * (C i j / (d i j : ℂ)) + t • (C i j / (d i j : ℂ) * (a j : ℂ)) =
-          (d i j : ℂ) * (C i j / (d i j : ℂ)) by
-        simp only [d, Complex.ofReal_add, Complex.ofReal_mul, Complex.real_smul]; ring]
+      have he : (b i : ℂ) * (C i j / (d i j : ℂ)) + t • (C i j / (d i j : ℂ) * (a j : ℂ)) =
+          (d i j : ℂ) * (C i j / (d i j : ℂ)) := by
+        simp only [d, Complex.ofReal_add, Complex.ofReal_mul, Complex.real_smul]; ring
+      rw [he]
       by_cases hd : d i j = 0
       · have ha : a j = 0 := by
           nlinarith [hσ.eigenvalues_nonneg i, hρ.eigenvalues_nonneg j,
             show b i + t * a j = 0 from hd]
         simp [hentry, ha, hd]
       · exact mul_div_cancel₀ _ (Complex.ofReal_ne_zero.mpr hd)
-    rw [resolventMatrix_mulVec, vec_inj,
-      show σ * (V * M * Uᴴ) + t • (V * M * Uᴴ * ρ) = V * (E * M + t • (M * D)) * Uᴴ by
+    rw [resolventMatrix_mulVec, vec_inj]
+    calc
+      σ * (V * M * Uᴴ) + t • (V * M * Uᴴ * ρ) =
+          V * (E * M + t • (M * D)) * Uᴴ := by
         rw [Matrix.mul_add, Matrix.add_mul, Matrix.mul_smul, Matrix.smul_mul]
         simp only [Matrix.mul_assoc]
         rw [← Matrix.mul_assoc σ V, eigenvectorUnitary_mul_diagonal hσ.isHermitian,
-          conjTranspose_eigenvectorUnitary_mul hρ.isHermitian, Matrix.mul_assoc],
-      hdiag]
-    have hV : V * Vᴴ = 1 := Unitary.coe_mul_star_self hσ.isHermitian.eigenvectorUnitary
-    have hU : U * Uᴴ = 1 := Unitary.coe_mul_star_self hρ.isHermitian.eigenvectorUnitary
-    change V * (Vᴴ * ρ * U) * Uᴴ = ρ
-    simp only [← Matrix.mul_assoc, hV, Matrix.one_mul]
-    rw [Matrix.mul_assoc, hU, Matrix.mul_one]
+          conjTranspose_eigenvectorUnitary_mul hρ.isHermitian, Matrix.mul_assoc]
+      _ = ρ := by
+        rw [hdiag]
+        have hV : V * Vᴴ = 1 := Unitary.coe_mul_star_self hσ.isHermitian.eigenvectorUnitary
+        have hU : U * Uᴴ = 1 := Unitary.coe_mul_star_self hρ.isHermitian.eigenvectorUnitary
+        change V * (Vᴴ * ρ * U) * Uᴴ = ρ
+        simp only [← Matrix.mul_assoc, hV, Matrix.one_mul]
+        rw [Matrix.mul_assoc, hU, Matrix.mul_one]
   · rw [trace_eigenbasis_pairing hρ.isHermitian.eigenvectorUnitary
       hσ.isHermitian.eigenvectorUnitary, trace_conjTranspose_mul_div_real]
     refine sum_congr rfl fun j _ => sum_congr rfl fun i _ => ?_
@@ -178,13 +186,13 @@ theorem relativeEntropyResolvent_eq_sum {t : ℝ} (ht : 0 < t)
   rw [relativeEntropyResolvent, iSup,
     (quadraticObjective_isGreatest (resolventMatrix_posSemidef ht.le hρ hσ) hB).csSup_eq,
     star_vec_dotProduct_vec, hv]
+  let U : Matrix ι ι ℂ := hρ.isHermitian.eigenvectorUnitary
+  let V : Matrix ι ι ℂ := hσ.isHermitian.eigenvectorUnitary
+  have hW : Vᴴ * U = (Uᴴ * V)ᴴ := by rw [conjTranspose_mul, conjTranspose_conjTranspose]
   refine sum_congr rfl fun j _ => sum_congr rfl fun i _ => ?_
-  rw [show (hσ.isHermitian.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ *
-      (hρ.isHermitian.eigenvectorUnitary : Matrix ι ι ℂ) =
-      ((hρ.isHermitian.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ *
-        (hσ.isHermitian.eigenvectorUnitary : Matrix ι ι ℂ))ᴴ by
-    rw [conjTranspose_mul, conjTranspose_conjTranspose],
-    conjTranspose_apply, Complex.star_def, Complex.normSq_conj]
+  change _ * Complex.normSq ((Vᴴ * U) i j) / _ =
+    _ * Complex.normSq ((Uᴴ * V) j i) / _
+  rw [hW, conjTranspose_apply, Complex.star_def, Complex.normSq_conj]
 
 private theorem quadraticObjective_resolvent (t : ℝ) (ρ σ X : Matrix ι ι ℂ) :
     quadraticObjective (resolventMatrix t ρ σ) ρ.vec X.vec =
@@ -202,9 +210,11 @@ theorem relativeEntropyResolvent_isGreatest {t : ℝ} (ht : 0 < t)
   have h := quadraticObjective_isGreatest (resolventMatrix_posSemidef ht.le hρ hσ) hB
   rw [relativeEntropyResolvent, iSup, h.csSup_eq]
   convert h using 1
-  ext z; simp only [Set.mem_range, ← quadraticObjective_resolvent]
+  ext z
+  simp only [Set.mem_range, ← quadraticObjective_resolvent]
   exact ⟨fun ⟨X, hX⟩ => ⟨X.vec, hX⟩, fun ⟨v, hv⟩ =>
-    let ⟨X, hX⟩ := Matrix.vec_bijective.surjective v; ⟨X, hX ▸ hv⟩⟩
+    let ⟨X, hX⟩ := Matrix.vec_bijective.surjective v
+    ⟨X, hX ▸ hv⟩⟩
 
 /-- The resolvent kernel of a nonnegative weighted mixture is bounded by the weighted kernels
 of its components. No normalization of the weights is needed. -/

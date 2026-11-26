@@ -264,6 +264,7 @@ theorem HasExactPeriod.periodState_apply {f : ZMod N → S} {r : ℕ} (h : HasEx
     (x₀ y : ZMod N) :
     (periodState f).ofLp (y, f x₀) =
       if N / r ∣ y.val then (r : ℂ)⁻¹ * stdAddChar (x₀ * y) else 0 := by
+  -- The sum over the coset `x₀ + ⟨r⟩` is `ω^{x₀ y}` times the sum over `⟨r⟩`.
   have key : ∑ x : ZMod N, (if f x = f x₀ then stdAddChar (x * y) else 0) =
       stdAddChar (x₀ * y) * ∑ h : ZMod N, (if r ∣ h.val then stdAddChar (h * y) else 0) := by
     rw [mul_sum]
@@ -366,6 +367,7 @@ theorem HasExactPeriod.periodFindingOutcome_recover {f : ZMod N → S} {r : ℕ}
     (periodFindingOutcome f).toOuterMeasure {y | N / Nat.gcd N y.val = r} =
       (Nat.totient r : ENNReal) * (r : ENNReal)⁻¹ := by
   classical
+  -- These are the `φ(r)` residues of additive order `r`.
   rw [h.periodFindingOutcome_eq, Cslib.Probability.PMF.toOuterMeasure_uniformOfFinset,
     card_filter_dvd_val (Nat.div_dvd_of_dvd h.dvd), Nat.div_div_self h.dvd (NeZero.ne N),
     filter_filter, ← IsAddCyclic.card_addOrderOf_eq_totient (α := ZMod N)
@@ -373,6 +375,7 @@ theorem HasExactPeriod.periodFindingOutcome_recover {f : ZMod N → S} {r : ℕ}
   congr 3
   ext y
   simp only [mem_filter, mem_univ, true_and, Set.mem_ofPred_eq, addOrderOf_eq_div_gcd_val]
+  -- A residue `y` with `N / gcd(N, y) = r` is a multiple of `N / r = gcd(N, y)`.
   exact ⟨And.right, fun hy => ⟨by
     rw [← hy, Nat.div_div_self (Nat.gcd_dvd_left N y.val) (NeZero.ne N)]
     exact Nat.gcd_dvd_right N y.val, hy⟩⟩

@@ -68,12 +68,9 @@ theorem rat_den : ComputableInPolyTime Rat.den encRat encNat :=
 @[fun_prop]
 theorem rat_intCast :
     ComputableInPolyTime (fun z : ℤ => (z : ℚ)) encIntBin encRat := by
-  have h : ComputableInPolyTime (fun z : ℤ => (z, (1 : ℕ))) encIntBin encRatData := by
-    fun_prop
-  exact h.of_enc_eq fun z => by
-    change encPair encIntBin encNat ((z : ℚ).num, (z : ℚ).den) =
-      encPair encIntBin encNat (z, 1)
-    rw [Rat.num_intCast, Rat.den_intCast]
+  refine (show ComputableInPolyTime (fun z : ℤ => (z, (1 : ℕ))) encIntBin encRatData by
+    fun_prop).of_enc_eq fun z => ?_
+  simp [encRat_apply]
 
 private theorem int_eq_signMagnitude_self (z : ℤ) :
     z = if decide (z < 0) then -(z.natAbs : ℤ) else (z.natAbs : ℤ) := by
@@ -262,14 +259,11 @@ theorem rat_isZero' {α : Type} {input : α ↪ List Bool} {f : α → ℚ}
 /-- Strict order comparison (`<`) on `ℚ` is computable in polynomial time. -/
 @[fun_prop]
 theorem rat_lt :
-    ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 < p.2)) (encPair encRat encRat) encBool := by
-  have h : ComputableInPolyTime
-      (fun p : ℚ × ℚ => decide (p.1.num * (p.2.den : ℤ) < p.2.num * (p.1.den : ℤ)))
-      (encPair encRat encRat) encBool := by
-    fun_prop
-  exact h.of_enc_eq fun p => congrArg encBool <| Bool.eq_iff_iff.2 (by
-    simp only [decide_eq_true_eq]
-    exact Rat.lt_iff p.1 p.2)
+    ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 < p.2)) (encPair encRat encRat) encBool :=
+  (show ComputableInPolyTime
+    (fun p : ℚ × ℚ => decide (p.1.num * (p.2.den : ℤ) < p.2.num * (p.1.den : ℤ)))
+    (encPair encRat encRat) encBool by fun_prop).of_enc_eq fun p =>
+    congrArg encBool (decide_eq_decide.2 (Rat.lt_iff p.1 p.2))
 
 /-- Strict order comparison on computed rational numbers. -/
 @[fun_prop]
@@ -282,12 +276,10 @@ theorem rat_lt' {α : Type} {input : α ↪ List Bool} {left right : α → ℚ}
 /-- Non-strict order comparison (`≤`) on `ℚ` is computable in polynomial time. -/
 @[fun_prop]
 theorem rat_le :
-    ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 ≤ p.2)) (encPair encRat encRat) encBool := by
-  have h : ComputableInPolyTime
-      (fun p : ℚ × ℚ => !decide (p.2 < p.1)) (encPair encRat encRat) encBool := by
-    fun_prop
-  exact h.of_enc_eq fun p => congrArg encBool (by
-    simp only [← decide_not, not_lt])
+    ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 ≤ p.2)) (encPair encRat encRat) encBool :=
+  (show ComputableInPolyTime (fun p : ℚ × ℚ => !decide (p.2 < p.1))
+    (encPair encRat encRat) encBool by fun_prop).of_enc_eq fun _ =>
+    congrArg encBool (by simp only [← decide_not, not_lt])
 
 /-- Non-strict order comparison on computed rational numbers. -/
 @[fun_prop]
@@ -296,22 +288,15 @@ theorem rat_le' {α : Type} {input : α ↪ List Bool} {left right : α → ℚ}
     (hright : ComputableInPolyTime right input encRat) :
     ComputableInPolyTime (fun x => decide (left x ≤ right x)) input encBool :=
   (bool_not.comp (rat_lt' hright hleft)).of_enc_eq fun _ =>
-    congrArg encBool <| Bool.eq_iff_iff.2 (by
-      simp only [Function.comp_apply, Bool.not_eq_true', decide_eq_false_iff_not,
-        decide_eq_true_eq]
-      exact not_lt.symm)
+    congrArg encBool (by simp only [Function.comp_apply, ← decide_not, not_lt])
 
 /-- Equality test on `ℚ` is computable in polynomial time. -/
 @[fun_prop]
 theorem rat_eq :
-    ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 = p.2)) (encPair encRat encRat) encBool := by
-  have h : ComputableInPolyTime
-      (fun p : ℚ × ℚ => decide (p.1 ≤ p.2) && decide (p.2 ≤ p.1))
-      (encPair encRat encRat) encBool := by
-    fun_prop
-  exact h.of_enc_eq fun p => congrArg encBool <| Bool.eq_iff_iff.2 (by
-    simp only [Bool.and_eq_true, decide_eq_true_eq]
-    exact le_antisymm_iff)
+    ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 = p.2)) (encPair encRat encRat) encBool :=
+  (show ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 ≤ p.2) && decide (p.2 ≤ p.1))
+    (encPair encRat encRat) encBool by fun_prop).of_enc_eq fun _ =>
+    congrArg encBool (Bool.eq_iff_iff.2 (by simp [le_antisymm_iff]))
 
 /-- Equality test on computed rational numbers. -/
 @[fun_prop]
@@ -329,20 +314,13 @@ private theorem rat_floor_eq_ite (q : ℚ) :
         ((q.num.toNat / q.den : ℕ) : ℤ) := by
   rw [Rat.floor_def]
   have hd : 0 < q.den := q.den_pos
-  cases h : q.num with
+  cases q.num with
   | ofNat m =>
-    rw [Int.ofNat_eq_natCast]
-    have hnn : ¬ ((m : ℤ) < 0) := by omega
-    simp only [hnn, ↓reduceIte, Int.toNat_natCast]
-    exact Int.ofNat_ediv_ofNat
+    rw [Int.ofNat_eq_natCast, ite_eq_right (by omega), Int.toNat_natCast, Int.ofNat_ediv_ofNat]
   | negSucc m =>
-    have hneg : Int.negSucc m < 0 := Int.negSucc_lt_zero m
-    simp only [hneg, ↓reduceIte, Int.natAbs_negSucc]
-    rw [Int.negSucc_ediv _ (by exact_mod_cast hd)]
-    have hdiv : (m.succ + q.den - 1) / q.den = m / q.den + 1 := by
-      have hsub : m.succ + q.den - 1 = m + q.den := by omega
-      rw [hsub, Nat.add_div_right m hd]
-    rw [hdiv]
+    have hsub : m.succ + q.den - 1 = m + q.den := by omega
+    simp only [Int.negSucc_lt_zero, ↓reduceIte, Int.natAbs_negSucc,
+      Int.negSucc_ediv _ (Nat.cast_pos.mpr hd), hsub, Nat.add_div_right m hd]
     change -((m : ℤ) / (q.den : ℤ) + 1) = -((m / q.den + 1 : ℕ) : ℤ)
     rw [Int.ofNat_ediv_ofNat]
     push_cast

@@ -12,7 +12,8 @@ import CslibFrontier.Computability.Circuit.Arithmetic.ClauseSum
 /-! Tests of clause sums under ordinary imports:
 
 * one-hot encodings of a function on a finite domain;
-* a clause sum with one fixed bit, and its monomial extension;
+* a clause sum with one fixed bit, and its monomial extension: its degree, and its value at the
+  indicator of the set bit;
 * a clause sum over the functions `Unit → Fin 3`, and its reduction to bits. -/
 
 set_option linter.privateModule false
@@ -48,6 +49,13 @@ example : (clauseSum (withInputs lits₁) (inputWeights fun _ => (5 : ℤ))).tot
   rw [clauseSum_withInputs]
   refine totalDegree_monomialExtension_le _ fun u _ => ?_
   exact (Finset.card_le_univ _).trans (by simp)
+
+/-- At the indicator of the set bit, `2 + 6 X₀` is the sum `2 + 6` of the values of the clause sum
+at the two points below it. -/
+example : eval (fun _ : Fin 1 => (1 : ℤ))
+    (clauseSum (withInputs lits₁) (inputWeights fun _ => (5 : ℤ))) = 8 := by
+  rw [clauseSum_withInputs]
+  exact (eval_indicator_monomialExtension _ fun _ => true).trans (by decide)
 
 /-- One clause "`g () = 1`" with weight `2`, over the functions `g : Unit → Fin 3`: `2 + 1 + 1`. -/
 def lits₂ : Unit → List ((Empty ⊕ Σ _ : Unit, Fin 3) × Bool) := fun _ => [(.inr ⟨(), 1⟩, true)]

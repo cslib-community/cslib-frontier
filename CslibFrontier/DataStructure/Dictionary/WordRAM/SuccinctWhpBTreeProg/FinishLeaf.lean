@@ -54,10 +54,7 @@ private theorem realizes_checkLeafHitBody :
       (fun _ _ => 0) := by
   have hlg := realizes_laneGetGen
   realize
-  all_goals obtain ⟨hw1, h1, h2⟩ := h
-  · exact Nat.one_lt_two_pow (by omega)
-  · exact h1
-  · exact h2
+  exacts [Nat.one_lt_two_pow (by linarith [h.1]), h.2.1, h.2.2]
 
 /-- Opaque helper checking `r < cnt ∧ laneGet wKey keysWord r = q` (`d = (((wKey, keysWord), (r,
   cnt)), q)`),
@@ -121,6 +118,18 @@ def finishLeafInsertGenProg :
       let v' ← wordInsertOpProg (((wpWVal cp, r), val), vW)
       writeNodeOpProg ((((cp, base), sIdx), leafIdx), (m', (k', v')))
 
+private theorem swarRank_le_cntL {c n_max cntL q kw : ℕ}
+    (hth : whpThreshold c ≤ n_max)
+    (hcntL : cntL < 2 * tMinWhp n_max - 1)
+    (hq : q < 2 ^ fpBitsWhp n_max)
+    (hkw : kw < 2 ^ (cntL * keyLaneBitsWhp n_max))
+    (hlanes : ∀ j < cntL, laneGet (keyLaneBitsWhp n_max) kw j < 2 ^ fpBitsWhp n_max) :
+    swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) cntL q kw ≤ cntL := by
+  have ht8 := eight_le_tMinWhp hth
+  have hkey_lt := (btree_slice_param_bounds hth).1.2.2.1
+  rw [swarRank_eq_count_lt (by omega) hkey_lt hq hkw hlanes]
+  exact (card_filter_le _ _).trans_eq (card_range _)
+
 theorem finishLeafInsertGenProg_spec {isR : Bool}
     {c U V w n_max base sIdx leafIdx cntL loL hiL q val : ℕ}
     {sl : BTreeSlice} {mapFn : ℕ → Option ℕ} {s : Memory.State}
@@ -158,14 +167,11 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
     rw [hv_leaf.2.1, metaCount_mkNodeMeta]
   set cnt := metaCount (sl.nodes leafIdx).metaWord
   set r := swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) cnt q (sl.nodes leafIdx).keysWord
-  have hr_def : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) cnt q
-      (sl.nodes leafIdx).keysWord = r := rfl
-  have hcnt_div : (sl.nodes leafIdx).metaWord / 2 = cnt := rfl
-  have hcnt_lt : cnt < 2 * tMinWhp n_max - 1 := by dsimp [cnt]; omega
-  have hr_le : r ≤ cnt := by
-    dsimp only [r]
-    rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes]
-    exact (card_filter_le _ _).trans_eq (card_range _)
+  have hr_def : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
+      ((sl.nodes leafIdx).metaWord / 2) q (sl.nodes leafIdx).keysWord = r := rfl
+  have hcnt_lt : cnt < 2 * tMinWhp n_max - 1 := by dsimp only [cnt]; omega
+  have hr_le : r ≤ cnt :=
+    swarRank_le_cntL hth hcnt_lt (hqhi.trans_lt hhi) (hcnt_eq_L ▸ hkw_cnt) (hcnt_eq_L ▸ hlanes)
   have hoff := largeOffsetChain c U V w n_max
   unfold finishLeafInsertGenProg checkLeafHitGenProg checkLeafHitBody writeNodeOpProg
     wordInsertOpProg
@@ -211,66 +217,69 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
         wordInsertAtGenProg (((valLaneBitsWhp n_max, r0), val), nd.2.2) >>= fun v' =>
         writeBTreeNodeGenProg (((p0, sIdx), leafIdx), (1 + 2 * (nd.1 / 2 + 1), (k', v')))
     with hP
-  by_cases hhit : r < cnt ∧ laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r = q
-  · obtain ⟨hrc, hkeq⟩ := hhit
-    have hhit_res : (Memory.spec 0).clientResult s hitProg = 1 := by
-      dsimp only [hitProg]
-      simp only [hrc, ↓reduceIte]
-      rw [clientResult_bind, clientState_laneGetGenProg,
-        clientResult_laneGetGenProg]
-      dsimp only [keyLaneBitsWhp]
-      simp [hkeq, StateTransitionSpec.clientResult_pure]
-    have hfin_eq : finishLeafInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-        sl leafIdx q val =
-        { sl with nodes := (Function.update sl.nodes leafIdx
-            ⟨(sl.nodes leafIdx).metaWord, (sl.nodes leafIdx).keysWord,
-              wordUpdateAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩) } := by
-      unfold finishLeafInsert; simp [cnt, r, hrc, hkeq]
-    let nd' : BTreeNode :=
-      ⟨(sl.nodes leafIdx).metaWord, (sl.nodes leafIdx).keysWord,
-        wordUpdateAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩
-    have hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
-      have hvw0 : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) := by
-        rw [hcnt_eq_L]; exact hv_leaf.2.2.2.2.1
-      unfold valsWordBitsWhp
-      exact (wordUpdateAt_lt hrc hval hvw0).trans_le
-        (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
-    obtain ⟨hwn_fr, hwn_mc, hwn_vp, hwn_up, hwn_other, hwn_out⟩ :=
+  have hfinish (nd' : BTreeNode)
+      (hm'_lt : nd'.metaWord < 2 ^ nodeMetaBitsWhp n_max)
+      (hk'_lt : nd'.keysWord < 2 ^ keysWordBitsWhp n_max)
+      (hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max)
+      (hfin_eq : finishLeafInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+        sl leafIdx q val = { sl with nodes := Function.update sl.nodes leafIdx nd' })
+      {tailProg : Memory.Prog Unit}
+      (htail_eq : (if (Memory.spec 0).clientResult s hitProg = 1 then
+          wordUpdateAtGenProg (((valLaneBitsWhp n_max, r), val), (sl.nodes leafIdx).valsWord) >>=
+            fun v' => writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
+              ((sl.nodes leafIdx).metaWord, ((sl.nodes leafIdx).keysWord, v')))
+        else
+          wordInsertAtGenProg (((keyLaneBitsWhp n_max, r), q), (sl.nodes leafIdx).keysWord) >>=
+            fun k' => wordInsertAtGenProg (((valLaneBitsWhp n_max, r), val),
+              (sl.nodes leafIdx).valsWord) >>=
+            fun v' => writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
+              (1 + 2 * ((sl.nodes leafIdx).metaWord / 2 + 1), (k', v')))) = tailProg)
+      (htail_st : (Memory.spec 0).clientState s tailProg = (Memory.spec 0).clientState s
+        (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
+          (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))))
+      (htail_mc : memoryCost tailProg s = 12)
+      (htail_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
+        (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
+          (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) →
+        ValidProg w (base + largeSpaceWhp c U V w n_max) s tailProg) :
+      ((Memory.spec 0).clientState s P).frontier = s.frontier ∧
+      memoryCost P s = 18 ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s P ∧
+      BTreeSliceMemRep base c U V w n_max sIdx
+        (finishLeafInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+          sl leafIdx q val) ((Memory.spec 0).clientState s P).mem ∧
+      (∀ sIdx' < 3 * numBucketsWhp n_max, sIdx' ≠ sIdx → ∀ sl₂,
+        BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s.mem →
+        BTreeSliceMemRep base c U V w n_max sIdx' sl₂ ((Memory.spec 0).clientState s P).mem) ∧
+      (∀ a, a < base + offBtMeta c U V w n_max ∨ base + offTrieChild0 c U V w n_max ≤ a →
+        ((Memory.spec 0).clientState s P).mem a = s.mem a) := by
+    obtain ⟨hwn_fr, _, hwn_vp, hwn_up, hwn_other, hwn_out⟩ :=
       writeBTreeNodeGenProg_spec (nd := nd') henv hsIdx (hleaf_lt.trans_le hrep.1)
-        hm_lt hk_lt hv'_lt (s := s)
-    dsimp only at hwn_fr hwn_mc hwn_vp hwn_up hwn_other hwn_out
+        hm'_lt hk'_lt hv'_lt (s := s)
+    dsimp only at hwn_fr hwn_vp hwn_up hwn_other hwn_out
     have hs'_wn : (Memory.spec 0).clientState s P = (Memory.spec 0).clientState s
         (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
           (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
       rw [hP, clientState_bind, hnd_st, hnd_res,
         clientState_bind, clientState_swarRankGenProg,
-        clientResult_swarRankGenProg hth, hcnt_div, hr_def]
+        clientResult_swarRankGenProg hth, hr_def]
       change (Memory.spec 0).clientState s (hitProg >>= _) = _
-      rw [clientState_bind, hhit_st, hhit_res]
-      simp only [↓reduceIte]
-      rw [clientState_bind, clientState_wordUpdateAtGenProg,
-        clientResult_wordUpdateAtGenProg]
+      rw [clientState_bind, hhit_st, htail_eq, htail_st]
     rw [hs'_wn]
     refine ⟨hwn_fr, ?_, ?_, ?_, hwn_other, hwn_out⟩
-    · rw [hP, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
-      rw [← PFunctor.FreeM.bind_eq_bind]
-      rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg,
-        clientResult_swarRankGenProg hth, hcnt_div, hr_def]
+    · rw [hP, Realization.memoryCost_bind', hnd_st, hnd_mc, hnd_res,
+        Realization.memoryCost_bind', clientState_swarRankGenProg,
+        memoryCost_swarRankGenProg, clientResult_swarRankGenProg hth, hr_def]
       change 6 + (0 + memoryCost (hitProg >>= _) s) = 18
-      rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hhit_st, hhit_mc, hhit_res]
-      simp only [↓reduceIte]
-      rw [memoryCost_bind, clientState_wordUpdateAtGenProg, memoryCost_wordUpdateAtGenProg,
-        memoryCost_writeBTreeNodeGenProg]
-    · rw [hP]; refine validProg_bind hnd_vp ?_
+      rw [Realization.memoryCost_bind', hhit_st, hhit_mc, htail_eq, htail_mc]
+    · rw [hP]
+      refine validProg_bind hnd_vp ?_
       rw [hnd_st, hnd_res]
       refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
-      rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth, hcnt_div, hr_def]
+      rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth, hr_def]
       change ValidProg w _ s (hitProg >>= _)
       refine validProg_bind hhit_vp ?_
-      rw [hhit_st, hhit_res]; simp only [↓reduceIte]
-      refine validProg_bind (validWhpProg_wordUpdateAtGenProg _) ?_
-      rw [clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg]
-      exact hwn_vp
+      simpa only [hhit_st, htail_eq] using htail_vp hwn_vp
     · rw [hfin_eq]
       have hbm_eq : ∀ i < 16 * numBucketsWhp n_max,
           readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w
@@ -279,121 +288,74 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
                 (nd'.metaWord, (nd'.keysWord, nd'.valsWord))))).mem i =
             readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem i :=
         fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ => hwn_out a (Or.inl (by omega))
-      exact ⟨hrep.1,
-        (hbm_eq _ (by omega)).trans hrep.2.1,
-        (hbm_eq _ (by omega)).trans hrep.2.2.1,
-        hwn_up sl hrep.1 fun v hv _ => hrep.2.2.2 v hv⟩
+      exact ⟨hrep.1, (hbm_eq _ (by omega)).trans hrep.2.1,
+        (hbm_eq _ (by omega)).trans hrep.2.2.1, hwn_up sl hrep.1 fun v hv _ => hrep.2.2.2 v hv⟩
+  have hvw0 : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) :=
+    hcnt_eq_L ▸ hv_leaf.2.2.2.2.1
+  by_cases hhit : r < cnt ∧ laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r = q
+  · obtain ⟨hrc, hkeq⟩ := hhit
+    have hhit_res : (Memory.spec 0).clientResult s hitProg = 1 := by
+      simp [hitProg, hrc, clientResult_bind, clientResult_laneGetGenProg, keyLaneBitsWhp, hkeq,
+        StateTransitionSpec.clientResult_pure]
+    let nd' : BTreeNode :=
+      ⟨(sl.nodes leafIdx).metaWord, (sl.nodes leafIdx).keysWord,
+        wordUpdateAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩
+    have hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
+      unfold valsWordBitsWhp
+      exact (wordUpdateAt_lt hrc hval hvw0).trans_le
+        (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
+    refine hfinish nd' hm_lt hk_lt hv'_lt
+      (by simp [finishLeafInsert, cnt, r, hrc, hkeq, nd'])
+      (ite_eq_left hhit_res)
+      (by rw [clientState_bind, clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg])
+      (by
+        rw [Realization.memoryCost_bind', clientState_wordUpdateAtGenProg,
+          memoryCost_wordUpdateAtGenProg, memoryCost_writeBTreeNodeGenProg])
+      fun hwn_vp => validProg_bind (validWhpProg_wordUpdateAtGenProg _)
+        (by rwa [clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg])
   · -- Miss: insert `(q, val)` at lane `r` (`cnt + 1 ≤ 2 * tMin - 1`)
     have hne : r < cnt → laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r ≠ q :=
       fun hrc heq => hhit ⟨hrc, heq⟩
     have hhit_res : (Memory.spec 0).clientResult s hitProg = 0 := by
       dsimp only [hitProg]
       by_cases hrc : r < cnt
-      · have hne := hne hrc
-        simp only [hrc, ↓reduceIte]
-        rw [clientResult_bind, clientState_laneGetGenProg,
-          clientResult_laneGetGenProg]
-        dsimp only [keyLaneBitsWhp]
-        simp [hne, StateTransitionSpec.clientResult_pure]
+      · simp [hrc, clientResult_bind, clientResult_laneGetGenProg, keyLaneBitsWhp, hne hrc,
+          StateTransitionSpec.clientResult_pure]
       · simp [hrc, StateTransitionSpec.clientResult_pure]
-    have hfin_eq : finishLeafInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-        sl leafIdx q val =
-        { sl with nodes := (Function.update sl.nodes leafIdx
-            ⟨mkNodeMeta true (cnt + 1),
-              wordInsertAt (fpBitsWhp n_max + 2) r q (sl.nodes leafIdx).keysWord,
-              wordInsertAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩) } := by
-      unfold finishLeafInsert
-      by_cases hrc : r < cnt
-      · have hne := hne hrc
-        simp [cnt, r, hrc, hne]
-      · simp [cnt, r, hrc]
     let nd' : BTreeNode :=
       ⟨mkNodeMeta true (cnt + 1),
         wordInsertAt (fpBitsWhp n_max + 2) r q (sl.nodes leafIdx).keysWord,
         wordInsertAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩
     have hm'_lt : nd'.metaWord < 2 ^ nodeMetaBitsWhp n_max := by
-      dsimp only [nd', mkNodeMeta]; simp only [↓reduceIte]; omega
+      simp only [nd', mkNodeMeta, ↓reduceIte]; omega
     have hq_kl : q < 2 ^ (fpBitsWhp n_max + 2) :=
       (hqhi.trans_lt hhi).trans (Nat.pow_lt_pow_right (by decide) (by omega))
     have hk'_lt : nd'.keysWord < 2 ^ keysWordBitsWhp n_max := by
-      dsimp only [nd']
-      unfold keysWordBitsWhp keyLaneBitsWhp
+      dsimp only [nd', keysWordBitsWhp, keyLaneBitsWhp]
       exact (wordInsertAt_lt hr_le hq_kl hkw_cnt).trans_le
         (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
     have hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
-      have hvw0 : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) := by
-        rw [hcnt_eq_L]; exact hv_leaf.2.2.2.2.1
-      dsimp only [nd']
-      unfold valsWordBitsWhp
+      dsimp only [nd', valsWordBitsWhp]
       exact (wordInsertAt_lt hr_le hval hvw0).trans_le
         (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
-    obtain ⟨hwn_fr, hwn_mc, hwn_vp, hwn_up, hwn_other, hwn_out⟩ :=
-      writeBTreeNodeGenProg_spec (nd := nd') henv hsIdx (hleaf_lt.trans_le hrep.1)
-        hm'_lt hk'_lt hv'_lt (s := s)
-    dsimp only at hwn_fr hwn_mc hwn_vp hwn_up hwn_other hwn_out
-    have hs'_wn : (Memory.spec 0).clientState s P = (Memory.spec 0).clientState s
-        (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
-          (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
-      rw [hP, clientState_bind, hnd_st, hnd_res,
-        clientState_bind, clientState_swarRankGenProg,
-        clientResult_swarRankGenProg hth, hcnt_div, hr_def]
-      change (Memory.spec 0).clientState s (hitProg >>= _) = _
-      rw [clientState_bind, hhit_st, hhit_res]
-      simp only [zero_ne_one, ↓reduceIte]
-      rw [clientState_bind, clientState_wordInsertAtGenProg,
-        clientResult_wordInsertAtGenProg,
-        clientState_bind, clientState_wordInsertAtGenProg,
-        clientResult_wordInsertAtGenProg]
-      dsimp only [nd', mkNodeMeta, keyLaneBitsWhp]
-      rfl
-    rw [hs'_wn]
-    refine ⟨hwn_fr, ?_, ?_, ?_, hwn_other, hwn_out⟩
-    · rw [hP, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
-      rw [← PFunctor.FreeM.bind_eq_bind]
-      rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg,
-        clientResult_swarRankGenProg hth, hcnt_div, hr_def]
-      change 6 + (0 + memoryCost (hitProg >>= _) s) = 18
-      rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hhit_st, hhit_mc, hhit_res]
-      simp only [zero_ne_one, ↓reduceIte]
-      rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg]
-      rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
-        memoryCost_writeBTreeNodeGenProg]
-    · rw [hP]; refine validProg_bind hnd_vp ?_
-      rw [hnd_st, hnd_res]
-      refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
-      rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth, hcnt_div, hr_def]
-      change ValidProg w _ s (hitProg >>= _)
-      refine validProg_bind hhit_vp ?_
-      rw [hhit_st, hhit_res]; simp only [zero_ne_one, ↓reduceIte]
-      refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
-      rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
-      refine validProg_bind (validWhpProg_wordInsertAtGenProg _) ?_
-      rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
-      exact hwn_vp
-    · rw [hfin_eq]
-      have hbm_eq : ∀ i < 16 * numBucketsWhp n_max,
-          readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w
-            ((Memory.spec 0).clientState s
-              (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
-                (nd'.metaWord, (nd'.keysWord, nd'.valsWord))))).mem i =
-            readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem i :=
-        fun i hi => readPacked_congr hw (hidx := hi) fun a ⟨_, ha2⟩ => hwn_out a (Or.inl (by omega))
-      exact ⟨hrep.1,
-        (hbm_eq _ (by omega)).trans hrep.2.1,
-        (hbm_eq _ (by omega)).trans hrep.2.2.1,
-        hwn_up sl hrep.1 fun v hv _ => hrep.2.2.2 v hv⟩
-
-private theorem swarRank_le_cntL {c n_max cntL q kw : ℕ}
-    (hth : whpThreshold c ≤ n_max)
-    (hcntL : cntL < 2 * tMinWhp n_max - 1)
-    (hq : q < 2 ^ fpBitsWhp n_max)
-    (hkw : kw < 2 ^ (cntL * keyLaneBitsWhp n_max))
-    (hlanes : ∀ j < cntL, laneGet (keyLaneBitsWhp n_max) kw j < 2 ^ fpBitsWhp n_max) :
-    swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) cntL q kw ≤ cntL := by
-  have ht8 := eight_le_tMinWhp hth
-  have hkey_lt := (btree_slice_param_bounds hth).1.2.2.1
-  rw [swarRank_eq_count_lt (by omega) hkey_lt hq hkw hlanes]
-  exact (card_filter_le _ _).trans_eq (card_range _)
+    refine hfinish nd' hm'_lt hk'_lt hv'_lt
+      (by
+        by_cases hrc : r < cnt <;> simp [finishLeafInsert, cnt, r, hrc, hne, nd'])
+      (ite_eq_right fun h => absurd (hhit_res.symm.trans h) zero_ne_one)
+      (by
+        rw [clientState_bind, clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg,
+          clientState_bind, clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
+        dsimp only [nd', cnt, metaCount, mkNodeMeta, keyLaneBitsWhp]
+        rfl)
+      (by
+        rw [Realization.memoryCost_bind', clientState_wordInsertAtGenProg,
+          memoryCost_wordInsertAtGenProg, Realization.memoryCost_bind',
+          clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
+          memoryCost_writeBTreeNodeGenProg])
+      fun hwn_vp => validProg_bind (validWhpProg_wordInsertAtGenProg _) (by
+        rw [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]
+        exact validProg_bind (validWhpProg_wordInsertAtGenProg _)
+          (by rwa [clientState_wordInsertAtGenProg, clientResult_wordInsertAtGenProg]))
 
 theorem realizes_finishLeafInsertGen :
     Realizes .exact finishLeafInsertGenProg
@@ -402,13 +364,8 @@ theorem realizes_finishLeafInsertGen :
       FinishLeafGenPre
       (fun _ _ => 0) := by
   unfold finishLeafInsertGenProg
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hch := realizes_checkLeafHitGen
-  have hwu := realizes_wordUpdateAtGen
-  have hwi := realizes_wordInsertOp
-  have hwn := realizes_writeNodeOp
-  realize
+  realize [realizes_readBTreeNodeGen, realizes_swarRankGen, realizes_checkLeafHitGen,
+    realizes_wordUpdateAtGen, realizes_wordInsertOp, realizes_writeNodeOp]
   all_goals
     rcases d with ⟨⟨⟨⟨⟨cp, base⟩, sIdx⟩, leafIdx⟩, q⟩, val⟩
     dsimp only [FinishLeafGenPre] at h
@@ -417,10 +374,7 @@ theorem realizes_finishLeafInsertGen :
     have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
-    simp only [wp_large_M hth] at *
-    try simp only [wp_large_nSlice hth] at *
-    try simp only [wp_large_wKey hth] at *
-    try simp only [wp_large_wVal hth] at *
+    simp only [wp_large_M hth, wp_large_nSlice hth, wp_large_wKey hth, wp_large_wVal hth] at *
     try first
       | decide
       | exact henv.fits_const (by decide)
@@ -436,6 +390,10 @@ theorem realizes_finishLeafInsertGen :
     have hcnt_eq_L : metaCount (sl.nodes leafIdx).metaWord = cntL := by
       rw [hv_leaf.2.1, metaCount_mkNodeMeta]
     have hcnt_div : (sl.nodes leafIdx).metaWord / 2 = cntL := hcnt_eq_L
+    have hr_le := swarRank_le_cntL hth hcntL (hqhi.trans_lt hhi)
+      (hcnt_eq_L ▸ hkw_cnt) (hcnt_eq_L ▸ hlanes)
+    have hmul_kl : 2 * tMinWhp n_max * 2 ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max :=
+      Nat.mul_le_mul_left _ (Nat.le_add_left 2 _)
     have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
     have hvw_lt : 2 * tMinWhp n_max * valLaneBitsWhp n_max < w := henv.valsWordBits_lt_w
     simp only [hnd_st, hnd_res, hcnt_div, clientResult_swarRankGenProg hth] at *
@@ -445,37 +403,20 @@ theorem realizes_finishLeafInsertGen :
     · simp only [wp_large_powFp hth]; exact hqhi.trans_lt hhi
     · simp only [wp_large_wKey hth, ← hcnt_eq_L]; exact hkw_cnt
     · simp only [wp_large_wKey hth, wp_large_powFp hth, ← hcnt_eq_L]; exact hlanes
-  · have hkl2 : 2 ≤ keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp fpBitsWhp; omega
-    have h2 : 2 ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max :=
-      le_trans hkl2 (Nat.le_mul_of_pos_left _ (by omega))
-    omega
+  · omega
   · exact (Nat.le_mul_of_pos_left _ (by omega)).trans_lt hkw_lt
-  · have hr_le := swarRank_le_cntL hth hcntL (hqhi.trans_lt hhi)
-      (hcnt_eq_L ▸ hkw_cnt) (hcnt_eq_L ▸ hlanes)
-    exact ((Nat.mul_le_mul_right _ (hr_le.trans (by omega))).trans_lt hkw_lt).trans
+  · exact ((Nat.mul_le_mul_right _ (hr_le.trans (by omega))).trans_lt hkw_lt).trans
       Nat.lt_two_pow_self
   · have hrc := checkLeafHit_eq_one_imp_lt _ _ hc
     refine ⟨cntL, by unfold valLaneBitsWhp; positivity, hrc,
       (Nat.mul_le_mul_right _ (by omega)).trans_lt hvw_lt, hval, hv_leaf.2.2.2.2.1⟩
-  · have hkl2 : 2 ≤ keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp fpBitsWhp; omega
-    have : 1 + 2 * (cntL + 1) < w := by
-      have : 2 * (2 * tMinWhp n_max) ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max := by
-        rw [Nat.mul_comm 2 (2 * tMinWhp n_max)]; exact Nat.mul_le_mul_left _ hkl2
-      omega
-    exact this.trans Nat.lt_two_pow_self
-  · have : cntL + 1 < w :=
-      (by omega : cntL + 1 ≤ 2 * tMinWhp n_max).trans_lt
-        ((Nat.le_mul_of_pos_right _ (by unfold keyLaneBitsWhp; positivity)).trans_lt hkw_lt)
-    exact this.trans Nat.lt_two_pow_self
-  · have hr_le := swarRank_le_cntL hth hcntL (hqhi.trans_lt hhi)
-      (hcnt_eq_L ▸ hkw_cnt) (hcnt_eq_L ▸ hlanes)
-    refine ⟨cntL, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hkw_lt, ?_, ?_⟩
-    · exact (hqhi.trans_lt hhi).trans
-        (Nat.pow_lt_pow_right (by decide) (by unfold keyLaneBitsWhp; omega))
-    · rwa [← hcnt_eq_L]
-  · have hr_le := swarRank_le_cntL hth hcntL (hqhi.trans_lt hhi)
-      (hcnt_eq_L ▸ hkw_cnt) (hcnt_eq_L ▸ hlanes)
-    refine ⟨cntL, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hvw_lt, hval,
+  · exact (by omega : 1 + 2 * (cntL + 1) < w).trans Nat.lt_two_pow_self
+  · exact (by omega : cntL + 1 < w).trans Nat.lt_two_pow_self
+  · exact ⟨cntL, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hkw_lt,
+      (hqhi.trans_lt hhi).trans
+        (Nat.pow_lt_pow_right Nat.one_lt_two (Nat.lt_add_of_pos_right two_pos)),
+      hcnt_eq_L ▸ hkw_cnt⟩
+  · exact ⟨cntL, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hvw_lt, hval,
       hv_leaf.2.2.2.2.1⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp

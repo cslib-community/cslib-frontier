@@ -159,24 +159,18 @@ theorem mixed_pair_legal (hu : HWord.Legal (compatibility rules) u)
     HWord.Legal (compatibility rules) (Function.update u k (code (.pair a' b))) := by
   intro i j hij
   by_cases hi : i = k
-  · subst i
-    have hj : j ≠ k := by intro h; have := congrArg Fin.val h; omega
-    simp only [Function.update_self, Function.update_of_ne hj]
-    have hs := edge_view rules hu k j hij
-    have ht := edge_view rules hv k j hij
-    rw [hpu] at hs
-    rw [hpv, ← he j hj] at ht
-    have h := (compatibility_adj rules _ _).mpr (outgoing_mix rules hs ht)
-    simpa only [Equiv.apply_symm_apply] using h
+  · subst k
+    have hj : j ≠ i := Fin.ne_of_val_ne (by omega)
+    have hs := hpu ▸ edge_view rules hu i j hij
+    have ht := he j hj ▸ (hpv ▸ edge_view rules hv i j hij)
+    simpa only [Function.update_self, Function.update_of_ne hj, Equiv.apply_symm_apply] using
+      (compatibility_adj rules _ _).mpr (outgoing_mix rules hs ht)
   · by_cases hj : j = k
-    · subst j
-      simp only [Function.update_self, Function.update_of_ne hi]
-      have hs := edge_view rules hu i k hij
-      have ht := edge_view rules hv i k hij
-      rw [hpu] at hs
-      rw [hpv, ← he i hi] at ht
-      have h := (compatibility_adj rules _ _).mpr (incoming_mix rules hs ht)
-      simpa only [Equiv.apply_symm_apply] using h
+    · subst k
+      have hs := hpu ▸ edge_view rules hu i j hij
+      have ht := he i hi ▸ (hpv ▸ edge_view rules hv i j hij)
+      simpa only [Function.update_self, Function.update_of_ne hi, Equiv.apply_symm_apply] using
+        (compatibility_adj rules _ _).mpr (incoming_mix rules hs ht)
     · simpa only [Function.update_of_ne hi, Function.update_of_ne hj] using hu i j hij
 
 end Cslib.Complexity.NCL.HWord.RewriteGadget

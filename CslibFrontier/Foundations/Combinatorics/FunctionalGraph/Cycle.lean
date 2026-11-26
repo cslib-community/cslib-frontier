@@ -64,19 +64,16 @@ omit [Finite α] in
 theorem minimalPeriod_eq_of_periodic_iterates (x : α) {a b : ℕ}
     (ha : f^[a] x ∈ periodicPts f) (hb : f^[b] x ∈ periodicPts f) :
     minimalPeriod f (f^[a] x) = minimalPeriod f (f^[b] x) := by
-  rcases le_total a b with h | h
-  · rw [show f^[b] x = f^[b - a] (f^[a] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
-      minimalPeriod_apply_iterate ha]
-  · rw [show f^[a] x = f^[a - b] (f^[b] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
-      minimalPeriod_apply_iterate hb]
+  rcases le_total a b with h | h <;> obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le h
+  · rw [Nat.add_comm, iterate_add_apply, minimalPeriod_apply_iterate ha]
+  · rw [Nat.add_comm, iterate_add_apply, minimalPeriod_apply_iterate hb]
 
 /-- Advancing along the orbit does not change the cycle length. -/
 @[simp] theorem cycleLength_iterate (x : α) (t : ℕ) :
     cycleLength f (f^[t] x) = cycleLength f x := by
-  unfold cycleLength
-  rw [← iterate_add_apply]
+  rw [cycleLength, ← iterate_add_apply]
   exact minimalPeriod_eq_of_periodic_iterates f x
-    (by rw [iterate_add_apply]; exact iterate_transientDepth_mem_periodicPts f _)
+    (iterate_add_apply f _ t x ▸ iterate_transientDepth_mem_periodicPts f _)
     (iterate_transientDepth_mem_periodicPts f x)
 
 /-- Every periodic state on the orbit of `x` has the cycle length of `x` as minimal period. -/
@@ -109,7 +106,8 @@ noncomputable def cycleSet (x : α) : Finset α :=
 /-- The eventual cycle of `x` is the periodic orbit of the state at its transient depth. -/
 @[simp] theorem mem_cycleSet_iff (x y : α) :
     y ∈ cycleSet f x ↔ y ∈ periodicOrbit f (f^[transientDepth f x] x) := by
-  classical exact Multiset.mem_toFinset
+  classical
+  exact Multiset.mem_toFinset
 
 /-- The eventual cycle is nonempty. -/
 theorem cycleSet_nonempty (x : α) : (cycleSet f x).Nonempty :=
@@ -118,21 +116,15 @@ theorem cycleSet_nonempty (x : α) : (cycleSet f x).Nonempty :=
 
 /-- Advancing along the orbit does not change the eventual cycle. -/
 @[simp] theorem cycleSet_iterate (x : α) (t : ℕ) : cycleSet f (f^[t] x) = cycleSet f x := by
-  classical
-  ext y
-  rw [mem_cycleSet_iff, mem_cycleSet_iff, ← iterate_add_apply]
-  let a := transientDepth f (f^[t] x) + t
-  let b := transientDepth f x
-  have ha : f^[a] x ∈ periodicPts f := by
-    rw [iterate_add_apply]
-    exact iterate_transientDepth_mem_periodicPts f _
-  have hb : f^[b] x ∈ periodicPts f := iterate_transientDepth_mem_periodicPts f x
-  change y ∈ periodicOrbit f (f^[a] x) ↔ y ∈ periodicOrbit f (f^[b] x)
-  rcases le_total a b with h | h
-  · rw [show f^[b] x = f^[b - a] (f^[a] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
-      periodicOrbit_apply_iterate_eq ha]
-  · rw [show f^[a] x = f^[a - b] (f^[b] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
-      periodicOrbit_apply_iterate_eq hb]
+  have ha : f^[transientDepth f (f^[t] x) + t] x ∈ periodicPts f :=
+    iterate_add_apply f _ t x ▸ iterate_transientDepth_mem_periodicPts f _
+  have hb := iterate_transientDepth_mem_periodicPts f x
+  unfold cycleSet
+  rw [← iterate_add_apply]
+  rcases le_total (transientDepth f (f^[t] x) + t) (transientDepth f x) with h | h <;>
+    obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le h
+  · rw [hd, Nat.add_comm _ d, iterate_add_apply f d, periodicOrbit_apply_iterate_eq ha]
+  · rw [hd, Nat.add_comm _ d, iterate_add_apply f d, periodicOrbit_apply_iterate_eq hb]
 
 /-- Every state on the eventual cycle of `x` is periodic and reachable from `x`. -/
 theorem cycleSet_spec {x y : α} (hy : y ∈ cycleSet f x) :

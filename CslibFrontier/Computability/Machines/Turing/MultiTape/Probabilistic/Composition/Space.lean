@@ -50,10 +50,8 @@ private theorem replay_seq_window {State₀ State₁ : Type}
     ((first.seq second).runClosedConfigFromCoins coins
       (Sequential.left second initial)).tapes.workTapePos i ∈ window bound := by
   rcases replay_seq_cases first second initial coins with ⟨before, h⟩ | ⟨before, after, hh, h⟩
-  · rw [h]
-    exact hfirst before i
-  · rw [h]
-    exact hsecond before hh after i
+  · exact h ▸ hfirst before i
+  · exact h ▸ hsecond before hh after i
 
 private theorem source_replay_exists {k₀ k₁ : ℕ} {State₀ : Type}
     (first : MultiTapePTM k₀ Symbol State₀) (coins : List Bool) :
@@ -63,9 +61,8 @@ private theorem source_replay_exists {k₀ k₁ : ℕ} {State₀ : Type}
   have h := (source first k₁).runClosedConfigFromCoins_mem_support coins
     ((source first k₁).initialConfig input)
   rw [runClosedConfigFrom_source, ProbComp.eval_map, eval_runClosedConfigFrom_eq_map_coins,
-    PMF.map_comp] at h
-  obtain ⟨sourceCoins, _, heq⟩ := (PMF.mem_support_map_iff ..).mp h
-  exact ⟨sourceCoins, heq.symm⟩
+    PMF.map_comp, PMF.mem_support_map_iff] at h
+  exact h.imp fun _ ⟨_, heq⟩ => heq.symm
 
 private theorem buffer_window {k₀ : ℕ} {State₀ : Type}
     (k₁ bound : ℕ) (cfg : Config k₀ Symbol State₀ Empty input)
@@ -78,7 +75,8 @@ private theorem buffer_window {k₀ : ℕ} {State₀ : Type}
     induction i using Fin.addCases with
     | left _ => simp [reserve, Config.embed, MultiTapeTM.embed_natAdd, mem_window]
     | right i => simpa [reserve, Config.embed, MultiTapeTM.embed_natAdd] using hheads i
-  | right i => fin_cases i <;> simp [mem_window, hword]
+  | right i =>
+    fin_cases i <;> simp [mem_window, hword]
 
 private theorem consumer_replay_exists {k₀ k₁ : ℕ} {State₀ State₁ : Type}
     (second : MultiTapePTM k₁ Symbol State₁) (mark : Symbol)
@@ -91,9 +89,8 @@ private theorem consumer_replay_exists {k₀ k₁ : ℕ} {State₀ State₁ : Ty
   have h := (consumer second k₀).runClosedConfigFromCoins_mem_support coins
     (consumerConfig mark cfg (second.initialConfig cfg.tapes.output))
   rw [runClosedConfigFrom_consumer, ProbComp.eval_map, eval_runClosedConfigFrom_eq_map_coins,
-    PMF.map_comp] at h
-  obtain ⟨consumerCoins, _, heq⟩ := (PMF.mem_support_map_iff ..).mp h
-  exact ⟨consumerCoins, heq.symm⟩
+    PMF.map_comp, PMF.mem_support_map_iff] at h
+  exact h.imp fun _ ⟨_, heq⟩ => heq.symm
 
 private theorem consumerConfig_window {k₀ k₁ : ℕ} {State₀ State₁ : Type}
     (mark : Symbol) (cfg₀ : Config k₀ Symbol State₀ Empty input)
@@ -200,8 +197,7 @@ public theorem runsInSpace_toNTM_comp {k₀ k₁ : ℕ} {Symbol State₀ State�
     have hout : (first.runClosedConfigFromCoins sourceCoins
         (first.initialConfig input)).tapes.output ∈
         (ProbComp.eval (first.runClosed time input)).support := by
-      rw [runClosed_eq_map, ProbComp.eval_map]
-      exact (PMF.mem_support_map_iff ..).mpr
+      simpa only [runClosed_eq_map, ProbComp.eval_map, PMF.mem_support_map_iff] using
         ⟨_, completed_replay_mem_support first _ time hhalt sourceCoins hh, rfl⟩
     exact Composition.continuation_replay_window second mark _ bound (hsource sourceCoins)
       (fun c i => hmono (workTapePos_runClosedCoins_mem_window second (hsecond _ hout) c i)

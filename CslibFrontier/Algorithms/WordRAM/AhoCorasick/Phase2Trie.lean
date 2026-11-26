@@ -48,40 +48,27 @@ private theorem trieMem_stepChar_new {inp : Input} {T : PTrie} {mem : ℕ → �
   dsimp only [PTrie.stepChar]
   simp only [h0, ↓reduceIte]
   refine
-    { pats := hM.pats.frame fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-      txt := hM.txt.frame fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
+    { pats := hM.pats.frame fun _ _ _ =>
+        (Function.update_of_ne (by omega) _ _).trans (Function.update_of_ne (by omega) _ _)
+      txt := hM.txt.frame fun _ _ _ =>
+        (Function.update_of_ne (by omega) _ _).trans (Function.update_of_ne (by omega) _ _)
       trie_cell := fun u hu c hc => by
         have huc_lt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
         dsimp only
         rw [Function.update_of_ne (by omega)]
         by_cases huc : u = u₀ ∧ c = a
-        · obtain ⟨rfl, rfl⟩ := huc
-          simp only [and_self, ↓reduceIte, Function.update_self]
-        · simp only [huc, ↓reduceIte]
-          have hne_addr : inp.trieBase + u * inp.alphabetSize + c ≠
-              inp.trieBase + u₀ * inp.alphabetSize + a := fun heq => by
-            obtain ⟨hc_eq, hu_eq⟩ := Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)
-            exact huc ⟨hu_eq, hc_eq⟩
-          rw [Function.update_of_ne hne_addr]
-          exact hM.trie_cell u hu c hc
+        · simp [huc.1, huc.2]
+        · have hne_addr : inp.trieBase + u * inp.alphabetSize + c ≠
+              inp.trieBase + u₀ * inp.alphabetSize + a := fun heq =>
+            huc (Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)).symm
+          simp [huc, Function.update_of_ne hne_addr, hM.trie_cell u hu c hc]
       depth_cell := fun u hu => by
-        dsimp only
-        by_cases hus : u = T.numStates
-        · subst hus
-          rw [Function.update_self, Function.update_self]
-        · simp (disch := omega) only [Function.update_of_ne]
-          exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.term_cell u hu
+        by_cases hus : u = T.numStates <;> simp (disch := omega) [hus, hM.depth_cell u hu]
+      term_cell := fun u hu => by simp (disch := omega) [Function.update_of_ne, hM.term_cell u hu]
       zero_df := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_df addr ha1 ha2
+        simp (disch := omega) [Function.update_of_ne, hM.zero_df addr ha1 ha2]
       zero_rest := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_rest addr ha1 ha2 }
+        simp (disch := omega) [Function.update_of_ne, hM.zero_rest addr ha1 ha2] }
 
 private theorem trieMem_insertPat_pos {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
     {u₁ : ℕ} (hu₁ : u₁ < inp.maxS) (hM : TrieMem inp T mem) :
@@ -90,29 +77,18 @@ private theorem trieMem_insertPat_pos {inp : Input} {T : PTrie} {mem : ℕ → �
   have hlo := layout_order inp
   have hlen := length_encodePatterns inp.patterns
   refine
-    { pats := hM.pats.frame fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-      txt := hM.txt.frame fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
+    { pats := hM.pats.frame fun _ _ _ => Function.update_of_ne (by omega) _ _
+      txt := hM.txt.frame fun _ _ _ => Function.update_of_ne (by omega) _ _
       trie_cell := fun u hu c hc => by
         have huc_lt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.trie_cell u hu c hc
-      depth_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.depth_cell u hu
+        simp (disch := omega) [Function.update_of_ne, hM.trie_cell u hu c hc]
+      depth_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.depth_cell u hu)
       term_cell := fun u hu => by
-        dsimp only
-        by_cases huu : u = u₁
-        · subst huu; rw [Function.update_self, Function.update_self]
-        · simp (disch := omega) only [Function.update_of_ne]
-          exact hM.term_cell u hu
-      zero_df := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_df addr ha1 ha2
-      zero_rest := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_rest addr ha1 ha2 }
+        by_cases huu : u = u₁ <;> simp (disch := omega) [huu, hM.term_cell u hu]
+      zero_df := fun addr ha1 ha2 =>
+        (Function.update_of_ne (by omega) _ _).trans (hM.zero_df addr ha1 ha2)
+      zero_rest := fun addr ha1 ha2 =>
+        (Function.update_of_ne (by omega) _ _).trans (hM.zero_rest addr ha1 ha2) }
 
 private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound) :
     ∀ (chars rest : List ℕ) (T : PTrie) (x : Data 26),
@@ -162,12 +138,13 @@ private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
     have hf_rm : Fits w (x.regs r4 * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
     have hf_taddr : Fits w (inp.trieBase + (x.regs r4 * inp.alphabetSize + a)) :=
       fits_of_le_outBase hw (by omega)
-    have hstep : ∃ x₂, ExecWithin w trieCharStepCode x x₂ 17 ∧
-        TrieMem inp (T.stepChar (x.regs r4) a).1 x₂.mem ∧
-        x₂.regs rState = (T.stepChar (x.regs r4) a).1.numStates ∧
-        x₂.regs r4 = (T.stepChar (x.regs r4) a).2 ∧
-        x₂.regs r2 = x.regs r2 + 1 ∧ x₂.regs r3 = as.length ∧ x₂.regs r1 = x.regs r1 ∧
-        Block.HoldsList (x.regs r2 + 1) (as ++ rest) x₂.mem := by
+    obtain ⟨x₂, he_st, hM₂, hx₂_rS, hx₂_r4, hx₂_r2, hx₂_r3, hx₂_r1, hhold₂⟩ :
+        ∃ x₂, ExecWithin w trieCharStepCode x x₂ 17 ∧
+          TrieMem inp (T.stepChar (x.regs r4) a).1 x₂.mem ∧
+          x₂.regs rState = (T.stepChar (x.regs r4) a).1.numStates ∧
+          x₂.regs r4 = (T.stepChar (x.regs r4) a).2 ∧
+          x₂.regs r2 = x.regs r2 + 1 ∧ x₂.regs r3 = as.length ∧ x₂.regs r1 = x.regs r1 ∧
+          Block.HoldsList (x.regs r2 + 1) (as ++ rest) x₂.mem := by
       refine WP.exists_execWithin ?_
       unfold trieCharStepCode trieCharBranchCode
       by_cases h0 : T.trie (x.regs r4) a = 0
@@ -193,7 +170,6 @@ private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
         exact ⟨by wram_simp [hM], by wram_simp [hrS], by wram_simp, by wram_simp,
           by wram_simp [hr3], by wram_simp, by wram_simp [hhold_tail]⟩
     obtain ⟨hT_step, _, hub_step, _, hs_lt_step, _, _⟩ := stepChar_spec hT hu_lt ha_lt
-    obtain ⟨x₂, he_st, hM₂, hx₂_rS, hx₂_r4, hx₂_r2, hx₂_r3, hx₂_r1, hhold₂⟩ := hstep
     obtain ⟨y, he_tl, hLy, hMy, hy_rS, hy_r4, hy_r2, hy_r1, hholdy⟩ :=
       ih rest _ x₂ (hL.of_preserves he_st) hM₂ hT_step (by omega) hx₂_rS (hx₂_r4 ▸ hs_lt_step)
         hx₂_r3 (by rw [hx₂_r2, List.length_append]; omega) (hx₂_r2 ▸ hhold₂)
@@ -247,10 +223,11 @@ private theorem exec_triePatLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordBo
     rw [hx₁_r4] at hM₂ hx₂_rS hx₂_r4
     have hu₁_maxS : (T.insertChars 0 p).2 < inp.maxS := by omega
     have hf_p1 : Fits w (x₂.regs r1 - 1) := fits_of_le_outBase hw (by omega)
-    have hpat_tl : ∃ x₃, ExecWithin w triePatBranchCode x₂ x₃ 4 ∧
-        TrieMem inp (T.insertPat p) x₃.mem ∧ x₃.regs rState = (T.insertPat p).numStates ∧
-        x₃.regs r1 = ps.length ∧ x₃.regs r2 = x₂.regs r2 ∧
-        Block.HoldsList (x₂.regs r2) (encodePatterns ps) x₃.mem := by
+    obtain ⟨x₃, he_tl_br, hM₃, hx₃_rS, hx₃_r1, hx₃_r2, hhold₃⟩ :
+        ∃ x₃, ExecWithin w triePatBranchCode x₂ x₃ 4 ∧
+          TrieMem inp (T.insertPat p) x₃.mem ∧ x₃.regs rState = (T.insertPat p).numStates ∧
+          x₃.regs r1 = ps.length ∧ x₃.regs r2 = x₂.regs r2 ∧
+          Block.HoldsList (x₂.regs r2) (encodePatterns ps) x₃.mem := by
       refine WP.exists_execWithin ?_
       unfold triePatBranchCode
       by_cases hpos : 0 < (T.insertChars 0 p).2
@@ -266,21 +243,21 @@ private theorem exec_triePatLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordBo
         simp only [PTrie.insertPat, hpos, ↓reduceIte]
         exact ⟨by wram_simp [hM₂], by wram_simp [hx₂_rS], by wram_simp [hx₂_r1, hx₁_r1, hr1],
           by wram_simp, by wram_simp [hhold₂]⟩
-    obtain ⟨x₃, he_tl_br, hM₃, hx₃_rS, hx₃_r1, hx₃_r2, hhold₃⟩ := hpat_tl
     have hT₂_inv : TreeInv inp.alphabetSize (T.insertPat p) := by
       dsimp only [PTrie.insertPat]
       split_ifs with hp0
-      · refine { hT₁_inv with
-          term_zero := by dsimp only; rw [Function.update_of_ne (by omega)]; exact hT₁_inv.term_zero
-          term_oob := fun z hz => by
-            dsimp only at hz ⊢
-            rw [Function.update_of_ne (by omega)]; exact hT₁_inv.term_oob z hz }
+      · exact { hT₁_inv with
+          term_zero := (Function.update_of_ne (by omega) _ _).trans hT₁_inv.term_zero
+          term_oob := fun z hz =>
+            (Function.update_of_ne (by dsimp only at hz; omega) _ _).trans
+              (hT₁_inv.term_oob z hz) }
       · exact hT₁_inv
-    have hT₂_num_eq : (T.insertPat p).numStates = (T.insertChars 0 p).1.numStates := by
-      dsimp only [PTrie.insertPat]; split_ifs <;> rfl
     obtain ⟨y, he_rest, hLy, hMy, hy_rS⟩ :=
-      exec_triePatLoop inp w hw ps _ x₃ (hL₂.of_preserves he_tl_br) hM₃
-        hT₂_inv (by omega) hx₃_rS hx₃_r1
+      exec_triePatLoop inp w hw ps _ x₃ (hL₂.of_preserves he_tl_br) hM₃ hT₂_inv
+        (by
+          dsimp only [PTrie.insertPat]
+          split_ifs <;> (try dsimp only) <;> omega)
+        hx₃_rS hx₃_r1
         (by rw [hx₃_r2, hx₂_r2, hx₁_r2, length_encodePatterns]; omega)
         (by rwa [hx₃_r2]) fun q hq => hps q (List.mem_cons_of_mem p hq)
     exact ⟨y, (ExecWithin.loop_iter hc (he_hd.seq (he_chars.seq he_tl_br)) he_rest).mono
@@ -295,18 +272,16 @@ theorem exec_buildTrie (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       TrieMem inp inp.trie y.mem := by
   have hlo := layout_order inp
   have hf1 : Fits w 1 := fits_of_le_outBase hw (by omega)
-  have hinit : ∃ x₀, ExecWithin (B := .standard) w
-      (ram[ rState ← #1; r1 ← numPat; r2 ← patBase ]) x x₀ 3 ∧
-      x₀.regs rState = 1 ∧ x₀.regs r1 = inp.patterns.length ∧ x₀.regs r2 = 5 ∧
-      x₀.mem = x.mem := by
+  obtain ⟨x₀, he₀, hrS₀, hr1₀, hr2₀, hm₀⟩ :
+      ∃ x₀, ExecWithin (B := .standard) w
+        (ram[ rState ← #1; r1 ← numPat; r2 ← patBase ]) x x₀ 3 ∧
+        x₀.regs rState = 1 ∧ x₀.regs r1 = inp.patterns.length ∧ x₀.regs r2 = 5 ∧
+        x₀.mem = x.mem := by
     refine WP.exists_execWithin ?_
     wram_exec [hf1, hL.h_numPat, hL.h_patBase]
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  obtain ⟨x₀, he₀, hrS₀, hr1₀, hr2₀, hm₀⟩ := hinit
-  have hL₀ : LayoutInv inp x₀ :=
-    hL.of_preserves he₀
   obtain ⟨y, he_loop, hLy, hMy, _⟩ :=
-    exec_triePatLoop inp w hw inp.patterns PTrie.init x₀ hL₀ (by rwa [hm₀])
+    exec_triePatLoop inp w hw inp.patterns PTrie.init x₀ (hL.of_preserves he₀) (by rwa [hm₀])
       (treeInv_init _) (by dsimp only [PTrie.init]; omega)
       hrS₀ hr1₀
       (by rw [hr2₀, length_encodePatterns]; omega)

@@ -95,11 +95,8 @@ private theorem eval_body_iff [Fintype Rel] (f : Column R → Bool) :
   classical
   simp only [body, eval, List.all_map, List.all_eq_true, Finset.mem_toList,
     Finset.mem_univ, forall_true_left, Function.comp_def, Constraint.eval, List.map_ofFn]
-  constructor
-  · intro h r a ha
-    exact h ⟨⟨r, fun i t => a t i⟩, ha⟩
-  · intro h c
-    exact h c.val.1 (fun t i => c.val.2 i t) c.property
+  exact ⟨fun h r a ha => h ⟨⟨r, fun i t => a t i⟩, ha⟩,
+    fun h c => h c.val.1 (fun t i => c.val.2 i t) c.property⟩
 
 /-- Evaluation at a row is a satisfying assignment of the canonical conjunction. -/
 private theorem eval_body_projection [Fintype Rel] (t : R) :
@@ -145,10 +142,9 @@ theorem exists_ppGadget_of_polymorphisms [Finite Rel]
       have heq : (Sum.elim a (fun i => (e.symm i) ⟨a, ha⟩)) ∘ port =
           fun c : C => c ⟨a, ha⟩ := by
         funext c
-        dsimp [port]
-        split
-        · rename_i h
-          exact congrArg (fun c : C => c ⟨a, ha⟩) h.choose_spec
+        simp only [Function.comp_apply, port]
+        split_ifs with h
+        · exact congrArg (fun c : C => c ⟨a, ha⟩) h.choose_spec
         · simp
       rw [heq]
       exact CanonicalPP.eval_body_projection arity sem R ⟨a, ha⟩
@@ -164,10 +160,8 @@ theorem exists_ppGadget_of_polymorphisms [Finite Rel]
         (fun j => (er.symm j).val) (fun j => (er.symm j).property)
       have heq : (fun i => g (fun j => (er.symm j).val i)) = a := by
         funext i
-        have harg : ((fun j => (er.symm j).val i) ∘ er) = col i := by funext t; simp [col]
-        change Sum.elim a b (port ((fun j => (er.symm j).val i) ∘ er)) = a i
-        rw [harg, port_col]
-        rfl
+        have harg : ((fun j => (er.symm j).val i) ∘ er) = col i := funext fun _ => by simp [col]
+        simp [g, f, harg, port_col]
       rwa [heq] at hr
 
 end Cslib.Logic.PL.CSP

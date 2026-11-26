@@ -93,8 +93,7 @@ private theorem loop (t : BinaryTree (Label M extra)) (x : State M (layout extra
       rintro y n ⟨time, ds, f, sought, found⟩
       refine ⟨?_, ds, f, by simpa [plug] using sought,
         by simpa [keys, BinaryTree.map, contains, less] using found⟩
-      simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte] at time ⊢
-      simp at time
+      simp [keys, BinaryTree.map, searchVisits, less] at time ⊢
       omega
     · by_cases greater : a.data 0 < x.data 0
       · pm_exec [seekStep, read, record, compare, less, greater]
@@ -104,8 +103,7 @@ private theorem loop (t : BinaryTree (Label M extra)) (x : State M (layout extra
         rintro y n ⟨time, ds, f, sought, found⟩
         refine ⟨?_, ds, f, by simpa [plug] using sought,
           by simpa [keys, BinaryTree.map, contains, less, greater] using found⟩
-        simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte] at time ⊢
-        simp at time
+        simp [keys, BinaryTree.map, searchVisits, less, greater] at time ⊢
         omega
       · pm_exec [seekStep, read, record, compare, less, greater]
         refine Program.WP.loopUntil_exit (by simp [pm_simps])
@@ -128,12 +126,9 @@ theorem seek_correct (x : State M (layout extra regs))
         (root f).isSome = contains (x.data 0) (keys t) := by
     apply WP.exists_execWithin
     pm_exec [seek]
-    refine (loop lt compare t _ [] (by exact rep) ?_ ?_ trivial ?_).mono ?_
-    · exact cursor
-    · rfl
-    · rfl
-    rintro y n ⟨time, post⟩
-    exact ⟨by simp at time; omega, post⟩
+    refine (loop lt compare t _ [] (by exact rep)
+      (by exact cursor) rfl trivial rfl).mono fun y n ⟨time, post⟩ =>
+      ⟨by simp at time; omega, post⟩
   obtain ⟨y, run, cs, focus, ⟨cur, par, whole, path, stop⟩, found⟩ := main
   have heap := run.heap_eq (by pm_frame)
   have reps := (represents_plug_iff x.heap cs focus).mp (whole ▸ rep)

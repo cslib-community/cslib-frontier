@@ -112,21 +112,14 @@ private theorem realize_openFormula {L' : Language} {M : Type*} [L'.Structure M]
     (φ : L'.BoundedFormula (Fin m) k) (w : Fin (m + k) → M) :
     (openFormula φ).Realize w ↔ evalSub φ w := by
   rw [openFormula, Formula.realize_relabel, BoundedFormula.realize_toFormula]
-  have hl : (w ∘ finSumFinEquiv) ∘ Sum.inl = w ∘ Fin.castAdd k :=
-    funext fun i => congrArg w (finSumFinEquiv_apply_left i)
-  have hr : (w ∘ finSumFinEquiv) ∘ Sum.inr = w ∘ Fin.natAdd m :=
-    funext fun j => congrArg w (finSumFinEquiv_apply_right j)
-  rw [hl, hr]
-  rfl
+  exact iff_of_eq (congrArg₂ _
+    (funext fun i => congrArg w (finSumFinEquiv_apply_left i))
+    (funext fun j => congrArg w (finSumFinEquiv_apply_right j)))
 
 private theorem evalSub_zero {L' : Language} {M : Type*} [L'.Structure M] {m : ℕ}
     (φ : L'.Formula (Fin m)) (w : Fin m → M) :
-    evalSub (k := 0) φ w ↔ φ.Realize w := by
-  have hl : w ∘ Fin.castAdd 0 = w := funext fun _ => rfl
-  have hr : w ∘ (Fin.natAdd m : Fin 0 → Fin m) = default := Subsingleton.elim _ _
-  change BoundedFormula.Realize φ (w ∘ Fin.castAdd 0) (w ∘ (Fin.natAdd m : Fin 0 → Fin m)) ↔
-    BoundedFormula.Realize φ w default
-  rw [hl, hr]
+    evalSub (k := 0) φ w ↔ φ.Realize w :=
+  iff_of_eq (congrArg (BoundedFormula.Realize φ w) (Subsingleton.elim _ _))
 
 private theorem evalSub_imp {L' : Language} {M : Type*} [L'.Structure M] {m k : ℕ}
     (φ₁ φ₂ : L'.BoundedFormula (Fin m) k) (w : Fin (m + k) → M) :
@@ -206,9 +199,7 @@ private theorem comp_stepRightArg {M : Type*} {N : ℕ} (u : Fin (N + 2) → M) 
     u ∘ stepRightArg N =
       Fin.snoc (fun i => u (Fin.castSucc (Fin.castSucc i))) (u (Fin.last (N + 1))) := by
   funext p
-  refine Fin.lastCases ?_ (fun i => ?_) p
-  · simp only [Function.comp_apply, stepRightArg, Fin.lastCases_last, Fin.snoc_last]
-  · simp only [Function.comp_apply, stepRightArg, Fin.lastCases_castSucc, Fin.snoc_castSucc]
+  exact Fin.lastCases (by simp [stepRightArg]) (fun _ => by simp [stepRightArg]) p
 
 /-- Definite clauses for a quantifier-free base case `φ`: `openFormula φ → pos_φ` and
 `∼openFormula φ → neg_φ`. -/
@@ -343,9 +334,8 @@ private theorem holds_qfAuxClauses_target {k : ℕ}
     ∀ C ∈ qfAuxClauses φ, C.Holds (auxTarget (n := n) φ) := by
   simp only [qfAuxClauses, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
     implies_true, and_true]
-  refine ⟨fun w hg _ => ?_, fun w hg _ => ?_⟩
-  · exact (realize_openFormula φ w).mp hg
-  · rwa [Formula.realize_not, realize_openFormula] at hg
+  exact ⟨fun w hg _ => (realize_openFormula φ w).mp hg,
+    fun w hg _ => by rwa [Formula.realize_not, realize_openFormula] at hg⟩
 
 /-- The intended extensions `auxTarget φ` satisfy all auxiliary clauses of `φ`. -/
 private theorem holds_auxClauses_auxTarget :
@@ -364,10 +354,8 @@ private theorem holds_auxClauses_auxTarget :
       fun w _ hb => ?_, fun w _ hb => ?_, fun w _ hb => ?_⟩
     · exact (evalSub_imp φ₁ φ₂ w).mpr fun hp => absurd hp (hb _ List.mem_cons_self)
     · exact (evalSub_imp φ₁ φ₂ w).mpr fun _ => hb _ List.mem_cons_self
-    · change ¬ evalSub (φ₁.imp φ₂) w
-      rw [evalSub_imp]
-      exact fun himp => hb _ (List.mem_cons_of_mem _ List.mem_cons_self)
-        (himp (hb _ List.mem_cons_self))
+    · exact mt (evalSub_imp φ₁ φ₂ w).mp fun himp =>
+        hb _ (List.mem_cons_of_mem _ List.mem_cons_self) (himp (hb _ List.mem_cons_self))
   | k, .all ψ => by
     simp only [auxClauses, List.forall_mem_append, List.forall_mem_cons, List.not_mem_nil,
       IsEmpty.forall_iff, implies_true, and_true]
@@ -377,15 +365,13 @@ private theorem holds_auxClauses_auxTarget :
     refine ⟨List.forall_mem_map.mpr fun C hC => (holds_mapClause _ C _).mpr
         (heq ▸ holds_auxClauses_auxTarget ψ C hC),
       fun u _ hb => ?_, fun u hg hb z hz => ?_, fun u hg hb z hz => ?_, fun u hg hb => ?_⟩
-    · have hu : Fin.snoc (u ∘ Fin.castSucc) (u (Fin.last (m + k))) = u := Fin.snoc_init_self u
-      change ¬ evalSub ψ.all (u ∘ Fin.castSucc)
-      rw [evalSub_all]
-      exact fun hall => (hb _ List.mem_cons_self : ¬ evalSub ψ u) (hu ▸ hall (u (Fin.last _)))
+    · exact mt (evalSub_all ψ (u ∘ Fin.castSucc)).mp fun hall =>
+        (hb _ List.mem_cons_self : ¬ evalSub ψ u) (Fin.snoc_init_self u ▸ hall (u (Fin.last _)))
     · rw [Formula.realize_equal, Term.realize_var, Fin.ext_iff, realize_zero_val] at hg
       change z ≤ u (Fin.last (m + k)) at hz
-      change evalSub ψ (Fin.snoc (u ∘ Fin.castSucc) z)
-      rw [show z = u (Fin.last (m + k)) by omega, show Fin.snoc (u ∘ Fin.castSucc)
-        (u (Fin.last (m + k))) = u from Fin.snoc_init_self u]
+      change evalSub ψ (Fin.snoc (Fin.init u) z)
+      obtain rfl : z = u (Fin.last (m + k)) := Fin.ext (by have := Fin.le_def.mp hz; omega)
+      rw [Fin.snoc_init_self (u : Fin (m + k + 1) → Fin n)]
       exact hb _ List.mem_cons_self
     · -- Either `z ≤ y`, covered by the accumulator, or `z = y + 1`, covered by `ψ(v, y + 1)`.
       rw [realize_succ, Term.realize_var, Term.realize_var] at hg
@@ -395,12 +381,12 @@ private theorem holds_auxClauses_auxTarget :
       rw [comp_stepRightArg, Fin.snoc_comp_castSucc]
       rcases Nat.le_or_eq_of_le_succ hz with hle | heq
       · exact hb _ List.mem_cons_self z hle
-      · rw [show z = u (Fin.last (m + k + 1)) from Fin.ext (heq.trans hg), ← comp_stepRightArg u]
+      · obtain rfl : z = u (Fin.last (m + k + 1)) := Fin.ext (heq.trans hg)
+        rw [← comp_stepRightArg u]
         exact hb _ (List.mem_cons_of_mem _ List.mem_cons_self)
     · rw [Formula.realize_equal, Term.realize_var, Fin.ext_iff, realize_max_val] at hg
-      change evalSub ψ.all (u ∘ Fin.castSucc)
-      rw [evalSub_all]
-      exact fun z => hb _ List.mem_cons_self z (show z ≤ u (Fin.last (m + k)) by omega)
+      exact (evalSub_all ψ (u ∘ Fin.castSucc)).mpr fun z =>
+        hb _ List.mem_cons_self z (show z ≤ u (Fin.last (m + k)) by omega)
 
 private theorem qfAuxClauses_complete {k : ℕ}
     {φ : (language (succLanguage L)).BoundedFormula (Fin m) k}
@@ -431,14 +417,11 @@ private theorem rootTarget_le_of_holds_auxClauses :
       (holds_mapClause (Sum.inr ∘ Sum.inl) C R).mp (by exact List.forall_mem_map.mp h₁ C hC)
     have ih₂ := rootTarget_le_of_holds_auxClauses φ₂ (R := fun v => R (.inr (.inr v))) fun C hC =>
       (holds_mapClause (Sum.inr ∘ Sum.inr) C R).mp (by exact List.forall_mem_map.mp h₂ C hC)
-    intro b w hw
-    cases b
-    · change ¬ evalSub (φ₁.imp φ₂) w at hw
-      rw [evalSub_imp, Classical.not_imp] at hw
+    rintro (_ | _) w hw
+    · rw [rootTarget, Set.mem_ofPred_eq, evalSub_imp, Classical.not_imp] at hw
       exact hc₃ w (Formula.realize_top.mpr trivial) (List.forall_mem_cons.mpr
         ⟨ih₁ true hw.1, List.forall_mem_singleton.mpr (ih₂ false hw.2)⟩)
-    · change evalSub (φ₁.imp φ₂) w at hw
-      rw [evalSub_imp] at hw
+    · rw [rootTarget, Set.mem_ofPred_eq, evalSub_imp] at hw
       by_cases hp : evalSub φ₁ w
       · exact hc₂ w (Formula.realize_top.mpr trivial)
           (List.forall_mem_singleton.mpr (ih₂ true (hw hp)))
@@ -449,57 +432,34 @@ private theorem rootTarget_le_of_holds_auxClauses :
     obtain ⟨hψ, hneg, hbase, hstep, hmax⟩ := hR
     have ih := rootTarget_le_of_holds_auxClauses ψ (R := fun v => R (.inr (.inr v))) fun C hC =>
       (holds_mapClause (Sum.inr ∘ Sum.inr) C R).mp (by exact List.forall_mem_map.mp hψ C hC)
-    intro b w hw
-    cases b
-    · change ¬ evalSub ψ.all w at hw
-      rw [evalSub_all, not_forall] at hw
-      obtain ⟨y, hy⟩ := hw
-      have hu := hneg (Fin.snoc w y) (Formula.realize_top.mpr trivial)
+    rintro (_ | _) w hw
+    · obtain ⟨y, hy⟩ := not_forall.mp (mt (evalSub_all ψ w).mpr hw)
+      rw [← Fin.snoc_comp_castSucc (a := y) (f := w)]
+      exact hneg (Fin.snoc w y) (Formula.realize_top.mpr trivial)
         (List.forall_mem_singleton.mpr (ih false hy))
-      change (Fin.snoc w y) ∘ Fin.castSucc ∈ R (.inl false) at hu
-      rwa [Fin.snoc_comp_castSucc] at hu
-    · change evalSub ψ.all w at hw
-      rw [evalSub_all] at hw
-      have hacc : ∀ (j : ℕ) (hj : j < n),
-          Fin.snoc w ⟨j, hj⟩ ∈ R (.inr (.inl ())) := by
-        intro j
+    · rw [rootTarget, Set.mem_ofPred_eq, evalSub_all] at hw
+      have hacc (j : ℕ) : ∀ hj : j < n, Fin.snoc w ⟨j, hj⟩ ∈ R (.inr (.inl ())) := by
         induction j with
         | zero =>
           intro hj
-          exact hbase (Fin.snoc w ⟨0, hj⟩)
-            (by rw [Formula.realize_equal, Term.realize_var, Fin.snoc_last, Fin.ext_iff,
-                  realize_zero_val])
+          exact hbase (Fin.snoc w ⟨0, hj⟩) (by simp [realize_zero_val, Fin.ext_iff])
             (List.forall_mem_singleton.mpr (ih true (hw ⟨0, hj⟩)))
         | succ j ihj =>
           intro hj
           have hj₀ : j < n := Nat.lt_of_succ_lt hj
           let u : Fin (m + k + 2) → Fin n := Fin.snoc (Fin.snoc w ⟨j, hj₀⟩) ⟨j + 1, hj⟩
-          have hleft : u ∘ Fin.castSucc = Fin.snoc w ⟨j, hj₀⟩ := Fin.snoc_comp_castSucc
           have hright : u ∘ stepRightArg (m + k) = Fin.snoc w ⟨j + 1, hj⟩ := by
-            rw [comp_stepRightArg]
-            simp only [u, Fin.snoc_last, Fin.snoc_castSucc]
-          have hu := hstep u
-            (by
-              rw [realize_succ, Term.realize_var, Term.realize_var]
-              simp only [u, Fin.snoc_last, Fin.snoc_castSucc])
-            (by
-              refine List.forall_mem_cons.mpr ⟨?_, List.forall_mem_singleton.mpr ?_⟩
-              · change u ∘ Fin.castSucc ∈ R (.inr (.inl ()))
-                rw [hleft]
-                exact ihj hj₀
-              · change u ∘ stepRightArg (m + k) ∈ R (.inr (.inr (.inl true)))
-                rw [hright]
-                exact ih true (hw ⟨j + 1, hj⟩))
-          change u ∘ stepRightArg (m + k) ∈ R (.inr (.inl ())) at hu
-          rwa [hright] at hu
+            simp [comp_stepRightArg, u]
+          rw [← hright]
+          exact hstep u (by simp [realize_succ, u]) (List.forall_mem_cons.mpr
+            ⟨show u ∘ Fin.castSucc ∈ R (.inr (.inl ())) from Fin.snoc_comp_castSucc.symm ▸ ihj hj₀,
+              List.forall_mem_singleton.mpr (show u ∘ stepRightArg (m + k) ∈
+                R (.inr (.inr (.inl true))) from hright.symm ▸ ih true (hw ⟨j + 1, hj⟩))⟩)
       have hn : 2 ≤ n := Fact.out
       let ymax : Fin n := ⟨n - 1, by omega⟩
-      have humax := hmax (Fin.snoc w ymax)
-        (by rw [Formula.realize_equal, Term.realize_var, Fin.snoc_last, Fin.ext_iff,
-              realize_max_val])
+      rw [← Fin.snoc_comp_castSucc (a := ymax) (f := w)]
+      exact hmax (Fin.snoc w ymax) (by simp [realize_max_val, Fin.ext_iff, ymax])
         (List.forall_mem_singleton.mpr (hacc (n - 1) ymax.isLt))
-      change (Fin.snoc w ymax) ∘ Fin.castSucc ∈ R (.inl true) at humax
-      rwa [Fin.snoc_comp_castSucc] at humax
 end Semantics
 
 /-! ### Sentence-level guard elimination -/
@@ -568,10 +528,8 @@ private theorem holds_elimClauseAt {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin 
 /-- Every guard of `Φ.elimGuards` is quantifier-free. -/
 theorem isQF_elimGuards (Φ : Sentence (language (succLanguage L))) : Φ.elimGuards.IsQF := by
   intro C hC
-  change C ∈ elimClausesList Φ at hC
   obtain ⟨idx, ⟨C₀, hC₀, rfl⟩ | rfl⟩ := mem_elimClausesList.mp hC
-  · exact isQF_auxClauses (Φ.clauses.get idx).guard C₀ hC₀
-  · exact .top
+  exacts [isQF_auxClauses (Φ.clauses.get idx).guard C₀ hC₀, .top]
 
 /-- **Guard elimination preserves truth** on canonical ordered successor structures `Fin n` with
 `2 ≤ n`. -/
@@ -580,30 +538,25 @@ theorem realize_elimGuards {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)]
     Φ.elimGuards.Realize (Fin n) ↔ Φ.Realize (Fin n) := by
   constructor
   · rintro ⟨R', hR'⟩
-    let R₀ : ∀ j : ElimVar Φ, Set (Fin (elimArity Φ j) → Fin n) := R'
-    refine ⟨fun i => R₀ (.inl i), fun C hC => ?_⟩
+    refine ⟨fun i => R' (.inl i), fun C hC => ?_⟩
     obtain ⟨idx, rfl⟩ := List.mem_iff_get.mp hC
     have haux : ∀ D ∈ auxClauses (Φ.clauses.get idx).guard,
-        D.Holds (fun v => R₀ (.inr ⟨idx, v⟩)) := fun D hD =>
-      (holds_mapClause (fun v => Sum.inr ⟨idx, v⟩) D R₀).mp
+        D.Holds (fun v => R' (.inr ⟨idx, v⟩)) := fun D hD =>
+      (holds_mapClause (fun v => Sum.inr ⟨idx, v⟩) D R').mp
         (hR' _ (mem_elimClausesList.mpr ⟨idx, .inl ⟨D, hD, rfl⟩⟩))
     have hroot := rootTarget_le_of_holds_auxClauses (Φ.clauses.get idx).guard haux true
-    have hcl : (elimClauseAt Φ idx).Holds R₀ :=
-      hR' _ (mem_elimClausesList.mpr ⟨idx, .inr rfl⟩)
     intro w hg hb
-    exact (holds_elimClauseAt Φ idx R₀).mp hcl w
+    exact (holds_elimClauseAt Φ idx R').mp (hR' _ (mem_elimClausesList.mpr ⟨idx, .inr rfl⟩)) w
       (hroot ((evalSub_zero (Φ.clauses.get idx).guard w).mpr hg)) hb
   · rintro ⟨R, hR⟩
     let R' : ∀ j : ElimVar Φ, Set (Fin (elimArity Φ j) → Fin n) := fun
       | .inl i => R i
       | .inr ⟨idx, v⟩ => auxTarget (n := n) (Φ.clauses.get idx).guard v
     refine ⟨R', fun C hC => ?_⟩
-    change C ∈ elimClausesList Φ at hC
     obtain ⟨idx, ⟨D, hD, rfl⟩ | rfl⟩ := mem_elimClausesList.mp hC
     · exact (holds_mapClause (fun v => Sum.inr ⟨idx, v⟩) D R').mpr
         (holds_auxClauses_auxTarget (Φ.clauses.get idx).guard D hD)
-    · refine (holds_elimClauseAt Φ idx R').mpr fun w hroot hbody => ?_
-      exact hR (Φ.clauses.get idx) (List.get_mem _ _) w
-        ((evalSub_zero (Φ.clauses.get idx).guard w).mp hroot) hbody
+    · exact (holds_elimClauseAt Φ idx R').mpr fun w hroot =>
+        hR _ (List.get_mem _ _) w ((evalSub_zero (Φ.clauses.get idx).guard w).mp hroot)
 
 end Cslib.Logic.ESO.Horn.Sentence

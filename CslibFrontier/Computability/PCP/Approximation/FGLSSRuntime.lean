@@ -59,13 +59,10 @@ private abbrev encView := encPair encBits encBits
 private def label (word : List Bool × List Bool) : ℕ :=
   ofBits (encView word ++ [true])
 
-private theorem label_injective : Function.Injective label := by
-  intro x y h
-  have hbits (w) : (label w).bits = encView w ++ [true] := by
-    simp [label, bits_ofBits]
-  have he := congrArg Nat.bits h
-  rw [hbits, hbits] at he
-  exact encView.injective (List.append_inj_left' he rfl)
+private theorem label_injective : Function.Injective label := fun _ _ h => by
+  have hbits (w) : (label w).bits = encView w ++ [true] := by simp [label, bits_ofBits]
+  exact encView.injective
+    (List.append_inj_left' (by simpa only [hbits] using congrArg Nat.bits h) rfl)
 
 private def assigned (a : α) (word : List Bool × List Bool) : List (ℕ × Bool) :=
   (V.queries (a, word.1)).zip word.2
@@ -102,8 +99,7 @@ private theorem queryWidth_le (a : α) (randoms : List (List Bool)) {q : ℕ}
   | cons n ns =>
     rw [List.foldl_max_eq_max (by simp), zero_max, List.max_le_iff]
     intro m hm
-    rw [← he] at hm
-    obtain ⟨ρ, hρ, rfl⟩ := List.mem_map.mp hm
+    obtain ⟨ρ, hρ, rfl⟩ := List.mem_map.mp (he ▸ hm)
     exact h ρ hρ
 
 private theorem length_queries_le_queryWidth (a : α) {randoms : List (List Bool)}
@@ -132,10 +128,8 @@ private def viewWords {a : α} (u : V.View a) : List Bool × List Bool :=
 
 private theorem viewWords_injective (a : α) : Function.Injective (V.viewWords (a := a)) := by
   rintro ⟨u, x⟩ ⟨v, y⟩ h
-  have huv : u = v := List.ofFn_injective (congrArg Prod.fst h)
-  subst v
-  have hxy : x = y := List.ofFn_injective (congrArg Prod.snd h)
-  subst y
+  obtain rfl := List.ofFn_injective (congrArg Prod.fst h)
+  obtain rfl := List.ofFn_injective (congrArg Prod.snd h)
   rfl
 
 private theorem mem_viewsFrom_iff (a : α) (word : List Bool × List Bool) :
@@ -152,31 +146,25 @@ private theorem mem_viewsFrom_iff (a : α) (word : List Bool × List Bool) :
   constructor
   · intro hm
     obtain ⟨w, hw, hm⟩ := List.mem_flatMap.mp hm
-    obtain ⟨hm, hk⟩ := List.mem_filter.mp hm
-    obtain ⟨bs, hbs, he⟩ := List.mem_map.mp hm
-    cases he
+    obtain ⟨⟨bs, hbs, he⟩, hk⟩ := (List.mem_filter.mp hm).imp_left List.mem_map.mp
+    rcases Prod.mk.inj he with ⟨rfl, rfl⟩
     have hρ := BitString.mem_enumList.mp hw
     have hb := BitString.mem_enumList.mp hbs
     rw [hwidth hρ] at hb
-    have hr : List.ofFn (fun i : Fin (V.coins a) => ρ[i.val]'(hρ.symm ▸ i.isLt)) = ρ :=
+    have hr : List.ofFn (fun i : Fin (V.coins a) => w[i.val]'(hρ.symm ▸ i.isLt)) = w :=
       List.ext_getElem (by simp [hρ]) (by simp)
-    let u : V.View a := ⟨fun i => ρ[i.val]'(hρ.symm ▸ i.isLt),
-      fun i => bits[i.val]'(by simpa only [hr, ← hb] using i.isLt)⟩
-    have huv : V.viewWords u = (ρ, bits) := by
-      refine Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) fun _ _ _ => ?_)
-      simp [viewWords, u]
-    have hu : V.keep a (V.viewWords u) = true := huv ▸ hk
-    obtain ⟨haccepts, hconsistent⟩ := Bool.and_eq_true_iff.mp hu
+    let u : V.View a := ⟨fun i => w[i.val]'(hρ.symm ▸ i.isLt),
+      fun i => bs[i.val]'(by simpa only [hr, ← hb] using i.isLt)⟩
+    have huv : V.viewWords u = (w, bs) :=
+      Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) (by simp [viewWords, u]))
+    obtain ⟨haccepts, hconsistent⟩ := Bool.and_eq_true_iff.mp (huv ▸ hk : V.keep a (V.viewWords u))
     exact ⟨u, ⟨haccepts, (V.consistent_assigned_iff u u).mp hconsistent⟩, huv⟩
   · rintro ⟨u, hu, h⟩
-    have hr : List.ofFn u.random = ρ := congrArg Prod.fst h
-    have hb : List.ofFn u.answers = bits := congrArg Prod.snd h
-    have hρ : ρ.length = V.coins a := by rw [← hr, List.length_ofFn]
-    refine List.mem_flatMap.mpr ⟨ρ, BitString.mem_enumList.mpr hρ, List.mem_filter.mpr ⟨?_, ?_⟩⟩
-    · refine List.mem_map.mpr ⟨bits, BitString.mem_enumList.mpr ?_, rfl⟩
-      rw [hwidth hρ, ← hb, List.length_ofFn, hr]
-    · rw [← h]
-      exact Bool.and_eq_true_iff.mpr ⟨hu.accepts, (V.consistent_assigned_iff u u).mpr hu.consistent⟩
+    rcases Prod.mk.inj h with ⟨rfl, rfl⟩
+    refine List.mem_flatMap.mpr ⟨_, BitString.mem_enumList.mpr List.length_ofFn,
+      List.mem_filter.mpr ⟨List.mem_map.mpr ⟨_, BitString.mem_enumList.mpr ?_, rfl⟩, ?_⟩⟩
+    · rw [hwidth List.length_ofFn, List.length_ofFn]
+    · exact Bool.and_eq_true_iff.mpr ⟨hu.accepts, (V.consistent_assigned_iff u u).mpr hu.consistent⟩
 
 /-- The edge-list realization has exactly the vertices and edges of the mathematical FGLSS
 graph, up to relabeling. -/
@@ -240,18 +228,16 @@ private theorem nativeTwoPow {encIn : α ↪ List Bool} {size T S width : α →
     Nat.mul_le_mul_right _ (Nat.lt_two_pow_self (n := width a))
 
 private theorem polyEnumFromBudget :
-    ComputableInPolyTime (fun n => BitString.enumList (Nat.log 2 n)) encUnary encWords := by
-  apply bitsEnumList_of_polyBounded ComputableInPolyTime.unary_log_two
-  refine (PolyBounded.self.add (.const 1)).mono fun n => ?_
-  simp only [encUnary_apply, List.length_replicate]
-  exact Nat.pow_log_le_add_one 2 n
+    ComputableInPolyTime (fun n => BitString.enumList (Nat.log 2 n)) encUnary encWords :=
+  bitsEnumList_of_polyBounded ComputableInPolyTime.unary_log_two <|
+    (PolyBounded.self.add (.const 1)).mono fun n => by simpa using Nat.pow_log_le_add_one 2 n
 
 private theorem polyQueryWidth (hV : V.PolyTime enc) :
     ComputableInPolyTime (fun p : α × List (List Bool) => V.queryWidth p.1 p.2)
-      (encPair enc encWords) encUnary := by
-  apply (unary_foldl_max 0).comp
-  exact ComputableInPolyTime.mapWith ((length_list encNat).comp hV.queries)
-    (fst enc encWords) (snd enc encWords)
+      (encPair enc encWords) encUnary :=
+  (unary_foldl_max 0).comp <|
+    ComputableInPolyTime.mapWith ((length_list encNat).comp hV.queries)
+      (fst enc encWords) (snd enc encWords)
 
 private theorem polyGraphFrom (hV : V.PolyTime enc) :
     ComputableInPolyTime (fun p : (α × List (List Bool)) × ℕ =>

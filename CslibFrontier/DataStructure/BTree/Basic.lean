@@ -246,9 +246,7 @@ theorem toListRest_cons :
     toListRest rest = rest.flatMap fun e => (e.1, e.val) :: e.child.toList := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [toListRest_cons, ih]
+  | cons e rest ih => exact congrArg ((e.1, e.val) :: e.child.toList ++ ·) ih
 
 /-- A list of entries, each over an empty child, has those entries. Not `@[simp]`: the simp
 normal form of `toListRest` is the `flatMap` of `toListRest_eq_flatMap`. -/
@@ -279,9 +277,7 @@ one, or `0` for the empty list. -/
     heightRest rest = (rest.map fun e => e.child.height + 1).foldr max 0 := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [heightRest_cons, ih]
+  | cons e rest ih => exact congrArg (max (e.child.height + 1)) ih
 
 /-- The children among a list of triples are all shorter than `n` exactly when the list's height
 contribution is at most `n`. -/
@@ -311,9 +307,7 @@ theorem mapRest_cons (f : β → γ) :
     mapRest f rest = rest.map fun e => (e.1, f e.val, e.child.map f) := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [mapRest_cons, ih]
+  | cons e rest ih => exact congrArg ((e.1, f e.val, e.child.map f) :: ·) ih
 
 /-- The empty tree has no children. -/
 @[simp] theorem children_leaf : (leaf : BTree α β).children = [] := rfl
@@ -497,16 +491,13 @@ theorem toList_sublist_of_mem_children {c : BTree α β} (hc : c ∈ tr.children
 
 /-- Every child among the triples of a node is shorter than the node. -/
 theorem height_succ_le_of_mem_rest {first : BTree α β} {rest : List (Triple α β)}
-    {e : Triple α β} (he : e ∈ rest) : e.child.height + 1 ≤ (node first rest).height := by
-  have := heightRest_le_iff.1 le_rfl e he
-  rw [height_node]
-  omega
+    {e : Triple α β} (he : e ∈ rest) : e.child.height + 1 ≤ (node first rest).height :=
+  (heightRest_le_iff.1 le_rfl e he).trans (le_max_right _ _)
 
 /-- The first child of a node is shorter than the node. -/
 theorem height_first_succ_le {first : BTree α β} {rest : List (Triple α β)} :
-    first.height + 1 ≤ (node first rest).height := by
-  rw [height_node]
-  omega
+    first.height + 1 ≤ (node first rest).height :=
+  le_max_left _ _
 
 /-- Dropping a node's first child and first key leaves a tree no taller than the node. -/
 theorem height_node_le_height_node_cons {first c : BTree α β} {k : α} {v : β}
@@ -548,21 +539,17 @@ theorem Balanced.height_of_mem_rest (h : Balanced (.node fst rest)) {e : Triple 
 
 /-- A balanced node is one taller than its first child. -/
 theorem Balanced.height_node (h : Balanced (.node fst rest)) :
-    (BTree.node fst rest).height = fst.height + 1 := by
-  have := heightRest_le_iff.2 fun e he => Nat.succ_le_succ (h.height_of_mem_rest he).le
-  rw [BTree.height_node]
-  omega
+    (BTree.node fst rest).height = fst.height + 1 :=
+  max_eq_left (heightRest_le_iff.2 fun _ he => Nat.succ_le_succ (h.height_of_mem_rest he).le)
 
 /-- The first child of a balanced node is balanced. -/
-theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst := by
-  cases h
-  assumption
+theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst :=
+  match h with | .node h _ _ => h
 
 /-- Every child among the triples of a balanced node is balanced. -/
 theorem Balanced.of_mem_rest (h : Balanced (.node fst rest)) {e : Triple α β}
-    (he : e ∈ rest) : Balanced e.child := by
-  cases h with
-  | node _ h _ => exact h e he
+    (he : e ∈ rest) : Balanced e.child :=
+  match h with | .node _ h _ => h e he
 
 /-- A node whose children are balanced and as tall as its first child is balanced, and one
 taller than its first child. -/
@@ -591,38 +578,30 @@ theorem Balanced.of_mem_children {c : BTree α β} (h : Balanced tr) (hc : c ∈
   cases h with | leaf => cases hc | node hf hr => exact children_node_forall Balanced hf hr hc
 
 /-- The first child of an occupied node is occupied. -/
-theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst := by
-  cases h
-  assumption
+theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst :=
+  match h with | .node _ _ h _ => h
 
 /-- Every child among the triples of an occupied node is occupied. -/
 theorem Occupied.of_mem_rest (h : Occupied t (.node fst rest)) {e : Triple α β}
-    (he : e ∈ rest) : Occupied t e.child := by
-  cases h with
-  | node _ _ _ h => exact h e he
+    (he : e ∈ rest) : Occupied t e.child :=
+  match h with | .node _ _ _ h => h e he
 
 /-- An occupied node has at most `2 * t - 1` keys. -/
-theorem Occupied.length_le (h : Occupied t (.node fst rest)) : rest.length ≤ 2 * t - 1 := by
-  cases h
-  assumption
+theorem Occupied.length_le (h : Occupied t (.node fst rest)) : rest.length ≤ 2 * t - 1 :=
+  match h with | .node _ h _ _ => h
 
 /-- An occupied node has at least `t - 1` keys. -/
-theorem Occupied.le_length (h : Occupied t (.node fst rest)) : t - 1 ≤ rest.length := by
-  cases h
-  assumption
+theorem Occupied.le_length (h : Occupied t (.node fst rest)) : t - 1 ≤ rest.length :=
+  match h with | .node h _ _ _ => h
 
 /-- An occupied tree has at most `2 * t - 1` root keys. -/
-theorem Occupied.rootKeys_le {c : BTree α β} (h : Occupied t c) : c.rootKeys ≤ 2 * t - 1 := by
-  cases c with
-  | leaf => simp
-  | node _ _ => exact h.length_le
+theorem Occupied.rootKeys_le {c : BTree α β} (h : Occupied t c) : c.rootKeys ≤ 2 * t - 1 :=
+  match h with | .leaf => Nat.zero_le _ | .node _ h _ _ => h
 
 /-- An occupied node has at least `t - 1` root keys. -/
 theorem Occupied.le_rootKeys {c : BTree α β} (h : Occupied t c) (hne : c ≠ .leaf) :
-    t - 1 ≤ c.rootKeys := by
-  cases c with
-  | leaf => exact absurd rfl hne
-  | node _ _ => exact h.le_length
+    t - 1 ≤ c.rootKeys :=
+  match h with | .leaf => absurd rfl hne | .node h _ _ _ => h
 
 /-- An occupied node has at least one key when `2 ≤ t`. -/
 theorem Occupied.one_le_rootKeys {c : BTree α β} (ht : 2 ≤ t) (h : Occupied t c)
@@ -764,18 +743,14 @@ variable {rest : List (Triple α β)} {t n : ℕ}
     occupiedRest t rest = rest.all fun e => occupied t e.child := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [occupiedRest, ih]
+  | cons e rest ih => exact congrArg (occupied t e.child && ·) ih
 
 /-- `balancedRest n` checks that every child among the triples is balanced and of height `n`. -/
 @[simp] theorem balancedRest_eq_all :
     balancedRest n rest = rest.all fun e => balanced e.child && e.child.height == n := by
   induction rest with
   | nil => rfl
-  | cons e _ ih =>
-    obtain ⟨_, _, _⟩ := e
-    simp [balancedRest, ih, Bool.and_assoc]
+  | cons e _ ih => simp [balancedRest, ih, Bool.and_assoc]
 
 /-- `occupied` decides `Occupied`. -/
 @[simp] theorem occupied_iff : occupied t tr = true ↔ Occupied t tr := by

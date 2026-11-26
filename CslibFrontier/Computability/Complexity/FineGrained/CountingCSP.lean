@@ -94,9 +94,11 @@ theorem computableInPolyTime_numVars [DecidableEq V] (encRel : Rel ↪ List Bool
     (encV : V ↪ List Bool) :
     ComputableInPolyTime (CSP.numVars (Rel := Rel) (V := V))
       (encCSP encRel encV) encUnary := by
-  rw [show (CSP.numVars (Rel := Rel) (V := V)) = fun F => F.varCNF.numVars from
-    funext fun F => (numVars_varCNF F).symm]
-  exact (CNF.computableInPolyTime_numVars encV).comp (computableInPolyTime_varCNF encRel encV)
+  have heq : (CSP.numVars (Rel := Rel) (V := V)) = fun F => F.varCNF.numVars :=
+    funext fun F => (numVars_varCNF F).symm
+  rw [heq]
+  exact (CNF.computableInPolyTime_numVars encV).comp
+    (computableInPolyTime_varCNF encRel encV)
 
 /-- Dense variable relabeling `CSP.denseRelabel` is computable in polynomial time. -/
 @[fun_prop]
@@ -325,9 +327,7 @@ theorem decidableInSubexpTime_KCSP_of_forall [DecidableEq V] (encRel : Rel ↪ L
       (computableInPolyTime_toCNFBounded_of_forall encRel encV k sem hsem)
   refine decidableInSubexpTime_KCSP_of_reduction encRel encV k sem hf
     (CountingNativeEndpoint.decidableInSubexpTime_KSAT k) (c := 1) (fun F => ?_) fun F hF => ?_
-  · have hle : (F.toCNFBounded k sem).numVars ≤ F.numVars := Finset.card_le_card fun v hv =>
-      List.mem_toFinset.mpr (mem_vars_toCNFBounded (List.mem_toFinset.mp hv))
-    simpa only [f, CNF.numVars_denseRelabel, one_mul] using hle
+  · simpa only [f, CNF.numVars_denseRelabel, one_mul] using numVars_toCNFBounded_le k sem F
   · simp only [f, KSAT, Set.mem_ofPred_eq, CNF.all_length_le_denseRelabel,
       CNF.satisfiable_denseRelabel, toCNFBounded_eq_toCNF hF, satisfiable_toCNF]
     exact ⟨fun hsat => ⟨fun cl hcl => length_clause_mem_toCNF hF hcl, hsat⟩, And.right⟩

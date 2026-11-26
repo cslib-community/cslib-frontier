@@ -97,22 +97,139 @@ theorem exists_replaceBends_avoiding_spans {ι : Type*} [Finite ι]
     intro j
     refine Fin.lastCases ?_ (fun k => Fin.cases ?_ (fun l => ?_) k) j
     · change dist r.finish (p i).finish < tolerance i
-      rw [finish_replaceBends, dist_self]
-      exact hpositive i
+      simpa only [r, finish_replaceBends, dist_self] using hpositive i
     · change dist r.start (p i).start < tolerance i
-      rw [start_replaceBends, dist_self]
-      exact hpositive i
+      simpa only [r, start_replaceBends, dist_self] using hpositive i
     · change dist (r.point l.succ.castSucc) _ < tolerance i
       rw [Fin.castSucc_succ, point_replaceBends]
       exact (hnear ⟨i, l⟩).trans (hδi i)
   · simpa only [bend, Sigma.eta] using hinj
-  · intro d
-    rw [← hfixed]
-    exact havoidFixed ⟨d.1, d.2⟩
-  · intro d a b ha hb hab hda hdb
-    rw [← hfixed] at ha hb
-    exact hspans d a b ha hb hab hda hdb
+  · exact fun d => hfixed ▸ havoidFixed ⟨d.1, d.2⟩
+  · exact fun d a b ha hb => hspans d a b (hfixed ▸ ha) (hfixed ▸ hb)
   · rw [← hfixed]
     simpa only [bend, Sigma.eta] using htriple
+
+/-- An endpoint avoiding lines through every two other points in the pool forces
+different endpoint pairs to have different supporting lines. -/
+private theorem affineSpan_pair_ne_of_avoids_spans {pool : Set ℂ} {a b c d : ℂ}
+    (hb : b ∈ pool) (hc : c ∈ pool) (hd : d ∈ pool)
+    (hab : a ≠ b) (hcd : c ≠ d) (hpairs : ({a, b} : Set ℂ) ≠ {c, d})
+    (havoid : ∀ x ∈ pool, ∀ y ∈ pool, x ≠ y → a ≠ x → a ≠ y →
+      a ∉ affineSpan ℝ ({x, y} : Set ℂ)) :
+    affineSpan ℝ ({a, b} : Set ℂ) ≠ affineSpan ℝ ({c, d} : Set ℂ) := by
+  intro he
+  have hcommon (x : ℂ) (hx : x ∈ pool) (hax : a ≠ x) (hbx : b ≠ x)
+      (hline : x ∈ affineSpan ℝ ({a, b} : Set ℂ)) : False := by
+    apply havoid b hb x hx hbx hab hax
+    rw [affineSpan_pair_eq_of_mem_of_mem_of_ne (right_mem_affineSpan_pair ℝ a b) hline hbx]
+    exact left_mem_affineSpan_pair ℝ a b
+  by_cases hac : a = c
+  · have hbd : b ≠ d := fun h => hpairs (by rw [hac, h])
+    exact hcommon d hd (hac.trans_ne hcd) hbd (he.symm ▸ right_mem_affineSpan_pair ℝ c d)
+  by_cases had : a = d
+  · have hbc : b ≠ c := fun h => hpairs (by rw [had, h, Set.pair_comm])
+    exact hcommon c hc hac hbc (he.symm ▸ left_mem_affineSpan_pair ℝ c d)
+  · exact havoid c hc d hd hcd hac had (he ▸ left_mem_affineSpan_pair ℝ a b)
+
+/-- A family with distinct ports and general-position bends has distinct listed
+points along each route and distinct segment supporting lines. These lines differ
+from those through two distinct fixed points. Each segment uses a moved point. -/
+theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedPoints : Set ℂ)
+    (hbends : ∀ e, 0 < (p e).bends)
+    (hends : Function.Injective (fun d : ι × Bool => (p d.1).endpoint d.2)) :
+    let placed := fun d : (e : ι) × Fin (p e).bends => (p d.1).point d.2.castSucc.succ
+    let fixed := protectedPoints ∪ Set.range (fun e => (p e).start) ∪
+      Set.range (fun e => (p e).finish)
+    let line (d : (e : ι) × Fin (p e).segments) :=
+      affineSpan ℝ ({(p d.1).point d.2.castSucc, (p d.1).point d.2.succ} : Set ℂ)
+    Function.Injective placed → (∀ d, placed d ∉ fixed) →
+    (∀ d a b, a ∈ fixed ∪ Set.range placed → b ∈ fixed ∪ Set.range placed →
+      a ≠ b → placed d ≠ a → placed d ≠ b → placed d ∉ affineSpan ℝ ({a, b} : Set ℂ)) →
+    (∀ e, Function.Injective (p e).point) ∧
+    (∀ d : (e : ι) × Fin (p e).segments,
+      let a := (p d.1).point d.2.castSucc
+      let b := (p d.1).point d.2.succ
+      a ∈ fixed ∪ Set.range placed ∧ b ∈ fixed ∪ Set.range placed ∧
+        (a ∈ Set.range placed ∨ b ∈ Set.range placed) ∧ a ≠ b) ∧
+    Function.Injective line ∧
+    ∀ d, ∀ a ∈ fixed, ∀ b ∈ fixed, a ≠ b → line d ≠ affineSpan ℝ ({a, b} : Set ℂ) := by
+  dsimp only
+  let B := (e : ι) × Fin (p e).bends
+  let N := (e : ι) × Fin ((p e).segments + 1)
+  let E := ι × Bool
+  let placed := fun d : B => (p d.1).point d.2.castSucc.succ
+  let fixed := protectedPoints ∪ Set.range (fun e => (p e).start) ∪
+    Set.range (fun e => (p e).finish)
+  intro hinj hfixed hspans
+  let endNode (d : E) : N := ⟨d.1, if d.2 then Fin.last (p d.1).segments else 0⟩
+  let bendNode (d : B) : N := ⟨d.1, d.2.castSucc.succ⟩
+  let node : E ⊕ B → N := Sum.elim endNode bendNode
+  let point (d : N) := (p d.1).point d.2
+  have hnode : Function.Surjective node := by
+    rintro ⟨e, k⟩
+    refine Fin.lastCases ?_ (fun j => Fin.cases ?_ (fun i => ?_) j) k
+    · exact ⟨.inl (e, true), rfl⟩
+    · exact ⟨.inl (e, false), rfl⟩
+    · exact ⟨.inr ⟨e, i⟩, congrArg (Sigma.mk e) (Fin.castSucc_succ i).symm⟩
+  have hEnd (d : E) : point (endNode d) = (p d.1).endpoint d.2 := by
+    rcases d with ⟨_, _ | _⟩ <;> rfl
+  have hEndFixed : ∀ d : E, point (endNode d) ∈ fixed
+    | ⟨e, false⟩ => .inl (.inr ⟨e, rfl⟩)
+    | ⟨e, true⟩ => .inr ⟨e, rfl⟩
+  have hpoint : Function.Injective point := by
+    apply Function.Injective.of_comp_right _ hnode
+    rw [Sum.comp_elim]
+    exact Sum.elim_injective.mpr ⟨fun x y h => hends ((hEnd x).symm.trans (h.trans (hEnd y))),
+      hinj, fun x y h => hfixed y (h ▸ hEndFixed x : (point ∘ bendNode) y ∈ fixed)⟩
+  have hpool (d : N) : point d ∈ fixed ∪ Set.range placed := by
+    obtain ⟨x | y, rfl⟩ := hnode d
+    exacts [.inl (hEndFixed x), .inr ⟨y, rfl⟩]
+  let S := (e : ι) × Fin (p e).segments
+  let left (d : S) : N := ⟨d.1, d.2.castSucc⟩
+  let right (d : S) : N := ⟨d.1, d.2.succ⟩
+  have hnondeg (d : S) : point (left d) ≠ point (right d) := fun h =>
+    Nat.succ_ne_self d.2.val (congrArg (fun x : N => x.2.val) (hpoint h)).symm
+  have hmovable : ∀ d : S, point (left d) ∈ Set.range placed ∨
+      point (right d) ∈ Set.range placed := fun ⟨e, i⟩ =>
+    Fin.cases (.inr ⟨⟨e, ⟨0, hbends e⟩⟩, rfl⟩) (fun k => .inl ⟨⟨e, k⟩, rfl⟩) i
+  have hpair (d f : S) (hEq : ({point (left d), point (right d)} : Set ℂ) =
+      {point (left f), point (right f)}) : d = f := by
+    rcases (hEq ▸ Or.inl rfl : point (left d) ∈ ({point (left f), point (right f)} : Set ℂ))
+      with h | h
+    · obtain ⟨e, i⟩ := d
+      obtain ⟨f, j⟩ := f
+      obtain ⟨rfl, hij⟩ := Sigma.mk.inj_iff.mp (hpoint h)
+      exact congrArg (Sigma.mk e) (Fin.castSucc_inj.mp (eq_of_heq hij))
+    · have hv : d.2.val = f.2.val + 1 := congrArg (fun x : N => x.2.val) (hpoint h)
+      rcases (hEq ▸ Or.inr rfl : point (right d) ∈ ({point (left f), point (right f)} : Set ℂ))
+        with hr | hr <;> have ht := congrArg (fun x : N => x.2.val) (hpoint hr)
+      all_goals simp only [left, right, Fin.val_castSucc, Fin.val_succ] at ht
+      all_goals omega
+  have hcompare (d : S) (a b : ℂ) (ha : a ∈ fixed ∪ Set.range placed)
+      (hb : b ∈ fixed ∪ Set.range placed) (hab : a ≠ b)
+      (hne : ({point (left d), point (right d)} : Set ℂ) ≠ {a, b}) :
+      affineSpan ℝ ({point (left d), point (right d)} : Set ℂ) ≠
+        affineSpan ℝ ({a, b} : Set ℂ) := by
+    rcases hmovable d with ⟨k, hk⟩ | ⟨k, hk⟩
+    · rw [← hk] at hne ⊢
+      exact affineSpan_pair_ne_of_avoids_spans (hpool (right d)) ha hb (hk ▸ hnondeg d) hab hne
+        (fun x hx y hy => hspans k x y hx hy)
+    · rw [Set.pair_comm (point (left d)), ← hk] at hne ⊢
+      exact affineSpan_pair_ne_of_avoids_spans (hpool (left d)) ha hb (hk ▸ (hnondeg d).symm)
+        hab hne (fun x hx y hy => hspans k x y hx hy)
+  refine ⟨?_, fun d => ⟨hpool (left d), hpool (right d), hmovable d, hnondeg d⟩, ?_, ?_⟩
+  · intro e i j he
+    exact Fin.ext (congrArg (fun d : N => d.2.val)
+      (hpoint (show point ⟨e, i⟩ = point ⟨e, j⟩ from he)))
+  · intro d f he
+    by_contra hdf
+    exact hcompare d _ _ (hpool (left f)) (hpool (right f)) (hnondeg f)
+      (fun hp => hdf (hpair d f hp)) he
+  · intro d a ha b hb hab
+    refine hcompare d a b (Or.inl ha) (Or.inl hb) hab fun hp => ?_
+    have hsub : ({point (left d), point (right d)} : Set ℂ) ⊆ fixed :=
+      hp ▸ Set.insert_subset_iff.mpr ⟨ha, Set.singleton_subset_iff.mpr hb⟩
+    rcases hmovable d with ⟨k, hk⟩ | ⟨k, hk⟩ <;> rw [← hk] at hsub <;>
+      exact hfixed k (hsub (by simp [placed]))
 
 end Cslib.Polygonal.Route

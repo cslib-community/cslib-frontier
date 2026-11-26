@@ -205,24 +205,14 @@ private theorem toNat_castAdd {n k : ℕ} (w : Wire n k) (extra : ℕ) :
 /-- The serialized code of `c.append d` is `appendCode n c.code d.code`. -/
 theorem code_append {σ : Signature.{v}} {n m p : ℕ} (c : Circuit σ n m) (d : Circuit σ n p) :
     (c.append d).code = appendCode n c.code d.code := by
-  symm
-  simp only [appendCode, Circuit.code, Circuit.append, Program.code_append,
-    appendWireCode_input]
-  apply Prod.ext
-  · rw [Program.length_code]
-  rw [show (fun j => (Fin.append (Wire.castAdd d.size ∘ c.outputs)
-    (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
+  have hout : (fun j => (Fin.append (Wire.castAdd d.size ∘ c.outputs)
+      (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
       Fin.append (fun j => (c.outputs j).toNat)
-        (fun j => shiftCodeWire n c.size (d.outputs j).toNat) from ?_]
-  · simp only [List.ofFn_fin_append, List.map_ofFn]
-    rw [Program.length_code]
-    rfl
-  · funext j
-    induction j using Fin.addCases with
-    | left i => simp [toNat_castAdd]
-    | right i =>
-      simp only [Fin.append_right, Function.comp_apply, Program.appendedWire_toNat,
-        appendWireCode_input]
+        (shiftCodeWire n c.size ∘ fun j => (d.outputs j).toNat) :=
+    funext fun j => Fin.addCases (fun _ => by simp [toNat_castAdd])
+      (fun _ => by simp [Program.appendedWire_toNat, appendWireCode_input]) j
+  simp only [appendCode, Circuit.code, Circuit.append, Program.code_append, appendWireCode_input,
+    Program.length_code, hout, List.ofFn_fin_append, List.map_ofFn]
 
 /-- Combine a list of raw codes on shared inputs, preserving block and output order.
 Blocks may have different gate counts and any number of outputs. -/
@@ -389,18 +379,9 @@ private theorem compCodeWire_code {σ : Signature.{v}} {n m : ℕ} (c : Circuit 
 /-- The serialized code of `d.comp c` is `compCode n d.code c.code`. -/
 theorem code_comp {σ : Signature.{v}} {n m p : ℕ} (d : Circuit σ m p) (c : Circuit σ n m) :
     (d.comp c).code = compCode n d.code c.code := by
-  symm
-  have hwire : compCodeWire n c.code =
-      Program.appendWireCode n m c.size c.outputs := funext (compCodeWire_code c)
-  apply Prod.ext
-  · simp only [compCode, Circuit.code, Circuit.comp, Program.code_append]
-    change c.program.code ++ d.program.code.map (fun g => (g.1, g.2.map
-      (compCodeWire n c.code))) = _
-    rw [hwire]
-  · simp only [compCode, Circuit.code, Circuit.comp, List.map_ofFn, Function.comp_apply]
-    congr 1 with i : 1
-    rw [Program.appendedWire_toNat]
-    exact compCodeWire_code c _
+  rw [compCode, funext (compCodeWire_code c)]
+  simp only [Circuit.code, Circuit.comp, Program.code_append, List.map_ofFn, Function.comp_def,
+    Program.appendedWire_toNat]
 
 /-- Sequential composition retains both gate lists. -/
 @[simp] theorem length_compCode {Op : Type*} (n : ℕ) (d c : List (Op × List ℕ) × List ℕ) :
@@ -484,11 +465,10 @@ theorem code_replicate {σ : Signature.{v}} {n m : ℕ} (c : Circuit σ n m) (k 
         compCodeWire (Op := σ.Op) (k * n + n) ([], (List.range (k * n)).map _root_.id) ∘
           replicateWire n c.code.1.length k t = replicateWire n c.code.1.length (k + 1) t := by
       intro t ht
-      have ht := List.mem_range.1 ht
       funext i
       simp only [Function.comp_apply, compCodeWire_range_map, replicateWire, Nat.succ_mul, id_eq]
-      have : t * n + n ≤ k * n := by
-        rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right n ht
+      have : t * n + n ≤ k * n :=
+        Nat.succ_mul t n ▸ Nat.mul_le_mul_right n (List.mem_range.1 ht)
       split_ifs <;> omega
     have hB : shiftCodeWire (k * n + n) (k * c.code.1.length) ∘
         compCodeWire (Op := σ.Op) (k * n + n) ([], (List.range n).map (k * n + ·)) =
@@ -550,8 +530,7 @@ theorem computableInPolyTime_shiftCodeWire {n offset i : α → ℕ}
     (hoffset : ComputableInPolyTime offset enc encNat)
     (hi : ComputableInPolyTime i enc encNat) :
     ComputableInPolyTime (fun a => shiftCodeWire (n a) (offset a) (i a)) enc encNat := by
-  unfold shiftCodeWire
-  fun_prop
+  fun_prop [shiftCodeWire]
 
 /-- Relocating a circuit-code block is polynomial-time with binary offsets. -/
 @[fun_prop]
@@ -571,9 +550,8 @@ theorem computableInPolyTime_appendCode {n : α → ℕ}
     (hc : ComputableInPolyTime c enc (encCode encOp))
     (hd : ComputableInPolyTime d enc (encCode encOp)) :
     ComputableInPolyTime (fun a => appendCode (n a) (c a) (d a)) enc (encCode encOp) := by
-  have hlen : ComputableInPolyTime (fun a => (c a).1.length) enc encNat :=
-    (length_list_binary (encGate encOp)).comp hc.fst'
-  have hshift := computableInPolyTime_shiftCode hn hlen hd
+  have hshift :=
+    computableInPolyTime_shiftCode hn ((length_list_binary (encGate encOp)).comp hc.fst') hd
   exact (listAppend' hc.fst' hshift.fst').prod (listAppend' hc.snd' hshift.snd')
 
 /-- Combining arbitrary raw blocks is polynomial-time in their complete encodings.
@@ -606,9 +584,7 @@ theorem computableInPolyTime_appendCodes {n : α → ℕ}
     (f := fun a (q : (List (Op × List ℕ) × List ℕ) × ℕ) =>
       (shiftCode (n a) (((codes a).take q.2).flatMap Prod.fst).length q.1).2)
     hblocks hshift.snd'
-  have h := hgates.prod houtputs
-  change ComputableInPolyTime (fun a => appendCodesDirect (n a) (codes a)) enc (encCode encOp) at h
-  simpa only [appendCodesDirect_eq_appendCodes] using h
+  exact funext (fun a => appendCodesDirect_eq_appendCodes (n a) (codes a)) ▸ hgates.prod houtputs
 
 /-- Bundling raw blocks is polynomial-time in their encodings and binary layout parameters. -/
 @[fun_prop]
@@ -635,8 +611,7 @@ theorem computableInPolyTime_compCodeWire {n i : α → ℕ}
     (length_list_binary (encGate encOp)).comp hc.fst'
   have hlookup : ComputableInPolyTime (fun a => (c a).2.getD (i a) 0) enc encNat :=
     listGetD_binary 0 hc.snd' hi
-  unfold compCodeWire
-  fun_prop
+  fun_prop [compCodeWire]
 
 /-- Construct sequential circuit codes in polynomial time. All wire indices and input counts
 are binary; list lengths, input lookup, gate relocation and the whole output code are charged. -/
@@ -658,8 +633,7 @@ theorem computableInPolyTime_replicateWire {n s k t i : α → ℕ}
     (ht : ComputableInPolyTime t enc encNat)
     (hi : ComputableInPolyTime i enc encNat) :
     ComputableInPolyTime (fun a => replicateWire (n a) (s a) (k a) (t a) (i a)) enc encNat := by
-  unfold replicateWire
-  fun_prop
+  fun_prop [replicateWire]
 
 /-- Replicating a raw code is polynomial-time, with a binary input count and a unary number of
 copies. -/
@@ -759,12 +733,7 @@ private theorem opBitsLe_encoding {Op : Type} (encOp : Op ↪ List Bool)
     (c : List (Op × List ℕ) × List ℕ) : OpBitsLe encOp c (encCode encOp c).length := by
   intro gate hg
   have hb := length_le_encList_of_mem (encGate encOp) hg
-  rw [show (encGate encOp gate).length =
-    2 * (encOp gate.1).length + 1 + (encList encNat gate.2).length from length_encPair gate] at hb
-  rw [show (encCode encOp c).length =
-    2 * (encList (encGate encOp) c.1).length + 1 + (encList encNat c.2).length
-      from length_encPair c]
-  omega
+  enc_len [encGate, encCode] at hb ⊢
 
 private theorem wireBitsLe_encoding {Op : Type} (encOp : Op ↪ List Bool)
     (c : List (Op × List ℕ) × List ℕ) : WireBitsLe c (encCode encOp c).length := by
@@ -772,12 +741,7 @@ private theorem wireBitsLe_encoding {Op : Type} (encOp : Op ↪ List Bool)
   · intro gate hg wire hw
     have ha := length_le_encList_of_mem encNat hw
     have hb := length_le_encList_of_mem (encGate encOp) hg
-    rw [show (encGate encOp gate).length =
-      2 * (encOp gate.1).length + 1 + (encList encNat gate.2).length from length_encPair gate] at hb
-    rw [show (encCode encOp c).length =
-      2 * (encList (encGate encOp) c.1).length + 1 + (encList encNat c.2).length
-        from length_encPair c]
-    omega
+    enc_len [encGate, encCode] at hb ⊢
   · intro wire hw
     have := length_le_encList_of_mem encNat hw
     enc_len [encCode]
@@ -809,22 +773,14 @@ private theorem opBitsLe_mono {Op : Type} {encOp : Op ↪ List Bool}
 private theorem opBitsLe_append {Op : Type} {encOp : Op ↪ List Bool} (n : ℕ)
     {c d : List (Op × List ℕ) × List ℕ} {B : ℕ}
     (hc : OpBitsLe encOp c B) (hd : OpBitsLe encOp d B) :
-    OpBitsLe encOp (appendCode n c d) B := by
-  intro gate hg
-  rcases List.mem_append.mp hg with hg | hg
-  · exact hc gate hg
-  · obtain ⟨g, hmem, rfl⟩ := List.mem_map.mp hg
-    exact hd g hmem
+    OpBitsLe encOp (appendCode n c d) B :=
+  List.forall_mem_append.2 ⟨hc, List.forall_mem_map.2 hd⟩
 
 private theorem opBitsLe_comp {Op : Type} {encOp : Op ↪ List Bool} (n : ℕ)
     {d c : List (Op × List ℕ) × List ℕ} {B : ℕ}
     (hc : OpBitsLe encOp c B) (hd : OpBitsLe encOp d B) :
-    OpBitsLe encOp (compCode n d c) B := by
-  intro gate hg
-  rcases List.mem_append.mp hg with hg | hg
-  · exact hc gate hg
-  · obtain ⟨g, hmem, rfl⟩ := List.mem_map.mp hg
-    exact hd g hmem
+    OpBitsLe encOp (compCode n d c) B :=
+  List.forall_mem_append.2 ⟨hc, List.forall_mem_map.2 hd⟩
 
 private theorem wireBitsLe_mono {Op : Type*} {c : List (Op × List ℕ) × List ℕ} {a b : ℕ}
     (h : WireBitsLe c a) (hab : a ≤ b) : WireBitsLe c b :=
@@ -889,17 +845,11 @@ private theorem compCodeWire_bits {Op : Type*} (n : ℕ)
 private theorem wireBitsLe_comp {Op : Type*} (n : ℕ)
     {d c : List (Op × List ℕ) × List ℕ} {a b : ℕ}
     (hc : WireBitsLe c a) (hd : WireBitsLe d b) :
-    WireBitsLe (compCode n d c) (a + b + (encNat n).length + codeMass c + 2) := by
-  constructor
-  · intro gate hg wire hw
-    rcases List.mem_append.mp hg with hg | hg
-    · exact (hc.1 gate hg wire hw).trans (by omega)
-    · obtain ⟨g, hmem, rfl⟩ := List.mem_map.mp hg
-      obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hw
-      exact compCodeWire_bits n hc (hd.1 g hmem i hi)
-  · intro wire hw
-    obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hw
-    exact compCodeWire_bits n hc (hd.2 i hi)
+    WireBitsLe (compCode n d c) (a + b + (encNat n).length + codeMass c + 2) :=
+  ⟨List.forall_mem_append.2 ⟨fun g hg w hw => (hc.1 g hg w hw).trans (by omega),
+    List.forall_mem_map.2 fun g hmem => List.forall_mem_map.2 fun i hi =>
+      compCodeWire_bits n hc (hd.1 g hmem i hi)⟩,
+    List.forall_mem_map.2 fun i hi => compCodeWire_bits n hc (hd.2 i hi)⟩
 
 private theorem referenceCode_bounds {Op : Type} {encOp : Op ↪ List Bool}
     (n : ℕ) (op unit : List (Op × List ℕ) × List ℕ)
@@ -930,10 +880,10 @@ private theorem referenceCode_bounds {Op : Type} {encOp : Op ↪ List Bool}
   · intro left right c d hleft hright ihleft ihright hlength hc _
     have hlpos := List.length_pos_iff.mpr hleft
     have hrpos := List.length_pos_iff.mpr hright
-    have hll : left.length ≤ k := by simp only [List.length_append] at hlength; omega
-    have hrl : right.length ≤ k := by simp only [List.length_append] at hlength; omega
-    obtain ⟨htl, hml, hwl⟩ := ihleft hll (fun a ha => hc a (List.mem_append_left _ ha)) hleft
-    obtain ⟨htr, hmr, hwr⟩ := ihright hrl (fun a ha => hc a (List.mem_append_right _ ha)) hright
+    simp only [List.length_append] at hlength
+    obtain ⟨htl, hml, hwl⟩ := ihleft (by omega) (fun a ha => hc a (List.mem_append_left _ ha)) hleft
+    obtain ⟨htr, hmr, hwr⟩ :=
+      ihright (by omega) (fun a ha => hc a (List.mem_append_right _ ha)) hright
     have hcm : codeMass c ≤ M := hml.trans (Nat.mul_le_mul_right B (by omega))
     have hdm : codeMass d ≤ M := hmr.trans (Nat.mul_le_mul_right B (by omega))
     have hcoeff : 2 * (left ++ right).length - 1 =
@@ -974,19 +924,12 @@ private theorem length_encoding_of_bounds {Op : Type} {encOp : Op ↪ List Bool}
       omega
     have hwords := length_encList_le encNat g.2 (hw.1 g hg)
     have hb := hwords.trans (Nat.mul_le_mul_right (2 * W + 1) hargs)
-    rw [show (encGate encOp g).length =
-      2 * (encOp g.1).length + 1 + (encList encNat g.2).length from length_encPair g]
-    omega
-  have hgates := length_encList_le (encGate encOp) c.1 hgate
-  have hgc := (gates_le_codeMass c).trans hm
-  have hgates' := hgates.trans
-    (Nat.mul_le_mul_right (2 * (2 * B + 1 + M * (2 * W + 1)) + 1) hgc)
-  have hout := length_encList_le encNat c.2 hw.2
+    enc_len [encGate]
+  have hgates := (length_encList_le (encGate encOp) c.1 hgate).trans
+    (Nat.mul_le_mul_right _ ((gates_le_codeMass c).trans hm))
   have hoc : c.2.length ≤ M := by dsimp only [codeMass] at hm; omega
-  have hout' := hout.trans (Nat.mul_le_mul_right (2 * W + 1) hoc)
-  rw [show (encCode encOp c).length =
-    2 * (encList (encGate encOp) c.1).length + 1 + (encList encNat c.2).length
-      from length_encPair c]
+  have hout := (length_encList_le encNat c.2 hw.2).trans (Nat.mul_le_mul_right (2 * W + 1) hoc)
+  rw [encCode, length_encPair]
   nlinarith
 
 private theorem computedGetD {α β : Type} {encIn : α ↪ List Bool} {enc : β ↪ List Bool}
@@ -1030,10 +973,9 @@ private theorem computable_intervalRow {Op α : Type} {encOp : Op ↪ List Bool}
     have hs := snd enc encUnary
     have hleaf := computedGetD (hl.comp hfst) hs (hu.comp hfst)
     have hlc := computedGetD (hleft.comp hfst) hs (hu.comp hfst)
-    have hrc := computedGetD (hright.comp hfst)
-      (show ComputableInPolyTime
-        (fun p : α × ℕ => p.2 + (rows p.1).length / 2) (encPair enc encUnary) encUnary from
-          by fun_prop) (hu.comp hfst)
+    have hidx : ComputableInPolyTime (fun p : α × ℕ => p.2 + (rows p.1).length / 2)
+        (encPair enc encUnary) encUnary := by fun_prop
+    have hrc := computedGetD (hright.comp hfst) hidx (hu.comp hfst)
     fun_prop
   have hrange : ComputableInPolyTime (fun a => List.range ((leaves a).length + 1))
       enc (encList encUnary) := by fun_prop
@@ -1063,26 +1005,20 @@ private theorem intervalTables_getD {Op : Type*} (n : ℕ)
       referenceCode n op unit ((leaves.drop start).take len) := by
   induction count generalizing len start with
   | zero =>
-    have : len = 0 := by omega
-    subst len
+    obtain rfl : len = 0 := by omega
     simp [intervalTables, referenceCode]
   | succ count ih =>
-    rw [intervalTables, Function.iterate_succ_apply']
-    change (((intervalTables n op unit leaves count) ++
-      [intervalRow n op unit leaves (intervalTables n op unit leaves count)]).getD len []).getD
-        start unit = _
+    rw [intervalTables, Function.iterate_succ_apply', ← intervalTables]
     by_cases hlt : len ≤ count
     · rw [List.getD_append _ _ _ _ (by rw [length_intervalTables]; omega)]
       exact ih _ _ hlt hs
-    · have heq : len = count + 1 := by omega
-      subst len
+    · obtain rfl : len = count + 1 := by omega
       rw [← length_intervalTables n op unit leaves count, List.getD_append_cons_length,
         intervalRow_getD n op unit leaves _ start (by omega), length_intervalTables]
       by_cases hc : count = 0
       · subst count
-        rw [ite_eq_left rfl]
-        rw [List.take_one_drop_eq_of_lt_length (by omega)]
-        rw [List.getD_eq_getElem _ _ (by omega : start < leaves.length)]
+        rw [ite_eq_left rfl, List.take_one_drop_eq_of_lt_length (by omega),
+          List.getD_eq_getElem _ _ (by omega)]
         simp [referenceCode]
       · rw [ite_eq_right (by omega), ite_eq_left hs]
         have hh : (count + 1) / 2 ≤ count := by omega
@@ -1106,10 +1042,7 @@ private theorem intervalTables_getD_invalid {Op : Type*} (n : ℕ)
   induction count generalizing len start with
   | zero => omega
   | succ count ih =>
-    rw [intervalTables, Function.iterate_succ_apply']
-    change (((intervalTables n op unit leaves count) ++
-      [intervalRow n op unit leaves (intervalTables n op unit leaves count)]).getD len []).getD
-        start unit = _
+    rw [intervalTables, Function.iterate_succ_apply', ← intervalTables]
     by_cases hlt : len ≤ count
     · rw [List.getD_append _ _ _ _ (by rw [length_intervalTables]; omega)]
       exact ih _ _ hlt hs hinvalid
@@ -1129,19 +1062,13 @@ private theorem intervalTables_row_length {Op : Type*} (n : ℕ)
     row.length = leaves.length + 1 := by
   induction count with
   | zero =>
-    have heq : row = List.replicate (leaves.length + 1) unit := by
-      simpa [intervalTables] using hr
-    simp [heq]
+    obtain rfl : row = List.replicate (leaves.length + 1) unit := by simpa [intervalTables] using hr
+    simp
   | succ count ih =>
-    change row ∈ (fun rows => rows ++ [intervalRow n op unit leaves rows])^[count + 1]
-      [List.replicate (leaves.length + 1) unit] at hr
-    rw [Function.iterate_succ_apply'] at hr
+    rw [intervalTables, Function.iterate_succ_apply'] at hr
     rcases List.mem_append.mp hr with h | h
     · exact ih h
-    · have heq : row = intervalRow n op unit leaves (intervalTables n op unit leaves count) :=
-        List.mem_singleton.mp h
-      rw [heq]
-      simp [intervalRow]
+    · simp [List.mem_singleton.mp h, intervalRow]
 
 private def inputBudget {Op : Type} (encOp : Op ↪ List Bool)
     (op unit : List (Op × List ℕ) × List ℕ)
@@ -1254,8 +1181,7 @@ theorem code_balanced {σ : Signature} {n r : ℕ} (op : Circuit σ (r + r) r)
   symm
   change ((intervalTables n op.code unit.code (leaves.map Circuit.code)
     (leaves.map Circuit.code).length).getD (leaves.map Circuit.code).length []).getD 0 unit.code = _
-  rw [intervalTables_getD _ _ _ _ _ _ _ le_rfl (by omega)]
-  simp only [List.drop_zero, List.take_length]
+  rw [intervalTables_getD _ _ _ _ _ _ _ le_rfl (by omega), List.drop_zero, List.take_length]
   exact referenceCode_map op unit leaves
 
 /-- Uniform native generation from the binary shared-input count and the complete operator,

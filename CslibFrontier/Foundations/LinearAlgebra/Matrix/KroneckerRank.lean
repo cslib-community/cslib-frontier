@@ -91,8 +91,11 @@ theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Finty
   refine ⟨r ∘ er, c ∘ ec, hr.comp er.injective, hc.comp ec.injective,
     IsUnit.ne_zero ((Matrix.isUnit_iff_isUnit_det _).mp (Matrix.linearIndependent_row_iff_isUnit.mp
       ?_))⟩
-  rw [show (A.submatrix (r ∘ er) (c ∘ ec)).row =
-    LinearEquiv.funCongrLeft K K ec ∘ (((A.submatrix id c).row ∘ r) ∘ er) by ext; rfl]
+  have hrow : (A.submatrix (r ∘ er) (c ∘ ec)).row =
+      LinearEquiv.funCongrLeft K K ec ∘ (((A.submatrix id c).row ∘ r) ∘ er) := by
+    ext
+    rfl
+  rw [hrow]
   exact (hli_r.comp er er.injective).map' (LinearEquiv.funCongrLeft K K ec).toLinearMap
     (LinearEquiv.ker _)
 
@@ -142,8 +145,11 @@ theorem rank_kronecker {l m n p K : Type*} [Field K] [Finite l] [Fintype m] [Fin
       exact mul_ne_zero (pow_ne_zero _ hdetA) (pow_ne_zero _ hdetB))
   have hrank : (A.submatrix rA cA ⊗ₖ B.submatrix rB cB).rank = A.rank * B.rank := by
     simpa using rank_of_isUnit _ hunit
-  rw [← hrank, show A.submatrix rA cA ⊗ₖ B.submatrix rB cB =
-    (A ⊗ₖ B).submatrix (Prod.map rA rB) (Prod.map cA cB) by ext ⟨_, _⟩ ⟨_, _⟩; rfl]
+  have hsub : A.submatrix rA cA ⊗ₖ B.submatrix rB cB =
+      (A ⊗ₖ B).submatrix (Prod.map rA rB) (Prod.map cA cB) := by
+    ext ⟨_, _⟩ ⟨_, _⟩
+    rfl
+  rw [← hrank, hsub]
   exact rank_submatrix_le _ _ _
 
 end KroneckerRank

@@ -140,23 +140,26 @@ private theorem perm_relabel_plaistedGreenbaumClauses (A : Proposition (Fin n)) 
   | atom i => exact ⟨by simp [plaistedGreenbaumClauses, plaistedGreenbaumLabels], hatom i,
       by cases pol <;> simp [plaistedGreenbaumClauses, plaistedGreenbaumDefs]⟩
   | falsum =>
-    have hk : g k = .inr falsum := by simpa only [Nat.add_zero] using hlabel 0 falsum rfl
+    have hk := hlabel 0 falsum rfl
+    simp only [Nat.add_zero] at hk
     cases pol <;>
-      exact ⟨by simp [plaistedGreenbaumClauses, plaistedGreenbaumLabels],
-        by simpa [plaistedGreenbaumClauses, tseitinVar] using hk,
-        by simp [plaistedGreenbaumClauses, plaistedGreenbaumDefs, CNF.relabel, Clause.relabel, hk]⟩
+      refine ⟨by simp [plaistedGreenbaumClauses, plaistedGreenbaumLabels],
+        by simpa [plaistedGreenbaumClauses, tseitinVar] using hk, ?_⟩ <;>
+      simp [plaistedGreenbaumClauses, plaistedGreenbaumDefs, CNF.relabel, Clause.relabel, hk]
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
-    have hlA (j C) (hC : A.plaistedGreenbaumLabels[j]? = some C) : g (k + j) = .inr C :=
-      hlabel j C <| by
+    have hlA : ∀ j C, A.plaistedGreenbaumLabels[j]? = some C → g (k + j) = .inr C :=
+      fun j C hC => hlabel j C (by
         simp only [plaistedGreenbaumLabels, List.append_assoc]
-        rwa [List.getElem?_append_left (List.getElem?_eq_some_iff.1 hC).1]
-    have hlB (j C) (hC : B.plaistedGreenbaumLabels[j]? = some C) :
-        g (k + A.plaistedGreenbaumLabels.length + j) = .inr C := by
+        rw [List.getElem?_append_left (List.getElem?_eq_some_iff.1 hC).1]
+        exact hC)
+    have hlB : ∀ j C, B.plaistedGreenbaumLabels[j]? = some C →
+        g (k + A.plaistedGreenbaumLabels.length + j) = .inr C := fun j C hC => by
       rw [Nat.add_assoc]
       refine hlabel _ C ?_
       simp only [plaistedGreenbaumLabels, List.append_assoc]
-      rwa [List.getElem?_append_right (by omega), Nat.add_sub_cancel_left,
+      rw [List.getElem?_append_right (by omega), Nat.add_sub_cancel_left,
         List.getElem?_append_left (List.getElem?_eq_some_iff.1 hC).1]
+      exact hC
     rw [plaistedGreenbaumClauses]
     generalize ha : A.plaistedGreenbaumClauses _ k acc = a
     obtain ⟨hkA, hvA, hpA⟩ := ha ▸ ihA _ k acc hlA
@@ -202,18 +205,24 @@ private theorem eval_plaistedGreenbaumClauses {σ : ℕ → Bool} (A : Propositi
     rw [plaistedGreenbaumClauses] at h ⊢
     generalize ha : A.plaistedGreenbaumClauses _ k acc = a at h ⊢
     generalize hb : B.plaistedGreenbaumClauses _ a.next a.clauses = b at h ⊢
+    have ihB := hb ▸ ihB _ a.next a.clauses
+    have ihA := ha ▸ ihA _ k acc
     simp only [CNF.eval_append, Bool.and_eq_true] at h
     obtain ⟨hgate, hbc⟩ := h
-    obtain ⟨hac, hB⟩ := (hb ▸ ihB _ a.next a.clauses) hbc
-    obtain ⟨hacc, hA⟩ := (ha ▸ ihA _ k acc) hac
+    obtain ⟨hac, hB⟩ := ihB hbc
+    obtain ⟨hacc, hA⟩ := ihA hac
     refine ⟨hacc, ?_⟩
     simp only [eval_and_bool, eval_or_bool, eval_imp_bool]
     cases pol <;>
     · simp only [Bool.cond_true, Bool.cond_false, CNF.eval_cons, CNF.eval_nil, Clause.eval_cons,
-        Literal.eval_mk, Clause.eval_nil, Bool.or_false, Bool.and_true, Bool.and_eq_true] at hgate
+        Literal.eval_mk, Clause.eval_nil, Bool.or_false, Bool.and_true, Bool.and_eq_true]
+        at hgate
       revert hgate hA hB
-      generalize σ a.var = va, σ b.var = vb, σ b.next = vx
-      generalize A.eval (fun i : Fin n => σ i) = ea, B.eval (fun i : Fin n => σ i) = eb
+      generalize σ a.var = va
+      generalize σ b.var = vb
+      generalize σ b.next = vx
+      generalize A.eval (fun i : Fin n => σ i) = ea
+      generalize B.eval (fun i : Fin n => σ i) = eb
       revert va vb vx ea eb
       decide
 

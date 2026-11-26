@@ -155,24 +155,18 @@ private theorem cutCascade_domains {n K w base : ℕ} {mem : Memory.State}
   have hfuel : (view n ((layout n base).abs _)).numMarked < n + 1 :=
     hc'.numMarked ▸ Nat.lt_succ_of_le (markedCount_le_n _)
   obtain ⟨_, _, _, _, hc'', _, _⟩ := sim_unit_wp hi' (wp_cascade hn (n + 1) hc' hv' hpv' hp' hfuel)
-  have hmpos : 1 ≤ ((Memory.spec 0).clientState
+  have hmin : ((Memory.spec 0).clientState
       ((Memory.spec 0).clientState mem
         (DataStructure.link (E := Memory.spec 0) ((layout n base).methods 0) (cut v p)))
       (DataStructure.link (E := Memory.spec 0) ((layout n base).methods 0)
-        (cascade (n + 1) p))).mem (base + 9 * n + 1) := by
-    have hmin := hc''.minRoot
-    change _ = m.val + 1 at hmin
-    have hmin' : ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState mem
-          (DataStructure.link (E := Memory.spec 0) ((layout n base).methods 0) (cut v p)))
-        (DataStructure.link (E := Memory.spec 0) ((layout n base).methods 0)
-          (cascade (n + 1) p))).mem (base + 9 * n + 1) = m.val + 1 := by
-      simpa only [view, Record.Layout.abs, Cell.ok, ite_true, layout] using hmin
-    omega
+        (cascade (n + 1) p))).mem (base + 9 * n + 1) = m.val + 1 := by
+    simpa only [view, Record.Layout.abs, Cell.ok, ite_true, layout] using
+      (hc''.minRoot : _ = m.val + 1)
   refine ⟨⟨hsafe, hcas⟩, ?_⟩
   simpa only [cutCascade, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
     Matrix.cons_val_three, Matrix.head_cons, Matrix.tail_cons, StateTransitionSpec.clientState,
-    ← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind] using hmpos
+    ← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind, hmin] using
+    Nat.le_add_left 1 m.val
 
 /-- The conventional valid indexed decrease-key domain over the existing allocated record
 heap. The key and layout are runtime data; the existing source validity keeps its old bounds. -/

@@ -122,20 +122,16 @@ theorem two_le_copyVertex (v x : ℕ) : 2 ≤ copyVertex n v x :=
   (Nat.le_add_right 2 _).trans (Nat.le_add_right _ _)
 
 theorem copy_copyVertex {v x : ℕ} (hx : x < n) : copy n (copyVertex n v x) = v := by
-  simp only [copy, copyVertex]
-  rw [show 2 + v * n + x - 2 = x + n * v by rw [Nat.mul_comm]; omega,
-    Nat.add_mul_div_left _ _ (by omega), Nat.div_eq_of_lt hx, Nat.zero_add]
+  simp only [copy, copyVertex, Nat.add_assoc, Nat.add_sub_cancel_left, Nat.mul_comm v n,
+    Nat.mul_add_div (Nat.zero_lt_of_lt hx), Nat.div_eq_of_lt hx, Nat.add_zero]
 
 theorem vert_copyVertex (v : ℕ) {x : ℕ} (hx : x < n) : vert n (copyVertex n v x) = x := by
-  simp only [vert, copyVertex]
-  rw [show 2 + v * n + x - 2 = x + n * v by rw [Nat.mul_comm]; omega,
-    Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hx]
+  simp only [vert, copyVertex, Nat.add_assoc, Nat.add_sub_cancel_left, Nat.mul_comm v n,
+    Nat.mul_add_mod, Nat.mod_eq_of_lt hx]
 
 theorem copyVertex_lt {v x : ℕ} (hv : v < n) (hx : x < n) : copyVertex n v x < numVertices n := by
-  have := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hv)
-  rw [Nat.succ_mul] at this
   simp only [copyVertex, numVertices]
-  omega
+  nlinarith
 
 /-- **Every vertex numbered at least `2` is a vertex of a copy.** -/
 theorem eq_copyVertex {r : ℕ} (h₂ : 2 ≤ r) (hr : r < numVertices n) :
@@ -167,11 +163,9 @@ theorem entry_self (r : ℕ) : entry G r r = false := by
   unfold entry
   by_cases h : 2 ≤ r
   · rw [ite_eq_left ⟨h, h, rfl⟩, UGraphInstance.adjN]
-    split_ifs with h'
-    · exact G.loopless _
-    · rfl
-  · rw [ite_eq_right fun h' => h h'.1]
-    simp only [Link, Bool.or_self, decide_eq_false_iff_not]
+    split_ifs <;> simp [G.loopless]
+  · simp only [ite_eq_right fun h' : 2 ≤ r ∧ _ => h h'.1, Link, Bool.or_self,
+      decide_eq_false_iff_not]
     omega
 
 /-- **The copies of the graph in series**, with the source `0` and the target `1`, as an instance
@@ -206,11 +200,8 @@ private theorem reachable_map {V W : Type*} {H : SimpleGraph V} {K : SimpleGraph
     (hf : ∀ a b, H.Adj a b → f a = f b ∨ K.Adj (f a) (f b)) {a b : V} (h : H.Reachable a b) :
     K.Reachable (f a) (f b) := by
   rw [SimpleGraph.reachable_iff_reflTransGen] at h ⊢
-  refine h.lift' f fun a b hab => ?_
-  rcases hf a b hab with e | e
-  · change Relation.ReflTransGen K.Adj (f a) (f b)
-    exact e ▸ .refl
-  · exact .single e
+  exact h.lift' f fun a b hab =>
+    (hf a b hab).elim (fun e => (e ▸ .refl : Relation.ReflTransGen K.Adj (f a) (f b))) .single
 
 /-- The retraction onto the copy `w`: the source and the copies before `w` go to the vertex `0`,
 the target and the copies after `w` to the vertex `w`. -/
@@ -238,10 +229,11 @@ private theorem retract_adj (w : Fin G.n) (a b : Fin (chainInstance G).n)
     obtain ⟨-, hvb, -⟩ := eq_copyVertex hb2 b.isLt
     by_cases hw : copy G.n a = w
     · refine Or.inr ?_
-      rw [show retract G w a = ⟨vert G.n a, hva⟩ from
-          Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left hw]),
-        show retract G w b = ⟨vert G.n b, hvb⟩ from
-          Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left (hcopy ▸ hw)])]
+      have hra : retract G w a = ⟨vert G.n a, hva⟩ :=
+        Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left hw])
+      have hrb : retract G w b = ⟨vert G.n b, hvb⟩ :=
+        Fin.ext (by rw [val_retract, ite_eq_right (by omega), ite_eq_left (hcopy ▸ hw)])
+      rw [hra, hrb]
       simpa [UGraphInstance.adjN, hva, hvb] using hab
     · refine Or.inl (Fin.ext ?_)
       rw [val_retract, val_retract]
@@ -253,13 +245,12 @@ private theorem retract_adj (w : Fin G.n) (a b : Fin (chainInstance G).n)
       have := w.isLt
       apply Fin.ext
       rw [val_retract, val_retract]
-      rcases hl with ⟨-, -, h0⟩ | ⟨hr0, hc2, hn⟩ | ⟨hr2, hvr, ⟨hc1, hlast⟩ | ⟨hc2, hvc, hcc⟩⟩
+      rcases hl with ⟨-, -, h0⟩ | ⟨hr0, hc2, hn⟩ | ⟨hr2, hvr, hstep⟩
       · omega
       · have : copy G.n 2 = 0 ∧ vert G.n 2 = 0 := by simp [copy, vert]
         rw [hc2]
         split_ifs <;> omega
-      · split_ifs <;> omega
-      · split_ifs <;> omega
+      · rcases hstep with ⟨hc1, hlast⟩ | ⟨hc2, hvc, hcc⟩ <;> split_ifs <;> omega
     rw [Bool.or_eq_true] at hab
     exact hab.elim (fun h => key a b (of_decide_eq_true h))
       (fun h => (key b a (of_decide_eq_true h)).symm)
@@ -272,10 +263,11 @@ theorem chainInstance_mem_iff : chainInstance G ∈ USTCON ↔ G ∈ UCONN := by
     have h0 (w : Fin G.n) : G.graph.Reachable ⟨0, Nat.zero_lt_of_lt w.isLt⟩ w := by
       have h := reachable_map (fun r : Fin (chainInstance G).n => retract G w r)
         (retract_adj G w) hst
-      rwa [show retract G w (chainInstance G).s = ⟨0, Nat.zero_lt_of_lt w.isLt⟩ from
-          Fin.ext (by simp [val_retract, chainInstance]),
-        show retract G w (chainInstance G).t = w from
-          Fin.ext (by simp [val_retract, chainInstance])] at h
+      have hs : retract G w (chainInstance G).s = ⟨0, Nat.zero_lt_of_lt w.isLt⟩ :=
+        Fin.ext (by simp [val_retract, chainInstance])
+      have ht : retract G w (chainInstance G).t = w :=
+        Fin.ext (by simp [val_retract, chainInstance])
+      rwa [hs, ht] at h
     exact (h0 a).symm.trans (h0 b)
   · rcases Nat.eq_zero_or_pos G.n with hn | hn
     · -- no copies: the source and the target are joined
@@ -383,8 +375,7 @@ private theorem entry_eq_exprs (G : UGraphInstance) (r c : Fin (chainInstance G)
       G.getElem?_encode_matrix hvr hvc]
     simp [hw]
   · rw [ite_eq_right hw, eval_endpointExpr]
-    simp only [hw, decide_false, Bool.toNat_false, lt_irrefl, ↓reduceIte]
-    cases decide (Link G.n r c) || decide (Link G.n c r) <;> simp
+    cases decide (Link G.n r c) || decide (Link G.n c r) <;> simp [hw]
 
 /-- **The copies in series are computed in logarithmic space** from the encoded graph, by
 `UGraphInstance.ustconWriter`. -/
@@ -392,9 +383,7 @@ theorem computableInLogSpace_chainInstance :
     ComputableInLogSpace chainInstance encUGraph encUSTCON :=
   UGraphInstance.computableInLogSpace_of_entryExprs (numV := numVerticesExpr) 1
     (fun G r c => by simp [numVerticesExpr, chainInstance, numVertices])
-    (fun G => by
-      simp only [chainInstance, numVertices, G.length_encode, pow_one]
-      omega)
+    (fun G => by simp only [chainInstance, numVertices, G.length_encode, pow_one]; omega)
     (fun _ => rfl) (fun _ => rfl) entry_eq_exprs
 
 end Writer

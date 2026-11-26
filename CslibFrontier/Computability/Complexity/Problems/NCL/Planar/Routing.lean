@@ -152,13 +152,9 @@ theorem forget_bottom (D : Diagram Γ a b) (j : Fin b.length) :
     change forget (D₁.comp D₂) (((diagram D₁).comp (diagram D₂)).bottom j) = _
     rw [bottom_comp, bottom_comp]
     rcases he : (diagram D₂).bottom j with k | e
-    · change forget (D₁.comp D₂) (compLeft (diagram D₁) (diagram D₂) ((diagram D₁).bottom k)) = _
-      have hj := he ▸ ih₂ j
-      rw [forget_top] at hj
-      rw [forget_compLeft, ih₁, ← hj]
-      rfl
-    · change compRight D₁ D₂ (forget D₂ (.inr e)) = _
-      rw [← he, ih₂]
+    · have hj : D₂.bottom j = .inl k := by simpa [he] using (ih₂ j).symm
+      simp [hj, compRight, forget_compLeft, ih₁]
+    · exact congrArg (compRight D₁ D₂) (he ▸ ih₂ j)
   | @tensor a b c d D₁ D₂ ih₁ ih₂ =>
     rcases (List.appendIndexEquiv b d).surjective j with ⟨k | k, rfl⟩
     · rw [bottom_tensor_left, forget_tensorLeft, ih₁, bottom_tensor_left]
@@ -180,14 +176,12 @@ private theorem forget_original (D : Diagram Γ a b) (e : D.Edge) : forget D (or
   | id _ | swap _ _ => cases e with | inl _ => rfl | inr e => exact e.elim
   | comp D₁ D₂ ih₁ ih₂ =>
     rcases e with i | e | e
-    · rfl
-    · exact congrArg (compLeft D₁ D₂) (ih₁ (.inr e))
-    · exact congrArg (compRight D₁ D₂) (ih₂ (.inr e))
+    exacts [rfl, congrArg (compLeft D₁ D₂) (ih₁ (.inr e)),
+      congrArg (compRight D₁ D₂) (ih₂ (.inr e))]
   | tensor D₁ D₂ ih₁ ih₂ =>
     rcases e with i | e | e
-    · rfl
-    · exact congrArg (tensorLeft D₁ D₂) (ih₁ (.inr e))
-    · exact congrArg (tensorRight D₁ D₂) (ih₂ (.inr e))
+    exacts [rfl, congrArg (tensorLeft D₁ D₂) (ih₁ (.inr e)),
+      congrArg (tensorRight D₁ D₂) (ih₂ (.inr e))]
 
 /-- Give each routed segment the direction of its original edge. -/
 @[expose] def enc (D : Diagram Γ a b) (s : D.Edge → Bool) : (diagram D).Edge → Bool := s ∘ forget D
@@ -303,8 +297,8 @@ private theorem step_abs {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
   · obtain ⟨e, rfl⟩ := hy
     exact .single ⟨legal_abs hI D hs, legal_abs hI D ht, e,
       reverse_comp_of_injective (original_injective D) s e⟩
-  · rw [show abs D (reverse s y) = abs D s from
-      reverse_comp_of_not_mem_range s fun e h => hy ⟨e, h⟩]
+  · simpa only [abs] using
+      (reverse_comp_of_not_mem_range s fun e h => hy ⟨e, h⟩) ▸ Relation.ReflGen.refl
 
 private theorem reachable_enc_reverse {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
     (s : D.Edge → Bool) (e : D.Edge) (he : s e = false)

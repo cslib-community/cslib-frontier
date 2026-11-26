@@ -154,13 +154,6 @@ theorem values_rename (π : ℕ → ℕ) (I : Instance) (P : List ℕ) :
   refine exists_congr fun σ => and_congr ?_ Iff.rfl
   simp [rename, holds_renameConstr]
 
-private theorem linVal_congr {σ σ' : ℕ → Bool} {L : List (ℕ × ℤ)}
-    (h : ∀ e ∈ L, σ e.1 = σ' e.1) : linVal σ L = linVal σ' L := by
-  induction L with
-  | nil => rfl
-  | cons e L ih =>
-    simp only [linVal_cons, h e List.mem_cons_self, ih fun e he => h e (List.mem_cons_of_mem _ he)]
-
 /-- The solutions, their values and their projections depend only on the variables of the
 instance and of `P`. -/
 private theorem values_congr {I : Instance} {P : List ℕ} {σ σ' : ℕ → Bool}
@@ -228,12 +221,10 @@ private theorem injOn_vars {π : ℕ → ℕ} {I : Instance} {P : List ℕ} {S :
 
 private theorem nonempty_solsLE_rename {π : ℕ → ℕ} {I : Instance} (hπ : Set.InjOn π I.vars)
     (v : ℤ) : ((I.rename π).solsLE v).Nonempty ↔ (I.solsLE v).Nonempty := by
-  have h := values_rename_eq (P := []) (I := I) (hπ.mono (by simp))
-  simp only [List.map_nil] at h
   have key (J : Instance) : (J.solsLE v).Nonempty ↔ ∃ x ∈ J.values [], x.1 ≤ v :=
-    ⟨fun ⟨σ, hσ, hv⟩ => (exists_iff J [] fun o _ => o ≤ v).1 ⟨σ, hσ, hv⟩,
-      fun h => let ⟨σ, hσ, hv⟩ := (exists_iff J [] fun o _ => o ≤ v).2 h; ⟨σ, hσ, hv⟩⟩
-  rw [key, key, h]
+    exists_iff J [] fun o _ => o ≤ v
+  simpa only [key, List.map_nil] using
+    (congrArg (∃ x ∈ ·, x.1 ≤ v) (values_rename_eq (P := []) (I := I) (hπ.mono (by simp)))).to_iff
 
 private theorem image_solsLE_rename {π : ℕ → ℕ} {J : Instance} {P : List ℕ}
     (hπ : Set.InjOn π (J.vars ∪ {v | v ∈ P})) (v : ℤ) :
@@ -249,9 +240,8 @@ theorem semOutput_rename_iff {π : ℕ → ℕ} {I O : Instance} {b : Option ℤ
   have hO : O.vars ⊆ I.allVars ∪ O.allVars := fun v hv => .inr (vars_subset_allVars O hv)
   have hsat (J : Instance) (hJ : Set.InjOn π J.vars) :
       (J.rename π).Satisfiable ↔ J.Satisfiable := by
-    have h := values_rename_eq (P := []) (I := J) (hJ.mono (by simp))
-    simp only [List.map_nil] at h
-    rw [satisfiable_iff, satisfiable_iff, h]
+    simpa only [satisfiable_iff, List.map_nil] using
+      (congrArg Set.Nonempty (values_rename_eq (P := []) (I := J) (hJ.mono (by simp)))).to_iff
   cases g with
   | derivable =>
     exact imp_congr (hsat I (hπ.mono hI)) (hsat O (hπ.mono hO))
@@ -261,21 +251,20 @@ theorem semOutput_rename_iff {π : ℕ → ℕ} {I O : Instance} {b : Option ℤ
     exact forall_congr' fun v => imp_congr_right fun _ =>
       iff_congr (nonempty_solsLE_rename (hπ.mono hI) v) (nonempty_solsLE_rename (hπ.mono hO) v)
   | equienumerable =>
-    simp only [semOutput]
-    refine ⟨?_, fun ⟨P, Q, hP, hQ, hbij⟩ =>
-      ⟨P.map π, Q.map π, by simp [rename, hP], by simp [rename, hQ], fun v hv => ?_⟩⟩
-    · rintro ⟨P', Q', hP', hQ', hbij⟩
-      obtain ⟨P, hP, rfl⟩ := Option.map_eq_some_iff.1 hP'
-      obtain ⟨Q, hQ, rfl⟩ := Option.map_eq_some_iff.1 hQ'
-      refine ⟨P, Q, hP, hQ, fun v hv => ?_⟩
-      simpa only [image_solsLE_rename
-          (injOn_vars hπ hI fun _ hv => .inl (mem_allVars_of_preserved hP hv)),
-        image_solsLE_rename
-          (injOn_vars hπ hO fun _ hv => .inr (mem_allVars_of_preserved hQ hv))] using hbij v hv
-    · simpa only [image_solsLE_rename
-          (injOn_vars hπ hI fun _ hv => .inl (mem_allVars_of_preserved hP hv)),
-        image_solsLE_rename
-          (injOn_vars hπ hO fun _ hv => .inr (mem_allVars_of_preserved hQ hv))] using hbij v hv
+    have hp {J : Instance} {R : List ℕ} :
+        (J.rename π).preserved = some R ↔ ∃ P, J.preserved = some P ∧ P.map π = R :=
+      Option.map_eq_some_iff
+    have himg {P Q : List ℕ} (hP : I.preserved = some P) (hQ : O.preserved = some Q) (v : ℤ) :
+        (∃ f, Set.BijOn f (proj (P.map π) '' (I.rename π).solsLE v)
+          (proj (Q.map π) '' (O.rename π).solsLE v)) ↔
+            ∃ f, Set.BijOn f (proj P '' I.solsLE v) (proj Q '' O.solsLE v) := by
+      rw [image_solsLE_rename (injOn_vars hπ hI fun _ hv => .inl (mem_allVars_of_preserved hP hv)),
+        image_solsLE_rename (injOn_vars hπ hO fun _ hv => .inr (mem_allVars_of_preserved hQ hv))]
+    simp only [semOutput, hp]
+    exact ⟨fun ⟨_, _, ⟨P, hP, rfl⟩, ⟨Q, hQ, rfl⟩, h⟩ =>
+        ⟨P, Q, hP, hQ, fun v hv => (himg hP hQ v).1 (h v hv)⟩,
+      fun ⟨P, Q, hP, hQ, h⟩ =>
+        ⟨_, _, ⟨P, hP, rfl⟩, ⟨Q, hQ, rfl⟩, fun v hv => (himg hP hQ v).2 (h v hv)⟩⟩
 
 end Instance
 

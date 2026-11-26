@@ -67,15 +67,14 @@ noncomputable def gamma (params : Parameters) : ℝ := params.rate / params.delt
 @[simp] theorem inverseRate_pos (params : Parameters) : 0 < params.inverseRate :=
   dyadicSize_pos _
 
-theorem rate_pos (params : Parameters) : 0 < params.rate := by
-  exact one_div_pos.mpr (by exact_mod_cast params.inverseRate_pos)
+theorem rate_pos (params : Parameters) : 0 < params.rate :=
+  one_div_pos.mpr (Nat.cast_pos.mpr params.inverseRate_pos)
 
 theorem Valid.delta_pos {params : Parameters} (h : params.Valid) : 0 < params.delta :=
   div_pos (by exact_mod_cast h.1) (by exact_mod_cast params.denominator_pos)
 
-theorem Valid.delta_le_one {params : Parameters} (h : params.Valid) : params.delta ≤ 1 := by
-  apply (div_le_one (by exact_mod_cast params.denominator_pos : (0 : ℝ) < params.denominator)).mpr
-  exact_mod_cast h.2
+theorem Valid.delta_le_one {params : Parameters} (h : params.Valid) : params.delta ≤ 1 :=
+  (div_le_one (Nat.cast_pos.mpr params.denominator_pos)).mpr (Nat.cast_le.mpr h.2)
 
 theorem Valid.gamma_pos {params : Parameters} (h : params.Valid) : 0 < params.gamma :=
   div_pos params.rate_pos h.delta_pos
@@ -86,8 +85,7 @@ theorem Valid.gamma_mul_delta {params : Parameters} (h : params.Valid) :
 
 theorem Valid.inverse_delta {params : Parameters} (h : params.Valid) :
     1 ≤ params.denominator * params.delta := by
-  rw [delta, mul_div_cancel₀ _ (by exact_mod_cast params.denominator_pos.ne' :
-    (params.denominator : ℝ) ≠ 0)]
+  rw [delta, mul_div_cancel₀ _ (Nat.cast_ne_zero.mpr params.denominator_pos.ne')]
   exact_mod_cast h.1
 
 theorem Valid.inverse_gamma {params : Parameters} (h : params.Valid) :
@@ -104,18 +102,11 @@ theorem Valid.majority_precision {params : Parameters} (h : params.Valid) :
 /-- The executable sampling precision meets the density guard's tolerance. -/
 theorem Valid.shift_precision {params : Parameters} (h : params.Valid) :
     1 / (params.shiftPrecision : ℝ) ≤ params.delta * params.rate / 32 := by
-  have hd : (0 : ℝ) < params.denominator := by exact_mod_cast params.denominator_pos
-  have hr : (0 : ℝ) < params.inverseRate := by exact_mod_cast params.inverseRate_pos
-  apply (div_le_iff₀ (by
-    unfold shiftPrecision
-    push_cast
-    positivity : (0 : ℝ) < params.shiftPrecision)).mpr
-  have heq : params.delta * params.rate / 32 * params.shiftPrecision =
-      (params.densityNumerator : ℝ) := by
-    unfold delta rate shiftPrecision
-    push_cast
-    field_simp
-  rw [heq]
+  have hd : (0 : ℝ) < params.denominator := Nat.cast_pos.mpr params.denominator_pos
+  have hr : (0 : ℝ) < params.inverseRate := Nat.cast_pos.mpr params.inverseRate_pos
+  have hsp : (0 : ℝ) < params.shiftPrecision := by simp [shiftPrecision]
+  rw [div_le_iff₀ hsp, delta, rate, shiftPrecision]
+  push_cast; field_simp
   exact_mod_cast h.1
 
 /-- The integer clock pays for the initial potential, including equality at the boundary. -/
@@ -179,13 +170,12 @@ def Invariant (rounds : ℕ) (state : State) : Prop :=
 /-- Before any predictors, the density is full and the potential equals its initial budget. -/
 theorem invariant_initial (hparams : params.Valid) :
     Invariant source predict truth params 0 initial := by
-  simp only [Invariant, show initial.stopped = false from rfl, Bool.false_eq_true, ite_false,
-    margin_initial, show initial.threshold = 0 from rfl, Nat.cast_zero, mul_zero, zero_mul,
+  simp_rw [Invariant, margin_initial]
+  simp only [initial, Bool.false_eq_true, ite_false, Nat.cast_zero, mul_zero, zero_mul,
     sub_zero, add_zero]
-  refine ⟨?_, by simp⟩
-  have hdensity := density_antitone source params.rate_pos.le
-    (margin := fun _ => 0) (margin' := fun _ => -1) (by intro; norm_num)
-  exact hparams.delta_le_one.trans (by simpa using hdensity)
+  refine ⟨hparams.delta_le_one.trans ?_, by simp⟩
+  simpa using density_antitone source params.rate_pos.le (margin := fun _ => 0)
+    (margin' := fun _ => -1) (fun _ => by norm_num)
 
 /-- A valid stopping decision establishes the stopped branch for every subsequent round. -/
 theorem invariant_stop (rounds : ℕ) (state : State)
@@ -209,16 +199,13 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
     (hcorrelation : GoodPredictor source predict truth params (state.shift yes) code) :
     Invariant source predict truth params (rounds + 1)
       ((state.shift yes).add params.codeBound code) := by
-  have hinvariant := hstate
-  simp only [Invariant, hactive, Bool.false_eq_true, ite_false] at hinvariant
-  obtain ⟨hrestore, hpotential⟩ := hinvariant
+  obtain ⟨hrestore, hpotential⟩ : params.delta ≤ _ ∧ _ := by
+    simpa only [Invariant, hactive, Bool.false_eq_true, ite_false] using hstate
   let before := fun x => state.margin predict truth x - state.threshold
   let vote := fun x => signedVote (predict (code.take params.codeBound) x) (truth x)
   have hshift (x : α) : (state.shift yes).margin predict truth x - (state.shift yes).threshold =
       before x - if yes then 1 else 0 := by
-    rw [margin_shift]
-    change state.margin predict truth x - ((state.threshold + if yes then 1 else 0 : ℕ) : ℝ) = _
-    cases yes <;> simp [before, sub_sub]
+    cases yes <;> simp [before, margin, State.shift, sub_sub]
   have hnext (x : α) :
       ((state.shift yes).add params.codeBound code).margin predict truth x -
         ((state.shift yes).add params.codeBound code).threshold =
@@ -228,41 +215,26 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
     linarith [hshift x]
   have hdensity : params.delta ≤ density source params.rate
       (fun x => before x - if yes then 1 else 0) := by
-    cases yes
-    · simpa only [Bool.false_eq_true, ite_false, sub_zero] using hguard
-    · simpa only [ite_true] using hrestore
-  have hmass : 3 * params.delta / 8 ≤ (source.toOuterMeasure {x | before x ≤ 0}).toReal := by
-    refine hbelow.trans (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
-      (MeasureTheory.measure_mono ?_))
-    intro x hx
-    change state.margin predict truth x ≤ 0 at hx
-    change state.margin predict truth x - (state.threshold : ℝ) ≤ 0
-    linarith [Nat.cast_nonneg (α := ℝ) state.threshold]
+    cases yes <;> first | simpa using hguard | simpa using hrestore
+  have hmass : 3 * params.delta / 8 ≤ (source.toOuterMeasure {x | before x ≤ 0}).toReal :=
+    hbelow.trans <| ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
+      MeasureTheory.measure_mono fun x hx =>
+        sub_nonpos.mpr (hx.trans (Nat.cast_nonneg state.threshold))
   have hstep := step_progress source hparams.gamma_pos hparams.delta_pos hparams.delta_le_one
     before vote (fun _ => by simp [vote]) yes
     (by intro hy; subst yes; simpa only [ite_true, hparams.gamma_mul_delta] using hguard)
     (fun _ => hmass) (by simpa only [hparams.gamma_mul_delta] using hdensity)
     (by simpa only [GoodPredictor, hshift, hparams.gamma_mul_delta] using hcorrelation)
-  rw [hparams.gamma_mul_delta] at hstep
+  simp only [hparams.gamma_mul_delta, ← hnext] at hstep
   have hrestored := hdensity.trans (density_vote_shift_ge source params.rate_pos.le
     (fun x => before x - if yes then 1 else 0) vote
       (fun x => (abs_le.mp (by simp [vote] : |vote x| ≤ 1)).2))
   have hactiveNext : ((state.shift yes).add params.codeBound code).stopped = false := hactive
   simp only [Invariant, hactiveNext, Bool.false_eq_true, ite_false]
-  constructor
-  · simpa only [hnext] using hrestored
-  · have hnextPotential := (show averagePotential source params.rate
-        (fun x => ((state.shift yes).add params.codeBound code).margin predict truth x -
-          ((state.shift yes).add params.codeBound code).threshold) ≤
-        averagePotential source params.rate before + (if yes then params.delta else 0) -
-          params.gamma * params.delta ^ 2 / 8 from by simpa only [hnext] using hstep)
-    have hthreshold : (((state.shift yes).add params.codeBound code).threshold : ℝ) =
-        state.threshold + if yes then 1 else 0 := by cases yes <;> simp [shift, add]
-    refine hnextPotential.trans ?_
-    rw [hthreshold]
-    dsimp only [before]
-    push_cast
-    cases yes <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> linarith
+  refine ⟨by simpa only [hnext] using hrestored, hstep.trans ?_⟩
+  dsimp only [before]
+  cases yes <;> simp only [shift, add, Bool.false_eq_true, ite_false, ite_true,
+    Nat.cast_add, Nat.cast_one, Nat.cast_zero] <;> linarith
 
 /-- At the clock, the program has either a good majority predictor or a collection with large
 average signed margin on every dense soft set. The latter is the input to the clipped-vote step. -/
@@ -341,21 +313,12 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
     params.denominator_pos (by
       simpa only [Parameters.delta, Parameters.rate, Parameters.inverseRate, Nat.cast_one]
         using hparams.shift_precision)
-  by_cases hactive : state.stopped = true
-  · have hnext : State.Invariant (ProbComp.eval source) predict truth params
-        (rounds + 1) state := by
-      simpa only [State.Invariant, hactive, ite_true] using hstate
-    dsimp only [predict] at hnext
-    simp only [round, hactive, ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-      Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
-    positivity
-  · have hflag : state.stopped = false := by cases hs : state.stopped <;> simp_all
-    simp only [round, hflag, Bool.false_eq_true, ite_false, withVotes, Functor.map_map,
+  cases hflag : state.stopped
+  · simp only [round, hflag, Bool.false_eq_true, ite_false, withVotes, Functor.map_map,
       bind_map_left, ProbComp.eval_bind]
     refine (PMF.toOuterMeasure_bind_failure_toReal_le _ _ {stop | stopGuard stop} _
       (error := (1 / 2 : ℝ) ^ params.confidence + error) (by positivity) ?_).trans ?_
-    · intro stop _ hgoodStop
-      cases stop
+    · rintro (_ | _) _ hgoodStop
       · simp only [Bool.false_eq_true, ite_false, ProbComp.eval_bind]
         refine (PMF.toOuterMeasure_bind_failure_toReal_le _ _ {yes | shiftGuard yes} _
           herror ?_).trans ?_
@@ -366,34 +329,29 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
             simp only [State.margin_shift]
             cases yes
             · exact hgoodShift
-            · have hrestore := hstate
-              simp only [State.Invariant, hflag, Bool.false_eq_true, ite_false] at hrestore
+            · simp only [State.Invariant, hflag, Bool.false_eq_true, ite_false] at hstate
               simpa only [State.shift, ite_true, Nat.cast_add, Nat.cast_one,
-                sub_add_eq_sub_sub, predict] using hrestore.1
-          have hlearner := hlearn yes hdensity
+                sub_add_eq_sub_sub, predict] using hstate.1
           simp only [ProbComp.eval_pure]
-          change (((ProbComp.eval (learn (state.shift yes))).map
-            ((state.shift yes).add params.codeBound)).toOuterMeasure
-            {next | ¬ State.Invariant (ProbComp.eval source) predict truth params
-              (rounds + 1) next}).toReal ≤ error
-          rw [PMF.toOuterMeasure_map_apply]
-          refine (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
-            (MeasureTheory.measure_mono ?_)).trans hlearner
-          intro code hbad hgood
-          exact hbad (State.Invariant.shift_add _ _ _ _ hstate hparams hflag yes code
-            hgoodShift hgoodStop hgood)
+          rw [← Function.comp_def PMF.pure, PMF.bind_pure_comp, PMF.toOuterMeasure_map_apply]
+          exact (hlearn yes hdensity).trans' <|
+            ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
+              MeasureTheory.measure_mono fun code hbad hgood => hbad (State.Invariant.shift_add
+                _ _ _ _ hstate hparams hflag yes code hgoodShift hgoodStop hgood)
         · exact add_le_add (by simpa only [Set.compl_ofPred, Nat.cast_one, shiftGuard, votes,
             predict, State.margin, State.votes, Parameters.delta, Parameters.rate,
             Parameters.inverseRate] using hshift) le_rfl
-      · have hnext := State.invariant_stop (ProbComp.eval source) predict truth params
-          (rounds + 1) state hgoodStop
-        dsimp only [predict] at hnext
-        simp only [ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-          Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
+      · simp only [ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq,
+          State.invariant_stop _ _ _ _ (rounds + 1) state hgoodStop, not_true_eq_false, ite_false,
+          ENNReal.toReal_zero]
         positivity
     · exact (add_le_add (b := (1 / 2 : ℝ) ^ params.confidence) (by
         simpa only [Set.compl_ofPred, stopGuard, votes, predict, State.margin, State.votes,
           Parameters.delta] using hstop) le_rfl).trans_eq (by ring)
+  · simp only [State.Invariant, hflag, ite_true] at hstate
+    simp only [round, hflag, ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
+      Set.mem_ofPred_eq, State.Invariant, hstate, not_true_eq_false, ite_false, ENNReal.toReal_zero]
+    positivity
 
 variable (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error)
   (hlearn : ∀ state : State,
@@ -429,11 +387,10 @@ theorem run_sound :
       {state | ¬ State.Successful (ProbComp.eval source)
         (fun code x => evaluate code (observe x)) truth params state}).toReal ≤
       params.clock * (2 * (1 / 2 : ℝ) ^ params.confidence + error) := by
-  refine (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
-    (MeasureTheory.measure_mono ?_)).trans
-      (run_invariant source observe truth evaluate learn params hparams herror hlearn)
-  intro state hbad hgood
-  exact hbad (State.Invariant.successful _ _ _ _ hgood hparams)
+  exact (run_invariant source observe truth evaluate learn params hparams herror hlearn).trans' <|
+    ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
+      MeasureTheory.measure_mono fun _ hbad hgood =>
+        hbad (State.Invariant.successful _ _ _ _ hgood hparams)
 
 end Correctness
 

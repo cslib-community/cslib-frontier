@@ -154,15 +154,11 @@ theorem satisfiable_replaceGadgets_iff
     change srcSem F[i].rel (List.ofFn _) = true at hr
     rwa [scope_eq (fun v => τ (2 * v)) i hi] at hr
   · rintro ⟨σ, hσ⟩
-    have hex : ∀ (i : ℕ) (hi : i < F.length), ∃ b : Fin (gadgets F[i].rel).numAux → Bool,
-        (gadgets F[i].rel).body.eval sem
-          (Sum.elim (fun j => σ (F[i].scope.getD j.val 0)) b) = true := by
-      intro i hi
-      apply ((gadgets F[i].rel).correct _).mp
-      change srcSem F[i].rel (List.ofFn _) = true
-      rw [scope_eq]
-      exact (List.all_eq_true.mp hσ) F[i] (List.getElem_mem hi)
-    choose b hb using hex
+    choose b hb using fun (i : ℕ) (hi : i < F.length) =>
+      ((gadgets F[i].rel).correct (fun j => σ (F[i].scope.getD j.val 0))).mp
+        (show srcSem F[i].rel (List.ofFn _) = true by
+          rw [scope_eq]
+          exact (List.all_eq_true.mp hσ) F[i] (List.getElem_mem hi))
     let aux : ℕ → ℕ → Bool := fun i j =>
       if hi : i < F.length then
         if hj : j < (gadgets F[i].rel).numAux then b i hi ⟨j, hj⟩ else false
@@ -174,13 +170,11 @@ theorem satisfiable_replaceGadgets_iff
     have haux (j : Fin (gadgets F[i].rel).numAux) :
         τ (2 * (B * i + j.val) + 1) = b i hi j := by
       have hj : j.val < B := j.isLt.trans_le (hB _)
-      have hhalf : (2 * (B * i + j.val) + 1) / 2 = B * i + j.val := by
-        rw [Nat.mul_add_div (by decide : 0 < 2)]
-        rfl
+      have hhalf : (2 * (B * i + j.val) + 1) / 2 = B * i + j.val := by omega
       have hdiv : (B * i + j.val) / B = i := by
         rw [Nat.mul_add_div (Nat.zero_lt_of_lt hj), Nat.div_eq_of_lt hj, Nat.add_zero]
-      have hodd : (2 * (B * i + j.val) + 1) % 2 ≠ 0 := by simp
-      simp only [τ, ite_eq_right hodd, hhalf, hdiv, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt hj]
+      simp only [τ, ite_eq_right (by omega : (2 * (B * i + j.val) + 1) % 2 ≠ 0), hhalf, hdiv,
+        Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt hj]
       simp [aux, hi, j.isLt]
     simpa only [hfree, haux] using hb i hi
 

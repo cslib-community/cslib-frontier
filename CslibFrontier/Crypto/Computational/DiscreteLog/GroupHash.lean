@@ -175,7 +175,6 @@ theorem computableInPolyTime_validGroupHashInput {blockLen : F.Desc → ℕ}
       (fun p : ℕ × (F.Desc × List Bool) × List Bool =>
         F.validGroupHashInput blockLen p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair (encPair F.encDesc encBits) encBits)) encBool := by
-  have _ := hblock
   unfold validGroupHashInput
   polytime
 
@@ -186,7 +185,6 @@ theorem computableInPolyTime_groupHash {blockLen : F.Desc → ℕ}
     ComputableInPolyTime
       (fun p : (F.Desc × List Bool) × List Bool => F.groupHash blockLen p.1 p.2)
       (encPair (encPair F.encDesc encBits) encBits) encBits := by
-  have _ := hblock
   have _ := F.computableInPolyTime_encodePedersenCommit
   unfold groupHash
   polytime
@@ -255,7 +253,8 @@ theorem succProbability_collisionGameFor_groupHash_le_discreteLogGame
         (F.discreteLogGame setup (F.groupHashToDLAdversary blockLen adversary) n) := by
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   dsimp only [collisionGameFor, Game.withSetup, collisionExperiment, groupHashSetup,
-    discreteLogGame, groupHashToDLAdversary, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+    discreteLogGame, groupHashToDLAdversary,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   refine PMF.bind_apply_mono_on_support (setup n) true fun d hd =>
     PMF.bind_apply_mono_on_support _ true fun α _ =>
@@ -276,7 +275,6 @@ theorem isPPTOn_groupHashToDLAdversary {blockLen : F.Desc → ℕ}
     IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
       (fun p => F.groupHashToDLAdversary blockLen adversary p.1 p.2) := by
   unfold groupHashToDLAdversary
-  have _ := hblock
   exact hA.bind_with (ComputableInPolyTime.isPPTOn (by fun_prop))
 
 /-- **Collision resistance of the discrete-logarithm hash family under the discrete-logarithm
@@ -365,14 +363,11 @@ theorem multiGeneratorHash_extract_of_eq {ι : Type*} [Fintype ι] [DecidableEq 
       F.multiGeneratorHash d (fun i => αs i • F.generator d) ys) :
     αs j =
       (ys j - xs j)⁻¹ * ∑ i ∈ Finset.univ.erase j, (xs i - ys i) * αs i := by
-  have hsum := (F.multiGeneratorHash_smul_generator_eq_iff d αs xs ys).mp hcoll
-  have hdiff : ∑ i : ι, (xs i - ys i) * αs i = 0 := by
-    simp only [sub_mul, Finset.sum_sub_distrib, hsum, sub_self]
-  have hsplit :=
-    Finset.add_sum_erase Finset.univ (fun i => (xs i - ys i) * αs i) (Finset.mem_univ j)
-  rw [hdiff] at hsplit
-  have hmul : (ys j - xs j) * αs j = ∑ i ∈ Finset.univ.erase j, (xs i - ys i) * αs i := by
-    linear_combination -hsplit
-  rw [← hmul, inv_mul_cancel_left₀ (sub_ne_zero.mpr hj)]
+  have hsplit : (xs j - ys j) * αs j + ∑ i ∈ Finset.univ.erase j, (xs i - ys i) * αs i = 0 := by
+    rw [Finset.add_sum_erase Finset.univ (fun i => (xs i - ys i) * αs i) (Finset.mem_univ j)]
+    simp only [sub_mul, Finset.sum_sub_distrib,
+      (F.multiGeneratorHash_smul_generator_eq_iff d αs xs ys).mp hcoll, sub_self]
+  rw [eq_inv_mul_iff_mul_eq₀ (sub_ne_zero.mpr hj)]
+  linear_combination -hsplit
 
 end Cslib.Crypto.PrimeOrderGroupFamily

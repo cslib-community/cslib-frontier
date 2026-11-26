@@ -140,11 +140,10 @@ theorem eval_coeff_prod_parityFactorCleared [CommRing R] (I : Finset κ) (ℓ : 
     (Δ : Polynomial R) (A_i : κ → Polynomial R) (s : ℕ) (t : R) :
     ((∏ i ∈ I, parityFactorCleared ℓ Δ (A_i i)).coeff s).eval t =
       (∏ i ∈ I, parityFactorCleared ℓ (Δ.eval t) ((A_i i).eval t)).coeff s := by
-  let φ : Polynomial R →+* R := Polynomial.evalRingHom t
-  change φ ((∏ i ∈ I, parityFactorCleared ℓ Δ (A_i i)).coeff s) = _
+  change (Polynomial.evalRingHom t) _ = _
   rw [← Polynomial.coeff_map, Polynomial.map_prod]
-  refine congrArg (fun Q : Polynomial R => Q.coeff s) (prod_congr rfl fun i _ => ?_)
-  exact map_parityFactorCleared φ ℓ Δ (A_i i)
+  exact congrArg (·.coeff s)
+    (prod_congr rfl fun i _ => map_parityFactorCleared (Polynomial.evalRingHom t) ℓ Δ (A_i i))
 
 /-- When `Δ` has `natDegree = 0` and `A_i` has `natDegree ≤ d`, `parityBaseDigitCleared ℓ j Δ A_i`
 has `natDegree ≤ d`. -/
@@ -160,11 +159,10 @@ theorem natDegree_parityBaseDigitCleared_le [CommRing R] (ℓ j : ℕ) (Δ A_i :
 `natDegree ≤ 2 * d`. -/
 theorem natDegree_hPolyCleared_le [CommRing R] (Δ A_i : Polynomial R) {d : ℕ}
     (hΔ : Δ.natDegree = 0) (hA : A_i.natDegree ≤ d) :
-    (hPolyCleared Δ A_i).natDegree ≤ 2 * d := by
-  rw [hPolyCleared]
-  have hsub : (A_i - Δ).natDegree ≤ d :=
-    (Polynomial.natDegree_sub_le _ _).trans (max_le hA (by omega))
-  exact Polynomial.natDegree_mul_le.trans (by omega)
+    (hPolyCleared Δ A_i).natDegree ≤ 2 * d :=
+  Polynomial.natDegree_mul_le.trans <| by
+    have := (Polynomial.natDegree_sub_le A_i Δ).trans (max_le hA (by omega))
+    omega
 
 /-- When `Δ` has `natDegree = 0` and `A_i` has `natDegree ≤ d`, the `s`-th coefficient of
 `parityFactorCleared ℓ Δ A_i` has `natDegree ≤ d * (1 + 2 * s)`. -/
@@ -199,9 +197,7 @@ theorem natDegree_coeff_prod_parityFactorCleared_le [CommRing R] (I : Finset κ)
   classical
   induction I using Finset.induction_on with
   | empty =>
-    intro s
-    rw [prod_empty]
-    rcases s with _ | s <;> simp [Polynomial.coeff_one]
+    rintro (_ | s) <;> simp [Polynomial.coeff_one]
   | insert a I ha ih =>
     intro s
     rw [prod_insert ha, card_insert_of_notMem ha, Polynomial.coeff_mul]
@@ -224,9 +220,9 @@ theorem natDegree_coeff_prod_parityFactorCleared_le_of_lt [CommRing R] (I : Fins
     {ℓ s d : ℕ} (Δ : Polynomial R) (A_i : κ → Polynomial R) (hΔ : Δ.natDegree = 0)
     (hA : ∀ i ∈ I, (A_i i).natDegree ≤ d) (hs : s < ℓ) :
     ((∏ i ∈ I, parityFactorCleared ℓ Δ (A_i i)).coeff s).natDegree ≤
-      d * (#I + 2 * (ℓ - 1)) := by
-  refine (natDegree_coeff_prod_parityFactorCleared_le I ℓ Δ A_i hΔ hA s).trans ?_
-  exact Nat.mul_le_mul_left d (by omega)
+      d * (#I + 2 * (ℓ - 1)) :=
+  (natDegree_coeff_prod_parityFactorCleared_le I ℓ Δ A_i hΔ hA s).trans
+    (Nat.mul_le_mul_left d (by omega))
 
 /-! ### 2. Cleared-denominator monomials and equations: $T = 0$ evaluation, ring homogenization,
 and `natDegree` bounds (§5.3–5.4 & Appendix B.2) -/
@@ -245,11 +241,8 @@ theorem eval_zero_clearedMonomialPoly (d_den : ℤ) {k : ℕ} (θ : ι → Polyn
     {M : Finset ι} (x : ι → Bool) (hM : #M ≤ k)
     (hθ : ∀ v ∈ M, (θ v).eval 0 = d_den * bitVal ℤ (x v)) :
     (clearedMonomialPoly d_den k θ M).eval 0 = d_den ^ k * monomial ℤ M x := by
-  rw [eval_clearedMonomialPoly, monomial]
-  have hprod : (∏ v ∈ M, (θ v).eval 0) = d_den ^ #M * ∏ v ∈ M, bitVal ℤ (x v) := by
-    rw [← prod_const, ← prod_mul_distrib]
-    exact prod_congr rfl fun v hv => hθ v hv
-  rw [hprod, ← mul_assoc, ← pow_add, Nat.sub_add_cancel hM]
+  rw [eval_clearedMonomialPoly, monomial, prod_congr rfl hθ, prod_mul_distrib, prod_const,
+    ← mul_assoc, ← pow_add, Nat.sub_add_cancel hM]
 
 /-- **§5.3–5.4 ($T = 0$ evaluation of cleared equation polynomial)**: at `T = 0`, if every
 `M ∈ 𝓜` has `#M ≤ k` and every `θ v` (`v ∈ M`) evaluates to `d_den * bitVal ℤ (x v)`, then
@@ -270,13 +263,8 @@ theorem map_clearedMonomialPoly [CommRing R] (d_den : ℤ) {k : ℕ} (θ : ι �
     (clearedMonomialPoly d_den k θ M).map (Int.castRingHom R) =
       Polynomial.C ((d_den : R) ^ k) * univariateMonomialPoly R q M := by
   rw [clearedMonomialPoly, Polynomial.map_mul, Polynomial.map_C, eq_intCast, Int.cast_pow,
-    Polynomial.map_prod]
-  have hprod :
-      (∏ v ∈ M, (θ v).map (Int.castRingHom R)) =
-        Polynomial.C ((d_den : R) ^ #M) * univariateMonomialPoly R q M := by
-    rw [univariateMonomialPoly, Polynomial.C_pow, ← prod_const, ← prod_mul_distrib]
-    exact prod_congr rfl fun v hv => hq v hv
-  rw [hprod, ← mul_assoc, ← Polynomial.C_mul, ← pow_add, Nat.sub_add_cancel hM]
+    Polynomial.map_prod, prod_congr rfl hq, prod_mul_distrib, prod_const, ← Polynomial.C_pow,
+    ← mul_assoc, ← Polynomial.C_mul, ← pow_add, Nat.sub_add_cancel hM, univariateMonomialPoly]
 
 /-- **§5.4 (ring homogenization of cleared equation polynomial)**: mapping
 `clearedMonomialSumPoly d_den k θ 𝓜` into `R[X]` when `∀ M ∈ 𝓜, #M ≤ k` and
@@ -294,10 +282,8 @@ theorem map_clearedMonomialSumPoly [CommRing R] (d_den : ℤ) {k : ℕ} (θ : ι
 `natDegree ≤ #M * R_deg`. -/
 theorem natDegree_clearedMonomialPoly_le (d_den : ℤ) (k : ℕ) (θ : ι → Polynomial ℤ)
     {M : Finset ι} {R_deg : ℕ} (hθ : ∀ v ∈ M, (θ v).natDegree ≤ R_deg) :
-    (clearedMonomialPoly d_den k θ M).natDegree ≤ #M * R_deg := by
-  rw [clearedMonomialPoly]
-  exact (Polynomial.natDegree_C_mul_le _ _).trans
-    (natDegree_univariateMonomialPoly_le le_rfl hθ)
+    (clearedMonomialPoly d_den k θ M).natDegree ≤ #M * R_deg :=
+  (Polynomial.natDegree_C_mul_le _ _).trans (natDegree_univariateMonomialPoly_le le_rfl hθ)
 
 /-- If every `M ∈ 𝓜` has `#M ≤ k` and every `θ v` (`v ∈ M`) has `natDegree ≤ R_deg`, then
 `clearedMonomialSumPoly d_den k θ 𝓜` has `natDegree ≤ k * R_deg`. -/
@@ -378,13 +364,13 @@ theorem natDegree_univariateClearedParityCoord_le [Fintype ι] [DecidableEq ι] 
     (hθ : ∀ x : ι → Bool, ∀ i ∈ I, ∀ M ∈ P i, ∀ v ∈ M, (θ x i v).natDegree ≤ R_deg)
     (hs : s < ℓ) :
     (univariateClearedParityCoord I P d_den k ℓ θ s).natDegree ≤
-      (k * R_deg) * (#I + 2 * (ℓ - 1)) := by
-  rw [univariateClearedParityCoord_eq_sum]
-  exact Polynomial.natDegree_sum_le_of_forall_le _ _ fun x _ =>
-    natDegree_coeff_prod_parityFactorCleared_le_of_lt I (Polynomial.C (d_den ^ k))
-      (fun i => clearedMonomialSumPoly d_den k (θ x i) (P i))
-      (Polynomial.natDegree_C (d_den ^ k))
-      (fun i hi => natDegree_clearedMonomialSumPoly_le d_den (θ x i) (hk i hi) (hθ x i hi)) hs
+      (k * R_deg) * (#I + 2 * (ℓ - 1)) :=
+  univariateClearedParityCoord_eq_sum I P d_den k ℓ θ s ▸
+    Polynomial.natDegree_sum_le_of_forall_le _ _ fun x _ =>
+      natDegree_coeff_prod_parityFactorCleared_le_of_lt I (Polynomial.C (d_den ^ k))
+        (fun i => clearedMonomialSumPoly d_den k (θ x i) (P i))
+        (Polynomial.natDegree_C (d_den ^ k))
+        (fun i hi => natDegree_clearedMonomialSumPoly_le d_den (θ x i) (hk i hi) (hθ x i hi)) hs
 
 /-- **Equation (5.5a) (cleared-denominator truncated-sum `natDegree` bound)**: under the same
 hypotheses, `univariateClearedParityTruncatedSum I P d_den k ℓ θ` has
@@ -412,25 +398,15 @@ theorem map_univariateClearedParityCoord [Fintype ι] [DecidableEq ι] [CommRing
     (univariateClearedParityCoord I P d_den k ℓ θ s).map (Int.castRingHom R) =
       Polynomial.C (clearedProductDenom d_den k ℓ #I : R) * univariateParityCoord I P ℓ q s := by
   let φ : Polynomial ℤ →+* Polynomial R := Polynomial.mapRingHom (Int.castRingHom R)
+  have hC : φ (Polynomial.C (d_den ^ k)) = Polynomial.C ((d_den : R) ^ k) := by simp [φ]
   change φ (univariateClearedParityCoord I P d_den k ℓ θ s) = _
   rw [univariateClearedParityCoord_eq_sum, univariateParityCoord_eq_sum, map_sum, mul_sum]
   refine sum_congr rfl fun x _ => ?_
-  rw [← Polynomial.coeff_map, Polynomial.map_prod]
-  have hprod :
-      (∏ i ∈ I,
-        (parityFactorCleared ℓ (Polynomial.C (d_den ^ k))
-          (clearedMonomialSumPoly d_den k (θ x i) (P i))).map φ) =
-        ∏ i ∈ I,
-          parityFactorCleared ℓ (Polynomial.C ((d_den : R) ^ k))
-            (Polynomial.C ((d_den : R) ^ k) * univariateMonomialSumPoly R (q x i) (P i)) := by
-    refine prod_congr rfl fun i hi => ?_
-    rw [map_parityFactorCleared]
-    congr 1
-    · change (Polynomial.C (d_den ^ k)).map (Int.castRingHom R) = _
-      rw [Polynomial.map_C, eq_intCast, Int.cast_pow]
-    · exact map_clearedMonomialSumPoly d_den (θ x i) (q x i) (hk i hi) (hq x i hi)
-  rw [hprod, prod_parityFactorCleared_mul I hℓ (Polynomial.C ((d_den : R) ^ k))
-    (fun i => univariateMonomialSumPoly R (q x i) (P i)), Polynomial.coeff_C_mul]
+  have hprod := prod_congr (rfl : I = I) fun i hi => (map_parityFactorCleared φ ℓ _ _).trans
+    (congrArg₂ _ hC (map_clearedMonomialSumPoly d_den (θ x i) (q x i) (hk i hi) (hq x i hi)))
+  rw [← Polynomial.coeff_map, Polynomial.map_prod, hprod,
+    prod_parityFactorCleared_mul I hℓ (Polynomial.C ((d_den : R) ^ k))
+      (fun i => univariateMonomialSumPoly R (q x i) (P i)), Polynomial.coeff_C_mul]
   congr 1
   simp only [clearedProductDenom, Int.cast_pow, Polynomial.C_pow]
 
@@ -514,16 +490,10 @@ theorem eval_zero_univariateClearedParityCoord [Fintype ι] [DecidableEq ι] (I 
           (∏ i ∈ I, Polynomial.parityFactor ℓ (monomialSum ℤ (P i) x)).coeff s := by
   rw [univariateClearedParityCoord_eq_sum, Polynomial.eval_finsetSum, mul_sum]
   refine sum_congr rfl fun x _ => ?_
-  rw [eval_coeff_prod_parityFactorCleared, Polynomial.eval_C]
-  have hprod :
-      (∏ i ∈ I,
-        parityFactorCleared ℓ (d_den ^ k)
-          ((clearedMonomialSumPoly d_den k (θ x i) (P i)).eval 0)) =
-        ∏ i ∈ I,
-          parityFactorCleared ℓ (d_den ^ k) (d_den ^ k * monomialSum ℤ (P i) x) := by
-    refine prod_congr rfl fun i hi => ?_
-    rw [eval_zero_clearedMonomialSumPoly d_den (θ x i) x (hk i hi) (hθ x i hi)]
-  rw [hprod, prod_parityFactorCleared_mul I hℓ (d_den ^ k) (fun i => monomialSum ℤ (P i) x),
+  have hprod := prod_congr (rfl : I = I) fun i hi => congrArg (parityFactorCleared ℓ (d_den ^ k))
+    (eval_zero_clearedMonomialSumPoly d_den (θ x i) x (hk i hi) (hθ x i hi))
+  rw [eval_coeff_prod_parityFactorCleared, Polynomial.eval_C, hprod,
+    prod_parityFactorCleared_mul I hℓ (d_den ^ k) (fun i => monomialSum ℤ (P i) x),
     Polynomial.coeff_C_mul, clearedProductDenom]
 
 /-- **§5.4 & Appendix B.3 (exact integer factorization of $S_\ell(\tilde{H})(0)$ at $T = 0$)**:
@@ -589,8 +559,8 @@ theorem emod_sum_ediv_eval_zero_univariateClearedParityCoord_eq_commonZeroCount
       (univariateClearedParityCoord I P d_den k ℓ θ s).eval 0 /
         clearedProductDenom d_den k ℓ #I) % ((2 : ℤ) ^ ℓ) =
       commonZeroCount I P := by
-  have hℓ1 : 1 ≤ ℓ := by omega
-  rw [sum_congr rfl fun s _ => ediv_eval_zero_univariateClearedParityCoord I P hd hℓ1 θ hk hθ s,
+  rw [sum_congr rfl fun s _ =>
+        ediv_eval_zero_univariateClearedParityCoord I P hd (Nat.one_le_of_lt hℓ) θ hk hθ s,
     sum_comm]
   exact emod_sum_sumCoeffsBelow_prod_parityFactor_eq_commonZeroCount I P hℓ
 
@@ -608,8 +578,7 @@ theorem emod_ediv_eval_zero_univariateClearedParityTruncatedSum_eq_commonZeroCou
     ((univariateClearedParityTruncatedSum I P d_den k ℓ θ).eval 0 /
       clearedProductDenom d_den k ℓ #I) % ((2 : ℤ) ^ ℓ) =
       commonZeroCount I P := by
-  have hℓ1 : 1 ≤ ℓ := by omega
-  rw [eval_zero_univariateClearedParityTruncatedSum I P d_den hℓ1 θ hk hθ,
+  rw [eval_zero_univariateClearedParityTruncatedSum I P d_den (Nat.one_le_of_lt hℓ) θ hk hθ,
     Int.mul_ediv_cancel_left _ (clearedProductDenom_ne_zero hd k ℓ #I)]
   exact emod_sum_sumCoeffsBelow_prod_parityFactor_eq_commonZeroCount I P hℓ
 
@@ -631,17 +600,13 @@ theorem emod_sum_cramer_ediv_eq_commonZeroCount [Fintype ι] [DecidableEq ι] (I
       N_H s = D_H * (univariateClearedParityCoord I P d_den k ℓ θ s).eval 0) :
     (∑ s ∈ range ℓ, N_H s / (clearedProductDenom d_den k ℓ #I * D_H)) % ((2 : ℤ) ^ ℓ) =
       commonZeroCount I P := by
-  have hℓ1 : 1 ≤ ℓ := by omega
-  have hcongr : ∀ s ∈ range ℓ,
-      N_H s / (clearedProductDenom d_den k ℓ #I * D_H) =
-        (univariateClearedParityCoord I P d_den k ℓ θ s).eval 0 /
-          clearedProductDenom d_den k ℓ #I := fun s hs => by
-    rw [hcramer s hs, eval_zero_univariateClearedParityCoord I P d_den hℓ1 θ hk hθ s,
-      ← mul_assoc, mul_comm D_H,
-      Int.mul_ediv_cancel_left _ (mul_ne_zero (clearedProductDenom_ne_zero hd k ℓ #I) hDH),
-      Int.mul_ediv_cancel_left _ (clearedProductDenom_ne_zero hd k ℓ #I)]
-  rw [sum_congr rfl hcongr]
-  exact emod_sum_ediv_eval_zero_univariateClearedParityCoord_eq_commonZeroCount I P hd hℓ θ hk hθ
+  rw [← emod_sum_ediv_eval_zero_univariateClearedParityCoord_eq_commonZeroCount I P hd hℓ θ hk hθ]
+  refine congrArg (· % _) (sum_congr rfl fun s hs => ?_)
+  rw [hcramer s hs,
+    eval_zero_univariateClearedParityCoord I P d_den (Nat.one_le_of_lt hℓ) θ hk hθ s,
+    ← mul_assoc, mul_comm D_H,
+    Int.mul_ediv_cancel_left _ (mul_ne_zero (clearedProductDenom_ne_zero hd k ℓ #I) hDH),
+    Int.mul_ediv_cancel_left _ (clearedProductDenom_ne_zero hd k ℓ #I)]
 
 /-- **§5.5 & Appendix B.3 (branch-summed exact integer division recovery at shared precision
 $\ell = n + 1$)**: summing the branch modular residues of
@@ -665,16 +630,10 @@ theorem commonZeroCount_eq_sum_branch_emod_ediv_cleared {ι' : Type*} [Fintype �
               ((2 : ℤ) ^ branchPrecision (Fintype.card ι)) := by
   rw [commonZeroCount_eq_sum_relabelRestrictedMonomials S e I P, Nat.cast_sum]
   refine sum_congr rfl fun b hb => ?_
-  have hlt : Fintype.card ι' < branchPrecision (Fintype.card ι) := by
-    have hle : Fintype.card ι' ≤ Fintype.card ι := by
-      rw [← Fintype.card_congr e, Fintype.card_coe]
-      exact card_le_univ _
-    rw [branchPrecision]
-    omega
-  have hk_branch : ∀ i ∈ I, ∀ M ∈ relabelRestrictedMonomials S e b (P i), #M ≤ k :=
-    fun i hi M hM => card_mem_relabelRestrictedMonomials_le (hk i hi) M hM
   exact (emod_ediv_eval_zero_univariateClearedParityTruncatedSum_eq_commonZeroCount I
-    (fun i => relabelRestrictedMonomials S e b (P i)) hd hlt (θ b) hk_branch (hθ b hb)).symm
+    (fun i => relabelRestrictedMonomials S e b (P i)) hd
+    (Fintype.card_congr e ▸ Fintype.card_coe _ ▸ Nat.lt_succ_of_le (card_le_univ _)) (θ b)
+    (fun i hi => card_mem_relabelRestrictedMonomials_le (hk i hi)) (hθ b hb)).symm
 
 /-! ### 4. Bivariate `ℓ₁`-norm bounds for cleared parity products and coordinates
 (Appendix B.2) -/
@@ -687,20 +646,16 @@ theorem bivariateCoeffNorm1_parityFactorCleared_le (ℓ : ℕ) (Δ : ℤ)
     (hE : ∀ s < ℓ, (Polynomial.parityBaseDigit ℓ s).coeffNorm1 ≤ E_ℓ) :
     (parityFactorCleared ℓ (Polynomial.C Δ) A_i).bivariateCoeffNorm1 ≤
       ℓ * E_ℓ * (B + Δ.natAbs) ^ (2 * ℓ - 1) := by
-  have hsub : (parityFactorCleared ℓ (Polynomial.C Δ) A_i).support ⊆ range ℓ := by
-    intro s hs
-    rw [Polynomial.mem_support_iff, coeff_parityFactorCleared] at hs
-    by_contra hns
-    rw [mem_range] at hns
-    exact hs (ite_eq_right hns)
+  have hsub : (parityFactorCleared ℓ (Polynomial.C Δ) A_i).support ⊆ range ℓ := fun s hs => by
+    simp only [Polynomial.mem_support_iff, coeff_parityFactorCleared, ne_eq, ite_eq_right_iff,
+      Classical.not_imp] at hs
+    exact mem_range.2 hs.1
   rw [Polynomial.bivariateCoeffNorm1_eq_sum_of_support_subset hsub]
   calc
     (∑ s ∈ range ℓ, ((parityFactorCleared ℓ (Polynomial.C Δ) A_i).coeff s).coeffNorm1)
-      ≤ ∑ _s ∈ range ℓ, E_ℓ * (B + Δ.natAbs) ^ (2 * ℓ - 1) := by
-        refine sum_le_sum fun s hs => ?_
-        rw [mem_range] at hs
-        exact (coeffNorm1_coeff_parityFactorCleared_le ℓ Δ hA s).trans
-          (Nat.mul_le_mul_right _ (hE s hs))
+      ≤ ∑ _s ∈ range ℓ, E_ℓ * (B + Δ.natAbs) ^ (2 * ℓ - 1) :=
+        sum_le_sum fun s hs => (coeffNorm1_coeff_parityFactorCleared_le ℓ Δ hA s).trans
+          (Nat.mul_le_mul_right _ (hE s (mem_range.1 hs)))
     _ = ℓ * E_ℓ * (B + Δ.natAbs) ^ (2 * ℓ - 1) := by
         rw [sum_const, card_range, smul_eq_mul, ← mul_assoc]
 

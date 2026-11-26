@@ -71,12 +71,9 @@ def functionGraph (f : ι → β) : Finset (ι × β) :=
 first. -/
 @[simp]
 theorem mem_functionGraph {f : ι → β} {x : ι × β} : x ∈ functionGraph f ↔ f x.1 = x.2 := by
-  constructor
-  · intro hx
-    obtain ⟨i, -, rfl⟩ := mem_map.1 hx
-    rfl
-  · intro h
-    exact mem_map.2 ⟨x.1, mem_univ _, Prod.ext rfl h⟩
+  refine ⟨fun hx => ?_, fun h => mem_map.2 ⟨x.1, mem_univ _, Prod.ext rfl h⟩⟩
+  obtain ⟨_, -, rfl⟩ := mem_map.1 hx
+  rfl
 
 /-- The graph of a function on `ι` has `|ι|` elements. -/
 @[simp]
@@ -147,11 +144,10 @@ theorem exists_card_eq_pow_not_containsSunflower (p w : ℕ) (hp : 2 ≤ p) :
     ∃ F : Finset (Finset (Fin w × Fin (p - 1))),
       #F = (p - 1) ^ w ∧ (∀ s ∈ F, #s = w) ∧ ¬ ContainsSunflower p F := by
   have : Nonempty (Fin (p - 1)) := ⟨⟨0, by omega⟩⟩
-  refine ⟨graphFamily (Fin w) (Fin (p - 1)), ?_, fun s hs => ?_, ?_⟩
-  · rw [card_graphFamily, Fintype.card_fin, Fintype.card_fin]
-  · rw [card_of_mem_graphFamily hs, Fintype.card_fin]
-  · have h := not_containsSunflower_graphFamily (ι := Fin w) (β := Fin (p - 1))
-    rwa [Fintype.card_fin, Nat.sub_add_cancel (by omega)] at h
+  refine ⟨graphFamily (Fin w) (Fin (p - 1)), by simp [card_graphFamily],
+    fun s hs => by simp [card_of_mem_graphFamily hs], ?_⟩
+  simpa [Nat.sub_add_cancel (by omega : 1 ≤ p)] using
+    not_containsSunflower_graphFamily (ι := Fin w) (β := Fin (p - 1))
 
 /-! ### Sets of size at most one -/
 

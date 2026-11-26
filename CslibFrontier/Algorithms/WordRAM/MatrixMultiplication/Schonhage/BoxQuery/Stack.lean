@@ -77,13 +77,9 @@ theorem exec_push {w F n k c u e p : ℕ} (x : Data registers)
     WordStack.pushWords_exec Reg.stack Reg.top Reg.cursor Reg.five BoxTable.Reg.one pushFields x
       (by decide) (by decide) (by decide) (by decide) hF hn h5 h1 (hfit.of_le (by omega))
   have hwords : (fun i => x.regs (pushFields i)) = ![k, c, u, e, p] := by
-    funext i
-    match i with
-    | 0 => exact hk
-    | 1 => exact hc
-    | 2 => exact hu
-    | 3 => exact he
-    | 4 => exact hp
+    funext ⟨i, hi⟩
+    rcases i with _ | _ | _ | _ | _ | _
+    exacts [hk, hc, hu, he, hp, by omega]
   rw [hwords] at hymem
   exact ⟨y, hy.within, hytop, hymem, hyregs⟩
 

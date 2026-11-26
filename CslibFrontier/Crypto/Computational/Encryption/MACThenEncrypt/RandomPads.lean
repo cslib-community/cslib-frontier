@@ -220,12 +220,10 @@ private theorem mteFaithfulOracle_step_lazyProgramHandler (M : MACScheme) (n m :
         (fun (a, s') => (a, (⟨s'.1, s'.2⟩ : MteState))) =
       mteFaithfulOracle M n m km request ⟨s.1, s.2⟩ := by
   rcases s with ⟨cache, history⟩
-  unfold mteFaithfulOracle RandomOracle.lazyProgramHandler
-  by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
+  cases hlen : request.2.length == n <;>
+    simp [mteFaithfulOracle, RandomOracle.lazyProgramHandler, hlen, mteCoins, mteFinish,
       Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.map, Function.comp_def, PMF.pure_bind]
-  · simp [hlen]
+      PMF.map, Function.comp_def]
 
 /-- Game 1 represents the programming channel of `RandomOracle.overwriteProgramHandler`. -/
 private theorem mteForgetfulOracle_step_overwriteProgramHandler (M : MACScheme) (n m : ℕ)
@@ -238,12 +236,10 @@ private theorem mteForgetfulOracle_step_overwriteProgramHandler (M : MACScheme) 
         (fun (a, s') => (a, (⟨s'.1, s'.2⟩ : MteState))) =
       mteForgetfulOracle M n m km request ⟨s.1, s.2⟩ := by
   rcases s with ⟨cache, history⟩
-  unfold mteForgetfulOracle RandomOracle.overwriteProgramHandler
-  by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
+  cases hlen : request.2.length == n <;>
+    simp [mteForgetfulOracle, RandomOracle.overwriteProgramHandler, hlen, mteCoins, mteFinish,
       Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.map, Function.comp_def, PMF.pure_bind]
-  · simp [hlen]
+      PMF.map, Function.comp_def]
 
 /-- Replacing the lazily sampled random function by a fresh pad for every query raises the
 probability that a final check accepts by at most `Q.choose 2 / 2 ^ m`: an instance of
@@ -261,12 +257,8 @@ private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List
     fun q => ProbOracleComp.query (spec := OracleSpec.sum (fun _ : Unit × List Bool => List Bool)
       (fun _ : List Bool => List Bool)) (.inl q)
   have hmin : ∀ req : Unit × List Bool, (req.2.length == n) = true → ∀ r,
-      ((mteCoins M m km req).map fun coins => coins.2) r ≤ (1 : ℝ≥0∞) / 2 ^ m := by
-    intro req _ r
-    have hmap : ((mteCoins M m km req).map fun coins => coins.2) = BitString.uniformList m := by
-      simp only [mteCoins, PMF.map_bind, PMF.map_comp, Function.comp_def]
-      exact (congrArg _ (funext fun _ => PMF.map_id _)).trans (PMF.bind_const _ _)
-    rw [hmap]
+      ((mteCoins M m km req).map fun coins => coins.2) r ≤ (1 : ℝ≥0∞) / 2 ^ m := fun req _ r => by
+    simp only [mteCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.map_id', PMF.bind_const]
     exact BitString.uniformList_apply_le m r
   have hqS : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
       (ProbOracleComp.simulate embed program) Q :=
@@ -299,9 +291,8 @@ private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List
       (mteFaithfulOracle_step_lazyProgramHandler M n m km) program ([], []),
     ProbOracleComp.runWith_map_state _ _ (fun s => (⟨s.1, s.2⟩ : MteState))
       (mteForgetfulOracle_step_overwriteProgramHandler M n m km) program ([], [])] at hcloseState
-  have h := (hcloseState.bind_left next) {true}
-  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
-  simpa only [List.length_nil, Nat.mul_zero, Nat.zero_add] using h
+  simpa only [PMF.toOuterMeasure_apply_singleton, List.length_nil, Nat.mul_zero, Nat.zero_add]
+    using (hcloseState.bind_left next) {true}
 
 /-! ## The PRF step -/
 
@@ -354,33 +345,28 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
       refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
       refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
       have hrLen : r.length = ptLen n := BitString.length_of_mem_support_uniformList hr
-      have hpadLen : (family ke r).length = ptLen n := by
-        rw [hlen ke r (by rw [hrLen, hkeLen]), hkeLen]
+      have hpadLen := (hlen ke r (hrLen.trans hkeLen.symm)).trans hkeLen
       simp [prfOracle, hrLen, List.take_of_length_le hpadLen.le]
     · simp [hmsg, runWith_norm, pmf_norm]
   rw [horacle]
   refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
   dsimp only [macThenEncrypt, prfCipher]
   rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-  by_cases hfresh : (!out.2.contains out.1) = true
-  · by_cases hlenCt : (out.1.length == 2 * ptLen n) = true
-    · have htakeLen : (out.1.take (ptLen n)).length = ptLen n := by
-        rw [List.length_take, beq_iff_eq.mp hlenCt]; omega
-      have hpadLen : (family ke (out.1.take (ptLen n))).length = ptLen n := by
-        rw [hlen _ _ (by rw [htakeLen, hkeLen]), hkeLen]
-      simp only [runWith_norm, pmf_norm, prfOracle, htakeLen, ↓reduceIte,
-        List.take_of_length_le hpadLen.le, hfresh, hlenCt, Bool.true_and, Option.elim,
-        mtePlaintextValid, hmsgLen]
-      congr 1
-      split_ifs with h
-      · rw [h]; rfl
-      · rw [Bool.not_eq_true] at h; rw [h]; rfl
-    · have hlenCt' : (out.1.length == 2 * ptLen n) = false := (Bool.not_eq_true _).mp hlenCt
-      simp only [hlenCt', Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh,
-        Bool.true_and, Option.elim, Option.isSome_none]
-  · have hfresh' : (!out.2.contains out.1) = false := (Bool.not_eq_true _).mp hfresh
-    simp only [Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh',
-      Bool.false_and]
+  by_cases hcond : (!out.2.contains out.1 && out.1.length == 2 * ptLen n) = true
+  · obtain ⟨hfresh, hlenCt⟩ := Bool.and_eq_true_iff.mp hcond
+    have htakeLen : (out.1.take (ptLen n)).length = ptLen n := by
+      rw [List.length_take, beq_iff_eq.mp hlenCt]; omega
+    have hpadLen := (hlen _ _ (htakeLen.trans hkeLen.symm)).trans hkeLen
+    simp only [runWith_norm, pmf_norm, prfOracle, htakeLen, ↓reduceIte,
+      List.take_of_length_le hpadLen.le, hfresh, hlenCt, Bool.true_and, Option.elim,
+      mtePlaintextValid, hmsgLen]
+    congr 1
+    split_ifs with h
+    exacts [h, Bool.eq_false_iff.mpr h]
+  · simp only [hcond, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
+    rcases Bool.and_eq_false_iff.mp (Bool.eq_false_iff.mpr hcond) with hfresh | hlenCt
+    · simp only [hfresh, Bool.false_and]
+    · simp [hlenCt, Option.elim]
 
 /-- The ideal PRF game of `mteCIToPrfDistinguisher` is the ciphertext-integrity game over a lazily
 sampled random function. -/
@@ -418,18 +404,14 @@ private theorem eval_prfIdealGame_mteCIToPrfDistinguisher (M : MACScheme) (ptLen
         rfl
       · simp [hmsg, runWith_norm, pmf_norm])
     (adversary n []) {}
-  rw [show (([] : List (List Bool)), ([] : List (List Bool × List Bool))) =
-      (fun st : MteState => (st.history.map (MteRec.ct (ptLen n)), st.cache)) {} from rfl,
-    ← hsim, PMF.bind_map]
-  refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
-  obtain ⟨ct, cache, hist⟩ := out
+  erw [← hsim, PMF.bind_map]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨ct, cache, hist⟩ _ => ?_
   unfold mteIdealFinal
   dsimp only [Function.comp_apply]
   by_cases hcond :
       (!(hist.map (MteRec.ct (ptLen n))).contains ct && ct.length == 2 * ptLen n) = true
-  · have hlenCt : ct.length = 2 * ptLen n := beq_iff_eq.mp (Bool.and_eq_true_iff.mp hcond).2
-    have htakeLen : (ct.take (ptLen n)).length = ptLen n := by
-      rw [List.length_take, hlenCt]; omega
+  · have htakeLen : (ct.take (ptLen n)).length = ptLen n := by
+      rw [List.length_take, beq_iff_eq.mp (Bool.and_eq_true_iff.mp hcond).2]; omega
     simp only [hcond, ↓reduceIte, runWith_norm, pmf_norm, cachedRandomFunctionOracle,
       cachedSamplerOracle, htakeLen, beq_self_eq_true, ProbComp.eval_memoize,
       BitString.eval_sampleList]
@@ -482,9 +464,8 @@ theorem eval_ciGame_macThenEncrypt_prfCipher_le_freshPads
     rw [eval_prfIdealGame_mteCIToPrfDistinguisher M ptLen hmono adversary n]
     exact PMF.bind_apply_le_add_const_on_support _ true fun km _ =>
       mteFaithful_bind_apply_le M n (ptLen n) km hq (mteIdealFinal M n (ptLen n) km)
-  refine ((Game.apply_true_le_of_advantage_le le_rfl).1.trans
-    (add_le_add hideal le_rfl)).trans (le_of_eq ?_)
-  ring
+  exact ((Game.apply_true_le_of_advantage_le le_rfl).1.trans
+    (add_le_add hideal le_rfl)).trans_eq (by ring)
 
 /-! ## Efficiency of `B_prf` -/
 
@@ -503,8 +484,7 @@ private theorem isOraclePPTOn_mteCIToPrfHandler (M : MACScheme) (ptLen : ℕ →
       (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
         mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1.1) p.1.1.1 p.1.2 p.2.1
           p.2.2) := by
-  have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
-    GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
+  have hparam := GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
   ppt [mteCIToPrfHandler]
 
 private theorem isOraclePPTOn_mteCIToPrfPost (M : MACScheme) (ptLen : ℕ → ℕ)
@@ -519,8 +499,7 @@ private theorem isOraclePPTOn_mteCIToPrfPost (M : MACScheme) (ptLen : ℕ → �
             (List.zipWith xor pad (q.2.1.drop q.1.1.1)))
         else
           pure false) := by
-  have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
-    GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
+  have hparam := GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
   have hvalid := computableInPolyTime_mtePlaintextValid M
   ppt
 
@@ -531,10 +510,9 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
     (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
     {adversary : CIAdversary} (hadversary : IsOraclePPT encBits adversary) :
     IsOraclePPT encBool (mteCIToPrfDistinguisher M ptLen adversary) := by
-  have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
-    GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
-  let EStateCaller := encPair (encPair encUnary encBits) encBits
-  have hrun : IsOraclePPTOn (Operation := Unit) EStateCaller (encPair encBits (encList encBits))
+  have hparam := GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
+  have hrun : IsOraclePPTOn (Operation := Unit)
+      (encPair (encPair encUnary encBits) encBits) (encPair encBits (encList encBits))
       (fun p : (ℕ × List Bool) × List Bool =>
         (OracleComp.interpret
           (OracleComp.sumHandler
@@ -542,16 +520,12 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
             (mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2))
           (adversary (GeneratorReindex.parameter ptLen p.1.1) [])).run []) := by
     apply hadversary.run_interpret_preprocess_open
-      (input := EStateCaller)
-      (handler := fun p : (ℕ × List Bool) × List Bool =>
-        mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2)
-      (prepare := fun p : (ℕ × List Bool) × List Bool =>
-        (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
-      (initial := fun _ => ([] : List (List Bool)))
-      (resources := fun p _ => 4 * p.1.1 + 2)
-      (by dsimp only [EStateCaller]; fun_prop) (isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly)
-      (ComputableInPolyTime.const []) (fun _ _ => True) (fun _ => trivial)
-      (by dsimp only [EStateCaller]; fun_prop)
+      (input := encPair (encPair encUnary encBits) encBits)
+      (handler := fun p => mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2)
+      (prepare := fun p => (GeneratorReindex.parameter ptLen p.1.1, []))
+      (initial := fun _ => []) (resources := fun p _ => 4 * p.1.1 + 2) (by fun_prop)
+      (isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly) (.const [])
+      (fun _ _ => True) (fun _ => trivial) (by fun_prop)
     intro p request log _ result hresult
     unfold mteCIToPrfHandler at hresult
     dsimp only at hresult
@@ -563,12 +537,10 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
       obtain ⟨pad, hpad, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawPad, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hpad
       cases OracleComp.eq_of_mem_supportWith_pure hresult
-      have hpadTake : (List.take p.1.1 rawPad).length ≤ p.1.1 := List.length_take_le _ _
       refine ⟨trivial, ?_, ?_⟩
-      · simp only [List.length_append, List.length_zipWith, hrLen]
-        lia
+      · simp only [List.length_append, List.length_zipWith, List.length_take, hrLen]; omega
       · simp only [encList_cons, List.length_append, length_frame, encBits_apply,
-          List.length_zipWith, hrLen]
+          List.length_zipWith, List.length_take, hrLen]
         lia
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩

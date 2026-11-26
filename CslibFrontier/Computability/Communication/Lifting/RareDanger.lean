@@ -151,17 +151,14 @@ theorem card_le_two_mul_card_safe_of_eligible_budget [NeZero m]
     (hbudget : ∑ w, β w ≤ 1 / 2) :
     (#X : ℝ) ≤ 2 * #(X.filter (IsSafe g σ F Y)) := by
   classical
-  apply card_le_two_mul_card_safe_of_parityTest_cover
+  refine card_le_two_mul_card_safe_of_parityTest_cover
     (fun w : {w : ParityTest F Y // w.IsEligible order} => w.val)
     g hX hY hτX hτY hXne
     (fun w => (1 / 2 : ℝ) * (1 / (2 * n) : ℝ) ^ w.val.parity.card)
-    β ?_ hβ hcost ?_ hbudget
-  · intro w
-    obtain ⟨i, _⟩ := w.property.nonempty
-    have hn : 0 < n := Nat.zero_lt_of_lt i.isLt
+    β (fun w => ?_) hβ hcost (fun x _ hx => ?_) hbudget
+  · have := Nat.zero_lt_of_lt w.property.nonempty.choose.isLt
     positivity
-  · intro x _ hx
-    obtain ⟨I, w, hI, hcan, hpI, hpne, hel, hb⟩ :=
+  · obtain ⟨I, w, hI, hcan, hpI, hpne, hel, hb⟩ :=
       exists_parityTest_of_not_isSafe g σ F Y hYne hσ order horder x hx
     exact ⟨⟨w, hcan, hpne, I, hI, hpI, hel⟩, hb⟩
 
@@ -223,18 +220,15 @@ theorem card_le_two_mul_card_safe_of_ratio_budget [NeZero m]
     (hbudget : ∑ w, β w ≤ 1 / 2) :
     (#X : ℝ) ≤ 2 * #(X.filter (IsSafe g σ F Y)) := by
   classical
-  apply card_le_two_mul_card_safe_of_parityTest_cover
+  have hn0 : 0 < n := by omega
+  refine card_le_two_mul_card_safe_of_parityTest_cover
     (fun w : {w : ParityTest F Y // w.IsRatioEligible σ} => w.val)
     g hX hY hτX hτY hXne
     (fun w => (1 / 2 : ℝ) * (1 / (2 * n) : ℝ) ^ w.val.parity.card)
-    β ?_ hβ hcost ?_ hbudget
-  · intro w
-    have hnR : (0 : ℝ) < n := by exact_mod_cast (Nat.zero_lt_of_lt hn)
-    positivity
-  · intro x _ hx
-    obtain ⟨w, hcan, hne, hratio, hb⟩ :=
-      exists_ratio_parityTest_of_isDense_not_isSafe g τY σ F Y hYne hn hσ hY hgap x hx
-    exact ⟨⟨w, hcan, hne, hratio⟩, hb⟩
+    β (fun _ => by positivity) hβ hcost (fun x _ hx => ?_) hbudget
+  obtain ⟨w, hcan, hne, hratio, hb⟩ :=
+    exists_ratio_parityTest_of_isDense_not_isSafe g τY σ F Y hYne hn hσ hY hgap x hx
+  exact ⟨⟨w, hcan, hne, hratio⟩, hb⟩
 
 open scoped Classical in
 /-- **A finite numerical dangerous-values theorem.** The hypotheses involve only densities,

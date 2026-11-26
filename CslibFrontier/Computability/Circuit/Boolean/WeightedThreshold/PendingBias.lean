@@ -171,8 +171,9 @@ theorem pendingBias_succ (p : Program signature n g) (k : ℕ) (u : Fin (k + 1) 
   rw [Fin.sum_univ_castSucc]
   congr 1
   refine sum_congr rfl fun j _ => ?_
-  rw [show (⟨k + 1 + i.val, by omega⟩ : Fin g) = ⟨k + (i.val + 1), by omega⟩ from
-    Fin.ext (by dsimp; omega)]
+  have hidx : (⟨k + 1 + i.val, by omega⟩ : Fin g) = ⟨k + (i.val + 1), by omega⟩ :=
+    Fin.ext (by dsimp; omega)
+  rw [hidx]
   rfl
 
 /-- The output of `gate` is determined by its direct input-weighted sum and the first coordinate of

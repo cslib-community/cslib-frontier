@@ -102,16 +102,16 @@ private theorem greedyLabelStepBy_preserves (score : (V → Option L) → (F →
     | some _ => simpa only [greedyLabelStepBy, hv] using h
     | none =>
       rcases query with w | f
-      · rw [greedyLabelStepBy, hv]; dsimp only [Sum.elim_inl] at h ⊢
-        rwa [Function.update_of_ne (by rintro rfl; simp [hv] at h)]
+      · simpa only [greedyLabelStepBy, hv, Sum.elim_inl,
+          Function.update_of_ne (fun heq : w = v => by simp [heq, hv] at h)] using h
       · simpa only [greedyLabelStepBy, hv, Sum.elim_inr] using h
   · cases hf : assigned.2 f with
     | some _ => simpa only [greedyLabelStepBy, hf] using h
     | none =>
       rcases query with v | g
       · simpa only [greedyLabelStepBy, hf, Sum.elim_inl] using h
-      · rw [greedyLabelStepBy, hf]; dsimp only [Sum.elim_inr] at h ⊢
-        rwa [Function.update_of_ne (by rintro rfl; simp [hf] at h)]
+      · simpa only [greedyLabelStepBy, hf, Sum.elim_inr,
+          Function.update_of_ne (fun heq : g = f => by simp [heq, hf] at h)] using h
 
 private theorem greedyLabelStepBy_spec [Fintype L] [Nonempty L]
     (score : (V → Option L) → (F → Option L) → ℚ)
@@ -208,7 +208,8 @@ theorem greedyLabelPass_eq_greedyLabelPassBy (edge : E → F × V) (C : ℕ)
     greedyLabelPass edge C values slots assigned =
       greedyLabelPassBy (fun a d => normalizedPartialScore edge a d C) values slots assigned := by
   rw [greedyLabelPass, greedyLabelPassBy]
-  congr 1; funext assigned slot
+  congr 1
+  funext assigned slot
   rcases slot with v | f
   · cases hv : assigned.1 v <;>
       simp only [greedyLabelStep, greedyLabelStepBy, hv, bestVariableLabel]
@@ -294,29 +295,23 @@ theorem greedySchedules_score_le (edge : E → F × V) (C : ℕ) (g₀ : G) :
     (fun _ => none, fun _ => none)
   set assigned := greedyLabelPass edge C (List.Pi.enum (fun _ : T => G))
     ((FinEnum.toList V).map Sum.inl ++ (FinEnum.toList F).map Sum.inr)
-    (fun _ => none, fun _ => none)
+    (fun _ => none, fun _ => none) with hassigned
+  have hslot (q : V ⊕ F)
+      (hq : q ∈ (FinEnum.toList V).map Sum.inl ++ (FinEnum.toList F).map Sum.inr) (u : T → G) :
+      (Sum.elim assigned.1 assigned.2 q).getD u =
+        (Sum.elim assigned.1 assigned.2 q).getD fun _ => g₀ :=
+    (hfill q hq).elim fun _ hw =>
+      (congrArg (Option.getD · u) hw).trans (congrArg (Option.getD · fun _ => g₀) hw).symm
   have hvar (a : V → T → G) :
-      completeLabels assigned.1 a = completeLabels assigned.1 (fun _ _ => g₀) :=
-    funext fun v => by
-      obtain ⟨w, hw⟩ := hfill (.inl v) (by simp)
-      simp only [Sum.elim_inl] at hw; simp only [completeLabels, hw, Option.getD_some]
+      completeLabels assigned.1 a = completeLabels assigned.1 fun _ _ => g₀ :=
+    funext fun v => hslot (.inl v) (by simp) (a v)
   have hfac (d : F → T → G) :
-      completeLabels assigned.2 d = completeLabels assigned.2 (fun _ _ => g₀) :=
-    funext fun f => by
-      obtain ⟨w, hw⟩ := hfill (.inr f) (by simp)
-      simp only [Sum.elim_inr] at hw; simp only [completeLabels, hw, Option.getD_some]
-  have hout := normalizedPartialScore_eq_expect edge assigned.1 assigned.2 C
-  simp only [hvar, hfac, Fintype.expect_const] at hout
-  have hin := normalizedPartialScore_eq_expect (T := T) (G := G) edge
-    (fun _ => none) (fun _ => none) C
-  simp only [completeLabels, Option.getD_none] at hin
-  have hinc : (fun e => ((greedySchedules (T := T) edge C g₀).1 (edge e).2,
-      (greedySchedules (T := T) edge C g₀).2 (edge e).1)) =
-      fun e => (completeLabels assigned.1 (fun _ _ => g₀) (edge e).2,
-        completeLabels assigned.2 (fun _ _ => g₀) (edge e).1) :=
-    funext fun e => Prod.ext rfl (normalizeEmptyFactors_factorOf _ _ _ _)
-  rw [← hin, hinc]
-  exact hout.symm.trans_le hscore
+      completeLabels assigned.2 d = completeLabels assigned.2 fun _ _ => g₀ :=
+    funext fun f => hslot (.inr f) (by simp) (d f)
+  rw [normalizedPartialScore_eq_expect, normalizedPartialScore_eq_expect] at hscore
+  simp only [hvar, hfac, Fintype.expect_const] at hscore
+  simpa only [greedySchedules, ← hassigned, normalizeEmptyFactors_factorOf, completeLabels,
+    Option.getD_none] using hscore
 
 /-- Under the incidence degree bounds, the constructed schedules have normalized potential
 at most two, by the established finite-average incidence and group estimates. -/
@@ -340,8 +335,9 @@ theorem greedySchedules_score_le_two [Nonempty T] [Nonempty V]
       (fun e => (edge e).1) hb hw
     unfold incidenceLabel at h
     simpa only [Nat.cast_add] using h
-  have h2 : (𝔼 a : V → T → G, (∑ t, potential (fun v => a v t)) /
-      ((Fintype.card T : ℚ) * Fintype.card V)) ≤ 1 := by
+  have h2 :
+      (𝔼 a : V → T → G, (∑ t, potential (fun v => a v t)) /
+        ((Fintype.card T : ℚ) * Fintype.card V)) ≤ 1 := by
     simp_rw [div_eq_mul_inv, ← Finset.expect_mul, ← div_eq_mul_inv]
     exact (div_le_one (by positivity)).mpr expect_group_potential_le
   refine (greedySchedules_score_le edge (b + w) g₀).trans ?_
@@ -367,10 +363,10 @@ theorem greedySchedules_balanced [Nonempty T] [Nonempty V]
       occupancy (fun v => (greedySchedules (T := T) edge (b + w) g₀).1 v t) g *
         Fintype.card G ≤ 2 * Fintype.card V) := by
   let : Nonempty G := ⟨g₀⟩
-  have hE : 0 < Fintype.card E :=
-    (by positivity : 0 < 2 * (b + w) * Fintype.card ((T → G) × (T → G)) ^ 2).trans_le hincidenceSize
+  have hE : 0 < Fintype.card E := lt_of_lt_of_le (by positivity) hincidenceSize
   exact incidence_and_group_bounds _ _ (b + w) hE hbw Fintype.card_pos Fintype.card_pos
-    hincidenceSize hgroupSize (greedySchedules_score_le_two edge hb hw hbw hE g₀)
+    hincidenceSize hgroupSize
+    (greedySchedules_score_le_two edge hb hw hbw hE g₀)
 
 end Enumerated
 

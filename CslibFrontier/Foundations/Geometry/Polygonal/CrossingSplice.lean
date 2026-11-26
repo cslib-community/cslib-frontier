@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Geometry.Polygonal.Neighborhood
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
+public import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Defs
 public import Mathlib.Topology.MetricSpace.Pseudo.Defs
 import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
 import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
@@ -18,6 +19,7 @@ import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionCutEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
 import Mathlib.Analysis.Normed.Module.Convex
+import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Basic
 import Mathlib.LinearAlgebra.AffineSpace.Midpoint
 
 /-!
@@ -45,11 +47,7 @@ private theorem intersectionParity_eq_sum_lines (p r : Route) :
   classical
   simp only [eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
   unfold intersectionParity
-  apply Finset.sum_congr rfl
-  intro k _
-  change _ = ∑ l : Fin 1, _
-  rw [Fin.sum_univ_one]
-  rfl
+  exact Finset.sum_congr rfl fun k _ => (Fin.sum_univ_one fun _ : Fin 1 => _).symm
 
 open Classical in
 private noncomputable def intervalParity (p : Route) (i j : Fin p.segments) (s t : ℝ)
@@ -68,10 +66,8 @@ private theorem exists_pos_smul_germ_of_end_eval (q p : Route) (b : Bool) {lo hi
     cases b <;> simp only [endTime, Bool.false_eq_true, ↓reduceIte,
       AffineMap.lineMap_apply_module', smul_eq_mul] at hb ⊢ <;> rw [hb] <;> ring
   have h₀ := he (endTime b 0)
-  have h₁ := he (endTime b 1)
   simp only [htime, eval_near_end, mul_zero, zero_smul, add_zero] at h₀
-  simp only [htime, eval_near_end, mul_one, one_smul, h₀] at h₁
-  exact add_left_cancel h₁
+  simpa only [htime, eval_near_end, mul_one, one_smul, h₀, add_right_inj] using he (endTime b 1)
 
 private abbrev IntervalEvaluation (p q : Route) {i j : Fin p.segments} (s t : ℝ)
     (e : Fin q.segments ≃o Set.Icc i j) : Prop :=
@@ -79,6 +75,57 @@ private abbrev IntervalEvaluation (p q : Route) {i j : Fin p.segments} (s t : �
        let hi := if (e k).val = j then t else 1
        0 ≤ lo ∧ lo < hi ∧ hi ≤ 1 ∧ ∀ u : ℝ,
          q.eval k u = p.eval (e k).val (AffineMap.lineMap lo hi u)
+
+private theorem interval_eval_injective {p q : Route} {i j : Fin p.segments} {s t : ℝ}
+    {e : Fin q.segments ≃o Set.Icc i j} (hspec : IntervalEvaluation p q s t e)
+    (hp : ∀ k : Fin p.segments, p.point k.castSucc ≠ p.point k.succ)
+    (k : Fin q.segments) : Function.Injective (q.eval k) := by
+  obtain ⟨_, hlt, _, he⟩ := hspec k
+  intro u v h
+  rw [he u, he v] at h
+  exact AffineMap.lineMap_injective ℝ hlt.ne (AffineMap.lineMap_injective ℝ (hp _) h)
+
+private theorem affineSpan_eq_of_reparam {p q : Route} {k : Fin q.segments}
+    {l : Fin p.segments} {f : ℝ → ℝ} (hf : f 0 ≠ f 1)
+    (he : ∀ u, q.eval k u = p.eval l (f u)) :
+    affineSpan ℝ ({q.point k.castSucc, q.point k.succ} : Set ℂ) =
+      affineSpan ℝ ({p.point l.castSucc, p.point l.succ} : Set ℂ) := by
+  have h₀ := he 0
+  have h₁ := he 1
+  simp only [eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h₀ h₁
+  rw [h₀, h₁]
+  by_cases hp : p.point l.castSucc = p.point l.succ
+  · simp only [hp, AffineMap.lineMap_same_apply]
+  · exact affineSpan_pair_eq_of_mem_of_mem_of_ne
+      (AffineMap.lineMap_mem_affineSpan_pair _ _ _) (AffineMap.lineMap_mem_affineSpan_pair _ _ _)
+      ((AffineMap.lineMap_injective ℝ hp).ne hf)
+
+private theorem exists_parameter_at_point (p : Route) (a : Fin (p.segments + 1)) :
+    ∃ (k : Fin p.segments) (u : ℝ), u ∈ Set.Icc 0 1 ∧ u ∉ Set.Ioo 0 1 ∧
+      p.eval k u = p.point a ∧ p.position k u = (a.val : ℝ) := by
+  refine Fin.lastCases ?_ (fun k => ?_) a
+  · refine ⟨Fin.last p.bends, 1, ⟨zero_le_one, le_rfl⟩, fun h => (lt_irrefl _ h.2), ?_, ?_⟩
+    · simp only [eval, AffineMap.lineMap_apply_one, Fin.succ_last]
+    · simp only [position, Fin.val_last, segments, Nat.cast_add, Nat.cast_one]
+  · exact ⟨k, 0, ⟨le_rfl, zero_le_one⟩, fun h => lt_irrefl _ h.1,
+      AffineMap.lineMap_apply_zero _ _, add_zero _⟩
+
+private theorem exists_point_at_end_parameter {p : Route} (k : Fin p.segments) {u : ℝ}
+    (hu : u ∈ Set.Icc 0 1) (hopen : u ∉ Set.Ioo 0 1) :
+    ∃ a : Fin (p.segments + 1), p.eval k u = p.point a ∧ p.position k u = (a.val : ℝ) := by
+  rcases Set.mem_insert_iff.mp
+      ((Set.ext_iff.mp (Set.Icc_sdiff_Ioo_same (zero_le_one' ℝ)) u).mp ⟨hu, hopen⟩) with rfl | he
+  · exact ⟨k.castSucc, AffineMap.lineMap_apply_zero _ _, add_zero _⟩
+  · obtain rfl := Set.mem_singleton_iff.mp he
+    exact ⟨k.succ, AffineMap.lineMap_apply_one _ _, by simp [position]⟩
+
+private theorem position_ne_nat_of_mem_Ioo {p : Route} (k : Fin p.segments) {u : ℝ}
+    (hu : u ∈ Set.Ioo 0 1) (n : ℕ) : p.position k u ≠ (n : ℝ) := by
+  intro he
+  dsimp only [position] at he
+  have hlo : k.val < n := mod_cast (by linarith [hu.1] : (k.val : ℝ) < n)
+  have hhi : n < k.val + 1 := mod_cast (by linarith [hu.2] : (n : ℝ) < k.val + 1)
+  omega
 
 private noncomputable abbrev intervalTime {p q : Route} {i j : Fin p.segments} (s t : ℝ)
     (e : Fin q.segments ≃o Set.Icc i j) (k : Fin q.segments) (u : ℝ) : ℝ :=
@@ -97,32 +144,25 @@ private theorem interval_source_position_bounds {p : Route} {i j : Fin p.segment
   constructor
   · by_cases h : k.val = i
     · simpa only [position, h, add_le_add_iff_left, ↓reduceIte] using hv.1
-    · have hlt := lt_of_le_of_ne k.property.1 (Ne.symm h)
-      have hstep : (i.val : ℝ) + 1 ≤ k.val.val := by
-        exact_mod_cast (show i.val < k.val.val from hlt)
+    · have hstep : (i.val : ℝ) + 1 ≤ k.val.val :=
+        mod_cast lt_of_le_of_ne k.property.1 (Ne.symm h)
       dsimp only [position]
       linarith only [hi, hv₀.1, hstep]
   · by_cases h : k.val = j
     · simpa only [position, h, add_le_add_iff_left, ↓reduceIte] using hv.2
-    · have hlt := lt_of_le_of_ne k.property.2 h
-      have hstep : (k.val.val : ℝ) + 1 ≤ j.val := by
-        exact_mod_cast (show k.val.val < j.val from hlt)
+    · have hstep : (k.val.val : ℝ) + 1 ≤ j.val := mod_cast lt_of_le_of_ne k.property.2 h
       dsimp only [position]
       linarith only [hj, hv₀.2, hstep]
 
 private theorem interval_first {n : ℕ} {i j : Fin n} (hij : i ≤ j) {m : ℕ}
-    (e : Fin (m + 1) ≃o Set.Icc i j) : (e 0).val = i := by
-  let first : Set.Icc i j := ⟨i, le_rfl, hij⟩
-  have h := e.monotone (Fin.zero_le (e.symm first))
-  rw [e.apply_symm_apply] at h
-  exact le_antisymm h (e 0).property.1
+    (e : Fin (m + 1) ≃o Set.Icc i j) : (e 0).val = i :=
+  le_antisymm (Subtype.mk_le_mk.mp
+    (e.apply_symm_apply ⟨i, le_rfl, hij⟩ ▸ e.monotone (Fin.zero_le _))) (e 0).property.1
 
 private theorem interval_last {n : ℕ} {i j : Fin n} (hij : i ≤ j) {m : ℕ}
-    (e : Fin (m + 1) ≃o Set.Icc i j) : (e (Fin.last m)).val = j := by
-  let last : Set.Icc i j := ⟨j, hij, le_rfl⟩
-  have h := e.monotone (Fin.le_last (e.symm last))
-  rw [e.apply_symm_apply] at h
-  exact le_antisymm (e (Fin.last m)).property.2 h
+    (e : Fin (m + 1) ≃o Set.Icc i j) : (e (Fin.last m)).val = j :=
+  le_antisymm (e (Fin.last m)).property.2 (Subtype.mk_le_mk.mp
+    (e.apply_symm_apply ⟨j, hij, le_rfl⟩ ▸ e.monotone (Fin.le_last _)))
 
 private theorem interval_open_eval {p q : Route} {i j : Fin p.segments} {s t : ℝ}
     {e : Fin q.segments ≃o Set.Icc i j} (hspec : IntervalEvaluation p q s t e)
@@ -132,9 +172,8 @@ private theorem interval_open_eval {p q : Route} {i j : Fin p.segments} {s t : �
   obtain ⟨hl, hlt, hh, he⟩ := hspec k
   let lo := if (e k).val = i then s else 0
   let hi := if (e k).val = j then t else 1
-  have hv : AffineMap.lineMap lo hi u ∈ Set.Ioo lo hi := by
-    rw [← openSegment_eq_Ioo hlt]
-    exact lineMap_mem_openSegment ℝ lo hi hu
+  have hv : AffineMap.lineMap lo hi u ∈ Set.Ioo lo hi :=
+    openSegment_eq_Ioo hlt ▸ lineMap_mem_openSegment ℝ lo hi hu
   exact ⟨_, hv, ⟨hl.trans_lt hv.1, hv.2.trans_le hh⟩, he u, rfl⟩
 
 private theorem interval_exterior_interior_iff {p q : Route} {i j : Fin p.segments} {s t : ℝ}
@@ -148,24 +187,15 @@ private theorem interval_exterior_interior_iff {p q : Route} {i j : Fin p.segmen
     obtain ⟨w, _, hw, _, hwtime⟩ := interval_open_eval hspec k hu'
     exact (hwtime.trans htime.symm) ▸ hw
   · intro hv
-    have hzero (h : u = 0) : v = 0 := by
-      have he := htime
-      simp only [intervalTime, h, AffineMap.lineMap_apply_zero] at he
-      split_ifs at he with hk
-      · rcases hstart with hs | hs
-        · exact he.trans hs
-        · exact (hout (by simpa only [hk, he] using hs)).elim
-      · exact he
-    have hone (h : u = 1) : v = 1 := by
-      have he := htime
-      simp only [intervalTime, h, AffineMap.lineMap_apply_one] at he
-      split_ifs at he with hk
-      · rcases hfinish with ht | ht
-        · exact he.trans ht
-        · exact (hout (by simpa only [hk, he] using ht)).elim
-      · exact he
-    exact ⟨lt_of_le_of_ne hu.1 (fun h => hv.1.ne' (hzero h.symm)),
-      lt_of_le_of_ne hu.2 (fun h => hv.2.ne (hone h))⟩
+    refine ⟨lt_of_le_of_ne hu.1 fun h => hv.1.ne' ?_, lt_of_le_of_ne hu.2 fun h => hv.2.ne ?_⟩
+    · simp only [intervalTime, ← h, AffineMap.lineMap_apply_zero] at htime
+      split_ifs at htime with hk
+      · exact hstart.elim htime.trans fun hs => (hout (by simpa only [hk, htime] using hs)).elim
+      · exact htime
+    · simp only [intervalTime, h, AffineMap.lineMap_apply_one] at htime
+      split_ifs at htime with hk
+      · exact hfinish.elim htime.trans fun ht => (hout (by simpa only [hk, htime] using ht)).elim
+      · exact htime
 
 private theorem interval_closed_eval {p q : Route} {i j : Fin p.segments} {s t : ℝ}
     (hij : i ≤ j) {e : Fin q.segments ≃o Set.Icc i j} (hspec : IntervalEvaluation p q s t e)
@@ -179,23 +209,19 @@ private theorem interval_closed_eval {p q : Route} {i j : Fin p.segments} {s t :
   let lo := if (e k).val = i then s else 0
   let hi := if (e k).val = j then t else 1
   let v := AffineMap.lineMap lo hi u
-  have hv : v ∈ Set.Icc lo hi := by
-    rw [← segment_eq_Icc hlt.le]
-    exact lineMap_mem_segment ℝ lo hi hu
+  have hv : v ∈ Set.Icc lo hi := segment_eq_Icc hlt.le ▸ lineMap_mem_segment ℝ lo hi hu
   have hinj := AffineMap.lineMap_injective ℝ (show lo ≠ hi from hlt.ne)
   refine ⟨v, hv, ⟨hl.trans hv.1, hv.2.trans hh⟩, he u, ?_, ?_, rfl⟩
   · intro hk heq
     have hk₀ : k = 0 := e.injective (Subtype.ext (hk.trans (interval_first hij e).symm))
-    have hu₀ : u = 0 := hinj (by
-      rw [AffineMap.lineMap_apply_zero]
-      simpa only [v, lo, hk, ↓reduceIte] using heq)
+    have hu₀ : u = 0 := hinj
+      (by simpa only [v, lo, hk, ↓reduceIte, AffineMap.lineMap_apply_zero] using heq)
     simp [position, hk₀, hu₀]
   · intro hk heq
     have hk₁ : k = Fin.last q.bends :=
       e.injective (Subtype.ext (hk.trans (interval_last hij e).symm))
-    have hu₁ : u = 1 := hinj (by
-      rw [AffineMap.lineMap_apply_one]
-      simpa only [v, hi, hk, ↓reduceIte] using heq)
+    have hu₁ : u = 1 := hinj
+      (by simpa only [v, hi, hk, ↓reduceIte, AffineMap.lineMap_apply_one] using heq)
     simp [position, hk₁, hu₁, segments]
 
 private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) (hij : i ≤ j)
@@ -215,8 +241,7 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
         (p.eval k (if k = j then t else 1))).intersectionParity r
     rw [intersectionParity_eq_sum_lines q r]
     change _ = ∑ k : Fin p.segments, if k ∈ Set.Icc i j then contribution k else 0
-    rw [← Finset.sum_filter]
-    rw [Finset.sum_subtype (p := (· ∈ Set.Icc i j))
+    rw [← Finset.sum_filter, Finset.sum_subtype (p := (· ∈ Set.Icc i j))
       (Finset.univ.filter (· ∈ Set.Icc i j)) (fun k => by simp) contribution]
     refine Fintype.sum_equiv e.toEquiv _ _ fun k => ?_
     change (line (q.eval k 0) (q.eval k 1)).intersectionParity r = contribution (e k).val
@@ -224,18 +249,16 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
     simp only [contribution, he, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
   have hgerm_start (hi : i = 0) (hs₀ : s = 0) :
       ∃ c : ℝ, 0 < c ∧ q.germ false = c • p.germ false := by
-    have hi' := interval_first hij e
     obtain ⟨_, hlt, _, he⟩ := hspec 0
-    simp only [hi', ↓reduceIte] at hlt he
-    apply exists_pos_smul_germ_of_end_eval q p false hlt hs₀
-    simpa only [endSegment, Bool.false_eq_true, ↓reduceIte, hi] using he
+    simp only [interval_first hij e, ↓reduceIte] at hlt he
+    exact exists_pos_smul_germ_of_end_eval q p false hlt hs₀
+      (by simpa only [endSegment, Bool.false_eq_true, ↓reduceIte, hi] using he)
   have hgerm_finish (hj : j = Fin.last p.bends) (ht₁ : t = 1) :
       ∃ c : ℝ, 0 < c ∧ q.germ true = c • p.germ true := by
-    have hj' := interval_last hij e
     obtain ⟨_, hlt, _, he⟩ := hspec (Fin.last q.bends)
-    simp only [hj', ↓reduceIte] at hlt he
-    apply exists_pos_smul_germ_of_end_eval q p true hlt ht₁
-    simpa only [endSegment, ↓reduceIte, hj] using he
+    simp only [interval_last hij e, ↓reduceIte] at hlt he
+    exact exists_pos_smul_germ_of_end_eval q p true hlt ht₁
+      (by simpa only [endSegment, ↓reduceIte, hj] using he)
   refine ⟨q, hstart, hfinish, ?_, hparity, hgerm_start, hgerm_finish, e, hspec, hpositions⟩
   · ext w
     rw [q.mem_support_iff]
@@ -244,22 +267,16 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
       obtain ⟨_, hlt, _, he⟩ := hspec k
       let a := if (e k).val = i then s else 0
       let b := if (e k).val = j then t else 1
-      have huv : AffineMap.lineMap a b u ∈ Set.Icc a b := by
-        rw [← segment_eq_Icc hlt.le]
-        exact lineMap_mem_segment ℝ a b hu
+      have huv : AffineMap.lineMap a b u ∈ Set.Icc a b :=
+        segment_eq_Icc hlt.le ▸ lineMap_mem_segment ℝ a b hu
       exact ⟨(e k).val, (e k).property, _, huv, (he u).symm.trans hwu⟩
     · rintro ⟨k, hk, u, hu, hwu⟩
       let l := e.symm ⟨k, hk⟩
       have hel : (e l).val = k := congrArg Subtype.val (e.apply_symm_apply ⟨k, hk⟩)
       obtain ⟨_, hlt, _, he⟩ := hspec l
-      rw [← hel] at hu hwu
-      have hu' : u ∈ segment ℝ (if (e l).val = i then s else 0)
-          (if (e l).val = j then t else 1) := by
-        rw [segment_eq_Icc hlt.le]
-        exact hu
-      rw [segment_eq_image_lineMap] at hu'
-      obtain ⟨v, hv, rfl⟩ := hu'
-      exact ⟨l, v, hv, (he v).trans hwu⟩
+      obtain ⟨v, hv, rfl⟩ := by
+        simpa only [← hel, ← segment_eq_Icc hlt.le, segment_eq_image_lineMap] using hu
+      exact ⟨l, v, hv, (he v).trans (hel ▸ hwu)⟩
 
 private theorem intervalSupport_subset (p : Route) (i j : Fin p.segments) {s t : ℝ}
     (hs : 0 ≤ s) (ht : t ≤ 1) : intervalSupport p i j s t ⊆ p.support := by
@@ -272,9 +289,7 @@ private theorem intersectionParity_eq_zero_of_disjoint {p r : Route}
     (h : Disjoint p.support r.support) : p.intersectionParity r = 0 := by
   classical
   unfold intersectionParity
-  refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => ?_
-  change decide _ = false
-  apply decide_eq_false
+  refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => decide_eq_false ?_
   rintro ⟨z, hi, hj⟩
   exact Set.disjoint_left.mp h
     (Set.mem_iUnion.mpr ⟨i, openSegment_subset_segment ℝ _ _ hi⟩)
@@ -291,8 +306,7 @@ private theorem intervalParity_splice (p : Route) {i j : Fin p.segments} (hij : 
   rw [intersectionParity_eq_sum_lines p r]
   unfold intervalParity
   rw [← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
-  apply Finset.sum_congr rfl
-  intro k _
+  refine Finset.sum_congr rfl fun k _ => ?_
   simp only [Set.mem_Icc, Fin.zero_le, Fin.le_last, true_and, and_true, ite_self]
   rcases lt_trichotomy k i with hki | rfl | hik
   · have hkj := hki.trans hij
@@ -314,10 +328,14 @@ Inside the disk its support is precisely the two chords, and neither contains th
 Its indexed intersection parity against every route disjoint from the disk is preserved.
 Both outgoing germs are positive multiples of their originals. Every pair of distinct segments
 meeting in their open interiors gives an original crossing point outside the closed disk.
+At each exterior point, the open segments through the point embed into the original
+open segments through that point, preserving their supporting affine spans.
 Inside the disk, equal evaluations have equal positions along the spliced route, including
 at the four cut endpoints. Outside the disk, a point reached at distinct positions of the
 splice is also reached at distinct original positions, with each visit preserving whether
-it is in the interior of its segment. -/
+it is in the interior of its segment. Individual exterior visits also retain their endpoint
+or interior status. Distinct listed points, exclusion of listed points from open segments, and
+nondegeneracy of segments are each preserved if they hold for the original route. -/
 theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (hij : i < j)
     {z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
     (hzi : z ∈ openSegment ℝ (p.point i.castSucc) (p.point i.succ))
@@ -345,6 +363,21 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
         ∃ (a b : Fin p.segments) (u v : ℝ), u ∈ Set.Icc 0 1 ∧ v ∈ Set.Icc 0 1 ∧
           p.eval a u = q.eval k s ∧ p.eval b v = q.eval l t ∧ p.position a u ≠ p.position b v ∧
           (s ∈ Set.Ioo 0 1 ↔ u ∈ Set.Ioo 0 1) ∧ (t ∈ Set.Ioo 0 1 ↔ v ∈ Set.Ioo 0 1)) ∧
+      ((∀ k : Fin p.segments, p.point k.castSucc ≠ p.point k.succ) →
+        ∀ k : Fin q.segments, q.point k.castSucc ≠ q.point k.succ) ∧
+      (∀ (k : Fin q.segments) {s : ℝ}, s ∈ Set.Icc 0 1 → q.eval k s ∉ Metric.closedBall z ρ →
+        ∃ (a : Fin p.segments) (u : ℝ), u ∈ Set.Icc 0 1 ∧ p.eval a u = q.eval k s ∧
+          (s ∈ Set.Ioo 0 1 ↔ u ∈ Set.Ioo 0 1)) ∧
+      (Function.Injective p.point → Function.Injective q.point) ∧
+      ((∀ (a : Fin (p.segments + 1)) (k : Fin p.segments),
+        p.point a ∉ openSegment ℝ (p.point k.castSucc) (p.point k.succ)) →
+        ∀ (a : Fin (q.segments + 1)) (k : Fin q.segments),
+          q.point a ∉ openSegment ℝ (q.point k.castSucc) (q.point k.succ)) ∧
+      (∀ w ∉ Metric.closedBall z ρ,
+        ∃ f : {k : Fin q.segments // w ∈ openSegment ℝ (q.point k.castSucc) (q.point k.succ)} ↪
+            {k : Fin p.segments // w ∈ openSegment ℝ (p.point k.castSucc) (p.point k.succ)},
+          ∀ k, affineSpan ℝ ({q.point k.val.castSucc, q.point k.val.succ} : Set ℂ) =
+            affineSpan ℝ ({p.point (f k).val.castSucc, p.point (f k).val.succ} : Set ℂ)) ∧
       ∃ li ui lj uj : ℝ, 0 < li ∧ li < ui ∧ ui < 1 ∧ 0 < lj ∧ lj < uj ∧ uj < 1 ∧
         p.eval i li ∈ Metric.sphere z ρ ∧ p.eval i ui ∈ Metric.sphere z ρ ∧
         p.eval j lj ∈ Metric.sphere z ρ ∧ p.eval j uj ∈ Metric.sphere z ρ ∧
@@ -367,13 +400,9 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   have hc : c ∈ Metric.sphere z ρ := (hjSphere lj).mpr (Or.inl rfl)
   have hd : d ∈ Metric.sphere z ρ := (hjSphere uj).mpr (Or.inr rfl)
   have hport_ne {u v : ℝ} (hu : u ∈ Set.Icc 0 1) (hv : v ∈ Set.Icc 0 1)
-      (hsphere : p.eval i u ∈ Metric.sphere z ρ) : p.eval i u ≠ p.eval j v := by
-    intro h
-    have hmem₁ : p.eval i u ∈ segment ℝ (p.point i.castSucc) (p.point i.succ) :=
-      lineMap_mem_segment ℝ _ _ hu
-    have hmem₂ : p.eval j v ∈ segment ℝ (p.point j.castSucc) (p.point j.succ) :=
-      lineMap_mem_segment ℝ _ _ hv
-    have he : p.eval i u = z := hpair ⟨hmem₁, h.symm ▸ hmem₂⟩
+      (hsphere : p.eval i u ∈ Metric.sphere z ρ) : p.eval i u ≠ p.eval j v := fun h => by
+    have he : p.eval i u = z := hpair ⟨lineMap_mem_segment ℝ _ _ hu,
+      Set.mem_of_eq_of_mem h (lineMap_mem_segment ℝ _ _ hv)⟩
       ⟨openSegment_subset_segment ℝ _ _ hzi, openSegment_subset_segment ℝ _ _ hzj⟩
     exact hρ.ne' ((Metric.mem_sphere.mp hsphere).symm.trans (he.symm ▸ dist_self z))
   have hli' : li ∈ Set.Icc 0 1 := ⟨hli.le, (hi₀.trans hui).le⟩
@@ -395,18 +424,12 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   let L := line a c
   let R := line b d
   have hjoinL : A.finish = L.start := hA₁
-  have hjoinM : (A.concat L).finish = M.reverse.start := by
-    change (A.concat L).endpoint true = M.reverse.endpoint false
-    rw [endpoint_concat A L hjoinL, endpoint_reverse]
-    exact hM₁.symm
-  have hjoinR : ((A.concat L).concat M.reverse).finish = R.start := by
-    change ((A.concat L).concat M.reverse).endpoint true = R.start
-    rw [endpoint_concat (A.concat L) M.reverse hjoinM, endpoint_reverse]
-    exact hM₀
-  have hjoinS : (((A.concat L).concat M.reverse).concat R).finish = S.start := by
-    change (((A.concat L).concat M.reverse).concat R).endpoint true = S.start
-    rw [endpoint_concat _ R hjoinR]
-    exact hS₀.symm
+  have hjoinM : (A.concat L).finish = M.reverse.start :=
+    (endpoint_concat A L hjoinL true).trans (hM₁.symm.trans (endpoint_reverse M false).symm)
+  have hjoinR : ((A.concat L).concat M.reverse).finish = R.start :=
+    (endpoint_concat (A.concat L) M.reverse hjoinM true).trans ((endpoint_reverse M true).trans hM₀)
+  have hjoinS : (((A.concat L).concat M.reverse).concat R).finish = S.start :=
+    (endpoint_concat _ R hjoinR true).trans hS₀.symm
   let q := (((A.concat L).concat M.reverse).concat R).concat S
   have hstart : q.start = p.start := by
     change ((((A.concat L).concat M.reverse).concat R).concat S).endpoint false = _
@@ -415,32 +438,25 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       ↓reduceIte]
     simpa only [endpoint, Bool.false_eq_true, ↓reduceIte, eval, AffineMap.lineMap_apply_zero,
       Fin.castSucc_zero, start] using hA₀
-  have hfinish : q.finish = p.finish := by
-    change ((((A.concat L).concat M.reverse).concat R).concat S).endpoint true = _
-    rw [endpoint_concat _ S hjoinS]
-    simpa only [endpoint, ↓reduceIte, eval, jlast, AffineMap.lineMap_apply_one, Fin.succ_last,
-      finish] using hS₁
+  have hfinish : q.finish = p.finish :=
+    (endpoint_concat _ S hjoinS true).trans <| by
+      simpa only [endpoint, ↓reduceIte, eval, jlast, AffineMap.lineMap_apply_one, Fin.succ_last,
+        finish] using hS₁
   let E := A.support ∪ M.support ∪ S.support
   let N := segment ℝ a c ∪ segment ℝ b d
   have hcenter : z ∉ N := by
     let f := AffineEquiv.pointReflection ℝ z
-    have hfb : f a = b := midpoint_eq_iff.mp hiMid
-    have hfd : f c = d := midpoint_eq_iff.mp hjMid
     have hfz : f z = z := AffineEquiv.pointReflection_self ℝ z
     have hreflect : f.toAffineMap '' segment ℝ a c = segment ℝ b d := by
-      rw [image_segment, AffineEquiv.coe_toAffineMap, hfb, hfd]
+      rw [image_segment, AffineEquiv.coe_toAffineMap]
+      exact congrArg₂ _ (midpoint_eq_iff.mp hiMid) (midpoint_eq_iff.mp hjMid)
     rintro (h | h)
     · exact Set.disjoint_left.mp hdisjoint h (hreflect ▸ ⟨z, h, hfz⟩)
-    · have himg := h
-      rw [← hreflect] at himg
-      obtain ⟨w, hw, he⟩ := himg
-      have hwz : w = z := f.injective (he.trans hfz.symm)
-      exact Set.disjoint_left.mp hdisjoint (hwz ▸ hw) h
+    · obtain ⟨w, hw, he⟩ := hreflect ▸ h
+      exact Set.disjoint_left.mp hdisjoint (f.injective (he.trans hfz.symm) ▸ hw) h
   have hq : q.support = E ∪ N := by
-    dsimp only [q]
-    rw [support_concat _ _ hjoinS, support_concat _ _ hjoinR, support_concat _ _ hjoinM,
-      support_concat _ _ hjoinL, support_reverse]
-    simp only [L, R, E, N, support_line]
+    simp only [q, L, R, E, N, support_concat _ _ hjoinS, support_concat _ _ hjoinR,
+      support_concat _ _ hjoinM, support_concat _ _ hjoinL, support_reverse, support_line]
     ac_rfl
   have hNew : N ⊆ B := Set.union_subset
     ((convex_closedBall z ρ).segment_subset (Metric.sphere_subset_closedBall ha)
@@ -448,32 +464,26 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     ((convex_closedBall z ρ).segment_subset (Metric.sphere_subset_closedBall hb)
       (Metric.sphere_subset_closedBall hd))
   have hE : E ⊆ p.support := by
-    dsimp only [E]
-    rw [hA, hM, hS]
+    simp only [E, hA, hM, hS]
     exact Set.union_subset (Set.union_subset (intervalSupport_subset p 0 i le_rfl
       (hi₀.trans hui).le) (intervalSupport_subset p i j (hli.trans hi₀).le
         (hj₀.trans huj).le)) (intervalSupport_subset p j jlast (hlj.trans hj₀).le le_rfl)
   have cover : p.support \ B ⊆ E := by
     rintro w ⟨hw, hout⟩
     obtain ⟨k, u, hu, rfl⟩ := (p.mem_support_iff w).mp hw
-    have intoA (hk : k ≤ i) (ht : k = i → u ≤ li) : p.eval k u ∈ E := by
-      refine Or.inl (Or.inl ?_)
-      rw [hA]
-      refine ⟨k, ⟨Fin.zero_le k, hk⟩, u, ?_, rfl⟩
-      simp only [ite_self]
-      exact ⟨hu.1, by split_ifs with h; exacts [ht h, hu.2]⟩
+    have intoA (hk : k ≤ i) (ht : k = i → u ≤ li) : p.eval k u ∈ E :=
+      Or.inl (Or.inl (hA ▸ ⟨k, ⟨Fin.zero_le k, hk⟩, u, by
+        simpa only [Set.mem_Icc, ite_self] using
+          And.intro hu.1 (by split_ifs <;> simp [*, hu.2]), rfl⟩))
     have intoM (hki : i ≤ k) (hkj : k ≤ j) (hlo : k = i → ui ≤ u)
-        (hhi : k = j → u ≤ lj) : p.eval k u ∈ E := by
-      refine Or.inl (Or.inr ?_)
-      rw [hM]
-      exact ⟨k, ⟨hki, hkj⟩, u, ⟨by split_ifs with h; exacts [hlo h, hu.1],
-        by split_ifs with h; exacts [hhi h, hu.2]⟩, rfl⟩
-    have intoS (hk : j ≤ k) (ht : k = j → uj ≤ u) : p.eval k u ∈ E := by
-      apply Or.inr
-      rw [hS]
-      refine ⟨k, ⟨hk, Fin.le_last k⟩, u, ?_, rfl⟩
-      simp only [ite_self]
-      exact ⟨by split_ifs with h; exacts [ht h, hu.1], hu.2⟩
+        (hhi : k = j → u ≤ lj) : p.eval k u ∈ E :=
+      Or.inl (Or.inr (hM ▸ ⟨k, ⟨hki, hkj⟩, u,
+        ⟨by split_ifs <;> simp [*, hu.1],
+         by split_ifs <;> simp [*, hu.2]⟩, rfl⟩))
+    have intoS (hk : j ≤ k) (ht : k = j → uj ≤ u) : p.eval k u ∈ E :=
+      Or.inr (hS ▸ ⟨k, ⟨hk, Fin.le_last k⟩, u, by
+        simpa only [Set.mem_Icc, ite_self] using
+          And.intro (by split_ifs <;> simp [*, hu.1]) hu.2, rfl⟩)
     rcases lt_trichotomy k i with hki | rfl | hik
     · exact intoA hki.le (fun h => (hki.ne h).elim)
     · by_cases h : u ≤ li
@@ -518,14 +528,9 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     obtain ⟨v, hv, hv₀, he, _⟩ := interval_open_eval hAt k hu
     have hbefore (hi : (eA k).val = i) : v < li := by simpa only [hi, ↓reduceIte] using hv.2
     have hp : inPrefix (eA k).val v := ⟨(eA k).property, hbefore⟩
-    refine ⟨v, hv₀, ?_, he, ?_⟩
-    · simp only [indexAt, dite_eq_left hp,
-        show (⟨(eA k).val, hp.1⟩ : Set.Icc 0 i) = eA k from rfl, eA.symm_apply_apply]
-    rw [he]
-    apply hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
-    · exact fun hi => Or.inl (hbefore hi)
-    · intro hj
-      exact (hij.not_ge (hj ▸ (eA k).property.2)).elim
+    refine ⟨v, hv₀, ?_, he, he.symm ▸ hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
+      (fun hi => Or.inl (hbefore hi)) fun hj => (hij.not_ge (hj ▸ (eA k).property.2)).elim⟩
+    simp only [indexAt, dite_eq_left hp, Subtype.eta, eA.symm_apply_apply]
   have hMtrace (k : Fin M.reverse.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) :
       ∃ v ∈ Set.Ioo 0 1, indexAt (eM k.rev).val v = (A.concat L).segments + k.val ∧
         M.reverse.eval k u = p.eval (eM k.rev).val v ∧ M.reverse.eval k u ∉ B := by
@@ -541,14 +546,11 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       exact (hi₀.trans (hafter hi)).not_gt (hb hi)
     have hm : inMiddle (eM k.rev).val v := ⟨(eM k.rev).property, hbefore⟩
     have he' := (eval_reverse M k u).trans he
-    refine ⟨v, hv₀, ?_, he', ?_⟩
-    · simp only [indexAt, dite_eq_right hp, dite_eq_left hm,
-        show (⟨(eM k.rev).val, hm.1⟩ : Set.Icc i j) = eM k.rev from rfl]
-      rw [eM.symm_apply_apply k.rev]
-      exact congrArg (fun l : Fin M.segments => (A.concat L).segments + l.val) (Fin.rev_rev k)
-    rw [he']
-    exact hretained _ _ (Set.Ioo_subset_Icc_self hv₀) (fun h => Or.inr (hafter h))
-      (fun h => Or.inl (hbefore h))
+    refine ⟨v, hv₀, ?_, he', he'.symm ▸ hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
+      (fun h => Or.inr (hafter h)) fun h => Or.inl (hbefore h)⟩
+    simp only [indexAt, dite_eq_right hp, dite_eq_left hm, Subtype.eta]
+    rw [eM.symm_apply_apply k.rev]
+    exact congrArg (fun l : Fin M.segments => (A.concat L).segments + l.val) (Fin.rev_rev k)
   have hStrace (k : Fin S.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) :
       ∃ v ∈ Set.Ioo 0 1,
         indexAt (eS k).val v = (((A.concat L).concat M.reverse).concat R).segments + k.val ∧
@@ -562,103 +564,143 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       rintro ⟨⟨_, hle⟩, hb⟩
       have hj := le_antisymm hle (eS k).property.1
       exact (hj₀.trans (hafter hj)).not_gt (hb hj)
-    refine ⟨v, hv₀, ?_, he, ?_⟩
-    · simp only [indexAt, dite_eq_right hp, dite_eq_right hm, dite_eq_left (eS k).property,
-        show (⟨(eS k).val, (eS k).property⟩ : Set.Icc j jlast) = eS k from rfl,
-        eS.symm_apply_apply]
-    rw [he]
-    apply hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
-    · intro hi
-      exact (hij.not_ge (hi ▸ (eS k).property.1)).elim
-    · exact fun hj => Or.inr (hafter hj)
-  have hparts (k : Fin q.segments) (u : ℝ) :
-      (∃ l : Fin A.segments, k.val = l.val ∧ q.eval k u = A.eval l u) ∨
-      (k.val = A.segments ∧ q.eval k u = AffineMap.lineMap a c u) ∨
+    refine ⟨v, hv₀, ?_, he, he.symm ▸ hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
+      (fun hi => (hij.not_ge (hi ▸ (eS k).property.1)).elim) fun hj => Or.inr (hafter hj)⟩
+    simp only [indexAt, dite_eq_right hp, dite_eq_right hm, dite_eq_left (eS k).property,
+      Subtype.eta, eS.symm_apply_apply]
+  have hparts (k : Fin q.segments) :
+      (∃ l : Fin A.segments, k.val = l.val ∧ ∀ u, q.eval k u = A.eval l u) ∨
+      (k.val = A.segments ∧ ∀ u, q.eval k u = AffineMap.lineMap a c u) ∨
       (∃ l : Fin M.reverse.segments, k.val = (A.concat L).segments + l.val ∧
-        q.eval k u = M.reverse.eval l u) ∨
+        ∀ u, q.eval k u = M.reverse.eval l u) ∨
       (k.val = ((A.concat L).concat M.reverse).segments ∧
-        q.eval k u = AffineMap.lineMap b d u) ∨
+        ∀ u, q.eval k u = AffineMap.lineMap b d u) ∨
       (∃ l : Fin S.segments, k.val = (((A.concat L).concat M.reverse).concat R).segments + l.val ∧
-        q.eval k u = S.eval l u) := by
-    rcases concat_eval_cases _ S hjoinS k u with ⟨k₄, h₄, he₄⟩ | ⟨kS, hS, heS⟩
-    · rcases concat_eval_cases _ R hjoinR k₄ u with ⟨k₃, h₃, he₃⟩ | ⟨kR, hR, heR⟩
-      · rcases concat_eval_cases _ M.reverse hjoinM k₃ u with ⟨k₂, h₂, he₂⟩ | ⟨kM, hM, heM⟩
-        · rcases concat_eval_cases A L hjoinL k₂ u with ⟨kA, hkA, heA⟩ | ⟨kL, hL, heL⟩
+        ∀ u, q.eval k u = S.eval l u) := by
+    rcases concat_eval_cases _ S hjoinS k with ⟨k₄, h₄, he₄⟩ | ⟨kS, hS, heS⟩
+    · rcases concat_eval_cases _ R hjoinR k₄ with ⟨k₃, h₃, he₃⟩ | ⟨kR, hR, heR⟩
+      · rcases concat_eval_cases _ M.reverse hjoinM k₃ with ⟨k₂, h₂, he₂⟩ | ⟨kM, hM, heM⟩
+        · rcases concat_eval_cases A L hjoinL k₂ with ⟨kA, hkA, heA⟩ | ⟨kL, hL, heL⟩
           · exact Or.inl ⟨kA, h₄.trans (h₃.trans (h₂.trans hkA)),
-              he₄.trans (he₃.trans (he₂.trans heA))⟩
-          · refine Or.inr (Or.inl ⟨h₄.trans (h₃.trans (h₂.trans ?_)), ?_⟩)
-            · simpa only [show kL.val = 0 from Nat.lt_one_iff.mp kL.isLt, add_zero] using hL
-            · rw [he₄, he₃, he₂, heL, eval_line]
+              fun u => (he₄ u).trans ((he₃ u).trans ((he₂ u).trans (heA u)))⟩
+          · rw [Nat.lt_one_iff.mp kL.isLt, add_zero] at hL
+            exact Or.inr (Or.inl ⟨h₄.trans (h₃.trans (h₂.trans hL)),
+              fun u => by rw [he₄, he₃, he₂, heL, eval_line]⟩)
         · exact Or.inr (Or.inr (Or.inl ⟨kM, h₄.trans (h₃.trans hM),
-            he₄.trans (he₃.trans heM)⟩))
-      · refine Or.inr (Or.inr (Or.inr (Or.inl ⟨h₄.trans ?_, ?_⟩)))
-        · simpa only [show kR.val = 0 from Nat.lt_one_iff.mp kR.isLt, add_zero] using hR
-        · rw [he₄, heR, eval_line]
+            fun u => (he₄ u).trans ((he₃ u).trans (heM u))⟩))
+      · rw [Nat.lt_one_iff.mp kR.isLt, add_zero] at hR
+        exact Or.inr (Or.inr (Or.inr (Or.inl ⟨h₄.trans hR,
+          fun u => by rw [he₄, heR, eval_line]⟩)))
     · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨kS, hS, heS⟩)))
+  have hnondeg (hp : ∀ k : Fin p.segments, p.point k.castSucc ≠ p.point k.succ)
+      (k : Fin q.segments) : q.point k.castSucc ≠ q.point k.succ := by
+    have hinj : Function.Injective (q.eval k) := by
+      intro u v heq
+      rcases hparts k with ⟨l, _, he⟩ | ⟨_, he⟩ | ⟨l, _, he⟩ | ⟨_, he⟩ | ⟨l, _, he⟩ <;>
+        rw [he u, he v] at heq
+      · exact interval_eval_injective hAt hp l heq
+      · exact AffineMap.lineMap_injective ℝ (hport_ne hli' hlj' ha) heq
+      · rw [eval_reverse, eval_reverse] at heq
+        linarith only [interval_eval_injective hMt hp l.rev heq]
+      · exact AffineMap.lineMap_injective ℝ (hport_ne hui' huj' hb) heq
+      · exact interval_eval_injective hSt hp l heq
+    exact fun he => zero_ne_one (hinj
+      (by simpa only [eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] using he))
+  let segmentLine (P : Route) (k : Fin P.segments) :=
+    affineSpan ℝ ({P.point k.castSucc, P.point k.succ} : Set ℂ)
   have hlocation (k : Fin q.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) :
       (∃ l : Fin p.segments, ∃ v ∈ Set.Ioo 0 1, indexAt l v = k.val ∧
-        q.eval k u = p.eval l v ∧ q.eval k u ∉ B) ∨
+        q.eval k u = p.eval l v ∧ q.eval k u ∉ B ∧ segmentLine q k = segmentLine p l) ∨
       (k.val = A.segments ∧ q.eval k u ∈ segment ℝ a c) ∨
       (k.val = ((A.concat L).concat M.reverse).segments ∧ q.eval k u ∈ segment ℝ b d) := by
-    rcases hparts k u with ⟨kA, hk, hval⟩ | ⟨hk, hval⟩ | ⟨kM, hk, hval⟩ |
+    rcases hparts k with ⟨kA, hk, hval⟩ | ⟨hk, hval⟩ | ⟨kM, hk, hval⟩ |
       ⟨hk, hval⟩ | ⟨kS, hk, hval⟩
     · obtain ⟨v, hv, hidx, he, hw⟩ := hAtrace kA hu
-      exact Or.inl ⟨_, v, hv, hidx.trans hk.symm, hval.trans he, hval.symm ▸ hw⟩
-    · exact Or.inr (Or.inl ⟨hk, hval.symm ▸ lineMap_mem_segment ℝ _ _ (Set.Ioo_subset_Icc_self hu)⟩)
+      obtain ⟨_, hlt, _, hEval⟩ := hAt kA
+      exact Or.inl ⟨_, v, hv, hidx.trans hk.symm, (hval u).trans he, (hval u).symm ▸ hw,
+        affineSpan_eq_of_reparam ((AffineMap.lineMap_injective ℝ hlt.ne).ne zero_ne_one)
+          (fun t => (hval t).trans (hEval t))⟩
+    · exact Or.inr (Or.inl
+        ⟨hk, (hval u).symm ▸ lineMap_mem_segment ℝ _ _ (Set.Ioo_subset_Icc_self hu)⟩)
     · obtain ⟨v, hv, hidx, he, hw⟩ := hMtrace kM hu
-      exact Or.inl ⟨_, v, hv, hidx.trans hk.symm, hval.trans he, hval.symm ▸ hw⟩
-    · exact Or.inr (Or.inr ⟨hk, hval.symm ▸ lineMap_mem_segment ℝ _ _ (Set.Ioo_subset_Icc_self hu)⟩)
+      obtain ⟨_, hlt, _, hEval⟩ := hMt kM.rev
+      have hrev : (1 : ℝ) - 0 ≠ 1 - 1 := by norm_num
+      exact Or.inl ⟨_, v, hv, hidx.trans hk.symm, (hval u).trans he, (hval u).symm ▸ hw,
+        affineSpan_eq_of_reparam (f := fun t => intervalTime ui lj eM kM.rev (1 - t))
+          (fun h => hrev (AffineMap.lineMap_injective ℝ hlt.ne h))
+          (fun t => (hval t).trans ((eval_reverse M kM t).trans (hEval (1 - t))))⟩
+    · exact Or.inr (Or.inr
+        ⟨hk, (hval u).symm ▸ lineMap_mem_segment ℝ _ _ (Set.Ioo_subset_Icc_self hu)⟩)
     · obtain ⟨v, hv, hidx, he, hw⟩ := hStrace kS hu
-      exact Or.inl ⟨_, v, hv, hidx.trans hk.symm, hval.trans he, hval.symm ▸ hw⟩
+      obtain ⟨_, hlt, _, hEval⟩ := hSt kS
+      exact Or.inl ⟨_, v, hv, hidx.trans hk.symm, (hval u).trans he, (hval u).symm ▸ hw,
+        affineSpan_eq_of_reparam ((AffineMap.lineMap_injective ℝ hlt.ne).ne zero_ne_one)
+          (fun t => (hval t).trans (hEval t))⟩
   have hcut_injective (k : Fin p.segments)
       (hz : z ∈ openSegment ℝ (p.point k.castSucc) (p.point k.succ)) :
-      Function.Injective (p.eval k) := by
-    apply AffineMap.lineMap_injective ℝ
-    intro he
-    have hz' := openSegment_subset_segment ℝ _ _ hz
-    rw [he, segment_same, Set.mem_singleton_iff] at hz'
-    exact hends k.succ (hz' ▸ Metric.mem_closedBall_self hρ.le)
+      Function.Injective (p.eval k) :=
+    AffineMap.lineMap_injective ℝ fun he => by
+      simp only [he, openSegment_same, Set.mem_singleton_iff] at hz
+      exact hends k.succ (hz ▸ Metric.mem_closedBall_self hρ.le)
   have hindexAt (k : Fin p.segments) {u v : ℝ} (he : p.eval k u = p.eval k v) :
       indexAt k u = indexAt k v := by
-    by_cases hi : k = i
-    · subst k
-      rw [hcut_injective i hzi he]
-    by_cases hj : k = j
-    · subst k
-      rw [hcut_injective j hzj he]
+    rcases eq_or_ne k i with rfl | hi
+    · rw [hcut_injective k hzi he]
+    rcases eq_or_ne k j with rfl | hj
+    · rw [hcut_injective k hzj he]
     simp [indexAt, inPrefix, inMiddle, hi, hj]
+  let through (P : Route) (w : ℂ) :=
+    {k : Fin P.segments // w ∈ openSegment ℝ (P.point k.castSucc) (P.point k.succ)}
+  have hthrough (w : ℂ) (k : through q w) :
+      (∃ l : through p w, ∃ v, p.eval l.val v = w ∧ indexAt l.val v = k.val ∧
+        w ∉ B ∧ segmentLine q k.val = segmentLine p l.val) ∨
+        ((k.val : ℕ) = A.segments ∧ w ∈ segment ℝ a c) ∨
+        ((k.val : ℕ) = ((A.concat L).concat M.reverse).segments ∧ w ∈ segment ℝ b d) := by
+    obtain ⟨u, hu, he⟩ := by simpa only [openSegment_eq_image_lineMap] using k.property
+    change q.eval k.val u = w at he
+    rcases hlocation k.val hu with ⟨l, v, hv, hi, hvEq, hout, hline⟩ | hc | hd
+    · have hw : p.eval l v = w := hvEq.symm.trans he
+      exact Or.inl ⟨⟨l, hw ▸ lineMap_mem_openSegment ℝ _ _ hv⟩, v, hw, hi, he ▸ hout, hline⟩
+    · exact Or.inr (Or.inl ⟨hc.1, he ▸ hc.2⟩)
+    · exact Or.inr (Or.inr ⟨hd.1, he ▸ hd.2⟩)
+  have hexterior_open (w : ℂ) (hw : w ∉ B) :
+      ∃ f : through q w ↪ through p w, ∀ k, segmentLine q k.val = segmentLine p (f k).val := by
+    have ht (k : through q w) :
+        ∃ l : through p w, ∃ v, p.eval l.val v = w ∧ indexAt l.val v = k.val ∧
+          w ∉ B ∧ segmentLine q k.val = segmentLine p l.val :=
+      (hthrough w k).resolve_right (fun h => hw (hNew (h.elim
+        (fun h => Or.inl h.2) (fun h => Or.inr h.2))))
+    choose f v he hi _ hline using ht
+    refine ⟨⟨f, ?_⟩, hline⟩
+    intro k l hkl
+    have hf := congrArg Subtype.val hkl
+    apply Subtype.ext
+    apply Fin.ext
+    calc
+      _ = indexAt (f k).val (v k) := (hi k).symm
+      _ = indexAt (f k).val (v l) := hindexAt (f k).val (by rw [he k, hf, he l])
+      _ = _ := by rw [hf, hi l]
   have hCross : openSegmentCrossings (fun k : Fin q.segments => q.point k.castSucc)
       (fun k => q.point k.succ) ⊆ openSegmentCrossings
         (fun k : Fin p.segments => p.point k.castSucc) (fun k => p.point k.succ) \ B := by
     rintro w ⟨k, l, hkl, hk, hl⟩
-    rw [openSegment_eq_image_lineMap] at hk hl
-    obtain ⟨u, hu, he⟩ := hk
-    obtain ⟨v, hv, he'⟩ := hl
-    change q.eval k u = w at he
-    change q.eval l v = w at he'
-    have hk := hlocation k hu
-    have hl := hlocation l hv
-    rw [he] at hk
-    rw [he'] at hl
+    let k' : through q w := ⟨k, hk⟩
+    let l' : through q w := ⟨l, hl⟩
+    have hkl' : k' ≠ l' := fun h => hkl (congrArg Subtype.val h)
     have hw : w ∉ B := by
       intro hw
-      rcases hk.resolve_left (by rintro ⟨_, _, _, _, _, h⟩; exact h hw) with hk | hk <;>
-        rcases hl.resolve_left (by rintro ⟨_, _, _, _, _, h⟩; exact h hw) with hl | hl
+      have chord (m : through q w) :
+          ((m.val : ℕ) = A.segments ∧ w ∈ segment ℝ a c) ∨
+            ((m.val : ℕ) = ((A.concat L).concat M.reverse).segments ∧ w ∈ segment ℝ b d) :=
+        (hthrough w m).resolve_left (by rintro ⟨_, _, _, _, hout, _⟩; exact hout hw)
+      rcases chord k' with hk | hk <;> rcases chord l' with hl | hl
       · exact hkl (Fin.ext (hk.1.trans hl.1.symm))
       · exact Set.disjoint_left.mp hdisjoint hk.2 hl.2
       · exact Set.disjoint_left.mp hdisjoint hl.2 hk.2
       · exact hkl (Fin.ext (hk.1.trans hl.1.symm))
-    have hnotChord (n : ℕ) : ¬ ((n = A.segments ∧ w ∈ segment ℝ a c) ∨
-        (n = ((A.concat L).concat M.reverse).segments ∧ w ∈ segment ℝ b d)) :=
-      fun h => hw (hNew (h.elim (fun h => Or.inl h.2) (fun h => Or.inr h.2)))
-    obtain ⟨k', u', hu', hidx, he₁, _⟩ := hk.resolve_right (hnotChord k.val)
-    obtain ⟨l', v', hv', hidx', he₂, _⟩ := hl.resolve_right (hnotChord l.val)
-    have hne : k' ≠ l' := by
-      rintro rfl
-      exact hkl (Fin.ext (hidx.symm.trans ((hindexAt k' (he₁.symm.trans he₂)).trans hidx')))
-    refine ⟨⟨k', l', hne, ?_, ?_⟩, hw⟩
-    · exact he₁.symm ▸ lineMap_mem_openSegment ℝ _ _ hu'
-    · exact he₂.symm ▸ lineMap_mem_openSegment ℝ _ _ hv'
+    obtain ⟨f, _⟩ := hexterior_open w hw
+    exact ⟨⟨(f k').val, (f l').val, fun h => hkl' (f.injective (Subtype.ext h)),
+      (f k').property, (f l').property⟩, hw⟩
   have hshift (P : Route) (k : Fin q.segments) (l : Fin P.segments) {n : ℕ}
       (hk : k.val = n + l.val) (u : ℝ) : q.position k u = (n : ℝ) + P.position l u := by
     simp only [position, hk, Nat.cast_add]
@@ -678,7 +720,8 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       ∃ (r : Fin p.segments) (v : ℝ), v ∈ Set.Icc 0 1 ∧ p.eval r v = q.eval k u ∧
         (u ∈ Set.Ioo 0 1 ↔ v ∈ Set.Ioo 0 1) ∧
         retained (p.position r v) (q.position k u) := by
-    rcases hparts k u with ⟨l, hk, he⟩ | ⟨_, he⟩ | ⟨l, hk, he⟩ | ⟨_, he⟩ | ⟨l, hk, he⟩
+    rcases hparts k with ⟨l, hk, he⟩ | ⟨_, he⟩ | ⟨l, hk, he⟩ | ⟨_, he⟩ | ⟨l, hk, he⟩ <;>
+      specialize he u
     · obtain ⟨v, hv, hv₀, hvEq, _, _, ht⟩ := interval_closed_eval (Fin.zero_le i) hAt l hu
       have h := interval_source_position_bounds zero_le_one hli.le (eA l) hv₀ hv
       have hclass := interval_exterior_interior_iff hAt (Or.inl rfl)
@@ -718,8 +761,7 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     have hiGap : p.position i li < p.position i ui := add_lt_add_right hi₀ _
     have hjGap : p.position j lj < p.position j uj := add_lt_add_right hj₀ _
     have hspan : p.position i ui ≤ p.position j lj := by
-      have hstep : (i.val : ℝ) + 1 ≤ j.val := by
-        exact_mod_cast (show i.val < j.val from hij)
+      have hstep : (i.val : ℝ) + 1 ≤ j.val := mod_cast hij
       dsimp only [position]
       linarith only [hui, hlj, hstep]
     rcases hy with ⟨ha, hy⟩ | ⟨hm₀, hm₁, hy⟩ | ⟨hs, hy⟩ <;>
@@ -741,9 +783,8 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
         (s ∈ Set.Ioo 0 1 ↔ u ∈ Set.Ioo 0 1) ∧ (t ∈ Set.Ioo 0 1 ↔ v ∈ Set.Ioo 0 1) := by
     obtain ⟨a, u, hu, ha, hia, hLiftA⟩ := hExterior k hs hw
     obtain ⟨b, v, hv, hb, hib, hLiftB⟩ := hExterior l ht (he ▸ hw)
-    refine ⟨a, b, u, v, hu, hv, ha, hb, ?_, hia, hib⟩
-    intro heq
-    exact hpos (hretained_unique hLiftA (heq.symm ▸ hLiftB))
+    exact ⟨a, b, u, v, hu, hv, ha, hb,
+      fun heq => hpos (hretained_unique hLiftA (heq.symm ▸ hLiftB)), hia, hib⟩
   let rOffset := ((A.concat L).concat M.reverse).segments
   have hcontact (k : Fin q.segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1)
       (hw : q.eval k u ∈ B) :
@@ -751,7 +792,8 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
         q.position k u = (A.segments : ℝ) + v) ∨
       (∃ v ∈ Set.Icc (0 : ℝ) 1, q.eval k u = AffineMap.lineMap b d v ∧
         q.position k u = (rOffset : ℝ) + v) := by
-    rcases hparts k u with ⟨l, hk, hp⟩ | ⟨hk, hp⟩ | ⟨l, hk, hp⟩ | ⟨hk, hp⟩ | ⟨l, hk, hp⟩
+    rcases hparts k with ⟨l, hk, hp⟩ | ⟨hk, hp⟩ | ⟨l, hk, hp⟩ | ⟨hk, hp⟩ | ⟨l, hk, hp⟩ <;>
+      specialize hp u
     · obtain ⟨v, hv, hv₀, he, _, hfinish, _⟩ := interval_closed_eval (Fin.zero_le i) hAt l hu
       have hw' : p.eval (eA l).val v ∈ B := (hp.trans he) ▸ hw
       by_cases hi : (eA l).val = i
@@ -781,7 +823,7 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
           refine Or.inl ⟨1, ⟨zero_le_one, le_rfl⟩, ?_, ?_⟩
           · rw [heval, hj, hcut, AffineMap.lineMap_apply_one]
           · rw [hpos, hfinish hj hcut]
-            simp [Nat.cast_add, show L.segments = 1 from rfl]
+            simp [L, line, Nat.cast_add]
         · exact (hother _ _ hv₀ hi hj hw').elim
     · exact Or.inr ⟨u, hu, hp, by simp only [position, rOffset, hk]⟩
     · obtain ⟨v, hv, hv₀, he, hfirst, _, _⟩ := interval_closed_eval (Fin.le_last j) hSt l hu
@@ -792,55 +834,77 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
         refine Or.inr ⟨1, ⟨zero_le_one, le_rfl⟩, ?_, ?_⟩
         · rw [hp, he, hj, hcut, AffineMap.lineMap_apply_one]
         · rw [hshift S k l hk u, hfirst hj hcut]
-          simp [rOffset, Nat.cast_add, show R.segments = 1 from rfl]
+          simp [R, line, rOffset, Nat.cast_add]
       · exact (hother _ _ hv₀ (hij.trans_le (eS l).property.1).ne' hj hw').elim
   have hpositions (k l : Fin q.segments) {s t : ℝ} (hs : s ∈ Set.Icc 0 1)
       (ht : t ∈ Set.Icc 0 1) (hw : q.eval k s ∈ B) (he : q.eval k s = q.eval l t) :
       q.position k s = q.position l t := by
     rcases hcontact k hs hw with ⟨x, hx, hx₁, hx₂⟩ | ⟨x, hx, hx₁, hx₂⟩ <;>
       rcases hcontact l ht (he ▸ hw) with ⟨y, hy, hy₁, hy₂⟩ | ⟨y, hy, hy₁, hy₂⟩
-    · have hxy := AffineMap.lineMap_injective ℝ (hport_ne hli' hlj' ha)
-        (hx₁.symm.trans (he.trans hy₁))
-      rw [hx₂, hy₂, hxy]
+    · rw [hx₂, hy₂, AffineMap.lineMap_injective ℝ (hport_ne hli' hlj' ha)
+        (hx₁.symm.trans (he.trans hy₁))]
     · exact (Set.disjoint_left.mp hdisjoint
         (hx₁.symm ▸ lineMap_mem_segment ℝ _ _ hx)
         (he.symm ▸ hy₁.symm ▸ lineMap_mem_segment ℝ _ _ hy)).elim
     · exact (Set.disjoint_left.mp hdisjoint
         (he.symm ▸ hy₁.symm ▸ lineMap_mem_segment ℝ _ _ hy)
         (hx₁.symm ▸ lineMap_mem_segment ℝ _ _ hx)).elim
-    · have hxy := AffineMap.lineMap_injective ℝ (hport_ne hui' huj' hb)
-        (hx₁.symm.trans (he.trans hy₁))
-      rw [hx₂, hy₂, hxy]
-  have hDisk : q.support ∩ B = N := by
-    ext w
-    constructor
-    · rintro ⟨hw, hdisk⟩
+    · rw [hx₂, hy₂, AffineMap.lineMap_injective ℝ (hport_ne hui' huj' hb)
+        (hx₁.symm.trans (he.trans hy₁))]
+  have hExteriorVisit (k : Fin q.segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1) (hw : q.eval k u ∉ B) :=
+    (hExterior k hu hw).imp fun _ => Exists.imp fun _ h => And.intro h.1 (And.intro h.2.1 h.2.2.1)
+  have hPoints (hp : Function.Injective p.point) : Function.Injective q.point := by
+    intro a b he
+    obtain ⟨k, s, hs, hsb, hqa, hsa⟩ := exists_parameter_at_point q a
+    obtain ⟨l, t, ht, htb, hqb, htbPos⟩ := exists_parameter_at_point q b
+    have hqt := hqa.trans (he.trans hqb.symm)
+    by_contra hab
+    have hpos : q.position k s ≠ q.position l t :=
+      hsa ▸ htbPos ▸ fun h => hab (Fin.ext (mod_cast h))
+    have hw : q.eval k s ∉ B := fun h => hpos (hpositions k l hs ht h hqt)
+    obtain ⟨i, j, u, v, hu, hv, hi, hj, hne, hsU, htV⟩ :=
+      hExteriorContact k l hs ht hw hqt hpos
+    obtain ⟨a', hpa, huPos⟩ := exists_point_at_end_parameter i hu (fun h => hsb (hsU.mpr h))
+    obtain ⟨b', hpb, hvPos⟩ := exists_point_at_end_parameter j hv (fun h => htb (htV.mpr h))
+    exact hne (by rw [huPos, hvPos, hp (hpa.symm.trans (hi.trans (hqt.trans (hj.symm.trans hpb))))])
+  have hAvoid (hp : ∀ (a : Fin (p.segments + 1)) (k : Fin p.segments),
+      p.point a ∉ openSegment ℝ (p.point k.castSucc) (p.point k.succ))
+      (a : Fin (q.segments + 1)) (l : Fin q.segments) :
+      q.point a ∉ openSegment ℝ (q.point l.castSucc) (q.point l.succ) := by
+    intro he
+    obtain ⟨t, ht, hqb⟩ := by rwa [openSegment_eq_image_lineMap] at he
+    obtain ⟨k, s, hs, hsb, hqa, hsa⟩ := exists_parameter_at_point q a
+    have hqt : q.eval k s = q.eval l t := hqa.trans hqb.symm
+    have hpos : q.position k s ≠ q.position l t :=
+      hsa ▸ (position_ne_nat_of_mem_Ioo l ht a.val).symm
+    have ht' := Set.Ioo_subset_Icc_self ht
+    have hw : q.eval k s ∉ B := fun h => hpos (hpositions k l hs ht' h hqt)
+    obtain ⟨i, j, u, v, hu, _, hi, hj, _, hsU, htV⟩ :=
+      hExteriorContact k l hs ht' hw hqt hpos
+    obtain ⟨a', hpa, _⟩ := exists_point_at_end_parameter i hu (fun h => hsb (hsU.mpr h))
+    exact hp a' j
+      ((hpa.symm.trans (hi.trans (hqt.trans hj.symm))) ▸ lineMap_mem_openSegment ℝ _ _ (htV.mp ht))
+  have hDisk : q.support ∩ B = N := Set.Subset.antisymm
+    (fun w ⟨hw, hdisk⟩ => by
       obtain ⟨k, u, hu, rfl⟩ := (q.mem_support_iff w).mp hw
       rcases hcontact k hu hdisk with ⟨v, hv, he, _⟩ | ⟨v, hv, he, _⟩
       · exact Or.inl (he.symm ▸ lineMap_mem_segment ℝ _ _ hv)
-      · exact Or.inr (he.symm ▸ lineMap_mem_segment ℝ _ _ hv)
-    · intro hw
-      exact ⟨hq.symm ▸ Or.inr hw, hNew hw⟩
-  have hNoCenter : z ∉ q.support := by
-    intro hz
-    have hzB : z ∈ q.support ∩ B := ⟨hz, Metric.mem_closedBall_self hρ.le⟩
-    rw [hDisk] at hzB
-    exact hcenter hzB
-  refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, hCross, hpositions, hExteriorContact,
-    li, ui, lj, uj,
+      · exact Or.inr (he.symm ▸ lineMap_mem_segment ℝ _ _ hv))
+    fun _ hw => ⟨hq.symm ▸ Or.inr hw, hNew hw⟩
+  have hNoCenter : z ∉ q.support := fun hz =>
+    hcenter (hDisk ▸ ⟨hz, Metric.mem_closedBall_self (x := z) hρ.le⟩)
+  refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, hCross, hpositions, hExteriorContact, hnondeg,
+    hExteriorVisit, hPoints, hAvoid, hexterior_open, li, ui, lj, uj,
     hli, hi₀, hui, hlj, hj₀, huj, ha, hb, hc, hd, hDisk, hdisjoint⟩
-  · change q.support \ B = p.support \ B
-    rw [hq]
+  · rw [hq]
     ext w
     exact ⟨fun hw => ⟨hE (hw.1.resolve_right (fun hn => hw.2 (hNew hn))), hw.2⟩,
       fun hw => ⟨Or.inl (cover hw), hw.2⟩⟩
   · intro r hr
-    have hL : Disjoint L.support r.support := hr.mono_left (by
-      rw [support_line]
-      exact fun _ hw => hNew (Or.inl hw))
-    have hR : Disjoint R.support r.support := hr.mono_left (by
-      rw [support_line]
-      exact fun _ hw => hNew (Or.inr hw))
+    have hL : Disjoint L.support r.support :=
+      hr.mono_left (by simpa only [L, support_line] using Set.subset_union_left.trans hNew)
+    have hR : Disjoint R.support r.support :=
+      hr.mono_left (by simpa only [R, support_line] using Set.subset_union_right.trans hNew)
     have hcuti := hr.mono_left ((convex_closedBall z ρ).segment_subset
       (Metric.sphere_subset_closedBall ha) (Metric.sphere_subset_closedBall hb))
     have hcutj := hr.mono_left ((convex_closedBall z ρ).segment_subset
@@ -851,11 +915,9 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       intersectionParity_eq_zero_of_disjoint hL, intersectionParity_eq_zero_of_disjoint hR,
       add_zero, hAp, hMp, hSp] using
       intervalParity_splice p hij r hli hi₀ hui hlj hj₀ huj hcuti hcutj
-  · intro side
-    simp only [q, germ_concat _ _ hjoinS, germ_concat _ _ hjoinR, germ_concat _ _ hjoinM,
-      germ_concat _ _ hjoinL]
-    cases side
-    · simpa only [Bool.false_eq_true, ↓reduceIte] using hAg rfl rfl
-    · simpa only [↓reduceIte] using hSg rfl rfl
+  · rintro (_ | _) <;>
+      simp only [q, germ_concat _ _ hjoinS, germ_concat _ _ hjoinR, germ_concat _ _ hjoinM,
+        germ_concat _ _ hjoinL, Bool.false_eq_true, ↓reduceIte]
+    exacts [hAg rfl rfl, hSg rfl rfl]
 
 end Cslib.Polygonal.Route

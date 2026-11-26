@@ -197,9 +197,7 @@ theorem measureProb_eq_sum_slice [DecidableEq W] [DecidableEq G] (ψ : State N (
     measureProb ψ S =
       ∑ g, measureProb (slice g ψ) (univ.filter fun (i, b, w) => (i, b, w, g) ∈ S) := by
   simp only [measureProb, sum_filter]
-  have hS : ∑ p ∈ S, ‖ψ.ofLp p‖ ^ 2 = ∑ p, if p ∈ S then ‖ψ.ofLp p‖ ^ 2 else 0 := by
-    rw [sum_ite_mem, univ_inter]
-  rw [hS, sum_split]
+  conv_lhs => rw [← univ_inter S, ← sum_ite_mem, sum_split]
   exact sum_congr rfl fun _ _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
 
 /-- The probability of measuring query index `i` is the sum over the slices. -/
@@ -335,9 +333,7 @@ theorem run_add {U V : ℕ → State N W →ₗᵢ[ℂ] State N W} {T : ℕ} (h0
     run U ψ₀ x (T + s) = run V (run U ψ₀ x T) x s := by
   induction s with
   | zero => simp [run, h0]
-  | succ s ih =>
-    rw [← Nat.add_assoc]
-    simp only [run, hV, ih]
+  | succ s ih => rw [← Nat.add_assoc, run, run, hV, ih]
 
 /-! ### Checking an output -/
 
@@ -383,8 +379,7 @@ theorem hadCtrl_phaseOracle_hadCtrl_eq_permute (x : Fin N → Bool) (ψ : State 
     hadCtrl (phaseOracle x (hadCtrl ψ)) = permute (bitFlip x) ψ := by
   have h2 : (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) = 1 / 2 := by
     rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt zero_le_two]
-    push_cast
-    ring
+    norm_num
   ext ⟨i, b, w⟩
   simp only [hadCtrl_apply, phaseOracle_apply, permute_apply, bitFlip_symm, bitFlip_apply]
   generalize (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) = c at h2 ⊢
@@ -426,8 +421,7 @@ theorem run_check {T : ℕ} {U : ℕ → State N W →ₗᵢ[ℂ] State N W} {ψ
       rw [run, run, run_congr (U' := U) (fun s hs => by simp [check, show s < T + 1 by omega])]
       simp [check]
   rw [run, hT]
-  simp only [check, show ¬ T + 1 < T by omega, show T + 1 ≠ T by omega, ite_false]
-  exact hadCtrl_phaseOracle_hadCtrl hctrl i b w
+  simp [check, hadCtrl_phaseOracle_hadCtrl hctrl]
 
 /-- **The acceptance probability of a check**: if the state of `U` after `T` queries has control
 bit `0`, then after the check the control bit is `1` with the probability that measuring the state
@@ -515,11 +509,9 @@ theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ
   have hsecond : run (twice T U) (twiceInit ψ₀) x (T + T) = run
       (fun r => controlled fun _ : QueryBasis N W =>
         if r = 0 then LinearIsometry.id else U r) (run (twice T U) (twiceInit ψ₀) x T) x T :=
-    run_add (by simp) (fun r => by
-      simp [twice, show ¬ T + r + 1 < T by omega, show T + r + 1 ≠ T by omega,
-        show T + r + 1 - T = r + 1 by omega]) _ _ _
-  have hU : run (fun r => if r = 0 then LinearIsometry.id else U r) (U 0 ψ₀) x T = F :=
-    (run_add (T := 0) (by simp) (fun _ => by simp) ψ₀ x T).symm.trans (by rw [Nat.zero_add])
+    run_add (by simp) (fun r => by simp [twice, Nat.add_assoc]) _ _ _
+  have hU : run (fun r => if r = 0 then LinearIsometry.id else U r) (U 0 ψ₀) x T = F := by
+    simpa [run] using (run_add (U := U) (T := 0) (by simp) (fun _ => by simp) ψ₀ x T).symm
   have := congrArg (fun φ => φ.ofLp (i, b, w)) (slice_run (fun _ r => if r = 0 then
     LinearIsometry.id else U r) (run (twice T U) (twiceInit ψ₀) x T) x q T)
   rw [hsecond, ← slice_apply q, this, hmid, run_smul, hU, PiLp.smul_apply, smul_eq_mul, mul_comm]
@@ -541,21 +533,14 @@ theorem measureProb_run_twice [DecidableEq W] {T : ℕ} {U : ℕ → State N W �
   have hprod (f₁ f₂ : Fin N × Bool × W → ℝ) :
       ∑ p : Fin N × Bool × (W × QueryBasis N W), f₁ (fstCopy p) * f₂ (sndCopy p) =
         (∑ q, f₁ q) * ∑ g, f₂ g := by
-    rw [sum_split]
-    simp_rw [show ∀ g : QueryBasis N W,
-        (∑ q : Fin N × Bool × W, f₁ (fstCopy (splitEquiv.symm (g, q))) *
-          f₂ (sndCopy (splitEquiv.symm (g, q)))) =
-        ∑ q : Fin N × Bool × W, f₁ q * f₂ (QueryBasis.equiv g) from
-      fun _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl]
-    rw [Fintype.sum_equiv QueryBasis.equiv _ (fun r => ∑ q, f₁ q * f₂ r) fun _ => rfl,
-      sum_mul_sum, sum_comm]
+    rw [sum_split, Fintype.sum_equiv QueryBasis.equiv _
+      (fun r => ∑ q : Fin N × Bool × W, f₁ q * f₂ r)
+      (fun _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl), sum_mul_sum, sum_comm]
   have hF : ∑ q, f q = 1 := by
     simp only [f, ← EuclideanSpace.norm_sq_eq, F, norm_run, hψ₀, one_pow]
   have hSc : ∑ q, (if q ∈ S then 0 else f q) = 1 - measureProb F S := by
-    rw [← hF, measureProb]
-    change (∑ q, if q ∈ S then 0 else f q) = (∑ q, f q) - ∑ q ∈ S, f q
-    rw [← univ_inter S, ← sum_ite_mem, ← sum_sub_distrib]
-    exact sum_congr rfl fun q _ => by by_cases hq : q ∈ S <;> simp [hq]
+    rw [← hF, measureProb, ← univ_inter S, ← sum_ite_mem, ← sum_sub_distrib]
+    exact sum_congr rfl fun q _ => by by_cases hq : q ∈ S <;> simp [hq, f]
   rw [measureProb, sum_filter, sum_congr rfl (g := fun p => f (fstCopy p) * f (sndCopy p) -
       (if fstCopy p ∈ S then 0 else f (fstCopy p)) *
         (if sndCopy p ∈ S then 0 else f (sndCopy p)))

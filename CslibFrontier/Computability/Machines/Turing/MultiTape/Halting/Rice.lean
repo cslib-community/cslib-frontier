@@ -128,9 +128,10 @@ theorem rice {C : Set (List Bool → List ℕ → Prop)} {w₀ w₁ : List Bool}
   intro hdec
   obtain ⟨f, hf, hP⟩ := hdec.exists_isComputable
   obtain ⟨e, he⟩ := exists_behavior_eq hf fun b => decodeDesc (if b then w₀ else w₁)
+  have hbeh : behavior e = behavior (if f e then w₀ else w₁) :=
+    funext fun x => funext fun o => propext (he x o)
   have hmem := hP e
-  rw [Set.mem_ofPred_eq, show behavior e = behavior (if f e then w₀ else w₁) from
-    funext fun x => funext fun o => propext (he x o)] at hmem
+  rw [Set.mem_ofPred_eq, hbeh] at hmem
   cases hfe : f e <;> simp_all
 
 /-- **Rice's theorem, for sets of words.** A set of words that holds of a word or not according to

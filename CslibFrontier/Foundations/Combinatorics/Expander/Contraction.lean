@@ -125,10 +125,11 @@ The inequality also permits loops arising from unused slots when the two sets ov
 theorem card_interedges_le_contract (S T : Finset W) :
     #(G.interedges {v | (encode v).1 ∈ S} {v | (encode v).1 ∈ T}) ≤
       #((contract encode decode h G).interedges S T) := by
-  refine card_le_card_of_injOn (contractDart encode) (fun p hp => ?_)
-    (contractDart_injective encode decode h).injOn
-  simp only [mem_coe, mem_interedges, mem_filter, mem_univ, true_and] at hp ⊢
-  exact ⟨hp.1, by simpa only [contractDart, neighbor_contract] using hp.2⟩
+  apply card_le_card_of_injOn (contractDart encode)
+  · intro p hp
+    simp only [mem_coe, mem_interedges, mem_filter, mem_univ, true_and] at hp ⊢
+    exact ⟨hp.1, by simpa only [contractDart, neighbor_contract] using hp.2⟩
+  · exact (contractDart_injective encode decode h).injOn
 
 variable [Fintype W]
 
@@ -141,22 +142,31 @@ theorem le_card_interedges_compl_contract
     (1 - G.spectralExpansion) * Fintype.card D * #S / 2 ≤
       #((contract encode decode h G).interedges S Sᶜ) := by
   classical
-  have hcard (T : Finset W) : #T ≤ #{v | (encode v).1 ∈ T} :=
-    card_le_card_of_surjOn (fun v => (encode v).1) fun w hw => by
-      obtain ⟨v, hv⟩ := hcover w
-      exact ⟨v, by simpa only [mem_coe, mem_filter, mem_univ, true_and, hv] using hw, hv⟩
+  have hcard (T : Finset W) : #T ≤ #{v | (encode v).1 ∈ T} := by
+    apply card_le_card_of_surjOn (fun v => (encode v).1)
+    intro w hw
+    obtain ⟨v, hv⟩ := hcover w
+    exact ⟨v, by simpa only [mem_coe, mem_filter, mem_univ, true_and, hv] using hw, hv⟩
   let A : Finset V := {v | (encode v).1 ∈ S}
   have hAc : Aᶜ = ({v | (encode v).1 ∈ Sᶜ} : Finset V) := by ext; simp [A]
+  have hcross := card_interedges_le_contract encode decode h G S Sᶜ
+  rw [← hAc] at hcross
   have hgap : 0 ≤ 1 - G.spectralExpansion := sub_nonneg.mpr G.spectralExpansion_le_one
-  refine le_trans ?_ (Nat.cast_le.mpr (hAc ▸ card_interedges_le_contract encode decode h G S Sᶜ))
+  refine le_trans (b := (#(G.interedges A Aᶜ) : ℝ)) ?_ (Nat.cast_le.mpr hcross)
   by_cases hA : 2 * #A ≤ Fintype.card V
   · refine le_trans ?_ (G.le_card_interedges_compl_of_two_mul_card_le hA)
-    gcongr; exact_mod_cast hcard S
-  · have hA' : 2 * #Aᶜ ≤ Fintype.card V := by have := card_add_card_compl A; lia
-    have hc : #S ≤ #Aᶜ := by
-      rw [hAc]; exact (by have := card_add_card_compl S; lia : #S ≤ #Sᶜ).trans (hcard Sᶜ)
+    gcongr
+    exact_mod_cast hcard S
+  · have hA' : 2 * #Aᶜ ≤ Fintype.card V := by
+      have := card_add_card_compl A
+      lia
+    have hSS : #S ≤ #Sᶜ := by
+      have := card_add_card_compl S
+      lia
+    have hc : #S ≤ #Aᶜ := by rw [hAc]; exact hSS.trans (hcard Sᶜ)
     rw [G.card_interedges_comm A Aᶜ]
-    refine le_trans ?_ (compl_compl A ▸ G.le_card_interedges_compl_of_two_mul_card_le hA')
+    refine le_trans ?_
+      (compl_compl A ▸ G.le_card_interedges_compl_of_two_mul_card_le hA')
     gcongr
 
 omit [DecidableEq V] [DecidableEq W] in
@@ -168,15 +178,18 @@ theorem spectralExpansion_contract_lazy_le [Nontrivial W] [Nonempty I] [Nonempty
       1 - (1 - G.spectralExpansion) ^ 2 / (16 * Fintype.card I ^ 2) := by
   classical
   have hgap : 0 ≤ 1 - G.spectralExpansion := sub_nonneg.mpr G.spectralExpansion_le_one
-  refine (spectralExpansion_lazy_le_of_mul_card_le_card_interedges_compl
-    (contract encode decode h G) (c := (1 - G.spectralExpansion) * Fintype.card D / 2)
-    (by positivity) fun S hS => by
-      simpa only [div_mul_eq_mul_div] using
-        le_card_interedges_compl_contract encode decode h G hcover hS).trans_eq ?_
+  have hbound := spectralExpansion_lazy_le_of_mul_card_le_card_interedges_compl
+      (contract encode decode h G)
+      (c := (1 - G.spectralExpansion) * Fintype.card D / 2) (by positivity)
+      (fun S hS => by
+        simpa only [div_mul_eq_mul_div] using
+          le_card_interedges_compl_contract encode decode h G hcover hS)
+  refine hbound.trans_eq ?_
   rw [Fintype.card_prod, Nat.cast_mul]
-  have hI : (Fintype.card I : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hD : (Fintype.card D : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  field_simp; ring
+  have hI : (Fintype.card I : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero (α := I)
+  have hD : (Fintype.card D : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero (α := D)
+  field_simp
+  ring
 
 section FiniteIndices
 
@@ -225,7 +238,8 @@ theorem spectralExpansion_contractFin_lazy_le [Nonempty D] (G : RotationMap (Fin
     (hcap : m ≤ k * n) (hsize : n ≤ m) (hn : 2 ≤ n) :
     (G.contractFin hcap).lazy.spectralExpansion ≤
       1 - (1 - G.spectralExpansion) ^ 2 / (16 * k ^ 2) := by
-  have hk : 0 < k := Nat.pos_of_ne_zero fun hk => by subst hk; lia
+  have hk : 0 < k :=
+    Nat.pos_of_mul_pos_right ((Nat.zero_lt_of_lt hn).trans_le (hsize.trans hcap))
   have : Nonempty (Fin k) := ⟨⟨0, hk⟩⟩
   have : Nontrivial (Fin n) := Fin.nontrivial_iff_two_le.mpr hn
   simpa only [contractFin, Fintype.card_fin] using

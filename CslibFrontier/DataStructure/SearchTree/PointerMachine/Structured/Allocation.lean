@@ -65,19 +65,18 @@ private theorem storeFields_exec (source : Fin (extra + 1) → Fin (regs + 2))
   induction fields generalizing x with
   | nil => exact ⟨x, ExecWithin.skip, rfl, rfl, (List.modify_id a x.heap).symm⟩
   | cons f fields ih =>
-    have first : ((Op.storeData f 0 (source f)).effect x).ptr 0 = some a := by
-      simpa [Op.effect, Op.instr, Instr.effect] using cursor
-    obtain ⟨y, run, ptr, data, heap⟩ := ih _ first
-    refine ⟨y, (ExecWithin.seq ExecWithin.op run).mono (by simp [Nat.add_comm]), ?_, ?_, ?_⟩
-    · simpa [Op.effect, Op.instr, Instr.effect] using ptr
-    · simpa [Op.effect, Op.instr, Instr.effect] using data
-    · rw [heap]
-      simp only [Op.effect, Op.instr, Instr.effect, State.modify, cursor, List.modify_modify_eq]
-      congr 1
-      funext n
-      simp only [Function.comp_apply, Record.mk.injEq, true_and]
-      funext g
-      by_cases hg : g = f <;> by_cases mem : g ∈ fields <;> simp [mem, hg]
+    obtain ⟨y, run, ptr, data, heap⟩ := ih ((Op.storeData f 0 (source f)).effect x)
+      (by simpa [Op.effect, Op.instr, Instr.effect] using cursor)
+    refine ⟨y, (ExecWithin.seq ExecWithin.op run).mono (by simp [Nat.add_comm]),
+      by simpa [Op.effect, Op.instr, Instr.effect] using ptr,
+      by simpa [Op.effect, Op.instr, Instr.effect] using data, ?_⟩
+    rw [heap]
+    simp only [Op.effect, Op.instr, Instr.effect, State.modify, cursor, List.modify_modify_eq]
+    congr 1
+    funext n
+    simp only [Function.comp_apply, Record.mk.injEq, true_and]
+    funext g
+    by_cases hg : g = f <;> simp [hg]
 
 /-- Allocation initializes all fields in `extra + 3` instructions. It appends exactly one
 record and preserves every register except cursor zero. The new node is a represented leaf,
@@ -105,11 +104,10 @@ theorem allocate_correct (source : Fin (extra + 1) → Fin (regs + 2))
     simp only [record, Record.blank, Record.mk.injEq]
     exact ⟨by funext f; fin_cases f <;> simp, rfl⟩
   refine ⟨y, (ExecWithin.seq ExecWithin.op (ExecWithin.seq ExecWithin.op run)).mono
-    (by simp only [List.length_finRange]; omega), result, ?_, ?_, ?_⟩
-  · simpa [s, Op.effect, Op.instr, Instr.effect, State.setPtr] using ptr
-  · simpa [s, Op.effect, Op.instr, Instr.effect, State.setPtr] using data
-  · rw [result]
-    simp [Represents, root, label]
+    (by simp only [List.length_finRange]; omega), result,
+    by simpa [s, Op.effect, Op.instr, Instr.effect, State.setPtr] using ptr,
+    by simpa [s, Op.effect, Op.instr, Instr.effect, State.setPtr] using data, ?_⟩
+  simp [result, Represents, root, label]
 
 open Register in
 /-- Attach the cursor at pointer field `field` of parent register two, or set root register one
@@ -139,13 +137,11 @@ private theorem attach_correct (side : Fin 2) (x : State M (layout extra regs)) 
   | none =>
     refine ⟨_, (ExecWithin.seq ExecWithin.op (ExecWithin.branch_pos ?_ ExecWithin.op)).mono
       (by omega), ?_, ?_, ?_⟩
-    · simp [Test.Holds, Op.effect, Op.instr, Instr.effect, hp]
-    all_goals simp [Op.effect, Op.instr, Instr.effect, State.modify, hp]
+    all_goals simp [Test.Holds, Op.effect, Op.instr, Instr.effect, State.modify, hp]
   | some p =>
     refine ⟨_, (ExecWithin.seq ExecWithin.op (ExecWithin.branch_neg ?_ ExecWithin.op)).mono
       (by omega), ?_, ?_, ?_⟩
-    · simp [Test.Holds, Op.effect, Op.instr, Instr.effect, hp]
-    all_goals simp [Op.effect, Op.instr, Instr.effect, State.modify, hp]
+    all_goals simp [Test.Holds, Op.effect, Op.instr, Instr.effect, State.modify, hp]
 
 /-- Filling a vacant child slot (or empty root) costs at most `extra + 7` instructions. The new
 leaf has the complete supplied payload and parent link. The heap formula preserves every old
@@ -173,40 +169,28 @@ theorem insertLeaf_correct (source : Fin (extra + 1) → Fin (regs + 2)) (side :
       (∀ a par, x.ptr 2 = some a → x.heap[a]? = some par →
         y.heap[a]? = some
           { par with ptr := Function.update par.ptr side.castSucc (some x.heap.length) }) := by
-  dsimp only
+  intro label heap0
   obtain ⟨a, alloc, ah, ap, ad, _⟩ := allocate_correct source x
   obtain ⟨y, attach, bh, bp, bd⟩ := attach_correct side a
-  have heap : y.heap = (match x.ptr 2 with
-      | none => x.heap ++ [record none none (x.ptr 2)
-          ⟨x.heap.length, fun f => x.data (source f)⟩]
-      | some p => (x.heap ++ [record none none (x.ptr 2)
-          ⟨x.heap.length, fun f => x.data (source f)⟩]).modify p
-          (fun n =>
-            { n with ptr := Function.update n.ptr side.castSucc (some x.heap.length) })) := by
-    cases hp : x.ptr 2 <;> simpa [State.modify, ap, ah, hp] using bh
-  refine ⟨y, (ExecWithin.seq alloc attach).mono (by omega), heap, ?_, ?_, ?_, ?_, bd.trans ad,
-    ?_, ?_, ?_⟩
+  have heap : y.heap = match x.ptr 2 with
+      | none => heap0
+      | some p => heap0.modify p fun n =>
+          { n with ptr := Function.update n.ptr side.castSucc (some x.heap.length) } := by
+    cases hp : x.ptr 2 <;> simpa [heap0, label, State.modify, ap, ah, hp] using bh
+  refine ⟨y, (ExecWithin.seq alloc attach).mono (by omega), heap, ?_, ?_,
+    by simp [bp, ap], by simp [bp, ap], bd.trans ad, by simp [bp],
+    fun i h0 h1 h5 => by simp [bp, ap, h0, h1, h5], ?_⟩
   · rw [heap]
     cases hp : x.ptr 2 with
-    | none => simp [Represents, root]
+    | none => simp [Represents, root, heap0, label, hp]
     | some p =>
-      rw [hp] at vacant
-      obtain ⟨par, get, _⟩ := vacant
-      have bound : p < x.heap.length := (List.getElem?_eq_some_iff.mp get).1
-      change _ = some _ ∧ True ∧ True
+      obtain ⟨par, get, _⟩ := hp ▸ vacant
       refine ⟨?_, trivial, trivial⟩
-      rw [List.getElem?_modify_ne _ _ (by omega : p ≠ x.heap.length)]
-      simp [root]
-  · rw [heap]
-    cases x.ptr 2 <;> simp
-  · simp [bp, ap]
-  · simp [bp, ap]
-  · simp [bp]
-  · intro i h0 h1 h5
-    simp [bp, ap, h0, h1, h5]
+      rw [List.getElem?_modify_ne _ _ (ne_of_lt (List.getElem?_eq_some_iff.mp get).1)]
+      simp [root, heap0, label, hp]
+  · cases hp : x.ptr 2 <;> simp [heap, hp, heap0]
   · intro p par hp get
-    have bound : p < x.heap.length := (List.getElem?_eq_some_iff.mp get).1
-    simp [heap, hp, List.getElem?_append_left bound, get]
+    simp [heap, heap0, hp, List.getElem?_append_left (List.getElem?_eq_some_iff.mp get).1, get]
 
 /-! Frames of the allocation programs. The text of `storeFields` depends on the number of
 fields, so its frames are proved by induction and those of the programs that call it follow by
@@ -215,18 +199,12 @@ fields, so its frames are proved by induction and those of the programs that cal
 @[simp] theorem storeFields_dataDests (source : Fin (extra + 1) → Fin (regs + 2))
     (fields : List (Fin (extra + 1))) :
     (storeFields (M := M) source fields).dataDests = [] := by
-  induction fields with
-  | nil => rfl
-  | cons f fields ih =>
-    simpa [storeFields, Program.Code.seqList, Op.dataDest] using ih
+  induction fields <;> simp_all [storeFields, Program.Code.seqList, Op.dataDest]
 
 @[simp] theorem storeFields_ptrDests (source : Fin (extra + 1) → Fin (regs + 2))
     (fields : List (Fin (extra + 1))) :
     (storeFields (M := M) source fields).ptrDests = [] := by
-  induction fields with
-  | nil => rfl
-  | cons f fields ih =>
-    simpa [storeFields, Program.Code.seqList, Op.ptrDest] using ih
+  induction fields <;> simp_all [storeFields, Program.Code.seqList, Op.ptrDest]
 
 /-- Allocating and attaching a leaf assigns no data register. -/
 @[simp] theorem insertLeaf_dataDests (source : Fin (extra + 1) → Fin (regs + 2)) (side : Fin 2) :

@@ -198,10 +198,8 @@ theorem stateFrom_kmvSketch (ω : Fin c → ι) (T : Fin c → Finset (Fin M ×�
   induction s generalizing T with
   | nil => simp only [Algorithm.stateFrom_nil, List.toFinset_nil, image_empty, empty_union]
   | cons a s ih =>
-    rw [Algorithm.stateFrom_cons, update_kmvSketch]
-    simp only [lowest_insert_lowest]
-    refine (ih fun i => insert (kmvKey h (ω i) a) (T i)).trans ?_
-    simp only [List.toFinset_cons, image_insert, union_insert, insert_union]
+    simp only [Algorithm.stateFrom_cons, update_kmvSketch, lowest_insert_lowest, ih,
+      List.toFinset_cons, image_insert, union_insert, insert_union]
 
 /-- **The state of the sketch**: after the stream `s`, the copy with seed `ω i` holds the `t` lowest
 keys of the distinct items of `s`. -/
@@ -209,8 +207,7 @@ theorem state_kmvSketch (ω : Fin c → ι) (s : List α) :
     (kmvSketch h t c ω).state s = (ω, fun i => lowest t (s.toFinset.image (kmvKey h (ω i)))) := by
   have h0 : (kmvSketch h t c ω).init = (ω, fun _ => lowest t (∅ : Finset (Fin M ×ₗ α))) := by
     rw [init_kmvSketch, lowest_eq_self (by simp only [card_empty, zero_le])]
-  rw [Algorithm.state, h0, stateFrom_kmvSketch]
-  simp only [union_empty]
+  simp only [Algorithm.state, h0, stateFrom_kmvSketch, union_empty]
 
 /-- The answer of the sketch is the median over the copies of the estimate from the `t` lowest keys
 of the distinct items. -/
@@ -233,11 +230,10 @@ theorem run_kmvSketch_of_card_lt [NeZero c] (ω : Fin c → ι) {s : List α}
     (hs : s.toFinset.card < t) : (kmvSketch h t c ω).run s = s.toFinset.card := by
   have hex (i : Fin c) :
       kmvEstimate M t (lowest t (s.toFinset.image (kmvKey h (ω i)))) = s.toFinset.card := by
-    have hc := card_lowest_image_kmvKey (h := h) (t := t) (ω i) s.toFinset
-    rw [min_eq_right hs.le] at hc
+    have hc := (card_lowest_image_kmvKey (h := h) (t := t) (ω i) s.toFinset).trans
+      (min_eq_right hs.le)
     rw [kmvEstimate_of_card_lt (hc ▸ hs), hc]
-  rw [run_kmvSketch]
-  simp only [hex, median_const]
+  simp only [run_kmvSketch, hex, median_const]
 
 /-! ### Accuracy of one copy -/
 
@@ -265,12 +261,11 @@ private theorem dens_le_abs_card_filter_val_lt_sub_le (hh : IsPairwiseIndependen
     (D : Finset α) {K : ℕ} (hK : K < M) {r : ℝ} (hr : 0 < r) :
     (dens {θ | r ≤ |((D.filter fun a => (h θ a).val < K).card : ℝ) - D.card * (K / M)|} : ℝ) ≤
       D.card * (K / M) / r ^ 2 := by
-  have := hh.dens_le_abs_card_filter_apply_mem_sub_le D (Iio (⟨K, hK⟩ : Fin M)) hr
   have hfil (θ : ι) : (D.filter fun a => h θ a ∈ Iio (⟨K, hK⟩ : Fin M)) =
-      D.filter fun a => (h θ a).val < K := by
-    ext a
-    simp only [mem_filter, mem_Iio, Fin.lt_def]
-  simpa only [hfil, Fin.card_Iio, Fintype.card_fin] using this
+      D.filter fun a => (h θ a).val < K :=
+    filter_congr fun _ _ => mem_Iio.trans Fin.lt_def
+  simpa only [hfil, Fin.card_Iio, Fintype.card_fin] using
+    hh.dens_le_abs_card_filter_apply_mem_sub_le D (Iio (⟨K, hK⟩ : Fin M)) hr
 
 /-- The upper tail: the estimate exceeds `(1 + ε) d` only if at least `t` items hash below
 `t M / ((1 + ε) d) - 1`, which is a deviation of at least `t ε / (1 + ε)` from the mean. -/
@@ -293,16 +288,12 @@ private theorem dens_lt_kmvEstimate_le (hh : IsPairwiseIndependentHash h) {ε : 
   set K : ℕ := ⌈x⌉₊ - 1 with hK
   have hceil : 0 < ⌈x⌉₊ := Nat.ceil_pos.2 hx0
   have hKR : (K : ℝ) = ⌈x⌉₊ - 1 := by rw [hK, Nat.cast_sub hceil, Nat.cast_one]
-  have hKx : (K : ℝ) < x := by
-    rw [hKR]
-    linarith [Nat.ceil_lt_add_one hx0.le]
+  have hKx : (K : ℝ) < x := by linarith [hKR, Nat.ceil_lt_add_one hx0.le]
   have hKM : K < M := by exact_mod_cast hKx.trans hxM
   set μ : ℝ := d * (K / M) with hμ
   have hμt : μ * (1 + ε) < t := by
     calc d * (K / M) * (1 + ε) < d * (x / M) * (1 + ε) := by gcongr
-      _ = t := by
-        rw [hx]
-        field_simp
+      _ = t := by rw [hx]; field_simp
   have hμ0 : 0 ≤ μ := by positivity
   have htμ : 0 < t - μ := by nlinarith
   have hsub : ({θ | (1 + ε) * d <
@@ -312,21 +303,14 @@ private theorem dens_lt_kmvEstimate_le (hh : IsPairwiseIndependentHash h) {ε : 
     simp only [mem_filter, mem_univ, true_and] at hθ ⊢
     set v := kmvMaxHash (lowest t (D.image (kmvKey h θ)))
     have hv : (v : ℝ) + 1 < x := by
-      rw [hx, lt_div_iff₀ (by positivity)]
-      rw [lt_div_iff₀ (by positivity)] at hθ
-      linarith
-    have hvK : v < K := by
-      have : (v : ℝ) < K := by
-        rw [hKR]
-        linarith [Nat.le_ceil x]
-      exact_mod_cast this
+      rw [hx, lt_div_iff₀ (by positivity), mul_comm]
+      exact (lt_div_iff₀ (by positivity)).1 hθ
+    have hvK : v < K := Nat.cast_lt (α := ℝ) |>.1 (by linarith [hKR, Nat.le_ceil x])
     have hall : ∀ p ∈ lowest t (D.image (kmvKey h θ)), (ofLex p).1.val < K := fun p hp =>
       (le_sup (f := fun p : Fin M ×ₗ α => (ofLex p).1.val) hp).trans_lt hvK
     have hXR : (t : ℝ) ≤ (D.filter fun a => (h θ a).val < K).card := by
       exact_mod_cast (forall_mem_lowest_kmvKey_iff θ hD K).1 hall
-    rw [le_abs]
-    left
-    linarith
+    exact le_abs.2 (.inl (by linarith))
   calc _ ≤ (dens ({θ | (t : ℝ) - μ ≤
         |((D.filter fun a => (h θ a).val < K).card : ℝ) - μ|} : Finset ι) : ℝ) := by
         exact_mod_cast dens_le_dens hsub
@@ -358,64 +342,39 @@ private theorem dens_kmvEstimate_lt_le (hh : IsPairwiseIndependentHash h) {ε : 
   have hKv (θ : ι) (hθ : (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) <
       (1 - ε) * d) : K ≤ kmvMaxHash (lowest t (D.image (kmvKey h θ))) := by
     set v := kmvMaxHash (lowest t (D.image (kmvKey h θ)))
-    have hyv : y < v + 1 := by
-      rw [hy, div_lt_iff₀ (by positivity)]
-      rw [div_lt_iff₀ (by positivity)] at hθ
-      linarith
-    have h2 : K < v + 1 := by exact_mod_cast (Nat.floor_le hy0).trans_lt hyv
-    omega
+    rw [div_lt_iff₀ (by positivity)] at hθ
+    have hyv : y < v + 1 := (div_lt_iff₀ (by positivity)).2 (by linarith)
+    exact Nat.lt_succ_iff.1 (by exact_mod_cast (Nat.floor_le hy0).trans_lt hyv)
   rcases lt_or_ge K M with hKM | hKM
   swap
   · -- The threshold is beyond every hash value: the estimate is never that small.
-    have hempty : ({θ | (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) <
-        (1 - ε) * d} : Finset ι) = ∅ := by
-      refine filter_false_of_mem fun θ _ hθ => ?_
-      have := hKv θ hθ
-      have := kmvMaxHash_lt hMN (lowest t (D.image (kmvKey h θ)))
-      omega
-    rw [hempty, dens_empty, NNRat.cast_zero]
+    rw [filter_false_of_mem fun θ _ hθ => not_lt_of_ge (hKM.trans (hKv θ hθ))
+      (kmvMaxHash_lt hMN _), dens_empty, NNRat.cast_zero]
     positivity
   set μ : ℝ := d * (K / M) with hμ
   have hμ1 : t / (1 - ε) - 1 < μ := by
-    have hK1 : y - 1 < K := by linarith [Nat.lt_floor_add_one y]
-    have h1 : d * ((y - 1) / M) < μ := by
-      rw [hμ]
-      gcongr
-    have h2 : d * ((y - 1) / M) = t / (1 - ε) - d / M := by
-      rw [hy]
-      field_simp
-    have h3 : d / M ≤ 1 := div_le_one_of_le₀ hdM hM0.le
-    linarith
+    have h1 : d * ((y - 1) / M) < μ :=
+      mul_lt_mul_of_pos_left (div_lt_div_of_pos_right (by linarith [Nat.lt_floor_add_one y]) hM0)
+        hd0
+    have h2 : d * ((y - 1) / M) = t / (1 - ε) - d / M := by rw [hy]; field_simp
+    linarith [div_le_one_of_le₀ hdM hM0.le]
   set w : ℝ := μ - (t - 1) with hw
   have hwε : t * ε < (1 - ε) * w := by
-    have : t < (1 - ε) * (μ + 1) := by
-      have := (div_lt_iff₀ hε').1 (by linarith : t / (1 - ε) < μ + 1)
-      linarith
+    have := (div_lt_iff₀ hε').1 (by linarith : t / (1 - ε) < μ + 1)
     nlinarith
-  have hw0 : 0 < w := by
-    have : 0 < (1 - ε) * w := by linarith [mul_pos htR hε]
-    exact pos_of_mul_pos_right this hε'.le
+  have hw0 : 0 < w := pos_of_mul_pos_right (by linarith [mul_pos htR hε]) hε'.le
   have hsub : ({θ | (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) <
         (1 - ε) * d} : Finset ι) ⊆
       ({θ | w ≤ |((D.filter fun a => (h θ a).val < K).card : ℝ) - μ|} : Finset ι) := by
     intro θ hθ
     simp only [mem_filter, mem_univ, true_and] at hθ ⊢
-    have hKv' := hKv θ hθ
-    have hne : (lowest t (D.image (kmvKey h θ))).Nonempty := by
-      rw [← card_pos, card_lowest_image_kmvKey, min_eq_left hD]
-      exact ht
+    have hne : (lowest t (D.image (kmvKey h θ))).Nonempty :=
+      card_pos.1 (by simp [card_lowest_image_kmvKey, min_eq_left hD, ht])
     obtain ⟨p, hp, hpv⟩ := exists_mem_eq_sup _ hne fun p : Fin M ×ₗ α => (ofLex p).1.val
-    have hnot : ¬ ∀ q ∈ lowest t (D.image (kmvKey h θ)), (ofLex q).1.val < K := fun hall => by
-      have := hall p hp
-      simp only [kmvMaxHash] at hKv'
-      omega
-    have hX : (D.filter fun a => (h θ a).val < K).card < t := by
-      by_contra hge
-      exact hnot ((forall_mem_lowest_kmvKey_iff θ hD K).2 (not_lt.1 hge))
-    have hXR : ((D.filter fun a => (h θ a).val < K).card : ℝ) + 1 ≤ t := by exact_mod_cast hX
-    rw [le_abs]
-    right
-    linarith
+    have hXR : ((D.filter fun a => (h θ a).val < K).card : ℝ) + 1 ≤ t := by
+      refine mod_cast Nat.succ_le_of_lt (lt_of_not_ge fun hge => not_lt_of_ge (hKv θ hθ) ?_)
+      simpa only [kmvMaxHash, hpv] using (forall_mem_lowest_kmvKey_iff θ hD K).2 hge p hp
+    exact le_abs.2 (.inr (by linarith))
   calc _ ≤ (dens ({θ | w ≤ |((D.filter fun a => (h θ a).val < K).card : ℝ) - μ|} :
         Finset ι) : ℝ) := by exact_mod_cast dens_le_dens hsub
     _ ≤ μ / w ^ 2 := dens_le_abs_card_filter_val_lt_sub_le hh D hKM hw0
@@ -441,17 +400,15 @@ theorem dens_abs_kmvEstimate_sub_gt_le (hh : IsPairwiseIndependentHash h) {ε : 
   rcases lt_or_ge D.card t with hDt | hD
   · -- Fewer than `t` items: the estimate is exact.
     have hex (θ : ι) : kmvEstimate M t (lowest t (D.image (kmvKey h θ))) = D.card := by
-      have hc := card_lowest_image_kmvKey (h := h) (t := t) θ D
-      rw [min_eq_right hDt.le] at hc
+      have hc := (card_lowest_image_kmvKey (h := h) (t := t) θ D).trans (min_eq_right hDt.le)
       rw [kmvEstimate_of_card_lt (hc ▸ hDt), hc]
-    simp only [hex, sub_self, abs_zero]
-    rw [filter_false_of_mem (fun θ _ => not_lt.2 (by positivity)), dens_empty, NNRat.cast_zero]
+    rw [filter_false_of_mem fun θ _ => by simp only [hex, sub_self, abs_zero, not_lt]; positivity,
+      dens_empty, NNRat.cast_zero]
     positivity
   have hest (θ : ι) : kmvEstimate M t (lowest t (D.image (kmvKey h θ))) =
-      t * M / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) := by
-    have hc := card_lowest_image_kmvKey (h := h) (t := t) θ D
-    rw [min_eq_left hD] at hc
-    exact kmvEstimate_of_le_card hc.ge
+      t * M / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) :=
+    kmvEstimate_of_le_card
+      ((card_lowest_image_kmvKey (h := h) (t := t) θ D).trans (min_eq_left hD)).ge
   simp only [hest]
   have hsub : ({θ | ε * D.card <
       |(t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) - D.card|} : Finset ι) ⊆
@@ -523,18 +480,12 @@ private theorem exists_card_le_image_eq_lowest (θ : ι) (D : Finset α) :
     ∃ E : Finset α, E.card ≤ t ∧ E.image (kmvKey h θ) = lowest t (D.image (kmvKey h θ)) := by
   classical
   have himg : (D.filter fun a => kmvKey h θ a ∈ lowest t (D.image (kmvKey h θ))).image
-      (kmvKey h θ) = lowest t (D.image (kmvKey h θ)) := by
-    ext p
-    simp only [mem_image, mem_filter]
-    constructor
-    · rintro ⟨a, ⟨-, ha⟩, rfl⟩
-      exact ha
-    · intro hp
-      obtain ⟨a, ha, rfl⟩ := mem_image.1 (lowest_subset _ _ hp)
-      exact ⟨a, ⟨ha, hp⟩, rfl⟩
-  refine ⟨_, ?_, himg⟩
-  rw [← card_image_kmvKey (h := h) θ, himg, card_lowest]
-  exact min_le_left _ _
+      (kmvKey h θ) = lowest t (D.image (kmvKey h θ)) :=
+    Subset.antisymm (image_subset_iff.2 fun _ ha => (mem_filter.1 ha).2) fun p hp =>
+      let ⟨a, ha, hpa⟩ := mem_image.1 (lowest_subset _ _ hp)
+      mem_image.2 ⟨a, mem_filter.2 ⟨ha, hpa.symm ▸ hp⟩, hpa⟩
+  exact ⟨_, by simpa only [← card_image_kmvKey (h := h) θ, himg, card_lowest_image_kmvKey] using
+    min_le_left t D.card, himg⟩
 
 /-- The states reachable from the seeds in `Ω` have an injective `b`-bit encoding as soon as
 `#Ω (n + 1) ^ (c t) ≤ 2 ^ b`, on streams of any length. -/
@@ -550,16 +501,11 @@ private theorem exists_injOn_biUnion_reachable_kmvSketch [Fintype α] (Ω : Fins
   · rintro _ ⟨_, ⟨ω, rfl⟩, _, ⟨hω, rfl⟩, s, -, rfl⟩
     choose E hE hEeq using fun i : Fin c => exists_card_le_image_eq_lowest (h := h) (t := t)
       (ω i) s.toFinset
-    rw [mem_coe, mem_image]
-    refine ⟨(ω, E), mem_product.2 ⟨hω, Fintype.mem_piFinset.2 fun i => ?_⟩, ?_⟩
-    · simp only [small, mem_filter, mem_univ, true_and]
-      exact hE i
-    · rw [state_kmvSketch]
-      simp only [hEeq]
-  · have hsmall : small.card ≤ (Fintype.card α + 1) ^ t := by
-      simp only [small]
-      rw [card_filter_card_le_eq_sum_choose]
-      exact Cslib.sum_range_choose_le_add_one_pow _ t
+    refine mem_image.2 ⟨(ω, E), mem_product.2
+      ⟨hω, Fintype.mem_piFinset.2 fun i => mem_filter.2 ⟨mem_univ _, hE i⟩⟩, ?_⟩
+    simp only [state_kmvSketch, hEeq]
+  · have hsmall : small.card ≤ (Fintype.card α + 1) ^ t :=
+      card_filter_card_le_eq_sum_choose (α := α) t ▸ Cslib.sum_range_choose_le_add_one_pow _ t
     calc T.card ≤ (Ω ×ˢ Fintype.piFinset fun _ : Fin c => small).card := card_image_le
       _ = Ω.card * small.card ^ c := by
         rw [card_product, Fintype.card_piFinset, prod_const, card_univ, Fintype.card_fin]
@@ -597,8 +543,6 @@ theorem exists_injOn_iUnion_reachable_kmvSketch [Fintype ι] [Fintype α] {m b :
     (univ : Finset (Fin c → ι)) (m := m) (b := b) (by
       rwa [card_univ, Fintype.card_pi, prod_const, card_univ, Fintype.card_fin, mul_comm c t,
         pow_mul, ← mul_pow])
-  refine ⟨enc, henc.mono fun q hq => ?_⟩
-  obtain ⟨_, ⟨ω, rfl⟩, hq⟩ := hq
-  exact Set.mem_biUnion (mem_univ ω) hq
+  exact ⟨enc, henc.mono fun q ⟨_, ⟨ω, rfl⟩, hq⟩ => Set.mem_biUnion (mem_univ ω) hq⟩
 
 end Cslib.Streaming

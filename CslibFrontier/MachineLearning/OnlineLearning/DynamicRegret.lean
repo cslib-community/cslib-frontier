@@ -110,9 +110,7 @@ theorem norm_sub_sq_sub_le {D : ℝ} {x v w : E}
     (hv : ‖x - v‖ ≤ D) (hw : ‖x - w‖ ≤ D) :
     ‖x - w‖ ^ 2 - ‖x - v‖ ^ 2 ≤ 2 * D * ‖w - v‖ := by
   have h1 : ‖x - w‖ - ‖x - v‖ ≤ ‖w - v‖ := by
-    have htri := norm_sub_le_norm_sub_add_norm_sub x v w
-    rw [norm_sub_rev v w] at htri
-    linarith
+    linarith [norm_sub_le_norm_sub_add_norm_sub x v w, norm_sub_rev v w]
   calc ‖x - w‖ ^ 2 - ‖x - v‖ ^ 2
       = (‖x - w‖ - ‖x - v‖) * (‖x - w‖ + ‖x - v‖) := by ring
     _ ≤ ‖w - v‖ * (‖x - w‖ + ‖x - v‖) := mul_le_mul_of_nonneg_right h1 (by positivity)
@@ -148,9 +146,9 @@ theorem ogd_dynamic_sum_inner_le (hP : IsPythagoreanProjection K proj) (hx₀ : 
     induction T with
     | zero =>
       have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP (hu 0) 0 (hη 0)
-      simp only [zero_add, range_one, sum_singleton, range_zero, sum_empty, mul_zero, add_zero]
-      linarith [div_le_div_of_nonneg_right (by linarith [hd 0 0] :
-        ‖x 0 - u 0‖ ^ 2 - ‖x 1 - u 0‖ ^ 2 ≤ D ^ 2 - ‖x 1 - u 0‖ ^ 2) (hη 0).le]
+      simp only [zero_add, range_one, sum_singleton, range_zero, sum_empty, mul_zero, add_zero,
+        sub_div] at h ⊢
+      linarith [div_le_div_of_nonneg_right (hd 0 0) (hη 0).le]
     | succ T ih =>
       have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP (hu (T + 1)) (T + 1) (hη (T + 1))
       have hshift_div : (‖x (T + 1) - u (T + 1)‖ ^ 2 - ‖x (T + 1) - u T‖ ^ 2) / η T ≤
@@ -163,19 +161,13 @@ theorem ogd_dynamic_sum_inner_le (hP : IsPythagoreanProjection K proj) (hx₀ : 
           (D ^ 2 - ‖x (T + 1) - u (T + 1)‖ ^ 2) / η (T + 1) :=
         div_le_div_of_nonneg_left (sub_nonneg.mpr (hd (T + 1) (T + 1))) (hη (T + 1))
           (hanti (Nat.le_succ T))
-      have hsplit : (D ^ 2 - ‖x (T + 1) - u T‖ ^ 2) / η T =
-          (D ^ 2 - ‖x (T + 1) - u (T + 1)‖ ^ 2) / η T +
-            (‖x (T + 1) - u (T + 1)‖ ^ 2 - ‖x (T + 1) - u T‖ ^ 2) / η T := by ring
-      have htele : (D ^ 2 - ‖x (T + 1) - u (T + 1)‖ ^ 2) / η (T + 1) +
-          (‖x (T + 1) - u (T + 1)‖ ^ 2 - ‖x (T + 1 + 1) - u (T + 1)‖ ^ 2) / η (T + 1) =
-          (D ^ 2 - ‖x (T + 1 + 1) - u (T + 1)‖ ^ 2) / η (T + 1) := by ring
       rw [sum_range_succ, sum_range_succ (fun t => ‖u (t + 1) - u t‖ / η t),
         sum_range_succ (fun t => η t * ‖grad t (x t)‖ ^ 2)]
+      simp only [sub_div] at ih h hshift_div hmono ⊢
       linarith
-  have hk := key T
   have hnn : 0 ≤ ‖x (T + 1) - u T‖ ^ 2 / η T := div_nonneg (sq_nonneg _) (hη T).le
-  linarith [sub_div (D ^ 2) (‖x (T + 1) - u T‖ ^ 2) (η T),
-    show D ^ 2 / (2 * η T) = D ^ 2 / η T / 2 by rw [div_div, mul_comm]]
+  rw [mul_comm 2 (η T), ← div_div]
+  linarith [key T, sub_div (D ^ 2) (‖x (T + 1) - u T‖ ^ 2) (η T)]
 
 /-- Bounding the weighted drift in `ogd_dynamic_sum_inner_le` by the terminal step size `η T`
 exposes the comparator path length `pathLength u (T + 1)`. -/
@@ -189,13 +181,10 @@ theorem ogd_dynamic_sum_inner_le_pathLength (hP : IsPythagoreanProjection K proj
   have hD0 : 0 ≤ D := (norm_nonneg (x₀ - u 0)).trans (hD _ hx₀ _ (hu 0))
   have hdrift : ∑ t ∈ range T, ‖u (t + 1) - u t‖ / η t ≤ pathLength u (T + 1) / η T := by
     simp only [pathLength, Nat.add_sub_cancel, sum_div]
-    refine sum_le_sum fun t ht => ?_
-    have hlt : t ≤ T := (mem_range.mp ht).le
-    exact div_le_div_of_nonneg_left (norm_nonneg _) (hη T) (hanti hlt)
-  have hmul := mul_le_mul_of_nonneg_left hdrift hD0
-  have heq1 : (D ^ 2 / 2 + D * pathLength u (T + 1)) / η T =
-      D ^ 2 / (2 * η T) + D * (pathLength u (T + 1) / η T) := by ring
-  linarith
+    exact sum_le_sum fun t ht =>
+      div_le_div_of_nonneg_left (norm_nonneg _) (hη T) (hanti (mem_range.mp ht).le)
+  rw [add_div, div_div, mul_div_assoc]
+  linarith [mul_le_mul_of_nonneg_left hdrift hD0]
 
 /-- Dynamic linearized regret for `ogd` with a constant step size `c > 0`, keeping the exact
 initial distance `‖x₀ - u 0‖ ^ 2 / (2 * c)` plus the comparator drift term
@@ -210,8 +199,7 @@ theorem ogd_dynamic_sum_inner_le_of_const (hP : IsPythagoreanProjection K proj) 
   set x := ogd proj (fun _ => c) grad x₀
   cases T with
   | zero =>
-    simp only [range_zero, sum_empty, pathLength_zero, mul_zero, add_zero, zero_div]
-    positivity
+    simpa using div_nonneg (sq_nonneg ‖x₀ - u 0‖) (mul_nonneg zero_le_two hc.le)
   | succ T =>
     have key (k : ℕ) : 2 * ∑ t ∈ range (k + 1), ⟪grad t (x t), x t - u t⟫ +
         ‖x (k + 1) - u k‖ ^ 2 / c ≤
@@ -220,30 +208,24 @@ theorem ogd_dynamic_sum_inner_le_of_const (hP : IsPythagoreanProjection K proj) 
       induction k with
       | zero =>
         have h := ogd_two_mul_inner_le (η := fun _ => c) (x₀ := x₀) (grad := grad) hP (hu 0) 0 hc
-        simp only [zero_add, range_one, sum_singleton, pathLength_one, mul_zero, add_zero]
-        have hx0_eq : x 0 = x₀ := ogd_zero ..
-        change 2 * ⟪grad 0 (x 0), x 0 - u 0⟫ ≤
-          (‖x 0 - u 0‖ ^ 2 - ‖x 1 - u 0‖ ^ 2) / c + c * ‖grad 0 (x 0)‖ ^ 2 at h
-        rw [hx0_eq, sub_div] at h
-        rw [hx0_eq]
+        simp only [zero_add, range_one, sum_singleton, pathLength_one, mul_zero, add_zero, x,
+          ogd_zero, sub_div] at h ⊢
         linarith
       | succ k ih =>
         have h := ogd_two_mul_inner_le (η := fun _ => c) (x₀ := x₀) (grad := grad) hP
           (hu (k + 1)) (k + 1) hc
         have hshift_div : (‖x (k + 1) - u (k + 1)‖ ^ 2 - ‖x (k + 1) - u k‖ ^ 2) / c ≤
             2 * D / c * ‖u (k + 1) - u k‖ := by
-          rw [show 2 * D / c * ‖u (k + 1) - u k‖ = 2 * D * ‖u (k + 1) - u k‖ / c by ring]
+          rw [div_mul_eq_mul_div]
           exact div_le_div_of_nonneg_right
             (norm_sub_sq_sub_le (hD _ (ogd_mem hP hx₀ (k + 1)) _ (hu k))
               (hD _ (ogd_mem hP hx₀ (k + 1)) _ (hu (k + 1)))) hc.le
-        rw [sum_range_succ, sum_range_succ (fun t => ‖grad t (x t)‖ ^ 2),
-          show k + 1 + 1 = k + 2 from rfl, pathLength_succ_succ]
+        rw [sum_range_succ, sum_range_succ (fun t => ‖grad t (x t)‖ ^ 2), pathLength_succ_succ]
         rw [sub_div] at h hshift_div
         linarith
-    have hk := key T
-    have hnn : 0 ≤ ‖x (T + 1) - u T‖ ^ 2 / c := by positivity
-    linarith [show ‖x₀ - u 0‖ ^ 2 / (2 * c) = ‖x₀ - u 0‖ ^ 2 / c / 2 by ring,
-      show D / c * pathLength u (T + 1) = (2 * D / c * pathLength u (T + 1)) / 2 by ring]
+    have halg : ‖x₀ - u 0‖ ^ 2 / (2 * c) + D / c * pathLength u (T + 1) =
+        (‖x₀ - u 0‖ ^ 2 / c + 2 * D / c * pathLength u (T + 1)) / 2 := by ring
+    linarith [key T, div_nonneg (sq_nonneg ‖x (T + 1) - u T‖) hc.le]
 
 private theorem sum_ogd_grad_norm_sq_le (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ K)
     {G : ℝ} (hG : ∀ t, ∀ x ∈ K, ‖grad t x‖ ≤ G) (η : ℕ → ℝ) (T : ℕ) :
@@ -265,9 +247,9 @@ private theorem ogd_dynamic_regret_le_of_const {f : ℕ → E → ℝ}
   have hx0 : ‖x₀ - u 0‖ ^ 2 / (2 * c) ≤ D ^ 2 / (2 * c) :=
     div_le_div_of_nonneg_right
       (pow_le_pow_left₀ (norm_nonneg _) (hD _ hx₀ _ (hu 0)) 2) (by positivity)
-  have hgs := sum_ogd_grad_norm_sq_le (grad := grad) hP hx₀ hG (fun _ => c) T
-  have hgrad :=
-    div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hgs hc.le) (by norm_num : (0 : ℝ) ≤ 2)
+  have hgrad := div_le_div_of_nonneg_right
+    (mul_le_mul_of_nonneg_left
+      (sum_ogd_grad_norm_sq_le (grad := grad) hP hx₀ hG (fun _ => c) T) hc.le) zero_le_two
   linarith
 
 /-- **Dynamic regret of OGD with standard fixed step size** `η = D / (G * √T)`:
@@ -284,9 +266,8 @@ theorem ogd_dynamic_regret_le_fixed {f : ℕ → E → ℝ} (hP : IsPythagoreanP
   have hTpos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   have hc : 0 < D / (G * √(T : ℝ)) := div_pos hD0 (mul_pos hG0 (sqrt_pos.mpr hTpos))
   refine (ogd_dynamic_regret_le_of_const hP hx₀ hD hG hsub hc hu T).trans_eq ?_
-  have hsq : (√(T : ℝ)) ^ 2 = (T : ℝ) := sq_sqrt hTpos.le
   field_simp
-  nlinarith [hsq]
+  nlinarith [sq_sqrt hTpos.le]
 
 /-- **Optimal path-length-tuned dynamic regret of OGD** [Zinkevich2003] (locator unverified): when
 an upper bound `P ≥ pathLength u T` is used to tune the constant step size
@@ -307,27 +288,22 @@ theorem ogd_dynamic_regret_le_tuned {f : ℕ → E → ℝ} (hP : IsPythagoreanP
   have hApos : 0 < A := by positivity
   set c := √A / (G * √(T : ℝ)) with hcdef
   have hc : 0 < c := div_pos (sqrt_pos.mpr hApos) (mul_pos hG0 (sqrt_pos.mpr hTpos))
-  have hreg := ogd_dynamic_regret_le_of_const hP hx₀ hD hG hsub hc hu T
-  have hpl := mul_le_mul_of_nonneg_left hpath (div_nonneg hD0.le hc.le)
+  refine (ogd_dynamic_regret_le_of_const hP hx₀ hD hG hsub hc hu T).trans ?_
   have halg : D ^ 2 / (2 * c) + D / c * P + c * ((T : ℝ) * G ^ 2) / 2 =
       G * (√(T : ℝ) * √A) := by
     have hsA : √A * √A = A := mul_self_sqrt hApos.le
     have hsT : √(T : ℝ) * √(T : ℝ) = (T : ℝ) := mul_self_sqrt hTpos.le
-    have hsqA0 : √A ≠ 0 := (sqrt_pos.mpr hApos).ne'
-    have hsqT0 : √(T : ℝ) ≠ 0 := (sqrt_pos.mpr hTpos).ne'
-    have hGne : G ≠ 0 := hG0.ne'
     rw [hcdef]
     calc D ^ 2 / (2 * (√A / (G * √(T : ℝ)))) + D / (√A / (G * √(T : ℝ))) * P +
             √A / (G * √(T : ℝ)) * ((T : ℝ) * G ^ 2) / 2
         = A * (G * √(T : ℝ)) / (2 * √A) + (√A * (T : ℝ) * G) / (2 * √(T : ℝ)) := by
-            simp only [A]
-            field_simp
+            simp only [A]; field_simp
       _ = (√A * √A) * (G * √(T : ℝ)) / (2 * √A) +
             (√A * (√(T : ℝ) * √(T : ℝ)) * G) / (2 * √(T : ℝ)) := by rw [hsA, hsT]
       _ = G * (√(T : ℝ) * √A) / 2 + G * (√(T : ℝ) * √A) / 2 := by field_simp
       _ = G * (√(T : ℝ) * √A) := by ring
   rw [sqrt_mul hTpos.le A]
-  linarith
+  linarith [mul_le_mul_of_nonneg_left hpath (div_nonneg hD0.le hc.le)]
 
 /-- Linearized dynamic regret with step sizes `c / √(t + 1)` over `T + 1` rounds. -/
 theorem ogd_dynamic_sum_inner_le_sqrt (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ K)
@@ -339,25 +315,20 @@ theorem ogd_dynamic_sum_inner_le_sqrt (hP : IsPythagoreanProjection K proj) (hx�
         c * G ^ 2 * (√((T : ℝ) + 1) - 1 / 2) := by
   set η : ℕ → ℝ := fun t => c / √((t : ℝ) + 1) with hηdef
   have hη : ∀ t, 0 < η t := fun t => div_pos hc (sqrt_pos.mpr (by positivity))
-  have hanti : Antitone η := fun _ _ hab => by simp only [hηdef]; gcongr
-  have h := ogd_dynamic_sum_inner_le_pathLength (grad := grad) hP hx₀ hD hη hanti hu T
-  have h1 : (D ^ 2 / 2 + D * pathLength u (T + 1)) / η T =
-      (D ^ 2 / 2 + D * pathLength u (T + 1)) / c * √((T : ℝ) + 1) := by
-    simp only [hηdef]
-    field_simp
+  have h := ogd_dynamic_sum_inner_le_pathLength (grad := grad) hP hx₀ hD hη
+    (fun _ _ hab => by
+      simp only [hηdef]
+      gcongr) hu T
+  rw [hηdef, div_div_eq_mul_div, mul_div_right_comm] at h
   have h2 : ∑ t ∈ range (T + 1), η t * ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤
       c * G ^ 2 * ∑ t ∈ range (T + 1), 1 / √((t : ℝ) + 1) := by
-    rw [mul_sum]
-    refine sum_le_sum fun t _ => ?_
-    have hg2 : ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤ G ^ 2 :=
-      pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2
+    refine (sum_le_sum fun t _ => ?_).trans_eq (mul_sum _ _ _).symm
     calc η t * ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤ η t * G ^ 2 :=
-          mul_le_mul_of_nonneg_left hg2 (hη t).le
+          mul_le_mul_of_nonneg_left
+            (pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2) (hη t).le
       _ = c * G ^ 2 * (1 / √((t : ℝ) + 1)) := by simp only [hηdef]; ring
-  have h3 := sum_range_one_div_sqrt_succ_le T
-  have hcG : 0 ≤ c * G ^ 2 := by positivity
-  rw [h1] at h
-  nlinarith [mul_le_mul_of_nonneg_left h3 hcG]
+  linarith [mul_le_mul_of_nonneg_left (sum_range_one_div_sqrt_succ_le T)
+    (mul_nonneg hc.le (sq_nonneg G))]
 
 /-- **Horizon-independent dynamic regret of OGD**: with step sizes `D / (G * √(t + 1))`, the
 dynamic regret after `T` rounds is at most `(3 / 2 * D + pathLength u T) * G * √T`, extending
@@ -369,21 +340,15 @@ theorem ogd_dynamic_regret_le_three_halves {f : ℕ → E → ℝ} (hP : IsPytha
     {u : ℕ → E} (hu : ∀ t, u t ∈ K) (T : ℕ) :
     ∑ t ∈ range T, (f t (ogd proj (fun t => D / (G * √((t : ℝ) + 1))) grad x₀ t) - f t (u t)) ≤
       (3 / 2 * D + pathLength u T) * G * √(T : ℝ) := by
-  have heta : (fun t : ℕ => D / (G * √((t : ℝ) + 1))) =
-      fun t : ℕ => D / G / √((t : ℝ) + 1) := by
-    funext t; rw [div_div]
-  rw [heta]
+  simp_rw [← div_div D G]
   refine (sum_sub_le_sum_inner_dynamic hsub (ogd_mem hP hx₀) hu T).trans ?_
   rcases T with _ | T
-  · simp only [range_zero, sum_empty, Nat.cast_zero, sqrt_zero, mul_zero, le_refl]
-  · have h := ogd_dynamic_sum_inner_le_sqrt (grad := grad) hP hx₀ hD hG (div_pos hD0 hG0) hu T
-    have e : (D ^ 2 / 2 + D * pathLength u (T + 1)) / (D / G) * √((T : ℝ) + 1) +
-        D / G * G ^ 2 * (√((T : ℝ) + 1) - 1 / 2) =
-        (3 / 2 * D + pathLength u (T + 1)) * G * √((T : ℝ) + 1) - G * D / 2 := by
-      field_simp
-      ring
+  · simp
+  · refine (ogd_dynamic_sum_inner_le_sqrt (grad := grad) hP hx₀ hD hG
+      (div_pos hD0 hG0) hu T).trans ?_
     push_cast
-    nlinarith [mul_pos hG0 hD0]
+    field_simp
+    linarith [mul_nonneg hG0.le hD0.le]
 
 /-- **Dynamic regret under Zinkevich's `1 / √(t + 1)` schedule** [Zinkevich2003] (locator
 unverified): for `T ≥ 1`, dynamic regret after `T` rounds is at most
@@ -398,7 +363,6 @@ theorem ogd_dynamic_regret_le_zinkevich {f : ℕ → E → ℝ} (hP : IsPythagor
   obtain ⟨T, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hT.ne'
   refine (sum_sub_le_sum_inner_dynamic hsub (ogd_mem hP hx₀) hu (T + 1)).trans ?_
   have h := ogd_dynamic_sum_inner_le_sqrt (grad := grad) hP hx₀ hD hG zero_lt_one hu T
-  push_cast
-  linarith
+  push_cast; linarith
 
 end Cslib.MachineLearning.OnlineLearning.OCO

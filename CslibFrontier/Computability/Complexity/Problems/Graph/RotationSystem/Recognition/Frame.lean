@@ -82,39 +82,36 @@ theorem mem_referenceOrder_lt {I : FixedRotationInput} (hI : Valid I) {x : ℕ}
   unfold subdivisionSize
   rcases List.mem_append.mp hx with hc | hr
   · obtain ⟨v, hv, hx⟩ := List.mem_flatMap.mp hc
-    have hv' := List.mem_range.mp hv
     rcases List.mem_cons.mp hx with rfl | hx
-    · omega
+    · exact Nat.lt_add_right _ (List.mem_range.mp hv)
     · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hx
-      have := (mem_fiber.mp ((fixedWord_spec hI v).2 d (List.mem_reverse.mp hd))).1
-      omega
+      exact Nat.add_lt_add_left
+        (mem_fiber.mp ((fixedWord_spec hI v).2 d (List.mem_reverse.mp hd))).1 _
   · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp (List.mem_filter.mp hr).1
-    have := List.mem_range.mp hd
-    omega
+    exact Nat.add_lt_add_left (List.mem_range.mp hd) _
 
 /-- Center blocks have distinct original centers and distinct fresh selected leaves. -/
 theorem centerBlocks_nodup {I : FixedRotationInput} (hI : Valid I) : (centerBlocks I).Nodup := by
   let block (v : ℕ) := v :: ((fixedWord I v).reverse.map fun d => I.graph.vertices.length + d)
-  refine List.nodup_flatMap.mpr ⟨fun v hv => List.nodup_cons.mpr ⟨fun hmem => ?_, ?_⟩,
-    List.nodup_range.imp_of_mem fun {u v} hu hv huv => List.disjoint_left.mpr fun x hx hy => ?_⟩
-  · obtain ⟨d, _, he⟩ := List.mem_map.mp hmem
-    have := List.mem_range.mp hv
-    omega
-  · exact (List.nodup_reverse.mpr (fixedWord_spec hI v).1).map fun _ _ => Nat.add_left_cancel
-  · have hu' := List.mem_range.mp hu
-    have hv' := List.mem_range.mp hv
-    rcases List.mem_cons.mp (hx : x ∈ block u) with hx | hx <;>
-      rcases List.mem_cons.mp (hy : x ∈ block v) with hy | hy
-    · exact huv (hx.symm.trans hy)
-    · obtain ⟨_, _, he⟩ := List.mem_map.mp hy
-      omega
-    · obtain ⟨_, _, he⟩ := List.mem_map.mp hx
-      omega
-    · obtain ⟨d, hd, hdx⟩ := List.mem_map.mp hx
-      obtain ⟨e, he, hex⟩ := List.mem_map.mp hy
-      obtain rfl : d = e := by omega
-      exact huv ((mem_fiber.mp ((fixedWord_spec hI u).2 d (List.mem_reverse.mp hd))).2.symm.trans
-        (mem_fiber.mp ((fixedWord_spec hI v).2 d (List.mem_reverse.mp he))).2)
+  have hge {v x : ℕ}
+      (hx : x ∈ (fixedWord I v).reverse.map fun d => I.graph.vertices.length + d) :
+      I.graph.vertices.length ≤ x :=
+    let ⟨_, _, he⟩ := List.mem_map.mp hx
+    he ▸ Nat.le_add_right _ _
+  refine List.nodup_flatMap.mpr
+    ⟨fun v hv => List.nodup_cons.mpr ⟨fun hm => (List.mem_range.mp hv).not_ge (hge hm),
+      (List.nodup_reverse.mpr (fixedWord_spec hI v).1).map fun _ _ => Nat.add_left_cancel⟩,
+      List.nodup_range.imp_of_mem fun {u v} hu hv huv => List.disjoint_left.mpr fun x hx hy => ?_⟩
+  rcases List.mem_cons.mp (hx : x ∈ block u) with rfl | hx <;>
+    rcases List.mem_cons.mp (hy : x ∈ block v) with rfl | hy
+  · exact huv rfl
+  · exact (List.mem_range.mp hu).not_ge (hge hy)
+  · exact (List.mem_range.mp hv).not_ge (hge hx)
+  · obtain ⟨d, hd, hdx⟩ := List.mem_map.mp hx
+    obtain ⟨e, he, hex⟩ := List.mem_map.mp hy
+    obtain rfl : d = e := Nat.add_left_cancel (hdx.trans hex.symm)
+    exact huv ((mem_fiber.mp ((fixedWord_spec hI u).2 d (List.mem_reverse.mp hd))).2.symm.trans
+      (mem_fiber.mp ((fixedWord_spec hI v).2 d (List.mem_reverse.mp he))).2)
 
 /-- The reference order contains every subdivision vertex exactly once, including isolates. -/
 theorem referenceOrder_enumerates {I : FixedRotationInput} (hI : Valid I) :
@@ -168,21 +165,20 @@ theorem frozen_edge_shape {I : FixedRotationInput} (hI : Valid I) {e : ℕ × �
   rcases List.mem_cons.mp hs with rfl | hs
   · refine ⟨entry.1.1, I.graph.vertices.length + 2 * entry.2, hu, Nat.le_add_right _ _, by
       unfold subdivisionSize
-      omega, Or.inl rfl, hf, ?_⟩
+      omega, .inl rfl, hf, ?_⟩
     have hr := getD_incidenceVertices_even I.graph entry.2
     rw [List.getD_eq_getElem _ _ hi, hv] at hr
-    simpa using hr
+    rwa [Nat.add_sub_cancel_left]
   · rcases List.mem_cons.mp hs with rfl | hs
     · cases hf
     · obtain rfl := List.mem_singleton.mp hs
-      refine ⟨entry.1.2, I.graph.vertices.length + 2 * entry.2 + 1, hw, by omega,
-        by
+      refine ⟨entry.1.2, I.graph.vertices.length + 2 * entry.2 + 1, hw,
+        (Nat.le_add_right _ _).trans (Nat.le_succ _), by
           unfold subdivisionSize
-          omega, Or.inr rfl, hf, ?_⟩
+          omega, .inr rfl, hf, ?_⟩
       have hr := getD_incidenceVertices_odd I.graph entry.2
       rw [List.getD_eq_getElem _ _ hi, hv] at hr
-      simpa only [show I.graph.vertices.length + 2 * entry.2 + 1 - I.graph.vertices.length =
-        2 * entry.2 + 1 by omega] using hr
+      rwa [Nat.add_assoc, Nat.add_sub_cancel_left]
 
 /-- Every selected subdivision leaf belongs to exactly one center. Together with
 `frozen_edge_shape`, this describes disjoint spanning stars and isolated points. -/
@@ -192,15 +188,10 @@ theorem frozen_leaf_unique {I : FixedRotationInput} (hI : Valid I) {leaf u v : �
     (hv : (v, leaf) ∈ (frozenGraph I).edges ∨ (leaf, v) ∈ (frozenGraph I).edges) : u = v := by
   have center (x : ℕ) (hx : (x, leaf) ∈ (frozenGraph I).edges ∨ (leaf, x) ∈ (frozenGraph I).edges) :
       I.graph.incidenceVertices.getD (leaf - I.graph.vertices.length) 0 = x := by
-    rcases hx with hx | hx <;> obtain ⟨c, l, hc, _, _, he | he, _, hread⟩ := frozen_edge_shape hI hx
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
-      exact hread
-    · have := (Prod.mk.inj he).2
-      omega
-    · have := (Prod.mk.inj he).1
-      omega
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
-      exact hread
+    rcases hx with hx | hx <;>
+      obtain ⟨c, l, hc, _, _, he | he, _, hread⟩ := frozen_edge_shape hI hx <;>
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
+    exacts [hread, absurd hl hc.not_ge, absurd hl hc.not_ge, hread]
   exact (center u hu).symm.trans (center v hv)
 
 /-- Full framed algebraic-frame storage is quadratically bounded in uniform original graph

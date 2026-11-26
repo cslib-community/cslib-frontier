@@ -177,8 +177,10 @@ private theorem ordinaryClauses_bounds {φ : CNF ℕ} {p : Point} (hp : CellBoun
   · have hi : ci.2 < OrdinaryRing.clausePositions.length := by
       rw [OrdinaryRing.drawing_sizes.1]
       exact OrdinaryRing.formula_sizes.1 ▸ (List.mem_zipIdx' hci).1
-    have := OrdinaryRing.clause_bounds _ (List.getD_mem (0, 0) hi); omega
-  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hl; exact outputBound_variable hp
+    have := OrdinaryRing.clause_bounds _ (List.getD_mem (0, 0) hi)
+    omega
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hl
+    exact outputBound_variable hp
   · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
     obtain ⟨b, hb, rfl⟩ := List.mem_map.mp ha
     rw [add_comm]
@@ -193,8 +195,10 @@ private theorem crossingClauses_bounds {φ : CNF ℕ} {p : Point} (hp : CellBoun
   · have hi : ci.2 < PairedCrossover.clausePositions.length := by
       rw [show PairedCrossover.clausePositions.length = 78 by decide +kernel]
       exact PairedCrossover.length_formula ▸ (List.mem_zipIdx' hci).1
-    have := PairedCrossover.clause_bounds _ (List.getD_mem (0, 0) hi); omega
-  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hl; exact outputBound_variable hp
+    have := PairedCrossover.clause_bounds _ (List.getD_mem (0, 0) hi)
+    omega
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hl
+    exact outputBound_variable hp
   · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
     obtain ⟨b, hb, rfl⟩ := List.mem_map.mp ha
     rw [add_comm]

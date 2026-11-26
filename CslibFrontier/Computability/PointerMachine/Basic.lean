@@ -52,9 +52,7 @@ theorem State.mem_heap_modify {x : State M L} {r : Fin L.ptrRegs} {g : Record M 
     | none => simp_all
     | some m =>
       rw [hm] at h
-      rcases List.mem_or_eq_of_mem_set h with h | h
-      · exact .inl h
-      · exact .inr ⟨m, List.mem_of_getElem? hm, h⟩
+      exact (List.mem_or_eq_of_mem_set h).imp id fun h => ⟨m, List.mem_of_getElem? hm, h⟩
 
 /-- Modifying a record keeps the number of records. -/
 @[simp] theorem State.length_heap_modify {x : State M L} {r : Fin L.ptrRegs}
@@ -78,8 +76,7 @@ private theorem ptr_setPtr_eq_some {x : State M L} {r' r : Fin L.ptrRegs} {p : P
     (h : (x.setPtr r' p).ptr r = some a) : p = some a ∨ x.ptr r = some a := by
   simp only [State.setPtr, Function.update_apply] at h
   split_ifs at h
-  · exact .inl h
-  · exact .inr h
+  exacts [.inl h, .inr h]
 
 private theorem State.Valid.setPtr {x : State M L} (hx : x.Valid) {r : Fin L.ptrRegs}
     {p : Pointer} (hp : ∀ a, p = some a → a < x.heap.length) : (x.setPtr r p).Valid :=
@@ -112,8 +109,7 @@ theorem Instr.effect_valid {i : Instr M L} {x : State M L} (hx : x.Valid) :
     exact hx.modify fun m hm f' b hb => by
       simp only [Function.update_apply] at hb
       split_ifs at hb
-      · exact hx.1 r b hb
-      · exact hx.2 m hm f' b hb
+      exacts [hx.1 r b hb, hx.2 m hm f' b hb]
   | storeData f base s => exact hx.modify fun m hm f' b hb => hx.2 m hm f' b hb
   | create r =>
     refine ⟨fun r' b hb => ?_, fun n hn f b hb => ?_⟩
@@ -130,10 +126,8 @@ theorem Instr.effect_valid {i : Instr M L} {x : State M L} (hx : x.Valid) :
 theorem Instr.effect_length {i : Instr M L} {x : State M L} :
     x.heap.length ≤ (i.effect x).heap.length ∧
       (i.effect x).heap.length ≤ x.heap.length + 1 := by
-  cases i <;> simp only [Instr.effect, State.setPtr, State.setData]
-  all_goals first
-    | (cases x.deref ‹_› <;> simp)
-    | simp
+  cases i <;> simp only [Instr.effect, State.setPtr, State.setData] <;>
+    first | (cases x.deref ‹_› <;> simp) | simp
 
 /-- A pointer in a register after an instruction was in a register before it, or in a field of
 a record specified by a register, or specifies the record just created. -/
@@ -183,14 +177,11 @@ theorem Instr.effect_heap_provenance {i : Instr M L} {x : State M L}
       · exact .inl ⟨r, ha⟩
       · exact old hm ha
   case storeData g base s =>
-    rcases State.mem_heap_modify hn with hm | ⟨m, hm, rfl⟩
-    · exact old hm ha
-    · exact old hm ha
+    exact (State.mem_heap_modify hn).elim (old · ha) fun ⟨m, hm, h⟩ => old hm (h ▸ ha)
   case create r =>
     rcases List.mem_append.mp hn with hm | hm
     · exact old hm ha
-    · rw [List.mem_singleton.mp hm] at ha
-      cases ha
+    · cases List.mem_singleton.mp hm ▸ ha
   all_goals exact old hn ha
 
 /-- In a valid state, `create` returns a pointer that no register or record held. -/
@@ -206,13 +197,8 @@ theorem step_eq_some_iff {code : List (Instr M L)} {x y : State M L} :
     step code x = some y ↔
       ∃ i, code[x.pc]? = some i ∧ i ≠ .halt ∧ y = { i.effect x with pc := i.next x } := by
   unfold step
-  split
-  · simp_all
-  · simp_all
-  · next i hne hi => exact ⟨fun h => ⟨i, hi, by simpa using hne, (Option.some.inj h).symm⟩, by
-      rintro ⟨j, hj, -, rfl⟩
-      cases hi.symm.trans hj
-      rfl⟩
+  split <;> simp_all
+  grind
 
 /-- Program steps preserve validity. -/
 theorem step_valid {code : List (Instr M L)} {x y : State M L}
@@ -262,8 +248,7 @@ theorem Runs.deterministic {code : List (Instr M L)} {x y z : State M L} {n : �
   | refl => exact h'.zero
   | tail _ _ _ _ hs ih =>
     obtain ⟨z', hr, hz⟩ := h'.succ
-    cases ih hr
-    exact step_deterministic hs hz
+    exact step_deterministic hs (ih hr ▸ hz)
 
 /-- Successful execution determines both the final state and the instruction count. -/
 theorem Executes.unique {code : List (Instr M L)} {x y z : State M L} {t u : ℕ}
@@ -280,13 +265,9 @@ theorem Executes.unique {code : List (Instr M L)} {x y z : State M L} {t u : ℕ
       simp [step, hh] at hw
   | hhead hs hr ih =>
     cases m with
-    | zero =>
-      cases hr'.zero
-      simp [step, hh'] at hs
+    | zero => simp [step, hh', hr'.zero] at hs
     | succ m =>
       obtain ⟨w, hw, hw'⟩ := hr'.succ'
-      cases step_deterministic hs hw
-      obtain ⟨rfl, rfl⟩ := ih m hw'
-      exact ⟨rfl, rfl⟩
+      exact (ih m (step_deterministic hs hw ▸ hw')).imp_right (congrArg (· + 1))
 
 end Cslib.PointerMachine

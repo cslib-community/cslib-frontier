@@ -146,8 +146,7 @@ theorem rsaInvert_rsaEval_mul (desc : RSADesc) (m s : ℕ) :
     rsaInvert desc.modulus desc.d
         (rsaEval desc.modulus desc.e m * rsaEval desc.modulus desc.e s % desc.modulus) =
       m * s % desc.modulus := by
-  rw [← rsaEval_mul, show rsaEval desc.modulus desc.e (m * s) =
-      rsaEval desc.modulus desc.e (m * s % desc.modulus) by unfold rsaEval; rw [Nat.pow_mod]]
+  rw [← rsaEval_mul, rsaEval, Nat.pow_mod]
   exact rsaInvert_rsaEval desc (Nat.mod_lt _ desc.modulus_pos)
 
 /-! ### Common modulus -/
@@ -183,9 +182,8 @@ theorem commonRoot_rsaEval {N e₁ e₂ m : ℕ} (he : Nat.Coprime e₁ e₂) (h
       (hpow e₁ (commonRoot_pow_modEq_left hN he.symm (hc e₁) h))).trans
       (eq_zpow_mul_zpow_of_zpow_eq hbezout rfl rfl).symm
   have hlt : x < N := commonRoot_lt hN _ _ _ _
-  rw [← Nat.mod_eq_of_lt hlt, ← ZMod.natCast_eq_natCast_iff',
-    ← show (u : ZMod N) = m from ZMod.coe_unitOfCoprime m hm,
-    ← show (v : ZMod N) = x from ZMod.coe_unitOfCoprime x _, hvu]
+  rw [← Nat.mod_eq_of_lt hlt, ← ZMod.natCast_eq_natCast_iff']
+  simpa only [v, u, ZMod.coe_unitOfCoprime] using congrArg Units.val hvu
 
 /-! ### Small messages and the broadcast attack -/
 
@@ -207,12 +205,10 @@ theorem chineseRemainderOfList_rsaEval_eq_pow {ι : Type*} {N : ι → ℕ} {e m
     (co : l.Pairwise (Function.onFun Nat.Coprime N)) (hN : ∀ i ∈ l, N i ≠ 0)
     (hsmall : m ^ e < (l.map N).prod) :
     (Nat.chineseRemainderOfList (fun i => rsaEval (N i) e m) N l co : ℕ) = m ^ e := by
-  have hmod : m ^ e ≡ Nat.chineseRemainderOfList (fun i => rsaEval (N i) e m) N l co
-      [MOD (l.map N).prod] :=
-    Nat.chineseRemainderOfList_modEq_unique _ N l co fun i _ => (Nat.mod_modEq _ _).symm
-  have hlt := Nat.chineseRemainderOfList_lt_prod (fun i => rsaEval (N i) e m) N l co hN
-  rw [Nat.ModEq, Nat.mod_eq_of_lt hsmall, Nat.mod_eq_of_lt hlt] at hmod
-  exact hmod.symm
+  have hmod := (Nat.chineseRemainderOfList_modEq_unique (z := m ^ e)
+    (fun i => rsaEval (N i) e m) N l co fun _ _ => (Nat.mod_modEq _ _).symm).symm
+  rwa [Nat.ModEq, Nat.mod_eq_of_lt (Nat.chineseRemainderOfList_lt_prod _ N l co hN),
+    Nat.mod_eq_of_lt hsmall] at hmod
 
 /-- The broadcast attack recovers the message: `m` is the unique integer `e`-th root of the Chinese
 remainder combination of its ciphertexts. -/
@@ -238,14 +234,12 @@ theorem factorOfTotient_eq {p q : ℕ} (hq : 0 < q) (hqp : q ≤ p) :
     factorOfTotient (p * q) ((p - 1) * (q - 1)) = (p, q) := by
   obtain ⟨t, rfl⟩ := Nat.exists_eq_add_of_le hqp
   obtain ⟨b, rfl⟩ := Nat.exists_eq_add_of_lt hq
+  simp only [zero_add]
   have hsum : (b + 1 + t) * (b + 1) + 1 - (b + 1 + t - 1) * (b + 1 - 1) = 2 * (b + 1) + t := by
-    rw [show b + 1 + t - 1 = b + t by omega, show b + 1 - 1 = b by omega]
-    rw [show (b + 1 + t) * (b + 1) + 1 = (b + t) * b + (2 * (b + 1) + t) by ring]
-    omega
-  have hdisc : (2 * (b + 1) + t) ^ 2 - 4 * ((b + 1 + t) * (b + 1)) = t ^ 2 := by
-    rw [show (2 * (b + 1) + t) ^ 2 = t ^ 2 + 4 * ((b + 1 + t) * (b + 1)) by ring]
-    omega
-  simp only [zero_add] at *
+    rw [Nat.add_right_comm b 1 t, Nat.add_sub_cancel, Nat.add_sub_cancel]
+    exact Nat.sub_eq_of_eq_add (by ring)
+  have hdisc : (2 * (b + 1) + t) ^ 2 - 4 * ((b + 1 + t) * (b + 1)) = t ^ 2 :=
+    Nat.sub_eq_of_eq_add (by ring)
   rw [factorOfTotient, hsum, hdisc, Nat.sqrt_eq']
   ext <;> dsimp only <;> omega
 
@@ -265,10 +259,10 @@ private theorem proper_gcd_of_dvd_mul {N a b : ℕ} (hN : 1 < N) (hdvd : N ∣ a
 private theorem one_lt_of_sq_modEq {N x y : ℕ} (hsq : x ^ 2 ≡ y ^ 2 [MOD N])
     (hsub : ¬ x ≡ y [MOD N]) : 1 < N := by
   rcases N with _ | _ | N
-  · simp only [Nat.ModEq, Nat.mod_zero] at hsq hsub
-    exact False.elim (hsub (Nat.pow_left_injective two_ne_zero hsq))
-  · exact False.elim (hsub (by simp [Nat.ModEq, Nat.mod_one]))
-  · omega
+  · exact absurd (Nat.modEq_zero_iff.mpr
+      (Nat.pow_left_injective two_ne_zero (Nat.modEq_zero_iff.mp hsq))) hsub
+  · exact absurd Nat.modEq_one hsub
+  · exact Nat.one_lt_succ_succ N
 
 /-- If `y ≤ x` and `x ^ 2 ≡ y ^ 2 [MOD N]`, then `N ∣ (x - y) * (x + y)`. -/
 private theorem dvd_sub_mul_add_of_sq_modEq {N x y : ℕ} (hyx : y ≤ x)
@@ -336,12 +330,9 @@ every `x` coprime to `N`. -/
 theorem pow_mul_sub_one_modEq_one (desc : RSADesc) {x : ℕ} (hx : Nat.Coprime x desc.modulus) :
     x ^ (desc.e * desc.d - 1) ≡ 1 [MOD desc.modulus] := by
   have hed_pos : 0 < desc.e * desc.d := Nat.pos_of_ne_zero fun h0 => by
-    have h := desc.hed
-    rw [h0, Nat.ModEq, Nat.zero_mod, Nat.mod_eq_of_lt desc.totient_gt_one] at h
-    exact zero_ne_one h
-  refine Nat.ModEq.cancel_right_of_coprime (Nat.coprime_comm.mp hx).gcd_eq_one ?_
-  rw [← pow_succ, Nat.sub_add_cancel hed_pos, one_mul]
-  exact rsa_pow_mul_modEq desc x
+    simpa [h0, Nat.ModEq, Nat.mod_eq_of_lt desc.totient_gt_one] using desc.hed
+  refine Nat.ModEq.cancel_right_of_coprime hx.symm.gcd_eq_one ?_
+  simpa only [← pow_succ, Nat.sub_add_cancel hed_pos, one_mul] using rsa_pow_mul_modEq desc x
 
 /-- A square root `y` of `1` modulo an RSA modulus `N = p * q`, other than `±1`, gives a proper
 factor `gcd(y - 1, N)` of `N`. -/
@@ -369,14 +360,10 @@ theorem computableInPolyTime_factorOfTotient {α : Type} {enc : α ↪ List Bool
     (hN : ComputableInPolyTime N enc encNat) (hφ : ComputableInPolyTime φ enc encNat) :
     ComputableInPolyTime (fun x => factorOfTotient (N x) (φ x)) enc (encPair encNat encNat) := by
   unfold factorOfTotient
-  have hdisc : ComputableInPolyTime
-      (fun x => ((N x + 1 - φ x) ^ 2 - 4 * N x).sqrt) enc encNat :=
-    ComputableInPolyTime.binary_sqrt' (by simp only [sq]; fun_prop)
-  have hpair {d : α → ℕ} (hd : ComputableInPolyTime d enc encNat) :
-      ComputableInPolyTime
-        (fun x => ((N x + 1 - φ x + d x) / 2, (N x + 1 - φ x - d x) / 2))
-        enc (encPair encNat encNat) := by fun_prop
-  exact hpair hdisc
+  have harg : ComputableInPolyTime (fun x => (N x + 1 - φ x) * (N x + 1 - φ x) - 4 * N x)
+      enc encNat := by fun_prop
+  have hdisc := ComputableInPolyTime.binary_sqrt' (by simpa only [sq] using harg)
+  fun_prop
 
 /-- The Euler totient computation experiment ([KatzLindell2020], Section 9.2.5, Theorem 9.49):
 sample `desc ← gen n`, run `T n desc.modulus`, and accept when `T` returns
@@ -428,8 +415,8 @@ theorem isPPTOn_factorToTotient {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
       (fun input => F input.1 input.2)) :
     IsPPTOn (encPair encUnary encNat) encNat (fun input => factorToTotient F input.1 input.2) := by
   unfold factorToTotient
-  refine IsPPTOn.bind_with hF ?_
-  exact (computableInPolyTime_totientIfFactor (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
+  exact hF.bind_with
+    (computableInPolyTime_totientIfFactor (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- `totientToFactor T` is uniform PPT whenever `T` is uniform PPT. -/
 theorem isPPTOn_totientToFactor {T : ℕ → ℕ → ProbComp ℕ}
@@ -437,8 +424,7 @@ theorem isPPTOn_totientToFactor {T : ℕ → ℕ → ProbComp ℕ}
     IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
       (fun input => totientToFactor T input.1 input.2) := by
   unfold totientToFactor
-  refine IsPPTOn.bind_with hT ?_
-  exact (computableInPolyTime_factorOfTotient (by fun_prop) (by fun_prop)).isPPTOn
+  exact hT.bind_with (computableInPolyTime_factorOfTotient (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- `totientGame gen (factorToTotient F) n` equals `modulusFactoringGame` on the pushed-forward
 RSA modulus distribution. -/
@@ -477,9 +463,8 @@ theorem succProbability_totientGame_le (gen : RSAGen) (T : ℕ → ℕ → ProbC
 `(gen n).map RSADesc.modulus`. -/
 theorem TotientHard.modulusFactoringHard {gen : RSAGen} (h : TotientHard gen) :
     ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) := by
-  intro F hF
-  refine (h (factorToTotient F) (isPPTOn_factorToTotient hF)).congr fun n => ?_
-  rw [totientGame_factorToTotient]
+  exact fun F hF => (h (factorToTotient F) (isPPTOn_factorToTotient hF)).congr
+    fun n => congrArg Game.succProbability (totientGame_factorToTotient gen F n)
 
 /-- If factoring `N` is hard for `(gen n).map RSADesc.modulus`, then computing `φ(N)` is hard for
 `gen`. -/
@@ -530,10 +515,9 @@ theorem isPPTOn_totientToKeyRecovery {T : ℕ → ℕ → ProbComp ℕ}
     IsPPTOn (encPair encUnary encRSAPublicKey) encNat
       (fun input => totientToKeyRecovery T input.1 input.2) := by
   unfold totientToKeyRecovery
-  refine IsPPTOn.bind_with
-    (IsPPTOn.preprocess hT (prepare := fun input : ℕ × RSAPublicKey => (input.1, input.2.N))
-      (by fun_prop)) ?_
-  exact (ComputableInPolyTime.binary_modInv' (by fun_prop) (by fun_prop)).isPPTOn
+  exact (hT.preprocess (prepare := fun input : ℕ × RSAPublicKey => (input.1, input.2.N))
+    (by fun_prop)).bind_with
+    (ComputableInPolyTime.binary_modInv' (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- The success probability of `T` in `totientGame` is at most the key-recovery success probability
 of `totientToKeyRecovery T`. -/
@@ -629,9 +613,15 @@ theorem succProbability_modulusFactoringGame_le_rsaInversionGame (gen : RSAGen)
     Game.succProbability
         (modulusFactoringGame (fun k => (gen k).map RSADesc.modulus) F n) ≤
       Game.succProbability (rsaInversionGame gen (factorToRSA F) n) := by
-  rw [← totientGame_factorToTotient]
-  exact (succProbability_totientGame_le_rsaKeyRecoveryGame gen (factorToTotient F) n).trans
-    (succProbability_rsaKeyRecoveryGame_le gen _ n)
+  calc Game.succProbability
+        (modulusFactoringGame (fun k => (gen k).map RSADesc.modulus) F n)
+      = Game.succProbability (totientGame gen (factorToTotient F) n) := by
+        rw [totientGame_factorToTotient]
+    _ ≤ Game.succProbability
+          (rsaKeyRecoveryGame gen (totientToKeyRecovery (factorToTotient F)) n) :=
+        succProbability_totientGame_le_rsaKeyRecoveryGame gen (factorToTotient F) n
+    _ ≤ Game.succProbability (rsaInversionGame gen (factorToRSA F) n) :=
+        succProbability_rsaKeyRecoveryGame_le gen _ n
 
 /-- **RSA one-wayness implies private-exponent recovery hardness.** -/
 theorem RSAOneWay.rsaKeyRecoveryHard {gen : RSAGen} (h : RSAOneWay gen) :

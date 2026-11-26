@@ -127,11 +127,7 @@ theorem eq_leaf_of_leaves_perm_singleton {T : CodeTree α} {a : α}
     (h : T.leaves.Perm [a]) : T = leaf a := by
   cases T with
   | leaf b => exact congrArg leaf (List.singleton_inj.mp h.eq_singleton)
-  | branch l r =>
-    have := h.length_eq
-    have := two_le_length_leaves_of_branch l r
-    simp only [List.length_singleton] at *
-    omega
+  | branch l r => nomatch (h.length_eq ▸ two_le_length_leaves_of_branch l r)
 
 @[simp] theorem leaves_map (f : α → β) (T : CodeTree α) :
     (T.map f).leaves = T.leaves.map f := by
@@ -302,8 +298,7 @@ def codewordSet (T : CodeTree α) : Set (List Bool) :=
 theorem weightedPathLength_eq_sum_codewords {β : Type*} [AddCommMonoid β]
     (w : α → β) (T : CodeTree α) :
     T.weightedPathLength w = (T.codewords.map fun p => p.2.length • w p.1).sum := by
-  rw [weightedPathLength_eq_sum_leafDepths, ← map_length_codewords, List.map_map]
-  rfl
+  rw [weightedPathLength_eq_sum_leafDepths, ← map_length_codewords, List.map_map]; rfl
 
 theorem pairwise_rel_of_ne {γ : Type*} {R : γ → γ → Prop}
     (hsym : ∀ {u v}, R u v → R v u) {L : List γ} (hpw : L.Pairwise R)
@@ -323,26 +318,20 @@ theorem pairwise_incomparable_codewords (T : CodeTree α) :
   induction T with
   | leaf _ => simp [codewords]
   | branch l r ihl ihr =>
-    have hmap (b : Bool) (L : List (α × List Bool)) :
-        (L.map fun p => (p.1, b :: p.2)).map Prod.snd = (L.map Prod.snd).map (b :: ·) := by
-      simp [List.map_map, Function.comp_def]
-    have hcons (b : Bool) {L : List (List Bool)}
-        (h : L.Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁)) :
-        (L.map (b :: ·)).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁) :=
-      List.pairwise_map.mpr <| h.imp fun h' =>
+    have hcons (b : Bool) {L : List (α × List Bool)}
+        (h : (L.map Prod.snd).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁)) :
+        (L.map fun p => b :: p.2).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁) :=
+      List.pairwise_map.mpr <| (List.pairwise_map.mp h).imp fun h' =>
         ⟨fun hp => h'.1 (List.cons_prefix_cons.mp hp).2,
          fun hp => h'.2 (List.cons_prefix_cons.mp hp).2⟩
-    rw [codewords, List.map_append, hmap, hmap, List.pairwise_append]
-    refine ⟨hcons false ihl, hcons true ihr, fun _ hx _ hy => ?_⟩
-    obtain ⟨_, _, rfl⟩ := List.mem_map.mp hx
-    obtain ⟨_, _, rfl⟩ := List.mem_map.mp hy
-    simp
+    rw [codewords, List.map_append, List.map_map, List.map_map, List.pairwise_append]
+    exact ⟨hcons false ihl, hcons true ihr,
+      List.forall_mem_map.2 fun _ _ => List.forall_mem_map.2 fun _ _ => by simp⟩
 
 theorem nodup_map_snd_codewords (T : CodeTree α) :
     (T.codewords.map Prod.snd).Nodup :=
-  List.Pairwise.imp
-    (fun {c₁ c₂} h (hEq : c₁ = c₂) => h.1 (hEq ▸ List.prefix_refl c₁))
-    T.pairwise_incomparable_codewords
+  T.pairwise_incomparable_codewords.imp fun {c₁ c₂} h (hEq : c₁ = c₂) =>
+    h.1 (hEq ▸ List.prefix_refl c₁)
 
 /-- Every `CodeTree` codebook satisfies Mathlib's `InformationTheory.IsPrefixFree`. -/
 theorem isPrefixFree_codewordSet (T : CodeTree α) :
@@ -353,10 +342,8 @@ theorem isPrefixFree_codewordSet (T : CodeTree α) :
     (List.mem_map.mpr ⟨_, ha, rfl⟩) (List.mem_map.mpr ⟨_, hb, rfl⟩) hne).1 hpref
 
 theorem nil_notMem_codewordSet_branch (l r : CodeTree α) :
-    [] ∉ (branch l r).codewordSet := by
-  rintro ⟨a, ha⟩
-  simp only [codewords, List.mem_append, List.mem_map] at ha
-  rcases ha with ⟨p, _, hp⟩ | ⟨p, _, hp⟩ <;> simp at hp
+    [] ∉ (branch l r).codewordSet :=
+  fun ⟨_, ha⟩ => by simp [codewords] at ha
 
 /-- Every non-leaf `CodeTree` codebook satisfies Mathlib's
 `InformationTheory.IsUniquelyDecodable`. -/
@@ -396,13 +383,9 @@ theorem decodeOne_branch_length_lt {l r : CodeTree α} {bits rem : List Bool} {a
     | leaf _ => simp [decodeOne]
     | branch _ _ ihl ihr =>
       rintro (_ | ⟨false | true, _⟩) _ _ hd
-      · cases hd
-      · exact Nat.le_succ_of_le (ihl hd)
-      · exact Nat.le_succ_of_le (ihr hd)
+      exacts [(nomatch hd), Nat.le_succ_of_le (ihl hd), Nat.le_succ_of_le (ihr hd)]
   rcases bits with _ | ⟨false | true, _⟩
-  · cases h
-  · exact Nat.lt_succ_of_le (hle l h)
-  · exact Nat.lt_succ_of_le (hle r h)
+  exacts [(nomatch h), Nat.lt_succ_of_le (hle l h), Nat.lt_succ_of_le (hle r h)]
 
 /-- Decode a bit stream into a list of symbols using a non-leaf code tree `T`. -/
 @[expose] def decode : CodeTree α → List Bool → Option (List α)
@@ -437,14 +420,12 @@ theorem mem_codewords_of_encodeSym [DecidableEq α] {T : CodeTree α} {a : α} {
   | leaf b =>
     by_cases hab : a = b <;> simp_all [encodeSym, codewords]
   | branch l r ihl ihr =>
-    simp only [encodeSym] at h
-    cases hl : l.encodeSym a with
-    | some cl =>
-      obtain rfl : false :: cl = c := by simpa [hl] using h
-      exact List.mem_append_left _ (List.mem_map.mpr ⟨_, ihl hl, rfl⟩)
-    | none =>
-      obtain ⟨cr, hr, rfl⟩ := Option.map_eq_some_iff.mp (by simpa [hl] using h)
-      exact List.mem_append_right _ (List.mem_map.mpr ⟨_, ihr hr, rfl⟩)
+    simp only [encodeSym, codewords, List.mem_append, List.mem_map] at h ⊢
+    rcases hl : l.encodeSym a with _ | cl <;>
+      simp only [hl, Option.map_eq_some_iff, Option.some.injEq] at h
+    · obtain ⟨cr, hr, rfl⟩ := h
+      exact .inr ⟨_, ihr hr, rfl⟩
+    · exact .inl ⟨_, ihl hl, h ▸ rfl⟩
 
 theorem exists_encodeSym_of_mem_leaves [DecidableEq α] {T : CodeTree α} {a : α}
     (ha : a ∈ T.leaves) : ∃ c, T.encodeSym a = some c := by
@@ -476,8 +457,7 @@ theorem decodeOne_append_of_mem_codewords {T : CodeTree α} {a : α} {c : List B
   | branch l r ihl ihr =>
     simp only [codewords, List.mem_append, List.mem_map, Prod.mk.injEq] at hmem
     rcases hmem with ⟨⟨a', cl⟩, hl, rfl, rfl⟩ | ⟨⟨a', cr⟩, hr, rfl, rfl⟩
-    · exact ihl hl
-    · exact ihr hr
+    exacts [ihl hl, ihr hr]
 
 theorem exists_encode_of_subset_leaves [DecidableEq α] {T : CodeTree α} {msg : List α}
     (hmsg : ∀ a ∈ msg, a ∈ T.leaves) :
@@ -500,14 +480,9 @@ theorem decode_encode [DecidableEq α] (l r : CodeTree α) {msg : List α} {bits
     simp only [encode, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at henc
     rcases henc with ⟨_ | ⟨b, bs⟩, hc, rest, hrest, rfl⟩
     · exact absurd ⟨a, mem_codewords_of_encodeSym hc⟩ (nil_notMem_codewordSet_branch l r)
-    · have hd1 : decodeOne (branch l r) (b :: (bs ++ rest)) = some (a, rest) :=
-        decodeOne_append_of_mem_codewords (mem_codewords_of_encodeSym hc) rest
-      rw [List.cons_append, decode]
-      split
-      · next hnone => simp [hd1] at hnone
-      · next a' rem hsome =>
-        obtain ⟨rfl, rfl⟩ : a = a' ∧ rest = rem := by simpa [hd1] using hsome
-        simp [ih hrest]
+    · have hd := decodeOne_append_of_mem_codewords (mem_codewords_of_encodeSym hc) rest
+      simp only [List.cons_append, decode] at hd ⊢
+      split <;> simp_all
 
 private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List Bool)}
     (hnodup : (L.map Prod.fst).Nodup) {a : α} {c : List Bool}
@@ -524,10 +499,8 @@ private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List 
         List.map_congr_left fun q hq => by
           rw [List.count_cons_of_ne fun (h : a = q.1) =>
             hnodup.1 (h ▸ List.mem_map.mpr ⟨q, hq, rfl⟩)]
-      simp only [List.count_cons_self, htail]
-      rw [show c.length • (msg.count a + 1) = c.length • msg.count a + c.length from
-        Nat.mul_succ _ _]
-      omega
+      rw [htail]
+      simp only [List.count_cons_self, Nat.nsmul_eq_mul, Nat.mul_succ]; omega
     · rw [List.count_cons_of_ne fun (h : a = p.1) =>
           hnodup.1 (h.symm ▸ List.mem_map.mpr ⟨_, hps, rfl⟩),
         ih hnodup.2 hps]
@@ -540,9 +513,7 @@ theorem length_encode_eq_weightedPathLength_count [DecidableEq α] {T : CodeTree
     (henc : T.encode msg = some bits) :
     bits.length = T.weightedPathLength (fun a => msg.count a) := by
   induction msg generalizing bits with
-  | nil =>
-    obtain rfl : [] = bits := by simpa [encode] using henc
-    simp [weightedPathLength_eq_sum_codewords]
+  | nil => simp_all [encode, weightedPathLength_eq_sum_codewords]
   | cons a msg ih =>
     simp only [encode, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at henc
     rcases henc with ⟨c, hc, rest, hrest, rfl⟩

@@ -213,8 +213,9 @@ theorem sum_mul_exp_pointLoss {S : Fin m → α × Bool} {D : Fin m → ℝ} {h 
     rw [← exp_add, voteWeight, add_halves, exp_log (div_pos (by linarith) hε₀)]
   generalize exp (voteWeight ε) = a at *
   have h1 : 1 - ε = ε * (a * a) := by rw [ha2]; field_simp
-  rw [(sqrt_eq_iff_mul_self_eq (by nlinarith) (show 0 ≤ ε * a by positivity)).mpr
-      (by rw [h1]; ring), h1]
+  have hsq : √(ε * (1 - ε)) = ε * a := by
+    rw [sqrt_eq_iff_mul_self_eq (by nlinarith) (by positivity), h1]; ring
+  rw [hsq, h1]
   field_simp; ring
 
 /-- The weighted vote of the first `T` rounds at `x`: the total vote weight of the hypotheses
@@ -334,8 +335,9 @@ theorem empiricalMiscount_adaBoost_le_prod {T : ℕ} (hlt : ∀ t < T, (rounds S
   · simpa using hprod
   have : NeZero m := ⟨hm.ne'⟩
   rw [adaBoost, dite_eq_right hz, div_le_iff₀ (Nat.cast_pos.mpr hm)]
-  exact (empiricalMiscount_le_potential S A T).trans_eq
-    (by rw [potential_lossSeq_eq S A hz hlt, mul_comm])
+  calc (empiricalMiscount (fun x => decide (0 < score S A T x)) S : ℝ)
+      ≤ potential exp (lossSeq S A) T := empiricalMiscount_le_potential S A T
+    _ = _ := by rw [potential_lossSeq_eq S A hz hlt, mul_comm]
 
 /-- The AdaBoost factor of an error `ε` is at most `exp (-2 (1/2 - ε)²)`, since
 `4 ε (1 - ε) = 1 - 4 (1/2 - ε)²`. -/
@@ -399,9 +401,10 @@ theorem empiricalMiscount_adaBoost_eq_zero (hA : IsWeakLearner S A γ) (hγ : 0 
   · rw [empiricalMiscount, univ_eq_empty, filter_empty, card_empty]
   have : NeZero m := ⟨hm.ne'⟩
   have hmR : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  have hlt : (empiricalMiscount (adaBoost S A T) S : ℝ) / m < 1 / m :=
-    (empiricalMiscount_adaBoost_le_exp S A hγ fun t _ => hA.rounds_error_le t).trans_lt
-      (by rw [one_div, ← exp_log hmR, ← exp_neg]; exact exp_lt_exp.mpr (by linarith))
+  have hlt : (empiricalMiscount (adaBoost S A T) S : ℝ) / m < 1 / m := by
+    refine (empiricalMiscount_adaBoost_le_exp S A hγ fun t _ => hA.rounds_error_le t).trans_lt ?_
+    rw [one_div, ← exp_log hmR, ← exp_neg]
+    exact exp_lt_exp.mpr (by linarith)
   exact Nat.lt_one_iff.mp (by exact_mod_cast (div_lt_div_iff_of_pos_right hmR).mp hlt)
 
 /-- Under the hypotheses of `empiricalMiscount_adaBoost_eq_zero`, the output labels every sample
