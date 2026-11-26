@@ -168,11 +168,9 @@ theorem Dominates.represents_div {c : PBConstr} {I : Ineq ℕ} (hc : c.Dominates
     have := congrArg (· (termVar t)) hn.1
     simp only [toIneq_eq] at this
     exact this ▸ hdvd _)
-  obtain ⟨hE, hEn, -⟩ := cf_eq_zero_of_forall (ts := ts.map fun t => (k * ceilDiv t.1 k - t.1, t.2))
-    (by
-      simp only [List.mem_map, forall_exists_index, and_imp]
-      rintro _ t ht rfl
-      simp [mul_ceilDiv_of_dvd hk (hts t ht)])
+  obtain ⟨hE, hEn, -⟩ := cf_eq_zero_of_forall
+    (ts := ts.map fun t => (k * ceilDiv t.1 k - t.1, t.2))
+    (List.forall_mem_map.2 fun t ht => by simp [mul_ceilDiv_of_dvd hk (hts t ht)])
   have hcf := VeriPB.cf_add_cf_round k hk ts
   have hns := VeriPB.negSum_add_negSum_round k hk ts
   rw [hE, add_zero] at hcf
@@ -188,11 +186,9 @@ theorem Dominates.represents_div {c : PBConstr} {I : Ineq ℕ} (hc : c.Dominates
     refine Ineq.div_eq_of hk hcoeff ?_ ?_ <;>
       (simp only [toIneq_eq]; rw [h3]; simp only [mul_sub, mul_one]; linarith)
   rw [Dominates, ← hdiv]
-  refine ⟨?_, ?_⟩
-  · ext v
-    simp only [coeff_div, hn.1]
-  · simp only [bound_div, neg_le_neg_iff]
-    exact Int.ediv_le_ediv (by exact_mod_cast hk) (neg_le_neg hn.2)
+  refine ⟨Finsupp.ext fun v => by simp only [coeff_div, hn.1], ?_⟩
+  simp only [bound_div, neg_le_neg_iff]
+  exact Int.ediv_le_ediv (mod_cast hk) (neg_le_neg hn.2)
 
 /-- A constraint representing `0 ≥ 1` is a contradiction. -/
 theorem Represents.isContradiction {c : PBConstr} (h : c.Represents contra) :
@@ -267,13 +263,11 @@ theorem lookup_append_of_notMem {E db : List (ℕ × PBConstr)} {i : ℕ} (h : i
 /-- With distinct numbers, a constraint of the database is found by its number. -/
 theorem IdOk.lookup_eq {db : List (ℕ × PBConstr)} {n : ℕ} (hid : IdOk db n) {i : ℕ}
     {c : PBConstr} (hc : (i, c) ∈ db) : lookup db i = some c := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.1
+  obtain ⟨⟨j, c'⟩, he⟩ := Option.isSome_iff_exists.1
     (List.find?_isSome.2 ⟨(i, c), hc, by simp⟩ : (db.find? (·.1 == i)).isSome)
-  obtain ⟨j, c'⟩ := e
-  have hj : j = i := by simpa using List.find?_some he
-  subst hj
-  simp only [lookup, he, Option.map_some]
-  exact congrArg some (hid.eq_of_mem (List.mem_of_find?_eq_some he) hc)
+  obtain rfl : j = i := by simpa using List.find?_some he
+  simpa only [lookup, he, Option.map_some, Option.some.injEq] using
+    hid.eq_of_mem (List.mem_of_find?_eq_some he) hc
 
 /-! ### Compiling proofs -/
 
@@ -314,11 +308,8 @@ private theorem Compiled.cons {db : List (ℕ × PBConstr)} {n : ℕ} {ls : List
     rcases lt_trichotomy p ls.length with hp | rfl | hp
     · rw [List.getElem?_append_left (by simpa using hp)] at hJ
       obtain ⟨c', hc', hJ⟩ := hls p J hJ
-      exact ⟨c', by simp [lookup_cons, show ls.length ≠ p by omega, hc'], hJ⟩
-    · rw [List.getElem?_append_right (by simp)] at hJ
-      simp only [List.length_reverse, Nat.sub_self, List.getElem?_cons_zero,
-        Option.some.injEq] at hJ
-      subst hJ
+      exact ⟨c', by simp [lookup_cons, hp.ne', hc'], hJ⟩
+    · obtain rfl : I = J := by simpa [List.getElem?_append_right] using hJ
       exact ⟨c, by simp [lookup_cons], hc⟩
     · rw [List.getElem?_eq_none (by simp; omega)] at hJ
       cases hJ

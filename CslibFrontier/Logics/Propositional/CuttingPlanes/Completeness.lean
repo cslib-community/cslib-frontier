@@ -172,9 +172,7 @@ private theorem derivableInSize_excl {I : Ineq V} {S : Finset V} (hS : I.coeff.s
   have hJK : J.lhs σ = M * (K.bound - 1) := hlhsK ▸ lhs_of_coeff_eq_smul σ hcoeff
   have hdiv : J.div M = K := by
     refine div_eq_of hM0 hcoeff ?_ ?_ <;> linarith
-  have := hJ.div M hM0 fun v => by rw [hcoeff]; exact ⟨_, rfl⟩
-  rw [hdiv] at this
-  exact this
+  exact hdiv ▸ hJ.div M hM0 fun v => ⟨K.coeff v, by simp [hcoeff]⟩
 
 /-! ### Eliminating variables by a decision tree -/
 
@@ -201,9 +199,9 @@ private theorem exists_derivableInSize_merge [DecidableEq V] {I : Ineq V} {T : F
   have hsum : (falseLit τ x).toIneq + L + ((falseLit τ' x).toIneq + L) = 2 • L - contra := by
     rw [two_nsmul, sub_eq_add_neg, ← hx']
     abel
-  have hcoeff : (2 • L - contra).coeff = ((2 : ℕ) : ℤ) • L.coeff := by
-    simp [two_smul]
-  have := (ht.add ht').div 2 two_pos fun v => by rw [hsum, hcoeff]; exact ⟨_, rfl⟩
+  have hcoeff : (2 • L - contra).coeff = ((2 : ℕ) : ℤ) • L.coeff := by simp [two_smul]
+  have := (ht.add ht').div 2 two_pos fun v =>
+    ⟨L.coeff v, by rw [hsum, hcoeff, Finsupp.smul_apply, smul_eq_mul]⟩
   rw [hsum, div_eq_of two_pos hcoeff (by simp; omega) (by simp)] at this
   exact ⟨_, this⟩
 
@@ -239,11 +237,11 @@ private theorem exists_refutableInSize_of_finite (hΓ : Γ.Finite)
   set S : Finset V := hΓ.toFinset.biUnion fun I => I.coeff.support
   refine exists_derivableInSize_of_forall_falseLit S fun τ => ?_
   obtain ⟨I, hI, hIτ⟩ : ∃ I ∈ Γ, ¬ I.Holds τ := by
-    by_contra hne
-    exact h ⟨τ, fun I hI => not_not.1 fun hn => hne ⟨I, hI, hn⟩⟩
-  have hsub : I.coeff.support ⊆ S :=
-    subset_biUnion_of_mem (fun I : Ineq V => I.coeff.support) (hΓ.mem_toFinset.2 hI)
-  exact ⟨_, derivableInSize_excl hsub hIτ (.hyp hI)⟩
+    by_contra! hne
+    exact h ⟨τ, hne⟩
+  exact ⟨_, derivableInSize_excl
+    (subset_biUnion_of_mem (fun I : Ineq V => I.coeff.support) (hΓ.mem_toFinset.2 hI))
+    hIτ (.hyp hI)⟩
 
 /-- The 0/1 solutions of an inequality form a closed set of assignments. -/
 private theorem isClosed_setOf_holds (I : Ineq V) : IsClosed {σ : V → Bool | I.Holds σ} := by
@@ -263,11 +261,11 @@ theorem exists_refutableInSize_of_not_exists_holds (h : ¬ ∃ σ : V → Bool, 
   obtain ⟨u, hu⟩ := isCompact_univ.elim_finite_subfamily_closed
     (fun I : Γ => {σ : V → Bool | I.1.Holds σ}) (fun I => isClosed_setOf_holds I.1)
     (Set.disjoint_left.2 fun σ _ hσ => h ⟨σ, fun I hI => Set.mem_iInter.1 hσ ⟨I, hI⟩⟩)
-  have hfin : (↑(u.image Subtype.val) : Set (Ineq V)).Finite := (u.image Subtype.val).finite_toSet
-  obtain ⟨s, ls, hls, hc, hlen⟩ := exists_refutableInSize_of_finite hfin fun ⟨σ, hσ⟩ => by
-    refine Set.disjoint_left.1 hu (Set.mem_univ σ) (Set.mem_iInter₂.2 fun I hI => ?_)
-    exact hσ I.1 (mem_coe.2 (mem_image_of_mem _ hI))
-  refine ⟨s, ls, hls.mono fun I hI => ?_, hc, hlen⟩
+  obtain ⟨s, ls, hls, hc, hlen⟩ := exists_refutableInSize_of_finite
+    (u.image Subtype.val).finite_toSet fun ⟨σ, hσ⟩ =>
+      Set.disjoint_left.1 hu (Set.mem_univ σ)
+        (Set.mem_iInter₂.2 fun I hI => hσ I.1 (mem_coe.2 (mem_image_of_mem _ hI)))
+  refine ⟨s, ls, hls.mono fun _ hI => ?_, hc, hlen⟩
   obtain ⟨J, -, rfl⟩ := mem_image.1 (mem_coe.1 hI)
   exact J.2
 
@@ -333,9 +331,7 @@ private theorem exists_derivableInSize_leaf {A : V →₀ ℤ} {c : ℤ} {S : Fi
   have hJK : J.lhs τ = d * K.lhs τ := lhs_of_coeff_eq_smul τ hcoeff
   have hdiv : J.div d = K := by
     refine div_eq_of (by omega) hcoeff ?_ ?_ <;> rw [hd1] at hlhsJ hboundJ <;> nlinarith
-  have := hJ.div d (by omega) fun v => by rw [hcoeff]; exact ⟨_, rfl⟩
-  rw [hdiv] at this
-  exact ⟨_, this⟩
+  exact ⟨_, hdiv ▸ hJ.div d (by omega) fun v => ⟨K.coeff v, by simp [hcoeff]⟩⟩
 
 /-- **The inductive step** `A ≥ c ⟹ A ≥ c + 1` for `c` below every value of `A` at the 0/1
 solutions of a finite `Γ₀ ⊆ Γ`, by the decision tree over the variables `W` of `Γ₀` and `A`. -/
@@ -351,12 +347,9 @@ private theorem exists_derivableInSize_succ {Γ₀ : Finset (Ineq V)} (hΓ₀ : 
     · obtain ⟨J, hJ, hJτ⟩ := hτ
       have hsub : J.coeff.support ⊆ W :=
         subset_union_right.trans' (subset_biUnion_of_mem (fun J : Ineq V => J.coeff.support) hJ)
-      have := hI.add (derivableInSize_excl hsub hJτ (.hyp (hΓ₀ hJ)))
       have e : (⟨A, c⟩ : Ineq V) + (contra + ∑ v ∈ W, (falseLit τ v).toIneq) =
-          ⟨A, c + 1⟩ + ∑ v ∈ W, (falseLit τ v).toIneq := by
-        ext <;> simp [add_assoc]
-      rw [e] at this
-      exact ⟨_, this⟩
+          ⟨A, c + 1⟩ + ∑ v ∈ W, (falseLit τ v).toIneq := by ext <;> simp [add_assoc]
+      exact ⟨_, e ▸ hI.add (derivableInSize_excl hsub hJτ (.hyp (hΓ₀ hJ)))⟩
     · push Not at hτ
       exact exists_derivableInSize_leaf subset_union_left (himp τ hτ) hI
   exact exists_derivableInSize_of_forall_falseLit W hleaf
@@ -370,10 +363,8 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
   -- Compactness: a refutation of `Γ` with `¬ I` uses finitely many hypotheses `Γ₀` of `Γ`.
   set N : Ineq V := ⟨-I.coeff, 1 - I.bound⟩
   have hN (σ : V → Bool) : N.Holds σ ↔ ¬ I.Holds σ := by
-    have : N.lhs σ = -1 * I.lhs σ := lhs_of_coeff_eq_smul σ (by simp [N])
-    have hb : N.bound = 1 - I.bound := rfl
-    simp only [Holds, this, hb]
-    omega
+    have hl : N.lhs σ = -1 * I.lhs σ := lhs_of_coeff_eq_smul σ (by simp [N])
+    simp only [Holds, hl, N]; omega
   obtain ⟨-, ls, hls, hc, -⟩ := exists_refutableInSize_of_not_exists_holds
     (Γ := insert N Γ) fun ⟨σ, hσ⟩ => (hN σ).1 (hσ N (Set.mem_insert _ _))
       (h σ fun J hJ => hσ J (Set.mem_insert_of_mem _ hJ))
@@ -391,21 +382,19 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
     obtain ⟨s, hs⟩ := hc
     obtain rfl | hlt := hbc.eq_or_lt
     · exact ⟨s, hs⟩
-    have := hs.add (((DerivableInSize.nonneg v₀).add (.leOne v₀)).smul (c - b).toNat (by omega))
     have e : (⟨I.coeff, c⟩ : Ineq V) + (c - b).toNat • (nonneg v₀ + leOne v₀) = ⟨I.coeff, b⟩ := by
       ext <;> simp [nonneg_add_leOne]
       omega
-    rw [e] at this
-    exact ⟨_, this⟩
+    exact ⟨_, e ▸ hs.add (((DerivableInSize.nonneg v₀).add (.leOne v₀)).smul _ (by omega))⟩
   -- The base `A ≥ c₀`, a sum of multiples of literal axioms.
   set τ₀ : V → Bool := fun v => decide (I.coeff v < 0)
   set J₀ : Ineq V := (nonneg v₀ + leOne v₀) +
     ∑ v ∈ I.coeff.support, (|I.coeff v|).toNat • (falseLit τ₀ v).toIneq
   have hJ₀ : ∃ s, DerivableInSize Γ ⟨I.coeff, J₀.bound⟩ s := by
-    have := ((DerivableInSize.nonneg v₀).add (.leOne v₀)).add_sum I.coeff.support
-      fun v hv => (DerivableInSize.literal (Γ := Γ) (falseLit τ₀ v)).smul (|I.coeff v|).toNat
-        (by simpa [Int.lt_toNat] using abs_pos.2 (Finsupp.mem_support_iff.1 hv))
-    change DerivableInSize Γ J₀ _ at this
+    have hdrv : DerivableInSize Γ J₀ _ :=
+      ((DerivableInSize.nonneg v₀).add (.leOne v₀)).add_sum I.coeff.support
+        fun v hv => (DerivableInSize.literal (Γ := Γ) (falseLit τ₀ v)).smul (|I.coeff v|).toNat
+          (by simpa [Int.lt_toNat] using abs_pos.2 (Finsupp.mem_support_iff.1 hv))
     have hterm (v : V) : |I.coeff v| * sgn τ₀ v = I.coeff v := by
       rcases lt_or_ge (I.coeff v) 0 with h | h
       · simp [sgn, τ₀, h, abs_of_neg h]
@@ -416,8 +405,7 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
         coeff_neg, coeff_contra, neg_zero, zero_add, Finsupp.smul_single, nsmul_eq_mul,
         Int.toNat_of_nonneg (abs_nonneg _), hterm]
       exact Finsupp.sum_single I.coeff
-    rw [e] at this
-    exact ⟨_, this⟩
+    exact ⟨_, e ▸ hdrv⟩
   -- Iterate the step from `min c₀ b` up to `b`.
   set c₀ : ℤ := min J₀.bound I.bound
   have hstep : ∀ n : ℕ, c₀ + n ≤ I.bound → ∃ s, DerivableInSize Γ ⟨I.coeff, c₀ + n⟩ s := by
@@ -427,18 +415,15 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
     | succ n ih =>
       intro hn
       obtain ⟨s, hs⟩ := ih (by omega)
-      have := exists_derivableInSize_succ hΓ₀ (fun τ hτ => by
+      simpa [add_assoc] using exists_derivableInSize_succ hΓ₀ (fun τ hτ => by
         have := himp τ hτ
-        simp only [Holds] at this
         have := lhs_congr (I := ⟨I.coeff, c₀ + n⟩) (J := I) rfl τ
-        omega) hs
-      simpa [add_assoc] using this
+        simp only [Holds] at *; omega) hs
   obtain ⟨s, hs⟩ := hstep (I.bound - c₀).toNat (by omega)
   have e : (⟨I.coeff, c₀ + (I.bound - c₀).toNat⟩ : Ineq V) = I := by
     ext <;> simp
     omega
-  rw [e] at hs
-  exact ⟨s, hs⟩
+  exact ⟨s, e ▸ hs⟩
 
 /-- **Cutting planes derive exactly the implied inequalities**: over a nonempty type of variables,
 `I` is derivable from `Γ` iff every 0/1 solution of `Γ` satisfies `I`. Over an empty type of
