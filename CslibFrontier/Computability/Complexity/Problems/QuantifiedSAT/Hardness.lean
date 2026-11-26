@@ -35,7 +35,8 @@ namespace Cslib.Complexity.QuantifiedSAT
 
 open Cslib.Logic.PL _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime TQBF
 
-private theorem even_verifier {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : ℕ}
+/-- Pad the blocks of an alternating verifier to a common positive even length. -/
+theorem even_verifier {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : ℕ}
     (hA : A ∈ SigmaP i enc) :
     ∃ (p : Polynomial ℕ) (V : α × List Bool → Bool),
       (∀ n, 1 ≤ p.eval n) ∧ ComputableInPolyTime V (encPair enc encBits) encBool ∧

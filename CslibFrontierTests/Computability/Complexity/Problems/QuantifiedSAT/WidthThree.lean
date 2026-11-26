@@ -9,16 +9,21 @@ import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.WidthThree
 open Cslib.Complexity Cslib.Complexity.QuantifiedSAT.WidthThree
 open Cslib.Logic.PL
 
-example : SigmaPComplete 2 encoding DNF3Two := dnf3Two_complete
+example : SigmaPComplete 1 encoding (SigmaWidthThree 1) := sigmaWidthThree_complete (by decide)
+example : SigmaPComplete 2 encoding (SigmaWidthThree 2) := sigmaWidthThree_complete (by decide)
+example : SigmaPComplete 3 encoding (SigmaWidthThree 3) := sigmaWidthThree_complete (by decide)
+example : PiPComplete 3 encoding (PiWidthThree 3) := piWidthThree_complete (by decide)
+example : PiPComplete 4 encoding (PiWidthThree 4) := piWidthThree_complete (by decide)
 
 -- An empty term is true even with no bound variables.
-example : ([[], []], [[]]) ∈ DNF3Two := by
-  simp [DNF3Two, DNF2, PrenexQBF.SigmaSAT, PrenexQBF.WellFormed, prenex, matrix,
+example : ([[], []], [[]]) ∈ SigmaWidthThree 2 := by
+  simp [SigmaWidthThree, prenexAt, PrenexQBF.SigmaSAT, PrenexQBF.WellFormed, matrix,
     PrenexQBF.formula, QBF.blocks, QBF.ofCNF, QBF.ofClause, DNF.negate, Term.negate, QBF.eval,
     QBF.exs, QBF.alls, QBF.freeVars, QBF.quantifierFree_bot]
 
-#print axioms dnf3Two_complete
-#print axioms compile3DNF_correct
-#print axioms polytime_compile3DNF
+#print axioms sigmaWidthThree_complete
+#print axioms piWidthThree_complete
+#print axioms exists_normalFormReduction
+#print axioms iterate_not_true_eq
 #print axioms widthThree_blocks_eval
 #print axioms widthThreeCNF_blocks_eval

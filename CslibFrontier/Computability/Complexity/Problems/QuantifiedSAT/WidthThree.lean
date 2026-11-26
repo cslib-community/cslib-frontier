@@ -14,11 +14,11 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Complexity.Classes.PH.Closure
 
 /-!
-# Width-three existential-universal quantified DNF
+# Width-three quantified normal-form completeness
 
-Apply the dual of the existing 3CNF splitting transformation under a fixed
-assignment to the original variables. Append the fresh variables to the
-universal block and preserve the truth and well-formedness of the input.
+Apply the 3CNF splitting transformation or its dual under fixed original assignments.
+The fresh variables join the final block at its existing polarity. Corresponds to the
+bounded-alternation normal forms in [Arora and Barak, Exercise 5 §1][AroraBarak07].
 -/
 
 @[expose] public section
@@ -329,74 +329,12 @@ private theorem to3CNF_old (φ : CNF Nat) (v : Nat) (hv : Sum.inl v ∈ φ.to3CN
   have eq : lit.1 = v := Sum.inl.inj (congrArg Prod.fst he)
   exact CNF.mem_vars.mpr ⟨orig, hsrc, lit.2, by rwa [← eq]⟩
 
-def compile3DNF (i : Instance) : Instance :=
-  let converted := numberedWidthThree i.2
-  ⟨[(i.1.getD 0 []).map (2 * ·), (i.1.getD 1 []).map (2 * ·) ++ converted.1], converted.2⟩
-
-theorem polytime_compile3DNF : ComputableInPolyTime compile3DNF encoding encoding := by
-  let b := encList encNat
-  let d := encCNFOver encNat
-  have blocks := fst (encList b) d
-  have matrix := snd (encList b) d
-  have twice : ComputableInPolyTime (fun n : Nat => 2 * n) encNat encNat :=
-    binary_mul.comp ((const 2).prod id')
-  have first := (map twice).comp (listGetDWithInput blocks (const (encOut := encUnary) 0) [])
-  have second := (map twice).comp (listGetDWithInput blocks (const (encOut := encUnary) 1) [])
-  have out := polytime_numberedWidthThree.comp matrix
-  have appended := (listAppend encNat).comp (second.prod out.fst')
-  have pairs := (cons b).comp (first.prod ((cons b).comp (appended.prod (const []))))
-  exact (pairs.prod out.snd').of_enc_eq fun _ => rfl
-
 private theorem numbered_width (d : DNF Nat) (t : Term Nat) (ht : t ∈ (numberedWidthThree d).2) :
     t.length ≤ 3 := by
   obtain ⟨cl, hc, rfl⟩ := List.mem_map.mp ht
   obtain ⟨c, hcl, rfl⟩ := List.mem_map.mp hc
   rw [Clause.length_negate]
   exact (List.length_map ..).trans_le (CNF.length_le_three_of_mem_to3CNF hcl)
-
-private theorem compile3_wellFormed (a b : List Nat) (d : DNF Nat)
-    (h : (prenex ([a, b], d)).WellFormed 2) : (prenex (compile3DNF ([a, b], d))).WellFormed 2 := by
-  refine ⟨rfl, QBF.quantifierFree_not.mpr (QBF.quantifierFree_ofCNF _), ?_⟩
-  intro v hv
-  change v ∈ (matrix (numberedWidthThree d).2).freeVars at hv
-  simp only [matrix, numberedWidthThree, QBF.freeVars_not, negate_twice,
-    QBF.mem_freeVars_ofCNF, CNF.vars_relabel, List.mem_map] at hv
-  obtain ⟨u, hu, rfl⟩ := hv
-  have old : ∀ n ∈ d.negate.vars, n ∈ a ++ b := by
-    intro n hn
-    have := h.2.2 (show n ∈ (matrix d).freeVars by
-      simpa only [matrix, QBF.freeVars_not, QBF.mem_freeVars_ofCNF] using hn)
-    simpa [prenex] using this
-  change widthThreeName u ∈
-    ((a.map (2 * ·)) ++ ((b.map (2 * ·) ++ (numberedWidthThree d).1) ++ [])).toFinset
-  simp only [List.append_nil, List.mem_toFinset, List.mem_append]
-  cases u with
-  | inl n =>
-    rcases List.mem_append.mp (old n (to3CNF_old d.negate n hu)) with ha | hb
-    · exact Or.inl (List.mem_map.mpr ⟨n, ha, rfl⟩)
-    · exact Or.inr (Or.inl (List.mem_map.mpr ⟨n, hb, rfl⟩))
-  | inr n => exact Or.inr (Or.inr (List.mem_map.mpr ⟨n, (freshVariables_mem d n).mpr hu, rfl⟩))
-
-private theorem compile3_truth (a b : List Nat) (d : DNF Nat) :
-    ((prenex (compile3DNF ([a, b], d))).formula true).eval (fun _ => false) = true ↔
-      ((prenex ([a, b], d)).formula true).eval (fun _ => false) = true := by
-  change (QBF.exs (a.map (2 * ·)) (QBF.alls (b.map (2 * ·) ++ (numberedWidthThree d).1)
-    (matrix (numberedWidthThree d).2))).eval (fun _ => false) = true ↔
-      (QBF.exs a (QBF.alls b (matrix d))).eval (fun _ => false) = true
-  simp only [QBF.alls_append, QBF.eval_exs_iff_word, QBF.eval_alls_iff_word, List.length_map]
-  refine exists_congr fun x => and_congr_right fun _ =>
-    forall_congr' fun y => imp_congr_right fun _ => ?_
-  rw [← QBF.eval_alls_iff_word, numberedWidthThree_eval, eval_matrix]
-  have injective : Function.Injective (fun n : Nat => 2 * n) := by
-    intro p q e
-    change 2 * p = 2 * q at e
-    omega
-  change d.eval (QBF.updates (QBF.updates (fun _ => false) (a.map (2 * ·)) x)
-    (b.map (2 * ·)) y ∘ (2 * ·)) = true ↔ _
-  rw [updates_numbered _ injective, updates_numbered _ injective]
-  rfl
-
-def DNF3Two : Set Instance := DNF2 ∩ {i | ∀ t ∈ i.2, t.length ≤ 3}
 
 private theorem width_mem_P : {i : Instance | ∀ t ∈ i.2, t.length ≤ 3} ∈ P encoding := by
   let literal := encPair encNat encBool
@@ -407,28 +345,185 @@ private theorem width_mem_P : {i : Instance | ∀ t ∈ i.2, t.length ≤ 3} ∈
   refine ⟨_, check, fun i => ?_⟩
   simp
 
-theorem compile3DNF_correct (i : Instance) (hwi : (prenex i).WellFormed 2) :
-    i ∈ DNF2 ↔ compile3DNF i ∈ DNF3Two := by
-  obtain ⟨bs, d⟩ := i
-  rcases bs with _ | ⟨x, _ | ⟨y, _ | ⟨z, rest⟩⟩⟩
-  · simp [prenex, PrenexQBF.WellFormed] at hwi
-  · simp [prenex, PrenexQBF.WellFormed] at hwi
-  · have hw := compile3_wellFormed x y d hwi
-    have bound : compile3DNF ([x, y], d) ∈ {i : Instance | ∀ t ∈ i.2, t.length ≤ 3} :=
-      fun t ht => numbered_width d t ht
-    change ((prenex ([x, y], d)).WellFormed 2 ∧ _) ↔
-      (((prenex (compile3DNF ([x, y], d))).WellFormed 2 ∧ _) ∧ _)
-    rw [and_iff_right hwi, and_iff_right hw, and_iff_left bound, compile3_truth]
-  · simp [prenex, PrenexQBF.WellFormed] at hwi
+/-- Starting existentially, the result of alternating once per block is true at even
+length and false at odd length. The last block has the opposite polarity. -/
+theorem iterate_not_true_eq (i : Nat) : (Bool.not)^[i] true = decide (i % 2 = 0) := by
+  induction i with
+  | zero => rfl
+  | succ i ih =>
+    rw [Function.iterate_succ_apply', ih]
+    by_cases h : i % 2 = 0
+    · have hs : (i + 1) % 2 ≠ 0 := by omega
+      simp [h, hs]
+    · have hs : (i + 1) % 2 = 0 := by omega
+      simp [h, hs]
 
-theorem dnf3Two_complete : SigmaPComplete 2 encoding DNF3Two := by
-  have width0 : {i : Instance | ∀ t ∈ i.2, t.length ≤ 3} ∈ SigmaP 0 encoding := by
+/-- Width restriction of the last-polarity normal form for existential-first formulas. -/
+def SigmaWidthThree (i : Nat) : Set Instance :=
+  {p | prenexAt (!(Bool.not^[i] true)) p ∈ PrenexQBF.SigmaSAT i} ∩
+    {p | ∀ t ∈ p.2, t.length ≤ 3}
+
+private def compileWidthThree (p : Instance) : Instance :=
+  let d := numberedWidthThree p.2
+  ⟨QBF.appendLast (p.1.map (List.map (2 * ·))) d.1, d.2⟩
+
+private theorem polytime_compileWidthThree :
+    ComputableInPolyTime compileWidthThree encoding encoding := by
+  let e := encList encNat
+  let d := encCNFOver encNat
+  have rename : ComputableInPolyTime (fun n : Nat => 2 * n) encNat encNat :=
+    binary_mul.comp ((const 2).prod id')
+  have blocks := (map (map rename)).comp (fst (encList e) d)
+  have conv := polytime_numberedWidthThree.comp (snd (encList e) d)
+  have aux := conv.fst'
+  unfold compileWidthThree
+  simp only [QBF.appendLast_eq_reverse]
+  have hrev := (listReverse e).comp blocks
+  exact ((listReverse e).comp ((cons e).comp
+    (((listAppend encNat).comp (((headD []).comp hrev).prod aux)).prod
+      ((tail (encA := e)).comp hrev)))).prod conv.snd'
+
+private theorem compileWidthThree_wellFormed (p : Instance) {i : Nat} (hi : 1 ≤ i)
+    (hp : (prenex p).WellFormed i) : (prenex (compileWidthThree p)).WellFormed i := by
+  have hne : p.1.map (List.map (2 * ·)) ≠ [] := by
+    have hl : p.1.length = i := hp.1
+    intro h
+    have := congrArg List.length h
+    simp [hl] at this
+    omega
+  have hlen : p.1.length = i := hp.1
+  refine ⟨(QBF.length_appendLast hne _).trans (by simp only [List.length_map, hlen]),
+    QBF.quantifierFree_not.mpr (QBF.quantifierFree_ofCNF _), ?_⟩
+  intro v hv
+  change v ∈ (matrix (numberedWidthThree p.2).2).freeVars at hv
+  simp only [matrix, numberedWidthThree, QBF.freeVars_not, negate_twice,
+    QBF.mem_freeVars_ofCNF, CNF.vars_relabel, List.mem_map] at hv
+  obtain ⟨u, hu, rfl⟩ := hv
+  change widthThreeName u ∈
+    (QBF.appendLast (p.1.map (List.map (2 * ·))) (numberedWidthThree p.2).1).flatten.toFinset
+  rw [QBF.flatten_appendLast]
+  simp only [List.mem_toFinset, List.mem_append]
+  cases u with
+  | inl n =>
+    left
+    have hm := hp.2.2 (show n ∈ (matrix p.2).freeVars by
+      simpa only [matrix, QBF.freeVars_not, QBF.mem_freeVars_ofCNF] using
+        to3CNF_old p.2.negate n hu)
+    obtain ⟨b, hb, hn⟩ := List.mem_flatten.mp (List.mem_toFinset.mp hm)
+    exact List.mem_flatten.mpr ⟨b.map (2 * ·), List.mem_map.mpr ⟨b, hb, rfl⟩,
+      List.mem_map.mpr ⟨n, hn, rfl⟩⟩
+  | inr n => exact Or.inr (List.mem_map.mpr ⟨n, (freshVariables_mem p.2 n).mpr hu, rfl⟩)
+
+private theorem dnf_negate_twice (d : DNF Nat) : d.negate.negate = d := by
+  have term (t : Term Nat) : t.negate.negate = t := by
+    induction t with
+    | nil => rfl
+    | cons l ls ih =>
+      change l.negate.negate :: (Term.negate ls).negate = l :: ls
+      rw [ih]
+      rcases l with ⟨v, b⟩
+      cases b <;> rfl
+  induction d with
+  | nil => rfl
+  | cons t ts ih =>
+    change t.negate.negate :: (DNF.negate ts).negate = t :: ts
+    rw [term, ih]
+
+private theorem compileWidthThree_eval (q r : Bool) (p : Instance) (h : p.1 ≠ [])
+    (hr : (Bool.not)^[p.1.length] q = !r) :
+    ((prenexAt r (compileWidthThree p)).formula q).eval (fun _ => false) = true ↔
+      ((prenexAt r p).formula q).eval (fun _ => false) = true := by
+  cases r with
+  | false => exact widthThree_blocks_eval q p.1 p.2 h hr _
+  | true =>
+    have hc := widthThreeCNF_blocks_eval q p.1 p.2.negate h hr (fun _ => false)
+    have hz : ((fun _ : Nat => false) ∘ (2 * ·)) = (fun _ => false) := rfl
+    simpa only [dnf_negate_twice, compileWidthThree, prenexAt, PrenexQBF.formula, hz,
+      ↓reduceIte] using hc
+
+private theorem sigmaWidthThree_hard_valid {α : Type} (enc : α ↪ List Bool)
+    (A : Set α) {i : Nat} (hi : 1 ≤ i) (hA : A ∈ SigmaP i enc) :
+    ∃ f : α → Instance, ComputableInPolyTime f enc encoding ∧
+      (∀ a, (prenex (f a)).WellFormed i ∧ ∀ t ∈ (f a).2, t.length ≤ 3) ∧
+      ∀ a, a ∈ A ↔ f a ∈ SigmaWidthThree i := by
+  obtain ⟨f, hf, hw, hc⟩ := exists_normalFormReduction hi hA
+  refine ⟨compileWidthThree ∘ f, polytime_compileWidthThree.comp hf, fun a => ?_, fun a => ?_⟩
+  · exact ⟨compileWidthThree_wellFormed _ hi (hw a), fun t ht => numbered_width _ t ht⟩
+  · have valid := compileWidthThree_wellFormed _ hi (hw a)
+    have length : (f a).1.length = i := (hw a).1
+    have nonempty : (f a).1 ≠ [] := by
+      intro e
+      rw [e, List.length_nil] at length
+      omega
+    have truth := compileWidthThree_eval true (!(Bool.not^[i] true))
+      (f a) nonempty (by rw [length, Bool.not_not])
+    have short : ∀ t ∈ (compileWidthThree (f a)).2, t.length ≤ 3 :=
+      fun t ht => numbered_width _ t ht
+    change _ ↔ (((prenexAt _ (compileWidthThree (f a))).WellFormed i ∧
+      ((prenexAt _ (compileWidthThree (f a))).formula true).eval (fun _ => false) = true) ∧
+      ∀ t ∈ (compileWidthThree (f a)).2, t.length ≤ 3)
+    rw [and_iff_left short, and_iff_right ((prenexAt_wf_iff _ _ _).mpr valid), truth]
+    exact hc a
+
+/-- All positive existential-first levels are complete with width-three matrices. Odd
+levels use a 3CNF and even levels a 3DNF, as determined by the last block's polarity. -/
+theorem sigmaWidthThree_complete {i : Nat} (hi : 1 ≤ i) :
+    SigmaPComplete i encoding (SigmaWidthThree i) := by
+  have red : PolyTimeReducible encoding encPrenexQBF
+      {p | prenexAt (!(Bool.not^[i] true)) p ∈ PrenexQBF.SigmaSAT i}
+      (PrenexQBF.SigmaSAT i) :=
+    ⟨_, polytime_prenexAt _, fun _ => Iff.rfl⟩
+  have hw : {p : Instance | ∀ t ∈ p.2, t.length ≤ 3} ∈ SigmaP 0 encoding := by
     rw [SigmaP_zero]
     exact width_mem_P
-  refine ⟨inter_mem_SigmaP dnf2_mem (SigmaP_mono (by decide : 0 ≤ 2) width0), ?_⟩
+  refine ⟨inter_mem_SigmaP (red.mem_SigmaP (PrenexQBF.mem_SigmaP i))
+    (SigmaP_mono (Nat.zero_le _) hw), ?_⟩
   intro α enc A hA
-  obtain ⟨f, hf, hwf, hcorrect⟩ := dnf2_hard_wellFormed enc A hA
-  exact ⟨compile3DNF ∘ f, polytime_compile3DNF.comp hf,
-    fun a => (hcorrect a).trans (compile3DNF_correct (f a) (hwf a))⟩
+  obtain ⟨f, hf, _, hc⟩ := sigmaWidthThree_hard_valid enc A hi hA
+  exact ⟨f, hf, hc⟩
+
+/-- Universal-first width-three formulas use the complementary matrix polarity. -/
+def PiWidthThree (i : Nat) : Set Instance :=
+  {p | prenexAt (Bool.not^[i] true) p ∈ PrenexQBF.PiSAT i} ∩
+    {p | ∀ t ∈ p.2, t.length ≤ 3}
+
+private theorem dual_starts (r : Bool) (p : Instance) :
+    ((prenexAt (!r) p).formula false).eval (fun _ => false) = true ↔
+      ¬ ((prenexAt r p).formula true).eval (fun _ => false) = true := by
+  rw [PrenexQBF.formula, PrenexQBF.formula, QBF.eval_blocks_eq_true_iff,
+    QBF.eval_blocks_eq_true_iff, not_alternation]
+  apply alternation_congr
+  intro word
+  cases r <;> simp [prenexAt, matrix, QBF.eval_not]
+
+/-- At each positive universal-first level, odd levels use 3DNF and even levels
+use 3CNF. The reduction always emits well-formed instances, including on no inputs. -/
+theorem piWidthThree_complete {i : Nat} (hi : 1 ≤ i) :
+    PiPComplete i encoding (PiWidthThree i) := by
+  have red : PolyTimeReducible encoding encPrenexQBF
+      {p | prenexAt (Bool.not^[i] true) p ∈ PrenexQBF.PiSAT i}
+      (PrenexQBF.PiSAT i) :=
+    ⟨_, polytime_prenexAt _, fun _ => Iff.rfl⟩
+  have hw : {p : Instance | ∀ t ∈ p.2, t.length ≤ 3} ∈ PiP 0 encoding := by
+    rw [PiP_zero]
+    exact width_mem_P
+  refine ⟨inter_mem_PiP (red.mem_PiP (PrenexQBF.mem_PiP i))
+    (PiP_mono (Nat.zero_le _) hw), ?_⟩
+  intro α enc A hA
+  obtain ⟨f, hf, hvalid, hc⟩ := sigmaWidthThree_hard_valid enc Aᶜ hi
+    (compl_mem_SigmaP_of_mem_PiP hA)
+  refine ⟨f, hf, fun a => ?_⟩
+  obtain ⟨hwell, hwidth⟩ := hvalid a
+  have eq := hc a
+  change a ∉ A ↔ (((prenexAt _ (f a)).WellFormed i ∧
+    ((prenexAt (!(Bool.not^[i] true)) (f a)).formula true).eval (fun _ => false) = true) ∧
+    ∀ t ∈ (f a).2, t.length ≤ 3) at eq
+  change a ∈ A ↔ (((prenexAt _ (f a)).WellFormed i ∧
+    ((prenexAt (Bool.not^[i] true) (f a)).formula false).eval (fun _ => false) = true) ∧
+    ∀ t ∈ (f a).2, t.length ≤ 3)
+  rw [and_iff_left hwidth, and_iff_right ((prenexAt_wf_iff _ _ _).mpr hwell)] at eq ⊢
+  have dual := dual_starts (!(Bool.not^[i] true)) (f a)
+  rw [Bool.not_not] at dual
+  rw [dual, ← eq, not_not]
 
 end Cslib.Complexity.QuantifiedSAT.WidthThree

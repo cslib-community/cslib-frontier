@@ -3582,8 +3582,6 @@ public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.TickSta
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegMulVec
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
-public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.TableauDNF
-public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.WidthThree
 public import CslibFrontier.GameTheory.NetworkFormation.LocalConnection
 public import CslibFrontier.Languages.Probabilistic.Norm
 public import CslibFrontier.Foundations.Combinatorics.Expander.RelativeShearTranslation
@@ -8298,6 +8296,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Crypto.Computational.LWE.Regev
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeInsert
 public import CslibFrontier.Computability.Complexity.FineGrained.PPZ.LazyOrder
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.WidthThree
 public import CslibFrontier.Foundations.Data.Nat.Choose.Real
 public import CslibFrontier.Foundations.Data.List.Boole
 public import CslibFrontier.Computability.Complexity.Problems.CSP.SelfDualThreeSAT
@@ -9476,6 +9475,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDer
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.Cross
 public import CslibFrontier.Foundations.Data.List.OfFnGetD
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Equality
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.TableauDNF
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.AgreementLimit
 public import CslibFrontier.Probability.LocalitySensitiveHash
 public import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime

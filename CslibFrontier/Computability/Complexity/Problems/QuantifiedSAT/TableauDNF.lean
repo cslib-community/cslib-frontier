@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Completeness
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Hardness
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Membership
 public import CslibFrontier.Computability.Complexity.Classes.PH.Projection
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
@@ -19,12 +20,11 @@ public import CslibFrontier.Logics.Propositional.DNF
 public import CslibFrontier.Logics.Propositional.CNF.PolyTime
 
 /-!
-# Two-block quantified DNF completeness
+# Quantified tableau matrix normal forms
 
-The existential-universal case of the tableau construction of
-[Arora and Barak, Exercise 5 §1][AroraBarak07] can retain the matrix as a DNF.
-Negating the conjunctive tableau for the complemented verifier places its
-auxiliary variables in the existing universal block.
+The tableau construction of [Arora and Barak, Exercise 5 §1][AroraBarak07]
+retains a conjunctive or disjunctive matrix depending on the final block.
+The tableau accepts the complemented verifier when the final block is universal.
 -/
 
 @[expose] public section
@@ -70,25 +70,6 @@ theorem eval_tableauDNF {k : Nat} {State : Type} [Fintype State]
     (tab : CNF (CookLevin.Var k State)) (w : Nat) (σ : Nat → Bool) :
     (tableauDNF tab w).eval σ = ((TQBF.baseMatrix tab w).not).eval σ := by
   simp [tableauDNF, TQBF.baseMatrix, eval_links]
-
-theorem length_linksCNF {k : Nat} {State : Type} [Fintype State] (w : Nat) :
-    (linksCNF (k := k) (State := State) w).length = 4 * w := by
-  have len (xs : List Nat) :
-      (xs.flatMap fun j =>
-        link (TQBF.tabVar (CookLevin.Var.cert (k := k) (State := State) j))
-          (TQBF.certVar w j)).length = 2 * xs.length := by
-    induction xs with
-    | nil => rfl
-    | cons j rest ih =>
-      rw [List.flatMap_cons, List.length_append, ih]
-      simp [link]
-      omega
-  simpa only [linksCNF, List.length_range, ← Nat.mul_assoc] using len (List.range (2*w))
-
-theorem length_tableauDNF {k : Nat} {State : Type} [Fintype State]
-    (tab : CNF (CookLevin.Var k State)) (w : Nat) :
-    (tableauDNF tab w).length = 4 * w + tab.length := by
-  simp [tableauDNF, CNF.negate, length_linksCNF, CNF.relabel]
 
 theorem polytime_negateCNF {V : Type} (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.negate (V := V)) (encCNFOver enc) (encCNFOver enc) := by
@@ -161,19 +142,6 @@ theorem tableau_freeVars {k : Nat} {State : Type} [Fintype State]
       intro a b
       simp [CNF.vars], eq]
 
-open QuantifiedSAT in
-/-- The second block and all its tableau variables stay universal. -/
-theorem eval_two_blocks {k : Nat} {State : Type} [Fintype State]
-    (tab : CNF (CookLevin.Var k State)) (w n : Nat) (σ : Nat → Bool) :
-    QBF.eval σ (QBF.blocks true (instanceOfTableau tab w n 2 false).blocks
-      (matrix (tableauDNF tab w))) = ((instanceOfTableau tab w n 2 false).formula true).eval σ := by
-  rw [Bool.eq_iff_iff, PrenexQBF.formula, QBF.eval_blocks_eq_true_iff,
-    QBF.eval_blocks_eq_true_iff]
-  apply alternation_congr
-  intro word
-  rw [eval_matrix, eval_tableauDNF]
-  simp [instanceOfTableau_matrix]
-
 end Cslib.Complexity.QuantifiedSAT.WidthThree
 
 
@@ -193,9 +161,6 @@ abbrev encoding : Instance ↪ List Bool :=
 
 def prenex (p : Instance) : PrenexQBF := ⟨p.1, matrix p.2⟩
 
-/-- Well-formed existential-universal quantified DNF in Frontier's encodings. -/
-def DNF2 : Set Instance := { p | prenex p ∈ PrenexQBF.SigmaSAT 2 }
-
 theorem polytime_prenex : ComputableInPolyTime prenex encoding encPrenexQBF := by
   have hn : ComputableInPolyTime (DNF.negate (V := Nat))
       (encCNFOver encNat) (encCNFOver encNat) := by
@@ -207,56 +172,98 @@ theorem polytime_prenex : ComputableInPolyTime prenex encoding encPrenexQBF := b
   exact encPrenexQBF_mk_polyTime (fst _ _)
     (TQBF.computableInPolyTime_not (TQBF.computableInPolyTime_ofCNF h))
 
-theorem dnf2_mem : DNF2 ∈ SigmaP 2 encoding := by
-  have reduction : PolyTimeReducible encoding encPrenexQBF DNF2 (PrenexQBF.SigmaSAT 2) :=
-    ⟨prenex, polytime_prenex, fun _ => Iff.rfl⟩
-  exact reduction.mem_SigmaP (PrenexQBF.mem_SigmaP 2)
+/-- Store either matrix polarity using the same list of signed terms. When the last block
+is existential, its matrix is the dual CNF. -/
+def prenexAt (r : Bool) (p : Instance) : PrenexQBF :=
+  ⟨p.1, if r then QBF.ofCNF p.2.negate else matrix p.2⟩
 
-/-- Adapt Frontier's complemented-verifier tableau construction to retain
-a DNF matrix and the original two certificate blocks. -/
-theorem dnf2_hard_wellFormed {α : Type} (enc : α ↪ List Bool) (A : Set α)
-    (hA : A ∈ SigmaP 2 enc) :
+theorem polytime_prenexAt (r : Bool) : ComputableInPolyTime (prenexAt r) encoding encPrenexQBF := by
+  cases r
+  · exact polytime_prenex
+  · have d : ComputableInPolyTime (DNF.negate (V := Nat))
+        (encCNFOver encNat) (encCNFOver encNat) :=
+      map (map (Literal.computableInPolyTime_negate encNat))
+    exact encPrenexQBF_mk_polyTime (fst _ _)
+      (TQBF.computableInPolyTime_ofCNF
+        (d.comp (snd (encList (encList encNat)) (encCNFOver encNat))))
+
+theorem prenexAt_freeVars (r : Bool) (p : Instance) :
+    (prenexAt r p).matrix.freeVars = (matrix p.2).freeVars := by
+  cases r <;> simp [prenexAt, matrix]
+
+theorem prenexAt_wf_iff (r : Bool) (p : Instance) (i : Nat) :
+    (prenexAt r p).WellFormed i ↔ (prenex p).WellFormed i := by
+  have h (p : Instance) : (prenexAt r p).matrix.QuantifierFree := by
+    cases r <;> simp [prenexAt, matrix, QBF.quantifierFree_not, QBF.quantifierFree_ofCNF]
+  simp only [PrenexQBF.WellFormed, prenexAt_freeVars, h, true_and]
+  simp [prenex, prenexAt, matrix, QBF.quantifierFree_not, QBF.quantifierFree_ofCNF]
+
+private theorem eval_tableauAt {k : Nat} {State : Type} [Fintype State]
+    (tab : CNF (CookLevin.Var k State)) (w n i : Nat) (r : Bool) (σ : Nat → Bool) :
+    ((prenexAt r ((instanceOfTableau tab w n i r).blocks, tableauDNF tab w)).formula true).eval σ =
+      ((instanceOfTableau tab w n i r).formula true).eval σ := by
+  rw [Bool.eq_iff_iff, PrenexQBF.formula, PrenexQBF.formula, QBF.eval_blocks_eq_true_iff,
+    QBF.eval_blocks_eq_true_iff]
+  apply alternation_congr
+  intro word
+  cases r
+  · simp [prenexAt, instanceOfTableau_matrix, eval_matrix, eval_tableauDNF]
+  · simp [prenexAt, instanceOfTableau_matrix, QBF.eval_ofCNF, DNF.eval_negate, eval_tableauDNF]
+
+/-- A shaped Cook–Levin reduction at any positive level. The last block's polarity
+determines whether the output is interpreted as CNF or DNF. -/
+theorem exists_normalFormReduction {α : Type} {enc : α ↪ List Bool} {A : Set α} {i : Nat}
+    (hi : 1 ≤ i) (hA : A ∈ SigmaP i enc) :
+    let r := !(Bool.not^[i] true)
     ∃ f : α → Instance, ComputableInPolyTime f enc encoding ∧
-      (∀ a, (prenex (f a)).WellFormed 2) ∧ (∀ a, a ∈ A ↔ f a ∈ DNF2) := by
-  obtain ⟨p, V, hV, hAV⟩ := exists_replicate_of_mem_SigmaP hA
-  let W (x : α × List Bool) := !(V x)
-  have hW : ComputableInPolyTime W (encPair enc encBits) encBool := bool_not.comp hV
+      (∀ a, (prenex (f a)).WellFormed i) ∧
+      ∀ a, a ∈ A ↔ ((prenexAt r (f a)).formula true).eval (fun _ => false) = true := by
+  obtain ⟨p, V, hp, hV, hAV⟩ := even_verifier hA
+  let r := !(Bool.not^[i] true)
+  let W (x : α × List Bool) := if r then V x else !(V x)
+  have hW : ComputableInPolyTime W (encPair enc encBits) encBool := by
+    unfold W
+    cases r <;> fun_prop
   obtain ⟨c, d, k, State, hfinite, tm, htm⟩ :=
     Turing.MultiTapeTM.Internal.NormalForm.polyTime hW
   have := Fintype.ofFinite State
   classical
-  let width (a : α) := p.eval (enc a).length
+  let width (a : α) := i * p.eval (enc a).length
   let time (a : α) := c * (2 * (enc a).length + 2 * width a + 2) ^ d
   let tab (a : α) := CookLevin.tableau tm (frame (enc a)) (2 * width a) (time a)
-  let f (a : α) : PrenexQBF := instanceOfTableau (tab a) (width a) (width a) 2 false
-  have hw : ComputableInPolyTime width enc encUnary :=
+  let f (a : α) := instanceOfTableau (tab a) (width a) (2 * p.eval (enc a).length) i r
+  have hn : ComputableInPolyTime (fun a : α => p.eval (enc a).length) enc encUnary :=
     (unary_eval p).comp (encoding_length enc)
-  have htab : ComputableInPolyTime tab enc (encCNFOver CookLevin.encVar) := by
+  have hw : ComputableInPolyTime width enc encUnary := unary_mul.comp ((const i).prod hn)
+  have htab : ComputableInPolyTime tab enc
+      (encList (encList (encPair CookLevin.encVar encBool))) := by
     have hc := CookLevin.computableInPolyTime_tableau tm
     have hframe := bitsFrame enc
     unfold tab time
     fun_prop
-  have hf : ComputableInPolyTime f enc encPrenexQBF :=
-    instanceOfTableau_polyTime 2 false htab hw hw
-  have hdnf := polytime_tableauDNF htab hw
-  have wf (a : α) : (prenex ((f a).blocks, tableauDNF (tab a) (width a))).WellFormed 2 := by
-    have well := instanceOfTableau_wellFormed (tab a) (width a) (width a) 2 (by decide) rfl false
-    refine ⟨well.1, ?_, ?_⟩
-    · exact QBF.quantifierFree_not.mpr (QBF.quantifierFree_ofCNF _)
-    · change (matrix (tableauDNF (tab a) (width a))).freeVars ⊆ (f a).blocks.flatten.toFinset
-      rw [tableau_freeVars]
-      simpa [instanceOfTableau_matrix] using well.2.2
+  have hf := instanceOfTableau_polyTime i r htab hw (unary_mul.comp ((const 2).prod hn))
   refine ⟨fun a => ((f a).blocks, tableauDNF (tab a) (width a)),
-    (encPrenexQBF_blocks_polyTime hf).prod hdnf, wf, fun a => ?_⟩
-  change a ∈ A ↔
-    (prenex ((f a).blocks, tableauDNF (tab a) (width a))).WellFormed 2 ∧ _
-  rw [and_iff_right (wf a)]
-  change a ∈ A ↔
-    (QBF.blocks true (f a).blocks (matrix (tableauDNF (tab a) (width a)))).eval
-      (fun _ => false) = true
-  rw [eval_two_blocks, hAV a,
-    eval_instanceOfTableau (tab a) (width a) (width a) 2 (by decide) true false (by decide)]
-  refine (eval_certBlocks (width a) _ 2 rfl true _ (fun σ => ?_)).symm
+    (encPrenexQBF_blocks_polyTime hf).prod (polytime_tableauDNF htab hw), ?_, ?_⟩
+  · intro a
+    have hmul : i * (2 * p.eval (enc a).length) = 2 * width a := by dsimp only [width]; ring
+    have well := instanceOfTableau_wellFormed (tab a) (width a) _ i hi hmul r
+    refine ⟨well.1, QBF.quantifierFree_not.mpr (QBF.quantifierFree_ofCNF _), ?_⟩
+    change (matrix (tableauDNF (tab a) (width a))).freeVars ⊆ (f a).blocks.flatten.toFinset
+    rw [tableau_freeVars]
+    have eq : (f a).matrix.freeVars = (baseMatrix (tab a) (width a)).freeVars := by
+      dsimp only [f]
+      rw [instanceOfTableau_matrix]
+      cases r <;> simp
+    rw [← eq]
+    exact well.2.2
+  intro a
+  have hmul : i * (2 * p.eval (enc a).length) = 2 * width a := by dsimp only [width]; ring
+  rw [show ((prenexAt r ((f a).blocks, tableauDNF (tab a) (width a))).formula true).eval
+      (fun _ => false) = ((f a).formula true).eval (fun _ => false) from
+    eval_tableauAt (tab a) (width a) _ i r _]
+  rw [hAV a, eval_instanceOfTableau (tab a) (width a) _ i hi true r
+    (by simp only [r, Bool.not_not])]
+  refine (eval_certBlocks (width a) _ i hmul true _ fun σ => ?_).symm
   let z := block σ (width a) 0 0 ++ block σ (width a) 1 0
   have hz : z.length = 2 * width a := by simp [z, length_block, two_mul]
   have hrun := (htm (a, z)).runFrom_initCfg
@@ -271,13 +278,6 @@ theorem dnf2_hard_wellFormed {α : Type} (enc : α ↪ List Bool) (A : Set α)
       CookLevin.exists_eval_tableau_iff,
       show time a = c * (2 * (enc a).length + 2 * width a + 1 + 1) ^ d from rfl, hrun.2]
     simpa only [encBool_apply, List.cons.injEq, and_true] using and_iff_right hrun.1
-  simp [QBF.eval_not, hbase, W, z]
-
-theorem dnf2_hard : SigmaPHard 2 encoding DNF2 := by
-  intro α enc A hA
-  obtain ⟨f, hf, _, hcorrect⟩ := dnf2_hard_wellFormed enc A hA
-  exact ⟨f, hf, hcorrect⟩
-
-theorem dnf2_complete : SigmaPComplete 2 encoding DNF2 := ⟨dnf2_mem, dnf2_hard⟩
+  cases hr : r <;> simp [hr, QBF.eval_not, hbase, W, z]
 
 end Cslib.Complexity.QuantifiedSAT.WidthThree
