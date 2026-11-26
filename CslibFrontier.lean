@@ -4278,6 +4278,7 @@ public import CslibFrontier.Crypto.Computational.PedersenCommitment.PublicOperat
 public import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PairedCrossoverLayoutData
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
+public import CslibFrontier.DataStructure.BTree.Comparisons.KeyOracle
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Entry
 public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.CompressSpec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
