@@ -102,10 +102,8 @@ theorem minimal_period_circuit (c : Circuit signature n n) (L : ℕ)
     · have htrue := (hc x).mpr hy
       simp only [htrue, ite_true]
       have hperiod := cycleLength_eq_minimalPeriod_of_mem_periodicPts f hy
-      have hbound : cycleLength f x < 2 ^ (n + 1) := by
-        have hle := cycleLength_le_two_pow f x
-        have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
-        omega
+      have hbound : cycleLength f x < 2 ^ (n + 1) :=
+        (cycleLength_le_two_pow f x).trans_lt (Nat.pow_lt_pow_right Nat.one_lt_two n.lt_succ_self)
       have hbound3 : cycleLength f x < 2 ^ (n + 3) :=
         hbound.trans_le (Nat.pow_le_pow_right two_pos (by omega))
       dsimp only [ell]
@@ -150,13 +148,7 @@ theorem visitScheduleCount_spec (v : BitString (visitScheduleWidth n)) (T : ℕ)
   split_ifs with hflag
   · simp only [hflag, true_and]
     exact arithmeticProgressionCount_spec _ _ _
-  · have he : {t : ℕ | t ≤ T ∧
-          v (Fin.castAdd (n + 1) (0 : Fin (1 + (n + 1)))) = true ∧
-          ∃ k, t = (visitScheduleFirst v).toNat + k * (visitSchedulePeriod v).toNat} = ∅ := by
-      ext t
-      simp only [Set.mem_ofPred_eq, hflag, Bool.false_eq_true, false_and, and_false,
-        Set.mem_empty_iff_false]
-    rw [he, Set.ncard_empty]
+  · simp only [hflag, Bool.false_eq_true, false_and, and_false, Set.ofPred_false, Set.ncard_empty]
 
 /-- **Visit-schedule circuit at spacing `L`.** The returned record describes every visit time, with
 period zero encoding a singleton visit to a transient target. -/

@@ -130,7 +130,8 @@ private theorem prod_cardInterSub_mem (A : Finset κ) (L : Finset K) :
 
 private theorem prod_cardInterSub_ind [DecidableEq κ] (A X : Finset κ) (L : Finset K) :
     (∏ l ∈ L, cardInterSub A l) (ind X) = ∏ l ∈ L, ((#(A ∩ X) : K) - l) := by
-  rw [Finset.prod_apply]; exact prod_congr rfl fun l _ => cardInterSub_ind A X l
+  rw [Finset.prod_apply]
+  exact prod_congr rfl fun l _ => cardInterSub_ind A X l
 
 /-- A linearly independent family of functions of degree at most `s` has at most as many members
 as there are sets of at most `s` coordinates (`Cslib.BitString.finrank_lowDegree_le`). -/
@@ -183,6 +184,7 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
     Fintype.card ι ≤ (Fintype.card κ).choose #L := by
   classical
   set s := #L
+  -- The functions of the members, and `x ↦ x_I (|X| - d)` for `|I| < s`, which vanish on them.
   let f : ι ⊕ {I : Finset κ // #I < s} → (κ → Bool) → K := Sum.elim
     (fun i => ∏ l ∈ L, cardInterSub (A i) l)
     (fun I => Cslib.BitString.monomial K I.1 * cardInterSub univ (d : K))
@@ -196,6 +198,7 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
     have hev (X) : ∑ t, g t * f t (ind X) = 0 := by
       simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] using
         congrFun hg (ind X)
+    -- Evaluating at the members kills the coefficients of the `f (inl i)`.
     have hF (i) : g (Sum.inl i) = 0 := by
       have h := hev (A i)
       rw [Fintype.sum_sum_type, Finset.sum_eq_zero fun (I : {I : Finset κ // #I < s}) _ => by
@@ -207,6 +210,7 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
       simp only [f, Sum.elim_inl, prod_cardInterSub_ind, inter_self, hcard] at h
       exact (mul_eq_zero.1 h).resolve_right
         (prod_ne_zero_iff.2 fun l hl => sub_ne_zero.2 fun h => hd (h ▸ hl))
+    -- Evaluating at `I` itself, by induction on `|I|`, kills the coefficient of `f (inr I)`.
     have hI : ∀ m (I : {I : Finset κ // #I < s}), #I.1 = m → g (Sum.inr I) = 0 := by
       intro m
       induction m using Nat.strong_induction_on with | _ m ih => ?_
@@ -222,7 +226,8 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
         · rw [ih _ (hIm ▸ card_lt_card (Finset.ssubset_iff_subset_ne.2
             ⟨hsub, mt Subtype.ext hJI⟩)) J rfl, zero_mul]
         · rw [monomial_ind_of_not_subset hsub, zero_mul, mul_zero]
-    rintro (i | I); exacts [hF i, hI _ I rfl]
+    rintro (i | I)
+    exacts [hF i, hI _ I rfl]
   have h1 := card_le_of_linearIndependent f hmem hli
   rw [card_filter_card_le_eq_add, Fintype.card_sum] at h1; omega
 

@@ -83,10 +83,8 @@ theorem inc_mul_diag (e : μ × κ ↪ ι) (T : Finset (μ × κ)) :
     by_cases hj : ∃ y, e y = j
     · obtain ⟨y, rfl⟩ := hj
       by_cases hxy : x = y <;> simp [e.injective.eq_iff, hxy]
-    · simp [show ∀ y, j ≠ e y from fun y h => hj ⟨y, h.symm⟩,
-        show e x ≠ j from fun h => hj ⟨x, h⟩]
-  · simp [show ∀ y, i ≠ e y from fun y h => hi ⟨y, h.symm⟩,
-      show ∀ y, e y ≠ i from fun y h => hi ⟨y, h⟩]
+    · simp [not_exists.mp hj, fun y => Ne.symm (not_exists.mp hj y)]
+  · simp [not_exists.mp hi, fun y => Ne.symm (not_exists.mp hi y)]
 
 /-- The blow-up of a matrix along an embedding. -/
 def blow (e : μ × κ ↪ ι) (N : Matrix μ μ F2) : Matrix ι ι F2 :=
@@ -102,12 +100,9 @@ omit [DecidableEq μ] in
 theorem blow_mul (e : μ × κ ↪ ι) (M N : Matrix μ μ F2) :
     blow e (M * N) = blow e M * blow e N := by
   classical
-  unfold blow
-  have h := Matrix.mul_kronecker_mul M N (1 : Matrix κ κ F2) (1 : Matrix κ κ F2)
-  rw [Matrix.mul_one] at h
-  rw [h]
-  simp only [Matrix.mul_assoc]
-  rw [← Matrix.mul_assoc ((inc e)ᵀ) (inc e), inc_t_mul, Matrix.one_mul]
+  simp only [blow, Matrix.mul_assoc]
+  rw [← Matrix.mul_assoc (inc e)ᵀ (inc e), inc_t_mul, Matrix.one_mul,
+    ← Matrix.mul_assoc (Matrix.kroneckerMap _ M 1), ← Matrix.mul_kronecker_mul, Matrix.mul_one]
 
 omit [Fintype ι] in
 theorem blow_dg (e : μ × κ ↪ ι) (T : Finset μ) :
@@ -184,10 +179,9 @@ theorem DM_digit (l : Len G) {m : ℕ} {s : ℝ} (hC : Contr l m s)
   classical
   have : 0 < Fintype.card (GLM (Fin m)) := Fintype.card_pos
   refine le_of_mul_le_mul_left ?_ (by positivity : (0 : ℝ) < (Fintype.card (GLM (Fin m)) : ℝ) ^ 2)
-  rw [mul_left_comm, ← univ_product_univ, ← blow_dg, ← blow_dg, ← DM_blow, ← DM_blow, mul_sum]
-  refine sum_le_sum fun p _ => ?_
-  rw [mul_sum]
-  exact sum_le_sum fun q _ =>
+  rw [mul_left_comm, ← univ_product_univ, ← blow_dg, ← blow_dg, ← DM_blow, ← DM_blow]
+  simp_rw [mul_sum]
+  exact sum_le_sum fun p _ => sum_le_sum fun q _ =>
     hC (fun N => τ ((p : Matrix ι ι F2) * blow e N * (q : Matrix ι ι F2)))
       (fun M N => by rw [blow_add, Matrix.mul_add, Matrix.add_mul, hτ]) i
 

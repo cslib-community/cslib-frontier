@@ -414,21 +414,13 @@ theorem isBranching_iff_isInArborescence_superRootExtend [Finite V] {B : Digraph
   · intro hT
     refine ⟨fun u₁ u₂ v h1 h2 => ?_, fun v hc => ?_⟩
     · exact Option.some.inj ((hT.existsUnique_adj (some v) (Option.some_ne_none v)).unique h1 h2)
-    · have hc' : Relation.TransGen (superRootExtend B).Adj (some v) (some v) :=
-        transGen_superRoot_of_restrict hc
-      obtain ⟨p, hpr, hp⟩ := hT.exists_parentDigraph_eq
-      rw [← hp] at hc'
-      have hreach := (isInArborescence_parentDigraph_iff.mp (hp ▸ hT)) (some v)
-      have hstep : ∀ {x y : Option V}, Relation.TransGen (parentDigraph none p).Adj x y →
-          ∃ k, 0 < k ∧ p^[k] x = y := by
-        intro x y hxy
-        induction hxy with
-        | single h => exact ⟨1, Nat.zero_lt_one, by simpa using h.2⟩
-        | tail _ h ih =>
-          obtain ⟨k, hk, hpk⟩ := ih
-          exact ⟨k + 1, Nat.succ_pos _, by rw [Function.iterate_succ_apply', hpk, h.2]⟩
-      obtain ⟨k, hk, hpk⟩ := hstep hc'
-      obtain ⟨n, hn⟩ := hreach
+    · obtain ⟨p, hpr, hp⟩ := hT.exists_parentDigraph_eq
+      have hc' : Relation.TransGen (outParentDigraph none p).Adj (some v) (some v) :=
+        Relation.transGen_swap.mp
+          (hp.symm ▸ transGen_superRoot_of_restrict hc :
+            Relation.TransGen (parentDigraph none p).Adj _ _)
+      obtain ⟨k, hk, hpk⟩ := transGen_outParentDigraph_iterate hc'
+      obtain ⟨n, hn⟩ := (isInArborescence_parentDigraph_iff.mp (hp ▸ hT)) (some v)
       exact Option.some_ne_none v (eq_of_iterate_periodic_of_fixed hpr hk hpk hn)
 
 /-- Every spanning in-arborescence `T` on `Option V` rooted at `none` restricts to a branching on
@@ -443,11 +435,9 @@ theorem restrictOption_spec [Finite V] {T : Digraph (Option V)} (hT : T.IsInArbo
     · simp [hT.not_adj_root]
     · simp [hT.not_adj_root]
     · have hu := hT.existsUnique_adj (some v) (Option.some_ne_none v)
-      simp only [superRootExtend_some_none, restrictOption_adj]
       refine ⟨fun hnone => ?_, fun hvn ⟨u, hvu⟩ => Option.some_ne_none u (hu.unique hvu hvn)⟩
       obtain ⟨_ | u, hy, -⟩ := hu
-      · exact hy
-      · exact absurd ⟨u, hy⟩ hnone
+      exacts [hy, absurd ⟨u, hy⟩ hnone]
     · simp
   exact ⟨isBranching_iff_isInArborescence_superRootExtend.mpr (hext ▸ hT), hext,
     fun G hTG u v huv => hTG huv⟩
@@ -475,30 +465,16 @@ theorem IsBranching.card_arcs_add_card_roots {B : Digraph V} [DecidableRel B.Adj
     (Finset.univ.filter fun e : V × V => B.Adj e.1 e.2).card +
         (Finset.univ.filter fun v : V => ¬ ∃ u, B.Adj u v).card =
       Fintype.card V := by
-  classical
-  let arcs := Finset.univ.filter fun e : V × V => B.Adj e.1 e.2
-  let nonroots := Finset.univ.filter fun v : V => ∃ u, B.Adj u v
-  let roots := Finset.univ.filter fun v : V => ¬ ∃ u, B.Adj u v
-  have hbij : arcs.card = nonroots.card := by
-    refine Finset.card_bij (fun e _ => e.2) ?_ ?_ ?_
-    · intro e he
-      have hadj : B.Adj e.1 e.2 := (Finset.mem_filter.mp he).2
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨e.1, hadj⟩⟩
-    · intro e₁ he₁ e₂ he₂ heq
-      have h1 : B.Adj e₁.1 e₁.2 := (Finset.mem_filter.mp he₁).2
-      have h2 : B.Adj e₂.1 e₂.2 := (Finset.mem_filter.mp he₂).2
-      exact Prod.ext (hB.in_unique h1 (heq ▸ h2)) heq
-    · intro v hv
-      obtain ⟨u, hu⟩ := (Finset.mem_filter.mp hv).2
-      exact ⟨(u, v), Finset.mem_filter.mpr ⟨Finset.mem_univ _, hu⟩, rfl⟩
-  have hdisj : Disjoint nonroots roots :=
-    Finset.disjoint_filter.mpr fun _ _ h h' => h' h
-  have hunion : nonroots ∪ roots = Finset.univ := by
-    ext v
-    simpa [nonroots, roots] using Classical.em (∃ u, B.Adj u v)
-  have hpart : nonroots.card + roots.card = Fintype.card V := by
-    rw [← Finset.card_union_of_disjoint hdisj, hunion, Finset.card_univ]
-  simpa [arcs, roots] using (congrArg (· + roots.card) hbij).trans hpart
+  have hbij : (Finset.univ.filter fun e : V × V => B.Adj e.1 e.2).card =
+      (Finset.univ.filter fun v : V => ∃ u, B.Adj u v).card := by
+    refine Finset.card_bij (fun e _ => e.2)
+      (fun e he => Finset.mem_filter.mpr ⟨Finset.mem_univ _, e.1, (Finset.mem_filter.mp he).2⟩)
+      (fun _ he₁ _ he₂ heq => Prod.ext
+        (hB.in_unique (Finset.mem_filter.mp he₁).2 (heq ▸ (Finset.mem_filter.mp he₂).2)) heq)
+      fun v hv => ?_
+    obtain ⟨u, hu⟩ := (Finset.mem_filter.mp hv).2
+    exact ⟨(u, v), Finset.mem_filter.mpr ⟨Finset.mem_univ _, hu⟩, rfl⟩
+  rw [hbij, Finset.card_filter_add_card_filter_not, Finset.card_univ]
 
 /-- **Edmonds (1967, Section 1):** No branching on `n` vertices has more than `n - 1` arcs. -/
 theorem IsBranching.card_arcs_le {B : Digraph V} [DecidableRel B.Adj] (hB : B.IsBranching) :
@@ -558,13 +534,8 @@ private theorem transGen_of_walk_fromRel_isTrail {B : Digraph V} (hB : B.IsBranc
       (SimpleGraph.Walk.cons hx p').IsTrail → B.Adj u x → Relation.TransGen B.Adj u v
   | u, x, _, _, .nil, _, hux => Relation.TransGen.single hux
   | u, x, _, hx, @SimpleGraph.Walk.cons _ _ _ y z hyz q, htr, hux => by
-    have hne : u ≠ y := by
-      intro huy
-      have hnd := htr.edges_nodup
-      simp only [SimpleGraph.Walk.edges_cons, List.nodup_cons, List.mem_cons] at hnd
-      apply hnd.1 (Or.inl ?_)
-      subst huy
-      exact Sym2.eq_swap
+    have hne : u ≠ y := fun huy =>
+      (List.nodup_cons.mp htr.edges_nodup).1 (List.mem_cons.mpr (.inl (huy ▸ Sym2.eq_swap)))
     have hxy : B.Adj x y := ((SimpleGraph.fromRel_adj B.Adj x y).mp hyz).2.resolve_right
       fun h => hne (hB.in_unique hux h)
     exact Relation.TransGen.head hux

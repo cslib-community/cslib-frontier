@@ -117,10 +117,11 @@ private theorem pow_succ_conj_isometry {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 1
   induction n with
   | zero => simp only [zero_add, pow_one]
   | succ n ih =>
-    rw [pow_succ (V * A * Vᴴ) (n + 1), ih,
-      show (V * A ^ (n + 1) * Vᴴ) * (V * A * Vᴴ) = V * (A ^ (n + 1) * (Vᴴ * V) * A) * Vᴴ by
-        simp only [Matrix.mul_assoc],
-      hV, Matrix.mul_one, ← pow_succ]
+    rw [pow_succ (V * A * Vᴴ) (n + 1), ih]
+    calc
+      (V * A ^ (n + 1) * Vᴴ) * (V * A * Vᴴ)
+          = V * (A ^ (n + 1) * (Vᴴ * V) * A) * Vᴴ := by simp only [Matrix.mul_assoc]
+      _ = V * A ^ (n + 2) * Vᴴ := by rw [hV, Matrix.mul_one, ← pow_succ]
 
 private theorem aeval_conj_isometry {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 1)
     (A : Matrix ι ι ℂ) {P : Polynomial ℝ} (hP : P.eval 0 = 0) :
@@ -133,9 +134,9 @@ private theorem aeval_conj_isometry {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 1)
   | add p q ihp ihq =>
     rw [mul_add, map_add, map_add, Matrix.mul_add, Matrix.add_mul, ihp, ihq]
   | monomial n r =>
-    rw [show Polynomial.X * Polynomial.monomial n r = Polynomial.monomial (n + 1) r by
-        rw [Polynomial.X, Polynomial.monomial_mul_monomial, one_mul, add_comm 1 n],
-      Polynomial.aeval_monomial, Polynomial.aeval_monomial]
+    have hmon : Polynomial.X * Polynomial.monomial n r = Polynomial.monomial (n + 1) r := by
+      rw [Polynomial.X, Polynomial.monomial_mul_monomial, one_mul, add_comm 1 n]
+    rw [hmon, Polynomial.aeval_monomial, Polynomial.aeval_monomial]
     simp only [Algebra.algebraMap_eq_smul_one, smul_mul_assoc, Matrix.one_mul, Matrix.mul_smul,
       Matrix.smul_mul]
     rw [pow_succ_conj_isometry hV A n]
@@ -153,13 +154,13 @@ private theorem cfc_conj_isometry {f : ℝ → ℝ} (hf0 : f 0 = 0) {V : Matrix 
   let P := Lagrange.interpolate hT.toFinset id f
   have hp (r : ℝ) (hr : r ∈ T) : P.eval r = f r :=
     Lagrange.eval_interpolate_at_node f (Set.injOn_id _) (hT.mem_toFinset.mpr hr)
-  rw [show cfc f (V * A * Vᴴ) = Polynomial.aeval (V * A * Vᴴ) P by
-      rw [← cfc_polynomial P (V * A * Vᴴ) hVA]
-      exact cfc_congr fun r hr => (hp r (Set.mem_insert_of_mem _ (Or.inl hr))).symm,
-    show cfc f A = Polynomial.aeval A P by
-      rw [← cfc_polynomial P A hA.isSelfAdjoint]
-      exact cfc_congr fun r hr => (hp r (Set.mem_insert_of_mem _ (Or.inr hr))).symm,
-    aeval_conj_isometry hV A ((hp 0 (Set.mem_insert 0 _)).trans hf0)]
+  have hcVA : cfc f (V * A * Vᴴ) = Polynomial.aeval (V * A * Vᴴ) P := by
+    rw [← cfc_polynomial P (V * A * Vᴴ) hVA]
+    exact cfc_congr fun r hr => (hp r (Set.mem_insert_of_mem _ (Or.inl hr))).symm
+  have hcA : cfc f A = Polynomial.aeval A P := by
+    rw [← cfc_polynomial P A hA.isSelfAdjoint]
+    exact cfc_congr fun r hr => (hp r (Set.mem_insert_of_mem _ (Or.inr hr))).symm
+  rw [hcVA, hcA, aeval_conj_isometry hV A ((hp 0 (Set.mem_insert 0 _)).trans hf0)]
 
 omit [DecidableEq κ] in
 private theorem supportLE_conj_isometry_iff {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 1)
@@ -182,9 +183,12 @@ private theorem supportLE_conj_isometry_iff {V : Matrix κ ι ℂ} (hV : Vᴴ * 
 omit [DecidableEq κ] in
 private theorem trace_conj_isometry_mul {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 1)
     (A B : Matrix ι ι ℂ) : ((V * A * Vᴴ) * (V * B * Vᴴ)).trace = (A * B).trace := by
-  rw [show (V * A * Vᴴ) * (V * B * Vᴴ) = (V * (A * (Vᴴ * V) * B)) * Vᴴ by
-      simp only [Matrix.mul_assoc],
-    trace_mul_comm _ Vᴴ, ← Matrix.mul_assoc Vᴴ V, hV, Matrix.one_mul, Matrix.mul_one]
+  calc
+    ((V * A * Vᴴ) * (V * B * Vᴴ)).trace
+        = (V * (A * (Vᴴ * V) * B) * Vᴴ).trace := by simp only [Matrix.mul_assoc]
+    _ = (Vᴴ * (V * (A * (Vᴴ * V) * B))).trace := trace_mul_comm _ Vᴴ
+    _ = ((Vᴴ * V) * (A * (Vᴴ * V) * B)).trace := by rw [← Matrix.mul_assoc Vᴴ V]
+    _ = (A * B).trace := by rw [hV, Matrix.one_mul, Matrix.mul_one]
 
 private theorem relativeEntropyReal_conj_isometry {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 1)
     {ρ σ : Matrix ι ι ℂ} (hρ : ρ.IsHermitian) (hσ : σ.IsHermitian) :
@@ -216,10 +220,15 @@ theorem relativeEntropy_kraus_le [Fintype ι'] [DecidableEq ι']
   let V : Matrix (ι' × ↥s) ι ℂ := Matrix.of fun p j => K p.2.1 p.1 j
   have hV : Vᴴ * V = 1 := by
     ext i j
-    rw [Matrix.mul_apply, Fintype.sum_prod_type_right, ← hK, Matrix.sum_apply,
-      ← Finset.sum_coe_sort s (fun a => ((K a)ᴴ * K a) i j)]
-    refine sum_congr rfl fun a _ => ?_
-    simp only [Matrix.mul_apply, conjTranspose_apply, V, of_apply]
+    rw [Matrix.mul_apply, Fintype.sum_prod_type_right]
+    calc
+      ∑ a : ↥s, ∑ i' : ι', Vᴴ i (i', a) * V (i', a) j
+          = ∑ a : ↥s, ((K a.1)ᴴ * K a.1) i j := by
+            refine sum_congr rfl fun a _ => ?_
+            simp only [Matrix.mul_apply, conjTranspose_apply, V, of_apply]
+      _ = (∑ a ∈ s, (K a)ᴴ * K a) i j := by
+            rw [Finset.sum_coe_sort s (fun a => ((K a)ᴴ * K a) i j), Matrix.sum_apply]
+      _ = (1 : Matrix ι ι ℂ) i j := by rw [hK]
   have htr (A : Matrix ι ι ℂ) :
       partialTraceRight (V * A * Vᴴ) = ∑ a ∈ s, K a * A * (K a)ᴴ := by
     ext i' j'
@@ -244,8 +253,10 @@ variable {ι κ : Type*} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq
   -(ρ * cfc Real.log ρ).trace.re / Real.log 2
 
 private theorem isHermitian_diagonal_real {μ : Type*} [DecidableEq μ] (d : μ → ℝ) :
-    (diagonal fun i => (d i : ℂ)).IsHermitian :=
-  Matrix.isHermitian_diagonal_of_self_adjoint _ (by ext i; simp)
+    (diagonal fun i => (d i : ℂ)).IsHermitian := by
+  refine Matrix.isHermitian_diagonal_of_self_adjoint _ ?_
+  ext i
+  simp
 
 private theorem cfc_diagonal_real (f : ℝ → ℝ) (d : ι → ℝ) :
     cfc f (diagonal fun i => (d i : ℂ)) = diagonal fun i => (f (d i) : ℂ) := by
@@ -264,7 +275,8 @@ private theorem cfc_diagonal_real (f : ℝ → ℝ) (d : ι → ℝ) :
     induction Q using Polynomial.induction_on' with
     | add p q ihp ihq =>
       rw [map_add, ihp, ihq]
-      ext i j; by_cases hij : i = j <;> simp [hij, Polynomial.eval_add]
+      ext i j
+      by_cases hij : i = j <;> simp [hij, Polynomial.eval_add]
     | monomial n r =>
       rw [Polynomial.aeval_monomial]
       ext i j
@@ -282,11 +294,12 @@ theorem vonNeumannEntropy_diagonal (d : ι → ℝ) :
     vonNeumannEntropy (diagonal fun i => (d i : ℂ)) =
       (∑ i, Real.negMulLog (d i)) / Real.log 2 := by
   unfold vonNeumannEntropy
-  rw [cfc_diagonal_real Real.log d, diagonal_mul_diagonal, trace_diagonal, Complex.re_sum,
-    ← Finset.sum_neg_distrib]
+  rw [cfc_diagonal_real Real.log d, diagonal_mul_diagonal, trace_diagonal, Complex.re_sum]
   congr 1
+  rw [← Finset.sum_neg_distrib]
   refine sum_congr rfl fun i _ => ?_
-  rw [← Complex.ofReal_mul, Complex.ofReal_re, Real.negMulLog]; ring
+  rw [← Complex.ofReal_mul, Complex.ofReal_re, Real.negMulLog]
+  ring
 
 /-- Rectangular isometries preserve von Neumann entropy. -/
 theorem vonNeumannEntropy_conj_isometry {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 1)
@@ -299,10 +312,10 @@ theorem vonNeumannEntropy_conj_isometry {V : Matrix κ ι ℂ} (hV : Vᴴ * V = 
 theorem vonNeumannEntropy_eq_sum_eigenvalues {ρ : Matrix ι ι ℂ} (hρ : ρ.IsHermitian) :
     vonNeumannEntropy ρ = (∑ i, Real.negMulLog (hρ.eigenvalues i)) / Real.log 2 := by
   let U : Matrix ι ι ℂ := hρ.eigenvectorUnitary
+  have hU : Uᴴ * U = 1 := Unitary.coe_star_mul_self hρ.eigenvectorUnitary
   have hspec : ρ = U * diagonal (fun i => (hρ.eigenvalues i : ℂ)) * Uᴴ := hρ.spectral_theorem
   conv_lhs => rw [hspec]
-  rw [vonNeumannEntropy_conj_isometry (Unitary.coe_star_mul_self hρ.eigenvectorUnitary)
-    (isHermitian_diagonal_real _), vonNeumannEntropy_diagonal]
+  rw [vonNeumannEntropy_conj_isometry hU (isHermitian_diagonal_real _), vonNeumannEntropy_diagonal]
 
 private noncomputable def eigenvaluePMF {ρ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ) : PMF ι :=
   PMF.ofFintype (fun i => ENNReal.ofReal (hρ.posSemidef.isHermitian.eigenvalues i)) <| by
@@ -397,8 +410,8 @@ theorem vonNeumannEntropy_kronecker {ρ : Matrix ι ι ℂ} {σ : Matrix κ κ �
     by_cases hi : i = i' <;> by_cases hk : k = k' <;> simp [D, E, kroneckerMap_apply, hi, hk]
   rw [hkr, hDE_diag, vonNeumannEntropy_conj_isometry hUW (isHermitian_diagonal_real _),
     vonNeumannEntropy_diagonal, vonNeumannEntropy_eq_entropy_eigenvaluePMF hρ,
-    vonNeumannEntropy_eq_entropy_eigenvaluePMF hσ,
-    ← entropy_prod (eigenvaluePMF hρ) (eigenvaluePMF hσ), entropy_eq_sum]
+    vonNeumannEntropy_eq_entropy_eigenvaluePMF hσ]
+  rw [← entropy_prod (eigenvaluePMF hρ) (eigenvaluePMF hσ), entropy_eq_sum]
   congr 1
   refine sum_congr rfl fun ⟨i, k⟩ _ => ?_
   rw [bind_map_prodMk_apply, ENNReal.toReal_mul, eigenvaluePMF, eigenvaluePMF,
@@ -418,7 +431,8 @@ private theorem vonNeumannEntropy_transpose {ρ : Matrix ι ι ℂ} (hρ : ρ.Is
     dsimp only [V]
     simp only [Matrix.mul_apply, conjTranspose_apply, Matrix.map_apply, star_star,
       Matrix.one_apply, star_sum, star_mul'] at hij ⊢
-    rw [hij]; by_cases h : i = j <;> simp [h]
+    rw [hij]
+    by_cases h : i = j <;> simp [h]
   have hmap : ρᵀ = V * D * Vᴴ := by
     have hspec : ρ = U * D * Uᴴ := hρ.spectral_theorem
     have h1 : ρᵀ = ρ.map star := by
@@ -433,8 +447,8 @@ private theorem vonNeumannEntropy_transpose {ρ : Matrix ι ι ℂ} (hρ : ρ.Is
       star_star, diagonal_apply]
     refine sum_congr rfl fun k _ => congrArg (· * _) <| sum_congr rfl fun l _ => ?_
     by_cases hlk : l = k <;> simp [hlk, Complex.conj_ofReal]
-  rw [hmap, vonNeumannEntropy_conj_isometry hV (isHermitian_diagonal_real _),
-    vonNeumannEntropy_diagonal, vonNeumannEntropy_eq_sum_eigenvalues hρ]
+  rw [hmap, vonNeumannEntropy_conj_isometry hV (isHermitian_diagonal_real _)]
+  rw [vonNeumannEntropy_diagonal, vonNeumannEntropy_eq_sum_eigenvalues hρ]
 
 /-- Both reduced states of a bipartite pure state have equal von Neumann entropy. -/
 theorem vonNeumannEntropy_partialTrace_pureState_eq (ψ : EuclideanSpace ℂ (ι × κ)) :
@@ -447,31 +461,40 @@ theorem vonNeumannEntropy_partialTrace_pureState_eq (ψ : EuclideanSpace ℂ (ι
       transpose_apply, M, coefficients, mul_comm]
   let B : Matrix (ι ⊕ κ) (ι ⊕ κ) ℂ := fromBlocks 0 M 0 0
   obtain ⟨U, hU, hpolar⟩ := B.exists_unitary_polar
+  let H := CFC.sqrt (Bᴴ * B)
+  have hH : Hᴴ = H := (Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg _)).isHermitian.eq
+  have hHsq : H * H = Bᴴ * B :=
+    CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self B).nonneg
   have hBB : B * Bᴴ = U * (Bᴴ * B) * Uᴴ := by
-    conv_lhs => rw [← hpolar]
-    rw [conjTranspose_mul,
-      (Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg (Bᴴ * B))).isHermitian.eq]
-    simpa only [Matrix.mul_assoc] using congrArg (fun X => U * X * Uᴴ)
-      (CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self B).nonneg)
+    calc
+      B * Bᴴ = (U * H) * (U * H)ᴴ := by rw [hpolar]
+      _ = U * (H * H) * Uᴴ := by
+        rw [conjTranspose_mul, hH]
+        simp only [Matrix.mul_assoc]
+      _ = U * (Bᴴ * B) * Uᴴ := by rw [hHsq]
   let V₁ : Matrix (ι ⊕ κ) ι ℂ := Matrix.of fun p i => if p = Sum.inl i then 1 else 0
   let V₂ : Matrix (ι ⊕ κ) κ ℂ := Matrix.of fun p k => if p = Sum.inr k then 1 else 0
   have hV₁ : V₁ᴴ * V₁ = 1 := by
-    ext i j; rw [Matrix.mul_apply, Fintype.sum_sum_type]
+    ext i j
+    rw [Matrix.mul_apply, Fintype.sum_sum_type]
     by_cases h : i = j
     · subst h; simp [V₁, conjTranspose_apply]
     · simp [V₁, conjTranspose_apply, h, eq_comm]
   have hV₂ : V₂ᴴ * V₂ = 1 := by
-    ext k l; rw [Matrix.mul_apply, Fintype.sum_sum_type]
+    ext k l
+    rw [Matrix.mul_apply, Fintype.sum_sum_type]
     by_cases h : k = l
     · subst h; simp [V₂, conjTranspose_apply]
     · simp [V₂, conjTranspose_apply, h, eq_comm]
   have hblock₁ : B * Bᴴ = V₁ * (M * Mᴴ) * V₁ᴴ := by
-    rw [show B * Bᴴ = fromBlocks (M * Mᴴ) 0 0 0 by
-      simp [B, fromBlocks_conjTranspose, fromBlocks_multiply]]
+    have hb : B * Bᴴ = fromBlocks (M * Mᴴ) 0 0 0 := by
+      simp [B, fromBlocks_conjTranspose, fromBlocks_multiply]
+    rw [hb]
     ext (i | k) (i' | k') <;> simp [V₁, Matrix.mul_apply, conjTranspose_apply]
   have hblock₂ : Bᴴ * B = V₂ * (Mᴴ * M) * V₂ᴴ := by
-    rw [show Bᴴ * B = fromBlocks 0 0 0 (Mᴴ * M) by
-      simp [B, fromBlocks_conjTranspose, fromBlocks_multiply]]
+    have hb : Bᴴ * B = fromBlocks 0 0 0 (Mᴴ * M) := by
+      simp [B, fromBlocks_conjTranspose, fromBlocks_multiply]
+    rw [hb]
     ext (i | k) (i' | k') <;> simp [V₂, Matrix.mul_apply, conjTranspose_apply]
   rw [partialTraceRight_pureState_eq_coefficients, hL,
     vonNeumannEntropy_transpose (posSemidef_conjTranspose_mul_self M).isHermitian,
@@ -506,12 +529,15 @@ private theorem vonNeumannEntropy_le_vonNeumannEntropy_diag {ρ : Matrix ι ι �
   have hK : ∑ i : ι, (K i)ᴴ * K i = 1 := by
     simp only [K, conjTranspose_single, star_one, single_mul_single_same, mul_one, sum_single_one]
   let π : Matrix ι ι ℂ := (Fintype.card ι : ℂ)⁻¹ • 1
-  have hπ_real : π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) := by ext i j; simp [π]
+  have hπ_real : π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) := by
+    ext i j
+    simp [π]
   have hπ_psd : π.PosSemidef := hπ_real ▸ PosSemidef.one.smul (inv_nonneg.mpr (Nat.cast_nonneg _))
   let Δρ := diagonal fun i => ((ρ i i).re : ℂ)
   have hΔρ : ∑ i : ι, K i * ρ * (K i)ᴴ = Δρ := by
     rw [sum_single_conj_eq_diagonal]
-    congr 1; funext j
+    congr 1
+    funext j
     have hh := congrFun (congrFun hρ.posSemidef.isHermitian.eq j) j
     have hdiag_im : (ρ j j).im = 0 := by
       simpa only [conjTranspose_apply, Complex.star_def, Complex.ext_iff, Complex.conj_im,
@@ -529,10 +555,14 @@ private theorem vonNeumannEntropy_le_vonNeumannEntropy_diag {ρ : Matrix ι ι �
     simpa only [Δρ, trace_diagonal, Complex.re_sum, Complex.ofReal_re, diag_apply] using ht
   have hpos : (0 : ℝ) < (Fintype.card ι : ℝ)⁻¹ :=
     inv_pos.mpr (Nat.cast_pos.mpr Fintype.card_pos)
-  have hsupp (A : Matrix ι ι ℂ) : SupportLE A 1 := fun v hv => by rw [one_mulVec] at hv; simp [hv]
+  have hsupp (A : Matrix ι ι ℂ) : SupportLE A 1 := fun v hv => by
+    rw [one_mulVec] at hv
+    simp [hv]
   have hcfc1 : cfc Real.log (1 : Matrix ι ι ℂ) = 0 := by
-    rw [show (1 : Matrix ι ι ℂ) = diagonal fun _ : ι => ((1 : ℝ) : ℂ) by ext i j; simp,
-      cfc_diagonal_real Real.log]
+    have h1 : (1 : Matrix ι ι ℂ) = diagonal fun _ : ι => ((1 : ℝ) : ℂ) := by
+      ext i j
+      simp
+    rw [h1, cfc_diagonal_real Real.log]
     ext i j; simp
   rw [hπ_real, relativeEntropy_smul_right (isHermitian_diagonal_real _) isHermitian_one hpos,
     relativeEntropy_smul_right hρ.posSemidef.isHermitian isHermitian_one hpos,
@@ -626,9 +656,11 @@ theorem vonNeumannEntropy_subadditivity {ρ : Matrix (ι × κ) (ι × κ) ℂ}
     have h1 : partialTraceLeft σ = Wᴴ * partialTraceLeft ρ * W := by
       let f := reindexAlgEquiv ℂ ℂ (Equiv.prodComm ι κ)
       have hf_kr (A : Matrix ι ι ℂ) (B : Matrix κ κ ℂ) : f (A ⊗ₖ B) = B ⊗ₖ A := by
-        ext ⟨_, _⟩ ⟨_, _⟩; exact mul_comm _ _
+        ext ⟨_, _⟩ ⟨_, _⟩
+        exact mul_comm _ _
       have hfσ : f σ = (Wᴴ ⊗ₖ Uᴴ) * f ρ * (Wᴴ ⊗ₖ Uᴴ)ᴴ := by
-        dsimp only [σ]; rw [map_mul, map_mul, show f (Uᴴ ⊗ₖ Wᴴ)ᴴ = (f (Uᴴ ⊗ₖ Wᴴ))ᴴ from rfl, hf_kr]
+        dsimp only [σ]
+        rw [map_mul, map_mul, show f (Uᴴ ⊗ₖ Wᴴ)ᴴ = (f (Uᴴ ⊗ₖ Wᴴ))ᴴ from rfl, hf_kr]
       rw [← partialTraceRight_reindex_prodComm σ]
       change partialTraceRight (f σ) = _
       rw [hfσ, partialTraceRight_kronecker_conj_unitary Wᴴ hU_mem (f ρ),
@@ -676,30 +708,32 @@ theorem vonNeumannEntropy_arakiLieb {ρ : Matrix (ι × κ) (ι × κ) ℂ}
   let ω := partialTraceLeft (pureState Φ)
   have hΦ_norm : ‖Φ‖ = 1 := by
     have hsq : ‖Φ‖ ^ 2 = 1 := by
-      rw [EuclideanSpace.norm_sq_eq,
-        show (∑ p : κ × (ι × (ι × κ)), ‖Φ.ofLp p‖ ^ 2) = ∑ pq : (ι × κ) × (ι × κ), ‖S pq.1 pq.2‖ ^ 2
-          from e.symm.sum_comp (fun pq => ‖S pq.1 pq.2‖ ^ 2),
-        show ∑ pq : (ι × κ) × (ι × κ), ‖S pq.1 pq.2‖ ^ 2 = (S * Sᴴ).trace.re by
-          rw [Fintype.sum_prod_type, Matrix.trace, Complex.re_sum]
-          refine sum_congr rfl fun p _ => ?_
-          rw [diag_apply, Matrix.mul_apply, Complex.re_sum]
-          refine sum_congr rfl fun q _ => by
-            rw [conjTranspose_apply, Complex.star_def, Complex.mul_conj,
-              Complex.normSq_eq_norm_sq, Complex.ofReal_re],
-        hS_herm, hS_sq, hρ.trace_eq_one, Complex.one_re]
+      have hcomp : (∑ p : κ × (ι × (ι × κ)), ‖Φ.ofLp p‖ ^ 2) =
+          ∑ pq : (ι × κ) × (ι × κ), ‖S pq.1 pq.2‖ ^ 2 :=
+        e.symm.sum_comp (fun pq => ‖S pq.1 pq.2‖ ^ 2)
+      have htr : ∑ pq : (ι × κ) × (ι × κ), ‖S pq.1 pq.2‖ ^ 2 = (S * Sᴴ).trace.re := by
+        rw [Fintype.sum_prod_type, Matrix.trace, Complex.re_sum]
+        refine sum_congr rfl fun p _ => ?_
+        rw [diag_apply, Matrix.mul_apply, Complex.re_sum]
+        refine sum_congr rfl fun q _ => ?_
+        rw [conjTranspose_apply, Complex.star_def, Complex.mul_conj,
+          Complex.normSq_eq_norm_sq, Complex.ofReal_re]
+      rw [EuclideanSpace.norm_sq_eq, hcomp, htr, hS_herm, hS_sq, hρ.trace_eq_one, Complex.one_re]
     nlinarith [norm_nonneg Φ]
   have hω_A : partialTraceRight ω = partialTraceRight ρ := by
     ext i₁ i₂
     simp only [ω, ← hR_Ψ, partialTraceRight_apply, partialTraceLeft_apply, pureState_apply]
-    rw [Finset.sum_comm]; rfl
+    rw [Finset.sum_comm]
+    rfl
   have hω_R : partialTraceLeft ω = ρᵀ := by
     ext r₁ r₂
     simp only [ω, partialTraceLeft_apply, pureState_apply, transpose_apply, ← hS_sq,
       Matrix.mul_apply, Fintype.sum_prod_type]
     refine sum_congr rfl fun i _ => sum_congr rfl fun k _ => ?_
     change S (i, k) r₁ * star (S (i, k) r₂) = S r₂ (i, k) * S (i, k) r₁
-    rw [show star (S (i, k) r₂) = S r₂ (i, k) by
-      simpa only [conjTranspose_apply] using congrFun (congrFun hS_herm r₂) (i, k), mul_comm]
+    have hs2 : star (S (i, k) r₂) = S r₂ (i, k) := by
+      simpa only [conjTranspose_apply] using congrFun (congrFun hS_herm r₂) (i, k)
+    rw [hs2, mul_comm]
   have hsub := vonNeumannEntropy_subadditivity (isDensityMatrix_pureState hΦ_norm).partialTraceLeft
   rw [hω_A, hω_R, vonNeumannEntropy_transpose hρ.posSemidef.isHermitian,
     ← vonNeumannEntropy_partialTrace_pureState_eq Φ, hR_Φ] at hsub
@@ -879,16 +913,21 @@ theorem mutualInfo_measureDensity_le_holevoInformation [Fintype X] [Fintype Y]
   let K (yi : Y × ι) : Matrix Y ι ℂ := single yi.1 yi.2 (1 : ℂ) * L yi.1
   have hK : ∑ yi : Y × ι, (K yi)ᴴ * K yi = 1 := by
     rw [Fintype.sum_prod_type]
-    refine (sum_congr rfl fun y _ => ?_).trans M.sum_effect
-    have hs : ∑ i : ι, (K (y, i))ᴴ * K (y, i) = (L y)ᴴ * (∑ i : ι, single i i (1 : ℂ)) * L y := by
-      rw [Finset.mul_sum, Finset.sum_mul]
-      refine sum_congr rfl fun i _ => ?_
-      dsimp only [K]
-      rw [conjTranspose_mul, conjTranspose_single, star_one,
-        show (L y)ᴴ * single i y (1 : ℂ) * (single y i (1 : ℂ) * L y) =
-          (L y)ᴴ * (single i y (1 : ℂ) * single y i (1 : ℂ)) * L y by simp only [Matrix.mul_assoc],
-        single_mul_single_same, mul_one]
-    rw [hs, sum_single_one, Matrix.mul_one, hL y]
+    have hinner (y : Y) : ∑ i : ι, (K (y, i))ᴴ * K (y, i) = M.effect y := by
+      have hs : ∑ i : ι, (K (y, i))ᴴ * K (y, i) =
+          (L y)ᴴ * (∑ i : ι, single i i (1 : ℂ)) * L y := by
+        rw [Finset.mul_sum, Finset.sum_mul]
+        refine sum_congr rfl fun i _ => ?_
+        dsimp only [K]
+        rw [conjTranspose_mul, conjTranspose_single, star_one]
+        calc
+          (L y)ᴴ * single i y (1 : ℂ) * (single y i (1 : ℂ) * L y)
+              = (L y)ᴴ * (single i y (1 : ℂ) * single y i (1 : ℂ)) * L y := by
+                simp only [Matrix.mul_assoc]
+          _ = (L y)ᴴ * single i i (1 : ℂ) * L y := by rw [single_mul_single_same, mul_one]
+      rw [hs, sum_single_one, Matrix.mul_one, hL y]
+    simp_rw [hinner]
+    exact M.sum_effect
   have hchannel (x : X) :
       ∑ yi : Y × ι, K yi * ρ x * (K yi)ᴴ =
         diagonal fun y => ((M.densityProb (ρ x) y : ℝ) : ℂ) := by
@@ -898,11 +937,11 @@ theorem mutualInfo_measureDensity_le_holevoInformation [Fintype X] [Fintype Y]
         (K (y, i) * ρ x * (K (y, i))ᴴ) y₁ y₂ =
           if y = y₁ ∧ y = y₂ then (L y * ρ x * (L y)ᴴ) i i else 0 := by
       dsimp only [K]
-      rw [show single y i (1 : ℂ) * L y * ρ x * (single y i (1 : ℂ) * L y)ᴴ =
-          single y i (1 : ℂ) * (L y * ρ x * (L y)ᴴ) * single i y (1 : ℂ) by
-          rw [conjTranspose_mul, conjTranspose_single, star_one]
-          simp only [Matrix.mul_assoc],
-        Matrix.single_mul_mul_single, one_mul, mul_one, Matrix.single_apply]
+      have hassoc : single y i (1 : ℂ) * L y * ρ x * (single y i (1 : ℂ) * L y)ᴴ =
+          single y i (1 : ℂ) * (L y * ρ x * (L y)ᴴ) * single i y (1 : ℂ) := by
+        rw [conjTranspose_mul, conjTranspose_single, star_one]
+        simp only [Matrix.mul_assoc]
+      rw [hassoc, Matrix.single_mul_mul_single, one_mul, mul_one, Matrix.single_apply]
     simp_rw [hK_entry]
     by_cases hy : y₁ = y₂
     · subst hy
@@ -914,7 +953,10 @@ theorem mutualInfo_measureDensity_le_holevoInformation [Fintype X] [Fintype Y]
       have hcyc : (L y₁ * ρ x * (L y₁)ᴴ).trace = (M.effect y₁ * ρ x).trace := by
         rw [trace_mul_comm (L y₁ * ρ x) (L y₁)ᴴ, ← Matrix.mul_assoc, ← hL y₁]
       change (L y₁ * ρ x * (L y₁)ᴴ).trace = _
-      exact Complex.ext (by rw [hcyc, Complex.ofReal_re]; rfl) (by rw [him, Complex.ofReal_im])
+      apply Complex.ext
+      · rw [hcyc, Complex.ofReal_re]
+        rfl
+      · rw [him, Complex.ofReal_im]
     · rw [diagonal_apply_ne _ hy]
       exact Finset.sum_eq_zero fun y _ => Finset.sum_eq_zero fun _ _ =>
         ite_eq_right fun ⟨h1, h2⟩ => hy (h1.symm.trans h2)
@@ -946,12 +988,14 @@ theorem mutualInfo_measureDensity_le_holevoInformation [Fintype X] [Fintype Y]
   have hHolevo_out :
       holevoInformation p (fun x => ∑ yi : Y × ι, K yi * ρ x * (K yi)ᴴ) = mutualInfo joint := by
     simp_rw [hchannel]
+    have hcond : (∑ x, (p x).toReal *
+        vonNeumannEntropy (diagonal fun y : Y => ((M.densityProb (ρ x) y : ℝ) : ℂ))) =
+          ∑ x, (p x).toReal * entropy (q x) :=
+      sum_congr rfl fun x _ => by
+        rw [vonNeumannEntropy_diagonal, entropy_eq_sum]
+        simp_rw [hq_toReal x]
     rw [holevoInformation, havg_diag, vonNeumannEntropy_diagonal, ← entropy_eq_sum,
-      show (∑ x, (p x).toReal *
-          vonNeumannEntropy (diagonal fun y : Y => ((M.densityProb (ρ x) y : ℝ) : ℂ))) =
-        ∑ x, (p x).toReal * entropy (q x) from sum_congr rfl fun x _ => by
-          rw [vonNeumannEntropy_diagonal, entropy_eq_sum]; simp_rw [hq_toReal x],
-      hmut, map_fst_bind_pair, hsnd, entropy_bind_pair]
+      hcond, hmut, map_fst_bind_pair, hsnd, entropy_bind_pair]
     ring
   rw [← hHolevo_out]
   exact holevoInformation_kraus_le Finset.univ K hK p hρ

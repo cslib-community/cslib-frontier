@@ -102,11 +102,9 @@ theorem sum_ancillaProj : ∑ a, ancillaProj (ι := ι) (A := A) a = 1 := by
   by_cases h : c = c'
   · subst h
     simp [Matrix.one_apply]
-  · have hne : ((i, c) : ι × A) ≠ (i', c') := fun hp => h (Prod.mk.inj hp).2
-    rw [Matrix.one_apply_ne hne]
+  · rw [Matrix.one_apply_ne fun hp => h (Prod.mk.inj hp).2]
     refine Finset.sum_eq_zero fun x _ => ?_
-    have hx : ¬ (x = c ∧ x = c') := fun ⟨h₁, h₂⟩ => h (h₁.symm.trans h₂)
-    simp [hx]
+    by_cases hx : x = c <;> simp [hx, h]
 
 private theorem ancillaProj_conjTranspose_mul_self (a : A) :
     (ancillaProj (ι := ι) a)ᴴ * ancillaProj a = ancillaProj a := by
@@ -127,9 +125,7 @@ private theorem sum_conj_sqrtEffect (a : A) (j j' : ι) :
     ∑ i, star (M.sqrtEffect a i j) * M.sqrtEffect a i j' = M.effect a j j' := by
   rw [← M.sqrtEffect_mul_self a, Matrix.mul_apply]
   refine Finset.sum_congr rfl fun i _ => ?_
-  have h := congrFun (congrFun (M.conjTranspose_sqrtEffect a) j) i
-  rw [conjTranspose_apply] at h
-  rw [h]
+  rw [← conjTranspose_apply, M.conjTranspose_sqrtEffect]
 
 omit [DecidableEq A] in
 theorem conjTranspose_naimarkIsometry_mul : (M.naimarkIsometry)ᴴ * M.naimarkIsometry = 1 := by
@@ -150,8 +146,7 @@ theorem naimarkIsometry_compress (a : A) :
     · subst hc
       simp [ancillaProj, kroneckerMap_apply, Matrix.single_apply, Matrix.one_apply,
         naimarkIsometry]
-    · have hc' : ¬ a = c := Ne.symm hc
-      simp [ancillaProj, kroneckerMap_apply, hc, hc']
+    · simp [ancillaProj, kroneckerMap_apply, hc, Ne.symm hc]
   rw [Matrix.mul_assoc, hW]
   ext j j'
   rw [Matrix.mul_apply, Fintype.sum_prod_type, ← M.sum_conj_sqrtEffect a]

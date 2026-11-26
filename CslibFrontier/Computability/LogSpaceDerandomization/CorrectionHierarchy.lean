@@ -137,7 +137,8 @@ chosen [OpenAI2026LogSpace, Lemma 4.4]. -/
 theorem correction_mulVec_one_le [Ring R] [PartialOrder R] [IsOrderedRing R]
     {C E : Matrix V V R} (hE : ∀ i j, 0 ≤ E i j) (hC : C *ᵥ 1 ≤ 1) :
     (C - E + E * C) *ᵥ 1 ≤ C *ᵥ 1 := by
-  rw [correction_mulVec_one]; exact sub_le_self _ (mulVec_nonneg hE (sub_nonneg.mpr hC))
+  rw [correction_mulVec_one]
+  exact sub_le_self _ (mulVec_nonneg hE (sub_nonneg.mpr hC))
 
 end Correction
 
@@ -291,7 +292,9 @@ theorem copyProjection_mulVec_primary [Semiring R] {z : ∀ l, V l}
     (copyProjection P l *ᵥ p) (z l) = p (z 0) := by
   induction l with
   | zero => simp [copyProjection]
-  | succ l ih => rw [copyProjection, ← mulVec_mulVec]; simp [mulVec, dotProduct, hz, ite_mul, ← ih]
+  | succ l ih =>
+    rw [copyProjection, ← mulVec_mulVec]
+    simp [mulVec, dotProduct, hz, ite_mul, ← ih]
 
 section Order
 
@@ -317,7 +320,9 @@ theorem copyProjection_mulVec_one_le (hP : ∀ l i j, 0 ≤ P l i j) (hP1 : ∀ 
     (l : ℕ) : copyProjection P l *ᵥ 1 ≤ 1 := by
   induction l with
   | zero => simp [copyProjection]
-  | succ l ih => rw [copyProjection, ← mulVec_mulVec]; exact mulVec_le_one (hP l) (hP1 l) ih
+  | succ l ih =>
+    rw [copyProjection, ← mulVec_mulVec]
+    exact mulVec_le_one (hP l) (hP1 l) ih
 
 theorem rewardTransport_nonneg (hP : ∀ l i j, 0 ≤ P l i j) (hE : ∀ l i j, 0 ≤ E l i j)
     (l : ℕ) : ∀ i j, 0 ≤ rewardTransport P E l i j :=
@@ -391,14 +396,16 @@ theorem sub_rewardTransport_mulVec_le_pow [Field R] [LinearOrder R] [IsStrictOrd
     (sub_rewardTransport_mulVec_le_card_mul hP hP1 hC hstep hp hp0 hp1 hz l (hε l) (hA l)).trans <|
       ?_⟩
   rw [nsmul_eq_mul]
-  refine (mul_le_mul_of_nonneg_right
-    (by exact_mod_cast hAn l : ((A l).card : R) ≤ ((2 ^ l * n : ℕ) : R))
-    (pow_nonneg (inv_nonneg.mpr (pow_nonneg zero_le_two _)) _)).trans_eq ?_
-  have h2 : (2 : R) ^ l ≠ 0 := pow_ne_zero _ two_ne_zero
-  push_cast
-  rw [pow_succ, mul_inv, mul_pow, inv_pow (2 : R), mul_comm ((2 : R) ^ l), mul_assoc,
-    ← mul_assoc ((2 : R) ^ l), mul_comm ((2 : R) ^ l), mul_assoc _ ((2 : R) ^ l),
-    mul_inv_cancel₀ h2, mul_one]
+  calc ((A l).card : R) * ((2 : R) ^ (c + 1))⁻¹ ^ l
+      ≤ (2 ^ l * n : ℕ) * ((2 : R) ^ (c + 1))⁻¹ ^ l :=
+        mul_le_mul_of_nonneg_right (by exact_mod_cast hAn l)
+          (pow_nonneg (inv_nonneg.mpr (pow_nonneg zero_le_two _)) _)
+    _ = n * ((2 : R) ^ c)⁻¹ ^ l := by
+        have h2 : (2 : R) ^ l ≠ 0 := pow_ne_zero _ two_ne_zero
+        push_cast
+        rw [pow_succ, mul_inv, mul_pow, inv_pow (2 : R), mul_comm ((2 : R) ^ l), mul_assoc,
+          ← mul_assoc ((2 : R) ^ l), mul_comm ((2 : R) ^ l), mul_assoc _ ((2 : R) ^ l),
+          mul_inv_cancel₀ h2, mul_one]
 
 end Hierarchy
 

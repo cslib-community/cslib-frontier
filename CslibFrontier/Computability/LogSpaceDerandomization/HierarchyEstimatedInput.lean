@@ -68,12 +68,10 @@ theorem boundedRoutedBinCutoff_grid_range
     rw [he]
     exact ⟨mul_nonneg hv hc.1, (mul_le_of_le_one_right hv hc.2).trans hvc⟩
   | succ i =>
-    have hb := boundedRoutedBinCutoff_mem_Icc (cap := 0) (B := 16)
-      (by norm_num) (by norm_num) (by norm_num) hχ hχ0 hχ1 hχrange
-      (fun j => rate_pos (kb j)) hanti hratio
-      (fun _ => 1) (fun _ => ⟨zero_le_one, le_rfl⟩) (i + 1) d
-    simpa only [estimatedBinCap, boundedRoutedBinCutoff, Nat.succ_ne_zero,
-      ↓reduceIte] using hb
+    simpa only [estimatedBinCap, boundedRoutedBinCutoff, Nat.succ_ne_zero, ↓reduceIte] using
+      boundedRoutedBinCutoff_mem_Icc (cap := 0) (B := 16) (by norm_num) (by norm_num)
+        (by norm_num) hχ hχ0 hχ1 hχrange (fun j => rate_pos (kb j)) hanti hratio
+        (fun _ => 1) (fun _ => ⟨zero_le_one, le_rfl⟩) (i + 1) d
 
 /-- Actual once-negative finite residual, with independent statistical precision. -/
 @[expose] def estimatedResidualInput
@@ -236,31 +234,20 @@ theorem estimatedResidualInput_abs_le
       (incomingChildren_final_range HP D id Kc _ _ _ _ neg l rfl σ x y)
       (by unfold gridMass rate; positivity)
   unfold estimatedResidualInput estimatedResidualBound
-  apply (abs_sub _ _).trans
-  apply add_le_add _ hn
-  exact (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun i _ =>
-    estimatedPositiveSample_abs_le HP hK D R l i ks km kt (kb i) ss sm st Kc
-      (cutoff i) (hCB i) (hcut i) (raw precision i) (prep precision i)
-      (maximum precision i) σ x y)
+  exact (abs_sub _ _).trans (add_le_add ((abs_sum_le_sum_abs _ _).trans (sum_le_sum fun i _ =>
+    estimatedPositiveSample_abs_le HP hK D R l i ks km kt (kb i) ss sm st Kc (cutoff i)
+      (hCB i) (hcut i) (raw precision i) (prep precision i) (maximum precision i) σ x y)) hn)
 
 /-- Nonnegative finite payment; zero cutoffs and empty slices need no exceptional rule. -/
 theorem estimatedResidualBound_nonneg
     (HP : FourthRootHierarchyParams 16 1 16 32 8) (P km kt n : ℕ)
     (kb : ℕ → ℕ) (CB : ℕ → ℝ) (hCB : ∀ i, 0 ≤ CB i) :
     0 ≤ estimatedResidualBound HP P km kt n kb CB := by
-  unfold estimatedResidualBound
-  dsimp only
-  have hQ := HP.Q_nonneg HP.toHierarchyParams.atomCap
-  have hmass (k : ℕ) : 0 ≤ gridMass P k := by unfold gridMass; positivity
-  have hr (k : ℕ) := (rate_pos k).le
-  apply add_nonneg
-  · exact sum_nonneg fun i _ => mul_nonneg
-      (mul_nonneg (mul_nonneg (hr _) (div_nonneg (hmass _) (hmass _)))
-        (mul_nonneg (by norm_num) (hCB i)))
-      (add_nonneg zero_le_one (div_nonneg (mul_nonneg (mul_nonneg (Nat.cast_nonneg HP.K)
-        (mul_nonneg (by norm_num) hQ)) (hr _)) (hmass _)))
-  · exact mul_nonneg (mul_nonneg (hr _) (div_nonneg (hmass _) (hmass _)))
-      (mul_nonneg (by norm_num) hQ)
+  unfold estimatedResidualBound gridMass rate
+  have := HP.Q_nonneg HP.toHierarchyParams.atomCap
+  refine add_nonneg (sum_nonneg fun i _ => ?_) (by positivity)
+  have := hCB i
+  positivity
 
 /-- Fourth moment of the shared actual finite input, paid before walking. -/
 theorem estimatedResidualInput_moment_le

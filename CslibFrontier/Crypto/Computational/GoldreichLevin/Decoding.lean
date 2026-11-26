@@ -96,8 +96,9 @@ def candidates {n k : ℕ} (predictor : BitString n → Bool)
 /-- Enumerating `k` guessed bits produces at most `2 ^ k` candidates. -/
 theorem card_candidates_le {n k : ℕ} (predictor : BitString n → Bool)
     (masks : Fin k → BitString n) : (candidates predictor masks).card ≤ 2 ^ k := by
-  simpa [candidates, BitString] using
-    Finset.card_image_le (f := candidate predictor masks) (s := .univ)
+  calc
+    _ ≤ Fintype.card (BitString k) := Finset.card_image_le
+    _ = _ := by simp [BitString]
 
 /-- With the true base-mask parities, a corrected vote is right exactly when the predictor is
 right on the shifted query. This is bilinearity of the Boolean dot product. -/
@@ -172,7 +173,9 @@ private theorem coordinate_error_le {n k : ℕ} (predictor : BitString n → Boo
   refine (measure_mono fun masks herror => ?_).trans <|
     majority_error_bound μ (nonemptySubsets k) X ε hε ⟨{⟨0, hk⟩}, by simp⟩
       (fun _ _ => (measurable_of_countable _).aemeasurable)
-      (fun _ _ => Filter.Eventually.of_forall fun _ => by dsimp [X, score]; split <;> norm_num)
+      (fun _ _ => Filter.Eventually.of_forall fun _ => by
+        dsimp [X, score]
+        split <;> norm_num)
       hindep fun s hs => (hmean s hs).symm ▸ h
   have hcount := (Nat.mul_le_mul_left 2
     (BitString.card_filter_eq_le_half_of_strictMajorityOn_ne
@@ -197,12 +200,19 @@ private theorem failure_probability_le {n k : ℕ} (predictor : BitString n → 
       exact hmiss <| Finset.mem_image.mpr
         ⟨_, Finset.mem_univ _, funext fun i => by simpa using not_exists.mp hnone i⟩
   rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (Set.to_countable _).measurableSet]
-  refine ((measure_mono hsubset).trans (measure_iUnion_le _)).trans ?_
-  rw [tsum_fintype]
-  refine (Finset.sum_le_sum fun i _ => coordinate_error_le predictor x i ε hε hk h).trans_eq ?_
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-    ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg n)]
-  exact congrArg ENNReal.ofReal (by ring)
+  change μ _ ≤ _
+  calc
+    _ ≤ μ (⋃ i, {masks | candidate predictor masks (fun j => x ⬝ᵥ masks j) i ≠ x i}) :=
+      measure_mono hsubset
+    _ ≤ ∑' i, μ {masks | candidate predictor masks (fun j => x ⬝ᵥ masks j) i ≠ x i} :=
+      measure_iUnion_le _
+    _ ≤ ∑ _i : Fin n, ENNReal.ofReal (1 / (4 * ε ^ 2 * (nonemptySubsets k).card)) := by
+      rw [tsum_fintype]
+      exact Finset.sum_le_sum fun i _ => coordinate_error_le predictor x i ε hε hk h
+    _ = _ := by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
+        ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg n)]
+      exact congrArg ENNReal.ofReal (by ring)
 
 /-- Sample the base masks uniformly and return all candidates. This is a distributional
 specification; no machine-runtime certificate is asserted here. -/
@@ -231,9 +241,12 @@ theorem decode_failure_le_half {n k : ℕ} (predictor : BitString n → Bool)
     (decode predictor k).toOuterMeasure {list | x ∉ list} ≤ 1 / 2 := by
   have hcount : (0 : ℝ) < (2 ^ k - 1 : ℕ) := by
     exact_mod_cast Nat.sub_pos_of_lt (Nat.one_lt_pow hk.ne' (by decide))
-  refine (decode_failure_le predictor x ε hε hk h).trans ?_
-  rw [show (1 / 2 : ENNReal) = ENNReal.ofReal (1 / 2) by simp]
-  exact ENNReal.ofReal_le_ofReal ((div_le_iff₀ (by positivity)).2 (by nlinarith))
+  calc
+    _ ≤ ENNReal.ofReal ((n : ℝ) / (4 * ε ^ 2 * (2 ^ k - 1 : ℕ))) :=
+      decode_failure_le predictor x ε hε hk h
+    _ ≤ ENNReal.ofReal (1 / 2) :=
+      ENNReal.ofReal_le_ofReal ((div_le_iff₀ (by positivity)).2 (by nlinarith))
+    _ = _ := by simp
 
 /-- For a perfect predictor, the true guessed parities recover the target for every choice
 of base masks, including repeated or zero masks. -/

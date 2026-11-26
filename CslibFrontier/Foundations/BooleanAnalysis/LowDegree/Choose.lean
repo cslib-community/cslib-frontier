@@ -45,25 +45,17 @@ monomials of the `r`-element subsets of `s` is `C(#{i ∈ s | x i}, r)`. -/
 theorem sum_powersetCard_monomial (s : Finset ι) (r : ℕ) (x : ι → Bool) :
     ∑ S ∈ s.powersetCard r, monomial R S x = ((#{i ∈ s | x i = true}).choose r : R) := by
   classical
-  simp only [monomial_apply]
-  rw [sum_boole, ← card_powersetCard]
+  simp only [monomial_apply, sum_boole, ← card_powersetCard]
   congr 2
   ext S
-  simp only [mem_filter, mem_powersetCard, subset_iff]
-  constructor
-  · rintro ⟨⟨hs, hr⟩, hx⟩
-    exact ⟨fun i hi => ⟨hs hi, hx i hi⟩, hr⟩
-  · rintro ⟨hs, hr⟩
-    exact ⟨⟨fun i hi => (hs hi).1, hr⟩, fun i hi => (hs hi).2⟩
+  simp only [mem_filter, mem_powersetCard, subset_iff, forall_and]
+  exact and_right_comm
 
 /-- The sum of the `r`-element monomials over `s` has degree at most `r`. -/
 theorem sum_powersetCard_monomial_mem_lowDegree (s : Finset ι) (r : ℕ) :
     (fun x => ∑ S ∈ s.powersetCard r, monomial R S x) ∈ lowDegree R ι r := by
-  have h : (fun x => ∑ S ∈ s.powersetCard r, monomial R S x) =
-      ∑ S ∈ s.powersetCard r, monomial R S := by
-    funext x
-    rw [Finset.sum_apply]
-  rw [h]
-  exact sum_mem_lowDegree _ fun S hS => monomial_mem_lowDegree (mem_powersetCard.1 hS).2.le
+  rw [← Finset.sum_fn]
+  exact sum_mem_lowDegree (s.powersetCard r) fun S hS =>
+    monomial_mem_lowDegree (mem_powersetCard.1 hS).2.le
 
 end Cslib.BitString

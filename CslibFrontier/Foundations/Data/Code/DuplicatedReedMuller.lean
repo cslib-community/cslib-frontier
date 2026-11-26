@@ -141,7 +141,6 @@ theorem rmEncode_zero_slope (b : Bool) : rmEncode ⟨b, 0⟩ = fun _ => b := by
 theorem rmEncode_eq_add_hadamardCode (m : RMMessage) :
     rmEncode m = (fun _ => m.sign) + hadamardCode m.slope := by
   funext x
-  rw [rmEncode]
   rfl
 
 /-- The 128 points of `RM(1, 7)`. -/
@@ -236,14 +235,11 @@ private theorem walshSign_mul_toNat (p q : Bool) :
 
 private theorem card_dotProduct_eq_true (a : RMPoint) :
     #{x | a ⬝ᵥ x = true} = if a = 0 then 0 else 64 := by
-  by_cases ha : a = 0
-  · subst a
-    change #{_x : RMPoint | false = true} = 0
-    simp only [Bool.false_eq_true, filter_false, card_empty]
+  rcases eq_or_ne a 0 with rfl | ha
+  · simp [dotProduct]
   · rw [ite_eq_right ha]
     have h := two_mul_card_dotProduct_eq_true_add a
     simp only [Fintype.card_fin, ha, ite_false] at h
-    norm_num at h
     omega
 
 /-- The corrected coefficient at `a` is the distance from the received word to the unsigned
@@ -287,11 +283,9 @@ def drmPeakSlopes {μ : ℕ} (w : DRMWord μ) : Finset RMPoint :=
 
 theorem drmPeakSlopes_nonempty {μ : ℕ} (w : DRMWord μ) :
     (drmPeakSlopes w).Nonempty := by
-  let S := univ.image fun a : RMPoint => (drmHadamardCoeff w a).natAbs
-  have hS : S.Nonempty := by simp [S]
-  obtain ⟨a, ha, hvalue⟩ := mem_image.mp (max'_mem S hS)
-  refine ⟨a, mem_filter.2 ⟨ha, ?_⟩⟩
-  simpa only [drmPeakMagnitude, S] using hvalue
+  obtain ⟨a, ha, hval⟩ := mem_image.mp
+    (max'_mem (univ.image fun a : RMPoint => (drmHadamardCoeff w a).natAbs) (by simp))
+  exact ⟨a, mem_filter.2 ⟨ha, hval⟩⟩
 
 /-- The source's strict left-to-right peak scan: the smallest slope attaining maximum absolute
 coefficient. -/
@@ -371,15 +365,8 @@ private theorem hammingDist_chosenSign_add_natAbs {μ : ℕ} (w : DRMWord μ) (a
         (drmHadamardCoeff w a).natAbs = 64 * μ := by
   have hcoeff := drmHadamardCoeff_eq_hammingDist_sub w a
   have htotal := hammingDist_drmEncode_true_add_false w a
-  by_cases hpos : 0 < drmHadamardCoeff w a
-  · simp only [hpos, decide_true]
-    have habs : ((drmHadamardCoeff w a).natAbs : ℤ) = drmHadamardCoeff w a :=
-      Int.natAbs_of_nonneg hpos.le
-    omega
-  · simp only [hpos, decide_false]
-    have habs : ((drmHadamardCoeff w a).natAbs : ℤ) = -drmHadamardCoeff w a :=
-      Int.ofNat_natAbs_of_nonpos (not_lt.mp hpos)
-    omega
+  by_cases hpos : 0 < drmHadamardCoeff w a <;>
+    simp only [hpos, decide_true, decide_false] <;> omega
 
 /-- The source's deterministic best-effort duplicated Reed–Muller decoder. -/
 def drmDecode {μ : ℕ} (w : DRMWord μ) : RMMessage :=
@@ -443,15 +430,9 @@ theorem sixtyFour_le_hammingDist_rmEncode {m m' : RMMessage} (hmm' : m ≠ m') :
   by_cases haa' : a = a'
   · subst a'
     have htot : hammingDist (rmEncode ⟨true, a⟩) (rmEncode ⟨false, a⟩) = 128 := by
-      rw [rmEncode_true, rmEncode_false]
-      have h := hammingDist_not_left_add (hadamardCode a) (hadamardCode a)
-      rw [hammingDist_self, add_zero, card_rmPoint] at h
-      exact h
-    cases b <;> cases b'
-    · exact absurd rfl hmm'
-    · rw [hammingDist_comm, htot]; omega
-    · rw [htot]; omega
-    · exact absurd rfl hmm'
+      simpa [rmEncode_true, rmEncode_false, card_rmPoint] using
+        hammingDist_not_left_add (hadamardCode a) (hadamardCode a)
+    cases b <;> cases b' <;> simp_all [hammingDist_comm]
   · have := two_mul_hammingDist_rmEncode_of_slope_ne b b' haa'
     omega
 
@@ -469,13 +450,9 @@ bits.  Thus the lower bound is attained for every positive multiplicity. -/
 theorem hammingDist_drmEncode_of_slope_ne (μ : ℕ) {m m' : RMMessage}
     (hslopes : m.slope ≠ m'.slope) :
     hammingDist (drmEncode μ m) (drmEncode μ m') = 64 * μ := by
-  rcases m with ⟨b, a⟩
-  rcases m' with ⟨b', a'⟩
+  rcases m, m' with ⟨⟨b, a⟩, ⟨b', a'⟩⟩
   rw [hammingDist_drmEncode]
-  have h : 2 * hammingDist (rmEncode ⟨b, a⟩) (rmEncode ⟨b', a'⟩) = 128 :=
-    two_mul_hammingDist_rmEncode_of_slope_ne b b' hslopes
-  have hinner : hammingDist (rmEncode ⟨b, a⟩) (rmEncode ⟨b', a'⟩) = 64 := by omega
-  rw [hinner, mul_comm]
+  nlinarith [two_mul_hammingDist_rmEncode_of_slope_ne b b' hslopes]
 
 /-- Distinct messages in the multiplicity-`μ` code are at distance at least `64 * μ`. -/
 theorem sixtyFour_mul_le_hammingDist_drmEncode (μ : ℕ) {m m' : RMMessage} (hmm' : m ≠ m') :

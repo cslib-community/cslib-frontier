@@ -175,13 +175,9 @@ theorem isOraclePPT_partialTagCIAdversary {ctBound : ℕ → ℕ}
 theorem isQueryBounded_partialTagCIAdversary (ctBound : ℕ → ℕ) (n : ℕ) (aux : List Bool) :
     (partialTagCIAdversary ctBound n aux).IsQueryBounded 1 := by
   unfold partialTagCIAdversary SymmetricCipher.maulCIAdversary
-  have hq :
-      (List.take (ctBound n) <$>
-        (ProbOracleComp.query ((), List.replicate n false) :
-          WordOracleComp Unit (List Bool))).IsQueryBounded 1 := by
-    simp only [OracleComp.isCostBounded_map_iff]
-    exact ProbOracleComp.IsQueryBounded.query ((), List.replicate n false)
-  exact hq.bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  exact ((OracleComp.isCostBounded_map_iff _ _ _).mpr
+    (ProbOracleComp.IsQueryBounded.query ((), List.replicate n false))).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
 
 private theorem malleate_prfCipherPartialTag_ciphertext
     (family : List Bool → List Bool → List Bool)
@@ -206,10 +202,6 @@ private theorem malleate_prfCipherPartialTag_ciphertext
   obtain ⟨cFull, hcFull, tag, htag, rfl⟩ := hct
   have hcFullLen : cFull.length = 2 * n :=
     prfCipher_ciphertext_length family hpoly hlen n ke hke msg hmsg cFull hcFull
-  have hcFullNe : cFull ≠ [] := by
-    intro hNil
-    simp only [hNil, List.length_nil] at hcFullLen
-    omega
   have hcHalf : cFull.length / 2 = n := by rw [hcFullLen]; omega
   rw [hcHalf] at htag
   have hcBodyLen : (cFull.drop n).length = M.msgLen n := by
@@ -224,13 +216,9 @@ private theorem malleate_prfCipherPartialTag_ciphertext
     rw [unframe_encPair_encBits, unframe_encPair_encBits] at hUnframe
     exact flipHeadBit_ne_self cFull hUnframe
   · have hLenFlip : (flipHeadBit cFull).length = 2 * n := by
-      rw [length_flipHeadBit hcFullNe, hcFullLen]
-    have hDropFlip : (flipHeadBit cFull).drop n = cFull.drop n :=
-      drop_flipHeadBit hn cFull (by omega)
-    simp only [prfCipherPartialTag, encryptThenMAC, partialTagMAC,
-      unframe_encPair_encBits, dropFrame_encPair_encBits, hLenFlip,
-      beq_self_eq_true, Bool.and_self, ↓reduceIte, prfCipher]
-    simp [hDropFlip, hver]
+      rw [length_flipHeadBit (List.ne_nil_of_length_pos (by omega)), hcFullLen]
+    simp [prfCipherPartialTag, encryptThenMAC, partialTagMAC, prfCipher, hLenFlip,
+      drop_flipHeadBit hn cFull (by omega), hver]
 
 /-- `partialTagCIAdversary` wins `ciOneTimeGame` against `prfCipherPartialTag` with probability
 `1` at every security parameter `n ≥ 1` where `ctBound n` bounds ciphertext lengths. -/

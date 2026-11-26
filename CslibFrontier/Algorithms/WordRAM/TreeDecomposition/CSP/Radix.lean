@@ -114,9 +114,7 @@ private theorem lookupRadixProg_result (args : LookupRadixArgs) {LB : List ℕ} 
         (iterate lookupRadixStep (args.q, args.target) ys.length
           ⟨curPtr, curM, found, ans⟩)).ans =
         if found = 1 then ans else ofRadix args.q ys curM args.target by
-    have hrun := this LB args.bagPtr args.m 0 0 hLB (.inl ⟨rfl, rfl⟩)
-    rw [hlen] at hrun
-    exact hrun
+    exact hlen ▸ this LB args.bagPtr args.m 0 0 hLB (.inl ⟨rfl, rfl⟩)
   intro ys
   induction ys with
   | nil =>
@@ -125,34 +123,25 @@ private theorem lookupRadixProg_result (args : LookupRadixArgs) {LB : List ℕ} 
     rcases hfd with ⟨rfl, rfl⟩ | rfl <;> simp [ofRadix]
   | cons v rest ih =>
     intro curPtr curM found ans hcur hfd
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨_, hmem_v, hrest⟩ := hcur
-    simp only [List.length_cons]
-    change ((Memory.spec 0).clientResult s
-      (lookupRadixStep ((args.q, args.target), ⟨curPtr, curM, found, ans⟩) >>=
-        iterate lookupRadixStep (args.q, args.target) rest.length)).ans = _
-    rw [StateTransitionSpec.clientResult_bind]
+    obtain ⟨_, hmem_v, hrest⟩ := HoldsIn.cons_iff.mp hcur
+    rw [List.length_cons, iterate, StateTransitionSpec.clientResult_bind]
     have hstep_res : (Memory.spec 0).clientResult s
         (lookupRadixStep ((args.q, args.target), ⟨curPtr, curM, found, ans⟩)) =
         ⟨curPtr + 1, curM / args.q,
          if (if found = 0 ∧ args.target = v then 1 else 0) = 1 then 1 else found,
          if (if found = 0 ∧ args.target = v then 1 else 0) = 1 then curM % args.q else ans⟩ := by
       dsimp only [lookupRadixStep]
-      change (⟨curPtr + 1, curM / args.q, _, _⟩ : LookupRadixState) = _
-      rw [hmem_v]
-    rw [hstep_res]
-    change ((Memory.spec 0).clientResult s
-      (iterate lookupRadixStep (args.q, args.target) rest.length _)).ans = _
+      rw [clientResult_bind_read, hmem_v]
+      rfl
+    have hstep_st : (Memory.spec 0).clientState s
+        (lookupRadixStep ((args.q, args.target), ⟨curPtr, curM, found, ans⟩)) = s := rfl
+    rw [hstep_st, hstep_res]
     rcases hfd with ⟨rfl, rfl⟩ | rfl
-    · by_cases htv : v = args.target
+    · by_cases htv : args.target = v
       · subst htv
-        simp only [and_self, ↓reduceIte, ofRadix]
-        simpa using ih (curPtr + 1) (curM / args.q) 1 (curM % args.q) hrest (.inr rfl)
-      · have htv' : args.target ≠ v := Ne.symm htv
-        simp only [htv', and_false, ↓reduceIte, Nat.zero_ne_one, ofRadix]
-        simpa using ih (curPtr + 1) (curM / args.q) 0 0 hrest (.inl ⟨rfl, rfl⟩)
-    · simp only [Nat.one_ne_zero, false_and, ↓reduceIte]
-      simpa using ih (curPtr + 1) (curM / args.q) 1 ans hrest (.inr rfl)
+        simpa [ofRadix] using ih (curPtr + 1) (curM / args.q) 1 (curM % args.q) hrest (.inr rfl)
+      · simpa [htv, ofRadix] using ih (curPtr + 1) (curM / args.q) 0 0 hrest (.inl ⟨rfl, rfl⟩)
+    · simpa using ih (curPtr + 1) (curM / args.q) 1 ans hrest (.inr rfl)
 
 private theorem lookupRadixProg_spec {w : ℕ} (args : LookupRadixArgs)
     {LB : List ℕ} {s : Memory.State}
@@ -172,22 +161,17 @@ private theorem lookupRadixProg_spec {w : ℕ} (args : LookupRadixArgs)
       (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s
           (iterate lookupRadixStep (args.q, args.target) ys.length st)) by
-    have hv := this LB ⟨args.bagPtr, args.m, 0, 0⟩ hLB
-    rw [hlen] at hv
-    refine ⟨?_, lookupRadixProg_state args s, lookupRadixProg_result args hLB hlen, hcost⟩
-    unfold lookupRadixProg
-    exact validHistory_bind_step hv (validHistory_pure w _ _)
+    exact ⟨validHistory_bind_step (hlen ▸ this LB ⟨args.bagPtr, args.m, 0, 0⟩ hLB)
+      (validHistory_pure w _ _), lookupRadixProg_state args s,
+      lookupRadixProg_result args hLB hlen, hcost⟩
   intro ys
   induction ys with
   | nil => exact fun st _ => validHistory_pure w s st
   | cons _ rest ih =>
     intro st hcur
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, _, hrest⟩ := hcur
-    have hlt : st.curPtr < s.frontier := by omega
-    simp only [List.length_cons]
+    obtain ⟨hb, _, hrest⟩ := HoldsIn.cons_iff.mp hcur
     exact validHistory_bind_step
-      (validHistory_read_bind hlt (validHistory_pure w s _))
+      (validHistory_read_bind (show st.curPtr < s.frontier by omega) (validHistory_pure w s _))
       (ih _ hrest)
 
 private theorem lookupRadixProg_realizes :
@@ -340,16 +324,11 @@ theorem radixProjProg_result_lt {args : RadixProjArgs} (hq : 0 < args.q)
       (by simp only [Nat.sub_self, Nat.pow_zero]; exact Nat.zero_lt_one) le_rfl
   intro k
   induction k with
-  | zero =>
-    intro st hacc _
-    rw [Nat.sub_zero] at hacc
-    exact hacc
+  | zero => exact fun st hacc _ => by rwa [Nat.sub_zero] at hacc
   | succ j ih =>
     intro st hacc hj_le
     obtain ⟨hst_ev, hres_ev⟩ := radixProjStep_eval args st s
-    have hiter : iterate radixProjStep args (j + 1) st =
-        (radixProjStep (args, st) >>= iterate radixProjStep args j) := rfl
-    rw [hiter, StateTransitionSpec.clientResult_bind, hst_ev, hres_ev]
+    rw [iterate, StateTransitionSpec.clientResult_bind, hst_ev, hres_ev]
     exact ih _ (horner_step_lt hq hj_le hacc _) (Nat.le_of_succ_le hj_le)
 
 /-- Memory validity, functional correctness, and cost bound for `radixProjProg`. -/
@@ -380,11 +359,8 @@ theorem radixProjProg_spec {w : ℕ} (args : RadixProjArgs)
     rw [List.drop_length, toRadix_nil, hdst_len] at hrun
     unfold radixProjProg
     refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), radixProjProg_state args s,
-      ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind]
-      exact hrun.2.1
-    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hrun.2.2
+      (StateTransitionSpec.clientResult_bind ..).trans hrun.2.1,
+      by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hrun.2.2⟩
   intro rem
   induction rem with
   | zero => exact fun _ => ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
@@ -405,24 +381,15 @@ theorem radixProjProg_spec {w : ℕ} (args : RadixProjArgs)
           radixProjAssign args srcL dstL[k] := by
       unfold radixProjAssign
       by_cases h1 : args.hasUpd = 1 <;> by_cases h2 : dstL[k] = args.updVar <;> simp [h1, h2]
-    have hacc_next :
-        radixProjAssign args srcL dstL[k] % args.q + args.q * curAcc =
-          toRadix args.q (dstL.drop k) (radixProjAssign args srcL) := by
-      have hdrop : dstL.drop k = dstL[k] :: dstL.drop (k + 1) :=
-        List.drop_eq_getElem_cons hk_lt
-      rw [hdrop, toRadix_cons]
     have hres_step' : (Memory.spec 0).clientResult s (radixProjStep (args, ⟨k + 1, curAcc⟩)) =
         ⟨k, toRadix args.q (dstL.drop k) (radixProjAssign args srcL)⟩ := by
-      rw [hres_step]
-      simp only [Nat.add_sub_cancel, hmem_v, hr_lk, hval_eq, hacc_next]
+      rw [hres_step, List.drop_eq_getElem_cons hk_lt, toRadix_cons]
+      simp only [Nat.add_sub_cancel, hmem_v, hr_lk, hval_eq, curAcc]
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (radixProjStep (args, ⟨k + 1, curAcc⟩))) := by
-      unfold radixProjStep
-      dsimp only
-      rw [Nat.add_sub_cancel]
-      refine validHistory_read_bind haddr_lt ?_
-      rw [hmem_v]
-      exact validHistory_bind_step hv_lk (validHistory_pure w _ _)
+      refine validHistory_read_bind (by simpa only [Nat.add_sub_cancel] using haddr_lt) ?_
+      simpa only [Nat.add_sub_cancel, hmem_v] using
+        validHistory_bind_step hv_lk (validHistory_pure w _ (⟨k, _⟩ : RadixProjState))
     have hc_step : memoryCost (radixProjStep (args, ⟨k + 1, curAcc⟩)) s ≤ stepCost := by
       unfold radixProjStep
       dsimp only
@@ -431,9 +398,7 @@ theorem radixProjProg_spec {w : ℕ} (args : RadixProjArgs)
       dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (Nat.le_of_succ_le hk_le)
-    have hiter_eq : iterate radixProjStep args (k + 1) ⟨k + 1, curAcc⟩ =
-        (radixProjStep (args, ⟨k + 1, curAcc⟩) >>= iterate radixProjStep args k) := rfl
-    rw [hiter_eq]
+    rw [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step']
       exact hr_rem

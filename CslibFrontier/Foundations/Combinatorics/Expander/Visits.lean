@@ -139,9 +139,7 @@ omit [Fintype V] [DecidableEq V] [Fintype D] [Nonempty D] in
 private theorem visitSum_cons (f : V → ℝ) (u : V) {t : ℕ} (a : D) (k : Fin t → D) :
     visitSum G f u (Fin.cons a k : Fin (t + 1) → D) =
       f (G.neighbor u a) + visitSum G f (G.neighbor u a) k := by
-  simp only [visitSum]
-  rw [sum_range_succ']
-  simp only [walkAt_cons_succ, walkAt_zero]
+  simp only [visitSum, sum_range_succ', walkAt_cons_succ, walkAt_zero]
   ring
 
 omit [Fintype V] [DecidableEq V] in
@@ -151,12 +149,9 @@ private theorem expect_visitSum (f : V → ℝ) :
   | 0, u => by simp [visitSum]
   | t + 1, u => by
     rw [Fin.expect_univ_cons]
-    have h : ∀ a, 𝔼 k : Fin t → D, visitSum G f u (Fin.cons a k : Fin (t + 1) → D) =
+    have h (a : D) : 𝔼 k : Fin t → D, visitSum G f u (Fin.cons a k : Fin (t + 1) → D) =
         (f + ∑ j ∈ range t, (G.walk ^ (j + 1)) f) (G.neighbor u a) := by
-      intro a
-      simp only [visitSum_cons, expect_add_distrib, expect_visitSum f t,
-        Pi.add_apply, Finset.sum_apply]
-      simp
+      simp [visitSum_cons, expect_add_distrib, expect_visitSum f t]
     simp_rw [h]
     rw [← walk_apply, map_add, map_sum, sum_range_succ', Pi.add_apply, Finset.sum_apply,
       pow_one, add_comm]
@@ -171,8 +166,7 @@ private theorem expect_visitSum_sq_succ (f : V → ℝ) (t : ℕ) (u : V) :
         𝔼 k : Fin t → D, visitSum G f w k ^ 2) u := by
   rw [Fin.expect_univ_cons, walk_apply]
   refine expect_congr rfl fun a _ => ?_
-  simp only [visitSum_cons, add_sq, expect_add_distrib, ← mul_expect]
-  simp
+  simp [visitSum_cons, add_sq, expect_add_distrib, ← mul_expect]
 
 omit [Fintype V] [DecidableEq V] in
 /-- The second moment of `S_t` is at most `t (1 + 2 M)` if `|f| ≤ 1` and the first moments of
@@ -182,26 +176,16 @@ private theorem expect_visitSum_sq_le (f : V → ℝ) (hf : ∀ x, |f x| ≤ 1) 
     ∀ (t : ℕ) (u : V), 𝔼 k : Fin t → D, visitSum G f u k ^ 2 ≤ ∑ s ∈ range t, (1 + 2 * M s)
   | 0, u => by simp [visitSum]
   | t + 1, u => by
-    rw [expect_visitSum_sq_succ, sum_range_succ]
-    have hb : ∀ w, |f w ^ 2 + 2 * f w * (𝔼 k : Fin t → D, visitSum G f w k) +
-        𝔼 k : Fin t → D, visitSum G f w k ^ 2| ≤ ∑ s ∈ range t, (1 + 2 * M s) + (1 + 2 * M t) := by
-      intro w
-      have h1 : f w ^ 2 ≤ 1 := by
-        rw [← sq_abs]; exact pow_le_one₀ (abs_nonneg _) (hf w)
-      have h2 : |2 * f w * (𝔼 k : Fin t → D, visitSum G f w k)| ≤ 2 * M t := by
-        rw [abs_mul, abs_mul, abs_two, mul_assoc]
-        exact mul_le_mul_of_nonneg_left ((mul_le_mul (hf w) (hM t w) (abs_nonneg _)
-          zero_le_one).trans_eq (one_mul _)) zero_le_two
-      have h3 := expect_visitSum_sq_le f hf M hM t w
-      have h4 : 0 ≤ 𝔼 k : Fin t → D, visitSum G f w k ^ 2 :=
-        expect_nonneg fun _ _ => sq_nonneg _
-      rw [abs_le]
-      constructor
-      · linarith [sq_nonneg (f w), (abs_le.1 h2).1, (abs_nonneg _).trans (hM t w),
-          sum_nonneg (s := range t) (f := fun s => (1 + 2 * M s)) fun s _ =>
-            by linarith [(abs_nonneg _).trans (hM s w)]]
-      · linarith [(abs_le.1 h2).2]
-    exact (le_abs_self _).trans (abs_walk_le hb u)
+    rw [expect_visitSum_sq_succ, sum_range_succ, walk_apply]
+    refine expect_le univ_nonempty fun a _ => ?_
+    set w := G.neighbor u a
+    have h1 : f w ^ 2 ≤ 1 := (sq_le_one_iff_abs_le_one (f w)).2 (hf w)
+    have h2 : 2 * f w * (𝔼 k : Fin t → D, visitSum G f w k) ≤ 2 * M t := by
+      refine (le_abs_self _).trans ?_
+      rw [abs_mul, abs_mul, abs_two, mul_assoc]
+      exact mul_le_mul_of_nonneg_left ((mul_le_mul (hf w) (hM t w) (abs_nonneg _)
+        zero_le_one).trans_eq (one_mul _)) zero_le_two
+    linarith [expect_visitSum_sq_le f hf M hM t w]
 
 /-! ### Concentration -/
 
@@ -280,12 +264,10 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
     simp only [visitSum, f, sum_sub_distrib, sum_const, card_range, nsmul_eq_mul, visits]
     rw [sum_boole]
     simp [div_eq_mul_inv]
-  have hgood : ∀ k : Fin t → D, |visitSum G f u k| ≤ a →
+  have hgood (k : Fin t → D) (hk : |visitSum G f u k| ≤ a) :
       (G.visits u v k : ℝ) ∈ Set.Icc ((1 - ε) * t / n) ((1 + ε) * t / n) := by
-    intro k hk
     rw [hS, abs_le] at hk
-    have h1 : (1 - ε) * t / n = t / n - a := by rw [ha]; ring
-    have h2 : (1 + ε) * t / n = t / n + a := by rw [ha]; ring
+    rw [sub_mul, one_mul, sub_div, add_mul, one_mul, add_div, ← ha]
     exact ⟨by linarith, by linarith⟩
   -- Chebyshev: Markov's inequality for `S²` at level `a²`
   have hcard : (Fintype.card (Fin t → D) : ℝ) = (Fintype.card D : ℝ) ^ t := by simp
@@ -302,12 +284,9 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
       show ε * a ^ 2 * (Fintype.card D : ℝ) ^ t = a ^ 2 * (ε * (Fintype.card D : ℝ) ^ t) by
         ring] at h
     exact le_of_mul_le_mul_left h ha2
-  have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (Fin t → D)))
-    (fun k => a ^ 2 ≤ visitSum G f u k ^ 2)
   have hsplit' : (#{k : Fin t → D | ¬ a ^ 2 ≤ visitSum G f u k ^ 2} : ℝ) +
       #{k : Fin t → D | a ^ 2 ≤ visitSum G f u k ^ 2} = (Fintype.card D : ℝ) ^ t := by
-    rw [← hcard, ← card_univ, add_comm]
-    exact_mod_cast hsplit
+    rw [← hcard, ← card_univ, add_comm, ← Nat.cast_add, card_filter_add_card_filter_not]
   have hmono : (#{k : Fin t → D | ¬ a ^ 2 ≤ visitSum G f u k ^ 2} : ℝ) ≤
       #{k : Fin t → D | (G.visits u v k : ℝ) ∈
         Set.Icc ((1 - ε) * t / n) ((1 + ε) * t / n)} := by

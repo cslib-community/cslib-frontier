@@ -66,28 +66,21 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
     simp [prefixesUpTo]
   | append_singleton coords c ih =>
     intro hnd
-    have hc_not : c ∉ coords := by
-      intro hc
-      exact (List.nodup_append.mp hnd).2.2 c hc c (by simp) rfl
-    have hnd_prev : coords.Nodup := (List.nodup_append.mp hnd).1
+    obtain ⟨hnd_prev, -, hdisj⟩ := List.nodup_append.mp hnd
+    have hc_not : c ∉ coords := fun hc => hdisj c hc c (by simp) rfl
     obtain ⟨hprev_nd, hprev_mem⟩ := ih hnd_prev
     rw [prefixesUpTo_append_singleton]
     dsimp only
     set prev := prefixesUpTo k coords
     have hc_not_in_prev : ∀ S ∈ prev, c ∉ S := fun S hS hcS =>
       hc_not (List.mem_toFinset.mp (((hprev_mem S).mp hS).1 hcS))
-    have hmap_nd : ((prev.filter fun S => decide (#S < k)).map (insert c)).Nodup := by
-      refine (hprev_nd.filter _).map_on ?_
-      intro S₁ h₁ S₂ h₂ heq
-      have h₁m := (List.mem_filter.mp h₁).1
-      have h₂m := (List.mem_filter.mp h₂).1
-      have h₁c := hc_not_in_prev S₁ h₁m
-      have h₂c := hc_not_in_prev S₂ h₂m
-      ext x
-      by_cases hxc : x = c
-      · subst hxc; simp [h₁c, h₂c]
-      · have hx := Finset.ext_iff.mp heq x
-        simpa [Finset.mem_insert, hxc] using hx
+    have hmap_nd : ((prev.filter fun S => decide (#S < k)).map (insert c)).Nodup :=
+      (hprev_nd.filter _).map_on fun S₁ h₁ S₂ h₂ heq => by
+        ext x
+        obtain rfl | hxc := eq_or_ne x c
+        · simp [hc_not_in_prev S₁ (List.mem_filter.mp h₁).1,
+            hc_not_in_prev S₂ (List.mem_filter.mp h₂).1]
+        · simpa [Finset.mem_insert, hxc] using Finset.ext_iff.mp heq x
     refine ⟨List.nodup_append.mpr ⟨hprev_nd, hmap_nd, ?_⟩, fun S => ?_⟩
     · intro S₁ h₁ S₂ h₂ heq
       rcases List.mem_map.mp h₂ with ⟨T, _, rfl⟩
@@ -105,18 +98,16 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
       · rintro ⟨hsub, hcard⟩
         by_cases hcS : c ∈ S
         · right
-          refine ⟨S.erase c, ⟨(hprev_mem _).mpr ⟨?_, ?_⟩, ?_⟩, insert_erase hcS⟩
-          · intro x hx
-            have hxS := mem_of_mem_erase hx
-            have hne := ne_of_mem_erase hx
-            exact (Finset.mem_insert.mp (hsub hxS)).resolve_left hne
-          · exact card_erase_le.trans hcard
+          refine ⟨S.erase c, ⟨(hprev_mem _).mpr ⟨fun x hx => ?_, card_erase_le.trans hcard⟩, ?_⟩,
+            insert_erase hcS⟩
+          · exact (Finset.mem_insert.mp (hsub (mem_of_mem_erase hx))).resolve_left
+              (ne_of_mem_erase hx)
           · rw [card_erase_of_mem hcS]
             have := Finset.card_pos.mpr ⟨c, hcS⟩
             omega
         · left
-          refine (hprev_mem S).mpr ⟨fun x hx => ?_, hcard⟩
-          exact (Finset.mem_insert.mp (hsub hx)).resolve_left fun h => hcS (h ▸ hx)
+          exact (hprev_mem S).mpr
+            ⟨fun x hx => (Finset.mem_insert.mp (hsub hx)).resolve_left fun h => hcS (h ▸ hx), hcard⟩
 
 theorem length_prefixesUpTo {d : ℕ} :
     ∀ (k : ℕ) {coords : List (Fin d)}, coords.Nodup →
@@ -134,10 +125,7 @@ theorem length_prefixesUpTo {d : ℕ} :
     dsimp only
     rw [List.length_append, List.length_map, List.length_append, List.length_singleton]
     rcases k with _ | k
-    · have hflt : (prefixesUpTo 0 coords).filter (fun S => decide (#S < 0)) = [] := by
-        simp
-      rw [hflt, List.length_nil, add_zero, ih 0 hnd_prev]
-      simp
+    · simp [ih 0 hnd_prev]
     · obtain ⟨hp_nd, hp_mem⟩ := prefixesUpTo_spec (k + 1) hnd_prev
       obtain ⟨hk_nd, hk_mem⟩ := prefixesUpTo_spec k hnd_prev
       have hflt_eq : ((prefixesUpTo (k + 1) coords).filter fun S => decide (#S < k + 1)).length =
@@ -148,16 +136,14 @@ theorem length_prefixesUpTo {d : ℕ} :
         simp only [List.mem_toFinset, List.mem_filter, hp_mem, hk_mem, decide_eq_true_eq]
         exact ⟨fun ⟨⟨hsub, _⟩, hlt⟩ => ⟨hsub, by omega⟩,
           fun ⟨hsub, hle⟩ => ⟨⟨hsub, by omega⟩, by omega⟩⟩
-      rw [hflt_eq, ih (k + 1) hnd_prev, ih k hnd_prev, Finset.sum_range_succ' _ (k + 1)]
+      rw [hflt_eq, ih (k + 1) hnd_prev, ih k hnd_prev, Finset.sum_range_succ' _ (k + 1),
+        Finset.sum_range_succ' _ (k + 1)]
       simp only [Nat.choose_zero_right]
       have hsum : ∑ j ∈ range (k + 1), coords.length.choose (j + 1) +
           ∑ j ∈ range (k + 1), coords.length.choose j =
           ∑ j ∈ range (k + 1), (coords.length + 1).choose (j + 1) := by
         rw [← Finset.sum_add_distrib]
-        refine Finset.sum_congr rfl fun j _ => ?_
-        rw [add_comm, Nat.choose_succ_succ]
-      rw [Finset.sum_range_succ' _ (k + 1)]
-      simp only [Nat.choose_zero_right]
+        exact Finset.sum_congr rfl fun j _ => by rw [add_comm, Nat.choose_succ_succ]
       omega
 
 /-- Inner step of `genLowSubsets`: extend `xs[rGenPos]` with `rGenBitMask` when `#xs[p] < k`. -/
@@ -419,12 +405,8 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       ∃ z, ExecWithin w extractStep s z 9 ∧ P (s.regs rGenIdx + 1) z ∧
         z.regs rGenIdx = s.regs rGenIdx + 1 := by
     generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
-    dsimp only [P] at hs
     obtain ⟨hsz, hso, hsd, hscp, hscl, hsrem, hsmem, hsframe⟩ := hs
-    let cur := curAt b
-    change s.regs rCoordsLen = cur.length at hscl
-    change ∀ j (hj : j < cur.length), s.mem (coordsPtr + j) = cur[j].val at hsmem
-    change ∀ a, a < coordsPtr ∨ coordsPtr + cur.length ≤ a → s.mem a = x.mem a at hsframe
+    set cur := curAt b
     have hcur_len_le : cur.length ≤ b := by
       calc cur.length ≤ ((List.finRange d).take b).length := List.length_filter_le _ _
         _ ≤ b := by simp
@@ -451,9 +433,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       have hf_addr : Fits w (coordsPtr + cur.length) := hfit_mem.of_le (by omega)
       have hf_cl1 : Fits w (cur.length + 1) := hfit_d.of_le (by omega)
       have hcur1 : curAt (b + 1) = cur ++ [ib] := by
-        dsimp only [curAt, cur]
-        rw [htake1, List.filter_append, List.filter_cons_of_pos (by simp [hmemC]),
-          List.filter_nil]
+        simp [curAt, cur, htake1, hmemC]
       unfold extractStep
       wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
       dsimp only [P]
@@ -467,9 +447,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       · wram_simp; exact hsframe a (by omega)
     · have hbit0 : s.regs rTrieRem &&& 1 = 0 := by simp [hbit_iff, hmemC]
       have hcur1 : curAt (b + 1) = cur := by
-        dsimp only [curAt, cur]
-        rw [htake1, List.filter_append, List.filter_cons_of_neg (by simp [hmemC]),
-          List.filter_nil, List.append_nil]
+        simp [curAt, cur, htake1, hmemC]
       unfold extractStep
       wram_exec [hsz, hso, hscl, hb_eq, hbit0]
       dsimp only [P]

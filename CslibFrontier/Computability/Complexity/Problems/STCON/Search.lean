@@ -152,13 +152,10 @@ def Inv (cfg : Config) : Prop :=
 private theorem inv_mk {l c n s t cur steps v : ℕ} :
     Inv I (l, [c, n, s, t, cur, steps, v]) ↔
       c ≤ 1 ∧ Bounded I n s t cur steps v ∧ Phase I l n s t cur steps v := by
-  constructor
-  · rintro ⟨c, n, s, t, cur, steps, v, h, hc⟩
-    simp only [List.cons.injEq, and_true] at h
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-    exact hc
-  · intro h
-    exact ⟨c, n, s, t, cur, steps, v, rfl, h⟩
+  refine ⟨fun ⟨_, _, _, _, _, _, _, h, hc⟩ => ?_, fun h => ⟨c, n, s, t, cur, steps, v, rfl, h⟩⟩
+  simp only [List.cons.injEq, and_true] at h
+  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+  exact hc
 
 /-- The total budget of the rank. -/
 def budget : ℕ := 2 * I.n + 2 * I.s + 2 * I.t + 4 + (3 * I.n + 12) * (I.n + 1) + 1
@@ -240,11 +237,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_n hnI]
-    by_cases h : n < I.n
-    · simp only [h, decide_true]
-      search_finish []
-    · simp only [h, decide_false]
-      search_finish []
+    by_cases h : n < I.n <;> simp only [h, decide_true, decide_false] <;> search_finish []
   case «1» =>
     obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
     search_step
@@ -253,11 +246,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_s hsI']
-    by_cases h : s < I.s
-    · simp only [h, decide_true]
-      search_finish []
-    · simp only [h, decide_false]
-      search_finish []
+    by_cases h : s < I.s <;> simp only [h, decide_true, decide_false] <;> search_finish []
   case «3» =>
     obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
     search_step
@@ -266,11 +255,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_t htI']
-    by_cases h : t < I.t
-    · simp only [h, decide_true]
-      search_finish []
-    · simp only [h, decide_false]
-      search_finish []
+    by_cases h : t < I.t <;> simp only [h, decide_true, decide_false] <;> search_finish []
   case «5» =>
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
@@ -310,11 +295,7 @@ private theorem inv_step_check {l c n s t cur steps v : ℕ} (hl7 : 7 ≤ l) (hl
   case «9» =>
     obtain ⟨rfl, rfl, rfl, hR, hst, hvn⟩ := hP
     search_step
-    by_cases h : steps < I.n
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish []
+    by_cases h : steps < I.n <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
   case «10» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
     search_step
@@ -342,11 +323,7 @@ private theorem inv_step_guess {l c n s t cur steps v : ℕ} (hl11 : 11 ≤ l) (
   case «13» =>
     obtain ⟨rfl, rfl, rfl, hR, hlt, hvn⟩ := hP
     search_step
-    by_cases h : v < I.n
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish []
+    by_cases h : v < I.n <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
 
 /-- A step in the arc-following phase (`14 ≤ l ≤ 16`) preserves the invariant and decreases the
 rank. -/
@@ -518,21 +495,16 @@ private theorem branches_step {cur steps c v next : ℕ} (hc : cur < I.n) (hnext
 private theorem branches_walk : ∀ (m cur steps c v : ℕ) (hc : cur < I.n),
     Relation.RelatesInSteps I.Adj ⟨cur, hc⟩ I.t m → steps + m < I.n →
       ∃ regs, Branches (P := searchProgram) (w := I.encode)
-        (7, [c, I.n, I.s, I.t, cur, steps, v]) (17, regs) := by
-  intro m
-  induction m with
-  | zero =>
-    intro cur steps c v hc hpath _
-    have hct : cur = I.t := congrArg Fin.val (Relation.RelatesInSteps.zero hpath)
-    subst hct
+        (7, [c, I.n, I.s, I.t, cur, steps, v]) (17, regs)
+  | 0, cur, steps, c, v, hc, hpath, _ => by
+    obtain rfl : cur = I.t := congrArg Fin.val (Relation.RelatesInSteps.zero hpath)
     exact ⟨_, branches_at_target I steps c v⟩
-  | succ m ih =>
-    intro cur steps c v hc hpath hlt
+  | m + 1, cur, steps, c, v, hc, hpath, hlt => by
     obtain ⟨⟨next, hnext⟩, hadj, hrest⟩ := hpath.succ'
     by_cases hct : cur = I.t
     · subst hct
       exact ⟨_, branches_at_target I steps c v⟩
-    · obtain ⟨regs, hregs⟩ := ih next (steps + 1) 0 next hnext hrest (by omega)
+    · obtain ⟨regs, hregs⟩ := branches_walk m next (steps + 1) 0 next hnext hrest (by omega)
       exact ⟨regs, (branches_step I hc hnext hct (by omega) hadj).trans hregs⟩
 
 /-- **An accepting branch exists** when `t` is reachable from `s`: a shortest path has fewer

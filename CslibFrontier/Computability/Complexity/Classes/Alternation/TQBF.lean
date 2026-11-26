@@ -175,7 +175,7 @@ theorem closed_rounds_ofCNF_iff (ps : List (V × V)) (ψ : CNF V) :
   simp only [Closed, Finset.eq_empty_iff_forall_notMem, mem_freeVars_rounds, mem_freeVars_ofCNF,
     CNF.vars, List.mem_map, List.mem_flatten, not_and, not_not]
   exact ⟨fun h c hc l hl => h l.1 ⟨l, ⟨c, hc, hl⟩, rfl⟩,
-    by rintro h _ ⟨l, ⟨c, hc, hl⟩, rfl⟩; exact h c hc l hl⟩
+    fun h _ ⟨l, ⟨c, hc, hl⟩, he⟩ => he ▸ h c hc l hl⟩
 
 end Cslib.Logic.PL.QBF
 
@@ -232,10 +232,12 @@ theorem eval_gameFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ
   rw [gameFormula, QBF.eval_rounds_eq_true_iff, length_gamePairs]
   refine alternation_congr_of_length fun z hz => ?_
   rw [sum_replicate_one] at hz
-  rw [eval_baseFormula, show block _ w 0 0 ++ block _ w 1 0 = z by
+  have hblocks : block (QBF.updates σ (QBF.roundVars (gamePairs w)) z) w 0 0 ++
+      block (QBF.updates σ (QBF.roundVars (gamePairs w)) z) w 1 0 = z := by
     rw [block, block, ← List.map_append, ← roundVars_gamePairs]
     exact QBF.map_updates (roundVars_gamePairs w ▸ nodup_blockVars_append w 0)
-      (by simp [hz, roundVars_gamePairs, blockVars, two_mul])]
+      (by simp [hz, roundVars_gamePairs, blockVars, two_mul])
+  rw [eval_baseFormula, hblocks]
 
 /-- The formula of a game is closed. -/
 theorem closed_gameFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
@@ -279,11 +281,11 @@ theorem gameReduce_mem_TQBF_iff {V : α × List Bool → Bool} {kV : ℕ} {State
   refine alternation_congr_of_length fun z hz => ?_
   rw [sum_replicate_one] at hz
   have hrun := (htm (a, z)).runFrom_initCfg
-  dsimp only at hrun
-  rw [show (encPair enc encBits (a, z)).length = 2 * (enc a).length + 2 * w + 1 by
+  have hlen : (encPair enc encBits (a, z)).length = 2 * (enc a).length + 2 * w + 1 := by
     rw [length_encPair, encBits_apply, hz]
-    dsimp only
-    omega, encPair_apply, encBits_apply] at hrun
+    dsimp only; omega
+  dsimp only at hrun
+  rw [hlen, encPair_apply, encBits_apply] at hrun
   have htab := CookLevin.exists_eval_tableau_iff (tm := tmV) (u := frame (enc a))
     (T := cV * (2 * (enc a).length + 2 * w + 2) ^ dV) (z := z)
   rw [hz] at htab

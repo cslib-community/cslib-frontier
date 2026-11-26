@@ -131,32 +131,22 @@ private theorem johnsonRadius_eq_sub_sqrt {q : ℝ} (hq : 1 < q) (δ : ℝ) :
 
 theorem johnsonRadius_nonneg {q δ : ℝ} (hq : 1 < q) (hδ : 0 ≤ δ) :
     0 ≤ johnsonRadius q δ := by
-  have hθ : 0 ≤ 1 - 1 / q := sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le)
-  have hq0 : 0 ≤ q := (zero_lt_one.trans hq).le
   have hq1 : 0 < q - 1 := sub_pos.2 hq
-  have hsub : 1 - q * δ / (q - 1) ≤ 1 := by
-    have : 0 ≤ q * δ / (q - 1) := by positivity
-    linarith
-  have hsqrt : Real.sqrt (1 - q * δ / (q - 1)) ≤ 1 := Real.sqrt_le_one.2 hsub
-  exact mul_nonneg hθ (sub_nonneg.2 hsqrt)
+  have hnn : 0 ≤ q * δ / (q - 1) := by positivity
+  exact mul_nonneg (sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le))
+    (sub_nonneg.2 (Real.sqrt_le_one.2 (by linarith)))
 
 theorem johnsonRadius_le_one_sub_inv {q δ : ℝ} (hq : 1 < q) :
-    johnsonRadius q δ ≤ 1 - 1 / q := by
-  have hθ : 0 ≤ 1 - 1 / q := sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le)
-  have h1 : 1 - Real.sqrt (1 - q * δ / (q - 1)) ≤ 1 := by
-    linarith [Real.sqrt_nonneg (1 - q * δ / (q - 1))]
-  rw [johnsonRadius]
-  simpa only [mul_one] using mul_le_mul_of_nonneg_left h1 hθ
+    johnsonRadius q δ ≤ 1 - 1 / q :=
+  mul_le_of_le_one_right (sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le))
+    (sub_le_self 1 (Real.sqrt_nonneg _))
 
 theorem johnsonRadius_mono_right {q δ₁ δ₂ : ℝ} (hq : 1 < q) (hδ : δ₁ ≤ δ₂) :
     johnsonRadius q δ₁ ≤ johnsonRadius q δ₂ := by
   have hθ : 0 ≤ 1 - 1 / q := sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le)
   have hq0 : 0 ≤ q := (zero_lt_one.trans hq).le
   have hq1 : 0 < q - 1 := sub_pos.2 hq
-  have hrad : 1 - q * δ₂ / (q - 1) ≤ 1 - q * δ₁ / (q - 1) := by
-    have : q * δ₁ / (q - 1) ≤ q * δ₂ / (q - 1) := by gcongr
-    linarith
-  exact mul_le_mul_of_nonneg_left (sub_le_sub_left (Real.sqrt_le_sqrt hrad) 1) hθ
+  exact mul_le_mul_of_nonneg_left (sub_le_sub_left (Real.sqrt_le_sqrt (by gcongr)) 1) hθ
 
 /-- For `0 ≤ δ ≤ 1 - 1 / q₁`, the `q`-ary Johnson radius `J_q(δ)` is antitone in `q ≥ q₁`. -/
 theorem johnsonRadius_antitone {q₁ q₂ δ : ℝ} (hq₁ : 1 < q₁) (hq : q₁ ≤ q₂)
@@ -191,10 +181,10 @@ theorem johnsonRadius_antitone {q₁ q₂ δ : ℝ} (hq₁ : 1 < q₁) (hq : q�
 /-- As the alphabet size `q → ∞`, `J_q(δ)` converges to `1 - √(1 - δ)`. -/
 theorem tendsto_johnsonRadius_atTop (δ : ℝ) :
     Tendsto (fun q : ℝ => johnsonRadius q δ) atTop (nhds (johnsonRadiusLimit δ)) := by
-  have hdiv : Tendsto (fun q : ℝ => (1 : ℝ) / q) atTop (nhds 0) :=
-    tendsto_const_nhds.div_atTop tendsto_id
-  have hθ : Tendsto (fun q : ℝ => 1 - 1 / q) atTop (nhds 1) := by
-    simpa only [sub_zero] using tendsto_const_nhds.sub hdiv
+  have hθ : Tendsto (fun q : ℝ => 1 - (1 : ℝ) / q) atTop (nhds 1) := by
+    simpa only [sub_zero, id_eq] using
+      (tendsto_const_nhds (x := (1 : ℝ))).sub
+        ((tendsto_const_nhds (x := (1 : ℝ))).div_atTop tendsto_id)
   have hqsub : Tendsto (fun q : ℝ => q / (q - 1)) atTop (nhds 1) := by
     refine ((hθ.inv₀ one_ne_zero).congr' ?_).trans (by simp)
     filter_upwards [eventually_gt_atTop (1 : ℝ)] with q hq
@@ -202,14 +192,11 @@ theorem tendsto_johnsonRadius_atTop (δ : ℝ) :
     have hq1 : q - 1 ≠ 0 := sub_ne_zero.2 hq.ne'
     field_simp
   have hinner : Tendsto (fun q : ℝ => 1 - q * δ / (q - 1)) atTop (nhds (1 - δ)) := by
-    simpa only [div_mul_eq_mul_div, one_mul] using tendsto_const_nhds.sub (hqsub.mul_const δ)
-  have hsqrt : Tendsto (fun q : ℝ => Real.sqrt (1 - q * δ / (q - 1))) atTop
-      (nhds (Real.sqrt (1 - δ))) :=
-    (Real.continuous_sqrt.tendsto (1 - δ)).comp hinner
-  have hprod : Tendsto (fun q : ℝ => (1 - 1 / q) * (1 - Real.sqrt (1 - q * δ / (q - 1)))) atTop
-      (nhds (1 * (1 - Real.sqrt (1 - δ)))) :=
-    hθ.mul (tendsto_const_nhds.sub hsqrt)
-  simpa only [johnsonRadius, johnsonRadiusLimit, one_mul] using hprod
+    simpa only [div_mul_eq_mul_div, one_mul] using
+      (tendsto_const_nhds (x := (1 : ℝ))).sub (hqsub.mul_const δ)
+  simpa only [johnsonRadius, johnsonRadiusLimit, one_mul, Function.comp_def] using
+    hθ.mul ((tendsto_const_nhds (x := (1 : ℝ))).sub
+      ((Real.continuous_sqrt.tendsto (1 - δ)).comp hinner))
 
 /-- For any `1 < q` and `0 ≤ δ ≤ 1 - 1 / q`, the alphabet-free radius `1 - √(1 - δ)` is at most
 `J_q(δ)`. -/
@@ -324,9 +311,8 @@ private theorem isListDecodable_of_neg [Nonempty ι] {C : Set (ι → α)} {ρ :
 private theorem subsingleton_of_card_lt_of_le_minDist {C : Set (ι → α)} {d : ℕ}
     (hd : (d : ℕ∞) ≤ minDist C) (hnd : Fintype.card ι < d) : C.Subsingleton := by
   by_contra hnontriv
-  have hle : (d : ℕ∞) ≤ Fintype.card ι :=
-    hd.trans (minDist_le_card (Set.not_subsingleton_iff.1 hnontriv))
-  exact absurd (Nat.cast_le.1 hle) (not_le_of_gt hnd)
+  exact hnd.not_ge
+    (Nat.cast_le.1 (hd.trans (minDist_le_card (Set.not_subsingleton_iff.1 hnontriv))))
 
 private theorem isListDecodable_of_subsingleton {C : Set (ι → α)} {ρ : ℝ} {L : ℕ}
     (hC : C.Subsingleton) (hL : 1 ≤ L) : IsListDecodable C ρ L := fun w =>
@@ -426,9 +412,7 @@ theorem isListDecodable_of_le_johnsonRadiusLimit [Nonempty ι] {C : Set (ι → 
   set n : ℕ := Fintype.card ι
   have hnR : (0 : ℝ) < n := Nat.cast_pos.2 Fintype.card_pos
   set δ : ℝ := (d : ℝ) / n
-  have hJL : johnsonRadiusLimit δ ≤ 1 := by
-    rw [johnsonRadiusLimit]
-    linarith [Real.sqrt_nonneg (1 - δ)]
+  have hJL : johnsonRadiusLimit δ ≤ 1 := sub_le_self 1 (Real.sqrt_nonneg _)
   rcases lt_or_ge n d with hnd | hdn
   · refine isListDecodable_of_subsingleton (subsingleton_of_card_lt_of_le_minDist hd hnd)
       (Nat.floor_pos.2 ?_)
@@ -466,23 +450,17 @@ theorem isListDecodable_of_le_johnsonRadiusLimit [Nonempty ι] {C : Set (ι → 
   rw [filter_hammingDist_le_floor_eq_self hB] at hjohn
   have hpos : (0 : ℝ) < (n : ℝ) ^ 2 * ε ^ 2 := by positivity
   have hle_N : n * (n - d) ≤ (n - e) ^ 2 := by
-    have h2 : ((n * (n - d) : ℕ) : ℝ) ≤ ((n - e) ^ 2 : ℕ) := by
-      push_cast [Nat.cast_sub hen, Nat.cast_sub hdn]
-      linarith
-    exact_mod_cast h2
-  have hjohnR : (#B : ℝ) * ((n : ℝ) ^ 2 * ε ^ 2) ≤ (n : ℝ) * (d - e : ℕ) := by
+    exact_mod_cast (show ((n * (n - d) : ℕ) : ℝ) ≤ ((n - e) ^ 2 : ℕ) by
+      push_cast [Nat.cast_sub hen, Nat.cast_sub hdn]; linarith)
+  have hjohnR : (#B : ℝ) * ((n : ℝ) ^ 2 * ε ^ 2) ≤ (n : ℝ) * d := by
     have h1 : ((#B * ((n - e) ^ 2 - n * (n - d)) : ℕ) : ℝ) ≤ ((n * (d - e) : ℕ) : ℝ) := by
       exact_mod_cast hjohn
     push_cast [Nat.cast_sub hle_N, Nat.cast_sub hen, Nat.cast_sub hdn] at h1
-    exact (mul_le_mul_of_nonneg_left hdenom (Nat.cast_nonneg _)).trans h1
-  have hrhs : (n : ℝ) * ((d - e : ℕ) : ℝ) ≤ (n : ℝ) * d := by
-    gcongr
-    exact Nat.sub_le d e
-  have hB_le : (#B : ℝ) ≤ δ / ε ^ 2 := by
-    have hdn_eq : δ * (n : ℝ) ^ 2 = (n : ℝ) * d := by dsimp only [δ]; field_simp
-    rw [le_div_iff₀ (sq_pos_of_pos hε)]
-    nlinarith [hjohnR.trans hrhs, sq_pos_of_pos hnR]
-  exact Nat.le_floor hB_le
+    exact ((mul_le_mul_of_nonneg_left hdenom (Nat.cast_nonneg _)).trans h1).trans
+      (mul_le_mul_of_nonneg_left (Nat.cast_le.2 (Nat.sub_le d e)) hnR.le)
+  refine Nat.le_floor ((le_div_iff₀ (sq_pos_of_pos hε)).2 ?_)
+  have hdn_eq : δ * (n : ℝ) ^ 2 = (n : ℝ) * d := by dsimp only [δ]; field_simp
+  nlinarith [sq_pos_of_pos hnR]
 
 /-- **Combinatorial list-decodability of Reed–Solomon codes up to the Johnson radius**
 [GuruswamiSudan1999] (locator unverified), [GuruswamiRudraSudan2019] (locator unverified): with

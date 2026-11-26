@@ -163,9 +163,7 @@ private theorem eval_collisionExperiment_pure [Fintype K] [Nonempty K] [Decidabl
       (PMF.uniformOfFintype K).toOuterMeasure {k | H k guess.first = H k guess.second} := by
   simp only [collisionExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
     PMF.pure_bind, Probability.PMF.bind_pure_decide_apply_true]
-  congr 1
-  ext k
-  simp [hne]
+  exact congrArg _ (Set.ext fun _ => and_iff_right hne)
 
 /-- **Exercise 7.3** ([BonehShoup2023], v0.6, p. 277). Given a complete enumeration of a finite
 message space, exhaustive search produces a deterministic guess that exceeds `ε` whenever
@@ -187,13 +185,10 @@ theorem bestCollisionGuess_wins [Fintype K] [Nonempty K] [DecidableEq M] [Decida
     have hp : p ∈ candidates.argmax score := by simp [hbest]
     have hne' : p.1 ≠ p.2 :=
       of_decide_eq_true (List.mem_filter.mp (List.argmax_mem hp)).2
-    have hscore := List.le_of_mem_argmax hmem hp
-    refine ⟨⟨p.1, p.2⟩, ?_, ?_⟩
-    · change (candidates.argmax score).map (fun q => CollisionGuess.mk q.1 q.2) = _
-      simp [hbest]
-    · rw [Probability.PMF.toOuterMeasure_uniformOfFintype] at h
-      rw [eval_collisionExperiment_pure H _ hne', Probability.PMF.toOuterMeasure_uniformOfFintype]
-      exact h.trans_le (mul_le_mul' (by exact_mod_cast hscore) le_rfl)
+    refine ⟨⟨p.1, p.2⟩, congrArg (Option.map fun q : M × M => CollisionGuess.mk q.1 q.2) hbest, ?_⟩
+    rw [Probability.PMF.toOuterMeasure_uniformOfFintype] at h
+    rw [eval_collisionExperiment_pure H _ hne', Probability.PMF.toOuterMeasure_uniformOfFintype]
+    exact h.trans_le (mul_le_mul' (by exact_mod_cast List.le_of_mem_argmax hmem hp) le_rfl)
 
 /-- Attack Game 7.2 (multi-query UHF, [BonehShoup2023], Version 0.6, Section 7.1.1, p. 254): the
 adversary `B` outputs a list of messages, the challenger samples a uniform hash key independently,

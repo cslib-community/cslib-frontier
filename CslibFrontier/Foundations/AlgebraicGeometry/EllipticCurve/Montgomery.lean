@@ -154,12 +154,9 @@ theorem toWeierstrass_Δ :
 
 /-- When `2 ≠ 0` in `F`, `M.toWeierstrass` is an elliptic curve. -/
 theorem isElliptic_toWeierstrass (h2 : (2 : F) ≠ 0) : M.toWeierstrass.IsElliptic := by
-  have h16 : (16 : F) ≠ 0 := by
-    rw [show (16 : F) = 2 ^ 4 by norm_num]
-    exact pow_ne_zero 4 h2
   refine ⟨isUnit_iff_ne_zero.mpr ?_⟩
-  rw [toWeierstrass_Δ]
-  exact div_ne_zero (mul_ne_zero h16 M.discr_ne_zero) (pow_ne_zero 6 M.B_ne_zero)
+  rw [toWeierstrass_Δ, show (16 : F) = 2 ^ 4 by norm_num]
+  exact div_ne_zero (mul_ne_zero (pow_ne_zero 4 h2) M.discr_ne_zero) (pow_ne_zero 6 M.B_ne_zero)
 
 /-- Affine solutions `(B x, B y)` of `M.Equation` correspond to affine solutions `(x, y)` of
 `M.toWeierstrass`. -/
@@ -241,18 +238,14 @@ noncomputable def toShortWeierstrass : WeierstrassCurve F :=
 `M.toWeierstrass` via Mathlib's `WeierstrassCurve.toShortNF`. -/
 theorem toShortWeierstrass_eq_toShortNF [Invertible (2 : F)] [Invertible (3 : F)] :
     M.toShortWeierstrass = M.toWeierstrass.toShortNF • M.toWeierstrass := by
-  have hC : (VariableChange.mk 1 (-M.A / (3 * M.B)) 0 0 : VariableChange F) =
-      M.toWeierstrass.toShortNF := by
-    rw [WeierstrassCurve.toShortNF]
-    have h2nf : M.toWeierstrass.toCharNeTwoNF = 1 := by
-      rw [WeierstrassCurve.toCharNeTwoNF]
-      simp only [toWeierstrass, ofCubic_a₁, ofCubic_a₃, neg_zero, mul_zero]
-      rfl
-    rw [h2nf, mul_one, one_smul]
-    congr 1
-    simp only [toWeierstrass, ofCubic_a₂, invOf_eq_inv]
-    ring
-  rw [toShortWeierstrass, hC]
+  have h2nf : M.toWeierstrass.toCharNeTwoNF = 1 := by
+    rw [WeierstrassCurve.toCharNeTwoNF]
+    simp only [toWeierstrass, ofCubic_a₁, ofCubic_a₃, neg_zero, mul_zero]
+    rfl
+  rw [toShortWeierstrass, WeierstrassCurve.toShortNF, h2nf, mul_one, one_smul]
+  congr 2
+  simp only [toWeierstrass, ofCubic_a₂, invOf_eq_inv]
+  ring
 
 /-- When `3 ≠ 0`, `M.toShortWeierstrass` is in short Weierstrass normal form (`a₁ = a₂ = a₃ = 0`).
 -/
@@ -273,11 +266,9 @@ theorem not_isShortNF_toShortWeierstrass (h3 : (3 : F) = 0) (hA : M.A ≠ 0) :
   intro hnf
   have ha2 : M.toShortWeierstrass.a₂ = M.A / M.B := by
     simp only [toShortWeierstrass, toWeierstrass, variableChange_a₂, ofCubic_a₁, ofCubic_a₂,
-      inv_one, Units.val_one]
-    rw [h3]
+      inv_one, Units.val_one, h3]
     ring
-  have h0 : M.A / M.B = 0 := ha2.symm.trans hnf.a₂
-  exact hA (div_eq_zero_iff.mp h0 |>.resolve_right M.B_ne_zero)
+  exact hA ((div_eq_zero_iff.mp (ha2.symm.trans hnf.a₂)).resolve_right M.B_ne_zero)
 
 /-- Affine solutions `(B x - A / 3, B y)` of `M.Equation` correspond to affine solutions `(x, y)`
 of `M.toShortWeierstrass`, without requiring `3 ≠ 0`. -/
@@ -285,14 +276,12 @@ theorem equation_iff_toShortWeierstrass (x y : F) :
     M.Equation (M.B * x - M.A / 3) (M.B * y) ↔ M.toShortWeierstrass.toAffine.Equation x y := by
   have hB : M.B ≠ 0 := M.B_ne_zero
   rw [toShortWeierstrass, variableChange_equation_iff, ← equation_iff_toWeierstrass]
-  have hx : M.B * ((1 : Fˣ) ^ 2 * x + -M.A / (3 * M.B)) = M.B * x - M.A / 3 := by
+  simp only [Units.val_one, one_pow, one_mul, zero_mul, mul_zero, add_zero]
+  have hx : M.B * (x + -M.A / (3 * M.B)) = M.B * x - M.A / 3 := by
     by_cases h3 : (3 : F) = 0
     · simp [h3]
-    · field_simp
-      simp only [Units.val_one]
-      ring
-  have hy : M.B * ((1 : Fˣ) ^ 3 * y + (1 : Fˣ) ^ 2 * 0 * x + 0) = M.B * y := by simp
-  rw [hx, hy]
+    · field_simp; ring
+  rw [hx]
 
 end Basic
 
@@ -315,14 +304,8 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
   let x₂ : F := (-M.A + -1 * r) / (2 * M.B)
   have hroot_ne (s : F) (hs : s ^ 2 = 1) : (-M.A + s * r) / (2 * M.B) ≠ 0 := by
     intro h
-    have hA : M.A = s * r := by
-      have hnum := (div_eq_zero_iff.mp h).resolve_right (mul_ne_zero h2 hB)
-      linear_combination -hnum
-    have h4 : (2 : F) * 2 = 0 := by
-      have : M.A ^ 2 = s ^ 2 * r ^ 2 := by rw [hA]; ring
-      rw [hs, one_mul, hr] at this
-      linear_combination this
-    exact mul_ne_zero h2 h2 h4
+    have hnum := (div_eq_zero_iff.mp h).resolve_right (mul_ne_zero h2 hB)
+    exact mul_ne_zero h2 h2 (by linear_combination -(M.A + s * r) * hnum + r ^ 2 * hs + hr)
   have hx₁0 : x₁ ≠ 0 := hroot_ne 1 (one_pow 2)
   have hx₂0 : x₂ ≠ 0 := hroot_ne (-1) (by norm_num)
   have hx₁₂ : x₁ ≠ x₂ := by
@@ -532,12 +515,9 @@ theorem not_variableChange_of_odd {W : WeierstrassCurve F} [Finite F] (hF : ring
     (hodd : Odd (Nat.card W.toAffine.Point)) (M : MontgomeryCurve F) (C : VariableChange F) :
     C • M.toWeierstrass ≠ W := by
   classical
-  intro hC
+  rintro rfl
   have h4 := M.four_dvd_natCard_toWeierstrass_point hF
-  have he : (C • M.toWeierstrass).toAffine.Point ≃+ M.toWeierstrass.toAffine.Point :=
-    variableChangePointEquiv C M.toWeierstrass
-  rw [hC] at he
-  rw [← Nat.card_congr he.toEquiv] at h4
+  rw [← Nat.card_congr (variableChangePointEquiv C M.toWeierstrass).toEquiv] at h4
   exact Nat.not_odd_iff_even.mpr (even_iff_two_dvd.mpr (dvd_trans (by norm_num) h4)) hodd
 
 end DivFour

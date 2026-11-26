@@ -136,7 +136,9 @@ theorem isFarthestFirst_gonzalez (d : V → V → α) (P : List V) (k : ℕ) :
     IsFarthestFirst d P (gonzalez d P k) := by
   induction k with
   | zero => exact .nil
-  | succ _ ih => exact gonzalez_succ d P _ ▸ ih.farthestStep
+  | succ k ih =>
+    rw [gonzalez_succ]
+    exact ih.farthestStep
 
 theorem length_farthestStep (hP : P ≠ []) (L : List V) :
     (farthestStep d P L).length = L.length + 1 := by
@@ -156,14 +158,17 @@ theorem length_gonzalez (hP : P ≠ []) (k : ℕ) : (gonzalez d P k).length = k 
 @[simp] theorem gonzalez_nil (d : V → V → α) (k : ℕ) : gonzalez d [] k = [] := by
   induction k with
   | zero => rfl
-  | succ _ ih => rw [gonzalez_succ, ih]; rfl
+  | succ k ih =>
+    rw [gonzalez_succ, ih]
+    rfl
 
 /-- The centers are points of `P`. -/
 theorem mem_of_mem_gonzalez {k : ℕ} {x : V} (hx : x ∈ gonzalez d P k) : x ∈ P :=
   (isFarthestFirst_gonzalez d P k).subset x hx
 
 theorem length_gonzalez_le (d : V → V → α) (P : List V) (k : ℕ) : (gonzalez d P k).length ≤ k := by
-  rcases eq_or_ne P [] with rfl | hP; exacts [by simp, (length_gonzalez hP k).le]
+  rcases eq_or_ne P [] with rfl | hP
+  exacts [by simp, (length_gonzalez hP k).le]
 
 /-- **Feasibility:** Gonzalez's algorithm chooses at most `k` centers. -/
 theorem card_toFinset_gonzalez_le (d : V → V → α) (P : List V) (k : ℕ) :
@@ -179,7 +184,8 @@ theorem nodup_gonzalez [Zero α] (hself : ∀ x, d x x = 0) (hpos : ∀ x y, x �
   | zero => exact List.nodup_nil
   | succ k ih =>
     have hP : P ≠ [] := by grind [List.toFinset_nil, Finset.card_empty]
-    rw [gonzalez_succ]; unfold farthestStep
+    rw [gonzalez_succ]
+    unfold farthestStep
     match hm : P.argmax (centerDist d (gonzalez d P k).toFinset) with
     | none => exact absurd (List.argmax_eq_none.1 hm) hP
     | some x =>

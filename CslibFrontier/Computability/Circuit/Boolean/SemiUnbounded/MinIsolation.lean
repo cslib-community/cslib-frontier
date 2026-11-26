@@ -118,9 +118,9 @@ private theorem mem_proofTreeFinset [Finite G] {C : LayeredSemiUnboundedCircuit 
   simp [proofTreeFinset]
 
 private theorem proofTreeFinset_nonempty [Finite G] {C : LayeredSemiUnboundedCircuit G} {g : G}
-    (hg : C.Eval g) : (C.proofTreeFinset g).Nonempty :=
-  let ⟨t⟩ := (C.eval_iff_nonempty_proofTree g).mp hg
-  ⟨t, C.mem_proofTreeFinset t⟩
+    (hg : C.Eval g) : (C.proofTreeFinset g).Nonempty := by
+  obtain ⟨t⟩ := (C.eval_iff_nonempty_proofTree g).mp hg
+  exact ⟨t, C.mem_proofTreeFinset t⟩
 
 open Classical in
 /-- The minimum seeded proof-tree weight of a satisfied gate `g`. -/
@@ -146,8 +146,9 @@ theorem minProofTreeWeight_eq_of_isMinOn [Finite G] (C : LayeredSemiUnboundedCir
   classical
   obtain ⟨t', -, ht'⟩ := mem_image.mp (min'_mem _
     ((C.proofTreeFinset_nonempty hg).image fun q => q.weight (C.seededGateWeight code seed)))
-  exact le_antisymm (C.minProofTreeWeight_le code seed hg t)
-    (by rw [minProofTreeWeight, ← ht']; exact isMinOn_univ_iff.mp ht t')
+  exact le_antisymm (C.minProofTreeWeight_le code seed hg t) (by
+    rw [minProofTreeWeight, ← ht']
+    exact isMinOn_univ_iff.mp ht t')
 
 /-- Two-sided seed-update derivative bound for a satisfied AND gate `u` in a normal-form circuit:
 flipping seed bit `j` from `false` to `true` increases `minProofTreeWeight` by between
@@ -229,10 +230,12 @@ theorem card_nonisolatingSeeds_le [Fintype G] (C : LayeredSemiUnboundedCircuit G
     simp only [events, dite_eq_left ht, mem_filter, mem_univ, true_and]
     rw [C.minProofTreeWeight_eq_of_isMinOn code seed heu htu,
       C.minProofTreeWeight_eq_of_isMinOn code seed hev htv, heq]
-  refine (card_le_card hcover).trans (card_biUnion_le.trans
-    ((sum_le_sum fun p _ => hevent p).trans_eq ?_))
-  simp only [sum_const, card_univ, Fintype.card_prod, smul_eq_mul]
-  ring
+  calc
+    _ ≤ (univ.biUnion events).card := card_le_card hcover
+    _ ≤ ∑ p : G × G, (events p).card := card_biUnion_le
+    _ ≤ ∑ _ : G × G, 2 ^ (ℓ - d) := sum_le_sum fun p _ => hevent p
+    _ = Fintype.card G ^ 2 * 2 ^ (ℓ - d) := by
+      simp only [sum_const, card_univ, Fintype.card_prod, smul_eq_mul]; ring
 
 /-- A seed min-isolates every true gate of a normal-form circuit whenever the union bound is
 strictly smaller than the seed space `2 ^ ℓ`. -/
@@ -262,11 +265,13 @@ theorem exists_generatedGateWeight_isMinIsolating {N : ℕ}
     ∃ seed, C.IsMinIsolating (C.generatedGateWeight seed) := by
   let d := 4 * (Nat.log 2 N + 1)
   have hd : d ≤ codeLength N 0 :=
-    (Nat.mul_le_mul_right _ (by decide : 4 ≤ 512)).trans (by simpa using (codeLength_bounds N 0).1)
+    (Nat.mul_le_mul_right _ (by decide : 4 ≤ 512)).trans
+      (by simpa using (codeLength_bounds N 0).1)
   have hbound : N ^ 2 < 2 ^ d := calc
     N ^ 2 < (2 ^ (Nat.log 2 N + 1)) ^ 2 :=
       Nat.pow_lt_pow_left (Nat.lt_pow_succ_log_self (by decide) N) (by decide)
-    _ ≤ 2 ^ d := by rw [← pow_mul]; exact Nat.pow_le_pow_right (by decide) (by dsimp [d]; omega)
+    _ = 2 ^ ((Nat.log 2 N + 1) * 2) := (pow_mul _ _ _).symm
+    _ ≤ 2 ^ d := Nat.pow_le_pow_right Nat.zero_lt_two (by dsimp [d]; omega)
   refine C.exists_minIsolating_seed hnorm (indexedCodeword (n := 0))
     (fun _ _ _ _ hne => by simpa using log_le_hammingDist_indexedCodeword (n := 0) hne) ?_
   rw [Fintype.card_fin]
@@ -303,7 +308,8 @@ theorem generatedGateWeightBound_le_poly (c : ℕ) :
   let L := Nat.log 2 N + 1
   have hlen : codeLength N 0 ≤ 268435456 * L := by simpa using (codeLength_bounds N 0).2
   have hexp : maxAndLevel + codeLength N 0 ≤ (c + 268435456) * L := by
-    rw [Nat.add_mul]; exact Nat.add_le_add hdepth hlen
+    rw [Nat.add_mul]
+    exact Nat.add_le_add hdepth hlen
   have hpow : 2 ^ L ≤ 2 * (N + 1) := by
     simpa only [L, pow_succ'] using Nat.mul_le_mul_left 2 (Nat.pow_log_le_add_one 2 N)
   calc

@@ -162,12 +162,8 @@ theorem machine_query_inSpace (k : ℕ) : ComputableInSpace (machine k).query en
 /-- Machine transitions use the certified streamed update. -/
 theorem machine_next_inSpace (k : ℕ) : ComputableInSpace (machine k).next
     (encPair encState (encOption encBool)) encState
-    (fun a => (encPair encState (encOption encBool) a).length) := by
-  have h : ComputableInSpace (fun a : State × Option Bool => step k a.1)
-      (encPair encState (encOption encBool)) encState
-      (fun a => (encPair encState (encOption encBool) a).length) :=
-    budget_comp_linear (step_inSpace k) (fst encState (encOption encBool))
-  exact h.of_enc_eq fun _ => rfl
+    (fun a => (encPair encState (encOption encBool) a).length) :=
+  (budget_comp_linear (step_inSpace k) (fst encState (encOption encBool))).of_enc_eq fun _ => rfl
 
 /-- Initialization emits no word. -/
 theorem machine_emit_inSpace (k : ℕ) : ComputableInSpace (machine k).emit
@@ -183,10 +179,7 @@ theorem machine_halted_inSpace (k : ℕ) : ComputableInSpace (machine k).halted 
   have htotal := budget_natMul
     (budget_const (encIn := encState) (encB := encNat) (k * 3 + 1 + 1)) hr
   exact (budget_finite (encC := encBool) Bool.not (budget_natLt hrest.fst' htotal)).of_enc_eq
-    fun ⟨⟨args, m, r, alphabet, p⟩, cursor, bank, limit⟩ => by
-      by_cases h : cursor < (k * 3 + 1 + 1) * r
-      · simp [machine, h, Nat.not_le_of_gt h]
-      · simp [machine, h, Nat.le_of_not_gt h]
+    fun ⟨⟨_, _, _, _, _⟩, _, _, _⟩ => by simp [machine]; grind
 
 /-- The completed bank is returned as state rather than an output stream. -/
 theorem machine_finish_inSpace (k : ℕ) : ComputableInSpace (machine k).finish encState encBits

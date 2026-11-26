@@ -93,11 +93,7 @@ variable {n g : ℕ}
 private theorem sum_inputWeight_eq_mul_weightedSum {p : Program signature n g} {w : Fin n → ℝ}
     {j : Fin g} {c : ℝ} (hc : inputWeight p j = c • w) (x : Fin n → Bool) :
     (∑ i : Fin n, inputWeight p j i * (x i).toNat) = c * weightedSum w x := by
-  have hfun := fun i => congrFun hc i
-  simp only [Pi.smul_apply, smul_eq_mul] at hfun
-  simp only [weightedSum, mul_sum]
-  refine sum_congr rfl fun i _ => ?_
-  rw [hfun i, mul_assoc]
+  simp only [hc, Pi.smul_apply, smul_eq_mul, weightedSum, mul_sum, mul_assoc]
 
 /-- **Order-convexity of gate evaluations along a scalar direction**: if every gate's input weight
 vector is a multiple of `w`, `weightedSum w x₁ ≤ weightedSum w x₂ ≤ weightedSum w x₃`, and
@@ -314,18 +310,15 @@ theorem piecesAtMost_scalarEval (p : Program signature n g) (w : Fin n → ℝ)
     (hw : ∀ j : Fin g, ∃ c : ℝ, inputWeight p j = c • w) :
     PiecesAtMost (scalarEval p w) (attainableTranscripts p).card := by
   classical
-  refine ⟨fun t => (leTranscripts p w t).card - 1, ?_, ?_, ?_⟩
-  · intro t t' htt'
-    exact Nat.sub_le_sub_right (card_le_card (leTranscripts_subset htt')) 1
-  · intro t
-    dsimp only
-    have hpos := card_attainableTranscripts_pos p
-    have hle := card_leTranscripts_le p w t
+  refine ⟨fun t => (leTranscripts p w t).card - 1,
+    fun _ _ htt' => Nat.sub_le_sub_right (card_le_card (leTranscripts_subset htt')) 1,
+    fun t => ?_, fun t t' heq => ?_⟩
+  · dsimp only
+    have := card_attainableTranscripts_pos p
+    have := card_leTranscripts_le p w t
     omega
-  · intro t t' heq
-    rcases le_total t t' with htt' | ht't
-    · exact scalarEval_eq_of_le_of_rank_eq p w hw htt' heq
-    · exact (scalarEval_eq_of_le_of_rank_eq p w hw ht't heq.symm).symm
+  · exact (le_total t t').elim (fun h => scalarEval_eq_of_le_of_rank_eq p w hw h heq)
+      fun h => (scalarEval_eq_of_le_of_rank_eq p w hw h heq.symm).symm
 
 /-- **Theorem 4.1 (Piece bound for scalar-direction transcripts)**: `scalarTranscript p w` has at
 most `(attainableTranscripts p).card` pieces on `ℝ`. -/
@@ -362,9 +355,7 @@ theorem length_le_card_attainableTranscripts_of_isChain {β : Type*} (p : Progra
   have hpos := card_attainableTranscripts_pos p
   have hmap : (xs.map (weightedSum w)).map (scalarReadout p w readout) =
       xs.map fun x => readout (p.eval interpretation x) := by
-    rw [List.map_map]
-    refine List.map_congr_left fun x _ => ?_
-    exact scalarReadout_weightedSum p w hw readout x
+    simp only [List.map_map, Function.comp_def, scalarReadout_weightedSum p w hw]
   have hlen := (changesAtMost_scalarReadout p w hw readout).length_le_succ_of_isChain
     hmono (hmap.symm ▸ halt)
   rw [List.length_map] at hlen
@@ -540,22 +531,18 @@ theorem exists_scalarComparisonTree_iff (w : Fin n → ℝ)
       0 < L ∧ L ≤ ballSize q e := by
   classical
   constructor
-  · rintro ⟨t, hcount, hdepth, henergy, _⟩
-    constructor
-    · simpa only [hcount] using t.leafCount_pos
-    · simpa only [hcount, ballSize] using
-        t.leafCount_le_sum_choose_of_energy_le henergy hdepth
+  · rintro ⟨t, rfl, hdepth, henergy, -⟩
+    exact ⟨t.leafCount_pos, by
+      simpa only [ballSize] using t.leafCount_le_sum_choose_of_energy_le henergy hdepth⟩
   · intro hcap
     obtain ⟨t, hcount, hdepth, henergy, heval⟩ :=
       (DecisionTree.exists_orderedComparisonTree_iff q e L 0).mpr hcap
     choose θ hθ using fun k => exists_scalarThreshold w index horder k
-    refine ⟨t.mapQueries θ, ?_, ?_, ?_, ?_⟩
-    · simpa only [DecisionTree.leafCount_mapQueries] using hcount
-    · simpa only [DecisionTree.depth_mapQueries] using hdepth
-    · simpa only [DecisionTree.energy_mapQueries] using henergy
-    · intro x
-      rw [DecisionTree.eval_mapQueries, show (fun s => decide (s ≤ weightedSum w x)) ∘ θ =
-          fun k => decide (k ≤ index x) from funext fun k => by simp only [Function.comp_apply, hθ]]
-      simpa only [zero_add] using heval (index x) (hbound x)
+    refine ⟨t.mapQueries θ, (DecisionTree.leafCount_mapQueries _ _).trans hcount,
+      (DecisionTree.depth_mapQueries _ _).trans_le hdepth,
+      (DecisionTree.energy_mapQueries _ _).trans_le henergy, fun x => ?_⟩
+    rw [DecisionTree.eval_mapQueries, show (fun s => decide (s ≤ weightedSum w x)) ∘ θ =
+        fun k => decide (k ≤ index x) from funext fun k => by simp only [Function.comp_apply, hθ]]
+    simpa only [zero_add] using heval (index x) (hbound x)
 
 end Cslib.Circuits.Boolean.WeightedThreshold

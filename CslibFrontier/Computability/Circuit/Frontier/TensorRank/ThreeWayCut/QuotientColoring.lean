@@ -57,13 +57,8 @@ private noncomputable def edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ)
 omit [Finite F] in
 private theorem measurable_edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ) (e : F) :
     Measurable fun ω : W → BlockSample => edgeVec2 Q q R ω e := by
-  refine Measurable.prodMk ?_ ?_
-  · exact (measurable_edgeScore q R e).comp
-      (measurable_pi_iff.mpr fun B => (measurable_fst.comp measurable_fst).comp
-        (measurable_pi_apply B))
-  · exact (measurable_edgeScore q R e).comp
-      (measurable_pi_iff.mpr fun B => (measurable_snd.comp measurable_fst).comp
-        (measurable_pi_apply B))
+  exact ((measurable_edgeScore q R e).comp (by fun_prop)).prodMk
+    ((measurable_edgeScore q R e).comp (by fun_prop))
 
 omit [Finite F] in
 private theorem edgeVec2_congr {Q : Multigraph W F} {q : ℝ} {R : ℕ} {B : W} {e : F}
@@ -90,17 +85,8 @@ private theorem edgeVec2_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     edgeVec2 Q q R (fun B => rotSample (ω B)) e = rot120 (edgeVec2 Q q R ω e) := by
   have h1 := dot2_edgeVec2 Q q R (-1 / 2, -√3 / 2) ω e
   have h2 := dot2_edgeVec2 Q q R (√3 / 2, -1 / 2) ω e
-  ext
-  · dsimp [edgeVec2, rotSample, rot120, dot2] at h1 ⊢
-    have hfun : (fun B => -1 / 2 * (ω B).1.1 + -√3 / 2 * (ω B).1.2) =
-        fun B => -1 / 2 * (ω B).1.1 - √3 / 2 * (ω B).1.2 := by funext B; ring
-    rw [hfun] at h1
-    linarith only [h1]
-  · dsimp [edgeVec2, rotSample, rot120, dot2] at h2 ⊢
-    have hfun : (fun B => √3 / 2 * (ω B).1.1 + -1 / 2 * (ω B).1.2) =
-        fun B => √3 / 2 * (ω B).1.1 - 1 / 2 * (ω B).1.2 := by funext B; ring
-    rw [hfun] at h2
-    linarith only [h2]
+  simp only [edgeVec2, rotSample, rot120, dot2, neg_div, neg_mul, ← sub_eq_add_neg] at h1 h2 ⊢
+  exact Prod.ext h1.symm h2.symm
 
 omit [Finite F] in
 private theorem edgeVec2_negSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
@@ -108,17 +94,9 @@ private theorem edgeVec2_negSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     edgeVec2 Q q R (fun B => negSample (ω B)) e = neg2 (edgeVec2 Q q R ω e) := by
   have h1 := dot2_edgeVec2 Q q R (-1, 0) ω e
   have h2 := dot2_edgeVec2 Q q R (0, -1) ω e
-  ext
-  · dsimp [edgeVec2, negSample, neg2, dot2] at h1 ⊢
-    have hfun : (fun B => -1 * (ω B).1.1 + 0 * (ω B).1.2) = fun B => -(ω B).1.1 := by
-      funext B; ring
-    rw [hfun] at h1
-    linarith only [h1]
-  · dsimp [edgeVec2, negSample, neg2, dot2] at h2 ⊢
-    have hfun : (fun B => 0 * (ω B).1.1 + -1 * (ω B).1.2) = fun B => -(ω B).1.2 := by
-      funext B; ring
-    rw [hfun] at h2
-    linarith only [h2]
+  simp only [edgeVec2, negSample, neg2, dot2, neg_one_mul, zero_mul, zero_add, add_zero]
+    at h1 h2 ⊢
+  exact Prod.ext h1.symm h2.symm
 
 private theorem toFinset_eq_of_fintype {α : Type*} (S : Set α) (i₁ : Fintype S) [i₂ : Fintype S] :
     @Set.toFinset α S i₁ = @Set.toFinset α S i₂ := by
@@ -160,11 +138,8 @@ private theorem beats_asymm {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} {c c' : Fin 3}
     (h : beats Q q R ω B c c') : ¬beats Q q R ω B c' c := by
   simp only [beats] at h ⊢
-  rintro (h' | ⟨heq, hτ'⟩) <;> rcases h with hlt | ⟨heq2, hτ⟩
-  · omega
-  · omega
-  · omega
-  · linarith only [hτ, hτ']
+  rintro (h' | ⟨heq, hτ'⟩) <;> rcases h with hlt | ⟨heq2, hτ⟩ <;>
+    first | omega | linarith only [hτ, hτ']
 
 private theorem beats_total {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2)
@@ -228,18 +203,12 @@ private theorem blockColor_eq_iff_of_injective {Q : Multigraph W F} {q : ℝ} {R
       · exact absurd rfl hc'
   · intro hall
     unfold blockColor
-    fin_cases c
-    · have h0 : beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2 :=
-        ⟨hall 1 (by decide), hall 2 (by decide)⟩
-      simp only [h0]; rfl
-    · have hn0 : ¬(beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2) := fun h =>
-        beats_asymm (hall 0 (by decide)) h.1
-      have h1 : beats Q q R ω B 1 2 := hall 2 (by decide)
-      simp only [hn0, h1, ↓reduceIte]; rfl
-    · have hn0 : ¬(beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2) := fun h =>
-        beats_asymm (hall 0 (by decide)) h.2
-      have hn1 : ¬beats Q q R ω B 1 2 := beats_asymm (hall 1 (by decide))
-      simp only [hn0, hn1, ↓reduceIte]; rfl
+    fin_cases c <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] at hall ⊢
+    · exact ite_eq_left ⟨hall 1 (by decide), hall 2 (by decide)⟩
+    · rw [ite_eq_right fun h => beats_asymm (hall 0 (by decide)) h.1,
+        ite_eq_left (hall 2 (by decide))]
+    · rw [ite_eq_right fun h => beats_asymm (hall 0 (by decide)) h.2,
+        ite_eq_right (beats_asymm (hall 1 (by decide)))]
 
 private theorem blockColor_of_strict_majority {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2) {c : Fin 3}
@@ -362,11 +331,7 @@ private theorem measureReal_eq_third_of_cyclic {Ω : Type*} [MeasurableSpace Ω]
   have h01 : P.real (E 0) = P.real (E 1) := hstep 0
   have h12 : P.real (E 1) = P.real (E 2) := hstep 1
   rw [measureReal_iUnion_fintype hd hm, Fin.sum_univ_three]
-  rcases c with ⟨_ | _ | _ | _, hlt⟩
-  · change P.real (E 0) = _; linarith only [h01, h12]
-  · change P.real (E 1) = _; linarith only [h01, h12]
-  · change P.real (E 2) = _; linarith only [h01, h12]
-  · omega
+  fin_cases c <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] <;> linarith only [h01, h12]
 
 /-- **Exact `1 / 3` marginal.** By `Z₃`-symmetry (`rotSample`), every block `B` lands in each color
 `c : Fin 3` with probability `1 / 3`. -/

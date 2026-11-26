@@ -120,12 +120,11 @@ theorem replay_subset_mTr {A H F_src : Finset P} (hAH : Disjoint A H)
     | byzRecv => exact False.elim ha_hon
     | deliver e =>
       obtain ⟨he_mem, he_dest_F, rfl⟩ := htr
-      have hsrc' : ∀ m ∈ (π.recvHonest e s).msgs, m.src ∈ A ∨ m.src ∈ H := by
-        intro m hm
+      have hsrc' (m : Envelope P M) (hm : m ∈ (π.recvHonest e s).msgs) :
+          m.src ∈ A ∨ m.src ∈ H := by
         simp only [recvHonest, recvCore, Multiset.mem_add, Multiset.mem_map] at hm
-        rcases hm with hm | ⟨qm, _, rfl⟩
-        · exact hsrc_init m (Multiset.mem_of_mem_erase hm)
-        · exact hFsrc e.dest he_dest_F
+        exact hm.elim (fun hm => hsrc_init m (Multiset.mem_of_mem_erase hm))
+          fun ⟨_, _, h⟩ => h ▸ hFsrc e.dest he_dest_F
       by_cases hdestH : e.dest ∈ H
       · -- Replay an `H → H` message as `.deliver e` and an `A → H` one as a Byzantine injection.
         have hdestA : e.dest ∉ A := Finset.disjoint_right.mp hAH hdestH
@@ -139,9 +138,9 @@ theorem replay_subset_mTr {A H F_src : Finset P} (hAH : Disjoint A H)
           · refine ⟨.deliver e, u₀.msgs.erase e, ⟨Multiset.count_pos.mp ?_, hdestA, rfl⟩,
               fun m hs hd => ?_, fun m hm => ?_⟩
             · exact (Multiset.count_pos.mpr he_mem).trans_le (hmsg₀ e hsrcH hdestH)
-            · by_cases hme : m = e
-              · subst hme
-                simpa only [Multiset.count_erase_self] using Nat.sub_le_sub_right (hmsg₀ m hs hd) 1
+            · rcases eq_or_ne m e with rfl | hme
+              · simpa only [Multiset.count_erase_self] using
+                  Nat.sub_le_sub_right (hmsg₀ m hs hd) 1
               · simpa only [Multiset.count_erase_of_ne hme] using hmsg₀ m hs hd
             · exact Multiset.count_erase_of_ne (show m ≠ e from fun h => hm (h ▸ hsrcH)) _
           · refine ⟨.byzRecv e.src e.dest e.body, u₀.msgs,
@@ -152,31 +151,28 @@ theorem replay_subset_mTr {A H F_src : Finset P} (hAH : Disjoint A H)
         have hproc' : ∀ p ∈ H,
             (π.recvCore e.src e.dest e.body base u₀).proc p = (π.recvHonest e s).proc p :=
           fun p hp => by simp only [recvHonest, recvCore, hproc_e, hproc₀ p hp]
-        have hmsg' : ∀ m : Envelope P M, m.src ∈ H → m.dest ∈ H →
+        have hmsg' (m : Envelope P M) (hs : m.src ∈ H) (hd : m.dest ∈ H) :
             (π.recvHonest e s).msgs.count m ≤
-              (π.recvCore e.src e.dest e.body base u₀).msgs.count m :=
-          fun m hs hd => by
-            simp only [recvHonest, recvCore, Multiset.count_add, hproc_e]
-            exact Nat.add_le_add_right (hbase_le m hs hd) _
+              (π.recvCore e.src e.dest e.body base u₀).msgs.count m := by
+          simpa only [recvHonest, recvCore, Multiset.count_add, hproc_e] using
+            Nat.add_le_add_right (hbase_le m hs hd) _
         obtain ⟨yl, u₁, hyl, hpH, hpOut, hmOut⟩ := ih hrest_hon hsrc' hproc' hmsg'
         refine ⟨act :: yl, u₁, LTS.MTr.stepL hstep hyl, hpH, fun p hp => ?_, fun m hm => ?_⟩
         · rw [hpOut p hp]
-          simp [recvCore, show p ≠ e.dest from fun h => hp (h ▸ hdestH)]
+          exact ite_eq_right fun h : p = e.dest => hp (h.symm ▸ hdestH)
         · rw [hmOut m hm]
           simp only [recvCore, Multiset.count_add, hbase_eq m hm,
-            count_map_tagSender_eq_zero (show m.src ≠ e.dest from fun h => hm (h ▸ hdestH)),
-            add_zero]
+            count_map_tagSender_eq_zero (p := e.dest) (e := m)
+              fun h : m.src = e.dest => hm (h.symm ▸ hdestH), add_zero]
       · -- Delivery to `e.dest ∉ H`: skip in the `A`-faulty replay; `H` is untouched.
-        have hproc' : ∀ p ∈ H, u₀.proc p = (π.recvHonest e s).proc p := fun p hp => by
-          have hne : p ≠ e.dest := fun h => hdestH (h ▸ hp)
-          simpa only [recvHonest, recvCore, hne, ↓reduceIte] using hproc₀ p hp
-        have hmsg' : ∀ m : Envelope P M, m.src ∈ H → m.dest ∈ H →
-            (π.recvHonest e s).msgs.count m ≤ u₀.msgs.count m := fun m hs hd => by
-          have hmd : m.src ≠ e.dest := fun h => hdestH (h ▸ hs)
-          simp only [recvHonest, recvCore, Multiset.count_add, count_map_tagSender_eq_zero hmd,
-            add_zero]
-          exact (Multiset.count_le_of_le m (Multiset.erase_le e s.msgs)).trans (hmsg₀ m hs hd)
-        exact ih hrest_hon hsrc' hproc' hmsg'
+        exact ih hrest_hon hsrc'
+          (fun p hp => by
+            simpa only [recvHonest, recvCore, show p ≠ e.dest from fun h => hdestH (h ▸ hp),
+              ↓reduceIte] using hproc₀ p hp)
+          fun m hs hd => by
+            simp only [recvHonest, recvCore, Multiset.count_add,
+              count_map_tagSender_eq_zero (p := e.dest) (e := m) fun h => hdestH (h ▸ hs), add_zero]
+            exact (Multiset.count_le_of_le m (Multiset.erase_le e s.msgs)).trans (hmsg₀ m hs hd)
 
 omit [Fintype P] [DecidableEq P] [DecidableEq M] in
 private lemma extract_isHonest (xs : ωSequence (Action P M)) {k₀ k₁ : ℕ}
@@ -184,8 +180,7 @@ private lemma extract_isHonest (xs : ωSequence (Action P M)) {k₀ k₁ : ℕ}
     ∀ a ∈ xs.extract k₀ k₁, a.IsHonest := by
   intro a ha
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
-  have hi' : i < k₁ - k₀ := by simpa [ωSequence.length_extract] using hi
-  rw [xs.get_extract hi']
+  rw [xs.get_extract (by simpa [ωSequence.length_extract] using hi)]
   exact hhon (k₀ + i) (Nat.le_add_right k₀ i)
 
 private lemma honest_decision_prefix (F : Finset P) (v : V) (p : P)
@@ -210,20 +205,15 @@ private lemma replay_from_start {A H F_src : Finset P}
       (∀ p ∈ H, u'.proc p = s₁.proc p) ∧
       (∀ p ∉ H, u'.proc p = u.proc p) ∧
       (∀ e : Envelope P M, e.src ∉ H → u'.msgs.count e = u.msgs.count e) := by
-  have hsrc : ∀ e ∈ (π.start F_src inp_s).msgs, e.src ∈ A ∨ e.src ∈ H :=
-    fun e he => hcover e.src (π.start_msgs_src_notMem F_src inp_s he)
-  have hproc : ∀ p ∈ H, u.proc p = (π.start F_src inp_s).proc p := fun p hp => by
-    rw [hu_proc p hp]; simp [start, initState, show p ≠ dealer from fun h => hdH (h ▸ hp)]
-  have hmsg : ∀ e : Envelope P M, e.src ∈ H → e.dest ∈ H →
-      (π.start F_src inp_s).msgs.count e ≤ u.msgs.count e := by
-    intro e heH _
-    have hnotF : e.src ∉ F_src := Finset.disjoint_left.mp hHF heH
-    have hnotA : e.src ∉ A := Finset.disjoint_right.mp hAH heH
-    have hpd : e.src ≠ dealer := fun h => hdH (h ▸ heH)
-    rw [hu_msg e heH, π.start_msgs_count_of_notMem F_src inp_s hnotF,
-      π.start_msgs_count_of_notMem A inp_u hnotA]
-    simp [initSend, hpd]
-  exact π.replay_subset_mTr hAH hmtr hhon hsrc hcover hproc hmsg
+  refine π.replay_subset_mTr hAH hmtr hhon
+    (fun e he => hcover e.src (π.start_msgs_src_notMem F_src inp_s he))
+    hcover (fun p hp => by
+      rw [hu_proc p hp]
+      simp [start, initState, show p ≠ dealer from fun h => hdH (h ▸ hp)])
+    fun e heH _ => ?_
+  rw [hu_msg e heH, π.start_msgs_count_of_notMem F_src inp_s (Finset.disjoint_left.mp hHF heH),
+    π.start_msgs_count_of_notMem A inp_u (Finset.disjoint_right.mp hAH heH)]
+  simp [initSend, show e.src ≠ dealer from fun h => hdH (h ▸ heH)]
 
 /-- **Split-brain impossibility for consistent broadcast**
 ([BrachaToueg1985]; [Bracha1987]). If the processes can be partitioned into three pairwise
@@ -247,9 +237,6 @@ theorem not_consistentBroadcast_of_partition {t : ℕ}
   have hd_not_C : dealer ∉ C := Finset.disjoint_left.mp hAC hdA
   have hd_not_B : dealer ∉ B := Finset.disjoint_left.mp hAB hdA
   have hb₀_not_C : b₀ ∉ C := Finset.disjoint_left.mp hBC hb₀
-  have hc₀_not_B : c₀ ∉ B := Finset.disjoint_right.mp hBC hc₀
-  have hb₀_not_A : b₀ ∉ A := Finset.disjoint_right.mp hAB hb₀
-  have hc₀_not_A : c₀ ∉ A := Finset.disjoint_right.mp hAC hc₀
   have hcoverC : ∀ p, p ∉ C → p ∈ A ∨ p ∈ B := fun p hp =>
     (hcover p).imp_right (·.resolve_right hp)
   have hcoverB : ∀ p, p ∉ B → p ∈ A ∨ p ∈ C := fun p hp =>
@@ -259,7 +246,8 @@ theorem not_consistentBroadcast_of_partition {t : ℕ}
     π.honest_decision_prefix C v₀ b₀ fun ss xs ha => hval C hC hd_not_C v₀ ss xs ha b₀ hb₀_not_C
   -- Run 2 (`B` silent faulty, `some v₁`) drives `c₀` to decide `v₁`.
   obtain ⟨xl₁, s₁, hmtr₁, hhon₁, hk₁⟩ :=
-    π.honest_decision_prefix B v₁ c₀ fun ss xs ha => hval B hB hd_not_B v₁ ss xs ha c₀ hc₀_not_B
+    π.honest_decision_prefix B v₁ c₀ fun ss xs ha =>
+      hval B hB hd_not_B v₁ ss xs ha c₀ (Finset.disjoint_right.mp hBC hc₀)
   -- Run 3 (`A` faulty): replay `B` from Run 1, then `C` from Run 2.
   obtain ⟨yl₀, u₁, hyl₀, hu₁_B, hu₁_out, hu₁_msg⟩ := π.replay_from_start hAB hBC hd_not_B hcoverC
     (inp_u := none) (fun _ _ => rfl) (fun _ _ => rfl) hmtr₀ hhon₀
@@ -271,7 +259,8 @@ theorem not_consistentBroadcast_of_partition {t : ℕ}
   have hb_dec : u₂.ProcDecided b₀ v₀ :=
     (congrArg ProcState.out ((hu₂_out b₀ hb₀_not_C).trans (hu₁_B b₀ hb₀))).trans hk₀
   have hc_dec : u₂.ProcDecided c₀ v₁ := (congrArg ProcState.out (hu₂_C c₀ hc₀)).trans hk₁
-  exact hne (hcon A hA none u₂ hreach b₀ hb₀_not_A c₀ hc₀_not_A v₀ v₁ hb_dec hc_dec)
+  exact hne (hcon A hA none u₂ hreach b₀ (Finset.disjoint_right.mp hAB hb₀)
+    c₀ (Finset.disjoint_right.mp hAC hc₀) v₀ v₁ hb_dec hc_dec)
 
 /-- **Single-value impossibility for full reliable broadcast** (even for a singleton domain such
 as `V = Unit`). Under any `3`-partition `A, B, C` of sizes at most `t` with `dealer ∈ A`,
@@ -296,16 +285,13 @@ theorem not_reliableBroadcast_of_partition {t : ℕ}
     False := by
   have hd_not_C : dealer ∉ C := Finset.disjoint_left.mp hAC hdA
   have hd_not_B : dealer ∉ B := Finset.disjoint_left.mp hAB hdA
-  have hb₀_not_C : b₀ ∉ C := Finset.disjoint_left.mp hBC hb₀
-  have hc₀_not_B : c₀ ∉ B := Finset.disjoint_right.mp hBC hc₀
-  have hb₀_not_A : b₀ ∉ A := Finset.disjoint_right.mp hAB hb₀
-  have hc₀_not_A : c₀ ∉ A := Finset.disjoint_right.mp hAC hc₀
   have hcoverC : ∀ p, p ∉ C → p ∈ A ∨ p ∈ B := fun p hp =>
     (hcover p).imp_right (·.resolve_right hp)
   have hcoverA : ∀ p, p ∉ A → p ∈ B ∨ p ∈ C := fun p hp => (hcover p).resolve_left hp
   -- Step 1 (`C` silent faulty, `some v₀`): drive `b₀ ∈ B` to decide `v₀`.
   obtain ⟨xl₀, s₀, hmtr₀, hhon₀, hk₀⟩ :=
-    π.honest_decision_prefix C v₀ b₀ fun ss xs ha => hval C hC hd_not_C v₀ ss xs ha b₀ hb₀_not_C
+    π.honest_decision_prefix C v₀ b₀ fun ss xs ha =>
+      hval C hC hd_not_C v₀ ss xs ha b₀ (Finset.disjoint_left.mp hBC hb₀)
   -- Step 2 (`A` faulty, `none`): replay `B`'s prefix so `b₀` decides `v₀` while `C` stays initial.
   obtain ⟨yl₀, u₁, hyl₀, hu₁_B, hu₁_out, hu₁_msg⟩ := π.replay_from_start hAB hBC hd_not_B hcoverC
     (inp_u := none) (fun _ _ => rfl) (fun _ _ => rfl) hmtr₀ hhon₀
@@ -313,7 +299,8 @@ theorem not_reliableBroadcast_of_partition {t : ℕ}
   have hb_dec : u₁.ProcDecided b₀ v₀ := (congrArg ProcState.out (hu₁_B b₀ hb₀)).trans hk₀
   -- Step 3: extend `u₁` with a fair Byzantine-free suffix; by `totality`, `c₀ ∈ C` decides `v₀`.
   obtain ⟨ss, xs, k₀, ha, hsk₀, hhon_suf⟩ := hreach_u₁.exists_admissibleRun
-  obtain ⟨k₁, hk₁⟩ := htot A hA none ss xs ha b₀ hb₀_not_A k₀ v₀ (hsk₀.symm ▸ hb_dec) c₀ hc₀_not_A
+  obtain ⟨k₁, hk₁⟩ := htot A hA none ss xs ha b₀ (Finset.disjoint_right.mp hAB hb₀) k₀ v₀
+    (hsk₀.symm ▸ hb_dec) c₀ (Finset.disjoint_right.mp hAC hc₀)
   let k₂ := max k₀ k₁
   have hm_suf : (π.lts A).MTr u₁ (xs.extract k₀ k₂) (ss k₂) :=
     hsk₀ ▸ ha.2.1.extract_mTr (le_max_left k₀ k₁)
@@ -333,7 +320,9 @@ theorem not_reliableBroadcast_of_partition {t : ℕ}
   obtain ⟨yl₁, w₁, hyl₁, hw₁_C, _, _⟩ := π.replay_subset_mTr hBC hm_suf
     (extract_isHonest xs hhon_suf) hsrc_u₁ hcoverA hproc_C hmsg_C
   have hw₁_dec : w₁.ProcDecided c₀ v₀ := (congrArg ProcState.out (hw₁_C c₀ hc₀)).trans hc_dec₂
-  exact absurd (hnoSp B hB hd_not_B none w₁ ⟨yl₁, hyl₁⟩ c₀ hc₀_not_B v₀ hw₁_dec) (by simp)
+  exact absurd
+    (hnoSp B hB hd_not_B none w₁ ⟨yl₁, hyl₁⟩ c₀ (Finset.disjoint_right.mp hBC hc₀) v₀ hw₁_dec)
+    (by simp)
 
 private lemma exists_three_partition {P : Type*} [Fintype P]
     (dealer : P) {t : ℕ} (h3 : 3 ≤ Fintype.card P) (hle : Fintype.card P ≤ 3 * t) :
@@ -344,31 +333,24 @@ private lemma exists_three_partition {P : Type*} [Fintype P]
       dealer ∈ A ∧ B.Nonempty ∧ C.Nonempty := by
   classical
   let n := Fintype.card P
-  have hn3 : 3 ≤ n := h3
   let zero : Fin n := ⟨0, by omega⟩
   let e : P ≃ Fin n := (Fintype.equivFin P).trans (Equiv.swap (Fintype.equivFin P dealer) zero)
   have he_dealer : e dealer = zero := by simp [e, Equiv.swap_apply_left]
   let grp : Fin 3 → Finset P := fun k => Finset.univ.filter fun p => (e p : ℕ) % 3 = k.val
-  have hgrp_disj : ∀ k₁ k₂ : Fin 3, k₁ ≠ k₂ → Disjoint (grp k₁) (grp k₂) :=
-    fun _ _ _ => by finset_card
+  have hgrp_disj (k₁ k₂ : Fin 3) (_ : k₁ ≠ k₂) : Disjoint (grp k₁) (grp k₂) := by finset_card
   have hgrp_card : ∀ k : Fin 3, (grp k).card ≤ t := fun k => by
     refine (Finset.card_le_card_of_injOn (fun p => (e p : ℕ) / 3) (fun p _ => ?_)
       fun p hp q hq hdiv => ?_).trans_eq (Finset.card_range t)
-    · have hlt : (e p : ℕ) < n := (e p).isLt
-      simp only [Finset.coe_range, Set.mem_Iio]
-      omega
+    · simpa using Nat.div_lt_of_lt_mul ((e p).isLt.trans_le hle)
     · simp only [grp, Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hp hq
       exact e.injective (Fin.ext (by dsimp only at hdiv; omega))
   refine ⟨grp 0, grp 1, grp 2,
     hgrp_disj 0 1 (by decide), hgrp_disj 0 2 (by decide), hgrp_disj 1 2 (by decide),
-    ?_, hgrp_card 0, hgrp_card 1, hgrp_card 2, ?_, ?_, ?_⟩
-  · intro p
-    simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and]
-    change (e p : ℕ) % 3 = 0 ∨ (e p : ℕ) % 3 = 1 ∨ (e p : ℕ) % 3 = 2
-    omega
-  · simp [grp, he_dealer, zero]
-  · exact ⟨e.symm ⟨1, by omega⟩, by simp [grp]⟩
-  · exact ⟨e.symm ⟨2, by omega⟩, by simp [grp]⟩
+    fun p => ?_, hgrp_card 0, hgrp_card 1, hgrp_card 2, by simp [grp, he_dealer, zero],
+    ⟨e.symm ⟨1, by omega⟩, by simp [grp]⟩, ⟨e.symm ⟨2, by omega⟩, by simp [grp]⟩⟩
+  simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and, Fin.val_zero, Fin.val_one,
+    Fin.val_two]
+  omega
 
 /-- **No asynchronous Byzantine reliable broadcast for `3 ≤ n ≤ 3t`**
 ([BrachaToueg1985]; [Bracha1987]). For any **nonempty** value domain `V` (even a singleton such
@@ -378,11 +360,10 @@ theorem not_solvesReliableBroadcast [Nonempty V] {t : ℕ}
     (h3 : 3 ≤ Fintype.card P) (hle : Fintype.card P ≤ 3 * t) :
     ¬ π.SolvesReliableBroadcast t := by
   intro hsol
-  obtain ⟨v₀⟩ := ‹Nonempty V›
   obtain ⟨A, B, C, hAB, hAC, hBC, hcover, hA, hB, hC, hdA, ⟨b₀, hb₀⟩, ⟨c₀, hc₀⟩⟩ :=
     exists_three_partition dealer h3 hle
-  exact π.not_reliableBroadcast_of_partition A B C hAB hAC hBC hcover hA hB hC hdA hb₀ hc₀ v₀
-    hsol.validity hsol.totality hsol.noSpurious
+  exact π.not_reliableBroadcast_of_partition A B C hAB hAC hBC hcover hA hB hC hdA hb₀ hc₀
+    (Classical.arbitrary V) hsol.validity hsol.totality hsol.noSpurious
 
 /-- **Three-process impossibility**: on `Fin 3`, no asynchronous deterministic protocol over a
 nonempty value domain `V` solves reliable broadcast against a single Byzantine fault. -/

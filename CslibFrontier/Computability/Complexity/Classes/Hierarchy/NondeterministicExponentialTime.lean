@@ -129,14 +129,18 @@ def expLazyDiagonal (k : ℕ) : Set (List Bool) :=
 private theorem exists_le_certLen (k c : ℕ) :
     ∃ M, ∀ m, M ≤ m → c * 2 ^ (k * m) + c ≤ certLen k m := by
   refine ⟨c, fun m hm => ?_⟩
-  have hc : 2 * c ≤ 2 ^ (m + 1) := by have := Nat.lt_two_pow_self (n := m); rw [pow_succ]; omega
+  have hc : 2 * c ≤ 2 ^ (m + 1) := by
+    have := Nat.lt_two_pow_self (n := m)
+    rw [pow_succ]
+    omega
   calc c * 2 ^ (k * m) + c ≤ 2 * c * 2 ^ (k * m) := by
         rw [two_mul, add_mul]
         exact Nat.add_le_add_left (Nat.le_mul_of_pos_right _ Nat.one_le_two_pow) _
     _ ≤ 2 ^ (m + 1) * 2 ^ (k * m) := Nat.mul_le_mul_right _ hc
     _ ≤ certLen k m := by
         rw [certLen, ← pow_add]
-        exact Nat.pow_le_pow_right Nat.one_lt_two.le (by ring_nf; omega)
+        apply Nat.pow_le_pow_right Nat.one_lt_two.le
+        ring_nf; omega
 
 /-- **The exponential lazy diagonal is not decidable in nondeterministic time
 `O(2 ^ (k * n))`** (`Cslib.Complexity.Diagonal.lazyLanguage_notMem_NTIME`): certificates of length
@@ -194,30 +198,34 @@ private theorem exists_computableInO_brute (k : ℕ) : ∃ K, ComputableInO
     (fun q => 2 ^ (K * ((encPair encBits encBits q).length + certLen k q.2.length)))
     (fun q => 2 ^ (K * ((encPair encBits encBits q).length + certLen k q.2.length))) := by
   obtain ⟨D, hacc⟩ := exists_computableInO_accepts
-  have hpoly : PolyBounded (fun q : List Bool × List Bool × List Bool =>
-      (encPair encBits (encPair encBits encBits) q).length) (accBound D) := by
+  have hpoly : PolyBounded
+      (fun q : List Bool × List Bool × List Bool =>
+        (encPair encBits (encPair encBits encBits) q).length) (accBound D) := by
     growth_poly [length_frame]
   set encQ := encPair encBits encBits
   obtain ⟨K₀, hsearch⟩ := Diagonal.exists_computableInO_lazyBrute
     (hacc.computableInPolyTime hpoly hpoly)
     (ComputableInPolyTime.fst encQ encUnary) (ComputableInPolyTime.snd encQ encUnary)
+  -- the certificate length in unary
   obtain ⟨C, hcl⟩ := (by fun_prop : ComputableInPolyTime
     (fun q : List Bool × List Bool => (k + 1) * (q.2.length + 1)) encQ encUnary)
     |>.exists_computableInO_unary_two_pow
   have h := hsearch.comp ((ComputableInO.of_eq (f := fun q : List Bool × List Bool => q)
     (encIn := encQ) (encMid := encQ) fun _ => rfl).prod hcl)
+  -- the bounds
   refine ⟨3 * K₀ + 4, (h.mono (C + 3) (fun q => ?_) fun q => ?_).of_enc_eq fun _ => rfl⟩
   all_goals
     have e₁ : (encPair encQ encUnary (q, 2 ^ ((k + 1) * (q.2.length + 1)))).length =
         2 * (encQ q).length + 1 + 2 ^ ((k + 1) * (q.2.length + 1)) := by
       rw [length_encPair, encUnary_apply, List.length_replicate]
     have e₂ : (4 : ℕ) ^ ((k + 1) * (q.2.length + 1)) =
-        2 ^ ((k + 1) * (q.2.length + 1)) * 2 ^ ((k + 1) * (q.2.length + 1)) := by
-      rw [← mul_pow]; norm_num
+        2 ^ ((k + 1) * (q.2.length + 1)) * 2 ^ ((k + 1) * (q.2.length + 1)) :=
+      Nat.mul_pow 2 2 _
     have hc : 1 ≤ 2 ^ ((k + 1) * (q.2.length + 1)) := Nat.one_le_two_pow
     have h := LazyDiagonal.brute_bound_aux C K₀ (encQ q).length _ hc
     have := Nat.le_mul_of_pos_left (2 ^ ((k + 1) * (q.2.length + 1))) hc
-    simp only [e₁, e₂, certLen] at h ⊢; omega
+    simp only [e₁, e₂, certLen] at h ⊢
+    omega
 
 /-- The cost of the tests of the verifier: quadratic in the encoded input, times the square of a
 bound `4 ^ ((k + 2) * (n + 1))` on the horizon, which the tests write in unary. -/
@@ -235,18 +243,18 @@ private theorem horizon_le (k C : ℕ) (x : List Bool) :
   have hk : (k + 2) * (2 * (unframe x).length + 1 + 1) ≤ 2 * ((k + 2) * (x.length + 1)) :=
     (Nat.mul_le_mul_left (k + 2)
       (by omega : 2 * (unframe x).length + 1 + 1 ≤ 2 * (x.length + 1))).trans_eq (by ring)
-  refine ⟨by rw [horizon, h4]; exact Nat.pow_le_pow_right Nat.one_lt_two.le hk, ?_⟩
-  have h₁ : 2 ^ (2 * (unframe x).length + 1) ≤ 2 * 4 ^ ((k + 2) * (x.length + 1)) := by
-    rw [h4, pow_succ, mul_comm]
-    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((by omega : 2 * (unframe x).length ≤ 2 * (x.length + 1)).trans
-        (Nat.mul_le_mul_left 2 (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))))
-  have h₂ : 4 ^ ((k + 2) * (2 * (unframe x).length + 1 + 1)) ≤
-      (4 ^ ((k + 2) * (x.length + 1))) ^ 2 := by
-    rw [← pow_mul, mul_comm ((k + 2) * _)]; exact Nat.pow_le_pow_right (by norm_num) hk
-  have h₁' : C * 2 ^ (2 * (unframe x).length + 1) ≤ 2 * C * 4 ^ ((k + 2) * (x.length + 1)) :=
-    (Nat.mul_le_mul_left C h₁).trans_eq (by ring)
-  omega
+  refine ⟨?_, ?_⟩
+  · rw [horizon, h4]
+    exact Nat.pow_le_pow_right Nat.one_lt_two.le hk
+  · have h₁ : 2 ^ (2 * (unframe x).length + 1) ≤ 2 * 4 ^ ((k + 2) * (x.length + 1)) := by
+      rw [h4, pow_succ, mul_comm]
+      exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
+        ((by omega : 2 * (unframe x).length ≤ 2 * (x.length + 1)).trans
+          (Nat.mul_le_mul_left 2 (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))))
+    have h₂ : 4 ^ ((k + 2) * (2 * (unframe x).length + 1 + 1)) ≤
+        (4 ^ ((k + 2) * (x.length + 1))) ^ 2 := by
+      simpa only [← pow_mul, mul_comm _ 2] using Nat.pow_le_pow_right (by norm_num) hk
+    exact Nat.add_le_add ((Nat.mul_le_mul_left C h₁).trans_eq (by ring)) h₂
 
 /-- **The verifier of the exponential lazy diagonal is computable**, within the cost of its tests
 plus the cost of the branch taken: the simulation, or the brute force at the end of an interval. -/
@@ -268,6 +276,7 @@ private theorem exists_computableInO_verifier (k : ℕ) :
     |>.exists_computableInO_unary_two_pow
   have hE := hE₀.comp (by fun_prop : ComputableInO (fun p : List Bool × List Bool =>
     frame (unframe p.1)) (encPair encBits encBits) encBits _ _)
+  -- the numeric facts about the tests
   have hfacts (p : List Bool × List Bool) : (encPair encBits encBits p).length + 1 ≤ cheap k p ∧
       (2 * (encPair encBits encBits p).length + 4 +
         horizon k (2 * (unframe p.1).length + 1)) ^ 2 ≤ 25 * cheap k p ∧
@@ -278,21 +287,19 @@ private theorem exists_computableInO_verifier (k : ℕ) :
     set Y := 4 ^ ((k + 2) * (p.1.length + 1))
     obtain ⟨h₁, -, h₃⟩ := LazyDiagonal.cheap_aux 1 hn (Nat.one_le_pow _ _ (by norm_num) : 1 ≤ Y)
       (Z := horizon k (2 * (unframe p.1).length + 1)) (by omega)
-    have hc : cheap k p = ((encPair encBits encBits p).length + 1) ^ 2 * Y ^ 2 := rfl
-    have hY₂ : Y ^ 2 ≤ cheap k p := by
-      rw [hc]; exact Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos _))
-    have := Nat.mul_le_mul_left (2 * CE) ((Nat.le_self_pow two_ne_zero Y).trans hY₂)
-    have : (2 * CE + 1) * cheap k p = 2 * CE * cheap k p + cheap k p := by ring
+    have hY₂ : Y ^ 2 ≤ cheap k p := Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos _))
     norm_num only at h₃
-    rw [hc]
-    exact ⟨hc ▸ h₁, h₃, by rw [← hc]; omega⟩
+    exact ⟨h₁, h₃, hE'.trans ((Nat.add_le_add
+      (Nat.mul_le_mul_left (2 * CE) ((Nat.le_self_pow two_ne_zero Y).trans hY₂)) hY₂).trans_eq
+      (Nat.succ_mul _ _).symm)⟩
   have hE' := hE.mono_time (T' := cheap k) (4 + 2 * CE) fun p => by
     obtain ⟨hc, -, ht⟩ := hfacts p
     have hu := length_unframe_le p.1
     have hn : p.1.length ≤ (encPair encBits encBits p).length := by enc_len
     have : (4 + 2 * CE) * (cheap k p + 1) =
         3 * cheap k p + (2 * CE + 1) * cheap k p + (4 + 2 * CE) := by ring
-    simp only [length_frame, encBits_apply]; omega
+    simp only [length_frame, encBits_apply]
+    omega
   obtain ⟨_, _, _, hc₀, hc₁', hc₂'⟩ := Diagonal.exists_computableInO_lazyTests (H := horizon k)
     (hE'.of_enc_eq fun p => by simp only [Function.comp_apply, horizon, length_frame])
     (fun p => (hfacts p).1) (fun p => (hfacts p).2.1)
@@ -303,7 +310,8 @@ private theorem exists_computableInO_verifier (k : ℕ) :
 
 /-- `2 ^ a ≤ 2 ^ b * 2 ^ c` whenever `a ≤ c + b`. -/
 private theorem two_pow_le_two_pow_mul {a b c : ℕ} (h : a ≤ c + b) : 2 ^ a ≤ 2 ^ b * 2 ^ c := by
-  rw [← pow_add]; exact Nat.pow_le_pow_right Nat.one_lt_two.le (by omega)
+  rw [← pow_add]
+  exact Nat.pow_le_pow_right Nat.one_lt_two.le (by omega)
 
 /-- **The exponential lazy diagonal is decidable in nondeterministic time
 `O(2 ^ ((8 * k + 16) * n))`.** Guess a certificate of length `2 ^ ((k + 1) * (n + 2))` and run the
@@ -321,26 +329,36 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
   obtain ⟨CD, hCD⟩ := PolynomiallyBounded.exists_le_mul_two_pow (p := fun m => (m + 1) ^ D)
     (by fun_prop)
   set B₀ := 3 * K * 2 ^ ((k + 1) * (3 * K)) with hB₀
-  set A₁ := 2 ^ (8 * k + 14); set A₂ := 81 * (CD + 3) ^ 4 * 2 ^ (16 * k + 16)
+  set A₁ := 2 ^ (8 * k + 14)
+  set A₂ := 81 * (CD + 3) ^ 4 * 2 ^ (16 * k + 16)
   set A₃ := Cℓ + 2 ^ (4 * k + 4)
   refine setOf_exists_mem_NTIME (hℓ₀.of_enc_eq (encC := encUnary)
     (g := fun x : List Bool => certLen k (x.length + 1)) fun _ => rfl) hV
     (C := 2 + A₃ + 4 * A₁ + A₂ + 2 ^ B₀) fun x v hv => ?_
-  clear hℓ₀ hV; simp only [encBits_apply]
-  set n := x.length with hn; set V := 2 ^ ((k + 1) * (n + 2)) with hVdef
+  clear hℓ₀ hV
+  simp only [encBits_apply]
+  set n := x.length with hn
+  set V := 2 ^ ((k + 1) * (n + 2)) with hVdef
   have hv' : v.length = V := hv
   set M := 2 ^ ((8 * k + 16) * n)
   have hnV : 4 * n + 4 ≤ V :=
-    (by have := Nat.lt_two_pow_self (n := n); rw [pow_succ, pow_succ]; omega :
-      4 * n + 4 ≤ 2 ^ (n + 2)).trans
-      (Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))
+    calc 4 * n + 4 ≤ 2 ^ (n + 2) := by
+          have := Nat.lt_two_pow_self (n := n)
+          rw [pow_succ, pow_succ]
+          omega
+      _ ≤ V := Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
   have h₁ : 2 ^ n ≤ M :=
     Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
+  -- the certificate length
   have hTℓ : Cℓ * 2 ^ n + 4 ^ ((k + 1) * (n + 2)) ≤ A₃ * M := by
     have h₂ : 4 ^ ((k + 1) * (n + 2)) ≤ 2 ^ (4 * k + 4) * M := by
-      rw [show (4 : ℕ) = 2 ^ 2 by rfl, ← pow_mul]; exact two_pow_le_two_pow_mul (by ring_nf; omega)
+      rw [show (4 : ℕ) = 2 ^ 2 by rfl, ← pow_mul]
+      apply two_pow_le_two_pow_mul
+      ring_nf; omega
     have : A₃ * M = Cℓ * M + 2 ^ (4 * k + 4) * M := by ring
-    have := Nat.mul_le_mul_left Cℓ h₁; omega
+    have := Nat.mul_le_mul_left Cℓ h₁
+    omega
+  -- the tests
   have hcheap : cheap k (x, v) ≤ A₁ * M := by
     have hN : (encPair encBits encBits (x, v)).length + 1 ≤ 2 * V := by enc_len [hv', ← hn]
     calc cheap k (x, v) = ((encPair encBits encBits (x, v)).length + 1) ^ 2 *
@@ -350,7 +368,10 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
       _ = 2 ^ (2 + 2 * ((k + 1) * (n + 2)) + 4 * ((k + 2) * (n + 1))) := by
           rw [hVdef, show (4 : ℕ) = 2 ^ 2 by rfl]
           simp only [mul_pow, ← pow_mul, ← pow_add]; ring_nf
-      _ ≤ A₁ * M := two_pow_le_two_pow_mul (by ring_nf; omega)
+      _ ≤ A₁ * M := by
+          apply two_pow_le_two_pow_mul
+          ring_nf; omega
+  -- the simulation, when the description is short
   have hacc (h₀ : Diagonal.shortDesc (unframe x) = true) :
       accBound D (unframe (unframe x), x ++ [false], v) ≤ A₂ * M := by
     have hD : ((unframe (unframe x)).length + 1) ^ D ≤ CD * n :=
@@ -367,30 +388,43 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
           rw [hVdef]
           simp only [mul_pow, ← pow_mul]
           ring
-      _ ≤ 81 * (CD + 3) ^ 4 * (2 ^ (16 * k + 16) * M) :=
-          Nat.mul_le_mul_left _ (two_pow_le_two_pow_mul (by ring_nf; omega))
+      _ ≤ 81 * (CD + 3) ^ 4 * (2 ^ (16 * k + 16) * M) := by
+          apply Nat.mul_le_mul_left _ (two_pow_le_two_pow_mul ?_)
+          ring_nf; omega
       _ = A₂ * M := by ring
   clear_value B₀ A₁ A₂ A₃ M V
+  -- the brute force, at the end of an interval
   have hbrute (h₁ : ¬Nat.size (n + 1) ≤ horizon k (2 * (unframe x).length + 1)) :
       2 ^ (K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
         certLen k (2 * (unframe x).length + 1))) ≤ n + 1 + 2 ^ B₀ := by
     set P := 2 * (unframe x).length + 1
     have hE : 2 ^ horizon k P ≤ n + 1 := not_lt.mp ((Nat.size_le).not.mp h₁)
     have hc := length_unframe_le (unframe x)
-    have hPc : P + 1 ≤ certLen k P := Nat.lt_two_pow_self.le.trans
-      (Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))
+    have hPc : P + 1 ≤ certLen k P :=
+      Nat.lt_two_pow_self.le.trans
+        (Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))
+    have hlen : (encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
+        certLen k P ≤ 3 * certLen k P := by enc_len
     have hKmul : K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
         certLen k P) ≤ 3 * K * certLen k P :=
-      (Nat.mul_le_mul_left _ (by enc_len : _ ≤ 3 * certLen k P)).trans_eq (by ring)
+      (Nat.mul_le_mul_left _ hlen).trans_eq (by ring)
     rcases le_or_gt (3 * K) (2 ^ (P + 1)) with hK | hK
     · have hle : K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
-          certLen k P) ≤ horizon k P := hKmul.trans ((Nat.mul_le_mul_right _ hK).trans_eq
-        (by rw [certLen, horizon, ← pow_add]; congr 1; ring))
+          certLen k P) ≤ horizon k P :=
+        calc _ ≤ 3 * K * certLen k P := hKmul
+          _ ≤ 2 ^ (P + 1) * certLen k P := Nat.mul_le_mul_right _ hK
+          _ = horizon k P := by
+              rw [certLen, horizon, ← pow_add]
+              congr 1
+              ring
       exact ((Nat.pow_le_pow_right Nat.one_lt_two.le hle).trans hE).trans (Nat.le_add_right _ _)
     · have hle : K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
-          certLen k P) ≤ B₀ := hKmul.trans (by
-        rw [hB₀]; exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
-          (Nat.mul_le_mul_left _ (Nat.lt_two_pow_self.trans hK).le)))
+          certLen k P) ≤ B₀ :=
+        calc _ ≤ 3 * K * certLen k P := hKmul
+          _ ≤ B₀ := by
+              rw [hB₀]
+              exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
+                (Nat.mul_le_mul_left _ (Nat.lt_two_pow_self.trans hK).le))
       exact (Nat.pow_le_pow_right Nat.one_lt_two.le hle).trans (Nat.le_add_left _ _)
   exact LazyDiagonal.verifier_branch_bound (Nat.lt_two_pow_self.trans_le h₁) hTℓ hcheap hacc hbrute
 

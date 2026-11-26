@@ -591,7 +591,8 @@ theorem networkCost_starGraph (α : ℝ) (r : V) :
     have hcard : 1 ≤ Fintype.card V := Fintype.card_pos_iff.mpr ⟨r⟩
     rcases eq_or_lt_of_le hcard with h1 | h2
     · rw [← h1]; norm_num
-    · zify [hcard, (by omega : 2 ≤ Fintype.card V)]; ring
+    · zify [hcard, (by omega : 2 ≤ Fintype.card V)]
+      ring
   rw [networkCost_def, hedge]
   have hcast : (∑ u : V, ∑ v : V, ((starGraph r).dist u v : ℝ)) =
       ((2 * (Fintype.card V - 1) ^ 2 : ℕ) : ℝ) := by
@@ -619,7 +620,8 @@ theorem two_mul_card_mul_le_sum_dist_add_two_mul_edges {G : SimpleGraph V} (hc :
     2 * (Fintype.card V * (Fintype.card V - 1)) ≤
       (∑ u : V, ∑ v : V, G.dist u v) + 2 * G.edgeSet.ncard := by
   classical
-  have hadj_sum : 2 * G.edgeSet.ncard = ∑ u : V, ∑ v : V, if G.Adj u v then 1 else 0 := by
+  have hadj_sum : 2 * G.edgeSet.ncard =
+      ∑ u : V, ∑ v : V, if G.Adj u v then 1 else 0 := by
     rw [ncard_edgeSet_eq_card_edgeFinset, ← G.sum_degrees_eq_twice_card_edges]
     exact sum_congr rfl fun u _ => by
       rw [← card_neighborFinset_eq_degree, neighborFinset_eq_filter, card_filter]
@@ -637,7 +639,8 @@ theorem two_mul_card_mul_le_sum_dist_add_two_mul_edges {G : SimpleGraph V} (hc :
   rw [← sum_add_distrib]
   refine sum_le_sum fun v _ => ?_
   by_cases huv : u = v
-  · subst huv; simp
+  · subst huv
+    simp
   · by_cases hadj : G.Adj u v
     · simp [huv, hadj, dist_eq_one_iff_adj.mpr hadj]
     · simp only [ne_eq, huv, not_false_eq_true, ↓reduceIte, hadj, add_zero]
@@ -677,7 +680,8 @@ theorem isOptimalNetwork_starGraph {α : ℝ} (hα : 2 ≤ α) (r : V) :
     have hcast : (Fintype.card V : ℝ) = ((Fintype.card V - 1 : ℕ) : ℝ) + 1 := by
       exact_mod_cast (Nat.sub_add_cancel (Fintype.card_pos (α := V))).symm
     nlinarith
-  · rw [networkECost_eq_top_iff.mpr hc]; exact le_top
+  · rw [networkECost_eq_top_iff.mpr hc]
+    exact le_top
 
 /-- **Optimal network for `0 ≤ α ≤ 2`** ([TardosWexler2007], Lemma 19.1, p. 490): for `0 ≤ α ≤ 2`,
 the complete graph `⊤` minimizes `networkECost α` over all networks. -/
@@ -699,7 +703,8 @@ theorem isOptimalNetwork_top {α : ℝ} (hα₀ : 0 ≤ α) (hα : α ≤ 2) :
       have hlow := le_networkCost_of_preconnected (α := α) hc.preconnected
       have hmul := mul_le_mul_of_nonneg_left hm_real (by linarith : 0 ≤ 2 - α)
       linarith
-    · rw [networkECost_eq_top_iff.mpr hc]; exact le_top
+    · rw [networkECost_eq_top_iff.mpr hc]
+      exact le_top
 
 /-- **Social optimality of star profiles for `α ≥ 2`** ([TardosWexler2007], Lemma 19.1, p. 490). -/
 theorem NoDoubleEdges.isSocialOptimum_of_formedGraph_eq_starGraph {α : ℝ} (hα : 2 ≤ α) (r : V)
@@ -726,12 +731,14 @@ theorem edge_add_dist_le_networkCost_of_connected {α : ℝ} (hα₀ : 0 ≤ α)
   have hdist : Fintype.card V * (Fintype.card V - 1) ≤ ∑ u : V, ∑ v : V, G'.dist u v := by
     have hu : ∀ u : V, Fintype.card V - 1 ≤ ∑ v : V, G'.dist u v := fun u => by
       rw [← sum_erase_add _ _ (mem_univ u), SimpleGraph.dist_self, add_zero]
-      have := sum_le_sum (s := univ.erase u) (f := fun _ => 1) fun v hv =>
-        Nat.succ_le_of_lt ((hc u v).pos_dist_of_ne (mem_erase.mp hv).1.symm)
-      simpa only [sum_const, card_erase_of_mem (mem_univ u), card_univ, smul_eq_mul, mul_one] using
-        this
-    have := sum_le_sum (s := univ) (f := fun _ => Fintype.card V - 1) fun u _ => hu u
-    simpa only [sum_const, card_univ, smul_eq_mul] using this
+      calc Fintype.card V - 1
+          = ∑ _v ∈ univ.erase u, 1 := by
+            simp only [sum_const, card_erase_of_mem (mem_univ u), card_univ, smul_eq_mul, mul_one]
+        _ ≤ ∑ v ∈ univ.erase u, G'.dist u v :=
+          sum_le_sum fun v hv => (hc u v).pos_dist_of_ne (mem_erase.mp hv).1.symm
+    calc Fintype.card V * (Fintype.card V - 1)
+        = ∑ _u : V, (Fintype.card V - 1) := by simp only [sum_const, card_univ, smul_eq_mul]
+      _ ≤ ∑ u : V, ∑ v : V, G'.dist u v := sum_le_sum fun u _ => hu u
   have hdist_real : (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) ≤
       ∑ u : V, ∑ v : V, (G'.dist u v : ℝ) := by exact_mod_cast hdist
   have hmul := mul_le_mul_of_nonneg_left (card_sub_one_le_ncard_edgeSet hc) hα₀
@@ -793,7 +800,9 @@ private theorem getVert_one_and_dist_deleteEdges_of_lt {V : Type*} {G : SimpleGr
     simpa only [Walk.length_transfer] using
       dist_le (q.toDeleteEdges {s(u, v)} fun e he hmem => hq (Set.mem_singleton_iff.mp hmem ▸ he))
   have he_mem : s(u, v) ∈ p.edges := by
-    by_contra hnot; have := hdel_le p hnot; omega
+    by_contra hnot
+    have := hdel_le p hnot
+    omega
   have hpath := p.isPath_of_length_eq_dist hp
   cases p with
   | nil => simp only [Walk.edges_nil, List.not_mem_nil] at he_mem
@@ -825,7 +834,8 @@ private theorem sum_ge_of_subset {α : Type*} [DecidableEq α] {S T : Finset α}
   rw [← card_sdiff_of_subset hT]
   conv_rhs => rw [← union_sdiff_of_subset hT]
   rw [sum_union disjoint_sdiff_self_right]
-  have := sum_le_sum h₁; have := sum_le_sum h₂
+  have := sum_le_sum h₁
+  have := sum_le_sum h₂
   simp only [sum_const, smul_eq_mul] at *
   linarith
 
@@ -960,7 +970,8 @@ private theorem formedGraph_update_erase_eq_deleteEdges {s : Profile V} (hnd : N
   have huv_not : u ∉ s v := hnd hv
   ext x y
   by_cases hxu : x = u <;> by_cases hyu : y = u
-  · subst hxu hyu; simp
+  · subst hxu hyu
+    simp
   · subst hxu
     rw [formedGraph_adj, deleteEdges_adj, formedGraph_adj, Function.update_self,
       Function.update_of_ne hyu, LinkSet.mem_erase_iff]
@@ -984,7 +995,8 @@ theorem IsPureNash.noDoubleEdges {α : ℝ} (hα : 0 < α) {s : Profile V} (hs :
   have hG : formedGraph s' = formedGraph s := by
     ext x y
     by_cases hxu : x = u <;> by_cases hyu : y = u
-    · subst hxu hyu; simp [s']
+    · subst hxu hyu
+      simp [s']
     · subst hxu
       rw [formedGraph_adj, formedGraph_adj]
       simp only [s', Function.update_self, Function.update_of_ne hyu, LinkSet.mem_erase_iff]
@@ -999,8 +1011,11 @@ theorem IsPureNash.noDoubleEdges {α : ℝ} (hα : 0 < α) {s : Profile V} (hs :
       · simp [hxv]
     · simp [formedGraph_adj, s', hxu, hyu]
   have hle := hs u ((s u).erase v)
+  have hr' : ∀ w, (formedGraph s').Reachable u w := by
+    rw [hG]
+    exact hs.preconnected u
   rw [playerECost_eq_ofReal_of_forall_reachable hα.le (hs.preconnected u),
-    playerECost_eq_ofReal_of_forall_reachable hα.le (by rw [hG]; exact hs.preconnected u),
+    playerECost_eq_ofReal_of_forall_reachable hα.le hr',
     ENNReal.ofReal_le_ofReal_iff (playerCost_nonneg hα.le s' u)] at hle
   rw [playerCost_def, playerCost_def, card_update_erase hv, hG] at hle
   linarith
@@ -1067,7 +1082,8 @@ theorem NoDoubleEdges.isPureNash_of_formedGraph_eq_starGraph {α : ℝ} (hα : 1
             exact False.elim (hadj.elim (hleaf_no_leaf v w (LinkSet.ne_of_mem hv) hwu)
               (hleaf_no_leaf w v hwu (LinkSet.ne_of_mem hv)))
       have hcard_le : ((s u).neighbors.card : ℝ) ≤ ((s' u).neighbors.card : ℝ) := by
-        simp only [s', Function.update_self]; exact_mod_cast card_le_card hsub
+        simp only [s', Function.update_self]
+        exact_mod_cast card_le_card hsub
       have hdist_le : (∑ v : V, ((formedGraph s).dist u v : ℝ)) ≤
           ∑ v : V, ((formedGraph s').dist u v : ℝ) := sum_le_sum fun v _ => by
         rw [hG]
@@ -1098,13 +1114,15 @@ theorem NoDoubleEdges.isPureNash_of_formedGraph_eq_starGraph {α : ℝ} (hα : 1
           by_cases hru : r ∈ s u
           · have hra : r ∈ a.neighbors := by
               rw [formedGraph_adj] at hadj_ur
-              simp only [s', Function.update_self, Function.update_of_ne (Ne.symm hur)] at hadj_ur
+              simp only [s', Function.update_self,
+                Function.update_of_ne (Ne.symm hur)] at hadj_ur
               exact hadj_ur.resolve_right (hnd hru)
             rw [Subset.antisymm hsu_sub (singleton_subset_iff.mpr hru), card_singleton, add_comm,
               card_erase_add_one hra]
           · have hsu_eq : (s u).neighbors = ∅ := eq_empty_iff_forall_notMem.mpr fun v hv =>
               hru (mem_singleton.mp (hsu_sub hv) ▸ hv)
-            rw [hsu_eq, card_empty, zero_add]; exact card_erase_le
+            rw [hsu_eq, card_empty, zero_add]
+            exact card_erase_le
         have ha_sub : a.neighbors.erase r ⊆ leaves := fun v hv =>
           mem_erase.mpr ⟨(mem_erase.mp hv).1,
             mem_erase.mpr ⟨LinkSet.ne_of_mem (mem_erase.mp hv).2, mem_univ v⟩⟩
@@ -1117,20 +1135,33 @@ theorem NoDoubleEdges.isPureNash_of_formedGraph_eq_starGraph {α : ℝ} (hα : 1
         have hl_real : (#(a.neighbors.erase r) : ℝ) +
             2 * (((Fintype.card V - 2 : ℕ) : ℝ) - (#(a.neighbors.erase r) : ℝ)) ≤
             ∑ v ∈ leaves, ((formedGraph s').dist u v : ℝ) := by
-          have := card_le_card ha_sub
-          have hcast :
-              ((1 * #(a.neighbors.erase r) + 2 * (#leaves - #(a.neighbors.erase r)) : ℕ) : ℝ) ≤
-              ∑ v ∈ leaves, ((formedGraph s').dist u v : ℝ) := by exact_mod_cast hleaf_dist
-          rw [Nat.cast_add, Nat.cast_mul, Nat.cast_mul, Nat.cast_one, one_mul, Nat.cast_ofNat,
-            Nat.cast_sub this, hcard_leaves] at hcast
-          exact hcast
+          have hsub_le := card_le_card ha_sub
+          calc (#(a.neighbors.erase r) : ℝ) +
+                2 * (((Fintype.card V - 2 : ℕ) : ℝ) - (#(a.neighbors.erase r) : ℝ))
+              = ((1 * #(a.neighbors.erase r) +
+                  2 * (#leaves - #(a.neighbors.erase r)) : ℕ) : ℝ) := by
+                symm
+                rw [Nat.cast_add, Nat.cast_mul, Nat.cast_mul, Nat.cast_one, one_mul, Nat.cast_ofNat,
+                  Nat.cast_sub hsub_le, hcard_leaves]
+            _ ≤ ∑ v ∈ leaves, ((formedGraph s').dist u v : ℝ) := by exact_mod_cast hleaf_dist
+        have hdist_s' :
+            1 + 2 * ((Fintype.card V - 2 : ℕ) : ℝ) - (#(a.neighbors.erase r) : ℝ) ≤
+              ∑ v : V, ((formedGraph s').dist u v : ℝ) :=
+          calc 1 + 2 * ((Fintype.card V - 2 : ℕ) : ℝ) - (#(a.neighbors.erase r) : ℝ)
+              ≤ 0 + 1 + ((#(a.neighbors.erase r) : ℝ) +
+                  2 * (((Fintype.card V - 2 : ℕ) : ℝ) - (#(a.neighbors.erase r) : ℝ))) := by
+                linarith
+            _ ≤ ((formedGraph s').dist u u : ℝ) + ((formedGraph s').dist u r : ℝ) +
+                  ∑ v ∈ leaves, ((formedGraph s').dist u v : ℝ) := by
+                rw [SimpleGraph.dist_self, Nat.cast_zero, dist_eq_one_iff_adj.mpr hadj_ur,
+                  Nat.cast_one]
+                linarith
+            _ = ∑ v : V, ((formedGraph s').dist u v : ℝ) :=
+                (hsplit fun v => ((formedGraph s').dist u v : ℝ)).symm
         have hcard_rel_real : ((s u).neighbors.card : ℝ) + (#(a.neighbors.erase r) : ℝ) ≤
             ((s' u).neighbors.card : ℝ) := by
           simp only [s', Function.update_self]; exact_mod_cast hcard_rel
-        have hr1 : ((formedGraph s').dist u r : ℝ) = 1 := by
-          rw [dist_eq_one_iff_adj.mpr hadj_ur, Nat.cast_one]
-        rw [playerCost_def, playerCost_def, hdist_s, hsplit, SimpleGraph.dist_self,
-          Nat.cast_zero, hr1]
+        rw [playerCost_def, playerCost_def, hdist_s]
         nlinarith
       · have hra_not : r ∉ a.neighbors := fun hra => hadj_ur <| by
           rw [formedGraph_adj]; left
@@ -1174,20 +1205,23 @@ theorem NoDoubleEdges.isPureNash_of_formedGraph_eq_starGraph {α : ℝ} (hα : 1
                   simp only [s', Function.update_of_ne (mem_erase.mp hvu).1,
                     Function.update_of_ne huz.ne.symm] at hvz
                   exact hvz.elim (hleaf_no_leaf v z hvr hzr) (hleaf_no_leaf z v hzr hvr)
-            have hed3 : 2 < (formedGraph s').edist u v :=
-              two_lt_edist_iff.mpr ⟨(mem_erase.mp hvu).1.symm, hnadj_of v hvl hvna, hcn⟩
-            rw [← (hr' v).coe_dist_eq_edist] at hed3
+            have hed3 : (2 : ℕ∞) < ((formedGraph s').dist u v : ℕ∞) :=
+              calc (2 : ℕ∞) < (formedGraph s').edist u v :=
+                    two_lt_edist_iff.mpr ⟨(mem_erase.mp hvu).1.symm, hnadj_of v hvl hvna, hcn⟩
+                _ = ((formedGraph s').dist u v : ℕ∞) := (hr' v).coe_dist_eq_edist.symm
             have : 2 < (formedGraph s').dist u v := by exact_mod_cast hed3
             omega)
-        have hl_real : (a.neighbors.card : ℝ) +
-            3 * (((Fintype.card V - 2 : ℕ) : ℝ) - (a.neighbors.card : ℝ)) ≤
+        have hl_real : (a.neighbors.card : ℝ) + 3 *
+            (((Fintype.card V - 2 : ℕ) : ℝ) - (a.neighbors.card : ℝ)) ≤
             ∑ v ∈ leaves, ((formedGraph s').dist u v : ℝ) := by
-          have := card_le_card ha_sub
-          have hcast : ((1 * a.neighbors.card + 3 * (#leaves - a.neighbors.card) : ℕ) : ℝ) ≤
-              ∑ v ∈ leaves, ((formedGraph s').dist u v : ℝ) := by exact_mod_cast hleaf_dist
-          rw [Nat.cast_add, Nat.cast_mul, Nat.cast_mul, Nat.cast_one, one_mul, Nat.cast_ofNat,
-            Nat.cast_sub this, hcard_leaves] at hcast
-          exact hcast
+          have hsub_le := card_le_card ha_sub
+          calc (a.neighbors.card : ℝ) +
+                3 * (((Fintype.card V - 2 : ℕ) : ℝ) - (a.neighbors.card : ℝ))
+              = ((1 * a.neighbors.card + 3 * (#leaves - a.neighbors.card) : ℕ) : ℝ) := by
+                symm
+                rw [Nat.cast_add, Nat.cast_mul, Nat.cast_mul, Nat.cast_one, one_mul, Nat.cast_ofNat,
+                  Nat.cast_sub hsub_le, hcard_leaves]
+            _ ≤ ∑ v ∈ leaves, ((formedGraph s').dist u v : ℝ) := by exact_mod_cast hleaf_dist
         have hr2 : (2 : ℝ) ≤ ((formedGraph s').dist u r : ℝ) := by
           exact_mod_cast (hr' r).one_lt_dist_of_ne_of_not_adj hur hadj_ur
         have ha_pos_real : (1 : ℝ) ≤ (a.neighbors.card : ℝ) := by exact_mod_cast ha_pos
@@ -1230,7 +1264,6 @@ theorem NoDoubleEdges.isPureNash_of_formedGraph_eq_top {α : ℝ} (hα₀ : 0 �
     have hdrop_sub : dropped ⊆ univ.erase u := fun v hv =>
       mem_erase.mpr ⟨LinkSet.ne_of_mem (mem_sdiff.mp hv).1, mem_univ v⟩
     have hdist_s' : (Fintype.card V - 1 : ℕ) + #dropped ≤ ∑ v : V, (formedGraph s').dist u v := by
-      rw [← sum_erase_add _ _ (mem_univ u), SimpleGraph.dist_self, add_zero]
       have hge := sum_ge_of_subset hdrop_sub (fun v => (formedGraph s').dist u v) 2 1
         (fun v hv => by
           obtain ⟨hv_su, hv_na⟩ := mem_sdiff.mp hv
@@ -1243,12 +1276,18 @@ theorem NoDoubleEdges.isPureNash_of_formedGraph_eq_top {α : ℝ} (hα₀ : 0 �
         (fun v hv => (hr' v).pos_dist_of_ne (mem_erase.mp (mem_sdiff.mp hv).1).1.symm)
       have hle_d := card_le_card hdrop_sub
       simp only [card_erase_of_mem (mem_univ u), card_univ] at hge hle_d
-      omega
+      calc (Fintype.card V - 1 : ℕ) + #dropped
+          ≤ 2 * #dropped + 1 * (Fintype.card V - 1 - #dropped) := by omega
+        _ ≤ ∑ v ∈ univ.erase u, (formedGraph s').dist u v := hge
+        _ = ∑ v : V, (formedGraph s').dist u v := by
+          rw [← sum_erase_add _ _ (mem_univ u), SimpleGraph.dist_self, add_zero]
     have hcard_a : (s u).neighbors.card ≤ a.neighbors.card + #dropped :=
-      (card_le_card fun v hv => by
-        by_cases hva : v ∈ a.neighbors
-        · exact mem_union_left _ hva
-        · exact mem_union_right _ (mem_sdiff.mpr ⟨hv, hva⟩)).trans (card_union_le _ _)
+      calc (s u).neighbors.card
+          ≤ #(a.neighbors ∪ dropped) := card_le_card fun v hv => by
+            by_cases hva : v ∈ a.neighbors
+            · exact mem_union_left _ hva
+            · exact mem_union_right _ (mem_sdiff.mpr ⟨hv, hva⟩)
+        _ ≤ a.neighbors.card + #dropped := card_union_le _ _
     have hdist_s'_real : ((Fintype.card V - 1 : ℕ) : ℝ) + (#dropped : ℝ) ≤
         ∑ v : V, ((formedGraph s').dist u v : ℝ) := by exact_mod_cast hdist_s'
     have hcard_a_real : ((s u).neighbors.card : ℝ) ≤
@@ -1277,7 +1316,8 @@ theorem isStableNetwork_top_iff {α : ℝ} (hα₀ : 0 ≤ α) (hV : 3 ≤ Finty
   by_contra! hgt
   let e := (Fintype.equivFin V).symm
   have hadj01 : (formedGraph s).Adj (e ⟨0, by omega⟩) (e ⟨1, by omega⟩) := by
-    rw [hG]; simp [e.injective.ne]
+    rw [hG]
+    simp [e.injective.ne]
   obtain ⟨u, v, hv⟩ : ∃ u v : V, v ∈ s u :=
     (formedGraph_adj.mp hadj01).elim (fun h1 => ⟨_, _, h1⟩) (fun h2 => ⟨_, _, h2⟩)
   have hvu : v ≠ u := LinkSet.ne_of_mem hv
@@ -1376,20 +1416,18 @@ strategy profile. -/
 theorem exists_isPureNash_socialECost_le_four_thirds {α : ℝ} (hα₀ : 0 ≤ α) :
     ∃ s : Profile V, IsPureNash α s ∧
       ∀ s' : Profile V, socialECost α s ≤ ENNReal.ofReal (4 / 3) * socialECost α s' := by
-  have of_opt : ∀ {s : Profile V}, IsPureNash α s → IsSocialOptimum α s →
-      ∃ s : Profile V, IsPureNash α s ∧
-        ∀ s' : Profile V, socialECost α s ≤ ENNReal.ofReal (4 / 3) * socialECost α s' :=
-    fun hne hopt => ⟨_, hne, fun s' => by
-      have h143 : (1 : ℝ≥0∞) ≤ ENNReal.ofReal (4 / 3) :=
-        ENNReal.ofReal_one ▸ ENNReal.ofReal_le_ofReal (by norm_num)
-      calc socialECost α _ ≤ 1 * socialECost α s' := by simpa only [one_mul] using hopt s'
-        _ ≤ ENNReal.ofReal (4 / 3) * socialECost α s' := by gcongr⟩
+  have h1le43 : (1 : ℝ≥0∞) ≤ ENNReal.ofReal (4 / 3) :=
+    ENNReal.ofReal_one ▸ ENNReal.ofReal_le_ofReal (by norm_num)
   by_cases h1 : α ≤ 1
-  · obtain ⟨_, hne, hopt⟩ := exists_isPureNash_isSocialOptimum_of_le_one (V := V) hα₀ h1
-    exact of_opt hne hopt
+  · obtain ⟨s, hne, hopt⟩ := exists_isPureNash_isSocialOptimum_of_le_one (V := V) hα₀ h1
+    refine ⟨s, hne, fun s' => ?_⟩
+    calc socialECost α s ≤ 1 * socialECost α s' := by simpa only [one_mul] using hopt s'
+      _ ≤ ENNReal.ofReal (4 / 3) * socialECost α s' := by gcongr
   · by_cases h2 : 2 ≤ α
-    · obtain ⟨_, hne, hopt⟩ := exists_isPureNash_isSocialOptimum_of_two_le (V := V) h2
-      exact of_opt hne hopt
+    · obtain ⟨s, hne, hopt⟩ := exists_isPureNash_isSocialOptimum_of_two_le (V := V) h2
+      refine ⟨s, hne, fun s' => ?_⟩
+      calc socialECost α s ≤ 1 * socialECost α s' := by simpa only [one_mul] using hopt s'
+        _ ≤ ENNReal.ofReal (4 / 3) * socialECost α s' := by gcongr
     · push Not at h1 h2
       rcases isEmpty_or_nonempty V with hE | hNE
       · refine ⟨isEmptyElim, fun u => isEmptyElim u, fun _ => ?_⟩
@@ -1497,7 +1535,9 @@ private theorem mul_nonBridge_neighbors_le {α : ℝ} (hα₀ : 0 ≤ α) {s : P
             rw [sum_add_distrib]
             simp only [sum_ite_mem, univ_inter, sum_const, smul_eq_mul]
             ring
-      have hne_le := hs.playerCost_le hα₀ (by rw [hGv_eq]; exact hGv_conn u)
+      have hne_le := hs.playerCost_le hα₀ <| by
+        rw [hGv_eq]
+        exact hGv_conn u
       have hsum_real :
           (∑ w : V, ((formedGraph (Function.update s u ((s u).erase v))).dist u w : ℝ)) ≤
           (∑ w : V, (G.dist u w : ℝ)) + (2 * d : ℝ) * (#(W v) : ℝ) := by
@@ -1511,7 +1551,8 @@ private theorem mul_nonBridge_neighbors_le {α : ℝ} (hα₀ : 0 ≤ α) {s : P
           card_le_card (biUnion_subset.mpr fun v _ => hW_sub v) :
         (∑ v ∈ NB, #(W v)) ≤ Fintype.card V - 1)
     have hNB_eq : (open scoped Classical in
-        #({ v ∈ (s u).neighbors | ¬ (formedGraph s).IsBridge s(u, v) })) = #NB := by congr
+        #({ v ∈ (s u).neighbors | ¬ (formedGraph s).IsBridge s(u, v) })) = #NB := by
+      congr
     rw [hNB_eq]
     calc α * (#NB : ℝ)
         = ∑ _v ∈ NB, α := by simp only [sum_const, nsmul_eq_mul]; ring
@@ -1550,13 +1591,17 @@ theorem IsPureNash.socialCost_le_three_mul_diam_mul {α : ℝ} (hα₀ : 0 ≤ �
         (G.diam : ℝ) * (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) := by
       have hu : ∀ u : V, (∑ v : V, G.dist u v) ≤ G.diam * (Fintype.card V - 1) := fun u => by
         rw [← sum_erase_add _ _ (mem_univ u), SimpleGraph.dist_self, add_zero]
-        simpa only [sum_const, card_erase_of_mem (mem_univ u), card_univ, smul_eq_mul,
-          mul_comm G.diam]
-          using sum_le_sum fun v (_ : v ∈ univ.erase u) => dist_le_diam hediam
+        calc (∑ v ∈ univ.erase u, G.dist u v)
+            ≤ ∑ _v ∈ univ.erase u, G.diam := sum_le_sum fun v _ => dist_le_diam hediam
+          _ = G.diam * (Fintype.card V - 1) := by
+            simp only [sum_const, card_erase_of_mem (mem_univ u), card_univ, smul_eq_mul,
+              mul_comm G.diam]
       have htot : (∑ u : V, ∑ v : V, G.dist u v) ≤
-          Fintype.card V * (G.diam * (Fintype.card V - 1)) := by
-        have := sum_le_sum (s := univ) (g := fun _ => G.diam * (Fintype.card V - 1)) fun u _ => hu u
-        simpa only [sum_const, card_univ, smul_eq_mul] using this
+          Fintype.card V * (G.diam * (Fintype.card V - 1)) :=
+        calc (∑ u : V, ∑ v : V, G.dist u v)
+            ≤ ∑ _u : V, (G.diam * (Fintype.card V - 1)) := sum_le_sum fun u _ => hu u
+          _ = Fintype.card V * (G.diam * (Fintype.card V - 1)) := by
+            simp only [sum_const, card_univ, smul_eq_mul]
       have : (∑ u : V, ∑ v : V, (G.dist u v : ℝ)) ≤
           (Fintype.card V : ℝ) * ((G.diam : ℝ) * (Fintype.card V - 1 : ℕ)) := by exact_mod_cast htot
       linarith
@@ -1601,11 +1646,12 @@ theorem IsPureNash.socialCost_le_three_mul_diam_mul {α : ℝ} (hα₀ : 0 ≤ �
           rw [← mul_sum, ← Nat.cast_sum]
           exact mul_le_mul_of_nonneg_left (by exact_mod_cast hbr_sum) hα₀
         have hnb_real : (∑ u : V, α * (#({ v ∈ (s u).neighbors | ¬ G.IsBridge s(u, v) }) : ℝ)) ≤
-            (2 * G.diam : ℝ) * (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) := by
-          have := sum_le_sum fun u (_ : u ∈ univ) => by
-            convert mul_nonBridge_neighbors_le hα₀ hs u using 3
-          simp only [sum_const, card_univ, nsmul_eq_mul] at this
-          linarith
+            (2 * G.diam : ℝ) * (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) :=
+          calc (∑ u : V, α * (#({ v ∈ (s u).neighbors | ¬ G.IsBridge s(u, v) }) : ℝ))
+              ≤ ∑ _u : V, (2 * G.diam : ℝ) * (Fintype.card V - 1 : ℕ) :=
+                sum_le_sum fun u _ => by convert mul_nonBridge_neighbors_le hα₀ hs u using 3
+            _ = (2 * G.diam : ℝ) * (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) := by
+                simp only [sum_const, card_univ, nsmul_eq_mul]; ring
         linarith
     have hlow_s' : α * (Fintype.card V - 1 : ℕ) +
         (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) ≤ socialCost α s' := by
@@ -1663,17 +1709,20 @@ private theorem formedGraph_le_addLink (s : Profile V) (x y : V) :
   rw [formedGraph_adj] at hab ⊢
   simp only [addLink]
   by_cases hax : a = x
-  · subst hax; rw [Function.update_self, Function.update_of_ne hab_ne.symm]
+  · subst hax
+    rw [Function.update_self, Function.update_of_ne hab_ne.symm]
     exact hab.imp (fun h => LinkSet.mem_ofFinset.mpr ⟨hab_ne.symm, mem_insert_of_mem h⟩) id
   · by_cases hbx : b = x
-    · subst hbx; rw [Function.update_of_ne hax, Function.update_self]
+    · subst hbx
+      rw [Function.update_of_ne hax, Function.update_self]
       exact hab.imp id (fun h => LinkSet.mem_ofFinset.mpr ⟨hax, mem_insert_of_mem h⟩)
     · rwa [Function.update_of_ne hax, Function.update_of_ne hbx]
 
 omit [Fintype V] in
 private theorem adj_addLink {s : Profile V} {x y : V} (hxy : x ≠ y) :
     (formedGraph (addLink s x y)).Adj x y := by
-  rw [formedGraph_adj]; left
+  rw [formedGraph_adj]
+  left
   rw [addLink, Function.update_self, LinkSet.mem_ofFinset]
   exact ⟨hxy.symm, mem_insert_self y _⟩
 
@@ -1710,7 +1759,8 @@ private theorem sum_dist_sub_addLink_le {α : ℝ} (hα₀ : 0 ≤ α) {s : Prof
     exact_mod_cast (card_erase_le.trans (card_insert_le y (s x).neighbors))
   have hne : playerCost α s x ≤ playerCost α s' x := hs.playerCost_le hα₀ ((hc.mono hle_G) x)
   have hsum_eq_real : ((∑ w : V, (G.dist x w - G'.dist x w) : ℕ) : ℝ) +
-      ∑ w : V, (G'.dist x w : ℝ) = ∑ w : V, (G.dist x w : ℝ) := by exact_mod_cast hsum_eq
+      ∑ w : V, (G'.dist x w : ℝ) = ∑ w : V, (G.dist x w : ℝ) := by
+    exact_mod_cast hsum_eq
   have hsub_real : ((∑ w ∈ S, (G.dist x w - G'.dist x w) : ℕ) : ℝ) ≤
       ((∑ w : V, (G.dist x w - G'.dist x w) : ℕ) : ℝ) := by
     exact_mod_cast sum_le_univ_sum_of_nonneg
@@ -1729,7 +1779,8 @@ private theorem socialECost_le_of_diam_le {α B : ℝ} (hα₀ : 0 ≤ α) {s : 
     (hs : IsPureNash α s) (s' : Profile V) (hB : 3 * ((formedGraph s).diam : ℝ) ≤ B) :
     socialECost α s ≤ ENNReal.ofReal B * socialECost α s' := by
   have h3d : (((3 * (formedGraph s).diam : ℕ) : ℝ≥0∞)) ≤ ENNReal.ofReal B := by
-    rw [← ENNReal.ofReal_natCast]; exact ENNReal.ofReal_le_ofReal (by push_cast; linarith)
+    rw [← ENNReal.ofReal_natCast]
+    exact ENNReal.ofReal_le_ofReal (by push_cast; linarith)
   exact (hs.socialECost_le_three_mul_diam_mul hα₀ s').trans (by gcongr)
 
 private theorem exists_diam_pair_of_ne_zero {α : ℝ} {s : Profile V} (hs : IsPureNash α s)
@@ -1771,11 +1822,16 @@ theorem IsPureNash.diam_le_sqrt_four_mul_add_one {α : ℝ} (hα₀ : 0 ≤ α) 
       intro j hj
       rw [mem_range] at hj
       obtain ⟨hdu, hdv⟩ := dist_getVert_of_shortest hc p hp (m := d - j) (by omega)
-      have hG'_uw := dist_addLink_le_one_add hc huv (target j)
-      rw [dist_comm (u := v)] at hG'_uw
+      have hG'_vw : G.dist v (target j) = j := by
+        calc G.dist v (target j)
+            = G.dist (p.getVert (d - j)) v := dist_comm
+          _ = p.length - (d - j) := hdv
+          _ = j := by omega
+      have hG'_uw : G'.dist u (target j) ≤ 1 + j :=
+        calc G'.dist u (target j)
+            ≤ 1 + G.dist v (target j) := dist_addLink_le_one_add hc huv (target j)
+          _ = 1 + j := by rw [hG'_vw]
       change G.dist u (target j) = d - j at hdu
-      change G.dist (target j) v = p.length - (d - j) at hdv
-      change G'.dist u (target j) ≤ 1 + G.dist (target j) v at hG'_uw
       omega
     have hsum_save : k * (d - k) ≤ ∑ w ∈ (range k).image target, (G.dist u w - G'.dist u w) := by
       rw [sum_image hinj_on, ← sum_range_shortcut_savings k d (by omega)]
@@ -1837,11 +1893,17 @@ theorem IsPureNash.diam_le_four_mul_div_sqrt_card_add_nine {α : ℝ} (hα₀ : 
     have hB_α_nat : ((#B * (d - 2 * d' - 1) : ℕ) : ℝ) ≤ α :=
       card_mul_le_of_addLink_savings (x := v) (y := u) hα₀ hs fun w hw => by
         have hduw : G.dist u w ≤ d' := (mem_filter.mp hw).2
-        have htri : G.dist v u ≤ G.dist v w + G.dist u w := by
-          rw [dist_comm (u := u)]; exact hc.dist_triangle
-        have hvu_d : G.dist v u = d := SimpleGraph.dist_comm.trans huv_dist
-        have : (formedGraph (addLink s v u)).dist v w ≤ 1 + G.dist u w :=
-          dist_addLink_le_one_add hc huv.symm w
+        have hdvw : d - d' ≤ G.dist v w := by
+          have htri : G.dist v u ≤ G.dist v w + G.dist u w := by
+            rw [dist_comm (u := u)]
+            exact hc.dist_triangle
+          calc d - d' = G.dist v u - d' := by rw [SimpleGraph.dist_comm, huv_dist]
+            _ ≤ G.dist v w + G.dist u w - d' := Nat.sub_le_sub_right htri d'
+            _ ≤ G.dist v w := by omega
+        have hdvw_vu : (formedGraph (addLink s v u)).dist v w ≤ 1 + d' :=
+          calc (formedGraph (addLink s v u)).dist v w
+              ≤ 1 + G.dist u w := dist_addLink_le_one_add hc huv.symm w
+            _ ≤ 1 + d' := by omega
         change d - 2 * d' - 1 ≤ G.dist v w - (formedGraph (addLink s v u)).dist v w
         omega
     have hd_sub_B : ((d : ℝ) - 1) * (#B : ℝ) ≤ 2 * α := by
@@ -1860,9 +1922,13 @@ theorem IsPureNash.diam_le_four_mul_div_sqrt_card_add_nine {α : ℝ} (hα₀ : 
       simp only [B, mem_compl, mem_filter, mem_univ, true_and, not_le] at ht
       obtain ⟨hdu, hdt⟩ :=
         dist_getVert_of_shortest hc (p_of t) (hp_len t) (m := d') (by rw [hp_len t]; omega)
-      refine ⟨mem_filter.mpr ⟨mem_univ _, hdu.le⟩, fun h => by
-        change G.dist u (exitVert t) = d' at hdu; rw [← h, SimpleGraph.dist_self] at hdu; omega,
-        by rw [hp_len t] at hdt; exact hdt.le⟩
+      refine ⟨mem_filter.mpr ⟨mem_univ _, hdu.le⟩, ?_, ?_⟩
+      · intro hueq
+        change G.dist u (exitVert t) = d' at hdu
+        rw [← hueq, SimpleGraph.dist_self] at hdu
+        omega
+      · rw [hp_len t] at hdt
+        exact hdt.le
     have hfiber_le : ∀ w ∈ B,
         ((d' - 1 : ℕ) : ℝ) * (#(Bᶜ.filter fun t => exitVert t = w) : ℝ) ≤ α := by
       intro w _
@@ -1878,11 +1944,14 @@ theorem IsPureNash.diam_le_four_mul_div_sqrt_card_add_nine {α : ℝ} (hα₀ : 
             obtain ⟨ht_compl, htw⟩ := mem_filter.mp ht
             have hgt : d' < G.dist u t := by
               simpa only [B, mem_compl, mem_filter, mem_univ, true_and, not_le] using ht_compl
-            have hwt : G.dist w t ≤ G.dist u t - d' := htw ▸ (hexit_prop t ht_compl).2.2
-            have : (formedGraph (addLink s u w)).dist u t ≤ 1 + G.dist w t :=
-              dist_addLink_le_one_add hc huw t
-            change d' - 1 ≤ G.dist u t - (formedGraph (addLink s u w)).dist u t
-            omega
+            have hdut_uw : (formedGraph (addLink s u w)).dist u t ≤ 1 + (G.dist u t - d') :=
+              calc (formedGraph (addLink s u w)).dist u t
+                  ≤ 1 + G.dist w t := dist_addLink_le_one_add hc huw t
+                _ ≤ 1 + (G.dist u t - d') :=
+                    Nat.add_le_add_left (htw ▸ (hexit_prop t ht_compl).2.2) 1
+            calc d' - 1 = G.dist u t - (1 + (G.dist u t - d')) := by omega
+              _ ≤ G.dist u t - (formedGraph (addLink s u w)).dist u t :=
+                  Nat.sub_le_sub_left hdut_uw _
         push_cast at hAw_α; linarith
     have hcompl_ineq : ((d' - 1 : ℕ) : ℝ) * (#Bᶜ : ℝ) ≤ α * (#B : ℝ) := by
       calc ((d' - 1 : ℕ) : ℝ) * (#Bᶜ : ℝ)
@@ -1925,11 +1994,11 @@ theorem IsPureNash.socialECost_le_twelve_mul_div_sqrt_card_add_twenty_seven_mul 
     (hα₀ : 0 ≤ α) {s : Profile V} (hs : IsPureNash α s) (s' : Profile V) :
     socialECost α s ≤
       ENNReal.ofReal (12 * α / Real.sqrt (Fintype.card V) + 27) * socialECost α s' :=
-  socialECost_le_of_diam_le hα₀ hs s' <| by
-    have := hs.diam_le_four_mul_div_sqrt_card_add_nine hα₀
-    have : 12 * α / Real.sqrt (Fintype.card V) + 27 =
-        3 * (4 * α / Real.sqrt (Fintype.card V) + 9) := by ring
-    linarith
+  socialECost_le_of_diam_le hα₀ hs s' <|
+    calc 3 * ((formedGraph s).diam : ℝ)
+        ≤ 3 * (4 * α / Real.sqrt (Fintype.card V) + 9) :=
+          mul_le_mul_of_nonneg_left (hs.diam_le_four_mul_div_sqrt_card_add_nine hα₀) (by norm_num)
+      _ = 12 * α / Real.sqrt (Fintype.card V) + 27 := by ring
 
 end PureNash
 

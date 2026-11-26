@@ -269,15 +269,12 @@ theorem acceptsWithin_iff_exists_stepCoins (h : ∀ q, atm.universal q = false) 
   | succ n ih =>
     rcases hs : c.state with _ | q
     · rw [atm.acceptsWithin_of_halted hs]
-      refine ⟨fun hout => ⟨List.replicate (n + 1) false, List.length_replicate, ?_⟩,
-        fun ⟨coins, _, _, hout⟩ => by rwa [stepCoins_of_halted atm hs] at hout⟩
-      rw [stepCoins_of_halted atm hs]
-      exact ⟨hs, hout⟩
+      exact ⟨fun hout => ⟨List.replicate (n + 1) false, List.length_replicate,
+          by simp [stepCoins_of_halted atm hs, hs, hout]⟩,
+        fun ⟨_, _, _, hout⟩ => by rwa [stepCoins_of_halted atm hs] at hout⟩
     · simp only [atm.acceptsWithin_succ_of_existential hs (h q), ih]
-      refine ⟨fun ⟨b, coins, hlen, hcoins⟩ => ⟨b :: coins, by simp [hlen], hcoins⟩, ?_⟩
-      rintro ⟨coins, hlen, hcoins⟩
-      obtain ⟨b, coins, rfl⟩ := List.exists_cons_of_length_eq_add_one hlen
-      exact ⟨b, coins, by simpa using hlen, hcoins⟩
+      exact ⟨fun ⟨b, coins, hlen, hcoins⟩ => ⟨b :: coins, by simp [hlen], hcoins⟩,
+        fun | ⟨b :: coins, hlen, hcoins⟩ => ⟨b, coins, Nat.succ.inj hlen, hcoins⟩⟩
 
 /-- **Without universal states an alternating machine is nondeterministic**: under a time bound,
 it accepts exactly when the nondeterministic machine of its table accepts. -/
@@ -286,14 +283,13 @@ theorem accepts_iff_toNTM_accepts (h : ∀ q, atm.universal q = false) {t : ℕ}
     atm.Accepts input ↔ atm.toPTM.toNTM.Accepts input := by
   rw [accepts_iff_acceptsWithin ht, acceptsWithin_iff_exists_stepCoins h,
     MultiTapeNTM.accepts_iff_exists_time_eq ht]
-  refine ⟨?_, fun ⟨p, hp, hout⟩ => ?_⟩
-  · rintro ⟨coins, hlen, -, hout⟩
-    obtain ⟨p, hhead, hp, hlast⟩ :=
+  refine ⟨fun ⟨coins, hlen, _, hout⟩ => ?_, fun ⟨p, hp, hout⟩ => ?_⟩
+  · obtain ⟨p, hhead, hp, hlast⟩ :=
       (atm.toPTM.exists_runPath_toNTM_iff (c := atm.toPTM.toNTM.initCfg input)).mpr
         ⟨coins, hlen, rfl⟩
     exact ⟨⟨p, hhead⟩, hp, hlast ▸ hout⟩
-  · obtain ⟨coins, hlen, hcoins⟩ := atm.toPTM.exists_runPath_toNTM_iff.mp
-      ⟨p.toRunPath, p.head_eq, hp, rfl⟩
+  · obtain ⟨coins, hlen, hcoins⟩ :=
+      atm.toPTM.exists_runPath_toNTM_iff.mp ⟨p.toRunPath, p.head_eq, hp, rfl⟩
     exact ⟨coins, hlen, state_stepCoins_eq_none ht hlen, hcoins ▸ hout⟩
 
 end Existential

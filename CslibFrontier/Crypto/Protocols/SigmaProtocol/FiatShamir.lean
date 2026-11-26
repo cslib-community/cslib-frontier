@@ -133,11 +133,13 @@ theorem fiatShamir_correct {P : SigmaProtocol X Y T C Z} {keyGen : PMF (X × Y)}
   obtain ⟨key, hmem, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hkeys
   simp only [fiatShamir, interpret_map, interpret_query, StateT.run_map,
     PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hsigned hverified
-  obtain ⟨r, hr, rfl⟩ := hsigned; obtain ⟨r', hr', rfl⟩ := hverified
+  obtain ⟨r, hr, rfl⟩ := hsigned
+  obtain ⟨r', hr', rfl⟩ := hverified
   change r' ∈ (oracle C (hashPoint (m, coins.1)) r.2).support at hr'
   rw [oracle, memoize_of_some _ _ _ _ (lookup_of_mem_support_oracle hr),
     PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hr'
-  subst hr'; exact hP.accepts_of_mem_support_commit (hkey key hmem) hcoins r.1
+  subst hr'
+  exact hP.accepts_of_mem_support_commit (hkey key hmem) hcoins r.1
 
 /-! ### The reduction -/
 
@@ -214,7 +216,8 @@ private theorem eufCmaGame_fiatShamir (P : SigmaProtocol X Y T C Z) (keyGen : PM
   refine congrArg keyGen.bind (funext fun key => congrArg A.coins.bind (funext fun s =>
     congrArg (PMF.bind _) (funext fun _ => ?_)))
   simp only [fiatShamir, ForkingReduction.finishGame, FiatShamir.check, interpret_map,
-    interpret_query, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]; rfl
+    interpret_query, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]
+  rfl
 
 omit [DecidableEq M] in
 private theorem handler_fiatShamir_eq_lazyProgramHandler (P : SigmaProtocol X Y T C Z)
@@ -226,8 +229,10 @@ private theorem handler_fiatShamir_eq_lazyProgramHandler (P : SigmaProtocol X Y 
         (fun m ts c signed => ((ts.1, P.respond key.1 key.2 ts.2 c), m :: signed)) := by
   funext q ⟨cache, signed⟩
   cases q with
-  | inl _ => simp only [pmf_norm, handler, fiatShamir, RandomOracle.lazyProgramHandler, ↓reduceDIte,
-      interpret_map, interpret_query, StateT.run_map, oracle]; rfl
+  | inl _ =>
+    simp only [pmf_norm, handler, fiatShamir, RandomOracle.lazyProgramHandler, ↓reduceDIte,
+      interpret_map, interpret_query, StateT.run_map, oracle]
+    rfl
   | inr _ =>
     simp only [pmf_norm, handler, RandomOracle.lazyProgramHandler, oracle]
     exact (PMF.bind_pure_comp _ _).symm
@@ -319,11 +324,12 @@ private theorem fork_le_oneWayGame {P : SigmaProtocol X Y T C Z}
         (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A))).map
           Option.isSome true ≤
       oneWayGame keyGen R (reduction hashPoint P simulate extract fallback A Qs Qro) true := by
-  rw [show Forking.fork (keyGen.bind fun key => coins simulate A (Qs + Qro) key.2)
+  have hfork : Forking.fork (keyGen.bind fun key => coins simulate A (Qs + Qro) key.2)
       (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A)) =
       keyGen.bind fun key => Forking.fork (coins simulate A (Qs + Qro) key.2)
-        (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A)) by
-      simp only [Forking.fork, PMF.monad_bind_eq_bind, PMF.bind_bind], PMF.map_bind]
+        (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A)) := by
+    simp only [Forking.fork, PMF.monad_bind_eq_bind, PMF.bind_bind]
+  rw [hfork, PMF.map_bind]
   simp only [pmf_norm, oneWayGame, reduction]
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun key hkey => ?_
   rw [← PMF.bind_pure_comp]
@@ -340,7 +346,7 @@ private theorem fork_le_oneWayGame {P : SigmaProtocol X Y T C Z}
     have ht : outcome.commitment = outcome'.commitment :=
       congrArg Prod.snd (hashPoint.injective hpt)
     simp [hsound key hkey outcome.commitment outcome.challenge outcome.response
-      outcome'.challenge outcome'.response hne hv (by rw [ht]; exact hv')]
+      outcome'.challenge outcome'.response hne hv (by rwa [ht])]
 
 end FiatShamir
 

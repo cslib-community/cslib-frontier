@@ -62,18 +62,12 @@ theorem exists_constantFree_isNNF_leafSize_le (hn : 0 < n) (F : Formula signatur
   rcases restrict_eq_const_or_isSimplified PartialAssignment.empty F with ⟨b, hb⟩ | hH
   · let i : Fin n := ⟨0, hn⟩
     cases b
-    · refine ⟨(input i).and (input i).not, ⟨trivial, trivial⟩,
-        .and (.input i) (.not_input i), ?_, ?_⟩
-      · intro x
-        rw [← heval x, show H = const false from hb]
-        simp
-      · simp
-    · refine ⟨(input i).or (input i).not, ⟨trivial, trivial⟩,
-        .or (.input i) (.not_input i), ?_, ?_⟩
-      · intro x
-        rw [← heval x, show H = const true from hb]
-        simp
-      · simp
+    · refine ⟨(input i).and (input i).not, ⟨trivial, trivial⟩, .and (.input i) (.not_input i),
+        fun x => ?_, by simp⟩
+      simp [← heval x, show H = const false from hb]
+    · refine ⟨(input i).or (input i).not, ⟨trivial, trivial⟩, .or (.input i) (.not_input i),
+        fun x => ?_, by simp⟩
+      simp [← heval x, show H = const true from hb]
   · exact ⟨H.nnf false, hH.isConstantFree.nnf false, H.isNNF_nnf false,
       fun x => by simpa using heval x, by
         simpa only [leafSize_nnf] using hsize.trans (le_max_right 2 F.leafSize)⟩

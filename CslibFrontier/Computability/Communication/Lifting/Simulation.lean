@@ -183,16 +183,13 @@ theorem Good.bob {send : (Fin n → Fin m → Bool) → Bool} {p₀ p₁ : Proto
     dsimp only
     exact h.X_large.trans (mul_le_mul_of_nonneg_right
       (pow_le_pow_right₀ (by norm_num) (Nat.le_succ _)) (Nat.cast_nonneg _))
-  solves := by
-    intro x hx y hy
-    have hy' := mem_filter.mp (mem_coe.mp hy)
-    have := h.solves x hx y (mem_coe.mpr hy'.1)
-    simp only [Protocol.run_bob, hy'.2] at this
-    cases b <;> exact this
+  solves := fun x hx y hy => by
+    obtain ⟨hy1, hy2⟩ := mem_filter.mp (mem_coe.mp hy)
+    have hsol := h.solves x hx y (mem_coe.mpr hy1)
+    cases b <;> simpa only [Protocol.run_bob, hy2, Bool.cond_true, Bool.cond_false] using hsol
   budget := by
-    have := h.budget
-    simp only [Protocol.depth] at this
-    cases b <;> simp only [Bool.cond_true, Bool.cond_false] <;> omega
+    have hbgt := h.budget
+    cases b <;> simp only [Protocol.depth, Bool.cond_true, Bool.cond_false] at hbgt ⊢ <;> omega
 
 /-- Under the hypotheses of `Good.alice`, Bob's filtered set `Y'` satisfies the deficiency
 invariant for `st.t + 1` and `st.J ∪ q.I`. -/
@@ -213,12 +210,8 @@ private theorem Good.alice_Y_large {send : (Fin n → Fin m) → Bool} {p₀ p�
     simpa only [compl_union, ← sdiff_eq_inter_compl] using card_sdiff_add_card_eq_card hIJ
   have h1 := h.Y_large
   have h2 := hq ρ'
-  rw [hcardJ, ← hcardc] at *
-  rw [← hcardc] at h1
-  have e1 : (2 : ℝ) ^ ((#(st.J ∪ q.I)ᶜ + #q.I) * m) =
-      2 ^ (#(st.J ∪ q.I)ᶜ * m) * 2 ^ (m * #q.I) := by
-    rw [← pow_add, add_mul, mul_comm m]
-  rw [e1] at h1
+  rw [← hcardc, add_mul, pow_add, mul_comm #q.I m] at h1
+  rw [hcardJ]
   refine le_of_mul_le_mul_right ?_ (by positivity : (0 : ℝ) < 2 ^ (m * #q.I))
   calc (2 : ℝ) ^ (#(st.J ∪ q.I)ᶜ * m) * 2 ^ (m * #q.I)
       ≤ 2 ^ st.t * (4 * τ) ^ #st.J * #st.Y := h1
@@ -301,14 +294,12 @@ theorem Good.alice {send : (Fin n → Fin m) → Bool} {p₀ p₁ : Protocol _ _
   · change IsDense τ (st.J ∪ q.I)ᶜ q.P
     simpa only [compl_union, ← sdiff_eq_inter_compl] using hL.dense q hqL
   · intro x hx y hy
-    have hx' := mem_filter.mp (hL.subset q hqL (mem_coe.mp hx))
-    have := h.solves x (mem_coe.mpr hx'.1) y (mem_coe.mpr (filter_subset _ _ (mem_coe.mp hy)))
-    simp only [Protocol.run_alice, hx'.2] at this
-    cases b <;> exact this
-  · have := h.budget
-    simp only [Protocol.depth] at this
+    obtain ⟨hx1, hx2⟩ := mem_filter.mp (hL.subset q hqL (mem_coe.mp hx))
+    have hsol := h.solves x (mem_coe.mpr hx1) y (mem_coe.mpr (filter_subset _ _ (mem_coe.mp hy)))
+    cases b <;> simpa only [Protocol.run_alice, hx2, Bool.cond_true, Bool.cond_false] using hsol
+  · have hbgt := h.budget
     change st.t + 1 + (cond b p₁ p₀).depth ≤ c
-    cases b <;> simp only [Bool.cond_true, Bool.cond_false] <;> omega
+    cases b <;> simp only [Protocol.depth, Bool.cond_true, Bool.cond_false] at hbgt ⊢ <;> omega
 
 end SimState
 
@@ -420,12 +411,12 @@ theorem eval_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c
   | output o => intro st h z hz; exact h.output hτ4 hτm hτc z hz
   | bob send p₀ p₁ ih₀ ih₁ =>
     intro st h z hz
-    have key : ∀ b : Bool, (st.afterBob send).Good τ c R (cond b p₁ p₀) →
-        R z ((cond b (sim τ p₁ (st.afterBob send)) (sim τ p₀ (st.afterBob send))).eval z) := by
-      rintro ⟨⟩ hb'
-      · exact ih₀ _ hb' z hz
-      · exact ih₁ _ hb' z hz
-    exact key _ (h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _))
+    have hb : (st.afterBob send).Good τ c R (cond (bigHalf st.Y send) p₁ p₀) :=
+      h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _)
+    rw [sim]
+    cases h' : bigHalf st.Y send <;> simp only [h', Bool.cond_false, Bool.cond_true] at hb ⊢
+    · exact ih₀ _ hb z hz
+    · exact ih₁ _ hb z hz
   | alice send p₀ p₁ ih₀ ih₁ =>
     intro st h z hz
     have hq := h.exists_goodPiece hτ4 hτm hτc
@@ -439,12 +430,10 @@ theorem eval_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c
       split_ifs with hiI
       · simp [ρ', hiI]
       · exact hz i (hi.resolve_right hiI)
-    have key : ∀ b : Bool, (st.afterAlice q ρ').Good τ c R (cond b p₁ p₀) →
-        R z ((cond b (sim τ p₁ (st.afterAlice q ρ')) (sim τ p₀ (st.afterAlice q ρ'))).eval z) := by
-      rintro ⟨⟩ hb'
-      · exact ih₀ _ hb' z hz'
-      · exact ih₁ _ hb' z hz'
-    exact key _ (h.afterAlice hτ hqL hgood ρ')
+    have hb := h.afterAlice hτ hqL hgood ρ'
+    cases h' : bigHalf st.X send <;> simp only [h', Bool.cond_false, Bool.cond_true] at hb ⊢
+    · exact ih₀ _ hb z hz'
+    · exact ih₁ _ hb z hz'
 
 private theorem four_pow_succ_add_le {t d D : ℕ} (h : d + 1 ≤ D) :
     (4 : ℝ) ^ (t + 1 + d) ≤ 4 ^ (t + D) :=
@@ -478,16 +467,11 @@ private theorem pow_depth_sim_alice (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m)
     card_union_of_disjoint (subset_compl_iff_disjoint_left.mp
       ((isPartition_partitionOf hτ st.Jᶜ
         (st.X.filter fun x => send x = bigHalf st.X send)).I_subset q hqL))
-  have key : ∀ b : Bool, (st.afterAlice q ρ₀).Good τ c R (cond b p₁ p₀) →
-      ((m : ℝ) / τ) ^ (#st.J + #q.I +
-        (cond b (sim τ p₁ (st.afterAlice q ρ₀)) (sim τ p₀ (st.afterAlice q ρ₀))).depth) ≤
-        4 ^ (st.t + (Protocol.alice send p₀ p₁).depth) := by
-    rintro ⟨⟩ hb'
-    · exact (hJ ▸ ih₀ _ hb').trans (four_pow_succ_add_le (by simp))
-    · exact (hJ ▸ ih₁ _ hb').trans (four_pow_succ_add_le (by simp))
-  refine le_trans (pow_le_pow_right₀ hM ?_) (key _ (h.afterAlice hτ hqL hgood ρ₀))
-  change #st.J + (DecisionTree.graft q.I.toList k st.ρ).depth ≤ #st.J + #q.I + (k ρ₀).depth
-  omega
+  have hb := h.afterAlice hτ hqL hgood ρ₀
+  refine (pow_le_pow_right₀ hM (by omega : _ ≤ #st.J + #q.I + (k ρ₀).depth)).trans ?_
+  cases h' : bigHalf st.X send <;> simp only [k, h', Bool.cond_false, Bool.cond_true] at hb ⊢
+  · exact (hJ ▸ ih₀ _ hb).trans (four_pow_succ_add_le (by simp))
+  · exact (hJ ▸ ih₁ _ hb).trans (four_pow_succ_add_le (by simp))
 
 /-- **The number of queries of the simulation**: `(m / τ) ^ (#J + depth) ≤ 4 ^ (t + depth p)`. -/
 theorem pow_depth_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c + 2) ≤ τ) :
@@ -501,14 +485,12 @@ theorem pow_depth_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (
     simpa [sim, Protocol.depth] using h.pow_le
   | bob send p₀ p₁ ih₀ ih₁ =>
     intro st h
-    have key : ∀ b : Bool, (st.afterBob send).Good τ c R (cond b p₁ p₀) →
-        ((m : ℝ) / τ) ^ (#st.J +
-          (cond b (sim τ p₁ (st.afterBob send)) (sim τ p₀ (st.afterBob send))).depth) ≤
-          4 ^ (st.t + (Protocol.bob send p₀ p₁).depth) := by
-      rintro ⟨⟩ hb'
-      · exact (ih₀ _ hb').trans (four_pow_succ_add_le (by simp))
-      · exact (ih₁ _ hb').trans (four_pow_succ_add_le (by simp))
-    exact key _ (h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _))
+    have hb : (st.afterBob send).Good τ c R (cond (bigHalf st.Y send) p₁ p₀) :=
+      h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _)
+    rw [sim]
+    cases h' : bigHalf st.Y send <;> simp only [h', Bool.cond_false, Bool.cond_true] at hb ⊢
+    · exact (ih₀ _ hb).trans (four_pow_succ_add_le (by simp))
+    · exact (ih₁ _ hb).trans (four_pow_succ_add_le (by simp))
   | alice send p₀ p₁ ih₀ ih₁ =>
     exact pow_depth_sim_alice hτ4 hτm hτc ih₀ ih₁
 
@@ -603,28 +585,22 @@ theorem depth_mul_logb_le {R : (Fin n → Bool) → O → Prop} (hm : 16 ≤ m)
       t.depth * Real.logb 2 m ≤ 4 * p.depth := by
   have hm0 : (0 : ℝ) ≤ m := by positivity
   have hsq : Real.sqrt m ^ 2 = m := Real.sq_sqrt hm0
-  have h4 : (4 : ℝ) ≤ Real.sqrt m := by
-    rw [show (4 : ℝ) = Real.sqrt 16 by
-      rw [show (16 : ℝ) = 4 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]]
-    exact Real.sqrt_le_sqrt (by exact_mod_cast hm)
+  have h4 : (4 : ℝ) ≤ Real.sqrt m :=
+    Real.le_sqrt_of_sq_le (by exact_mod_cast show 4 ^ 2 ≤ m by omega)
   obtain ⟨t, ht, hdepth⟩ := exists_decisionTree_of_solves h4 hsq.le hmn hp
   refine ⟨t, ht, ?_⟩
-  have hspos : 0 < Real.sqrt m := by linarith only [h4]
-  have hdiv : (m : ℝ) / Real.sqrt m = Real.sqrt m := by
-    rw [div_eq_iff hspos.ne', ← sq, hsq]
-  rw [hdiv] at hdepth
+  have hdiv : (m : ℝ) / Real.sqrt m = Real.sqrt m :=
+    (div_eq_iff (by linarith only [h4] : Real.sqrt m ≠ 0)).mpr (sq (Real.sqrt m) ▸ hsq.symm)
+  have h4pow : (4 : ℝ) ^ p.depth = 2 ^ (2 * p.depth) := by
+    rw [pow_mul]
+    norm_num
+  rw [hdiv, h4pow] at hdepth
   have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hdepth
-  rw [Real.logb_pow, Real.logb_pow] at hlog
+  rw [Real.logb_pow, Real.logb_two_pow, Nat.cast_mul, Nat.cast_ofNat] at hlog
   have hsqrt : Real.logb 2 m = 2 * Real.logb 2 (Real.sqrt m) := by
     conv_lhs => rw [← hsq]
-    rw [Real.logb_pow]; push_cast; ring
-  have : Real.logb 2 4 = 2 := by
-    rw [show (4 : ℝ) = 2 ^ (2 : ℕ) by norm_num, Real.logb_two_pow]
-    norm_num
-  rw [this] at hlog
+    rw [Real.logb_pow, Nat.cast_ofNat]
   rw [hsqrt]
-  linarith only [hlog,
-    show (t.depth : ℝ) * (2 * Real.logb 2 (Real.sqrt m)) =
-      2 * (t.depth * Real.logb 2 (Real.sqrt m)) by ring]
+  linarith [hlog]
 
 end Cslib.Communication.Lifting

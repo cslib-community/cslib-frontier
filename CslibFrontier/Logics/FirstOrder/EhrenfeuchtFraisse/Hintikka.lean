@@ -116,7 +116,9 @@ def AtomicIndex.Holds {k : ℕ} (a : Fin k → M) : AtomicIndex L k → Prop
 
 @[simp] theorem AtomicIndex.realize_formula {k : ℕ} (i : AtomicIndex L k) (a : Fin k → M) :
     i.formula.Realize default a ↔ i.Holds a := by
-  rcases i with ⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩ <;> rfl
+  rcases i with ⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩
+  · rfl
+  · rfl
 
 @[simp] theorem AtomicIndex.quantifierRank_formula {k : ℕ} (i : AtomicIndex L k) :
     quantifierRank i.formula = 0 := by
@@ -127,9 +129,13 @@ def AtomicIndex.Holds {k : ℕ} (a : Fin k → M) : AtomicIndex L k → Prop
 /-- A position is a partial isomorphism exactly when both tuples satisfy the same atomic
 formulas. -/
 theorem partialIso_iff_holds {k : ℕ} {a : Fin k → M} {b : Fin k → N} :
-    PartialIso L a b ↔ ∀ i : AtomicIndex L k, i.Holds a ↔ i.Holds b :=
-  ⟨fun ⟨heq, hrel⟩ => Sum.rec (fun ⟨(i, j)⟩ => heq i j) (fun ⟨⟨_, R⟩, f⟩ => hrel R f),
-    fun h => ⟨fun i j => h (.inl ⟨(i, j)⟩), fun R f => h (.inr ⟨⟨_, R⟩, f⟩)⟩⟩
+    PartialIso L a b ↔ ∀ i : AtomicIndex L k, i.Holds a ↔ i.Holds b := by
+  constructor
+  · rintro ⟨heq, hrel⟩ (⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩)
+    · exact heq i j
+    · exact hrel R f
+  · intro h
+    exact ⟨fun i j => h (.inl ⟨(i, j)⟩), fun R f => h (.inr ⟨⟨_, R⟩, f⟩)⟩
 
 /-! ### Rank types -/
 
@@ -154,7 +160,8 @@ def rankType : ∀ (n : ℕ) {k : ℕ}, (Fin k → M) → RankType L n k
   | n + 1, _, a => ({i | i.Holds a}, Set.range fun c : M => rankType n (Fin.snoc a c : Fin _ → M))
 
 theorem rankType_zero {k : ℕ} (a : Fin k → M) :
-    rankType (L := L) 0 a = {i | i.Holds a} := by rw [rankType]
+    rankType (L := L) 0 a = {i | i.Holds a} := by
+  rw [rankType]
 
 /-- Equality of rank-`(n + 1)` types is componentwise. -/
 theorem RankType.succ_ext_iff {n k : ℕ} {T T' : RankType L (n + 1) k} :
@@ -198,12 +205,14 @@ theorem realize_atomicDiagram [Finite (Σ l, L.Relations l)] {k : ℕ} (T : Set 
     (a : Fin k → M) : (atomicDiagram T).Realize default a ↔ {i | i.Holds a} = T := by
   classical
   simp only [atomicDiagram, BoundedFormula.realize_iInf, Set.ext_iff, Set.mem_ofPred_eq]
-  exact forall_congr' fun i => by by_cases hi : i ∈ T <;> simp [hi]
+  refine forall_congr' fun i => ?_
+  by_cases hi : i ∈ T <;> simp [hi]
 
 theorem quantifierRank_atomicDiagram [Finite (Σ l, L.Relations l)] {k : ℕ}
     (T : Set (AtomicIndex L k)) : quantifierRank (atomicDiagram T) = 0 := by
   classical
-  exact Nat.le_zero.1 (quantifierRank_iInf_le fun i => by by_cases hi : i ∈ T <;> simp [hi])
+  refine Nat.le_zero.1 (quantifierRank_iInf_le fun i => ?_)
+  by_cases hi : i ∈ T <;> simp [hi]
 
 /-- The Hintikka formula of a rank-`n` type: a formula of quantifier rank at most `n` satisfied
 exactly by the tuples of that type. For `n + 1` it states the atomic diagram, that every

@@ -91,18 +91,15 @@ private theorem exists_nodup_of_length_le {k : ℕ} {F : DNF ι} (hk : ∀ T ∈
     constructor
     · rintro ⟨T, hT, hx⟩
       obtain ⟨T₀, h₀, rfl⟩ := List.mem_map.1 (List.mem_filter.1 hT).1
-      refine ⟨T₀, h₀, ?_⟩
-      rw [Term.eval_eq_true_iff] at hx ⊢
-      exact fun l hl => hx l (List.mem_dedup.2 hl)
+      exact ⟨T₀, h₀, (Term.eval_eq_true_iff _ _).2 fun l hl =>
+        (Term.eval_eq_true_iff _ _).1 hx l (List.mem_dedup.2 hl)⟩
     · rintro ⟨T₀, h₀, hx⟩
       rw [Term.eval_eq_true_iff] at hx
       refine ⟨T₀.dedup, List.mem_filter.2 ⟨List.mem_map_of_mem h₀, ?_⟩, ?_⟩
       · refine decide_eq_true (List.Nodup.map_on (fun a ha b hb hab => ?_) (List.nodup_dedup T₀))
-        have ha' := hx a (List.mem_dedup.1 ha)
-        have hb' := hx b (List.mem_dedup.1 hb)
-        exact Prod.ext hab (by rw [← ha', ← hb', hab])
-      · rw [Term.eval_eq_true_iff]
-        exact fun l hl => hx l (List.mem_dedup.1 hl)
+        exact Prod.ext hab
+          (by rw [← hx a (List.mem_dedup.1 ha), ← hx b (List.mem_dedup.1 hb), hab])
+      · exact (Term.eval_eq_true_iff _ _).2 fun l hl => hx l (List.mem_dedup.1 hl)
 
 variable [Fintype ι]
 
@@ -114,12 +111,7 @@ private theorem complexity_fill_le_card_free (ρ : PartialAssignment ι) (f : (�
   refine complexity_le_iff.2 ⟨queryAll (fun x => f (ρ.fill x)) ρ.free.toList fun _ => false,
     fun x => ?_, (depth_queryAll_le _ _ _).trans_eq (length_toList _)⟩
   rw [eval_queryAll]
-  congr 1
-  funext i
-  by_cases hi : ρ i = none
-  · simp [hi]
-  · obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 hi
-    simp [hb]
+  exact congrArg f (funext fun i => by cases hi : ρ i <;> simp [hi])
 
 /-! ### Terms of one literal -/
 
@@ -171,11 +163,11 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
         · have := hk _ hT; simp at this
       exact PartialAssignment.fill_of_eq_some hρl x
     · by_contra hle
-      replace hle := not_lt.1 hle
       set A := ρ.free ∩ V
       refine hbad ⟨(queryAll (fun x => f (ρ.fill x)) A.toList fun _ => false).toCNF,
         fun c hc => (length_le_depth_of_mem_toCNF hc).trans
-          ((depth_queryAll_le _ _ _).trans (by rw [length_toList]; exact hle)), fun x => ?_⟩
+          ((depth_queryAll_le _ _ _).trans ((length_toList A).le.trans (not_lt.1 hle))),
+        fun x => ?_⟩
       rw [eval_toCNF, eval_queryAll, ← hF, ← hF]
       refine DNF.eval_congr fun v hv => ?_
       obtain ⟨T, hT, b, hl⟩ := CNF.mem_vars.1 hv
@@ -296,14 +288,13 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
       DNF.eval (ρ.fill x) F))
     refine hbad ⟨tr.toCNF, fun c hc => (length_le_depth_of_mem_toCNF hc).trans (by omega),
       fun x => ?_⟩
-    rw [eval_toCNF, htr]
-    exact (hFe _).trans (hF₀ _)
+    exact (eval_toCNF tr x).trans ((htr x).trans ((hFe _).trans (hF₀ _)))
   rcases lt_or_ge u s with hus | hsu
   · -- fewer than `s` free variables: the restricted function is always shallow
     have hB : B = ∅ := by
       refine eq_empty_of_forall_notMem fun ρ hρ => ?_
-      have h := mem_filter.1 (hsub hρ)
-      have hfree := (PartialAssignment.mem_extensions.1 h.1).2
+      obtain ⟨hρW, hs⟩ := mem_filter.1 (hsub hρ)
+      have := (PartialAssignment.mem_extensions.1 hρW).2
       have := complexity_fill_le_card_free ρ fun y => DNF.eval y F
       omega
     rw [hB, card_empty, Nat.cast_zero, zero_div]
@@ -337,8 +328,7 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
   have hP1 : (#B : ℝ) / #W ≤ 1 :=
     div_le_one_of_le₀ (by exact_mod_cast card_le_card (filter_subset _ _)) (by positivity)
   rcases Nat.eq_zero_or_pos s with hs0 | hs0
-  · rw [hs0, Nat.cast_zero, zero_div, Real.rpow_zero]
-    exact hP1
+  · simpa only [hs0, Nat.cast_zero, zero_div, Real.rpow_zero] using hP1
   rcases le_or_gt 1 ((u : ℝ) * k ^ 10 / n) with h1 | h1
   · exact hP1.trans (Real.one_le_rpow h1 (by positivity))
   -- otherwise `u k ^ 10 < n`, so `k = 0` or `t` is most of `n`, and `r ^ 2 ≤ u k ^ 10 / n`

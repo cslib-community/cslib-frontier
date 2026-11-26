@@ -111,7 +111,9 @@ theorem andreevSubcubeScore_eq_two_pow_mul_sum (b m r : ℕ) (w : BitString (2 ^
       = ∑ c : BitString b,
           (∑ S ∈ andreevPrefixSubsets b r, chi ℤ S c * chi ℤ S (andreevParities b m w)) *
             (1 - 2 * ((andreevTable b m w c).toNat : ℤ)) :=
-        sum_congr rfl fun c _ => by rw [sum_mul]; exact sum_congr rfl fun S _ => by ring
+        sum_congr rfl fun c _ => by
+          rw [sum_mul]
+          exact sum_congr rfl fun S _ => by ring
     _ = (2 : ℤ) ^ #(andreevPrefixCoords b r) *
           ∑ c ∈ andreevSubcube b r (andreevParities b m w),
             (1 - 2 * ((andreevTable b m w c).toNat : ℤ)) := by
@@ -195,13 +197,11 @@ for `1 ≤ K`. -/
 private theorem succ_mul_choose_two_mul_add_one {K : ℕ} (hK : 1 ≤ K) :
     (K + 1) * (2 * K + 1).choose K = 2 * (2 * K + 1) * (2 * K - 1).choose (K - 1) := by
   have h1 := Nat.add_one_mul_choose_eq (2 * K - 1) (K - 1)
-  have h1' : 2 * K * (2 * K - 1).choose (K - 1) = (2 * K).choose K * K := by
-    rwa [Nat.sub_add_cancel hK, Nat.sub_add_cancel (by omega : 1 ≤ 2 * K)] at h1
+  rw [Nat.sub_add_cancel hK, Nat.sub_add_cancel (by omega : 1 ≤ 2 * K)] at h1
   have h2 : (2 * K).choose K = 2 * (2 * K - 1).choose (K - 1) := by nlinarith
-  have h3 := Nat.add_one_mul_choose_eq (2 * K) K
-  have hsymm : (2 * K + 1).choose (K + 1) = (2 * K + 1).choose K :=
-    Nat.choose_symm_of_eq_add (by omega)
-  rw [mul_comm, ← hsymm, ← h3, h2]; ring
+  rw [mul_comm, ← Nat.choose_symm_of_eq_add (by omega : 2 * K + 1 = K + 1 + K),
+    ← Nat.add_one_mul_choose_eq (2 * K) K, h2]
+  ring
 
 /-- **Central binomial lower bound**: for all `K ≥ 1`,
 `(2 ^ (2 * K - 1)) ^ 2 ≤ 4 * K * ((2 * K - 1).choose (K - 1)) ^ 2`. -/
@@ -211,20 +211,17 @@ theorem pow_two_mul_sub_one_sq_le {K : ℕ} (hK : 1 ≤ K) :
   | base => decide
   | succ K hK ih =>
     have hrec := succ_mul_choose_two_mul_add_one hK
-    have hpow : 2 ^ (2 * (K + 1) - 1) = 4 * 2 ^ (2 * K - 1) := by
-      rw [show 2 * (K + 1) - 1 = (2 * K - 1) + 2 by omega, pow_add]; ring
-    rw [hpow]
-    set A := 2 ^ (2 * K - 1); set C := (2 * K - 1).choose (K - 1)
-    set C' := (2 * (K + 1) - 1).choose (K + 1 - 1)
-    have hrec' : (K + 1) * C' = 2 * (2 * K + 1) * C := by
-      simpa [C', show 2 * (K + 1) - 1 = 2 * K + 1 by omega] using hrec
-    have hmul : (K + 1) ^ 2 * (4 * A) ^ 2 ≤ (K + 1) ^ 2 * (4 * (K + 1) * C' ^ 2) := by
-      calc (K + 1) ^ 2 * (4 * A) ^ 2 = 16 * (K + 1) ^ 2 * A ^ 2 := by ring
-        _ ≤ 16 * (K + 1) ^ 2 * (4 * K * C ^ 2) := Nat.mul_le_mul_left _ ih
-        _ ≤ 4 * (K + 1) * (2 * (2 * K + 1) * C) ^ 2 := by nlinarith
-        _ = 4 * (K + 1) * ((K + 1) * C') ^ 2 := by rw [← hrec']
-        _ = (K + 1) ^ 2 * (4 * (K + 1) * C' ^ 2) := by ring
-    exact Nat.le_of_mul_le_mul_left hmul (by positivity)
+    rw [show 2 * (K + 1) - 1 = (2 * K - 1) + 2 by omega, pow_add]
+    set C' := ((2 * K - 1) + 2).choose (K + 1 - 1)
+    have hrec' : (K + 1) * C' = 2 * (2 * K + 1) * (2 * K - 1).choose (K - 1) := by
+      simpa [C', show (2 * K - 1) + 2 = 2 * K + 1 by omega] using hrec
+    refine Nat.le_of_mul_le_mul_left (c := (K + 1) ^ 2) ?_ (by positivity)
+    calc (K + 1) ^ 2 * (2 ^ (2 * K - 1) * 2 ^ 2) ^ 2
+        = 16 * (K + 1) ^ 2 * (2 ^ (2 * K - 1)) ^ 2 := by ring
+      _ ≤ 16 * (K + 1) ^ 2 * (4 * K * ((2 * K - 1).choose (K - 1)) ^ 2) :=
+          Nat.mul_le_mul_left _ ih
+      _ ≤ 4 * (K + 1) * (2 * (2 * K + 1) * (2 * K - 1).choose (K - 1)) ^ 2 := by nlinarith
+      _ = (K + 1) ^ 2 * (4 * (K + 1) * C' ^ 2) := by rw [← hrec']; ring
 
 /-! ### Exact correlation of `andreevSubcubeEval` with `andreev` -/
 
@@ -311,43 +308,30 @@ private theorem andreevSubcubeEval_shiftTable {b r : ℕ} (hr : r < b) (m : ℕ)
         #{i ∈ andreevZeroPuncturedSupport b m r | w i = true}) := by
   rw [andreevSubcubeEval_eq_decide, andreevShiftTable_apply, andreevParities_shiftTableFun]
   let p := andreevParities b m w
+  have hcancel (c : BitString b) : c + p + p = c := funext fun j => by simp [Bool.add_eq_xor]
   have hmap : andreevSubcube b r p =
       (andreevSubcube b r 0).map ⟨fun c => c + p, add_left_injective p⟩ := by
-    ext c; simp only [mem_andreevSubcube, mem_map, Function.Embedding.coeFn_mk]
-    refine ⟨fun hc => ⟨c + p, fun j hj => ?_, by funext j; simp [Bool.add_eq_xor]⟩, ?_⟩
-    · have := hc j hj; simp [Bool.add_eq_xor, Bool.zero_eq_false, this]
-    · rintro ⟨d, hd, rfl⟩ j hj; have := hd j hj; simp [Bool.add_eq_xor, Bool.zero_eq_false, this]
-  have hsum :
-      (∑ c ∈ andreevSubcube b r p,
-        (1 - 2 * ((andreevTable b m (andreevShiftTableFun b m w) c).toNat : ℤ))) =
-      ∑ c ∈ andreevSubcube b r 0,
-        (1 - 2 * ((andreevTable b m w c).toNat : ℤ)) := by
-    rw [hmap, sum_map]; refine sum_congr rfl fun c _ => ?_
-    simp only [Function.Embedding.coeFn_mk, andreevTable_shiftTableFun]
-    rw [show c + p + p = c by funext j; simp [Bool.add_eq_xor]]
-  rw [hsum, ← add_sum_erase _ _ (self_mem_andreevSubcube b r 0)]
-  have hpunc :
-      (∑ c ∈ (andreevSubcube b r 0).erase 0,
-        (1 - 2 * ((andreevTable b m w c).toNat : ℤ))) =
-      ((2 ^ (b - r) - 1 : ℕ) : ℤ) -
-        2 * (#{i ∈ andreevZeroPuncturedSupport b m r | w i = true} : ℤ) := by
-    have hones :
-        (#{i ∈ andreevZeroPuncturedSupport b m r | w i = true} : ℤ) =
-          ∑ c ∈ (andreevSubcube b r 0).erase 0,
-            ((andreevTable b m w c).toNat : ℤ) := by
-      rw [andreevZeroPuncturedSupport, card_filter, sum_map, Nat.cast_sum]
-      refine sum_congr rfl fun c _ => ?_
-      simp only [Function.Embedding.coeFn_mk, andreevTable]
-      cases w (andreevTableIndex b m (BitString.equivFin b c)) <;> simp
-    rw [hones, sum_sub_distrib, ← mul_sum, sum_const,
-      card_erase_of_mem (self_mem_andreevSubcube b r 0), card_andreevSubcube hr.le]; simp
+    ext c
+    simp only [mem_andreevSubcube, mem_map, Function.Embedding.coeFn_mk]
+    exact ⟨fun hc => ⟨c + p, fun j hj => by simp [Bool.add_eq_xor, Bool.zero_eq_false, hc j hj],
+        hcancel c⟩,
+      fun ⟨d, hd, hdp⟩ j hj => hdp ▸ by simp [Bool.add_eq_xor, Bool.zero_eq_false, hd j hj]⟩
+  have hones : (∑ c ∈ (andreevSubcube b r 0).erase 0, ((andreevTable b m w c).toNat : ℤ)) =
+      (#{i ∈ andreevZeroPuncturedSupport b m r | w i = true} : ℤ) := by
+    rw [andreevZeroPuncturedSupport, card_filter, sum_map, Nat.cast_sum]
+    refine sum_congr rfl fun c _ => ?_
+    simp only [Function.Embedding.coeFn_mk, andreevTable]
+    cases w (andreevTableIndex b m (BitString.equivFin b c)) <;> simp
+  rw [hmap, sum_map, sum_congr rfl fun c _ => by
+      simp only [Function.Embedding.coeFn_mk, andreevTable_shiftTableFun]
+      rw [hcancel],
+    ← add_sum_erase _ _ (self_mem_andreevSubcube b r 0), sum_sub_distrib, ← mul_sum, sum_const,
+    card_erase_of_mem (self_mem_andreevSubcube b r 0), card_andreevSubcube hr.le, nsmul_one,
+    Nat.cast_sub Nat.one_le_two_pow, Nat.cast_one, hones,
+    show andreevTable b m w 0 = w (andreevZeroTableCoord b m) from rfl]
   have h2pow : 2 ^ (b - r) = 2 * 2 ^ (b - r - 1) := by
     rw [← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ b - r)]
   have hpos : 1 ≤ 2 ^ (b - r) := Nat.one_le_two_pow
-  rw [hpunc]
-  change decide ((1 - 2 * ((w (andreevZeroTableCoord b m)).toNat : ℤ)) +
-      (((2 ^ (b - r) - 1 : ℕ) : ℤ) -
-        2 * (#{i ∈ andreevZeroPuncturedSupport b m r | w i = true} : ℤ)) ≤ 0) = _
   exact decide_eq_decide.mpr ⟨by omega, by omega⟩
 
 /-- **Exact correlation of the subcube majority predictor `andreevSubcubeEval` with `andreev`**:
@@ -388,11 +372,9 @@ private theorem cast_two_mul_card_andreevSubcubeEval_eq_andreev {b r : ℕ} (hr 
 theorem sub_andreevWindowCenter_mem_Icc {b : ℕ} (m : ℕ) (S : Finset (Fin b)) :
     0 ≤ (#S * m : ℝ) / 2 - andreevWindowCenter m S ∧
       (#S * m : ℝ) / 2 - andreevWindowCenter m S ≤ 1 / 2 := by
-  have hdiv : 2 * ((#S * m) / 2) ≤ #S * m ∧ #S * m ≤ 2 * ((#S * m) / 2) + 1 :=
-    ⟨Nat.mul_div_le (#S * m) 2, by omega⟩
-  have h1 : (2 * (((#S * m) / 2 : ℕ) : ℝ)) ≤ ((#S * m : ℕ) : ℝ) := by exact_mod_cast hdiv.1
-  have h2 : ((#S * m : ℕ) : ℝ) ≤ 2 * (((#S * m) / 2 : ℕ) : ℝ) + 1 := by exact_mod_cast hdiv.2
-  push_cast at h1 h2
+  have h1 : 2 * (((#S * m) / 2 : ℕ) : ℝ) ≤ #S * m := by exact_mod_cast Nat.mul_div_le (#S * m) 2
+  have h2 : (#S * m : ℝ) ≤ 2 * (((#S * m) / 2 : ℕ) : ℝ) + 1 := by
+    exact_mod_cast (show #S * m ≤ 2 * ((#S * m) / 2) + 1 by omega)
   simp only [andreevWindowCenter, Int.cast_natCast]
   constructor <;> linarith
 
@@ -408,14 +390,12 @@ theorem mem_window_of_tableScore_and_blockSum_lt {b m B : ℕ} {S : Finset (Fin 
   have hfloor := sub_andreevWindowCenter_mem_Icc m S
   simp only [andreevWindowCenter, Int.cast_natCast] at hfloor
   rw [abs_lt] at hX ht
-  have hreal : (andreevWindowLower m B S : ℝ) ≤ (andreevStairForm b m S τ w : ℝ) ∧
-      (andreevStairForm b m S τ w : ℝ) ≤ (andreevWindowLower m B S + (2 * B : ℕ) : ℝ) := by
-    cases τ <;>
-      simp only [andreevWindowLower, andreevWindowCenter, andreevStairForm, ↓reduceIte,
-        Bool.false_eq_true, Int.cast_sub, Int.cast_add, Int.cast_natCast, Nat.cast_mul,
-        Nat.cast_ofNat] <;>
-      constructor <;> linarith
-  exact ⟨by exact_mod_cast hreal.1, by exact_mod_cast hreal.2⟩
+  rw [← Int.cast_le (R := ℝ), ← Int.cast_le (R := ℝ)]
+  cases τ <;>
+    simp only [andreevWindowLower, andreevWindowCenter, andreevStairForm, ↓reduceIte,
+      Bool.false_eq_true, Int.cast_sub, Int.cast_add, Int.cast_mul, Int.cast_ofNat,
+      Int.cast_natCast, Nat.cast_mul, Nat.cast_ofNat] <;>
+    constructor <;> linarith
 
 /-- **Hoeffding union bound on out-of-window inputs**: for any `t ≥ 0` with `3 * t + 1 / 2 ≤ B`,
 at most `#(andreevPrefixSubsets b r) * 2 * 2 ^ (2 ^ b + b * m) *
@@ -435,18 +415,14 @@ theorem card_not_andreevInWindow_le (b m r B : ℕ) {t : ℝ} (ht : 0 ≤ t)
     rcases hw with ⟨S, hS, τ, hnot⟩
     rw [mem_biUnion]; refine ⟨S, hS, ?_⟩; simp only [mem_union, mem_filter, mem_univ, true_and]
     by_contra! hboth; exact hnot (mem_window_of_tableScore_and_blockSum_lt hB hboth.1 hboth.2 τ)
-  have hcard : (#{w : BitString (2 ^ b + b * m) | ¬ andreevInWindow b m r B w} : ℝ) ≤
-      ∑ S ∈ andreevPrefixSubsets b r,
-        ((#{w : BitString (2 ^ b + b * m) |
-            2 * t ≤ |(andreevTableScore b m S w : ℝ)|} : ℝ) +
-          (#{w : BitString (2 ^ b + b * m) |
-            t ≤ |(andreevBlockSum b m S w : ℝ) - (#S * m : ℝ) / 2|} : ℝ)) := by
-    exact_mod_cast (card_le_card hsub).trans ((card_biUnion_le).trans
-      (sum_le_sum fun S _ => card_union_le _ _))
-  refine hcard.trans ((sum_le_sum fun S _ => add_le_add
-    (card_filter_le_abs_andreevTableScore b m S ht)
-    (card_filter_le_abs_andreevBlockSum_sub_half_bm b m S ht)).trans_eq ?_)
-  simp only [sum_const, nsmul_eq_mul]; ring
+  have hcard := (card_le_card hsub).trans (card_biUnion_le.trans
+    (sum_le_sum fun S _ => card_union_le _ _))
+  refine ((Nat.cast_le (α := ℝ).mpr hcard).trans ((Nat.cast_sum _ _).trans_le (sum_le_sum
+    fun S _ => (Nat.cast_add _ _).trans_le (add_le_add
+      (card_filter_le_abs_andreevTableScore b m S ht)
+      (card_filter_le_abs_andreevBlockSum_sub_half_bm b m S ht))))).trans_eq ?_
+  simp only [sum_const, nsmul_eq_mul]
+  ring
 
 /-- **High-probability `(1 - δ)`-agreement depth-two threshold circuit upper bound (`r = b`)**:
 `andreevWindowedCircuit b m b B` has `4 * 2 ^ b * B + 1` gates and depth at most `2`, and disagrees
@@ -499,14 +475,12 @@ theorem card_eval_andreevWindowedCircuit_eq_andreev_ge {b r : ℕ} (hr : r < b) 
       (#{w : BitString (2 ^ b + b * m) |
         (andreevWindowedCircuit b m r B).eval interpretation w o = andreev b m w} : ℝ) := by
   have hsub := cast_two_mul_card_andreevSubcubeEval_eq_andreev hr m
-  have hsplit : (#{w : BitString (2 ^ b + b * m) |
-      andreevSubcubeEval b m r w = andreev b m w} : ℝ) ≤
-      (#{w : BitString (2 ^ b + b * m) |
-        (andreevWindowedCircuit b m r B).eval interpretation w o = andreev b m w} : ℝ) +
-      (#{w : BitString (2 ^ b + b * m) | ¬ andreevInWindow b m r B w} : ℝ) := by
-    exact_mod_cast card_andreevSubcubeEval_eq_le_card_eval_andreevWindowedCircuit_add b m r B o
+  have hsplit := Nat.cast_le (α := ℝ).mpr
+    (card_andreevSubcubeEval_eq_le_card_eval_andreevWindowedCircuit_add b m r B o)
+  rw [Nat.cast_add] at hsplit
   have htail := card_not_andreevInWindow_le b m r B ht hB
-  rw [card_andreevPrefixSubsets hr.le, Nat.cast_pow, Nat.cast_ofNat] at htail; linarith
+  rw [card_andreevPrefixSubsets hr.le, Nat.cast_pow, Nat.cast_ofNat] at htail
+  linarith
 
 /-- The central binomial lower bound in the form used by the vote: the exact agreement count of
 `two_mul_card_andreevSubcubeEval_eq_andreev` is at least `2 ^ n (1 / 2 + 1 / (2 √(2 L)))` for
@@ -516,22 +490,18 @@ private theorem two_pow_mul_half_add_le_two_pow_add_choose {b r : ℕ} (hr : r <
       (2 ^ (2 ^ b + b * m) : ℝ) / 2 +
         (2 ^ (2 ^ b + b * m - (2 ^ (b - r) - 1)) : ℝ) *
           ((2 ^ (b - r) - 1).choose (2 ^ (b - r - 1) - 1) : ℝ) / 2 := by
-  have h2K : 2 * 2 ^ (b - r - 1) = 2 ^ (b - r) := by
-    rw [← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ b - r)]
   have hbinom_nat := pow_two_mul_sub_one_sq_le (Nat.one_le_two_pow : 1 ≤ 2 ^ (b - r - 1))
-  rw [show 4 * 2 ^ (b - r - 1) = 2 * (2 * 2 ^ (b - r - 1)) by ring, h2K] at hbinom_nat
-  have hbinom_real : ((2 : ℝ) ^ (2 ^ (b - r) - 1)) ^ 2 ≤
-      (Real.sqrt (2 * 2 ^ (b - r)) *
-        ((2 ^ (b - r) - 1).choose (2 ^ (b - r - 1) - 1) : ℝ)) ^ 2 := by
-    rw [mul_pow, Real.sq_sqrt (by positivity)]; exact_mod_cast hbinom_nat
+  rw [show 4 * 2 ^ (b - r - 1) = 2 * (2 * 2 ^ (b - r - 1)) by ring, ← pow_succ',
+    Nat.sub_add_cancel (by omega : 1 ≤ b - r)] at hbinom_nat
   have hbinom : (2 : ℝ) ^ (2 ^ (b - r) - 1) ≤
       Real.sqrt (2 * 2 ^ (b - r)) * ((2 ^ (b - r) - 1).choose (2 ^ (b - r - 1) - 1) : ℝ) := by
-    have := Real.sqrt_le_sqrt hbinom_real
-    rwa [Real.sqrt_sq (by positivity), Real.sqrt_sq (by positivity)] at this
+    refine le_of_sq_le_sq ?_ (by positivity)
+    rw [mul_pow, Real.sq_sqrt (by positivity)]
+    exact_mod_cast hbinom_nat
   have hpow_split : (2 : ℝ) ^ (2 ^ b + b * m) =
       (2 : ℝ) ^ (2 ^ b + b * m - (2 ^ (b - r) - 1)) * (2 : ℝ) ^ (2 ^ (b - r) - 1) := by
-    have : 2 ^ (b - r) ≤ 2 ^ b := Nat.pow_le_pow_right (by decide) (by omega)
-    rw [← pow_add, Nat.sub_add_cancel (by omega)]
+    rw [← pow_add, Nat.sub_add_cancel ((Nat.sub_le _ _).trans
+      (Nat.le_add_right_of_le (Nat.pow_le_pow_right (by decide) (by omega))))]
   have hexcess : (2 : ℝ) ^ (2 ^ b + b * m) * (1 / (2 * Real.sqrt (2 * 2 ^ (b - r)))) ≤
       (2 : ℝ) ^ (2 ^ b + b * m - (2 ^ (b - r) - 1)) *
         ((2 ^ (b - r) - 1).choose (2 ^ (b - r - 1) - 1) : ℝ) / 2 := by

@@ -50,13 +50,11 @@ theorem endpoint_trisect (p : Route) (s t : ℝ) (k : Fin 3) (b : Bool) :
 theorem strictMono_trisectionBounds (p : Route) {s t : ℝ}
     (hs : 0 < s) (ht : 0 < t) (hst : s + t < 1) :
     StrictMono (p.trisectionBounds s t) := by
-  refine Fin.strictMono_iff_lt_succ.mpr ?_
-  intro k
+  refine Fin.strictMono_iff_lt_succ.mpr fun k => ?_
   fin_cases k
   · exact hs
   · change s < (p.segments : ℝ) - t
-    have hn : (1 : ℝ) ≤ (p.segments : ℝ) := by
-      exact_mod_cast Nat.le_add_left 1 p.bends
+    have hn : (1 : ℝ) ≤ p.segments := mod_cast Nat.le_add_left 1 p.bends
     linarith
   · exact sub_lt_self _ ht
 
@@ -105,11 +103,9 @@ private theorem middle_position_lower (p : Route) {s t : ℝ}
     s ≤ p.position i (p.cutTime s t i u) ∧
       (p.position i (p.cutTime s t i u) = s ↔ (p.cutEnds s t).AtEnd i u false) := by
   by_cases hi : i.val = 0
-  · have hi0 : i = 0 := Fin.ext hi
-    subst i
-    have hb := (p.cutTime_bounds hs.le ht.le hst 0 hu).1
-    have he := p.cutTime_eq_lower_iff hs.le ht.le hst 0 u
-    simpa [AtEnd, position, cutLower] using And.intro hb he
+  · obtain rfl : i = 0 := Fin.ext hi
+    simpa [AtEnd, position, cutLower] using
+      ⟨(p.cutTime_bounds hs.le ht.le hst 0 hu).1, p.cutTime_eq_lower_iff hs.le ht.le hst 0 u⟩
   · have hi1 : (1 : ℝ) ≤ i.val := by exact_mod_cast (show 1 ≤ i.val by omega)
     have hr := p.cutTime_mem hs.le ht.le hst i hu
     change s ≤ (i.val : ℝ) + p.cutTime s t i u ∧
@@ -167,11 +163,7 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
       (p.position 0 (s * u) = 0 ↔ (line p.start (p.cutEnds s t).start).AtEnd 0 u false) ∧
       (p.position 0 (s * u) = s ↔ (line p.start (p.cutEnds s t).start).AtEnd 0 u true)
     rw [hpos, hline, hline]
-    refine ⟨⟨hlo, hhi⟩, ?_, ?_⟩
-    · change s * u = 0 ↔ u = 0
-      simpa only [mul_zero] using cancel s hs.ne' 0
-    · change s * u = s ↔ u = 1
-      simpa only [mul_one] using cancel s hs.ne' 1
+    exact ⟨⟨hlo, hhi⟩, by simpa using cancel s hs.ne' 0, by simpa using cancel s hs.ne' 1⟩
   · change Fin p.segments at i
     obtain ⟨hl, hL⟩ := p.middle_position_lower hs ht hst i hu
     obtain ⟨hh, hH⟩ := p.middle_position_upper hs ht hst i hu
@@ -196,13 +188,10 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
       (p.position (Fin.last p.bends) r = p.segments ↔
         (line (p.cutEnds s t).finish p.finish).AtEnd 0 u true)
     rw [hpos, hline, hline]
-    refine ⟨⟨by linarith, by linarith⟩, ?_, ?_⟩
-    · change (p.segments : ℝ) - t + t * u = (p.segments : ℝ) - t ↔ u = 0
-      rw [← cancel t ht.ne' 0, mul_zero]
-      constructor <;> intro <;> linarith
-    · change (p.segments : ℝ) - t + t * u = p.segments ↔ u = 1
-      rw [← cancel t ht.ne' 1, mul_one]
-      constructor <;> intro <;> linarith
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    exact ⟨⟨by linarith, by linarith⟩, add_eq_left.trans (mul_eq_zero_iff_left ht.ne'),
+      ⟨fun h => (cancel t ht.ne' 1).mp (by linarith),
+       fun h => by rw [h]; ring⟩⟩
 
 /-- Each of the three pieces is simple when the original route is simple.
 The original route may have the same start and finish. -/
@@ -236,12 +225,10 @@ theorem support_trisect (p : Route) {s t : ℝ}
   · intro hz
     obtain ⟨i, r, hr, rfl⟩ := (p.mem_support_iff z).mp hz
     rcases lt_or_ge r (p.cutLower s i) with hlow | hlow
-    · have hi : i = 0 := by
+    · obtain rfl : i = 0 := by
         by_contra h
-        have hn : i.val ≠ 0 := fun e => h (Fin.ext e)
-        simp only [cutLower, ite_eq_right hn] at hlow
-        exact (not_lt_of_ge hr.1) hlow
-      subst i
+        exact (not_lt_of_ge hr.1)
+          (by simpa only [cutLower, ite_eq_right (fun e : i.val = 0 => h (Fin.ext e))] using hlow)
       change r < s at hlow
       obtain ⟨u, hu, he⟩ := preimage hs.le ⟨hr.1, hlow.le⟩
       have hr' : s * u = r := by rw [AffineMap.lineMap_apply_ring'] at he; linarith
@@ -326,20 +313,11 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
       r.cutLower s k = (if (e k).val = i then s else 0) ∧
       r.cutUpper (1 - t) k = (if (e k).val = j then t else 1) := by
     have hki : k.val = 0 ↔ (e k).val = i := by
-      constructor
-      · intro hk
-        exact Fin.ext (by change i.val + k.val = i.val; omega)
-      · intro h
-        have h' : i.val + k.val = i.val := congrArg Fin.val h
-        omega
+      rw [Fin.ext_iff]
+      dsimp [e, source]; omega
     have hkj : k.val + 1 = r.segments ↔ (e k).val = j := by
-      change k.val + 1 = j.val - i.val + 1 ↔ _
-      constructor
-      · intro hk
-        exact Fin.ext (by change i.val + k.val = j.val; omega)
-      · intro h
-        have h' : i.val + k.val = j.val := congrArg Fin.val h
-        omega
+      rw [Fin.ext_iff]
+      dsimp [e, source, r, segments]; omega
     exact ⟨by simp only [cutLower, hki], by simp only [cutUpper, hkj, sub_sub_cancel]⟩
   have hbounds (k : Fin q.segments) :
       0 ≤ r.cutLower s k ∧ r.cutLower s k < r.cutUpper (1 - t) k ∧

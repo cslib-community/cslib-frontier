@@ -77,13 +77,11 @@ private theorem sum_fourierCoeff_sq_le_ite (f : BooleanFunction n) (J : Finset (
   split_ifs with h
   · -- a decision tree of depth below `s` has no weight on sets of `s` coordinates
     obtain ⟨t, ht, hd⟩ := h.exists_tree
+    have hfun : (fun x => signVal (f (J.piecewise x z))) = fun x => signVal (t.eval x) :=
+      funext fun x => by rw [ht, PartialAssignment.fill_outside]
     refine (sum_eq_zero fun S hS => ?_).le
-    have hfun : (fun x => signVal (f (J.piecewise x z))) = fun x => signVal (t.eval x) := by
-      funext x
-      rw [ht, PartialAssignment.fill_outside]
-    rw [hfun, DecisionTree.fourierCoeff_eq_zero_of_depth_lt signVal t
+    simp [hfun, DecisionTree.fourierCoeff_eq_zero_of_depth_lt signVal t
       (hd.trans_le (mem_filter.1 hS).2)]
-    simp
   · rw [← sum_fourierCoeff_sq_signVal fun x => f (J.piecewise x z)]
     exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => sq_nonneg _
 
@@ -162,19 +160,15 @@ theorem sum_fourierCoeff_sq_le_of_computes {f : BooleanFunction n} {C : Circuit 
     rw [hswap, mul_sum, sum_filter]
     refine sum_le_sum fun U _ => ?_
     split_ifs with hU
-    · have hcount := two_mul_card_filter_card_inter_lt_le (s := univ) (U := U) (ℓ := ℓ)
-        (m := s) (subset_univ U) (by simpa using hn0)
-        (by simpa using ((Nat.mul_le_mul_right n (le_max_left 8 (2 * s))).trans hk).trans
-              (Nat.mul_le_mul_right ℓ hU))
-        (by simpa using ((Nat.mul_le_mul_right n (le_max_right 8 (2 * s))).trans hk).trans
-              (Nat.mul_le_mul_right ℓ hU))
-      have hcount' : 2 * (P.filter fun J => #(U ∩ J) < s).card ≤ N := by
-        simpa [P, N] using hcount
+    · have hcount : 2 * (P.filter fun J => #(U ∩ J) < s).card ≤ N := by
+        simpa [P, N] using two_mul_card_filter_card_inter_lt_le (s := univ) (U := U) (ℓ := ℓ)
+          (m := s) (subset_univ U) (by simpa using hn0)
+          (by simpa using ((Nat.mul_le_mul_right n (le_max_left 8 (2 * s))).trans hk).trans
+                (Nat.mul_le_mul_right ℓ hU))
+          (by simpa using ((Nat.mul_le_mul_right n (le_max_right 8 (2 * s))).trans hk).trans
+                (Nat.mul_le_mul_right ℓ hU))
       have hsplit := card_filter_add_card_filter_not (s := P) (fun J => s ≤ #(U ∩ J))
-      have hPN : P.card = N := by simp [P, N]
-      have hneg : (P.filter fun J => ¬ s ≤ #(U ∩ J)) = P.filter fun J => #(U ∩ J) < s :=
-        filter_congr fun _ _ => not_le
-      rw [hneg, hPN] at hsplit
+      rw [filter_congr fun _ _ => not_le, show P.card = N by simp [P, N]] at hsplit
       have h2 : (N : ℝ) ≤ 2 * (P.filter fun J => s ≤ #(U ∩ J)).card := by
         exact_mod_cast (by omega : N ≤ 2 * (P.filter fun J => s ≤ #(U ∩ J)).card)
       nlinarith [ha U]

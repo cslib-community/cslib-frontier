@@ -143,8 +143,7 @@ private theorem length_scanSteps [DecidableEq P] {α : Type*} (E : Execution P) 
   | succ k ih =>
     have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
     rw [E.scanSteps_succ_of_lt init next hlt]
-    simp only [scanStepAux, List.length_append, List.length_singleton]
-    rw [ih hlt.le]
+    simp [scanStepAux, ih hlt.le]
 
 private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) (init : P → α)
     (next : P → α → Option α → α) {i k : ℕ} (hik : i < k) (hk : k ≤ E.steps.length) :
@@ -154,10 +153,9 @@ private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) 
   | succ k ih =>
     have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hik) with hik' | rfl
-    · rw [E.scanSteps_succ_of_lt init next hlt]
-      simp only [scanStepAux]
-      rw [List.getElem?_append_left (by rw [E.length_scanSteps init next hlt.le]; exact hik')]
-      exact ih hik' hlt.le
+    · rw [E.scanSteps_succ_of_lt init next hlt, scanStepAux,
+        List.getElem?_append_left (by simp [E.length_scanSteps init next hlt.le, hik']),
+        ih hik' hlt.le]
     · rfl
 
 /-- Evaluate a `scanSteps` clock at event `e` (running the prefix up to `e.idx + 1`). -/
@@ -174,9 +172,8 @@ private theorem scanSteps_fst_succ_self [DecidableEq P] {α : Type*} (E : Execut
           | _ => none)) := by
   have hlen : (E.scanSteps init next e.idx.val).1.length = e.idx.val :=
     E.length_scanSteps init next e.idx.isLt.le
-  rw [E.scanSteps_succ_of_lt init next e.idx.isLt]
-  simp only [scanStepAux]
-  rw [List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero]
+  rw [E.scanSteps_succ_of_lt init next e.idx.isLt, scanStepAux,
+    List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero]
   rfl
 
 private theorem evalScan_step_eq [DecidableEq P] {α : Type*} (E : Execution P)
@@ -213,10 +210,7 @@ private theorem scanSteps_snd_succ_self [DecidableEq P] {α : Type*} (E : Execut
     (E.scanSteps init next (e.idx.val + 1)).2 e.actor =
       E.evalScan defaultVal init next e := by
   rw [E.evalScan_step_eq defaultVal init next e, E.scanSteps_succ_of_lt init next e.idx.isLt]
-  simp only [scanStepAux]
-  change Function.update (E.scanSteps init next e.idx.val).2 e.actor _ e.actor = _
-  rw [Function.update_self]
-  rfl
+  simp only [scanStepAux, Event.actor, Event.step, Fin.getElem_fin, Function.update_self]; rfl
 
 private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E : Execution P)
     (init : P → α) (next : P → α → Option α → α)
@@ -230,12 +224,9 @@ private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E
     · have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk₂
       refine (ih (Nat.le_of_lt_succ hlt) hk_lt.le).trans ?_
       rw [E.scanSteps_succ_of_lt init next hk_lt]
-      simp only [scanStepAux]
-      by_cases hq : q = (E.steps[k]).actor
-      · subst hq
-        rw [Function.update_self]
-        exact hstep _ _ _
-      · rw [Function.update_of_ne hq]
+      rcases eq_or_ne q (E.steps[k]).actor with rfl | hq
+      · simp [scanStepAux, hstep]
+      · simp [scanStepAux, Function.update_of_ne hq]
     · exact le_rfl
 
 private theorem evalScan_le_snd_of_lt [DecidableEq P] {α : Type*} [Preorder α] (E : Execution P)
@@ -297,13 +288,9 @@ private theorem causalStep_imp_lamportClock_lt [DecidableEq P] {E : Execution P}
     conv_rhs => rw [lamportClock, E.evalScan_step_eq 0 (fun _ => 0) lamportNext e₂]
     simp only [lamportNext]
     omega
-  · have hrecv : e₂.step = .recv e₂.actor e₁.idx.val := hmsg
-    have hm := E.evalScan_of_recv 0 (fun _ => 0) lamportNext hrecv
-    change E.lamportClock e₂ =
-      lamportNext e₂.actor _ (some (E.lamportClock e₁)) at hm
-    rw [hm]
+  · conv_rhs => rw [lamportClock, E.evalScan_of_recv 0 (fun _ => 0) lamportNext hmsg]
     simp only [lamportNext, Option.getD_some]
-    omega
+    exact lt_of_le_of_lt (le_max_right _ _) (Nat.lt_succ_self _)
 
 /-- **Strict causal monotonicity of Lamport clocks** ([Lamport1978]):
 `e₁ ≺ e₂ → E.lamportClock e₁ < E.lamportClock e₂`. -/
@@ -380,21 +367,18 @@ causally well-formed execution on `P` admitting *no* order-embedding into any `L
 theorem not_exists_1d_characterization {P : Type u} [Fintype P] (hP : 2 ≤ Fintype.card P) :
     ∃ E : Execution P, ∀ {α : Type v} [LinearOrder α] (f : E.Event → α),
       ¬ ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ := by
-  have hnt : Nontrivial P := Fintype.one_lt_card_iff_nontrivial.mp (by omega)
-  obtain ⟨p₀, p₁, hpne⟩ := hnt
+  obtain ⟨p₀, p₁, hpne⟩ := Fintype.one_lt_card_iff_nontrivial.mp (by omega : 1 < Fintype.card P)
   let E : Execution P := Execution.ofInternal [p₀, p₁]
   refine ⟨E, fun {α} _ f hf => ?_⟩
   let e₀ : E.Event := ⟨⟨0, Nat.zero_lt_succ 1⟩⟩
   let e₁ : E.Event := ⟨⟨1, Nat.lt_succ_self 1⟩⟩
-  have hact₀ : e₀.actor = p₀ := rfl
-  have hact₁ : e₁.actor = p₁ := rfl
   rcases le_total (f e₀) (f e₁) with hle | hge
   · rcases Execution.ofInternal_happensBeforeLe_iff.mp ((hf e₀ e₁).mpr hle) with heq | ⟨hact, _⟩
     · exact Nat.zero_ne_one (congrArg (fun e => e.idx.val) heq)
-    · exact hpne (hact₀ ▸ hact₁ ▸ hact)
+    · exact hpne hact
   · rcases Execution.ofInternal_happensBeforeLe_iff.mp ((hf e₁ e₀).mpr hge) with heq | ⟨hact, _⟩
     · exact Nat.one_ne_zero (congrArg (fun e => e.idx.val) heq)
-    · exact hpne (hact₀ ▸ hact₁ ▸ hact.symm)
+    · exact hpne hact.symm
 
 namespace Execution
 
@@ -415,16 +399,10 @@ RA1–RA4, which additionally increment the sender's entry upon receive). -/
   E.evalScan 0 (fun _ => 0) vcNext e
 
 private theorem le_vcNext [DecidableEq P] (p : P) (cur : VectorClock P)
-    (msg? : Option (VectorClock P)) : cur ≤ vcNext p cur msg? := by
-  intro q
-  simp only [vcNext]
-  by_cases hq : q = p
-  · subst hq
-    rw [Function.update_self]
-    simp only [Pi.sup_apply]
-    omega
-  · rw [Function.update_of_ne hq]
-    exact le_sup_left
+    (msg? : Option (VectorClock P)) : cur ≤ vcNext p cur msg? := fun q => by
+  rcases eq_or_ne q p with rfl | hq
+  · simp only [vcNext, Function.update_self, Pi.sup_apply]; omega
+  · simp [vcNext, Function.update_of_ne hq]
 
 /-- At every event `e`, its executing process's own vector-clock entry is strictly positive. -/
 theorem vc_actor_pos [DecidableEq P] (E : Execution P) (e : E.Event) :
@@ -456,15 +434,11 @@ private theorem causalStep_imp_vc_le [DecidableEq P] {E : Execution P} {e₁ e�
     rw [hact] at hle
     conv_rhs => rw [vc, E.evalScan_step_eq 0 (fun _ => 0) vcNext e₂]
     exact hle.trans (le_vcNext _ _ _)
-  · have hrecv : e₂.step = .recv e₂.actor e₁.idx.val := hmsg
-    have hm := E.evalScan_of_recv 0 (fun _ => 0) vcNext hrecv
-    change E.vc e₂ = vcNext e₂.actor _ (some (E.vc e₁)) at hm
-    rw [hm]
+  · conv_rhs => rw [vc, E.evalScan_of_recv 0 (fun _ => 0) vcNext hmsg]
     intro q
-    simp only [vcNext, Option.getD_some, Function.update_apply, Pi.sup_apply]
-    split_ifs with hq
-    · subst hq; omega
-    · omega
+    by_cases hq : q = e₂.actor
+    · simp only [hq, vc, vcNext, Option.getD_some, Function.update_self, Pi.sup_apply]; omega
+    · simp only [vc, vcNext, Option.getD_some, Function.update_of_ne hq, Pi.sup_apply]; omega
 
 /-- Vector clocks are monotone with respect to `HappensBeforeLe`. -/
 theorem vc_mono [DecidableEq P] (E : Execution P) : Monotone E.vc := by

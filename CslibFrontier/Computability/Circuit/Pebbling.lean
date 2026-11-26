@@ -73,8 +73,12 @@ theorem Program.dag_adj {p : Program σ n g} {u v : Wire n g} :
       v = .gate j ∧ (p.lines j).wires k = u := Iff.rfl
 
 @[simp] theorem Program.dag_adj_gate {p : Program σ n g} {u : Wire n g} {j : Fin g} :
-    p.dag.Adj u (.gate j) ↔ ∃ k, (p.lines j).wires k = u :=
-  ⟨fun ⟨_, k, hj, h⟩ => by cases hj; exact ⟨k, h⟩, fun ⟨k, h⟩ => ⟨j, k, rfl, h⟩⟩
+    p.dag.Adj u (.gate j) ↔ ∃ k, (p.lines j).wires k = u := by
+  constructor
+  · rintro ⟨_, k, ⟨⟩, rfl⟩
+    exact ⟨k, rfl⟩
+  · rintro ⟨k, rfl⟩
+    exact ⟨j, k, rfl, rfl⟩
 
 @[simp] theorem Program.not_dag_adj_input (p : Program σ n g) (u : Wire n g) (i : Fin n) :
     ¬ p.dag.Adj u (.input i) := by
@@ -92,7 +96,10 @@ theorem Program.ncard_dag_adj_le {p : Program σ n g} {r : ℕ} (hp : p.FanInAtM
   cases v with
   | input i => simp
   | gate j =>
-    rw [show {u | p.dag.Adj u (.gate j)} = (p.lines j).wires '' Set.univ by ext; simp]
+    have hset : {u | p.dag.Adj u (.gate j)} = Set.range (p.lines j).wires := by
+      ext u
+      simp only [Set.mem_ofPred_eq, Program.dag_adj_gate, Set.mem_range]
+    rw [hset, ← Set.image_univ]
     refine (Set.ncard_image_le (Set.toFinite _)).trans ?_
     simpa [Set.ncard_univ] using Program.fanInAtMost_iff.1 hp j
 
@@ -202,15 +209,11 @@ theorem Program.exists_registerLTS_mTr {s : ℕ} {C D : Finset (Wire n g)}
     cases hstep with
     | @place w hw =>
       cases w with
-      | input i =>
-        obtain ⟨r', hr'⟩ := ih _
-        exact ⟨r', .stepL ⟨.load i, hcard⟩ hr'⟩
+      | input i => exact (ih _).imp fun _ => .stepL ⟨.load i, hcard⟩
       | gate j =>
-        obtain ⟨r', hr'⟩ := ih _
-        exact ⟨r', .stepL ⟨.compute j fun k => hw _ (Program.dag_adj_gate.2 ⟨k, rfl⟩), hcard⟩ hr'⟩
-    | remove =>
-      obtain ⟨r', hr'⟩ := ih r
-      exact ⟨r', .stepL ⟨.free _, hcard⟩ hr'⟩
+        exact (ih _).imp fun _ =>
+          .stepL ⟨.compute j fun k => hw _ (Program.dag_adj_gate.2 ⟨k, rfl⟩), hcard⟩
+    | remove => exact (ih r).imp fun _ => .stepL ⟨.free _, hcard⟩
 
 /-- `p` evaluates wire `w` with at most `s` registers, from the initial contents `r₀`. -/
 def Program.EvaluatesInRegisters (p : Program σ n g) (I : Interpretation σ U) (x : Fin n → U)
@@ -230,10 +233,12 @@ black-pebbled with `s` pebbles in the computation DAG of `p`, for every interpre
 and initial register contents. -/
 theorem Program.evaluatesInRegisters_iff_blackPebblable {r₀ : Wire n g → U} {s : ℕ}
     {w : Wire n g} : p.EvaluatesInRegisters I x r₀ s w ↔ BlackPebblable p.dag s w := by
-  refine ⟨fun ⟨ms, d, hd, hw⟩ => ⟨ms, d.1, Program.blackPebbleGame_mTr_of_registerLTS hd, hw⟩, ?_⟩
-  rintro ⟨ms, D, hD, hw⟩
-  obtain ⟨r', hr'⟩ := Program.exists_registerLTS_mTr (I := I) (x := x) hD r₀
-  exact ⟨ms, (D, r'), hr', hw⟩
+  constructor
+  · rintro ⟨ms, d, hd, hw⟩
+    exact ⟨ms, d.1, Program.blackPebbleGame_mTr_of_registerLTS hd, hw⟩
+  · rintro ⟨ms, D, hD, hw⟩
+    obtain ⟨r', hr'⟩ := Program.exists_registerLTS_mTr (I := I) (x := x) hD r₀
+    exact ⟨ms, (D, r'), hr', hw⟩
 
 /-- The least number of registers that evaluates `w` is the black pebbling price of `w` in the
 computation DAG. -/

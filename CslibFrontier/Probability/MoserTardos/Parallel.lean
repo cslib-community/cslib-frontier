@@ -112,12 +112,8 @@ theorem IsValidParallelRule.eq_nil_iff [DecidableEq V] {vbl : ι → Finset V}
   constructor
   · intro hnil i hi
     obtain ⟨j, hj, -⟩ := h.max T w i hi
-    rw [hnil] at hj
-    simp at hj
-  · intro hnone
-    by_contra hne
-    obtain ⟨i, hi⟩ := List.exists_mem_of_ne_nil _ hne
-    exact hnone i (h.mem T w i hi)
+    simp [hnil] at hj
+  · exact fun hnone => List.eq_nil_iff_forall_not_mem.2 fun i hi => hnone i (h.mem T w i hi)
 
 /-- The cumulative resampling log (latest step first) after `n` rounds of the parallel algorithm
 using selection rule `psel` on table `T`. -/
@@ -142,15 +138,9 @@ theorem parallelRun_eq_of_eq_nil {psel : (∀ p : V × ℕ, α p.1) → List ι 
     {T : ∀ p : V × ℕ, α p.1} {n : ℕ} (hn : psel T (parallelRun psel T n) = []) :
     ∀ {m : ℕ}, n ≤ m → parallelRun psel T m = parallelRun psel T n := by
   intro m hm
-  induction m with
-  | zero =>
-    obtain rfl : n = 0 := Nat.le_zero.1 hm
-    rfl
-  | succ m ih =>
-    rcases Nat.eq_or_lt_of_le hm with rfl | hlt
-    · rfl
-    · have hmn : n ≤ m := Nat.lt_succ_iff.1 hlt
-      rw [parallelRun_succ, ih hmn, hn, List.nil_append]
+  induction hm with
+  | refl => rfl
+  | step _ ih => rw [parallelRun_succ, ih, hn, List.nil_append]
 
 /-- Once a round returns `[]`, all subsequent rounds return `[]`. -/
 theorem psel_parallelRun_eq_nil_of_le {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
@@ -165,11 +155,7 @@ private theorem uses_append_eq_of_forall_notMem [DecidableEq V] (vbl : ι → Fi
   induction b with
   | nil => simp
   | cons j b ih =>
-    rw [List.cons_append, uses_cons]
-    have hj : v ∉ vbl j := hv j List.mem_cons_self
-    have hrest : uses vbl (b ++ w) v = uses vbl w v :=
-      ih fun x hx => hv x (List.mem_cons_of_mem _ hx)
-    simp [hj, hrest]
+    simp [uses_cons, hv j List.mem_cons_self, ih fun x hx => hv x (List.mem_cons_of_mem _ hx)]
 
 private theorem isLog_append_of_pairwise [DecidableEq V] (vbl : ι → Finset V)
     (A : ι → Set (∀ v, α v)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
@@ -221,25 +207,17 @@ theorem parallelRounds_le_of_eq_nil {psel : (∀ p : V × ℕ, α p.1) → List 
 
 theorem succ_le_parallelRounds_iff (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     (T : ∀ p : V × ℕ, α p.1) (k : ℕ) :
-    ((k : ℝ≥0∞) + 1 ≤ parallelRounds psel T) ↔ psel T (parallelRun psel T k) ≠ [] := by
-  constructor
-  · intro hle hnil
-    have hbound : parallelRounds psel T ≤ k := parallelRounds_le_of_eq_nil hnil
-    have hk : (k : ℝ≥0∞) + 1 ≤ (k : ℝ≥0∞) := hle.trans hbound
-    have hlt : (k : ℝ≥0∞) < (k : ℝ≥0∞) + 1 := by
-      exact_mod_cast Nat.lt_succ_self k
-    exact (not_lt_of_ge hk) hlt
-  · intro hne
-    exact le_iSup₂ (f := fun n (_ : psel T (parallelRun psel T n) ≠ []) => ((n : ℝ≥0∞) + 1)) k hne
+    ((k : ℝ≥0∞) + 1 ≤ parallelRounds psel T) ↔ psel T (parallelRun psel T k) ≠ [] :=
+  ⟨fun hle hnil => not_lt_of_ge (hle.trans (parallelRounds_le_of_eq_nil hnil))
+    (by exact_mod_cast Nat.lt_succ_self k),
+   fun hne =>
+    le_iSup₂ (f := fun n (_ : psel T (parallelRun psel T n) ≠ []) => ((n : ℝ≥0∞) + 1)) k hne⟩
 
 theorem exists_eq_nil_of_parallelRounds_ne_top (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     {T : ∀ p : V × ℕ, α p.1} (hfin : parallelRounds psel T ≠ ⊤) :
     ∃ n : ℕ, psel T (parallelRun psel T n) = [] := by
-  by_contra hne
-  push Not at hne
-  apply hfin
-  rw [eq_top_iff]
-  refine le_of_forall_lt fun c hc => ?_
+  by_contra! hne
+  refine hfin (eq_top_iff.mpr <| le_of_forall_lt fun c hc => ?_)
   obtain ⟨n, hn⟩ := ENNReal.exists_nat_gt hc.ne_top
   exact hn.trans_le (le_self_add.trans ((succ_le_parallelRounds_iff psel T n).2 (hne n)))
 
@@ -320,14 +298,9 @@ private theorem greedyIndependentSubset_pairwise (vbl : ι → Finset V) (P : ι
   | cons x xs ih =>
     simp only [greedyIndependentSubset]
     split_ifs with hcond
-    · rw [List.pairwise_cons]
-      refine ⟨fun j hj => ?_, ih⟩
-      rw [Bool.and_eq_true, List.all_eq_true] at hcond
-      have hpair := hcond.2 j hj
-      rw [Bool.and_eq_true, decide_eq_true_iff, decide_eq_true_iff] at hpair
-      rw [adj_iff]
-      push Not
-      exact hpair
+    · rw [Bool.and_eq_true, List.all_eq_true] at hcond
+      refine List.pairwise_cons.mpr ⟨fun j hj => ?_, ih⟩
+      simpa [adj_iff, not_or] using hcond.2 j hj
     · exact ih
 
 private theorem greedyIndependentSubset_max (vbl : ι → Finset V) (P : ι → Bool)
@@ -340,26 +313,12 @@ private theorem greedyIndependentSubset_max (vbl : ι → Finset V) (P : ι → 
     rcases List.mem_cons.1 hic with rfl | hixs
     · split_ifs with hcond
       · exact ⟨i, List.mem_cons_self, adj_refl vbl i⟩
-      · have hnot : ¬((P i &&
-            (greedyIndependentSubset vbl P xs).all
-              fun j => decide (i ≠ j) && decide (Disjoint (vbl i) (vbl j))) = true) := by
-          simpa using hcond
-        rw [Bool.and_eq_true, not_and, hiP] at hnot
-        have hall : ¬(greedyIndependentSubset vbl P xs).all
-            (fun j => decide (i ≠ j) && decide (Disjoint (vbl i) (vbl j))) = true :=
-          hnot rfl
-        rw [List.all_eq_true] at hall
-        push Not at hall
-        obtain ⟨j, hj, hnotadj⟩ := hall
-        refine ⟨j, hj, ?_⟩
-        by_contra hna
-        have hna' := not_or.1 ((adj_iff vbl).not.1 hna)
-        exact hnotadj ((Bool.and_eq_true _ _).mpr
-          ⟨decide_eq_true_iff.2 hna'.1, decide_eq_true_iff.2 (not_not.1 hna'.2)⟩)
+      · by_contra hno
+        refine hcond ?_
+        simp only [hiP, Bool.true_and, List.all_eq_true, Bool.and_eq_true, decide_eq_true_eq]
+        exact fun j hj => by simpa [adj_iff, not_or] using fun h => hno ⟨j, hj, h⟩
     · obtain ⟨j, hj, hadj⟩ := ih hixs
-      split_ifs
-      · exact ⟨j, List.mem_cons_of_mem _ hj, hadj⟩
-      · exact ⟨j, hj, hadj⟩
+      split_ifs <;> exact ⟨j, by simp [hj], hadj⟩
 
 /-- Computable greedy maximal independent set parallel selection rule over an explicit candidate
 list `cand` and Boolean event detector `occur`. -/
@@ -493,24 +452,10 @@ private theorem parallel_step_adj [DecidableEq V] (vbl : ι → Finset V) (A : �
     hrule.mem T (parallelRun psel T (m + 1)) i hi
   by_cases hm_occ : current vbl T (parallelRun psel T m) ∈ A i
   · exact hrule.max T (parallelRun psel T m) i hm_occ
-  · have hdiff : ¬∀ v ∈ vbl i,
-        current vbl T (parallelRun psel T (m + 1)) v =
-          current vbl T (parallelRun psel T m) v := by
-      intro heq
-      exact hm_occ ((hA i heq).mp hi_occ)
-    push Not at hdiff
-    obtain ⟨v, hv, hne⟩ := hdiff
-    have huses :
-        uses vbl (psel T (parallelRun psel T m) ++ parallelRun psel T m) v ≠
-          uses vbl (parallelRun psel T m) v := by
-      intro hu
-      apply hne
-      rw [parallelRun_succ, current_apply, current_apply, hu]
-    by_contra hdisj
-    push Not at hdisj
-    apply huses
-    refine uses_append_eq_of_forall_notMem vbl _ _ fun j hj hvj => ?_
-    exact (hdisj j hj) (adj_of_mem vbl hv hvj)
+  · by_contra! hdisj
+    refine hm_occ ((hA i fun v hv => ?_).mp hi_occ)
+    rw [parallelRun_succ, current_apply, current_apply,
+      uses_append_eq_of_forall_notMem vbl _ _ fun j hj hvj => hdisj j hj (adj_of_mem vbl hv hvj)]
 
 private def batchSlice (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     (T : ∀ p : V × ℕ, α p.1) (r : ℕ) : ℕ → List ι
@@ -549,15 +494,12 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
           p.2 = t + d ∧ p.1 ∈ psel T (parallelRun psel T r)) := by
   intro d
   induction d with
-  | zero =>
-    intro r t S hle hex
-    exact ⟨hle, hex⟩
+  | zero => exact fun _ _ _ hle hex => ⟨hle, hex⟩
   | succ d ih =>
     intro r t S hle hex
     rw [batchSlice_succ_right, pushList_append]
-    have hidx : r + (d + 1) = (r + 1) + d := by omega
-    rw [hidx] at hex
-    obtain ⟨hle', ⟨p, hpS', hpt, hp_in⟩⟩ := ih (r + 1) t S hle hex
+    obtain ⟨hle', ⟨p, hpS', hpt, hp_in⟩⟩ := ih (r + 1) t S hle
+      (by rwa [← Nat.add_assoc, Nat.add_right_comm] at hex)
     obtain ⟨j, hj, hadj⟩ := parallel_step_adj vbl A hA hrule T r hp_in
     have hspec := mem_pushList_spec (Adj vbl) (hrule.pairwise T (parallelRun psel T r))
       (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)
@@ -572,9 +514,8 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
         have := hle' q hq
         omega
     have hlt :
-        t + d < levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) := by
-      rw [← hpt]
-      exact lt_levelRel hpS' hadj
+        t + d < levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) :=
+      hpt ▸ lt_levelRel hpS' hadj
     have hjeq : levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) =
         t + d + 1 :=
       le_antisymm (hj_bound j hj) hlt
@@ -583,11 +524,7 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
       rcases hspec.1 q hq with hq' | ⟨x, hx, -, rfl⟩
       · exact (hle' q hq').trans (by omega)
       · exact (hj_bound x hx).trans (by omega)
-    · refine ⟨(j, t + (d + 1)), ?_, rfl, hj⟩
-      have hne : levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) ≠ 0 := by
-        omega
-      have hmem := hspec.2 j hj hne
-      rwa [hjeq] at hmem
+    · exact ⟨(j, t + (d + 1)), hjeq ▸ hspec.2 j hj (by omega), rfl, hj⟩
 
 /-- **Parallel witness-tree depth lemma** [MoserTardos2010, Lemma 4.1]: if round `k` selects a
 non-empty batch containing `i` (with suffix `suff` after `i` in that batch), then the witness
@@ -623,13 +560,9 @@ theorem parallel_witness_depth [DecidableEq V] [DecidableEq ι] [Fintype ι]
     rw [shapes_eq_shapesRel]
     exact mem_shapesRel (Adj vbl) k hroot hdepth.1
   have hprop : Proper vbl S := proper_witness vbl i _
-  have hlog_sub : IsLog vbl A T ((i :: suff) ++ parallelRun psel T k) := by
-    refine isLog_append_of_pairwise vbl A hA T
-      (isLog_parallelRun vbl A hA hrule T k) (fun x hx => ?_) hpw.2.1
-    refine hrule.mem T (parallelRun psel T k) x ?_
-    rw [hsplit]
-    exact List.mem_append_right _ hx
-  have hchk : Check vbl A S T := check_witness vbl A hA i _ T (by simpa using hlog_sub)
+  have hchk : Check vbl A S T := check_witness vbl A hA i _ T <| by
+    simpa using isLog_append_of_pairwise vbl A hA T (isLog_parallelRun vbl A hA hrule T k)
+      (fun x hx => hrule.mem T _ x (hsplit ▸ List.mem_append_right _ hx)) hpw.2.1
   obtain ⟨p, hp, hpk, -⟩ := hdepth.2
   have hlevels : ∀ t, ∀ q ∈ S, q.2 = t → ∀ d ≤ t, ∃ q ∈ S, q.2 = d := by
     intro t
@@ -662,15 +595,11 @@ private def parallelEvent [DecidableEq V] [DecidableEq ι] [Fintype ι] (vbl : �
 private theorem measurableSet_parallelEvent [DecidableEq V] [DecidableEq ι] [Fintype ι]
     (vbl : ι → Finset V) (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) (k : ℕ) :
     MeasurableSet (parallelEvent vbl A k) := by
-  have heq : parallelEvent vbl A k =
-      ⋃ i : ι, ⋃ S ∈ shapes vbl i k, ⋃ (_ : Proper vbl S), ⋃ (_ : k + 1 ≤ #S),
-        {T | Check vbl A S T} := by
-    ext T
-    simp only [parallelEvent, Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]
-  rw [heq]
-  refine MeasurableSet.iUnion fun i => MeasurableSet.biUnion (shapes vbl i k).countable_toSet
-    fun S _ => MeasurableSet.iUnion fun _ => MeasurableSet.iUnion fun _ => ?_
-  exact measurableSet_check vbl A hAm S
+  convert MeasurableSet.iUnion fun i => MeasurableSet.biUnion (shapes vbl i k).countable_toSet
+    fun S _ => MeasurableSet.iUnion fun (_ : Proper vbl S) =>
+      MeasurableSet.iUnion fun (_ : k + 1 ≤ #S) => measurableSet_check vbl A hAm S using 1
+  ext T
+  simp only [parallelEvent, Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]; tauto
 
 omit [∀ v, MeasurableSpace (α v)] in
 private theorem mem_parallelEvent_of_psel_ne_nil [DecidableEq V] [DecidableEq ι] [Fintype ι]
@@ -949,11 +878,9 @@ theorem ae_exists_parallelRun_eq_nil_of_bound [DecidableEq V] [Finite ι]
     (hrule : IsValidParallelRule vbl A psel) :
     ∀ᵐ T ∂table μ, ∃ n : ℕ, psel T (parallelRun psel T n) = [] := by
   filter_upwards [ae_exists_forall_isLog_length_le_of_bound μ vbl A hAm hc] with T ⟨N, hN⟩
-  by_contra hne
-  push Not at hne
-  have hle := hN _ (isLog_parallelRun vbl A hA hrule T (N + 1))
-  have hge := le_length_parallelRun_of_forall hne (N + 1)
-  omega
+  by_contra! hne
+  exact Nat.not_succ_le_self N ((le_length_parallelRun_of_forall hne (N + 1)).trans
+    (hN _ (isLog_parallelRun vbl A hA hrule T (N + 1))))
 
 /-- Under the local-lemma hypothesis `Pr[A i] ≤ x i * ∏ j ∈ Γ i, (1 - x j)` of Theorem 1.2,
 without the slack `1 - ε` that Theorem 1.3 needs for its round bound, almost surely every

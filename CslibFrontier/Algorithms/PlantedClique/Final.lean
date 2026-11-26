@@ -58,10 +58,7 @@ theorem dens_recover_ne_le (S : Finset (Fin n)) (hn : 1 ≤ n) (hk : 6 ≤ S.car
   refine dens_recover_ne_le_of_noise_degree S (by omega)
     (fun ω => recover (sample S ω) S.card) ?_
   intro ω hnoise hdegree
-  have hclique : (sample S ω).IsClique (S : Set (Fin n)) := by
-    intro i hi j hj hij
-    exact sample_adj_of_mem S ω hi hj hij
-  exact recover_eq_of_opNorm_le (sample S ω) S hk hclique
+  exact recover_eq_of_opNorm_le (sample S ω) S hk (fun _ hi _ hj => sample_adj_of_mem S ω hi hj)
     (opNorm_residual_le_card_div_sixteen S ω hn hsize hnoise) hdegree
 
 /-- Probability-mass-function form of the fixed-planted-set recovery bound. The coins are

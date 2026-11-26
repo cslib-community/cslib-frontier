@@ -88,16 +88,9 @@ theorem val_eval_tree (h : ℕ) (x : BitString (2 ^ h)) :
     simp
   | succ h ih =>
     simp only [circuit_simps, tree]
-    change (BitString.equivFin (h + 1 + 1)
-      ((carryLookahead (h + 1)).eval interpretation
-        (Fin.append
-          (Fin.append
-            ((tree h).eval interpretation (x ∘ fun i : Fin (2 ^ h) =>
-              (Fin.castAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two])))
-            ((tree h).eval interpretation (x ∘ fun i : Fin (2 ^ h) =>
-              (Fin.natAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two]))))
-          (fun _ => false))) : ℕ) = _
-    rw [val_eval_carryLookahead, ih, ih, Bool.toNat_false, Nat.add_zero, weight_halves]
+    have h0 : (Circuit.oneGate (Op.const false) Fin.elim0).eval interpretation x =
+        fun _ => false := rfl
+    rw [h0, val_eval_carryLookahead, ih, ih, Bool.toNat_false, Nat.add_zero, weight_halves]
 
 private theorem size_tree_succ (h : ℕ) :
     (tree (h + 1)).size = 2 * (tree h).size + (carryLookahead (h + 1)).size + 1 := by
@@ -130,10 +123,8 @@ theorem size_tree_le (h : ℕ) : (tree h).size ≤ 231 * 2 ^ h := by
   funext i
   simp only [circuit_simps, pad, zeroExtend]
   split_ifs with hi
-  · change Fin.append x (fun _ => false) (Fin.castAdd 1 ⟨i.val, hi⟩) = _
-    exact Fin.append_left _ _ _
-  · change Fin.append x (fun _ => false) (Fin.natAdd n 0) = false
-    exact Fin.append_right _ _ _
+  · exact Fin.append_left x (fun _ => false) ⟨i.val, hi⟩
+  · exact Fin.append_right x (fun _ => false) 0
 
 /-- Zero padding charges exactly one gate. -/
 @[simp] theorem size_pad (n m : ℕ) : (pad n m).size = 1 := by

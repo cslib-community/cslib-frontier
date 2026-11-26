@@ -113,17 +113,13 @@ private theorem realizes_descendStepGen :
     obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
     have hcnt_eq : (sl.nodes cur).metaWord / 2 = metaCount (sl.nodes cur).metaWord := rfl
     rw [hcnt_eq]
-    have hlanes' : ∀ j < metaCount (sl.nodes cur).metaWord,
-        laneGet (fpBitsWhp n_max + 2) (sl.nodes cur).keysWord j < 2 ^ fpBitsWhp n_max := hlanes
     have hrank_le : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
         (metaCount (sl.nodes cur).metaWord) q (sl.nodes cur).keysWord ≤
         metaCount (sl.nodes cur).metaWord := by
-      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes']
+      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes]
       exact (card_filter_le _ _).trans_eq (card_range _)
-    have hsh_lt : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
-        (metaCount (sl.nodes cur).metaWord) q (sl.nodes cur).keysWord * valLaneBitsWhp n_max < w :=
-      (Nat.mul_le_mul_right _ (hrank_le.trans (by omega : _ ≤ 2 * tMinWhp n_max))).trans_lt hvw_lt
-    exact hsh_lt.trans Nat.lt_two_pow_self
+    exact ((Nat.mul_le_mul_right _ (hrank_le.trans (by omega : _ ≤ 2 * tMinWhp n_max))).trans_lt
+      hvw_lt).trans Nat.lt_two_pow_self
 
 
 /-- Bounded `iterate` loop refining `descendToLeaf`
@@ -232,9 +228,7 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
           rw [clientResult_bind, hcs_n, hres_n]
           simp only [hmod1, ↓reduceIte, StateTransitionSpec.clientResult_pure]
         · simp only [descendToLeaf, hmeta, metaIsLeaf_mkNodeMeta, ↓reduceIte]
-          cases f with
-          | zero => rfl
-          | succ f' => simp [descendToLeaf, hmeta]
+          cases f <;> simp [descendToLeaf, hmeta]
       | branch idx c0 cs =>
         dsimp only [BTreeTree.rootIdx] at hrt
         subst idx

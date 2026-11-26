@@ -149,7 +149,8 @@ theorem sat_nontautological_iff (ψ : ClauseSet V) (x : V → Bool) :
   refine ⟨fun hx C hC => ?_, fun hx C hC => hx C (nontautological_subset ψ hC)⟩
   by_cases hnt : ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C
   · exact hx C (mem_nontautological.mpr ⟨hC, hnt⟩)
-  · push Not at hnt; obtain ⟨⟨v, b⟩, hl, hneg⟩ := hnt
+  · push Not at hnt
+    obtain ⟨⟨v, b⟩, hl, hneg⟩ := hnt
     exact if h : x v = b then ⟨(v, b), hl, h⟩ else
       ⟨(v, !b), hneg, by cases hx' : x v <;> cases b <;> simp_all⟩
 
@@ -162,7 +163,9 @@ theorem sat_reduce_nontautological_iff (ψ : ClauseSet V) (x : V → Bool) :
 @[simp]
 theorem modelCountOn_toCNF_nontautological (ψ : ClauseSet V) (declared : Finset V) :
     (nontautological ψ).toCNF.modelCountOn declared = ψ.toCNF.modelCountOn declared := by
-  unfold CNF.modelCountOn; congr 1; ext
+  unfold CNF.modelCountOn
+  congr 1
+  ext σ
   simp [ClauseSet.eval_toCNF_eq_true_iff, sat_nontautological_iff]
 
 /-- Normalizing a clause set with `reduce (nontautological ψ)` preserves `CNF.modelCountOn` on any

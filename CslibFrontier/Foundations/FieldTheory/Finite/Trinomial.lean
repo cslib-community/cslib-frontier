@@ -118,8 +118,7 @@ private theorem zmod3_two_pow_three_pow (t : ℕ) : (2 : ZMod 3) ^ (3 ^ t) = 2 :
 private theorem zmod_three_pow_two_pow_ne_one (t : ℕ) :
     (2 : ZMod (3 ^ (t + 1))) ^ (3 ^ t) ≠ 1 := by
   intro h
-  have hdvd : 3 ∣ 3 ^ (t + 1) := dvd_pow_self 3 (Nat.succ_ne_zero t)
-  have hcast := congrArg (ZMod.castHom hdvd (ZMod 3)) h
+  have hcast := congrArg (ZMod.castHom (dvd_pow_self 3 (Nat.succ_ne_zero t)) (ZMod 3)) h
   simp only [map_pow, map_ofNat, map_one, zmod3_two_pow_three_pow] at hcast
   exact absurd hcast (by decide)
 
@@ -129,12 +128,12 @@ theorem orderOf_two_zmod_three_pow (t : ℕ) :
   have h4 : orderOf (4 : ZMod (3 ^ (t + 1))) = 3 ^ t := by
     simpa [show (1 + 3 : ZMod (3 ^ (t + 1))) = 4 by ring] using
       ZMod.orderOf_one_add_prime Nat.prime_three (by decide) t
-  have hsq : (4 : ZMod (3 ^ (t + 1))) = (2 : ZMod (3 ^ (t + 1))) ^ 2 := by ring
-  rw [hsq, orderOf_pow' (2 : ZMod (3 ^ (t + 1))) (by decide)] at h4
+  rw [show (4 : ZMod (3 ^ (t + 1))) = (2 : ZMod (3 ^ (t + 1))) ^ 2 by ring,
+    orderOf_pow' (2 : ZMod (3 ^ (t + 1))) (by decide)] at h4
   set d := orderOf (2 : ZMod (3 ^ (t + 1)))
-  have hgd_pos : 0 < d.gcd 2 := Nat.gcd_pos_of_pos_right d (by decide)
   have h_mul : d = 3 ^ t * d.gcd 2 :=
-    (Nat.div_eq_iff_eq_mul_left hgd_pos (Nat.gcd_dvd_left d 2)).mp h4
+    (Nat.div_eq_iff_eq_mul_left (Nat.gcd_pos_of_pos_right d (by decide))
+      (Nat.gcd_dvd_left d 2)).mp h4
   rcases (Nat.dvd_prime Nat.prime_two).mp (Nat.gcd_dvd_right d 2) with h1 | h2
   · rw [h1, mul_one] at h_mul
     exact (zmod_three_pow_two_pow_ne_one t (h_mul ▸ pow_orderOf_eq_one _)).elim
@@ -145,14 +144,11 @@ theorem orderOf_two_zmod_three_pow (t : ℕ) :
 theorem irreducible_trinomial (t : ℕ) : Irreducible (trinomial t) := by
   have : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
   have hndvd : ¬ 2 ∣ 3 ^ (t + 1) := fun h => absurd (Nat.prime_two.dvd_of_dvd_pow h) (by decide)
-  refine ZMod.irreducible_of_dvd_cyclotomic_of_natDegree hndvd ?_ ?_
-  · exact ⟨1, by rw [← trinomial_eq_cyclotomic, mul_one]⟩
-  · rw [natDegree_trinomial]
-    have hunit : orderOf (ZMod.unitOfCoprime 2 (Nat.prime_two.coprime_iff_not_dvd.mpr hndvd)) =
-        orderOf (2 : ZMod (3 ^ (t + 1))) := by
-      rw [← orderOf_injective (Units.coeHom (ZMod (3 ^ (t + 1)))) Units.coeHom_injective]
-      rfl
-    rw [hunit, orderOf_two_zmod_three_pow]
+  refine ZMod.irreducible_of_dvd_cyclotomic_of_natDegree hndvd
+    ⟨1, by rw [← trinomial_eq_cyclotomic, mul_one]⟩ ?_
+  rw [natDegree_trinomial, ← orderOf_two_zmod_three_pow,
+    ← orderOf_injective (Units.coeHom (ZMod (3 ^ (t + 1)))) Units.coeHom_injective]
+  rfl
 
 /-! ## Bitwise operations, carryless multiplication, and 4-limb reduction on `polyOfCode` -/
 
@@ -251,16 +247,15 @@ theorem clmulTab_index_props {c idx : ℕ} (hidx : idx < 2 ^ (2 * c)) :
   have hv_shr : v >>> 1 = v / 2 := Nat.shiftRight_eq_div_pow v 1
   have hv_shr_lt : v >>> 1 < 2 ^ c := hv_shr ▸ (Nat.div_le_self v 2).trans_lt hv_lt
   have hprev_eq : prevIdx = u * 2 ^ c + (v >>> 1) := by rw [← Nat.shiftLeft_eq]
-  have hprev_le : prevIdx ≤ idx := by dsimp only [prevIdx]; omega
-  have hprev_lt : v ≠ 0 → prevIdx < idx := by dsimp only [prevIdx]; omega
-  have hprev_zero : v = 0 → prevIdx = idx := by dsimp only [prevIdx]; omega
   have hprev_u : prevIdx >>> c = u := by
     rw [Nat.shiftRight_eq_div_pow, hprev_eq, Nat.add_comm,
       Nat.add_mul_div_right _ _ hpow_pos, Nat.div_eq_of_lt hv_shr_lt, zero_add]
   have hprev_v : prevIdx &&& (2 ^ c - 1) = v >>> 1 := by
     rw [Nat.and_two_pow_sub_one_eq_mod, hprev_eq, Nat.add_comm,
       Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hv_shr_lt]
-  exact ⟨hu_lt, hv_lt, huv_eq, hprev_le, hprev_lt, hprev_zero, hprev_u, hprev_v⟩
+  refine ⟨hu_lt, hv_lt, huv_eq, ?_, ?_, ?_, hprev_u, hprev_v⟩
+  all_goals
+    dsimp only [prevIdx]; omega
 
 /-- **`clmul` computes polynomial multiplication over `ZMod 2`**. -/
 @[simp]
@@ -310,12 +305,10 @@ theorem clmul_lt_two_pow {a b m n : ℕ} (ha : a < 2 ^ m) (hb : b < 2 ^ n) :
   induction n generalizing b with
   | zero =>
     obtain rfl : b = 0 := by omega
-    simp only [clmul_zero_right, add_zero]
-    positivity
+    simp
   | succ n ih =>
     rcases eq_or_ne b 0 with rfl | hb0
-    · simp only [clmul_zero_right]
-      positivity
+    · simp
     · rw [clmul, ite_eq_right hb0]
       have hrec := ih (show b / 2 < 2 ^ n by rw [pow_succ] at hb; omega)
       have hsh : clmul a (b / 2) <<< 1 < 2 ^ (m + (n + 1)) := by
@@ -348,19 +341,17 @@ theorem reduceTrinomialCode_lt (t : ℕ) {c : ℕ} (hc : c < 2 ^ (4 * 3 ^ t)) :
   dsimp only [reduceTrinomialCode]
   set r := 3 ^ t
   have hr_le : 2 ^ r ≤ 2 ^ (2 * r) := Nat.pow_le_pow_right two_pos (by omega)
-  have hcLow : c &&& (2 ^ (2 * r) - 1) < 2 ^ (2 * r) := by
-    rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt c (by positivity)
+  have hmask (x k : ℕ) : x &&& (2 ^ k - 1) < 2 ^ k :=
+    Nat.and_two_pow_sub_one_eq_mod x k ▸ Nat.mod_lt x (Nat.two_pow_pos k)
   have hc3 : c >>> (3 * r) < 2 ^ (2 * r) := by
     rw [Nat.shiftRight_eq_div_pow]
-    refine (Nat.div_lt_of_lt_mul ?_).trans_le hr_le
-    rwa [← pow_add, show 3 * r + r = 4 * r by omega]
-  have hc2_r : (c >>> (2 * r)) &&& (2 ^ r - 1) < 2 ^ r := by
-    rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (by positivity)
-  have hc2 : (c >>> (2 * r)) &&& (2 ^ r - 1) < 2 ^ (2 * r) := hc2_r.trans_le hr_le
+    exact (Nat.div_lt_of_lt_mul
+      (by rwa [← pow_add, show 3 * r + r = 4 * r by omega])).trans_le hr_le
   have hc2_sh : ((c >>> (2 * r)) &&& (2 ^ r - 1)) <<< r < 2 ^ (2 * r) := by
-    rw [Nat.shiftLeft_eq, show 2 ^ (2 * r) = 2 ^ r * 2 ^ r by rw [two_mul, pow_add]]
-    exact Nat.mul_lt_mul_of_pos_right hc2_r (by positivity)
-  exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (Nat.xor_lt_two_pow hcLow hc3) hc2) hc2_sh
+    rw [Nat.shiftLeft_eq, two_mul, pow_add]
+    exact Nat.mul_lt_mul_of_pos_right (hmask _ r) (Nat.two_pow_pos r)
+  exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow
+    (Nat.xor_lt_two_pow (hmask c (2 * r)) hc3) ((hmask _ r).trans_le hr_le)) hc2_sh
 
 /-- **`reduceTrinomialCode t c` is congruent to `c` modulo `trinomial t` for every `c : ℕ`**. -/
 theorem mk_polyOfCode_reduceTrinomialCode (t c : ℕ) :
@@ -472,9 +463,7 @@ theorem val_equivFin_mk_polyOfCode (t : ℕ) {c : ℕ} (hc : c < 2 ^ (2 * 3 ^ t)
     ext j
     rw [equivBits_mk t (degree_polyOfCode_lt hc) j, coeff_polyOfCode, RingEquiv.apply_symm_apply,
       BitString.equivFin_symm_apply]
-  change (BitString.equivFin (2 * 3 ^ t)
-    (equivBits t (AdjoinRoot.mk (trinomial t) (polyOfCode c)))).val = c
-  rw [hbits, Equiv.apply_symm_apply]
+  simp [equivFin, hbits]
 
 /-- The inverse of `equivFin t` sends `m : Fin (2 ^ (2 * 3 ^ t))` to
 `AdjoinRoot.mk (trinomial t) (polyOfCode m.val)`. -/

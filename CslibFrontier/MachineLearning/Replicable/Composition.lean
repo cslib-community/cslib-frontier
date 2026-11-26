@@ -268,12 +268,7 @@ theorem disagreeProb_seqPair_le {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
           (fun bb => ((a₁, bb.1), (a₁, bb.2))) := by
       simp only [pairedOutput, PMF.map_bind, PMF.map_comp, Function.comp_def]
     rw [hmap, PMF.toOuterMeasure_map_apply]
-    have hpre : (fun bb : γ × γ => ((a₁, bb.1), (a₁, bb.2))) ⁻¹'
-        {p : (α × γ) × (α × γ) | p.1 ≠ p.2} = {bb : γ × γ | bb.1 ≠ bb.2} := by
-      ext ⟨b₁, b₂⟩
-      simp
-    rw [hpre]
-    exact h₂ a₁
+    simpa [Set.preimage, disagreeProb] using h₂ a₁
   · simp only [Set.compl_ofPred, disagreeProb]
     exact le_rfl
 
@@ -319,13 +314,9 @@ theorem pairedOutput_pi {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF
 theorem disagreeProb_pi_le {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF X) :
     (pi A).disagreeProb D ≤ ∑ j : Fin k, (A j).disagreeProb D := by
   rw [disagreeProb, pairedOutput_pi, PMF.toOuterMeasure_map_apply]
-  have hpre : (fun v : Fin k → α × α => (fun j => (v j).1, fun j => (v j).2)) ⁻¹'
-      {p | p.1 ≠ p.2} = {v : Fin k → α × α | ∃ j, (v j).1 ≠ (v j).2} := by
-    ext v
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, ne_eq, funext_iff, not_forall]
-  rw [hpre]
-  exact PMF.toOuterMeasure_toReal_piFin_exists_le (fun j => (A j).pairedOutput D)
-    fun _ => {p : α × α | p.1 ≠ p.2}
+  simpa only [disagreeProb, Set.preimage, Set.mem_ofPred_eq, ne_eq, funext_iff, not_forall] using
+    PMF.toOuterMeasure_toReal_piFin_exists_le (fun j => (A j).pairedOutput D)
+      fun _ => {p : α × α | p.1 ≠ p.2}
 
 theorem disagreeProb_replicate_le {k m : ℕ} (A : Algorithm X Ω α m) (D : PMF X) :
     (replicate A k).disagreeProb D ≤ k * A.disagreeProb D := by
@@ -340,15 +331,13 @@ variable {X : Type u} {Ω : Type v} {α : Type w} {γ : Type z}
 
 theorem IsReplicableFor.pad {m m' : ℕ} {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)} {ρ : ℝ}
     (h : IsReplicableFor A 𝒟 ρ) (hm : m ≤ m') :
-    IsReplicableFor (A.pad hm) 𝒟 ρ := fun D hD => by
-  rw [Algorithm.disagreeProb_pad]
-  exact h D hD
+    IsReplicableFor (A.pad hm) 𝒟 ρ := fun D hD =>
+  (Algorithm.disagreeProb_pad A hm D).symm ▸ h D hD
 
 theorem IsAccurateFor.pad {m m' : ℕ} {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)}
     {good : PMF X → Set α} {β : ℝ} (h : IsAccurateFor A 𝒟 good β) (hm : m ≤ m') :
-    IsAccurateFor (A.pad hm) 𝒟 good β := fun D hD => by
-  rw [Algorithm.marginal_pad]
-  exact h D hD
+    IsAccurateFor (A.pad hm) 𝒟 good β := fun D hD =>
+  (Algorithm.marginal_pad A hm D).symm ▸ h D hD
 
 theorem IsReplicableFor.seqPair {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
     {A₁ : Algorithm X Ω₁ α m₁} {seed₂ : PMF Ω₂} {run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ}

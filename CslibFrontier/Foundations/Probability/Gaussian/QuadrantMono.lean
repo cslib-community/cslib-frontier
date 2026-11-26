@@ -95,26 +95,20 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ�
   set r := (ρ₂ - ρ₁) / (1 - ρ₁)
   have hr0 : 0 ≤ r := div_nonneg (by linarith) (by linarith)
   have hr1 : r ≤ 1 := (div_le_one (by linarith)).mpr (by linarith)
-  let u : EuclideanSpace ℝ (Fin 1 ⊕ Fin 2) :=
-    WithLp.toLp 2 (Sum.elim (fun _ => ac) ![s, 0])
   let v : ℝ → EuclideanSpace ℝ (Fin 1 ⊕ Fin 2) := fun t =>
     WithLp.toLp 2 (Sum.elim (fun _ => ac) ![s * t, s * √(1 - t ^ 2)])
-  have hu_norm : ‖u‖ = 1 := by
-    rw [EuclideanSpace.norm_eq, Fintype.sum_sum_type, Fin.sum_univ_one, Fin.sum_univ_two]
-    simp only [u, Sum.elim_inl, Sum.elim_inr, Matrix.cons_val_zero, Matrix.cons_val_one,
-      Real.norm_eq_abs, sq_abs]
-    rw [sqrt_eq_one]
-    linear_combination hac_sq + hs_sq
+  let u : EuclideanSpace ℝ (Fin 1 ⊕ Fin 2) := v 1
   have hv_norm (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t ≤ 1) : ‖v t‖ = 1 := by
     rw [EuclideanSpace.norm_eq, Fintype.sum_sum_type, Fin.sum_univ_one, Fin.sum_univ_two]
     simp only [v, Sum.elim_inl, Sum.elim_inr, Matrix.cons_val_zero, Matrix.cons_val_one,
       Real.norm_eq_abs, sq_abs]
     rw [sqrt_eq_one, mul_pow, mul_pow, sq_sqrt (by nlinarith : (0 : ℝ) ≤ 1 - t ^ 2)]
     linear_combination hac_sq + hs_sq
+  have hu_norm : ‖u‖ = 1 := hv_norm 1 zero_le_one le_rfl
   have huv_inner (t : ℝ) : ⟪u, v t⟫ = ρ₁ + (1 - ρ₁) * t := by
     rw [PiLp.inner_apply, Fintype.sum_sum_type, Fin.sum_univ_one, Fin.sum_univ_two]
     simp only [u, v, Sum.elim_inl, Sum.elim_inr, Matrix.cons_val_zero, Matrix.cons_val_one,
-      RCLike.inner_apply, conj_trivial]
+      RCLike.inner_apply, conj_trivial, one_pow, sub_self, sqrt_zero, mul_zero, mul_one]
     linear_combination hac_sq + t * hs_sq
   have huv0 : ⟪u, v 0⟫ = ρ₁ := by rw [huv_inner]; ring
   have huvr : ⟪u, v r⟫ = ρ₂ := by
@@ -150,8 +144,8 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ�
       ext q₂
       simp only [mem_ofPred_eq, mem_preimage, PiLp.inner_apply, Fintype.sum_sum_type,
         Fin.sum_univ_one, Fin.sum_univ_two, u, v, Sum.elim_inl, Sum.elim_inr,
-        Matrix.cons_val_zero, Matrix.cons_val_one, RCLike.inner_apply, conj_trivial, A, B,
-        le_div_iff₀ hs_pos]
+        Matrix.cons_val_zero, Matrix.cons_val_one, RCLike.inner_apply, conj_trivial,
+        one_pow, sub_self, sqrt_zero, mul_zero, mul_one, A, B, le_div_iff₀ hs_pos]
       constructor <;> rintro ⟨h1, h2⟩ <;> refine ⟨by linarith, by linarith⟩
     have hAB : MeasurableSet {p : ℝ × ℝ | p.1 ≤ A ∧ p.2 ≤ B} :=
       (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
@@ -246,14 +240,11 @@ theorem measureReal_correlatedGaussian_gt_and_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (
   have hsub : {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ b} ⊆ {p | p.2 ≤ b} := fun _ hp => hp.2
   have hdiff : {p : ℝ × ℝ | p.2 ≤ b} \ {p | p.1 ≤ a ∧ p.2 ≤ b} = {p | a < p.1 ∧ p.2 ≤ b} := by
     ext p
-    simp only [Set.mem_sdiff, mem_ofPred_eq]
-    exact ⟨fun ⟨hb, hna⟩ => ⟨lt_of_not_ge fun ha => hna ⟨ha, hb⟩, hb⟩,
-      fun ⟨ha, hb⟩ => ⟨hb, fun ⟨ha', _⟩ => not_lt_of_ge ha' ha⟩⟩
+    simp only [Set.mem_sdiff, mem_ofPred_eq, not_and', not_le]; tauto
   have hsnd : (correlatedGaussian ρ).real {p | p.2 ≤ b} = Φ b := by
-    have h := map_measureReal_apply (μ := correlatedGaussian ρ) measurable_snd
-      (measurableSet_Iic (a := b))
-    rw [correlatedGaussian_map_snd hρ, ← cdf_eq_real] at h
-    exact h.symm
+    rw [cdf_eq_real, ← correlatedGaussian_map_snd hρ,
+      map_measureReal_apply measurable_snd measurableSet_Iic]
+    rfl
   have hmeas : MeasurableSet {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ b} :=
     (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
   rw [← hdiff, measureReal_sdiff hsub hmeas, hsnd]
@@ -277,8 +268,7 @@ theorem gaussianQuadrant_one_sub_one_sub {ρ : ℝ} (hρ : |ρ| ≤ 1) {α β : 
     (sub_nonneg.mpr hα1) (sub_le_self 1 hα0) (1 - β)
   have h2 := gaussianQuadrant_neg_eq_sub_one_sub_left hρ (1 - α) hβ0 hβ1
   rw [neg_neg, sub_sub_cancel] at h1
-  rw [sub_sub_cancel] at h2
-  linarith
+  rw [sub_sub_cancel] at h2; linarith
 
 /-- Symmetry `P_ρ[-d < z ∧ z' ≤ -d] = P_ρ[d < z ∧ z' ≤ d]` for `|ρ| ≤ 1`. -/
 theorem measureReal_correlatedGaussian_gt_neg_le_neg {ρ : ℝ} (hρ : |ρ| ≤ 1) (d : ℝ) :
@@ -305,9 +295,7 @@ theorem two_mul_correlatedGaussian_gt_le_diag_le {ρ d : ℝ} (hρ : |ρ| ≤ 1)
     have hdiff : {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ d} \ {p | p.1 ≤ a ∧ p.2 ≤ -d} =
         {p | p.1 ≤ a ∧ -d < p.2 ∧ p.2 ≤ d} := by
       ext p
-      simp only [Set.mem_sdiff, mem_ofPred_eq]
-      exact ⟨fun ⟨⟨h1, h2⟩, hn⟩ => ⟨h1, lt_of_not_ge fun hle => hn ⟨h1, hle⟩, h2⟩,
-        fun ⟨h1, hgt, h2⟩ => ⟨⟨h1, h2⟩, fun ⟨_, hle⟩ => not_lt_of_ge hle hgt⟩⟩
+      simp only [Set.mem_sdiff, mem_ofPred_eq, not_and, not_le]; tauto
     rw [← hdiff, measureReal_sdiff hsub hm, ← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf]
   have hmono : gaussianQuadrant ρ (Φ (-d)) (Φ d) - gaussianQuadrant ρ (Φ (-d)) (Φ (-d)) ≤
       gaussianQuadrant ρ (Φ d) (Φ d) - gaussianQuadrant ρ (Φ d) (Φ (-d)) := by
@@ -317,11 +305,9 @@ theorem two_mul_correlatedGaussian_gt_le_diag_le {ρ d : ℝ} (hρ : |ρ| ≤ 1)
     measureReal_correlatedGaussian_gt_and_le hρ d (-d),
     measureReal_correlatedGaussian_gt_and_le hρ (-d) d,
     ← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf]
-  rw [gaussianQuadrant_comm hρ (Φ (-d)) (Φ d)] at hmono ⊢
-  rw [cdf_gaussianReal_neg one_ne_zero d,
-    gaussianQuadrant_one_sub_one_sub hρ (cdf_nonneg _ d) (cdf_le_one _ d)
-      (cdf_nonneg _ d) (cdf_le_one _ d)] at hmono
-  rw [cdf_gaussianReal_neg one_ne_zero d]
+  rw [gaussianQuadrant_comm hρ (Φ (-d)) (Φ d), cdf_gaussianReal_neg one_ne_zero d] at hmono ⊢
+  rw [gaussianQuadrant_one_sub_one_sub hρ (cdf_nonneg _ d) (cdf_le_one _ d)
+    (cdf_nonneg _ d) (cdf_le_one _ d)] at hmono
   linarith [hmono]
 
 end ProbabilityTheory

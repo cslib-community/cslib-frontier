@@ -62,15 +62,8 @@ theorem tripleSpace_le (d L : ℕ) :
 theorem phaseTime_le {d L : ℕ} (hL : 1 ≤ L) :
     d * (20 * L + 12) + 8 + (12 * L + 3) + (11 * d + 5) + (9 * d + 8) + tripleTime d L + 35 ≤
       180 * (d + 1) ^ 2 * L := by
-  obtain ⟨Lp, rfl⟩ : ∃ Lp, L = Lp + 1 := ⟨L - 1, (Nat.sub_add_cancel hL).symm⟩
   dsimp only [tripleTime]
-  have hid :
-      (d * (20 * (Lp + 1) + 12) + 8 + (12 * (Lp + 1) + 3) + (11 * d + 5) + (9 * d + 8) +
-        (3 * (d * ((Lp + 1) * (32 * d + 63) + 22) + 7) +
-          ((Lp + 1) * (32 * d + 53) + 9) + 15) + 35) +
-      (84 * d ^ 2 + 21 * d + 11 + Lp * (84 * d ^ 2 + 119 * d + 115)) =
-      180 * (d + 1) ^ 2 * (Lp + 1) := by ring
-  omega
+  nlinarith [Nat.mul_le_mul_left d hL, Nat.mul_le_mul_left (d ^ 2) hL]
 
 /-- Registers potentially modified by `runTransformTriple`. -/
 abbrev IsTripleMod (i : Fin numRegs) : Prop :=

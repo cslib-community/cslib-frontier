@@ -341,30 +341,22 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
       (res, p'.1) ∈ ((OracleComp.interpret (bcsMemoize σ) prog).run p.1).support :=
     run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ prog p.1 p.2 ▸
       (PMF.mem_support_map_iff _ _ _).mpr ⟨(res, p'), h, rfl⟩
-  rw [hgame_eq, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-    ← PMF.toOuterMeasure_apply_inter_support]
-  refine (combined.toOuterMeasure.mono
-      (s₂ := {out | BCSStickyBad r d Set.univ doomed decSym defaultSym out.2})
-      fun ⟨win, p₃⟩ ⟨hwin, hmem⟩ => ?_).trans <|
-    le_trans (le_of_eq <| by
-      change (combined.toOuterMeasure
-        (Prod.snd ⁻¹' {p | BCSStickyBad r d Set.univ doomed decSym defaultSym p})) = _
-      rw [← PMF.toOuterMeasure_map_apply Prod.snd combined, hrun_snd,
-        PMF.toOuterMeasure_map_apply]
-      rfl)
-    (toOuterMeasure_run_bcsStickyMemoize_bad_le
+  rw [hgame_eq, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+  refine (PMF.toOuterMeasure_mono combined
+      (t := Prod.snd ⁻¹' {p | BCSStickyBad r d Set.univ doomed decSym defaultSym p})
+      fun ⟨win, p₃⟩ ⟨hwin, hmem⟩ => ?_).trans ?_
+  · rw [← PMF.toOuterMeasure_map_apply, hrun_snd, PMF.toOuterMeasure_map_apply]
+    exact toOuterMeasure_run_bcsStickyMemoize_bad_le
       (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
       (fun x _ => hescape x) decSym defaultSym σ hMT
-      (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS))
+      (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS)
   obtain rfl : win = true := by simpa using hwin
   supp_cases hmem [combined, eq_comm (a := true), Bool.and_eq_true, decide_eq_true_eq] with
     ⟨⟨⟨x, prf⟩, p₁⟩, hP_sticky, ⟨_, p₃'⟩, hV_sticky, ⟨rfl, hnot_rel_P⟩, rfl⟩
   by_contra hnot_bad
-  have ⟨hflag₃, hgood₃⟩ :
+  obtain ⟨hflag₃, hgood₃⟩ :
       p₃'.2 = false ∧ BCSGoodState r d Set.univ doomed decSym defaultSym p₃'.1 := by
-    have h : p₃'.2 ≠ true ∧ BCSGoodState r d Set.univ doomed decSym defaultSym p₃'.1 := by
-      simpa [BCSStickyBad] using hnot_bad
-    exact ⟨Bool.eq_false_iff.mpr h.1, h.2⟩
+    simpa [BCSStickyBad] using hnot_bad
   have hV_split := hV_sticky
   supp_cases hV_split [bcsVerifyROM, run_interpret_bind] with
     ⟨⟨chals_mid, p₂⟩, hchal_sticky, hopen_sticky⟩

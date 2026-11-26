@@ -104,11 +104,8 @@ theorem rescaleAttack_freshTarget (P : QuadraticMap K X Y) (a : K) (y : Y)
   have hvalid : P (a • answer) = y := by
     rw [P.map_smul, hanswer answer hmem, smul_smul,
       mul_inv_cancel₀ (mul_ne_zero ha ha), one_smul]
-  have hfresh : (a * a)⁻¹ • y ≠ y := by
-    intro heq
-    have hinv : (a * a)⁻¹ = 1 :=
-      smul_left_injective K hy (heq.trans (one_smul K y).symm)
-    exact hsquare (inv_eq_one.mp hinv)
+  have hfresh : (a * a)⁻¹ • y ≠ y := fun heq =>
+    hsquare (inv_eq_one.mp (smul_left_injective K hy (heq.trans (one_smul K y).symm)))
   exact decide_eq_true ⟨hvalid, by
     simpa only [List.map_cons, List.map_nil, List.mem_singleton] using Ne.symm hfresh, rfl⟩
 
@@ -156,9 +153,8 @@ theorem rescaleAttack_zeroOpening [DecidableEq Message] [DecidableEq Tail]
   intro answer hmem
   have hvalid : P (a • answer) = structuredTarget front tail ((a * a) • message) 0 :=
     structuredTarget_smul_zeroOpening P front tail hfront htail a (hanswer answer hmem)
-  have hfresh : (a * a) • message ≠ message := by
-    intro heq
-    exact hsquare (smul_left_injective K hmessage (heq.trans (one_smul K message).symm))
+  have hfresh : (a * a) • message ≠ message := fun heq =>
+    hsquare (smul_left_injective K hmessage (heq.trans (one_smul K message).symm))
   exact decide_eq_true ⟨hvalid, by
     simpa only [List.map_cons, List.map_nil, List.mem_singleton] using hfresh, rfl⟩
 
@@ -189,9 +185,7 @@ theorem verify_scale_option_of_quadratic {PK SK : Type} [DecidableEq Message] [D
     (hopt : S.verify pk (structuredTarget F G μ 0) opt = true) (a : K) :
     S.verify pk (structuredTarget F G ((a * a) • μ) 0) (Option.map (a • ·) opt) = true := by
   cases opt with
-  | none =>
-    rw [hver] at hopt
-    simp at hopt
+  | none => simp [hver] at hopt
   | some s =>
     rw [hver] at hopt ⊢
     exact decide_eq_true
@@ -209,9 +203,8 @@ theorem rescale_ne_zeroOpening_of_tail_ne_zero
     P (a • answer) ≠ structuredTarget front tail message' 0 := by
   intro heq
   rw [P.map_smul, hanswer] at heq
-  apply hsquare
-  apply smul_left_injective K htail
-  simpa [structuredTarget] using congrArg Prod.snd heq
+  exact hsquare (smul_left_injective K htail
+    (by simpa [structuredTarget] using congrArg Prod.snd heq))
 
 end StructuredTarget
 

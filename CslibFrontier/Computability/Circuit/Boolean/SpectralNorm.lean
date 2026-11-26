@@ -56,33 +56,26 @@ private theorem Program.chi_trace_empty (I : Interpretation σ Bool)
     (S : Finset (Wire n 0)) :
     (fun x => chi ℝ S ((Program.empty : Program σ n 0).trace I x)) =
       chi ℝ (projectSet (Wire.elim id Fin.elim0) S) := by
-  let π : Wire n 0 → Fin n := Wire.elim id Fin.elim0
-  have htrace (x : Fin n → Bool) : (Program.empty : Program σ n 0).trace I x = x ∘ π := by
-    funext w
-    cases w with
-    | input i => rfl
-    | gate j => exact j.elim0
   funext x
-  rw [htrace]
-  exact chi_comp_eq_chi_projectSet π S x
+  have htrace : (Program.empty : Program σ n 0).trace I x = x ∘ Wire.elim id Fin.elim0 :=
+    funext fun | .input _ => rfl | .gate j => j.elim0
+  simpa only [htrace] using chi_comp_eq_chi_projectSet (Wire.elim id Fin.elim0) S x
 
 private theorem Program.chi_trace_gate (p : Program σ n g) (line : Line σ n g)
     (I : Interpretation σ Bool) (S : Finset (Wire n (g + 1))) (x : Fin n → Bool) :
     chi ℝ S ((p.gate line).trace I x) =
       chi ℝ (projectSet (Wire.lastCases none some) S)
         (fun o => o.elim (I line.op (p.trace I x ∘ line.wires)) (p.trace I x)) := by
-  let π : Wire n (g + 1) → Option (Wire n g) := Wire.lastCases none some
   have htrace : (p.gate line).trace I x =
-      (fun o => o.elim (I line.op (p.trace I x ∘ line.wires)) (p.trace I x)) ∘ π := by
+      (fun o => o.elim (I line.op (p.trace I x ∘ line.wires)) (p.trace I x)) ∘
+        Wire.lastCases none some := by
     funext w
     induction w using Wire.lastCases with
-    | last => simp [π, Wire.lastCases, Line.eval, Program.trace, Function.comp_def]
+    | last => simp [Wire.lastCases, Line.eval, Program.trace, Function.comp_def]
     | castSucc w =>
-      have hπ : π w.castSucc = some w := by
-        cases w <;> simp [π, Wire.lastCases]
-      simp only [Function.comp_apply, hπ, Option.elim_some, Program.trace_gate_castSucc]
-  rw [htrace]
-  exact chi_comp_eq_chi_projectSet π S _
+      rw [Program.trace_gate_castSucc]
+      cases w <;> simp [Wire.lastCases]
+  simpa only [htrace] using chi_comp_eq_chi_projectSet (Wire.lastCases none some) S _
 
 /-- Every character of the available input and gate values has spectral norm at most the
 exponential of the total gate cost, provided each primitive operation satisfies its own

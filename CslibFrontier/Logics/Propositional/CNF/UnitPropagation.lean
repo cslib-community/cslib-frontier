@@ -129,11 +129,7 @@ theorem eval_restrict_of_mem_singleton {φ : CNF V} {l : Literal V} (hl : [l] �
 theorem satisfiable_restrict_of_mem_singleton {φ : CNF V} {l : Literal V} (hl : [l] ∈ φ) :
     (φ.restrict l.1 l.2).Satisfiable ↔ φ.Satisfiable := by
   rw [satisfiable_restrict_iff]
-  constructor
-  · rintro ⟨σ, -, hσ⟩
-    exact ⟨σ, hσ⟩
-  · rintro ⟨σ, hσ⟩
-    exact ⟨σ, eval_eq_of_mem_singleton hl hσ, hσ⟩
+  exact exists_congr fun _ => and_iff_right_of_imp (eval_eq_of_mem_singleton hl)
 
 /-- Propagating a unit clause `[l] ∈ φ` on `l.1 ∈ declared` preserves `CNF.modelCountOn` on
 `declared.erase l.1`. -/
@@ -316,9 +312,7 @@ theorem satisfiable_unitPropagate_iff (φ : CNF V) :
 theorem not_satisfiable_of_nil_mem_unitPropagate {φ : CNF V} (h : [] ∈ φ.unitPropagate) :
     ¬φ.Satisfiable := by
   rw [← satisfiable_unitPropagate_iff]
-  rintro ⟨σ, hσ⟩
-  have hc := (CNF.eval_eq_true_iff σ φ.unitPropagate).mp hσ [] h
-  simp at hc
+  exact fun ⟨σ, hσ⟩ => by simpa using (CNF.eval_eq_true_iff σ φ.unitPropagate).mp hσ [] h
 
 /-- Every variable in `φ.unitTrail` occurs in `φ`. -/
 theorem mem_vars_of_mem_unitTrail (φ : CNF V) {l : Literal V} (hl : l ∈ φ.unitTrail) :
@@ -397,16 +391,14 @@ theorem modelCount_unitPropagate (φ : CNF V) :
     φ.modelCount =
       2 ^ (φ.numVars - φ.unitTrail.length - φ.unitPropagate.numVars) *
         φ.unitPropagate.modelCount := by
-  have hcount := modelCountOn_unitPropagate_of_vars_subset φ (Finset.Subset.refl _)
-  rw [modelCountOn_vars] at hcount
-  have hsubTrail : (φ.unitTrail.map Prod.fst).toFinset ⊆ φ.vars.toFinset := by
-    intro v hv
-    obtain ⟨l, hl, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hv)
-    exact List.mem_toFinset.mpr (mem_vars_of_mem_unitTrail φ hl)
+  have hcount := (modelCountOn_vars φ).symm.trans
+    (modelCountOn_unitPropagate_of_vars_subset φ Finset.Subset.rfl)
+  have hsubTrail : (φ.unitTrail.map Prod.fst).toFinset ⊆ φ.vars.toFinset := fun _ hv =>
+    (List.mem_map.mp (List.mem_toFinset.mp hv)).elim fun _ ⟨hl, h⟩ =>
+      List.mem_toFinset.mpr (h ▸ mem_vars_of_mem_unitTrail φ hl)
   have hvarsProp : φ.unitPropagate.vars.toFinset ⊆
-      φ.vars.toFinset \ (φ.unitTrail.map Prod.fst).toFinset := by
-    rw [unitPropagate_eq_restrictList]
-    exact vars_restrictList_subset φ φ.unitTrail
+      φ.vars.toFinset \ (φ.unitTrail.map Prod.fst).toFinset :=
+    unitPropagate_eq_restrictList φ ▸ vars_restrictList_subset φ φ.unitTrail
   rw [hcount, modelCountOn_eq_mul_modelCount _ _ hvarsProp,
     Finset.card_sdiff_of_subset hsubTrail,
     List.toFinset_card_of_nodup (unitTrail_nodup_vars φ), List.length_map]

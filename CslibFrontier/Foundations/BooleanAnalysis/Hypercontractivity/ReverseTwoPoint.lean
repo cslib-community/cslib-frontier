@@ -141,8 +141,6 @@ private theorem one_add_rpow_add_one_sub_rpow_le {p t : ℝ} (hp : 0 < p) (hp' :
     · exact (by fun_prop (disch := first | exact Or.inr hp.le | exact Or.inl (hB t ht).ne') :
         ContinuousAt _ t).continuousWithinAt
     · rw [interior_Icc] at ht
-      have h1 : 1 + t ≠ 0 := by linarith only [ht.1]
-      have h2 : 1 - t ≠ 0 := by linarith only [ht.2]
       have h3 := (hB t ⟨ht.1.le, ht.2.le⟩).ne'
       have d1 := Real.hasDerivAt_one_add_rpow p (by linarith only [ht.1] : -1 < t)
       have d2 := Real.hasDerivAt_one_sub_rpow p ht.2
@@ -150,9 +148,9 @@ private theorem one_add_rpow_add_one_sub_rpow_le {p t : ℝ} (hp : 0 < p) (hp' :
         (p := -(p / 2)) (Or.inl h3)
       convert ((d1.add d2).mul d3).hasDerivWithinAt using 1
       have e1 : (1 + t) ^ p = (1 + t) ^ (p - 1) * (1 + t) := by
-        rw [← Real.rpow_add_one h1, sub_add_cancel]
+        rw [← Real.rpow_add_one (by linarith only [ht.1]), sub_add_cancel]
       have e2 : (1 - t) ^ p = (1 - t) ^ (p - 1) * (1 - t) := by
-        rw [← Real.rpow_add_one h2, sub_add_cancel]
+        rw [← Real.rpow_add_one (by linarith only [ht.2]), sub_add_cancel]
       have e3 : (1 - (1 - p) * t ^ 2) ^ (-(p / 2)) =
           (1 - (1 - p) * t ^ 2) ^ (-(p / 2) - 1) * (1 - (1 - p) * t ^ 2) := by
         rw [← Real.rpow_add_one h3, sub_add_cancel]
@@ -272,11 +270,8 @@ private theorem choose_two_mul_nonpos_and_le {p q : ℝ} (hq : 0 < q) (hqp : q �
     have e (a : ℝ) : Ring.choose a (2 * (k + 1)) =
         Ring.choose a (2 * k) * ((a - 2 * k) * (a - 2 * k - 1)) /
           ((2 * k + 1) * (2 * k + 2)) := by
-      have h := choose_add_two_mul a (2 * k)
-      rw [show 2 * (k + 1) = 2 * k + 2 by ring]
-      push_cast at h
-      rw [eq_div_iff hD.ne']
-      exact h
+      rw [mul_add, mul_one, eq_div_iff hD.ne']
+      simpa using choose_add_two_mul a (2 * k)
     have hXq : 0 ≤ (q - 2 * k) * (q - 2 * k - 1) :=
       mul_nonneg_of_nonpos_of_nonpos (by linarith only [hqp, hp, hk'])
         (by linarith only [hqp, hp, hk'])
@@ -328,11 +323,9 @@ private theorem one_add_rpow_add_one_sub_rpow_le_rpow_of_lt {p q ρ t : ℝ} (hq
     rw [abs_mul]
     exact (mul_le_of_le_one_left (abs_nonneg t) hρ1).trans_lt ht
   set E := ((1 + ρ * t) ^ q + (1 - ρ * t) ^ q) / 2
-  have hE : 0 ≤ E := by
-    have h := abs_lt.1 hρt
-    have := Real.rpow_nonneg (by linarith only [h.1] : 0 ≤ 1 + ρ * t) q
-    have := Real.rpow_nonneg (by linarith only [h.2] : 0 ≤ 1 - ρ * t) q
-    positivity
+  have hE : 0 ≤ E := div_nonneg (add_nonneg
+    (Real.rpow_nonneg (by linarith [(abs_lt.1 hρt).1]) q)
+    (Real.rpow_nonneg (by linarith [(abs_lt.1 hρt).2]) q)) zero_le_two
   -- Bernoulli's inequality `(1 + s) ^ θ ≥ 1 + θ s` for `θ = p / q ≥ 1`
   have hB := one_add_mul_self_le_rpow_one_add (s := E - 1) (by linarith only [hE])
     ((one_le_div hq).2 hqp)
@@ -404,10 +397,9 @@ theorem rpow_add_rpow_le_rpow_add_rpow_rpow {p q ρ a b : ℝ} (hq : 0 < q) (hqp
   have hρt := abs_le.1 (show |ρ * t| ≤ 1 by
     rw [abs_mul]; exact (mul_le_of_le_one_left (abs_nonneg t) hρ1).trans ht)
   have key := one_add_rpow_add_one_sub_rpow_le_rpow hq hqp hp hq1 hρ ht
-  have hE : 0 ≤ ((1 + ρ * t) ^ q + (1 - ρ * t) ^ q) / 2 := by
-    have := Real.rpow_nonneg (by linarith only [hρt.1] : 0 ≤ 1 + ρ * t) q
-    have := Real.rpow_nonneg (by linarith only [hρt.2] : 0 ≤ 1 - ρ * t) q
-    positivity
+  have hE : 0 ≤ ((1 + ρ * t) ^ q + (1 - ρ * t) ^ q) / 2 := div_nonneg (add_nonneg
+    (Real.rpow_nonneg (by linarith only [hρt.1]) q)
+    (Real.rpow_nonneg (by linarith only [hρt.2]) q)) zero_le_two
   calc ((a + b) ^ p + (a - b) ^ p) / 2
       = a ^ p * (((1 + t) ^ p + (1 - t) ^ p) / 2) := by
         rw [hbt, show a + a * t = a * (1 + t) by ring, show a - a * t = a * (1 - t) by ring,
@@ -437,8 +429,7 @@ theorem lpNorm_le_lpNorm_noiseOp_of_unit {p q ρ : ℝ} (hq : 0 < q) (hqp : q �
   have hρ2' : ρ ^ 2 * (1 - q) ≤ 1 - p := by
     rcases (hqp.trans hp).lt_or_eq with hq1 | rfl
     · exact (le_div_iff₀ (by linarith only [hq1])).1 hρ2
-    · simp only [sub_self, mul_zero]
-      linarith only [hp]
+    · simp only [sub_self, mul_zero]; linarith only [hp]
   have hρ1 : ρ ≤ 1 :=
     hρ'.trans (Real.sqrt_le_one.2
       (div_le_one_of_le₀ (by linarith only [hqp]) (by linarith only [hqp, hp])))
@@ -449,24 +440,19 @@ theorem lpNorm_le_lpNorm_noiseOp_of_unit {p q ρ : ℝ} (hq : 0 < q) (hqp : q �
   have key := rpow_add_rpow_le_rpow_add_rpow_rpow (a := (A + B) / 2) (b := (A - B) / 2) hq hqp
     hp hρ2' (abs_le.2 ⟨by linarith only [hA], by linarith only [hB]⟩)
   have hT0 : (noiseOp ρ f fun _ => false) = (A + B) / 2 + ρ * ((A - B) / 2) := by
-    rw [noiseOp_unit, Bool.not_false]
-    ring
+    rw [noiseOp_unit, Bool.not_false]; ring
   have hT1 : (noiseOp ρ f fun _ => true) = (A + B) / 2 - ρ * ((A - B) / 2) := by
-    rw [noiseOp_unit, Bool.not_true]
-    ring
+    rw [noiseOp_unit, Bool.not_true]; ring
   rw [show (A + B) / 2 + (A - B) / 2 = A by ring, show (A + B) / 2 - (A - B) / 2 = B by ring,
     ← hT0, ← hT1] at key
   have hT0' : 0 ≤ noiseOp ρ f fun _ => false := by
     rw [hT0]; linarith only [hA, mul_nonneg hρ hA, mul_nonneg (sub_nonneg.2 hρ1) hB]
   have hT1' : 0 ≤ noiseOp ρ f fun _ => true := by
     rw [hT1]; linarith only [hB, mul_nonneg hρ hB, mul_nonneg (sub_nonneg.2 hρ1) hA]
-  have hX : 0 ≤ (A ^ p + B ^ p) / 2 := by positivity
-  have hY : 0 ≤ ((noiseOp ρ f fun _ => false) ^ q + (noiseOp ρ f fun _ => true) ^ q) / 2 := by
-    positivity
   rw [lpNorm, lpNorm, Fintype.expect_unique_bool, Fintype.expect_unique_bool, abs_of_nonneg hA,
     abs_of_nonneg hB, abs_of_nonneg hT0', abs_of_nonneg hT1']
-  refine (Real.rpow_le_rpow hX key (inv_nonneg.2 hp0.le)).trans_eq ?_
-  rw [← Real.rpow_mul hY, div_mul_eq_mul_div, mul_inv_cancel₀ hp0.ne', one_div]
+  refine (Real.rpow_le_rpow (by positivity) key (inv_nonneg.2 hp0.le)).trans_eq ?_
+  rw [← Real.rpow_mul (by positivity), div_mul_eq_mul_div, mul_inv_cancel₀ hp0.ne', one_div]
 
 /-! ### Two functions of a single bit -/
 
@@ -486,7 +472,6 @@ private theorem lpNorm_sq_le_of_unit {r : ℝ} (hr : -1 < r) (hr' : r ≤ 0)
     rw [show ((A + B) / 2) ^ 2 + r * ((A - B) / 2) ^ 2 = A * B + (1 + r) * ((A - B) / 2) ^ 2 by
       ring]
     positivity
-  set X := ((A + B) / 2) ^ 2 + r * ((A - B) / 2) ^ 2
   have key := rpow_add_rpow_le_sq_sub_sq_mul_sq_rpow (ρ := √(-r)) (a := (A + B) / 2)
     (b := (A - B) / 2) hp (by rw [Real.sq_sqrt (by linarith only [hr'])]; linarith only [])
     (abs_le.2 ⟨by linarith only [hA], by linarith only [hB]⟩)
@@ -508,13 +493,6 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_unit {r s ρ : ℝ} (hr : -1 
     lpNorm (1 + r) f * lpNorm (1 + s) g ≤ 𝔼 x, f x * noiseOp ρ g x := by
   have hf2 := lpNorm_sq_le_of_unit hr hr' hf
   have hg2 := lpNorm_sq_le_of_unit hs hs' hg
-  have hE : 𝔼 x, f x * noiseOp ρ g x =
-      ((f fun _ => false) + f fun _ => true) / 2 * (((g fun _ => false) + g fun _ => true) / 2) +
-        ρ * (((f fun _ => false) - f fun _ => true) / 2) *
-          (((g fun _ => false) - g fun _ => true) / 2) := by
-    rw [Fintype.expect_unique_bool, noiseOp_unit, noiseOp_unit, Bool.not_false, Bool.not_true]
-    ring
-  rw [hE]
   have ham : |((f fun _ => false) - f fun _ => true) / 2| ≤
       ((f fun _ => false) + f fun _ => true) / 2 :=
     abs_le.2 ⟨by linarith only [hf fun _ => false], by linarith only [hf fun _ => true]⟩
@@ -525,6 +503,10 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_unit {r s ρ : ℝ} (hr : -1 
   set a := ((f fun _ => false) - f fun _ => true) / 2
   set n := ((g fun _ => false) + g fun _ => true) / 2
   set b := ((g fun _ => false) - g fun _ => true) / 2
+  have hE : 𝔼 x, f x * noiseOp ρ g x = m * n + ρ * a * b := by
+    rw [Fintype.expect_unique_bool, noiseOp_unit, noiseOp_unit, Bool.not_false, Bool.not_true]
+    ring
+  rw [hE]
   -- `σ = √(-r) |a|` and `τ = √(-s) |b|`, so that `σ τ = √(r s) |a b|`
   set σ := √(-r) * |a|
   set τ := √(-s) * |b|
@@ -533,10 +515,6 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_unit {r s ρ : ℝ} (hr : -1 
   have hστ : σ * τ = √(r * s) * (|a| * |b|) := by
     rw [show r * s = -r * -s by ring, Real.sqrt_mul (by linarith only [hr'])]
     ring
-  have hσ : 0 ≤ σ := by positivity
-  have hτ : 0 ≤ τ := by positivity
-  have hm : 0 ≤ m := (abs_nonneg a).trans ham
-  have hn : 0 ≤ n := (abs_nonneg b).trans hbn
   have hσm : σ ≤ m :=
     (mul_le_of_le_one_left (abs_nonneg a) (Real.sqrt_le_one.2 (by linarith only [hr]))).trans ham
   have hτn : τ ≤ n :=
@@ -545,17 +523,15 @@ theorem lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_unit {r s ρ : ℝ} (hr : -1 
     have h := mul_le_mul_of_nonneg_right hρ' (abs_nonneg (a * b))
     rw [abs_mul, ← hστ, ← abs_mul] at h
     linarith only [h, mul_le_mul_of_nonneg_left (neg_abs_le (a * b)) hρ]
-  have hP : 0 ≤ lpNorm (1 + r) f * lpNorm (1 + s) g :=
-    mul_nonneg (lpNorm_nonneg _ _) (lpNorm_nonneg _ _)
-  have hmn : 0 ≤ m * n - σ * τ := sub_nonneg.2 (mul_le_mul hσm hτn hτ hm)
-  refine le_trans ?_ hlow
-  refine (pow_le_pow_iff_left₀ hP hmn two_ne_zero).1 ?_
+  refine le_trans ((pow_le_pow_iff_left₀ (mul_nonneg (lpNorm_nonneg _ _) (lpNorm_nonneg _ _))
+    (sub_nonneg.2 (mul_le_mul hσm hτn (by positivity) ((abs_nonneg a).trans ham)))
+    two_ne_zero).1 ?_) hlow
   rw [mul_pow]
   have hcs : (m * n - σ * τ) ^ 2 - (m ^ 2 - σ ^ 2) * (n ^ 2 - τ ^ 2) =
       (m * τ - n * σ) ^ 2 := by ring
   calc lpNorm (1 + r) f ^ 2 * lpNorm (1 + s) g ^ 2 ≤ (m ^ 2 - σ ^ 2) * (n ^ 2 - τ ^ 2) :=
         mul_le_mul (by linarith only [hf2, hσ2]) (by linarith only [hg2, hτ2]) (sq_nonneg _)
-          (sub_nonneg.2 (pow_le_pow_left₀ hσ hσm 2))
+          (sub_nonneg.2 (pow_le_pow_left₀ (by positivity) hσm 2))
     _ ≤ (m * n - σ * τ) ^ 2 := by linarith only [hcs, sq_nonneg (m * τ - n * σ)]
 
 end Cslib.BitString

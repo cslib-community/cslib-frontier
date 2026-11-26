@@ -132,17 +132,12 @@ private lemma map_taylor_projection_kernel (M : ℕ) (a : K) (A : ℕ)
     refine ⟨⟨x, hxV, rfl⟩, ?_⟩
     intro j hj
     by_cases hjM : j < M
-    · have he := congrFun hx (⟨⟨j, hjM⟩, by change j ≤ A; omega⟩ : {i : Fin M // i.val ≤ A})
-      exact he
-    · apply coeff_eq_zero_of_degree_lt
-      have hdeg := Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)
-      rw [degree_taylor]
-      exact hdeg.trans_le (by exact_mod_cast (Nat.le_of_not_gt hjM))
+    · exact congrFun hx ⟨⟨j, hjM⟩, Nat.lt_succ_iff.mp hj⟩
+    · refine coeff_eq_zero_of_degree_lt ?_
+      simpa only [degree_taylor] using (Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)).trans_le
+        (Nat.cast_le.mpr (Nat.le_of_not_gt hjM))
   · rintro ⟨⟨x, hxV, rfl⟩, hx⟩
-    refine ⟨x, ⟨hxV, ?_⟩, rfl⟩
-    change (lowProjection Fin.val A) (taylorCoordinates M a x) = 0
-    funext j
-    exact hx j.val.val (by have := j.property; omega)
+    exact ⟨x, ⟨hxV, funext fun j => hx j.1.1 (Nat.lt_succ_of_le j.2)⟩, rfl⟩
 
 /-- The output-side low reverse coordinates mean high ordinary Taylor order. -/
 private lemma map_reverseTaylor_lowSupported (M : ℕ) (a : K) (A : ℕ)
@@ -161,11 +156,8 @@ private lemma map_reverseTaylor_lowSupported (M : ℕ) (a : K) (A : ℕ)
     change taylorCoordinates M a x ((Fin.rev ⟨j, hjM⟩).rev) = 0 at hh
     simpa only [Fin.rev_rev, taylorCoordinates_apply] using hh
   · rintro ⟨⟨x, hxV, rfl⟩, hx⟩
-    refine ⟨reverseTaylorCoordinates M a x, ⟨⟨x, hxV, rfl⟩, ?_⟩, ?_⟩
-    · intro j hj
-      change taylorCoordinates M a x j.rev = 0
-      exact hx j.rev.val (by simp only [Fin.val_rev]; omega)
-    · simp
+    refine ⟨reverseTaylorCoordinates M a x, ⟨⟨x, hxV, rfl⟩, fun j hj => ?_⟩, by simp⟩
+    exact hx j.rev.val (by simp only [Fin.val_rev]; omega)
 
 private lemma finrank_lowTaylor (M : ℕ) (a : K) (A : ℕ)
     (V : Submodule K (Fin M → K)) {h : ℕ}
@@ -281,9 +273,9 @@ private lemma expansion_numeric (w B M N k l : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ N
       _ = _ := by ring
   have hbase : k * (M - 1) ≤ k * (N - 1) + w * (k * k + l * l) :=
     Nat.le_of_add_le_add_right <| by
-      rwa [show w * (k * (M - 1)) = k * (M - 1) + (w - 1) * k * (M - 1) by
-        calc w * (k * (M - 1)) = (1 + (w - 1)) * (k * (M - 1)) := by congr 1; omega
-          _ = _ := by ring] at hh'
+      have hw1 : k * (M - 1) + (w - 1) * k * (M - 1) = w * (k * (M - 1)) := by
+        rw [mul_assoc (w - 1), ← one_add_mul, add_comm 1, Nat.sub_add_cancel hw]
+      rwa [← hw1] at hh'
   have hsq : k * k + l * l ≤ w * w * (k * k) := by
     have hwSq : 1 + (w - 1) * (w - 1) ≤ w * w :=
       calc 1 + (w - 1) * (w - 1) ≤ 1 + (w - 1) * w := by gcongr; omega
@@ -296,14 +288,9 @@ private lemma expansion_numeric (w B M N k l : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ N
     calc w * (k * k + l * l) ≤ w * (w * w * (k * k)) := by gcongr
       _ ≤ w * (w * w * (B * k)) := by gcongr
       _ = w ^ 3 * B * k := by ring
-  have hneed : k * (2 * w ^ 3 * B) ≤ w * (k * k + l * l) := by
-    have hgap : M - 1 = N - 1 + 2 * w ^ 3 * B := by omega
-    rw [hgap, mul_add] at hbase
-    omega
-  have hB : 0 < B := by omega
-  have hpos : 0 < w ^ 3 * B * k := by positivity
-  have : 2 * (w ^ 3 * B * k) ≤ w ^ 3 * B * k :=
-    (by ring : 2 * (w ^ 3 * B * k) = k * (2 * w ^ 3 * B)) ▸ hneed.trans hfinal
+  rw [show M - 1 = N - 1 + 2 * w ^ 3 * B by omega, mul_add,
+    show k * (2 * w ^ 3 * B) = 2 * (w ^ 3 * B * k) by ring] at hbase
+  have hpos : 0 < w ^ 3 * B * k := Nat.mul_pos (Nat.mul_pos (pow_pos hw 3) (by omega)) hk
   omega
 
 private lemma reduced_degree_bound {M N : ℕ} (U : Submodule (F K) (Fin M → F K))
@@ -342,10 +329,8 @@ theorem small_expansion [CharZero K] (w B M N : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ 
   let Z := polynomialSpace (reducedSubspace W)
   let : Module.Finite K V := Module.Finite.map (reducedSubspace U) (polynomialMap M)
   let : Module.Finite K Z := Module.Finite.map (reducedSubspace W) (polynomialMap M)
-  have hVdim : finrank K V = k := by
-    rw [finrank_polynomialSpace, finrank_reducedSubspace]
-  have hZdim : finrank K Z = l := by
-    rw [finrank_polynomialSpace, finrank_reducedSubspace]
+  have hVdim : finrank K V = k := (finrank_polynomialSpace _).trans (finrank_reducedSubspace U)
+  have hZdim : finrank K Z = l := (finrank_polynomialSpace _).trans (finrank_reducedSubspace W)
   let b : Basis (Fin k) K V := (Module.finBasis K V).reindex (finCongr hVdim)
   let c : Basis (Fin l) K Z := (Module.finBasis K Z).reindex (finCongr hZdim)
   have hV := reduced_degree_bound U hU

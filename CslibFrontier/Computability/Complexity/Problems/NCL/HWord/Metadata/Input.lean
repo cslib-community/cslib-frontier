@@ -92,10 +92,8 @@ private theorem toAndOr_eq_ofFn (x : Instance q) :
         List.ofFn (S.enc (AndOr.orientation H hq x.source.get)),
         List.ofFn (S.enc (AndOr.orientation H hq
           (fun i : Fin x.source.length => x.target.getD i.val ⟨0, hq⟩)))⟩ := by
-  dsimp only
-  unfold toAndOr
-  rw [AndOrNCL.Instance.mk.injEq]
-  exact ⟨rfl, bits_stateBlocks_eq H hq x.source x.source.get
+  simp only [toAndOr, AndOrNCL.Instance.mk.injEq]
+  exact ⟨trivial, bits_stateBlocks_eq H hq x.source x.source.get
     (fun i => List.getD_eq_get x.source ⟨0, hq⟩ i),
     bits_stateBlocks_eq H hq x.target (fun i => x.target.getD i.val ⟨0, hq⟩) (fun _ => rfl)⟩
 
@@ -131,10 +129,7 @@ theorem compile_toInput (x : Instance q) : Planar.Embedding.PolyTime.compile (to
         List.ofFn (S.enc (AndOr.orientation H hq s)), List.ofFn (S.enc (AndOr.orientation H hq t))⟩,
         (toInput H hq x).property.1, (toInput H hq x).property.2.1,
         List.length_ofFn, List.length_ofFn⟩ :
-        Planar.Embedding.PolyTime.Input) := by
-    apply Subtype.ext
-    change toAndOr H hq x = _
-    exact toAndOr_eq_ofFn H hq x
+        Planar.Embedding.PolyTime.Input) := Subtype.ext (toAndOr_eq_ofFn H hq x)
   rw [hx, Planarized.bits_planeSimulation, Planarized.bits_planeSimulation]
   have hc := Planar.Embedding.PolyTime.compile_ofFinite
     (Planarized.finiteGraph (n := x.source.length) H hq)
@@ -143,7 +138,6 @@ theorem compile_toInput (x : Instance q) : Planar.Embedding.PolyTime.compile (to
     (Planarized.vertices_loopFree (n := x.source.length) H hq)
     (S.enc (AndOr.orientation H hq s)) (S.enc (AndOr.orientation H hq t))
   simp only [Planarized.word, Planarized.diagram, Planarized.vertices, S, s, t] at hc ⊢
-  convert hc using 1
-  rfl
+  exact hc
 
 end Cslib.Complexity.NCL.HWord.Metadata

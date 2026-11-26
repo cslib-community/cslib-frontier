@@ -168,8 +168,7 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
     simp only [B]
     rw [show 3 * u - u = 2 * u by omega]
   have hu1 : (1 : ℝ) ≤ (u : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ u := by exact_mod_cast hu
-    linarith
+    linarith [(Nat.ofNat_le_cast (α := ℝ)).2 hu]
   -- Lemma C.4(d) at `b_k`
   have hstep : ∀ k < 3 * u,
       dist (B k) (B (k + 1)) ^ 2 ≤ dist a (B k) ^ 2 - dist a (B (k + 1)) ^ 2 := fun k hk => by
@@ -273,11 +272,9 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
   have hA1 := dist_P_sq_add_le A₁ hv1 z
   have hA2 := dist_P_sq_add_le A₂ hv2 z
   rcases (dist_nonneg (x := z) (y := a)).eq_or_lt with h0 | hr
-  · rw [← h0, ← dist_eq_zero.1 h0.symm]
-    simp
+  · simp [← dist_eq_zero.1 h0.symm]
   rcases (dist_nonneg (x := z) (y := a')).eq_or_lt with h0 | hr'
-  · rw [← h0, ← dist_eq_zero.1 h0.symm, dist_comm a z]
-    simp
+  · simp [← dist_eq_zero.1 h0.symm, dist_comm a z]
   have hpos : 0 ≤ 2 * c * (dist z a * dist z a') := by positivity
   rcases (dist_nonneg (x := v) (y := a)).eq_or_lt with h0 | hα
   · rw [dist_eq_zero.1 h0.symm, dist_comm a' a] at hA2
@@ -297,9 +294,8 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
     set τ := c * α / N
     have hσ0 : 0 < σ := by positivity
     have hτ0 : 0 < τ := by positivity
-    have hσ1 : σ ≤ 1 := by
-      rw [div_le_one hN0]; linarith [mul_nonneg hc.le hα.le]
-    have hτ1 : τ ≤ 1 := by rw [div_le_one hN0]; linarith
+    have hσ1 : σ ≤ 1 := (div_le_one hN0).2 (by linarith [mul_nonneg hc.le hα.le])
+    have hτ1 : τ ≤ 1 := (div_le_one hN0).2 (by linarith)
     obtain ⟨q, hq1⟩ := exists_isPointAt v a hσ0.le hσ1
     obtain ⟨q', hq2⟩ := exists_isPointAt v a' hτ0.le hτ1
     have q1 := hq1.dist_left hσ0.le hσ1
@@ -309,8 +305,8 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
     have h5 := hq2 q
     have h6 := hq1 a'
     rw [dist_comm a' q, dist_comm a' v, dist_comm a' a] at h6
-    rw [dist_comm q v] at h5
-    rw [q1] at h2 h5
+    rw [dist_comm q v, q1] at h5
+    rw [q1] at h2
     have h8 := mul_le_mul_of_nonneg_left h6 hτ0.le
     have e1 : τ * β = c * (σ * α) := by simp only [τ, σ]; field_simp
     have h7 : (σ * τ) * (α ^ 2 + β ^ 2 - dist a a' ^ 2) ≤ (σ * τ) * (2 * c * (α * β)) := by

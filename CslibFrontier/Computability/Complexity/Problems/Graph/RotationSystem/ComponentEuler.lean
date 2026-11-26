@@ -37,15 +37,14 @@ private theorem mem_componentGraph_edges_of_endpoint {G : Graph} (root : ℕ)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) {p : ℕ × ℕ} (hp : p ∈ G.edges)
     (b : Bool) (hv : (if b then p.2 else p.1) ∈ G.componentVertexSet root) :
     p ∈ (G.componentGraph root).edges := by
-  obtain ⟨i, hi⟩ := List.mem_iff_get.mp hp
-  change G.edges[i] = p at hi
+  obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hp
   have hvertex : Dart.vertex (G := G) (i, b) ∈ G.componentVertexSet root := by
-    rw [← hi, Dart.edge_eq_vertices] at hv
+    rw [show G.edges.get i = G.edges[i] from rfl, Dart.edge_eq_vertices] at hv
     cases b <;> exact hv
-  have hm := (G.mem_componentEdgeSet_iff root hG i b).mpr hvertex
-  obtain ⟨j, hj⟩ := (G.componentEdgeEquiv root).surjective ⟨i, hm⟩
-  have he : G.edges.get (G.componentEdgeEquiv root j).val = p := by rwa [hj]
-  exact List.mem_iff_get.mpr ⟨j, (G.edge_componentEdgeEquiv root j).trans he⟩
+  obtain ⟨j, hj⟩ := (G.componentEdgeEquiv root).surjective
+    ⟨i, (G.mem_componentEdgeSet_iff root hG i b).mpr hvertex⟩
+  exact List.mem_iff_get.mpr ⟨j, (G.edge_componentEdgeEquiv root j).trans
+    (congrArg G.edges.get (congrArg Subtype.val hj))⟩
 
 /-- Any two declared vertices of the restricted graph are connected within that graph. -/
 theorem componentGraph_preconnected {G : Graph} (root : ℕ)
@@ -75,13 +74,11 @@ theorem componentGraph_preconnected {G : Graph} (root : ℕ)
         exact ⟨h.1, h.2.imp
           (fun he => mem_componentGraph_edges_of_endpoint root hG he false hx)
           (fun he => mem_componentGraph_edges_of_endpoint root hG he true hx)⟩ }
-  have lift (z : {w // w ∈ K.vertices}) : ∃ t : C.supp, f t = z := by
-    have hm := (G.mem_componentGraph_vertices root z.val).mp z.property
-    let old : {w // w ∈ G.vertices} := ⟨z.val, List.mem_toFinset.mp (Finset.mem_filter.mp hm).1⟩
-    exact ⟨⟨old, (hvertex old).mpr z.property⟩, rfl⟩
-  obtain ⟨x, rfl⟩ := lift u
-  obtain ⟨y, rfl⟩ := lift v
-  exact (C.reachable_toSimpleGraph x.property y.property).map f
+  let lift (z : {w // w ∈ K.vertices}) : C.supp :=
+    ⟨⟨z.val, List.mem_toFinset.mp
+      (Finset.mem_filter.mp ((G.mem_componentGraph_vertices root z.val).mp z.property)).1⟩,
+      (hvertex _).mpr z.property⟩
+  exact (C.reachable_toSimpleGraph (lift u).property (lift v).property).map f
 
 namespace RotationSystem
 
@@ -89,14 +86,11 @@ private theorem componentDartEquiv_sameFace {G : Graph} (r : RotationSystem G) (
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d f : Dart (G.componentGraph root)) :
     (r.component root hG).faceNext.SameCycle d f ↔
       r.faceNext.SameCycle (G.componentDartEquiv root hG d).val
-        (G.componentDartEquiv root hG f).val := by
-  let e := G.componentDartEquiv root hG
-  let σ := r.faceNext.subtypePerm (p := fun d => SameComponent G root d.vertex)
-    (r.component_faceNext_iff hG root)
-  have hsemi (a : Dart (G.componentGraph root)) :
-      e ((r.component root hG).faceNext a) = σ (e a) :=
-    Subtype.ext (r.componentDartEquiv_faceNext root hG a)
-  exact (Perm.sameCycle_equiv_iff e _ σ hsemi d f).symm.trans Perm.sameCycle_subtypePerm
+        (G.componentDartEquiv root hG f).val :=
+  (Perm.sameCycle_equiv_iff (G.componentDartEquiv root hG) _
+    (r.faceNext.subtypePerm (r.component_faceNext_iff hG root))
+    (fun a => Subtype.ext (r.componentDartEquiv_faceNext root hG a)) d f).symm.trans
+    Perm.sameCycle_subtypePerm
 
 /-- The faces of the restricted rotation are exactly the original faces of that component. -/
 noncomputable def componentFaceEquiv {G : Graph} (r : RotationSystem G) (root : ℕ)
@@ -125,14 +119,11 @@ private theorem numericalGenusZero_component_iff_cards {G : Graph} (r : Rotation
   classical
   let K := G.componentGraph root
   let s := r.component root hG
-  let e := G.componentDartEquiv root hG
-  have hK := G.componentGraph_endpoints_declared root hG
-  obtain ⟨a, -⟩ := e.surjective ⟨d, hd⟩
+  obtain ⟨a, -⟩ := (G.componentDartEquiv root hG).surjective ⟨d, hd⟩
   have hconn (x : ℕ) (hx : x ∈ K.vertices) (y : ℕ) (hy : y ∈ K.vertices) : SameComponent K x y :=
     ⟨hx, hy, componentGraph_preconnected root hG ⟨x, hx⟩ ⟨y, hy⟩⟩
-  have hV : K.vertices.toFinset = G.componentVertexSet root := by
-    ext x
-    rw [List.mem_toFinset, G.mem_componentGraph_vertices]
+  have hV : K.vertices.toFinset = G.componentVertexSet root :=
+    Finset.ext fun x => List.mem_toFinset.trans (G.mem_componentGraph_vertices root x)
   have hE : K.edges.length = (G.componentEdgeSet root).card := by
     simpa only [Fintype.card_fin, Fintype.card_coe] using
       Fintype.card_congr (G.componentEdgeEquiv root)
@@ -147,14 +138,14 @@ private theorem numericalGenusZero_component_iff_cards {G : Graph} (r : Rotation
     Finset.filter_congr fun _ _ => hroot _
   have hf : r.componentFaceIndices d.vertex = r.componentFaceIndices root :=
     Finset.filter_congr fun _ _ => and_congr (hroot _) Iff.rfl
-  rw [s.numericalGenusZero_iff_connected_euler hK hconn a, hv, he', hf, hV, hE, hF]
+  rw [s.numericalGenusZero_iff_connected_euler
+    (G.componentGraph_endpoints_declared root hG) hconn a, hv, he', hf, hV, hE, hF]
 
 private theorem numericalGenusZero_of_component_cover {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
     (hs : ∀ d : Dart G, ∃ root, SameComponent G root d.vertex ∧
       (r.component root hG).NumericalGenusZero) : r.NumericalGenusZero := by
-  apply (r.numericalGenusZero_iff_component_cards hG).mpr
-  intro d
+  refine (r.numericalGenusZero_iff_component_cards hG).mpr fun d => ?_
   obtain ⟨root, hd, hz⟩ := hs d
   exact (r.numericalGenusZero_component_iff_cards hG root d hd).mp hz
 
@@ -165,7 +156,7 @@ theorem numericalGenusZero_component {G : Graph} (r : RotationSystem G)
   cases isEmpty_or_nonempty (Dart (G.componentGraph root)) with
   | inl h =>
     exact ((r.component root hG).numericalGenusZero_iff_component_cards
-      (G.componentGraph_endpoints_declared root hG)).mpr (fun d => (h.false d).elim)
+      (G.componentGraph_endpoints_declared root hG)).mpr fun d => (h.false d).elim
   | inr h =>
     obtain ⟨a⟩ := h
     let d := G.componentDartEquiv root hG a
@@ -235,22 +226,19 @@ theorem exists_numericalGenusZero_agreeing_on_of_components {G : Graph} (r : Rot
       obtain ⟨a, hda⟩ := (coord (key d)).surjective ⟨d, rfl⟩
       obtain ⟨b, hgb⟩ := (coord (key d)).surjective ⟨g, hkg⟩
       have heq : a.vertex = b.vertex := by rwa [← hv (key d) a, ← hv (key d) b, hda, hgb]
-      have hs := ((t _).sameCycle_iff a b).mpr heq
-      have hm := hs.map_of_semiconj (hstep (key d))
-      simpa only [hda, hgb] using hm⟩
+      simpa only [hda, hgb] using
+        (((t _).sameCycle_iff a b).mpr heq).map_of_semiconj (hstep (key d))⟩
   have hrestrict (c : G.induced.ConnectedComponent) : s.component (root c) hG = t c :=
     ext_rotate <| Equiv.ext fun a => (coord c).injective <| Subtype.ext <|
       (s.componentDartEquiv_rotate (root c) hG a).trans (hstep c a).symm
   refine ⟨s, s.numericalGenusZero_of_component_cover hG (fun d => ?_), fun d hd => ?_⟩
   · exact ⟨root (key d), (hkey _ _).mp rfl, hrestrict (key d) ▸ ht _ (Quot.out (key d)).property⟩
-  · let c := key d
-    obtain ⟨a, ha⟩ := (coord c).surjective ⟨d, rfl⟩
-    have hda : (coord c a).val = d := congrArg Subtype.val ha
-    have hma : marked a.vertex := by rwa [← hv c a, hda]
+  · obtain ⟨a, ha⟩ := (coord (key d)).surjective ⟨d, rfl⟩
+    have hda : (coord (key d) a).val = d := congrArg Subtype.val ha
+    have hma : marked a.vertex := by rwa [← hv _ a, hda]
     rw [← hda]
-    have h := hagree (root c) (Quot.out c).property a hma
-    exact (hstep c a).symm.trans ((congrArg (fun d => (coord c d).val) h).trans
-      (r.componentDartEquiv_rotate (root c) hG a))
+    exact (hstep _ a).symm.trans ((congrArg (fun d => (coord _ d).val)
+      (hagree _ (Quot.out (key d)).property a hma)).trans (r.componentDartEquiv_rotate _ hG a))
 
 end RotationSystem
 end Cslib.Complexity.Graph

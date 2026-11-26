@@ -103,28 +103,30 @@ theorem card_le_depth_of_eval_eq_comp_card_filter (t : DecisionTree ι β) (S : 
   | node i t₀ t₁ ih₀ ih₁ =>
     rw [depth_node]
     by_cases hi : i ∈ S
-    · have hcard : #(S.erase i) + 1 = #S := card_erase_add_one hi
+    · -- the queried bit is free: the adversary fixes it and recurses on `S.erase i`
+      have hcard : #(S.erase i) + 1 = #S := card_erase_add_one hi
       rcases Nat.lt_or_ge #S 2 with hS | hS
       · omega
       by_cases hm' : m + 1 ≤ #(S.erase i)
-      · have := ih₀ (S.erase i) (Function.update a i false) g m (fun x hx => by
+      · -- answer `false`: the count is unchanged
+        have := ih₀ (S.erase i) (Function.update a i false) g m (fun x hx => by
           obtain ⟨hx', hxi, hc⟩ := eq_off_and_card_filter_of_eq_off_erase hi a false x hx
-          simpa only [eval_node, hxi, Bool.cond_false, hc, Bool.false_eq_true, ↓reduceIte,
-            add_zero] using ht x hx') hm' hg
+          simpa [eval_node, hxi, hc] using ht x hx') hm' hg
         omega
-      · have hm1 : 1 ≤ m := by omega
+      · -- answer `true`: the count shifts by one
+        have hm1 : 1 ≤ m := by omega
         have := ih₁ (S.erase i) (Function.update a i true) (fun k => g (k + 1)) (m - 1)
           (fun x hx => by
             obtain ⟨hx', hxi, hc⟩ := eq_off_and_card_filter_of_eq_off_erase hi a true x hx
-            simpa only [eval_node, hxi, Bool.cond_true, hc, ↓reduceIte] using ht x hx')
-          (by omega) (by rwa [Nat.sub_add_cancel hm1])
+            simpa [eval_node, hxi, hc] using ht x hx') (by omega) (by rwa [Nat.sub_add_cancel hm1])
         omega
-    · cases hai : a i
-      · have := ih₀ S a g m (fun x hx => by
-          simpa only [eval_node, hx i hi, hai, Bool.cond_false] using ht x hx) hm hg
+    · -- the queried bit is fixed: follow the branch of `a i`
+      cases hai : a i with
+      | false =>
+        have := ih₀ S a g m (fun x hx => by simpa [eval_node, hx i hi, hai] using ht x hx) hm hg
         omega
-      · have := ih₁ S a g m (fun x hx => by
-          simpa only [eval_node, hx i hi, hai, Bool.cond_true] using ht x hx) hm hg
+      | true =>
+        have := ih₁ S a g m (fun x hx => by simpa [eval_node, hx i hi, hai] using ht x hx) hm hg
         omega
 
 /-- A function `g : ℕ → Bool` taking different values at two points `≤ n` changes between two
@@ -147,12 +149,15 @@ theorem complexity_eq_card_of_isSymmetric {f : BooleanFunction n} (hf : f.IsSymm
     (hnc : ¬ Function.IsConst f) : complexity f = n := by
   refine le_antisymm ((complexity_le_card f).trans_eq (Fintype.card_fin n)) ?_
   obtain ⟨g, hg⟩ := hf.exists_eq_comp_weight
-  obtain ⟨x, y, hxy⟩ : ∃ x y, f x ≠ f y := by simpa [Function.IsConst, not_forall] using hnc
+  obtain ⟨x, y, hxy⟩ : ∃ x y, f x ≠ f y := by
+    by_contra h
+    push Not at h
+    exact hnc h
   obtain ⟨m, hm, hgm⟩ := exists_add_one_le_ne (g := g) (weight_le_length x) (weight_le_length y)
-    (by simpa only [hg] using hxy)
-  exact le_complexity_iff.2 fun t ht => by
-    simpa using card_le_depth_of_eval_eq_comp_card_filter t univ (fun _ => false) g m
-      (fun z _ => by rw [ht z, ← hg z]; rfl) (by simpa using hm) hgm
+    (by rwa [hg, hg])
+  refine le_complexity_iff.2 fun t ht => ?_
+  simpa using card_le_depth_of_eval_eq_comp_card_filter t univ (fun _ => false) g m
+    (fun z _ => by rw [ht z, ← hg z]; rfl) (by simpa using hm) hgm
 
 /-- **Threshold functions are evasive**: `D(Th^n_j) = n` for `1 ≤ j ≤ n`. -/
 theorem complexity_threshold {j : ℕ} (hj : 1 ≤ j) (hjn : j ≤ n) :

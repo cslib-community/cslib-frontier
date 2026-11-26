@@ -36,10 +36,15 @@ theorem rowNormPow_add_le (hNu : 0 ≤ N * u) (A B : Ω → V → V → ℝ) :
     norm_num only [Nat.reduceSub, Nat.reducePow] at h
     exact (pow_le_pow_left₀ (abs_nonneg _) (abs_add_le a b) 4).trans h
   unfold rowNormPow
-  refine (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ =>
-    sum_le_sum fun x _ => sum_le_sum fun y _ => hp _ _) (inv_nonneg.mpr hNu)).trans_eq ?_
-  simp only [mul_add, sum_add_distrib, expect_add_distrib, ← mul_sum, ← mul_expect]
-  ring
+  calc
+    _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
+        ∑ y ∈ ({y | Y σ y} : Finset V), 8 * (|A σ x y| ^ 4 + |B σ x y| ^ 4) :=
+      mul_le_mul_of_nonneg_left
+        (expect_le_expect fun σ _ => sum_le_sum fun x _ => sum_le_sum fun y _ => hp _ _)
+        (inv_nonneg.mpr hNu)
+    _ = _ := by
+      simp only [mul_add, sum_add_distrib, expect_add_distrib, ← mul_sum, ← mul_expect]
+      ring
 
 /-- Three nonnegative error envelopes pay a fourth moment with constant 64. -/
 theorem rowNormPow_le_three (hNu : 0 ≤ N * u) (D A B C : Ω → V → V → ℝ)
@@ -84,17 +89,24 @@ theorem rowNormPow_le_fullRank_max (hNu : 0 ≤ N * u)
     have hmax := abs_kthLargest_pow_le_sum ({w | Y σ w} : Finset V) (D σ x) (by decide : 4 ≠ 0)
     have hb (y : V) (hy : y ∈ ({y | U σ y} : Finset V)) :
         |E σ x y| ^ 4 ≤ c ^ 4 * ∑ w ∈ ({w | Y σ w} : Finset V), |D σ x w| ^ 4 :=
-      (pow_le_pow_left₀ (abs_nonneg _) (hE σ x y hx (mem_filter.mp hy).2) 4).trans <| by
-        rw [mul_pow, ← abs_of_nonneg (kthLargest_nonneg (k := 1))]
-        exact mul_le_mul_of_nonneg_left hmax (pow_nonneg hc 4)
-    refine ((sum_le_sum hb).trans (sum_le_univ_sum_of_nonneg fun _ => ?_)).trans_eq ?_
-    · exact mul_nonneg (pow_nonneg hc 4) (sum_nonneg fun _ _ => pow_nonneg (abs_nonneg _) 4)
-    · simp only [sum_const, card_univ, nsmul_eq_mul]
-      ring
-  refine (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ =>
-    sum_le_sum fun x hx => hp σ x (mem_filter.mp hx).2) (inv_nonneg.mpr hNu)).trans_eq ?_
-  simp only [← mul_sum, ← mul_expect]
-  ring
+      calc
+        _ ≤ (c * kthLargest 1 {w | Y σ w} (fun w => |D σ x w|)) ^ 4 :=
+          pow_le_pow_left₀ (abs_nonneg _) (hE σ x y hx (mem_filter.mp hy).2) 4
+        _ ≤ _ := by
+          rw [mul_pow, ← abs_of_nonneg (kthLargest_nonneg (k := 1))]
+          exact mul_le_mul_of_nonneg_left hmax (pow_nonneg hc 4)
+    calc
+      _ ≤ ∑ _y : V, c ^ 4 * ∑ w ∈ ({w | Y σ w} : Finset V), |D σ x w| ^ 4 :=
+        (sum_le_sum hb).trans (sum_le_univ_sum_of_nonneg fun _ =>
+          mul_nonneg (pow_nonneg hc 4) (sum_nonneg fun _ _ => pow_nonneg (abs_nonneg _) 4))
+      _ = _ := by simp only [sum_const, card_univ, nsmul_eq_mul]; ring
+  calc
+    _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
+        (Fintype.card V : ℝ) * c ^ 4 * ∑ w ∈ ({w | Y σ w} : Finset V), |D σ x w| ^ 4 :=
+      mul_le_mul_of_nonneg_left
+        (expect_le_expect fun σ _ => sum_le_sum fun x hx => hp σ x (mem_filter.mp hx).2)
+        (inv_nonneg.mpr hNu)
+    _ = _ := by simp only [← mul_sum, ← mul_expect]; ring
 
 /-- Repeating a maximum over the same source by terminal rank rectangle costs two
 explicit ambient widths. The input payment remains the original masked row norm. -/
@@ -105,25 +117,31 @@ theorem rowNormPow_rectangle_max_le (hNu : 0 ≤ N * u) (D : Ω → V → V → 
       (Fintype.card V : ℝ) ^ 2 * rowNormPow 4 N u X Y D := by
   classical
   unfold rowNormPow
-  calc _ ≤ (N * u)⁻¹ * 𝔼 σ, (Fintype.card V : ℝ) ^ 2 *
-        ∑ z with X σ z, ∑ w with Y σ w, |D σ z w| ^ 4 :=
-      mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => by
-        let S : Finset V := {z | X σ z}
-        let T : Finset V := {w | Y σ w}
-        let m := fun z => kthLargest 1 T (fun w => |D σ z w|)
-        have hm (z : V) : 0 ≤ m z := kthLargest_nonneg
-        have he : |kthLargest 1 S m| ^ 4 ≤ ∑ z ∈ S, ∑ w ∈ T, |D σ z w| ^ 4 := by
-          have h := abs_kthLargest_pow_le_sum S m (by decide : 4 ≠ 0)
-          simp only [abs_of_nonneg (hm _)] at h
-          refine h.trans (sum_le_sum fun z _ => ?_)
-          simpa only [m, abs_of_nonneg (hm z)] using
-            abs_kthLargest_pow_le_sum T (D σ z) (by decide : 4 ≠ 0)
-        have hs : (#S : ℝ) ≤ Fintype.card V := mod_cast card_le_card (subset_univ S)
-        have ht : (#T : ℝ) ≤ Fintype.card V := mod_cast card_le_card (subset_univ T)
-        have hcard : (#S : ℝ) * #T ≤ (Fintype.card V : ℝ) ^ 2 := by
-          simpa only [pow_two] using mul_le_mul hs ht (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-        simpa only [sum_const, nsmul_eq_mul, ← mul_assoc] using
-          mul_le_mul hcard he (by positivity) (by positivity)) (inv_nonneg.mpr hNu)
+  calc
+    _ ≤ (N * u)⁻¹ * 𝔼 σ, (Fintype.card V : ℝ) ^ 2 *
+        ∑ z ∈ ({z | X σ z} : Finset V), ∑ w ∈ ({w | Y σ w} : Finset V),
+          |D σ z w| ^ 4 := by
+      refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.mpr hNu)
+      let S : Finset V := {z | X σ z}
+      let T : Finset V := {w | Y σ w}
+      let m := fun z => kthLargest 1 T (fun w => |D σ z w|)
+      let E := kthLargest 1 S m
+      have hm (z : V) : 0 ≤ m z := kthLargest_nonneg
+      have he : |E| ^ 4 ≤ ∑ z ∈ S, ∑ w ∈ T, |D σ z w| ^ 4 := by
+        have h := abs_kthLargest_pow_le_sum S m (by decide : 4 ≠ 0)
+        simp only [abs_of_nonneg (hm _)] at h
+        refine h.trans (sum_le_sum fun z _ => ?_)
+        simpa only [m, abs_of_nonneg (hm z)] using
+          abs_kthLargest_pow_le_sum T (D σ z) (by decide : 4 ≠ 0)
+      have hs : (#S : ℝ) ≤ Fintype.card V := mod_cast card_le_card (subset_univ S)
+      have ht : (#T : ℝ) ≤ Fintype.card V := mod_cast card_le_card (subset_univ T)
+      have hcard : (#S : ℝ) * #T ≤ (Fintype.card V : ℝ) ^ 2 := by
+        simpa only [pow_two] using mul_le_mul hs ht (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+      change (∑ _z ∈ S, ∑ _w ∈ T, |E| ^ 4) ≤ _
+      simp only [sum_const, nsmul_eq_mul]
+      calc
+        _ = ((#S : ℝ) * #T) * |E| ^ 4 := by ring
+        _ ≤ (Fintype.card V : ℝ) ^ 2 * (∑ z ∈ S, ∑ w ∈ T, |D σ z w| ^ 4) := by gcongr
     _ = _ := by simp only [← mul_expect]; ring
 
 /-- Zero extension from usage to a larger rank domain preserves the exact integrated

@@ -30,48 +30,41 @@ namespace Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.NodePacking
 
 open Cslib.WordRAM
 
-private theorem paddingRegisters_injective : Function.Injective paddingRegisters := by
-  intro i j he
-  apply Fin.ext
-  exact congrArg (fun k : Fin 64 => k.val) he
-
 /-- All setup and padding are real instructions, starting from arbitrary old output memory. -/
 theorem exec_initialize {w : ℕ} (x : Data 64) (hfit : Fits w (layout x).budget) :
     ∃ y, ExecWithin w initializeCode x y (12 * (layout x).N + 33) ∧ Parameters x y ∧
       Prepared (layout x) y ∧ y.mem = paddingMemory (layout x) x.mem := by
-  let L := layout x
-  have hfit' : Fits w L.budget := hfit
+  set L := layout x
   obtain ⟨a, ha, har, ham, hap, hak, hah, ha1, ha4, ha3⟩ := exec_layout x hfit
-  have haU : a.regs magnitude = L.U := har magnitude (by decide)
-  have haN : a.regs groups = L.N := har groups (by decide)
-  obtain ⟨b, hb, hbr, hbm, hready, hpad⟩ := exec_constants L a hfit' haU haN hak hah hap ha1 ha4 ha3
+  obtain ⟨b, hb, hbr, hbm, hready, hbd, hbn, hbp₀, hbp₁, hbp₂, hbp₃⟩ :=
+    exec_constants L a hfit (har magnitude (by decide)) (har groups (by decide))
+      hak hah hap ha1 ha4 ha3
   have hargs : Parameters x b := fun i hi => (hbr i hi).trans (har i hi)
-  obtain ⟨hbd, hbn, hbp₀, hbp₁, hbp₂, hbp₃⟩ := hpad
-  have hpd : (b.comap paddingRegisters).regs Padding.dst = L.packed := hbd
-  have hpn : (b.comap paddingRegisters).regs Padding.len = L.N := hbn
-  have hf4 : Fits w 4 := hfit'.of_le (by have := L.bounds.2.2; omega)
+  have hf4 : Fits w 4 := hfit.of_le (by have := L.bounds.2.2; omega)
   have hpend : Fits w ((b.comap paddingRegisters).regs Padding.dst +
       4 * (b.comap paddingRegisters).regs Padding.len) := by
-    rw [hpd, hpn]
-    exact (hfit'.of_le L.bounds.1).of_le (by
+    change Fits w (b.regs pdst + 4 * b.regs plen)
+    rw [hbd, hbn]
+    exact (hfit.of_le L.bounds.1).of_le (by
       dsimp only [Layout.endpoint, Layout.hist, Layout.scratch]
       omega)
-  obtain ⟨y, hy, ⟨hcm, _⟩, hregs⟩ := ExecWithin.rename_post paddingRegisters_injective
+  obtain ⟨y, hy, ⟨hcm, _⟩, hregs⟩ := ExecWithin.rename_post (f := paddingRegisters)
+    (fun _ _ he => Fin.ext (congrArg (fun k : Fin 64 => k.val) he))
     (Padding.exec (b.comap paddingRegisters) hf4 hpend)
-  have hframe : Frame b y := by
-    intro i hi hne
-    exact hregs i (by
-      intro j he
-      have := congrArg Fin.val he
-      dsimp only [paddingRegisters] at this
-      omega)
-  refine ⟨y, (ha.seq (hb.seq hy)).mono (by rw [hpn]; dsimp only [L]; omega), hargs.of_frame hframe,
-    hready.of_frame hframe, ?_⟩
-  simp only [Data.comap_mem] at hcm
-  rw [hcm, hbm, ham, hpd, hpn]
-  change Padding.memory x.mem L.packed (b.regs pad0) (b.regs pad1)
-    (b.regs pad2) (b.regs pad3) L.N = _
-  rw [hbp₀, hbp₁, hbp₂, hbp₃]
+  have hframe : Frame b y := fun i _ _ => hregs i fun j he => by
+    have := congrArg Fin.val he
+    dsimp only [paddingRegisters] at this
+    omega
+  have hsteps : 12 + (16 + (12 * (b.comap paddingRegisters).regs Padding.len + 5)) ≤
+      12 * L.N + 33 := by
+    rw [show (b.comap paddingRegisters).regs Padding.len = L.N from hbn]
+    omega
+  refine ⟨y, (ha.seq (hb.seq hy)).mono hsteps, hargs.of_frame hframe, hready.of_frame hframe, ?_⟩
+  simp only [Data.comap_mem, hbm, ham] at hcm
+  rw [hcm]
+  change Padding.memory x.mem (b.regs pdst) (b.regs pad0) (b.regs pad1) (b.regs pad2)
+    (b.regs pad3) (b.regs plen) = _
+  rw [hbd, hbn, hbp₀, hbp₁, hbp₂, hbp₃]
   rfl
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.NodePacking

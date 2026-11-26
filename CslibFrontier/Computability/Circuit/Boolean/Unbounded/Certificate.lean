@@ -168,12 +168,10 @@ theorem isCodeFrom_overrideGates {n : ℕ} {gates : List (Op × List ℕ)}
   refine Program.isCodeFrom_of_getElem fun j hj => ?_
   have hj' : j < gates.length := by simpa using hj
   have hg : (overrideGates n claims gates)[j] = overrideGate n claims gates[j] j := by
-    have := getElem?_overrideGates n claims gates j
-    rw [List.getElem?_eq_getElem hj, List.getElem?_eq_getElem hj'] at this
-    simpa using this
-  rw [hg]
+    simpa [List.getElem?_eq_getElem hj, List.getElem?_eq_getElem hj'] using
+      getElem?_overrideGates n claims gates j
+  rw [hg, overrideGate]
   obtain ⟨h₁, h₂⟩ := h.getElem j hj'
-  unfold overrideGate
   split_ifs <;> first | exact ⟨h₁, h₂⟩ | exact ⟨rfl, by simp⟩
 
 theorem gateAt_add {n : ℕ} {gates : List (Op × List ℕ)} {j : ℕ} {g : Op × List ℕ}
@@ -259,26 +257,21 @@ theorem getD_evalCode_eq_iff_of_claimable {n : ℕ} {gates : List (Op × List �
     {g : Op × List ℕ} (hg : gates[j]? = some g) {b : Bool} (hb : claimable g = some b) :
     (evalCode interpretation false x gates).getD (n + j) false = b ↔
       ∀ c ∈ g.2, (evalCode interpretation false x gates).getD c false = b := by
-  obtain ⟨hj, hgj⟩ := List.getElem?_eq_some_iff.1 hg
-  have hlen := (h.getElem j hj).1
-  rw [hgj] at hlen
-  rw [getD_evalCode_add h hx hg]
   obtain ⟨op, args⟩ := g
+  obtain ⟨hj, hgj⟩ := List.getElem?_eq_some_iff.1 hg
+  have hlen := hgj ▸ (h.getElem j hj).1
+  rw [getD_evalCode_add h hx hg]
   cases op with
   | not => simp [claimable] at hb
   | and m | or m =>
-    simp only [claimable, Option.some.injEq] at hb
-    subst hb
-    dsimp only at hlen ⊢
+    obtain rfl := Option.some.inj hb
+    simp only [Op.arity] at hlen
     simp only [interpretation_and, interpretation_or, decide_eq_true_iff, decide_eq_false_iff_not,
       not_exists]
-    constructor
-    · intro hall c hc
-      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
-      have := hall ⟨i, by simp only [Op.arity] at hlen; omega⟩
-      simpa [List.getElem?_eq_getElem hi] using this
-    · intro hall i
-      have hi : i.val < args.length := by simp only [Op.arity] at hlen; omega
+    refine ⟨fun hall c hc => ?_, fun hall i => ?_⟩
+    · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
+      simpa [List.getElem?_eq_getElem hi] using hall ⟨i, by omega⟩
+    · have hi : i.val < args.length := by omega
       simpa [List.getElem?_eq_getElem hi] using hall _ (List.getElem_mem hi)
 
 /-- **Soundness of the certificate check.** If claims are valid for wire `o` and every check of a
@@ -304,10 +297,8 @@ theorem eval_of_claimsValid {d n : ℕ} {gates : List (Op × List ℕ)}
       refine hchecks (c', c.2) (List.mem_flatMap.2 ⟨c, hc, ?_⟩)
       simp only [claimChecks, hj, gateAt_add hg, hb, show ¬n + j < n by omega, ↓reduceIte]
       exact List.mem_map.2 ⟨c', hc', rfl⟩
-  have happrox := approx_override h hx hcl o
   simp only [claimsValid, Bool.and_eq_true, decide_eq_true_eq] at hvalid
-  rw [hvalid.1] at happrox
-  exact (approx_some.1 happrox).symm
+  exact (approx_some.1 (hvalid.1 ▸ approx_override h hx hcl o)).symm
 
 /-! ### Small depths and the inputs that determine a wire -/
 
@@ -340,11 +331,11 @@ theorem getD_smallDepths_of_lt (d n : ℕ) (gates : List (Op × List ℕ)) {w : 
 
 theorem length_smallDepths (d n : ℕ) (gates : List (Op × List ℕ)) :
     (smallDepths d n gates).length = n + gates.length := by
-  unfold smallDepths
-  generalize hx : List.replicate n 0 = x
-  have : x.length = n := by rw [← hx, List.length_replicate]
-  rw [← this]
-  clear hx this
+  suffices ∀ x : List ℕ, (gates.foldl (fun sd g =>
+      sd ++ [smallDepthOp d g.1 (g.2.map (sd.getD · (d + 1)))]) x).length =
+      x.length + gates.length by
+    simpa [smallDepths] using this (List.replicate n 0)
+  intro x
   induction gates generalizing x with
   | nil => simp
   | cons g gates ih =>
@@ -394,7 +385,6 @@ theorem exists_determining {d n : ℕ} {gates : List (Op × List ℕ)}
         have := le_maxTwo h2
           (List.mem_map_of_mem (f := ((smallDepths d n gates).getD · (d + 1))) hc)
         have hc' := hlt c hc
-        refine ⟨?_, by omega⟩
         have hmin := min_le_iff.1 hw
         omega
       choose! S hScard hSlt hSdet using fun c (hc : c ∈ g.2) =>
@@ -418,9 +408,8 @@ theorem exists_determining {d n : ℕ} {gates : List (Op × List ℕ)}
           hSdet c hc x ρ hx hρ fun s hs => hagree s
             (Finset.mem_biUnion.2 ⟨c, List.mem_toFinset.2 hc, hs⟩)
         have hmap : g.2.map (fun a => some ((evalCode interpretation false x gates).getD a false)) =
-            (g.2.map ((evalCode interpretation false x gates).getD · false)).map some := by
-          rw [List.map_map]
-          rfl
+            (g.2.map ((evalCode interpretation false x gates).getD · false)).map some :=
+          List.map_map.symm
         rw [getD_kleeneEval_add hρ h hg, getD_evalCode_add h hx hg, List.map_congr_left hcs, hmap,
           ← ofFn_elim_eq_map (σ := signature) false _ _ hlen, List.map_ofFn,
           ← kleeneInterpretation_some]
@@ -474,24 +463,18 @@ theorem getD_kleeneEval_overrideGates_eq {n : ℕ} {gates : List (Op × List ℕ
     (hne : (kleeneEval (claimInputs n claims) (overrideGates n claims gates)).getD w none ≠ none) :
     (kleeneEval (claimInputs n claims) (overrideGates n claims gates)).getD w none =
       some ((evalCode interpretation false x gates).getD w false) := by
-  have := approx_override h hx (fun c hc _ => hcl c hc) w
   obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 hne
-  rw [hb] at this ⊢
-  rw [approx_some.1 this]
+  have := hb ▸ approx_override h hx (fun c hc _ => hcl c hc) w
+  exact hb.trans (congrArg some (approx_some.1 this))
 
 /-- A conjunction with a false argument, or a disjunction with a true one, is known. -/
 private theorem kleeneOp_of_claimable {g : Op × List ℕ} {b : Bool} (hb : claimable g = some b)
     {l : List (Option Bool)} (hl : some (!b) ∈ l) : kleeneOp g.1 l = some (!b) := by
-  obtain ⟨op, args⟩ := g
-  cases op with
-  | not => simp [claimable] at hb
-  | and m =>
-    simp only [claimable, Option.some.injEq] at hb
-    subst hb
+  rcases g with ⟨_ | m | m, args⟩
+  · simp [claimable] at hb
+  · obtain rfl := Option.some.inj hb
     exact kleeneAnd_of_mem hl
-  | or m =>
-    simp only [claimable, Option.some.injEq] at hb
-    subst hb
+  · obtain rfl := Option.some.inj hb
     exact kleeneOr_of_mem hl
 
 /-- **Claims for a wire.** A wire of weft at most one and depth at most `d` has a list of at most
@@ -554,10 +537,9 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
     by_cases hlarge : 2 < g.2.length
     · have hcost : largeGateCost signature g.1 = 1 := by grind [largeGateCost]
       have hsd : ∀ c ∈ g.2, (smallDepths d n gates).getD c (d + 1) ≤ d := fun c hc => by
-        have h0 := hwdc c hc
-        have h1 := hdpc c hc
-        have := getD_smallDepths_le (d := d) h (show c < n + gates.length by
-          have := hcw c hc; omega) (by omega)
+        have := getD_smallDepths_le (d := d) (w := c) h (by have := hcw c hc; omega)
+          (by have := hwdc c hc; omega)
+        have := hdpc c hc
         omega
       obtain ⟨b0, hb0⟩ : ∃ b0, claimable g = some b0 := by
         obtain ⟨_ | _ | _, args⟩ := g
@@ -592,7 +574,8 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
       choose! CL hCL_len hCL_corr hCL_chk hCL_fin using fun c (hc : c ∈ g.2) =>
         ih c (hcw c hc) (by have := hcw c hc; omega) (by have := hwdc c hc; omega)
           (by have := hdpc c hc; omega)
-      refine ⟨g.2.flatMap CL, ?_, ?_, ?_, fun claims hsub hcorr => ?_⟩
+      refine ⟨g.2.flatMap CL, ?_, List.forall_mem_flatMap.2 hCL_corr, ?_,
+        fun claims hsub hcorr => ?_⟩
       · have hX := cost_le_getD_evalCode_depth 1 h hg
         simp only [Pi.one_apply] at hX
         rw [List.length_flatMap]
@@ -600,9 +583,6 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
           (Nat.pow_le_pow_right (by decide) (Nat.le_sub_one_of_lt (hdpc c hc))))).trans ?_
         rw [List.length_map, smul_eq_mul]
         exact (Nat.mul_le_mul_right _ hlarge).trans_eq (by rw [← pow_succ', Nat.sub_add_cancel hX])
-      · intro c' hc'
-        obtain ⟨c, hc, hc'⟩ := List.mem_flatMap.1 hc'
-        exact hCL_corr c hc c' hc'
       · intro e he
         obtain ⟨c', hc', he⟩ := List.mem_flatMap.1 he
         obtain ⟨c, hc, hc'⟩ := List.mem_flatMap.1 hc'
@@ -614,7 +594,7 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
         rw [getD_kleeneEval_overrideGates h (hρ claims) claims hg]
         split_ifs <;> try exact Option.some_ne_none _
         have hmap : g.2.map (fun a => some (v.getD a false)) =
-            (g.2.map (v.getD · false)).map some := by rw [List.map_map]; rfl
+            (g.2.map (v.getD · false)).map some := List.map_map.symm
         rw [List.map_congr_left hkc, hmap]
         exact kleeneOp_map_some_ne_none g.1 (by rw [List.length_map]; exact hlen)
 
@@ -629,17 +609,13 @@ theorem checks_correct {n : ℕ} {gates : List (Op × List ℕ)}
   obtain ⟨c, hc, he⟩ := List.mem_flatMap.1 he
   unfold claimChecks at he
   split_ifs at he with h₁ h₂
-  · rw [List.mem_singleton] at he
-    rw [he]
-    exact hcl c hc
+  · exact List.mem_singleton.1 he ▸ hcl c hc
   · obtain ⟨j, hj⟩ := Nat.exists_eq_add_of_le (Nat.le_of_not_lt h₁)
     rcases hg : gates[j]? with _ | g
     · simp [gateAt, hj, List.getD_eq_getElem?_getD, hg, claimable] at h₂
     rw [hj, gateAt_add hg] at h₂ he
     obtain ⟨c', hc', rfl⟩ := List.mem_map.1 he
-    have := hcl c hc
-    rw [hj, getD_evalCode_eq_iff_of_claimable h hx hg h₂] at this
-    exact this c' hc'
+    exact ((getD_evalCode_eq_iff_of_claimable h hx hg h₂).1 (hj ▸ hcl c hc)) c' hc'
   · cases he
 
 /-- **Completeness of the certificate check.** If wire `o`, of weft at most one and depth at most
@@ -659,11 +635,9 @@ theorem exists_claimsValid {d n : ℕ} {gates : List (Op × List ℕ)}
       claimsValid d n gates o claims = true := by
   obtain ⟨cl, hlen, hcorr, hchk, hfin⟩ := exists_claims h hx ho hwd hdp
   refine ⟨cl, hlen.trans (Nat.pow_le_pow_right (by decide) hdp), hcorr, ?_⟩
-  have hk := getD_kleeneEval_overrideGates_eq h hx (fun c hc => (hcorr c hc).2)
-    (hfin cl (List.Subset.refl _) fun c hc => (hcorr c hc).2)
-  rw [hv] at hk
   simp only [claimsValid, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true]
-  exact ⟨hk, hchk⟩
+  exact ⟨(getD_kleeneEval_overrideGates_eq h hx (fun c hc => (hcorr c hc).2)
+    (hfin cl (.refl _) fun c hc => (hcorr c hc).2)).trans (congrArg some hv), hchk⟩
 
 /-! ### Polynomial time -/
 
@@ -758,9 +732,7 @@ private theorem computableInPolyTime_smallDepthOp (d : ℕ) :
 
 private theorem smallDepthOp_le (d : ℕ) (op : Op) (l : List ℕ) : smallDepthOp d op l ≤ d + 1 := by
   unfold smallDepthOp
-  split_ifs
-  · exact min_le_left _ _
-  · exact le_rfl
+  split_ifs <;> simp
 
 private theorem computableInPolyTime_smallDepths (d : ℕ)
     (hn : ComputableInPolyTime nf encIn encUnary)
@@ -833,13 +805,11 @@ theorem exists_claimsValid_circuit {d : ℕ} (hw : c.weft ≤ 1) (hd : c.depth �
   have hwd : (evalCode (depthInterpretation (largeGateCost signature)) 0 (List.replicate n 0)
       c.code.1).getD (c.outputs 0).toNat 0 ≤ 1 := by
     rw [Circuit.getD_evalCode_depthInterpretation]
-    exact (c.weft_le_iff.1 hw) 0
+    exact c.weft_le_iff.1 hw 0
   have hdp : (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
       c.code.1).getD (c.outputs 0).toNat 0 ≤ d := by
     rw [Circuit.getD_evalCode_depthInterpretation]
-    refine le_trans ?_ hd
-    rw [← Circuit.depthWith_one]
-    exact c.wireDepthsWith_outputs_le_depthWith 1 0
+    exact (c.wireDepthsWith_outputs_le_depthWith 1 0).trans (by rwa [Circuit.depthWith_one])
   rw [c.eval_eq_getD interpretation false] at hx
   exact exists_claimsValid c.isCodeFrom_code List.length_ofFn (c.toNat_outputs_lt 0) hwd hdp hx
 

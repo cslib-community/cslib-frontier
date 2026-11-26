@@ -531,23 +531,16 @@ theorem seq_expected (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
         C.initTime + (C.initPotential : ℝ≥0∞) + (C.totalCharge ops : ℝ≥0∞) := by
   obtain ⟨ν₀, he_init, hinv, hcaller₀⟩ := C.init_exec hx₀ hfr₀ hpar hfit₀
   obtain ⟨ν_final, T_ops, hex, hcontract, hcost⟩ := C.steps_exec ops ν₀ hv hfit_ops hinv
-  have hbdd₀ : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      t.data.Bounded w := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact C.bounded hinv u hu
-  have hfr_init : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      base ≤ t.data.frontier ∧ t.data.frontier ≤ base + C.spaceBound [] ∧
-        t.data.regs P.baseReg = base := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact C.frontier_le hinv u hu
-  have hcaller_init : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      ∀ addr < base, t.data.mem addr = x₀.mem addr := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact hcaller₀ u hu
-  have hfr_fin := hex.frontier_le hfr_init
+  have hmap {Q : SeqROutcome C.Latent S.Result r_ds → Prop}
+      (hQ : ∀ u ∈ ν₀.support, Q (.ofLatentRState u)) :
+      ∀ t ∈ (ν₀.map SeqROutcome.ofLatentRState).support, Q t := by
+    intro t ht
+    obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+    exact hQ u hu
+  have hfr_fin := hex.frontier_le (hmap (C.frontier_le hinv))
   rw [List.nil_append] at hfr_fin
-  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex,
-    fun t ht => ⟨hex.bounded hbdd₀ t ht, hfr_fin t ht, hex.caller_mem hcaller_init t ht⟩,
+  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, fun t ht =>
+    ⟨hex.bounded (hmap (C.bounded hinv)) t ht, hfr_fin t ht, hex.caller_mem (hmap hcaller₀) t ht⟩,
     hcontract, ?_⟩
   rw [add_assoc]
   exact add_le_add le_rfl hcost
@@ -689,8 +682,7 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
     have h_a_nonempty : Nonempty (D.Result o) := by
       obtain ⟨t₀, ht₀⟩ := ν.support_nonempty
       obtain ⟨q₀, hq₀⟩ := (μ_rel (C.projCoupled t₀)).support_nonempty
-      obtain ⟨a₀, _⟩ := (hstep _ (hmem t₀ ht₀)).2 q₀ hq₀
-      exact ⟨a₀⟩
+      exact ((hstep _ (hmem t₀ ht₀)).2 q₀ hq₀).nonempty
     let outOf : CoupledRState C.Seed D.State r_ds → D.Result o :=
       fun q => (C.decode o q.data.regs).getD (Classical.choice h_a_nonempty)
     let liftStep (t : SeqROutcome (TraceRLatent D C.Seed) D.Result r_ds)
@@ -703,11 +695,8 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
     let ν₁ : PMF (SeqROutcome (TraceRLatent D C.Seed) D.Result r_ds) :=
       ν.bind fun t => (μ_step t).map (t.appendStep o)
     have hproj₁ : ν₁.map C.projCoupled = (ν.map C.projCoupled).bind μ_rel := by
-      dsimp only [ν₁, μ_step]
-      rw [PMF.map_bind, PMF.bind_map]
-      refine congrArg (ν.bind ·) (funext fun t => ?_)
-      rw [PMF.map_comp, PMF.map_comp]
-      exact PMF.map_id (μ_rel (C.projCoupled t))
+      simp only [ν₁, μ_step, PMF.map_bind, PMF.bind_map, PMF.map_comp]
+      exact congrArg (ν.bind ·) (funext fun t => PMF.map_id (μ_rel (C.projCoupled t)))
     have hsupp₁ : ∀ u ∈ ν₁.support,
         u.latent.trace.ops = prefOps ++ [o] ∧
         u.latent.trace.labels = u.transcript ∧
@@ -719,23 +708,21 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
       obtain ⟨t, ht, _, ⟨q, hq, rfl⟩, rfl⟩ := hu
       obtain ⟨hops_t, hlbl_t, htr_t, hv_t, _⟩ := hsupp t ht
       obtain ⟨a, hstep_a, hdec_a, hrep_q, _⟩ := (hstep _ (hmem t ht)).2 q hq
-      have hout_eq : outOf q = a := by simp [outOf, hdec_a]
       refine ⟨by simp [SeqROutcome.appendStep, liftStep, hops_t],
         by simp [SeqROutcome.appendStep, liftStep, hlbl_t], ?_, hv_t.2 q.state a hstep_a, hrep_q⟩
-      refine htr_t.append ?_
-      rw [hout_eq]; exact .cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state)
+      simpa only [SeqROutcome.appendStep, liftStep, outOf, hdec_a, Option.getD_some] using
+        htr_t.append (.cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state))
     obtain ⟨ν_final, hex_rest, htr_final, hC_rest⟩ := ih (prefOps ++ [o]) ν₁ hproj₁ hsupp₁
     refine ⟨ν_final, ?_, fun t ht => (htr_final t ht).imp_left fun h => by simp [h], ?_⟩
     · rw [Cslib.Probability.PMF.tsum_map_mul]
       refine Randomized.ExecSteps.cons (S := D.toObliviousSequenceSpec s₀)
         (μ_step := μ_step) (T_step := fun t => T_rel (C.projCoupled t)) (fun t ht => ?_) hex_rest
       obtain ⟨hops_t, _, htr_t, hv_t, hrep_t⟩ := hsupp t ht
-      have hbdd_t : t.data.Bounded w := C.bounded hrep_t
-      have hfit_t : ∀ i, P.input i = true → Fits w (C.encode o i) := C.arguments_fit o hv_t.1
       obtain ⟨he_rel, hq_rel⟩ := hstep _ (hmem t ht)
       have hpeak_le :=
         Nat.add_le_add_left (hops_t ▸ hpeak t.latent.trace t.latent.state o htr_t hv_t.1) base
-      refine ⟨hbdd_t, hfit_t, P.prepare_bounded hbdd_t hfit_t, ?_, ?_⟩
+      refine ⟨C.bounded hrep_t, C.arguments_fit o hv_t.1,
+        P.prepare_bounded (C.bounded hrep_t) (C.arguments_fit o hv_t.1), ?_, ?_⟩
       · refine (he_rel.mono_peak hpeak_le).congr_dist ?_ le_rfl
         dsimp only [μ_step]; rw [PMF.map_comp]; rfl
       · intro u hu
@@ -743,10 +730,9 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
         obtain ⟨a, hstep_a, hdec_a, hrep_q, hcaller_q⟩ := hq_rel q hq
         have hout_eq : outOf q = a := by simp [outOf, hdec_a]
         obtain ⟨hlo_q, hhi_q, hbase_q⟩ := C.frontier_le hrep_q
-        have htr_q : D.ValidTranscript s₀ (t.latent.trace ++ [⟨o, a, q.state⟩]) q.state :=
-          htr_t.append (.cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state))
         have hspace_q : C.spaceBound q.state ≤ seqSpaceBound (prefOps ++ [o]) := by
-          simpa [hops_t] using hspace _ q.state htr_q
+          simpa [hops_t] using
+            hspace _ q.state (htr_t.append (.cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state)))
         exact ⟨C.bounded hrep_q,
           ⟨hlo_q, hhi_q.trans (Nat.add_le_add_left hspace_q base), hbase_q⟩,
           by simp [liftStep, hout_eq, hdec_a], hcaller_q⟩

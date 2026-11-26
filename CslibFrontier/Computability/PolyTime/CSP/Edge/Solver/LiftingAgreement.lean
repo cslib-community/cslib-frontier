@@ -31,7 +31,8 @@ private theorem oldRecord_record {F : CSP Table ℕ} (f : OccurrenceLabeling F B
     (vs : List ℕ) (o : Occurrence F) (ho : o.var ∉ vs) :
     oldRecord F vs o.record = (Blossom.oldPort f vs o ho).record := by
   simp only [oldRecord, scope, Occurrence.record, List.getD_eq_getElem _ _ o.1.isLt,
-    Blossom.oldPort_var]; rfl
+    Blossom.oldPort_var]
+  rfl
 
 /-- The raw finite inverse is exactly the original surviving-port lookup, including its
 explicit fallback on malformed connector requests. No edge or validity assumption is needed. -/
@@ -86,9 +87,10 @@ theorem exitsAt_code {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool)
   simp only [NativeWalk.edges_code, occurrences_eq_map_incidenceList, List.flatMap_map,
     List.filter_map, List.map_map, Function.comp_def, EdgeAugmenting.recordAt_index]
   simp only [← occurrences_eq_map_incidenceList, EdgeAugmenting.record_index, valid_pair_buffer]
-  simp [Blossom.exitsAt, List.map_flatMap, List.map_map, Function.comp_def, Occurrence.record,
-    List.contains_eq_mem, List.mem_map, (EdgeAugmenting.occurrenceIndex_injective F).eq_iff,
-    Bool.beq_eq_decide_eq, Fin.val_inj, Bool.and_assoc]
+  simp [Blossom.exitsAt, List.map_flatMap, List.map_map,
+    Function.comp_def, Occurrence.record, List.contains_eq_mem, List.mem_map,
+    (EdgeAugmenting.occurrenceIndex_injective F).eq_iff, Bool.beq_eq_decide_eq, Fin.val_inj,
+    Bool.and_assoc]
 
 /-- Preserve the unary prefix length and binary original port positions of a source exit. -/
 @[expose] def exitCode {F : CSP Table ℕ} (e : Blossom.Exit F) : ExitCode :=
@@ -114,7 +116,7 @@ theorem armCandidates_code {F : CSP Table ℕ} (w : Walk F) (o : Occurrence F) :
   rw [← List.ofFn_getElem (xs := (EdgeAugmenting.code w).steps.zipIdx)]
   simp only [hlen, List.ofFn_eq_map, List.flatMap_map, List.map_flatMap]
   refine congrArg ((List.finRange w.steps.length).flatMap ·) (funext fun j => ?_)
-  have hget : (EdgeAugmenting.code w).steps.zipIdx[j.val]'(by rw [hlen]; exact j.isLt) =
+  have hget : (EdgeAugmenting.code w).steps.zipIdx[j.val]'(by simp [hlen]) =
       ((occurrenceIndex w.steps[j.val].1, occurrenceIndex w.steps[j.val].2), j.val) := by
     simp [EdgeAugmenting.code]
   simp only [Fin.val_cast, hget, EdgeAugmenting.recordAt_index, Occurrence.record, Fin.val_inj]
@@ -149,23 +151,30 @@ theorem liftWalk_code {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool) (w : W
     (p : Walk (Blossom.contract f (Blossom.internal w))) :
     liftWalk ⟨F, (incidenceList F).map f⟩ (EdgeAugmenting.code w) (EdgeAugmenting.code p) =
       (Blossom.liftWalk f w p).map (fun g => (incidenceList F).map g) := by
+  have hhead : (EdgeAugmenting.code w).steps.head? =
+      w.steps.head?.map (fun (a, b) => (occurrenceIndex a, occurrenceIndex b)) := by
+    simp [EdgeAugmenting.code]
   unfold liftWalk
-  rw [show (EdgeAugmenting.code w).steps.head? =
-    w.steps.head?.map (fun (a, b) => (occurrenceIndex a, occurrenceIndex b)) by
-      simp [EdgeAugmenting.code]]
+  rw [hhead]
   cases hw : w.steps with
   | nil => simp [Blossom.liftWalk, hw]
   | cons pair rest =>
     simp only [List.head?_cons, Option.map_some, Option.elim_some, NativeWalk.internal_code,
       Contraction.connectors_eq, Contraction.contract_eq, EdgeAugmenting.labeling_map]
-    rw [show (NativeWalk.edges (EdgeAugmenting.code p)).all _ = p.edges.all
-        (fun o => !(Blossom.connectors F (Blossom.internal w)).contains o.var) by
+    have hall : (NativeWalk.edges (EdgeAugmenting.code p)).all
+        (fun i => !(Blossom.connectors F (Blossom.internal w)).contains
+          (EdgeAugmenting.recordAt (Blossom.contract f (Blossom.internal w)) i).2.2) =
+        p.edges.all (fun o => !(Blossom.connectors F (Blossom.internal w)).contains o.var) := by
       simp [NativeWalk.edges_code, List.all_map, Function.comp_def, EdgeAugmenting.recordAt_index,
-        Occurrence.record],
-      show (EdgeAugmenting.code p).steps.findIdx _ =
-        p.boundaryIndex (Blossom.connectors F (Blossom.internal w)) by
+        Occurrence.record]
+    have hboundary :
+        (EdgeAugmenting.code p).steps.findIdx (fun pair =>
+          (Blossom.connectors F (Blossom.internal w)).contains
+            (EdgeAugmenting.recordAt (Blossom.contract f (Blossom.internal w)) pair.2).2.2) =
+        p.boundaryIndex (Blossom.connectors F (Blossom.internal w)) := by
       simp [EdgeAugmenting.code, List.findIdx_map, Walk.boundaryIndex, Function.comp_def,
-        EdgeAugmenting.recordAt_index, Occurrence.record]]
+        EdgeAugmenting.recordAt_index, Occurrence.record]
+    rw [hall, hboundary]
     split <;> rename_i ha <;>
       simp only [restoreWalk_code, NativeWalk.take_code, NativeWalk.flip_code, liftPrefix_code,
         Blossom.liftWalk, hw, ha, ↓reduceIte, Option.map_some, Bool.false_eq_true]
@@ -193,8 +202,9 @@ theorem liftComparison_code {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool) 
         (incidenceList _).map g, Blossom.baseConnector F (Blossom.internal w) h⟩
       (by simp) (by simp)
     simp only [EdgeAugmenting.labeling_map] at hr
-    simp only [show (Blossom.connectors F (Blossom.internal w)).isEmpty = false by
-      simp [Blossom.connectors, h], Bool.false_eq_true, ↓reduceIte, h, ↓reduceDIte, hs, hr]
+    have hn : (Blossom.connectors F (Blossom.internal w)).isEmpty = false := by
+      simp [Blossom.connectors, h]
+    simp only [hn, Bool.false_eq_true, ↓reduceIte, h, ↓reduceDIte, hs, hr]
     cases EdgeInstance.augmentingWalk Table.sem (Blossom.reference f (Blossom.internal w)) g
         (Blossom.baseConnector F (Blossom.internal w) h) <;>
       simp [liftWalk_code]

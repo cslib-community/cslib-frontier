@@ -169,14 +169,12 @@ private theorem eval_prvSimExperiment_false_prvIndToSim (hCompat : Φ.Compatible
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : prvIndValid G Φ pair
   · have ⟨hphi, hx₀, hx₁, hev⟩ := hV
-    have hlen₁ : pair.msg₁.input.length = G.inLen pair.msg₁.fn :=
-      hx₁.trans (hCompat.inLen_eq hphi)
     refine (Game.uniform_bool_bind_map_beq_const ((ProbComp.eval (S (G.ev pair.msg₁.fn
       pair.msg₁.input) (Φ.phi pair.msg₁.fn))).bind fun view =>
         ProbComp.eval (A.guess st (some view)))).symm.trans ?_
     congr 1 with c : 1
-    cases c <;> simp [hV, hx₀, hlen₁, hphi, hev, ProbComp.eval_bind, PMF.map,
-      Function.comp_def]
+    cases c <;> simp [hV, hx₀, hx₁.trans (hCompat.inLen_eq hphi), hphi, hev, ProbComp.eval_bind,
+      PMF.map, Function.comp_def]
   · refine (Game.uniform_bool_bind_map_beq_const (ProbComp.eval (A.guess st none))).symm.trans ?_
     congr 1 with c : 1
     by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
@@ -193,10 +191,8 @@ private theorem eval_prvSimExperiment_true_prvIndToSim (hCompat : Φ.Compatible 
   pmf_swap with c
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : prvIndValid G Φ pair
-  · have ⟨hphi, hx₀, hx₁, hev⟩ := hV
-    have hlen₁ : pair.msg₁.input.length = G.inLen pair.msg₁.fn :=
-      hx₁.trans (hCompat.inLen_eq hphi)
-    cases c <;> simp [hV, hx₀, hlen₁, ProbComp.eval_bind, PMF.map,
+  · have ⟨hphi, hx₀, hx₁, _⟩ := hV
+    cases c <;> simp [hV, hx₀, hx₁.trans (hCompat.inLen_eq hphi), ProbComp.eval_bind, PMF.map,
       Function.comp_def]
   · by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
       simp [hV, hx₀, ProbComp.eval_bind, PMF.bind_const, PMF.map, Function.comp_def]
@@ -229,13 +225,10 @@ theorem eval_prvSimExperiment_prvSimFromInverter (hCompat : Φ.Compatible G)
   simp only [prvSimExperiment, prvIndExperiment, prvSimFromInverter, prvSimToInd, pmf_norm]
   congr 1 with ⟨q, st⟩ : 1
   have hvalid_iff :
-      prvIndValid G Φ ⟨M (Φ.phi q.fn) (G.ev q.fn q.input), q⟩ ↔ q.input.length = G.inLen q.fn := by
-    constructor
-    · rintro ⟨hphi, -, hx, -⟩
-      exact hx.trans (hCompat.inLen_eq hphi)
-    · intro hx
-      obtain ⟨hphi, hx₀, hev⟩ := hInv q.fn q.input hx
-      exact ⟨hphi, hx₀, hx.trans (hCompat.inLen_eq hphi.symm), hev⟩
+      prvIndValid G Φ ⟨M (Φ.phi q.fn) (G.ev q.fn q.input), q⟩ ↔ q.input.length = G.inLen q.fn :=
+    ⟨fun ⟨hphi, _, hx, _⟩ => hx.trans (hCompat.inLen_eq hphi), fun hx =>
+      let ⟨hphi, hx₀, hev⟩ := hInv q.fn q.input hx
+      ⟨hphi, hx₀, hx.trans (hCompat.inLen_eq hphi.symm), hev⟩⟩
   by_cases hx : q.input.length = G.inLen q.fn
   · cases b <;> simp [hx, hvalid_iff.mpr hx]
   · simp [hx, mt hvalid_iff.mp hx]
@@ -282,13 +275,11 @@ private theorem eval_obvSimExperiment_false_obvIndToSim (hCompat : Φ.Compatible
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : obvIndValid G Φ pair
   · have ⟨hphi, hx₀, hx₁⟩ := hV
-    have hlen₁ : pair.msg₁.input.length = G.inLen pair.msg₁.fn :=
-      hx₁.trans (hCompat.inLen_eq hphi)
     refine (Game.uniform_bool_bind_map_beq_const ((ProbComp.eval (S (Φ.phi pair.msg₁.fn))).bind
       fun view => ProbComp.eval (A.guess st (some view)))).symm.trans ?_
     congr 1 with c : 1
-    cases c <;> simp [hV, hx₀, hlen₁, hphi, ProbComp.eval_bind, PMF.map,
-      Function.comp_def]
+    cases c <;> simp [hV, hx₀, hx₁.trans (hCompat.inLen_eq hphi), hphi, ProbComp.eval_bind,
+      PMF.map, Function.comp_def]
   · refine (Game.uniform_bool_bind_map_beq_const (ProbComp.eval (A.guess st none))).symm.trans ?_
     congr 1 with c : 1
     by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
@@ -306,9 +297,7 @@ private theorem eval_obvSimExperiment_true_obvIndToSim (hCompat : Φ.Compatible 
   congr 1 with ⟨pair, st⟩ : 1
   by_cases hV : obvIndValid G Φ pair
   · have ⟨hphi, hx₀, hx₁⟩ := hV
-    have hlen₁ : pair.msg₁.input.length = G.inLen pair.msg₁.fn :=
-      hx₁.trans (hCompat.inLen_eq hphi)
-    cases c <;> simp [hV, hx₀, hlen₁, ProbComp.eval_bind, PMF.map,
+    cases c <;> simp [hV, hx₀, hx₁.trans (hCompat.inLen_eq hphi), ProbComp.eval_bind, PMF.map,
       Function.comp_def]
   · by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
       simp [hV, hx₀, ProbComp.eval_bind, PMF.bind_const, PMF.map, Function.comp_def]
@@ -341,12 +330,9 @@ theorem eval_obvSimExperiment_obvSimFromInverter (hCompat : Φ.Compatible G) {M 
   simp only [obvSimExperiment, obvIndExperiment, obvSimFromInverter, obvSimToInd, pmf_norm]
   congr 1 with ⟨q, st⟩ : 1
   have hvalid_iff :
-      obvIndValid G Φ ⟨obvInverterQuery G M (Φ.phi q.fn), q⟩ ↔ q.input.length = G.inLen q.fn := by
-    constructor
-    · rintro ⟨hphi, -, hx⟩
-      exact hx.trans (hCompat.inLen_eq hphi)
-    · intro hx
-      exact ⟨hInv q.fn, List.length_replicate, hx.trans (hCompat.inLen_eq (hInv q.fn).symm)⟩
+      obvIndValid G Φ ⟨obvInverterQuery G M (Φ.phi q.fn), q⟩ ↔ q.input.length = G.inLen q.fn :=
+    ⟨fun ⟨hphi, _, hx⟩ => hx.trans (hCompat.inLen_eq hphi), fun hx =>
+      ⟨hInv q.fn, List.length_replicate, hx.trans (hCompat.inLen_eq (hInv q.fn).symm)⟩⟩
   by_cases hx : q.input.length = G.inLen q.fn
   · cases b <;> simp [hx, hvalid_iff.mpr hx]
   · simp [hx, mt hvalid_iff.mp hx]

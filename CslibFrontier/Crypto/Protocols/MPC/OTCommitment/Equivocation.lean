@@ -71,10 +71,7 @@ private theorem receiverCommit_received {State : Type} (A : Receiver State) (b :
         PMF.mem_support_pure_iff] at h
       obtain ⟨⟨j, next⟩, _, r, _, next', _, ⟨restMasks, rest, final'⟩, hrest, he⟩ := h
       cases he
-      intro i
-      refine Fin.cases ?_ (fun i => ?_) i
-      · rfl
-      · exact ih next' hrest i
+      exact fun i => Fin.cases rfl (fun i => ih next' hrest i) i
 
 /-- An actual honest opening is the unique parity-correct completion of the receiver's selected
 values. This support statement links the simulator's reconstruction to masks really sampled. -/
@@ -83,9 +80,7 @@ theorem opening_eq_equivocate_of_mem_support {State : Type} (A : Receiver State)
     {final : State} (h : (masks, transcript, final) ∈ (receiverCommit A b k st).support) :
     opening b masks = equivocate b transcript := by
   funext i c
-  have hi := receiverCommit_received A b k st h i
-  simp only [equivocate, opening]
-  rw [hi]
+  simp only [equivocate, opening, receiverCommit_received A b k st h i]
   cases b <;> cases masks i <;> cases hc : (fin4ToBoolPair (transcript i).1).2 <;>
     cases c <;> simp [table, hc]
 
@@ -119,8 +114,8 @@ theorem equivocation_bind {State Output : Type} (A : Receiver State) (b : Bool) 
       finish transcript final (opening b masks)) = (do
       let (transcript, final) ← receiverRun A false k st
       finish transcript final (equivocate b transcript)) := by
-  have h := congrArg (fun p => p.bind (fun (transcript, final, o) =>
-    finish transcript final o)) (equivocation A b k st)
-  simpa only [PMF.bind_map, Function.comp_def, Probability.PMF.monad_bind_eq_bind] using h
+  simpa only [PMF.bind_map, Function.comp_def, Probability.PMF.monad_bind_eq_bind] using
+    congrArg (fun p => p.bind fun (transcript, final, o) => finish transcript final o)
+      (equivocation A b k st)
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment

@@ -71,12 +71,13 @@ private lemma eq_of_rec {f g : ℤ → ℤ} (h0 : f 0 = g 0) (h1 : f 1 = g 1)
   induction n using Int.induction_on with
   | zero => exact ⟨h0, by rwa [zero_add]⟩
   | succ i ih =>
-    have a := hf ((i : ℤ) + 1); have b := hg ((i : ℤ) + 1)
-    rw [add_sub_cancel_right] at a b; exact ⟨ih.2, by omega⟩
+    have a := hf ((i : ℤ) + 1)
+    have b := hg ((i : ℤ) + 1)
+    rw [add_sub_cancel_right] at a b
+    exact ⟨ih.2, by omega⟩
   | pred i ih =>
     rw [sub_add_cancel]
-    have a := hf (-(i : ℤ)); have b := hg (-(i : ℤ))
-    exact ⟨by omega, ih.1⟩
+    exact ⟨by linarith [hf (-(i : ℤ)), hg (-(i : ℤ)), ih.1], ih.1⟩
 
 /-- An integer quadratic `n² + S n + q` with `q` odd that is nonnegative on `ℤ` has `S² ≤ 4 q`.
 For `S = 2 k` evaluate at `-k`; for `S = 2 k + 1` evaluate at `-(k + 1)`, which gives
@@ -84,7 +85,8 @@ For `S = 2 k` evaluate at `-k`; for `S = 2 k + 1` evaluate at `-(k + 1)`, which 
 private lemma sq_le_of_forall_nonneg {q S : ℤ} (hq : Odd q)
     (h : ∀ n : ℤ, 0 ≤ n ^ 2 + S * n + q) : S ^ 2 ≤ 4 * q := by
   obtain ⟨k, rfl | rfl⟩ := Int.even_or_odd' S
-  · have := h (-k); nlinarith
+  · have := h (-k)
+    nlinarith
   · have := h (-(k + 1))
     have hlt : k * (k + 1) < q := lt_of_le_of_ne (by nlinarith) fun he ↦
       Int.not_even_iff_odd.2 hq (he ▸ Int.even_mul_succ_self k)
@@ -101,14 +103,15 @@ nonsingularity of `Y² = g(X)` at `(c, 0)`. -/
 lemma derivative_cubicPoly_eval_ne_zero (hΔ : (ofCubic α β γ).Δ ≠ 0) {c : k}
     (hc : (cubicPoly α β γ).IsRoot c) : (derivative (cubicPoly α β γ)).eval c ≠ 0 := by
   have heq : (ofCubic α β γ).toAffine.Equation c 0 := by
-    rw [Affine.equation_iff]; have := eval_cubicPoly α β γ c ▸ hc.eq_zero
+    rw [Affine.equation_iff]
+    have := eval_cubicPoly α β γ c ▸ hc.eq_zero
     simp only [ofCubic_a₁, ofCubic_a₂, ofCubic_a₃, ofCubic_a₄, ofCubic_a₆]
     linear_combination -this
   have hns := (Affine.nonsingular_iff _ _).1
     ((Affine.equation_iff_nonsingular_of_Δ_ne_zero hΔ).1 heq)
-  rw [show (derivative (cubicPoly α β γ)).eval c = 3 * c ^ 2 + 2 * α * c + β by
-    simp [cubicPoly]; ring]
-  simpa [eq_comm] using hns.2
+  have hd : (derivative (cubicPoly α β γ)).eval c = 3 * c ^ 2 + 2 * α * c + β := by
+    simp [cubicPoly]; ring
+  simpa [hd, eq_comm] using hns.2
 
 /-- If `Δ ≠ 0`, every root of `g` has multiplicity at most one. -/
 lemma rootMultiplicity_cubicPoly_le_one (hΔ : (ofCubic α β γ).Δ ≠ 0) (c : k) :
@@ -224,12 +227,8 @@ private lemma d1Num_eq (hF : ringChar F ≠ 2) :
   have hodd : 2 * (Fintype.card F / 2) + 1 = Fintype.card F := by
     have := FiniteField.odd_card_of_char_ne_two hF
     omega
-  have he : cubicPoly α β γ ^ (2 * (Fintype.card F / 2) + 1) = (X ^ Fintype.card F) ^ 3 +
-      C α * (X ^ Fintype.card F) ^ 2 + C β * X ^ Fintype.card F + C γ := by
-    rw [hodd]
-    exact cubicPoly_pow_card α β γ
   unfold d1Num
-  linear_combination he
+  linear_combination (congrArg (cubicPoly α β γ ^ ·) hodd).trans (cubicPoly_pow_card α β γ)
 
 variable (α β γ) in
 /-- `deg N = 2 q + 1`. -/
@@ -242,18 +241,22 @@ private lemma natDegree_d1Num (hF : ringChar F ≠ 2) :
       3 * (Fintype.card F / 2 + 1) := natDegree_pow_le.trans (by rw [natDegree_cubicPoly, mul_comm])
   have hc := natDegree_cubicPoly α β γ
   have hsub {f g : F[X]} {n : ℕ} (hf : f.natDegree ≤ n) (hg : g.natDegree ≤ n) :
-      (f - g).natDegree ≤ n := by simpa only [max_self] using natDegree_sub_le_of_le hf hg
+      (f - g).natDegree ≤ n := by
+    simpa only [max_self] using natDegree_sub_le_of_le hf hg
   refine lt_of_le_of_lt (b := 2 * Fintype.card F) ?_ (by omega)
   repeat' first
     | with_reducible apply hsub
     | with_reducible apply natDegree_add_le_of_degree_le
-  · compute_degree; omega
+  · compute_degree
+    omega
   · simp
   · exact natDegree_mul_le.trans (by rw [natDegree_ofNat]; omega)
   · omega
   · rw [natDegree_X_pow]; omega
-  · compute_degree; omega
-  · compute_degree; omega
+  · compute_degree
+    omega
+  · compute_degree
+    omega
   · rw [natDegree_X_pow]; omega
 
 /-- If `g(c) = 0`, then `(T - c)²` does not divide `D (D^m + 1)²`: `c` is a simple root of `D`
@@ -361,8 +364,12 @@ private lemma d1Exp_cases (hF : ringChar F ≠ 2) (c : F) :
   by_cases ha : (cubicPoly α β γ).eval c = 0
   · exact Or.inl ⟨ha, by rw [d1Exp, ha, quadraticChar_zero]; rfl⟩
   rcases quadraticChar_dichotomy ha with h | h
-  · exact Or.inr (Or.inl ⟨ha, by rw [← hpow, h, Int.cast_one], by rw [d1Exp, h]; rfl⟩)
-  · exact Or.inr (Or.inr ⟨by rw [← hpow, h, Int.cast_neg, Int.cast_one], by rw [d1Exp, h]; rfl⟩)
+  · refine Or.inr (Or.inl ⟨ha, by rw [← hpow, h, Int.cast_one], ?_⟩)
+    rw [d1Exp, h]
+    rfl
+  · refine Or.inr (Or.inr ⟨by rw [← hpow, h, Int.cast_neg, Int.cast_one], ?_⟩)
+    rw [d1Exp, h]
+    rfl
 
 /-- `G` divides `N`: `T - c` divides both summands of `N` when `g(c) = 0`, and `(T - c)²` does
 when `χ(g(c)) = -1`. -/
@@ -375,7 +382,8 @@ private lemma d1Gcd_dvd_d1Num (hF : ringChar F ≠ 2) : d1Gcd α β γ ∣ d1Num
   · rw [he, show 2 - 1 = 1 from rfl, pow_one]
     exact dvd_sub (dvd_mul_of_dvd_left (dvd_iff_isRoot.2 h0) _)
       (dvd_mul_of_dvd_right (dvd_pow hQ two_ne_zero) _)
-  · rw [he, pow_zero]; exact one_dvd _
+  · rw [he, pow_zero]
+    exact one_dvd _
   · rw [he]
     have hD : X - C c ∣ cubicPoly α β γ ^ (Fintype.card F / 2) + 1 := by
       rw [dvd_iff_isRoot, IsRoot.def, eval_add, eval_pow, hm, eval_one, neg_add_cancel]
@@ -390,7 +398,8 @@ private lemma isCoprime_d1Den (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β γ).
   refine IsCoprime.prod_right fun c _ ↦ ?_
   have hQ := X_sub_C_dvd_X_pow_card_sub_X c
   rcases Nat.eq_zero_or_pos (d1Exp α β γ c) with h0e | hpos
-  · rw [h0e, pow_zero]; exact isCoprime_one_right
+  · rw [h0e, pow_zero]
+    exact isCoprime_one_right
   refine IsCoprime.pow_right ((irreducible_X_sub_C c).coprime_iff_not_dvd.2 fun hdvd ↦ ?_).symm
   have hN : X - C c ∣ d1Num α β γ := hM ▸ dvd_mul_of_dvd_right hdvd _
   rcases d1Exp_cases (α := α) (β := β) (γ := γ) hF c with ⟨h0, he⟩ | ⟨h0, h1, _⟩ | ⟨_, he⟩
@@ -416,21 +425,22 @@ theorem d_P₁_sub_P₀ (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β γ).Δ ≠
   obtain ⟨M, hM⟩ := d1Gcd_dvd_d1Num (α := α) (β := β) (γ := γ) hF
   have hN0 : d1Num α β γ ≠ 0 :=
     ne_zero_of_natDegree_gt (n := 0) (by rw [natDegree_d1Num α β γ hF]; omega)
-  have hM0 : M ≠ 0 := fun h ↦ hN0 (by rw [h, mul_zero] at hM; exact hM)
+  have hM0 : M ≠ 0 := fun h ↦ hN0 (by rwa [h, mul_zero] at hM)
   have hGι : algebraMap F[X] (RatFunc F) (d1Gcd α β γ) ≠ 0 :=
     (map_ne_zero_iff _ (RatFunc.algebraMap_injective _)).2 d1Gcd_ne_zero
-  obtain ⟨h1, h2⟩ := natDegree_num_denom_of_eq_div hM0 d1Den_ne_zero (isCoprime_d1Den hF hΔ hM)
-    (show algebraMap F[X] (RatFunc F) (d1Num α β γ) /
-        algebraMap F[X] (RatFunc F) ((X ^ Fintype.card F - X) ^ 2) =
-      algebraMap F[X] (RatFunc F) M / algebraMap F[X] (RatFunc F) (d1Den α β γ) by
-      rw [hM, ← d1Gcd_mul_d1Den, map_mul, map_mul, mul_div_mul_left _ _ hGι])
+  have hx : algebraMap F[X] (RatFunc F) (d1Num α β γ) /
+      algebraMap F[X] (RatFunc F) ((X ^ Fintype.card F - X) ^ 2) =
+      algebraMap F[X] (RatFunc F) M / algebraMap F[X] (RatFunc F) (d1Den α β γ) := by
+    rw [hM, ← d1Gcd_mul_d1Den, map_mul, map_mul, mul_div_mul_left _ _ hGι]
+  obtain ⟨h1, h2⟩ := natDegree_num_denom_of_eq_div hM0 d1Den_ne_zero
+    (isCoprime_d1Den hF hΔ hM) hx
+  rw [d_P₁_sub_P₀_eq hF hΔ, h1, h2]
   have hdegN := natDegree_d1Num α β γ hF
   rw [hM, natDegree_mul d1Gcd_ne_zero hM0] at hdegN
   have hdegQ := congrArg natDegree (d1Gcd_mul_d1Den (α := α) (β := β) (γ := γ))
   rw [natDegree_mul d1Gcd_ne_zero d1Den_ne_zero, natDegree_pow,
     natDegree_X_pow_sub_X Fintype.one_lt_card] at hdegQ
-  rw [d_P₁_sub_P₀_eq hF hΔ, h1, h2, max_eq_left (by omega),
-    show M.natDegree = (d1Den α β γ).natDegree + 1 by omega,
+  rw [max_eq_left (by omega), show M.natDegree = (d1Den α β γ).natDegree + 1 by omega,
     natDegree_d1Den, Nat.cast_add, Nat.cast_sum, sum_d1Exp, Nat.cast_one]
   ring
 
@@ -443,12 +453,16 @@ theorem d_P₁_sub_zsmul_P₀ (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β γ).
   refine eq_of_rec (f := fun n ↦ (d (P₁ α β γ - n • P₀ α β γ) : ℤ))
     (g := fun n ↦ n ^ 2 + cubicCharSum α β γ * n + Fintype.card F)
     (by simp only [zero_zsmul, sub_zero, d_P₁ hF hΔ]; ring)
-    (by simp only [one_zsmul, d_P₁_sub_P₀ hF hΔ]; ring) (fun m ↦ ?_) (fun _ ↦ by ring) n
+    (by simp only [one_zsmul, d_P₁_sub_P₀ hF hΔ]; ring)
+    (fun m ↦ ?_) (fun _ ↦ by ring) n
   have h := parallelogram hΔ (P₁ α β γ - m • P₀ α β γ) (P₀ α β γ)
-  rw [d_P₀ hΔ, show P₁ α β γ - m • P₀ α β γ + P₀ α β γ = P₁ α β γ - (m - 1) • P₀ α β γ by
-      rw [sub_zsmul, one_zsmul]; abel,
-    show P₁ α β γ - m • P₀ α β γ - P₀ α β γ = P₁ α β γ - (m + 1) • P₀ α β γ by
-      rw [add_zsmul, one_zsmul]; abel] at h
+  have e1 : P₁ α β γ - m • P₀ α β γ + P₀ α β γ = P₁ α β γ - (m - 1) • P₀ α β γ := by
+    rw [sub_zsmul, one_zsmul]
+    abel
+  have e2 : P₁ α β γ - m • P₀ α β γ - P₀ α β γ = P₁ α β γ - (m + 1) • P₀ α β γ := by
+    rw [add_zsmul, one_zsmul]
+    abel
+  rw [d_P₀ hΔ, e1, e2] at h
   omega
 
 end Frobenius
@@ -461,10 +475,12 @@ namespace WeierstrassCurve
 field of odd characteristic with `q` elements. -/
 theorem cubicCharSum_sq_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
     (hF : ringChar F ≠ 2) {α β γ : F} (hΔ : (ofCubic α β γ).Δ ≠ 0) :
-    cubicCharSum α β γ ^ 2 ≤ 4 * (Fintype.card F : ℤ) :=
-  Manin.sq_le_of_forall_nonneg
-    (by exact_mod_cast Nat.odd_iff.2 (FiniteField.odd_card_of_char_ne_two hF)) fun n ↦ by
-      rw [← Manin.d_P₁_sub_zsmul_P₀ hF hΔ n]; exact Nat.cast_nonneg _
+    cubicCharSum α β γ ^ 2 ≤ 4 * (Fintype.card F : ℤ) := by
+  have hodd : Odd (Fintype.card F : ℤ) :=
+    mod_cast Nat.odd_iff.2 (FiniteField.odd_card_of_char_ne_two hF)
+  exact Manin.sq_le_of_forall_nonneg hodd fun n ↦ by
+    rw [← Manin.d_P₁_sub_zsmul_P₀ hF hΔ n]
+    exact Nat.cast_nonneg _
 
 /-- **Hasse's bound**: an elliptic curve `E` over a finite field `F` of odd characteristic with
 `q` elements has `(#E(F) - (q + 1))² ≤ 4 q`. -/
@@ -480,10 +496,13 @@ theorem abs_natCard_point_sub_le {F : Type*} [Field F] [Fintype F] (hF : ringCha
     (W : WeierstrassCurve F) [W.IsElliptic] :
     |(Nat.card W.toAffine.Point : ℝ) - (Fintype.card F + 1)| ≤
       2 * Real.sqrt (Fintype.card F) := by
-  refine (Real.abs_le_sqrt (show ((Nat.card W.toAffine.Point : ℝ) -
-      (Fintype.card F + 1)) ^ 2 ≤ 4 * Fintype.card F by
-    exact_mod_cast hasse_bound hF W)).trans_eq ?_
-  rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
+  have h : ((Nat.card W.toAffine.Point : ℝ) - (Fintype.card F + 1)) ^ 2 ≤
+      4 * Fintype.card F := mod_cast hasse_bound hF W
+  calc |(Nat.card W.toAffine.Point : ℝ) - (Fintype.card F + 1)|
+      ≤ Real.sqrt (4 * Fintype.card F) := Real.abs_le_sqrt h
+    _ = 2 * Real.sqrt (Fintype.card F) := by
+      rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num,
+        Real.sqrt_sq (by norm_num)]
 
 /-- **Hasse's bound** over `ZMod p` for every prime `p` (Theorem 9.72 of [KatzLindell2020]):
 `p + 1 - 2 √p ≤ #E(ZMod p) ≤ p + 1 + 2 √p`. -/
@@ -494,7 +513,9 @@ theorem hasse_bound_zmod {p : ℕ} [Fact p.Prime] (W : WeierstrassCurve (ZMod p)
   rcases eq_or_ne p 2 with rfl | hp
   · obtain ⟨h1, h5⟩ := natCard_point_zmod_two W
     have : 1 ≤ Real.sqrt 2 := Real.one_le_sqrt.2 (by norm_num)
-    simp only [Nat.cast_ofNat]; exact ⟨by cast_linarith [h5, h1], by cast_linarith⟩
+    simp only [Nat.cast_ofNat]
+    refine ⟨?_, by cast_linarith⟩
+    cast_linarith [h5, h1]
   · obtain ⟨h1, h2⟩ := abs_le.1
       (ZMod.card p ▸ abs_natCard_point_sub_le (ZMod.ringChar_zmod_n p ▸ hp) W)
     exact ⟨by linarith, by linarith⟩

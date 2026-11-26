@@ -61,17 +61,11 @@ theorem bijective_flipOn_vecMul_zero (label : Fin n ≃ BitString r) :
       flipOn {i} center.val) := by
   constructor
   · rintro ⟨⟨c, hc⟩, i⟩ ⟨⟨d, hd⟩, j⟩ h
-    have hij : i = j := by
-      apply label.injective
+    obtain rfl : i = j := label.injective <| by
       have hs := congrArg (fun x => Matrix.vecMul x (Matrix.of fun i j => label i j)) h
       simp only [vecMul_flipOn_singleton, hc, hd, zero_add] at hs
-      change label i = label j at hs
       exact hs
-    subst j
-    have hcd : c = d := by
-      have := congrArg (flipOn {i}) h
-      simpa only [flipOn_flipOn] using this
-    subst d
+    obtain rfl : c = d := by simpa only [flipOn_flipOn] using congrArg (flipOn {i}) h
     rfl
   · intro x
     let i := label.symm (Matrix.vecMul x (Matrix.of fun i j => label i j))
@@ -103,14 +97,8 @@ theorem exists_openSpherePartition (r : ℕ) :
       invFun := fun c => ⟨c.1, by simpa only [C, mem_filter, mem_univ, true_and] using c.2⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
-  have hbij : Function.Bijective
-      (fun p : {c // c ∈ C} × Fin (2 ^ r) =>
-        let ⟨center, i⟩ := p
-        flipOn {i} center.val) := by
-    exact (bijective_flipOn_vecMul_zero label).comp
-      (e.prodCongr (Equiv.refl _)).bijective
-  refine ⟨C, ?_, hbij⟩
-  have hcard := Fintype.card_congr (Equiv.ofBijective _ hbij)
-  simpa [BitString] using hcard
+  have hbij : Function.Bijective (fun p : {c // c ∈ C} × Fin (2 ^ r) => flipOn {p.2} p.1.val) :=
+    (bijective_flipOn_vecMul_zero label).comp (e.prodCongr (Equiv.refl _)).bijective
+  exact ⟨C, by simpa [BitString] using Fintype.card_congr (Equiv.ofBijective _ hbij), hbij⟩
 
 end Cslib.BitString

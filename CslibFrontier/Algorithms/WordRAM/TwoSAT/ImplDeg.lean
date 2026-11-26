@@ -91,9 +91,8 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase]
       omega
     obtain ⟨hlen_p, hlit_p, hcm_rest⟩ := clauseMemAt_cons hcm
-    have hflat_cons : ((c :: cs).flatMap (encodeClauseBy Fin.val)).length =
-        c.length + 1 + (cs.flatMap (encodeClauseBy Fin.val)).length := by
-      simp [List.flatMap_cons, length_encodeClauseBy, Nat.add_assoc]
+    simp only [List.flatMap_cons, List.length_append, length_encodeClauseBy] at hp
+    have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; lia)
     have hbound_imp : ∀ w_u : Fin (2 * G.n), (G.adjFin w_u).length ≤ 2 * G.φ.length := by
       intro w_u
       have h1 := csrOffset_succ G.adjFin w_u.isLt
@@ -105,6 +104,13 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       rcases htarget with hnil | hfold
       · simp [hnil] at hidx
       · simpa using hfold
+    have hlen_add (l : Literal (Fin G.n)) :
+        (addClauseEdges g c l).length ≤ 2 * G.φ.length := by
+      have hle := length_le_foldl_addClauseEdges cs (addClauseEdges g c) l
+      have hfin := hbound_imp (litEquiv G.n l)
+      simp only [htarget', Instance.adjFin, mapAdj, Equiv.symm_apply_apply,
+        List.length_map] at hle hfin
+      exact hle.trans hfin
     obtain ⟨x₁, hx₁_ex, hx₁_deg, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ :
         ∃ x₁, ExecWithin w implDegBody x x₁ 19 ∧
           (∀ u : Fin (2 * G.n), x₁.mem (curBase + u.val) =
@@ -119,16 +125,10 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           litCodeBy_xor_one Fin.val a
         have hroom_a : (mapAdj (litEquiv G.n) g (litEquiv G.n a.negate)).length + 1 ≤
             2 * G.φ.length := by
-          have hle := length_le_foldl_addClauseEdges cs (addClauseEdges g [a]) a.negate
-          rw [htarget'] at hle
-          have hfin := hbound_imp (litEquiv G.n a.negate)
-          simp only [Instance.adjFin, mapAdj, Equiv.symm_apply_apply, List.length_map,
-            addClauseEdges, Function.update_self, List.length_cons] at hle hfin ⊢
-          omega
+          simpa [mapAdj, addClauseEdges] using hlen_add a.negate
         have hf_p2 : Fits w (p + 1 + 1) :=
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
         have hf_na := fits_litCode_xor_one G hfit a
-        have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
         let st_pre := ((x.set jReg 1).set pReg (p + 1)).set uReg (litCodeBy Fin.val a)
         let st_v := st_pre.set vReg (litCodeBy Fin.val a ^^^ 1)
         obtain ⟨y₁, hy₁_ex, hy₁_deg, hy₁_out, hy₁_fr⟩ :=
@@ -162,28 +162,15 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           (mapAdj_update_cons (litEquiv G.n) g a.negate b).symm
         have hroom_a : (mapAdj (litEquiv G.n) g (litEquiv G.n a.negate)).length + 1 ≤
             2 * G.φ.length := by
-          have hle1 : (g₁ a.negate).length ≤ (addClauseEdges g [a, b] a.negate).length := by
-            dsimp only [addClauseEdges, g₁]
-            by_cases hab : a.negate = b.negate <;> simp [hab]
-          have hle2 := length_le_foldl_addClauseEdges cs (addClauseEdges g [a, b]) a.negate
-          rw [htarget'] at hle2
-          have hfin := hbound_imp (litEquiv G.n a.negate)
-          simp only [Instance.adjFin, mapAdj, Equiv.symm_apply_apply, List.length_map, g₁,
-            Function.update_self, List.length_cons] at hle1 hle2 hfin ⊢
-          omega
+          have h := hlen_add a.negate
+          by_cases hab : a.negate = b.negate <;> simp [mapAdj, addClauseEdges, hab] at h ⊢ <;> omega
         have hroom_b : (mapAdj (litEquiv G.n) g₁ (litEquiv G.n b.negate)).length + 1 ≤
             2 * G.φ.length := by
-          have hle2 := length_le_foldl_addClauseEdges cs (addClauseEdges g [a, b]) b.negate
-          rw [htarget'] at hle2
-          have hfin := hbound_imp (litEquiv G.n b.negate)
-          simp only [Instance.adjFin, mapAdj, Equiv.symm_apply_apply, List.length_map,
-            addClauseEdges, Function.update_self, List.length_cons] at hle2 hfin ⊢
-          exact hle2.trans hfin
+          simpa [g₁, mapAdj, addClauseEdges] using hlen_add b.negate
         have hf_p3 : Fits w (p + 1 + 1 + 1) :=
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
         have hf_na := fits_litCode_xor_one G hfit a
         have hf_nb := fits_litCode_xor_one G hfit b
-        have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
         let st_v1 := (((((x.set jReg 2).set pReg (p + 1)).set uReg (litCodeBy Fin.val a)).set
           pReg (p + 1 + 1)).set oldFinReg (litCodeBy Fin.val b)).set
           vReg (litCodeBy Fin.val a ^^^ 1)
@@ -222,7 +209,6 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := by
       intro k hk
       have hk_bound : p + 1 + c.length + k < curBase := by
-        rw [hflat_cons] at hp
         simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase]
         omega
       rw [hx₁_out _ (by omega)]
@@ -234,7 +220,7 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     obtain ⟨y, hy_ex, hy_deg, hy_out, hy_fr⟩ := implDegLoop_spec G hfit cs
       (addClauseEdges g c) (idx + 1) (p + 1 + c.length) x₁ hrest (.inr htarget')
       (by simp only [List.length_cons] at hidx; omega)
-      (by rw [hflat_cons] at hp; omega) hcm_x₁ hx₁_deg
+      (by lia) hcm_x₁ hx₁_deg
       ((hx₁_fr cOne (by decide)).trans hc1)
       ((hx₁_fr mClauses (by decide)).trans hm)
       ((hx₁_fr curB (by decide)).trans hcur)

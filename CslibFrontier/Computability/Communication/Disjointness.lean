@@ -188,11 +188,9 @@ theorem card_parts (hU : Fintype.card U = 2 * m + 1) :
     #(parts U m) = #(powersetCard m (univ : Finset U)) * (m + 1) := by
   rw [card_eq_sum_ones, sum_parts hU]
   simp only [sum_const, smul_eq_mul, mul_one]
-  rw [sum_congr rfl fun Ty hTy => by
-    rw [card_compl, hU, (mem_powersetCard.mp hTy).2]]
-  rw [sum_const, smul_eq_mul]
-  congr 1
-  omega
+  rw [sum_congr rfl fun Ty hTy => by rw [card_compl, hU, (mem_powersetCard.mp hTy).2],
+    sum_const, smul_eq_mul]
+  exact congrArg (_ * ·) (by omega)
 
 /-- There is a partition. -/
 private theorem card_parts_pos (hU : Fintype.card U = 2 * m + 1) :
@@ -258,20 +256,12 @@ private theorem two_pow_succ_mul_slack_mul_le {m r : ℕ} {b : ℝ} (hr : 48 * r
       18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
   have hsl := slack_le (r := r) (s := m + 1) hr (by omega)
   push_cast at hsl
-  have hpow : (2 : ℝ) ^ (m + 1) * 2 ^ m = 2 * 4 ^ m := by
-    rw [pow_succ, show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
-    ring
-  have hE : (2 : ℝ) ^ (m + 1) * (8 * ((m : ℝ) + 1) * (27 / 32) ^ r +
-      (12 * (r : ℝ) + 1) * 2 ^ (12 * r) * (3 / 4) ^ (m + 1)) ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) := by gcongr
-  have h1 := mul_le_mul_of_nonneg_right hE hb0
-  have h2 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * b ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m := by gcongr
-  have h3 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m =
-      18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
-    rw [mul_comm _ ((2 : ℝ) ^ m), ← mul_assoc, mul_comm ((2 : ℝ) ^ m), hpow]
-    ring
-  exact (h1.trans h2).trans_eq h3
+  have h4m : (4 : ℝ) ^ m = 2 ^ m * 2 ^ m := by rw [← mul_pow]; norm_num
+  have hrhs : 18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r =
+      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m := by
+    rw [pow_succ, h4m]; ring
+  rw [hrhs]
+  gcongr
 
 /-- **The corruption inequality on one side.** Over the partitions `⟨i, Tx, Ty⟩` of `2 m + 1`
 points, the products `low A Tx * low B Ty` with `i` bad for `A` relative to `Ty` add up to at most
@@ -293,23 +283,15 @@ private theorem four_mul_sum_filter_le (hU : Fintype.card U = 2 * m + 1)
   rw [hconst, ← sum_add_distrib]
   refine sum_le_sum fun Ty hTy => ?_
   have hTy : #Ty = m := (mem_powersetCard.mp hTy).2
-  have hS : #Tyᶜ = m + 1 := by
-    rw [card_compl, hU, hTy]
-    omega
-  have hb : (low B Ty : ℝ) ≤ 2 ^ m := by
-    have := low_le_two_pow B Ty
-    rw [hTy] at this
-    exact_mod_cast this
+  have hS : #Tyᶜ = m + 1 := by simp only [card_compl, hU, hTy]; omega
+  have hb : (low B Ty : ℝ) ≤ 2 ^ m := by exact_mod_cast hTy ▸ low_le_two_pow B Ty
   have hKL := four_mul_sum_card_filter_notMem_le A Tyᶜ (r := r) (j := 12 * r) (by omega)
   rw [hS] at hKL
   push_cast at hKL
   simp only [low_compl_insert, high]
   rw [← sum_filter, ← sum_mul, ← sum_mul]
   have hb0 : (0 : ℝ) ≤ low B Ty := Nat.cast_nonneg _
-  have h1 := mul_le_mul_of_nonneg_right hKL hb0
-  rw [add_mul] at h1
-  have h2 := two_pow_succ_mul_slack_mul_le hr hb0 hb
-  linarith
+  linarith [mul_le_mul_of_nonneg_right hKL hb0, two_pow_succ_mul_slack_mul_le hr hb0 hb]
 
 /-- **The corruption inequality over partitions.** Over the partitions `⟨i, Tx, Ty⟩` of `2 m + 1`
 points, the members of `A` inside `Tx` times the members of `B` inside `Ty` add up to at most `18`
@@ -347,10 +329,7 @@ private theorem sum_low_mul_low_le (hU : Fintype.card U = 2 * m + 1) (A B : Fins
       linarith
   have h := sum_le_sum hpt
   rw [sum_add_distrib, sum_add_distrib, ← mul_sum] at h
-  have hcomm : ∑ T ∈ parts U m, (low B T.right : ℝ) * low A T.left =
-      ∑ T ∈ parts U m, (low A T.left : ℝ) * low B T.right :=
-    sum_congr rfl fun _ _ => mul_comm _ _
-  rw [hcomm] at hY
+  rw [sum_congr rfl fun _ _ => mul_comm _ _] at hY
   linarith
 
 /-! ### The hard distribution -/
@@ -443,31 +422,24 @@ private theorem sum_sum_ite_hardWeight' (A B : Finset (Finset U)) :
     (fun T y => T.point ∈ y ∧ y ⊆ T.leftᶜ) _
 
 private theorem low_univ (s : Finset U) : low univ s = 2 ^ #s := by
-  unfold low
-  rw [← card_powerset]
-  congr 1
-  ext x
-  simp only [mem_filter, mem_univ, true_and, mem_powerset]
+  rw [low, ← card_powerset]
+  exact congrArg card (ext fun _ => by simp only [mem_filter, mem_univ, true_and, mem_powerset])
 
 private theorem high_univ {i : U} {s : Finset U} (hi : i ∉ s) :
     high univ i s = 2 ^ (#sᶜ - 1) := by
   unfold high
   have hi' : i ∈ sᶜ := mem_compl.mpr hi
   have h1 : #{x ∈ (univ : Finset (Finset U)) | i ∈ x ∧ x ⊆ sᶜ} = #{x ∈ sᶜ.powerset | i ∈ x} := by
-    congr 1
-    ext x
-    simp only [mem_filter, mem_univ, true_and, mem_powerset]
-    exact and_comm
+    refine congrArg card (ext fun x => ?_)
+    simp only [mem_filter, mem_univ, true_and, mem_powerset, and_comm]
   have h2 : {x ∈ sᶜ.powerset | i ∉ x} = (sᶜ.erase i).powerset := by
     ext x
     simp only [mem_filter, mem_powerset, subset_erase]
   have h3 := (card_filter_add_card_filter_not (s := sᶜ.powerset) fun x => i ∈ x).trans
     (card_powerset sᶜ)
-  have h4 : #(sᶜ.erase i).powerset = 2 ^ (#sᶜ - 1) := by
-    rw [card_powerset, card_erase_of_mem hi']
   have h5 : 2 ^ #sᶜ = 2 ^ (#sᶜ - 1) * 2 := by
     rw [← pow_succ, Nat.sub_add_cancel (card_pos.mpr ⟨i, hi'⟩)]
-  rw [h2, h4, h5] at h3
+  rw [h2, card_powerset, card_erase_of_mem hi', h5] at h3
   rw [h1]
   omega
 
@@ -477,29 +449,28 @@ private theorem sum_sum_ite_hardWeight_univ (hU : Fintype.card U = 2 * m + 1) :
         (if decide (Disjoint x y) = true then hardWeight m (x, y) else 0) = 1 / 2 ∧
       ∑ x : Finset U, ∑ y : Finset U,
         (if decide (Disjoint x y) = true then 0 else hardWeight m (x, y)) = 1 / 2 := by
-  have hP : (0 : ℝ) < #(parts U m) := by
-    exact_mod_cast card_parts_pos hU
+  have hP : (0 : ℝ) < #(parts U m) := by exact_mod_cast card_parts_pos hU
+  have h4m : (4 : ℝ) ^ m = 2 ^ m * 2 ^ m := by
+    rw [← mul_pow]
+    norm_num
   have hcompl {s : Finset U} (hs : #s = m) : #sᶜ - 1 = m := by
-    rw [card_compl, hU, hs]
+    simp only [card_compl, hU, hs]
     omega
   refine ⟨?_, ?_⟩
-  · rw [sum_sum_ite_hardWeight]
-    rw [sum_congr rfl fun T hT => by
-      rw [low_univ, low_univ, (mem_parts.mp hT).2.2.2.1,
-        (mem_parts.mp hT).2.2.2.2]]
-    rw [sum_const, nsmul_eq_mul]
+  · rw [sum_sum_ite_hardWeight, sum_congr rfl fun T hT => by
+      rw [low_univ, low_univ, (mem_parts.mp hT).2.2.2.1, (mem_parts.mp hT).2.2.2.2],
+      sum_const, nsmul_eq_mul]
     field_simp
     push_cast
-    rw [show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
+    rw [h4m]
     ring
-  · rw [sum_sum_ite_hardWeight']
-    rw [sum_congr rfl fun T hT => by
+  · rw [sum_sum_ite_hardWeight', sum_congr rfl fun T hT => by
       obtain ⟨h1, h2, -, h4, h5⟩ := mem_parts.mp hT
-      rw [high_univ h2, high_univ h1, hcompl h4, hcompl h5]]
-    rw [sum_const, nsmul_eq_mul]
+      rw [high_univ h2, high_univ h1, hcompl h4, hcompl h5],
+      sum_const, nsmul_eq_mul]
     field_simp
     push_cast
-    rw [show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
+    rw [h4m]
     ring
 
 /-- The weights add up to one, so they form a distribution (`hardDist`). -/
@@ -554,21 +525,13 @@ theorem corrupted_hardDist (hU : Fintype.card U = 2 * m + 1) {r : ℕ}
   intro A B
   simp only [hardDist_apply_toReal]
   rw [sum_sum_ite_hardWeight, sum_sum_ite_hardWeight']
-  have h := sum_low_mul_low_le hU A B hr
-  have hP : (0 : ℝ) < #(parts U m) := by
-    exact_mod_cast card_parts_pos hU
-  have hD : (0 : ℝ) < 2 * #(parts U m) * 4 ^ m := by positivity
-  set P := ∑ T ∈ parts U m, ((low A T.left : ℝ) * low B T.right)
-  set Q := ∑ T ∈ parts U m, ((high A T.point T.right : ℝ) * high B T.point T.left)
-  have key : P / (2 * #(parts U m) * 4 ^ m) ≤
-      18 * (Q / (2 * #(parts U m) * 4 ^ m)) + 9 * (27 / 32) ^ r := by
-    rw [div_le_iff₀ hD]
-    have : (18 * (Q / (2 * #(parts U m) * 4 ^ m)) + 9 * (27 / 32) ^ r) *
-        (2 * #(parts U m) * 4 ^ m) =
-          18 * Q + 18 * #(parts U m) * 4 ^ m * (27 / 32) ^ r := by
-      field_simp
-      ring
-    linarith
+  have hP : (0 : ℝ) < #(parts U m) := by exact_mod_cast card_parts_pos hU
+  have h := div_le_div_of_nonneg_right (sum_low_mul_low_le hU A B hr)
+    (by positivity : (0 : ℝ) ≤ 2 * #(parts U m) * 4 ^ m)
+  have hcancel : (18 * #(parts U m) * 4 ^ m * (27 / 32) ^ r : ℝ) /
+      (2 * #(parts U m) * 4 ^ m) = 9 * (27 / 32) ^ r := by
+    field_simp; ring
+  rw [add_div, mul_div_assoc, hcancel] at h
   linarith
 
 end Corruption
@@ -628,7 +591,6 @@ theorem PublicCoin.div_le_mul_ecomplexityFun_disjoint_add (hU : Fintype.card U =
       (by norm_num) h.le
     rw [Disjointness.hardDist_toOuterMeasure_disjoint] at hbound
     have hreal : (13 : ℝ) * 32 ^ r ≤ 576 * 2 ^ c * 27 ^ r := by
-      have h32 : (0 : ℝ) < 32 ^ r := by positivity
       have hdiv : (2 : ℝ) ^ c * ((27 / 32) ^ r / 2) = 2 ^ c * 27 ^ r / (2 * 32 ^ r) := by
         rw [div_pow]
         ring
@@ -636,8 +598,7 @@ theorem PublicCoin.div_le_mul_ecomplexityFun_disjoint_add (hU : Fintype.card U =
       have : (13 : ℝ) / 1152 ≤ 2 ^ c * 27 ^ r / (2 * 32 ^ r) := by linarith
       rw [le_div_iff₀ (by positivity)] at this
       linarith
-    have hnat : 13 * 32 ^ r ≤ 576 * 2 ^ c * 27 ^ r := by exact_mod_cast hreal
-    exact_mod_cast le_of_mul_pow_le hnat
+    exact_mod_cast le_of_mul_pow_le (by exact_mod_cast hreal)
 
 /-- Disjointness of subsets of `Fin k` is disjointness of their indicators as bit strings of
 length `n`, along an embedding of `Fin k` into `Fin n`. -/
@@ -682,13 +643,10 @@ theorem PublicCoin.le_mul_ecomplexityFun_disjointness_add_of_le {ε : ℝ} (hε 
   | top => simp
   | coe c =>
     rw [h] at h2
-    have h3 : (((m + 1) / 48 : ℕ) : ℕ∞) ≤ ((5 * c + 29 : ℕ) : ℕ∞) := by
-      refine h1.trans ?_
-      push_cast
-      gcongr
-    have h4 : (m + 1) / 48 ≤ 5 * c + 29 := by exact_mod_cast h3
-    have : n ≤ 2 ^ 9 * c + 2 ^ 12 := by omega
-    exact_mod_cast this
+    have h3 : (m + 1) / 48 ≤ 5 * c + 29 :=
+      Nat.cast_le (α := ℕ∞).mp
+        (h1.trans (by simpa using add_le_add_left (mul_le_mul_right h2 5) 29))
+    exact_mod_cast (by omega : n ≤ 2 ^ 9 * c + 2 ^ 12)
 
 /-- **Disjointness needs `Ω(n)` bits with public coins** [Kalyanasundaram and
 Schnitger][KalyanasundaramSchnitger1992], [Razborov1992]: a public-coin protocol deciding whether

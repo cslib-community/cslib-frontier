@@ -503,10 +503,9 @@ theorem growZeroPost_regs_of_not_mem {s : RData rResize} {reg : Fin rResize}
     (hreg : reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize))) :
     (growZeroPost mK mRes mCur mIdx mZero mOne s).regs reg = s.regs reg := by
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hreg
-  obtain ⟨h1, h2, h3, h4, h5⟩ := hreg
-  dsimp only [growZeroPost]
-  rw [Function.update_of_ne h2, Function.update_of_ne h3, Function.update_of_ne h1,
-    Function.update_of_ne h5, Function.update_of_ne h4]
+  simp only [growZeroPost, Function.update_of_ne hreg.2.1, Function.update_of_ne hreg.2.2.1,
+    Function.update_of_ne hreg.1, Function.update_of_ne hreg.2.2.2.2,
+    Function.update_of_ne hreg.2.2.2.1]
 
 theorem targetCap_bounds_of_pos {U n : ℕ} (hn : 1 ≤ n) (hnU : n ≤ U) :
     1 ≤ targetCap U n ∧ n ≤ targetCap U n ∧ targetCap U n ≤ 2 * n ∧ targetCap U n ≤ U := by
@@ -637,26 +636,20 @@ theorem hashSpace_bounds_of_fits_offCompItems {U w N metaBase : ℕ}
       (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w := by
   have h225_fit : Fits w 225 := fits_const_of_offCompItems hfit_nm le_rfl
   have hw2 : 2 ≤ w := by
-    by_contra hlt2; have hw1 : w ≤ 1 := by omega
-    have hpow := Nat.pow_le_pow_right two_pos hw1
-    change 225 < 2 ^ w at h225_fit; linarith only [hpow, h225_fit]
-  have hlm_le : offCompLM U w N ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
+    by_contra hlt2
+    have hpow := Nat.pow_le_pow_right two_pos (show w ≤ 1 by omega)
+    change 225 < 2 ^ w at h225_fit
+    linarith only [hpow, h225_fit]
   have hsp_le : 225 + ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤
       offCompItems U w N := by
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-      at hlm_le ⊢
-    exact hlm_le
-  have hsw_le_sp : ReducedKWise.seedWords (qBits U N) (hashB N) (totalMicroBits N) 3 ≤
-      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 :=
-    Nat.le_add_right _ _
+    change offCompLM U w N ≤ offCompItems U w N
+    unfold offCompItems offDenseToTail offTailToDense offCompGM
+    omega
   have hfit_h : Fits w ((metaBase + epochHdrWords) +
       ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) :=
     hfit_nm.of_le (by unfold epochHdrWords; omega)
-  have hc_lt : 2 * reducedChunkBits
-      (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w :=
+  exact ⟨hsp_le, Nat.le_add_right _ _, hfit_h,
     ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h
-  exact ⟨hsp_le, hsw_le_sp, hfit_h, hc_lt⟩
+      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

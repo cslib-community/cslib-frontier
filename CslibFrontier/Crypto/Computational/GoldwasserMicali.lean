@@ -214,7 +214,8 @@ theorem ciphertext_eq_unit_val {N z r : ℕ} [NeZero N] (hz : z.Coprime N) (hr :
       ((if m then ZMod.unitOfCoprime z hz else 1) * (ZMod.unitOfCoprime r hr) ^ 2).val.val := by
   rw [← ZMod.val_natCast_of_lt (a := ciphertext N z m r) (Nat.mod_lt _ (NeZero.pos N)),
     natCast_ciphertext (NeZero.ne N), Units.val_mul, Units.val_pow_eq_pow_val]
-  congr 1; cases m <;> simp [ZMod.coe_unitOfCoprime]
+  congr 1
+  cases m <;> simp [ZMod.coe_unitOfCoprime]
 
 private theorem powMod_half_eq_one_iff_isSquare (P : ℕ) [Fact P.Prime] (hP : 2 < P)
     (c : ℕ) (v : (ZMod P)ˣ) (hcv : (c : ZMod P) = v.val) :
@@ -772,7 +773,8 @@ theorem decrypt_encrypt_blumKeyGen {gen : ℕ → ProbComp ModulusDesc} {n : ℕ
   let k := KeyDesc.ofBlum d (hblum d hd)
   have hpk : blumPublicKey (d.p * d.q) = encPair encNat encNat (k.modulus, k.z) := by
     rw [blumPublicKey]; rfl
-  dsimp only at hct ⊢; rw [hpk] at hct
+  dsimp only at hct ⊢
+  rw [hpk] at hct
   exact k.decrypt_encrypt m hct
 
 /-- **Blum QR reduction distinguisher.** On a quadratic residuosity challenge `input = (N, y)`, run
@@ -798,8 +800,20 @@ theorem isPPTOn_blumQRDistinguisher {adversary : Encryption.Adversary} (hA : adv
   have hn := ComputableInPolyTime.fst encUnary (encPair encNat encNat)
   have hsd := ComputableInPolyTime.snd encUnary (encPair encNat encNat)
   have hpk := computableInPolyTime_blumPublicKey.comp hsd.fst'
+  -- Message selection on `(1ⁿ, blumPublicKey N)`.
+  have hchoose : IsPPTOn E (encChoiceOut encBool)
+      (fun x : ℕ × ℕ × ℕ => adversary.choose x.1 (blumPublicKey x.2.1)) :=
+    hA.choose.on.preprocess (hn.prod hpk)
+  -- Honest encryption of `m₀`.
   have hx := ComputableInPolyTime.fst E (encChoiceOut encBool)
   have hc := ComputableInPolyTime.snd E (encChoiceOut encBool)
+  have hencrypt : IsPPTOn E₁ encBits (fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
+      encrypt p.1.1 (blumPublicKey p.1.2.1) (ChoiceOut.msg₀ p.2)) :=
+    isPPTOn_encrypt.preprocess
+      (prepare := fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
+        (p.1.1, blumPublicKey p.1.2.1, ChoiceOut.msg₀ p.2))
+      ((hn.comp hx).prod ((hpk.comp hx).prod hc.fst'.fst'))
+  -- Guessing on the multiplied ciphertext.
   have hp := ComputableInPolyTime.fst E₁ encBits
   have hw : ComputableInPolyTime
       (fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
@@ -813,12 +827,6 @@ theorem isPPTOn_blumQRDistinguisher {adversary : Encryption.Adversary} (hA : adv
       E₂ encBits := by
     simpa only [Function.comp_def] using computableInPolyTime_mulCiphertexts.comp
       (((hpk.comp hx).comp hp).prod ((ComputableInPolyTime.snd E₁ encBits).prod hw))
-  have hencrypt : IsPPTOn E₁ encBits (fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
-      encrypt p.1.1 (blumPublicKey p.1.2.1) (ChoiceOut.msg₀ p.2)) :=
-    isPPTOn_encrypt.preprocess
-      (prepare := fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
-        (p.1.1, blumPublicKey p.1.2.1, ChoiceOut.msg₀ p.2))
-      ((hn.comp hx).prod ((hpk.comp hx).prod hc.fst'.fst'))
   have hguess : IsPPTOn E₂ encBool (fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
       adversary.guess q.1.1.1 (ChoiceOut.state q.1.2)
         (mulCiphertexts (blumPublicKey q.1.1.2.1) q.2
@@ -835,8 +843,7 @@ theorem isPPTOn_blumQRDistinguisher {adversary : Encryption.Adversary} (hA : adv
           (encNat (if ChoiceOut.msg₀ p.2 ^^ ChoiceOut.msg₁ p.2 then p.1.2.2 else 1)))) :=
     hencrypt.bind_with hguess
   unfold blumQRDistinguisher
-  exact (hA.choose.on.preprocess
-    (prepare := fun x : ℕ × ℕ × ℕ => (x.1, blumPublicKey x.2.1)) (hn.prod hpk)).bind_with hlast
+  exact hchoose.bind_with hlast
 
 /-- **Quantitative IND-CPA bound for Blum-modulus Goldwasser–Micali.** When `gen n` draws Blum
 moduli with `n`-bit primes, every adversary's IND-CPA advantage against `(blumKeyGen gen, encrypt)`
@@ -915,7 +922,8 @@ theorem advantage_blumGame_le_qr {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
           obtain ⟨s, hs⟩ := isSquare_mul_of_mem_positiveNonresidues d.p d.q d.ne_pq d.two_lt_p
             d.two_lt_q (neg_one_mem_positiveNonresidues d.p d.q (hblum d hd)) y.2
           refine hbody d hd true y.1 s ?_
-          simp only [↓reduceIte, pow_two]; rw [← hs, ← mul_assoc, neg_one_mul, neg_neg, one_mul]
+          simp only [↓reduceIte, pow_two]
+          rw [← hs, ← mul_assoc, neg_one_mul, neg_neg, one_mul]
   exact (Game.advantage_four_hop_le
     ((Game.advantage_triangle _ (ideal false) _).trans
       (add_le_add (hgame false) ((Game.advantage_comm _ _).le.trans hreal)))

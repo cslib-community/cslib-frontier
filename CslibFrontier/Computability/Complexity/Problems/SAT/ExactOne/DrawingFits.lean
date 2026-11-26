@@ -45,10 +45,8 @@ private def Rect (W H : ℕ) (p : Point) : Prop :=
 private theorem getD_property {A : Type*} (P : A → Prop) (xs : List A) (fallback : A)
     (hf : P fallback) (hxs : ∀ x ∈ xs, P x) (i : ℕ) : P (xs.getD i fallback) := by
   by_cases hi : i < xs.length
-  · rw [List.getD_eq_getElem _ _ hi]
-    exact hxs _ (List.getElem_mem hi)
-  · rw [List.getD_eq_default _ _ (not_lt.mp hi)]
-    exact hf
+  · exact List.getD_eq_getElem _ _ hi ▸ hxs _ (List.getElem_mem hi)
+  · exact List.getD_eq_default _ _ (not_lt.mp hi) ▸ hf
 
 private theorem zero_rect (W H : ℕ) : Rect W H (0, 0) := by simp [Rect]
 
@@ -148,10 +146,8 @@ theorem positiveExterior_points_fits {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
     · have hcut : Rect 540000 540000 (positiveRadius • direction a b + positiveTranslation) := by
         rcases direction_unit a b with h | h | h | h <;>
           rw [h] <;> norm_num [Rect, positiveRadius, positiveTranslation, Prod.smul_mk]
-      rw [show cutPoint positiveScale positiveRadius a b + positiveTranslation =
-          positiveScale • a + (positiveRadius • direction a b + positiveTranslation) by
-        simp [cutPoint, add_assoc]]
-      exact placed_point_bounds (hr a List.mem_cons_self) hcut
+      simpa only [Rect, Nat.cast_mul, Nat.cast_add, Nat.cast_one, cutPoint, add_assoc] using
+        placed_point_bounds (hr a List.mem_cons_self) hcut
     · obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hq'
       exact placed_point_bounds (hr x (List.mem_cons_of_mem _ hx)) translation_bounds
 

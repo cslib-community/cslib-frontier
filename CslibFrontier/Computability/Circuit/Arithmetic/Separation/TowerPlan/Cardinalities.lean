@@ -18,9 +18,9 @@ Theorem H.2(d) of [AnthropicVPVNP2026] (modules `Nc.Tow.Cards` and `Nc.Tow.Place
 numbers of nodes, moves and units that can occur in the tower plan by a power of `MN`. Here they
 are bounded by powers of a number `V` that bounds the sizes of the tower, its routes and its laws
 (`SizeBound`): the relays, the law moves and all moves, the channels, the slots and the roles of
-the moves, the units of the play and the nodes of the tree. The units of the play are counted
-exactly (`card_planUnit`). A placement of the nodes among the parties exists with the nodes that
-are not at base parties as the extra parties (`exists_placement`).
+the moves, the targets of units, the units of the play and the nodes of the tree. The units of the
+play are counted exactly (`card_planUnit`). A placement of the nodes among the parties exists with
+the nodes that are not at base parties as the extra parties (`exists_placement`).
 
 ## Main definitions
 
@@ -32,6 +32,7 @@ are not at base parties as the extra parties (`exists_placement`).
 * `card_relay_le`, `card_vertexMove_le`, `card_move_le`: the numbers of moves.
 * `card_moveChannel_le`, `card_moveSlot_le`, `card_role_le`: the numbers of channels, slots and
   roles of the moves.
+* `card_target_le`: the number of targets of units.
 * `card_planUnit`, `card_planUnit_le`: the number of units of the play.
 * `card_node_le`: the number of nodes of the tree.
 * `Placement.card_node`, `exists_placement`: the parties of a placement are the nodes, and a
@@ -207,6 +208,27 @@ theorem card_planUnit_le (Pl : Placement T ch A') (hU0 : U0 ≤ V) (hU1 : U1 ≤
   have h3 : V * V * V ≤ V ^ 7 := by
     simpa [pow_three, mul_assoc] using Nat.pow_le_pow_right hV.one_le (show 3 ≤ 7 by norm_num)
   have h4 : 17 * V ^ 6 * V = 17 * V ^ 7 := by ring
+  omega
+
+/-- The targets of units are at most `12 V ^ 5`. -/
+theorem card_target_le (hb : 0 < b) : Fintype.card (Target T m A) ≤ 12 * V ^ 5 := by
+  rw [← Fintype.card_congr (proxy_equiv% (Target T m A))]
+  simp only [Fintype.card_sum, Fintype.card_sigma, Fintype.card_unique, sum_const, card_univ,
+    smul_eq_mul]
+  have hpair : Fintype.card (Sym2 T.Fl) ≤ V * V := by
+    refine (Fintype.card_le_of_surjective _ Sym2.mk_surjective).trans ?_
+    rw [Fintype.card_prod, T.card_fl]
+    exact Nat.mul_le_mul hV.places_le hV.places_le
+  have h1 : ∑ j : Fin (J + 1), Fintype.card (T.Ed j) ≤ (V + 1) * V ^ 3 :=
+    (sum_le_card_nsmul _ _ _ fun j _ => card_Ed_le_pow hD hV (Nat.le_of_lt_succ j.2)).trans <| by
+      simpa using Nat.mul_le_mul_right (V ^ 3) (Nat.succ_le_succ hV.stages_le)
+  have h2 := sum_stages_le hV fun j : Fin J => (sum_le_card_nsmul univ _ (V * (V * V)) fun i _ =>
+    Nat.mul_le_mul ((Tower.card_V_le hD hb j.2 i).trans hV.card_X_zero_le) hpair).trans
+      (by simpa using Nat.mul_le_mul_right (V * (V * V)) hV.types_le)
+  have h3 := card_relay_le (m := m) hD hV
+  refine (Nat.add_le_add_left (add_le_add h1 (add_le_add h3 h2)) 1).trans ?_
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hV.one_le
+  ring_nf
   omega
 
 /-- The nodes of the tree are at most `3 V ^ 2`. -/

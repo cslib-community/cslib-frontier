@@ -143,9 +143,8 @@ theorem IsEmbeddable.trans {U V : Type*} [Fintype U] [Fintype V] {P₀ : PMF (X 
       (gA (z.1.1, z.2.1) r, gB (z.1.2, z.2.2) r))
   let M₁ := P₀.bind fun xy => ρ₁.map fun r => (xy, (fA xy.1 r, fB xy.2 r))
   have hM₂ : ((P₁.map fun ((x, y), (s, t)) => ((x, s), (y, t))).bind fun w =>
-      ρ₂.map fun r => (w, (gA w.1 r, gB w.2 r))) = P₁.bind Φ := by
-    rw [PMF.bind_map]
-    rfl
+      ρ₂.map fun r => (w, (gA w.1 r, gB w.2 r))) = P₁.bind Φ :=
+    PMF.bind_map _ _ _
   -- Independent shared strings for the two protocols; each party runs both.
   let ρ := ρ₁.bind fun r₁ => ρ₂.map (r₁, ·)
   let hA : X → R₁ × R₂ → S × U := fun x r => (fA x r.1, gA (x, fA x r.1) r.2)
@@ -199,8 +198,7 @@ theorem isEmbeddable_withKernel (P₀ : PMF (X × Y)) (KX : X → PMF S) (KY : Y
   refine IsEmbeddable.of_dist_le (shared (embedFamily KX KY K))
     (fun x => sample (embedFamily KX KY K) (.inl x))
     (fun y => sample (embedFamily KX KY K) (.inr (.inl y))) ?_
-  rw [← localSample_eq]
-  exact dist_embed_le P₀ KX KY K
+  exact localSample_eq P₀ KX KY K ▸ dist_embed_le P₀ KX KY K
 
 /-- **Holenstein's Lemma 5.2** [Holenstein, Lemma 5.2][Holenstein2009]: a joint law `J` of
 `((x, y), s)` embeds its marginal in `((x, y), (s, s))` with error `2 ε₁ + 2 ε₂`, where `ε₁` and
@@ -211,8 +209,7 @@ theorem isEmbeddable_diag (J : PMF ((X × Y) × S)) :
         2 * dist J (withKernel (J.map Prod.fst) fun xy => condY J xy.2)) := by
   have h := isEmbeddable_withKernel (J.map Prod.fst) (condX J) (condY J) (conditionalSnd J)
   have hJ : withKernel (J.map Prod.fst) (conditionalSnd J) = J := bind_conditionalSnd J
-  rw [hJ, ← diag_eq, dist_comm (withKernel _ _) J, dist_comm (withKernel _ _) J] at h
-  exact h
+  rwa [hJ, ← diag_eq, dist_comm (withKernel _ _) J, dist_comm (withKernel _ _) J] at h
 
 /-- **Holenstein's Corollary 5.3** [Holenstein, Corollary 5.3][Holenstein2009], with the constant
 `7 ε₁ + 2 ε₂` of this proof: if `J` is within `ε₁` of `P₀ P_{S | X}` and within `ε₂` of
@@ -226,29 +223,22 @@ theorem isEmbeddable_diag_of_dist_le (J : PMF ((X × Y) × S)) (P₀ : PMF (X ×
   refine ⟨R, ρ, fA, fB, ?_⟩
   set P := J.map Prod.fst
   set K := conditionalSnd J
-  have hJ : withKernel P K = J := bind_conditionalSnd J
   -- The input laws are within `ε₁`.
   have hP : dist P P₀ ≤ ε₁ := by
     simpa only [withKernel, Cslib.Probability.PMF.map_fst_bind_pair] using
       (dist_map_le J (withKernel P₀ fun xy => condX J xy.1) Prod.fst).trans h₁
-  have hK : dist J (withKernel P₀ K) ≤ ε₁ := by
-    rw [← hJ]
-    exact (dist_bind_le P P₀ _).trans hP
+  have hK : dist J (withKernel P₀ K) ≤ ε₁ :=
+    bind_conditionalSnd J ▸ (dist_bind_le P P₀ _).trans hP
   set A := withKernel P₀ fun xy => condX J xy.1
   set B := withKernel P₀ fun xy => condY J xy.2
   set C := withKernel P₀ K
-  have hX := dist_triangle_left A C J
-  have hY := dist_triangle_left B C J
   set E := P₀.bind fun xy => ((K xy).map fun s => (s, s)).map (xy, ·)
   set Out := P₀.bind fun xy => ρ.map fun r => (xy, (fA xy.1 r, fB xy.2 r))
   set Tgt := J.map fun z => (z.1, (z.2, z.2))
   have hdiag : dist E Tgt ≤ ε₁ := by
-    change dist E (J.map fun z => (z.1, (z.2, z.2))) ≤ ε₁
-    rw [diag_eq, dist_comm]
-    exact (dist_bind_le P P₀ _).trans hP
-  have := dist_triangle Out E Tgt
-  have hemb' : dist Out E ≤ 2 * dist A C + 2 * dist B C := hemb
-  linarith
+    simpa only [Tgt, diag_eq, dist_comm] using (dist_bind_le P P₀ _).trans hP
+  linarith [dist_triangle_left A C J, dist_triangle_left B C J, dist_triangle Out E Tgt,
+    (hemb : dist Out E ≤ 2 * dist A C + 2 * dist B C)]
 
 /-- **Holenstein's Lemma 5.4** [Holenstein, Lemma 5.4][Holenstein2009], for the factorized law it
 characterizes: if `s` is drawn from `KS x` and `t` from `KT y`, independently, then `P₀` embeds
@@ -324,8 +314,7 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
       _ = c x y * f x s * g y t := by
         rw [ENNReal.mul_inv_cancel hF0 (hF x), ENNReal.mul_inv_cancel hG0 (hG y), mul_one,
           mul_one]
-  have h := isEmbeddable_bind_prod (J.map Prod.fst) KS KT
-  rwa [hfactor] at h
+  simpa only [hfactor] using isEmbeddable_bind_prod (J.map Prod.fst) KS KT
 
 /-- **Holenstein's Claim 6.1** [Holenstein, Claim 6.1][Holenstein2009]: conditioning two
 distributions on an event of probability `1 / 2` under both at most doubles their statistical

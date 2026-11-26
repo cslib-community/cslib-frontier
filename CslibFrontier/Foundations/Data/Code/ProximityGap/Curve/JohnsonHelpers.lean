@@ -43,17 +43,15 @@ theorem johnsonCurveBound_mul_cast_le
       (ProximityGap.johnsonCurveBound n m d D r n : ℝ) * (M * n) := by
     exact_mod_cast ProximityGap.johnsonCurveBound_mul_le (m := m) (d := d) (D := D) (r := r)
       (Nat.le_mul_of_pos_left n hM)
-  have hjb : (ProximityGap.johnsonCurveBound n m d D r (M * n) : ℝ) ≤
-      (M : ℝ) * ProximityGap.johnsonCurveBound n m d D r n :=
-    le_of_mul_le_mul_right (by linarith) (Nat.cast_pos.2 hn)
-  exact hjb.trans (mul_le_mul_of_nonneg_left hU (Nat.cast_nonneg M))
+  exact (le_of_mul_le_mul_right (by linarith) (Nat.cast_pos.2 hn)).trans
+    (mul_le_mul_of_nonneg_left hU (Nat.cast_nonneg M))
 
 /-- Internal helper: integer weights bounded by `M` sum to at most `M * |ι|` over any subset. -/
 theorem sum_le_mul_card_of_le {ι : Type*} [Fintype ι] {W : ι → ℕ} {M : ℕ}
     (hW : ∀ i, W i ≤ M) (S : Finset ι) : ∑ i ∈ S, W i ≤ M * Fintype.card ι :=
   calc ∑ i ∈ S, W i ≤ ∑ _i ∈ S, M := Finset.sum_le_sum fun i _ => hW i
     _ = S.card * M := by rw [Finset.sum_const, smul_eq_mul]
-    _ ≤ Fintype.card ι * M := Nat.mul_le_mul_right M (Finset.card_le_univ S)
+    _ ≤ Fintype.card ι * M := Nat.mul_le_mul_right M S.card_le_univ
     _ = M * Fintype.card ι := Nat.mul_comm _ _
 
 /-- Internal helper: clears common denominator `M > 0` from rational weights `μ : ι → ℚ` with
@@ -70,33 +68,24 @@ theorem rat_weights_to_nat
       (∑ i : ι, W i ≤ M * Fintype.card ι) ∧
       (∀ S : Finset ι, θ ≤ ∑ i ∈ S, μ i ↔ ⌈θ * (M : ℚ)⌉₊ ≤ ∑ i ∈ S, W i) ∧
       θ ≤ (((⌈θ * (M : ℚ)⌉₊ + M - 1) / M : ℕ) : ℚ) := by
-  let W : ι → ℕ := fun i => Classical.choose (hμ_den i)
-  have hW_eq : ∀ i, μ i = (W i : ℚ) / (M : ℚ) := fun i => Classical.choose_spec (hμ_den i)
-  have hM_posQ : (0 : ℚ) < (M : ℚ) := Nat.cast_pos.2 hM
-  have hμ_nn : ∀ i, 0 ≤ μ i := fun i => by
-    rw [hW_eq i]
-    exact div_nonneg (Nat.cast_nonneg _) hM_posQ.le
-  have hW_le : ∀ i, W i ≤ M := fun i => by
-    have h1 : (W i : ℚ) / (M : ℚ) ≤ 1 := hW_eq i ▸ hμ_le i
-    exact Nat.cast_le.1 ((div_le_one hM_posQ).1 h1)
-  have hW_sum : ∑ i : ι, W i ≤ M * Fintype.card ι := sum_le_mul_card_of_le hW_le Finset.univ
-  have hsum_iff : ∀ S : Finset ι, θ ≤ ∑ i ∈ S, μ i ↔ ⌈θ * (M : ℚ)⌉₊ ≤ ∑ i ∈ S, W i := by
-    intro S
-    have hsum_eq : ∑ i ∈ S, μ i = ((∑ i ∈ S, W i : ℕ) : ℚ) / (M : ℚ) := by
-      rw [Nat.cast_sum, Finset.sum_div]
-      exact Finset.sum_congr rfl fun i _ => hW_eq i
+  let W : ι → ℕ := fun i => (hμ_den i).choose
+  have hW_eq (i) : μ i = (W i : ℚ) / M := (hμ_den i).choose_spec
+  have hM_posQ : (0 : ℚ) < M := Nat.cast_pos.2 hM
+  have hW_le (i) : W i ≤ M := Nat.cast_le.1 ((div_le_one hM_posQ).1 (hW_eq i ▸ hμ_le i))
+  refine ⟨W, fun i => hW_eq i ▸ div_nonneg (Nat.cast_nonneg _) hM_posQ.le, hW_le,
+    sum_le_mul_card_of_le hW_le univ, fun S => ?_, ?_⟩
+  · have hsum_eq : ∑ i ∈ S, μ i = ((∑ i ∈ S, W i : ℕ) : ℚ) / M := by
+      rw [Nat.cast_sum, sum_div]
+      exact sum_congr rfl fun i _ => hW_eq i
     rw [hsum_eq, le_div_iff₀ hM_posQ, Nat.ceil_le]
-  have hθ_le_t : θ ≤ (((⌈θ * (M : ℚ)⌉₊ + M - 1) / M : ℕ) : ℚ) := by
-    set B_W : ℕ := ⌈θ * (M : ℚ)⌉₊
+  · set B_W : ℕ := ⌈θ * (M : ℚ)⌉₊
     set t : ℕ := (B_W + M - 1) / M
     have hBW_le_Mt : B_W ≤ M * t := by
-      have hmod : M * t + (B_W + M - 1) % M = B_W + M - 1 := Nat.div_add_mod (B_W + M - 1) M
-      have hlt := Nat.mod_lt (B_W + M - 1) hM
+      have hmod : M * t + (B_W + M - 1) % M = B_W + M - 1 := Nat.div_add_mod _ _
+      have := Nat.mod_lt (B_W + M - 1) hM
       omega
-    have h1 : θ * (M : ℚ) ≤ (B_W : ℚ) := Nat.le_ceil _
-    have h2 : (B_W : ℚ) ≤ (M : ℚ) * (t : ℚ) := by exact_mod_cast hBW_le_Mt
-    exact le_of_mul_le_mul_right (show θ * (M : ℚ) ≤ (t : ℚ) * (M : ℚ) by linarith) hM_posQ
-  exact ⟨W, hμ_nn, hW_le, hW_sum, hsum_iff, hθ_le_t⟩
+    have hBW : (B_W : ℚ) ≤ (M : ℚ) * t := by exact_mod_cast hBW_le_Mt
+    exact le_of_mul_le_mul_right (by linarith [Nat.le_ceil (θ * M)]) hM_posQ
 
 /-- Internal helper: substitutes `(m + 1) ^ 6 ≤ 64 / η ^ 6` into the explicit Siegel error bound
 `1800 * c * (m + 1) ^ 6 * n ^ 2 / (ρ * q)` (`1800 * 64 = 115200`). -/
@@ -111,8 +100,7 @@ theorem siegel_eta_bound_le {n k m q : ℕ} {c η : ℝ}
   calc 1800 * c * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / (((k : ℝ) / (n : ℝ)) * (q : ℝ))
       ≤ 1800 * c * (64 / (η ^ 6)) * ((n : ℝ) ^ 2) / (((k : ℝ) / (n : ℝ)) * (q : ℝ)) := by gcongr
     _ = 115200 * c * ((n : ℝ) ^ 2) / (((k : ℝ) / (n : ℝ)) * (η ^ 6) * (q : ℝ)) := by
-        field_simp
-        ring
+        field_simp; ring
 
 theorem rat_weights_johnson_nat {ι : Type*} [Fintype ι] {k m D M : ℕ} (hM : 0 < M)
     {μ : ι → ℚ} (hμ_le : ∀ i, μ i ≤ 1) (hμ_den : ∀ i, ∃ a : ℕ, μ i = (a : ℚ) / M)
@@ -134,27 +122,19 @@ theorem ceilDiv_radius_le {n M : ℕ} {θ : ℚ} {R : ℝ} (hM : 0 < M) (hn : 1 
     ((n - (⌈θ * (M : ℚ)⌉₊ + M - 1) / M : ℕ) : ℝ) / (n : ℝ) ≤ R := by
   set B_W : ℕ := ⌈θ * (M : ℚ)⌉₊
   set t : ℕ := (B_W + M - 1) / M
-  have hnR : (0 : ℝ) < (n : ℝ) := Nat.cast_pos.2 hn
-  have hθQ_le_n : θ ≤ (n : ℚ) := by exact_mod_cast hθ_le_n
-  have hBW_le_Mn : B_W ≤ M * n := by
-    refine Nat.ceil_le.2 ?_
-    have h1 : θ * (M : ℚ) ≤ (n : ℚ) * (M : ℚ) :=
-      mul_le_mul_of_nonneg_right hθQ_le_n (Nat.cast_nonneg M)
-    exact h1.trans_eq (by push_cast; ring)
-  have ht_le : t ≤ n := by
-    rw [Nat.div_le_iff_le_mul_add_pred hM]
-    omega
-  have hθR_le_tR : (θ : ℝ) ≤ (t : ℝ) := by exact_mod_cast hθ_le_t
+  have hnR : (0 : ℝ) < n := Nat.cast_pos.2 hn
+  have hBW : B_W ≤ M * n := Nat.ceil_le.2 <|
+    (mul_le_mul_of_nonneg_right (by exact_mod_cast hθ_le_n) (Nat.cast_nonneg M)).trans_eq
+      (by push_cast; ring)
+  have ht_le : t ≤ n := by rw [Nat.div_le_iff_le_mul_add_pred hM]; omega
   rw [Nat.cast_sub ht_le, sub_div, div_self hnR.ne']
-  have hdiv : (θ : ℝ) / (n : ℝ) ≤ (t : ℝ) / (n : ℝ) :=
-    div_le_div_of_nonneg_right hθR_le_tR hnR.le
-  linarith
+  linarith [div_le_div_of_nonneg_right (show (θ : ℝ) ≤ t by exact_mod_cast hθ_le_t) hnR.le]
 
 /-- Internal helper: weights bounded by `1` sum to at most `|ι|` over any finite subset. -/
 theorem sum_le_card_of_le_one {ι : Type*} [Fintype ι] {μ : ι → ℚ}
     (hμ_le : ∀ i, μ i ≤ 1) (S : Finset ι) : ∑ i ∈ S, μ i ≤ (Fintype.card ι : ℚ) :=
   calc ∑ i ∈ S, μ i ≤ ∑ _i ∈ S, (1 : ℚ) := Finset.sum_le_sum fun i _ => hμ_le i
     _ = (S.card : ℚ) := by rw [Finset.sum_const, nsmul_eq_mul, mul_one]
-    _ ≤ (Fintype.card ι : ℚ) := by exact_mod_cast Finset.card_le_univ _
+    _ ≤ (Fintype.card ι : ℚ) := by exact_mod_cast S.card_le_univ
 
 end Cslib.Code

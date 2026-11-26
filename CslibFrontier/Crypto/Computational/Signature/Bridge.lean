@@ -144,16 +144,14 @@ theorem Forger.eval_eufCmaExperiment_toTyped
           (SignatureScheme.signingOracleOf S.sign sk)) (adversary n pk)).run []
       return !queried.contains msg && S.verify pk msg sig) := by
   simp only [forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  congr 1
-  funext ⟨pk, sk⟩
+  congr 1 with ⟨pk, sk⟩ : 1
   dsimp only
   rw [← eval_runLogWith_rename (adversary n pk) (fun w => w) (Signer.ofSign S.sign sk)
     (SignatureScheme.signingOracleOf S.sign sk) fun request log => by
       simp [ProbOracleComp.logOracle, SignatureScheme.signingOracleOf,
         SignatureScheme.signingOracleOn, ProbComp.eval_map, PMF.map_comp, Function.comp_def]]
   rw [PMF.bind_map]
-  congr 1
-  funext ⟨⟨msg, sig⟩, log⟩
+  congr 1 with ⟨⟨msg, sig⟩, log⟩ : 1
   simp only [Function.comp_apply, freshMessage, List.contains_reverse]
   cases S.verify pk msg sig <;> simp
 
@@ -199,12 +197,10 @@ theorem Forger.eval_eufCmaExperiment_restrict_toTyped
       return adm msg && !queried.contains msg && S.verify pk msg sig) := by
   simp only [forgeExperiment, Signature.Scheme.restrict_keyGen, ProbComp.eval_bind,
     ProbComp.eval_pure]
-  congr 1
-  funext ⟨pk, sk⟩
+  congr 1 with ⟨pk, sk⟩ : 1
   dsimp only
   rw [← eval_runLogWith_restrict S adm (adversary n pk) sk, PMF.bind_map]
-  congr 1
-  funext ⟨⟨msg, sig⟩, log⟩
+  congr 1 with ⟨⟨msg, sig⟩, log⟩ : 1
   -- On an admissible message, the filtered log names it exactly when the full log does.
   have hfilter : (adm msg && !((log.filter (fun p => adm p.1)).map Prod.fst).contains msg) =
       (adm msg && !(log.map Prod.fst).contains msg) := by
@@ -265,8 +261,7 @@ theorem eufOneTimeGame_eq_forgeExperiment (S : SignatureScheme) (adversary : For
         ((Signer.ofSign S.sign).restrict (·.length == n)).oneTime
         (fun pk _ => (S.toScheme n).verify pk) freshMessage (adversary.toTyped n)) := by
   simp only [eufOneTimeGame, forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  congr 1
-  funext ⟨pk, sk⟩
+  congr 1 with ⟨pk, sk⟩ : 1
   dsimp only
   rw [← eval_runLogWith_rename (adversary n pk) (fun w => w)
     (((Signer.ofSign S.sign).restrict (·.length == n)).oneTime sk) (S.oneTimeSigningOracle n sk)
@@ -284,8 +279,7 @@ theorem eufOneTimeGame_eq_forgeExperiment (S : SignatureScheme) (adversary : For
           simp [ProbOracleComp.logOracle, oneTimeSigningOracle, oneTimeSigningOracleOn, hadm,
             show (default : List Bool) = [] from rfl]]
   rw [PMF.bind_map]
-  congr 1
-  funext ⟨⟨msg, sig⟩, log⟩
+  congr 1 with ⟨⟨msg, sig⟩, log⟩ : 1
   simp only [Function.comp_apply, post_eq]
 
 /-- The success probability of the word-level EUF-CMA game at `n` is that of the typed
@@ -359,15 +353,13 @@ theorem indexedEufCmaGame_eq_eufCmaExperiment (S : IndexedSignatureScheme)
       ProbComp.eval ((S.toScheme n).eufCmaExperiment (adversary.toTyped n)) := by
   simp only [indexedEufCmaGame, forgeExperiment, toScheme_keyGen, ProbComp.eval_bind,
     ProbComp.eval_pure]
-  congr 1
-  funext ⟨pk, sk⟩
+  congr 1 with ⟨pk, sk⟩ : 1
   dsimp only
   rw [IndexedForger.toTyped, ProbOracleComp.runLogWith_map, ProbComp.eval_map, PMF.bind_map,
     ← eval_runLogWith_rename (adversary n pk) requestDecoder.decode
       (Signer.indexed (S.capacity n) S.sign sk) (S.indexedSigningOracle n sk) fun request log => by
         simp only [indexedSigningOracle]
-        generalize requestDecoder.decode request.2 = r
-        obtain ⟨u, m⟩ := r
+        rcases requestDecoder.decode request.2 with ⟨u, m⟩
         have hmem : u ∈ List.map Prod.fst (List.map Prod.fst log).reverse ↔
             u ∈ log.map (fun p => p.1.1) := by
           simp [List.map_reverse, List.map_map, Function.comp_def]
@@ -382,8 +374,7 @@ theorem indexedEufCmaGame_eq_eufCmaExperiment (S : IndexedSignatureScheme)
           simp only [ProbComp.eval_pure, PMF.pure_map]
           rfl]
   rw [PMF.bind_map]
-  congr 1
-  funext ⟨⟨u, msg, sig⟩, log⟩
+  congr 1 with ⟨⟨u, msg, sig⟩, log⟩ : 1
   simp only [Function.comp_apply, Prod.map, id, toScheme_verify, freshMessage,
     List.contains_reverse]
   rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]

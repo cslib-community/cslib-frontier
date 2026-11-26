@@ -591,13 +591,17 @@ omit [AddGroup G] in
 (original bound). -/
 theorem randomFunctionGame_feistel1CPAAttack_true [Nonempty G] (l₀ r₀ : G) :
     randomFunctionGame (feistel1CPAAttack l₀ r₀) true = (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  rw [show randomFunctionGame (feistel1CPAAttack l₀ r₀) =
-      (((PMF.uniformOfFintype (G × G → G × G)).map (fun table => table (l₀, r₀))).map
-        Prod.fst).map (fun v => decide (v = r₀)) by
-        simp [randomFunctionGame, feistel1CPAAttack, PMF.map_comp, Function.comp_def]; rfl,
-    ← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval,
-    Cslib.Probability.PMF.uniformOfFintype_prod_map_fst,
-    Cslib.Probability.PMF.map_decide_eq_apply_true, PMF.uniformOfFintype_apply]
+  have hgame :
+      randomFunctionGame (feistel1CPAAttack l₀ r₀) =
+        (PMF.uniformOfFintype G).map (fun v => decide (v = r₀)) := by
+    calc randomFunctionGame (feistel1CPAAttack l₀ r₀)
+        = (((PMF.uniformOfFintype (G × G → G × G)).map (fun table => table (l₀, r₀))).map
+            Prod.fst).map (fun v => decide (v = r₀)) := by
+          simp [randomFunctionGame, feistel1CPAAttack, PMF.map_comp, Function.comp_def]; rfl
+      _ = (PMF.uniformOfFintype G).map (fun v => decide (v = r₀)) := by
+          rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval,
+            Cslib.Probability.PMF.uniformOfFintype_prod_map_fst]
+  rw [hgame, Cslib.Probability.PMF.map_decide_eq_apply_true, PMF.uniformOfFintype_apply]
 
 /-- `feistel1CPAAttack l₀ r₀` distinguishes any 1-round Feistel network `feistelRoundEquiv f` from
 `randomFunctionGame` with exact advantage `1 - |G|⁻¹` (original bound). -/
@@ -615,12 +619,10 @@ omit [AddGroup G] in
 (original bound). -/
 theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (idealPermGame (feistel1CPAAttack l₀ r₀) true).toReal ≤ (Fintype.card G : ℝ)⁻¹ := by
-  rw [show idealPermGame (feistel1CPAAttack l₀ r₀) =
-      (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-        PMF.pure (decide ((π (l₀, r₀)).1 = r₀)) by
-    simp [idealPermGame, feistel1CPAAttack, PMF.monad_bind_eq_bind]]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel1CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset G) (k := 1)
-    (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _) (fun w => ![(r₀, w)])
+    (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _)
+    (fun w => ![(r₀, w)])
     fun π hπ => ⟨(π (l₀, r₀)).2, Finset.mem_univ _,
       Fin.forall_fin_one.mpr (Prod.ext hπ rfl)⟩).trans_eq ?_
   have hN : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
@@ -674,10 +676,7 @@ theorem idealPermGame_feistel2CPAAttack_true_le [Nonempty G] {l₀ l₁ : G} (r�
     (h01 : l₀ ≠ l₁) (hG : 2 ≤ Fintype.card G) :
     (idealPermGame (feistel2CPAAttack l₀ l₁ r₀) true).toReal ≤
       (Fintype.card G : ℝ) / ((Fintype.card G : ℝ) ^ 2 - 1) := by
-  rw [show idealPermGame (feistel2CPAAttack l₀ l₁ r₀) =
-      (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-        PMF.pure (decide ((π (l₀, r₀)).1 - (π (l₁, r₀)).1 = l₀ - l₁)) by
-    simp [idealPermGame, feistel2CPAAttack, PMF.monad_bind_eq_bind]]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel2CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset ((G × G) × G)) (k := 2)
     (fun _ => ![(l₀, r₀), (l₁, r₀)]) (fun _ _ => injective_pair fun h => h01 (congrArg Prod.fst h))
     (fun aw => ![aw.1, (-(l₀ - l₁) + aw.1.1, aw.2)]) fun π hπ =>
@@ -746,16 +745,16 @@ theorem idealPermGame_feistel3RepeatedKeyCPAAttack_true_le [Nonempty G] (x : G)
     (hG : 2 ≤ Fintype.card G) :
     (idealPermGame (feistel3RepeatedKeyCPAAttack x) true).toReal ≤
       2 / (Fintype.card G : ℝ) ^ 2 := by
-  rw [show idealPermGame (feistel3RepeatedKeyCPAAttack x) =
-      (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-        PMF.pure (decide (π (π (x, x)).swap = (x, x))) by
-    simp [idealPermGame, feistel3RepeatedKeyCPAAttack, Prod.swap, PMF.monad_bind_eq_bind]]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel3RepeatedKeyCPAAttack]
   set p₀ : G × G := (x, x)
-  refine (perm_decide_toReal_le_biUnion_union ({()} : Finset Unit) (k₁ := 1)
+  refine (perm_decide_toReal_le_biUnion_union
+    ({()} : Finset Unit) (k₁ := 1)
     (fun _ => ![p₀]) (fun _ _ => Function.injective_of_subsingleton _) (fun _ => ![p₀])
-    (Finset.univ.erase p₀) (k₂ := 2) (fun a => ![p₀, a.swap])
+    (Finset.univ.erase p₀) (k₂ := 2)
+    (fun a => ![p₀, a.swap])
     (fun a ha => injective_pair fun h => (Finset.mem_erase.mp ha).1 (Prod.swap_injective h.symm))
-    (fun a => ![a, p₀]) fun π hπ => by
+    (fun a => ![a, p₀])
+    fun π hπ => by
       by_cases h : π p₀ = p₀
       · exact Or.inl ⟨(), Finset.mem_singleton_self _, Fin.forall_fin_one.mpr h⟩
       · exact Or.inr ⟨π p₀, Finset.mem_erase.mpr ⟨h, Finset.mem_univ _⟩,
@@ -794,26 +793,25 @@ theorem idealStrongGame_feistel3CCAAttack_true_le_inv_card_sub_one [Nonempty G]
     {l₀ l₁ : G} (r₀ : G) (h01 : l₀ ≠ l₁) (hG : 2 ≤ Fintype.card G) :
     (idealStrongGame (feistel3CCAAttack l₀ l₁ r₀) true).toReal ≤
       ((Fintype.card G : ℝ) - 1)⁻¹ := by
-  rw [show idealStrongGame (feistel3CCAAttack l₀ l₁ r₀) =
-      (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-        let vw₀ := π (l₀, r₀)
-        let vw₁ := π (l₁, r₀)
-        let lr₂ := π.symm (vw₀.1, (l₁ - l₀) + vw₀.2)
-        PMF.pure (decide (-vw₀.1 + lr₂.2 = -vw₁.1 + r₀)) by
-    simp [idealStrongGame, feistel3CCAAttack, feistelStrongOracle, PMF.monad_bind_eq_bind]]
-  set x : G × G := (l₀, r₀); set y : G × G := (l₁, r₀)
+  simp only [interp_norm, pmf_norm, idealStrongGame, feistel3CCAAttack, feistelStrongOracle]
+  set x : G × G := (l₀, r₀)
+  set y : G × G := (l₁, r₀)
   have hxy : x ≠ y := fun h => h01 (congrArg Prod.fst h)
   let q : G × G → G × G := fun a => (a.1, (l₁ - l₀) + a.2)
   have hq (a) : q a ≠ a := fun h => h01 (sub_eq_zero.mp
     (add_right_cancel ((congrArg Prod.snd h).trans (zero_add a.2).symm))).symm
   let S : Finset ((G × G) × ((G × G) × G)) :=
     ((Finset.univ.erase x).erase y) ×ˢ (Finset.univ ×ˢ Finset.univ)
-  refine (perm_decide_toReal_le_biUnion_union (Finset.univ : Finset (G × G)) (k₁ := 2)
-    (fun _ => ![x, y]) (fun _ _ => injective_pair hxy) (fun a => ![a, q a]) S (k₂ := 3)
-    (fun t => ![x, t.1, y]) (fun t ht => by
+  refine (perm_decide_toReal_le_biUnion_union
+    (Finset.univ : Finset (G × G)) (k₁ := 2)
+    (fun _ => ![x, y]) (fun _ _ => injective_pair hxy) (fun a => ![a, q a])
+    S (k₂ := 3)
+    (fun t => ![x, t.1, y])
+    (fun t ht => by
       simp only [S, Finset.mem_product, Finset.mem_erase] at ht
       exact injective_triple (Ne.symm ht.1.2.1) hxy ht.1.1)
-    (fun t => ![t.2.1, q t.2.1, (r₀ - (-t.2.1.1 + t.1.2), t.2.2)]) fun π hπ => by
+    (fun t => ![t.2.1, q t.2.1, (r₀ - (-t.2.1.1 + t.1.2), t.2.2)])
+    fun π hπ => by
       set c := π.symm (q (π x))
       have hπc : π c = q (π x) := by simp [c]
       by_cases hcy : c = y

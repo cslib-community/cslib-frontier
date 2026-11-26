@@ -107,9 +107,8 @@ private theorem injective_freeVar (S : Fin n → (Fin m ↪ L)) (i : Fin n) :
   refine Function.LeftInverse.injective
     (g := Sum.elim id (Fin.lastCases (.inr i) fun k => .inl (S i k))) ?_
   rintro (l | j)
-  · by_cases hl : ∃ k, S i k = l
-    · obtain ⟨k, rfl⟩ := hl
-      simp [freeVar, (S i).injective.extend_apply]
+  · rcases Classical.em (∃ k, S i k = l) with ⟨k, rfl⟩ | hl
+    · simp [freeVar, (S i).injective.extend_apply]
     · simp [freeVar, Function.extend_apply' _ _ _ hl]
   · by_cases hj : j = i <;> simp [freeVar, hj]
 
@@ -132,10 +131,9 @@ private theorem nodeCount_ofSparse_X_or_C_le [CommSemiring K] [Nontrivial K]
   refine (SPFormula.nodeCount_ofSparse_le q).trans ?_
   rcases hq with ⟨x, rfl⟩ | ⟨c, rfl⟩
   · simp [support_X, totalDegree_X]
-  · have := card_le_card (support_monomial_subset (s := (0 : Fin (m + 1) →₀ ℕ)) (a := c))
-    rw [totalDegree_C, C_apply]
-    rw [card_singleton] at this
-    omega
+  · have := (card_le_card
+      (support_monomial_subset (s := (0 : Fin (m + 1) →₀ ℕ)) (a := c))).trans_eq (card_singleton _)
+    rw [totalDegree_C, C_apply]; omega
 
 /-- **The hybrid argument** ([KabanetsImpagliazzo2004]; [ChouKumarSolomon2019], Lemma 7.1). If
 `f` is multilinear, any two blocks share at most `a` seed variables, and a nonzero polynomial
@@ -157,14 +155,12 @@ theorem exists_root_formula_of_generator_vanishing [Field K] [Infinite K] [Decid
     with hH
   have H0 : H 0 ≠ 0 := by
     have h0 : hybridInput f S 0 = X ∘ Sum.inr := funext fun j => by simp [hybridInput]
-    dsimp only [H]
-    rw [h0, ← rename_eq_aeval]
-    exact (map_ne_zero_iff _ (rename_injective _ Sum.inr_injective)).2 hC
+    simpa only [hH, h0, ← rename_eq_aeval] using
+      (map_ne_zero_iff _ (rename_injective _ Sum.inr_injective)).2 hC
   have Hn : H n = 0 := by
     have hn : hybridInput f S n = fun j => rename Sum.inl (nwGenerator f S j) :=
       funext fun j => by simp [hybridInput]
-    dsimp only [H]
-    rw [hn, ← comp_aeval_apply, hvan, map_zero]
+    simp only [hH, hn, ← comp_aeval_apply, hvan, map_zero]
   obtain ⟨i, hi, hHi, hHi1⟩ : ∃ i < n, H i ≠ 0 ∧ H (i + 1) = 0 := by
     by_contra! h
     exact Nat.rec (motive := fun k => k ≤ n → H k ≠ 0) (fun _ => H0)
@@ -201,9 +197,10 @@ theorem exists_root_formula_of_generator_vanishing [Field K] [Infinite K] [Decid
       have h1 := (card_support_aeval_le_of_degreeOf_le_one hmul hAX hAC).trans
         (Nat.pow_le_pow_right two_pos hcard)
       have h2 := (totalDegree_aeval_le_card_of_degreeOf_le_one hmul hAX hAC).trans hcard
+      have hg : aeval ψ (hybridInput f S i j) = aeval (fun k => ψ (.inl (S j k))) f := by
+        simp [hybridInput, hj, aeval_rename, Function.comp_def]
       refine (SPFormula.nodeCount_ofSparse_le _).trans ?_
-      rw [show aeval ψ (hybridInput f S i j) = aeval (fun k => ψ (.inl (S j k))) f by
-        simp [hybridInput, hj, aeval_rename, Function.comp_def]]
+      rw [hg]
       have := Nat.mul_le_mul h1 (Nat.add_le_add_right h2 1)
       omega
     · have hpos : 1 ≤ 2 ^ a * (a + 1) := Nat.mul_pos (Nat.two_pow_pos a) (Nat.succ_pos a)
@@ -263,7 +260,6 @@ theorem card_generatorHittingSet_le [CommRing K] [Fintype L] [DecidableEq L]
     (f : MvPolynomial (Fin m) K) (S : Fin n → (Fin m ↪ L)) (D : ℕ) :
     #(generatorHittingSet f S D) ≤ (D + 1) ^ Fintype.card L := by
   classical
-  rw [generatorHittingSet]
   refine card_image_le.trans ?_
   rw [Fintype.card_piFinset, prod_const, card_univ]
   exact Nat.pow_le_pow_left (card_image_le.trans (card_range _).le) _
@@ -278,7 +274,6 @@ theorem exists_mem_generatorHittingSet_eval_ne_zero [Field K] [CharZero K] [Fint
     ∃ x ∈ generatorHittingSet f S (C.nodeCount * d), eval x C.polynomial ≠ 0 := by
   classical
   obtain ⟨z, hz, hne⟩ := exists_eval_nwGenerator_ne_zero hd hC
-  rw [generatorHittingSet]
   refine ⟨_, mem_image.2 ⟨z, Fintype.mem_piFinset.2 fun l => ?_, rfl⟩, hne⟩
   obtain ⟨k, hk, hzk⟩ := hz l
   exact mem_image.2 ⟨k, mem_range.2 (Nat.lt_succ_of_le hk), hzk.symm⟩

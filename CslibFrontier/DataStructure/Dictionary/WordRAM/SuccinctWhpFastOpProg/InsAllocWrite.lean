@@ -51,6 +51,26 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
+private theorem readHdr_large_spec {c U V w n_max base hdrOff v : ℕ} {s : Memory.State}
+    (hoff : hdrOff < 32) (hv : s.mem (base + hdrOff) = v) :
+    (Memory.spec 0).clientState s (readHdrProg (base, hdrOff)) = s ∧
+      (Memory.spec 0).clientResult s (readHdrProg (base, hdrOff)) = v ∧
+      memoryCost (readHdrProg (base, hdrOff)) s = 1 ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s (readHdrProg (base, hdrOff)) := by
+  have h := readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
+    (base := base) (hdrOff := hdrOff) (by dsimp [largeSpaceWhp]; omega) (s := s)
+  rwa [hv] at h
+
+private theorem liveInsCount_succ_le_n_max {c n_max k : ℕ}
+    (hth : whpThreshold c ≤ n_max) (hk : k ≤ 8 * (slabScale n_max) ^ 12) :
+    k + 1 ≤ n_max := by
+  have hM_ge := (large_bounds_lt_n_max hth).1
+  have h9L12_n : 9 * (slabScale n_max) ^ 12 ≤ n_max :=
+    (Nat.mul_le_mul_right _ (by omega : 9 ≤ numBucketsWhp n_max)).trans
+      (numBucketsWhp_mul_scale_pow12_le hth)
+  have hL12_pos : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (slabScale_pos n_max)
+  omega
+
 /-- Pop one free slot from `poolFreeStack[poolFreeTop - 1]` and decrement `poolFreeTop`. -/
 @[irreducible] private def insPopFreeSlotGenProg :
     WhpCoreParams × ℕ → Memory.Prog ℕ
@@ -85,12 +105,9 @@ private theorem realizes_insPopFreeSlotGen :
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hpos, hle_ps⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     have hps_le := (large_index_bounds hth).2.2.2.1
-    obtain ⟨ht_st, ht_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrPoolFreeTop)
-      (by dsimp [hdrPoolFreeTop]; omega) (s := s)
-    rw [hrep.2.2.1] at ht_res
+    obtain ⟨ht_st, ht_res, _, _⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
+      (n_max := n_max) (by decide) hrep.2.2.1
     obtain ⟨hp_st, _, _, _⟩ :=
       readPoolFreeStackGenProg_spec henv (by omega : fs.poolFreeTop - 1 < poolSizeWhp n_max)
         hrep (s := s)
@@ -172,23 +189,20 @@ private theorem realizes_insAllocBackyard :
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hb, hcf, hX_tl, hpos, hle_ps, hp_lt⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     have h2tl := (large_index_bounds hth).2.2.1
     have hk : X - capFrontWhp n_max < capBackWhp n_max := by
       unfold totalLocalCoordsWhp at hX_tl; omega
-    obtain ⟨ht_st, ht_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrPoolFreeTop)
-      (by dsimp [hdrPoolFreeTop]; omega) (s := s)
-    rw [hrep.2.2.1] at ht_res
+    obtain ⟨ht_st, ht_res, _, _⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
+      (n_max := n_max) (by decide) hrep.2.2.1
     obtain ⟨hp_st, hp_res, _, _⟩ :=
       readPoolFreeStackGenProg_spec henv (by omega : fs.poolFreeTop - 1 < poolSizeWhp n_max)
         hrep (s := s)
     have hpop_res : (Memory.spec 0).clientResult s
         (insPopFreeSlotGenProg (mkWhpCoreParams c U V w n_max, base)) =
         fs.poolFreeStack (fs.poolFreeTop - 1) := by
-      unfold insPopFreeSlotGenProg; dsimp only; simp only [pure_bind]
-      rw [clientResult_bind, ht_st, ht_res, clientResult_bind, hp_st, hp_res,
-        clientResult_bind, clientResult_pure_whp]
+      unfold insPopFreeSlotGenProg
+      simp only [pure_bind, clientResult_bind, ht_st, ht_res, hp_st, hp_res,
+        clientResult_pure_whp]
     simp only [hpop_res, wp_large_M hth, wp_large_capFront hth, wp_large_capBack hth,
       wp_large_poolSize hth] at *
     first
@@ -251,12 +265,11 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (fastInsertAlloc n_max b X fs) s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   have hmcb := (large_index_bounds hth).1
   have hps_le := (large_index_bounds hth).2.2.2.1
   set cp := mkWhpCoreParams c U V w n_max
   dsimp only
-  unfold fastInsertAllocGenProg fastInsertAlloc; dsimp only
+  unfold fastInsertAllocGenProg fastInsertAlloc
   simp only [cp, wp_large_capFront hth, pure_bind]
   by_cases hcf : capFrontWhp n_max ≤ X
   · simp only [hcf, ↓reduceIte]
@@ -266,10 +279,8 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
     set k := X - capFrontWhp n_max
     set top' := fs.poolFreeTop - 1
     set pSlot := fs.poolFreeStack top'
-    obtain ⟨ht_st, ht_res, ht_mc, ht_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrPoolFreeTop)
-      (by dsimp [hdrPoolFreeTop]; omega) (s := s)
-    rw [hrep.2.2.1] at ht_res
+    obtain ⟨ht_st, ht_res, ht_mc, ht_vp⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
+      (n_max := n_max) (by decide) hrep.2.2.1
     obtain ⟨hp_st, hp_res, hp_mc, hp_vp⟩ :=
       readPoolFreeStackGenProg_spec henv (by omega : top' < poolSizeWhp n_max) hrep (s := s)
     obtain ⟨hwh_mc, hwh_vp, hwh_step⟩ := writeHdrProg_fastStep (hdrOff := hdrPoolFreeTop) henv
@@ -284,7 +295,7 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
       mul_add_lt_mul_bound hb hk
     obtain ⟨hwo_mc, hwo_vp, hwo_step⟩ := writePoolOwnerGenProg_fastStep henv hp_lt
       (by omega : b * capBackWhp n_max + k ≤ n_max) hwb_step.2.1 hwb_step.2.2.1 (s := s2)
-    unfold insAllocBackyardProg insPopFreeSlotGenProg insBindBackSlotGenProg; dsimp only
+    unfold insAllocBackyardProg insPopFreeSlotGenProg insBindBackSlotGenProg
     simp only [wp_large_capFront hth, wp_large_capBack hth, pure_bind]
     exact CostBoundedStep.elim (.bind (.bind ⟨ht_st, ht_res, ht_mc.le, ht_vp⟩ <|
       .bind ⟨hp_st, hp_res, hp_mc.le, hp_vp⟩ <| .bind ⟨rfl, rfl, hwh_mc.le, hwh_vp⟩ (.pure _ _)) <|
@@ -469,11 +480,6 @@ private theorem realizes_insIncLiveInsGen :
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hb, hlic⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have hML12 := numBucketsWhp_mul_scale_pow12_le hth
-    have hM_ge := (large_bounds_lt_n_max hth).1
-    have h9L12_n : 9 * (slabScale n_max) ^ 12 ≤ n_max :=
-      (Nat.mul_le_mul_right _ (by omega : 9 ≤ numBucketsWhp n_max)).trans hML12
-    have hL12_pos : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (slabScale_pos n_max)
     obtain ⟨h3_st, h3_res, _, _⟩ :=
       readBktFieldGenProg_spec henv hb (by decide : 3 < 10) hrep (s := s)
     simp only [getBktField] at h3_res
@@ -481,7 +487,7 @@ private theorem realizes_insIncLiveInsGen :
     first
     | decide
     | exact henv.fits_const (by decide)
-    | exact henv.fits_of_le_n_max (by omega)
+    | exact henv.fits_of_le_n_max (liveInsCount_succ_le_n_max hth hlic)
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     | exact hb
   )
@@ -500,21 +506,15 @@ private theorem insIncLiveInsGenProg_fastStep {c U V w n_max base b : ℕ}
     FastStateStep base c U V w n_max θ
       { fs with
         liveInsCount := Function.update fs.liveInsCount b (fs.liveInsCount b + 1) } s s' := by
-  have hth := henv.2.2.2.1
-  have hML12 := numBucketsWhp_mul_scale_pow12_le hth
-  have hM_ge := (large_bounds_lt_n_max hth).1
-  have h9L12_n : 9 * (slabScale n_max) ^ 12 ≤ n_max :=
-    (Nat.mul_le_mul_right _ (by omega : 9 ≤ numBucketsWhp n_max)).trans hML12
-  have hL12_pos : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (slabScale_pos n_max)
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨h3_st, h3_res, h3_mc, h3_vp⟩ :=
     readBktFieldGenProg_spec henv hb (by decide : 3 < 10) hrep (s := s)
   simp only [getBktField] at h3_res
   obtain ⟨hwb_mc, hwb_vp, hwb_step⟩ := writeBktFieldGenProg_fastStep henv hb (by decide : 3 < 10)
-    (by omega : fs.liveInsCount b + 1 ≤ n_max) hseed hrep (s := s)
+    (liveInsCount_succ_le_n_max henv.2.2.2.1 hlic) hseed hrep (s := s)
   simp only [setBktField] at hwb_step
   dsimp only
-  unfold insIncLiveInsGenProg; dsimp only; simp only [pure_bind]
+  unfold insIncLiveInsGenProg
+  simp only [pure_bind]
   exact CostBoundedStep.elim (.bind ⟨h3_st, h3_res, h3_mc.le, h3_vp⟩ ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩)
     (by omega) hwb_step
 
@@ -560,15 +560,12 @@ theorem realizes_insFinishCollisionGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     have htag_lt : 2 + fs.curEp < 4 := by rcases hce with hc | hc <;> omega
     have hfit_tag : Fits w (2 + fs.curEp) := by
       have h4 : 4 ≤ 2 ^ w := (by decide : 4 ≤ 2 ^ 2).trans (Nat.pow_le_pow_right two_pos h2w)
       change 2 + fs.curEp < 2 ^ w; omega
-    obtain ⟨hep_st, hep_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-      (by dsimp [hdrCurEp]; omega) (s := s)
-    rw [hrep.2.2.2.1] at hep_res
+    obtain ⟨hep_st, hep_res, _, _⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
+      (n_max := n_max) (by decide) hrep.2.2.2.1
     obtain ⟨_, _, hwc_step⟩ :=
       insWriteCntLocGenProg_fastStep henv hb hX_tl htag_lt hseed hrep (s := s)
     simp only [hep_st, hep_res, wp_large_M hth, wp_large_totalLoc hth] at *
@@ -669,13 +666,10 @@ theorem insFinishCollisionGenProg_fastStep {c U V w n_max base b X rKey : ℕ}
         locState := Function.update fs.locState b
           (Function.update (fs.locState b) X (2 + ep))
         buf := Function.update fs.buf ep tr' } s s' := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   have htag_lt : 2 + fs.curEp < 4 := by rcases hce with hc | hc <;> omega
   set cp := mkWhpCoreParams c U V w n_max
-  obtain ⟨hep_st, hep_res, hep_mc, hep_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-    (by dsimp [hdrCurEp]; omega) (s := s)
-  rw [hrep.2.2.2.1] at hep_res
+  obtain ⟨hep_st, hep_res, hep_mc, hep_vp⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
+    (n_max := n_max) (by decide) hrep.2.2.2.1
   obtain ⟨hwc_mc, hwc_vp, hwc_step⟩ :=
     insWriteCntLocGenProg_fastStep henv hb hX_tl htag_lt hseed hrep (s := s)
   set fs1 : FastState :=
@@ -689,7 +683,8 @@ theorem insFinishCollisionGenProg_fastStep {c U V w n_max base b X rKey : ℕ}
     bufInsertGenProg_fastStep (fs := fs1) henv hce hwc_step.2.1 hwc_step.2.2.1 hv_cur
       hna_cap hia_cap hb hX_tl (rKey := rKey) (s := s1)
   dsimp only
-  unfold insFinishCollisionGenProg; dsimp only; simp only [pure_bind]
+  unfold insFinishCollisionGenProg
+  simp only [pure_bind]
   exact CostBoundedStep.elim (.bind ⟨hep_st, hep_res, hep_mc.le, hep_vp⟩ <|
     .bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ ⟨rfl, rfl, hbi_mc, hbi_vp⟩) (by omega)
     (hwc_step.trans hbi_step)

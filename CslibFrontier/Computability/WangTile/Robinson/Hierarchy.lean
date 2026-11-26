@@ -66,9 +66,7 @@ theorem exists_plane_eq {f : ℤ → ℤ → WangTile}
     (hf : ∀ x y, f x y ∈ tileSet ∧ (f x y).right = (f (x + 1) y).left ∧
       (f x y).top = (f x (y + 1)).bottom) :
     ∃ P : IndexPlane, ∀ x y, tile (components (P.index x y)) = f x y := by
-  have hm : ∀ x y, ∃ p : Index, tile (components p) = f x y :=
-    fun x y => mem_tileSet.mp (hf x y).1
-  choose p hp using hm
+  choose p hp using fun x y => mem_tileSet.mp (hf x y).1
   exact ⟨⟨p, by simpa only [hp] using fun x y => (hf x y).2.1,
     by simpa only [hp] using fun x y => (hf x y).2.2⟩, hp⟩
 
@@ -94,8 +92,9 @@ theorem phase_even_of_involutive {β : Type*} (φ : ℤ → ℤ → β) (e n : �
     simpa only [show a + 2 = a + 1 + 1 by omega, east] using he _
   have hy : Function.Periodic (fun b : ℤ => φ x b) 2 := fun b => by
     simpa only [show b + 2 = b + 1 + 1 by omega, north] using hn _
-  exact Eq.trans (by simpa [mul_comm] using hx.int_mul u x)
-    (by simpa [mul_comm] using hy.int_mul v y)
+  calc φ (x + 2 * u) (y + 2 * v) = φ x (y + 2 * v) := by
+        simpa [mul_comm] using hx.int_mul u x
+    _ = φ x y := by simpa [mul_comm] using hy.int_mul v y
 
 private theorem exists_phase_origin (p : IndexPlane) :
     ∃ x y : Fin 2, (components (p.index x.val y.val)).thin = .a := by
@@ -138,11 +137,8 @@ theorem nonempty_parent (fine : IndexPlane) : Nonempty (Parent fine) := by
           (fun x y => thin_east (fine.horizontal x y))
           (fun x y => thin_north (fine.vertical x y)) ox.val oy.val x y).trans hphase))
     refine ⟨p, fun i j => ?_⟩
-    fin_cases i <;> fin_cases j
-    · simpa [neighborhood, add_sub_assoc] using hp.1
-    · simpa [neighborhood, add_sub_assoc] using hp.2.2.1
-    · simpa [neighborhood, add_sub_assoc] using hp.2.1
-    · simpa [neighborhood, add_sub_assoc] using hp.2.2.2
+    fin_cases i <;> fin_cases j <;>
+      simp [neighborhood, add_sub_assoc, hp.1, hp.2.1, hp.2.2.1, hp.2.2.2]
   choose coarse hc using hlocal
   refine ⟨⟨⟨coarse, fun x y => (horizontal_iff_children _ _).mpr fun j => ?_,
     fun x y => (vertical_iff_children _ _).mpr fun i => ?_⟩, ox, oy, hc⟩⟩
@@ -207,9 +203,8 @@ private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
     ∃ u v : ℤ, (t.plane level).index u v =
       iterateRefine depth (fun _ _ => (t.plane (level + depth)).index x y) i j := by
   obtain ⟨u, v, patch⟩ := t.refined_patch depth level x y
-  refine ⟨u + i, v + j, ?_⟩
-  rw [congrFun (congrFun patch i) j]
-  exact iterateRefine_eq_of_root_eq (by simp) depth i j hi hj
+  exact ⟨u + i, v + j, (congrFun (congrFun patch i) j).trans
+    (iterateRefine_eq_of_root_eq (by simp) depth i j hi hj)⟩
 
 /-- Every tile reaches tile `0` along the same path: its southwest child is a phase-`a` tile,
 whose northeast child is tile `4`, whose southwest child is tile `0`. -/

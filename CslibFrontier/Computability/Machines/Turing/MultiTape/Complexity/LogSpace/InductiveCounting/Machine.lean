@@ -218,34 +218,25 @@ theorem step_counting {B : ℕ} {checked : Bool} {c : Cslib.InductiveCounting.St
   · simp only [hh, ↓reduceIte]
     have hc : Cslib.InductiveCounting.halted c = true := by
       simp only [Bool.or_eq_true, beq_iff_eq, Bool.and_eq_true] at hh
-      simp only [Cslib.InductiveCounting.halted, Bool.or_eq_true, beq_iff_eq]
-      tauto
+      rcases hh with hp | ⟨_, hp⟩ <;> simp [Cslib.InductiveCounting.halted, hp]
     rw [ctlStep, Cslib.InductiveCounting.step, Cslib.InductiveCounting.advance_halted _ _ hc]
-  · simp only [hh, Bool.false_eq_true, ↓reduceIte, runtimeNext]
-    have ho' : (!checked && overflowed c) = false := by
-      cases checked <;> simp_all
-    have ha' : (!checked && c.phase == .accept) = false := by
-      cases checked <;> simp_all
-    simp only [ho', ha', Bool.false_eq_true, ↓reduceIte, runtimeQuery, localAnswer_eq,
-      ctlStep, Cslib.InductiveCounting.step]
+  · cases checked <;> simp_all [runtimeNext, runtimeQuery, localAnswer_eq, ctlStep,
+      Cslib.InductiveCounting.step]
 
 /-- A complete final count check meeting an overflowing vertex moves to four times the radix. -/
 theorem step_overflowed {B : ℕ} {c : Cslib.InductiveCounting.State}
     (ho : overflowed c = true) (choice : Bool) :
     (queryMachine ntm).step input ⟨input.length, B, false, some c⟩ choice =
       ⟨input.length, 4 * B, false, some (install ntm (4 * B))⟩ := by
-  have hp : c.phase = .done := by
-    simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at ho
-    exact ho.1.1.1
-  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, hp, ho]
+  simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at ho
+  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, overflowed, ho]
 
 /-- Acceptance on an unchecked radix checks it. -/
 theorem step_switch {B : ℕ} {c : Cslib.InductiveCounting.State} (hp : c.phase = .accept)
     (choice : Bool) :
     (queryMachine ntm).step input ⟨input.length, B, false, some c⟩ choice =
       ⟨input.length, B, true, some (install ntm B)⟩ := by
-  have ho : overflowed c = false := by simp [overflowed, hp]
-  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, hp, ho]
+  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, overflowed, hp]
 
 /-- On a checked radix, the machine's replays are exactly the controller's replays. -/
 theorem replay_checked {B : ℕ} (c : Cslib.InductiveCounting.State) (choices : List Bool) :
@@ -281,9 +272,7 @@ theorem replay_unchecked_of_done {B : ℕ} (c : Cslib.InductiveCounting.State)
   | nil => rfl
   | cons choice choices ih =>
     have hna : c.phase ≠ .accept := fun hp => by
-      have hh : Cslib.InductiveCounting.halted c = true := by
-        simp [Cslib.InductiveCounting.halted, hp]
-      rw [halted_ctlReplay ntm input hh, hp] at hd
+      rw [halted_ctlReplay ntm input (by simp [Cslib.InductiveCounting.halted, hp]), hp] at hd
       exact absurd hd.1 (by decide)
     have hno : overflowed c = false := by
       by_contra hc
@@ -334,10 +323,8 @@ theorem replay_scan (choices : List Bool) {j : ℕ} (hj : j + choices.length ≤
   induction choices generalizing j with
   | nil => simp [NondeterministicQueryMachine.replay]
   | cons choice choices ih =>
-    rw [NondeterministicQueryMachine.replay_cons, step_scan ntm input (by
-      simp only [List.length_cons] at hj; omega), ih (by
-      simp only [List.length_cons] at hj; omega)]
-    simp only [List.length_cons]
+    simp only [List.length_cons] at hj ⊢
+    rw [NondeterministicQueryMachine.replay_cons, step_scan ntm input (by omega), ih (by omega)]
     congr 1
     omega
 
@@ -346,18 +333,16 @@ theorem run_bootstrap (choices : List Bool) (hlen : choices.length = input.lengt
     (queryMachine ntm).run input choices =
       ⟨input.length, startRadix State input.length, false,
         some (install ntm (startRadix State input.length))⟩ := by
-  have ht : (choices.take input.length).length = input.length := by
-    simp only [List.length_take, hlen, Nat.min_eq_left (Nat.le_succ input.length)]
-  have hd : (choices.drop input.length).length = 1 := by simp [hlen]
-  obtain ⟨choice, hd⟩ := List.length_eq_one_iff.mp hd
-  unfold NondeterministicQueryMachine.run
-  conv_lhs => rw [← List.take_append_drop input.length choices]
-  rw [NondeterministicQueryMachine.replay_append]
-  change (queryMachine ntm).replay input (choices.drop input.length)
-    ((queryMachine ntm).replay input (choices.take input.length) ⟨0, 0, false, none⟩) = _
-  rw [replay_scan ntm input _ (by omega), ht, Nat.zero_add, hd,
-    NondeterministicQueryMachine.replay_cons, NondeterministicQueryMachine.replay_nil]
-  exact step_scan_end ntm input choice
+  cases choices using List.reverseRecOn with
+  | nil => simp at hlen
+  | append_singleton bs choice =>
+    simp only [List.length_append, List.length_singleton, Nat.add_right_cancel_iff] at hlen
+    rw [NondeterministicQueryMachine.run_append]
+    change (queryMachine ntm).replay input [choice]
+      ((queryMachine ntm).replay input bs ⟨0, 0, false, none⟩) = _
+    rw [replay_scan ntm input bs (by omega), Nat.zero_add, hlen,
+      NondeterministicQueryMachine.replay_cons, NondeterministicQueryMachine.replay_nil]
+    exact step_scan_end ntm input choice
 
 /-! ### The semantic invariant -/
 
@@ -475,11 +460,9 @@ theorem not_accepts_of_queryMachine_accepts (h : (queryMachine ntm).Accepts inpu
   · simp only [queryMachine, runtimeAccept, Option.any_some, Bool.and_eq_true,
       beq_iff_eq] at ha
     obtain ⟨rfl, hp⟩ := ha
-    dsimp only [RuntimeInvariant] at hi
     obtain ⟨rfl, ⟨j, rfl, -⟩, hinv, -, hcl⟩ := hi
-    have hsafe := hinv
-    simp only [Cslib.InductiveCounting.Invariant, hp, graphBad, ↓reduceIte] at hsafe
-    exact (safe_iff_not_accepts (card_lt_roundRadix _ _) (hcl rfl)).mp hsafe
+    simp only [Cslib.InductiveCounting.Invariant, hp, graphBad, ↓reduceIte] at hinv
+    exact (safe_iff_not_accepts (card_lt_roundRadix _ _) (hcl rfl)).mp hinv
 
 open Classical in
 /-- From the controller installed on round `j` of an input the source does not accept, some
@@ -525,7 +508,7 @@ private theorem exists_accepting_from_round (hJ : ∃ j, Closed ntm (roundRadix 
       (startID_lt (ntm := ntm) hB) (vertexBound_lt_two_pow_vertexWidth k B).le
     set t := Cslib.InductiveCounting.replay (vertexBound (k := k) B) (vertexWidth k B)
       (startID ntm B) (graphEdge ntm B input) (graphOverflow ntm B input)
-      (Cslib.InductiveCounting.initial (vertexBound (k := k) B) (startID ntm B)) bs with ht
+      (Cslib.InductiveCounting.initial (vertexBound (k := k) B) (startID ntm B)) bs
     have hinv : Cslib.InductiveCounting.Invariant (vertexBound (k := k) B) (graphEdge ntm B input)
         (graphOverflow ntm B input) (startID ntm B) t :=
       Cslib.InductiveCounting.invariant_replay (startID_lt hB)

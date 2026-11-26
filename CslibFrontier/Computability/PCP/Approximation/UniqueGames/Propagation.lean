@@ -208,12 +208,9 @@ theorem check_eq_true_iff (g : Graph (α → α)) (σ : ℕ → α) :
     check g σ = true ↔ ∀ i, (g.toGraph permutationEval).Satisfies σ i := by
   simp only [check, List.all_eq_true, decide_eq_true_eq, ConstraintGraph.Satisfies,
     Graph.toGraph, permutationEval]
-  constructor
-  · intro h i
-    exact h _ (List.get_mem _ _)
-  · intro h e he
-    obtain ⟨i, rfl⟩ := List.get_of_mem he
-    exact h i
+  refine ⟨fun h i => h _ (List.get_mem _ _), fun h _ he => ?_⟩
+  obtain ⟨i, rfl⟩ := List.get_of_mem he
+  exact h i
 
 /-- **Soundness**: an answer of `solve` satisfies every edge, for any instance. -/
 theorem solve_sound [Inhabited α] {labels : List α} {g : Graph (α → α)} {σ : ℕ → α}
@@ -265,16 +262,15 @@ theorem vertices_le_slots {C : Type} (g : Graph C) : g.vertices ≤ slots g :=
 /-- On a well-formed graph the slots are exactly the declared vertices. -/
 theorem slots_eq_vertices {C : Type} {g : Graph C} (hg : g.WellFormed) :
     slots g = g.vertices := by
-  have key : ∀ l : List (Edge C), (∀ e ∈ l, e.src < g.vertices ∧ e.dst < g.vertices) →
-      l.foldl (fun n e => max n (max e.src e.dst + 1)) g.vertices = g.vertices := by
-    intro l hl
-    induction l with
-    | nil => rfl
-    | cons e l ih =>
-      have he := hl e (by simp)
-      rw [List.foldl_cons, max_eq_left (by omega)]
-      exact ih fun d hd => hl d (List.mem_cons_of_mem _ hd)
-  exact key g.edges hg
+  have hg' : ∀ e ∈ g.edges, e.src < g.vertices ∧ e.dst < g.vertices := hg
+  unfold slots
+  generalize g.edges = l at hg'
+  induction l with
+  | nil => rfl
+  | cons e l ih =>
+    have he := hg' e List.mem_cons_self
+    rw [List.foldl_cons, max_eq_left (by omega)]
+    exact ih fun d hd => hg' d (List.mem_cons_of_mem _ hd)
 
 namespace State
 
@@ -426,9 +422,8 @@ private theorem prune_eq (S : State α) (e : Edge (α → α)) :
 
 private theorem get_prune (S : State α) (e : Edge (α → α)) (v : ℕ) :
     (prune S e).get v = S.get v := by
-  obtain ⟨p, hp⟩ := prune_eq S e
-  rw [hp]
-  rfl
+  obtain ⟨_, hp⟩ := prune_eq S e
+  rw [hp]; rfl
 
 private theorem step_prune (S : State α) (e : Edge (α → α)) : Step S (prune S e) := by
   obtain ⟨p, hp⟩ := prune_eq S e
@@ -475,47 +470,29 @@ private theorem length_extend (labels : List α) (S : State α) (e : Edge (α �
 
 /-- Visiting an edge keeps the stored tables. -/
 private theorem get_visit (labels : List α) {S : State α} (e : Edge (α → α)) {v : ℕ} {f : α → α}
-    (hv : S.get v = some f) : (visit labels S e).get v = some f := by
-  unfold visit
-  rw [get_prune]
-  exact get_extend labels e hv
+    (hv : S.get v = some f) : (visit labels S e).get v = some f :=
+  (get_prune _ e v).trans (get_extend labels e hv)
 
 /-- Visiting an edge keeps the number of slots. -/
 private theorem length_visit (labels : List α) (S : State α) (e : Edge (α → α)) :
     (visit labels S e).table.length = S.table.length := by
-  obtain ⟨p, hp⟩ := prune_eq (extend labels S e) e
-  unfold visit
-  rw [hp]
-  exact length_extend labels S e
+  obtain ⟨_, hp⟩ := prune_eq (extend labels S e) e
+  simpa only [visit, hp] using length_extend labels S e
 
 /-- Visiting an edge with a visited endpoint settles it. -/
 private theorem visit_settled (labels : List α) {S : State α} {e : Edge (α → α)}
     (hsrc : e.src < S.table.length) (hdst : e.dst < S.table.length)
     (hvis : (S.get e.src).isSome ∨ (S.get e.dst).isSome) :
     (visit labels S e).Settled e := by
-  have key : ∃ f h, (extend labels S e).get e.src = some f ∧
+  obtain ⟨f, h, hf, hh⟩ : ∃ f h, (extend labels S e).get e.src = some f ∧
       (extend labels S e).get e.dst = some h := by
-    unfold extend
-    cases hs : S.get e.src with
-    | none =>
-      cases hd : S.get e.dst with
-      | none => simp [hs, hd] at hvis
-      | some h =>
-        by_cases heq : e.src = e.dst
-        · rw [heq] at hs; simp [hs] at hd
-        · exact ⟨_, h, get_push_self hsrc _, by rw [get_push_ne S heq, hd]⟩
-    | some f =>
-      cases hd : S.get e.dst with
-      | none =>
-        by_cases heq : e.src = e.dst
-        · rw [heq] at hs; simp [hs] at hd
-        · exact ⟨f, _, by rw [get_push_ne S (Ne.symm heq), hs], get_push_self hdst _⟩
-      | some h => exact ⟨f, h, hs, hd⟩
-  obtain ⟨f, h, hf, hh⟩ := key
-  refine ⟨f, h, by unfold visit; rw [get_prune]; exact hf,
-    by unfold visit; rw [get_prune]; exact hh, fun a ha => ?_⟩
-  unfold visit prune at ha
-  simp only [hf, hh, Bool.and_eq_true, decide_eq_true_eq] at ha
+    cases hs : S.get e.src <;> cases hd : S.get e.dst
+    · simp [hs, hd] at hvis
+    · exact ⟨_, _, by simpa [extend, hs, hd] using get_push_self hsrc _, get_extend labels e hd⟩
+    · exact ⟨_, _, get_extend labels e hs, by simpa [extend, hs, hd] using get_push_self hdst _⟩
+    · exact ⟨_, _, get_extend labels e hs, get_extend labels e hd⟩
+  refine ⟨f, h, (get_prune _ e _).trans hf, (get_prune _ e _).trans hh, fun a ha => ?_⟩
+  simp only [visit, prune, hf, hh, Bool.and_eq_true, decide_eq_true_eq] at ha
   exact ha.2
 
 /-- `preimage` inverts an injective table on the listed labels. -/
@@ -523,13 +500,8 @@ theorem preimage_apply {labels : List α} {π : α → α} (hπ : Function.Injec
     (ha : a ∈ labels) : preimage labels π (π a) = a := by
   unfold preimage
   cases h : labels.find? (fun b => decide (π b = π a)) with
-  | none =>
-    rw [List.find?_eq_none] at h
-    exact absurd (by simp) (h a ha)
-  | some b =>
-    have := List.find?_some h
-    simp only [decide_eq_true_eq] at this
-    exact hπ this
+  | none => exact absurd (by simp) ((List.find?_eq_none.1 h) a ha)
+  | some b => exact hπ (by simpa using List.find?_some h)
 
 /-- The semantic invariant against a satisfying labelling `τ` and a seed `s`: every stored table
 sends the seed's label to the vertex's label, and the seed's label is still a candidate. -/
@@ -1100,20 +1072,16 @@ theorem check_labelling [Inhabited α] {labels : List α} (hlabels : ∀ a, a �
     check g (labelling labels g) = true := by
   obtain ⟨σ, hσ⟩ := hsat
   have hσ' : ∀ e ∈ g.edges, e.constraint (σ e.src) = σ e.dst := by
-    have := (check_eq_true_iff g σ).2 hσ
-    simpa [check] using this
+    simpa [check] using (check_eq_true_iff g σ).2 hσ
   obtain ⟨τ, hτ, hsrc⟩ := foldl_step_good (labels := labels) hlabels hinj g.edges
     (fun _ h => h) (good_init hσ')
-  change Good g τ (run labels g) at hτ
+  rw [show List.foldl (step labels g) (init g) g.edges = run labels g from rfl] at hτ hsrc
   rw [check, List.all_eq_true]
   intro e he
-  have h1 : ((run labels g).get e.src).isSome := hsrc e he
-  have h2 : ((run labels g).get e.dst).isSome := (hτ.closed e he) ▸ h1
-  obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 h1
-  obtain ⟨k, hk⟩ := Option.isSome_iff_exists.1 h2
-  simp only [labelling, hf, hk, Option.elim_some, decide_eq_true_eq]
-  rw [hτ.const _ _ hf, hτ.const _ _ hk]
-  exact hτ.sat e he
+  obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 (hsrc e he)
+  obtain ⟨k, hk⟩ := Option.isSome_iff_exists.1 ((hτ.closed e he) ▸ hsrc e he)
+  simp only [labelling, hf, hk, Option.elim_some, decide_eq_true_eq,
+    hτ.const _ _ hf, hτ.const _ _ hk, hτ.sat e he]
 
 /-- **Completeness**: if `labels` contains every label, every edge carries an injective table and
 the instance is satisfiable, `solve` returns the extracted labelling. -/
@@ -1127,13 +1095,10 @@ theorem solve_eq_some_labelling [Inhabited α] {labels : List α} (hlabels : ∀
 theorem solve_isSome_iff [Inhabited α] {labels : List α} (hlabels : ∀ a, a ∈ labels)
     {g : Graph (α → α)} (hg : IsUniqueGame g) :
     (solve labels g).isSome ↔ (g.toGraph permutationEval).Satisfiable := by
-  constructor
-  · intro h
-    obtain ⟨σ, hσ⟩ := Option.isSome_iff_exists.1 h
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨σ, hσ⟩ := Option.isSome_iff_exists.1 h
     exact ⟨σ, solve_sound hσ⟩
-  · intro h
-    rw [solve_eq_some_labelling hlabels (fun e he => (hg e he).1) h]
-    rfl
+  · rw [solve_eq_some_labelling hlabels (fun e he => (hg e he).1) h]; rfl
 
 /-- On unique games, `solve` succeeds exactly on the instances of value `1`, those with no
 unsatisfied proportion. -/
@@ -1176,11 +1141,9 @@ theorem solvedBy_gapUniqueGames_one [DecidableEq α] [Inhabited α] {labels : Li
   · obtain ⟨hu, hsat⟩ := mem_yes_gapUniqueGames_one_iff.1 hg
     exact (solve_isSome_iff hlabels hu).2 hsat
   · obtain ⟨⟨h1, h2⟩, hu⟩ := hg
-    rw [Bool.eq_false_iff]
-    intro h
+    refine Bool.eq_false_iff.2 fun h => ?_
     have h0 := (solve_isSome_iff_unsatVal_eq_zero hlabels hu).1 h
-    simp only at h1 h2
-    rw [h0] at h1
+    dsimp only at h1 h2
     linarith
 
 end Cslib.Complexity

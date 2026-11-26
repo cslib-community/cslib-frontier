@@ -314,13 +314,10 @@ in `V`. -/
 theorem RunInv.push {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h : RunInv φ V M F)
     {l : Literal ℕ} (b : Bool) (hundef : l.1 ∉ Trail.vars M) (hv : l.1 ∈ V) :
     (Trail.vars (⟨l, b⟩ :: M)).Nodup ∧ ∀ x ∈ Trail.vars (⟨l, b⟩ :: M), x ∈ V := by
-  refine ⟨?_, fun x hx => ?_⟩
-  · simp only [Trail.vars, List.map_cons, List.nodup_cons]
-    exact ⟨hundef, h.nodup⟩
-  · simp only [Trail.vars, List.map_cons, List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · exact hv
-    · exact h.subset x hx
+  refine ⟨List.nodup_cons.2 ⟨hundef, h.nodup⟩, fun x hx => ?_⟩
+  rcases List.mem_cons.1 hx with rfl | hx
+  · exact hv
+  · exact h.subset x hx
 
 /-- A variable occurring in the database or on the trail lies in `V`. -/
 private theorem RunInv.mem_of_occurs {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ}
@@ -347,7 +344,7 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
       rintro ⟨σ, hσ⟩
       have hM := Trail.sat_of_entailed h.entailed hσ fun l hl => by simpa using hnodec _ hl
       obtain ⟨l, hl, hlσ⟩ := (Clause.eval_eq_true_iff σ c).1
-        ((CNF.eval_eq_true_iff σ F).1 (by rw [h.models]; exact hσ) c hc)
+        ((CNF.eval_eq_true_iff σ F).1 (h.models σ ▸ hσ) c hc)
       have := hM _ (hconf l hl)
       rw [Literal.eval_negate] at this
       simp [Literal.eval, hlσ] at this
@@ -378,16 +375,14 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
     | @forget M F₁ F₂ C hC =>
       refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => ?_, h.nodup, h.subset,
         fun c hc => h.db_vars c (by simp at hc ⊢; tauto), h.entailed⟩
-      swap
-      · simp only [List.mem_append, List.mem_cons] at hc
-        rcases hc with hc | rfl | hc
+      · rw [← h.models]
+        have := hC.eval σ
+        simp only [CNF.eval_append, CNF.eval_cons, Bool.and_eq_true] at this ⊢
+        cases h₁ : CNF.eval σ F₁ <;> cases h₂ : CNF.eval σ F₂ <;> simp_all
+      · rcases (by simpa using hc : c ∈ F₁ ∨ c = C ∨ c ∈ F₂) with hc | rfl | hc
         · exact hρ c (List.mem_append_left _ hc)
         · exact hC ρ hρ
         · exact hρ c (List.mem_append_right _ hc)
-      rw [← h.models]
-      have := hC.eval σ
-      simp only [CNF.eval_append, CNF.eval_cons, Bool.and_eq_true] at this ⊢
-      cases h₁ : CNF.eval σ F₁ <;> cases h₂ : CNF.eval σ F₂ <;> simp_all
 
 /-! ### Final states -/
 
@@ -396,25 +391,20 @@ exactly when the literal is on the trail. -/
 theorem Trail.partialAssignment_eq_some_iff {M : Trail} (hM : (Trail.vars M).Nodup)
     (l : Literal ℕ) : Trail.partialAssignment M l.1 = some l.2 ↔ l ∈ Trail.lits M := by
   obtain ⟨v, b⟩ := l
-  unfold Trail.partialAssignment
   cases b
-  · have : (v, false) ∈ Trail.lits M → (v, true) ∉ Trail.lits M := fun h =>
-      Trail.negate_not_mem hM h
+  · have := fun h : (v, false) ∈ Trail.lits M => Trail.negate_not_mem hM h
     by_cases ht : (v, true) ∈ Trail.lits M <;> by_cases hf : (v, false) ∈ Trail.lits M <;>
-      simp_all
-  · by_cases ht : (v, true) ∈ Trail.lits M <;> by_cases hf : (v, false) ∈ Trail.lits M <;>
-      simp_all
+      simp_all [Trail.partialAssignment, Std.Sat.Literal.negate]
+  · by_cases ht : (v, true) ∈ Trail.lits M <;> simp [Trail.partialAssignment, ht]
 
 /-- A trail that falsifies no clause of `F` and assigns every variable of `F` has a literal of
 every clause of `F`. -/
 theorem Trail.exists_mem_lits {M : Trail} {F : CNF ℕ} (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c)
     (htotal : ∀ x ∈ F.vars, x ∈ Trail.vars M) : ∀ c ∈ F, ∃ l ∈ c, l ∈ Trail.lits M := by
   intro c hc
-  have : ∃ l ∈ c, l.negate ∉ Trail.lits M := by
-    by_contra hne
-    push Not at hne
+  obtain ⟨l, hl, hopen⟩ : ∃ l ∈ c, l.negate ∉ Trail.lits M := by
+    by_contra! hne
     exact hnoconf c hc hne
-  obtain ⟨l, hl, hopen⟩ := this
   -- `l` is assigned, and not falsely, so the trail contains it
   obtain ⟨e, hmem, hl'⟩ := List.mem_map.1 (htotal l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩))
   have helits : e.lit ∈ Trail.lits M := List.mem_map.2 ⟨e, hmem, rfl⟩
@@ -476,21 +466,15 @@ theorem RunInv.backjump_decisions {φ : CNF ℕ} {V : List ℕ} {N M₀ : Trail}
     hc hcM ?_ List.mem_cons_self ?_ ?_ (.inr (by simp [Trail.vars, Std.Sat.Literal.negate]))
   · -- the decisions cannot all hold in a model
     intro σ hFσ
-    have hσ : φ.eval σ = true := by rw [← h.models]; exact hFσ
     by_contra hfalse
     simp only [Bool.not_eq_true, Clause.eval, List.any_eq_false, List.mem_cons,
       forall_eq_or_imp] at hfalse
-    have hsat := Trail.sat_of_entailed h.entailed hσ (σ := σ) fun l hl => by
-      simp only [List.mem_append, List.mem_cons] at hl
-      rcases hl with hl | hl | hl
+    have hsat := Trail.sat_of_entailed h.entailed (h.models σ ▸ hFσ) (σ := σ) fun l hl => by
+      rcases (by simpa using hl : _ ∨ _ = _ ∨ _) with hl | ⟨rfl, -⟩ | hl
       · exact absurd (hN _ hl) (by simp)
-      · cases hl
-        have := hfalse.1
-        rw [Literal.eval_negate] at this
-        simpa using this
-      · have := hfalse.2 _ (List.mem_map.2 ⟨⟨l, true⟩, List.mem_filter.2 ⟨hl, rfl⟩, rfl⟩)
-        rw [Literal.eval_negate] at this
-        simpa using this
+      · simpa [Literal.eval_negate] using hfalse.1
+      · simpa [Literal.eval_negate] using
+          hfalse.2 _ (List.mem_map.2 ⟨⟨l, true⟩, List.mem_filter.2 ⟨hl, rfl⟩, rfl⟩)
     obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1
       ((CNF.eval_eq_true_iff σ F).1 hFσ c hc)
     have := hsat _ (hcM l' hl')
@@ -531,11 +515,9 @@ theorem RunInv.exists_basicStep {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : C
     · exact ⟨_, hfail⟩
     · exact ⟨_, hbj⟩
   · push Not at hconf
-    have : ∃ x ∈ F.vars, x ∉ Trail.vars M := by
-      by_contra hne
-      push Not at hne
+    obtain ⟨x, hx, hxM⟩ : ∃ x ∈ F.vars, x ∉ Trail.vars M := by
+      by_contra! hne
       exact hfinal ⟨hconf, hne⟩
-    obtain ⟨x, hx, hxM⟩ := this
     exact ⟨_, BasicStep.decide (l := (x, true)) hxM hx⟩
 
 /-- A state that satisfies the invariant and is final for Basic DPLL is `fail` exactly when `φ` is
@@ -676,11 +658,7 @@ theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : 
     have hlt : Trail.measure n (N ++ ⟨d, true⟩ :: M₀) <
         Trail.measure n M₀ + (n + 1) ^ (n - Trail.level M₀) := by
       nlinarith
-    have heq : Trail.measure n (⟨l, false⟩ :: M₀) =
-        Trail.measure n M₀ + (n + 1) ^ (n - Trail.level M₀) := by
-      simp [Trail.measure]
-    simp only [rank]
-    rw [← hn]
+    simp only [rank, ← hn, Trail.measure, Bool.false_eq_true, ite_false, Nat.add_zero]
     omega
 
 /-- **Termination of Basic DPLL** [NieuwenhuisOliverasTinelli2006, Theorem 2.10]: there is no

@@ -136,22 +136,13 @@ theorem tweakSalt_injective (variant : GrindingVariant) {securityBits : Nat}
       tweakSalt variant salt input.1 input.2 := by
   intro input input' heq
   have htweakBits :
-      (BitString.equivFin 24).symm input.1 = (BitString.equivFin 24).symm input'.1 := by
-    funext i
-    rw [BitString.equivFin_symm_apply, BitString.equivFin_symm_apply,
-      ← tweakSalt_low variant hsecurity salt input.1 input.2 ⟨i.val, by omega⟩ i.isLt,
-      ← tweakSalt_low variant hsecurity salt input'.1 input'.2 ⟨i.val, by omega⟩ i.isLt]
-    exact congrFun heq ⟨i.val, by omega⟩
-  have htweak : input.1 = input'.1 := by
-    exact (BitString.equivFin 24).symm.injective htweakBits
-  have htag : input.2 = input'.2 := by
-    cases variant
-    · rw [← tweakSalt_hash_high hsecurity salt input.1 input.2,
-        ← tweakSalt_hash_high hsecurity salt input'.1 input'.2]
-      exact congrFun heq ⟨securityBits - 1, by omega⟩
-    · exact (tweakSalt_cipher_nextHigh hsecurity salt input.1 input.2).symm.trans
-        ((congrFun heq ⟨securityBits - 2, by omega⟩).trans
-          (tweakSalt_cipher_nextHigh hsecurity salt input'.1 input'.2))
-  exact Prod.ext htweak htag
+      (BitString.equivFin 24).symm input.1 = (BitString.equivFin 24).symm input'.1 :=
+    funext fun i => by
+      simpa only [tweakSalt_low variant hsecurity salt _ _ ⟨i.val, by omega⟩ i.isLt,
+        ← BitString.equivFin_symm_apply] using congrFun heq ⟨i.val, by omega⟩
+  refine Prod.ext ((BitString.equivFin 24).symm.injective htweakBits) ?_
+  cases variant
+  · simpa [hsecurity] using congrFun heq ⟨securityBits - 1, by omega⟩
+  · simpa [hsecurity] using congrFun heq ⟨securityBits - 2, by omega⟩
 
 end Cslib.Crypto.SDitH

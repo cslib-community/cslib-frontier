@@ -277,48 +277,42 @@ private theorem horizontal_none_weights_zero
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = none) :
     rightWeight quadrant state = 0 ∧ leftWeight quadrant state = 0 := by
-  have h := (localGeometry_unpack allowed).2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.1
 
 private theorem vertical_none_weights_zero
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = none) :
     upWeight quadrant state = 0 ∧ downWeight quadrant state = 0 := by
-  have h := (localGeometry_unpack allowed).2.2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.2.1
 
 private theorem horizontal_south_has_negative_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = some .south) :
     rightWeight quadrant state = -1 ∨ leftWeight quadrant state = -1 := by
-  have h := (localGeometry_unpack allowed).2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.1
 
 private theorem horizontal_north_has_positive_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = some .north) :
     rightWeight quadrant state = 1 ∨ leftWeight quadrant state = 1 := by
-  have h := (localGeometry_unpack allowed).2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.1
 
 private theorem vertical_west_has_negative_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = some .west) :
     upWeight quadrant state = -1 ∨ downWeight quadrant state = -1 := by
-  have h := (localGeometry_unpack allowed).2.2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.2.1
 
 private theorem vertical_east_has_positive_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = some .east) :
     upWeight quadrant state = 1 ∨ downWeight quadrant state = 1 := by
-  have h := (localGeometry_unpack allowed).2.2.2.1
-  rwa [hselected] at h
+  simpa [hselected] using (localGeometry_unpack allowed).2.2.2.1
 
 /-- A horizontal light wire leaves no vertical light edge in the same quarter. -/
 private theorem up_zero_of_horizontal_light (component : Thick) (quadrant : Quadrant)
@@ -366,20 +360,14 @@ private theorem ValidShadeGrid.rightWeightAt_eq_leftWeightAt_succ
     {stateGrid : Nat → Nat → ShadeState}
     (valid : ValidShadeGrid indexGrid stateGrid) (x y : Nat) :
     rightWeightAt stateGrid x y = leftWeightAt stateGrid (x + 1) y := by
-  unfold rightWeightAt leftWeightAt rightWeight leftWeight
-  rw [valid.hmatch x y]
-  congr 1
-  simp only [quadrantAt_yBit]
+  simp [rightWeightAt, leftWeightAt, rightWeight, leftWeight, valid.hmatch, quadrantAt_yBit]
 
 private theorem ValidShadeGrid.upWeightAt_eq_downWeightAt_succ
     {indexGrid : Nat → Nat → Index}
     {stateGrid : Nat → Nat → ShadeState}
     (valid : ValidShadeGrid indexGrid stateGrid) (x y : Nat) :
     upWeightAt stateGrid x y = downWeightAt stateGrid x (y + 1) := by
-  unfold upWeightAt downWeightAt upWeight downWeight
-  rw [valid.vmatch x y]
-  congr 1
-  simp only [quadrantAt_xBit]
+  simp [upWeightAt, downWeightAt, upWeight, downWeight, valid.vmatch, quadrantAt_xBit]
 
 private theorem ValidShadeGrid.balanceAt
     {indexGrid : Nat → Nat → Index}
@@ -470,29 +458,18 @@ private theorem CycleShade.faceHeight_sub_left
       upWeightAt stateGrid column (quarterSouth south + offset) := by
   induction offset with
   | zero =>
-      have hrightWeight := CycleShade.south_rightWeightAt shaded cycle valid
-        (x := column) (le_of_lt hwest) heast
-      have hleftWeight := CycleShade.south_rightWeightAt shaded cycle valid
-        (x := column - 1) (by omega) (by omega)
-      have hup := CycleShade.south_upWeightAt shaded cycle valid hwest heast
-      simpa [faceHeight] using show
-        rightWeightAt stateGrid column (quarterSouth south) -
-            rightWeightAt stateGrid (column - 1) (quarterSouth south) =
-          upWeightAt stateGrid column (quarterSouth south) by omega
+      simp only [faceHeight, Nat.add_zero,
+        CycleShade.south_rightWeightAt shaded cycle valid (le_of_lt hwest) heast,
+        CycleShade.south_rightWeightAt shaded cycle valid (x := column - 1) (by omega) (by omega),
+        CycleShade.south_upWeightAt shaded cycle valid hwest heast, sub_self]
   | succ offset ih =>
-      have hcolumn : column - 1 + 1 = column := by omega
-      have hhorizontal := ValidShadeGrid.rightWeightAt_eq_leftWeightAt_succ valid
+      have hhor := ValidShadeGrid.rightWeightAt_eq_leftWeightAt_succ valid
         (column - 1) (quarterSouth south + offset + 1)
-      rw [hcolumn] at hhorizontal
-      have hlocal := ValidShadeGrid.balanceAt valid column
-        (quarterSouth south + offset + 1)
-      have hvertical := ValidShadeGrid.upWeightAt_eq_downWeightAt_succ valid
+      rw [Nat.sub_add_cancel (by omega)] at hhor
+      have hloc := ValidShadeGrid.balanceAt valid column (quarterSouth south + offset + 1)
+      have hver := ValidShadeGrid.upWeightAt_eq_downWeightAt_succ valid
         column (quarterSouth south + offset)
-      have hy : quarterSouth south + offset + 1 =
-          quarterSouth south + (offset + 1) := by omega
-      rw [hy] at hhorizontal hlocal hvertical
-      simp only [faceHeight]
-      rw [hy]
+      simp only [faceHeight, ← Nat.add_assoc]
       omega
 
 /-- The counterclockwise outer board and the absence of right turns give a
@@ -506,67 +483,31 @@ private theorem CycleShade.one_le_faceHeight
     (hnorth : quarterSouth south + yOffset < quarterNorth north) :
     (1 : Int) ≤ faceHeight stateGrid
       (quarterWest west + xOffset) (quarterSouth south) yOffset := by
-  have all : ∀ n xOffset yOffset : Nat,
-      xOffset + yOffset = n →
-      quarterWest west + xOffset < quarterEast east →
-      quarterSouth south + yOffset < quarterNorth north →
-      (1 : Int) ≤ faceHeight stateGrid
-        (quarterWest west + xOffset) (quarterSouth south) yOffset := by
-    intro n
-    induction n using Nat.strong_induction_on with
-    | ind n ih =>
-        intro xOffset yOffset hsum heast hnorth
-        cases xOffset with
-        | zero => simp [CycleShade.faceHeight_west shaded cycle valid hnorth]
-        | succ xOffset =>
-            cases yOffset with
-            | zero =>
-                have hsouthHeight := CycleShade.faceHeight_south shaded cycle valid
-                  (column := quarterWest west + (xOffset + 1)) (by omega) (by omega)
-                omega
-            | succ yOffset =>
-                have hleft := ih (xOffset + (yOffset + 1)) (by omega)
-                  xOffset (yOffset + 1) rfl (by omega) (by omega)
-                have hbelow := ih ((xOffset + 1) + yOffset) (by omega)
-                  (xOffset + 1) yOffset rfl (by omega) (by omega)
-                by_contra hlow
-                have hcurrent : faceHeight stateGrid
-                    (quarterWest west + (xOffset + 1))
-                    (quarterSouth south) (yOffset + 1) < 1 := by
-                  omega
-                have hdiff := CycleShade.faceHeight_sub_left shaded cycle valid
-                  (column := quarterWest west + (xOffset + 1))
-                  (offset := yOffset + 1) (by omega) (by omega)
-                have hleftColumn :
-                    quarterWest west + (xOffset + 1) - 1 =
-                      quarterWest west + xOffset := by omega
-                rw [hleftColumn] at hdiff
-                have hupLowerAt : (-1 : Int) ≤ upWeightAt stateGrid
-                    (quarterWest west + (xOffset + 1))
-                    (quarterSouth south + (yOffset + 1)) :=
-                  neg_one_le_upWeight _ _
-                have hup : upWeightAt stateGrid
-                    (quarterWest west + (xOffset + 1))
-                    (quarterSouth south + (yOffset + 1)) = -1 := by
-                  omega
-                have hrightLowerAt : (-1 : Int) ≤ rightWeightAt stateGrid
-                    (quarterWest west + (xOffset + 1))
-                    (quarterSouth south + (yOffset + 1)) :=
-                  neg_one_le_rightWeight _ _
-                have hright : rightWeightAt stateGrid
-                    (quarterWest west + (xOffset + 1))
-                    (quarterSouth south + (yOffset + 1)) = -1 := by
-                  simp only [faceHeight] at hcurrent
-                  rw [show quarterSouth south + yOffset + 1 =
-                    quarterSouth south + (yOffset + 1) by omega] at hcurrent
-                  omega
-                exact not_right_negative_and_up_negative_of_allowed
-                  _ _ _ (valid.allowed
-                    (quarterWest west + (xOffset + 1))
-                    (quarterSouth south + (yOffset + 1)))
-                  ⟨by simpa [rightWeightAt] using hright,
-                    by simpa [upWeightAt] using hup⟩
-  exact all (xOffset + yOffset) xOffset yOffset rfl heast hnorth
+  induction xOffset generalizing yOffset with
+  | zero => exact (CycleShade.faceHeight_west shaded cycle valid hnorth).ge
+  | succ xOffset ihx =>
+      induction yOffset with
+      | zero =>
+          exact (CycleShade.faceHeight_south shaded cycle valid
+            (column := quarterWest west + (xOffset + 1)) (by omega) heast).ge
+      | succ yOffset ihy =>
+          let x := quarterWest west + (xOffset + 1)
+          let y := quarterSouth south + (yOffset + 1)
+          have hleft := ihx (by omega) hnorth
+          have hbelow := ihy (by omega)
+          by_contra hlow
+          have hdiff := CycleShade.faceHeight_sub_left shaded cycle valid
+            (column := x) (offset := yOffset + 1) (by omega) heast
+          rw [show x - 1 = quarterWest west + xOffset by omega] at hdiff
+          have hcur : faceHeight stateGrid x (quarterSouth south) (yOffset + 1) =
+              faceHeight stateGrid x (quarterSouth south) yOffset +
+                rightWeightAt stateGrid x y := by
+            rw [faceHeight, Nat.add_assoc]
+          have hup_ge := neg_one_le_upWeight (quadrantAt x y) (stateGrid x y)
+          have hright_ge := neg_one_le_rightWeight (quadrantAt x y) (stateGrid x y)
+          refine not_right_negative_and_up_negative_of_allowed _ _ _ (valid.allowed x y) ?_
+          dsimp only [rightWeightAt, upWeightAt, x, y] at hdiff hcur hup_ge hright_ge ⊢
+          omega
 
 private theorem ValidShadeGrid.horizontal_none_weightsAt_zero
     (valid : ValidShadeGrid indexGrid stateGrid) {x y : Nat}
@@ -613,37 +554,16 @@ private theorem CycleShade.faceHeight_eq_one_of_freeRow
     (free : IsFreeRow indexGrid stateGrid west east row) :
     faceHeight stateGrid column (quarterSouth south)
       (row - quarterSouth south) = 1 := by
-  let rowOffset := row - quarterSouth south
-  have hrow : quarterSouth south + rowOffset = row := by
-    dsimp [rowOffset]
-    omega
-  have all : ∀ xOffset,
-      quarterWest west + xOffset < quarterEast east →
-      faceHeight stateGrid (quarterWest west + xOffset)
-        (quarterSouth south) rowOffset = 1 := by
-    intro xOffset
-    induction xOffset with
-    | zero =>
-        intro _
-        simpa using CycleShade.faceHeight_west shaded cycle valid (offset := rowOffset) (by omega)
-    | succ xOffset ih =>
-        intro heastOffset
-        have hprevious := ih (by omega)
-        let column := quarterWest west + (xOffset + 1)
-        have hnone := free column (by simp [column])
-          (by simpa [column] using heastOffset)
-        have hzero :=
-          ValidShadeGrid.vertical_none_weightsAt_zero valid hnone
-        have hdiff := CycleShade.faceHeight_sub_left
-          shaded cycle valid (column := column) (offset := rowOffset)
-          (by simp [column]) (by simpa [column] using heastOffset)
-        have hleft : column - 1 = quarterWest west + xOffset := by
-          simp [column]
-        rw [hleft, hrow] at hdiff
-        dsimp [column] at hdiff hzero
-        omega
-  simpa only [show quarterWest west + (column - quarterWest west) = column by omega] using
-    all (column - quarterWest west) (by omega)
+  induction column, hwest using Nat.le_induction with
+  | base => exact CycleShade.faceHeight_west shaded cycle valid (by omega)
+  | succ col hwest ih =>
+      have hzero := ValidShadeGrid.vertical_none_weightsAt_zero valid
+        (free (col + 1) (by omega) heast)
+      have hdiff := CycleShade.faceHeight_sub_left shaded cycle valid
+        (column := col + 1) (offset := row - quarterSouth south) (by omega) heast
+      rw [Nat.add_sub_cancel, show quarterSouth south + (row - quarterSouth south) = row by omega,
+        ih (by omega), hzero.1] at hdiff
+      omega
 
 /-- Height immediately to the right of a free column is one. -/
 private theorem CycleShade.faceHeight_eq_one_right_of_freeColumn
@@ -658,30 +578,16 @@ private theorem CycleShade.faceHeight_eq_one_right_of_freeColumn
     (free : IsFreeColumn indexGrid stateGrid south north column) :
     faceHeight stateGrid column (quarterSouth south)
       (row - quarterSouth south) = 1 := by
-  let rowOffset := row - quarterSouth south
-  have hrow : quarterSouth south + rowOffset = row := by
-    dsimp [rowOffset]
-    omega
-  have all : ∀ offset,
-      quarterSouth south + offset < quarterNorth north →
-      faceHeight stateGrid column (quarterSouth south) offset = 1 := by
-    intro offset
-    induction offset with
-    | zero =>
-        exact fun _ => CycleShade.faceHeight_south shaded cycle valid hwest heast
-    | succ offset ih =>
-        intro hnorthOffset
-        have hprevious := ih (by omega)
-        let y := quarterSouth south + offset + 1
-        have hnone := free y (by dsimp [y]; omega)
-          (by dsimp [y]; omega)
-        have hzero :=
-          ValidShadeGrid.horizontal_none_weightsAt_zero valid hnone
-        rw [faceHeight, hprevious]
-        have hy : quarterSouth south + offset + 1 = y := rfl
-        rw [hy, hzero.1]
-        omega
-  exact all rowOffset (by omega)
+  suffices all : ∀ offset, quarterSouth south + offset < quarterNorth north →
+      faceHeight stateGrid column (quarterSouth south) offset = 1 from
+    all (row - quarterSouth south) (by omega)
+  intro offset hnorthOffset
+  induction offset with
+  | zero => exact CycleShade.faceHeight_south shaded cycle valid hwest heast
+  | succ offset ih =>
+      have hzero := ValidShadeGrid.horizontal_none_weightsAt_zero valid
+        (free (quarterSouth south + offset + 1) (by omega) (by omega))
+      rw [faceHeight, ih (by omega), hzero.1, add_zero]
 
 /-- Height immediately to the left of a strict free column is one. -/
 private theorem CycleShade.faceHeight_eq_one_left_of_freeColumn
@@ -696,32 +602,19 @@ private theorem CycleShade.faceHeight_eq_one_left_of_freeColumn
     (free : IsFreeColumn indexGrid stateGrid south north column) :
     faceHeight stateGrid (column - 1) (quarterSouth south)
       (row - quarterSouth south) = 1 := by
-  let rowOffset := row - quarterSouth south
-  have all : ∀ offset,
-      quarterSouth south + offset < quarterNorth north →
-      faceHeight stateGrid (column - 1) (quarterSouth south) offset = 1 := by
-    intro offset
-    induction offset with
-    | zero =>
-        exact fun _ => CycleShade.faceHeight_south shaded cycle valid (by omega) (by omega)
-    | succ offset ih =>
-        intro hnorthOffset
-        have hprevious := ih (by omega)
-        let y := quarterSouth south + offset + 1
-        have hnone := free y (by dsimp [y]; omega)
-          (by dsimp [y]; omega)
-        have hzero :=
-          ValidShadeGrid.horizontal_none_weightsAt_zero valid hnone
-        have hmatch :=
-          ValidShadeGrid.rightWeightAt_eq_leftWeightAt_succ
-            valid (column - 1) y
-        have hcolumn : column - 1 + 1 = column := by omega
-        rw [hcolumn, hzero.2] at hmatch
-        rw [faceHeight, hprevious]
-        have hy : quarterSouth south + offset + 1 = y := rfl
-        rw [hy, hmatch]
-        omega
-  exact all rowOffset (by omega)
+  suffices all : ∀ offset, quarterSouth south + offset < quarterNorth north →
+      faceHeight stateGrid (column - 1) (quarterSouth south) offset = 1 from
+    all (row - quarterSouth south) (by omega)
+  intro offset hnorthOffset
+  induction offset with
+  | zero => exact CycleShade.faceHeight_south shaded cycle valid (by omega) (by omega)
+  | succ offset ih =>
+      have hzero := ValidShadeGrid.horizontal_none_weightsAt_zero valid
+        (free (quarterSouth south + offset + 1) (by omega) (by omega))
+      have hmatch := ValidShadeGrid.rightWeightAt_eq_leftWeightAt_succ valid
+        (column - 1) (quarterSouth south + offset + 1)
+      rw [Nat.sub_add_cancel (by omega), hzero.2] at hmatch
+      rw [faceHeight, ih (by omega), hmatch, add_zero]
 
 /-- A finite run of zero-weight steps leaves an integer potential unchanged. -/
 private theorem potential_eq_of_zero_steps
@@ -734,14 +627,10 @@ private theorem potential_eq_of_zero_steps
     potential finish = potential start := by
   induction finish, startLeFinish using Nat.le_induction with
   | base => rfl
-  | succ finish _ inductionHypothesis =>
-      rw [step (finish + 1) (by omega) le_rfl,
-        zero (finish + 1) (by omega) le_rfl]
-      have previous : finish + 1 - 1 = finish := by omega
-      rw [previous, inductionHypothesis
-        (fun position lower upper => step position lower (by omega))
-        (fun position lower upper => zero position lower (by omega))]
-      omega
+  | succ finish _ ih =>
+      rw [step (finish + 1) (by omega) le_rfl, zero (finish + 1) (by omega) le_rfl,
+        Nat.add_sub_cancel, add_zero]
+      exact ih (fun p lo hi => step p lo (by omega)) (fun p lo hi => zero p lo (by omega))
 
 /-- A nearest `-1` step above a unit-height point contradicts positivity. -/
 private theorem negative_step_after_false
@@ -800,10 +689,8 @@ private theorem exists_adjacent_weight
         primary scan other = 0 := by
   rcases atCoordinate with primaryWeight | secondaryWeight
   · exact ⟨coordinate, Or.inl rfl, primaryWeight, fun _ primaryZero _ => primaryZero⟩
-  · refine ⟨coordinate - 1, Or.inr (by omega), ?_, ?_⟩
-    · rw [shared, show coordinate - 1 + 1 = coordinate by omega, secondaryWeight]
-    · intro other _ secondaryZero
-      rw [shared, show coordinate - 1 + 1 = coordinate by omega, secondaryZero]
+  · have hc : coordinate - 1 + 1 = coordinate := by omega
+    exact ⟨coordinate - 1, Or.inr hc, by rwa [shared, hc], fun _ _ hz => by rwa [shared, hc]⟩
 
 /-- An oriented selected boundary after a unit-height point cannot be the
 direction whose local weight is `-1`. The potential, weights, and choice of
@@ -911,10 +798,8 @@ private theorem exists_first_after
       ∀ value, start < value → value < first → ¬ P value := by
   classical
   have witness : ∃ value, start < value ∧ P value := ⟨finish, hstart, hfinish⟩
-  refine ⟨Nat.find witness, (Nat.find_spec witness).1,
-    Nat.find_min' witness ⟨hstart, hfinish⟩, (Nat.find_spec witness).2, ?_⟩
-  intro value lower upper present
-  exact Nat.find_min witness upper ⟨lower, present⟩
+  exact ⟨Nat.find witness, (Nat.find_spec witness).1, Nat.find_min' witness ⟨hstart, hfinish⟩,
+    (Nat.find_spec witness).2, fun _ lo hi hp => Nat.find_min witness hi ⟨lo, hp⟩⟩
 
 private theorem exists_last_before
     {P : Nat → Prop} {first finish : Nat}
@@ -924,10 +809,8 @@ private theorem exists_last_before
   classical
   have bound : first ≤ finish - 1 := by omega
   have greatestBound := Nat.findGreatest_le (P := P) (finish - 1)
-  refine ⟨Nat.findGreatest P (finish - 1), Nat.le_findGreatest bound hfirstP,
-    by omega, Nat.findGreatest_spec bound hfirstP, ?_⟩
-  intro value lower upper
-  exact Nat.findGreatest_is_greatest lower (by omega)
+  exact ⟨Nat.findGreatest P (finish - 1), Nat.le_findGreatest bound hfirstP, by omega,
+    Nat.findGreatest_spec bound hfirstP, fun _ lo _ => Nat.findGreatest_is_greatest lo (by omega)⟩
 
 /-- Given any selected point in an open interval, expose the current point or
 the nearest selected point on one side.  The two callbacks provide the
@@ -1128,9 +1011,8 @@ private theorem faceHeight_step_up {scan position : Nat}
       faceHeight stateGrid scan (quarterSouth south)
           (position - 1 - quarterSouth south) +
         rightWeightAt stateGrid scan position := by
-  have offset : position - quarterSouth south =
-      (position - 1 - quarterSouth south) + 1 := by omega
-  rw [offset, faceHeight]
+  rw [show position - quarterSouth south = position - 1 - quarterSouth south + 1 by omega,
+    faceHeight]
   congr 2
   omega
 
@@ -1151,9 +1033,7 @@ theorem CycleShade.geometry
     have witness : ∃ boundary,
         quarterSouth south < boundary ∧ boundary < quarterNorth north ∧
           selected boundary ≠ none := by
-      simp only [IsFreeColumn] at notFree
-      push Not at notFree
-      exact notFree
+      simpa only [IsFreeColumn, not_forall, exists_prop] using notFree
     have height (scan) (scanEq : scan = column ∨ scan + 1 = column) :
         faceHeight stateGrid scan (quarterSouth south) (row - quarterSouth south) = 1 :=
       CycleShade.faceHeight_eq_one_of_freeRow shaded cycle valid
@@ -1197,9 +1077,7 @@ theorem CycleShade.geometry
     have witness : ∃ boundary,
         quarterWest west < boundary ∧ boundary < quarterEast east ∧
           selected boundary ≠ none := by
-      simp only [IsFreeRow] at notFree
-      push Not at notFree
-      exact notFree
+      simpa only [IsFreeRow, not_forall, exists_prop] using notFree
     apply boundary_of_unit_height
       (selected := selected)
       (primary := fun scan x => upWeightAt stateGrid x scan)

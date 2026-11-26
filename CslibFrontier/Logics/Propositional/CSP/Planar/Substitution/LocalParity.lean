@@ -49,12 +49,9 @@ theorem vertexParity_copiedEdgeLabels_auxiliary
   rw [vertexParity_eq_sum_incidenceWord _ o word hn hw]
   have hmap : (word.map fun j => (List.ofFn (copiedEdgeLabels gadgets B F i x)).getD j false) =
       word.map (fun j => (List.ofFn x).getD
-        (occurrencePrefix (fun r => (gadgets r).template) F i.val + j) false) := by
-    apply List.map_congr_left
-    intro j hj
-    obtain ⟨p, hp, _⟩ := (hw j).mp hj
-    rw [← hp]
-    exact List.getD_ofFn (copiedEdgeLabels gadgets B F i x) (incidenceDart p false).1 false
+        (occurrencePrefix (fun r => (gadgets r).template) F i.val + j) false) :=
+    List.map_congr_left fun j hj => Exists.elim ((hw j).mp hj) fun p hp =>
+      hp.1 ▸ List.getD_ofFn (copiedEdgeLabels gadgets B F i x) (incidenceDart p false).1 false
   rw [hmap]
   simpa only [shiftBlock, List.map_map, Function.comp_def] using
     sum_auxiliaryBlock_eq_false gadgets witnesses B hB F i a x hx

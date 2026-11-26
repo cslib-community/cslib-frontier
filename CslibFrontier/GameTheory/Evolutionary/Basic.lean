@@ -110,17 +110,15 @@ private theorem exists_pos_forall_lt_iff (a b c d : ℝ) :
       by_contra hlt
       rw [not_le] at hlt
       have hden : 0 < 2 * (|b - d| + 1) := by positivity
-      have hpos : 0 < (c - a) / (2 * (|b - d| + 1)) := div_pos (sub_pos.2 hlt) hden
-      obtain ⟨ε, hε, hε₁, hε₂, hε₃⟩ : ∃ ε, 0 < ε ∧ ε < ε₀ ∧ ε ≤ 1 / 2 ∧
-          ε * (2 * (|b - d| + 1)) ≤ c - a :=
-        ⟨min (ε₀ / 2) (min (1 / 2) ((c - a) / (2 * (|b - d| + 1)))),
-          lt_min (half_pos hε₀) (lt_min one_half_pos hpos),
-          (min_le_left _ _).trans_lt (half_lt_self hε₀),
-          (min_le_right _ _).trans (min_le_left _ _),
-          (le_div_iff₀ hden).1 ((min_le_right _ _).trans (min_le_right _ _))⟩
-      have h₁ := h ε hε hε₁
+      let ε := min (ε₀ / 2) (min (1 / 2) ((c - a) / (2 * (|b - d| + 1))))
+      have hε : 0 < ε :=
+        lt_min (half_pos hε₀) (lt_min one_half_pos (div_pos (sub_pos.2 hlt) hden))
+      have h₁ := h ε hε ((min_le_left _ _).trans_lt (half_lt_self hε₀))
       have h₂ : ε * (b - d) ≤ ε * |b - d| := mul_le_mul_of_nonneg_left (le_abs_self _) hε.le
-      have h₃ : 0 ≤ (1 / 2 - ε) * (c - a) := mul_nonneg (sub_nonneg.2 hε₂) (sub_pos.2 hlt).le
+      have h₃ : 0 ≤ (1 / 2 - ε) * (c - a) :=
+        mul_nonneg (sub_nonneg.2 ((min_le_right _ _).trans (min_le_left _ _))) (sub_pos.2 hlt).le
+      have h₄ : ε * (2 * (|b - d| + 1)) ≤ c - a :=
+        (le_div_iff₀ hden).1 ((min_le_right _ _).trans (min_le_right _ _))
       linarith
     rcases hca.lt_or_eq with hlt | rfl
     · exact Or.inl hlt
@@ -235,33 +233,16 @@ private theorem forall_stable_fin_two_iff {a b c d p : ℝ} (hp0 : 0 ≤ p) (hp1
       · have h0 := h 0 le_rfl zero_le_one hp0'.ne
         have h1 := h 1 zero_le_one le_rfl hp1'.ne'
         have hL : (a - c) * p + (b - d) * (1 - p) = 0 := by
-          apply le_antisymm
-          · rcases h1 with h1 | ⟨h1, -⟩
-            · rcases mul_pos_iff.1 h1 with ⟨h1, -⟩ | ⟨-, h1⟩
-              · linarith
-              · exact h1.le
-            · rcases mul_eq_zero.1 h1 with h1 | h1
-              · linarith
-              · exact h1.le
-          · rcases h0 with h0 | ⟨h0, -⟩
-            · rcases mul_pos_iff.1 h0 with ⟨-, h0⟩ | ⟨h0, -⟩
-              · exact h0.le
-              · linarith
-            · rcases mul_eq_zero.1 h0 with h0 | h0
-              · linarith
-              · exact h0.ge
-        rw [hL, mul_zero] at h0 h1
-        have hdb : d < b := by
-          rcases h0 with h0 | ⟨-, h0⟩
-          · exact absurd h0 (lt_irrefl _)
-          · rcases mul_pos_iff.1 h0 with ⟨-, h0⟩ | ⟨h0, -⟩ <;> linarith
-        have hac : a < c := by
-          rcases h1 with h1 | ⟨-, h1⟩
-          · exact absurd h1 (lt_irrefl _)
-          · rcases mul_pos_iff.1 h1 with ⟨h1, -⟩ | ⟨-, h1⟩ <;> linarith
-        refine Or.inr (Or.inr ⟨hac, hdb, ?_⟩)
-        rw [eq_div_iff (by linarith)]
-        linarith
+          rcases lt_trichotomy ((a - c) * p + (b - d) * (1 - p)) 0 with hneg | hL | hpos
+          · rcases h0 with h0 | ⟨h0, -⟩ <;> linarith [mul_neg_of_pos_of_neg hp0' hneg]
+          · exact hL
+          · rcases h1 with h1 | ⟨h1, -⟩ <;> linarith [mul_neg_of_neg_of_pos (sub_neg.2 hp1') hpos]
+        simp only [hL, sub_zero, mul_zero, sub_self, zero_add, add_zero, mul_one, lt_irrefl,
+          false_or, true_and] at h0 h1
+        have hdb : d < b := sub_pos.1 (pos_of_mul_pos_right h0 hp0'.le)
+        have hac : a < c :=
+          sub_pos.1 (pos_of_mul_pos_right (by linarith : 0 < (1 - p) * (c - a)) (sub_pos.2 hp1').le)
+        exact Or.inr (Or.inr ⟨hac, hdb, (eq_div_iff (by linarith)).2 (by linarith)⟩)
       · refine Or.inr (Or.inl ⟨rfl, ?_⟩)
         rcases h 1 zero_le_one le_rfl one_ne_zero with h1 | ⟨h1, h1'⟩
         · exact Or.inl (by linarith)
@@ -413,11 +394,8 @@ theorem isESS_hawkDove_iff_of_le {V C : ℝ} (hV : 0 < V) (hVC : V ≤ C) {s : F
   constructor
   · rintro (⟨h, h' | ⟨h', -⟩⟩ | ⟨-, h | ⟨h, -⟩⟩ | ⟨-, -, h⟩)
     · linarith
-    · rw [h, eq_comm, div_eq_one_iff_eq hC.ne']
-      linarith
-    · linarith
-    · linarith
-    · exact h
+    · exact h.trans ((div_eq_one_iff_eq hC.ne').2 (by linarith)).symm
+    all_goals first | exact h | linarith
   · intro h
     rcases hVC.eq_or_lt with rfl | hlt
     · exact Or.inl ⟨by rw [h, div_self hV.ne'], Or.inr ⟨by ring, by linarith⟩⟩

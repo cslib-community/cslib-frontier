@@ -217,10 +217,8 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
     let i : Fin v.count := ⟨m, hm'⟩
     have hp := v.prefix_length_lt ha hB (Nat.le_of_lt hm')
     have hs := v.prefix_length_lt ha hB hm
-    have hs' : (v.encStructurePrefix a m).length +
-        2 * (v.table a (v.symbol i)).length + 1 < B := by
-      simpa only [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ,
-        List.length_append, length_frame, Nat.add_assoc] using hs
+    rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, List.length_append,
+      length_frame] at hs
     have hlen : (v.table a (v.symbol i)).length < B := by omega
     have hdom (j : Fin B) : (v.tableDomain i).Realize ![j] ↔
         j.val < (v.table a (v.symbol i)).length := by rw [ha.length_table]; exact Iff.rfl
@@ -238,9 +236,9 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
         (2 * (v.table a (v.symbol i)).length + 1) = (last.realize env).val
       omega
     · intro he
-      let u : Unit → Fin B := fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩
-      refine ⟨u, (ih (Nat.le_of_lt hm') _ _).mpr rfl, ?_⟩
-      apply (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mpr
+      refine ⟨fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩,
+        (ih (Nat.le_of_lt hm') _ _).mpr rfl,
+        (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mpr ?_⟩
       fo_simp
       simpa only [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ,
         List.length_append, length_frame, Nat.add_assoc] using he
@@ -268,12 +266,12 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
   | zero =>
     have hdom (j : Fin B) : v.elementDomain.Realize ![j] ↔ j.val < (encUnary a.1).length := by
       simp only [encUnary_apply, List.length_replicate]
-      exact Iff.rfl
+      rfl
     have hbit (j : Fin B) (hj : j.val < (encUnary a.1).length) :
         (⊤ : v.inputLanguage.Formula (Fin 1)).Realize ![j] ↔
           (encUnary a.1)[j.val]? = some true := by
-      have hj' : j.val < a.1 := by simpa using hj
-      fo_simp [encUnary_apply, List.getElem?_replicate, ite_eq_left hj']
+      fo_simp [encUnary_apply, List.getElem?_replicate,
+        ite_eq_left (by simpa using hj : j.val < a.1)]
     have hf := realize_frameBit v.elementDomain ⊤ (zero v.powerLanguage) pos env
       (encUnary a.1) hdom hbit
     fo_simp [Nat.zero_add] at hf
@@ -293,18 +291,15 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
       simp [hj]
     fo_simp [prefixBit, dite_eq_left hm']
     rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, append_true_iff]
-    apply or_congr (ih (Nat.le_of_lt hm') pos env)
-    constructor
+    refine or_congr (ih (Nat.le_of_lt hm') pos env) ⟨?_, fun hf => ?_⟩
     · rintro ⟨u, hu, hf⟩
       have hb := (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mp hu
       have hf' := (realize_frameBit _ _ _ _ _ _ hdom hbit).mp hf
       fo_simp at hb hf'
-      rw [← hb] at hf'
-      exact (shifted_frame_true_iff _ _ _).mpr hf'
-    · intro hf
-      let u : Unit → Fin B := fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩
-      refine ⟨u, (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mpr rfl, ?_⟩
-      apply (realize_frameBit _ _ _ _ _ _ hdom hbit).mpr
+      exact (shifted_frame_true_iff _ _ _).mpr (hb ▸ hf')
+    · refine ⟨fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩,
+        (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mpr rfl,
+        (realize_frameBit _ _ _ _ _ _ hdom hbit).mpr ?_⟩
       fo_simp
       exact (shifted_frame_true_iff _ _ _).mp hf
 

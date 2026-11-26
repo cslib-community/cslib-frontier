@@ -159,27 +159,17 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
       memoryCost
         (iterate rootPassStep args rem ⟨curC, rootPassInst inst.adj inst.wt L0 arr0 curC⟩) s ≤
         rem * stepCost by
-    have hrun := this args.tbl0Len 0 (Nat.zero_add _)
-    rw [Nat.zero_add] at hrun
-    obtain ⟨hv_run, hr_run, hc_run⟩ := hrun
-    refine ⟨?_, rootPassProg_state args s, ?_, ?_⟩
-    · unfold rootPassProg
-      exact validHistory_bind_step hv_run (validHistory_pure w _ _)
-    · unfold rootPassProg
-      rw [StateTransitionSpec.clientResult_bind]
-      exact hr_run
-    · unfold rootPassProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hc_run
+    obtain ⟨hv_run, hr_run, hc_run⟩ := this args.tbl0Len 0 (Nat.zero_add _)
+    rw [Nat.zero_add] at hr_run
+    unfold rootPassProg
+    exact ⟨validHistory_bind_step hv_run (validHistory_pure w _ _), rootPassProg_state args s,
+      by rwa [StateTransitionSpec.clientResult_bind],
+      by rwa [memoryCost_bind', memoryCost_pure, Nat.add_zero]⟩
   intro rem
   induction rem with
   | zero =>
     intro curC _
-    have h0 : iterate rootPassStep args 0
-        ⟨curC, rootPassInst inst.adj inst.wt L0 arr0 curC⟩ =
-        pure ⟨curC, rootPassInst inst.adj inst.wt L0 arr0 curC⟩ := rfl
-    rw [h0, Nat.add_zero]
-    exact ⟨validHistory_pure w s _, rfl, by simp [memoryCost_pure]⟩
+    exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
   | succ rem ih =>
     intro curC hsum
     let bCur := rootPassInst inst.adj inst.wt L0 arr0 curC
@@ -205,13 +195,8 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
         else bCur) = rootPassInst inst.adj inst.wt L0 arr0 (curC + 1) := by
       dsimp only [rootPassInst, bCur]
       rw [hfc_eq]
-      by_cases hind : indepInst inst.adj L0 curC = true
-      · simp only [hind, ↓reduceIte]
-        by_cases hlt :
-            rootPassInst inst.adj inst.wt L0 arr0 curC <
-              forgetWeight inst.wt [] L0 curC + arr0.getD curC 0 <;>
-          simp only [hlt, ↓reduceIte] <;> omega
-      · simp [hind]
+      cases indepInst inst.adj L0 curC <;> simp [Nat.max_def]
+      split_ifs <;> omega
     unfold MWISInstance.adj MWISInstance.wt at hb_next
     dsimp only at hres_step
     rw [hr_ind, hr_fw, hb_next] at hres_step
@@ -219,28 +204,24 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
         ((Memory.spec w).clientHistory s (rootPassStep (args, ⟨curC, bCur⟩))) := by
       unfold rootPassStep
       dsimp only
-      refine validHistory_read_bind hfc_addr ?_
-      refine validHistory_bind_step hv_ind ?_
+      refine validHistory_read_bind hfc_addr (validHistory_bind_step hv_ind ?_)
       rw [hst_ind, hr_ind]
       exact validHistory_bind_step hv_fw (validHistory_pure w _ _)
     have hc_step : memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s ≤ stepCost := by
-      have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
-      have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
       unfold rootPassStep
       dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r,
+      rw [memoryCost_bind', memoryCost_read,
+        show (Memory.spec 0).clientState s (Memory.read _) = s from rfl,
+        show (Memory.spec 0).clientResult s (Memory.read _) = s.mem _ from rfl,
         memoryCost_bind', hst_ind, hr_ind,
         memoryCost_bind', hst_fw, memoryCost_pure]
       dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (curC + 1) (by omega)
-    have hiter_eq : iterate rootPassStep args (rem + 1) ⟨curC, bCur⟩ =
-        (rootPassStep (args, ⟨curC, bCur⟩) >>= iterate rootPassStep args rem) := rfl
-    rw [hiter_eq]
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step]
-      have hadd : curC + (rem + 1) = curC + 1 + rem := by omega
-      rwa [hadd]
+      rwa [show curC + (rem + 1) = curC + 1 + rem by omega]
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s +
             memoryCost
@@ -278,10 +259,7 @@ theorem rootPassProg_realizes :
       HoldsIn d.bag0Ptr L0 t ∧ HoldsIn d.tbl0Ptr tbl0 t)
     (fun j st t ⟨hj_le, hcur, hbest_le, hadj_t, hwt_t, hL0_t, htbl0_t⟩ => ?_)
     ⟨le_rfl, Nat.zero_add _, Nat.zero_le _, hadj_h, hwt_h, hL0_h, htbl0_h⟩
-  have hL0_lt_wt : ∀ u ∈ L0, u < wtL.length := by rw [hwtL_len]; exact hL0_lt
-  have hfit_wtL : Fits w (d.wtPtr + wtL.length) := by rwa [hwtL_len]
-  have hfit_bag0_zero : Fits w (d.bag0Ptr + 0) := hfit_bag0.of_le (by omega)
-  have hfit_sumW : Fits w (d.bag0Len * wtL.foldl max 0) := hfit_cap.of_le (by omega)
+  have hL0_lt_wt : ∀ u ∈ L0, u < wtL.length := hwtL_len ▸ hL0_lt
   have hnil_t : HoldsIn d.bag0Ptr [] t := HoldsIn.nil (by have := hL0_t.1; omega)
   have hind_safe : Fits w 2 ∧ ∃ m' adjL' xs',
       adjL'.length = m' * m' ∧ d.numVerts = m' ∧
@@ -293,42 +271,28 @@ theorem rootPassProg_realizes :
       (∀ u ∈ LB', u < wtL'.length) ∧ Fits w (d.wtPtr + wtL'.length) ∧
       Fits w (d.bag0Ptr + 0) ∧ Fits w (d.bag0Ptr + d.bag0Len) ∧
       Fits w (d.bag0Len * wtL'.foldl max 0) :=
-    ⟨h2, wtL, L0, hwt_t, hL0_t, hL0_len, hL0_lt_wt, hfit_wtL, hfit_bag0_zero, hfit_bag0,
-      hfit_sumW⟩
-  have hfw_le : (Memory.spec 0).clientResult t
-      (forgetWeightProg ⟨d.wtPtr, d.bag0Ptr, 0, d.bag0Ptr, d.bag0Len, st.curC⟩) ≤
-      d.bag0Len * wtL.foldl max 0 :=
-    forgetWeightProg_result_le _ hwt_t hnil_t rfl hL0_t hL0_len hL0_lt_wt
+    ⟨h2, wtL, L0, hwt_t, hL0_t, hL0_len, hL0_lt_wt, hwtL_len ▸ hfit_wt, hfit_bag0.of_le (by omega),
+      hfit_bag0, hfit_cap.of_le (by omega)⟩
+  have hfw_le := forgetWeightProg_result_le
+    ⟨d.wtPtr, d.bag0Ptr, 0, d.bag0Ptr, d.bag0Len, st.curC⟩
+    hwt_t hnil_t rfl hL0_t hL0_len hL0_lt_wt
   have hcur_tbl : st.curC < tbl0.length := by omega
-  have hfc_le : t.mem (d.tbl0Ptr + st.curC) ≤ tbl0.foldl max 0 := by
-    rw [htbl0_t.get st.curC hcur_tbl]
-    exact List.mem_le_foldl_max (List.getElem_mem hcur_tbl)
+  have hfc_le : t.mem (d.tbl0Ptr + st.curC) ≤ tbl0.foldl max 0 :=
+    htbl0_t.get st.curC hcur_tbl ▸ List.mem_le_foldl_max (List.getElem_mem hcur_tbl)
   have hcand_le : (Memory.spec 0).clientResult t
       (forgetWeightProg ⟨d.wtPtr, d.bag0Ptr, 0, d.bag0Ptr, d.bag0Len, st.curC⟩) +
-      t.mem (d.tbl0Ptr + st.curC) ≤ cap := by omega
+      t.mem (d.tbl0Ptr + st.curC) ≤ cap := by dsimp only at hfw_le; omega
   have hfit_tbl_addr : Fits w (d.tbl0Ptr + st.curC) := hfit_tbl0.of_le (by omega)
-  have hfit_cand : Fits w ((Memory.spec 0).clientResult t
-      (forgetWeightProg ⟨d.wtPtr, d.bag0Ptr, 0, d.bag0Ptr, d.bag0Len, st.curC⟩) +
-      t.mem (d.tbl0Ptr + st.curC)) := hfit_cap.of_le hcand_le
+  have hfit_cand := hfit_cap.of_le hcand_le
   have hfit_cur1 : Fits w (st.curC + 1) := hfit_tbl0.of_le (by omega)
   obtain ⟨hst_ev, hres_ev⟩ := rootPassStep_eval d st t
-  refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_,
+    by rwa [hst_ev], by rwa [hst_ev], by rwa [hst_ev], by rwa [hst_ev]⟩
   · dsimp only [rootPassStep]
     rw [indepBagProg_state]
-    repeat (
-      first
-      | split
-      | exact hind_safe
-      | exact hfw_safe
-      | assumption
-      | refine And.intro ?_ ?_)
-  · rw [hres_ev]; change (st.curC + 1) + j = d.tbl0Len; omega
-  · rw [hres_ev]
-    change (if _ then (if _ then _ else st.best) else st.best) ≤ cap
+    repeat (first | split | exact hind_safe | exact hfw_safe | assumption | refine And.intro ?_ ?_)
+  · simp only [hres_ev]; omega
+  · simp only [hres_ev]
     split_ifs <;> omega
-  · rw [hst_ev]; exact hadj_t
-  · rw [hst_ev]; exact hwt_t
-  · rw [hst_ev]; exact hL0_t
-  · rw [hst_ev]; exact htbl0_t
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

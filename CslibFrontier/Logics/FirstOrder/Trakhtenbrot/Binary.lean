@@ -119,8 +119,10 @@ theorem padArgs_rel_of_length_ne (l r : ℕ) {args : List ℕ} (h : args.length 
 theorem mem_freeVars_padArgs (l : ℕ) :
     ∀ (φ : RawFormula) {z : ℕ}, z ∈ (padArgs l φ).freeVars ↔ z ∈ φ.freeVars
   | falsum, _ | equal _ _, _ => Iff.rfl
-  | rel _ [_, _], _ => by simp only [padArgs_rel_pair, freeVars, List.mem_cons,
-      List.mem_replicate, List.not_mem_nil, or_false]; tauto
+  | rel _ [_, _], _ => by
+    simp only [padArgs_rel_pair, freeVars, List.mem_cons, List.mem_replicate, List.not_mem_nil,
+      or_false]
+    tauto
   | rel _ [], _ | rel _ [_], _ | rel _ (_ :: _ :: _ :: _), _ => Iff.rfl
   | imp φ ψ, _ => by
     simp only [padArgs_imp, freeVars, List.mem_append, mem_freeVars_padArgs l φ,
@@ -172,7 +174,8 @@ theorem finSat_padArgs (l : ℕ) {φ : RawFormula} (hφ : ∀ a ∈ φ.atoms, a.
   refine ⟨M, hf, hn, fun r as => match as with | a :: b :: _ => I r [a, b] | _ => False, v,
     (realize_padArgs l _ φ v).2 ((realize_congr_rel φ v fun r as hr => ?_).1 h)⟩
   have has : as.length = 2 := hφ _ hr
-  rcases as with _ | ⟨_, _ | ⟨_, _ | _⟩⟩ <;> simp at has; exact Iff.rfl
+  rcases as with _ | ⟨_, _ | ⟨_, _ | _⟩⟩ <;> simp at has
+  exact Iff.rfl
 
 open Primrec in
 theorem primrec₂_padArgs : Primrec₂ padArgs := by
@@ -218,13 +221,14 @@ private theorem atoms_rename_exClosure_toGraph (s : ℕ) (ψ : RawFormula) :
   rw [atoms_toGraph _ _ b hb]; rfl
 
 theorem isSentenceOver_singleRel {s l : ℕ} (hl : 2 ≤ l) (φ : RawFormula) :
-    IsSentenceOver {(s, l)} (singleRel s l φ) :=
-  isSentenceOver_padArgs hl
-    ⟨by rw [IsSentence, freeVars_rename]; exact isSentence_exClosure _,
-      atoms_rename_exClosure_toGraph s _⟩
+    IsSentenceOver {(s, l)} (singleRel s l φ) := by
+  refine isSentenceOver_padArgs hl ⟨?_, atoms_rename_exClosure_toGraph s _⟩
+  rw [IsSentence, freeVars_rename]
+  exact isSentence_exClosure _
 
 theorem finSat_singleRel (s l : ℕ) (φ : RawFormula) : FinSat (singleRel s l φ) ↔ FinSat φ := by
-  rw [singleRel, finSat_padArgs l (fun a ha => by rw [atoms_rename_exClosure_toGraph s _ a ha]),
+  rw [singleRel, finSat_padArgs l (fun a ha => by
+      rw [atoms_rename_exClosure_toGraph s _ a ha]),
     finSat_rename_singleton (by rw [atoms_exClosure]; exact atoms_toGraph _ _),
     finSat_exClosure, finSat_toGraph (atoms_uniformize _ φ), finSat_uniformize]
 

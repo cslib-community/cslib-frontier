@@ -147,11 +147,9 @@ private theorem listGetD_binary {α γ : Type} {encA : α ↪ List Bool} {encIn 
     (hl : ComputableInPolyTime l encIn (encList encA))
     (hi : ComputableInPolyTime i encIn encNat) :
     ComputableInPolyTime (fun x => (l x).getD (i x) d) encIn encA := by
-  have heq : (fun x => (l x).getD (i x) d) = fun x => (l x).getD (min (l x).length (i x)) d := by
-    funext x
-    rcases le_total (l x).length (i x) with h | h
-    · rw [Nat.min_eq_left h, List.getD_eq_default _ _ h, List.getD_eq_default _ _ le_rfl]
-    · rw [Nat.min_eq_right h]
+  have heq : (fun x => (l x).getD (i x) d) = fun x => (l x).getD (min (l x).length (i x)) d :=
+    funext fun x => by
+      rcases le_total (l x).length (i x) with h | h <;> simp [h]
   rw [heq]
   exact listGetDWithInput hl (binary_min_unary' ((length_list encA).comp hl) hi) d
 
@@ -272,16 +270,13 @@ private theorem chain_iff {R : ℕ → ℕ → Prop} {q : List ℕ} :
 
 private theorem eq_one_of_sum_le {l : List ℕ} (h1 : ∀ a ∈ l, 1 ≤ a) (h : l.sum ≤ l.length) :
     ∀ a ∈ l, a = 1 := by
-  induction l with
-  | nil => simp
-  | cons a t ih =>
-    have ht := List.length_le_sum_of_one_le t fun b hb => h1 b (List.mem_cons_of_mem _ hb)
-    simp only [List.sum_cons, List.length_cons] at h
-    have ha := h1 a List.mem_cons_self
-    intro b hb
-    rcases List.mem_cons.1 hb with rfl | hb
-    · omega
-    · exact ih (fun c hc => h1 c (List.mem_cons_of_mem _ hc)) (by omega) b hb
+  rintro a ha
+  obtain ⟨s, t, rfl⟩ := List.append_of_mem ha
+  have hs := List.length_le_sum_of_one_le s fun x hx => h1 x (by simp [hx])
+  have ht := List.length_le_sum_of_one_le t fun x hx => h1 x (by simp [hx])
+  have ha1 := h1 a (by simp)
+  simp only [List.sum_append, List.sum_cons, List.length_append, List.length_cons] at h
+  omega
 
 private theorem getD_map_of_lt {l : List ℕ} {f : ℕ → ℕ} {j : ℕ} (hj : j < l.length) :
     (l.map f).getD j 0 = f (l.getD j 0) := by
@@ -309,12 +304,10 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
   unfold toTSP
   generalize G.distinctVertices = V at hVnd hmemV hlenV ⊢
   split_ifs with hn
-  · constructor
-    · rintro ⟨p, hp, hlen⟩
-      rw [show p = [0] by simpa using hp] at hlen
-      simp [TSP.tourLength, TSP.dist] at hlen
-    · rintro ⟨q, hq, hcov, h3, -⟩
-      exact absurd (hlenV q hq hcov) (by omega)
+  · refine ⟨fun ⟨p, hp, hlen⟩ => ?_, fun ⟨q, hq, hcov, h3, _⟩ =>
+      absurd (hlenV q hq hcov) (by omega)⟩
+    rw [show p = [0] by simpa using hp] at hlen
+    simp [TSP.tourLength, TSP.dist] at hlen
   · push Not at hn
     simp only [TSP, Set.mem_ofPred_eq, List.length_map]
     constructor
@@ -348,14 +341,11 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
         rw [List.getD_eq_getElem _ _ (hplt i hi), List.getD_eq_getElem _ _ (hplt j hj)] at hij
         exact hVnd.getElem_inj_iff.1 hij
       · rw [← hmemV, List.mem_map]
-        constructor
-        · rintro ⟨i, hi, rfl⟩
-          rw [List.getD_eq_getElem _ _ (hplt i hi)]
-          exact List.getElem_mem _
-        · intro hv
-          have hlt := List.idxOf_lt_length_iff.2 hv
-          refine ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 hlt), ?_⟩
-          rw [List.getD_eq_getElem _ _ hlt, List.getElem_idxOf]
+        refine ⟨fun ⟨i, hi, hv⟩ =>
+          hv ▸ (List.getD_eq_getElem _ _ (hplt i hi) ▸ List.getElem_mem _), fun hv => ?_⟩
+        have hlt := List.idxOf_lt_length_iff.2 hv
+        exact ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 hlt),
+          (List.getD_eq_getElem _ _ hlt).trans (List.getElem_idxOf _)⟩
       · have hp'len : (p ++ p.take 1).length = V.length + 1 := by
           enc_len [List.length_take, hplen]
         rw [chain_iff]
@@ -368,12 +358,10 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
       have hqlen := hlenV q hq hcov
       have hqV : ∀ v ∈ q, v ∈ V := fun v hv => (hmemV v).2 ((hcov v).1 hv)
       refine ⟨q.map V.idxOf, ?_, ?_⟩
-      · have hnd : (q.map V.idxOf).Nodup :=
-          hq.map_on fun u hu v _ h => (List.idxOf_inj (hqV u hu)).1 h
-        have hsub : q.map V.idxOf ⊆ List.range V.length := fun i hi => by
+      · exact ((hq.map_on fun u hu _ _ h => (List.idxOf_inj (hqV u hu)).1 h).subperm fun i hi => by
           obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hi
-          exact List.mem_range.2 (List.idxOf_lt_length_iff.2 (hqV v hv))
-        exact (hnd.subperm hsub).perm_of_length_le (by simp [hqlen])
+          exact List.mem_range.2 (List.idxOf_lt_length_iff.2 (hqV v hv))).perm_of_length_le
+          (by simp [hqlen])
       · rw [TSP.tourLength_eq_sum]
         refine (List.sum_le_length_nsmul _ 1 fun a ha => ?_).trans (by simp [hqlen])
         obtain ⟨k, hk, rfl⟩ := List.mem_map.1 ha

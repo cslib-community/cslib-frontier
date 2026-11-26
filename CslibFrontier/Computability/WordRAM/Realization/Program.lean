@@ -68,33 +68,26 @@ private theorem inputLoads_exec {r k w : ℕ} (ptr : Fin r) (src : Fin k → Fin
       ∀ j, j ≠ ptr → (∀ i, src i ≠ j) → y.regs j = x.regs j := by
   induction k generalizing offset x with
   | zero =>
-    refine ⟨x, ?_, rfl, (fun i => Fin.elim0 i), ?_⟩
-    · simpa [inputLoads, Data.set] using
-        (ExecWithin.copy (B := .exact) (w := w) (x := x) (d := ptr) (s := ptr))
-    · intro j _ _
-      rfl
+    exact ⟨x, by simpa [inputLoads, Data.set] using
+        ExecWithin.copy (B := .exact) (w := w) (x := x) (d := ptr) (s := ptr),
+      rfl, fun i => i.elim0, fun _ _ _ => rfl⟩
   | succ k ih =>
     let x₁ := x.set ptr (offset + 1)
     let x₂ := x₁.set (src 0) (x.mem (offset + 1))
     have e₁ : ExecWithin (B := .exact) w (.op (.const ptr (offset + 1))) x x₁ 1 :=
       ExecWithin.const (by simpa using hfit 0)
     have e₂ : ExecWithin (B := .exact) w (.op (.load (src 0) ptr)) x₁ x₂ 1 := by
-      simpa [x₂, x₁] using
-        (ExecWithin.load (B := .exact) (w := w) (x := x₁) (d := src 0) (a := ptr))
+      simpa [x₂, x₁] using ExecWithin.load (B := .exact) (w := w) (x := x₁) (d := src 0) (a := ptr)
     obtain ⟨y, ey, hm, ho, hf⟩ := ih (fun i => src i.succ) (offset + 1) x₂
       (hi.comp (Fin.succ_injective _)) (fun i => hd i.succ)
       (fun i => by simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hfit i.succ)
-    refine ⟨y, ?_, hm, ?_, ?_⟩
-    · exact (e₁.seq (e₂.seq ey)).mono (by omega)
+    refine ⟨y, (e₁.seq (e₂.seq ey)).mono (by omega), hm, ?_, fun j hj hs => ?_⟩
     · intro i
       refine Fin.cases ?_ (fun j => ?_) i
-      · rw [hf (src 0) (hd 0) (fun j h => by
-          have := hi h
-          exact Fin.succ_ne_zero j this)]
+      · rw [hf (src 0) (hd 0) fun j h => Fin.succ_ne_zero j (hi h)]
         simp [x₂]
       · simpa [x₂, x₁, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using ho j
-    · intro j hj hs
-      rw [hf j hj (fun i => hs i.succ)]
+    · rw [hf j hj fun i => hs i.succ]
       simp [x₂, x₁, (hs 0).symm, hj]
 
 /-- A native entry prefix installs the frontier and the first `k` input words. All data starts
@@ -121,30 +114,27 @@ theorem inputPrefix_exec {r k w : ℕ} (frontier ptr : Fin r) (src : Fin k → F
   let x₂ := x₁.set frontier words.length
   let x₃ := x₂.set ptr 1
   let x₄ := x₃.set frontier (words.length + 1)
-  have h1 : Fits w 1 := hw.of_le (by omega)
   have e₁ : ExecWithin (B := .exact) w (.op (.const ptr 0)) x x₁ 1 := ExecWithin.const (fits_zero w)
   have e₂ : ExecWithin (B := .exact) w (.op (.load frontier ptr)) x₁ x₂ 1 := by
     simpa [x₂, x₁, x] using
-      (ExecWithin.load (B := .exact) (w := w) (x := x₁) (d := frontier) (a := ptr))
-  have e₃ : ExecWithin (B := .exact) w (.op (.const ptr 1)) x₂ x₃ 1 := ExecWithin.const h1
-  have e₄ : ExecWithin w (.op (.exactBin .add frontier frontier ptr)) x₃ x₄ 1 := by
-    apply ExecWithin.op
-    simp [Op.eval_exactBin, BinOp.evalExact, x₄, x₃, x₂, hp.symm, Data.put_of_fits hw]
-  obtain ⟨y, ey, hm, ho, hframe⟩ := inputLoads_exec ptr src 0 x₄ hi hd
-    (fun i => hw.of_le (by omega))
-  have he : ExecWithin w (inputPrefix frontier ptr src) x y (2 * k + 5) := by
-    exact (e₁.seq (e₂.seq (e₃.seq (e₄.seq ey)))).mono (by omega)
-  refine ⟨y, he, he.bounded (Data.Bounded.init hin), ?_, ?_, ?_⟩
-  · apply Memory.State.ext
-    · exact hm
-    · change y.regs frontier = words.length + 1
+      ExecWithin.load (B := .exact) (w := w) (x := x₁) (d := frontier) (a := ptr)
+  have e₃ : ExecWithin (B := .exact) w (.op (.const ptr 1)) x₂ x₃ 1 :=
+    ExecWithin.const (hw.of_le (by omega))
+  have e₄ : ExecWithin w (.op (.exactBin .add frontier frontier ptr)) x₃ x₄ 1 :=
+    ExecWithin.op (by
+      simp [Op.eval_exactBin, BinOp.evalExact, x₄, x₃, x₂, hp.symm, Data.put_of_fits hw])
+  obtain ⟨y, ey, hm, ho, hframe⟩ := inputLoads_exec ptr src 0 x₄ hi hd fun _ => hw.of_le (by omega)
+  have he : ExecWithin w (inputPrefix frontier ptr src) x y (2 * k + 5) :=
+    (e₁.seq (e₂.seq (e₃.seq (e₄.seq ey)))).mono (by omega)
+  refine ⟨y, he, he.bounded (Data.Bounded.init hin),
+    Memory.State.ext hm (by
+      change y.regs frontier = _
       rw [hframe frontier hp.symm hf]
-      simp [x₄]
-  · intro i
-    simpa [x₄, x₃, x₂, x₁, x] using ho i
-  · intro j hj hptr hs
-    rw [hframe j hptr hs]
-    simp [x₄, x₃, x₂, x₁, x, hj, hptr]
+      simp [x₄, Memory.State.init]),
+    fun i => by simpa [x₄, x₃, x₂, x₁, x] using ho i,
+    fun j hj hptr hs => ?_⟩
+  rw [hframe j hptr hs]
+  simp [x₄, x₃, x₂, x₁, x, hj, hptr]
 
 end Cslib.WordRAM.Realization
 
@@ -222,14 +212,13 @@ theorem exists_init_program (h : Realizes .exact p input output safe work)
     (hm.symm ▸ hsafe) (hm.symm ▸ hv)
   rw [hm] at ey hout
   obtain ⟨t, ht, et⟩ := ex.seq ey
-  refine ⟨t + 1, ?_, ?_⟩
-  · simpa only [State.init, hout i] using et.executes (tmp (Fin.castAdd (n + 1) i))
-  · have hpos : 1 ≤ memoryCost (p d) (Memory.State.init (raw d)) +
-        work d (Memory.State.init (raw d)) + 1 := by omega
-    have hover := Nat.mul_le_mul_left (2 * k + 5) hpos
-    simp only [Nat.mul_one] at hover
-    rw [Nat.add_mul]
-    omega
+  refine ⟨t + 1, by simpa only [State.init, hout i] using et.executes (tmp (Fin.castAdd (n + 1) i)),
+    ?_⟩
+  have hover := Nat.mul_le_mul_left (2 * k + 5)
+    (Nat.add_pos_right (memoryCost (p d) (Memory.State.init (raw d)) +
+      work d (Memory.State.init (raw d))) Nat.one_pos)
+  rw [Nat.add_mul]
+  omega
 
 /-- A Unit-returning client needs no output coordinate. Execute an actual zero constant after
 its body to obtain a scalar observation, preserving the entire represented client state.
@@ -252,17 +241,11 @@ theorem exists_unit_refines {p : δ → Memory.Prog Unit} {output : Unit ↪ (Fi
             (fun s _ => C * (memoryCost (p d) s + work d s + 1) + 1)
             (.seq (emit frontier src tmp) (.op (.const (tmp 0) 0))) := by
   obtain ⟨n, C, emit, he⟩ := h.exists_refines
-  refine ⟨n, C, emit, ?_⟩
-  intro r frontier src tmp hi hd hf hs w d
-  apply Refines.ofFn
-  intro s x hx
+  refine ⟨n, C, emit, fun frontier src tmp hi hd hf hs w d => Refines.ofFn fun s x hx => ?_⟩
   obtain ⟨hv, y, ey, hm, _⟩ := (he frontier src tmp hi hd hf hs w d).toOfFn hx
-  refine ⟨hv, y.set (tmp 0) 0, ey.seq (ExecWithin.const (fits_zero w)), ?_, ?_⟩
-  · apply Eq.trans ?_ hm
-    apply Memory.State.ext
-    · rfl
-    · exact Function.update_of_ne (hf 0).symm _ _
-  · simp
+  refine ⟨hv, y.set (tmp 0) 0, ey.seq (ExecWithin.const (fits_zero w)), ?_, by simp⟩
+  rw [← hm]
+  exact Memory.State.ext rfl (by simp [memoryState, Data.set, (hf 0).symm])
 
 /-- A zero-output Unit client has a uniform flat scalar observation after a charged zero write
 and halt. Both instructions are included, without a positive-width premise. -/
@@ -328,13 +311,11 @@ theorem exists_init_unit_program {p : δ → Memory.Prog Unit} {output : Unit �
     ⟨rfl, hx, harg, hm.symm ▸ hsafe, hm.symm ▸ hv⟩
   rw [hm] at ey
   obtain ⟨t, ht, et⟩ := ex.seq ey
-  refine ⟨t + 1, ?_, ?_⟩
-  · simpa only [State.init, hout] using et.executes (tmp 0)
-  · have hpos : 1 ≤ memoryCost (p d) (Memory.State.init (raw d)) +
-        work d (Memory.State.init (raw d)) + 1 := by omega
-    have hover := Nat.mul_le_mul_left (2 * k + 5) hpos
-    simp only [Nat.mul_one] at hover
-    rw [Nat.add_mul]
-    omega
+  refine ⟨t + 1, by simpa only [State.init, hout] using et.executes (tmp 0), ?_⟩
+  have hover := Nat.mul_le_mul_left (2 * k + 5)
+    (Nat.add_pos_right (memoryCost (p d) (Memory.State.init (raw d)) +
+      work d (Memory.State.init (raw d))) Nat.one_pos)
+  rw [Nat.add_mul]
+  omega
 
 end Cslib.WordRAM.Realization.Realizes

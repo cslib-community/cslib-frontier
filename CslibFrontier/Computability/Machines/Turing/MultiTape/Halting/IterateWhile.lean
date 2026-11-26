@@ -206,14 +206,12 @@ private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
     (hne : ∀ n, w (n + 1) ≠ []) (mark : Symbol) :
     ¬(loopMachine tm mark).Halts (w 0) := by
   rintro ⟨t, hhalt⟩
-  have hload := transformsTapes_iff_runFrom.mp
+  obtain ⟨ws₀, e₀, hloadRun, ⟨hws₀, he₀⟩, -⟩ := transformsTapes_iff_runFrom.mp
     (transformsTapes_load (k := k) (w 0)) (w 0) (fun _ => []) [] ⟨rfl, rfl⟩
-  obtain ⟨ws₀, e₀, hloadRun, ⟨hws₀, he₀⟩, -⟩ := hload
   rw [hws₀, he₀, List.nil_append] at hloadRun
   obtain ⟨t₀, s₀, h0⟩ := hstep 0
-  have hfirst := transformsTapes_iff_runFrom.mp
+  obtain ⟨ws₁, e₁, hfirstRun, ⟨hws₁, he₁⟩, -⟩ := transformsTapes_iff_runFrom.mp
     (transformsTapes_loopRound mark (vp := []) h0) (w 0) (words [] (w 0)) [] rfl
-  obtain ⟨ws₁, e₁, hfirstRun, ⟨hws₁, he₁⟩, -⟩ := hfirst
   rw [hws₁, he₁, List.nil_append] at hfirstRun
   let cfg : ℕ → Cfg (k + 1 + 2) Symbol Unit (w 0) :=
     fun n => wordsCfg (w 0) none (words (w n) (w (n + 1))) []
@@ -240,19 +238,9 @@ private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
     obtain ⟨n, -, hfalse, -⟩ := (whileCond_halted_run_iff (c := nextNonEmpty k Symbol)
       (tm := loopRound tm mark) cfg hbody _).mp ⟨hu, u, rfl⟩
     exact Bool.noConfusion ((hcond n).symm.trans hfalse)
-  let tailTM := (emitWord (emitEmb k) mark).seq
-    ((clearWork Symbol).extendTapes (tapeEmb (curTape k)))
-  have hwhileTailDiv : ∀ u, ¬(((whileCond (nextNonEmpty k Symbol) (loopRound tm mark)).seq
-      tailTM).runFrom
-      (((cfg 0).withState (some (.inr ()))).mapState (handOver tailTM.q₀)) u).Halted :=
-    fun u => not_halted_seq_of_left hwhileDiv u
-  have hloopTailDiv : ∀ u, ¬(((loopRound tm mark).seq
-      ((whileCond (nextNonEmpty k Symbol) (loopRound tm mark)).seq tailTM)).runFrom
-      ((wordsCfg (w 0) (some (loopRound tm mark).q₀) (words [] (w 0)) []).mapState
-        (handOver _)) u).Halted :=
-    fun u => not_halted_seq_of_right hfirstRun rfl hwhileTailDiv u
   rw [loopMachine, initCfg_seq_eq_wordsCfg] at hhalt
-  exact not_halted_seq_of_right hloadRun rfl hloopTailDiv t hhalt
+  refine not_halted_seq_of_right hloadRun rfl (fun u => ?_) t hhalt
+  exact not_halted_seq_of_right hfirstRun rfl (not_halted_seq_of_left hwhileDiv) u
 
 private theorem not_halts_extendTapes {k' : ℕ} {tm : MultiTapeTM k Symbol State}
     (e : Fin k ↪ Fin k') {x : List Symbol} (h : ¬tm.Halts x) :
@@ -340,23 +328,12 @@ private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
       · induction l using Fin.addCases <;>
           simp [K, Cfg.withState, inCfg, wordsCfg, Cfg.init, MultiTapeNTM.initCfg]
     rwa [hstart, ← inCfgHom_apply, runFrom_map, inCfgHom_apply] at hu
-  have h2bDiv : ∀ u, ¬((tm2e.inputFromTape.seq (markFlag K none)).runFrom
-      ((inCfg mark (wordsCfg w (none : Option MarkWorkState) (fun _ : Fin K => []) []) x).withState
-        (some (tm2e.inputFromTape.seq (markFlag K none)).q₀)) u).Halted :=
-    fun u => not_halted_seq_of_left hinpDiv u
-  have h2Div : ∀ u, ¬((tm2e.inputFromWord mark).runFrom
-      (wordsCfg x (some (tm2e.inputFromWord mark).q₀)
-        (Function.update (fun _ => []) A w) []) u).Halted :=
-    fun u => not_halted_seq_of_right huFlag rfl h2bDiv u
-  have h23Div : ∀ u, ¬(((tm2e.inputFromWord mark).seq
-      ((clearWork Symbol).extendTapes (tapeEmb A))).runFrom
-      ((wordsCfg x (none : Option (S₁ ⊕ RewindWorkState))
-        (Function.update (fun _ => []) A w) []).withState
-        (some ((tm2e.inputFromWord mark).seq
-          ((clearWork Symbol).extendTapes (tapeEmb A))).q₀)) u).Halted :=
-    fun u => not_halted_seq_of_left h2Div u
   rw [MultiTapeTM.comp, initCfg_seq_eq_wordsCfg] at hhalt
-  exact not_halted_seq_of_right hp₁Run rfl h23Div t hhalt
+  refine not_halted_seq_of_right hp₁Run rfl (fun u => ?_) t hhalt
+  refine not_halted_seq_of_left
+    (cfg := wordsCfg x (some (tm2e.inputFromWord mark).q₀) (Function.update (fun _ => []) A w) [])
+    (fun v => ?_) u
+  exact not_halted_seq_of_right huFlag rfl (not_halted_seq_of_left hinpDiv) v
 
 end Machinery
 
@@ -445,13 +422,10 @@ theorem exists_partial_iterateWhile {α β γ : Type}
         nlinarith
       have hrest' : (ci + cf + 52) * P ≤ (r + 1) * ((ci + cf + 52) * P) :=
         Nat.le_mul_of_pos_left _ (Nat.succ_pos r)
-      have hC : cs + 34 + (ci + cf + 52) ≤ C := by dsimp only [C]; omega
       have hsum : (r + 1) * ((cs + 34) * P) + (r + 1) * ((ci + cf + 52) * P) ≤
           C * (r + 1) * P := by
-        have : (r + 1) * ((cs + 34) * P) + (r + 1) * ((ci + cf + 52) * P) =
-            (cs + 34 + (ci + cf + 52)) * ((r + 1) * P) := by ring
-        rw [this, mul_assoc]
-        exact Nat.mul_le_mul_right _ hC
+        rw [← Nat.mul_add, ← Nat.add_mul, ← mul_assoc (r + 1), mul_comm (r + 1)]
+        exact Nat.mul_le_mul_right P (Nat.mul_le_mul_right (r + 1) (by dsimp only [C]; omega))
       simp only [Function.iterate_zero, id_eq] at hfirst ⊢
       omega
     · set P := (l + (encIn a).length + 1) ^ D

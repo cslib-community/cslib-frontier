@@ -205,24 +205,14 @@ private theorem toNat_castAdd {n k : ℕ} (w : Wire n k) (extra : ℕ) :
 /-- The serialized code of `c.append d` is `appendCode n c.code d.code`. -/
 theorem code_append {σ : Signature.{v}} {n m p : ℕ} (c : Circuit σ n m) (d : Circuit σ n p) :
     (c.append d).code = appendCode n c.code d.code := by
-  symm
-  simp only [appendCode, Circuit.code, Circuit.append, Program.code_append,
-    appendWireCode_input]
-  apply Prod.ext
-  · rw [Program.length_code]
-  rw [show (fun j => (Fin.append (Wire.castAdd d.size ∘ c.outputs)
-    (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
+  have hout : (fun j => (Fin.append (Wire.castAdd d.size ∘ c.outputs)
+      (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
       Fin.append (fun j => (c.outputs j).toNat)
-        (fun j => shiftCodeWire n c.size (d.outputs j).toNat) from ?_]
-  · simp only [List.ofFn_fin_append, List.map_ofFn]
-    rw [Program.length_code]
-    rfl
-  · funext j
-    induction j using Fin.addCases with
-    | left i => simp [toNat_castAdd]
-    | right i =>
-      simp only [Fin.append_right, Function.comp_apply, Program.appendedWire_toNat,
-        appendWireCode_input]
+        (shiftCodeWire n c.size ∘ fun j => (d.outputs j).toNat) :=
+    funext fun j => Fin.addCases (fun _ => by simp [toNat_castAdd])
+      (fun _ => by simp [Program.appendedWire_toNat, appendWireCode_input]) j
+  simp only [appendCode, Circuit.code, Circuit.append, Program.code_append, appendWireCode_input,
+    Program.length_code, hout, List.ofFn_fin_append, List.map_ofFn]
 
 /-- Combine a list of raw codes on shared inputs, preserving block and output order.
 Blocks may have different gate counts and any number of outputs. -/
@@ -389,18 +379,9 @@ private theorem compCodeWire_code {σ : Signature.{v}} {n m : ℕ} (c : Circuit 
 /-- The serialized code of `d.comp c` is `compCode n d.code c.code`. -/
 theorem code_comp {σ : Signature.{v}} {n m p : ℕ} (d : Circuit σ m p) (c : Circuit σ n m) :
     (d.comp c).code = compCode n d.code c.code := by
-  symm
-  have hwire : compCodeWire n c.code =
-      Program.appendWireCode n m c.size c.outputs := funext (compCodeWire_code c)
-  apply Prod.ext
-  · simp only [compCode, Circuit.code, Circuit.comp, Program.code_append]
-    change c.program.code ++ d.program.code.map (fun g => (g.1, g.2.map
-      (compCodeWire n c.code))) = _
-    rw [hwire]
-  · simp only [compCode, Circuit.code, Circuit.comp, List.map_ofFn, Function.comp_apply]
-    congr 1 with i : 1
-    rw [Program.appendedWire_toNat]
-    exact compCodeWire_code c _
+  rw [compCode, funext (compCodeWire_code c)]
+  simp only [Circuit.code, Circuit.comp, Program.code_append, List.map_ofFn, Function.comp_def,
+    Program.appendedWire_toNat]
 
 /-- Sequential composition retains both gate lists. -/
 @[simp] theorem length_compCode {Op : Type*} (n : ℕ) (d c : List (Op × List ℕ) × List ℕ) :
@@ -759,12 +740,7 @@ private theorem opBitsLe_encoding {Op : Type} (encOp : Op ↪ List Bool)
     (c : List (Op × List ℕ) × List ℕ) : OpBitsLe encOp c (encCode encOp c).length := by
   intro gate hg
   have hb := length_le_encList_of_mem (encGate encOp) hg
-  rw [show (encGate encOp gate).length =
-    2 * (encOp gate.1).length + 1 + (encList encNat gate.2).length from length_encPair gate] at hb
-  rw [show (encCode encOp c).length =
-    2 * (encList (encGate encOp) c.1).length + 1 + (encList encNat c.2).length
-      from length_encPair c]
-  omega
+  enc_len [encGate, encCode] at hb ⊢
 
 private theorem wireBitsLe_encoding {Op : Type} (encOp : Op ↪ List Bool)
     (c : List (Op × List ℕ) × List ℕ) : WireBitsLe c (encCode encOp c).length := by
@@ -772,12 +748,7 @@ private theorem wireBitsLe_encoding {Op : Type} (encOp : Op ↪ List Bool)
   · intro gate hg wire hw
     have ha := length_le_encList_of_mem encNat hw
     have hb := length_le_encList_of_mem (encGate encOp) hg
-    rw [show (encGate encOp gate).length =
-      2 * (encOp gate.1).length + 1 + (encList encNat gate.2).length from length_encPair gate] at hb
-    rw [show (encCode encOp c).length =
-      2 * (encList (encGate encOp) c.1).length + 1 + (encList encNat c.2).length
-        from length_encPair c]
-    omega
+    enc_len [encGate, encCode] at hb ⊢
   · intro wire hw
     have := length_le_encList_of_mem encNat hw
     enc_len [encCode]
@@ -974,19 +945,12 @@ private theorem length_encoding_of_bounds {Op : Type} {encOp : Op ↪ List Bool}
       omega
     have hwords := length_encList_le encNat g.2 (hw.1 g hg)
     have hb := hwords.trans (Nat.mul_le_mul_right (2 * W + 1) hargs)
-    rw [show (encGate encOp g).length =
-      2 * (encOp g.1).length + 1 + (encList encNat g.2).length from length_encPair g]
-    omega
-  have hgates := length_encList_le (encGate encOp) c.1 hgate
-  have hgc := (gates_le_codeMass c).trans hm
-  have hgates' := hgates.trans
-    (Nat.mul_le_mul_right (2 * (2 * B + 1 + M * (2 * W + 1)) + 1) hgc)
-  have hout := length_encList_le encNat c.2 hw.2
+    enc_len [encGate]
+  have hgates := (length_encList_le (encGate encOp) c.1 hgate).trans
+    (Nat.mul_le_mul_right _ ((gates_le_codeMass c).trans hm))
   have hoc : c.2.length ≤ M := by dsimp only [codeMass] at hm; omega
-  have hout' := hout.trans (Nat.mul_le_mul_right (2 * W + 1) hoc)
-  rw [show (encCode encOp c).length =
-    2 * (encList (encGate encOp) c.1).length + 1 + (encList encNat c.2).length
-      from length_encPair c]
+  have hout := (length_encList_le encNat c.2 hw.2).trans (Nat.mul_le_mul_right (2 * W + 1) hoc)
+  rw [encCode, length_encPair]
   nlinarith
 
 private theorem computedGetD {α β : Type} {encIn : α ↪ List Bool} {enc : β ↪ List Bool}
@@ -1129,19 +1093,13 @@ private theorem intervalTables_row_length {Op : Type*} (n : ℕ)
     row.length = leaves.length + 1 := by
   induction count with
   | zero =>
-    have heq : row = List.replicate (leaves.length + 1) unit := by
-      simpa [intervalTables] using hr
-    simp [heq]
+    obtain rfl : row = List.replicate (leaves.length + 1) unit := by simpa [intervalTables] using hr
+    simp
   | succ count ih =>
-    change row ∈ (fun rows => rows ++ [intervalRow n op unit leaves rows])^[count + 1]
-      [List.replicate (leaves.length + 1) unit] at hr
-    rw [Function.iterate_succ_apply'] at hr
+    rw [intervalTables, Function.iterate_succ_apply'] at hr
     rcases List.mem_append.mp hr with h | h
     · exact ih h
-    · have heq : row = intervalRow n op unit leaves (intervalTables n op unit leaves count) :=
-        List.mem_singleton.mp h
-      rw [heq]
-      simp [intervalRow]
+    · simp [List.mem_singleton.mp h, intervalRow]
 
 private def inputBudget {Op : Type} (encOp : Op ↪ List Bool)
     (op unit : List (Op × List ℕ) × List ℕ)

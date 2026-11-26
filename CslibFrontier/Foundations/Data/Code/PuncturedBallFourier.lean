@@ -104,22 +104,19 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 `μ̂ = charSum B / |B|`. -/
 theorem sum_charSum_sq (B : Finset (ι → ZMod 2)) :
     ∑ y, charSum B y ^ 2 = 2 ^ Fintype.card ι * #B := by
-  have hsq : ∀ y, charSum B y ^ 2 = ∑ x ∈ B, ∑ x' ∈ B, (-1 : ℝ) ^ (y ⬝ᵥ (x + x')).val := by
-    intro y
+  have hsq (y) : charSum B y ^ 2 = ∑ x ∈ B, ∑ x' ∈ B, (-1 : ℝ) ^ (y ⬝ᵥ (x + x')).val := by
     rw [sq, charSum, sum_mul_sum]
-    refine sum_congr rfl fun x _ => sum_congr rfl fun x' _ => ?_
-    rw [dotProduct_add, ZMod.neg_one_pow_val_add]
+    exact sum_congr rfl fun x _ => sum_congr rfl fun x' _ => by
+      rw [dotProduct_add, ZMod.neg_one_pow_val_add]
   simp_rw [hsq]
   rw [sum_comm]
   refine (sum_congr rfl fun x hx => ?_).trans (by rw [sum_const, nsmul_eq_mul, mul_comm])
   rw [sum_comm]
   simp_rw [sum_neg_one_pow_val_dotProduct]
-  have : ∀ x' : ι → ZMod 2, (x + x' = 0 ↔ x = x') := fun x' => by
-    rw [← sub_eq_zero (a := x), sub_eq_add_neg,
-      show -x' = x' from funext fun i => ZMod.neg_eq_self_mod_two _]
-  simp_rw [this]
-  rw [sum_ite_eq]
-  simp only [hx, ↓reduceIte]
+  have heq (x' : ι → ZMod 2) : x + x' = 0 ↔ x = x' := by
+    have hneg : -x' = x' := funext fun i => ZMod.neg_eq_self_mod_two _
+    rw [← sub_eq_zero (a := x), sub_eq_add_neg, hneg]
+  simp [heq, hx]
 
 /-- `μ̂ = charSum B / |B|` is the Fourier expansion with coefficients `1 / |B|` on `B`. -/
 theorem charSum_div_card_eq (B : Finset (ι → ZMod 2)) (y : ι → ZMod 2) :
@@ -195,15 +192,12 @@ private theorem pow_four_lt {ρ : ℝ} (h0 : 3 / 20 < ρ) (h1 : ρ < 1 / 2) :
 theorem strictAntiOn_ksGamma : StrictAntiOn ksGamma (Icc (3 / 20) (1 / 2)) := by
   refine strictAntiOn_of_deriv_neg (convex_Icc _ _) ?_ ?_
   · intro x hx
-    have h0 : 0 < x := by linarith [hx.1]
-    have hlt : x < 2 / 3 := by linarith [hx.2]
-    unfold ksGamma
-    refine ContinuousAt.continuousWithinAt ?_
-    have : (1 - x) ≠ 0 := by linarith
-    have : (2 - 3 * x) ≠ 0 := by linarith
-    have : x ≠ 0 := h0.ne'
+    have : x ≠ 0 := by linarith [hx.1]
+    have : 1 - x ≠ 0 := by linarith [hx.2]
+    have : 2 - 3 * x ≠ 0 := by linarith [hx.2]
     have : (2 : ℝ) ≠ 0 := two_ne_zero
-    fun_prop (disch := assumption)
+    unfold ksGamma
+    exact ContinuousAt.continuousWithinAt (by fun_prop (disch := assumption))
   · intro x hx
     rw [interior_Icc] at hx
     have h0 : 0 < x := by linarith [hx.1]
@@ -298,10 +292,8 @@ private theorem ksTailIntegrand_arg {ρ z : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1
       rw [sqrt_le_left (mul_nonneg h1ρ.le h1z)]
       have h1 : (1 - 2 * ρ) ^ 2 ≤ 1 :=
         pow_le_one₀ h1ρ.le (sub_le_self _ (mul_nonneg zero_le_two hρ0))
-      have h2 : 0 ≤ z * (1 - z) :=
-        mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (by norm_num)))
-      have hmul : (1 - 2 * ρ) ^ 2 * (z * (1 - z)) ≤ 1 * (z * (1 - z)) := by gcongr
-      linarith only [hmul]
+      have h2 : 0 ≤ z * (1 - z) := mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (by norm_num)))
+      linarith [mul_le_mul_of_nonneg_right h1 h2]
     linarith only [hs]
 
 /-- **The tail exponent bound** [Saglam2027, Appendix A]: the integrand is at most
@@ -327,13 +319,10 @@ theorem ksTailExponent_le {ρ y : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1 / 2) (hy0
 /-- `ε ^ 2 ≤ 1 / 2 - √(ρ (1 - ρ))` for `0 ≤ ρ ≤ 1 / 2 - ε`. -/
 theorem sq_le_half_sub_sqrt {ε ρ : ℝ} (hε : 0 ≤ ε) (hρ0 : 0 ≤ ρ) (hρ : ρ ≤ 1 / 2 - ε) :
     ε ^ 2 ≤ 1 / 2 - √(ρ * (1 - ρ)) := by
-  have hε2 : ε ≤ 1 / 2 := (le_sub_comm.mp hρ).trans (sub_le_self _ hρ0)
-  have hεsq : ε ^ 2 ≤ 1 / 2 := (pow_le_pow_left₀ hε hε2 2).trans (by norm_num)
-  have h1 : ε ^ 2 ≤ (1 / 2 - ρ) ^ 2 := pow_le_pow_left₀ hε (le_sub_comm.mp hρ) 2
-  have h : √(ρ * (1 - ρ)) ≤ 1 / 2 - ε ^ 2 := by
-    rw [sqrt_le_left (sub_nonneg.mpr hεsq)]
-    linarith only [h1, sq_nonneg (ε ^ 2)]
-  exact le_sub_comm.mp h
+  have hεsq : ε ^ 2 ≤ 1 / 2 :=
+    (pow_le_pow_left₀ hε ((le_sub_comm.mp hρ).trans (sub_le_self _ hρ0)) 2).trans (by norm_num)
+  rw [le_sub_comm, sqrt_le_left (sub_nonneg.mpr hεsq)]
+  linarith only [pow_le_pow_left₀ hε (le_sub_comm.mp hρ) 2, sq_nonneg (ε ^ 2)]
 
 end Exponents
 
@@ -387,13 +376,9 @@ private theorem puncturedBall_facts (hw0 : 0 < w) (hwn : w ≤ n) :
   have hpos : (0 : ℝ) < #B :=
     lt_of_lt_of_le (by exact_mod_cast Nat.choose_pos hwn) hchoose
   refine ⟨hpos, fun x hx => ?_, ?_, ?_⟩
-  · rw [ite_eq_right_iff]
-    intro hB
-    simp only [B, mem_filter] at hB
+  · simp only [B, ite_eq_right_iff, mem_filter]
     omega
-  · have h := sum_charSum_sq B
-    simp only [Fintype.card_fin] at h
-    simp_rw [div_pow, ← sum_div, h]
+  · simp_rw [div_pow, ← sum_div, sum_charSum_sq B, Fintype.card_fin]
     field_simp
   · rw [← sqrt_mul (inv_nonneg.2 hpos.le)]
     refine sqrt_le_sqrt ?_
@@ -610,14 +595,13 @@ theorem exists_puncturedBallFourierBounds_of_ks {ε : ℝ} (hε : 0 < ε) :
   have hK4 : 4 / c ≤ max (4 / c) (2 / ε ^ 2) := le_max_left _ _
   have hKε : 2 / ε ^ 2 ≤ max (4 / c) (2 / ε ^ 2) := le_max_right _ _
   have hw0 : 0 < w := by
-    have hKpos : 0 < max (4 / c) (2 / ε ^ 2) := (div_pos two_pos (sq_pos_of_pos hε)).trans_le hKε
-    have : (0 : ℝ) < w := (mul_pos hKpos (zero_lt_one.trans_le hlg)).trans_le hKw
-    exact_mod_cast this
+    have hKpos := (div_pos two_pos (sq_pos_of_pos hε)).trans_le hKε
+    exact_mod_cast (mul_pos hKpos (zero_lt_one.trans_le hlg)).trans_le hKw
   have hwn : 2 * w < n := by
     exact_mod_cast (by linarith only [hρ, mul_pos hε hnpos] : (2 * w : ℝ) < n)
-  refine ⟨moment_le_of_ksThirdMomentBound hM hw0 hwn
-    hc (hγ _ (div_pos (by exact_mod_cast hw0) hnpos) (by rw [div_le_iff₀ hnpos]; exact hρ))
-    (by rw [div_le_iff₀ hc, mul_comm] at hK4; exact hK4) hKw,
+  exact ⟨moment_le_of_ksThirdMomentBound hM hw0 hwn hc
+      (hγ _ (div_pos (mod_cast hw0) hnpos) ((div_le_iff₀ hnpos).2 hρ))
+      (((div_le_iff₀ hc).1 hK4).trans_eq (mul_comm _ _)) hKw,
     tail_le_of_ksTailBound hT hw0 hε hρ hKε hnε hKw⟩
 
 end KirshnerSamorodnitsky

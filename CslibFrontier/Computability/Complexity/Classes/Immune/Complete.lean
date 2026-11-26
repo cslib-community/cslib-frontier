@@ -88,11 +88,7 @@ private noncomputable def bermanTest (dA : Desc) (κ : ℕ → ℕ) (b : Bool) (
 private theorem computableInPolyTime_bermanTest (dA : Desc) {κ : ℕ → ℕ}
     (hκ : ComputableInPolyTime κ encUnary encUnary) (b : Bool) :
     ComputableInPolyTime (bermanTest dA κ b) (encPair encBits encUnary) encBool := by
-  have hs : ComputableInPolyTime (fun p : List Bool × ℕ => simRun p.1 p.2)
-      (encPair encBits encUnary) eOut := by
-    unfold simRun
-    fun_prop
-  unfold bermanTest
+  unfold bermanTest simRun
   fun_prop
 
 /-- **Berman's argument.** Let `A` be decided by the machine described by `dA` within `κ (G n)`
@@ -116,6 +112,7 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
     have hrun (x : List Bool) : (tm.runFrom (tm.initCfg x) (t x.length)).Halted ∧
         (tm.runFrom (tm.initCfg x) (t x.length)).output = f x :=
       (htm x).runFrom_of_le le_rfl
+    -- the description of the reduction, padded with `m` zeros
     let pw (m : ℕ) : List Bool := frame (eDesc (desc eS eBit tm)) ++ List.replicate m false
     have hpw (m : ℕ) : m ≤ (pw m).length := by simp [pw]
     have hpad : ComputableInPolyTime pw encUnary encBits :=
@@ -128,6 +125,7 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
       rw [simRun, decodeDesc_unframe_frame_append]
       exact universal_desc_of_halted_map eS tm (t := fun x => t x.length) hrun
         (hM₁ _ (by have := hpw m; omega))
+    -- the reduction lengthens the padded descriptions
     have hlong (m : ℕ) (hm : M ≤ m) : (pw m).length < (f (pw m)).length := by
       by_contra! hle
       have h := hfA (pw m)
@@ -135,7 +133,8 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         ite_true, hdA _ (by have := hpw m; omega) _ hle, hg] at h
       cases hgf : g (f (pw m)) <;> simp [hgf, eBit] at h
     refine ⟨{y | ∃ m, M ≤ m ∧ f (pw m) = y}, ?_, ?_, ?_⟩
-    · have htest : ComputableInPolyTime
+    · -- a witness `m` is at most the length of `y`
+      have htest : ComputableInPolyTime
           (fun q : List Bool × ℕ => decide (M ≤ q.2) && decide (f (pw q.2) = q.1))
           (encPair encBits encUnary) encBool := by fun_prop
       have hlist : ComputableInPolyTime (fun y : List Bool => List.range (y.length + 1))
@@ -144,16 +143,14 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         decide (f (pw m) = y), ComputableInPolyTime.anyWithInput hlist htest, fun y => ?_⟩
       simp only [Set.mem_ofPred_eq, List.any_eq_true, List.mem_range, Bool.and_eq_true,
         decide_eq_true_eq]
-      refine ⟨?_, ?_⟩
-      · rintro ⟨m, hm, rfl⟩
-        exact ⟨m, by have := hpw m; have := hlong m hm; omega, hm, rfl⟩
-      · rintro ⟨m, -, hm, rfl⟩
-        exact ⟨m, hm, rfl⟩
-    · intro hfin
+      exact ⟨fun ⟨m, hm, hy⟩ => ⟨m, Nat.lt_succ_of_lt
+        ((hpw m).trans_lt ((hlong m hm).trans_eq (congrArg List.length hy))), hm, hy⟩,
+        fun ⟨m, _, hm, hy⟩ => ⟨m, hm, hy⟩⟩
+    · -- the lengths are unbounded
+      intro hfin
       obtain ⟨B, hB⟩ := (hfin.image List.length).bddAbove
-      have := hB ⟨f (pw (M + B)), ⟨M + B, by omega, rfl⟩, rfl⟩
-      have := hpw (M + B)
-      have := hlong (M + B) (by omega)
+      have := hB ⟨f (pw (M + B)), ⟨M + B, Nat.le_add_right M B, rfl⟩, rfl⟩
+      have := (hpw (M + B)).trans_lt (hlong (M + B) (Nat.le_add_right M B))
       omega
     · rintro _ ⟨m, hm, rfl⟩
       rw [← hfA]

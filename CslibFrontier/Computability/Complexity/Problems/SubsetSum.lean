@@ -247,13 +247,8 @@ private theorem mem_literalDigits {i : ℕ} {b : Bool} {p : ℕ} :
     p ∈ literalDigits φ i b ↔
       p = i ∨ ∃ j < φ.length, covers φ i b j = true ∧ p = φ.distinctVars.length + j := by
   simp only [literalDigits, List.mem_cons, List.mem_map, List.mem_filter, List.mem_range]
-  constructor
-  · rintro (h | ⟨j, ⟨hj, hc⟩, rfl⟩)
-    · exact Or.inl h
-    · exact Or.inr ⟨j, hj, hc, rfl⟩
-  · rintro (h | ⟨j, hj, hc, rfl⟩)
-    · exact Or.inl h
-    · exact Or.inr ⟨j, ⟨hj, hc⟩, rfl⟩
+  exact ⟨fun | .inl h => .inl h | .inr ⟨j, ⟨hj, hc⟩, h⟩ => .inr ⟨j, hj, hc, h.symm⟩,
+    fun | .inl h => .inl h | .inr ⟨j, hj, hc, h⟩ => .inr ⟨j, ⟨hj, hc⟩, h.symm⟩⟩
 
 private theorem nodup_literalDigits {i : ℕ} (hi : i < φ.distinctVars.length) (b : Bool) :
     (literalDigits φ i b).Nodup := by
@@ -288,14 +283,11 @@ private theorem mem_items {x : Item} : x ∈ items φ ↔ x ∈ itemSet φ := by
   · cases c <;> simp [items, itemSet]
 
 private theorem nodup_items : (items φ).Nodup := by
-  refine List.Nodup.append ?_ ?_ ?_
-  · refine List.nodup_flatMap.2 ⟨fun i _ => by simp, ?_⟩
-    exact List.nodup_range.pairwise_of_forall_ne fun i _ i' _ h => by
+  refine List.Nodup.append ?_ ?_ (by simp [List.disjoint_left])
+  all_goals
+    refine List.nodup_flatMap.2 ⟨by simp, ?_⟩
+    exact List.nodup_range.pairwise_of_forall_ne fun _ _ _ _ h => by
       simpa [Function.onFun] using h.symm
-  · refine List.nodup_flatMap.2 ⟨fun j _ => by simp, ?_⟩
-    exact List.nodup_range.pairwise_of_forall_ne fun j _ j' _ h => by
-      simpa [Function.onFun] using h.symm
-  · simp [List.disjoint_left]
 
 /-- The digit positions of an item, as a finite set. -/
 private def itemCol (φ : CNF ℕ) (x : Item) : Finset ℕ := (itemDigits φ x).toFinset
@@ -532,11 +524,8 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
         ext ⟨j', c⟩
         simp only [hB, mem_filter, mem_product, mem_range, mem_univ, and_true, mem_image,
           true_and, Prod.mk.injEq]
-        constructor
-        · rintro ⟨⟨-, h⟩, rfl⟩
-          exact ⟨c, h, rfl, rfl⟩
-        · rintro ⟨c, h, rfl, rfl⟩
-          exact ⟨⟨hj, h⟩, rfl⟩
+        exact ⟨fun ⟨⟨_, h⟩, rfl⟩ => ⟨c, h, rfl, rfl⟩,
+          fun ⟨c', h, hj', hc'⟩ => hj' ▸ hc' ▸ ⟨⟨hj, h⟩, rfl⟩⟩
       change cnt j + _ = 3
       rw [hBj, card_image_of_injective _ (Prod.mk_right_injective j),
         card_filter _ (univ : Finset Bool), Fintype.sum_bool]
@@ -604,11 +593,7 @@ theorem computableInPolyTime_octal :
 theorem computableInPolyTime_digitNumbers :
     ComputableInPolyTime digitNumbers encCNF (encList encNat) := by
   unfold digitNumbers
-  apply listAppend'
-  · apply flatMapWithInput (by fun_prop)
-    fun_prop
-  · apply flatMapWithInput (by fun_prop)
-    fun_prop
+  apply listAppend' <;> exact flatMapWithInput (by fun_prop) (by fun_prop)
 
 /-- The target of the digit construction is computed in polynomial time. -/
 @[fun_prop]

@@ -137,40 +137,25 @@ theorem realize_highestBit (x h : (language L).Term α) (v : α → Fin n) :
       2 ^ (h.realize v).val ≤ (x.realize v).val ∧
         (x.realize v).val < 2 ^ ((h.realize v).val + 1) := by
   fo_simp [highestBit]
-  constructor
-  · rintro ⟨hx, ht⟩
-    refine ⟨Nat.ge_two_pow_of_testBit hx, Nat.lt_pow_two_of_testBit _ ?_⟩
-    intro i hi
-    apply Bool.eq_false_iff.mpr
-    intro hb
-    have hh : i ≤ (h.realize v).val := ht (fun _ => ⟨i, bitIndex_lt hb⟩) hb
-    omega
-  · rintro ⟨hx, ht⟩
-    refine ⟨Nat.testBit_of_two_pow_le_and_two_pow_add_one_gt hx ht, fun i hi => ?_⟩
-    have hh := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
-      (lt_of_le_of_lt (Nat.ge_two_pow_of_testBit hi) ht)
-    change (i ()).val ≤ (h.realize v).val
-    omega
+  refine ⟨fun ⟨hx, ht⟩ => ⟨Nat.ge_two_pow_of_testBit hx, Nat.lt_pow_two_of_testBit _ fun i hi =>
+    Bool.eq_false_iff.mpr fun hb => ?_⟩, fun ⟨hx, ht⟩ =>
+    ⟨Nat.testBit_of_two_pow_le_and_two_pow_add_one_gt hx ht, fun i hi => ?_⟩⟩
+  · exact Nat.not_le.mpr hi (ht (fun _ => ⟨i, bitIndex_lt hb⟩) hb)
+  · exact Nat.lt_succ_iff.mp ((Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
+      (lt_of_le_of_lt (Nat.ge_two_pow_of_testBit hi) ht))
 
 /-- `powerOfTwo L p e` holds exactly when `p = 2 ^ e`. -/
 @[simp, fo_realize]
 theorem realize_powerOfTwo (p e : (language L).Term α) (v : α → Fin n) :
     (powerOfTwo L p e).Realize v ↔ (p.realize v).val = 2 ^ (e.realize v).val := by
   fo_simp [powerOfTwo]
-  constructor
-  · intro h
-    apply Nat.eq_of_testBit_eq
-    intro i
-    rw [Nat.testBit_two_pow]
-    apply Bool.eq_iff_iff.mpr
-    simp only [decide_eq_true_eq]
-    by_cases hi : i < n
-    · simpa only [← Fin.val_inj, eq_comm] using h (fun _ => ⟨i, hi⟩)
-    · exact ⟨fun hp => (hi (bitIndex_lt hp)).elim,
-        fun he => (hi (he ▸ (e.realize v).isLt)).elim⟩
-  · intro hp i
-    rw [hp, Nat.testBit_two_pow]
-    simp [← Fin.val_inj, eq_comm]
+  refine ⟨fun h => Nat.eq_of_testBit_eq fun i => ?_, fun hp i => by
+    simp [hp, Nat.testBit_two_pow, ← Fin.val_inj, eq_comm]⟩
+  rw [Nat.testBit_two_pow, Bool.eq_iff_iff, decide_eq_true_eq]
+  by_cases hi : i < n
+  · simpa only [← Fin.val_inj, eq_comm] using h (fun _ => ⟨i, hi⟩)
+  · exact ⟨fun hp => (hi (bitIndex_lt hp)).elim,
+      fun he => (hi (he ▸ (e.realize v).isLt)).elim⟩
 
 omit [Fact (2 ≤ n)] in
 private theorem shift_iff (x e z : Fin n) :

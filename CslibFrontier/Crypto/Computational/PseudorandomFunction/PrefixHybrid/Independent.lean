@@ -79,31 +79,22 @@ private theorem wordQueryRunDist_independentLabels {α : Type} {valid : List Boo
     intro query hquery
     cases hv : valid query
     · simp [prefixHybridIndependentLabelOracle, hv]
-    · by_cases hcut : cut < query.length
-      · have hused : usedAsParent ⟨query.take cut, by simp⟩ :=
-          ⟨query, hquery, hv, hcut, rfl⟩
-        simp [prefixHybridIndependentLabelOracle, hv, hcut, Function.Involutive.toPerm, swap, hused]
-      · have hused : ¬ usedAsParent ⟨query.take cut, by simp⟩ := by
-          rintro ⟨other, hother, hvalid, hlong, hsame⟩
-          have hne : query ≠ other := by
-            rintro rfl
-            exact hcut hlong
-          have hprefix : query.IsPrefix other := by
-            have heq := hsame.trans (List.take_of_length_le (Nat.le_of_not_gt hcut))
-            rw [← heq]
-            exact List.take_prefix _ _
-          exact hlog query hquery hv other hother hvalid hne hprefix
+    · have hused : usedAsParent ⟨query.take cut, by simp⟩ ↔ cut < query.length :=
+        ⟨fun ⟨other, hother, hvalid, hlong, hsame⟩ => not_le.mp fun hle =>
+          hlog query hquery hv other hother hvalid
+            (fun h => lt_irrefl _ (hlong.trans_le (h ▸ hle)))
+            (hsame.trans (List.take_of_length_le hle) ▸ List.take_prefix cut other),
+          fun hcut => ⟨query, hquery, hv, hcut, rfl⟩⟩
+      by_cases hcut : cut < query.length <;>
         simp [prefixHybridIndependentLabelOracle, hv, hcut, Function.Involutive.toPerm, swap, hused]
   · have hzero (short parents : Table) :
         wordQueryRunDist (prefixHybridIndependentLabelOracle valid family short parents)
           program result = 0 := by
       rw [PMF.apply_eq_zero_iff]
-      intro hmem
-      apply hlog
-      refine hpf _ (fun q hq => by simp [prefixHybridIndependentLabelOracle, hq]) ?_ result hmem
-      intro q hq
-      simp only [prefixHybridIndependentLabelOracle, hq, ↓reduceIte]
-      exact hlen _ _ List.length_ofFn
+      refine fun hmem => hlog (hpf _ (fun q hq => ?_) (fun q hq => ?_) result hmem)
+      · simp [prefixHybridIndependentLabelOracle, hq]
+      · simp only [prefixHybridIndependentLabelOracle, hq, ↓reduceIte]
+        exact hlen _ _ List.length_ofFn
     simp [PMF.bind_apply, hzero]
 
 /-- For an adaptive prefix-free client, the hybrid at the old cut has the same law with
@@ -122,14 +113,13 @@ theorem eval_prefixHybridGame_eq_independentLabels (valid : ℕ → List Bool �
             (prefixHybridIndependentLabelOracle (valid n) family tables.1 tables.2 request.2)))
           (adversary n []) := by
   let Table := {word : List Bool // word.length ≤ cut} → BitString n
-  have hfst : (PMF.uniformOfFintype (Table × Table)).map Prod.fst =
-      PMF.uniformOfFintype Table := PMF.uniformOfFintype_prod_map_fst
   have horacle (table : Table) (query : List Bool) :
       (if valid n query then family (List.ofFn (table ⟨query.take cut, by simp⟩))
         (query.drop cut) else []) =
       prefixHybridIndependentLabelOracle (valid n) family table table query := by
     by_cases h : cut < query.length <;> simp [prefixHybridIndependentLabelOracle, h]
-  rw [eval_prefixHybridGame_eq_eager, ← hfst, PMF.bind_map]
+  rw [eval_prefixHybridGame_eq_eager, ← PMF.uniformOfFintype_prod_map_fst (α := Table) (β := Table),
+    PMF.bind_map]
   simp only [Function.comp_def, horacle, ← map_fst_wordQueryRunDist, ← PMF.map_bind]
   exact congrArg (PMF.map Prod.fst) (wordQueryRunDist_independentLabels (cut := cut)
     (adversary n []) hlen hpf)

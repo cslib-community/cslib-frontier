@@ -75,7 +75,8 @@ theorem harmonicMean_of_pos {f : α → ℝ} (hf : ∀ x, 0 < f x) :
 /-- Harmonic means of nonnegative entries are nonnegative. -/
 theorem harmonicMean_nonneg {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) :
     0 ≤ harmonicMean f := by
-  unfold harmonicMean; split_ifs
+  unfold harmonicMean
+  split_ifs
   exacts [le_rfl, inv_nonneg.mpr (expect_nonneg fun x _ => inv_nonneg.mpr (hf x))]
 
 /-- An equivalence of finite types preserves harmonic means. -/
@@ -95,7 +96,8 @@ theorem harmonicMean_le_energy {f w : α → ℝ} (hf : ∀ x, 0 ≤ f x)
   · exact (harmonicMean_eq_zero_of_exists hz).trans_le
       (expect_nonneg fun x _ => mul_nonneg (hf x) (sq_nonneg _))
   have hpos (x : α) : 0 < f x := (hf x).lt_of_ne' fun h => hz ⟨x, h⟩
-  have he : (𝔼 x, (f x)⁻¹) ≠ 0 := (expect_pos (fun x _ => inv_pos.mpr (hpos x)) univ_nonempty).ne'
+  have he : (𝔼 x, (f x)⁻¹) ≠ 0 :=
+    (expect_pos (fun x _ => inv_pos.mpr (hpos x)) univ_nonempty).ne'
   let h := (𝔼 x, (f x)⁻¹)⁻¹
   have hs := expect_nonneg (s := univ) fun x _ => mul_nonneg (hf x) (sq_nonneg (w x - h / f x))
   have hid (x : α) : f x * (w x - h / f x) ^ 2 = f x * w x ^ 2 - 2 * h * w x + h ^ 2 * (f x)⁻¹ := by
@@ -114,22 +116,25 @@ theorem harmonicMean_exists_weight {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) :
   classical
   by_cases hz : ∃ x, f x = 0
   · obtain ⟨a, ha⟩ := hz
-    refine ⟨fun x => if x = a then Fintype.card α else 0,
-      fun x => by dsimp only; split_ifs <;> positivity,
-      by rw [Fintype.expect_eq_sum_div_card]; simp [Fintype.card_ne_zero], ?_⟩
-    rw [harmonicMean_eq_zero_of_exists ⟨a, ha⟩]
-    exact expect_eq_zero fun x _ => by by_cases hx : x = a <;> simp [hx, ha]
+    refine ⟨fun x => if x = a then Fintype.card α else 0, fun x => ?_, ?_, ?_⟩
+    · dsimp only
+      split_ifs <;> positivity
+    · rw [Fintype.expect_eq_sum_div_card]
+      simp [Fintype.card_ne_zero]
+    · rw [harmonicMean_eq_zero_of_exists ⟨a, ha⟩]
+      exact expect_eq_zero fun x _ => by by_cases hx : x = a <;> simp [hx, ha]
   · have hpos (x : α) : 0 < f x := (hf x).lt_of_ne' fun h => hz ⟨x, h⟩
     have he : 0 < 𝔼 x, (f x)⁻¹ := expect_pos (fun x _ => inv_pos.mpr (hpos x)) univ_nonempty
     let h := (𝔼 x, (f x)⁻¹)⁻¹
     refine ⟨fun x => h * (f x)⁻¹,
-      fun x => mul_nonneg (inv_nonneg.mpr he.le) (inv_nonneg.mpr (hf x)),
-      by rw [← mul_expect]; exact inv_mul_cancel₀ he.ne', ?_⟩
-    have hid (x : α) : f x * (h * (f x)⁻¹) ^ 2 = h ^ 2 * (f x)⁻¹ := by field_simp [(hpos x).ne']
-    simp_rw [hid, ← mul_expect]
-    rw [harmonicMean_of_pos hpos]
-    dsimp only [h]
-    field_simp
+      fun x => mul_nonneg (inv_nonneg.mpr he.le) (inv_nonneg.mpr (hf x)), ?_, ?_⟩
+    · rw [← mul_expect]
+      exact inv_mul_cancel₀ he.ne'
+    · have hid (x : α) : f x * (h * (f x)⁻¹) ^ 2 = h ^ 2 * (f x)⁻¹ := by field_simp [(hpos x).ne']
+      simp_rw [hid, ← mul_expect]
+      rw [harmonicMean_of_pos hpos]
+      dsimp only [h]
+      field_simp
 
 /-- **The variational formula for the harmonic mean** [Korten, Lemma 11][Korten2026], on every
 nonempty finite type: the harmonic mean is the least energy `𝔼 (f w ^ 2)` of a nonnegative weight
@@ -155,10 +160,12 @@ theorem concaveOn_harmonicMean : ConcaveOn ℝ (Set.Ici 0) (harmonicMean : (α �
   obtain ⟨w, _, hw, he⟩ := harmonicMean_exists_weight (f := a • f + b • g)
     fun x => add_nonneg (mul_nonneg ha (hf x)) (mul_nonneg hb (hg x))
   rw [← he, smul_eq_mul, smul_eq_mul]
-  refine (add_le_add (mul_le_mul_of_nonneg_left (harmonicMean_le_energy hf hw) ha)
-    (mul_le_mul_of_nonneg_left (harmonicMean_le_energy hg hw) hb)).trans_eq ?_
-  simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, add_mul, mul_assoc, expect_add_distrib,
-    ← mul_expect]
+  calc
+    _ ≤ a * (𝔼 x, f x * w x ^ 2) + b * (𝔼 x, g x * w x ^ 2) := by
+      gcongr <;> exact harmonicMean_le_energy ‹_› hw
+    _ = _ := by
+      simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, add_mul, mul_assoc,
+        expect_add_distrib, ← mul_expect]
 
 /-- The harmonic mean is at most the arithmetic mean. -/
 theorem harmonicMean_le_expect {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) :
@@ -171,8 +178,13 @@ theorem expect_harmonicMean_le {β : Type*} [Fintype β]
     {f : β → α → ℝ} (hf : ∀ y x, 0 ≤ f y x) :
     (𝔼 y, harmonicMean (f y)) ≤ harmonicMean (fun x => 𝔼 y, f y x) := by
   obtain ⟨w, _, hw, he⟩ := harmonicMean_exists_weight fun x => expect_nonneg fun y _ => hf y x
-  exact (expect_le_expect fun y _ => harmonicMean_le_energy (hf y) hw).trans_eq
-    (by rw [expect_comm]; simp_rw [← expect_mul]; exact he)
+  calc
+    _ ≤ 𝔼 y, 𝔼 x, f y x * w x ^ 2 :=
+      expect_le_expect fun y _ => harmonicMean_le_energy (hf y) hw
+    _ = 𝔼 x, (𝔼 y, f y x) * w x ^ 2 := by
+      rw [expect_comm]
+      simp_rw [expect_mul]
+    _ = _ := he
 
 /-- The harmonic mean of a constant on a nonempty finite set is that constant. -/
 theorem harmonicMean_const (c : ℝ) :
@@ -190,11 +202,14 @@ theorem harmonicMean_light_fraction_le {f : α → ℝ} (hf : ∀ x, 0 ≤ f x)
   have hinv : (𝔼 x, (f x)⁻¹) ≤ 1 / a := by
     rw [harmonicMean_of_pos hp, ← one_div, le_div_iff₀ he] at ha'
     rw [le_div_iff₀ ha]; linarith
-  refine (expect_le_expect (g := fun x => b * (f x)⁻¹) fun x _ => ?_).trans
-    ((mul_expect _ _ _).symm.trans_le ((mul_le_mul_of_nonneg_left hinv hb).trans_eq (by ring)))
-  split_ifs with h
-  · exact (div_eq_mul_inv b (f x)).symm ▸ (one_le_div (hp x)).mpr h
-  · exact mul_nonneg hb (inv_nonneg.mpr (hf x))
+  calc
+    _ ≤ 𝔼 x, b * (f x)⁻¹ := expect_le_expect fun x _ => by
+      split_ifs with h
+      · exact (div_eq_mul_inv b (f x)).symm ▸ (one_le_div (hp x)).mpr h
+      · exact mul_nonneg hb (inv_nonneg.mpr (hf x))
+    _ = b * (𝔼 x, (f x)⁻¹) := (mul_expect _ _ _).symm
+    _ ≤ b * (1 / a) := mul_le_mul_of_nonneg_left hinv hb
+    _ = _ := by ring
 
 /-- The harmonic mean of a function on `Bool × α` is the two-point harmonic mean
 `2 h₀ h₁ / (h₀ + h₁)` of the harmonic means `h₀`, `h₁` of its two halves. -/

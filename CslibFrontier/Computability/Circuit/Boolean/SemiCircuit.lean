@@ -305,7 +305,7 @@ theorem WellFormed.exists_consistent (hC : C.WellFormed) (u : ℕ → Bool) :
       obtain ⟨val, hval, hgate⟩ := ih
       by_cases hk : k ∈ C.gates
       · refine ⟨Function.update val k ((C.gate k).eval val),
-          fun i hi => by rw [Function.update_of_ne (by rintro rfl; exact hi hk), hval i hi],
+          fun i hi => by rw [Function.update_of_ne (fun h : i = k => hi (h ▸ hk)), hval i hi],
           fun J hJ hJk => ?_⟩
         rw [Gate.eval_congr (g := C.gate J) fun i hi => Function.update_of_ne
           (fun h : i = k => absurd (hC.reads_lt J hJ k hk (h ▸ hi))
@@ -376,11 +376,11 @@ theorem AffineIn.mem_terms {t : ℕ} {c : Bool} {T : Finset ℕ} (hC : C.WellFor
   obtain ⟨val, -, heq⟩ := hC.solvable 0
   have heq' : C.EqnsHold (Function.update val x (!val x)) := fun e he =>
     (Equation.holds_congr fun i hi =>
-      Function.update_of_ne (by rintro rfl; exact hne e he hi) _ _).2 (heq e he)
-  have h1 := (Function.update_of_ne (by rintro rfl; exact ht (h.1 hx)) (!val x) val).symm.trans
-    (h.2 _ heq')
-  rw [h.2 val heq, ← Finset.add_sum_erase T _ hx, ← Finset.add_sum_erase T _ hx,
-    Function.update_self, Finset.sum_congr rfl fun i hi =>
+      Function.update_of_ne (fun h : i = x => hne e he (h ▸ hi)) _ _).2 (heq e he)
+  have h1 := h.2 _ heq'
+  rw [Function.update_of_ne (fun htx : t = x => ht (htx ▸ h.1 hx)), h.2 val heq,
+    ← Finset.add_sum_erase T _ hx, ← Finset.add_sum_erase T _ hx, Function.update_self,
+    Finset.sum_congr rfl fun i hi =>
       Function.update_of_ne (Finset.ne_of_mem_erase hi) _ _] at h1
   cases val x <;> simp at h1
 

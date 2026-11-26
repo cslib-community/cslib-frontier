@@ -170,9 +170,7 @@ private theorem commute_average_basisObservable
     Commute C (𝔼 d, pauliBraidingBasisObservable N b x d) := by
   change Commute C (𝔼 d, (pauliBraidingBasisBitMeasurement N b x d).observable)
   rw [← Measurement.observable_average]
-  apply Commute.symm
-  refine Measurement.commute_observable_average _ _ fun d => ?_
-  apply Commute.symm
+  refine (Measurement.commute_observable_average _ _ fun d => Commute.symm ?_).symm
   change Commute C (((N _).map _).effect false - ((N _).map _).effect true)
   simp only [Measurement.map_effect]
   exact (Commute.sum_right _ _ _ fun a _ => h _ a).sub_right
@@ -301,18 +299,16 @@ theorem exists_local_pauliFamily_of_pauliBraidingBranchScores
   let V (b : Bool) (x : Fin n → Bool) := oneKronecker (ι := ι) ((Q b).charObs x)
   let A (b : Bool) (x : Fin n → Bool) := 𝔼 d, pauliBraidingBasisObservable T.alice b x d
   let B (b : Bool) (x : Fin n → Bool) := 𝔼 d, pauliBraidingBasisObservable T.bob b x d
-  let r := pauliBraidingRoundingError ε
   let c := 832 * ε
   have hε : 0 ≤ ε := by
-    have hm := SeededGame.answersWinProb_le_one (branch 0) S.answers
-    change (branch 0).quantumWinProb S ≤ 1 at hm
-    linarith only [hm, hlin]
+    linarith only [hlin, show (branch 0).quantumWinProb S ≤ 1 from
+      SeededGame.answersWinProb_le_one (branch 0) S.answers]
   have hlin' : 1 - (branch 0).commutingWinProb T ≤ ε := by
     linarith only [hlin, (branch 0).commutingWinProb_toCommuting S]
-  have hcons' : 1 - (branch 2).commutingWinProb T ≤ ε := by
-    simpa only [T, SeededGame.commutingWinProb_toCommuting] using hcons
-  have hac' : Real.cos (π / 8) ^ 2 - (branch 1).commutingWinProb T ≤ ε := by
-    simpa only [T, SeededGame.commutingWinProb_toCommuting] using hac
+  have hcons' : 1 - (branch 2).commutingWinProb T ≤ ε :=
+    (branch 2).commutingWinProb_toCommuting S ▸ hcons
+  have hac' : Real.cos (π / 8) ^ 2 - (branch 1).commutingWinProb T ≤ ε :=
+    (branch 1).commutingWinProb_toCommuting S ▸ hac
   have hAB (b : Bool) : 𝔼 x, T.state.norm (A b x - B b x) ^ 2 ≤ c :=
     basis_cross_distance_le T b hε hlin' hcons'
   have hU (b : Bool) (x : Fin n → Bool) : U b x ∈ unitary (Matrix (ι × κ) (ι × κ) ℂ) :=
@@ -411,32 +407,22 @@ private theorem quantum_branch_deficits_le
   intro branch
   let T := S.toCommuting
   let upper (i : Fin 3) := if i = 1 then Real.cos (π / 8) ^ 2 else 1
-  have hscore (i : Fin 3) : (branch i).answersWinProb T.answers = (branch i).quantumWinProb S :=
-    (branch i).commutingWinProb_toCommuting S
   have hupper (i : Fin 3) : (branch i).answersWinProb T.answers ≤ upper i := by
-    by_cases hi : i = 1
-    · subst i
-      exact commutingWinProb_pauliBraidingAnticommutation_le T
-    · simp only [upper, hi, ite_false]
-      exact (branch i).answersWinProb_le_one _
+    rcases eq_or_ne i 1 with rfl | hi
+    · exact commutingWinProb_pauliBraidingAnticommutation_le T
+    · simpa only [upper, hi, ite_false] using (branch i).answersWinProb_le_one _
   have hmean : (∑ i, upper i) / 3 = (2 + Real.cos (π / 8) ^ 2) / 3 := by
-    rw [Fin.sum_univ_three]
-    simp only [upper, Fin.reduceEq, ite_true, ite_false]
+    simp only [Fin.sum_univ_three, upper, Fin.reduceEq, ite_true, ite_false]
     ring
   have hfull : (∑ i, upper i) / 3 - ε ≤
-      (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).answersWinProb T.answers := by
-    rw [hmean]
-    exact (hwin.trans_eq ((pauliBraidingGame n TwoProverGame.chsh id
-      (fun _ => id)).commutingWinProb_toCommuting S).symm)
-  have hδ (i : Fin 3) : upper i - (branch i).quantumWinProb S ≤ 3 * ε := by
-    rw [← hscore]
-    exact pauliBraidingBranch_deficit_le TwoProverGame.chsh id (fun _ => id) T.answers
-      upper hupper hfull i
-  have hzero := hδ 0
-  simp only [upper, Fin.reduceEq, ite_false] at hzero
-  refine ⟨by linarith only [hzero], ?_, ?_⟩
-  · simpa only [upper, Fin.reduceEq, ite_false] using hδ 2
-  · simpa only [upper, ite_true, eq_self] using hδ 1
+      (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).answersWinProb T.answers :=
+    hmean.symm ▸ hwin.trans_eq ((pauliBraidingGame n TwoProverGame.chsh id
+      (fun _ => id)).commutingWinProb_toCommuting S).symm
+  have hδ (i : Fin 3) : upper i - (branch i).quantumWinProb S ≤ 3 * ε :=
+    ((branch i).commutingWinProb_toCommuting S) ▸
+      pauliBraidingBranch_deficit_le TwoProverGame.chsh id (fun _ => id) T.answers
+        upper hupper hfull i
+  exact ⟨by linarith only [show 1 - (branch 0).quantumWinProb S ≤ 3 * ε from hδ 0], hδ 2, hδ 1⟩
 
 /-- Near the mean of the branch upper bounds, a projective-basis tensor strategy admits
 local isometries compressing the rounded products and intertwining the individual

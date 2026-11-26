@@ -153,8 +153,10 @@ theorem distinct_iff_split (h : Bdd U S) :
         (Bool.eq_not_of_ne hcb) hac (by omega)
   · rintro ⟨β, -, β', -, v, a, ha, b, hb, c, hc, hs⟩
     simp only [splitA, splitB, mem_filter] at ha hb hc
-    exact ⟨a, ha.1, b, hb.1, c, hc.1, by rintro rfl; simp [ha.2] at hb,
-      by rintro rfl; simp [hb.2] at hc, by rintro rfl; simp [ha.2] at hc, hs⟩
+    exact ⟨a, ha.1, b, hb.1, c, hc.1,
+      fun e => by simp [← e, ha.2] at hb,
+      fun e => by simp [← e, hb.2] at hc,
+      fun e => by simp [← e, ha.2] at hc, hs⟩
 
 end distinct
 
@@ -199,7 +201,9 @@ theorem threeSum_iff_distinct_or_degenerate (x : Fin n → ℤ) :
       exact ⟨i, j, k, fun e => hab (e ▸ rfl), fun e => hbc (e ▸ rfl), fun e => hac (e ▸ rfl), hs⟩
     · obtain ⟨i, hi, j, hj, hij⟩ := one_lt_card.mp h2
       simp only [mem_filter, mem_univ, true_and] at hi hj
-      exact ⟨i, j, k, hij, by rintro rfl; omega, by rintro rfl; omega, by omega⟩
+      exact ⟨i, j, k, hij,
+        fun e => absurd (congrArg x e) (by omega),
+        fun e => absurd (congrArg x e) (by omega), by omega⟩
     · obtain ⟨i, hi, j, hj, k, hk, hij, hik, hjk⟩ := two_lt_card.mp h3
       simp only [mem_filter, mem_univ, true_and] at hi hj hk
       exact ⟨i, j, k, hij, hjk, hik, by omega⟩
@@ -215,9 +219,9 @@ theorem degenerate_iff (x : Fin n → ℤ) :
     simp [HasThreeSetSolution, zeroSet, h3])
   · rintro ⟨a, ha0, h2, k, hk⟩
     obtain ⟨i, hi, -⟩ := one_lt_card.mp h2
-    exact ⟨2 * a, mem_image.mpr ⟨a, mem_filter.mpr ⟨mem_image.mpr ⟨i, mem_univ i,
-        (mem_filter.mp hi).2⟩, ha0, h2⟩, rfl⟩, 0, by simp, x k, mem_image_of_mem x (mem_univ k),
-      by omega⟩
+    have ha : a ∈ univ.image x := mem_image.mpr ⟨i, mem_univ i, (mem_filter.mp hi).2⟩
+    exact ⟨2 * a, mem_image.mpr ⟨a, mem_filter.mpr ⟨ha, ha0, h2⟩, rfl⟩, 0, by simp,
+      x k, mem_image_of_mem x (mem_univ k), by omega⟩
   · rintro ⟨_, ha', b, hb, _, hc, hs⟩
     obtain ⟨a, ha, rfl⟩ := mem_image.mp ha'
     obtain ⟨-, ha0, h2⟩ := mem_filter.mp ha
@@ -253,7 +257,8 @@ theorem bdd_zero (U : ℕ) : Bdd U {0} := by simp [Bdd]
 
 /-- The set `zeroSet x` is bounded by anything. -/
 theorem bdd_zeroSet (U : ℕ) (x : Fin n → ℤ) : Bdd U (zeroSet x) := by
-  unfold zeroSet; split_ifs <;> simp [Bdd]
+  unfold zeroSet
+  split_ifs <;> simp [Bdd]
 
 /-- `n` numbers have at most `n` values. -/
 private theorem card_image_univ_le (x : Fin n → ℤ) : #(univ.image x) ≤ n :=

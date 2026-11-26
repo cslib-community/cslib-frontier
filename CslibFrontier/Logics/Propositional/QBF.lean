@@ -401,7 +401,9 @@ theorem eval_alls_eq_true_iff (vs : List V) (φ : QBF V) :
 @[simp] theorem eval_conj (l : List (QBF V)) : (conj l).eval σ = l.all (·.eval σ) := by
   induction l with
   | nil => rfl
-  | cons φ l ih => change (φ.and (conj l)).eval σ = _; simp [ih]
+  | cons φ l ih =>
+    change (φ.and (conj l)).eval σ = _
+    simp [ih]
 
 /-- Evaluating `imp φ ψ` computes Boolean implication `!φ.eval σ || ψ.eval σ`. -/
 @[simp] theorem eval_imp (φ ψ : QBF V) : (imp φ ψ).eval σ = (!φ.eval σ || ψ.eval σ) := rfl
@@ -419,13 +421,17 @@ theorem eval_alls_eq_true_iff (vs : List V) (φ : QBF V) :
 @[simp] theorem eval_ofClause (c : Clause V) : (ofClause c).eval σ = Clause.eval σ c := by
   induction c with
   | nil => rfl
-  | cons l c ih => change ((lit l.1 l.2).or (ofClause c)).eval σ = _; simp [ih, Literal.eval]
+  | cons l c ih =>
+    change ((lit l.1 l.2).or (ofClause c)).eval σ = _
+    simp [ih, Literal.eval]
 
 /-- **A formula in conjunctive normal form keeps its value.** -/
 @[simp] theorem eval_ofCNF (φ : CNF V) : (ofCNF φ).eval σ = CNF.eval σ φ := by
   induction φ with
   | nil => rfl
-  | cons c φ ih => change ((ofClause c).and (ofCNF φ)).eval σ = _; simp [ih]
+  | cons c φ ih =>
+    change ((ofClause c).and (ofCNF φ)).eval σ = _
+    simp [ih]
 
 /-! ### Free variables of the derived connectives -/
 
@@ -434,28 +440,37 @@ theorem freeVars_exs (vs : List V) (φ : QBF V) :
     (exs vs φ).freeVars = φ.freeVars \ vs.toFinset := by
   induction vs with
   | nil => simp [exs]
-  | cons v vs ih => simp only [exs, List.foldr_cons] at ih ⊢; ext; simp [ih]; tauto
+  | cons v vs ih =>
+    simp only [exs, List.foldr_cons] at ih ⊢
+    ext
+    simp [ih]; tauto
 
 /-- Quantifying universally over `vs` removes `vs.toFinset` from the free variables of `φ`. -/
 theorem freeVars_alls (vs : List V) (φ : QBF V) :
     (alls vs φ).freeVars = φ.freeVars \ vs.toFinset := by
   induction vs with
   | nil => simp [alls]
-  | cons v vs ih => simp only [alls, List.foldr_cons] at ih ⊢; ext; simp [ih]; tauto
+  | cons v vs ih =>
+    simp only [alls, List.foldr_cons] at ih ⊢
+    ext
+    simp [ih]; tauto
 
 /-- A variable is free in `conj l` if and only if it is free in some formula of `l`. -/
 theorem mem_freeVars_conj {l : List (QBF V)} {x : V} :
     x ∈ (conj l).freeVars ↔ ∃ φ ∈ l, x ∈ φ.freeVars := by
   induction l with
   | nil => simp [conj]
-  | cons φ l ih => simp only [conj, List.foldr_cons] at ih ⊢; simp [ih]
+  | cons φ l ih =>
+    change x ∈ (φ.and (conj l)).freeVars ↔ _
+    simp [ih]
 
 /-- The free variables of `imp φ ψ` are the union of those of `φ` and `ψ`. -/
 @[simp] theorem freeVars_imp (φ ψ : QBF V) : (imp φ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := rfl
 
 /-- The free variables of `iff φ ψ` are the union of those of `φ` and `ψ`. -/
 @[simp] theorem freeVars_iff (φ ψ : QBF V) : (iff φ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := by
-  ext; simp [iff]
+  ext
+  simp [iff]
 
 /-- The only free variable of `lit v b` is `v`. -/
 @[simp] theorem freeVars_lit (v : V) (b : Bool) : (lit v b).freeVars = {v} := by
@@ -466,10 +481,14 @@ theorem mem_freeVars_ofCNF {x : V} {φ : CNF V} : x ∈ (ofCNF φ).freeVars ↔ 
   have hc (c : Clause V) : x ∈ (ofClause c).freeVars ↔ ∃ l ∈ c, l.1 = x := by
     induction c with
     | nil => simp [ofClause]
-    | cons l c ih => simp only [ofClause, List.foldr_cons] at ih ⊢; simp [ih, eq_comm]
+    | cons l c ih =>
+      simp only [ofClause, List.foldr_cons] at ih ⊢
+      simp [ih, eq_comm]
   induction φ with
   | nil => simp [ofCNF, CNF.vars]
-  | cons c φ ih => simp only [ofCNF, List.foldr_cons] at ih ⊢; simp [CNF.vars, hc, ih]
+  | cons c φ ih =>
+    simp only [ofCNF, List.foldr_cons] at ih ⊢
+    simp [CNF.vars, hc, ih]
 
 end QBF
 

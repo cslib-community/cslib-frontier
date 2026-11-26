@@ -113,20 +113,14 @@ theorem btreeDeleteGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
         wordDeleteAt (valLaneBitsWhp n_max) r nd.valsWord⟩
     have hm'_lt : nd'.metaWord < 2 ^ nodeMetaBitsWhp n_max := by
       dsimp only [nd', mkNodeMeta]; simp only [↓reduceIte]; omega
-    have hk'_lt : nd'.keysWord < 2 ^ keysWordBitsWhp n_max := by
-      have hd := wordDeleteAt_lt (m := cnt - 1) (Nat.le_sub_one_of_lt hrc)
-        (by rwa [Nat.sub_add_cancel hcnt_pos] :
-          nd.keysWord < 2 ^ ((cnt - 1 + 1) * (fpBitsWhp n_max + 2)))
-      unfold keysWordBitsWhp keyLaneBitsWhp
-      exact hd.trans_le (Nat.pow_le_pow_right (by decide)
-        (Nat.mul_le_mul_right _ ((Nat.sub_le cnt 1).trans (hcnt_le.trans (Nat.sub_le _ _)))))
-    have hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
-      have hd := wordDeleteAt_lt (m := cnt - 1) (Nat.le_sub_one_of_lt hrc)
-        (by rwa [Nat.sub_add_cancel hcnt_pos] :
-          nd.valsWord < 2 ^ ((cnt - 1 + 1) * valLaneBitsWhp n_max))
-      unfold valsWordBitsWhp
-      exact hd.trans_le (Nat.pow_le_pow_right (by decide)
-        (Nat.mul_le_mul_right _ ((Nat.sub_le cnt 1).trans (hcnt_le.trans (Nat.sub_le _ _)))))
+    have hdel_lt {b w0 : ℕ} (hw0 : w0 < 2 ^ (cnt * b)) :
+        wordDeleteAt b r w0 < 2 ^ (2 * tMinWhp n_max * b) :=
+      (wordDeleteAt_lt (m := cnt - 1) (Nat.le_sub_one_of_lt hrc)
+        (by rwa [Nat.sub_add_cancel hcnt_pos])).trans_le
+        (Nat.pow_le_pow_right (by decide)
+          (Nat.mul_le_mul_right b ((Nat.sub_le cnt 1).trans (hcnt_le.trans (Nat.sub_le _ _)))))
+    have hk'_lt : nd'.keysWord < 2 ^ keysWordBitsWhp n_max := hdel_lt hkw_cnt
+    have hv'_lt : nd'.valsWord < 2 ^ valsWordBitsWhp n_max := hdel_lt hvw_cnt
     obtain ⟨hwn_fr, hwn_mc, hwn_vp, hwn_rep, hwn_other, hwn_out⟩ :=
       writeBTreeNodeGenProg_inPlace_sliceRep (nd' := nd') henv hsIdx hrep hleaf_lt
         hm'_lt hk'_lt hv'_lt (s := s)
@@ -166,9 +160,8 @@ theorem realizes_btreeDeleteGen :
     dsimp only [BTreeQueryGenPre] at *
     obtain ⟨c, U, V, w₀, n_max, insCount, sl, mapFn,
       henv, rfl, hsIdx, hins, hrep, hv, hq⟩ := h
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
   · exact ⟨c, U, V, w, n_max, insCount, sl, mapFn, henv, rfl, hsIdx, hins, hrep, hv, hq⟩
   · decide
   · exact henv.fits_const (by decide)

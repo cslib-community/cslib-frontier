@@ -201,8 +201,9 @@ theorem ecomplexity_memRight_holds_le [Fintype Y] [Finite Z] (I : Ineq (Fin n �
     (fun a => Finset.mem_Icc.2 (abs_le.1 (abs_sum_mul_toInt_le hM a.2)))
     (fun w (b : (Fin n → Bool) × (Z → Bool)) => decide (I.bound ≤
       (∑ i, I.coeff (.inl i) * (b.1 i).toInt + ∑ z, I.coeff (.inr (.inr z)) * (b.2 z).toInt) + w))
-  rw [show (Finset.Icc (-(K : ℤ)) K).card = 2 * M * Fintype.card Y + 1 by
-    rw [Int.card_Icc, Nat.mul_assoc]; omega] at h
+  have hcard : (Finset.Icc (-(K : ℤ)) K).card = 2 * M * Fintype.card Y + 1 := by
+    rw [Int.card_Icc, Nat.mul_assoc]; omega
+  rw [hcard] at h
   refine Protocol.ecomplexity_decides_le.trans (le_of_eq_of_le ?_ h)
   congr 1 with a b : 2
   simp only [MemRight, Set.mem_ofPred_eq, holds_sum_elim_sum_elim_iff]
@@ -236,8 +237,9 @@ theorem ecomplexity_search_holds_le [Finite Y] (E : Ineq (Fin n ⊕ Y)) {M₀ : 
         exact mul_le_mul_of_nonneg_left (by exact_mod_cast hl) (Nat.cast_nonneg _)
     have h := Protocol.ecomplexityFun_le_clog_card_finset_succ (Finset.Icc (-(K : ℤ)) K)
       (fun a => (l.map (f a)).sum) hmem fun w b => decide ((l.map (g b)).sum < w)
-    rw [show (Finset.Icc (-(K : ℤ)) K).card = 2 * M₀ * n + 1 by
-      rw [Int.card_Icc, Nat.mul_assoc]; omega] at h
+    have hcard : (Finset.Icc (-(K : ℤ)) K).card = 2 * M₀ * n + 1 := by
+      rw [Int.card_Icc, Nat.mul_assoc]; omega
+    rw [hcard] at h
     obtain ⟨p, hp, hd⟩ := Protocol.ecomplexityFun_le_iff.1 (by exact_mod_cast h)
     exact ⟨p, hd, fun a b => by simp [hp]⟩
   obtain ⟨p, hd, hp⟩ := Protocol.exists_search_lt f g n _ hcmp (List.finRange n) (by simp)

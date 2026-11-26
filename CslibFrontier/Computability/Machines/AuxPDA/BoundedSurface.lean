@@ -333,9 +333,11 @@ theorem card_boundedSurfaceCfg {k : ℕ} {StackSym State : Type*}
 /-- The bounded surface-configuration count is always at least `n + 2` (from the input head). -/
 theorem input_length_add_two_le_boundedSurfaceCard (mStack mState k n s : ℕ) :
     n + 2 ≤ boundedSurfaceCard mStack mState k n s := by
-  rw [show boundedSurfaceCard mStack mState k n s =
-    (n + 2) * ((mState + 1) * (2 * s + 1) ^ k * (3 ^ (2 * s + 1)) ^ k * (mStack + 1) * 3) by
-    unfold boundedSurfaceCard; ring]
+  have heq : boundedSurfaceCard mStack mState k n s =
+      (n + 2) * ((mState + 1) * (2 * s + 1) ^ k * (3 ^ (2 * s + 1)) ^ k * (mStack + 1) * 3) := by
+    unfold boundedSurfaceCard
+    ring
+  rw [heq]
   exact Nat.le_mul_of_pos_right _ (by positivity)
 
 /-- The bounded surface-configuration cardinality is at most `surfaceCfgBound … (k * s)`. -/
@@ -352,12 +354,15 @@ theorem boundedSurfaceCard_le_surfaceCfgBound {StackSym State : Type*}
   calc boundedSurfaceCard (Fintype.card StackSym) (Fintype.card State) k n s
       = (n + 2) * (Fintype.card StackSym + 1) * 3 * (Fintype.card State + 1) *
           3 ^ (2 * (k * s) + k) * (2 * s + 1) ^ k := by
-        unfold boundedSurfaceCard; rw [← pow_mul]; ring_nf
+        unfold boundedSurfaceCard
+        rw [← pow_mul]
+        ring_nf
     _ ≤ (n + 2) * (Fintype.card StackSym + 1) * 3 * (Fintype.card State + 1) *
           3 ^ (2 * (k * s) + k) * (2 * (k * s) + 1) ^ k := Nat.mul_le_mul_left _ hpow
     _ = surfaceCfgBound StackSym State k n (k * s) := by
         unfold surfaceCfgBound Turing.storageBound
-        rw [show Fintype.card Bool + 1 = 3 from rfl]; ring
+        rw [show Fintype.card Bool + 1 = 3 from rfl]
+        ring
 
 /-- **Polynomial bounded-surface cardinality in logarithmic space**: for `s(n) = c * (log₂ n + 1)`,
 `boundedSurfaceCard` is polynomially bounded in `n`. -/
@@ -415,7 +420,9 @@ private lemma toSurface_applyBoundedTapes_some (act : Turing.Action k Bool State
     rfl rfl
   dsimp only [BoundedSurfaceCfg.toSurface, applySurfaceTapes]
   cases (act.workTapes i).1 with
-  | none => dsimp only; split_ifs <;> rfl
+  | none =>
+    dsimp only
+    split_ifs <;> rfl
   | some sym =>
     by_cases hz : z ∈ Turing.window s
     · by_cases heq : z = (b.workTapePos i).val <;>

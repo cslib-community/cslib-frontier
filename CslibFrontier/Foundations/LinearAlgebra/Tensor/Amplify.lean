@@ -68,18 +68,23 @@ theorem IsSLDegen.amplify [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'
       (Tensor.slSum fun _ : Fin (n ^ (2 * d)) =>
         Tensor.tprod (Tensor.tpow d S) (Tensor.tpow d (Tensor.swap23 S))) := by
   classical
+  -- the dual packing
   have hF' : IsSLDegen f h (slSum fun i => Tensor.swap23 (F i))
       (slSum fun _ : Fin n => Tensor.swap23 S) := by simpa [swap23_slSum] using hF.swap23
-  have h₁ := hF.tpow d; have h₂ := hF'.tpow d
+  -- the `d`-th powers, as shared-left sums over words
+  have h₁ := hF.tpow d
+  have h₂ := hF'.tpow d
   rw [tpow_slSum, tpow_slSum] at h₁ h₂
   have h₁' := h₁.of_reindex_target.of_reindex_source
   have h₂' := h₂.of_reindex_target.of_reindex_source
   simp only [Equiv.refl_symm, Equiv.coe_refl, Function.comp_id, Function.id_comp] at h₁' h₂'
+  -- their tensor product, as a shared-left sum over pairs of words
   have h₃ := h₁'.tprod h₂'
   rw [tprod_slSum, tprod_slSum] at h₃
   have h₄ := h₃.of_reindex_target.of_reindex_source
   simp only [Equiv.refl_symm, Equiv.coe_refl, Function.comp_id, Function.id_comp] at h₄
   rw [show 2 * d * h = d * h + d * h by ring]
+  -- number the sources
   exact IsSLDegen.slSum_source_comp
     (Fintype.equivFinOfCardEq (by simp [Fintype.card_prod, two_mul, pow_add]))
     (Equiv.injective _) h₄
@@ -94,11 +99,12 @@ theorem exists_card_filter_count_ge (m d : ℕ) (M : Finset (Fin m)) :
   obtain ⟨h, hh, hcard⟩ := Finset.exists_le_card_fiber_of_nsmul_le_card_of_maps_to
     (s := (univ : Finset (Fin d → Fin m))) (t := Finset.range (d + 1))
     (f := fun w => (univ.filter fun i => w i ∈ M).card) (b := (m ^ d : ℚ) / (d + 1))
-    (fun _ _ => Finset.mem_range.2
-      (Nat.lt_succ_of_le ((Finset.card_filter_le _ _).trans (by simp))))
+    (fun w _ => Finset.mem_range.2 (Nat.lt_succ_of_le
+      ((Finset.card_filter_le _ _).trans (by simp))))
     ⟨0, Finset.mem_range.2 (Nat.succ_pos d)⟩ (by
-      simp only [card_range, nsmul_eq_mul, Nat.cast_add, Nat.cast_one, card_univ,
-        Fintype.card_pi, Fintype.card_fin, prod_const, Nat.cast_pow]
+      rw [Finset.card_range, nsmul_eq_mul, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+        Fintype.card_fin]
+      push_cast
       rw [mul_div_cancel₀ _ (by positivity)])
   refine ⟨h, Nat.lt_succ_iff.1 (Finset.mem_range.1 hh), ?_⟩
   rw [div_le_iff₀ (by positivity), mul_comm] at hcard
@@ -129,46 +135,66 @@ theorem exists_reindex_eq_canonical (a b : ℕ) {m d h : ℕ} (M : Finset (Fin m
       tprod (tprodPi (fullOrMid a b M ∘ w)) (tprodPi (swap23 ∘ fullOrMid a b M ∘ w')) =
         reindex e e e (canonical d a b : Tensor K _ _ _) := by
   classical
+  -- the `2 d` factors, and the set of positions carrying a full product
   let g : Fin d ⊕ Fin d → Tensor K (Fin (a + b - 1)) (Fin (a + b - 1)) (Fin (a + b - 1)) :=
     Sum.elim (fullOrMid a b M ∘ w) (swap23 ∘ fullOrMid a b M ∘ w')
   let P : Finset (Fin d ⊕ Fin d) :=
     (univ.filter fun i => w i ∉ M).disjSum (univ.filter fun i => w' i ∈ M)
-  have hg (p : Fin d ⊕ Fin d) : g p = if p ∈ P then full a b else mid a b := by
-    rcases p with i | i
+  have hg : ∀ p, g p = if p ∈ P then full a b else mid a b := by
+    rintro (i | i)
     · by_cases hi : w i ∈ M <;> simp [g, P, fullOrMid, hi]
     · by_cases hi : w' i ∈ M <;> simp [g, P, fullOrMid, mid, hi]
-  have hle : h ≤ d := hw ▸ (Finset.card_filter_le _ _).trans (by simp)
-  have hcard : Fintype.card {p // p ∈ P} = d := by
+  -- exactly `d` positions carry a full product
+  have hle : h ≤ d := by
+    rw [← hw]
+    exact (Finset.card_filter_le _ _).trans (by simp)
+  have hneg : (univ.filter fun i => w i ∉ M).card = d - h := by
     have := Finset.card_filter_add_card_filter_not (s := univ) (p := fun i => w i ∈ M)
     rw [hw, Finset.card_univ, Fintype.card_fin] at this
-    rw [Fintype.card_coe, Finset.card_disjSum, hw']; omega
+    omega
+  have hcard : Fintype.card {p // p ∈ P} = d := by
+    rw [Fintype.card_coe, Finset.card_disjSum, hneg, hw']
+    omega
   have hcard' : Fintype.card {p // ¬ p ∈ P} = d := by
-    rw [Fintype.card_subtype_compl, hcard, Fintype.card_sum, Fintype.card_fin]; omega
+    rw [Fintype.card_subtype_compl, hcard, Fintype.card_sum, Fintype.card_fin]
+    omega
+  -- the permutation of positions sending the first half onto the full positions
   let σ : Fin d ⊕ Fin d ≃ Fin d ⊕ Fin d :=
     (Equiv.sumCongr (Fintype.equivFinOfCardEq hcard).symm
       (Fintype.equivFinOfCardEq hcard').symm).trans (Equiv.sumCompl (· ∈ P))
+  have hσl : ∀ i, σ (Sum.inl i) ∈ P := fun i => by
+    simp only [σ, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl, Equiv.sumCompl_apply_inl]
+    exact ((Fintype.equivFinOfCardEq hcard).symm i).2
+  have hσr : ∀ i, ¬ σ (Sum.inr i) ∈ P := fun i => by
+    simp only [σ, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inr, Equiv.sumCompl_apply_inr]
+    exact ((Fintype.equivFinOfCardEq hcard').symm i).2
+  -- the induced reindexing of the legs
   let e' : (Fin d → Fin (a + b - 1)) × (Fin d → Fin (a + b - 1)) ≃
       (Fin d → Fin (a + b - 1)) × (Fin d → Fin (a + b - 1)) :=
     (Equiv.sumArrowEquivProdArrow _ _ _).symm.trans
       ((Equiv.arrowCongr σ (Equiv.refl _)).symm.trans (Equiv.sumArrowEquivProdArrow _ _ _))
-  have he' (p : (Fin d → Fin (a + b - 1)) × (Fin d → Fin (a + b - 1))) :
+  have he' : ∀ p : (Fin d → Fin (a + b - 1)) × (Fin d → Fin (a + b - 1)),
       e' p = (fun i => Sum.elim p.1 p.2 (σ (Sum.inl i)),
-        fun i => Sum.elim p.1 p.2 (σ (Sum.inr i))) := rfl
-  refine ⟨e'.symm, funext fun x => funext fun y => funext fun z => ?_⟩
+        fun i => Sum.elim p.1 p.2 (σ (Sum.inr i))) :=
+    fun p => rfl
+  refine ⟨e'.symm, ?_⟩
+  funext x y z
   simp only [reindex_apply, Equiv.symm_symm, he', canonical, tprod_apply, tpow_apply, tprodPi_apply,
     Function.comp_apply]
-  rw [show (∏ i, fullOrMid a b M (w i) (x.1 i) (y.1 i) (z.1 i)) *
-      ∏ i, swap23 (fullOrMid a b M (w' i)) (x.2 i) (y.2 i) (z.2 i) =
-      ∏ p, g p (Sum.elim x.1 x.2 p) (Sum.elim y.1 y.2 p) (Sum.elim z.1 z.2 p) from
-    (Fintype.prod_sum_type fun p =>
-      g p (Sum.elim x.1 x.2 p) (Sum.elim y.1 y.2 p) (Sum.elim z.1 z.2 p)).symm,
-    ← Equiv.prod_comp σ, Fintype.prod_sum_type]
-  congr 1 <;> refine Finset.prod_congr rfl fun i _ => ?_
-  · rw [hg, ite_eq_left (by
-      simp only [σ, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl, Equiv.sumCompl_apply_inl]
-      exact ((Fintype.equivFinOfCardEq hcard).symm i).2)]
-  · rw [hg, ite_eq_right (by
-      simp only [σ, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inr, Equiv.sumCompl_apply_inr]
-      exact ((Fintype.equivFinOfCardEq hcard').symm i).2)]
+  calc (∏ i, fullOrMid a b M (w i) (x.1 i) (y.1 i) (z.1 i)) *
+        ∏ i, swap23 (fullOrMid a b M (w' i)) (x.2 i) (y.2 i) (z.2 i)
+      = ∏ p, g p (Sum.elim x.1 x.2 p) (Sum.elim y.1 y.2 p) (Sum.elim z.1 z.2 p) := by
+        rw [Fintype.prod_sum_type]
+        rfl
+    _ = ∏ p, g (σ p) (Sum.elim x.1 x.2 (σ p)) (Sum.elim y.1 y.2 (σ p)) (Sum.elim z.1 z.2 (σ p)) :=
+        (Equiv.prod_comp σ _).symm
+    _ = (∏ i, full a b (Sum.elim x.1 x.2 (σ (Sum.inl i))) (Sum.elim y.1 y.2 (σ (Sum.inl i)))
+          (Sum.elim z.1 z.2 (σ (Sum.inl i)))) *
+        ∏ i, mid a b (Sum.elim x.1 x.2 (σ (Sum.inr i))) (Sum.elim y.1 y.2 (σ (Sum.inr i)))
+          (Sum.elim z.1 z.2 (σ (Sum.inr i))) := by
+        rw [Fintype.prod_sum_type]
+        congr 1
+        · exact Finset.prod_congr rfl fun i _ => by rw [hg, ite_eq_left (hσl i)]
+        · exact Finset.prod_congr rfl fun i _ => by rw [hg, ite_eq_right (hσr i)]
 
 end Cslib.Tensor

@@ -98,11 +98,9 @@ theorem tsum_tsub_le_renyiMoment {α : ℝ} (hα : 1 ≤ α) (ε' : ℝ) (p q : 
 theorem renyiMoment_comp_of_injective {f : X → Y} (hf : Function.Injective f) (α : ℝ)
     {p q : Y → ℝ≥0∞} (hp : ∀ y, y ∉ Set.range f → p y = 0) :
     renyiMoment α p q = renyiMoment α (p ∘ f) (q ∘ f) := by
-  rw [renyiMoment, renyiMoment, ← hf.tsum_eq]
-  · rfl
-  · intro y hy
-    by_contra hnot
-    exact hy (by dsimp only; rw [hp y hnot, zero_mul])
+  rw [renyiMoment, renyiMoment, ← hf.tsum_eq fun y hy => by_contra fun hnot =>
+    hy (by simp [hp y hnot])]
+  rfl
 
 /-- Conditional product factorization of `renyiMoment` on `X × Y`: for `1 ≤ α` and finite
 denominator weights `q₁`, `q₂`, the Rényi moment of `(x, y) ↦ p₁ x * p₂ x y` against
@@ -157,15 +155,10 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   · obtain ⟨x₀, hu₀, hv₀⟩ := hsupp
     have htop : u x₀ * (u x₀ / v x₀) ^ t = ⊤ := by
       rw [hv₀, ENNReal.div_zero hu₀, ENNReal.top_rpow_of_pos ht, ENNReal.mul_top hu₀]
-    have hle := le_tsum (fun x => u x * (u x / v x) ^ t) x₀
-    rw [htop, top_le_iff] at hle
-    exact le_top.trans_eq hle.symm
+    exact le_top.trans (htop ▸ le_tsum (fun x => u x * (u x / v x) ^ t) x₀)
   have hsupp' (x : X) (hu : u x ≠ 0) : v x ≠ 0 := fun hv => hsupp ⟨x, hu, hv⟩
-  have hV0 : V ≠ 0 := by
-    intro h0
-    apply hU0
-    rw [tsum_eq_zero_iff] at h0 ⊢
-    exact fun x => by_contra fun hu => hsupp' x hu (h0 x)
+  have hV0 : V ≠ 0 := fun h0 => hU0 <|
+    tsum_eq_zero_iff.mpr fun x => by_contra fun hu => hsupp' x hu (tsum_eq_zero_iff.mp h0 x)
   set M : ℝ≥0∞ := ∑' x, u x * (u x / v x) ^ t
   rcases eq_or_ne M ⊤ with hM_top | hM_top
   · exact hM_top ▸ le_top
@@ -251,11 +244,9 @@ theorem renyiDiv_of_ne_top {α : ℝ} {p q : PMF X} (h : renyiMoment α p q ≠ 
 and any `p, q : PMF X`, `1 ≤ renyiMoment α p q`. -/
 theorem one_le_renyiMoment {α : ℝ} (hα : 1 < α) (p q : PMF X) :
     1 ≤ renyiMoment α p q := by
-  have hp : ∑' x, p x ≠ ⊤ := by rw [p.tsum_coe]; exact ENNReal.one_ne_top
-  have hq : ∑' x, q x ≠ ⊤ := by rw [q.tsum_coe]; exact ENNReal.one_ne_top
-  have h := mul_div_rpow_tsum_le hα hp hq
-  rw [p.tsum_coe, q.tsum_coe, div_one, ENNReal.one_rpow, mul_one] at h
-  exact h
+  simpa [renyiMoment, p.tsum_coe, q.tsum_coe] using
+    mul_div_rpow_tsum_le hα (p.tsum_coe.trans_ne ENNReal.one_ne_top)
+      (q.tsum_coe.trans_ne ENNReal.one_ne_top)
 
 /-- A distribution has zero Rényi divergence from itself. -/
 @[simp] theorem renyiDiv_self (α : ℝ) (p : PMF X) : renyiDiv α p p = 0 := by
@@ -288,10 +279,8 @@ private theorem mul_div_mul_right_le_rpow {t : ℝ} (a b c : ℝ≥0∞) (hc : c
     (a * c) * ((a * c) / (b * c)) ^ t ≤ a * (a / b) ^ t * c := by
   rcases eq_or_ne c 0 with rfl | hc0
   · simp
-  have hdiv : (a * c) / (b * c) = a / b := by
-    rw [ENNReal.mul_div_mul_comm (Or.inr hc) (Or.inr hc0), ENNReal.div_self hc0 hc, mul_one]
-  rw [hdiv]
-  exact le_of_eq (by ring)
+  rw [ENNReal.mul_div_mul_comm (Or.inr hc) (Or.inr hc0), ENNReal.div_self hc0 hc, mul_one,
+    mul_right_comm]
 
 /-- **Data-processing inequality** for `renyiMoment` [Mironov2017, Section III]: for `1 ≤ α`,
 applying a Markov kernel `K : X → PMF Y` cannot increase `renyiMoment α`. -/

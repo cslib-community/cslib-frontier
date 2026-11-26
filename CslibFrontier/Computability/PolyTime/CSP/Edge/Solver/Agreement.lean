@@ -61,14 +61,12 @@ private theorem evaluate_step (state : State) : evaluate (step state) = evaluate
   · cases budget with
     | zero => simp [step, evaluate, recurse, resume_none]
     | succ budget =>
-      cases hr : EdgeForest.run input with
-      | none => simp [step, evaluate, recurse, hr, resume_none]
-      | some result =>
-        rcases result with _ | _ | event
-        · simp [step, evaluate, recurse, hr, resume_none]
-        · simp [step, evaluate, recurse, hr]
-        · cases hp : push input event <;>
-            simp [step, evaluate, recurse, hr, hp, resume, resume_none]
+      rcases hr : EdgeForest.run input with _ | (_ | event | event)
+      · simp [step, evaluate, recurse, hr, resume_none]
+      · simp [step, evaluate, recurse, hr, resume_none]
+      · simp [step, evaluate, recurse, hr]
+      · cases hp : push input event <;>
+          simp [step, evaluate, recurse, hr, hp, resume, resume_none]
   · simp [step, evaluate, resume_none]
   · cases frames <;> rfl
 
@@ -77,17 +75,15 @@ private theorem potential_step (state : State) : potential (step state) ≤ pote
   · cases budget with
     | zero => simp [step, potential]
     | succ budget =>
-      cases hr : EdgeForest.run input with
-      | none => simp [step, potential, hr]
-      | some result =>
-        rcases result with _ | _ | event
-        · simp [step, potential, hr]
-        · simp [step, potential, hr]
-        · cases hp : push input event
-          · simp [step, potential, hr, hp]
-          · simp only [step, hr, hp, potential, Option.isSome_none, Bool.false_eq_true,
-              ↓reduceIte, List.length_cons]
-            omega
+      rcases hr : EdgeForest.run input with _ | (_ | event | event)
+      · simp [step, potential, hr]
+      · simp [step, potential, hr]
+      · simp [step, potential, hr]
+      · cases hp : push input event
+        · simp [step, potential, hr, hp]
+        · simp only [step, hr, hp, potential, Option.isSome_none, Bool.false_eq_true,
+            ↓reduceIte, List.length_cons]
+          omega
   · simp [step, potential]
   · cases frames <;> simp [step, potential]
 
@@ -97,8 +93,7 @@ private theorem potential_iterate (state : State) (n : ℕ) :
   | zero => rfl
   | succ n ih =>
     rw [Function.iterate_succ_apply']
-    have hs := potential_step (step^[n] state)
-    omega
+    exact (potential_step (step^[n] state)).trans (by omega)
 
 private theorem evaluate_iterate (state : State) (n : ℕ) :
     evaluate (step^[n] state) = evaluate state := by
@@ -117,7 +112,8 @@ theorem improve_eq_recurse (input : EdgeForest.Input) :
     have hb := potential_iterate initial (2 * n + 3)
     simp only [initial, potential, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
       List.length_nil] at hb
-    change potential final ≤ _ at hb; omega
+    change potential final ≤ _ at hb
+    omega
   have he : evaluate final = recurse (n + 1) input := evaluate_iterate initial (2 * n + 3)
   change (if final.frames.isEmpty then final.status.join else none) = _
   rcases hf : final with ⟨_, frames, budget, _ | result⟩ <;> rw [hf] at hp he
@@ -204,9 +200,8 @@ theorem improve_eq_source (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
     (hF : EdgeInstance F) (hf : ValidLabeling Table.sem f)
     (hM : EdgeInstance.EvenConstraints Table.sem F) :
     improve ⟨F, buffer f⟩ = (Solver.improve (F.contractionMeasure + 1) F f).map buffer := by
-  rw [improve_eq ⟨F, buffer f⟩ (List.length_map f), EdgeAugmenting.labeling_map]
-  rw [Solver.improve_depth_eq F f hF hf hM
-    ((CSP.occurrences F).length + 1) (F.contractionMeasure + 1)
-    (contractionMeasure_lt_clock F hF) (by omega)]
+  rw [improve_eq ⟨F, buffer f⟩ (List.length_map f), EdgeAugmenting.labeling_map,
+    Solver.improve_depth_eq F f hF hf hM ((CSP.occurrences F).length + 1)
+      (F.contractionMeasure + 1) (contractionMeasure_lt_clock F hF) (by omega)]
 
 end Cslib.Complexity.CSP.EdgeSolver.Program

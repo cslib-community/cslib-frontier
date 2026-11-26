@@ -102,14 +102,9 @@ theorem signedCutValue_le_signedSdpValue_add {ends : ι → V × V} {a b : ι �
     (hopt : ∀ v' : V → F, (∀ i, ‖v' i‖ = 1) →
       signedSdpValue ends a b v' ≤ signedSdpValue ends a b v + ε)
     (side : V → Bool) : signedCutValue ends a b side ≤ signedSdpValue ends a b v + ε := by
-  cases isEmpty_or_nonempty ι with
-  | inl _ =>
-    have := hopt v hv
-    simp only [signedCutValue, signedSdpValue, Finset.univ_eq_empty, Finset.sum_empty] at this ⊢
-    exact this
-  | inr h =>
-    obtain ⟨e⟩ := h
-    rw [← signedSdpValue_signVector ends a b (hv (ends e).1) side]
+  rcases isEmpty_or_nonempty ι with _ | ⟨⟨e⟩⟩
+  · simpa [signedCutValue, signedSdpValue] using hopt v hv
+  · rw [← signedSdpValue_signVector ends a b (hv (ends e).1) side]
     exact hopt _ (norm_signVector (hv (ends e).1) side)
 
 section SignedMeasurable
@@ -153,12 +148,11 @@ theorem goemansWilliamsonConstant_mul_signedSdpValue_le_integral (ends : ι → 
       ∫ r, signedCutValue ends a b (hyperplaneSide v r) ∂stdGaussian F := by
   rw [integral_signedCutValue_hyperplaneSide ends a b hv, signedSdpValue, Finset.mul_sum]
   refine Finset.sum_le_sum fun e _ => ?_
-  have h := abs_real_inner_le_norm (v (ends e).1) (v (ends e).2)
-  rw [hv, hv, mul_one, abs_le] at h
-  have h1 := mul_le_mul_of_nonneg_left (goemansWilliamsonConstant_mul_le_arccos h.1 h.2) (ha e)
-  have h2 := mul_le_mul_of_nonneg_left
-    (goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos (hv (ends e).1) (hv (ends e).2)) (hb e)
-  linarith
+  have h := abs_le.mp (by simpa [hv] using abs_real_inner_le_norm (v (ends e).1) (v (ends e).2))
+  linarith [mul_le_mul_of_nonneg_left (goemansWilliamsonConstant_mul_le_arccos h.1 h.2) (ha e),
+    mul_le_mul_of_nonneg_left
+      (goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos (hv (ends e).1) (hv (ends e).2))
+      (hb e)]
 
 /-- The `ε`-optimal guarantee for `(Q')`: `α * (signedCutValue side - ε) ≤ E[signedCutValue]`. -/
 theorem goemansWilliamsonConstant_mul_signedCutValue_sub_le_integral (ends : ι → V × V)
@@ -259,7 +253,6 @@ omit [Fintype ι] in
 private theorem satSdpClause_signVector {u : F} (hu : ‖u‖ = 1) (side : Option V → Bool)
     {c : Clause V} (hc : c.length ≤ 2) :
     satSdpClause (signVector u side) c = if c.eval (truthAssignment side) then 1 else 0 := by
-  have huu : ⟪u, u⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hu, one_pow]
   have hlit : ∀ ℓ : Literal V,
       (1 + ⟪litVector (signVector u side) ℓ, signVector u side none⟫) / 2 =
         if ℓ.eval (truthAssignment side) then 1 else 0 := by
@@ -281,11 +274,9 @@ private theorem satSdpClause_signVector {u : F} (hu : ‖u‖ = 1) (side : Optio
     have h2 := hlit ℓ₂
     have hp := hpair ℓ₁ ℓ₂
     simp only [satSdpClause, Clause.eval_cons, Clause.eval_nil, Bool.or_false]
-    have hbool : ∀ b₁ b₂ : Bool,
-        (if (b₁ || b₂) = true then (1 : ℝ) else 0) =
-          ((if b₁ = true then 1 else 0) + (if b₂ = true then 1 else 0) +
-            (if b₁ ≠ b₂ then 1 else 0)) / 2 := by
-      intro b₁ b₂; cases b₁ <;> cases b₂ <;> norm_num
+    have hbool (b₁ b₂ : Bool) : (if (b₁ || b₂) = true then (1 : ℝ) else 0) =
+        ((if b₁ = true then 1 else 0) + (if b₂ = true then 1 else 0) +
+          (if b₁ ≠ b₂ then 1 else 0)) / 2 := by cases b₁ <;> cases b₂ <;> norm_num
     rw [hbool (ℓ₁.eval (truthAssignment side)) (ℓ₂.eval (truthAssignment side))]
     linarith
   · simp at hc
@@ -296,10 +287,9 @@ theorem satSdpValue_liftAssignment (clauses : ι → Clause V)
     satSdpValue clauses w (liftAssignment u σ) = satValue clauses w σ := by
   unfold satSdpValue satValue liftAssignment
   refine Finset.sum_congr rfl fun j _ => ?_
-  rw [satSdpClause_signVector hu _ (hc j)]
-  have htr : truthAssignment (fun o : Option V => o.elim true σ) = σ := by
-    ext x; simp [truthAssignment]
-  rw [htr]
+  have htr : truthAssignment (fun o : Option V => o.elim true σ) = σ :=
+    funext fun x => by simp [truthAssignment]
+  rw [satSdpClause_signVector hu _ (hc j), htr]
   split_ifs <;> ring
 
 /-- `ε`-optimal unit vectors for `satSdpValue` beat every Boolean assignment up to `ε`. -/
@@ -402,15 +392,13 @@ private theorem goemansWilliamsonConstant_mul_satSdpClause_le_integral {v : Opti
     rw [hsplit, integral_div, integral_add ((hi ℓ₁).fun_add (hi ℓ₂)) (integrable_ite_const _ hne 1),
       integral_add (hi ℓ₁) (hi ℓ₂), integral_literal_eval hv ℓ₁, integral_literal_eval hv ℓ₂,
       integral_literal_eval_ne hv ℓ₁ ℓ₂]
-    have hgw1 := goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos
-      (norm_litVector hv ℓ₁) (hv none)
-    have hgw2 := goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos
-      (norm_litVector hv ℓ₂) (hv none)
-    have hinner := abs_real_inner_le_norm (litVector v ℓ₁) (litVector v ℓ₂)
-    rw [norm_litVector hv ℓ₁, norm_litVector hv ℓ₂, mul_one, abs_le] at hinner
-    have hgw3 := goemansWilliamsonConstant_mul_le_arccos hinner.1 hinner.2
+    have hinner := abs_le.mp
+      (by simpa [norm_litVector hv] using abs_real_inner_le_norm (litVector v ℓ₁) (litVector v ℓ₂))
     simp only [satSdpClause]
-    linarith
+    linarith [goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos
+        (norm_litVector hv ℓ₁) (hv none),
+      goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos (norm_litVector hv ℓ₂) (hv none),
+      goemansWilliamsonConstant_mul_le_arccos hinner.1 hinner.2]
   · simp at hc
 
 /-- **Goemans–Williamson MAX-2SAT relaxation bound.** For weighted clauses of length at most `2`
@@ -427,13 +415,11 @@ theorem goemansWilliamsonConstant_mul_satSdpValue_le_integral (clauses : ι → 
     Finset.mul_sum]
   refine Finset.sum_le_sum fun j _ => ?_
   have hmul : (fun r : F => if (clauses j).eval (satHyperplaneAssignment v r) then w j else 0) =
-      fun r : F =>
-        w j * (if (clauses j).eval (satHyperplaneAssignment v r) then (1 : ℝ) else 0) := by
-    ext r; split_ifs <;> ring
+      fun r : F => w j * if (clauses j).eval (satHyperplaneAssignment v r) then 1 else 0 :=
+    funext fun _ => (mul_boole _ _).symm
   rw [hmul, integral_const_mul]
-  have hcl := mul_le_mul_of_nonneg_left
+  simpa only [mul_left_comm] using mul_le_mul_of_nonneg_left
     (goemansWilliamsonConstant_mul_satSdpClause_le_integral hv (hc j)) (hw j)
-  simpa only [mul_left_comm] using hcl
 
 /-- **Goemans–Williamson MAX-2SAT `ε`-optimal guarantee.** If `v` are within `ε` of optimal for
 `satSdpValue`, then for every Boolean assignment `σ`, the expected rounded satisfied weight is at

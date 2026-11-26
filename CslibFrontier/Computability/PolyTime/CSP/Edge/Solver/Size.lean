@@ -38,14 +38,12 @@ the actual constraint count; it never enumerates the interval below an original 
 theorem connector_bits_le (F : CSP Table ℕ) (B : ℕ)
     (hB : ∀ v ∈ F.vars, (encNat v).length ≤ B) (i : Fin F.length) :
     (encNat (Blossom.connector F i)).length ≤ B + F.length + 3 := by
-  have hnames : ∀ v ∈ F.vars, v ≤ 2 ^ B - 1 := fun v hv => by
-    have hb := hB v hv
-    simp only [encNat_apply, Nat.size_eq_bits_len] at hb
-    have := Nat.size_le.mp hb
-    omega
-  have hm : F.vars.foldr max 0 ≤ 2 ^ B - 1 := List.max_le_of_forall_le F.vars (2 ^ B - 1) hnames
-  have hs : (F.vars.foldr max 0).size ≤ B :=
-    Nat.size_le.mpr (by have := Nat.two_pow_pos B; omega)
+  have hs : (F.vars.foldr max 0).size ≤ B := Nat.size_le.mpr <|
+    (List.max_le_of_forall_le F.vars (2 ^ B - 1) fun v hv => by
+      have hb := hB v hv
+      simp only [encNat_apply, Nat.size_eq_bits_len] at hb
+      have := Nat.size_le.mp hb
+      omega).trans_lt (Nat.sub_lt (Nat.two_pow_pos B) zero_lt_one)
   have ha := Nat.size_add_le (F.vars.foldr max 0) 1
   have hc := Nat.size_add_le (F.vars.foldr max 0 + 1) i.val
   have hi := Nat.size_le_self i.val
@@ -219,12 +217,9 @@ theorem original_name_bits_le (F : CSP Table ℕ) :
     ∀ v ∈ F.vars, (encNat v).length ≤ (encCSP encTable encNat F).length := by
   intro v hv
   obtain ⟨c, hc, hv⟩ := List.mem_flatMap.mp hv
-  have hn := length_le_encList_of_mem encNat hv
   have hb := length_le_encList_of_mem (encConstraint encTable encNat) hc
-  simp only [encConstraint_apply, length_encPair] at hb
-  change 2 * (encTable c.rel).length + 1 + (encList encNat c.scope).length ≤
-    (encCSP encTable encNat F).length at hb
-  exact hn.trans (by omega)
+  simp only [encConstraint_apply, length_encPair, encCSP] at hb ⊢
+  exact (length_le_encList_of_mem encNat hv).trans (by omega)
 
 /-- Every actual descended body obeys the original polynomial binary-name budget. -/
 theorem Chain.name_budget (h : Chain F k G) (hF : EdgeInstance F) :
@@ -293,11 +288,10 @@ theorem encoded_walk_le {H : CSP Table ℕ} (w : Walk H) (hw : w.IsWalk) (B : �
 theorem Chain.width_le (h : Chain F k G) (hF : EdgeInstance F) :
     (incidenceList G).length ≤ 2 * F.vars.length := by
   have he := congrArg List.length (occurrences_eq_map_incidenceList (F := G))
-  simp only [List.length_map] at he
-  rw [← he, CSP.length_occurrences]
   have hv : (G.map fun c => c.scope.length).sum = G.vars.length := by
     simp [vars, List.length_flatMap]
-  rw [hv, (h.edge hF).length_vars_eq_two_mul_numVars]
+  rw [← List.length_map (f := Occurrence.record), ← he, CSP.length_occurrences, hv,
+    (h.edge hF).length_vars_eq_two_mul_numVars]
   exact Nat.mul_le_mul_left 2 ((h.numVars_le hF).trans (List.toFinset_card_le _))
 
 end Cslib.Complexity.CSP.EdgeSolver.Size

@@ -207,20 +207,14 @@ theorem acceptWeight_exact {σ : Type*} {D : ℤ} {p : σ → ℤ} (step : σ �
   | zero => rw [acceptWeight, pow_zero, Function.iterate_zero_apply, one_mul]
   | succ n ih =>
     have hp0 : p s = if answer s then D else 0 := hp 0 (Nat.zero_lt_succ n)
-    have hpn : ∀ i < n,
-        p ((fun s => step s (answer s))^[i] (step s (answer s))) =
-          if answer ((fun s => step s (answer s))^[i] (step s (answer s))) then D else 0 :=
-      fun i hi => hp (i + 1) (Nat.succ_lt_succ hi)
-    have h := ih (step s (answer s)) hpn
+    have h := ih (step s (answer s)) fun i hi => hp (i + 1) (Nat.succ_lt_succ hi)
     rw [acceptWeight, hp0, Function.iterate_succ_apply, pow_succ]
     cases ha : answer s
-    · simp only [Bool.false_eq_true, ↓reduceIte, sub_zero, zero_mul, add_zero]
-      have h' : step s false = step s (answer s) := by rw [ha]
-      rw [h', h]
+    · simp only [Bool.false_eq_true, ↓reduceIte, sub_zero, zero_mul, add_zero, ha] at h ⊢
+      rw [h]
       ring
-    · simp only [↓reduceIte, sub_self, zero_mul, zero_add]
-      have h' : step s true = step s (answer s) := by rw [ha]
-      rw [h', h]
+    · simp only [↓reduceIte, sub_self, zero_mul, zero_add, ha] at h ⊢
+      rw [h]
       ring
 
 /-- Special case of `acceptWeight_exact` when the exact weight identity holds at every state. -/
@@ -294,10 +288,9 @@ private theorem sharpPWithOracle_mem_GapP_of_mem_SPP (hA : A ∈ SPP encBits)
     (fun a => (c a : ℤ)) ∈ GapP enc := by
   obtain ⟨g, hg, hrange, hmem⟩ := hA
   have hg_eq (w : List Bool) : g w = open Classical in if w ∈ A then 1 else 0 := by
-    by_cases hw : w ∈ A
-    · simp only [hw, ↓reduceIte, (hmem w).mp hw]
-    · simp only [hw, ↓reduceIte]
-      exact (hrange w).resolve_right fun h1 => hw ((hmem w).mpr h1)
+    split_ifs with hw
+    · exact (hmem w).mp hw
+    · exact (hrange w).resolve_right (mt (hmem w).mpr hw)
   obtain ⟨p, V, ⟨program, hprogram, hV⟩, hc_eq⟩ := hc
   obtain ⟨k, m, machine, c₀, d₀, hrun⟩ :=
     Probability.IsOraclePPTOn.exists_fin_run_pure_false hprogram
@@ -321,10 +314,11 @@ private theorem sharpPWithOracle_mem_GapP_of_mem_SPP (hA : A ∈ SPP encBits)
       F (a, List.ofFn w) = if V (a, List.ofFn w) then 1 else 0 := by
     have hexact := weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w)
       (fun q _ => hg_eq q)
-    have hclock : c₀ * ((encPair enc encBits (a, List.ofFn w)).length + 1) ^ d₀ = T a := by
-      simp only [T, r, length_encPair, encBits_apply, List.length_ofFn]
-    have hout := hrun (a, List.ofFn w) (languageOracle A)
-    rw [hclock, hV] at hout
+    have hout : OracleComp.interpret (m := Id) (languageOracle A)
+        (machine.run (pure false) (fun op word => OracleComp.query (op, word))
+          (T a) (input (a, List.ofFn w))) = encBool (V (a, List.ofFn w)) := by
+      simpa only [input, T, r, length_encPair, encBits_apply, List.length_ofFn, hV] using
+        hrun (a, List.ofFn w) (languageOracle A)
     simpa only [F, input, T', D', hout, encBool_apply, List.headD_cons,
       one_pow, one_mul] using hexact
   simp only [r, hF_eval, hc_eq a, acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite,
@@ -336,9 +330,8 @@ theorem GapPWithOracle_eq_GapP_of_mem_SPP (hA : A ∈ SPP encBits) (enc : α ↪
     GapPWithOracle A enc = GapP enc := by
   apply Set.Subset.antisymm ?_ (GapP_subset_GapPWithOracle A enc)
   rintro g ⟨f₁, hf₁, f₂, hf₂, hg⟩
-  have h := GapP.sub_mem' (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₁)
-    (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₂)
-  convert h using 1
+  convert GapP.sub_mem' (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₁)
+    (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₂) using 1
   exact funext hg
 
 /-- **`SPP` is self-low** (`SPP^SPP = SPP`,
@@ -383,10 +376,9 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
       (∀ n, S n ≠ 0) ∧ (fun a => S (enc a).length * (c a : ℤ)) ∈ GapP enc := by
   obtain ⟨g, hg, f, hf, hfn, hrange, hmem⟩ := mem_LWPP.mp hA
   have hg_eq (w : List Bool) : g w = open Classical in if w ∈ A then f w.length else 0 := by
-    by_cases hw : w ∈ A
-    · simpa only [hw, ↓reduceIte, encBits_apply] using (hmem w).mp hw
-    · simp only [hw, ↓reduceIte]
-      exact (hrange w).resolve_right fun hfw => hw ((hmem w).mpr hfw)
+    split_ifs with hw
+    · simpa only [encBits_apply] using (hmem w).mp hw
+    · exact (hrange w).resolve_right (mt (hmem w).mpr hw)
   obtain ⟨p, V, ⟨program, hprogram, hV⟩, hc_eq⟩ := hc
   obtain ⟨k, m, machine, c₀, d₀, hrun⟩ :=
     Probability.IsOraclePPTOn.exists_fin_run_pure_false hprogram
@@ -459,10 +451,11 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
       F (a, List.ofFn w) = S (enc a).length * (if V (a, List.ofFn w) then 1 else 0) := by
     have hexact := weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w)
       (fun q hq => hH_exact q hq)
-    have hclock : c₀ * ((encPair enc encBits (a, List.ofFn w)).length + 1) ^ d₀ = T a := by
-      simp only [T, τ, r, length_encPair, encBits_apply, List.length_ofFn]
-    have hout := hrun (a, List.ofFn w) (languageOracle A)
-    rw [hclock, hV] at hout
+    have hout : OracleComp.interpret (m := Id) (languageOracle A)
+        (machine.run (pure false) (fun op word => OracleComp.query (op, word))
+          (T a) (input (a, List.ofFn w))) = encBool (V (a, List.ofFn w)) := by
+      simpa only [input, T, τ, r, length_encPair, encBits_apply, List.length_ofFn, hV] using
+        hrun (a, List.ofFn w) (languageOracle A)
     simpa only [F, S, T, input, T', D', H', hout, encBool_apply, List.headD_cons] using hexact
   simp only [r, hF_eval, ← mul_sum, hc_eq a, acceptCount, card_filter, Nat.cast_sum, Nat.cast_ite,
     Nat.cast_one, Nat.cast_zero]
@@ -478,17 +471,12 @@ theorem exists_mul_mem_GapP_of_mem_LWPP (hA : A ∈ LWPP encBits) {h : α → �
   obtain ⟨c₁, hc₁, c₂, hc₂, hh_eq⟩ := hh
   obtain ⟨S₁, hS₁, hS₁n, hG₁⟩ := exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP hA hc₁
   obtain ⟨S₂, hS₂, hS₂n, hG₂⟩ := exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP hA hc₂
-  let S : ℕ → ℤ := fun n => S₁ n * S₂ n
-  have hS : ComputableInPolyTime S encUnary encIntBin := hS₁.intBin_mul' hS₂
-  have hS₁_gap : (fun a : α => S₁ (enc a).length) ∈ GapP enc :=
-    mem_GapP_of_polyTime (hS₁.comp (.encoding_length enc))
-  have hS₂_gap : (fun a : α => S₂ (enc a).length) ∈ GapP enc :=
-    mem_GapP_of_polyTime (hS₂.comp (.encoding_length enc))
-  refine ⟨S, hS, fun n => mul_ne_zero (hS₁n n) (hS₂n n), ?_⟩
-  have hcomb := GapP.sub_mem' (GapP.mul_mem hS₂_gap hG₁) (GapP.mul_mem hS₁_gap hG₂)
-  convert hcomb using 1
+  refine ⟨fun n => S₁ n * S₂ n, hS₁.intBin_mul' hS₂, fun n => mul_ne_zero (hS₁n n) (hS₂n n), ?_⟩
+  convert GapP.sub_mem'
+    (GapP.mul_mem (mem_GapP_of_polyTime (hS₂.comp (.encoding_length enc))) hG₁)
+    (GapP.mul_mem (mem_GapP_of_polyTime (hS₁.comp (.encoding_length enc))) hG₂) using 1
   funext a
-  dsimp only [S, Pi.sub_apply, Pi.mul_apply]
+  dsimp only [Pi.sub_apply, Pi.mul_apply, Function.comp_apply]
   rw [hh_eq a]
   ring
 
@@ -502,12 +490,8 @@ theorem LWPPWithFixedTarget_eq_LWPP_of_mem_LWPP (hA : A ∈ LWPP encBits) (enc :
   obtain ⟨S, hS, hSn, hSg⟩ := exists_mul_mem_GapP_of_mem_LWPP hA hg
   refine ⟨fun a => S (enc a).length * g a, hSg, fun n => S n * f n,
     hS.intBin_mul' hf, fun n => mul_ne_zero (hSn n) (hfn n),
-    fun a => ?_, fun a => ?_⟩
-  · rcases hrange a with h0 | hfa
-    · exact Or.inl (by simp only [h0, mul_zero])
-    · exact Or.inr (by simp only [hfa])
-  · rw [hL a]
-    exact (mul_right_inj' (hSn (enc a).length)).symm
+    fun a => (hrange a).imp (mul_eq_zero_of_right _) (congrArg (S (enc a).length * ·)),
+    fun a => (hL a).trans (mul_right_inj' (hSn (enc a).length)).symm⟩
 
 /-- **`LWPP` is low for fixed-target `WPP`** (`WPPWithFixedTarget A enc = WPP enc` for
 `A ∈ LWPP encBits`, where the outer target `f : α → ℤ` is computable without `A`;
@@ -519,12 +503,9 @@ theorem WPPWithFixedTarget_eq_WPP_of_mem_LWPP (hA : A ∈ LWPP encBits) (enc : �
   obtain ⟨S, hS, hSn, hSg⟩ := exists_mul_mem_GapP_of_mem_LWPP hA hg
   refine ⟨fun a => S (enc a).length * g a, hSg, fun a => S (enc a).length * f a,
     (hS.comp (.encoding_length enc)).intBin_mul' hf,
-    fun a => mul_ne_zero (hSn (enc a).length) (hfn a), fun a => ?_, fun a => ?_⟩
-  · rcases hrange a with h0 | hfa
-    · exact Or.inl (by simp only [h0, mul_zero])
-    · exact Or.inr (by simp only [hfa])
-  · rw [hL a]
-    exact (mul_right_inj' (hSn (enc a).length)).symm
+    fun a => mul_ne_zero (hSn (enc a).length) (hfn a),
+    fun a => (hrange a).imp (mul_eq_zero_of_right _) (congrArg (S (enc a).length * ·)),
+    fun a => (hL a).trans (mul_right_inj' (hSn (enc a).length)).symm⟩
 
 /-- **`LWPP` is low for `C=P`** (`C=P^LWPP = C=P`,
 [Fenner–Fortnow–Kurtz, Section 5][FennerFortnowKurtz1994]). -/
@@ -534,9 +515,7 @@ theorem CeqPWithOracle_eq_CeqP_of_mem_LWPP (hA : A ∈ LWPP encBits) (enc : α �
   rintro L ⟨g, hg, hL⟩
   obtain ⟨S, -, hSn, hSg⟩ := exists_mul_mem_GapP_of_mem_LWPP hA hg
   refine ⟨fun a => S (enc a).length * g a, hSg, fun a => ?_⟩
-  rw [hL a]
-  exact ⟨fun h0 => by simp only [h0, mul_zero],
-    fun hmul => (mul_eq_zero.mp hmul).resolve_left (hSn (enc a).length)⟩
+  simp only [hL a, mul_eq_zero, hSn (enc a).length, false_or]
 
 /-- **`WPP` is low for `PP`** (`PP^WPP = PP`, via `WPP ⊆ AWPP` and `AWPP` lowness for `PP`). -/
 theorem PPWithOracle_eq_PP_of_mem_WPP (hA : A ∈ WPP encBits) (enc : α ↪ List Bool) :

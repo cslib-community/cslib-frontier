@@ -122,15 +122,11 @@ theorem count_true_eq_card_maskBlock_of_length {w : List Bool} (h : w.length = �
 /-- Two masks of length `ℓ` have as many common ones as their blocks have common elements. -/
 theorem overlapCount_eq_card_inter {v w : List Bool} (hv : v.length = ℓ) (hw : w.length = ℓ) :
     overlapCount v w = #(maskBlock ℓ v ∩ maskBlock ℓ w) := by
-  have hlen : (v.zipWith (· && ·) w).length = ℓ := by simp [hv, hw]
-  rw [overlapCount, count_true_eq_card_maskBlock_of_length hlen]
+  rw [overlapCount, count_true_eq_card_maskBlock_of_length (ℓ := ℓ) (by simp [hv, hw])]
   refine congrArg card (ext fun k => ?_)
-  have hkv : (k : ℕ) < v.length := hv ▸ k.isLt
-  have hkw : (k : ℕ) < w.length := hw ▸ k.isLt
-  have hkz : (k : ℕ) < (v.zipWith (· && ·) w).length := hlen ▸ k.isLt
-  simp only [mem_maskBlock, mem_inter, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hkv,
-    List.getElem?_eq_getElem hkw, List.getElem?_eq_getElem hkz, Option.getD_some,
-    List.getElem_zipWith, Bool.and_eq_true]
+  simp [List.getD_eq_getElem?_getD, List.getElem?_zipWith,
+    List.getElem?_eq_getElem (hv ▸ k.isLt : (k : ℕ) < v.length),
+    List.getElem?_eq_getElem (hw ▸ k.isLt : (k : ℕ) < w.length)]
 
 /-- A mask shares all its ones with itself. -/
 theorem overlapCount_self (w : List Bool) : overlapCount w w = w.count true := by
@@ -138,7 +134,8 @@ theorem overlapCount_self (w : List Bool) : overlapCount w w = w.count true := b
 
 /-- Sharing ones is symmetric. -/
 theorem overlapCount_comm (v w : List Bool) : overlapCount v w = overlapCount w v := by
-  rw [overlapCount, overlapCount, List.zipWith_comm]; simp only [Bool.and_comm]
+  rw [overlapCount, overlapCount, List.zipWith_comm]
+  simp only [Bool.and_comm]
 
 /-! ### Designs given by masks -/
 
@@ -281,14 +278,17 @@ theorem exists_mem_greedyMasks_lt_overlapCount (han : a < n) (hw : w.length = �
 elements. -/
 private theorem card_filter_superset_le {T : Finset (Fin ℓ)} {t : ℕ} (hT : #T = t) :
     #{S ∈ powersetCard n univ | T ⊆ S} ≤ (ℓ - t).choose (n - t) := by
-  refine (card_le_card_of_injOn (t := powersetCard (n - t) (univ \ T)) (· \ T)
-    (fun S hS => ?_) (fun S hS S' hS' h => ?_)).trans_eq ?_
-  · obtain ⟨hSn, hTS⟩ := mem_filter.1 hS
-    exact mem_coe.2 (mem_powersetCard.2 ⟨sdiff_subset_sdiff (subset_univ _) subset_rfl,
-      by rw [card_sdiff, inter_eq_left.2 hTS, (mem_powersetCard.1 hSn).2, hT]⟩)
-  · rw [← sdiff_union_of_subset (mem_filter.1 hS).2, ← sdiff_union_of_subset (mem_filter.1 hS').2]
-    exact congrArg (· ∪ T) h
-  · rw [card_powersetCard, card_sdiff, inter_univ, card_univ, Fintype.card_fin, hT]
+  calc #{S ∈ powersetCard n univ | T ⊆ S}
+      ≤ #(powersetCard (n - t) (univ \ T)) := by
+        refine card_le_card_of_injOn (· \ T) (fun S hS => ?_) (fun S hS S' hS' h => ?_)
+        · obtain ⟨hSn, hTS⟩ := mem_filter.1 hS
+          exact mem_coe.2 (mem_powersetCard.2 ⟨sdiff_subset_sdiff (subset_univ _) subset_rfl,
+            by rw [card_sdiff, inter_eq_left.2 hTS, (mem_powersetCard.1 hSn).2, hT]⟩)
+        · rw [← sdiff_union_of_subset (mem_filter.1 hS).2,
+            ← sdiff_union_of_subset (mem_filter.1 hS').2]
+          exact congrArg (· ∪ T) h
+    _ = (ℓ - t).choose (n - t) := by
+        rw [card_powersetCard, card_sdiff, inter_univ, card_univ, Fintype.card_fin, hT]
 
 /-- At most `C(n, t) C(ℓ - t, n - t)` sets of `n` elements of `Fin ℓ` share at least `t` elements
 with a given set of `n` elements. -/
@@ -439,14 +439,15 @@ theorem abs_card_div_sub_card_div_lt (D : Design ℓ n a m) {f : BooleanFunction
     |(#{z | test (generator D f z) = true} : ℝ) / 2 ^ ℓ - #{r | test r = true} / 2 ^ m| < ε := by
   have hcardSeed : (Fintype.card (Fin ℓ → Bool) : ℝ) = 2 ^ ℓ := by simp
   have hcardOut : (Fintype.card (Fin m → Bool) : ℝ) = 2 ^ m := by simp
-  have hεs : 0 < ε * s := (Nat.cast_nonneg m).trans_lt hm
-  have hs0 : (0 : ℝ) < s := (Nat.cast_nonneg s : (0 : ℝ) ≤ s).lt_or_eq.elim id fun h => by
-    rw [← h, mul_zero] at hεs; linarith
-  have hε : 0 < ε := pos_of_mul_pos_left hεs hs0.le
+  have hs0 : (0 : ℝ) < s := Nat.cast_pos.2
+    (Nat.pos_of_ne_zero fun h => (Nat.cast_nonneg m).not_gt (hm.trans_eq (by simp [h])))
+  have hε : 0 < ε := pos_of_mul_pos_left ((Nat.cast_nonneg m).trans_lt hm) hs0.le
   rcases Nat.eq_zero_or_pos m with rfl | hm0
-  · have hr (r : Fin 0 → Bool) : test r = test Fin.elim0 := congrArg test (Subsingleton.elim _ _)
+  · -- with no output bits, the test sees the same empty string on every seed
+    have hr (r : Fin 0 → Bool) : test r = test Fin.elim0 := congrArg test (Subsingleton.elim _ _)
     rcases hb : test Fin.elim0 with _ | _ <;>
       simp [hr, hb, show (2 : ℝ) ^ ℓ ≠ 0 by positivity, hε]
+  -- the strict agreement bound of the reconstruction, from the slack
   have hslack : 1 / (s : ℝ) < ε / m := by
     rw [div_lt_div_iff₀ hs0 (by exact_mod_cast hm0)]; linarith
   have hhard (S' : ℕ) (hS' : S' ≤ S + 1) (g : BooleanFunction n)

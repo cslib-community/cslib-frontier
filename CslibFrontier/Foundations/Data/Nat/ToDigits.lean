@@ -88,10 +88,8 @@ private theorem toDecimalAux_eq {fuel n : ℕ} (h : n < fuel) :
   | succ fuel ih =>
     rw [toDecimalAux, Nat.toDigits_eq_ite (by decide),
       decimalDigit_eq_digitChar (Nat.mod_lt n (by decide))]
-    split
-    · rename_i h10
-      rw [Nat.mod_eq_of_lt h10]
-      rfl
+    split_ifs with h10
+    · rw [Nat.mod_eq_of_lt h10]; rfl
     · rw [ih (by omega)]
 
 /-- **The digits are those of Lean core's `Nat.toDigits 10`**, which `toString` writes. -/
@@ -117,17 +115,14 @@ theorem ofDecimal?_eq_some_iff {cs : List Char} {n : ℕ} :
     ofDecimal? cs = some n ↔
       cs ≠ [] ∧ (∀ c ∈ cs, c.isDigit = true) ∧ Nat.ofDigitChars 10 cs 0 = n := by
   unfold ofDecimal?
-  split
-  · rename_i h
-    simp only [Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_eq_false_iff,
+  split_ifs with h
+  · simp only [Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_eq_false_iff,
       List.all_eq_true] at h
     simp only [Option.some.injEq, foldl_digitStep_eq_ofDigitChars]
     exact ⟨fun hn => ⟨h.1, h.2, hn⟩, fun hn => hn.2.2⟩
-  · rename_i h
-    simp only [Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_eq_false_iff, List.all_eq_true,
-      not_and] at h
-    simp only [reduceCtorEq, false_iff, not_and]
-    exact fun hne hd => absurd hd (h hne)
+  · simp only [Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_eq_false_iff,
+      List.all_eq_true, not_and] at h
+    exact ⟨by simp, fun ⟨hne, hd, _⟩ => h hne hd⟩
 
 /-- **Reading back the decimal digits of a number gives it.** -/
 @[simp] theorem ofDecimal?_toDecimal (n : ℕ) : ofDecimal? (toDecimal n) = some n :=
@@ -136,9 +131,9 @@ theorem ofDecimal?_eq_some_iff {cs : List Char} {n : ℕ} :
 
 /-- A number has a first decimal digit. -/
 theorem exists_toDecimal_eq_cons (n : ℕ) :
-    ∃ d ds, toDecimal n = d :: ds ∧ d.isDigit = true := by
-  obtain ⟨d, ds, h⟩ := List.exists_cons_of_ne_nil (toDecimal_ne_nil n)
-  exact ⟨d, ds, h, isDigit_of_mem_toDecimal (h ▸ List.mem_cons_self)⟩
+    ∃ d ds, toDecimal n = d :: ds ∧ d.isDigit = true :=
+  let ⟨d, ds, h⟩ := List.exists_cons_of_ne_nil (toDecimal_ne_nil n)
+  ⟨d, ds, h, isDigit_of_mem_toDecimal (h ▸ List.mem_cons_self)⟩
 
 end Nat
 
@@ -147,25 +142,23 @@ namespace Int
 /-- The characters of an integer are `-` and decimal digits. -/
 theorem mem_toDecimal {a : ℤ} {c : Char} (h : c ∈ a.toDecimal) : c = '-' ∨ c.isDigit = true := by
   unfold toDecimal at h
-  split at h
-  · rcases List.mem_cons.1 h with rfl | h
-    · exact .inl rfl
-    · exact .inr (Nat.isDigit_of_mem_toDecimal h)
+  split_ifs at h
+  · exact (List.mem_cons.1 h).imp_right Nat.isDigit_of_mem_toDecimal
   · exact .inr (Nat.isDigit_of_mem_toDecimal h)
 
 /-- The first character of an integer is `-` or a decimal digit. -/
 theorem exists_toDecimal_eq_cons (a : ℤ) :
     ∃ d ds, a.toDecimal = d :: ds ∧ (d = '-' ∨ d.isDigit = true) := by
   unfold toDecimal
-  split
+  split_ifs
   · exact ⟨_, _, rfl, .inl rfl⟩
   · obtain ⟨d, ds, h, hd⟩ := Nat.exists_toDecimal_eq_cons a.natAbs
     exact ⟨d, ds, h, .inr hd⟩
 
 /-- An integer has at least one character. -/
-theorem toDecimal_ne_nil (a : ℤ) : a.toDecimal ≠ [] := by
-  obtain ⟨d, ds, h, -⟩ := exists_toDecimal_eq_cons a
-  simp [h]
+theorem toDecimal_ne_nil (a : ℤ) : a.toDecimal ≠ [] :=
+  let ⟨_, _, h, _⟩ := exists_toDecimal_eq_cons a
+  by simp [h]
 
 end Int
 

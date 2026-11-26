@@ -218,10 +218,8 @@ theorem exec_at {n D g p A W : ℕ} (values : List ℤ)
     hmag.of_natAbs_le ((hv (values.getD q 0) (List.getD_mem 0 (by omega))).trans
       (by omega : A ≤ A + p + 1))
   obtain ⟨y, hy, hout⟩ := Instances.exec_at n D g p (fun q => values.getD q 0)
-    initial hDHeader hgHeader hnHeader hpHeader hinput
-    hD hDn hg hp hmod hvalues hbudget
-  have hew := ExecWithin.mono_width Instances.program_fixed.2 hy hw
-  exact ⟨y, hew, hout⟩
+    initial hDHeader hgHeader hnHeader hpHeader hinput hD hDn hg hp hmod hvalues hbudget
+  exact ⟨y, ExecWithin.mono_width Instances.program_fixed.2 hy hw, hout⟩
 
 /-- Structured initialized execution for real native caller composition. The budget excludes
 only the final halt; all existing original-input, width and exact readback hypotheses remain.
@@ -261,11 +259,7 @@ theorem runs_input {n D g p A W : ℕ} (values : List ℤ)
   obtain ⟨t, ht, he⟩ := hew
   have hr := he.runs (pc := 0) (p := flatProgram) (Program.Contains.self _).append_left
   refine ⟨y, t + 1, ?_, ?_, ?_, hout, hi, hybounded⟩
-  · have hpos : 1 ≤ Instances.timeBound n D p
-        (ChunkCatalogue.before
-          (fun rho => Nat.count (fun q => (values.getD q 0 % (p : ℤ)).toNat = rho) (n * n))
-          (queryCap n D) p) (numPieces n D g) := by
-      dsimp only [Instances.timeBound]; omega
+  · dsimp only [Instances.timeBound] at ht ⊢
     omega
   · simpa only [State.init, Nat.zero_add, Nat.add_sub_cancel] using hr
   · simpa only [flatProgram, State.init] using he.executes Instances.output

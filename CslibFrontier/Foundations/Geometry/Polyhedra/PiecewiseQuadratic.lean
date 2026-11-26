@@ -76,11 +76,8 @@ theorem IsQuadraticOn.mono {f : E → ℝ} {S T : Set E} (hf : IsQuadraticOn f S
 
 theorem IsQuadraticOn.of_isAffineOn {f : E → ℝ} {S : Set E} (hf : IsAffineOn f S) :
     IsQuadraticOn f S := by
-  rcases hf with ⟨g, hg⟩
-  refine ⟨1, fun _ => g, fun _ => AffineMap.const ℝ E 1, fun x hx => ?_⟩
-  simp only [Finset.univ_unique, Fin.default_eq_zero, Finset.sum_singleton,
-    AffineMap.const_apply, mul_one]
-  exact hg hx
+  obtain ⟨g, hg⟩ := hf
+  exact ⟨1, fun _ => g, fun _ => AffineMap.const ℝ E 1, fun x hx => by simp [hg hx]⟩
 
 theorem IsQuadraticOn.affineMap (g : E →ᵃ[ℝ] ℝ) (S : Set E) : IsQuadraticOn g S :=
   IsQuadraticOn.of_isAffineOn (IsAffineOn.affineMap g S)
@@ -93,10 +90,8 @@ theorem IsQuadraticOn.add {f g : E → ℝ} {S : Set E}
     IsQuadraticOn (fun x => f x + g x) S := by
   rcases hf with ⟨n₁, a₁, b₁, hf'⟩
   rcases hg with ⟨n₂, a₂, b₂, hg'⟩
-  refine ⟨n₁ + n₂, Fin.addCases a₁ a₂, Fin.addCases b₁ b₂, fun x hx => ?_⟩
-  dsimp only
-  rw [hf' hx, hg' hx, Fin.sum_univ_add]
-  simp only [Fin.addCases_left, Fin.addCases_right]
+  exact ⟨n₁ + n₂, Fin.addCases a₁ a₂, Fin.addCases b₁ b₂, fun x hx => by
+    simp [hf' hx, hg' hx, Fin.sum_univ_add]⟩
 
 theorem IsQuadraticOn.neg {f : E → ℝ} {S : Set E} (hf : IsQuadraticOn f S) :
     IsQuadraticOn (fun x => -f x) S := by
@@ -123,18 +118,15 @@ theorem IsQuadraticOn.sum {ι : Type*} (s : Finset ι) {f : ι → E → ℝ} {S
   | empty =>
     exact (IsQuadraticOn.const S 0).congr fun _ _ => Finset.sum_empty
   | @insert a s ha ih =>
-    have h1 := hf a (Finset.mem_insert_self a s)
-    have h2 := ih fun i hi => hf i (Finset.mem_insert_of_mem hi)
-    exact (h1.add h2).congr fun _ _ => Finset.sum_insert ha
+    exact ((hf a (Finset.mem_insert_self a s)).add
+      (ih fun i hi => hf i (Finset.mem_insert_of_mem hi))).congr fun _ _ => Finset.sum_insert ha
 
 theorem IsQuadraticOn.mul_of_isAffineOn {f g : E → ℝ} {S : Set E}
     (hf : IsAffineOn f S) (hg : IsAffineOn g S) :
     IsQuadraticOn (fun x => f x * g x) S := by
-  rcases hf with ⟨af, haf⟩
-  rcases hg with ⟨ag, hag⟩
-  refine ⟨1, fun _ => af, fun _ => ag, fun x hx => ?_⟩
-  simp only [Finset.univ_unique, Fin.default_eq_zero, Finset.sum_singleton,
-    haf hx, hag hx]
+  obtain ⟨af, haf⟩ := hf
+  obtain ⟨ag, hag⟩ := hg
+  exact ⟨1, fun _ => af, fun _ => ag, fun x hx => by simp [haf hx, hag hx]⟩
 
 theorem IsQuadraticOn.comp_affineMap {g : F → ℝ} {T : Set F}
     (hg : IsQuadraticOn g T) (a : E →ᵃ[ℝ] F) {S : Set E} (hmaps : MapsTo a S T) :
@@ -152,12 +144,10 @@ variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
 
 theorem IsQuadraticOn.continuousOn [FiniteDimensional ℝ E] {f : E → ℝ} {S : Set E}
     (hf : IsQuadraticOn f S) : ContinuousOn f S := by
-  rcases hf with ⟨n, a, b, h⟩
-  have hcont : ContinuousOn (fun x => ∑ i : Fin n, a i x * b i x) S :=
-    continuousOn_finsetSum Finset.univ fun i _ =>
-      ((a i).continuous_of_finiteDimensional.mul
-        (b i).continuous_of_finiteDimensional).continuousOn
-  exact hcont.congr h
+  obtain ⟨n, a, b, h⟩ := hf
+  exact (continuousOn_finsetSum Finset.univ fun i _ =>
+    ((a i).continuous_of_finiteDimensional.mul
+      (b i).continuous_of_finiteDimensional).continuousOn).congr h
 
 private lemma isQuadraticOn_of_quadraticMap [FiniteDimensional ℝ E]
     (Q : QuadraticMap ℝ E ℝ) (S : Set E) : IsQuadraticOn Q S := by
@@ -430,15 +420,10 @@ theorem IsPQOn.comp_isPLOn [NormedAddCommGroup F] [NormedSpace ℝ F] [FiniteDim
     IsPQOn P (g ∘ f) := by
   rcases hg with ⟨CT, hCT, hq_g⟩
   obtain ⟨D, hDsp, hDcell⟩ := hf.exists_preimage_complex CT
-  have hsp : D.space = P := by
-    rw [hDsp, hCT]
-    ext x
-    exact ⟨fun hx => hx.1, fun hx => ⟨hx, hmaps hx⟩⟩
-  refine ⟨D, hsp, fun S hS => ?_⟩
+  refine ⟨D, hDsp.trans (hCT ▸ Set.inter_eq_left.2 hmaps), fun S hS => ?_⟩
   obtain ⟨⟨a, ha⟩, R, hR, hsubR⟩ := hDcell S hS
-  have hcomp : IsQuadraticOn (g ∘ a) S :=
-    (hq_g R hR).comp_affineMap a fun x hx => hsubR ⟨x, hx, ha hx⟩
-  exact hcomp.congr fun x hx => by simp only [Function.comp_apply, ha hx]
+  exact ((hq_g R hR).comp_affineMap a fun x hx => hsubR ⟨x, hx, ha hx⟩).congr
+    fun x hx => by simp only [Function.comp_apply, ha hx]
 
 /-- Every PQ function admits a finite triangulation on each simplex of which it agrees with an
 `MvPolynomial` of `totalDegree ≤ 2` in the coordinates of a given basis `e`. -/

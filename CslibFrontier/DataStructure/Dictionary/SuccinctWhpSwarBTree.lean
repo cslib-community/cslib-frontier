@@ -139,16 +139,11 @@ theorem wordDropLow_lt {W a b word : ℕ} (hw : word < 2 ^ ((a + b) * W)) :
 
 /-- Bit `i * W + b`, for `b < W`, lies below bit `j * W` exactly when lane `i` lies below
 lane `j`. -/
-private theorem lane_bit_lt_iff {W i j b : ℕ} (hb : b < W) : i * W + b < j * W ↔ i < j := by
-  constructor
-  · intro h
-    by_contra hij
-    have := Nat.mul_le_mul_right W (not_lt.mp hij)
-    omega
-  · intro h
-    have := Nat.mul_le_mul_right W (Nat.succ_le_of_lt h)
-    rw [Nat.succ_mul] at this
-    omega
+private theorem lane_bit_lt_iff {W i j b : ℕ} (hb : b < W) : i * W + b < j * W ↔ i < j :=
+  ⟨fun h => lt_of_not_ge fun hij => by have := Nat.mul_le_mul_right W hij; omega,
+   fun h => by
+     have := Nat.mul_le_mul_right W (Nat.succ_le_of_lt h)
+     rw [Nat.succ_mul] at this; omega⟩
 
 /-- Lane extraction from `wordTakeLow` returns `laneGet W word i` for `i < j` and `0` otherwise. -/
 theorem laneGet_wordTakeLow (W j word i : ℕ) :
@@ -305,13 +300,10 @@ private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
   have hW_pos : 0 < W := by omega
   let d (j : ℕ) : ℕ := (2 ^ fpBits + q) - (laneGet W keysWord j + 1)
   have hd_lt : ∀ j < m, d j < 2 ^ W := fun j hj => by
-    have hk := hlanes j hj
-    have hpow : 2 * 2 ^ fpBits < 2 ^ W := by
-      dsimp only [W]
-      rw [Nat.pow_add]
-      have : 0 < 2 ^ fpBits := Nat.two_pow_pos fpBits
-      omega
-    dsimp only [d]
+    have := hlanes j hj
+    have := Nat.two_pow_pos fpBits
+    dsimp only [d, W]
+    rw [Nat.pow_add]
     omega
   have hdiff_eq : (2 ^ fpBits + q) * swarOnes W m - (keysWord + swarOnes W m) =
       ∑ j ∈ range m, d j * 2 ^ (j * W) := by
@@ -371,19 +363,15 @@ private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
           rw [Nat.testBit, Nat.shiftRight_eq_div_pow, hdiv1]
           rfl
         · simp only [hlt_q, ↓reduceIte, Nat.zero_testBit]
-          have hd_lt_fp : d k < 2 ^ fpBits := by dsimp only [d]; omega
-          exact Nat.testBit_lt_two_pow hd_lt_fp
+          exact Nat.testBit_lt_two_pow (by dsimp only [d]; omega)
       · simp only [hkm, ↓reduceIte, Nat.succ_ne_zero, and_false, decide_false, Bool.and_false]
-        split_ifs
-        · symm; exact h1_tb_succ b'
-        · simp
+        split_ifs <;> simp [h1_tb_succ]
     · simp [hkm]
   · simp only [hb, decide_false, Bool.false_and]
-    split_ifs with hkm ltq
-    · symm
-      exact Nat.testBit_lt_two_pow (h2W.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
-    · simp
-    · simp
+    split_ifs
+    · exact (Nat.testBit_lt_two_pow
+        (h2W.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))).symm
+    all_goals simp
 
 /-- **Exact SWAR parallel rank theorem**:
 whenever `m < capLanes`, `capLanes < 2 ^ (fpBits + 2)`, `q < 2 ^ fpBits`,
@@ -496,10 +484,7 @@ theorem metaIsLeaf_mkNodeMeta (b : Bool) (cnt : ℕ) :
 @[simp]
 theorem metaCount_mkNodeMeta (b : Bool) (cnt : ℕ) :
     metaCount (mkNodeMeta b cnt) = cnt := by
-  cases b
-  · simp [metaCount, mkNodeMeta]
-  · simp only [metaCount, mkNodeMeta, ↓reduceIte]
-    omega
+  cases b <;> simp only [metaCount, mkNodeMeta, Bool.false_eq_true, ↓reduceIte] <;> omega
 
 /-- Pure state of a single SWAR B+-tree slice (`alloc` allocated nodes `0 .. alloc - 1`, `root`
 index, and node map `nodes`). -/
@@ -818,22 +803,18 @@ theorem ValidSubtree.frame {isRoot : Bool} {fpBits W_val tMin alloc alloc' : ℕ
   | leaf idx cnt =>
     have hidx : nodes' idx = nodes idx := hnodes idx (by simp [BTreeTree.nodeSet])
     obtain ⟨h1, h2, h4, h5, h6, h7, h8, h9⟩ := hv
-    refine ⟨h1.trans_le halloc, hidx ▸ h2, h4, hidx ▸ h5, hidx ▸ h6, hidx ▸ h7, hidx ▸ h8,
-      fun q hlo hhi => ?_⟩
-    rw [hmap q hlo hhi, hidx]
-    exact h9 q hlo hhi
+    exact ⟨h1.trans_le halloc, hidx ▸ h2, h4, hidx ▸ h5, hidx ▸ h6, hidx ▸ h7, hidx ▸ h8,
+      fun q hlo hhi => hmap q hlo hhi ▸ hidx ▸ h9 q hlo hhi⟩
   | branch idx cnt cs ih =>
     have hidx : nodes' idx = nodes idx := hnodes idx (by simp [BTreeTree.nodeSet])
     obtain ⟨h1, h2, h4, h5, h6, h7, h8, h9, h10, h11, h12, hht, h13⟩ := hv
     refine ⟨h1.trans_le halloc, hidx ▸ h2, h4, h5, hidx ▸ h6, hidx ▸ h7, hidx ▸ h8, hidx ▸ h9,
       hidx ▸ h10, h11, h12, hht, fun i => ?_⟩
     rw [hidx]
-    refine ⟨(h13 i).1, ih i (h13 i).2 ?_ ?_⟩
-    · intro v hv_in
-      exact hnodes v (mem_insert_of_mem (mem_biUnion.mpr ⟨i, mem_univ i, hv_in⟩))
-    · intro q hqlo hqhi
-      exact hmap q ((le_childLo (Nat.le_of_lt_succ i.isLt) h8 h10).trans hqlo)
-        (hqhi.trans (childHi_le h9.le h10))
+    exact ⟨(h13 i).1, ih i (h13 i).2
+      (fun v hv_in => hnodes v (mem_insert_of_mem (mem_biUnion.mpr ⟨i, mem_univ i, hv_in⟩)))
+      fun q hqlo hqhi => hmap q ((le_childLo (Nat.le_of_lt_succ i.isLt) h8 h10).trans hqlo)
+        (hqhi.trans (childHi_le h9.le h10))⟩
 
 /-- Every node in `T.nodeSet` is strictly below `alloc`, and `T.leafCount ≤ #T.nodeSet ≤ alloc`. -/
 theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMin alloc : ℕ}
@@ -842,10 +823,8 @@ theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMi
     (∀ v ∈ T.nodeSet, v < alloc) ∧ T.leafCount ≤ #T.nodeSet := by
   induction T generalizing isRoot lo hi with
   | leaf idx cnt =>
-    refine ⟨fun v hv_in => ?_, by simp [BTreeTree.leafCount, BTreeTree.nodeSet]⟩
-    rw [BTreeTree.nodeSet, mem_singleton] at hv_in
-    subst hv_in
-    exact hv.1
+    exact ⟨fun v hv_in => (mem_singleton.mp hv_in) ▸ hv.1,
+      by simp [BTreeTree.leafCount, BTreeTree.nodeSet]⟩
   | branch idx cnt cs ih =>
     obtain ⟨hidx, _, _, _, _, _, _, _, _, hnot, hdisj, _, hcs⟩ := hv
     have hrec := fun i => ih i (hcs i).2
@@ -854,15 +833,11 @@ theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMi
       rcases hv_in with rfl | ⟨i, _, hvi⟩
       · exact hidx
       · exact (hrec i).1 v hvi
-    · have hnot_bi : idx ∉ univ.biUnion fun i => (cs i).nodeSet := by
-        rw [mem_biUnion]
-        rintro ⟨i, _, hi⟩
-        exact hnot i hi
-      have hcard_eq : #(BTreeTree.branch idx cnt cs).nodeSet = 1 + ∑ i, #(cs i).nodeSet := by
-        rw [BTreeTree.nodeSet, card_insert_of_notMem hnot_bi,
-          card_biUnion (fun i _ j _ hij => hdisj i j hij), add_comm]
-      rw [BTreeTree.leafCount, hcard_eq]
-      exact (sum_le_sum fun i _ => (hrec i).2).trans (Nat.le_add_left _ 1)
+    · rw [BTreeTree.leafCount, BTreeTree.nodeSet,
+        card_insert_of_notMem (by
+          simpa only [mem_biUnion, not_exists, not_and] using fun i _ => hnot i),
+        card_biUnion fun i _ j _ hij => hdisj i j hij]
+      exact (sum_le_sum fun i _ => (hrec i).2).trans (Nat.le_succ _)
 
 /-- A valid subtree occupies at most `alloc` physical slice nodes. -/
 theorem ValidSubtree.card_nodeSet_le_alloc {isRoot : Bool} {fpBits W_val tMin alloc : ℕ}
@@ -877,12 +852,9 @@ theorem ValidSubtree.card_nodeSet_le_alloc {isRoot : Bool} {fpBits W_val tMin al
 theorem BTreeTree.height_branch_of_eq {idx cnt : ℕ} {cs : Fin (cnt + 1) → BTreeTree}
     (hht : ∀ i : Fin (cnt + 1), (cs i).height = (cs ⟨0, Nat.succ_pos cnt⟩).height) :
     (BTreeTree.branch idx cnt cs).height = 1 + (cs ⟨0, Nat.succ_pos cnt⟩).height := by
-  let i0 : Fin (cnt + 1) := ⟨0, Nat.succ_pos cnt⟩
   rw [BTreeTree.height]
-  congr 1
-  apply le_antisymm
-  · exact Finset.sup_le fun i _ => (hht i).le
-  · exact Finset.le_sup (f := fun i => (cs i).height) (mem_univ i0)
+  exact congrArg (1 + ·) (le_antisymm (Finset.sup_le fun i _ => (hht i).le)
+    (Finset.le_sup (f := fun i => (cs i).height) (mem_univ (Fin.mk 0 (Nat.succ_pos cnt)))))
 
 /-- Non-root valid subtrees (`isRoot = false`) have `tMin ^ T.height ≤ T.leafCount`. -/
 private theorem ValidSubtree.pow_height_le_leafCount_nonroot {fpBits W_val tMin alloc : ℕ}
@@ -897,11 +869,7 @@ private theorem ValidSubtree.pow_height_le_leafCount_nonroot {fpBits W_val tMin 
     obtain ⟨_, _, hdeg, _, _, _, _, _, _, _, _, hht, hcs⟩ := hv
     simp only [Bool.false_eq_true, ↓reduceIte] at hdeg
     rw [BTreeTree.height_branch_of_eq hht, BTreeTree.leafCount, Nat.pow_add, pow_one]
-    have hle_each : ∀ i : Fin (cnt + 1),
-        tMin ^ (cs ⟨0, Nat.succ_pos cnt⟩).height ≤ (cs i).leafCount := fun i => by
-      rw [← hht i]
-      exact ih i (hcs i).2
-    have hsum := card_nsmul_le_sum univ _ _ fun i _ => hle_each i
+    have hsum := card_nsmul_le_sum univ _ _ fun i _ => hht i ▸ ih i (hcs i).2
     simp only [card_univ, Fintype.card_fin, nsmul_eq_mul, Nat.cast_id] at hsum
     exact (Nat.mul_le_mul_right _ (by omega)).trans hsum
 
@@ -917,15 +885,10 @@ theorem ValidSubtree.two_mul_pow_height_sub_one_le_leafCount {isRoot : Bool}
   | branch idx cnt cs =>
     obtain ⟨_, _, hdeg, _, _, _, _, _, _, _, _, hht, hcs⟩ := hv
     have hcnt1 : 1 ≤ cnt := by
-      cases isRoot
-      · simp only [Bool.false_eq_true, ↓reduceIte] at hdeg; omega
-      · simpa only [↓reduceIte] using hdeg
+      cases isRoot <;> simp only [Bool.false_eq_true, ↓reduceIte] at hdeg <;> omega
     rw [BTreeTree.height_branch_of_eq hht, Nat.add_sub_cancel_left, BTreeTree.leafCount]
-    have hle_each : ∀ i : Fin (cnt + 1),
-        tMin ^ (cs ⟨0, Nat.succ_pos cnt⟩).height ≤ (cs i).leafCount := fun i => by
-      rw [← hht i]
-      exact pow_height_le_leafCount_nonroot (by omega) (hcs i).2
-    have hsum := card_nsmul_le_sum univ _ _ fun i _ => hle_each i
+    have hsum := card_nsmul_le_sum univ _ _ fun i _ =>
+      hht i ▸ pow_height_le_leafCount_nonroot (by omega) (hcs i).2
     simp only [card_univ, Fintype.card_fin, nsmul_eq_mul, Nat.cast_id] at hsum
     exact (Nat.mul_le_mul_right _ (by omega)).trans hsum
 

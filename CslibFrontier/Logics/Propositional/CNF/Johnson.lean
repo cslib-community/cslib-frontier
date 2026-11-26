@@ -118,9 +118,7 @@ theorem Clause.length_eraseDupLits_le (c : Clause V) : c.eraseDupLits.length ≤
 literals. -/
 theorem Clause.length_eraseDupLits (c : Clause V) : c.eraseDupLits.length = c.toFinset.card := by
   rw [← List.toFinset_card_of_nodup c.nodup_eraseDupLits]
-  congr 1
-  ext l
-  simp
+  exact congrArg Finset.card (Finset.ext fun _ => by simp)
 
 /-- Removing repeated literals does not change the value of a clause. -/
 @[simp] theorem Clause.eval_eraseDupLits (σ : V → Bool) (c : Clause V) :
@@ -157,14 +155,10 @@ theorem CNF.countUnsat_restrict {σ : V → Bool} {v : V} {b : Bool} (hσ : σ v
       exact (List.countP_cons_of_neg (by simp [hc])).symm
     · have hc : Clause.eval σ (c.filter (· ≠ (v, !b))) = c.eval σ := by
         rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-        constructor
-        · rintro ⟨l, hl, hle⟩
-          exact ⟨l, (List.mem_filter.1 hl).1, hle⟩
-        · rintro ⟨l, hl, hle⟩
-          refine ⟨l, List.mem_filter.2 ⟨hl, ?_⟩, hle⟩
-          rw [decide_eq_true_iff]
-          rintro rfl
-          simp [hσ] at hle
+        simp only [List.mem_filter, decide_eq_true_eq]
+        refine ⟨fun ⟨l, ⟨hl, _⟩, hle⟩ => ⟨l, hl, hle⟩, fun ⟨l, hl, hle⟩ => ⟨l, ⟨hl, ?_⟩, hle⟩⟩
+        rintro rfl
+        simp [hσ] at hle
       simp only [CNF.countUnsat, List.countP_cons, hc] at ih ⊢
       rw [ih]
 
@@ -219,40 +213,26 @@ theorem CNF.johnsonWeight_restrict_add_le {L : ℕ} (v : V) {ψ : CNF V}
         2 ^ (L - (c.filter (· ≠ a)).length) = 2 ^ (L - c.length) + 2 ^ (L - c.length) := by
       have h1 := length_filter_ne_add_one hnd ha
       rw [show L - (c.filter (· ≠ a)).length = L - c.length + 1 by omega,
-        pow_succ]
-      ring
+        pow_succ, Nat.mul_two]
     by_cases hT : (v, true) ∈ c <;> by_cases hF : (v, false) ∈ c <;>
       simp only [hT, hF, ite_true, ite_false, CNF.johnsonWeight_cons, Bool.not_true,
         Bool.not_false]
-    · generalize 2 ^ (L - c.length) = p
-      omega
+    · lia
     · rw [hdouble hT]
-      generalize 2 ^ (L - c.length) = p
-      omega
+      lia
     · rw [hdouble hF]
-      generalize 2 ^ (L - c.length) = p
-      omega
+      lia
     · rw [filter_ne_eq_self hT, filter_ne_eq_self hF]
-      generalize 2 ^ (L - c.length) = p
-      omega
+      lia
 
 omit [DecidableEq V] in
 /-- A formula without variables has weight `2 ^ L` per clause, all of them falsified. -/
 theorem CNF.johnsonWeight_of_vars_eq_nil {L : ℕ} {ψ : CNF V} (hψ : ∀ v, v ∉ ψ.vars)
     (σ : V → Bool) : ψ.johnsonWeight L = 2 ^ L * ψ.countUnsat σ := by
-  induction ψ with
-  | nil => rfl
-  | cons c ψ ih =>
-    have hc : c = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
-      hψ l.1 (CNF.mem_vars.2 ⟨c, List.mem_cons_self, l.2, hl⟩)
-    have ih := ih fun v hv => hψ v (by
-      obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hv
-      exact CNF.mem_vars.2 ⟨c', List.mem_cons_of_mem _ hc', b, hb⟩)
-    subst hc
-    have h1 : CNF.countUnsat σ ([] :: ψ) = CNF.countUnsat σ ψ + 1 :=
-      List.countP_cons_of_pos (by simp)
-    rw [CNF.johnsonWeight_cons, h1, ih, List.length_nil, Nat.sub_zero]
-    ring
+  have hnil : ψ = List.replicate ψ.length [] := List.eq_replicate_length.2 fun c hc =>
+    List.eq_nil_iff_forall_not_mem.2 fun l hl => hψ l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩)
+  rw [hnil]
+  simp [CNF.johnsonWeight, CNF.countUnsat, List.countP_replicate, Nat.mul_comm]
 
 /-! ### Johnson's algorithm -/
 

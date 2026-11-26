@@ -101,16 +101,12 @@ transposed loss matrix `Function.swap s₂` has minimax value `c - v₁`
 theorem isMinimaxValue_swap_of_add_eq {s₁ s₂ : I → J → ℝ} {c v₁ : ℝ}
     (hcs : ∀ i j, s₁ i j + s₂ i j = c) (hv₁ : IsMinimaxValue s₁ v₁) :
     IsMinimaxValue (swap s₂) (c - v₁) := by
-  have hsub : ∀ i j, s₂ i j = c - s₁ i j := fun i j => by linarith [hcs i j]
+  have hsub (i : I) (j : J) : s₂ i j = c - s₁ i j := eq_sub_of_add_eq' (hcs i j)
   obtain ⟨⟨p, hp⟩, q, hq⟩ := hv₁
   refine ⟨⟨q, fun i => ?_⟩, p, fun j => ?_⟩
-  · have hsum : ∑ j, q.weights j * s₂ i j = c - ∑ j, q.weights j * s₁ i j := by
-      simp only [hsub, mul_sub, sum_sub_distrib, ← sum_mul, q.total_of_fintype, one_mul]
-    dsimp only [swap]
+  · simp only [swap, hsub, mul_sub, sum_sub_distrib, ← sum_mul, q.total_of_fintype, one_mul]
     linarith [hq i]
-  · have hsum : ∑ i, p.weights i * s₂ i j = c - ∑ i, p.weights i * s₁ i j := by
-      simp only [hsub, mul_sub, sum_sub_distrib, ← sum_mul, p.total_of_fintype, one_mul]
-    dsimp only [swap]
+  · simp only [swap, hsub, mul_sub, sum_sub_distrib, ← sum_mul, p.total_of_fintype, one_mul]
     linarith [hp j]
 
 /-- **Average loss of an external-regret row learner against an arbitrary opponent**
@@ -179,9 +175,7 @@ theorem constantSum_average_loss_mem_Icc {s₁ s₂ : I → J → ℝ} {c v₁ R
         = ∑ i, p t i * ∑ j, q t j * (s₁ i j + s₂ i j) :=
           sum_congr rfl fun i _ => by rw [← mul_add, ← sum_add_distrib]; simp only [mul_add]
       _ = ∑ i, p t i * ∑ j, q t j * c :=
-          sum_congr rfl fun i _ => by
-            congr 1
-            exact sum_congr rfl fun j _ => by rw [hcs i j]
+          sum_congr rfl fun _ _ => congrArg _ (sum_congr rfl fun _ _ => congrArg _ (hcs _ _))
       _ = c := by simp only [← sum_mul, hq1 t ht, hp1 t ht, one_mul]
   have havg_sum :
       (∑ t ∈ range T, ∑ i, p t i * ∑ j, q t j * s₁ i j) / T +
@@ -213,10 +207,7 @@ private theorem bddBelow_range_ciSup_loss [Finite J] (M : I → J → ℝ) :
   calc -B = -(∑ i, |M i j₀|) := rfl
     _ = ∑ i, -|M i j₀| := by rw [sum_neg_distrib]
     _ ≤ ∑ i, p.weights i * M i j₀ := sum_le_sum fun i _ => by
-        have habs := neg_abs_le (M i j₀)
-        have hw0 := p.weights_nonneg i
-        have hw1 := hle i
-        nlinarith [abs_nonneg (M i j₀)]
+        nlinarith [neg_abs_le (M i j₀), p.weights_nonneg i, hle i, abs_nonneg (M i j₀)]
 
 omit [Fintype I] [Nonempty J] in
 private theorem bddAbove_range_ciInf_loss [Finite I] (M : I → J → ℝ) :
@@ -232,10 +223,7 @@ private theorem bddAbove_range_ciInf_loss [Finite I] (M : I → J → ℝ) :
   have hle : ∀ j, q.weights j ≤ 1 := fun j =>
     (single_le_sum (fun j' _ => q.weights_nonneg j') (mem_univ j)).trans_eq q.total_of_fintype
   calc ∑ j, q.weights j * M i₀ j ≤ ∑ j, |M i₀ j| := sum_le_sum fun j _ => by
-        have habs := le_abs_self (M i₀ j)
-        have hw0 := q.weights_nonneg j
-        have hw1 := hle j
-        nlinarith [abs_nonneg (M i₀ j)]
+        nlinarith [le_abs_self (M i₀ j), q.weights_nonneg j, hle j, abs_nonneg (M i₀ j)]
     _ = B := rfl
 
 /-- Coupled horizon-`T` multiplicative-weights self-play on `[0, 1]` matrices: running
@@ -269,8 +257,7 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
   let q : ℕ → J → ℝ := prob (mwFactor η₂) ℓ₂
   have hrun_eq : ∀ t,
       run t = (fun i => ∑ j, q t j * M₀ i j, fun j => 1 - ∑ i, p t i * M₀ i j) := fun t => by
-    have hrun : run t = step t (fun s _ => run s) := WellFounded.fix_eq Nat.lt_wfRel.wf step t
-    rw [hrun]
+    rw [show run t = step t (fun s _ => run s) from WellFounded.fix_eq Nat.lt_wfRel.wf step t]
     dsimp only [step]
     rw [prob_congr (ℓ' := ℓ₁) fun s hs => by simp only [ℓ₁, hs, ↓reduceDIte],
       prob_congr (ℓ' := ℓ₂) fun s hs => by simp only [ℓ₂, hs, ↓reduceDIte]]
@@ -286,13 +273,9 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
     induction t using Nat.strong_induction_on with
     | ind t ih =>
       have hφ₁ : ∀ s < t, ∀ i, 0 < mwFactor η₁ (ℓ₁ s i) := fun s hs i => by
-        rw [mwFactor_apply]
-        have hli := ((ih s hs).1 i).2
-        nlinarith
+        rw [mwFactor_apply]; nlinarith [((ih s hs).1 i).2]
       have hφ₂ : ∀ s < t, ∀ j, 0 < mwFactor η₂ (ℓ₂ s j) := fun s hs j => by
-        rw [mwFactor_apply]
-        have hlj := ((ih s hs).2.1 j).2
-        nlinarith
+        rw [mwFactor_apply]; nlinarith [((ih s hs).2.1 j).2]
       have hp0 : ∀ i, 0 ≤ p t i := prob_nonneg hφ₁
       have hp1 : ∑ i, p t i = 1 := sum_prob hφ₁
       have hq0 : ∀ j, 0 ≤ q t j := prob_nonneg hφ₂
@@ -302,7 +285,7 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
         exact sum_mul_mem_Icc hq0 hq1 fun j => hM₀ i j
       · rw [hℓ₂_eq]
         have h := sum_mul_mem_Icc hp0 hp1 fun i => hM₀ i j
-        exact ⟨by linarith [h.2], by linarith [h.1]⟩
+        exact ⟨sub_nonneg.mpr h.2, sub_le_self _ h.1⟩
   have hT_pos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   have hsT : 0 < √(T : ℝ) := sqrt_pos.mpr hT_pos
   refine ⟨averageProb p T, averageProb q T,
@@ -314,9 +297,7 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
   have hr₂ := mw_regret_le_sqrt_of_mem_Icc (T := T) (fun s _ => (hinv s).2.1) j
   have hround_sum : ∀ t, (∑ i', p t i' * ℓ₁ t i') + (∑ j', q t j' * ℓ₂ t j') = 1 := fun t => by
     simp only [hℓ₁_eq, hℓ₂_eq, mul_sub, mul_one, sum_sub_distrib]
-    have hswap := sum_mul_sum_comm (p t) (q t) M₀
-    have hq1 : ∑ j', q t j' = 1 := (hinv t).2.2.2.2.2
-    linarith
+    linarith [sum_mul_sum_comm (p t) (q t) M₀, (hinv t).2.2.2.2.2]
   have htot : (∑ t ∈ range T, ∑ i', p t i' * ℓ₁ t i') +
       (∑ t ∈ range T, ∑ j', q t j' * ℓ₂ t j') = T := by
     rw [← sum_add_distrib, sum_congr rfl fun t _ => hround_sum t]
@@ -380,10 +361,12 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
     have hB : 0 < B := by linarith
     let M₀ : I → J → ℝ := fun i j => (M i j + B) / (2 * B)
     have hM₀ : ∀ i j, M₀ i j ∈ Set.Icc (0 : ℝ) 1 := fun i j => by
-      have habs : |M i j| ≤ Bmax :=
-        (single_le_sum (f := fun j' : J => |M i j'|) (fun _ _ => abs_nonneg _) (mem_univ j)).trans
-          (single_le_sum (f := fun i' : I => ∑ j' : J, |M i' j'|)
-            (fun _ _ => sum_nonneg fun _ _ => abs_nonneg _) (mem_univ i))
+      have habs : |M i j| ≤ Bmax := by
+        calc |M i j| ≤ ∑ j' : J, |M i j'| :=
+              single_le_sum (f := fun j' : J => |M i j'|) (fun _ _ => abs_nonneg _) (mem_univ j)
+          _ ≤ Bmax :=
+              single_le_sum (f := fun i' : I => ∑ j' : J, |M i' j'|)
+                (fun _ _ => sum_nonneg fun _ _ => abs_nonneg _) (mem_univ i)
       have hlow : -B ≤ M i j := by linarith [neg_le_of_abs_le habs]
       have hhigh : M i j ≤ B := by linarith [le_of_abs_le habs]
       dsimp only [M₀]
@@ -395,43 +378,37 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
           (⨆ q : StdSimplex ℝ J, ⨅ i : I, ∑ j, q.weights j * M i j) + C / √(T : ℝ) := by
       intro T hT
       obtain ⟨p_bar, q_bar, hp0, hp1, hq0, hq1, hle₀⟩ := coupledMW_gap_le hM₀ hT
-      have hmem_p : p_bar ∈ Set.range (fun s : StdSimplex ℝ I => (s.weights : I → ℝ)) := by
+      obtain ⟨sp, hsp'⟩ : p_bar ∈ Set.range fun s : StdSimplex ℝ I => (s.weights : I → ℝ) := by
         rw [StdSimplex.range_toFun_comp_weights]
         exact ⟨Set.mem_iInter.2 hp0, hp1⟩
-      have hmem_q : q_bar ∈ Set.range (fun s : StdSimplex ℝ J => (s.weights : J → ℝ)) := by
+      obtain ⟨sq, hsq'⟩ : q_bar ∈ Set.range fun s : StdSimplex ℝ J => (s.weights : J → ℝ) := by
         rw [StdSimplex.range_toFun_comp_weights]
         exact ⟨Set.mem_iInter.2 hq0, hq1⟩
-      obtain ⟨sp, hsp⟩ := hmem_p
-      obtain ⟨sq, hsq⟩ := hmem_q
-      have hsp' : (sp.weights : I → ℝ) = p_bar := hsp
-      have hsq' : (sq.weights : J → ℝ) = q_bar := hsq
       have hpair : ∀ (i : I) (j : J),
           ∑ i', p_bar i' * M i' j ≤ ∑ j', q_bar j' * M i j' + C / √(T : ℝ) := fun i j => by
-        have hM_eq : ∀ i' j', M i' j' = 2 * B * M₀ i' j' - B := fun i' j' => by
-          dsimp only [M₀]; field_simp; ring
-        have hlhs : ∑ i', p_bar i' * M i' j = 2 * B * (∑ i', p_bar i' * M₀ i' j) - B := by
-          simp only [hM_eq, mul_sub, sum_sub_distrib, ← sum_mul, hp1, one_mul, mul_sum]
-          congr 1
-          exact sum_congr rfl fun i' _ => by ring
-        have hrhs : ∑ j', q_bar j' * M i j' = 2 * B * (∑ j', q_bar j' * M₀ i j') - B := by
-          simp only [hM_eq, mul_sub, sum_sub_distrib, ← sum_mul, hq1, one_mul, mul_sum]
-          congr 1
-          exact sum_congr rfl fun j' _ => by ring
-        have hmul := mul_le_mul_of_nonneg_left (hle₀ i j) (mul_nonneg zero_le_two hB.le)
-        have hC_eq : 2 * B * (∑ j', q_bar j' * M₀ i j' +
-            2 * (√(log (Fintype.card I)) + √(log (Fintype.card J))) / √(T : ℝ)) =
-            2 * B * (∑ j', q_bar j' * M₀ i j') + C / √(T : ℝ) := by
+        have hM_eq (i' : I) (j' : J) : M i' j' = M₀ i' j' * (2 * B) - B := by
+          dsimp only [M₀]
+          field_simp
+          ring
+        have hlhs : ∑ i', p_bar i' * M i' j = (∑ i', p_bar i' * M₀ i' j) * (2 * B) - B := by
+          simp only [hM_eq, mul_sub, ← mul_assoc, sum_sub_distrib, ← sum_mul, hp1, one_mul]
+        have hrhs : ∑ j', q_bar j' * M i j' = (∑ j', q_bar j' * M₀ i j') * (2 * B) - B := by
+          simp only [hM_eq, mul_sub, ← mul_assoc, sum_sub_distrib, ← sum_mul, hq1, one_mul]
+        have hmul := mul_le_mul_of_nonneg_right (hle₀ i j) (mul_nonneg zero_le_two hB.le)
+        have hC_eq : (∑ j', q_bar j' * M₀ i j' +
+            2 * (√(log (Fintype.card I)) + √(log (Fintype.card J))) / √(T : ℝ)) * (2 * B) =
+            (∑ j', q_bar j' * M₀ i j') * (2 * B) + C / √(T : ℝ) := by
           dsimp only [C]
           ring
         linarith
       have hsup_inf : (⨆ j : J, ∑ i, sp.weights i * M i j) ≤
           (⨅ i : I, ∑ j, sq.weights j * M i j) + C / √(T : ℝ) := by
-        rw [hsp', hsq', ← sup'_univ_eq_ciSup, ← inf'_univ_eq_ciInf]
+        rw [show (sp.weights : I → ℝ) = p_bar from hsp',
+          show (sq.weights : J → ℝ) = q_bar from hsq', ← sup'_univ_eq_ciSup, ← inf'_univ_eq_ciInf]
         refine Finset.sup'_le _ _ fun j _ => ?_
-        have hinf : ∑ i', p_bar i' * M i' j - C / √(T : ℝ) ≤
-            univ.inf' univ_nonempty (fun i => ∑ j', q_bar j' * M i j') :=
-          Finset.le_inf' _ _ fun i _ => by linarith [hpair i j]
-        linarith
+        linarith [Finset.le_inf' univ_nonempty (fun i => ∑ j', q_bar j' * M i j')
+          fun i _ => show ∑ i', p_bar i' * M i' j - C / √(T : ℝ) ≤ ∑ j', q_bar j' * M i j' by
+            linarith [hpair i j]]
       linarith [ciInf_le (bddBelow_range_ciSup_loss M) sp,
         le_ciSup (bddAbove_range_ciInf_loss M) sq]
     by_contra! hlt
@@ -439,9 +416,8 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
       ⨆ q : StdSimplex ℝ J, ⨅ i : I, ∑ j, q.weights j * M i j
     have hδ : 0 < δ := sub_pos.mpr hlt
     obtain ⟨T, hT_gt⟩ := exists_nat_gt ((C / δ) ^ 2 + 1)
-    have hT_pos : 0 < T := by
-      have hpos : (0 : ℝ) < (C / δ) ^ 2 + 1 := by positivity
-      exact_mod_cast lt_trans hpos hT_gt
+    have hT_pos : 0 < T :=
+      Nat.cast_pos.mp ((by positivity : (0 : ℝ) < (C / δ) ^ 2 + 1).trans hT_gt)
     have hsT : C / δ < √(T : ℝ) := by
       have h1 : (C / δ) ^ 2 < T := by linarith
       calc C / δ ≤ √((C / δ) ^ 2) := le_sqrt_of_sq_le le_rfl

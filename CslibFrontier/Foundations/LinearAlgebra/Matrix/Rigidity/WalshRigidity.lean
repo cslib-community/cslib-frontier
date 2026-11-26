@@ -63,23 +63,30 @@ private theorem walshBandWitness : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ)
       ((x ∩ y).card < k ∨ k + t ≤ (x ∩ y).card) := by
   intro K _ n lo hi k t
   classical
-  let H : Matrix (Finset (Fin n)) (Finset (Fin n)) K := Matrix.of fun x y => (-1 : K) ^ (x ∩ y).card
+  let H : Matrix (Finset (Fin n)) (Finset (Fin n)) K := Matrix.of fun x y =>
+    (-1 : K) ^ (x ∩ y).card
   let bad := univ.filter fun x : Finset (Fin n) => ¬(lo ≤ x.card ∧ x.card ≤ hi)
   obtain ⟨A, hr, hon⟩ := exists_low_rank_eq_walsh_on_band K n k t
   obtain ⟨B, hB, hentries⟩ := correct_rows_cols H A bad
   have hb : bad.card = ∑ a ∈ range (n + 1), if lo ≤ a ∧ a ≤ hi then 0 else n.choose a := by
     let g (a : ℕ) := if lo ≤ a ∧ a ≤ hi then 0 else 1
-    rw [show bad.card = ∑ x ∈ (univ : Finset (Fin n)).powerset, g x.card by
-        rw [card_filter, ← powerset_univ]; simp only [g, ite_not],
-      sum_powerset]
-    simp_rw [sum_powersetCard]; simp [g, mul_ite]
-  refine ⟨B, hB.trans (by rw [hb]; exact Nat.add_le_add_right hr _), fun x y hne => ?_⟩
-  have good : ¬(x ∈ bad ∨ y ∈ bad) := fun h => hne ((hentries x y).trans (ite_eq_left h)).symm
-  have hxy := good
-  simp only [bad, mem_filter, mem_univ, true_and, not_or, not_not] at hxy
-  refine ⟨hxy.1.1, hxy.1.2, hxy.2.1, hxy.2.2, ?_⟩
-  by_contra! inside
-  exact hne (by rw [hentries, ite_eq_right good, hon x y inside.1 inside.2]; rfl)
+    calc
+      _ = ∑ x ∈ (univ : Finset (Fin n)).powerset, g x.card := by
+        rw [card_filter, ← powerset_univ]
+        simp only [g, ite_not]
+      _ = _ := by
+        rw [sum_powerset]
+        simp_rw [sum_powersetCard]
+        simp [g, mul_ite]
+  refine ⟨B, ?_, fun x y hne => ?_⟩
+  · rw [← hb]
+    exact hB.trans (Nat.add_le_add_right hr _)
+  · have good : ¬(x ∈ bad ∨ y ∈ bad) := fun h => hne ((hentries x y).trans (ite_eq_left h)).symm
+    have hxy := good
+    simp only [bad, mem_filter, mem_univ, true_and, not_or, not_not] at hxy
+    refine ⟨hxy.1.1, hxy.1.2, hxy.2.1, hxy.2.2, ?_⟩
+    by_contra! inside
+    exact hne (by rw [hentries, ite_eq_right good, hon x y inside.1 inside.2]; rfl)
 
 /-- The corrected band matrix witnesses an explicit upper bound on total rigidity. -/
 private theorem walshRigidityFinite : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ),
@@ -176,11 +183,14 @@ private theorem rigidity_le_of_row_edits {ι K : Type*} [Fintype ι] [Field K]
     H.rigidity r ≤ Fintype.card ι * edits := by
   classical
   refine (Matrix.rigidity_le (B := B) hr).trans ?_
-  rw [Matrix.diffCount_eq_card_filter, card_filter, Fintype.sum_prod_type]
-  dsimp only
-  refine (sum_le_sum (g := fun _ => edits) fun x _ => ?_).trans (by simp)
-  rw [← card_filter, ← Set.ncard_coe_finset]
-  simpa [coe_filter] using hrow x
+  rw [Matrix.diffCount_eq_card_filter]
+  calc
+    _ = ∑ x : ι, ∑ y : ι, if H x y ≠ B x y then 1 else 0 := by
+      rw [card_filter, Fintype.sum_prod_type]
+    _ ≤ ∑ _ : ι, edits := sum_le_sum fun x _ => by
+      rw [← card_filter, ← Set.ncard_coe_finset]
+      simpa [coe_filter] using hrow x
+    _ = _ := by simp
 
 /-- Conditional finite step toward [Alman and Williams, Theorem 1.1][AlmanWilliams2017].
 A bound on each central row's binomial sum gives one low-rank native witness for all rows. -/

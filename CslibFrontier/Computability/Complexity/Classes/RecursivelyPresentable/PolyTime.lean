@@ -118,14 +118,17 @@ def pIndexed (p : ℕ × List Bool) : Bool :=
 theorem setOf_pIndexed_mem_P (i : ℕ) : {w | pIndexed (i, w) = true} ∈ P encBits := by
   have hc : ComputableInPolyTime (fun w : List Bool => clock i w.length) encBits encUnary :=
     (unary_pow i).comp (by fun_prop)
-  exact ⟨fun w => pIndexed (i, w), by dsimp only [pIndexed]; fun_prop, fun _ => Iff.rfl⟩
+  refine ⟨fun w => pIndexed (i, w), ?_, fun _ => Iff.rfl⟩
+  dsimp only [pIndexed]
+  fun_prop
 
 /-- Every problem in `P` on bit words appears in `pIndexed` at arbitrarily large indices. -/
 theorem exists_setOf_pIndexed_eq {A : Set (List Bool)} (h : A ∈ P encBits) (B : ℕ) :
     ∃ i, B ≤ i ∧ {w | pIndexed (i, w) = true} = A := by
   obtain ⟨f, hf, i, hi, hrun⟩ := exists_index_of_mem_P h B
-  exact ⟨i, hi, Set.ext fun w => by
-    rw [Set.mem_ofPred_eq, pIndexed, hrun, hf]; cases f w <;> decide⟩
+  refine ⟨i, hi, Set.ext fun w => ?_⟩
+  rw [Set.mem_ofPred_eq, pIndexed, hrun, hf]
+  cases f w <;> decide
 
 /-- The presentation of `P` with the clock capped at `c`. -/
 def pIndexedCap : (ℕ × List Bool) × ℕ → Bool
@@ -142,7 +145,8 @@ theorem pIndexedCap_eq_pIndexed_of_le {i : ℕ} {w : List Bool} {c : ℕ}
     (hc : clock i w.length ≤ c) :
     pIndexedCap ((i, w), c) = pIndexed (i, w) := by
   simp only [pIndexedCap, pIndexed, Ladner.capPow, clock,
-    min_eq_left (show (2 * w.length + 2) ^ i ≤ c from hc)]; rfl
+    min_eq_left (show (2 * w.length + 2) ^ i ≤ c from hc)]
+  rfl
 
 /-- **The presentation of `P` is computable**, by computing `clock` via `isComputable_withClock` and
 running the universal simulator for that many steps. -/
@@ -161,7 +165,8 @@ end UniformDiagonalization
 theorem recursivelyPresentable_P : RecursivelyPresentable encBits (P encBits) :=
   ⟨UniformDiagonalization.pIndexed, UniformDiagonalization.isComputable_pIndexed,
     Set.ext fun _ => ⟨fun h =>
-      let ⟨i, _, hi⟩ := UniformDiagonalization.exists_setOf_pIndexed_eq h 0; ⟨i, hi⟩,
+      let ⟨i, _, hi⟩ := UniformDiagonalization.exists_setOf_pIndexed_eq h 0
+      ⟨i, hi⟩,
       fun ⟨i, hi⟩ => hi ▸ UniformDiagonalization.setOf_pIndexed_mem_P i⟩⟩
 
 /-! ### Enumerating polynomial-time transducers -/
@@ -261,9 +266,10 @@ theorem polyTimeReducible_of_symmDiff_finite_left {α β : Type} {encA : α ↪ 
   refine polyTimeReducible_of_patch hf
     ((hfin.subset (t := (L ∆ L') ∩ L') Set.inter_subset_left).mem_P (enc := encA))
     ((hfin.subset (t := (L ∆ L') \ L') Set.sdiff_subset).mem_P (enc := encA))
-    hb₀ hb₁ (fun _ hx => hx.2) (fun _ hx => hx.2) fun x hx₁ hx₀ =>
-      (by simp only [Set.mem_inter_iff, Set.mem_sdiff, Set.mem_symmDiff] at hx₁ hx₀; tauto :
-        x ∈ L' ↔ x ∈ L).trans (hL x)
+    hb₀ hb₁ (fun _ hx => hx.2) (fun _ hx => hx.2) fun x hx₁ hx₀ => ?_
+  refine Iff.trans ?_ (hL x)
+  simp only [Set.mem_inter_iff, Set.mem_sdiff, Set.mem_symmDiff] at hx₁ hx₀
+  tauto
 
 /-- The lower `≤ₘᵖ`-cone of a problem with a non-member and a member is closed under finite
 variations. -/

@@ -121,7 +121,11 @@ theorem sum_card_filter_sq [Fintype Y] (h : X → Y) (S : Finset X) :
   classical
   have hsq (j) : (S.filter fun x => h x = j).card ^ 2 =
       ((S ×ˢ S).filter fun p => h p.1 = j ∧ h p.2 = j).card := by
-    rw [sq, ← card_product]; congr 1; ext ⟨x, y⟩; simp only [mem_product, mem_filter]; tauto
+    rw [sq, ← card_product]
+    congr 1
+    ext ⟨x, y⟩
+    simp only [mem_product, mem_filter]
+    tauto
   simp_rw [hsq]
   rw [← card_biUnion (fun j _ j' _ hjj' => disjoint_left.mpr fun p hp hp' =>
     hjj' ((mem_filter.mp hp).2.1.symm.trans (mem_filter.mp hp').2.1))]
@@ -182,14 +186,20 @@ theorem IsUniversalHash.toOuterMeasure_not_injOn_le {seed : PMF ι} {hash : ι �
     {ε : ℝ≥0∞} (hh : IsUniversalHash seed hash ε) (S : Finset X) :
     seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} ≤ (S.card.choose 2 : ℕ) * ε := by
   classical
+  have hsub : {i | ¬ Set.InjOn (hash i) S} ⊆
+      {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := fun _ hi => by
+    exact_mod_cast two_le_orderedCollisionCount hi
   have h2 : 2 * seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} ≤
       ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * ε :=
-    (mul_le_mul_right (seed.toOuterMeasure.mono fun i hi => by
-      exact_mod_cast two_le_orderedCollisionCount hi) _).trans
-      ((PMF.mul_toOuterMeasure_le_tsum seed _ 2).trans (hh.tsum_orderedCollisionCount_le S))
-  rw [show S.card * (S.card - 1) = 2 * S.card.choose 2 by
-    rw [Nat.choose_two_right, Nat.mul_div_cancel' (Nat.even_mul_pred_self _).two_dvd],
-    Nat.cast_mul, Nat.cast_ofNat, mul_assoc] at h2
+    calc 2 * seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S}
+        ≤ 2 * seed.toOuterMeasure
+            {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := by gcongr
+      _ ≤ ∑' i, seed i * (orderedCollisionCount (hash i) S : ℝ≥0∞) :=
+          PMF.mul_toOuterMeasure_le_tsum seed _ 2
+      _ ≤ _ := hh.tsum_orderedCollisionCount_le S
+  have hch : S.card * (S.card - 1) = 2 * S.card.choose 2 := by
+    rw [Nat.choose_two_right, Nat.mul_div_cancel' (Nat.even_mul_pred_self _).two_dvd]
+  rw [hch, Nat.cast_mul, Nat.cast_ofNat, mul_assoc] at h2
   exact (ENNReal.mul_le_mul_iff_right two_ne_zero ENNReal.ofNat_ne_top).mp h2
 
 omit [DecidableEq Y] in
@@ -219,9 +229,14 @@ theorem IsTwoUniversal.tsum_sum_card_filter_sq_le [Fintype Y] {seed : PMF ι} {h
   have hle : ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * (Fintype.card Y : ℝ≥0∞)⁻¹ ≤
       (S.card - 1 : ℕ) := by
     rw [← div_eq_mul_inv]
-    exact ENNReal.div_le_of_le_mul
-      (by rw [mul_comm S.card]; exact_mod_cast Nat.mul_le_mul_left _ hS)
-  exact (add_le_add le_rfl hle).trans_eq (by rw [← Nat.cast_add]; congr 1; omega)
+    refine ENNReal.div_le_of_le_mul ?_
+    rw [mul_comm S.card]
+    exact_mod_cast Nat.mul_le_mul_left _ hS
+  calc (S.card : ℝ≥0∞) + ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * (Fintype.card Y : ℝ≥0∞)⁻¹
+      ≤ (S.card : ℝ≥0∞) + (S.card - 1 : ℕ) := add_le_add le_rfl hle
+    _ = (2 * S.card - 1 : ℕ) := by
+        rw [← Nat.cast_add]
+        exact congrArg Nat.cast (by omega)
 
 /-- **Markov bound for the top level** ([CLRS2009], Section 11.5): with a universal family into
 at least `n` values, the sum of squared bucket sizes exceeds `4n` with probability at most
@@ -233,19 +248,21 @@ theorem IsTwoUniversal.toOuterMeasure_four_mul_lt_sum_card_filter_sq_le [Fintype
     seed.toOuterMeasure {i | 4 * S.card < ∑ j, (S.filter fun x => hash i x = j).card ^ 2} ≤
       2⁻¹ := by
   classical
-  have hmarkov : ((4 * S.card + 1 : ℕ) : ℝ≥0∞) *
-      seed.toOuterMeasure {i | 4 * S.card < ∑ j, (S.filter fun x => hash i x = j).card ^ 2} ≤
-      (2 * S.card - 1 : ℕ) :=
+  set P := seed.toOuterMeasure {i | 4 * S.card < ∑ j, (S.filter fun x => hash i x = j).card ^ 2}
+  have hmarkov : ((4 * S.card + 1 : ℕ) : ℝ≥0∞) * P ≤ (2 * S.card - 1 : ℕ) :=
     (mul_le_mul_right (seed.toOuterMeasure.mono
       (s₂ := {i | ((4 * S.card + 1 : ℕ) : ℝ≥0∞) ≤
         ((∑ j, (S.filter fun x => hash i x = j).card ^ 2 : ℕ) : ℝ≥0∞)})
-      fun i hi => by simp only [Set.mem_ofPred_eq, Nat.cast_le] at hi ⊢; omega) _).trans
+      fun _ hi => (Nat.cast_le (α := ℝ≥0∞)).mpr hi) _).trans
       ((PMF.mul_toOuterMeasure_le_tsum seed _ _).trans (hh.tsum_sum_card_filter_sq_le S hS))
   have hne0 : ((4 * S.card + 1 : ℕ) : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
   rw [ENNReal.le_inv_iff_mul_le, ← ENNReal.mul_le_mul_iff_right hne0 (ENNReal.natCast_ne_top _),
-    mul_one, ← mul_assoc]
-  refine (mul_le_mul_left hmarkov 2).trans ?_
-  exact_mod_cast show (2 * S.card - 1) * 2 ≤ 4 * S.card + 1 by omega
+    mul_one]
+  calc ((4 * S.card + 1 : ℕ) : ℝ≥0∞) * (P * 2)
+      = 2 * (((4 * S.card + 1 : ℕ) : ℝ≥0∞) * P) := by ring
+    _ ≤ 2 * (2 * S.card - 1 : ℕ) := by gcongr
+    _ ≤ ((4 * S.card + 1 : ℕ) : ℝ≥0∞) := by
+        exact_mod_cast show 2 * (2 * S.card - 1) ≤ 4 * S.card + 1 by omega
 
 omit [DecidableEq Y] in
 open Classical in
@@ -255,9 +272,14 @@ theorem IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp [Fintype ι] [Fintype Y
     {hash : ι → X → Y} (hh : IsTwoUniversal seed hash) (S : Finset X) (x : X) {P : ι → Prop}
     {_ : DecidablePred P} (hP : ∀ i, P i → ∃ y ∈ S, y ≠ x ∧ hash i y = hash i x) :
     (∑ i, if P i then (seed i).toReal else 0) ≤ (#S : ℝ) / Fintype.card Y := by
-  refine (sum_le_sum fun i _ => ?_).trans
-    ((hh.collision_with_set_le S x).trans (by gcongr; exact erase_subset _ _))
-  split_ifs with h₁ h₂
-  exacts [le_rfl, absurd (hP i h₁) h₂, ENNReal.toReal_nonneg, le_rfl]
+  calc (∑ i, if P i then (seed i).toReal else 0)
+      ≤ ∑ i, if ∃ y ∈ S, y ≠ x ∧ hash i y = hash i x then (seed i).toReal else 0 :=
+        sum_le_sum fun i _ => by
+          split_ifs with h₁ h₂
+          exacts [le_rfl, absurd (hP i h₁) h₂, ENNReal.toReal_nonneg, le_rfl]
+    _ ≤ (#(S.erase x) : ℝ) / Fintype.card Y := hh.collision_with_set_le S x
+    _ ≤ (#S : ℝ) / Fintype.card Y := by
+        gcongr
+        exact erase_subset _ _
 
 end Cslib.Probability

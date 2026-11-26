@@ -72,25 +72,16 @@ theorem weightedPointVariance_le_resampling (φ : AlgState A)
   let : InnerProductSpace ℝ φ.toPositiveLinearMap.GNS := InnerProductSpace.complexToReal
   let V (g : BoundedPolynomial F m d) (u : Point F m) : φ.toPositiveLinearMap.GNS :=
     φ.toPreGNS (K g * (L u).effect (eval u g.val))
-  let P (g : BoundedPolynomial F m d) (u v : Point F m) :=
-    (L v).effect (eval v g.val) - (L u).effect (eval u g.val)
   have he (g : BoundedPolynomial F m d) (u v : Point F m) :
-      (φ (star (P g u v) * T.effect g * P g u v)).re = ‖V g u - V g v‖ ^ 2 := by
-    rw [norm_sub_rev]
-    dsimp only [V]
-    rw [← UniformSpace.Completion.coe_sub, UniformSpace.Completion.norm_coe, ← map_sub,
-      ← mul_sub]
-    change _ = φ.norm (K g * P g u v) ^ 2
-    rw [AlgState.norm_sq, hK g, star_mul]
-    simp only [mul_assoc]
-  change (𝔼 u : Point F m, 𝔼 v : Point F m, ∑ g,
-      (φ (star (P g u v) * T.effect g * P g u v)).re) ≤
-    m * (𝔼 i : Fin m, 𝔼 u : Point F m, 𝔼 a : F, ∑ g,
-      (φ (star (P g u (update u i a)) * T.effect g * P g u (update u i a))).re)
-  simp only [he]
-  have hcard (f : Fin m → ℝ) : m * (𝔼 i, f i) = ∑ i, f i := by
-    simpa only [Fintype.card_fin] using Fintype.card_mul_expect f
-  rw [hcard]
+      (φ (star ((L v).effect (eval v g.val) - (L u).effect (eval u g.val)) * T.effect g *
+        ((L v).effect (eval v g.val) - (L u).effect (eval u g.val)))).re =
+        ‖V g u - V g v‖ ^ 2 := by
+    rw [norm_sub_rev, ← UniformSpace.Completion.coe_sub, UniformSpace.Completion.norm_coe,
+      ← map_sub, ← mul_sub]
+    change _ = φ.norm (K g * _) ^ 2
+    rw [AlgState.norm_sq, hK g, star_mul, mul_assoc, mul_assoc, ← mul_assoc]
+  simp only [weightedPointVariance, weightedPointResampling, he]
+  rw [show (m : ℝ) = Fintype.card (Fin m) by simp, Fintype.card_mul_expect]
   simp only [expect_sum_comm]
   rw [sum_comm]
   exact sum_le_sum fun g _ =>

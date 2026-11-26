@@ -108,8 +108,9 @@ theorem endpoints_append (M N : List (V × V)) :
 
 /-- `endpoints` is monotone for list containment. -/
 theorem endpoints_subset_of_subset {M N : List (V × V)} (h : M ⊆ N) :
-    endpoints M ⊆ endpoints N :=
-  fun _ hv => let ⟨e, he, hv⟩ := mem_endpoints.1 hv; mem_endpoints.2 ⟨e, h he, hv⟩
+    endpoints M ⊆ endpoints N := fun v hv => by
+  obtain ⟨e, he, hv⟩ := mem_endpoints.1 hv
+  exact mem_endpoints.2 ⟨e, h he, hv⟩
 
 end Endpoints
 
@@ -251,14 +252,16 @@ theorem length_le_encard_of_isVertexCover {G : SimpleGraph V} {M : List (V × V)
     obtain ⟨x, hxc, hx, hxM⟩ : ∃ x ∈ c, (x = e.1 ∨ x = e.2) ∧ x ∉ endpoints M :=
       (hc (hadj e List.mem_cons_self)).elim (fun h => ⟨e.1, h, Or.inl rfl, h1⟩)
         fun h => ⟨e.2, h, Or.inr rfl, h2⟩
-    refine (by simp : ((e :: M).length : ℕ∞) = M.length + 1).trans_le
-      (((add_le_add_left ih 1).trans_eq
-        (Set.encard_insert_of_notMem fun h : x ∈ c ∩ {v | v ∈ endpoints M} => hxM h.2).symm).trans
-        (Set.encard_le_encard ?_))
-    rintro v (rfl | ⟨hvc, hvM⟩) <;>
-      simp only [Set.mem_inter_iff, endpoints, Set.mem_ofPred_eq, List.mem_cons]
-    · exact ⟨hxc, by tauto⟩
-    · exact ⟨hvc, Or.inr (Or.inr hvM)⟩
+    have hsub : insert x (c ∩ {v | v ∈ endpoints M}) ⊆ c ∩ {v | v ∈ endpoints (e :: M)} := by
+      rintro v (rfl | ⟨hvc, hvM⟩) <;>
+        simp only [Set.mem_inter_iff, endpoints, Set.mem_ofPred_eq, List.mem_cons]
+      · exact ⟨hxc, by tauto⟩
+      · exact ⟨hvc, Or.inr (Or.inr hvM)⟩
+    calc ((e :: M).length : ℕ∞) = (M.length : ℕ∞) + 1 := by simp
+      _ ≤ (c ∩ {v | v ∈ endpoints M}).encard + 1 := by gcongr
+      _ = (insert x (c ∩ {v | v ∈ endpoints M})).encard :=
+          (Set.encard_insert_of_notMem fun h : x ∈ c ∩ {v | v ∈ endpoints M} => hxM h.2).symm
+      _ ≤ (c ∩ {v | v ∈ endpoints (e :: M)}).encard := Set.encard_le_encard hsub
 
 /-- **The factor 2 against any cover.** The matching cover has at most twice as many vertices as
 any vertex cover. -/

@@ -60,7 +60,8 @@ private theorem circuitMulInput_wires (C : Circuit (arithSignature F) (p + k) m)
     (he : C.program.lines i.val = ⟨.mul, wires⟩) (side : Fin 2) :
     circuitMulInput C i side = ((Wire.equiv (p + k) C.size).trans finSumFinEquiv) (wires side) := by
   have h : ∀ (line : Line (arithSignature F) (p + k) C.size) (hl : line = ⟨.mul, wires⟩)
-      (hop : line.op = .mul), line.wires (Fin.cast (by rw [hop]) side) = wires side := by
+      (hop : line.op = .mul), line.wires (Fin.cast (by rw [hop]) side) =
+        wires side := by
     rintro _ rfl _
     rfl
   rw [circuitMulInput, h _ he i.property]
@@ -144,11 +145,11 @@ theorem circuitTrace_mul (x : Fin p → F) (w : Fin k → F) (i : CircuitMulGate
   rcases he : C.program.lines i.val with ⟨op, wires⟩
   cases he ▸ i.property
   have h := C.program.trace_gate (arithInterpretation F) (Fin.append x w) i.val
+  have ho : circuitMulOutput C i =
+      ((Wire.equiv (p + k) C.size).trans finSumFinEquiv) (.gate i.val) := rfl
   rw [he] at h
-  simp only [circuitMulInput_wires C i he,
-    show circuitMulOutput C i =
-      ((Wire.equiv (p + k) C.size).trans finSumFinEquiv) (.gate i.val) from rfl,
-    circuitTrace, Function.comp_apply, Equiv.symm_apply_apply]
+  simp only [circuitMulInput_wires C i he, ho, circuitTrace, Function.comp_apply,
+    Equiv.symm_apply_apply]
   exact h.symm
 
 /-- A wire assignment satisfying all public linear equations and multiplication gates gives
@@ -287,10 +288,10 @@ theorem circuitVerify_correct (x : Fin p → F) (w : Fin k → F) (y : Fin m →
   rw [circuitVerify, decide_eq_true_eq]
   refine ⟨fun i => ?_, maskedMulCheckReply_correct _ _ _ _ c hc r (circuitTrace_mul C x w)⟩
   change (circuitLinearCoeffs C *ᵥ voleAdjustReceiver (Fin.init c.w) _ c.delta) _ = _
-  rw [circuitLinear_adjusted C c hc,
-    show Fin.init c.u + voleCommitWitness (circuitTrace C x w) (Fin.init c.u) =
-      circuitTrace C x w by simp [voleCommitWitness],
-    circuitTrace_linear C x w y hy]
+  have hadd : Fin.init c.u + voleCommitWitness (circuitTrace C x w) (Fin.init c.u) =
+      circuitTrace C x w := by
+    simp [voleCommitWitness]
+  rw [circuitLinear_adjusted C c hc, hadd, circuitTrace_linear C x w y hy]
   rfl
 
 /-- The actual role-local reduction has perfect completeness for the public circuit relation. -/
@@ -321,8 +322,9 @@ theorem circuitCheck_complete :
     simp only [circuitVerify_correct C x w y hy c (valid_of_mem_support_voleIdealDist hc) r,
       ite_true]
   rw [hrun]
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_bind_apply,
-    PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq, Interactive.Accept]
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq,
+    Interactive.Accept]
   simp
 
 end Cslib.Crypto.Protocols.VOLE

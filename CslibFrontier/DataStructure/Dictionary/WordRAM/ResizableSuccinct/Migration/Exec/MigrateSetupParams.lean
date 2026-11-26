@@ -91,6 +91,20 @@ theorem not_readsWidth_migrateSetupParamsCode : ¬migrateSetupParamsCode.ReadsWi
   simp [migrateSetupParamsCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin,
     not_readsWidth_migrateLoadOldCode, not_readsWidth_migrateComputeArenaCode, hb1, hb2]
 
+private theorem exec_add_bdd {w L_peak : ℕ} (d i j : Fin rResize) (v : ℕ) {x : RData rResize}
+    (hx : x.Bounded w) (hL : x.frontier ≤ L_peak)
+    (hv : x.regs i + x.regs j = v) (hfit : Fits w v) :
+    RDemonicExec (B := .exact) w L_peak (.op (.exactBin .add d i j)) x 1 (· = x.set d v) ∧
+      (x.set d v).Bounded w :=
+  ⟨RDemonicExec.exactBin hL (congrArg some hv) hfit, hx.set hfit⟩
+
+private theorem exec_sub_bdd {w L_peak : ℕ} (d i j : Fin rResize) (v : ℕ) {x : RData rResize}
+    (hx : x.Bounded w) (hL : x.frontier ≤ L_peak)
+    (hle : x.regs j ≤ x.regs i) (hv : x.regs i - x.regs j = v) (hfit : Fits w v) :
+    RDemonicExec (B := .exact) w L_peak (.op (.exactBin .sub d i j)) x 1 (· = x.set d v) ∧
+      (x.set d v).Bounded w :=
+  ⟨RDemonicExec.exactBin hL (by simp [BinOp.evalExact, hle, hv]) hfit, hx.set hfit⟩
+
 private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
     {θ_old : QuotHashSeed U N_old} {s_abs : Dictionary.State U} {x : RData rResize}
     (hx : x.Bounded w) (hn : 1 ≤ n) (hev : EpochValid U n N_old)
@@ -206,25 +220,14 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
   have hx₅_cp34 : x₅.regs (mOldCp idx34) = offCompItems U w N_old :=
     (hx₅_keep (mOldCp idx34) (mOldCp_ne_mReg _ (Or.inl (by decide))) (mOldCp_lt_160 _)
       (mOldCp_ne_mReg _ (Or.inr (by decide)))).trans (hx₃_cp_all idx34)
-  set x₆ := x₅.set mNewMeta (base + offCompItems U w N_old)
-  have hex_nm := RDemonicExec.exactBin (f := .add) (d := mNewMeta) (i := mBase)
-    (j := mOldCp idx34) (w := w) (L_peak := L_peak) (x := x₅)
-    (hx₅f_eq.le.trans hL) (v := base + offCompItems U w N_old)
-    (by
-      change some (x₅.regs mBase + x₅.regs (mOldCp idx34)) = some (base + offCompItems U w N_old)
-      rw [hx₅_base, hx₅_cp34])
+  obtain ⟨hex_nm, hx₆b⟩ := exec_add_bdd mNewMeta mBase (mOldCp idx34)
+    (base + offCompItems U w N_old) hx₅b (hx₅f_eq.le.trans hL)
+    (by rw [hx₅_base, hx₅_cp34])
     (hfit_fr.of_le (by rw [hfr, hce_old]; omega))
-  have hx₆b : x₆.Bounded w := hx₅b.set (hfit_fr.of_le (by rw [hfr, hce_old]; omega))
+  set x₆ := x₅.set mNewMeta (base + offCompItems U w N_old)
+  obtain ⟨hex_fr, hx₇b⟩ := exec_add_bdd mFr mNewMeta mIwOld x.frontier hx₆b
+    (hx₅f_eq.le.trans hL) (by simp [x₆, RData.set, hx₅_iw, hfr, hce_old]; omega) hfit_fr
   set x₇ := x₆.set mFr x.frontier
-  have hfr_sum : (base + offCompItems U w N_old) + compactedItemWords U V w N_old n = x.frontier :=
-    by rw [hfr, hce_old]; omega
-  have hex_fr := RDemonicExec.exactBin (f := .add) (d := mFr) (i := mNewMeta) (j := mIwOld)
-    (w := w) (L_peak := L_peak) (x := x₆) (hx₅f_eq.le.trans hL) (v := x.frontier)
-    (by
-      change some (x₆.regs mNewMeta + x₆.regs mIwOld) = some x.frontier
-      simp [x₆, RData.set, hx₅_iw, hfr_sum])
-    hfit_fr
-  have hx₇b : x₇.Bounded w := hx₆b.set hfit_fr
   have hx₇m : x₇.mem = x.mem := hx₅m
   have hx₇f : x₇.frontier = x.frontier := hx₅f_eq
   have hms₇ : memoryState mFr x₇.toData = ⟨x.mem, x.frontier⟩ :=
@@ -332,56 +335,43 @@ private theorem migrateComputeArenaCode_exec {w L_peak newMeta offNew iwOld iwNe
   have hex₂ := RDemonicExec.const (B := .exact) (d := mCur) (v := 6) (x := x₁) (hx₁f.le.trans hL)
     (hfit_peak.of_le (by omega))
   have hx₂b : x₂.Bounded w := hx₁b.set (hfit_peak.of_le (by omega))
-  set x₃ := x₂.set mArenaWords arenaW
-  have hex₃ := RDemonicExec.exactBin (f := .add) (d := mArenaWords) (i := mArenaWords) (j := mCur)
-    (w := w) (L_peak := L_peak) (x := x₂) (hx₁f.le.trans hL) (v := arenaW)
-    (by simp [BinOp.evalExact, x₂, hx₁_eq, RData.set, arenaW])
+  obtain ⟨hex₃, hx₃b⟩ := exec_add_bdd mArenaWords mArenaWords mCur arenaW hx₂b
+    (hx₁f.le.trans hL) (by simp [x₂, hx₁_eq, RData.set]; rfl)
     (hfit_peak.of_le (by dsimp only [arenaW]; omega))
-  have hx₃b : x₃.Bounded w := hx₂b.set (hfit_peak.of_le (by dsimp only [arenaW]; omega))
-  set x₄ := x₃.set mArena arenaB
-  have hex₄ := RDemonicExec.exactBin (f := .add) (d := mArena) (i := mNewMeta) (j := mOffNew)
-    (w := w) (L_peak := L_peak) (x := x₃) (hx₁f.le.trans hL) (v := arenaB)
-    (by simp [BinOp.evalExact, x₃, x₂, hx₁_eq, RData.set, h_nm, h_on, arenaB])
+  set x₃ := x₂.set mArenaWords arenaW
+  obtain ⟨hex₄, hx₄b⟩ := exec_add_bdd mArena mNewMeta mOffNew arenaB hx₃b
+    (hx₁f.le.trans hL) (by simp [x₃, x₂, hx₁_eq, RData.set, h_nm, h_on]; rfl)
     (hfit_peak.of_le (by dsimp only [arenaB]; omega))
-  have hx₄b : x₄.Bounded w := hx₃b.set (hfit_peak.of_le (by dsimp only [arenaB]; omega))
+  set x₄ := x₃.set mArena arenaB
+  obtain ⟨hex₅, hx₅b⟩ := exec_add_bdd mPeakFront mArena mArenaWords peakF hx₄b
+    (hx₁f.le.trans hL) (by simp [x₄, x₃, RData.set]; rfl) hfit_peak
   set x₅ := x₄.set mPeakFront peakF
-  have hex₅ := RDemonicExec.exactBin (f := .add) (d := mPeakFront) (i := mArena) (j := mArenaWords)
-    (w := w) (L_peak := L_peak) (x := x₄) (hx₁f.le.trans hL) (v := peakF)
-    (by simp [BinOp.evalExact, x₄, x₃, RData.set, peakF])
-    hfit_peak
-  have hx₅b : x₅.Bounded w := hx₄b.set hfit_peak
-  have hfr_le_peak : frOld ≤ peakF := by
-    have : iwOld ≤ arenaW := (le_max_left _ _).trans (Nat.le_add_right _ 6)
-    dsimp only [peakF, arenaB]; omega
-  set x₆ := x₅.set mK (peakF - frOld)
-  have hex₆ := RDemonicExec.exactBin (f := .sub) (d := mK) (i := mPeakFront) (j := mFr)
-    (w := w) (L_peak := L_peak) (x := x₅) (hx₁f.le.trans hL) (v := peakF - frOld)
-    (by simp [BinOp.evalExact, x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_fr, hfr_le_peak])
-    (hfit_peak.of_le (Nat.sub_le _ _))
-  have hx₆b : x₆.Bounded w := hx₅b.set (hfit_peak.of_le (Nat.sub_le _ _))
   have hiwo_le_aw : iwOld ≤ arenaW := (le_max_left _ _).trans (Nat.le_add_right _ 6)
-  have hdst_eq : peakF - iwOld = arenaB + (arenaW - iwOld) := by dsimp only [peakF]; omega
-  have hiwo_le_peak : iwOld ≤ peakF := by dsimp only [peakF]; omega
-  set y := x₆.set mOldItemDst (arenaB + (arenaW - iwOld))
-  have hex₇ := RDemonicExec.exactBin (f := .sub) (d := mOldItemDst) (i := mPeakFront) (j := mIwOld)
-    (w := w) (L_peak := L_peak) (x := x₆) (hx₁f.le.trans hL) (v := arenaB + (arenaW - iwOld))
-    (by simp [BinOp.evalExact, x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_iwo, hiwo_le_peak, hdst_eq])
+  have hfr_le_peak : frOld ≤ peakF := by
+    dsimp only [peakF, arenaB]
+    omega
+  obtain ⟨hex₆, hx₆b⟩ := exec_sub_bdd mK mPeakFront mFr (peakF - frOld) hx₅b
+    (hx₁f.le.trans hL) (by simpa [x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_fr] using hfr_le_peak)
+    (by simp [x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_fr])
+    (hfit_peak.of_le (Nat.sub_le _ _))
+  set x₆ := x₅.set mK (peakF - frOld)
+  obtain ⟨hex₇, hyb⟩ := exec_sub_bdd mOldItemDst mPeakFront mIwOld
+    (arenaB + (arenaW - iwOld)) hx₆b (hx₁f.le.trans hL)
+    (by simp [x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_iwo]; omega)
+    (by simp [x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_iwo]; omega)
     (hfit_peak.of_le (by omega))
-  have hyb : y.Bounded w := hx₆b.set (hfit_peak.of_le (by omega))
+  set y := x₆.set mOldItemDst (arenaB + (arenaW - iwOld))
   refine ⟨y,
     (hex₁.seq_eq (hex₂.seq_eq (hex₃.seq_eq (hex₄.seq_eq (hex₅.seq_eq
       (hex₆.seq_eq hex₇)))))).mono (by omega) (fun _ h => h),
-    hyb, hx₁m, hx₁f, ?_, ?_, ?_, ?_, ?_, fun reg hreg => ?_⟩
-  · simp [y, x₆, x₅, x₄, x₃, RData.set]
-  · simp [y, x₆, x₅, x₄, RData.set]
-  · simp [y, x₆, x₅, RData.set]
-  · simp [y, x₆, RData.set]
-  · simp [y, RData.set]
-  · simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hreg
-    obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hreg
-    simp [y, x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set,
-      Function.update_of_ne h1, Function.update_of_ne h2, Function.update_of_ne h3,
-      Function.update_of_ne h4, Function.update_of_ne h5, Function.update_of_ne h6]
+    hyb, hx₁m, hx₁f, by simp [y, x₆, x₅, x₄, x₃, RData.set],
+    by simp [y, x₆, x₅, x₄, RData.set], by simp [y, x₆, x₅, RData.set],
+    by simp [y, x₆, RData.set], by simp [y, RData.set], fun reg hreg => ?_⟩
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hreg
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hreg
+  simp [y, x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set,
+    Function.update_of_ne h1, Function.update_of_ne h2, Function.update_of_ne h3,
+    Function.update_of_ne h4, Function.update_of_ne h5, Function.update_of_ne h6]
 
 
 theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
@@ -435,16 +425,17 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
     unfold compactedEpochWords; rw [ite_eq_right (by omega)]
   have h225_old : 225 ≤ offCompItems U w N_old := le_offCompItems_225 U w N_old
   have h225_new : 225 ≤ offNew := le_offCompItems_225 U w N_new
-  have hpeak_raw : base + migratePeakWords U V w N_old n = arenaB + arenaW := by
+  have hpeak_eq : peakF = arenaB + arenaW := by
+    dsimp only [peakF, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]
     unfold migratePeakWords
-    dsimp only [arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]
     omega
-  have hpeak_eq : peakF = arenaB + arenaW := hpeak_raw
-  have hfit_ar : Fits w (arenaB + arenaW) := hpeak_raw ▸ hfit_peak
+  have hfit_ar : Fits w (arenaB + arenaW) := hpeak_eq ▸ hfit_peak
   have haw_def : arenaW = max iwOld iwNew + 6 := rfl
   have hiwn_le_aw : iwNew ≤ arenaW := (le_max_right _ _).trans (Nat.le_add_right _ 6)
   have hfr_le_peak : x.frontier ≤ peakF := by
-    rw [hfr, hce_old, hpeak_eq]; dsimp only [arenaB, newMeta]; omega
+    rw [hfr, hce_old, hpeak_eq]
+    dsimp only [arenaB, newMeta]
+    omega
   have hfit63 : Fits w 63 := hfit_ar.of_le (by dsimp only [arenaB]; omega)
   have hfit_n : Fits w n := hsplit.root_hdr.fits_U.of_le hnU
   obtain ⟨s₁, hex₁, hs₁b, hs₁m, hs₁f, habi₁, hs₁_cnt, hs₁_iwo, hs₁_nm, hs₁_fr, hs₁_nn,
@@ -453,27 +444,25 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
   set s₂ := s₁.set mCur 63
   have hex₂ := RDemonicExec.const (B := .exact) (d := mCur) (v := 63) (x := s₁)
     (hs₁f.le.trans hfr_le_peak) hfit63
-  set s₃ := s₂.set mTmpA (base + 63)
   have hs₁_base : s₁.regs mBase = base := habi₁.1.trans hbase
-  have hex₃ := RDemonicExec.exactBin (f := .add) (d := mTmpA) (i := mBase) (j := mCur)
-    (w := w) (L_peak := peakF) (x := s₂) (hs₁f.le.trans hfr_le_peak) (v := base + 63)
-    (by simp [BinOp.evalExact, s₂, RData.set, hs₁_base])
+  obtain ⟨hex₃, hs₃b⟩ := exec_add_bdd mTmpA mBase mCur (base + 63)
+    (hs₁b.set hfit63 : s₂.Bounded w) (hs₁f.le.trans hfr_le_peak)
+    (by simp [RData.set, hs₁_base])
     (hfit_ar.of_le (by dsimp only [arenaB, newMeta]; omega))
-  have hs₃b : s₃.Bounded w := (hs₁b.set hfit63).set
-    (hfit_ar.of_le (by dsimp only [arenaB, newMeta]; omega))
+  set s₃ := s₂.set mTmpA (base + 63)
   have hms₃ : memoryState mFr s₃.toData = ⟨x.mem, x.frontier⟩ :=
     Memory.State.ext hs₁m (by simp [memoryState, s₃, s₂, RData.set, RData.toData, hs₁_fr])
   have hin_wp1 : s₃.regs ∘ srcWriteParams =
-      WordEncoding.encode (((base, base + 63), (N_new, (n, n)))) := by
-    refine (regs_pairSrc
-      (regs_pairSrc (regs_reg1_eq mBase ?_) (regs_reg1_eq mTmpA ?_))
-      (regs_pairSrc (regs_reg1_eq mNNew ?_)
-        (regs_pairSrc (regs_reg1_eq mCnt ?_) (regs_reg1_eq mCnt ?_)))).eq
-    · simp [s₃, s₂, RData.set, hs₁_base]
-    · simp [s₃, RData.set]
-    · simp [s₃, s₂, RData.set, hs₁_nn, N_new]
-    · simp [s₃, s₂, RData.set, hs₁_cnt]
-    · simp [s₃, s₂, RData.set, hs₁_cnt]
+      WordEncoding.encode (((base, base + 63), (N_new, (n, n)))) :=
+    (regs_pairSrc
+      (regs_pairSrc
+        (regs_reg1_eq mBase (by simp [s₃, s₂, RData.set, hs₁_base]))
+        (regs_reg1_eq mTmpA (by simp [s₃, RData.set])))
+      (regs_pairSrc
+        (regs_reg1_eq mNNew (by simp [s₃, s₂, RData.set, hs₁_nn]; rfl))
+        (regs_pairSrc
+          (regs_reg1_eq mCnt (by simp [s₃, s₂, RData.set, hs₁_cnt]))
+          (regs_reg1_eq mCnt (by simp [s₃, s₂, RData.set, hs₁_cnt]))))).eq
   have hfit_dst1 : Fits w ((base + 63) + offNew) :=
     hfit_ar.of_le (by dsimp only [arenaB, newMeta]; omega)
   obtain ⟨hpre_wp1, hv_wp1, hres_wp1, hfr_wp1, _, hpar_wp1, hframe_wp1, hc_wp1⟩ :=
@@ -641,7 +630,7 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
     (hs₈_keep _ (by simp)).trans hs₇_nm, (hs₈_keep _ (by simp)).trans hs₇_off,
     (hs₈_keep _ (by simp)).trans hs₇_iwo, (hs₈_keep _ (by simp)).trans hs₇_iwn,
     hs₈_ar, hs₈_pf.trans hpeak_eq.symm,
-    hs₈_k.trans (by dsimp only [peakF]; rw [hpeak_raw]; rfl), hs₈_oid,
+    hs₈_k.trans (congrArg (· - x.frontier) hpeak_eq.symm), hs₈_oid,
     fun i => (hs₈_old _ (by simp only [val_mOldHp]; omega)).trans (hs₁_ohp i),
     fun i => (hs₈_old _ (by simp only [val_mOldCp]; omega)).trans (hs₁_ocp i),
     fun i => (hs₈_new _ (by simp only [val_mNewHp]; omega)).trans (hs₆_nhp_all i),

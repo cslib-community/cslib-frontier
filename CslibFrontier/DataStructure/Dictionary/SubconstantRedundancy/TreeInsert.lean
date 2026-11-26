@@ -176,17 +176,16 @@ theorem seeds_normalInsertFresh
     (hgood' : st.seeds.AllGoodSeeds (Insert.insert x (P.paddedDom d))) :
     (st.normalInsertFresh hwf x v hx_fresh hgood').seeds = st.seeds := by
   ext ℓ hℓ u
-  by_cases h0 : ℓ = 0
-  · subst h0; simp [normalInsertFresh]
-  · by_cases h1 : ℓ = 1
-    · subst h1; simp only [seeds_one, normalInsertFresh]
-      by_cases hu : u = st.seeds.nodeAt 1 (Nat.one_le_of_lt P.two_le_depth) x <;> simp [hu]
-    · by_cases hlt : ℓ < P.depth
-      · simp only [seeds_inner _ (by omega) hlt hℓ, normalInsertFresh]
-        split_ifs <;> rfl
-      · obtain rfl : ℓ = P.depth := by omega
-        simp only [seeds_depth, normalInsertFresh]
-        by_cases hu : u = st.seeds.nodeAt P.depth le_rfl x <;> simp [hu]
+  rcases eq_or_ne ℓ 0 with rfl | h0
+  · simp [normalInsertFresh]
+  rcases eq_or_ne ℓ 1 with rfl | h1
+  · simp only [seeds_one, normalInsertFresh]
+    by_cases hu : u = st.seeds.nodeAt 1 hℓ x <;> simp [hu]
+  rcases lt_or_eq_of_le hℓ with hlt | rfl
+  · simp only [seeds_inner _ (by omega) hlt hℓ, normalInsertFresh]
+    split_ifs <;> rfl
+  · simp only [seeds_depth, normalInsertFresh]
+    by_cases hu : u = st.seeds.nodeAt P.depth le_rfl x <;> simp [hu]
 
 theorem sentCount_normalInsertFresh
     {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
@@ -304,11 +303,9 @@ theorem wellFormedPadded_normalInsertFresh
       · simp only [nodeDom_inner _ h1 (by omega) hlt hℓ]
         dsimp only [st', normalInsertFresh]; split_ifs <;> rfl
       · obtain rfl : ℓ = P.depth := by omega
-        simp only [nodeDom_depth]
-        dsimp only [st', normalInsertFresh]
-        rw [Function.update_apply]; split_ifs with hu
-        · subst hu; rfl
-        · rfl
+        rcases eq_or_ne u (st.seeds.nodeAt P.depth le_rfl x) with rfl | hu
+        · simp only [nodeDom_depth, st', normalInsertFresh, Function.update_self]; rfl
+        · simp only [nodeDom_depth, st', normalInsertFresh, Function.update_of_ne hu]
   · rw [hseeds] at hny ⊢
     by_cases h_one : ℓ = 1
     · subst h_one
@@ -597,19 +594,15 @@ theorem nodeDom_replaceAtNode_same
     (hnew : k_new ∉ (st.nodeDom L h1L hLL uL).erase k_old) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeDom L h1L hLL uL =
       Insert.insert k_new ((st.nodeDom L h1L hLL uL).erase k_old) := by
-  dsimp only [replaceAtNode]
+  dsimp only [replaceAtNode, replaceInnerAt]
   by_cases hLlt : L < P.depth
-  · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew
-    rw [dite_eq_left hLlt, nodeDom_inner _ h1L h2L hLlt hLL, nodeDom_inner st h1L h2L hLlt hLL]
-    dsimp only [replaceInnerAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
+  · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew ⊢
+    rw [dite_eq_left hLlt, dite_eq_left ⟨hold, hnew⟩, nodeDom_inner _ h1L h2L hLlt hLL]
     simp [updateInner]
   · obtain rfl : L = P.depth := by omega
     rw [nodeDom_depth] at hold hnew
     rw [dite_eq_right (lt_irrefl _), nodeDom_depth, nodeDom_depth]
-    dsimp only [replaceLeafAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
-    simp [updateLeaf]
+    simp [replaceLeafAt, hold, hnew, updateLeaf]
 
 theorem nodeDom_replaceAtNode_other
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -640,20 +633,17 @@ theorem nodeQuery_replaceAtNode_same
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeQuery scheme L h1L hLL uL
       k' = Function.update
         (Function.update (st.nodeQuery scheme L h1L hLL uL) k_old none) k_new (some qv_new) k' := by
-  dsimp only [replaceAtNode]
+  dsimp only [replaceAtNode, replaceInnerAt]
   by_cases hLlt : L < P.depth
   · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew
-    rw [dite_eq_left hLlt, nodeQuery_inner _ _ h1L h2L hLlt hLL,
+    rw [dite_eq_left hLlt, dite_eq_left ⟨hold, hnew⟩, nodeQuery_inner _ _ h1L h2L hLlt hLL,
       funext (nodeQuery_inner scheme st h1L h2L hLlt hLL uL)]
-    dsimp only [replaceInnerAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
     simp [updateInner]
   · obtain rfl : L = P.depth := by omega
     rw [nodeDom_depth] at hold hnew
-    rw [dite_eq_right (lt_irrefl _), nodeQuery_depth, funext (nodeQuery_depth scheme st h1L hLL uL)]
-    dsimp only [replaceLeafAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
-    simp [updateLeaf]
+    rw [dite_eq_right (lt_irrefl _), nodeQuery_depth,
+      funext (nodeQuery_depth scheme st h1L hLL uL)]
+    simp [replaceLeafAt, hold, hnew, updateLeaf]
 
 theorem nodeQuery_replaceAtNode_other
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -683,19 +673,15 @@ theorem nodeWait_replaceAtNode_same
     (hnew : k_new ∉ (st.nodeDom L h1L hLL uL).erase k_old) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeWait L h2L hLL uL =
       wait' := by
-  dsimp only [replaceAtNode]
+  dsimp only [replaceAtNode, replaceInnerAt]
   by_cases hLlt : L < P.depth
   · rw [nodeDom_inner st h1L h2L hLlt hLL] at hold hnew
-    rw [dite_eq_left hLlt, nodeWait_inner _ h2L hLlt hLL]
-    dsimp only [replaceInnerAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
+    rw [dite_eq_left hLlt, dite_eq_left ⟨hold, hnew⟩, nodeWait_inner _ h2L hLlt hLL]
     simp [updateInner]
   · obtain rfl : L = P.depth := by omega
     rw [nodeDom_depth] at hold hnew
     rw [dite_eq_right (lt_irrefl _), nodeWait_depth]
-    dsimp only [replaceLeafAt]
-    rw [dite_eq_left ⟨hold, hnew⟩]
-    simp [updateLeaf, LeafNode.replace, LeafNode.ofFixedEncoded]
+    simp [replaceLeafAt, hold, hnew, updateLeaf, LeafNode.replace, LeafNode.ofFixedEncoded]
 
 theorem nodeWait_replaceAtNode_other
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))

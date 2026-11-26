@@ -144,25 +144,14 @@ private theorem run_interpret_popAnswer_finiteStep (cfg : FiniteConfig k Bool Co
         (fun op word => OracleComp.query (op, word)) cfg)).run s =
       machine.popStep (cfg, s) := by
   cases hs : cfg.tapes.state with
-  | none =>
-    simp only [finiteStep, hs, OracleComp.interpret_pure, StateT.run_pure, popStep,
-      pendingQuery, Option.map_none, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
-      localStep]
-    rfl
+  | none => simp [finiteStep, hs, popStep, pendingQuery, localStep]; rfl
   | some control =>
     cases ht : machine.tr control cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
       cfg.answerSymbols false with
-    | step action symbol move =>
-      simp only [finiteStep, hs, map_pure, ht, bind_pure_comp, pure_bind,
-        OracleComp.interpret_pure, StateT.run_pure, popStep, pendingQuery, Option.map_some,
-        Option.isSome_none, Bool.false_eq_true, ↓reduceIte, localStep]
-      rfl
+    | step action symbol move => simp [finiteStep, hs, ht, popStep, pendingQuery, localStep]; rfl
     | query op next =>
-      simp only [finiteStep, hs, map_pure, ht, bind_pure_comp, pure_bind,
-        OracleComp.interpret_map, OracleComp.interpret_query, StateT.run_map, popStep,
-        pendingQuery, Option.map_some, Option.isSome_some, ↓reduceIte, receiveBit,
-        List.headD_eq_head?_getD]
-      cases s <;> rfl
+      cases s <;> simp [finiteStep, hs, ht, StateT.run_map, popStep, pendingQuery, receiveBit] <;>
+        rfl
 
 /-- **A coin-fixed run against a list of answers is an iteration of `popStep`.** -/
 theorem run_interpret_popAnswer_run (fuel : ℕ) (input s : List Bool) :
@@ -198,9 +187,7 @@ private theorem fst_popStep (p : FiniteConfig k Bool Control Operation × List B
 private theorem length_snd_popStep_le (p : FiniteConfig k Bool Control Operation × List Bool) :
     (machine.popStep p).2.length ≤ p.2.length := by
   unfold popStep
-  split_ifs
-  · simp
-  · exact le_rfl
+  split_ifs <;> simp
 
 variable [Finite Control]
 
@@ -348,13 +335,10 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
       (ComputableInPolyTime.findWithInput (ComputableInPolyTime.range.comp hN) hok)
       (ComputableInPolyTime.const _) hcand
   refine mem_FPSearch.mpr ⟨hR, g, hg, fun a => ⟨fun w hw => ?_, fun hw ha => ?_⟩⟩
-  · simp only [g] at hw
-    cases hj : (List.range (N a)).find? (fun j => ok (a, j)) with
-    | none => simp [hj] at hw
-    | some j =>
-      have hokj : ok (a, j) = true := List.find?_some (p := fun j => ok (a, j)) hj
-      simp only [hj, Option.elim_some] at hw
-      exact (hRV a w).2 (by simpa only [ok, hw, Option.elim_some] using hokj)
+  · cases hj : (List.range (N a)).find? (fun j => ok (a, j))
+    · simp [g, hj] at hw
+    · simp only [g, hj, Option.elim_some] at hw
+      exact (hRV a w).2 (by simpa only [ok, hw, Option.elim_some] using List.find?_some hj)
   · -- the true answers, as the bits of a number below `N a`
     obtain ⟨w₀, hw₀⟩ : ∃ w₀, f a = some w₀ := Option.ne_none_iff_exists'.mp
       fun h => (hsolve a).2 h ha
@@ -370,15 +354,11 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
         (fun i => by rw [getD_bits_foldr_bit, List.append_nil]),
         OracleComp.run_interpret_popAnswer, (hprog a).1, hw₀]
     have hok_true : ok (a, answers.foldr Nat.bit 0) = true := by
-      simp only [ok, hcand_true, Option.elim_some]
-      exact (hRV a w₀).1 ((hsolve a).1 w₀ hw₀)
-    simp only [g] at hw
-    cases hj : (List.range (N a)).find? (fun j => ok (a, j)) with
-    | none => exact List.find?_eq_none.mp hj _ (List.mem_range.mpr hlt) hok_true
-    | some j =>
-      have hokj : ok (a, j) = true := List.find?_some (p := fun j => ok (a, j)) hj
-      simp only [hj, Option.elim_some] at hw
-      simp [ok, hw] at hokj
+      simpa only [ok, hcand_true, Option.elim_some] using (hRV a w₀).1 ((hsolve a).1 w₀ hw₀)
+    cases hj : (List.range (N a)).find? (fun j => ok (a, j))
+    · exact List.find?_eq_none.mp hj _ (List.mem_range.mpr hlt) hok_true
+    · simp only [g, hj, Option.elim_some] at hw
+      simpa [ok, hw] using List.find?_some hj
 
 /-- **Logarithmically many queries do not help**
 [Goldreich, Exercise 2.10][Goldreich2006DraftR1]. A search problem in `PC` (`FNP`) solved in

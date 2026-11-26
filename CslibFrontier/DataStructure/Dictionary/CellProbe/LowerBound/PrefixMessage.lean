@@ -107,6 +107,15 @@ private theorem dom_eq_of_ite_some_eq {α β : Type*} [DecidableEq α] {S₁ S�
     by_cases h1 : u ∈ S₁ <;> by_cases h2 : u ∈ S₂ <;> simp [h1, h2] at hu ⊢
   exact ⟨hS, fun u hu => by simpa [hu, hS ▸ hu] using congrFun h u⟩
 
+private theorem ite_mem_congr {α β : Type*} [DecidableEq α] {S₁ S₂ : Finset α}
+    {f₁ f₂ : α → β} (z : β) (hS : S₁ = S₂) (hf : ∀ u ∈ S₁, f₁ u = f₂ u) :
+    (fun u => if u ∈ S₁ then f₁ u else z) = fun u => if u ∈ S₂ then f₂ u else z := by
+  subst hS
+  funext u
+  by_cases hu : u ∈ S₁
+  · simp [hu, hf u hu]
+  · simp [hu]
+
 open Classical in
 theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cells w : ℕ}
     {γ R t : ℝ} (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n)
@@ -262,12 +271,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     obtain ⟨hFg₂, _, hcap₂⟩ := hp_supp sb₂ hsb₂
     obtain ⟨hBc₁, hdisjB₁, hdisjA₁, hdec_bef₁, hdec_A₁, hCB_mem₁⟩ := hstate sb₁ hFg₁
     obtain ⟨hBc₂, hdisjB₂, hdisjA₂, hdec_bef₂, hdec_A₂, hCB_mem₂⟩ := hstate sb₂ hFg₂
-    have ha : (fun r => segInsertedKeys sb₁.1.keys t₀ m ht₀ r) =
-        fun r => segInsertedKeys sb₂.1.keys t₀ m ht₀ r := (Prod.mk.inj hobs).1
-    have hB : sb₁.2 = sb₂.2 := (Prod.mk.inj (Prod.mk.inj hobs).2).1
-    have hd : (fun r => segDeletedKeys sb₁.1.keys sb₁.1.delPerm t₀ m ht₀ r) =
-        fun r => segDeletedKeys sb₂.1.keys sb₂.1.delPerm t₀ m ht₀ r :=
-      (Prod.mk.inj (Prod.mk.inj hobs).2).2
+    obtain ⟨ha, hobs_rest⟩ := Prod.mk.inj hobs
+    obtain ⟨hB, hd⟩ := Prod.mk.inj hobs_rest
     have hA_eq : sb₁.1.insertedSet t₀ m ht₀ = sb₂.1.insertedSet t₀ m ht₀ := by
       dsimp only [HardKeyValSeed.insertedSet]
       rw [Function.Embedding.ext (congrFun ha)]
@@ -322,59 +327,48 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     rw [hdec_A₁, hdec_A₂] at hdecA_eq
     obtain ⟨hKDA_eq, hkv_KDA_val⟩ := dom_eq_of_ite_some_eq hdecA_eq
     have hKD_eq : KD₁ = KD₂ := by
-      have hs₁ : (KD₁ ∪ sb₁.1.insertedSet t₀ m ht₀) \ sb₁.1.insertedSet t₀ m ht₀ = KD₁ :=
-        Finset.union_sdiff_cancel_right
-          (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₁.symm)
-      have hs₂ : (KD₂ ∪ sb₂.1.insertedSet t₀ m ht₀) \ sb₂.1.insertedSet t₀ m ht₀ = KD₂ :=
-        Finset.union_sdiff_cancel_right
-          (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₂.symm)
-      rw [← hs₁, ← hs₂, hKDA_eq, hA_eq]
+      dsimp only [KD₁, KD₂]
+      rw [← Finset.union_sdiff_cancel_right
+            (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₁.symm),
+          ← Finset.union_sdiff_cancel_right
+            (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₂.symm),
+          hKDA_eq, hA_eq]
     have hkv_KDA (u : Fin U) (hu : u ∈ KD₁ ∪ sb₁.1.insertedSet t₀ m ht₀) :
         sb₁.1.kv u = sb₂.1.kv u := Fin.ext (hkv_KDA_val u hu)
     -- Recover dict_B, C_B, and C_bef
     have hdictB : dict_B sb₁ = dict_B sb₂ := by
       dsimp only [dict_B]
       rw [val_pairBOf_eq sb₁.1 ht₀ hBc₁ hdisjB₁, val_pairBOf_eq sb₂.1 ht₀ hBc₂ hdisjB₂]
-      funext u
-      have hun_eq : KD₁ ∪ sb₁.2 = KD₂ ∪ sb₂.2 := by rw [hKD_eq, hB]
-      by_cases hu : u ∈ KD₁ ∪ sb₁.2
-      · rw [ite_eq_left hu, ite_eq_left (hun_eq ▸ hu)]
-        rcases Finset.mem_union.mp hu with huKD | huB
-        · rw [hkv_KDA u (Finset.mem_union_left _ huKD)]
-        · rw [hkvB u huB]
-      · rw [ite_eq_right hu, ite_eq_right (hun_eq ▸ hu)]
+      refine ite_mem_congr none (congrArg₂ (· ∪ ·) hKD_eq hB) fun u hu => ?_
+      rcases Finset.mem_union.mp hu with huKD | huB
+      · rw [hkv_KDA u (Finset.mem_union_left _ huKD)]
+      · rw [hkvB u huB]
     have hCB : C_B sb₁ = C_B sb₂ :=
       encodeMemFinset_inj hCB_mem₁ (hdictB ▸ hCB_mem₂) (Nat.le_floor hcap₁)
         (by simpa only [m₆, hdictB] using hm₆)
     have hCbef : C_bef sb₁ = C_bef sb₂ := funext fun j => by
       by_cases hj : j ∈ S_B sb₁
-      · have h1 : C_mix sb₁ j = C_bef sb₁ j := mixMem_of_mem hj
-        have h2 : C_mix sb₂ j = C_bef sb₂ j := mixMem_of_mem (hSB ▸ hj)
-        rw [← h1, ← h2, hcm]
-      · have h1 : C_B sb₁ j = C_bef sb₁ j :=
-          D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₁)
-            (ops_B sb₁) hj
-        have h2 : C_B sb₂ j = C_bef sb₂ j :=
-          D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₂)
-            (ops_B sb₂) (show j ∉ S_B sb₂ from hSB ▸ hj)
-        rw [← h1, ← h2, hCB]
+      · exact (mixMem_of_mem hj : C_mix sb₁ j = C_bef sb₁ j).symm.trans
+          ((congrFun hcm j).trans (mixMem_of_mem (hSB ▸ hj) : C_mix sb₂ j = C_bef sb₂ j))
+      · have hj₂ : j ∉ D_det.probedCellsInterval step₀ (C_bef sb₂) (ops_B sb₂) := by
+          rwa [show D_det.probedCellsInterval step₀ (C_bef sb₂) (ops_B sb₂) = S_B sb₂ from rfl,
+            ← hSB]
+        exact (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₁)
+          (ops_B sb₁) hj).symm.trans ((congrFun hCB j).trans
+            (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₂)
+              (ops_B sb₂) hj₂))
     have hdec_bef_eq := congrArg (decodeDict D_det step₀) hCbef
     rw [hdec_bef₁, hdec_bef₂] at hdec_bef_eq
     obtain ⟨hK_eq, hkv_K_val⟩ := dom_eq_of_ite_some_eq hdec_bef_eq
-    refine ⟨by dsimp only [msg]; rw [hm₁, hm₂, hm₃, hm₄, hm₅, hm₆],
-      Prod.ext hKD_eq (funext fun u => ?_)⟩
+    refine ⟨by simp only [msg, hm₁, hm₂, hm₃, hm₄, hm₅, hm₆], Prod.ext hKD_eq ?_⟩
     dsimp only [target8]
-    have hcov_eq : sb₁.1.activeKeys t₀ ht₀_n ∪ sb₁.1.insertedSet t₀ m ht₀ ∪ sb₁.2 =
-        sb₂.1.activeKeys t₀ ht₀_n ∪ sb₂.1.insertedSet t₀ m ht₀ ∪ sb₂.2 := by
-      rw [hK_eq, hA_eq, hB]
-    by_cases hu : u ∈ sb₁.1.activeKeys t₀ ht₀_n ∪ sb₁.1.insertedSet t₀ m ht₀ ∪ sb₁.2
-    · rw [ite_eq_left hu, ite_eq_left (hcov_eq ▸ hu)]
-      rcases Finset.mem_union.mp hu with huKA | huB
-      · rcases Finset.mem_union.mp huKA with huK | huA
-        · rw [Fin.ext (hkv_K_val u huK)]
-        · rw [hkv_KDA u (Finset.mem_union_right _ huA)]
-      · rw [hkvB u huB]
-    · rw [ite_eq_right hu, ite_eq_right (hcov_eq ▸ hu)]
+    refine ite_mem_congr _
+      (congrArg₂ (· ∪ ·) (congrArg₂ (· ∪ ·) hK_eq hA_eq) hB) fun u hu => ?_
+    rcases Finset.mem_union.mp hu with huKA | huB
+    · rcases Finset.mem_union.mp huKA with huK | huA
+      · rw [Fin.ext (hkv_K_val u huK)]
+      · rw [hkv_KDA u (Finset.mem_union_right _ huA)]
+    · rw [hkvB u huB]
   -- Prefix-free entropy compression vs conditioned fiber entropy lower bound
   let joint_ot := p.map fun sb => (obs8 t₀ m ht₀ sb, target8 t₀ m ht₀ sb)
   have hcomp_bound : PMF.conditionalEntropy joint_ot ≤

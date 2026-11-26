@@ -98,13 +98,15 @@ theorem NodeLayout.mono_frontier {inst : MWISInstance} {descBase : ℕ}
   desc_hi := h.desc_hi.trans hp.2.1
   bags_holds i := by
     obtain ⟨h1, h3, hlo, hb⟩ := h.bags_holds i
-    have := h.desc_hi; have := i.isLt
+    have := h.desc_hi
+    have := i.isLt
     rw [hp.2.2 (descBase + 4 * i.val) (by omega), hp.2.2 (descBase + 4 * i.val + 1) (by omega),
       hp.2.2 (descBase + 4 * i.val + 3) (by omega)]
     exact ⟨h1, h3, hlo, hb.mono_frontier hp⟩
   tbl_holds i := by
     obtain ⟨hlen, hlo, ht⟩ := h.tbl_holds i
-    have := h.desc_hi; have := i.isLt
+    have := h.desc_hi
+    have := i.isLt
     rw [hp.2.2 (descBase + 4 * i.val + 2) (by omega)]
     exact ⟨hlen, hlo, ht.mono_frontier hp⟩
   tbl_disj i j hij := by
@@ -160,10 +162,13 @@ theorem NodeLayout.update_table {inst : MWISInstance} {descBase : ℕ}
           obtain ⟨hlen, hlo, ht⟩ := h.tbl_holds i
           refine ⟨hlen, hlo, ⟨hfr ▸ ht.1, ht.2.frame fun a ha1 ha2 => ?_⟩⟩
           rcases Nat.lt_or_gt_of_ne (fun hv => hip (Fin.ext hv)) with hilt | hpilt
-          · have := h.tbl_disj i p hilt; exact hout a (.inl (by omega))
-          · have := h.tbl_disj p i hpilt; exact hout a (.inr (by omega))
+          · have := h.tbl_disj i p hilt
+            exact hout a (.inl (by omega))
+          · have := h.tbl_disj p i hpilt
+            exact hout a (.inr (by omega))
       tbl_disj := fun i j hij => by
-        have := i.isLt; have := j.isLt
+        have := i.isLt
+        have := j.isLt
         rw [hlow_eq (descBase + 4 * i.val + 2) (by omega),
           hlow_eq (descBase + 4 * j.val + 2) (by omega)]
         exact h.tbl_disj i j hij }
@@ -205,10 +210,7 @@ theorem foldl_max_le_prefixMaxSum {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
 theorem prefixMaxSum_succ {n : ℕ} (tblList : Fin (n + 1) → List ℕ) {k : ℕ} (hk : k + 1 ≤ n) :
     prefixMaxSum tblList (k + 1) =
       prefixMaxSum tblList k + (tblList ⟨k + 1, by omega⟩).foldl max 0 := by
-  unfold prefixMaxSum
-  rw [Finset.sum_range_succ]
-  unfold nodeMax
-  rw [dite_eq_left (by omega)]
+  simp only [prefixMaxSum, Finset.sum_range_succ, nodeMax, dite_eq_left (by omega : k + 1 < n + 1)]
 
 /-- Telescoping step: folding node `k + 1`'s table into strictly earlier parent `p < k + 1`
 increases the remaining prefix sum `0 .. k` by at most `B` relative to `0 .. k + 1`. -/
@@ -220,30 +222,18 @@ theorem prefixMaxSum_update_le {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
     prefixMaxSum (Function.update tblList p newP) k ≤ prefixMaxSum tblList (k + 1) + B := by
   have hp_mem : p.val ∈ Finset.range (k + 1) := Finset.mem_range.2 hp_lt
   have hsum_succ := prefixMaxSum_succ tblList hk
-  have herase_old : nodeMax tblList p.val +
-      ∑ i ∈ (Finset.range (k + 1)).erase p.val, nodeMax tblList i =
-      prefixMaxSum tblList k := Finset.add_sum_erase _ _ hp_mem
-  have herase_new : prefixMaxSum (Function.update tblList p newP) k =
-      nodeMax (Function.update tblList p newP) p.val +
-      ∑ i ∈ (Finset.range (k + 1)).erase p.val,
-        nodeMax (Function.update tblList p newP) i :=
-    (Finset.add_sum_erase _ _ hp_mem).symm
-  have hrest_eq : ∑ i ∈ (Finset.range (k + 1)).erase p.val,
+  have herase : _ = prefixMaxSum tblList k := Finset.add_sum_erase _ (nodeMax tblList) hp_mem
+  have hrest : ∑ i ∈ (Finset.range (k + 1)).erase p.val,
       nodeMax (Function.update tblList p newP) i =
-      ∑ i ∈ (Finset.range (k + 1)).erase p.val, nodeMax tblList i := by
-    refine Finset.sum_congr rfl fun i hi => ?_
-    have hine : i ≠ p.val := (Finset.mem_erase.1 hi).1
-    unfold nodeMax
-    split_ifs with hlt
-    · rw [Function.update_of_ne (fun h => hine (congrArg Fin.val h))]
-    · rfl
-  have hp_new : nodeMax (Function.update tblList p newP) p.val = newP.foldl max 0 := by
-    unfold nodeMax
-    rw [dite_eq_left p.isLt, Fin.eta, Function.update_self]
-  have hp_old : nodeMax tblList p.val = (tblList p).foldl max 0 := by
-    unfold nodeMax
-    rw [dite_eq_left p.isLt, Fin.eta]
-  rw [herase_new, hrest_eq, hp_new, hsum_succ, ← herase_old, hp_old]
+      ∑ i ∈ (Finset.range (k + 1)).erase p.val, nodeMax tblList i :=
+    Finset.sum_congr rfl fun i hi => by
+      unfold nodeMax
+      split_ifs with hlt
+      · rw [Function.update_of_ne (Fin.ne_of_val_ne (Finset.mem_erase.1 hi).1)]
+      · rfl
+  rw [nodeMax, dite_eq_left p.isLt, Fin.eta] at herase
+  rw [prefixMaxSum, ← Finset.add_sum_erase _ _ hp_mem, hrest, nodeMax, dite_eq_left p.isLt,
+    Fin.eta, Function.update_self, hsum_succ, ← herase]
   omega
 
 /-! ### Node descriptor initialization (`initNodesProg`) -/
@@ -386,21 +376,21 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
        NodeInv count sEnd) ∧
       memoryCost (iterate initNodeStep descBase rem ⟨curRaw, k⟩) st ≤ rem * stepCost by
     obtain ⟨hv_loop, ⟨hfr_lo, hfr_hi, hpres_end, hnodes_end, hdisj_end⟩, hc_loop⟩ :=
-      this count 0 rawBagsPtr s_d (Nat.zero_add _) (by rw [hs_d_fr]) (by rw [hs_d_fr]; omega) hp_d
+      this count 0 rawBagsPtr s_d (Nat.zero_add _) (by rw [hs_d_fr])
+        (by rw [hs_d_fr]; omega) hp_d
         (by simpa only [List.drop_zero] using hbags₀.mono_frontier hp_d) hbags₀.1
         ⟨fun _ hi => absurd hi (Nat.not_lt_zero _),
           fun _ _ hi _ _ => absurd hi (Nat.not_lt_zero _)⟩
-    unfold initNodesProg; dsimp only
-    have ha_st : (Memory.spec 0).clientState s₀ (Memory.allocDirty (4 * count)) = s_d := rfl
-    have ha_res : (Memory.spec 0).clientResult s₀ (Memory.allocDirty (4 * count)) = descBase := rfl
-    refine ⟨validHistory_bind_step hv_d ?_, ?_, ?_, ?_, ?_⟩
-    · rw [ha_st, ha_res]; exact validHistory_bind_step hv_loop (validHistory_pure w _ _)
-    · rw [StateTransitionSpec.clientResult_bind, ha_st, ha_res,
-        StateTransitionSpec.clientResult_bind]; rfl
-    · rw [StateTransitionSpec.clientState_bind, ha_st, ha_res,
-        StateTransitionSpec.clientState_bind]; exact hfr_hi
+    unfold initNodesProg
+    dsimp only
+    refine ⟨validHistory_bind_step hv_d (validHistory_bind_step hv_loop (validHistory_pure w _ _)),
+      ?_, ?_, ?_, ?_⟩
+    · rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
+      rfl
+    · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind]
+      exact hfr_hi
     · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        ha_st, ha_res, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
+        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
       exact
         { wt_holds := hwt₀.mono_frontier hpres_end
           adj_holds := hadj₀.mono_frontier hpres_end
@@ -408,13 +398,15 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
           desc_lo := hraw_lo
           desc_hi := hfr_lo
           bags_holds := fun i =>
-            let ⟨h1, h3, hblo, hb, _, _⟩ := hnodes_end i i.isLt; ⟨h1, h3, hblo, hb⟩
+            let ⟨h1, h3, hblo, hb, _, _⟩ := hnodes_end i i.isLt
+            ⟨h1, h3, hblo, hb⟩
           tbl_holds := fun i =>
-            let ⟨_, _, _, _, htlo, ht⟩ := hnodes_end i i.isLt; ⟨List.length_replicate, htlo, ht⟩
+            let ⟨_, _, _, _, htlo, ht⟩ := hnodes_end i i.isLt
+            ⟨List.length_replicate, htlo, ht⟩
           tbl_disj := fun i j => hdisj_end i j i.isLt j.isLt }
-    · rw [memoryCost_bind', memoryCost_allocDirty, ha_st, ha_res,
-        memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      dsimp only [count, stepCost, M, descBase, rawBagsPtr] at hc_loop ⊢; omega
+    · rw [memoryCost_bind', memoryCost_allocDirty, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+      change 1 + memoryCost (iterate initNodeStep descBase count ⟨rawBagsPtr, 0⟩) s_d ≤ _
+      dsimp only [count, stepCost, M] at hc_loop ⊢; omega
   intro rem
   induction rem with
   | zero =>
@@ -468,23 +460,24 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     obtain ⟨hst_step, hres_step⟩ := initNodeStep_eval descBase ⟨curRaw, k⟩ st
     have hst_step' : (Memory.spec 0).clientState st (initNodeStep (descBase, ⟨curRaw, k⟩)) =
         st₁ := by
-      rw [hst_step]; dsimp only [st₁, m4, m3, m2, m1, st_a, bagLen, bagPtr, tblLen, tblPtr, dAddr]
+      rw [hst_step]
+      dsimp only [st₁, m4, m3, m2, m1, st_a, bagLen, bagPtr, tblLen, tblPtr, dAddr]
       simp only [hmem_len]; rfl
     have hres_step' : (Memory.spec 0).clientResult st (initNodeStep (descBase, ⟨curRaw, k⟩)) =
         ⟨bagPtr + bagLen, k + 1⟩ := by
-      rw [hres_step]
-      dsimp only [bagPtr, bagLen]
-      simp only [hmem_len]
+      simpa only [bagPtr, bagLen, hmem_len] using hres_step
     have hv_step : (Memory.spec w).ValidHistory st
         ((Memory.spec w).clientHistory st (initNodeStep (descBase, ⟨curRaw, k⟩))) := by
-      unfold initNodeStep; dsimp only
+      unfold initNodeStep
+      dsimp only
       refine validHistory_read_bind (by omega) ?_
       rw [hmem_len]
       refine validHistory_bind_step hv_pow ?_
       rw [hst_pow, hr_pow]
       refine validHistory_bind_step (validHistory_alloc hfit_alloc) ?_
       have hd_lt (off : ℕ) (hoff : off < 4) : dAddr + off < st_a.frontier := by
-        change dAddr + off < st.frontier + tblLen; omega
+        change dAddr + off < st.frontier + tblLen
+        omega
       exact validHistory_write_bind (by simpa only [Nat.add_zero] using hd_lt 0 (by decide))
         hbagPtr_fit
         (validHistory_write_bind (hd_lt 1 (by decide)) hbagLen_fit
@@ -494,12 +487,12 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     have hp_writes : ∀ addr, (addr < dAddr ∨ dAddr + 4 ≤ addr) → st₁.mem addr = st_a.mem addr :=
       fun addr _ => by
         dsimp only [st₁, m4, m3, m2, m1]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+        repeat rw [Function.update_of_ne (by omega)]
     have hmem_lt : ∀ a < dAddr, st₁.mem a = st.mem a := fun a ha => by
       rw [hp_writes a (.inl ha), hp_a.2.2 a (by dsimp only [dAddr, descBase, count] at *; omega)]
     have hpres_step : PreservesBelow descBase st st₁ :=
-      ⟨by omega, Nat.le_add_right _ _, fun a ha => hmem_lt a (by dsimp only [dAddr]; omega)⟩
+      ⟨by omega, Nat.le_add_right _ _,
+        fun a ha => hmem_lt a (by dsimp only [dAddr]; omega)⟩
     have hpres₁ : PreservesBelow descBase s₀ st₁ := hpres.trans hpres_step
     have hbag_k_st₁ : HoldsIn bagPtr (inst.bagAt kFin) st₁ :=
       hbag_k.mono (by dsimp only [bagPtr, bagLen, descBase, kFin] at *; omega) hpres_step
@@ -510,15 +503,16 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
         hp_writes a (.inr (by dsimp only [tblPtr, tblLen, dAddr, descBase, count] at *; omega))⟩
     have hm4_0 : st₁.mem dAddr = bagPtr := by
       dsimp only [st₁, m4, m3, m2, m1]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), Function.update_self]
+      repeat rw [Function.update_of_ne (by omega)]
+      rw [Function.update_self]
     have hm4_1 : st₁.mem (dAddr + 1) = bagLen := by
       dsimp only [st₁, m4, m3, m2, m1]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
+      repeat rw [Function.update_of_ne (by omega)]
+      rw [Function.update_self]
     have hm4_2 : st₁.mem (dAddr + 2) = tblPtr := by
-      dsimp only [st₁, m4, m3, m2, m1]; rw [Function.update_of_ne (by omega), Function.update_self]
-    have hm4_3 : st₁.mem (dAddr + 3) = tblLen := by
-      dsimp only [st₁, m4]; rw [Function.update_self]
+      dsimp only [st₁, m4, m3, m2, m1]
+      rw [Function.update_of_ne (by omega), Function.update_self]
+    have hm4_3 : st₁.mem (dAddr + 3) = tblLen := Function.update_self ..
     have hinv₁ : NodeInv (k + 1) st₁ := by
       refine ⟨fun i hi => ?_, fun i j hi hj hij => ?_⟩
       · by_cases hik : i = kFin
@@ -554,7 +548,8 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     have hc_step : memoryCost (initNodeStep (descBase, ⟨curRaw, k⟩)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      unfold initNodeStep; dsimp only
+      unfold initNodeStep
+      dsimp only
       rw [memoryCost_bind', memoryCost_read, hr_s, hr_r, hmem_len, memoryCost_bind', hst_pow,
         hr_pow, memoryCost_bind', memoryCost_alloc]
       change 1 + (memoryCost (powProg ⟨2, bagLen⟩) st + ((tblLen + 1) + memoryCost _ st_a)) ≤ _
@@ -566,13 +561,15 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
       ih (k + 1) (bagPtr + bagLen) st₁ (by omega)
         (by change descBase + 4 * count ≤ st.frontier + tblLen; omega)
         hfr_next_le hpres₁ hrest_st₁ (by dsimp only [bagPtr, bagLen] at *; omega) hinv₁
-    have hiter_eq : iterate initNodeStep descBase (rem + 1) ⟨curRaw, k⟩ =
-        (initNodeStep (descBase, ⟨curRaw, k⟩) >>= iterate initNodeStep descBase rem) := rfl
-    rw [hiter_eq]
+    rw [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step', hres_step']), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst_step', hres_step']; exact hprops_rem
-    · rw [memoryCost_bind', hst_step', hres_step', Nat.succ_mul, Nat.add_comm (rem * stepCost)]
-      exact Nat.add_le_add hc_step hc_rem
+    · rw [StateTransitionSpec.clientState_bind, hst_step', hres_step']
+      exact hprops_rem
+    · rw [memoryCost_bind', hst_step', hres_step']
+      calc memoryCost (initNodeStep (descBase, ⟨curRaw, k⟩)) st +
+            memoryCost (iterate initNodeStep descBase rem ⟨bagPtr + bagLen, k + 1⟩) st₁
+          ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
+        _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
 
 /-- Exact-basis Word-RAM realization certificate for `initNodesProg`. -/
 theorem initNodesProg_realizes :
@@ -605,23 +602,14 @@ theorem initNodesProg_realizes :
         HoldsIn st.curRaw ((bags.drop st.curIdx).flatMap encodeBag) t ∧
         st.curRaw + ((bags.drop st.curIdx).flatMap encodeBag).length ≤ descBase)
       (fun j st t ⟨hj_le, hidx, hfr_lo, hfr_hi, hrem_raw, hrem_end⟩ => ?_)
-      ⟨le_rfl, Nat.zero_add _, le_rfl, by simp [descBase],
-        by
-          dsimp only
-          rw [List.drop_zero]
-          exact hraw_h.mono_frontier hp_d,
-        hraw_h.1⟩
+      ⟨le_rfl, Nat.zero_add _, le_rfl, by simp [descBase], hraw_h.mono_frontier hp_d, hraw_h.1⟩
     have hk_lt : st.curIdx < bags.length := by omega
     have hdrop_cons : bags.drop st.curIdx = bags[st.curIdx] :: bags.drop (st.curIdx + 1) :=
       List.drop_eq_getElem_cons hk_lt
     rw [hdrop_cons, List.flatMap_cons, encodeBag, List.cons_append] at hrem_raw hrem_end
-    rw [HoldsIn.cons_iff] at hrem_raw
-    obtain ⟨_, hmem_len, hafter_len⟩ := hrem_raw
-    rw [HoldsIn.append_iff] at hafter_len
-    obtain ⟨_, hrest_raw⟩ := hafter_len
-    have hblen_le : t.mem st.curRaw ≤ M := by
-      rw [hmem_len]
-      exact hbags_M _ (List.getElem_mem hk_lt)
+    obtain ⟨_, hmem_len, hafter_len⟩ := HoldsIn.cons_iff.mp hrem_raw
+    obtain ⟨_, hrest_raw⟩ := HoldsIn.append_iff.mp hafter_len
+    have hblen_le : t.mem st.curRaw ≤ M := hmem_len ▸ hbags_M _ (List.getElem_mem hk_lt)
     have hpow_le : 2 ^ t.mem st.curRaw ≤ 2 ^ M := Nat.pow_le_pow_right (by decide) hblen_le
     have hfr_next : t.frontier + 2 ^ t.mem st.curRaw ≤
         descBase + 4 * d.count + (st.curIdx + 1) * 2 ^ M := by
@@ -629,29 +617,21 @@ theorem initNodesProg_realizes :
           ≤ (descBase + 4 * d.count + st.curIdx * 2 ^ M) + 2 ^ M := Nat.add_le_add hfr_hi hpow_le
         _ = descBase + 4 * d.count + (st.curIdx + 1) * 2 ^ M := by
           rw [Nat.add_assoc, ← Nat.succ_mul]
-    have hpeak_sub : descBase + 4 * d.count + (st.curIdx + 1) * 2 ^ M ≤
-        descBase + 4 * d.count + d.count * 2 ^ M := by
-      have hle_dc : st.curIdx + 1 ≤ d.count := by omega
-      have hmul : (st.curIdx + 1) * 2 ^ M ≤ d.count * 2 ^ M := Nat.mul_le_mul_right _ hle_dc
-      omega
+    have hmul : (st.curIdx + 1) * 2 ^ M ≤ d.count * 2 ^ M :=
+      Nat.mul_le_mul_right _ (by omega)
     have hpow_safe : Fits w 1 ∧ Fits w (2 ^ t.mem st.curRaw) :=
       ⟨h1, hfit_peak.of_le (by omega)⟩
     have hpow_res : (Memory.spec 0).clientResult t (powProg ⟨2, t.mem st.curRaw⟩) =
         2 ^ t.mem st.curRaw := powProg_result _ t
     simp only [List.length_cons, List.length_append] at hrem_end
-    have hfit_bp : Fits w (st.curRaw + 1) := hfit_peak.of_le (by omega)
-    have hfit_mul4 : Fits w (4 * st.curIdx) := hfit_peak.of_le (by omega)
-    have hfit_d0 : Fits w (descBase + 4 * st.curIdx) := hfit_peak.of_le (by omega)
-    have hfit_d1 : Fits w (descBase + 4 * st.curIdx + 1) := hfit_peak.of_le (by omega)
-    have hfit_d2 : Fits w (descBase + 4 * st.curIdx + 2) := hfit_peak.of_le (by omega)
-    have hfit_d3 : Fits w (descBase + 4 * st.curIdx + 3) := hfit_peak.of_le (by omega)
-    have hfit_next_raw : Fits w (st.curRaw + 1 + t.mem st.curRaw) :=
-      hfit_peak.of_le (by omega)
-    have hfit_next_idx : Fits w (st.curIdx + 1) := hfit_peak.of_le (by omega)
     obtain ⟨hst_ev, hres_ev⟩ := initNodeStep_eval descBase st t
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
     · dsimp only [initNodeStep]
-      repeat (first | exact hpow_safe | assumption | refine And.intro ?_ ?_)
+      repeat (first
+        | exact hpow_safe
+        | assumption
+        | refine And.intro ?_ ?_
+        | exact hfit_peak.of_le (by omega))
     · rw [hres_ev]; change (st.curIdx + 1) + j = d.count; omega
     · rw [hst_ev]; change descBase + 4 * d.count ≤ t.frontier + _; omega
     · rw [hst_ev, hres_ev]; exact hfr_next
@@ -661,10 +641,7 @@ theorem initNodesProg_realizes :
       rw [hmem_len]
       refine ⟨hrest_raw.1.trans (Nat.le_add_right _ _), hrest_raw.2.frame fun a _ ha => ?_⟩
       dsimp only
-      rw [Function.update_of_ne (by dsimp only [descBase] at *; omega),
-        Function.update_of_ne (by dsimp only [descBase] at *; omega),
-        Function.update_of_ne (by dsimp only [descBase] at *; omega),
-        Function.update_of_ne (by dsimp only [descBase] at *; omega)]
+      repeat rw [Function.update_of_ne (by dsimp only [descBase] at *; omega)]
       exact clear_of_not_owns (by dsimp only [Block.Owns, descBase] at *; omega)
     · rw [hres_ev]
       change (st.curRaw + 1 + t.mem st.curRaw) + _ ≤ descBase

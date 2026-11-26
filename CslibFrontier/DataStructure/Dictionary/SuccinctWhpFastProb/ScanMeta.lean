@@ -112,9 +112,7 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
       have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
         dsimp only [fp, FastState.fpAt]
         split_ifs with hs hu
-        · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩
-        · exact Nat.two_pow_pos _
-        · exact Nat.two_pow_pos _
+        exacts [fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩, Nat.two_pow_pos _, Nat.two_pow_pos _]
       cases hlk : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
           (fs.slices rIdx) fp with
       | some prev_loc =>
@@ -274,11 +272,7 @@ theorem ValidBufTrie.everPresent_of_map_some {cTab bChar k b loc : ℕ} {tr : Bu
   have hlk : bufLookup cTab bChar tr k = some (b, loc) := (hv.lookup_eq hk).trans hm
   dsimp only [bufLookup, bufEverPresent] at hlk ⊢
   cases hw : bufWalk bChar tr.trieChild k cTab 0 0 with
-  | none => rw [hw] at hlk; cases hlk
-  | some leaf =>
-    rw [hw] at hlk; dsimp only at hlk
-    by_cases hz : tr.nodeLeafItem leaf = 0
-    · simp [hz] at hlk
-    · simp [hz]
+  | none => simp [hw] at hlk
+  | some leaf => by_cases hz : tr.nodeLeafItem leaf = 0 <;> simp [hw, hz] at hlk ⊢
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

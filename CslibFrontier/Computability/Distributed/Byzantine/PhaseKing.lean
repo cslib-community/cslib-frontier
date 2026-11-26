@@ -216,10 +216,8 @@ theorem SolvesByzantineAgreement.mono {π : MultivaluedProtocol P S M V} {t t' R
     (adv : ℕ → P → P → M) (x : P → Bool) :
     ∀ r, π.toProtocol.state F adv x r = π.state F adv x r
   | 0 => rfl
-  | r + 1 => by
-    funext i
-    simp only [Protocol.state, state]
-    rw [toProtocol_state π F adv x r]
+  | r + 1 => funext fun i => by
+    simp only [Protocol.state, state, toProtocol_state π F adv x r]
     rfl
 
 /-- Decisions of `π.toProtocol` coincide with those of `π`. -/
@@ -256,9 +254,8 @@ theorem not_solvesByzantineAgreement [Fintype P] [Nontrivial V] {t R : ℕ}
     update := π.update
     output := fun i s => decide (π.output i s = v₁)
   }
-  have hstate : ∀ F adv (x : P → Bool) r,
+  have hstate (F) (adv) (x : P → Bool) (r : ℕ) :
       πB.state F adv x r = π.state F adv (fun i => if x i then v₁ else v₀) r := by
-    intro F adv x r
     induction r with
     | zero => rfl
     | succ r ih =>
@@ -305,34 +302,25 @@ theorem uniqueAboveOn_eq_some_iff {P V : Type*} [DecidableEq V] {dom : Finset P}
     intro w
     simp only [Finset.mem_filter, Finset.mem_image, and_iff_right_iff_imp]
     intro hw
-    obtain ⟨p, hp⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hw)
-    rw [Finset.mem_filter] at hp
-    exact ⟨p, hp.1, hp.2⟩
+    obtain ⟨p, hp⟩ := Finset.card_pos.1 (lt_of_lt_of_le hk hw)
+    exact ⟨p, (Finset.mem_filter.1 hp).1, (Finset.mem_filter.1 hp).2⟩
   unfold uniqueAboveOn
   dsimp only
   split_ifs with hcard
   · simp only [Option.some.injEq]
     obtain ⟨x, hx⟩ := Finset.card_eq_one.1 hcard
     generalize_proofs hp
-    have hspec := (Finset.choose_spec (fun _ => True) _ hp).1
     have hchoose : Finset.choose (fun _ => True) _ hp = x :=
-      Finset.mem_singleton.1 (hx ▸ hspec)
+      Finset.mem_singleton.1 (hx ▸ (Finset.choose_spec (fun _ => True) _ hp).1)
     rw [hchoose]
     have hx_mem : k ≤ (dom.filter fun p => f p = x).card :=
       (hmem x).1 (by rw [hx]; exact Finset.mem_singleton_self x)
-    constructor
-    · rintro rfl
-      refine ⟨hx_mem, fun w hw => ?_⟩
-      have hws := (hmem w).2 hw
-      rw [hx, Finset.mem_singleton] at hws
-      exact hws
-    · rintro ⟨_, huniq⟩
-      exact huniq x hx_mem
+    exact ⟨fun h => h ▸ ⟨hx_mem, fun w hw => Finset.mem_singleton.1 (hx ▸ (hmem w).2 hw)⟩,
+      fun ⟨_, huniq⟩ => huniq x hx_mem⟩
   · simp only [false_iff, not_and]
-    intro hv huniq
-    refine hcard (Finset.card_eq_one.2 ⟨v, Finset.ext fun w => ?_⟩)
-    rw [Finset.mem_singleton, hmem]
-    exact ⟨huniq w, fun h => h ▸ hv⟩
+    exact fun hv huniq => hcard (Finset.card_eq_one.2 ⟨v, Finset.ext fun w => by
+      rw [Finset.mem_singleton, hmem]
+      exact ⟨huniq w, fun h => h ▸ hv⟩⟩)
 
 /-- When `dom.card < 2 * k`, at most one value can appear `k` times on `dom`, so
 `uniqueAboveOn dom k f = some v` holds precisely when `v` has multiplicity at least `k`. -/
@@ -421,9 +409,8 @@ private theorem phaseKing_step_even {t : ℕ} (kings : Fin (t + 1) ↪ P) (F : F
       { est := s.est
         kingProposal := (uniqueAboveOn univ (Fintype.card P - 2 * t) m).getD s.est
         overwhelming := uniqueAboveOn univ (Fintype.card P - t) m } := by
-  have hdiv : (2 * k) / 2 = k := by omega
-  have hmod : (2 * k) % 2 = 0 := by omega
-  simp only [MultivaluedProtocol.state, phaseKing, hdiv, hk, ↓reduceDIte, hmod, ↓reduceIte]
+  simp only [MultivaluedProtocol.state, phaseKing, Nat.mul_div_right _ Nat.zero_lt_two, hk,
+    ↓reduceDIte, Nat.mul_mod_right, ↓reduceIte]
 
 private theorem phaseKing_step_odd {t : ℕ} (kings : Fin (t + 1) ↪ P) (F : Finset P)
     (adv : ℕ → P → P → V) (x : P → V) {k : ℕ} (hk : k < t + 1) (i : P) :
@@ -534,18 +521,15 @@ theorem phaseKing_solvesByzantineAgreement {t : ℕ} (kings : Fin (t + 1) ↪ P)
     change ((phaseKing t kings).state F adv x (2 * (t + 1)) i).est =
       ((phaseKing t kings).state F adv x (2 * (t + 1)) j).est
     -- Among `t + 1` distinct kings, at least one lies outside `F` (`F.card ≤ t`).
-    have hex : ∃ k : Fin (t + 1), kings k ∉ F := by
+    obtain ⟨k, hk⟩ : ∃ k : Fin (t + 1), kings k ∉ F := by
       by_contra! hall
       have hsub : univ.map kings ⊆ F := fun p hp => by
         obtain ⟨k, _, rfl⟩ := Finset.mem_map.1 hp; exact hall k
       finset_card
-    obtain ⟨k, hk⟩ := hex
     have hconv := phaseKing_converges_of_notMem kings hF hn adv x k hk
-    have hi' := phaseKing_persists_from kings hF (by omega) adv x
-      (Nat.succ_le_of_lt k.isLt) le_rfl hconv i hi
-    have hj' := phaseKing_persists_from kings hF (by omega) adv x
-      (Nat.succ_le_of_lt k.isLt) le_rfl hconv j hj
-    exact hi'.trans hj'.symm
+    have hpers := phaseKing_persists_from kings hF (by omega) adv x
+      (Nat.succ_le_of_lt k.isLt) le_rfl hconv
+    exact (hpers i hi).trans (hpers j hj).symm
   validity F hF adv x v hv i hi := by
     rw [MultivaluedProtocol.decision, phaseKing_state_eq_of_le kings F adv x hR]
     change ((phaseKing t kings).state F adv x (2 * (t + 1)) i).est = v
@@ -595,10 +579,8 @@ theorem phaseKing_fails_four_one (kings : Fin 2 ↪ Fin 4) (R : ℕ) :
   intro hsolves
   have hne : kings 0 ≠ kings 1 := kings.injective.ne (by decide)
   have hkings : kings = mkTwoKings (kings 0) (kings 1) hne := by
-    ext ⟨i, hi⟩
-    match i with
-    | 0 => rfl
-    | 1 => rfl
+    ext ⟨_ | _ | _, h⟩
+    exacts [rfl, rfl, absurd h (by omega)]
   let p := thirdHonest (kings 0) (kings 1)
   let F : Finset (Fin 4) := {kings 1}
   let x : Fin 4 → Bool := fun i => decide (i ≠ kings 0)
@@ -871,16 +853,11 @@ theorem turpinCoan_solvesByzantineAgreement {t R₀ : ℕ} (default : V)
     | false =>
       simp only [Bool.false_eq_true, ↓reduceIte]
       -- Not all correct processes had `alert = true`, else `πBool.validity` would force `true`.
-      have hex : ∃ p₀ ∉ F, turpinCoanAlert t default πBool F adv x p₀ = false := by
+      obtain ⟨p₀, -, halert⟩ : ∃ p₀ ∉ F, turpinCoanAlert t default πBool F adv x p₀ = false := by
         by_contra! hall
-        have htrue := hBool.validity F hF (turpinCoanAdvBool t default πBool F adv x)
-          (turpinCoanAlert t default πBool F adv x) true
-          (fun p hp => Bool.eq_true_of_ne_false (hall p hp)) i hi
-        exact Bool.false_ne_true (hbit.symm.trans htrue)
-      obtain ⟨p₀, _, halert⟩ := hex
-      unfold turpinCoanAlert at halert
-      dsimp only at halert
-      rw [decide_eq_false_iff_not, not_le] at halert
+        exact Bool.false_ne_true (hbit.symm.trans (hBool.validity F hF _ _ true
+          (fun p hp => Bool.eq_true_of_ne_false (hall p hp)) i hi))
+      simp only [turpinCoanAlert, decide_eq_false_iff_not, not_le] at halert
       -- Every perplexed correct process sent `true` to `p₀`, so `< n - 2 * t` correct processes
       -- are perplexed, leaving `≥ t + 1` non-perplexed correct processes.
       have hperp_lt : ((univ \ F).filter fun q =>
@@ -912,24 +889,16 @@ theorem turpinCoan_solvesByzantineAgreement {t R₀ : ℕ} (default : V)
       finset_card
     -- Consequently, every correct process sees `≤ |F| ≤ t < n - 2 * t` perplexed reports and sets
     -- `alert = false`.
-    have halert_false : ∀ q ∉ F, turpinCoanAlert t default πBool F adv x q = false := by
-      intro q _
-      unfold turpinCoanAlert
-      dsimp only
-      rw [decide_eq_false_iff_not, not_le]
+    have halert_false : ∀ q ∉ F, turpinCoanAlert t default πBool F adv x q = false := fun q _ => by
+      simp only [turpinCoanAlert, decide_eq_false_iff_not, not_le]
       have hsub : (univ.filter fun j =>
           (match (if j ∈ F then adv 1 j q
             else .perplexed ((turpinCoan t default πBool).state F adv x 1 j).perplexed) with
             | .perplexed b => b | _ => false) = true) ⊆ F := fun j hj => by
-        rw [Finset.mem_filter] at hj
         by_contra hjF
-        simp only [hjF, ↓reduceIte, hcontent j hjF, Bool.false_eq_true] at hj
-        exact hj.2
+        simp [hjF, hcontent j hjF] at hj
       finset_card
-    have hbit := hBool.validity F hF (turpinCoanAdvBool t default πBool F adv x)
-      (turpinCoanAlert t default πBool F adv x) false halert_false i hi
-    rw [hbit]
-    simp only [Bool.false_eq_true, ↓reduceIte]
+    simp only [hBool.validity F hF _ _ false halert_false i hi, Bool.false_eq_true, ↓reduceIte]
     have hC : t + 1 ≤ ((univ \ F).filter fun q =>
         ((turpinCoan t default πBool).state F adv x 1 q).perplexed = false).card := by
       rw [Finset.filter_true_of_mem fun q hq => hcontent q (Finset.mem_sdiff.1 hq).2]

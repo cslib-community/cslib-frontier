@@ -199,7 +199,9 @@ theorem leafScore_add_one_le_leafScore_path {M : ℝ} {d : ℕ} {q : ι → ℝ}
     (hfalse : ∀ i, x i = false → q i ≤ -1) (hp : p ∈ t.paths) (hne : p ≠ t.path x) :
     leafScore (2 * M + 1) d q t p + 1 ≤ leafScore (2 * M + 1) d q t (t.path x) := by
   induction t generalizing d p with
-  | leaf => rw [paths_leaf, List.mem_singleton] at hp; exact (hne (hp.trans rfl)).elim
+  | leaf =>
+    rw [paths_leaf, List.mem_singleton] at hp
+    exact (hne (hp.trans rfl)).elim
   | node i left right ihl ihr =>
     have hleft : left.depth ≤ d - 1 := by grind [depth_node]
     have hright : right.depth ≤ d - 1 := by grind [depth_node]

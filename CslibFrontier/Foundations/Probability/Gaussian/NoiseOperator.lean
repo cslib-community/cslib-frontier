@@ -136,9 +136,10 @@ theorem integral_mul_gaussianNoiseOp_comm {ρ : ℝ} (hρ : |ρ| ≤ 1) {f g : (
   have hsw : MeasurePreserving (MeasurableEquiv.prodComm (α := ι → ℝ) (β := ι → ℝ))
       (correlatedGaussianPi ι ρ) (correlatedGaussianPi ι ρ) :=
     ⟨MeasurableEquiv.measurable _, correlatedGaussianPi_map_swap ι hρ⟩
-  simp only [mul_comm (gaussianNoiseOp ρ f _), integral_mul_gaussianNoiseOp hρ hf hg,
-    integral_mul_gaussianNoiseOp hρ hg hf, ← hsw.integral_comp' (fun p => g p.1 * f p.2)]
-  exact integral_congr_ae (ae_of_all _ fun _ => mul_comm _ _)
+  simp only [mul_comm (gaussianNoiseOp ρ f _)]
+  rw [integral_mul_gaussianNoiseOp hρ hf hg, integral_mul_gaussianNoiseOp hρ hg hf,
+    ← hsw.integral_comp' (fun p => g p.1 * f p.2)]
+  exact integral_congr_ae (ae_of_all _ fun p => mul_comm _ _)
 
 /-- The noise operator fixes the constants. -/
 @[simp] theorem gaussianNoiseOp_const (ρ c : ℝ) (z : ι → ℝ) :
@@ -223,19 +224,23 @@ theorem eLpNorm_gaussianNoiseOp_le {ρ : ℝ} (hρ : |ρ| ≤ 1) {p : ℝ≥0∞
   rw [eLpNorm_eq_lintegral_rpow_eNorm_toReal hp0 hptop hU,
     eLpNorm_eq_lintegral_rpow_eNorm_toReal hp0 hptop hf]
   gcongr ?_ ^ _
-  refine (lintegral_mono_ae ?_).trans_eq
-    ((lintegral_prod _ (hF.eNorm.pow_const _)).symm.trans
-      (hΦ.lintegral_comp' (hf.eNorm.pow_const _)))
-  filter_upwards [hF.prodMk_left] with z hz
-  calc ‖gaussianNoiseOp ρ f z‖ₑ ^ p.toReal
-      ≤ (∫⁻ y, ‖(f ∘ noisy ρ) (z, y)‖ₑ ∂γ) ^ p.toReal :=
-          ENNReal.rpow_le_rpow (hpt z) (by positivity)
-    _ = eLpNorm' (fun y => (f ∘ noisy ρ) (z, y)) 1 γ ^ p.toReal := by
-          simp only [eLpNorm'_eq_lintegral_eNorm, ENNReal.rpow_one, div_one]
-    _ ≤ eLpNorm' (fun y => (f ∘ noisy ρ) (z, y)) p.toReal γ ^ p.toReal :=
-          ENNReal.rpow_le_rpow (eLpNorm'_le_eLpNorm'_of_exponent_le one_pos hq γ hz) (by positivity)
-    _ = ∫⁻ y, ‖(f ∘ noisy ρ) (z, y)‖ₑ ^ p.toReal ∂γ :=
-          (lintegral_rpow_eNorm_eq_rpow_eLpNorm' (zero_lt_one.trans_le hq)).symm
+  calc ∫⁻ z, ‖gaussianNoiseOp ρ f z‖ₑ ^ p.toReal ∂γ
+      ≤ ∫⁻ z, ∫⁻ y, ‖(f ∘ noisy ρ) (z, y)‖ₑ ^ p.toReal ∂γ ∂γ := by
+        refine lintegral_mono_ae ?_
+        filter_upwards [hF.prodMk_left] with z hz
+        calc ‖gaussianNoiseOp ρ f z‖ₑ ^ p.toReal
+            ≤ (∫⁻ y, ‖(f ∘ noisy ρ) (z, y)‖ₑ ∂γ) ^ p.toReal :=
+                ENNReal.rpow_le_rpow (hpt z) (by positivity)
+          _ = eLpNorm' (fun y => (f ∘ noisy ρ) (z, y)) 1 γ ^ p.toReal := by
+                simp only [eLpNorm'_eq_lintegral_eNorm, ENNReal.rpow_one, div_one]
+          _ ≤ eLpNorm' (fun y => (f ∘ noisy ρ) (z, y)) p.toReal γ ^ p.toReal :=
+                ENNReal.rpow_le_rpow
+                  (eLpNorm'_le_eLpNorm'_of_exponent_le one_pos hq γ hz) (by positivity)
+          _ = ∫⁻ y, ‖(f ∘ noisy ρ) (z, y)‖ₑ ^ p.toReal ∂γ :=
+                (lintegral_rpow_eNorm_eq_rpow_eLpNorm' (zero_lt_one.trans_le hq)).symm
+    _ = ∫⁻ q, ‖(f ∘ noisy ρ) q‖ₑ ^ p.toReal ∂γ.prod γ :=
+        (lintegral_prod _ (hF.eNorm.pow_const _)).symm
+    _ = ∫⁻ x, ‖f x‖ₑ ^ p.toReal ∂γ := hΦ.lintegral_comp' (hf.eNorm.pow_const _)
 
 /-- The noise operator maps `Lᵖ(γⁿ)` to itself for `1 ≤ p ≤ ∞` and `|ρ| ≤ 1`. -/
 theorem _root_.MeasureTheory.MemLp.gaussianNoiseOp {ρ : ℝ} (hρ : |ρ| ≤ 1) {p : ℝ≥0∞} (hp : 1 ≤ p)

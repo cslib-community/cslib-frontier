@@ -63,7 +63,7 @@ private theorem acceptsFrom_iff_exists_acceptsWithin (M : AlternatingQueryMachin
     M.AcceptsFrom (enc a) s ↔ ∃ n, R.atm.AcceptsWithin n (R.boundaryCfg a (s, none) none) := by
   have hlive {s : σ} (hh : M.halted s = false) {p : Option Bool} (hp : p ≠ some false) :
       M.guess.halted (s, p) = false := by
-    cases p with | none => simp [guess, hh] | some v => cases v <;> simp_all [guess]
+    rcases p with _ | ⟨_ | _⟩ <;> simp_all [guess]
   have hround := R.exists_acceptsWithin_boundaryCfg_of_live a
   constructor
   · intro h
@@ -97,7 +97,7 @@ private theorem acceptsFrom_iff_exists_acceptsWithin (M : AlternatingQueryMachin
       obtain ⟨τ, hτ⟩ := hround _ hr (hlive hh (by simp)) none
       obtain ⟨τ₁, hτ₁⟩ := hround _ hr₁ (hlive hh (by simp)) (some true)
       let N := max (n false + τ₁ false) (n true + τ₁ true)
-      have hle (b : Bool) : n b + τ₁ b ≤ N := by cases b; exacts [le_max_left _ _, le_max_right _ _]
+      have hle (b : Bool) : n b + τ₁ b ≤ N := b.rec (le_max_left _ _) (le_max_right _ _)
       refine ⟨N + 1 + τ true + 1, ?_⟩
       rw [hτ, ite_eq_right (by simp)]
       refine ⟨true, by omega, ?_⟩
@@ -192,9 +192,9 @@ theorem exists_decidesInSpace (M : AlternatingQueryMachine σ)
   refine ⟨R.k, Native.State R.SI R.SP R.SF × Option Bool, inferInstance, R.atm,
     R.k * (2 * R.c + 1), fun a => ⟨(R.runsInSpace_atm a).mono ?_, ?_⟩,
     fun a => R.exists_runsInTime_atm a (time := 2 * time a) fun choices hlen => ?_⟩
-  · dsimp only
-    rw [mul_assoc]
-    exact Nat.mul_le_mul_left _ (by rw [add_one_mul, mul_assoc]; linarith [hS a])
+  · calc R.k * (2 * (R.c * S a) + 1) ≤ R.k * ((2 * R.c + 1) * S a) :=
+          Nat.mul_le_mul_left _ (by nlinarith only [hS a])
+      _ = R.k * (2 * R.c + 1) * S a := by ring
   · rw [hcorrect a, R.accepts_atm_iff a]
     exact acceptsFrom_iff_exists_acceptsWithin M R a (start a)
       ((M.guess.withInit (start' a)).reachable_init (enc a))

@@ -32,11 +32,8 @@ namespace Cslib.Orthogonal
 private theorem unit_cases {a b : Point} (h : length a b = 1) :
     b = (a.1 + 1, a.2) ∨ b = (a.1 - 1, a.2) ∨
       b = (a.1, a.2 + 1) ∨ b = (a.1, a.2 - 1) := by
-  rcases a with ⟨ax, ay⟩
-  rcases b with ⟨bx, by'⟩
-  simp only [length] at h
-  simp only [Prod.mk.injEq]
-  omega
+  rcases a, b with ⟨⟨ax, ay⟩, ⟨bx, by'⟩⟩
+  simp only [length, Prod.mk.injEq] at h ⊢; omega
 
 private theorem unit_contact_check {a b c d : Point} (hab : length a b = 1)
     (hcd : length c d = 1) (hsame : (a, b) ≠ (c, d)) (hreverse : (a, b) ≠ (d, c)) :
@@ -58,37 +55,27 @@ theorem endpointContacts_unit {a b c d : Point} (hab : length a b = 1)
   intro p hp hq
   obtain ⟨x, hx, rfl⟩ := segmentContactCheck_sound
     (unit_contact_check hab hcd hsame hreverse) hp hq
-  have hx' : x = a ∨ x = b := by
-    simpa only [List.mem_cons, List.not_mem_nil, or_false] using hx
-  refine ⟨hx'.elim (fun h => .inl (congrArg realPoint h))
-    (fun h => .inr (congrArg realPoint h)), ?_⟩
-  exact (eq_endpoint_of_mem_unit_segment hcd hq).elim
-    (fun h => .inl (congrArg realPoint h)) (fun h => .inr (congrArg realPoint h))
+  exact ⟨(by simpa using hx : x = a ∨ x = b).imp (congrArg realPoint) (congrArg realPoint),
+    (eq_endpoint_of_mem_unit_segment hcd hq).imp (congrArg realPoint) (congrArg realPoint)⟩
 
 private theorem no_reverse_pairs {r : Route} (hn : r.Nodup) {e f : Point × Point}
     (he : e ∈ r.consecutivePairs) (hf : f ∈ r.consecutivePairs) (hne : e ≠ f) :
     e ≠ (f.2, f.1) := by
   induction r with
-  | nil => exact False.elim (List.not_mem_nil he)
+  | nil => cases he
   | cons a r ih =>
     cases r with
-    | nil => exact False.elim (List.not_mem_nil he)
+    | nil => cases he
     | cons b r =>
-      rcases List.mem_cons.1 he with rfl | he
-      · rcases List.mem_cons.1 hf with rfl | hf
-        · exact False.elim (hne rfl)
-        · intro h
-          have ha : a ∈ b :: r := by
-            have hm := List.of_mem_zip hf
-            have heq : a = f.2 := congrArg Prod.fst h
-            exact heq.symm ▸ List.mem_of_mem_tail hm.2
-          exact (List.nodup_cons.1 hn).1 ha
-      · rcases List.mem_cons.1 hf with rfl | hf
-        · intro h
-          have hm := List.of_mem_zip he
-          have heq : e.2 = a := congrArg Prod.snd h
-          exact (List.nodup_cons.1 hn).1 (heq ▸ List.mem_of_mem_tail hm.2)
-        · exact ih hn.tail he hf
+      rcases List.mem_cons.1 he with rfl | he <;> rcases List.mem_cons.1 hf with rfl | hf
+      · exact (hne rfl).elim
+      · intro h
+        have ha : a = f.2 := congrArg Prod.fst h
+        exact (List.nodup_cons.1 hn).1 (ha ▸ List.mem_of_mem_tail (List.of_mem_zip hf).2)
+      · intro h
+        have ha : e.2 = a := congrArg Prod.snd h
+        exact (List.nodup_cons.1 hn).1 (ha ▸ List.mem_of_mem_tail (List.of_mem_zip he).2)
+      · exact ih hn.tail he hf
 
 /-- A unit route with distinct listed points is continuously simple. -/
 theorem isSimple_of_unit_nodup {r : Route} (hn : r.Nodup)
@@ -110,11 +97,10 @@ theorem contact_unit_routes {r s : Route}
   rcases hq with ⟨x, hx, rfl⟩ | ⟨f, hf, hq⟩
   · exact ⟨x, (mem_iff_realPoint_mem_support hr x).2 (.inr ⟨e, he, hp⟩), hx, rfl⟩
   obtain ⟨h₁, h₂⟩ := hseg e he f hf
-  obtain ⟨hp', _⟩ := endpointContacts_unit (hr e he) (hs f hf) h₁ h₂ p hp hq
-  rcases hp' with hp' | hp'
-  · refine ⟨e.1, (List.of_mem_zip he).1, ?_, hp'⟩
-    exact (mem_iff_realPoint_mem_support hs e.1).2 (hp' ▸ .inr ⟨f, hf, hq⟩)
-  · refine ⟨e.2, List.mem_of_mem_tail (List.of_mem_zip he).2, ?_, hp'⟩
-    exact (mem_iff_realPoint_mem_support hs e.2).2 (hp' ▸ .inr ⟨f, hf, hq⟩)
+  rcases (endpointContacts_unit (hr e he) (hs f hf) h₁ h₂ p hp hq).1 with hp' | hp'
+  · exact ⟨e.1, (List.of_mem_zip he).1,
+      (mem_iff_realPoint_mem_support hs e.1).2 (hp' ▸ .inr ⟨f, hf, hq⟩), hp'⟩
+  · exact ⟨e.2, List.mem_of_mem_tail (List.of_mem_zip he).2,
+      (mem_iff_realPoint_mem_support hs e.2).2 (hp' ▸ .inr ⟨f, hf, hq⟩), hp'⟩
 
 end Cslib.Orthogonal

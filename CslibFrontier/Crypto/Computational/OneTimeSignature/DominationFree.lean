@@ -129,10 +129,8 @@ private theorem finFunctionFinEquiv_symm_eq_radixDigits {d width x : ℕ}
 /-- Positional reconstruction of `x < (d + 1) ^ width` from `radixDigits d width x`. -/
 theorem sum_radixDigits_mul_pow {d width x : ℕ} (hx : x < (d + 1) ^ width) :
     ∑ i : Fin width, (radixDigits d width x i).val * (d + 1) ^ i.val = x := by
-  have h := congrArg Fin.val
-    (finFunctionFinEquiv.apply_symm_apply (⟨x, hx⟩ : Fin ((d + 1) ^ width)))
-  rw [finFunctionFinEquiv_symm_eq_radixDigits hx, finFunctionFinEquiv_apply] at h
-  exact h
+  simpa only [finFunctionFinEquiv_symm_eq_radixDigits hx, finFunctionFinEquiv_apply] using
+    congrArg Fin.val (finFunctionFinEquiv.apply_symm_apply (⟨x, hx⟩ : Fin ((d + 1) ^ width)))
 
 /-- `radixDigits d width` is injective on `{x | x < (d + 1) ^ width}`. -/
 theorem radixDigits_injOn (d width : ℕ) :
@@ -240,24 +238,17 @@ theorem getElem_winternitzDigitList (d n0 n1 m : ℕ) (i : ℕ)
     have hidx : (⟨i, hi'⟩ : Fin (n0 + n1)) = Fin.castAdd n1 ⟨i, h0⟩ := rfl
     rw [hidx, Fin.append_left]
     simp [radixDigitList, radixDigits]
-  · have hge : (radixDigitList d n0 m).length ≤ i := by
-      simpa [radixDigitList_length] using Nat.le_of_not_lt h0
-    rw [List.getElem_append_right hge]
-    have hsub : i - n0 < n1 := by lia
-    have hidx : (⟨i, hi'⟩ : Fin (n0 + n1)) = Fin.natAdd n0 ⟨i - n0, hsub⟩ := by
-      ext
-      dsimp
-      lia
+  · rw [List.getElem_append_right (by simpa [radixDigitList_length] using Nat.le_of_not_lt h0)]
+    have hidx : (⟨i, hi'⟩ : Fin (n0 + n1)) = Fin.natAdd n0 ⟨i - n0, by lia⟩ :=
+      Fin.ext (Nat.add_sub_of_le (Nat.le_of_not_lt h0)).symm
     rw [hidx, Fin.append_right, checksum_eq_sub_sum_radixDigitList]
     simp [radixDigitList, radixDigits]
 
 /-- `winternitzDigitList d n0 n1 m` as `List.ofFn` of `winternitzDigits d n0 n1 m`. -/
 theorem winternitzDigitList_eq_ofFn (d n0 n1 m : ℕ) :
     winternitzDigitList d n0 n1 m = List.ofFn fun i => (winternitzDigits d n0 n1 m i).val := by
-  apply List.ext_getElem
-  · simp [winternitzDigitList_length]
-  · intro i h1 h2
-    simp [getElem_winternitzDigitList]
+  refine List.ext_getElem (by simp [winternitzDigitList_length]) fun _ _ _ => ?_
+  simp [getElem_winternitzDigitList]
 
 private theorem radixDigitList_polyTime :
     ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2)

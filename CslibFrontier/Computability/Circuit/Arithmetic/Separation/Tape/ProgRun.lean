@@ -38,17 +38,22 @@ theorem sum_length_tup {Γ S J : Type*} [Fintype S] [Fintype J]
     ∑ z, (tup W u z).length = 2 * ∑ s, (W s).length + ∑ j, (u j).length := by
   rw [Fintype.sum_equiv (chSumEquiv S J) _
     (Sum.elim (fun x : S × Bool => (W x.1).length) fun j => (u j).length)
-    (by rintro (_ | _) <;> rfl), Fintype.sum_sum_type, Fintype.sum_prod_type, Finset.mul_sum]
+    fun z => by cases z <;> rfl,
+    Fintype.sum_sum_type, Fintype.sum_prod_type, Finset.mul_sum]
   simp [two_mul]
 
 private theorem ofFn_getElem? {Ω : Type*} (w : List Ω) (t : ℕ) (h : w.length ≤ t) :
     List.ofFn (fun k : Fin t => w[(k : ℕ)]?) =
       w.map some ++ List.replicate (t - w.length) none := by
-  refine List.ext_getElem (by simp; omega) fun k h1 h2 => ?_
-  rw [List.getElem_ofFn]
-  by_cases hk : k < w.length
-  · rw [List.getElem_append_left (by simpa using hk)]; simp [hk]
-  · rw [List.getElem_append_right (by simpa using hk)]; simp; omega
+  apply List.ext_getElem
+  · simp; omega
+  · intro k h1 h2
+    rw [List.getElem_ofFn]
+    by_cases hk : k < w.length
+    · rw [List.getElem_append_left (by simpa using hk)]
+      simp [hk]
+    · rw [List.getElem_append_right (by simpa using hk)]
+      simp; omega
 
 theorem emit_idle {Γ S J : Type*} [DecidableEq S] [DecidableEq J]
     (w : List (Ch S J × Γ)) (j : ℕ) :
@@ -73,40 +78,56 @@ theorem exists_run {n : ℕ} {P : Series F (Ch S J × Γ)} (hP : RatLe n P) :
             hat P (tup W u) := by
   obtain ⟨Q, i1, i2, mu, i, e, hcard, hmu⟩ := hP.idle.normal
   refine ⟨Q, i1, i2, mu, i, e, hcard, fun t ht u => ?_⟩
-  have hne (o : Fin t → Letter S J Γ) : List.ofFn o ≠ [] :=
-    List.ne_nil_of_length_pos (by simp; omega)
+  have hne (o : Fin t → Letter S J Γ) (h : List.ofFn o = []) : False := by
+    have := congrArg List.length h
+    simp at this; omega
   rw [runVal, Finset.sum_congr rfl fun o _ => by rw [hmu _ (hne o)]]
-  simp only [hat, Finset.sum_sigma']
-  refine (Finset.sum_of_injOn (fun x (k : Fin t) => x.2[(k : ℕ)]?) ?_ (by simp) ?_ ?_).symm
+  simp only [hat]
+  rw [Finset.sum_sigma']
+  symm
+  refine Finset.sum_of_injOn (fun x k => x.2[(k : ℕ)]?) ?_ (by simp) ?_ ?_
   · rintro ⟨W, w⟩ hx ⟨W', w'⟩ hx' h
     simp only [coe_sigma, Set.mem_sigma_iff, mem_coe, mem_filter, mem_fib] at hx hx'
-    have l1 : w.length ≤ t := by rw [← sum_length_proj w, hx.2, sum_length_tup]; exact hx.1.2
-    have l2 : w'.length ≤ t := by rw [← sum_length_proj w', hx'.2, sum_length_tup]; exact hx'.1.2
-    obtain rfl : w = w' := List.ext_getElem? fun k =>
-      if hk : k < t then congrFun h ⟨k, hk⟩
-      else by rw [List.getElem?_eq_none (by omega), List.getElem?_eq_none (by omega)]
-    exact Sigma.ext (funext fun s => congrFun (hx.2.symm.trans hx'.2) (.tp s false)) HEq.rfl
+    obtain ⟨⟨-, hb⟩, hp⟩ := hx
+    obtain ⟨⟨-, hb'⟩, hp'⟩ := hx'
+    have l1 : w.length ≤ t := by rwa [← sum_length_proj w, hp, sum_length_tup]
+    have l2 : w'.length ≤ t := by rwa [← sum_length_proj w', hp', sum_length_tup]
+    obtain rfl : w = w' := List.ext_getElem? fun k => by
+      by_cases hk : k < t
+      · exact congrFun h ⟨k, hk⟩
+      · rw [List.getElem?_eq_none (by omega), List.getElem?_eq_none (by omega)]
+    obtain rfl : W = W' := funext fun s => congrFun (hp.symm.trans hp') (.tp s false)
+    rfl
   · intro o _ ho
     by_contra hcon
-    have hm : Matched (List.ofFn o) u := by by_contra hm; exact hcon (ite_eq_right hm)
+    have hm : Matched (List.ofFn o) u := of_not_not fun hm => hcon (ite_eq_right hm)
     rw [ite_eq_left hm] at hcon
     obtain ⟨w, j, hw⟩ := idle_ne_zero P _ hcon
     have hlen : w.length + j = t := by simpa using (congrArg List.length hw).symm
+    apply ho
     have hproj : proj w = tup (fun s => proj w (.tp s false)) u := by
       rw [Matched, hw, emit_idle] at hm
       funext z
-      rcases z with ⟨s, false | true⟩ | j
-      exacts [rfl, (hm.1 s).symm, hm.2 j]
-    have hlen2 := sum_length_proj w; rw [hproj, sum_length_tup] at hlen2
-    refine ho ⟨⟨fun s => proj w (.tp s false), w⟩, ?_, List.ofFn_injective ?_⟩
+      rcases z with ⟨s, _ | _⟩ | j
+      · rfl
+      · exact (hm.1 s).symm
+      · exact hm.2 j
+    have hlen2 := sum_length_proj w
+    rw [hproj, sum_length_tup] at hlen2
+    refine ⟨⟨fun s => proj w (.tp s false), w⟩, ?_, ?_⟩
     · simp only [coe_sigma, Set.mem_sigma_iff, mem_coe, mem_filter, mem_fib, mem_contents]
       exact ⟨⟨by omega, by omega⟩, hproj⟩
-    · rw [hw, ofFn_getElem? w t (by omega)]; congr 2; omega
+    · apply List.ofFn_injective
+      rw [hw, ofFn_getElem? w t (by omega)]
+      congr 2
+      omega
   · rintro ⟨W, w⟩ hx
     simp only [mem_sigma, mem_filter, mem_fib] at hx
-    have l1 : w.length ≤ t := by rw [← sum_length_proj w, hx.2, sum_length_tup]; exact hx.1.2
-    rw [ofFn_getElem? w t l1, ite_eq_left
-      (by rw [Matched, emit_idle, hx.2]; exact ⟨fun _ => rfl, fun _ => rfl⟩), idle_apply]
+    obtain ⟨⟨-, hb⟩, hp⟩ := hx
+    rw [ofFn_getElem? w t (by rwa [← sum_length_proj w, hp, sum_length_tup]), ite_eq_left _,
+      idle_apply]
+    rw [Matched, emit_idle, hp]
+    exact ⟨fun _ => rfl, fun _ => rfl⟩
 
 /-- A bounded rational program is realized by a weighted automaton of dimension at most `n + 3`. -/
 theorem exists_run_val {n : ℕ} {P : Series F (Ch S J × Γ)} (hP : RatLe n P) :
@@ -116,9 +137,13 @@ theorem exists_run_val {n : ℕ} {P : Series F (Ch S J × Γ)} (hP : RatLe n P) 
   obtain ⟨Q, i1, i2, mu, i, e, hcard, H⟩ := exists_run hP
   refine ⟨Q, i1, i2, mu, i, e, hcard, fun t₀ t u hb ht => ?_⟩
   rw [H t (by omega) u, val]
-  refine (Finset.sum_subset (fun W hW => ?_) fun W _ hW => ?_).symm
-  · rw [mem_contents] at hW; rw [mem_filter, mem_contents]; omega
-  · by_contra hne; exact hW (mem_contents.2 (hb W hne))
+  symm
+  refine Finset.sum_subset (fun W hW => ?_) fun W _ hW => ?_
+  · rw [mem_contents] at hW
+    rw [mem_filter, mem_contents]
+    omega
+  · by_contra hne
+    exact hW (mem_contents.2 (hb W hne))
 
 end Runs
 

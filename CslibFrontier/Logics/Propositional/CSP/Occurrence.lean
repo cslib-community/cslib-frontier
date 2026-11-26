@@ -64,8 +64,11 @@ namespace Occurrence
 /-- The two position indices identify an occurrence independently of variable names. -/
 theorem record_injective : Function.Injective (record (F := F)) := by
   rintro ⟨i, j⟩ ⟨i', j'⟩ h
-  obtain rfl : i = i' := Fin.ext (congrArg Prod.fst h)
-  exact Sigma.ext rfl (heq_of_eq (Fin.ext (congrArg (·.2.1) h)))
+  have hi : i = i' := Fin.ext (congrArg (fun r => r.1) h)
+  subst i'
+  have hj : j = j' := Fin.ext (congrArg (fun r => r.2.1) h)
+  subst j'
+  rfl
 
 /-- Every named variable is an occurring variable of the original CSP. -/
 theorem var_mem (o : Occurrence F) : o.var ∈ F.vars :=
@@ -76,11 +79,14 @@ end Occurrence
 /-- Every occurring variable has a constraint-position/scope-position witness. -/
 theorem exists_occurrence_iff (v : V) :
     (∃ o : Occurrence F, o.var = v) ↔ v ∈ F.vars := by
-  refine ⟨fun ⟨o, h⟩ => h ▸ o.var_mem, fun hv => ?_⟩
-  obtain ⟨c, hc, hv⟩ := List.mem_flatMap.mp hv
-  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-  obtain ⟨j, hj, h⟩ := List.mem_iff_getElem.mp hv
-  exact ⟨⟨⟨i, hi⟩, ⟨j, hj⟩⟩, h⟩
+  constructor
+  · rintro ⟨o, rfl⟩
+    exact o.var_mem
+  · intro hv
+    obtain ⟨c, hc, hv⟩ := List.mem_flatMap.mp hv
+    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
+    obtain ⟨j, hj, h⟩ := List.mem_iff_getElem.mp hv
+    exact ⟨⟨⟨i, hi⟩, ⟨j, hj⟩⟩, h⟩
 
 /-- Occurrence records in constraint order, then scope order. The positive-CNF adapter preserves
 all positions and lets us reuse the existing executable occurrence enumeration. -/
@@ -180,7 +186,8 @@ theorem reconstruct_of_not_mem (l : OccurrenceLabeling F D) (outside : D) {v : V
 theorem reconstruct_variable {l : OccurrenceLabeling F D} (h : ConsistentLabeling l)
     (outside : D) (o : Occurrence F) : reconstruct l outside o.var = l o := by
   have ho : ∃ p : Occurrence F, p.var = o.var := ⟨o, rfl⟩
-  simpa only [reconstruct, dite_eq_left ho] using h _ _ ho.choose_spec
+  simp only [reconstruct, dite_eq_left ho]
+  exact h _ _ ho.choose_spec
 
 /-- A consistent valid local labeling reconstructs a model of the original CSP. -/
 theorem eval_reconstruct {sem : Rel → List D → Bool} {l : OccurrenceLabeling F D}

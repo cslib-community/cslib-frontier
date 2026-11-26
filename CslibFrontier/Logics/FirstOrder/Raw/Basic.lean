@@ -134,22 +134,24 @@ private theorem ofNat_four_mul_add (p j : ℕ) (hj : j < 4) :
 /-- `ofNat` is a left inverse of `toNat`. -/
 theorem ofNat_toNat : ∀ φ : RawFormula, ofNat φ.toNat = φ
   | falsum => ofNat_zero
-  | equal x y => by rw [toNat]; simpa using ofNat_four_mul_add (Nat.pair x y) 0 (by omega)
+  | equal x y => by
+    simpa [toNat] using ofNat_four_mul_add (Nat.pair x y) 0 (by omega)
   | rel r args => by
-    rw [toNat]; simpa using ofNat_four_mul_add (Nat.pair r (Encodable.encode args)) 1 (by omega)
+    simpa [toNat] using ofNat_four_mul_add (Nat.pair r (Encodable.encode args)) 1 (by omega)
   | imp φ ψ => by
-    rw [toNat]
-    simpa [ofNat_toNat φ, ofNat_toNat ψ] using
+    simpa [toNat, ofNat_toNat φ, ofNat_toNat ψ] using
       ofNat_four_mul_add (Nat.pair φ.toNat ψ.toNat) 2 (by omega)
   | all x φ => by
-    rw [toNat]; simpa [ofNat_toNat φ] using ofNat_four_mul_add (Nat.pair x φ.toNat) 3 (by omega)
+    simpa [toNat, ofNat_toNat φ] using ofNat_four_mul_add (Nat.pair x φ.toNat) 3 (by omega)
 
 /-- `ofNat` is a right inverse of `toNat`. -/
 theorem toNat_ofNat : ∀ n : ℕ, (ofNat n).toNat = n
   | 0 => by rw [ofNat_zero, toNat]
   | m + 1 => by
-    have := unpair_fst_div_four_lt m; have := unpair_snd_div_four_lt m
-    have := toNat_ofNat (m / 4).unpair.1; have := toNat_ofNat (m / 4).unpair.2
+    have := unpair_fst_div_four_lt m
+    have := unpair_snd_div_four_lt m
+    have := toNat_ofNat (m / 4).unpair.1
+    have := toNat_ofNat (m / 4).unpair.2
     rw [ofNat_succ]
     grind [toNat, Denumerable.encode_ofNat, Nat.div_add_mod m 4, Nat.pair_unpair (m / 4)]
 
@@ -242,8 +244,7 @@ def quantifierDepth : RawFormula → ℕ
     (neg φ).quantifierDepth = φ.quantifierDepth := by
   simp [neg]
 
-@[simp] theorem quantifierDepth_verum : verum.quantifierDepth = 0 := by
-  simp [verum]
+@[simp] theorem quantifierDepth_verum : verum.quantifierDepth = 0 := rfl
 
 @[simp] theorem quantifierDepth_disj (φ ψ : RawFormula) :
     (disj φ ψ).quantifierDepth = max φ.quantifierDepth ψ.quantifierDepth := by
@@ -276,10 +277,8 @@ theorem lt_varBound_of_mem {x : ℕ} {args : List ℕ} (h : x ∈ args) :
   induction args with
   | nil => simp at h
   | cons a as ih =>
-    simp only [List.map_cons, List.foldr_cons]
-    rcases List.mem_cons.1 h with rfl | h
-    · omega
-    · have := ih h; omega
+    simp only [List.map_cons, List.foldr_cons, lt_max_iff]
+    exact (List.mem_cons.1 h).imp (by omega) ih
 
 /-! ### Semantics -/
 
@@ -361,17 +360,16 @@ theorem realize_congr_var {I : ℕ → List M → Prop} :
       (φ.Realize I v ↔ φ.Realize I w)
   | falsum, _, _, _ => Iff.rfl
   | equal x y, _, _, h => by
-    simp only [Realize, varBound] at h ⊢; rw [h x (by omega), h y (by omega)]
+    simp only [Realize, varBound] at h ⊢
+    rw [h x (by omega), h y (by omega)]
   | rel _ args, _, _, h => by
     simp only [Realize, varBound] at h ⊢
     rw [List.map_congr_left fun x hx => h x (lt_varBound_of_mem hx)]
-  | imp φ ψ, _, _, h => by
-    simp only [Realize, varBound] at h ⊢
-    rw [realize_congr_var φ fun x hx => h x (lt_max_of_lt_left hx),
-      realize_congr_var ψ fun x hx => h x (lt_max_of_lt_right hx)]
-  | all x φ, _, _, h => by
-    simp only [Realize, varBound] at h ⊢
-    exact forall_congr' fun _ => realize_congr_var φ fun y hy => by
+  | imp φ ψ, _, _, h => imp_congr
+      (realize_congr_var φ fun x hx => h x (lt_max_of_lt_left hx))
+      (realize_congr_var ψ fun x hx => h x (lt_max_of_lt_right hx))
+  | all x φ, _, _, h =>
+    forall_congr' fun _ => realize_congr_var φ fun y hy => by
       by_cases hyx : y = x <;> simp [hyx, h y (lt_max_of_lt_right hy)]
 
 /-- Satisfaction of `φ` depends only on the interpretations of relation symbol–arity pairs in

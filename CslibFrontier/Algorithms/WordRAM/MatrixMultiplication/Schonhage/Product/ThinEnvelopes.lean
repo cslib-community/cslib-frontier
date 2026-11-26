@@ -73,9 +73,7 @@ private theorem thin_envelopes_of_bounds {L m N Q A Z : ℕ}
       _ ≤ 128 * Z ^ 2 := by rw [Nat.mul_assoc 2, hZ1]; omega
   have hep : epochBound L m N ≤ 3 * Z ^ 3 := by
     calc epochBound L m N ≤ Z ^ 2 * (1 + 2 * Z) := by dsimp only [epochBound]; gcongr
-      _ = Z ^ 2 + 2 * Z ^ 3 := by
-          rw [Nat.mul_add, Nat.mul_one, ← Nat.mul_assoc, Nat.mul_comm (Z ^ 2) 2, Nat.mul_assoc,
-            ← pow_succ]
+      _ = Z ^ 2 + 2 * Z ^ 3 := by ring
       _ ≤ 3 * Z ^ 3 := by omega
   have hbb : BandPreparation.wordBudget L m N ≤ 2048 * Z ^ 2 := by
     calc BandPreparation.wordBudget L m N
@@ -115,8 +113,8 @@ private theorem thin_envelopes_of_bounds {L m N Q A Z : ℕ}
     calc magnitudeBound L A ≤ Z * Z + Z * Z + Z * ((Z * Z) * (Z * Z)) + Z := by
           dsimp only [magnitudeBound, PrunedQuery.magnitudeBound]; gcongr
       _ ≤ 4 * Z ^ 5 := by
-          have hZ5 : Z * ((Z * Z) * (Z * Z)) = Z ^ 5 := by ring
-          rw [hZ5, ← sq]; omega
+          ring_nf
+          omega
   exact ⟨by omega, hee⟩
 
 /-- **Thin-regime envelopes at any level up to `21 * m`.** In the source regime
@@ -142,8 +140,7 @@ public theorem thin_envelopes_of_le (L m N Q A : ℕ) (hm : m ≤ L) (hL21 : L �
       _ ≤ (4 ^ 36) ^ m := Nat.pow_le_pow_left (by decide) m
       _ = (D m ^ 18) ^ 2 := by
         simp only [D, ← pow_mul]
-        congr 1
-        omega
+        exact congrArg _ (by ring)
       _ ≤ N ^ 2 := Nat.pow_le_pow_left hN 2
   have h10 : 10 ^ L ≤ Z := hp.trans (Nat.pow_le_pow_left hNN 2)
   have h2 : 2 ^ L ≤ Z := (Nat.pow_le_pow_left (by decide : 2 ≤ 10) _).trans h10
@@ -151,14 +148,11 @@ public theorem thin_envelopes_of_le (L m N Q A : ℕ) (hm : m ≤ L) (hL21 : L �
   have hL : L ≤ Z := (Nat.lt_pow_self (by decide : 1 < 10)).le.trans h10
   have hD : D m ≤ Z := ((Nat.le_self_pow (by decide : 18 ≠ 0) _).trans hN).trans hN0
   have hbandpos : 0 < bandSize L m := Nat.mul_pos (K0_pos hm) (N0_pos _ _)
-  have hbands : numBands L m N ≤ N := by
-    apply Nat.le_of_lt_succ
-    change (N + bandSize L m - 1) / bandSize L m < N + 1
-    apply (Nat.div_lt_iff_lt_mul hbandpos).mpr
-    have hmul := Nat.le_mul_of_pos_right N hbandpos
-    rw [Nat.add_mul, Nat.one_mul]
+  have hB : numBands L m N ≤ Z := by
+    refine (Nat.le_of_lt_succ ((Nat.div_lt_iff_lt_mul hbandpos).mpr ?_)).trans hN0
+    have := Nat.le_mul_of_pos_right N hbandpos
+    rw [Nat.succ_mul]
     omega
-  have hB : numBands L m N ≤ Z := hbands.trans hN0
   have hall : PrunedQuery.epochAllowance L ≤ 2 * Z := by
     unfold PrunedQuery.epochAllowance
     omega

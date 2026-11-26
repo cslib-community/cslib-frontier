@@ -238,18 +238,22 @@ private theorem run_semanticHandler (F : Key → D → R) (j : ℕ) (keys : Fin 
   have hlazy : (fun q => ProbOracleComp.runWith
       (memoize fun _ : Fin t × D => PMF.uniformOfFintype R) (adapter q)) =
       semanticHandler F j keys ext := funext fun ⟨i, x⟩ => funext fun cache => by
-    simp only [adapter, semanticHandler]; split_ifs
+    simp only [adapter, semanticHandler]
+    split_ifs
     · simp only [ProbOracleComp.runWith_query]
     all_goals simp [ProbOracleComp.runWith, OracleComp.runWith]
   have heager (table : Fin t × D → R) :
       (fun q => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
           (fun q' => PMF.pure (table q'))) (adapter q)) =
-        fun request => PMF.pure (eagerOracle F j keys ext (Function.curry table) request) :=
-    funext fun ⟨i, x⟩ => by simp only [adapter, eagerOracle]; split_ifs <;> simp [Function.curry]
+        fun request => PMF.pure (eagerOracle F j keys ext (Function.curry table) request) := by
+    funext ⟨i, x⟩
+    simp only [adapter, eagerOracle]
+    split_ifs <;> simp [Function.curry]
   simp only [ProbOracleComp.interpret_simulate, hlazy, heager, PMF.pi_uniformOfFintype,
     Probability.PMF.monad_bind_eq_bind] at h
   rw [← ProbOracleComp.runWith_eq_run_interpret, ← h,
-    ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]; rfl
+    ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]
+  rfl
 
 /-- **The law of a hybrid reduction against a fixed function**: against a deterministic external
 oracle `ext`, the `j`-th reduction draws its `t` keys and `t` uniform tables, and runs `A` with
@@ -288,14 +292,17 @@ private theorem eval_idealExperiment_multiKeyReduction (F : Key → D → R) {j 
   rw [eval_idealExperiment]
   simp only [interpret_multiKeyReduction, run_semanticHandler, hybrid]
   conv_rhs =>
-    arg 2; ext keys
+    arg 2
+    ext keys
     rw [PMF.bind_uniformOfFintype_update ⟨j, hj⟩]
   conv_rhs => rw [PMF.bind_comm]
   congr 1 with table : 1; congr 1 with keys : 1; congr 1 with tables : 1
   congr 2 with ⟨i, x⟩ : 1
   simp only [eagerOracle, hybridOracle]
   split_ifs with h1 h2 h3 <;> try first | rfl | omega
-  · rw [Function.update_of_ne (by rintro rfl; exact Nat.lt_irrefl j h1)]
+  · rw [Function.update_of_ne fun h => by
+      subst h
+      exact Nat.lt_irrefl j h1]
   · rw [show i = ⟨j, hj⟩ from Fin.ext h3, Function.update_self]
 
 /-- Hybrid bound, a step toward [BonehShoup2023], Exercise 4.26, not the cited result: the

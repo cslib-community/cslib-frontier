@@ -137,10 +137,7 @@ variable {Q s}
 private theorem map_fst_zip_tail : ∀ l : List α, (l.zip l.tail).map Prod.fst = l.dropLast
   | [] => rfl
   | [_] => rfl
-  | a :: b :: t => by
-    have ih := map_fst_zip_tail (b :: t)
-    rw [List.tail_cons] at ih
-    rw [List.tail_cons, List.zip_cons_cons, List.map_cons, ih, List.dropLast_cons_cons]
+  | a :: b :: t => by simpa using congrArg (a :: ·) (map_fst_zip_tail (b :: t))
 
 /-- The distinct queries of the nodes `pre` are as many as `hasNewQuery` counts. -/
 private theorem length_eraseDupsBy_flatMap (pre : List α) :
@@ -168,17 +165,15 @@ private theorem card_lt_of_hasNewQuery {l : List α} {j j' : ℕ} {z : α} (hz :
     ((l.take (j + 1)).flatMap Q).toFinset.card < ((l.take (j' + 1)).flatMap Q).toFinset.card := by
   rw [hasNewQuery, Bool.and_eq_true, List.any_eq_true] at hnew
   obtain ⟨-, u, hu, hnotin⟩ := hnew
-  have hnotin : u ∉ (l.take (j + 1)).flatMap Q := of_decide_eq_true hnotin
   refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.2 ⟨u, ?_, ?_⟩)
   · intro x hx
     simp only [List.mem_toFinset, List.mem_flatMap] at hx ⊢
     obtain ⟨y, hy, hxy⟩ := hx
     exact ⟨y, (List.take_prefix_take_left (by omega)).subset hy, hxy⟩
   · simp only [List.mem_toFinset, List.mem_flatMap]
-    refine ⟨z, List.mem_of_getElem? (i := j + 1) ?_, hu⟩
-    rw [List.getElem?_take]
-    simpa [show j + 1 < j' + 1 by omega] using hz
-  · simpa using hnotin
+    exact ⟨z, List.mem_of_getElem? (i := j + 1)
+      (by simpa [List.getElem?_take, Nat.succ_lt_succ hjj'] using hz), hu⟩
+  · simpa using of_decide_eq_true hnotin
 
 /-- **`SEARCH-RIGHT` keeps at most `s + 2` nodes**: the last one, and at most `s + 1` others,
 since each raises the number of distinct queries seen, which is at most `s` when it is kept. -/
@@ -190,20 +185,18 @@ theorem length_searchRight_le (l : List α) : (searchRight Q s l).length ≤ s +
   have hP : P.Pairwise fun p q => p.2 < q.2 := by
     have := List.pairwise_lt_range' (s := 0) (n := (l.zip l.tail).length)
     rwa [← List.zipIdx_map_snd 0, List.pairwise_map] at this
-  have hmemF : ∀ p ∈ F,
-      l[p.2 + 1]? = some p.1.2 ∧ hasNewQuery Q s (l.take (p.2 + 1)) p.1.2 = true := by
-    intro p hp
-    obtain ⟨hpP, hnew⟩ := List.mem_filter.1 hp
-    refine ⟨?_, hnew⟩
-    have := (List.getElem?_zip_eq_some.1 (List.mem_zipIdx_iff_getElem?.1 hpP)).2
-    rwa [List.getElem?_tail] at this
+  have hmemF {p} (hp : p ∈ F) :
+      l[p.2 + 1]? = some p.1.2 ∧ hasNewQuery Q s (l.take (p.2 + 1)) p.1.2 = true :=
+    ⟨List.getElem?_tail ▸
+      (List.getElem?_zip_eq_some.1 (List.mem_zipIdx_iff_getElem?.1 (List.mem_filter.1 hp).1)).2,
+      (List.mem_filter.1 hp).2⟩
   have hsorted : (F.map fun p => c p.2).Pairwise (· < ·) :=
     List.pairwise_map.2 ((hP.sublist List.filter_sublist).imp_of_mem
-      fun hp _ hlt => card_lt_of_hasNewQuery (hmemF _ hp).1 (hmemF _ hp).2 hlt)
+      fun hp _ hlt => card_lt_of_hasNewQuery (hmemF hp).1 (hmemF hp).2 hlt)
   have hsub : (F.map fun p => c p.2) ⊆ List.range (s + 1) := by
     intro n hn
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hn
-    have hnew := (hmemF p hp).2
+    have hnew := (hmemF hp).2
     rw [hasNewQuery, Bool.and_eq_true, decide_eq_true_iff, length_eraseDupsBy_flatMap] at hnew
     exact List.mem_range.2 (Nat.lt_succ_of_le hnew.1)
   have hF := List.Nodup.length_le_of_subset (hsorted.imp ne_of_lt) hsub
@@ -255,8 +248,7 @@ theorem prune_sublist (l : List α) : (prune Q s l).Sublist l :=
 
 /-- A pruned level has at most `s + 2` nodes. -/
 theorem length_prune_le (l : List α) : (prune Q s l).length ≤ s + 2 := by
-  rw [prune, List.length_reverse]
-  exact length_searchRight_le _
+  simpa only [prune, List.length_reverse] using length_searchRight_le (Q := Q) (s := s) l.reverse
 
 end Prune
 
@@ -296,10 +288,8 @@ theorem atLeast_append_mem_SAT_of_le {c x : List (Literal ℕ)} (hc : IsLargest 
     (hfst : x.map Prod.fst = c.map Prod.fst) (hle : x.map Prod.snd ≤ c.map Prod.snd) :
     atLeast x ++ φ ∈ SAT := by
   obtain ⟨σ, hσ, hcσ⟩ := units_append_mem_SAT_iff.1 hc.1
-  refine atLeast_append_mem_SAT_iff.2 ⟨σ, hσ, hle.trans ?_⟩
-  have hx : (x.map fun l => σ l.1) = (x.map Prod.fst).map σ := by rw [List.map_map]; rfl
-  have hc' : (c.map fun l => σ l.1) = (c.map Prod.fst).map σ := by rw [List.map_map]; rfl
-  rw [hcσ, hx, hc', hfst]
+  refine atLeast_append_mem_SAT_iff.2 ⟨σ, hσ, hle.trans_eq ?_⟩
+  simpa only [hcσ, List.map_map, Function.comp_def] using congrArg (List.map σ) hfst.symm
 
 /-- A node above the largest satisfiable node is not in the left set. -/
 theorem atLeast_append_notMem_SAT_of_lt {c z : List (Literal ℕ)} (hc : IsLargest φ c)
@@ -308,12 +298,11 @@ theorem atLeast_append_notMem_SAT_of_lt {c z : List (Literal ℕ)} (hc : IsLarge
   rintro hz
   obtain ⟨σ, hσ, hzσ⟩ := atLeast_append_mem_SAT_iff.1 hz
   /- The node with the values of `σ` is satisfiable, so it is at most `c`. -/
-  set b := z.map fun l => (l.1, σ l.1)
-  have hb : units b ++ φ ∈ SAT := units_append_mem_SAT_iff.2 ⟨σ, hσ, by simp [b]⟩
-  have hbfst : b.map Prod.fst = z.map Prod.fst := by simp [b, Function.comp_def]
-  have hbc := hc.2 b (hbfst.trans hfst) hb
+  let b := z.map fun l => (l.1, σ l.1)
+  have hbc := hc.2 b ((by simp [b, Function.comp_def] : b.map Prod.fst = _).trans hfst)
+    (units_append_mem_SAT_iff.2 ⟨σ, hσ, by simp [b]⟩)
   have hbz : b.map Prod.snd = z.map fun l => σ l.1 := by simp [b]
-  exact absurd (hzσ.trans (hbz ▸ hbc)) (not_le_of_gt hlt)
+  exact not_le_of_gt hlt (hzσ.trans (hbz ▸ hbc))
 
 /-- Some child of the largest satisfiable node of a level is the largest satisfiable node of the
 next level. -/
@@ -341,11 +330,9 @@ theorem exists_isLargest_child {c : List (Literal ℕ)} (hc : IsLargest φ c) (v
     · obtain ⟨u, y⟩ := l
       obtain rfl : u = v := List.singleton_inj.1 hl
       exact .inr ⟨y, by rw [List.concat_eq_append, eq_of_map_fst_eq_of_map_snd_eq hfst' heq]⟩
-  have hle_true : ∀ y : Bool, c.map Prod.snd ++ [y] ≤ c.map Prod.snd ++ [true] := by
-    intro y
-    cases y
-    · exact le_of_lt (List.Lex.append_left _ (List.Lex.rel (by decide)) _)
-    · exact le_rfl
+  have hle_true : ∀ y : Bool, c.map Prod.snd ++ [y] ≤ c.map Prod.snd ++ [true]
+    | false => le_of_lt (List.Lex.append_left _ (List.Lex.rel (by decide)) _)
+    | true => le_rfl
   by_cases htrue : units (c ++ [(v, true)]) ++ φ ∈ SAT
   · refine ⟨true, htrue, fun b hfst hb => ?_⟩
     rw [List.map_append, List.map_singleton] at hfst
@@ -560,17 +547,13 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
     fun φ => (accepts_iff (K := encB '' S) (M := p.eval (2 * (encCNF φ).length + 1 +
       (encCNF φ).length * (4 * (encCNF φ).length + 5))) (fun ψ => ?_) (fun a ha hlen w hw => ?_)
       (fun T hT => ?_)).symm⟩
-  · rw [hL ψ]
-    simp only [key, List.mem_map, List.mem_range, forall_exists_index, and_imp,
-      forall_apply_eq_imp_iff₂, encB.injective.mem_set_image]
-  · have hw' := SizedListEncoding.length_elem_le (encA := encBits) (encL := encList encBits) _ w hw
-    refine hw'.trans ((hp (φ, a)).trans (Polynomial.eval_mono _ ?_))
+  · simp [hL ψ, key]
+  · refine (SizedListEncoding.length_elem_le (encA := encBits) (encL := encList encBits) _ w
+      hw).trans ((hp (φ, a)).trans (Polynomial.eval_mono _ ?_))
     have hnode := Fortune.length_encNode_le ha hlen
-    rw [length_encPair]
-    dsimp only
+    simp only [length_encPair]
     omega
-  · rw [hQ]
-    exact hCD _ T fun w hw => by simpa using hT w hw
+  · exact hQ _ ▸ hCD _ T fun w hw => by simpa using hT w hw
 
 /-- **Sparse sets are not hard for `NP` under conjunctive truth-table reductions unless `P = NP`:**
 if `SAT` reduces to a sparse problem by a polynomial-time conjunctive truth-table reduction, then

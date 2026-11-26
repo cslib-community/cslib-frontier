@@ -133,11 +133,15 @@ theorem bind_apply_le (h : IdenticalUntilBad first second bad) (program : Oracle
   rw [← tsum_add]
   refine tsum_le_tsum fun x => ?_
   by_cases hx : bad x.2
-  · rw [Set.indicator_of_mem (show x ∈ {x : α × σ | bad x.2} from hx)]
-    exact (mul_le_mul_of_nonneg_left (PMF.coe_le_one _ _) zero_le).trans
-      (by rw [mul_one]; exact le_add_self)
-  · rw [Set.indicator_of_notMem (show x ∉ {x : α × σ | bad x.2} from hx), add_zero,
-      show x = (x.1, x.2) from rfl, h.run_apply program s x.1 x.2 hx]
+  · have hbad : x ∈ {x : α × σ | bad x.2} := hx
+    rw [Set.indicator_of_mem hbad]
+    calc ((interpret first program).run s) x * next x b
+        ≤ ((interpret first program).run s) x * 1 :=
+          mul_le_mul_of_nonneg_left (PMF.coe_le_one _ _) zero_le
+      _ ≤ _ := by rw [mul_one]; exact le_add_self
+  · have hgood : x ∉ {x : α × σ | bad x.2} := hx
+    rw [Set.indicator_of_notMem hgood, add_zero, show x = (x.1, x.2) from rfl,
+      h.run_apply program s x.1 x.2 hx]
 
 /-- Identical until bad is symmetric. -/
 theorem symm (h : IdenticalUntilBad first second bad) : IdenticalUntilBad second first bad where
@@ -203,14 +207,19 @@ theorem toOuterMeasure_bad_le {handler : (q : ι) → StateT σ PMF (spec q)} {b
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hk
     simp only [interp_norm, Probability.PMF.monad_bind_eq_bind]
     set K : ℝ≥0∞ := (k - cost q : ℕ) * (budget s + δ + n * δ)
-    calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K :=
-          Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ K fun y hmem hy =>
-            (ih y.1 (hcont y.1) hy).trans
-              (by simp only [K]; gcongr; exact hgrow q s hs y hmem hy)
+    calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K := by
+          refine Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ K fun y hmem hy => ?_
+          refine (ih y.1 (hcont y.1) hy).trans ?_
+          simp only [K]
+          gcongr
+          exact hgrow q s hs y hmem hy
       _ ≤ cost q * (budget s + (n + 1 : ℕ) * δ) +
-            (k - cost q : ℕ) * (budget s + (n + 1 : ℕ) * δ) :=
-          add_le_add ((hstep q s hs).trans (by gcongr; exact le_self_add))
-            (le_of_eq (by simp only [K, Nat.cast_add, Nat.cast_one]; ring))
+            (k - cost q : ℕ) * (budget s + (n + 1 : ℕ) * δ) := by
+          refine add_le_add ((hstep q s hs).trans ?_) (le_of_eq ?_)
+          · gcongr
+            exact le_self_add
+          · simp only [K, Nat.cast_add, Nat.cast_one]
+            ring
       _ = k * (budget s + (n + 1 : ℕ) * δ) := by
           rw [← add_mul, ← Nat.cast_add, Nat.add_sub_cancel' hle]
 

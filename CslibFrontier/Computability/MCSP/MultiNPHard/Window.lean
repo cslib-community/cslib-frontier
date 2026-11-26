@@ -215,15 +215,13 @@ entries in `A i`; the other gates compute the same function for every `T`. -/
 theorem value_congr (A : Fin t → Finset (Fin (2 ^ p))) {T T' : Fin (2 ^ p) → Bool} (κ : Gate p t)
     (h : ∀ i, κ.set = some i → ∀ y ∈ A i, T y = T' y) : value A T κ = value A T' κ := by
   cases κ with
-  | neg i => rfl
-  | zero => rfl
-  | grid y k => rfl
   | window i y =>
     funext x
     simp only [value_window]
     refine decide_eq_decide.mpr (and_congr_right fun _ => ?_)
     exact ⟨fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).symm.trans hT⟩,
       fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).trans hT⟩⟩
+  | _ => rfl
 
 /-- The last input `2^p - 1`, whose window gates compute the windows of `T`. -/
 def lastIdx (p : ℕ) : Fin (2 ^ p) :=
@@ -323,16 +321,14 @@ private theorem value_grid_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2
     (y : Fin (2 ^ p)) (x : Fin p → Bool) :
     value A T (.grid y (lastBit p)) x = decide (BitString.equivFin p x = y) := by
   rw [value_grid]
-  refine decide_eq_decide.mpr ⟨fun h => ?_, fun h b _ => ?_⟩
+  refine decide_eq_decide.mpr ⟨fun h => ?_, ?_⟩
   · rw [← Equiv.eq_symm_apply]
     funext b
     rw [BitString.equivFin_symm_apply]
     refine h b ?_
     fin_index [lastBit]
-  · subst h
-    have hb := BitString.equivFin_symm_apply (BitString.equivFin p x) b
-    rw [Equiv.symm_apply_apply] at hb
-    exact hb
+  · rintro rfl b _
+    rw [← BitString.equivFin_symm_apply, Equiv.symm_apply_apply]
 
 private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) → Bool)
     (x : Fin p → Bool) (κ : Gate p t) :
@@ -351,12 +347,8 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
       exact h
     · rw [dite_eq_right hk, elim_gateWire, value_grid, value_grid, ← Bool.decide_and]
       refine decide_eq_decide.mpr
-        ⟨fun h => ⟨fun b hb => h b ?_, h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
-      · fin_index
-      · rcases (Fin.le_iff_val_le_val.mp hb).lt_or_eq with hlt | heq
-        · exact h b (by fin_index)
-        · obtain rfl : b = k := Fin.ext heq
-          exact hk'
+        ⟨fun h => ⟨fun b hb => h b (by fin_index), h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
+      exact hb.lt_or_eq.elim (fun hlt => h b (by fin_index)) fun he => he ▸ hk'
   | window i y =>
     simp only [line, eval_orLine]
     have hsel : Wire.elim x (template A T x)
@@ -370,19 +362,13 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
     rw [hsel, value_window]
     split <;> rename_i hy0
     · rw [elim_gateWire, value_zero, Bool.false_or]
-      refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, fun ⟨he, hm, hT⟩ => ?_⟩
-      · have he : BitString.equivFin p x = y := by omega
-        exact ⟨he, he ▸ hm, he ▸ hT⟩
-      · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
+      refine decide_eq_decide.mpr ⟨fun ⟨hle, hP⟩ => ?_, fun ⟨he, hP⟩ => ⟨he.le, he.symm ▸ hP⟩⟩
+      have he : BitString.equivFin p x = y := by omega
+      exact ⟨he, he ▸ hP⟩
     · rw [elim_gateWire, value_window, ← Bool.decide_or]
-      refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, ?_⟩
-      · rcases (Fin.le_iff_val_le_val.mp hle).lt_or_eq with hlt | heq
-        · exact .inl ⟨by fin_index, hm, hT⟩
-        · have he : BitString.equivFin p x = y := Fin.ext heq
-          exact .inr ⟨he, he ▸ hm, he ▸ hT⟩
-      · rintro (⟨hle, hm, hT⟩ | ⟨he, hm, hT⟩)
-        · exact ⟨by fin_index, hm, hT⟩
-        · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
+      refine decide_eq_decide.mpr ⟨fun ⟨hle, hP⟩ => ?_, fun h => ?_⟩
+      · exact hle.lt_or_eq.imp (fun hlt => ⟨by fin_index, hP⟩) fun he => ⟨he, he ▸ hP⟩
+      · exact h.elim (fun ⟨hle, hP⟩ => ⟨by fin_index, hP⟩) fun ⟨he, hP⟩ => ⟨he.le, he.symm ▸ hP⟩
 
 /-- A wire is *early* for gate `κ` when it is an input or a gate numbered before `κ`. -/
 private def Early (κ : Gate p t) (w : Wire p (gateCount p t)) : Prop :=
@@ -489,12 +475,8 @@ private theorem synthesis_or {n : ℕ} {C : Finset (Fin n)} (hC : C.Nonempty) :
       (#C - 1) := by
   induction hC using Finset.Nonempty.cons_induction with
   | singleton a =>
-    have hf : (fun x : Fin n → Bool => decide (∃ b ∈ ({a} : Finset (Fin n)), x b = true)) =
-        fun x => x a := by
-      funext x
-      simp
-    rw [hf]
-    exact Synthesis.of_mem ⟨a, rfl⟩
+    simpa only [Finset.mem_singleton, exists_eq_left, Bool.decide_eq_true, Finset.card_singleton,
+      Nat.sub_self] using Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩
   | cons a s ha hs ih =>
     have hbin := Synthesis.binary (Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩) ih
       Boolean.DeMorgan.Op.or

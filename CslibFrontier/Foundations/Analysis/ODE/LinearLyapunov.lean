@@ -109,13 +109,17 @@ theorem IsExponentiallyStable.isAsymptoticallyStable {A : E →L[ℝ] E}
     1, one_pos, fun x hx _ => ?_⟩
   · have hexp : Real.exp (-(α * t)) ≤ 1 :=
       Real.exp_le_one_iff.2 (neg_nonpos.2 (mul_nonneg hα.le ht))
-    have h1 : M * Real.exp (-(α * t)) ≤ |M| :=
-      (mul_le_mul_of_nonneg_right (le_abs_self M) (Real.exp_pos _).le).trans
-        (by simpa using mul_le_mul_of_nonneg_left hexp (abs_nonneg M))
     have hpos : 0 < |M| + 1 := by positivity
-    have h0' := (lt_div_iff₀ hpos).1 h0
-    have hle := (hM x hx t ht).trans (mul_le_mul_of_nonneg_right h1 (norm_nonneg _))
-    nlinarith [norm_nonneg (x 0), abs_nonneg M]
+    calc ‖x t‖ ≤ M * Real.exp (-(α * t)) * ‖x 0‖ := hM x hx t ht
+      _ ≤ |M| * ‖x 0‖ := by
+          have h1 : M * Real.exp (-(α * t)) ≤ |M| :=
+            calc M * Real.exp (-(α * t)) ≤ |M| * Real.exp (-(α * t)) :=
+                  mul_le_mul_of_nonneg_right (le_abs_self M) (Real.exp_pos _).le
+              _ ≤ |M| := mul_le_of_le_one_right (abs_nonneg M) hexp
+          exact mul_le_mul_of_nonneg_right h1 (norm_nonneg _)
+      _ < (|M| + 1) * (ε / (|M| + 1)) := by
+          nlinarith [(lt_div_iff₀ hpos).1 h0, norm_nonneg (x 0), abs_nonneg M]
+      _ = ε := by field_simp
   · have hlim : Tendsto (fun t => M * Real.exp (-(α * t)) * ‖x 0‖) atTop (𝓝 0) := by
       simpa using ((Real.tendsto_exp_atBot.comp
         (tendsto_neg_atTop_atBot.comp (tendsto_id.const_mul_atTop hα))).const_mul M).mul_const ‖x 0‖
@@ -137,19 +141,22 @@ theorem le_exp_mul_sub_mul_of_hasDerivWithinAt {V V' : ℝ → ℝ} {K a : ℝ}
     have he : HasDerivAt (fun τ : ℝ => Real.exp (-(K * (τ - a))))
         (Real.exp (-(K * (τ - a))) * -K) τ := by
       simpa using ((((hasDerivAt_id τ).sub_const a).const_mul K).neg).exp
-    convert he.hasDerivWithinAt.mul (hV τ hτ) using 1; ring
+    convert he.hasDerivWithinAt.mul (hV τ hτ) using 1
+    ring
   have hanti : AntitoneOn W (Ici a) := by
     refine antitoneOn_of_hasDerivWithinAt_nonpos (convex_Ici a)
       (fun τ hτ => (hW τ hτ).continuousWithinAt)
       (f' := fun τ => Real.exp (-(K * (τ - a))) * (V' τ - K * V τ))
       (fun τ hτ => ?_) (fun τ hτ => ?_)
-    · rw [interior_Ici] at hτ ⊢; exact (hW τ hτ.le).mono Ioi_subset_Ici_self
+    · rw [interior_Ici] at hτ ⊢
+      exact (hW τ hτ.le).mono Ioi_subset_Ici_self
     · rw [interior_Ici] at hτ
       exact mul_nonpos_of_nonneg_of_nonpos (Real.exp_pos _).le (sub_nonpos.2 (hle τ hτ.le))
   have h := hanti self_mem_Ici (mem_Ici.2 ht) ht
   simp only [W, sub_self, mul_zero, neg_zero, Real.exp_zero, one_mul] at h
-  simpa only [← mul_assoc, ← Real.exp_add, add_neg_cancel, Real.exp_zero, one_mul] using
-    mul_le_mul_of_nonneg_left h (Real.exp_pos (K * (t - a))).le
+  calc V t = Real.exp (K * (t - a)) * (Real.exp (-(K * (t - a))) * V t) := by
+        rw [← mul_assoc, ← Real.exp_add, add_neg_cancel, Real.exp_zero, one_mul]
+    _ ≤ Real.exp (K * (t - a)) * V a := mul_le_mul_of_nonneg_left h (Real.exp_pos _).le
 
 /-- **Coercivity in finite dimension.** A quadratic form `y ↦ ⟪y, P y⟫` that is positive on
 nonzero vectors of a finite-dimensional real inner product space is bounded below by
@@ -162,7 +169,7 @@ theorem exists_pos_mul_norm_sq_le_inner_apply {E : Type*} [NormedAddCommGroup E]
   have hf : Continuous fun y : E => ⟪y, P y⟫ := by fun_prop
   obtain ⟨u, hu, hmin⟩ := (isCompact_sphere (0 : E) 1).exists_isMinOn
     (NormedSpace.sphere_nonempty.2 zero_le_one) hf.continuousOn
-  refine ⟨⟪u, P u⟫, hP u (by rintro rfl; simp at hu), fun y => ?_⟩
+  refine ⟨⟪u, P u⟫, hP u (fun h => by simp [h] at hu), fun y => ?_⟩
   rcases eq_or_ne y 0 with rfl | hy
   · simp
   have hny : 0 < ‖y‖ := norm_pos_iff.2 hy
@@ -205,15 +212,20 @@ theorem IsTrajectoryOn.norm_sq_le (hx : A.IsTrajectoryOn x (Ici 0)) {m M c : ℝ
     ‖x t‖ ^ 2 ≤ M / m * Real.exp (-(c / M) * t) * ‖x 0‖ ^ 2 := by
   have hK : ∀ y, ⟪y, (adjoint A * P + P * A) y⟫ ≤ -(c / M) * ⟪y, P y⟫ := fun y => by
     rcases le_or_gt M 0 with hM | hM
-    · have hy : ‖y‖ ^ 2 = 0 := by nlinarith [hlow y, hup y, sq_nonneg ‖y‖]
+    · -- Then `y = 0`, since `m ‖y‖² ≤ M ‖y‖² ≤ 0`.
+      have hy : ‖y‖ ^ 2 = 0 := by nlinarith [hlow y, hup y, sq_nonneg ‖y‖]
       simp [show y = 0 by simpa using hy]
-    · have := mul_le_mul_of_nonneg_left (hup y) (div_nonneg hc hM.le)
-      rw [← mul_assoc, div_mul_cancel₀ _ hM.ne'] at this
+    · have h1 : c / M * ⟪y, P y⟫ ≤ c * ‖y‖ ^ 2 :=
+        calc c / M * ⟪y, P y⟫ ≤ c / M * (M * ‖y‖ ^ 2) :=
+              mul_le_mul_of_nonneg_left (hup y) (div_nonneg hc hM.le)
+          _ = c * ‖y‖ ^ 2 := by field_simp
       linarith [hQ y]
-  have hdecay := (hlow _).trans <| (hx.inner_apply_le_exp_mul hK ht).trans <|
-    mul_le_mul_of_nonneg_left (hup _) (Real.exp_pos _).le
   rw [mul_assoc, div_mul_eq_mul_div, le_div_iff₀' hm]
-  linarith
+  calc m * ‖x t‖ ^ 2 ≤ ⟪x t, P (x t)⟫ := hlow _
+    _ ≤ Real.exp (-(c / M) * t) * ⟪x 0, P (x 0)⟫ := hx.inner_apply_le_exp_mul hK ht
+    _ ≤ Real.exp (-(c / M) * t) * (M * ‖x 0‖ ^ 2) :=
+        mul_le_mul_of_nonneg_left (hup _) (Real.exp_pos _).le
+    _ = M * (Real.exp (-(c / M) * t) * ‖x 0‖ ^ 2) := by ring
 
 /-- **Quadratic Lyapunov criterion.** On a finite-dimensional real inner product space, if
 `⟪y, P y⟫ > 0` and `⟪y, (A† P + P A) y⟫ < 0` for every `y ≠ 0`, then `ẋ = A x` is exponentially
@@ -228,9 +240,9 @@ theorem isExponentiallyStable_of_inner_pos [FiniteDimensional ℝ E]
   set M := ‖P‖ + 1
   have hM : 0 < M := by positivity
   have hup : ∀ y, ⟪y, P y⟫ ≤ M * ‖y‖ ^ 2 := fun y =>
-    (real_inner_le_norm _ _).trans <|
-      (mul_le_mul_of_nonneg_left (P.le_opNorm y) (norm_nonneg _)).trans
-        (by nlinarith [norm_nonneg y])
+    calc ⟪y, P y⟫ ≤ ‖y‖ * ‖P y‖ := real_inner_le_norm _ _
+      _ ≤ ‖y‖ * (‖P‖ * ‖y‖) := mul_le_mul_of_nonneg_left (P.le_opNorm y) (norm_nonneg _)
+      _ ≤ M * ‖y‖ ^ 2 := by nlinarith [norm_nonneg y]
   refine ⟨Real.sqrt (M / m), c / (2 * M), by positivity, fun x hx t ht => ?_⟩
   have h := hx.norm_sq_le hm hc.le hlow hup
     (fun y => by simpa only [neg_apply, inner_neg_right] using hcQ y) ht

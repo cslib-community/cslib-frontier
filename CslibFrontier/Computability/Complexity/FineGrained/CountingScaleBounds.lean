@@ -50,30 +50,22 @@ theorem interpolationScale_mono : Monotone interpolationScale := by
   set y : ℝ := ((n + 1 : ℕ) : ℝ) + 16
   have hx : 0 < x := by positivity
   have hy : 0 < y := by positivity
-  have hxy : y = x + 1 := by
-    simp only [x, y, Nat.cast_add, Nat.cast_one]
-    ring
+  have hxy : y = x + 1 := by push_cast [x, y]; ring
   have hlogx_gt1 : 1 < Real.log x := one_lt_log_add_sixteen n
   have hlogx : 0 < Real.log x := log_add_sixteen_pos n
   have hlogy : 0 < Real.log y := log_add_sixteen_pos (n + 1)
-  have hllx : 1 < Real.log (Real.log x) := one_lt_log_log_add_sixteen n
-  have hll_le : Real.log (Real.log x) ^ 2 ≤ Real.log (Real.log y) ^ 2 := by
-    have hle1 : Real.log x ≤ Real.log y := Real.log_le_log hx (by linarith)
-    have hle2 : Real.log (Real.log x) ≤ Real.log (Real.log y) := Real.log_le_log hlogx hle1
-    exact pow_le_pow_left₀ (by linarith) hle2 2
+  have hll_le : Real.log (Real.log x) ^ 2 ≤ Real.log (Real.log y) ^ 2 :=
+    pow_le_pow_left₀ (by linarith [one_lt_log_log_add_sixteen n])
+      (Real.log_le_log hlogx (Real.log_le_log hx (by linarith))) 2
   have hratio : (n : ℝ) / Real.sqrt (Real.log x) ≤ ((n + 1 : ℕ) : ℝ) / Real.sqrt (Real.log y) := by
-    have hsqx : 0 < Real.sqrt (Real.log x) := Real.sqrt_pos.mpr hlogx
-    have hsqy : 0 < Real.sqrt (Real.log y) := Real.sqrt_pos.mpr hlogy
-    rw [div_le_div_iff₀ hsqx hsqy]
+    rw [div_le_div_iff₀ (Real.sqrt_pos.mpr hlogx) (Real.sqrt_pos.mpr hlogy)]
     have hsq : ((n : ℝ) * Real.sqrt (Real.log y)) ^ 2 ≤
         (((n + 1 : ℕ) : ℝ) * Real.sqrt (Real.log x)) ^ 2 := by
       rw [mul_pow, mul_pow, Real.sq_sqrt hlogy.le, Real.sq_sqrt hlogx.le]
       have hlog_diff : Real.log y ≤ Real.log x + 1 / x := by
-        have hdiv : y / x = 1 + 1 / x := by
-          rw [hxy, add_div, div_self hx.ne']
         have hle := Real.log_le_sub_one_of_pos (div_pos hy hx)
-        rw [Real.log_div hy.ne' hx.ne'] at hle
-        linarith
+        rw [Real.log_div hy.ne' hx.ne', hxy, add_div, div_self hx.ne'] at hle
+        linarith [congrArg Real.log hxy]
       have hn2 : (n : ℝ) ^ 2 * (1 / x) ≤ (n : ℝ) := by
         rw [mul_one_div, div_le_iff₀ hx, sq]
         exact mul_le_mul_of_nonneg_left (by simp only [x]; linarith) (Nat.cast_nonneg n)
@@ -85,14 +77,8 @@ theorem interpolationScale_mono : Monotone interpolationScale := by
               gcongr
               linarith [Nat.cast_nonneg (α := ℝ) n]
         _ = ((n + 1 : ℕ) : ℝ) ^ 2 * Real.log x := by push_cast; ring
-    exact nonneg_le_nonneg_of_sq_le_sq (by positivity)
-      (by simpa only [sq] using hsq)
-  have hrew (m : ℕ) : interpolationScale m =
-      ((m : ℝ) / Real.sqrt (Real.log ((m : ℝ) + 16))) *
-        Real.log (Real.log ((m : ℝ) + 16)) ^ 2 := by
-    unfold interpolationScale
-    ring
-  rw [hrew n, hrew (n + 1)]
+    exact nonneg_le_nonneg_of_sq_le_sq (by positivity) (by simpa only [sq] using hsq)
+  rw [interpolationScale, interpolationScale, ← div_mul_eq_mul_div, ← div_mul_eq_mul_div]
   exact mul_le_mul hratio hll_le (by positivity) (by positivity)
 
 /-- Doubling the argument multiplies `interpolationScale` by at most `8`. -/

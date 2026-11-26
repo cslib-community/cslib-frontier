@@ -78,11 +78,10 @@ theorem target_mem_targets {gs : List GateCode} {g : GateCode} (hg : g ∈ gs) :
 /-- Every target of a well-formed circuit is a valid register position. -/
 theorem lt_of_mem_targets {gs : List GateCode} (hgs : ∀ g ∈ gs, g.WellFormed m)
     {j : ℕ} (hj : j ∈ targets gs) : j < m := by
-  obtain ⟨g, hg, rfl⟩ := mem_targets_iff.mp hj
-  obtain ⟨b, t, cs⟩ := g
-  cases b with
-  | false => exact (hgs _ hg).2.2 t List.mem_cons_self
-  | true => exact (hgs _ hg).1
+  obtain ⟨⟨b, t, cs⟩, hg, rfl⟩ := mem_targets_iff.mp hj
+  cases b
+  · exact (hgs _ hg).2.2 t List.mem_cons_self
+  · exact (hgs _ hg).1
 
 end GateCode
 
@@ -92,48 +91,35 @@ private theorem getD_foldl_pathStep_of_forall_ne (gs : List GateCode) (j : ℕ)
   induction gs generalizing s path sign with
   | nil => rfl
   | cons g gs ih =>
-    have hg : GateCode.target g ≠ j := havoid g List.mem_cons_self
-    have htail : ∀ g ∈ gs, GateCode.target g ≠ j :=
-      fun g hg => havoid g (List.mem_cons_of_mem _ hg)
     obtain ⟨b, t, cs⟩ := g
-    change t ≠ j at hg
+    have hg : t ≠ j := havoid _ List.mem_cons_self
     cases b <;> simp only [List.foldl_cons, pathStep] <;>
-      rw [ih _ _ _ htail, List.getD_set_ne hg]
+      rw [ih _ _ _ (fun g hg => havoid g (List.mem_cons_of_mem _ hg)), List.getD_set_ne hg]
 
 /-- A path preserves every input bit that no gate targets, for arbitrary path words and codes. -/
 theorem getD_pathRun_of_not_mem_targets (gs : List GateCode) (x path : List Bool) (j : ℕ)
     (hj : j ∉ GateCode.targets gs) :
     (pathRun gs x path).1.getD j false = x.getD j false := by
-  change (gs.foldl pathStep (x, path, false)).1.getD j false = _
-  apply getD_foldl_pathStep_of_forall_ne
-  intro g hg heq
-  exact hj (GateCode.mem_targets_iff.mpr ⟨g, hg, heq⟩)
+  exact getD_foldl_pathStep_of_forall_ne gs j x path false
+    fun g hg heq => hj (GateCode.mem_targets_iff.mpr ⟨g, hg, heq⟩)
 
 /-- A path contributes zero to an output that disagrees with an untargeted input bit. -/
 theorem pathTerm_eq_zero_of_not_mem_targets (gs : List GateCode) (x y path : List Bool)
     (j : ℕ) (hj : j ∉ GateCode.targets gs) (hne : y.getD j false ≠ x.getD j false) :
     pathTerm gs x y path = 0 := by
-  have houtput : (pathRun gs x path).1 ≠ y := by
-    intro heq
-    apply hne
-    simpa only [heq] using getD_pathRun_of_not_mem_targets gs x path j hj
-  change (if (pathRun gs x path).1 = y then
-    (if (pathRun gs x path).2 then -1 else 1) else 0) = 0
-  simp [houtput]
+  change (if (pathRun gs x path).1 = y then (if (pathRun gs x path).2 then -1 else 1) else 0) = 0
+  exact ite_eq_right_iff.mpr fun heq =>
+    absurd (heq ▸ getD_pathRun_of_not_mem_targets gs x path j hj) hne
 
 /-- An amplitude is zero when an untargeted output wire differs from the input basis state. -/
 theorem run_ofCodes_apply_eq_zero_of_not_mem_targets {gs : List GateCode}
     (hgs : ∀ g ∈ gs, g.WellFormed m) (x y : Fin m → Bool) (j : Fin m)
     (hj : j.val ∉ GateCode.targets gs) (hne : y j ≠ x j) :
     (Circuit.run (Circuit.ofCodes m gs) x).ofLp y = 0 := by
-  have hgap : pathGap gs (List.ofFn x) (List.ofFn y) = 0 := by
-    unfold pathGap
-    apply Finset.sum_eq_zero
-    intro path _
-    apply pathTerm_eq_zero_of_not_mem_targets gs _ _ _ j.val hj
-    simpa only [List.getD_ofFn] using hne
-  rw [run_ofCodes_apply gs hgs, hgap]
-  simp
+  have hgap : pathGap gs (List.ofFn x) (List.ofFn y) = 0 :=
+    Finset.sum_eq_zero fun path _ => pathTerm_eq_zero_of_not_mem_targets gs _ _ _ j.val hj
+      (by simpa only [List.getD_ofFn] using hne)
+  simp [run_ofCodes_apply gs hgs, hgap]
 
 /-- Every supported measurement outcome agrees with the input at an untargeted wire. -/
 theorem eq_of_mem_support_measure_of_not_mem_targets {gs : List GateCode}
@@ -141,8 +127,8 @@ theorem eq_of_mem_support_measure_of_not_mem_targets {gs : List GateCode}
     (hy : y ∈ (Circuit.measure (Circuit.ofCodes m gs) x).support) (j : Fin m)
     (hj : j.val ∉ GateCode.targets gs) : y j = x j := by
   by_contra hne
-  have hzero := run_ofCodes_apply_eq_zero_of_not_mem_targets hgs x y j hj hne
-  exact hy (by simp [Circuit.measure_apply, hzero])
+  exact hy (by simp [Circuit.measure_apply,
+    run_ofCodes_apply_eq_zero_of_not_mem_targets hgs x y j hj hne])
 
 /-- Reading any positions covering all gate targets and restoring the remaining input bits
 recovers the entire joint measurement law as a list. The input register is explicitly supplied. -/
@@ -155,13 +141,9 @@ theorem measure_map_restorePositions {gs : List GateCode} (X : List Bool)
   rw [PMF.map_comp]
   apply PMF.map_congr_on_support
   intro y hy
-  change BitString.restorePositions positions X (BitString.readPositions positions (List.ofFn y)) =
-    List.ofFn y
-  apply BitString.restorePositions_readPositions _ _ _ (by simp)
-  intro j hj hnot
-  have htarget : j ∉ GateCode.targets gs := fun hmem => hnot (hcover hmem)
-  have hbit := eq_of_mem_support_measure_of_not_mem_targets hgs hy ⟨j, hj⟩ htarget
+  refine BitString.restorePositions_readPositions positions X (List.ofFn y) (by simp)
+    fun j hj hnot => ?_
   rw [List.getD_ofFn_of_lt _ hj false]
-  exact hbit
+  exact eq_of_mem_support_measure_of_not_mem_targets hgs hy ⟨j, hj⟩ (mt (hcover ·) hnot)
 
 end Cslib.Quantum

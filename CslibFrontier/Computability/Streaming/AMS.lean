@@ -162,31 +162,37 @@ theorem dens_amsSketch_error_le [Fintype ι] [DecidableEq α] [Fintype Y] [Decid
   rcases Nat.eq_zero_or_pos r with rfl | hr
   · rw [pow_zero]
     exact_mod_cast dens_le_one
-  have := hh.nonempty
-  have hε (y : Y) : ((sgn y : ℝ)) ^ 2 = 1 := by exact_mod_cast hsq y
+  have hι := hh.nonempty
+  have hε : ∀ y, ((sgn y : ℝ)) ^ 2 = 1 := fun y => by exact_mod_cast hsq y
   have hε₀ : 𝔼 y, (sgn y : ℝ) = 0 := by
     rw [Fintype.expect_eq_sum_div_card, ← Int.cast_sum, hsum, Int.cast_zero, zero_div]
+  have hF : ((freqMoment 2 s : ℕ) : ℝ) = ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2 := by
+    simp only [freqMoment, Nat.cast_sum, Nat.cast_pow]
   set g : ι → ℝ := fun θ => (∑ a ∈ s.toFinset, (s.count a : ℝ) * sgn (h θ a)) ^ 2
   have hmean : 𝔼 θ, g θ = ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2 :=
     (hh.mono (by norm_num)).expect_sq_sum_mul_sign hε hε₀ _ _
-  simp only [run_amsSketch, freqMoment, Nat.cast_sum, Nat.cast_pow]
+  simp only [run_amsSketch, hF]
   rcases eq_or_ne s [] with rfl | hs
   · have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
-    rw [filter_false_of_mem fun ω _ => by
-      simp only [List.toFinset_nil, sum_empty, mul_zero, sub_zero, not_lt, medianOfMeans, ne_eq,
-        OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero, median_const,
-        abs_zero, le_refl], dens_empty, NNRat.cast_zero]
+    simp only [List.toFinset_nil, sum_empty, mul_zero, sub_zero, medianOfMeans, ne_eq,
+      OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero, median_const,
+      abs_zero, lt_self_iff_false, filter_false, dens_empty, NNRat.cast_zero]
     positivity
-  · obtain ⟨a, ha⟩ := List.exists_mem_of_ne_nil s hs
-    have hpos : 0 < ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2 :=
-      sum_pos' (fun _ _ => by positivity)
-        ⟨a, List.mem_toFinset.2 ha, pow_pos (Nat.cast_pos.2 (List.count_pos_iff.2 ha)) 2⟩
-    have : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
+  · have hpos : 0 < ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2 := by
+      obtain ⟨a, ha⟩ := List.exists_mem_of_ne_nil s hs
+      refine sum_pos' (fun _ _ => by positivity) ⟨a, List.mem_toFinset.2 ha, ?_⟩
+      exact pow_pos (Nat.cast_pos.2 (List.count_pos_iff.2 ha)) 2
+    have hk0 : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
     have hvar : 3 * 𝔼 θ, (g θ - 𝔼 θ', g θ') ^ 2 ≤
         k * (η * ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := by
       rw [hmean]
       have := hh.expect_sq_sum_mul_sign_sub_sq_le hε hε₀ s.toFinset fun a => (s.count a : ℝ)
-      nlinarith [sq_nonneg (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2)]
+      have hF2 : 0 ≤ (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := sq_nonneg _
+      calc 3 * 𝔼 θ, (g θ - ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2
+          ≤ 3 * (2 * (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2) := by gcongr
+        _ = 6 * (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := by ring
+        _ ≤ k * η ^ 2 * (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := by gcongr
+        _ = _ := by ring
     simpa only [hmean] using dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
 
 /-- The error of the randomized AMS sketch is the fraction of bad seeds. -/

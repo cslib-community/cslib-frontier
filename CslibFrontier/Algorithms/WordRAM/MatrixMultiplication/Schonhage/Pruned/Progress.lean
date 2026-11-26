@@ -73,13 +73,8 @@ theorem NodeProgress.scan_eq {L f a0 b0 n d p E k : ℕ} {S : Finset (OutStr (n 
     (hy : NodeProgress L f a0 b0 n d p E S a b x k y) (t : Fin 10) :
     scanSet true t.val (fun i => y.mem (f + 4 * (L + 1) + d * 10 ^ L + i)) S.card =
       (childSet S (Encoding.termDigits t)).image (fun q => (queryIndex q).val) := by
-  rw [scanSet_child]
-  have he : (Finset.range S.card).image
-      (fun i => y.mem (f + 4 * (L + 1) + d * 10 ^ L + i)) =
-        (Finset.range S.card).image
-          (fun i => x.mem (f + 4 * (L + 1) + d * 10 ^ L + i)) :=
-    Finset.image_congr (fun i hi => hy.requests i (Finset.mem_range.mp hi))
-  rw [he, hx.image_read, childCodes_eq_image]
+  rw [scanSet_child, Finset.image_congr fun i hi => hy.requests i (Finset.mem_range.mp hi),
+    hx.image_read, childCodes_eq_image]
 
 /-- Before a dispatch, the original scalar budget covers the fresh scan and every possible
 descendant generation for that term. -/
@@ -119,20 +114,15 @@ theorem exec_ready_enter {w L f a0 b0 n d p E : ℕ} (S : Finset (OutStr (n + 1)
   refine ⟨y, hy, ⟨hregs, hlevel, hmode, hactive.trans hx.active_eq, ?_, hread, ?_,
     by rw [hE, hx.epoch_eq], by simp only [Nat.zero_mul, Nat.add_zero, hE, hx.epoch_eq, le_refl],
     ?_, hframe⟩⟩
-  · intro j
+  · intro (j : Fin 4)
     change y.mem (f + 4 * d + j.val) = ![S.card, p, 10 ^ d, 0] j
     rw [hmem]
-    fin_cases j
-    · change Function.update (_ : ℕ → ℕ) (f + 4 * d + 3) 0 (f + 4 * d + 0) = S.card
-      rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow 0 (by decide))]
-      exact hx.frame 0
-    · change Function.update (_ : ℕ → ℕ) (f + 4 * d + 3) 0 (f + 4 * d + 1) = p
-      rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow 1 (by decide))]
-      exact hx.frame 1
-    · change Function.update (_ : ℕ → ℕ) (f + 4 * d + 3) 0 (f + 4 * d + 2) = 10 ^ d
-      rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow 2 (by decide))]
-      exact hx.frame 2
-    · exact Function.update_self _ _ _
+    by_cases hj3 : j.val = 3
+    · obtain rfl : j = 3 := Fin.ext hj3
+      exact Function.update_self _ _ _
+    · rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow j.val j.isLt)]
+      fin_cases j <;> first
+        | exact hx.frame 0 | exact hx.frame 1 | exact hx.frame 2 | exact absurd rfl hj3
   · intro q hq
     obtain ⟨i, hi, hqi⟩ := hx.exists_read hq
     have hval : f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L +

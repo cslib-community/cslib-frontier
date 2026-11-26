@@ -155,9 +155,8 @@ theorem length_trimmed (t : ℕ) (xs : List K) : (trimmed t xs).length = xs.leng
   omega
 
 theorem trimmed_ne_nil {t : ℕ} {xs : List K} (h : 2 * t < xs.length) : trimmed t xs ≠ [] := by
-  intro hemp
-  have hlen := congrArg List.length hemp
-  rw [length_trimmed, List.length_nil] at hlen
+  refine List.ne_nil_of_length_pos ?_
+  rw [length_trimmed]
   omega
 
 theorem trimmed_eq_of_perm {xs ys : List K} (h : xs.Perm ys) (t : ℕ) :
@@ -199,12 +198,9 @@ private lemma sortLE_getElem_le {xs : List K} {k : ℕ} {v : K}
   have hdrop : ((sortLE xs).drop k).countP (fun x => decide (x ≤ v)) = 0 :=
     List.countP_eq_zero.mpr fun x hx => by
       obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hx
-      simp only [List.getElem_drop, decide_eq_true_eq, not_le]
-      exact hgt.trans_le ((sortedLE_sortLE xs).getElem_le_getElem_of_le (Nat.le_add_right k j))
-  have h1 : (sortLE xs).countP (fun x => decide (x ≤ v)) =
-      ((sortLE xs).take k).countP (fun x => decide (x ≤ v)) + 0 := by
-    rw [← hdrop, ← List.countP_append, List.take_append_drop]
-  rw [(perm_sortLE xs).countP_eq, add_zero] at h1
+      simpa using hgt.trans_le ((sortedLE_sortLE xs).getElem_le_getElem_of_le (by omega))
+  rw [← (perm_sortLE xs).countP_eq, ← List.take_append_drop k (sortLE xs), List.countP_append,
+    hdrop, add_zero] at hcnt
   have := (List.countP_le_length (p := fun x => decide (x ≤ v))).trans
     (List.length_take_le k (sortLE xs))
   omega
@@ -396,19 +392,14 @@ private lemma card_sub_le_countP_map {P : Type*}
     (hval : ∀ p ∈ S, p ∉ F → f p ∈ Set.Icc lo hi) :
     (S.val.map f).card - t ≤ (S.val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) := by
   classical
-  have hsub : (S \ F).val.map f ≤ S.val.map f :=
-    Multiset.map_le_map (Finset.val_le_iff.mpr Finset.sdiff_subset)
-  have hall : ∀ x ∈ (S \ F).val.map f, lo ≤ x ∧ x ≤ hi := by
-    intro x hx
-    obtain ⟨p, hp, rfl⟩ := Multiset.mem_map.mp hx
-    have hp' := Finset.mem_sdiff.mp hp
-    exact hval p hp'.1 hp'.2
-  have hcnt_hon : ((S \ F).val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) = (S \ F).card := by
-    rw [Multiset.countP_eq_card_filter, Multiset.filter_eq_self.mpr hall, Multiset.card_map]
-    rfl
+  have hall : ∀ x ∈ (S \ F).val.map f, lo ≤ x ∧ x ≤ hi :=
+    Multiset.forall_mem_map_iff.mpr fun p hp =>
+      hval p (Finset.mem_sdiff.mp hp).1 (Finset.mem_sdiff.mp hp).2
   have hle_cnt : (S \ F).card ≤ (S.val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) := by
-    rw [← hcnt_hon]
-    exact Multiset.countP_le_of_le _ hsub
+    have hsub := Multiset.countP_le_of_le (fun x => lo ≤ x ∧ x ≤ hi)
+      (Multiset.map_le_map (f := f) (Finset.val_le_iff.mpr (Finset.sdiff_subset (s := S) (t := F))))
+    rwa [Multiset.countP_eq_card_filter, Multiset.filter_eq_self.mpr hall, Multiset.card_map,
+      ← Finset.card_def] at hsub
   rw [Multiset.card_map, ← Finset.card_def]
   finset_card
 
@@ -442,21 +433,17 @@ theorem abs_multisetMidTrim_map_sub_le {P : Type*} [Fintype P]
   classical
   set H : Finset P := (S₁ ∩ S₂) \ F
   have hH_card : 2 * t < H.card := by finset_card
-  have hmap_le : ∀ {S : Finset P} {f : P → K},
-      H ⊆ S → (∀ p ∈ S, p ∉ F → f p = val p) → H.val.map val ≤ S.val.map f := by
-    intro S f hHS hf
-    have heq : H.val.map val = H.val.map f :=
-      Multiset.map_congr rfl fun p hp =>
-        (hf p (hHS hp) (Finset.mem_sdiff.mp hp).2).symm
-    exact heq ▸ Multiset.map_le_map (Finset.val_le_iff.mpr hHS)
-  have hH₁ : H.val.map val ≤ S₁.val.map f₁ :=
-    hmap_le (Finset.sdiff_subset.trans Finset.inter_subset_left) hf₁
-  have hH₂ : H.val.map val ≤ S₂.val.map f₂ :=
-    hmap_le (Finset.sdiff_subset.trans Finset.inter_subset_right) hf₂
+  have hmap_le {S : Finset P} {f : P → K} (hHS : H ⊆ S) (hf : ∀ p ∈ S, p ∉ F → f p = val p) :
+      H.val.map val ≤ S.val.map f :=
+    (Multiset.map_congr rfl fun p hp =>
+      (hf p (hHS hp) (Finset.mem_sdiff.mp hp).2).symm).trans_le
+      (Multiset.map_le_map (Finset.val_le_iff.mpr hHS))
   have hinter : 2 * t < (S₁.val.map f₁ ∩ S₂.val.map f₂).card := by
-    have hle := Multiset.card_le_card (Multiset.le_inter hH₁ hH₂)
+    have hle := Multiset.card_le_card (Multiset.le_inter
+      (hmap_le (Finset.sdiff_subset.trans Finset.inter_subset_left) hf₁)
+      (hmap_le (Finset.sdiff_subset.trans Finset.inter_subset_right) hf₂))
     rw [Multiset.card_map, ← Finset.card_def] at hle
-    exact lt_of_lt_of_le hH_card hle
+    exact hH_card.trans_le hle
   have hcnt₁ := card_sub_le_countP_map hF (S := S₁) (f := f₁) (lo := lo) (hi := hi)
     fun p hp hpF => hf₁ p hp hpF ▸ hval p hpF
   have hcnt₂ := card_sub_le_countP_map hF (S := S₂) (f := f₂) (lo := lo) (hi := hi)
@@ -465,8 +452,8 @@ theorem abs_multisetMidTrim_map_sub_le {P : Type*} [Fintype P]
   generalize S₂.val.map f₂ = s₂ at hinter hcnt₂ ⊢
   obtain ⟨xs, rfl⟩ := Quot.exists_rep s₁
   obtain ⟨ys, rfl⟩ := Quot.exists_rep s₂
-  simp only [Multiset.quot_mk_to_coe''] at hinter
-  simp only [Multiset.quot_mk_to_coe'', Multiset.coe_card, Multiset.coe_countP] at hcnt₁ hcnt₂
+  simp only [Multiset.quot_mk_to_coe'', Multiset.coe_card,
+    Multiset.coe_countP] at hinter hcnt₁ hcnt₂
   exact abs_midTrim_sub_le hinter hcnt₁ hcnt₂
 
 end OrderedField

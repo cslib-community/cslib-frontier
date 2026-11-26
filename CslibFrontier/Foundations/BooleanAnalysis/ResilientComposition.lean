@@ -202,12 +202,8 @@ theorem expect_bitVal_eq_half_of_selfDual {f : (ι → Bool) → Bool}
     rintro x ⟨y, z, hy, hz, hne⟩
     exact hne (congrArg f ((funext fun i => hy i (notMem_empty i)).trans
       (funext fun i => hz i (notMem_empty i)).symm))
-  have hinf : coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) ∅ f = 0 :=
-    coalitionInfluence_eq_zero_of_forall_not _ h0
-  have h := expect_not_isUndetermined_and_eq_true hf ∅
-  rw [hinf, sub_zero] at h
-  refine Eq.trans (expect_congr rfl fun x _ => ?_) h
-  by_cases hfx : f x = true <;> simp [h0 x, hfx]
+  simpa [h0, coalitionInfluence_eq_zero_of_forall_not _ h0, bitVal] using
+    expect_not_isUndetermined_and_eq_true hf ∅
 
 end SelfDual
 
@@ -286,23 +282,14 @@ theorem coalitionInfluence_composeBlocks_maj3 {w : ℕ} (h : Fin 3 → BitString
     rw [if_congr (isUndetermined_composeBlocks_iff (majority 3) h Q x) rfl rfl,
       if_congr (isUndetermined_maj3_classify _ _) rfl rfl]
     let D (j : Fin 3) : Bool := decide (IsUndetermined (tribePart Q j) (h j) (sl x j))
-    have hF : univ.filter (fun j => IsUndetermined (tribePart Q j) (h j) (sl x j)) =
-        univ.filter fun j => D j = true := by simp only [D, decide_eq_true_eq]
-    have hU (j : Fin 3) : eU j (sl x j) = (nInd (D j) : ℝ) := by simp [eU, nInd, D]
-    have hD (j : Fin 3) : eD j (sl x j) = (nInd (!D j) : ℝ) := by simp [eD, nInd, D]
-    have hT (j : Fin 3) : eT j (sl x j) = (nInd (!D j && h j (sl x j)) : ℝ) := by
-      simp [eT, nInd, D]
-    have hF' (j : Fin 3) : eF j (sl x j) = (nInd (!D j && !h j (sl x j)) : ℝ) := by
-      simp [eF, nInd, D]
-    rw [hF]
-    simp only [hU, hD, hT, hF']
-    exact_mod_cast maj3_split_nat D _ _ _
+    simpa only [eU, eD, eT, eF, nInd, D, Bool.and_eq_true, Bool.not_eq_true',
+      decide_eq_true_eq, decide_eq_false_iff_not, Nat.cast_add, Nat.cast_mul, Nat.cast_ite,
+      Nat.cast_one, Nat.cast_zero] using
+      congrArg (Nat.cast (R := ℝ)) (maj3_split_nat D (h 0 (sl x 0)) (h 1 (sl x 1)) (h 2 (sl x 2)))
   have hprod (f0 f1 f2 : BitString w → ℝ) :
       𝔼 x : BitString (3 * w), f0 (sl x 0) * f1 (sl x 1) * f2 (sl x 2) =
         (𝔼 u, f0 u) * (𝔼 u, f1 u) * (𝔼 u, f2 u) := by
-    have := expect_prod_tribe ![f0, f1, f2]
-    simp only [Fin.prod_univ_three] at this
-    exact this
+    simpa [Fin.prod_univ_three] using expect_prod_tribe ![f0, f1, f2]
   rw [coalitionInfluence_uniformOfFintype]
   simp_rw [hsplit, expect_add_distrib, hprod, heU, heD, heT, heF]
   ring
@@ -322,8 +309,7 @@ theorem monotone_iterMaj3 (d : ℕ) : Monotone (iterMaj3 d) := by
   induction d with
   | zero => exact fun x y hxy => hxy 0
   | succ d ih =>
-    intro x y hxy
-    exact monotone_composeBlocks monotone_majority (fun _ => ih) fun k =>
+    exact fun _ _ hxy => monotone_composeBlocks monotone_majority (fun _ => ih) fun k =>
       hxy (k.cast (@Nat.pow_succ' 3 d).symm)
 
 /-- `iterMaj3 d` is self-dual. -/
@@ -346,9 +332,7 @@ private theorem coalitionInfluence_comp_finCast {m n : ℕ} (h : m = n)
       coalitionInfluence (PMF.uniformOfFintype (BitString n))
         (Q.map (Fin.castOrderIso h).toEquiv.toEmbedding) f := by
   subst h
-  congr 1
-  ext a
-  simp
+  exact congrArg (coalitionInfluence _ · f) (Finset.ext fun _ => by simp)
 
 /-- Every coalition `Q` has uniform influence at most `|Q| / 2 ^ d` on `iterMaj3 d`. -/
 theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
@@ -361,10 +345,8 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
     by_cases h0 : (0 : Fin (3 ^ 0)) ∈ Q
     · exact (coalitionInfluence_le_one _ _ _).trans <|
         (by exact_mod_cast card_pos.mpr ⟨0, h0⟩ : (1 : ℝ) ≤ #Q).trans_eq (by norm_num)
-    · have hzero : ∀ x : BitString (3 ^ 0), ¬IsUndetermined Q (fun y => y 0) x := by
-        rintro x ⟨y, z, hy, hz, hne⟩
-        exact hne ((hy 0 h0).trans (hz 0 h0).symm)
-      rw [coalitionInfluence_eq_zero_of_forall_not _ hzero]
+    · rw [coalitionInfluence_eq_zero_of_forall_not _
+        fun _ ⟨_, _, hy, hz, hne⟩ => hne ((hy 0 h0).trans (hz 0 h0).symm)]
       positivity
   | succ d ih =>
     let Q' : Finset (Fin (3 * 3 ^ d)) :=
@@ -378,16 +360,15 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
     dsimp only
     let p (j : Fin 3) :=
       coalitionInfluence (PMF.uniformOfFintype (BitString (3 ^ d))) (tribePart Q' j) (iterMaj3 d)
-    have hp_nonneg (j : Fin 3) : 0 ≤ p j := coalitionInfluence_nonneg _ _ _
-    have hp_prod : 0 ≤ p 0 * p 1 * p 2 := mul_nonneg (mul_nonneg (hp_nonneg 0) (hp_nonneg 1))
-      (hp_nonneg 2)
-    have hp_le (j : Fin 3) : p j ≤ (#(tribePart Q' j) : ℝ) / 2 ^ d := ih (tribePart Q' j)
+    have hp_prod : 0 ≤ p 0 * p 1 * p 2 := mul_nonneg
+      (mul_nonneg (coalitionInfluence_nonneg ..) (coalitionInfluence_nonneg ..))
+      (coalitionInfluence_nonneg ..)
     have hQ : #Q = ∑ j : Fin 3, #(tribePart Q' j) :=
       (card_map _).symm.trans (card_eq_sum_card_tribePart Q')
     calc (p 0 + p 1 + p 2 - p 0 * p 1 * p 2) / 2
         ≤ ((#(tribePart Q' 0) : ℝ) / 2 ^ d + (#(tribePart Q' 1) : ℝ) / 2 ^ d +
             (#(tribePart Q' 2) : ℝ) / 2 ^ d) / 2 := by
-          linarith [hp_le 0, hp_le 1, hp_le 2]
+          linarith [ih (tribePart Q' 0), ih (tribePart Q' 1), ih (tribePart Q' 2)]
       _ = (#Q : ℝ) / 2 ^ (d + 1) := by
           rw [hQ, Fin.sum_univ_three, pow_succ]; push_cast; ring
 

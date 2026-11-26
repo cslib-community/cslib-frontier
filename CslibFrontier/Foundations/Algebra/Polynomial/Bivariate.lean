@@ -194,15 +194,12 @@ homomorphism `φ : R →+* S` commutes with `shift`. -/
 theorem map_shift (φ : R →+* S) (x y : R) (Q : R[X][Y]) :
     shift (φ x) (φ y) (Q.map (Polynomial.mapRingHom φ)) =
       (shift x y Q).map (Polynomial.mapRingHom φ) := by
-  rw [shift_apply, shift_apply, Polynomial.map_map]
   have hcomp :
       (taylorAlgHom (φ x) : S[X] →+* S[X]).comp (Polynomial.mapRingHom φ) =
         (Polynomial.mapRingHom φ).comp (taylorAlgHom x : R[X] →+* R[X]) := by
     apply Polynomial.ringHom_ext <;> simp [taylor_C, taylor_X]
-  rw [hcomp, ← Polynomial.map_map]
-  have hCy : C (φ y) = Polynomial.mapRingHom φ (C y) := by
-    rw [Polynomial.coe_mapRingHom, Polynomial.map_C]
-  rw [hCy, ← Polynomial.map_taylor]
+  rw [shift_apply, shift_apply, Polynomial.map_map, hcomp, ← Polynomial.map_map,
+    Polynomial.map_taylor, Polynomial.coe_mapRingHom, Polynomial.map_C]
 
 end Shift
 
@@ -290,10 +287,8 @@ theorem VanishesToOrder.mul {m₁ m₂ : ℕ} {x y : R} {Q₁ Q₂ : R[X][Y]}
 theorem VanishesToOrder.pow {m : ℕ} {x y : R} {Q : R[X][Y]}
     (hQ : VanishesToOrder m x y Q) (r : ℕ) : VanishesToOrder (r * m) x y (Q ^ r) := by
   induction r with
-  | zero => rw [zero_mul]; exact vanishesToOrder_zero _ _ _
-  | succ r ih =>
-    rw [pow_succ, Nat.succ_mul]
-    exact ih.mul hQ
+  | zero => simp
+  | succ r ih => simpa only [pow_succ, Nat.succ_mul] using ih.mul hQ
 
 /-- If `Q₁(x, y) ≠ 0` and `Q₁ * Q₂` vanishes to order `m` at `(x, y)` over a domain, then `Q₂`
 already vanishes to order `m` at `(x, y)`. -/
@@ -336,12 +331,8 @@ theorem VanishesToOrder.X_sub_C_pow_dvd_eval {R : Type*} [CommRing R] {m : ℕ} 
   have hPR : taylor x P = X * R₀ + C y := sub_eq_iff_eq_add.mp hR₀
   -- Express `taylor x (Q.eval P)` as `(shift x y Q).eval (X * R₀)`.
   have hshift_eval : taylor x (Q.eval P) = (shift x y Q).eval (X * R₀) := by
-    have h1 : taylor x (Q.eval P) =
-        (Q.map (taylorAlgHom x : R[X] →+* R[X])).eval (taylor x P) := by
-      change (taylorAlgHom x : R[X] →+* R[X]) (Q.eval P) =
-        (Q.map (taylorAlgHom x : R[X] →+* R[X])).eval ((taylorAlgHom x : R[X] →+* R[X]) P)
-      rw [eval_map, eval₂_hom]
-    rw [h1, hPR, shift_apply, taylor_eval]
+    rw [shift_apply, taylor_eval, ← hPR, eval_map]
+    exact (eval₂_hom (taylorAlgHom x : R[X] →+* R[X]) P).symm
   -- Every term `(shift x y Q).coeff j * (X * R₀) ^ j` is divisible by `X ^ m`.
   have hdvd_shift : X ^ m ∣ taylor x (Q.eval P) := by
     rw [hshift_eval, eval_eq_sum_range]
@@ -354,9 +345,8 @@ theorem VanishesToOrder.X_sub_C_pow_dvd_eval {R : Type*} [CommRing R] {m : ℕ} 
   -- Shift back by `-x`.
   obtain ⟨T, hT⟩ := hdvd_shift
   refine ⟨taylor (-x) T, ?_⟩
-  have hback : Q.eval P = taylor (-x) (taylor x (Q.eval P)) := by
-    rw [taylor_taylor, neg_add_cancel, taylor_zero]
-  rw [hback, hT, taylor_mul, taylor_X_pow, C_neg, ← sub_eq_add_neg]
+  rw [← taylor_zero (Q.eval P), ← neg_add_cancel x, ← taylor_taylor, hT, taylor_mul,
+    taylor_X_pow, C_neg, ← sub_eq_add_neg]
 
 end Vanishing
 
@@ -374,8 +364,7 @@ noncomputable def weightedDegree (d : ℕ) (Q : R[X][Y]) : ℕ :=
 /-- The weighted degree of `0` is `0`. -/
 @[simp]
 theorem weightedDegree_zero (d : ℕ) : weightedDegree d (0 : R[X][Y]) = 0 := by
-  rw [weightedDegree, support_zero, Finset.sup_empty]
-  rfl
+  simp [weightedDegree]
 
 /-- `weightedDegree d Q ≤ D` iff every nonzero coefficient `(Q.coeff b).coeff a` has
 `a + d * b ≤ D`. -/
@@ -473,8 +462,7 @@ theorem weightedDegree_mul [NoZeroDivisors R] {d : ℕ} {A B : R[X][Y]}
         have h2 := le_weightedDegree (d := d) (right_ne_zero_of_mul h0)
         dsimp only at h1 h2
         exact hne (Prod.ext (by omega) (by omega))
-      · intro hmem
-        exact absurd (mem_antidiagonal.2 rfl : (a₁, a₂) ∈ antidiagonal (a₁ + a₂)) hmem
+      · exact fun hmem => absurd (mem_antidiagonal.2 rfl : (a₁, a₂) ∈ antidiagonal (a₁ + a₂)) hmem
     · intro j hj hne
       rw [mem_antidiagonal] at hj
       rw [coeff_mul]
@@ -487,12 +475,8 @@ theorem weightedDegree_mul [NoZeroDivisors R] {d : ℕ} {A B : R[X][Y]}
       have hj1 := hmax₁ i.1 j.1 (left_ne_zero_of_mul h0) (by omega)
       have hj2 := hmax₂ i.2 j.2 (right_ne_zero_of_mul h0) (by omega)
       exact hne (Prod.ext (by omega) (by omega))
-    · intro hmem
-      exact absurd (mem_antidiagonal.2 rfl : (b₁, b₂) ∈ antidiagonal (b₁ + b₂)) hmem
-  have hne : ((A * B).coeff (b₁ + b₂)).coeff (a₁ + a₂) ≠ 0 := by
-    rw [hcoeff]
-    exact mul_ne_zero ha₁ ha₂
-  have hle := le_weightedDegree (d := d) hne
+    · exact fun hmem => absurd (mem_antidiagonal.2 rfl : (b₁, b₂) ∈ antidiagonal (b₁ + b₂)) hmem
+  have hle := le_weightedDegree (d := d) (hcoeff ▸ mul_ne_zero ha₁ ha₂)
   rw [mul_add] at hle
   omega
 
@@ -516,21 +500,17 @@ theorem weightedDegree_X_sub_C {R : Type*} [CommRing R] [Nontrivial R] {d : ℕ}
   · rw [coeff_sub, coeff_X, coeff_C] at hab
     rcases b with _ | _ | b
     · simp only [one_ne_zero, ↓reduceIte, zero_sub, coeff_neg, neg_ne_zero] at hab
-      have := le_natDegree_of_ne_zero hab
-      omega
+      simpa using (le_natDegree_of_ne_zero hab).trans hP
     · rcases a with _ | a <;> simp [coeff_one] at hab ⊢
     · simp at hab
-  · have h1 : (((Y - C P : R[X][Y]).coeff 1).coeff 0) ≠ 0 := by
-      simp only [coeff_sub, coeff_X_one, coeff_C_succ, sub_zero, coeff_one, ↓reduceIte, ne_eq,
-        one_ne_zero, not_false_eq_true]
-    simpa only [zero_add, mul_one] using le_weightedDegree (d := d) h1
+  · simpa only [zero_add, mul_one] using
+      le_weightedDegree (d := d) (Q := Y - C P) (a := 0) (b := 1) (by simp)
 
 /-- Powers `(Y - C P) ^ r` have `(1, d)`-weighted degree `r * d` whenever `P.natDegree ≤ d`. -/
 theorem weightedDegree_X_sub_C_pow {R : Type*} [CommRing R] [IsDomain R] {d : ℕ} {P : R[X]}
     (hP : P.natDegree ≤ d) (r : ℕ) : weightedDegree d ((Y - C P) ^ r) = r * d := by
   induction r with
-  | zero =>
-    rw [pow_zero, zero_mul, weightedDegree_one]
+  | zero => simp
   | succ r ih =>
     rw [pow_succ, weightedDegree_mul (pow_ne_zero r (X_sub_C_ne_zero P)) (X_sub_C_ne_zero P),
       ih, weightedDegree_X_sub_C hP, Nat.succ_mul]
@@ -622,9 +602,8 @@ theorem squarefree_radical_primPart (Q : F[X][Y]) : Squarefree (radical Q.primPa
 
 /-- The `Y`-degree of `radical Q.primPart` is at most that of `Q`. -/
 theorem natDegree_radical_primPart_le (Q : F[X][Y]) :
-    (radical Q.primPart).natDegree ≤ Q.natDegree := by
-  rw [← natDegree_primPart Q]
-  exact natDegree_le_of_dvd radical_dvd_self (primPart_ne_zero Q)
+    (radical Q.primPart).natDegree ≤ Q.natDegree :=
+  (natDegree_le_of_dvd radical_dvd_self (primPart_ne_zero Q)).trans_eq (natDegree_primPart Q)
 
 /-- **Square-free root preservation.** For `Q ≠ 0`, `radical Q.primPart` is a nonzero, primitive,
 square-free divisor of `Q` having the exact same `F[X]`-roots as `Q`. -/
@@ -643,9 +622,7 @@ theorem exists_eq_mul_eval_ne_zero_of_squarefree {Q : F[X][Y]} (hsq : Squarefree
   obtain ⟨S, rfl⟩ := dvd_iff_isRoot.2 hQP
   refine ⟨S, rfl, fun hSP => ?_⟩
   obtain ⟨T, rfl⟩ := dvd_iff_isRoot.2 hSP
-  have hu : IsUnit (Y - C P : F[X][Y]) :=
-    hsq (Y - C P) ⟨T, by ring⟩
-  have hdeg := Polynomial.natDegree_eq_zero_of_isUnit hu
+  have hdeg := Polynomial.natDegree_eq_zero_of_isUnit (hsq (Y - C P) ⟨T, by ring⟩)
   rw [natDegree_X_sub_C] at hdeg
   omega
 

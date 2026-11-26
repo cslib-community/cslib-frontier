@@ -80,10 +80,10 @@ private theorem friSmoothPreWeight_append [DecidableEq F] (params : FRISmoothPar
   | zero => rfl
   | succ k ih =>
     have hk : k < pref.length := Nat.lt_of_succ_le hlen
-    have htarget := friSmoothTargetWord_append params stmt pref extra (Nat.le_of_succ_le hi) hk.le
-    have hweight := ih (Nat.le_of_succ_le hi) hk.le
     ext j
-    simp only [friSmoothPreWeight, htarget, hweight, prefOracle_append_left pref extra hk]
+    simp only [friSmoothPreWeight, friSmoothTargetWord_append params stmt pref extra
+      (Nat.le_of_succ_le hi) hk.le, ih (Nat.le_of_succ_le hi) hk.le,
+      prefOracle_append_left pref extra hk]
 
 private theorem friSmoothTargetWord_append_step (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
@@ -107,10 +107,9 @@ private theorem friSmoothPreWeight_append_step [DecidableEq F] (params : FRISmoo
     friSmoothPreWeight params stmt (pref ++ [(π, c)]) (pref.length + 1) hpm =
       friSmoothNextWeight params stmt pref pref.length hpm π := by
   ext j
-  have htarget := friSmoothTargetWord_append params stmt pref [(π, c)] hpm.le le_rfl
-  have hweight := friSmoothPreWeight_append params stmt pref [(π, c)] hpm.le le_rfl
-  simp only [friSmoothPreWeight, friSmoothNextWeight, friSmoothOracleFilterWeight, htarget,
-    hweight, prefOracle_append_self]
+  simp only [friSmoothPreWeight, friSmoothNextWeight, friSmoothOracleFilterWeight,
+    friSmoothTargetWord_append params stmt pref [(π, c)] hpm.le le_rfl,
+    friSmoothPreWeight_append params stmt pref [(π, c)] hpm.le le_rfl, prefOracle_append_self]
 
 private theorem friSmoothTranscriptSingleAccepts_append_iff (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
@@ -119,25 +118,18 @@ private theorem friSmoothTranscriptSingleAccepts_append_iff (params : FRISmoothP
     (c : FRIChal F params.d params.q) (s : Fin (2 ^ params.d)) :
     friSmoothTranscriptSingleAccepts params stmt (pref ++ [(πFinal, c)]) s ↔
       friSmoothFinalPasses params stmt pref πFinal s := by
-  have hm_eq : prefOracle (pref ++ [(πFinal, c)]) params.m = πFinal := by
-    rw [← hlen, prefOracle_append_self]
-  have h0 : prefOracle (pref ++ [(πFinal, c)]) 0 =
-      if params.m = 0 then πFinal else prefOracle pref 0 := by
-    split_ifs with hm
-    · simpa only [hm] using hm_eq
-    · exact prefOracle_append_left pref [(πFinal, c)] (by omega)
-  have hnext (k : Fin params.m) :
-      prefOracle (pref ++ [(πFinal, c)]) (k.val + 1) =
-        if k.val + 1 = params.m then πFinal else prefOracle pref (k.val + 1) := by
-    split_ifs with hlast
-    · rwa [hlast]
-    · exact prefOracle_append_left pref [(πFinal, c)] (by omega)
+  have hpref (j : ℕ) (hj : j ≤ params.m) :
+      prefOracle (pref ++ [(πFinal, c)]) j =
+        if j = params.m then πFinal else prefOracle pref j := by
+    split_ifs with h <;> [simp only [h, ← hlen, prefOracle_append_self];
+      exact prefOracle_append_left pref [(πFinal, c)] (by omega)]
   simp only [friSmoothTranscriptSingleAccepts, friSmoothPrefixPasses, friSmoothFinalPasses,
-    hm_eq, h0, apply_ite (fun f : OracleTable params.d F => f s), and_assoc]
+    hpref params.m le_rfl, ↓reduceIte, hpref 0 (Nat.zero_le _), eq_comm (a := 0),
+    apply_ite (fun f : OracleTable params.d F => f s), and_assoc]
   refine and_congr_right fun _ => and_congr_left fun _ => forall_congr' fun k => ?_
   have hk_lt : k.val < pref.length := by omega
   simp only [k.isLt, true_implies, prefOracle_append_left pref [(πFinal, c)] hk_lt,
-    prefFoldScalar_append_left pref [(πFinal, c)] hk_lt, hnext k]
+    prefFoldScalar_append_left pref [(πFinal, c)] hk_lt, hpref (k.val + 1) k.isLt]
 
 private theorem friSmoothTranscriptSingleAccepts_ofFn_iff (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
@@ -191,25 +183,23 @@ theorem card_filter_friSmoothFinalPasses_le [DecidableEq F] (params : FRISmoothP
         friSmoothFinalCodeword params πFinal j then
       friSmoothOracleFilterWeight params stmt pref params.m le_rfl πFinal j
     else 0
+  have hidx {s : Fin (2 ^ params.d)} (hfin : friSmoothFinalFin params s = j) :
+      friSmoothFinalIdx params s =
+        ⟨j.val, j.isLt.trans_le (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩ :=
+    Fin.ext (congrArg (Fin.val (n := params.domainSize params.m)) hfin)
   split_ifs with hok
   · rw [← hfw j, ← card_filter_friSmoothPrefixPasses_eq params stmt pref' params.m le_rfl j]
-    congr 1; ext s
+    refine congrArg Finset.card (Finset.ext fun s => ?_)
     simp only [Finset.mem_filter, Finset.mem_univ, true_and,
       ← friSmoothTranscriptSingleAccepts_append_iff params stmt pref hlen πFinal c₀ s,
       friSmoothTranscriptSingleAccepts]
     refine ⟨fun ⟨⟨hp, _⟩, hfin⟩ => ⟨congrArg Fin.val hfin, hp⟩, fun ⟨hmod, hp⟩ => ?_⟩
     have hfin : friSmoothFinalFin params s = j := Fin.ext hmod
-    have hidx : friSmoothFinalIdx params s =
-        ⟨j.val, lt_of_lt_of_le j.isLt (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩ :=
-      Fin.ext hmod
-    exact ⟨⟨hp, by rwa [hfin, hidx, hπm]⟩, hfin⟩
+    exact ⟨⟨hp, by rwa [hfin, hidx hfin, hπm]⟩, hfin⟩
   · rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
     rintro s hs hfin
     have heq := (Finset.mem_filter.mp hs).2.2.2
-    have hidx : friSmoothFinalIdx params s =
-        ⟨j.val, lt_of_lt_of_le j.isLt (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩ :=
-      Fin.ext (congrArg (Fin.val (n := params.domainSize params.m)) hfin)
-    exact hok (by rwa [hfin, hidx] at heq)
+    exact hok (by rwa [hfin, hidx hfin] at heq)
 
 
 private theorem friSmoothCommitDoomed_congr_round [DecidableEq F] (params : FRISmoothParams F)
@@ -217,9 +207,8 @@ private theorem friSmoothCommitDoomed_congr_round [DecidableEq F] (params : FRIS
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
     {i₁ i₂ : ℕ} (h : i₁ = i₂) (hi₁ : i₁ ≤ params.m) (hi₂ : i₂ ≤ params.m) :
     friSmoothCommitDoomed params B stmt pref i₁ hi₁ ↔
-      friSmoothCommitDoomed params B stmt pref i₂ hi₂ := by
-  subst h
-  rfl
+      friSmoothCommitDoomed params B stmt pref i₂ hi₂ :=
+  h ▸ Iff.rfl
 
 /-- **Unconditional round-by-round soundness invariant for smooth `friSmoothIOP`**: for every
 distance threshold `e : ℕ`, `friSmoothIOP params` satisfies `IOPRoundByRoundSoundness` with respect
@@ -243,20 +232,15 @@ theorem friSmoothIOP_rbrSound [DecidableEq F] (params : FRISmoothParams F) (e : 
   step_doomed stmt pref π c _ hgood := by
     by_cases h : pref.length ≤ params.m
     · simpa only [friSmoothGoodStep, h, ↓reduceIte] using hgood
-    · have hlen : (pref ++ [(π, c)]).length = pref.length + 1 := by simp
-      simp only [friSmoothDoomed, hlen]
+    · simp only [friSmoothDoomed, List.length_append, List.length_singleton]
       split_ifs <;> omega
   reject_of_doomed stmt oracles chals hdoomed := by
-    set pref := List.ofFn fun j : Fin (params.m + 1) => (oracles j, chals j)
-    have hlen : pref.length = params.m + 1 := by simp [pref]
-    have hnotle : ¬ pref.length ≤ params.m := by omega
-    simp only [friSmoothDoomed, hnotle, ↓reduceDIte] at hdoomed
-    simp only [hlen, ↓reduceIte] at hdoomed
-    rw [prefQueryIdxs_ofFn] at hdoomed
+    simp only [friSmoothDoomed, List.length_ofFn, Nat.not_succ_le_self, ↓reduceDIte, ↓reduceIte,
+      prefQueryIdxs_ofFn] at hdoomed
     obtain ⟨a, ha⟩ := hdoomed
-    refine Bool.eq_false_iff.mpr fun hacc => ha ?_
-    exact (friSmoothTranscriptSingleAccepts_ofFn_iff params stmt oracles chals _).mpr
-      ((iopVerify_friSmoothIOP_eq_true_iff params stmt chals oracles).mp hacc a)
+    exact Bool.eq_false_iff.mpr fun hacc => ha <|
+      (friSmoothTranscriptSingleAccepts_ofFn_iff params stmt oracles chals _).mpr
+        ((iopVerify_friSmoothIOP_eq_true_iff params stmt chals oracles).mp hacc a)
 
 omit [Field F] in
 /-- Projecting a uniform `FRIChal F d q` onto its folding scalar `foldScalar` yields the uniform
@@ -275,13 +259,10 @@ private theorem card_filter_queryIdxs_mem [Fintype F] {d q : ℕ}
     (S : Finset (Fin (2 ^ d))) :
     (Finset.univ.filter fun c : FRIChal F d q => ∀ a : Fin q, c.queryIdxs a ∈ S).card =
       Fintype.card F * S.card ^ q := by
-  let e : {c : FRIChal F d q // ∀ a : Fin q, c.queryIdxs a ∈ S} ≃
-      F × (Fin q → {s : Fin (2 ^ d) // s ∈ S}) :=
-    { toFun := fun ⟨c, hc⟩ => (c.foldScalar, fun a => ⟨c.queryIdxs a, hc a⟩)
+  rw [← Fintype.card_subtype, Fintype.card_congr
+    { toFun := fun ⟨c, hc⟩ => (c.foldScalar, fun a : Fin q => (⟨c.queryIdxs a, hc a⟩ : S))
       invFun := fun ⟨z, f⟩ => ⟨⟨z, fun a => (f a).val⟩, fun a => (f a).property⟩
-      left_inv := fun _ => rfl
-      right_inv := fun _ => rfl }
-  rw [← Fintype.card_subtype, Fintype.card_congr e]
+      left_inv := fun _ => rfl, right_inv := fun _ => rfl }]
   simp [Fintype.card_prod, Fintype.card_coe]
 
 /-- When `pref.length = m` and `pref` is doomed at threshold `B`, at most `B` starting points in
@@ -314,11 +295,9 @@ theorem friSmoothQueryRound_escape_le [Fintype F] [DecidableEq F] (params : FRIS
   have hbad_eq : {c : FRIChal F params.d params.q | ¬ friSmoothGoodStep params B stmt pref π c} =
       {c | ∀ a : Fin params.q, c.queryIdxs a ∈ goodS} := by
     ext c
-    have hlen' : (pref ++ [(π, c)]).length = params.m + 1 := by simp [hlen]
-    have hnotle' : ¬ (pref ++ [(π, c)]).length ≤ params.m := by omega
-    simp only [Set.mem_ofPred_eq, friSmoothGoodStep, hlen.le, ↓reduceIte, friSmoothDoomed,
-      hnotle', ↓reduceDIte]
-    simp only [hlen', ↓reduceIte, prefQueryIdxs_append_self pref hlen π c, not_exists, not_not,
+    simp only [Set.mem_ofPred_eq, friSmoothGoodStep, le_rfl, ↓reduceIte, friSmoothDoomed,
+      List.length_append, List.length_cons, List.length_nil, hlen, Nat.not_succ_le_self,
+      ↓reduceDIte, prefQueryIdxs_append_self pref hlen π c, not_exists, not_not,
       friSmoothTranscriptSingleAccepts_append_iff params stmt pref hlen π c,
       goodS, Finset.mem_filter, Finset.mem_univ, true_and]
   have hcard := card_filter_friSmoothFinalPasses_le_of_friSmoothDoomed params hlen π hdoomed

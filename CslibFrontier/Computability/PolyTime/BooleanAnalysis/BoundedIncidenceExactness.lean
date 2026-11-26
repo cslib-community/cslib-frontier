@@ -153,7 +153,8 @@ private theorem length_lookupReplacementRow_le {n' D_cap Q r A₀ R : ℕ}
     obtain ⟨e, _, he⟩ := List.mem_map.mp (show _ ∈ List.map _ _ from List.getElem_mem hlt)
     simpa only [← he, CopyPlacement.pullbackReplacementRow] using
       (isTableShape_tabulateTable n' R _).1.le
-  · rw [List.getD_eq_default _ [] (Nat.not_lt.mp hlt)]; simp
+  · rw [List.getD_eq_default _ [] (Nat.not_lt.mp hlt)]
+    simp
 
 private theorem toJetTable_evalEquationParityFactorJet_eq {n' J ℓ k' : ℕ} (dDen node : ℤ)
     {rowsCoeffs : List (List (List ℤ))} (hrows_len : ∀ r_tbl ∈ rowsCoeffs, r_tbl.length ≤ n')
@@ -182,12 +183,14 @@ private theorem toJetTable_evalEquationParityFactorJet_eq {n' J ℓ k' : ℕ} (d
     (congrArg (parityFactorCleared ℓ (Polynomial.C (dDen ^ k'))) ?_)
   have himg (m) (hm : m ∈ eq) :
       Finset.image Fin.val ({i : Fin n' | i.1 ∈ m} : Finset (Fin n')) = m.toFinset := by
-    ext w; simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and,
+    ext w
+    simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and,
       List.mem_toFinset]
     exact ⟨fun ⟨_, hi, h⟩ => h ▸ hi, fun hw => ⟨⟨w, hvars m hm w hw⟩, hw, rfl⟩⟩
   have heq_img : (eq.map List.toFinset).toFinset =
       (HeavyBranchFold.toFinsetEquation n' eq).image (Finset.image Fin.val) := by
-    ext S; simp only [HeavyBranchFold.toFinsetEquation, Finset.mem_image, List.mem_toFinset,
+    ext S
+    simp only [HeavyBranchFold.toFinsetEquation, Finset.mem_image, List.mem_toFinset,
       List.mem_map]
     exact ⟨fun ⟨m, hm, h⟩ => ⟨_, ⟨m, hm, rfl⟩, (himg m hm).trans h⟩,
       fun ⟨_, ⟨m, hm, rfl⟩, h⟩ => ⟨m, hm, (himg m hm).symm.trans h⟩⟩
@@ -277,8 +280,10 @@ private theorem formalEqParityFactor_congr_fiber {n' D_cap Q r A₀ R k' ℓ : �
       else 0
     formalEqParityFactor dDen k' ℓ rows ((t.1 : ℤ) + 1) (localBitsEquiv hVG x) 𝓜 =
       formalEqParityFactor dDen k' ℓ rows ((t.1 : ℤ) + 1) (localBitsEquiv hVG x') 𝓜 := by
-  intro scope rows; subst hfg
-  let x₁ := localBitsEquiv hVG x; let x₂ := localBitsEquiv hVG x'
+  intro scope rows
+  subst hfg
+  let x₁ := localBitsEquiv hVG x
+  let x₂ := localBitsEquiv hVG x'
   have hmulVec : (varMeasurementMatrix Q r A₀ R ℚ D.place
         (BalancedSchedules.scopeVarOf scope)).mulVec (fun i => bitVal ℚ (x₁ i)) =
       (varMeasurementMatrix Q r A₀ R ℚ D.place
@@ -325,7 +330,8 @@ private theorem formalEqParityFactor_congr_fiber {n' D_cap Q r A₀ R k' ℓ : �
       ((evalVarReplacementRowScaledIntPoly D e x₁).map (Int.castRingHom ℚ)).eval (nodePoint t) =
       ((evalVarReplacementRowScaledIntPoly D e x₂).map (Int.castRingHom ℚ)).eval (nodePoint t) := by
     simp only [map_evalVarReplacementRowScaledIntPoly, Polynomial.eval_mul, Polynomial.eval_C,
-      eval_evalVarReplacementRowPoly_nodePoint_eq_of_eq_on_varGroup D e t x₁ x₂ hgrp hmulVec]
+      eval_evalVarReplacementRowPoly_nodePoint_eq_of_eq_on_varGroup D e t x₁ x₂
+        hgrp hmulVec]
   rw [show (nodePoint t : ℚ) = Int.castRingHom ℚ ((t.1 : ℤ) + 1) by simp [nodePoint],
     Polynomial.eval_map_apply, Polynomial.eval_map_apply] at hscaled_q
   have heval_sum (y : Fin n' → Bool) :
@@ -385,9 +391,11 @@ private theorem sliceBlocks_iff_eq_flatten {r m : ℕ} (L : Fin r → List ℤ)
       (show (word.drop m).length = r * m by rw [List.length_drop, hw, Nat.succ_mul]; omega)
     rw [List.ofFn_succ, List.flatten_cons]
     refine ⟨fun h => ?_, fun h g => ?_⟩
-    · rw [← List.take_append_drop m word, show word.take m = L 0 by simpa using h 0,
+    · have h0 : word.take m = L 0 := by simpa using h 0
+      have hdrop : word.drop m = (List.ofFn fun g => L g.succ).flatten :=
         hih.mp fun g => by
-          simpa only [Fin.val_succ, Nat.succ_mul, add_comm _ m, List.drop_drop] using h g.succ]
+          simpa only [Fin.val_succ, Nat.succ_mul, add_comm _ m, List.drop_drop] using h g.succ
+      rw [← List.take_append_drop m word, h0, hdrop]
     · obtain ⟨h0, hrest⟩ := List.append_inj (by rwa [List.take_append_drop])
         (htake_len.trans (hL 0).symm)
       refine Fin.cases (by simpa using h0) (fun g' => ?_) g
@@ -715,12 +723,15 @@ private theorem toJetTable_measurementFold_eq {n' Q r A₀ R J ℓ k' : ℕ} {τ
             hnone (hy g).choose (hy g).choose_spec)
       simp only [fiber, SharedSummaries.fiberContribution, dite_eq_right hy, add_zero]
   clear_value eqRowTables grpEqLists measCtx
+  -- Fold the step over all decoded measurement words.
   rw [MeasurementFold.run_accumulator,
     foldl_fixedContext (fun st w => measurementStepBody (((r * m_rows, r ^ (2 * Q)), w), st))
       (CommonCountingAccum.toJetTable J ℓ) (fun T w => T + fiber (split w)) measCtx
       (fun acc w => hstep _ w acc),
     CommonCountingAccum.toJetTable_zeroJet, ← List.foldl_map, ← List.sum_eq_foldl, List.map_map,
     List.sum_map_range]
+  -- Each local measurement is a length-`m_rows` word with entries in `[-r ^ (2Q), r ^ (2Q)]`, and
+  -- only realizable tuples contribute, so the decoded words are reindexed by the measurement box.
   have hlen (g ug) : (meas g ug).length = m_rows :=
     (BooleanMeasurements.length_evalBoolMatrix _ _).trans (hgms g).2.1
   have hbound (g ug z) (hz : z ∈ meas g ug) :
@@ -732,12 +743,14 @@ private theorem toJetTable_measurementFold_eq {n' Q r A₀ R J ℓ k' : ℕ} {τ
     by_contra h
     exact hy (by simp only [fiber, SharedSummaries.fiberContribution, dite_eq_right h])
   refine (sum_radix_eq_sum_piFinset_image meas hlen hbound fiber hreal).trans ?_
+  -- Factor through the shared summaries; the local bits then form the restricted global cube.
   refine (SharedSummaries.sum_prod_eq_sum_measurement_fibers meas _
     (fun g ug => Finset.mem_image_of_mem _ (Finset.mem_univ ug)) allowed factor hloc rep₀
     fun y hy g => (hy g).choose_spec).symm.trans ?_
   rw [← sum_piFinset_checkRestrictedGroup_eq hVG indE]
   refine Finset.sum_congr rfl fun u _ => ?_
-  dsimp only [factor]; rw [← map_prod]
+  dsimp only [factor]
+  rw [← map_prod]
   exact congrArg (evalJetHom n' J ℓ y_U)
     (Finset.prod_fiberwise_of_maps_to (fun f _ => Finset.mem_univ _) _)
 
@@ -782,12 +795,14 @@ private theorem toJetTable_subsetPairFold_eq {n' Q r A₀ R q ℓ k' : ℕ} {τ 
   let mobBody : SubsetPairFold.DecodedPair × JetTable J ℓ ℤ → JetTable J ℓ ℤ := fun p =>
     let term := G (supportOfList n' p.1.1) (supportOfList n' p.1.2.1)
     if p.1.2.2 = true then p.2 - term else p.2 + term
+  -- One step adds or subtracts the measurement-fold jet of its decoded subset pair.
   have hstep (acc : JetRows) (item : SubsetPairFold.DecodedPair) :
       (subsetPairStepBody (item, (subCtx, acc))).1 = subCtx ∧
       CommonCountingAccum.toJetTable J ℓ (subsetPairStepBody (item, (subCtx, acc))).2 =
         mobBody (item, CommonCountingAccum.toJetTable J ℓ acc) := by
     refine ⟨rfl, ?_⟩
-    unfold subsetPairStepBody; dsimp only [subCtx, mobBody]
+    unfold subsetPairStepBody
+    dsimp only [subCtx, mobBody]
     rw [CommonCountingAccum.toJetTable_addJet]
     have hm : CommonCountingAccum.toJetTable J ℓ
         (MeasurementFold.run measurementStepBody (r * m_rows, r ^ (2 * Q))
@@ -804,7 +819,9 @@ private theorem toJetTable_subsetPairFold_eq {n' Q r A₀ R q ℓ k' : ℕ} {τ 
       (CommonCountingAccum.toJetTable J ℓ) (fun T item => mobBody (item, T)) subCtx hstep,
     CommonCountingAccum.toJetTable_zeroJet, ← SubsetPairFold.run_eq_foldl_map mobBody n' q 0,
     SubsetPairFold.run_mobius_eq_sum_restricted_subsets]
-  apply JetTable.ext; intro j u_col
+  -- Compare entrywise; each entry is a Möbius sum of evaluations of a low-degree polynomial.
+  apply JetTable.ext
+  intro j u_col
   let p_formal (x : Fin n' → Bool) : MvPolynomial (Fin n') ℤ :=
     (((∏ f : Fin eqs'.length, formalEqParityFactor dDen k' ℓ (eqDesignRows D f) node x
       (P_eq f)).coeff u_col.1).coeff j.1)
@@ -817,8 +834,9 @@ private theorem toJetTable_subsetPairFold_eq {n' Q r A₀ R q ℓ k' : ℕ} {τ 
             MvPolynomial.eval (fun i => bitVal ℤ (decide (i ∈ U))) (p_formal x) := by
     simp only [JetTable.sum_apply]
     refine Finset.sum_congr rfl fun E _ => Finset.sum_congr rfl fun U _ => ?_
-    rw [show (-1 : JetTable J ℓ ℤ) ^ (#E - #U) = (((-1 : ℤ) ^ (#E - #U) : ℤ) : JetTable J ℓ ℤ) by
-        simp, ← zsmul_eq_mul, JetTable.coe_zsmul, smul_eq_mul]
+    have hneg : (-1 : JetTable J ℓ ℤ) ^ (#E - #U) =
+        (((-1 : ℤ) ^ (#E - #U) : ℤ) : JetTable J ℓ ℤ) := by simp
+    rw [hneg, ← zsmul_eq_mul, JetTable.coe_zsmul, smul_eq_mul]
     simp only [G, JetTable.sum_apply, evalJetHom, RingHom.comp_apply, JetTable.ofPolyVPolyZ_apply,
       Polynomial.coe_mapRingHom, Polynomial.coeff_map, p_formal]
   have hp_deg (x : Fin n' → Bool) : (p_formal x).totalDegree ≤ q :=
@@ -827,6 +845,7 @@ private theorem toJetTable_subsetPairFold_eq {n' Q r A₀ R q ℓ k' : ℕ} {τ 
   rw [hlhs_entry, CommonCountingAccum.taylorOuterVJet_apply]
   refine (Eq.symm
     (by convert Cslib.BitString.sum_eval_eq_restricted_subsets q p_formal hp_deg)).trans ?_
+  -- The Boolean sum of coefficients on the RHS matches entrywise evaluation on the LHS.
   change _ = Polynomial.lcoeff ℤ j.1 (Polynomial.taylor node
     (univariateClearedParityCoord univ P_eq dDen k' ℓ
       (designReplacementScaledIntMap D (eqScopeIndex n' eqs')) u_col.1))

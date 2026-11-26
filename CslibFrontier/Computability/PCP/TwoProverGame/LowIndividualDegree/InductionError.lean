@@ -30,6 +30,12 @@ open scoped BigOperators Real
 @[expose] noncomputable def inductionLossTerm (ε δ γ r : ℝ) : ℝ :=
   ε ^ (1 / 128 : ℝ) + δ ^ (1 / 128 : ℝ) + γ ^ (1 / 128 : ℝ) + r ^ (1 / 128 : ℝ)
 
+private theorem inductionLossTerm_nonneg {ε δ γ r : ℝ}
+    (hε : 0 ≤ ε) (hδ : 0 ≤ δ) (hγ : 0 ≤ γ) (hr : 0 ≤ r) :
+    0 ≤ inductionLossTerm ε δ γ r := by
+  unfold inductionLossTerm
+  positivity
+
 private theorem rpow_le_fourth_power {x t : ℝ} (hx : 0 ≤ x)
     (h : x ^ (1 / 128 : ℝ) ≤ t) : x ^ (1 / 32 : ℝ) ≤ t ^ 4 := by
   rw [show (1 / 32 : ℝ) = (1 / 128) * 4 by norm_num, Real.rpow_mul hx, ←
@@ -103,7 +109,6 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     dsimp only [ζ]
     linarith only [mul_le_mul_of_nonneg_left (add_le_add (add_le_add h₁ h₂) h₃) hm₀]
   have hs4 : s ≤ t ^ 4 := hs_pow.trans_le (hpow 4 128 (by norm_num))
-  have hm2 : 0 ≤ m - 1 := by linarith
   have hqterm : (m - 1) * r ≤ m * t ^ 4 :=
     mul_le_mul (by linarith : m - 1 ≤ m) (hrs.trans hs4) hr.1 hm₀
   have hsqrtZ : √ζ ≤ 100 * m * t ^ 2 :=
@@ -114,15 +119,12 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     linarith only [hz4]
   have hγsqrt : √(64 * m * γ) ≤ 8 * m * t ^ 2 := by
     apply sqrt_le_scaled_power (a := 64) hm ht₀ (by norm_num) (by norm_num)
-    gcongr
-    exact hγs.trans hs4
+    exact mul_le_mul_of_nonneg_left (hγs.trans hs4) (by positivity)
   have hv : v ≤ 4 * m * t ^ 2 := by
     apply sqrt_le_scaled_power (a := 12) hm ht₀ (by norm_num) (by norm_num)
-    have h₁ := mul_le_mul_of_nonneg_left (hεs.trans hs4) hm₀
-    have h₂ := mul_le_mul_of_nonneg_left (hδs.trans hs4) hm₀
-    have h₃ := le_mul_of_one_le_left (pow_nonneg ht₀ 4) hm
     norm_num
-    linarith only [h₁, (hδs.trans hs4).trans h₃]
+    linarith only [mul_le_mul_of_nonneg_left (hεs.trans hs4) hm₀,
+      (hδs.trans hs4).trans (le_mul_of_one_le_left (pow_nonneg ht₀ 4) hm)]
   have hmt (a b : ℕ) (h : a ≤ b) : m * t ^ b ≤ m * t ^ a :=
     mul_le_mul_of_nonneg_left (hpow a b h) hm₀
   have hc : c ≤ 310000 * m * t ^ 2 := by
@@ -136,7 +138,6 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     norm_num
     linarith only [hc, hz4, hmt 2 4 (by norm_num), show 0 ≤ m * t ^ 2 by positivity]
   have hk₁ : (1 : ℝ) ≤ k := by exact_mod_cast hk
-  have hk₀ : (0 : ℝ) ≤ k := by positivity
   have hk₂ : (k : ℝ) ≤ (k : ℝ) ^ 2 := le_self_pow₀ hk₁ two_ne_zero
   have hk₂₁ : (1 : ℝ) ≤ (k : ℝ) ^ 2 := hk₁.trans hk₂
   have hk₃ : ((k - 1 : ℕ) : ℝ) ≤ k := by exact_mod_cast Nat.sub_le k 1
@@ -262,13 +263,9 @@ theorem slicePastingError_le_dimensionInductionError {m q ε δ γ r σ : ℝ} {
     congr 1
     field_simp
     ring
-  have hb : 0 ≤ b := by
-    have h₁ := Real.rpow_nonneg hε.1 (1 / 128 : ℝ)
-    have h₂ := Real.rpow_nonneg hδ.1 (1 / 128 : ℝ)
-    have h₃ := Real.rpow_nonneg hγ.1 (1 / 128 : ℝ)
-    have h₄ := Real.rpow_nonneg hr.1 (1 / 128 : ℝ)
-    dsimp only [b, inductionLossTerm]
-    positivity
+  have hb : 0 ≤ b :=
+    mul_nonneg (mul_nonneg (by positivity) hM₀.le)
+      (inductionLossTerm_nonneg hε.1 hδ.1 hγ.1 hr.1)
   have hE : Real.exp (-(k : ℝ) / (80000 * m ^ 2)) ≤ E := by
     dsimp only [E, M]; rw [neg_div, neg_div]; gcongr; linarith
   have hσ' : σ ≤ m ^ 2 * (b + E) :=
@@ -304,12 +301,8 @@ theorem dimensionInductionError_pad {m ε δ γ r : ℝ} {k K : ℕ}
   have he : Real.exp (-(K : ℝ) / (80000 * m ^ 2)) ≤
       Real.exp (-(k : ℝ) / (80000 * m ^ 2)) :=
     Real.exp_le_exp.mpr (div_le_div_of_nonneg_right (neg_le_neg hk') (by positivity))
-  have h₁ := Real.rpow_nonneg hε (1 / 128 : ℝ)
-  have h₂ := Real.rpow_nonneg hδ (1 / 128 : ℝ)
-  have h₃ := Real.rpow_nonneg hγ (1 / 128 : ℝ)
-  have h₄ := Real.rpow_nonneg hr (1 / 128 : ℝ)
   let R := inductionLossTerm ε δ γ r
-  have hR : 0 ≤ R := by dsimp [R, inductionLossTerm]; positivity
+  have hR : 0 ≤ R := inductionLossTerm_nonneg hε hδ hγ hr
   have hpoly := mul_le_mul_of_nonneg_right hs (show 0 ≤ 100000 * m * R by positivity)
   change m ^ 2 * (100000 * (K : ℝ) ^ 2 * m * R + _) ≤
     160000 * (m ^ 2 * (100000 * (k : ℝ) ^ 2 * m * R + _))
@@ -323,17 +316,15 @@ theorem one_le_dimensionInductionError_of_large_ratio {m ε δ γ r : ℝ} {k : 
     (hm : 1 ≤ m) (hk : 0 < k) (hε : 0 ≤ ε) (hδ : 0 ≤ δ) (hγ : 0 ≤ γ)
     (hr : 1 / (400 * (k : ℝ)) ≤ r) :
     1 ≤ dimensionInductionError m k ε δ γ r := by
-  have hk₀ : (0 : ℝ) < k := by exact_mod_cast hk
   have hk₁ : (1 : ℝ) ≤ k := by exact_mod_cast hk
-  have hq₀ : (0 : ℝ) < 400 * (k : ℝ) := by positivity
-  have hq₁ : (1 : ℝ) ≤ 400 * (k : ℝ) := by linarith
+  have hq₀ : (0 : ℝ) < 400 * (k : ℝ) := by linarith
   have h₀ : 0 ≤ 1 / (400 * (k : ℝ)) := by positivity
-  have h₁ : 1 / (400 * (k : ℝ)) ≤ 1 := (div_le_one hq₀).2 hq₁
   have hsmall : 1 / (400 * (k : ℝ)) ≤ r ^ (1 / 128 : ℝ) := by
-    refine (le_trans ?_ (Real.rpow_le_rpow h₀ hr (by norm_num)))
+    refine le_trans ?_ (Real.rpow_le_rpow h₀ hr (by norm_num))
     simpa only [Real.rpow_one] using
-      (Real.rpow_le_rpow_of_exponent_ge' h₀ h₁ (by norm_num : 0 ≤ (1 / 128 : ℝ))
-        (by norm_num : (1 / 128 : ℝ) ≤ 1))
+      Real.rpow_le_rpow_of_exponent_ge' h₀ ((div_le_one hq₀).2 (by linarith))
+        (by norm_num : 0 ≤ (1 / 128 : ℝ))
+        (by norm_num : (1 / 128 : ℝ) ≤ 1)
   let R := inductionLossTerm ε δ γ r
   have hR : 1 / (400 * (k : ℝ)) ≤ R := by
     dsimp only [R, inductionLossTerm]

@@ -166,15 +166,13 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         rw [buf_update23_at_self _ _ _ _ _ hc.curEp_or]
         rcases hc.curEp_or with hcep | hcep <;> simp [hcep]
       rw [hbuf1_eq]
-      by_cases hst_cur : fs.locState b loc_del = 2 + fs.curEp
-      · rw [ite_eq_left hst_cur]
-        obtain ⟨hv_d, _, hia_d, _, _⟩ := hv_c.delete_spec hrk_u_lt
+      split_ifs with hst_cur
+      · obtain ⟨hv_d, _, hia_d, _, _⟩ := hv_c.delete_spec hrk_u_lt
         refine ⟨⟨_, hv_d, fun rk b' l' hne hm => ?_⟩, hia_d,
           fun k _ => bufDelete_everPresent _ _ _ _ k⟩
         have hrk_ne := fastDelete_rKey_ne hc hb hloc_del rfl hst_cur hfl_sp.2 hrel_c hne hm
         rwa [Function.update_of_ne hrk_ne]
-      · rw [ite_eq_right hst_cur]
-        exact ⟨⟨curMap, hv_c, fun _ _ _ _ h => h⟩, rfl, fun _ _ => rfl⟩
+      · exact ⟨⟨curMap, hv_c, fun _ _ _ _ h => h⟩, rfl, fun _ _ => rfl⟩
     obtain ⟨⟨m1, hv_m1, hm1_pres⟩, hia1, hev1⟩ := hbuf1_c
     have hbuf2_c :
         (fs2.buf fs.curEp).itemAlloc = (fs.buf fs.curEp).itemAlloc ∧
@@ -182,9 +180,8 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs2.buf fs.curEp) k =
             bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) k) := by
       dsimp only [fs2]
-      by_cases hlt_dl : loc_del < loc_last
-      · rw [ite_eq_left hlt_dl]
-        have hrk_last_lt : fs.rKeyAt c U n_max θ b loc_last < 2 ^ (cTabWhp c * bCharWhp n_max) := by
+      split_ifs with hlt_dl
+      · have hrk_last_lt : fs.rKeyAt c U n_max θ b loc_last < 2 ^ (cTabWhp c * bCharWhp n_max) := by
           dsimp only [FastState.rKeyAt]
           split_ifs with hu
           · exact fpReducedKey_lt c U n_max θ.2 ⟨_, hu⟩
@@ -201,9 +198,8 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           rw [hls1, hrk1, buf_update23_at_self _ _ _ _ _ hc.curEp_or]
           rcases hc.curEp_or with hcep | hcep <;> simp [hcep]
         rw [hbuf2_eq]
-        by_cases hsl_cur : fs.locState b loc_last = 2 + fs.curEp
-        · rw [ite_eq_left hsl_cur]
-          have hm_last : curMap (fs.rKeyAt c U n_max θ b loc_last) = some (b, loc_last) :=
+        split_ifs with hsl_cur
+        · have hm_last : curMap (fs.rKeyAt c U n_max θ b loc_last) = some (b, loc_last) :=
             (hrel_c.2 _ b loc_last).mpr ⟨hb, hloc_last, hsl_cur, rfl⟩
           have hm1_last := hm1_pres _ b loc_last (by omega) hm_last
           have hev_last := hv_m1.everPresent_of_map_some hrk_last_lt hm1_last
@@ -213,8 +209,8 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           split_ifs with hkr
           · subst hkr; rw [← hev1 _ hrk_last_lt, hev_last]
           · exact hev1 k hk
-        · rw [ite_eq_right hsl_cur]; exact ⟨hia1, hev1⟩
-      · rw [ite_eq_right hlt_dl]; exact ⟨hia1, hev1⟩
+        · exact ⟨hia1, hev1⟩
+      · exact ⟨hia1, hev1⟩
     -- `rebCandSalt` / `rebScanCursor` are unchanged, unless relocating `loc_last` collides in the
     -- stage-2 rebuild slice; that bumps the candidate salt, which stays below an injective salt.
     have hcand3 : (fs3.rebCandSalt = fs.rebCandSalt ∧ fs3.rebScanCursor = fs.rebScanCursor) ∨
@@ -251,13 +247,10 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         obtain ⟨_, _, _, _, _, _, hreb⟩ := hstg
         rw [hdb_eq] at hreb
         obtain ⟨hcur_r, _, rm0, hvr0, hrr0⟩ := hreb hcs_lt
-        have hroles1 : fs1.liveRole b < 3 ∧ fs1.overmarsRole b < 3 ∧
-            fs1.liveRole b ≠ fs1.overmarsRole b := hc.roles_valid b hb
-        rw [fastDeleteMoveSlices_rebSliceIdx n_max b loc_del loc_last _ fs1 hroles1] at hlk
-        have hr_eq1 : fs1.rebSliceIdx b = fs.rebSliceIdx b := rfl
-        have hfp_eq1 : fs1.fpAt c U n_max θ fs1.rebCandSalt b loc_last =
-            fs.fpAt c U n_max θ fs.rebCandSalt b loc_last := rfl
-        rw [hr_eq1, hfp_eq1] at hlk
+        rw [fastDeleteMoveSlices_rebSliceIdx n_max b loc_del loc_last _ fs1
+          (hc.roles_valid b hb)] at hlk
+        change btreeLookup _ _ _ (fs1.slices (fs.rebSliceIdx b))
+          (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) = some prev_loc at hlk
         have hins_le8 : fs.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 := by
           have hcnt3 := (hc.bktCount_le b hb).trans totalLocalCoordsWhp_le_three_mul
           have hL2 := two_le_slabScale n_max

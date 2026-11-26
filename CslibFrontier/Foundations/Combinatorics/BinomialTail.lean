@@ -83,8 +83,11 @@ theorem one_sub_mul_exp_add_mul_exp_le {p : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p �
 /-- The binomial weights `C(Q, k) p^k (1 - p)^(Q - k)` sum to `1`. -/
 theorem sum_choose_mul_pow_eq_one (Q : ℕ) (p : ℝ) :
     ∑ k ∈ range (Q + 1), (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k) = 1 := by
-  simpa [add_sub_cancel, one_pow] using
-    (sum_congr rfl fun _ _ => by ring).trans (add_pow p (1 - p) Q).symm
+  calc ∑ k ∈ range (Q + 1), (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k)
+      = ∑ k ∈ range (Q + 1), p ^ k * (1 - p) ^ (Q - k) * (Q.choose k : ℝ) :=
+          sum_congr rfl fun _ _ => by ring
+    _ = (p + (1 - p)) ^ Q := (add_pow p (1 - p) Q).symm
+    _ = 1 := by simp only [add_sub_cancel, one_pow]
 
 /-- **The centered binomial moment generating function**: summing
 `C(Q, k) p^k (1 - p)^(Q - k) exp (s (k - Q p))` over `0 ≤ k ≤ Q` factors as the `Q`-th power of
@@ -95,16 +98,24 @@ theorem sum_choose_mul_pow_mul_exp (Q : ℕ) (p s : ℝ) :
     ((1 - p) * exp (-s * p) + p * exp (s * (1 - p))) ^ Q := by
   rw [add_comm ((1 - p) * exp (-s * p)), add_pow]
   refine sum_congr rfl fun k hk => ?_
-  rw [mul_pow, mul_pow, ← exp_nat_mul, ← exp_nat_mul, mul_mul_mul_comm, ← exp_add,
-    Nat.cast_sub (Nat.lt_succ_iff.mp (mem_range.mp hk)),
-    show (k : ℝ) * (s * (1 - p)) + ((Q : ℝ) - k) * (-s * p) = s * ((k : ℝ) - Q * p) by ring]
-  ring
+  have hkQ : k ≤ Q := Nat.lt_succ_iff.mp (mem_range.mp hk)
+  rw [mul_pow, mul_pow, ← exp_nat_mul, ← exp_nat_mul]
+  calc (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k) * exp (s * ((k : ℝ) - Q * p))
+      = p ^ k * (1 - p) ^ (Q - k) * (Q.choose k : ℝ) *
+          (exp (↑k * (s * (1 - p))) * exp (↑(Q - k) * (-s * p))) := by
+        have hexp : s * ((k : ℝ) - Q * p) =
+            (k : ℝ) * (s * (1 - p)) + ((Q : ℝ) - k) * (-s * p) := by ring
+        rw [hexp, exp_add, ← Nat.cast_sub hkQ]
+        ring
+    _ = p ^ k * exp (↑k * (s * (1 - p))) *
+          ((1 - p) ^ (Q - k) * exp (↑(Q - k) * (-s * p))) * (Q.choose k : ℝ) := by ring
 
 /-- Every binomial probability weight `C(Q, k) p^k (1 - p)^(Q - k)` is nonnegative for
 `p ∈ [0, 1]`. -/
 private theorem choose_mul_pow_nonneg (Q k : ℕ) {p : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1) :
     0 ≤ (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k) := by
-  have := sub_nonneg.mpr hp₁; positivity
+  have h1p : 0 ≤ 1 - p := sub_nonneg.mpr hp₁
+  positivity
 
 /-- Express an event of the replicated Poisson-binomial law as a finite binomial sum. -/
 private theorem poissonBinomial_event_toReal (Q : ℕ) (p : unitInterval) (P : ℕ → Prop)
@@ -132,7 +143,9 @@ private theorem sum_filter_choose_mul_pow_eq_pi_toOuterMeasure (Q : ℕ) {p : �
   let q : unitInterval := ⟨p, hp₀, hp₁⟩
   let ps := List.replicate Q q
   have hevent : {f : Fin ps.length → Bool | P (∑ i, if f i then (1 : ℝ) else 0)} =
-      (fun f => ∑ i, if f i then 1 else 0) ⁻¹' {k | P ((k : ℕ) : ℝ)} := by ext; simp
+      (fun f => ∑ i, if f i then 1 else 0) ⁻¹' {k | P ((k : ℕ) : ℝ)} := by
+    ext f
+    simp
   rw [hevent, ← _root_.PMF.toOuterMeasure_map_apply,
     ← Probability.PMF.poissonBinomial_eq_map_pi ps,
     poissonBinomial_event_toReal Q q (fun k => P ((k : ℕ) : ℝ))]
@@ -219,17 +232,24 @@ theorem choose_mul_pow_le_mode {n w : ℕ} {p : ℝ} (hw : w ≤ n) (hnp : (n : 
     (n.choose k : ℝ) * p ^ k * (1 - p) ^ (n - k) ≤ n.choose w * p ^ w * (1 - p) ^ (n - w) := by
   set t : ℕ → ℝ := fun k => (n.choose k : ℝ) * p ^ k * (1 - p) ^ (n - k)
   have ht0 (j : ℕ) : 0 ≤ t j := choose_mul_pow_nonneg n j hp0 hp1
+  -- `t (k + 1) (k + 1) (1 - p) = t k (n - k) p`
   have hstep {j : ℕ} (hj : j < n) : t (j + 1) * ((j + 1) * (1 - p)) = t j * ((n - j : ℝ) * p) := by
     have hc : (n.choose (j + 1) : ℝ) * (j + 1) = n.choose j * (n - j : ℝ) := by
-      rw [← Nat.cast_sub hj.le]; exact_mod_cast Nat.choose_succ_right_eq n j
+      rw [← Nat.cast_sub hj.le]
+      exact_mod_cast Nat.choose_succ_right_eq n j
     have he : (1 - p) ^ (n - j) = (1 - p) ^ (n - (j + 1)) * (1 - p) := by
-      rw [← pow_succ]; congr 1; omega
-    dsimp only [t]; rw [he, pow_succ]
+      rw [← pow_succ]
+      congr 1
+      omega
+    dsimp only [t]
+    rw [he, pow_succ]
     linear_combination (p ^ j * p * (1 - p) ^ (n - (j + 1)) * (1 - p)) * hc
   have hup {j : ℕ} (hjw : j < w) : t j ≤ t (j + 1) := by
     have : (j : ℝ) + 1 ≤ w := by exact_mod_cast hjw
     have : (w : ℝ) ≤ n := by exact_mod_cast hw
-    have hp : 0 < p := hp0.lt_of_ne' fun h => by subst h; linarith
+    have hp : 0 < p := hp0.lt_of_ne' fun h => by
+      subst h
+      linarith
     have hpos : (0 : ℝ) < (n - j) * p := mul_pos (by linarith) hp
     have h2 := mul_le_mul_of_nonneg_left (by nlinarith : ((j : ℝ) + 1) * (1 - p) ≤ (n - j) * p)
       (ht0 (j + 1))
@@ -244,12 +264,14 @@ theorem choose_mul_pow_le_mode {n w : ℕ} {p : ℝ} (hw : w ≤ n) (hnp : (n : 
   rcases le_total k w with hkw | hwk
   · suffices ∀ d, k + d ≤ w → t k ≤ t (k + d) by
       simpa [Nat.add_sub_cancel' hkw] using this (w - k) (by omega)
-    intro d; induction d with
+    intro d
+    induction d with
     | zero => exact fun _ => le_rfl
     | succ d ih => exact fun h => (ih (by omega)).trans (hup (by omega))
   · suffices ∀ d, w + d ≤ n → t (w + d) ≤ t w by
       simpa [Nat.add_sub_cancel' hwk] using this (k - w) (by omega)
-    intro d; induction d with
+    intro d
+    induction d with
     | zero => exact fun _ => le_rfl
     | succ d ih => exact fun h => (hdown (j := w + d) (by omega) (by omega)).trans (ih (by omega))
 

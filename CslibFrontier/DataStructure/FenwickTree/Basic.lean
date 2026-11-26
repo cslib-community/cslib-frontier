@@ -112,15 +112,12 @@ theorem Valid.size_eq {α : Type*} [AddCommMonoid α] {t : FenwickTree α} {s : 
 /-- Canonical representation uniqueness: `Valid t s` uniquely determines `t`. -/
 theorem Valid.unique {α : Type*} [AddCommMonoid α]
     {t₁ t₂ : FenwickTree α} {s : List α} (h₁ : Valid t₁ s) (h₂ : Valid t₂ s) : t₁ = t₂ := by
-  cases t₁ with
-  | mk a₁ =>
-    cases t₂ with
-    | mk a₂ =>
-      congr 1
-      refine Array.ext (h₁.1.trans h₂.1.symm) fun i hi₁ hi₂ => ?_
-      have hval₁ := h₁.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₁)
-      have hval₂ := h₂.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₂)
-      simpa only [Nat.add_sub_cancel] using hval₁.trans hval₂.symm
+  rcases t₁, t₂ with ⟨⟨a₁⟩, ⟨a₂⟩⟩
+  congr 1
+  refine Array.ext (h₁.1.trans h₂.1.symm) fun i hi₁ hi₂ => ?_
+  simpa only [Nat.add_sub_cancel] using
+    (h₁.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₁)).trans
+      (h₂.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₂)).symm
 
 /-- On a natural-number Fenwick tree valid for `s`, every stored cell is at most `s.sum`. -/
 theorem Valid.getElem_le_sum {t : FenwickTree ℕ} {s : List ℕ} (hv : Valid t s)
@@ -167,18 +164,18 @@ private theorem sum_drop_take_eq_sum_Ico {α : Type*} [AddCommMonoid α]
       congr 1
       exact (List.getD_eq_getElem _ _ hrs).symm
 
+private theorem take_eq_take_append_drop {α : Type*} (s : List α) {l r : ℕ} (h : l ≤ r) :
+    s.take r = s.take l ++ (s.take r).drop l := by
+  simpa only [List.take_take, Nat.min_eq_left h] using (List.take_append_drop l (s.take r)).symm
+
 private theorem valid_iff_sum_Ico {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} :
     Valid t s ↔ t.tree.size = s.length ∧
       ∀ (m : ℕ) (_ : 1 ≤ m) (_ : m ≤ t.tree.size),
         t.tree[m - 1]'(by omega) = ∑ i ∈ Finset.Ico (m - lowbit m) m, s.getD i 0 := by
   unfold Valid
-  constructor
-  · rintro ⟨hsz, hval⟩
-    exact ⟨hsz, fun m hm1 hm => (hval m hm1 hm).trans (sum_drop_take_eq_sum_Ico s (hsz ▸ hm))⟩
-  · rintro ⟨hsz, hval⟩
-    exact ⟨hsz,
-      fun m hm1 hm => (hval m hm1 hm).trans (sum_drop_take_eq_sum_Ico s (hsz ▸ hm)).symm⟩
+  exact and_congr_right fun hsz => forall₃_congr fun m _ hm =>
+    by rw [sum_drop_take_eq_sum_Ico s (hsz ▸ hm)]
 
 /-! ## Zero-initialized Fenwick tree -/
 
@@ -229,10 +226,7 @@ private theorem prefixSumLoop_eq {α : Type*} [AddCommMonoid α]
   | case1 m acc hguard ih =>
     have hlt : m - lowbit m < m := Nat.sub_lt hguard.1 (lowbit_pos hguard.1)
     rw [ih (by omega), hv.2 m hguard.1 hguard.2]
-    have hsplit : s.take m = s.take (m - lowbit m) ++ (s.take m).drop (m - lowbit m) := by
-      have h := (List.take_append_drop (m - lowbit m) (s.take m)).symm
-      rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
-    conv_rhs => rw [hsplit, List.sum_append]
+    conv_rhs => rw [take_eq_take_append_drop s (Nat.le_of_lt hlt), List.sum_append]
     rw [add_assoc, add_comm ((s.take m).drop (m - lowbit m)).sum]
   | case2 m acc hguard =>
     obtain rfl : m = 0 := by have := hv.1; omega
@@ -354,16 +348,13 @@ theorem size_add {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (add t pos δ).size = t.size := by
   unfold add size
-  split_ifs with hpos
-  · simp only [addLoop_size]
-  · rfl
+  split_ifs <;> simp
 
 theorem add_of_size_le {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) {pos : ℕ} (δ : α) (h : t.size ≤ pos) :
     add t pos δ = t := by
-  unfold add
-  have hnot : ¬ pos < t.tree.size := by unfold size at h; omega
-  simp only [hnot, ↓reduceIte]
+  unfold add size at *
+  exact ite_eq_right (by omega)
 
 /-! ## Immediate-parent propagation construction (`buildLoop`, `ofArray`, `ofList`) -/
 
@@ -479,11 +470,8 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
         ext c
         simp only [Finset.mem_filter, Finset.mem_insert]
         grind
-      have hm_not : m ∉ (fenwickChildren p).filter (· < m) := by
-        simp only [Finset.mem_filter, Nat.lt_irrefl, and_false, not_false_eq_true]
-      rw [hfilt_eq, Finset.sum_insert hm_not, add_assoc]
-      congr 1
-      rw [add_comm]
+      rw [hfilt_eq, Finset.sum_insert (by simp), add_assoc]
+      exact congrArg (_ + ·) (add_comm _ _)
     · have htree'_ne : tree'[idx - 1]'(by omega) = tree[idx - 1]'(by omega) := by grind
       rw [htree'_ne, hinv.todo_eq idx hidx1 (by omega) hidx_sz]
       have hfilt_eq : (fenwickChildren idx).filter (· < m + 1) =
@@ -608,10 +596,7 @@ theorem rangeSum_eq {α : Type*} [AddCommGroup α]
   unfold rangeSum
   split_ifs with hlt
   · rw [prefixSum_eq hv r, prefixSum_eq hv l]
-    have hsplit : s.take r = s.take l ++ (s.take r).drop l := by
-      have h := (List.take_append_drop l (s.take r)).symm
-      rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
-    conv_lhs => rw [hsplit, List.sum_append]
+    conv_lhs => rw [take_eq_take_append_drop s (Nat.le_of_lt hlt), List.sum_append]
     exact add_sub_cancel_left _ _
   · have hdrop : (s.take r).drop l = [] :=
       List.drop_eq_nil_of_le ((List.length_take_le r s).trans (by omega))
@@ -659,16 +644,13 @@ theorem size_set {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) (pos : ℕ) (v : α) :
     (set t pos v).size = t.size := by
   unfold set
-  split_ifs with hpos
-  · exact size_add _ _ _
-  · rfl
+  split_ifs <;> simp
 
 theorem set_of_size_le {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) {pos : ℕ} (v : α) (h : t.size ≤ pos) :
     set t pos v = t := by
-  unfold set
-  have hnot : ¬ pos < t.tree.size := by unfold size at h; omega
-  simp only [hnot, ↓reduceIte]
+  unfold set size at *
+  exact ite_eq_right (by omega)
 
 end FenwickTree
 

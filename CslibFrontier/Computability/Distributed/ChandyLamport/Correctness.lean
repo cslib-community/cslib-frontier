@@ -141,46 +141,33 @@ theorem project_chan_eq_preInFlight_append_postInFlight {P S M : Type*}
   simp only [project, preInFlight, postInFlight]
   cases hmk : (S_aug.chan u v).any WireMsg.isMarker
   · cases (S_aug.proc u).snapState.isNone <;> simp
-  · simp only [↓reduceIte]
-    exact unmarker_eq_takeBeforeMarker_append_dropAfterMarker (S_aug.chan u v)
+  · simp [unmarker_eq_takeBeforeMarker_append_dropAfterMarker]
 
 private theorem preInFlight_eq_unmarker_of_unrecorded {P S M : Type*}
     {S_aug : SnapGlobalState P S M} {u v : P}
     (hunrec : (S_aug.proc u).snapState = none) (hnotm : .marker ∉ S_aug.chan u v) :
     preInFlight S_aug u v = unmarker (S_aug.chan u v) := by
-  have hany : (S_aug.chan u v).any WireMsg.isMarker = false :=
-    any_isMarker_eq_false_iff.mpr hnotm
-  rw [preInFlight, hany]
-  simp [hunrec]
+  simp [preInFlight, any_isMarker_eq_false_iff.mpr hnotm, hunrec]
 
 private theorem preInFlight_eq_nil_of_recorded_of_notMem {P S M : Type*}
     {S_aug : SnapGlobalState P S M} {u v : P}
     (hrec : (S_aug.proc u).snapState.isSome = true) (hnotm : .marker ∉ S_aug.chan u v) :
     preInFlight S_aug u v = [] := by
-  have hany : (S_aug.chan u v).any WireMsg.isMarker = false :=
-    any_isMarker_eq_false_iff.mpr hnotm
-  have hnone : (S_aug.proc u).snapState.isNone = false := by
-    cases h : (S_aug.proc u).snapState <;> simp_all
-  rw [preInFlight, hany]
-  simp [hnone]
+  cases h : (S_aug.proc u).snapState <;>
+    simp_all [preInFlight, any_isMarker_eq_false_iff.mpr hnotm]
 
 private theorem postInFlight_eq_nil_of_unrecorded {P S M : Type*}
     {S_aug : SnapGlobalState P S M} {u v : P}
     (hunrec : (S_aug.proc u).snapState = none) (hnotm : .marker ∉ S_aug.chan u v) :
     postInFlight S_aug u v = [] := by
-  have hany : (S_aug.chan u v).any WireMsg.isMarker = false :=
-    any_isMarker_eq_false_iff.mpr hnotm
-  rw [postInFlight, hany]
-  simp [hunrec]
+  simp [postInFlight, any_isMarker_eq_false_iff.mpr hnotm, hunrec]
 
 private lemma preInFlight_of_recorded {P S M : Type*}
     {S_aug : SnapGlobalState P S M} {u v : P}
     (hrec : (S_aug.proc u).snapState.isSome = true) :
     preInFlight S_aug u v =
       if (S_aug.chan u v).any WireMsg.isMarker then takeBeforeMarker (S_aug.chan u v) else [] := by
-  have hnone : (S_aug.proc u).snapState.isNone = false := by
-    cases h : (S_aug.proc u).snapState <;> simp_all
-  simp [preInFlight, hnone]
+  cases h : (S_aug.proc u).snapState <;> simp_all [preInFlight]
 
 private lemma postInFlight_of_recorded {P S M : Type*}
     {S_aug : SnapGlobalState P S M} {u v : P}
@@ -188,9 +175,7 @@ private lemma postInFlight_of_recorded {P S M : Type*}
     postInFlight S_aug u v =
       if (S_aug.chan u v).any WireMsg.isMarker then dropAfterMarker (S_aug.chan u v)
       else unmarker (S_aug.chan u v) := by
-  have hnone : (S_aug.proc u).snapState.isNone = false := by
-    cases h : (S_aug.proc u).snapState <;> simp_all
-  simp [postInFlight, hnone]
+  cases h : (S_aug.proc u).snapState <;> simp_all [postInFlight]
 
 /-! ### Private ghost cut structures for the permutation proof -/
 
@@ -285,8 +270,7 @@ theorem preRecv_pops_preInFlight [DecidableEq P] [DecidableRel sys.graph.Adj]
     | some _ =>
       rcases hinv.recordedSrc src dest (by simp [hsrc]) hadj with ⟨hm, _⟩ | ⟨_, hv_some, _⟩
       · exact absurd hm hnotm
-      · rw [hpre_dest] at hv_some
-        simp at hv_some
+      · simp [hpre_dest] at hv_some
   · exact ⟨takeBeforeMarker ws, by simp [hch, takeBeforeMarker]⟩
 
 /-- **`chanRec` captures the exact pre-snapshot sends received post-snapshot:** when an
@@ -313,32 +297,24 @@ theorem postRecv_records_iff_preInFlight [DecidableEq P] [DecidableRel sys.graph
     obtain ⟨buf, hbuf⟩ := hrec hpost_dest hadj
     have hpre_eq : preInFlight S₁ src dest = msg :: unmarker ws := by
       rw [preInFlight_eq_unmarker_of_unrecorded hsrc hnotm, hch, unmarker_cons_app]
-    left
-    refine ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
+    refine Or.inl ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
     simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hbuf, ChannelRec.recordApp,
       ChannelRec.msgs]
   | some _ =>
     have hsrc_some : (S₁.proc src).snapState.isSome = true := by simp [hsrc]
     rcases hinv.recordedSrc src dest hsrc_some hadj with ⟨hmem, hrec⟩ | ⟨hnotm, _, ⟨sv, hsv⟩⟩
     · obtain ⟨buf, hbuf⟩ := hrec hpost_dest
-      have hany : (S₁.chan src dest).any WireMsg.isMarker = true :=
-        any_isMarker_eq_true_iff.mpr hmem
       have hpre_eq : preInFlight S₁ src dest = msg :: takeBeforeMarker ws := by
-        rw [preInFlight_of_recorded hsrc_some, hany, hch]
+        rw [preInFlight_of_recorded hsrc_some, any_isMarker_eq_true_iff.mpr hmem, hch]
         rfl
-      left
-      refine ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
+      refine Or.inl ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
       simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hbuf, ChannelRec.recordApp,
         ChannelRec.msgs]
-    · have hany : (S₁.chan src dest).any WireMsg.isMarker = false :=
-        any_isMarker_eq_false_iff.mpr hnotm
-      have hpre_eq : preInFlight S₁ src dest = [] :=
-        preInFlight_eq_nil_of_recorded_of_notMem hsrc_some hnotm
-      have hpost_eq : postInFlight S₁ src dest = msg :: unmarker ws := by
-        rw [postInFlight_of_recorded hsrc_some, hany]
-        simp [hch]
-      right
-      refine ⟨hpre_eq, by simp [hpost_eq], ?_⟩
+    · have hpost_eq : postInFlight S₁ src dest = msg :: unmarker ws := by
+        rw [postInFlight_of_recorded hsrc_some, any_isMarker_eq_false_iff.mpr hnotm, hch]
+        rfl
+      refine Or.inr ⟨preInFlight_eq_nil_of_recorded_of_notMem hsrc_some hnotm,
+        by simp [hpost_eq], ?_⟩
       simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hsv, ChannelRec.recordApp,
         ChannelRec.msgs]
 
@@ -377,34 +353,21 @@ private lemma cutTr_preserves_valid [DecidableEq P] {C₁ C₂ : CutState P S M}
   cases st with
   | pre e =>
     rcases htr with ⟨⟨_, hstep⟩, hact_none, hsnap, hpost, _, hpre⟩
-    refine ⟨?_, ?_⟩
-    · intro u v
-      rw [hstep, GlobalState.applyEvent_chan, hchan₁ u v, (hpre u v).2, hpost]
-      by_cases hp : e.popsFrom u v <;> rcases eq_or_ne u e.actor with rfl | hu <;>
-        simp [List.tail_append_of_ne_nil, fun u => (hpre u v).1, hunrec₁ _ v hact_none, *]
-    · intro u v hu
-      rw [hpost]
-      exact hunrec₁ u v (hsnap ▸ hu)
+    refine ⟨fun u v => ?_, fun u v hu => hpost ▸ hunrec₁ u v (hsnap ▸ hu)⟩
+    rw [hstep, GlobalState.applyEvent_chan, hchan₁ u v, (hpre u v).2, hpost]
+    by_cases hp : e.popsFrom u v <;> rcases eq_or_ne u e.actor with rfl | hu <;>
+      simp [List.tail_append_of_ne_nil, fun u => (hpre u v).1, hunrec₁ _ v hact_none, *]
   | cross p =>
     rcases htr with ⟨_, hC₂s, hsnap, hpre, hpost, _⟩
-    refine ⟨fun u v => by rw [hC₂s, hpre, hpost]; exact hchan₁ u v, fun u v hu => ?_⟩
+    refine ⟨fun u v => by rw [hC₂s, hpre, hpost, hchan₁], fun u v hu => ?_⟩
     rw [hpost]
-    rw [hsnap] at hu
-    rcases eq_or_ne u p with rfl | hup
-    · simp at hu
-    · exact hunrec₁ u v (by simpa [hup] using hu)
+    rcases eq_or_ne u p with rfl | hup <;> simp_all
   | post e =>
     rcases htr with ⟨⟨_, hstep⟩, hact_some, hsnap, hpre, hpost, _⟩
-    refine ⟨?_, ?_⟩
-    · intro u v
-      rw [hstep, GlobalState.applyEvent_chan, hchan₁ u v, hpre u v, hpost u v]
-      by_cases hp : e.popsFrom u v
-      · cases hpc : C₁.preChan u v with
-        | nil => simp [hp]
-        | cons h t => simp [hp, List.append_assoc]
-      · simp [hp, List.append_assoc]
-    · intro u v hu
-      rw [hsnap] at hu
+    refine ⟨fun u v => ?_, fun u v hu => ?_⟩
+    · rw [hstep, GlobalState.applyEvent_chan, hchan₁ u v, hpre u v, hpost u v]
+      cases C₁.preChan u v <;> by_cases hp : e.popsFrom u v <;> simp [hp, List.append_assoc]
+    · rw [hsnap] at hu
       have hue : u ≠ e.actor := by rintro rfl; simp [hu] at hact_some
       simp [hpost u v, hunrec₁ u v hu, hue]
 
@@ -420,17 +383,11 @@ private lemma pre_post_emit_marker [DecidableRel sys.graph.Adj]
     postInFlight S₂ u v = postInFlight S₁ u v := by
   have hnotm := (hinv.unrecordedSrc u v hunrec).1
   rw [preInFlight_eq_unmarker_of_unrecorded hunrec hnotm, preInFlight_of_recorded hrec₂,
-    postInFlight_eq_nil_of_unrecorded hunrec hnotm, postInFlight_of_recorded hrec₂]
+    postInFlight_eq_nil_of_unrecorded hunrec hnotm, postInFlight_of_recorded hrec₂, hch]
   by_cases hadj : sys.graph.Adj u v
-  · have hch₂ : S₂.chan u v = S₁.chan u v ++ [.marker] := by simpa [hadj] using hch
-    have hany₂ : (S₂.chan u v).any WireMsg.isMarker = true := by
-      rw [hch₂]; exact any_isMarker_eq_true_iff.mpr (by simp)
-    rw [hany₂, hch₂]
-    exact ⟨by simp [takeBeforeMarker_append_marker_of_notMem hnotm],
-      by simp [dropAfterMarker_append_marker_of_notMem hnotm]⟩
-  · have hch₁ := (hinv.nonEdge u v hadj).1
-    have hch₂ : S₂.chan u v = [] := by simpa [hadj, hch₁] using hch
-    simp [hch₁, hch₂]
+  · simp [hadj, takeBeforeMarker_append_marker_of_notMem hnotm,
+      dropAfterMarker_append_marker_of_notMem hnotm]
+  · simp [hadj, (hinv.nonEdge u v hadj).1]
 
 private lemma pre_post_pop_marker {P S M : Type*}
     {S₁ S₂ : SnapGlobalState P S M} {u v : P} {t_sd : List (WireMsg M)}
@@ -441,16 +398,10 @@ private lemma pre_post_pop_marker {P S M : Type*}
     (hnotm_tail : .marker ∉ t_sd) :
     preInFlight S₂ u v = preInFlight S₁ u v ∧
     postInFlight S₂ u v = postInFlight S₁ u v := by
-  have hany₁ : (S₁.chan u v).any WireMsg.isMarker = true :=
-    any_isMarker_eq_true_iff.mpr (by simp [ht_sd])
-  have hany₂ : (S₂.chan u v).any WireMsg.isMarker = false := by
-    rw [hch₂]; exact any_isMarker_eq_false_iff.mpr hnotm_tail
-  refine ⟨?_, ?_⟩
-  · rw [preInFlight_eq_nil_of_recorded_of_notMem hu₂ (hch₂ ▸ hnotm_tail),
-      preInFlight_of_recorded hu₁, hany₁, ht_sd]
-    rfl
-  · rw [postInFlight_of_recorded hu₂, hany₂, hch₂, postInFlight_of_recorded hu₁, hany₁, ht_sd]
-    rfl
+  exact ⟨by simp [preInFlight_eq_nil_of_recorded_of_notMem hu₂ (hch₂ ▸ hnotm_tail),
+      preInFlight_of_recorded hu₁, ht_sd, takeBeforeMarker],
+    by simp [postInFlight_of_recorded hu₂, postInFlight_of_recorded hu₁, hch₂, ht_sd,
+      any_isMarker_eq_false_iff.mpr hnotm_tail, dropAfterMarker]⟩
 
 private lemma pre_post_congr {P S M : Type*} {S₁ S₂ : SnapGlobalState P S M} {u v : P}
     (hproc : (S₂.proc u).snapState = (S₁.proc u).snapState)
@@ -477,14 +428,12 @@ private lemma ofSnap_step_initiate [DecidableEq P] [DecidableRel sys.graph.Adj]
   refine ⟨hen', hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
-    simp only [ofSnap, stepSnap, applyInitiate]
-    rcases eq_or_ne r p with rfl | hr <;> simp_all [project]
+    by_cases hr : r = p <;> simp [ofSnap, stepSnap, applyInitiate, project, hr]
   · funext u v
-    simp only [ofSnap, stepSnap, applyInitiate]
     rcases eq_or_ne v p with rfl | hv
-    · rw [hen']
-      by_cases hadj : sys.graph.Adj u v <;> simp [hadj, ChannelRec.msgs]
-    · simp [hv]
+    · by_cases hadj : sys.graph.Adj u v <;>
+        simp [ofSnap, stepSnap, applyInitiate, hen', hadj, ChannelRec.msgs]
+    · simp [ofSnap, stepSnap, applyInitiate, hv]
 
 private lemma ofSnap_step_recvMarker_none [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S₁ : SnapGlobalState P S M} {src dest : P} (hinv : sys.SnapInv S₁)
@@ -516,14 +465,12 @@ private lemma ofSnap_step_recvMarker_none [DecidableEq P] [DecidableRel sys.grap
   refine ⟨hdest, hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
-    simp only [ofSnap, stepSnap, applyRecvMarker, hdest]
-    rcases eq_or_ne r dest with rfl | hr <;> simp_all [project]
+    by_cases hr : r = dest <;> simp [ofSnap, stepSnap, applyRecvMarker, hdest, project, hr]
   · funext u v
-    simp only [ofSnap, stepSnap, applyRecvMarker, hdest]
     rcases eq_or_ne v dest with rfl | hv
-    · rw [hdest]
-      by_cases h : u = src ∨ ¬ sys.graph.Adj u v <;> simp [h, ChannelRec.msgs]
-    · simp [hv]
+    · by_cases h : u = src ∨ ¬ sys.graph.Adj u v <;>
+        simp [ofSnap, stepSnap, applyRecvMarker, hdest, h, ChannelRec.msgs]
+    · simp [ofSnap, stepSnap, applyRecvMarker, hdest, hv]
 
 private lemma ofSnap_step_recvMarker_some [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S₁ : SnapGlobalState P S M} {src dest : P} {s_d : S} (hinv : sys.SnapInv S₁)
@@ -549,10 +496,10 @@ private lemma ofSnap_step_recvMarker_some [DecidableEq P] [DecidableRel sys.grap
     (funext fun u => funext fun v => (hboth u v).1)
     (funext fun u => funext fun v => (hboth u v).2)
   funext u v
-  simp only [ofSnap, stepSnap, applyRecvMarker, hdest]
   rcases eq_or_ne v dest with rfl | hv
-  · rcases eq_or_ne u src with rfl | husrc <;> simp_all [ChannelRec.msgs]
-  · simp [hv]
+  · by_cases hu : u = src <;>
+      simp [ofSnap, stepSnap, applyRecvMarker, hdest, hu, ChannelRec.msgs]
+  · simp [ofSnap, stepSnap, applyRecvMarker, hdest, hv]
 
 /-! #### Channel evolution helpers for `.app e` transitions -/
 
@@ -583,9 +530,7 @@ private lemma applyApp_snapState {P S M : Type*} [DecidableEq P]
     ((S₁.applyApp e).proc r).snapState = (S₁.proc r).snapState := by
   cases e with
   | internal p _ _ | recv _ p _ _ _ =>
-    rcases eq_or_ne r p with rfl | hr
-    · simp only [SnapGlobalState.applyApp, ↓reduceIte]
-    · simp only [SnapGlobalState.applyApp, hr, ↓reduceIte]
+    by_cases hr : r = p <;> simp only [SnapGlobalState.applyApp, hr, ↓reduceIte]
 
 private lemma applyApp_chan {P S M : Type*} [DecidableEq P]
     (S₁ : SnapGlobalState P S M) (e : Event P S M) (u v : P) :
@@ -626,14 +571,12 @@ private lemma ofSnap_step_app_pre [DecidableEq P] [DecidableRel sys.graph.Adj]
       by_cases hv : v = dest <;> simp [SnapGlobalState.applyApp, hv, hact]
   have hpop_info : ∀ u v, e.popsFrom u v →
       ∃ msg ws, S₁.chan u v = .app msg :: ws ∧
-        ∃ t_pre, preInFlight S₁ u v = msg :: t_pre := by
-    intro u v hp
-    cases e with
-    | internal _ _ _ => exact False.elim hp
-    | recv src dest msg st' sent =>
-      rcases hp with ⟨rfl, rfl⟩
-      obtain ⟨ws, hws⟩ := List.head?_eq_some_iff.mp hen.2.1
-      exact ⟨msg, ws, hws, sys.preRecv_pops_preInFlight hinv ⟨hen, rfl⟩ hact⟩
+        ∃ t_pre, preInFlight S₁ u v = msg :: t_pre :=
+    match e, hen, hact with
+    | .internal _ _ _, _, _ => fun _ _ hp => hp.elim
+    | .recv _ _ msg _ _, hen, hact => fun _ _ ⟨rfl, rfl⟩ =>
+      let ⟨ws, hws⟩ := List.head?_eq_some_iff.mp hen.2.1
+      ⟨msg, ws, hws, sys.preRecv_pops_preInFlight hinv ⟨hen, rfl⟩ hact⟩
   have hboth : ∀ u v,
       postInFlight (S₁.applyApp e) u v = postInFlight S₁ u v ∧
       preInFlight (S₁.applyApp e) u v =
@@ -682,14 +625,10 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
     CutTr sys (ofSnap S₁) (.post e) (ofSnap (sys.stepSnap S₁ (.app e))) := by
   obtain ⟨htr_proj, hsnap_eq⟩ := sys.applyApp_proj_snap hen
   change CutTr sys (ofSnap S₁) (.post e) (ofSnap (S₁.applyApp e))
-  have hpop_ws : ∀ u v, e.popsFrom u v → ∃ msg ws, S₁.chan u v = .app msg :: ws := by
-    intro u v hp
-    cases e with
-    | internal _ _ _ => exact False.elim hp
-    | recv src dest msg _ _ =>
-      rcases hp with ⟨rfl, rfl⟩
-      obtain ⟨ws, hws⟩ := List.head?_eq_some_iff.mp hen.2.1
-      exact ⟨msg, ws, hws⟩
+  have hpop_ws : ∀ u v, e.popsFrom u v → ∃ msg ws, S₁.chan u v = .app msg :: ws :=
+    match e, hen with
+    | .internal _ _ _, _ => fun _ _ hp => hp.elim
+    | .recv _ _ msg _ _, hen => fun _ _ ⟨rfl, rfl⟩ => ⟨msg, List.head?_eq_some_iff.mp hen.2.1⟩
   have hboth : ∀ u v,
       preInFlight (S₁.applyApp e) u v =
         (if e.popsFrom u v then (preInFlight S₁ u v).tail else preInFlight S₁ u v) ∧
@@ -720,7 +659,6 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
       cases hmk : (S₁.chan u v).any WireMsg.isMarker
       · simp only [Bool.false_eq_true, ↓reduceIte, and_true, hch_eq, unmarker_append,
           unmarker_map_app]
-        refine ⟨by simp, ?_⟩
         by_cases hp : e.popsFrom u v
         · obtain ⟨msg, ws, hws⟩ := hpop_ws u v hp
           simp [base, hp, hws]
@@ -745,29 +683,24 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
   refine ⟨htr_proj, hact, hsnap_eq, fun u v => (hboth u v).1, fun u v => (hboth u v).2, ?_⟩
   · -- `recBuf` update
     intro u v
+    simp only [ofSnap, applyApp_snapState, Event.popsFrom]
     cases e with
     | internal p st' sent =>
-      by_cases hv : v = p <;> simp [ofSnap, Event.popsFrom, SnapGlobalState.applyApp, hv]
+      by_cases hv : v = p <;> simp [SnapGlobalState.applyApp, hv]
     | recv src dest msg st' sent =>
       simp only [Event.actor] at hact
       have hpost_rec := sys.postRecv_records_iff_preInFlight hinv ⟨hen, rfl⟩ hact
-      simp only [ofSnap, Event.popsFrom]
       by_cases hsd : u = src ∧ v = dest
       · rcases hsd with ⟨rfl, rfl⟩
-        have hv_some :
-            (((S₁.applyApp (.recv u v msg st' sent)).proc v).snapState).isSome = true := by
-          simp [SnapGlobalState.applyApp, hact]
-        simp only [and_self, ↓reduceIte, hv_some, hact]
+        simp only [and_self, ↓reduceIte, hact]
         rcases hpost_rec with ⟨_, hhead_pre, hmsgs⟩ | ⟨heq_nil, _, hmsgs⟩
         · obtain ⟨t_p, ht_p⟩ := List.head?_eq_some_iff.mp hhead_pre
-          dsimp only [stepSnap] at hmsgs
-          simp [ht_p, hmsgs]
-        · dsimp only [stepSnap] at hmsgs
-          simp [heq_nil, hmsgs]
+          simpa [stepSnap, ht_p] using hmsgs
+        · simpa [stepSnap, heq_nil] using hmsgs
       · simp only [hsd, ↓reduceIte]
         rcases eq_or_ne v dest with rfl | hv
-        · have hu : u ≠ src := fun h => hsd ⟨h, rfl⟩
-          simp only [SnapGlobalState.applyApp, hact, hu, ↓reduceIte]
+        · simp only [SnapGlobalState.applyApp, hact, show u ≠ src from fun h => hsd ⟨h, rfl⟩,
+            ↓reduceIte]
         · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
 
 /-! #### Adjacent inversion swaps in `CutMTr` -/
@@ -782,8 +715,7 @@ private lemma swap_cross_pre [DecidableEq P] {C₀ C₁ C₂ : CutState P S M}
   have hep : e.actor ≠ p := by rintro h; simp [h] at he_none
   have hC₀_e_none : C₀.snapProc e.actor = none := by simpa [hep] using he_none
   have hproc_p : C₂.s.proc p = C₀.s.proc p := by
-    rw [htr_e.2, hC₁s, GlobalState.applyEvent_proc]
-    simp [hep.symm]
+    simp [htr_e.2, hC₁s, GlobalState.applyEvent_proc, hep.symm]
   let C₁' : CutState P S M :=
     { s := C₂.s
       snapProc := C₀.snapProc
@@ -807,8 +739,7 @@ private lemma swap_post_cross [DecidableEq P] {C₀ C₁ C₂ : CutState P S M}
   have hC₀_q_none : C₀.snapProc q = none := hC₁snap ▸ hq_none
   have heq : e.actor ≠ q := by rintro rfl; simp [hC₀_q_none] at he_some
   have hproc_q : C₁.s.proc q = C₀.s.proc q := by
-    rw [htr_e.2, GlobalState.applyEvent_proc]
-    simp [heq.symm]
+    simp [htr_e.2, GlobalState.applyEvent_proc, heq.symm]
   let C₁' : CutState P S M :=
     { s := C₀.s
       snapProc := C₂.snapProc
@@ -1014,41 +945,30 @@ private lemma cutMTr_cross_props [DecidableEq P] {C₁ C₂ : CutState P S M}
     C₂.postChan = C₁.postChan ∧
     C₂.recBuf = C₁.recBuf ∧
     ∀ p, C₁.snapProc p = none → ∀ s_p, C₂.snapProc p = some s_p → C₁.s.proc p = s_p := by
-  induction ps generalizing C₁ with
+  suffices ∀ (qs : List P) (C : CutState P S M), CutMTr sys C (qs.map CutStep.cross) C₂ →
+      C₂.s = C.s ∧ C₂.preChan = C.preChan ∧ C₂.postChan = C.postChan ∧
+      C₂.recBuf = C.recBuf ∧ ∀ p, C₂.snapProc p = C.snapProc p ∨
+        (C.snapProc p = none ∧ C₂.snapProc p = some (C.s.proc p)) by
+    obtain ⟨hs, hpre, hpost, hrec, hsnap⟩ := this ps C₁ hmtr
+    refine ⟨hs, hpre, hpost, hrec, fun p hnone s_p hsome => ?_⟩
+    rcases hsnap p with heq | ⟨_, heq⟩
+    · simp [heq, hnone] at hsome
+    · exact Option.some.inj (heq.symm.trans hsome)
+  intro qs
+  induction qs with
   | nil =>
-    cases hmtr
-    exact ⟨rfl, rfl, rfl, rfl, fun p hnone s_p hsome => by simp [hnone] at hsome⟩
-  | cons q ps ih =>
-    cases hmtr with
-    | @stepL _ _ Cm _ _ htr hrest =>
-      rcases htr with ⟨_, hCms, hCmsnap, hCmpre, hCmpost, hCmrec⟩
-      obtain ⟨hs, hpre, hpost, hrec, hproc⟩ := ih hrest
-      refine ⟨hs.trans hCms, hpre.trans hCmpre, hpost.trans hCmpost, hrec.trans hCmrec, ?_⟩
-      intro p hp_none s_p hp_some
-      rcases eq_or_ne p q with rfl | hpq
-      · have hconst : ∀ {Ca Cb : CutState P S M} {qs : List P},
-            CutMTr sys Ca (qs.map CutStep.cross) Cb →
-            ∀ v, Ca.snapProc p = some v → Cb.snapProc p = some v := by
-          intro Ca Cb qs hm v hv
-          induction qs generalizing Ca with
-          | nil => cases hm; exact hv
-          | cons r qs ihq =>
-            cases hm with
-            | stepL ht hr =>
-              have hpr : p ≠ r := by
-                intro h; subst h; rw [ht.1] at hv; cases hv
-              apply ihq hr
-              rw [ht.2.2.1]
-              simpa [hpr] using hv
-        have heq_some : C₂.snapProc p = some (C₁.s.proc p) :=
-          hconst hrest (C₁.s.proc p) (by simp [hCmsnap])
-        rw [hp_some] at heq_some
-        exact Option.some.inj heq_some.symm
-      · have hCm_p_none : Cm.snapProc p = none := by
-          rw [hCmsnap]
-          simpa [hpq] using hp_none
-        rw [← hCms]
-        exact hproc p hCm_p_none s_p hp_some
+    intro C hm
+    cases hm
+    exact ⟨rfl, rfl, rfl, rfl, fun _ => Or.inl rfl⟩
+  | cons q qs ih =>
+    rintro C (_ | ⟨⟨hq_none, hCms, hCmsnap, hCmpre, hCmpost, hCmrec⟩, hrest⟩)
+    obtain ⟨hs, hpre, hpost, hrec, hsnap⟩ := ih _ hrest
+    refine ⟨hs.trans hCms, hpre.trans hCmpre, hpost.trans hCmpost, hrec.trans hCmrec, fun p => ?_⟩
+    rcases eq_or_ne p q with rfl | hpq
+    · rcases hsnap p with heq | ⟨hnone, _⟩
+      · exact Or.inr ⟨hq_none, by simpa [hCmsnap] using heq⟩
+      · simp [hCmsnap] at hnone
+    · simpa [hCms, hCmsnap, hpq] using hsnap p
 
 private lemma cutMTr_post_props [DecidableEq P] {C₂ C₃ : CutState P S M}
     {es : List (Event P S M)} (hmtr : CutMTr sys C₂ (es.map CutStep.post) C₃) :
@@ -1106,22 +1026,14 @@ theorem chandyLamport_perm_mTr [DecidableEq P] [DecidableRel sys.graph.Adj]
       rw [hC₁_proc_eq p (hC₁_snap ▸ hpre.1 p) s_p (hCf_snap ▸ hs_p)]
       simp [extractSnapshot, hs_p]
     · funext u v
-      have hpost_init : (ofSnap S_init).postChan u v = [] :=
-        postInFlight_eq_nil_of_unrecorded (hpre.1 u) (hpre.2.1 u v)
       have hC₁_chan : C₁.s.chan u v = C₁.preChan u v := by
-        rw [hv₁.1 u v, hC₁_post, hpost_init, List.append_nil]
-      have hC₂_rec_nil : C₂.recBuf u v = [] := by
-        rw [hC₂_rec, hC₁_rec]
-        simp [ofSnap, hpre.1 v]
-      have hCf_pre_nil : (ofSnap S_final).preChan u v = [] :=
+        simp [hv₁.1 u v, hC₁_post, ofSnap,
+          postInFlight_eq_nil_of_unrecorded (hpre.1 u) (hpre.2.1 u v)]
+      have hCf_pre : preInFlight S_final u v = [] :=
         preInFlight_eq_nil_of_recorded_of_notMem (hcomp.1 u)
           (sys.isSnapshotComplete_no_markers hinv_f hcomp u v)
-      have hCf_rec : (ofSnap S_final).recBuf u v = ((S_final.proc v).chanRec u).msgs := by
-        simp [ofSnap, hcomp.1 v]
-      have hinv_eq := hbuf_inv u v
-      rw [hCf_pre_nil, List.append_nil, hCf_rec, hC₂_rec_nil, List.nil_append, hC₂_pre,
-        ← hC₁_chan] at hinv_eq
-      exact hinv_eq.symm
+      simpa [extractSnapshot, ofSnap, hCf_pre, hcomp.1 v, hC₂_rec, hC₁_rec, hpre.1 v, hC₂_pre,
+        ← hC₁_chan] using (hbuf_inv u v).symm
   rw [← hC₁_eq]
   exact ⟨hmtr_pre, hC₂_s ▸ hmtr_post, hperm⟩
 
@@ -1280,32 +1192,25 @@ private lemma chan_append_of_not_deliversOn [DecidableEq P] [DecidableRel sys.gr
   cases a with
   | stutter => exact ⟨[], by simp [stepSnap]⟩
   | initiateSnapshot r =>
-    simp only [stepSnap, applyInitiate]
-    by_cases h : q = r ∧ sys.graph.Adj r p
-    · exact ⟨[WireMsg.marker], by simp [h]⟩
-    · exact ⟨[], by simp [h]⟩
+    refine ⟨if q = r ∧ sys.graph.Adj r p then [.marker] else [], ?_⟩
+    by_cases h : q = r ∧ sys.graph.Adj r p <;> simp [stepSnap, applyInitiate, h]
   | recvMarker src dest =>
     have hne_sd : ¬ (q = src ∧ p = dest) := fun ⟨h₁, h₂⟩ => hnd ⟨h₁.symm, h₂.symm⟩
     simp only [stepSnap, applyRecvMarker]
     cases (S₁.proc dest).snapState
     · simp only [hne_sd, ↓reduceIte]
-      by_cases h : q = dest ∧ sys.graph.Adj dest p
-      · exact ⟨[WireMsg.marker], by simp [h]⟩
-      · exact ⟨[], by simp [h]⟩
+      refine ⟨if q = dest ∧ sys.graph.Adj dest p then [.marker] else [], ?_⟩
+      by_cases h : q = dest ∧ sys.graph.Adj dest p <;> simp [h]
     · exact ⟨[], by simp [hne_sd]⟩
   | app e =>
     cases e with
     | internal r st' sent =>
-      simp only [stepSnap, SnapGlobalState.applyApp]
-      rcases eq_or_ne q r with rfl | hqr
-      · exact ⟨(outgoingTo sent p).map WireMsg.app, by simp⟩
-      · exact ⟨[], by simp [hqr]⟩
+      refine ⟨if q = r then (outgoingTo sent p).map WireMsg.app else [], ?_⟩
+      by_cases h : q = r <;> simp [stepSnap, SnapGlobalState.applyApp, h]
     | recv src dest msg st' sent =>
       have hne_sd : ¬ (q = src ∧ p = dest) := fun ⟨h₁, h₂⟩ => hnd ⟨h₁.symm, h₂.symm⟩
-      simp only [stepSnap, SnapGlobalState.applyApp, hne_sd, ↓reduceIte]
-      rcases eq_or_ne q dest with rfl | hqd
-      · exact ⟨(outgoingTo sent p).map WireMsg.app, by simp⟩
-      · exact ⟨[], by simp [hqd]⟩
+      refine ⟨if q = dest then (outgoingTo sent p).map WireMsg.app else [], ?_⟩
+      by_cases h : q = dest <;> simp_all [stepSnap, SnapGlobalState.applyApp]
 
 private lemma chan_append_of_deliversOn [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S₁ S₂ : SnapGlobalState P S M} {a : SnapEvent P S M} {q p : P}
@@ -1313,26 +1218,21 @@ private lemma chan_append_of_deliversOn [DecidableEq P] [DecidableRel sys.graph.
     ∃ extra, S₂.chan q p = (S₁.chan q p).tail ++ extra := by
   obtain ⟨_, rfl⟩ := htr
   cases a with
-  | stutter => exact False.elim hd
-  | initiateSnapshot _ => exact False.elim hd
+  | stutter | initiateSnapshot _ => exact False.elim hd
   | recvMarker u v =>
     rcases hd with ⟨rfl, rfl⟩
     dsimp only [stepSnap, applyRecvMarker]
     cases (S₁.proc v).snapState
-    · simp only [and_self, ↓reduceIte]
-      by_cases h : u = v ∧ sys.graph.Adj v v
-      · exact ⟨[WireMsg.marker], by simp [h]⟩
-      · exact ⟨[], by simp [h]⟩
+    · refine ⟨if u = v ∧ sys.graph.Adj v v then [.marker] else [], ?_⟩
+      by_cases h : u = v ∧ sys.graph.Adj v v <;> simp [h]
     · exact ⟨[], by simp⟩
   | app e =>
     cases e with
     | internal _ _ _ => exact False.elim hd
     | recv u v msg st' sent =>
       rcases hd with ⟨rfl, rfl⟩
-      simp only [stepSnap, SnapGlobalState.applyApp, and_self, ↓reduceIte]
-      rcases eq_or_ne u v with rfl | hqp
-      · exact ⟨(outgoingTo sent u).map WireMsg.app, by simp⟩
-      · exact ⟨[], by simp [hqp]⟩
+      refine ⟨if u = v then (outgoingTo sent u).map WireMsg.app else [], ?_⟩
+      by_cases h : u = v <;> simp [stepSnap, SnapGlobalState.applyApp, h]
 
 private lemma chan_prefix_until_delivery [DecidableEq P] [DecidableRel sys.graph.Adj]
     {ss : ωSequence (SnapGlobalState P S M)} {xs : ωSequence (SnapEvent P S M)}
@@ -1573,45 +1473,30 @@ private lemma drainEdges_spec {P S M : Type*} [DecidableEq P]
     exact ⟨.refl, hwf, fun _ _ hm => False.elim (List.not_mem_nil hm)⟩
   | cons hd es ih =>
     rcases hd with ⟨u, v⟩
-    dsimp only [drainEdges]
-    by_cases hadj : sys.graph.Adj u v
-    · simp only [hadj, ↓reduceDIte]
-      cases hdel : deliverHeadStep sys hinp S_aug u v hadj with
-      | none =>
-        have hempty : S_aug.chan u v = [] := by
-          by_contra hne
-          obtain ⟨_, _, hsome, -⟩ := deliverHeadStep_spec sys hinp hadj hne
-          simp [hdel] at hsome
-        obtain ⟨hmtr, hwf', hmem⟩ := ih S_aug hwf
-        refine ⟨hmtr, hwf', fun src dest hin hne => ?_⟩
-        rcases List.mem_cons.mp hin with heq | hin'
-        · cases heq; exact absurd hempty hne
-        · exact hmem src dest hin' hne
-      | some aS =>
-        rcases aS with ⟨a₀, S₁⟩
-        obtain ⟨a', S₁', hsome, htr₀, hdel₀⟩ := deliverHeadStep_spec sys hinp (S_aug := S_aug) hadj
-          fun he => by simp [deliverHeadStep, he] at hdel
-        simp only [hdel, Option.some.injEq, Prod.mk.injEq] at hsome
-        obtain ⟨rfl, rfl⟩ := hsome
-        have hwf₁ : sys.WellFormedSnapChan S₁ :=
-          sys.wellFormedSnapChan_mTr (LTS.MTr.single sys.snapLts htr₀) hwf
-        obtain ⟨hmtr, hwf₂, hmem⟩ := ih S₁ hwf₁
-        refine ⟨.stepL htr₀ hmtr, hwf₂, fun src dest hin hne => ?_⟩
-        rcases List.mem_cons.mp hin with heq | hin'
-        · cases heq; exact ⟨a₀, List.mem_cons_self, hdel₀⟩
-        by_cases hd : a₀.deliversOn src dest
-        · exact ⟨a₀, List.mem_cons_self, hd⟩
-        obtain ⟨extra, hex⟩ := sys.chan_append_of_not_deliversOn htr₀ hd
-        obtain ⟨a₂, ha₂, hdel₂⟩ :=
-          hmem src dest hin' (hex ▸ List.append_ne_nil_of_left_ne_nil hne extra)
-        exact ⟨a₂, List.mem_cons_of_mem a₀ ha₂, hdel₂⟩
-    · simp only [hadj, ↓reduceDIte]
+    by_cases hempty : S_aug.chan u v = []
+    · have hdr : drainEdges sys hinp S_aug ((u, v) :: es) = drainEdges sys hinp S_aug es := by
+        by_cases hadj : sys.graph.Adj u v <;> simp [drainEdges, hadj, deliverHeadStep, hempty]
+      rw [hdr]
       obtain ⟨hmtr, hwf', hmem⟩ := ih S_aug hwf
       refine ⟨hmtr, hwf', fun src dest hin hne => ?_⟩
-      rcases List.mem_cons.mp hin with heq | hin'
-      · rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
-        exact absurd (hwf src dest hadj) hne
+      rcases List.mem_cons.mp hin with ⟨rfl, rfl⟩ | hin'
+      · exact absurd hempty hne
       · exact hmem src dest hin' hne
+    · have hadj : sys.graph.Adj u v :=
+        if h : sys.graph.Adj u v then h else absurd (hwf u v h) hempty
+      obtain ⟨a₀, S₁, hdel, htr₀, hdel₀⟩ := deliverHeadStep_spec sys hinp hadj hempty
+      simp only [drainEdges, hadj, ↓reduceDIte, hdel]
+      have hwf₁ := sys.wellFormedSnapChan_mTr (LTS.MTr.single sys.snapLts htr₀) hwf
+      obtain ⟨hmtr, hwf₂, hmem⟩ := ih S₁ hwf₁
+      refine ⟨.stepL htr₀ hmtr, hwf₂, fun src dest hin hne => ?_⟩
+      rcases List.mem_cons.mp hin with ⟨rfl, rfl⟩ | hin'
+      · exact ⟨a₀, List.mem_cons_self, hdel₀⟩
+      by_cases hd : a₀.deliversOn src dest
+      · exact ⟨a₀, List.mem_cons_self, hd⟩
+      obtain ⟨extra, hex⟩ := sys.chan_append_of_not_deliversOn htr₀ hd
+      obtain ⟨a₂, ha₂, hdel₂⟩ :=
+        hmem src dest hin' (hex ▸ List.append_ne_nil_of_left_ne_nil hne extra)
+      exact ⟨a₂, List.mem_cons_of_mem a₀ ha₂, hdel₂⟩
 
 private noncomputable def fairPhase {P S M : Type*} [Fintype P] [DecidableEq P]
     (sys : System P S M) [DecidableRel sys.graph.Adj]
@@ -1635,19 +1520,14 @@ private lemma fairPhase_spec {P S M : Type*} [Fintype P] [DecidableEq P]
   set r := drainEdges sys hinp S_aug (Finset.univ : Finset (P × P)).toList
   cases hemp : r.1.isEmpty
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    have hpos : 0 < r.1.length :=
-      List.length_pos_iff_ne_nil.mpr (List.isEmpty_eq_false_iff.mp hemp)
-    refine ⟨hmtr, hpos, hwf', fun src dest hne => ?_⟩
-    exact hmem src dest (Finset.mem_toList.mpr (Finset.mem_univ (src, dest))) hne
+    exact ⟨hmtr, List.length_pos_iff_ne_nil.mpr (List.isEmpty_eq_false_iff.mp hemp), hwf',
+      fun src dest => hmem src dest (Finset.mem_toList.mpr (Finset.mem_univ (src, dest)))⟩
   · simp only [↓reduceIte, List.length_singleton, Nat.zero_lt_one, true_and]
     have hnil : r.1 = [] := List.isEmpty_iff.mp hemp
     rw [hnil] at hmtr hmem
-    have heq : S_aug = r.2 := LTS.MTr.nil_eq sys.snapLts hmtr
-    rw [← heq]
-    have hstut : sys.snapLts.MTr S_aug [.stutter] S_aug :=
-      LTS.MTr.single sys.snapLts ⟨trivial, rfl⟩
-    refine ⟨hstut, hwf, fun src dest hne => ?_⟩
-    obtain ⟨a, ha, _⟩ := hmem src dest (Finset.mem_toList.mpr (Finset.mem_univ (src, dest))) hne
+    rw [← LTS.MTr.nil_eq sys.snapLts hmtr]
+    refine ⟨LTS.MTr.single sys.snapLts ⟨trivial, rfl⟩, hwf, fun src dest hne => ?_⟩
+    obtain ⟨_, ha, _⟩ := hmem src dest (Finset.mem_toList.mpr (Finset.mem_univ (src, dest))) hne
     cases ha
 
 private noncomputable def fairSeq {P S M : Type*} [Fintype P] [DecidableEq P]
@@ -1675,13 +1555,10 @@ theorem System.InputEnabled.exists_fair_snapOmegaExecution
     ωSequence.mk fun k => (fairSeq sys hinp S₀ k).2
   let xls : ωSequence (List (SnapEvent P S M)) :=
     (ωSequence.mk fun k => (fairSeq sys hinp S₀ k).1).tail
-  have hseg : ∀ k,
-      sys.snapLts.MTr (ts k) (xls k) (ts (k + 1)) ∧
-      0 < (xls k).length ∧
-      ∀ src dest, (ts k).chan src dest ≠ [] → ∃ a ∈ xls k, a.deliversOn src dest := by
-    intro k
-    obtain ⟨hm, hp, _, hd⟩ := fairPhase_spec sys hinp (fairSeq sys hinp S₀ k).2 (hwf_seq k)
-    exact ⟨hm, hp, hd⟩
+  have hseg : ∀ k, sys.snapLts.MTr (ts k) (xls k) (ts (k + 1)) ∧ 0 < (xls k).length ∧
+      sys.WellFormedSnapChan (ts (k + 1)) ∧
+      ∀ src dest, (ts k).chan src dest ≠ [] → ∃ a ∈ xls k, a.deliversOn src dest := fun k => by
+    simpa [ts, xls, fairSeq] using fairPhase_spec sys hinp (fairSeq sys hinp S₀ k).2 (hwf_seq k)
   have hpos : ∀ k, 0 < (xls k).length := fun k => (hseg k).2.1
   have : Inhabited (SnapEvent P S M) := ⟨.stutter⟩
   obtain ⟨ss, hexec, hts⟩ := LTS.OmegaExecution.flatten_mTr (fun k => (hseg k).1) hpos
@@ -1696,7 +1573,7 @@ theorem System.InputEnabled.exists_fair_snapOmegaExecution
     have hne_cum : (ts k).chan src dest ≠ [] := by
       rw [← hts k, hd_eq, hextra]
       exact List.append_ne_nil_of_left_ne_nil hne extra
-    obtain ⟨a, ha_mem, ha_del⟩ := (hseg k).2.2 src dest hne_cum
+    obtain ⟨a, ha_mem, ha_del⟩ := (hseg k).2.2.2 src dest hne_cum
     obtain ⟨i, hi, heq⟩ := List.getElem_of_mem ha_mem
     have hget : xls.flatten (xls.cumLen k + i) = a := by
       rw [flatten_get_add xls hi hpos, heq]

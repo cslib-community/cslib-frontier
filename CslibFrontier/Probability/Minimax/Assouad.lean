@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.BitString.Flip
 public import CslibFrontier.Probability.Minimax.LeCam
 import CslibFrontier.Probability.PMF.ToReal
+import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
 /-!
 # Assouad's hypercube minimax lower-bound lemma
@@ -69,10 +70,9 @@ private theorem exists_cube_ge_of_avg_ge {ι : Type*} [Fintype ι] [DecidableEq 
     (h : c ≤ (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, f v) :
     ∃ v : ι → Bool, c ≤ f v := by
   have hsum : ∑ _ : ι → Bool, c ≤ ∑ v : ι → Bool, f v := by
-    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-    exact (le_inv_mul_iff₀ (Nat.cast_pos.mpr Fintype.card_pos)).mp h
-  obtain ⟨v, -, hv⟩ := Finset.exists_le_of_sum_le Finset.univ_nonempty hsum
-  exact ⟨v, hv⟩
+    simpa only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul] using
+      (le_inv_mul_iff₀ (Nat.cast_pos.mpr Fintype.card_pos)).mp h
+  exact Exists.imp (fun _ => And.right) (Finset.exists_le_of_sum_le Finset.univ_nonempty hsum)
 
 private theorem hypercube_sum_coord_avg_ge {ι : Type*} [Fintype ι] [DecidableEq ι]
     {sep : ℝ} {d F : ι → (ι → Bool) → ℝ}
@@ -80,17 +80,13 @@ private theorem hypercube_sum_coord_avg_ge {ι : Type*} [Fintype ι] [DecidableE
     (sep / 2) * ∑ i : ι, (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, d i v) ≤
       (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, ∑ i : ι, F i v := by
   have hcard_pos : (0 : ℝ) < Fintype.card (ι → Bool) := Nat.cast_pos.mpr Fintype.card_pos
-  have hcard_ne : (Fintype.card (ι → Bool) : ℝ) ≠ 0 := hcard_pos.ne'
   have hcoord (i : ι) :
       (sep / 2) * (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, d i v) ≤
         (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, F i v := by
     have hsum_pair := Finset.sum_le_sum fun v (_ : v ∈ Finset.univ) => hpair i v
     rw [Finset.sum_add_distrib, sum_update_not i (F i)] at hsum_pair
-    have hlhs : (∑ v : ι → Bool, sep * (1 - d i v)) =
-        (Fintype.card (ι → Bool) : ℝ) * sep - sep * ∑ v : ι → Bool, d i v := by
-      simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ,
-        nsmul_eq_mul, ← Finset.mul_sum]
-    rw [hlhs] at hsum_pair
+    simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ,
+      nsmul_eq_mul, ← Finset.mul_sum] at hsum_pair
     have hdiv := mul_le_mul_of_nonneg_left hsum_pair (inv_nonneg.mpr hcard_pos.le)
     have hsimp : (Fintype.card (ι → Bool) : ℝ)⁻¹ *
         ((Fintype.card (ι → Bool) : ℝ) * sep - sep * ∑ v : ι → Bool, d i v) =
@@ -189,14 +185,11 @@ theorem assouad_measure_exists_ge_of_klDiv_le (μ : (ι → Bool) → Measure α
       (Fintype.card ι : ℝ) * (sep / 2) * (1 - Real.sqrt (β / 2)) ≤
         ∫ x, loss (est x) v ∂(μ v) := by
   obtain ⟨v, hv⟩ := assouad_measure_exists_ge μ hcoord_nn hsum_le hsep est hint_coord hint_loss
-  refine ⟨v, le_trans ?_ hv⟩
-  refine card_mul_le_sum_one_sub_avg hsep0 fun i w => ?_
-  have hp := (ofReal_tvDist_sq_div_two_le_klDiv (μ w)
-    (μ (Function.update w i (!w i)))).trans (hkl i w)
+  refine ⟨v, (card_mul_le_sum_one_sub_avg hsep0 fun i w => ?_).trans hv⟩
   have hsq : tvDist (μ w) (μ (Function.update w i (!w i))) ^ 2 / 2 ≤ β :=
-    (ENNReal.ofReal_le_ofReal_iff hβ0).mp hp
-  apply Real.le_sqrt_of_sq_le
-  linarith
+    (ENNReal.ofReal_le_ofReal_iff hβ0).mp
+      ((ofReal_tvDist_sq_div_two_le_klDiv _ _).trans (hkl i w))
+  exact Real.le_sqrt_of_sq_le (by linarith)
 
 end Measure
 
@@ -220,19 +213,10 @@ theorem assouad_avg_ge (P : (ι → Bool) → PMF X)
         ∑ v : ι → Bool, dist (P v) (P (Function.update v i (!v i)))) ≤
       (Fintype.card (ι → Bool) : ℝ)⁻¹ *
         ∑ v : ι → Bool, ∑ x : X, (P v x).toReal * loss (est x) v := by
-  refine (hypercube_sum_coord_avg_ge
-    (d := fun i v => dist (P v) (P (Function.update v i (!v i))))
-    (F := fun i v => ∑ x : X, (P v x).toReal * coordLoss i (est x) v) fun i v =>
-      leCam_add_ge (P v) (P (Function.update v i (!v i)))
-        (fun x => hcoord_nn i (est x) v)
-        (fun x => hcoord_nn i (est x) (Function.update v i (!v i)))
-        (fun x => hsep i (est x) v)).trans
-    (mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun v _ => ?_)
-      (inv_nonneg.mpr (Nat.cast_nonneg _)))
-  rw [Finset.sum_comm]
-  refine Finset.sum_le_sum fun x _ => ?_
-  rw [← Finset.mul_sum]
-  exact mul_le_mul_of_nonneg_left (hsum_le (est x) v) ENNReal.toReal_nonneg
+  let _ : MeasurableSpace X := ⊤
+  simpa only [PMF.integral_eq_sum, smul_eq_mul, dist_eq_tvDist_toMeasure_div_two] using
+    assouad_measure_avg_ge (fun v => (P v).toMeasure) hcoord_nn hsum_le hsep est
+      (fun _ _ => Integrable.of_finite) (fun _ => Integrable.of_finite)
 
 /-- **Assouad's lemma on `PMF` (worst-case vertex form)**. -/
 theorem assouad_exists_ge (P : (ι → Bool) → PMF X)
@@ -363,9 +347,7 @@ private theorem exists_product_bernoulli_edge_klDiv_le {n : ℕ} (hn : 0 < n) :
         if j = i then
           (klDiv (coin (pBit (v i))).toMeasure (coin (pBit (!v i))).toMeasure).toReal
         else 0 := by
-    by_cases hji : j = i
-    · subst hji; simp only [Function.update_self, ↓reduceIte]
-    · simp only [Function.update_of_ne hji, hji, ↓reduceIte, klDiv_self, ENNReal.toReal_zero]
+    by_cases hji : j = i <;> simp [hji]
   simp only [hterm, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
   exact hkl (v i)
 

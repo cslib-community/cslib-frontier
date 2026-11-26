@@ -67,8 +67,9 @@ theorem exists_whiteRep (o : F.Occurrence) :
 theorem whiteRep_unique (o p : F.Occurrence)
     (ho : faceRepBool F.occurrences.length (whiteTable F cert) (incidenceEdgeIndex o) = true)
     (hp : faceRepBool F.occurrences.length (whiteTable F cert) (incidenceEdgeIndex p) = true)
-    (hcycle : (whitePermutation (decode _ cert h)).SameCycle o p) : o = p :=
-  incidenceEdgeIndex_injective <| Nat.le_antisymm ((whiteRep_iff cert h o).mp ho p hcycle)
+    (hcycle : (whitePermutation (decode _ cert h)).SameCycle o p) : o = p := by
+  apply incidenceEdgeIndex_injective
+  exact Nat.le_antisymm ((whiteRep_iff cert h o).mp ho p hcycle)
     ((whiteRep_iff cert h p).mp hp o hcycle.symm)
 
 /-- Changing the representative within a white orbit leaves its complete sorted scope unchanged. -/

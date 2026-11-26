@@ -156,9 +156,7 @@ theorem prune_sublist (l : List α) : (prune label t l).Sublist l := iterate_sta
 
 /-- A pruned level has at most `2 t + 2` nodes. -/
 theorem length_prune_le (l : List α) : (prune label t l).length ≤ 2 * t + 2 := by
-  have := length_iterate_stage_le (label := label) (t := t) l.length l
-  rw [Nat.sub_self] at this
-  exact this.trans (by omega)
+  simpa [prune] using length_iterate_stage_le (label := label) (t := t) l.length l
 
 end Prune
 
@@ -372,24 +370,10 @@ theorem mem_SAT_iff_signedKey {S : Set β} {r : CNF ℕ → ℕ} {q : CNF ℕ ×
     exact List.cons_ne_nil _ _ hw
   rw [hL, signedKey]
   rcases Nat.le_one_iff_eq_zero_or_eq_one.1 (hr ψ) with h0 | h1
-  · have hans : truthTableAnswers (q ⁻¹' S) r ψ = [] := by
-      rw [← List.length_eq_zero_iff, length_truthTableAnswers, h0]
-    simp only [h0, List.replicate_zero, ite_true, hans]
-    simp [hnil]
-  · have hans : truthTableAnswers (q ⁻¹' S) r ψ = [decide (q (ψ, 0) ∈ S)] := by
-      rw [truthTableAnswers_eq_map_range, h1]
-      simp
-    simp only [h1, List.replicate_one, hans]
-    split
-    · rename_i heq
-      cases hq : decide (q (ψ, 0) ∈ S) <;> simp [heq, hnil]
-    · rename_i hne
-      rw [hcons, encB.injective.mem_set_image]
-      by_cases hqS : q (ψ, 0) ∈ S
-      · simp [hqS]
-      · have hfalse : d (ψ, [false]) = !d (ψ, [true]) := by
-          cases hf : d (ψ, [false]) <;> cases ht : d (ψ, [true]) <;> simp_all
-        simp [hqS, hfalse]
+  · simp [h0, truthTableAnswers_eq_map_range, hnil]
+  · simp only [h1, List.replicate_one, truthTableAnswers_eq_map_range, List.range_one, List.map]
+    by_cases hqS : q (ψ, 0) ∈ S <;> cases hf : d (ψ, [false]) <;> cases ht : d (ψ, [true]) <;>
+      simp [hqS, hf, ht, hnil, hcons, encB.injective.mem_set_image]
 
 /-- Signed labels are polynomial-time when the reduction is. -/
 theorem computableInPolyTime_signedKey {r : CNF ℕ → ℕ} {q : CNF ℕ × ℕ → β}

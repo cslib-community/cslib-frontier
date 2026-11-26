@@ -338,7 +338,11 @@ private theorem card_filter_binLoad_pair_eq (n B d : ℕ) {j₁ j₂ : Fin B} (h
         simp [mem_sdiff, mem_insert, mem_singleton, not_or]
       rw [Fintype.card_subtype, heq, card_sdiff_of_subset (subset_univ _), card_univ,
         Fintype.card_fin, card_pair hne]
-    rw [← Fintype.card_coe, Fintype.card_congr e, Fintype.card_fun, hcard_dom, hcard_cod]
+    calc #(fibre (S₁', S₂'))
+        = Fintype.card ({i : Fin n // i ∉ S₁' ∪ S₂'} → {x : Fin B // x ≠ j₁ ∧ x ≠ j₂}) := by
+          rw [← Fintype.card_coe, Fintype.card_congr e]
+      _ = (B - 2) ^ (n - 2 * d) := by
+          rw [Fintype.card_fun, hcard_dom, hcard_cod]
   have hcard_pairs : #pairs = n.choose d * (n - d).choose d := by
     have hdisjP :
         Set.PairwiseDisjoint
@@ -677,7 +681,10 @@ theorem ballsIntoBins_mul_tail_ge_half {n a B d : ℕ} [NeZero B] (hn : n = a * 
         exact sum_congr rfl fun A hA => (ite_eq_left (hgood_sub A hA)).symm
     _ ≤ ∑ A : Fin n → Fin B,
           if ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) then w else 0 := by
-        exact sum_le_univ_sum_of_nonneg fun A => by split_ifs <;> [exact hw_nn; exact le_rfl]
+        refine sum_le_univ_sum_of_nonneg fun A => ?_
+        split_ifs
+        · exact hw_nn
+        · exact le_rfl
 
 /-- **Balls-into-bins lower tail** ([Vocking2007], Proposition 20.11; locator not re-verified
 against primary PDF): when `m` balls are thrown uniformly and independently into `m` bins, if

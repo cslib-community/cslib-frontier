@@ -153,13 +153,10 @@ theorem isComplete_ofAssignment (f : Fin m → Fin n) : (ofAssignment f).IsCompl
       (allAssignments n m).map fun f => Fin.cons i f
 
 theorem mem_allAssignments {n : ℕ} : ∀ {m : ℕ} (f : Fin m → Fin n), f ∈ allAssignments n m
-  | 0, f => by
-    have hf : f = Fin.elim0 := Subsingleton.elim f Fin.elim0
-    simp [allAssignments, hf]
-  | m + 1, f => by
-    rw [allAssignments, List.mem_flatMap]
-    refine ⟨f 0, List.mem_finRange (f 0), List.mem_map.2 ⟨Fin.tail f, mem_allAssignments _, ?_⟩⟩
-    exact Fin.cons_self_tail f
+  | 0, f => Subsingleton.elim f Fin.elim0 ▸ by simp [allAssignments]
+  | m + 1, f => List.mem_flatMap.2
+      ⟨f 0, List.mem_finRange (f 0), List.mem_map.2 ⟨Fin.tail f, mem_allAssignments _,
+        Fin.cons_self_tail f⟩⟩
 
 /-- Exhaustive computable list of all complete allocations of `m` goods among `n` agents. -/
 @[expose] def completeAllocationList (n m : ℕ) : List (BundleAllocation n m) :=
@@ -172,25 +169,16 @@ theorem mem_allAssignments {n : ℕ} : ∀ {m : ℕ} (f : Fin m → Fin n), f �
 theorem mem_completeAllocationList_iff {A : BundleAllocation n m} :
     A ∈ completeAllocationList n m ↔ A.IsComplete := by
   rw [completeAllocationList, List.mem_map]
-  constructor
-  · rintro ⟨f, -, rfl⟩
-    exact isComplete_ofAssignment f
-  · intro hA
-    have hne (g : Fin m) : (Finset.univ.filter fun i => g ∈ A.bundle i).Nonempty := by
-      obtain ⟨i, hi⟩ := hA g
-      exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi⟩⟩
-    refine ⟨fun g => (Finset.univ.filter fun i => g ∈ A.bundle i).min' (hne g),
-      mem_allAssignments _, ?_⟩
-    ext i g
-    rw [mem_ofAssignment]
-    constructor
-    · intro hmin
-      have hmem := (Finset.univ.filter fun j => g ∈ A.bundle j).min'_mem (hne g)
-      rw [hmin] at hmem
-      exact (Finset.mem_filter.1 hmem).2
-    · intro hgi
-      have hmem := (Finset.univ.filter fun j => g ∈ A.bundle j).min'_mem (hne g)
-      exact A.eq_of_mem_bundle (Finset.mem_filter.1 hmem).2 hgi
+  refine ⟨fun ⟨f, _, h⟩ => h ▸ isComplete_ofAssignment f, fun hA => ?_⟩
+  have hne (g : Fin m) : (Finset.univ.filter fun i => g ∈ A.bundle i).Nonempty := by
+    obtain ⟨i, hi⟩ := hA g
+    exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi⟩⟩
+  refine ⟨fun g => (Finset.univ.filter fun i => g ∈ A.bundle i).min' (hne g),
+    mem_allAssignments _, BundleAllocation.ext (funext fun i => Finset.ext fun g => ?_)⟩
+  have hmem :=
+    (Finset.mem_filter.1 ((Finset.univ.filter fun j => g ∈ A.bundle j).min'_mem (hne g))).2
+  exact ⟨fun h => (mem_ofAssignment.1 h) ▸ hmem,
+    fun hgi => mem_ofAssignment.2 (A.eq_of_mem_bundle hmem hgi)⟩
 
 theorem mem_completeAllocations_iff {A : BundleAllocation n m} :
     A ∈ completeAllocations n m ↔ A.IsComplete := by
@@ -227,23 +215,14 @@ theorem giveGood_bundle_of_ne (A : BundleAllocation n m) {i j : Fin n} (g : Fin 
     (hg : g ∉ A.allocatedGoods) :
     (A.giveGood i g hg).allocatedGoods = insert g A.allocatedGoods := by
   ext x
-  simp only [mem_allocatedGoods, Finset.mem_insert]
-  constructor
-  · rintro ⟨j, hj⟩
-    by_cases hji : j = i
-    · subst hji
-      rw [giveGood_bundle_self] at hj
-      rcases Finset.mem_insert.1 hj with rfl | hx
-      · exact Or.inl rfl
-      · exact Or.inr ⟨j, hx⟩
-    · rw [giveGood_bundle_of_ne A g hg hji] at hj
-      exact Or.inr ⟨j, hj⟩
+  simp only [mem_allocatedGoods, Finset.mem_insert, giveGood]
+  refine ⟨fun ⟨j, hj⟩ => ?_, ?_⟩
+  · split_ifs at hj with hji
+    · exact (Finset.mem_insert.1 hj).imp_right (⟨i, ·⟩)
+    · exact Or.inr ⟨j, hj⟩
   · rintro (rfl | ⟨j, hj⟩)
     · exact ⟨i, by simp⟩
-    · by_cases hji : j = i
-      · subst hji
-        exact ⟨j, by simp [hj]⟩
-      · exact ⟨j, by rwa [giveGood_bundle_of_ne A g hg hji]⟩
+    · exact ⟨j, by split_ifs with hji <;> simp_all⟩
 
 /-- Permutes bundles across agents via `σ : Equiv.Perm (Fin n)` (`i` receives `A.bundle (σ i)`). -/
 @[expose] def relabel (A : BundleAllocation n m) (σ : Equiv.Perm (Fin n)) :
@@ -327,22 +306,16 @@ theorem transferGood_bundle_other (A : BundleAllocation n m) {j i k : Fin n} (g 
 
 theorem isComplete_transferGood {A : BundleAllocation n m} (j i : Fin n) (g : Fin m)
     (hg : g ∈ A.bundle j) (hA : A.IsComplete) :
-    (A.transferGood j i g hg).IsComplete := by
-  intro x
-  by_cases hxg : x = g
-  · subst hxg
-    exact ⟨i, by simp⟩
+    (A.transferGood j i g hg).IsComplete := fun x => by
+  rcases eq_or_ne x g with rfl | hxg
+  · exact ⟨i, by simp⟩
   · obtain ⟨k, hkx⟩ := hA x
-    by_cases hki : k = i
-    · subst hki
-      exact ⟨k, by simp [hkx]⟩
-    · by_cases hkj : k = j
-      · subst hkj
-        refine ⟨k, ?_⟩
-        rw [transferGood_bundle_source A g hg hki]
-        exact Finset.mem_sdiff.2 ⟨hkx, Finset.notMem_singleton.2 hxg⟩
-      · refine ⟨k, ?_⟩
-        rwa [transferGood_bundle_other A g hg hki hkj]
+    refine ⟨k, ?_⟩
+    dsimp only [transferGood]
+    split_ifs with hki hkj
+    · exact Finset.mem_insert_of_mem (hki ▸ hkx)
+    · exact Finset.mem_sdiff.2 ⟨hkj ▸ hkx, Finset.notMem_singleton.2 hxg⟩
+    · exact hkx
 
 end BundleAllocation
 
@@ -464,12 +437,10 @@ theorem IsEF1.val_le_add_maxMarginal {V : MonotoneValuation n m R} {A : BundleAl
     V.val i (A.bundle j) ≤ V.val i (A.bundle i) + V.maxMarginal i := by
   rcases hEF1 i j with hle | ⟨g, hg, hle⟩
   · exact hle.trans (le_add_of_nonneg_right (V.maxMarginal_nonneg i))
-  · have hins : insert g (A.bundle j \ {g}) = A.bundle j := by
-      rw [Finset.sdiff_singleton_eq_erase, Finset.insert_erase hg]
-    have hmarg : V.val i (A.bundle j) - V.val i (A.bundle j \ {g}) ≤ V.maxMarginal i := by
-      simpa only [hins] using V.sub_le_maxMarginal i (A.bundle j \ {g}) g
-    have hsum := add_le_add hle hmarg
-    rwa [add_comm (V.val i (A.bundle j \ {g})), sub_add_cancel] at hsum
+  · have hmarg : V.val i (A.bundle j) - V.val i (A.bundle j \ {g}) ≤ V.maxMarginal i := by
+      simpa only [Finset.sdiff_singleton_eq_erase, Finset.insert_erase hg] using
+        V.sub_le_maxMarginal i (A.bundle j \ {g}) g
+    simpa only [add_comm (V.val i (A.bundle j \ {g})), sub_add_cancel] using add_le_add hle hmarg
 
 end MaxMarginal
 
@@ -510,11 +481,8 @@ theorem bundleVal_insert {i : Fin n} {g : Fin m} {S : Finset (Fin m)} (hg : g �
 
 theorem bundleVal_sdiff_singleton_add {i : Fin n} {g : Fin m} {S : Finset (Fin m)} (hg : g ∈ S) :
     W.bundleVal i (S \ {g}) + W.weight i g = W.bundleVal i S := by
-  have h := W.bundleVal_insert (i := i) (g := g) (S := S \ {g}) (by simp)
-  have hins : insert g (S \ {g}) = S := by
-    rw [Finset.sdiff_singleton_eq_erase, Finset.insert_erase hg]
-  rw [hins] at h
-  exact h.symm
+  simpa only [Finset.sdiff_singleton_eq_erase, Finset.insert_erase hg] using
+    (W.bundleVal_insert (i := i) (g := g) (S := S \ {g}) (by simp)).symm
 
 end Basic
 
@@ -602,17 +570,15 @@ private theorem rrPick_mem_succ_of_lt (hn : 0 < n) {s t : Fin m} (hst : s < t) :
     (W.bestGood_mem _ (W.rrRemaining hn t.val) (W.rrRemaining_nonempty hn t))
 
 theorem rrPick_injective (hn : 0 < n) : Function.Injective (W.rrPick hn) := by
+  have hlt_ne {a b : Fin m} (h : a < b) (heq : W.rrPick hn a = W.rrPick hn b) : False := by
+    have hmem := W.rrPick_mem_succ_of_lt hn h
+    rw [rrRemaining, dite_eq_left (W.rrRemaining_nonempty hn a)] at hmem
+    exact (Finset.mem_sdiff.1 hmem).2 (Finset.mem_singleton.2 heq.symm)
   intro s t hst
   rcases lt_trichotomy s t with hlt | rfl | hgt
-  · exfalso
-    have hmem := W.rrPick_mem_succ_of_lt hn hlt
-    rw [rrRemaining, dite_eq_left (W.rrRemaining_nonempty hn s)] at hmem
-    exact (Finset.mem_sdiff.1 hmem).2 (Finset.mem_singleton.2 hst.symm)
+  · exact False.elim (hlt_ne hlt hst)
   · rfl
-  · exfalso
-    have hmem := W.rrPick_mem_succ_of_lt hn hgt
-    rw [rrRemaining, dite_eq_left (W.rrRemaining_nonempty hn t)] at hmem
-    exact (Finset.mem_sdiff.1 hmem).2 (Finset.mem_singleton.2 hst)
+  · exact False.elim (hlt_ne hgt hst.symm)
 
 private theorem weight_rrPick_le_of_le (hn : 0 < n) {s t : Fin m} (hst : s ≤ t) :
     W.weight ⟨s.val % n, Nat.mod_lt s.val hn⟩ (W.rrPick hn t) ≤
@@ -693,117 +659,71 @@ nonnegative additive valuation profile and `0 < n`, `W.roundRobin hn` is envy-fr
 theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobin hn) := by
   intro i j
   simp only [toMonotoneValuation_val]
+  have hmap (T : Finset (Fin m)) (q : Fin m → ℕ)
+      (hmod : ∀ t ∈ T, t.val % n = j.val)
+      (hq_inj : ∀ t₁ ∈ T, ∀ t₂ ∈ T, q t₁ = q t₂ → t₁.val / n = t₂.val / n)
+      (hle : ∀ t ∈ T, n * q t + i.val ≤ t.val) :
+      ∑ t ∈ T, W.weight i (W.rrPick hn t) ≤
+        ∑ s ∈ rrTurns n m i, W.weight i (W.rrPick hn s) := by
+    let φ : Fin m → Fin m := fun t =>
+      if h : n * q t + i.val < m then ⟨n * q t + i.val, h⟩ else t
+    have hlt : ∀ t ∈ T, n * q t + i.val < m := fun t ht => lt_of_le_of_lt (hle t ht) t.isLt
+    have hmem : ∀ t ∈ T, φ t ∈ rrTurns n m i := fun t ht => by
+      simp only [φ, dite_eq_left (hlt t ht), rrTurns, Finset.mem_filter, Finset.mem_univ, true_and]
+      rw [Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt i.isLt]
+    have hinj : Set.InjOn φ T := fun t₁ ht₁ t₂ ht₂ hEq => by
+      simp only [φ, dite_eq_left (hlt t₁ ht₁), dite_eq_left (hlt t₂ ht₂), Fin.ext_iff] at hEq
+      have hdiv := hq_inj t₁ ht₁ t₂ ht₂ (Nat.eq_of_mul_eq_mul_left hn (Nat.add_right_cancel hEq))
+      exact Fin.ext (by
+        rw [← Nat.div_add_mod t₁.val n, ← Nat.div_add_mod t₂.val n, hdiv, hmod t₁ ht₁, hmod t₂ ht₂])
+    refine W.sum_rrTurns_le_of_injOn hn hmem hinj fun t ht => ?_
+    simp only [φ, dite_eq_left (hlt t ht), Fin.le_iff_val_le_val]
+    exact hle t ht
   by_cases hij : i.val ≤ j.val
   · left
     rw [W.bundleVal_roundRobin hn i j, W.bundleVal_roundRobin hn i i]
-    let φ : Fin m → Fin m := fun t =>
-      if h : n * (t.val / n) + i.val < m then ⟨n * (t.val / n) + i.val, h⟩ else t
-    have hφ_le : ∀ t ∈ rrTurns n m j, n * (t.val / n) + i.val ≤ t.val := by
-      intro t ht
-      have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht).2
-      have hdiv := Nat.div_add_mod t.val n
-      omega
-    have hφ_lt : ∀ t ∈ rrTurns n m j, n * (t.val / n) + i.val < m :=
-      fun t ht => lt_of_le_of_lt (hφ_le t ht) t.isLt
-    have hφ_mem : ∀ t ∈ rrTurns n m j, φ t ∈ rrTurns n m i := by
-      intro t ht
-      have hlt := hφ_lt t ht
-      simp only [φ, dite_eq_left hlt, rrTurns, Finset.mem_filter, Finset.mem_univ, true_and]
-      rw [Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt i.isLt]
-    have hφ_inj : Set.InjOn φ (rrTurns n m j) := by
-      intro t₁ ht₁ t₂ ht₂ hEq
-      simp only [φ, dite_eq_left (hφ_lt t₁ ht₁), dite_eq_left (hφ_lt t₂ ht₂), Fin.ext_iff] at hEq
-      have hdiv_eq : t₁.val / n = t₂.val / n :=
-        Nat.eq_of_mul_eq_mul_left hn (Nat.add_right_cancel hEq)
-      have hm₁ : t₁.val % n = j.val := (Finset.mem_filter.1 ht₁).2
-      have hm₂ : t₂.val % n = j.val := (Finset.mem_filter.1 ht₂).2
-      have hv₁ := Nat.div_add_mod t₁.val n
-      have hv₂ := Nat.div_add_mod t₂.val n
-      exact Fin.ext (by rw [← hv₁, ← hv₂, hdiv_eq, hm₁, hm₂])
-    refine W.sum_rrTurns_le_of_injOn hn hφ_mem hφ_inj fun t ht => ?_
-    simp only [φ, dite_eq_left (hφ_lt t ht), Fin.le_iff_val_le_val]
-    exact hφ_le t ht
-  · have hji : j.val < i.val := lt_of_not_ge hij
-    by_cases hjm : j.val < m
+    refine hmap (rrTurns n m j) (fun t => t.val / n)
+      (fun t ht => (Finset.mem_filter.1 ht).2) (fun _ _ _ _ h => h) fun t ht => ?_
+    have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht).2
+    have hdiv := Nat.div_add_mod t.val n
+    omega
+  · by_cases hjm : j.val < m
     · right
       let t₀ : Fin m := ⟨j.val, hjm⟩
-      have ht₀ : t₀ ∈ rrTurns n m j := by
-        simp [t₀, rrTurns, Nat.mod_eq_of_lt j.isLt]
-      let g₀ := W.rrPick hn t₀
-      refine ⟨g₀, Finset.mem_image_of_mem _ ht₀, ?_⟩
-      have hsdiff : (W.roundRobin hn).bundle j \ {g₀} =
-          ((rrTurns n m j) \ {t₀}).image (W.rrPick hn) := by
-        ext x
-        simp only [roundRobin, Finset.mem_sdiff, Finset.mem_singleton, Finset.mem_image]
-        constructor
-        · rintro ⟨⟨t, ht, rfl⟩, hne⟩
-          exact ⟨t, ⟨ht, fun h => hne (congrArg (W.rrPick hn) h)⟩, rfl⟩
-        · rintro ⟨t, ⟨ht, hne⟩, rfl⟩
-          exact ⟨⟨t, ht, rfl⟩, fun h => hne (W.rrPick_injective hn h)⟩
-      rw [hsdiff, W.bundleVal_roundRobin hn i i]
-      have hsum_img : W.bundleVal i (((rrTurns n m j) \ {t₀}).image (W.rrPick hn)) =
-          ∑ t ∈ (rrTurns n m j) \ {t₀}, W.weight i (W.rrPick hn t) :=
-        Finset.sum_image fun x _ y _ hxy => W.rrPick_injective hn hxy
-      rw [hsum_img]
+      have ht₀ : t₀ ∈ rrTurns n m j := by simp [t₀, rrTurns, Nat.mod_eq_of_lt j.isLt]
+      refine ⟨W.rrPick hn t₀, Finset.mem_image_of_mem _ ht₀, ?_⟩
       let T' := (rrTurns n m j) \ {t₀}
-      let ψ : Fin m → Fin m := fun t =>
-        if h : n * (t.val / n - 1) + i.val < m then ⟨n * (t.val / n - 1) + i.val, h⟩ else t
-      have hq_pos : ∀ t ∈ T', 1 ≤ t.val / n := by
-        intro t ht
+      have hsdiff : (W.roundRobin hn).bundle j \ {W.rrPick hn t₀} = T'.image (W.rrPick hn) := by
+        ext x
+        simp only [T', roundRobin, Finset.mem_sdiff, Finset.mem_singleton, Finset.mem_image]
+        exact ⟨fun ⟨⟨t, ht, hx⟩, hne⟩ => ⟨t, ⟨ht, fun h => hne (hx ▸ congrArg _ h)⟩, hx⟩,
+          fun ⟨t, ⟨ht, hne⟩, hx⟩ =>
+            ⟨⟨t, ht, hx⟩, fun h => hne (W.rrPick_injective hn (hx.trans h))⟩⟩
+      have hsum_img : W.bundleVal i (T'.image (W.rrPick hn)) =
+          ∑ t ∈ T', W.weight i (W.rrPick hn t) :=
+        Finset.sum_image fun _ _ _ _ h => W.rrPick_injective hn h
+      rw [hsdiff, W.bundleVal_roundRobin hn i i, hsum_img]
+      have hq_pos : ∀ t ∈ T', 1 ≤ t.val / n := fun t ht => by
         obtain ⟨ht_turn, ht_ne⟩ := Finset.mem_sdiff.1 ht
         have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht_turn).2
-        have hne_val : t.val ≠ j.val := fun hv =>
-          Finset.notMem_singleton.1 ht_ne (Fin.ext hv)
-        have hdiv := Nat.div_add_mod t.val n
-        by_cases hq0 : t.val / n = 0
-        · rw [hq0, Nat.mul_zero, zero_add, hmod] at hdiv
-          exact absurd hdiv.symm hne_val
-        · exact Nat.pos_of_ne_zero hq0
-      have hψ_le_t : ∀ t ∈ T', n * (t.val / n - 1) + i.val ≤ t.val := by
-        intro t ht
-        have hqp := hq_pos t ht
-        have hmul : n * (t.val / n - 1) + n = n * (t.val / n) := by
-          rw [← Nat.mul_add_one, Nat.sub_add_cancel hqp]
-        have hlt_step : n * (t.val / n - 1) + i.val < n * (t.val / n) := by
-          rw [← hmul]
-          exact Nat.add_lt_add_left i.isLt _
-        exact hlt_step.le.trans (Nat.mul_div_le t.val n)
-      have hψ_lt : ∀ t ∈ T', n * (t.val / n - 1) + i.val < m :=
-        fun t ht => lt_of_le_of_lt (hψ_le_t t ht) t.isLt
-      have hψ_mem : ∀ t ∈ T', ψ t ∈ rrTurns n m i := by
-        intro t ht
-        have hlt := hψ_lt t ht
-        simp only [ψ, dite_eq_left hlt, rrTurns, Finset.mem_filter, Finset.mem_univ, true_and]
-        rw [Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt i.isLt]
-      have hψ_inj : Set.InjOn ψ T' := by
-        intro t₁ ht₁ t₂ ht₂ hEq
-        simp only [ψ, dite_eq_left (hψ_lt t₁ ht₁), dite_eq_left (hψ_lt t₂ ht₂),
-          Fin.ext_iff] at hEq
-        have hsub_eq : t₁.val / n - 1 = t₂.val / n - 1 :=
-          Nat.eq_of_mul_eq_mul_left hn (Nat.add_right_cancel hEq)
-        have hp₁ := hq_pos t₁ ht₁
-        have hp₂ := hq_pos t₂ ht₂
-        have hdiv_eq : t₁.val / n = t₂.val / n := by omega
-        have hm₁ : t₁.val % n = j.val := (Finset.mem_filter.1 (Finset.mem_sdiff.1 ht₁).1).2
-        have hm₂ : t₂.val % n = j.val := (Finset.mem_filter.1 (Finset.mem_sdiff.1 ht₂).1).2
-        have hv₁ := Nat.div_add_mod t₁.val n
-        have hv₂ := Nat.div_add_mod t₂.val n
-        exact Fin.ext (by rw [← hv₁, ← hv₂, hdiv_eq, hm₁, hm₂])
-      refine W.sum_rrTurns_le_of_injOn hn hψ_mem hψ_inj fun t ht => ?_
-      simp only [ψ, dite_eq_left (hψ_lt t ht), Fin.le_iff_val_le_val]
-      exact hψ_le_t t ht
+        have hne_val : t.val ≠ j.val := fun hv => Finset.notMem_singleton.1 ht_ne (Fin.ext hv)
+        exact Nat.div_pos (not_lt.1 fun hlt => hne_val ((Nat.mod_eq_of_lt hlt).symm.trans hmod)) hn
+      refine hmap T' (fun t => t.val / n - 1)
+        (fun t ht => (Finset.mem_filter.1 (Finset.mem_sdiff.1 ht).1).2)
+        (fun t₁ ht₁ t₂ ht₂ h => by
+          have := hq_pos t₁ ht₁
+          have := hq_pos t₂ ht₂
+          omega)
+        fun t ht => ?_
+      have hlt_step : n * (t.val / n - 1) + i.val < n * (t.val / n) := by
+        calc n * (t.val / n - 1) + i.val
+            < n * (t.val / n - 1) + n := Nat.add_lt_add_left i.isLt _
+          _ = n * (t.val / n) := by rw [← Nat.mul_add_one, Nat.sub_add_cancel (hq_pos t ht)]
+      exact hlt_step.le.trans (Nat.mul_div_le t.val n)
     · left
-      have hEmpty : rrTurns n m j = ∅ := by
-        ext t
-        simp only [rrTurns, Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty,
-          iff_false]
-        intro hmod
-        have hle : t.val % n ≤ t.val := Nat.mod_le t.val n
-        have := t.isLt
-        omega
-      have hbundleEmpty : (W.roundRobin hn).bundle j = ∅ := by
-        simp [roundRobin, hEmpty]
-      rw [hbundleEmpty, W.bundleVal_empty]
+      have hEmpty : rrTurns n m j = ∅ := Finset.filter_eq_empty_iff.mpr fun t _ hmod =>
+        hjm (hmod ▸ (Nat.mod_le t.val n).trans_lt t.isLt)
+      simp only [roundRobin, hEmpty, Finset.image_empty, W.bundleVal_empty]
       exact W.bundleVal_nonneg i _
 
 end Monoid

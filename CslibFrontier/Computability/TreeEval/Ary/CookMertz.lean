@@ -192,10 +192,12 @@ private theorem foldl_update_reg (t : Fin (d + 1)) (g : Fin (d + 1) → (Fin ℓ
     obtain ⟨hj, hl⟩ := List.nodup_cons.mp hl
     rw [List.foldl_cons, ih hl]
     funext r
-    rcases eq_or_ne r (reg t j) with rfl | hr
-    · have hn : reg t j ∉ l.map (reg t) := fun h =>
-        let ⟨_, hk, hkj⟩ := List.mem_map.mp h
-        hj (reg_injective t hkj ▸ hk)
+    by_cases hr : r = reg t j
+    · subst hr
+      have hn : reg t j ∉ l.map (reg t) := by
+        rw [List.mem_map]
+        rintro ⟨k, hk, hkj⟩
+        exact hj (reg_injective t hkj ▸ hk)
       simp [hn]
     · simp [List.mem_cons, hr]
 
@@ -213,9 +215,9 @@ private theorem gateRoundWith_eq
       (hfstep : ∀ S j, fstep S j = Function.update S (reg t j) (g (reg t j) (S (reg t j))))
       (S : State K d r) :
       (List.finRange d).foldl fstep S = fun r => if r ≠ t then g r (S r) else S r := by
-    rw [show fstep = fun S j => Function.update S (reg t j) (g (reg t j) (S (reg t j))) from
-      funext fun S => funext fun j => hfstep S j,
-      foldl_update_reg t g _ (List.nodup_finRange d)]
+    have heq : fstep = fun S j => Function.update S (reg t j) (g (reg t j) (S (reg t j))) :=
+      funext fun S => funext fun j => hfstep S j
+    rw [heq, foldl_update_reg t g _ (List.nodup_finRange d)]
     simp only [mem_map_reg_finRange]
   dsimp only [gateRoundWith]
   rw [fold_step (fun r x => (u : K) • x + childVal t v r)
@@ -269,7 +271,8 @@ theorem procWith_eq [DecidableEq K]
   | node f ch ih =>
     rw [procWith, foldl_gateRoundWith_eq E (v := fun j => e (ch j).eval) fun j => ih j]
     congr 1 with i : 1
-    rw [← List.sum_toFinset _ hnd, show us.toFinset = Finset.univ by ext; simp [hmem], hE]
+    rw [← List.sum_toFinset _ hnd, show us.toFinset = Finset.univ by ext; simp [hmem]]
+    rw [hE]
     simp [Tree.eval]
 
 /-- **Correctness of the Cook–Mertz procedure for fan-in `d`.** If `us` enumerates the units of

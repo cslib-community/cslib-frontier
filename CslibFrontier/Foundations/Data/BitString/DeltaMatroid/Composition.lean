@@ -109,11 +109,9 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
       obtain ⟨k, hk, hff⟩ := hR.exchange hf hy hnext
       rcases k with k | d
       · have hki : k ≠ i := by
-          intro he
-          subst k
-          simp only [flipOn, mem_insert, mem_singleton, true_or,
-            ite_true, Sum.elim_inl] at hk
-          cases hx : x i <;> cases hy : y i <;> simp_all
+          rintro rfl
+          simp only [flipOn, mem_insert, mem_singleton, true_or, ite_true, Sum.elim_inl] at hk
+          cases hx : x k <;> cases hy : y k <;> simp_all
         have hk' : x k ≠ y k := by simpa [flipOn, hki] using hk
         refine ⟨k, hk', c, ?_⟩
         convert hff using 1
@@ -121,10 +119,8 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
         · by_cases hti : t = i <;> by_cases htk : t = k <;> simp_all [flipOn]
         · cases a <;> cases t <;> cases b <;> cases c <;> simp_all [flipOn]
       · have hda : d ≠ a := by
-          intro he
-          subst d
-          simp only [flipOn, mem_insert, mem_singleton, or_true,
-            ite_true, Sum.elim_inr] at hk
+          rintro rfl
+          simp only [flipOn, mem_insert, mem_singleton, or_true, ite_true, Sum.elim_inr] at hk
           cases b <;> cases c <;> simp_all
         refine ⟨i, hi, c, ?_⟩
         convert hff using 1
@@ -199,17 +195,12 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
       let U : Set ((β ⊕ (α × Bool)) → Bool) := {x | (fun i => x (E i)) ∈ T}
       have he : BitString.trace U = BitString.trace T := by
         ext x
-        constructor
-        · rintro ⟨z, hz⟩
-          refine ⟨fun a => z (e.symm a), ?_⟩
-          change _ ∈ T at hz ⊢
-          convert hz using 1
+        have hfun (z : α → Bool) : (fun i => Sum.elim x (fun p => z p.1) (E i)) =
+            Sum.elim x (fun p => z (e.symm p.1)) := by
           ext (i | ⟨k, b⟩) <;> rfl
-        · rintro ⟨z, hz⟩
-          refine ⟨fun a => z (e a), ?_⟩
-          change _ ∈ T
-          convert hz using 1
-          ext (i | ⟨k, b⟩) <;> simp [E]
+        simp only [BitString.trace, U, Set.mem_ofPred_eq]
+        exact ⟨fun ⟨z, hz⟩ => ⟨z ∘ e.symm, hfun z ▸ hz⟩,
+          fun ⟨z, hz⟩ => ⟨z ∘ e, (hfun (z ∘ e)).symm ▸ by simpa [Function.comp_def] using hz⟩⟩
       rw [← he]
       exact ih β U (hT.reindex E) (he.symm ▸ hn)
     · intro _ β _ T hT hn
@@ -218,20 +209,15 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
           invFun := Sum.inl
           left_inv := by rintro (i | ⟨⟨⟩, _⟩); rfl
           right_inv := fun _ => rfl }
+      have hfun (x : β → Bool) (z : PEmpty → Bool) :
+          Sum.elim x (fun p : PEmpty × Bool => z p.1) = fun i => x (E i) := by
+        ext (i | ⟨⟨⟩, _⟩)
+        rfl
       have he : BitString.trace T = {x | (fun i => x (E i)) ∈ T} := by
         ext x
-        constructor
-        · rintro ⟨z, hz⟩
-          change _ ∈ T
-          convert hz using 1
-          ext (i | ⟨⟨⟩, _⟩)
-          rfl
-        · intro hx
-          refine ⟨PEmpty.elim, ?_⟩
-          change _ ∈ T at hx ⊢
-          convert hx using 1
-          ext (i | ⟨⟨⟩, _⟩)
-          rfl
+        simp only [BitString.trace, Set.mem_ofPred_eq]
+        exact ⟨fun ⟨z, hz⟩ => hfun x z ▸ hz,
+          fun hx => ⟨PEmpty.elim, (hfun x PEmpty.elim).symm ▸ hx⟩⟩
       rw [he]
       exact hT.reindex E
     · intro α _ ih _ β _ T hT hn
@@ -335,20 +321,16 @@ theorem isEvenDeltaMatroid_oneHotRelation [Fintype ι] [Nonempty ι] :
     nonempty := Set.range_nonempty _
     exchange := by
       rintro x y ⟨a, rfl⟩ ⟨b, rfl⟩ i hi
-      have hab : a ≠ b := by intro h; subst b; exact hi rfl
+      have hab : a ≠ b := fun h => hi (h ▸ rfl)
       have hiab : i = a ∨ i = b := by
-        by_contra hn
-        push Not at hn
+        by_contra! hn
         simp [hn.1, hn.2] at hi
-      have hf : flipOn {a, b} (fun j => decide (j = a)) =
-          (fun j => decide (j = b)) := by
+      have hf : flipOn {a, b} (fun j => decide (j = a)) = fun j => decide (j = b) := by
         ext j
         by_cases hja : j = a <;> by_cases hjb : j = b <;> simp_all [flipOn]
-      rcases hiab with hi | hi
-      · subst i
-        exact ⟨b, by simp [hab.symm], b, hf.symm⟩
-      · subst i
-        exact ⟨a, by simp [hab], b, by simpa only [pair_comm] using hf.symm⟩ }
+      rcases hiab with rfl | rfl
+      · exact ⟨b, by simp [hab.symm], b, hf.symm⟩
+      · exact ⟨a, by simp [hab], i, by simpa only [pair_comm] using hf.symm⟩ }
   parity_eq := by
     rintro x y ⟨a, rfl⟩ ⟨b, rfl⟩
     have hp (a : ι) : parityOn univ (fun j => decide (j = a)) = true := by
@@ -378,10 +360,8 @@ theorem mem_star_iff {x : (κ ⊕ Unit) → Bool} : x ∈ star κ ↔
     · exact .inl ⟨fun j => by simpa [flipOn] using (congrFun hk (.inl j)).symm,
         by simpa [flipOn] using (congrFun hk (.inr ())).symm⟩
   · rintro (⟨hx, hc⟩ | ⟨k, hx, hc⟩)
-    · refine ⟨.inr (), ?_⟩
-      ext (j | u) <;> simp [flipOn, hx, hc]
-    · refine ⟨.inl k, ?_⟩
-      ext (j | u) <;> simp [flipOn, hx, hc]
+    · exact ⟨.inr (), by ext (j | _) <;> simp [flipOn, hx, hc]⟩
+    · exact ⟨.inl k, by ext (j | _) <;> simp [flipOn, hx, hc]⟩
 
 /-- The star gadget based at an arbitrary internal reference tuple; its connector reference
 is false. Only the internal coordinates are twisted. -/

@@ -233,19 +233,14 @@ private theorem isTruthfulOn_utility_eq {X P : ℝ → ℝ} {a b v : ℝ}
     v * X v - P v = (a * X a - P a) + ∫ t in a..v, X t := by
   let X' : ℝ → ℝ := fun u => X (a + u)
   let P' : ℝ → ℝ := fun u => P (a + u) - a * X (a + u)
-  have hT' : SingleParameter.IsTruthfulOn X' P' (Icc 0 (b - a)) := by
-    intro u hu w hw
-    have hu' : a + u ∈ Icc a b := ⟨by linarith [hu.1], by linarith [hu.2]⟩
-    have hw' : a + w ∈ Icc a b := ⟨by linarith [hw.1], by linarith [hw.2]⟩
+  have hT' : SingleParameter.IsTruthfulOn X' P' (Icc 0 (b - a)) := fun u hu w hw => by
+    have hu' : a + u ∈ Icc a b := ⟨le_add_of_nonneg_right hu.1, le_sub_iff_add_le'.1 hu.2⟩
+    have hw' : a + w ∈ Icc a b := ⟨le_add_of_nonneg_right hw.1, le_sub_iff_add_le'.1 hw.2⟩
     have h := hT (a + u) hu' (a + w) hw'
     simp only [X', P']
     linarith
   have hpay := hT'.payment_eq (v := v - a) ⟨sub_nonneg.2 hv.1, sub_le_sub_right hv.2 a⟩
-  have hint : ∫ z in (0 : ℝ)..(v - a), X (a + z) = ∫ t in a..v, X t := by
-    have := intervalIntegral.integral_comp_add_left X a (a := 0) (b := v - a)
-    simpa only [add_zero, add_sub_cancel] using this
-  simp only [X', P', add_zero, add_sub_cancel] at hpay
-  rw [hint] at hpay
+  simp only [X', P', add_zero, add_sub_cancel, intervalIntegral.integral_comp_add_left] at hpay
   linarith
 
 /-- Seller interim utility identity on `[a_s, b_s]`:
@@ -292,15 +287,16 @@ private theorem integral_intervalIntegral_left_eq {μ : Measure ℝ} [IsFiniteMe
   have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) := (hg.comp_snd μ).indicator hSm
   have hL : ∀ᵐ v ∂μ, ∫ t in Ioc a b, G (v, t) = ∫ t in a..v, g t := by
     filter_upwards [hμ] with v hv
-    have hfun : (fun t => G (v, t)) = (Iic v).indicator g := by
-      ext t; simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Iic]
+    have hfun : (fun t => G (v, t)) = (Iic v).indicator g :=
+      funext fun t => by simp [G, S, indicator_apply]
     have hset : Iic v ∩ Ioc a b = Ioc a v := by
-      ext t; exact ⟨fun ⟨h1, h2, _⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1, h2.trans hv.2⟩⟩
+      ext t
+      exact ⟨fun ⟨h1, h2, _⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1, h2.trans hv.2⟩⟩
     rw [hfun, integral_indicator measurableSet_Iic, Measure.restrict_restrict measurableSet_Iic,
       hset, intervalIntegral.integral_of_le hv.1]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Ici t) * g t := fun t => by
-    have hfun : (fun v => G (v, t)) = (Ici t).indicator (fun _ => g t) := by
-      ext v; simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Ici]
+    have hfun : (fun v => G (v, t)) = (Ici t).indicator (fun _ => g t) :=
+      funext fun v => by simp [G, S, indicator_apply]
     rw [hfun, integral_indicator measurableSet_Ici, setIntegral_const, smul_eq_mul]
   rw [← integral_congr_ae hL,
     integral_integral_swap (μ := μ) (ν := volume.restrict (Ioc a b)) (f := fun v t => G (v, t))
@@ -318,18 +314,19 @@ private theorem integral_intervalIntegral_right_eq {μ : Measure ℝ} [IsFiniteM
   have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) := (hg.comp_snd μ).indicator hSm
   have hL : ∀ᵐ v ∂μ, ∫ t in Ioc a b, G (v, t) = ∫ t in v..b, g t := by
     filter_upwards [hμ] with v hv
-    have hfun : (fun t => G (v, t)) = (Ici v).indicator g := by
-      ext t; simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Ici]
+    have hfun : (fun t => G (v, t)) = (Ici v).indicator g :=
+      funext fun t => by simp [G, S, indicator_apply]
     rw [hfun, integral_indicator measurableSet_Ici, Measure.restrict_restrict measurableSet_Ici,
       intervalIntegral.integral_of_le hv.2]
     rcases eq_or_lt_of_le hv.1 with rfl | hav
     · rw [inter_eq_right.2 fun t (ht : t ∈ Ioc a b) => ht.1.le]
     · have hset : Ici v ∩ Ioc a b = Icc v b := by
-        ext t; exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h2⟩ => ⟨h1, hav.trans_le h1, h2⟩⟩
+        ext t
+        exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h2⟩ => ⟨h1, hav.trans_le h1, h2⟩⟩
       rw [hset, integral_Icc_eq_integral_Ioc]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Iic t) * g t := fun t => by
-    have hfun : (fun v => G (v, t)) = (Iic t).indicator (fun _ => g t) := by
-      ext v; simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Iic]
+    have hfun : (fun v => G (v, t)) = (Iic t).indicator (fun _ => g t) :=
+      funext fun v => by simp [G, S, indicator_apply]
     rw [hfun, integral_indicator measurableSet_Iic, setIntegral_const, smul_eq_mul]
   rw [← integral_congr_ae hL,
     integral_integral_swap (μ := μ) (ν := volume.restrict (Ioc a b)) (f := fun v t => G (v, t))
@@ -353,7 +350,8 @@ private theorem integral_gains_from_trade {μ_b μ_s : Measure ℝ}
   have hGint : Integrable G ((μ_b.prod μ_s).prod (volume.restrict (Ioc L U))) :=
     Integrable.of_bound (measurable_const.indicator hSm).aestronglyMeasurable 1
       (Filter.Eventually.of_forall fun q => by
-        simp only [hG, indicator_apply, Pi.one_apply]; split_ifs <;> norm_num)
+        simp only [hG, indicator_apply, Pi.one_apply]
+        split_ifs <;> norm_num)
   have hL : ∀ᵐ p ∂(μ_b.prod μ_s),
       ∫ t in Ioc L U, G (p, t) = if p.2 ≤ p.1 then p.1 - p.2 else 0 := by
     have hbox : ∀ᵐ p ∂(μ_b.prod μ_s), p.1 ∈ Icc a_b b_b ∧ p.2 ∈ Icc a_s b_s :=
@@ -363,7 +361,8 @@ private theorem integral_gains_from_trade {μ_b μ_s : Measure ℝ}
     by_cases hle : p.2 ≤ p.1
     · rw [ite_eq_left hle]
       have hfun : (fun t => G (p, t)) = (Icc p.2 p.1).indicator 1 := by
-        ext t; simp only [hG, S, indicator_apply, mem_ofPred_eq, mem_Icc, Pi.one_apply]
+        ext t
+        simp only [hG, S, indicator_apply, mem_ofPred_eq, mem_Icc, Pi.one_apply]
       have hdiff : Icc p.2 p.1 \ (Icc p.2 p.1 ∩ Ioc L U) ⊆ {L} := fun t ⟨ht1, ht2⟩ => by
         rcases eq_or_lt_of_le ((min_le_right a_b a_s).trans (hp2.1.trans ht1.1)) with hEq | hLt
         · exact hEq.symm
@@ -374,11 +373,12 @@ private theorem integral_gains_from_trade {μ_b μ_s : Measure ℝ}
         Real.volume_Icc, ENNReal.toReal_ofReal (sub_nonneg.2 hle)]
     · rw [ite_eq_right hle]
       have hfun : (fun t => G (p, t)) = fun _ => 0 :=
-        funext fun t => indicator_of_notMem (show (p, t) ∉ S from fun h => hle (h.1.trans h.2)) _
+        funext fun t => indicator_of_notMem (fun h : (p, t) ∈ S => hle (h.1.trans h.2)) _
       rw [hfun, integral_zero]
   have hR : ∀ t, ∫ p, G (p, t) ∂(μ_b.prod μ_s) = μ_b.real (Ici t) * μ_s.real (Iic t) := fun t => by
     have hfun : (fun p : ℝ × ℝ => G (p, t)) = (Ici t ×ˢ Iic t).indicator 1 := by
-      ext p; simp only [hG, S, indicator_apply, mem_ofPred_eq, mem_prod, mem_Ici, mem_Iic,
+      ext p
+      simp only [hG, S, indicator_apply, mem_ofPred_eq, mem_prod, mem_Ici, mem_Iic,
         and_comm, Pi.one_apply]
     rw [hfun, integral_indicator_one (measurableSet_Ici.prod measurableSet_Iic),
       measureReal_def, Measure.prod_prod, ENNReal.toReal_mul, ← measureReal_def, ← measureReal_def]
@@ -428,12 +428,23 @@ private theorem measurable_measureReal_Ici (μ : Measure ℝ) [IsFiniteMeasure �
 private theorem integrableOn_Ioc_of_unit {f : ℝ → ℝ} (hf : Measurable f)
     (h0 : ∀ t, 0 ≤ f t) (h1 : ∀ t, f t ≤ 1) (a b : ℝ) : IntegrableOn f (Ioc a b) :=
   Integrable.of_bound hf.aestronglyMeasurable 1 (Filter.Eventually.of_forall fun t => by
-    rw [Real.norm_eq_abs, abs_of_nonneg (h0 t)]; exact h1 t)
+    rw [Real.norm_eq_abs, abs_of_nonneg (h0 t)]
+    exact h1 t)
 
 private theorem abs_le_max_of_mem_Icc {a b v : ℝ} (hv : v ∈ Icc a b) :
     |v| ≤ max |a| |b| :=
   abs_le.2 ⟨by linarith [neg_le_abs a, le_max_left |a| |b|, hv.1],
     hv.2.trans ((le_abs_self b).trans (le_max_right |a| |b|))⟩
+
+private theorem integrableOn_Ici_mul_Iic (μ_b μ_s : Measure ℝ)
+    [IsProbabilityMeasure μ_b] [IsProbabilityMeasure μ_s] (c d : ℝ) :
+    IntegrableOn (fun t => μ_b.real (Ici t) * μ_s.real (Iic t)) (Ioc c d) :=
+  integrableOn_Ioc_of_unit
+    ((measurable_measureReal_Ici μ_b).mul (measurable_measureReal_Iic μ_s))
+    (fun _ => mul_nonneg measureReal_nonneg measureReal_nonneg)
+    (fun _ => (mul_le_of_le_one_right measureReal_nonneg measureReal_le_one).trans
+      measureReal_le_one)
+    c d
 
 /-- **Exact budget surplus identity for ex-post efficient bilateral trade**
 ([MyersonSatterthwaite1983], Theorem 1; locator not re-verified against primary PDF): for
@@ -486,7 +497,8 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
         (max (b_b - a_b) 0) ?_
       filter_upwards [hb_supp] with v_b hv
       refine (intervalIntegral.norm_integral_le_of_norm_le_const (C := 1) fun t _ => ?_).trans ?_
-      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]; exact measureReal_le_one
+      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]
+        exact measureReal_le_one
       · rw [one_mul, abs_of_nonneg (sub_nonneg.2 hv.1)]
         exact (sub_le_sub_right hv.2 a_b).trans (le_max_left _ _)
     have hi1' : Integrable
@@ -522,7 +534,8 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
         (max (b_s - a_s) 0) ?_
       filter_upwards [hs_supp] with v_s hv
       refine (intervalIntegral.norm_integral_le_of_norm_le_const (C := 1) fun t _ => ?_).trans ?_
-      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]; exact measureReal_le_one
+      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]
+        exact measureReal_le_one
       · rw [one_mul, abs_of_nonneg (sub_nonneg.2 hv.2)]
         exact (sub_le_sub_left hv.1 b_s).trans (le_max_left _ _)
     have hi1' : Integrable
@@ -537,40 +550,34 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       ∫ t in Ioc (min a_b a_s) (max b_b b_s), μ_b.real (Ici t) * μ_s.real (Iic t) := by
     have hsm : MeasurableSet {p : ℝ × ℝ | p.2 ≤ p.1} :=
       measurableSet_le measurable_snd measurable_fst
-    have h1int : Integrable (fun p : ℝ × ℝ => if p.2 ≤ p.1 then p.1 else 0) (μ_b.prod μ_s) := by
-      refine Integrable.of_bound
-        (Measurable.ite hsm measurable_fst measurable_const).aestronglyMeasurable
-        (max |a_b| |b_b|) ?_
-      filter_upwards [(Measure.quasiMeasurePreserving_fst (μ := μ_b) (ν := μ_s)).ae hb_supp]
-        with p hp
+    have hint_ite {f : ℝ × ℝ → ℝ} {a b : ℝ} (hf : Measurable f)
+        (hsupp : ∀ᵐ p ∂(μ_b.prod μ_s), f p ∈ Icc a b) :
+        Integrable (fun p : ℝ × ℝ => if p.2 ≤ p.1 then f p else 0) (μ_b.prod μ_s) := by
+      refine Integrable.of_bound (Measurable.ite hsm hf measurable_const).aestronglyMeasurable
+        (max |a| |b|) (hsupp.mono fun p hp => ?_)
       split_ifs
-      · rw [Real.norm_eq_abs]; exact abs_le_max_of_mem_Icc hp
-      · rw [norm_zero]; exact le_max_of_le_left (abs_nonneg _)
-    have h2int : Integrable (fun p : ℝ × ℝ => if p.2 ≤ p.1 then p.2 else 0) (μ_b.prod μ_s) := by
-      refine Integrable.of_bound
-        (Measurable.ite hsm measurable_snd measurable_const).aestronglyMeasurable
-        (max |a_s| |b_s|) ?_
-      filter_upwards [(Measure.quasiMeasurePreserving_snd (μ := μ_b) (ν := μ_s)).ae hs_supp]
-        with p hp
-      split_ifs
-      · rw [Real.norm_eq_abs]; exact abs_le_max_of_mem_Icc hp
-      · rw [norm_zero]; exact le_max_of_le_left (abs_nonneg _)
+      · simpa only [Real.norm_eq_abs] using abs_le_max_of_mem_Icc hp
+      · simp only [norm_zero, le_max_iff, abs_nonneg, or_self]
+    have h1int := hint_ite measurable_fst
+      ((Measure.quasiMeasurePreserving_fst (μ := μ_b) (ν := μ_s)).ae hb_supp)
+    have h2int := hint_ite measurable_snd
+      ((Measure.quasiMeasurePreserving_snd (μ := μ_b) (ν := μ_s)).ae hs_supp)
     have h1eq : ∫ p : ℝ × ℝ, (if p.2 ≤ p.1 then p.1 else 0) ∂(μ_b.prod μ_s) =
         ∫ v_b, v_b * μ_s.real (Iic v_b) ∂μ_b := by
       rw [integral_prod _ h1int]
       refine integral_congr_ae (Filter.Eventually.of_forall fun v_b => ?_)
       dsimp only
-      have : (fun v_s => if v_s ≤ v_b then v_b else 0) = (Iic v_b).indicator (fun _ => v_b) := by
-        ext v_s; simp only [indicator_apply, mem_Iic]
-      rw [this, integral_indicator measurableSet_Iic, setIntegral_const, smul_eq_mul, mul_comm]
+      have h : (fun v_s => if v_s ≤ v_b then v_b else 0) = (Iic v_b).indicator (fun _ => v_b) :=
+        funext fun _ => by simp [indicator_apply]
+      rw [h, integral_indicator measurableSet_Iic, setIntegral_const, smul_eq_mul, mul_comm]
     have h2eq : ∫ p : ℝ × ℝ, (if p.2 ≤ p.1 then p.2 else 0) ∂(μ_b.prod μ_s) =
         ∫ v_s, v_s * μ_b.real (Ici v_s) ∂μ_s := by
       rw [integral_prod_symm _ h2int]
       refine integral_congr_ae (Filter.Eventually.of_forall fun v_s => ?_)
       dsimp only
-      have : (fun v_b => if v_s ≤ v_b then v_s else 0) = (Ici v_s).indicator (fun _ => v_s) := by
-        ext v_b; simp only [indicator_apply, mem_Ici]
-      rw [this, integral_indicator measurableSet_Ici, setIntegral_const, smul_eq_mul, mul_comm]
+      have h : (fun v_b => if v_s ≤ v_b then v_s else 0) = (Ici v_s).indicator (fun _ => v_s) :=
+        funext fun _ => by simp [indicator_apply]
+      rw [h, integral_indicator measurableSet_Ici, setIntegral_const, smul_eq_mul, mul_comm]
     rw [← h1eq, ← h2eq, ← integral_sub h1int h2int]
     have hsub : (fun p : ℝ × ℝ => (if p.2 ≤ p.1 then p.1 else 0) -
         (if p.2 ≤ p.1 then p.2 else 0)) = fun p => if p.2 ≤ p.1 then p.1 - p.2 else 0 := by
@@ -580,12 +587,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
   set L := min a_b a_s
   set U := max b_b b_s
   set g : ℝ → ℝ := fun t => μ_b.real (Ici t) * μ_s.real (Iic t)
-  have hg_int : IntegrableOn g (Ioc L U) :=
-    integrableOn_Ioc_of_unit (hm_Fb.mul hm_Fs)
-      (fun _ => mul_nonneg measureReal_nonneg measureReal_nonneg)
-      (fun _ => (mul_le_of_le_one_right measureReal_nonneg (measureReal_le_one)).trans
-        (measureReal_le_one))
-      L U
+  have hg_int : IntegrableOn g (Ioc L U) := integrableOn_Ici_mul_Iic μ_b μ_s L U
   have hI {c d : ℝ} (hsub : Ioc c d ⊆ Ioc L U) :
       ∫ t in Ioc c d, g t = ∫ t in Ioc L U, (Ioc c d).indicator g t := by
     rw [integral_indicator measurableSet_Ioc, Measure.restrict_restrict measurableSet_Ioc,
@@ -624,11 +626,13 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
         · rw [indicator_of_mem (s := Ioc a_b b_b) ⟨h1, htb⟩,
             indicator_of_notMem (s := Ioc a_s b_s) fun h => h2 h.2,
             indicator_of_notMem (s := Ioc (max a_b a_s) (min b_b b_s))
-              fun h => h2 (h.2.trans (min_le_right _ _))]; ring
+              fun h => h2 (h.2.trans (min_le_right _ _))]
+          ring
         · rw [indicator_of_notMem (s := Ioc a_b b_b) fun h => h1 h.1,
             indicator_of_mem (s := Ioc a_s b_s) ⟨hta, h2⟩,
             indicator_of_notMem (s := Ioc (max a_b a_s) (min b_b b_s))
-              fun h => h1 ((le_max_left _ _).trans_lt h.1)]; ring
+              fun h => h1 ((le_max_left _ _).trans_lt h.1)]
+          ring
         · exfalso
           linarith [(le_max_left a_b a_s).trans (hover.trans (min_le_right b_b b_s)),
             not_lt.mp h1, not_le.mp h2]
@@ -643,9 +647,8 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       ← integral_sub hg_int (hg_int.indicator measurableSet_Ioc),
       ← integral_sub hsub1 (hg_int.indicator measurableSet_Ioc), ← integral_neg]
     exact setIntegral_congr_fun measurableSet_Ioc hpt
-  have hpb' : Integrable (fun p : ℝ × ℝ => M.buyerPayment p.1 p.2) (μ_b.prod μ_s) := hpb
-  have hps' : Integrable (fun p : ℝ × ℝ => M.sellerPayment p.1 p.2) (μ_b.prod μ_s) := hps
-  rw [integral_sub hpb' hps', hEb, hEs]
+  rw [integral_sub (f := fun p : ℝ × ℝ => M.buyerPayment p.1 p.2)
+    (g := fun p : ℝ × ℝ => M.sellerPayment p.1 p.2) hpb hps, hEb, hEs]
   linarith [hGFT, hcomb]
 
 /-- **Myerson–Satterthwaite impossibility theorem** ([MyersonSatterthwaite1983], Theorem 1;
@@ -673,16 +676,9 @@ theorem budget_surplus_neg_of_hasValueDensityOn {M : Mechanism}
   have hUs : 0 ≤ M.interimSellerUtility μ_b b_s := hIR.2 b_s ⟨has, le_rfl⟩
   set g : ℝ → ℝ := fun t => μ_b.real (Ici t) * μ_s.real (Iic t)
   have hg_pos : 0 < ∫ t in Ioc (max a_b a_s) (min b_b b_s), g t := by
-    have hg_int : IntegrableOn g (Ioc (max a_b a_s) (min b_b b_s)) :=
-      integrableOn_Ioc_of_unit
-        ((measurable_measureReal_Ici μ_b).mul (measurable_measureReal_Iic μ_s))
-        (fun _ => mul_nonneg measureReal_nonneg measureReal_nonneg)
-        (fun _ => (mul_le_of_le_one_right measureReal_nonneg (measureReal_le_one)).trans
-          (measureReal_le_one))
-        (max a_b a_s) (min b_b b_s)
     rw [setIntegral_pos_iff_support_of_nonneg_ae
       (Filter.Eventually.of_forall fun _ => mul_nonneg measureReal_nonneg measureReal_nonneg)
-      hg_int]
+      (integrableOn_Ici_mul_Iic μ_b μ_s (max a_b a_s) (min b_b b_s))]
     have hsub : Ioo (max a_b a_s) (min b_b b_s) ⊆
         Function.support g ∩ Ioc (max a_b a_s) (min b_b b_s) := fun t ht =>
       ⟨(mul_pos (hμ_b.measureReal_Ici_pos

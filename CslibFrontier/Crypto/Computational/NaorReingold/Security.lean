@@ -258,9 +258,10 @@ private theorem naorReingoldWordHybridAt_self (F : PrimeOrderGroupFamily) (d : F
   unfold naorReingoldWordHybridAt
   simp only [PMF.monad_bind_eq_bind]
   congr 1; funext B
-  rw [show (fun α => naorReingoldWordRun F d prog (F.naorReingoldHybridEval d m B α)) =
-      fun _ => naorReingoldWordRun F d prog (fun x => B x • F.generator d) from
-    funext fun _ => congrArg _ (funext fun x => by simp [naorReingoldHybridEval]), PMF.bind_const]
+  have hfn (α : Fin m → ZMod (F.order d)) :
+      F.naorReingoldHybridEval d m B α = fun x => B x • F.generator d :=
+    funext fun x => by simp [naorReingoldHybridEval]
+  simp_rw [hfn, PMF.bind_const]
 
 private noncomputable def naorReingoldWordLevelTest (F : PrimeOrderGroupFamily) (d : F.Desc)
     {m : ℕ} (k : ℕ) (hk : k < m) (prog : WordOracleComp Unit Bool) (_u : F.Carrier d)
@@ -529,7 +530,8 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
       runFrontier := by
     refine hadv.isPPTOn_runState (operationEncoding := encFinEnum Unit)
       (prepare := fun caller : DDHCaller F => (caller.1.1.secParam, caller.1.1.groupParameters))
-      (resources := resources) (by unfold ddhCallerEncoding; fun_prop)
+      (resources := resources)
+      (by unfold ddhCallerEncoding; fun_prop)
       (by
         unfold ddhCallerEncoding
         exact isPPTOn_naorReingoldFrontierOracle
@@ -537,7 +539,8 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
           (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))
       (by fun_prop)
       (fun caller cache => ∀ entry ∈ cache, isEncodedPair caller.1.1.groupParameters entry.2)
-      (by simp) (by unfold ddhCallerEncoding; dsimp only [resources, elemBound]; fun_prop) ?_
+      (by simp)
+      (by unfold ddhCallerEncoding; dsimp only [resources, elemBound]; fun_prop) ?_
     intro caller request cache hcache result hresult
     let d := caller.1.1.groupParameters
     unfold naorReingoldFrontierOracle at hresult
@@ -560,17 +563,25 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
           have h1 := hE d y₁; have h2 := hE d y₂
           dsimp only [elemBound, d] at h1 h2 ⊢; omega)
         (vw, cache') hvw
+      have hchild : (if request.2.getD caller.1.2 false then vw.2 else vw.1) =
+          F.encode d (if request.2.getD caller.1.2 false then x₂ else x₁) := by
+        dsimp only at hvw_eq
+        rw [hvw_eq]
+        split_ifs <;> rfl
       refine ⟨hcache', ?_, ?_⟩
-      · rw [show (if request.2.getD caller.1.2 false then vw.2 else vw.1) =
-            F.encode d (if request.2.getD caller.1.2 false then x₂ else x₁) by
-            dsimp only at hvw_eq; rw [hvw_eq]; split_ifs <;> rfl,
-          F.naorReingoldWordSuffix_encode]
+      · rw [hchild, F.naorReingoldWordSuffix_encode]
         exact (hE d _).trans (by dsimp only [resources, d]; lia)
       · dsimp only [naorReingoldCacheEncoding, encMemoCache, encBits_apply, resources, d]
           at hgrowth ⊢
-        rw [List.length_take] at hgrowth; lia
+        rw [List.length_take] at hgrowth
+        lia
     · simp only [hq, ↓reduceIte, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-      subst result; exact ⟨hcache, Nat.zero_le _, Nat.le_add_right _ _⟩
+      subst result
+      exact ⟨hcache, Nat.zero_le _, Nat.le_add_right _ _⟩
+  have hrun_fst : IsPPTOn (encPair (encPair F.encDDHInput encUnary) (encList encNat)) encBool
+      (fun caller => Prod.fst <$> runFrontier caller) := by
+    unfold ddhCallerEncoding at hrun
+    exact hrun.map (ComputableInPolyTime.fst _ _)
   unfold DDHDistinguisher.IsPPT naorReingoldDescToDDHDistinguisher
   refine (isPPTOn_sampleDyadicIndex (by fun_prop)).bind_with
     ((IsPPTOn.ite (condition := fun p : F.DDHInput × ℕ => p.2 < inLen p.1.secParam) (by fun_prop)
@@ -578,8 +589,7 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
         (program := fun p : F.DDHInput × ℕ =>
           F.sampleNaorReingoldExp p.1.secParam p.1.groupParameters)
         (by fun_prop) (by fun_prop)).bind_with
-        (second := fun p αs => Prod.fst <$> runFrontier (p, αs))
-        (by unfold ddhCallerEncoding at hrun; exact hrun.map (ComputableInPolyTime.fst _ _)))
+        (second := fun p αs => Prod.fst <$> runFrontier (p, αs)) hrun_fst)
       (no := fun _ => pure false) (by fun_prop)).congr fun p => ?_)
   by_cases h : p.2 < inLen p.1.secParam <;> simp [h, runFrontier]
 
@@ -1167,10 +1177,13 @@ private theorem advantage_sampleModZModLaw_bind_le (n : ℕ) (d : F.Desc) {m : �
       ((m + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by
   let μ := F.sampleModZModLaw (n + (F.encDesc d).length) d
   let ν := PMF.uniformOfFintype (ZMod (F.order d))
-  rw [show (ν.bind fun α₀ => (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α =>
-      detRun (α₀, α)) = (ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)).bind detRun by
-      rw [iid_uniformOfFintype]; simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def],
-    Game.advantage_eq_nndist, ← NNReal.coe_le_coe, coe_nndist]
+  have hword :
+      (ν.bind fun α₀ => (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α =>
+        detRun (α₀, α)) =
+      (ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)).bind detRun := by
+    rw [iid_uniformOfFintype]
+    simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
+  rw [hword, Game.advantage_eq_nndist, ← NNReal.coe_le_coe, coe_nndist]
   have hd_step : dist μ ν ≤ 1 / 2 ^ n := by
     rw [dist_comm]
     exact (F.dist_sampleModZModLaw_le (n + (F.encDesc d).length) d).trans <|
@@ -1274,9 +1287,13 @@ private theorem DDH.negligible_naorReingoldDescGame {F : PrimeOrderGroupFamily}
       have : 2 * n ≤ 2 * n * (L + 1) := Nat.le_mul_of_pos_right _ (Nat.add_pos_right L zero_lt_one)
       dsimp only [L] at *; omega
     have hQd_le : Q n d ≤ cQ * C * (2 * n + 6) ^ eQ * 2 ^ L := calc
-      Q n d ≤ cQ * ((2 * n + 6) * (L + 1)) ^ eQ := by dsimp only [Q]; gcongr
+      Q n d ≤ cQ * ((2 * n + 6) * (L + 1)) ^ eQ := by
+        dsimp only [Q]
+        gcongr
       _ = cQ * ((2 * n + 6) ^ eQ * (L + 1) ^ eQ) := by rw [Nat.mul_pow]
-      _ ≤ cQ * ((2 * n + 6) ^ eQ * (C * 2 ^ L)) := by gcongr; exact hC L
+      _ ≤ cQ * ((2 * n + 6) ^ eQ * (C * 2 ^ L)) := by
+        gcongr
+        exact hC L
       _ = cQ * C * (2 * n + 6) ^ eQ * 2 ^ L := by ring
     have hnum_le : inLen n + 2 * Q n d ≤ (inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ) * 2 ^ L := by
       have := Nat.le_mul_of_pos_right (inLen n) (Nat.two_pow_pos L)
@@ -1545,14 +1562,15 @@ private theorem advantage_naorReingoldHashedIdeal_at_le (F : PrimeOrderGroupFami
     · simp only [linearHashSeedLen, Cslib.BitString.uniformList, PMF.bind_map, PMF.bind_bind,
         Function.comp_def, tableWith, seedLaw]
       congr 1; funext seed
+      have hpi : PMF.pi (fun _ : BitString m => source.map (hashSeed seed)) =
+          (PMF.uniformOfFintype (BitString m → ZMod (F.order d))).map
+            (fun B x => hashSeed seed (F.paddedGeneratorMultiple bound d (B x))) := by
+        dsimp only [source]
+        simp_rw [PMF.map_comp]
+        rw [PMF.pi_map, PMF.pi_uniformOfFintype]
+        rfl
       rw [← run_eager_bitStringTable_eq_presample (hQ seed) (source.map (hashSeed seed)),
-        show PMF.pi (fun _ : BitString m => source.map (hashSeed seed)) =
-            (PMF.uniformOfFintype (BitString m → ZMod (F.order d))).map
-              (fun B x => hashSeed seed (F.paddedGeneratorMultiple bound d (B x))) by
-          dsimp only [source]
-          simp_rw [PMF.map_comp]
-          rw [PMF.pi_map, PMF.pi_uniformOfFintype]; rfl,
-        PMF.bind_map]
+        hpi, PMF.bind_map]
       congr 1
       funext B
       dsimp only [Function.comp_apply]
@@ -1944,8 +1962,8 @@ theorem DDH.negligible_naorReingoldHashedGame_ideal_const {F : PrimeOrderGroupFa
       exact tsum_congr fun d => by simp only [ENNReal.coe_mul]; ring)
   have hE_top : (∑' d, setup n d * (g d : ℝ≥0∞)) ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top <|
-      (tsum_le_tsum fun d => mul_le_mul_of_nonneg_left
-        (ENNReal.coe_le_one_iff.mpr (hg_le_one d)) zero_le).trans_eq (by simp [(setup n).tsum_coe])
+      (tsum_le_tsum fun x => mul_le_mul_of_nonneg_left
+        (ENNReal.coe_le_one_iff.mpr (hg_le_one x)) zero_le).trans_eq (by simp [(setup n).tsum_coe])
   have hjensen : (∑' d, setup n d * (g d : ℝ≥0∞)).toReal ≤ Real.sqrt (ε n : ℝ) := by
     have hE_eq :
         (∑' d, setup n d * (g d : ℝ≥0∞)).toReal = ∑' d, (setup n d).toReal * (g d : ℝ) := by

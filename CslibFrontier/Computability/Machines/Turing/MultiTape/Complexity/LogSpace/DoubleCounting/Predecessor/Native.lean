@@ -81,17 +81,14 @@ theorem Returns.exists_run_encoding_le {τ : Type} (encT : τ ↪ List Bool)
           4 * (encContext ctx).length + 8 * (Nat.log2 ctx.size + 1) + D + 16 := by
   induction h with
   | initial =>
-    refine ⟨0, rfl, ?_⟩
-    intro i hi
-    have : i = 0 := by omega
-    subst i
+    refine ⟨0, rfl, fun i hi => ?_⟩
+    obtain rfl : i = 0 := by omega
     rw [QueryMachine.runFrom_zero, QueryMachine.withCalls_encoding_inl_length]
     have h := length_encState_le (Returns.bounded (Returns.initial (ctx := ctx) (N := N)
       (start := start) (answer := answer) (w := w)))
-    change (encState (Predecessor.initial ctx)).length ≤ _ at h
-    change (encState (Predecessor.initial ctx)).length + 1 ≤ _
     change (encState (Predecessor.initial ctx)).length ≤
       2 * (encContext ctx).length + 4 * (Nat.log2 ctx.size + 1) + 7 at h
+    change (encState (Predecessor.initial ctx)).length + 1 ≤ _
     omega
   | @call p hp hlive T hpre hhalt ih =>
     obtain ⟨U, hU, hUB⟩ := ih
@@ -120,11 +117,9 @@ theorem Returns.exists_firstHalt_encoding_le {τ : Type} (encT : τ ↪ List Boo
   let Q := computingMachine ctx N start answer
   obtain ⟨T, hT, hB⟩ := h.exists_run_encoding_le encT D hc
   change Q.run w T = .inl q at hT
-  have hbound : Q.halted (Q.run w T) = true := by rw [hT]; exact hstop
   obtain ⟨clock, hle, hhalt, hpre, hstate⟩ :=
-    Q.exists_first_halt_le w Q.init T hbound
-  have hclock : Q.run w clock = .inl q := hstate.trans hT
-  exact ⟨clock, hhalt, hpre, hclock, fun i hi => hB i (hi.trans hle)⟩
+    Q.exists_first_halt_le w Q.init T ((congrArg Q.halted hT).trans hstop)
+  exact ⟨clock, hhalt, hpre, hstate.trans hT, fun i hi => hB i (hi.trans hle)⟩
 
 /-- Compile the actual predecessor routine to a native computation, for a fixed explicit
 context and supplied same-input callees. Space charges original-input positions and the whole
@@ -170,10 +165,10 @@ theorem compute_of_callees {α τ : Type} {n : ℕ} (enc : α ↪ List Bool)
     obtain ⟨T, hhalt, hpre, hT, hB⟩ :=
       htrace.exists_firstHalt_encoding_le encT hstop (D a) (hb a)
     refine ⟨T, hhalt, hpre, ?_, fun i hi => (hB i hi).trans (hframe a)⟩
-    have hresult := result_of_returns (edge a) (member a) v hsize htrace hstop (hc a)
     rw [Q.output_eq_finish_of_emit_nil (enc a) (computingMachine_emit_eq_nil ctx N start answer),
       hT]
-    exact congrArg encCountResult hresult.symm
+    exact congrArg encCountResult
+      (result_of_returns (edge a) (member a) v hsize htrace hstop (hc a)).symm
   choose time hhalt hpre hf hB using cert
   apply Q.computableInSpace (machine_query_inSpace encT ctx N start answer hq hs)
     (machine_next_inSpace encT ctx N start answer hn hh hs ha)

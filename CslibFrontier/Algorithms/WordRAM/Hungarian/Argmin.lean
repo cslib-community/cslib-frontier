@@ -78,16 +78,12 @@ theorem exec_argminCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ} {r : Fin
     by_cases hu : vget s.used j = true
     · wram_exec [hby.hbaseUsed, hby.hzero, hby.hone, hused_j, hu]
       refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_⟩, by wram_simp⟩
-      rw [hb_step]
-      unfold hgArgminStep
-      rw [ite_eq_left hu]
-      cases hbk : bAt (y.regs idx) with
-      | none =>
-        rw [hbk] at hbAt
-        wram_simp [hbAt]
-      | some j₀ =>
-        rw [hbk] at hbAt
-        exact ⟨by wram_simp [hbAt.1], by wram_simp [hbAt.2]⟩
+      rw [hb_step, hgArgminStep.eq_def, ite_eq_left hu]
+      cases hbk : bAt (y.regs idx) <;> rw [hbk] at hbAt
+      · wram_simp [hbAt]
+      · constructor
+        · wram_simp [hbAt.1]
+        · wram_simp [hbAt.2]
     · have huf : vget s.used j = false := Bool.eq_false_iff.mpr hu
       cases hbk : bAt (y.regs idx) with
       | none =>
@@ -95,9 +91,7 @@ theorem exec_argminCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ} {r : Fin
         wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hzero, hby.hone, hby.hrn,
           hused_j, huf, hminv_j, hbAt]
         refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_⟩, by wram_simp⟩
-        rw [hb_step]
-        unfold hgArgminStep
-        rw [ite_eq_right hu, hbk]
+        rw [hb_step, hgArgminStep.eq_def, ite_eq_right hu, hbk]
         exact ⟨by wram_simp; rfl, by wram_simp⟩
       | some j₀ =>
         rw [hbk] at hbAt
@@ -109,9 +103,7 @@ theorem exec_argminCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ} {r : Fin
           hused_j, huf, hminv_j, hrj1, hrdelta, hj₀_ne]
         all_goals
           refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_⟩, by wram_simp⟩
-          rw [hb_step]
-          unfold hgArgminStep
-          rw [ite_eq_right hu, hbk]
+          rw [hb_step, hgArgminStep.eq_def, ite_eq_right hu, hbk]
           dsimp only
         · rw [ite_eq_left (show vget s.minv j < vget s.minv j₀ by omega)]
           exact ⟨by wram_simp; rfl, by wram_simp⟩

@@ -49,9 +49,8 @@ theorem discrepancy_uniformOfFintype_le_l2_opNorm (f : X → Y → Bool) :
       ‖signMatrix ℝ f‖ / √((Fintype.card X : ℝ) * Fintype.card Y) := by
   obtain ⟨A, B, hAB⟩ := exists_abs_sum_eq_discrepancy (PMF.uniformOfFintype (X × Y)) f
   let N : ℝ := (Fintype.card X : ℝ) * Fintype.card Y
-  have hN : 0 < N := by
-    dsimp [N]
-    exact mul_pos (Nat.cast_pos.mpr Fintype.card_pos) (Nat.cast_pos.mpr Fintype.card_pos)
+  have hN : 0 < N :=
+    mul_pos (Nat.cast_pos.mpr Fintype.card_pos) (Nat.cast_pos.mpr Fintype.card_pos)
   have hs : 0 < √N := Real.sqrt_pos.mpr hN
   have hmass (x : X) (y : Y) :
       ((PMF.uniformOfFintype (X × Y)) (x, y)).toReal = N⁻¹ := by
@@ -62,19 +61,15 @@ theorem discrepancy_uniformOfFintype_le_l2_opNorm (f : X → Y → Bool) :
     rw [← hAB]
     simp only [hmass, ← mul_sum, abs_mul, abs_inv, abs_of_pos hN]
     field_simp
-  have hrect : |∑ x ∈ A, ∑ y ∈ B, signVal (f x y)| ≤
-      ‖signMatrix ℝ f‖ * √N := by
-    have hA : (#A : ℝ) ≤ Fintype.card X := by exact_mod_cast card_le_univ A
-    have hB : (#B : ℝ) ≤ Fintype.card Y := by exact_mod_cast card_le_univ B
+  have hrect : |∑ x ∈ A, ∑ y ∈ B, signVal (f x y)| ≤ ‖signMatrix ℝ f‖ * √N := by
     calc _ ≤ ‖signMatrix ℝ f‖ * √(#A : ℝ) * √(#B : ℝ) := by
           simpa only [signMatrix_apply_eq_signVal] using
             Matrix.abs_sum_sum_le_l2_opNorm (signMatrix ℝ f) A B
-      _ ≤ ‖signMatrix ℝ f‖ * √(Fintype.card X) * √(Fintype.card Y) :=
-        by gcongr
+      _ ≤ ‖signMatrix ℝ f‖ * √(Fintype.card X) * √(Fintype.card Y) := by
+          gcongr <;> exact_mod_cast card_le_univ _
       _ = ‖signMatrix ℝ f‖ * √N := by
-        rw [mul_assoc, ← Real.sqrt_mul (Nat.cast_nonneg _)]
-  apply (le_div_iff₀ hs).mpr
-  apply (mul_le_mul_iff_right₀ hs).mp
+          rw [mul_assoc, ← Real.sqrt_mul (Nat.cast_nonneg _)]
+  refine (le_div_iff₀ hs).mpr ((mul_le_mul_iff_right₀ hs).mp ?_)
   calc √N * (discrepancy (PMF.uniformOfFintype (X × Y)) f * √N)
       = discrepancy (PMF.uniformOfFintype (X × Y)) f * N := by
         rw [mul_left_comm, Real.mul_self_sqrt hN.le]
@@ -94,8 +89,7 @@ theorem discrepancy_bitString_le_l2_opNorm {n : ℕ} (f : BitString n → BitStr
     discrepancy (PMF.uniformOfFintype (BitString n × BitString n)) f ≤
       ‖signMatrix ℝ f‖ / 2 ^ n := by
   have h := discrepancy_uniformOfFintype_le_l2_opNorm f
-  have hcard : (Fintype.card (BitString n) : ℝ) = 2 ^ n := by simp
-  rw [hcard, ← sq, Real.sqrt_sq_eq_abs, abs_of_pos (by positivity)] at h
-  exact h
+  rwa [show (Fintype.card (BitString n) : ℝ) = 2 ^ n by simp, ← sq,
+    Real.sqrt_sq (by positivity)] at h
 
 end Cslib.Communication

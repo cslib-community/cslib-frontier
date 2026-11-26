@@ -304,13 +304,11 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
       wram_exec [hc1, hNv, hO, hP, hi, hm]
       refine ⟨fun q hq => ?_, fun q hq => ?_, fun a ha => ?_, by wram_simp, fun r hr => ?_⟩
       · mem_upd
-        rw [Function.update_of_ne (by omega)]
-        exact hord q hq
+        exact (Function.update_of_ne (by omega) _ _).trans (hord q hq)
       · mem_upd
-        by_cases hqk : q = k
-        · rw [hqk, show P + 1 + k = P + k + 1 by omega, Function.update_self]
-        · rw [Function.update_of_ne (by omega)]
-          exact hcp q (by omega)
+        rcases eq_or_ne q k with rfl | hqk
+        · rw [show P + 1 + q = P + q + 1 by omega, Function.update_self]
+        · exact (Function.update_of_ne (by omega) _ _).trans (hcp q (by omega))
       · mem_upd
         exact Function.update_of_ne (by omega) _ _
       · wram_simp
@@ -357,24 +355,23 @@ def topoProgram : Program .standard 28 := topoCode.program outReg
 def sccProgram : Program .standard 28 := sccCode.program outReg
 
 private theorem n_eq_zero_branch {w : ℕ} {s : Data 28} (hs_out : s.regs outReg = 0)
-    (hs_n : s.regs nVerts = 0) (hs_0 : s.regs cZero = 0) (pos : Code .standard 28) :
+    (hs_n : s.regs nVerts = 0) (hs_0 : s.regs cZero = 0) (pos : Code .standard 28)
+    {words : List ℕ} (hwords : words = []) :
     ∃ y, ExecWithin w (Code.branch (.eq nVerts cZero) (ram[ *cZero ← cZero ]) pos) s y 2 ∧
-      y.regs outReg = 0 ∧ outputList y.mem 0 = [] := by
-  have hcond : (Cond.eq nVerts cZero).Holds s := by
-    change s.regs nVerts = s.regs cZero; omega
+      outputList y.mem (y.regs outReg) = words ∧ Fits w (y.regs outReg + words.length) := by
   have hst : ExecWithin (B := .standard) w (ram[ *cZero ← cZero ]) s (s.write 0 0) 1 := by
     wram_exec [hs_0]
-  refine ⟨s.write 0 0, hst.branch_pos hcond, hs_out, ?_⟩
-  rw [outputList_eq_iff]
-  exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
+  refine ⟨s.write 0 0, hst.branch_pos (hs_n.trans hs_0.symm), ?_, ?_⟩
+  · rw [show (s.write 0 0).regs outReg = 0 from hs_out, hwords, outputList_eq_iff]
+    exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
+  · have hout : (s.write 0 0).regs outReg = 0 := hs_out
+    simpa only [hout, hwords, List.length_nil, Nat.add_zero] using fits_zero w
 
-private theorem topoWords_eq_nil (G : Graph) (hn0 : G.n = 0) : topoWords G = [] := by
-  apply List.eq_nil_of_length_eq_zero
-  rw [topoWords, List.length_map, length_topologicalSort_finRange, hn0]
+private theorem topoWords_eq_nil (G : Graph) (hn0 : G.n = 0) : topoWords G = [] :=
+  List.eq_nil_of_length_eq_zero (by simp [topoWords, length_topologicalSort_finRange, hn0])
 
 private theorem sccWords_eq_nil (G : Graph) (hn0 : G.n = 0) : sccWords G = [] := by
-  apply List.eq_nil_of_length_eq_zero
-  rw [sccWords, List.length_map, List.length_finRange, hn0]
+  simp [sccWords, hn0]
 
 private theorem fits_top (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
     Fits w (kTopAddr 3 G.n G.m + G.m + 4) :=
@@ -392,15 +389,12 @@ theorem topoCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   obtain ⟨s, hs_ex, hs_mem, hs_out, hs_n, hs_r, -, -, -, hs_ord, -⟩ :=
     setupCode_spec G hfit
   by_cases hn0 : G.n = 0
-  · obtain ⟨y, hy_ex, hy_out, hy_list⟩ :=
-      n_eq_zero_branch hs_out (hs_n.trans hn0) hs_r.czero _
-    refine ⟨y, (hs_ex.seq hy_ex).mono (by omega), ?_, ?_⟩
-    · rw [hy_out, hy_list, topoWords_eq_nil G hn0]
-    · rw [hy_out, topoWords_eq_nil G hn0]; exact fits_zero w
+  · obtain ⟨y, hy_ex, hy_list, hy_fit⟩ :=
+      n_eq_zero_branch hs_out (hs_n.trans hn0) hs_r.czero _ (topoWords_eq_nil G hn0)
+    exact ⟨y, (hs_ex.seq hy_ex).mono (by lia), hy_list, hy_fit⟩
   have hN : 0 < G.n := Nat.pos_of_ne_zero hn0
   have hncond : ¬ (Cond.eq nVerts cZero).Holds s := by
-    have := hs_r.czero
-    change ¬ s.regs nVerts = s.regs cZero; omega
+    simpa only [Cond.holds_eq, hs_n, hs_r.czero] using hn0
   have hfit_top := fits_top G hfit
   obtain ⟨s₁, hs₁_ex, -, hs₁_omem, -, -, hs₁_fr⟩ :=
     forwardDFSCode_spec hN G.adj 3 G.m le_rfl hfit_top hs_r hs_n (hs_mem ▸ G.csrAt_init)
@@ -427,16 +421,10 @@ theorem topoCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
       (by wram_simp [x₂, hs₁_fr, hs_ord]) (by wram_simp [x₂]) (by wram_simp [x₂])
   have hy_out : y.regs outReg = P := (hy_fr outReg (by decide)).trans (by wram_simp [x₂])
   refine ⟨y, (hs_ex.seq ((hs₁_ex.seq (hs₂_ex.seq hy_ex)).branch_neg hncond)).mono (by omega),
-    ?_, ?_⟩
-  · rw [hy_out, outputList_eq_iff]
-    refine ⟨?_, fun i => ?_⟩
-    · rw [hy_low P le_rfl, hlen]
-      simp only [x₂]; mem_upd
-      rw [Function.update_self]
-    · change y.mem (P + 1 + i.val) = (topoWords G)[i.val]
-      have hi : i.val < G.n := hlen ▸ i.isLt
-      rw [hy_cp i.val hi, List.getD_eq_getElem _ 0 (by exact i.isLt)]
-  · rw [hy_out, hlen]; exact hP_fit.of_le (by omega)
+    ?_, hlen ▸ hy_out ▸ hP_fit.of_le (by omega)⟩
+  rw [hy_out, outputList_eq_iff]
+  exact ⟨by simp [hy_low P le_rfl, hlen, x₂],
+    fun i => (hy_cp i.val (hlen ▸ i.isLt)).trans (List.getD_eq_getElem _ 0 i.isLt)⟩
 
 /-- **Linear-time Kosaraju strongly connected components on the word RAM.** From the CSR input
 `G.encodeCSR`, `sccCode` leaves `sccWords G` (each vertex's topological component index in
@@ -451,15 +439,12 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   obtain ⟨s, hs_ex, hs_mem, hs_out, hs_n, hs_r, hs_cur, hs_roff, hs_redge, hs_ord, hs_comp⟩ :=
     setupCode_spec G hfit
   by_cases hn0 : G.n = 0
-  · obtain ⟨y, hy_ex, hy_out, hy_list⟩ :=
-      n_eq_zero_branch hs_out (hs_n.trans hn0) hs_r.czero _
-    refine ⟨y, (hs_ex.seq hy_ex).mono (by omega), ?_, ?_⟩
-    · rw [hy_out, hy_list, sccWords_eq_nil G hn0]
-    · rw [hy_out, sccWords_eq_nil G hn0]; exact fits_zero w
+  · obtain ⟨y, hy_ex, hy_list, hy_fit⟩ :=
+      n_eq_zero_branch hs_out (hs_n.trans hn0) hs_r.czero _ (sccWords_eq_nil G hn0)
+    exact ⟨y, (hs_ex.seq hy_ex).mono (by lia), hy_list, hy_fit⟩
   have hN : 0 < G.n := Nat.pos_of_ne_zero hn0
   have hncond : ¬ (Cond.eq nVerts cZero).Holds s := by
-    have := hs_r.czero
-    change ¬ s.regs nVerts = s.regs cZero; omega
+    simpa only [Cond.holds_eq, hs_n, hs_r.czero] using hn0
   have hfit_top := fits_top G hfit
   obtain ⟨s₁, hs₁_ex, hs₁_comp, -, hs₁_fr⟩ :=
     sccIndexCode_spec hN G.adj 3 G.m le_rfl hfit_top hs_r hs_n hs_cur hs_roff hs_redge hs_ord
@@ -477,17 +462,16 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hlen : (sccWords G).length = G.n := by
     rw [sccWords, List.length_map, List.length_finRange]
   have hy_out : y.regs outReg = P := by wram_simp [y]
-  refine ⟨y, (hs_ex.seq ((hs₁_ex.seq hs₂_ex).branch_neg hncond)).mono (by omega), ?_, ?_⟩
-  · rw [hy_out, outputList_eq_iff]
-    refine ⟨?_, fun i => ?_⟩
-    · rw [hlen]; simp only [y]; mem_upd; rw [Function.update_self]
-    · change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
-      have hi : i.val < G.n := hlen ▸ i.isLt
-      simp only [y]; mem_upd
-      rw [Function.update_of_ne (by omega), ← hC,
-        show C + i.val = C + (⟨i.val, hi⟩ : Fin G.n).val from rfl, hs₁_comp ⟨i.val, hi⟩]
-      simp [sccWords]
-  · rw [hy_out, hlen]; exact hP_fit.of_le (by omega)
+  refine ⟨y, (hs_ex.seq ((hs₁_ex.seq hs₂_ex).branch_neg hncond)).mono (by omega),
+    ?_, hlen ▸ hy_out ▸ hP_fit.of_le (by omega)⟩
+  rw [hy_out, outputList_eq_iff]
+  refine ⟨by simp [y, hlen], fun i => ?_⟩
+  change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
+  have hi : i.val < G.n := hlen ▸ i.isLt
+  simp only [y]
+  mem_upd
+  rw [Function.update_of_ne (by omega), ← hC, hs₁_comp ⟨i.val, hi⟩]
+  simp [sccWords]
 
 /-- `topoProgram` computes `topoWords` in `O(n + m)` instructions
 (`Program.ComputesListInTime`). -/
@@ -508,23 +492,19 @@ theorem computesListInTime_sccProgram :
   exact ⟨steps + 1, hylist ▸ hexec.executesList outReg (by rwa [hylist]), by dsimp only; omega⟩
 
 /-- `topoProgram` does not read the word width. -/
-theorem not_readsWidth_topoProgram : ¬ topoProgram.ReadsWidth := by
-  apply Code.not_readsWidth_program
-  decide +kernel
+theorem not_readsWidth_topoProgram : ¬ topoProgram.ReadsWidth :=
+  Code.not_readsWidth_program (c := topoCode) (by decide +kernel) outReg
 
 /-- `topoProgram` is `rand`-free. -/
-theorem isRandFree_topoProgram : topoProgram.IsRandFree := by
-  rw [topoProgram, Code.isRandFree_program]
-  decide +kernel
+theorem isRandFree_topoProgram : topoProgram.IsRandFree :=
+  Code.isRandFree_program.2 (by decide +kernel)
 
 /-- `sccProgram` does not read the word width. -/
-theorem not_readsWidth_sccProgram : ¬ sccProgram.ReadsWidth := by
-  apply Code.not_readsWidth_program
-  decide +kernel
+theorem not_readsWidth_sccProgram : ¬ sccProgram.ReadsWidth :=
+  Code.not_readsWidth_program (c := sccCode) (by decide +kernel) outReg
 
 /-- `sccProgram` is `rand`-free. -/
-theorem isRandFree_sccProgram : sccProgram.IsRandFree := by
-  rw [sccProgram, Code.isRandFree_program]
-  decide +kernel
+theorem isRandFree_sccProgram : sccProgram.IsRandFree :=
+  Code.isRandFree_program.2 (by decide +kernel)
 
 end Cslib.Algorithms.WordRAM.DFS

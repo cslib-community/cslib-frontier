@@ -64,12 +64,10 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
   generalize hN₀ : 2 ^ M_exp = N₀
   generalize hK_cap : max (2 * s_off + 6) (Nat.logStar N₀ + 1) = K_cap
   have hK_pos : 1 ≤ K_cap := by rw [← hK_cap]; exact le_trans (by omega) (_root_.le_max_left _ _)
-  refine ⟨min (1 / (2 * (K_cap : ℝ))) (γ / 1600), by positivity, ?_⟩
+  let c := min (1 / (2 * (K_cap : ℝ))) (γ / 1600)
+  refine ⟨c, by positivity, ?_⟩
   intro U V n k cells w hn hU hV hk_lo hk_hi hspace D_det hcorr hnode
-  generalize hc_def : min (1 / (2 * (K_cap : ℝ))) (γ / 1600) = c
-  have hc1 : c ≤ 1 / (2 * (K_cap : ℝ)) := hc_def ▸ min_le_left _ _
-  have hc2 : c ≤ γ / 1600 := hc_def ▸ min_le_right _ _
-  clear hc_def
+  have hc2 : c ≤ γ / 1600 := min_le_right _ _
   have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU
   by_cases hbig : N₀ ≤ n ∧ 2 * s_off + 6 ≤ k
   · obtain ⟨hn_N₀, hk_s⟩ := hbig
@@ -128,7 +126,7 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
       · exact (Nat.lt_of_not_ge fun hge => hbig ⟨Nat.not_lt.mp hn_lt, hge⟩).le.trans
           (_root_.le_max_left _ _)
     clear hs_off hK_cap hN₀
-    exact (mul_le_linear_of_le_half (Nat.cast_nonneg n) (Nat.cast_nonneg k) hc1
+    exact (mul_le_linear_of_le_half (Nat.cast_nonneg n) (Nat.cast_nonneg k) (min_le_left _ _)
       (by exact_mod_cast hK_pos) (by exact_mod_cast hk_le_K)).trans
       (det_expectedSeqProbes_ge_linear withQueries hU hV (D_det := D_det) hcorr)
 
@@ -180,12 +178,9 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
   have hK_γ : 134 / γ ≤ K_log :=
     (div_le_div_of_nonneg_right (by norm_num) hγ.le).trans (hK_log ▸ _root_.le_max_right _ _)
   clear hK_log
-  refine ⟨min (1 / (2 * K_log)) (γ ^ 2 / 104800), by positivity, ?_⟩
+  let c := min (1 / (2 * K_log)) (γ ^ 2 / 104800)
+  refine ⟨c, by positivity, ?_⟩
   intro U V n cells w R hn hU hV hR_hi hspace D_det hcorr hnode
-  generalize hc_def : min (1 / (2 * K_log)) (γ ^ 2 / 104800) = c
-  have hc1 : c ≤ 1 / (2 * K_log) := hc_def ▸ min_le_left _ _
-  have hc2 : c ≤ γ ^ 2 / 104800 := hc_def ▸ min_le_right _ _
-  clear hc_def
   set R₁ := max R 1
   have hR1_ge : 1 ≤ R₁ := _root_.le_max_right R 1
   have hR_le_R1 : R ≤ R₁ := _root_.le_max_left R 1
@@ -272,8 +267,6 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
       hγ (D_det := D_det) fun ℓ hℓ b hb => by
         have hℓ_ge : 1 ≤ ℓ := (Finset.mem_Ico.mp hℓ).1
         have hfan : T.fanout (ℓ + 1) = 2 ^ 64 := fanout_geomMetaTree_of_two_le n m₁_half (by omega)
-        have hF_lo : 2 ^ 64 ≤ T.fanout (ℓ + 1) := hfan.ge
-        have hF_hi : (T.fanout (ℓ + 1) : ℝ) ≤ (γ / 2) * Real.logb 2 U := hfan ▸ hfan_U
         have hbℓ_ge : 2 * (m₁_half : ℝ) ≤ (T.blockSize ℓ : ℝ) :=
           hb1_ge.trans (by exact_mod_cast T.blockSize_strictMono.monotone hℓ_ge)
         have hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (T.blockSize ℓ : ℝ) := by
@@ -295,7 +288,7 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
             ((mul_le_mul hγU hmR (by positivity) (by positivity)).trans_eq (by ring))
         exact hnode hspace_R1 T ht_pos hℓ_ge
           ((T.nodeStop_le_horizon hb).trans_eq (geomMetaTree_horizon n m₁_half))
-          hF_lo h11_logU ht_hi hm_lo hF_hi hR_outer hR_in
+          hfan.ge h11_logU ht_hi hm_lo (hfan ▸ hfan_U) hR_outer hR_in
     refine (?_ : c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁) ≤
       ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ)).trans htree
     have hH_sub : (H : ℝ) - 1 = ((H - 1 : ℕ) : ℝ) := by rw [Nat.cast_sub (by omega), Nat.cast_one]
@@ -306,7 +299,8 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
           (by positivity)).trans_eq (by ring))
     calc c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁)
         ≤ (γ ^ 2 / 104800) * (n : ℝ) * ((262 / γ) * ((H - 1 : ℕ) : ℝ)) :=
-          mul_le_mul (mul_le_mul_of_nonneg_right hc2 hn_pos.le) hlog_H1 hlog_div_nn (by positivity)
+          mul_le_mul (mul_le_mul_of_nonneg_right (min_le_right _ _) hn_pos.le) hlog_H1
+            hlog_div_nn (by positivity)
       _ = ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ) := by field_simp; ring
   · clear hM_fan
     have hlog_le_K : Real.logb 2 ((n : ℝ) / R₁) ≤ K_log := by
@@ -320,7 +314,7 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
           ((mul_le_mul_of_nonneg_left (by linarith) (by positivity)).trans
             ((by ring : (2 / γ) * (3 + 64 * 1) = 134 / γ).symm ▸ hK_γ))
     clear hN₀
-    exact (mul_le_linear_of_le_half hn_pos.le hlog_div_nn hc1 hK_pos hlog_le_K).trans
+    exact (mul_le_linear_of_le_half hn_pos.le hlog_div_nn (min_le_left _ _) hK_pos hlog_le_K).trans
       (det_expectedSeqProbes_ge_linear withQueries hU hV (D_det := D_det) hcorr)
 
 end Cslib.DataStructure.Dictionary.CellProbe

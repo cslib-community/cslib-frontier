@@ -62,25 +62,21 @@ private theorem second_change_marker {p : Symbol q r} {a a' b b' : Option (Fin q
 
 private theorem before_marker {p : Symbol q r} (i : Fin r)
     (h : Compatible rules p (.marker i)) : ∃ a c, p = .pair a (some c) := by
-  cases p with
-  | start => exact False.elim h
-  | finish => exact False.elim h
-  | marker j => exact False.elim h
-  | pair a b =>
-    rcases h with h | h
-    · exact ⟨a, (rules i).first, by rw [h]⟩
-    · exact ⟨a, (rules i).first', by rw [h]⟩
+  rcases p with _ | _ | _ | ⟨a, b⟩
+  · exact h.elim
+  · exact h.elim
+  · exact h.elim
+  · exact h.elim (fun h => ⟨a, _, congrArg (Symbol.pair a) h⟩) fun h =>
+      ⟨a, _, congrArg (Symbol.pair a) h⟩
 
 private theorem after_marker {p : Symbol q r} (i : Fin r)
     (h : Compatible rules (.marker i) p) : ∃ c b, p = .pair (some c) b := by
-  cases p with
-  | start => exact False.elim h
-  | finish => exact False.elim h
-  | marker j => exact False.elim h
-  | pair a b =>
-    rcases h with h | h
-    · exact ⟨(rules i).second, b, by rw [h]⟩
-    · exact ⟨(rules i).second', b, by rw [h]⟩
+  rcases p with _ | _ | _ | ⟨a, b⟩
+  · exact h.elim
+  · exact h.elim
+  · exact h.elim
+  · exact h.elim (fun h => ⟨_, b, congrArg (Symbol.pair · b) h⟩) fun h =>
+      ⟨_, b, congrArg (Symbol.pair · b) h⟩
 
 private theorem pair_interior (k : Fin (n + 3)) (a b : Option (Fin q))
     (hpair : code.symm (u k) = .pair a b)
@@ -157,7 +153,6 @@ private theorem first_coordinate_rewrites (hu : HWord.Legal (compatibility rules
   obtain ⟨C⟩ := first_neighborhood rules hu hv k he a a' b hpu hpv hne hstart hfinish
   have hk3 := C.lower
   have hkn := C.upper
-  have hk2 : 2 ≤ k.val := by omega
   let context : Fin n := ⟨k.val - 3, by omega⟩
   let changed : Fin n := ⟨k.val - 2, by omega⟩
   have hindex : k.val - 3 + 1 = k.val - 2 := by omega
@@ -165,9 +160,9 @@ private theorem first_coordinate_rewrites (hu : HWord.Legal (compatibility rules
     Option.some.inj (readout_pair_right rules hu context C.left (some C.letter)
       (by simpa only [context, hindex] using C.before))
   have hx := readout_pair_left rules hu changed a b
-    (by simpa only [changed, Nat.sub_add_cancel hk2] using hpu)
+    (by simpa only [changed, Nat.sub_add_cancel (by omega : 2 ≤ k.val)] using hpu)
   have hy := readout_pair_left rules hv changed a' b
-    (by simpa only [changed, Nat.sub_add_cancel hk2] using hpv)
+    (by simpa only [changed, Nat.sub_add_cancel (by omega : 2 ≤ k.val)] using hpv)
   have hcontext' : readout rules u hu context = readout rules v hv context :=
     readout_first_off rules hu hv k he a a' b hpu hpv context (by
       change k.val - 3 + 2 ≠ k.val
@@ -321,12 +316,10 @@ private theorem changed_readout (hu : HWord.Legal (compatibility rules) u)
       have hsecond := Relation.RelatesWithinSteps.one_iff.mpr
         (second_coordinate_reflGen rules hm hv k hmv a' b b' hmid hpv hm0 hmn)
       exact hfirst.trans hsecond
-    · have heq := readout_eq_of_special rules hv hu k (fun j hj => (he j hj).symm)
-        (fun a b h => hp' ⟨a, b, h⟩)
-      rw [heq]
+    · rw [readout_eq_of_special rules hv hu k (fun j hj => (he j hj).symm) fun a b h =>
+        hp' ⟨a, b, h⟩]
       exact (Relation.RelatesWithinSteps.refl _).mono (by decide)
-  · have heq := readout_eq_of_special rules hu hv k he (fun a b h => hp ⟨a, b, h⟩)
-    rw [heq]
+  · rw [readout_eq_of_special rules hu hv k he fun a b h => hp ⟨a, b, h⟩]
     exact (Relation.RelatesWithinSteps.refl _).mono (by decide)
 
 /-- One arbitrary H-word move projects to at most two real source rewriting steps. -/

@@ -85,8 +85,8 @@ theorem dotProduct_sum_smul_vecMulVec_mulVec {R ι : Type*} [CommSemiring R] (s 
       ∑ i ∈ s, c i * (v i ⬝ᵥ u) * (v i ⬝ᵥ w) := by
   rw [sum_mulVec, dotProduct_sum]
   refine sum_congr rfl fun i _ => ?_
-  rw [smul_mulVec, vecMulVec_mulVec, dotProduct_smul, dotProduct_smul, dotProduct_comm u (v i)]
-  simp only [smul_eq_mul, op_smul_eq_mul]
+  simp only [smul_mulVec, vecMulVec_mulVec, dotProduct_smul, dotProduct_comm u (v i),
+    smul_eq_mul, op_smul_eq_mul]
   ring
 
 omit [Fintype n] in
@@ -223,11 +223,8 @@ private theorem exists_le_log_det_sub {X : Type*} [Fintype X] [Nonempty X] {d : 
   have hsum := sum_le_sum fun k (_ : k ∈ (univ : Finset (Fin m))) =>
     log_det_submatrix_sq_add_sum_le U t (e k) (hU (e k))
   rw [sum_add_distrib, hcount, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] at hsum
-  rw [div_le_iff₀ (by exact_mod_cast hm0)]
-  have h2 : (Real.log (∑ x, Real.exp (t x) • vecMulVec (U x) (U x)).det -
-      d / m * ∑ x, t x) * m = m * Real.log (∑ x, Real.exp (t x) • vecMulVec (U x) (U x)).det -
-        d * ∑ x, t x := by
-    field_simp
+  rw [div_le_iff₀ (by exact_mod_cast hm0), sub_mul, mul_right_comm (d / m : ℝ),
+    div_mul_cancel₀ _ (by positivity)]
   linarith
 
 /-- Changing the single coordinate `t x` to `b` changes `∑ z, g z (t z)` by
@@ -270,20 +267,14 @@ private theorem le_add_of_neg_sq_lt_log {q r ε : ℝ} (hq : 0 ≤ q) (hr : 0 �
   have hlog := Real.log_le_sub_one_of_pos hy
   -- `exp(-δ) - 1 ≤ -δ + δ²` for `0 < δ ≤ 1`.
   have hexp : Real.exp (-δ) - 1 ≤ -δ + δ ^ 2 := by
-    have := Real.abs_exp_sub_one_sub_id_le (x := -δ)
-      (by rw [abs_neg, abs_of_pos hδ0]; exact hδ1.le)
-    have := (abs_le.mp this).2
-    nlinarith
+    nlinarith [(abs_le.mp (Real.abs_exp_sub_one_sub_id_le
+      (x := -δ) (by rw [abs_neg, abs_of_pos hδ0]; linarith))).2]
   have key : δ * (1 - δ) * q < δ ^ 2 + r * δ := by
     nlinarith [mul_le_mul_of_nonneg_right hexp hq]
-  have key2 : (1 - δ) * q < δ + r := by
-    by_contra! hcon
-    nlinarith [mul_le_mul_of_nonneg_left hcon hδ0.le]
-  have hδdef : δ * (1 + r + ε) = ε := by rw [hδ]; field_simp
+  have hδdef : δ * (1 + r + ε) = ε := div_mul_cancel₀ ε (by positivity)
   by_contra! hcon
-  have : (1 - δ) * (r + ε) < δ + r :=
-    lt_of_le_of_lt (mul_le_mul_of_nonneg_left hcon.le (by linarith)) key2
-  nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left hcon.le (mul_nonneg hδ0.le (by linarith : 0 ≤ 1 - δ)),
+    congrArg (δ * ·) hδdef]
 
 /-- **Approximate isotropic position** (Forster's lemma up to `ε`). If the `m = |X|` rows of
 `U : Matrix X (Fin d) ℝ` are in general position (every `d × d` submatrix is invertible) and
@@ -358,15 +349,12 @@ theorem eventually_det_submatrix_add_smul_ne_zero {X : Type*} [Finite X] {d : �
   let P : Polynomial ℝ := det ((Polynomial.X : Polynomial ℝ) •
     (W.submatrix e id).map Polynomial.C + (U.submatrix e id).map Polynomial.C)
   have hWe : (W.submatrix e id).det ≠ 0 := by
-    have : W.submatrix e id = vandermonde fun i => ((σ (e i) : ℕ) : ℝ) := by ext i j; rfl
-    rw [this, det_vandermonde_ne_zero_iff]
-    intro i j h
-    exact e.injective (σ.injective (Fin.ext (by
-      exact_mod_cast (show ((σ (e i) : ℕ) : ℝ) = ((σ (e j) : ℕ) : ℝ) from h))))
+    change (vandermonde fun i => ((σ (e i) : ℕ) : ℝ)).det ≠ 0
+    rw [det_vandermonde_ne_zero_iff]
+    exact fun i j h => e.injective (σ.injective (Fin.ext (Nat.cast_injective h)))
   have hP : P ≠ 0 := fun h => hWe <| by
-    rw [← Polynomial.coeff_det_X_add_C_card (W.submatrix e id) (U.submatrix e id)]
-    change P.coeff _ = 0
-    rw [h, Polynomial.coeff_zero]
+    simpa [P, h, eq_comm] using
+      Polynomial.coeff_det_X_add_C_card (W.submatrix e id) (U.submatrix e id)
   have heval : ∀ ε : ℝ, P.eval ε = ((U + ε • W).submatrix e id).det := fun ε => by
     rw [← Polynomial.coe_evalRingHom, RingHom.map_det]
     congr 1

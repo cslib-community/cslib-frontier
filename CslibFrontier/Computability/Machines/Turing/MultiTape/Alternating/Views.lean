@@ -89,8 +89,7 @@ theorem mem_viewSucc_iff {v w : FiniteCfg k Bool State} {q : State} (hq : v.stat
       ∃ b, w = (v.step (atm.action q v.inputSymbol v.workTapeSymbols b)).summarizeOutput := by
   simp only [MultiTapeNTM.viewSucc, hq, List.mem_map, MultiTapeNTM.mem_actions,
     tr_toNTM_iff_action]
-  exact ⟨by rintro ⟨_, ⟨b, rfl⟩, rfl⟩; exact ⟨b, rfl⟩,
-    by rintro ⟨b, rfl⟩; exact ⟨_, ⟨b, rfl⟩, rfl⟩⟩
+  exact ⟨fun ⟨_, ⟨b, rfl⟩, hw⟩ => ⟨b, hw.symm⟩, fun ⟨b, hw⟩ => ⟨_, ⟨b, rfl⟩, hw.symm⟩⟩
 
 /-- A running view has a successor. -/
 theorem viewSucc_ne_nil {v : FiniteCfg k Bool State} {q : State} (hq : v.state = some q) :
@@ -148,17 +147,14 @@ theorem viewAcceptsWithin_iff {input : List Bool} {n : ℕ} {v : FiniteCfg k Boo
       cases hq : atm.universal q
       · rw [viewAcceptsWithin_succ_of_existential hv hq,
           atm.acceptsWithin_succ_of_existential hs hq]
-        refine ⟨?_, fun ⟨b, hacc⟩ =>
-          ⟨_, (mem_viewSucc_iff hv).mpr ⟨b, rfl⟩, (ih (hrep b)).mpr hacc⟩⟩
-        rintro ⟨_, hw, hacc⟩
-        obtain ⟨b, rfl⟩ := (mem_viewSucc_iff hv).mp hw
-        exact ⟨b, (ih (hrep b)).mp hacc⟩
+        exact ⟨fun ⟨_, hw, hacc⟩ => ((mem_viewSucc_iff hv).mp hw).elim fun b hb =>
+            ⟨b, (ih (hrep b)).mp (hb ▸ hacc)⟩,
+          fun ⟨b, hacc⟩ => ⟨_, (mem_viewSucc_iff hv).mpr ⟨b, rfl⟩, (ih (hrep b)).mpr hacc⟩⟩
       · rw [viewAcceptsWithin_succ_of_universal hv hq,
           atm.acceptsWithin_succ_of_universal hs hq]
-        refine ⟨fun hall b => (ih (hrep b)).mp (hall _ ((mem_viewSucc_iff hv).mpr ⟨b, rfl⟩)),
-          fun hall _ hw => ?_⟩
-        obtain ⟨b, rfl⟩ := (mem_viewSucc_iff hv).mp hw
-        exact (ih (hrep b)).mpr (hall b)
+        exact ⟨fun hall b => (ih (hrep b)).mp (hall _ ((mem_viewSucc_iff hv).mpr ⟨b, rfl⟩)),
+          fun hall _ hw => ((mem_viewSucc_iff hv).mp hw).elim fun b hb =>
+            hb ▸ (ih (hrep b)).mpr (hall b)⟩
 
 /-- **Acceptance through views**: the machine accepts exactly when its initial view accepts
 within some number of moves. -/
@@ -204,10 +200,12 @@ theorem viewAcceptsWithin_length {found : List (FiniteCfg k Bool State)}
     {v : FiniteCfg k Bool State} (hv : v ∈ found) {n : ℕ} (h : atm.ViewAcceptsWithin n v) :
     atm.ViewAcceptsWithin found.length v := by
   classical
+  -- the views of the list accepting within `i` moves
   let S (i : ℕ) : Finset (FiniteCfg k Bool State) :=
     found.toFinset.filter fun w => atm.ViewAcceptsWithin i w
   have hmono {i j : ℕ} (hij : i ≤ j) : S i ⊆ S j := fun _ hw =>
     Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hw).1, (Finset.mem_filter.mp hw).2.mono hij⟩
+  -- once two consecutive sets agree, all later sets agree
   have hstable {i : ℕ} (heq : S i = S (i + 1)) (j : ℕ) : S (i + j) = S i := by
     induction j with
     | zero => rfl
@@ -217,6 +215,7 @@ theorem viewAcceptsWithin_length {found : List (FiniteCfg k Bool State)}
       simp only [S, Finset.mem_filter, List.mem_toFinset]
       exact and_congr_right <| viewAcceptsWithin_succ_congr hclosed fun w' hw' => by
         simpa [S, hw'] using congrArg (w' ∈ ·) ih
+  -- the sets cannot grow strictly for more steps than the list has entries
   have hfix : ∃ i ≤ found.length, S i = S (i + 1) := by
     by_contra! hne
     have hgrow (i : ℕ) (hi : i ≤ found.length + 1) : i ≤ (S i).card := by
@@ -231,13 +230,10 @@ theorem viewAcceptsWithin_length {found : List (FiniteCfg k Bool State)}
       (Finset.card_filter_le _ _).trans (List.toFinset_card_le found)
     omega
   obtain ⟨i, hi, heq⟩ := hfix
-  have hlen : S found.length = S i := by
-    simpa only [Nat.add_sub_cancel' hi] using hstable heq (found.length - i)
-  have hmax : S (max n found.length) = S i := by
-    simpa only [Nat.add_sub_cancel' (hi.trans (le_max_right n found.length))] using
-      hstable heq (max n found.length - i)
-  have hmem : v ∈ S found.length := hlen ▸ hmax ▸
+  have hmem : v ∈ S (max n found.length) :=
     Finset.mem_filter.mpr ⟨List.mem_toFinset.mpr hv, h.mono (le_max_left _ _)⟩
+  rw [← Nat.add_sub_cancel' (hi.trans (le_max_right n found.length)), hstable heq,
+    ← hstable heq (found.length - i), Nat.add_sub_cancel' hi] at hmem
   exact (Finset.mem_filter.mp hmem).2
 
 end Turing.MultiTapeATM

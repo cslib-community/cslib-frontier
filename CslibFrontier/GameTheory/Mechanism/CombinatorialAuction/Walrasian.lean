@@ -284,10 +284,8 @@ theorem IsLPRFeasible.lprObjective_le_welfare_toAllocation {v : N → Finset M �
       rw [(hint i S).resolve_right fun h1 => hne (hx.unique_bundle_eq_one h1 hS₀), zero_mul],
       hS₀, one_mul]
   · push Not at hex
-    have hzero : ∀ S : Finset M, x i S = 0 := fun S =>
-      (hint i S).resolve_right (hex S)
-    rw [hx.toAllocation_bundle_eq_empty hzero]
-    simp [hzero, hv i]
+    have hzero : ∀ S : Finset M, x i S = 0 := fun S => (hint i S).resolve_right (hex S)
+    simp [hx.toAllocation_bundle_eq_empty hzero, hzero, hv i]
 
 end IntegralToAllocation
 
@@ -380,9 +378,8 @@ private theorem isDLPRFeasible_iff_matrix [DecidableEq N]
       0 ≤ Sum.elim p u ∧ Function.uncurry v ≤ Sum.elim p u ᵥ* lprMatrix := by
   constructor
   · intro h
-    refine ⟨by rintro (j | i); exacts [h.price_nonneg j, h.utility_nonneg i], fun ⟨i, S⟩ => ?_⟩
-    rw [vecMul_lprMatrix]
-    exact h.cover i S
+    exact ⟨fun | .inl j => h.price_nonneg j | .inr i => h.utility_nonneg i,
+      fun ⟨i, S⟩ => (h.cover i S).trans_eq (vecMul_lprMatrix p u i S).symm⟩
   · rintro ⟨hnonneg, hle⟩
     exact
       { cover := fun i S => by
@@ -519,20 +516,13 @@ theorem IsWalrasianEquilibrium.lprObjective_le {N M : Type*} [Fintype N] [Fintyp
     lprObjective v x ≤ welfare v a := by
   let u : N → ℝ := fun i => v i (a.bundle i) - ∑ j ∈ a.bundle i, p j
   have hdual : IsDLPRFeasible v u p :=
-    { cover := fun i S => by
-        have h := heq.demand i S
-        dsimp only [u]
-        linarith
-      utility_nonneg := fun i => by
-        have h := heq.demand i ∅
-        simp only [Finset.sum_empty, sub_zero] at h
-        exact (hv i).trans h
+    { cover := fun i S => by dsimp only [u]; linarith [heq.demand i S]
+      utility_nonneg := fun i => (hv i).trans (by simpa [u] using heq.demand i ∅)
       price_nonneg := heq.price_nonneg }
   have hobj : dlprObjective u p = welfare v a := by
-    unfold dlprObjective welfare
-    simp only [u, Finset.sum_sub_distrib]
-    rw [sum_bundle_prices_eq heq.unallocated_price_zero]
-    linarith
+    simp only [dlprObjective, welfare, u, Finset.sum_sub_distrib,
+      sum_bundle_prices_eq heq.unallocated_price_zero]
+    ring
   exact (lprObjective_le_dlprObjective hx hdual).trans_eq hobj
 
 /-! ### The Second Welfare Theorem (Theorem 11.15) and Corollary 11.16 -/
@@ -547,11 +537,7 @@ theorem exists_isWalrasianEquilibrium_of_lprObjective_le {N M : Type*} [Fintype 
     ∃ p : M → ℝ, IsWalrasianEquilibrium v p a := by
   obtain ⟨x₀, u, p, hx₀, hup, heq⟩ := exists_lpr_dlpr_eq v
   have hle : dlprObjective u p ≤ welfare v a := heq ▸ hopt x₀ hx₀
-  have hge : welfare v a ≤ dlprObjective u p := by
-    simpa only [Allocation.lprObjective_indicator] using
-      lprObjective_le_dlprObjective a.indicator_isLPRFeasible hup
-  have htight : welfare v a = dlprObjective u p := le_antisymm hge hle
-  unfold welfare dlprObjective at htight
+  unfold welfare dlprObjective at hle
   -- Complementary slackness via the chain `∑ vᵢ(S*ᵢ) ≤ ∑ (uᵢ + p(S*ᵢ)) ≤ ∑ uᵢ + ∑ pⱼ = ∑ vᵢ(S*ᵢ)`.
   have hcov := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hup.cover i (a.bundle i)
   have hpriceSum := sum_bundle_prices_le hup.price_nonneg a
@@ -624,10 +610,9 @@ every proper subset). -/
 
 /-- The valuations of Example 11.14 are normalized (`vᵢ(∅) = 0`). -/
 theorem noEquilibriumVal_empty (i : Bool) : noEquilibriumVal i ∅ = 0 := by
-  cases i
-  · simp [noEquilibriumVal]
-  · simp only [noEquilibriumVal, ↓reduceIte]
-    exact ite_eq_right (by decide)
+  cases i <;> simp only [noEquilibriumVal, Bool.false_eq_true, Finset.not_nonempty_empty,
+    ↓reduceIte]
+  exact ite_eq_right (by decide)
 
 /-- The valuations of Example 11.14 are monotone ("free disposal"). -/
 theorem noEquilibriumVal_monotone (i : Bool) : Monotone (noEquilibriumVal i) := by
@@ -648,9 +633,8 @@ theorem welfare_noEquilibriumVal_le (a : Allocation Bool Bool) :
   rw [Fintype.sum_bool]
   by_cases h : a.bundle true = Finset.univ
   · have hA : a.bundle false = ∅ := by
-      have hd := a.disjoint (by decide : false ≠ true)
-      rw [Function.onFun, h, Finset.disjoint_iff_inter_eq_empty, Finset.inter_univ] at hd
-      exact hd
+      simpa only [Function.onFun, h, Finset.disjoint_iff_inter_eq_empty, Finset.inter_univ] using
+        a.disjoint (by decide : false ≠ true)
     simp [noEquilibriumVal, h, hA]
   · simp only [noEquilibriumVal, h, ↓reduceIte, Bool.false_eq_true]
     split_ifs <;> norm_num
@@ -698,15 +682,14 @@ theorem exists_isLPROptimal_noEquilibriumVal :
       (fun i => if i then (0 : ℝ) else 1 / 2) (fun _ => (3 / 2 : ℝ)) :=
     { cover := fun i S => by
         rw [Finset.sum_const, nsmul_eq_mul]
-        have hnonneg : (0 : ℝ) ≤ (S.card : ℝ) * (3 / 2) := by positivity
         cases i <;> simp only [noEquilibriumVal, Bool.false_eq_true, ↓reduceIte] <;>
           split_ifs with hS
         · have hc : (1 : ℝ) ≤ (S.card : ℝ) := by exact_mod_cast Finset.card_pos.mpr hS
           linarith
-        · linarith
+        · positivity
         · simp [hS]
           norm_num
-        · linarith
+        · positivity
       utility_nonneg := fun i => by cases i <;> norm_num
       price_nonneg := fun _ => by norm_num }
   have hdual : dlprObjective (fun i : Bool => if i then (0 : ℝ) else 1 / 2)

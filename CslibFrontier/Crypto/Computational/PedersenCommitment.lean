@@ -284,16 +284,10 @@ theorem pedersenCommitLaw_eq_uniform_of_ne_zero (d : F.Desc) {h : F.Carrier d} (
     F.pedersenCommitLaw d h m =
       (PMF.uniformOfFintype (ZMod (F.order d))).map (· • F.generator d) := by
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
-  have hα : α ≠ 0 := by
-    rintro rfl
-    exact hh (zero_smul _ _)
-  let e : ZMod (F.order d) ≃ ZMod (F.order d) :=
-    (Equiv.mulRight₀ α hα).trans (Equiv.addLeft m)
-  have hcomp : F.pedersenCommit d (α • F.generator d) m =
-      (fun γ : ZMod (F.order d) => γ • F.generator d) ∘ e := by
-    funext r
-    simp [e, pedersenCommit_smul_generator]
-  rw [pedersenCommitLaw, hcomp, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+  let e := (Equiv.mulRight₀ α fun h0 => hh (h0 ▸ zero_smul _ _)).trans (Equiv.addLeft m)
+  rw [pedersenCommitLaw]
+  conv_rhs => rw [← PMF.uniformOfFintype_map_equiv e, PMF.map_comp]
+  exact congrArg (PMF.map · _) (funext fun r => by simp [e, pedersenCommit_smul_generator])
 
 /-- **Perfect hiding** ([Pedersen1991], Section 3, Theorem 3.1): for any `h ≠ 0` and any two
 messages `m₀, m₁ : ZMod (F.order d)`, the commitment distributions `F.pedersenCommitLaw d h m₀` and
@@ -371,11 +365,8 @@ theorem succProbability_pedersen_keyGen_zero_eq_inv (d : F.Desc) :
   have hzero (α : ZMod (F.order d)) : α • F.generator d = 0 ↔ α = 0 :=
     ⟨fun h => F.smul_generator_injective d (by simpa only [zero_smul] using h),
       fun h => by rw [h, zero_smul]⟩
-  have hlaw : ProbComp.eval ((fun h => decide (h = 0)) <$> (F.pedersen d).keyGen) =
-      (PMF.uniformOfFintype (ZMod (F.order d))).map fun α => decide (α = 0) := by
-    simp only [pedersen_keyGen, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_uniform,
-      PMF.map_comp, Function.comp_def, hzero]
-  rw [Experiment.succProbability, Game.succProbability, hlaw,
+  simp only [Experiment.succProbability, Game.succProbability, pedersen_keyGen, bind_pure_comp,
+    ProbComp.eval_map, ProbComp.eval_uniform, PMF.map_comp, Function.comp_def, hzero,
     Probability.PMF.map_decide_eq_apply_true, PMF.uniformOfFintype_apply, ZMod.card,
     ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
 
@@ -506,11 +497,8 @@ theorem pedersenVerify_of_mem_support_pedersenCommitPairLaw (d : F.Desc) (h : F.
     (hm : F.ValidPedersenMessage d m)
     (hco : co ∈ (F.pedersenCommitPairLaw d h (ofBits m)).support) :
     F.pedersenVerify d h m co.1 co.2 = true := by
-  simp only [pedersenCommitPairLaw, PMF.support_map, Set.mem_image] at hco
-  rcases hco with ⟨r, -, rfl⟩
-  have hr : (ofBits r.val.bits : ZMod (F.order d)) = r := by
-    rw [ofBits_bits, ZMod.natCast_zmod_val]
-  simp only [pedersenVerify, Bool.and_eq_true, decide_eq_true_eq, hm.1, hm.2, hr, true_and]
+  rcases (PMF.mem_support_map_iff _ _ _).mp hco with ⟨r, -, rfl⟩
+  simp [pedersenVerify, hm.1, hm.2, ofBits_bits]
 
 /-- Boolean decision procedure for `ValidPedersenMessage d m` (`ofBits m < F.order d` and
 `(ofBits m).bits = m`). -/
@@ -623,20 +611,13 @@ theorem pedersenHidingForKey_eq (adversary : Encryption.WordAdversary) (b : Bool
       ProbComp.eval (lrExperiment (fun _ _ _ => true) (F.pedersen d).commitment
         (F.pedersenHidingAdversary adversary n d) b h) := by
   classical
-  have hvalid (m : List Bool) :
-      F.pedersenScheme.ValidMessage ⟨d, h⟩ m ↔ F.ValidPedersenMessage d m := Iff.rfl
-  simp only [CommitmentScheme.hidingForKey, lrExperiment, pedersenHidingAdversary, ite_true,
-    bind_assoc, pure_bind, ProbComp.eval_bind, PMF.monad_bind_eq_bind, hvalid]
+  simp only [CommitmentScheme.hidingForKey, lrExperiment, pedersenHidingAdversary, pedersenScheme,
+    pedersenCommitPairLaw, eval_pedersen_commitment, pedersenCommitLaw, ite_true, bind_assoc,
+    pure_bind, ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def]
   congr 1 with choice : 1
-  have hcommit (m : List Bool) :
-      (F.pedersenScheme.commitDist ⟨d, h⟩ m).bind
-          (fun co => ProbComp.eval (adversary.guess n choice.2 co.1)) =
-        (ProbComp.eval ((F.pedersen d).commitment h (ofBits m))).bind
-          (fun c => ProbComp.eval (adversary.guess n choice.2 (F.encode d c))) := by
-    simp only [eval_pedersen_commitment, pedersenScheme, pedersenCommitPairLaw, pedersenCommitLaw,
-      PMF.bind_map, Function.comp_def]
-  rw [hcommit]
-  cases b <;> split_ifs <;> simp_all
+  congr 1 with x : 1
+  by_cases hv : F.ValidPedersenMessage d choice.1.1 ∧ F.ValidPedersenMessage d choice.1.2 <;>
+    cases b <;> simp [hv]
 
 /-- The word-level hiding game of `pedersenScheme` draws `d`, then runs the hiding experiment of
 `pedersen d` played by `pedersenHidingAdversary`. -/
@@ -840,24 +821,21 @@ theorem pedersenToDLAdversary_encode
   simp only [pedersenToDLAdversary, pedersenToDL, pedersenScheme_encodeKey, map_bind,
     bind_map_left, map_pure]
   congr 1
-  funext out
-  obtain ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩ := out
+  funext ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
   have hcoll : (decide (m₀ ≠ m₁) && F.encodePedersenVerify ((d, F.encode d h), m₀, c, o₀) &&
       F.encodePedersenVerify ((d, F.encode d h), m₁, c, o₁)) =
         F.pedersenScheme.isBindingCollision ⟨d, h⟩ (c, (m₀, o₀), (m₁, o₁)) := by
-    simp only [encodePedersenVerify_encode]
-    rfl
+    simp only [encodePedersenVerify_encode]; rfl
   simp only [hcoll]
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
   cases hb : F.pedersenScheme.isBindingCollision ⟨d, α • F.generator d⟩ (c, (m₀, o₀), (m₁, o₁))
   · simp [pedersenCollisionOf, hb]
-  · have htyped := F.inv_mul_eq_of_isBindingCollision_pedersen
-      ((F.isBindingCollision_pedersenCollisionOf d _ _).trans hb)
-    have hword := F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hb
+  · have hword := F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hb
     dsimp only at hword
     have hlt : extractNat (F.order d) (ofBits o₁) (ofBits m₀) (ofBits o₀) (ofBits m₁) <
         F.order d := Nat.mod_lt _ (F.prime_order d).pos
-    simp only [↓reduceIte, htyped]
+    simp only [↓reduceIte, F.inv_mul_eq_of_isBindingCollision_pedersen
+      ((F.isBindingCollision_pedersenCollisionOf d _ _).trans hb)]
     rw [← hword, ZMod.val_cast_of_lt hlt]
 
 /-- **Exact binding-to-discrete-logarithm reduction** ([BonehShoup2023], Section 10.6.1,
@@ -900,21 +878,17 @@ theorem isPPTOn_pedersenToDLAdversary
     (prepare := fun input : ℕ × F.Desc × List Bool =>
       (input.1, encPair F.encDesc encBits input.2)) (by fun_prop)).bind_with ?_
   have hverify := F.computableInPolyTime_encodePedersenVerify
-  have hextract : ComputableInPolyTime
-      (fun p :
-          (ℕ × F.Desc × List Bool) ×
-            (List Bool × (List Bool × List Bool) × (List Bool × List Bool)) =>
-        if decide (p.2.2.1.1 ≠ p.2.2.2.1) &&
-            F.encodePedersenVerify (p.1.2, p.2.2.1.1, p.2.1, p.2.2.1.2) &&
-            F.encodePedersenVerify (p.1.2, p.2.2.2.1, p.2.1, p.2.2.2.2) then
-          (extractNat (F.order p.1.2.1)
-            (ofBits p.2.2.2.2) (ofBits p.2.2.1.1)
-            (ofBits p.2.2.1.2) (ofBits p.2.2.2.1)).bits
-        else [])
-      (encPair (encPair encUnary (encPair F.encDesc encBits))
-        (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
-      encBits := by
-    fun_prop
-  exact hextract.isPPTOn
+  exact (by fun_prop : ComputableInPolyTime
+    (fun p : (ℕ × F.Desc × List Bool) ×
+        (List Bool × (List Bool × List Bool) × (List Bool × List Bool)) =>
+      if decide (p.2.2.1.1 ≠ p.2.2.2.1) &&
+          F.encodePedersenVerify (p.1.2, p.2.2.1.1, p.2.1, p.2.2.1.2) &&
+          F.encodePedersenVerify (p.1.2, p.2.2.2.1, p.2.1, p.2.2.2.2) then
+        (extractNat (F.order p.1.2.1) (ofBits p.2.2.2.2) (ofBits p.2.2.1.1)
+          (ofBits p.2.2.1.2) (ofBits p.2.2.2.1)).bits
+      else [])
+    (encPair (encPair encUnary (encPair F.encDesc encBits))
+      (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
+    encBits).isPPTOn
 
 end Cslib.Crypto.PrimeOrderGroupFamily

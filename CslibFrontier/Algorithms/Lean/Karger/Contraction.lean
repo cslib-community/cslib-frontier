@@ -268,9 +268,7 @@ noncomputable abbrev trackedSpec (n : ℕ) : StateTransitionSpec :=
 theorem trackedStep_toGraph {n : ℕ} (G : TrackedGraph n) (o : Op) :
     ((trackedStep G o).1.toGraph, (trackedStep G o).2) = step G.toGraph o := by
   cases o with
-  | size => rfl
-  | total => rfl
-  | pairAt r => rfl
+  | size | total | pairAt _ => rfl
   | contract u v => exact Prod.ext (toGraph_contractTracked G u v) rfl
 
 /-! ## The algorithm -/
@@ -413,17 +411,15 @@ theorem trackedSurvives_contractTimes {n t : ℕ} (ht : 2 ≤ t) {W₀ : Fin n �
     change _ ≤ ((trackedSpec n).toRandomized.withCoins.run
       (contractStep >>= fun _ => contractTimes s)
       ⟨t + s + 1, W, fun i => pullbackCut part {i}⟩).toOuterMeasure _
-    rw [run_tracked_contractStep_bind (m := t + s) _ W _ hS.ne',
-      show (t + (s + 1)) * (t + (s + 1) - 1) = (t + s + 1) * (t + s) by
-        rw [show t + (s + 1) - 1 = t + s by omega]; rfl,
-      ← telescope_survival_step ht (show t ≤ t + s by omega)]
+    rw [run_tracked_contractStep_bind (m := t + s) _ W _ hS.ne']
+    erw [← telescope_survival_step ht (Nat.le_add_right t s)]
     let castFin : Fin (totalDoubledWeight W - 1 + 1) ≃ Fin (totalDoubledWeight W) :=
       finCongr (by omega)
     have hdeg : (t + s + 1) * cutWeight W B ≤ totalDoubledWeight W := by
-      have hmul := mul_minCut_le_totalDoubledWeight hcard hC.multigraph
-      rw [Fintype.card_fin] at hmul
       rw [← cutWeight_pullbackCut hC B, hBmin]
-      exact (Nat.mul_le_mul_left _ hminW).trans hmul
+      exact (Nat.mul_le_mul_left _ hminW).trans
+        (by simpa only [Fintype.card_fin] using
+          mul_minCut_le_totalDoubledWeight hcard hC.multigraph)
     have hstep : ((t + s - 1 : ℕ) : ℝ≥0∞) / (t + s + 1 : ℕ) ≤
         (ProbComp.unifOracle (totalDoubledWeight W - 1)).toOuterMeasure
           {r | SampleSurvives W B (castFin r)} := by
@@ -545,14 +541,11 @@ theorem minCut_eq_zero_of_mem_support_contractTimes {t : ℕ} (ht : 2 ≤ t) (s 
     · rw [run_contractStep_bind_of_eq_zero (m := t + s) _ W hS] at hx
       have h0 : (0 : Fin (t + s + 1)) ≠ Fin.last (t + s) := Fin.ne_of_val_ne (by simp; omega)
       have hW' := isMultigraph_contractMatrix hW 0 (Fin.last (t + s))
-      have htot' : totalDoubledWeight (contractMatrix W 0 (Fin.last (t + s))) = 0 := by
-        have := totalDoubledWeight_contractMatrix hW h0
-        omega
+      have := totalDoubledWeight_contractMatrix hW h0
       let z : Fin (t + s) := ⟨0, by omega⟩
-      have hnt0 : IsNonTrivialCut ({z} : Finset (Fin (t + s))) :=
-        isNonTrivialCut_singleton (by rw [Fintype.card_fin]; omega) z
-      have hle0 := minCut_le_cutWeight (contractMatrix W 0 (Fin.last (t + s))) hnt0
-      have h2 := two_mul_cutWeight_le_totalDoubledWeight hW' ({z} : Finset (Fin (t + s)))
+      have hle0 := minCut_le_cutWeight (contractMatrix W 0 (Fin.last (t + s)))
+        (isNonTrivialCut_singleton (by rw [Fintype.card_fin]; omega) z)
+      have h2 := two_mul_cutWeight_le_totalDoubledWeight hW' {z}
       exact ih hW' (by omega) hx
     · supp_cases hx [run_contractStep_bind (m := t + s) _ W hS, ProbComp.unifOracle] with ⟨r, hx⟩
       obtain ⟨B, hB, hB0⟩ := exists_minCut_achiever
@@ -566,13 +559,11 @@ theorem minCut_eq_zero_of_mem_support_contractTimes {t : ℕ} (ht : 2 ≤ t) (s 
       obtain ⟨u, v, hsamp, hsame⟩ := hsurv
       have huv : u ≠ v := isSampledPair_ne hW hsamp
       rw [sampledPair_eq hsamp, contractGraph_fin] at hx
-      have hpb := pullbackCut_contractCut id huv hsame
-      rw [pullbackCut_id] at hpb
-      have hnt : IsNonTrivialCut (contractCut v B) :=
-        isNonTrivialCut_of_pullbackCut _ (hpb ▸ hB)
+      have hpb := (pullbackCut_contractCut id huv hsame).trans (pullbackCut_id B)
       have hcw : cutWeight (contractMatrix W u v) (contractCut v B) = 0 := by
         rw [cutWeight_contractCut hW huv hsame, hB0]
-      have hle := minCut_le_cutWeight (contractMatrix W u v) hnt
+      have hle := minCut_le_cutWeight (contractMatrix W u v)
+        (isNonTrivialCut_of_pullbackCut _ (hpb ▸ hB))
       exact ih (isMultigraph_contractMatrix hW u v) (by omega) hx
 
 /-! ## The output cut -/
@@ -677,10 +668,8 @@ theorem two_div_le_cutLaw {n : ℕ} {W₀ : Fin n → Fin n → ℕ} (hW₀ : Is
     have := Fintype.card_fin n ▸ (isNonTrivialCut_iff_card C).mp hC
     omega
   obtain ⟨s, rfl⟩ : ∃ s, n = 2 + s := ⟨n - 2, by omega⟩
-  have hid : pullbackCut id C = C := pullbackCut_id C
-  have hsurv := trackedSurvives_contractTimes le_rfl hmin s (isContractionOf_id hW₀)
-    (B := C) hC (by rw [hid, hCmin])
-  rw [hid] at hsurv
+  have hsurv := pullbackCut_id C ▸ trackedSurvives_contractTimes le_rfl hmin s
+    (isContractionOf_id hW₀) (B := C) hC (by rw [pullbackCut_id, hCmin])
   rw [cutLaw_eq, PMF.toOuterMeasure_map_apply, Nat.add_sub_cancel_left,
     show (2 : ℝ≥0∞) / ((2 + s) * (2 + s - 1) : ℕ) =
       ((2 * (2 - 1) : ℕ) : ℝ≥0∞) / ((2 + s) * (2 + s - 1) : ℕ) by norm_num]
@@ -694,10 +683,9 @@ theorem two_div_le_cutLaw {n : ℕ} {W₀ : Fin n → Fin n → ℕ} (hW₀ : Is
   change pullbackCut part' {1} ∈ ({C, Finset.univ \ C} : Set (Finset (Fin (2 + s))))
   match b, hpb with
   | 0, hpb =>
-    refine Or.inr ?_
-    rw [show ({1} : Finset (Fin 2)) = Finset.univ \ {0} by decide, pullbackCut_compl, hpb]
-    exact Set.mem_singleton _
-  | 1, hpb => exact Or.inl hpb
+    have h10 : ({1} : Finset (Fin 2)) = Finset.univ \ {0} := by decide
+    exact .inr (by rw [h10, pullbackCut_compl, hpb]; rfl)
+  | 1, hpb => exact .inl hpb
 
 /-! ## Karger's theorem -/
 
@@ -896,8 +884,7 @@ theorem demonicValid_contractTimes {t : ℕ} (ht : 1 ≤ t) (s : ℕ)
       refine StateTransitionSpec.demonicValid_withCoins_query_bind
         (show 0 < t + s + 1 ∧ t + s + 1 - 1 < t + s + 1 ∧ 0 ≠ t + s + 1 - 1 by omega) ?_
       dsimp only [StateTransitionSpec.stepFn, step]
-      rw [show t + s + 1 - 1 = ((Fin.last (t + s) : Fin (t + s + 1)) : ℕ) from rfl,
-        show (0 : ℕ) = ((0 : Fin (t + s + 1)) : ℕ) from rfl, contractGraph_fin]
+      erw [contractGraph_fin W 0 (Fin.last (t + s))]
       exact ih (isMultigraph_contractMatrix hW _ _)
     · simp only [hS, ite_false, bind_assoc]
       refine RandomizedSpec.demonicValid_sample_bind fun r => ?_

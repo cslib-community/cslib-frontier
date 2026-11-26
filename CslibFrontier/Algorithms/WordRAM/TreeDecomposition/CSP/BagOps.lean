@@ -168,17 +168,13 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
     obtain ⟨hst_step, hres_step⟩ := subsetBagStep_eval args.bagPtr args.bagLen ⟨cur, ok⟩ s
     have hres_step' :
         (Memory.spec 0).clientResult s
-          (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩)) = ⟨cur + 1, ok'⟩ := by
-      rw [hres_step]
-      simp only [hmem_u, hr_bm, ok']
+          (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩)) = ⟨cur + 1, ok'⟩ :=
+      hres_step.trans (by simp only [hmem_u, hr_bm, ok'])
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s
-          (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩))) := by
-      unfold subsetBagStep
-      dsimp only
-      refine validHistory_read_bind hlt ?_
-      rw [hmem_u]
-      exact validHistory_bind_step hv_bm (validHistory_pure w _ _)
+          (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩))) :=
+      validHistory_read_bind hlt (hmem_u.symm ▸ validHistory_bind_step hv_bm
+        (validHistory_pure w _ _))
     have hc_step :
         memoryCost (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩)) s ≤ stepCost := by
       unfold subsetBagStep
@@ -188,12 +184,7 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
       dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (cur + 1) ok' hrest hok'
-    simp only [List.length_cons]
-    have hiter_eq :
-        iterate subsetBagStep (args.bagPtr, args.bagLen) (rest.length + 1) ⟨cur, ok⟩ =
-          (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩) >>=
-            iterate subsetBagStep (args.bagPtr, args.bagLen) rest.length) := rfl
-    rw [hiter_eq]
+    simp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step', hr_rem]
       refine if_congr ?_ rfl rfl
@@ -381,14 +372,10 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
   induction ys with
   | nil =>
     intro srcCur written skipped t _ _ hfr hpres _ hwr hsk hconcat
-    have h0 : iterate eraseCopyStep args.target 0
-        ⟨srcCur, bagPtr + written.length, skipped⟩ =
-        pure ⟨srcCur, bagPtr + written.length, skipped⟩ := rfl
-    rw [List.length_nil, h0]
     have hwr_eq : written = xs.erase args.target := by
       rcases hsk with rfl | rfl <;> simpa using hconcat
     rw [hwr_eq] at hwr
-    exact ⟨validHistory_pure w t _, ⟨hfr, hpres, hwr⟩, by simp [memoryCost_pure]⟩
+    exact ⟨validHistory_pure w t _, ⟨hfr, hpres, hwr⟩, by simp [iterate, memoryCost_pure]⟩
   | cons x rest ih =>
     intro srcCur written skipped t hfit_ys hsrc_end hfr hpres hys hwr hsk hconcat
     rw [HoldsIn.cons_iff] at hys
@@ -396,11 +383,7 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
     have hsrc_lt : srcCur < t.frontier := by simp only [List.length_cons] at hsrc_end; omega
     have hx_fit : Fits w (t.mem srcCur) := hmem_x ▸ hfit_ys x List.mem_cons_self
     have hfit_rest : ∀ u ∈ rest, Fits w u := fun u hu => hfit_ys u (List.mem_cons_of_mem _ hu)
-    simp only [List.length_cons] at hsrc_end ⊢
-    have hiter_eq : iterate eraseCopyStep args.target (rest.length + 1)
-        ⟨srcCur, bagPtr + written.length, skipped⟩ =
-      (eraseCopyStep (args.target, ⟨srcCur, bagPtr + written.length, skipped⟩) >>=
-        iterate eraseCopyStep args.target rest.length) := rfl
+    simp only [List.length_cons, iterate] at hsrc_end ⊢
     obtain ⟨hst_ev, hres_ev, hc_step⟩ :=
       eraseCopyStep_eval args.target ⟨srcCur, bagPtr + written.length, skipped⟩ t
     dsimp only at hst_ev hres_ev
@@ -415,12 +398,10 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
         simpa [List.erase_cons] using hconcat
       obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
         ih (srcCur + 1) written 1 t hfit_rest (by omega) hfr hpres hrest hwr (.inr rfl) hconcat'
-      rw [hiter_eq]
-      refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev]), ?_, ?_⟩
-      · rw [StateTransitionSpec.clientState_bind, hst_ev, hres_ev]
-        exact hprops_rem
-      · rw [memoryCost_bind', hst_ev, hres_ev]
-        omega
+      refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev]),
+        by rwa [StateTransitionSpec.clientState_bind, hst_ev, hres_ev], ?_⟩
+      rw [memoryCost_bind', hst_ev, hres_ev]
+      omega
     · rw [ite_eq_right hskip_cond] at hst_ev hres_ev
       have htail_eq :
           (if skipped = 1 then x :: rest else (x :: rest).erase args.target) =
@@ -459,13 +440,11 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
       obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
         ih (srcCur + 1) (written ++ [x]) skipped t₁ hfit_rest (by omega) hfr
           (hpres.trans hp₁) hrest₁ hwr₁ hsk hconcat₁
-      rw [hiter_eq]
-      refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev']), ?_, ?_⟩
-      · rw [StateTransitionSpec.clientState_bind, hst_ev, hres_ev']
-        exact hprops_rem
-      · rw [memoryCost_bind', hst_ev, hres_ev']
-        dsimp only [t₁] at hc_rem
-        omega
+      refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev']),
+        by rwa [StateTransitionSpec.clientState_bind, hst_ev, hres_ev'], ?_⟩
+      rw [memoryCost_bind', hst_ev, hres_ev']
+      dsimp only [t₁] at hc_rem
+      omega
 
 /-- Exact-basis Word-RAM realization certificate for `eraseBagProg`. -/
 theorem eraseBagProg_realizes :
@@ -486,10 +465,9 @@ theorem eraseBagProg_realizes :
     exact hfit_fr.of_le (by omega)
   · obtain ⟨_, xs, hxs, hlen, _, _, _⟩ := h
     obtain ⟨_, _, hr_bm, _⟩ := bagMemProg_spec (w := w) d hxs hlen
-    rw [hr_bm, memBag_eq_decide]
+    rw [hr_bm, memBag_eq_decide, ← hlen]
     by_cases hm : d.target ∈ xs
-    · simp only [hm, decide_true, ↓reduceIte, ← hlen]
-      exact List.length_pos_of_mem hm
+    · simpa only [hm, decide_true, ↓reduceIte] using Nat.succ_le_of_lt (List.length_pos_of_mem hm)
     · simp [hm]
   · obtain ⟨h1, xs, hxs, hlen, hbase_le, hfit_elems, hfit_fr⟩ := h
     obtain ⟨_, hst_bm, hr_bm, _⟩ := bagMemProg_spec (w := w) d hxs hlen
@@ -513,14 +491,12 @@ theorem eraseBagProg_realizes :
     have hidx_lt : d.len - (j + 1) < xs.length := by omega
     have hdrop_cons : xs.drop (d.len - (j + 1)) =
         xs[d.len - (j + 1)] :: xs.drop (d.len - j) := by
-      have heq : d.len - (j + 1) + 1 = d.len - j := by omega
-      rw [← heq]
-      exact List.drop_eq_getElem_cons hidx_lt
+      rw [List.drop_eq_getElem_cons hidx_lt]
+      congr 2
+      omega
     rw [hdrop_cons, HoldsIn.cons_iff] at hdrop_t
     obtain ⟨_, hmem_cur, hrest_t⟩ := hdrop_t
-    have hx_fit : Fits w (t.mem st.srcCur) := by
-      rw [hmem_cur]
-      exact hfit_elems _ (List.getElem_mem hidx_lt)
+    have hx_fit : Fits w (t.mem st.srcCur) := hmem_cur ▸ hfit_elems _ (List.getElem_mem hidx_lt)
     have hfit_src1 : Fits w (st.srcCur + 1) := hfit_fr.of_le (by omega)
     have hfit_dst : Fits w st.dstCur := hfit_fr.of_le (by omega)
     have hfit_dst1 : Fits w (st.dstCur + 1) := hfit_fr.of_le (by omega)

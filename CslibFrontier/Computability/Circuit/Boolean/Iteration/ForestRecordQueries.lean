@@ -207,9 +207,7 @@ theorem synthesis_selected_anchor {Q : ℕ} (f : BitString n → BitString n)
       have hch := chooseRecord_of_forall_eq_false (elig z) (candRec z) (baseRec z) hnone Q
       have hanyF : anyElig z = false :=
         Bool.eq_false_iff.mpr fun h => hex (((hany_iff z).1 h).imp fun _ => And.right)
-      have hyTrue : yMarkFlag z = true := by simpa [foundA, hanyF] using hf
-      obtain ⟨i, hi⟩ := (hyDict z).1.mp hyTrue
-      have hymem : inputRight z ∈ forestMarks f tables.H := (tables.marks_mem _).mpr ⟨i, hi⟩
+      obtain ⟨i, hi⟩ := (hyDict z).1.mp (by simpa [foundA, hanyF] using hf)
       have hstate : anchorState z = inputRight z := funext fun b => by
         simpa [anchorState, chosenPair, baseRec] using
           congrFun hch (Fin.castAdd (n + 1 + (n + 1)) b)
@@ -217,23 +215,19 @@ theorem synthesis_selected_anchor {Q : ℕ} (f : BitString n → BitString n)
           forestLabelWord tables.low tables.high (inputRight z) := funext fun b => by
         simpa [anchorLabels, chosenPair, baseRec, (hyDict z).2 i hi, hi] using
           congrFun hch (Fin.natAdd n b)
-      exact ⟨Or.inl ⟨hymem, hstate⟩, hlabels.trans (by rw [hstate])⟩
+      exact ⟨Or.inl ⟨(tables.marks_mem _).mpr ⟨i, hi⟩, hstate⟩, hlabels.trans (by rw [hstate])⟩
   · rintro ⟨b, hb⟩
     rw [tables.edgeTable.anchor_iff] at hb
     rcases hb with ⟨hymem, rfl⟩ | ⟨i, k, rfl, hk, hdepth, hkey⟩
     · obtain ⟨i, hi⟩ := (tables.marks_mem _).mp hymem
-      have hyTrue : yMarkFlag z = true := (hyDict z).1.mpr ⟨i, hi⟩
-      simp [foundA, hyTrue]
+      simp [foundA, (hyDict z).1.mpr ⟨i, hi⟩]
     · obtain ⟨j, rfl⟩ := hQcomplete k hk
-      have heTrue : edgeFlags z j = true := (heDict z j).1.mpr ⟨i, hkey.symm⟩
-      have hrec := (heDict z j).2 i hkey.symm
       have hdTrue :
           (!(forestAnchorDepth (edgeRecords z j)).ult (depthWord f (inputRight z))) = true := by
-        simpa only [hrec, forestAnchorDepth_bits, Bool.not_eq_true', BitVec.ult,
-          decide_eq_false_iff_not, not_lt, toNat_depthWord] using hdepth
-      have hjTrue : elig z j = true := by simp [elig, heTrue, hdTrue]
-      have hanyTrue : anyElig z = true := (hany_iff z).2 ⟨j, Finset.mem_univ _, hjTrue⟩
-      simp [foundA, hanyTrue]
+        simpa only [(heDict z j).2 i hkey.symm, forestAnchorDepth_bits, Bool.not_eq_true',
+          BitVec.ult, decide_eq_false_iff_not, not_lt, toNat_depthWord] using hdepth
+      have hjTrue : elig z j = true := by simp [elig, (heDict z j).1.mpr ⟨i, hkey.symm⟩, hdTrue]
+      simp [foundA, (hany_iff z).2 ⟨j, Finset.mem_univ _, hjTrue⟩]
   · rintro _ ((rfl | ⟨b, rfl⟩) | ⟨b, rfl⟩)
     · exact Or.inl rfl
     · exact Or.inr ⟨Fin.castAdd (n + 1 + (n + 1)) b, rfl⟩

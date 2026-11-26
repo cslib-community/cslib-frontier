@@ -93,17 +93,18 @@ occurs explicitly without changing truth values on any assignment. -/
 @[simp]
 theorem eval_padDeclaredVars (N : ℕ) (φ : CNF ℕ) (σ : ℕ → Bool) :
     (padDeclaredVars N φ).eval σ = φ.eval σ := by
-  rw [padDeclaredVars, CNF.eval_append, show CNF.eval σ
-    ((List.range N).map fun v => [(v, true), (v, false)]) = true from List.all_eq_true.mpr
-      fun c hc => by
-        obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc; cases σ v <;> simp [Clause.eval, Literal.eval],
-    Bool.true_and]
+  have htaut : CNF.eval σ ((List.range N).map fun v => [(v, true), (v, false)]) = true :=
+    List.all_eq_true.mpr fun c hc => by
+      obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc
+      cases σ v <;> simp [Clause.eval, Literal.eval]
+  rw [padDeclaredVars, CNF.eval_append, htaut, Bool.true_and]
 
 theorem length_clause_padDeclaredVars_le {k N : ℕ} {φ : CNF ℕ}
     (hφ : ∀ cl ∈ φ, cl.length ≤ k) {cl : Clause ℕ} (hcl : cl ∈ padDeclaredVars N φ) :
     cl.length ≤ max k 2 := by
   rcases List.mem_append.mp hcl with hcl | hcl
-  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hcl; exact le_max_right k 2
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hcl
+    exact le_max_right k 2
   · exact (hφ cl hcl).trans (le_max_left k 2)
 
 theorem vars_padDeclaredVars_toFinset {N : ℕ} {φ : CNF ℕ}
@@ -194,7 +195,9 @@ private theorem computableInPolyTime_toOneHotCNFAt (encRel : Rel ↪ List Bool) 
   mapFilterConst (finTuples q r)
     (test := fun (c : Constraint Rel ℕ) (ts : List (Fin q)) => !sem c.rel ts)
     (f := fun (c : Constraint Rel ℕ) (ts : List (Fin q)) => forbidOneHotClause q c.scope ts)
-    (fun ts hts => by have := hsem ts hts; fun_prop)
+    (fun ts hts => by
+      have := hsem ts hts
+      fun_prop)
     fun ts _ => (computableInPolyTime_forbidOneHot q ts).comp (encConstraint_scope_polyTime id')
 
 private theorem computableInPolyTime_constraintToOneHotCNFBounded
@@ -224,11 +227,12 @@ private theorem computableInPolyTime_constraintToOneHotCNFBounded
 private theorem computableInPolyTime_exactlyOneBlock (q : ℕ) :
     ComputableInPolyTime
       (fun v : ℕ => CNF.exactlyOne ((List.range q).map fun a => v * q + a))
-      encNat encCNF :=
-  (by unfold CNF.exactlyOne CNF.atLeastOne CNF.atMostOne; fun_prop :
-    ComputableInPolyTime (CNF.exactlyOne (V := ℕ)) (encList encNat) encCNF).comp
-    (ComputableInPolyTime.mapWithInput (const (List.range q))
-      (binary_add.comp ((binary_mul' (fst encNat encNat) (const q)).prod (snd encNat encNat))))
+      encNat encCNF := by
+  have hex : ComputableInPolyTime (CNF.exactlyOne (V := ℕ)) (encList encNat) encCNF := by
+    unfold CNF.exactlyOne CNF.atLeastOne CNF.atMostOne
+    fun_prop
+  exact hex.comp (ComputableInPolyTime.mapWithInput (const (List.range q))
+    (binary_add.comp ((binary_mul' (fst encNat encNat) (const q)).prod (snd encNat encNat))))
 
 /-- Declared-variable one-hot CNF compilation `⟨x.numVars * q, toOneHotCNFBounded ...⟩`. -/
 @[expose] def toOneHotDeclaredCNF (q k : ℕ) (sem : Rel → List (Fin q) → Bool)
@@ -467,11 +471,13 @@ theorem computableInPolyTime_perfectMatchingDeclaredVars :
   have hE := Graph.computableInPolyTime_edgeList
   have hW : ComputableInPolyTime Graph.perfectMatchingWires
       encGraph (encList (encList encUnary)) := by
-    unfold Graph.perfectMatchingWires Graph.incident; fun_prop
+    unfold Graph.perfectMatchingWires Graph.incident
+    fun_prop
   have hEl : ComputableInPolyTime (fun G : Graph => G.edgeList.length) encGraph encUnary := by
     fun_prop
   have hfl : ComputableInPolyTime (fun G : Graph => G.perfectMatchingWires.flatten.length)
-      encGraph encUnary := by fun_prop
+      encGraph encUnary := by
+    fun_prop
   have hwl : ComputableInPolyTime (fun G : Graph => G.perfectMatchingWires.length)
       encGraph encUnary := by fun_prop
   refine (hEl.unary_add' ((const 1).unary_add' (((const 3).unary_mul' hfl).unary_add'

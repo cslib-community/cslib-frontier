@@ -337,11 +337,9 @@ private theorem countLaw_succ_tsum (ν : PMF Bool) (n : ℕ) (F : Fin (n + 2) �
     ∑' k, countLaw ν (n + 1) k * F k =
       ∑' c, countLaw ν n c * (ν true * F c.succ + ν false * F c.castSucc) := by
   rw [countLaw, PMF.tsum_bind_mul]
-  congr 1
-  funext c
-  have hmap : (ν.bind fun bit => PMF.pure (if bit then c.succ else c.castSucc)) =
-      ν.map fun bit => if bit then c.succ else c.castSucc := rfl
-  rw [hmap, PMF.tsum_map_mul, tsum_bool, add_comm (ν false * _)]
+  refine tsum_congr fun c => congrArg (countLaw ν n c * ·) ?_
+  change ∑' k, (ν.map fun bit => if bit then c.succ else c.castSucc) k * F k = _
+  rw [PMF.tsum_map_mul, tsum_bool, add_comm (ν false * _)]
   simp only [ite_true, Bool.false_eq_true, ite_false]
 
 /-- The expected number of `true` samples. -/
@@ -400,10 +398,8 @@ private theorem map_val_countLaw (ν : PMF Bool) :
       cases b <;> simp
     rw [countLaw, PMF.iid]
     simp only [PMF.monad_bind_eq_bind, PMF.map_bind, PMF.pure_map, hval, PMF.map_comp]
-    have h1 : ((countLaw ν n).bind fun a => ν.bind fun b => PMF.pure (a.val + b.toNat)) =
-        ((countLaw ν n).map Fin.val).bind fun m => ν.bind fun b => PMF.pure (m + b.toNat) := by
-      rw [PMF.bind_map]; rfl
-    rw [h1, map_val_countLaw ν n, PMF.bind_map]
+    erw [← PMF.bind_map _ Fin.val fun m => ν.bind fun b => PMF.pure (m + b.toNat)]
+    rw [map_val_countLaw ν n, PMF.bind_map]
     simp only [Function.comp_def, PMF.map, trueCount_cons]
     rw [PMF.bind_comm]
 
@@ -676,23 +672,19 @@ private theorem le_highLaw_true (ν μ : PMF Bool) {b : ℝ}
 private theorem closeTo_lowLaw (ν : PMF Bool) {b : ℝ} (hb : 0 ≤ b) :
     CloseTo ν (lowLaw ν b) (ENNReal.ofReal b) := by
   rw [closeTo_ofReal_iff_dist_le hb, PMF.dist_bool, lowLaw, PMF.coin_apply_toReal, ite_eq_left rfl]
-  have h0 : 0 ≤ (ν true).toReal := ENNReal.toReal_nonneg
-  have h1 := PMF.toReal_apply_le_one ν true
   have hle : min 1 (max ((ν true).toReal - b) 0) ≤ (ν true).toReal :=
-    (min_le_right _ _).trans (max_le (by linarith) h0)
+    (min_le_right _ _).trans (max_le (by linarith) ENNReal.toReal_nonneg)
   have hge : (ν true).toReal - b ≤ min 1 (max ((ν true).toReal - b) 0) :=
-    le_min (by linarith) (le_max_left _ _)
+    le_min (by linarith [PMF.toReal_apply_le_one ν true]) (le_max_left _ _)
   exact abs_le.2 ⟨by linarith, by linarith⟩
 
 private theorem closeTo_highLaw (ν : PMF Bool) {b : ℝ} (hb : 0 ≤ b) :
     CloseTo ν (highLaw ν b) (ENNReal.ofReal b) := by
   rw [closeTo_ofReal_iff_dist_le hb, PMF.dist_bool, highLaw, PMF.coin_apply_toReal, ite_eq_left rfl]
-  have h0 : 0 ≤ (ν true).toReal := ENNReal.toReal_nonneg
-  have h1 := PMF.toReal_apply_le_one ν true
   have hge : (ν true).toReal ≤ min 1 (max ((ν true).toReal + b) 0) :=
-    le_min h1 (le_max_of_le_left (by linarith))
+    le_min (PMF.toReal_apply_le_one ν true) (le_max_of_le_left (by linarith))
   have hle : min 1 (max ((ν true).toReal + b) 0) ≤ (ν true).toReal + b :=
-    (min_le_right _ _).trans (max_le le_rfl (by linarith))
+    (min_le_right _ _).trans (max_le le_rfl (by linarith [ENNReal.toReal_nonneg (a := ν true)]))
   exact abs_le.2 ⟨by linarith, by linarith⟩
 
 /-- The least probability of the output `false` after `n` more steps from `bits`, over step laws
@@ -947,11 +939,9 @@ private theorem accept_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
       rw [lawFrom, PMF.bind_apply, tsum_bool, add_comm]
     rw [ev_runFrom_succ, ev_honestProposer_claim, PMF.bind_map, PMF.bind_apply, hlaw,
       ← tsum_countLaw_mul_mix (law history.bits) (N := P.grid), ← ENNReal.tsum_mul_left]
-    simp only [Function.comp_def, mul_left_comm (1 - vc) (countLaw _ _ _)]
-    have hslack : (1 - vc) * ((n + 1 : ℕ) : ℝ≥0∞) * qc = (1 - vc) * n * qc + (1 - vc) * qc := by
-      push_cast
-      ring
-    rw [hslack]
+    simp only [Function.comp_def, mul_left_comm (1 - vc) (countLaw _ _ _), Nat.cast_add,
+      Nat.cast_one, show (1 - vc) * ((n : ℝ≥0∞) + 1) * qc = (1 - vc) * n * qc + (1 - vc) * qc
+        by ring]
     refine tsum_mul_le_tsum_mul_add_of_far _
       {k | c ≤ |(k.val : ℝ) / P.grid - (law history.bits true).toReal|}
       (fun k hk => ?_) (fun k _ => ?_) (hfar history.bits)
@@ -1095,22 +1085,20 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     (honestProposer (Params.default K T)).init B.init
   change _ * lawFrom law (T + 1) [] true ≤
     ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true + _ at hacc
-  change 2 / 3 ≤ ev law (output (T + 1)) true at hyes
   change 3 / 5 ≤ ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true
-  rw [ev_output] at hyes
   have hfin := PMF.apply_ne_top
     (ev law (run (Params.default K T) (honestProposer (Params.default K T)) B)) true
   have hyes' : (2 / 3 : ℝ) ≤ (lawFrom law (T + 1) [] true).toReal := by
-    simpa using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
+    rw [← ev_output]
+    simpa [ev] using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
   have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
     simp [ENNReal.mul_eq_top]⟩) hacc
   rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
     ENNReal.toReal_mul, ENNReal.toReal_mul, toReal_one_sub_ofReal (by norm_num) (by norm_num),
-    ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast] at hreal
-  have hslack : (1 - 1 / 100 : ℝ) * ((T + 1 : ℕ) : ℝ) * (1 / (100 * (T + 1))) = 99 / 10000 := by
-    push_cast
-    field_simp
-    ring
+    ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast, Nat.cast_add, Nat.cast_one]
+    at hreal
+  have hslack : (1 - 1 / 100 : ℝ) * ((T : ℝ) + 1) * (1 / (100 * (T + 1))) = 99 / 10000 := by
+    field_simp; ring
   rw [hslack] at hreal
   rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin]
   linarith [show ((3 / 5 : ℝ≥0∞)).toReal = 3 / 5 by simp]
@@ -1143,7 +1131,6 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     (honestChallenger (Params.default K T)).init
   change _ * rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≤
     ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) false at hrej
-  change ev law (output (T + 1)) true ≤ 1 / 3 at hno
   change ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5
   have hclose := hL (bestLaw law (5 / (100 * (K : ℝ))) T) (ENNReal.ofReal (5 / (100 * (K : ℝ))))
     (fun bits => closeTo_bestLaw law (by positivity) T bits) {false}
@@ -1152,11 +1139,10 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     ev (bestLaw law (5 / (100 * (K : ℝ))) T) (output (T + 1)) false + _ at hclose
   rw [ev_output (bestLaw law (5 / (100 * (K : ℝ))) T),
     lawFrom_bestLaw law (5 / (100 * (K : ℝ))) T (T + 1) [] (by simp)] at hclose
-  have hU := rejectValue_le_one law (5 / (100 * (K : ℝ))) (T + 1) []
   have hUtop : rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≠ ⊤ :=
-    ne_top_of_le_ne_top ENNReal.one_ne_top hU
+    ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (T + 1) [])
   have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
-    simpa using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
+    simpa [ev] using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
   have hout := Probability.PMF.toReal_true_add_toReal_false (ev law (output (T + 1)))
   have hrun := Probability.PMF.toReal_true_add_toReal_false
     (ev law (run (Params.default K T) A (honestChallenger (Params.default K T))))
@@ -1174,20 +1160,14 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     have h := one_add_mul_le_pow (a := -(1 / (100 * ((T : ℝ) + 1))))
       (by linarith [show (0 : ℝ) < 1 / (100 * ((T : ℝ) + 1)) by positivity,
         default_failure_lt_two T]) (T + 1)
-    have hcast : (((T + 1 : ℕ) : ℝ)) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) := by
-      push_cast
-      field_simp
-    rw [hcast, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
-    exact (show (99 / 100 : ℝ) = 1 - 1 / 100 by norm_num).trans_le h
+    rw [Nat.cast_add, Nat.cast_one,
+      show ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) by field_simp,
+      ← sub_eq_add_neg, ← sub_eq_add_neg] at h
+    linarith
   have hU' : (37 / 60 : ℝ) ≤ (rejectValue law (5 / (100 * (K : ℝ))) (T + 1) []).toReal := by
     linarith
-  have hprod : (99 / 100 : ℝ) * (99 / 100) * (37 / 60) ≤
-      (1 - 1 / 100) * (1 - 1 / (100 * ((T : ℝ) + 1))) ^ (T + 1) *
-        (rejectValue law (5 / (100 * (K : ℝ))) (T + 1) []).toReal :=
-    mul_le_mul (mul_le_mul (by norm_num) hbern (by norm_num) (by norm_num)) hU' (by norm_num)
-      (mul_nonneg (by norm_num) (le_trans (by norm_num) hbern))
   rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _)
     (ENNReal.div_ne_top (by simp) (by simp))]
-  linarith [show ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 by simp]
+  nlinarith [hbern, hU', show ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 by simp]
 
 end Cslib.Interactive.Debate

@@ -119,14 +119,10 @@ theorem dens_filter_selected_walkAt_mem_le (W : Finset V) (t : ℕ)
     (S : Finset ℕ) (hS : S ⊆ range (t + 1)) :
     (dens {p : V × (Fin t → D) | ∀ i ∈ S, G.walkAt p i ∈ W} : ℝ) ≤
       ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((S.card : ℝ) / 2) := by
-  have h := G.sq_dens_filter_selected_walkAt_mem_le W t S hS
   apply (abs_le_of_sq_le_sq' ?_ (by positivity)).2
-  have heq : (((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((S.card : ℝ) / 2)) ^ 2 =
-      ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ S.card := by
-    rw [← Real.rpow_natCast _ 2, ← Real.rpow_mul (by positivity)]
-    rw [Nat.cast_ofNat, div_mul_cancel₀ _ (by norm_num : (2 : ℝ) ≠ 0), Real.rpow_natCast]
-  rw [heq]
-  exact h
+  rw [← Real.rpow_natCast (_ ^ _) 2, ← Real.rpow_mul (by positivity), Nat.cast_ofNat,
+    div_mul_cancel₀ _ two_ne_zero, Real.rpow_natCast]
+  exact G.sq_dens_filter_selected_walkAt_mem_le W t S hS
 
 /-- The binomial factorial moment of the number of visits. -/
 theorem expect_choose_visitCount_le (W : Finset V) (t m : ℕ) :
@@ -165,8 +161,7 @@ theorem dens_filter_visitCount_ge_le (W : Finset V) (t m : ℕ) :
         ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := by
   refine le_trans ?_ (G.expect_choose_visitCount_le W t m)
   rw [← Fintype.expect_boole]
-  apply expect_le_expect
-  intro p _
+  refine expect_le_expect fun p _ => ?_
   split_ifs with hp
   · exact_mod_cast Nat.choose_pos hp
   · positivity
@@ -176,16 +171,13 @@ theorem dens_filter_visitCount_gt_le (W : Finset V) (t m : ℕ) :
     (dens {p : V × (Fin t → D) | m < G.visitCount W p} : ℝ) ≤
       (Nat.choose (t + 1) m *
         ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2)) / (m + 1) := by
-  apply (le_div_iff₀ (by positivity : (0 : ℝ) < m + 1)).mpr
+  rw [le_div_iff₀ (by positivity)]
   refine le_trans ?_ (G.expect_choose_visitCount_le W t m)
   rw [← Fintype.expect_boole, expect_mul]
-  apply expect_le_expect
-  intro p _
+  refine expect_le_expect fun p _ => ?_
   split_ifs with hp
-  · simp only [one_mul]
-    have h := Nat.choose_le_choose m (Nat.succ_le_of_lt hp)
-    rw [Nat.choose_succ_self_right] at h
-    exact_mod_cast h
+  · simpa [Nat.choose_succ_self_right] using
+      (Nat.cast_le (α := ℝ)).mpr (Nat.choose_le_choose m (Nat.succ_le_of_lt hp))
   · simp
 
 /-- The source's strictly-smaller bound, with the required nondegenerate hypotheses. -/
@@ -207,9 +199,7 @@ theorem dens_filter_visitCount_half_lt (W : Finset V) (t : ℕ)
     (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) <
       (32 * (dens W : ℝ)) ^ (((t + 1 : ℕ) : ℝ) / 4) := by
   let ρ : ℝ := dens W
-  have hρ : 0 < ρ := by
-    have : 0 < Real.sqrt ρ := lt_of_le_of_lt G.spectralExpansion_nonneg hη
-    exact Real.sqrt_pos.mp this
+  have hρ : 0 < ρ := Real.sqrt_pos.mp (G.spectralExpansion_nonneg.trans_lt hη)
   have hq : ρ + G.spectralExpansion ^ 2 < 2 * ρ := by
     have hsq : G.spectralExpansion ^ 2 < ρ := by
       calc G.spectralExpansion ^ 2 < (Real.sqrt ρ) ^ 2 :=

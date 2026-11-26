@@ -106,8 +106,8 @@ private theorem completeLabels_apply {T G : Type*} (assigned : I → Option (T �
     (filler : I → T → G) (i : I) (t : T) :
     completeLabels assigned filler i t =
       completeLabels (fun k => (assigned k).map (fun word => word t)) (fun k => filler k t) i := by
-  unfold completeLabels; dsimp only
-  cases assigned i <;> rfl
+  cases h : assigned i <;> simp only [completeLabels, h, Option.getD_none,
+    Option.getD_some, Option.map_none, Option.map_some]
 
 /-- The coordinate score averages over whole schedule completions, not independent
 incidence-level or point-specific replacements. -/
@@ -118,13 +118,21 @@ theorem partialCoordinateCollision_eq_expect {T G : Type*} [Fintype T] [Decidabl
       𝔼 filler : I → T → G,
         if completeLabels assigned filler i t = completeLabels assigned filler j t
         then (1 : ℚ) else 0 := by
-  rw [partialCoordinateCollision, partialCollision_eq_expect,
-    ← expect_schedule_apply t (fun filler : I → G =>
-      if completeLabels (fun k => (assigned k).map (fun word => word t)) filler i =
-        completeLabels (fun k => (assigned k).map (fun word => word t)) filler j
-      then (1 : ℚ) else 0)]
-  exact Fintype.expect_equiv (Equiv.piComm (fun _ : I => fun _ : T => G)).symm _ _
-    fun filler => by simp only [completeLabels_apply]; rfl
+  calc
+    partialCoordinateCollision assigned t i j =
+        𝔼 filler : T → I → G,
+          if completeLabels (fun k => (assigned k).map (fun word => word t)) (filler t) i =
+            completeLabels (fun k => (assigned k).map (fun word => word t)) (filler t) j
+          then (1 : ℚ) else 0 := by
+      rw [partialCoordinateCollision, partialCollision_eq_expect,
+        ← expect_schedule_apply t (fun filler : I → G =>
+          if completeLabels (fun k => (assigned k).map (fun word => word t)) filler i =
+            completeLabels (fun k => (assigned k).map (fun word => word t)) filler j
+          then (1 : ℚ) else 0)]
+    _ = _ :=
+      Fintype.expect_equiv (Equiv.piComm (fun _ : I => fun _ : T => G)).symm _ _ fun filler => by
+        simp only [completeLabels_apply]
+        rfl
 
 /-- Fixing one whole schedule preserves the average of every coordinate-collision score. -/
 theorem expect_partialCoordinateCollision_update {T G : Type*} [Fintype T] [DecidableEq T]

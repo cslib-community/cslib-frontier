@@ -52,23 +52,16 @@ theorem rk_eq (F : Finset U) (u : U) :
 
 theorem rk_congr {F F' : Finset U} {u : U} (h : ∀ v, key v = key u → (v ∈ F ↔ v ∈ F')) :
     rk idx key F u = rk idx key F' u := by
-  unfold rk
-  congr 1
-  ext v
-  rw [mem_filter, mem_filter]
-  constructor
-  · rintro ⟨h1, h2, h3⟩
-    exact ⟨(h v h2).1 h1, h2, h3⟩
-  · rintro ⟨h1, h2, h3⟩
-    exact ⟨(h v h2).2 h1, h2, h3⟩
+  rw [rk_eq, rk_eq]
+  refine congrArg card (ext fun v => ?_)
+  simp only [mem_filter, and_congr_left_iff]
+  exact fun ⟨h2, _⟩ => h v h2
 
 theorem rk_lt {F : Finset U} {u : U} (hu : u ∈ F) : rk idx key F u <
     (F.filter fun v => key v = key u).card := by
-  refine card_lt_card ?_
-  rw [ssubset_iff_of_subset]
-  · exact ⟨u, mem_filter.mpr ⟨hu, rfl⟩, fun h => lt_irrefl _ (mem_filter.mp h).2.2⟩
-  · intro v hv
-    exact mem_filter.mpr ⟨(mem_filter.mp hv).1, (mem_filter.mp hv).2.1⟩
+  refine card_lt_card ((ssubset_iff_of_subset fun v hv =>
+    mem_filter.mpr ⟨(mem_filter.mp hv).1, (mem_filter.mp hv).2.1⟩).mpr ?_)
+  exact ⟨u, mem_filter.mpr ⟨hu, rfl⟩, fun h => lt_irrefl _ (mem_filter.mp h).2.2⟩
 
 theorem rk_lt_rk {F : Finset U} {u v : U} (hu : u ∈ F) (huv : key u = key v) (h : idx u < idx v) :
     rk idx key F u < rk idx key F v := by
@@ -117,13 +110,9 @@ theorem exists_rk (hidx : Function.Injective idx) (F : Finset U) (k : κ) {w : �
     · intro ρ hρ
       obtain ⟨u, hu, rfl⟩ := mem_image.1 hρ
       obtain ⟨h1, h2⟩ := mem_filter.1 hu
-      rw [mem_range, ← h2]
-      exact rk_lt h1
+      exact mem_range.2 (h2 ▸ rk_lt h1)
     · rw [card_range, card_image_of_injOn hinj]
-  have : w ∈ (F.filter fun u => key u = k).image (rk idx key F) := by
-    rw [himg, mem_range]; exact hw
-  obtain ⟨u, hu, rfl⟩ := mem_image.1 this
-  obtain ⟨h1, h2⟩ := mem_filter.1 hu
-  exact ⟨u, h1, h2, rfl⟩
+  obtain ⟨u, hu, rfl⟩ := mem_image.1 (himg ▸ mem_range.2 hw)
+  exact ⟨u, (mem_filter.1 hu).1, (mem_filter.1 hu).2, rfl⟩
 
 end Cslib.CoveringTower

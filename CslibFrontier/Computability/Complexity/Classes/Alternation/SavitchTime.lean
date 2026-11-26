@@ -118,6 +118,7 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
   set E := encPair encUnary (encPair encBits (encPair (encOption encBits) (encOption encBits)))
     with hE
   set N := fun p : P => (E p).length with hN
+  -- the components of the input
   have h₂ : ComputableInO Prod.snd E
       (encPair encBits (encPair (encOption encBits) (encOption encBits))) N N :=
     ComputableInO.snd _ _
@@ -126,6 +127,7 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
   have hv := ComputableInO.snd' (ComputableInO.snd' h₂)
   have hones : ComputableInO (fun p : P => List.replicate p.1 true) E encBits N N :=
     (ComputableInO.fst encUnary _).of_enc_eq fun _ => rfl
+  -- the encoding of the initial view, and the code of the initial view
   have hview := (hinput.frame'.bitsAppend' (ComputableInO.const (encIn := E) (encMid := encBits)
     (encPair (encFinite (Option State))
       (encPair encUnary (encPair (encPi (encBiTape encBool)) encBits))
@@ -148,25 +150,31 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
     (ComputableInO.const (encIn := E) (encMid := encBits) [true, true])).of_enc_eq (encC := encBits)
     (g := fun p : P => acceptCode p.1) fun p => by
       simp only [acceptCode, encBits_apply, two_mul, List.replicate_add]; rfl).mono
-    (T' := N) (S' := N) 4 (fun p => by simp only [hN]; omega) fun p => by simp only [hN]; omega
+    (T' := N) (S' := N) 4
+    (fun p => by simp only [hN]; omega)
+    fun p => by simp only [hN]; omega
+  -- the endpoints, each a given word or its default
   have hbound (p : P) (o : Option (List Bool)) (ho : (encOption encBits o).length ≤ N p) :
       N p + N p + ((encPair E (encOption encBits) (p, o)).length +
         o.elim (N p) fun x => (encPair E encBits (p, x)).length) ≤ 8 * (N p + 1) := by
     rcases o with _ | x <;>
       simp only [length_encPair, Option.elim, encBits_apply, encOption_some, List.length_cons, hN]
         at ho ⊢ <;> omega
+  have hlenu : ∀ p : P, (encOption encBits p.2.2.1).length ≤ N p := fun ⟨_, _, _, _⟩ => by
+    simp only [hN, hE, length_encPair]; omega
+  have hlenv : ∀ p : P, (encOption encBits p.2.2.2).length ≤ N p := fun ⟨_, _, _, _⟩ => by
+    simp only [hN, hE, length_encPair]; omega
   have ha := (((ComputableInO.optionElimSnd hcode (ComputableInO.snd E encBits)).comp
     ((ComputableInO.id' (encMid := E)).prod hu)).of_enc_eq (encC := encBits)
     (g := fun p : P => p.2.2.1.getD (viewCode p.1 (ntm.initView p.2.1)))
     fun p => by obtain ⟨_, _, _ | _, _⟩ := p <;> rfl).mono (T' := N) (S' := N) 8
-    (fun p => hbound p _ (by obtain ⟨_, _, _, _⟩ := p; simp only [hN, hE, length_encPair]; omega))
-    fun p => hbound p _ (by obtain ⟨_, _, _, _⟩ := p; simp only [hN, hE, length_encPair]; omega)
+    (fun p => hbound p _ (hlenu p)) fun p => hbound p _ (hlenu p)
   have hb := (((ComputableInO.optionElimSnd haccept (ComputableInO.snd E encBits)).comp
     ((ComputableInO.id' (encMid := E)).prod hv)).of_enc_eq (encC := encBits)
     (g := fun p : P => p.2.2.2.getD (acceptCode p.1))
     fun p => by obtain ⟨_, _, _, _ | _⟩ := p <;> rfl).mono (T' := N) (S' := N) 8
-    (fun p => hbound p _ (by obtain ⟨_, _, _, _⟩ := p; simp only [hN, hE, length_encPair]; omega))
-    fun p => hbound p _ (by obtain ⟨_, _, _, _⟩ := p; simp only [hN, hE, length_encPair]; omega)
+    (fun p => hbound p _ (hlenv p)) fun p => hbound p _ (hlenv p)
+  -- the edge test of the endpoints
   obtain ⟨ca, hca⟩ := ha.length_le
   obtain ⟨cb, hcb⟩ := hb.length_le
   have hbd (A B M : ℕ) (hA : A ≤ ca * (M + 1)) (hB : B ≤ cb * (M + 1)) :
@@ -178,15 +186,11 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
     have hc : M + 1 ≤ c * (M + 1) := Nat.le_mul_of_pos_left _ (by omega)
     have h4c : 4 * c * (M + 1) = 4 * (c * (M + 1)) := by ring
     have h12 : (A + 1) * (A + B + 1) ≤ (4 * c * (M + 1)) ^ 2 := by
-      rw [pow_two]; exact Nat.mul_le_mul (by omega) (by omega)
+      simpa only [pow_two] using Nat.mul_le_mul (by omega) (by omega)
     have h33 : (2 * A + 1 + B) ^ 2 ≤ (4 * c * (M + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
     have h4M : 4 * M ≤ (4 * c * (M + 1)) ^ 2 :=
       (show 4 * M ≤ 4 * c * (M + 1) by omega).trans (Nat.le_self_pow two_ne_zero _)
-    have hsq : (M + 1) ^ 2 ≤ 2 * (M ^ 2 + 1) := by
-      have : 2 * M ≤ M ^ 2 + 1 := by
-        cases M with | zero => simp | succ k => rw [pow_two]; nlinarith
-      have : (M + 1) ^ 2 = M ^ 2 + 2 * M + 1 := by ring
-      omega
+    have hsq : (M + 1) ^ 2 ≤ 2 * (M ^ 2 + 1) := by nlinarith
     calc M + M + (A + 1) * (A + B + 1) + (M + M + (2 * A + 1 + B) ^ 2)
         ≤ 3 * (4 * c * (M + 1)) ^ 2 := by omega
       _ = 48 * c ^ 2 * (M + 1) ^ 2 := by ring
@@ -194,10 +198,12 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
       _ = 96 * c ^ 2 * (M ^ 2 + 1) := by ring
   refine ((ComputableInO.or' (ComputableInO.eq' ha hb) (hedge.comp (ha.prod hb))).of_enc_eq
     (encC := encBool) fun _ => rfl).mono (96 * (ca + cb + 1) ^ 2) (fun p => ?_) fun p => ?_
-  · have hA := hca p; have hB := hcb p
+  · have hA := hca p
+    have hB := hcb p
     simp only [length_encPair, encBits_apply, hN] at hA hB ⊢
     exact hbd _ _ _ hA hB
-  · have hA := hca p; have hB := hcb p
+  · have hA := hca p
+    have hB := hcb p
     simp only [length_encPair, encBits_apply, hN] at hA hB ⊢
     have h := hbd _ _ _ hA hB
     generalize (p.2.2.1.getD (viewCode p.1 (ntm.initView p.2.1))).length = A at h ⊢
@@ -224,8 +230,7 @@ private theorem length_encOption_lastMidpoint_le (w i : ℕ) (z : List Bool) (d 
     simp only [lastMidpoint]
     rcases h : lastMidpoint w i (z.drop (2 * w + 2)) d with _ | m
     · split_ifs <;> simp [midpointMoves]
-    · rw [h] at hi
-      simpa using hi
+    · simpa [h] using hi
 
 /-- For a time-constructible `s` and a constant `K`, the number of moves of the midpoint game on
 codes of `2 * w + 2` bits, `w = K * (n + s n + 1)`, as in `exists_midpointGame_of_mem_NSPACE`, is
@@ -248,7 +253,8 @@ private theorem computableInO_midpointMoveCount {s : ℕ → ℕ} (hs : TimeCons
     have e : 2 * ((2 * (K * m) + 2 + 1) * (2 * (K * m) + 2)) =
         8 * K ^ 2 * m ^ 2 + 20 * (K * m) + 12 := by ring
     have e2 : (8 * K ^ 2 + 20 * K + 14) * (m ^ 2 + 1) =
-        8 * K ^ 2 * m ^ 2 + 20 * (K * m ^ 2) + 14 * m ^ 2 + (8 * K ^ 2 + 20 * K + 14) := by ring
+        8 * K ^ 2 * m ^ 2 + 20 * (K * m ^ 2) + 14 * m ^ 2 + (8 * K ^ 2 + 20 * K + 14) := by
+      ring
     omega
 
 /-- The reduction of `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` to the leaf test: the alternating machine
@@ -337,8 +343,13 @@ private theorem NSPACE_subset_ATIME_sq_of_midpointLeaf {s : ℕ → ℕ} (hs : T
     (computableInO_midpointMoveCount hs K) hV'
     (fun a => (hA a _ le_rfl).trans (Iff.of_eq (congrArg (Alternation true _)
       (funext fun z => by rw [midpointGame_eq_reach_lastMidpoint]; rfl))))
-    (fun a => by dsimp only at *; have := hfin a; omega)
-    fun a z hz => by dsimp only at *; have := hfin a; omega
+    (fun a => by
+      have := hfin a
+      omega)
+    fun a z _ => by
+      have := hfin a
+      dsimp only
+      omega
 
 /-- **Time-constructible step toward CKS Theorem 3.1 (`NSPACE s ⊆ ATIME ((n + s n) ^ 2)`)**: not
 the unrestricted [Chandra, Kozen and Stockmeyer, Theorem 3.1][ChandraKozenStockmeyer1981]

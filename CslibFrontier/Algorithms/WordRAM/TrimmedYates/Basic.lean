@@ -71,58 +71,42 @@ theorem testBit_setMask_of_ge {d : ℕ} (S : Finset (Fin d)) {k : ℕ} (hk : d �
     (setMask S).testBit k = false :=
   Nat.testBit_lt_two_pow ((setMask_lt S).trans_le (Nat.pow_le_pow_right Nat.two_pos hk))
 
-theorem setMask_injective {d : ℕ} : Function.Injective (setMask (d := d)) := by
-  intro S₁ S₂ h
-  have heq := (BitString.equivFin d).injective (Fin.ext h)
+theorem setMask_injective {d : ℕ} : Function.Injective (setMask (d := d)) := fun _ _ h => by
   ext i
-  have hi := congrFun heq i
-  simpa only [decide_eq_decide] using hi
+  simpa only [decide_eq_decide] using congrFun ((BitString.equivFin d).injective (Fin.ext h)) i
 
 @[simp] theorem setMask_empty (d : ℕ) : setMask (∅ : Finset (Fin d)) = 0 := by
   simp [setMask]
 
 theorem setMask_insert {d : ℕ} {S : Finset (Fin d)} {c : Fin d} :
     setMask (insert c S) = setMask S ||| (1 <<< c.val) := by
-  apply Nat.eq_of_testBit_eq
-  intro k
+  refine Nat.eq_of_testBit_eq fun k => ?_
   rw [Nat.testBit_or, Nat.shiftLeft_eq, one_mul, Nat.testBit_two_pow]
   by_cases hk : k < d
-  · let ik : Fin d := ⟨k, hk⟩
-    have hik : k = ik.val := rfl
-    rw [hik, testBit_setMask, testBit_setMask]
-    by_cases hck : c = ik
+  · rw [show k = (⟨k, hk⟩ : Fin d).val from rfl, testBit_setMask, testBit_setMask]
+    by_cases hck : c = ⟨k, hk⟩
     · subst hck; simp
-    · have hne : c.val ≠ ik.val := fun h => hck (Fin.ext h)
-      simp [Ne.symm hck, hne]
-  · have hne : c.val ≠ k := by omega
-    simp [testBit_setMask_of_ge _ (Nat.le_of_not_lt hk), hne]
+    · simp [Ne.symm hck, Fin.val_ne_of_ne hck]
+  · simp [testBit_setMask_of_ge _ (Nat.le_of_not_lt hk), (c.isLt.trans_le (not_lt.mp hk)).ne]
 
 theorem setMask_erase {d : ℕ} {S : Finset (Fin d)} {c : Fin d} (hc : c ∈ S) :
     setMask (S.erase c) = setMask S ^^^ (1 <<< c.val) := by
-  apply Nat.eq_of_testBit_eq
-  intro k
+  refine Nat.eq_of_testBit_eq fun k => ?_
   rw [Nat.testBit_xor, Nat.shiftLeft_eq, one_mul, Nat.testBit_two_pow]
   by_cases hk : k < d
-  · let ik : Fin d := ⟨k, hk⟩
-    have hik : k = ik.val := rfl
-    rw [hik, testBit_setMask, testBit_setMask]
-    by_cases hck : c = ik
+  · rw [show k = (⟨k, hk⟩ : Fin d).val from rfl, testBit_setMask, testBit_setMask]
+    by_cases hck : c = ⟨k, hk⟩
     · subst hck; simp [hc]
-    · have hne : c.val ≠ ik.val := fun h => hck (Fin.ext h)
-      simp [Finset.mem_erase, Ne.symm hck, hne]
-  · have hne : c.val ≠ k := by omega
-    simp [testBit_setMask_of_ge _ (Nat.le_of_not_lt hk), hne]
+    · simp [Finset.mem_erase, Ne.symm hck, Fin.val_ne_of_ne hck]
+  · simp [testBit_setMask_of_ge _ (Nat.le_of_not_lt hk), (c.isLt.trans_le (not_lt.mp hk)).ne]
 
 theorem setMask_sdiff {d : ℕ} {C Y : Finset (Fin d)} (hY : Y ⊆ C) :
     setMask (C \ Y) = setMask C ^^^ setMask Y := by
-  apply Nat.eq_of_testBit_eq
-  intro k
+  refine Nat.eq_of_testBit_eq fun k => ?_
   rw [Nat.testBit_xor]
   by_cases hk : k < d
-  · let ik : Fin d := ⟨k, hk⟩
-    have hik : k = ik.val := rfl
-    rw [hik, testBit_setMask, testBit_setMask, testBit_setMask]
-    by_cases hy : ik ∈ Y
+  · rw [show k = (⟨k, hk⟩ : Fin d).val from rfl, testBit_setMask, testBit_setMask, testBit_setMask]
+    by_cases hy : (⟨k, hk⟩ : Fin d) ∈ Y
     · simp [Finset.mem_sdiff, hy, hY hy]
     · simp [Finset.mem_sdiff, hy]
   · simp [testBit_setMask_of_ge _ (Nat.le_of_not_lt hk)]

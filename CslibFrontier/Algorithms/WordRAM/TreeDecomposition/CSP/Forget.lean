@@ -148,9 +148,8 @@ private theorem forgetInnerProg_spec {w : ℕ} (counting : Bool) (a : ForgetInne
         hLB hLB_len hcBag hcBag_len
     simp only [radixProjAssign, ↓reduceIte] at hr_rp hc_rp
     have hidx_lt :
-        toRadix a.q cBagL (Function.update (ofRadix a.q LB a.m) a.v d) < cTbl.length := by
-      rw [hcTbl_len, ← hcBag_len]
-      exact toRadix_lt hq _ _
+        toRadix a.q cBagL (Function.update (ofRadix a.q LB a.m) a.v d) < cTbl.length :=
+      hcTbl_len ▸ hcBag_len ▸ toRadix_lt hq _ _
     obtain ⟨hst_ev, hres_ev⟩ := forgetInnerStep_eval a d curAcc s
     have hres_ev' :
         (Memory.spec 0).clientResult s (forgetInnerStep (a, (d, curAcc))) =
@@ -160,24 +159,17 @@ private theorem forgetInnerProg_spec {w : ℕ} (counting : Bool) (a : ForgetInne
       cases counting <;> rfl
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (forgetInnerStep (a, (d, curAcc)))) := by
-      unfold forgetInnerStep
-      dsimp only
+      dsimp only [forgetInnerStep]
       refine validHistory_bind_step hv_rp ?_
       rw [hst_rp, hr_rp]
       exact validHistory_read_bind (by have := hcTbl.1; omega) (validHistory_pure w s _)
     have hc_step : memoryCost (forgetInnerStep (a, (d, curAcc))) s ≤ stepCost := by
-      unfold forgetInnerStep
-      dsimp only
+      dsimp only [forgetInnerStep, stepCost]
       rw [memoryCost_bind', hst_rp, memoryCost_bind', memoryCost_read, clientState_read,
         memoryCost_pure]
-      dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (Nat.le_of_succ_le hk_le)
-    have hiter_eq : iterate forgetInnerStep a (k + 1) (d, curAcc) =
-        (forgetInnerStep (a, (d, curAcc)) >>= iterate forgetInnerStep a k) := rfl
-    change (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (iterate forgetInnerStep a (k + 1) (d, curAcc))) ∧ _ ∧ _
-    rw [hiter_eq]
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev']), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_ev, hres_ev']
       exact hr_rem
@@ -217,12 +209,11 @@ private theorem forgetInnerProg_realizes :
       have hfit_caddr :
           Fits w (d.cTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs)) :=
         hfit_cTbl.of_le (by omega)
+      have hlt_len : (Memory.spec 0).clientResult t (radixProjProg rpArgs) < cTbl.length :=
+        hcTbl_len ▸ hidx_lt
       have hcVal_le :
-          t.mem (d.cTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs)) ≤ cCap := by
-        have hlt_len : (Memory.spec 0).clientResult t (radixProjProg rpArgs) < cTbl.length := by
-          rwa [hcTbl_len]
-        rw [hcTbl_t.get _ hlt_len]
-        exact hcTbl_le _ (List.getElem_mem hlt_len)
+          t.mem (d.cTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs)) ≤ cCap :=
+        hcTbl_t.get _ hlt_len ▸ hcTbl_le _ (List.getElem_mem hlt_len)
       have hfit_d1 : Fits w (st.1 + 1) := hfit_dLim.of_le (by omega)
       have hacc_next (hm1 : d.mode = 1) :
           st.2 + t.mem (d.cTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs)) ≤
@@ -230,30 +221,26 @@ private theorem forgetInnerProg_realizes :
         simp only [hm1, ↓reduceIte] at hacc_bound
         rw [Nat.succ_mul]
         exact Nat.add_le_add hacc_bound hcVal_le
-      have hrp_safe :
-          0 < d.q ∧ Fits w 1 ∧ Fits w d.q ∧ Fits w d.m ∧
-            Fits w (d.bagPtr + d.bagLen) ∧ Fits w (d.cBagPtr + d.cBagLen) ∧
-            Fits w (d.q ^ d.cBagLen) :=
-        ⟨hq_pos, h1, hfit_q, hfit_m, hfit_bag, hfit_cBag, hfit_cPow⟩
       obtain ⟨hst_ev, hres_ev⟩ := forgetInnerStep_eval d st.1 st.2 t
       refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩
       · dsimp only [forgetInnerStep]
         rw [radixProjProg_state]
-        refine ⟨⟨h1, hrp_safe⟩, hfit_caddr, h1, ?_⟩
+        refine ⟨⟨h1, hq_pos, h1, hfit_q, hfit_m, hfit_bag, hfit_cBag, hfit_cPow⟩,
+          hfit_caddr, h1, ?_⟩
         by_cases hm1 : d.mode = 1
         · simp only [hm1, ↓reduceIte]
           exact ⟨hfit_d1, (hfit_sumCap hm1).of_le
             ((hacc_next hm1).trans (Nat.mul_le_mul_right cCap (by omega)))⟩
         · simp only [hm1, ↓reduceIte] at hacc_bound ⊢
           split_ifs
-          · exact hfit_d1
-          · exact ⟨hfit_d1, h1⟩
-      · rw [hres_ev]; dsimp only; omega
-      · rw [hst_ev]; exact hcTbl_t
-      · rw [hres_ev]; dsimp only
+          exacts [hfit_d1, ⟨hfit_d1, h1⟩]
+      · rw [hres_ev]
+        omega
+      · rwa [hst_ev]
+      · rw [hres_ev]
+        dsimp only
         by_cases hm1 : d.mode = 1
-        · simp only [hm1, ↓reduceIte]
-          exact hacc_next hm1
+        · simpa only [hm1, ↓reduceIte] using hacc_next hm1
         · simp only [hm1, ↓reduceIte] at hacc_bound ⊢
           split_ifs <;> omega
     · simp only [iterationWork_zero]; exact le_rfl
@@ -374,41 +361,31 @@ private theorem forgetFillProg_spec {w : ℕ} (counting : Bool) (a : ForgetFillA
     · simp [hv]
     · simp only [hv, ↓reduceIte, dpAlgFold]
       cases counting
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        have hle1 :
-            (dpInstTree false a.q cs vars child).getD
-              (toRadix a.q (bagList child)
-                (Function.update (ofRadix a.q ((bagList child).erase a.v) m) a.v 0)) 0 ≤ 1 := by
-          rw [List.getD_eq_getElem?_getD]
-          cases hg : (dpInstTree false a.q cs vars child)[toRadix a.q (bagList child)
-              (Function.update (ofRadix a.q ((bagList child).erase a.v) m) a.v 0)]? with
-          | none => exact Nat.zero_le _
-          | some y =>
-            simpa using mem_dpInstTree_le false hq cs vars child y (List.mem_of_getElem? hg)
+      · have hlt : toRadix a.q (bagList child)
+            (Function.update (ofRadix a.q ((bagList child).erase a.v) m) a.v 0) <
+              (dpInstTree false a.q cs vars child).length :=
+          (length_dpInstTree false a.q cs vars child).symm ▸ toRadix_lt hq _ _
+        have := mem_dpInstTree_le false hq cs vars child _ (List.getElem_mem hlt)
+        simp only [Bool.false_eq_true, ↓reduceIte, List.getD_eq_getElem?_getD,
+          List.getElem?_eq_getElem hlt, Option.getD_some] at this ⊢
         split_ifs <;> omega
       · simp
-  have hentry_fit : Fits w entryVal := by
-    have hmem_e : entryVal ∈ targetTbl := List.getElem_mem _
-    exact hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.forget a.v child) _ hmem_e)
+  have hentry_fit : Fits w entryVal :=
+    hfit_cap.of_le
+      (mem_dpInstTree_le counting hq cs vars (.forget a.v child) _ (List.getElem_mem _))
   have hdst_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
   obtain ⟨hst_ev, hres_ev⟩ := forgetOuterStep_eval a m t
-  have hst_t₁ : (Memory.spec 0).clientState t (forgetOuterStep (a, m)) =
-      ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩ := by
-    rw [hst_ev, hval_eq]
   have hv_step : (Memory.spec w).ValidHistory t
       ((Memory.spec w).clientHistory t (forgetOuterStep (a, m))) := by
-    unfold forgetOuterStep
-    dsimp only
+    dsimp only [forgetOuterStep]
     refine validHistory_bind_step hv_in ?_
     rw [hst_in, hval_eq]
     exact validHistory_write_bind hdst_lt hentry_fit (validHistory_pure w _ _)
   have hc_step : memoryCost (forgetOuterStep (a, m)) t ≤ stepCost := by
-    unfold forgetOuterStep
-    dsimp only
+    dsimp only [forgetOuterStep, stepCost]
     rw [memoryCost_bind', hst_in, memoryCost_bind', memoryCost_write, memoryCost_pure]
-    dsimp only [stepCost]
     omega
-  exact ⟨hv_step, hst_t₁, hres_ev, trivial, hc_step⟩
+  exact ⟨hv_step, by rw [hst_ev, hval_eq], hres_ev, trivial, hc_step⟩
 
 private theorem forgetFillProg_realizes :
     Realizes .exact forgetFillProg WordEncoding.encode WordEncoding.encode
@@ -440,22 +417,13 @@ private theorem forgetFillProg_realizes :
       have hfit_m : Fits w m := hfit_tbl.of_le (by omega)
       have hfit_m1 : Fits w (m + 1) := hfit_tbl.of_le (by omega)
       have hfit_taddr : Fits w (d.tblPtr + m) := hfit_tbl.of_le (by omega)
-      have hin_safe :
-          0 < d.q ∧ Fits w 1 ∧ Fits w d.q ∧ Fits w m ∧ Fits w d.dLim ∧
-            Fits w (d.bagPtr + d.bagLen) ∧ Fits w (d.cBagPtr + d.cBagLen) ∧
-            Fits w (d.q ^ d.cBagLen) ∧ Fits w (d.cTblPtr + d.q ^ d.cBagLen) ∧
-            ∃ (cTbl : List ℕ) (cCap : ℕ),
-              HoldsIn d.cTblPtr cTbl t ∧
-              cTbl.length = d.q ^ d.cBagLen ∧
-              (∀ x ∈ cTbl, x ≤ cCap) ∧
-              (d.mode = 1 → Fits w (d.dLim * cCap)) :=
-        ⟨hq_pos, h1, hfit_q, hfit_m, hfit_dLim, hfit_bag, hfit_cBag, hfit_cPow, hfit_cTbl,
-          cTbl, cCap, hcTbl_t, hcTbl_len, hcTbl_le, hfit_sumCap⟩
       obtain ⟨hst_ev, hres_ev⟩ := forgetOuterStep_eval d m t
       refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_⟩
       · dsimp only [forgetOuterStep]
-        exact ⟨hin_safe, hfit_taddr, hfit_m1⟩
-      · rw [hres_ev]; omega
+        exact ⟨⟨hq_pos, h1, hfit_q, hfit_m, hfit_dLim, hfit_bag, hfit_cBag, hfit_cPow, hfit_cTbl,
+          cTbl, cCap, hcTbl_t, hcTbl_len, hcTbl_le, hfit_sumCap⟩, hfit_taddr, hfit_m1⟩
+      · rw [hres_ev]
+        omega
       · rw [hst_ev]
         exact holdsIn_write_outside hcTbl_t (.inr (by rw [hcTbl_len]; omega))
     · simp only [iterationWork_zero]; exact le_rfl
@@ -575,11 +543,10 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
     bagMemProg_spec (w := w) ⟨a.v, a.varsPtr, a.varsLen⟩ (hvars.mono_frontier hp_s_s₂) hvars_len
   dsimp only at hr_bm hc_bm
   let dLim := if (if memBag a.v vars then 1 else 0) = 1 then a.q else 1
-  have hdLim_eq : dLim = if a.v ∈ vars then a.q else 1 := by
-    dsimp only [dLim]; rw [memBag_eq_decide]
-    by_cases hv : a.v ∈ vars <;> simp [hv]
+  have hdLim_eq : dLim = if a.v ∈ vars then a.q else 1 := by simp [dLim, memBag_eq_decide]
   have hdLim_le : dLim ≤ a.q := by
-    rw [hdLim_eq]; split_ifs <;> omega
+    rw [hdLim_eq]
+    split_ifs <;> omega
   let fillArgs : ForgetFillArgs :=
     ⟨a.mode, a.q, a.v, bagPtr, bagLen, cBagPtr, cBagLen, cTblPtr, dLim, tblPtr, tblLen⟩
   obtain ⟨hv_fill, hfr_fill, hp_fill, htbl_fill, hc_fill⟩ :=
@@ -634,9 +601,7 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · unfold forgetNodeProg
     dsimp only
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
+    iterate 3 refine validHistory_read_bind (by omega) ?_
     rw [hm_cbLen]
     refine validHistory_bind_step hv_er ?_
     change (Memory.spec w).ValidHistory s₁ _
@@ -651,21 +616,17 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
     exact validHistory_bind_step hv_fill hv_wd
   · rw [hsEnd_eq, hfr_wd, hs₃_fr]
     dsimp only [tblPtr, tblLen, bagLen, LB]
-    rw [hfr_er]
-    omega
+    rw [hfr_er]; omega
   · rw [hsEnd_eq]
     exact (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₃).trans hframe_wd
   · rw [hsEnd_eq]
-    refine ⟨hdCur, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [hm0]; exact hFlo
-    · rw [hm1]; rfl
-    · rw [hm0]
-      exact hLB_s₃.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd
-    · rw [hm2]; dsimp only [tblPtr]; rw [hfr_er]; omega
-    · rw [hm3]; rfl
-    · rw [hm2]
-      exact htbl_fill.frame_outsideRange
-        (.inr (by dsimp only [fillArgs, tblPtr]; rw [hfr_er]; omega)) hframe_wd
+    have hFlo_tbl : F_lo ≤ tblPtr := by
+      dsimp only [tblPtr]
+      rw [hfr_er]; omega
+    exact ⟨hdCur, hm0 ▸ hFlo, hm1,
+      hm0 ▸ hLB_s₃.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd,
+      hm2 ▸ hFlo_tbl, hm3,
+      hm2 ▸ htbl_fill.frame_outsideRange (.inr (hdCur.trans hFlo_tbl)) hframe_wd⟩
   · unfold forgetNodeProg
     dsimp only
     iterate 3 rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read]
@@ -734,8 +695,6 @@ theorem forgetNodeProg_realizes :
     have hc_tbl := hch.tbl_holds.1
     rw [length_dpInstTree] at hc_tbl
     let cCap := if counting then d.q ^ child.size else 1
-    have hf_ch1 : Fits w (d.dChild + 1) := hdCh.of_le (by omega)
-    have hf_ch2 : Fits w (d.dChild + 2) := hdCh.of_le (by omega)
     have hex_er : ∃ xs : List ℕ,
         HoldsIn (s.mem d.dChild) xs s ∧
         xs.length = (bagList child).length ∧
@@ -743,14 +702,6 @@ theorem forgetNodeProg_realizes :
         (∀ u ∈ xs, Fits w u) ∧
         Fits w (s.frontier + (bagList child).length) :=
       ⟨bagList child, hch.bag_holds, rfl, hc_bag, hfit_elems, hfit_peak.of_le (by omega)⟩
-    have hf_bagEnd : Fits w (s.frontier + bagLen) :=
-      hfit_peak.of_le (by dsimp only [bagLen]; omega)
-    have hf_cbagEnd : Fits w (s.mem d.dChild + (bagList child).length) :=
-      hfit_peak.of_le (by omega)
-    have hf_ctblEnd : Fits w (s.mem (d.dChild + 2) + d.q ^ (bagList child).length) :=
-      hfit_peak.of_le (by omega)
-    have hf_tblLen : Fits w tblLen :=
-      hfit_peak.of_le (by dsimp only [tblLen, bagLen]; omega)
     have hf_tblEnd : Fits w (s₁.frontier + tblLen) :=
       hfit_peak.of_le (by rw [hfr_er]; dsimp only [bagLen, tblLen]; omega)
     have hex_fill (dLim : ℕ) (hdLim_le : dLim ≤ d.q) :
@@ -772,25 +723,19 @@ theorem forgetNodeProg_realizes :
       · simp only [↓reduceIte, NiceTree.size_forget, Nat.pow_succ, Nat.mul_comm] at hfit_cap
         dsimp only [cCap]
         exact hfit_cap.of_le (Nat.mul_le_mul_right _ hdLim_le)
-    have hex_fill_q := hex_fill d.q le_rfl
-    have hex_fill_1 := hex_fill 1 (by omega)
     repeat (
       first
       | exact hex_er
-      | exact hex_fill_q
-      | exact hex_fill_1
+      | exact hex_fill d.q le_rfl
+      | exact hex_fill 1 (by omega)
       | exact hq
       | exact h1
       | exact hfit_q
       | exact hfit_vars
       | exact hdCur
-      | exact hf_ch1
-      | exact hf_ch2
       | exact hfit_cPow
-      | exact hf_bagEnd
-      | exact hf_cbagEnd
-      | exact hf_ctblEnd
-      | exact hf_tblLen
-      | exact hf_tblEnd)
+      | exact hf_tblEnd
+      | exact hdCh.of_le (by omega)
+      | exact hfit_peak.of_le (by omega))
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

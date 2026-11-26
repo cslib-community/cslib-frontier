@@ -110,17 +110,6 @@ variable {I R S M : Type} [LE M] [DecidableRel (α := M) (· ≤ ·)]
 @[expose] def run (x : I) : S :=
   greedy (G.branch x) (G.estimate x) (G.rounds x) (G.init x)
 
-private theorem run_eq_foldl (x : I) :
-    G.run x =
-      (G.rounds x).foldl
-        (fun s r =>
-          if G.estimate x (G.branch x r true s) ≤ G.estimate x (G.branch x r false s) then
-            G.branch x r true s
-          else
-            G.branch x r false s)
-        (G.init x) :=
-  rfl
-
 /-- Plain `ComputableInPolyTime` transfer for `G.run` when `rounds`, `init`, `branch`, `estimate`,
 and `(· ≤ ·)` are polynomial-time and each round increases `(encS s).length` by at most a
 polynomially bounded `growth x`. -/
@@ -327,8 +316,7 @@ private theorem scanStep_foldl_mem (x : I) (s : S) (r : R) (all : List A) :
       · exact Or.inr ⟨a, ha, rfl⟩
       · dsimp only [scanStep, Option.elim]
         split_ifs
-        · exact Or.inr ⟨a, ha, rfl⟩
-        · exact Or.inr ⟨b, hb, rfl⟩
+        exacts [Or.inr ⟨a, ha, rfl⟩, Or.inr ⟨b, hb, rfl⟩]
     exact scanStep_foldl_mem x s r all cs _ hnext fun c hc => hsub c (List.mem_cons_of_mem a hc)
 
 /-- Plain `ComputableInPolyTime` transfer for `G.run` when `rounds`, `choices`, `init`, `branch`,
@@ -419,10 +407,9 @@ theorem computableInPolyTime_run
         hSA.length_elem_le (G.choices p.1.1 p.2) a ha
       have hpa_len : (encChoiceInput encI encS encR encA (p, a)).length ≤
           2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length := by
-        change (encPair encRound encA (p, a)).length ≤ _
-        rw [length_encPair]
-        dsimp only
-        omega
+        rw [show encChoiceInput encI encS encR encA = encPair encRound encA from rfl,
+          length_encPair]
+        exact Nat.add_le_add_left ha_len _
       have hv_len : (encM (G.estimate p.1.1 (G.branch p.1.1 p.2 a p.1.2))).length ≤
           cV * (2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length + 1) ^ dV :=
         (hV (p, a)).trans
@@ -439,9 +426,7 @@ theorem computableInPolyTime_run
   dsimp only [stepRound]
   rcases G.scanStep_foldl_mem x s r (G.choices x r) (G.choices x r) none (Or.inl rfl)
       (fun _ h => h) with hnone | ⟨a, ha, hsome⟩
-  · rw [hnone]
-    simp only [Option.elim]
-    omega
+  · simp [hnone]
   · rw [hsome]
     exact hgrowth x s r a hr ha
 
@@ -500,16 +485,10 @@ private theorem scanStep_foldl_spec (x : I) (s : S) (r : R) (all : List A) :
     let val := G.estimate x (G.branch x r c s)
     split_ifs with hle
     · obtain ⟨b, hb, hout, hle_c, hforall⟩ := scanStep_foldl_spec x s r all cs c val hc rfl hsub'
-      refine ⟨b, hb, hout, hle_c.trans hle, fun a ha => ?_⟩
-      rcases List.mem_cons.mp ha with rfl | ha'
-      · exact hle_c
-      · exact hforall a ha'
-    · have hm₀_le : m₀ ≤ val := le_of_not_ge hle
-      obtain ⟨b, hb, hout, hle_0, hforall⟩ := scanStep_foldl_spec x s r all cs a₀ m₀ ha₀ hm₀ hsub'
-      refine ⟨b, hb, hout, hle_0, fun a ha => ?_⟩
-      rcases List.mem_cons.mp ha with rfl | ha'
-      · exact hle_0.trans hm₀_le
-      · exact hforall a ha'
+      exact ⟨b, hb, hout, hle_c.trans hle, List.forall_mem_cons.mpr ⟨hle_c, hforall⟩⟩
+    · obtain ⟨b, hb, hout, hle_0, hforall⟩ := scanStep_foldl_spec x s r all cs a₀ m₀ ha₀ hm₀ hsub'
+      exact ⟨b, hb, hout, hle_0,
+        List.forall_mem_cons.mpr ⟨hle_0.trans (le_of_not_ge hle), hforall⟩⟩
 
 private theorem foldl_stepRound_spec
     (Inv : I → List R → S → Prop)
@@ -525,25 +504,20 @@ private theorem foldl_stepRound_spec
   | r :: rs, s, hinv => by
     obtain ⟨a_star, ha_star, ha_le⟩ := hmin x r rs s hinv
     cases hcs : G.choices x r with
-    | nil =>
-      rw [hcs] at ha_star
-      cases ha_star
+    | nil => simp [hcs] at ha_star
     | cons a₀ cs =>
       obtain ⟨b, hb, hout, hle_0, hforall⟩ :=
         G.scanStep_foldl_spec x s r (a₀ :: cs) cs a₀
           (G.estimate x (G.branch x r a₀ s)) List.mem_cons_self rfl
           fun a ha => List.mem_cons_of_mem a₀ ha
-      have hb_choices : b ∈ G.choices x r := hcs ▸ hb
       have hstep : G.stepRound x s r = G.branch x r b s := by
         simp [stepRound, hcs, scanStep, hout]
-      have hle_star : G.estimate x (G.branch x r b s) ≤ G.estimate x (G.branch x r a_star s) := by
-        rw [hcs] at ha_star
-        rcases List.mem_cons.mp ha_star with rfl | hmem_cs
-        · exact hle_0
-        · exact hforall a_star hmem_cs
+      have hle_star : G.estimate x (G.branch x r b s) ≤ G.estimate x (G.branch x r a_star s) :=
+        (List.mem_cons.mp (hcs ▸ ha_star : a_star ∈ a₀ :: cs)).elim
+          (fun h => h ▸ hle_0) (hforall a_star)
       obtain ⟨hinv_end, hest_end⟩ :=
         foldl_stepRound_spec Inv hinv_branch hmin x rs (G.branch x r b s)
-          (hinv_branch x r rs s b hinv hb_choices)
+          (hinv_branch x r rs s b hinv (hcs ▸ hb))
       simpa only [List.foldl_cons, hstep] using
         ⟨hinv_end, hest_end.trans (hle_star.trans ha_le)⟩
 

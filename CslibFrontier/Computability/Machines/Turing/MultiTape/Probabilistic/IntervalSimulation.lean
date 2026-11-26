@@ -136,18 +136,24 @@ theorem withCoin_step_eq (bit : Bool) {input : List Bool} (c : Cfg k Bool State 
 theorem LocalCfg.Represents.localCoinStep {input : List Bool} {l : LocalCfg k State}
     {c : Cfg k Bool State input} (h : l.Represents c) (bit : Bool) :
     (machine.localCoinStep input l bit).Represents ((machine.withCoin bit).toTM.step c) := by
+  have hsym : inputAt input l.inputPos = c.inputSymbol := by
+    rw [Cfg.inputSymbol_eq_inputAt, h.inputPos]
+  have hwork : (fun i => (l.workTapes i).head) = c.workTapeSymbols :=
+    funext fun i => (h.workTapes i).head
   rw [withCoin_step_eq]
   unfold MultiTapePTM.localCoinStep
-  rw [show inputAt input l.inputPos = c.inputSymbol by rw [Cfg.inputSymbol_eq_inputAt, h.inputPos],
-    show (fun i => (l.workTapes i).head) = c.workTapeSymbols from
-      funext fun i => (h.workTapes i).head, h.state]
+  rw [hsym, hwork, h.state]
   set a := machine.coinAction c.state c.inputSymbol c.workTapeSymbols bit
-  refine ⟨rfl, by rw [h.inputPos]; exact (val_moveInputPos_eq_moveInputPosNat _ _).symm,
-    fun i => ?_, funext fun i => by simp [Action.apply, h.workTapePos],
-    by simp [Action.apply, h.track, OutputTrack.ofWord_append]⟩
-  have hstep := (h.workTapes i).step (a.workTapes i)
-  rcases hw : a.workTapes i with ⟨w, m⟩
-  rw [hw] at hstep; cases w <;> simpa [Action.apply, hw] using hstep
+  refine ⟨rfl, ?_, fun i => ?_, ?_, ?_⟩
+  · rw [h.inputPos]
+    exact (val_moveInputPos_eq_moveInputPosNat _ _).symm
+  · have hstep := (h.workTapes i).step (a.workTapes i)
+    rcases hw : (a.workTapes i) with ⟨w, m⟩
+    rw [hw] at hstep
+    cases w <;> simpa [Action.apply, hw] using hstep
+  · funext i
+    simp [Action.apply, h.workTapePos]
+  · simp [Action.apply, h.track, OutputTrack.ofWord_append]
 
 /-- **A replay preserves the representation.** -/
 theorem LocalCfg.Represents.localRun {input : List Bool} {l : LocalCfg k State}
@@ -240,28 +246,31 @@ theorem windowCell_eq (J : Option (Fin k) → ℤ) (w : Fin k → Fin 3 → ZMod
     rw [add_comm, Int.add_mul_ediv_left _ _ hb.ne', add_comm]
   unfold windowCell
   by_cases hc : 0 ≤ c
-  · rw [ite_eq_left hc, List.getD_eq_getElem?_getD]
+  · rw [ite_eq_left hc]
     have hcn : (c.toNat : ℤ) = c := Int.toNat_of_nonneg hc
     obtain ⟨d, hd⟩ : ∃ d, d = c.toNat / b := ⟨_, rfl⟩
-    have hcd : c / b = (d : ℤ) := by rw [hd, Int.natCast_div, hcn]
+    have hcd : c / b = (d : ℤ) := by
+      rw [hd, Int.natCast_div, hcn]
     by_cases hlt : c.toNat < 3 * b
-    · have hcb : d < 3 := hd ▸ (Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)).mpr hlt
+    · have hcb : d < 3 := hd.symm ▸ (Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)).mpr hlt
       have hcond : 0 ≤ (b * (J (some h) - 1) + c) / b - J (some h) + 1 ∧
-          (b * (J (some h) - 1) + c) / b - J (some h) + 1 < 3 := by rw [hdiv, hcd]; omega
+          (b * (J (some h) - 1) + c) / b - J (some h) + 1 < 3 := by
+        rw [hdiv, hcd]; omega
       have hidx : ((b * (J (some h) - 1) + c) / b - J (some h) + 1).toNat = d := by
         rw [hdiv, hcd]; omega
       have hcast : (((b * (J (some h) - 1) + c : ℤ)) : ZMod b) = ((c.toNat : ℕ) : ZMod b) := by
         rw [Int.cast_add, Int.cast_mul, Int.cast_natCast, ZMod.natCast_self, zero_mul, zero_add,
           ← Int.cast_natCast, hcn]
-      rw [dite_eq_left hcond, windowCells, List.getElem?_map, List.getElem?_range hlt,
-        Option.map_some, Option.getD_some, ← hd, dite_eq_left hcb, hcast]
+      rw [dite_eq_left hcond, windowCells, List.getD_eq_getElem?_getD, List.getElem?_map,
+        List.getElem?_range hlt, Option.map_some, Option.getD_some, ← hd, dite_eq_left hcb,
+        hcast]
       simp only [hidx]
-    · have h3 : 3 ≤ d := hd ▸ (Nat.le_div_iff_mul_le (Nat.pos_of_neZero b)).mpr (by omega)
-      have hcond : ¬(0 ≤ (b * (J (some h) - 1) + c) / b - J (some h) + 1 ∧
-          (b * (J (some h) - 1) + c) / b - J (some h) + 1 < 3) := by rw [hdiv, hcd]; omega
-      rw [List.getElem?_eq_none
-        (by simp only [windowCells, List.length_map, List.length_range]; omega),
-        dite_eq_right hcond]; rfl
+    · have hlen : (windowCells b (w h)).length ≤ c.toNat := by
+        simp only [windowCells, List.length_map, List.length_range]
+        omega
+      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none hlen]
+      have : 3 ≤ d := hd ▸ (Nat.le_div_iff_mul_le (Nat.pos_of_neZero b)).mpr (by omega)
+      exact dite_eq_right (by rw [hdiv, hcd]; omega)
   · rw [ite_eq_right hc]
     have : c / b < 0 := Int.ediv_neg_of_neg_of_pos (by omega) hb
     exact dite_eq_right (by rw [hdiv]; omega)

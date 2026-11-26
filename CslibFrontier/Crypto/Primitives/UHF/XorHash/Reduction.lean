@@ -323,26 +323,17 @@ private theorem run_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : ℕ
         run_xorHashWordQueries_of_valid (hm m List.mem_cons_self) table oracle h, pure_bind,
         ih (fun m hm' => hm m (List.mem_cons_of_mem _ hm')), List.map_cons,
         Function.comp_def, digest]
-  simp only [xorHashWordMultiQueryReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
+  simp only [xorHashWordMultiQueryReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+    ProbOracleComp.run_pure]
   refine bind_congr fun gs => ?_
   let ms := (gs.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
-  change (do
-    let ds ← (ms.mapM (xorHashWordQueries (ℓ n) (width n))).run (fun q => pure (oracle q.2))
-    pure (hasDistinctCollision (ds.zip ms))) = _
-  rw [hmap ms (fun m hm => (List.mem_filter.mp hm).2), pure_bind]
-  apply congrArg (pure : Bool → ProbComp Bool)
+  rw [hmap ms (fun m hm => (List.mem_filter.mp hm).2), pure_bind, List.zip_map_left,
+    List.zip_eq_zipWith, List.zipWith_self]
+  congr 1
   rw [Bool.eq_iff_iff]
-  rw [List.zip_map_left, List.zip_eq_zipWith, List.zipWith_self, List.map_map]
-  simp only [hasDistinctCollision, List.any_eq_true, Bool.and_eq_true, beq_iff_eq, bne_iff_ne,
-    decide_eq_true_eq]
-  constructor
-  · rintro ⟨a, ha, b, hb, heq, hne⟩
-    obtain ⟨m, hm, rfl⟩ := List.mem_map.mp ha
-    obtain ⟨m', hm', rfl⟩ := List.mem_map.mp hb
-    exact ⟨m, hm, m', hm', hne, List.ofFn_injective heq⟩
-  · rintro ⟨m, hm, m', hm', hne, heq⟩
-    exact ⟨_, List.mem_map.mpr ⟨m, hm, rfl⟩, _, List.mem_map.mpr ⟨m', hm', rfl⟩,
-      congrArg List.ofFn heq, hne⟩
+  simp only [hasDistinctCollision, List.map_map, List.any_map, List.any_eq_true, Bool.and_eq_true,
+    beq_iff_eq, bne_iff_ne, decide_eq_true_eq, Function.comp_def, Prod.map_apply, id_eq,
+    List.ofFn_injective.eq_iff, and_comm, ms, digest]
 
 private theorem taggedRequest_length {ℓ blockWidth : ℕ} (p : BitString blockWidth × Fin ℓ) :
     (xorHashTaggedWord ℓ (List.ofFn p.1) p.2.val).length = ℓ + blockWidth := by
@@ -409,23 +400,11 @@ theorem eval_prfRealGame_xorHashWordMultiQueryReduction {ℓ blockWidth width Q 
   rw [PMF.bind_comm]
   refine Probability.PMF.bind_congr_on_support _ _ _ fun ms hms => ?_
   rw [List.take_of_length_le (hQ ms hms)]
-  apply congrArg (fun f => (PMF.uniformOfFintype (BitString n)).bind f)
-  funext key
-  let valid := xorHashWordValid (ℓ n) (blockWidth n)
-  let digest := xorHashWordFromTable (ℓ n) (blockWidth n) (table key)
-  have hevent :
-      (∃ m ∈ ms.filter valid, ∃ m' ∈ ms.filter valid, m ≠ m' ∧ digest m = digest m') ↔
-        ∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ valid m = true ∧ valid m' = true ∧
-          digest m = digest m' := by
-    simp only [List.mem_filter]
-    constructor
-    · rintro ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩
-      exact ⟨m, hm, m', hm', hne, hv, hv', heq⟩
-    · rintro ⟨m, hm, m', hm', hne, hv, hv', heq⟩
-      exact ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩
-  apply congrArg PMF.pure
-  apply Bool.eq_iff_iff.mpr
-  exact decide_eq_true_iff.trans (hevent.trans decide_eq_true_iff.symm)
+  refine congrArg (fun f => (PMF.uniformOfFintype (BitString n)).bind f)
+    (funext fun key => congrArg PMF.pure (decide_eq_decide.mpr ?_))
+  simp only [List.mem_filter]
+  exact ⟨fun ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩ => ⟨m, hm, m', hm', hne, hv, hv', heq⟩,
+    fun ⟨m, hm, m', hm', hne, hv, hv', heq⟩ => ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩⟩
 
 private def taggedRequestEmbedding (ℓ blockWidth : ℕ) :
     BitString blockWidth × Fin ℓ ↪ BitString (ℓ + blockWidth) where
@@ -471,13 +450,10 @@ private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
     · by_cases hne : guess.first = guess.second
       · simp [hne]
       · let decode := decodeWordMessage (ℓ n) (blockWidth n)
-        have hdecoded : decode guess.first ≠ decode guess.second :=
-          fun heq => hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
         rw [Probability.PMF.bind_pure_decide_apply_true]
-        have hdistinct : (guess.first ≠ guess.second) = True :=
-          propext ⟨fun _ => trivial, fun _ => hne⟩
-        simp only [h₁, h₂, hdistinct, true_and]
-        exact hU (decode guess.first) (decode guess.second) hdecoded
+        simp only [ne_eq, hne, not_false_eq_true, h₁, h₂, true_and]
+        exact hU (decode guess.first) (decode guess.second)
+          fun heq => hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
     · simp [h₂]
   · simp [h₁]
 
@@ -504,14 +480,10 @@ private theorem eval_prfIdealGame_xorHashWordMultiQueryReduction_le
   let ds := ms.map decode
   refine (seed.toOuterMeasure.mono ?_).trans
     ((hU.toOuterMeasure_not_injOn_le ds.toFinset).trans ?_)
-  · intro f hf hinj
-    obtain ⟨m, hm, m', hm', hne, heq⟩ := hf
-    have hdm : decode m ∈ ds.toFinset := List.mem_toFinset.mpr (List.mem_map_of_mem hm)
-    have hdm' : decode m' ∈ ds.toFinset := List.mem_toFinset.mpr (List.mem_map_of_mem hm')
-    have hdecoded := hinj hdm hdm' heq
-    have hv := (List.mem_filter.mp hm).2
-    have hv' := (List.mem_filter.mp hm').2
-    exact hne (eq_of_decodeWordMessage_eq hv hv' hdecoded)
+  · intro f ⟨m, hm, m', hm', hne, heq⟩ hinj
+    exact hne (eq_of_decodeWordMessage_eq (List.mem_filter.mp hm).2 (List.mem_filter.mp hm').2
+      (hinj (List.mem_toFinset.mpr (List.mem_map_of_mem hm))
+        (List.mem_toFinset.mpr (List.mem_map_of_mem hm')) heq))
   · gcongr
     refine ds.toFinset_card_le.trans ?_
     rw [List.length_map]

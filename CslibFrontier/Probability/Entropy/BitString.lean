@@ -57,9 +57,7 @@ private theorem mul_neg_logb_two_le_two {q : ℝ} (hq0 : 0 < q) :
   have hlog_inv : Real.log (1 / q) ≤ 1 / q - 1 :=
     Real.log_le_sub_one_of_pos (one_div_pos.mpr hq0)
   have hq_log : q * (-Real.log q) ≤ 1 - q := by
-    have h1 : -Real.log q = Real.log (1 / q) := by
-      rw [one_div, Real.log_inv]
-    rw [h1]
+    rw [← Real.log_inv, ← one_div]
     have hmul := mul_le_mul_of_nonneg_left hlog_inv hq0.le
     rwa [mul_sub, mul_one_div_cancel hq0.ne', mul_one] at hmul
   rw [Real.logb, ← neg_div, ← mul_div_assoc]
@@ -83,7 +81,6 @@ theorem entropy_ge_of_dist_uniform {n : ℕ} (hn : 1 ≤ n) (p : PMF (BitString 
     simp [U, uniformOfFintype_apply]
   have htwo_pow : (2 : ℝ) ^ (-((n : ℝ) - 1)) = 2 * (2 : ℝ) ^ (-(n : ℝ)) := by
     rw [show -((n : ℝ) - 1) = 1 + -(n : ℝ) by ring, Real.rpow_add (by norm_num), Real.rpow_one]
-  have hpos : (0 : ℝ) < (2 : ℝ) ^ (-(n : ℝ)) := by positivity
   let S₁ : Finset (BitString n) :=
     Finset.univ.filter fun x => (p x).toReal ≤ (2 : ℝ) ^ (-((n : ℝ) - 1))
   have hgt (x : BitString n) (hx : x ∈ S₁ᶜ) : 2 * (U x).toReal < (p x).toReal := by
@@ -96,7 +93,8 @@ theorem entropy_ge_of_dist_uniform {n : ℕ} (hn : 1 ≤ n) (p : PMF (BitString 
     calc ∑ x ∈ S₁ᶜ, (p x).toReal ≤ ∑ x ∈ S₁ᶜ, 2 * ((p x).toReal - (U x).toReal) :=
           Finset.sum_le_sum fun x hx => by linarith [hgt x hx]
       _ ≤ _ := Finset.sum_le_sum_of_subset_of_nonneg
-          (fun x hx => Finset.mem_filter.2 ⟨Finset.mem_univ x, by linarith [hgt x hx, hU_apply x]⟩)
+          (fun x hx => Finset.mem_filter.2
+            ⟨Finset.mem_univ x, by linarith [hgt x hx, ENNReal.toReal_nonneg (a := U x)]⟩)
           fun x hx _ => by linarith [(Finset.mem_filter.1 hx).2]
   have hsurp (x : BitString n) (hx : x ∈ S₁) :
       (p x).toReal * ((n : ℝ) - 1) ≤ (p x).toReal * surprisal p x := by
@@ -197,22 +195,16 @@ theorem entropy_ofList_take_ge {m k : ℕ} (hk : k ≤ m) (p : PMF (BitString m)
   let split (x : BitString m) : BitString k × BitString (m - k) :=
     (BitString.ofList k ((List.ofFn x).take k),
       BitString.ofList (m - k) ((List.ofFn x).drop k))
-  have hinj : Function.Injective split := by
-    intro x y hxy
+  have hinj : Function.Injective split := fun x y hxy => List.ofFn_inj.mp <| by
     have h1 := congrArg (List.ofFn ∘ Prod.fst) hxy
     have h2 := congrArg (List.ofFn ∘ Prod.snd) hxy
-    dsimp only [Function.comp_apply, split] at h1 h2
-    rw [BitString.ofFn_ofList (by simp [hk]), BitString.ofFn_ofList (by simp [hk])] at h1
-    rw [BitString.ofFn_ofList (by simp), BitString.ofFn_ofList (by simp)] at h2
-    apply List.ofFn_inj.mp
+    simp only [Function.comp_apply, split, BitString.ofFn_ofList, List.length_take,
+      List.length_ofFn, min_eq_left hk, List.length_drop] at h1 h2
     rw [← List.take_append_drop k (List.ofFn x), ← List.take_append_drop k (List.ofFn y), h1, h2]
-  have hjoint : entropy (p.map split) = entropy p := entropy_map_of_injective p hinj
-  have hfst : (p.map split).map Prod.fst =
-      p.map fun x => BitString.ofList k ((List.ofFn x).take k) := by
-    rw [PMF.map_comp]
-    rfl
   have hcond := conditionalEntropy_le_log_card (p.map split)
-  rw [conditionalEntropy, hjoint, hfst, BitString.logb_card] at hcond
+  rw [conditionalEntropy, entropy_map_of_injective p hinj, PMF.map_comp,
+    BitString.logb_card] at hcond
+  dsimp only [Function.comp_def, split] at hcond
   linarith
 
 /-- Appending `k` independent uniform bits to an `m`-bit distribution increases Shannon entropy

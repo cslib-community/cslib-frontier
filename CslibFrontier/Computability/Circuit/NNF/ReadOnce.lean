@@ -93,19 +93,16 @@ theorem nnfGate_and {v l r : NNFNode L S} (h : P.nnfGate ord v = .and l r) :
   · simp only [nnfGate] at h
     split at h <;> cases h
   · cases h
-  · obtain ⟨rfl, rfl⟩ := NNF.Gate.and.inj h
+  · cases h
     have := t.isLt
-    simp only [nnfRank, Fin.val_succ]
-    omega
+    simp only [nnfRank, Fin.val_succ]; omega
 
 theorem nnfGate_or {v l r : NNFNode L S} (h : P.nnfGate ord v = .or l r) :
     nnfRank l < nnfRank v ∧ nnfRank r < nnfRank v := by
   rcases v with ⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩
   · simp only [nnfGate] at h
-    split at h
-    · obtain ⟨rfl, rfl⟩ := NNF.Gate.or.inj h
-      simp [nnfRank]
-    · cases h
+    split at h <;> cases h
+    simp [nnfRank]
   · cases h
   · cases h
 
@@ -198,12 +195,10 @@ read. -/
 theorem isDeterministic_toNNF : (P.toNNF ord).IsDeterministic := by
   rintro (⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩) l r hg x ⟨hl, hr⟩
   · simp only [toNNF, nnfGate] at hg
-    split at hg
-    next ht =>
-      obtain ⟨rfl, rfl⟩ := NNF.Gate.or.inj hg
-      rw [NNF.eval_and rfl, NNF.eval_lit rfl] at hl hr
-      cases hx : x (ord ⟨t, ht⟩) <;> simp_all
-    · cases hg
+    split at hg <;> cases hg
+    rename_i ht
+    rw [NNF.eval_and rfl, NNF.eval_lit rfl] at hl hr
+    cases hx : x (ord ⟨t, ht⟩) <;> simp_all
   · cases hg
   · cases hg
 
@@ -253,8 +248,9 @@ theorem eval_ofList (items : List (ι × Λ)) (start : S) (step : Λ → S → B
     | cons a suf ih =>
       rw [List.foldlIdx_cons, List.foldl_cons, ← ih (pre ++ [a]) (by simp [h])]
       simp [P, stepAt, ofList, h]
-  rw [eval, finalState_eq, show List.ofFn (x ∘ listOrder items) = items.map (x ·.1) by
-    rw [← List.ofFn_getElem_eq_map]; rfl, List.foldlIdx_map]
+  have hofn : List.ofFn (x ∘ listOrder items) = items.map (x ·.1) :=
+    List.ofFn_getElem_eq_map items (x ·.1)
+  rw [eval, finalState_eq, hofn, List.foldlIdx_map]
   exact congrArg accept (key [] items rfl P.start)
 
 end Cslib.BranchingPrograms.ReadOnceProgram

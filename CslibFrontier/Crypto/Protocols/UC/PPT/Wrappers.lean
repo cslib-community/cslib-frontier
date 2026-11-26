@@ -334,34 +334,23 @@ private theorem PPTCertificate.isOraclePPTOn_adapt_wordHandle
         ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2))
   have hprog : IsOraclePPTOn (Operation := iJ.Channel) EIn (encPair encBits encBits)
       (fun x => ProbOracleComp.lowerWith iJ x.1.replyBound (prog x)) := by
-    have hpre : IsOraclePPTOn (Operation := iJ.Channel) EIn (encPair encBits encBits)
-        (fun x => wordHandle M iJ iE cert.codec x.1 (cE, reqMap x.2.1.2) x.2.2) := by
-      refine cert.handle.preprocess
-        (prepare := fun x : PPTParam n × (chOut × List Bool) × List Bool =>
-          (x.1, (cE, reqMap x.2.1.2), x.2.2)) ?_
-      dsimp only [EIn]; unfold encHandlerCall; fun_prop
-    have heq : (fun x => wordHandle M iJ iE cert.codec x.1 (cE, reqMap x.2.1.2) x.2.2) =
-        (fun x => ProbOracleComp.lowerWith iJ x.1.replyBound (prog x)) := by
-      funext x
-      simp only [wordHandle, prog, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map]
-    rwa [heq] at hpre
+    refine (cert.handle.preprocess
+      (prepare := fun x : PPTParam n × (chOut × List Bool) × List Bool =>
+        (x.1, (cE, reqMap x.2.1.2), x.2.2)) ?_).congr fun x _ _ _ => ?_
+    · dsimp only [EIn]
+      unfold encHandlerCall
+      fun_prop
+    · simp only [wordHandle, prog, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map]
   have hlim : ComputableInPolyTime
       (fun x : PPTParam n × (chOut × List Bool) × List Bool => x.1.replyBound)
       EIn encUnary := by dsimp only [EIn]; unfold encHandlerCall; fun_prop
-  have hadapt := WordInterface.isOraclePPTOn_lowerWith_adapt m hprog hlim
-    (fun x c w => by rw [hreply]; exact List.length_take_le x.1.replyBound w)
-  have heq : (fun x => ProbOracleComp.lowerWith iK x.1.replyBound (m.adapt (prog x))) =
-      (fun x : PPTParam n × (chOut × List Bool) × List Bool =>
-        (fun result => (iE.reply (iE.decodeQuery cE (reqMap x.2.1.2)) result.1,
-          (cert.codec x.1.secParam x.1.corrupted).enc result.2)) <$>
-          ProbOracleComp.lowerWith iK x.1.replyBound
-            (m.adapt (((M x.1.secParam x.1.corrupted).handle
-              (iE.decodeQuery cE (reqMap x.2.1.2))).run
-              ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2)))) := by
-    funext x
-    simp only [prog, WordInterface.PortMap.adapt, ProbOracleComp.lowerWith,
-      ProbOracleComp.simulate_map]
-  rwa [heq] at hadapt
+  have hfit (x : PPTParam n × (chOut × List Bool) × List Bool) (c : iJ.Channel) (w : List Bool) :
+      (m.replyMap c (List.take x.1.replyBound w)).length ≤ x.1.replyBound := by
+    rw [hreply]
+    exact List.length_take_le x.1.replyBound w
+  refine (WordInterface.isOraclePPTOn_lowerWith_adapt m hprog hlim hfit).congr fun x _ _ _ => ?_
+  simp only [prog, WordInterface.PortMap.adapt, ProbOracleComp.lowerWith,
+    ProbOracleComp.simulate_map]
 
 private theorem PPTCertificate.isOraclePPTOn_forward_decodeQuery
     {n : ℕ} {ιJ ιK ιE : Type} {J : ιJ → Type} {K : ιK → Type} {E : ιE → Type}
@@ -451,12 +440,8 @@ private theorem wordHandle_routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type
     · simp only [hmem, ↓reduceIte]
   · dsimp only [wordHandle, WordInterface.protocol, WordInterface.sum, WordInterface.net,
       WordPort.sum, Decoder.sum]
-    cases hhd : w.headD false
-    · have hdec : (if false = true then Sum.inr (netPort.queryDecoder.decode w.tail)
-          else Sum.inl (party.queryDecoder.decode w.tail)) =
-          Sum.inl (party.queryDecoder.decode w.tail) := rfl
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      rw [hdec]
+    cases w.headD false
+    · rw [ite_eq_right Bool.false_ne_true]
       dsimp only [UC.routeCorrupt]
       by_cases hmem : (party.queryDecoder.decode w.tail).1 ∈ p.corrupted
       · simp only [hmem, ↓reduceIte, StateT.run_map, ProbOracleComp.lowerWith,
@@ -465,11 +450,7 @@ private theorem wordHandle_routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type
       · simp only [hmem, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
           ProbOracleComp.simulate_pure, map_pure, encSum_inl]
         rfl
-    · have hdec : (if true = true then Sum.inr (netPort.queryDecoder.decode w.tail)
-          else Sum.inl (party.queryDecoder.decode w.tail)) =
-          Sum.inr (netPort.queryDecoder.decode w.tail) := rfl
-      simp only [↓reduceIte]
-      rw [hdec]
+    · rw [ite_eq_left rfl]
       dsimp only [UC.routeCorrupt]
       simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map,
         Functor.map_map, encSum_inr]

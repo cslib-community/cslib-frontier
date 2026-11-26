@@ -128,12 +128,10 @@ abbrev compactLayout (n base : ℕ) : Layout n := ⟨⟨base + n, 1⟩, base⟩
 
 /-- The compact layout owns precisely the original three-array block. -/
 theorem compactLayout_footprint (n base : ℕ) :
-    (compactLayout n base).footprint = (Block.mk base (space n)).footprint := by
-  apply Finset.union_eq_right.mpr
-  intro a ha
-  rw [Block.mem_footprint] at ha ⊢
-  dsimp only [compactLayout, Block.Owns, space] at ha ⊢
-  omega
+    (compactLayout n base).footprint = (Block.mk base (space n)).footprint :=
+  Finset.union_eq_right.mpr fun a ha => by
+    simp only [Block.mem_footprint, compactLayout, Block.Owns, space] at ha ⊢
+    omega
 
 /-- Compact storage adds no extra word or width requirement. -/
 theorem valid_compactLayout {n base w K : ℕ} (hn : Fits w n) (hK : Fits w K) :
@@ -449,12 +447,7 @@ termination_by S + 1 - k
 /-- A rearrangement represents the same queue. -/
 theorem Rearranges.abs_eq {s s' : Memory.State} (h : Rearranges L s s') : abs L s' = abs L s := by
   funext ⟨v, hv⟩
-  have hk := h.outside (L.base + v) (.inl (by omega))
-  have hp := h.pos_eq_zero v hv
-  simp only [abs, stateOfMem, hk]
-  by_cases h0 : s.mem (L.base + 2 * n + 1 + v) = 0
-  · simp [h0, hp.mpr h0]
-  · simp [h0, mt hp.mp h0]
+  simp only [abs, stateOfMem, h.outside (L.base + v) (.inl (by omega)), h.pos_eq_zero v hv]
 
 /-- A memory that keeps the key and the presence of every handle but `v` represents the queue
 updated at `v`. -/
@@ -468,10 +461,7 @@ theorem abs_eq_update {s s' : Memory.State} {v : Fin n} {x : Option ℕ}
     rw [Function.update_self, hv]
   · rw [Function.update_of_ne huv]
     obtain ⟨hk, hp⟩ := hother u huv
-    simp only [abs, stateOfMem, hk]
-    by_cases h0 : s.mem (L.base + 2 * n + 1 + u) = 0
-    · simp [h0, hp.mpr h0]
-    · simp [h0, mt hp.mp h0]
+    simp only [abs, stateOfMem, hk, hp]
 
 /-! ## The operations -/
 
@@ -660,9 +650,8 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
           simp only [Nat.add_zero]
           exact ⟨by update_simp, by update_simp; rfl⟩
         · simp only [abs, stateOfMem, Nat.add_zero]; update_simp
-      · have h := heapInv_update_size hL hzero 0
-        simp only [Nat.add_zero, Function.update_self]
-        exact h
+      · simp only [Nat.add_zero, Function.update_self]
+        exact heapInv_update_size hL hzero 0
       · obtain ⟨ha₁, ha₂⟩ := not_mem_footprint hL ha
         simp only [Nat.add_zero]; update_simp
     next h1 =>
@@ -723,16 +712,14 @@ theorem methods_run (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
 /-- An operation changes no cell outside the layout. -/
 theorem methods_frame (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
     (o : IndexedMinPQ.Op n) (hv : IndexedMinPQ.valid K (abs L s) o) :
-    ∀ a ∉ L.footprint, ((Memory.spec w).clientState s (ops L o)).mem a = s.mem a := by
-  obtain ⟨-, -, -, -, -, h⟩ := methods_run hL hs o hv
-  exact h
+    ∀ a ∉ L.footprint, ((Memory.spec w).clientState s (ops L o)).mem a = s.mem a :=
+  (methods_run hL hs o hv).2.2.2.2.2
 
 /-- An operation leaves the frontier where it was. -/
 theorem methods_frontier (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
     (o : IndexedMinPQ.Op n) (hv : IndexedMinPQ.valid K (abs L s) o) :
-    ((Memory.spec w).clientState s (ops L o)).frontier = s.frontier := by
-  obtain ⟨-, -, -, -, h, -⟩ := methods_run hL hs o hv
-  exact h
+    ((Memory.spec w).clientState s (ops L o)).frontier = s.frontier :=
+  (methods_run hL hs o hv).2.2.2.2.1
 
 /-! ## The refinement and its frame -/
 
@@ -786,9 +773,8 @@ def framed (hL : L.Valid w K) : Memory.Framed (indexedMinPQSpec n K) w :=
 potential. -/
 theorem amortized (hL : L.Valid w K) :
     (framed hL).Amortized charge (fun _ _ => opCost n) fun _ => 0 :=
-  Refinement.Amortized.ofFn fun {_} o hs hv => by
-    obtain ⟨-, hc, -⟩ := methods_run (w := w) hL hs o hv
-    exact Nat.add_le_add_right hc 0
+  Refinement.Amortized.ofFn fun {_} o hs hv =>
+    Nat.add_le_add_right (methods_run (w := w) hL hs o hv).2.1 0
 
 /-- The cost of one operation is `O(log n)`: at most `14 (⌊log₂ n⌋ + 1)`. -/
 theorem opCost_le (n : ℕ) : opCost n ≤ 14 * (Nat.log 2 n + 1) := by wram_omega
@@ -812,13 +798,10 @@ theorem inv_compactLayout {base : ℕ} {s : Memory.State}
     (hA : (Block.mk base (space n)).Allocated s)
     (hz : ∀ a, (Block.mk base (space n)).Owns a → s.mem a = 0) :
     Inv (compactLayout n base) s ∧ abs (compactLayout n base) s = IndexedMinPQ.empty n := by
-  apply inv_empty
-  · dsimp only [Block.Allocated, compactLayout, space] at hA ⊢
-    omega
-  · exact hA
+  refine inv_empty ?_ hA ?_ fun _ _ => ?_
+  · wram_omega [hA]
   · exact hz _ (by wram_omega)
-  · intro v hv
-    exact hz _ (by wram_omega)
+  · exact hz _ (by wram_omega)
 
 /-! ## Allocation -/
 
@@ -859,12 +842,10 @@ is empty. -/
 theorem inv_allocated {s : Memory.State} (hz : ZeroAbove s) :
     Inv (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ ∧
       abs (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ = IndexedMinPQ.empty n := by
-  apply inv_empty
+  refine inv_empty ?_ ?_ (hz _ le_rfl) fun _ _ => ?_
   · wram_omega
   · wram_omega
-  · exact hz _ le_rfl
-  · intro v _
-    exact hz _ (by dsimp only [allocated]; omega)
+  · exact hz _ (by dsimp only [allocated]; omega)
 
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Memory

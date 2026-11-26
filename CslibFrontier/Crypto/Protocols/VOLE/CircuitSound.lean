@@ -110,17 +110,12 @@ theorem circuitVerify_sample_iff (C : Circuit (arithSignature F) (p + k) m)
   · let rows : (Fin p ⊕ Fin C.size ⊕ Fin m) ≃ Fin (p + (C.size + m)) :=
       (Equiv.sumCongr (.refl _) finSumFinEquiv).trans finSumFinEquiv
     change (∀ i, (circuitLinearCoeffs C *ᵥ
-      voleAdjustReceiver (Fin.init (voleSample u v delta).w) first.1 delta) (rows.symm i) =
+      voleAdjustReceiver (Fin.init (voleSample u v delta).w) first.1
+        (voleSample u v delta).delta) (rows.symm i) =
       circuitLinearTargets C statement.1 statement.2 (rows.symm i) * delta +
         first.2 (rows.symm i)) ↔ _
-    have hlin (row : Fin p ⊕ Fin C.size ⊕ Fin m) :
-        (circuitLinearCoeffs C *ᵥ
-          voleAdjustReceiver (Fin.init (voleSample u v delta).w) first.1 delta) row =
-        (circuitLinearCoeffs C *ᵥ (Fin.init u + first.1)) row * delta +
-          (circuitLinearCoeffs C *ᵥ Fin.init v) row :=
-      circuitLinear_adjusted C _ (valid_voleSample u v delta) first.1 row
-    simp only [hlin]
-    exact ⟨fun h row => by simpa only [Equiv.symm_apply_apply] using h (rows row),
+    simp_rw [circuitLinear_adjusted C (voleSample u v delta) (valid_voleSample u v delta) first.1]
+    exact ⟨fun h row => by simpa only [Equiv.symm_apply_apply, voleSample] using h (rows row),
       fun h i => h (rows.symm i)⟩
   · have hadjust : voleAdjustReceiver (Fin.init (voleSample u v delta).w) first.1 delta =
         fun j => (Fin.init u + first.1) j * delta + v j.castSucc := by
@@ -130,7 +125,7 @@ theorem circuitVerify_sample_iff (C : Circuit (arithSignature F) (p + k) m)
     simp only [maskedMulCheckValue, VOLECorrelation.receiverView, voleSample] at hadjust ⊢
     rw [hadjust]
     change _ + (u (Fin.last _) * delta + v (Fin.last _)) = _ ↔ _
-    exact ⟨fun h => by linear_combination h, fun h => by linear_combination h⟩
+    constructor <;> intro h <;> linear_combination h
 
 
 end Ring

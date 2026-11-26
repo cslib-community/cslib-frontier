@@ -120,17 +120,9 @@ private theorem abs_empiricalMass_sub_model_le (p q₀ q₁ : _root_.PMF α) {n 
       |empiricalMass (scheffeSet q₀ q₁) x - (p.toOuterMeasure (scheffeSet q₀ q₁ : Set α)).toReal| +
         dist p q₁ := by
   let A := scheffeSet q₀ q₁
-  have h2 : |(p.toOuterMeasure (A : Set α)).toReal -
-      (q₁.toOuterMeasure (A : Set α)).toReal| ≤ dist p q₁ :=
-    abs_toOuterMeasure_toReal_sub_le_dist p q₁ (A : Set α)
-  calc |empiricalMass A x - (q₁.toOuterMeasure (A : Set α)).toReal|
-      = |(empiricalMass A x - (p.toOuterMeasure (A : Set α)).toReal) +
-          ((p.toOuterMeasure (A : Set α)).toReal -
-            (q₁.toOuterMeasure (A : Set α)).toReal)| := by ring_nf
-    _ ≤ |empiricalMass A x - (p.toOuterMeasure (A : Set α)).toReal| +
-          |(p.toOuterMeasure (A : Set α)).toReal -
-            (q₁.toOuterMeasure (A : Set α)).toReal| := abs_add_le _ _
-    _ ≤ _ := add_le_add le_rfl h2
+  exact (abs_sub_le (empiricalMass A x) (p.toOuterMeasure (A : Set α)).toReal
+    (q₁.toOuterMeasure (A : Set α)).toReal).trans
+    (add_le_add le_rfl (abs_toOuterMeasure_toReal_sub_le_dist p q₁ (A : Set α)))
 
 private theorem scheffeScore_le_of_forall {p : _root_.PMF α} {s : Finset ι} {hs : s.Nonempty}
     {models : ι → _root_.PMF α} {n : ℕ} {x : Fin n → α} {γ : ℝ} (hγ : 0 ≤ γ)
@@ -139,28 +131,10 @@ private theorem scheffeScore_le_of_forall {p : _root_.PMF α} {s : Finset ι} {h
         (p.toOuterMeasure (scheffeSet (models j) (models k) : Set α)).toReal| ≤ γ)
     {i : ι} (hi : i ∈ s) :
     scheffeScore s hs models x i ≤ dist p (models i) + γ := by
+  rw [scheffeScore]
   refine Finset.sup'_le hs _ fun j hj => ?_
   have h1 : |empiricalMass (scheffeSet (models j) (models i)) x -
       (p.toOuterMeasure (scheffeSet (models j) (models i) : Set α)).toReal| ≤ γ := by
-    by_cases hji : j = i
-    · subst hji; simp [scheffeSet_self, empiricalMass, hγ]
-    · exact hgood j hj i hi hji
-  linarith [abs_empiricalMass_sub_model_le p (models j) (models i) x]
-
-private theorem scheffeScore_lt_of_forall {p : _root_.PMF α} {s : Finset ι} {hs : s.Nonempty}
-    {models : ι → _root_.PMF α} {n : ℕ} {x : Fin n → α} {γ : ℝ} (hγ : 0 < γ)
-    (hgood : ∀ j ∈ s, ∀ k ∈ s, j ≠ k →
-      |empiricalMass (scheffeSet (models j) (models k)) x -
-        (p.toOuterMeasure (scheffeSet (models j) (models k) : Set α)).toReal| < γ)
-    {i : ι} (hi : i ∈ s) :
-    scheffeScore s hs models x i < dist p (models i) + γ := by
-  rcases Finset.exists_mem_eq_sup' hs (fun j =>
-      |empiricalMass (scheffeSet (models j) (models i)) x -
-        ((models i).toOuterMeasure (scheffeSet (models j) (models i) : Set α)).toReal|) with
-    ⟨j, hj, hsup⟩
-  rw [scheffeScore, hsup]
-  have h1 : |empiricalMass (scheffeSet (models j) (models i)) x -
-      (p.toOuterMeasure (scheffeSet (models j) (models i) : Set α)).toReal| < γ := by
     by_cases hji : j = i
     · subst hji; simp [scheffeSet_self, empiricalMass, hγ]
     · exact hgood j hj i hi hji
@@ -214,18 +188,22 @@ theorem scheffeSelect_dist_lt_of_forall {p : _root_.PMF α} (s : Finset ι) (hs 
       |empiricalMass (scheffeSet (models j) (models k)) x -
         (p.toOuterMeasure (scheffeSet (models j) (models k) : Set α)).toReal| < γ) :
     dist p (models (scheffeSelect s hs models x)) < 3 * dist p (models i₀) + 2 * γ := by
-  let ihat := scheffeSelect s hs models x
-  by_cases hsame : i₀ = ihat
-  · change dist p (models ihat) < 3 * dist p (models i₀) + 2 * γ
-    rw [← hsame]
-    linarith [dist_nonneg (x := p) (y := models i₀)]
-  have hscore_hat : scheffeScore s hs models x ihat < dist p (models i₀) + γ :=
-    (scheffeSelect_le s hs models x hi₀).trans_lt (scheffeScore_lt_of_forall hγ hgood hi₀)
-  have h1 : |empiricalMass (scheffeSet (models i₀) (models ihat)) x -
-      (p.toOuterMeasure (scheffeSet (models i₀) (models ihat) : Set α)).toReal| < γ :=
-    hgood i₀ hi₀ ihat (scheffeSelect_mem s hs models x) hsame
-  linarith [scheffe_pair_dist_bound (p := p) (s := s) (hs := hs) (models := models)
-    (x := x) (ihat := ihat) hi₀, dist_triangle p (models i₀) (models ihat)]
+  let error (jk : ι × ι) : ℝ :=
+    |empiricalMass (scheffeSet (models jk.1) (models jk.2)) x -
+      (p.toOuterMeasure (scheffeSet (models jk.1) (models jk.2) : Set α)).toReal|
+  let bound := (s ×ˢ s).sup' (hs.product hs) error
+  have hbound (j k : ι) (hj : j ∈ s) (hk : k ∈ s) : error (j, k) ≤ bound :=
+    Finset.le_sup' error (Finset.mem_product.mpr ⟨hj, hk⟩)
+  have hbound_lt : bound < γ := by
+    refine (Finset.sup'_lt_iff (hs.product hs)).mpr ?_
+    rintro ⟨j, k⟩ hjk
+    obtain ⟨hj, hk⟩ := Finset.mem_product.mp hjk
+    rcases eq_or_ne j k with rfl | hne
+    · simpa [error, scheffeSet_self, empiricalMass] using hγ
+    · exact hgood j hj k hk hne
+  have hbound_nn : 0 ≤ bound := (abs_nonneg _).trans (hbound i₀ i₀ hi₀ hi₀)
+  exact (scheffeSelect_dist_le_of_forall s hs models hbound_nn hi₀
+    (fun j hj k hk _ => hbound j k hj hk)).trans_lt (by linarith)
 
 private theorem toOuterMeasure_scheffe_bad_union_le (p : _root_.PMF α)
     (s : Finset ι) (hs : s.Nonempty) (models : ι → _root_.PMF α) (n : ℕ) {γ : ℝ} (hγ : 0 ≤ γ) :
@@ -234,21 +212,12 @@ private theorem toOuterMeasure_scheffe_bad_union_le (p : _root_.PMF α)
         {x | γ ≤ |empiricalMass (scheffeSet (models jk.1) (models jk.2)) x -
           (p.toOuterMeasure (scheffeSet (models jk.1) (models jk.2) : Set α)).toReal|})).toReal ≤
       2 * (s.card * (s.card - 1) : ℝ) * Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
-  have hunion := toOuterMeasure_toReal_biUnion_finset_le (iid p n) s.offDiag fun jk =>
-    {x | γ ≤ |empiricalMass (scheffeSet (models jk.1) (models jk.2)) x -
-      (p.toOuterMeasure (scheffeSet (models jk.1) (models jk.2) : Set α)).toReal|}
-  have hsum : ∑ jk ∈ s.offDiag, ((iid p n).toOuterMeasure
-      {x | γ ≤ |empiricalMass (scheffeSet (models jk.1) (models jk.2)) x -
-        (p.toOuterMeasure (scheffeSet (models jk.1) (models jk.2) : Set α)).toReal|}).toReal ≤
-      ∑ _jk ∈ s.offDiag, 2 * Real.exp (-2 * (n : ℝ) * γ ^ 2) :=
-    Finset.sum_le_sum fun jk _ =>
-      abs_empiricalMass_sub_ge_le p (scheffeSet (models jk.1) (models jk.2)) n hγ
-  have hcard : (s.offDiag.card : ℝ) = (s.card * (s.card - 1) : ℝ) := by
-    have hnat : s.offDiag.card = s.card * (s.card - 1) := by
-      rw [Finset.offDiag_card, Nat.mul_sub_left_distrib, mul_one]
-    rw [hnat, Nat.cast_mul, Nat.cast_sub hs.card_pos, Nat.cast_one]
-  refine hunion.trans (hsum.trans_eq ?_)
-  rw [Finset.sum_const, nsmul_eq_mul, hcard]
+  refine (toOuterMeasure_toReal_biUnion_finset_le (iid p n) s.offDiag _).trans ?_
+  refine (Finset.sum_le_card_nsmul _ _ _ fun jk _ =>
+    abs_empiricalMass_sub_ge_le p (scheffeSet (models jk.1) (models jk.2)) n hγ).trans_eq ?_
+  have hnat : s.offDiag.card = s.card * (s.card - 1) := by
+    rw [Finset.offDiag_card, Nat.mul_sub_left_distrib, mul_one]
+  rw [nsmul_eq_mul, hnat, Nat.cast_mul, Nat.cast_sub hs.card_pos, Nat.cast_one]
   ring
 
 private theorem toOuterMeasure_le_scheffe_bad_union (p : _root_.PMF α)
@@ -327,9 +296,7 @@ theorem scheffeSelectFin_ge_le_of_log (p : _root_.PMF α) {M : ℕ} [NeZero M]
       δ := by
   refine (scheffeSelectFin_prob_ge_le p models i₀ n hγ).trans ?_
   have hM : (1 : ℝ) ≤ M := by exact_mod_cast NeZero.pos M
-  have hcK : 2 * ((M : ℝ) * ((M : ℝ) - 1)) ≤ 2 * (M : ℝ) ^ 2 := by
-    have : 2 * ((M : ℝ) * ((M : ℝ) - 1)) = 2 * (M : ℝ) ^ 2 - 2 * M := by ring
-    linarith
+  have hcK : 2 * ((M : ℝ) * ((M : ℝ) - 1)) ≤ 2 * (M : ℝ) ^ 2 := by nlinarith
   rw [show (-2 : ℝ) * (n : ℝ) * γ ^ 2 = -(2 * γ ^ 2 * (n : ℝ)) by ring]
   exact Real.mul_exp_neg_le_of_log hcK (by positivity) (by positivity) hδ hn
 
@@ -344,15 +311,9 @@ theorem scheffeSelect_of_cover (s : Finset ι) (hs : s.Nonempty) (models : ι �
       {x | 3 * r + 2 * γ < dist p (models (scheffeSelect s hs models x))}).toReal ≤
       2 * (s.card * (s.card - 1) : ℝ) * Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   rcases hcov p hp with ⟨i₀, hi₀, hdist⟩
-  have hsub :
-      {x : Fin n → α | 3 * r + 2 * γ < dist p (models (scheffeSelect s hs models x))} ⊆
-        {x : Fin n → α |
-          3 * dist p (models i₀) + 2 * γ < dist p (models (scheffeSelect s hs models x))} := by
-    intro x hx
-    have hlt : 3 * r + 2 * γ < dist p (models (scheffeSelect s hs models x)) := hx
-    exact lt_of_le_of_lt (by linarith) hlt
-  exact (toOuterMeasure_toReal_mono _ hsub).trans
+  refine le_trans (toOuterMeasure_toReal_mono _ fun x hx => ?_)
     (scheffeSelect_prob_gt_le p s hs models hi₀ n hγ)
+  exact (by linarith : 3 * dist p (models i₀) + 2 * γ ≤ 3 * r + 2 * γ).trans_lt hx
 
 end ScheffeTournament
 
@@ -389,11 +350,8 @@ private theorem birge_pair_not_le_of_true {s : Finset ι} {models : ι → _root
     (hlose : ∀ j ∈ s, j ≠ i₀ → 10 * r ≤ hellingerDist (models j) (models i₀) →
       leCamBirgeTest (models j) (models i₀) x = false)
     (hsame : ihat ≠ i₀) (htest : leCamBirgeTest (models ihat) (models i₀) x = true) :
-    ¬ (10 * r ≤ hellingerDist (models ihat) (models i₀)) := by
-  intro hsep
-  have hf := hlose ihat hihat hsame hsep
-  rw [htest] at hf
-  cases hf
+    ¬ (10 * r ≤ hellingerDist (models ihat) (models i₀)) :=
+  fun hsep => Bool.false_ne_true ((hlose ihat hihat hsame hsep).symm.trans htest)
 
 private theorem le_maxDefeatRadius_of_ne_true {s : Finset ι} {hs : s.Nonempty}
     {models : ι → _root_.PMF α} {n : ℕ} {x : Fin n → α} {i₀ ihat : ι} (hi₀ : i₀ ∈ s)
@@ -486,16 +444,14 @@ private theorem toOuterMeasure_birge_bad_union_le [Finite α] [DecidableEq ι] {
   let E₂ : ι → Set (Fin n → α) := fun j =>
     {x | 10 * r ≤ hellingerDist (models j) (models i₀) ∧
       leCamBirgeTest (models j) (models i₀) x = true}
-  have hunion := toOuterMeasure_toReal_biUnion_finset_le (iid p n) (s.erase i₀) fun j => E₁ j ∪ E₂ j
   have hsep_bound (P : Prop) (Q : (Fin n → α) → Prop)
       (hb : P → ((iid p n).toOuterMeasure {x | Q x}).toReal ≤ Real.exp (-4 * (n : ℝ) * r ^ 2)) :
       ((iid p n).toOuterMeasure {x | P ∧ Q x}).toReal ≤ Real.exp (-4 * (n : ℝ) * r ^ 2) := by
     by_cases hP : P
     · exact (toOuterMeasure_toReal_mono _
         (show {x | P ∧ Q x} ⊆ {x | Q x} from fun _ hx => hx.2)).trans (hb hP)
-    · have hemp : {x : Fin n → α | P ∧ Q x} = ∅ :=
-        Set.eq_empty_iff_forall_notMem.mpr fun _ hx => hP hx.1
-      rw [hemp, MeasureTheory.measure_empty, ENNReal.toReal_zero]
+    · rw [(Set.eq_empty_iff_forall_notMem.mpr fun _ hx => hP hx.1 : {x | P ∧ Q x} = ∅),
+        MeasureTheory.measure_empty, ENNReal.toReal_zero]
       exact (Real.exp_pos _).le
   have hterm (j : ι) :
       ((iid p n).toOuterMeasure (E₁ j ∪ E₂ j)).toReal ≤ 2 * Real.exp (-4 * (n : ℝ) * r ^ 2) := by
@@ -510,14 +466,12 @@ private theorem toOuterMeasure_birge_bad_union_le [Finite α] [DecidableEq ι] {
       (fun x => leCamBirgeTest (models j) (models i₀) x = true)
       fun hsep => leCamBirgeTest_true_le_of_radius hr hp hsep n
     linarith
-  have hsum : ∑ j ∈ s.erase i₀, ((iid p n).toOuterMeasure (E₁ j ∪ E₂ j)).toReal ≤
-      ∑ _j ∈ s.erase i₀, 2 * Real.exp (-4 * (n : ℝ) * r ^ 2) :=
-    Finset.sum_le_sum fun j _ => hterm j
   have hcard : ((s.erase i₀).card : ℝ) = (s.card - 1 : ℝ) := by
     rw [Finset.card_erase_of_mem hi₀, Nat.cast_sub (Finset.Nonempty.card_pos ⟨i₀, hi₀⟩),
       Nat.cast_one]
-  refine hunion.trans (hsum.trans_eq ?_)
-  rw [Finset.sum_const, nsmul_eq_mul, hcard]
+  refine (toOuterMeasure_toReal_biUnion_finset_le (iid p n) (s.erase i₀) fun j =>
+    E₁ j ∪ E₂ j).trans ((Finset.sum_le_card_nsmul _ _ _ fun j _ => hterm j).trans_eq ?_)
+  rw [nsmul_eq_mul, hcard]
   ring
 
 private theorem toOuterMeasure_le_birge_bad_union [Finite α] {p : _root_.PMF α} (s : Finset ι)
@@ -541,14 +495,8 @@ private theorem toOuterMeasure_le_birge_bad_union [Finite α] {p : _root_.PMF α
     simp only [Set.mem_iUnion, Set.mem_union, Set.mem_ofPred_eq, Finset.mem_erase, not_exists,
       not_and, not_or] at hnot
     exact hgood x
-      (fun j hj hji hsep => by
-        cases hres : leCamBirgeTest (models i₀) (models j) x
-        · exact False.elim ((hnot j ⟨hji, hj⟩).1 hsep hres)
-        · rfl)
-      (fun j hj hji hsep => by
-        cases hres : leCamBirgeTest (models j) (models i₀) x
-        · rfl
-        · exact False.elim ((hnot j ⟨hji, hj⟩).2 hsep hres)) hx
+      (fun j hj hji hsep => Bool.eq_true_of_not_eq_false ((hnot j ⟨hji, hj⟩).1 hsep))
+      (fun j hj hji hsep => Bool.eq_false_iff.mpr ((hnot j ⟨hji, hj⟩).2 hsep)) hx
   exact (toOuterMeasure_toReal_mono _ hsub).trans
     (toOuterMeasure_birge_bad_union_le s models hi₀ n hr hp)
 
@@ -614,11 +562,10 @@ theorem birgeTournamentSelectFin_ge_le_of_log [Finite α] {p : _root_.PMF α} {M
       {x | 11 * r ≤ hellingerDist p (models (birgeTournamentSelectFin models x))}).toReal ≤
       δ := by
   refine (birgeTournamentSelectFin_prob_ge_le models i₀ n hr hp).trans ?_
-  have hM : (1 : ℝ) ≤ M := by exact_mod_cast NeZero.pos M
-  have hcK : 2 * ((M : ℝ) - 1) ≤ 2 * (M : ℝ) := by linarith
-  have hK : 0 < 2 * (M : ℝ) := by linarith
   rw [show (-4 : ℝ) * (n : ℝ) * r ^ 2 = -(4 * r ^ 2 * (n : ℝ)) by ring]
-  exact Real.mul_exp_neg_le_of_log hcK hK (by positivity) hδ hn
+  exact Real.mul_exp_neg_le_of_log
+    (mul_le_mul_of_nonneg_left (sub_le_self _ zero_le_one) zero_le_two)
+    (mul_pos two_pos (Nat.cast_pos.mpr (NeZero.pos M))) (by positivity) hδ hn
 
 /-- Agnostic finite-cover Hellinger guarantee: if `models` on `s` is a finite Hellinger `r`-cover
 of a class `ℱ`, then for every `p ∈ ℱ`, `birgeTournamentSelect` outputs a model within Hellinger

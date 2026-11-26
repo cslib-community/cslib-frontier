@@ -139,11 +139,11 @@ theorem getD_evalCode_deMorganCode (A : Proposition (Fin n)) (x : List Bool) (hx
       A.eval fun i : Fin n => x.getD i false := by
   induction A generalizing pre with
   | atom i =>
-    simpa only [deMorganCode, List.append_nil, eval_atom_bool] using
-      getD_evalCode_of_lt _ _ _ _ (by omega)
+    simp only [deMorganCode, List.append_nil, eval_atom_bool]
+    exact getD_evalCode_of_lt _ _ _ _ (by omega)
   | falsum =>
-    dsimp only [deMorganCode]
-    rw [eval_falsum_bool, getD_evalCode_append_singleton _ _ _ (by omega)]
+    simp only [deMorganCode, eval_falsum_bool]
+    rw [getD_evalCode_append_singleton _ _ _ (by omega)]
     rfl
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
     have hlt_a := output_deMorganCode_lt A pre.length
@@ -154,33 +154,42 @@ theorem getD_evalCode_deMorganCode (A : Proposition (Fin n)) (x : List Bool) (hx
     simp only [deMorganCode, ← List.append_assoc, eval_and_bool, eval_or_bool, eval_imp_bool]
     generalize A.deMorganCode pre.length = a at *
     generalize B.deMorganCode (pre.length + a.gates.length) = b at *
+    -- the values of the arguments after the gates of both arguments
     have hva' : (evalCode interpretation false x (pre ++ a.gates ++ b.gates)).getD a.output false =
         A.eval fun i : Fin n => x.getD i false := by
-      rwa [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
+      rw [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
         (by simp only [List.length_append]; omega)]
+      exact hva
     first
       | (rw [getD_evalCode_append_singleton _ _ _ (by simp only [List.length_append]; omega)]
-         clear ihA ihB hva; simp_all [interpretation])
+         clear ihA ihB hva
+         simp_all [interpretation])
       | (rw [show ∀ (l : List (Op × List ℕ)) (g₁ g₂ : Op × List ℕ),
            l ++ [g₁, g₂] = l ++ [g₁] ++ [g₂] from fun _ _ _ => by simp]
          have hnot := getD_evalCode_append_singleton x (pre ++ a.gates ++ b.gates)
-           (Op.not, [a.output]) (w := n + pre.length + a.gates.length + b.gates.length)
+           (Op.not, [a.output])
+           (w := n + pre.length + a.gates.length + b.gates.length)
            (by simp only [List.length_append]; omega)
          have hb₂ : (evalCode interpretation false x
-             (pre ++ a.gates ++ b.gates ++ [(Op.not, [a.output])])).getD b.output false =
-             B.eval fun i : Fin n => x.getD i false := by
-           rwa [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
+             (pre ++ a.gates ++ b.gates ++ [(Op.not, [a.output])])).getD
+             b.output false = B.eval fun i : Fin n => x.getD i false := by
+           rw [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
              (by simp only [List.length_append]; omega)]
+           exact hvb
          rw [getD_evalCode_append_singleton _ _ _
            (by simp only [List.length_append, List.length_singleton]; omega)]
-         clear ihA ihB hva hvb; simp_all [interpretation])
+         clear ihA ihB hva hvb
+         simp_all [interpretation])
 
 /-- **The output of the gate list of a proposition is its value.** -/
 theorem evalOutput_deMorganCode (A : Proposition (Fin n)) (v : Fin n → Bool) :
     evalOutput (List.ofFn v) (A.deMorganCode 0).gates (A.deMorganCode 0).output = A.eval v := by
-  have h := getD_evalCode_deMorganCode A (List.ofFn v) (by simp) []
-  simp only [evalOutput, List.nil_append, List.length_nil] at h ⊢
-  exact h.trans (congrArg A.eval (funext fun i => by simp))
+  have := getD_evalCode_deMorganCode A (List.ofFn v) (by simp) []
+  simp only [List.nil_append, List.length_nil] at this
+  rw [evalOutput, this]
+  congr 1
+  funext i
+  simp
 
 /-- **The two Tseitin transformations agree on the atoms.** For a proposition `A` over `Fin n` and
 a valuation `v` of its atoms, the Tseitin transformation `A.tseitinCNF` has a model whose

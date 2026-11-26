@@ -78,13 +78,10 @@ theorem exists_closedBall_lineMap_cuts {a b z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
       (∀ t, AffineMap.lineMap a b t ∈ Metric.closedBall z ρ ↔ t ∈ Set.Icc l u) ∧
       (∀ t, AffineMap.lineMap a b t ∈ Metric.sphere z ρ ↔ t = l ∨ t = u) ∧
       midpoint ℝ (AffineMap.lineMap a b l) (AffineMap.lineMap a b u) = z := by
-  rw [openSegment_eq_image_lineMap] at hz
-  obtain ⟨s, hs, rfl⟩ := hz
+  obtain ⟨s, hs, rfl⟩ := openSegment_eq_image_lineMap ℝ a b ▸ hz
   have hab : a ≠ b := by
     rintro rfl
-    apply ha
-    rw [AffineMap.lineMap_same_apply]
-    exact Metric.mem_closedBall_self hρ.le
+    exact ha (by simpa using Metric.mem_closedBall_self (x := a) hρ.le)
   have hd : 0 < dist a b := dist_pos.mpr hab
   let δ := ρ / dist a b
   have hδ : 0 < δ := div_pos hρ hd
@@ -107,18 +104,8 @@ theorem exists_closedBall_lineMap_cuts {a b z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
       (hclosed 1).mpr ⟨by linarith [hs.2], h⟩
   refine ⟨s - δ, s + δ, hleft, by linarith, hright, hclosed, ?_, ?_⟩
   · intro t
-    rw [Metric.mem_sphere, hdist, ← eq_div_iff hd.ne']
-    change |t - s| = δ ↔ _
-    have habs : |t - s| = δ ↔ t - s = δ ∨ t - s = -δ := by
-      rw [← abs_eq_abs, abs_of_pos hδ]
-    rw [habs]
-    constructor
-    · rintro (h | h)
-      · exact Or.inr (by linarith)
-      · exact Or.inl (by linarith)
-    · rintro (rfl | rfl)
-      · exact Or.inr (by ring)
-      · exact Or.inl (by ring)
+    rw [Metric.mem_sphere, hdist, ← eq_div_iff hd.ne', abs_eq hδ.le, sub_eq_iff_eq_add,
+      sub_eq_iff_eq_add, add_comm δ s, ← sub_eq_neg_add, or_comm]
   · rw [← AffineMap.map_midpoint]
     congr 1
     rw [midpoint_eq_smul_add, smul_eq_mul, invOf_eq_inv]
@@ -132,23 +119,17 @@ theorem disjoint_segments_of_antipodal_pairs {z p q x y : ℂ} {ρ : ℝ}
     Disjoint (segment ℝ p q) (segment ℝ x y) := by
   let reflect := AffineEquiv.pointReflection ℝ z
   have hx : reflect p = x := midpoint_eq_iff.mp hpx
-  have hy : reflect q = y := midpoint_eq_iff.mp hqy
   have himage : reflect.toAffineMap '' segment ℝ p q = segment ℝ x y := by
-    rw [image_segment, AffineEquiv.coe_toAffineMap, hx, hy]
-  apply Set.disjoint_left.mpr
-  intro w hw hwr
-  rw [← himage] at hwr
-  obtain ⟨v, hv, hvw⟩ := hwr
-  have hmid : midpoint ℝ v w = z := midpoint_eq_iff.mpr hvw
-  have hconv : Convex ℝ (segment ℝ p q) := convex_segment p q
-  have hz : z ∈ segment ℝ p q := hmid ▸ hconv.midpoint_mem hv hw
-  have hzmid : midpoint ℝ p q = z := by
-    have hdist := dist_add_dist_of_mem_segment hz
-    have hp' := Metric.mem_sphere.mp hp
-    have hq' := (dist_comm z q).trans (Metric.mem_sphere.mp hq)
-    exact (eq_midpoint_of_dist_eq_half
-      (by linarith only [hdist, hp', hq']) (by linarith only [hdist, hp', hq'])).symm
-  exact hqx ((midpoint_eq_iff.mp hzmid).symm.trans hx)
+    rw [image_segment, AffineEquiv.coe_toAffineMap, hx, midpoint_eq_iff.mp hqy]
+  refine Set.disjoint_left.mpr fun w hw hwr => hqx ?_
+  obtain ⟨v, hv, hvw⟩ := himage ▸ hwr
+  have hz : z ∈ segment ℝ p q := midpoint_eq_iff.mpr hvw ▸ (convex_segment p q).midpoint_mem hv hw
+  have hdist := dist_add_dist_of_mem_segment hz
+  have hp' := Metric.mem_sphere.mp hp
+  have hq' := (dist_comm z q).trans (Metric.mem_sphere.mp hq)
+  exact (midpoint_eq_iff.mp (eq_midpoint_of_dist_eq_half
+    (by linarith only [hdist, hp', hq'])
+    (by linarith only [hdist, hp', hq'])).symm).symm.trans hx
 
 /-- The signed coordinate perpendicular to a chord, scaled so its normal has unit
 coordinate. The first endpoint fixes the sign; its counterclockwise arc is positive. -/
@@ -242,12 +223,12 @@ theorem exists_split_offsets_of_circle_gaps {z p q : ℂ} {ρ : ℝ}
     simp only [← mul_assoc, mul_div_cancel_right₀ _ hpm, Complex.mul_im,
       Complex.ofReal_re, Complex.I_im, mul_one, Complex.ofReal_im, Complex.I_re,
       mul_zero, add_zero]
-  have hplus : ContinuousAt (fun t : ℝ => m + t • n) 0 := by fun_prop
-  have hminus : ContinuousAt (fun t : ℝ => m + (-t) • n) 0 := by fun_prop
   have hpball : ∀ᶠ t in nhds (0 : ℝ), m + t • n ∈ Metric.ball z ρ :=
-    hplus.eventually (Metric.isOpen_ball.mem_nhds (by simpa using hm))
+    (by fun_prop : ContinuousAt (fun t : ℝ => m + t • n) 0).eventually
+      (Metric.isOpen_ball.mem_nhds (by simpa using hm))
   have hmball : ∀ᶠ t in nhds (0 : ℝ), m + (-t) • n ∈ Metric.ball z ρ :=
-    hminus.eventually (Metric.isOpen_ball.mem_nhds (by simpa using hm))
+    (by fun_prop : ContinuousAt (fun t : ℝ => m + (-t) • n) 0).eventually
+      (Metric.isOpen_ball.mem_nhds (by simpa using hm))
   have hAP : ∀ᶠ t in nhds (0 : ℝ), ∀ x ∈ A, t < f x :=
     (Filter.eventually_all_finset A).mpr fun x hx =>
       continuousAt_id.eventually_lt continuousAt_const (hsign hp hq hpq (hA x hx))
@@ -261,9 +242,7 @@ theorem exists_split_offsets_of_circle_gaps {z p q : ℂ} {ρ : ℝ}
   obtain ⟨ha, hb, hA', hB'⟩ :=
     hδlocal (show dist ε (0 : ℝ) < δ by rwa [Real.dist_eq, sub_zero, abs_of_pos hε])
   refine ⟨ε, ⟨hε, hεbound⟩, ha, hb, ?_, ?_, ?_⟩ <;> simp only [hoff]
-  · linarith
-  · exact hA'
-  · exact hB'
+  exacts [by linarith, hA', hB']
 
 private theorem exists_lineMap_eq_of_chordCoordinate_eq_zero {p q x : ℂ}
     (hpq : p ≠ q) (hx : chordCoordinate p q x = 0) :
@@ -301,15 +280,11 @@ private theorem lineMap_parameter_nonneg_of_mem_closedBall {z p q : ℂ} {ρ t :
     ⟨div_pos (neg_pos.mpr htneg) hden, (div_lt_one hden).mpr (by linarith)⟩
   have hpar : 1 - (1 - s) * (1 - t) = 0 := by
     dsimp only [s]
-    field_simp
-    ring
+    field_simp; ring
   have hline : AffineMap.lineMap (AffineMap.lineMap p q t) q s = p := by
     rw [AffineMap.lineMap_lineMap_left, hpar, AffineMap.lineMap_apply_zero]
-  have hne : AffineMap.lineMap p q t ≠ q := by
-    intro he
-    rcases AffineMap.lineMap_eq_right_iff.mp he with h | h
-    · exact hpq h
-    · linarith
+  have hne : AffineMap.lineMap p q t ≠ q := fun he =>
+    (AffineMap.lineMap_eq_right_iff.mp he).elim hpq fun h => by linarith
   have hball := (strictConvex_closedBall ℝ z ρ).openSegment_subset ht
     (Metric.sphere_subset_closedBall hq) hne (lineMap_mem_openSegment ℝ _ _ hs)
   rw [interior_closedBall z hρ, hline] at hball
@@ -366,13 +341,12 @@ theorem circle_chord_inter_iff_alternates {z p q x y : ℂ} {ρ : ℝ}
       ((left_eq_midpoint_iff (R := ℝ)).mp (sub_eq_zero.mp he))
     change ((a - midpoint ℝ a b) / (a - midpoint ℝ a b)).im = 0
     rw [div_self hd, Complex.one_im]
-  have hf₀ : f p = 0 := left_zero hpq
   have hf₁ : f q = 0 := by
     have h := left_zero hpq.symm
     rw [chordCoordinate_swap] at h
     exact neg_eq_zero.mp h
   have himage : f '' openSegment ℝ p q = {0} := by
-    rw [image_openSegment ℝ f, hf₀, hf₁, openSegment_same]
+    rw [image_openSegment ℝ f, left_zero hpq, hf₁, openSegment_same]
   change _ ↔ Xor (0 < f x) (0 < f y)
   rw [← Cslib.zero_mem_openSegment_iff_xor_pos (f_ne_zero hx hpx hxq)
     (f_ne_zero hy hpy hyq), ← image_openSegment ℝ f]

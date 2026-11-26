@@ -342,12 +342,8 @@ theorem evalNode_sink (x : ι → α) {v : Node} {b : Bool} (h : G.node v = .sin
     rw [Fin.eta, Equiv.symm_apply_apply, h]
   have hstep : G.stepAt (G.index v) (G.index v).isLt = .sink b := by
     unfold stepAt
-    split <;> rename_i heq
-    · rw [hk] at heq
-      cases heq
-      rfl
-    · rw [hk] at heq
-      cases heq
+    split <;> rename_i heq <;> rw [hk] at heq <;> cases heq
+    rfl
   exact Nodes.eval_ofFn_sink x G.stepAt _ _ hstep
 
 /-- A query node of the graph reaches the output of the node it moves to. -/
@@ -358,13 +354,9 @@ theorem evalNode_branch (x : ι → α) {v : Node} {i : ι} {next : α → Node}
   have hstep : ∃ hlt : ∀ a, (G.index (next a) : ℕ) < G.index v,
       G.stepAt (G.index v) (G.index v).isLt = .branch i fun a => ⟨G.index (next a), hlt a⟩ := by
     unfold stepAt
-    split <;> rename_i heq
-    · rw [hk] at heq
-      cases heq
-    · rw [hk] at heq
-      cases heq
-      exact ⟨fun a => G.index_lt_index (G.rank_lt v i next a h), rfl⟩
-  obtain ⟨hlt, hstep⟩ := hstep
+    split <;> rename_i heq <;> rw [hk] at heq <;> cases heq
+    exact ⟨fun a => G.index_lt_index (G.rank_lt v i next a h), rfl⟩
+  obtain ⟨_, hstep⟩ := hstep
   exact Nodes.eval_ofFn_branch x G.stepAt _ _ hstep
 
 end Graph

@@ -56,14 +56,11 @@ theorem card_letter_le (hΓ : Fintype.card Γ ≤ B) (hS : Fintype.card S ≤ B)
 
 theorem RunVar.card_le (hS : Fintype.card S ≤ B) (hn : n ≤ B) (ht : t + 1 ≤ B)
     (hM : M ≤ B) : Fintype.card (RunVar S n t M) ≤ 6 * B ^ 2 := by
+  have : 1 ≤ B := by omega
   rw [RunVar.card]
   calc t + (t + 1) + (2 * Fintype.card S + n) * (t + 1) + Fintype.card S * M
-      ≤ B * 1 + B * 1 + (2 * B + B) * B + B * B := by
-        have : 1 ≤ B := by omega
-        gcongr <;> omega
-    _ ≤ B * B + B * B + (2 * B + B) * B + B * B := by
-        have : 1 ≤ B := by omega
-        gcongr
+      ≤ B * 1 + B * 1 + (2 * B + B) * B + B * B := by gcongr <;> omega
+    _ ≤ B * B + B * B + (2 * B + B) * B + B * B := by gcongr
     _ = 6 * B ^ 2 := by ring
 
 /-- The one-hot bits as a sum of products. -/
@@ -116,17 +113,15 @@ theorem RunRule.card_le (hΓ : Fintype.card Γ + 1 ≤ B) (hS : Fintype.card S �
   have hB : 1 ≤ B := by omega
   have hL := card_letter_le (Γ := Γ) (S := S) (n := n) (by omega) hS hn (by omega)
   have hΓ' : Fintype.card Γ ≤ B := by omega
-  have h (k : ℕ) (hk : k ≤ 5) : B ^ k ≤ B ^ 5 := Nat.pow_le_pow_right hB hk
-  have h0 := h 0 (by omega)
-  have h1 := h 1 (by omega)
-  have h2 := h 2 (by omega)
-  have h3 := h 3 (by omega)
-  have h4 := h 4 (by omega)
+  have h (k : ℕ) (hk : k ≤ 5 := by decide) : B ^ k ≤ B ^ 5 := Nat.pow_le_pow_right hB hk
   rw [RunRule.card]
   calc _ ≤ 2 + (2 * B + B) + (2 * B + B) * (B * (B * (4 * B ^ 2))) + B * (B * B) +
         B * (2 * (B * (B * B))) + B * (2 * (B * B)) + B * (B * (B * B)) + B * B := by gcongr
     _ = 2 * B ^ 0 + 3 * B ^ 1 + 12 * B ^ 5 + 3 * B ^ 3 + 3 * B ^ 4 + B ^ 2 := by ring
-    _ ≤ 25 * B ^ 5 := by omega
+    _ ≤ 25 * B ^ 5 := by
+      have : B ^ 0 ≤ B ^ 5 ∧ B ^ 1 ≤ B ^ 5 ∧ B ^ 2 ≤ B ^ 5 ∧ B ^ 3 ≤ B ^ 5 ∧ B ^ 4 ≤ B ^ 5 :=
+        ⟨h 0, h 1, h 2, h 3, h 4⟩
+      omega
 
 omit [Fintype Γ] in
 /-- The total length of the words with their separators. -/

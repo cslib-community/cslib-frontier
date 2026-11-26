@@ -172,16 +172,9 @@ private theorem nodeStep_realizes :
     joinNodeProg_realizes]
   all_goals
     obtain ⟨h4, hcur1, htree3, hdCur3, hbranch⟩ := h
-    have ht0 : Fits w (d.1.treePtr + 4 * d.2) := htree3.of_le (by omega)
-    have ht1 : Fits w (d.1.treePtr + 4 * d.2 + 1) := htree3.of_le (by omega)
-    have ht2 : Fits w (d.1.treePtr + 4 * d.2 + 2) := htree3.of_le (by omega)
     first
     | exact h4.of_le (by decide)
-    | exact ht0
-    | exact ht1
-    | exact ht2
-    | exact htree3
-    | exact hdCur3
+    | exact htree3.of_le (by omega)
     | exact hdCur3.of_le (by omega)
     | (rcases hbranch with
         ⟨ht0', q, cs, hq, hlen, hcs, hend⟩ |
@@ -207,9 +200,7 @@ private theorem nodeStep_realizes :
       first
       | contradiction
       | exact hfit_q
-      | exact hfit_dL
       | exact hfit_dL.of_le (by omega)
-      | exact hfit_dR
       | exact hfit_dR.of_le (by omega)
       | exact hex)
 
@@ -306,30 +297,17 @@ theorem holdsIn_encode_decode (inst : TreeCSPInstance) :
     HoldsIn treePtr (encodeNiceTree inst.tree) s₀ ∧
     HoldsIn consRawPtr (inst.constraints.flatMap ConstraintTable.encode) s₀ := by
   let s₀ := Memory.State.init inst.encode
-  have hfr : s₀.frontier = inst.encode.length + 1 := rfl
   have hlen : inst.encode.length = 5 + inst.vars.length + 4 * inst.tree.size +
       (inst.constraints.flatMap ConstraintTable.encode).length := by
-    unfold TreeCSPInstance.encode
-    simp only [List.length_append, List.length_cons, List.length_nil, length_encodeNiceTree]
+    simp only [TreeCSPInstance.encode, List.length_append, List.length_cons, List.length_nil,
+      length_encodeNiceTree]
   have hall : HoldsIn 1 inst.encode s₀ := holdsIn_init inst.encode
-  unfold TreeCSPInstance.encode at hall
-  rw [HoldsIn.append_iff] at hall; obtain ⟨hall, hcons⟩ := hall
-  rw [HoldsIn.append_iff] at hall; obtain ⟨hall, htree⟩ := hall
-  rw [HoldsIn.append_iff] at hall; obtain ⟨hall, hvars⟩ := hall
-  rw [HoldsIn.cons_iff] at hall; obtain ⟨_, hm1, hall⟩ := hall
-  rw [HoldsIn.cons_iff] at hall; obtain ⟨_, hm2, hall⟩ := hall
-  rw [HoldsIn.cons_iff] at hall; obtain ⟨_, hm3, hall⟩ := hall
-  rw [HoldsIn.cons_iff] at hall; obtain ⟨_, hm4, hall⟩ := hall
-  rw [HoldsIn.cons_iff] at hall; obtain ⟨_, hm5, _⟩ := hall
-  rw [show 1 + ([if inst.counting then 1 else 0, inst.domainSize, inst.vars.length,
-      inst.constraints.length, inst.tree.size] ++ inst.vars).length = 6 + inst.vars.length from by
-    simp only [List.length_append, List.length_cons, List.length_nil]; omega] at htree
-  rw [show 1 + ([if inst.counting then 1 else 0, inst.domainSize, inst.vars.length,
-      inst.constraints.length, inst.tree.size] ++ inst.vars ++
-      encodeNiceTree inst.tree).length = 6 + inst.vars.length + 4 * inst.tree.size from by
-    simp only [List.length_append, List.length_cons, List.length_nil, length_encodeNiceTree]
-    omega] at hcons
-  exact ⟨hfr, hlen, hm1, hm2, hm3, hm4, hm5, hvars, htree, hcons⟩
+  simp only [TreeCSPInstance.encode, HoldsIn.append_iff, HoldsIn.cons_iff, List.length_append,
+    List.length_cons, List.length_nil, length_encodeNiceTree, ← Nat.add_assoc,
+    Nat.reduceAdd] at hall
+  obtain ⟨⟨⟨⟨_, hm1, _, hm2, _, hm3, _, hm4, _, hm5, _⟩, hvars⟩, htree⟩, hcons⟩ := hall
+  exact ⟨rfl, hlen, hm1, hm2, hm3, hm4, hm5, hvars, htree,
+    by simpa only [Nat.add_assoc] using hcons⟩
 
 /-- Static `NodeEnv` decoded from `Memory.State.init inst.encode`. -/
 abbrev subtreeEnv (inst : TreeCSPInstance) : NodeEnv :=
@@ -393,50 +371,37 @@ theorem subtree_setup {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordB
           (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3))) ∧
     (∀ S, maxTreeVert S ≤ maxTreeVert inst.tree → ∀ u ∈ bagList S, Fits w u) := by
   intro env F_lo E perSpace
-  have hq : 0 < inst.domainSize := inst.domainSize_pos
-  have hpow_ge1 : 1 ≤ inst.domainSize ^ E := Nat.one_le_pow E inst.domainSize hq
-  have hfit_4 : Fits w 4 := hw.of_le (by unfold TreeCSPInstance.wordBound; dsimp only; omega)
-  have hfit_q : Fits w inst.domainSize := hw.of_le (by
-    have h1q : inst.domainSize ≤ inst.domainSize * inst.domainSize ^ E :=
+  have hpow_ge1 : 1 ≤ inst.domainSize ^ E := Nat.one_le_pow E inst.domainSize inst.domainSize_pos
+  have hlen_enc := (holdsIn_encode_decode inst).2.1
+  have hfit_q : Fits w inst.domainSize := hw.of_le <| by
+    have h1q : inst.domainSize ≤ inst.domainSize * inst.domainSize ^ maxTableExp inst.tree :=
       Nat.le_mul_of_pos_right _ hpow_ge1
-    dsimp only [E] at h1q
-    unfold TreeCSPInstance.wordBound; dsimp only; omega)
-  have hfit_tree : Fits w inst.tree.size :=
-    hw.of_le (by unfold TreeCSPInstance.wordBound; dsimp only; omega)
-  have hfit_total : Fits w (F_lo + inst.tree.size * perSpace) := hw.of_le (by
-    have hlen_enc : inst.encode.length = 5 + inst.vars.length + 4 * inst.tree.size +
-        (inst.constraints.flatMap ConstraintTable.encode).length :=
-      (holdsIn_encode_decode inst).2.1
+    unfold TreeCSPInstance.wordBound
+    dsimp only
+    omega
+  have hfit_total : Fits w (F_lo + inst.tree.size * perSpace) := hw.of_le <| by
     dsimp only [F_lo, env, subtreeEnv, perSpace, E] at *
-    unfold TreeCSPInstance.wordBound; dsimp only; omega)
+    unfold TreeCSPInstance.wordBound
+    dsimp only
+    omega
   have hcons_len_bound : env.consRawPtr +
       (inst.constraints.flatMap ConstraintTable.encode).length = env.descBase := by
-    have hlen_enc := (holdsIn_encode_decode inst).2.1
     dsimp only [env, subtreeEnv]
     omega
   have hvars_lt_desc : env.varsPtr + env.varsLen ≤ env.descBase := by
-    have hlen_enc := (holdsIn_encode_decode inst).2.1
     dsimp only [env, subtreeEnv]
     omega
-  have hcons_lt_desc : env.consRawPtr +
-      (inst.constraints.flatMap ConstraintTable.encode).length ≤ env.descBase :=
-    le_of_eq hcons_len_bound
-  have hts_pos : 0 < inst.tree.size := inst.tree.size_pos
-  have hperSpace_le_total : perSpace ≤ inst.tree.size * perSpace :=
-    Nat.le_mul_of_pos_left perSpace hts_pos
-  have hc_ge : ∀ A : ℕ,
-      A ≤ E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3) →
-      inst.domainSize ^ E * A ≤
-        inst.domainSize ^ E *
-          (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3)) :=
-    fun _ hA => Nat.mul_le_mul_left _ hA
-  have hfit_tree_vert : ∀ S, maxTreeVert S ≤ maxTreeVert inst.tree → ∀ u ∈ bagList S, Fits w u :=
-    fun S hmv u hu => hw.of_le (by
-      have hum := (mem_bagList_le_maxTreeVert S hu).trans hmv
-      have hmvt : maxTreeVert inst.tree ≤ inst.maxVarLabel :=
-        le_trans (le_max_left _ _) (le_max_right _ _)
-      unfold TreeCSPInstance.wordBound; dsimp only; omega)
-  exact ⟨hpow_ge1, hfit_4, hfit_q, hfit_tree, hfit_total, hcons_len_bound, hvars_lt_desc,
-    hcons_lt_desc, hts_pos, hperSpace_le_total, hc_ge, hfit_tree_vert⟩
+  refine ⟨hpow_ge1,
+    hw.of_le (by dsimp only [TreeCSPInstance.wordBound]; omega),
+    hfit_q,
+    hw.of_le (by dsimp only [TreeCSPInstance.wordBound]; omega),
+    hfit_total, hcons_len_bound, hvars_lt_desc, hcons_len_bound.le, inst.tree.size_pos,
+    Nat.le_mul_of_pos_left perSpace inst.tree.size_pos,
+    fun _ hA => Nat.mul_le_mul_left _ hA, fun S hmv u hu => hw.of_le ?_⟩
+  have hum := (mem_bagList_le_maxTreeVert S hu).trans hmv
+  have hmvt : maxTreeVert inst.tree ≤ inst.maxVarLabel :=
+    (le_max_left _ _).trans (le_max_right _ _)
+  dsimp only [TreeCSPInstance.wordBound]
+  omega
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

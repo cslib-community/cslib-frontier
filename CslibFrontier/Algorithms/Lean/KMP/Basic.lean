@@ -112,11 +112,9 @@ theorem isProperBorderLen_iff_take_eq_drop {α : Type*} {w : List α} {k : ℕ} 
     IsProperBorderLen w k ↔ k < w.length ∧ w.take k = w.drop (w.length - k) := by
   constructor
   · rintro ⟨hk, s, hs⟩
-    refine ⟨hk, ?_⟩
     have hslen : s.length = w.length - k := by grind
-    have hdrop : (s ++ w.take k).drop s.length = w.take k := List.drop_left
-    rw [hs, hslen] at hdrop
-    exact hdrop.symm
+    refine ⟨hk, ?_⟩
+    simpa only [hs, hslen] using (List.drop_left (l₁ := s) (l₂ := w.take k)).symm
   · rintro ⟨hk, heq⟩
     exact ⟨hk, heq ▸ List.drop_suffix (w.length - k) w⟩
 
@@ -209,14 +207,9 @@ theorem eq_maxPrefixSuffixUpTo_iff {α : Type*} [DecidableEq α] {p t : List α}
     have hle := le_maxPrefixSuffixUpTo hkB hkp hsuf
     omega
   · rintro ⟨hmB, hmp, hmsuf, hmax⟩
-    have hle := le_maxPrefixSuffixUpTo hmB hmp hmsuf
-    have hge : maxPrefixSuffixUpTo p t B ≤ m := by
-      by_contra hlt
-      exact hmax (maxPrefixSuffixUpTo p t B) (by omega)
-        (maxPrefixSuffixUpTo_le_bound p t B)
-        (maxPrefixSuffixUpTo_le_length p t B)
-        (take_maxPrefixSuffixUpTo_isSuffix p t B)
-    omega
+    refine Nat.le_antisymm (le_maxPrefixSuffixUpTo hmB hmp hmsuf) (not_lt.mp fun hlt => ?_)
+    exact hmax _ hlt (maxPrefixSuffixUpTo_le_bound p t B) (maxPrefixSuffixUpTo_le_length p t B)
+      (take_maxPrefixSuffixUpTo_isSuffix p t B)
 
 /-- Maximum proper border length of `w` (`0` when `w = []`). -/
 @[expose] def maxBorderLen {α : Type*} [DecidableEq α] (w : List α) : ℕ :=
@@ -255,15 +248,13 @@ theorem le_maxBorderLen_of_isProperBorderLen {α : Type*} [DecidableEq α] {w : 
 
 theorem minPeriod_add_maxBorderLen {α : Type*} [DecidableEq α] (w : List α) :
     minPeriod w + maxBorderLen w = w.length := by
-  have h := maxBorderLen_le_pred w
-  unfold minPeriod
-  omega
+  have := maxBorderLen_le_pred w
+  rw [minPeriod]; omega
 
 theorem minPeriod_pos {α : Type*} [DecidableEq α] {w : List α} (hw : 0 < w.length) :
     0 < minPeriod w := by
-  have h := maxBorderLen_lt_length hw
-  unfold minPeriod
-  omega
+  have := maxBorderLen_lt_length hw
+  rw [minPeriod]; omega
 
 theorem isPeriod_minPeriod {α : Type*} [DecidableEq α] {w : List α} (hw : 0 < w.length) :
     IsPeriod w (minPeriod w) :=
@@ -273,17 +264,12 @@ theorem minPeriod_le_of_isPeriod {α : Type*} [DecidableEq α] {w : List α} {d 
     (hd0 : 0 < d) (hper : IsPeriod w d) :
     minPeriod w ≤ d := by
   by_cases hdlen : d ≤ w.length
-  · have hborder : IsProperBorderLen w (w.length - d) := by
-      rw [isProperBorderLen_iff_isPeriod]
-      refine ⟨by omega, ?_⟩
-      have heq : w.length - (w.length - d) = d := by omega
-      simpa only [heq] using hper
-    have hle := le_maxBorderLen_of_isProperBorderLen hborder
-    unfold minPeriod
-    omega
-  · have h := maxBorderLen_le_pred w
-    unfold minPeriod
-    omega
+  · have hborder : IsProperBorderLen w (w.length - d) :=
+      isProperBorderLen_iff_isPeriod.mpr ⟨by omega, (Nat.sub_sub_self hdlen).symm ▸ hper⟩
+    have := le_maxBorderLen_of_isProperBorderLen hborder
+    rw [minPeriod]; omega
+  · have := maxBorderLen_le_pred w
+    rw [minPeriod]; omega
 
 @[simp]
 theorem borderLen_zero {α : Type*} [DecidableEq α] (p : List α) : borderLen p 0 = 0 := rfl
@@ -293,11 +279,8 @@ theorem borderLen_one {α : Type*} [DecidableEq α] (p : List α) : borderLen p 
   cases p <;> rfl
 
 theorem borderLen_lt {α : Type*} [DecidableEq α] {p : List α} {q : ℕ}
-    (hq : 0 < q) (hp : p ≠ []) : borderLen p q < q := by
-  have hlen : 0 < (p.take q).length := by grind
-  have hlt := maxBorderLen_lt_length hlen
-  have htake_le : (p.take q).length ≤ q := List.length_take_le q p
-  exact Nat.lt_of_lt_of_le hlt htake_le
+    (hq : 0 < q) (hp : p ≠ []) : borderLen p q < q :=
+  (maxBorderLen_lt_length (by grind)).trans_le (List.length_take_le q p)
 
 theorem borderLen_eq_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α] {p : List α} {q : ℕ}
     (hqp : q ≤ p.length) :
@@ -306,24 +289,15 @@ theorem borderLen_eq_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α] {p : List
   have hlen : (p.take q).length = q := List.length_take_of_le hqp
   rcases Nat.eq_zero_or_pos q with rfl | hqpos
   · simp only [borderLen_zero, Nat.zero_le, List.take_zero, List.nil_suffix, true_and]
-    intro k hk0 hkB
     omega
   · have hb : IsProperBorderLen (p.take q) (borderLen p q) :=
       isProperBorderLen_maxBorderLen (by rw [hlen]; exact hqpos)
-    have hble : borderLen p q ≤ q - 1 := by
-      have := hb.1
-      rw [hlen] at this
-      omega
+    have hblt := hb.1
     have htake_eq : p.take (borderLen p q) = (p.take q).take (borderLen p q) := by
       rw [List.take_take, Nat.min_eq_left (by omega)]
-    refine ⟨hble, by omega, htake_eq ▸ hb.2, fun k hlt hkB _ hsuf => ?_⟩
-    have hk_proper : IsProperBorderLen (p.take q) k := by
-      refine ⟨by rw [hlen]; omega, ?_⟩
-      rw [List.take_take, Nat.min_eq_left (by omega)]
-      exact hsuf
-    have hle := le_maxBorderLen_of_isProperBorderLen hk_proper
-    change k ≤ borderLen p q at hle
-    omega
+    refine ⟨by omega, by omega, htake_eq ▸ hb.2, fun k hlt hkB _ hsuf => not_le.mpr hlt ?_⟩
+    exact le_maxBorderLen_of_isProperBorderLen
+      ⟨by omega, by rwa [List.take_take, Nat.min_eq_left (by omega)]⟩
 
 /-! ## Prefix-function iteration (`[CLRS2009]`, Lemma 32.5) -/
 
@@ -387,9 +361,7 @@ theorem pairwise_gt_borderChain {α : Type*} [DecidableEq α] {p : List α} {q :
     have hklt : k < q := borderLen_lt (by omega) fun hp0 => hcond (Or.inr hp0)
     have hkp : k ≤ p.length := by omega
     refine List.Pairwise.cons (fun j hj => ?_) (ih hkp)
-    have hjlen : j < (p.take k).length := ((mem_borderChain_iff (by omega) hkp).mp hj).1
-    rw [List.length_take_of_le hkp] at hjlen
-    exact hjlen
+    simpa only [List.length_take_of_le hkp] using ((mem_borderChain_iff (by omega) hkp).mp hj).1
 
 /-! ## Pure KMP automaton transition and master step theorem -/
 
@@ -515,11 +487,8 @@ theorem maxPrefixSuffixUpTo_pred_of_eq_length {α : Type*} [DecidableEq α]
     (hfull : maxPrefixSuffixUpTo p t p.length = p.length) :
     maxPrefixSuffixUpTo p t (p.length - 1) = borderLen p p.length := by
   have hpsuf : p <:+ t := by
-    have h := take_maxPrefixSuffixUpTo_isSuffix p t p.length
-    rwa [hfull, List.take_length] at h
-  have hb : borderLen p p.length = maxPrefixSuffixUpTo p p (p.length - 1) := by
-    simp only [borderLen, maxBorderLen, List.take_length]
-  rw [hb]
+    simpa only [hfull, List.take_length] using take_maxPrefixSuffixUpTo_isSuffix p t p.length
+  rw [borderLen, maxBorderLen, List.take_length]
   exact maxPrefixSuffixUpTo_congr fun j _ => and_congr_right fun _ =>
     ⟨fun hsuf => List.suffix_of_suffix_length_le hsuf hpsuf (List.length_take_le' _ _),
       (·.trans hpsuf)⟩

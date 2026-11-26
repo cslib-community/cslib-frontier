@@ -261,13 +261,10 @@ theorem runSeedSchedulerFrom_exhausted {count : ℕ}
     (sourceAt : Fin count → Fin n) (source : Fin n) {seed : ℕ} (hs : 2 ^ length ≤ seed)
     (phase : Option (ℕ × Bool)) :
     runSeedSchedulerFrom scan sourceAt source seed phase = pure none := by
-  cases phase with
-  | none =>
-    simp only [runSeedSchedulerFrom, findSeedFromRank, Nat.sub_eq_zero_of_le hs, findSeedFrom]
+  rcases phase with _ | ⟨_, _⟩
+  · simp only [runSeedSchedulerFrom, findSeedFromRank, Nat.sub_eq_zero_of_le hs, findSeedFrom]
     split_ifs <;> rfl
-  | some p =>
-    rcases p with ⟨cursor, answer⟩
-    simp [runSeedSchedulerFrom, Nat.not_lt.mpr hs]
+  · simp [runSeedSchedulerFrom, Nat.not_lt.mpr hs]
 
 /-- A designated scan's pure verdict advances the seed on a tie, or starts the indexed roots
 with the designated answer. -/
@@ -404,17 +401,13 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
     rw [Nat.add_mul, Nat.one_mul]
     unfold testSeedWith
     apply bind_optionT_clock clock cost (count * cost) _ _ (hc i none source)
-    intro verdict state
-    cases verdict with
-    | none => exact Nat.le_add_right _ _
-    | some verdict =>
-      cases verdict with
-      | bad _ => exact Nat.le_add_right _ _
-      | decided answer =>
-        rw [← Nat.add_zero (count * cost)]
-        apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers i answer count 0 (by simp))
-        intro good t
-        cases good <;> exact Nat.le_refl _
+    rintro (_ | _ | answer) state
+    · exact Nat.le_add_right _ _
+    · exact Nat.le_add_right _ _
+    · rw [← Nat.add_zero (count * cost)]
+      apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers i answer count 0 (by simp))
+      intro good t
+      cases good <;> exact Nat.le_refl _
   let test := rankedSeedTest (testScheduledSeed scan sourceAt source)
   let budget := (1 + count) * cost
   have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
@@ -464,16 +457,12 @@ theorem testSeed_correct {r : Fin n → Fin n → Prop} {target source : Fin n}
           (∀ s ∈ sources, ∀ j, ∃! w, Passes r s j w) then
         some (decide (Relation.ReflTransGen r source target)) else none) := by
   classical
-  have hsource (s : Fin n) : sourceGood controller s =
-      pure (decide (∀ j, ∃! w, Passes r s j w)) := by
-    obtain ⟨verdict, hv, hs⟩ := hc s
-    cases verdict with
-    | bad j =>
-      have hnot : ¬ ∀ i, ∃! w, Passes r s i w := fun h => hs (h j)
-      simp [sourceGood, hv, hnot]
-    | decided b => simp [sourceGood, hv, hs.1]
   have hsource' : sourceGood controller = fun s => pure (decide (∀ j, ∃! w, Passes r s j w)) :=
-    funext hsource
+    funext fun s => by
+      obtain ⟨verdict, hv, hs⟩ := hc s
+      cases verdict with
+      | bad j => simp [sourceGood, hv, show ¬ ∀ i, ∃! w, Passes r s i w from fun h => hs (h j)]
+      | decided b => simp [sourceGood, hv, hs.1]
   obtain ⟨verdict, hv, hs⟩ := hc source
   cases verdict with
   | bad j =>
@@ -532,12 +521,10 @@ theorem runSeedSearch_correct (sources : List (Fin n))
   let makeAnswer (j : Fin (2 ^ length)) : SeedAnswer length :=
     ⟨j, decide (Relation.ReflTransGen (r (bits j)) source target)⟩
   have hfind : (List.finRange (2 ^ length)).find? (fun j => decide (good j)) = some i := by
-    apply List.find?_eq_some_iff_getElem.mpr
-    refine ⟨by simpa only [decide_eq_true_eq] using (show good i from Fin.find_spec hex'), i.val,
-      by simpa only [List.length_finRange] using i.isLt, ?_, ?_⟩
-    · simp
-    · exact fun j hj => by
-        simpa using Fin.find_min hex' (show (⟨j, by omega⟩ : Fin (2 ^ length)) < i from hj)
+    refine List.find?_eq_some_iff_getElem.mpr
+      ⟨decide_eq_true (Fin.find_spec hex'), i.val,
+        by simpa only [List.length_finRange] using i.isLt, by simp, fun j hj => ?_⟩
+    simpa using Fin.find_min hex' (show (⟨j, by omega⟩ : Fin (2 ^ length)) < i from hj)
   have htest (j : Fin (2 ^ length)) :
       rankedSeedTest (fun k => testSeed (controller (bits k)) sources source) j =
         pure ((Option.guard (fun j => decide (good j)) j).map makeAnswer) := by

@@ -105,7 +105,8 @@ theorem mem_combine {S : RoutedScaffold} {I : SeededInstance} {t : WangTile} :
 private theorem mem_completePayloads {τ : List WangTile} {p : WangTile} :
     p ∈ completePayloads τ ↔ p.top ∈ palette τ ∧ p.bottom ∈ palette τ ∧
       p.left ∈ palette τ ∧ p.right ∈ palette τ := by
-  cases p; simp [completePayloads]
+  cases p
+  simp [completePayloads]
 
 /-- Every input tile belongs to the palette completed under independent edge choices. -/
 theorem mem_completePayloads_of_mem {τ : List WangTile} {p : WangTile}
@@ -292,7 +293,8 @@ private theorem transmit {incoming outgoing : ℤ → ℕ} (a b : ℤ) (hab : a 
     outgoing a = incoming b := by
   have h : ∀ x, a + 1 ≤ x → x ≤ b → outgoing a = incoming x :=
     Int.leInduction (fun _ => step a) fun x _ ih _ => by
-      rw [← step x, ← wire x (by omega) (by omega)]; exact ih (by omega)
+      rw [← step x, ← wire x (by omega) (by omega)]
+      exact ih (by omega)
   exact h b (by omega) le_rfl
 
 /-- Extract a seeded payload square by propagating colours along each interval of wires. -/
@@ -356,7 +358,8 @@ private theorem fill_match {n : ℕ} (carry : Fin n → Bool) (incoming outgoing
     (i : Fin n) (hi : i.val + 1 < n) :
     fillOutgoing carry incoming outgoing i =
       fillIncoming carry incoming outgoing ⟨i.val + 1, hi⟩ := by
-  by_cases hc : carry i = true <;> by_cases hn : carry ⟨i.val + 1, hi⟩ = true
+  by_cases hc : carry i = true <;>
+    by_cases hn : carry ⟨i.val + 1, hi⟩ = true
   · simpa [fillOutgoing, fillIncoming, hc, hn] using h i hi hc hn
   all_goals simp [fillOutgoing, fillIncoming, hc, hn, hi]
 

@@ -43,15 +43,12 @@ theorem magnitudeBound_pos (p A B k : ℕ) : 0 < magnitudeBound p A B k := by
 /-- Twice the scalar convolution bound fits the node magnitude envelope at every depth. -/
 theorem two_scalar_le_magnitudeBound (p A B k : ℕ) :
     2 * CyclicConvolution.magnitudeBound p A B ≤ magnitudeBound p A B k := by
-  have hp : 1 ≤ 16 ^ k := Nat.one_le_pow k 16 (by decide)
-  simpa only [magnitudeBound, Nat.mul_one] using
-    Nat.mul_le_mul_left (2 * CyclicConvolution.magnitudeBound p A B) hp
+  exact Nat.le_mul_of_pos_right _ (by positivity)
 
 /-- Stepping up one recursion level multiplies the scalar factor in `magnitudeBound` by `16`. -/
 theorem magnitudeBound_succ (p A B k : ℕ) :
     magnitudeBound p A B (k + 1) = 32 * CyclicConvolution.magnitudeBound p A B * 16 ^ k := by
-  unfold magnitudeBound
-  rw [pow_succ]
+  rw [magnitudeBound, pow_succ]
   ring
 
 /-- Both native operand-form sums have enough signed range. -/
@@ -71,29 +68,25 @@ theorem inputs_le_magnitudeBound (p A B k : ℕ) :
 /-- At scalar leaves the original cyclic kernel admission follows from the node admission. -/
 theorem scalar_le_magnitudeBound (p A B : ℕ) :
     CyclicConvolution.magnitudeBound p A B ≤ magnitudeBound p A B 0 := by
-  simp only [magnitudeBound, pow_zero, Nat.mul_one]
-  omega
+  exact Nat.le_trans (Nat.le_mul_of_pos_left _ (by decide)) (two_scalar_le_magnitudeBound p A B 0)
 
 /-- Every child's envelope follows from the original parent's, including doubled input forms. -/
 theorem child_magnitudeBound_le (p A B k : ℕ) :
     magnitudeBound p (2 * A) (2 * B) k ≤ magnitudeBound p A B (k + 1) := by
-  have hscalar : CyclicConvolution.magnitudeBound p (2 * A) (2 * B) ≤
-      4 * CyclicConvolution.magnitudeBound p A B := by
-    unfold CyclicConvolution.magnitudeBound
-    nlinarith [Nat.zero_le ((p + 1) * (A * B))]
   rw [magnitudeBound_succ, magnitudeBound]
-  exact Nat.mul_le_mul_right (16 ^ k) (by omega)
+  refine Nat.mul_le_mul_right (16 ^ k) ?_
+  unfold CyclicConvolution.magnitudeBound
+  nlinarith [Nat.zero_le ((p + 1) * (A * B))]
 
 /-- Four previous child contributions and one next contribution fit without relying on
 an unproved cancellation or sparsity bound. -/
 theorem accumulation_le_magnitudeBound (p A B k : ℕ) :
     5 * (p * ((2 * A) * (2 * B)) * 16 ^ k) ≤ magnitudeBound p A B (k + 1) := by
-  have hscalar : p * (A * B) ≤ CyclicConvolution.magnitudeBound p A B := by
-    unfold CyclicConvolution.magnitudeBound
-    nlinarith [Nat.zero_le (A * B)]
   rw [show 5 * (p * ((2 * A) * (2 * B)) * 16 ^ k) = 20 * (p * (A * B)) * 16 ^ k by ring,
     magnitudeBound_succ]
-  exact Nat.mul_le_mul_right (16 ^ k) (by omega)
+  refine Nat.mul_le_mul_right (16 ^ k) ?_
+  unfold CyclicConvolution.magnitudeBound
+  nlinarith [Nat.zero_le (A * B)]
 
 /-- The actual child-buffer advancement and its child size exactly fill the parent scratch span. -/
 theorem child_scratch_end (scratch p k : ℕ) :

@@ -78,15 +78,7 @@ theorem computableInPolyTime_fuseHead (encRel : Rel ↪ List Bool) :
         ⟨I.body.relabel (update I), I.ports.tail.map (update I),
           equalDropCertificate I.body I.ports.tail.tail.length I.rotation⟩)
       input input := by polytime
-  apply hbranch.of_enc_eq
-  intro I
-  apply congrArg (encState encRel)
-  rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => rfl
-  | cons x ports =>
-    cases ports with
-    | nil => rfl
-    | cons y ps => simp [fuseHead, update]
+  refine hbranch.of_enc_eq fun I => congrArg (encState encRel) ?_
+  rcases I with ⟨F, _ | ⟨x, _ | ⟨y, ps⟩⟩, c⟩ <;> simp [fuseHead, update]
 
 end Cslib.Complexity.CSP.CrossInsertion

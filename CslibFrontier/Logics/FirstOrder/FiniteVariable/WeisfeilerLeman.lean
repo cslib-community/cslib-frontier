@@ -157,11 +157,8 @@ private theorem exists_equiv_stepProfile_iff (v₀ : V) (n : ℕ) (u : Fin k →
         G.wlStepProfile (G.wlColoring n) u c = H.wlStepProfile (H.wlColoring n) w (f c)) ↔
       G.wlColoring (n + 1) u = H.wlColoring (n + 1) w := by
   rw [wlColoring_succ_eq_iff, ← Equiv.exists_apply_eq_iff_map_univ_eq]
-  constructor
-  · rintro ⟨f, hf⟩
-    exact ⟨(hf v₀).1, f, fun c => ((hf c).2).symm⟩
-  · rintro ⟨huw, f, hf⟩
-    exact ⟨f, fun c => ⟨huw, (hf c).symm⟩⟩
+  exact ⟨fun ⟨f, hf⟩ => ⟨(hf v₀).1, f, fun c => (hf c).2.symm⟩,
+    fun ⟨huw, f, hf⟩ => ⟨f, fun c => ⟨huw, (hf c).symm⟩⟩⟩
 
 /-- With all `k + 1` pebbles placed on `Fin.snoc u v` and `Fin.snoc w z`, Duplicator wins the
 `n`-round bijective game iff `u` and `w` have the same round-`n` `k`-WL color and `(u, v)` and
@@ -217,16 +214,12 @@ theorem bijPebbleWins_graph_range_castSucc_iff (n : ℕ) (u : Fin k → V) (w : 
       Fin.forall_iff_castSucc]
     simp only [insert_last_range_castSucc, Fin.update_snoc_last, bijPebbleWins_graph_univ_snoc_iff,
       exists_equiv_stepProfile_iff v₀ n u w, insert_castSucc_range_castSucc, ← Fin.snoc_update, ih]
-    constructor
-    · exact fun ⟨_, hlast, _⟩ => hlast
-    · intro hcol
-      have hatom : G.tupleAtom u = H.tupleAtom w := by
-        rw [← wlColoring_zero, ← wlColoring_zero]
-        exact wlColoring_eq_of_le (Nat.zero_le (n + 1)) hcol
-      refine ⟨hatom, hcol, fun i => ?_⟩
-      obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
-      obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
-      exact ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩
+    refine ⟨fun ⟨_, hlast, _⟩ => hlast, fun hcol => ?_⟩
+    obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
+    obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
+    refine ⟨?_, hcol, fun i => ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩⟩
+    rw [← wlColoring_zero, ← wlColoring_zero]
+    exact wlColoring_eq_of_le (Nat.zero_le (n + 1)) hcol
 
 /-- Duplicator wins the infinite bijective `(k + 1)`-pebble game from `(Set.range Fin.castSucc,
 Fin.snoc u v₀, Fin.snoc w w₀)` if and only if `u` and `w` receive the same `k`-WL color in every
@@ -269,12 +262,8 @@ private theorem prefixPebbles_self (k : ℕ) :
     prefixPebbles k k = Set.range (Fin.castSucc : Fin k → Fin (k + 1)) := by
   ext j
   simp only [prefixPebbles, Set.mem_ofPred_eq, Set.mem_range]
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [Fin.val_last, lt_self_iff_false, false_iff]
-    rintro ⟨i, hi⟩
-    exact Fin.castSucc_ne_last i hi
-  · intro i
-    exact iff_of_true i.isLt ⟨i, rfl⟩
+  refine Fin.lastCases ?_ (fun i => iff_of_true i.isLt ⟨i, rfl⟩) j
+  simp [Fin.castSucc_ne_last]
 
 private theorem insert_prefixPebbles {k m : ℕ} (hm : m < k) :
     insert (⟨m, by omega⟩ : Fin (k + 1)) (prefixPebbles k m) = prefixPebbles k (m + 1) := by
@@ -295,18 +284,15 @@ private theorem eqOn_update_extendPrefix {α : Type*} {k m : ℕ} (hm : m < k) (
     Set.EqOn (Function.update (extendPrefix k t a₀) ⟨m, Nat.lt_succ_of_lt hm⟩ c)
       (extendPrefix k (Fin.snoc t c) a₀) (prefixPebbles k (m + 1)) := by
   intro j hj
-  simp only [prefixPebbles, Set.mem_ofPred_eq] at hj
-  by_cases hjm : j.val = m
-  · have hj_eq : j = ⟨m, Nat.lt_succ_of_lt hm⟩ := Fin.ext hjm
-    rw [hj_eq]
-    simp only [Function.update_self, extendPrefix, Nat.lt_succ_self, ↓reduceDIte]
-    change c = (Fin.snoc t c : Fin (m + 1) → α) (Fin.last m)
-    rw [Fin.snoc_last]
-  · have hne : j ≠ ⟨m, Nat.lt_succ_of_lt hm⟩ := fun h => hjm (congrArg Fin.val h)
-    have hlt : j.val < m := by omega
-    simp only [Function.update_of_ne hne, extendPrefix, hlt, hj, ↓reduceDIte]
-    change t ⟨j.val, hlt⟩ = (Fin.snoc t c : Fin (m + 1) → α) (⟨j.val, hlt⟩ : Fin m).castSucc
-    rw [Fin.snoc_castSucc]
+  rcases eq_or_ne j.val m with hjm | hne
+  · rw [show j = ⟨m, Nat.lt_succ_of_lt hm⟩ from Fin.ext hjm, Function.update_self, extendPrefix,
+      dite_eq_left m.lt_succ_self]
+    exact (by rw [Fin.snoc_last] : (Fin.snoc t c : Fin (m + 1) → α) (Fin.last m) = c).symm
+  · have hlt : j.val < m := Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp hj) hne
+    rw [Function.update_of_ne fun h => hne (congrArg Fin.val h), extendPrefix, extendPrefix,
+      dite_eq_left hlt, dite_eq_left (show j.val < m + 1 from hj)]
+    exact (by rw [Fin.snoc_castSucc] :
+      (Fin.snoc t c : Fin (m + 1) → α) (⟨j.val, hlt⟩ : Fin m).castSucc = t ⟨j.val, hlt⟩).symm
 
 /-- If `G` and `H` have the same round-`n` `k`-WL histogram, then Duplicator wins the `n`-round
 bijective `(k + 1)`-pebble game from `∅`. -/
@@ -342,24 +328,18 @@ theorem wlHistogram_eq_of_bijPebbleWins_graph_empty {n : ℕ} {a : Fin (k + 1) �
       exact bijPebbleWins_congr (Set.eqOn_empty _ _) (Set.eqOn_empty _ _) h
     | succ m ih =>
       obtain ⟨F, hF⟩ := ih (Nat.le_of_succ_le hm)
-      have hm_lt : m < k := hm
       have hmove : ∀ t : Fin m → V, ∃ f : V ≃ W, ∀ c : V,
           BijPebbleWins Language.graph (n + (k - (m + 1))) (prefixPebbles k (m + 1))
             (extendPrefix k (Fin.snoc t c) (a 0))
-            (extendPrefix k (Fin.snoc (F t) (f c)) (b 0)) := by
-        intro t
-        have ht := hF t
-        rw [show n + (k - m) = n + (k - (m + 1)) + 1 by omega] at ht
-        obtain ⟨f, hf⟩ := ht.move ⟨m, by omega⟩
-        refine ⟨f, fun c => bijPebbleWins_congr (eqOn_update_extendPrefix hm_lt t (a 0) c)
-          (eqOn_update_extendPrefix hm_lt (F t) (b 0) (f c)) ?_⟩
-        rw [← insert_prefixPebbles hm_lt]
-        exact hf c
+            (extendPrefix k (Fin.snoc (F t) (f c)) (b 0)) := fun t => by
+        obtain ⟨f, hf⟩ := ((show n + (k - m) = n + (k - (m + 1)) + 1 by omega) ▸ hF t).move
+          ⟨m, by omega⟩
+        exact ⟨f, fun c => bijPebbleWins_congr (eqOn_update_extendPrefix hm t (a 0) c)
+          (eqOn_update_extendPrefix hm (F t) (b 0) (f c)) (insert_prefixPebbles hm ▸ hf c)⟩
       choose g hg using hmove
       refine ⟨snocCongrEquiv F g, fun t' => ?_⟩
       have ht' := hg (Fin.init t') (t' (Fin.last m))
-      rw [Fin.snoc_init_self] at ht'
-      exact ht'
+      rwa [Fin.snoc_init_self] at ht'
   obtain ⟨F, hF⟩ := hprefix k le_rfl
   rw [wlHistogram_eq, wlHistogram_eq]
   refine Equiv.exists_apply_eq_iff_map_univ_eq.1

@@ -105,13 +105,12 @@ private theorem le_four_mul_card_looseTribes (hw : 0 < w) (hJ : 4 * #J ≤ 3 * (
   have hUJ : #U * w ≤ #J := by
     have : (U ×ˢ (univ : Finset (Fin w))).map finProdFinEquiv.toEmbedding ⊆ J := by
       intro k hk
-      simp only [mem_map, mem_product, mem_univ, and_true, Equiv.coe_toEmbedding] at hk
-      obtain ⟨⟨j, i⟩, hj, rfl⟩ := hk
-      simp only [hU, mem_filter, mem_univ, true_and, not_exists, not_not] at hj
+      obtain ⟨⟨j, i⟩, hj, rfl⟩ := mem_map.1 hk
+      simp only [hU, mem_product, mem_univ, and_true, mem_filter, true_and, not_exists,
+        not_not] at hj
       exact hj i
     simpa [card_product] using card_le_card this
-  have h3 : #U * w ≤ 3 * #T * w := by nlinarith
-  have h4 : #U ≤ 3 * #T := Nat.le_of_mul_le_mul_right h3 hw
+  have h4 : #U ≤ 3 * #T := Nat.le_of_mul_le_mul_right (by nlinarith) hw
   omega
 
 /-- The per-tribe factors of the event that bit `c j` of tribe `j` is pivotal: the other bits of
@@ -151,13 +150,10 @@ private theorem pivWeight_ne_zero_self {j : Fin s} {x : BitString (s * w)}
 private theorem pivWeight_ne_zero_other {j : Fin s} {x : BitString (s * w)}
     (hx : pivWeight T c j x ≠ 0) {j' : Fin s} (hj' : j' ≠ j) :
     ∃ i, x (finProdFinEquiv (j', i)) = false := by
-  have := prod_ne_zero_iff.1 hx j' (mem_univ _)
-  simp only [pivFactor, hj', ite_false] at this
-  split_ifs at this with h1 h2 h2
-  · exact h2.imp fun _ => And.right
-  · exact absurd rfl this
-  · exact h2.imp fun _ => And.right
-  · exact absurd rfl this
+  by_cases hT : j' ∈ T
+  · obtain ⟨i, _, hi⟩ := by simpa [pivFactor, hj', hT] using prod_ne_zero_iff.1 hx j' (mem_univ _)
+    exact ⟨i, hi⟩
+  · simpa [pivFactor, hj', hT] using prod_ne_zero_iff.1 hx j' (mem_univ _)
 
 /-- The pivotality events of distinct tribes of `T` are disjoint. -/
 private theorem pivWeight_eq_zero_of_ne {j₁ j₂ : Fin s} (hj₁ : j₁ ∈ T) (hj : j₂ ≠ j₁)
@@ -177,19 +173,10 @@ private theorem pivWeight_update (j : Fin s) (x : BitString (s * w)) (b : Bool) 
   by_cases hj' : j' = j
   · subst hj'
     simp only [pivFactor, ite_true]
-    have hiff : (∀ i ∈ univ.erase (c j'),
-        update x (finProdFinEquiv (j', c j')) b (finProdFinEquiv (j', i)) = true) ↔
-          ∀ i ∈ univ.erase (c j'), x (finProdFinEquiv (j', i)) = true := by
-      refine forall₂_congr fun i hi => ?_
-      rw [update_of_ne]
-      exact fun h => ne_of_mem_erase hi (by simpa using finProdFinEquiv.injective h)
-    simp only [hiff]
-  · have hfun : (fun i => update x (finProdFinEquiv (j, c j)) b (finProdFinEquiv (j', i))) =
-        fun i => x (finProdFinEquiv (j', i)) := by
-      funext i
-      rw [update_of_ne]
-      exact fun h => hj' (by simpa using congrArg Prod.fst (finProdFinEquiv.injective h))
-    rw [hfun]
+    refine if_congr (forall₂_congr fun i hi => ?_) rfl rfl
+    rw [update_of_ne fun h => ne_of_mem_erase hi (by simpa using finProdFinEquiv.injective h)]
+  · exact congrArg (pivFactor T c j j') (funext fun i =>
+      update_of_ne (fun h => hj' (congrArg Prod.fst (finProdFinEquiv.injective h))) b x)
 
 /-- On its pivotality event, Tribes is the free bit of tribe `j`. -/
 private theorem tribes_eq_of_pivWeight_ne_zero {j : Fin s} {x : BitString (s * w)}
@@ -228,17 +215,13 @@ private theorem expect_pivWeight {j : Fin s} (hj : j ∈ T) :
     simp only [mem_filter, mem_erase, mem_univ, and_true] at hj'
     simp only [pivFactor, hj'.1, hj'.2, ite_false]
     rw [expect_ite_exists_mem_eq, card_univ, Fintype.card_fin]
-  have c1 : #((univ.erase j).filter (· ∈ T)) = #T - 1 := by
-    have : (univ.erase j).filter (· ∈ T) = T.erase j := by
-      ext k
-      simp only [mem_filter, mem_erase, mem_univ, and_true]
-    rw [this, card_erase_of_mem hj]
+  have c1 : #((univ.erase j).filter (· ∈ T)) = #T - 1 :=
+    (congrArg card (Finset.ext fun _ => by simp)).trans (card_erase_of_mem hj)
   have c2 : #((univ.erase j).filter (· ∉ T)) = s - #T := by
-    have : (univ.erase j).filter (· ∉ T) = Tᶜ := by
-      ext k
-      simp only [mem_filter, mem_erase, mem_univ, and_true, mem_compl]
-      exact ⟨fun h => h.2, fun h => ⟨fun hk => h (hk ▸ hj), h⟩⟩
-    rw [this, card_compl, Fintype.card_fin]
+    suffices (univ.erase j).filter (· ∉ T) = Tᶜ by rw [this, card_compl, Fintype.card_fin]
+    ext k
+    simp only [mem_filter, mem_erase, mem_univ, and_true, mem_compl]
+    exact ⟨And.right, fun h => ⟨fun hk => h (hk ▸ hj), h⟩⟩
   rw [e0, prod_congr rfl e1, prod_congr rfl e2, prod_const, prod_const, c1, c2]
 
 /-- A function of the coordinates `J` disagrees with Tribes on half of each pivotality event of a
@@ -258,8 +241,7 @@ private theorem card_mul_le_hammingDist_tribes_div {g : BitString (s * w) → Bo
         tribes_eq_of_pivWeight_ne_zero hx, update_self]
   have hdist : (hammingDist (tribes w s) g : ℝ) / 2 ^ (s * w) =
       𝔼 x, (if tribes w s x ≠ g x then (1 : ℝ) else 0) := by
-    rw [← hammingDist_div_eq_expect]
-    simp
+    simpa using hammingDist_div_eq_expect (𝕜 := ℝ) (tribes w s) g
   rw [hdist]
   calc (#T : ℝ) *
         (2⁻¹ ^ (w - 1) * ((1 - 2⁻¹ ^ (w - 1)) ^ (#T - 1) * (1 - 2⁻¹ ^ w) ^ (s - #T)) / 2)

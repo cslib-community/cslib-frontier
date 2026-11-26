@@ -162,10 +162,12 @@ theorem wellFormed_insert_iff (I : State Rel) :
 theorem nodup_insert_ports_iff (I : State Rel) :
     (insert g w I).ports.Nodup ↔ I.ports.Nodup := by
   refine ⟨fun h => h.of_append_left.of_map (2 * ·), fun h => List.nodup_append'.mpr
-    ⟨h.map (mul_right_injective₀ (by decide)), List.nodup_ofFn.mpr fun i j hij => Fin.ext <| by
-      change 2 * i.val + 1 = 2 * j.val + 1 at hij; omega, ?_⟩⟩
-  simpa only [mapped_freePorts, freePorts] using
-    disjoint_tags I.ports (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux))
+    ⟨h.map (mul_right_injective₀ (by decide)), ?_, ?_⟩⟩
+  · refine List.nodup_ofFn.mpr fun i j hij => Fin.ext ?_
+    change 2 * i.val + 1 = 2 * j.val + 1 at hij
+    omega
+  · simpa only [mapped_freePorts, freePorts] using
+      disjoint_tags I.ports (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux))
 
 /-- Both complete checks for the emitted table follow from the actual relabeled static
 gadget and `Witness.appendComputed`. Empty old boundaries and closed components survive. -/
@@ -180,10 +182,12 @@ theorem accepted_insert (I : State Rel) (hI : I.Accepted) : (insert g w I).Accep
     exact disjoint_tags _ _
   have hn : (I.ports.map (2 * ·) ++
       (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux)).map oddName).Nodup := by
-    rw [mapped_freePorts]; exact (nodup_insert_ports_iff g w I).mpr hI.1
+    rw [mapped_freePorts]
+    exact (nodup_insert_ports_iff g w I).mpr hI.1
   have h := (left.appendComputed right hd hn).accepted
   change OrderedBoundary.verify (I.body.relabel (2 * ·) ++ g.body.relabel oddName)
-    (I.ports.map (2 * ·) ++ (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux)).map oddName)
+    (I.ports.map (2 * ·) ++ (List.ofFn (Sum.inl : Fin 4 →
+      Fin 4 ⊕ Fin g.numAux)).map oddName)
     (appendRawCertificate (I.body.relabel (2 * ·)).occurrences.length
       (I.ports.map (2 * ·)).length (g.body.relabel oddName).occurrences.length
       ((List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux)).map oddName).length
@@ -207,7 +211,8 @@ theorem eval_insert_iff (I : State Rel) (σ : ℕ → Bool) (a : Fin 4 → Bool)
         (∀ x, τ (2 * x) = σ x) ∧ (∀ i : Fin 4, τ (2 * i.val + 1) = a i) := by
   classical
   have heval (τ : ℕ → Bool) : (insert g w I).body.eval sem τ = true ↔
-      I.body.eval sem (τ ∘ (2 * ·)) = true ∧ g.body.eval sem (τ ∘ oddName) = true := by
+      I.body.eval sem (τ ∘ (2 * ·)) = true ∧
+        g.body.eval sem (τ ∘ oddName) = true := by
     simp only [insert, CSP.eval, CSP.relabel, List.all_append, List.all_map,
       Function.comp_def, Constraint.eval_relabel, Bool.and_eq_true, oddName]
   constructor
@@ -228,7 +233,8 @@ theorem eval_insert_iff (I : State Rel) (σ : ℕ → Bool) (a : Fin 4 → Bool)
     obtain ⟨hσ, hb⟩ := (heval τ).mp hτ
     refine ⟨by simpa only [show τ ∘ (2 * ·) = σ from funext hold] using hσ,
       (g.correct a).mpr ⟨fun j => τ (oddName (.inr j)), ?_⟩⟩
-    convert hb using 2; ext (_ | _) <;> [exact (hfree _).symm; rfl]
+    convert hb using 2
+    exact funext fun | .inl i => (hfree i).symm | .inr _ => rfl
 
 /-- Doubling a positive old name adds exactly one binary digit. Zero stays the empty word.
 This is a single-step identity; accumulated bounds for a later iteration are separate. -/

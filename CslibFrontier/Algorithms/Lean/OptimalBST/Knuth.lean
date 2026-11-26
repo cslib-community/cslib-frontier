@@ -146,25 +146,19 @@ theorem scanInv_foldl (c : ℕ → β) (lo : ℕ) : ∀ m,
       exact le_rfl
     · exact absurd h₂ (by simp only [List.range'_zero, List.foldl_nil] at h₁; omega)
   | m + 1 => by
-    rw [List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    rw [List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil, one_mul,
+      Nat.add_right_comm]
     obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := scanInv_foldl c lo m
     generalize (List.range' (lo + 1) m).foldl (bestStep c) ⟨c lo, lo⟩ = e at *
     unfold bestStep
     split_ifs with h
-    · refine ⟨by dsimp only; omega, by dsimp only; omega, rfl, fun k hk₁ hk₂ => ?_,
-        fun k hk₁ hk₂ => ?_⟩
-      · rcases (show k ≤ lo + m ∨ k = lo + 1 + 1 * m by omega) with hk | rfl
-        · exact h.trans (h₄ k hk₁ hk)
-        · exact le_rfl
-      · exact absurd hk₂ (by dsimp only at hk₁; omega)
-    · have h' := not_le.1 h
-      refine ⟨h₁, by omega, h₃, fun k hk₁ hk₂ => ?_, fun k hk₁ hk₂ => ?_⟩
-      · rcases (show k ≤ lo + m ∨ k = lo + 1 + 1 * m by omega) with hk | rfl
-        · exact h₄ k hk₁ hk
-        · exact h'.le
-      · rcases (show k ≤ lo + m ∨ k = lo + 1 + 1 * m by omega) with hk | rfl
-        · exact h₅ k hk₁ hk
-        · exact h'
+    · refine ⟨(Nat.le_add_right lo m).trans (Nat.le_succ _), le_rfl, rfl,
+        fun k hk₁ hk₂ => (Nat.of_le_succ hk₂).elim (fun hk => h.trans (h₄ k hk₁ hk))
+          fun hk => hk ▸ le_rfl,
+        fun k hk₁ hk₂ => absurd hk₂ (not_le_of_gt hk₁)⟩
+    · refine ⟨h₁, Nat.le_succ_of_le h₂, h₃,
+        fun k hk₁ hk₂ => (Nat.of_le_succ hk₂).elim (h₄ k hk₁) fun hk => hk ▸ le_of_not_ge h,
+        fun k hk₁ hk₂ => (Nat.of_le_succ hk₂).elim (h₅ k hk₁) fun hk => hk ▸ lt_of_not_ge h⟩
 
 theorem scanInv_scan (c : ℕ → β) {lo hi : ℕ} (h : lo ≤ hi) :
     ScanInv c lo hi (scan c lo hi) := by

@@ -170,23 +170,29 @@ section Semantics
 variable {M : Type w} [L.Structure M] [Quantifier Q M]
 
 @[simp] theorem realize_falsum (a : Fin k → M) :
-    (falsum : GenFormula Q L k).Realize a ↔ False := by rw [Realize]
+    (falsum : GenFormula Q L k).Realize a ↔ False := by
+  rw [Realize]
 
 @[simp] theorem realize_equal (i j : Fin k) (a : Fin k → M) :
-    (equal i j : GenFormula Q L k).Realize a ↔ a i = a j := by rw [Realize]
+    (equal i j : GenFormula Q L k).Realize a ↔ a i = a j := by
+  rw [Realize]
 
 @[simp] theorem realize_rel {l : ℕ} (R : L.Relations l) (f : Fin l → Fin k) (a : Fin k → M) :
-    (rel R f : GenFormula Q L k).Realize a ↔ RelMap R (a ∘ f) := by rw [Realize]
+    (rel R f : GenFormula Q L k).Realize a ↔ RelMap R (a ∘ f) := by
+  rw [Realize]
 
 @[simp] theorem realize_imp (φ ψ : GenFormula Q L k) (a : Fin k → M) :
-    (imp φ ψ).Realize a ↔ (φ.Realize a → ψ.Realize a) := by rw [Realize]
+    (imp φ ψ).Realize a ↔ (φ.Realize a → ψ.Realize a) := by
+  rw [Realize]
 
 @[simp] theorem realize_quant (q : Q) (i : Fin k) (φ : GenFormula Q L k) (a : Fin k → M) :
     (quant q i φ).Realize a ↔
-      Quantifier.eval q fun c : M => φ.Realize (Function.update a i c) := by rw [Realize]
+      Quantifier.eval q fun c : M => φ.Realize (Function.update a i c) := by
+  rw [Realize]
 
 @[simp] theorem realize_not (φ : GenFormula Q L k) (a : Fin k → M) :
-    φ.not.Realize a ↔ ¬φ.Realize a := by rw [not, realize_imp, realize_falsum]
+    φ.not.Realize a ↔ ¬φ.Realize a := by
+  rw [not, realize_imp, realize_falsum]
 
 @[simp] theorem realize_ex [ExQuantTag Q] [LawfulExQuant Q M]
     (i : Fin k) (φ : GenFormula Q L k) (a : Fin k → M) :
@@ -206,13 +212,11 @@ variable {M : Type w} [L.Structure M] [Quantifier Q M]
 
 @[simp] theorem realize_inf (φ ψ : GenFormula Q L k) (a : Fin k → M) :
     (φ ⊓ ψ).Realize a ↔ φ.Realize a ∧ ψ.Realize a := by
-  change (φ.imp ψ.not).not.Realize a ↔ _
-  simp only [realize_not, realize_imp, not_imp, not_not]
+  simp only [Min.min, realize_not, realize_imp, not_imp, not_not]
 
 @[simp] theorem realize_sup (φ ψ : GenFormula Q L k) (a : Fin k → M) :
     (φ ⊔ ψ).Realize a ↔ φ.Realize a ∨ ψ.Realize a := by
-  change (φ.not.imp ψ).Realize a ↔ _
-  simp only [realize_imp, realize_not, or_iff_not_imp_left]
+  simp only [Max.max, realize_imp, realize_not, or_iff_not_imp_left]
 
 @[simp] theorem realize_iInf {β : Type*} [Finite β] (f : β → GenFormula Q L k)
     (a : Fin k → M) : (iInf f).Realize a ↔ ∀ b, (f b).Realize a :=
@@ -239,16 +243,20 @@ def quantifierRank : GenFormula Q L k → ℕ
   rw [quantifierRank]
 
 @[simp] theorem quantifierRank_equal (i j : Fin k) :
-    (equal i j : GenFormula Q L k).quantifierRank = 0 := by rw [quantifierRank]
+    (equal i j : GenFormula Q L k).quantifierRank = 0 := by
+  rw [quantifierRank]
 
 @[simp] theorem quantifierRank_rel {l : ℕ} (R : L.Relations l) (f : Fin l → Fin k) :
-    (rel R f : GenFormula Q L k).quantifierRank = 0 := by rw [quantifierRank]
+    (rel R f : GenFormula Q L k).quantifierRank = 0 := by
+  rw [quantifierRank]
 
 @[simp] theorem quantifierRank_imp (φ ψ : GenFormula Q L k) :
-    (imp φ ψ).quantifierRank = max φ.quantifierRank ψ.quantifierRank := by rw [quantifierRank]
+    (imp φ ψ).quantifierRank = max φ.quantifierRank ψ.quantifierRank := by
+  rw [quantifierRank]
 
 @[simp] theorem quantifierRank_quant (q : Q) (i : Fin k) (φ : GenFormula Q L k) :
-    (quant q i φ).quantifierRank = φ.quantifierRank + 1 := by rw [quantifierRank]
+    (quant q i φ).quantifierRank = φ.quantifierRank + 1 := by
+  rw [quantifierRank]
 
 @[simp] theorem quantifierRank_not (φ : GenFormula Q L k) :
     φ.not.quantifierRank = φ.quantifierRank := by
@@ -270,13 +278,11 @@ def quantifierRank : GenFormula Q L k → ℕ
 
 @[simp] theorem quantifierRank_inf (φ ψ : GenFormula Q L k) :
     (φ ⊓ ψ).quantifierRank = max φ.quantifierRank ψ.quantifierRank := by
-  change (φ.imp ψ.not).not.quantifierRank = _
-  rw [quantifierRank_not, quantifierRank_imp, quantifierRank_not]
+  simp only [Min.min, quantifierRank_not, quantifierRank_imp]
 
 @[simp] theorem quantifierRank_sup (φ ψ : GenFormula Q L k) :
     (φ ⊔ ψ).quantifierRank = max φ.quantifierRank ψ.quantifierRank := by
-  change (φ.not.imp ψ).quantifierRank = _
-  rw [quantifierRank_imp, quantifierRank_not]
+  simp only [Max.max, quantifierRank_imp, quantifierRank_not]
 
 /-- A finite conjunction has quantifier rank at most `m` when each conjunct does. -/
 theorem quantifierRank_iInf_le {β : Type*} [Finite β] {f : β → GenFormula Q L k} {m : ℕ}
@@ -301,19 +307,24 @@ def freeVars : GenFormula Q L k → Finset (Fin k)
   | imp φ ψ => φ.freeVars ∪ ψ.freeVars
   | quant _ i φ => φ.freeVars.erase i
 
-@[simp] theorem freeVars_falsum : (falsum : GenFormula Q L k).freeVars = ∅ := by rw [freeVars]
+@[simp] theorem freeVars_falsum : (falsum : GenFormula Q L k).freeVars = ∅ := by
+  rw [freeVars]
 
 @[simp] theorem freeVars_equal (i j : Fin k) :
-    (equal i j : GenFormula Q L k).freeVars = {i, j} := by rw [freeVars]
+    (equal i j : GenFormula Q L k).freeVars = {i, j} := by
+  rw [freeVars]
 
 @[simp] theorem freeVars_rel {l : ℕ} (R : L.Relations l) (f : Fin l → Fin k) :
-    (rel R f : GenFormula Q L k).freeVars = Finset.univ.image f := by rw [freeVars]
+    (rel R f : GenFormula Q L k).freeVars = Finset.univ.image f := by
+  rw [freeVars]
 
 @[simp] theorem freeVars_imp (φ ψ : GenFormula Q L k) :
-    (imp φ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := by rw [freeVars]
+    (imp φ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := by
+  rw [freeVars]
 
 @[simp] theorem freeVars_quant (q : Q) (i : Fin k) (φ : GenFormula Q L k) :
-    (quant q i φ).freeVars = φ.freeVars.erase i := by rw [freeVars]
+    (quant q i φ).freeVars = φ.freeVars.erase i := by
+  rw [freeVars]
 
 @[simp] theorem freeVars_not (φ : GenFormula Q L k) : φ.not.freeVars = φ.freeVars := by
   rw [not, freeVars_imp, freeVars_falsum, Finset.union_empty]
@@ -334,13 +345,11 @@ def freeVars : GenFormula Q L k → Finset (Fin k)
 
 @[simp] theorem freeVars_inf (φ ψ : GenFormula Q L k) :
     (φ ⊓ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := by
-  change (φ.imp ψ.not).not.freeVars = _
-  rw [freeVars_not, freeVars_imp, freeVars_not]
+  simp only [Min.min, freeVars_not, freeVars_imp]
 
 @[simp] theorem freeVars_sup (φ ψ : GenFormula Q L k) :
     (φ ⊔ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := by
-  change (φ.not.imp ψ).freeVars = _
-  rw [freeVars_imp, freeVars_not]
+  simp only [Max.max, freeVars_imp, freeVars_not]
 
 /-- The free variables of a finite conjunction lie in `S` when those of each conjunct do. -/
 theorem freeVars_iInf_subset {β : Type*} [Finite β] {f : β → GenFormula Q L k} {S : Set (Fin k)}
@@ -425,8 +434,7 @@ private theorem toFormula_ex_assignment (i : Fin k) (a : Fin k → M) (c : M) :
       Function.update a i c := by
   funext j
   by_cases hj : j = i
-  · subst hj
-    simp only [Function.comp_apply, ↓reduceIte, Sum.elim_inr, Function.update_self]
+  · simp only [hj, Function.comp_apply, ↓reduceIte, Sum.elim_inr, Function.update_self]
     rfl
   · simp [hj]
 

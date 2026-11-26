@@ -75,10 +75,12 @@ theorem exists_injOn_comp_of_two_mul_log_card_lt {β : Type*} [DecidableEq β] {
     (hk : 2 * Real.log P.card < ε * k) :
     ∃ t : Fin k → Fin m, Set.InjOn (fun (u : Fin m → β) j => u (t j)) P := by
   classical
+  -- The tuples on which a given ordered pair of distinct words agree.
   set agree : (Fin m → β) × (Fin m → β) → Finset (Fin m) := fun p => univ.filter
     fun i => p.1 i = p.2 i
   set bad : Finset (Fin k → Fin m) :=
     P.offDiag.biUnion fun p => Fintype.piFinset fun _ : Fin k => agree p
+  -- A pair at Hamming distance at least `ε m` agrees on at most `exp (-ε) m` points.
   have hagree : ∀ p ∈ P.offDiag, ((agree p).card : ℝ) ≤ Real.exp (-ε) * m := fun p hp => by
     obtain ⟨hp1, hp2, hne⟩ := mem_offDiag.1 hp
     have hsum : ((agree p).card : ℝ) + hammingDist p.1 p.2 = m := by
@@ -86,6 +88,7 @@ theorem exists_injOn_comp_of_two_mul_log_card_lt {β : Type*} [DecidableEq β] {
         card_filter_add_card_filter_not (s := (univ : Finset (Fin m))) (fun i => p.1 i = p.2 i) :
           (agree p).card + hammingDist p.1 p.2 = m)
     nlinarith [hP _ hp1 _ hp2 hne, Real.add_one_le_exp (-ε), Nat.cast_nonneg (α := ℝ) m]
+  -- Fewer than `m ^ k` tuples are bad.
   have hbad : bad.card < Fintype.card (Fin k → Fin m) := by
     rcases P.eq_empty_or_nonempty with rfl | hPne
     · simpa [bad] using pow_pos hm k
@@ -153,7 +156,9 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
   have hL0 : 0 ≤ L := Real.log_nonneg (by exact_mod_cast hPne.card_pos)
   set k := ⌊2 * L / ε⌋₊ + 1
   set T := 4 / ε
-  have hk1 : 2 * L / ε < k := by push_cast [k]; exact Nat.lt_floor_add_one _
+  have hk1 : 2 * L / ε < k := by
+    push_cast [k]
+    exact Nat.lt_floor_add_one _
   have hk2 : (k : ℝ) ≤ 2 * L / ε + 1 := by
     push_cast [k]; linarith [Nat.floor_le (by positivity : 0 ≤ 2 * L / ε)]
   have hsauer := hsub (T := T) hm (by linarith [(div_lt_iff₀ hε).1 hk1])
@@ -166,7 +171,8 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
     refine le_of_mul_le_mul_left ?_ hN
     calc (P.card : ℝ) * P.card = (P.card : ℝ) ^ 2 := (sq _).symm
       _ ≤ (Real.exp (L / 2 + ε / 4) * (T * K) ^ d) ^ 2 := by
-        gcongr; exact hsauer.trans (by gcongr)
+        gcongr
+        exact hsauer.trans (by gcongr)
       _ = Real.exp L * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by
         rw [mul_pow, ← pow_mul, mul_comm d, ← Real.exp_nat_mul, ← mul_assoc, ← Real.exp_add]
         congr 2
@@ -174,18 +180,26 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
         ring
       _ = P.card * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by rw [Real.exp_log hN]
   have hexp2 : Real.exp (ε / 2) < 2 := lt_of_pow_lt_pow_left₀ 2 zero_le_two <| by
-    rw [← Real.exp_nat_mul, show (2 : ℕ) * (ε / 2) = ε by push_cast; ring]
-    exact (Real.exp_le_exp.2 hε1).trans_lt (by linarith [Real.exp_one_lt_d9])
+    rw [← Real.exp_nat_mul]
+    calc Real.exp ((2 : ℕ) * (ε / 2)) = Real.exp ε := by push_cast; ring_nf
+      _ ≤ Real.exp 1 := Real.exp_le_exp.2 hε1
+      _ < 2 ^ 2 := by linarith [Real.exp_one_lt_d9]
   rcases Nat.eq_zero_or_pos d with rfl | hd
   · have hlt2 : P.card < 2 := by
-      exact_mod_cast (hle.trans_lt (by simpa using hexp2) : (P.card : ℝ) < (2 : ℕ))
+      exact_mod_cast (calc (P.card : ℝ) ≤ Real.exp (ε / 2) * (T * K) ^ (2 * 0) := hle
+        _ = Real.exp (ε / 2) := by ring
+        _ < 2 := hexp2)
     simpa using (by exact_mod_cast (show P.card ≤ 1 by omega) : (P.card : ℝ) ≤ 1)
-  · refine hle.trans ((mul_le_mul_of_nonneg_right
-      (hexp2.le.trans <| (pow_one (2 : ℝ)).symm.trans_le <|
-        pow_le_pow_right₀ (by norm_num) (show 1 ≤ 2 * d by omega)) (by positivity)).trans_eq ?_)
-    rw [← mul_pow]
-    congr 1
-    ring
+  · calc (P.card : ℝ) ≤ Real.exp (ε / 2) * (T * K) ^ (2 * d) := hle
+      _ ≤ 2 ^ (2 * d) * (T * K) ^ (2 * d) := by
+          gcongr
+          calc Real.exp (ε / 2) ≤ 2 := hexp2.le
+            _ = 2 ^ 1 := (pow_one 2).symm
+            _ ≤ 2 ^ (2 * d) := pow_le_pow_right₀ (by norm_num) (by omega)
+      _ = (8 * K / ε) ^ (2 * d) := by
+          rw [← mul_pow]
+          congr 1
+          ring
 
 /-- **Packing bound for VC classes** [Vershynin2018, Theorem 8.3.18; Dudley1978]: if every set
 shattered by `C` has at most `d` points, a set of labelings realized by `C` on `m` points whose
@@ -211,9 +225,10 @@ theorem exists_subset_separated_and_covering {β : Type*} [DecidableEq β] {m : 
       ∀ u ∈ L, ∃ v ∈ N, (hammingDist v u : ℝ) ≤ ε * m := by
   obtain ⟨N, hNL, hNsep, hcov⟩ :=
     Cslib.Code.exists_subset_pairwise_lt_hammingDist_forall_exists_le L ⌊ε * m⌋₊
-  refine ⟨N, hNL, fun u hu v hv huv =>
-    (Nat.lt_floor_add_one (ε * m)).le.trans (by exact_mod_cast hNsep hu hv huv), fun u hu => ?_⟩
-  obtain ⟨v, hvN, hvu⟩ := hcov u hu
-  exact ⟨v, hvN, (Nat.cast_le.mpr hvu).trans (Nat.floor_le (by positivity))⟩
+  refine ⟨N, hNL, fun u hu v hv huv => ?_, fun u hu => ?_⟩
+  · calc ε * m ≤ (⌊ε * m⌋₊ : ℝ) + 1 := (Nat.lt_floor_add_one (ε * m)).le
+      _ ≤ hammingDist u v := by exact_mod_cast hNsep hu hv huv
+  · obtain ⟨v, hvN, hvu⟩ := hcov u hu
+    exact ⟨v, hvN, (Nat.cast_le.mpr hvu).trans (Nat.floor_le (by positivity))⟩
 
 end Cslib.MachineLearning.PACLearning

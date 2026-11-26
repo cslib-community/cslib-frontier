@@ -224,21 +224,14 @@ theorem advantage_bind_padHiding_le_kdf (setup : ℕ → PMF F.Desc)
       Sum.inr c' ∈ (ProbComp.eval (F.padHidingEnv H F.kdfPadsProb S₂ E n d)).support →
         c'.coalition = ({1} : Finset (Fin 2)) ∧
           (otOutputs (M := List Bool) c'.query 1 : List Bool).length = msgLen n := by
-    intro d c' hc'
+    rintro d c' hc'
     rw [padHidingEnv, ProbComp.eval_map, PMF.support_map] at hc'
-    obtain ⟨z, hz, hzc⟩ := hc'
-    cases z with
-    | inl b => cases hzc
-    | inr c =>
-      obtain rfl := Sum.inr.inj hzc
-      exact hE d c hz
+    rcases hc' with ⟨_ | c, hz, ⟨⟩⟩
+    exact hE d c hz
   have h := F.advantage_bind_roundGame_kdfMaskedOT_le_kdf setup H msgLen n
     (fun d => F.kdfPadsProb n d) (fun d k => F.advantage_bind_kdfPadsProb_le n d k) Sm hSm
     (F.padHidingEnv H F.kdfPadsProb S₂ E) hH hE'
-  have h4 : (2 : ℝ≥0) / 2 ^ n + 2 / 2 ^ n = 4 / 2 ^ n := by
-    rw [← add_div]
-    norm_num
-  rw [h4] at h
+  rw [← add_div, show (2 : ℝ≥0) + 2 = 4 by norm_num] at h
   refine le_of_eq_of_le ?_ h
   simp only [padHidingEnv, ProbComp.eval_map, PMF.bind_map, Function.comp_def]
   refine congrArg₂ Game.advantage ?_ ?_ <;>
@@ -306,23 +299,18 @@ theorem advantage_bind_padTransfer_le_ddh (setup : ℕ → PMF F.Desc)
         c.guess 0
   have hsupp : ∀ d c, Sum.inr c ∈ (ProbComp.eval (F.padTransferEnv H samplePads S₂ E n d)).support →
       c.coalition = {1} := by
-    intro d c hc
+    rintro d c hc
     rw [heval, PMF.mem_support_bind_iff] at hc
-    obtain ⟨z, hz, hzc⟩ := hc
-    cases z with
-    | inl b =>
-      rw [Sum.elim_inl, PMF.support_pure, Set.mem_singleton_iff] at hzc
-      cases hzc
-    | inr c₀ =>
-      rw [Sum.elim_inr] at hzc
+    rcases hc with ⟨b | c₀, hz, hzc⟩
+    · simp at hzc
+    · rw [Sum.elim_inr] at hzc
       refine ForallChallenge.of_mem_support_composeRoundEnv
         (Q := fun _ J _ => J = ({1} : Finset (Fin 2))) _ _ _ _ _ _ _ _ _ (fun c₁ _ => ?_) hzc
       refine ⟨?_, fun _ => trivial⟩
       rw [hE d c₀ hz]
       exact Finset.ext fun _ => mem_subCoalition
-  have hB := F.advantage_bind_roundGame_ddhOTProb_le setup n (S₂ n) hS₂
-    (F.padTransferEnv H samplePads S₂ E) hsupp
-  simp only [heval, bind_elim_bind_roundGame] at hB
-  exact hB
+  simpa only [heval, bind_elim_bind_roundGame] using
+    F.advantage_bind_roundGame_ddhOTProb_le setup n (S₂ n) hS₂
+      (F.padTransferEnv H samplePads S₂ E) hsupp
 
 end Cslib.Crypto.PrimeOrderGroupFamily

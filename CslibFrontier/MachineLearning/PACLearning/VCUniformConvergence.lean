@@ -102,40 +102,14 @@ private theorem card_filter_le_abs_sum_mul_sub_half_le_of_abs_le {m : ℕ} (w : 
     (hw : ∀ i, |w i| ≤ 2) {ε : ℝ} (hε : 0 ≤ ε) :
     (#{σ : Fin m → Bool | m * ε / 2 ≤ |∑ i, w i * (((σ i).toNat : ℝ) - 1 / 2)|} : ℝ) ≤
       2 * 2 ^ m * Real.exp (-(m * ε ^ 2 / 8)) := by
-  classical
-  have hcard : (#{σ : Fin m → Bool | m * ε / 2 ≤ |∑ i, w i * (((σ i).toNat : ℝ) - 1 / 2)|} : ℝ) ≤
-      2 ^ m := by
-    have := Finset.card_filter_le (Finset.univ : Finset (Fin m → Bool))
-      (fun σ => m * ε / 2 ≤ |∑ i, w i * (((σ i).toNat : ℝ) - 1 / 2)|)
-    simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at this
-    exact_mod_cast this
-  rcases Nat.eq_zero_or_pos m with rfl | hm
-  · exact hcard.trans (by simp)
-  set S := ∑ i, w i ^ 2 with hS
-  have hS4 : S ≤ 4 * m := by
-    calc S ≤ ∑ _i : Fin m, (4 : ℝ) := Finset.sum_le_sum fun i _ => by
-          have := sq_le_sq' (abs_le.1 (hw i)).1 (abs_le.1 (hw i)).2
-          linarith
-      _ = 4 * m := by simp [mul_comm]
-  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
-  rcases (Finset.sum_nonneg fun i _ => sq_nonneg (w i) : 0 ≤ S).eq_or_lt with hS0 | hSpos
-  · -- all weights vanish, so the sum is `0`
-    rcases hε.eq_or_lt with rfl | hεpos
-    · exact hcard.trans (by simp)
-    have hw0 (i : Fin m) : w i = 0 := pow_eq_zero_iff two_ne_zero |>.1 <|
-      (Finset.sum_eq_zero_iff_of_nonneg fun i _ => sq_nonneg (w i)).1 hS0.symm i (Finset.mem_univ _)
-    rw [Finset.filter_false_of_mem fun σ _ => by
-      simp only [hw0, zero_mul, Finset.sum_const_zero, abs_zero, not_le]; positivity,
-      Finset.card_empty, Nat.cast_zero]
-    positivity
-  · refine (Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le w
-      (t := m * ε / 2) (by positivity)).trans ?_
-    rw [Fintype.card_fin]
-    have hexp : m * ε ^ 2 / 8 ≤ 2 * (m * ε / 2) ^ 2 / S := by
-      rw [le_div_iff₀ hSpos]
-      have : 0 ≤ (m : ℝ) * ε ^ 2 := by positivity
-      nlinarith
-    exact mul_le_mul_of_nonneg_left (Real.exp_le_exp.2 (neg_le_neg hexp)) (by positivity)
+  have h := Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le_of_abs_le w (fun _ => 2) hw
+    (t := m * ε / 2) (by positivity)
+  have hexp : 2 * ((m : ℝ) * ε / 2) ^ 2 / (m * 2 ^ 2) = m * ε ^ 2 / 8 := by
+    rcases eq_or_ne m 0 with rfl | hm
+    · simp
+    · field_simp [Nat.cast_ne_zero.mpr hm]
+      ring
+  simpa only [Fintype.card_fin, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hexp] using h
 
 /-- The double-sample event: some `g ∈ G` has counts on the two samples that differ by at least
 `m ε / 2`. -/
@@ -178,8 +152,7 @@ private theorem card_filter_swapSamples_mem_gapEvent_le {Z : Type*} (G : Concept
     intro σ hσ
     obtain ⟨g, hg, hgap⟩ := (Finset.mem_filter.1 hσ).2
     refine Finset.mem_biUnion.2 ⟨fun j => g (x j), ?_, Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩⟩
-    · rw [Set.Finite.mem_toFinset]
-      exact mem_restriction.2 ⟨g, hg, fun _ => rfl⟩
+    · exact (Set.Finite.mem_toFinset _).2 (mem_restriction.2 ⟨g, hg, fun _ => rfl⟩)
     · rwa [← hkey]
   have hR : (R.card : ℝ) ≤ growthFunction G (m + m) := by
     rw [← Set.ncard_eq_toFinset_card]
@@ -293,21 +266,15 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le (μ : Measure Z)
   · rw [hB, measure_empty]
     exact bot_le
   -- Otherwise `G` is nonempty, so `Π_G(2m) ≥ 1`, which forces `exp (-m ε² / 8) < 1 / 4`.
-  have hN : (1 : ℝ) ≤ growthFunction G (m + m) := by
-    have : 0 < growthFunction G (m + m) :=
-      ((Set.ncard_pos (Set.toFinite _)).2 ⟨fun i => g₀ (Fin.append S₀ S₀ i),
-        mem_restriction.2 ⟨g₀, hg₀, fun _ => rfl⟩⟩).trans_le
-        (ncard_restriction_le_growthFunction G (Fin.append S₀ S₀))
-    exact_mod_cast this
+  have hN : (1 : ℝ) ≤ growthFunction G (m + m) := mod_cast
+    (((Set.ncard_pos (Set.toFinite _)).2 ⟨fun i => g₀ (Fin.append S₀ S₀ i),
+      mem_restriction.2 ⟨g₀, hg₀, fun _ => rfl⟩⟩).trans_le
+      (ncard_restriction_le_growthFunction G (Fin.append S₀ S₀)))
   have hexp4 : Real.exp (-(m * ε ^ 2 / 8)) < 1 / 4 := by
-    have := le_mul_of_one_le_left (Real.exp_pos (-(m * ε ^ 2 / 8))).le hN
-    linarith
-  have hexp : 4 * Real.exp (-(m * ε ^ 2 / 2)) ≤ 1 := by
-    have : Real.exp (-(m * ε ^ 2 / 2)) ≤ Real.exp (-(m * ε ^ 2 / 8)) :=
-      Real.exp_le_exp.2 <| by
-        have := mul_nonneg (Nat.cast_nonneg m : (0 : ℝ) ≤ m) (sq_nonneg ε)
-        linarith
-    linarith
+    linarith [le_mul_of_one_le_left (Real.exp_pos (-(m * ε ^ 2 / 8))).le hN]
+  have hexp_le : Real.exp (-(m * ε ^ 2 / 2)) ≤ Real.exp (-(m * ε ^ 2 / 8)) :=
+    Real.exp_le_exp.2 (by linarith [mul_nonneg (Nat.cast_nonneg m : (0 : ℝ) ≤ m) (sq_nonneg ε)])
+  have hexp : 4 * Real.exp (-(m * ε ^ 2 / 2)) ≤ 1 := by linarith
   refine (measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_swapSamples_le μ G
     m hε hexp (β := 2 * growthFunction G (m + m) * Real.exp (-(m * ε ^ 2 / 8))) fun z =>
       (card_filter_swapSamples_mem_gapEvent_le G hε z).trans_eq (by ring)).trans_eq
@@ -338,9 +305,8 @@ theorem measure_pi_exists_le_abs_empiricalMiscount_div_sub_error_le (D : Measure
   refine (measure_mono hsub).trans
     ((measure_pi_exists_le_abs_card_filter_div_sub_measure_le D (lossClass C) m hε).trans ?_)
   refine ENNReal.ofReal_le_ofReal ?_
-  have : (growthFunction (lossClass C) (m + m) : ℝ) ≤ growthFunction C (m + m) := by
-    exact_mod_cast growthFunction_lossClass_le C _
   gcongr
+  exact_mod_cast growthFunction_lossClass_le C _
 
 /-- **Uniform convergence for a class with a bounded growth function** on a countable domain
 [VapnikChervonenkis1971; AnthonyBartlett1999, Theorem 4.3]: `m` i.i.d. examples fail to be
