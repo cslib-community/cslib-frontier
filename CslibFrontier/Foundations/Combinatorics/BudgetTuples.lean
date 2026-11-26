@@ -156,9 +156,7 @@ theorem lt_of_mem_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) {p : �
 /-- **Each tuple appears once.** -/
 theorem nodup_budgetTuples (ws : List ℕ) (p : ℕ) : (budgetTuples ws p).Nodup := by
   induction ws generalizing p with
-  | nil =>
-    simp only [budgetTuples_nil]
-    split_ifs <;> simp
+  | nil => by_cases hp : 0 < p <;> simp [hp]
   | cons w ws ih =>
     rw [budgetTuples_cons, List.nodup_flatMap]
     refine ⟨fun _ _ => (ih _).map List.cons_injective, List.nodup_range.imp fun hbb' x hx hy => ?_⟩
@@ -205,9 +203,7 @@ theorem budgetNext_getLast? {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) {p : ℕ}
 theorem isChain_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) (p : ℕ) :
     List.IsChain (fun x y => budgetNext ws p x = some y) (budgetTuples ws p) := by
   induction ws generalizing p with
-  | nil =>
-    simp only [budgetTuples_nil]
-    split_ifs <;> simp
+  | nil => by_cases hp : 0 < p <;> simp [hp]
   | cons w ws ih =>
     have hw0 : 0 < w := hw w List.mem_cons_self
     have hws : ∀ w' ∈ ws, 0 < w' := fun w' hw' => hw w' (List.mem_cons_of_mem _ hw')
@@ -216,8 +212,7 @@ theorem isChain_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) (p : ℕ
     · have hb' := (lt_ceilDiv_iff hw0).mp hb
       simp [← List.head?_eq_none_iff, head?_budgetTuples hws (p := p - w * b) (by omega)]
     · rw [List.isChain_map]
-      refine (ih hws (p - w * b)).imp fun _ _ hxy => ?_
-      simp only [budgetNext, hxy]
+      exact (ih hws (p - w * b)).imp fun _ _ hxy => by simp only [budgetNext, hxy]
     · have hb1 := (lt_ceilDiv_iff hw0).mp hb
       obtain ⟨x', hx', rfl⟩ := Option.map_eq_some_iff.mp (by rwa [List.getLast?_map] at hx)
       rw [List.head?_map, head?_budgetTuples hws (by omega)] at hy
@@ -271,11 +266,8 @@ theorem sum_filter_weight_lt_eq [Fintype M] (hms : ms.Nodup) (hcover : ∀ Z, Z 
     rintro _ hx
     obtain ⟨Z, -, rfl⟩ := List.mem_map.mp hx
     exact hw Z
-  have hsum (g : M → ℕ) : ∑ Z, g Z = (ms.map g).sum := by
-    rw [← List.sum_toFinset g hms]
-    congr 1
-    ext Z
-    simp [hcover Z]
+  have hsum (g : M → ℕ) : ∑ Z, g Z = (ms.map g).sum :=
+    congrArg (·.sum g) (Finset.ext fun Z => by simp [hcover Z]) |>.trans (List.sum_toFinset g hms)
   set L := budgetTuples (ms.map w) p
   have hlen : ∀ l ∈ L, l.length = ms.length := fun l hl => by
     simpa using ((mem_budgetTuples hws).mp hl).1

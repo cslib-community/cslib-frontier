@@ -357,22 +357,15 @@ private lemma opCont_pt (o : ArithQBF.Operator) :
 
 private lemma stepAt_pt (k : ArithQBF.Kind) :
     IsOraclePPTOn encStepData encVState (stepAt k) := by
-  cases k
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (lookupPt a.top.point a.head.2 % a.modulus = a.top.value % a.modulus)))
-      (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (1 % a.modulus = a.top.value % a.modulus))) (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (0 % a.modulus = a.top.value % a.modulus))) (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      (⟨normPt a.modulus a.xs a.top.point, subMod a.modulus 1 a.top.value⟩ :: a.below) true)
-      (by fun_prop)
-  · exact ask_pt.bind_with (binNext_pt .and).isOraclePPTOn
-  · exact ask_pt.bind_with (binNext_pt .or).isOraclePPTOn
-  · exact ask_pt.bind_with (opCont_pt .ex)
-  · exact ask_pt.bind_with (opCont_pt .all)
-  · exact ask_pt.bind_with (opCont_pt .lin)
+  cases k with
+  | var | top | bot | not =>
+    unfold stepAt
+    exact ComputableInPolyTime.isOraclePPTOn (by fun_prop)
+  | and => exact ask_pt.bind_with (binNext_pt .and).isOraclePPTOn
+  | or => exact ask_pt.bind_with (binNext_pt .or).isOraclePPTOn
+  | ex => exact ask_pt.bind_with (opCont_pt .ex)
+  | all => exact ask_pt.bind_with (opCont_pt .all)
+  | lin => exact ask_pt.bind_with (opCont_pt .lin)
 
 /-- **A step of the machine is strict oracle PPT** in the encoded input and state. -/
 private theorem isOraclePPTOn_step :

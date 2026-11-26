@@ -167,15 +167,12 @@ private theorem before_gap {C : QuantumSigningForger} {α : Type} (s : Level) (H
     simpa only [run, Xofs.evalPure_signDigestQueriesWithMask, Xofs.signWithExpansionRow,
       ENNReal.toReal_mul, Nat.cast_ofNat, ENNReal.toReal_ofNat] using hb
   · intro x l t d
-    let run := probe x t
-    let bad := {y | OracleComp.evalPure (replaceSuffix s A y D E) run ≠ OracleComp.evalPure D run}
-    refine (meanGap_of_agree μ _ _ bad ?_).trans ?_
-    · intro y hy
-      rw [show OracleComp.evalPure (replaceSuffix s A y D E) (probe x t) =
-        OracleComp.evalPure D (probe x t) from not_ne_iff.mp hy]
-    · have h := prob_read_diff s A D E run (pre x t)
-      simpa only [ENNReal.toReal_mul, ENNReal.toReal_natCast] using
-        ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) finite) h
+    refine (meanGap_of_agree μ _ _
+      {y | OracleComp.evalPure (replaceSuffix s A y D E) (probe x t) ≠
+        OracleComp.evalPure D (probe x t)}
+      (fun y hy => by rw [not_ne_iff.mp hy])).trans ?_
+    simpa only [ENNReal.toReal_mul, ENNReal.toReal_natCast] using ENNReal.toReal_mono
+      (ENNReal.mul_ne_top (by simp) finite) (prob_read_diff s A D E (probe x t) (pre x t))
 
 private abbrev ReplyTest (s : Level) (C : QuantumSigningForger) (α : Type) :=
   Mask s → Register s → After s C α
@@ -211,14 +208,12 @@ private theorem detached_eq {C : QuantumSigningForger} {α : Type} (s : Level) (
   apply congrArg (PMF.bind execution ·)
   funext ⟨x, ⟨d, l⟩, t⟩
   dsimp only
-  let prep := OracleComp.evalPure D (probe x t)
+  set prep := OracleComp.evalPure D (probe x t)
   cases enabled : prep.isReady with
-  | false => simp only [← show prep = OracleComp.evalPure D (probe x t) from rfl,
-      Bool.and_false, Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
+  | false => simp
   | true =>
-    simp only [← show prep = OracleComp.evalPure D (probe x t) from rfl,
-      Bool.and_true, Bool.false_eq_true, ↓reduceIte]
-    exact uniform_write_selected s A y prep.point D (fun T => observe (score y T x l t prep) d)
+    simpa [enabled] using
+      uniform_write_selected s A y prep.point D (fun T => observe (score y T x l t prep) d)
 
 private theorem abs_common_bind {ι : Type} [Finite ι] (p : PMF ι) (a b : ι → Game)
     {L : ℝ} (bounds : ∀ i, |prob (a i) - prob (b i)| ≤ L) :

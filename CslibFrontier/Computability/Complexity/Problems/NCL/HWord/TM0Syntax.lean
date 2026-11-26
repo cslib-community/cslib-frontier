@@ -251,39 +251,32 @@ private theorem rule_occurrence {M : Turing.TM0.Machine Γ Q} {d : Domino (Symbo
     {p s : List (Symbol Γ Q)} {c : MicroCfg Γ Q} (hd : Rule M d)
     (hw : p ++ d.top ++ s = word c ∨ p ++ d.bottom ++ s = word c) :
     Occurrence M p s d := by
-  cases hd with
-  | write t hM => exact write_occurrence t hM hw
-  | writeEnd hM => exact writeEnd_occurrence hM hw
-  | @rightBegin q a q' b hM =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  cases hd
+  case write t hM => exact write_occurrence t hM hw
+  case writeEnd hM => exact writeEnd_occurrence hM hw
+  all_goals obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case rightBegin q a q' b hM =>
     refine ⟨.stable ⟨q, a, L, b :: R⟩, .moving .rightStart ⟨q', a, b, L, R⟩, ?_, ?_,
       by simp [Phases.step, step, hM]⟩ <;> simp [word, frame]
-  | rightMark q a b =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case rightMark q a b =>
     refine ⟨.moving .rightStart ⟨q, a, b, L, R⟩, .moving .rightBoth ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
       <;> simp [word, frame]
-  | rightRelease q a b =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case rightRelease q a b =>
     refine ⟨.moving .rightBoth ⟨q, a, b, L, R⟩, .moving .rightEnd ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
       <;> simp [word, frame]
-  | rightActivate q a b =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case rightActivate q a b =>
     refine ⟨.moving .rightEnd ⟨q, a, b, L, R⟩, .stable ⟨q, b, a :: L, R⟩, ?_, ?_, rfl⟩ <;>
       simp [word, frame, List.reverse_cons]
-  | @leftBegin q a q' b hM =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case leftBegin q a q' b hM =>
     refine ⟨.stable ⟨q, a, b :: L, R⟩, .moving .leftStart ⟨q', b, a, L, R⟩, ?_, ?_,
       by simp [Phases.step, step, hM]⟩ <;> simp [word, frame, List.reverse_cons]
-  | leftMark q a b =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case leftMark q a b =>
     refine ⟨.moving .leftStart ⟨q, a, b, L, R⟩, .moving .leftBoth ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
       <;> simp [word, frame]
-  | leftRelease q a b =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case leftRelease q a b =>
     refine ⟨.moving .leftBoth ⟨q, a, b, L, R⟩, .moving .leftEnd ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
       <;> simp [word, frame]
-  | leftActivate q a b =>
-    obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
+  case leftActivate q a b =>
     refine ⟨.moving .leftEnd ⟨q, a, b, L, R⟩, .stable ⟨q, a, L, b :: R⟩, ?_, ?_, rfl⟩
       <;> simp [word, frame]
 

@@ -462,8 +462,8 @@ theorem branch_jump {c : Cond r} {pos neg : RCode B r}
 theorem branch_pos {c : Cond r} {pos neg : RCode B r}
     (hp : p.Contains pc ((RCode.branch c pos neg).assemble pc)) :
     p.Contains (pc + neg.size + 2) (pos.assemble (pc + neg.size + 2)) := by
-  have h := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-  rwa [RCode.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at h
+  simpa only [RCode.length_assemble, Nat.add_right_comm pc 1] using
+    (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
 
 /-- The test of an assembled loop is followed by its exit jump. -/
 theorem loop_exit {c : Cond r} {body : RCode B r}
@@ -736,13 +736,10 @@ private theorem seq_grow_store_zero {w L_peak T : ℕ} {dst : Fin r} {tail : RCo
       (.seq (.grow dst) (.seq (.op (.store dst zero)) tail)) x (1 + (1 + T)) P := by
   refine RDemonicExec.grow_seq hL hfit fun m hm =>
     RDemonicExec.seq_eq (RDemonicExec.store hL (by simp)) ?_
-  have hw : (⟨Function.update x.regs dst x.frontier, m, x.frontier + 1⟩ : RData r).write
-      (Function.update x.regs dst x.frontier dst) (Function.update x.regs dst x.frontier zero) =
-      ⟨Function.update x.regs dst x.frontier, x.mem, x.frontier + 1⟩ :=
-    RData.ext rfl (by
-      simp only [RData.write_mem, Function.update_self, Function.update_of_ne hne, hzero]
-      exact write_zero_demonicGrow_one hz hm) rfl
-  exact hw ▸ htail
+  convert htail using 1
+  refine RData.ext rfl ?_ rfl
+  simpa only [RData.write_mem, Function.update_self, Function.update_of_ne hne, hzero] using
+    write_zero_demonicGrow_one hz hm
 
 /-- Shared loop-invariant register file after `i` iterations of `growDirtyCode` / `growZeroCode`. -/
 private def growLoopRegs (regs : Fin r → ℕ) (result cur idx zero one : Fin r) (f i : ℕ) :
@@ -864,21 +861,19 @@ theorem growDirtyCode_exec {w L_peak : ℕ} {count result cur idx zero one : Fin
     refine (RDemonicExec.branch_pos (by simp [Cond.Holds, hx₂_z, hx₂_k, hpos]) hrun).mono
       (by change 1 + 1 + ((k - 1) * (1 + 1 + 2) + 2) + 1 ≤ 4 * k + 3; omega)
       fun y ⟨hr, hfr, hg⟩ => ?_
-    have hg' : DemonicGrow w f k x.mem y.mem := (show k - 1 + 1 = k by omega) ▸ hg
-    refine ⟨⟨⟨?_, (hx.grow (dst := result) hw hg').1.2⟩, hfr ▸ hw, hfr ▸ hg'.2.2⟩,
-      hg', hfr, by rw [hr, growLoopRegs_ne hri hrc, Function.update_self]; simp [hk0, f],
+    have hg' : DemonicGrow w f k x.mem y.mem := Nat.sub_add_cancel hpos ▸ hg
+    have hg₀ := ((hx.set (i := zero) (fits_zero w)).set (i := one) h1).grow (dst := result) hw hg'
+    have hfk' : Fits w (k - 1 + 1) := Nat.sub_add_cancel hpos ▸ hfk
+    refine ⟨?_, hg', hfr, by simp [hr, growLoopRegs_ne hri hrc, hk0, f],
       fun j hjr hjc hji hjz hjo => by
         rw [hr, growLoopRegs_ne hji hjc, Function.update_of_ne hjr, Function.update_of_ne hjo,
           Function.update_of_ne hjz]⟩
-    have hb := ((hx.1.set (i := zero) (fits_zero w)).set (i := one) h1).set
-      (i := result) hx.frontier_fits
-    have hfk' : Fits w (k - 1 + 1) := hfk.of_le (by omega)
-    rw [RData.toData_regs, hr]; dsimp only [growLoopRegs]
+    cases y
+    subst hr hfr
+    dsimp only [growLoopRegs]
     split_ifs
-    · exact (hb.set (i := idx) hfk').1
-    · exact ((hb.set (i := cur) (hw.of_le (by
-        change x.frontier + (x.regs count - 1) ≤ x.frontier + x.regs count; omega))).set
-        (i := idx) hfk').1
+    · exact hg₀.set hfk'
+    · exact (hg₀.set (hw.of_le (Nat.add_le_add_left (Nat.sub_le k 1) f))).set hfk'
 
 /-- Deterministic post-state of `growZeroCode`. -/
 def growZeroPost (count result cur idx zero one : Fin r) (x : RData r) : RData r :=
@@ -945,11 +940,11 @@ theorem growZeroCode_exec {w L_peak : ℕ} {count result cur idx zero one : Fin 
         fun i hi m hm => by
         subst hm; change i < k - 1 at hi
         exact seq_grow_store_zero (T := 1)
-          (fun a ha => hx.zero_above (by change f + (i + 1) ≤ a at ha; omega)) hcz'.symm
+          (fun a ha => hx.zero_above (Nat.le_of_add_right_le ha)) hcz'.symm
           (by dsimp only; rw [growLoopRegs_ne hiz.symm hcz'.symm, Function.update_of_ne hrz.symm,
             Function.update_of_ne hzo, Function.update_self])
-          (by change f + (i + 1) + 1 ≤ L_peak; omega)
-          (hw.of_le (by change f + (i + 1) + 1 ≤ f + k; omega))
+          ((Nat.add_le_add_left (by omega : i + 1 + 1 ≤ k) f).trans hL_peak)
+          (hw.of_le (Nat.add_le_add_left (by omega : i + 1 + 1 ≤ k) f))
           (growLoop_inc hci' hco' hio hro (by omega) (hfk.of_le (by omega)) ⟨rfl, rfl, rfl⟩)
     refine (RDemonicExec.branch_pos (by simp [Cond.Holds, hx₃_z, hx₃_k, hpos])
       (eg₀.seq_eq (hloop.seq fun y ⟨hr, hfr, hm⟩ =>

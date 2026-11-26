@@ -61,11 +61,9 @@ theorem SecretExpansionViews.publicHashMatch_iff {s : Level} {v : SecretExpansio
     v.publicHashMatch ↔
       representativeInput (v.shared.h256.readBytes (encodePublic s v.publicSeed.toList pk.t) 64)
         (formatMessage [] []) = Keccak.bytesToBitsLE (nonceInput v.secretSeed.toList 0) := by
-  let tr := v.shared.h256.readBytes (encodePublic s v.publicSeed.toList pk.t) 64
-  obtain ⟨t, ht⟩ := FixedBytes.exists_toList (show tr.length = 64 from v.shared.h256.length_read ..)
-  simp only [publicHashMatch, hp, Option.any_some, beq_iff_eq]
-  change tr = v.secretSeed.toList ↔ representativeInput tr _ = _
-  rw [← ht]
+  obtain ⟨t, ht⟩ := FixedBytes.exists_toList
+    (v.shared.h256.length_read (Keccak.bytesToBitsLE (encodePublic s v.publicSeed.toList pk.t)) 64)
+  simp only [publicHashMatch, hp, Option.any_some, beq_iff_eq, ExtendableOutput.readBytes, ← ht]
   simpa only [Fin.val_zero, and_self, and_true, FixedBytes.toList, List.ofFn_inj] using
     (representativeInput_eq_nonceInput_iff t v.secretSeed [] [] (0 : Fin 65536)).symm
 
@@ -108,8 +106,7 @@ private theorem score_programmed {s : Level} {α : Type} (H : Xofs) (xi rho : Fi
     change (expansionSeed F s xi).toList = r.toList
     rw [expansionSeed_bytes, ex, List.drop_left' (FixedBytes.length_toList rho),
       List.take_left' (FixedBytes.length_toList r)]
-  dsimp only [scoreRefresh]
-  rw [pub, sec]
+  rw [scoreRefresh, pub, sec]
   simp only [F, replace_expansion]; rfl
 
 private theorem refresh_fixed {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
@@ -243,11 +240,9 @@ theorem publicHashMatch_le (s : Level) (base : Xofs) {a b : ℕ} (ha : 528 ≤ a
   refine PMF.bind_apply_le_on_support _ fun v _ => PMF.bind_apply_le_on_support _ fun H _ => ?_
   simp only [test, PMF.bind_const]
   refine FixedBytes.uniform_test_le (n := 64) fun x hx y hy => ?_
-  cases hp : v.pair with
-  | none => simp [hp] at hx
-  | some pk =>
-    simp only [Set.mem_ofPred_eq, hp, Option.any_some, beq_iff_eq] at hx hy
-    exact List.ofFn_inj.mp (hx.symm.trans hy)
+  cases hp : v.pair <;> simp only [Set.mem_ofPred_eq, hp, Option.any_none, Option.any_some,
+    Bool.false_eq_true, beq_iff_eq] at hx hy
+  exact List.ofFn_inj.mp (hx.symm.trans hy)
 
 /-- A raw SHAKE256 address hits the key-expansion input or one of the secret-vector inputs. -/
 def hitsExpansionInput (s : Level) (key : FixedBytes 32) (secret : FixedBytes 64)

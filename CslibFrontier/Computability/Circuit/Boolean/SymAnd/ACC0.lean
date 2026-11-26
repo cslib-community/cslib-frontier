@@ -256,11 +256,8 @@ private theorem one_sub_prod_emod_two {α : Type*} (A : Finset α) (b : α → B
   by_cases h : ∃ a ∈ A, b a = true
   · obtain ⟨a, ha, hb⟩ := h
     rw [Finset.prod_eq_zero ha (by simp [hb])]
-    simp only [sub_zero]
     exact iff_of_true (by decide) ⟨a, ha, hb⟩
-  · push Not at h
-    rw [Finset.prod_eq_one fun a ha => by simp [h a ha]]
-    exact iff_of_false (by decide) fun ⟨a, ha, hb⟩ => by simp [h a ha] at hb
+  · simp_all [Finset.prod_eq_one]
 
 /-- `1 - b` is odd iff `b` is false. -/
 private theorem decide_one_sub_bitVal (b : Bool) : decide ((1 - bitVal ℤ b) % 2 ≠ 0) = !b := by
@@ -269,9 +266,7 @@ private theorem decide_one_sub_bitVal (b : Bool) : decide ((1 - bitVal ℤ b) % 
 /-- Reading a bit modulo `p > 1` returns the bit. -/
 private theorem decide_bitVal_emod {p : ℕ} (hp : 1 < p) (b : Bool) :
     decide (bitVal ℤ b % (p : ℤ) ≠ 0) = b := by
-  cases b
-  · simp
-  · simp [Int.emod_eq_of_lt zero_le_one (Int.ofNat_lt.mpr hp)]
+  cases b <;> simp [Int.emod_eq_of_lt zero_le_one (Int.ofNat_lt.mpr hp)]
 
 /-- A good seed for the argument set `A` under the values `y`: the vectors `r ^ idx w` of the true
 arguments sum to a nonzero element exactly when some argument is true. -/
@@ -310,11 +305,9 @@ private theorem linePoly_correct (r : Seed ℓ) (k : Fin g) (op : Unbounded.ExtO
     exact decide_one_sub_bitVal _
   · -- AND
     simp only [linePoly, Unbounded.extInterpretation_ac, Unbounded.interpretation_and, hand]
-    refine decide_eq_decide.2 ?_
-    rw [one_sub_emod_two_ne_zero_iff]
-    have h := (orTest_emod_two_ne_zero_iff (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws)
-      fun w => !y w).trans (Iff.trans hgood' (himg _))
-    rw [← not_iff_not, ← ne_eq, h]
+    rw [decide_eq_decide, one_sub_emod_two_ne_zero_iff, ← not_iff_not, ← ne_eq,
+      (orTest_emod_two_ne_zero_iff (seedBasis ℓ) (fun w => r ^ widx w) (univ.image ws)
+        fun w => !y w).trans (hgood'.trans (himg _))]
     simp
   · -- OR
     simp only [linePoly, Unbounded.extInterpretation_ac, Unbounded.interpretation_or, hor]
@@ -623,7 +616,7 @@ theorem layer_ok (P : Program Unbounded.extSignature n g) (hm : 0 < m)
 /-- `4 g (n + g) < 2 ^ (2ℓ + 2)` seeds when `n + g < 2 ^ ℓ`. -/
 theorem four_mul_lt_card_seed (hN : n + g < 2 ^ ℓ) :
     4 * (g * (n + g)) < Fintype.card (Seed ℓ) := by
-  rw [Cslib.BinaryField.card (by omega), show 2 ^ (2 * ℓ + 2) = 4 * (2 ^ ℓ * 2 ^ ℓ) by ring]
+  rw [Cslib.BinaryField.card (by omega), pow_add, two_mul, pow_add]
   linarith only [Nat.mul_le_mul_right (n + g) (Nat.le_add_left g n), Nat.mul_self_lt_mul_self hN]
 
 /-- The seeds and slots number at most `2 ^ (3ℓ + 2 + (m + 1) ^ 2) - 1` when `n + g < 2 ^ ℓ`. -/
@@ -685,12 +678,11 @@ private theorem toSymAnd_spec {n : ℕ} (C : Circuit Unbounded.extSignature n 1)
       (C.toSymAnd m).size ≤ 2 ^ (2 * (3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2))) ^
         5 ^ (C.depth * (m + 2)) := by
   rw [Circuit.toSymAnd]
-  generalize hℓ : Nat.log 2 (n + C.size) + 1 = ℓ
-  have hN : n + C.size < 2 ^ ℓ := hℓ ▸ Nat.lt_pow_succ_log_self one_lt_two _
-  have hBeq : 3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2) =
-      3 * ((m + 1) ^ 2 + ℓ + 1) := by omega
-  rw [hBeq]
+  set ℓ := Nat.log 2 (n + C.size) + 1
+  have hN : n + C.size < 2 ^ ℓ := Nat.lt_pow_succ_log_self one_lt_two _
   set B := 3 * ((m + 1) ^ 2 + ℓ + 1) with hB
+  change _ ∧ (compile C.program m ℓ C.depth (C.outputs 0)).fanIn ≤ (2 * B) ^ _ ∧
+    (compile C.program m ℓ C.depth (C.outputs 0)).size ≤ 2 ^ (2 * B) ^ _
   have hmB : m + 1 ≤ (m + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
   have hLs : ∀ L ∈ (towerS C.program m ℓ C.depth).map SLayer.lift,
       L.p.Prime ∧ L.p ≤ B ∧ ∀ t, L.q t ∈ lowDegree ℤ (Seed ℓ × Slot n C.size m) B :=

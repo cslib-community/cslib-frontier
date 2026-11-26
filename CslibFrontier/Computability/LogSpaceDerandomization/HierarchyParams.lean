@@ -262,11 +262,8 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
       (by linarith [le_max_right (s - θ) 0])]
   · exact (add_le_add (le_refl (1 / (4 * q))) hk).trans_eq (by field_simp; norm_num)
   · rw [div_le_div_iff₀ (by positivity) hq, one_mul]
-    push_cast [m]
-    nlinarith [Nat.le_ceil q, (Nat.cast_nonneg (α := ℝ) k)]
-  · simp only [J]
-    push_cast
-    linarith [Nat.le_ceil (4 * Cπ * m * k * (k + 1))]
+    push_cast [m]; nlinarith [Nat.le_ceil q, (Nat.cast_nonneg (α := ℝ) k)]
+  · push_cast [J]; linarith [Nat.le_ceil (4 * Cπ * m * k * (k + 1))]
 
 variable (P : HierarchyParams q cπ Cπ Cpair Cvar)
 
@@ -343,9 +340,8 @@ theorem cutoff_le (hf : 0 < f) (t : ℝ) : P.cutoff f t ≤ max (t - P.θ * f) 0
         rw [mul_max_of_nonneg _ _ hf.le, mul_zero, mul_sub, mul_div_cancel₀ _ hf.ne', mul_comm]
 
 theorem le_cutoff (hf : 0 < f) (t : ℝ) : t - P.θ₂ * f ≤ P.cutoff f t := by
-  have h := mul_le_mul_of_nonneg_left (P.le_Q (t / f)) hf.le
-  rw [mul_sub, mul_div_cancel₀ _ hf.ne'] at h
-  simp only [cutoff]; linarith
+  simpa only [cutoff, mul_sub, mul_div_cancel₀ _ hf.ne', mul_comm f P.θ₂] using
+    mul_le_mul_of_nonneg_left (P.le_Q (t / f)) hf.le
 
 theorem cutoff_mono (hf : 0 < f) : Monotone (P.cutoff f) := fun _ _ h =>
   mul_le_mul_of_nonneg_left (P.Q_mono (div_le_div_of_nonneg_right h hf.le)) hf.le
@@ -446,13 +442,11 @@ theorem next_nonneg (hf : 0 < f) (hC0 : ∀ x y, 0 ≤ C x y) (a b : Lex (V × F
 
 theorem next_mulVec_one_le (hf : 0 < f) (hC0 : ∀ x y, 0 ≤ C x y) (hC1 : C *ᵥ 1 ≤ 1) :
     P.next X Y f C *ᵥ 1 ≤ 1 := fun a => by
-  have hD : P.residual X Y f C *ᵥ 1 ≤ 1 := fun x => by
-    simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using
-      P.residual_sum_le_one X Y hf hC1 x
   have h := copyStage_mulVec_one_le (χ := P.copyCutoff f)
     (P.weight_nonneg (X := X) (Y := Y) (f := f) (C := C))
-    (P.weight_le_one (X := X) (Y := Y) (f := f) (C := C))
-    (P.residual_nonneg hf hC0) hD (ofLex a)
+    (P.weight_le_one (X := X) (Y := Y) (f := f) (C := C)) (P.residual_nonneg hf hC0)
+    (fun x => by simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using
+      P.residual_sum_le_one X Y hf hC1 x) (ofLex a)
   simp only [mulVec, dotProduct, Pi.one_apply, mul_one] at h ⊢
   calc ∑ i, P.next X Y f C a i
       = ∑ x, copyStage (P.copyCutoff f) P.m (P.weight X Y f C) (P.residual X Y f C)

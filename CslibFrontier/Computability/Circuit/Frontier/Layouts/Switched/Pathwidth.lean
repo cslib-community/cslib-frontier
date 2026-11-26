@@ -85,12 +85,10 @@ noncomputable def rank (y : Fin n → ℝ) (v : Fin n) : ℕ :=
 theorem rank_lt_rank {y : Fin n → ℝ} {u v : Fin n} (h : y u < y v) :
     rank y u < rank y v := by
   classical
-  apply Finset.card_lt_card
-  rw [Finset.ssubset_iff_of_subset]
-  · exact ⟨u, by simp [h], by simp⟩
-  · intro x hx
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
-    exact hx.trans h
+  refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun x hx => ?_).2
+    ⟨u, by simp [h], by simp⟩)
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
+  exact hx.trans h
 
 /-- For injective `y`, rank order equals label order. -/
 theorem rank_lt_iff {y : Fin n → ℝ} (hy : Function.Injective y) {u v : Fin n} :
@@ -142,12 +140,10 @@ theorem rank_lt_lowerCount_iff (y : Fin n → ℝ) (v : Fin n) :
   refine ⟨fun h => by_contra fun hv => h.not_ge (Finset.card_le_card fun u hu => ?_), fun hv => ?_⟩
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
     linarith
-  · apply Finset.card_lt_card
-    rw [Finset.ssubset_iff_of_subset]
-    · exact ⟨v, by simp [hv], by simp⟩
-    · intro u hu
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
-      exact hu.le.trans hv
+  · refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun u hu => ?_).2
+      ⟨v, by simp [hv], by simp⟩)
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
+    exact hu.le.trans hv
 
 end Rank
 
@@ -201,8 +197,7 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   refine ⟨π, (G.width_le_iff π).2 fun t => ?_⟩
   rcases lt_or_ge t (Nat.card V) with htlt | htge
   swap
-  · rw [G.frontier_of_card_le π htge, ncard_empty]
-    omega
+  · simp [G.frontier_of_card_le π htge]
   obtain ⟨m, hP, hPc⟩ := hπ t htlt
   let P : Set V := π.initial t
   have hdiv_mem (a : E) : score a / K = tE a := by

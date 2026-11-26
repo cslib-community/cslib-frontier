@@ -125,7 +125,7 @@ theorem sum_fourierCoeff_mul_self {A : (ι → Bool) → R} (hA2 : ∀ a, A a * 
   rw [sum_fourierCoeff_mul_self_eq]
   simp only [hA2, sum_const, card_univ, ← Nat.cast_smul_eq_nsmul ℝ, smul_smul,
     Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
-    inv_mul_cancel₀ (by positivity : (2 : ℝ) ^ Fintype.card ι ≠ 0), one_smul]
+    inv_mul_cancel₀ (pow_ne_zero _ (two_ne_zero (α := ℝ))), one_smul]
 
 /-- `∑_u Â(u)³ = E_{a,b} A(a) A(b) A(a + b)`. -/
 theorem sum_fourierCoeff_cube (A : (ι → Bool) → R) :
@@ -161,12 +161,9 @@ operator, with the eigenvalue given by its character. -/
 theorem fourierCoeff_mul_of_linear (A : (ι → Bool) → R)
     (hlin : ∀ a b, A a * A b = A (a + b)) (u a : ι → Bool) :
     fourierCoeff A u * A a = (signVal (u ⬝ᵥ a) : ℂ) • fourierCoeff A u := by
-  let f (b : ι → Bool) := (signVal (u ⬝ᵥ b) : ℂ) • A (b + a)
-  have hsum : (∑ b, f b) = ∑ b, f (b + a) := (Equiv.sum_comp (Equiv.addRight a) f).symm
   simp only [fourierCoeff, walshSum, smul_mul_assoc, sum_mul, hlin]
-  change _ • (∑ b, f b) = _
-  rw [hsum]
-  simp only [f, BitString.add_cancel_right, dotProduct_add, Bool.add_eq_xor,
+  rw [← Equiv.sum_comp (Equiv.addRight a)]
+  simp only [Equiv.coe_addRight, BitString.add_cancel_right, dotProduct_add, Bool.add_eq_xor,
     signVal_xor, Complex.ofReal_mul, ← smul_smul]
   simp_rw [smul_comm _ ((signVal (u ⬝ᵥ a) : ℂ)), ← smul_sum]
   exact smul_comm _ _ _
@@ -332,9 +329,8 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
   set χ := walshSum B
   have hBsa : ∀ u, IsSelfAdjoint (B u) := fun u => (fourierCoeff_mul_self_nonneg hA u).isSelfAdjoint
   have hχ : ∀ a, IsSelfAdjoint (χ a) := isSelfAdjoint_walshSum hBsa
-  have hN : ∀ a, φ.norm (A a - χ a) ^ 2 =
+  have hN (a : ι → Bool) : φ.norm (A a - χ a) ^ 2 =
       (φ (A a * A a)).re - (φ (A a * χ a)).re - (φ (χ a * A a)).re + φ.norm (χ a) ^ 2 := by
-    intro a
     rw [φ.norm_sq, φ.norm_sq, star_sub, (hA a).star_eq, (hχ a).star_eq,
       sub_mul, mul_sub, mul_sub, map_sub, map_sub, map_sub, Complex.sub_re,
       Complex.sub_re, Complex.sub_re]
@@ -355,9 +351,9 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
     rw [expect_norm_walshSum_sq]
     calc ∑ u, φ.norm (B u) ^ 2 ≤ ∑ u, (φ (B u)).re := sum_le_sum fun u _ => by
           rw [φ.norm_sq, (hBsa u).star_eq]
-          have hu : B u ≤ 1 := (single_le_sum
-            (fun v _ => fourierCoeff_mul_self_nonneg hA v) (mem_univ u)).trans hTotal
-          exact φ.re_apply_mono (fourierCoeff_sq_mul_self_le hA u hu)
+          exact φ.re_apply_mono (fourierCoeff_sq_mul_self_le hA u
+            ((single_le_sum (fun v _ => fourierCoeff_mul_self_nonneg hA v)
+              (mem_univ u)).trans hTotal))
       _ ≤ 1 := by
         rw [← Complex.re_sum, ← map_sum]
         exact φ.re_apply_le_one hTotal

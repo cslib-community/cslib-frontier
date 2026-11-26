@@ -115,10 +115,8 @@ private theorem sortLE_eq_insertionSort (xs : List K) : sortLE xs = xs.insertion
   induction xs with
   | nil => simp only [sortLE, List.foldr_nil, List.insertionSort_nil]
   | cons a xs ih =>
-    simp only [sortLE, List.foldr_cons] at ih ⊢
-    rw [List.insertionSort_cons, ← ih]
-    clear ih
-    induction xs.foldr insertSorted [] with
+    rw [sortLE, List.foldr_cons, List.insertionSort_cons, ← ih, ← sortLE]
+    induction sortLE xs with
     | nil => simp only [insertSorted, List.orderedInsert_nil]
     | cons b l ihl => simp only [insertSorted, List.orderedInsert_cons, ihl]
 
@@ -154,10 +152,8 @@ theorem length_trimmed (t : ℕ) (xs : List K) : (trimmed t xs).length = xs.leng
   simp only [trimmed, List.length_take, List.length_drop, length_sortLE]
   omega
 
-theorem trimmed_ne_nil {t : ℕ} {xs : List K} (h : 2 * t < xs.length) : trimmed t xs ≠ [] := by
-  refine List.ne_nil_of_length_pos ?_
-  rw [length_trimmed]
-  omega
+theorem trimmed_ne_nil {t : ℕ} {xs : List K} (h : 2 * t < xs.length) : trimmed t xs ≠ [] :=
+  List.ne_nil_of_length_pos (by simp; omega)
 
 theorem trimmed_eq_of_perm {xs ys : List K} (h : xs.Perm ys) (t : ℕ) :
     trimmed t xs = trimmed t ys := by
@@ -212,10 +208,8 @@ private lemma mem_trimmed_bounds {t : ℕ} {xs : List K} (h2t : 2 * t < xs.lengt
     (sortLE xs)[t]'(by rw [length_sortLE]; omega) ≤ z ∧
     z ≤ (sortLE xs)[xs.length - 1 - t]'(by rw [length_sortLE]; omega) := by
   obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hz
-  have hj_bound : j < xs.length - 2 * t := by simpa only [length_trimmed] using hj
-  have heq : (trimmed t xs)[j] = (sortLE xs)[t + j]'(by rw [length_sortLE]; omega) := by
-    simp only [trimmed, List.getElem_take, List.getElem_drop]
-  rw [heq]
+  rw [length_trimmed] at hj
+  simp only [trimmed, List.getElem_take, List.getElem_drop]
   exact ⟨(sortedLE_sortLE xs).getElem_le_getElem_of_le (Nat.le_add_right t j),
     (sortedLE_sortLE xs).getElem_le_getElem_of_le (by omega)⟩
 
@@ -227,15 +221,12 @@ private lemma sortLE_trim_endpoints_mem_Icc {t : ℕ} {xs : List K} {lo hi : K}
     lo ≤ (sortLE xs)[t]'(by rw [length_sortLE]; omega) ∧
     (sortLE xs)[xs.length - 1 - t]'(by rw [length_sortLE]; omega) ≤ hi := by
   have hlo_cnt : xs.length - t ≤ xs.countP (fun x => decide (lo ≤ x)) :=
-    hcnt.trans (List.countP_mono_left fun x _ hx => by
-      simp only [decide_eq_true_eq] at hx ⊢; exact hx.1)
-  have hhi_cnt : (xs.length - 1 - t) + 1 ≤ xs.countP (fun x => decide (x ≤ hi)) := by
-    have h1 : xs.length - t ≤ xs.countP (fun x => decide (x ≤ hi)) :=
-      hcnt.trans (List.countP_mono_left fun x _ hx => by
-        simp only [decide_eq_true_eq] at hx ⊢; exact hx.2)
-    omega
+    hcnt.trans (List.countP_mono_left fun _ _ => by simp +contextual)
+  have hhi_cnt : xs.length - t ≤ xs.countP (fun x => decide (x ≤ hi)) :=
+    hcnt.trans (List.countP_mono_left fun _ _ => by simp +contextual)
   exact ⟨le_sortLE_getElem (by rw [length_sortLE]; omega) hlo_cnt,
-    sortLE_getElem_le (by rw [length_sortLE]; omega) hhi_cnt⟩
+    sortLE_getElem_le (by rw [length_sortLE]; omega)
+      (Nat.succ_le_of_lt (lt_of_lt_of_le (by omega) hhi_cnt))⟩
 
 /-- **Trimmed-range validity:** if at least `xs.length - t` entries of `xs` lie in `[lo, hi]`, then
 every entry of `trimmed t xs` lies in `[lo, hi]`. -/

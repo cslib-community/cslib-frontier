@@ -363,13 +363,12 @@ private theorem measureProb_sim_sep {ι V W α : Type*} [Fintype ι] [Fintype V]
     (∀ b : BitString n, weight b = t₂ →
       measureProb (run Vsim φ₀ b T_bool) ((univ.filter fun p => out p ≤ a₀).map (embedOutcome e)) ≤
         ε) := by
-  refine ⟨fun b hb => ?_, fun b hb => ?_⟩
-  · rw [hsim]
-    refine (measureProb_le_of_sep step U hψ₀ T out P (hgood _ fun i => ?_)).1 (h1 b hb)
+  have hX (b : BitString n) (i : ι) : embedSeq e a₀ a₁ b i = a₀ ∨ embedSeq e a₀ a₁ b i = a₁ := by
     by_cases hbi : b (e i) <;> simp [embedSeq, hbi]
-  · rw [hsim]
-    refine (measureProb_le_of_sep step U hψ₀ T out P (hgood _ fun i => ?_)).2 (h2 b hb)
-    by_cases hbi : b (e i) <;> simp [embedSeq, hbi]
+  exact ⟨fun b hb => ((measureProb_le_of_sep step U hψ₀ T out P (hgood _ (hX b))).1
+      (h1 b hb)).trans_eq (hsim b _).symm,
+    fun b hb => (hsim b _).trans_le
+      ((measureProb_le_of_sep step U hψ₀ T out P (hgood _ (hX b))).2 (h2 b hb))⟩
 
 private theorem le_of_card_embedSeq_lt {ι α : Type*} [Fintype ι] [LinearOrder α]
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) {y : α}
@@ -510,8 +509,7 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
   have hd₂_ge : 2 * Δ ≤ d₂ := Nat.le_ceil (2 * Δ)
   have hd₂_lt : (d₂ : ℝ) < 2 * Δ + 1 := Nat.ceil_lt_add_one (by linarith only [hΔ_pos])
   have hd₂_le_4 : (d₂ : ℝ) ≤ 4 * Δ := by linarith only [hd₂_lt, hΔ_lo]
-  have hd₂_le_n : d₂ ≤ n := by
-    exact_mod_cast (by linarith only [hd₂_le_4, hΔ_hi] : (d₂ : ℝ) ≤ n)
+  have hd₂_le_n : d₂ ≤ n := mod_cast (by linarith only [hd₂_le_4, hΔ_hi] : (d₂ : ℝ) ≤ n)
   by_cases hhi : c₁ + d₁ ≤ n
   · by_cases hlo : d₁ ≤ c₁
     · refine hpair (c₁ - d₁) (c₁ + d₁) (by omega) (by omega) (by omega)
@@ -524,8 +522,8 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
         linarith only [hd₁_lt, hΔ_lo]
     · have hc₁_lt : c₁ < d₁ := by omega
       have hc₁_lt_R : (c₁ : ℝ) < Δ := Nat.lt_ceil.mp hc₁_lt
-      have hc₁_le_d₂ : c₁ ≤ d₂ := by
-        exact_mod_cast (by linarith only [hc₁_lt_R, hd₂_ge, hΔ_pos] : (c₁ : ℝ) ≤ d₂)
+      have hc₁_le_d₂ : c₁ ≤ d₂ :=
+        mod_cast (by linarith only [hc₁_lt_R, hd₂_ge, hΔ_pos] : (c₁ : ℝ) ≤ d₂)
       refine hpair 0 d₂ (by omega) (Nat.zero_le n) hd₂_le_n
         (by rw [min_eq_left (Nat.zero_le d₂)]; exact Nat.zero_le c₁)
         (by rw [max_eq_right (Nat.zero_le d₂)]; exact hc₁_le_d₂)
@@ -534,8 +532,7 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
         abs_of_nonneg (Nat.cast_nonneg (α := ℝ) d₂)] using hd₂_le_4
   · have hkd₁ : k < d₁ := by dsimp only [c₁] at hhi; omega
     have hk_lt_R : (k : ℝ) < Δ := Nat.lt_ceil.mp hkd₁
-    have hk_le_d₂ : k ≤ d₂ := by
-      exact_mod_cast (by linarith only [hk_lt_R, hd₂_ge, hΔ_pos] : (k : ℝ) ≤ d₂)
+    have hk_le_d₂ : k ≤ d₂ := mod_cast (by linarith only [hk_lt_R, hd₂_ge, hΔ_pos] : (k : ℝ) ≤ d₂)
     refine hpair (n - d₂) n (by omega) (Nat.sub_le n d₂) le_rfl
       (by rw [min_eq_left (Nat.sub_le n d₂)]; omega)
       (by rw [max_eq_right (Nat.sub_le n d₂)]; exact hc₁)
@@ -775,18 +772,13 @@ private theorem one_sub_mul_median_le_of_sim {ι V W α : Type*}
   have ht₂_ge : (1 + δ) * n / 2 ≤ t₂ := Nat.le_ceil _
   have ht₂_lt : (t₂ : ℝ) < (1 + δ) * n / 2 + 1 :=
     Nat.ceil_lt_add_one (by rw [add_mul, one_mul]; linarith only [hn_pos, hδn₀])
-  have h2t₁ : 2 * t₁ ≤ n := by
-    exact_mod_cast (show (2 * t₁ : ℝ) ≤ n by
-      rw [sub_mul, one_mul] at ht₁_le; linarith only [ht₁_le, hδn₀])
+  have h2t₁ : 2 * t₁ ≤ n := by exact_mod_cast (by nlinarith only [ht₁_le, hδn₀] : (2 * t₁ : ℝ) ≤ n)
   have hn_le_2t₂ : n ≤ 2 * t₂ := by
-    exact_mod_cast (show (n : ℝ) ≤ 2 * t₂ by
-      rw [add_mul, one_mul] at ht₂_ge; linarith only [ht₂_ge, hδn₀])
+    exact_mod_cast (by nlinarith only [ht₂_ge, hδn₀] : (n : ℝ) ≤ 2 * t₂)
   have ht₂_le_n : t₂ ≤ n := Nat.ceil_le.mpr (by rw [add_mul, one_mul]; linarith only [hδn₁])
   have ht₁_le_n : t₁ ≤ n := by omega
   have ht₁_lt_t₂ : t₁ < t₂ := by
-    exact_mod_cast (show (t₁ : ℝ) < t₂ by
-      rw [sub_mul, one_mul] at ht₁_le; rw [add_mul, one_mul] at ht₂_ge
-      linarith only [ht₁_le, ht₂_ge, hδn₀])
+    exact_mod_cast (by nlinarith only [ht₁_le, ht₂_ge, hδn₀] : (t₁ : ℝ) < t₂)
   have hsep := measureProb_sim_sep (t₁ := t₁) (t₂ := t₂) e step U hψ₀ T out
     (fun X y => IsApproxMedian X δ y) Vsim φ₀ T_bool hsim hgood
     (fun b hb _ hm => le_of_card_embedSeq_lt e ha b (by
@@ -904,8 +896,7 @@ theorem median_inv_delta_lower_bound {ι V W α : Type*}
       measureProb (runValue step U ψ₀ X T) (univ.filter fun p => IsApproxMedian X δ (out p)))) :
     1 / δ ≤ 432 * T := by
   rcases Nat.eq_zero_or_pos (Fintype.card ι) with h0 | hn1
-  · simp only [h0, Nat.cast_zero, mul_zero] at hδn
-    linarith
+  · simp only [h0, Nat.cast_zero, mul_zero] at hδn; linarith
   simpa only [min_eq_left ((div_le_iff₀' hδ₀).2 hδn)] using
     median_lower_bound step U hψ₀ T out hn1 hδ₀ hδ₁ hgood
 

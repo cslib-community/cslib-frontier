@@ -256,11 +256,6 @@ private def orLine (w₁ w₂ : Wire p (gateCount p t)) :
     Line DeMorgan.signature p (gateCount p t) :=
   ⟨.or, fun a => if a.val = 0 then w₁ else w₂⟩
 
-private theorem eval_notLine (w : Wire p (gateCount p t)) (x : Fin p → Bool)
-    (v : Fin (gateCount p t) → Bool) :
-    (notLine w).eval DeMorgan.interpretation x v = !Wire.elim x v w :=
-  rfl
-
 private theorem eval_andLine (w₁ w₂ : Wire p (gateCount p t)) (x : Fin p → Bool)
     (v : Fin (gateCount p t) → Bool) :
     (andLine w₁ w₂).eval DeMorgan.interpretation x v = (Wire.elim x v w₁ && Wire.elim x v w₂) :=
@@ -460,21 +455,13 @@ private theorem synthesis_or {n : ℕ} {C : Finset (Fin n)} (hC : C.Nonempty) :
     simpa only [Finset.mem_singleton, exists_eq_left, Bool.decide_eq_true, Finset.card_singleton,
       Nat.sub_self] using Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩
   | cons a s ha hs ih =>
-    have hbin := Synthesis.binary (Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩) ih
-      Boolean.DeMorgan.Op.or
-    have hf : (fun x : Fin n → Bool =>
-        Boolean.DeMorgan.interpretation .or fun i => if i.val = 0 then x a
-          else decide (∃ b ∈ s, x b = true)) =
-        fun x => decide (∃ b ∈ Finset.cons a s ha, x b = true) := by
-      funext x
-      simp only [Boolean.DeMorgan.interpretation_or, Fin.isValue, Fin.val_zero, ite_true,
-        Fin.val_one, one_ne_zero, ite_false, Finset.mem_cons, exists_eq_or_imp, Bool.decide_or,
-        Bool.decide_eq_true]
-    rw [hf] at hbin
-    refine hbin.mono le_rfl le_rfl ?_
-    rw [Finset.card_cons]
-    have := hs.card_pos
-    omega
+    convert Synthesis.binary (Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩) ih
+      Boolean.DeMorgan.Op.or using 2
+    · funext x
+      simp [Boolean.DeMorgan.interpretation_or]
+    · rw [Finset.card_cons]
+      have := hs.card_pos
+      omega
 
 /-- **The table given the template.** If the windows `C` cover every input, then `T` costs at
 most `#C - 1` gates given the template: it is the OR of the last gates of those windows. This is

@@ -168,8 +168,8 @@ theorem not_hasPerfectMatching_bobGraph (i₀ : Fin m) (y : BitString m) :
       change hallSet i₀ y (.inl (.inl i)) = true
       rcases mem_insert.mp hi with rfl | hi <;> simp_all [B, hallSet]
     simp only [bobGraph, hhall, Bool.not_true, Bool.false_or] at hw
-    rcases w with (j | j) | j <;> simp only [coverSet, Bool.false_eq_true] at hw
-    simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at hw
+    rcases w with (j | j) | j <;> simp only [coverSet, Bool.false_eq_true, Bool.and_eq_true,
+      Bool.not_eq_true', decide_eq_false_iff_not] at hw
     exact mem_map.mpr ⟨j, mem_filter.mpr ⟨mem_univ _, hw⟩, rfl⟩
   · rw [card_map, card_map, card_insert_of_notMem (by simp [B])]; omega
 
@@ -467,14 +467,9 @@ theorem le_mul_ecomplexity_bipartitePerfectMatching_add (n : ℕ) :
   | top => simp
   | coe c =>
     rw [hc] at h2
-    cases hr : PublicCoin.ecomplexityFun (1 / 2 ^ 6)
-        (disjointness : BitString m → BitString m → Bool) using ENat.recTopCoe with
-    | top =>
-      exact absurd (top_le_iff.mp (hr ▸ h2)) (by exact_mod_cast ENat.natCast_ne_top (6 * (c + 1)))
-    | coe r =>
-      have h1' : m ≤ 2 ^ 9 * r + 2 ^ 12 := by exact_mod_cast hr ▸ h1
-      have h2' : r ≤ 6 * (c + 1) := by exact_mod_cast hr ▸ h2
-      exact_mod_cast (by omega : n ≤ 2 ^ 13 * c + 2 ^ 14)
+    have hm := h1.trans (add_le_add (mul_le_mul_of_nonneg_left h2 zero_le) le_rfl)
+    norm_cast at hm
+    exact_mod_cast (by omega : n ≤ 2 ^ 13 * c + 2 ^ 14)
 
 namespace Monotone
 

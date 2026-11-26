@@ -211,17 +211,14 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
     refine (abs_sum_le_sum_abs _ _).trans (le_of_eq (sum_congr rfl fun i hi => ?_))
     rw [← mul_sub, abs_mul, abs_of_nonneg (hw i hi)]
   have hsumS : ∑ i ∈ t, w i * F i + ∑ i ∈ t, w i * F' i = A := by
-    rw [← sum_add_distrib]; exact sum_congr rfl fun i _ => by simp only [S]; ring
+    simp only [A, S, mul_add, sum_add_distrib]
   have hA : 0 ≤ A := sum_nonneg fun i hi => mul_nonneg (hw i hi) (hS i hi)
   rcases hA.eq_or_lt with hA0 | hApos
   · -- Every weighted pair vanishes, so the left side is `L(0, 0) = 0`.
-    have hzero :=
-      (sum_eq_zero_iff_of_nonneg fun i hi => mul_nonneg (hw i hi) (hS i hi)).1 hA0.symm
-    have hD0 : ∑ i ∈ t, w i * D i = 0 := sum_eq_zero fun i hi => le_antisymm
-      ((mul_le_mul_of_nonneg_left (hD i hi) (hw i hi)).trans_eq (hzero i hi))
-      (mul_nonneg (hw i hi) (abs_nonneg _))
-    simpa only [homogeneousLoss, le_antisymm (hD0 ▸ hdiff) (abs_nonneg _), zero_pow hs,
-      zero_div] using hrhs
+    have h0 : |∑ i ∈ t, w i * F i - ∑ i ∈ t, w i * F' i| = 0 := le_antisymm
+      (hdiff.trans ((sum_le_sum fun i hi =>
+        mul_le_mul_of_nonneg_left (hD i hi) (hw i hi)).trans_eq hA0.symm)) (abs_nonneg _)
+    simpa only [homogeneousLoss, h0, zero_pow hs, zero_div] using hrhs
   -- Jensen's inequality for `x ↦ x^s` with weights `w i S i / A` at the points `D i / S i`.
   set lam : ι → ℝ := fun i => w i * S i / A
   set x : ι → ℝ := fun i => D i / S i
@@ -233,8 +230,7 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
     rw [sum_div]
     refine sum_congr rfl fun i hi => ?_
     rcases (hS i hi).eq_or_lt with h0 | hpos
-    · have hD0 : D i = 0 := le_antisymm (h0.symm ▸ hD i hi) (abs_nonneg _)
-      simp [lam, x, hD0, ← h0]
+    · simp [lam, x, D, le_antisymm (h0.symm ▸ hD i hi) (abs_nonneg _), ← h0]
     · simp only [lam, x]; field_simp
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
   have hmeanpow : ∑ i ∈ t, lam i * x i ^ (k + 1) =
@@ -243,8 +239,8 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
     refine sum_congr rfl fun i hi => ?_
     rcases (hS i hi).eq_or_lt with h0 | hpos
     · simp [lam, x, homogeneousLoss, D, le_antisymm (h0.symm ▸ hD i hi) (abs_nonneg _)]
-    · simp only [lam, x, homogeneousLoss, Nat.add_sub_cancel, D, S] at *
-      rw [div_pow, pow_succ (F i + F' i) k]
+    · simp only [lam, x, homogeneousLoss, Nat.add_sub_cancel, D, S, div_pow,
+        pow_succ (F i + F' i) k] at *
       field_simp
   rw [hmean, hmeanpow, div_pow, div_le_div_iff₀ (by positivity) hApos, pow_succ A k,
     ← mul_assoc] at hjensen

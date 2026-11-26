@@ -479,26 +479,20 @@ theorem eq_zero_of_isDoor_of_not_isInteriorFacet {N : Fin (n + 1) → ℕ}
     {c : (Fin (n + 1) → ℕ) → Fin (n + 2)} (hc : IsHypergridSperner N c) {s : KuhnSimplex (n + 1)}
     (hs : s ∈ kuhnSimplices (n + 1) N) {k : Fin (n + 2)} (hd : IsDoor c s k)
     (hi : ¬IsInteriorFacet N s k) : k = 0 ∧ s.rank 0 = 0 ∧ s.base 0 = 0 := by
-  rw [IsInteriorFacet, not_and_or] at hi
-  rcases hi with hi | hi
-  · simp only [not_imp, not_forall, not_lt, Nat.le_zero] at hi
-    obtain ⟨rfl, i, hri, hbi⟩ := hi
-    obtain ⟨j, hj, hj1⟩ := hd 1 one_ne_zero
+  simp only [IsInteriorFacet, not_and_or, not_imp, not_forall, not_lt, Nat.le_zero] at hi
+  rcases hi with ⟨rfl, i, hri, hbi⟩ | ⟨rfl, i, hri, hbi⟩
+  · obtain ⟨j, hj, hj1⟩ := hd 1 one_ne_zero
     have hv : s.vertex j i = 0 := by
       simp only [vertex, hbi, hri, Fin.castSucc_zero, Fin.le_zero_iff, hj, ite_false]
     have := (hc _ (vertex_le hs j) i).1 hv
-    have hi0 : i = 0 := by fin_index
-    subst hi0
+    obtain rfl : i = 0 := by fin_index
     exact ⟨rfl, hri, hbi⟩
-  · exfalso
-    simp only [not_imp, not_forall, not_lt] at hi
-    obtain ⟨rfl, i, hri, hbi⟩ := hi
-    have hbi' := mem_kuhnSimplices.mp hs i
+  · have hbi' := mem_kuhnSimplices.mp hs i
     obtain ⟨j, hj, hji⟩ := hd i.succ (Fin.succ_ne_zero i)
     have hv : s.vertex j i = N i := by
       rw [vertex, hri, ite_eq_left (Fin.le_castSucc_iff.mpr (Fin.lt_last_iff_ne_last.mpr hj))]
       omega
-    exact (hc _ (vertex_le hs j) i).2 hv hji
+    exact ((hc _ (vertex_le hs j) i).2 hv hji).elim
 
 /-- The facet opposite the upper corner of a simplex touching the face `x 0 = 0` along it is not
 interior. -/
@@ -638,11 +632,8 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
     set D := (S ×ˢ (univ : Finset (Fin (n + 2)))).filter fun p => IsDoor c p.1 p.2
     -- the number of panchromatic simplices has the parity of the number of doors
     have hD : Odd #{s ∈ S | IsPanchromatic c s} ↔ Odd #D := by
-      have : #D = ∑ s ∈ S, #{k | IsDoor c s k} := by
-        rw [card_filter, sum_product]
-        simp only [card_filter]
-      rw [this, odd_sum_iff_odd_card_odd]
-      simp only [odd_card_isDoor_iff]
+      have : #D = ∑ s ∈ S, #{k | IsDoor c s k} := by simp only [D, card_filter, sum_product]
+      simp only [this, odd_sum_iff_odd_card_odd, odd_card_isDoor_iff]
     rw [hD, ← card_filter_add_card_filter_not fun p => IsInteriorFacet N p.1 p.2]
     refine Even.add_odd ?_ ?_
     · -- interior doors are matched by crossing
