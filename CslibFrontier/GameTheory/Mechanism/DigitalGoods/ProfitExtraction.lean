@@ -138,8 +138,7 @@ noncomputable abbrev optimalProfitTwo [Fintype ι] (b : ι → ℝ) : ℝ :=
 @[simp]
 theorem singlePriceProfitOn_empty (m : ℕ) (b : ι → ℝ) :
     singlePriceProfitOn m ∅ b = 0 := by
-  unfold singlePriceProfitOn
-  simp only [filter_empty, Finset.not_nonempty_empty, ↓reduceDIte]
+  simp [singlePriceProfitOn]
 
 /-- If fewer than `m` bidders are in `s`, then `singlePriceProfitOn m s b = 0`. -/
 theorem singlePriceProfitOn_eq_zero_of_card_lt {m : ℕ} {s : Finset ι} (b : ι → ℝ)
@@ -530,8 +529,7 @@ private theorem profitExtractOn_update_lose [DecidableEq ι] {s : Finset ι} {R 
 
 /-- `profitExtractOn s R` has a `0`-`1` allocation rule. -/
 theorem profitExtractOn_isBinary (s : Finset ι) (R : ℝ) :
-    IsBinary (profitExtractOn s R).allocation := by
-  intro b _ i
+    IsBinary (profitExtractOn s R).allocation := fun b _ i => by
   dsimp only [profitExtractOn]
   split_ifs <;> simp
 
@@ -605,10 +603,9 @@ theorem profitExtractOn_isIR (s : Finset ι) (R : ℝ) :
 
 /-- In `ProfitExtract_R`, a bidder bidding `0` pays `0`. -/
 theorem profitExtractOn_isNormalized [DecidableEq ι] (s : Finset ι) (R : ℝ) :
-    (profitExtractOn s R).IsNormalized := by
-  intro i b hb
-  rw [profitExtractOn_payment_eq_criticalBid]
-  exact criticalBidMechanism_isNormalized (profitExtractOn_isBinary s R) i b hb
+    (profitExtractOn s R).IsNormalized := fun i b hb =>
+  (profitExtractOn_payment_eq_criticalBid s R (Function.update b i 0) i).trans
+    (criticalBidMechanism_isNormalized (profitExtractOn_isBinary s R) i b hb)
 
 private theorem sum_payment_profitExtractOn_eq_univ [Fintype ι] (s : Finset ι) (R : ℝ)
     (b : ι → ℝ) :
@@ -700,12 +697,10 @@ theorem rspeExpectedProfit_eq_div (b : ι → ℝ) :
     NNRat.cast_natCast, Nat.cast_pow, Nat.cast_ofNat, ← div_eq_mul_inv]
 
 /-- Each deterministic realization `rspe s` has a `0`-`1` allocation rule. -/
-theorem rspe_isBinary (s : Finset ι) : IsBinary (rspe s).allocation := by
-  intro b hb i
-  unfold rspe; dsimp only
+theorem rspe_isBinary (s : Finset ι) : IsBinary (rspe s).allocation := fun b hb i => by
+  dsimp only [rspe]
   split_ifs
-  · exact profitExtractOn_isBinary s _ b hb i
-  · exact profitExtractOn_isBinary sᶜ _ b hb i
+  exacts [profitExtractOn_isBinary s _ b hb i, profitExtractOn_isBinary sᶜ _ b hb i]
 
 omit [Fintype ι] in
 private theorem optimalProfitOn_update_of_notMem {s : Finset ι} {i : ι} (hi : i ∉ s)
@@ -725,12 +720,10 @@ theorem rspe_isDSIC (s : Finset ι) : (rspe s).IsDSIC := by
     exact profitExtractOn_isDSIC sᶜ (optimalProfitOn s b) i b v hb hv
 
 /-- For every partition `s : Finset ι`, `rspe s` is individually rational on nonnegative bids. -/
-theorem rspe_isIR (s : Finset ι) : (rspe s).IsIR := by
-  intro i b hb
+theorem rspe_isIR (s : Finset ι) : (rspe s).IsIR := fun i b hb => by
   simp only [Mechanism.utility, rspe]
   split_ifs
-  · exact profitExtractOn_isIR s (optimalProfitOn sᶜ b) i b hb
-  · exact profitExtractOn_isIR sᶜ (optimalProfitOn s b) i b hb
+  exacts [profitExtractOn_isIR s _ i b hb, profitExtractOn_isIR sᶜ _ i b hb]
 
 /-- For every partition `s : Finset ι`, a bidder bidding `0` pays `0` in `rspe s`. -/
 theorem rspe_isNormalized (s : Finset ι) : (rspe s).IsNormalized := by
@@ -841,11 +834,8 @@ private theorem four_mul_sum_inter_mul_sdiff {W : Finset ι} (hW : 2 ≤ W.card)
     rw [sum_comm]
     refine sum_congr rfl fun i _ => sum_comm
   have hcardι : 2 ≤ Fintype.card ι := hW.trans (card_le_univ W)
-  have hpow : 4 * 2 ^ (Fintype.card ι - 2) = 2 ^ Fintype.card ι := by
-    have h4 : (4 : ℕ) = 2 ^ 2 := rfl
-    rw [h4, ← pow_add]
-    congr 1
-    omega
+  have hpow : 4 * 2 ^ (Fintype.card ι - 2) = 2 ^ Fintype.card ι :=
+    (Nat.pow_add 2 2 (Fintype.card ι - 2)).symm.trans (congrArg (2 ^ ·) (by omega))
   have hinner : ∀ i ∈ W, ∑ j ∈ W,
       ((univ : Finset (Finset ι)).filter fun s => i ∈ s ∧ j ∉ s).card =
       (W.card - 1) * 2 ^ (Fintype.card ι - 2) := by

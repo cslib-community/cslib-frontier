@@ -232,9 +232,8 @@ theorem IsStandaloneOpt.le_of_ratio_lt {P : ℝ → ℝ} {V₁ C₁ V₂ C₂ : 
     (hV₁ : 0 < V₁) (hC₁ : 0 < C₁) (hV₂ : 0 < V₂) (hC₂ : 0 < C₂)
     (hratio : V₁ / C₁ < V₂ / C₂) : z₁ ≤ z₂ := by
   by_contra hlt
-  have hz : (z₂ : ℝ) < (z₁ : ℝ) := lt_of_not_ge hlt
   have hcross : V₁ * C₂ < V₂ * C₁ := (div_lt_div_iff₀ hC₁ hC₂).mp hratio
-  nlinarith [h₁ z₂, h₂ z₁]
+  nlinarith [NNReal.coe_lt_coe.mpr (lt_of_not_ge hlt), h₁ z₂, h₂ z₁]
 
 /-- First-order sufficient condition for standalone optimality ([Varian2004], §3.1, p. 3): if `P`
 has antitone derivative `P'` on `[0, ∞)`, then `zStar` is a standalone optimum whenever either
@@ -938,10 +937,8 @@ theorem prob_weakestLink_le_of_subset_of_isPureNash [DecidableEq ι]
       univ.inf' univ_nonempty (fun i : S => xBar i.1) :=
     le_inf' univ_nonempty _ fun i _ =>
       inf'_le (fun j : T => xBar j.1) (mem_univ ⟨i.1, hST i.2⟩)
-  have hwS : weakestLink xS = univ.inf' univ_nonempty (fun i : S => xBar i.1) := by
-    simp only [xS, weakestLink, inf'_const]
-  exact hMono (weakestLink xT).coe_nonneg (weakestLink xS).coe_nonneg
-    (NNReal.coe_le_coe.mpr (hwT.trans (hinf_le.trans_eq hwS.symm)))
+  simpa only [xS, weakestLink_const] using hMono (weakestLink xT).coe_nonneg
+    (NNReal.coe_nonneg _) (NNReal.coe_le_coe.mpr (hwT.trans hinf_le))
 
 /-! ### Best-shot Nash equilibria: champion and slacker equilibria -/
 
@@ -984,10 +981,8 @@ theorem isPureNash_bestShotGame_single_iff {xBar : ι → ℝ≥0} {k : ι}
   have hsup_single : bestShot sK = xBar k := bestShot_pi_single k (xBar k)
   refine ⟨fun hN i hik => ?_, fun hFree i a => ?_⟩
   · rcases le_or_gt (xBar i) (xBar k) with hle | hgt
-    · have hP : R.prob (xBar i) ≤ R.prob (xBar k) :=
-        hMono (xBar i).coe_nonneg (xBar k).coe_nonneg hle
-      have hc0 : 0 ≤ R.unitCost i * (xBar i : ℝ) := mul_nonneg (hCost i) (xBar i).coe_nonneg
-      nlinarith [hVal i]
+    · nlinarith [hVal i, hMono (xBar i).coe_nonneg (xBar k).coe_nonneg hle,
+        mul_nonneg (hCost i) (xBar i).coe_nonneg]
     · simpa only [bestShotGame, toCostGame, hsup_single,
         bestShot_update_single_ne hik (xBar k) (xBar i), max_eq_right hgt.le, sK,
         Pi.single_eq_of_ne hik, NNReal.coe_zero, mul_zero, add_zero, Function.update_self] using
@@ -1220,12 +1215,10 @@ theorem exists_totalEffortGame_socialCost_gt_mul {n : ℕ} (hn : 0 < n) {β : �
     fun _ _ _ _ hab => min_le_min_right 1 hab, fun _ => min_le_right _ _, hNash0, hUnique, ?_⟩
   rw [hsoc0, hsoc']
   by_cases h0 : β ≤ 0
-  · have h1ε : 0 ≤ 1 + ε := by linarith
-    linarith [mul_nonpos_of_nonpos_of_nonneg h0 h1ε]
+  · nlinarith
   · have hb : 0 < β := lt_of_not_ge h0
     simp only [ε, h0, ↓reduceIte]
-    have : β * (1 + ((n : ℝ) - β) / (2 * β)) = (β + (n : ℝ)) / 2 := by
-      field_simp [hb.ne']; ring
+    field_simp [hb.ne']
     linarith
 
 end Cslib.GameTheory

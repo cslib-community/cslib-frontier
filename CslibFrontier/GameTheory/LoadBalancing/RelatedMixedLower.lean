@@ -370,8 +370,7 @@ theorem expectedLoad_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k)
       rw [sum_image (fun _ _ _ _ h => by cases h; rfl)]
       simp only [emb, relatedMixedLower, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul,
         ← ht_succ, pow_succ]
-      have hpow_ne : (2 : ℝ) ^ t.val ≠ 0 := by positivity
-      push_cast; field_simp [hpow_ne]
+      push_cast; field_simp
 
 /-- For `k ≥ 1` and `B ≥ 1`, `relatedMixedLowerNE k B` is a mixed Nash equilibrium of
 `relatedMixedLower k B`. -/
@@ -417,19 +416,16 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
       · subst hj'_eq
         rw [ite_eq_right hnotlast, ite_eq_left rfl, sub_self, zero_mul, add_zero]
       · rw [ite_eq_right hj'_eq, sub_zero, one_mul]
-        simp only [relatedMixedDetTarget]
+        simp only [relatedMixedDetTarget, relatedMixedLower]
+        have hnn : 0 ≤ (2 : ℝ) ^ x.tier.val / (2 : ℝ) ^ j'.tier.val := by positivity
         by_cases hj'_last : j'.tier = Fin.last k
         · rw [ite_eq_left hj'_last]
           have hlt : (x.tier.val : ℝ) + 1 ≤ (k : ℝ) - 1 := by
             simpa [Nat.cast_sub hk] using (Nat.cast_le (α := ℝ)).mpr x.tier.isLt
-          have hnn : 0 ≤ (2 : ℝ) ^ x.tier.val / (2 : ℝ) ^ j'.tier.val := by positivity
-          simp only [relatedMixedLower]
           push_cast; linarith
         · rw [ite_eq_right hj'_last]
-          simp only [relatedMixedLower]
           by_cases hrt : x.tier.val + 1 ≤ j'.tier.val
           · have hrt' : ((x.tier.val + 1 : ℕ) : ℝ) ≤ (j'.tier.val : ℝ) := by exact_mod_cast hrt
-            have hnn : 0 ≤ (2 : ℝ) ^ x.tier.val / (2 : ℝ) ^ j'.tier.val := by positivity
             linarith
           · have hge := add_two_pow_div_ge (a := x.tier.val) (b := j'.tier.val) (by omega)
             push_cast; linarith
@@ -651,8 +647,8 @@ private theorem log_log_lt_log_log_log_of_pow_le {k B X : ℕ} (hk : 16 ≤ k)
   have hx_pos : 0 < x := (Real.exp_pos 1).trans hx_gt_e
   have hB_pos_r : (0 : ℝ) < (B : ℝ) := Nat.cast_pos.mpr (by rw [hB]; positivity)
   have hlogB : Real.log (B : ℝ) = 18 * (k : ℝ) * x := by
-    rw [show (B : ℝ) = (k : ℝ) ^ (18 * k) by exact_mod_cast hB, Real.log_pow]
-    push_cast; ring
+    simp only [hB, Nat.cast_pow, Real.log_pow, Nat.cast_mul, Nat.cast_ofNat]
+    ring
   have hk_lt : (k : ℝ) < Real.log (X : ℝ) := by
     have h1 := Real.log_le_log hB_pos_r (by exact_mod_cast hBX : (B : ℝ) ≤ X)
     have h2 : (1 : ℝ) < x := by linarith [Real.add_one_lt_exp (one_ne_zero : (1 : ℝ) ≠ 0)]
@@ -940,9 +936,8 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
         refine congrArg (· / _) (sum_congr rfl fun x _ => if_congr ?_ rfl rfl)
         exact ⟨fun heq => eM.symm_apply_eq.mp (Fin.ext (congrArg (·.val) heq)),
           fun heq => Fin.ext (by simp [embedM, heq])⟩
-      · rw [dite_eq_right h, sum_eq_zero fun x _ => by
-          have hne : embedM (A x) ≠ j := fun heq => h (congrArg Fin.val heq ▸ (eM.symm (A x)).isLt)
-          rw [ite_eq_right hne], zero_div]
+      · rw [dite_eq_right h, sum_eq_zero fun x _ =>
+          ite_eq_right fun heq : embedM (A x) = j => h (heq ▸ (eM.symm (A x)).isLt), zero_div]
     -- Transfer `optMakespan ≤ 1` and `d / 4 ≤ expectedMakespan` via idle padding.
     have hpad := optMakespan_le_and_expectedMakespan_ge_of_idlePad
       (relatedMixedLower k B) (relatedMixedLowerNE k B) G p eJ hembedM_inj

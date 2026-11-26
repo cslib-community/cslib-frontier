@@ -162,9 +162,7 @@ theorem twoBidderClinching_swap (m : ℝ) {B v : Fin 2 → ℝ} (h : B 1 < B 0) 
       (twoBidderClinching m ![B 1, B 0] ![v 1, v 0]).alloc (Equiv.swap 0 1 i) ∧
     (twoBidderClinching m B v).payment i =
       (twoBidderClinching m ![B 1, B 0] ![v 1, v 0]).payment (Equiv.swap 0 1 i) := by
-  simp only [twoBidderClinching, swapOutcome, Matrix.cons_val_zero, Matrix.cons_val_one,
-    not_le.mpr h, h.le, ↓reduceIte]
-  exact ⟨rfl, rfl⟩
+  simp [twoBidderClinching, swapOutcome, swap01, not_le.mpr h, h.le]
 
 /-- Phase-0 explicit evaluation: when `B 0 ≤ B 1` and `v 0 < v 1` with `v 0 ≤ B 0 / m`, bidder `1`
 receives the full supply `m` at price `v 0`. -/
@@ -367,11 +365,8 @@ private theorem traj1_isEnvCurve {m b₁ b₂ : ℝ} (hm : 0 < m) (hb₁ : 0 < b
     (fun {p q} hp hpq => by
       obtain ⟨hxp, hpp⟩ := eval2 p hp
       obtain ⟨hxq, hpq'⟩ := eval2 q (hp.trans hpq)
-      have hph := phase2_sandwich hb₁ hpe_pos hp hpq
-      rw [hxp, hxq, hpp, hpq']
-      exact ⟨by linarith [hph.1],
-        by linarith [hph.2.1],
-        by linarith [hph.2.2]⟩)
+      simpa only [hxp, hxq, hpp, hpq', add_le_add_iff_left, add_sub_add_left_eq_sub] using
+        phase2_sandwich hb₁ hpe_pos hp hpq)
   have hall := env_glue (x := trajX1 m b₁ b₂) (pay := trajP1 m b₁ b₂) (a := 0) (c := p₀)
     (fun {p q} _ hpq hq => by
       dsimp only [p₀] at hq
@@ -615,8 +610,7 @@ theorem twoBidderClinching_isFeasible {m : ℝ} (hm : 0 < m) {B v : Fin 2 → �
   split_ifs with hle
   · exact (orderedClinching_props hm (hB 0) hle (hv 0) (hv 1)).feas
   · have h := (orderedClinching_props hm (hB 1) (lt_of_not_ge hle).le (hv 1) (hv 0)).feas
-    refine ⟨fun i => h.1 (swap01 i), ?_⟩
-    simpa [swapOutcome, Fin.sum_univ_two, add_comm] using h.2
+    exact ⟨fun i => h.1 (swap01 i), by simpa [swapOutcome, Fin.sum_univ_two, add_comm] using h.2⟩
 
 /-- Nonnegative payments of `twoBidderClinching`. -/
 theorem twoBidderClinching_hasNonnegPayment {m : ℝ} (hm : 0 < m) {B v : Fin 2 → ℝ}

@@ -418,10 +418,8 @@ theorem totalBTreeNodesWhp_le_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_
       ((Nat.mul_le_mul_right 1024 hq_lt).trans_eq (by rw [Nat.pow_add, Nat.pow_succ]; ring))
   have hlog_m : Nat.log 2 m ≤ Nat.log 2 q + 10 :=
     Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega : m ≠ 0) hm_lt_pow)
-  have hn4 : 4 ≤ n_max := by
-    by_contra hlt
-    rcases (by omega : n_max = 0 ∨ n_max = 1 ∨ n_max = 2 ∨ n_max = 3) with
-      rfl | rfl | rfl | rfl <;> revert hm_ge <;> decide
+  have hn4 : 4 ≤ n_max :=
+    not_lt.mp fun h => absurd (hm_ge.trans (Nat.log_mono_right (Nat.le_of_lt_succ h))) (by decide)
   have hell : logLogFactor n_max ≤ Nat.log 2 q + 12 := by
     unfold logLogFactor
     rw [max_eq_left hn4]
@@ -1060,8 +1058,7 @@ theorem realizes_splitFullNodeGen :
     have htv_lt : tMinWhp n_max * valLaneBitsWhp n_max < w :=
       (Nat.mul_le_mul_right _ (by omega : tMinWhp n_max ≤ 2 * tMinWhp n_max)).trans_lt hvw_lt
     have h1_2t_lt : 1 + 2 * tMinWhp n_max < w := by
-      have : 2 * (2 * tMinWhp n_max) ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max := by
-        rw [Nat.mul_comm 2 (2 * tMinWhp n_max)]; exact Nat.mul_le_mul_left _ hkl_ge2
+      have := Nat.mul_le_mul_left (2 * tMinWhp n_max) hkl_ge2
       omega
     try simp only [wp_large_tMin hth, wp_large_wKey hth, wp_large_wVal hth]
     first
@@ -1432,25 +1429,16 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
     (writePacked_outside hw _ hidx _ (by omega)).trans
       ((writePacked_outside hw _ hidx _ (by omega)).trans
         (writePacked_outside hw _ hidx _ (by omega)))
-  have hdisj_MK : (base + offBtMeta c U V w n_max) +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ≤
-      base + offBtKeys c U V w n_max := by omega
-  have hdisj_MV : (base + offBtMeta c U V w n_max) +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ≤
-      base + offBtVals c U V w n_max := by omega
-  have hdisj_KV : (base + offBtKeys c U V w n_max) +
-      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w ≤
-      base + offBtVals c U V w n_max := by omega
   have hrM : ∀ i < totalBTreeNodesWhp n_max,
       readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₃ i =
         readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₁ i :=
     fun i hi =>
-      (readPacked_writePacked_disjoint hw hi hidx (Or.inl hdisj_MV)).trans
-        (readPacked_writePacked_disjoint hw hi hidx (Or.inl hdisj_MK))
+      (readPacked_writePacked_disjoint hw hi hidx (Or.inl (by omega))).trans
+        (readPacked_writePacked_disjoint hw hi hidx (Or.inl (by omega)))
   have hrK : ∀ i < totalBTreeNodesWhp n_max,
       readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w mem₃ i =
         readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w mem₂ i :=
-    fun i hi => readPacked_writePacked_disjoint hw hi hidx (Or.inl hdisj_KV)
+    fun i hi => readPacked_writePacked_disjoint hw hi hidx (Or.inl (by omega))
   have hnode_ne {i : ℕ} (hi : i < totalBTreeNodesWhp n_max) (hne_i : i ≠ idx) :
       readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₃ i =
         readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w s.mem i ∧
@@ -1460,10 +1448,10 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
         readPacked (base + offBtVals c U V w n_max) (valsWordBitsWhp n_max) w s.mem i :=
     ⟨(hrM i hi).trans (readPacked_writePacked_of_ne hw s.mem hne_i _),
       (hrK i hi).trans ((readPacked_writePacked_of_ne hw mem₁ hne_i _).trans
-        (readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_MK))),
+        (readPacked_writePacked_disjoint hw hi hidx (Or.inr (by omega)))),
       (readPacked_writePacked_of_ne hw mem₂ hne_i _).trans
-        ((readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_KV)).trans
-          (readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_MV)))⟩
+        ((readPacked_writePacked_disjoint hw hi hidx (Or.inr (by omega))).trans
+          (readPacked_writePacked_disjoint hw hi hidx (Or.inr (by omega))))⟩
   obtain ⟨hsegM, hsegK, hsegV⟩ := btNodeSegs_le c U V w n_max base
   have hs'_eq : (Memory.spec 0).clientState s
       (writePackedGenProg

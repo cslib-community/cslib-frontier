@@ -254,9 +254,8 @@ theorem isCorrelated_jointMatrix_iff (G : BimatrixGame M N)
     refine sum_congr rfl fun j _ => ?_
     rw [Fintype.sum_eq_single i fun x hx =>
       mul_eq_zero_of_right _ (ite_eq_right fun h => hx (congrArg ULift.down h))]
-    simp only [pureProfile, toCostGame, update_self, update_of_ne Bool.false_ne_true.symm,
-      ↓reduceIte, mul_neg]
-    rfl
+    simp only [pureProfile, toCostGame, jointMatrix, of_apply, update_self,
+      update_of_ne Bool.false_ne_true.symm, ↓reduceIte, mul_neg]
   have hcol_sum (j j' : N) :
       σ.weights.sum (fun s w =>
         w * if s true = ULift.up j then G.toCostGame.cost true (update s true (ULift.up j'))
@@ -265,9 +264,8 @@ theorem isCorrelated_jointMatrix_iff (G : BimatrixGame M N)
     refine sum_congr rfl fun i _ => ?_
     rw [Fintype.sum_eq_single j fun y hy =>
       mul_eq_zero_of_right _ (ite_eq_right fun h => hy (congrArg ULift.down h))]
-    simp only [pureProfile, toCostGame, update_self, update_of_ne Bool.false_ne_true,
-      ↓reduceIte, mul_neg]
-    rfl
+    simp only [pureProfile, toCostGame, jointMatrix, of_apply, update_self,
+      update_of_ne Bool.false_ne_true, ↓reduceIte, mul_neg]
   have hself_eq (b : Bool) (a : PureStrategy M N b) :
       σ.weights.sum (fun s w => w * if s b = a then G.toCostGame.cost b s else 0) =
       σ.weights.sum (fun s w => w * if s b = a then G.toCostGame.cost b (update s b a) else 0) :=
@@ -425,9 +423,8 @@ theorem IsNondegenerate.eq_of_support_subset_of_isPureBestResponse₁ {G : Bimat
   set d : N → ℝ := y' - y
   have hd_sum : ∑ j : N, d j = 0 := by
     simp only [d, Pi.sub_apply, sum_sub_distrib, hy'.sum_eq_one, hy.sum_eq_one, sub_self]
-  have hd_zero_outside : ∀ j : N, y j = 0 → d j = 0 := fun j hyj => by
-    have hy'j : y' j = 0 := by_contra fun h0 => hsupp h0 hyj
-    simp only [d, Pi.sub_apply, hy'j, hyj, sub_self]
+  have hd_zero_outside : ∀ j : N, y j = 0 → d j = 0 := fun j hyj =>
+    sub_eq_zero.2 ((by_contra fun h0 => hsupp h0 hyj).trans hyj.symm)
   have hex_neg : ∃ j : N, d j < 0 := by
     by_contra! hnn
     have hd0 := (sum_eq_zero_iff_of_nonneg fun j _ => hnn j).1 hd_sum
@@ -879,23 +876,18 @@ theorem chickenGame_isNash_iff {x y : Fin 2 → ℝ} :
         ∀ (i i' : Fin 2), (chickenGame.A *ᵥ v) i < (chickenGame.A *ᵥ v) i' → u i = 0 :=
       fun huv i i' hlt => by_contra fun hne => not_le_of_gt hlt <| isPureBestResponse₁_iff.1
         ((isBestResponse₁_iff.1 huv).2 i ((huv.isMixedStrategy.nonneg i).lt_of_ne' hne)) i'
+    rw [fin2_eq_pair x, fin2_eq_pair y]
     rcases lt_trichotomy (y 0) (1 / 2) with hylt | hyeq | hygt
     · have hx1 : x 1 = 0 := hzero_of_lt h₁ 1 0 (by linarith)
       have hy0 : y 0 = 0 := hzero_of_lt h₂' 0 1 (by linarith)
-      have hx0 : x 0 = 1 := by linarith
-      have hy1 : y 1 = 1 := by linarith
-      exact Or.inr <| Or.inl ⟨by rw [fin2_eq_pair x, hx0, hx1], by rw [fin2_eq_pair y, hy0, hy1]⟩
+      simp [eq_sub_of_add_eq hx_sum, eq_sub_of_add_eq' hy_sum, hx1, hy0]
     · have hbr0 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 0 (by linarith)) 1
       have hbr1 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 1 (by linarith)) 0
       have hx0 : x 0 = 1 / 2 := by linarith
-      have hx1 : x 1 = 1 / 2 := by linarith
-      have hy1 : y 1 = 1 / 2 := by linarith
-      exact Or.inr <| Or.inr ⟨by rw [fin2_eq_pair x, hx0, hx1], by rw [fin2_eq_pair y, hyeq, hy1]⟩
+      norm_num [eq_sub_of_add_eq' hx_sum, eq_sub_of_add_eq' hy_sum, hx0, hyeq]
     · have hx0 : x 0 = 0 := hzero_of_lt h₁ 0 1 (by linarith)
       have hy1 : y 1 = 0 := hzero_of_lt h₂' 1 0 (by linarith)
-      have hx1 : x 1 = 1 := by linarith
-      have hy0 : y 0 = 1 := by linarith
-      exact Or.inl ⟨by rw [fin2_eq_pair x, hx0, hx1], by rw [fin2_eq_pair y, hy0, hy1]⟩
+      simp [eq_sub_of_add_eq' hx_sum, eq_sub_of_add_eq hy_sum, hx0, hy1]
   · have hbr (u v w z : ℝ)
         (h : 0 ≤ u ∧ 0 ≤ v ∧ u + v = 1 ∧ w + z = 1 ∧
           (0 < u → 5 * w ≤ 3 * w + 1) ∧ (0 < v → 3 * w + 1 ≤ 5 * w)) :
@@ -967,7 +959,6 @@ theorem chickenGame_socialWelfare_le_of_correlated {P : Matrix (Fin 2) (Fin 2) �
     (hP : P ∈ chickenGame.correlatedPolytope) :
     chickenGame.socialWelfare P ≤ 20 / 3 := by
   have hcorr := mem_correlatedPolytope_iff.1 hP
-  have hnn11 : 0 ≤ P 1 1 := hcorr.nonneg 1 1
   have hsum : (P 0 0 + P 0 1) + (P 1 0 + P 1 1) = 1 := by
     simpa [Fin.sum_univ_two] using hcorr.sum_eq_one
   have hrow01 : P 0 0 * 5 + P 0 1 * 0 ≤ P 0 0 * 4 + P 0 1 * 1 := by
@@ -977,7 +968,7 @@ theorem chickenGame_socialWelfare_le_of_correlated {P : Matrix (Fin 2) (Fin 2) �
   have hsw : chickenGame.socialWelfare P =
       (P 0 0 * (4 + 4) + P 0 1 * (1 + 5)) + (P 1 0 * (5 + 1) + P 1 1 * (0 + 0)) := by
     simp [socialWelfare, Fin.sum_univ_two, chickenGame_A, chickenGame_B]
-  linarith
+  linarith [hcorr.nonneg 1 1]
 
 /-- Every point in the convex hull of Nash equilibrium product distributions of `chickenGame` has
 expected social welfare at most `6`. -/

@@ -457,14 +457,13 @@ private theorem payoff_acceptRule_ofFn {n : ℕ} (a : ℝ≥0 → Bool) (accept 
             cases j using Fin.cases with
             | zero => exact h0f
             | succ j' => exact h j' (Fin.succ_lt_succ_iff.mp hj)
-        have hpay : ∀ (xs p₁ p₂ : List ℝ≥0),
-            payoff (acceptRule a) reward p₁ xs = payoff (acceptRule a) reward p₂ xs := fun xs => by
+        have hpay : ∀ (xs p : List ℝ≥0),
+            payoff (acceptRule a) reward p xs = payoff (acceptRule a) reward [] xs := fun xs => by
           induction xs with
-          | nil => exact fun _ _ => rfl
-          | cons y ys ihy =>
-              exact fun _ _ => by simp only [payoff_cons, acceptRule, reward, ihy _ []]
+          | nil => exact fun _ => rfl
+          | cons _ _ ihy => exact fun _ => by simp only [payoff_cons, acceptRule, reward, ihy]
         simp only [acceptRule, Bool.eq_false_iff.mpr h0, Bool.false_eq_true, ↓reduceIte, hlose0,
-          mul_zero, zero_add, hpay _ [v 0] [], ← ih (fun k' z => accept k'.succ z)
+          mul_zero, zero_add, hpay _ [v 0], ← ih (fun k' z => accept k'.succ z)
             (fun i z => hacc i.succ z) (fun j => v j.succ), hsucc]
 
 /-- At a uniform posted price `t : ℝ≥0`, the expected social welfare of `postedPrice` equals
@@ -640,26 +639,21 @@ theorem expectedWelfare_postedPrice_tightBidderLaws_le_one (k : ℕ) (p : Fin 2 
   refine le_trans ?_ (expectedReward_tightLaws_le k stop)
   rw [expectedWelfare, expectedReward, ← list_ofFn_tightBidderLaws k, tsum_jointLaw_ofFn_mul]
   refine tsum_le_tsum fun v => mul_le_mul_right ?_ _
-  rw [Fin.sum_univ_two, List.ofFn_succ, List.ofFn_succ, List.ofFn_zero, Fin.succ_zero_eq_one,
-    payoff_cons]
+  rw [List.ofFn_succ, List.ofFn_succ, List.ofFn_zero, Fin.succ_zero_eq_one, payoff_cons]
   by_cases hp0 : p 0 ≤ (v 0 : ℝ)
   · have hw0 : AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 0 :=
       ⟨hp0, fun j hj => absurd hj (Fin.not_lt_zero j)⟩
-    have hl1 : ¬ AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 1 :=
-      fun hw => hw.2 0 Fin.zero_lt_one hp0
-    simp only [stop, postedPrice, acceptMechanism, acceptAllocation_eq_one_iff.mpr hw0,
-      acceptAllocation_eq_zero_iff.mpr hl1, mul_one, mul_zero, add_zero, decide_eq_true hp0,
-      ↓reduceIte, reward, ENNReal.ofReal_coe_nnreal, le_rfl]
+    simp only [stop, postedPrice, acceptMechanism, hw0.sum_mul_acceptAllocation,
+      decide_eq_true hp0, ↓reduceIte, reward, ENNReal.ofReal_coe_nnreal, le_rfl]
   · have hl0 : ¬ AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 0 := fun hw => hp0 hw.1
     simp only [stop, decide_eq_false hp0, Bool.false_eq_true, ↓reduceIte, payoff_cons]
     by_cases hp1 : p 1 ≤ (v 1 : ℝ)
     · have hw1 : AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 1 :=
         ⟨hp1, fun j hj => (Fin.ext (Nat.lt_one_iff.mp hj) : j = 0) ▸ hp0⟩
       simp only [decide_eq_true hp1, ↓reduceIte, postedPrice, acceptMechanism,
-        acceptAllocation_eq_zero_iff.mpr hl0, acceptAllocation_eq_one_iff.mpr hw1, mul_zero,
-        mul_one, zero_add, reward, ENNReal.ofReal_coe_nnreal, le_rfl]
+        hw1.sum_mul_acceptAllocation, reward, ENNReal.ofReal_coe_nnreal, le_rfl]
     · have hl1 : ¬ AcceptWins (fun i z => p i ≤ z) (fun j => (v j : ℝ)) 1 := fun hw => hp1 hw.1
-      simp [decide_eq_false hp1, payoff_nil, postedPrice, acceptMechanism,
+      simp [Fin.sum_univ_two, decide_eq_false hp1, payoff_nil, postedPrice, acceptMechanism,
         acceptAllocation_eq_zero_iff.mpr hl0, acceptAllocation_eq_zero_iff.mpr hl1]
 
 /-- Approaching the long-shot bidder first at price `k + 1` and then the sure-value bidder at price
@@ -685,22 +679,15 @@ theorem expectedRevenuePMF_swapped_tightBidderLaws (k : ℕ) :
   dsimp only [pay2]
   have hvec (x : ℝ≥0) : (fun j : Fin 2 => (![x, 1] j : ℝ)) = ![(x : ℝ), 1] :=
     funext fun j => by fin_cases j <;> simp
-  rw [Fin.sum_univ_two, Fin.sum_univ_two, hvec, hvec]
-  simp only [NNReal.coe_add, NNReal.coe_natCast, NNReal.coe_one, NNReal.coe_zero]
+  simp only [hvec, NNReal.coe_add, NNReal.coe_natCast, NNReal.coe_one, NNReal.coe_zero]
   have hw0 : AcceptWins (fun i z => ![(k + 1 : ℝ), 1] i ≤ z) ![(k + 1 : ℝ), 1] 0 :=
     ⟨by simp, fun j hj => absurd hj (Fin.not_lt_zero j)⟩
-  have hl1 : ¬ AcceptWins (fun i z => ![(k + 1 : ℝ), 1] i ≤ z) ![(k + 1 : ℝ), 1] 1 :=
-    fun hw => hw.2 0 Fin.zero_lt_one (by simp)
   have hlt0 : ¬ ![(k + 1 : ℝ), 1] 0 ≤ ![(0 : ℝ), 1] 0 := by
     simp only [Matrix.cons_val_zero, not_le]; positivity
-  have hl0 : ¬ AcceptWins (fun i z => ![(k + 1 : ℝ), 1] i ≤ z) ![(0 : ℝ), 1] 0 :=
-    fun hw => hlt0 hw.1
   have hw1 : AcceptWins (fun i z => ![(k + 1 : ℝ), 1] i ≤ z) ![(0 : ℝ), 1] 1 :=
     ⟨by simp, fun j hj => (Fin.ext (Nat.lt_one_iff.mp hj) : j = 0) ▸ hlt0⟩
-  simp only [postedPrice, acceptMechanism, acceptAllocation_eq_one_iff.mpr hw0,
-    acceptAllocation_eq_zero_iff.mpr hl1, acceptAllocation_eq_zero_iff.mpr hl0,
-    acceptAllocation_eq_one_iff.mpr hw1, Matrix.cons_val_zero, Matrix.cons_val_one,
-    mul_one, mul_zero, add_zero, zero_add, ENNReal.ofReal_one,
+  simp only [postedPrice, acceptMechanism, hw0.sum_mul_acceptAllocation,
+    hw1.sum_mul_acceptAllocation, Matrix.cons_val_zero, Matrix.cons_val_one, ENNReal.ofReal_one,
     ENNReal.ofReal_add (Nat.cast_nonneg k) zero_le_one, ENNReal.ofReal_natCast]
   congr 1
   ring

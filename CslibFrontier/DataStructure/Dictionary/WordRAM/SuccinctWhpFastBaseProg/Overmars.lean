@@ -298,7 +298,6 @@ theorem realizes_setOvermarsActRt :
   realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨bm, b⟩, actVal⟩
-    dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, base, henv, rfl, hb⟩ := h
     obtain rfl := henv.2.2.1
     have h16M := sixteen_mul_numBuckets_le_n_max henv.2.2.2.1
@@ -360,7 +359,6 @@ private theorem realizes_overmarsSwapRolesRt :
   realize [realizes_readPackedGen, realizes_writePackedGen]
   all_goals (
     rcases d with ⟨bm, b⟩
-    dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, base, henv, rfl, hb⟩ := h
     obtain rfl := henv.2.2.1
     have h16M := sixteen_mul_numBuckets_le_n_max henv.2.2.2.1
@@ -708,7 +706,6 @@ private theorem realizes_overmarsWriteCurInsRt :
   realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨⟨bm, b⟩, cur1⟩, omIns1⟩
-    dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, base, henv, rfl, hb⟩ := h
     obtain rfl := henv.2.2.1
     have h16M := sixteen_mul_numBuckets_le_n_max henv.2.2.2.1
@@ -1065,10 +1062,9 @@ private theorem overmarsScanOneProg_fastStep {c U V w n_max base b : ℕ}
   have hth := henv.2.2.2.1
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
-  have hML12 := numBucketsWhp_mul_scale_pow12_le hth
-  have hM_ge := (large_bounds_lt_n_max hth).1
   have h8L12_n : 8 * (slabScale n_max) ^ 12 ≤ n_max :=
-    (Nat.mul_le_mul_right _ (by omega : 8 ≤ numBucketsWhp n_max)).trans hML12
+    (Nat.mul_le_mul_right _ (by linarith [(large_bounds_lt_n_max hth).1])).trans
+      (numBucketsWhp_mul_scale_pow12_le hth)
   have hcc := ReadSpec.of (overmarsReadCurCntGenProg_spec henv hb hrep (s := s))
   set cur := fs.overmarsCursor b
   have hw6 := StepSpec.of (writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10)
@@ -1345,10 +1341,9 @@ theorem OvermarsBucketStepBounds.of_core_and_pre {c U V n_max b : ℕ} {θ : See
     (hom : PreOvermarsBucketInv c U n_max θ fs b) :
     OvermarsBucketStepBounds U n_max b fs := by
   have h2tl := (large_index_bounds hc.hth).2.2.1
-  have hL2 := two_le_slabScale n_max
   have hL12 : 4096 ≤ (slabScale n_max) ^ 12 := by
     calc 4096 = 2 ^ 12 := by decide
-      _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
+      _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left (two_le_slabScale n_max) 12
   have hcnt_tl := hc.bktCount_le b hb
   have hcnt_3L : fs.bktCount b ≤ 3 * (slabScale n_max) ^ 12 :=
     hcnt_tl.trans totalLocalCoordsWhp_le_three_mul
@@ -1362,8 +1357,7 @@ theorem OvermarsBucketStepBounds.of_core_and_pre {c U V n_max b : ℕ} {θ : See
     · simp only [ha0, htrig, and_self, ↓reduceIte, FastState.overmarsSliceIdx,
         Function.update_self]
       exact ⟨by omega, by omega, ⟨fun _ => none, validWhpSlice_zero _ 0 _⟩⟩
-    · rw [ite_eq_right fun ⟨_, h⟩ => htrig h] at ha1
-      omega
+    · simp only [htrig, and_false, ↓reduceIte, ha0] at ha1; omega
   · rw [ite_eq_right (by omega)]
     exact ⟨by omega, by omega, ⟨omMap0, hv0⟩⟩
 
@@ -1479,17 +1473,15 @@ theorem overmarsStepGenProg_fastStep {c U V w n_max base b : ℕ}
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
   have hn4 := four_le_of_whpThreshold_le hth
-  have hML12 := numBucketsWhp_mul_scale_pow12_le hth
-  have hM_ge := (large_bounds_lt_n_max hth).1
   have h8L12_n : 8 * (slabScale n_max) ^ 12 ≤ n_max :=
-    (Nat.mul_le_mul_right _ (by omega : 8 ≤ numBucketsWhp n_max)).trans hML12
+    (Nat.mul_le_mul_right _ (by linarith [(large_bounds_lt_n_max hth).1])).trans
+      (numBucketsWhp_mul_scale_pow12_le hth)
   rcases hbnds with ⟨hb, hce_or, hlr, hor, hcnt_le, hq_all, hbp_v, hscan16⟩
   obtain ⟨hoa_mc, hoa_vp, hoa_step⟩ :=
     overmarsActivateGenProg_fastStep henv hb hor hseed hrep (s := s)
   have hoa := StepSpec.of_le ⟨hoa_mc, hoa_vp, hoa_step⟩
   have hrep0 := hoa.step.2.2.1
   have h5 := ReadSpec.of (readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep0)
-  dsimp only
   unfold overmarsStepGenProg
   rw [overmarsStep_eq]
   generalize hk16_eq : (16 : ℕ) = k16

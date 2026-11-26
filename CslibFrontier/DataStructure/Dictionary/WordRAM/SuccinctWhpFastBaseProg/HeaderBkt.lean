@@ -330,8 +330,7 @@ theorem realizes_readBktFieldGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ field < 10)
       (fun _ _ => 0) := by
   unfold readBktFieldGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, field⟩
     obtain ⟨h16, hidx, hsafe⟩ := bktField_realize_bounds h
@@ -388,8 +387,7 @@ theorem realizes_writeBktFieldGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ field < 10)
       (fun _ _ => 0) := by
   unfold writeBktFieldGenProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, field⟩, val⟩
     obtain ⟨h16, hidx, hsafe⟩ := bktField_realize_bounds h
@@ -514,8 +512,7 @@ theorem realizes_readDirtyBucketGen :
       (fun w ((cp, base), j) _ => WhpLargeEnvGen w cp base ∧ j < wpQEpoch cp)
       (fun _ _ => 0) := by
   unfold readDirtyBucketGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, j⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hj⟩ := h
@@ -570,10 +567,7 @@ theorem realizes_pushDirtyBucketGen :
         WhpLargeEnvGen w cp base ∧ s.mem (base + hdrDirtyCount) < wpQEpoch cp)
       (fun _ _ => 0) := by
   unfold pushDirtyBucketGenProg
-  have hrh := realizes_readHdr
-  have hwp := realizes_writePackedGen
-  have hwh := realizes_writeHdr
-  realize
+  realize [realizes_readHdr, realizes_writePackedGen, realizes_writeHdr]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hdc_lt⟩ := h
@@ -775,9 +769,7 @@ theorem realizes_readRebActiveBGen :
         WhpLargeEnvGen w cp base ∧ s.mem (base + hdrDirtyCount) ≤ wpQEpoch cp)
       (fun _ _ => 0) := by
   unfold readRebActiveBGenProg
-  have hrh := realizes_readHdr
-  have hrd := realizes_readDirtyBucketGen
-  realize
+  realize [realizes_readHdr, realizes_readDirtyBucketGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -850,8 +842,7 @@ theorem realizes_readOldEp :
       (fun w base _ => 2 ≤ w ∧ Fits w (base + hdrCurEp))
       (fun _ _ => 0) := by
   unfold readOldEpProg
-  have hrh := realizes_readHdr
-  realize
+  realize [realizes_readHdr]
   all_goals (
     obtain ⟨hw2, hfit⟩ := h
     first
@@ -899,8 +890,7 @@ theorem realizes_readLiveSaltIdxGen :
           fs.liveRole b < 3)
       (fun _ _ => 0) := by
   unfold readLiveSaltIdxGenProg
-  have hrb := realizes_readBktFieldGen
-  realize
+  realize [realizes_readBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -944,8 +934,7 @@ theorem fpOfSaltOpt_lt (c U n_max salt kv : ℕ) (θ₂ : FpSeed c U n_max) :
       if hu : kv < U then fpHash c U n_max θ₂ ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
      else 0) < 2 ^ fpBitsWhp n_max := by
   split_ifs with hs hu
-  · exact fpHash_lt c U n_max θ₂ ⟨salt, hs⟩ ⟨kv, hu⟩
-  all_goals exact Nat.two_pow_pos _
+  exacts [fpHash_lt c U n_max θ₂ ⟨salt, hs⟩ ⟨kv, hu⟩, Nat.two_pow_pos _, Nat.two_pow_pos _]
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

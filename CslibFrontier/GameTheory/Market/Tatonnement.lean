@@ -130,18 +130,14 @@ attained). -/
 private theorem expenditure_le_mul_of_le {G : Type*} [Fintype G] {p q x : G → ℝ} {c : ℝ}
     (hpq : ∀ g, p g ≤ c * q g) (hx : ∀ g, 0 ≤ x g) :
     expenditure p x ≤ c * expenditure q x := by
-  simp only [expenditure_eq_sum, mul_sum]
-  refine sum_le_sum fun g _ => ?_
-  rw [← mul_assoc]
-  exact mul_le_mul_of_nonneg_right (hpq g) (hx g)
+  simp only [expenditure_eq_sum, mul_sum, ← mul_assoc]
+  exact sum_le_sum fun g _ => mul_le_mul_of_nonneg_right (hpq g) (hx g)
 
 private theorem mul_expenditure_le_of_le {G : Type*} [Fintype G] {p q x : G → ℝ} {c : ℝ}
     (hpq : ∀ g, c * q g ≤ p g) (hx : ∀ g, 0 ≤ x g) :
     c * expenditure q x ≤ expenditure p x := by
-  simp only [expenditure_eq_sum, mul_sum]
-  refine sum_le_sum fun g _ => ?_
-  rw [← mul_assoc]
-  exact mul_le_mul_of_nonneg_right (hpq g) (hx g)
+  simp only [expenditure_eq_sum, mul_sum, ← mul_assoc]
+  exact sum_le_sum fun g _ => mul_le_mul_of_nonneg_right (hpq g) (hx g)
 
 private theorem expenditure_div_mul_self {G : Type*} [Fintype G] {W p z : G → ℝ}
     (hW : ∀ g, 0 < W g) :
@@ -282,9 +278,7 @@ theorem isWeakApproxEquilibrium_of_priceRatio_le {xHat : I → G → ℝ} {pHat 
       have h2 := mul_expenditure_le_of_le hp_ge_min (E.endowment_nonneg i)
       have hr_eq : αMax = r * αMin := (div_mul_cancel₀ αMax hαMin_pos.ne').symm
       calc expenditure p (xHat i)
-          ≤ r * (αMin * expenditure pHat (xHat i)) := by
-            rw [← mul_assoc, ← hr_eq]
-            exact h1
+          ≤ r * (αMin * expenditure pHat (xHat i)) := h1.trans_eq (by rw [hr_eq, mul_assoc])
         _ ≤ r * (αMin * expenditure pHat (E.endowment i)) :=
             mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hdem_i.1.2 hαMin_pos.le) hr_pos.le
         _ ≤ r * expenditure p (E.endowment i) := mul_le_mul_of_nonneg_left h2 hr_pos.le
@@ -753,9 +747,7 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
       calc ∑ k : G, (posPart pFix k) ^ 2
           = (∑ k : G, pFix k * Z pFix k) * S := by
             rw [sum_mul]
-            refine sum_congr rfl fun k _ => ?_
-            rw [hterm k, hcoord k]
-            ring
+            exact sum_congr rfl fun k _ => by rw [hterm k, hcoord k]; ring
         _ = 0 := by rw [← expenditure_eq_sum, hWZ hpFix_pos, zero_mul]
     have hpos0 : posPart pFix g = 0 := sq_eq_zero_iff.1 <|
       (sum_eq_zero_iff_of_nonneg fun k _ => sq_nonneg (posPart pFix k)).1 hsq0 g (mem_univ g)
@@ -1392,10 +1384,8 @@ theorem exists_le_tatonnementIter_isWeakApproxEquilibrium [Nonempty G]
   obtain ⟨pStar, hpStar_box, hpStar_eq⟩ :=
     exists_mem_tatonnementBox_isWalrasianEquilibrium hη0 hη1 hH' hW' hX_nn hcont'
   have hδ_pos : 0 < δ := by
-    dsimp only [δ]
-    rw [tatonnementDelta_eq]
     have : (0 : ℝ) < Fintype.card G := Nat.cast_pos.2 Fintype.card_pos
-    positivity
+    dsimp only [δ, tatonnementDelta]; positivity
   obtain ⟨k, hk_le, hk_in, hk_lt⟩ := exists_le_tatonnementIter_sep_lt
     (satisfiesWalrasLaw_phantomExcessDemand hW' η) hη0 hη1 hδ_pos
     (fun p hp => sum_sq_phantomExcessDemand_le hη0 hη1 hW' hX_nn hp) hpStar_box hp₀

@@ -461,13 +461,11 @@ private theorem opCode_coupled_step_spec {w base c_exp n_max U V : ℕ}
     obtain ⟨_, hex, _, hpost⟩ := Classical.choose_spec
       (opCode_execCodeDist o hreh (Classical.choose_spec hp.1)
         hv hp.2 hfit_ev hw hfit_end hfit_V hfit_q)
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, fun q hq => ?_⟩
     · have hsnd : (μ_step p).map Prod.snd = μ_raw p := (PMF.map_comp _ _ _).trans (PMF.map_id _)
-      dsimp only [cuckooCode, T_step]
-      simpa only [hsnd, μ_raw, hp, and_self, ↓reduceDIte] using
+      simpa only [cuckooCode, T_step, hsnd, μ_raw, hp, and_self, ↓reduceDIte] using
         hex.mono (opSeedSteps_le_stepWorstCharge _ _ _ _ _ _ _)
-    · intro q hq
-      obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq
+    · obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq
       obtain ⟨hdec, hrep', hmod⟩ :=
         hpost y (by simpa only [μ_raw, hp, and_self, ↓reduceDIte] using hy)
       exact ⟨hdec, hrep'.toRep, hmod⟩
@@ -771,12 +769,9 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
         argMatch o (C.prepare o p.2).regs := by
       intro p hp
       obtain ⟨hp1, hrep_p⟩ := hsupp p hp
-      refine ⟨hp1, ?_, C.prepare_argMatch o p.2⟩
-      exact RepWithKeys.supported
-        (C.prepare_regs_of_not_input (i := 0) rfl o p.2)
-        (fun _ _ => rfl)
-        (C.prepare_bounded hrep_p.1 (C.arguments_fit o hvo))
-        hrep_p
+      exact ⟨hp1, RepWithKeys.supported (C.prepare_regs_of_not_input (i := 0) rfl o p.2)
+        (fun _ _ => rfl) (C.prepare_bounded hrep_p.1 (C.arguments_fit o hvo)) hrep_p,
+        C.prepare_argMatch o p.2⟩
     obtain ⟨_, hrep_p₀, harg_p₀⟩ := hprep_ok p₀ hp₀
     obtain ⟨_, hE', _⟩ := opCode_execCodeDist o hfam.rehash_prob_le_half hrep_p₀ hvo harg_p₀
       hfit_ev hw hfit_end hfit_V hfit_q
@@ -881,8 +876,7 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
             _ = 2 * ∑' θ : Seed c_exp n_max U (tableBits n_max),
                   seedLaw c_exp n_max U (tableBits n_max) θ *
                     (insertSeedSteps c_exp n_max U ks θ s u + 3) := by
-                simp_rw [mul_assoc]
-                rw [ENNReal.tsum_mul_left]
+                simp only [mul_assoc, ENNReal.tsum_mul_left]
             _ ≤ 2 * (insertBaseSteps c_exp n_max U + 3 + 3 * evictIterSteps c_exp n_max U +
                   4 * rehashAmortizedSteps c_exp n_max U : ℕ) :=
                 mul_le_mul' le_rfl (tsum_seedLaw_insertSeedSteps_le hfam hnodup hdom hvo)

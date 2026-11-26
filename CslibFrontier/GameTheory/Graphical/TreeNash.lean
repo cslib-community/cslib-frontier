@@ -327,25 +327,22 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
       · rw [hT.treeSide_eq_insert_biUnion hadj_vp] at hz
         rcases mem_insert_iff.mp hz with rfl | hz_union
         · have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
-              assembleNeighbors hT r hv xw u := by
-            ext ⟨j, hj⟩ a
+              assembleNeighbors hT r hv xw u := funext fun ⟨j, hj⟩ => by
             rcases eq_or_ne j (hT.parent r z) with rfl | hjp
             · simp [assembleNeighbors, hq_p]
-            · simp only [assembleNeighbors, hjp, ↓reduceDIte]
-              let c : UpstreamNeighbors hT r z :=
-                ⟨j, ((hT.adj_iff_parent r).mp hj).resolve_left fun h => hjp h.2.symm⟩
-              rw [hq_on_child c (hT.self_mem_treeSide_of_adj hj.symm), hqc_c c]
+            · simpa only [assembleNeighbors, hjp, ↓reduceDIte] using
+                (hq_on_child ⟨j, ((hT.adj_iff_parent r).mp hj).resolve_left fun h => hjp h.2.symm⟩
+                  (hT.self_mem_treeSide_of_adj hj.symm)).trans (hqc_c _)
           rwa [hq_v, hnbr]
         · obtain ⟨c₀, hc₀, hzc⟩ := mem_iUnion₂.mp hz_union
           let c : UpstreamNeighbors hT r v := ⟨c₀, (upstream_neighbor_iff hT r hv).mp hc₀⟩
           have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
-              (fun j : M.graph.neighborSet z => qc c j.1) := by
-            ext ⟨j, hj⟩ a
+              (fun j : M.graph.neighborSet z => qc c j.1) := funext fun ⟨j, hj⟩ => by
             by_cases hjc : j ∈ hT.treeSide c.1 v
-            · rw [hq_on_child c hjc]
+            · exact hq_on_child c hjc
             · have hadj_cv' : M.graph.Adj c.1 v := by simpa [c.2.2] using hT.adj_parent r c.2.1
               obtain ⟨_, rfl⟩ := hT.eq_of_mem_treeSide_of_adj_notMem hadj_cv' hzc hjc hj
-              rw [hq_v, hqc_par c]
+              exact hq_v.trans (hqc_par c).symm
           simpa only [hq_on_child c hzc, hnbr] using hqc_br c z hzc
     · rintro ⟨hxw, q, hq_p, hq_v, hq_allow, hq_br⟩
       have hv_mem : v ∈ hT.treeSide v (hT.parent r v) := hT.self_mem_treeSide_of_adj hadj_vp
@@ -402,23 +399,20 @@ theorem rootPassTable_iff_exists_isApproxNash {M : GraphicalGame ι S} {hT : M.g
       · have hic := Classical.choose_spec (hcover i hir)
         simpa only [hq_on_child _ hic] using hqc_allow _ i hic
     · rcases eq_or_ne z r with rfl | hzr
-      · have hnbr : (fun j : M.graph.neighborSet z => q j.1) = assembleRootNeighbors hT z u := by
-          ext ⟨j, hj⟩ a
-          unfold assembleRootNeighbors
-          let c : UpstreamNeighbors hT z z :=
-            ⟨j, ((hT.adj_iff_parent z).mp hj).resolve_left fun h => h.1 rfl⟩
-          rw [hq_on_child c (hT.self_mem_treeSide_of_adj hj.symm), hqc_c c]
+      · have hnbr : (fun j : M.graph.neighborSet z => q j.1) = assembleRootNeighbors hT z u :=
+          funext fun ⟨j, hj⟩ =>
+            (hq_on_child ⟨j, ((hT.adj_iff_parent z).mp hj).resolve_left fun h => h.1 rfl⟩
+              (hT.self_mem_treeSide_of_adj hj.symm)).trans (hqc_c _)
         rwa [hq_r, hnbr]
       · let c := Classical.choose (hcover z hzr)
         have hzc := Classical.choose_spec (hcover z hzr)
         have hadj_cr : M.graph.Adj c.1 r := ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm
         have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
-            (fun j : M.graph.neighborSet z => qc c j.1) := by
-          ext ⟨j, hj⟩ a
+            (fun j : M.graph.neighborSet z => qc c j.1) := funext fun ⟨j, hj⟩ => by
           by_cases hjc : j ∈ hT.treeSide c.1 r
-          · rw [hq_on_child c hjc]
+          · exact hq_on_child c hjc
           · obtain ⟨_, rfl⟩ := hT.eq_of_mem_treeSide_of_adj_notMem hadj_cr hzc hjc hj
-            rw [hq_r, hqc_r c]
+            exact hq_r.trans (hqc_r c).symm
         simpa only [hq_on_child c hzc, hnbr] using hqc_br c z hzc
   · rintro ⟨q, rfl, hq_allow, hq_nash⟩
     have hloc := M.isApproxNash_iff_local.mp hq_nash
@@ -907,7 +901,8 @@ private theorem l1_bool_eq_two_abs {x y : Bool → ℝ} (hx : IsMixedStrategy x)
     ∑ b : Bool, |x b - y b| = 2 * |x false - y false| := by
   have hsum_x : x true + x false = 1 := by simpa only [Fintype.sum_bool] using hx.sum_eq_one
   have hsum_y : y true + y false = 1 := by simpa only [Fintype.sum_bool] using hy.sum_eq_one
-  rw [Fintype.sum_bool, show x true - y true = -(x false - y false) by linarith, abs_neg]; ring
+  have hneg : x true - y true = -(x false - y false) := by linarith
+  rw [Fintype.sum_bool, hneg, abs_neg]; ring
 
 /-- **`L₁` error bound of `nearestGridStrategy`**: on `Bool`, rounding to `binaryTauGrid m` changes
 each coordinate by at most `1 / (2 * m)`, hence changes the distribution in `L₁` norm by at most

@@ -394,18 +394,15 @@ theorem IsSmoothMechanism.integral_welfare_ge_of_isBayesNash {X : Set (ι → �
     filter_upwards [hbox] with v hv
     dsimp only [Pi.zero_apply]
     rw [hslice_eq i (hv i)]
-    have h0_nn : 0 ≤ ∫ w, M.utility i (v i) (update (fun j => β j (w j)) i 0) ∂Measure.pi ν := by
-      refine integral_nonneg_of_ae ?_
-      filter_upwards [hbox] with w hw
-      exact h0.utility_zero_nonneg (fun j => hβ.nonneg (hw j)) (hv i).1
+    have h0_nn : 0 ≤ ∫ w, M.utility i (v i) (update (fun j => β j (w j)) i 0) ∂Measure.pi ν :=
+      integral_nonneg_of_ae <| hbox.mono fun _ hw =>
+        h0.utility_zero_nonneg (fun j => hβ.nonneg (hw j)) (hv i).1
     linarith [(hβ i (v i) (hv i)).2 0 le_rfl,
       M.integral_utility_update_eq (halloc_dev i 0 le_rfl) (hpay_dev i 0 le_rfl) (v i)]
   have hpay_sum_int : Integrable (fun w => ∑ i, M.payment (fun j => β j (w j)) i) (Measure.pi ν) :=
     integrable_finsetSum _ fun i _ => hpay_eq i
-  have hpay_nonneg : 0 ≤ ∫ w, ∑ i, M.payment (fun j => β j (w j)) i ∂Measure.pi ν := by
-    refine integral_nonneg_of_ae ?_
-    filter_upwards [hbox] with w hw
-    exact hpay _ fun j => hβ.nonneg (hw j)
+  have hpay_nonneg : 0 ≤ ∫ w, ∑ i, M.payment (fun j => β j (w j)) i ∂Measure.pi ν :=
+    integral_nonneg_of_ae <| hbox.mono fun _ hw => hpay _ fun j => hβ.nonneg (hw j)
   set P := ∫ w, ∑ i, M.payment (fun j => β j (w j)) i ∂Measure.pi ν
   have hpt : ∀ᵐ v ∂Measure.pi ν,
       lam * socialWelfare v (x v) - μ * P ≤ ∑ i, M.interimSliceUtil ν β i (v i) := by
@@ -516,9 +513,8 @@ theorem utility_nonneg_of_le (b : ι → ℝ) (i : ι) {v z : ℝ} (hzv : z ≤ 
 theorem utility_eq_sub_of_highestOtherBid_lt (b : ι → ℝ) (i : ι) (v : ℝ) {z : ℝ}
     (hlt : Vickrey.highestOtherBid b i < z) :
     FirstPrice.mechanism.utility i v (update b i z) = v - z := by
-  have hw := Vickrey.wins_update_of_lt hlt
   simp only [Mechanism.utility, FirstPrice.mechanism, update_self,
-    Vickrey.allocation_eq_one_iff.2 hw, mul_one]
+    Vickrey.allocation_eq_one_iff.2 (Vickrey.wins_update_of_lt hlt), mul_one]
 
 private theorem finsupp_sum_finset_nonneg {K : ℕ} (s : Finset (Fin K)) (f : Fin K → ℝ≥0)
     (c : ℝ) (hc : 0 ≤ c) (z : ℝ≥0) :
@@ -592,8 +588,8 @@ private theorem isSmoothMechanism_of_winner {lam : ℝ}
     exact utility_nonneg_of_le b j (hv j)
   rcases singleItemFeasible_cases hx with hall0 | ⟨i₀, hi₀, hj0⟩
   · refine ⟨fun _ => Convexity.StdSimplex.single 0, fun b hb => ?_⟩
-    rw [show socialWelfare v x = 0 from sum_eq_zero fun i _ => by rw [hall0 i, mul_zero],
-      mul_zero, one_mul]
+    have hsw : socialWelfare v x = 0 := sum_eq_zero fun i _ => mul_eq_zero_of_right _ (hall0 i)
+    rw [hsw, mul_zero, one_mul]
     linarith [sum_payment_nonneg hb, sum_nonneg fun i (_ : i ∈ univ) => hu0 b i]
   · obtain ⟨D₀, hD₀⟩ := hwin_dev v hv i₀
     let D : ι → Convexity.StdSimplex ℝ ℝ≥0 :=
@@ -720,12 +716,10 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
       calc q * v i₀ * (q ^ k₀.val - q ^ K)
           = ∑ m ∈ Ico k₀.val K, q * v i₀ * (q ^ m - q ^ (m + 1)) := by rw [← hsum_sub, mul_sum]
         _ ≤ ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) :=
-          sum_le_sum fun m _ => by
-            have hring : q * v i₀ * (q ^ m - q ^ (m + 1)) = (1 - q) * (v i₀ * q ^ (m + 1)) := by
-              ring
-            rw [hring]
-            exact mul_le_mul_of_nonneg_right h1q_le
-              (mul_nonneg (hv i₀) (pow_nonneg hq_pos.le (m + 1)))
+          sum_le_sum fun m _ =>
+            (by ring : q * v i₀ * (q ^ m - q ^ (m + 1)) = (1 - q) * (v i₀ * q ^ (m + 1))).trans_le
+              (mul_le_mul_of_nonneg_right h1q_le
+                (mul_nonneg (hv i₀) (pow_nonneg hq_pos.le (m + 1))))
     rw [hqK] at htele
     have h2 := mul_le_mul_of_nonneg_left
       (by linarith : v i₀ - B - v i₀ * Real.exp (-1) ≤ v i₀ * q ^ k₀.val - v i₀ * Real.exp (-1))
@@ -800,10 +794,9 @@ theorem integral_welfare_ge_one_sub_exp_neg_one
       ∫ v, FirstPrice.mechanism.welfare v (fun j => β j (v j)) ∂Measure.pi ν := by
   classical
   have hexp_lt1 : Real.exp (-1) < 1 := Real.exp_lt_one_iff.2 (by norm_num)
-  have hint_nonneg : 0 ≤ ∫ v, socialWelfare v (x v) ∂Measure.pi ν := by
-    refine integral_nonneg_of_ae ?_
-    filter_upwards [ae_mem_Icc_pi hsupp] with v hv
-    exact socialWelfare_nonneg_of_singleItemFeasible (fun i => (hv i).1) (hx_mem v hv)
+  have hint_nonneg : 0 ≤ ∫ v, socialWelfare v (x v) ∂Measure.pi ν :=
+    integral_nonneg_of_ae <| (ae_mem_Icc_pi hsupp).mono fun v hv =>
+      socialWelfare_nonneg_of_singleItemFeasible (fun i => (hv i).1) (hx_mem v hv)
   refine le_of_forall_exp_neg_inv_mul_le (mul_nonneg (by linarith) hint_nonneg) fun K hK => ?_
   have hgrid := (isSmoothMechanism_grid (ι := ι) hK).integral_welfare_ge_of_isBayesNash
     hasZeroBidFloor (fun _ hb => sum_payment_nonneg hb) hsupp hβ halloc_dev hpay_dev
@@ -861,9 +854,8 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
       σ.weights.sum (fun b w => w * Vickrey.mechanism.welfare v (fun j => (b j : ℝ))) := by
   classical
   rcases FirstPrice.singleItemFeasible_cases hx with hall0 | ⟨i₀, hi₀, hj0⟩
-  · have hsw : socialWelfare v x = 0 := sum_eq_zero fun i _ => by rw [hall0 i, mul_zero]
-    rw [hsw, mul_zero]
-    simp only [Finsupp.sum]
+  · have hsw : socialWelfare v x = 0 := sum_eq_zero fun i _ => mul_eq_zero_of_right _ (hall0 i)
+    simp only [hsw, mul_zero, Finsupp.sum]
     exact sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
       (sum_nonneg fun i _ => mul_nonneg (hv i) (vickrey_allocation_nonneg _ i))
   · have hpt : σ.weights.sum (fun b w =>
@@ -962,29 +954,28 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
       socialWelfare v (x v) - W_eq ≤ ∑ i, Vickrey.mechanism.interimSliceUtil ν β i (v i) := by
     filter_upwards [hbox] with v hv
     rcases FirstPrice.singleItemFeasible_cases (hx_mem v hv) with hall0 | ⟨i₀, hi₀, hj0⟩
-    · have hsw : socialWelfare v (x v) = 0 := sum_eq_zero fun i _ => by rw [hall0 i, mul_zero]
-      have hwel_nn : 0 ≤ W_eq := by
-        refine integral_nonneg_of_ae ?_
-        filter_upwards [hbox] with w hw
-        exact sum_nonneg fun i _ => mul_nonneg (hw i).1 (vickrey_allocation_nonneg _ i)
+    · have hsw : socialWelfare v (x v) = 0 :=
+        sum_eq_zero fun i _ => mul_eq_zero_of_right _ (hall0 i)
+      have hwel_nn : 0 ≤ W_eq := integral_nonneg_of_ae <| hbox.mono fun _ hw =>
+        sum_nonneg fun i _ => mul_nonneg (hw i).1 (vickrey_allocation_nonneg _ i)
       linarith [sum_nonneg fun i (_ : i ∈ univ) => hslice_nonneg i (hv i)]
-    · have hsw : socialWelfare v (x v) = v i₀ := socialWelfare_eq_of_eq_one v (x v) hi₀ hj0
-      have hdev_i₀ : Integrable
+    · have hdev_i₀ : Integrable
           (fun w => Vickrey.mechanism.utility i₀ (v i₀) (update (fun j => β j (w j)) i₀ (v i₀)))
           (Measure.pi ν) :=
         ((halloc_dev i₀ (v i₀) (hv i₀).1).const_mul (v i₀)).sub (hpay_dev i₀ (v i₀) (hv i₀).1)
-      have hint_w := integral_mono_ae ((integrable_const (v i₀)).sub hwel_int) hdev_i₀ <| by
-        filter_upwards [hbox] with w hw
-        dsimp only [Pi.sub_apply]
-        linarith [utility_truthful_ge (fun j => β j (w j)) i₀ (v i₀),
-          highestOtherBid_le_welfare_of_noOverbidding (fun j => (hw j).1)
-            (fun j => hnob j (w j) (hw j)) i₀]
+      have hint_w := integral_mono_ae ((integrable_const (v i₀)).sub hwel_int) hdev_i₀ <|
+        hbox.mono fun w hw => by
+          dsimp only [Pi.sub_apply]
+          linarith [utility_truthful_ge (fun j => β j (w j)) i₀ (v i₀),
+            highestOtherBid_le_welfare_of_noOverbidding (fun j => (hw j).1)
+              (fun j => hnob j (w j) (hw j)) i₀]
       dsimp only [Pi.sub_apply] at hint_w
       rw [integral_sub (integrable_const _) hwel_int, integral_const, probReal_univ, one_smul,
         Vickrey.mechanism.integral_utility_update_eq (halloc_dev i₀ (v i₀) (hv i₀).1)
           (hpay_dev i₀ (v i₀) (hv i₀).1) (v i₀)] at hint_w
       have hi₀_le := single_le_sum (fun j _ => hslice_nonneg j (hv j)) (Finset.mem_univ i₀)
-      linarith [(hβ i₀ (v i₀) (hv i₀)).2 (v i₀) (hv i₀).1, hslice_eq i₀ (hv i₀)]
+      linarith [socialWelfare_eq_of_eq_one v (x v) hi₀ hj0,
+        (hβ i₀ (v i₀) (hv i₀)).2 (v i₀) (hv i₀).1, hslice_eq i₀ (hv i₀)]
   have hmain := integral_mono_ae (hx_int.sub (integrable_const W_eq))
     (integrable_finsetSum _ fun i _ =>
       Vickrey.mechanism.interimSliceUtil_comp_integrable (hutil_eq i)) hpt

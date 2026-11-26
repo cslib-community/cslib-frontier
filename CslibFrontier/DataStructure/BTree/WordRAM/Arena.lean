@@ -798,9 +798,7 @@ theorem memOverwriteVal_spec {l base t u slot k v : ℕ} {mem : ℕ → ℕ}
     · rintro ⟨i, hi, rfl⟩
       rw [hkey' i hi]
       by_cases his : i = slot
-      · subst i
-        rw [hk_eq, hval_self]
-        exact Or.inl rfl
+      · exact Or.inl (by rw [his, hk_eq, hval_self])
       · rw [hval_ne i hi his]
         refine Or.inr ⟨⟨i, hi, rfl⟩, ?_⟩
         rcases lt_or_gt_of_ne his with hlt | hgt
@@ -817,9 +815,8 @@ theorem memOverwriteVal_spec {l base t u slot k v : ℕ} {mem : ℕ → ℕ}
     have hsort_old := hs_u.isSortedAssoc
     refine hs'.isSortedAssoc.eq_of_forall_mem_iff (Cslib.SortedAssoc.isSortedAssoc_insert hsort_old)
       fun p => ?_
-    rw [Cslib.SortedAssoc.mem_insert_iff hsort_old, mem_toList_readTree_zero,
-      mem_toList_readTree_zero, hnk']
-    exact entries_iff p
+    simpa only [Cslib.SortedAssoc.mem_insert_iff hsort_old, mem_toList_readTree_zero, hnk'] using
+      entries_iff p
   | succ l =>
     have hcid' : ∀ j < numKeys base t mem u + 1, childAt base t mem' u j = childAt base t mem u j :=
       fun j hj => Function.update_of_ne (by omega) _ _
@@ -889,9 +886,8 @@ theorem memInsertLeaf_spec {base t u slot k v : ℕ} {mem : ℕ → ℕ}
   set m := numKeys base t mem u
   set mem' := memInsertLeaf base t u m slot k v mem
   have hlf' : leafFlag base t mem' u = 1 := by
-    simp (disch := omega) only [leafFlag, mem', memInsertLeaf, Function.update_of_ne,
-      shiftArrRight_outside]
-    exact hv_u.1
+    simpa (disch := omega) only [leafFlag, mem', memInsertLeaf, Function.update_of_ne,
+      shiftArrRight_outside] using hv_u.1
   have hnk' : numKeys base t mem' u = m + 1 := by
     simp only [numKeys, mem', memInsertLeaf, Function.update_self]
   have hkv' : ∀ i < m + 1,
@@ -908,7 +904,7 @@ theorem memInsertLeaf_spec {base t u slot k v : ℕ} {mem : ℕ → ℕ}
   have hs' : SortedNode 0 base t mem' u := by
     intro i₁ i₂ h12 h2
     rw [hnk'] at h2
-    have h1 := congrArg Prod.fst (hkv' i₁ (by omega))
+    have h1 := congrArg Prod.fst (hkv' i₁ (h12.trans h2))
     have h2' := congrArg Prod.fst (hkv' i₂ h2)
     dsimp only at h1 h2'
     rw [h1, h2']
@@ -1616,8 +1612,7 @@ theorem childInsert_spec {l base t u slot k v cnt cnt' : ℕ} {mem mem' : ℕ �
         rcases Finset.mem_union.mp (hsub_c' hx₁) with hx₁ | hx₁
         · exact Finset.disjoint_left.mp (hdisj_u _ j₂ hslot_lt1 hj₂ hne) hx₁ hx₂
         · have := Finset.mem_range.mp (hrange (child_subset_readNodeSet l base t mem u j₂ hj₂ hx₂))
-          have := Finset.mem_Ico.mp hx₁
-          omega
+          simp only [Finset.mem_Ico] at hx₁; omega
       · rw [(hsib_congr j₁ hj₁ h1).2.2.1] at hx₁
         exact Finset.disjoint_left.mp (hdisj_u j₁ j₂ hj₁ hj₂ hne) hx₁ hx₂
   have hs_u'' : SortedNode (l + 1) base t mem' u := by
@@ -1682,15 +1677,13 @@ theorem childInsert_spec {l base t u slot k v cnt cnt' : ℕ} {mem mem' : ℕ �
         · exact (lt_trans (hgt slot le_rfl (by omega))
             (hs_u.key_lt_child (by omega) (by omega) hj hpj)).ne'
   · rintro (rfl | ⟨⟨i, hi, rfl⟩ | ⟨j, hj, hpj⟩, hne_k⟩)
-    · refine Or.inr ⟨slot, hslot_lt1, ?_⟩
-      rw [hcid_u' slot hslot_lt1, htr_c']
-      exact Cslib.SortedAssoc.mem_insert_self
+    · exact Or.inr ⟨slot, hslot_lt1,
+        (hcid_u' slot hslot_lt1).symm ▸ htr_c'.symm ▸ Cslib.SortedAssoc.mem_insert_self⟩
     · exact Or.inl ⟨i, hi, by rw [hkey_u' i hi, hval_u' i hi]⟩
     · refine Or.inr ⟨j, hj, ?_⟩
       rw [hcid_u' j hj]
-      by_cases hjs : j = slot
-      · subst hjs
-        rw [htr_c', Cslib.SortedAssoc.mem_insert_iff hsort_c_old]
+      rcases eq_or_ne j slot with rfl | hjs
+      · rw [htr_c', Cslib.SortedAssoc.mem_insert_iff hsort_c_old]
         exact Or.inr ⟨hpj, hne_k⟩
       · rwa [(hsib_congr j hj hjs).2.1]
 

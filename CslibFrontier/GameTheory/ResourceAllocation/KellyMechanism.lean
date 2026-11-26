@@ -669,12 +669,9 @@ theorem hasDerivWithinAt_modifiedUtility {G : KellyGame ι} {i : ι}
   have h1 : HasDerivWithinAt (fun t : ℝ => 1 - t / G.capacity) (-(1 / G.capacity))
       (Icc 0 G.capacity) x :=
     (((hasDerivAt_id' x).div_const G.capacity).const_sub (1 : ℝ)).hasDerivWithinAt
-  have hsum : HasDerivWithinAt (G.modifiedUtility i) _ (Icc 0 G.capacity) x :=
-    ((h1.mul ((hu.hasDerivWithinAt hx.1).mono fun _ hz => hz.1)).add
-      ((hasDerivWithinAt_integral_of_continuousOn hu.continuousOn hx).const_mul
-        (1 / G.capacity))).congr (fun _ _ => rfl) rfl
-  convert hsum using 1
-  ring
+  exact (((h1.mul ((hu.hasDerivWithinAt hx.1).mono fun _ hz => hz.1)).add
+    ((hasDerivWithinAt_integral_of_continuousOn hu.continuousOn hx).const_mul
+      (1 / G.capacity))).congr (fun _ _ => rfl) rfl).congr_deriv (by ring)
 
 /-- Each modified utility `Û_i` is strictly concave on `[0, C]` whenever `U_i` is concave and
 strictly increasing (even when `U_i` is linear). -/
@@ -792,13 +789,11 @@ private theorem concaveOn_propAlloc {C s : ℝ} (hC : 0 < C) (hs : 0 < s) :
       C * (a * x + b * y) / (a * x + b * y + s) -
         (a * (C * x / (x + s)) + b * (C * y / (y + s))) =
       C * s * a * b * (x - y) ^ 2 / ((a * x + b * y + s) * (x + s) * (y + s)) := by
-    have ha_eq : a = 1 - b := by linarith
     field_simp
-    rw [ha_eq]
+    rw [eq_sub_of_add_eq hab]
     ring
-  have : 0 ≤ C * s * a * b * (x - y) ^ 2 / ((a * x + b * y + s) * (x + s) * (y + s)) := by
-    positivity
-  linarith
+  rw [← sub_nonneg, hdiff]
+  positivity
 
 private theorem concaveOn_userPayoff {C s : ℝ} {u : ℝ → ℝ} (hC : 0 < C) (hs : 0 < s)
     (hu : IsAdmissibleUtility u) :
@@ -822,10 +817,9 @@ private theorem hasDerivWithinAt_userPayoff {C s t : ℝ} {u : ℝ → ℝ} (hC 
     HasDerivWithinAt (fun x => u (C * x / (x + s)) - x)
       (derivWithin u (Ici 0) (C * t / (t + s)) * (C * s / (t + s) ^ 2) - 1) (Ici 0) t := by
   have hfrac : HasDerivWithinAt (fun x : ℝ => C * x / (x + s)) (C * s / (t + s) ^ 2) (Ici 0) t := by
-    have hq := ((((hasDerivAt_id' t).const_mul C).div ((hasDerivAt_id' t).add_const s)
-      (by linarith)).hasDerivWithinAt (s := Ici 0))
-    have hsimp : (C * 1 * (t + s) - C * t * 1) / (t + s) ^ 2 = C * s / (t + s) ^ 2 := by ring
-    rwa [hsimp] at hq
+    convert (((hasDerivAt_id' t).const_mul C).div ((hasDerivAt_id' t).add_const s)
+      (by linarith)).hasDerivWithinAt (s := Ici 0) using 1
+    ring
   have hmaps : MapsTo (fun x : ℝ => C * x / (x + s)) (Ici 0) (Ici 0) := fun x hx =>
     div_nonneg (mul_nonneg hC.le hx) (by linarith [mem_Ici.mp hx])
   exact ((hu.hasDerivWithinAt (hmaps ht)).comp t hfrac hmaps).sub
@@ -923,8 +917,7 @@ theorem isNashEquilibrium_iff_kkt {G : KellyGame ι} (hC : 0 < G.capacity)
       rcases eq_or_lt_of_le (hw i) with hwi0 | hwi_pos
       · rw [← hwi0, sub_zero]
         refine mul_nonpos_of_nonpos_of_nonneg ?_ ht
-        rw [sub_nonpos, ← mul_div_assoc, div_le_one hμpos]
-        exact hle i
+        simpa only [sub_nonpos, ← mul_div_assoc, div_le_one hμpos] using hle i
       · have hWpos : 0 < ∑ j, w j := by
           rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]; linarith [herase i]
         have hdi : 0 < G.allocation w i := div_pos (mul_pos hC hwi_pos) hWpos
@@ -1169,8 +1162,7 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
       split_ifs <;> ring
   have hU : ∀ i, IsAdmissibleUtility ((kellyTightGame n).utility i) := fun i =>
     hu_eq i ▸ isAdmissibleUtility_linear (by split_ifs <;> positivity)
-  have hU0 : ∀ i, (kellyTightGame n).utility i 0 = 0 := fun i => by
-    unfold kellyTightGame; dsimp only; split_ifs <;> simp
+  have hU0 : ∀ i, (kellyTightGame n).utility i 0 = 0 := fun i => by simp [hu_eq i]
   have hcard_erase : (Finset.univ.erase (0 : Fin (n + 1))).card = n := by
     rw [Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_fin]; omega
   have hsum_bid : ∑ j : Fin (n + 1), kellyTightBid n j = 1 / 2 := by
@@ -1212,7 +1204,7 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
         rw [div_mul_eq_mul_div, div_eq_iff h2n1_pos.ne']
         field_simp [hn0]
     have hw_nn : ∀ i, 0 ≤ kellyTightBid n i := fun i => by
-      unfold kellyTightBid
+      dsimp only [kellyTightBid]
       split_ifs <;> positivity
     exact ⟨hw_nn, herase, fun i => (hfoc i).le, fun i _ => hfoc i⟩
   set opt : Fin (n + 1) → ℝ := Pi.single (0 : Fin (n + 1)) 1

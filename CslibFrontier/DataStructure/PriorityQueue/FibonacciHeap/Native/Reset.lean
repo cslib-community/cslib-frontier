@@ -106,9 +106,8 @@ theorem allocProg_spec {w n K : ℕ} {s : Memory.State}
       ⟨clear s.mem s.frontier (9 * n + 5), s.frontier + (9 * n + 5)⟩ := rfl
   obtain ⟨hinv, habs⟩ := framed_alloc hn hK s
   refine ⟨hv, hbase, rfl, wellFormed_clientState hwf hv, fun a ha => ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hbase] at ha
+  · simp only [hbase, footprint, Finset.mem_Ico] at ha
     rw [hs']
-    simp only [footprint, Finset.mem_Ico] at ha
     exact clear_of_not_owns (by simp only [Block.Owns]; omega)
   · simpa only [hbase, hs'] using hinv
   · simpa only [hbase, hs'] using habs
@@ -298,12 +297,8 @@ theorem isEmptyProg_spec {w n K base : ℕ} {s : Memory.State}
   simp only [IndexedMinPQ.step] at hstep
   obtain ⟨_, hres⟩ := Prod.mk.inj hstep
   refine ⟨hv_h, hinv', hst, hres.symm, ?_⟩
-  change memoryCost (isEmptyProg n base) s +
-      potential n ((layout n base).abs ((Memory.spec 0).clientState s (isEmptyProg n base))) ≤
-    charge n ((framed hn hK base).abs s) .isEmpty +
-      potential n ((layout n base).abs s) at hcost
+  dsimp only [FibonacciHeap.methods, isEmptyProg, charge] at hcost hst ⊢
   rw [hst] at hcost
-  simp only [charge] at hcost
   omega
 
 /-- Specification of `getKeyProg`. -/
@@ -337,12 +332,8 @@ theorem getKeyProg_spec {w n K base v : ℕ} {s : Memory.State}
   simp only [IndexedMinPQ.step] at hstep
   obtain ⟨_, hres⟩ := Prod.mk.inj hstep
   refine ⟨hv_h, hinv', hst, hres.symm, ?_⟩
-  change memoryCost (getKeyProg n base v) s +
-      potential n ((layout n base).abs ((Memory.spec 0).clientState s (getKeyProg n base v))) ≤
-    charge n ((framed hn hK base).abs s) (.getKey ⟨v, hv⟩) +
-      potential n ((layout n base).abs s) at hcost
+  dsimp only [FibonacciHeap.methods, getKeyProg, charge] at hcost hst ⊢
   rw [hst] at hcost
-  simp only [charge] at hcost
   omega
 
 /-- Specification of `insertProg`. -/
@@ -436,62 +427,34 @@ theorem extractRawProg_spec {w n K base : ℕ} {s : Memory.State}
     exact hsz.symm.trans hmem
   simp only [IndexedMinPQ.step] at hstep
   obtain ⟨habs, hres_ex⟩ := Prod.mk.inj hstep
+  dsimp only [FibonacciHeap.methods] at habs hres_ex hcost
   refine ⟨by rwa [hhist_eq], by rwa [hs'_eq], by rwa [hs'_eq], by rwa [hs'_eq],
     by rw [hs'_eq]; exact hmod, hsz_eq, ?_, ?_, ?_⟩
   · intro hnone
-    rw [hres_eq] at hnone
-    change Option.map (fun a : Fin n × ℕ => (a.1.val, a.2))
-      ((Memory.spec 0).clientResult s (DataStructure.link (E := Memory.spec 0)
-        ((layout n base).methods 0) (FibonacciHeap.methods n 0 K .extractMin))) = none at hnone
-    rw [← hres_ex] at hnone
+    rw [hres_eq, ← hres_ex] at hnone
     cases hfm : IndexedMinPQ.findMin ((framed hn hK base).abs s) with
     | none =>
-      have hemp : (framed hn hK base).abs s = IndexedMinPQ.empty n := by
-        funext v
-        exact IndexedMinPQ.notMem_dom_iff.mp (by
-          rw [IndexedMinPQ.findMin_eq_none_iff.mp hfm]
-          exact Finset.notMem_empty v)
-      refine ⟨hemp, ?_⟩
-      rw [hs'_eq]
-      change (framed hn hK base).abs ((Memory.spec 0).clientState s (DataStructure.link
-        (E := Memory.spec 0) ((layout n base).methods 0)
-        (FibonacciHeap.methods n 0 K .extractMin))) = _
-      rw [← habs, hfm]
-      exact hemp
-    | some uk =>
-      rw [hfm] at hnone
-      simp at hnone
+      have hemp : (framed hn hK base).abs s = IndexedMinPQ.empty n := funext fun v =>
+        IndexedMinPQ.notMem_dom_iff.mp
+          (IndexedMinPQ.findMin_eq_none_iff.mp hfm ▸ Finset.notMem_empty v)
+      exact ⟨hemp, by rw [hs'_eq, ← habs, hfm, hemp]⟩
+    | some uk => simp [hfm] at hnone
   · intro y k hsome
-    rw [hres_eq] at hsome
-    change Option.map (fun a : Fin n × ℕ => (a.1.val, a.2))
-      ((Memory.spec 0).clientResult s (DataStructure.link (E := Memory.spec 0)
-        ((layout n base).methods 0) (FibonacciHeap.methods n 0 K .extractMin))) =
-      some (y, k) at hsome
-    rw [← hres_ex] at hsome
+    rw [hres_eq, ← hres_ex] at hsome
     cases hfm : IndexedMinPQ.findMin ((framed hn hK base).abs s) with
-    | none =>
-      rw [hfm] at hsome
-      simp at hsome
+    | none => simp [hfm] at hsome
     | some uk =>
       rcases uk with ⟨m, km⟩
-      rw [hfm] at hsome
-      simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hsome
+      simp only [hfm, Option.map_some, Option.some.injEq, Prod.mk.injEq] at hsome
       rcases hsome with ⟨rfl, rfl⟩
-      have hm_get := IndexedMinPQ.findMin_eq_some_state hfm
-      have hle := IndexedMinPQ.findMin_le hfm
-      refine ⟨m.isLt, hm_get, fun z kz hz => hle z kz hz, ?_⟩
-      rw [hs'_eq]
-      change (framed hn hK base).abs ((Memory.spec 0).clientState s (DataStructure.link
-        (E := Memory.spec 0) ((layout n base).methods 0)
-        (FibonacciHeap.methods n 0 K .extractMin))) = _
-      rw [← habs, hfm]
+      exact ⟨m.isLt, IndexedMinPQ.findMin_eq_some_state hfm,
+        fun z kz hz => IndexedMinPQ.findMin_le hfm z kz hz, by rw [hs'_eq, ← habs, hfm]⟩
   · rw [hs'_eq]
     have hmc : memoryCost (extractRawProg n base) s =
         memoryCost (DataStructure.link (E := Memory.spec 0) ((layout n base).methods 0)
           (extractMin n)) s := by
       simp only [memoryCost, hhist0]
     rw [hmc, ← hsz_eq]
-    dsimp only [FibonacciHeap.methods] at hcost
     simpa only [FibonacciHeap.charge, extractCharge] using hcost
 
 /-! ## Sparse `O(touchedLen + 1)` Heap Reset -/
@@ -703,15 +666,13 @@ theorem resetProg_spec {w K : ℕ} (args : ResetArgs) {s : Memory.State}
       have hst : (Memory.spec 0).clientState t (resetStep (env, idx)) =
           ⟨Function.update t.mem (args.heapBase + 7 * args.capacity +
             t.mem (args.touchedBase + idx)) 0, t.frontier⟩ := rfl
+      have hne_upd : ∀ {x}, ¬mod x →
+          x ≠ args.heapBase + 7 * args.capacity + t.mem (args.touchedBase + idx) :=
+        fun hx h => hx (by simp only [mod, hval_eq] at h ⊢; omega)
       refine ⟨hhs, hv_step, hcost_step, by rw [hst], fun x hx => ?_,
         rfl, by rw [hst]; exact htfr, fun x hx => ?_, fun i hi => ?_, fun v hv => ?_⟩
-      · rw [hst]
-        dsimp only
-        rw [Function.update_of_ne (fun h => hx (by simp only [mod]; rw [hval_eq] at h; omega))]
-      · rw [hst]
-        dsimp only
-        rw [Function.update_of_ne (fun h => hx (by simp only [mod]; rw [hval_eq] at h; omega))]
-        exact htmem x hx
+      · simp only [hst, Function.update_of_ne (hne_upd hx)]
+      · simpa only [hst, Function.update_of_ne (hne_upd hx)] using htmem x hx
       · rw [hst]
         dsimp only
         rw [hval_eq]
@@ -763,9 +724,8 @@ theorem resetProg_spec {w K : ℕ} (args : ResetArgs) {s : Memory.State}
     dsimp only [resetProg]
     rw [StateTransitionSpec.clientState_bind]
     rfl
-  have hfr' : ((Memory.spec 0).clientState s (resetProg args)).frontier = s.frontier := by
-    rw [hs'_eq]
-    exact hfr_iter
+  have hfr' : ((Memory.spec 0).clientState s (resetProg args)).frontier = s.frontier :=
+    (congrArg Memory.State.frontier hs'_eq).trans hfr_iter
   have hmod' : Modifies (footprint args.capacity args.heapBase) s.mem
       ((Memory.spec 0).clientState s (resetProg args)).mem := by
     intro a hfp
@@ -806,10 +766,8 @@ theorem resetProg_spec {w K : ℕ} (args : ResetArgs) {s : Memory.State}
       rw [Function.update_self]
   obtain ⟨hinv_rec, habs_rec⟩ := inv_of_fibRawInv hfib_raw
   have hinv_lay : (layout args.capacity args.heapBase).Inv
-      ((Memory.spec 0).clientState s (resetProg args)) := by
-    intro i hi
-    have := hinv.1 i hi
-    rwa [hfr']
+      ((Memory.spec 0).clientState s (resetProg args)) :=
+    fun i hi => hfr' ▸ hinv.1 i hi
   have hpot' : potential args.capacity ((layout args.capacity args.heapBase).abs
       ((Memory.spec 0).clientState s (resetProg args))) = 0 := by
     refine potential_eq_zero_of_zero ?_ ?_

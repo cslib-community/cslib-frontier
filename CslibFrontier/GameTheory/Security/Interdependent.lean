@@ -443,16 +443,10 @@ theorem isCriticalCoalition_of_higher_contagion {qExt : ι → ℝ}
     (hCrit : G.IsCriticalCoalition M') : G.IsCriticalCoalition M := by
   -- Helper rewriting `noContagionProb i (seed S)` as `∏ u ∈ univ \ (insert i S), (1 - qExt u)`.
   have hprod_eq : ∀ (S : Finset ι) (i : ι),
-      G.noContagionProb i (fun u => decide (u ∈ S)) = ∏ u ∈ univ \ insert i S, (1 - qExt u) :=
-    fun S i => by
-      simp only [noContagionProb]
-      have hset : (univ.erase i).filter (fun j => !decide (j ∈ S)) = univ \ insert i S := by
-        ext u
-        simp only [mem_filter, mem_erase, mem_sdiff, mem_insert, mem_univ, Bool.not_eq_true',
-          decide_eq_false_iff_not, not_or, and_true, true_and]
-      rw [hset]
-      exact prod_congr rfl fun u hu => by
-        rw [hContagion u i fun h => (mem_sdiff.mp hu).2 (mem_insert.mpr (Or.inl h))]
+      G.noContagionProb i (fun u => decide (u ∈ S)) = ∏ u ∈ univ \ insert i S, (1 - qExt u) := by
+    refine fun S i => prod_congr (Finset.ext fun _ => ?_) fun u hu => ?_
+    · simp [not_or, and_comm]
+    · rw [hContagion u i fun h => (mem_sdiff.mp hu).2 (mem_insert.mpr (Or.inl h))]
   -- Equal-cardinality domination implies `∏ u ∈ A, (1 - qExt u) ≤ ∏ u ∈ B, (1 - qExt u)` whenever
   -- `B \ A` has smaller `1 - qExt` (larger `qExt`) than `A \ B`, so removing `M` leaves larger
   -- `(1 - qExt)` factors outside `M` than outside `M'`.
@@ -955,9 +949,9 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
         Finsupp.sum_single_index (zero_mul _), Finsupp.sum_single_index (zero_mul _)]
   refine ⟨hθ0, hθ1, hMixed, ⟨σ, hCE, fun i => ?_, fun i => ?_⟩, by positivity⟩
   · rw [hσ_sum]
-    simp only [↓reduceIte, Bool.false_eq_true, mul_one, mul_zero, add_zero]
-  · rw [hexp_i i, hσ_sum, hcost_TT i, hcost_eval i (fun _ => false), hc_eq]
-    simp only [Bool.false_eq_true, ↓reduceIte]
+    simp
+  · simp only [hexp_i i, hσ_sum, hcost_TT i, hcost_eval i (fun _ => false), hc_eq,
+      Bool.false_eq_true, ↓reduceIte]
     ring
 
 /-- **Exact tightness of the `1 / (1 - (n - 1) q)` smoothness Price-of-Anarchy bound** (original):
@@ -988,9 +982,7 @@ theorem symmetricIDSSpec_poa_eq_inv_one_sub {q L : ℝ} (hq0 : 0 < q) (hq1 : q <
       change _ ≤ L * (1 - q)
       linarith
   have hTrue : G.toCostGame.IsPureNash (fun _ => true) :=
-    G.isPureNash_allTrue_iff.mpr fun _ => by
-      simp only [G, symmetricIDSSpec, one_mul]
-      nlinarith
+    G.isPureNash_allTrue_iff.mpr fun _ => by simp only [G, symmetricIDSSpec, one_mul]; nlinarith
   have hsoc_T : G.toCostGame.socialCost (fun _ => true) = 2 * (L * (1 - q)) := by
     simp only [CostGame.socialCost, Fin.sum_univ_two, G, InterdependentSecuritySpec.toCostGame,
       ↓reduceIte, InterdependentSecuritySpec.contagionProb_allTrue, mul_zero, add_zero,

@@ -251,16 +251,7 @@ private theorem SHTree.Valid.mono_lb {rt lb₁ lb₂ : ℕ} {t : SHTree} (h : lb
 private theorem SHTree.nodeIds_length (t : SHTree) : t.nodeIds.length = t.nodeCount := by
   induction t using SHTree.ind with
   | node id r ck items l r' ihL ihR =>
-    cases l with
-    | none =>
-      cases r' with
-      | none => simp
-      | some cr => have := ihR cr rfl; simp [this]; omega
-    | some cl =>
-      have h1 := ihL cl rfl
-      cases r' with
-      | none => simp [h1]; omega
-      | some cr => have h2 := ihR cr rfl; simp [h1, h2]; omega
+    cases l <;> cases r' <;> simp [ihL, ihR] <;> omega
 
 /-- `SHTree.nodeCount ≥ 1`. -/
 private theorem SHTree.nodeCount_pos (t : SHTree) : 0 < t.nodeCount := by
@@ -421,10 +412,8 @@ private theorem popDeficit_nonneg (rt : ℕ) (t : SHTree) : 0 ≤ popDeficit rt 
 theorem totalPhi_nonneg (rt : ℕ) (roots : List SHTree) : 0 ≤ totalPhi rt roots := by
   refine List.sum_nonneg fun x hx => ?_
   rcases List.mem_map.mp hx with ⟨t, _, rfl⟩
-  have h1 := t.phi_nonneg rt
   have h2 : (0 : ℚ) ≤ rootCredit t.rank := by unfold rootCredit; positivity
-  have h3 := popDeficit_nonneg rt t
-  linarith
+  linarith [t.phi_nonneg rt, popDeficit_nonneg rt t]
 
 /-- All `(item, ckey)` pairs across all roots in `roots`. -/
 @[expose] def forestEntries (roots : List SHTree) : List (SHItem × ℕ) :=
@@ -587,12 +576,7 @@ private theorem ItemListRep.head_ne_zero {itemBase : ℕ} {mem : ℕ → ℕ} {h
 private theorem ItemListRep.head_eq_zero_iff {itemBase : ℕ} {mem : ℕ → ℕ} {head tail : ℕ}
     {xs : List SHItem} (h : ItemListRep itemBase mem head tail xs) :
     head = 0 ↔ xs = [] := by
-  constructor
-  · intro hz
-    by_contra hne
-    exact ItemListRep.head_ne_zero hne h hz
-  · rintro rfl
-    exact h.1
+  exact ⟨fun hz => by_contra fun hne => h.head_ne_zero hne hz, fun h0 => (h0 ▸ h).1⟩
 
 /-- Popping the head of a non-empty `ItemListRep` matches `extractPopItem`. -/
 private theorem ItemListRep.pop {itemBase : ℕ} {mem : ℕ → ℕ} {head tail : ℕ} {it : SHItem}
@@ -1040,11 +1024,9 @@ theorem allocPool_spec {w maxItems maxNodes : ℕ} {s : Memory.State}
     rw [StateTransitionSpec.clientState_bind, clientState_allocDirty,
       StateTransitionSpec.clientState_bind, clientState_allocDirty]
     rfl
-  refine ⟨hv, hm, ?_, ?_, ?_, ?_, wellFormed_clientState hwf hv⟩
-  · simp [hres]
-  · simp [hres]
-  · simp [hs', Nat.add_assoc]
-  · intro a _; simp [hs']
+  exact ⟨hv, hm, congrArg Prod.fst hres, congrArg Prod.snd hres,
+    by simp [hs', Nat.add_assoc],
+    fun _ _ => by simp [hs'], wellFormed_clientState hwf hv⟩
 
 private def RootListLinksOnly (nodeBase : ℕ) (mem : ℕ → ℕ) (prev : ℕ) (suf : List SHTree) :
     List SHTree → Prop

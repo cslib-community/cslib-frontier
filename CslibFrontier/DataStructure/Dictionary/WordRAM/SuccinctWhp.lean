@@ -468,14 +468,9 @@ private theorem not_readsWidth_initSetupCode (c U V w n_max : ℕ) :
       tmpInit_injective srcInit_ne_tmpInit tmpInit_ne_frontier srcInit_ne_frontier).1
     have hload := not_readsWidth_loadVecUpTo coreParamReg (mkWhpCoreParams c U V w n_max) 67
       (by decide)
-    have hbkt := not_readsWidth_resampleCode w (w0Whp U) (cTabWhp c) (dTabWhp c)
-      (bCharWhp n_max) (bWhp n_max)
-    have hfp := not_readsWidth_resampleCode w (w0Whp U) (cTabWhp c) (dTabWhp c)
-      (bCharWhp n_max) (fpBitsWhp n_max)
-    simp only [initLargeCode, setResampleBaseCode, resampleBktCode, resampleFpCode,
+    simp [initLargeCode, setResampleBaseCode, resampleBktCode, resampleFpCode,
       loadCoreParamsCode, initFastCode, Code.ReadsWidth, Code.readsWidth_rename,
-      Op.ReadsWidth, Op.exactBin]
-    tauto
+      Op.ReadsWidth, Op.exactBin, not_readsWidth_resampleCode, hload, hfast]
 
 private theorem not_readsWidth_opCode (c U V w n_max : ℕ) :
     ¬(opCode c U V w n_max).ReadsWidth := by
@@ -493,17 +488,9 @@ theorem not_readsWidth_subroutineCode (c U V w n_max : ℕ) :
     ¬(subroutineCode c U V w n_max).initFresh.ReadsWidth ∧
     ¬(subroutineCode c U V w n_max).initClear.ReadsWidth ∧
     ¬(subroutineCode c U V w n_max).code.ReadsWidth := by
-  have hsetup := not_readsWidth_initSetupCode c U V w n_max
-  have hop := not_readsWidth_opCode c U V w n_max
-  have halloc : ¬(subroutineCode c U V w n_max).allocSpan.ReadsWidth := by
-    simp [subroutineCode, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-  have hzero : ¬(subroutineCode c U V w n_max).zeroFillCode.ReadsWidth := by
-    simp [SubroutineCode.zeroFillCode, subroutineCode, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-  refine ⟨?_, ?_, hop⟩
-  · simp only [SubroutineCode.initFresh, Code.ReadsWidth]
-    exact not_or.mpr ⟨halloc, hsetup⟩
-  · simp only [SubroutineCode.initClear, Code.ReadsWidth]
-    tauto
+  simp [SubroutineCode.initFresh, SubroutineCode.initClear, SubroutineCode.zeroFillCode,
+    subroutineCode, Code.ReadsWidth, Op.ReadsWidth, Op.exactBin,
+    not_readsWidth_initSetupCode, not_readsWidth_opCode]
 
 /-- `c`-only deterministic worst-case instruction budget for a single dictionary operation
 (`100` parameter-load instructions plus the `Realizes` instruction budget for
