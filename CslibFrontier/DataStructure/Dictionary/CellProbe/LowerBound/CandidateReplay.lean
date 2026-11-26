@@ -58,21 +58,17 @@ theorem sum_card_stateFiber_le {U V n cells w : ℕ}
       2 ^ (cells * w) := by
   have hdisj : ((Finset.univ : Finset (SizedDict U V n)) :
       Set (SizedDict U V n)).PairwiseDisjoint
-      (fun p => stateFiber D_det stepIdx p.val) := by
-    intro p₁ _ p₂ _ hne
-    refine Finset.disjoint_left.mpr fun C h₁ h₂ => hne (Subtype.ext ?_)
-    dsimp only [stateFiber] at h₁ h₂
-    rw [Finset.mem_filter] at h₁ h₂
-    exact h₁.2.symm.trans h₂.2
+      (fun p => stateFiber D_det stepIdx p.val) := fun p₁ _ p₂ _ hne =>
+    Finset.disjoint_left.mpr fun _ h₁ h₂ =>
+      hne (Subtype.ext ((Finset.mem_filter.mp h₁).2.symm.trans (Finset.mem_filter.mp h₂).2))
   calc (∑ p : SizedDict U V n, (stateFiber D_det stepIdx p.val).card)
       = ((Finset.univ : Finset (SizedDict U V n)).biUnion
           (fun p => stateFiber D_det stepIdx p.val)).card :=
         (Finset.card_biUnion hdisj).symm
     _ ≤ (Finset.univ : Finset (Mem cells w)).card := Finset.card_le_univ _
     _ = 2 ^ (cells * w) := by
-        simp only [Finset.card_univ, Mem, Fintype.card_pi, Fintype.card_fin,
-          Finset.prod_const]
-        rw [← pow_mul, mul_comm]
+        simp only [Finset.card_univ, Mem, Fintype.card_pi, Fintype.card_fin, Finset.prod_const,
+          ← pow_mul, mul_comm]
 
 private def modeCandUnit (withQueries : Bool) {U V m : ℕ}
     (d b : Fin m → Fin U) (kv : Fin U → Fin V) (r : Fin m) : List (Dynamic.Op U) :=
@@ -105,9 +101,8 @@ private theorem modeCandPrefix_succ (withQueries : Bool) {U V m : ℕ}
 
 open Classical in
 theorem dom_ite_eq {U V : ℕ} (S : Finset (Fin U)) (kv : Fin U → Fin V) :
-    Dictionary.dom (fun u => if u ∈ S then some (kv u).val else none) = S := by
-  ext u
-  by_cases hu : u ∈ S <;> simp [hu]
+    Dictionary.dom (fun u => if u ∈ S then some (kv u).val else none) = S :=
+  Finset.ext fun u => by by_cases hu : u ∈ S <;> simp [hu]
 
 theorem card_activeKeys {U V n t₀ : ℕ} (s : HardKeyValSeed U V n) (ht₀ : t₀ ≤ n) :
     (s.activeKeys t₀ ht₀).card = n := by
@@ -191,13 +186,12 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
         Nat.not_lt_zero, Finset.filter_false, Finset.image_empty, Finset.sdiff_empty,
         Finset.union_empty] using ⟨hpref_vh, hpref_st⟩
     | succ k ih =>
-      have hk_lt : k < m := hk
       set D_k := (Finset.univ.filter fun r : Fin m => r.val < k).image d
       set B_k := (Finset.univ.filter fun r : Fin m => r.val < k).image b
       set s_k := ((Dynamic.spec U V n).run (Dictionary.empty U)
         (pref_bef ++ modeCandPrefix withQueries d b s.kv k)).1
       obtain ⟨hvh_k, hst_k⟩ := ih (Nat.le_of_succ_le hk)
-      let r₀ : Fin m := ⟨k, hk_lt⟩
+      let r₀ : Fin m := ⟨k, hk⟩
       have hflt_lt : (Finset.univ.filter fun r : Fin m => r.val < k) = Finset.Iio r₀ := by
         simpa only [Fin.lt_def] using (Finset.filter_gt_eq_Iio (a := r₀))
       have hflt_le : (Finset.univ.filter fun r : Fin m => r.val < k + 1) = Finset.Iic r₀ := by
@@ -206,20 +200,18 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
         simpa only [D_k, hflt_lt, d.injective.mem_finset_image] using Finset.notMem_Iio_self
       have hdr_in : d r₀ ∈ (K \ D_k) ∪ B_k :=
         Finset.mem_union_left _ (Finset.mem_sdiff.mpr ⟨hd_mem_K r₀, hdr_not_Dk⟩)
-      have hdr_some : (s_k (d r₀)).isSome := by
-        rw [hst_k]; simp only [hdr_in, ↓reduceIte, Option.isSome_some]
+      have hdr_some : (s_k (d r₀)).isSome :=
+        congrFun hst_k (d r₀) ▸ by simp only [hdr_in, ↓reduceIte, Option.isSome_some]
       have hcard (f : Fin m ↪ Fin U) :
           ((Finset.univ.filter fun r : Fin m => r.val < k).image f).card = k := by
         rw [Finset.card_image_of_injective _ f.injective, hflt_lt, Fin.card_Iio]
       have hdom_sk : Dictionary.dom s_k = (K \ D_k) ∪ B_k := hst_k ▸ dom_ite_eq _ _
       have hcard_sk : (Dictionary.dom s_k).card = n := by
         rw [hdom_sk, Finset.card_union_of_disjoint, Finset.card_sdiff]
-        · have hsubD : D_k ⊆ K := fun _ hx => by
-            obtain ⟨r', _, rfl⟩ := Finset.mem_image.mp hx; exact hd_mem_K r'
+        · have hsubD : D_k ⊆ K := Finset.image_subset_iff.mpr fun r' _ => hd_mem_K r'
           rw [Finset.inter_eq_left.mpr hsubD, card_activeKeys s ht₀_n, hcard d, hcard b]; omega
-        · refine Finset.disjoint_left.mpr fun x hxK hxB => ?_
-          obtain ⟨r', _, rfl⟩ := Finset.mem_image.mp hxB
-          exact Finset.disjoint_left.mp hdisj (hb_mem_B r') (Finset.mem_sdiff.mp hxK).1
+        · exact Disjoint.mono_left Finset.sdiff_subset
+            (hdisj.symm.mono_right (Finset.image_subset_iff.mpr fun r' _ => hb_mem_B r'))
       have hcard_del : (Dictionary.dom (Function.update s_k (d r₀) none)).card < n := by
         rw [Dynamic.card_dom_delete_eq_of_isSome hdr_some, hcard_sk]; omega
       have hupd_st : Function.update (Function.update s_k (d r₀) none) (b r₀)
@@ -247,7 +239,7 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
           · rw [Function.update_of_ne hud, hst_k]
             simp only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_insert, hud, hub, false_or]
             rfl
-      rw [modeCandPrefix_succ withQueries d b s.kv hk_lt, ← List.append_assoc,
+      rw [modeCandPrefix_succ withQueries d b s.kv hk, ← List.append_assoc,
         StateTransitionSpec.validHistory_append,
         (Dynamic.spec U V n).run_append (Dictionary.empty U)
           (pref_bef ++ modeCandPrefix withQueries d b s.kv k)]

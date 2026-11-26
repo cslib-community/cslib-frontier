@@ -294,12 +294,7 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     · -- Clean 16-step scan (`rebCollision = 0`)
       rw [hscan_ok]
       dsimp only
-      have hc0_scan : ¬(({ fs with
-          slices := Function.update fs.slices rIdx sl'
-          rebScanCursor := fs.rebScanCursor + 16
-          rebInsCount := ins' } : FastState).rebCollision ≠ 0) :=
-        fun h => h hc.rebCollision_zero
-      rw [ite_eq_right hc0_scan]
+      rw [ite_eq_right (not_not.mpr hc.rebCollision_zero)]
       by_cases hdone_b : fs.bktCount b ≤ fs.rebScanCursor + 16
       · -- Bucket `b` finished scanning: swap `rebRole b` into `liveRole b` and advance `dirtyIdx`
         rw [ite_eq_left hdone_b]
@@ -364,28 +359,24 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
                 exact hc.live_fp_inj b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq
             live_valid := fun b' hb' => by
               rw [hst_sw, hfp_sw]
-              by_cases hbb : b' = b
-              · subst hbb
-                have hl_idx : fsSw.liveSliceIdx b = rIdx := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan, FastState.liveSliceIdx,
+              rcases eq_or_ne b' b with rfl | hbb
+              · have hl_idx : fsSw.liveSliceIdx b = rIdx := by
+                  simp [fsSw, epochTickStage2Swap, fsScan, FastState.liveSliceIdx,
                     FastState.rebRole, rIdx, FastState.rebSliceIdx]
-                  rw [Function.update_self]
-                have hsl_b : fsSw.slices (fsSw.liveSliceIdx b) = sl' := by
-                  rw [hl_idx]
-                  exact (Function.update_of_ne (hne_om_r b hb).symm _ _).trans
-                    (Function.update_self _ _ _)
+                have hsl_b : fsSw.slices (fsSw.liveSliceIdx b) = sl' :=
+                  hl_idx ▸ (Function.update_of_ne (hne_om_r b hb).symm _ _).trans
+                    (Function.update_self ..)
                 rw [hsw_b.1, hsw_b.2.1, hsw_b.2.2, hsl_b]
                 exact ⟨rm', hv', hrr'.congr (fun _ _ => rfl)
                   (fun loc _ => hinL_sw_b (fs.locState b loc))⟩
               · have hl_idx : fsSw.liveSliceIdx b' = fs.liveSliceIdx b' := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan, FastState.liveSliceIdx]
-                  rw [Function.update_of_ne hbb]
+                  simp [fsSw, epochTickStage2Swap, fsScan, FastState.liveSliceIdx, hbb]
                 have hsl_o :
                     fsSw.slices (fsSw.liveSliceIdx b') = fs.slices (fs.liveSliceIdx b') := by
                   rw [hl_idx]
                   exact (Function.update_of_ne
-                      (sliceIdx_ne (hc.roles_valid b' hb').1 hor_b fun h => absurd h hbb) _ _).trans
-                    (Function.update_of_ne (hne_live_r b' hb') _ _)
+                    (sliceIdx_ne (hc.roles_valid b' hb').1 hor_b fun h => absurd h hbb) _ _).trans
+                      (Function.update_of_ne (hne_live_r b' hb') _ _)
                 obtain ⟨hdf_o, hbs_o, hlic_o⟩ := hsw_o b' hbb
                 rw [hdf_o, hbs_o, hlic_o, hsl_o, ← hs2]
                 exact hc.live_valid b' hb'
