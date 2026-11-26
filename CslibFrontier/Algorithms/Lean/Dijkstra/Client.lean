@@ -400,8 +400,7 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
       rw [hmin]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, hi]
-      · rw [weight_cons, weight_cons, weight_nil]
-        dsimp only [kind, edgeRate]
+      · simp only [weight_cons rate, weight_nil rate, kind, edgeRate]
         omega
 
 private theorem Runs.mono {s s' : (spec n K V).State} {p : (spec n K V).Client Unit} {b b' : ℕ}
@@ -420,9 +419,8 @@ private theorem Runs.lift_bind {s s' : (spec n K V).State} (o : (spec n K V).Op)
       StateTransitionSpec.validHistory_cons]
     exact ⟨hv, hv'⟩
   · simpa only [StateTransitionSpec.clientState, StateTransitionSpec.runClient_lift_bind'] using hs'
-  · simp only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind']
+  · simp only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind'] at hw' ⊢
     rw [weight_cons]
-    simp only [StateTransitionSpec.clientHistory] at hw'
     omega
 
 /-- A call that leaves the state alone, followed by a continuation. -/
@@ -486,8 +484,7 @@ private theorem forM_relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State 
       obtain ⟨dv, hdv, hle⟩ := hset v c hmem hvT
       refine ⟨dv, scanMap_of_le _ hdv fun c' hc' => ?_, hle⟩
       obtain ⟨dv', hdv', hle'⟩ := hset v c' (List.mem_of_mem_take hc') hvT
-      rw [hdv, Option.some_inj] at hdv'
-      exact hdv' ▸ hle'
+      exact (Option.some.inj (hdv.symm.trans hdv')).trans_le hle'
     have hedge := relaxEdge_runs rate T (scanMap du ((adj u).take k) dm) adj hk' hvc hT
       (hbound v c hmem).1 (hbound v c hmem).2 (pU := pU) (pQ := pQ)
     rw [List.range_succ]
@@ -601,21 +598,16 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
     obtain ⟨c', hc'⟩ := Option.ne_none_iff_exists'.mp
       fun h => G.lightest_eq_none_iff.mp h c hvc
     have hc'c : c' ≤ c := (G.lightest_eq_some_iff.mp hc').2 c hvc
-    have hv' : (dv : ℕ∞) = G.toInstance.dist G.source v :=
-      tentative_of_some hdv ▸ hgood.inv.eq_of_mem v hvT
-    have hu' : G.toInstance.dist G.source u ≤ du := hDu ▸ hgood.inv.dist_le u
-    have : (dv : ℕ∞) ≤ ((du + c : ℕ) : ℕ∞) :=
-      calc (dv : ℕ∞) = G.toInstance.dist G.source v := hv'
+    exact_mod_cast calc (dv : ℕ∞) = G.toInstance.dist G.source v :=
+          tentative_of_some hdv ▸ hgood.inv.eq_of_mem v hvT
         _ ≤ G.toInstance.dist G.source u + c' :=
           G.toInstance.dist_le_edge (a := u) (b := v) (c := c') hc'
         _ ≤ ((du + c : ℕ) : ℕ∞) := by
           push_cast
-          exact add_le_add hu' (by exact_mod_cast hc'c)
-    exact_mod_cast this
+          exact add_le_add (hDu ▸ hgood.inv.dist_le u) (by exact_mod_cast hc'c)
   -- Keys stay at most `n` times the largest weight.
   have hcard : T.card + 1 ≤ G.n := by
-    have := Finset.card_le_univ (insert u T)
-    rwa [Finset.card_insert_of_notMem huT, Fintype.card_fin] at this
+    simpa [Finset.card_insert_of_notMem huT] using Finset.card_le_univ (insert u T)
   have hduW : du ≤ T.card * G.maxWeight :=
     (by exact_mod_cast (hDu ▸ hgood.inv.bound u hfin :
       (du : ℕ∞) ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞)) :
@@ -630,17 +622,14 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
         _ ≤ G.n * G.maxWeight := Nat.mul_le_mul_right _ hcard
     omega
   -- After the scan, the invariant holds with `u` visited.
-  have hgood' : Good G (insert u T) (scanMap du (G.adj u) dm) := by
-    refine ⟨fun v hv => ?_,
-      tentative_scanMap G hdu ▸ Dijkstra.Instance.Inv.step _ hgood.inv huT hmin hfin⟩
-    obtain ⟨dv, hdv⟩ := Option.ne_none_iff_exists'.mp
-      ((Finset.mem_insert.mp hv).elim (· ▸ by simp [hdu]) (hgood.reached v))
-    rw [scanMap_of_le _ hdv fun c hvc => by
-      obtain ⟨dv', hdv', hle⟩ := hset v c hvc hv
-      rw [hdv, Option.some_inj] at hdv'
-      exact hdv' ▸ hle]
-    simp
-  exact ⟨huT, hset, hbound, hgood'⟩
+  refine ⟨huT, hset, hbound, fun v hv => ?_,
+    tentative_scanMap G hdu ▸ Dijkstra.Instance.Inv.step _ hgood.inv huT hmin hfin⟩
+  obtain ⟨dv, hdv⟩ := Option.ne_none_iff_exists'.mp
+    ((Finset.mem_insert.mp hv).elim (· ▸ by simp [hdu]) (hgood.reached v))
+  rw [scanMap_of_le _ hdv fun c hvc => by
+    obtain ⟨dv', hdv', hle⟩ := hset v c hvc hv
+    exact (Option.some.inj (hdv.symm.trans hdv')).trans_le hle]
+  simp
 
 /-- **The main loop.** From a state satisfying the invariant with visited set `T`, enough rounds
 leave an empty queue and the distances in the distance map, at amortized rate
@@ -672,13 +661,12 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       have hq : ∀ v, syncQ T dm v = none := fun v =>
         IndexedMinPQ.notMem_dom_iff.mp
           (IndexedMinPQ.findMin_eq_none_iff.mp hf ▸ Finset.notMem_empty v)
-      have hempty : syncQ T dm = IndexedMinPQ.empty G.n := funext hq
       have hdone : ∀ v ∉ T, tentative dm v = ⊤ := fun v hv =>
         tentative_of_none (by simpa [syncQ, hv] using hq v)
       refine ⟨dm, Dijkstra.Instance.Inv.eq_dist _ hgood.inv hdone,
         Runs.lift_bind rate (b := 0) (.inl .extractMin) trivial ?_ ?_⟩
       · simp only [IndexedMinPQ.step, hf]
-        exact hempty ▸ Runs.pure rate _
+        exact funext hq ▸ Runs.pure rate _
       · simp only [IndexedMinPQ.step, hf, kind, add_one_mul]
         omega
     · -- Visit `u`, an unvisited vertex of least tentative distance `du`.
@@ -707,8 +695,7 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
           rw [Finset.add_sum_erase Tᶜ (fun v => (G.adj v).length) (Finset.mem_compl.mpr huT)]
         have hpot : pot (K := K) (V := V) pU pQ (syncQ T dm, dm, G.adj) =
             pot (K := K) (V := V) pU pQ (syncQ (insert u T) dm, dm, G.adj) + pQ := by
-          simp only [pot]
-          rw [← hcard, Nat.mul_succ]
+          simp only [pot, ← hcard, Nat.mul_succ]
           omega
         simp only [IndexedMinPQ.step, hf, kind]
         rw [hsync, hsum, hpot, add_one_mul]

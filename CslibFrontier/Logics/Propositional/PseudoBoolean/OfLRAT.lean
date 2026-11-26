@@ -209,25 +209,21 @@ theorem propagate_eq_unitStep {c : PBConstr} (hv : (c.terms.map termVar).Nodup)
   | t₁ :: t₂ :: ts =>
     have h1 := hFpos t₁ (by simp [hFm])
     have h2 := hFpos t₂ (by simp [hFm])
-    have hne : t₂.2 ≠ t₁.2 := by
-      intro heq
-      have := hFm ▸ hFv
-      simp only [List.map_cons, List.nodup_cons, List.mem_cons] at this
-      exact this.1 (.inl (congrArg Prod.fst heq).symm)
     have hs : ¬ slack ρ c < 0 := by rw [hslack, hFm]; simp; omega
     have hnil : ((t₁ :: t₂ :: ts).filter fun t => !ρ.contains t.2 &&
         decide (slack ρ c < t.1)) = [] := by
       refine List.filter_eq_nil_iff.2 fun t ht hp => ?_
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hp
-      rw [hslack, hFm] at hp
-      simp only [coeffSum_cons] at hp
-      rcases List.mem_cons.1 ht with rfl | ht
+      simp only [Bool.and_eq_true, decide_eq_true_eq, hslack, hFm, coeffSum_cons] at hp
+      simp only [List.mem_cons] at ht
+      rcases ht with rfl | rfl | ht
       · omega
-      rcases List.mem_cons.1 ht with rfl | ht
       · omega
       have := le_coeffSum_of_mem ht
       omega
-    have hb : (t₂.2 == t₁.2) = false := by simpa using hne
+    have hb : (t₂.2 == t₁.2) = false := by
+      have := hFm ▸ hFv
+      simp only [List.map_cons, List.nodup_cons, List.mem_cons] at this
+      exact beq_eq_false_iff_ne.2 fun heq => this.1 (.inl (congrArg Prod.fst heq).symm)
     simp only [List.contains_eq_mem] at hnil
     simp [hs, hb, hnil]
 
@@ -269,14 +265,11 @@ theorem Clause.degree_normalize_toPB_of_isTautology {d : Clause ℕ}
     | none => false
   have hfalse : ∀ t ∈ N.terms, Literal.eval σ t.2 = false := by
     intro t ht
-    have hf : (N.terms.find? (termVar · == termVar t)).isSome := by
-      rw [List.find?_isSome]
-      exact ⟨t, ht, by simp⟩
+    have hf : (N.terms.find? (termVar · == termVar t)).isSome :=
+      List.find?_isSome.2 ⟨t, ht, by simp⟩
     obtain ⟨t', ht'⟩ := Option.isSome_iff_exists.1 hf
-    have hmem := List.mem_of_find?_eq_some ht'
-    have hkey := List.find?_some ht'
-    simp only [beq_iff_eq] at hkey
-    obtain rfl : t' = t := List.inj_on_of_nodup_map hv hmem ht hkey
+    have hkey : termVar t' = termVar t := by simpa using List.find?_some ht'
+    obtain rfl : t' = t := List.inj_on_of_nodup_map hv (List.mem_of_find?_eq_some ht') ht hkey
     obtain ⟨a, v, b⟩ := t'
     simp only [termVar_mk] at ht'
     have hσ : σ v = !b := by simp only [σ, ht', termPos_mk]
@@ -288,8 +281,7 @@ theorem Clause.degree_normalize_toPB_of_isTautology {d : Clause ℕ}
     refine List.sum_eq_zero fun x hx => ?_
     obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hx
     simp [termVal, hfalse t ht]
-  have := hholds
-  unfold Holds at this
+  unfold Holds at hholds
   omega
 
 /-- A clause normalizes to a constraint of degree at most `1`. -/
@@ -565,8 +557,7 @@ private theorem check_aux : ∀ (cert : List LRAT.IntAction) (J : List Entry) (n
       hJ.sublist (List.filter_sublist.map _)
     have hall : ((J.filter fun e => ids.toList.contains e.key).map Entry.num).all
         (fun i => (lookup (pbPart J) i).isSome) = true := by
-      rw [List.all_eq_true]
-      intro p hp
+      refine List.all_eq_true.2 fun p hp => ?_
       obtain ⟨e, he, rfl⟩ := List.mem_map.1 hp
       simp only [lookup, Option.isSome_map, List.find?_isSome]
       exact ⟨(e.num, e.clause.toPB.normalize),
@@ -591,14 +582,8 @@ private theorem check_aux : ∀ (cert : List LRAT.IntAction) (J : List Entry) (n
       simp only [runStep]
       rw [hdel, ite_eq_left (by simp only [hnd, hall, decide_true, Bool.and_self]), hp]
     obtain ⟨D, m, hrun, hc⟩ := check_aux rest J' n (hp ▸ hid.filter _) (hl ▸ h)
-    have e1 : CNF.toVeriPBAux (renPart J) n (.del ids :: rest) =
-        ⟨.del (((renPart J).filter fun e => ids.toList.contains e.1).map (·.2)) ::
-          (CNF.toVeriPBAux (renPart J') n rest).steps,
-          (CNF.toVeriPBAux (renPart J') n rest).conclusion⟩ := by
-      rw [hr]
-      rfl
-    rw [e1]
-    exact ⟨D, m, by simp only [runSteps, hstep]; exact hrun, hc⟩
+    simp only [CNF.toVeriPBAux, ← hr, runSteps, hstep]
+    exact ⟨D, m, hrun, hc⟩
 
 end VeriPB
 

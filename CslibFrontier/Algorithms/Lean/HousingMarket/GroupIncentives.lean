@@ -205,8 +205,7 @@ theorem ttc_updatePref_eq_of_apply_eq {i : Fin n} {π : Equiv.Perm (Fin n)}
     (h : (I.updatePref i π).ttc i = I.ttc i) :
     (I.updatePref i π).ttc = I.ttc := by
   refine I.eq_ttc_of_forall_rank_le (S := {i})
-    (fun j hj => I.updatePref_pref_of_ne π (Finset.notMem_singleton.1 hj)) ?_
-  intro j hj
+    (fun j hj => I.updatePref_pref_of_ne π (Finset.notMem_singleton.1 hj)) fun j hj => ?_
   rw [Finset.mem_singleton.1 hj, h]
 
 end Instance
@@ -249,9 +248,8 @@ and at least one member of `S` is strictly better off. -/
       ∃ i ∈ S, I.rank i (M (I.updatePrefs S π) i) < I.rank i (M I i))
 
 theorem IsGroupStrategyProof.isWeakGroupStrategyProof {M : HousingMechanism n}
-    (h : M.IsGroupStrategyProof) : M.IsWeakGroupStrategyProof := by
-  intro I S π ⟨i₀, hi₀⟩ hlt
-  exact h I S π ⟨fun i hi => (hlt i hi).le, i₀, hi₀, hlt i₀ hi₀⟩
+    (h : M.IsGroupStrategyProof) : M.IsWeakGroupStrategyProof :=
+  fun I S π ⟨i₀, hi₀⟩ hlt => h I S π ⟨fun i hi => (hlt i hi).le, i₀, hi₀, hlt i₀ hi₀⟩
 
 theorem IsWeakGroupStrategyProof.isStrategyProof {M : HousingMechanism n}
     (h : M.IsWeakGroupStrategyProof) : M.IsStrategyProof := by
@@ -291,8 +289,7 @@ theorem IsGroupStrategyProof.isNonBossy {M : HousingMechanism n}
     rw [hupd']
     rcases Finset.mem_insert.1 hk with rfl | hkj
     · rw [heq]
-    · rw [Finset.mem_singleton.1 hkj, hrj]
-      exact hgt.le
+    · exact Finset.mem_singleton.1 hkj ▸ hrj ▸ hgt.le
 
 /-! #### Two-slot masking permutation for `(SP ∧ NonBossy) → GSP` -/
 
@@ -357,8 +354,7 @@ theorem isGroupStrategyProof_iff {M : HousingMechanism n} :
   set J := I.updatePrefs S π
   let πStar : Fin n → Equiv.Perm (Fin n) := fun i => topTwoPerm (M J i) (M I i)
   -- Step 1: moving `T ⊆ S` from `J` to `πStar` preserves `M _ = M J`.
-  have hJ_inv : ∀ T : Finset (Fin n), T ⊆ S → M (J.updatePrefs T πStar) = M J := by
-    intro T
+  have hJ_inv (T : Finset (Fin n)) : T ⊆ S → M (J.updatePrefs T πStar) = M J := by
     induction T using Finset.induction_on with
     | empty => simp
     | @insert i T hiT ih =>
@@ -375,8 +371,7 @@ theorem isGroupStrategyProof_iff {M : HousingMechanism n} :
       have heq_house : M J' i = M JT i := hT ▸ J'.rank_injective i (Fin.ext (by omega))
       exact (hNB JT i (πStar i) heq_house).trans hT
   -- Step 2: moving `T ⊆ S` from `I` to `πStar` preserves `M _ = M I`.
-  have hI_inv : ∀ T : Finset (Fin n), T ⊆ S → M (I.updatePrefs T πStar) = M I := by
-    intro T
+  have hI_inv (T : Finset (Fin n)) : T ⊆ S → M (I.updatePrefs T πStar) = M I := by
     induction T using Finset.induction_on with
     | empty => simp
     | @insert i T hiT ih =>

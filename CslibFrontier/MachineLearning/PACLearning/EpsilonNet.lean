@@ -151,10 +151,8 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
   -- Each good swap determines a labeling of the `2m` points realized by `G`.
   let v : (Fin m → Bool) → (Fin (m + m) → Bool) := fun σ =>
     if hσ : σ ∈ Good then fun j => (hw σ hσ).choose (x j) else fun _ => false
-  have hvR : ∀ σ ∈ Good, v σ ∈ restriction G x := by
-    intro σ hσ
-    rw [mem_restriction]
-    exact ⟨(hw σ hσ).choose, (hw σ hσ).choose_spec.1,
+  have hvR : ∀ σ ∈ Good, v σ ∈ restriction G x := fun σ hσ =>
+    mem_restriction.2 ⟨(hw σ hσ).choose, (hw σ hσ).choose_spec.1,
       fun j => by simp only [v, hσ, ↓reduceDIte]⟩
   -- Each labeling is compatible with at most `2 ^ (m - k)` swaps.
   have hfib : ∀ w ∈ Good.image v, (Good.filter fun σ => v σ = w).card * 2 ^ k ≤ 2 ^ m := by
@@ -279,11 +277,9 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
     Cslib.Probability.PMF.map_measurePi_eq_toMeasure_pi _ fun _ =>
       (measurable_of_countable g).aemeasurable
   have hgm : Measurable fun (T : Fin m → Z) i => g (T i) := measurable_of_countable _
-  have hpre : {T : Fin m → Z | ((Finset.univ.filter fun i => g (T i) = true).card : ℝ) <
-      ε * m / 2} = (fun T i => g (T i)) ⁻¹'
-        {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) < ε * m / 2} :=
-    rfl
-  rw [hpre, ← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
+  change Measure.pi _ ((fun T i => g (T i)) ⁻¹'
+    {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) < ε * m / 2}) ≤ _
+  rw [← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
     PMF.toMeasure_apply_eq_toOuterMeasure]
   set score : Fin m → Bool → ℝ := fun _ b => if b = true then 1 else 0
   have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := fun i b _ => by
@@ -306,11 +302,8 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
   have hsub : {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) <
       ε * m / 2} ⊆ {b | ∑ i, score i (b i) ≤ (1 - 1 / 2) * (ε * m)} := by
     intro b hb
-    simp only [Set.mem_ofPred_eq] at hb ⊢
-    have hcount : ((Finset.univ.filter fun i => b i = true).card : ℝ) =
-        ∑ i, score i (b i) := by
-      simp only [score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-        Nat.cast_zero]
+    simp only [Set.mem_ofPred_eq, score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite,
+      Nat.cast_one, Nat.cast_zero] at hb ⊢
     linarith
   have hexp : Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) < 1 / 2 := by
     calc Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) ≤ Real.exp (-1) :=

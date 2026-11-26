@@ -133,8 +133,7 @@ private theorem forgetInnerProg_spec {w : ℕ} (counting : Bool) (a : ForgetInne
     unfold forgetInnerProg
     refine ⟨validHistory_bind_step hv (validHistory_pure w _ _), forgetInnerProg_state a s,
       by rw [StateTransitionSpec.clientResult_bind]; exact hr, ?_⟩
-    rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    exact hc
+    rwa [memoryCost_bind', memoryCost_pure, Nat.add_zero]
   intro rem
   induction rem with
   | zero => exact fun _ => ⟨validHistory_pure w s _, rfl, by simp [iterate]⟩
@@ -171,8 +170,7 @@ private theorem forgetInnerProg_spec {w : ℕ} (counting : Bool) (a : ForgetInne
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (Nat.le_of_succ_le hk_le)
     dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_ev, hres_ev']), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hst_ev, hres_ev']
-      exact hr_rem
+    · rwa [StateTransitionSpec.clientResult_bind, hst_ev, hres_ev']
     · rw [memoryCost_bind', hst_ev, hres_ev']
       exact (Nat.add_le_add hc_step hc_rem).trans_eq (by rw [Nat.succ_mul, Nat.add_comm])
 
@@ -250,9 +248,8 @@ private theorem forgetInnerProg_realizes :
       unfold forgetInnerStep; dsimp only
       rw [memoryCost_bind', radixProjProg_state, memoryCost_bind', memoryCost_read]
       omega
-    have hw := iterationWork_zero_le forgetInnerStep hquery a a.dLim (0, 0) s
-    rw [iterationWork_zero] at hw
-    omega
+    simpa only [iterationWork_zero, Nat.one_mul] using
+      Nat.le_succ_of_le (iterationWork_zero_le forgetInnerStep hquery a a.dLim (0, 0) s)
 
 private structure ForgetFillArgs where
   mode : ℕ
@@ -422,8 +419,7 @@ private theorem forgetFillProg_realizes :
       · dsimp only [forgetOuterStep]
         exact ⟨⟨hq_pos, h1, hfit_q, hfit_m, hfit_dLim, hfit_bag, hfit_cBag, hfit_cPow, hfit_cTbl,
           cTbl, cCap, hcTbl_t, hcTbl_len, hcTbl_le, hfit_sumCap⟩, hfit_taddr, hfit_m1⟩
-      · rw [hres_ev]
-        omega
+      · omega
       · rw [hst_ev]
         exact holdsIn_write_outside hcTbl_t (.inr (by rw [hcTbl_len]; omega))
     · simp only [iterationWork_zero]; exact le_rfl
@@ -433,9 +429,8 @@ private theorem forgetFillProg_realizes :
       unfold forgetOuterStep; dsimp only
       rw [memoryCost_bind', forgetInnerProg_state, memoryCost_bind', memoryCost_write]
       omega
-    have hw := iterationWork_zero_le forgetOuterStep hquery a a.tblLen 0 s
-    rw [iterationWork_zero] at hw
-    omega
+    simpa only [iterationWork_zero, Nat.one_mul] using
+      Nat.le_succ_of_le (iterationWork_zero_le forgetOuterStep hquery a a.tblLen 0 s)
 
 /-- Register arguments for the `forget` node handler `forgetNodeProg`. -/
 structure ForgetNodeArgs where

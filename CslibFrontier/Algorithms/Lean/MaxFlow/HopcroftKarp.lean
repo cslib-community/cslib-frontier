@@ -1211,10 +1211,8 @@ theorem hkLoop_spec (hadj : BipAdjValid G adj) :
       have hpost := ih (n + 1) _ hM' (by omega)
       have hle := hpost.le_phases
       refine ⟨hpost.isMatching, by omega, ?_, hpost.closed⟩
-      have : (hkLoop G adj fuel (n + 1) (hkPhase G adj mate b.dist b.k)).phases - n =
-          (hkLoop G adj fuel (n + 1) (hkPhase G adj mate b.dist b.k)).phases -
-            (n + 1) + 1 := by omega
-      exact this ▸ .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
+      rw [← Nat.sub_add_cancel (Nat.sub_pos_of_lt hle), Nat.sub_sub]
+      exact .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
     · obtain ⟨hstable, hsub, hdist⟩ := hb.found_false (Bool.eq_false_iff.mpr hf)
       exact ⟨hM, le_rfl, Nat.sub_self n ▸ .done, b.k, hstable, hsub, hdist⟩
 
@@ -1296,9 +1294,8 @@ private theorem hkPhase_exactBipAdj (G : Fin m × Fin r → Bool) (mate : Vector
 same output as `hopcroftKarpDense G`. -/
 theorem hopcroftKarp_exactBipAdj (G : Fin m × Fin r → Bool) :
     hopcroftKarp G (exactBipAdj G) = hopcroftKarpDense G := by
-  have hloop : ∀ fuel n mate,
+  have hloop (fuel) : ∀ n mate,
       hkLoop G (exactBipAdj G) fuel n mate = hkLoop G (denseBipAdj m r) fuel n mate := by
-    intro fuel
     induction fuel with
     | zero => intros; rfl
     | succ fuel ih =>
@@ -1404,9 +1401,8 @@ theorem hopcroftKarpDense_correct (G : Fin m × Fin r → Bool) :
 /-- Hopcroft–Karp returns a matching of the same cardinality as any maximum matching `M` of `G`. -/
 theorem card_hopcroftKarp_matching_eq {M : Finset (Fin m × Fin r)}
     (hadj : BipAdjValid G adj) (hM : IsMaxMatching G M) :
-    (hopcroftKarp G adj).matching.card = M.card := by
-  have h1 := (hopcroftKarp_correct hadj).1
-  exact le_antisymm (hM.2 _ h1.1) (h1.2 _ hM.1)
+    (hopcroftKarp G adj).matching.card = M.card :=
+  le_antisymm (hM.2 _ (hopcroftKarp_correct hadj).1.1) ((hopcroftKarp_correct hadj).1.2 _ hM.1)
 
 end Main
 
