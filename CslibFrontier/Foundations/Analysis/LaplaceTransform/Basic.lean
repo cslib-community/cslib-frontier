@@ -293,7 +293,7 @@ derivative `-laplace (t • f)`. If `f` is a.e.-strongly measurable on `(0, ∞)
 `‖f t‖ ≤ M exp (σ t)` for `t > 0`, then at every `s` with `σ < re s` the Laplace transform of
 `f` has complex derivative `-laplace (fun t => (t : ℂ) • f t) s`, and the Laplace transform of
 `t • f` converges at `s`. -/
-theorem hasDerivAt_laplace [CompleteSpace E] {M σ : ℝ}
+theorem hasDerivAt_laplace {M σ : ℝ}
     (hf : AEStronglyMeasurable f (volume.restrict (Ioi 0)))
     (hM : ∀ t ∈ Ioi (0 : ℝ), ‖f t‖ ≤ M * Real.exp (σ * t)) (hs : σ < s.re) :
     HasDerivAt (laplace f) (-laplace (fun t => (t : ℂ) • f t) s) s := by
@@ -354,7 +354,7 @@ theorem hasDerivAt_laplace [CompleteSpace E] {M σ : ℝ}
 /-- **The Laplace transform is holomorphic on the half-plane of exponential order.** If `f` is
 a.e.-strongly measurable on `(0, ∞)` and `‖f t‖ ≤ M exp (σ t)` for `t > 0`, the Laplace transform
 of `f` is complex differentiable on the open half-plane `re s > σ`. -/
-theorem differentiableOn_laplace [CompleteSpace E] {M σ : ℝ}
+theorem differentiableOn_laplace {M σ : ℝ}
     (hf : AEStronglyMeasurable f (volume.restrict (Ioi 0)))
     (hM : ∀ t ∈ Ioi (0 : ℝ), ‖f t‖ ≤ M * Real.exp (σ * t)) :
     DifferentiableOn ℂ (laplace f) {s | σ < s.re} := fun _ hs =>
@@ -362,7 +362,7 @@ theorem differentiableOn_laplace [CompleteSpace E] {M σ : ℝ}
 
 /-- The derivative of the Laplace transform on the half-plane of exponential order is
 `deriv (laplace f) s = -laplace (fun t => (t : ℂ) • f t) s`. -/
-theorem deriv_laplace [CompleteSpace E] {M σ : ℝ}
+theorem deriv_laplace {M σ : ℝ}
     (hf : AEStronglyMeasurable f (volume.restrict (Ioi 0)))
     (hM : ∀ t ∈ Ioi (0 : ℝ), ‖f t‖ ≤ M * Real.exp (σ * t)) (hs : σ < s.re) :
     deriv (laplace f) s = -laplace (fun t => (t : ℂ) • f t) s :=
