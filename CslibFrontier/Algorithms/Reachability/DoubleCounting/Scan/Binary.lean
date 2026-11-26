@@ -65,27 +65,18 @@ private theorem vertex_lt (v : Fin N) : v.val < 2 ^ N.size :=
 /-- Exact canonical ID decoding. -/
 theorem decodeVertex_eq_some_iff (bits : List Bool) (v : Fin N) :
     decodeVertex bits = some v ↔ bits = vertex v := by
-  unfold decodeVertex
-  split
-  · rename_i hl
-    split
-    · constructor
-      · intro h
-        have he : binaryValue bits = v.val := congrArg Fin.val (Option.some.inj h)
-        apply binaryValue_injective_of_length_eq (hl.trans (length_vertex v).symm)
-        simpa [vertex] using he
-      · rintro rfl
-        simp [vertex]
-    · rename_i hv
-      constructor
-      · simp
-      · rintro rfl
-        simp [vertex] at hv
-  · rename_i hl
-    constructor
-    · simp
-    · rintro rfl
-      exact (hl (length_vertex v)).elim
+  constructor
+  · intro h
+    unfold decodeVertex at h
+    split at h
+    · split at h
+      · exact binaryValue_injective_of_length_eq (by simp [*, length_vertex])
+          (by simpa [vertex] using congrArg Fin.val (Option.some.inj h))
+      · cases h
+    · cases h
+  · rintro rfl
+    rw [decodeVertex, ite_eq_left (length_vertex v)]
+    simp [vertex]
 
 /-- Correctly sized out-of-range IDs are rejected, as are wrong widths. -/
 theorem decodeVertex_out_of_range (bits : List Bool) (h : N ≤ binaryValue bits) :
@@ -101,13 +92,9 @@ theorem readVertex_eq_some_iff (bits rest : List Bool) (v : Fin N) :
     readVertex bits = some (v, rest) ↔ bits = vertex v ++ rest := by
   simp only [readVertex, Option.map_eq_some_iff, Prod.mk.injEq,
     decodeVertex_eq_some_iff]
-  constructor
-  · rintro ⟨a, ha, hav, hr⟩
-    subst a
-    rw [← hr, ← ha]
-    exact (List.take_append_drop N.size bits).symm
-  · rintro rfl
-    exact ⟨v, by simp, rfl, by simp⟩
+  refine ⟨?_, fun h => ⟨v, by simp [h], rfl, by simp [h]⟩⟩
+  rintro ⟨_, ha, rfl, rfl⟩
+  exact ha ▸ (List.take_append_drop N.size bits).symm
 
 /-- Destinations followed by a stop bit; the source is implicit. -/
 @[expose] def destinations : List (Fin N) → List Bool
@@ -131,35 +118,24 @@ theorem readDestinations_eq_some_iff (k : ℕ) (bits rest : List Bool)
       vs.length ≤ k ∧ bits = destinations vs ++ rest := by
   induction k generalizing bits rest vs with
   | zero =>
-    cases bits with
-    | nil => cases vs <;> simp [readDestinations, destinations]
-    | cons b bits => cases b <;> cases vs <;> simp [readDestinations, destinations]
+    rcases bits with _ | ⟨_ | _, bits⟩ <;> cases vs <;> simp [readDestinations, destinations]
   | succ k ih =>
-    cases bits with
-    | nil => cases vs <;> simp [readDestinations, destinations]
-    | cons b bits =>
-      cases b with
-      | false => cases vs <;> simp [readDestinations, destinations]
-      | true =>
-        cases vs with
-        | nil => simp [readDestinations, destinations, Option.bind_eq_some_iff]
-        | cons v vs =>
-          simp only [readDestinations, bind, Option.bind_eq_some_iff, pure,
-            Option.some.injEq, Prod.mk.injEq]
-          constructor
-          · rintro ⟨⟨a, tail⟩, ha, ⟨⟨as, suffix⟩, hb, hc, hd⟩⟩
-            dsimp only at hc hd hb
-            cases hc
-            subst suffix
-            obtain ⟨hl, he⟩ := (ih tail rest vs).mp hb
-            rw [readVertex_eq_some_iff] at ha
-            exact ⟨by simpa using hl, by simp [destinations, ha, he, List.append_assoc]⟩
-          · rintro ⟨hl, he⟩
-            have he' : bits = vertex v ++ (destinations vs ++ rest) := by
-              simpa [destinations, List.append_assoc] using he
-            refine ⟨(v, destinations vs ++ rest),
-              (readVertex_eq_some_iff _ _ _).mpr he', (vs, rest), ?_, rfl, rfl⟩
-            exact (ih _ _ _).mpr ⟨by simpa using hl, rfl⟩
+    rcases bits with _ | ⟨_ | _, bits⟩
+    · cases vs <;> simp [readDestinations, destinations]
+    · cases vs <;> simp [readDestinations, destinations]
+    · cases vs with
+      | nil => simp [readDestinations, destinations, Option.bind_eq_some_iff]
+      | cons v vs =>
+        simp only [readDestinations, bind, Option.bind_eq_some_iff, pure,
+          Option.some.injEq, Prod.mk.injEq, readVertex_eq_some_iff, ih, Prod.exists,
+          List.cons.injEq, destinations, List.cons_append, List.length_cons,
+          Nat.add_le_add_iff_right, true_and]
+        constructor
+        · rintro ⟨_, tail, rfl, _, _, ⟨hl, rfl⟩, ⟨rfl, rfl⟩, rfl⟩
+          exact ⟨hl, (List.append_assoc _ _ _).symm⟩
+        · rintro ⟨hl, rfl⟩
+          exact ⟨v, destinations vs ++ rest, List.append_assoc _ _ _,
+            vs, rest, ⟨hl, rfl⟩, ⟨rfl, rfl⟩, rfl⟩
 
 /-- Skip is zero; select is one followed by a terminated destination list. -/
 @[expose] def segment : Option (List (Fin N)) → List Bool
@@ -210,23 +186,15 @@ theorem readEntries_eq_some_iff (k n : ℕ) (bits rest : List Bool)
     | nil => simp [readEntries, Option.bind_eq_some_iff]
     | cons s ss =>
       simp only [readEntries, bind, Option.bind_eq_some_iff, pure,
-        Option.some.injEq, Prod.mk.injEq]
+        Option.some.injEq, Prod.mk.injEq, readSegment_eq_some_iff, ih, Prod.exists,
+        List.cons.injEq, entries, List.length_cons, Nat.add_right_cancel_iff,
+        List.mem_cons, forall_eq_or_imp]
       constructor
-      · rintro ⟨⟨a, tail⟩, ha, ⟨⟨as, suffix⟩, hb, hc, hd⟩⟩
-        dsimp only at hc hd hb
-        cases hc
-        subst suffix
-        obtain ⟨hl, hs, he⟩ := (ih tail rest ss).mp hb
-        obtain ⟨hseg, ha⟩ := (readSegment_eq_some_iff k bits tail s).mp ha
-        exact ⟨by simpa using hl, by simpa using And.intro hseg hs,
-          by simp [entries, ha, he, List.append_assoc]⟩
-      · rintro ⟨hl, hs, he⟩
-        have hs' : (∀ vs, s = some vs → vs.length ≤ k) ∧
-            (∀ s ∈ ss, ∀ vs, s = some vs → vs.length ≤ k) := by simpa using hs
-        refine ⟨(s, entries ss ++ rest), ?_, (ss, rest), ?_, rfl, rfl⟩
-        · apply (readSegment_eq_some_iff _ _ _ _).mpr
-          exact ⟨hs'.1, by simpa [entries, List.append_assoc] using he⟩
-        · exact (ih _ _ _).mpr ⟨by simpa using hl, hs'.2, rfl⟩
+      · rintro ⟨_, tail, ⟨hseg, rfl⟩, _, _, ⟨hl, hs, rfl⟩, ⟨rfl, rfl⟩, rfl⟩
+        exact ⟨hl, ⟨hseg, hs⟩, (List.append_assoc _ _ _).symm⟩
+      · rintro ⟨hl, ⟨hseg, hs⟩, rfl⟩
+        exact ⟨s, entries ss ++ rest, ⟨hseg, List.append_assoc _ _ _⟩,
+          ss, rest, ⟨hl, hs, rfl⟩, ⟨rfl, rfl⟩, rfl⟩
 
 /-- Encode the branch in increasing vertex order. -/
 @[expose] def encode (b : Branch N) : List Bool := entries (List.ofFn b)
@@ -242,33 +210,26 @@ theorem readEntries_eq_some_iff (k n : ℕ) (bits rest : List Bool)
 /-- Canonical whole-word decoding is equivalent to bounded encoding with no suffix. -/
 theorem decode_eq_some_iff (k : ℕ) (bits : List Bool) (b : Branch N) :
     decode k bits = some b ↔ Bounded k b ∧ bits = encode b := by
-  unfold decode
-  simp only [bind, Option.bind_eq_some_iff]
   constructor
-  · rintro ⟨⟨ss, rest⟩, hs, hb⟩
-    dsimp only at hb
-    split at hb <;> rename_i hl
-    · split at hb <;> rename_i hr
+  · intro h
+    unfold decode at h
+    simp only [bind, Option.bind_eq_some_iff, Prod.exists] at h
+    obtain ⟨ss, rest, hs, hb⟩ := h
+    split at hb
+    · split at hb
       · subst rest
-        have he := Option.some.inj hb
-        have hss : ss = List.ofFn b := by
-          subst b
-          apply List.ext_getElem (by simp [hl])
-          intro i hi hi'
-          simp
-        obtain ⟨_, hbound, hbits⟩ := (readEntries_eq_some_iff k N bits [] ss).mp hs
-        subst ss
-        refine ⟨?_, ?_⟩
-        · intro v vs hv
-          exact hbound (b v) (List.mem_ofFn.mpr ⟨v, rfl⟩) vs hv
-        · simpa [encode] using hbits
-      · simp at hb
-    · simp at hb
+        obtain rfl : ss = List.ofFn b :=
+          List.ext_getElem (by simp [*]) fun _ _ _ => by simp [← Option.some.inj hb]
+        obtain ⟨_, hbound, hbits⟩ := (readEntries_eq_some_iff k N bits [] (List.ofFn b)).mp hs
+        exact ⟨fun v vs hv => hbound (b v) (List.mem_ofFn.mpr ⟨v, rfl⟩) vs hv,
+          by simpa [encode] using hbits⟩
+      · cases hb
+    · cases hb
   · rintro ⟨hbound, rfl⟩
-    refine ⟨(List.ofFn b, []), ?_, ?_⟩
-    · apply (readEntries_eq_some_iff _ _ _ _ _).mpr
-      exact ⟨by simp, by simpa [Bounded] using hbound, by simp [encode]⟩
-    · simp
+    have hp : readEntries k N (encode b) = some (List.ofFn b, []) :=
+      (readEntries_eq_some_iff _ _ _ _ _).mpr
+        ⟨by simp, by simpa [Bounded] using hbound, by simp [encode]⟩
+    simp [decode, hp]
 
 /-- Every bounded branch decodes from its encoding. -/
 theorem decode_encode (k : ℕ) (b : Branch N) (hb : Bounded k b) :
@@ -276,10 +237,8 @@ theorem decode_encode (k : ℕ) (b : Branch N) (hb : Bounded k b) :
 
 /-- Distinct bounded branches remain distinct binary traces. -/
 theorem encode_injective (k : ℕ) {a b : Branch N}
-    (ha : Bounded k a) (hb : Bounded k b) (h : encode a = encode b) : a = b := by
-  have hd := decode_encode k a ha
-  rw [h, decode_encode k b hb] at hd
-  exact (Option.some.inj hd).symm
+    (ha : Bounded k a) (hb : Bounded k b) (h : encode a = encode b) : a = b :=
+  Option.some.inj ((decode_encode k a ha).symm.trans (h ▸ decode_encode k b hb))
 
 /-- Any nonempty suffix after a bounded branch is rejected, including zero padding. -/
 theorem decode_encode_append (k : ℕ) (b : Branch N) (hb : Bounded k b)

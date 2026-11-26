@@ -111,21 +111,16 @@ theorem two_rpow_le_of_imm [Field K] [NeZero n] (e : Fin N → Fin d × Fin n ×
   classical
   set blk : Fin N → Fin d := fun v => (e v).1
   set G := smPart blk Finset.univ F
-  have hG : G.IsSetMultilinear blk Finset.univ := isSetMultilinear_smPart _ F
   have hGΔ : G.productDepth ≤ 2 * Δ :=
     (productDepth_smPart_le _ F).trans (Nat.mul_le_mul_left 2 hFΔ)
   have hGP : rename e G.polynomial = imm K n d := by
     rw [polynomial_smPart, rename_smProj (blk' := Prod.fst) e fun _ => rfl, hFP, smProj_imm]
-  have h := hG.two_rpow_le_nodeCount_of_imm e hk hn (by omega) hGΔ hGP
-  have h4 : (2 : ℝ) ^ (2 * Δ) = 4 ^ Δ := by
-    rw [pow_mul]
-    norm_num
-  rw [h4] at h
-  refine h.trans ?_
-  have hsize : G.nodeCount ≤ smCost d ^ Δ * F.nodeCount :=
-    (nodeCount_smPart_le _ F).trans
-      (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (one_le_smCost d) hFΔ))
-  exact_mod_cast hsize
+  have h := (isSetMultilinear_smPart (blk := blk) Finset.univ F).two_rpow_le_nodeCount_of_imm
+    e hk hn (by omega) hGΔ hGP
+  have h4 : (2 : ℝ) ^ (2 * Δ) = 4 ^ Δ := by norm_num [pow_mul]
+  refine (h4 ▸ h).trans ?_
+  exact_mod_cast (nodeCount_smPart_le _ F).trans
+    (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (one_le_smCost d) hFΔ))
 
 end SPFormula
 

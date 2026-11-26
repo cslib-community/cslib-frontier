@@ -62,9 +62,7 @@ inductive Unblocked (P : Finset V) : V → Prop where
 variable {G}
 
 theorem Unblocked.notMem {P : Finset V} {v : V} (h : Unblocked G P v) : v ∉ P := by
-  cases h with
-  | source _ hv => exact hv
-  | step _ _ hv => exact hv
+  cases h <;> assumption
 
 theorem Unblocked.exists_adj {P : Finset V} {v u₀ : V} (h : Unblocked G P v) (hu₀ : G.Adj u₀ v) :
     ∃ u, G.Adj u v ∧ Unblocked G P u := by
@@ -104,15 +102,13 @@ private theorem exists_flip {p : ℕ → Prop} {a b : ℕ} (hab : a ≤ b) (ha :
 private theorem exists_last {p : ℕ → Prop} {a b : ℕ} (hab : a ≤ b) (ha : p a) :
     ∃ c, a ≤ c ∧ c ≤ b ∧ p c ∧ ∀ t, c < t → t ≤ b → ¬ p t := by
   induction b, hab using Nat.le_induction with
-  | base => exact ⟨a, le_rfl, le_rfl, ha, fun t h₁ h₂ => absurd h₂ (by omega)⟩
+  | base => exact ⟨a, le_rfl, le_rfl, ha, by omega⟩
   | succ b hab ih =>
     by_cases hpb : p (b + 1)
-    · exact ⟨b + 1, by omega, le_rfl, hpb, fun t h₁ h₂ => absurd h₂ (by omega)⟩
+    · exact ⟨b + 1, by omega, le_rfl, hpb, by omega⟩
     · obtain ⟨c, h₁, h₂, h₃, h₄⟩ := ih
-      refine ⟨c, h₁, by omega, h₃, fun t ht₁ ht₂ => ?_⟩
-      rcases Nat.lt_or_ge t (b + 1) with ht | ht
-      · exact h₄ t ht₁ (by omega)
-      · rwa [show t = b + 1 by omega]
+      exact ⟨c, h₁, by omega, h₃, fun t ht₁ ht₂ =>
+        (Nat.lt_or_eq_of_le ht₂).elim (fun ht => h₄ t ht₁ (by omega)) (· ▸ hpb)⟩
 
 /-- Any vertex of `R` forces one pebble on `R`. -/
 theorem forcesPebbles_one {R : Set V} {x : V} (hx : x ∈ R) : ForcesPebbles G R x 1 := by
@@ -127,23 +123,12 @@ theorem forcesPebbles_three {R : Set V} {x y z : V} (hy : G.Adj y x) (hz : G.Adj
   intro C t₀ t₁ ht hstep hu hx₁
   obtain ⟨s, hs₀, hs₁, hxs, hxs'⟩ := exists_flip (p := fun t => x ∈ C t) ht hu.notMem hx₁
   obtain ⟨m, hm⟩ := hstep s hs₀ hs₁
-  obtain ⟨hpred, -⟩ := hm.eq_insert_of_mem hxs' hxs
-  have hxy : x ≠ y := fun h => hxs (h ▸ hpred y hy)
-  have hxz : x ≠ z := fun h => hxs (h ▸ hpred z hz)
-  refine ⟨s + 1, by omega, by omega, {x, y, z}, ?_, ?_, ?_⟩
-  · intro w hw
-    simp only [Finset.mem_insert, Finset.mem_singleton] at hw
-    rcases hw with rfl | rfl | rfl
-    · exact hxs'
-    all_goals
-      obtain ⟨-, hD⟩ := hm.eq_insert_of_mem hxs' hxs
-      rw [hD]
-      exact Finset.mem_insert_of_mem (hpred _ ‹_›)
-  · intro w hw
-    simp only [Finset.coe_insert, Finset.coe_singleton, Set.mem_insert_iff,
-      Set.mem_singleton_iff] at hw
-    rcases hw with rfl | rfl | rfl <;> assumption
-  · rw [Finset.card_eq_three.2 ⟨x, y, z, hxy, hxz, hyz, rfl⟩]
+  obtain ⟨hpred, hD⟩ := hm.eq_insert_of_mem hxs' hxs
+  refine ⟨s + 1, by omega, by omega, {x, y, z}, ?_, by simp [Set.insert_subset_iff, hxR, hyR, hzR],
+    (Finset.card_eq_three.2 ⟨x, y, z, fun h => hxs (h ▸ hpred y hy),
+      fun h => hxs (h ▸ hpred z hz), hyz, rfl⟩).symm.le⟩
+  rw [hD]
+  simp [Finset.insert_subset_iff, hpred y hy, hpred z hz]
 
 /-- The inductive step of the path-blocking argument for a vertex `x` whose predecessors are
 exactly `y` and `z`. If blocking all paths to `y` puts a pebble on `Rx \ Rz` and blocking all paths
@@ -160,53 +145,36 @@ theorem ForcesPebbles.step {Rx Ry Rz : Set V} {x y z : V} {n : ℕ}
   obtain ⟨s, hs₀, hs₁, hxs, hxs'⟩ := exists_flip (p := fun t => x ∈ C t) ht hu.notMem hx₁
   obtain ⟨m, hm⟩ := hstep s hs₀ hs₁
   obtain ⟨hpx, -⟩ := hm.eq_insert_of_mem hxs' hxs
-  have hys : y ∈ C s := hpx y hy
-  have hzs : z ∈ C s := hpx z hz
   have h₀ : Unblocked G (C t₀) y ∨ Unblocked G (C t₀) z := by
     obtain ⟨u, hux, huU⟩ := hu.exists_adj hy
-    rcases hpred u hux with rfl | rfl
-    · exact .inl huU
-    · exact .inr huU
+    exact match hpred u hux with | .inl rfl => .inl huU | .inr rfl => .inr huU
   obtain ⟨c, hc₀, hcs, hc, hlast⟩ :=
     exists_last (p := fun t => Unblocked G (C t) y ∨ Unblocked G (C t) z) hs₀ h₀
-  have hstep' : ∀ t, c ≤ t → t < s → ∃ m, BlackStep G (C t) m (C (t + 1)) :=
-    fun t h₁ h₂ => hstep t (by omega) (by omega)
-  rcases hc with hcy | hcz
-  · obtain ⟨t, ht₁, ht₂, S, hSC, hSR, hS⟩ := hFy C c s hcs hstep' hcy hys
-    have hz' : ¬ Unblocked G (C t) z := fun h => hlast t ht₁ ht₂ (.inr h)
-    obtain ⟨w, hwC, hwx, hwy⟩ := hbz (C t) hz'
-    have hwS : w ∉ S := fun h => hwy (hSR h)
-    refine ⟨t, by omega, by omega, insert w S, Finset.insert_subset hwC hSC, ?_, ?_⟩
-    · rw [Finset.coe_insert]
-      exact Set.insert_subset hwx (hSR.trans hRy)
-    · rw [Finset.card_insert_of_notMem hwS]
-      omega
-  · obtain ⟨t, ht₁, ht₂, S, hSC, hSR, hS⟩ := hFz C c s hcs hstep' hcz hzs
-    have hy' : ¬ Unblocked G (C t) y := fun h => hlast t ht₁ ht₂ (.inl h)
-    obtain ⟨w, hwC, hwx, hwz⟩ := hby (C t) hy'
-    have hwS : w ∉ S := fun h => hwz (hSR h)
-    refine ⟨t, by omega, by omega, insert w S, Finset.insert_subset hwC hSC, ?_, ?_⟩
-    · rw [Finset.coe_insert]
-      exact Set.insert_subset hwx (hSR.trans hRz)
-    · rw [Finset.card_insert_of_notMem hwS]
-      omega
+  have branch {u v : V} {Ru : Set V} (hRu : Ru ⊆ Rx) (hFu : ForcesPebbles G Ru u n)
+      (hcu : Unblocked G (C c) u) (hus : u ∈ C s)
+      (hcv : ∀ t, c < t → t ≤ s → ¬ Unblocked G (C t) v)
+      (hbv : ∀ P : Finset V, ¬ Unblocked G P v → ∃ w ∈ P, w ∈ Rx ∧ w ∉ Ru) :
+      ∃ t, t₀ < t ∧ t ≤ t₁ ∧ ∃ S : Finset V, S ⊆ C t ∧ ↑S ⊆ Rx ∧ n + 1 ≤ S.card := by
+    obtain ⟨t, ht₁, ht₂, S, hSC, hSR, hS⟩ :=
+      hFu C c s hcs (fun t h₁ h₂ => hstep t (by omega) (by omega)) hcu hus
+    obtain ⟨w, hwC, hwx, hwu⟩ := hbv (C t) (hcv t ht₁ ht₂)
+    exact ⟨t, by omega, by omega, insert w S, Finset.insert_subset hwC hSC,
+      Finset.coe_insert w S ▸ Set.insert_subset hwx (hSR.trans hRu),
+      by rw [Finset.card_insert_of_notMem fun h => hwu (hSR h)]; omega⟩
+  exact hc.elim
+    (fun hcy => branch hRy hFy hcy (hpx y hy) (fun t h₁ h₂ h => hlast t h₁ h₂ (.inr h)) hbz)
+    (fun hcz => branch hRz hFz hcz (hpx z hz) (fun t h₁ h₂ h => hlast t h₁ h₂ (.inl h)) hby)
 
 private theorem exists_seq_of_mTr {s : ℕ} {C D : Finset V} {ms : List (Move V)}
     (h : (blackPebbleGame G s).MTr C ms D) :
     ∃ (f : ℕ → Finset V) (N : ℕ), f 0 = C ∧ f N = D ∧
       ∀ t < N, ∃ m, (blackPebbleGame G s).Tr (f t) m (f (t + 1)) := by
   induction h with
-  | @refl C => exact ⟨fun _ => C, 0, rfl, rfl, fun t ht => absurd ht (Nat.not_lt_zero t)⟩
-  | @stepL C₁ m C₂ ms C₃ htr _ ih =>
-    obtain ⟨f, N, hf0, hfN, hf⟩ := ih
-    refine ⟨fun t => Nat.casesOn t C₁ f, N + 1, rfl, hfN, fun t ht => ?_⟩
-    cases t with
-    | zero =>
-      refine ⟨m, ?_⟩
-      change (blackPebbleGame G s).Tr C₁ m (f 0)
-      rw [hf0]
-      exact htr
-    | succ t => exact hf t (by omega)
+  | @refl C => exact ⟨fun _ => C, 0, rfl, rfl, by simp⟩
+  | @stepL C₁ m _ _ _ htr _ ih =>
+    obtain ⟨f, N, rfl, rfl, hf⟩ := ih
+    exact ⟨fun t => Nat.casesOn t C₁ f, N + 1, rfl, rfl,
+      fun | 0, _ => ⟨m, htr⟩ | t + 1, ht => hf t (by omega)⟩
 
 /-- Lower bound: if `v` forces `n` pebbles on some region and every path from a source to `v` is
 initially open, then every successful budget for `v` is at least `n`. -/

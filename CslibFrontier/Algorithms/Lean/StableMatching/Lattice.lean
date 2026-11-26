@@ -88,11 +88,7 @@ private theorem propBest_cross {μ ν : Matching n} (hμ : I.IsStable μ) (hν :
   rcases lt_or_gt_of_ne (fun e : I.recvRank (μ p) p = I.recvRank (μ p) q =>
       hpq (I.recvRank_injective (μ p) e)) with hr | hr
   · exact hν p (μ p) ⟨hp', hνs ▸ hr⟩
-  · refine hμ q (μ p) ⟨?_, ?_⟩
-    · rw [PropPrefers, h]
-      exact hq'
-    · rw [RecvPrefers, hμs]
-      exact hr
+  · exact hμ q (μ p) ⟨h.symm ▸ hq', hμs.symm ▸ hr⟩
 
 /-- The proposer-wise best of two stable matchings is injective. -/
 theorem propBest_injective {μ ν : Matching n} (hμ : I.IsStable μ) (hν : I.IsStable ν) :
@@ -126,14 +122,8 @@ theorem isStable_propJoin {μ ν : Matching n} (hμ : I.IsStable μ) (hν : I.Is
   set q := (I.propJoin hμ hν).symm r
   have hq : I.propBest μ ν q = r := (I.propJoin hμ hν).apply_symm_apply r
   rcases I.propBest_mem μ ν q with h | h
-  · rw [h] at hq
-    refine hμ p r ⟨hp'.1, ?_⟩
-    rw [RecvPrefers, ← hq, Equiv.symm_apply_apply, hq]
-    exact hr
-  · rw [h] at hq
-    refine hν p r ⟨hp'.2, ?_⟩
-    rw [RecvPrefers, ← hq, Equiv.symm_apply_apply, hq]
-    exact hr
+  · exact hμ p r ⟨hp'.1, by rwa [RecvPrefers, ← hq, h, Equiv.symm_apply_apply, ← h, hq]⟩
+  · exact hν p r ⟨hp'.2, by rwa [RecvPrefers, ← hq, h, Equiv.symm_apply_apply, ← h, hq]⟩
 
 /-- In `propJoin`, every receiver gets the worse of its two partners. -/
 theorem recvRank_propJoin {μ ν : Matching n} (hμ : I.IsStable μ) (hν : I.IsStable ν)
@@ -173,19 +163,16 @@ theorem isStable_propMeet {μ ν : Matching n} (hμ : I.IsStable μ) (hν : I.Is
 theorem propRank_propMeet {μ ν : Matching n} (hμ : I.IsStable μ) (hν : I.IsStable ν)
     (p : Fin n) :
     I.propRank p (I.propMeet hμ hν p) = max (I.propRank p (μ p)) (I.propRank p (ν p)) := by
-  have h := recvRank_propJoin ((I.isStable_swap_iff μ).2 hμ) ((I.isStable_swap_iff ν).2 hν) p
-  simp only [swap_recvRank, Equiv.symm_symm] at h
-  exact h
+  simpa only [propMeet, swap_recvRank, Equiv.symm_symm] using
+    recvRank_propJoin ((I.isStable_swap_iff μ).2 hμ) ((I.isStable_swap_iff ν).2 hν) p
 
 /-- In `propMeet`, every receiver gets the better of its two partners. -/
 theorem recvRank_propMeet {μ ν : Matching n} (hμ : I.IsStable μ) (hν : I.IsStable ν)
     (r : Fin n) :
     I.recvRank r ((I.propMeet hμ hν).symm r) =
       min (I.recvRank r (μ.symm r)) (I.recvRank r (ν.symm r)) := by
-  have h := propRank_propJoin ((I.isStable_swap_iff μ).2 hμ) ((I.isStable_swap_iff ν).2 hν) r
-  simp only [swap_propRank] at h
-  rw [propMeet, Equiv.symm_symm]
-  exact h
+  simpa only [propMeet, swap_propRank, Equiv.symm_symm] using
+    propRank_propJoin ((I.isStable_swap_iff μ).2 hμ) ((I.isStable_swap_iff ν).2 hν) r
 
 
 variable (I) in

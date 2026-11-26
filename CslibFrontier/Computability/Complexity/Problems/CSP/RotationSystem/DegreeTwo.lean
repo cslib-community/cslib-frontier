@@ -50,8 +50,7 @@ theorem rotation_eq_of_variable_degree_le_two
     cases hside : d.2 with
     | true =>
       obtain ⟨o, ho⟩ := exists_incidenceDart d
-      rw [hside] at ho
-      rw [← ho, hr o, hs o]
+      rw [← ho, hside, hr o, hs o]
     | false =>
       by_cases hrfix : r.rotate d = d
       · have hcycle := (r.sameCycle_iff d (s.rotate d)).mpr (s.vertex_rotate d).symm
@@ -60,18 +59,12 @@ theorem rotation_eq_of_variable_degree_le_two
       · have hcycle := (s.sameCycle_iff d (r.rotate d)).mpr (r.vertex_rotate d).symm
         exact (hcycle.eq_of_left hsfix).symm.trans hsfix.symm
       by_contra hne
-      have hsubset : {d, r.rotate d, s.rotate d} ⊆
-          Finset.univ.filter (fun e : Dart (incidenceGraph F) => e.vertex = d.vertex) := by
-        intro e he
-        simp only [Finset.mem_insert, Finset.mem_singleton] at he
-        rcases he with rfl | rfl | rfl <;> simp [r.vertex_rotate, s.vertex_rotate]
-      have hc := Finset.card_le_card hsubset
-      have hb := hdegree d hside
-      have hthree : ({d, r.rotate d, s.rotate d} : Finset (Dart (incidenceGraph F))).card = 3 := by
-        exact Finset.card_eq_three.mpr
-          ⟨d, r.rotate d, s.rotate d, Ne.symm hrfix, Ne.symm hsfix, hne, rfl⟩
-      rw [hthree] at hc
-      omega
+      have hc := Finset.card_le_card (s := {d, r.rotate d, s.rotate d})
+        (t := Finset.univ.filter fun e => e.vertex = d.vertex) fun e he => by
+          rcases (by simpa using he : e = _ ∨ e = _ ∨ e = _) with rfl | rfl | rfl <;>
+            simp [r.vertex_rotate, s.vertex_rotate]
+      rw [Finset.card_eq_three.mpr ⟨_, _, _, Ne.symm hrfix, Ne.symm hsfix, hne, rfl⟩] at hc
+      exact absurd (hc.trans (hdegree d hside)) (by decide)
   cases r
   cases s
   cases hp

@@ -61,16 +61,10 @@ theorem commutingWinProb_branch_symmetrize {n : ℕ}
   rw [TwoProverGame.commutingWinProb_toCommuting, TwoProverGame.commutingWinProb_toCommuting]
   apply TwoProverGame.quantumWinProb_symmetrize _ _ _ S
   · intro x y
-    rw [branchGameWithDiagonalCap_questions]
-    have he := map_equiv_apply (branchQuestions (F := F) n b)
-      (Equiv.prodComm (Question F (n + 1)) (Question F (n + 1))) (x, y)
-    change (branchQuestions (F := F) n b).map Prod.swap (x, y) =
-      branchQuestions n b (y, x) at he
-    rw [branchQuestions_swap] at he
-    exact he.symm
+    have he := map_equiv_apply (branchQuestions (F := F) n b) (Equiv.prodComm _ _) (x, y)
+    simpa [branchGameWithDiagonalCap_questions, branchQuestions_swap] using he.symm
   · intro x y a c
-    rw [branchGameWithDiagonalCap_accepts]
-    exact acceptsWithDiagonalCap_swap d D y x c a
+    simpa only [branchGameWithDiagonalCap_accepts] using acceptsWithDiagonalCap_swap d D y x c a
 
 variable {n d : ℕ}
 
@@ -107,13 +101,11 @@ theorem exists_local_polynomial_POVMs_of_projective {k : ℕ} (D : ℕ)
   obtain ⟨G, hG⟩ := exists_polynomial_POVM_of_symmetric D hk T
     (S.symmetrize_bob_eq_alice) (S.symmetrize_state_swap) (S.symmetrize_isProjective hA hB)
   have hscore (b : Branch) :
-      (branchGame (F := F) n d b).commutingWinProb T.toCommuting =
+      (branchGame (F := F) n d b).commutingWinProb S.symmetrize.toCommuting =
         (branchGame (F := F) n d b).commutingWinProb C := by
     rw [branchGame_eq_withDiagonalCap]
     exact commutingWinProb_branch_symmetrize S d ((n + 1) * d) b
-  have hd := commutingWinProb_branch_symmetrize S d D .diagonal
-  simp only [T] at hscore
-  simp only [T, hscore, hd] at hG
+  simp only [T, hscore, commutingWinProb_branch_symmetrize S d D .diagonal] at hG
   let Gₐ := G.restrictBasis Function.Embedding.inl
   let Gᵦ := G.restrictBasis Function.Embedding.inr
   refine ⟨Gₐ, Gᵦ, ?_⟩
@@ -136,23 +128,19 @@ theorem exists_local_polynomial_POVMs_of_projective {k : ℕ} (D : ℕ)
       decodePoint (fun g => MvPolynomial.eval u g.val) a a).symm
   simp only [T] at h
   simp only [h, expect_sub_distrib, expect_add_distrib, ← expect_div, Fintype.expect_const] at hG
-  have hₐ : (𝔼 u : Point F (n + 1), (1 - Measurement.agreement C.state
-      (decodedPoint C.alice u)
-      ((QuantumStrategy.rightMeasurement (ι := ι) Gᵦ).map fun g => MvPolynomial.eval u g.val))) ≥
-        0 := by
-    refine expect_nonneg fun u _ => sub_nonneg.mpr ?_
-    apply Measurement.agreement_le_one
-    exact Measurement.commute_map_map _ _
-      (QuantumStrategy.commute_liftedEffects (S.alice (.point u)) Gᵦ) decodePoint _
-  have hᵦ : (𝔼 u : Point F (n + 1), (1 - Measurement.agreement C.state
-      ((QuantumStrategy.leftMeasurement (κ := κ) Gₐ).map fun g => MvPolynomial.eval u g.val)
-      (decodedPoint C.bob u))) ≥ 0 := by
-    refine expect_nonneg fun u _ => sub_nonneg.mpr ?_
-    apply Measurement.agreement_le_one
-    exact Measurement.commute_map_map _ _
-      (QuantumStrategy.commute_liftedEffects Gₐ (S.bob (.point u))) _ decodePoint
+  have hₐ := expect_nonneg (s := univ) fun (u : Point F (n + 1)) _ => sub_nonneg.mpr <|
+    Measurement.agreement_le_one C.state (decodedPoint C.alice u) _ <|
+      Measurement.commute_map_map _ _
+        (QuantumStrategy.commute_liftedEffects (S.alice (.point u)) Gᵦ) decodePoint
+        (fun g => MvPolynomial.eval u g.val)
+  have hᵦ := expect_nonneg (s := univ) fun (u : Point F (n + 1)) _ => sub_nonneg.mpr <|
+    Measurement.agreement_le_one C.state _ (decodedPoint C.bob u) <|
+      Measurement.commute_map_map _ _
+        (QuantumStrategy.commute_liftedEffects Gₐ (S.bob (.point u)))
+        (fun g => MvPolynomial.eval u g.val) decodePoint
   dsimp only
   simp only [expect_sub_distrib, Fintype.expect_const] at hₐ hᵦ ⊢
-  exact ⟨by linarith only [hG, hᵦ], by linarith only [hG, hₐ]⟩
+  exact ⟨by linarith only [hG, hᵦ],
+    by linarith only [hG, hₐ]⟩
 
 end Cslib.PCP.LowIndividualDegree

@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.Shift
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.Uniform
 public import Mathlib.Data.Nat.Log
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 import CslibFrontier.Tactic.Fits
@@ -146,19 +147,8 @@ theorem randFillBody_execRand {w bits arrBase : ℕ} {x : Data 6}
     ExecRand w randFillBody x (do
       let k ← ProbComp.unifFin (2 ^ bits - 1)
       pure (randFillStepData arrBase k.val x, 3)) := by
-  have h1 := ExecRand.rand (B := .exact) (w := w) (dst := regVal) (src := regMask)
-    (x := x) (by rwa [hmask])
-  rw [hmask] at h1
-  have hseq := ExecRand.seq
-    (m₂ := fun d => pure (randFillStepData arrBase (d.regs regVal) x, 2)) h1 fun z hz => by
-      supp_cases hz with ⟨k, rfl⟩
-      have hdet : Exec w (.seq (.op (.store regPtr regVal))
-          (.op (.exactBin .add regPtr regPtr regOne)) : Code .exact 6)
-          (x.set regVal k.val) (randFillStepData arrBase k.val x) 2 := by
-        unfold randFillStepData
-        wram_exec [hptr, hone]
-      simpa only [Data.set_regs_self] using hdet.execRand
-  simpa only [randFillBody, bind_assoc, pure_bind, Data.set_regs_self] using hseq
+  unfold randFillBody randFillStepData
+  wram_rand_exec [hptr, hmask, hone]
 
 /-- **Exact `ExecRand` semantics of `randFillLoop`** over `len` words starting at `arrBase`. -/
 theorem randFillLoop_execRand {w bits arrBase : ℕ} (len : ℕ) {x : Data 6}
@@ -373,13 +363,14 @@ theorem resampleCode_execRand {w base M : ℕ} {x : Data 6}
     (hbase : x.regs regBase = base) (hM : x.regs regM = M)
     (hfit_end : Fits w (base + 2 ^ M)) (hfit_pow : Fits w (2 ^ M)) :
     ExecRand w resampleCode x (resampleComp base M x) := by
-  have hloop := randFillLoop_execRand (w := w) (bits := M) (arrBase := base) (2 ^ M)
-    (x := (setupData base M x).comap fillMap)
+  unfold resampleCode
+  refine WP.Rand.execRand ?_
+  wram_rand_call (setupCode_exec hbase hM hfit_end hfit_pow)
+  wram_rand_call (randFillLoop_execRand (bits := M) (arrBase := base) (2 ^ M)
     (by wram_simp [setupData, fillMap]) (by wram_simp [setupData, fillMap])
     (by wram_simp [setupData, fillMap]) (by wram_simp [setupData, fillMap])
-    hfit_end (by fits)
-  simpa only [resampleCode, resampleComp, Functor.map_map] using
-    (setupCode_exec hbase hM hfit_end hfit_pow).seqRand (hloop.rename injective_fillMap)
+    hfit_end (by fits)) renamed injective_fillMap
+  simp only [resampleComp, Functor.map_map]
 
 /-- **Uniformity of `RandomTable.resampleComp`**: the extracted table `extractTable base M z.1.mem`
 is distributed according to `PMF.uniformOfFintype (Fin (2 ^ M) → Fin (2 ^ M))`. -/
@@ -744,14 +735,14 @@ theorem initFromBCode_execRand {w base b d M : ℕ} {x : Data 9}
     (hfit_space : Fits w (base + spaceFromB b d))
     (hfit_powB : Fits w (2 ^ b)) (hfit_powM : Fits w (2 ^ M)) (hfit_d : Fits w d) :
     ExecRand w (initFromBCode d) x (initFromBComp base b d M x) := by
-  have hsetup := setupFromBCode_exec hbase hb hM hfit_space hfit_powB hfit_powM hfit_d
-  have hloop := randFillLoop_execRand (w := w) (bits := M) (arrBase := base + 4) (d * 2 ^ b)
-    (x := (setupFromBData base b d M x).comap fillMap9)
+  unfold initFromBCode
+  refine WP.Rand.execRand ?_
+  wram_rand_call (setupFromBCode_exec hbase hb hM hfit_space hfit_powB hfit_powM hfit_d)
+  wram_rand_call (randFillLoop_execRand (bits := M) (arrBase := base + 4) (d * 2 ^ b)
     (by wram_simp [setupFromBData, fillMap9]) (by wram_simp [setupFromBData, fillMap9])
     (by wram_simp [setupFromBData, fillMap9]) (by wram_simp [setupFromBData, fillMap9])
-    (by wram_omega) (by fits)
-  simpa only [initFromBCode, initFromBComp, Functor.map_map] using
-    hsetup.seqRand (hloop.rename injective_fillMap9)
+    (by wram_omega) (by fits)) renamed injective_fillMap9
+  simp only [initFromBComp, Functor.map_map]
 
 /-- The character table `extractTable base b d M z.1.mem` produced by `initFromBComp` is uniformly
 distributed over `Fin (d * 2 ^ b) → Fin (2 ^ M)`. -/
@@ -855,16 +846,16 @@ theorem initCode_execRandWithin {w base n_max d M : ℕ} {x : Data 9}
         (∀ a, (a < base ∨ base + space n_max d ≤ a) → y.mem a = x.mem a))
       (4 * Nat.log 2 (max n_max 2) + 5 * (d * 2 ^ (charBits n_max)) + 30)
       (d * 2 ^ (charBits n_max)) := by
-  refine ⟨initComp base n_max d M x,
-    initCode_execRand hbase hn hM hfit_n hfit_space hfit_powM hfit_d,
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      ((OracleComp.isCostBounded_map_iff _ _ _).mpr (isQueryBounded_randFillComp ..)),
-    fun z hz => ?_⟩
-  dsimp only [initComp] at hz
-  supp_cases hz with ⟨z₁, hz₁, rfl⟩
-  obtain ⟨-, -, hbase_cb, -, hmem_cb⟩ := charBitsCode_exec (w := w) hn hfit_n
-  obtain ⟨hsteps, hrep, hbase', hframe'⟩ := mem_support_initFromBComp (hbase_cb.trans hbase) hz₁
-  exact ⟨⟨hrep, hbase', fun a ha => (hframe' a ha).trans (congrFun hmem_cb a)⟩, by omega⟩
+  obtain ⟨hcb, hb_eq, hbase_cb, hout_cb, hmem_cb⟩ := charBitsCode_exec (w := w) hn hfit_n
+  have hfit_powB : Fits w (2 ^ charBits n_max) := by
+    have hle := two_pow_charBits_le n_max; rw [Nat.max_comm 2 n_max] at hle; fits
+  unfold initCode
+  refine WP.RandWithin.execRandWithin ?_
+  wram_rand_call hcb
+  wram_rand_call (initFromBCode_execRandWithin (hbase_cb.trans hbase) hb_eq (hout_cb.trans hM)
+    hfit_space hfit_powB hfit_powM hfit_d)
+  rintro y ⟨hrep, hbase', hframe'⟩
+  exact ⟨hrep, hbase', fun a ha => (hframe' a ha).trans (congrFun hmem_cb a)⟩
 
 /-- 12-instruction deterministic setup before `tabLoop` in `evalCode d`: loads `b`, `2 ^ b`,
 `2 ^ b - 1` from `base + 0 .. base + 2`, sets `regPtr = base + 4` and

@@ -81,39 +81,26 @@ theorem IsCarrySuccessor.lexRank_succ {n k : ℕ} {x y : Fin k → Fin n}
   intro z ⟨hxz, hzy⟩
   obtain ⟨a, ha, hxa⟩ := (lexRank_lt_iff x z).mp hxz
   obtain ⟨b, hb, hzb⟩ := (lexRank_lt_iff z y).mp hzy
-  have hai : ¬a < i := by
-    intro hai
-    rcases lt_trichotomy a b with hab | rfl | hba
-    · have := hzb a hab
-      have := hpre a hai
-      lia
-    · have := hpre a hai
-      lia
-    · have := hxa b hba
-      have := hpre b (lt_trans hba hai)
-      lia
-  have hbi : ¬b < i := by
-    intro hbi
-    have := hxa b (lt_of_lt_of_le hbi (le_of_not_gt hai))
-    have := hpre b hbi
-    lia
-  have hai' : a = i := by
-    by_contra hne
-    have hia : i < a := lt_of_le_of_ne (le_of_not_gt hai) (Ne.symm hne)
+  change (x a).val < (z a).val at ha
+  change (z b).val < (y b).val at hb
+  have ha_le : a ≤ i := not_lt.mp fun hia => by
     have := (hpost a hia).1
     have := (z a).isLt
-    change (x a).val < (z a).val at ha
     lia
-  have hbi' : b = i := by
-    by_contra hne
-    have hib : i < b := lt_of_le_of_ne (le_of_not_gt hbi) (Ne.symm hne)
+  have hb_le : b ≤ i := not_lt.mp fun hib => by
     have := (hpost b hib).2
-    change (z b).val < (y b).val at hb
     lia
-  subst a b
-  change (x i).val < (z i).val at ha
-  change (z i).val < (y i).val at hb
-  lia
+  rcases lt_trichotomy a b with hab | rfl | hba
+  · have := hzb a hab
+    have := hpre a (hab.trans_le hb_le)
+    lia
+  · rcases ha_le.eq_or_lt with rfl | hai
+    · lia
+    · have := hpre a hai
+      lia
+  · have := hxa b hba
+    have := hpre b (hba.trans_le ha_le)
+    lia
 
 /-- Consecutive ranks have precisely one increment coordinate and a carried suffix. -/
 theorem isCarrySuccessor_of_lexRank_succ {n k : ℕ} {x y : Fin k → Fin n}
@@ -121,51 +108,30 @@ theorem isCarrySuccessor_of_lexRank_succ {n k : ℕ} {x y : Fin k → Fin n}
   obtain ⟨hxy, hgap⟩ := (lexRank_succ_iff x y).mp h
   obtain ⟨i, hi, hpre⟩ := (lexRank_lt_iff x y).mp hxy
   have hi' : (x i).val < (y i).val := hi
-  refine ⟨i, ?_, hpre, ?_⟩
+  refine ⟨i, ?_, hpre, fun j hij => ⟨?_, ?_⟩⟩
   · by_contra he
     have hlt : (x i).val + 1 < (y i).val := by lia
-    let c : Fin n := ⟨(x i).val + 1, lt_trans hlt (y i).isLt⟩
-    let z := Function.update x i c
-    apply hgap z
-    constructor
-    · apply (lexRank_lt_iff x z).mpr
-      refine ⟨i, ?_, fun j hj => ?_⟩
-      · simp [z, c, Fin.lt_def]
-      · simp [z, ne_of_lt hj]
-    · apply (lexRank_lt_iff z y).mpr
-      refine ⟨i, ?_, fun j hj => ?_⟩
-      · simpa [z, c, Fin.lt_def] using hlt
-      · simpa [z, ne_of_lt hj] using hpre j hj
-  · intro j hij
-    constructor
-    · by_contra he
-      have hlt : (x j).val + 1 < n := by have := (x j).isLt; lia
-      let c : Fin n := ⟨(x j).val + 1, hlt⟩
-      let z := Function.update x j c
-      apply hgap z
-      constructor
-      · apply (lexRank_lt_iff x z).mpr
-        refine ⟨j, ?_, fun a ha => ?_⟩
-        · simp [z, c, Fin.lt_def]
-        · simp [z, ne_of_lt ha]
-      · apply (lexRank_lt_iff z y).mpr
-        refine ⟨i, ?_, fun a ha => ?_⟩
-        · simpa [z, ne_of_lt hij] using hi
-        · simpa [z, ne_of_lt (lt_trans ha hij)] using hpre a ha
-    · by_contra he
-      let c : Fin n := ⟨0, Nat.zero_lt_of_lt (y j).isLt⟩
-      let z := Function.update y j c
-      apply hgap z
-      constructor
-      · apply (lexRank_lt_iff x z).mpr
-        refine ⟨i, ?_, fun a ha => ?_⟩
-        · simpa [z, ne_of_lt hij] using hi
-        · simpa [z, ne_of_lt (lt_trans ha hij)] using hpre a ha
-      · apply (lexRank_lt_iff z y).mpr
-        refine ⟨j, ?_, fun a ha => ?_⟩
-        · simp only [z, Function.update_self, c, Fin.lt_def]
-          lia
-        · simp [z, ne_of_lt ha]
+    let z := Function.update x i ⟨(x i).val + 1, lt_trans hlt (y i).isLt⟩
+    exact hgap z ⟨(lexRank_lt_iff x z).mpr
+      ⟨i, by simp [z, Fin.lt_def], fun j hj => by simp [z, ne_of_lt hj]⟩,
+      (lexRank_lt_iff z y).mpr
+        ⟨i, by simpa [z, Fin.lt_def] using hlt,
+          fun j hj => by simpa [z, ne_of_lt hj] using hpre j hj⟩⟩
+  · by_contra he
+    let z := Function.update x j ⟨(x j).val + 1, by have := (x j).isLt; omega⟩
+    exact hgap z ⟨(lexRank_lt_iff x z).mpr
+      ⟨j, by simp [z, Fin.lt_def], fun a ha => by simp [z, ne_of_lt ha]⟩,
+      (lexRank_lt_iff z y).mpr
+        ⟨i, by simpa [z, ne_of_lt hij] using hi,
+          fun a ha => by simpa [z, ne_of_lt (lt_trans ha hij)] using hpre a ha⟩⟩
+  · by_contra he
+    let z := Function.update y j ⟨0, Nat.zero_lt_of_lt (y j).isLt⟩
+    exact hgap z ⟨(lexRank_lt_iff x z).mpr
+      ⟨i, by simpa [z, ne_of_lt hij] using hi,
+        fun a ha => by simpa [z, ne_of_lt (lt_trans ha hij)] using hpre a ha⟩,
+      (lexRank_lt_iff z y).mpr
+        ⟨j, by simp only [z, Function.update_self, Fin.lt_def]; omega,
+          fun a ha => by simp [z, ne_of_lt ha]⟩⟩
 
 /-- The coordinatewise carry condition is exactly non-wrapping numerical successor. -/
 theorem isCarrySuccessor_iff {n k : ℕ} (x y : Fin k → Fin n) :

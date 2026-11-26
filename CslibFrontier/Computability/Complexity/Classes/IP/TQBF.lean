@@ -100,10 +100,7 @@ private theorem runWith_verdict_ite (respond : Unit × List Bool → StateT S PM
     (s : S) :
     runWith respond (verdict I ⟨rest, St, b⟩ m) s =
       if b then runWith respond (verdict I ⟨rest, St, true⟩ m) s else PMF.pure (false, s) := by
-  cases b
-  · rw [verdict_of_passed_eq_false I rfl]
-    rfl
-  · rfl
+  cases b <;> simp [verdict_of_passed_eq_false, ProbOracleComp.runWith_pure]
 
 /-! ### The typed prover of a word prover -/
 
@@ -168,8 +165,7 @@ private theorem take_decodeTyped (word : List Bool) :
   List.take_of_length_le (by rw [decodeTyped, List.length_map, length_decodeReply])
 
 private theorem val_one_sub (c : ZMod I.modulus) : (1 - c).val = subMod I.modulus 1 c.val := by
-  have h : (1 - c) = ((subMod I.modulus 1 c.val : ℕ) : ZMod I.modulus) := by
-    rw [natCast_subMod, Nat.cast_one, ZMod.natCast_zmod_val]
+  have h : 1 - c = (subMod I.modulus 1 c.val : ZMod I.modulus) := by simp [natCast_subMod]
   rw [h, val_natCast_of_lt I (subMod_lt _ _)]
 
 private theorem reject_case (rest : List (ArithQBF.Kind × ℕ)) (St : List Claim) (m : ℕ)
@@ -248,8 +244,7 @@ private theorem runWith_verdict_bin (o : ArithQBF.Connective) (e₁ e₂ : Arith
     refine congrArg _ (funext fun z => ?_)
     cases z.1
     · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind]
-    · simp only [↓reduceIte]
-      exact ih₂ _ _ _ _ _ _
+    · exact ih₂ _ _ _ _ _ _
   · exact reject_case respond I _ _ _ _ _ (by simp)
 
 private theorem opNext_eq (o : ArithQBF.Operator) (v : ℕ) (e : ArithQBF ℕ)
@@ -290,11 +285,9 @@ private theorem runWith_verdict_op (o : ArithQBF.Operator) (v : ℕ) (hv : v ∈
     runWith_query_bind, PMF.bind_bind, hmsg]
   refine congrArg _ (funext fun y => ?_)
   simp only [Function.comp_apply]
-  rw [take_decodeTyped, hmod, hdeg]
+  rw [take_decodeTyped, decodeTyped, hmod, hdeg]
   set w := y.1.take (replyLimit I.modulus I.degree)
   set l := decodeReply I.modulus I.degree w with hl
-  have hlT : decodeTyped I y.1 = l.map Nat.cast := rfl
-  rw [hlT]
   have hiff : operatorMod I.modulus o (lookupPt a.top.point a.head.2 % I.modulus)
         (hornerMod I.modulus 0 l) (hornerMod I.modulus 1 l) % I.modulus =
           a.top.value % I.modulus ↔
@@ -318,6 +311,21 @@ private theorem runWith_verdict_op (o : ArithQBF.Operator) (v : ℕ) (hv : v ∈
     rw [ProbOracleComp.runWith_pure, PMF.pure_bind]
     exact reject_case respond I _ _ _ _ _ (by simp)
 
+private theorem runWith_verdict_single (t : ArithQBF.Kind × ℕ) (rest : List (ArithQBF.Kind × ℕ))
+    (r : ℕ → ZMod I.modulus) (c : ZMod I.modulus) (St : List Claim) (m : ℕ) (s : S)
+    (b : Bool)
+    (hstep : Machine.step I ⟨t :: rest, ⟨canonPt I.xs r, c.val⟩ :: St, true⟩ =
+      pure ⟨rest, St, b⟩) :
+    runWith respond (verdict I ⟨[t] ++ rest, ⟨canonPt I.xs r, c.val⟩ :: St, true⟩
+        ([t].length + m)) s =
+      (runWith (typedRespond I respond) (pure b) s).bind
+        fun x => if x.1 then runWith respond (verdict I ⟨rest, St, true⟩ m) x.2
+          else PMF.pure (false, x.2) := by
+  rw [List.length_singleton, Nat.add_comm 1 m, verdict_succ, ProbOracleComp.runWith_bind,
+    List.singleton_append, hstep, ProbOracleComp.runWith_pure, ProbOracleComp.runWith_pure,
+    PMF.pure_bind, PMF.pure_bind]
+  exact runWith_verdict_ite respond I rest St b m s
+
 /-- **The machine simulates the protocol.** From a state whose remaining tokens are those of `e`
 followed by `rest`, and whose top claim holds the values below `p` of a point `r` on the variables
 of `xs` and of a claimed value `c`, the machine checks `e` as the token-stream verifier checks the
@@ -333,51 +341,34 @@ theorem runWith_verdict (e : ArithQBF ℕ) (he : ∀ w ∈ e.vars, w ∈ I.xs)
           else PMF.pure (false, x.2) := by
   induction e generalizing rest r c St m s with
   | var w =>
-    rw [show (ArithQBF.var w).tokens.length + m = m + 1 from Nat.add_comm 1 m,
-      verdict_succ, ProbOracleComp.runWith_bind]
-    simp only [ArithQBF.tokens, List.cons_append, List.nil_append, step_cons, stepAt,
-      ProbOracleComp.runWith_pure, PMF.pure_bind, verifyAt, StepData.top, StepData.head,
-      StepData.below, StepData.modulus, StepData.tokens,
-      List.headD_cons, List.tail_cons,
-      lookupPt_canonPt r (he w (List.mem_singleton_self w)), mod_eq_val_mod_iff,
-      ZMod.natCast_zmod_val]; exact runWith_verdict_ite respond I rest St _ m s
-  | top =>
-    rw [show ArithQBF.top.tokens.length + m = m + 1 from Nat.add_comm 1 m,
-      verdict_succ, ProbOracleComp.runWith_bind]
-    simp only [ArithQBF.tokens, List.cons_append, List.nil_append, step_cons, stepAt,
-      ProbOracleComp.runWith_pure, PMF.pure_bind, verifyAt, StepData.top, StepData.below,
-      StepData.modulus, StepData.tokens, List.headD_cons,
-      List.tail_cons, mod_eq_val_mod_iff, Nat.cast_one,
-      decide_eq_decide.2 eq_comm]; exact runWith_verdict_ite respond I rest St _ m s
-  | bot =>
-    rw [show ArithQBF.bot.tokens.length + m = m + 1 from Nat.add_comm 1 m,
-      verdict_succ, ProbOracleComp.runWith_bind]
-    simp only [ArithQBF.tokens, List.cons_append, List.nil_append, step_cons, stepAt,
-      ProbOracleComp.runWith_pure, PMF.pure_bind, verifyAt, StepData.top, StepData.below,
-      StepData.modulus, StepData.tokens, List.headD_cons,
-      List.tail_cons, mod_eq_val_mod_iff, Nat.cast_zero,
-      decide_eq_decide.2 eq_comm]; exact runWith_verdict_ite respond I rest St _ m s
+    exact runWith_verdict_single respond I _ rest r c St m s _ <| by
+      simp only [step_cons, stepAt, StepData.top, StepData.head, StepData.below, StepData.modulus,
+        StepData.tokens, List.headD_cons, List.tail_cons,
+        lookupPt_canonPt r (he w (List.mem_singleton_self w)), mod_eq_val_mod_iff,
+        ZMod.natCast_zmod_val]
+  | top | bot =>
+    exact runWith_verdict_single respond I _ rest r c St m s _ <| by
+      simp only [step_cons, stepAt, StepData.top, StepData.below, StepData.modulus, StepData.tokens,
+        List.headD_cons, List.tail_cons, mod_eq_val_mod_iff, Nat.cast_one, Nat.cast_zero,
+        decide_eq_decide.2 eq_comm]
   | not e ih =>
     rw [show e.not.tokens.length + m = (e.tokens.length + m) + 1 from
       Nat.add_right_comm e.tokens.length 1 m, verdict_succ, ProbOracleComp.runWith_bind]
     simp only [ArithQBF.tokens, List.cons_append, step_cons, stepAt, ProbOracleComp.runWith_pure,
       PMF.pure_bind, verifyAt, StepData.top, StepData.below, StepData.modulus, StepData.xs,
-      StepData.tokens,
-      List.headD_cons, List.tail_cons, normPt_canonPt, ← val_one_sub, ih he]
+      StepData.tokens, List.headD_cons, List.tail_cons, normPt_canonPt, ← val_one_sub, ih he]
   | bin o e₁ e₂ ih₁ ih₂ =>
-    rw [show (ArithQBF.bin o e₁ e₂).tokens.length + m =
-        (e₁.tokens.length + (e₂.tokens.length + m)) + 1 by
-      cases o <;> simp only [ArithQBF.tokens, List.length_cons, List.length_append] <;> omega,
-      verdict_succ, ProbOracleComp.runWith_bind]
-    cases o <;> simp only [ArithQBF.tokens, List.cons_append, List.append_assoc, step_cons] <;>
+    cases o <;>
+      rw [ArithQBF.tokens, List.length_cons, List.length_append, Nat.add_right_comm _ 1 m,
+        Nat.add_assoc e₁.tokens.length, verdict_succ, ProbOracleComp.runWith_bind,
+        List.cons_append, List.append_assoc, step_cons] <;>
       exact runWith_verdict_bin respond I _ e₁ e₂ rest r c St m s (by simp [ArithQBF.tokens])
         rfl rfl rfl rfl rfl (ih₁ fun w hw => he w (List.mem_append_left _ hw))
         (ih₂ fun w hw => he w (List.mem_append_right _ hw))
   | op o v e ih =>
-    rw [show (ArithQBF.op o v e).tokens.length + m = (e.tokens.length + m) + 1 by
-      cases o <;> simp only [ArithQBF.tokens, List.length_cons] <;> omega,
-      verdict_succ, ProbOracleComp.runWith_bind]
-    cases o <;> simp only [ArithQBF.tokens, List.cons_append, step_cons] <;>
+    cases o <;>
+      rw [ArithQBF.tokens, List.length_cons, Nat.add_right_comm _ 1 m, verdict_succ,
+        ProbOracleComp.runWith_bind, List.cons_append, step_cons] <;>
       exact runWith_verdict_op respond I _ v (he v List.mem_cons_self) e rest r c St m s
         (by simp [ArithQBF.tokens]) rfl rfl rfl rfl rfl rfl
         (ih fun w hw => he w (List.mem_cons_of_mem v hw))
@@ -395,25 +386,13 @@ private theorem mem_linVars {ψ : QBF ℕ} {v : ℕ} (hv : v ∈ ψ.vars) : v �
   unfold linVars
   induction ψ with
   | var w => simp_all [QBF.vars, QBF.tokens]
-  | top => simp_all [QBF.vars]
-  | bot => simp_all [QBF.vars]
-  | not φ ih => simp only [QBF.tokens, List.map_cons, List.mem_cons]; exact Or.inr (ih hv)
-  | and φ χ ihφ ihχ =>
-    simp only [QBF.vars, List.mem_append] at hv
-    simp only [QBF.tokens, List.map_cons, List.map_append, List.mem_cons, List.mem_append]
-    exact Or.inr (hv.imp ihφ ihχ)
-  | or φ χ ihφ ihχ =>
-    simp only [QBF.vars, List.mem_append] at hv
-    simp only [QBF.tokens, List.map_cons, List.map_append, List.mem_cons, List.mem_append]
-    exact Or.inr (hv.imp ihφ ihχ)
-  | ex w φ ih =>
-    simp only [QBF.vars, List.mem_cons] at hv
-    simp only [QBF.tokens, List.map_cons, List.mem_cons]
-    exact hv.imp id ih
-  | all w φ ih =>
-    simp only [QBF.vars, List.mem_cons] at hv
-    simp only [QBF.tokens, List.map_cons, List.mem_cons]
-    exact hv.imp id ih
+  | top | bot => simp_all [QBF.vars]
+  | not φ ih => exact List.mem_cons_of_mem _ (ih hv)
+  | and φ χ ihφ ihχ | or φ χ ihφ ihχ =>
+    simpa only [QBF.tokens, List.map_cons, List.map_append, List.mem_cons, List.mem_append] using
+      Or.inr ((List.mem_append.1 hv).imp ihφ ihχ)
+  | ex w φ ih | all w φ ih =>
+    simpa only [QBF.tokens, List.map_cons, List.mem_cons] using (List.mem_cons.1 hv).imp id ih
 
 /-- The arithmetic formula checked by the machine on `ψ`. -/
 def arithOf : ArithQBF ℕ := ψ.arithmetize (linVars ψ)
@@ -451,33 +430,23 @@ theorem acceptProb_verifier_eq (hψ : ψ.Closed) (P : Prover Unit) :
     simp only [canonPt, Pi.zero_apply, ZMod.val_zero]
   have hrun := runWith_verdict P.respond (loopInput ψ) (arithOf ψ) (fun w hw => vars_arithOf ψ hw)
     [] 0 1 [] 0 P.init
-  rw [← hinit, Nat.add_zero, tokens_arithOf] at hrun
-  rw [acceptProb_eq_acceptProbWith, verifier, decide_eq_true hψ, ite_eq_left rfl]
   have hcont : (fun x : Bool × P.State => if x.1 then runWith P.respond
-      (verdict (loopInput ψ) ⟨[], [], true⟩ 0) x.2 else PMF.pure (false, x.2)) = PMF.pure := by
-    funext x
-    obtain ⟨b, t⟩ := x
-    cases b
-    · rfl
-    · simp only [↓reduceIte, verdict_nil, ProbOracleComp.runWith_pure]
-  rw [hcont, PMF.bind_pure] at hrun
-  rw [acceptProbWith, acceptProbWith, ← hrun]
-  rfl
+      (verdict (loopInput ψ) ⟨[], [], true⟩ 0) x.2 else PMF.pure (false, x.2)) = PMF.pure :=
+    funext fun ⟨b, _⟩ => by cases b <;> simp [verdict_nil, ProbOracleComp.runWith_pure]
+  rw [← hinit, Nat.add_zero, tokens_arithOf, hcont, PMF.bind_pure] at hrun
+  rw [acceptProb_eq_acceptProbWith, verifier, decide_eq_true hψ, ite_eq_left rfl]
+  exact congrArg (fun μ => (μ.map Prod.fst) true) hrun
 
 /-- The samples of the protocol give every residue probability at most `2 / p`. -/
 private theorem eval_samplerOf_le (I : LoopInput) (z : ZMod I.modulus) :
     ProbComp.eval (samplerOf I) z ≤ 2 / I.modulus := by
   rw [samplerOf, ProbComp.eval_map, PMF.map_apply, tsum_eq_single z.val]
   · split_ifs
-    · exact eval_sampleMod_le _
-    · exact zero_le
+    exacts [eval_sampleMod_le _, zero_le]
   · intro n hn
     split_ifs with hz
-    · rw [PMF.apply_eq_zero_iff]
-      intro hsupp
-      have hnp : n < I.modulus := lt_of_mem_support_sampleMod hsupp
-      exact hn (by rw [hz, ZMod.val_natCast, Nat.mod_eq_of_lt hnp])
-    · rfl
+    exacts [(PMF.apply_eq_zero_iff _ _).mpr fun hsupp =>
+      hn (by rw [hz, ZMod.val_natCast, Nat.mod_eq_of_lt (lt_of_mem_support_sampleMod hsupp)]), rfl]
 
 /-- A soundness error `N * (2 / p)` is at most `1 / 3` when `6 * N ≤ p`. -/
 private theorem mul_two_div_le_one_third {N p : ℕ} (hp : p ≠ 0) (h : 6 * N ≤ p) :
@@ -496,27 +465,23 @@ theorem acceptProb_verifier_le (hψ : ψ ∉ TQBF) (P : Prover Unit) :
     have hfalse : ψ.eval (fun _ => false) = false :=
       Bool.eq_false_iff.2 fun h => hψ ⟨hclosed, h⟩
     have hc : (arithOf ψ).eval 0 ≠ (1 : ZMod (loopInput ψ).modulus) := by
-      rw [arithOf, QBF.eval_arithmetize_zero _ hclosed (fun _ => false), hfalse]
-      simp
+      simp [arithOf, QBF.eval_arithmetize_zero _ hclosed (fun _ => false), hfalse]
     refine (acceptProb_verifyAt_le (samplerOf (loopInput ψ)) (loopInput ψ).degree
       (eval_samplerOf_le (loopInput ψ)) _ _ (maxRoundDegree_arithOf ψ) hc P.init).trans ?_
     refine mul_two_div_le_one_third (Nat.succ_ne_zero _) ?_
-    have hops := QBF.ops_arithmetize_le (linVars ψ) ψ
-    have hlen : (linVars ψ).length = ψ.size := by rw [linVars, List.length_map, QBF.length_tokens]
+    have hops : (arithOf ψ).ops ≤ (ψ.size + 1) * ψ.size := by
+      simpa only [arithOf, linVars, List.length_map, QBF.length_tokens] using
+        QBF.ops_arithmetize_le (linVars ψ) ψ
     have hbound : primeBound ψ < (loopInput ψ).modulus := modulus_loopInput ψ ▸ lt_modulus ψ
     have hD : (loopInput ψ).degree = 2 * ψ.size := by
       rw [loopInput, degreeBound, QBF.length_tokens]
     rw [primeBound, QBF.length_tokens] at hbound
     rw [hD]
-    rw [hlen] at hops
-    calc 6 * ((arithOf ψ).ops * (2 * ψ.size)) ≤ 6 * (((ψ.size + 1) * ψ.size) * (2 * ψ.size)) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hops)
+    calc 6 * ((arithOf ψ).ops * (2 * ψ.size))
+        ≤ 6 * ((ψ.size + 1) * ψ.size * (2 * ψ.size)) := by gcongr
       _ = 12 * ψ.size ^ 2 * (ψ.size + 1) := by ring
       _ ≤ (loopInput ψ).modulus := hbound.le
-  · rw [verifier, decide_eq_false hclosed]
-    simp only [Bool.false_eq_true, ↓reduceIte]
-    rw [Complexity.acceptProb, Prover.run_pure, PMF.pure_map, PMF.pure_apply]
-    simp
+  · simp [verifier, hclosed, Complexity.acceptProb, Prover.run_pure]
 
 end Formula
 
@@ -553,32 +518,24 @@ private theorem eq_of_queryMessage_eq {I : LoopInput} {q q' : QueryAt (ZMod I.mo
     (h : queryMessage I q = queryMessage I q') :
     q.formula = q'.formula ∧ ∀ x ∈ I.xs, q.point x = q'.point x := by
   have h' := Prod.ext_iff.1 ((encPair (encList encArithToken) encPt).injective h)
-  refine ⟨(ArithQBF.tokens_append_inj h'.1).1, fun x hx => ?_⟩
-  have := List.map_inj_left.1 h'.2 x hx
-  exact ZMod.val_injective _ (Prod.ext_iff.1 this).2
+  exact ⟨(ArithQBF.tokens_append_inj h'.1).1, fun x hx =>
+    ZMod.val_injective _ (Prod.ext_iff.1 (List.map_inj_left.1 h'.2 x hx)).2⟩
 
 /-- The entries of a decoded honest reply. -/
 private theorem getD_decoded {p : ℕ} [NeZero p] (D : ℕ) (L : List (ZMod p)) (hL : L.length ≤ D + 1)
     (i : ℕ) : (((List.range (D + 1)).map fun i => (L.map ZMod.val).getD i 0).map
       (Nat.cast : ℕ → ZMod p)).getD i 0 = L.getD i 0 := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_map,
-    List.getD_eq_getElem?_getD (l := L)]
   by_cases hi : i < D + 1
-  · rw [List.getElem?_range hi, Option.map_some, Option.map_some, Option.getD_some,
-      List.getD_eq_getElem?_getD, List.getElem?_map]
-    rcases L[i]? with _ | a
-    · simp
-    · simp only [Option.map_some, Option.getD_some, ZMod.natCast_zmod_val]
-  · rw [List.getElem?_eq_none (by simp only [List.length_range]; omega),
-      List.getElem?_eq_none (by omega)]
-    simp
+  · rw [List.getD_eq_getElem _ _ (by simp [hi])]
+    simp only [List.getElem_map, List.getElem_range]
+    rw [← Nat.cast_zero (R := ZMod p), ← List.getD_map (f := (Nat.cast : ℕ → ZMod p)), List.map_map]
+    simp [Function.comp_def]
+  · rw [List.getD_eq_default _ _ (by simp; omega), List.getD_eq_default _ _ (by omega)]
 
 variable (ψ : QBF ℕ)
 
-private theorem one_le_degree : 1 ≤ (loopInput ψ).degree := by
-  have : 0 < ψ.tokens.length := List.length_pos_of_ne_nil (QBF.tokens_ne_nil ψ)
-  simp only [loopInput, degreeBound]
-  omega
+private theorem one_le_degree : 1 ≤ (loopInput ψ).degree :=
+  Nat.succ_le_of_lt (Nat.mul_pos zero_lt_two (List.length_pos_of_ne_nil (QBF.tokens_ne_nil ψ)))
 
 /-- The decoded honest reply to a query about a subformula whose variables lie in `xs`. -/
 private theorem decodeTyped_honestWord (e : ArithQBF ℕ) (rest : List (ArithQBF.Kind × ℕ))
@@ -590,11 +547,9 @@ private theorem decodeTyped_honestWord (e : ArithQBF ℕ) (rest : List (ArithQBF
   have hex : ∃ q : QueryAt (ZMod (loopInput ψ).modulus),
       queryMessage (loopInput ψ) q = queryMessage (loopInput ψ) ⟨e, rest, r⟩ := ⟨_, rfl⟩
   obtain ⟨h₁, h₂⟩ := eq_of_queryMessage_eq hex.choose_spec
-  have h₁' : hex.choose.formula = e := h₁
   have hreply : honestReplyAt (loopInput ψ).degree hex.choose.formula hex.choose.point =
-      honestReplyAt (loopInput ψ).degree e r := by
-    rw [h₁']
-    exact honestReplyAt_congr _ fun w hw => h₂ w (he w hw)
+      honestReplyAt (loopInput ψ).degree e r :=
+    h₁ ▸ honestReplyAt_congr _ fun w hw => h₂ w (he w hw)
   have hlen : (honestReplyAt (loopInput ψ).degree e r).length ≤ (loopInput ψ).degree + 1 := by
     have := one_le_degree ψ
     cases e <;> simp only [honestReplyAt, length_coeffsBelow, List.length_cons, List.length_nil] <;>
@@ -603,14 +558,10 @@ private theorem decodeTyped_honestWord (e : ArithQBF ℕ) (rest : List (ArithQBF
       ((List.range ((loopInput ψ).degree + 1)).map fun i =>
         ((honestReplyAt (loopInput ψ).degree e r).map ZMod.val).getD i 0).map Nat.cast := by
     rw [honestWord, dite_eq_left hex, hreply, decodeTyped, decodeReply_encodeReply]
-    · intro a ha
-      obtain ⟨b, -, rfl⟩ := List.mem_map.1 ha
-      exact ZMod.val_lt b
-    · rw [List.length_map]
-      exact hlen
-  refine ⟨by rw [hdec, List.length_map, List.length_map, List.length_range], fun i => ?_⟩
-  rw [hdec]
-  exact getD_decoded _ _ hlen i
+    · exact fun _ ha => Exists.elim (List.mem_map.1 ha) fun b hb => hb.2 ▸ ZMod.val_lt b
+    · simpa only [List.length_map] using hlen
+  exact ⟨by rw [hdec, List.length_map, List.length_map, List.length_range],
+    fun i => hdec ▸ getD_decoded _ _ hlen i⟩
 
 /-- The typed prover of the honest prover agrees with the honest replies. -/
 private theorem agreesAt_honest (e : ArithQBF ℕ) (rest : List (ArithQBF.Kind × ℕ))
@@ -621,14 +572,9 @@ private theorem agreesAt_honest (e : ArithQBF ℕ) (rest : List (ArithQBF.Kind �
   cases e with
   | bin o e₁ e₂ => exact ⟨hget 0, hget 1⟩
   | op o v e =>
-    simp only [AgreesAt]
-    rw [List.take_of_length_le hlen.le]
-    apply List.ext_getElem
-    · rw [hlen, length_coeffsBelow]
-    · intro i h₁ h₂
-      have := hget i
-      rw [List.getD_eq_getElem _ _ h₁] at this
-      rw [this, honestReplyAt, List.getD_eq_getElem _ _ h₂]
+    refine (List.take_of_length_le hlen.le).trans
+      (List.ext_getElem (hlen.trans (length_coeffsBelow _ _).symm) fun i h₁ h₂ => ?_)
+    rw [← List.getD_eq_getElem _ _ h₁, hget i, honestReplyAt, List.getD_eq_getElem _ _ h₂]
   | _ => trivial
 
 /-- **Completeness of the verifier**: on a true closed formula, the honest prover is accepted with
@@ -639,19 +585,16 @@ theorem acceptProb_verifier_honestProver (hψ : ψ ∈ TQBF) :
   set f : QueryAt (ZMod (loopInput ψ).modulus) → List (ZMod (loopInput ψ).modulus) :=
     fun q => decodeTyped (loopInput ψ) (honestWord ψ (queryMessage (loopInput ψ) q))
   have htyped : typedRespond (loopInput ψ) (honestProver ψ).respond =
-      fun q s => PMF.pure (f q, s) := by
-    funext q s
-    simp only [typedRespond, honestProver, PMF.pure_map, f]
+      fun q s => PMF.pure (f q, s) := funext₂ fun _ _ => PMF.pure_map _ _
   have heval : (arithOf ψ).eval 0 = (1 : ZMod (loopInput ψ).modulus) := by
-    rw [arithOf, QBF.eval_arithmetize_zero _ hψ.1 (fun _ => false), hψ.2]
-    rfl
+    simp [arithOf, QBF.eval_arithmetize_zero _ hψ.1 (fun _ => false), hψ.2]
   have hrun := run_verifyAt_of_agreesAt (samplerOf (loopInput ψ)) (loopInput ψ).degree f
     (loopInput ψ).xs (fun q hq => agreesAt_honest ψ q.formula q.rest q.point hq) (arithOf ψ)
     (fun w hw => vars_arithOf ψ hw) (maxRoundDegree_arithOf ψ) [] 0 ()
-  rw [heval] at hrun
   rw [htyped, acceptProbWith]
-  exact (congrArg (fun μ => PMF.map Prod.fst μ true) hrun).trans
-    (by rw [PMF.pure_map, PMF.pure_apply]; exact ite_eq_left rfl)
+  dsimp only [honestProver]
+  exact (congrArg (fun μ => PMF.map Prod.fst μ true) (heval ▸ hrun)).trans
+    (by rw [PMF.pure_map, PMF.pure_apply_self])
 
 /-- **The interactive proof for `TQBF`**, with perfect completeness and soundness error `1 / 3`. -/
 theorem isInteractiveProof_verifier : IsInteractiveProof verifier TQBF 1 (1 / 3) where

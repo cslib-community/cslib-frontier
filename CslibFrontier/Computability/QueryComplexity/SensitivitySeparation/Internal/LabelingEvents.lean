@@ -75,10 +75,9 @@ private theorem labelingEvent_eq [NeZero n] (v : Fin n → Fin k) (m : Fin n →
     T.labelingEvent v m = Finset.univ.filter fun A =>
       ∀ p ∈ T.internalEdges (Finset.univ.image v), A p = m (Function.invFun v p.2) := by
   rw [labelingEvent, ite_eq_left hv]
-  apply Finset.filter_congr
-  intro A _
-  simpa only [Finset.mem_univ, forall_const] using
-    T.labelingConstraint_iff Finset.univ v m hv A
+  exact Finset.filter_congr fun A _ => by
+    simpa only [Finset.mem_univ, forall_const] using
+      T.labelingConstraint_iff Finset.univ v m hv A
 
 open scoped Classical in
 /-- For injective `v`, the labeling event has exactly `r ^ (k * k - n.choose 2)` elements. -/
@@ -86,14 +85,11 @@ theorem card_labelingEvent [NeZero n] (v : Fin n → Fin k) (m : Fin n → Fin r
     (hv : Function.Injective v) :
     (T.labelingEvent v m).card = r ^ (k * k-n.choose 2) := by
   rw [T.labelingEvent_eq v m hv]
-  have hc := card_fixedCoordinates (T.internalEdges (Finset.univ.image v))
-    (fun p => m (Function.invFun v p.2))
-  rw [T.card_internalEdges] at hc
-  have hi : (Finset.univ.image v).card = n := by
-    rw [Finset.card_image_of_injective _ hv]
-    exact Fintype.card_fin n
-  rw [hi] at hc
-  simpa only [Fintype.card_fin, Fintype.card_prod] using hc
+  have hi : (Finset.univ.image v).card = n :=
+    (Finset.card_image_of_injective _ hv).trans (Fintype.card_fin n)
+  simpa only [T.card_internalEdges, hi, Fintype.card_fin, Fintype.card_prod] using
+    card_fixedCoordinates (T.internalEdges (Finset.univ.image v))
+      fun p => m (Function.invFun v p.2)
 
 open scoped Classical in
 /-- Every labeling event has at most `r ^ (k * k - n.choose 2)` elements; it is empty when `v` is
@@ -126,13 +122,10 @@ theorem card_badLabelings_le [NeZero n] :
     (T.badLabelings n r).card ≤ ∑ v : Fin n → Fin k,
         (Finset.univ.biUnion fun m : Fin n → Fin r => T.labelingEvent v m).card :=
       Finset.card_biUnion_le
-    _ ≤ ∑ _v : Fin n → Fin k, ∑ _m : Fin n → Fin r, r ^ (k * k-n.choose 2) := by
-      apply Finset.sum_le_sum
-      intro v _
-      exact Finset.card_biUnion_le.trans (Finset.sum_le_sum fun m _ =>
-        T.card_labelingEvent_le v m)
-    _ = k ^ n * r ^ n * r ^ (k * k-n.choose 2) := by
-      simp [Nat.mul_assoc]
+    _ ≤ ∑ _v : Fin n → Fin k, ∑ _m : Fin n → Fin r, r ^ (k * k-n.choose 2) :=
+      Finset.sum_le_sum fun v _ => Finset.card_biUnion_le.trans
+        (Finset.sum_le_sum fun m _ => T.card_labelingEvent_le v m)
+    _ = k ^ n * r ^ n * r ^ (k * k-n.choose 2) := by simp [Nat.mul_assoc]
 
 end Internal.Tournament
 

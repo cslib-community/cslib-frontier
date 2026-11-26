@@ -92,26 +92,19 @@ theorem expect_denseAtom_affineRetains [Fintype V] {ident : V → ZMod P}
       k (G x y / a ^ H) := by
   obtain ⟨hL, -, -, -, -⟩ := affineRetains_rates (H := H) hPa ha
   have hLtP : Lt ≤ P := hLt.trans hL
-  have ha0 : 0 < a := by
-    by_contra h0
-    have hP : (0 : ℝ) ≤ P := Nat.cast_nonneg _
-    nlinarith [mul_nonpos_of_nonneg_of_nonpos hP (not_lt.mp h0)]
+  have ha0 : 0 < a := by nlinarith [(Nat.cast_nonneg P : (0 : ℝ) ≤ P)]
   have hS : ({s | affineRetains P H Lt s (ident y)} :
       Finset (Matrix (Fin H) (Fin 1) (ZMod P) × (Fin H → ZMod P))).Nonempty := by
-    rw [← card_pos]
-    by_contra h0
+    refine card_pos.mp (Nat.pos_of_ne_zero fun h0 => ?_)
     have h := dens_affineRetains (H := H) hLtP (ident y)
-    rw [dens_eq_card_div_card, Nat.eq_zero_of_not_pos h0, Nat.cast_zero, zero_div] at h
-    have : (0 : ℚ≥0) < ((Lt : ℚ≥0) / P) ^ H := by
+    have hp : (0 : ℚ≥0) < ((Lt : ℚ≥0) / P) ^ H := by
       have : (0 : ℚ≥0) < P := by exact_mod_cast (Fact.out : P.Prime).pos
       positivity
-    exact absurd h this.ne
-  have hp : ∀ w, w ≠ y → (#{s | affineRetains P H Lt s (ident y) ∧
-      affineRetains P H ⌈P * a⌉₊ s (ident w)} : ℝ) ≤
-      2 ^ H * a ^ H * #{s | affineRetains P H Lt s (ident y)} := fun w hwy =>
-    card_affineRetains_and_affineRetains_le hident hPa ha hLtP hwy
+    rw [dens_eq_card_div_card, h0, Nat.cast_zero, zero_div] at h
+    exact hp.ne h
   exact Matrix.expect_denseAtom (Y := fun s v => affineRetains P H ⌈P * a⌉₊ s (ident v))
     (Yt := fun s v => affineRetains P H Lt s (ident v)) (c := 2 ^ H) hS hkh hρ0 hρ1 hη hρη
-    (pow_pos ha0 H) hG0 hGM (by positivity) hK hp
+    (pow_pos ha0 H) hG0 hGM (by positivity) hK
+    fun _ => card_affineRetains_and_affineRetains_le hident hPa ha hLtP
 
 end Cslib.Probability

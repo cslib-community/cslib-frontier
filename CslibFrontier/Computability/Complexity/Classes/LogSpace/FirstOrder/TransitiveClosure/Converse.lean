@@ -147,16 +147,14 @@ theorem realize_acceptanceSentence_closureBy
     Operator.Formula.realize_ofFO, TC.Tuple.realize_tc_closureBy, TC.left_pair, TC.right_pair,
     realize_startFormula, realize_acceptFormula, realize_stepFormula hinput hlen hn,
     Term.realize_var, Sum.elim_inr, pair_left_id, pair_right_id]
-  constructor
-  · rintro ⟨xs, hs, ⟨hc, ho⟩, hr⟩
-    exact ⟨E (TC.left xs), E (TC.right xs), hs, (hpath _ _).mp hr, hc, ho⟩
-  · rintro ⟨x, y, hs, hr, hc, ho⟩
-    refine ⟨TC.pair (E.symm x) (E.symm y), ?_, ⟨?_, ?_⟩, ?_⟩
-    · simpa only [pair_left_id, E, Equiv.coe_fn_symm_mk, Equiv.symm_apply_apply] using hs
-    · simpa only [pair_right_id, E, Equiv.coe_fn_symm_mk, Equiv.symm_apply_apply] using hc
-    · simpa only [pair_right_id, E, Equiv.coe_fn_symm_mk, Equiv.symm_apply_apply] using ho
-    · simp only [pair_left_id, pair_right_id]
-      exact (hpath _ _).mpr (by simpa only [Equiv.apply_symm_apply] using hr)
+  refine ⟨fun ⟨xs, hs, ⟨hc, ho⟩, hr⟩ =>
+      ⟨E (TC.left xs), E (TC.right xs), hs, (hpath _ _).mp hr, hc, ho⟩,
+    fun ⟨x, y, hs, hr, hc, ho⟩ => ⟨TC.pair (E.symm x) (E.symm y),
+      by simpa only [pair_left_id, E, Equiv.coe_fn_symm_mk, Equiv.symm_apply_apply] using hs,
+      ⟨by simpa only [pair_right_id, E, Equiv.coe_fn_symm_mk, Equiv.symm_apply_apply] using hc,
+       by simpa only [pair_right_id, E, Equiv.coe_fn_symm_mk, Equiv.symm_apply_apply] using ho⟩,
+      by simp only [pair_left_id, pair_right_id]
+         exact (hpath _ _).mpr (by simpa only [Equiv.apply_symm_apply] using hr)⟩⟩
 
 /-- **The acceptance sentence decides acceptance**: on a universe `Fin N` that contains the
 input length and every register of every reachable configuration, the acceptance sentence holds
@@ -195,8 +193,7 @@ theorem exists_pow_fits {L : Language} (v : Vocabulary L) (State : Type) [Fintyp
   obtain ⟨K, hK, har, hpow⟩ := v.exists_pow_bound
     (fun n => n + radix (radixExponent State c) n) (by unfold radix; fun_prop)
   refine ⟨K, hK, har, fun a ha h2 k ntm hs => ?_⟩
-  have hb : (encStructure a).length + radix (radixExponent State c) (encStructure a).length <
-      a.1 ^ K := hpow a ha h2
+  have hb := hpow a ha h2
   exact ⟨by omega, fun _ hv i => (fits_of_runsInSpace c hs hv i).trans_le (by omega)⟩
 
 end Cslib.Logic.Vocabulary
@@ -235,15 +232,11 @@ theorem exists_sentence_of_decidesInSpace {L : Language} [L.IsRelational] (v : V
   change ∀ u, _ → Fits (M.size ^ K') _ at hfit
   let _ : Fact (2 ≤ M.size ^ K') := ⟨FullTupleInterpretation.two_le_pow (n := M.size) hK'⟩
   let _ := v.powerStructure a (M.size ^ K')
-  have haccept : ψ.Realize (M := Fin (M.size ^ K')) (TC.Tuple.closureBy T)
-      Operator.RelEnv.empty Empty.elim ↔ ntm.Accepts (encStructure a) :=
-    realize_acceptanceSentence_closureBy hT (v.realize_inputSymbol ha hn)
-      (v.realize_inputLength ha hn) hn ntm (hstep _ _) hfit
-  rw [I.realize_onTCSentence_closureBy hT hK' ψ]
-  have he := v.inputStructure_orderedPowerInterpretation K' har hK' M
-  change I.inputStructure (n := M.size) = v.powerStructure a (M.size ^ K') at he
-  rw [he]
-  exact (mem_encodedLanguage_encode v K M).symm.trans ((hdec.1 a).2.trans haccept.symm)
+  rw [I.realize_onTCSentence_closureBy hT hK' ψ, show I.inputStructure (n := M.size) =
+    v.powerStructure a (M.size ^ K') from v.inputStructure_orderedPowerInterpretation K' har hK' M]
+  exact (mem_encodedLanguage_encode v K M).symm.trans ((hdec.1 a).2.trans
+    (realize_acceptanceSentence_closureBy hT (v.realize_inputSymbol ha hn)
+      (v.realize_inputLength ha hn) hn ntm (hstep _ _) hfit).symm)
 
 /-- **NL ⊆ FO(positive TC)** on canonically ordered structures: a query whose source-only
 encoded language is decided by a native nondeterministic logarithmic-space machine is defined by

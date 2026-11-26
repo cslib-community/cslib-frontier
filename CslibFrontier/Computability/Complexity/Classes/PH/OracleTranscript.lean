@@ -68,21 +68,15 @@ theorem mem_oracleTranscriptYes_inter_oracleTranscriptNo {x : α × List Bool} :
       x.2 = machine.oracleReplies (fun q => decide (q ∈ A)) x.2.length (enc x.1) := by
   rw [machine.eq_oracleReplies_iff]
   simp only [Set.mem_inter_iff, mem_oracleTranscriptYes, mem_oracleTranscriptNo]
-  constructor
-  · rintro ⟨hY, hN⟩ i hi
-    cases hb : x.2.getD i false
-    · cases hq : (machine.pendingQuery (machine.replayPrefix (enc x.1) x.2 i)).isSome
-      · simp
-      · simp [hN i hi hb hq]
-    · obtain ⟨hq, hA⟩ := hY i hi hb
-      simp [hq, hA]
-  · intro h
-    refine ⟨fun i hi hb => ?_, fun i hi hb hq => ?_⟩
-    · rw [h i hi] at hb
-      split_ifs at hb with hq
-      · exact ⟨hq, of_decide_eq_true hb⟩
-    · rw [h i hi] at hb
-      simpa only [hq, ↓reduceIte, decide_eq_false_iff_not] using hb
+  refine ⟨fun ⟨hY, hN⟩ i hi => ?_, fun h => ⟨fun i hi hb => ?_, fun i hi hb hq => ?_⟩⟩
+  · cases hb : x.2.getD i false
+    · by_cases hq : (machine.pendingQuery (machine.replayPrefix (enc x.1) x.2 i)).isSome <;>
+        simp [hq, hN i hi hb]
+    · simp [hY i hi hb]
+  · rw [h i hi] at hb
+    split_ifs at hb with hq
+    exact ⟨hq, of_decide_eq_true hb⟩
+  · simpa only [h i hi, hq, ↓reduceIte, decide_eq_false_iff_not] using hb
 
 
 end Transcript

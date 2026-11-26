@@ -39,9 +39,7 @@ on `h`. If the tag is handle-independent for each operation, that operation uses
 across layouts. The general guarantee is a fixed finite code family; uniform local-work bounds
 must also hold across handles.
 
-The frame is that of the memory-level refinement (`Memory.Framed.region`). The frame argument
-follows the block frame of #2273 (Codex), and allocation without clearing follows the queue
-allocation of #2271 (Codex).
+The frame is that of the memory-level refinement (`Memory.Framed.region`).
 
 ## Main definitions
 
@@ -80,9 +78,8 @@ theorem clientRun_exec (hS : S.Implements M.toRefinement) {s : D.State}
     (hr : (implementation hS).rep s x) (hv : D.valid s o) (he : S.exec w x o a y n) :
     ∃ b tr, (Memory.spec w).ClientRun (memoryState (frontier C) x) (M.methods o) b
       (memoryState (frontier C) y) tr := by
-  have hm := exec_memoryState hS hr hv he
   obtain ⟨hi, rfl, -⟩ := (rep_iff hS s x).mp hr
-  rw [hm]
+  rw [exec_memoryState hS hr hv he]
   exact ⟨_, _, (Memory.spec w).clientRun_canonical _ _
     (((Memory.spec w).demonicValid_iff_validHistory_runClient _ _).mp (M.valid o hi hv))⟩
 
@@ -208,26 +205,19 @@ theorem Allocation.exec {A : Memory.Allocator D w} (I : Allocation A C)
   have hrun := I.run (memoryState (frontier C) x)
   have hhist : (Memory.spec w).clientHistory (memoryState (frontier C) x) A.alloc =
       (Memory.spec w).clientHistory (memoryState (frontier C) x) ((C I.tag).prog I.arg) :=
-    congrArg (fun t => t.2.2) hrun
-  have hstate : (Memory.spec w).clientState (memoryState (frontier C) x) A.alloc =
-      (Memory.spec w).clientState (memoryState (frontier C) x) ((C I.tag).prog I.arg) :=
-    congrArg (fun t => t.2.1) hrun
+    congrArg (·.2.2) hrun
   obtain ⟨hin, hsafe⟩ := I.entry (wellFormed_memoryState hx) hs hroom
   obtain ⟨y, n, hex, hn, hm, hout, hb⟩ :=
     exists_exec C I.tag I.arg hx hin hsafe (hhist ▸ hal.validHistory)
   have hy : memoryState (frontier C) y =
-      (Memory.spec w).clientState (memoryState (frontier C) x) A.alloc := hm.trans hstate.symm
+      (Memory.spec w).clientState (memoryState (frontier C) x) A.alloc :=
+    hm.trans (congrArg (·.2.1) hrun).symm
   refine ⟨y, n, _, hex, hn.trans (Nat.mul_le_mul_left _ ?_), hout,
-    (congrArg Prod.fst hrun).symm, fun c hc => ?_, (rep_iff _ _ _).mpr ⟨?_, ?_, hb⟩⟩
+    (congrArg Prod.fst hrun).symm, fun _ hc => ?_,
+    (rep_iff _ _ _).mpr ⟨hy.symm ▸ hal.inv, hy.symm ▸ hal.abs_eq, hb⟩⟩
   · have := hal.cost_le
-    rw [memoryCost_eq_totalCost w, ← hhist]
-    omega
+    rw [memoryCost_eq_totalCost w, ← hhist]; omega
   · have := hal.mem_eq_of_not_mem hc
-    rw [← hy] at this
-    exact this
-  · rw [hy]
-    exact hal.inv
-  · rw [hy]
-    exact hal.abs_eq
+    rwa [← hy] at this
 
 end Cslib.WordRAM.Realization.Backend

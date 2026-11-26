@@ -59,16 +59,13 @@ theorem quantitative_profile_bounds (d L M r : ℕ) (hM : 0 < M)
   let v : ℕ → ℝ := fun n => normalizedMax M n (J n false) (J n true)
   have hMr : (0 : ℝ) < M := by exact_mod_cast hM
   have hε : 0 ≤ ε := by positivity
-  have hεr : (r : ℝ) / M ≤ ε := by
-    apply div_le_div_of_nonneg_right _ hMr.le
-    exact_mod_cast le_max_left r 16
-  have hεt : (16 : ℝ) / M ≤ ε := by
-    apply div_le_div_of_nonneg_right _ hMr.le
-    exact_mod_cast le_max_right r 16
-  have hu0 : u 0 ≤ L := by
-    apply normalizedMax_le hMr
-    · simpa using (show (S 0 false : ℝ) ≤ L by exact_mod_cast hS₀)
-    · simpa using (show (S 0 true : ℝ) ≤ (L : ℝ) * M by exact_mod_cast hS₁)
+  have hεr : (r : ℝ) / M ≤ ε :=
+    div_le_div_of_nonneg_right (by exact_mod_cast le_max_left r 16) hMr.le
+  have hεt : (16 : ℝ) / M ≤ ε :=
+    div_le_div_of_nonneg_right (by exact_mod_cast le_max_right r 16) hMr.le
+  have hu0 : u 0 ≤ L := normalizedMax_le hMr
+    (by simpa using (Nat.cast_le (α := ℝ)).mpr hS₀)
+    (by simpa [Nat.cast_mul] using (Nat.cast_le (α := ℝ)).mpr hS₁)
   have hv0 : v 0 ≤ 0 := by simp [v, normalizedMax, hJ₀, hJ₁]
   have hstep (n : ℕ) (hn : n < d) :
       u (n + 1) ≤ (1 + ε) * u n + 3 * v n ∧
@@ -82,12 +79,8 @@ theorem quantitative_profile_bounds (d L M r : ℕ) (hM : 0 < M)
     (fun n hn => (hstep n hn).1) (fun n hn => (hstep n hn).2)
   intro n hn
   have hu := (hb n hn).1
-  have hzero : (S n false : ℝ) ≤ 2 * (L : ℝ) * (M : ℝ) ^ n := by
-    exact (le_normalizedMax_zero hMr).trans
-      (mul_le_mul_of_nonneg_right hu (by positivity))
-  have hone : (S n true : ℝ) ≤ 2 * (L : ℝ) * (M : ℝ) ^ (n + 1) := by
-    exact (le_normalizedMax_one hMr).trans
-      (mul_le_mul_of_nonneg_right hu (by positivity))
+  have hzero := (le_normalizedMax_zero hMr).trans (mul_le_mul_of_nonneg_right hu (by positivity))
+  have hone := (le_normalizedMax_one hMr).trans (mul_le_mul_of_nonneg_right hu (by positivity))
   exact ⟨by exact_mod_cast hzero, by exact_mod_cast hone⟩
 
 end Internal

@@ -431,12 +431,7 @@ private theorem polyBounded_leafSize (k : ℕ) :
     PolyBounded.self.mono fun x =>
       (length_le_encPair_right encUnary encCNF x.2).trans
         (length_le_encPair_right encUnit encInput x)
-  have hn := hL.mono fun x => x.2.2.numVars_le_length_vars.trans (SAT.length_vars_le x.2.2)
-  have hm := hL.mono fun x => length_le_length_encList _ x.2.2
-  have hnode := ((hm.add (.const 1)).add
-    ((PolyBounded.const (width k)).mul ((polyBounded_depthCoeff_full k).mul hn))).mul
-    (((PolyBounded.const 2).mul ((PolyBounded.const (width k)).mul
-      (((PolyBounded.const 2).mul hL).add (.const 1)))).add (.const 1))
+  have hnode := nodeBound_polyBounded (width k) hL (polyBounded_depthCoeff_full k)
   exact (((PolyBounded.const 2).mul hN).add (.const 3)).add hnode
 
 /-- Every active prefix, including the terminal prefix, meets the exact supplier clause cap. -/
@@ -609,9 +604,9 @@ private theorem exists_declared_contract_of_leaf (k : ℕ) (g : LeafInput → �
       exact (hspace ((x.1, x.2.1), ((step (thresholdBase k (x.1, x.2.1)) (width k)
         (fun ψ => g ((x.1, x.2.1), ψ)))^[i] (init k x.2.2)).2.1.headD [])).trans
         (Nat.mul_le_mul_left Cₛ
-        (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) dₛ))) hQ
+        (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) dₛ)))
   obtain ⟨d, hselected⟩ := exists_computableInO_selectedSearch k g hsearch
-  obtain ⟨a, b, hab⟩ := (polyBounded_selectedSpace k d hS).exists_le
+  obtain ⟨a, b, hab⟩ := (polyBounded_selectedSpace k d (hS hQ)).exists_le
   obtain ⟨C, E, hT⟩ := selected_time_envelope k d c e Cₜ dₜ Aₜ
   refine ⟨_, _, _, Aₜ + 16, C, E, a, b, hselected, ?_, hT, hab⟩
   intro x

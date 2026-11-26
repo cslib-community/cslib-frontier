@@ -77,14 +77,12 @@ theorem elements_insert {t : Tree d} (ht : t.Valid) {x : ℕ} (hx : x < universe
 theorem successor_elements_some_iff {t : Tree d} (ht : t.Valid) (x y : ℕ) :
     t.successor x = some y ↔ y ∈ t.elements ∧ x < y ∧
       ∀ z, z ∈ t.elements → x < z → y ≤ z := by
-  simp only [mem_elements_iff ht]
-  exact successor_eq_some_iff ht x y
+  simpa only [mem_elements_iff ht] using successor_eq_some_iff ht x y
 
 /-- An absent successor means that every finite-set element is at most the query. -/
 theorem successor_elements_none_iff {t : Tree d} (ht : t.Valid) (x : ℕ) :
     t.successor x = none ↔ ∀ z, z ∈ t.elements → z ≤ x := by
-  simp only [mem_elements_iff ht]
-  exact successor_eq_none_iff ht x
+  simpa only [mem_elements_iff ht] using successor_eq_none_iff ht x
 
 /-- The finite-set observation commutes with deletion of any key `x : ℕ`. -/
 theorem elements_erase {t : Tree d} (ht : t.Valid) (x : ℕ) :
@@ -97,14 +95,12 @@ theorem elements_erase {t : Tree d} (ht : t.Valid) (x : ℕ) :
 theorem predecessor_elements_some_iff {t : Tree d} (ht : t.Valid) (x y : ℕ) :
     t.predecessor x = some y ↔ y ∈ t.elements ∧ y < x ∧
       ∀ z, z ∈ t.elements → z < x → z ≤ y := by
-  simp only [mem_elements_iff ht]
-  exact predecessor_eq_some_iff ht x y
+  simpa only [mem_elements_iff ht] using predecessor_eq_some_iff ht x y
 
 /-- An absent predecessor means that every finite-set element is at least the query. -/
 theorem predecessor_elements_none_iff {t : Tree d} (ht : t.Valid) (x : ℕ) :
     t.predecessor x = none ↔ ∀ z, z ∈ t.elements → x ≤ z := by
-  simp only [mem_elements_iff ht]
-  exact predecessor_eq_none_iff ht x
+  simpa only [mem_elements_iff ht] using predecessor_eq_none_iff ht x
 
 /-- On a valid tree, strict predecessor lookup computes `OrderedSet.predecessor` of the stored
 finite set. -/

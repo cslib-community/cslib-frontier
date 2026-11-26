@@ -9,9 +9,9 @@ module
 import CslibFrontier.Foundations.BooleanAnalysis.FourierDegree
 import CslibFrontier.Foundations.BooleanAnalysis.FriedgutJunta
 
-/-! Instances and non-vacuity witnesses for the Kahn–Kalai–Linial theorem, Talagrand's
-inequality, Friedgut's junta theorem, coordinate-set variation and equality in the Poincaré
-inequality. -/
+/-! Instances and non-vacuity witnesses for Talagrand's inequality, Friedgut's junta theorem,
+coordinate-set variation and equality in the Poincaré inequality. The Kahn–Kalai–Linial theorem is
+tested in `CslibFrontierTests/KahnKalaiLinial.lean`. -/
 
 set_option linter.privateModule false
 
@@ -21,23 +21,6 @@ open Cslib Cslib.BitString Finset
 open scoped BigOperators
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
-
-/-! ### The Kahn–Kalai–Linial theorem -/
-
--- The statement for `f : (Fin n → Bool) → Bool`, `n ≥ 1`: some coordinate has influence at
--- least `Var[F] log n / (12 n)`.
-example {n : ℕ} [NeZero n] (f : (Fin n → Bool) → Bool) :
-    ∃ i, (𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) * Real.log n / (12 * n) ≤
-      influence i (fun x => signVal (f x)) := by
-  simpa only [Fintype.card_fin] using exists_expect_sub_expect_sq_mul_log_card_div_le_influence f
-
--- The total influence form with `δ` the largest influence.
-example [Nonempty ι] (f : (ι → Bool) → Bool) :
-    (𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) *
-        Real.log (univ.sup' univ_nonempty fun i => influence i fun x => signVal (f x))⁻¹ ≤
-      6 * totalInfluence (fun x => signVal (f x)) :=
-  expect_sub_expect_sq_mul_log_inv_le_six_mul_totalInfluence f fun i =>
-    le_sup' (fun i => influence i fun x => signVal (f x)) (mem_univ i)
 
 /-! ### Talagrand's inequality -/
 
@@ -91,12 +74,13 @@ example : totalInfluence (fun x => signVal (and₂ x)) ≤ 2 := by
   linarith
 
 -- With `J = ∅` the weight outside the subsets of `J` is the variance: every Boolean function is
--- `Var[F]`-close to a constant.
+-- `Var[F] / 2`-close to a constant.
 example (f : (ι → Bool) → Bool) :
     ∃ g : (ι → Bool) → Bool, DependsOn g ((∅ : Finset ι) : Set ι) ∧
-      (hammingDist f g : ℝ) / 2 ^ Fintype.card ι ≤
+      2 * ((hammingDist f g : ℝ) / 2 ^ Fintype.card ι) ≤
         𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2 := by
-  obtain ⟨g, hg, hfg⟩ := exists_dependsOn_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f ∅
+  obtain ⟨g, hg, hfg⟩ :=
+    exists_dependsOn_two_mul_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f ∅
   refine ⟨g, hg, hfg.trans_eq ?_⟩
   rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq]
   simp only [subset_empty]

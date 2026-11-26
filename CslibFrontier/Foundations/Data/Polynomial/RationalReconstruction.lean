@@ -203,18 +203,16 @@ private lemma polyMeasure_mod_lt {r0 r1 : F[X]} (hr1 : r1 ≠ 0) :
 
 open Classical in
 private def polyLoop (N : ℕ) (r0 t0 r1 t1 : F[X]) : PolyEuclidState F :=
-  if h : (N : WithBot ℕ) < r1.degree then
+  if _h : (N : WithBot ℕ) < r1.degree then
     let q := r0 / r1
     let r2 := r0 % r1
     let t2 := t0 - q * t1
-    have _ : r2.natDegree + (if r2 = 0 then 0 else 1) < r1.natDegree + (if r1 = 0 then 0 else 1) :=
-      polyMeasure_mod_lt (fun h0 => by simp [h0] at h)
     polyLoop N r1 t1 r2 t2
   else
     ⟨r0, t0, r1, t1⟩
 termination_by r1.natDegree + (if r1 = 0 then 0 else 1)
 decreasing_by
-  have hr1 : r1 ≠ 0 := fun h0 => by simp [h0] at h
+  have hr1 : r1 ≠ 0 := fun h0 => by simp [h0] at _h
   have hlt := polyMeasure_mod_lt (r0 := r0) hr1
   simpa only [EuclideanDomain.mod_eq_zero] using hlt
 

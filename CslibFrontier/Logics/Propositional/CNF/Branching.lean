@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.BranchingVector
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.Declared
+public import CslibFrontier.Logics.Propositional.CNF.Tautology
 import CslibFrontier.Logics.Propositional.CNF.Eval
 import CslibFrontier.Foundations.Data.List.Blocks
 import Mathlib.Data.Fintype.BigOperators
@@ -407,6 +408,23 @@ from all remaining clauses. -/
 @[expose] def substLit (l : Literal V) (φ : CNF V) : CNF V :=
   φ.filterMap fun c => if l ∈ c then none else some (c.filter (· ≠ Std.Sat.Literal.negate l))
 
+/-- The clauses of `substLit l φ` are the clauses of `φ` without `l`, with `¬l` deleted. -/
+private theorem mem_substLit {l : Literal V} {φ : CNF V} {c' : Clause V}
+    (hc' : c' ∈ substLit l φ) :
+    ∃ c ∈ φ, l ∉ c ∧ c' = c.filter (· ≠ Std.Sat.Literal.negate l) := by
+  obtain ⟨c, hc, hopt⟩ := List.mem_filterMap.1 hc'
+  split_ifs at hopt with hmem
+  exact ⟨c, hc, hmem, (Option.some.inj hopt).symm⟩
+
+/-- A literal kept by `substLit l` in a clause without `l` has a variable other than `l.1`. -/
+private theorem fst_ne_of_mem_filter {l l' : Literal V} {c : Clause V} (hmem : l ∉ c)
+    (hl' : l' ∈ c.filter (· ≠ Std.Sat.Literal.negate l)) : l'.1 ≠ l.1 := by
+  obtain ⟨hl'c, hne⟩ := List.mem_filter.mp hl'
+  obtain ⟨v, b⟩ := l
+  obtain ⟨v', b'⟩ := l'
+  rintro (rfl : v' = v)
+  cases b <;> cases b' <;> first | exact hmem hl'c | exact (of_decide_eq_true hne) rfl
+
 /-- Evaluating `substLit l φ` at `σ` agrees with evaluating `φ` at `Function.update σ l.1 l.2`. -/
 theorem eval_substLit (l : Literal V) (φ : CNF V) (σ : V → Bool) :
     (substLit l φ).eval σ = φ.eval (Function.update σ l.1 l.2) := by
@@ -427,53 +445,22 @@ theorem eval_substLit (l : Literal V) (φ : CNF V) (σ : V → Bool) :
       rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
       constructor
       · rintro ⟨l', hl', hσ'⟩
-        obtain ⟨hl'_c, hne_neg⟩ := List.mem_filter.mp hl'
-        refine ⟨l', hl'_c, ?_⟩
-        by_cases hv : l'.1 = l.1
-        · exfalso
-          obtain ⟨v, b⟩ := l
-          obtain ⟨v', b'⟩ := l'
-          dsimp only at hv
-          subst hv
-          cases b <;> cases b'
-          · exact hmem hl'_c
-          · exact (of_decide_eq_true hne_neg) rfl
-          · exact (of_decide_eq_true hne_neg) rfl
-          · exact hmem hl'_c
-        · simpa only [Function.update_of_ne hv] using hσ'
+        refine ⟨l', (List.mem_filter.mp hl').1, ?_⟩
+        simpa only [Function.update_of_ne (fst_ne_of_mem_filter hmem hl')] using hσ'
       · rintro ⟨l', hl'_c, hupd⟩
         by_cases hv : l'.1 = l.1
-        · exfalso
-          obtain ⟨v, b⟩ := l
-          obtain ⟨v', b'⟩ := l'
-          dsimp only at hv hupd
-          subst hv
-          rw [Function.update_self] at hupd
-          subst hupd
-          exact hmem hl'_c
+        · rw [hv, Function.update_self] at hupd
+          exact absurd (Prod.ext hv hupd.symm ▸ hl'_c) hmem
         · rw [Function.update_of_ne hv] at hupd
-          refine ⟨l', List.mem_filter.mpr ⟨hl'_c, decide_eq_true fun hneg => hv ?_⟩, hupd⟩
-          have hfst : (Std.Sat.Literal.negate l).1 = l.1 := by cases l.2 <;> rfl
-          exact (congrArg Prod.fst hneg).trans hfst
+          exact ⟨l', List.mem_filter.mpr ⟨hl'_c, decide_eq_true fun hneg =>
+            hv (congrArg Prod.fst hneg :)⟩, hupd⟩
 
 /-- `substLit l φ` eliminates every occurrence of `l.1`. -/
 theorem notMem_vars_substLit (l : Literal V) (φ : CNF V) : l.1 ∉ (substLit l φ).vars := by
   rw [CNF.mem_vars]
   rintro ⟨c', hc', b', hb'⟩
-  rw [substLit, List.mem_filterMap] at hc'
-  obtain ⟨c, _, hopt⟩ := hc'
-  by_cases hmem : l ∈ c
-  · simp only [hmem, ↓reduceIte, reduceCtorEq] at hopt
-  · simp only [hmem, ↓reduceIte, Option.some.injEq] at hopt
-    subst hopt
-    obtain ⟨hb'_c, hne_neg⟩ := List.mem_filter.mp hb'
-    obtain ⟨v, b⟩ := l
-    dsimp only at hb'_c hne_neg
-    cases b <;> cases b'
-    · exact hmem hb'_c
-    · exact (of_decide_eq_true hne_neg) rfl
-    · exact (of_decide_eq_true hne_neg) rfl
-    · exact hmem hb'_c
+  obtain ⟨c, -, hmem, rfl⟩ := mem_substLit hc'
+  exact fst_ne_of_mem_filter hmem hb' rfl
 
 /-- Every variable occurring in `substLit l φ` belonged to `φ.vars.toFinset.erase l.1`. -/
 theorem vars_substLit_subset (l : Literal V) (φ : CNF V) :
@@ -483,25 +470,15 @@ theorem vars_substLit_subset (l : Literal V) (φ : CNF V) :
   refine Finset.mem_erase.mpr ⟨fun h => notMem_vars_substLit l φ (h ▸ hw), ?_⟩
   rw [List.mem_toFinset, CNF.mem_vars]
   obtain ⟨c', hc', b', hb'⟩ := CNF.mem_vars.mp hw
-  rw [substLit, List.mem_filterMap] at hc'
-  obtain ⟨c, hc, hopt⟩ := hc'
-  by_cases hmem : l ∈ c
-  · simp only [hmem, ↓reduceIte, reduceCtorEq] at hopt
-  · simp only [hmem, ↓reduceIte, Option.some.injEq] at hopt
-    subst hopt
-    exact ⟨c, hc, b', (List.mem_filter.mp hb').1⟩
+  obtain ⟨c, hc, -, rfl⟩ := mem_substLit hc'
+  exact ⟨c, hc, b', (List.mem_filter.mp hb').1⟩
 
 /-- `substLit` never increases maximum clause length. -/
 theorem length_le_of_mem_substLit {l : Literal V} {φ : CNF V} {k : ℕ}
     (hk : ∀ c ∈ φ, c.length ≤ k) {c' : Clause V} (hc' : c' ∈ substLit l φ) :
     c'.length ≤ k := by
-  rw [substLit, List.mem_filterMap] at hc'
-  obtain ⟨c, hc, hopt⟩ := hc'
-  by_cases hmem : l ∈ c
-  · simp only [hmem, ↓reduceIte, reduceCtorEq] at hopt
-  · simp only [hmem, ↓reduceIte, Option.some.injEq] at hopt
-    subst hopt
-    exact (List.length_filter_le _ c).trans (hk c hc)
+  obtain ⟨c, hc, -, rfl⟩ := mem_substLit hc'
+  exact (List.length_filter_le _ c).trans (hk c hc)
 
 /-- Adding `[l]` to `φ` on `U` (`l.1 ∈ U`) has the same model count as `substLit l φ` on
 `U.erase l.1`. -/
@@ -525,37 +502,29 @@ theorem modelCountOn_cons_unit_eq_substLit {l : Literal V} {φ : CNF V} {U : Fin
         simp only [extE, hvE, ↓reduceDIte, extU, hvU, ins, hv]
       · have hvE : v ∉ U.erase l.1 := fun h => hvU (Finset.mem_of_mem_erase h)
         simp only [extE, hvE, ↓reduceDIte, extU, hvU]
+  have heval_cons (σ : U → Bool) : CNF.eval (extU σ) (([l] : Clause V) :: φ) = true ↔
+      σ ⟨l.1, hl⟩ = l.2 ∧ φ.eval (extU σ) = true := by
+    rw [CNF.eval_cons, Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.and_eq_true,
+      Literal.eval_eq_true_iff]
+    simp only [extU, hl, ↓reduceDIte]
+  have hins (σ : U → Bool) (hσ : σ ⟨l.1, hl⟩ = l.2) :
+      ins (fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩) = σ := by
+    funext ⟨v, hv⟩
+    by_cases hvl : v = l.1
+    · subst hvl
+      simpa only [ins, ↓reduceDIte] using hσ.symm
+    · simp only [ins, hvl, ↓reduceDIte]
   let e : {σ : U → Bool // CNF.eval (extU σ) (([l] : Clause V) :: φ) = true} ≃
       {τ : U.erase l.1 → Bool // (substLit l φ).eval (extE τ) = true} :=
     { toFun := fun ⟨σ, hσ⟩ =>
         ⟨fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩, by
-          rw [CNF.eval_cons, Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.and_eq_true,
-            Literal.eval_eq_true_iff] at hσ
-          have hl_eq : σ ⟨l.1, hl⟩ = l.2 := by simpa only [extU, hl, ↓reduceDIte] using hσ.1
-          have hins : ins (fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩) = σ := by
-            funext ⟨v, hv⟩
-            by_cases hvl : v = l.1
-            · subst hvl
-              simpa only [ins, ↓reduceDIte] using hl_eq.symm
-            · simp only [ins, hvl, ↓reduceDIte]
-          rw [eval_substLit, heval_ins (fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩), hins]
-          exact hσ.2⟩
+          rw [eval_substLit, heval_ins (fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩),
+            hins σ ((heval_cons σ).1 hσ).1]
+          exact ((heval_cons σ).1 hσ).2⟩
       invFun := fun ⟨τ, hτ⟩ =>
-        ⟨ins τ, by
-          rw [CNF.eval_cons, Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.and_eq_true,
-            Literal.eval_eq_true_iff]
-          refine ⟨by simp only [extU, hl, ↓reduceDIte, ins], ?_⟩
-          rwa [eval_substLit, heval_ins] at hτ⟩
-      left_inv := fun ⟨σ, hσ⟩ => by
-        apply Subtype.ext
-        funext ⟨v, hv⟩
-        rw [CNF.eval_cons, Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.and_eq_true,
-          Literal.eval_eq_true_iff] at hσ
-        have hl_eq : σ ⟨l.1, hl⟩ = l.2 := by simpa only [extU, hl, ↓reduceDIte] using hσ.1
-        by_cases hvl : v = l.1
-        · subst hvl
-          simpa only [ins, ↓reduceDIte] using hl_eq.symm
-        · simp only [ins, hvl, ↓reduceDIte]
+        ⟨ins τ, (heval_cons _).2 ⟨by simp only [ins, ↓reduceDIte],
+          by rwa [eval_substLit, heval_ins] at hτ⟩⟩
+      left_inv := fun ⟨σ, hσ⟩ => Subtype.ext (hins σ ((heval_cons σ).1 hσ).1)
       right_inv := fun ⟨τ, _⟩ => by
         apply Subtype.ext
         funext ⟨v, hv⟩
@@ -648,50 +617,6 @@ theorem modelCountOn_append_units_eq_substLits {lits : List (Literal V)} {φ : C
         substLit_map_units l rest hnodup.1]
     rw [List.map_cons, List.cons_append, hcomm, hsubst_units]
     exact ih hnodup.2 hrest
-
-/-- Whether a clause contains complementary literals `l` and `¬l` (making it a tautology). -/
-@[expose] def isTautClause (c : Clause V) : Bool :=
-  c.any fun l => decide (Std.Sat.Literal.negate l ∈ c)
-
-/-- A tautological clause evaluates to `true` under every assignment. -/
-theorem eval_eq_true_of_isTautClause {c : Clause V} (ht : isTautClause c = true) (σ : V → Bool) :
-    c.eval σ = true := by
-  simp only [isTautClause, List.any_eq_true, decide_eq_true_eq] at ht
-  obtain ⟨l, hl, hneg⟩ := ht
-  rw [Clause.eval_eq_true_iff]
-  by_cases h : σ l.1 = l.2
-  · exact ⟨l, hl, h⟩
-  · refine ⟨Std.Sat.Literal.negate l, hneg, ?_⟩
-    obtain ⟨v, b⟩ := l
-    cases b <;> cases hσ : σ v <;> simp_all [Std.Sat.Literal.negate]
-
-/-- Deduplicating a non-tautological clause produces distinct variables. -/
-theorem nodup_map_fst_dedup_of_not_isTautClause {c : Clause V} (ht : isTautClause c = false) :
-    (c.dedup.map Prod.fst).Nodup := by
-  have hnt : ∀ l ∈ c, Std.Sat.Literal.negate l ∉ c := by
-    intro l hl hneg
-    have : isTautClause c = true := by
-      simp only [isTautClause, List.any_eq_true, decide_eq_true_eq]
-      exact ⟨l, hl, hneg⟩
-    rw [ht] at this
-    exact Bool.noConfusion this
-  have hinj : Set.InjOn (Prod.fst : Literal V → V) {l | l ∈ c.dedup} := by
-    rintro ⟨v₁, b₁⟩ h₁ ⟨v₂, b₂⟩ h₂ hv
-    dsimp only at hv
-    subst hv
-    rw [Set.mem_ofPred_eq, List.mem_dedup] at h₁ h₂
-    cases b₁ <;> cases b₂
-    · rfl
-    · exact absurd h₂ (hnt (v₁, false) h₁)
-    · exact absurd h₂ (hnt (v₁, true) h₁)
-    · rfl
-  exact c.nodup_dedup.map_on hinj
-
-/-- Deduplicating a clause preserves its evaluation under every assignment. -/
-theorem eval_dedup_clause (c : Clause V) (σ : V → Bool) :
-    Clause.eval σ c.dedup = Clause.eval σ c := by
-  rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-  simp only [List.mem_dedup]
 
 /-- Search-tree state for variable-eliminating CNF branching: remaining `unassigned` variables and
 residual `formula`. -/

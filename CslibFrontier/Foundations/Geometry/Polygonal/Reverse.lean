@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 public import Mathlib.Data.Fin.Rev
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Interval.Set.Instances
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -81,7 +82,6 @@ so no extra negation is introduced, even at the two ends of a closed route. -/
 The equation holds for all real parameters, including outside the unit interval. -/
 theorem eval_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) :
     p.reverse.eval i t = p.eval i.rev (1 - t) := by
-  change Fin (p.bends + 1) at i
   change AffineMap.lineMap (p.point i.castSucc.rev) (p.point i.succ.rev) t =
     AffineMap.lineMap (p.point i.rev.castSucc) (p.point i.rev.succ) (1 - t)
   rw [Fin.rev_castSucc, Fin.rev_succ, AffineMap.lineMap_apply_one_sub]
@@ -92,16 +92,14 @@ theorem position_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) :
   change Fin (p.bends + 1) at i
   change (i.val : ℝ) + t = ((p.bends + 1 : ℕ) : ℝ) - ((i.rev.val : ℝ) + (1 - t))
   simp only [Nat.cast_add, Nat.cast_one]
-  have h : (i.val : ℝ) + (i.rev.val : ℝ) = (p.bends : ℝ) := by
-    exact_mod_cast Fin.add_rev_cast i
-  linarith
+  cast_linarith [Fin.add_rev_cast i]
 
 private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) (b : Bool) :
     p.reverse.AtEnd i t b ↔ p.AtEnd i.rev (1 - t) (!b) := by
   change (p.reverse.position i t = if b then (p.segments : ℝ) else 0) ↔ _
   rw [position_reverse]
   cases b <;> simp only [AtEnd, Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] <;>
-    constructor <;> intro h <;> linarith
+    exact ⟨fun _ => by linarith, fun _ => by linarith⟩
 
 /-- Reversal preserves the full continuum of actual support points. -/
 @[simp] theorem support_reverse (p : Route) : p.reverse.support = p.support := by
@@ -116,18 +114,11 @@ private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ)
 two ends of a closed route. Both closing alternatives are swapped by the end-tag map. -/
 theorem IsSimple.reverse {p : Route} (hp : p.IsSimple) : p.reverse.IsSimple := by
   intro i j s t hs ht heq
-  have heq' : p.eval i.rev (1 - s) = p.eval j.rev (1 - t) := by
-    simpa only [eval_reverse] using heq
-  rcases hp i.rev j.rev (1 - s) (1 - t) (Set.Icc.one_sub_mem hs)
-      (Set.Icc.one_sub_mem ht) heq' with h | ⟨h0, h1⟩ | ⟨h1, h0⟩
-  · left
-    rw [position_reverse, position_reverse, h]
-  · right
-    right
-    exact ⟨(atEnd_reverse p i s true).mpr h0, (atEnd_reverse p j t false).mpr h1⟩
-  · right
-    left
-    exact ⟨(atEnd_reverse p i s false).mpr h1, (atEnd_reverse p j t true).mpr h0⟩
+  rcases hp i.rev j.rev (1 - s) (1 - t) (Set.Icc.one_sub_mem hs) (Set.Icc.one_sub_mem ht)
+      (by simpa only [eval_reverse] using heq) with h | ⟨h0, h1⟩ | ⟨h1, h0⟩
+  · exact .inl (by rw [position_reverse, position_reverse, h])
+  · exact .inr (.inr ⟨(atEnd_reverse p i s true).mpr h0, (atEnd_reverse p j t false).mpr h1⟩)
+  · exact .inr (.inl ⟨(atEnd_reverse p i s false).mpr h1, (atEnd_reverse p j t true).mpr h0⟩)
 
 /-- A reversed one-segment route is literally the one-segment route with swapped ends. -/
 @[simp] theorem reverse_line (a b : ℂ) : (line a b).reverse = line b a := by

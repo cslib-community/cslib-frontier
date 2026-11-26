@@ -10,10 +10,9 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryNormalization
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 
 /-!
@@ -110,27 +109,20 @@ theorem lookStep_inO {TL SL : π × ℕ → ℕ}
       (fun q => (encPair encP (encPair eCfg (encList encUnary)) q).length +
         lookStepTime d look TL SL q) := by
   have hp := ComputableInO.fst encP (encPair eCfg (encList encUnary))
-  have hcfg := (ComputableInO.snd encP (encPair eCfg (encList encUnary))).fst'
-  have hout := (ComputableInO.snd encP (encPair eCfg (encList encUnary))).snd'
+  have hsnd := ComputableInO.snd encP (encPair eCfg (encList encUnary))
+  have hcfg := hsnd.fst'
   have hpos := (hcfg.of_enc_eq (encC := eCfgFields)
     (g := fun q : π × (SCfg × List ℕ) => (q.2.1.state, q.2.1.inputPos, q.2.1.workTapes))
     fun _ => rfl).snd'.fst'
-  have hsym := hlook.comp' (hp.prod hpos)
-  have hctx := ((ComputableInO.const (encIn := encPair encP (encPair eCfg (encList encUnary)))
-    (encMid := eDesc) d).prod hcfg).prod hsym
-  have hsw := stepWith_inO.comp' hctx
-  have hem := hsw.snd'
-  have hsnoc := (ComputableInDegree.snoc encUnary).inO_one.comp_linear
-    (hout.prod (ComputableInO.optionGetD 0 hem))
-  have hnew := (ComputableInO.optionIsSome hem).ite hsnoc hout
-  refine ((hsw.fst'.prod hnew).mono 16 (fun q => ?_) fun q => ?_).of_enc_eq fun q => ?_
+  have hsw := stepWith_inO.comp' (((ComputableInO.const
+    (encIn := encPair encP (encPair eCfg (encList encUnary))) (encMid := eDesc) d).prod hcfg).prod
+    (hlook.comp' (hp.prod hpos)))
+  refine (hsw.fst'.prod (hsnd.snd'.listAppend' hsw.snd'.optionToList')).mono 16
+    (fun q => ?_) fun q => ?_
   all_goals
     have hw := length_eWCtx_le_wTime ((d, q.2.1), look (q.1, q.2.1.inputPos))
     dsimp only [lookStepTime, Function.comp_apply, WCtx.desc, WCtx.cfg, WCtx.sym] at hw ⊢
-  · split_ifs <;> omega
-  · split_ifs <;> omega
-  · rcases h : (stepWith d q.2.1 (look (q.1, q.2.1.inputPos))).2 with _ | e <;>
-      simp [lookStep, h]
+    omega
 
 /-! ### Runs from a configuration -/
 
@@ -166,16 +158,17 @@ theorem lookRun_inO [Inhabited π] {R B : π × (SCfg × List ℕ) × List Bool 
         (ofBits q.2.2 + 1) * (R q + B q + (q.2.2.length + 1) ^ 2))
       (fun q => (encPair encP (encPair (encPair eCfg (encList encUnary)) encBits) q).length +
         R q + B q) := by
-  have hw := (ComputableInO.snd encP (encPair (encPair eCfg (encList encUnary)) encBits)).snd'
-  have hn := ComputableInO.bitsToNat.comp' hw
+  have hsnd := ComputableInO.snd encP (encPair (encPair eCfg (encList encUnary)) encBits)
+  have hn := ComputableInO.bitsToNat.comp' hsnd.snd'
   have hinit := (ComputableInO.fst encP (encPair (encPair eCfg (encList encUnary)) encBits)).prod
-    (ComputableInO.snd encP (encPair (encPair eCfg (encList encUnary)) encBits)).fst'
+    hsnd.fst'
   have hstep := (ComputableInO.fst encP (encPair eCfg (encList encUnary))).prod
     (lookStep_inO d look hlook)
   have hit := ComputableInO.iterate (n := fun q : π × (SCfg × List ℕ) × List Bool => ofBits q.2.2)
     (init := fun q => (q.1, q.2.1)) (step := fun s => (s.1, lookStep d look s.1 s.2))
     (R := fun q => 2 * B q + R q) (Q := fun q => 2 * B q + R q) (B := B) hn hinit hstep
-    (fun q k hk => ?_) (fun q k hk => ?_) (fun q k hk => ?_)
+    (fun q k hk => ?_) (fun q k hk => ?_)
+    (fun q k hk => iterate_step_eq d look q.1 q.2.1 k ▸ hB q k hk)
   rotate_left
   · rw [iterate_step_eq]
     have := hR q k hk
@@ -185,25 +178,17 @@ theorem lookRun_inO [Inhabited π] {R B : π × (SCfg × List ℕ) × List Bool 
     have := hR q k hk
     have := hB q k hk
     omega
-  · rw [iterate_step_eq]
-    exact hB q k hk
-  refine (hit.snd'.of_enc_eq fun q => ?_).mono 8 (fun q => ?_) fun q => ?_
-  · rw [iterate_step_eq]
-    rfl
+  refine (hit.snd'.of_enc_eq fun q => by rw [iterate_step_eq]; rfl).mono 8
+    (fun q => ?_) fun q => ?_
   all_goals
     have hwL : q.2.2.length ≤
         (encPair encP (encPair (encPair eCfg (encList encUnary)) encBits) q).length := by
-      simp only [length_encPair, encBits_apply]
-      omega
+      simp only [length_encPair, encBits_apply]; omega
     have hn := length_encNat_ofBits_le q.2.2
   · have hX : ((encNat (ofBits q.2.2)).length + 1) ^ 2 ≤ (q.2.2.length + 1) ^ 2 := by gcongr
-    have h₁ : 2 * B q + R q + B q + ((encNat (ofBits q.2.2)).length + 1) ^ 2 ≤
-        3 * (R q + B q + (q.2.2.length + 1) ^ 2) := by
-      omega
-    have h₂ := Nat.mul_le_mul_left (ofBits q.2.2 + 1) h₁
-    have h₃ : (ofBits q.2.2 + 1) * (3 * (R q + B q + (q.2.2.length + 1) ^ 2)) =
-        3 * ((ofBits q.2.2 + 1) * (R q + B q + (q.2.2.length + 1) ^ 2)) := by
-      ring
+    have h₂ := (Nat.mul_le_mul_left (ofBits q.2.2 + 1)
+      (by omega : 2 * B q + R q + B q + ((encNat (ofBits q.2.2)).length + 1) ^ 2 ≤
+        3 * (R q + B q + (q.2.2.length + 1) ^ 2))).trans_eq (Nat.mul_left_comm _ 3 _)
     omega
   · omega
 

@@ -1,6 +1,6 @@
 # Results and reference inventory
 
-The canonical collection is [Entries.lean](../CslibFrontierResults/Entries.lean): readable Lean
+The canonical collection lives under `CslibFrontierResults/` (existing entries in [Entries.lean](../CslibFrontierResults/Entries.lean) and topic modules under `CslibFrontierResults/Entries/`, aggregated into [CslibFrontierResults.lean](../CslibFrontierResults.lean) by `lake exe mk_all`): readable Lean
 commands with real theorem identifiers. This is the initial collection for
 [#2012](https://github.com/cslib-community/cslib-frontier/issues/2012), not a complete inventory
 or a claim that every cited paper is fully formalized.
@@ -21,7 +21,7 @@ expected-time and expander-concentration gaps and identify literal source defect
 Its Chapter 11 connectivity milestone records the exact total edge-query lower bound and its
 empty-graph conventions; it does not establish the other chapter endpoints.
 The native BP·NP = AM milestone identifies the bounded-error NP operator with AM for
-arbitrary instance encodings and derives NP advice. Registry admission awaits a human source check; randomized reduction to 3SAT and the
+arbitrary instance encodings and derives NP advice. Registry admission awaits an independent source check; randomized reduction to 3SAT and the
 nondeterministic circuit endpoint remain open.
 Its chapters 8–10 record distinguishes constant-round protocols, counting-oracle interfaces
 and quantitative crypto bounds. The native `dip-eq-np` entry covers deterministic interaction in the oracle-PPT IP model;
@@ -47,7 +47,13 @@ The [Goldreich draft audit](goldreich-2007.md) records a source-pinned chapter-l
 for *Computational Complexity: A Conceptual Perspective*, including the any-output bounded-termination
 endpoints of Exercises 4.6–4.7 in the documented total-decoder representation. It is not a claim of
 book-wide coverage. Exercise 8.43 has the varying-density product and constant-set
-real half-length power, with normalized spectral-parameter transport; Exercise 8.44 remains open.
+real half-length power, with normalized spectral-parameter transport. Exercise 8.44
+(`goldreich-expander-visit-count` in [VisitCount](../CslibFrontier/Foundations/Combinatorics/Expander/VisitCount.lean))
+has selected-time hitting, factorial-moment and integer-tail bounds, including strict half-visits
+for odd and even positive lengths, without sampler or runtime claims; its
+[audit section](goldreich-2007.md#exercise-844-visit-counts) and the
+[exercise inventory](goldreich-2007-exercises.md) record the strictness (`1 ≤ m ≤ L`,
+`ρ + η² > 0`) and integer `m = αL` conventions that qualify the printed statement.
 Exercise 9.21 now has plurality correction and the unconditional rejection bound for all finite
 abelian groups, including trivial groups, without computational representation claims.
 Its companion [exercise inventory](goldreich-2007-exercises.md) classifies the end-of-chapter
@@ -85,6 +91,11 @@ qualified names and module ownership; these are not maintained as duplicate stri
 `CslibFrontierResults` is a separate local documentation library, included in the default
 `lake build` targets. Mathematical modules do not import the registry. Compiled environment
 entries survive imports and are exported by [ExportResults.lean](../scripts/ExportResults.lean).
+Place new `register_result` entries in topic modules under `CslibFrontierResults/Entries/`
+(importing `CslibFrontierResults.Registry` and the defining library module) and regenerate
+[CslibFrontierResults.lean](../CslibFrontierResults.lean) with `lake exe mk_all`, which
+`scripts/restack_mechanical.py` merges automatically, so concurrent pull requests do not collide on
+[Entries.lean](../CslibFrontierResults/Entries.lean).
 JSON is generated output; there is no hand-maintained `registry.json`.
 
 ## Reading and checking
@@ -130,9 +141,9 @@ cited result. A stand-in—such as a helper that assumes a property of its own r
 bound for parameters chosen after the adversary—never occupies the cited result's entry (if a
 step is listed at all, its own title and `theorem` field say it is a step of that result), and
 original results are not registered as proofs of a nearby source theorem. A published theorem
-enters the inventory only after a reviewer from outside the authoring fleet, human or agent, has
-checked its statement against the source and recorded the check
-([review cycle](../AGENTS.md#review-cycle)).
+enters the inventory only after a non-author working in a separate context, who may be an agent
+of the authoring fleet, has checked its statement against the source and recorded who checked and
+what was read ([review cycle](../AGENTS.md#review-cycle)).
 
 ## Remaining collection work
 
@@ -149,8 +160,3 @@ least half the truth tables have measure zero. This explains why the additive `-
 Razborov–Rudich Theorem 5.1(b) cannot simply be omitted as in the 2007 Arora–Barak draft's
 Theorem 22.3. It is not registered as a proof of either source theorem; the corrected density
 amplification endpoint remains open under [#4711](https://github.com/cslib-community/cslib-frontier/issues/4711).
-
-Goldreich Exercise 8.44 now has selected-time hitting, factorial-moment and integer-tail
-bounds, including strict half-visits for odd and even positive lengths. The
-[exercise inventory](goldreich-2007-exercises.md) records the strictness and integer
-conventions that qualify the printed statement.

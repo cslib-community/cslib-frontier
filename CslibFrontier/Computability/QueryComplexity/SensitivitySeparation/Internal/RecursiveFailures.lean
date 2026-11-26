@@ -118,12 +118,10 @@ theorem targetFailures_singleton {k r h : ℕ} {I : Type} (T : Tournament k)
     (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) (hr : 0 < r) (i : Fin k)
     (hi : i ∈ targetCandidates T label F q x) :
     targetFailures F x i = {targetWitness F x hr i} := by
-  have hc := (Finset.mem_filter.mp hi).2.1
-  obtain ⟨c, hc'⟩ := Finset.card_eq_one.mp hc
+  obtain ⟨c, hc'⟩ := Finset.card_eq_one.mp (Finset.mem_filter.mp hi).2.1
   have hne : (targetFailures F x i).Nonempty := hc' ▸ Finset.singleton_nonempty c
   have hm : targetWitness F x hr i ∈ targetFailures F x i := by grind [targetWitness]
-  rw [hc', Finset.mem_singleton] at hm
-  simpa [hm] using hc'
+  simpa [Finset.mem_singleton.mp (hc' ▸ hm)] using hc'
 
 /-- For a gate candidate `i`, the set of failed gate neighbors is exactly
 `{gateWitness T label F q x i}`. -/
@@ -132,12 +130,10 @@ theorem gateFailures_singleton {k r h : ℕ} {I : Type} (T : Tournament k)
     (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) (i : Fin k)
     (hi : i ∈ gateCandidates T label F q x) :
     gateFailures T label F q x i = {gateWitness T label F q x i} := by
-  have hc := (Finset.mem_filter.mp hi).2.2
-  obtain ⟨j, hc'⟩ := Finset.card_eq_one.mp hc
+  obtain ⟨j, hc'⟩ := Finset.card_eq_one.mp (Finset.mem_filter.mp hi).2.2
   have hne : (gateFailures T label F q x i).Nonempty := hc' ▸ Finset.singleton_nonempty j
   have hm : gateWitness T label F q x i ∈ gateFailures T label F q x i := by grind [gateWitness]
-  rw [hc', Finset.mem_singleton] at hm
-  simpa [hm] using hc'
+  simpa [Finset.mem_singleton.mp (hc' ▸ hm)] using hc'
 
 /-- For a good labeling `A` and a nested family `F`, there are fewer than `16` target candidates:
 their witnesses form a target assignment that `A.label` respects on all internal edges. -/
@@ -145,13 +141,12 @@ theorem targetCandidates_card {k r h : ℕ} {I : Type} (T : Tournament k)
     (A : GoodLabeling T r) (F : Fin (h + 1) → (I → Bool) → Bool) (hF : NestedFamily F)
     (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) (hr : 0 < r) :
     (targetCandidates T A.label F q x).card < 16 := by
-  apply A.good_implies_card_lt_sixteen _ (targetWitness F x hr)
-  intro i hi j hj hij
+  refine A.good_implies_card_lt_sixteen _ (targetWitness F x hr) fun i hi j hj hij => ?_
   have hgate := (gateFailures_empty_iff T A.label F q x i).mp (Finset.mem_filter.mp hi).2.2
-  have hz := hF.rejects_of_le (gateIndex_lt_last q).le (hgate j hij)
-  have hm : A.label i j ∈ targetFailures F x j := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hz⟩
-  rw [targetFailures_singleton T A.label F q x hr j hj, Finset.mem_singleton] at hm
-  exact hm
+  have hm : A.label i j ∈ targetFailures F x j :=
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+      hF.rejects_of_le (gateIndex_lt_last q).le (hgate j hij)⟩
+  rwa [targetFailures_singleton T A.label F q x hr j hj, Finset.mem_singleton] at hm
 
 open scoped Classical in
 /-- If `F` is nested and `i → j` is an edge between two gate candidates, then `j` is the gate
@@ -163,8 +158,9 @@ theorem gateCandidates_neighbor {k r h : ℕ} {I : Type} (T : Tournament k)
     (hj : j ∈ gateCandidates T label F q x) (hij : T.Adj i j) :
     j = gateWitness T label F q x i := by
   have ht := (targetFailures_empty_iff F x j).mp (Finset.mem_filter.mp hj).2.1
-  have hon := hF.accepts_of_le (gateIndex_lt_last q).le (ht (label i j))
-  have hm : j ∈ gateFailures T label F q x i := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hij, hon⟩
+  have hm : j ∈ gateFailures T label F q x i :=
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _, hij,
+      hF.accepts_of_le (gateIndex_lt_last q).le (ht (label i j))⟩
   rwa [gateFailures_singleton T label F q x i hi, Finset.mem_singleton] at hm
 
 open scoped Classical in
@@ -174,13 +170,10 @@ theorem gateCandidates_card {k r h : ℕ} {I : Type} (T : Tournament k)
     (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
     (hF : NestedFamily F) (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) :
     (gateCandidates T label F q x).card ≤ 3 := by
-  apply T.card_le_three_of_outdegree_le_one
-  intro i hi
-  apply le_trans (Finset.card_le_card (t := {gateWitness T label F q x i}) ?_)
-    (by simp)
-  intro j hj
-  have h := Finset.mem_filter.mp hj
-  exact Finset.mem_singleton.mpr (gateCandidates_neighbor T label F hF q x i j hi h.1 h.2)
+  refine T.card_le_three_of_outdegree_le_one _ fun i hi =>
+    (Finset.card_le_card (t := {gateWitness T label F q x i}) fun j hj => ?_).trans (by simp)
+  obtain ⟨hj', hij⟩ := Finset.mem_filter.mp hj
+  exact Finset.mem_singleton.mpr (gateCandidates_neighbor T label F hF q x i j hi hj' hij)
 
 end Internal
 

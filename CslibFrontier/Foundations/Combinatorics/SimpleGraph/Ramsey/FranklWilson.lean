@@ -92,16 +92,13 @@ variable [Fintype α]
 theorem cliqueFree_franklWilsonGraph {p d : ℕ} [hp : Fact p.Prime] (hd : d % p = p - 1) :
     (franklWilsonGraph α p d).CliqueFree ((Fintype.card α).choose (p - 1) + 1) := by
   intro t ht
-  set L : Finset (ZMod p) := univ.erase (d : ZMod p) with hL
-  have hLc : #L = p - 1 := by rw [hL, card_erase_of_mem (mem_univ _), card_univ, ZMod.card]
+  let L : Finset (ZMod p) := univ.erase (d : ZMod p)
+  have hLc : #L = p - 1 := by simp only [L, card_erase_of_mem (mem_univ _), card_univ, ZMod.card]
   have h := Fintype.card_le_choose_of_card_inter_mem_zmod (ι := t) (fun s => s.1.1) L
-    (fun s => s.1.2) (fun i j hij => ?_) (by rw [hL]; exact notMem_erase _ _) (by rw [hLc, hd])
-  · rw [Fintype.card_coe, ht.2, hLc] at h
-    omega
-  · rw [hL, mem_erase]
-    refine ⟨fun h => ?_, mem_univ _⟩
-    rw [ZMod.natCast_eq_natCast_iff'] at h
-    exact ht.1 i.2 j.2 (fun h' => hij (Subtype.ext h')) h
+    (fun s => s.1.2) (fun i j hij => mem_erase.2 ⟨fun h => ht.1 i.2 j.2
+      (fun h' => hij (Subtype.ext h')) ((ZMod.natCast_eq_natCast_iff' _ _ _).1 h), mem_univ _⟩)
+    (notMem_erase _ _) (by rw [hLc, hd])
+  rw [Fintype.card_coe, ht.2, hLc] at h; omega
 
 /-- For `p > 0`, the Frankl–Wilson graph has no independent set of size `C(|α|, ⌊d / p⌋) + 1`, by
 the Ray-Chaudhuri–Wilson theorem. -/
@@ -162,11 +159,12 @@ theorem choose_lt_ramseyNumber_franklWilson (p : ℕ) [hp : Fact p.Prime] :
   have h := card_lt_ramseyNumber_iff (k := (p ^ 3).choose (p - 1) + 1)
     (l := (p ^ 3).choose (p - 1) + 1) (V := {s : Finset (Fin (p ^ 3)) // #s = p ^ 2 - 1})
   rw [Fintype.card_finset_len, Fintype.card_fin] at h
-  refine h.2 ⟨franklWilsonGraph (Fin (p ^ 3)) p (p ^ 2 - 1), ?_, ?_⟩
-  · have hc := cliqueFree_franklWilsonGraph (α := Fin (p ^ 3)) (sq_sub_one_mod p hp0)
-    rwa [Fintype.card_fin] at hc
-  · have hi := indepSetFree_franklWilsonGraph (α := Fin (p ^ 3)) (d := p ^ 2 - 1) hp0
-    rwa [Fintype.card_fin, sq_sub_one_div p hp0] at hi
+  exact h.2 ⟨franklWilsonGraph (Fin (p ^ 3)) p (p ^ 2 - 1),
+    by simpa [Fintype.card_fin] using
+      cliqueFree_franklWilsonGraph (α := Fin (p ^ 3)) (sq_sub_one_mod p hp0),
+    by
+      have hi := indepSetFree_franklWilsonGraph (α := Fin (p ^ 3)) (d := p ^ 2 - 1) hp0
+      rwa [Fintype.card_fin, sq_sub_one_div p hp0] at hi⟩
 
 /-- The Frankl–Wilson parameters grow superpolynomially: with `k = C(p³, p - 1) + 1`,
 `k ^ c < C(p³, p² - 1)` whenever `p ≥ 6 c + 3`. The proof uses `k ≤ p ^ (3 p)` and

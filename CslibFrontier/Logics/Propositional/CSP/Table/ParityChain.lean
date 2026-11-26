@@ -43,21 +43,13 @@ open Cslib.BitString
 
 /-- Every row has exactly the declared width, including the nullary row. -/
 theorem wellFormed_evenTable (width : ℕ) : (evenTable width).wellFormed = true := by
-  apply wellFormed_eq_true.mpr
-  intro row hrow
-  exact length_of_mem_enumList (List.mem_filter.mp hrow).1
+  exact wellFormed_eq_true.mpr fun _ hrow => length_of_mem_enumList (List.mem_filter.mp hrow).1
 
 /-- The table includes the exact-arity guard even for malformed supplied rows. -/
 theorem sem_evenTable (width : ℕ) (row : List Bool) :
     (evenTable width).sem row = true ↔ row.length = width ∧ wordParity row = false := by
-  rw [sem_eq_true]
-  constructor
-  · rintro ⟨_, hrow⟩
-    exact ⟨length_of_mem_enumList (List.mem_filter.mp hrow).1,
-      (by simpa only [Bool.not_eq_true'] using (List.mem_filter.mp hrow).2)⟩
-  · rintro ⟨hlen, hp⟩
-    exact ⟨wellFormed_evenTable width,
-      List.mem_filter.mpr ⟨mem_enumList.mpr hlen, (by simpa only [Bool.not_eq_true'] using hp)⟩⟩
+  rw [sem_eq_true, wellFormed_evenTable]
+  simp [evenTable, mem_enumList]
 
 /-- Explicit tables denote the existing parity relation, without a second Boolean model. -/
 theorem booleanRelation_evenTable (width : ℕ) :
@@ -73,11 +65,8 @@ theorem booleanRelation_evenTable (width : ℕ) :
 theorem isEvenDeltaMatroid_evenTable (width : ℕ) :
     IsEvenDeltaMatroid (booleanRelation arity sem (evenTable width)) := by
   rw [booleanRelation_evenTable]
-  apply isEvenDeltaMatroid_parityOn_fiber
-  exact ⟨fun _ => false, by
-    rw [parityOn_eq_sum]
-    change (∑ _ : Fin width, (0 : Bool)) = 0
-    exact Finset.sum_const_zero⟩
+  exact isEvenDeltaMatroid_parityOn_fiber false
+    ⟨fun _ => false, (parityOn_eq_sum _ _).trans Finset.sum_const_zero⟩
 
 /-- Chain tail with the accumulated parity variable first. Each recursive step consumes one
 actual boundary entry and allocates one fresh binary name. -/
@@ -98,17 +87,9 @@ reserved for the caller; an empty boundary is the true nullary parity table. -/
 /-- Exactly the requested number of chain constraints. -/
 theorem length_parityChainTail (fresh first : ℕ) (rest : List ℕ) :
     (parityChainTail fresh first rest).length = max 1 (rest.length - 1) := by
-  induction rest using List.twoStepInduction generalizing fresh first with
-  | nil => rfl
-  | singleton b => rfl
-  | cons_cons b c rest _ ih =>
-    cases rest with
-    | nil => rfl
-    | cons d rest =>
-      simp only [parityChainTail, List.length_cons]
-      rw [ih c]
-      simp only [List.length_cons]
-      omega
+  fun_induction parityChainTail fresh first rest with
+  | case4 => simp only [List.length_cons] at *; omega -- b :: c :: d :: rest: chain step
+  | _ => rfl -- at most two boundary entries left
 
 /-- Linear constraint count, including empty and short boundaries. -/
 theorem length_parityChain (fresh : ℕ) (scope : List ℕ) :
@@ -122,29 +103,14 @@ theorem parityChainTail_width (fresh first : ℕ) (rest : List ℕ)
     (c : Constraint Table ℕ) (hc : c ∈ parityChainTail fresh first rest) :
     c.rel.arity = c.scope.length ∧ c.scope.length ≤ 3 ∧
       ∃ n ≤ 3, c.rel = evenTable n := by
-  induction rest using List.twoStepInduction generalizing fresh first with
-  | nil =>
-    have he : c = ⟨evenTable 1, [first]⟩ := by
-      simpa only [parityChainTail, List.mem_singleton] using hc
-    subst c
-    exact ⟨rfl, by change 1 ≤ 3; omega, 1, by omega, rfl⟩
-  | singleton b =>
-    have he : c = ⟨evenTable 2, [first, b]⟩ := by
-      simpa only [parityChainTail, List.mem_singleton] using hc
-    subst c
-    exact ⟨rfl, by change 2 ≤ 3; omega, 2, by omega, rfl⟩
-  | cons_cons b d rest _ ih =>
-    cases rest with
-    | nil =>
-      have he : c = ⟨evenTable 3, [first, b, d]⟩ := by
-        simpa only [parityChainTail, List.mem_singleton] using hc
-      subst c
-      exact ⟨rfl, by change 3 ≤ 3; omega, 3, by omega, rfl⟩
-    | cons e rest =>
-      simp only [parityChainTail, List.mem_cons] at hc
-      rcases hc with rfl | hc
-      · exact ⟨rfl, by change 3 ≤ 3; omega, 3, by omega, rfl⟩
-      · exact ih d (fresh + 1) fresh hc
+  fun_induction parityChainTail fresh first rest with
+  | case4 _ _ _ _ _ _ ih => -- b :: c :: d :: rest: chain step
+    rcases List.mem_cons.mp hc with rfl | hc
+    · exact ⟨rfl, by simp, 3, le_rfl, rfl⟩
+    · exact ih hc
+  | _ => -- at most two boundary entries left
+    obtain rfl := List.mem_singleton.mp hc
+    exact ⟨rfl, by simp, _, by omega, rfl⟩
 
 /-- The actual expansion uses only nonempty even delta-matroid relations. -/
 theorem parityChain_tables (fresh : ℕ) (scope : List ℕ)
@@ -153,44 +119,34 @@ theorem parityChain_tables (fresh : ℕ) (scope : List ℕ)
       IsEvenDeltaMatroid (booleanRelation arity sem c.rel) := by
   cases scope with
   | nil =>
-    have he : c = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
-    subst c
+    obtain rfl : c = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
     exact ⟨rfl, by decide, isEvenDeltaMatroid_evenTable 0⟩
   | cons first rest =>
     obtain ⟨hw, hb, n, _, hn⟩ := parityChainTail_width fresh first rest c hc
-    exact ⟨hw, hb, by rw [hn]; exact isEvenDeltaMatroid_evenTable n⟩
+    exact ⟨hw, hb, hn ▸ isEvenDeltaMatroid_evenTable n⟩
 
 /-- Every satisfying chain assignment has even boundary parity. This direction needs no
 freshness or distinctness assumption, so repeated boundary names cause no semantic shortcut. -/
 theorem parityChainTail_sound (fresh first : ℕ) (rest : List ℕ) (σ : ℕ → Bool)
     (h : (parityChainTail fresh first rest).eval sem σ = true) :
     wordParity ((first :: rest).map σ) = false := by
-  induction rest using List.twoStepInduction generalizing fresh first with
-  | nil =>
-    exact (sem_evenTable 1 _).mp (by simpa only [parityChainTail, CSP.eval,
-      List.all_cons, List.all_nil, Bool.and_true, Constraint.eval] using h) |>.2
-  | singleton b =>
-    exact (sem_evenTable 2 _).mp (by simpa only [parityChainTail, CSP.eval,
-      List.all_cons, List.all_nil, Bool.and_true, Constraint.eval] using h) |>.2
-  | cons_cons b c rest _ ih =>
-    cases rest with
-    | nil =>
-      exact (sem_evenTable 3 _).mp (by simpa only [parityChainTail, CSP.eval,
-        List.all_cons, List.all_nil, Bool.and_true, Constraint.eval] using h) |>.2
-    | cons d rest =>
-      have hh : (evenTable 3).sem ([first, b, fresh].map σ) = true ∧
-          (parityChainTail (fresh + 1) fresh (c :: d :: rest)).eval sem σ = true := by
-        simpa only [parityChainTail, CSP.eval, List.all_cons, Bool.and_eq_true,
-          Constraint.eval] using h
-      have hp := (sem_evenTable 3 _).mp hh.1 |>.2
-      have ht := ih c (fresh + 1) fresh hh.2
-      simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil,
-        Bool.xor_false] at hp
-      have he : σ fresh = wordParity ((c :: d :: rest).map σ) := by
-        change (σ fresh ^^ wordParity ((c :: d :: rest).map σ)) = false at ht
-        simpa using ht
-      change (σ first ^^ (σ b ^^ wordParity ((c :: d :: rest).map σ))) = false
-      rwa [← he]
+  fun_induction parityChainTail fresh first rest with
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
+    have hh : (evenTable 3).sem ([first, b, fresh].map σ) = true ∧
+        (parityChainTail (fresh + 1) fresh (c :: d :: rest)).eval sem σ = true := by
+      simpa only [CSP.eval, List.all_cons, Bool.and_eq_true, Constraint.eval] using h
+    have hp := (sem_evenTable 3 _).mp hh.1 |>.2
+    have ht := ih hh.2
+    simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil,
+      Bool.xor_false] at hp
+    have he : σ fresh = wordParity ((c :: d :: rest).map σ) := by
+      change (σ fresh ^^ wordParity ((c :: d :: rest).map σ)) = false at ht
+      simpa using ht
+    change (σ first ^^ (σ b ^^ wordParity ((c :: d :: rest).map σ))) = false
+    rwa [← he]
+  | _ => -- at most two boundary entries left
+    exact (sem_evenTable _ _).mp (by simpa only [CSP.eval, List.all_cons, List.all_nil,
+      Bool.and_true, Constraint.eval] using h) |>.2
 
 /-- A satisfying expansion enforces even parity on its original boundary, including zero
 and one ports. -/
@@ -208,66 +164,36 @@ theorem parityChainTail_complete (fresh first : ℕ) (rest : List ℕ) (σ : ℕ
     ∃ τ : ℕ → Bool,
       (∀ v, v < fresh ∨ fresh + (rest.length - 2) ≤ v → τ v = σ v) ∧
       (parityChainTail fresh first rest).eval sem τ = true := by
-  induction rest using List.twoStepInduction generalizing fresh first σ with
-  | nil =>
+  fun_induction parityChainTail fresh first rest generalizing σ with
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
+    let σ' := Function.update σ fresh (σ first ^^ σ b)
+    have hfirst := hbound first (by simp)
+    have hb := hbound b (by simp)
+    have hread (v : ℕ) (hv : v < fresh) : σ' v = σ v := Function.update_of_ne (by omega) _ _
+    have hnext (v : ℕ) (hv : v ∈ fresh :: c :: d :: rest) : v < fresh + 1 :=
+      (List.mem_cons.mp hv).elim (fun h => by omega) fun hv =>
+        (hbound v (by simp [hv])).trans (Nat.lt_succ_self fresh)
+    have hparity' : wordParity ((fresh :: c :: d :: rest).map σ') = false := by
+      have he : (c :: d :: rest).map σ' = (c :: d :: rest).map σ :=
+        List.map_congr_left fun v hv => hread v (hbound v (by simp [hv]))
+      simp only [List.map_cons, wordParity_cons, he, σ', Function.update_self, Bool.xor_assoc]
+      exact hparity
+    obtain ⟨τ, hτ, heval⟩ := ih σ' hnext hparity'
+    refine ⟨τ, fun v hv => ?_, ?_⟩
+    · simp only [List.length_cons] at hv
+      rw [hτ v (by simp only [List.length_cons]; omega)]
+      exact Function.update_of_ne (by omega) _ _
+    · simp only [CSP.eval, List.all_cons, Bool.and_eq_true, Constraint.eval]
+      refine ⟨(sem_evenTable 3 _).mpr ⟨rfl, ?_⟩, heval⟩
+      simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil, Bool.xor_false]
+      rw [hτ first (.inl (by omega)), hτ b (.inl (by omega)), hτ fresh (.inl (by omega)),
+        hread first hfirst, hread b hb]
+      simp only [σ', Function.update_self]
+      cases σ first <;> cases σ b <;> rfl
+  | _ => -- at most two boundary entries left
     refine ⟨σ, fun _ _ => rfl, ?_⟩
-    simp only [parityChainTail, CSP.eval, List.all_cons, List.all_nil, Bool.and_true,
-      Constraint.eval]
-    exact (sem_evenTable 1 _).mpr ⟨rfl, hparity⟩
-  | singleton b =>
-    refine ⟨σ, fun _ _ => rfl, ?_⟩
-    simp only [parityChainTail, CSP.eval, List.all_cons, List.all_nil, Bool.and_true,
-      Constraint.eval]
-    exact (sem_evenTable 2 _).mpr ⟨rfl, hparity⟩
-  | cons_cons b c rest _ ih =>
-    cases rest with
-    | nil =>
-      refine ⟨σ, fun _ _ => rfl, ?_⟩
-      simp only [parityChainTail, CSP.eval, List.all_cons, List.all_nil, Bool.and_true,
-        Constraint.eval]
-      exact (sem_evenTable 3 _).mpr ⟨rfl, hparity⟩
-    | cons d rest =>
-      let σ' := Function.update σ fresh (σ first ^^ σ b)
-      have hfirst := hbound first (by simp)
-      have hb := hbound b (by simp)
-      have hread (v : ℕ) (hv : v < fresh) : σ' v = σ v := by
-        exact Function.update_of_ne (by omega) _ _
-      have hnext : ∀ v ∈ fresh :: c :: d :: rest, v < fresh + 1 := by
-        intro v hv
-        rcases List.mem_cons.mp hv with rfl | hv
-        · omega
-        · exact (hbound v (List.mem_cons_of_mem first (List.mem_cons_of_mem b hv))).trans
-            (Nat.lt_succ_self fresh)
-      have hparity' : wordParity ((fresh :: c :: d :: rest).map σ') = false := by
-        have he : (c :: d :: rest).map σ' = (c :: d :: rest).map σ := by
-          apply List.map_congr_left
-          intro v hv
-          exact hread v (hbound v (List.mem_cons_of_mem first (List.mem_cons_of_mem b hv)))
-        change (σ' fresh ^^ wordParity ((c :: d :: rest).map σ')) = false
-        rw [he]
-        rw [show σ' fresh = (σ first ^^ σ b) from Function.update_self _ _ _]
-        rw [Bool.xor_assoc]
-        exact hparity
-      obtain ⟨τ, hτ, heval⟩ := ih c (fresh + 1) fresh σ' hnext hparity'
-      refine ⟨τ, ?_, ?_⟩
-      · intro v hv
-        have hv' : v < fresh + 1 ∨ fresh + 1 + ((c :: d :: rest).length - 2) ≤ v := by
-          simp only [List.length_cons] at hv ⊢
-          omega
-        rw [hτ v hv']
-        exact Function.update_of_ne (by simp only [List.length_cons] at hv; omega) _ _
-      · have htfirst : τ first = σ first := (hτ first (.inl (by omega))).trans
-          (hread first hfirst)
-        have htb : τ b = σ b := (hτ b (.inl (by omega))).trans (hread b hb)
-        have htfresh : τ fresh = (σ first ^^ σ b) := by
-          rw [hτ fresh (.inl (by omega))]
-          exact Function.update_self _ _ _
-        simp only [parityChainTail, CSP.eval, List.all_cons, Bool.and_eq_true,
-          Constraint.eval]
-        refine ⟨(sem_evenTable 3 _).mpr ⟨rfl, ?_⟩, heval⟩
-        simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil,
-          Bool.xor_false, htfirst, htb, htfresh]
-        cases σ first <;> cases σ b <;> rfl
+    simp only [CSP.eval, List.all_cons, List.all_nil, Bool.and_true, Constraint.eval]
+    exact (sem_evenTable _ _).mpr ⟨rfl, hparity⟩
 
 /-- Exact existential semantics of the actual chain with its allocated names. -/
 theorem parityChain_complete (fresh : ℕ) (scope : List ℕ) (σ : ℕ → Bool)
@@ -281,9 +207,7 @@ theorem parityChain_complete (fresh : ℕ) (scope : List ℕ) (σ : ℕ → Bool
     change (evenTable 0).sem [] && true = true
     decide
   | cons first rest =>
-    have hlen : (first :: rest).length - 3 = rest.length - 2 := by
-      simp only [List.length_cons]; omega
-    simpa only [parityChain, hlen] using
+    simpa only [parityChain, List.length_cons, Nat.succ_sub_succ_eq_sub] using
       parityChainTail_complete fresh first rest σ hbound hparity
 
 /-- Exactly two occurrences of each allocated auxiliary, and the original multiplicity of
@@ -291,18 +215,14 @@ all boundary names. This equality does not assume that the caller chose fresh na
 theorem count_vars_parityChainTail (fresh first : ℕ) (rest : List ℕ) (v : ℕ) :
     (parityChainTail fresh first rest).vars.count v = (first :: rest).count v +
       if fresh ≤ v ∧ v < fresh + (rest.length - 2) then 2 else 0 := by
-  induction rest using List.twoStepInduction generalizing fresh first with
-  | nil => simp [parityChainTail, CSP.vars]
-  | singleton b => simp [parityChainTail, CSP.vars]
-  | cons_cons b c rest _ ih =>
-    cases rest with
-    | nil => simp [parityChainTail, CSP.vars]
-    | cons d rest =>
-      change ([first, b, fresh] ++ (parityChainTail (fresh + 1) fresh
-        (c :: d :: rest)).vars).count v = _
-      rw [List.count_append, ih c]
-      simp only [List.count_cons, List.count_nil, List.length_cons]
-      split_ifs <;> simp_all only [beq_iff_eq] <;> omega
+  fun_induction parityChainTail fresh first rest with
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
+    change ([first, b, fresh] ++ (parityChainTail (fresh + 1) fresh
+      (c :: d :: rest)).vars).count v = _
+    rw [List.count_append, ih]
+    simp only [List.count_cons, List.count_nil, List.length_cons]
+    split_ifs <;> simp_all only [beq_iff_eq] <;> omega
+  | _ => simp [CSP.vars] -- at most two boundary entries left
 
 /-- Every old boundary occurrence is retained once, and every new auxiliary occurs twice. -/
 theorem count_vars_parityChain (fresh : ℕ) (scope : List ℕ) (v : ℕ) :
@@ -311,9 +231,8 @@ theorem count_vars_parityChain (fresh : ℕ) (scope : List ℕ) (v : ℕ) :
   cases scope with
   | nil => simp [parityChain, CSP.vars]
   | cons first rest =>
-    have hlen : (first :: rest).length - 3 = rest.length - 2 := by
-      simp only [List.length_cons]; omega
-    simpa only [parityChain, hlen] using count_vars_parityChainTail fresh first rest v
+    simpa only [parityChain, List.length_cons, Nat.succ_sub_succ_eq_sub] using
+      count_vars_parityChainTail fresh first rest v
 
 /-- Output names are boundary names or precisely the allocated consecutive auxiliary interval. -/
 theorem mem_vars_parityChain (fresh : ℕ) (scope : List ℕ) (v : ℕ) :
@@ -335,42 +254,24 @@ theorem parityChainTail_scopes_nodup (fresh first : ℕ) (rest : List ℕ)
     (hnd : (first :: rest).Nodup) (hbound : ∀ v ∈ first :: rest, v < fresh)
     (constraint : Constraint Table ℕ) (hc : constraint ∈ parityChainTail fresh first rest) :
     constraint.scope.Nodup := by
-  induction rest using List.twoStepInduction generalizing fresh first with
-  | nil =>
-    have he : constraint = ⟨evenTable 1, [first]⟩ := by simpa [parityChainTail] using hc
-    subst constraint
+  fun_induction parityChainTail fresh first rest with
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
+    rcases List.mem_cons.mp hc with rfl | hc
+    · have hfirst := hbound first (by simp)
+      have hb := hbound b (by simp)
+      have hne : first ≠ b := fun he => hnd.notMem (by simp [he])
+      simp only [List.nodup_cons, List.mem_cons,
+        not_or, List.not_mem_nil, not_false_eq_true, and_true]
+      exact ⟨⟨hne, by omega⟩, by omega, trivial, List.nodup_nil⟩
+    · refine ih (List.nodup_cons.mpr ⟨fun hf => ?_, hnd.tail.tail⟩) (fun v hv => ?_) hc
+      · have := hbound fresh (by simp [hf])
+        omega
+      · rcases List.mem_cons.mp hv with rfl | hv
+        · omega
+        · exact (hbound v (by simp [hv])).trans (Nat.lt_succ_self fresh)
+  | _ => -- at most two boundary entries left
+    obtain rfl := List.mem_singleton.mp hc
     exact hnd
-  | singleton b =>
-    have he : constraint = ⟨evenTable 2, [first, b]⟩ := by simpa [parityChainTail] using hc
-    subst constraint
-    exact hnd
-  | cons_cons b c rest _ ih =>
-    cases rest with
-    | nil =>
-      have he : constraint = ⟨evenTable 3, [first, b, c]⟩ := by
-        simpa [parityChainTail] using hc
-      subst constraint
-      exact hnd
-    | cons d rest =>
-      simp only [parityChainTail, List.mem_cons] at hc
-      rcases hc with rfl | hc
-      · have hfirst := hbound first (by simp)
-        have hb := hbound b (by simp)
-        have hne : first ≠ b := fun he => hnd.notMem (by simp [he])
-        simp only [List.nodup_cons, List.mem_cons,
-          not_or, List.not_mem_nil, not_false_eq_true, and_true]
-        exact ⟨⟨hne, by omega⟩, by omega, trivial, List.nodup_nil⟩
-      · apply ih c (fresh + 1) fresh ?_ ?_ hc
-        · apply List.nodup_cons.mpr
-          refine ⟨?_, hnd.tail.tail⟩
-          intro hf
-          have := hbound fresh (List.mem_cons_of_mem first (List.mem_cons_of_mem b hf))
-          omega
-        · intro v hv
-          rcases List.mem_cons.mp hv with rfl | hv
-          · omega
-          · exact (hbound v (List.mem_cons_of_mem first
-              (List.mem_cons_of_mem b hv))).trans (Nat.lt_succ_self fresh)
 
 /-- Fresh parity expansion satisfies the target's no-repeat-within-one-scope convention. -/
 theorem parityChain_scopes_nodup (fresh : ℕ) (scope : List ℕ) (hnd : scope.Nodup)
@@ -379,8 +280,7 @@ theorem parityChain_scopes_nodup (fresh : ℕ) (scope : List ℕ) (hnd : scope.N
     constraint.scope.Nodup := by
   cases scope with
   | nil =>
-    have he : constraint = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
-    subst constraint
+    obtain rfl : constraint = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
     exact List.nodup_nil
   | cons first rest => exact parityChainTail_scopes_nodup fresh first rest hnd hbound constraint hc
 

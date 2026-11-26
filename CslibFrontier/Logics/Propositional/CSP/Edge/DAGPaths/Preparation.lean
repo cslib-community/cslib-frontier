@@ -32,13 +32,12 @@ theorem DirectedPath.occurrence_not_mem_of_earlier {sem : Rel → List Bool → 
     (ht : ∀ s ∈ w.steps, a.time < time s.1) : a.occurrence ∉ w.edges := by
   intro ho
   obtain ⟨s, hs, ho⟩ := List.mem_flatMap.mp ho
+  have hl := ht s hs
   rcases (show a.occurrence = s.1 ∨ a.occurrence = s.2 by simpa using ho) with ho | ho
   · have hh := congrArg Arc.time (h.unique a ha (inArc time s) (hp.incoming s hs) ho)
-    have hl := ht s hs
     change a.time = time s.1 at hh
     omega
   · have hh := congrArg Arc.time (h.unique a ha (outArc time s) (hp.outgoing s hs) ho)
-    have hl := ht s hs
     change a.time = time s.1 at hh
     omega
 
@@ -70,9 +69,9 @@ theorem DirectedPath.rank_lt_output {T : DAG F} {w : Walk F} {time : Occurrence 
           change (t.1 :: t.2 :: Walk.edgesOf ss).Nodup at hn
           exact (List.nodup_cons.mp (List.nodup_cons.mp hn).2).2
         · exact (hsup _ (hp.outgoing t List.mem_cons_self)).1
-        · intro s hs; exact hp.incoming s (List.mem_cons_of_mem t hs)
-        · intro s hs; exact hp.outgoing s (List.mem_cons_of_mem t hs)
-        · intro s hs u hu; exact hp.copies_injective s (List.mem_cons_of_mem t hs)
+        · exact fun s hs => hp.incoming s (List.mem_cons_of_mem t hs)
+        · exact fun s hs => hp.outgoing s (List.mem_cons_of_mem t hs)
+        · exact fun s hs u hu => hp.copies_injective s (List.mem_cons_of_mem t hs)
             u (List.mem_cons_of_mem t hu)
       exact hfirst.trans (ih t.2.var htail hs)
 
@@ -104,11 +103,8 @@ theorem DirectedPath.start_arc_eq {sem : Rel → List Bool → Bool}
     (he : w.steps = first :: tail) {a : Arc F} (ha : a ∈ pathArcs w time)
     (hv : a.occurrence.var = w.start) : a = inArc time first := by
   obtain ⟨rank, hr⟩ := h.ordered.2
-  have hout : ∀ s ∈ w.steps, s.2.var ≠ w.start := by
-    intro s hs hv
-    have hh := hp.rank_lt_output h.supported (fun x y he => hr x y (Or.inl he)) hs
-    rw [hv] at hh
-    exact Nat.lt_irrefl _ hh
+  have hout : ∀ s ∈ w.steps, s.2.var ≠ w.start := fun s hs hv => by
+    simpa [hv] using hp.rank_lt_output h.supported (fun x y he => hr x y (Or.inl he)) hs
   have htail : Walk.Linked first.2.var tail := by
     have hl := hp.walk.1
     rw [he] at hl
@@ -195,23 +191,18 @@ theorem DirectedPath.flip_later_subgraph {sem : Rel → List Bool → Bool}
           simpa [terminalPair, inArc, outArc] using hu) with rfl | rfl
         · exact (h.supported _ ha).1
         · exact (h.supported _ hb).1
-      · intro c hc'
-        have he := Finset.mem_singleton.mp hc'
-        exact he ▸ (h.supported _ ha).2
+      · exact fun c hc' => Finset.mem_singleton.mp hc' ▸ (h.supported _ ha).2
       · intro a ha'
         rcases (show a = inArc time s ∨ a = outArc time s by
           simpa only [terminalPair, Finset.mem_insert, Finset.mem_singleton] using ha') with
-          rfl | rfl
-        · exact ha
-        · exact hb
+          rfl | rfl <;> assumption
     let U := S.union (terminalPair (inArc time s) (outArc time s))
     have hu : U.IsFDAG sem ((⟨v, ss⟩ : Walk F).flip f) := by
       apply ih (hst.union hsub) (hs.union hterm) hinit ho'.1
       intro c hc' t ht
       rcases Finset.mem_union.mp hc' with hc' | hc'
       · exact hl c hc' t (List.mem_append_left _ ht)
-      · have he := Finset.mem_singleton.mp hc'
-        rw [he]
+      · rw [Finset.mem_singleton.mp hc']
         exact ho'.2.2 t ht s (List.mem_singleton_self _)
     have hsu : S.Subgraph U :=
       ⟨Finset.subset_union_left, Finset.subset_union_left, Finset.subset_union_left⟩
@@ -224,18 +215,13 @@ theorem DirectedPath.flip_later_subgraph {sem : Rel → List Bool → Bool}
     change (Walk.edgesOf (ss ++ [s])).Nodup at hnodup
     rw [Walk.edgesOf_append] at hnodup
     have hn := List.nodup_append.mp hnodup
-    have hne : s.1 ≠ s.2 := by
-      have hh := hn.2.1
-      simpa [Walk.edgesOf] using hh
-    have hno : s.1 ∉ (⟨v, ss⟩ : Walk F).edges := by
-      intro hx
-      exact hn.2.2 s.1 hx s.1 (by simp [Walk.edgesOf]) rfl
-    have hnp : s.2 ∉ (⟨v, ss⟩ : Walk F).edges := by
-      intro hx
-      exact hn.2.2 s.2 hx s.2 (by simp [Walk.edgesOf]) rfl
+    have hne : s.1 ≠ s.2 := by simpa [Walk.edgesOf] using hn.2.1
+    have hno : s.1 ∉ (⟨v, ss⟩ : Walk F).edges := fun hx =>
+      hn.2.2 s.1 hx s.1 (by simp [Walk.edgesOf]) rfl
+    have hnp : s.2 ∉ (⟨v, ss⟩ : Walk F).edges := fun hx =>
+      hn.2.2 s.2 hx s.2 (by simp [Walk.edgesOf]) rfl
     have he := Walk.flip_snoc (⟨v, ss⟩ : Walk F) f s.1 s.2 hinit.walk hno hnp hne
     change S.IsFDAG sem (pairFlip ((⟨v, ss⟩ : Walk F).flip f) s.1 s.2) at hv
-    rw [pairFlip_eq _ hne] at hv
-    rwa [← he] at hv
+    rwa [pairFlip_eq _ hne, ← he] at hv
 
 end Cslib.Logic.PL.CSP.DAG

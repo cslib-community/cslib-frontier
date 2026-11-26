@@ -99,27 +99,15 @@ theorem not_geographyWins_iff {G : Graph} {vis : List ℕ} {v : ℕ} :
 /-- **Only the set of visited vertices matters.** -/
 theorem geographyWins_congr {G : Graph} {vis vis' : List ℕ} (h : ∀ u, u ∈ vis ↔ u ∈ vis')
     (v : ℕ) : G.GeographyWins vis v ↔ G.GeographyWins vis' v := by
-  suffices ∀ n (vis vis' : List ℕ), (G.vertices.toFinset \ vis.toFinset).card < n →
-      (∀ u, u ∈ vis ↔ u ∈ vis') → ∀ v, G.GeographyWins vis v → G.GeographyWins vis' v from
-    ⟨this _ vis vis' (Nat.lt_succ_self _) h v,
-      this _ vis' vis (Nat.lt_succ_self _) (fun u => (h u).symm) v⟩
-  intro n
-  induction n with
-  | zero => intro _ _ hn; exact absurd hn (Nat.not_lt_zero _)
-  | succ n ih =>
-    intro vis vis' hn h v hwin
-    obtain ⟨w, hvw, hw, hwvis, hlose⟩ := geographyWins_iff.1 hwin
-    refine geographyWins_iff.2 ⟨w, hvw, hw, fun h' => hwvis ((h w).2 h'), fun hwin' => hlose ?_⟩
-    have hlt := card_sdiff_cons_lt hw hwvis
-    refine ih (w :: vis') (w :: vis) ?_ (fun u => ?_) w hwin'
-    · have hcard :
-          (G.vertices.toFinset \ (w :: vis').toFinset) =
-            (G.vertices.toFinset \ (w :: vis).toFinset) := by
-        ext u
-        simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, h]
-      rw [hcard]
-      omega
-    · simp only [List.mem_cons, h]
+  fun_induction GeographyWins G vis v generalizing vis' with
+  | case1 vis v ih =>
+    have hcons (w : ℕ) (u : ℕ) : u ∈ w :: vis ↔ u ∈ w :: vis' := by simp only [List.mem_cons, h]
+    rw [GeographyWins]
+    refine exists_congr fun w => ⟨fun ⟨hc, hl⟩ => ?_, fun ⟨hc, hl⟩ => ?_⟩
+    · exact ⟨⟨hc.1, hc.2.1, (not_congr (h w)).1 hc.2.2⟩, (ih w hc (hcons w)).not.1 hl⟩
+    · have hc' : (v, w) ∈ G.edges ∧ w ∈ G.vertices ∧ w ∉ vis :=
+        ⟨hc.1, hc.2.1, (not_congr (h w)).2 hc.2.2⟩
+      exact ⟨hc', (ih w hc' (hcons w)).not.2 hl⟩
 
 end Graph
 

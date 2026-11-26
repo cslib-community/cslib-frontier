@@ -62,9 +62,9 @@ theorem eq_sum_two_pow_smul_bit {m n : Type*} (X : Matrix m n ℤ) (β : ℕ)
     (hX : ∀ a j, 0 ≤ X a j ∧ X a j < 2 ^ β) :
     X = ∑ i ∈ Finset.range β, (2 : ℤ) ^ i • bit X i := by
   ext a j
-  rw [Matrix.sum_apply]
-  simp only [Matrix.smul_apply, bit, Matrix.of_apply, smul_eq_mul]
-  rw [← emod_two_pow_eq_sum_digits, Int.emod_eq_of_lt (hX a j).1 (hX a j).2]
+  simp only [Matrix.sum_apply, Matrix.smul_apply, bit, Matrix.of_apply, smul_eq_mul,
+    ← emod_two_pow_eq_sum_digits]
+  exact (Int.emod_eq_of_lt (hX a j).1 (hX a j).2).symm
 
 /-- Every digit matrix has entries zero or one, even for signed input. -/
 theorem bit_eq_zero_or_one {m n : Type*} (X : Matrix m n ℤ) (i : ℕ) (a : m)
@@ -79,18 +79,13 @@ theorem mul_eq_sum_two_pow_smul_bit_mul_bit {m d n : Type*} [Fintype d]
     X * Y = ∑ i ∈ Finset.range β, ∑ j ∈ Finset.range β,
       (2 : ℤ) ^ (i + j) • (bit X i * bit Y j) := by
   conv_lhs => rw [eq_sum_two_pow_smul_bit X β hX, eq_sum_two_pow_smul_bit Y β hY]
-  rw [Matrix.sum_mul]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [Matrix.mul_sum]
-  refine Finset.sum_congr rfl fun j _ => ?_
-  rw [Matrix.smul_mul, Matrix.mul_smul, smul_smul, pow_add]
+  simp_rw [Matrix.sum_mul, Matrix.mul_sum, Matrix.smul_mul, Matrix.mul_smul, smul_smul, ← pow_add]
 
 /-- Entrywise positive and negative parts reconstruct an integer matrix.
 `Matrix.map` reuses scalar signed parts without adding an ordering instance to matrices. -/
 theorem eq_map_posPart_sub_map_negPart {m n : Type*} (X : Matrix m n ℤ) :
-    X = X.map posPart - X.map negPart := by
-  ext a j
-  exact (posPart_sub_negPart (X a j)).symm
+    X = X.map posPart - X.map negPart :=
+  Matrix.ext fun a j => (posPart_sub_negPart (X a j)).symm
 
 /-- Both pointwise signed parts of an absolutely bounded matrix satisfy the same nonnegative
 bound. This uses the existing ordered-group operations, without introducing matrix variants. -/

@@ -81,8 +81,7 @@ theorem two_pow_length_tinyCut_le (x : List Bool) :
   have h := Nat.log2_eq_size_sub_one x.length
   unfold tinyCut
   split_ifs with hx
-  · have := of_decide_eq_true hx
-    omega
+  · exact (of_decide_eq_true hx).trans (by omega)
   · simp
 
 /-- **A description padded to doubly exponential length is tiny.** -/
@@ -94,18 +93,16 @@ theorem tinyDesc_frame_append {w pad : List Bool} (h : 2 ^ 2 ^ w.length ≤ pad.
 /-! ### Tiny descriptions in logarithmic space -/
 
 /-- **Tininess is decided in logarithmic space**, by comparing unary numbers. -/
-theorem computableInLogSpace_tinyDesc : ComputableInLogSpace tinyDesc encBits encBool := by
-  have hu : ComputableInLogSpace (fun x : List Bool => (unframe x).length) encBits encUnary :=
-    ComputableInLogSpace.bitsLength.comp (ComputableInLogSpace.of_unframe (encIn := encBits)
-      (encOut := encBits) (f := unframe) fun _ => rfl)
-  have hn := ComputableInLogSpace.unarySize
-    (ComputableInLogSpace.unarySize ComputableInLogSpace.bitsLength)
-  exact (ComputableInLogSpace.unaryLt hu hn).congr_fun tinyDesc_eq_decide
+theorem computableInLogSpace_tinyDesc : ComputableInLogSpace tinyDesc encBits encBool :=
+  (by fun_prop :
+    ComputableInLogSpace (fun x : List Bool => decide ((unframe x).length < x.length.size.size))
+      encBits encBool).congr_fun tinyDesc_eq_decide
 
 /-- **Tiny descriptions are cut out in logarithmic space.** -/
-theorem computableInLogSpace_tinyCut : ComputableInLogSpace tinyCut encBits encBits :=
-  ComputableInLogSpace.ite computableInLogSpace_tinyDesc
-    (ComputableInLogSpace.of_unframe fun _ => rfl) (ComputableInLogSpace.const [])
+theorem computableInLogSpace_tinyCut : ComputableInLogSpace tinyCut encBits encBits := by
+  have := computableInLogSpace_tinyDesc
+  unfold tinyCut
+  fun_prop
 
 /-- **Tiny descriptions are decoded in logarithmic space.** Decoding takes space polynomial in the
 length `L` of the description, which is `O(2 ^ L) = O(log n)` on a tiny description, and the
@@ -122,10 +119,8 @@ theorem computableInLogSpace_decodeDesc_tinyCut :
   simp only [encBits_apply]
   have hL := two_pow_length_tinyCut_le x
   have hs : sd (tinyCut x) ≤ cs * A * (Nat.log2 x.length + 1) := by
-    have h₁ := hcs (tinyCut x)
-    have h₂ := hA (tinyCut x).length
-    simp only [encBits_apply] at h₁
-    calc sd (tinyCut x) ≤ cs * (A * 2 ^ (tinyCut x).length) := h₁.trans (Nat.mul_le_mul_left _ h₂)
+    calc sd (tinyCut x) ≤ cs * (A * 2 ^ (tinyCut x).length) :=
+          (hcs (tinyCut x)).trans (Nat.mul_le_mul_left _ (hA _))
       _ ≤ cs * (A * (Nat.log2 x.length + 1)) := by gcongr
       _ = _ := by ring
   have hn : (encNat (x.length + 1)).length ≤ Nat.log2 x.length + 2 :=
@@ -135,10 +130,8 @@ theorem computableInLogSpace_decodeDesc_tinyCut :
     have := Nat.lt_two_pow_self (n := (tinyCut x).length)
     exact (Nat.size_le_self _).trans (by omega)
   generalize Nat.log2 x.length = l at *
-  have : c * (cc * (l + 1) + sd (tinyCut x) + (encNat (x.length + 1)).length +
-      (encNat ((tinyCut x).length + 1)).length + 1) ≤ c * ((cc + cs * A + 4) * (l + 1)) :=
-    Nat.mul_le_mul_left _ (by nlinarith)
-  simpa only [mul_assoc] using this
+  rw [mul_assoc]
+  exact Nat.mul_le_mul_left _ (by nlinarith)
 
 /-- **Tiny descriptions decode to short descriptions**: the decoded cut description has encoded
 length `O(log n)`, since decoding `L` bits gives a description of length polynomial in `L`. -/
@@ -148,9 +141,8 @@ theorem exists_length_eDesc_decodeDesc_tinyCut_le :
   obtain ⟨A, hA⟩ := PolynomiallyBounded.exists_le_mul_two_pow (p := fun u => (u + 1) ^ e)
     (by fun_prop)
   refine ⟨ce * A, fun x => ?_⟩
-  have h₁ := hce (tinyCut x)
-  simp only [encBits_apply] at h₁
-  calc _ ≤ ce * (A * 2 ^ (tinyCut x).length) := h₁.trans (Nat.mul_le_mul_left _ (hA _))
+  calc _ ≤ ce * (A * 2 ^ (tinyCut x).length) :=
+        (hce (tinyCut x)).trans (Nat.mul_le_mul_left _ (hA _))
     _ ≤ ce * (A * (Nat.log2 x.length + 1)) := by gcongr; exact two_pow_length_tinyCut_le x
     _ = _ := by ring
 

@@ -14,6 +14,9 @@ public import Batteries.Data.BinaryHeap
 -- recursive versions compute the same.
 import all Batteries.Data.BinaryHeap.Basic
 import all Batteries.Data.BinaryHeap.Lemmas
+-- `import all` also to use the invariants of `heapifyUp` (`WF.ExceptAt`, `WF.ParentGeChildren`) and
+-- its correctness (`heapifyUp_topDown`), for a heap whose order changes at one element.
+import all Batteries.Data.BinaryHeap.WF
 
 /-! # Binary heaps the kernel can run
 
@@ -43,6 +46,10 @@ which the kernel would need.
   `insert` and `popMax`.
 * `Batteries.BinaryHeap.mem_popMaxF`, `Batteries.BinaryHeap.mem_of_mem_popMaxF`: removing the
   maximum removes it and nothing else.
+* `Batteries.BinaryHeap.heapifyUpF_perm`, `Batteries.BinaryHeap.heapifyDownF_perm`: sifting
+  permutes the elements.
+* `Batteries.BinaryHeap.topDown_heapifyUp_of_isGE`: after the order changed at one element, as when
+  the key of a variable alone grew, sifting it up restores the heap.
 -/
 
 @[expose] public section
@@ -94,12 +101,9 @@ theorem heapifyUpF_eq : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fin 
   | fuel + 1, _, a, ⟨i' + 1, hi⟩, h => by
     rw [heapifyUpF, heapifyUp.eq_def]
     simp only [Fin.getElem_fin]
-    by_cases hc : (compare a[i' / 2] a[i' + 1]).isLT = true
-    · simp only [hc, ↓reduceIte]
-      refine heapifyUpF_eq fuel _ _ ?_
-      simp only at h ⊢
-      omega
-    · simp only [hc, Bool.false_eq_true, ↓reduceIte]
+    split
+    · exact heapifyUpF_eq fuel _ _ (by simp only at h ⊢; omega)
+    · rfl
 
 /-- `heapifyDown` by structural recursion on `fuel`. -/
 def heapifyDownF : (fuel : Nat) → {sz : Nat} → Vector α sz → Fin sz → Vector α sz
@@ -180,13 +184,84 @@ theorem mem_popMaxF {heap : BinaryHeap α} {x y : α} (hx : heap.maxF = some x) 
   have : y ∈ heap.arr[0] :: heap.popMax.arr.toList :=
     (popMax_perm hpos).mem_iff.2 (Array.mem_toList_iff.2 hy)
   rw [popMaxF_eq]
-  rcases List.mem_cons.1 this with h | h
-  · exact .inl h
-  · exact .inr (Array.mem_toList_iff.1 h)
+  exact (List.mem_cons.1 this).imp_right Array.mem_toList_iff.1
 
 /-- Removing the maximum adds no element. -/
 theorem mem_of_mem_popMaxF {heap : BinaryHeap α} {y : α} (hy : y ∈ heap.popMaxF) : y ∈ heap := by
   rw [popMaxF_eq] at hy
   exact mem_of_mem_popMax hy
+
+/-- Sifting up permutes the elements. -/
+theorem heapifyUpF_perm : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fin sz),
+    (heapifyUpF fuel a i).Perm a
+  | 0, _, _, _ => .refl _
+  | _ + 1, _, _, ⟨0, _⟩ => .refl _
+  | fuel + 1, _, a, ⟨i' + 1, hi⟩ => by
+    rw [heapifyUpF]
+    split
+    · exact (heapifyUpF_perm fuel _ _).trans (Vector.swap_perm ..)
+    · exact .refl _
+
+/-- Sifting down permutes the elements. -/
+theorem heapifyDownF_perm : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fin sz),
+    (heapifyDownF fuel a i).Perm a
+  | 0, _, _, _ => .refl _
+  | fuel + 1, _, a, i => by
+    rw [heapifyDownF]
+    split
+    · exact .refl _
+    · split
+      · exact (heapifyDownF_perm fuel _ _).trans (Vector.swap_perm ..)
+      · exact .refl _
+
+/-- A well-formed vector makes a well-formed heap. -/
+theorem wf_of_topDown {sz : Nat} {v : Vector α sz} (h : WF.TopDown v) : WF ⟨v.toArray⟩ :=
+  WF.of_topDown h
+
+end Batteries.BinaryHeap
+
+/-! ### Heaps whose order changes -/
+
+namespace Batteries.BinaryHeap
+
+variable {α : Type u}
+
+/-- **A heap stays a heap in another order**: if every comparison `a[k] ≥ a[j]` in the order `o₁`
+holds in the order `o₂`, a heap for `o₁` is one for `o₂`. -/
+theorem topDown_of_isGE {o₁ o₂ : Ord α} {sz : Nat} {a : Vector α sz}
+    (h : ∀ k j : Fin sz, (@compare α o₁ a[k] a[j]).isGE → (@compare α o₂ a[k] a[j]).isGE)
+    (hwf : @WF.TopDown α sz o₁ a) : @WF.TopDown α sz o₂ a := fun i =>
+  ⟨fun hl => h i ⟨_, hl⟩ ((hwf i).1 hl), fun hr => h i ⟨_, hr⟩ ((hwf i).2 hr)⟩
+
+/-- **Sifting up after the order changed at one element**: if `a` is a heap for the order `o₁`,
+and every comparison `a[k] ≥ a[j]` in `o₁` with `j ≠ i` holds in the order `o₂` (as when the key
+of `a[i]` alone grew), sifting `a[i]` up in `o₂` gives a heap for `o₂`. -/
+theorem topDown_heapifyUp_of_isGE {o₁ o₂ : Ord α} [h₁ : @Std.TransOrd α o₁]
+    [h₂ : @Std.TransOrd α o₂] {sz : Nat} {a : Vector α sz} {i : Fin sz}
+    (h : ∀ k j : Fin sz, j ≠ i →
+      (@compare α o₁ a[k] a[j]).isGE → (@compare α o₂ a[k] a[j]).isGE)
+    (hwf : @WF.TopDown α sz o₁ a) : @WF.TopDown α sz o₂ (@heapifyUp α sz o₂ a i) := by
+  have hbu := (@WF.TopDown.iff_bottomUp α sz o₁ a).1 hwf
+  let _ := o₂
+  refine heapifyUp_topDown (fun j hj hpos => ?_) ?_
+  · exact h ⟨_, by omega⟩ j (Ne.symm hj) (hbu j hpos)
+  · -- the parent of `i` is at least `a[i]`, which is at least its children
+    have hpi : (@compare α o₁ a[(i.val - 1) / 2] a[i]).isGE := by
+      by_cases hi : i.val = 0
+      · have : (i.val - 1) / 2 = i.val := by omega
+        simp only [this, Fin.getElem_fin]
+        let _ := o₁
+        rw [Std.ReflOrd.compare_self]; rfl
+      · exact hbu i (by omega)
+    obtain ⟨hl, hr⟩ := hwf i
+    constructor
+    · intro hl'
+      refine h ⟨_, by omega⟩ ⟨_, hl'⟩
+        (fun e => by have := congrArg Fin.val e; simp at this; omega) ?_
+      exact @Std.TransOrd.isGE_trans α o₁ h₁ _ _ _ hpi (hl hl')
+    · intro hr'
+      refine h ⟨_, by omega⟩ ⟨_, hr'⟩
+        (fun e => by have := congrArg Fin.val e; simp at this; omega) ?_
+      exact @Std.TransOrd.isGE_trans α o₁ h₁ _ _ _ hpi (hr hr')
 
 end Batteries.BinaryHeap

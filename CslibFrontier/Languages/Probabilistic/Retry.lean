@@ -95,13 +95,10 @@ theorem mem_supportWith_retry {possible : (q : ι) → Set (spec q)} {fuel : ℕ
   | succ fuel ih =>
     rw [retry_succ, mem_supportWith_bind_iff] at ha
     obtain ⟨b, hb, hab⟩ := ha
-    by_cases hgood : good b
-    · simp only [hgood, ↓reduceIte, supportWith_pure, Set.mem_singleton_iff,
-        Option.some.injEq] at hab
-      subst hab
+    split_ifs at hab with hgood
+    · obtain rfl : a = b := by simpa using hab
       exact ⟨hgood, hb⟩
-    · simp only [hgood, ↓reduceIte] at hab
-      exact ih hab
+    · exact ih hab
 
 variable (h : (q : ι) → PMF (spec q))
 
@@ -115,10 +112,7 @@ theorem evalWith_retry_none (fuel : ℕ) :
   | succ fuel ih =>
     rw [retry_succ, evalWith_bind, PMF.bind_apply, pow_succ', ← ih, PMF.toOuterMeasure_apply,
       ← ENNReal.tsum_mul_right]
-    refine tsum_congr fun a => ?_
-    by_cases hgood : good a
-    · simp [hgood]
-    · simp [hgood]
+    exact tsum_congr fun a => by by_cases hgood : good a <;> simp [hgood]
 
 /-- A run failing with probability at most `q` makes the loop fail with probability at most
 `q ^ fuel`. -/
@@ -137,12 +131,12 @@ theorem toOuterMeasure_evalWith_retry_le (bad : Set α) {ε : ℝ≥0∞}
   | zero => simp [PMF.toOuterMeasure_pure_apply]
   | succ fuel ih =>
     rw [retry_succ, evalWith_bind]
-    calc _ ≤ (evalWith h program).toOuterMeasure {a | good a ∧ a ∈ bad} + fuel * ε := by
-          refine Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun a _ ha => ?_
-          by_cases hgood : good a
-          · have hnot : a ∉ bad := fun hmem => ha ⟨hgood, hmem⟩
-            simp [hgood, hnot, PMF.toOuterMeasure_pure_apply]
-          · simpa [hgood] using ih
+    calc _ ≤ (evalWith h program).toOuterMeasure {a | good a ∧ a ∈ bad} + fuel * ε :=
+          Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun a _ ha => by
+            by_cases hgood : good a
+            · simp [hgood, show a ∉ bad from fun hmem => ha ⟨hgood, hmem⟩,
+                PMF.toOuterMeasure_pure_apply]
+            · simpa [hgood] using ih
       _ ≤ ε + fuel * ε := by gcongr
       _ = (fuel + 1 : ℕ) * ε := by push_cast; ring
 
@@ -157,21 +151,14 @@ theorem evalWith_retry_some (fuel : ℕ) (a : α) :
   induction fuel with
   | zero => simp
   | succ fuel ih =>
-    have hterm : ∀ b, evalWith h program b *
+    have hterm (b) : evalWith h program b *
         evalWith h (if good b then pure (some b) else retry good program fuel) (some a) =
         (if b = a then (if good a then evalWith h program a else 0) else 0) +
           {x | ¬ good x}.indicator (evalWith h program) b *
             evalWith h (retry good program fuel) (some a) := by
-      intro b
-      by_cases hb : good b
-      · by_cases hba : b = a
-        · subst hba
-          simp [hb]
-        · simp [hb, hba, Ne.symm hba]
-      · by_cases hba : b = a
-        · subst hba
-          simp [hb]
-        · simp [hb, hba]
+      rcases eq_or_ne b a with rfl | hba
+      · by_cases hb : good b <;> simp [hb]
+      · by_cases hb : good b <;> simp [hb, hba, hba.symm]
     rw [retry_succ, evalWith_bind, PMF.bind_apply]
     refine (tsum_congr hterm).trans ?_
     rw [tsum_add, tsum_ite_eq, ENNReal.tsum_mul_right, ← PMF.toOuterMeasure_apply, ih,
@@ -188,11 +175,7 @@ theorem expectedCost_retry_succ (fuel : ℕ) :
         (evalWith h program).toOuterMeasure {a | ¬ good a} *
           expectedCost h cost (retry good program fuel) := by
   rw [retry_succ, expectedCost_bind, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-  congr 1
-  refine tsum_congr fun a => ?_
-  by_cases hgood : good a
-  · simp [hgood]
-  · simp [hgood]
+  exact congrArg _ (tsum_congr fun a => by by_cases hgood : good a <;> simp [hgood])
 
 /-- The expected cost of the loop is a geometric sum: a run of expected cost `c` failing with
 probability `q` gives `c (1 + q + ⋯ + q ^ (fuel - 1))`. -/
@@ -233,17 +216,12 @@ theorem evalWith_bind_elim_none_le (program : OracleComp spec (Option α))
     (hnext : ∀ a, evalWith h (next a) none ≤ c) :
     evalWith h (program >>= fun o => o.elim (pure none) next) none ≤
       evalWith h program none + c := by
-  have hcompl : ({o | o.isSome} : Set (Option α))ᶜ = {none} := by
-    ext o
-    cases o <;> simp
+  have hcompl : ({o | o.isSome} : Set (Option α))ᶜ = {none} := by ext (_ | _) <;> simp
   have key := Probability.PMF.toOuterMeasure_bind_failure_le (evalWith h program)
     (fun o => evalWith h (o.elim (pure none) next)) {o | o.isSome} {none} c fun o _ ho => by
       obtain ⟨a, rfl⟩ := Option.isSome_iff_exists.mp ho
-      rw [PMF.toOuterMeasure_apply_singleton]
-      exact hnext a
-  rw [hcompl, PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at key
-  rw [evalWith_bind]
-  exact key
+      simpa only [Option.elim_some, PMF.toOuterMeasure_apply_singleton] using hnext a
+  simpa only [evalWith_bind, hcompl, PMF.toOuterMeasure_apply_singleton] using key
 
 /-- The expected cost of a partial program followed, on success, by a continuation is at most the
 expected cost of the first program plus a bound on the expected cost of every continuation. -/
@@ -255,8 +233,7 @@ theorem expectedCost_bind_elim_le (cost : ι → ℝ≥0∞) (program : OracleCo
   rw [expectedCost_bind]
   gcongr
   calc ∑' o, evalWith h program o * expectedCost h cost (o.elim (pure none) next)
-      ≤ ∑' o, evalWith h program o * c := by
-        refine tsum_le_tsum fun o => ?_
+      ≤ ∑' o, evalWith h program o * c := tsum_le_tsum fun o => by
         gcongr
         cases o with
         | none => simp
@@ -294,11 +271,8 @@ theorem toOuterMeasure_evalWith_pi_exists_le (programs : (i : Fin m) → OracleC
     refine Probability.PMF.toOuterMeasure_bind_le_add _ _ {a | bad 0 a} _ _ fun a _ ha => ?_
     rw [evalWith_map, PMF.toOuterMeasure_map_apply]
     have hsub : (Fin.cons a : ((j : Fin m) → β j.succ) → (i : Fin (m + 1)) → β i) ⁻¹'
-          {r | ∃ i, bad i (r i)} ⊆ {r | ∃ j, bad j.succ (r j)} := by
-      rintro r ⟨i, hi⟩
-      cases i using Fin.cases with
-      | zero => exact (ha (by simpa using hi)).elim
-      | succ j => exact ⟨j, by simpa using hi⟩
+        {r | ∃ i, bad i (r i)} ⊆ {r | ∃ j, bad j.succ (r j)} := fun r ⟨i, hi⟩ =>
+      Fin.cases (fun h => (ha h).elim) (fun j h => ⟨j, h⟩) i hi
     exact (MeasureTheory.measure_mono hsub).trans (ih _ _)
 
 end Pi

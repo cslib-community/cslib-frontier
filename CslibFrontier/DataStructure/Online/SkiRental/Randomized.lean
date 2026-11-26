@@ -107,9 +107,7 @@ theorem ofReal_randomizedRatio {B : ℕ} (hB : 1 ≤ B) :
       ((B ^ B : ℕ) : ℝ≥0∞) / ((B ^ B - (B - 1) ^ B : ℕ) : ℝ≥0∞) := by
   have hlt : (B - 1) ^ B < B ^ B := Nat.pow_lt_pow_left (by omega) (by omega)
   have hcast : (((B ^ B - (B - 1) ^ B : ℕ)) : ℝ) = (B : ℝ) ^ B - ((B : ℝ) - 1) ^ B := by
-    rw [Nat.cast_sub hlt.le]
-    push_cast [Nat.cast_sub hB]
-    ring
+    simp [Nat.cast_sub hlt.le, Nat.cast_sub hB]
   have hpos : (0 : ℝ) < ((B ^ B - (B - 1) ^ B : ℕ) : ℝ) := by
     exact_mod_cast Nat.sub_pos_of_lt hlt
   rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hpos,
@@ -117,9 +115,9 @@ theorem ofReal_randomizedRatio {B : ℕ} (hB : 1 ≤ B) :
 
 private theorem one_div_one_sub_exp_neg_one :
     1 / (1 - Real.exp (-1)) = Real.exp 1 / (Real.exp 1 - 1) := by
-  have h1 : 1 < Real.exp 1 := Real.one_lt_exp_iff.mpr one_pos
+  have hne : Real.exp 1 - 1 ≠ 0 := sub_ne_zero.mpr (Real.one_lt_exp_iff.mpr one_pos).ne'
   rw [Real.exp_neg]
-  field_simp [show Real.exp 1 - 1 ≠ 0 by linarith]
+  field_simp
 
 /-- `randomizedRatio B ≤ e/(e-1)`, from `(1 - 1/B)^B ≤ e⁻¹`. -/
 theorem randomizedRatio_le {B : ℕ} (hB : 1 ≤ B) :
@@ -134,27 +132,22 @@ theorem randomizedRatio_le {B : ℕ} (hB : 1 ≤ B) :
 theorem tendsto_randomizedRatio :
     Tendsto randomizedRatio atTop (𝓝 (Real.exp 1 / (Real.exp 1 - 1))) := by
   have h : Tendsto (fun B : ℕ => (1 - 1 / (B : ℝ)) ^ B) atTop (𝓝 (Real.exp (-1))) := by
-    have := Real.tendsto_one_add_div_pow_exp (-1)
-    simpa only [neg_div, ← sub_eq_add_neg] using this
-  have hne : 1 - Real.exp (-1) ≠ 0 := by
-    have : Real.exp (-1) < 1 := Real.exp_lt_one_iff.mpr (by norm_num)
-    linarith
+    simpa only [neg_div, ← sub_eq_add_neg] using Real.tendsto_one_add_div_pow_exp (-1)
   rw [← one_div_one_sub_exp_neg_one]
-  exact tendsto_const_nhds.div (tendsto_const_nhds.sub h) hne
+  exact tendsto_const_nhds.div (tendsto_const_nhds.sub h)
+    (sub_ne_zero.mpr (Real.exp_lt_one_iff.mpr (by norm_num)).ne')
 
 /-- For `B ≥ 2` randomization helps: `randomizedRatio B < 2 - 1/B`, the optimal deterministic
 ratio (`SkiRental.breakEven_mul_cost_le`, `SkiRental.exists_ratio_violation_of_lt`). -/
 theorem randomizedRatio_lt_two_sub {B : ℕ} (hB : 2 ≤ B) :
     randomizedRatio B < 2 - 1 / (B : ℝ) := by
   rcases hB.eq_or_lt with rfl | hB3
-  · rw [randomizedRatio_eq (by norm_num)]
-    norm_num
-  · have he := Real.exp_one_gt_d9
-    have h53 : Real.exp 1 / (Real.exp 1 - 1) < 5 / 3 := by
-      rw [div_lt_iff₀ (by linarith)]
-      linarith
-    have hB' : (3 : ℝ) ≤ B := by exact_mod_cast hB3
-    have h13 : 1 / (B : ℝ) ≤ 1 / 3 := one_div_le_one_div_of_le (by norm_num) hB'
+  · rw [randomizedRatio_eq (by norm_num)]; norm_num
+  · have h53 : Real.exp 1 / (Real.exp 1 - 1) < 5 / 3 := by
+      rw [div_lt_iff₀ (by linarith [Real.exp_one_gt_d9])]
+      linarith [Real.exp_one_gt_d9]
+    have h13 : 1 / (B : ℝ) ≤ 1 / 3 :=
+      one_div_le_one_div_of_le (by norm_num) (by exact_mod_cast hB3)
     linarith [randomizedRatio_le (B := B) (by omega)]
 
 /-! ### Arithmetic of the two distributions
@@ -167,10 +160,8 @@ private theorem sum_buy_aux (m n : ℕ) (hn : n ≤ m + 1) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_add, pow_zero, one_mul, Nat.sub_zero]
   | succ n ih =>
-    rw [Finset.sum_range_succ, add_right_comm, ih (by omega)]
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + j := ⟨m - n, by omega⟩
-    rw [show n + j - n = j by omega, show n + j + 1 - n = j + 1 by omega,
-      show n + j + 1 - (n + 1) = j by omega]
+    rw [Finset.sum_range_succ, add_right_comm, ih (by omega),
+      show m + 1 - (n + 1) = m - n by omega, show m + 1 - n = m - n + 1 by omega]
     ring
 
 private theorem sum_buy_mul_aux (m n : ℕ) (hn : n ≤ m + 1) :
@@ -179,10 +170,8 @@ private theorem sum_buy_mul_aux (m n : ℕ) (hn : n ≤ m + 1) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_mul]
   | succ n ih =>
-    rw [Finset.sum_range_succ, ih (by omega)]
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + j := ⟨m - n, by omega⟩
-    rw [show n + j - n = j by omega, show n + j + 1 - n = j + 1 by omega,
-      show n + j + 1 - (n + 1) = j by omega]
+    rw [Finset.sum_range_succ, ih (by omega),
+      show m + 1 - (n + 1) = m - n by omega, show m + 1 - n = m - n + 1 by omega]
     ring
 
 private theorem sum_Ico_buy_aux (m n : ℕ) (hn : n ≤ m + 1) :
@@ -198,17 +187,12 @@ of the threshold strategies is `B^B * n`. -/
 private theorem sum_buy_mul_cost_aux (m n : ℕ) (hn : n ≤ m + 1) :
     ∑ t ∈ range (m + 1), m ^ (m - t) * (m + 1) ^ t * (if n ≤ t then n else t + (m + 1)) =
       (m + 1) ^ (m + 1) * n := by
-  have hlo : ∑ t ∈ range n, m ^ (m - t) * (m + 1) ^ t * (if n ≤ t then n else t + (m + 1)) =
-      ∑ t ∈ range n, m ^ (m - t) * (m + 1) ^ t * (t + (m + 1)) :=
-    Finset.sum_congr rfl fun t ht => by
-      rw [ite_eq_right (by rw [Finset.mem_range] at ht; omega)]
-  have hhi : ∑ t ∈ Ico n (m + 1), m ^ (m - t) * (m + 1) ^ t * (if n ≤ t then n else t + (m + 1)) =
-      (∑ t ∈ Ico n (m + 1), m ^ (m - t) * (m + 1) ^ t) * n := by
-    rw [Finset.sum_mul]
-    exact Finset.sum_congr rfl fun t ht => by
-      rw [ite_eq_left (by rw [Finset.mem_Ico] at ht; omega)]
-  rw [← Finset.sum_range_add_sum_Ico _ hn, hlo, hhi, sum_buy_mul_aux m n hn,
-    ← sum_Ico_buy_aux m n hn]
+  rw [← Finset.sum_range_add_sum_Ico _ hn,
+    Finset.sum_congr rfl fun t ht =>
+      congrArg (_ * ·) (ite_eq_right (not_le.mpr (Finset.mem_range.mp ht))),
+    Finset.sum_congr rfl fun t ht =>
+      congrArg (_ * ·) (ite_eq_left (Finset.mem_Ico.mp ht).1),
+    ← Finset.sum_mul, sum_buy_mul_aux m n hn, ← sum_Ico_buy_aux m n hn]
   ring
 
 private theorem sum_adv_aux (m n : ℕ) (hn : n ≤ m) :
@@ -216,11 +200,8 @@ private theorem sum_adv_aux (m n : ℕ) (hn : n ≤ m) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_add, pow_zero, one_mul, Nat.sub_zero]
   | succ n ih =>
-    rw [← ih (by omega), Finset.sum_range_succ, add_assoc]
-    congr 1
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + 1 + j := ⟨m - n - 1, by omega⟩
-    rw [show n + 1 + j - 1 - n = j by omega, show n + 1 + j - (n + 1) = j by omega,
-      show n + 1 + j - n = j + 1 by omega]
+    rw [← ih (by omega), Finset.sum_range_succ, show m - (n + 1) = m - 1 - n by omega,
+      show m - n = m - 1 - n + 1 by omega]
     ring
 
 private theorem sum_adv_mul_aux (m n : ℕ) (hn : n ≤ m) :
@@ -229,11 +210,8 @@ private theorem sum_adv_mul_aux (m n : ℕ) (hn : n ≤ m) :
   induction n with
   | zero => rw [Finset.sum_range_zero, Nat.sub_zero]; ring
   | succ n ih =>
-    rw [← ih (by omega), Finset.sum_range_succ, add_assoc]
-    congr 1
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + 1 + j := ⟨m - n - 1, by omega⟩
-    rw [show n + 1 + j - 1 - n = j by omega, show n + 1 + j - (n + 1) = j by omega,
-      show n + 1 + j - n = j + 1 by omega]
+    rw [← ih (by omega), Finset.sum_range_succ, show m - (n + 1) = m - 1 - n by omega,
+      show m - n = m - 1 - n + 1 by omega]
     ring
 
 /-- Mean cost bound for the equalizing adversary: against the threshold strategy that rents for
@@ -248,33 +226,23 @@ private theorem le_sum_adv_mul_cost_aux (m t : ℕ) :
     have ha := sum_adv_aux m t htm.le
     have ha' := sum_adv_aux m m le_rfl
     rw [← Finset.sum_range_add_sum_Ico _ htm.le, Nat.sub_self, pow_zero, mul_one] at ha'
-    have hlo : ∑ k ∈ range t, m ^ k * (m + 1) ^ (m - 1 - k) *
-        (if k + 1 ≤ t then k + 1 else t + (m + 1)) =
-        ∑ k ∈ range t, m ^ k * (m + 1) ^ (m - 1 - k) * (k + 1) :=
-      Finset.sum_congr rfl fun k hk => by
-        rw [ite_eq_left (by rw [Finset.mem_range] at hk; omega)]
-    have hhi : ∑ k ∈ Ico t m, m ^ k * (m + 1) ^ (m - 1 - k) *
-        (if k + 1 ≤ t then k + 1 else t + (m + 1)) =
-        (∑ k ∈ Ico t m, m ^ k * (m + 1) ^ (m - 1 - k)) * (t + (m + 1)) := by
-      rw [Finset.sum_mul]
-      exact Finset.sum_congr rfl fun k hk => by
-        rw [ite_eq_right (by rw [Finset.mem_Ico] at hk; omega)]
-    rw [ite_eq_right (by omega), ← Finset.sum_range_add_sum_Ico _ htm.le, hlo, hhi]
+    rw [ite_eq_right (by omega), ← Finset.sum_range_add_sum_Ico _ htm.le,
+      Finset.sum_congr rfl fun k hk =>
+        congrArg (_ * ·) (ite_eq_left (Nat.succ_le_of_lt (Finset.mem_range.mp hk))),
+      Finset.sum_congr rfl fun k hk =>
+        congrArg (_ * ·) (ite_eq_right (not_le.mpr (Nat.lt_succ_of_le (Finset.mem_Ico.mp hk).1))),
+      ← Finset.sum_mul]
     have htail : ∑ k ∈ Ico t m, m ^ k * (m + 1) ^ (m - 1 - k) + m ^ m =
         m ^ t * (m + 1) ^ (m - t) := by omega
     rw [← htail] at hb
-    rw [← hb]
-    apply le_of_eq
-    ring
+    exact hb ▸ le_of_eq (by ring)
   · -- the strategy rents through every short sequence: it pays at least `2B - 1` on the long one
     have hb := sum_adv_mul_aux m m le_rfl
-    rw [Nat.sub_self, pow_zero, mul_one] at hb
-    rw [Finset.sum_congr rfl (g := fun k => m ^ k * (m + 1) ^ (m - 1 - k) * (k + 1))
-        (fun k hk => by rw [ite_eq_left (by rw [Finset.mem_range] at hk; omega)])]
-    set c := if 2 * m + 1 ≤ t then 2 * m + 1 else t + (m + 1) with hc
-    have hc' : 2 * m + 1 ≤ c := by rw [hc]; split_ifs <;> omega
-    have h1 := Nat.mul_le_mul_left (m ^ m) hc'
-    have h2 : (m + m + 1) * m ^ m = m ^ m * (2 * m + 1) := by ring
+    rw [Nat.sub_self, pow_zero, mul_one, ← Nat.two_mul, mul_comm (2 * m + 1)] at hb
+    rw [Finset.sum_congr rfl fun k hk =>
+      congrArg (_ * ·) (ite_eq_left (Nat.succ_le_of_lt ((Finset.mem_range.mp hk).trans_le hmt)))]
+    have hc : m ^ m * (2 * m + 1) ≤ m ^ m * if 2 * m + 1 ≤ t then 2 * m + 1 else t + (m + 1) :=
+      Nat.mul_le_mul_left _ (by split_ifs <;> omega)
     omega
 
 private theorem sum_natCast_div {ι : Type*} [Fintype ι] (w : ι → ℕ) {D : ℕ}
@@ -302,9 +270,7 @@ theorem buyWeight_eq {B t : ℕ} (hB : 1 ≤ B) (ht : t < B) :
     (buyWeight B t : ℝ) = (B : ℝ) ^ (B - 1) * (1 - 1 / (B : ℝ)) ^ (B - 1 - t) := by
   have hB0 : (B : ℝ) ≠ 0 := by positivity
   have hpow : (B : ℝ) ^ (B - 1) = (B : ℝ) ^ t * (B : ℝ) ^ (B - 1 - t) := by
-    rw [← pow_add]
-    congr 1
-    omega
+    rw [← pow_add, Nat.add_sub_cancel' (by omega)]
   rw [hpow, buyWeight, Nat.cast_mul, Nat.cast_pow, Nat.cast_pow, Nat.cast_sub hB, Nat.cast_one,
     one_sub_div hB0, div_pow]
   field_simp
@@ -344,11 +310,8 @@ theorem expectedCost_randomRentThenBuy (B : ℕ) [NeZero B] (reqs : List Unit) :
     RandStrategy.expectedCost (randomRentThenBuy B) false reqs =
       ENNReal.ofReal (randomizedRatio B) * (min reqs.length B : ℕ) := by
   have hB : 1 ≤ B := NeZero.pos B
-  have hcost : ∀ t : Fin B, ((rentThenBuy B t).cost false reqs : ℝ≥0∞) =
-      ((if reqs.length ≤ (t : ℕ) then reqs.length else t + B : ℕ) : ℝ≥0∞) := fun t => by
-    rw [cost_rentThenBuy]
   rw [randomRentThenBuy, RandStrategy.expectedCost_map]
-  simp only [rentDays_apply, hcost]
+  simp only [rentDays_apply, cost_rentThenBuy]
   rw [tsum_natCast_div_mul, Fin.sum_univ_eq_sum_range
     (fun t => buyWeight B t * (if reqs.length ≤ t then reqs.length else t + B)) B]
   have hsum : ∑ t ∈ range B, buyWeight B t * (if reqs.length ≤ t then reqs.length else t + B) =
@@ -421,26 +384,20 @@ private theorem sum_adv_eq (m : ℕ) (g : ℕ → ℕ) :
 theorem sum_advWeight (B : ℕ) [NeZero B] : ∑ o, advWeight B o = B ^ (B - 1) := by
   obtain ⟨m, rfl⟩ : ∃ m, B = m + 1 := ⟨B - 1, by have := NeZero.pos B; omega⟩
   have h := sum_adv_eq m (fun _ => 1)
-  simp only [mul_one] at h
   have h2 := sum_adv_aux m m le_rfl
-  rw [Nat.sub_self, pow_zero, mul_one] at h2
-  rw [h, Nat.add_sub_cancel]
-  omega
+  simp only [mul_one, Nat.sub_self, pow_zero] at h h2
+  rw [h, Nat.add_sub_cancel]; omega
 
 /-- Weighted offline optimum under the adversary: `∑ advWeight * min days B = B^B - (B-1)^B`. -/
 theorem sum_advWeight_mul_min (B : ℕ) [NeZero B] :
     ∑ o, advWeight B o * min (advDays B o) B = B ^ B - (B - 1) ^ B := by
   obtain ⟨m, rfl⟩ : ∃ m, B = m + 1 := ⟨B - 1, by have := NeZero.pos B; omega⟩
-  rw [sum_adv_eq m (fun n => min n (m + 1))]
   have hb := sum_adv_mul_aux m m le_rfl
   rw [Nat.sub_self, pow_zero, mul_one] at hb
-  have hmin : ∑ k ∈ range m, m ^ k * (m + 1) ^ (m - 1 - k) * min (k + 1) (m + 1) =
-      ∑ k ∈ range m, m ^ k * (m + 1) ^ (m - 1 - k) * (k + 1) :=
-    Finset.sum_congr rfl fun k hk => by
-      rw [Finset.mem_range] at hk
-      rw [Nat.min_eq_left (by omega)]
-  simp only [Nat.add_sub_cancel]
-  rw [hmin, Nat.min_eq_right (by omega)]
+  simp only [sum_adv_eq m (fun n => min n (m + 1)), Nat.add_sub_cancel]
+  rw [Finset.sum_congr rfl fun k hk =>
+      congrArg (_ * ·) (Nat.min_eq_left (Nat.add_le_add_right (Finset.mem_range.mp hk).le 1)),
+    Nat.min_eq_right (Nat.add_le_add_right (Nat.le_mul_of_pos_left m two_pos) 1)]
   have : (m + m + 1) * m ^ m = m ^ m * (m + 1) + m ^ (m + 1) := by ring
   omega
 
@@ -449,16 +406,8 @@ least `randomizedRatio B` times the weighted optimum `B^B - (B-1)^B`. -/
 theorem le_sum_advWeight_mul_cost (B : ℕ) [NeZero B] (A : DetStrategy (problem B)) :
     B ^ B ≤ ∑ o, advWeight B o * A.cost false (List.replicate (advDays B o) ()) := by
   obtain ⟨t, ht⟩ := exists_rentThenBuy_cost_eq A (2 * B - 1)
-  have hle : ∀ o, advDays B o ≤ 2 * B - 1 := by
-    rintro (_ | k)
-    · exact le_rfl
-    · have := k.isLt
-      simp only [advDays]
-      omega
-  have hcost : ∀ o, A.cost false (List.replicate (advDays B o) ()) =
-      if advDays B o ≤ t then advDays B o else t + B := fun o => by
-    rw [ht _ (hle o), cost_rentThenBuy, List.length_replicate]
-  simp only [hcost]
+  have hle (o) : advDays B o ≤ 2 * B - 1 := by cases o <;> simp only [advDays] <;> omega
+  simp_rw [fun o => ht _ (hle o), cost_rentThenBuy, List.length_replicate]
   obtain ⟨m, rfl⟩ : ∃ m, B = m + 1 := ⟨B - 1, by have := NeZero.pos B; omega⟩
   rw [sum_adv_eq m (fun n => if n ≤ t then n else t + (m + 1))]
   exact le_sum_adv_mul_cost_aux m t
@@ -466,9 +415,7 @@ theorem le_sum_advWeight_mul_cost (B : ℕ) [NeZero B] (A : DetStrategy (problem
 private theorem one_le_min_advDays (B : ℕ) [NeZero B] (o : Option (Fin (B - 1))) :
     1 ≤ min (advDays B o) B := by
   have := NeZero.pos B
-  cases o with
-  | none => simp only [advDays]; omega
-  | some k => simp only [advDays]; omega
+  cases o <;> simp only [advDays] <;> omega
 
 /-- The oblivious adversary distribution on ski-day counts, with probabilities
 `advWeight B o / B^(B-1)`. -/
@@ -491,8 +438,7 @@ theorem exists_randomized_witness (B : ℕ) (μ : RandStrategy (problem B)) :
       ENNReal.ofReal (randomizedRatio B) * (problem B).scheduleCost false reqs states ≤
         RandStrategy.expectedCost μ false reqs := by
   rcases Nat.eq_zero_or_pos B with rfl | hB
-  · refine ⟨[()], [false], ⟨id, trivial⟩, le_rfl, ?_⟩
-    simp [randomizedRatio]
+  · exact ⟨[()], [false], ⟨id, trivial⟩, le_rfl, by simp [randomizedRatio]⟩
   have : NeZero B := ⟨hB.ne'⟩
   have hV0 : ((B ^ (B - 1) : ℕ) : ℝ≥0∞) ≠ 0 := by exact_mod_cast (pow_pos hB _).ne'
   obtain ⟨o, -, ho⟩ := RandStrategy.exists_le_mul_expectedCost (adversary B) false
@@ -500,20 +446,14 @@ theorem exists_randomized_witness (B : ℕ) (μ : RandStrategy (problem B)) :
     (fun o => ((B ^ B * min (advDays B o) B : ℕ) : ℝ≥0∞))
     ((B ^ B - (B - 1) ^ B : ℕ) : ℝ≥0∞)
     (by
-      simp only [adversary_apply]
-      rw [tsum_natCast_div_mul]
+      simp only [adversary_apply, tsum_natCast_div_mul]
       exact ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hV0)
     (fun A => by
-      simp only [adversary_apply]
-      rw [tsum_natCast_div_mul, tsum_natCast_div_mul, ← mul_div_assoc, ← Nat.cast_mul]
-      have h1 : ∑ o, advWeight B o * (B ^ B * min (advDays B o) B) =
-          B ^ B * (B ^ B - (B - 1) ^ B) := by
-        rw [← sum_advWeight_mul_min B, Finset.mul_sum]
-        exact Finset.sum_congr rfl fun o _ => by ring
+      simp only [adversary_apply, tsum_natCast_div_mul, ← mul_div_assoc, ← Nat.cast_mul]
       have key : ∑ o, advWeight B o * (B ^ B * min (advDays B o) B) ≤
           (B ^ B - (B - 1) ^ B) *
             ∑ o, advWeight B o * A.cost false (List.replicate (advDays B o) ()) := by
-        rw [h1, mul_comm]
+        simp_rw [mul_left_comm _ (B ^ B), ← Finset.mul_sum, sum_advWeight_mul_min, mul_comm (B ^ B)]
         exact Nat.mul_le_mul_left _ (le_sum_advWeight_mul_cost B A)
       exact ENNReal.div_le_div_right (by exact_mod_cast key) _)
     μ
@@ -531,14 +471,10 @@ theorem not_isCompetitive_of_lt {B : ℕ} (μ : RandStrategy (problem B)) {c : �
     (hc : c < ENNReal.ofReal (randomizedRatio B)) : ¬ RandStrategy.IsCompetitive μ c 0 := by
   intro h
   obtain ⟨reqs, states, hv, hpos, hle⟩ := exists_randomized_witness B μ
-  have h1 := h false rfl reqs states hv
-  rw [add_zero] at h1
+  have h1 := (h false rfl reqs states hv).trans_eq (add_zero _)
   have hne : ((problem B).scheduleCost false reqs states : ℝ≥0∞) ≠ 0 := by
     exact_mod_cast (Nat.one_le_iff_ne_zero.mp hpos)
-  have hlt : c * ((problem B).scheduleCost false reqs states : ℝ≥0∞) <
-      ENNReal.ofReal (randomizedRatio B) * (problem B).scheduleCost false reqs states := by
-    rw [mul_comm c, mul_comm (ENNReal.ofReal _)]
-    exact ENNReal.mul_lt_mul_right hne (ENNReal.natCast_ne_top _) hc
-  exact absurd (hle.trans h1) (not_le.mpr hlt)
+  refine absurd (hle.trans h1) (not_le.mpr ?_)
+  simpa only [mul_comm] using ENNReal.mul_lt_mul_right hne (ENNReal.natCast_ne_top _) hc
 
 end Cslib.DataStructure.Online.SkiRental

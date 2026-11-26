@@ -54,6 +54,15 @@ open _root_.Turing _root_.Turing.MultiTapeTM
 
 variable {α : Type} {enc : α ↪ List Bool}
 
+private theorem ofDeterministic_halted {k : ℕ} {State : Type} (tm : MultiTapeTM k Bool State)
+    {t : ℕ} {input : List Bool} {cfg : MultiTapeMachine.Config k Bool State Empty input}
+    (h : (tm.runFrom cfg.tapes t).state = none) :
+    ∀ final ∈ (ProbComp.eval ((MultiTapePTM.ofDeterministic tm).runClosedConfigFrom t cfg)).support,
+      final.tapes.state = none := by
+  intro final hfinal
+  rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
+  exact hfinal ▸ h
+
 /-- **Sample and verify, within a per-instance bound.** If a verifier `V` is computable within
 time `T (a, w)` on encoded pairs, the length `ℓ a` of the random string is computable in unary
 within time `Tℓ a`, and `(enc a).length + Tℓ a + T (a, w) ≤ B a` for every string `w` of length
@@ -81,16 +90,10 @@ theorem exists_machine_sampleVerify_of_bound {V : α × List Bool → Bool} {ℓ
   have hlen₁ (a : α) : (u a).length ≤ t₁ a := (h₁ a).length_output_le
   -- the first phase writes the framed instance and the unary length of the random string
   let M₁ : MultiTapePTM k₁ Bool Q₁ := MultiTapePTM.ofDeterministic tm₁
-  have hfirst₁ (a : α) : ∀ final ∈ (ProbComp.eval
-      (M₁.runClosedConfigFrom (t₁ a) (M₁.initialConfig (enc a)))).support,
-      final.tapes.state = none := by
-    intro final hfinal
-    rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
-    subst hfinal
-    exact (hrun₁ a).1
+  have hfirst₁ (a : α) :=
+    ofDeterministic_halted tm₁ (cfg := M₁.initialConfig (enc a)) (hrun₁ a).1
   have hout₁ (a : α) : ProbComp.eval (M₁.runClosed (t₁ a) (enc a)) = PMF.pure (u a) := by
-    rw [MultiTapePTM.eval_runClosed_ofDeterministic, (hrun₁ a).2]
-    rfl
+    rw [MultiTapePTM.eval_runClosed_ofDeterministic, (hrun₁ a).2]; rfl
   -- the sampler copies the framed instance and draws the random string
   have hsecond₁ (a : α) : ∀ word ∈ (ProbComp.eval (M₁.runClosed (t₁ a) (enc a))).support,
       ∀ final ∈ (ProbComp.eval (MultiTapePTM.pairSampler.runClosedConfigFrom (t₂ a)
@@ -112,23 +115,14 @@ theorem exists_machine_sampleVerify_of_bound {V : α × List Bool → Bool} {ℓ
   -- the verifier runs on every sampled pair within the uniform clock `t₃`
   let M₃ : MultiTapePTM k₃ Bool Q₃ := MultiTapePTM.ofDeterministic tm₃
   have hrun₃ (a : α) (w : List Bool) (hw : w.length = ℓ a) :=
-    (h₃ (a, w)).runFrom_of_le (J := t₃ a) (Nat.mul_le_mul_left c₃ (by
-      have := hB a w hw
-      omega))
-  have hword (a : α) {word : List Bool}
-      (hword : word ∈ (ProbComp.eval (P₁₂.runClosed (t₁₂ a) (enc a))).support) :
-      ∃ w : List Bool, w.length = ℓ a ∧ word = encPair enc encBits (a, w) := by
-    rw [heval₁₂ a] at hword
-    obtain ⟨w, hw, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hword
-    exact ⟨w, BitString.mem_support_uniformList_iff.mp hw, rfl⟩
+    (h₃ (a, w)).runFrom_of_le (J := t₃ a) (Nat.mul_le_mul_left c₃ (by have := hB a w hw; omega))
   have hsecond₂ (a : α) : ∀ word ∈ (ProbComp.eval (P₁₂.runClosed (t₁₂ a) (enc a))).support,
       ∀ final ∈ (ProbComp.eval (M₃.runClosedConfigFrom (t₃ a) (M₃.initialConfig word))).support,
       final.tapes.state = none := by
-    intro word hw final hfinal
-    obtain ⟨w, hwlen, rfl⟩ := hword a hw
-    rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
-    subst hfinal
-    exact (hrun₃ a w hwlen).1
+    intro word hw
+    rw [heval₁₂ a] at hw
+    obtain ⟨w, hw', rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hw
+    exact ofDeterministic_halted tm₃ (hrun₃ a w (BitString.mem_support_uniformList_iff.mp hw')).1
   let P := M₃.comp P₁₂ false
   let total (a : α) : ℕ := t₁₂ a + (t₁₂ a + 4 + t₃ a)
   have hhalt (a : α) := MultiTapePTM.comp_halted P₁₂ M₃ false (enc a) (t₁₂ a) (t₃ a) (hhalt₁₂ a)
@@ -139,21 +133,20 @@ theorem exists_machine_sampleVerify_of_bound {V : α × List Bool → Bool} {ℓ
     rw [MultiTapePTM.eval_comp P₁₂ M₃ false (enc a) (t₁₂ a) (t₃ a) (hhalt₁₂ a) (hsecond₂ a),
       Probability.PMF.monad_bind_eq_bind, heval₁₂ a, PMF.bind_map, ← PMF.bind_pure_comp]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun w hw => ?_
-    have hwlen : w.length = ℓ a := BitString.mem_support_uniformList_iff.mp hw
     simp only [Function.comp_apply]
     rw [MultiTapePTM.eval_runClosed_ofDeterministic]
-    exact congrArg PMF.pure (hrun₃ a w hwlen).2
+    exact congrArg PMF.pure (hrun₃ a w (BitString.mem_support_uniformList_iff.mp hw)).2
   -- the composed clock is within `c * B a + c`
   have hle (a : α) : total a ≤ (6 * c₁ + c₃ + 14) * B a + (6 * c₁ + c₃ + 14) := by
     have ht₁ : t₁ a ≤ c₁ * (B a + 1) := Nat.mul_le_mul_left c₁ (by
-      have := hB a (List.replicate (ℓ a) false) (List.length_replicate ..)
-      omega)
-    have htotal : total a ≤ 6 * t₁ a + 14 + t₃ a := by
-      have := hlen₁ a
-      simp only [total, t₁₂, t₂]
-      omega
-    have ht₃ : t₃ a = c₃ * (B a + 1) := rfl
-    nlinarith
+      have := hB a (List.replicate (ℓ a) false) (List.length_replicate ..); omega)
+    have hlen := hlen₁ a
+    calc total a ≤ 6 * t₁ a + 14 + t₃ a := by simp only [total, t₁₂, t₂]; omega
+      _ ≤ 6 * (c₁ * (B a + 1)) + 14 + c₃ * (B a + 1) := by gcongr
+      _ ≤ (6 * c₁ + c₃ + 14) * B a + (6 * c₁ + c₃ + 14) := by
+        have : (6 * c₁ + c₃ + 14) * B a + (6 * c₁ + c₃ + 14) =
+            6 * (c₁ * (B a + 1)) + 14 + c₃ * (B a + 1) + 14 * B a := by ring
+        omega
   refine ⟨6 * c₁ + c₃ + 14, _, _, inferInstance, P, fun a => ⟨?_, ?_⟩⟩
   · rw [P.eval_runClosedConfigFrom_eq_of_halted _ (hle a) (hhalt a)]
     exact hhalt a

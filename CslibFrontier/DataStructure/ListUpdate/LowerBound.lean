@@ -70,18 +70,14 @@ variable {α : Type} [DecidableEq α]
 /-- The last item of a nonempty duplicate-free list sits at position `length - 1`. -/
 theorem idxOf_getLastD_add_one {l : List α} (hl : l.Nodup) (hne : l ≠ []) (x₀ : α) :
     l.idxOf (l.getLastD x₀) + 1 = l.length := by
-  obtain ⟨a, t, ht⟩ : ∃ a t, l.reverse = a :: t := by
-    cases h : l.reverse with
-    | nil => exact absurd (List.reverse_eq_nil_iff.1 h) hne
-    | cons a t => exact ⟨a, t, rfl⟩
-  have hmem : a ∈ l := List.mem_reverse.1 (ht ▸ List.mem_cons_self)
-  have h := idxOf_reverse_add_idxOf hl hmem
-  rw [ht, List.idxOf_cons_self] at h
-  have hlast : l.getLastD x₀ = a := by
-    rw [List.getLastD_eq_getLast?, List.getLast?_eq_head?_reverse, ht, List.head?_cons,
+  cases h : l.reverse with
+  | nil => exact absurd (List.reverse_eq_nil_iff.1 h) hne
+  | cons a t =>
+    have hidx := idxOf_reverse_add_idxOf hl (List.mem_reverse.1 (h ▸ List.mem_cons_self))
+    rw [h, List.idxOf_cons_self] at hidx
+    rw [List.getLastD_eq_getLast?, List.getLast?_eq_head?_reverse, h, List.head?_cons,
       Option.getD_some]
-  rw [hlast]
-  omega
+    omega
 
 variable [Fintype α]
 
@@ -100,16 +96,12 @@ theorem le_cost_cruelRequests (x₀ : α) (A : DetStrategy (problem α)) {s₀ :
     (hs₀ : IsArrangement s₀) (m : Nat) :
     m * Fintype.card α ≤ A.cost s₀ (cruelRequests x₀ A s₀ m) := by
   refine A.le_cost_adaptiveRequests (fun {mem} hmem => ?_) hs₀ m
-  have hstep := (A.valid_step ((A.project mem).getLastD x₀) hmem).2
-  have hcur : IsArrangement (A.project mem) := hstep.1
-  have hnext : IsArrangement (A.project (A.step mem ((A.project mem).getLastD x₀))) := hstep.2
-  have hne : A.project mem ≠ [] := List.ne_nil_of_mem (hcur.2 x₀)
-  have hpos := idxOf_getLastD_add_one hcur.1 hne x₀
+  obtain ⟨hcur, hnext⟩ := (A.valid_step ((A.project mem).getLastD x₀) hmem).2
+  have hpos := idxOf_getLastD_add_one hcur.1 (List.ne_nil_of_mem (hcur.2 x₀)) x₀
   have hle := idxOf_le_inversions_add hcur hnext ((A.project mem).getLastD x₀)
   rw [hcur.length_eq] at hpos
   change _ ≤ stepCost _ _ _
-  rw [stepCost]
-  omega
+  rw [stepCost]; omega
 
 /-- The static schedule that moves to `τ` on the first request and then stays put is valid. -/
 theorem validSchedule_static {s₀ τ : List α} (hs₀ : IsArrangement s₀) (hτ : IsArrangement τ)
@@ -148,20 +140,16 @@ theorem sum_idxOf_add_sum_idxOf_reverse {s₀ : List α} (hs₀ : IsArrangement 
 private theorem ratio_arith {n p q b K m alg opt I : Nat} (hpq : p * (n + 1) < 2 * n * q)
     (hm : m = p * K + 2 * b + 1) (halg : m * n ≤ alg) (hopt : 2 * opt ≤ m * (n + 1) + I)
     (hI : 2 * I ≤ K) : p * opt + b < q * alg := by
-  have h₁ : p * (2 * opt) ≤ p * (m * (n + 1)) + p * I := by
-    rw [← Nat.mul_add]
+  have h₁ : 2 * (p * opt) ≤ p * (n + 1) * m + p * I := by
+    rw [Nat.mul_left_comm, Nat.mul_assoc p (n + 1) m, Nat.mul_comm (n + 1) m, ← Nat.mul_add]
     exact Nat.mul_le_mul_left p hopt
-  have h₂ : 2 * (p * I) ≤ p * K := by
-    rw [Nat.mul_left_comm]
-    exact Nat.mul_le_mul_left p hI
-  have h₃ : (p * (n + 1) + 1) * m ≤ (2 * n * q) * m := Nat.mul_le_mul_right m hpq
-  have h₄ : q * (m * n) ≤ q * alg := Nat.mul_le_mul_left q halg
-  have e₁ : p * (2 * opt) = 2 * (p * opt) := Nat.mul_left_comm p 2 opt
-  have e₂ : p * (m * (n + 1)) = p * (n + 1) * m := by
-    rw [Nat.mul_comm m, Nat.mul_assoc]
+  have h₂ : 2 * (p * I) ≤ p * K := Nat.mul_left_comm 2 p I ▸ Nat.mul_le_mul_left p hI
   have e₃ : 2 * n * q * m = 2 * (q * (m * n)) := by
     rw [Nat.mul_assoc 2, Nat.mul_assoc 2, Nat.mul_comm n q, Nat.mul_assoc q n m, Nat.mul_comm n m]
-  rw [Nat.add_mul, Nat.one_mul] at h₃
+  have h₃ : p * (n + 1) * m + m ≤ 2 * (q * (m * n)) := by
+    have hpq' : p * (n + 1) + 1 ≤ 2 * n * q := by omega
+    simpa only [Nat.add_mul, Nat.one_mul, e₃] using Nat.mul_le_mul_right m hpq'
+  have h₄ := Nat.mul_le_mul_left q halg
   omega
 
 /-- **Deterministic lower bound for list update**: for every deterministic online strategy
@@ -173,29 +161,20 @@ theorem exists_ratio_violation_of_lt (A : DetStrategy (problem α)) {s₀ : List
     (b : Nat) :
     ∃ reqs states, (problem α).ValidSchedule s₀ reqs states ∧
       p * (problem α).scheduleCost s₀ reqs states + b < q * A.cost s₀ reqs := by
-  obtain ⟨x₀⟩ : Nonempty α := by
-    rw [← Fintype.card_pos_iff]
-    rcases Nat.eq_zero_or_pos (Fintype.card α) with h | h
-    · rw [h, Nat.mul_zero, Nat.zero_mul] at hpq
-      exact absurd hpq (Nat.not_lt_zero _)
-    · exact h
-  set K := Fintype.card α * (Fintype.card α - 1)
-  set m := p * K + 2 * b + 1 with hm
+  have ⟨x₀⟩ : Nonempty α := Fintype.card_pos_iff.1 (Nat.pos_of_ne_zero fun h => by simp [h] at hpq)
+  set m := p * (Fintype.card α * (Fintype.card α - 1)) + 2 * b + 1 with hm
   set reqs := cruelRequests x₀ A s₀ m
-  have hlen : reqs.length = m := length_cruelRequests x₀ A s₀ m
   have halg := le_cost_cruelRequests x₀ A hs₀ m
   have hc₁ := scheduleCost_static_le s₀ s₀ reqs
   have hc₂ := scheduleCost_static_le s₀ s₀.reverse reqs
-  have hsum := sum_idxOf_add_sum_idxOf_reverse hs₀ reqs
+  have hsum := length_cruelRequests x₀ A s₀ m ▸ sum_idxOf_add_sum_idxOf_reverse hs₀ reqs
   have hI := two_mul_inversions_le s₀ s₀.reverse
   rw [inversions_self, Nat.zero_add] at hc₁
-  rw [hlen] at hsum
   by_cases hcmp : (problem α).scheduleCost s₀ reqs (List.replicate reqs.length s₀) ≤
       (problem α).scheduleCost s₀ reqs (List.replicate reqs.length s₀.reverse)
-  · refine ⟨reqs, _, validSchedule_static hs₀ hs₀ reqs, ?_⟩
-    exact ratio_arith hpq hm halg (by omega) hI
-  · refine ⟨reqs, _, validSchedule_static hs₀ hs₀.reverse reqs, ?_⟩
-    exact ratio_arith hpq hm halg (by omega) hI
+  · exact ⟨reqs, _, validSchedule_static hs₀ hs₀ reqs, ratio_arith hpq hm halg (by omega) hI⟩
+  · exact ⟨reqs, _, validSchedule_static hs₀ hs₀.reverse reqs,
+      ratio_arith hpq hm halg (by omega) hI⟩
 
 /-- No deterministic online list-update strategy is `(c, b)`-competitive from an initial
 arrangement `s₀` when `c (n + 1) < 2 n`. -/
@@ -205,8 +184,7 @@ theorem not_isCompetitiveFrom_of_lt (A : DetStrategy (problem α)) {s₀ : List 
   intro h
   obtain ⟨reqs, states, hv, hlt⟩ :=
     exists_ratio_violation_of_lt A hs₀ (p := c) (q := 1) (by rwa [Nat.mul_one]) b
-  have := h reqs states hv
-  omega
+  exact absurd (h reqs states hv) (by omega)
 
 /-- No deterministic online list-update strategy is `(c, b)`-competitive when
 `c (n + 1) < 2 n`. -/

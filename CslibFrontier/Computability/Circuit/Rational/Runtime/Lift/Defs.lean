@@ -139,12 +139,9 @@ def coeffRows (c : ℤ) (M : ℕ) : List (List ℤ) :=
 /-- The `i`-th entry of `shiftAddRow c l` is `(0 :: l).getD i 0 + c * l.getD i 0`. -/
 lemma getD_shiftAddRow (c : ℤ) (l : List ℤ) (i : ℕ) :
     (shiftAddRow c l).getD i 0 = (0 :: l).getD i 0 + c * l.getD i 0 := by
-  rcases Nat.lt_or_ge i (l.length + 1) with h | h
-  · rw [List.getD_eq_getElem _ _ (by simpa using h)]
-    simp [shiftAddRow]
-  · rw [List.getD_eq_default _ _ (by simpa using h), List.getD_eq_default _ _ (by simpa using h),
-      List.getD_eq_default _ _ (by omega)]
-    simp
+  by_cases h : i < l.length + 1
+  · simp [shiftAddRow, List.getD_eq_getElem?_getD, h]
+  · simp [shiftAddRow, List.getD_eq_getElem?_getD, h, show ¬i < l.length by omega]
 
 /-- The zeroth coefficient row is `[1]`. -/
 @[simp] lemma coeffRow_zero (c : ℤ) : coeffRow c 0 = [1] := rfl
@@ -179,12 +176,7 @@ theorem getD_coeffRow_eq (c : ℤ) (k i : ℕ) :
 `k < M`. -/
 lemma rowEntry_coeffRows (c : ℤ) (M k i : ℕ) :
     rowEntry (coeffRows c M) k i = if k < M then (coeffRow c k).getD i 0 else 0 := by
-  unfold rowEntry coeffRows
-  split_ifs with h
-  · rw [List.getD_eq_getElem ((List.range M).map (coeffRow c)) _ (by simpa using h),
-      List.getElem_map, List.getElem_range]
-  · rw [List.getD_eq_default ((List.range M).map (coeffRow c)) _ (by simpa using h)]
-    rfl
+  by_cases h : k < M <;> simp [rowEntry, coeffRows, List.getD_eq_getElem?_getD, h]
 
 /-! ### The integer Taylor test matrix -/
 

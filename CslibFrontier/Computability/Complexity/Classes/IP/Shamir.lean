@@ -130,12 +130,10 @@ theorem PolyTimeTuringReducible.mem_IP {encA : α ↪ List Bool} {A : Set α} {B
 probability `1` on every true closed formula. -/
 theorem QBFProtocol.acceptProb_sequentialRepeat_verifier_honestProver {ψ : Logic.PL.QBF ℕ}
     (hψ : ψ ∈ TQBF) (k : ℕ) :
-    acceptProb (sequentialRepeat k (QBFProtocol.verifier ψ)) (QBFProtocol.honestProver ψ) = 1 := by
-  refine le_antisymm (PMF.coe_le_one _ _) ?_
-  simpa using le_acceptProb_sequentialRepeat (c := 1) (QBFProtocol.honestProver ψ)
-    (fun s => by
-      change 1 ≤ acceptProb (QBFProtocol.verifier ψ) (QBFProtocol.honestProver ψ)
-      exact (QBFProtocol.acceptProb_verifier_honestProver ψ hψ).ge) k
+    acceptProb (sequentialRepeat k (QBFProtocol.verifier ψ)) (QBFProtocol.honestProver ψ) = 1 :=
+  le_antisymm (PMF.coe_le_one _ _) <| by
+    simpa using le_acceptProb_sequentialRepeat (c := 1) (QBFProtocol.honestProver ψ)
+      (fun _ => (QBFProtocol.acceptProb_verifier_honestProver ψ hψ).ge) k
 
 /-- **Perfect completeness and sequential amplification for `IP`**
 [Arora and Barak, Chapter 8, Exercise 1(c)–(d)][AroraBarak07]: for every `A ∈ IP enc` and every
@@ -230,7 +228,7 @@ private theorem isOraclePPTOn_patchWords {A : Set α} (ws : List (List Bool))
     IsOraclePPTOn enc encBool (patchWords A enc ws verifier) := by
   induction ws with
   | nil => exact hV
-  | cons w ws ih => exact isOraclePPTOn_patchWord enc ih
+  | cons _ _ ih => exact isOraclePPTOn_patchWord enc ih
 
 open Classical in
 private theorem patchWords_apply_of_mem {A : Set α} {ws : List (List Bool)}
@@ -242,12 +240,10 @@ private theorem patchWords_apply_of_mem {A : Set α} {ws : List (List Bool)}
     simp only [patchWords, patchWord]
     by_cases heq : enc a = w
     · simp only [decide_eq_true heq, ↓reduceIte]
-      congr 1
-      simp only [decide_eq_decide]
-      exact ⟨fun ⟨x, hxA, hx⟩ => enc.injective (hx.trans heq.symm) ▸ hxA,
-        fun ha => ⟨a, ha, heq⟩⟩
-    · simp only [decide_eq_false heq, Bool.false_eq_true, ↓reduceIte]
-      exact ih (List.mem_of_ne_of_mem heq h)
+      exact congrArg pure (decide_eq_decide.2
+        ⟨fun ⟨_, hxA, hx⟩ => enc.injective (hx.trans heq.symm) ▸ hxA, fun ha => ⟨a, ha, heq⟩⟩)
+    · simpa only [decide_eq_false heq, Bool.false_eq_true, ↓reduceIte] using
+        ih (List.mem_of_ne_of_mem heq h)
 
 open Classical in
 private theorem patchWords_apply_of_notMem {A : Set α} {ws : List (List Bool)}
@@ -257,15 +253,12 @@ private theorem patchWords_apply_of_notMem {A : Set α} {ws : List (List Bool)}
   | nil => rfl
   | cons w ws ih =>
     rw [List.mem_cons, not_or] at h
-    simp only [patchWords, patchWord, decide_eq_false h.1, ↓reduceIte, Bool.false_eq_true]
-    exact ih h.2
+    simpa only [patchWords, patchWord, decide_eq_false h.1, ↓reduceIte, Bool.false_eq_true] using
+      ih h.2
 
 private theorem two_le_length_of_notMem_shortWords {w : List Bool}
     (h : w ∉ ([[], [false], [true]] : List (List Bool))) : 2 ≤ w.length := by
-  cases w with
-  | nil => simp at h
-  | cons b w =>
-    cases b <;> cases w <;> simp at h ⊢
+  rcases w with _ | ⟨_ | _, _ | _⟩ <;> simp at h ⊢
 
 open Classical in
 /-- A problem is in `IP` if and only if it has a strict oracle-PPT verifier with completeness at
@@ -281,26 +274,24 @@ theorem mem_IP_iff_exists_acceptProb_two_pow_length {A : Set α} :
   refine ⟨fun hA => ?_, fun ⟨verifier, hV, hcomp, hsound⟩ => ?_⟩
   · obtain ⟨verifier, hV, hcomp, hsound⟩ :=
       exists_isInteractiveProof_one_pow_of_mem_IP enc hA (ComputableInPolyTime.encoding_length enc)
-    refine ⟨verifier, hV, fun a ha => ?_, fun a ha P =>
-      (hsound a ha P).trans (one_div_three_pow_le_two_pow_inv _)⟩
-    obtain ⟨P, hP⟩ := hcomp a ha
-    exact ⟨P, tsub_le_self.trans_eq hP.symm⟩
+    exact ⟨verifier, hV, fun a ha => (hcomp a ha).imp fun _ hP => tsub_le_self.trans_eq hP.symm,
+      fun a ha P => (hsound a ha P).trans (one_div_three_pow_le_two_pow_inv _)⟩
   · let ws : List (List Bool) := [[], [false], [true]]
     refine ⟨patchWords A enc ws verifier, isOraclePPTOn_patchWords enc ws hV,
       fun a ha => ?_, fun a ha P => ?_⟩
-    · by_cases hmem : enc a ∈ ws
-      · refine ⟨Prover.const [], ?_⟩
+    · if hmem : enc a ∈ ws then
+        refine ⟨Prover.const [], ?_⟩
         rw [patchWords_apply_of_mem enc hmem]
         simpa [acceptProb, ha] using ENNReal.div_le_of_le_mul (by norm_num)
-      · obtain ⟨P, hP⟩ := hcomp a ha
-        refine ⟨P, ?_⟩
+      else
+        exact (hcomp a ha).imp fun _ hP => by
+          rw [patchWords_apply_of_notMem enc hmem]
+          exact (two_div_three_le_one_sub_two_pow_inv
+            (two_le_length_of_notMem_shortWords hmem)).trans hP
+    · if hmem : enc a ∈ ws then
+        simp [patchWords_apply_of_mem enc hmem, acceptProb, ha]
+      else
         rw [patchWords_apply_of_notMem enc hmem]
-        exact (two_div_three_le_one_sub_two_pow_inv
-          (two_le_length_of_notMem_shortWords hmem)).trans hP
-    · by_cases hmem : enc a ∈ ws
-      · rw [patchWords_apply_of_mem enc hmem]
-        simp [acceptProb, ha]
-      · rw [patchWords_apply_of_notMem enc hmem]
         exact (hsound a ha P).trans
           (two_pow_inv_le_one_div_three (two_le_length_of_notMem_shortWords hmem))
 

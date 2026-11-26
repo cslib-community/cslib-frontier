@@ -91,9 +91,7 @@ private theorem replay_reading (N : ℕ) (input consumed bits : List Bool) :
       rw [QueryMachine.run_succ]
       by_cases h : consumed.length < N.size
       · have hlive : R.halted (R.run (consumed ++ bit :: bits) consumed.length) = false :=
-          Bool.eq_false_iff.mpr fun ht => by
-            have := (VertexReader.halted_iff _ _ _).mp ht
-            omega
+          Bool.eq_false_iff.mpr (mt (VertexReader.halted_iff _ _ _).mp (by omega))
         have hread : R.read (consumed ++ bit :: bits)
             (R.run (consumed ++ bit :: bits) consumed.length) = some bit := by
           unfold QueryMachine.read
@@ -105,14 +103,11 @@ private theorem replay_reading (N : ℕ) (input consumed bits : List Bool) :
         rfl
       · have hhalt : R.halted (R.run (consumed ++ bit :: bits) consumed.length) = true :=
           (VertexReader.halted_iff _ _ _).mpr (by omega)
-        have hdone : VertexReader.isHalted (R.run (consumed ++ bit :: bits) consumed.length) =
-            true := hhalt
-        simp [NondeterministicQueryMachine.step, QueryMachine.step, machine, isHalted, hhalt,
-          hdone, R]
+        simp [NondeterministicQueryMachine.step, QueryMachine.step, machine, isHalted,
+          show VertexReader.isHalted _ = true from hhalt, hhalt, R]
     rw [NondeterministicQueryMachine.replay_cons, hstep, he, ← hlen, ih]
     congr 2
-    simp only [List.length_cons]
-    omega
+    simp only [List.length_cons]; omega
 
 /-- A continue marker starts the fixed-width reader on the remaining selector bits. -/
 theorem run_continue (N : ℕ) (input bits : List Bool) :
@@ -144,16 +139,13 @@ theorem firstHalting_continue_iff (N : ℕ) (input bits : List Bool) :
     have ht := (hh (bits.take N.size)).mpr (by simp [List.length_take, Nat.min_eq_left hlt.le])
     exact Bool.noConfusion (hp.symm.trans ht)
   · intro h
-    refine ⟨(hh bits).mpr h.ge, ?_⟩
-    intro n hn
+    refine ⟨(hh bits).mpr h.ge, fun n hn => ?_⟩
     cases n with
     | zero => rfl
     | succ n =>
       rw [List.take_succ_cons]
-      apply Bool.eq_false_iff.mpr
-      intro ht
-      have hle := (hh (bits.take n)).mp ht
-      have hp := List.length_take_le n bits
+      refine Bool.eq_false_iff.mpr (mt (hh (bits.take n)).mp ?_)
+      have := List.length_take_le n bits
       simp only [List.length_cons] at hn
       omega
 
@@ -165,18 +157,14 @@ theorem firstHalting_stop_iff (N : ℕ) (input choices : List Bool) :
   | nil => simp [NondeterministicQueryMachine.FirstHalting, machine, isHalted]
   | cons bit bits =>
     cases bit
-    · rw [run_stop]
-      constructor
-      · rintro ⟨h, _⟩
-        cases bits with
+    · simp only [run_stop, and_true, List.cons.injEq, true_and]
+      refine ⟨fun h => ?_, ?_⟩
+      · cases bits with
         | nil => rfl
         | cons b bs => exact Bool.noConfusion (h.2 1 (by simp))
-      · rintro h
-        cases h
-        refine ⟨⟨rfl, ?_⟩, rfl⟩
-        intro n hn
-        have hnzero : n = 0 := by simpa using hn
-        subst n
+      · rintro rfl
+        refine ⟨rfl, fun n hn => ?_⟩
+        obtain rfl : n = 0 := by simpa using hn
         rfl
     · simp [run_continue]
 
@@ -204,17 +192,15 @@ theorem firstHalting_vertex_iff (N : ℕ) (input choices : List Bool) (v : Fin N
     · have hreading : ((machine N).run input (true :: bits)).reading = true := by
         rw [run_continue]
       simp only [firstHalting_continue_iff, hreading, true_and, List.cons.injEq]
-      constructor
+      refine ⟨?_, ?_⟩
       · rintro ⟨hlen, hresult⟩
         rw [result_run_continue N input bits hlen] at hresult
         obtain ⟨u, hu, huv⟩ := Option.map_eq_some_iff.mp hresult
-        have he : u = v := Fin.ext huv
-        exact (decodeVertex_eq_some_iff bits v).mp (he ▸ hu)
+        exact (decodeVertex_eq_some_iff bits v).mp (Fin.ext huv ▸ hu)
       · rintro rfl
         refine ⟨length_vertex v, ?_⟩
-        rw [result_run_continue N input _ (length_vertex v),
+        simp [result_run_continue N input _ (length_vertex v),
           (decodeVertex_eq_some_iff _ v).mpr rfl]
-        rfl
 
 /-- The accepted first-halting traces are precisely the canonical destination-boundary choices. -/
 theorem firstHalting_accept_iff (N : ℕ) (input choices : List Bool) :
@@ -235,10 +221,8 @@ theorem firstHalting_accept_iff (N : ℕ) (input choices : List Bool) :
         cases bit
         · simp [run_stop] at hread
         · have hlen := (firstHalting_continue_iff N input bits).mp hfirst
-          have hisSome := hread.2
-          rw [result_run_continue N input bits hlen] at hisSome
-          obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp (by simpa using hisSome :
-            (decodeVertex (N := N) bits).isSome = true)
+          rw [result_run_continue N input bits hlen, Option.isSome_map] at hread
+          obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hread.2
           exact Or.inr ⟨v, congrArg (true :: ·) ((decodeVertex_eq_some_iff bits v).mp hv)⟩
   · rintro (hstop | ⟨v, hv⟩)
     · obtain ⟨hfirst, hflag⟩ := (firstHalting_stop_iff N input choices).mpr hstop
@@ -250,14 +234,12 @@ theorem firstHalting_accept_iff (N : ℕ) (input choices : List Bool) :
 theorem haltsWithin (N : ℕ) (input : List Bool) :
     (machine N).HaltsWithin input (N.size + 1) := by
   intro choices hlen
-  cases choices with
-  | nil => simp at hlen
-  | cons bit bits =>
-    cases bit
-    · rw [run_stop]
-      rfl
-    · rw [run_continue]
-      exact (VertexReader.halted_iff _ _ _).mpr (by simpa using hlen.ge)
+  rcases choices with _ | ⟨_ | _, bits⟩
+  · simp at hlen
+  · rw [run_stop]
+    rfl
+  · rw [run_continue]
+    exact (VertexReader.halted_iff _ _ _).mpr (by simpa using hlen.ge)
 
 /-- Live and halted branches retain only the bounded vertex reader and two flags. -/
 theorem length_run_le (N : ℕ) (input choices : List Bool) :
@@ -269,14 +251,12 @@ theorem length_run_le (N : ℕ) (input choices : List Bool) :
     have h := VertexReader.length_run_le N bits t
     simp only [encState_apply, encStateFields, length_encPair, encBool_apply, List.length_singleton]
     omega
-  cases choices with
-  | nil => exact bound false false [] 0
-  | cons bit bits =>
-    cases bit
-    · rw [run_stop]
-      exact bound false true [] 0
-    · rw [run_continue]
-      exact bound true false bits bits.length
+  rcases choices with _ | ⟨_ | _, bits⟩
+  · exact bound false false [] 0
+  · rw [run_stop]
+    exact bound false true [] 0
+  · rw [run_continue]
+    exact bound true false bits bits.length
 
 /-- State with a read answer and a selector; the state and read answer are framed. -/
 abbrev encStep : (State × Option Bool × Bool) ↪ List Bool :=
@@ -286,13 +266,13 @@ abbrev encStep : (State × Option Bool × Bool) ↪ List Bool :=
 theorem init_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
     {dimension : α → ℕ} (hdim : ComputableInSpace dimension encIn encNat budget) :
     ComputableInSpace (fun a => (machine (dimension a)).init) encIn encState budget :=
-  encState_mk_budget ((constZero false).mono_le fun _ => Nat.zero_le _)
-    ((constZero false).mono_le fun _ => Nat.zero_le _) (VertexReader.init_budget hdim)
+  encState_mk_budget (budget_const false)
+    (budget_const false) (VertexReader.init_budget hdim)
 
 /-- The choice phase has no dependency on the original input. -/
 theorem query_inSpace (N : ℕ) :
     ComputableInSpace (machine N).query encState encNat (fun s => (encState s).length) :=
-  budget_const 0 (.refl _)
+  budget_const 0
 
 /-- Update the choice state directly from a selector in linear space. -/
 theorem advance_inSpace :
@@ -321,11 +301,9 @@ theorem next_inSpace (N : ℕ) :
     ComputableInSpace (machine N).next encStep encState (fun p => (encStep p).length) := by
   change ComputableInSpace (fun p => advance p.1 p.2.2) encStep encState (fun p =>
     (encStep p).length)
-  have hs : ComputableInSpace Prod.fst encStep encState (fun p => (encStep p).length) :=
-    fst encState (encPair (encOption encBool) encBool)
-  have hr : ComputableInSpace Prod.snd encStep (encPair (encOption encBool) encBool)
-      (fun p => (encStep p).length) := snd encState (encPair (encOption encBool) encBool)
-  exact budget_comp_linear advance_inSpace (budget_prod hs (snd' hr))
+  exact budget_comp_linear advance_inSpace
+    (budget_prod (fst encState (encPair (encOption encBool) encBool))
+      (snd' (snd encState (encPair (encOption encBool) encBool))))
 
 /-- Detect halt using the choice state at any entry dimension. -/
 theorem halted_inSpace (N : ℕ) :

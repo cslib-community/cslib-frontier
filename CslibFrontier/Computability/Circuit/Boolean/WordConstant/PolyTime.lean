@@ -74,18 +74,11 @@ theorem wordConstCode_eq (n w : ℕ) (q : Fin (2 ^ w)) :
 theorem computableInPolyTime_wordConstCode {α : Type} {enc : α ↪ List Bool}
     {n w q : α → ℕ} (hn : ComputableInPolyTime n enc encNat)
     (hw : ComputableInPolyTime w enc encUnary) (hq : ComputableInPolyTime q enc encNat) :
-    ComputableInPolyTime (fun a => wordConstCode (n a) (w a) (q a)) enc encCode := by
-  have hi : ComputableInPolyTime
-      (fun p : α × ℕ => if (q p.1).testBit p.2 then n p.1 + 1 else n p.1)
-      (encPair enc encUnary) encNat := by
-    have hn' := (hn.comp (fst enc encUnary))
-    have hq' := (hq.comp (fst enc encUnary))
-    have hi' := (snd enc encUnary)
-    have ht := ComputableInPolyTime.binary_testBit hq' hi'
-    exact (ht.ite'
-      (ComputableInPolyTime.binary_add.comp
-        (hn'.prod (ComputableInPolyTime.const 1))) hn')
-  exact (const (encOut := encList encGate) [(Op.const false, []), (Op.const true, [])]).prod
-    (mapWithInput (range.comp hw) hi)
+    ComputableInPolyTime (fun a => wordConstCode (n a) (w a) (q a)) enc encCode :=
+  let hn' := hn.comp (fst enc encUnary)
+  (const (encOut := encList encGate) [(Op.const false, []), (Op.const true, [])]).prod <|
+    mapWithInput (range.comp hw) <|
+      (binary_testBit (hq.comp (fst enc encUnary)) (snd enc encUnary)).ite'
+        (binary_add.comp (hn'.prod (const 1))) hn'
 
 end Cslib.Circuits.Boolean

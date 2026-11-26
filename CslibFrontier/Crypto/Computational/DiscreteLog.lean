@@ -47,6 +47,8 @@ are public, and an adversary's running time may depend on their encoded length.
 
 ## Main definitions
 
+* `Cslib.Crypto.encDescBitsPair`: encoding of public group parameters paired with two bit-string
+  element words `(d, x, y)`.
 * `Cslib.Crypto.PrimeOrderGroupFamily`: cyclic groups of prime order with efficient operations.
 * `Cslib.Crypto.PrimeOrderGroupFamily.discreteLogGame`: the discrete-logarithm experiment.
 * `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog`: the discrete-logarithm assumption.
@@ -76,6 +78,13 @@ are public, and an adversary's running time may depend on their encoded length.
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
+
+/-- Encoding of public group parameters `d` paired with two bit-string element words `(d, x, y)`:
+the framed encoding `encDesc d` of `d` (`encPair` adds the framing outside `encDesc`), followed by
+framed `x` and unframed `y`. -/
+abbrev encDescBitsPair {Desc : Type} (encDesc : Desc ↪ List Bool) :
+    (Desc × List Bool × List Bool) ↪ List Bool :=
+  encPair encDesc (encPair encBits encBits)
 
 /-- A family of cyclic groups of prime order, indexed by public group parameters, with
 polynomial-time operations on encoded elements. A value `d : F.Desc` selects the group, order
@@ -120,7 +129,7 @@ structure PrimeOrderGroupFamily where
     ComputableInPolyTime (fun d => encode d (generator d)) encDesc encBits
   /-- Addition is computable in polynomial time. -/
   computableInPolyTime_add :
-    ComputableInPolyTime add (encPair encDesc (encPair encBits encBits)) encBits
+    ComputableInPolyTime add (encDescBitsPair encDesc) encBits
   /-- Multiplication by a binary natural number is computable in polynomial time. -/
   computableInPolyTime_smul :
     ComputableInPolyTime smul (encPair encDesc (encPair encNat encBits)) encBits

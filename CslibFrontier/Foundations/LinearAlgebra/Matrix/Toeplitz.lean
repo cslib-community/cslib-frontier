@@ -150,14 +150,10 @@ private theorem toeplitzBand_mulVec_apply [Semiring α] {d : Fin n → α} {j₀
     (toeplitz (toeplitzBand j₀ w) *ᵥ d) i = w i * d j₀ := by
   change ∑ j, toeplitz (toeplitzBand j₀ w) i j * d j = w i * d j₀
   rw [sum_eq_single j₀]
-  · congr 1
-    simp only [toeplitz_apply, toeplitzBand, LinearMap.pi_apply]
-    rw [dite_eq_left (by omega)]
-    simp only [LinearMap.proj_apply]
-    congr 1
-    ext
-    simp only
-    omega
+  · simp only [toeplitz_apply, toeplitzBand, LinearMap.pi_apply]
+    rw [dite_eq_left (by omega), LinearMap.proj_apply]
+    congr 2
+    exact Fin.ext (Nat.add_sub_cancel _ _)
   · intro j _ hj
     by_cases hdj : d j = 0
     · rw [hdj, mul_zero]
@@ -179,11 +175,8 @@ theorem toeplitz_mulVec_surjective [Field α] {d : Fin n → α} (hd : d ≠ 0) 
   obtain ⟨j₀, hj₀, hmax, -⟩ := exists_last_ne_zero hd
   let L : (Fin m → α) →ₗ[α] Fin m → α :=
     { toFun w := toeplitz (toeplitzBand j₀ w) *ᵥ d
-      map_add' w w' := by
-        rw [map_add, toeplitz_add, add_mulVec]
-      map_smul' c w := by
-        simp only [RingHom.id_apply]
-        rw [map_smul, toeplitz_smul, smul_mulVec] }
+      map_add' w w' := by rw [map_add, toeplitz_add, add_mulVec]
+      map_smul' c w := by simp [toeplitz_smul, smul_mulVec] }
   -- `L` is injective: if `L w = 0` with `w ≠ 0`, look at the last `i` with `w i ≠ 0`.
   have hinj : Function.Injective L := by
     refine (injective_iff_map_eq_zero L).2 fun w hw => ?_

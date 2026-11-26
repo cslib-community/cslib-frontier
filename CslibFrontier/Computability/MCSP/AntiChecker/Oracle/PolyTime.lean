@@ -219,33 +219,23 @@ theorem smallSet_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBits) :
     smallSet ∈ PPolyOn encQuery := by
   let e1 := encPair encQuery encBits
   let e2 := encPair e1 encBits
-  have hq2 : ComputableInPolyTime (fun r : (Query × List Bool) × List Bool => r.1.1) e2
-      encQuery :=
-    (fst encQuery encBits).comp (fst e1 encBits)
-  have hq1 : ComputableInPolyTime (fun r : Query × List Bool => r.1) e1 encQuery :=
-    fst encQuery encBits
+  have hn := encQuery_arity_deg.computableInPolyTime
+  have hs := encQuery_size_deg.computableInPolyTime
+  have hℓ := encQuery_power_deg.computableInPolyTime
+  have hthr := encQuery_threshold_deg.computableInPolyTime
   have hN : ComputableInPolyTime (fun r : (Query × List Bool) × List Bool =>
       r.1.1.power * certLength r.1.1.arity r.1.1.size) e2 encUnary := by
-    have hn := encQuery_arity_deg.computableInPolyTime.comp hq2
-    have hs := encQuery_size_deg.computableInPolyTime.comp hq2
-    have hℓ := encQuery_power_deg.computableInPolyTime.comp hq2
     unfold certLength
     fun_prop
-  have hu : ComputableInPolyTime (fun r : Query × List Bool => r.1.threshold) e1 encUnary :=
-    encQuery_threshold_deg.computableInPolyTime.comp hq1
+  have hu : ComputableInPolyTime (fun r : Query × List Bool => r.1.threshold) e1 encUnary := by
+    fun_prop
   have hW : ComputableInPolyTime (fun q : Query => (q.threshold + 1) *
       (q.threshold * (q.power * certLength q.arity q.size) + q.threshold)) encQuery encUnary := by
-    have hn := encQuery_arity_deg.computableInPolyTime
-    have hs := encQuery_size_deg.computableInPolyTime
-    have hℓ := encQuery_power_deg.computableInPolyTime
-    have hu := encQuery_threshold_deg.computableInPolyTime
     unfold certLength
     fun_prop
-  have h3 : {r : ((Query × List Bool) × List Bool) × List Bool | coverTest r = true} ∈
-      PPolyOn (encPair e2 encBits) :=
-    PPolyOn.of_computableInPolyTime computableInPolyTime_coverTest
   have h2 := PPolyOn.exists_of_computableInPolyTime_length hNP hN
-    (P := fun r x => coverTest (r, x) = true) h3
+    (P := fun r x => coverTest (r, x) = true)
+    (PPolyOn.of_computableInPolyTime computableInPolyTime_coverTest)
   have h1 := PPolyOn.forall_of_computableInPolyTime_length hNP hu
     (P := fun r z => ∃ x : List Bool, x.length = r.1.power * certLength r.1.arity r.1.size ∧
       coverTest ((r, z), x) = true) h2
@@ -253,16 +243,10 @@ theorem smallSet_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBits) :
     (P := fun q σ => ∀ z : List Bool, z.length = q.threshold →
       ∃ x : List Bool, x.length = q.power * certLength q.arity q.size ∧
         coverTest (((q, σ), z), x) = true) h1
-  have heq : smallSet = {q : Query | ∃ σ : List Bool, σ.length = (q.threshold + 1) *
-      (q.threshold * (q.power * certLength q.arity q.size) + q.threshold) ∧
-      ∀ z : List Bool, z.length = q.threshold →
-        ∃ x : List Bool, x.length = q.power * certLength q.arity q.size ∧
-          coverTest (((q, σ), z), x) = true}ᶜ := by
-    ext q
-    rw [mem_smallSet, hashOracle_eq_true, isLarge_iff_exists]
-    rfl
-  rw [heq]
-  exact PPolyOn.compl h0
+  convert PPolyOn.compl h0 using 1
+  ext q
+  rw [mem_smallSet, hashOracle_eq_true, isLarge_iff_exists]
+  rfl
 
 /-- **Under `NP ⊆ P/poly`, a language in `P/poly` agrees with the anti-checker oracle on every
 query.** -/

@@ -44,18 +44,15 @@ theorem runs_thin {w m N : ℕ} (hw : 0 < w) (hN : D m ^ 18 ≤ N)
   obtain ⟨_, _, n, hn, _, he, _⟩ := runs hw (show m ≤ 19 * m by omega)
     X Y A hA hX hY hmag hfit
   refine ⟨n + 1, he, ?_⟩
-  have hpos : 1 ≤ timeBound (19 * m) m N := by
-    apply Nat.succ_le_of_lt
+  have hpos : 0 < timeBound (19 * m) m N := by
     unfold timeBound
     positivity
-  have hc : n + 1 ≤ 2 * timeBound (19 * m) m N := by omega
-  have hcR : ((n + 1 : ℕ) : ℝ) ≤ 2 * (timeBound (19 * m) m N : ℝ) := by
-    exact_mod_cast hc
-  have ht := thin_timeBound_div m N hN
   calc
-    ((n + 1 : ℕ) : ℝ) ≤ 2 * (timeBound (19 * m) m N : ℝ) := hcR
+    ((n + 1 : ℕ) : ℝ) ≤ 2 * (timeBound (19 * m) m N : ℝ) := by
+      exact_mod_cast (by omega : n + 1 ≤ 2 * timeBound (19 * m) m N)
     _ ≤ 2 * (40960 * ((19 * m + 1 : ℕ) : ℝ) * (N : ℝ) ^ 2 /
-        (D m : ℝ) ^ (1 / 18 : ℝ)) := mul_le_mul_of_nonneg_left ht (by positivity)
+        (D m : ℝ) ^ (1 / 18 : ℝ)) :=
+      mul_le_mul_of_nonneg_left (thin_timeBound_div m N hN) (by positivity)
     _ = _ := by ring
 
 /-- A concrete, deliberately generous width witnesses simultaneous signed-magnitude and
@@ -68,9 +65,8 @@ theorem width_exists (L m N : ℕ) (A : ℤ) (hA : 0 ≤ A) :
   · have hnat : 7 ^ L * A.natAbs < 2 ^ q :=
       (Nat.lt_two_pow_self (n := 7 ^ L * A.natAbs)).trans_le
         (Nat.pow_le_pow_right (by decide) (by dsimp [q]; omega))
-    have hz : ((7 ^ L * A.natAbs : ℕ) : ℤ) < (2 : ℤ) ^ q := by exact_mod_cast hnat
-    simpa only [Nat.add_sub_cancel, Nat.cast_mul, Int.natCast_natAbs,
-      abs_of_nonneg hA] using hz
+    simpa only [Nat.add_sub_cancel, Nat.cast_mul, Int.natCast_natAbs, abs_of_nonneg hA] using
+      (by exact_mod_cast hnat : ((7 ^ L * A.natAbs : ℕ) : ℤ) < (2 : ℤ) ^ q)
   · exact (fits_self (wordBudget L m N)).mono (by dsimp [q]; omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

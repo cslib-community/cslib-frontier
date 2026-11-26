@@ -62,8 +62,6 @@ theorem Represents.updateData {heap : List (Record M (layout extra regs))}
   induction t generalizing parent with
   | nil => trivial
   | node label l r il ir =>
-    change _ ∧ _ ∧ _ at rep
-    change _ ∧ _ ∧ _
     refine ⟨?_, il rep.2.1, ir rep.2.2⟩
     change (heap.modify a _)[label.address]? =
       some (record (root (PointerMachine.updateData l a field value))
@@ -71,10 +69,9 @@ theorem Represents.updateData {heap : List (Record M (layout extra regs))}
         parent { label with data :=
           if label.address = a then Function.update label.data field value else label.data })
     rw [root_updateData, root_updateData]
-    by_cases h : label.address = a
-    · subst a
-      simp [rep.1, record]
-    · simp [Ne.symm h, rep.1, record, h]
+    rcases eq_or_ne label.address a with rfl | h
+    · simp [rep.1, record]
+    · simp [h, Ne.symm h, rep.1, record]
 
 /-- A store followed by halt takes two instructions, preserves all registers and links,
 and updates exactly the selected field in the represented tree. The base register may
@@ -89,15 +86,11 @@ theorem storeData_correct (x : State M (layout extra regs))
       y.ptr = x.ptr ∧ y.data = x.data ∧ y.heap.length = x.heap.length ∧
       (∀ b, b ≠ a → y.heap[b]? = x.heap[b]?) := by
   let y : State M (layout extra regs) :=
-    { x with pc := 1
-             heap := x.heap.modify a fun n =>
-               { n with data := Function.update n.data field (x.data src) } }
-  refine ⟨y, ⟨1, .single ?_, rfl, rfl⟩, rep.updateData a field (x.data src),
-    rfl, rfl, ?_, ?_⟩
-  · simp [step, pc, Instr.effect, State.modify, cursor, Instr.next, y]
-  · exact List.length_modify ..
-  · intro b hb
-    exact List.getElem?_modify_ne _ _ (Ne.symm hb)
+    { x with pc := 1, heap := x.heap.modify a fun n =>
+        { n with data := Function.update n.data field (x.data src) } }
+  exact ⟨y, ⟨1, .single (by simp [step, pc, Instr.effect, State.modify, cursor, Instr.next, y]),
+    rfl, rfl⟩, rep.updateData a field (x.data src), rfl, rfl, List.length_modify ..,
+    fun _ hb => List.getElem?_modify_ne _ _ (Ne.symm hb)⟩
 
 /-- A scalar write outside a tree leaves that ghost tree unchanged. -/
 theorem updateData_eq_self (tree : BinaryTree (Label M extra)) (a : ℕ)
@@ -107,14 +100,11 @@ theorem updateData_eq_self (tree : BinaryTree (Label M extra)) (a : ℕ)
   induction tree with
   | nil => rfl
   | node label l r il ir =>
-    have hl := il (fun p u hp => fresh (.bit0 p) u hp)
-    have hr := ir (fun p u hp => fresh (.bit1 p) u hp)
-    have hn := fresh .one label rfl
     change BinaryTree.node { label with data :=
       if label.address = a then Function.update label.data field value else label.data }
       (updateData l a field value) (updateData r a field value) = _
-    rw [hl, hr]
-    simp [hn]
+    rw [il (fun p u => fresh (.bit0 p) u), ir (fun p u => fresh (.bit1 p) u)]
+    simp [fresh .one label rfl]
 
 
 /-- Scalar-field writes preserve the complete node-address footprint. -/
@@ -129,23 +119,19 @@ theorem updateData_eq_self (tree : BinaryTree (Label M extra)) (a : ℕ)
 theorem AddressesDistinct.updateData {tree : BinaryTree (Label M extra)}
     (h : AddressesDistinct tree) (a : ℕ) (field : Fin (extra + 1)) (value : M.Value) :
     AddressesDistinct (updateData tree a field value) := by
-  have addresses (p : PosNum) :
+  have haddr (p : PosNum) :
       ((PointerMachine.updateData tree a field value).get p).map Label.address =
         (tree.get p).map Label.address := by
     clear h
     induction tree generalizing p with
     | nil => rfl
-    | node label l r il ir =>
+    | node _ _ _ _ _ =>
       cases p <;> simp_all [PointerMachine.updateData, BinaryTree.map, BinaryTree.get]
   intro p q u v hp hq eq
-  have pu : (tree.get p).map Label.address = some u.address := by
-    rw [← addresses, hp]
-    rfl
-  have qv : (tree.get q).map Label.address = some v.address := by
-    rw [← addresses, hq]
-    rfl
-  obtain ⟨u', hu, eu⟩ := Option.map_eq_some_iff.mp pu
-  obtain ⟨v', hv, ev⟩ := Option.map_eq_some_iff.mp qv
+  obtain ⟨u', hu, eu⟩ := Option.map_eq_some_iff.mp
+    ((haddr p).symm.trans (congrArg (Option.map _) hp))
+  obtain ⟨v', hv, ev⟩ := Option.map_eq_some_iff.mp
+    ((haddr q).symm.trans (congrArg (Option.map _) hq))
   exact h p q u' v' hu hv (eu.trans (eq.trans ev.symm))
 
 end Cslib.DataStructure.SearchTree.PointerMachine

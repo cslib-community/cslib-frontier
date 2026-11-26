@@ -64,15 +64,9 @@ theorem uniformList_decode_prefixGap {gs : List GateCode} {X : List Bool}
       patternProb_eq_prefixGap hgs hS hvalid,
       ENNReal.ofReal_div_of_pos (by positivity)]
     simp
-  · rw [ite_eq_right hlen]
-    symm
-    rw [PMF.map_apply, tsum_fintype]
-    apply Finset.sum_eq_zero
-    intro y _
-    have hne : word ≠ S.map (readBit y) := by
-      intro heq
-      apply hlen
-      rw [heq, List.length_map]
+  · rw [ite_eq_right hlen, eq_comm, PMF.map_apply, tsum_fintype]
+    refine Finset.sum_eq_zero fun y _ => ?_
+    have hne : word ≠ S.map (readBit y) := fun h => hlen (h ▸ List.length_map _)
     simp [hne]
 
 /-- Decode a seed by querying integer prefix masses only on distinct target wires, then restore
@@ -91,8 +85,7 @@ its exact distribution guarantee requires well-formed codes and a uniform `h`-bi
 /-- The empty circuit returns the input, for every seed. -/
 @[simp] theorem decodeOutput_nil (X seed : List Bool) : decodeOutput [] X seed = X := by
   change restorePositions [] X [] = X
-  simpa [readPositions] using
-    restorePositions_readPositions [] X X rfl (fun _ _ _ => rfl)
+  simpa [readPositions] using restorePositions_readPositions [] X X rfl fun _ _ _ => rfl
 
 /-- The uniform Hadamard-bit seed, decoded and restored, has exactly the complete measurement
 law of the circuit. -/
@@ -100,14 +93,13 @@ theorem uniformList_decodeOutput {gs : List GateCode} {X : List Bool}
     (hgs : ∀ g ∈ gs, g.WellFormed X.length) :
     (uniformList (hadamardCount gs)).map (decodeOutput gs X) =
       (Circuit.measure (Circuit.ofCodes X.length gs) (inputState X.length X)).map List.ofFn := by
-  have hvalid : ∀ j ∈ GateCode.targets gs, j < X.length :=
-    fun _ hj => GateCode.lt_of_mem_targets hgs hj
   change (uniformList (hadamardCount gs)).map
     (restorePositions (GateCode.targets gs) X ∘
       fun seed => RankDecoder.decode (prefixGap gs X (GateCode.targets gs))
         (GateCode.targets gs).length [] (binaryValue seed)) = _
-  rw [← PMF.map_comp, uniformList_decode_prefixGap hgs (GateCode.targets_nodup gs) hvalid]
-  exact measure_map_restorePositions X hgs (GateCode.targets gs) (fun _ h => h)
+  rw [← PMF.map_comp, uniformList_decode_prefixGap hgs (GateCode.targets_nodup gs)
+    fun _ => GateCode.lt_of_mem_targets hgs]
+  exact measure_map_restorePositions X hgs (GateCode.targets gs) fun _ h => h
 
 /-- Sample exactly one fair bit per Hadamard gate, then deterministically decode the complete
 output. These are the sampled seed bits; a native-machine realization may have unused transition

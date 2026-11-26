@@ -216,9 +216,8 @@ private theorem exists_orCompression_advice {r : α × α → Bool}
   classical
   -- the instances of length `n`, and the no-instances among them related to `z`
   let I : Finset α := (BitString.shortWords n).preimage enc enc.injective.injOn
-  have hI : #I < 2 ^ (n + 1) := by
-    refine lt_of_le_of_lt (card_le_card_of_injOn enc (fun a ha => mem_preimage.1 ha)
-      enc.injective.injOn) (BitString.card_shortWords_lt n)
+  have hI : #I < 2 ^ (n + 1) := (card_le_card_of_injOn enc (fun a ha => mem_preimage.1 ha)
+    enc.injective.injOn).trans_lt (BitString.card_shortWords_lt n)
   let R : α → Finset α := fun z => I.filter fun a => (enc a).length = n ∧ a ∉ A ∧ r (z, a) = true
   have hR (z a : α) : a ∈ R z ↔ (enc a).length = n ∧ a ∉ A ∧ r (z, a) = true := by
     simp only [R, I, mem_filter, mem_preimage, BitString.mem_shortWords, and_iff_right_iff_imp]
@@ -226,8 +225,7 @@ private theorem exists_orCompression_advice {r : α × α → Bool}
   have hlog (z : α) : Nat.log 2 #(R z) ≤ n := by
     have hlt : #(R z) < 2 ^ (n + 1) := (card_filter_le _ _).trans_lt hI
     rcases Nat.eq_zero_or_pos #(R z) with h0 | hpos
-    · rw [h0, Nat.log_zero_right]
-      exact Nat.zero_le _
+    · simp [h0]
     · exact Nat.lt_succ_iff.1 (Nat.log_lt_of_lt_pow hpos.ne' hlt)
   -- compress a tuple of instances
   let F : (Fin (t n) → α) → List Bool := fun g => encB (f (List.ofFn g))
@@ -241,9 +239,7 @@ private theorem exists_orCompression_advice {r : α × α → Bool}
     refine hshort _ (List.length_ofFn) (fun a ha => ?_) (hpair z g hg)
     obtain ⟨i, rfl⟩ := List.mem_ofFn.1 ha
     exact ((hR z _).1 (hg i)).1
-  have htpos : 0 < t n := by
-    by_contra h0
-    have h0 : t n = 0 := by omega
+  have htpos : 0 < t n := Nat.pos_of_ne_zero fun h0 => by
     have := hshort [] (by simp [h0]) (by simp) (by simp)
     omega
   -- the compressions of tuples of related no-instances are fewer than `2 ^ t n` words
@@ -368,8 +364,7 @@ theorem compl_mem_NPPoly_of_orCompression (D : Decoder enc) {r : α × α → Bo
       have hfl : f l' = f l := encB.injective hl'f
       have hnot : f l ∉ B := by
         rw [← hfl, hOR l' hl'ne hl'rel]
-        rintro ⟨b, hb, hbA⟩
-        exact hl'A b hb hbA
+        exact fun ⟨b, hb, hbA⟩ => hl'A b hb hbA
       have hpair : ∀ b ∈ l, ∀ b' ∈ l, r (b, b') = true := fun b hb b' hb' =>
         hr.equivalence.trans (hr.equivalence.symm (hrel b hb)) (hrel b' hb')
       exact hnot ((hOR l (List.ne_nil_of_mem hal) hpair).2 ⟨a, hal, haA⟩)

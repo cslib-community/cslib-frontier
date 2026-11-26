@@ -53,9 +53,7 @@ public section
 namespace Cslib.Circuits.Frontier
 
 open Polynomial Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-- An integer is `2 ^ v₂(n)` times its odd part `n / 2 ^ v₂(n)`. -/
 theorem two_pow_mul_ediv (n : ℤ) : 2 ^ padicValInt 2 n * (n / 2 ^ padicValInt 2 n) = n :=
@@ -99,12 +97,10 @@ private theorem inv_ediv_mem {n : ℤ} (hn : n ≠ 0) :
 private theorem padicValInt_sub_le {a : ℕ} {t q : ℤ} (ht : t ∈ cauchyGrid (2 ^ a))
     (hq : q ∈ cauchyGrid (2 ^ a)) (hne : q ≠ t) : padicValInt 2 (t - q) ≤ a := by
   have hval := padicValuation_two_pow_le_sub ht hq hne
-  have hne' : t - q ≠ 0 := sub_ne_zero.mpr (Ne.symm hne)
   have h2 : Rat.padicValuation 2 ((2 : ℚ) ^ a) = WithZero.exp (-(a : ℤ)) := by
     exact_mod_cast Rat.padicValuation_pow_self 2 a
-  have h' : Rat.padicValuation 2 ((t : ℚ) - q) = Rat.padicValuation 2 ((t - q : ℤ) : ℚ) := by
-    push_cast; rfl
-  rw [h', Rat.padicValuation_intCast_of_ne_zero 2 hne', h2, WithZero.exp_le_exp] at hval
+  rw [← Int.cast_sub, Rat.padicValuation_intCast_of_ne_zero 2 (sub_ne_zero.mpr hne.symm), h2,
+    WithZero.exp_le_exp] at hval
   omega
 
 /-- A product of differences `s - q` over the other grid points is `2 ^ (∑ v₂(s - q))` times the
@@ -123,15 +119,12 @@ theorem sum_padicValInt_sub_eq {a : ℕ} {t : ℤ} (ht : t ∈ cauchyGrid (2 ^ a
       ∑ q ∈ (cauchyGrid (2 ^ a)).erase 0, padicValInt 2 (0 - q) := by
   have hv (s : ℤ) : Rat.padicValuation 2 (∏ q ∈ (cauchyGrid (2 ^ a)).erase s, ((s : ℚ) - q)) =
       WithZero.exp (-((∑ q ∈ (cauchyGrid (2 ^ a)).erase s, padicValInt 2 (s - q) : ℕ) : ℤ)) := by
-    rw [prod_sub_eq s, map_mul, map_prod]
-    rw [prod_eq_one fun q hq => padicValuation_ediv (sub_ne_zero.mpr
-      (Ne.symm (ne_of_mem_erase hq))), mul_one]
+    rw [prod_sub_eq s, map_mul, map_prod, prod_eq_one fun q hq =>
+      padicValuation_ediv (sub_ne_zero.mpr (ne_of_mem_erase hq).symm), mul_one]
     exact_mod_cast Rat.padicValuation_pow_self 2 _
-  have h := padicValuation_prod_sub_eq ht
-  have h0 := hv 0
-  push_cast at h0
-  rw [hv t, h0, WithZero.exp_inj, neg_inj] at h
-  exact_mod_cast h
+  have h := (hv t).symm.trans ((padicValuation_prod_sub_eq ht).trans
+    (by simpa only [Int.cast_zero] using hv 0))
+  exact_mod_cast neg_inj.mp (WithZero.exp_inj.mp h)
 
 /-- The inverse `∏_{q ≠ 0} u'_q⁻¹` of the odd part of `C'(0) = ∏_{q ≠ 0} (0 - q)`, a unit of
 `ℤ_(2)`, with `u'_q` the odd part of `0 - q`. -/
@@ -209,9 +202,7 @@ theorem localKernel_eq_prod {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)
   set S₀ := ∑ q ∈ (cauchyGrid (2 ^ a)).erase 0, padicValInt 2 (0 - q)
   set w := ∏ q ∈ (cauchyGrid (2 ^ a)).erase 0, (((0 - q) / 2 ^ padicValInt 2 (0 - q) : ℤ) : ℚ)
   have hC0 : ∏ q ∈ (cauchyGrid (2 ^ a)).erase 0, ((0 : ℚ) - (q : ℚ)) = 2 ^ S₀ * w := by
-    have := prod_sub_eq 0 ((cauchyGrid (2 ^ a)).erase 0)
-    push_cast at this
-    exact this
+    simpa only [Int.cast_zero] using prod_sub_eq 0 ((cauchyGrid (2 ^ a)).erase 0)
   have hsum := sum_padicValInt_sub_eq ht
   have hRHS : (C (kernelUnit a) *
       (if d = t then 1 else C ((2 : ℤ₍₂₎) ^ (a + 1 - padicValInt 2 (t - d))) * X) *
@@ -239,9 +230,7 @@ theorem localKernel_eq_prod {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)
     have htd : t ∈ (cauchyGrid (2 ^ a)).erase d := mem_erase.mpr ⟨hdt.symm, ht⟩
     have hdt' : d ∈ (cauchyGrid (2 ^ a)).erase t := mem_erase.mpr ⟨hdt, hd⟩
     have hsub : ((cauchyGrid (2 ^ a)).erase d).erase t ⊆ (cauchyGrid (2 ^ a)).erase t :=
-      fun q hq => by
-        simp only [mem_erase] at hq ⊢
-        exact ⟨hq.1, hq.2.2⟩
+      erase_subset_erase t (erase_subset d _)
     set sv := ∑ q ∈ ((cauchyGrid (2 ^ a)).erase d).erase t, padicValInt 2 (t - q)
     set U := ∏ q ∈ ((cauchyGrid (2 ^ a)).erase d).erase t, (unitFactor a t q).map (ℤ₍₂₎).subtype
     -- `S₀ = v_d + ∑_{q ≠ d, t} v_q`.
@@ -254,8 +243,7 @@ theorem localKernel_eq_prod {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)
     have hvd := padicValInt_sub_le ht hd hdt
     have hw : w ≠ 0 := prod_ne_zero_iff.mpr fun q hq => by
       exact_mod_cast ediv_two_pow_ne_zero (sub_ne_zero.mpr (Ne.symm (ne_of_mem_erase hq)))
-    rw [← mul_prod_erase _ _ htd, prod_shift_eq ht _ hsub,
-      show C (t : ℚ) + C ((2 : ℚ) ^ (a + 1)) * X - C (t : ℚ) = C ((2 : ℚ) ^ (a + 1)) * X by ring]
+    rw [← mul_prod_erase _ _ htd, prod_shift_eq ht _ hsub, add_sub_cancel_left]
     have hL : C (2 ^ S₀ * w)⁻¹ * (C ((2 : ℚ) ^ (a + 1)) * X * (C ((2 : ℚ) ^ sv) * U)) =
         C ((2 ^ S₀ * w)⁻¹ * 2 ^ (a + 1) * 2 ^ sv) * (X * U) := by
       rw [C_mul, C_mul]; ring

@@ -218,7 +218,7 @@ example : ∃ d c e, ComputableInO
     have ht := countingTreeBound_countingThresholdBase (by decide : 1 ≤ 2) hBpos
     simpa only [varyingM, countingDepthCoeff, Nat.reduceSub, Finset.range_one, Finset.sum_singleton,
       pow_zero, Nat.mul_one] using ht
-  obtain ⟨c, e, hc⟩ := exists_computableInO_searchDeclaredWith
+  obtain ⟨c, e, hc, hs⟩ := exists_computableInO_searchDeclaredWith
     hB varying_comparison hM (by decide : 1 ≤ 2) hM2 (by decide : 2 ≤ 2) hTB
     (PolyBounded.const 4) hcounter
     (fun x _ i _ _ => by
@@ -230,7 +230,6 @@ example : ∃ d c e, ComputableInO
       (Nat.pow_le_pow_left (varying_leaf_input_bound occurringProbe x i hactive) d))
     (fun x _ i _ hactive =>
       Nat.pow_le_pow_left (varying_leaf_input_bound occurringProbe x i hactive) d)
-    (varying_leaf_allowance_poly d)
-  exact ⟨d, c, e, hc⟩
+  exact ⟨d, c, e, hc, hs (varying_leaf_allowance_poly d)⟩
 
 end CountingSparsificationUniformTests
