@@ -182,10 +182,9 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
         Nat.mul_div_right _ two_pos, ConstraintGraph.cnfLabelling]
       rfl
     · have hj : j.val < φ.to3CNF.length := by simpa only [CNF.length_compact] using j.isLt
-      have hneg : ¬ (2 * j.val + 1) % 2 = 0 := by omega
-      have hdiv : (2 * j.val + 1) / 2 = j.val := by omega
-      simp only [Graph.cnfVertexNumber, hdiv, hneg, ↓reduceIte, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hj, Option.getD_some]
+      simp only [Graph.cnfVertexNumber, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt one_lt_two,
+        Nat.one_ne_zero, ↓reduceIte, Nat.mul_add_div two_pos, Nat.div_eq_of_lt one_lt_two,
+        Nat.add_zero, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some]
       funext q
       change ψ[j.val][q.val]?.elim false (fun lit => τ lit.1) =
         ψ.compact[j.val][q.val]?.elim false (fun l => ψ.vars[l.1]?.elim false τ)
@@ -204,15 +203,12 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
     Function.comp_def]
   set idx := (Graph.ofCNFEnumeration ψ.vars.length ψ.compact).equiv e
   have hgr := (Graph.toGraph_ofCNF ψ.vars.length ψ.compact).symm
-  have hsrcIdx : Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).src idx) <
-      2 * (ψ.vars.length + ψ.length) :=
-    (congrArg (fun g => g.src e) hgr).trans_lt
-      (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.1)
-  have hdstIdx : Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).dst idx) <
-      2 * (ψ.vars.length + ψ.length) :=
-    (congrArg (fun g => g.dst e) hgr).trans_lt
-      (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.2)
-  rw [hlabel _ hsrcIdx, hlabel _ hdstIdx]
+  have hsrcIdx := (congrArg (fun g => g.src e) hgr).trans_lt
+    (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.1)
+  have hdstIdx := (congrArg (fun g => g.dst e) hgr).trans_lt
+    (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.2)
+  rw [hlabel ((ConstraintGraph.ofCNF ψ.compact).src idx) hsrcIdx,
+    hlabel ((ConstraintGraph.ofCNF ψ.compact).dst idx) hdstIdx]
   exact hsatMath idx
 
 /-- Compiling `Graph.ofCompactCNF φ.to3CNF` labels from `(φ, w)` runs in polynomial time. -/
@@ -817,10 +813,9 @@ theorem isPolyTime_amplifyIterLabels_clog {Input : Type} {input : Input ↪ List
         (fun g _ => g.wellFormed_amplify id fallback family rotate hrotate T q)
         (fun _ h => h) (fun _ _ edge _ => length_constraintTable_le edge.constraint)
         (fun g _ => hgrowth g) (hwellFormed x) hi
-      have hsz_bound : ∀ m, ((amplify id fallback rotate T q)^[m] (graph x)).vertices +
+      have hsz_bound (m : ℕ) : ((amplify id fallback rotate T q)^[m] (graph x)).vertices +
           ((amplify id fallback rotate T q)^[m] (graph x)).edges.length ≤
           max factor 1 ^ m * ((graph x).vertices + (graph x).edges.length) := by
-        intro m
         induction m with
         | zero => simp
         | succ m ih =>

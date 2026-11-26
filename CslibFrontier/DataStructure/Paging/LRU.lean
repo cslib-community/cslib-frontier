@@ -215,9 +215,8 @@ theorem lruStrategy_costFrom_eq (k : Nat) (hk : 0 < k) (q : List α) (reqs : Lis
   induction reqs generalizing q with
   | nil => rfl
   | cons p ps ih =>
-    change stepCost q.toFinset p (lruNext k q p).toFinset +
-        (lruStrategy (α := α) k hk).costFrom (lruNext k q p) ps = _
-    simp only [stepCost, List.mem_toFinset, ih (lruNext k q p), lruFaults_cons]
+    rw [DetStrategy.costFrom_cons, ih]
+    simp only [stepCost, List.mem_toFinset, lruFaults_cons]
 
 /-- From an empty cache `∅`, `lruStrategy.cost` equals computable `lruFaults k [] reqs`. -/
 theorem lruStrategy_cost_empty (k : Nat) (hk : 0 < k) (reqs : List α) :
@@ -378,11 +377,9 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
       have hpred := maxWeightFrom_pred_zero_or_lt k s q
       have hsdiff : 1 + (s \ (p :: q.take (k - 1)).toFinset).card ≤ lruPotential k s q := by
         by_cases hfull : q.length < k
-        · have hle' : q.length ≤ k - 1 := by omega
-          have hsub : 1 + (s \ (p :: q).toFinset).card ≤ (s \ q.toFinset).card := by
-            finset_card [List.toFinset_cons]
-          rw [List.take_of_length_le hle']
-          exact hsub.trans (le_max_right _ _)
+        · rw [List.take_of_length_le (by omega)]
+          refine le_trans ?_ (le_max_right _ _)
+          finset_card [List.toFinset_cons]
         · obtain ⟨init, last, rfl⟩ : ∃ init last, q = init ++ [last] :=
             ⟨q.dropLast, q.getLast (by grind), (List.dropLast_append_getLast _).symm⟩
           obtain rfl : k = init.length + 1 := by simp at hlen hfull; omega
@@ -390,10 +387,8 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
           by_cases hlast : last ∈ s
           · exact (one_add_sdiff_le_maxWeightFrom_snoc init hnodup hs_card hps hpq hlast).trans
               (le_max_left _ _)
-          · have hsub : 1 + (s \ (p :: init).toFinset).card ≤
-                (s \ (init ++ [last]).toFinset).card := by
-              finset_card [List.toFinset_cons, List.toFinset_append, List.toFinset_nil]
-            exact hsub.trans (le_max_right _ _)
+          · refine le_trans ?_ (le_max_right _ _)
+            finset_card [List.toFinset_cons, List.toFinset_append, List.toFinset_nil]
       simp only [lruPotential, maxWeightFrom_cons, hps, ↓reduceIte] at hsdiff ⊢
       omega
   · -- Offline miss (`stepCost s p s' = 1`, `p ∈ s'`)

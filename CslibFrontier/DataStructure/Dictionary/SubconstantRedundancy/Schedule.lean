@@ -643,19 +643,16 @@ theorem numNodes_mul_targetSize_bounds {n U r k ℓ : ℕ}
     numNodes n U r k ℓ * targetSize n U r k ℓ ≤ n ∧
       n < 2 * numNodes n U r k ℓ * targetSize n U r k ℓ := by
   rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ_pos
-  · dsimp only [numNodes, cumBranchBits, targetSize]
-    simp only [↓reduceIte, pow_zero, one_mul]
-    omega
-  · set T := targetSize n U r k ℓ
-    have hS : cumBranchBits n U r k ℓ = Nat.log 2 (n / T) := by
-      dsimp only [cumBranchBits]
-      rw [ite_eq_right hℓ_pos.ne', max_eq_left hpos]
+  · simp only [numNodes, cumBranchBits, targetSize, ↓reduceIte, pow_zero, one_mul]
+    exact ⟨hle, by omega⟩
+  · set T := targetSize n U r k ℓ with hT
     set q := n / T
-    have hlo : numNodes n U r k ℓ ≤ q := by
-      rw [numNodes, hS]
-      exact Nat.pow_log_le_self 2 (Nat.div_pos hle hpos).ne'
+    have hN : numNodes n U r k ℓ = 2 ^ Nat.log 2 q := by
+      simp only [numNodes, cumBranchBits, hℓ_pos.ne', ↓reduceIte, ← hT, max_eq_left hpos, q]
+    have hlo : numNodes n U r k ℓ ≤ q :=
+      hN ▸ Nat.pow_log_le_self 2 (Nat.div_pos hle hpos).ne'
     have hhi : q < 2 * numNodes n U r k ℓ := by
-      rw [numNodes, hS, mul_comm 2, ← pow_succ]
+      rw [hN, mul_comm 2, ← pow_succ]
       exact Nat.lt_pow_succ_log_self Nat.one_lt_two q
     refine ⟨(Nat.mul_le_mul_right T hlo).trans (Nat.div_mul_le_self n T), ?_⟩
     calc n < T * (q + 1) := Nat.lt_mul_div_succ n hpos
@@ -756,10 +753,8 @@ theorem four_mul_branchBits_add_idBits_succ_le {n U r k ℓ : ℕ}
   set s := branchBits n U r k ℓ
   set x := nFloor n U r k (ℓ + 1)
   set y := nFloor n U r k ℓ
-  have hstep : 2 ^ s * x ≤ y := by
-    dsimp only [s, x, y, branchFactor]
-    rw [nFloor_succ_eq_div hle]
-    exact Nat.mul_div_le _ _
+  have hstep : 2 ^ s * x ≤ y :=
+    (Nat.mul_le_mul_left (2 ^ s) (nFloor_succ_eq_div hle).le).trans (Nat.mul_div_le y (2 ^ s))
   have hy1 : 1 ≤ y := hx1.trans ((Nat.le_mul_of_pos_left x (Nat.two_pow_pos s)).trans hstep)
   set a := Nat.clog 2 (2 * max x 1)
   set b := Nat.clog 2 (2 * max y 1)
@@ -830,8 +825,7 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
     idBits n U r k (ℓ - 1) ≤ 148 * levelScale U r k ℓ := by
   intro k
   obtain ⟨hlo, hhi⟩ := targetSize_le_nFloor_and_lt hpos_pred hle_pred
-  have hT_eq : targetSize n U r (treeDepth U r) (ℓ - 1) = (Nat.iterLog (ℓ - 1) U) ^ 9 := by
-    rw [targetSize_eq_levelScale_pow (by omega), levelScale, ite_eq_left (by omega)]
+  rw [targetSize_eq_levelScale_pow (by omega), levelScale, ite_eq_left (by omega)] at hhi
   have heq : Nat.iterLog ℓ U = Nat.log 2 (Nat.iterLog (ℓ - 1) U) := by
     rw [← Nat.iterLog_succ, Nat.sub_add_cancel (by omega : 1 ≤ ℓ)]
   set X := Nat.iterLog (ℓ - 1) U
@@ -849,7 +843,6 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
       (Nat.pow_le_pow_right Nat.two_pos (by omega))
   have h2y_le : 2 * max (nFloor n U r k (ℓ - 1)) 1 ≤ 2 ^ (36 * s + 11) := by
     rw [max_eq_left (hpos_pred.trans hlo)]
-    rw [hT_eq] at hhi
     calc 2 * nFloor n U r k (ℓ - 1)
         ≤ 4 * X ^ 9 := by dsimp only [k]; omega
       _ ≤ 4 * (2 ^ (4 * s + 1)) ^ 9 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hX_lt.le 9)

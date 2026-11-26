@@ -407,19 +407,17 @@ theorem updates_eq_getD_lastIdx (σ : ℕ → Bool) :
   | _ :: _, [], hz, _, _ => absurd hz (by simp)
   | v :: vs, b :: bs, hz, x, hx => by
     rw [QBF.updates]
-    have hz' : bs.length = vs.length := by simpa using hz
     by_cases hxs : x ∈ vs
-    · rw [updates_eq_getD_lastIdx _ vs bs hz' x hxs, lastIdx, lastIdx, List.reverse_cons,
-        List.idxOf_append_of_mem (List.mem_reverse.2 hxs), List.length_cons]
+    · rw [updates_eq_getD_lastIdx _ vs bs (Nat.succ.inj hz) x hxs, lastIdx, lastIdx,
+        List.reverse_cons, List.idxOf_append_of_mem (List.mem_reverse.2 hxs), List.length_cons]
       have hlt : vs.reverse.idxOf x < vs.length := by
         simpa using List.idxOf_lt_length_of_mem (List.mem_reverse.2 hxs)
       have hsub : vs.length + 1 - 1 - vs.reverse.idxOf x =
           (vs.length - 1 - vs.reverse.idxOf x) + 1 := by omega
       rw [hsub, List.getD_cons_succ]
     · obtain rfl : x = v := by simpa [hxs] using hx
-      rw [QBF.updates_of_notMem hxs, Function.update_self, lastIdx, List.reverse_cons,
-        List.idxOf_append_of_notMem (by simpa using hxs)]
-      simp
+      simp [QBF.updates_of_notMem hxs, lastIdx,
+        List.idxOf_append_of_notMem (mt List.mem_reverse.1 hxs)]
 
 /-- **The reduction is correct**: the first player wins on the graph of an instance exactly when
 its formula is a true closed formula. -/
@@ -430,22 +428,20 @@ theorem reduce_mem_iff (x : PrenexCNF) :
   split_ifs with hall
   · have hvars : ∀ c ∈ ψ, ∀ l ∈ c, l.1 ∈ QBF.roundVars ps := by
       simpa only [List.all_eq_true, decide_eq_true_eq] using hall
-    have hclosed := (QBF.closed_rounds_ofCNF_iff ps ψ).2 hvars
     have heven : Even (QBF.roundVars ps).length := ⟨ps.length, by rw [QBF.length_roundVars]; ring⟩
     rw [mem_GeneralizedGeography, geographyWins_formulaGraph heven hvars, mk_mem_TQBFCNF,
-      mem_TQBF_iff_of_closed hclosed (fun _ => false),
+      mem_TQBF_iff_of_closed ((QBF.closed_rounds_ofCNF_iff ps ψ).2 hvars) (fun _ => false),
       QBF.eval_rounds_eq_true_iff, ← QBF.length_roundVars]
     refine alternation_congr_of_length fun z hz => ?_
-    rw [sum_replicate_one] at hz
     rw [QBF.eval_ofCNF]
     refine Eq.congr_left (CNF.eval_congr fun v hv => ?_)
     obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hv
     obtain ⟨c, hc, hlc⟩ := List.mem_flatten.1 hl
-    exact (updates_eq_getD_lastIdx _ _ z hz l.1 (hvars c hc l hlc)).symm
+    exact (updates_eq_getD_lastIdx _ _ z
+      (sum_replicate_one (QBF.roundVars ps).length ▸ hz) l.1 (hvars c hc l hlc)).symm
   · refine iff_of_false notMem_GeneralizedGeography_of_nil fun h => hall ?_
-    rw [mk_mem_TQBFCNF] at h
     simpa only [List.all_eq_true, decide_eq_true_eq] using
-      (QBF.closed_rounds_ofCNF_iff ps ψ).1 h.1
+      (QBF.closed_rounds_ofCNF_iff ps ψ).1 (mk_mem_TQBFCNF.mp h).1
 
 /-! ### Polynomial time -/
 
@@ -520,10 +516,8 @@ theorem computableInPolyTime_formulaGraph {xs : γ → List ℕ} {ψ : γ → CN
 theorem computableInPolyTime_reduce :
     ComputableInPolyTime reduce encPrenexCNF encGeneralizedGeography := by
   have hmat := encPrenexCNF_matrix_polyTime id'
-  change ComputableInPolyTime (fun x => reduce x) encPrenexCNF encGeneralizedGeography
-  dsimp only [reduce]
+  unfold reduce QBF.roundVars
   simp only [List.decide_mem_eq_any]
-  dsimp only [QBF.roundVars]
   fun_prop
 
 end PolyTime

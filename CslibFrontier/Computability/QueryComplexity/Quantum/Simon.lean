@@ -291,9 +291,7 @@ theorem run_simonAlg_apply (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin
   by_cases h : i = i₀ ∧ b = false
   · simp only [h, true_and, ite_true, mul_ite, mul_zero, sum_filter, mul_sum]
     exact sum_congr rfl fun a _ => by split_ifs <;> ring
-  · rw [ite_eq_right_iff.mpr fun h' => absurd h' h]
-    refine (mul_eq_zero_of_right _ (sum_eq_zero fun a _ => ?_))
-    rw [ite_eq_right_iff.mpr fun h' => absurd ⟨h'.1, h'.2.1⟩ h, mul_zero]
+  · simp only [← and_assoc, h, false_and, ↓reduceIte, mul_zero, sum_const_zero]
 
 /-- The accepting outcomes of Simon's algorithm: the measured rows `z_r` (of the input register)
 have a common nonzero orthogonal vector `w`, so they do not span `{0,1}^n`. -/
@@ -322,9 +320,7 @@ private theorem sum_signVal_eq_zero {E : Fin N ≃ (Fin n → Bool) × Fin n} {X
     rw [sum_eq_single r₀ (fun r _ hr => sum_eq_zero fun j _ => by simp only [hr, ite_false]; rfl)
       (by simp)]
     exact sum_congr rfl fun j _ => by simp [mul_comm]
-  have hG : ∀ a, simonG E X (a + δ) = simonG E X a := by
-    intro a
-    funext ⟨r, j⟩
+  have hG (a) : simonG E X (a + δ) = simonG E X a := funext fun ⟨r, j⟩ => by
     simp only [simonG]
     by_cases hk : r = r₀
     · subst hk
@@ -333,8 +329,7 @@ private theorem sum_signVal_eq_zero {E : Fin N ≃ (Fin n → Bool) × Fin n} {X
     · exact congrArg (simonFun E X · j) (funext fun i => by simp [hδ, hk, Bool.zero_eq_false])
   set F : (Fin m × Fin n → Bool) → ℂ := fun a =>
     if simonG E X a = ys then ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ) else 0 with hF
-  have hFδ : ∀ a, F (a + δ) = -F a := by
-    intro a
+  have hFδ (a) : F (a + δ) = -F a := by
     simp only [hF, hG, add_dotProduct, hδz, signVal_add_true, Complex.ofReal_neg]
     split_ifs <;> simp
   have hS : ∑ a, F a = -∑ a, F a := by
@@ -458,13 +453,9 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
         sum_eq_zero fun _ _ => by simp [hBdef, hb],
       Fintype.sum_equiv SimonWork.equiv _ (fun q => B (i₀, false, ⟨q.1, q.2⟩))
         (fun ⟨_, _⟩ => rfl), Fintype.sum_prod_type]
-    have hrow : ∀ zs : Fin m × Fin n → Bool, ∑ ys, B (i₀, false, ⟨zs, ys⟩) =
+    have hrow (zs : Fin m × Fin n → Bool) : ∑ ys, B (i₀, false, ⟨zs, ys⟩) =
         if zs ∈ Z' then c ^ 4 * K * 2 ^ (m * n) else 0 := by
-      intro zs
-      simp only [hBdef, true_and]
-      split_ifs
-      · rw [← mul_sum, hfibsum]
-      · exact sum_const_zero
+      simp only [hBdef, true_and, sum_ite_irrel, sum_const_zero, ← mul_sum, hfibsum]
     rw [sum_congr rfl fun zs _ => hrow zs, ← sum_filter, sum_const, nsmul_eq_mul,
       filter_mem_eq_inter, univ_inter]
     ring

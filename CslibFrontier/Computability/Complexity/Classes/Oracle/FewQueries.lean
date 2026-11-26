@@ -156,19 +156,14 @@ theorem run_interpret_popAnswer_run (fuel : ℕ) (input s : List Bool) :
     (MultiTapeMachine.run machine (fun choices => choices <$> (pure false : OracleComp _ Bool))
       (fun op word => OracleComp.query (op, word)) fuel input)).run s = _
   rw [← finiteRunFrom_init, finiteRunFrom, OracleComp.interpret_map, StateT.run_map]
-  have h (fuel : ℕ) : (OracleComp.interpret (m := StateM (List Bool)) OracleComp.popAnswer
-      (OracleComp.iterate fuel (MultiTapeMachine.finiteStep machine
-        (fun choices => choices <$> (pure false : OracleComp _ Bool))
-        (fun op word => OracleComp.query (op, word)))
-        (FiniteConfig.init machine.initial input))).run s =
-      machine.popStep^[fuel] (FiniteConfig.init machine.initial input, s) := by
-    induction fuel with
-    | zero => rfl
-    | succ fuel ih =>
-      rw [OracleComp.iterate_succ, OracleComp.interpret_bind, StateT.run_bind,
-        Function.iterate_succ_apply', ← ih]
-      exact machine.run_interpret_popAnswer_finiteStep _ _
-  rw [h]; rfl
+  refine congrArg
+    (Prod.map (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output) id) ?_
+  induction fuel with
+  | zero => rfl
+  | succ fuel ih =>
+    rw [OracleComp.iterate_succ, OracleComp.interpret_bind, StateT.run_bind,
+      Function.iterate_succ_apply', ← ih]
+    exact machine.run_interpret_popAnswer_finiteStep _ _
 
 /-- The configuration part of `popStep` is an instruction against the oracle answering the next
 bit. -/
@@ -363,8 +358,7 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_log (hR : R ∈ FN
   have hlog : 2 ^ Nat.log 2 n ≤ n + 1 :=
     if hn : n = 0 then by simp [hn] else (Nat.pow_log_le_self 2 hn).trans (Nat.le_succ n)
   simp only [Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_add,
-    Polynomial.eval_X, Polynomial.eval_one, pow_add, mul_comm (2 ^ c)]
-  rw [mul_comm c, pow_mul]
+    Polynomial.eval_X, Polynomial.eval_one, pow_add, mul_comm c, pow_mul, mul_comm (2 ^ c)]
   exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hlog c)
 
 end Cslib.Complexity

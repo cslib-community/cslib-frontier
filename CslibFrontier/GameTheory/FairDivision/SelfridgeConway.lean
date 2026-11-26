@@ -102,9 +102,8 @@ private theorem perm_three_of_ne {α : Type} {a b : Fin 3} (hab : a ≠ b) (f : 
 
 private theorem sum_three_of_ne {a b : Fin 3} (hab : a ≠ b) (g : Fin 3 → ℝ) :
     g (thirdFin3 a b) + g b + g a = g 0 + g 1 + g 2 := by
-  have hp := (perm_three_of_ne hab g).sum_eq
-  simp only [List.sum_cons, List.sum_nil, add_zero] at hp
-  linarith
+  simpa only [List.sum_cons, List.sum_nil, add_zero, add_assoc] using
+    (perm_three_of_ne hab g).sum_eq
 
 /-- Evaluate agent `i` on all three pieces of `P : Fin 3 → CakePiece`. -/
 private noncomputable def evalThree (i : Fin 3) (P : Fin 3 → CakePiece) :
@@ -319,10 +318,8 @@ theorem numCuts_selfridgeConwayQ_eq_two_of_eq {v : Fin 3 → CakeValuation}
   rw [numCuts_selfridgeConwayQ_eq]
   set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
   set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
-  have hu1_const : (evalThree 1 (scInitialPieces c1 c2)).eval oracle = fun _ => 1 / 3 := by
-    rw [eval_evalThree ho 1]
-    funext k
-    simpa only [CakeValuation.pieceVal, h10] using hv0_X k
+  have hu1_const : (evalThree 1 (scInitialPieces c1 c2)).eval oracle = fun _ => 1 / 3 :=
+    (eval_evalThree ho 1 _).trans (funext fun k => h10.symm ▸ hv0_X k)
   simp [hu1_const]
 
 /-- When Player `1` has a unique strictly largest initial piece among `[0, c₁], [c₁, c₂], [c₂, 1]`,
@@ -488,7 +485,6 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
   have hp0_ne_p1 : p0 ≠ p1 := fun h => absurd (σ1.injective h) (by decide)
   have hu1_p1_le_p0 : u1 p1 ≤ u1 p0 :=
     Tuple.antitone_sortDesc u1 (by decide : (0 : Fin 3) ≤ 1)
-  have hu1_top : ∀ k : Fin 3, u1 k ≤ u1 p0 := le_topChoice u1
   split_ifs with htie
   · -- Branch A: Player 1's top two pieces are tied (`u1 p0 = u1 p1`), 2 cuts total.
     simp only [scUntrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
@@ -500,7 +496,7 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     have hq1_val : u1 q1 = u1 p0 := by
       by_cases hq : σ1 0 ≠ q2 <;> simp [q1, bestOther, σ1, p0, p1, hq, hu1_tie_eq]
     have h1_fav (k : Fin 3) : (v 1).pieceVal (X k) ≤ (v 1).pieceVal (X q1) := by
-      simpa only [hu1_eq] using (hq1_val ▸ hu1_top k : u1 k ≤ u1 q1)
+      simpa only [hu1_eq] using (hq1_val ▸ le_topChoice u1 k : u1 k ≤ u1 q1)
     have h2_fav (k : Fin 3) : (v 2).pieceVal (X k) ≤ (v 2).pieceVal (X q2) := by
       simpa only [u2, q2, eval_evalThree ho 2 X] using le_topChoice u2 k
     intro i j
@@ -552,11 +548,11 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     -- Phase 2: pd divides [t, r] into three equal pieces of value w_pd / 3.
     set pa : Fin 3 := if q2 = p0 then 2 else 1
     set pd : Fin 3 := if q2 = p0 then 1 else 2
-    have hw_pd_eq : (RWQuery.evalAsk pd t r).eval oracle = v pd t r := ho.eval_evalAsk pd t r
     set w_pd := (RWQuery.evalAsk pd t r).eval oracle
     have ht0 : 0 ≤ t := hl0.trans ht_l
     obtain ⟨hu1_t, hu2_u1, hu2_r, hv_pd_T⟩ :=
-      cutIntoThirds_spec ho pd ht0 ht_r hr1 (α := w_pd / 3) (by rw [hw_pd_eq])
+      cutIntoThirds_spec ho pd ht0 ht_r hr1 (α := w_pd / 3)
+        (congrArg (· / 3) (ho.eval_evalAsk pd t r))
     have hu1_r : (RWQuery.cutIn pd t r (w_pd / 3)).eval oracle ≤ r := hu2_u1.trans hu2_r
     set u_cut1 := (RWQuery.cutIn pd t r (w_pd / 3)).eval oracle
     set u_cut2 := (RWQuery.cutIn pd u_cut1 r (w_pd / 3)).eval oracle

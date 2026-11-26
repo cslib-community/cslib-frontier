@@ -475,11 +475,10 @@ private theorem prod_maskWeight {R : Type*} [CommRing R] {kOut : ℕ} (cl : Wiri
   · rw [ite_eq_left h]
     simp only [matchesVec, List.all_eq_true, List.mem_finRange, true_implies] at h
     exact Finset.prod_eq_one fun j _ => by simp [maskWeight, -List.getD_eq_getElem?_getD, h j]
-  · rw [ite_eq_right h]
-    simp only [matchesVec, Bool.not_eq_true, List.all_eq_false] at h
-    obtain ⟨j, _, hj⟩ := h
-    exact Finset.prod_eq_zero (Finset.mem_univ j) (by
-      simp [maskWeight, -List.getD_eq_getElem?_getD, hj])
+  · obtain ⟨j, _, hj⟩ := List.all_eq_false.mp (Bool.eq_false_iff.mpr h)
+    rw [ite_eq_right h]
+    exact Finset.prod_eq_zero (Finset.mem_univ j)
+      (by simp [maskWeight, -List.getD_eq_getElem?_getD, hj])
 
 /-- Coordinate-`j` factor when `a j = b` in the factored MLE of `cl`. -/
 def bitTerm {R : Type*} [CommRing R] {kOut kIn : ℕ} (cl : WiringClause)
@@ -588,9 +587,7 @@ private theorem sum_list_of_unique {R : Type*} [AddCommMonoid R] {α : Type*}
       subst hfind
       have h0 := List.countP_eq_zero.mp (Nat.add_right_cancel h)
       rw [List.map_cons, List.sum_cons, ite_eq_left hc, List.sum_eq_zero, add_zero]
-      rintro _ hr
-      obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hr
-      simp [h0 d hd]
+      simpa using fun d hd => by simp [h0 d hd]
 
 /-- **Product factorization of wiring multilinear extensions** for `LayeredCircuit.ofClauses`:
 when `clauses i` partitions `{0, 1}^{width (i + 1)}`, the multilinear extension of `wiringPred g i`
@@ -1035,9 +1032,8 @@ def powerSumCircuit (P : PowerSumParams) : LayeredCircuit :=
 
 private theorem clausesPartition_singleton_unmasked (kOut : ℕ) (g : Gate)
     (litsL litsR : List WireLit) :
-    ClausesPartition kOut [⟨g, [], litsL, litsR⟩] := by
-  intro a
-  simp [WiringClause.matchesVec, WiringClause.matchOpt]
+    ClausesPartition kOut [⟨g, [], litsL, litsR⟩] :=
+  fun _ => by simp [WiringClause.matchesVec, WiringClause.matchOpt]
 
 private theorem clausesPartition_powerSum (P : PowerSumParams) (i : ℕ) :
     ClausesPartition (P.width (i + 1)) (P.layerClauses i) := by
@@ -1173,13 +1169,11 @@ theorem isLogSpaceUniform_powerSumCircuit :
       cases b <;> simp only [↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>
         exact padOrTakeBits_ofFn hw1 a
     · by_cases hsq : i ≤ P.sqDepth
-      · have hi1 : i ≤ 1 + P.sqDepth := by omega
-        have hi2 : i + 1 ≤ 1 + P.sqDepth := by omega
-        have hwi : P.width i = P.midWidth := by simp [PowerSumParams.width, h0, hi1]
-        have hwi1 : P.width (i + 1) = P.midWidth := by simp [PowerSumParams.width, hi2]
+      · have hwi : P.width i = P.midWidth := by simp [PowerSumParams.width, h0]; omega
+        have hwi1 : P.width (i + 1) = P.midWidth := by simp [PowerSumParams.width]; omega
         cases b <;>
           simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>
-          exact listOfFn_eval_id (by omega) hwi1.symm a
+          exact listOfFn_eval_id (hwi.trans hwi1.symm) hwi1.symm a
       · have hrel := powerSum_width_tree_succ P hi hsq
         cases b <;>
           simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>

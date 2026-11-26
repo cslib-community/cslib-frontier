@@ -230,10 +230,8 @@ theorem eval_trial_true_toReal (φ : DNF V) :
     rw [ProbComp.eval_map, BitString.eval_sampleList, BitString.uniformList_map_apply,
       ENNReal.toReal_div]
     simp only [ENNReal.toReal_natCast, ENNReal.toReal_pow, ENNReal.toReal_ofNat]
-    have hcard : (Finset.univ.filter fun r : Fin (padding φ i + CNF.numVars φ) → Bool =>
-        accepts φ i (List.ofFn r) = true).card = 2 ^ (φ.getD i []).width * firstCount φ i :=
-      (card_filter_not_any_take_and_drop _ _ (firstHit φ i)).trans (card_filter_firstHit φ hi)
-    rw [hcard]
+    erw [(card_filter_not_any_take_and_drop (padding φ i) (CNF.numVars φ) (firstHit φ i)).trans
+      (card_filter_firstHit φ hi)]
     by_cases hF : firstCount φ i = 0
     · simp [hF]
     obtain ⟨y, hy⟩ := Finset.card_pos.1 (Nat.pos_of_ne_zero hF)
@@ -250,20 +248,18 @@ theorem eval_trial_true_toReal (φ : DNF V) :
   rw [PMF.bind_apply_toReal]
   simp only [Function.comp_apply, PMF.uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv,
     ENNReal.toReal_natCast]
-  rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range
-    (fun i => (ProbComp.eval (if i < φ.length then
-      accepts φ i <$> BitString.sampleList (padding φ i + CNF.numVars φ) else pure false)
-        true).toReal)]
-  have hsplit : ∑ i ∈ Finset.range (dyadicSize φ.length), (ProbComp.eval (if i < φ.length then
-      accepts φ i <$> BitString.sampleList (padding φ i + CNF.numVars φ) else pure false)
-        true).toReal =
-      ∑ i ∈ Finset.range φ.length, (firstCount φ i : ℝ) / 2 ^ (CNF.numVars φ - minWidth φ) := by
-    rw [← Finset.sum_range_add_sum_Ico _ (lt_dyadicSize φ.length).le,
-      Finset.sum_eq_zero (s := Finset.Ico _ _)
-        (fun i hi => by simp [not_lt.2 (Finset.mem_Ico.1 hi).1]), add_zero]
-    exact Finset.sum_congr rfl fun i hi => by
-      simpa only [Finset.mem_range.1 hi, ↓reduceIte] using hterm i (Finset.mem_range.1 hi)
-  rw [hsplit, ← Finset.sum_div, ← sum_firstCount φ]
+  let g (i : ℕ) := (ProbComp.eval (if i < φ.length then
+    accepts φ i <$> BitString.sampleList (padding φ i + CNF.numVars φ) else pure false)
+      true).toReal
+  rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range g,
+    ← Finset.sum_range_add_sum_Ico _ (lt_dyadicSize φ.length).le]
+  have hhead : ∑ i ∈ Finset.range φ.length, g i =
+      ∑ i ∈ Finset.range φ.length, (firstCount φ i : ℝ) / 2 ^ (CNF.numVars φ - minWidth φ) :=
+    Finset.sum_congr rfl fun i hi => by
+      simpa only [g, Finset.mem_range.1 hi, ↓reduceIte] using hterm i (Finset.mem_range.1 hi)
+  have htail : ∑ i ∈ Finset.Ico φ.length (dyadicSize φ.length), g i = 0 :=
+    Finset.sum_eq_zero fun i hi => by simp [g, not_lt.2 (Finset.mem_Ico.1 hi).1]
+  rw [hhead, htail, add_zero, ← Finset.sum_div, ← sum_firstCount φ]
   push_cast; ring
 
 /-! ### The estimator -/
@@ -356,8 +352,7 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
     push Not at hlt
     have hμN : μ * N = K * c := by rw [hμ]; field_simp
     have hrw : ((s * N : ℕ) : ℝ) / (K : ℕ) - c = ((s : ℝ) - μ) * N / K := by
-      push_cast
-      field_simp; linarith
+      push_cast [hμ]; field_simp
     rw [hrw, abs_div, abs_mul, abs_of_pos hNpos, abs_of_pos hKR, div_le_div_iff₀ hKR hpR]
     rw [one_div, inv_mul_eq_div, lt_div_iff₀ hpR] at hlt
     nlinarith [abs_nonneg ((s : ℝ) - μ)]
@@ -365,12 +360,9 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
       goodᶜ).toReal ≤ (1 / 2 : ℝ) ^ t := by
     refine (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans (hchern.trans ?_)
     have hexp : (t + 1 : ℝ) ≤ (1 / p) ^ 2 * μ / 3 := by
-      have hdiv : (1 : ℝ) / p ^ 2 * (3 * (t + 1) * p ^ 2 * c / N) / 3 = (t + 1) * (c / N) := by
-        field_simp
-      rw [hμ, hK_def]
-      push_cast
-      rw [div_pow, one_pow, hdiv]
-      nlinarith [(one_le_div hNpos).2 hNcR]
+      have heq : (1 / (p : ℝ)) ^ 2 * μ / 3 = (t + 1) * (c / N) := by
+        push_cast [hμ, hK_def]; field_simp
+      nlinarith [heq, (one_le_div hNpos).2 hNcR, Nat.cast_nonneg (α := ℝ) t]
     have hpow : (2 : ℝ) ^ (t + 1) ≤ Real.exp (t + 1) := by
       rw [← Nat.cast_add_one, ← Real.exp_one_pow]
       exact pow_le_pow_left₀ zero_le_two (by linarith [Real.add_one_le_exp (1 : ℝ)]) _

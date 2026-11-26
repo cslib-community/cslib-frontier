@@ -222,11 +222,9 @@ private theorem toOuterMeasure_le_scheffe_bad_union (p : _root_.PMF α)
   classical
   have hsub : E ⊆ ⋃ jk ∈ s.offDiag,
       {x | γ ≤ |empiricalMass (scheffeSet (models jk.1) (models jk.2)) x -
-        (p.toOuterMeasure (scheffeSet (models jk.1) (models jk.2) : Set α)).toReal|} := by
-    intro x hx
-    by_contra hnot
-    simp only [Set.mem_iUnion, Set.mem_ofPred_eq, Finset.mem_offDiag, not_exists, not_le] at hnot
-    exact hgood x (fun j hj k hk hjk => hnot (j, k) ⟨hj, hk, hjk⟩) hx
+        (p.toOuterMeasure (scheffeSet (models jk.1) (models jk.2) : Set α)).toReal|} :=
+    fun x hx => by_contra fun hnot => hgood x (fun j hj k hk hjk => lt_of_not_ge fun hle =>
+      hnot (Set.mem_iUnion₂.2 ⟨(j, k), Finset.mem_offDiag.2 ⟨hj, hk, hjk⟩, hle⟩)) hx
   exact (toOuterMeasure_toReal_mono _ hsub).trans
     (toOuterMeasure_scheffe_bad_union_le p s hs models n hγ)
 
@@ -435,9 +433,7 @@ private theorem toOuterMeasure_birge_bad_union_le [Finite α] [DecidableEq ι] {
       ((iid p n).toOuterMeasure {x | P ∧ Q x}).toReal ≤ Real.exp (-4 * (n : ℝ) * r ^ 2) := by
     by_cases hP : P
     · exact le_trans (toOuterMeasure_toReal_mono _ fun _ hx => hx.2) (hb hP)
-    · have hemp : {x | P ∧ Q x} = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun _ hx => hP hx.1
-      rw [hemp, MeasureTheory.measure_empty, ENNReal.toReal_zero]
-      exact (Real.exp_pos _).le
+    · simp [hP, Real.exp_nonneg]
   have hterm (j : ι) :
       ((iid p n).toOuterMeasure (E₁ j ∪ E₂ j)).toReal ≤ 2 * Real.exp (-4 * (n : ℝ) * r ^ 2) :=
     (ENNReal.toReal_le_add (MeasureTheory.measure_union_le _ _)
@@ -466,14 +462,12 @@ private theorem toOuterMeasure_le_birge_bad_union [Finite α] {p : _root_.PMF α
       ({x | 10 * r ≤ hellingerDist (models i₀) (models j) ∧
           leCamBirgeTest (models i₀) (models j) x = false} ∪
         {x | 10 * r ≤ hellingerDist (models j) (models i₀) ∧
-          leCamBirgeTest (models j) (models i₀) x = true}) := by
-    intro x hx
-    by_contra hnot
-    simp only [Set.mem_iUnion, Set.mem_union, Set.mem_ofPred_eq, Finset.mem_erase, not_exists,
-      not_and, not_or] at hnot
-    exact hgood x
-      (fun j hj hji hsep => Bool.eq_true_of_not_eq_false ((hnot j ⟨hji, hj⟩).1 hsep))
-      (fun j hj hji hsep => Bool.eq_false_iff.mpr ((hnot j ⟨hji, hj⟩).2 hsep)) hx
+          leCamBirgeTest (models j) (models i₀) x = true}) :=
+    fun x hx => by_contra fun hnot => hgood x
+      (fun j hj hji hsep => Bool.eq_true_of_not_eq_false fun hf =>
+        hnot (Set.mem_iUnion₂.2 ⟨j, Finset.mem_erase.2 ⟨hji, hj⟩, .inl ⟨hsep, hf⟩⟩))
+      (fun j hj hji hsep => Bool.eq_false_iff.2 fun ht =>
+        hnot (Set.mem_iUnion₂.2 ⟨j, Finset.mem_erase.2 ⟨hji, hj⟩, .inr ⟨hsep, ht⟩⟩)) hx
   exact (toOuterMeasure_toReal_mono _ hsub).trans
     (toOuterMeasure_birge_bad_union_le s models hi₀ n hr hp)
 

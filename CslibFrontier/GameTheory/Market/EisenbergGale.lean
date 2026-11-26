@@ -354,18 +354,15 @@ theorem isEquilibrium_iff_bangPerBuck {M : LinearFisherMarket I G} {x : I → G 
       (∀ g, ∑ i : I, x i g = M.supply g) ∧
       (∀ i, expenditure p (x i) = M.budget i) ∧
       ∀ i g, 0 < x i g → ∀ g', M.bangPerBuck p i g' ≤ M.bangPerBuck p i g := by
-  constructor
-  · intro heq
-    have hp_pos : ∀ g, 0 < p g := heq.price_pos hgood
-    have hclear : ∀ g, ∑ i : I, x i g = M.supply g :=
-      fun g => heq.sum_eq_supply_of_price_pos (hp_pos g)
+  refine ⟨fun heq => ?_, fun ⟨hp_pos, hx_nn, hclear, hexp, hmax⟩ => ?_⟩
+  · have hp_pos := heq.price_pos hgood
     have hdem (i : I) := (mem_demandSet_linearUtility_iff (M.utility_nonneg i)
       (M.budget_nonneg i) hp_pos (hbuyer i)).1 (by
         simpa only [FisherMarket.mem_demandSet, toFisherMarket_utility, toFisherMarket_budget]
           using heq.2.1 i)
-    exact ⟨hp_pos, fun i => (hdem i).1, hclear, fun i => (hdem i).2.1, fun i => (hdem i).2.2⟩
-  · rintro ⟨hp_pos, hx_nn, hclear, hexp, hmax⟩
-    refine ⟨fun g => (hp_pos g).le, fun i => ?_, fun g => (hclear g).le,
+    exact ⟨hp_pos, fun i => (hdem i).1, fun g => heq.sum_eq_supply_of_price_pos (hp_pos g),
+      fun i => (hdem i).2.1, fun i => (hdem i).2.2⟩
+  · refine ⟨fun g => (hp_pos g).le, fun i => ?_, fun g => (hclear g).le,
       fun g => by simp [hclear g]⟩
     rw [FisherMarket.mem_demandSet, toFisherMarket_utility, toFisherMarket_budget]
     exact (mem_demandSet_linearUtility_iff (M.utility_nonneg i) (M.budget_nonneg i) hp_pos
@@ -741,14 +738,11 @@ theorem isEquilibrium_iff_isMaxOn_eisenbergGaleObjective {M : LinearFisherMarket
     (∃ p : G → ℝ, M.IsEquilibrium x p) ↔
       M.IsPositiveUtilityAllocation x ∧
         IsMaxOn M.eisenbergGaleObjective {y | M.IsPositiveUtilityAllocation y} x := by
-  constructor
-  · rintro ⟨p, heq⟩
-    have hkkt := (isEquilibrium_iff_isEisenbergGaleKKT hnd x p).1 heq
-    exact ⟨hkkt.pos_alloc, fun y hy => hkkt.eisenbergGaleObjective_le hy⟩
-  · rintro ⟨hx, hmax⟩
-    exact ⟨M.eisenbergGaleDualPrice x,
-      (isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn hnd hx hmax).isEquilibrium
-        hnd.budget_pos⟩
+  refine ⟨fun ⟨p, heq⟩ => ?_, fun ⟨hx, hmax⟩ => ⟨M.eisenbergGaleDualPrice x,
+    (isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn hnd hx hmax).isEquilibrium
+      hnd.budget_pos⟩⟩
+  have hkkt := (isEquilibrium_iff_isEisenbergGaleKKT hnd x p).1 heq
+  exact ⟨hkkt.pos_alloc, fun y hy => hkkt.eisenbergGaleObjective_le hy⟩
 
 /-- **Existence of linear Fisher market equilibrium** ([EisenbergGale1959]; [Vazirani2007],
 Theorem 5.1, p. 107): every non-degenerate linear Fisher market admits a market equilibrium
@@ -760,11 +754,9 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
   by_cases hI : Nonempty I
   · have hcard_pos : 0 < (Fintype.card I : ℝ) := by exact_mod_cast Fintype.card_pos
     let x₀ : I → G → ℝ := fun _ g => M.supply g / (Fintype.card I : ℝ)
-    have hx₀_feas : M.toFisherMarket.IsFeasibleAllocation x₀ := by
-      refine ⟨fun _ g => div_nonneg (M.supply_nonneg g) hcard_pos.le, fun g => ?_⟩
-      simp only [toFisherMarket_supply, x₀, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
-        mul_div_cancel₀ _ hcard_pos.ne']
-      exact le_rfl
+    have hx₀_feas : M.toFisherMarket.IsFeasibleAllocation x₀ :=
+      ⟨fun _ g => div_nonneg (M.supply_nonneg g) hcard_pos.le, fun g => by
+        simp [toFisherMarket_supply, x₀, mul_div_cancel₀ _ hcard_pos.ne']⟩
     have hx₀_U : ∀ i : I, 0 < M.buyerUtility x₀ i := fun i => by
       obtain ⟨g₀, hg₀⟩ := hnd.buyer_nonsatiated i
       rw [buyerUtility_eq, linearUtility_eq_sum]
@@ -844,9 +836,7 @@ private theorem IsNonDegenerate.totalBudget_pos [Nonempty I] {M : LinearFisherMa
 
 private theorem toLinearExchangeMarket_toExchangeMarket_eq (M : LinearFisherMarket I G) :
     M.toLinearExchangeMarket.toExchangeMarket = M.toFisherMarket.toExchangeMarket := by
-  ext i g
-  · simp [FisherMarket.totalBudget_eq_sum]
-  · simp
+  ext i g <;> simp [FisherMarket.totalBudget_eq_sum]
 
 omit [Fintype I] in
 private theorem IsNonDegenerate.buyer_locallyNonsatiated {M : LinearFisherMarket I G}

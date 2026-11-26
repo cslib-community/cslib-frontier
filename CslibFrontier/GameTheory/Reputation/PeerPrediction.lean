@@ -259,46 +259,43 @@ theorem sum_condSignalProb_mul_ref [DecidableEq S] {I : Type*} [Fintype I]
         refine Prod.ext (by simp) (Prod.ext (by simp [hri]) ?_)
         ext ⟨j, hji, hjr⟩
         simp [hji, hjr] }
-  rw [Fintype.sum_equiv equiv _ fun p =>
-    M.condSignalProb i s_i (equiv.symm p) * g ((equiv.symm p) r)]
-  · simp only [Fintype.sum_prod_type]
-    have hsi : ∀ p : S × S × (Rest → S), (equiv.symm p) i = p.1 := fun _ => by simp [equiv]
-    have hsr : ∀ p : S × S × (Rest → S), (equiv.symm p) r = p.2.1 := fun _ => by simp [equiv, hri]
-    simp_rw [condSignalProb, hsi, hsr, ite_mul, zero_mul]
-    rw [sum_eq_single s_i (fun a _ ha => sum_eq_zero fun _ _ =>
-      sum_eq_zero fun _ _ => by simp [ha]) (by simp)]
-    simp only [↓reduceIte]
-    refine sum_congr rfl fun s_r _ => ?_
-    rw [← sum_mul]
-    congr 1
-    have hprod_split (θ : Θ) (rest : Rest → S) :
-        ∏ j : I, M.likelihood θ ((equiv.symm (s_i, s_r, rest)) j) =
-          M.likelihood θ s_i * M.likelihood θ s_r * ∏ j : Rest, M.likelihood θ (rest j) := by
-      let f := equiv.symm (s_i, s_r, rest)
-      have hset : (univ.erase i).erase r =
-          (univ : Finset Rest).map ⟨Subtype.val, Subtype.val_injective⟩ := by
-        ext j; simp [Rest, and_comm]
-      rw [← mul_prod_erase univ (fun j => M.likelihood θ (f j)) (mem_univ i),
-        ← mul_prod_erase (univ.erase i) (fun j => M.likelihood θ (f j))
-          (mem_erase.mpr ⟨hri, mem_univ r⟩), hset, prod_map]
-      rw [Function.Embedding.coeFn_mk, prod_congr (g := fun j => M.likelihood θ (rest j)) rfl
+  rw [← equiv.symm.sum_comp]
+  simp only [Fintype.sum_prod_type]
+  have hsi : ∀ p : S × S × (Rest → S), (equiv.symm p) i = p.1 := fun _ => by simp [equiv]
+  have hsr : ∀ p : S × S × (Rest → S), (equiv.symm p) r = p.2.1 := fun _ => by simp [equiv, hri]
+  simp_rw [condSignalProb, hsi, hsr, ite_mul, zero_mul]
+  rw [sum_eq_single s_i (fun a _ ha => by simp [ha]) (by simp)]
+  simp only [↓reduceIte]
+  refine sum_congr rfl fun s_r _ => ?_
+  rw [← sum_mul]
+  congr 1
+  have hprod_split (θ : Θ) (rest : Rest → S) :
+      ∏ j : I, M.likelihood θ ((equiv.symm (s_i, s_r, rest)) j) =
+        M.likelihood θ s_i * M.likelihood θ s_r * ∏ j : Rest, M.likelihood θ (rest j) := by
+    let f := equiv.symm (s_i, s_r, rest)
+    have hset : (univ.erase i).erase r =
+        (univ : Finset Rest).map ⟨Subtype.val, Subtype.val_injective⟩ :=
+      Finset.ext fun j => by simp [Rest, and_comm]
+    rw [← mul_prod_erase univ (fun j => M.likelihood θ (f j)) (mem_univ i),
+      ← mul_prod_erase (univ.erase i) (fun j => M.likelihood θ (f j))
+        (mem_erase.mpr ⟨hri, mem_univ r⟩), hset, prod_map, Function.Embedding.coeFn_mk,
+      prod_congr (g := fun j => M.likelihood θ (rest j)) rfl
         fun ⟨j, hj⟩ _ => by simp [f, equiv, hj.1, hj.2]]
-      simp [f, equiv, hri, mul_assoc]
-    have hsum_joint : ∑ rest : Rest → S, M.jointSignalProb (equiv.symm (s_i, s_r, rest)) =
-        ∑ θ, M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
-      simp only [jointSignalProb, hprod_split]
-      rw [sum_comm]
-      refine sum_congr rfl fun θ _ => ?_
-      calc ∑ x : Rest → S,
-            M.prior θ * (M.likelihood θ s_i * M.likelihood θ s_r * ∏ j : Rest, M.likelihood θ (x j))
-          = (M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r) *
-              ∑ x : Rest → S, ∏ j : Rest, M.likelihood θ (x j) := by
-            simp only [← mul_assoc, ← mul_sum]
-        _ = M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
-            rw [M.sum_prod_likelihood_compl (fun j => j ≠ i ∧ j ≠ r) θ, mul_one]
-    simp only [div_eq_mul_inv, ← sum_mul, hsum_joint, ← M.signalProb_mul_peerPosterior s_i s_r]
-    field_simp [(M.signalProb_pos s_i).ne']
-  · simp
+    simp [f, equiv, hri, mul_assoc]
+  have hsum_joint : ∑ rest : Rest → S, M.jointSignalProb (equiv.symm (s_i, s_r, rest)) =
+      ∑ θ, M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
+    simp only [jointSignalProb, hprod_split]
+    rw [sum_comm]
+    refine sum_congr rfl fun θ _ => ?_
+    calc ∑ x : Rest → S,
+          M.prior θ * (M.likelihood θ s_i * M.likelihood θ s_r * ∏ j : Rest, M.likelihood θ (x j))
+        = (M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r) *
+            ∑ x : Rest → S, ∏ j : Rest, M.likelihood θ (x j) := by
+          simp only [← mul_assoc, ← mul_sum]
+      _ = M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
+          rw [M.sum_prod_likelihood_compl (fun j => j ≠ i ∧ j ≠ r) θ, mul_one]
+  simp only [div_eq_mul_inv, ← sum_mul, hsum_joint, ← M.signalProb_mul_peerPosterior s_i s_r]
+  field_simp [(M.signalProb_pos s_i).ne']
 
 /-- Interim expected transfer `E_{S^{-i}}[τ_i(report, σ_{-i}(S^{-i})) | S^i = s_i]` of rater `i`
 in Equation `(27.1)` [FriedmanResnickSami2007, §27.4.1, p. 685]. -/
@@ -444,8 +441,7 @@ noncomputable def balancedLogPeerTransfer {I : Type*} (r : I → I) (b : I ≃ I
 theorem sum_balancedLogPeerTransfer_eq_zero {I : Type*} [Fintype I] (r : I → I) (b : I ≃ I)
     (α : ℝ) (x : I → S) :
     ∑ i : I, M.balancedLogPeerTransfer r b α x i = 0 := by
-  simp only [balancedLogPeerTransfer, sum_sub_distrib]
-  rw [Equiv.sum_comp b fun j => M.logPeerTransfer r α 0 x j, sub_self]
+  simp [balancedLogPeerTransfer, sum_sub_distrib, Equiv.sum_comp]
 
 /-- **Strict Bayes–Nash truthfulness of budget-balanced peer prediction**
 ([MillerResnickZeckhauser2005, §2.3, Eq. `(4)`, p. 10]): when `r i ≠ i`, `b i ≠ i`, and

@@ -80,14 +80,12 @@ def bridge (n e u v : ℕ) (s t : Fin 3) : Set (ℝ × ℝ) :=
 theorem support_route (n e u v : ℕ) (s t : Fin 3) :
     support (route n e u v s t) =
       fan u s ∪ stem n e u s ∪ bridge n e u v s t ∪ stem n e v t ∪ fan v t := by
-  simp only [route, support_cons_cons]
-  have hstem : segment (column v t, track n e) (elbow v t) = stem n e v t :=
-    segment_symm ℝ _ _
-  have hfan : segment (elbow v t) (center v) = fan v t := segment_symm ℝ _ _
-  rw [hstem, hfan]
+  simp only [route, support_cons_cons, segment,
+    segment_symm ℝ (realPoint (column v t, track n e)) (realPoint (elbow v t)),
+    segment_symm ℝ (realPoint (elbow v t)) (realPoint (center v))]
   ext p
   have hc : realPoint (center v) ∈ fan v t := left_mem_segment ℝ _ _
-  simp only [fan, stem, bridge, support, List.consecutivePairs, List.tail_cons,
+  simp only [fan, stem, bridge, segment, support, List.consecutivePairs, List.tail_cons,
     List.zip_nil_right, List.not_mem_nil, List.mem_singleton,
     exists_eq_left, Set.mem_ofPred_eq, Set.mem_union] at *
   aesop
@@ -242,9 +240,7 @@ theorem fan_stem_port_eq {n e u v : ℕ} (hv : v < n) {s t : Fin 3} {p : ℝ × 
     rcases lt_or_gt_of_ne h with h | h <;> cast_linarith
   subst v
   refine ⟨rfl, ?_⟩
-  have hhigh : ((elbow u t).2 : ℝ) < track n e := by
-    exact_mod_cast elbow_below_track (e := e) hv t
-  rw [mem_stem, Set.uIcc_of_le hhigh.le] at hq
+  rw [mem_stem, Set.uIcc_of_le (mod_cast (elbow_below_track (e := e) hv t).le)] at hq
   rw [mem_fan] at hp
   rcases hp with ⟨rfl, hy, hx⟩ | ⟨rfl, hx, hy⟩ | ⟨rfl, hy, hx⟩ <;>
     fin_cases t <;> norm_num only [column, elbow, center, Fin.ext_iff, Fin.val_mk, Fin.val_zero,
@@ -281,11 +277,9 @@ theorem fan_stem_disjoint {n e u v : ℕ} (hv : v < n) {s t : Fin 3}
 theorem fan_stem_endpointContacts {n e v : ℕ} (hv : v < n) (s : Fin 3) :
     EndpointContacts (center v) (elbow v s) (elbow v s) (column v s, track n e) := by
   intro p hp hq
-  have ht : ((elbow v s).2 : ℝ) ≤ track n e := by
-    exact_mod_cast (elbow_below_track (e := e) hv s).le
   change p ∈ fan v s at hp
   change p ∈ stem n e v s at hq
-  rw [mem_stem, Set.uIcc_of_le ht] at hq
+  rw [mem_stem, Set.uIcc_of_le (mod_cast (elbow_below_track (e := e) hv s).le)] at hq
   have heq : p = realPoint (elbow v s) := by
     apply Prod.ext hq.1
     rw [mem_fan] at hp

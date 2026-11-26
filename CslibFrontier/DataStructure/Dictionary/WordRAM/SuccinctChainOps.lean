@@ -145,10 +145,8 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
         · rfl
   · by_cases hnew : b' = b ∧ j = j_new
     · rcases hnew with ⟨rfl, rfl⟩
-      have hm_eq {m'} (hm' : m' < numMicroPerBucket n_max) (hj : j ∈ L' b' m') : m' = m := by
-        by_contra hne
-        simp only [L', hne, and_false, ↓reduceIte] at hj
-        exact hj_not m' hm' hj
+      have hm_eq {m'} (hm' : m' < numMicroPerBucket n_max) (hj : j ∈ L' b' m') : m' = m :=
+        by_contra fun hne => hj_not m' hm' (by simpa only [L', hne, and_false, ↓reduceIte] using hj)
       exact (hm_eq hm₁ hj₁).trans (hm_eq hm₂ hj₂).symm
     · have hold (m') (hj : j ∈ L' b' m') : j ∈ L b' m' := by
         dsimp only [L'] at hj
@@ -627,10 +625,8 @@ theorem copyLastPayloadProg_effect {U V w n_max h_space base b phys_del : ℕ}
     lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
     gmAt base U V w n_max h_space s'.mem = gmAt base U V w n_max h_space s.mem := by
   intro gm phys_last q_last v_last s'
-  dsimp only [gm, phys_last, q_last, v_last] at *
-  have hphys_last : slotOf n_max (gmAt base U V w n_max h_space s.mem) b
-      (bCount n_max (gmAt base U V w n_max h_space s.mem) b - 1) < n_max :=
-    (slotOf_lt_and_injective hinv).1 b hb _ (by omega)
+  have hphys_last : phys_last < n_max :=
+    (slotOf_lt_and_injective hinv).1 b hb _ (Nat.sub_lt hbc Nat.one_pos)
   have hq_lt : q_last < 2 ^ quotientBits U n_max := quotAt_lt base U w n_max h_space s.mem phys_last
   have hv_lt : v_last < 2 ^ valBits V := valAt_lt base U V w n_max h_space s.mem phys_last
   let s₁ := (Memory.spec 0).clientState s
@@ -641,9 +637,9 @@ theorem copyLastPayloadProg_effect {U V w n_max h_space base b phys_del : ℕ}
     hw hphys_del hv_lt s₁
   have hs' : s' = (Memory.spec 0).clientState s₁
       (writeValProg U V w n_max h_space ((base, phys_del), v_last)) := by
-    dsimp only [s', s₁, q_last, v_last, phys_last, gm]
-    simp only [copyLastPayloadProg, copyLastPayloadGenProg, lastSlotOfGenProg_mk,
-      readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk]
+    simp only [s', s₁, q_last, v_last, phys_last, gm, copyLastPayloadProg, copyLastPayloadGenProg,
+      lastSlotOfGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
+      writeValGenProg_mk]
     rw [StateTransitionSpec.clientState_bind, clientState_lastSlotOfProg,
       clientResult_lastSlotOfProg (base, b) s hinv hb hbc,
       StateTransitionSpec.clientState_bind, clientState_readQuotProg,

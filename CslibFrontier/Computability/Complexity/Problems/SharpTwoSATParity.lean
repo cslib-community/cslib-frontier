@@ -298,34 +298,23 @@ private theorem label_injective (φ : CNF ℕ) : Function.Injective (label (φ :
     simp only [label, blockLabel] at h
   · exact congrArg Sum.inl (Subtype.ext (by omega))
   · omega
-  · have := hoff cd
-    omega
+  · exact absurd h (by have := hoff cd; omega)
   · omega
   · exact congrArg (Sum.inr ∘ Sum.inl) (Fin.ext (by omega))
-  · have := hoff cd
-    omega
-  · have := hoff ab
-    omega
-  · have := hoff ab
-    omega
-  · have := hoff ab
-    have := hoff cd
-    have hij : i = j := Fin.ext (by omega)
-    have hab : ab = cd := hoff_inj (by omega)
-    subst hij hab
-    rfl
+  · exact absurd h (by have := hoff cd; omega)
+  · exact absurd h (by have := hoff ab; omega)
+  · exact absurd h (by have := hoff ab; omega)
+  · have h1 := hoff ab
+    have h2 := hoff cd
+    refine congrArg (Sum.inr ∘ Sum.inr) (congrArg₂ Prod.mk (Fin.ext ?_) (hoff_inj ?_)) <;> omega
 
 private theorem length_clause_typedQuery (φ : CNF ℕ) (odd : Bool) {c : Clause (Var φ)}
     (hc : c ∈ typedQuery φ odd) : c.length ≤ 2 := by
   have hstep (i : Fin φ.length) (ab : Choice) : ∀ c ∈ stepClauses φ i ab, c.length ≤ 2 := by
-    simp only [stepClauses, List.mem_cons]
-    rintro _ (rfl | rfl | hm)
-    · exact le_rfl
-    · exact le_rfl
-    · split_ifs at hm with h
-      · cases hm
-      · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hm
-        exact le_rfl
+    by_cases h : ab.1 = ab.2
+    · simp [stepClauses, h, gate]
+    · simp only [stepClauses, h, ↓reduceIte, List.forall_mem_cons, List.forall_mem_map]
+      exact ⟨le_rfl, le_rfl, fun _ _ => le_rfl⟩
   simp only [typedQuery, List.mem_cons, List.mem_flatMap] at hc
   rcases hc with rfl | rfl | ⟨i, _, ab, _, hc⟩
   exacts [Nat.le_succ 1, Nat.le_succ 1, hstep i ab _ hc]

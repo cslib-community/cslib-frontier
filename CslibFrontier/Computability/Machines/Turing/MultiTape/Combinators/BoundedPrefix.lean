@@ -248,9 +248,7 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
       ((u₀.length + 1) + (min N raw.length + 1) +
         ((u₀.length + min N raw.length + 2) + (min N raw.length + 2))) =
       wordsCfgAt (u₀ ++ raw) pEnd none ![List.replicate N true, u₀ ++ raw.take N] (out ++ []) := by
-    rw [hstart]
-    dsimp only [appendPrefixTM]
-    rw [runFrom_seq hrun₁₂ rfl hrun₃₄ rfl]
+    rw [hstart, appendPrefixTM, runFrom_seq hrun₁₂ rfl hrun₃₄ rfl]
     simp [cfg₄, wordsCfgAt, Cfg.mapState]
   refine ⟨pEnd, ![List.replicate N true, u₀ ++ raw.take N], [], hrunAll,
     ⟨rfl, rfl, rfl, rfl⟩, ?_⟩
@@ -268,8 +266,7 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
         (MultiTapeNTM.RunPath.ofDeterministic _ _ _).space_le_mul_time_add_one)
     erw [hrun₄]
     simp [cfg₄, wordsCfgAt, Cfg.Halted]
-  rw [hstart]
-  dsimp only [appendPrefixTM]
+  rw [hstart, appendPrefixTM]
   refine (space_seq_le hrun₁₂ rfl ?_).trans (Nat.add_le_add hs₁₂ hs₃₄)
   rw [hrun₃₄]
   simp [cfg₄, wordsCfgAt, Cfg.Halted, Cfg.mapState]
@@ -375,17 +372,14 @@ private theorem transformsTapesAt_extendTapes {k k' : ℕ} {Symbol State : Type*
     simp only [rq, RelSeries.last_map, hrpLast, embedHom_apply]
     exact embed_wordsCfgAt e p' none v (out ++ emitted) hv hx
   have hrunQ : (tm.extendTapes e).runFrom (wordsCfgAt input p (some (tm.extendTapes e).q₀) ws out)
-      t = wordsCfgAt input p' none ws' (out ++ emitted) := by
-    have ht : t = rq.length := rfl
-    rw [← hrqHead, ht, ← runPath_last_eq_runFrom rq, hrqLast]
+      t = wordsCfgAt input p' none ws' (out ++ emitted) :=
+    hrqHead ▸ (runPath_last_eq_runFrom rq).symm.trans hrqLast
   have hspQ : rq.space ≤ s + (k' - k) :=
     (space_map_embedHom_le ..).trans (Nat.add_le_add_right hspace _)
   refine ⟨p', ws', emitted, hrunQ, ⟨by simpa only [hv] using hQ, hx⟩,
     (MultiTapeNTM.RunPath.space_le_of_subset ?_).trans hspQ⟩
   rintro _ ⟨n, rfl⟩
-  have hhead : (MultiTapeNTM.RunPath.ofDeterministic (tm.extendTapes e)
-      (wordsCfgAt input p (some (tm.extendTapes e).q₀) ws out) t).head = rq.head := hrqHead.symm
-  rw [runPath_apply_eq_runFrom, hhead]
+  rw [runPath_apply_eq_runFrom, ← hrqHead]
   exact ⟨⟨n.val, n.isLt⟩, runPath_apply_eq_runFrom rq ⟨n.val, n.isLt⟩⟩
 
 private def embUIdx (kU j : ℕ) : ℕ :=

@@ -175,17 +175,14 @@ theorem arrivalMechanism_isDSICNoEarlyArrival (q : PriceSchedule ι T)
     by_cases hle : q.price i θ_true.arrival θ ≤ θ_true.value
     · have hle' : q.price i (θ_t i).arrival θ_t ≤ (θ_t i).value := by
         simpa only [θ_t, Function.update_self, q.price_update] using hle
-      have hwin_arr : θ_true.InWindow θ_true.arrival := ⟨le_rfl, θ_true.arrival_le_departure⟩
       simp only [Mechanism.utility, arrivalMechanism, halloc_eq θ_t i hle', θ_t,
-        Function.update_self, AgentType.realizedValue_some_of_inWindow hwin_arr,
+        Function.update_self,
+        AgentType.realizedValue_some_of_inWindow ⟨le_rfl, θ_true.arrival_le_departure⟩,
         Option.isSome_some, ↓reduceIte, q.price_update, le_refl, and_true]
       linarith
-    · have hnone : q.policy.alloc θ_t i = none := by
-        rw [← Option.not_isSome_iff_eq_none, halloc_arr]
-        simpa only [θ_t, Function.update_self, q.price_update] using hle
-      simp only [Mechanism.utility, arrivalMechanism, hnone, AgentType.realizedValue_none,
-        Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self, le_rfl, true_and]
-      linarith
+    · have hnone : q.policy.alloc θ_t i = none := Option.not_isSome_iff_eq_none.mp
+        (by simpa only [θ_t, Function.update_self, halloc_arr, q.price_update] using hle)
+      simpa [Mechanism.utility, arrivalMechanism, hnone] using sub_nonpos.mpr (le_of_not_ge hle)
   by_cases hrep_win : q.price i (θ i).arrival θ ≤ (θ i).value
   · conv_lhs =>
       simp only [Mechanism.utility, arrivalMechanism, halloc_eq θ i hrep_win, Option.isSome_some,
@@ -318,18 +315,15 @@ theorem thresholdSingleItemMechanism_isDSICNoEarlyArrival {p : ℝ} (hp : 0 ≤ 
       by_cases hv : p ≤ θ_true.value
       · have hw_true : ThresholdWins p θ_t i := by
           refine ⟨by simpa only [θ_t, Function.update_self] using hv, fun j hj hba => ?_⟩
-          by_cases hji : j = i
-          · exact hba.elim (fun hlt => lt_irrefl _ (hji ▸ hlt)) fun h => lt_irrefl _ (hji ▸ h.2)
+          rcases eq_or_ne j i with rfl | hji
+          · simp at hba
           · simp only [θ_t, Function.update_self, Function.update_of_ne hji] at hj hba
-            refine hw_rep.2 j hj ?_
-            rcases hba with hlt | ⟨heq, hji_lt⟩
-            · exact Or.inl (lt_of_lt_of_le hlt ha)
-            · exact (lt_or_eq_of_le ha).elim (fun h => Or.inl (heq ▸ h))
-                (fun h => Or.inr ⟨heq.trans h, hji_lt⟩)
-        have hwin_arr : θ_true.InWindow θ_true.arrival := ⟨le_rfl, θ_true.arrival_le_departure⟩
+            exact hw_rep.2 j hj (hba.elim (fun hlt => Or.inl (lt_of_lt_of_le hlt ha))
+              fun ⟨heq, hlt⟩ => (lt_or_eq_of_le ha).elim (fun h => Or.inl (heq ▸ h))
+                fun h => Or.inr ⟨heq.trans h, hlt⟩)
         simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
           hw_true, ↓reduceIte, θ_t, Function.update_self, Option.isSome_some,
-          AgentType.realizedValue_some_of_inWindow hwin_arr, le_refl]
+          AgentType.realizedValue_some_of_inWindow ⟨le_rfl, θ_true.arrival_le_departure⟩, le_refl]
       · linarith
     · conv_lhs =>
         simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
@@ -377,12 +371,11 @@ theorem le_welfare_and_revenue_threshold {p : ℝ} (hp : 0 ≤ p)
   have hw_alloc : (thresholdSingleItemPolicy p).alloc θ w = some (θ w).arrival := ite_eq_left hw
   have hw_val : (θ w).realizedValue ((thresholdSingleItemPolicy p).alloc θ w) = (θ w).value :=
     hw_alloc ▸ AgentType.realizedValue_some_of_inWindow ⟨le_rfl, (θ w).arrival_le_departure⟩
-  have hw_pay : (thresholdSingleItemMechanism p).payment θ w = p := by
-    simp only [thresholdSingleItemMechanism, hw_alloc, Option.isSome_some, ↓reduceIte]
-  exact ⟨(hw.1.trans_eq hw_val.symm).trans
-    (Finset.single_le_sum (fun i _ => (θ i).realizedValue_nonneg _) (Finset.mem_univ w)),
-    hw_pay.symm.le.trans (Finset.single_le_sum
-      (fun i _ => thresholdSingleItemMechanism_isNPT hp i θ) (Finset.mem_univ w))⟩
+  refine ⟨(hw.1.trans_eq hw_val.symm).trans
+    (Finset.single_le_sum (fun i _ => (θ i).realizedValue_nonneg _) (Finset.mem_univ w)), ?_⟩
+  simpa [revenue, thresholdSingleItemMechanism, hw_alloc] using Finset.single_le_sum
+    (f := (thresholdSingleItemMechanism p).payment θ)
+    (fun i _ => thresholdSingleItemMechanism_isNPT hp i θ) (Finset.mem_univ w)
 
 /-- Helper: every real `v ∈ [L, L · 2^m)` falls in a geometric bucket
 `[L · 2^k, L · 2^(k + 1))` for some `k : Fin m`. -/

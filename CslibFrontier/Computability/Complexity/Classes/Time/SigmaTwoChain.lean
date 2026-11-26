@@ -329,10 +329,8 @@ end Cost
 private theorem drop_map_range_eq_cons {β : Type} {f : ℕ → β} {m i : ℕ} {w : β} {r : List β}
     (h : ((List.range (m + 1)).map f).drop i = w :: r) :
     i < m + 1 ∧ w = f i ∧ r = ((List.range (m + 1)).map f).drop (i + 1) := by
-  have hi : i < m + 1 := by
-    by_contra hi
-    rw [List.drop_eq_nil_of_le (by simp; omega)] at h
-    exact List.cons_ne_nil _ _ h.symm
+  have hi : i < m + 1 := Nat.lt_of_not_ge fun hi =>
+    nomatch h.symm.trans (List.drop_eq_nil_of_le (by simpa using hi))
   rw [List.drop_eq_getElem_cons (by simpa using hi), List.cons.injEq] at h
   exact ⟨hi, by simpa using h.1.symm, h.2.symm⟩
 
@@ -405,9 +403,7 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
     chainCheck_inO (eS s₀) hrF hrG (Pb := fun a => eP (P a)) (hP.of_enc_eq fun _ => rfl),
     fun a L hL => ?_⟩
   have h8 : 8 ≤ L := by omega
-  have hL2 : 2 * (D * t (enc a).length + D) + 2 ≤ L := by
-    have := mul_succ_le_of_le (e := 2) (X := D * t (enc a).length + D) le_rfl (by omega) hL
-    omega
+  have hL2 := mul_succ_le_of_le (e := 2) (X := D * t (enc a).length + D) le_rfl (by omega) hL
   have hLF {X : ℕ} (hX : X ≤ D * t (enc a).length + D) : cF * (X + 1) ≤ L :=
     mul_succ_le_of_le hX (by omega) hL
   have hLG {X : ℕ} (hX : X ≤ D * t (enc a).length + D) : cG * (X + 1) ≤ L :=
@@ -437,8 +433,7 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
     rcases rest with _ | ⟨w', r⟩
     · have him : leadingTrues v = m := by
         by_contra hne
-        rw [List.drop_eq_getElem_cons (by simp; omega)] at hr
-        exact List.cons_ne_nil _ _ hr.symm
+        exact nomatch hr.trans (List.drop_eq_getElem_cons (by simp [List.length_map]; omega))
       have hg := heqG u (P a, step^[m] s₀) (hlen ▸ hLG hTg)
       simp only [encPair_apply, encBool_apply, hgoalm] at hg
       simp [chainCheck_single hR, hw, him, hg]
@@ -473,11 +468,10 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
               ((frame w' ++ [true]).drop j).take 1 := by
           intro j hj
           simp only [List.length_append, length_frame, List.length_singleton] at hj
-          have hpick : k + j + 2 ≤ L := by omega
           have hR : cvRest (eS s₀) u (pick k j L) = eS (step^[k] s₀) :: w' :: r := by
             rwa [cvRest, leadingTrues_pick]
           simpa only [chainCheck_cons_cons hR, cvPos_pick, decide_eq_true_iff] using
-            hV (pick k j L) (length_pick hpick)
+            hV (pick k j L) (length_pick (by omega))
         have hpre := hpreF u (P a, (step^[k] s₀, bw))
         simp only [encPair_apply, encBits_apply, encBool_apply, eq_of_forall_take_drop hpos] at hpre
         rw [← List.tail_drop, ihk, List.tail_cons, eq_of_frame_prefix hpre,

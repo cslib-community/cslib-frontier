@@ -101,9 +101,8 @@ first run backwards to remove the midpoint. -/
   induction k generalizing a with
   | zero => rfl
   | succ k ih =>
-    simp only [bennettMoves, List.length_append, List.length_map, List.length_reverse, ih,
-      pow_succ]
-    omega
+    rw [bennettMoves, pow_succ]
+    simp only [List.length_append, List.length_map, List.length_reverse, ih]; omega
 
 /-- On the path, the only predecessor of `v` is `v - 1`, so a configuration with a pebble on
 `v - 1` covers the predecessors of `v`. This is how the recursive call on the second half of a
@@ -144,8 +143,7 @@ theorem bennettMoves_mTr (k : ℕ) {a : ℕ} {C : Finset ℕ} (hC : ∀ x ∈ C,
         ((Finset.forall_mem_insert _ _ _).2 ⟨by omega, fun x hx => by have := hC x hx; omega⟩)
         (fun u hu => Finset.mem_insert_of_mem (ha u hu)))
       (by rw [Finset.card_insert_of_notMem htopC]; omega)
-    have e₂ : a + 2 ^ k + 2 ^ k - 1 = top := by omega
-    rw [Finset.card_insert_of_notMem hmC, e₂, Finset.insert_comm] at h₂
+    rw [Finset.card_insert_of_notMem hmC, Nat.add_assoc a, ← hpow, Finset.insert_comm] at h₂
     rw [Finset.card_insert_of_notMem htopC] at h₃
     exact LTS.MTr.comp _ (LTS.MTr.comp _ (reversiblePebbleGame_mTr_mono (by omega) h₁)
       (reversiblePebbleGame_mTr_mono (by omega) h₂)) (reversiblePebbleGame_mTr_mono (by omega) h₃)
@@ -261,8 +259,7 @@ private theorem RevStep.shift {d : ℕ} {C D : Finset ℕ} {m : Move ℕ}
   | @place v hv h =>
     by_cases hdv : d ≤ v
     · have e : shiftDown d (insert v C) = insert (v - d) (shiftDown d C) := Finset.ext fun _ => by
-        simp only [mem_shiftDown, Finset.mem_insert]
-        exact or_congr_left (by omega)
+        simp only [mem_shiftDown, Finset.mem_insert]; grind
       exact .inr ⟨.place (v - d), e ▸ .place
         (fun hm => hv (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv] at hm))
         fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))⟩
@@ -271,8 +268,7 @@ private theorem RevStep.shift {d : ℕ} {C D : Finset ℕ} {m : Move ℕ}
   | @remove v hv h =>
     by_cases hdv : d ≤ v
     · have e : shiftDown d (C.erase v) = (shiftDown d C).erase (v - d) := Finset.ext fun _ => by
-        simp only [mem_shiftDown, Finset.mem_erase]
-        exact and_congr_left' (by omega)
+        simp only [mem_shiftDown, Finset.mem_erase]; grind
       exact .inr ⟨.remove (v - d), e ▸ .remove
         (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv])
         fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))⟩
@@ -316,8 +312,7 @@ private theorem minBound_succ {k : ℕ}
     have hfilter : C.filter (· < c + 1) = ∅ :=
       Finset.filter_eq_empty_iff.2 fun x hx => Nat.not_lt.2 (hc ▸ C.min'_le x hx)
     obtain ⟨ms'', D', h'', hcD'⟩ := claim C ∅ _ hrev rfl hcC ⟨[], hfilter ▸ .refl⟩
-    have := hmax ms'' D' c h'' hcD'
-    omega
+    exact (Nat.mul_comm 2 (c + 2)).trans_le (Nat.mul_le_mul_right 2 (hmax ms'' D' c h'' hcD'))
 
 /-- The bound `x + 2 ≤ 2 ^ (k + 1)` for `k + 1` pebbles, from the bound for `k` pebbles. -/
 private theorem maxBound_succ {k : ℕ}
@@ -342,8 +337,7 @@ private theorem maxBound_succ {k : ℕ}
       refine ih ⟨_, h₀'⟩ ?_
       rcases htr.1.shift (d := 2 ^ k) with he | ⟨m', hm'⟩
       · exact ⟨ms₁, he ▸ h₁⟩
-      · refine ⟨ms₁ ++ [m'], LTS.MTr.stepR _ h₁ ⟨hm', ?_⟩⟩
-        refine (card_shiftDown_le _ _).trans ?_
+      · refine ⟨ms₁ ++ [m'], LTS.MTr.stepR _ h₁ ⟨hm', (card_shiftDown_le _ _).trans ?_⟩⟩
         obtain rfl | hne := E₂.eq_empty_or_nonempty
         · simp
         · have hmin := minBound_succ hmax h₀' hne

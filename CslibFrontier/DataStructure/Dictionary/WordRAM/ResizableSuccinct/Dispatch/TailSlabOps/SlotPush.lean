@@ -318,28 +318,21 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
           Realization.memoryCost_bind', memoryCost_compPushBackTailWriteGenProg]
         rw [hres1, cpTwoSlabSize_mk, ite_eq_left hprom]
         exact Nat.add_le_add_left hcost2 42
-      have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold pushBackCounts; rw [ite_eq_left hprom]
-        rw [hs'_eq, hcpl2.gm_eq]
-        exact ⟨hqb_f2.trans
-          (congrArg (· + 1) (hqb_f1.trans (congrFun hcpl.gm_eq.symm (gmQIdx b)))), hrb_f2⟩
-      have hother_all : ∀ b' < numBuckets N, b' ≠ b →
-          compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
-        rw [hs'_eq, hcpl2.gm_eq]
-        exact ⟨(hother_f2 b' hb' hne).1.trans ((hother_f1 b' hb' hne).1.trans
-            (congrFun hcpl.gm_eq.symm _)),
-          (hother_f2 b' hb' hne).2.trans ((hother_f1 b' hb' hne).2.trans
-            (congrFun hcpl.gm_eq.symm _))⟩
-      have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
+      have hpot := slotPotential_pushBack_le (gm := gm₀) (gm' := compGmAt metaBase U w N s'.mem)
+        hb_pos hb
+        (by unfold pushBackCounts
+            rw [ite_eq_left hprom, hs'_eq, hcpl2.gm_eq]
+            exact ⟨hqb_f2.trans
+              (congrArg (· + 1) (hqb_f1.trans (congrFun hcpl.gm_eq.symm (gmQIdx b)))), hrb_f2⟩)
+        fun b' hb' hne => by
+          rw [hs'_eq, hcpl2.gm_eq]
+          exact ⟨(hother_f2 b' hb' hne).1.trans ((hother_f1 b' hb' hne).1.trans
+              (congrFun hcpl.gm_eq.symm _)),
+            (hother_f2 b' hb' hne).2.trans ((hother_f1 b' hb' hne).2.trans
+              (congrFun hcpl.gm_eq.symm _))⟩
       rw [pushBackWork, ite_eq_left hprom] at hpot
-      exact ⟨by rw [hs'_eq]; exact hfr1.trans hfr2,
-        by rw [hs'_eq, hs_fix'_eq]; exact hcpl2,
-        by omega⟩
+      rw [hs'_eq] at hpot ⊢
+      exact ⟨hfr1.trans hfr2, by rwa [hs_fix'_eq], by omega⟩
     · have hs'_eq : s' = s₁ := by
         dsimp only [s', d, compPushBackSlotGenProg, compPushBackMultiGenProg]
         simp only [cpBucketBits_mk, hb0, ↓reduceIte]
@@ -356,24 +349,18 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
         simp only [cpBucketBits_mk, hb0, ↓reduceIte,
           Realization.memoryCost_bind', memoryCost_compPushBackTailWriteGenProg]
         rw [hres1, cpTwoSlabSize_mk, ite_eq_right hprom, memoryCost_pure, Nat.add_zero]
-      have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b) =
-            (pushBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold pushBackCounts; rw [ite_eq_right hprom, hs'_eq, hcpl1.gm_eq]
-        exact ⟨hqb_f1.trans (congrFun hcpl.gm_eq.symm _), hrb_f1⟩
-      have hother_all : ∀ b' < numBuckets N, b' ≠ b →
-          compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
-        rw [hs'_eq, hcpl1.gm_eq]
-        exact ⟨(hother_f1 b' hb' hne).1.trans (congrFun hcpl.gm_eq.symm _),
-          (hother_f1 b' hb' hne).2.trans (congrFun hcpl.gm_eq.symm _)⟩
-      have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
+      have hpot := slotPotential_pushBack_le (gm := gm₀) (gm' := compGmAt metaBase U w N s'.mem)
+        hb_pos hb
+        (by unfold pushBackCounts
+            rw [ite_eq_right hprom, hs'_eq, hcpl1.gm_eq]
+            exact ⟨hqb_f1.trans (congrFun hcpl.gm_eq.symm _), hrb_f1⟩)
+        fun b' hb' hne => by
+          rw [hs'_eq, hcpl1.gm_eq]
+          exact ⟨(hother_f1 b' hb' hne).1.trans (congrFun hcpl.gm_eq.symm _),
+            (hother_f1 b' hb' hne).2.trans (congrFun hcpl.gm_eq.symm _)⟩
       rw [pushBackWork, ite_eq_right hprom, Nat.add_zero] at hpot
-      exact ⟨by rw [hs'_eq]; exact hfr1,
-        by rw [hs'_eq, hs_fix'_eq]; exact hcpl1,
-        by omega⟩
+      rw [hs'_eq] at hpot ⊢
+      exact ⟨hfr1, by rwa [hs_fix'_eq], by omega⟩
 
 private theorem realizesBounded_compPushBackMultiGen :
     RealizesBounded .exact compPushBackMultiGenProg

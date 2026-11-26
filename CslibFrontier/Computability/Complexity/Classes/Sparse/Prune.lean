@@ -148,8 +148,7 @@ theorem mem_searchRightFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
       · rw [hlen, List.range'_succ, List.head?_cons, Option.mem_some_iff] at hz
         omega
     rw [queriesAt_of_lt hz']
-    by_contra! h
-    exact hnext hz' ((hC _ (List.getElem_mem hz')).2 h)
+    simpa using mt (hC _ (List.getElem_mem hz')).2 (hnext hz')
 
 /-- **`SEARCH-LEFT` keeps the start of a run** (the source's Claim 2). If the nodes at the
 positions from `m` to `r` are in a set `C` whose members are the nodes with all their queries in
@@ -179,8 +178,7 @@ theorem mem_searchLeftFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
         omega
     have hzN : m - 1 < N.length := by omega
     rw [queriesAt_of_lt hzN]
-    by_contra! h
-    exact hprev hm ((hC _ (List.getElem_mem hzN)).2 h)
+    simpa using mt (hC _ (List.getElem_mem hzN)).2 (hprev hm)
 
 end Search
 
@@ -281,14 +279,13 @@ private theorem exists_run_end {P : ℕ → Prop} {h n : ℕ} (hP : P h) (hn : h
     have := Nat.find_min hex hjr
     push Not at this
     exact this hj
-  refine ⟨Nat.find hex, hhr, ?_, fun i hi hir => ?_, fun hr1 => ?_⟩
+  refine ⟨Nat.find hex, hhr, ?_, fun i hi hir => ?_, fun _ => hstop.resolve_left (by omega)⟩
   · by_contra hrn
     have := hmin (n - 1) (by omega) (by omega)
     omega
   · induction i, hi using Nat.le_induction with
     | base => exact hP
     | succ i hhi _ => exact (hmin i hhi (by omega)).2
-  · exact hstop.resolve_left (by omega)
 
 /-- The start of the longest run of positions satisfying `P` up to `r`. -/
 private theorem exists_run_start {P : ℕ → Prop} {a r : ℕ} (ha : ∀ i, a ≤ i → i ≤ r → P i) :
@@ -311,14 +308,12 @@ private theorem mem_prunePositions (hh : h < N.length)
       h ∈ prunePositions Q s N n d starts := by
   have hmono : ∀ y ∈ N, ∀ j j', j ≤ j' → C j' y → C j y := fun y hy _ _ hjj' =>
     antitone_nat_of_succ_le (f := fun j => C j y) (fun j => hnest j y hy) hjj'
-  intro n
-  induction n with
+  intro n d starts l hd hl hlh hrun
+  induction n generalizing d starts l with
   | zero =>
-    intro d starts l hd _ hlh hrun
     obtain ⟨d', hd', -, hout⟩ := (hleft h hh).1 le_rfl
     exact absurd (hmono _ (List.getElem_mem hh) _ _ (by omega) (hrun h hh hlh le_rfl)) hout
   | succ n ih =>
-    intro d starts l hd hl hlh hrun
     have hdD : d < D := by omega
     /- The longest run of nodes in `C (2 d)` from `l` ends at some `r ≥ h`. -/
     obtain ⟨r, hhr, hrN, hrun', hnext⟩ := exists_run_end

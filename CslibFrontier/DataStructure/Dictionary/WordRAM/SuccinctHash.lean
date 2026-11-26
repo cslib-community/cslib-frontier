@@ -514,8 +514,8 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
     change bucketMapOfState U n_max h1 s_abs b (qSlot j) = some _ at hsome
     unfold bucketMapOfState at hsome
     split_ifs at hsome with hcond
-    refine ⟨hcond.1, Dictionary.mem_dom_iff_isSome.mpr (by rw [hsome]; rfl), ?_⟩
-    exact feistelBucket_feistelReconstruct h1 hb (qSlot j)
+    exact ⟨hcond.1, Dictionary.mem_dom_iff_isSome.mpr (by rw [hsome]; rfl),
+      feistelBucket_feistelReconstruct h1 hb (qSlot j)⟩
   let keyAt (j : ℕ) : Fin U :=
     if hj : j < bCount n_max gm b then ⟨uVal j, (hslot_key j hj).1⟩ else u
   have hkeyAt_props : ∀ j (hj : j < bCount n_max gm b),
@@ -530,10 +530,9 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
     rw [feistelBucketHash_val_eq_hValOfSeed, feistelBucketHash_val_eq_hValOfSeed, hk_eq]
     exact hb_j
   have hkeyAt_inj : ∀ j₁ < bCount n_max gm b, ∀ j₂ < bCount n_max gm b,
-      keyAt j₁ = keyAt j₂ → j₁ = j₂ := by
-    intro j₁ hj₁ j₂ hj₂ heq
-    have hq₁ := heq ▸ (hkeyAt_props j₁ hj₁).2.2
-    exact hinv.hnodup_q b hb j₁ hj₁ j₂ hj₂ (hq₁.symm.trans (hkeyAt_props j₂ hj₂).2.2)
+      keyAt j₁ = keyAt j₂ → j₁ = j₂ := fun j₁ hj₁ j₂ hj₂ heq =>
+    hinv.hnodup_q b hb j₁ hj₁ j₂ hj₂
+      ((heq ▸ (hkeyAt_props j₁ hj₁).2.2).symm.trans (hkeyAt_props j₂ hj₂).2.2)
   -- Bound 1: micro-chain length
   have hlen : (L b m).length ≤
       1 + microCollCount n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
@@ -558,8 +557,7 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
     · exact fun j₁ j₂ heq => Fin.ext (hkeyAt_inj j₁.val j₁.isLt j₂.val j₂.isLt heq)
     · exact fun j => ⟨(hkeyAt_props j.val j.isLt).1, (hkeyAt_props j.val j.isLt).2.1⟩
   refine ⟨hlen, hovf, ?_⟩
-  unfold probeExcess
-  omega
+  simp only [probeExcess]; omega
 
 /-! ## Section 4: Feistel-dispatched `Memory.Prog` operations realized via `realize` -/
 
@@ -987,8 +985,7 @@ private theorem dispatch_spec {U V w₀ n_max w base : ℕ}
   refine ⟨hb_eq, Nat.shiftRight_eq_div_pow u.val (bucketBits n_max), rfl, hb_lt, hm_lt, hwf,
     u.isLt, hValOfSeed_lt U n_max θ _, ?_⟩
   dsimp only
-  rw [hb_eq]
-  exact hb_inv.searchMicroChainPre henv hb_lt hm_lt
+  exact hb_eq.symm ▸ hb_inv.searchMicroChainPre henv hb_lt hm_lt
 
 /-- Dictionary-level specification of `queryWithHashProg`: establishes `QueryWithHashPre`, leaves
 `s` unchanged, returns `s_abs u`, and uses at most `26 + 8 * probeExcess` memory cost. -/
@@ -1014,9 +1011,8 @@ theorem queryWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   let m := mOfSeed U n_max θ q
   obtain ⟨hb_eq, hq_eq, hm_eq, hb_lt, hm_lt, hpre⟩ := dispatch_spec (w := w) hwf henv θ hinv u
   have hprog_eq : prog = queryBodyProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m) := by
-    dsimp only [prog, d, queryWithHashProg, queryWithHashGenProg]
-    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, queryBodyGenProg_mk]
-    rw [hb_eq, hq_eq, hm_eq]
+    simp only [prog, d, h_q, b, q, m, h1, queryWithHashProg, queryWithHashGenProg, p_bucketBits_mk,
+      p_bucketMask_mk, pure_bind, queryBodyGenProg_mk, hb_eq, hq_eq, hm_eq]
   have hspec := queryBodyProg_bucket_spec hb_inv henv hb_lt (q_target := q) (m := m) rfl hm_lt
   have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
   rw [hprog_eq]
@@ -1064,9 +1060,8 @@ theorem insertWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     ⟨hwf, hu, hh_q, hsearch, hq_eq.trans_lt hq_lt, hv_lt⟩
   have hprog_eq : prog =
       insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((base, b), q), v), m) := by
-    dsimp only [prog, d, insertWithHashProg, insertWithHashGenProg]
-    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, insertBodyGenProg_mk]
-    rw [hb_eq, hq_eq, hm_eq]
+    simp only [prog, d, h_q, b, q, m, h1, insertWithHashProg, insertWithHashGenProg,
+      p_bucketBits_mk, p_bucketMask_mk, pure_bind, insertBodyGenProg_mk, hb_eq, hq_eq, hm_eq]
   have hB_eq : bucketMapOfState U n_max h1 s_abs b q = s_abs u :=
     bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u
   have hcap : (bucketMapOfState U n_max h1 s_abs b q).isSome ∨ totalSlots n_max gm₀ < n_max := by

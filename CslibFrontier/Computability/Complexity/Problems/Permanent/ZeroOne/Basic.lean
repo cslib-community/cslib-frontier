@@ -245,13 +245,12 @@ theorem permanent_entryChain (L : ℕ) :
         within_entryChain (L := 1) hu hv e (by simpa [entryChain] using he)
     rw [ih (N := N + 2) _ (by omega) hE1 (by omega) (by omega)
       (by rw [Nat.div_lt_iff_lt_mul (by norm_num)]; rw [pow_succ] at hw; exact hw)]
-    have hz (i j : ℕ) := edgeWeight_eq_zero_of_within (i := i) (j := j) hE
     -- remove the relay vertex `N + 1`
     -- remove the doubling vertex `N`
-    have hz1r (j : ℕ) := hz (N + 1) j (.inl (Nat.le_succ N))
-    have hz1c (i : ℕ) := hz i (N + 1) (.inr (Nat.le_succ N))
-    have hz0r (j : ℕ) := hz N j (.inl le_rfl)
-    have hz0c (i : ℕ) := hz i N (.inr le_rfl)
+    have hz1r (j : ℕ) := edgeWeight_eq_zero_of_within (j := j) hE (.inl (Nat.le_succ N))
+    have hz1c (i : ℕ) := edgeWeight_eq_zero_of_within (i := i) hE (.inr (Nat.le_succ N))
+    have hz0r (j : ℕ) := edgeWeight_eq_zero_of_within (j := j) hE (.inl le_rfl)
+    have hz0c (i : ℕ) := edgeWeight_eq_zero_of_within (i := i) hE (.inr le_rfl)
     rw [permanent_edgeMatrix_relay (K := N + 1) (s := N) (t := v) (a := 1) (b := 1) _
         (by omega) (by omega) ?_ ?_ ?_,
       permanent_edgeMatrix_relay (K := N) (s := u) (t := v) (a := w / 2) (b := 2) _ hu hv
@@ -283,9 +282,7 @@ theorem permanent_tableChain (L : ℕ) :
       (edgeMatrix M (E ++ tableChain N L ts)).permanent = (edgeMatrix N (E ++ ts)).permanent :=
   fun ts => by
   induction ts with
-  | nil =>
-    rintro N _ E rfl _ _
-    simp [tableChain_nil]
+  | nil => exact fun _ hM _ _ => hM ▸ rfl
   | cons t ts ih =>
     intro N M E hM hE hts
     obtain ⟨htu, htv, htw⟩ := hts t List.mem_cons_self
@@ -315,10 +312,10 @@ private theorem sum_range_eq_of_eq_zero_of_ne {L κ : ℕ} {f : ℕ → ℕ}
   induction L with
   | zero => simp
   | succ L ih =>
-    rw [List.range_succ, List.map_append, List.sum_append, ih]
-    simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero]
+    simp only [List.range_succ, List.map_append, List.sum_append, ih, List.map_cons, List.map_nil,
+      List.sum_cons, List.sum_nil, add_zero]
     by_cases h : L = κ
-    · subst h; simp
+    · simp [h]
     · rw [hκ L h, add_zero]; split_ifs <;> omega
 
 theorem edgeWeight_chainLevel_le_one (N u v w k i j : ℕ) (hu : u < N) (hv : v < N) :
@@ -480,9 +477,8 @@ theorem getD_edgeTable {N : ℕ} {E : List WeightedEdge} {i j : ℕ} (hi : i < (
 theorem zeroOnePermanent_edgeTable {N : ℕ} {E : List WeightedEdge}
     (h : ∀ i < N, ∀ j < N, edgeWeight E i j ≤ 1) :
     ZeroOnePermanent (edgeTable N E) = (edgeMatrix N E).permanent := by
-  have hl := length_edgeTable N E
-  rw [ZeroOnePermanent, ← Matrix.permanent_submatrix_equiv_equiv (finCongr hl.symm)
-    (finCongr hl.symm)]
+  rw [ZeroOnePermanent, ← Matrix.permanent_submatrix_equiv_equiv
+    (finCongr (length_edgeTable N E).symm) (finCongr (length_edgeTable N E).symm)]
   refine congrArg Matrix.permanent (Matrix.ext fun i j => ?_)
   simp only [Matrix.submatrix_apply, boolTableMatrix_apply, edgeMatrix, Matrix.of_apply,
     finCongr_apply, Fin.getElem_fin, Fin.val_cast, getD_edgeTable _ j.isLt]

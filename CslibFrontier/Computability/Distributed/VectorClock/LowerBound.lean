@@ -206,9 +206,8 @@ private theorem crownEvent_step_eq {n : ℕ} (hn : 2 ≤ n) (e : (crownFin n hn)
 
 private theorem crownStep_actor_phase1 {n : ℕ} (hn : 2 ≤ n) (p : Fin n) :
     (crownPhase1 hn p).actor = p := by
-  unfold Execution.Event.actor
-  rw [crownEvent_step_eq]
-  simp only [crownPhase1, crownStep, p.isLt, ↓reduceDIte, Step.actor_internal]
+  simp only [Execution.Event.actor, crownEvent_step_eq, crownPhase1, crownStep, p.isLt, ↓reduceDIte,
+    Step.actor_internal]
 
 private theorem crownStep_actor_phase2 {n : ℕ} (hn : 2 ≤ n) (q : Fin n) :
     (crownPhase2 hn q).actor = q := by
@@ -230,8 +229,7 @@ private theorem crownAllowed_preserved {n : ℕ} {hn : 2 ≤ n} {p : Fin n}
   · split_ifs at hx ⊢ with hy_ph hx_ph hx_ph₂
     · exact hact.symm.trans hx
     · omega
-    · rw [← hact, hx]
-      exact (crownShift_ne_self hn p).symm
+    · exact (hact.symm.trans hx).trans_ne (crownShift_ne_self hn p).symm
     · exact hact ▸ hx
   · obtain ⟨hge, hlt, hx_idx, hcond, hy_act⟩ :=
       crownStep_eq_recv ((crownEvent_step_eq hn y).symm.trans hmsg)
@@ -248,8 +246,7 @@ private theorem crownAllowed_preserved {n : ℕ} {hn : 2 ≤ n} {p : Fin n}
     have hp_eq : (⟨(y.idx.val - (n + n * n)) / n,
         (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩ : Fin n) = p := by
       rw [← hx, Execution.Event.actor, hx_step, Step.actor_send]
-    rw [hy_act, ← hp_eq]
-    exact hcond.2
+    exact hp_eq ▸ hy_act ▸ hcond.2
 
 /-- Crown-poset causality step in `crownFin` (toward #7203, after [CharronBost1991], not the
 uninspected paper endpoint): Phase-1 event `a_p` causally precedes or equals Phase-2 event `b_q`
@@ -391,13 +388,11 @@ theorem exists_unicast_orderEmbedding_clock_iff {P : Type u} [Fintype P] {d : �
   refine ⟨fun e i => if hi : i.val < Fintype.card P then
       E.vc e (equiv.symm ⟨i.val, hi⟩) else 0, fun e₁ e₂ => ?_⟩
   rw [E.happensBeforeLe_iff_vc_le]
-  constructor
-  · intro hle i
-    dsimp only
-    split_ifs with hi
-    exacts [hle _, le_rfl]
-  · intro hle p
+  refine ⟨fun hle i => ?_, fun hle p => by
     simpa only [(equiv p).isLt, ↓reduceDIte, equiv.symm_apply_apply] using
-      hle ⟨(equiv p).val, (equiv p).isLt.trans_le hd⟩
+      hle ⟨(equiv p).val, (equiv p).isLt.trans_le hd⟩⟩
+  dsimp only
+  split_ifs with hi
+  exacts [hle _, le_rfl]
 
 end Cslib.Distributed.VectorClock

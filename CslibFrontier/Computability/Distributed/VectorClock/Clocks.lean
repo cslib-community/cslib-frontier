@@ -407,11 +407,9 @@ increasing. -/
 theorem vc_actor_strictMono_of_sameActor [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event}
     (hact : e₁.actor = e₂.actor) (hlt : e₁.idx < e₂.idx) :
     E.vc e₁ e₁.actor < E.vc e₂ e₂.actor := by
-  have hle : E.vc e₁ ≤ (E.scanSteps (fun _ => 0) vcNext e₂.idx.val).2 e₁.actor :=
-    E.evalScan_le_snd_of_lt 0 (fun _ => 0) vcNext le_vcNext hlt e₂.idx.isLt.le
   have hcoord : E.vc e₁ e₁.actor ≤
-      (E.scanSteps (fun _ => 0) vcNext e₂.idx.val).2 e₂.actor e₂.actor := by
-    simpa only [hact] using hle e₁.actor
+      (E.scanSteps (fun _ => 0) vcNext e₂.idx.val).2 e₂.actor e₂.actor :=
+    hact ▸ E.evalScan_le_snd_of_lt 0 (fun _ => 0) vcNext le_vcNext hlt e₂.idx.isLt.le e₁.actor
   have heq := congrFun (E.evalScan_step_eq 0 (fun _ => 0) vcNext e₂) e₂.actor
   change E.vc e₂ e₂.actor = _ at heq
   simp only [vcNext, Function.update_self, Pi.sup_apply] at heq
@@ -457,27 +455,25 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
               E.vc x p = (E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p := by
         rcases E.scanSteps_snd_provenance 0 (fun _ => 0) vcNext hj.le ej.actor with h0 |
           ⟨y, hyj, hyact, hyeq⟩
-        · rw [h0]; exact .inl rfl
+        · exact .inl (congrFun h0 p)
         · change _ = E.vc y at hyeq
           have hyej : E.HappensBefore y ej := E.programOrder_happensBefore hyact hyj
           rcases ih y.idx.val hyj y.idx.isLt p with hz0 | ⟨x, hxact, hxy, hxeq⟩
-          · left; rw [hyeq]; exact hz0
+          · exact .inl ((congrFun hyeq p).trans hz0)
           · exact .inr ⟨x, hxact, hxy.trans hyej.happensBeforeLe, by rw [hyeq, hxeq]⟩
       cases hstep : ej.step with
       | internal _ | send _ _ =>
-        have heq := congrFun (E.evalScan_step_eq 0 (fun _ => 0) vcNext ej) p
-        change E.vc ej p = _ at heq
-        simp only [hstep, vcNext, Function.update_of_ne hp, Option.getD_none, Pi.sup_apply,
-          Pi.zero_apply, max_eq_left (Nat.zero_le _)] at heq
+        have heq : E.vc ej p = (E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p := by
+          rw [vc, E.evalScan_step_eq]
+          simp only [ej, hstep, vcNext, Function.update_of_ne hp, Option.getD_none, Pi.sup_apply,
+            Pi.zero_apply, max_eq_left (Nat.zero_le _)]
         rwa [heq]
       | recv q sIdx =>
         obtain ⟨eSend, hval, hlt, _, _⟩ := E.recv_sendEvent hstep
         have hrecv : ej.step = .recv q eSend.idx.val := hval.symm ▸ hstep
-        have hm := congrFun (E.evalScan_of_recv 0 (fun _ => 0) vcNext hrecv) p
-        change E.vc ej p =
-          vcNext ej.actor ((E.scanSteps (fun _ => 0) vcNext j).2 ej.actor)
-            (some (E.vc eSend)) p at hm
-        simp only [vcNext, Function.update_of_ne hp, Option.getD_some, Pi.sup_apply] at hm
+        have hm : E.vc ej p = (E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p ⊔ E.vc eSend p := by
+          rw [vc, E.evalScan_of_recv 0 (fun _ => 0) vcNext hrecv]
+          simp only [ej, vc, vcNext, Function.update_of_ne hp, Option.getD_some, Pi.sup_apply]
         rcases max_choice
             ((E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p) (E.vc eSend p) with hmax | hmax <;>
           rw [hm, hmax]

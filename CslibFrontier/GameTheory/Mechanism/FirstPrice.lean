@@ -115,8 +115,7 @@ private theorem coeff_pos {n : ℕ} (hn : 2 ≤ n) : 0 < ((n : ℝ) - 1) / n := 
 private theorem coeff_nonneg (n : ℕ) : 0 ≤ ((n : ℝ) - 1) / n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  · have : (1 : ℝ) ≤ n := by exact_mod_cast hn
-    exact div_nonneg (by linarith) (Nat.cast_nonneg n)
+  · exact div_nonneg (by cast_linarith [hn]) (Nat.cast_nonneg n)
 
 private theorem coeff_le_one (n : ℕ) : ((n : ℝ) - 1) / n ≤ 1 := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
@@ -174,12 +173,10 @@ private theorem interimAllocation_mul (c : ℝ) (hc : 1 < Fintype.card ι → 0 
     have hcpos : 0 < c := hc (Fintype.one_lt_card_iff.2 ⟨j, i, hj⟩)
     have hzc : 0 ≤ z / c := div_nonneg hz hcpos.le
     have hlo : Iio (z / c) ⊆ s j := fun t ht => by
-      have hlt : t * c < z := (lt_div_iff₀ hcpos).1 ht
-      simp only [hs, ite_eq_right hj]
+      simp only [hs, ite_eq_right hj, mem_Iio, lt_div_iff₀ hcpos] at ht ⊢
       split_ifs <;> simp only [mem_ofPred_eq] <;> linarith
     have hhi : s j ⊆ Iic (z / c) := fun t ht => by
-      simp only [hs, ite_eq_right hj] at ht
-      rw [mem_Iic, le_div_iff₀ hcpos]
+      simp only [hs, ite_eq_right hj, mem_Iic, le_div_iff₀ hcpos] at ht ⊢
       split_ifs at ht <;> simp only [mem_ofPred_eq] at ht <;> linarith
     exact le_antisymm ((measureReal_mono hhi).trans_eq (unif_Iic hzc))
       ((unif_Iio hzc).symm.trans_le (measureReal_mono hlo))
@@ -253,10 +250,8 @@ theorem isBayesNash_uniformBid :
         ⟨div_nonneg hz hcpos.le, (div_le_one hcpos).2 hzc.le⟩, ?_⟩
       rw [uniformBid, mul_div_cancel₀ _ hcpos.ne']
     · refine ⟨1, ⟨zero_le_one, le_rfl⟩, ?_⟩
-      have h1 : uniformBid (Fintype.card ι) 1 = ((Fintype.card ι : ℝ) - 1) / Fintype.card ι := by
-        rw [uniformBid, mul_one]
-      rw [interimPayment_eq, interimPayment_eq, interimAllocation_uniformBid_of_le i hzc,
-        interimAllocation_uniformBid_of_le i h1.ge, h1]
+      rw [uniformBid, mul_one, interimPayment_eq, interimPayment_eq,
+        interimAllocation_uniformBid_of_le i hzc, interimAllocation_uniformBid_of_le i le_rfl]
       linarith
 
 /-- **Bid shading.** With at least two bidders whose values are uniform on `[0, 1]`, truthful
@@ -348,9 +343,8 @@ theorem integral_sum_payment_uniformBid_eq_vickrey :
       (fun _ => hasValueDensity_uniform) (fun i => measurable_allocation i) hB]
   simp only [interimPayment_eq, uniformBid, mul_zero, zero_mul, Finset.sum_const_zero, zero_add]
   congr 1 with v : 1
-  refine Finset.sum_congr rfl fun i _ => ?_
-  congr 1
-  change Vickrey.allocation _ i = Vickrey.allocation v i
+  refine Finset.sum_congr rfl fun i _ => mul_eq_mul_left_iff.mpr (.inl ?_)
+  dsimp only [mechanism, Vickrey.mechanism]
   rcases le_or_gt (Fintype.card ι) 1 with h1 | h2
   · have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.1 h1
     rw [allocation_eq_one_iff.2 (wins_of_subsingleton _ i),

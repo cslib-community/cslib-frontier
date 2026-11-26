@@ -140,7 +140,6 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
     ∀ x, CNF.eval x G = f (ρ.fill x)}
   set L : Finset (Literal (Fin n)) := F.flatten.toFinset
   set V : Finset (Fin n) := L.image Prod.fst
-  have hrhs : (0 : ℝ) ≤ (((u : ℕ) : ℝ) / n) ^ ((s : ℝ) / 2) := by positivity
   have hmemL {T : Term (Fin n)} {l : Literal (Fin n)} (hT : T ∈ F) (hl : l ∈ T) : l ∈ L :=
     List.mem_toFinset.2 (List.mem_flatten.2 ⟨T, hT, hl⟩)
   -- a bad restriction fixes no literal of `F` to true and leaves more than `s` variables free
@@ -151,14 +150,13 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
     obtain ⟨hρW, hbad⟩ := mem_filter.1 hρ
     refine mem_filter.2 ⟨hρW, fun l hl hρl => hbad ⟨[], by simp, fun x => ?_⟩, ?_⟩
     · obtain ⟨T, hT, hlT⟩ := List.mem_flatten.1 (List.mem_toFinset.1 hl)
-      rw [CNF.eval_nil, ← hF, eq_comm, DNF.eval_eq_true_iff]
-      refine ⟨T, hT, (Term.eval_eq_true_iff _ _).2 fun l' hl' => ?_⟩
-      obtain rfl : l' = l := by
-        rcases T with _ | ⟨a, _ | ⟨b, T⟩⟩
-        · simp at hlT
-        · simp only [List.mem_singleton] at hl' hlT; rw [hl', hlT]
-        · have := hk _ hT; simp at this
-      exact PartialAssignment.fill_of_eq_some hρl x
+      rcases T with _ | ⟨a, _ | ⟨b, T⟩⟩
+      · nomatch hlT
+      · obtain rfl := List.mem_singleton.1 hlT
+        rw [CNF.eval_nil, ← hF, eq_comm, DNF.eval_eq_true_iff]
+        exact ⟨[l], hT, (Term.eval_eq_true_iff _ _).2 fun _ h =>
+          (List.mem_singleton.1 h) ▸ PartialAssignment.fill_of_eq_some hρl x⟩
+      · exact absurd (hk _ hT) (by simp)
     · by_contra hle
       set A := ρ.free ∩ V
       refine hbad ⟨(queryAll (fun x => f (ρ.fill x)) A.toList fun _ => false).toCNF,
@@ -181,7 +179,7 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
       have := (PartialAssignment.mem_withFree.1 hρW) ▸
         card_le_card (inter_subset_left (s₁ := ρ.free) (s₂ := V))
       omega
-    simpa only [hB, card_empty, Nat.cast_zero, zero_div] using hrhs
+    rw [hB, card_empty, Nat.cast_zero, zero_div]; positivity
   have hun : u ≤ n := by omega
   have hn : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
   -- the words completing a free set `J` to a restriction in `E`
@@ -269,8 +267,6 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
   set W := PartialAssignment.withFree (Fin n) u
   set B := {ρ ∈ W | ¬ ∃ G : CNF (Fin n), (∀ c ∈ G, c.length ≤ s) ∧
     ∀ x, CNF.eval x G = f (ρ.fill x)}
-  have hbase : (0 : ℝ) ≤ (u : ℝ) * k ^ 10 / n := by positivity
-  have hrhs : (0 : ℝ) ≤ ((u : ℝ) * k ^ 10 / n) ^ ((s : ℝ) / 2) := Real.rpow_nonneg hbase _
   -- a restriction leaving `F` with decision tree complexity at most `s` makes `f` an `s`-CNF
   have hsub : B ⊆ W.filter fun ρ => s ≤ complexity fun x => DNF.eval (ρ.fill x) F := by
     intro ρ hρ
@@ -288,7 +284,7 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
       have := (PartialAssignment.mem_extensions.1 hρW).2
       have := complexity_fill_le_card_free ρ fun y => DNF.eval y F
       omega
-    simpa only [hB, card_empty, Nat.cast_zero, zero_div] using hrhs
+    rw [hB, card_empty, Nat.cast_zero, zero_div]; positivity
   -- the switching lemma: `#B (t' + 1) ^ s ≤ #W (8 k u) ^ s` with `t' = n - u`
   have hun : u ≤ n := by omega
   have hcount : #B * (n - u + 1) ^ s ≤ #W * (8 * k * u) ^ s := by
@@ -329,9 +325,9 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
     · simp [r, hk0]
     have hk2 : (2 : ℝ) ≤ k := by exact_mod_cast (show 2 ≤ k by omega)
     have hk8 : (256 : ℝ) ≤ (k : ℝ) ^ 8 := by linarith [pow_le_pow_left₀ zero_le_two hk2 8]
-    have hu' : (u : ℝ) * 1024 ≤ u * k ^ 10 := by nlinarith [pow_le_pow_left₀ zero_le_two hk2 10]
     -- `t' + 1 ≥ n / 2`, so `64 n u ≤ 256 (t' + 1) ^ 2 ≤ k ^ 8 (t' + 1) ^ 2`
-    have ht' : (n : ℝ) ≤ 2 * ((n - u : ℕ) + 1) := by rw [Nat.cast_sub hun]; nlinarith
+    have ht' : (n : ℝ) ≤ 2 * ((n - u : ℕ) + 1) := by
+      rw [Nat.cast_sub hun]; nlinarith [pow_le_pow_left₀ zero_le_two hk2 10]
     have hun' : (u : ℝ) ≤ n := by exact_mod_cast hun
     rw [div_pow, div_le_div_iff₀ (by positivity) hnpos]
     have hkey : 64 * (n : ℝ) * u ≤ (k : ℝ) ^ 8 * (((n - u : ℕ) : ℝ) + 1) ^ 2 := by nlinarith

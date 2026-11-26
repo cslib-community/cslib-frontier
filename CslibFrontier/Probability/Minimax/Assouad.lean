@@ -340,16 +340,9 @@ private theorem exists_product_bernoulli_edge_klDiv_le {n : ℕ} (hn : 0 < n) :
   refine ⟨pBit, hpF, hpT,
     fun i v => support_pi_subset_iff.mpr fun j => hsupp (v j) (Function.update v i (!v i) j),
     fun i v => ?_⟩
-  rw [toReal_klDiv_pi fun j => hsupp (v j) (Function.update v i (!v i) j)]
-  have hterm (j : ι) :
-      (klDiv (coin (pBit (v j))).toMeasure
-          (coin (pBit (Function.update v i (!v i) j))).toMeasure).toReal =
-        if j = i then
-          (klDiv (coin (pBit (v i))).toMeasure (coin (pBit (!v i))).toMeasure).toReal
-        else 0 := by
-    by_cases hji : j = i <;> simp [hji]
-  simp only [hterm, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-  exact hkl (v i)
+  rw [toReal_klDiv_pi fun j => hsupp (v j) (Function.update v i (!v i) j),
+    Finset.sum_eq_single_of_mem i (Finset.mem_univ i) fun j _ hji => by simp [hji]]
+  simpa only [Function.update_self] using hkl (v i)
 
 private theorem sqrt_mul_one_div_two_mul_div_two {n : ℕ} (hn : 0 < n) :
     Real.sqrt ((n : ℝ) * (1 / (2 * (n : ℝ))) / 2) = 1 / 2 := by

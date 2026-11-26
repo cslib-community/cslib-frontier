@@ -288,9 +288,7 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
               have hk' := hkeep (by simp [hck_mem, cVal, hk, hck])
               unfold pruneBody
               wram_exec [hzC.one, hzC.candB, hk_reg, hck_mem, hck0]
-              refine ⟨⟨?_, ?_, ?_, ?_,
-                  by simpa only [Data.set_mem] using hk'.1,
-                  by simpa only [Data.set_mem] using hk'.2⟩, ?_⟩
+              refine ⟨⟨?_, ?_, ?_, ?_, hk'.1, hk'.2⟩, ?_⟩
               all_goals wram_simp [hzC, hzT2, hzT3, hzR]
             | true =>
               have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := hck ▸ rfl
@@ -315,22 +313,15 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 unfold pruneBody
                 wram_exec [hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg, hck_mem, hck1,
                   hfa, hha, hcfa, heq_val]
-                refine ⟨⟨?_, ?_, ?_, ?_,
-                    by simpa only [Data.set_mem] using hk'.1,
-                    by simpa only [Data.set_mem] using hk'.2⟩, ?_⟩
+                refine ⟨⟨?_, ?_, ?_, ?_, hk'.1, hk'.2⟩, ?_⟩
                 all_goals wram_simp [hzC, hzT2, hzT3, hzR]
               · have hpws := prefix_write_step hzCand hzFr
-                  (show Function.update z.mem (candBase g + k) 0 =
-                    Function.update z.mem (candBase g + k) (cVal k) by
-                    simp only [cVal, hk, ↓reduceDIte, hck,
-                      decide_eq_false (fun heq => heq_val (congrArg Fin.val heq)),
-                      Bool.true_and, Bool.toNat_false])
+                  (congrArg (Function.update z.mem (candBase g + k))
+                    (show 0 = cVal k by simp [cVal, hk, hck, Fin.ext_iff, heq_val]))
                 unfold pruneBody
                 wram_exec [hzC.zero, hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg,
                   hck_mem, hck1, hfa, hha, hcfa, heq_val]
-                refine ⟨⟨?_, ?_, ?_, ?_,
-                    by simpa only [Data.write_mem, Data.set_mem] using hpws.1,
-                    by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩, ?_⟩
+                refine ⟨⟨?_, ?_, ?_, ?_, hpws.1, hpws.2⟩, ?_⟩
                 all_goals wram_simp [hzC, hzT2, hzT3, hzR])
           (hlab2.symm ▸ Nat.zero_le L)
           (hlab2.symm ▸ ⟨hc2, ht2_2, ht3_2, hr2'.trans hr1,

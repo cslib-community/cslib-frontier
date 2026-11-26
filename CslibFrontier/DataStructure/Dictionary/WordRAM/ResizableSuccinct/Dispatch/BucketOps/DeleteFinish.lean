@@ -238,16 +238,11 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
   have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
   have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := hgm1.symm ▸ hm_cap
   set c_b := bCount N (compGmAt metaBase U w N s.mem) b
-  set j_last := c_b - 1
-  have hs'_tail : s' = (Memory.spec 0).clientState s₁
-      (if j_del < j_last then do
-        compDeleteSwapGenProg
-          (((((mkCompParams U V w N, (metaBase, itemBase)), (b, j_del)), phys_del),
-            (m_last, j_last)))
-        compPopBackSlotGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)
-      else
-        compPopBackSlotGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)) := by
-    simp only [s', d, compDeleteFoundGenProg, compDeleteFoundTailProg, s₁, j_last, c_b, pure_bind]
+  set j_last := c_b - 1 with hj_last
+  let tailProg := compDeleteFoundTailProg
+    ((((((mkCompParams U V w N, (metaBase, itemBase)), (b, j_del)), phys_del), m_last), c_b))
+  have hs'_tail : s' = (Memory.spec 0).clientState s₁ tailProg := by
+    simp only [s', d, compDeleteFoundGenProg, s₁, tailProg, c_b]
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       clientState_readCompBucketCountGenProg, clientResult_readCompBucketCountGenProg hb, hgm1]
   have hs_fix'_tail : s_fix' = (Memory.spec 0).clientState sf₁
@@ -263,15 +258,8 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       clientState_readBucketCountProg, clientResult_readBucketCountProg (0, b) sf₁ hb,
       ← hcpl1.gm_eq, hgm1]
-  have hcost_pre : memoryCost (compDeleteFoundGenProg d) s ≤ 16 +
-      memoryCost (if j_del < j_last then do
-        compDeleteSwapGenProg
-          (((((mkCompParams U V w N, (metaBase, itemBase)), (b, j_del)), phys_del),
-            (m_last, j_last)))
-        compPopBackSlotGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)
-      else
-        compPopBackSlotGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)) s₁ := by
-    simp only [d, compDeleteFoundGenProg, compDeleteFoundTailProg, j_last, c_b, pure_bind]
+  have hcost_pre : memoryCost (compDeleteFoundGenProg d) s ≤ 16 + memoryCost tailProg s₁ := by
+    simp only [d, compDeleteFoundGenProg, tailProg, c_b]
     rw [Realization.memoryCost_bind',
       memoryCost_bind_of_clientState_eq (clientState_readCompBucketCountGenProg _ s₁) _,
       clientResult_readCompBucketCountGenProg hb, hgm1]
@@ -279,7 +267,8 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
       (((mkCompParams U V w N, metaBase), (b, m)), j_del) s
     have hc2 := memoryCost_readCompBucketCountGenProg_le
       ((mkCompParams U V w N, metaBase), b) s₁
-    dsimp only [s₁, j_last, c_b] at hc2 ⊢; omega
+    dsimp only [s₁, c_b] at hc2 ⊢; omega
+  simp only [tailProg, compDeleteFoundTailProg, pure_bind, ← hj_last] at hs'_tail hcost_pre
   by_cases hlt : j_del < j_last
   · have hj_last_bc1 : j_last < bCount N (compGmAt metaBase U w N s₁.mem) b :=
       hgm1.symm ▸ Nat.sub_lt hbc_pos Nat.one_pos

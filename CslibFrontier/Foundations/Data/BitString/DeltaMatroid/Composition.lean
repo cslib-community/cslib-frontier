@@ -297,12 +297,10 @@ theorem isEvenDeltaMatroid_oneHotRelation [Fintype ι] [Nonempty ι] :
       rcases hiab with rfl | rfl
       · exact ⟨b, by simp [hab.symm], b, hf.symm⟩
       · exact ⟨a, by simp [hab], i, by simpa only [pair_comm] using hf.symm⟩ }
-  parity_eq := fun _ _ ⟨a, ha⟩ ⟨b, hb⟩ => by
-    subst ha hb
+  parity_eq := by
+    rintro _ _ ⟨a, rfl⟩ ⟨b, rfl⟩
     have hp (c : ι) : parityOn univ (fun j => decide (j = c)) = true := by
-      have he : {j ∈ (univ : Finset ι) | j = c} = {c} := by
-        ext
-        simp
+      have he : {j ∈ (univ : Finset ι) | j = c} = {c} := Finset.ext fun _ => by simp
       simp [parityOn, he]
     rw [hp, hp]
 
@@ -347,16 +345,13 @@ theorem mem_starAt_iff [Fintype κ] (reference : κ → Bool) {x : (κ ⊕ Unit)
       ((∀ k, (x (.inl k) != reference k) = false) ∧ x (.inr ()) = false) ∨
         ∃ k, (∀ j, (x (.inl j) != reference j) = decide (j = k)) ∧
           x (.inr ()) = true := by
-  change flipOn _ x ∈ star κ ↔ _
+  let S : Finset (κ ⊕ Unit) :=
+    univ.filter fun i => Sum.elim reference (fun _ : Unit => false) i = true
+  change flipOn S x ∈ star κ ↔ _
   rw [mem_star_iff]
-  have hi (k : κ) :
-      flipOn (univ.filter
-        (fun i => Sum.elim reference (fun _ : Unit => false) i = true)) x (.inl k) =
-        (x (.inl k) != reference k) := by
-    cases hr : reference k <;> cases hx : x (.inl k) <;> simp [flipOn, hr, hx]
-  have hc : flipOn (univ.filter
-      (fun i => Sum.elim reference (fun _ : Unit => false) i = true)) x
-      (.inr ()) = x (.inr ()) := by simp [flipOn]
+  have hi (k : κ) : flipOn S x (.inl k) = (x (.inl k) != reference k) := by
+    cases hr : reference k <;> cases hx : x (.inl k) <;> simp [S, flipOn, hr, hx]
+  have hc : flipOn S x (.inr ()) = x (.inr ()) := by simp [S, flipOn]
   simp only [hi, hc]
 
 end Cslib.BitString

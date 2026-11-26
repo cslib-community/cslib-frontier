@@ -104,8 +104,7 @@ private theorem missingPage_erase_of_notMem (p₀ : α) {x : α} {xs : List α} 
   | nil => rfl
   | cons y ys ih =>
     have hyx : y ≠ x := fun h => hx (h ▸ List.mem_cons_self)
-    have hmem : (y ∈ s.erase x) ↔ (y ∈ s) := Finset.mem_erase.trans (and_iff_right hyx)
-    simp only [missingPage, hmem, ih (fun h => hx (List.mem_cons_of_mem y h))]
+    simp [missingPage, hyx, ih fun h => hx (List.mem_cons_of_mem y h)]
 
 /-- Pigeonhole selection: if `pages` is duplicate-free and `s` has strictly fewer elements than
 `pages`, then `missingPage p₀ pages s` belongs to `pages` and lies outside `s`. -/
@@ -146,9 +145,8 @@ theorem mem_adversaryRequests {k : Nat} (p₀ : α) {pages : List α}
     (A : DetStrategy (problem α k)) {s₀ : Finset α} (hs₀ : ValidCache k s₀)
     {n : Nat} {r : α} (hr : r ∈ adversaryRequests p₀ pages A s₀ n) :
     r ∈ pages := by
-  apply A.mem_adaptiveRequests (Q := fun p => p ∈ pages) _ hs₀ hr
-  intro m hm
-  have hcard : (A.project m).card ≤ k := (A.valid_step p₀ hm).2.1
+  refine A.mem_adaptiveRequests (Q := (· ∈ pages)) (fun hm => ?_) hs₀ hr
+  have := (A.valid_step p₀ hm).2.1
   exact (missingPage_mem_and_notMem p₀ hnodup (by omega)).1
 
 /-- Any deterministic online strategy `A` faults on every single request of `adversaryRequests`,
@@ -231,9 +229,8 @@ private theorem filter_mem_length_eq_card {pages : List α} {s : Finset α}
     (hnodup : pages.Nodup) (hsub : s ⊆ pages.toFinset) :
     (pages.filter (· ∈ s)).length = s.card := by
   rw [← List.toFinset_card_of_nodup (hnodup.filter _)]
-  congr 1
-  ext x
-  simpa [List.mem_toFinset] using fun hx => List.mem_toFinset.mp (hsub hx)
+  exact congrArg Finset.card (Finset.ext fun x => by
+    simpa [List.mem_toFinset] using fun hx => List.mem_toFinset.mp (hsub hx))
 
 private theorem evict_mem_and_notMem {k : Nat} (p₀ : α) {pages : List α} {s : Finset α}
     (hnodup : pages.Nodup) (hsub : s ⊆ pages.toFinset) (hscard : s.card = k)
@@ -379,13 +376,12 @@ private theorem exists_adversary_offline {k : Nat} (hk : 0 < k) {pages : List α
   have hpne : pages ≠ [] := by grind
   set p₀ := pages.head hpne
   set reqs := adversaryRequests p₀ pages A s₀ n
-  have hreqs_pages : ∀ r ∈ reqs, r ∈ pages :=
-    fun r hr => mem_adversaryRequests p₀ hnodup hlen A hs₀ hr
-  have hlen_reqs : reqs.length = n := adversaryRequests_length p₀ pages A s₀ n
-  refine ⟨reqs, offlineLookahead k p₀ pages s₀ reqs, hlen_reqs,
+  have hreqs_pages (r : α) (hr : r ∈ reqs) : r ∈ pages :=
+    mem_adversaryRequests p₀ hnodup hlen A hs₀ hr
+  refine ⟨reqs, offlineLookahead k p₀ pages s₀ reqs, adversaryRequests_length p₀ pages A s₀ n,
     validSchedule_offlineLookahead hk p₀ hnodup hlen reqs hs₀ hs₀_sub hreqs_pages,
     cost_adversaryRequests p₀ hnodup hlen A hs₀ n, ?_⟩
-  simpa only [hlen_reqs] using
+  simpa only [reqs, adversaryRequests_length] using
     scheduleCost_offlineLookahead_bound hk p₀ hnodup hlen reqs hs₀ hs₀_sub hreqs_pages
 
 /-- Exact factor-`k` witness from a full initial cache `s₀` (`s₀.card = k`, `s₀ ⊆ pages.toFinset`):
@@ -449,10 +445,9 @@ theorem not_isCompetitiveFrom_of_lt {k : Nat} (hk : 0 < k) {pages : List α}
     (hnodup : pages.Nodup) (hlen : pages.length = k + 1)
     {s₀ : Finset α} (hs₀ : ValidCache k s₀) (hs₀_sub : s₀ ⊆ pages.toFinset)
     (A : DetStrategy (problem α k)) {c : Nat} (hc : c < k) (b : Nat) :
-    ¬ A.IsCompetitiveFrom s₀ c b := by
-  intro hcomp
-  obtain ⟨reqs, offStates, hv, hlt⟩ := exists_ratio_violation_of_lt hk hnodup hlen hs₀ hs₀_sub A
-    (p := c) (q := 1) (by omega) b
+    ¬ A.IsCompetitiveFrom s₀ c b := fun hcomp => by
+  obtain ⟨reqs, offStates, hv, hlt⟩ :=
+    exists_ratio_violation_of_lt hk hnodup hlen hs₀ hs₀_sub A (Nat.mul_one k ▸ hc) b
   exact Nat.not_le.mpr (Nat.one_mul (A.cost s₀ reqs) ▸ hlt) (hcomp reqs offStates hv)
 
 /-- No deterministic online paging strategy over a universe containing `k + 1` distinct pages is
