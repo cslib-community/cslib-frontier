@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
+import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackCertify
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
@@ -43,6 +44,11 @@ namespace CslibFrontierTests.Logics.Propositional.VeriPBKnapsack
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Knapsack
 
 /-! ### The theorems for an ordinary client -/
+
+/-- The answer of the dynamic program is the optimum, on every instance. -/
+example {n : ℕ} (w p : Fin n → ℕ) (B : ℕ) :
+    ∀ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B → ∑ i ∈ S, p i ≤ (certify w p B).optimum :=
+  fun S hS => (isGreatest_certify w p B).2 ⟨S, hS, rfl⟩
 
 /-- Acceptance of the proof of the dynamic program gives the optimum. -/
 example {n : ℕ} (w p : Fin n → ℕ) (B : ℕ)
