@@ -291,9 +291,14 @@ theorem negSum_fromLinear (L : List (ℕ × ℤ)) (D : ℤ) :
     · rw [he]; simp only [negSum_cons, ih, termPos_mk, Bool.false_eq_true, ↓reduceIte]
     · rw [he]; simp only [ih, neg_zero, Int.toNat_zero, zero_add]
 
+/-- Normalization keeps the coefficients. -/
+theorem cf_normalize (c : PBConstr) : cf c.normalize.terms = cf c.terms := by
+  rw [PBConstr.normalize, cf_fromLinear, cf_eq_lin]
+
 /-- Normalization keeps the coefficients of the inequality. -/
 theorem coeff_toIneq_normalize (c : PBConstr) : c.normalize.toIneq.coeff = c.toIneq.coeff := by
-  rw [toIneq_eq, toIneq_eq, PBConstr.normalize, cf_fromLinear, cf_eq_lin]
+  rw [toIneq_eq, toIneq_eq]
+  exact cf_normalize c
 
 /-- Normalization can only raise the bound of the inequality: it clamps the degree at `0`. -/
 theorem bound_toIneq_le_normalize (c : PBConstr) : c.toIneq.bound ≤ c.normalize.toIneq.bound := by
@@ -309,6 +314,62 @@ theorem toIneq_append (c d : PBConstr) :
     (⟨c.terms ++ d.terms, c.degree + d.degree⟩ : PBConstr).toIneq = c.toIneq + d.toIneq := by
   rw [toIneq_eq, toIneq_eq, toIneq_eq]
   ext <;> simp only [coeff_add, cf_append, bound_add, Nat.cast_add, negSum_append]; ring
+
+/-! ### Coefficients of terms on distinct variables -/
+
+/-- A variable without terms has coefficient `0`. -/
+theorem cf_apply_of_notMem {ts : List (ℕ × Literal ℕ)} {v : ℕ} (h : v ∉ ts.map termVar) :
+    cf ts v = 0 := by
+  induction ts with
+  | nil => rfl
+  | cons t ts ih =>
+    simp only [List.map_cons, List.mem_cons, not_or] at h
+    simp [cf_cons, Ne.symm h.1, ih h.2]
+
+/-- On distinct variables, the coefficient of a term's variable is the term's signed
+coefficient. -/
+theorem cf_apply_of_nodup {ts : List (ℕ × Literal ℕ)} (h : (ts.map termVar).Nodup)
+    {t : ℕ × Literal ℕ} (ht : t ∈ ts) : cf ts (termVar t) = termCoeff t := by
+  induction ts with
+  | nil => cases ht
+  | cons t' ts ih =>
+    rw [List.map_cons, List.nodup_cons] at h
+    rcases List.mem_cons.1 ht with rfl | ht
+    · simp [cf_cons, cf_apply_of_notMem h.1]
+    · have hne : termVar t' ≠ termVar t := fun he => h.1 (by rw [he]; exact List.mem_map_of_mem ht)
+      simp [cf_cons, hne, ih h.2 ht]
+
+/-! ### Multiplying the terms of a constraint -/
+
+theorem cf_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
+    cf (ts.map fun t => (k * t.1, t.2)) = (k : ℤ) • cf ts := by
+  induction ts with
+  | nil => simp only [List.map_nil, cf_nil, smul_zero]
+  | cons t ts ih =>
+    obtain ⟨a, v, b⟩ := t
+    simp only [List.map_cons, cf_cons, ih, smul_add, Finsupp.smul_single]
+    cases b <;> simp only [termVar, termCoeff, termPos, Bool.false_eq_true, ↓reduceIte,
+      smul_eq_mul, Nat.cast_mul, mul_neg]
+
+theorem negSum_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
+    negSum (ts.map fun t => (k * t.1, t.2)) = k * negSum ts := by
+  induction ts with
+  | nil => simp only [List.map_nil, negSum_nil, mul_zero]
+  | cons t ts ih =>
+    obtain ⟨a, v, b⟩ := t
+    simp only [List.map_cons, negSum_cons, ih]
+    cases b <;> simp only [termPos, Bool.false_eq_true, ↓reduceIte] <;> ring
+
+/-- The inequality of a constraint multiplied by `k`, before normalization, is `k` times its
+inequality. -/
+theorem toIneq_map_mul (k : ℕ) (c : PBConstr) :
+    (⟨c.terms.map fun t => (k * t.1, t.2), k * c.degree⟩ : PBConstr).toIneq = k • c.toIneq := by
+  rw [toIneq_eq, toIneq_eq]
+  ext
+  · simp only [cf_map_mul, coeff_nsmul]
+    rfl
+  · simp only [negSum_map_mul, bound_nsmul, nsmul_eq_mul, Nat.cast_mul]
+    ring
 
 end PBConstr
 
@@ -396,36 +457,6 @@ theorem Der.normalize {c : PBConstr} (h : Der Γ c.toIneq) : Der Γ c.normalize.
 theorem Der.add' {c d : PBConstr} (hc : Der Γ c.toIneq) (hd : Der Γ d.toIneq) :
     Der Γ (c.add d).toIneq :=
   Der.normalize ((hc.add hd).of_eq (toIneq_append c d).symm)
-
-theorem cf_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
-    cf (ts.map fun t => (k * t.1, t.2)) = (k : ℤ) • cf ts := by
-  induction ts with
-  | nil => simp only [List.map_nil, cf_nil, smul_zero]
-  | cons t ts ih =>
-    obtain ⟨a, v, b⟩ := t
-    simp only [List.map_cons, cf_cons, ih, smul_add, Finsupp.smul_single]
-    cases b <;> simp only [termVar, termCoeff, termPos, Bool.false_eq_true, ↓reduceIte,
-      smul_eq_mul, Nat.cast_mul, mul_neg]
-
-theorem negSum_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
-    negSum (ts.map fun t => (k * t.1, t.2)) = k * negSum ts := by
-  induction ts with
-  | nil => simp only [List.map_nil, negSum_nil, mul_zero]
-  | cons t ts ih =>
-    obtain ⟨a, v, b⟩ := t
-    simp only [List.map_cons, negSum_cons, ih]
-    cases b <;> simp only [termPos, Bool.false_eq_true, ↓reduceIte] <;> ring
-
-/-- The inequality of a constraint multiplied by `k`, before normalization, is `k` times its
-inequality. -/
-theorem toIneq_map_mul (k : ℕ) (c : PBConstr) :
-    (⟨c.terms.map fun t => (k * t.1, t.2), k * c.degree⟩ : PBConstr).toIneq = k • c.toIneq := by
-  rw [toIneq_eq, toIneq_eq]
-  ext
-  · simp only [cf_map_mul, coeff_nsmul]
-    rfl
-  · simp only [negSum_map_mul, bound_nsmul, nsmul_eq_mul, Nat.cast_mul]
-    ring
 
 theorem Der.mul' {c : PBConstr} (hc : Der Γ c.toIneq) (k : ℕ) : Der Γ (c.mul k).toIneq := by
   refine Der.normalize ?_
