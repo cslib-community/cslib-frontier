@@ -352,8 +352,7 @@ theorem isPrefixFree_codewordSet (T : CodeTree α) :
 theorem nil_notMem_codewordSet_branch (l r : CodeTree α) :
     [] ∉ (branch l r).codewordSet := by
   rintro ⟨a, ha⟩
-  simp only [codewords, List.mem_append, List.mem_map] at ha
-  rcases ha with ⟨p, _, hp⟩ | ⟨p, _, hp⟩ <;> simp at hp
+  simp [codewords] at ha
 
 /-- Every non-leaf `CodeTree` codebook satisfies Mathlib's
 `InformationTheory.IsUniquelyDecodable`. -/
@@ -387,19 +386,16 @@ theorem isUniquelyDecodable_codewordSet (l r : CodeTree α) :
 theorem decodeOne_branch_length_lt {l r : CodeTree α} {bits rem : List Bool} {a : α}
     (h : decodeOne (branch l r) bits = some (a, rem)) :
     rem.length < bits.length := by
-  have hle (T : CodeTree α) : ∀ {bs rm x}, decodeOne T bs = some (x, rm) →
-      rm.length ≤ bs.length := by
-    induction T with
-    | leaf _ => simp [decodeOne]
-    | branch _ _ ihl ihr =>
-      rintro (_ | ⟨false | true, _⟩) _ _ hd
-      · cases hd
-      · exact Nat.le_succ_of_le (ihl hd)
-      · exact Nat.le_succ_of_le (ihr hd)
+  have hle (T : CodeTree α) (bs : List Bool) {rm : List Bool} {x : α}
+      (hd : decodeOne T bs = some (x, rm)) : rm.length ≤ bs.length := by
+    fun_induction decodeOne T bs with
+    | case1 => simp_all
+    | case2 _ _ _ ih | case3 _ _ _ ih => exact Nat.le_succ_of_le (ih hd)
+    | case4 => cases hd
   rcases bits with _ | ⟨false | true, _⟩
   · cases h
-  · exact Nat.lt_succ_of_le (hle l h)
-  · exact Nat.lt_succ_of_le (hle r h)
+  · exact Nat.lt_succ_of_le (hle l _ h)
+  · exact Nat.lt_succ_of_le (hle r _ h)
 
 /-- Decode a bit stream into a list of symbols using a non-leaf code tree `T`. -/
 @[expose] def decode : CodeTree α → List Bool → Option (List α)
@@ -499,11 +495,7 @@ theorem decode_encode [DecidableEq α] (l r : CodeTree α) {msg : List α} {bits
     · have hd1 : decodeOne (branch l r) (b :: (bs ++ rest)) = some (a, rest) :=
         decodeOne_append_of_mem_codewords (mem_codewords_of_encodeSym hc) rest
       rw [List.cons_append, decode]
-      split
-      · next hnone => simp [hd1] at hnone
-      · next a' rem hsome =>
-        obtain ⟨rfl, rfl⟩ : a = a' ∧ rest = rem := by simpa [hd1] using hsome
-        simp [ih hrest]
+      split <;> simp_all
 
 private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List Bool)}
     (hnodup : (L.map Prod.fst).Nodup) {a : α} {c : List Bool}
@@ -522,7 +514,8 @@ private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List 
             hnodup.1 (h ▸ List.mem_map.mpr ⟨q, hq, rfl⟩)]
       have hmul : c.length • (msg.count a + 1) = c.length • msg.count a + c.length :=
         Nat.mul_succ _ _
-      simp only [List.count_cons_self, htail, hmul]; omega
+      simp only [List.count_cons_self, htail, hmul]
+      omega
     · rw [List.count_cons_of_ne fun (h : a = p.1) =>
           hnodup.1 (h.symm ▸ List.mem_map.mpr ⟨_, hps, rfl⟩),
         ih hnodup.2 hps]

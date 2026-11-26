@@ -207,14 +207,9 @@ theorem eq_maxPrefixSuffixUpTo_iff {α : Type*} [DecidableEq α] {p t : List α}
     have hle := le_maxPrefixSuffixUpTo hkB hkp hsuf
     omega
   · rintro ⟨hmB, hmp, hmsuf, hmax⟩
-    have hle := le_maxPrefixSuffixUpTo hmB hmp hmsuf
-    have hge : maxPrefixSuffixUpTo p t B ≤ m := by
-      by_contra hlt
-      exact hmax (maxPrefixSuffixUpTo p t B) (by omega)
-        (maxPrefixSuffixUpTo_le_bound p t B)
-        (maxPrefixSuffixUpTo_le_length p t B)
-        (take_maxPrefixSuffixUpTo_isSuffix p t B)
-    omega
+    refine Nat.le_antisymm (le_maxPrefixSuffixUpTo hmB hmp hmsuf) (not_lt.mp fun hlt => ?_)
+    exact hmax _ hlt (maxPrefixSuffixUpTo_le_bound p t B) (maxPrefixSuffixUpTo_le_length p t B)
+      (take_maxPrefixSuffixUpTo_isSuffix p t B)
 
 /-- Maximum proper border length of `w` (`0` when `w = []`). -/
 @[expose] def maxBorderLen {α : Type*} [DecidableEq α] (w : List α) : ℕ :=
@@ -294,19 +289,15 @@ theorem borderLen_eq_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α] {p : List
   have hlen : (p.take q).length = q := List.length_take_of_le hqp
   rcases Nat.eq_zero_or_pos q with rfl | hqpos
   · simp only [borderLen_zero, Nat.zero_le, List.take_zero, List.nil_suffix, true_and]
-    intro k hk0 hkB
     omega
   · have hb : IsProperBorderLen (p.take q) (borderLen p q) :=
       isProperBorderLen_maxBorderLen (by rw [hlen]; exact hqpos)
     have hblt := hb.1
     have htake_eq : p.take (borderLen p q) = (p.take q).take (borderLen p q) := by
       rw [List.take_take, Nat.min_eq_left (by omega)]
-    refine ⟨by omega, by omega, htake_eq ▸ hb.2, fun k hlt hkB _ hsuf => ?_⟩
-    have hk_proper : IsProperBorderLen (p.take q) k := by
-      refine ⟨by omega, ?_⟩
-      rwa [List.take_take, Nat.min_eq_left (by omega)]
-    have hle : k ≤ borderLen p q := le_maxBorderLen_of_isProperBorderLen hk_proper
-    omega
+    refine ⟨by omega, by omega, htake_eq ▸ hb.2, fun k hlt hkB _ hsuf => not_le.mpr hlt ?_⟩
+    exact le_maxBorderLen_of_isProperBorderLen
+      ⟨by omega, by rwa [List.take_take, Nat.min_eq_left (by omega)]⟩
 
 /-! ## Prefix-function iteration (`[CLRS2009]`, Lemma 32.5) -/
 
@@ -370,9 +361,7 @@ theorem pairwise_gt_borderChain {α : Type*} [DecidableEq α] {p : List α} {q :
     have hklt : k < q := borderLen_lt (by omega) fun hp0 => hcond (Or.inr hp0)
     have hkp : k ≤ p.length := by omega
     refine List.Pairwise.cons (fun j hj => ?_) (ih hkp)
-    have hjlen : j < (p.take k).length := ((mem_borderChain_iff (by omega) hkp).mp hj).1
-    rw [List.length_take_of_le hkp] at hjlen
-    exact hjlen
+    simpa only [List.length_take_of_le hkp] using ((mem_borderChain_iff (by omega) hkp).mp hj).1
 
 /-! ## Pure KMP automaton transition and master step theorem -/
 

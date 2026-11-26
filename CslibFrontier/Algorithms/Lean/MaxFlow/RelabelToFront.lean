@@ -1060,10 +1060,8 @@ private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
   | fuel, st, hinv, hmeas => by
     cases htodo : st.todo with
     | nil =>
-      rw [rtfLoop]
-      dsimp only
-      rw [htodo]
-      refine ⟨hinv, htodo, trivial, rfl, by simp [State.numNonsatPushes, State.countOps],
+      rw [rtfLoop, htodo]
+      exact ⟨hinv, htodo, trivial, rfl, by simp [State.numNonsatPushes, State.countOps],
         le_rfl, Nat.le_add_right _ _, le_rfl⟩
     | cons u rest =>
       cases fuel with
@@ -1077,7 +1075,10 @@ private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
         obtain ⟨hdInv, hdRun, hdPr, -, hdNs, -, hdNe, hdH, hdAdv, -⟩ := hd
         have hadv_d : d.advances + advPotential adj d.ca ≤ advPotential adj st.ca :=
           advPotential_discharge hu_ne.1 hu_ne.2 hinv.caInv hdInv hdNe hdH hdAdv
-        let st' : RTFState N :=
+        rw [rtfLoop, htodo]
+        dsimp only
+        rw [hd_eq, hstNorm]
+        set st' : RTFState N :=
           if d.relabeled then
             { ca := d.ca, done := [u], todo := st.done ++ rest,
               discharges := st.discharges + 1, advances := st.advances + d.advances }
@@ -1089,16 +1090,6 @@ private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
             st'.advances = st.advances + d.advances := by
           dsimp only [st']
           split_ifs <;> exact ⟨rfl, rfl, rfl⟩
-        have hloop_eq : rtfLoop adj caNorm stNorm (fuel + 1) st =
-            let r := rtfLoop adj caNorm stNorm fuel st'
-            (d.ops ++ r.1, r.2) := by
-          rw [rtfLoop]
-          dsimp only
-          rw [htodo]
-          dsimp only
-          rw [hd_eq, hstNorm]
-        rw [hloop_eq]
-        dsimp only
         obtain ⟨ihInv, ihTodo, ihRun, ihPr, ihNs, ihDisLe, ihDis, ihAdv⟩ :=
           rtfLoop_spec hadj hcaNorm hstNorm hst fuel st' hinv' (by omega)
         rw [hca_eq, hdPr] at ihRun ihPr ihNs
@@ -1146,20 +1137,14 @@ private theorem rtfLoop_eq_of_lt {adj : V → List V} (hadj : IsAdjacency N adj)
       rtfLoop adj id id fuel₁ st = rtfLoop adj id id fuel₂ st
   | m, fuel₁, fuel₂, st, hinv, hm, hf₁, hf₂ => by
     cases htodo : st.todo with
-    | nil =>
-      rw [rtfLoop.eq_def, rtfLoop.eq_def]
-      dsimp only
-      rw [htodo]
+    | nil => rw [rtfLoop, rtfLoop, htodo]
     | cons u rest =>
       obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ m by omega)
       obtain ⟨fuel₁, rfl⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ fuel₁ by omega)
       obtain ⟨fuel₂, rfl⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ fuel₂ by omega)
       obtain ⟨hinv', hmeas'⟩ := rtfNext_spec hadj (norm := id) (fun _ => rfl) hst hinv htodo
         (st.discharges + 1) (st.advances + (discharge adj id u st.ca).advances)
-      rw [rtfLoop.eq_def, rtfLoop.eq_def]
-      dsimp only
-      rw [htodo]
-      dsimp only
+      rw [rtfLoop, rtfLoop, htodo]
       simp only [id_eq]
       rw [rtfLoop_eq_of_lt hadj hst m fuel₁ fuel₂ _ hinv' (by omega) (by omega) (by omega)]
 
@@ -1227,10 +1212,7 @@ theorem rtfLoop_step {adj : V → List V} (hadj : IsAdjacency N adj) {st : RTFSt
   have hlt : rtfMeasure V st < rtfFuel V := rtfMeasure_lt_rtfFuel hinv hst
   obtain ⟨hinv', hmeas'⟩ : RTFInv adj st' ∧ rtfMeasure V st' + 1 ≤ rtfMeasure V st :=
     rtfNext_spec hadj (norm := id) (fun _ => rfl) hst hinv htodo 0 0
-  obtain ⟨f, hf⟩ : ∃ f, rtfFuel V = f + 1 :=
-    ⟨rtfFuel V - 1, by
-      unfold rtfFuel
-      omega⟩
+  obtain ⟨f, hf⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ rtfFuel V by omega)
   have hsub : rtfLoop adj id id f st' = r' :=
     rtfLoop_eq_of_lt hadj hst (rtfFuel V) f (rtfFuel V) st' hinv'
       (by omega) (by omega) (by omega)
@@ -1253,10 +1235,7 @@ theorem rtfLoop_step {adj : V → List V} (hadj : IsAdjacency N adj) {st : RTFSt
         discharges := st.discharges + 1 + r'.2.discharges,
         advances := st.advances + d.advances + r'.2.advances }) := by
     dsimp only [r]
-    rw [hf, rtfLoop.eq_def]
-    dsimp only
-    rw [htodo]
-    dsimp only
+    rw [hf, rtfLoop, htodo]
     simp only [id_eq]
     change (let s := rtfLoop adj id id f _; (d.ops ++ s.1, s.2)) = _
     rw [hnext, hshift]
