@@ -900,24 +900,24 @@ private theorem foldFiber_toSmooth_eq_fold2Fiber_at (params : FRIParams F) (i : 
   have hid : i.val < params.d := lt_of_lt_of_le i.isLt params.hm
   have hωi : IsPrimitiveRoot (params.ω ^ (2 ^ i.val)) (2 * 2 ^ (params.d - (i.val + 1))) :=
     params.domainSize_eq_two_mul_succ hid ▸ isPrimitiveRoot_pow_two_pow params.hω hid.le
-  rw [show foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog i.val))
-      (params.ω ^ (2 ^ params.toSmooth.cumLog i.val)) ys idx z =
-      foldFiber (params.g ^ (2 ^ i.val)) (params.ω ^ (2 ^ i.val))
-        (fun t : Fin 2 => ys ⟨t.val, by simp [t.isLt]⟩)
-        ⟨idx.val, by simpa only [hci1] using idx.isLt⟩ z by
-    simp only [foldFiber, foldFiberComp, params.toSmooth_cumLog i.isLt.le, hci1,
-      FRISmoothParams.arity, pow_one]; rfl]
-  rw [foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωi]
-  simp [FRIParams.eval, cosetEval, cosetPoint]
+  refine Eq.trans (b := foldFiber (params.g ^ (2 ^ i.val)) (params.ω ^ (2 ^ i.val))
+    (fun t : Fin 2 => ys ⟨t.val, t.isLt⟩)
+    ⟨idx.val, by simpa only [hci1] using idx.isLt⟩ z) ?_ ?_
+  · simp only [foldFiber, foldFiberComp, params.toSmooth_cumLog i.isLt.le, hci1,
+      FRISmoothParams.arity, pow_one]
+    rfl
+  · rw [foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωi]
+    simp [FRIParams.eval, cosetEval, cosetPoint]
 
 private theorem padOracle_eq_apply {d i j : ℕ} {f : Fin (2 ^ (d - i)) → F}
     {g : Fin (2 ^ (d - j)) → F} (hpad : padOracle f = padOracle g)
     {a : Fin (2 ^ (d - i))} {b : Fin (2 ^ (d - j))} (hab : a.val = b.val) :
     f a = g b := by
-  have h := congrFun hpad ⟨a.val, lt_of_lt_of_le a.isLt
-    (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩
-  rwa [padOracle_apply_of_lt _ _ a.isLt,
-    padOracle_apply_of_lt _ _ (hab ▸ b.isLt), show (⟨a.val, _⟩ : Fin _) = b from Fin.ext hab] at h
+  rcases a with ⟨v, ha⟩
+  rcases b with ⟨_, hb⟩
+  subst hab
+  have h := congrFun hpad ⟨v, lt_of_lt_of_le ha (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩
+  rwa [padOracle_apply_of_lt f _ ha, padOracle_apply_of_lt g _ hb] at h
 
 /-- The padded honest prover oracle tables of binary `friHonestWord` and smooth
 `friSmoothHonestWord params.toSmooth` coincide identically at every round `j ≤ m`. -/
@@ -1365,15 +1365,11 @@ theorem iopVerify_friSmoothIOP_eq_true_iff [DecidableEq F] (params : FRISmoothPa
         friSmoothSingleAccepts params stmt chals oracles
           ((chals (Fin.last params.m)).queryIdxs a) := by
   have hhdr_len : ((friSmoothHeaderQueries params).map fun p => oracles p.1 p.2).length =
-      params.kFinal := by simp [length_friSmoothHeaderQueries]
-  have hlen_all : ((friSmoothQueries params chals).map fun p => oracles p.1 p.2).length =
-      params.proofOracleQueries := by simp [length_friSmoothQueries]
-  simp only [iopVerify, iopAnswers, friSmoothIOP, friSmoothDecide, hlen_all, decide_true,
-    Bool.true_and]
-  simp only [friSmoothQueries, List.map_append, List.take_left' hhdr_len,
-    List.drop_left' hhdr_len]
-  simp only [friSmoothHeaderQueries, getD_map_ofFn, friSmoothCheckRepsList_map,
-    List.mem_finRange, true_implies]
+      params.kFinal := by simp
+  simp only [iopVerify, iopAnswers, friSmoothIOP, friSmoothDecide, List.length_map,
+    length_friSmoothQueries, decide_true, Bool.true_and]
+  rw [friSmoothQueries, List.map_append, List.take_left' hhdr_len, List.drop_left' hhdr_len]
+  simp [friSmoothHeaderQueries, friSmoothCheckRepsList_map]
 
 /-- **Perfect completeness of the smooth FRI IOP**: for every codeword `f₀ ∈ params.initialCode`
 and every challenge vector `chals`, the smooth FRI verifier accepts the honest prover's tables. -/
@@ -1389,8 +1385,8 @@ theorem friSmoothIOP_complete [DecidableEq F] (params : FRISmoothParams F) :
   · simp only [iopProverOracles, friSmoothIOP, Fin.val_castSucc, Fin.val_succ,
       padOracle_apply_of_lt _ _ (friSmoothFiberIdx_val_lt params i s _)]
     rw [padOracle_apply_of_lt _ (friSmoothFoldedIdx params i s)
-        (friSmoothFoldedFin params i s).isLt, friSmoothHonestWord_succ_apply]
-    rw [friSmoothHonestWord_congr params f₀ i.val (Nat.le_of_succ_le i.isLt) fun _ => rfl]
+        (friSmoothFoldedFin params i s).isLt, friSmoothHonestWord_succ_apply,
+      friSmoothHonestWord_congr params f₀ i.val (Nat.le_of_succ_le i.isLt) fun _ => rfl]
     rfl
   · have hmem := friSmoothHonestWord_mem_rsCode params hf₀ params.m le_rfl
       (fun k => (prefixChallenges chals (Fin.last params.m) k).foldScalar)
@@ -1580,7 +1576,7 @@ theorem length_friInputQueries (params : FRIParams F)
 `params.rsCode params.m`. -/
 theorem friFinalCodeword_mem_rsCode (params : FRIParams F) (πFinal : OracleTable params.d F) :
     friFinalCodeword params πFinal ∈ params.rsCode params.m := by
-  rw [FRIParams.rsCode, show params.dim params.m = params.kFinal by simp [FRIParams.dim]]
+  simp only [FRIParams.rsCode, FRIParams.dim, Nat.sub_self, pow_zero, mul_one]
   exact evalLagrange_mem_reedSolomon params.finalAnchorPoints_injective _ _
 
 /-- Check the folding chain and final Lagrange equation against the answer list for a single

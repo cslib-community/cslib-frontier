@@ -243,13 +243,12 @@ theorem measureCollisionProb_intervalFloorHash {α X : Type*} [MeasurableSpace �
     refine lintegral_congr fun a => ?_
     rw [← ENNReal.ofReal_toReal (measure_ne_top (uniformInterval r) _), ← measureReal_def]
     exact congrArg ENNReal.ofReal (measureReal_uniformInterval_floor_eq hr (proj a u) (proj a v))
-  have hf_meas : Continuous fun t : ℝ => max (0 : ℝ) (1 - |t| / r) := by fun_prop
-  have hf_int : Integrable (fun a => max (0 : ℝ) (1 - |proj a u - proj a v| / r)) μ := by
-    refine Integrable.of_bound
-      ((hf_meas.measurable.comp ((hproj u).sub (hproj v))).aestronglyMeasurable) 1
-      (ae_of_all _ fun a => ?_)
-    rw [Real.norm_of_nonneg (le_max_left _ _)]
-    exact max_le zero_le_one (sub_le_self 1 (div_nonneg (abs_nonneg _) hr.le))
+  have hf_int : Integrable (fun a => max (0 : ℝ) (1 - |proj a u - proj a v| / r)) μ :=
+    Integrable.of_mem_Icc 0 1
+      (((by fun_prop : Continuous fun t : ℝ => max (0 : ℝ) (1 - |t| / r)).measurable.comp
+        ((hproj u).sub (hproj v))).aemeasurable)
+      (ae_of_all _ fun _ => ⟨le_max_left _ _,
+        max_le zero_le_one (sub_le_self 1 (div_nonneg (abs_nonneg _) hr.le))⟩)
   rw [measureCollisionProb, measureReal_def, hprod,
     ← ofReal_integral_eq_lintegral_ofReal hf_int (ae_of_all _ fun a => le_max_left _ _),
     ENNReal.toReal_ofReal (integral_nonneg fun a => le_max_left (0 : ℝ) _)]
@@ -552,12 +551,10 @@ theorem isLocalitySensitive_p2StableHash {E : Type*} [NormedAddCommGroup E]
       (measureCollisionProb ((stdGaussian E).prod (uniformInterval r)) (p2StableHash r))
       (fun u v => ‖u - v‖ ≤ d₁) (fun u v => d₂ ≤ ‖u - v‖)
       (p2StableProb r d₁) (p2StableProb r d₂) where
-  le_of_near u v h := by
-    rw [measureCollisionProb_p2StableHash hr]
-    exact p2StableProb_anti hr (norm_nonneg _) h
-  le_of_far u v h := by
-    rw [measureCollisionProb_p2StableHash hr]
-    exact p2StableProb_anti hr hd₂ h
+  le_of_near u v h := (p2StableProb_anti hr (norm_nonneg _) h).trans_eq
+    (measureCollisionProb_p2StableHash hr u v).symm
+  le_of_far u v h :=
+    (measureCollisionProb_p2StableHash hr u v).trans_le (p2StableProb_anti hr hd₂ h)
 
 /-! ### `p = 1`: Cauchy `1`-stable LSH -/
 
@@ -618,12 +615,9 @@ theorem p1StableProb_eq {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
   have hd1 : ∀ z ∈ uIcc 0 (r / c),
       HasDerivAt Real.arctan (1 + z ^ 2)⁻¹ z := fun z _ => Real.hasDerivAt_arctan' z
   have hd2 : ∀ z ∈ uIcc 0 (r / c),
-      HasDerivAt (fun s : ℝ => (2 : ℝ)⁻¹ * Real.log (1 + s ^ 2)) (z * (1 + z ^ 2)⁻¹) z := by
-    intro z _
-    have hsq : HasDerivAt (fun s : ℝ => 1 + s ^ 2) (2 * z) z := by
-      simpa using (hasDerivAt_pow 2 z).const_add 1
-    exact ((hsq.log (add_pos_of_pos_of_nonneg one_pos (sq_nonneg z)).ne').const_mul
-      (2 : ℝ)⁻¹).congr_deriv (by field_simp)
+      HasDerivAt (fun s : ℝ => (2 : ℝ)⁻¹ * Real.log (1 + s ^ 2)) (z * (1 + z ^ 2)⁻¹) z :=
+    fun z _ => ((((hasDerivAt_pow 2 z).const_add 1).log (by positivity)).const_mul
+      (2 : ℝ)⁻¹).congr_deriv (by field_simp; ring)
   have hie1 : IntervalIntegrable (fun z : ℝ => (1 + z ^ 2)⁻¹) volume 0 (r / c) :=
     Continuous.intervalIntegrable (Continuous.inv₀ (by fun_prop) fun z => by positivity) _ _
   have hie2 : IntervalIntegrable (fun z : ℝ => z * (1 + z ^ 2)⁻¹) volume 0 (r / c) :=
@@ -649,10 +643,8 @@ theorem measureCollisionProb_p1StableHash {ι : Type*} [Fintype ι] {r : ℝ} (h
   refine measureCollisionProb_intervalFloorHash_of_map (Measure.pi fun _ : ι => cauchyMeasure 0 1)
     (cauchyMeasure 0 1) hr (fun a x => a ⬝ᵥ x) (fun x => by fun_prop) u v
     (Finset.sum_nonneg fun _ _ => abs_nonneg _) ?_
-  have hsub : (fun a : ι → ℝ => a ⬝ᵥ u - a ⬝ᵥ v) = fun a : ι → ℝ => (u - v) ⬝ᵥ a := by
-    funext a
-    simp only [dotProduct, Pi.sub_apply, sub_mul, Finset.sum_sub_distrib]
-    congr 1 <;> exact Finset.sum_congr rfl fun i _ => mul_comm _ _
+  have hsub : (fun a : ι → ℝ => a ⬝ᵥ u - a ⬝ᵥ v) = fun a : ι → ℝ => (u - v) ⬝ᵥ a :=
+    funext fun a => by rw [← dotProduct_sub, dotProduct_comm]
   rw [hsub, pi_cauchyMeasure_map_dotProduct, cauchyMeasure_map_const_mul, mul_zero, mul_one]
   congr 1
   apply NNReal.coe_injective
@@ -669,11 +661,10 @@ theorem isLocalitySensitive_p1StableHash {ι : Type*} [Fintype ι] {r : ℝ} (hr
         (p1StableHash r))
       (fun u v => ∑ i, |u i - v i| ≤ d₁) (fun u v => d₂ ≤ ∑ i, |u i - v i|)
       (p1StableProb r d₁) (p1StableProb r d₂) where
-  le_of_near u v h := by
-    rw [measureCollisionProb_p1StableHash hr]
-    exact p1StableProb_anti hr (Finset.sum_nonneg fun _ _ => abs_nonneg _) h
-  le_of_far u v h := by
-    rw [measureCollisionProb_p1StableHash hr]
-    exact p1StableProb_anti hr hd₂ h
+  le_of_near u v h :=
+    (p1StableProb_anti hr (Finset.sum_nonneg fun _ _ => abs_nonneg _) h).trans_eq
+      (measureCollisionProb_p1StableHash hr u v).symm
+  le_of_far u v h :=
+    (measureCollisionProb_p1StableHash hr u v).trans_le (p1StableProb_anti hr hd₂ h)
 
 end Cslib.Probability

@@ -372,9 +372,8 @@ theorem toOuterMeasure_not_friSmoothBatchGoodStep_cons [Fintype F] [DecidableEq 
         {c' | ¬ friSmoothGoodStep params B (stmt.eval c₀.batchCoeffs)
           (friBatchTailTranscript rest) π c'} := by
   simp only [friSmoothBatchGoodStep_cons]
-  exact toOuterMeasure_uniform_friBatchChal_toFRIChal
-    {c' | ¬ friSmoothGoodStep params B (stmt.eval c₀.batchCoeffs)
-      (friBatchTailTranscript rest) π c'}
+  rw [← toOuterMeasure_uniform_friBatchChal_toFRIChal (t := t)]
+  rfl
 
 /-- **Unconditional query-round escape bound for `friSmoothBatchIOP`**: when
 `pref.length = params.m + 1` and `pref` is doomed at threshold `B`, the probability over a uniform
@@ -468,10 +467,9 @@ theorem friBatchRound0Escape_of_gapBound [Fintype F] [DecidableEq F] {d : ℕ}
     (hgap : FRIBatchRound0GapBound C t e B_batch) :
     FRIBatchRound0Escape C t e ((B_batch : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
   classical
-  refine fun stmt hnot =>
-    PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos ?_
-  rw [Fintype.card_fun, Fintype.card_fin]
-  exact hgap stmt hnot _ fun _ hx => (Finset.mem_filter.mp hx).2
+  exact fun stmt hnot => PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos (by
+    simpa only [Fintype.card_fun, Fintype.card_fin] using
+      hgap stmt hnot _ fun _ hx => (Finset.mem_filter.mp hx).2)
 
 /-- **Polymorphic integer smooth round-0 batching proximity-gap contract** (specialization of
 `FRIBatchRound0GapBound` to `params.initialCode`). -/
@@ -879,10 +877,7 @@ theorem friBatchGoodStep_iff_friSmoothBatchGoodStep [DecidableEq F] (params : FR
     (π : OracleTable params.d F) (c : FRIBatchChal F params.d params.q t) :
     friBatchGoodStep params t B stmt pref π c ↔
       friSmoothBatchGoodStep params.toSmooth t B stmt pref π c := by
-  unfold friBatchGoodStep friSmoothBatchGoodStep
-  split_ifs
-  · exact friBatchDoomed_iff_friSmoothBatchDoomed params t B stmt (pref ++ [(π, c)])
-  · exact Iff.rfl
+  simp only [friBatchGoodStep, friSmoothBatchGoodStep, friBatchDoomed_iff_friSmoothBatchDoomed]
 
 private theorem batchRound0GapBound_iff_smooth [Fintype F] [DecidableEq F] (params : FRIParams F)
     (t e B_batch : ℕ) :

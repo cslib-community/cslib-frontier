@@ -353,13 +353,8 @@ private theorem dens_kmvEstimate_lt_le (hh : IsPairwiseIndependentHash h) {ε : 
   rcases lt_or_ge K M with hKM | hKM
   swap
   · -- The threshold is beyond every hash value: the estimate is never that small.
-    have hempty : ({θ | (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) <
-        (1 - ε) * d} : Finset ι) = ∅ := by
-      refine filter_false_of_mem fun θ _ hθ => ?_
-      have := hKv θ hθ
-      have := kmvMaxHash_lt hMN (lowest t (D.image (kmvKey h θ)))
-      omega
-    rw [hempty, dens_empty, NNRat.cast_zero]
+    rw [filter_false_of_mem fun θ _ hθ => not_lt_of_ge (hKM.trans (hKv θ hθ))
+      (kmvMaxHash_lt hMN _), dens_empty, NNRat.cast_zero]
     positivity
   set μ : ℝ := d * (K / M) with hμ
   have hμ1 : t / (1 - ε) - 1 < μ := by
@@ -518,16 +513,11 @@ private theorem exists_injOn_biUnion_reachable_kmvSketch [Fintype α] (Ω : Fins
   · rintro _ ⟨_, ⟨ω, rfl⟩, _, ⟨hω, rfl⟩, s, -, rfl⟩
     choose E hE hEeq using fun i : Fin c => exists_card_le_image_eq_lowest (h := h) (t := t)
       (ω i) s.toFinset
-    rw [mem_coe, mem_image]
-    refine ⟨(ω, E), mem_product.2 ⟨hω, Fintype.mem_piFinset.2 fun i => ?_⟩, ?_⟩
-    · simp only [small, mem_filter, mem_univ, true_and]
-      exact hE i
-    · rw [state_kmvSketch]
-      simp only [hEeq]
-  · have hsmall : small.card ≤ (Fintype.card α + 1) ^ t := by
-      simp only [small]
-      rw [card_filter_card_le_eq_sum_choose]
-      exact Cslib.sum_range_choose_le_add_one_pow _ t
+    refine mem_image.2 ⟨(ω, E), mem_product.2
+      ⟨hω, Fintype.mem_piFinset.2 fun i => mem_filter.2 ⟨mem_univ _, hE i⟩⟩, ?_⟩
+    simp only [state_kmvSketch, hEeq]
+  · have hsmall : small.card ≤ (Fintype.card α + 1) ^ t :=
+      card_filter_card_le_eq_sum_choose (α := α) t ▸ Cslib.sum_range_choose_le_add_one_pow _ t
     calc T.card ≤ (Ω ×ˢ Fintype.piFinset fun _ : Fin c => small).card := card_image_le
       _ = Ω.card * small.card ^ c := by
         rw [card_product, Fintype.card_piFinset, prod_const, card_univ, Fintype.card_fin]
@@ -565,8 +555,6 @@ theorem exists_injOn_iUnion_reachable_kmvSketch [Fintype ι] [Fintype α] {m b :
     (univ : Finset (Fin c → ι)) (m := m) (b := b) (by
       rwa [card_univ, Fintype.card_pi, prod_const, card_univ, Fintype.card_fin, mul_comm c t,
         pow_mul, ← mul_pow])
-  refine ⟨enc, henc.mono fun q hq => ?_⟩
-  obtain ⟨_, ⟨ω, rfl⟩, hq⟩ := hq
-  exact Set.mem_biUnion (mem_univ ω) hq
+  exact ⟨enc, henc.mono fun q ⟨_, ⟨ω, rfl⟩, hq⟩ => Set.mem_biUnion (mem_univ ω) hq⟩
 
 end Cslib.Streaming

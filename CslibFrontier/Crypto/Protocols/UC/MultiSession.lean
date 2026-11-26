@@ -658,8 +658,7 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
         (Machine.closeProgram (((SSP.parFin fun i => (liftAdversary (S i)).comp
           (corruptRouter C (φ i))).handle (j, Sum.inl p)).run fun i => (sS i, sφ i))).eval
       rw [StateT.run_lift, bind_pure_comp]
-      erw [Machine.runFrom_map, Machine.runFrom_query, SSP.parFin_handle]
-      erw [SSP.parFin_handle]
+      erw [Machine.runFrom_map, Machine.runFrom_query, SSP.parFin_handle, SSP.parFin_handle]
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run, StateT.lift,
         bind_pure_comp]
       erw [Machine.runFrom_map, Machine.runFrom_query]
@@ -672,8 +671,7 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
         (Machine.closeProgram (((SSP.parFin fun i => (liftAdversary (S i)).comp
           (corruptRouter C (φ i))).handle (j, Sum.inr nq)).run fun i => (sS i, sφ i))).eval
       rw [liftSessionNet_map]
-      erw [Machine.runFrom_map, runFrom_sessionRouter_liftSessionNet]
-      erw [SSP.parFin_handle]
+      erw [Machine.runFrom_map, runFrom_sessionRouter_liftSessionNet, SSP.parFin_handle]
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run]
     all_goals
       repeat erw [Machine.closeProgram_map]
@@ -800,11 +798,8 @@ theorem absorbMultiHybrid_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut
     {pρ pZ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (hZ : Z.PolyBounded pZ) :
     ∀ κ z, (absorbMultiHybrid C ρ Z κ z).IsQueryBounded ((absorbPoly pZ pρ).eval κ) := by
   intro κ z
-  have hM : (routeCorrupt C
-      (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
-        (ρ κ C))).IsBounded (pρ.eval κ + 1) :=
-    isBounded_routeCorrupt C (isBounded_multiHybridWrap (hρ κ C))
-  refine (Machine.isQueryBounded_link hM (hZ κ z)).mono (le_of_eq ?_)
+  refine (Machine.isQueryBounded_link
+    (isBounded_routeCorrupt C (isBounded_multiHybridWrap (hρ κ C))) (hZ κ z)).mono (le_of_eq ?_)
   simp [absorbPoly, Polynomial.eval_ofNat]
 
 /-- Composing a `pρ`-bounded multi-session hybrid protocol with a family of `pσ`-bounded
@@ -926,10 +921,8 @@ theorem EmulatesDummyWithin.composeFamily {m n : ℕ}
       (fun pZ κ => ∑ j : Fin m, ε j (sessionHopPoly m pZ pρ pπ pφ pD) κ) := by
   choose S_D hSD hadv using h
   refine ⟨multiHybridSim S_D, multiHybridSim_polyBounded hSD, fun C Z pZ hZ κ z => ?_⟩
-  refine (advantage_composeFamily_le_sum ρ π φ S_D C Z κ z).trans ?_
-  refine Finset.sum_le_sum fun j _ => ?_
-  exact hadv j C (sessionHopEnv C ρ π φ S_D Z j) (sessionHopPoly m pZ pρ pπ pφ pD)
-    (sessionHopEnv_polyBounded C hρ hπ hφ hSD hZ j) κ z
+  refine (advantage_composeFamily_le_sum ρ π φ S_D C Z κ z).trans (Finset.sum_le_sum fun j _ => ?_)
+  exact hadv j C _ _ (sessionHopEnv_polyBounded C hρ hπ hφ hSD hZ j) κ z
 
 /-- Fixed-session homogeneous composition step for `EmulatesDummyWithin`, this library's own
 call-bounded dummy-adversary emulation relation, specializing `EmulatesDummyWithin.composeFamily`
@@ -995,9 +988,8 @@ theorem Emulates.composeFamily {m n : ℕ}
   choose S_D pD hSD hadv using
     fun j => h j _ _ (dummyAdversary n _ _) 1 (dummyAdversary_polyBounded n _ _)
   let pD_max : Polynomial ℕ := ∑ j : Fin m, pD j
-  have hdummy : ∀ j : Fin m, ∃ ε : Polynomial ℕ → ℕ → ℝ≥0,
+  have hdummy (j : Fin m) : ∃ ε : Polynomial ℕ → ℕ → ℝ≥0,
       (∀ pZ, Negligible (ε pZ)) ∧ EmulatesDummyWithin (π j) (φ j) pD_max ε := by
-    intro j
     choose ε hε hε_adv using hadv j
     refine ⟨ε, hε, S_D j, (hSD j).mono fun κ => ?_, fun C Z pZ hZ κ z => hε_adv pZ C Z hZ κ z⟩
     exact (Finset.single_le_sum (f := fun i => (pD i).eval κ) (fun _ _ => Nat.zero_le _)
