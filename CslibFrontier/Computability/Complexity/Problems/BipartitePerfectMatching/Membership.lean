@@ -201,16 +201,12 @@ private theorem LabellingSize.getD {n i : ℕ} {lab : Labelling} (h : LabellingS
     (u : ℕ) :
     ((lab.getD u none).getD []).length ≤ i ∧
       ∀ e ∈ (lab.getD u none).getD [], e.1 < n ∧ e.2 < n := by
-  rcases hlt : lab.getD u none with _ | q
+  rw [List.getD_eq_getElem?_getD]
+  rcases hu : lab[u]? with _ | _ | q
   · simp
-  · have hmem : some q ∈ lab := by
-      rw [List.getD_eq_getElem?_getD] at hlt
-      rcases hu : lab[u]? with _ | o
-      · simp [hu] at hlt
-      · simp only [hu, Option.getD_some] at hlt
-        subst hlt
-        exact List.mem_of_getElem? hu
-    exact h.2 _ hmem q rfl
+  · simp
+  · simp only [Option.getD_some]
+    exact h.2 _ (List.mem_of_getElem? hu) q rfl
 
 private theorem labellingSize_initialLabelling (n : ℕ) (M : List (ℕ × ℕ)) :
     LabellingSize n 0 (initialLabelling n M) := by
@@ -289,12 +285,11 @@ private theorem le_length_encRound (x : List Bool × ℕ × List (ℕ × ℕ)) :
 
 private theorem labelling_size_le_cubic {n i N : ℕ} (hi : i ≤ n) (hn : n ≤ N) :
     n * (2 * (1 + i * (6 * n + 1)) + 1) ≤ 15 * (N + 1) ^ 3 := by
-  have h1 : n * (2 * (1 + i * (6 * n + 1)) + 1) ≤ N * (2 * (1 + N * (6 * N + 1)) + 1) := by
-    gcongr
-    · omega
-  refine h1.trans ?_
-  ring_nf
-  omega
+  refine (?_ : _ ≤ N * (2 * (1 + N * (6 * N + 1)) + 1)).trans ?_
+  · gcongr
+    omega
+  · ring_nf
+    omega
 
 private theorem computableInPolyTime_labelling : ComputableInPolyTime
     (fun x : List Bool × ℕ × List (ℕ × ℕ) => labelling x.1 x.2.1 x.2.2) encRound
@@ -486,19 +481,13 @@ private theorem mem_labelCandidates {w : List Bool} {n : ℕ} {M : List (ℕ × 
       (lab.getD u' none).isSome ∧ adj w n u' v = true ∧
         q = (lab.getD u' none).getD [] ++ [(u', v)] := by
   simp only [labelCandidates, List.mem_flatMap, List.mem_range]
-  constructor
-  · rintro ⟨v, hv, hq⟩
-    split at hq
-    · rename_i hc
-      simp only [List.mem_map, List.mem_filter, List.mem_range, Bool.and_eq_true] at hq
-      obtain ⟨u', ⟨hu', hs, ha⟩, rfl⟩ := hq
-      exact ⟨v, hv, of_decide_eq_true hc, u', hu', hs, ha, rfl⟩
-    · simp at hq
-  · rintro ⟨v, hv, hM, u', hu', hs, ha, rfl⟩
-    refine ⟨v, hv, ?_⟩
-    rw [ite_eq_left (decide_eq_true hM)]
-    simp only [List.mem_map, List.mem_filter, List.mem_range, Bool.and_eq_true]
-    exact ⟨u', ⟨hu', hs, ha⟩, rfl⟩
+  refine exists_congr fun v => and_congr_right fun _ => ?_
+  by_cases hM : (u, v) ∈ M
+  · simp only [hM, decide_true, ↓reduceIte, List.mem_map, List.mem_filter, List.mem_range,
+      Bool.and_eq_true, true_and]
+    exact ⟨fun ⟨u', ⟨hu', hs, ha⟩, hq⟩ => ⟨u', hu', hs, ha, hq.symm⟩,
+      fun ⟨u', hu', hs, ha, hq⟩ => ⟨u', ⟨hu', hs, ha⟩, hq.symm⟩⟩
+  · simp [hM]
 
 private theorem labelInv_labelStep {w : List Bool} {n : ℕ} {M : List (ℕ × ℕ)} {t : ℕ}
     {lab : Labelling} (h : LabelInv w n M t lab) :
@@ -726,12 +715,9 @@ private theorem deciderAt_eq_true_iff (w : List Bool) (n : ℕ) :
 /-- **The decider decides bipartite perfect matching.** -/
 theorem decider_eq_true_iff (w : List Bool) : decider w = true ↔ w ∈ BipartitePerfectMatching := by
   rw [decider, deciderAt_eq_true_iff, mem_iff]
-  constructor
-  · exact fun h => ⟨_, h⟩
-  · rintro ⟨n, hn, h⟩
-    have hs : w.length.sqrt = n := by rw [← hn, Nat.sqrt_eq]
-    rw [hs]
-    exact ⟨hn, h⟩
+  refine ⟨fun h => ⟨_, h⟩, fun ⟨n, hn, h⟩ => ?_⟩
+  rw [← hn, Nat.sqrt_eq]
+  exact ⟨rfl, h⟩
 
 end Correctness
 

@@ -36,11 +36,7 @@ theorem map_option_prod_apply_some {α β : Type*} (p : PMF (α × Option β)) (
   · simp
   · rintro ⟨a', _ | b'⟩ hne
     · simp
-    · have hn : (a, b) ≠ (a', b') := by
-        intro h
-        cases h
-        exact hne rfl
-      simp [hn]
+    · simp [show ¬(a = a' ∧ b = b') from fun ⟨rfl, rfl⟩ => hne rfl]
 
 /-- A joint law with an optional outcome is determined by its first marginal and the law that
 erases the first component on `none`. The finite total mass makes cancellation legitimate. -/

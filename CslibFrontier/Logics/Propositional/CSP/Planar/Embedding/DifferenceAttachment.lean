@@ -38,30 +38,14 @@ private theorem foldLast_kernel (n a : ℕ) (u v : Fin (n + 2) ⊕ Fin a) :
       Function.update id (Sum.inl 0) (Sum.inl (Fin.last (n + 1))) u =
         Function.update id (Sum.inl 0) (Sum.inl (Fin.last (n + 1))) v := by
   rw [Function.update_id_apply_eq_iff]
-  cases u with
-  | inl i =>
-    rcases Fin.eq_castSucc_or_eq_last i with ⟨i, rfl⟩ | rfl
-    · cases v with
-      | inl q =>
-        rcases Fin.eq_castSucc_or_eq_last q with ⟨q, rfl⟩ | rfl
-        · simp [foldLast, Fin.ext_iff, -Fin.val_eq_zero_iff]
-          omega
-        · simp [foldLast, Fin.ext_iff, -Fin.val_eq_zero_iff]
-          omega
-      | inr q => simp [foldLast]
-    · cases v with
-      | inl q =>
-        rcases Fin.eq_castSucc_or_eq_last q with ⟨q, rfl⟩ | rfl
-        · simp [foldLast, Fin.ext_iff, -Fin.val_eq_zero_iff]
-          omega
-        · simp [foldLast]
-      | inr q => simp [foldLast]
-  | inr i =>
-    cases v with
-    | inl q =>
-      rcases Fin.eq_castSucc_or_eq_last q with ⟨q, rfl⟩ | rfl
-      all_goals simp [foldLast]
-    | inr q => simp [foldLast]
+  rcases u with i | i <;> rcases v with q | q
+  · rcases Fin.eq_castSucc_or_eq_last i with ⟨i, rfl⟩ | rfl <;>
+      rcases Fin.eq_castSucc_or_eq_last q with ⟨q, rfl⟩ | rfl <;>
+      simp [foldLast, Fin.ext_iff, -Fin.val_eq_zero_iff]
+    all_goals omega
+  · rcases Fin.eq_castSucc_or_eq_last i with ⟨i, rfl⟩ | rfl <;> simp [foldLast]
+  · rcases Fin.eq_castSucc_or_eq_last q with ⟨q, rfl⟩ | rfl <;> simp [foldLast]
+  · simp [foldLast]
 
 private theorem different_body {n : ℕ} {R : Set (Fin (n + 2) → Bool)}
     (g : PPGadget arity sem R) (d : PPGadget arity sem RelationMinor.disequality) :
@@ -73,26 +57,15 @@ private theorem different_body {n : ℕ} {R : Set (Fin (n + 2) → Bool)}
   simp only [PPGadget.differentDrop, PPGadget.project, PPGadget.retarget, PPGadget.substitute,
     PPGadget.conj, PPGadget.relabelFree, CSP.relabel, Constraint.relabel, List.map_append,
     List.map_map, Function.comp_def]
-  congr 1
-  · apply List.map_congr_left
-    rintro ⟨r, scope⟩ _
-    congr 1
-    apply List.map_congr_left
-    intro z _
-    cases z with
-    | inl i =>
-      cases i using Fin.cases <;>
+  congr 1 <;>
+    refine List.map_congr_left fun ⟨_, _⟩ _ => congrArg _ (List.map_congr_left fun z _ => ?_)
+  · rcases z with i | i
+    · cases i using Fin.cases <;>
         simp [attachPortLabel, foldLast, PPGadget.substitutePort, PPGadget.hidePort]
-    | inr i => simp [attachPortLabel, foldLast, PPGadget.substitutePort]
-  · apply List.map_congr_left
-    rintro ⟨r, scope⟩ _
-    congr 1
-    apply List.map_congr_left
-    intro z _
-    cases z with
-    | inl i =>
-      fin_cases i <;> simp [attachPortLabel, foldLast, PPGadget.substitutePort, PPGadget.hidePort]
-    | inr i => simp [attachPortLabel, foldLast, PPGadget.substitutePort]
+    · simp [attachPortLabel, foldLast, PPGadget.substitutePort]
+  · rcases z with i | i
+    · fin_cases i <;> simp [attachPortLabel, foldLast, PPGadget.substitutePort, PPGadget.hidePort]
+    · simp [attachPortLabel, foldLast, PPGadget.substitutePort]
 
 /-- The existing first-pair disequality deletion has an actual ordered numerical witness
 on exactly its original body. No pin, disequality or target-genus provider remains beyond

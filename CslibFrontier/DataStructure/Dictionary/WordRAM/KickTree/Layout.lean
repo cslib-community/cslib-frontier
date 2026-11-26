@@ -263,15 +263,8 @@ theorem meta_end_le_totalSpace (p : KickTreeParams) :
 theorem kickTreeWords_le_succinctWords (C C₀ U V w n_max : ℕ) :
     kickTreeWords C C₀ U V w 1 n_max ≤ Dynamic.succinctWords C C₀ U V w n_max := by
   unfold kickTreeWords Dynamic.succinctWords
-  have hle : max (Nat.iterLog 2 n_max) 1 ≤ Dynamic.logLogFactor n_max :=
-    Nat.max_iterLog_two_eq n_max ▸ Nat.iterLog_two_max_four_le_clog n_max
-  have hmul : C * n_max * max (Nat.iterLog 2 n_max) 1 ≤
-      C * n_max * Dynamic.logLogFactor n_max :=
-    Nat.mul_le_mul_left _ hle
-  have hadd : Dynamic.optBits U V n_max + C * n_max * max (Nat.iterLog 2 n_max) 1 + w - 1 ≤
-      Dynamic.optBits U V n_max + C * n_max * Dynamic.logLogFactor n_max + w - 1 := by
-    omega
-  exact Nat.add_le_add_right (Nat.div_le_div_right hadd) _
+  gcongr
+  exact Nat.max_iterLog_two_eq n_max ▸ Nat.iterLog_two_max_four_le_clog n_max
 
 /-- Master deterministic word-space bound: `totalSpace p` is bounded by
 `kickTreeWords (p.cMeta + 7) (p.hSpace + 14) p.U p.V p.w p.k p.nMax` when quotiented. -/
@@ -292,36 +285,21 @@ theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented) :
   have h12345 := div_add_packedWords_le
     (p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V + occLen p * 1 + p.nMax * 1) 11
     (metaLen p) (metaBits p) p.w
-  have hopt := mul_fullQuotBits_add_valBits_le_optBits p.U p.V p.nMax
   set M := metaBits p
   have hM : 1 ≤ M := le_max_right _ _
   have hterm1 : p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V ≤
-      Dynamic.optBits p.U p.V p.nMax + 2 * p.nMax := by
-    rw [← Nat.mul_add]; exact hopt
-  have h7M : 7 * p.nMax ≤ 7 * p.nMax * M := by
-    simpa using Nat.mul_le_mul_left (7 * p.nMax) hM
+      Dynamic.optBits p.U p.V p.nMax + 2 * p.nMax :=
+    Nat.mul_add p.nMax _ _ ▸ mul_fullQuotBits_add_valBits_le_optBits p.U p.V p.nMax
+  have h7M : 7 * p.nMax ≤ 7 * p.nMax * M := Nat.le_mul_of_pos_right _ hM
   have hnum_le : p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
       occLen p * 1 + p.nMax * 1 + metaLen p * M ≤
       Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M := by
-    calc p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
-          occLen p * 1 + p.nMax * 1 + metaLen p * M
-      _ = (p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V) +
-          5 * p.nMax + p.cMeta * p.nMax * M := by
-        unfold occLen metaLen; ring
-      _ ≤ Dynamic.optBits p.U p.V p.nMax + 2 * p.nMax + 5 * p.nMax +
-          p.cMeta * p.nMax * M := by linarith [hterm1]
-      _ = Dynamic.optBits p.U p.V p.nMax + 7 * p.nMax + p.cMeta * p.nMax * M := by ring
-      _ ≤ Dynamic.optBits p.U p.V p.nMax + 7 * p.nMax * M + p.cMeta * p.nMax * M := by
-        linarith [h7M]
-      _ = Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M := by ring
+    unfold occLen metaLen; linarith [hterm1, h7M]
   have hdiv : (p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
       occLen p * 1 + p.nMax * 1 + metaLen p * M + p.w - 1) / p.w ≤
-      (Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M + p.w - 1) / p.w :=
-    Nat.div_le_div_right (by omega)
+      (Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M + p.w - 1) / p.w := by gcongr
   unfold kickTreeWords valWords occWords elevWords metaWords
-  have hM_def : max (Nat.iterLog (p.k + 1) p.nMax) 1 = M := rfl
-  have hM_meta : metaBits p = M := rfl
-  rw [hM_def, hM_meta] at *
+  dsimp only [M, metaBits] at *
   omega
 
 /-! ### 3. Pure extraction and update functions -/
@@ -413,65 +391,45 @@ theorem metaAt_lt (base : ℕ) (p : KickTreeParams) (mem : ℕ → ℕ) (idx : �
   · exact readPacked_lt _ _ _ _ _
   · positivity
 
+private theorem readPacked_zero_of_hSpace {base N k : ℕ} (p : KickTreeParams) (hw : 0 < p.w)
+    {off : ℕ} (hoff : p.hSpace ≤ off) (hend : off + packedWords N k p.w ≤ totalSpace p)
+    {mem : ℕ → ℕ} (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
+    (fun idx => if idx < N then readPacked (base + off) k p.w mem idx else 0) = fun _ => 0 := by
+  funext idx
+  split_ifs with hidx
+  · have := wordOffset_add_one_lt_packedWords (k := k) hw hidx
+    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
+  · rfl
+
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `quotAt` is identically `0`. -/
 theorem quotAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    quotAt base p mem = fun _ => 0 := by
-  funext idx; unfold quotAt; split_ifs with hidx
-  · have hlt1 : wordOffset (quotBits p) p.w idx + 1 < quotWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := quot_end_le_totalSpace p
-    unfold offQuot at hbound ⊢
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    quotAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw le_rfl (quot_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `valAt` is identically `0`. -/
 theorem valAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    valAt base p mem = fun _ => 0 := by
-  funext idx; unfold valAt; split_ifs with hidx
-  · have hlt1 : wordOffset (valBits p.V) p.w idx + 1 < valWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := val_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offVal p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    valAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (val_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `occAt` is identically `0`. -/
 theorem occAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    occAt base p mem = fun _ => 0 := by
-  funext idx; unfold occAt; split_ifs with hidx
-  · have hlt1 : wordOffset 1 p.w idx + 1 < occWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := occ_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offOcc p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    occAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (occ_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `elevAt` is identically `0`. -/
 theorem elevAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    elevAt base p mem = fun _ => 0 := by
-  funext idx; unfold elevAt; split_ifs with hidx
-  · have hlt1 : wordOffset 1 p.w idx + 1 < elevWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := elev_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offElev p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    elevAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (elev_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `metaAt` is identically `0`. -/
 theorem metaAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    metaAt base p mem = fun _ => 0 := by
-  funext idx; unfold metaAt; split_ifs with hidx
-  · have hlt1 : wordOffset (metaBits p) p.w idx + 1 < metaWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := meta_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offMeta p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    metaAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (meta_end_le_totalSpace p) hzero
 
 /-- Memories agreeing on `[base + p.hSpace, base + totalSpace p)` yield identical extracted
 arrays. -/
@@ -482,37 +440,16 @@ theorem arrays_congr_of_eq_on {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {
       occAt base p mem₁ = occAt base p mem₂ ∧
       elevAt base p mem₁ = elevAt base p mem₂ ∧
       metaAt base p mem₁ = metaAt base p mem₂ := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · funext idx; unfold quotAt; split_ifs with hidx
-    · have hbound := quot_end_le_totalSpace p
-      exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by wram_omega [ha1])
-          (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold valAt; split_ifs with hidx
-    · have hbound := val_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offVal p := by wram_omega
-      exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold occAt; split_ifs with hidx
-    · have hbound := occ_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offOcc p := by wram_omega
-      exact readPacked_congr (N := occLen p) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold elevAt; split_ifs with hidx
-    · have hbound := elev_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offElev p := by wram_omega
-      exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold metaAt; split_ifs with hidx
-    · have hbound := meta_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offMeta p := by wram_omega
-      exact readPacked_congr (N := metaLen p) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
+  have hq := quot_end_le_totalSpace p
+  have hv := val_end_le_totalSpace p
+  have ho := occ_end_le_totalSpace p
+  have he := elev_end_le_totalSpace p
+  have hm := meta_end_le_totalSpace p
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> funext idx <;>
+    simp only [quotAt, valAt, occAt, elevAt, metaAt] <;> split_ifs with hidx <;> first
+    | rfl
+    | exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
+        heq a (by wram_omega [ha1]) (by wram_omega [ha2])) hidx
 
 /-- Congruence for bounded logical arrays agreeing on their allocated word range. -/
 private theorem readPacked_bounded_congr {base N k w : ℕ} (hw : 0 < w)

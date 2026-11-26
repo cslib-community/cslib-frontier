@@ -171,23 +171,24 @@ theorem center_mem_or_volume_ellipsoid_run_le (hsep : IsStrongSeparationOracle P
         ENNReal.ofReal (Real.exp (-(N : ℝ) / (2 * ((Fintype.card ι : ℝ) + 1)))) *
           volume (ellipsoid A₀ c₀) := by
   induction N with
-  | zero => right; simp
+  | zero => exact .inr (by simp)
   | succ N ih =>
     rw [run_succ]
     cases hs : sep (run sep A₀ c₀ N).center with
-    | none => left; rw [step_of_eq_none hs]; exact hsep.mem_of_eq_none hs
+    | none =>
+      left
+      simpa only [step_of_eq_none hs] using hsep.mem_of_eq_none hs
     | some a =>
       right
       rw [step_of_eq_some hs]
-      have hc : (run sep A₀ c₀ N).center ∉ P := fun h =>
-        absurd (hsep.separates hs _ h) (lt_irrefl _)
       refine (volume_ellipsoid_centralCut_lt (posDef_run_shape hsep hA₀ c₀ N)
         (hsep.ne_zero_of_eq_some hs) _).le.trans ?_
+      have hc : (run sep A₀ c₀ N).center ∉ P := fun h =>
+        absurd (hsep.separates hs _ h) (lt_irrefl _)
       refine (mul_le_mul_right (ih.resolve_left hc) _).trans_eq ?_
       rw [← mul_assoc, ← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
       congr 3
-      push_cast
-      ring
+      push_cast; ring
 
 /-- **The ellipsoid method with a strong separation oracle**: if `P ⊆ E(A₀, c₀)`, then after `N`
 steps either the current center lies in `P` or
@@ -214,11 +215,10 @@ theorem center_mem_or_volume_lt (hsep : IsStrongSeparationOracle P sep) {A₀ : 
   set V := (volume (ellipsoid A₀ c₀)).toReal with hV
   have hV0 : 0 < V := ENNReal.toReal_pos (volume_ellipsoid_pos hA₀ c₀).ne'
     (volume_ellipsoid_lt_top hA₀ c₀).ne
-  have hn : (0 : ℝ) < 2 * ((Fintype.card ι : ℝ) + 1) := by positivity
   rw [← ENNReal.ofReal_toReal (volume_ellipsoid_lt_top hA₀ c₀).ne, ← hV,
     ← ENNReal.ofReal_mul (Real.exp_pos _).le, ENNReal.ofReal_lt_ofReal_iff hv,
     ← lt_div_iff₀ hV0, ← Real.lt_log_iff_exp_lt (div_pos hv hV0), Real.log_div hv.ne' hV0.ne',
-    neg_div, neg_lt, neg_sub, lt_div_iff₀ hn, ← Real.log_div hV0.ne' hv.ne']
+    neg_div, neg_lt, neg_sub, lt_div_iff₀ (by positivity), ← Real.log_div hV0.ne' hv.ne']
   linarith
 
 /-- **Ball sandwich**: if `P` contains a ball of radius `r > 0` and lies in the ball of radius `R`
@@ -232,24 +232,17 @@ theorem center_mem_of_ball_subset (hsep : IsStrongSeparationOracle P sep) {r R :
     (run sep ((R ^ 2) • (1 : Matrix ι ι ℝ)) c₀ N).center ∈ P := by
   rw [← ellipsoid_sq_smul_one hr.ne'] at hzP
   rw [← ellipsoid_sq_smul_one hR.ne'] at hPc
-  refine (center_mem_or_volume_le hsep (PosDef.sq_smul_one hR.ne') hPc N).resolve_right
-    fun h => ?_
-  set n : ℝ := (Fintype.card ι : ℝ) with hn_def
+  refine (center_mem_or_volume_le hsep (PosDef.sq_smul_one hR.ne') hPc N).resolve_right fun h => ?_
   have h1 := (measure_mono hzP).trans h
   rw [volume_ellipsoid_sq_smul_one hr, volume_ellipsoid_sq_smul_one hR, ← mul_assoc,
     ← ENNReal.ofReal_mul (Real.exp_pos _).le] at h1
-  have h2 := (ENNReal.mul_le_mul_iff_left volume_ellipsoid_one_zero_pos.ne'
-    volume_ellipsoid_one_zero_lt_top.ne).mp h1
-  rw [ENNReal.ofReal_le_ofReal_iff (by positivity)] at h2
-  have h3 := Real.log_le_log (by positivity) h2
-  rw [Real.log_mul (Real.exp_pos _).ne' (by positivity), Real.log_exp, Real.log_pow,
-    Real.log_pow] at h3
-  have hn1 : (0 : ℝ) < 2 * (n + 1) := by positivity
-  have h4 : (N : ℝ) ≤ 2 * (n + 1) * (Fintype.card ι * (Real.log R - Real.log r)) := by
-    rw [neg_div, ← sub_eq_neg_add, le_sub_iff_add_le, ← le_sub_iff_add_le', div_le_iff₀ hn1] at h3
-    linarith
+  have h2 := Real.log_le_log (by positivity) <| (ENNReal.ofReal_le_ofReal_iff (by positivity)).mp <|
+    (ENNReal.mul_le_mul_iff_left volume_ellipsoid_one_zero_pos.ne'
+      volume_ellipsoid_one_zero_lt_top.ne).mp h1
+  rw [Real.log_mul (Real.exp_pos _).ne' (by positivity), Real.log_exp, Real.log_pow, Real.log_pow,
+    neg_div, ← sub_eq_neg_add, le_sub_iff_add_le, ← le_sub_iff_add_le',
+    div_le_iff₀ (by positivity)] at h2
   rw [Real.log_div hR.ne' hr.ne'] at hN
-  rw [← hn_def] at h4
   linarith
 
 end Cslib.Algorithms.Ellipsoid

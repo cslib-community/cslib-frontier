@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.SearchTree.Cost
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Deletion from unbalanced binary search trees
@@ -97,7 +98,7 @@ private theorem elements_splitMin (a : α) (l r : BinaryTree α) :
     ext y
     have := Finset.ext_iff.mp (il b lr) y
     simp only [splitMin, mem_elements_node, Finset.mem_insert] at this ⊢
-    tauto
+    lrat_tauto
 
 /-- Gluing loses only the key of the deleted node. -/
 private theorem elements_glue (l r : BinaryTree α) :
@@ -116,15 +117,12 @@ private theorem ordered_splitMin {a : α} {l r : BinaryTree α} (ht : Ordered (.
   | node b ll lr il _ =>
     obtain ⟨hl, hr, hla, har⟩ := ht
     obtain ⟨ho, hlt⟩ := il hl
-    have he := elements_splitMin b ll lr
     have hm : (splitMin b ll lr).1 < a :=
-      hla _ (he ▸ Finset.mem_insert_self _ _)
-    refine ⟨⟨ho, hr, fun y hy => hla y (he ▸ Finset.mem_insert_of_mem hy), har⟩, ?_⟩
-    intro y hy
+      hla _ (elements_splitMin b ll lr ▸ Finset.mem_insert_self _ _)
+    refine ⟨⟨ho, hr, fun y hy => hla y
+      (elements_splitMin b ll lr ▸ Finset.mem_insert_of_mem hy), har⟩, fun y hy => ?_⟩
     rcases mem_elements_node.mp hy with rfl | hy | hy
-    · exact hm
-    · exact hlt y hy
-    · exact lt_trans hm (har y hy)
+    exacts [hm, hlt y hy, lt_trans hm (har y hy)]
 
 /-- Gluing the subtrees of an ordered node yields an ordered tree. -/
 private theorem ordered_glue {a : α} {l r : BinaryTree α} (ht : Ordered (.node a l r)) :
@@ -134,65 +132,50 @@ private theorem ordered_glue {a : α} {l r : BinaryTree α} (ht : Ordered (.node
   | nil => exact hl
   | node b rl rr =>
     obtain ⟨ho, hlt⟩ := ordered_splitMin hr
-    have hm : a < (splitMin b rl rr).1 :=
-      har _ (elements_splitMin b rl rr ▸ Finset.mem_insert_self _ _)
-    exact ⟨hl, ho, fun y hy => lt_trans (hla y hy) hm, hlt⟩
+    exact ⟨hl, ho, fun y hy => lt_trans (hla y hy)
+      (har _ (elements_splitMin b rl rr ▸ Finset.mem_insert_self _ _)), hlt⟩
 
 /-- Deletion removes exactly the requested key, even when it was absent. -/
 theorem elements_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
     elements (erase x t) = (elements t).erase x := by
-  induction t with
-  | nil => rfl
-  | node a l r il ir =>
-    obtain ⟨hl, hr, hla, har⟩ := ht
-    simp only [erase]
-    split <;> rename_i hx
-    · -- `x < a`: `x` lies in no part of the node except possibly `l`.
-      have hxr : x ∉ elements r := fun h => lt_asymm hx (har x h)
-      rw [elements, il hl, elements, Finset.erase_insert_of_ne (ne_of_gt hx),
-        Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxr]
-    · split <;> rename_i ha
-      · -- `a < x`: symmetrically, `x` can only lie in `r`.
-        have hxl : x ∉ elements l := fun h => lt_asymm ha (hla x h)
-        rw [elements, ir hr, elements, Finset.erase_insert_of_ne (ne_of_lt ha),
-          Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxl]
-      · have he : x = a := le_antisymm (le_of_not_gt ha) (le_of_not_gt hx)
-        subst he
-        rw [elements_glue, elements,
-          Finset.erase_insert (Ordered.notMem_elements_union ⟨hl, hr, hla, har⟩)]
+  fun_induction erase x t with
+  | case1 => rfl -- nil
+  | case2 a l r hx il => -- x < a: erase from l
+    -- `x` lies in no part of the node except possibly `l`.
+    rw [elements, il ht.1, elements, Finset.erase_insert_of_ne (ne_of_gt hx),
+      Finset.erase_union_distrib, Finset.erase_eq_of_notMem fun h => lt_asymm hx (ht.2.2.2 x h)]
+  | case3 a l r _ ha ir => -- a < x: erase from r
+    -- Symmetrically, `x` can only lie in `r`.
+    rw [elements, ir ht.2.1, elements, Finset.erase_insert_of_ne (ne_of_lt ha),
+      Finset.erase_union_distrib, Finset.erase_eq_of_notMem fun h => lt_asymm ha (ht.2.2.1 x h)]
+  | case4 a l r hx ha => -- x = a: glue l r
+    obtain rfl : x = a := le_antisymm (le_of_not_gt ha) (le_of_not_gt hx)
+    rw [elements_glue, elements, Finset.erase_insert ht.notMem_elements_union]
 
 /-- The binary-search-tree invariant survives deletion. -/
 theorem ordered_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (erase x t) := by
-  induction t with
-  | nil => trivial
-  | node a l r il ir =>
-    have hn := ht
+  fun_induction erase x t with
+  | case1 => trivial -- nil
+  | case2 a l r _ il => -- x < a: erase from l
     obtain ⟨hl, hr, hla, har⟩ := ht
-    simp only [erase]
-    split
-    · refine ⟨il hl, hr, fun y hy => hla y ?_, har⟩
-      rw [elements_erase hl] at hy
-      exact Finset.mem_of_mem_erase hy
-    · split
-      · refine ⟨hl, ir hr, hla, fun y hy => har y ?_⟩
-        rw [elements_erase hr] at hy
-        exact Finset.mem_of_mem_erase hy
-      · exact ordered_glue hn
+    exact ⟨il hl, hr, fun y hy => hla y (Finset.mem_of_mem_erase (elements_erase hl x ▸ hy)), har⟩
+  | case3 a l r _ _ ir => -- a < x: erase from r
+    obtain ⟨hl, hr, hla, har⟩ := ht
+    exact ⟨hl, ir hr, hla, fun y hy => har y (Finset.mem_of_mem_erase (elements_erase hr x ▸ hy))⟩
+  | case4 => exact ordered_glue ht -- x = a: glue l r
 
 /-- Deleting an absent key preserves the entire tree, not just its represented set. -/
 theorem erase_eq_of_notMem {t : BinaryTree α} {x : α} (hx : x ∉ elements t) : erase x t = t := by
-  induction t with
-  | nil => rfl
-  | node a l r il ir =>
-    simp only [mem_elements_node, not_or] at hx
-    obtain ⟨hxa, hxl, hxr⟩ := hx
-    simp only [erase]
-    split <;> rename_i h
-    · rw [il hxl]
-    · split <;> rename_i h'
-      · rw [ir hxr]
-      · exact (hxa (le_antisymm (le_of_not_gt h') (le_of_not_gt h))).elim
+  fun_induction erase x t with
+  | case1 => rfl -- nil
+  -- x < a: erase from l
+  | case2 _ _ _ _ ih => rw [ih fun h => hx (mem_elements_node.mpr (Or.inr (Or.inl h)))]
+  -- a < x: erase from r
+  | case3 _ _ _ _ _ ih => rw [ih fun h => hx (mem_elements_node.mpr (Or.inr (Or.inr h)))]
+  | case4 _ _ _ hxa hax => -- x = a: glue l r
+    exact (hx (mem_elements_node.mpr (Or.inl
+      (le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa))))).elim
 
 /-- Internal-node visits of deletion: the search path, then leftmost descent in the right
 subtree of a matching node. -/
@@ -208,9 +191,7 @@ theorem searchVisits_le_eraseVisits (x : α) (t : BinaryTree α) :
   | nil => rfl
   | node a l r il ir =>
     simp only [searchVisits, eraseVisits]
-    split
-    · omega
-    · split <;> omega
+    split_ifs <;> omega
 
 /-- Deletion visits at most `t.height` internal nodes. -/
 theorem eraseVisits_le_height (x : α) (t : BinaryTree α) :
@@ -220,22 +201,13 @@ theorem eraseVisits_le_height (x : α) (t : BinaryTree α) :
   | node a l r il ir =>
     have := minimumVisits_le_height r
     simp only [eraseVisits, BinaryTree.height]
-    split
-    · omega
-    · split <;> omega
+    split_ifs <;> omega
 
 /-- Unlike insertion, deletion never increases the height. -/
 theorem height_erase_le (x : α) (t : BinaryTree α) : (erase x t).height ≤ t.height := by
-  induction t with
-  | nil => rfl
-  | node a l r il ir =>
-    simp only [erase]
-    split
-    · simp only [BinaryTree.height]
-      omega
-    · split
-      · simp only [BinaryTree.height]
-        omega
-      · exact height_glue_le a l r
+  fun_induction erase x t with
+  | case1 => rfl -- nil
+  | case4 a l r => exact height_glue_le a l r -- x = a: glue l r
+  | _ => simp only [BinaryTree.height]; omega -- x < a or a < x: erase from l or r
 
 end Cslib.DataStructure.SearchTree

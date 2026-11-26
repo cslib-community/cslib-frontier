@@ -9,8 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ListHead
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryPrimitives
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OLoops
 import Mathlib.Data.List.ReduceOption
 import Mathlib.Tactic.Linarith
@@ -84,26 +83,14 @@ theorem zipFold_eq_zipWithLeft (f : π → α → Option β → Option γ) (p : 
 /-- A walk that keeps every element is a `List.mapIdx` that reads the second list at each index. -/
 theorem zipFold_some (g : π → α → Option β → γ) (p : π) (l : List α) (r : List β) :
     zipFold (fun p a b => some (g p a b)) p l r = l.mapIdx fun i a => g p a r[i]? := by
-  have hnil : ∀ xs : List α,
-      xs.zipWithLeft (fun a b => some (g p a b)) [] = xs.map fun a => some (g p a none) :=
-    fun xs => by cases xs <;> rfl
-  rw [zipFold_eq_zipWithLeft]
   induction l generalizing r with
   | nil => rfl
-  | cons a l ih =>
-    rcases r with _ | ⟨b, r⟩
-    · simpa [List.zipWithLeft, hnil, List.mapIdx_cons] using congrArg (g p a none :: ·) (ih [])
-    · simpa [List.zipWithLeft, List.mapIdx_cons] using congrArg (g p a (some b) :: ·) (ih r)
+  | cons a l ih => cases r <;> simp [zipFold, ih, List.mapIdx_cons]
 
 namespace ComputableInO
 
 variable {encP : π ↪ List Bool} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
   {encC : γ ↪ List Bool} {f : π → α → Option β → Option γ}
-
-/-- The results of a round, as a test on the result of `f`. -/
-private lemma append_toList_eq [Inhabited γ] (o : Option γ) (acc : List γ) :
-    acc ++ o.toList = if o.isSome then acc ++ [o.getD default] else acc := by
-  cases o <;> simp
 
 /-- The argument of `f` in a round is linear in the input of that round. -/
 private lemma length_zipFoldArg_le (p : π) (a : α) (r : List β) (acc : List γ) :
@@ -115,7 +102,7 @@ private lemma length_zipFoldArg_le (p : π) (a : α) (r : List β) (acc : List �
 
 /-- A round of `Turing.MultiTapeTM.zipFold`, in space linear in the rest of the second list, the
 results so far and the element, up to the constants of `f`, and in the time of `f` beyond that. -/
-private lemma zipFoldStep_inO [Inhabited β] [Inhabited γ] {T : π × α × Option β → ℕ}
+private lemma zipFoldStep_inO [Inhabited β] {T : π × α × Option β → ℕ}
     (hf : ComputableInO (fun q : π × α × Option β => f q.1 q.2.1 q.2.2)
       (encPair encP (encPair encA (encOption encB))) (encOption encC) T
       fun q => (encPair encP (encPair encA (encOption encB)) q).length) :
@@ -126,45 +113,28 @@ private lemma zipFoldStep_inO [Inhabited β] [Inhabited γ] {T : π × α × Opt
         + 1) + T (q.1.1, q.2, q.1.2.1.head?))
       fun q => K * ((encPair (encPair encP (encPair (encList encB) (encList encC))) encA q).length
         + 1) := by
-  obtain ⟨c, hc⟩ := hf.length_le
-  have hq := fst (encPair encP (encPair (encList encB) (encList encC))) encA
-  have ha := snd (encPair encP (encPair (encList encB) (encList encC))) encA
-  have hrest := hq.snd'.fst'
-  have hacc := hq.snd'.snd'
-  have ho := hf.comp' (hq.fst'.prod (ha.prod ((head? (encB := encB)).comp' hrest)))
-  have hsnoc := (ComputableInDegree.snoc encC).inO_one.comp' (hacc.prod (optionGetD default ho))
-  have h := ((ComputableInDegree.listTail encB).inO_one.comp' hrest).prod
-    ((optionIsSome ho).ite hsnoc hacc)
-  obtain ⟨d, hd⟩ : ∃ d, d = 2 * (encB default).length + 8 + (encC default).length := ⟨_, rfl⟩
-  refine ⟨4096 * (d + 1) * (c + 1), (h.of_enc_eq fun q => ?_).mono 2 (fun q => ?_) fun q => ?_⟩
-  · simp only [zipFoldStep, append_toList_eq]
+  let encIn := encPair (encPair encP (encPair (encList encB) (encList encC))) encA
+  have hhead : ComputableInO
+      (fun q : (π × List β × List γ) × α => q.1.2.1.head?) encIn (encOption encB) _ _ :=
+    (head? (encB := encB)).comp' (by fun_prop)
+  have ho : ComputableInO
+      (fun q : (π × List β × List γ) × α => f q.1.1 q.2 q.1.2.1.head?)
+      encIn (encOption encC) _ _ :=
+    hf.comp' (encIn := encIn)
+      (g := fun q : (π × List β × List γ) × α => (q.1.1, q.2, q.1.2.1.head?)) (by fun_prop)
+  obtain ⟨d, hd⟩ : ∃ d, d = 2 * (encB default).length + 8 := ⟨_, rfl⟩
+  refine ⟨64 * (d + 1), .mono (by unfold zipFoldStep; fun_prop) 2 (fun q => ?_) fun q => ?_⟩
   all_goals
     obtain ⟨⟨p, r, acc⟩, a⟩ := q
     dsimp only
     have htriple := length_zipFoldArg_le (encP := encP) (encA := encA) (encB := encB)
       (encC := encC) p a r acc
-    generalize hX : (encPair (encPair encP (encPair (encList encB) (encList encC))) encA
-      ((p, r, acc), a)).length = X at htriple
-    have hsize : 2 * (encP p).length + 2 * (encList encB r).length + (encList encC acc).length +
-        (encA a).length ≤ 2 * X := by
-      rw [← hX]; simp only [length_encPair]; omega
-    have hhead := length_encOption_head?_le (encB := encB) r
-    have hout := hc (p, a, r.head?)
-    have hout' := Nat.le_trans hout (Nat.mul_le_mul_left c htriple)
-    dsimp only at hout hout'
-    have hget := length_enc_getD_le (encC := encC) (f p a r.head?)
+    generalize hX : (encIn ((p, r, acc), a)).length = X at htriple ⊢
+    have hlen : (encList encB r).length ≤ X := by
+      rw [← hX]; dsimp only [encIn]; simp only [length_encPair]; omega
     have hscale : (2 * (encB default).length + 8) * ((encList encB r).length + 1) ≤ d * (X + 1) :=
       Nat.mul_le_mul (by omega) (by omega)
-    have hZ₁ : X + 1 ≤ (d + 1) * (c + 1) * (X + 1) := by nlinarith [Nat.zero_le (d * c)]
-    have hZ₂ : d * (X + 1) ≤ (d + 1) * (c + 1) * (X + 1) := by nlinarith [Nat.zero_le (d * c)]
-    have hZ₃ : c * (8 * (X + 1)) ≤ 8 * ((d + 1) * (c + 1) * (X + 1)) := by
-      nlinarith [Nat.zero_le (d * c * (X + 1)), Nat.zero_le (d * (X + 1))]
-    have hZ₄ : d ≤ (d + 1) * (c + 1) * (X + 1) :=
-      (Nat.le_mul_of_pos_right d (Nat.succ_pos X)).trans hZ₂
-    have hK : 4096 * (d + 1) * (c + 1) * (X + 1) = 4096 * ((d + 1) * (c + 1) * (X + 1)) := by ring
-    generalize (d + 1) * (c + 1) * (X + 1) = Z at *
-    simp only [length_encPair, hK] at *
-    split_ifs <;> omega
+    nlinarith
 
 /-- The state after `i` rounds is bounded by the input and the results so far. -/
 private lemma length_foldl_zipFoldStep_le (q : π × List α × List β) (i B : ℕ)
@@ -192,7 +162,7 @@ private lemma length_zipFoldRound_le (q : π × List α × List β) (i B : ℕ) 
 /-- **Walking along two lists.** For a linear `f`, whose results collected along the way are
 linear in the input, walking along two lists takes time the length of the first list times the
 length of the input, and linear space. -/
-theorem zipFold [Inhabited β] [Inhabited γ]
+theorem zipFold [Inhabited β]
     (hf : ComputableInO (fun q : π × α × Option β => f q.1 q.2.1 q.2.2)
       (encPair encP (encPair encA (encOption encB))) (encOption encC)
       (fun q => (encPair encP (encPair encA (encOption encB)) q).length)
@@ -236,7 +206,7 @@ theorem zipFold [Inhabited β] [Inhabited γ]
       ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1)))
     (B := fun q => 2 * ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1) +
       k * ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1))
-    (fun q i hi => hround q i hi) (fun q i hi => hround q i hi) (fun q i _ => hst q i)
+    hround hround (fun q i _ => hst q i)
   obtain ⟨C, hC⟩ : ∃ C, C = (K + 8) * (8 + 2 * k) + (2 + k) + 2 := ⟨_, rfl⟩
   refine (((snd (encList encB) (encList encC)).comp_linear hfold).mono (C + 8) (fun q => ?_)
     fun q => ?_).of_enc_eq fun q => ?_
@@ -252,13 +222,9 @@ theorem zipFold [Inhabited β] [Inhabited γ]
   · have hin := Nat.mul_le_mul_left (q.2.1.length + 1)
       (show (K + 8) * ((8 + 2 * k) * (X + 1)) + (2 * (X + 1) + k * (X + 1)) + (encP q.1).length +
         (encList encA q.2.1).length ≤ C * (X + 1) by omega)
-    have hcomm : (q.2.1.length + 1) * (C * (X + 1)) = C * ((q.2.1.length + 1) * (X + 1)) :=
-      Nat.mul_left_comm ..
     have hU : X + 1 ≤ (q.2.1.length + 1) * (X + 1) := Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
-    have hexp : (C + 8) * ((q.2.1.length + 1) * (X + 1) + 1) =
-        C * ((q.2.1.length + 1) * (X + 1)) + 8 * ((q.2.1.length + 1) * (X + 1)) + C + 8 := by ring
-    omega
-  · have hexp : (C + 8) * (X + 1) = C * (X + 1) + 8 * (X + 1) := by ring
+    rw [Nat.mul_add (C + 8), Nat.add_mul C 8, Nat.mul_one, ← Nat.mul_left_comm _ C]; omega
+  · rw [Nat.add_mul C 8]
     omega
 
 end ComputableInO
@@ -270,7 +236,7 @@ variable {encP : π ↪ List Bool} {encA : α ↪ List Bool} {encB : β ↪ List
 
 /-- **The space of walking along two lists.** For `f` in linear space, walking along two lists
 takes space linear in the input and in a bound `B` on the results collected along the way. -/
-theorem zipFold [Inhabited β] [Inhabited γ]
+theorem zipFold [Inhabited β]
     (hf : ComputableInSpace (fun q : π × α × Option β => f q.1 q.2.1 q.2.2)
       (encPair encP (encPair encA (encOption encB))) (encOption encC)
       fun q => (encPair encP (encPair encA (encOption encB)) q).length)

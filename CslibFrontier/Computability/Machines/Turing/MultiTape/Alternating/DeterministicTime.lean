@@ -76,17 +76,13 @@ theorem exists_computableInTimeAndSpace_reachableAccepts {α : Type} {enc : α �
     ∃ c, ComputableInTimeAndSpace (fun a => atm.reachableAccepts (enc a)) enc encBool
       (fun a => 2 ^ (c * (Nat.log2 (enc a).length + s a + 1)))
       (fun a => 2 ^ (c * (Nat.log2 (enc a).length + s a + 1))) := by
-  set ntm := atm.toPTM.toNTM
   -- the initial view is the first reachable view
-  have hhead (input : List Bool) :
-      (ntm.reachableViews input).headD (ntm.initView []) = ntm.initView input := by
-    rw [List.headD_eq_head?_getD, MultiTapeNTM.head?_reachableViews, Option.getD_some]
   have hg : ComputableInPolyTime (fun found : List (FiniteCfg k Bool State) =>
-      atm.markAccepts found (found.headD (ntm.initView []))) (encList encFiniteCfg) encBool :=
-    computableInPolyTime_markAccepts.comp
-      (ComputableInPolyTime.id'.prod (ComputableInPolyTime.headD _))
+      atm.markAccepts found (found.headD (atm.toPTM.toNTM.initView [])))
+      (encList encFiniteCfg) encBool :=
+    computableInPolyTime_markAccepts.comp (ComputableInPolyTime.id'.prod (.headD _))
   obtain ⟨c, h⟩ := MultiTapeNTM.exists_computableInTimeAndSpace_reachableViews hs hg
-  simp only [hhead] at h
-  exact ⟨c, h⟩
+  exact ⟨c, by simpa only [reachableAccepts, List.headD_eq_head?_getD,
+    MultiTapeNTM.head?_reachableViews, Option.getD_some] using h⟩
 
 end Turing.MultiTapeATM

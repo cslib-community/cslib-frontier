@@ -51,20 +51,17 @@ theorem Derives.append_split {u v w : List (Symbol T g.NT)} (h : g.Derives (u ++
     obtain ⟨r, hr, hrw⟩ := hp
     obtain ⟨p, q, hpq, rfl⟩ := hrw.exists_parts
     rw [List.append_assoc, List.singleton_append, List.append_eq_append_iff] at hpq
-    rcases hpq with ⟨c, rfl, rfl⟩ | ⟨c, rfl, hc⟩
+    rcases hpq with ⟨c, rfl, rfl⟩ | ⟨_ | ⟨d, c⟩, rfl, hc⟩
     · refine ⟨x, c ++ r.output ++ q, hx, hy.trans_produces ⟨r, hr, ?_⟩, by simp⟩
       simpa using ContextFreeRule.rewrites_of_exists_parts r c q
-    · cases c with
-      | nil =>
-        rw [List.nil_append] at hc
-        subst hc
-        refine ⟨p, r.output ++ q, by simpa using hx, hy.trans_produces ⟨r, hr, ?_⟩, by simp⟩
-        simpa using ContextFreeRule.rewrites_of_exists_parts r [] q
-      | cons d c =>
-        rw [List.cons_append, List.cons.injEq] at hc
-        obtain ⟨rfl, rfl⟩ := hc
-        refine ⟨p ++ r.output ++ c, y, hx.trans_produces ⟨r, hr, ?_⟩, hy, by simp⟩
-        simpa using ContextFreeRule.rewrites_of_exists_parts r p c
+    · rw [List.nil_append] at hc
+      subst hc
+      refine ⟨p, r.output ++ q, by simpa using hx, hy.trans_produces ⟨r, hr, ?_⟩, by simp⟩
+      simpa using ContextFreeRule.rewrites_of_exists_parts r [] q
+    · rw [List.cons_append, List.cons.injEq] at hc
+      obtain ⟨rfl, rfl⟩ := hc
+      refine ⟨p ++ r.output ++ c, y, hx.trans_produces ⟨r, hr, ?_⟩, hy, by simp⟩
+      simpa using ContextFreeRule.rewrites_of_exists_parts r p c
 
 /-- Derivations from two words combine into a derivation from their concatenation. -/
 theorem Derives.append {u v x y : List (Symbol T g.NT)} (hu : g.Derives u x)
@@ -92,16 +89,12 @@ theorem produces_nonterminal_iff {A : g.NT} {v : List (Symbol T g.NT)} :
     g.Produces [Symbol.nonterminal A] v ↔ ∃ r ∈ g.rules, r.input = A ∧ v = r.output := by
   constructor
   · rintro ⟨r, hr, hrw⟩
-    obtain ⟨p, q, hpq, rfl⟩ := hrw.exists_parts
-    have hp : p = [] := by
-      cases p with
-      | nil => rfl
-      | cons _ p => simp at hpq
-    subst hp
-    simp only [List.nil_append, List.singleton_append, List.cons.injEq, Symbol.nonterminal.injEq]
-      at hpq
-    obtain ⟨rfl, rfl⟩ := hpq
-    exact ⟨r, hr, rfl, by simp⟩
+    obtain ⟨_ | ⟨_, _⟩, q, hpq, rfl⟩ := hrw.exists_parts
+    · simp only [List.nil_append, List.singleton_append, List.cons.injEq,
+        Symbol.nonterminal.injEq] at hpq
+      obtain ⟨rfl, rfl⟩ := hpq
+      exact ⟨r, hr, rfl, by simp⟩
+    · simp at hpq
   · rintro ⟨r, hr, rfl, rfl⟩
     exact ⟨r, hr, ContextFreeRule.Rewrites.input_output⟩
 

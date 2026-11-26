@@ -108,19 +108,13 @@ private theorem prefix_size (keys consumed : List ℕ) (hp : consumed <+: keys.r
     have hs := Nat.size_le_self j
     simp only [List.length_reverse] at hv
     omega
-  have hrequests := length_encList_le encNat (compute consumed.reverse).requests hwidth
-  have hrequests' : (encList encNat (compute consumed.reverse).requests).length ≤
+  have hrequests : (encList encNat (compute consumed.reverse).requests).length ≤
       (S*S)*(2*S+1) :=
-    hrequests.trans ((Nat.mul_le_mul_right _ hcount).trans
+    (length_encList_le encNat _ hwidth).trans ((Nat.mul_le_mul_right _ hcount).trans
       (Nat.mul_le_mul (Nat.mul_le_mul hPS hPS) (by omega)))
   rw [encResult_apply, encResultFields, length_encPair]
   change 2*(encList encNat (compute consumed.reverse).sortedKeys).length+1+
-    (encList encNat (compute consumed.reverse).requests).length ≤ budget keys
-  apply (Nat.add_le_add_right (Nat.add_le_add_right
-    (Nat.mul_le_mul_left 2 hmass) 1) _).trans
-  apply (Nat.add_le_add_left hrequests' _).trans
-  dsimp [budget]
-  change 2*S+1+S*S*(2*S+1) ≤ 16*(S+1)^3
+    (encList encNat (compute consumed.reverse).requests).length ≤ 16*(S+1)^3
   nlinarith [Nat.zero_le (S*S*S), Nat.zero_le (S*S)]
 
 /-- Generate the actual stable trace on EVERY binary key list in plain polynomial time.

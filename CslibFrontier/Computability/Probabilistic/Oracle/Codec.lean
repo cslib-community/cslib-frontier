@@ -143,18 +143,14 @@ theorem adapt_toWord {replyCap : Q → ℕ} {decodeReply : Q → List Bool → R
     simp only [queryWord, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
       wordOracle_encodeQuery, Functor.map_map]
     have hfun : (fun r : R => decodeReply q (List.take (replyCap q) (c.encodeReply q r))) =
-        _root_.id := by
-      funext r
-      rw [List.take_of_length_le (hcap q r), hdec q r]
-      rfl
+        _root_.id := funext fun r =>
+      (congrArg (decodeReply q) (List.take_of_length_le (hcap q r))).trans (hdec q r)
     rw [hfun, id_map]
   rw [hid]
   have hsub : OracleComp.sumHandler (fun n => ProbOracleComp.sample (ProbComp.unifFin n))
-      (ProbOracleComp.query (spec := fun _ : Q => R)) = OracleComp.query := by
-    funext x
-    rcases x with n | q
-    · exact ProbOracleComp.sample_unifFin n
-    · rfl
+      (ProbOracleComp.query (spec := fun _ : Q => R)) = OracleComp.query := funext fun
+    | .inl n => ProbOracleComp.sample_unifFin n
+    | .inr _ => rfl
   rw [ProbOracleComp.simulate, hsub, OracleComp.substitute_query_eq_self]
 
 /-- **Stateful `runWith` bisimulation**: running `c.toWord replyCap decodeReply program` against
@@ -271,9 +267,8 @@ theorem IsOraclePPTOn.queryWord {Op Q R α : Type} [DecidableEq Op] [Finite Op]
     (ComputableInPolyTime.fst opEncoding encBits).comp henc
   have hword : ComputableInPolyTime (fun a => (c.encodeQuery (q a)).2) input encBits :=
     (ComputableInPolyTime.snd opEncoding encBits).comp henc
-  exact IsOraclePPTOn.finite_cases hop fun op =>
-    (IsOraclePPTOn.query_take op hword hcap).map_with
-      (f := fun a w => decodeReply (q a) w) hdec
+  exact (IsOraclePPTOn.query_take_with hop hword hcap).map_with
+    (f := fun a w => decodeReply (q a) w) hdec
 
 /-- Lifting a strict oracle-PPT typed stateful handler `typed : Caller → Q → StateT State
 (WordOracleComp External) R` through `c.wordOracle` produces a strict oracle-PPT word handler on
@@ -323,30 +318,16 @@ theorem IsOraclePPTOn.wordOracle_state
       (fun p : (Caller × (Op × List Bool) × State) × (R × State) =>
         (c.encodeReply ((c.decodeQuery p.1.2.1).getD defaultQuery) p.2.1, p.2.2))
       (encPair EIn (encPair replyEncoding stateEncoding)) EOut := by
-    have hq_p : ComputableInPolyTime
-        (fun p : (Caller × (Op × List Bool) × State) × (R × State) =>
-          (c.decodeQuery p.1.2.1).getD defaultQuery)
-        (encPair EIn (encPair replyEncoding stateEncoding)) queryEncoding :=
-      hgetQ.comp (ComputableInPolyTime.fst _ _)
-    have hr_p : ComputableInPolyTime
-        (fun p : (Caller × (Op × List Bool) × State) × (R × State) => p.2.1)
-        (encPair EIn (encPair replyEncoding stateEncoding)) replyEncoding :=
-      (ComputableInPolyTime.fst replyEncoding stateEncoding).comp (ComputableInPolyTime.snd _ _)
-    have hs_p : ComputableInPolyTime
-        (fun p : (Caller × (Op × List Bool) × State) × (R × State) => p.2.2)
-        (encPair EIn (encPair replyEncoding stateEncoding)) stateEncoding :=
-      (ComputableInPolyTime.snd replyEncoding stateEncoding).comp (ComputableInPolyTime.snd _ _)
-    exact (hencodeReply.comp (hq_p.prod hr_p)).prod hs_p
-  have hnone : ComputableInPolyTime
-      (fun x : Caller × (Op × List Bool) × State => (([] : List Bool), x.2.2)) EIn EOut :=
-    (ComputableInPolyTime.const ([] : List Bool)).prod hstate
+    fun_prop
   refine (IsOraclePPTOn.cond
     (condition := fun x : Caller × (Op × List Bool) × State => (c.decodeQuery x.2.1).isSome)
     (by fun_prop)
     (hcall.map_with
       (f := fun x res => (c.encodeReply ((c.decodeQuery x.2.1).getD defaultQuery) res.1, res.2))
       hpost)
-    hnone.isOraclePPTOn).congr ?_
+    (ComputableInPolyTime.isOraclePPTOn
+      (f := fun ⟨_caller, _req, state⟩ => (([] : List Bool), state))
+      (by fun_prop))).congr ?_
   rintro ⟨caller, request, state⟩ ExtState oracle ext
   refine congrArg (fun p => ProbOracleComp.runWith oracle p ext) ?_
   dsimp only [OracleCodec.wordOracle]

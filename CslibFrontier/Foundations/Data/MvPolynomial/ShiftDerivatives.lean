@@ -35,9 +35,7 @@ variable {ι R A : Type*} [CommSemiring R]
 theorem first_derivative_translation_coeff (z : ι → R) (F : MvPolynomial ι R) (i : ι) :
     eval z (pderiv i F) = (shift z F).coeff (Finsupp.single i 1) := by
   classical
-  have h := coeff_zero_shift z (pderiv i F)
-  rw [← pderiv_shift, coeff_pderiv] at h
-  simpa only [zero_add, Finsupp.zero_apply, Nat.cast_zero, zero_add, mul_one] using h.symm
+  simpa [← pderiv_shift, coeff_pderiv] using (coeff_zero_shift z (pderiv i F)).symm
 
 /-- A second derivative is one shifted coefficient, including factor two for a repeated index. -/
 theorem second_derivative_translation_coeff (z : ι → R) (F : MvPolynomial ι R) (i j : ι) :
@@ -50,14 +48,10 @@ theorem second_derivative_translation_coeff (z : ι → R) (F : MvPolynomial ι 
 /-- Shifting by a point in an algebra cannot increase total degree. -/
 theorem totalDegree_shift_le [CommSemiring A] [Algebra R A]
     (z : ι → A) (F : MvPolynomial ι R) : (shift z F).totalDegree ≤ F.totalDegree := by
-  have hshift : shift z F =
-      aeval (R := A) (fun i => X i + C (z i)) (F.map (algebraMap R A)) := by
-    change eval₂ (algebraMap R (MvPolynomial ι A)) (fun i => X i + C (z i)) F =
-      eval₂ C (fun i => X i + C (z i)) (F.map (algebraMap R A))
-    rw [eval₂_map]
+  have hshift : shift z F = aeval (R := A) (fun i => X i + C (z i)) (F.map (algebraMap R A)) := by
+    simp only [shift, aeval_def, eval₂_map]
     rfl
-  rw [hshift]
-  exact (totalDegree_aeval_le (fun i => (totalDegree_add _ _).trans
+  exact hshift ▸ (totalDegree_aeval_le (fun i => (totalDegree_add _ _).trans
     (max_le (totalDegree_X_le i) (by simp))) _).trans (totalDegree_map_le _ _)
 
 end MvPolynomial

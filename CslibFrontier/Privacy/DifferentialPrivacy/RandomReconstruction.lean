@@ -11,6 +11,7 @@ public import CslibFrontier.Privacy.DifferentialPrivacy.Reconstruction
 public import CslibFrontier.Foundations.Data.BitString.Sign
 import CslibFrontier.Foundations.Combinatorics.LittlewoodOfford
 import CslibFrontier.Probability.Chernoff
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Reconstruction from random `±1` queries
@@ -150,14 +151,11 @@ to meet. -/
 theorem AnswersWithin.mono {A : κ → ι → Bool} {y : κ → ℝ} {d : ι → Bool} {α α' η η' : ℝ}
     (h : AnswersWithin A y d α η) (hα : α ≤ α') (hη : η' ≤ η) : AnswersWithin A y d α' η' := by
   rw [answersWithin_iff] at h ⊢
-  have hsub : ({j | |y j - signDot (A j) d| ≤ α} : Finset κ) ⊆
-      ({j | |y j - signDot (A j) d| ≤ α'} : Finset κ) := by
-    intro j hj
-    simp only [mem_filter, mem_univ, true_and] at hj ⊢
-    exact hj.trans hα
   have hcard : (#({j | |y j - signDot (A j) d| ≤ α} : Finset κ) : ℝ) ≤
-      #({j | |y j - signDot (A j) d| ≤ α'} : Finset κ) := by
-    exact_mod_cast card_le_card hsub
+      #({j | |y j - signDot (A j) d| ≤ α'} : Finset κ) :=
+    Nat.cast_le.mpr <| card_le_card fun j hj => by
+      simp only [mem_filter, mem_univ, true_and] at hj ⊢
+      exact hj.trans hα
   have : (0 : ℝ) ≤ Fintype.card κ := Nat.cast_nonneg _
   nlinarith
 
@@ -201,37 +199,24 @@ private theorem card_abs_sum_le [DecidableEq ι] (z : ι → SignType) (α : ℝ
   have hN : α < N := by
     simp only [N, Nat.cast_add, Nat.cast_one]
     exact Nat.lt_floor_add_one α
-  have hsum : ∀ v : ι → Bool, ∑ i, signVal (v i) * a i = Z - 2 * g v := by
-    intro v
+  have hsum (v : ι → Bool) : ∑ i, signVal (v i) * a i = Z - 2 * g v := by
     simp only [Z, g, mul_sum, ← sum_sub_distrib]
     refine sum_congr rfl fun i _ => ?_
-    cases v i
-    · simp only [signVal_false, one_mul, Bool.toNat_false, Nat.cast_zero, mul_zero, sub_zero]
-    · simp only [signVal_true, Bool.toNat_true, Nat.cast_one, mul_one]
-      ring
+    cases v i <;> simp only [signVal_false, signVal_true, Bool.toNat_false, Bool.toNat_true,
+      Nat.cast_zero, Nat.cast_one] <;> ring
   have hsub : (#{v : ι → Bool | |∑ i, signVal (v i) * (z i : ℝ)| ≤ α} : ℝ) ≤
       #{v : ι → Bool | (L + N) - (∑ _j ∈ range N, (1 : ℝ)) ≤ g v ∧ g v < L + N} := by
-    have : ({v : ι → Bool | |∑ i, signVal (v i) * (z i : ℝ)| ≤ α} : Finset (ι → Bool)) ⊆
-        ({v : ι → Bool | (L + N) - (∑ _j ∈ range N, (1 : ℝ)) ≤ g v ∧ g v < L + N} :
-          Finset (ι → Bool)) := by
-      intro v hv
-      simp only [mem_filter, mem_univ, true_and] at hv ⊢
-      have h := hsum v
-      simp only [a] at h
-      rw [h, abs_le] at hv
-      rw [sum_const, card_range, nsmul_eq_mul, mul_one]
-      constructor
-      · simp only [L]
-        linarith [hv.1, hv.2]
-      · simp only [L]
-        linarith [hv.1, hv.2]
-    exact_mod_cast card_le_card this
+    refine Nat.cast_le.mpr (card_le_card fun v hv => ?_)
+    simp only [mem_filter, mem_univ, true_and] at hv ⊢
+    rw [show ∑ i, signVal (v i) * (z i : ℝ) = Z - 2 * g v from hsum v, abs_le] at hv
+    rw [sum_const, card_range, nsmul_eq_mul, mul_one]
+    simp only [L]
+    constructor <;> linarith [hv.1, hv.2]
   have hcover := Combinatorics.LittlewoodOfford.card_filter_Ico_sum_le g (range N) (fun _ => 1)
     (fun _ => 2 ^ Fintype.card ι / Real.sqrt (#{i | z i ≠ 0} + 1))
     (fun _ _ c => Combinatorics.LittlewoodOfford.card_filter_sum_bool_Ico_le_two_pow_div_sqrt a
       {i | z i ≠ 0} c fun i hi => by
-        simp only [mem_filter, mem_univ, true_and] at hi
-        simp only [a]
+        simp only [mem_filter, mem_univ, true_and, a] at hi ⊢
         revert hi
         cases z i <;> simp) (L + N)
   rw [sum_const, card_range, nsmul_eq_mul] at hcover hsub
@@ -315,20 +300,14 @@ private theorem patternBad_diffPattern {A : κ → ι → Bool} {y : κ → ℝ}
   set Sc : Finset κ := {j | |y j - signDot (A j) c| ≤ α}
   set Sd : Finset κ := {j | |y j - signDot (A j) d| ≤ α}
   have hinter : (#Sc : ℝ) + #Sd ≤ #(Sc ∩ Sd) + Fintype.card κ := by
-    have h1 := card_union_add_card_inter Sc Sd
-    have h2 : #(Sc ∪ Sd) ≤ Fintype.card κ := card_le_univ _
-    have : #Sc + #Sd ≤ #(Sc ∩ Sd) + Fintype.card κ := by omega
-    exact_mod_cast this
-  have hsub : Sc ∩ Sd ⊆
-      ({j | |∑ i, signVal (A j i) * (diffPattern c d i : ℝ)| ≤ α} : Finset κ) := by
-    intro j hj
-    simp only [Sc, Sd, mem_inter, mem_filter, mem_univ, true_and] at hj ⊢
+    exact_mod_cast (show #Sc + #Sd ≤ #(Sc ∩ Sd) + Fintype.card κ by finset_card)
+  have hcard : (#(Sc ∩ Sd) : ℝ) ≤
+      #{j | |∑ i, signVal (A j i) * (diffPattern c d i : ℝ)| ≤ α} := by
+    refine Nat.cast_le.mpr (card_le_card fun j hj => ?_)
+    simp only [Sc, Sd, mem_inter, mem_filter, mem_univ, true_and, abs_le] at hj ⊢
     have h := signDot_sub_signDot (A j) c d
-    simp only [abs_le] at hj ⊢
-    constructor <;> nlinarith [hj.1.1, hj.1.2, hj.2.1, hj.2.2]
-  have := card_le_card hsub
-  have : (#(Sc ∩ Sd) : ℝ) ≤
-      #{j | |∑ i, signVal (A j i) * (diffPattern c d i : ℝ)| ≤ α} := by exact_mod_cast this
+    exact ⟨by nlinarith [hj.1.1, hj.1.2, hj.2.1, hj.2.2],
+      by nlinarith [hj.1.1, hj.1.2, hj.2.1, hj.2.2]⟩
   linarith
 
 /-! ### The attack -/
@@ -544,21 +523,17 @@ private theorem exists_answersWithin_zero_of_le_two_mul {A : κ → ι → Bool}
   set T : Finset κ := {j | signDot (A j) c = signDot (A j) d} with hTdef
   obtain ⟨W, hWU, hW⟩ := exists_subset_card_eq (s := Tᶜ) (n := #Tᶜ / 2) (Nat.div_le_self _ _)
   set y : κ → ℝ := fun j => if j ∈ W then signDot (A j) d else signDot (A j) c with hy
-  have hTc := card_compl T
-  have hTm : #T ≤ Fintype.card κ := card_le_univ T
   refine ⟨y, ?_, ?_⟩
   · unfold AnswersWithin
     have hsub : Wᶜ ⊆ ({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) := by
       intro j hj
       rw [mem_compl] at hj
       simp only [mem_filter, mem_univ, true_and, y, hj, ↓reduceIte, sub_self, abs_zero, le_refl]
-    have h1 := card_le_card hsub
-    rw [card_compl] at h1
-    have h7 : 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) := by
-      omega
     have h7' : (7 : ℝ) * Fintype.card κ ≤
         10 * #({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) := by
-      exact_mod_cast h7
+      exact_mod_cast
+        (show 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) by
+          finset_card)
     linarith
   · unfold AnswersWithin
     have hsub : T ∪ W ⊆ ({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) := by
@@ -569,14 +544,11 @@ private theorem exists_answersWithin_zero_of_le_two_mul {A : κ → ι → Bool}
       · have hjT : j ∈ T := (mem_union.1 hj).resolve_right hjW
         simp only [T, mem_filter, mem_univ, true_and] at hjT
         simp only [y, hjW, ↓reduceIte, hjT, sub_self, abs_zero, le_refl]
-    have hdisj : Disjoint T W := disjoint_of_subset_right hWU disjoint_compl_right
-    have h1 := card_le_card hsub
-    rw [card_union_of_disjoint hdisj] at h1
-    have h7 : 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) := by
-      omega
     have h7' : (7 : ℝ) * Fintype.card κ ≤
         10 * #({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) := by
-      exact_mod_cast h7
+      exact_mod_cast
+        (show 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) by
+          finset_card)
     linarith
 
 /-- **The constant `(2 α / η) ^ 2` of [DworkRoth2014, Theorem 8.2] fails at `α = 0`.** Whatever
@@ -590,50 +562,39 @@ theorem exists_answersWithin_answersWithin_hammingDist_eq_two {i₁ i₂ : ι}
     ∃ (y : κ → ℝ) (c d : ι → Bool), AnswersWithin A y c 0 (1 / 5) ∧
       AnswersWithin A y d 0 (1 / 5) ∧ hammingDist c d = 2 := by
   classical
-  have hsplit := card_filter_add_card_filter_not (s := (univ : Finset κ))
-    (fun j => A j i₁ = A j i₂)
-  rw [card_univ] at hsplit
+  have hhd (c d : ι → Bool) (hdiff : ∀ i, c i ≠ d i ↔ i = i₁ ∨ i = i₂) : hammingDist c d = 2 := by
+    rw [hammingDist, card_eq_two]
+    exact ⟨i₁, i₂, hi, by
+      ext i
+      simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton, hdiff]⟩
   by_cases hS : Fintype.card κ ≤ 2 * #{j | A j i₁ = A j i₂}
   · -- Where the two query bits agree, moving the one `true` from `i₁` to `i₂` keeps the answer.
-    have hcd : ∀ i, i ≠ i₁ ∧ i ≠ i₂ →
-        decide (i = i₁) = decide (i = i₂) := fun i h => by simp [h.1, h.2]
     have hsub : ({j | A j i₁ = A j i₂} : Finset κ) ⊆
         ({j | signDot (A j) (fun i => decide (i = i₁)) =
-          signDot (A j) (fun i => decide (i = i₂))} : Finset κ) := by
-      intro j hj
+          signDot (A j) (fun i => decide (i = i₂))} : Finset κ) := fun j hj => by
       simp only [mem_filter, mem_univ, true_and] at hj ⊢
-      rw [← sub_eq_zero, signDot_sub_signDot_eq_add hi hcd, hj]
-      simp only [decide_true, hi, hi.symm, decide_false, signVal_true, signVal_false]
-      ring
+      rw [← sub_eq_zero, signDot_sub_signDot_eq_add hi (fun i h => by simp [h.1, h.2]), hj]
+      simp only [decide_true, hi, hi.symm, decide_false, signVal_true, signVal_false]; ring
     obtain ⟨y, hc, hd⟩ := exists_answersWithin_zero_of_le_two_mul hm
       (hS.trans (Nat.mul_le_mul_left 2 (card_le_card hsub)))
-    refine ⟨y, fun i => decide (i = i₁), fun i => decide (i = i₂), hc, hd, ?_⟩
-    rw [hammingDist, card_eq_two]
-    refine ⟨i₁, i₂, hi, ?_⟩
-    ext i
-    simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton]
-    by_cases h1 : i = i₁ <;> by_cases h2 : i = i₂ <;> simp_all
+    exact ⟨y, fun i => decide (i = i₁), fun i => decide (i = i₂), hc, hd,
+      hhd _ _ fun i => by
+        by_cases h1 : i = i₁ <;> by_cases h2 : i = i₂ <;> simp [h1, h2, hi, hi.symm]⟩
   · -- Where they differ, flipping both rows keeps the answer.
-    have hcd : ∀ i, i ≠ i₁ ∧ i ≠ i₂ →
-        decide (i = i₁ ∨ i = i₂) = false := fun i h => by simp [h.1, h.2]
     have hsub : ({j | ¬ A j i₁ = A j i₂} : Finset κ) ⊆
         ({j | signDot (A j) (fun i => decide (i = i₁ ∨ i = i₂)) =
-          signDot (A j) (fun _ => false)} : Finset κ) := by
-      intro j hj
+          signDot (A j) (fun _ => false)} : Finset κ) := fun j hj => by
       simp only [mem_filter, mem_univ, true_and] at hj ⊢
-      rw [← sub_eq_zero, signDot_sub_signDot_eq_add hi hcd]
+      rw [← sub_eq_zero, signDot_sub_signDot_eq_add hi (fun i h => by simp [h.1, h.2])]
       simp only [true_or, or_true, decide_true, signVal_true, signVal_false]
       revert hj
-      cases A j i₁ <;> cases A j i₂ <;> simp only [signVal_true, signVal_false] <;> norm_num
+      cases A j i₁ <;> cases A j i₂ <;> simp only [signVal_true, signVal_false] <;>
+        norm_num
     obtain ⟨y, hc, hd⟩ := exists_answersWithin_zero_of_le_two_mul hm
-      ((show Fintype.card κ ≤ 2 * #({j | ¬ A j i₁ = A j i₂} : Finset κ) by omega).trans
+      ((show Fintype.card κ ≤ 2 * #({j | ¬ A j i₁ = A j i₂} : Finset κ) by finset_card).trans
         (Nat.mul_le_mul_left 2 (card_le_card hsub)))
-    refine ⟨y, fun i => decide (i = i₁ ∨ i = i₂), fun _ => false, hc, hd, ?_⟩
-    rw [hammingDist, card_eq_two]
-    refine ⟨i₁, i₂, hi, ?_⟩
-    ext i
-    simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton]
-    by_cases h1 : i = i₁ <;> by_cases h2 : i = i₂ <;> simp_all
+    exact ⟨y, fun i => decide (i = i₁ ∨ i = i₂), fun _ => false, hc, hd,
+      hhd _ _ fun i => by by_cases h : i = i₁ ∨ i = i₂ <;> simp [h]⟩
 
 /-- **[DworkRoth2014, Theorem 8.2] fails for small `α`.** Let `0 ≤ α`, `0 < η ≤ 1 / 5` and
 `2 α < η`, so that Dwork and Roth's `(2 α / η) ^ 2` is below `1`. Whatever the `m ≥ 10` queries on

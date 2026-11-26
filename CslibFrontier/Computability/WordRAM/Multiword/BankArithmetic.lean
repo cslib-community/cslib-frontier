@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Arithmetic
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
-import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Framed arithmetic on multiword register banks
@@ -45,7 +44,7 @@ other bank entry.
 namespace Cslib.WordRAM.Multiword.Bank
 
 open Workspace
-open Schoolbook (registers rowCost)
+open Schoolbook (registers registers_bounds nodup_registers rowCost)
 
 variable {n : ℕ}
 
@@ -63,25 +62,10 @@ private theorem length_productLow (n : ℕ) : (productLow n).length = 18 := by
 private theorem length_productHigh (n : ℕ) : (productHigh n).length = 18 := by
   simp [productHigh, registers]
 
-private theorem register_bounds {start len r : ℕ} {h : start + len ≤ r}
-    {i : Fin (r + 4)} (hi : i ∈ registers start len h) :
-    4 + start ≤ i.val ∧ i.val < 4 + start + len := by
-  obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hi
-  dsimp
-  omega
-
-private theorem register_nodup (start len r : ℕ) (h : start + len ≤ r) :
-    (registers start len h).Nodup := by
-  apply List.nodup_ofFn_ofInjective
-  fin_index
-
 private theorem product_bounds {i : Fin (capacity n + 4)}
     (hi : i ∈ productLow n ++ productHigh n) : 8 ≤ i.val ∧ i.val < 44 := by
-  rcases List.mem_append.mp hi with hi | hi
-  · have := register_bounds hi
-    omega
-  · have := register_bounds hi
-    omega
+  rcases List.mem_append.mp hi with hi | hi <;>
+    (have := registers_bounds hi; omega)
 
 private theorem product_digits : ∀ i ∈ productLow n ++ productHigh n, IsDigit i := by
   intro i hi
@@ -89,11 +73,11 @@ private theorem product_digits : ∀ i ∈ productLow n ++ productHigh n, IsDigi
 
 private theorem product_nodup : (productLow n ++ productHigh n).Nodup := by
   apply List.nodup_append.mpr
-  refine ⟨register_nodup _ _ _ _, register_nodup _ _ _ _, ?_⟩
+  refine ⟨nodup_registers _ _ _, nodup_registers _ _ _, ?_⟩
   intro i hl j hh he
   subst j
-  have := register_bounds hl
-  have := register_bounds hh
+  have := registers_bounds hl
+  have := registers_bounds hh
   omega
 
 private theorem product_disjoint (j : Fin n) :
@@ -131,42 +115,28 @@ theorem exec_multiply {w : ℕ} (hw : 2 ≤ w) (a b d : Fin n)
     (hprod : v a * v b < 2 ^ (6 * w)) :
     ∃ y, Exec w (multiply a b d) x y 2484 ∧
       Encodes w y (Function.update v d (v a * v b)) ∧ y.mem = x.mem := by
-  have hdis : List.Disjoint (productLow n ++ productHigh n) (regs a ++ regs b) := by
-    apply List.disjoint_left.mpr
-    intro i hi hj
-    rcases List.mem_append.mp hj with hj | hj
-    · exact List.disjoint_left.mp (product_disjoint a) hi hj
-    · exact List.disjoint_left.mp (product_disjoint b) hi hj
+  have hdis : List.Disjoint (productLow n ++ productHigh n) (regs a ++ regs b) :=
+    List.disjoint_append_right.mpr ⟨product_disjoint a, product_disjoint b⟩
   obtain ⟨z, hez, hz, hzval, hzf⟩ := Schoolbook.exec_eighteen_framed hw
     (regs a) (regs b) (productLow n) (productHigh n)
     (length_regs a) (length_regs b) (length_productLow n) (length_productHigh n)
-    (fun i hi => by
-      rcases List.mem_append.mp hi with hi | hi
-      · exact digit_regs a i hi
-      · exact digit_regs b i hi)
+    (fun i hi => (List.mem_append.mp hi).elim (digit_regs a i) (digit_regs b i))
     product_digits product_nodup hdis x (hx a).1 (hx b).1
   rw [(hx a).2, (hx b).2] at hzval
   have hlow : value (radix w) z (productLow n) = v a * v b := by
     have hmod := Nat.ofDigits_mod_pow_eq_ofDigits_take 18
       (by have := one_lt_radix hw; omega : 0 < radix w)
-      ((productLow n ++ productHigh n).map z.regs) (by
-        intro l hl
-        obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hl
-        exact hz i hi)
+      ((productLow n ++ productHigh n).map z.regs) (List.forall_mem_map.mpr hz)
     have htake : ((productLow n ++ productHigh n).map z.regs).take 18 =
         (productLow n).map z.regs := by
-      have hlenmap : ((productLow n).map z.regs).length = 18 := by
-        simp [length_productLow]
-      rw [List.map_append, ← hlenmap, List.take_left]
+      rw [List.map_append, List.take_left' (by simp [length_productLow])]
     rw [htake] at hmod
     change value (radix w) z (productLow n ++ productHigh n) % radix w ^ 18 =
       value (radix w) z (productLow n) at hmod
     rw [hzval, Nat.mod_eq_of_lt (hprod.trans_le (six_word_capacity hw))] at hmod
     exact hmod.symm
-  have hcopydis : List.Disjoint (regs d) (productLow n) := by
-    apply List.disjoint_left.mpr
-    intro i hd hl
-    exact List.disjoint_left.mp (product_disjoint d) (by simp [hl]) hd
+  have hcopydis : List.Disjoint (regs d) (productLow n) :=
+    (List.disjoint_append_left.mp (product_disjoint d)).1.symm
   obtain ⟨y, hey, hym, hyf, hyp⟩ := Transfer.exec_copy (w := w) (productLow n) (regs d)
     ((length_productLow n).trans (length_regs d).symm) (nodup_regs d) hcopydis z
   have hy : Bounded (radix w) y (regs d) := Transfer.bounded_copy hym
@@ -174,12 +144,8 @@ theorem exec_multiply {w : ℕ} (hw : 2 ≤ w) (a b d : Fin n)
   have hyval : value (radix w) y (regs d) = v a * v b :=
     (Transfer.value_copy hym).trans hlow
   have hp (i : Fin (capacity n + 4)) (hi : 44 ≤ i.val) (hid : i ∉ regs d) :
-      y.regs i = x.regs i := by
-    rw [hyp i hid]
-    apply hzf.2 i (by omega)
-    intro hs
-    have := product_bounds hs
-    omega
+      y.regs i = x.regs i :=
+    (hyp i hid).trans (hzf.2 i (by omega) fun hs => by have := product_bounds hs; omega)
   refine ⟨y, ?_, encodes_update hx d _ hy hyval hp, hyf.1.trans hzf.1⟩
   simpa only [multiply, length_regs] using hez.seq hey
 

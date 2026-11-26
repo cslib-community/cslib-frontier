@@ -66,40 +66,29 @@ private theorem edge_witness_iff (x : EdgeInput) : x ∈ AndOrNCLEdge ↔
 private theorem computableInPolyTime_witnessStart :
     ComputableInPolyTime (fun q : WitnessInput => q.1.initial)
       witnessEncoding (encList encBool) := by
-  unfold witnessEncoding
-  fun_prop
+  fun_prop [witnessEncoding]
 
 private theorem computableInPolyTime_witnessTarget :
     ComputableInPolyTime (fun q : WitnessInput => q.2) witnessEncoding encBits := by
-  unfold witnessEncoding
-  fun_prop
+  fun_prop [witnessEncoding]
 
 private theorem computableInPolyTime_edgeToConfig :
-    ComputableInPolyTime edgeToConfig witnessEncoding encAndOrNCL := by
-  have hg : ComputableInPolyTime (fun q : WitnessInput => q.1.graph)
-      witnessEncoding encAndOrGraph := by
-    unfold witnessEncoding
-    fun_prop
-  have hs := computableInPolyTime_witnessStart
-  have ht := computableInPolyTime_witnessTarget
-  exact encAndOrNCL_mk_polyTime hg hs ((bits_encList_polyTime encBool).1.comp ht)
+    ComputableInPolyTime edgeToConfig witnessEncoding encAndOrNCL :=
+  encAndOrNCL_mk_polyTime (by fun_prop [witnessEncoding]) computableInPolyTime_witnessStart
+    ((bits_encList_polyTime encBool).1.comp computableInPolyTime_witnessTarget)
 
 private theorem computableInPolyTime_changed :
     ComputableInPolyTime changed witnessEncoding encBool := by
   have he : ComputableInPolyTime (fun q : WitnessInput => q.1.edge)
-      witnessEncoding encNat := by
-    unfold witnessEncoding
-    fun_prop
+      witnessEncoding encNat := by fun_prop [witnessEncoding]
   have hw : ComputableInPolyTime (fun q : WitnessInput => q.1.graph.edgeCount)
-      witnessEncoding encNat := by
-    unfold witnessEncoding
-    fun_prop
-  have hs := computableInPolyTime_witnessStart
-  have ht := computableInPolyTime_witnessTarget
-  have hsr := ComputableInPolyTime.listGetD_binary (encA := encBool) false hs he
-  have htr := ComputableInPolyTime.listGetD_binary (encA := encBool) false ht he
-  have hne := ComputableInPolyTime.decide_ne htr hsr
-  exact ComputableInPolyTime.bool_and' (ComputableInPolyTime.binary_lt' he hw) hne
+      witnessEncoding encNat := by fun_prop [witnessEncoding]
+  exact ComputableInPolyTime.bool_and' (ComputableInPolyTime.binary_lt' he hw)
+    (ComputableInPolyTime.decide_ne
+      (ComputableInPolyTime.listGetD_binary (encA := encBool) false
+        computableInPolyTime_witnessTarget he)
+      (ComputableInPolyTime.listGetD_binary (encA := encBool) false
+        computableInPolyTime_witnessStart he))
 
 private theorem witness_mem_PSPACE : witness ∈ PSPACE witnessEncoding := by
   have hred : PolyTimeReducible witnessEncoding encAndOrNCL (edgeToConfig ⁻¹' AndOrNCL) AndOrNCL :=
@@ -111,15 +100,12 @@ private theorem witness_mem_PSPACE : witness ∈ PSPACE witnessEncoding := by
 /-- Configuration-to-edge reachability on AND/OR multigraphs is in PSPACE,
 including graphs with loops. -/
 theorem AndOrNCLEdge_mem_PSPACE : AndOrNCLEdge ∈ PSPACE encAndOrNCLEdge := by
-  have hlen : ComputableInPolyTime (fun x : EdgeInput => x.initial.length)
-      encAndOrNCLEdge encUnary := by
-      fun_prop
-  have hh := setOf_exists_mem_PSPACE witness_mem_PSPACE hlen
-  have heq : {x : EdgeInput | ∃ w : List Bool, w.length = x.initial.length ∧ (x, w) ∈ witness} =
-      AndOrNCLEdge := by
-    ext x
-    simpa only [witness, edgeToConfig, changed, Set.mem_ofPred_eq, Bool.and_eq_true,
-      decide_eq_true_eq] using (edge_witness_iff x).symm
-  rwa [heq] at hh
+  have hh := setOf_exists_mem_PSPACE witness_mem_PSPACE
+    (by fun_prop : ComputableInPolyTime (fun x : EdgeInput => x.initial.length)
+      encAndOrNCLEdge encUnary)
+  convert hh using 1
+  ext x
+  simpa only [witness, edgeToConfig, changed, Set.mem_ofPred_eq, Bool.and_eq_true,
+    decide_eq_true_eq] using edge_witness_iff x
 
 end Cslib.Complexity.NCL

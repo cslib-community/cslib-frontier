@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
@@ -96,17 +97,8 @@ private theorem supportWordCode_eq_code {bits n count : ℕ} (i : Fin n) (j : Fi
         (List.ofFn fun k : Fin bits =>
           (Formula.literal (fun _ => i.val.testBit k.val)
             (finProdFinEquiv (j, k))).toCircuit)).code := by
-  rw [supportWordCode, List.map_range_eq_ofFn]
-  rw [show (List.ofFn fun k : Fin bits =>
-      supportLiteralCode (count * bits) (k.val + bits * j.val) (i.val.testBit k.val)) =
-      (List.ofFn fun k : Fin bits =>
-        (Formula.literal (fun _ => i.val.testBit k.val)
-          (finProdFinEquiv (j, k))).toCircuit).map Circuit.code by
-    rw [List.map_ofFn]
-    congr 1
-    funext k
-    exact supportLiteralCode_eq_code i j k]
-  exact balancedCode_eq_code _ _ _
+  simp [supportWordCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, Function.comp_def,
+    supportLiteralCode_eq_code]
 
 private def supportValueCode (bits count value : ℕ) : Code :=
   balancedCode (count * bits)
@@ -124,19 +116,8 @@ private theorem supportValueCode_eq_code {bits n count : ℕ} (i : Fin n) :
             (List.ofFn fun k : Fin bits =>
               (Formula.literal (fun _ => i.val.testBit k.val)
                 (finProdFinEquiv (j, k))).toCircuit))).code := by
-  rw [supportValueCode, List.map_range_eq_ofFn]
-  rw [show (List.ofFn fun j : Fin count => supportWordCode bits count i.val j.val) =
-      (List.ofFn fun j : Fin count =>
-        Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-          (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-          (List.ofFn fun k : Fin bits =>
-            (Formula.literal (fun _ => i.val.testBit k.val)
-              (finProdFinEquiv (j, k))).toCircuit)).map Circuit.code by
-    rw [List.map_ofFn]
-    congr 1
-    funext j
-    exact supportWordCode_eq_code i j]
-  exact balancedCode_eq_code _ _ _
+  simp [supportValueCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, Function.comp_def,
+    supportWordCode_eq_code]
 
 /-- Emit the complete `n`-bit membership indicator of a corrected `count`-word array. -/
 @[expose] def supportIndicatorCode (bits n count : ℕ) : Code :=
@@ -149,32 +130,8 @@ theorem supportIndicatorCode_eq_code (bits n count : ℕ) :
     supportIndicatorCode bits n count = (supportIndicatorCircuit bits n count).code := by
   change appendCodes (count * bits)
     ((List.range n).map fun i => supportValueCode bits count i) = _
-  rw [List.map_range_eq_ofFn]
-  rw [show (List.ofFn fun i : Fin n => supportValueCode bits count i.val) =
-      (List.ofFn fun i : Fin n =>
-        Circuit.balanced (Circuit.oneGate (σ := signature) .or id)
-          (Circuit.oneGate (σ := signature) (.const false) Fin.elim0)
-          (List.ofFn fun j : Fin count =>
-            Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-              (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-              (List.ofFn fun k : Fin bits =>
-                (Formula.literal (fun _ => i.val.testBit k.val)
-                  (finProdFinEquiv (j, k))).toCircuit))).map Circuit.code by
-    rw [List.map_ofFn]
-    congr 1
-    funext i
-    exact supportValueCode_eq_code i]
-  rw [List.map_ofFn]
-  simpa only [Function.comp_def, supportIndicatorCircuit] using
-    (appendCodes_code (fun i : Fin n =>
-      Circuit.balanced (Circuit.oneGate (σ := signature) .or id)
-        (Circuit.oneGate (σ := signature) (.const false) Fin.elim0)
-        (List.ofFn fun j : Fin count =>
-          Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-            (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-            (List.ofFn fun k : Fin bits =>
-              (Formula.literal (fun _ => i.val.testBit k.val)
-                (finProdFinEquiv (j, k))).toCircuit))))
+  rw [List.map_range_eq_ofFn, supportIndicatorCircuit, ← appendCodes_code]
+  exact congrArg (appendCodes _) (congrArg List.ofFn (funext fun i => supportValueCode_eq_code i))
 
 /-- Emit all multiply-high candidates on consecutive independent source-word blocks. -/
 @[expose] def supportCandidateCode (width bits n count : ℕ) : Code :=
@@ -315,19 +272,17 @@ The separate gate bound is `size_candidateCircuit_le`. -/
     exact (const (encOut := encList encGate) []).prod (mapWithInput (range.comp hb) hi)
   have hdiff : ComputableInPolyTime (fun a => n a - offset a) enc encNat :=
     unary_to_binary.comp (by fun_prop)
-  have h := computableInPolyTime_compCode hw'
-    (computableInPolyTime_carryLookaheadAdd.comp hb)
-    (computableInPolyTime_appendCode hw'
-      (computableInPolyTime_compCode hw' hhigh
-        (computableInPolyTime_compCode hw' (Modular.computableInPolyTime_multiply.comp hwide)
-          (computableInPolyTime_appendCode hw'
-            (computableInPolyTime_appendCode hw' hid
-              (computableInPolyTime_wordConstCode hw' hb (const 0)))
-            (computableInPolyTime_wordConstCode hw' hwide hdiff))))
-      (computableInPolyTime_wordConstCode hw' hb (unary_to_binary.comp ho)))
-  change ComputableInPolyTime (fun a => candidateCode (width a) (bits a) (n a) (offset a))
-    enc encCode at h
-  simpa only [candidateCode_eq_code] using h
+  simpa only [← candidateCode_eq_code, candidateCode, Function.comp_def] using
+    computableInPolyTime_compCode hw'
+      (computableInPolyTime_carryLookaheadAdd.comp hb)
+      (computableInPolyTime_appendCode hw'
+        (computableInPolyTime_compCode hw' hhigh
+          (computableInPolyTime_compCode hw' (Modular.computableInPolyTime_multiply.comp hwide)
+            (computableInPolyTime_appendCode hw'
+              (computableInPolyTime_appendCode hw' hid
+                (computableInPolyTime_wordConstCode hw' hb (const 0)))
+              (computableInPolyTime_wordConstCode hw' hwide hdiff))))
+        (computableInPolyTime_wordConstCode hw' hb (unary_to_binary.comp ho)))
 
 private theorem supportCandidateFold_prefix (width bits n count i : ℕ)
     (hi : i ≤ ((List.range count).map fun j => candidateCode width bits n j).length) :
@@ -335,13 +290,8 @@ private theorem supportCandidateFold_prefix (width bits n count i : ℕ)
       (parallelFamilyCodeStep (width, bits)) (0, ([], []))) =
         (i, (supportCandidateCircuit width bits n i).code) := by
   have hi' : i ≤ count := by simpa only [List.length_map, List.length_range] using hi
-  rw [← List.map_take, List.take_range, Nat.min_eq_left hi']
-  have hcodes :
-      (List.range i).map (fun j => candidateCode width bits n j) =
-        List.ofFn (fun j : Fin i => (candidateCircuit width bits n j.val).code) := by
-    rw [List.map_range_eq_ofFn]
-    simp only [candidateCode_eq_code]
-  rw [hcodes]
+  rw [← List.map_take, List.take_range, Nat.min_eq_left hi', List.map_range_eq_ofFn]
+  simp only [candidateCode_eq_code]
   exact foldl_parallelFamilyCodeStep_code _
 
 private def supportCandidateGateBound (width bits count : ℕ) : ℕ :=
@@ -363,23 +313,7 @@ private theorem polyBounded_supportCandidateStateBound {α : Type} {enc : α ↪
     (hcount : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => supportCandidateStateBound (width a) (bits a) (count a)) := by
-  have hw := hwidth.polyBounded
-  have hb := hbits.polyBounded
-  have hc := hcount.polyBounded
-  have hsum := (hw.add hb).add (PolyBounded.const 1)
-  have hgate := (((PolyBounded.const 63).mul (hsum.mul hsum)).add
-    ((PolyBounded.const 21).mul ((hb.add (.const 1)).mul (hb.add (.const 1))))).add
-      (.const 6)
-  have hG := hc.mul hgate
-  have hN := hc.mul hw
-  have hM := hc.mul hb
-  have hNG := hN.add hG
-  have hcode := ((((PolyBounded.const 2).mul hG).mul
-    ((PolyBounded.const 23).add ((PolyBounded.const 8).mul hNG))).add (.const 1)).add
-      (hM.mul (((PolyBounded.const 2).mul hNG).add (.const 1)))
-  have hstate := (((PolyBounded.const 2).mul hc).add (.const 1)).add hcode
-  simpa [supportCandidateStateBound, supportCandidateCodeBound,
-    supportCandidateGateBound, pow_two] using hstate
+  growth_poly
 
 private theorem length_supportCandidateFold_le (width bits n count i : ℕ)
     (hi : i ≤ ((List.range count).map fun j => candidateCode width bits n j).length) :
@@ -418,7 +352,6 @@ unary dimensions. The bounded fold charges the complete encoded prefix circuit. 
     ComputableInPolyTime
       (fun a => (supportCandidateCircuit (width a) (bits a) (n a) (count a)).code)
       enc encCode := by
-  let parEnc := encPair encUnary encUnary
   let stateEnc := encPair encUnary encCode
   have hlist : ComputableInPolyTime
       (fun a => (List.range (count a)).map fun j =>
@@ -431,7 +364,7 @@ unary dimensions. The bounded fold charges the complete encoded prefix circuit. 
   have hfold := foldlWith (step := parallelFamilyCodeStep)
     (hwidth.prod hbits) hlist
     (const (encOut := stateEnc) ((0, ([], [])) : ℕ × Code))
-    (by simpa only [parEnc, stateEnc] using computableInPolyTime_parallelFamilyCodeStep)
+    computableInPolyTime_parallelFamilyCodeStep
     (polyBounded_supportCandidateStateBound hwidth hbits hcount) fun a i hi =>
       length_supportCandidateFold_le (width a) (bits a) (n a) (count a) i hi
   have hcode := hfold.snd'
@@ -452,12 +385,11 @@ schedules. -/
       enc encCode := by
   have hinput : ComputableInPolyTime (fun a => count a * width a) enc encNat :=
     unary_to_binary.comp (by fun_prop)
-  have hcandidate :=
-    computableInPolyTime_supportCandidateCircuit hwidth hbits hn hcount
-  have hscan := computableInPolyTime_supportScanCircuit hbits (const 0) hcount
-  have hindicator := computableInPolyTime_supportIndicatorCircuit hbits hn hcount
-  have hcode := computableInPolyTime_compCode hinput hindicator
-    (computableInPolyTime_compCode hinput hscan hcandidate)
-  simpa only [compCode_code, supportSamplerCircuit] using hcode
+  simpa only [compCode_code, supportSamplerCircuit] using
+    computableInPolyTime_compCode hinput
+      (computableInPolyTime_supportIndicatorCircuit hbits hn hcount)
+      (computableInPolyTime_compCode hinput
+        (computableInPolyTime_supportScanCircuit hbits (const 0) hcount)
+        (computableInPolyTime_supportCandidateCircuit hwidth hbits hn hcount))
 
 end Cslib.Crypto.HQC

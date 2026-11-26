@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.Data.Nat.Choose.Basic
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Parameters of the depth-five rank measure
@@ -138,10 +139,7 @@ structure Good : Prop where
 variable {p}
 
 theorem Good.s_pos (hp : p.Good) : 0 < p.s := by
-  have h : (0 : ℝ) < √(p.n : ℝ) / 2 := by
-    have : (0 : ℝ) < p.n := by exact_mod_cast hp.n_pos
-    positivity
-  exact_mod_cast h.trans_le hp.le_s
+  exact_mod_cast (div_pos (Real.sqrt_pos.2 (Nat.cast_pos.2 hp.n_pos)) zero_lt_two).trans_le hp.le_s
 
 theorem Good.m_pos (hp : p.Good) : 0 < p.m := by
   have := p.hks; have := hp.k_pos; omega
@@ -158,31 +156,24 @@ theorem Good.a_pos (hp : p.Good) : 0 < p.a := by
 theorem Good.b_pos (hp : p.Good) : 0 < p.b := by
   have := hp.four_n_le_b; have := hp.n_pos; omega
 
-theorem Good.ρ_pos (hp : p.Good) : 0 < p.ρ := by
-  have : (0 : ℝ) < p.k := by exact_mod_cast hp.k_pos
-  have : (0 : ℝ) < p.m := by exact_mod_cast hp.m_pos
-  exact div_pos ‹_› ‹_›
+theorem Good.ρ_pos (hp : p.Good) : 0 < p.ρ :=
+  div_pos (Nat.cast_pos.2 hp.k_pos) (Nat.cast_pos.2 hp.m_pos)
 
 theorem Good.ρ_lt_one (hp : p.Good) : p.ρ < 1 := by
   have hm : (0 : ℝ) < p.m := by exact_mod_cast hp.m_pos
   rw [ρ, div_lt_one hm]
   exact_mod_cast (by have := p.hks; have := hp.s_pos; omega : p.k < p.m)
 
-theorem Good.α_pos (hp : p.Good) : 0 < p.α := by
-  have : (0 : ℝ) < p.a := by exact_mod_cast hp.a_pos
-  have : (0 : ℝ) < p.v := by exact_mod_cast hp.v_pos
-  exact div_pos ‹_› (by positivity)
+theorem Good.α_pos (hp : p.Good) : 0 < p.α :=
+  div_pos (Nat.cast_pos.2 hp.a_pos) (add_pos (Nat.cast_pos.2 hp.a_pos) (Nat.cast_pos.2 hp.v_pos))
 
 theorem Good.α_lt_one (hp : p.Good) : p.α < 1 := by
-  have ha : (0 : ℝ) < p.a := by exact_mod_cast hp.a_pos
   have hv : (0 : ℝ) < p.v := by exact_mod_cast hp.v_pos
   rw [α, div_lt_one (by positivity)]
-  linarith
+  cast_linarith [hp.a_pos]
 
-theorem Good.β_pos (hp : p.Good) : 0 < p.β := by
-  have : (0 : ℝ) < p.b := by exact_mod_cast hp.b_pos
-  have : (0 : ℝ) < p.u := by exact_mod_cast hp.u_pos
-  exact div_pos ‹_› (by positivity)
+theorem Good.β_pos (hp : p.Good) : 0 < p.β :=
+  div_pos (Nat.cast_pos.2 hp.b_pos) (add_pos (Nat.cast_pos.2 hp.b_pos) (Nat.cast_pos.2 hp.u_pos))
 
 theorem Good.q_pos (hp : p.Good) : 0 < p.q :=
   Real.rpow_pos_of_pos hp.α_pos _

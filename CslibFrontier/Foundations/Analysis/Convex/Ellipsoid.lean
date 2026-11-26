@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.PosDef
 public import Mathlib.MeasureTheory.Measure.Lebesgue.VolumeOfBalls
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Matrix.Order
 import Mathlib.Tactic.Module
 
@@ -94,11 +95,13 @@ private lemma quadForm_combo_le {M : Matrix ι ι ℝ} (hM : M.PosSemidef) (u v 
   have hnn : 0 ≤ (u - v) ⬝ᵥ (M *ᵥ (u - v)) := by
     simpa using hM.dotProduct_mulVec_nonneg (u - v)
   have hsym : u ⬝ᵥ (M *ᵥ v) = v ⬝ᵥ (M *ᵥ u) := hM.isHermitian.isSymm.dotProduct_mulVec_comm
-  simp only [mulVec_add, mulVec_sub, mulVec_smul, dotProduct_add, dotProduct_sub, add_dotProduct,
-    sub_dotProduct, dotProduct_smul, smul_dotProduct, smul_eq_mul] at hnn ⊢
-  have hst' : t = 1 - s := by linarith
-  subst hst'
-  nlinarith [mul_nonneg hs ht]
+  have key : s * (u ⬝ᵥ (M *ᵥ u)) + t * (v ⬝ᵥ (M *ᵥ v)) -
+      (s • u + t • v) ⬝ᵥ (M *ᵥ (s • u + t • v)) = s * t * ((u - v) ⬝ᵥ (M *ᵥ (u - v))) := by
+    simp only [mulVec_add, mulVec_sub, mulVec_smul, dotProduct_add, dotProduct_sub, add_dotProduct,
+      sub_dotProduct, dotProduct_smul, smul_dotProduct, smul_eq_mul, hsym,
+      show t = 1 - s by linarith only [hst]]
+    ring
+  linarith only [key, mul_nonneg (mul_nonneg hs ht) hnn]
 
 /-- An ellipsoid with positive definite shape is convex. -/
 theorem convex_ellipsoid {A : Matrix ι ι ℝ} (hA : A.PosDef) (c : ι → ℝ) :
@@ -233,9 +236,9 @@ theorem centralCutShape_of_two_le_card (A : Matrix ι ι ℝ) (a : ι → ℝ)
     centralCutShape A a = ((Fintype.card ι : ℝ) ^ 2 / ((Fintype.card ι : ℝ) ^ 2 - 1)) •
       (A - (2 / ((Fintype.card ι : ℝ) + 1)) •
         vecMulVec (centralCutDir A a) (centralCutDir A a)) := by
-  have h2 : (2 : ℝ) ≤ Fintype.card ι := by exact_mod_cast h
-  have hnn : (Fintype.card ι : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
-  have hn1 : (Fintype.card ι : ℝ) + 1 ≠ 0 := by linarith
+  have hnn : (Fintype.card ι : ℝ) ^ 2 - 1 ≠ 0 :=
+    ne_of_gt (sub_pos.2 (one_lt_pow₀ (by cast_linarith only [h]) two_ne_zero))
+  have hn1 : (Fintype.card ι : ℝ) + 1 ≠ 0 := by positivity
   simp only [centralCutShape]
   match_scalars <;> field_simp; ring
 
@@ -244,11 +247,8 @@ section Cut
 variable {A : Matrix ι ι ℝ} {a : ι → ℝ}
 
 omit [DecidableEq ι] in
-private lemma card_pos_of_ne_zero (ha : a ≠ 0) : 0 < Fintype.card ι := by
-  rw [Fintype.card_pos_iff]
-  by_contra h
-  rw [not_nonempty_iff] at h
-  exact ha (Subsingleton.elim _ _)
+private lemma card_pos_of_ne_zero (ha : a ≠ 0) : 0 < Fintype.card ι :=
+  Fintype.card_pos_iff.2 (not_isEmpty_iff.1 fun _ => ha (Subsingleton.elim _ _))
 
 /-- The dual vector `a / √(aᵀ A a)`, with `A *ᵥ cutDual A a = centralCutDir A a`. -/
 private noncomputable def cutDual (A : Matrix ι ι ℝ) (a : ι → ℝ) : ι → ℝ :=
@@ -317,15 +317,10 @@ private lemma centralCutShape_mul_cutInv (hA : A.PosDef) (ha : a ≠ 0) :
     ring
   rw [key, hβ]
   rcases hn1.eq_or_lt with h1 | h2
-  · have hc : Fintype.card ι = 1 := by
-      have : (Fintype.card ι : ℝ) = 1 := by rw [← hn_def]; exact h1.symm
-      exact_mod_cast this
-    rw [vecMulVec_eq_one_of_card_eq_one hc hba, ← h1]
+  · rw [vecMulVec_eq_one_of_card_eq_one (by rw [hn_def] at h1; exact_mod_cast h1.symm) hba, ← h1]
     norm_num
-  · have : n ^ 2 - 1 ≠ 0 := by nlinarith
-    have hαγ : n ^ 2 / (n ^ 2 - 1) * ((n ^ 2 - 1) / n ^ 2) = 1 := by
-      field_simp
-    rw [hαγ]
+  · have : n ^ 2 - 1 ≠ 0 := ne_of_gt (sub_pos.2 (one_lt_pow₀ h2 two_ne_zero))
+    rw [show n ^ 2 / (n ^ 2 - 1) * ((n ^ 2 - 1) / n ^ 2) = 1 by field_simp]
     simp
 
 /-- The inverse of the updated shape is `(n² - 1) / n² · A⁻¹ + 2 (n + 1) / n² · a aᵀ / (aᵀ A a)`. -/
@@ -339,16 +334,14 @@ theorem inv_centralCutShape (hA : A.PosDef) (ha : a ≠ 0) :
     rw [cutDual, smul_vecMulVec, vecMulVec_smul, smul_smul, ← mul_inv,
       Real.mul_self_sqrt hs.le]
   rw [inv_eq_right_inv (centralCutShape_mul_cutInv hA ha), cutInv, hW, smul_smul]
-  congr 1
-  congr 1
-  field_simp
+  congr 1; congr 1; field_simp
 
 private lemma posSemidef_cutInv (hA : A.PosDef) (ha : a ≠ 0) : (cutInv A a).PosSemidef := by
-  have hn1 : (1 : ℝ) ≤ Fintype.card ι := by exact_mod_cast card_pos_of_ne_zero ha
-  refine PosSemidef.add (hA.inv.posSemidef.smul ?_) (PosSemidef.smul ?_ ?_)
-  · apply div_nonneg <;> nlinarith
-  · simpa using posSemidef_vecMulVec_self_star (cutDual A a)
-  · apply div_nonneg <;> nlinarith
+  have hn1 : (1 : ℝ) ≤ Fintype.card ι := Nat.one_le_cast.2 (card_pos_of_ne_zero ha)
+  refine PosSemidef.add (hA.inv.posSemidef.smul
+    (div_nonneg (sub_nonneg.2 (one_le_pow₀ hn1)) (sq_nonneg _)))
+    (PosSemidef.smul ?_ (by positivity))
+  simpa using posSemidef_vecMulVec_self_star (cutDual A a)
 
 omit [DecidableEq ι] in
 /-- The updated shape matrix is positive definite, so the update can be iterated. -/
@@ -402,29 +395,27 @@ theorem ellipsoid_inter_halfspace_subset (hA : A.PosDef) (ha : a ≠ 0) (c : ι 
   have hyb : y ⬝ᵥ a' = t := dotProduct_comm _ _
   have ht0 : t ≤ 0 := by
     rw [ht, ha', cutDual, smul_dotProduct, hy, dotProduct_sub, smul_eq_mul]
-    exact mul_nonpos_of_nonneg_of_nonpos (by positivity) (by linarith)
+    exact mul_nonpos_of_nonneg_of_nonpos (by positivity) (sub_nonpos.2 hxH)
   -- Cauchy–Schwarz for `A⁻¹`: `(yᵀ A⁻¹ b)² ≤ (yᵀ A⁻¹ y)(bᵀ A⁻¹ b) = q`.
   have htq : t ^ 2 ≤ q := by
-    have := hA.inv.star_dotProduct_mulVec_mul_le y b
-    simp only [star_trivial, hAb, hyb, hba, mul_one] at this
-    nlinarith
+    simpa only [star_trivial, hAb, hyb, hba, mul_one, ← sq] using
+      hA.inv.star_dotProduct_mulVec_mul_le y b
   have hbAy : b ⬝ᵥ (A⁻¹ *ᵥ y) = t := by
     rw [hA.inv.isHermitian.isSymm.dotProduct_mulVec_comm, hAb, hyb]
   simp only [cutInv, ← hn_def, ← ha', add_mulVec, smul_mulVec, hW, mulVec_add, mulVec_smul, hAb,
     dotProduct_add, dotProduct_smul, add_dotProduct, smul_dotProduct, hba, hab, hyb, ← ht, ← hq,
     hbAy, smul_eq_mul]
   have hn0 : n ≠ 0 := by positivity
-  have hγ : 0 ≤ (n ^ 2 - 1) / n ^ 2 := by apply div_nonneg <;> nlinarith
+  have hγ : 0 ≤ (n ^ 2 - 1) / n ^ 2 := div_nonneg (sub_nonneg.2 (one_le_pow₀ hn1)) (sq_nonneg _)
   have hδ : 0 ≤ 2 * (n + 1) / n ^ 2 := by positivity
-  have ht1 : -1 ≤ t := by nlinarith
+  have ht1 : -1 ≤ t := (abs_le.1 ((sq_le_one_iff_abs_le_one t).1 (htq.trans hxE))).1
   calc _ = 1 + (n ^ 2 - 1) / n ^ 2 * (q - 1) + 2 * (n + 1) / n ^ 2 * (t * (t + 1)) := by
-        field_simp
-        ring
+        field_simp; ring
     _ ≤ 1 := by
-        have h1 := mul_nonpos_of_nonneg_of_nonpos hγ (show q - 1 ≤ 0 by linarith)
+        have h1 := mul_nonpos_of_nonneg_of_nonpos hγ (sub_nonpos.2 hxE)
         have h2 := mul_nonpos_of_nonneg_of_nonpos hδ
-          (mul_nonpos_of_nonpos_of_nonneg ht0 (show 0 ≤ t + 1 by linarith))
-        linarith
+          (mul_nonpos_of_nonpos_of_nonneg ht0 (show 0 ≤ t + 1 by linarith only [ht1]))
+        linarith only [h1, h2]
 
 /-- The determinant of the updated shape:
 `det A' = (n² / (n² - 1)) ^ (n - 1) · (n / (n + 1))² · det A`, for every `n ≥ 1` (for `n = 1` the
@@ -442,10 +433,8 @@ theorem det_centralCutShape (hA : A.PosDef) (ha : a ≠ 0) :
   rw [hm, Nat.add_sub_cancel]
   push_cast
   set n : ℝ := (m : ℝ) + 1 with hn_def
-  have hn2 : (2 : ℝ) ≤ n := by
-    have : (1 : ℝ) ≤ m := by exact_mod_cast hm0
-    linarith
-  have hnn : n ^ 2 - 1 ≠ 0 := by nlinarith
+  have hn1 : (1 : ℝ) < n := by rw [hn_def]; linarith only [(Nat.one_le_cast.2 hm0 : (1 : ℝ) ≤ m)]
+  have hnn : n ^ 2 - 1 ≠ 0 := ne_of_gt (sub_pos.2 (one_lt_pow₀ hn1 two_ne_zero))
   have hshape : centralCutShape A a = (n ^ 2 / (n ^ 2 - 1)) •
       (A + vecMulVec (-(2 / (n + 1)) • centralCutDir A a) (cutDual A a) * A) := by
     have hAW : vecMulVec (-(2 / (n + 1)) • centralCutDir A a) (cutDual A a) * A =
@@ -476,51 +465,36 @@ private lemma cut_ratio_lt {k : ℕ} (hk : 1 ≤ k) :
   rw [Nat.add_sub_cancel]
   push_cast
   set n : ℝ := (m : ℝ) + 1 with hn_def
-  have hn1 : (1 : ℝ) ≤ n := by rw [hn_def]; linarith [(Nat.cast_nonneg m : (0 : ℝ) ≤ m)]
+  have hn1 : (1 : ℝ) ≤ n := le_add_of_nonneg_left (Nat.cast_nonneg m)
   -- `(n² / (n² - 1)) ^ (n - 1) ≤ exp ((n - 1) / (n² - 1)) = exp (1 / (n + 1))`
   have h1 : (n ^ 2 / (n ^ 2 - 1)) ^ m ≤ Real.exp (1 / (n + 1)) := by
     rcases Nat.eq_zero_or_pos m with rfl | hm0
     · simp only [pow_zero]
-      exact Real.one_le_exp (div_nonneg zero_le_one (by linarith))
-    · have hn2 : (2 : ℝ) ≤ n := by
-        have : (1 : ℝ) ≤ m := by exact_mod_cast hm0
-        linarith
-      have hnn : 0 < n ^ 2 - 1 := by nlinarith
-      have hbase : n ^ 2 / (n ^ 2 - 1) ≤ Real.exp (1 / (n ^ 2 - 1)) := by
-        calc n ^ 2 / (n ^ 2 - 1) = 1 / (n ^ 2 - 1) + 1 := by field_simp; ring
-          _ ≤ _ := Real.add_one_le_exp _
+      exact Real.one_le_exp (by positivity)
+    · have hn1' : (1 : ℝ) < n := by
+        rw [hn_def]; linarith only [(Nat.one_le_cast.2 hm0 : (1 : ℝ) ≤ m)]
+      have hnn : 0 < n ^ 2 - 1 := sub_pos.2 (one_lt_pow₀ hn1' two_ne_zero)
+      have hbase : n ^ 2 / (n ^ 2 - 1) ≤ Real.exp (1 / (n ^ 2 - 1)) :=
+        (le_of_eq (by field_simp; ring)).trans (Real.add_one_le_exp _)
       calc (n ^ 2 / (n ^ 2 - 1)) ^ m ≤ Real.exp (1 / (n ^ 2 - 1)) ^ m :=
             pow_le_pow_left₀ (div_nonneg (by positivity) hnn.le) hbase m
-        _ = Real.exp (m * (1 / (n ^ 2 - 1))) := (Real.exp_nat_mul _ _).symm
         _ = Real.exp (1 / (n + 1)) := by
+            rw [← Real.exp_nat_mul, show (m : ℝ) = n - 1 by rw [hn_def]; ring]
             congr 1
-            have hm : (m : ℝ) = n - 1 := by rw [hn_def]; ring
-            have hn1' : n + 1 ≠ 0 := by linarith
-            rw [hm]
             field_simp
             ring
-  -- `(n / (n + 1))² < exp (-2 / (n + 1))`
+  -- `(n / (n + 1))² < exp (-1 / (n + 1)) ^ 2 = exp (-2 / (n + 1))`
   have h2 : (n / (n + 1)) ^ 2 < Real.exp (-2 / (n + 1)) := by
     have hlt : n / (n + 1) < Real.exp (-1 / (n + 1)) := by
-      have h := Real.add_one_lt_exp (x := -1 / (n + 1)) (by
-        have : (0 : ℝ) < n + 1 := by positivity
-        exact div_ne_zero (by norm_num) this.ne')
       calc n / (n + 1) = -1 / (n + 1) + 1 := by field_simp; ring
-        _ < _ := h
+        _ < _ := Real.add_one_lt_exp (div_neg_of_neg_of_pos (by norm_num) (by positivity)).ne
     calc (n / (n + 1)) ^ 2 < Real.exp (-1 / (n + 1)) ^ 2 :=
           pow_lt_pow_left₀ hlt (by positivity) two_ne_zero
-      _ = Real.exp (-2 / (n + 1)) := by
-          rw [← Real.exp_nat_mul]
-          congr 1
-          push_cast
-          ring
+      _ = Real.exp (-2 / (n + 1)) := by rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
   calc (n ^ 2 / (n ^ 2 - 1)) ^ m * (n / (n + 1)) ^ 2
       < Real.exp (1 / (n + 1)) * Real.exp (-2 / (n + 1)) :=
         mul_lt_mul' h1 h2 (by positivity) (Real.exp_pos _)
-    _ = Real.exp (-1 / (n + 1)) := by
-        rw [← Real.exp_add]
-        congr 1
-        ring
+    _ = Real.exp (-1 / (n + 1)) := by rw [← Real.exp_add]; congr 1; ring
 
 /-- **Volume ratio** of a central cut: `vol E(A', c') < exp (-1 / (2 (n + 1))) · vol E(A, c)`
 [BertsimasTsitsiklis1997, Theorem 8.1(b)], [GrotschelLovaszSchrijver1988, Section 3.1]. Bertsimas
@@ -540,10 +514,9 @@ theorem volume_ellipsoid_centralCut_lt (hA : A.PosDef) (ha : a ≠ 0) (c : ι �
   rw [ENNReal.ofReal_lt_ofReal_iff (by positivity), det_centralCutShape hA ha]
   have hρlt := cut_ratio_lt hk
   have hρ0 : 0 ≤ ((Fintype.card ι : ℝ) ^ 2 / ((Fintype.card ι : ℝ) ^ 2 - 1)) ^
-      (Fintype.card ι - 1) * ((Fintype.card ι : ℝ) / ((Fintype.card ι : ℝ) + 1)) ^ 2 := by
-    refine mul_nonneg (pow_nonneg ?_ _) (by positivity)
-    have : (1 : ℝ) ≤ Fintype.card ι := by exact_mod_cast hk
-    apply div_nonneg <;> nlinarith
+      (Fintype.card ι - 1) * ((Fintype.card ι : ℝ) / ((Fintype.card ι : ℝ) + 1)) ^ 2 :=
+    mul_nonneg (pow_nonneg (div_nonneg (sq_nonneg _)
+      (sub_nonneg.2 (one_le_pow₀ (Nat.one_le_cast.2 hk)))) _) (by positivity)
   rw [Real.sqrt_mul hρ0]
   refine mul_lt_mul_of_pos_right ?_ (Real.sqrt_pos.mpr hdet)
   rw [Real.sqrt_lt' (Real.exp_pos _), ← Real.exp_nat_mul]

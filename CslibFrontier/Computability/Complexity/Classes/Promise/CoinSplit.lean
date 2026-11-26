@@ -111,8 +111,9 @@ private theorem card_append_lt {m : ℕ} (f : List Bool → Prop) [DecidablePred
     simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hr'' ⊢
     rwa [ofFn_appendCoins]
   rw [show 2 ^ (2 * m) = 2 ^ m * 2 ^ m by rw [two_mul, pow_add]] at h
-  have := lt_of_le_of_lt (Nat.mul_le_mul_left (2 * 2 ^ m) hle) h
-  nlinarith [Nat.two_pow_pos m]
+  exact Nat.lt_of_mul_lt_mul_left (a := 2 ^ m)
+    (by simpa only [Nat.mul_left_comm, Nat.mul_assoc] using
+      (Nat.mul_le_mul_left (2 * 2 ^ m) hle).trans_lt h)
 
 /-- **The error moves to the first half.** If fewer than a `2 ^ (-(m + 1))` fraction of the
 strings of length `2 m` satisfy `f`, then more than half of the first halves `r′` make `r′ r″`
@@ -132,10 +133,12 @@ private theorem lt_card_forall_not {m : ℕ} (f : List Bool → Prop) [Decidable
     simpa only [mem_filter, mem_univ, true_and, ofFn_appendCoins] using hr''
   have hle := (card_le_card hbad).trans card_image_le
   rw [show 2 ^ (2 * m) = 2 ^ m * 2 ^ m by rw [two_mul, pow_add]] at h
-  have hlt := lt_of_le_of_lt (Nat.mul_le_mul_left (2 * 2 ^ m) hle) h
+  have hlt : 2 * #goodᶜ < 2 ^ m := Nat.lt_of_mul_lt_mul_left (a := 2 ^ m)
+    (by simpa only [Nat.mul_left_comm, Nat.mul_assoc] using
+      (Nat.mul_le_mul_left (2 * 2 ^ m) hle).trans_lt h)
   have hsum : #goodᶜ + #good = 2 ^ m := by
     rw [card_compl_add_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-  nlinarith [Nat.two_pow_pos m]
+  omega
 
 open Classical in
 /-- On a no-instance, the erring strings are the accepting ones. -/
@@ -244,14 +247,7 @@ theorem coinSplit_mem_PromiseCoRP
   let V : (α × List Bool) × List Bool → Bool := fun q =>
     (q.1.2.length == p'.eval (encA q.1.1).length) && A' (q.1.1, q.1.2 ++ q.2)
   have hV : ComputableInPolyTime V (encPair (encPair encA encBits) encBits) encBool := by
-    have hp := ComputableInPolyTime.id'
-      (encIn := encPair (encPair encA encBits) encBits)
-    have hlength := ComputableInPolyTime.length_bits.comp hp.fst'.snd'
-    have hbudget := (ComputableInPolyTime.unary_eval p').comp
-      ((ComputableInPolyTime.encoding_length encA).comp hp.fst'.fst')
-    have hcall := hA'.comp (hp.fst'.fst'.prod
-      (ComputableInPolyTime.bitsAppend hp.fst'.snd' hp.snd'))
-    exact ComputableInPolyTime.bool_and' (ComputableInPolyTime.unary_beq hlength hbudget) hcall
+    polytime [V]
   rw [mem_PromiseCoRP_iff_exists_isPPTOn]
   refine ⟨fun q => (fun w => V (q, w)) <$> BitString.sampleList q.2.length,
     IsPPTOn.of_seeded ((ComputableInPolyTime.length_bits).comp (ComputableInPolyTime.snd _ _)) hV,
@@ -262,12 +258,8 @@ theorem coinSplit_mem_PromiseCoRP
       ⟨w, hw, hVw⟩
     simp [V, hlen, hall w hw] at hVw
   · change x ∉ S at hx
-    have hnot : Bool.not <$> ((fun w => V ((x, r'), w)) <$>
-        BitString.sampleList r'.length) = (fun w => !V ((x, r'), w)) <$>
-          BitString.sampleList r'.length := by
-      simp [Functor.map_map]
-    rw [hnot, probability_sampleList_verifier (fun q : (α × List Bool) × List Bool => !V q)]
-    rw [le_div_iff₀ (by positivity)]
+    rw [Functor.map_map, probability_sampleList_verifier (V := fun q => !V q),
+      le_div_iff₀ (by positivity)]
     by_cases hlen : r'.length = p'.eval (encA x).length
     · obtain ⟨s, rfl⟩ := exists_ofFn_eq hlen
       have hlt := card_append_lt (fun w => A' (x, w) = true) (accept_bound h hx) s
@@ -278,10 +270,7 @@ theorem coinSplit_mem_PromiseCoRP
       have hacc : acceptCount (fun q : (α × List Bool) × List Bool => !V q) (x, List.ofFn s)
           (List.ofFn s).length = #{r'' : Fin (p'.eval (encA x).length) → Bool |
             ¬A' (x, List.ofFn s ++ List.ofFn r'') = true} := by
-        rw [acceptCount, List.length_ofFn]
-        congr 1
-        ext r''
-        simp [V]
+        rw [acceptCount, List.length_ofFn]; congr 1; ext r''; simp [V]
       rw [hacc, List.length_ofFn]
       have : (2 ^ p'.eval (encA x).length : ℝ) ≤ 2 * (#{r'' : Fin (p'.eval (encA x).length) →
           Bool | ¬A' (x, List.ofFn s ++ List.ofFn r'') = true} : ℝ) := by
@@ -292,9 +281,6 @@ theorem coinSplit_mem_PromiseCoRP
           r'.length = 2 ^ r'.length := by
         rw [acceptCount, filter_true_of_mem fun r'' _ => by simp [V, hlen], card_univ,
           Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-      rw [hacc]
-      push_cast
-      have : (0 : ℝ) < 2 ^ r'.length := by positivity
-      linarith
+      rw [hacc]; push_cast; linarith [show (0 : ℝ) < 2 ^ r'.length by positivity]
 
 end Cslib.Complexity.PromiseProblem

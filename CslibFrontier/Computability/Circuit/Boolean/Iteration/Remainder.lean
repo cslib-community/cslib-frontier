@@ -28,7 +28,8 @@ particular an `m`-bit number modulo a nonzero `k`-bit input modulus has a circui
 `1 + m * (22 * (k + 1) + 3)` (`bounded_modulus_remainder`).
 
 Reducing both arguments this way gives a difference modulo `d` in `O(w ^ 2)` gates
-(`subMod`, `synthesis_subMod`).
+(`subMod`, `synthesis_subMod`). The same arithmetic reduces a time past a fixed prefix
+modulo a period, while a supplied short-time flag can retain the input itself.
 
 All gates of the native De Morgan basis, including constants, are charged; wiring and fanout
 are free.
@@ -71,9 +72,7 @@ private theorem equivBitVec_succ (bits : BitString (m + 1)) :
   rw [BitString.getLsbD_equivBitVec bits ⟨i, hi⟩, BitVec.getLsbD_concat]
   rcases i with _ | i
   · rfl
-  · simp only [Nat.add_one_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
-    rw [BitString.getLsbD_equivBitVec _ ⟨i, by omega⟩]
-    rfl
+  · simp [BitString.getLsbD_equivBitVec (fun j : Fin m => bits j.succ) ⟨i, by omega⟩]
 
 /-! ### Streaming remainders -/
 
@@ -98,11 +97,7 @@ private theorem toNat_remainderStep (d r : BitVec w) (b : Bool) (hd : 0 < d.toNa
   unfold remainderStep
   split_ifs with ht
   · rw [hs, Nat.mod_eq_of_lt (by simpa only [BitVec.ult, decide_eq_true_eq, hs] using ht)]
-  · have hle : d ≤ r.shiftConcat b := by
-      change d.toNat ≤ _
-      simp only [BitVec.ult, decide_eq_true_eq, hs, not_lt] at ht
-      rw [hs]
-      exact ht
+  · have hle : d ≤ r.shiftConcat b := BitVec.le_def.mpr (by simpa [BitVec.ult] using ht)
     rw [BitVec.toNat_sub_of_le hle, hs, Nat.mod_eq_sub_mod (by rwa [← hs]),
       Nat.mod_eq_of_lt (by omega)]
 
@@ -112,10 +107,7 @@ theorem toNat_streamRemainder (d : BitVec w) (bits : BitString m) (hd : 0 < d.to
     (hw : 2 * d.toNat ≤ 2 ^ w) :
     (streamRemainder d bits).toNat = (BitString.equivBitVec bits).toNat % d.toNat := by
   induction m with
-  | zero =>
-    have h : (BitString.equivBitVec bits).toNat = 0 := by
-      simpa using (BitString.equivBitVec bits).isLt
-    simp [streamRemainder, h]
+  | zero => simp [streamRemainder, Nat.lt_one_iff.mp (BitString.equivBitVec bits).isLt]
   | succ m ih =>
     rw [streamRemainder, toNat_remainderStep d _ _ hd hw (by rw [ih]; exact Nat.mod_lt _ hd), ih,
       equivBitVec_succ, BitVec.toNat_concat]
@@ -234,15 +226,10 @@ theorem toNat_subMod (a b d : BitVec w) (hd : 0 < d.toNat) (hw : 2 * d.toNat ≤
   · have hfit : a.toNat % d.toNat + d.toNat < 2 ^ w := by omega
     have hle : streamRemainder d (fun i : Fin w => b.getLsbD i.val) ≤
         streamRemainder d (fun i : Fin w => a.getLsbD i.val) + d := by
-      change _ ≤ (_ + _ : BitVec w).toNat
-      rw [BitVec.toNat_add, hra, hrb, Nat.mod_eq_of_lt hfit]
+      rw [BitVec.le_def, BitVec.toNat_add, hra, hrb, Nat.mod_eq_of_lt hfit]
       omega
     rw [BitVec.toNat_sub_of_le hle, BitVec.toNat_add, hra, hrb, Nat.mod_eq_of_lt hfit]
-  · have hle : streamRemainder d (fun i : Fin w => b.getLsbD i.val) ≤
-        streamRemainder d (fun i : Fin w => a.getLsbD i.val) := by
-      rw [BitVec.le_def, hra, hrb]
-      omega
-    rw [BitVec.toNat_sub_of_le hle, hra, hrb]
+  · rw [BitVec.toNat_sub_of_le (BitVec.le_def.mpr (by rw [hra, hrb]; omega)), hra, hrb]
 
 /-- A modular difference of available words costs two streaming remainders and a constant
 number of word operations: at most `50 * (w + 1) ^ 2` gates. -/
@@ -268,5 +255,62 @@ theorem synthesis_subMod (s : Set (BooleanFunction n)) (a b d : BitString n → 
     (fun x => ra x - rb x) (fun x => (ra x).ult (rb x))
   exact build.finish (by synthesis_available)
     (by dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]; nlinarith)
+
+/-- Select the time resized to `w` bits for a short query. For a long query reduce its
+displacement from `K` modulo the period `d`. The caller supplies its short-time test. -/
+def periodicTimeIndex (K : ℕ) (d : BitVec w) (bits : BitString m) (short : Bool) : BitVec w :=
+  let k := BitVec.ofNat w K
+  if short then (BitString.equivBitVec bits).setWidth w
+  else k + subMod (streamRemainder d bits) k d
+
+/-- Once the time reaches `K`, the compressed index is exactly `K + (t - K) % d` when
+the streaming remainder and the final sum fit in the word. -/
+theorem toNat_periodicTimeIndex_long (K : ℕ) (d : BitVec w) (bits : BitString m)
+    (hK : K ≤ (BitString.equivBitVec bits).toNat) (hd : 0 < d.toNat)
+    (hw : 2 * d.toNat ≤ 2 ^ w) (hfit : K + d.toNat ≤ 2 ^ w) :
+    (periodicTimeIndex K d bits false).toNat =
+      K + ((BitString.equivBitVec bits).toNat - K) % d.toNat := by
+  let t := (BitString.equivBitVec bits).toNat
+  have hbound : K < 2 ^ w := by lia
+  have he : (subMod (streamRemainder d bits) (BitVec.ofNat w K) d).toNat = (t - K) % d.toNat := by
+    rw [toNat_subMod _ _ _ hd hw, toNat_streamRemainder _ _ hd hw, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt hbound]
+    apply Nat.add_sub_mod_mod_eq_of_modEq hd (Nat.mod_lt _ hd)
+    calc
+      (t - K) % d.toNat + K ≡ (t - K) + K [MOD d.toNat] := (Nat.mod_modEq _ _).add_right _
+      _ = t := Nat.sub_add_cancel hK
+      _ ≡ t % d.toNat [MOD d.toNat] := (Nat.mod_modEq _ _).symm
+  change (BitVec.ofNat w K + subMod (streamRemainder d bits) (BitVec.ofNat w K) d).toNat = _
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hbound, he]
+  exact Nat.mod_eq_of_lt (by have := Nat.mod_lt (t - K) hd; lia)
+
+/-- Compress the available time using one streaming remainder, one modular difference,
+one addition and one selection. The selection reuses the caller's short-time flag. -/
+theorem synthesis_periodicTimeIndex (s : Set (BooleanFunction a)) (K : ℕ)
+    (d : BitString a → BitVec w) (bits : BitString a → BitString m) (short : BooleanFunction a)
+    (hd : wordWires d ⊆ s) (hb : ∀ j, (fun x => bits x j) ∈ s)
+    (hc : ∀ b : Bool, (fun _ : BitString a => b) ∈ s) (hshort : short ∈ s) :
+    Synthesis interpretation s (wordWires fun x => periodicTimeIndex K (d x) (bits x) (short x))
+      (m * (22 * w + 3) + 50 * (w + 1) ^ 2 + 16 * w + 1) := by
+  let bound := fun _ : BitString a => BitVec.ofNat w K
+  let rem := fun x => streamRemainder (d x) (bits x)
+  let diff := fun x => subMod (rem x) (bound x) (d x)
+  let tword := fun x => BitString.equivBitVec (bits x)
+  have hword : wordWires tword ⊆ s := by
+    rintro _ ⟨i, rfl⟩
+    simpa only [tword, BitString.getLsbD_equivBitVec] using hb i
+  have hbound : wordWires bound ⊆ s := by
+    rintro _ ⟨i, rfl⟩
+    exact hc ((BitVec.ofNat w K).getLsbD i.val)
+  let b := Synthesis.Builder.start interpretation s
+  synthesis_step b using synthesis_streamRemainder b.wires d bits
+  synthesis_step b using synthesis_subMod b.wires rem bound d
+  synthesis_step b using Synthesis.word_add bound diff
+  have hresize := wordWires_setWidth_subset (v := w) (s := b.wires) (value := tword)
+    (by synthesis_available) (by synthesis_available)
+  synthesis_step b using Synthesis.word_mux (fun x => (tword x).setWidth w)
+    (fun x => bound x + diff x) short
+  exact b.finish (by synthesis_available)
+    (by dsimp +zetaDelta [Synthesis.Builder.start, Synthesis.Builder.add]; lia)
 
 end Cslib.Circuits.Boolean.Iteration

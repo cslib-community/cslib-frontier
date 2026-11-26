@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEMFromPKE
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid.CCA
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PPT
 
 /-!
 # CCA security of encrypted-key encapsulation
@@ -76,13 +77,8 @@ in unary; the reduction does not execute key generation, encryption or decryptio
 theorem isPPT_kemToCCAAdversary {keyLen : ℕ → ℕ} {distinguisher : OracleDistinguisher}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     (hdist : IsOraclePPT encBool distinguisher) :
-    (kemToCCAAdversary keyLen distinguisher).IsPPT encBits := by
-  refine ⟨(isPPTOn_kemToPKEChoose hkeyLen).isOraclePPTOn.isOraclePPT, ?_⟩
-  let hg1 := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
-  let hg2 := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
-  exact hdist.on.preprocess
-    (hg1.prod (((ComputableInPolyTime.unframe.comp' hg2.fst').prod
-      ((ComputableInPolyTime.dropFrame.comp' hg2.fst').prod hg2.snd')).encoding_comp))
+    (kemToCCAAdversary keyLen distinguisher).IsPPT encBits :=
+  ⟨(isPPTOn_kemToPKEChoose hkeyLen).isOraclePPTOn.isOraclePPT, by ppt [kemToCCAAdversary]⟩
 
 private theorem eval_cca2GameOn_kemToCCAAdversary (keyLen : ℕ → ℕ)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))

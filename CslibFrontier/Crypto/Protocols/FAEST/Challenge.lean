@@ -95,17 +95,16 @@ theorem largeCount_le (p : ChallengeParams) : p.largeCount <= p.repetitions :=
   (p.largeCount_lt).le
 
 theorem smallCount_add_largeCount (p : ChallengeParams) :
-    p.smallCount + p.largeCount = p.repetitions := by
-  exact Nat.sub_add_cancel p.largeCount_le
+    p.smallCount + p.largeCount = p.repetitions :=
+  Nat.sub_add_cancel p.largeCount_le
 
-theorem largeWidth_pos (p : ChallengeParams) : 0 < p.largeWidth := by
-  exact Nat.zero_lt_succ _
+theorem largeWidth_pos (p : ChallengeParams) : 0 < p.largeWidth :=
+  Nat.zero_lt_succ _
 
 theorem blockWidth_pos (p : ChallengeParams) {i : Nat} (_hi : i < p.repetitions) :
     0 < p.blockWidth i := by
-  have hq : 0 < p.nonGrindingBits / p.repetitions :=
-    Nat.div_pos p.repetitions_le p.repetitions_pos
-  simp only [blockWidth, largeWidth]
+  have := Nat.div_pos p.repetitions_le p.repetitions_pos
+  simp only [blockWidth, largeWidth, nonGrindingBits]
   split <;> omega
 
 theorem blockOffset_zero (p : ChallengeParams) : p.blockOffset 0 = 0 := by
@@ -117,40 +116,24 @@ theorem blockOffset_succ (p : ChallengeParams) {i : Nat} :
     p.blockOffset (i + 1) = p.blockOffset i + p.blockWidth i := by
   by_cases hir : i < p.largeCount
   · by_cases hnext : i + 1 < p.largeCount
-    · simp only [blockOffset, blockWidth, hir, hnext, ↓reduceIte]
-      rw [Nat.add_mul]
-      simp
+    · simp [blockOffset, blockWidth, hir, hnext, Nat.add_mul]
     · have heq : i + 1 = p.largeCount := by omega
-      simp only [blockOffset, blockWidth, hir, hnext, ↓reduceIte]
-      rw [heq]
-      simp only [Nat.sub_self, Nat.zero_mul, Nat.add_zero]
-      rw [← heq, Nat.add_mul]
-      simp
+      simp [blockOffset, blockWidth, ← heq, Nat.add_mul]
   · have hnext : ¬(i + 1 < p.largeCount) := by omega
-    have hsub : i + 1 - p.largeCount = (i - p.largeCount) + 1 := by omega
-    simp only [blockOffset, blockWidth, hir, hnext, ↓reduceIte, hsub, Nat.add_mul,
-      Nat.one_mul, Nat.add_assoc]
+    have hsub : i + 1 - p.largeCount = i - p.largeCount + 1 := by omega
+    simp [blockOffset, blockWidth, hir, hnext, hsub, Nat.add_mul, Nat.add_assoc]
 
 /-- The consecutive block slices end exactly at `n_Delta = lambda - w_grind`. -/
 theorem blockOffset_repetitions (p : ChallengeParams) :
     p.blockOffset p.repetitions = p.nonGrindingBits := by
-  have hnot : ¬(p.repetitions < p.largeCount) := Nat.not_lt.mpr p.largeCount_le
-  simp only [blockOffset, hnot, ↓reduceIte, largeWidth, Nat.add_sub_cancel]
-  have hcount := p.largeCount_le
-  rw [Nat.mul_add, Nat.mul_one, Nat.sub_mul]
-  have hmul : p.largeCount * (p.nonGrindingBits / p.repetitions) <=
-      p.repetitions * (p.nonGrindingBits / p.repetitions) :=
-    Nat.mul_le_mul_right (p.nonGrindingBits / p.repetitions) hcount
+  simp only [blockOffset, Nat.not_lt.mpr p.largeCount_le, ↓reduceIte, largeWidth,
+    Nat.add_sub_cancel, Nat.mul_add, Nat.mul_one, Nat.sub_mul]
+  have hmul := Nat.mul_le_mul_right (p.nonGrindingBits / p.repetitions) p.largeCount_le
   calc
     p.largeCount * (p.nonGrindingBits / p.repetitions) + p.largeCount +
           (p.repetitions * (p.nonGrindingBits / p.repetitions) -
             p.largeCount * (p.nonGrindingBits / p.repetitions)) =
-        p.largeCount +
-          (p.largeCount * (p.nonGrindingBits / p.repetitions) +
-            (p.repetitions * (p.nonGrindingBits / p.repetitions) -
-              p.largeCount * (p.nonGrindingBits / p.repetitions))) := by ac_rfl
-    _ = p.largeCount + p.repetitions * (p.nonGrindingBits / p.repetitions) := by
-      rw [Nat.add_sub_of_le hmul]
+        p.largeCount + p.repetitions * (p.nonGrindingBits / p.repetitions) := by omega
     _ = p.nonGrindingBits := by
       simpa only [largeCount] using Nat.mod_add_div p.nonGrindingBits p.repetitions
 
@@ -158,11 +141,9 @@ theorem blockOffset_repetitions (p : ChallengeParams) :
 theorem blockOffset_add_width_le (p : ChallengeParams) {i : Nat} (hi : i < p.repetitions) :
     p.blockOffset i + p.blockWidth i <= p.nonGrindingBits := by
   rw [← p.blockOffset_succ]
-  have hmono : Monotone p.blockOffset := monotone_nat_of_le_succ fun j => by
-    rw [p.blockOffset_succ]
-    exact Nat.le_add_right _ _
   calc
-    p.blockOffset (i + 1) <= p.blockOffset p.repetitions := hmono (by omega)
+    p.blockOffset (i + 1) <= p.blockOffset p.repetitions :=
+      monotone_nat_of_le_succ (fun j => p.blockOffset_succ ▸ Nat.le_add_right _ _) hi
     _ = p.nonGrindingBits := p.blockOffset_repetitions
 
 end ChallengeParams

@@ -12,9 +12,7 @@ public import CslibFrontier.DataStructure.SearchTree.Cost
 public import Mathlib.Algebra.BigOperators.Intervals
 public import Mathlib.Algebra.Order.Monoid.Defs
 public import Mathlib.Order.Interval.Finset.Nat
-import Mathlib.Algebra.Order.Interval.Finset.SuccPred
 import Mathlib.Tactic.Abel
-import Mathlib.Tactic.SplitIfs
 
 /-!
 # Optimal binary search trees: the interval recurrence
@@ -85,12 +83,8 @@ theorem isBST_iff {i j : ℕ} {t : BinaryTree ℕ} :
     | @node i j k l r hik hkj _ _ ihl ihr =>
       obtain ⟨-, hol, hel⟩ := ihl
       obtain ⟨-, hor, her⟩ := ihr
-      refine ⟨by omega, ⟨hol, hor, ?_, ?_⟩, ?_⟩
-      · intro x hx
-        rw [hel, mem_Ioc] at hx
-        omega
-      · intro x hx
-        rw [her, mem_Ioc] at hx
+      refine ⟨by omega, ⟨hol, hor, fun x hx => ?_, fun x hx => (mem_Ioc.1 (her ▸ hx)).1⟩, ?_⟩
+      · rw [hel, mem_Ioc] at hx
         omega
       · ext x
         simp only [mem_elements_node, hel, her, mem_Ioc]
@@ -98,12 +92,8 @@ theorem isBST_iff {i j : ℕ} {t : BinaryTree ℕ} :
   · induction t generalizing i j with
     | nil =>
       rintro ⟨hij, -, he⟩
-      have : j ≤ i := by
-        by_contra hc
-        have : j ∈ Ioc i j := mem_Ioc.2 ⟨by omega, le_rfl⟩
-        rw [← he, elements] at this
-        exact absurd this (notMem_empty j)
-      obtain rfl : i = j := le_antisymm hij this
+      rw [elements, eq_comm, Ioc_eq_empty_iff] at he
+      obtain rfl : i = j := by omega
       exact .nil i
     | node a l r ihl ihr =>
       rintro ⟨hij, ⟨hol, hor, hla, hra⟩, he⟩
@@ -113,12 +103,17 @@ theorem isBST_iff {i j : ℕ} {t : BinaryTree ℕ} :
       -- each child holds exactly the keys of `(i, j]` on its side of the root
       have hel : elements l = Ioc i (a - 1) := by
         ext x
-        have := hmem x
-        grind [mem_elements_node]
+        rw [mem_Ioc]
+        exact ⟨fun hx => ⟨((hmem x).1 (mem_elements_node.2 (.inr (.inl hx)))).1,
+            Nat.le_sub_one_of_lt (hla x hx)⟩,
+          fun hx => ((mem_elements_node.1 ((hmem x).2 ⟨hx.1, by omega⟩)).resolve_left
+            (by omega)).resolve_right fun hr => by have := hra x hr; omega⟩
       have her : elements r = Ioc a j := by
         ext x
-        have := hmem x
-        grind [mem_elements_node]
+        rw [mem_Ioc]
+        exact ⟨fun hx => ⟨hra x hx, ((hmem x).1 (mem_elements_node.2 (.inr (.inr hx)))).2⟩,
+          fun hx => ((mem_elements_node.1 ((hmem x).2 ⟨by omega, hx.2⟩)).resolve_left
+            (by omega)).resolve_left fun hl => by have := hla x hl; omega⟩
       exact .node ha.1 ha.2 (ihl ⟨by omega, hol, hel⟩) (ihr ⟨ha.2, hor, her⟩)
 
 variable {β : Type*}
@@ -162,42 +157,30 @@ theorem treeCost_knuthWeight (p q : ℕ → β) {i j : ℕ} {t : BinaryTree ℕ}
     have hl' := hl.le
     simp only [Nat.add_sub_cancel] at hl'
     -- split the key range `(i, j]` at the root
-    have hIoc : ∀ f : ℕ → β, ∑ x ∈ Ioc i j, f x =
+    have hIoc (f : ℕ → β) : ∑ x ∈ Ioc i j, f x =
         ∑ x ∈ Ioc i s, f x + f (s + 1) + ∑ x ∈ Ioc (s + 1) j, f x := by
-      intro f
       rw [← sum_Ioc_consecutive f hl' (by omega : s ≤ j),
         ← sum_Ioc_consecutive f (by omega : s ≤ s + 1) hkj, Nat.Ioc_succ_singleton, sum_singleton,
         add_assoc]
-    have hIcc : ∀ f : ℕ → β, ∑ x ∈ Icc i j, f x =
+    have hIcc (f : ℕ → β) : ∑ x ∈ Icc i j, f x =
         ∑ x ∈ Icc i s, f x + ∑ x ∈ Icc (s + 1) j, f x := by
-      intro f
       rw [← Ico_add_one_right_eq_Icc, ← Ico_add_one_right_eq_Icc, ← Ico_add_one_right_eq_Icc,
         sum_Ico_consecutive f (by omega : i ≤ s + 1) (by omega : s + 1 ≤ j + 1)]
-    rw [hIoc, hIcc]
-    have e1 : ∑ x ∈ Ioc i s, searchVisits x (.node (s + 1) l r) • p x =
-        ∑ x ∈ Ioc i s, p x + ∑ x ∈ Ioc i s, searchVisits x l • p x :=
-      sum_nsmul_of_eq_one_add _ _ fun x hx => by
-        rw [mem_Ioc] at hx
-        rw [searchVisits, ite_eq_left (by omega)]
-    have e2 : searchVisits (s + 1) (.node (s + 1) l r) • p (s + 1) = p (s + 1) := by
-      rw [searchVisits, ite_eq_right (lt_irrefl _), ite_eq_right (lt_irrefl _), add_zero, one_nsmul]
-    have e3 : ∑ x ∈ Ioc (s + 1) j, searchVisits x (.node (s + 1) l r) • p x =
-        ∑ x ∈ Ioc (s + 1) j, p x + ∑ x ∈ Ioc (s + 1) j, searchVisits x r • p x :=
-      sum_nsmul_of_eq_one_add _ _ fun x hx => by
-        rw [mem_Ioc] at hx
-        rw [searchVisits, ite_eq_right (by omega), ite_eq_left (by omega)]
-    have e4 : ∑ x ∈ Icc i s, successorVisits x (.node (s + 1) l r) • q x =
-        ∑ x ∈ Icc i s, q x + ∑ x ∈ Icc i s, successorVisits x l • q x :=
-      sum_nsmul_of_eq_one_add _ _ fun x hx => by
-        rw [mem_Icc] at hx
-        rw [successorVisits, ite_eq_left (by omega)]
-    have e5 : ∑ x ∈ Icc (s + 1) j, successorVisits x (.node (s + 1) l r) • q x =
-        ∑ x ∈ Icc (s + 1) j, q x + ∑ x ∈ Icc (s + 1) j, successorVisits x r • q x :=
-      sum_nsmul_of_eq_one_add _ _ fun x hx => by
-        rw [mem_Icc] at hx
-        rw [successorVisits, ite_eq_right (by omega)]
-    rw [e1, e2, e3, e4, e5, treeCost, Nat.add_sub_cancel, ihl, ihr, knuthWeight, hIoc, hIcc]
-    abel
+    rw [hIoc, hIcc,
+      sum_nsmul_of_eq_one_add (Ioc i s) p (v' := (searchVisits · l)),
+      sum_nsmul_of_eq_one_add (Ioc (s + 1) j) p (v' := (searchVisits · r)),
+      sum_nsmul_of_eq_one_add (Icc i s) q (v' := (successorVisits · l)),
+      sum_nsmul_of_eq_one_add (Icc (s + 1) j) q (v' := (successorVisits · r)),
+      show searchVisits (s + 1) (.node (s + 1) l r) • p (s + 1) = p (s + 1) by
+        rw [searchVisits, ite_eq_right (lt_irrefl _), ite_eq_right (lt_irrefl _), add_zero,
+          one_nsmul],
+      treeCost, Nat.add_sub_cancel, ihl, ihr, knuthWeight, hIoc, hIcc]
+    · abel
+    · intro x hx; rw [mem_Icc] at hx; rw [successorVisits, ite_eq_right (by omega)]
+    · intro x hx; rw [mem_Icc] at hx; rw [successorVisits, ite_eq_left (by omega)]
+    · intro x hx; rw [mem_Ioc] at hx
+      rw [searchVisits, ite_eq_right (by omega), ite_eq_left (by omega)]
+    · intro x hx; rw [mem_Ioc] at hx; rw [searchVisits, ite_eq_left (by omega)]
 
 end Cost
 

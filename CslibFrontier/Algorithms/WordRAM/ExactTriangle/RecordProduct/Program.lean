@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Recor
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Callable.Width
 public import CslibFrontier.Algorithms.WordRAM.NatLog
 public import CslibFrontier.Computability.WordRAM.Copy
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Calling a queried product from an actual prepared record
@@ -166,9 +167,8 @@ end Reg
 /-- One selected actual producer record, including all copying and the complete native callee. -/
 @[expose] def program : Code .standard 320 := .seq prepare invoke
 
--- The closed syntactic traversal includes the complete existing large callee.
-set_option maxRecDepth 4096 in
 /-- One fixed finite native program, independent of dimensions, record ordinal and word width. -/
-theorem program_fixed : program.size ≤ 131584 ∧ ¬program.ReadsWidth := by decide
+theorem program_fixed : program.size ≤ 131584 ∧ ¬program.ReadsWidth :=
+  ⟨by decide +kernel, Code.not_readsWidth_of_readsWidthBool rfl⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct

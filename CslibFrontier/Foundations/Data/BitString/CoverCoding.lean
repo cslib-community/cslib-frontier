@@ -90,17 +90,10 @@ theorem coverRank_lt_ballSize {q : ℕ} (e : ℕ) (z : Fin q → Bool) (hz : wei
     | succ e =>
       rw [coverRank, ballSize_succ_succ]
       have hcons := weight_cons_succ z
-      cases h0 : z 0
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        have hz' : weight (fun i : Fin q => z i.succ) ≤ e + 1 := by
-          simp only [h0, Bool.toNat_false, zero_add] at hcons
-          omega
-        exact (ih (e + 1) _ hz').trans_le (Nat.le_add_right _ _)
-      · simp only [↓reduceIte]
-        have hz' : weight (fun i : Fin q => z i.succ) ≤ e := by
-          simp only [h0, Bool.toNat_true] at hcons
-          omega
-        exact Nat.add_lt_add_left (ih e _ hz') _
+      cases h0 : z 0 <;> simp only [h0, Bool.false_eq_true, Bool.toNat_false, Bool.toNat_true,
+        zero_add, ↓reduceIte] at hcons ⊢
+      · exact (ih (e + 1) _ (by omega)).trans_le (Nat.le_add_right _ _)
+      · exact Nat.add_lt_add_left (ih e _ (by omega)) _
 
 /-- Every decoded word `coverDecode q e t` has Hamming weight at most `e`. -/
 theorem weight_coverDecode_le (q e t : ℕ) :
@@ -116,8 +109,8 @@ theorem weight_coverDecode_le (q e t : ℕ) :
     | succ e =>
       rcases le_or_gt (ballSize q (e + 1)) t with ht | ht
       · rw [coverDecode_succ_succ_of_le ht, weight_cons_succ]
-        simp only [Fin.cons_zero, Fin.cons_succ, Bool.toNat_true]
-        exact (Nat.add_comm _ _).trans_le (Nat.succ_le_succ (ih e _))
+        simpa only [Fin.cons_zero, Fin.cons_succ, Bool.toNat_true, Nat.add_comm 1] using
+          Nat.succ_le_succ (ih e _)
       · rw [coverDecode_succ_succ_of_lt ht, weight_cons_succ]
         simpa only [Fin.cons_zero, Fin.cons_succ, Bool.toNat_false, zero_add] using ih (e + 1) t
 
@@ -159,34 +152,23 @@ private theorem eq_false_of_weight_le_zero {q : ℕ} {z : Fin q → Bool} (hz : 
 theorem coverDecode_coverRank {q e : ℕ} (z : Fin q → Bool) (hz : weight z ≤ e) :
     coverDecode q e (coverRank e z) = z := by
   induction q generalizing e with
-  | zero =>
-    funext i
-    exact i.elim0
+  | zero => exact funext fun i => i.elim0
   | succ q ih =>
     cases e with
-    | zero =>
-      funext i
-      rw [eq_false_of_weight_le_zero hz i]
-      rfl
+    | zero => exact funext fun i => (eq_false_of_weight_le_zero hz i).symm
     | succ e =>
       have hcons := weight_cons_succ z
       conv_rhs => rw [← Fin.cons_self_tail z]
-      cases h0 : z 0
-      · have hz' : weight (fun i : Fin q => z i.succ) ≤ e + 1 := by
-          simp only [h0, Bool.toNat_false, zero_add] at hcons
-          omega
-        have hr : coverRank (e + 1) z = coverRank (e + 1) (fun i : Fin q => z i.succ) := by
+      cases h0 : z 0 <;> simp only [h0, Bool.toNat_false, Bool.toNat_true, zero_add] at hcons
+      · have hr : coverRank (e + 1) z = coverRank (e + 1) (fun i => z i.succ) := by
           simp [coverRank, h0]
-        rw [hr, coverDecode_succ_succ_of_lt (coverRank_lt_ballSize (e + 1) _ hz'), ih _ hz']
+        rw [hr, coverDecode_succ_succ_of_lt (coverRank_lt_ballSize (e + 1) _ (by omega)),
+          ih _ (by omega)]
         rfl
-      · have hz' : weight (fun i : Fin q => z i.succ) ≤ e := by
-          simp only [h0, Bool.toNat_true] at hcons
-          omega
-        have hr : coverRank (e + 1) z =
-            ballSize q (e + 1) + coverRank e (fun i : Fin q => z i.succ) := by
+      · have hr : coverRank (e + 1) z = ballSize q (e + 1) + coverRank e (fun i => z i.succ) := by
           simp [coverRank, h0]
         rw [hr, coverDecode_succ_succ_of_le (Nat.le_add_right _ _), Nat.add_sub_cancel_left,
-          ih _ hz']
+          ih _ (by omega)]
         rfl
 
 end Cslib.BitString

@@ -33,8 +33,7 @@ private theorem exists_atEnd_of_eval_eq_endpoint {p : Route} (hp : p.IsSimple)
   rcases hp i (p.endSegment b) t (Route.endTime b 0) ht
       (Route.endTime_mem b ⟨le_rfl, zero_le_one⟩) (heq.trans hend.symm) with h | h | h
   · refine ⟨b, ?_⟩
-    unfold Route.AtEnd
-    rw [h, p.position_near_end]
+    rw [Route.AtEnd, h, p.position_near_end]
     cases b <;> simp
   · exact ⟨false, h.1⟩
   · exact ⟨true, h.1⟩
@@ -45,9 +44,7 @@ theorem IsEmbedding.of_same_route_supports {G : Graph} {D E : PolygonalDrawing G
     (hD : D.IsEmbedding) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
     (hvertex : E.vertex = D.vertex) (hsimple : ∀ e, (E.route e).IsSimple)
     (hsupport : ∀ e, (E.route e).support = (D.route e).support) : E.IsEmbedding := by
-  have hinj : Set.InjOn E.vertex {v | v ∈ G.vertices} := by
-    rw [hvertex]
-    exact hD.vertices_injective
+  have hinj : Set.InjOn E.vertex {v | v ∈ G.vertices} := hvertex ▸ hD.vertices_injective
   have sample (e : Fin G.edges.length) (i : Fin (E.route e).segments) (t : ℝ)
       (ht : t ∈ Set.Icc 0 1) :
       ∃ (j : Fin (D.route e).segments) (s : ℝ), s ∈ Set.Icc 0 1 ∧
@@ -77,11 +74,9 @@ theorem IsEmbedding.of_same_route_supports {G : Graph} {D E : PolygonalDrawing G
     obtain ⟨j', t', ht', hj'⟩ := sample f j t ht
     obtain ⟨b, c, hb, hc, hbc⟩ :=
       hD.edge_contacts e f hef i' j' s' t' hs' ht' (hi'.trans (heq.trans hj'.symm))
-    have same_end (k : Fin G.edges.length) (l : Fin (D.route k).segments) (u : ℝ)
-        (hu : u ∈ Set.Icc 0 1) (a : Bool) (ha : (D.route k).AtEnd l u a) :
-        (D.route k).eval l u = E.vertex (Dart.vertex (k, a)) := by
-      rw [hvertex]
-      exact ((D.route k).at_eq_endpoint l hu a ha).trans (D.endpoint_eq k a)
+    have same_end (k) (l : Fin (D.route k).segments) (u) (hu : u ∈ Set.Icc 0 1) (a)
+        (ha : (D.route k).AtEnd l u a) : (D.route k).eval l u = E.vertex (Dart.vertex (k, a)) :=
+      ((D.route k).at_eq_endpoint l hu a ha).trans ((D.endpoint_eq k a).trans (hvertex ▸ rfl))
     obtain ⟨b', hb', heb⟩ := end_at e i s hs b (hi'.symm.trans (same_end e i' s' hs' b hb))
     obtain ⟨c', hc', hfc⟩ := end_at f j t ht c (hj'.symm.trans (same_end f j' t' ht' c hc))
     exact ⟨b', c', hb', hc', heb.trans (hbc.trans hfc.symm)⟩

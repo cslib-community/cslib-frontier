@@ -118,9 +118,7 @@ theorem Clause.length_eraseDupLits_le (c : Clause V) : c.eraseDupLits.length ≤
 literals. -/
 theorem Clause.length_eraseDupLits (c : Clause V) : c.eraseDupLits.length = c.toFinset.card := by
   rw [← List.toFinset_card_of_nodup c.nodup_eraseDupLits]
-  congr 1
-  ext l
-  simp
+  exact congrArg Finset.card (Finset.ext fun _ => by simp)
 
 /-- Removing repeated literals does not change the value of a clause. -/
 @[simp] theorem Clause.eval_eraseDupLits (σ : V → Bool) (c : Clause V) :
@@ -149,24 +147,15 @@ theorem CNF.countUnsat_restrict {σ : V → Bool} {v : V} {b : Bool} (hσ : σ v
   | nil => rfl
   | cons c ψ ih =>
     rw [CNF.restrict_cons]
-    split
-    · rename_i h
-      have hc : c.eval σ = true :=
-        (Clause.eval_eq_true_iff σ c).2 ⟨_, h, by simp [hσ]⟩
-      rw [ih]
-      exact (List.countP_cons_of_neg (by simp [hc])).symm
+    split_ifs with h
+    · exact ih.trans (List.countP_cons_of_neg
+        (by simp [(Clause.eval_eq_true_iff σ c).2 ⟨_, h, by simp [hσ]⟩])).symm
     · have hc : Clause.eval σ (c.filter (· ≠ (v, !b))) = c.eval σ := by
         rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-        constructor
-        · rintro ⟨l, hl, hle⟩
-          exact ⟨l, (List.mem_filter.1 hl).1, hle⟩
-        · rintro ⟨l, hl, hle⟩
-          refine ⟨l, List.mem_filter.2 ⟨hl, ?_⟩, hle⟩
-          rw [decide_eq_true_iff]
-          rintro rfl
-          simp [hσ] at hle
-      simp only [CNF.countUnsat, List.countP_cons, hc] at ih ⊢
-      rw [ih]
+        simp only [List.mem_filter, decide_eq_true_eq]
+        exact ⟨fun ⟨l, hl, hle⟩ => ⟨l, hl.1, hle⟩,
+          fun ⟨l, hl, hle⟩ => ⟨l, ⟨hl, fun heq => by simp [heq, hσ] at hle⟩, hle⟩⟩
+      simpa only [CNF.countUnsat, List.countP_cons, hc] using congrArg (· + _) ih
 
 /-! ### Johnson's weight -/
 
@@ -217,42 +206,27 @@ theorem CNF.johnsonWeight_restrict_add_le {L : ℕ} (v : V) {ψ : CNF V}
     -- Deleting one literal from a nonempty clause doubles its term.
     have hdouble {a : Literal V} (ha : a ∈ c) :
         2 ^ (L - (c.filter (· ≠ a)).length) = 2 ^ (L - c.length) + 2 ^ (L - c.length) := by
-      have h1 := length_filter_ne_add_one hnd ha
-      rw [show L - (c.filter (· ≠ a)).length = L - c.length + 1 by omega,
-        pow_succ]
-      ring
+      have h1 : L - (c.filter (· ≠ a)).length = L - c.length + 1 := by
+        have := length_filter_ne_add_one hnd ha
+        omega
+      rw [h1, pow_succ, Nat.mul_two]
     by_cases hT : (v, true) ∈ c <;> by_cases hF : (v, false) ∈ c <;>
       simp only [hT, hF, ite_true, ite_false, CNF.johnsonWeight_cons, Bool.not_true,
         Bool.not_false]
-    · generalize 2 ^ (L - c.length) = p
-      omega
-    · rw [hdouble hT]
-      generalize 2 ^ (L - c.length) = p
-      omega
-    · rw [hdouble hF]
-      generalize 2 ^ (L - c.length) = p
-      omega
+    · lia
+    · linarith [hdouble hT]
+    · linarith [hdouble hF]
     · rw [filter_ne_eq_self hT, filter_ne_eq_self hF]
-      generalize 2 ^ (L - c.length) = p
-      omega
+      lia
 
 omit [DecidableEq V] in
 /-- A formula without variables has weight `2 ^ L` per clause, all of them falsified. -/
 theorem CNF.johnsonWeight_of_vars_eq_nil {L : ℕ} {ψ : CNF V} (hψ : ∀ v, v ∉ ψ.vars)
     (σ : V → Bool) : ψ.johnsonWeight L = 2 ^ L * ψ.countUnsat σ := by
-  induction ψ with
-  | nil => rfl
-  | cons c ψ ih =>
-    have hc : c = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
-      hψ l.1 (CNF.mem_vars.2 ⟨c, List.mem_cons_self, l.2, hl⟩)
-    have ih := ih fun v hv => hψ v (by
-      obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hv
-      exact CNF.mem_vars.2 ⟨c', List.mem_cons_of_mem _ hc', b, hb⟩)
-    subst hc
-    have h1 : CNF.countUnsat σ ([] :: ψ) = CNF.countUnsat σ ψ + 1 :=
-      List.countP_cons_of_pos (by simp)
-    rw [CNF.johnsonWeight_cons, h1, ih, List.length_nil, Nat.sub_zero]
-    ring
+  have hnil : ψ = List.replicate ψ.length [] := List.eq_replicate_length.2 fun c hc =>
+    List.eq_nil_iff_forall_not_mem.2 fun l hl => hψ l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩)
+  rw [hnil]
+  simp [CNF.johnsonWeight, CNF.countUnsat, List.countP_replicate, Nat.mul_comm]
 
 /-! ### Johnson's algorithm -/
 
@@ -300,25 +274,19 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
       obtain ⟨c₀, hc₀, -, rfl⟩ := CNF.mem_restrict.1 hc
       exact (List.mem_cons.1 (hvars w (CNF.mem_vars.2 ⟨c₀, hc₀, b', (List.mem_filter.1 hl).1⟩)))
         |>.resolve_left hne
-    · have hw : w = r ∨ w ∈ T := by
-        cases b
-        · exact .inr hw
-        · exact List.mem_cons.1 hw
+    · have hw : w = r ∨ w ∈ T := by cases b; exacts [.inr hw, List.mem_cons.1 hw]
       rcases hw with rfl | hw
-      · exact hr
-      · exact fun h => hT w hw (List.mem_cons_of_mem _ h)
+      exacts [hr, fun h => hT w hw (List.mem_cons_of_mem _ h)]
     · have hrσ : σ r = b := by
         rw [hσ r hr]
         cases b
-        · simpa [johnsonBranch] using fun h => hT r h List.mem_cons_self
+        · exact decide_eq_false (fun h => hT r h List.mem_cons_self)
         · simp [johnsonBranch]
-      have hσ' : ∀ v, v ∉ r :: rs → σ v = decide (v ∈ T) := by
-        intro v hv
-        rw [List.mem_cons, not_or] at hv
-        rw [hσ v hv.2]
-        cases b <;> simp [johnsonBranch, hv.1]
       rw [johnsonBranch, CNF.countUnsat_restrict hrσ]
-      exact hcount σ hσ'
+      refine hcount σ fun v hv => ?_
+      rw [List.mem_cons, not_or] at hv
+      rw [hσ v hv.2]
+      cases b <;> simp [johnsonBranch, hv.1]
   have havg : ∀ r rs s, Inv (r :: rs) s →
       (johnsonBranch r true s).1.johnsonWeight L + (johnsonBranch r false s).1.johnsonWeight L ≤
         s.1.johnsonWeight L + s.1.johnsonWeight L :=
@@ -333,9 +301,8 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
   obtain ⟨⟨-, -, hvars, -, hcount⟩, hle⟩ :=
     greedy_spec_of_add_le johnsonBranch (fun s => s.1.johnsonWeight L) Inv hbranch havg _ _ hinit
   have hcount := hcount (johnsonAssignment φ) fun v _ => rfl
-  rw [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => by simpa using hvars v hv)
+  rwa [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => by simpa using hvars v hv)
     (johnsonAssignment φ), hcount] at hle
-  exact hle
 
 /-! ### Corollaries -/
 
@@ -384,9 +351,8 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le_length {k : ℕ} {φ : CNF V
     simpa only [CNF.johnsonWeight_eraseDupLits] using two_pow_mul_countUnsat_johnsonAssignment_le φ
   have hw : (φ.map fun c => 2 ^ (L - c.toFinset.card)).sum ≤ φ.length * 2 ^ (L - k) := by
     rw [← smul_eq_mul, ← List.sum_replicate, ← List.map_const']
-    exact List.sum_le_sum fun c hc => Nat.pow_le_pow_right (by norm_num) (by
-      have := hk c hc
-      omega)
+    exact List.sum_le_sum fun c hc => Nat.pow_le_pow_right (by norm_num)
+      (Nat.sub_le_sub_left (hk c hc) L)
   have hsplit : 2 ^ L = 2 ^ k * 2 ^ (L - k) := by rw [← pow_add, Nat.add_sub_cancel' hkL]
   rw [hsplit, mul_right_comm] at h
   exact Nat.le_of_mul_le_mul_right (h.trans hw) (by positivity)
@@ -422,15 +388,15 @@ theorem one_sub_inv_two_pow_mul_le_johnsonAssignment {k : ℕ} {φ : CNF V}
 theorem CNF.IsExactThreeDistinct.seven_div_eight_mul_le_johnsonAssignment {φ : CNF V}
     (hφ : φ.IsExactThreeDistinct) :
     7 / 8 * (1 - φ.unsatVal) ≤ 1 - (φ.countUnsat (johnsonAssignment φ) : ℝ) / φ.length := by
-  have h := one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 3) fun _ hc =>
-    (hφ.card_toFinset_eq hc).ge
-  rwa [show (1 : ℝ) - 2⁻¹ ^ 3 = 7 / 8 by norm_num] at h
+  convert one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 3)
+    (fun _ hc => (hφ.card_toFinset_eq hc).ge) using 2
+  norm_num
 
 /-- **The `1 / 2` approximation ratio** for MAX-SAT on formulas without empty clauses. -/
 theorem one_div_two_mul_le_johnsonAssignment {φ : CNF V} (hφ : ∀ c ∈ φ, c ≠ []) :
     1 / 2 * (1 - φ.unsatVal) ≤ 1 - (φ.countUnsat (johnsonAssignment φ) : ℝ) / φ.length := by
-  have h := one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 1) fun c hc =>
-    Finset.one_le_card.2 ⟨_, List.mem_toFinset.2 (List.head_mem (hφ c hc))⟩
-  rwa [show (1 : ℝ) - 2⁻¹ ^ 1 = 1 / 2 by norm_num] at h
+  convert one_sub_inv_two_pow_mul_le_johnsonAssignment (k := 1)
+    (fun c hc => Finset.one_le_card.2 ⟨_, List.mem_toFinset.2 (List.head_mem (hφ c hc))⟩) using 2
+  norm_num
 
 end Cslib.Logic.PL

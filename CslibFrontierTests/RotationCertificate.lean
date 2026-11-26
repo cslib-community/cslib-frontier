@@ -4,9 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine
 -/
 
+module
 -- upstream: candidate
 
 import CslibFrontier.Computability.PolyTime.Graph.RotationSystem
+
+set_option linter.privateModule false
 
 /-! # Finite rotation and componentwise Euler regression cases -/
 
@@ -79,9 +82,6 @@ example : (encRotationCertificate (ofRotation loopRotation)).length ≤
 
 -- Automation composes the native checker with a concrete certificate supplier.
 example : ComputableInPolyTime (fun G : Graph => verifyGenusZero G ⟨[]⟩) encGraph encBool := by
-  have hi : ComputableInPolyTime (fun G : Graph => (G, (⟨[]⟩ : RotationCertificate)))
-      encGraph encGraphRotationCertificate :=
-    ComputableInPolyTime.id'.prod (ComputableInPolyTime.const (⟨[]⟩ : RotationCertificate))
-  exact computableInPolyTime_verifyGenusZero.comp hi
+  fun_prop
 
 end RotationCertificateTests

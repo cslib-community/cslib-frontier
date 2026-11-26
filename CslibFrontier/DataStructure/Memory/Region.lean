@@ -21,9 +21,6 @@ allocated cell, and allocates only within the room it takes, so it writes only t
 (`Allocates.mem_eq_of_not_mem`). These are the memory side of the native frame theorems of
 `Realization.Backend`.
 
-The argument is the block frame of `Realization.product_exec` in #2273 (Codex), stated here once
-for every framed refinement.
-
 ## Main definitions
 
 * `Memory.Framed.region`: the footprint and the room reserved above the frontier.

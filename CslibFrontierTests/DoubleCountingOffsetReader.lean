@@ -112,9 +112,9 @@ example : ComputableInSpace (caller.withCalls callee ask resume).query
     (QueryMachine.encWithCalls encBool encContext) encNat
     (fun s => (QueryMachine.encWithCalls encBool encContext s).length) := by
   exact QueryMachine.withCalls_query_inSpace caller callee ask resume encBool encContext
-    (budget_const 0 (.refl _))
+    (budget_const 0)
     (QueryMachine.withOffset_query_inSpace (VertexReader.machine 0) VertexReader.encState
-      (VertexReader.query_inSpace 0)) (budget_const (some initial) (.refl _))
+      (VertexReader.query_inSpace 0)) (budget_const (some initial))
 
 example : ComputableInSpace (caller.withCalls callee ask resume).next
     (QueryMachine.encStateRead (QueryMachine.encWithCalls encBool encContext))
@@ -127,7 +127,7 @@ example : ComputableInSpace (caller.withCalls callee ask resume).next
       (VertexReader.next_inSpace 0))
     (QueryMachine.withOffset_halted_inSpace (VertexReader.machine 0) VertexReader.encState
       (VertexReader.halted_inSpace 0))
-    (budget_const (some initial) (.refl _)) (budget_const true (.refl _))
+    (budget_const (some initial)) (budget_const true)
 
 -- Query-machine call steps retain the suspended caller as well as the binary offset/ID state.
 example (w : List Bool) (t : ℕ) (ht : t ≤ (3 : ℕ).size + 2) :

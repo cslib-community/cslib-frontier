@@ -72,14 +72,10 @@ theorem reachesOut_headerCode {b : ℕ} (hP : P.CodeAt b (headerCode b)) {rest :
   have hs := I.s.isLt
   have ht := I.t.isLt
   have hi (i : ℕ) (h : i < 6) := hP i (by simpa [headerCode] using h)
-  have hbd : ∀ {x y z : ℕ}, x ≤ I.n → y ≤ I.n → z ≤ I.n → ∀ r ∈ x :: y :: z :: rest, r ≤ B := by
-    intro x y z hx hy hz r hr
-    simp only [List.mem_cons] at hr
-    rcases hr with rfl | rfl | rfl | hr
-    · omega
-    · omega
-    · omega
-    · exact hrest r hr
+  have hbd {x y z : ℕ} (hx : x ≤ I.n) (hy : y ≤ I.n) (hz : z ≤ I.n) :
+      ∀ r ∈ x :: y :: z :: rest, r ≤ B := by
+    simp only [List.forall_mem_cons]
+    refine ⟨?_, ?_, ?_, hrest⟩ <;> omega
   have hn := reachesOut_count (w := I.encode) (B := B) (n := I.n) (u := 0) (c := b)
     (fun j => j :: 0 :: 0 :: rest) (hi 0 (by omega)) (hi 1 (by omega)) (fun _ _ => by simp)
     (fun j hj => hbd hj (by omega) (by omega))

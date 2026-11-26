@@ -61,16 +61,10 @@ CSP incidence adapter; no renumbering or deduplication of occurrences occurs. -/
 theorem varCNF_ofCNF (φ : CNF ℕ) (hp : OneSAT.positiveCheck φ = true) :
     (ofCNF φ).varCNF = φ := by
   have hpos := (OneSAT.positiveCheck_iff φ).mp hp
-  simp only [ofCNF, Cslib.Logic.PL.CSP.varCNF, List.map_map]
-  conv_rhs => rw [← List.map_id φ]
-  apply List.map_congr_left
-  intro c hc
-  change (c.map Prod.fst).map (fun v => (v, true)) = c
-  rw [List.map_map]
-  conv_rhs => rw [← List.map_id c]
-  apply List.map_congr_left
-  intro l hl
-  exact Prod.ext rfl (hpos c hc l hl).symm
+  simp only [ofCNF, Cslib.Logic.PL.CSP.varCNF, List.map_map, Function.comp_def]
+  refine (List.map_congr_left (g := id) fun c hc => ?_).trans (List.map_id φ)
+  exact (List.map_congr_left (g := id) fun l hl =>
+    (Prod.ext rfl (hpos c hc l hl).symm : (l.1, true) = l)).trans (List.map_id c)
 
 /-- Positive CNF and CSP use literally the same listed incidence multigraph. -/
 theorem incidenceGraph_ofCNF (φ : CNF ℕ) (hp : OneSAT.positiveCheck φ = true) :

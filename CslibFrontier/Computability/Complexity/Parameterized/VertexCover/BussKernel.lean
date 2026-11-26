@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
 
 /-!
@@ -255,13 +256,7 @@ private theorem accept_of_mem (hx : x ∈ VertexCover) : accept x = true := by
 private theorem mem_edges {i j : ℕ} : (i, j) ∈ edges x ↔ i < (active x).length ∧ j <
     (active x).length ∧
     x.graph.toSimpleGraph.Adj ((active x).getD i 0) ((active x).getD j 0) := by
-  simp only [edges, List.mem_flatMap, List.mem_range, List.mem_map, List.mem_filter,
-    Graph.adjBool_eq_true_iff, Prod.mk.injEq]
-  constructor
-  · rintro ⟨i, hi, j, ⟨hj, hadj⟩, rfl, rfl⟩
-    exact ⟨hi, hj, hadj⟩
-  · rintro ⟨hi, hj, hadj⟩
-    exact ⟨i, hi, j, ⟨hj, hadj⟩, rfl, rfl⟩
+  simp [edges, and_assoc]
 
 private theorem graph_adj {i j : ℕ} : (graph x).toSimpleGraph.Adj i j ↔ i ≠ j ∧
     ((i, j) ∈ edges x ∨ (j, i) ∈ edges x) := by
@@ -337,19 +332,13 @@ theorem graph_mem_iff (hk : cap x = x.k) (hh : (high x).length ≤ cap x) :
       simp only [graph, List.mem_range]
       omega
     · intro i _ j _ hadj
-      obtain ⟨-, hij⟩ := graph_adj.1 hadj
+      have hcov {u v} (h : (u, v) ∈ edges ⟨G, k⟩) :
+          (u < a.length ∧ a.getD u 0 ∈ S) ∨ (v < a.length ∧ a.getD v 0 ∈ S) := by
+        obtain ⟨hu, hv, hadj⟩ := mem_edges.1 h
+        exact (hS _ ((mem_low _).1 (hget u hu).1).1 _ ((mem_low _).1 (hget v hv).1).1 hadj).imp
+          (⟨hu, ·⟩) (⟨hv, ·⟩)
       simp only [Finset.mem_filter, Finset.mem_range]
-      rcases hij with h | h
-      · obtain ⟨hi, hj, hadj⟩ := mem_edges.1 h
-        rcases hS _ ((mem_low _).1 (hget i hi).1).1 _ ((mem_low _).1 (hget j hj).1).1 hadj with
-          h | h
-        · exact Or.inl ⟨hi, h⟩
-        · exact Or.inr ⟨hj, h⟩
-      · obtain ⟨hj, hi, hadj⟩ := mem_edges.1 h
-        rcases hS _ ((mem_low _).1 (hget j hj).1).1 _ ((mem_low _).1 (hget i hi).1).1 hadj with
-          h | h
-        · exact Or.inr ⟨hj, h⟩
-        · exact Or.inl ⟨hi, h⟩
+      exact (graph_adj.1 hadj).2.elim hcov fun h => (hcov h).symm
     · have hsub : (high ⟨G, k⟩).toFinset ⊆ S := fun v hv => hhS v (List.mem_toFinset.1 hv)
       have hinj : Set.InjOn (a.getD · 0)
           ((Finset.range a.length).filter fun i => a.getD i 0 ∈ S : Finset ℕ) := by
@@ -409,19 +398,12 @@ private theorem length_edges_le_of_accept (h : accept x = true) :
 private theorem size_arith {k K : ℕ} (hK : K ≤ k * (k + 2)) :
     2 * (2 * (K * (2 * K + 1)) + 1 + K * K * (2 * (2 * K + 1 + K) + 1)) + 1 + k ≤
       40 * (k + 1) ^ 6 := by
-  have ha : K ≤ (k + 1) ^ 2 := hK.trans (by nlinarith)
-  have h1 : 1 ≤ (k + 1) ^ 2 := Nat.one_le_pow _ _ (Nat.succ_pos k)
-  have h2 : K * K ≤ (k + 1) ^ 2 * (k + 1) ^ 2 := Nat.mul_le_mul ha ha
-  have h3 : K * K * K ≤ (k + 1) ^ 2 * (k + 1) ^ 2 * (k + 1) ^ 2 := Nat.mul_le_mul h2 ha
-  have h4 : (k + 1) ^ 2 ≤ (k + 1) ^ 2 * (k + 1) ^ 2 := Nat.le_mul_of_pos_left _ h1
-  have h5 : (k + 1) ^ 2 * (k + 1) ^ 2 ≤ (k + 1) ^ 2 * (k + 1) ^ 2 * (k + 1) ^ 2 :=
-    Nat.le_mul_of_pos_right _ h1
-  have h6 : (k + 1) ^ 6 = (k + 1) ^ 2 * (k + 1) ^ 2 * (k + 1) ^ 2 := by ring
-  have h7 : 2 * (2 * (K * (2 * K + 1)) + 1 + K * K * (2 * (2 * K + 1 + K) + 1)) + 1 + k =
-      12 * (K * K * K) + 14 * (K * K) + 4 * K + 3 + k := by ring
-  have h8 : k + 1 ≤ (k + 1) ^ 2 := by nlinarith
-  rw [h7, h6]
-  omega
+  have ha : K ≤ (k + 1) ^ 2 := by nlinarith
+  have h2 : K * K ≤ (k + 1) ^ 4 := by nlinarith
+  have h3 : K * K * K ≤ (k + 1) ^ 4 * (k + 1) ^ 2 := Nat.mul_le_mul h2 ha
+  have h6 : (k + 1) ^ 6 = (k + 1) ^ 4 * (k + 1) ^ 2 := by ring
+  nlinarith [Nat.one_le_pow 2 (k + 1) (Nat.succ_pos k),
+    Nat.one_le_pow 4 (k + 1) (Nat.succ_pos k)]
 
 /-- The encoded kernel has length at most `40 (k + 1) ^ 6`. -/
 private theorem length_encode_le_of_accept (h : accept x = true) :
@@ -474,59 +456,51 @@ open ComputableInPolyTime
 theorem computableInPolyTime_degree :
     ComputableInPolyTime (fun p : Graph × ℕ => degree p.1 p.2)
       (encPair encGraph encNat) encUnary := by
-  unfold degree
-  fun_prop
+  fun_prop [degree]
 
 /-- Testing for a high vertex is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_isHigh :
     ComputableInPolyTime (fun p : VertexCoverInstance × ℕ => isHigh p.1 p.2)
       (encPair encVertexCoverInstance encNat) encBool := by
-  unfold isHigh
-  fun_prop
+  fun_prop [isHigh]
 
 /-- Listing the high vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_high :
     ComputableInPolyTime high encVertexCoverInstance (encList encNat) := by
-  unfold high
-  fun_prop
+  fun_prop [high]
 
 /-- Listing the low vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_low :
     ComputableInPolyTime low encVertexCoverInstance (encList encNat) := by
-  unfold low
-  fun_prop
+  fun_prop [low]
 
 /-- Testing for an active vertex is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_isActive :
     ComputableInPolyTime (fun p : VertexCoverInstance × ℕ => isActive p.1 p.2)
       (encPair encVertexCoverInstance encNat) encBool := by
-  unfold isActive
-  fun_prop
+  fun_prop [isActive]
 
 /-- Listing the active vertices is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_active :
     ComputableInPolyTime active encVertexCoverInstance (encList encNat) := by
-  unfold active
-  fun_prop
+  fun_prop [active]
 
 /-- The kernel target is computed in unary in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_param :
     ComputableInPolyTime param encVertexCoverInstance encUnary := by
-  unfold param
-  fun_prop
+  fun_prop [param]
 
 /-- The number of kernel vertices is computed in unary in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_numVertices :
     ComputableInPolyTime numVertices encVertexCoverInstance encUnary := by
-  unfold numVertices
-  fun_prop
+  fun_prop [numVertices]
 
 /-- The tests of the kernel are polynomial-time. The capped target `cap x` is computed in unary
 and converted to binary to compare it with the binary target. -/
@@ -545,49 +519,7 @@ theorem computableInPolyTime_accept :
 theorem computableInPolyTime_edges :
     ComputableInPolyTime edges encVertexCoverInstance
       (encList (encPair encNat encNat)) := by
-  unfold edges
-  have hrange :
-      ComputableInPolyTime (fun x : VertexCoverInstance => List.range (active x).length)
-        encVertexCoverInstance (encList encUnary) :=
-    ComputableInPolyTime.range.comp
-      ((ComputableInPolyTime.length_list encNat).comp computableInPolyTime_active)
-  refine flatMapWithInput hrange ?_
-  have hfilt_range :
-      ComputableInPolyTime (fun p : VertexCoverInstance × ℕ => List.range (active p.1).length)
-        (encPair encVertexCoverInstance encUnary) (encList encUnary) :=
-    hrange.comp (ComputableInPolyTime.fst _ _)
-  have hG : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => p.1.1.graph)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) encGraph :=
-    (by fun_prop : ComputableInPolyTime (fun x : VertexCoverInstance => x.graph)
-      encVertexCoverInstance encGraph).comp
-      ((ComputableInPolyTime.fst encVertexCoverInstance encUnary).comp
-        (ComputableInPolyTime.fst _ _))
-  have hact : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => active p.1.1)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) (encList encNat) :=
-    computableInPolyTime_active.comp
-      ((ComputableInPolyTime.fst encVertexCoverInstance encUnary).comp
-        (ComputableInPolyTime.fst _ _))
-  have hi : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => p.1.2)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) encUnary :=
-    (ComputableInPolyTime.snd encVertexCoverInstance encUnary).comp
-      (ComputableInPolyTime.fst _ _)
-  have hj : ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => p.2)
-      (encPair (encPair encVertexCoverInstance encUnary) encUnary) encUnary :=
-    ComputableInPolyTime.snd _ _
-  have hadj :
-      ComputableInPolyTime
-        (fun p : (VertexCoverInstance × ℕ) × ℕ =>
-          p.1.1.graph.adjBool ((active p.1.1).getD p.1.2 0) ((active p.1.1).getD p.2 0))
-        (encPair (encPair encVertexCoverInstance encUnary) encUnary) encBool :=
-    Graph.computableInPolyTime_adjBool_comp hG
-      (listGetDWithInput hact hi 0)
-      (listGetDWithInput hact hj 0)
-  have hpair :
-      ComputableInPolyTime (fun p : (VertexCoverInstance × ℕ) × ℕ => (p.1.2, p.2))
-        (encPair (encPair encVertexCoverInstance encUnary) encUnary)
-        (encPair encNat encNat) :=
-    (unary_to_binary.comp hi).prod (unary_to_binary.comp hj)
-  exact mapWithInput (filterWithInput hfilt_range hadj) hpair
+  polytime [edges]
 
 /-- Building the kernel graph is polynomial-time. -/
 @[fun_prop]

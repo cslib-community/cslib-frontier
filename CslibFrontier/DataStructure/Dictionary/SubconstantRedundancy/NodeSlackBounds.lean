@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.SeedBounds
 import CslibFrontier.Foundations.Data.Nat.Log
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
@@ -45,22 +44,17 @@ open Finset
 theorem canonicalSchedule_nFloor_div_eq {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
     (hℓ : ℓ ≤ (canonicalSchedule h).depth) :
-    (canonicalSchedule h).nFloor ℓ = n / (canonicalSchedule h).numNodes ℓ := by
-  rw [canonicalSchedule_nFloor_eq h ℓ, canonicalSchedule_numNodes_eq h hℓ]
-  rfl
+    (canonicalSchedule h).nFloor ℓ = n / (canonicalSchedule h).numNodes ℓ :=
+  canonicalSchedule_nFloor_eq h ℓ ▸ canonicalSchedule_numNodes_eq h hℓ ▸ rfl
 
 /-- Window radius `delta j ≥ 1` at every level `j ≤ depth` in `canonicalSchedule`. -/
 theorem delta_pos_of_le_depth {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) {j : ℕ}
     (hj : j ≤ (canonicalSchedule h).depth) :
     1 ≤ (canonicalSchedule h).delta j := by
-  have hnF : 256 ^ 9 ≤ (canonicalSchedule h).nFloor j := nFloor_ge_pow_256 h hj
-  have hy1 : 1 ≤ (canonicalSchedule h).nFloor j :=
-    (Nat.one_le_pow 9 256 (by decide)).trans hnF
-  rw [canonicalSchedule_delta_eq h j]
-  dsimp only [delta]
-  rw [← canonicalSchedule_nFloor_eq h j]
-  exact (Nat.le_nthRoot_iff (by decide)).mpr (by nlinarith)
+  have hy1 : 1 ≤ (canonicalSchedule h).nFloor j := le_trans (by decide) (nFloor_ge_pow_256 h hj)
+  rw [canonicalSchedule_delta_eq h j, delta, ← canonicalSchedule_nFloor_eq h j]
+  exact (Nat.le_nthRoot_iff (by decide)).mpr (by rw [one_pow]; exact Nat.one_le_pow 2 _ hy1)
 
 private theorem numNodes_mul_tableCap_of_schedule (P : TreeSchedule) {ℓ : ℕ}
     (h1 : 1 ≤ ℓ) (hlt : ℓ < P.depth)
@@ -80,8 +74,8 @@ private theorem numNodes_mul_tableCap_of_schedule (P : TreeSchedule) {ℓ : ℕ}
   have hcap_le : P.tableCap ℓ ≤ 3 * (P.branchFactor ℓ * P.delta (ℓ + 1)) := by
     rcases eq_or_lt_of_le h1 with rfl | hgt1
     · have h10 : 10 * P.delta 1 ≤ P.branchFactor 1 * P.delta (1 + 1) := h10d rfl
-      rw [show P.tableCap 1 = P.nFloor 1 + P.delta 1 - P.branchFactor 1 * P.nLow (1 + 1) from rfl,
-        hsub]
+      change P.nFloor 1 + P.delta 1 - P.branchFactor 1 * P.nLow (1 + 1) ≤ _
+      rw [hsub]
       omega
     · rw [TreeSchedule.tableCap, ite_eq_right (by omega), ite_eq_left hlt, hsub,
         TreeSchedule.nLow, ite_eq_right (by omega)]
@@ -97,21 +91,17 @@ theorem numNodes_mul_tableCap_le {U V n R p_min q_min p_max q_max : ℕ}
     (h1 : 1 ≤ ℓ) (hlt : ℓ < (canonicalSchedule h).depth) :
     (canonicalSchedule h).numNodes ℓ * (canonicalSchedule h).tableCap ℓ ≤
       3 * (canonicalSchedule h).numNodes (ℓ + 1) * (canonicalSchedule h).delta (ℓ + 1) := by
-  have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
-  have hS17 := canonical_cumBranchBits_add_seventeen_le h hlt_k
+  have hS17 := canonical_cumBranchBits_add_seventeen_le h (canonicalSchedule_depth h ▸ hlt)
   refine numNodes_mul_tableCap_of_schedule (canonicalSchedule h) h1 hlt ?_
     (delta_pos_of_le_depth h hlt) ?_
   · rw [canonicalSchedule_nFloor_eq h (ℓ + 1), canonicalSchedule_nFloor_eq h ℓ,
       canonicalSchedule_branchFactor_eq h ℓ]
     exact nFloor_succ_eq_div (by omega)
-  · intro hℓ1
-    subst hℓ1
-    have hx8 : 8 ≤ nFloor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) 2 := by
-      rw [← canonicalSchedule_nFloor_eq h 2]
-      exact (by decide : 8 ≤ 256 ^ 9).trans (nFloor_ge_pow_256 h hlt)
+  · rintro rfl
     rw [canonicalSchedule_delta_eq h 1, canonicalSchedule_branchFactor_eq h 1,
       canonicalSchedule_delta_eq h 2]
-    exact ten_mul_delta_le_branchFactor_mul_delta_succ hS17 hx8
+    exact ten_mul_delta_le_branchFactor_mul_delta_succ hS17
+      (canonicalSchedule_nFloor_eq h 2 ▸ (by decide : 8 ≤ 256 ^ 9).trans (nFloor_ge_pow_256 h hlt))
 
 private theorem leaf_and_deficit_of_schedule (P : TreeSchedule) {n r : ℕ}
     (hcap : P.cap = n)
@@ -183,7 +173,6 @@ private theorem single_nonLeaf_tableMeta_of_schedule (P : TreeSchedule) {n r s �
       omega
   have hpow := Nat.two_pow_pos (P.idBits ℓ)
   have hcl_nf : Nat.clog 2 (2 * (P.nFloor ℓ + 1)) ≤ P.idBits ℓ := by
-    have hy2 : 2 ≤ P.nFloor ℓ := (by decide : 2 ≤ 256 ^ 9).trans hy_ge
     have hc := Nat.le_pow_clog Nat.one_lt_two (2 * max (P.nFloor ℓ) 1)
     have hc1 := Nat.clog_pos Nat.one_lt_two (by omega : 2 ≤ 2 * max (P.nFloor ℓ) 1)
     have : Nat.clog 2 (2 * (P.nFloor ℓ + 1)) ≤ Nat.clog 2 (2 * max (P.nFloor ℓ) 1) + 1 :=
@@ -279,12 +268,11 @@ theorem nonLeaf_tables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
   have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
   have hs_ge_r := r_le_levelScale (ℓ := ℓ + 1) (by omega) h.four_mul_redundancyRatio_le_log_univ
   refine single_nonLeaf_tableMeta_of_schedule (canonicalSchedule h) h1 hlt hs_ge_r
-    (nFloor_ge_pow_256 h hlt.le) (by rw [canonicalSchedule_idBits_eq h ℓ,
-      canonicalSchedule_nFloor_eq h ℓ]; rfl) ?_
+    (nFloor_ge_pow_256 h hlt.le)
+    (canonicalSchedule_idBits_eq h ℓ ▸ canonicalSchedule_nFloor_eq h ℓ ▸ rfl) ?_
     (numNodes_mul_tableCap_le h h1 hlt) (delta_pos_of_le_depth h hlt) ?_
-  · have hpred := idBits_pred_le_mul_levelScale hr256 (by omega : 2 ≤ ℓ + 1) hlt_k
-      (hT_pos ℓ hlt_k.le) (hT_le ℓ hlt_k.le)
-    simp only [Nat.add_sub_cancel] at hpred
+  · have := Nat.add_sub_cancel ℓ 1 ▸ idBits_pred_le_mul_levelScale hr256 (by omega : 2 ≤ ℓ + 1)
+      hlt_k (hT_pos ℓ hlt_k.le) (hT_le ℓ hlt_k.le)
     rw [canonicalSchedule_idBits_eq h ℓ]
     omega
   · rw [canonicalSchedule_numNodes_eq h hlt, canonicalSchedule_delta_eq h (ℓ + 1)]
@@ -310,10 +298,9 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
   -- the root slots beyond the value pool, each with at most `s1 ^ 2` extra quotient bits
   have hextra_le : P.numNodes 1 * P.tableCap 1 - P.rootValPoolCap ≤
       P.numNodes 1 * P.delta 1 := by
-    rw [TreeSchedule.rootValPoolCap, hcap,
-      show P.tableCap 1 = P.nFloor 1 + P.delta 1 - P.branchFactor 1 * P.nLow 2 from rfl,
-      Nat.mul_sub, ← Nat.mul_assoc,
-      ← show P.numNodes 2 = P.numNodes 1 * P.branchFactor 1 from P.numNodes_succ 1, Nat.mul_add]
+    have htc1 : P.tableCap 1 = P.nFloor 1 + P.delta 1 - P.branchFactor 1 * P.nLow 2 := rfl
+    have hN2 : P.numNodes 2 = P.numNodes 1 * P.branchFactor 1 := P.numNodes_succ 1
+    rw [TreeSchedule.rootValPoolCap, hcap, htc1, Nat.mul_sub, ← Nat.mul_assoc, ← hN2, Nat.mul_add]
     omega
   have hq_le : Nat.clog 2 ((P.paddedUniv + P.cap - 1) / P.cap) ≤ s1 ^ 2 := by
     have hpad_n : P.cap ≤ P.paddedUniv := by
@@ -322,8 +309,10 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
       omega
     refine Nat.clog_le_of_le_pow ((Nat.div_le_self _ _).trans ?_)
     calc P.paddedUniv + P.cap - 1 ≤ 2 ^ (2 * (p_max + 2) * L + 1) := by rw [pow_succ']; omega
-      _ ≤ 2 ^ s1 ^ 2 := Nat.pow_le_pow_right Nat.two_pos
-          (by linarith [Nat.mul_le_mul (hpL.trans hL_s1) hL_s1])
+      _ ≤ 2 ^ s1 ^ 2 := Nat.pow_le_pow_right Nat.two_pos (by
+          have := Nat.mul_le_mul (hpL.trans hL_s1) hL_s1
+          rw [Nat.add_mul, Nat.one_mul] at this
+          rw [sq]; omega)
   have hextra_r : (P.numNodes 1 * P.tableCap 1 - P.rootValPoolCap) *
       Nat.clog 2 ((P.paddedUniv + P.cap - 1) / P.cap) * r ≤ n :=
     calc _ ≤ P.numNodes 1 * P.delta 1 * s1 ^ 2 * s1 :=
@@ -340,9 +329,8 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
   set K := max P.rootSlabSize 1
   have hK_eq : K = ptrBits ^ 2 := max_eq_left (Nat.one_le_pow 2 ptrBits (by omega))
   have hdiv : ∀ x, x / K * (ptrBits * r) ≤ x := fun x =>
-    (Nat.mul_le_mul_left _ (by
-      rw [hK_eq, sq]; exact Nat.mul_le_mul_left _ (hr_le_L.trans hptr_lo))).trans
-      (Nat.div_mul_le_self x K)
+    (Nat.mul_le_mul_left _ (hK_eq ▸ sq ptrBits ▸
+      Nat.mul_le_mul_left _ (hr_le_L.trans hptr_lo))).trans (Nat.div_mul_le_self x K)
   have hdiv_tc : P.numNodes 1 * (P.tableCap 1 / K) * (ptrBits * r) ≤ 3 * n :=
     calc _ = P.numNodes 1 * (P.tableCap 1 / K * (ptrBits * r)) := Nat.mul_assoc ..
       _ ≤ P.numNodes 1 * P.tableCap 1 := Nat.mul_le_mul_left _ (hdiv _)
@@ -351,11 +339,7 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
     (hdiv _).trans (by rw [TreeSchedule.rootValPoolCap]; omega)
   have hrem_dir : (P.numNodes 1 * (1 + K) + 4) * (ptrBits * r) ≤ 3 * n := by
     have hL2 : 1 ≤ L ^ 2 := Nat.one_le_pow 2 L (by omega)
-    have hK5 : 1 + K ≤ 5 * L ^ 2 := by
-      have hsq := Nat.pow_le_pow_left hptr_hi 2
-      rw [mul_pow] at hsq
-      rw [hK_eq]
-      omega
+    have hK5 : 1 + K ≤ 5 * L ^ 2 := by rw [hK_eq]; nlinarith only [hptr_hi, hL2]
     have hK9 : P.numNodes 1 * (1 + K) + 4 ≤ P.numNodes 1 * (9 * L ^ 2) :=
       calc _ ≤ P.numNodes 1 * (5 * L ^ 2) + P.numNodes 1 * (4 * L ^ 2) :=
             Nat.add_le_add (Nat.mul_le_mul_left _ hK5)
@@ -378,8 +362,7 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
             ptrBits * r = _
           ring
       _ ≤ 7 * n := by omega
-  rw [Nat.add_mul]
-  omega
+  rw [Nat.add_mul]; omega
 
 /-- Root extra quotient bits and pool directory overhead scaled by `r` is bounded by `8 * n`. -/
 theorem rootExtra_and_poolDir_slack_le {U V n R p_min q_min p_max q_max : ℕ}
@@ -396,12 +379,11 @@ theorem rootExtra_and_poolDir_slack_le {U V n R p_min q_min p_max q_max : ℕ}
   have hp := h.mul_param_le_log (by decide : 3 ≤ 2560000)
   have h1_lt_d : 1 < (canonicalSchedule h).depth := by rwa [canonicalSchedule_depth]
   have hls1 : levelScale U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) 1 =
-      Nat.log 2 U := by rw [levelScale, ite_eq_left h1_lt]; rfl
+      Nat.log 2 U := ite_eq_left h1_lt
   refine rootExtra_and_poolDir_of_schedule (canonicalSchedule h) h.two_le_n rfl (by omega)
     (by omega) hL_s1 h.redundancyRatio_le_log (canonicalSchedule_cap h)
     (paddedUniv_le_two_pow_mul_log h) ?_ ?_ (numNodes_mul_tableCap_le h le_rfl h1_lt_d) ?_ ?_
-  · rw [canonicalSchedule_nFloor_div_eq h h1_lt_d.le]
-    exact Nat.mul_div_le n _
+  · exact (canonicalSchedule_nFloor_div_eq h h1_lt_d.le).symm ▸ Nat.mul_div_le n _
   · rw [canonicalSchedule_numNodes_eq h h1_lt_d.le, canonicalSchedule_delta_eq h 1]
     exact hls1 ▸ numNodes_mul_delta_mul_levelScale_cubed_le le_rfl (hT_pos 1 h1_lt.le)
       (hT_le 1 h1_lt.le)
@@ -472,8 +454,7 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
         894 * s ^ 2 := by
       have hs2 : s ≤ s ^ 2 := Nat.le_self_pow two_ne_zero s
       rcases eq_or_lt_of_le h1 with rfl | hgt1
-      · have hs_eq : s = Nat.log 2 U := by
-          dsimp only [s]; rw [levelScale, ite_eq_left (by omega)]; rfl
+      · have hs_eq : s = Nat.log 2 U := ite_eq_left (by omega)
         have hls2 : levelScale U r P.depth 2 ≤ Nat.log 2 U := by
           rw [levelScale]; split_ifs
           exacts [Nat.log_le_self 2 _, hr_s1]
@@ -486,8 +467,7 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
             (P.branchFactor_pos 0) (Nat.two_pow_pos _))).trans hpad_s1)
             (Nat.le_self_pow (by omega) 2))
         have := FeistelPerm.idCompressorSeedBits_le (P.idBits 1) (P.idCompRightUniv 1)
-        rw [hs_eq]
-        omega
+        rw [hs_eq]; omega
       · have := P.idCompressorSeedBits_le_of_two_le hgt1 hle
         have := hid_pred_all ℓ hgt1 hle
         omega
@@ -497,10 +477,8 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
         _ = 894 * (P.numNodes ℓ * s ^ 4) := by ring
         _ ≤ 894 * (P.numNodes ℓ * s ^ 9) := by gcongr <;> omega
         _ ≤ 894 * n := Nat.mul_le_mul_left _ hNT
-    rw [TreeSchedule.nodeHashSeedBits, ite_eq_right (by omega), Nat.mul_add, Nat.add_mul]
-    omega
-  rw [TreeSchedule.allHashSeedsBits, Nat.add_mul, Nat.add_mul]
-  omega
+    rw [TreeSchedule.nodeHashSeedBits, ite_eq_right (by omega), Nat.mul_add, Nat.add_mul]; omega
+  rw [TreeSchedule.allHashSeedsBits, Nat.add_mul, Nat.add_mul]; omega
 
 /-- Total bits for waiting lists and all node hash seeds scaled by `r` is bounded by
 `1700 * n`. -/
@@ -533,10 +511,9 @@ theorem waitingLists_and_hashSeeds_slack_le {U V n R p_min q_min p_max q_max : �
   · rw [canonicalSchedule_numNodes_eq h hle, canonicalSchedule_delta_eq h ℓ, hk]
     exact numNodes_mul_delta_mul_levelScale_cubed_le h1 (hT_pos ℓ (hk ▸ hle))
       (hT_le ℓ (hk ▸ hle))
-  · have hNT := (numNodes_mul_targetSize_bounds (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1
-    have hlo := (targetSize_le_nFloor_and_lt (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1
-    rw [targetSize_eq_levelScale_pow h1] at hNT hlo
-    rw [canonicalSchedule_numNodes_eq h hle, canonicalSchedule_nFloor_eq h ℓ, hk]
-    exact ⟨hNT, hlo, Nat.mul_div_le n _⟩
+  · rw [canonicalSchedule_numNodes_eq h hle, canonicalSchedule_nFloor_eq h ℓ, hk,
+      ← targetSize_eq_levelScale_pow h1]
+    exact ⟨(numNodes_mul_targetSize_bounds (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1,
+      (targetSize_le_nFloor_and_lt (hT_pos ℓ (hk ▸ hle)) (hT_le ℓ (hk ▸ hle))).1, Nat.mul_div_le ..⟩
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

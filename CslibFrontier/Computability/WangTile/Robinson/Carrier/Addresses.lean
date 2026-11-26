@@ -95,11 +95,8 @@ private theorem isFreeCoordinate_eq_true_of_owner
 
 private theorem depthAt_self_eq_some_of_isFreeCoordinate
     {depth coordinate : Nat} (free : isFreeCoordinate depth coordinate = true) :
-    depthAt depth coordinate = some depth := by
-  have free' : depthAt depth coordinate = some depth ∧
-      onFrameBoundary depth coordinate = false := by
-    simpa [isFreeCoordinate] using free
-  exact free'.1
+    depthAt depth coordinate = some depth :=
+  (by simpa [isFreeCoordinate] using free : _ ∧ _).1
 
 /-- At a mutual horizontal/vertical crossing, the row and column have the
 same smallest owner depth. -/
@@ -109,9 +106,8 @@ private theorem ownerDepth_eq_of_mutual_containment
     (yOwner : depthAt bound y = some yDepth)
     (xInYFrame : inFrame yDepth x = true)
     (yInXFrame : inFrame xDepth y = true) : xDepth = yDepth := by
-  apply Nat.le_antisymm
-  · exact depthAt_le_of_inFrame xOwner (depthAt_pos yOwner) xInYFrame
-  · exact depthAt_le_of_inFrame yOwner (depthAt_pos xOwner) yInXFrame
+  exact Nat.le_antisymm (depthAt_le_of_inFrame xOwner (depthAt_pos yOwner) xInYFrame)
+    (depthAt_le_of_inFrame yOwner (depthAt_pos xOwner) yInXFrame)
 
 /-- Geometric center of the depth-`depth` frame containing a coordinate. -/
 private def frameCenter (depth coordinate : Nat) : Nat :=
@@ -147,9 +143,8 @@ private theorem frameCenter_eq_self_of_centerResidue
     {depth coordinate : Nat}
     (center : coordinate % period depth = 2 * scale depth + 1) :
     frameCenter depth coordinate = coordinate := by
-  have residueLe : coordinate % period depth ≤ coordinate := Nat.mod_le _ _
-  simp only [frameCenter, center]
-  omega
+  have := Nat.mod_le coordinate (period depth)
+  simp only [frameCenter, center]; omega
 
 /-- Logical vertex coordinate centered at the geometric frame center. -/
 private def axisCoordinate (depth coordinate : Nat) : Int :=
@@ -160,8 +155,7 @@ private theorem axisCoordinate_eq_zero_of_centerResidue
     {depth coordinate : Nat}
     (center : coordinate % period depth = 2 * scale depth + 1) :
     axisCoordinate depth coordinate = 0 := by
-  rw [axisCoordinate, frameCenter_eq_self_of_centerResidue center]
-  omega
+  rw [axisCoordinate, frameCenter_eq_self_of_centerResidue center]; omega
 
 /-- Logical source immediately before the next step across a channel gap. -/
 private def axisSource (depth coordinate : Nat) : Int :=
@@ -174,8 +168,7 @@ private theorem axisCoordinate_succ_of_free
       frameCenter depth coordinate) :
     axisCoordinate depth (coordinate + 1) =
       axisCoordinate depth coordinate + 1 := by
-  simp [axisCoordinate, Nat.count_succ, free, sameCenter]
-  omega
+  simp [axisCoordinate, Nat.count_succ, free, sameCenter]; omega
 
 private theorem axisSource_succ_of_free
     {depth coordinate : Nat} (free : isFreeCoordinate depth coordinate = true)
@@ -197,8 +190,7 @@ private theorem axisCoordinate_succ_of_not_free
     (sameCenter : frameCenter depth (coordinate + 1) =
       frameCenter depth coordinate) :
     axisCoordinate depth (coordinate + 1) = axisSource depth coordinate + 1 := by
-  simp [axisCoordinate, axisSource, Nat.count_succ, notFree, sameCenter]
-  omega
+  simp [axisCoordinate, axisSource, Nat.count_succ, notFree, sameCenter]; omega
 
 /-- Forget whether a crossing carries the distinguished corner marker. -/
 @[expose] def eraseCorner : RouteRole → RouteRole
@@ -320,11 +312,8 @@ private theorem alongOwner_eq_of_mutual_carriers
         simp [crossingCarrier, orientedNat, isHorizontalCarrier,
           isVerticalCarrier, alongOwner] at crossing
   | some alongDepth =>
-      have transverseInFrame :=
-        (crossingCarrier_iff_of_owner axis alongOwner).1 crossing
-      have sameDepth := ownerDepth_eq_of_mutual_containment
-        alongOwner owner alongInFrame.1 transverseInFrame.1
-      simp [sameDepth]
+      exact congrArg some (ownerDepth_eq_of_mutual_containment alongOwner owner alongInFrame.1
+        ((crossingCarrier_iff_of_owner axis alongOwner).1 crossing).1)
 
 private theorem free_eq_true_of_mutual_carriers
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -343,17 +332,10 @@ private theorem free_eq_false_of_not_crossing
     (transverseInterior : onFrameBoundary depth transverse = false)
     (crossing : crossingCarrier axis level along transverse = false) :
     isFreeCoordinate depth along = false := by
-  cases free : isFreeCoordinate depth along with
-  | false => rfl
-  | true =>
-      have alongOwner := depthAt_eq_some_mono
-        (depthAt_self_eq_some_of_isFreeCoordinate free)
-        (depthAt_le owner)
-      have transverseInside := inFrame_eq_true_of_depthAt_eq_some owner
-      have : crossingCarrier axis level along transverse = true :=
-        (crossingCarrier_iff_of_owner axis alongOwner).2
-          ⟨transverseInside, transverseInterior⟩
-      simp [this] at crossing
+  refine Bool.eq_false_iff.2 fun free => Bool.false_ne_true (crossing.symm.trans ?_)
+  exact (crossingCarrier_iff_of_owner axis
+    (depthAt_eq_some_mono (depthAt_self_eq_some_of_isFreeCoordinate free) (depthAt_le owner))).2
+    ⟨inFrame_eq_true_of_depthAt_eq_some owner, transverseInterior⟩
 
 private theorem pointAt_eq_of_mutual_carriers
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -363,10 +345,8 @@ private theorem pointAt_eq_of_mutual_carriers
     pointAt axis level along transverse =
       orientedInt axis (axisCoordinate depth along)
         (axisCoordinate depth transverse) := by
-  have alongOwner := alongOwner_eq_of_mutual_carriers
-    axis owner primary crossing
-  cases axis <;>
-    simp [pointAt, orientedNat, orientedInt, point, owner, alongOwner]
+  have := alongOwner_eq_of_mutual_carriers axis owner primary crossing
+  cases axis <;> simp [pointAt, orientedNat, orientedInt, point, owner, this]
 
 private theorem transverseInterior_of_mutual_carriers
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -374,9 +354,8 @@ private theorem transverseInterior_of_mutual_carriers
     (primary : primaryCarrier axis level along transverse = true)
     (crossing : crossingCarrier axis level along transverse = true) :
     onFrameBoundary depth transverse = false := by
-  have alongOwner := alongOwner_eq_of_mutual_carriers
-    axis owner primary crossing
-  exact ((crossingCarrier_iff_of_owner axis alongOwner).1 crossing).2
+  exact ((crossingCarrier_iff_of_owner axis
+    (alongOwner_eq_of_mutual_carriers axis owner primary crossing)).1 crossing).2
 
 private theorem sourceAt_eq_of_transverseInterior
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -404,17 +383,8 @@ private theorem roleAt_eq_of_primary
     roleAt axis level along transverse =
       if crossingCarrier axis level along transverse = true then .active
       else primaryRole axis := by
-  cases axis with
-  | horizontal =>
-      change isHorizontalCarrier level along transverse = true at primary
-      cases crossing : isVerticalCarrier level along transverse <;>
-        simp [roleAt, crossingCarrier, primaryRole, orientedNat,
-          carrierRole, primary, crossing]
-  | vertical =>
-      change isVerticalCarrier level transverse along = true at primary
-      cases crossing : isHorizontalCarrier level transverse along <;>
-        simp [roleAt, crossingCarrier, primaryRole, orientedNat,
-          carrierRole, primary, crossing]
+  cases crossing : crossingCarrier axis level along transverse <;> cases axis <;>
+    simp_all [primaryCarrier, roleAt, crossingCarrier, primaryRole, orientedNat, carrierRole]
 
 /-- A crossing at the centers of both owner frames has logical address zero. -/
 theorem point_eq_zero_of_centerResidues
@@ -503,40 +473,21 @@ private theorem axis_step (axis : AddressAxis) (level along transverse : Nat)
         simp [primaryCarrier, orientedNat, isHorizontalCarrier,
           isVerticalCarrier, owner] at firstPrimary
   | some depth =>
-      have firstData :=
-        (primaryCarrier_iff_of_owner axis owner).1 firstPrimary
-      have secondData :=
-        (primaryCarrier_iff_of_owner axis owner).1 secondPrimary
-      have sameCenter := frameCenter_succ_of_inFrame_not_boundary
-        firstData.1 firstData.2
+      have firstData := (primaryCarrier_iff_of_owner axis owner).1 firstPrimary
+      have sameCenter := frameCenter_succ_of_inFrame_not_boundary firstData.1 firstData.2
+      rw [roleAt_eq_of_primary axis firstPrimary, roleAt_eq_of_primary axis secondPrimary]
       cases transverseBoundary : onFrameBoundary depth transverse with
       | true =>
-          have firstCrossing :
-              crossingCarrier axis level along transverse = false := by
-            cases crossing : crossingCarrier axis level along transverse with
-            | false => rfl
-            | true =>
-                have interior := transverseInterior_of_mutual_carriers
-                  axis owner firstPrimary crossing
-                simp [transverseBoundary] at interior
-          have secondCrossing : crossingCarrier axis level (along + 1)
-              transverse = false := by
-            cases crossing : crossingCarrier axis level (along + 1) transverse with
-            | false => rfl
-            | true =>
-                have interior := transverseInterior_of_mutual_carriers
-                  axis owner secondPrimary crossing
-                simp [transverseBoundary] at interior
-          have firstRole := roleAt_eq_of_primary axis firstPrimary
-          have secondRole := roleAt_eq_of_primary axis secondPrimary
-          simp only [firstCrossing, Bool.false_eq_true, ↓reduceIte] at firstRole
-          simp only [secondCrossing, Bool.false_eq_true, ↓reduceIte] at secondRole
-          rw [firstRole, secondRole, axisStepAt_primary,
-            axisOutgoing_primary,
-            sourceAt_eq_zero_of_transverseBoundary axis owner
-              transverseBoundary,
-            sourceAt_eq_zero_of_transverseBoundary axis owner
-              transverseBoundary]
+          have notCrossing {a} (hp : primaryCarrier axis level a transverse = true) :
+              crossingCarrier axis level a transverse = false :=
+            Bool.eq_false_iff.2 fun hc => Bool.false_ne_true
+              ((transverseInterior_of_mutual_carriers axis owner hp hc).symm.trans
+                transverseBoundary)
+          simp only [notCrossing firstPrimary, notCrossing secondPrimary, Bool.false_eq_true,
+            ↓reduceIte]
+          rw [axisStepAt_primary, axisOutgoing_primary,
+            sourceAt_eq_zero_of_transverseBoundary axis owner transverseBoundary,
+            sourceAt_eq_zero_of_transverseBoundary axis owner transverseBoundary]
       | false =>
           cases firstCrossing : crossingCarrier axis level along transverse with
           | false =>
@@ -544,53 +495,37 @@ private theorem axis_step (axis : AddressAxis) (level along transverse : Nat)
                 axis owner transverseBoundary firstCrossing
               have firstSource := sourceAt_eq_of_transverseInterior
                 (along := along) axis owner transverseBoundary
-              have firstRole := roleAt_eq_of_primary axis firstPrimary
-              simp only [firstCrossing, Bool.false_eq_true, ↓reduceIte] at firstRole
               cases secondCrossing :
                   crossingCarrier axis level (along + 1) transverse with
               | false =>
-                  have secondSource := sourceAt_eq_of_transverseInterior
-                    (along := along + 1) axis owner transverseBoundary
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, Bool.false_eq_true, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_primary,
-                    axisOutgoing_primary, firstSource, secondSource,
+                  simp only [Bool.false_eq_true, ↓reduceIte]
+                  rw [axisStepAt_primary, axisOutgoing_primary, firstSource,
+                    sourceAt_eq_of_transverseInterior (along := along + 1) axis owner
+                      transverseBoundary,
                     axisSource_succ_of_not_free firstFree sameCenter]
               | true =>
-                  have secondPoint := pointAt_eq_of_mutual_carriers
-                    axis owner secondPrimary secondCrossing
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_active,
-                    axisOutgoing_primary, firstSource, secondPoint,
-                    axisSuccessor_oriented,
-                    axisCoordinate_succ_of_not_free firstFree sameCenter]
+                  simp only [Bool.false_eq_true, ↓reduceIte]
+                  rw [axisStepAt_active, axisOutgoing_primary, firstSource,
+                    pointAt_eq_of_mutual_carriers axis owner secondPrimary secondCrossing,
+                    axisSuccessor_oriented, axisCoordinate_succ_of_not_free firstFree sameCenter]
           | true =>
               have firstFree := free_eq_true_of_mutual_carriers
                 axis owner firstPrimary firstCrossing
               have firstPoint := pointAt_eq_of_mutual_carriers
                 axis owner firstPrimary firstCrossing
-              have firstRole := roleAt_eq_of_primary axis firstPrimary
-              simp only [firstCrossing, ↓reduceIte] at firstRole
               cases secondCrossing :
                   crossingCarrier axis level (along + 1) transverse with
               | false =>
-                  have secondSource := sourceAt_eq_of_transverseInterior
-                    (along := along + 1) axis owner transverseBoundary
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, Bool.false_eq_true, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_primary,
-                    axisOutgoing_active, firstPoint, secondSource,
+                  simp only [Bool.false_eq_true, ↓reduceIte]
+                  rw [axisStepAt_primary, axisOutgoing_active, firstPoint,
+                    sourceAt_eq_of_transverseInterior (along := along + 1) axis owner
+                      transverseBoundary,
                     axisSource_succ_of_free firstFree sameCenter]
               | true =>
-                  have secondPoint := pointAt_eq_of_mutual_carriers
-                    axis owner secondPrimary secondCrossing
-                  have secondRole := roleAt_eq_of_primary axis secondPrimary
-                  simp only [secondCrossing, ↓reduceIte] at secondRole
-                  rw [firstRole, secondRole, axisStepAt_active,
-                    axisOutgoing_active, firstPoint, secondPoint,
-                    axisSuccessor_oriented,
-                    axisCoordinate_succ_of_free firstFree sameCenter]
+                  simp only [↓reduceIte]
+                  rw [axisStepAt_active, axisOutgoing_active, firstPoint,
+                    pointAt_eq_of_mutual_carriers axis owner secondPrimary secondCrossing,
+                    axisSuccessor_oriented, axisCoordinate_succ_of_free firstFree sameCenter]
 
 /-- Replacing an active hierarchy role by the corner marker preserves the
 axis-neutral addressing step. -/
@@ -604,14 +539,9 @@ private theorem axis_step_of_erased_roles
     (secondCarrier : roleIsPrimaryCarrier axis secondRole = true) :
     AxisStepAt axis level along transverse firstRole secondRole := by
   have firstPrimary : primaryCarrier axis level along transverse = true := by
-    rw [← roleAt_isPrimaryCarrier, ← firstRoleEq,
-      eraseCorner_isPrimaryCarrier]
-    exact firstCarrier
-  have secondPrimary :
-      primaryCarrier axis level (along + 1) transverse = true := by
-    rw [← roleAt_isPrimaryCarrier, ← secondRoleEq,
-      eraseCorner_isPrimaryCarrier]
-    exact secondCarrier
+    rwa [← roleAt_isPrimaryCarrier, ← firstRoleEq, eraseCorner_isPrimaryCarrier]
+  have secondPrimary : primaryCarrier axis level (along + 1) transverse = true := by
+    rwa [← roleAt_isPrimaryCarrier, ← secondRoleEq, eraseCorner_isPrimaryCarrier]
   have step := axis_step axis level along transverse firstPrimary secondPrimary
   rw [← firstRoleEq, ← secondRoleEq] at step
   cases axis <;> cases firstRole <;> cases secondRole <;>
@@ -691,20 +621,12 @@ private theorem selectedBorder_eq_some_iff_of_owner
         ∃ depth, ownerDepth ≤ depth ∧ depth ≤ level ∧
           frameBorder depth coordinate transverse = some orientation := by
   rw [selectedBorder_eq_some_iff]
-  constructor
-  · rintro (outer | ⟨depth, positive, bounded, border⟩)
-    · exact Or.inl outer
-    · have inside : inFrame depth transverse = true := by
-        cases orientation with
-        | false => exact ((frameBorder_eq_some_false_iff _ _ _).1 border).1
-        | true => exact ((frameBorder_eq_some_true_iff _ _ _).1 border).1
-      exact Or.inr ⟨depth,
-        depthAt_le_of_inFrame owner positive inside,
-        bounded, border⟩
-  · rintro (outer | ⟨depth, ownerLe, bounded, border⟩)
-    · exact Or.inl outer
-    · exact Or.inr ⟨depth, (depthAt_pos owner).trans_le ownerLe,
-        bounded, border⟩
+  refine or_congr_right ⟨fun ⟨depth, pos, hle, hb⟩ => ⟨depth, ?_, hle, hb⟩,
+    fun ⟨depth, hle, hb, hbor⟩ => ⟨depth, (depthAt_pos owner).trans_le hle, hb, hbor⟩⟩
+  refine depthAt_le_of_inFrame owner pos ?_
+  cases orientation
+  · exact ((frameBorder_eq_some_false_iff _ _ _).1 hb).1
+  · exact ((frameBorder_eq_some_true_iff _ _ _).1 hb).1
 
 /-- Closing-border normal form relative to the smallest containing frame. -/
 private theorem selectedBorder_eq_some_false_iff_of_owner
@@ -728,42 +650,24 @@ private theorem selectedBorder_eq_none_of_owner_interior
   cases borderEq : selectedBorder level coordinate transverse with
   | none => rfl
   | some orientation =>
+      have insideData := (inFrame_eq_true_iff _ _).mp inside
+      have startLarge : 1 < frameStartResidue depth := by
+        simp [frameStartResidue, scale_pos]
       rcases (selectedBorder_eq_some_iff_of_owner owner).1 borderEq with
-        outer | frame
-      · have coordinateOne := ((outerBorder_eq_some_iff _ _ _).mp outer).1
-        have insideData := (inFrame_eq_true_iff _ _).mp inside
-        have oneLtPeriod := one_lt_period depth
-        have coordinateMod : coordinate % period depth = 1 := by
-          rw [coordinateOne, Nat.mod_eq_of_lt oneLtPeriod]
-        have startLarge : 1 < frameStartResidue depth := by
-          simp [frameStartResidue, scale_pos]
+        outer | ⟨frameDepth, depthLeFrame, _, frame⟩
+      · have coordinateMod : coordinate % period depth = 1 := by
+          rw [((outerBorder_eq_some_iff _ _ _).mp outer).1, Nat.mod_eq_of_lt (one_lt_period depth)]
         omega
-      · rcases frame with ⟨frameDepth, depthLeFrame, _, frame⟩
-        rcases depthLeFrame.eq_or_lt with equal | less
-        · subst frameDepth
-          have boundary : onFrameBoundary depth coordinate = true := by
-            cases orientation with
-            | false =>
-                have closing :=
-                  ((frameBorder_eq_some_false_iff _ _ _).1 frame).2
-                simp [onFrameBoundary, closing]
-            | true =>
-                have opening :=
-                  ((frameBorder_eq_some_true_iff _ _ _).1 frame).2
-                simp [onFrameBoundary, opening]
-          simp [boundary] at interior
-        · have largeResidue : coordinate % period depth = 0 ∨
-              coordinate % period depth = 1 := by
-            cases orientation with
-            | false =>
-                exact Or.inl (largeClosing_mod_small less
-                  ((frameBorder_eq_some_false_iff _ _ _).1 frame).2)
-            | true =>
-                exact Or.inr (largeOpening_mod_small less
-                  ((frameBorder_eq_some_true_iff _ _ _).1 frame).2)
-          have insideData := (inFrame_eq_true_iff _ _).mp inside
-          have startLarge : 1 < frameStartResidue depth := by
-            simp [frameStartResidue, scale_pos]
+      · rcases depthLeFrame.eq_or_lt with rfl | less
+        · cases orientation
+          · simp [onFrameBoundary, ((frameBorder_eq_some_false_iff _ _ _).1 frame).2] at interior
+          · simp [onFrameBoundary, ((frameBorder_eq_some_true_iff _ _ _).1 frame).2] at interior
+        · have largeResidue : coordinate % period depth = 0 ∨ coordinate % period depth = 1 := by
+            cases orientation
+            · exact Or.inl (largeClosing_mod_small less
+                ((frameBorder_eq_some_false_iff _ _ _).1 frame).2)
+            · exact Or.inr (largeOpening_mod_small less
+                ((frameBorder_eq_some_true_iff _ _ _).1 frame).2)
           rcases largeResidue with zero | one <;> omega
 
 /-- Start of the frame-period block containing `coordinate`. -/
@@ -778,10 +682,9 @@ private def frameClosing (depth coordinate : Nat) : Nat :=
 
 private theorem coordinate_lt_frameBase_add_period (depth coordinate : Nat) :
     coordinate < frameBase depth coordinate + period depth := by
-  have decomposition : frameBase depth coordinate + coordinate % period depth = coordinate :=
+  have : frameBase depth coordinate + coordinate % period depth = coordinate :=
     Nat.div_add_mod coordinate (period depth)
-  have periodPositive := lt_trans Nat.zero_lt_one (one_lt_period depth)
-  have residueLt := Nat.mod_lt coordinate periodPositive
+  have := Nat.mod_lt coordinate (lt_trans Nat.zero_lt_one (one_lt_period depth))
   omega
 
 private theorem mod_eq_sub_frameBase_of_mem_block
@@ -790,10 +693,7 @@ private theorem mod_eq_sub_frameBase_of_mem_block
     (upper : coordinate < frameBase depth reference + period depth) :
     coordinate % period depth = coordinate - frameBase depth reference := by
   let base := frameBase depth reference
-  have offsetLt : coordinate - base < period depth := by
-    omega
-  have baseMod : base % period depth = 0 := by
-    simp [base, frameBase]
+  have offsetLt : coordinate - base < period depth := by omega
   calc
     coordinate % period depth =
         (base + (coordinate - base)) % period depth := by
@@ -802,8 +702,8 @@ private theorem mod_eq_sub_frameBase_of_mem_block
         (coordinate - base) % period depth) % period depth := by
       rw [Nat.add_mod]
     _ = coordinate - base := by
-      rw [baseMod, Nat.mod_eq_of_lt offsetLt]
-      simp [Nat.mod_eq_of_lt offsetLt]
+      have baseMod : base % period depth = 0 := by simp [base, frameBase]
+      simp [baseMod, Nat.mod_eq_of_lt offsetLt]
 
 private theorem frameOpening_mod (depth coordinate : Nat) :
     frameOpening depth coordinate % period depth = frameStartResidue depth := by
@@ -829,52 +729,31 @@ private theorem between_frameBounds
     (beforeClosing : position < frameClosing depth coordinate) :
     inFrame depth position = true ∧ onFrameBoundary depth position = false := by
   let base := frameBase depth coordinate
-  have baseLe : base ≤ position := by
-    simp only [frameOpening] at afterOpening
-    omega
-  have positionUpper : position < frameBase depth coordinate + period depth := by
-    simp only [frameClosing] at beforeClosing
-    have endLt := frameEndResidue_lt_period depth
-    omega
+  simp only [frameOpening, frameClosing] at afterOpening beforeClosing
+  have endLt := frameEndResidue_lt_period depth
   have positionMod : position % period depth = position - base :=
-    mod_eq_sub_frameBase_of_mem_block baseLe positionUpper
-  have startLt : frameStartResidue depth < position - base := by
-    simp only [frameOpening] at afterOpening
-    omega
-  have beforeEnd : position - base < frameEndResidue depth := by
-    simp only [frameClosing] at beforeClosing
-    omega
-  constructor
-  · simp [inFrame, positionMod]
-    omega
-  · simp [onFrameBoundary, positionMod]
-    omega
+    mod_eq_sub_frameBase_of_mem_block (by omega) (by omega)
+  refine ⟨?_, ?_⟩
+  · simp [inFrame, positionMod]; omega
+  · simp [onFrameBoundary, positionMod]; omega
 
 private theorem selectedBorder_frameOpening
     {level depth coordinate transverse : Nat}
     (owner : depthAt (level - 1) transverse = some depth) :
-    selectedBorder level (frameOpening depth coordinate) transverse = some true := by
-  apply (selectedBorder_eq_some_iff _ _ _ _).2
-  right
-  refine ⟨depth, depthAt_pos owner, ?_, ?_⟩
-  · have := depthAt_le owner
-    omega
-  · apply (frameBorder_eq_some_true_iff _ _ _).2
-    exact ⟨inFrame_eq_true_of_depthAt_eq_some owner,
-      frameOpening_mod depth coordinate⟩
+    selectedBorder level (frameOpening depth coordinate) transverse = some true :=
+  (selectedBorder_eq_some_iff _ _ _ _).2 <| Or.inr ⟨depth, depthAt_pos owner,
+    by have := depthAt_le owner; omega,
+    (frameBorder_eq_some_true_iff _ _ _).2
+      ⟨inFrame_eq_true_of_depthAt_eq_some owner, frameOpening_mod depth coordinate⟩⟩
 
 private theorem selectedBorder_frameClosing
     {level depth coordinate transverse : Nat}
     (owner : depthAt (level - 1) transverse = some depth) :
-    selectedBorder level (frameClosing depth coordinate) transverse = some false := by
-  apply (selectedBorder_eq_some_iff _ _ _ _).2
-  right
-  refine ⟨depth, depthAt_pos owner, ?_, ?_⟩
-  · have := depthAt_le owner
-    omega
-  · apply (frameBorder_eq_some_false_iff _ _ _).2
-    exact ⟨inFrame_eq_true_of_depthAt_eq_some owner,
-      frameClosing_mod depth coordinate⟩
+    selectedBorder level (frameClosing depth coordinate) transverse = some false :=
+  (selectedBorder_eq_some_iff _ _ _ _).2 <| Or.inr ⟨depth, depthAt_pos owner,
+    by have := depthAt_le owner; omega,
+    (frameBorder_eq_some_false_iff _ _ _).2
+      ⟨inFrame_eq_true_of_depthAt_eq_some owner, frameClosing_mod depth coordinate⟩⟩
 
 private theorem selectedBorder_none_between_frameBounds
     {level depth coordinate transverse position : Nat}
@@ -904,30 +783,17 @@ private theorem between_borders_of_intervalEdge_eq_none
   have edgeData := (Canonical.intervalEdge_eq_none_iff
     interior length position).1 clear
   constructor
-  · rcases Nat.lt_trichotomy position opening with before | equal | after
-    · have nextTrue : Canonical.nextInterior interior position
-          (length - position) = some true := by
-        apply Canonical.nextInterior_eq_of_no_opposite_before
-          openingBorder
-          noClosingBeforeOpening before.le
-          (openingBeforeClosing.trans closingBeforeEnd)
-      rw [nextTrue] at edgeData
+  · rcases Nat.lt_trichotomy position opening with before | rfl | after
+    · rw [Canonical.nextInterior_eq_of_no_opposite_before openingBorder
+        noClosingBeforeOpening before.le (openingBeforeClosing.trans closingBeforeEnd)] at edgeData
       simp at edgeData
-    · subst opening
-      rw [positionClear] at openingBorder
-      simp at openingBorder
+    · exact absurd (positionClear.symm.trans openingBorder) nofun
     · exact after
-  · rcases Nat.lt_trichotomy position closing with before | equal | after
+  · rcases Nat.lt_trichotomy position closing with before | rfl | after
     · exact before
-    · subst closing
-      rw [positionClear] at closingBorder
-      simp at closingBorder
-    · have previousFalse :
-          Canonical.previousInterior interior position =
-            some false := by
-        exact Canonical.previousInterior_eq_of_none_between
-          closingBorder noBorderAfterClosing after
-      exact (edgeData.2 previousFalse).elim
+    · exact absurd (positionClear.symm.trans closingBorder) nofun
+    · exact (edgeData.2 (Canonical.previousInterior_eq_of_none_between
+        closingBorder noBorderAfterClosing after)).elim
 
 private theorem selectedBorder_ne_some_false_before_frameOpening
     {level depth coordinate transverse candidate : Nat}
@@ -956,14 +822,10 @@ private theorem selectedBorder_ne_some_false_before_frameOpening
     have startBeforeEnd := frameStartResidue_lt_frameEndResidue depth
     simp only [frameOpening] at beforeOpening
     omega
-  · have largeResidue : candidate % period depth = 0 :=
-      largeClosing_mod_small larger closing
-    have coordinateBaseLe : frameBase depth coordinate ≤ coordinate :=
-      Nat.mul_div_le coordinate (period depth)
-    have candidateEq : candidate = frameBase depth coordinate := by omega
-    have coordinateEq : coordinate = candidate := by omega
-    rw [← coordinateEq, coordinateClear] at selected
-    simp at selected
+  · have hmod := largeClosing_mod_small larger closing
+    have hbase : frameBase depth coordinate ≤ coordinate := Nat.mul_div_le coordinate (period depth)
+    have hcand : candidate = coordinate := by omega
+    exact absurd (hcand ▸ selected) (by simp [coordinateClear])
 
 private theorem selectedBorder_eq_none_after_frameClosing
     {level depth coordinate transverse candidate : Nat}
@@ -983,41 +845,26 @@ private theorem selectedBorder_eq_none_after_frameClosing
           omega
         omega
       · rcases frame with ⟨frameDepth, depthLeFrame, _, border⟩
-        have frameResidue : candidate % period frameDepth =
-              frameStartResidue frameDepth ∨
-            candidate % period frameDepth = frameEndResidue frameDepth := by
-          cases orientation with
-          | false =>
-              exact Or.inr ((frameBorder_eq_some_false_iff _ _ _).1 border).2
-          | true =>
-              exact Or.inl ((frameBorder_eq_some_true_iff _ _ _).1 border).2
         have baseLe : frameBase depth coordinate ≤ candidate := by
-          simp only [frameClosing] at afterClosing
-          omega
-        have candidateUpper : candidate <
-            frameBase depth coordinate + period depth :=
-          beforeCoordinate.trans
-            (coordinate_lt_frameBase_add_period depth coordinate)
-        have candidateMod : candidate % period depth =
-            candidate - frameBase depth coordinate :=
-          mod_eq_sub_frameBase_of_mem_block baseLe candidateUpper
+          simp only [frameClosing] at afterClosing; omega
+        have candidateMod : candidate % period depth = candidate - frameBase depth coordinate :=
+          mod_eq_sub_frameBase_of_mem_block baseLe
+            (beforeCoordinate.trans (coordinate_lt_frameBase_add_period depth coordinate))
         have afterEnd : frameEndResidue depth < candidate % period depth := by
-          simp only [frameClosing] at afterClosing
-          omega
-        rcases depthLeFrame.eq_or_lt with equal | larger
-        · subst frameDepth
-          have startBeforeEnd := frameStartResidue_lt_frameEndResidue depth
-          rcases frameResidue with opening | closing <;> omega
-        · have largeResidue : candidate % period depth = 0 ∨
-              candidate % period depth = 1 := by
-            rcases frameResidue with opening | closing
-            · exact Or.inr (largeOpening_mod_small larger opening)
-            · exact Or.inl (largeClosing_mod_small larger closing)
-          have endLarge : 1 < frameEndResidue depth := by
-            simp only [frameEndResidue]
-            have := scale_pos depth
+          simp only [frameClosing] at afterClosing; omega
+        have endLarge : 1 < frameEndResidue depth := by
+          have := scale_pos depth
+          simp only [frameEndResidue]; omega
+        have startBeforeEnd := frameStartResidue_lt_frameEndResidue depth
+        rcases depthLeFrame.eq_or_lt with rfl | larger
+        · cases orientation <;>
+            simp only [frameBorder_eq_some_false_iff, frameBorder_eq_some_true_iff] at border <;>
             omega
-          rcases largeResidue with zero | one <;> omega
+        · cases orientation
+          · have := largeClosing_mod_small larger ((frameBorder_eq_some_false_iff _ _ _).1 border).2
+            omega
+          · have := largeOpening_mod_small larger ((frameBorder_eq_some_true_iff _ _ _).1 border).2
+            omega
 
 private theorem selectedBorder_ne_some_false_of_no_owner
     {level coordinate transverse : Nat}
@@ -1049,22 +896,16 @@ private theorem frameClosing_lt_two_mul_scale
     frameClosing depth coordinate < 2 * scale level := by
   have periodPositive := lt_trans Nat.zero_lt_one (one_lt_period depth)
   have lengthDvd := period_dvd_two_mul_scale hdepth
-  have quotientLt : coordinate / period depth <
-      (2 * scale level) / period depth := by
-    apply (Nat.div_lt_iff_lt_mul periodPositive).2
-    rw [Nat.mul_comm, Nat.mul_div_cancel' lengthDvd]
-    exact coordinate_lt
-  have nextBlockLe : period depth * (coordinate / period depth + 1) ≤
-      2 * scale level := by
-    have multiplied := Nat.mul_le_mul_left (period depth)
-      (Nat.succ_le_iff.2 quotientLt)
-    rw [Nat.mul_div_cancel' lengthDvd] at multiplied
-    exact multiplied
-  have closingBeforeNext : frameClosing depth coordinate <
-      period depth * (coordinate / period depth + 1) := by
-    have endLt := frameEndResidue_lt_period depth
+  have quotientLt : coordinate / period depth < (2 * scale level) / period depth :=
+    (Nat.div_lt_iff_lt_mul periodPositive).2
+      (by rwa [Nat.mul_comm, Nat.mul_div_cancel' lengthDvd])
+  have nextBlockLe : period depth * (coordinate / period depth + 1) ≤ 2 * scale level := by
+    simpa only [Nat.mul_div_cancel' lengthDvd] using
+      Nat.mul_le_mul_left (period depth) (Nat.succ_le_iff.2 quotientLt)
+  have closingBeforeNext :
+      frameClosing depth coordinate < period depth * (coordinate / period depth + 1) := by
     simpa [frameClosing, frameBase, Nat.mul_add] using
-      Nat.add_lt_add_left endLt (period depth * (coordinate / period depth))
+      Nat.add_lt_add_left (frameEndResidue_lt_period depth) (frameBase depth coordinate)
   exact closingBeforeNext.trans_le nextBlockLe
 
 /-- Every arithmetic horizontal carrier cell has clear canonical signal on
@@ -1087,36 +928,27 @@ private theorem intervalEdge_pair_of_horizontalCarrier
         simpa [isHorizontalCarrier, owner] using carrier
       have insideData := (inFrame_eq_true_iff _ _).mp carrierData.1
       have interiorData := (onFrameBoundary_eq_false_iff _ _).mp carrierData.2
-      have decomposition : frameBase depth coordinate + coordinate % period depth = coordinate :=
-        Nat.div_add_mod coordinate (period depth)
+      have decomposition := Nat.div_add_mod coordinate (period depth)
       have openingBefore : frameOpening depth coordinate < coordinate := by
-        unfold frameOpening
+        unfold frameOpening frameBase
         omega
       have beforeClosing : coordinate < frameClosing depth coordinate := by
-        unfold frameClosing
+        unfold frameClosing frameBase
         omega
-      have successorAtMostClosing : coordinate + 1 ≤
-          frameClosing depth coordinate := by omega
       have depth_lt_level : depth < level := by
         have := depthAt_le owner
         have := depthAt_pos owner
         omega
-      have closingBeforeEnd := frameClosing_lt_two_mul_scale
-        depth_lt_level coordinate_lt
-      have openingBorder := selectedBorder_frameOpening
-        (coordinate := coordinate) owner
-      have closingBorder := selectedBorder_frameClosing
-        (coordinate := coordinate) owner
+      have closingBeforeEnd := frameClosing_lt_two_mul_scale depth_lt_level coordinate_lt
       have noBorder := fun candidate (after : frameOpening depth coordinate < candidate)
           (before : candidate < frameClosing depth coordinate) =>
         selectedBorder_none_between_frameBounds owner after before
-      exact ⟨
+      exact ⟨Canonical.intervalEdge_eq_none_of_between_borders
+          (selectedBorder_frameOpening owner) (selectedBorder_frameClosing owner)
+          noBorder openingBefore (by omega) closingBeforeEnd,
         Canonical.intervalEdge_eq_none_of_between_borders
-          openingBorder closingBorder noBorder openingBefore
-          (by omega) closingBeforeEnd,
-        Canonical.intervalEdge_eq_none_of_between_borders
-          openingBorder closingBorder noBorder (by omega)
-          successorAtMostClosing closingBeforeEnd⟩
+          (selectedBorder_frameOpening owner) (selectedBorder_frameClosing owner)
+          noBorder (by omega) (by omega) closingBeforeEnd⟩
 
 /-- Conversely, the canonical signal can be clear on both sides of a cell only
 inside the smallest frame owning its row. -/
@@ -1135,8 +967,6 @@ private theorem horizontalCarrier_of_intervalEdge_pair
   have coordinateClear : interior coordinate = none :=
     Canonical.interior_eq_none_of_adjacent_clear
       interior coordinate_lt clear.1 clear.2
-  have coordinateClear' : selectedBorder level coordinate transverse = none := by
-    simpa [interior] using coordinateClear
   have edgeData := (Canonical.intervalEdge_eq_none_iff
     interior (2 * scale level) coordinate).1 clear.1
   cases owner : depthAt (level - 1) transverse with
@@ -1153,22 +983,14 @@ private theorem horizontalCarrier_of_intervalEdge_pair
         have := depthAt_le owner
         have := depthAt_pos owner
         omega
-      have closingBeforeEnd := frameClosing_lt_two_mul_scale
-        depth_lt_level coordinate_lt
-      have openingBorder := selectedBorder_frameOpening
-        (level := level) (coordinate := coordinate) owner
-      have closingBorder := selectedBorder_frameClosing
-        (level := level) (coordinate := coordinate) owner
       have bounds := between_borders_of_intervalEdge_eq_none
         clear.1 coordinateClear
-        (by simpa [interior] using openingBorder)
-        (by simpa [interior] using closingBorder)
-        (frameOpening_lt_frameClosing depth coordinate) closingBeforeEnd
-        (fun candidate lower before =>
-          selectedBorder_ne_some_false_before_frameOpening owner
-            coordinateClear' lower before)
-        (fun candidate after before =>
-          selectedBorder_eq_none_after_frameClosing owner after before)
+        (selectedBorder_frameOpening owner)
+        (selectedBorder_frameClosing owner)
+        (frameOpening_lt_frameClosing depth coordinate)
+        (frameClosing_lt_two_mul_scale depth_lt_level coordinate_lt)
+        (fun _ => selectedBorder_ne_some_false_before_frameOpening owner coordinateClear)
+        (fun _ => selectedBorder_eq_none_after_frameClosing owner)
       have geometry := between_frameBounds bounds.1 bounds.2
       simpa [isHorizontalCarrier, owner] using geometry
 
@@ -1183,8 +1005,7 @@ theorem intervalEdge_pair_iff_horizontalCarrier
           (fun x => selectedBorder level x transverse)
           (side level) (coordinate + 1) = .none) ↔
       isHorizontalCarrier level coordinate transverse = true := by
-  constructor
-  · exact horizontalCarrier_of_intervalEdge_pair coordinate_lt
-  · exact intervalEdge_pair_of_horizontalCarrier coordinate_lt
+  exact ⟨horizontalCarrier_of_intervalEdge_pair coordinate_lt,
+    intervalEdge_pair_of_horizontalCarrier coordinate_lt⟩
 
 end Cslib.WangTile.Robinson.Carrier

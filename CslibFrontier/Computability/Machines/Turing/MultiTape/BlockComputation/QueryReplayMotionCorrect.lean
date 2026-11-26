@@ -67,23 +67,11 @@ theorem valid_iff {b : ℕ} [NeZero b] (positive negative : ℕ)
       ∀ head, c.blockIndex b head = J head + (expected head : ℤ) := by
   have hb : 0 < b := Nat.pos_of_neZero b
   simp only [valid, hwidth, hb, decide_true, Bool.true_and, Bool.and_eq_true,
-    decide_eq_true_eq]
-  constructor
-  · rintro ⟨hi, hw⟩ head
-    cases head with
-    | none =>
-      have h := (inputMatches_iff b positive negative q.inputPos (expected none)).mp hi
-      simpa only [Cfg.blockIndex, Cfg.headPos_none, hrep.inputPos, hinput] using h
-    | some head =>
-      have h := (workMatches_iff b (q.heads head) (J (some head))
-        (expected (some head))).mp (hw head)
-      simpa only [Cfg.blockIndex, Cfg.headPos_some, hrep.heads head] using h
-  · intro h
-    constructor
-    · apply (inputMatches_iff b positive negative q.inputPos (expected none)).mpr
-      simpa only [Cfg.blockIndex, Cfg.headPos_none, hrep.inputPos, hinput] using h none
-    · intro head
-      apply (workMatches_iff b (q.heads head) (J (some head)) (expected (some head))).mpr
-      simpa only [Cfg.blockIndex, Cfg.headPos_some, hrep.heads head] using h (some head)
+    decide_eq_true_eq, Option.forall]
+  refine and_congr ?_ (forall_congr' fun head => ?_)
+  · simpa only [Cfg.blockIndex, Cfg.headPos_none, hrep.inputPos, hinput] using
+      inputMatches_iff b positive negative q.inputPos (expected none)
+  · simpa only [Cfg.blockIndex, Cfg.headPos_some, hrep.heads head] using
+      workMatches_iff b (q.heads head) (J (some head)) (expected (some head))
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.Motion

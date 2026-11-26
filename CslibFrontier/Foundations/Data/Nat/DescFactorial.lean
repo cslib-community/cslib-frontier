@@ -49,12 +49,13 @@ theorem two_mul_pow_le_two_mul_descFactorial_add (A : ℕ) :
       · interval_cases A <;> simp
       · rw [Nat.descFactorial_succ, Nat.descFactorial_one]
         zify [Nat.one_le_of_lt hA]
-        nlinarith
+        exact le_of_eq (by ring)
     | succ m ih =>
       change 2 * A ^ (m + 3) ≤ 2 * A.descFactorial (m + 3) + (m + 3) * (m + 2) * A ^ (m + 2)
       change 2 * A ^ (m + 2) ≤ 2 * A.descFactorial (m + 2) + (m + 2) * (m + 1) * A ^ (m + 1) at ih
       rcases le_or_gt A (m + 2) with hA | hA
-      · have h2A : 2 * A ≤ (m + 3) * (m + 2) := by nlinarith
+      · have h2A : 2 * A ≤ (m + 3) * (m + 2) :=
+          (Nat.mul_le_mul_left 2 hA).trans (Nat.mul_le_mul_right _ (by omega))
         calc 2 * A ^ (m + 3)
             = (2 * A) * A ^ (m + 2) := by rw [pow_succ']; ring
           _ ≤ ((m + 3) * (m + 2)) * A ^ (m + 2) := Nat.mul_le_mul_right _ h2A
@@ -62,26 +63,18 @@ theorem two_mul_pow_le_two_mul_descFactorial_add (A : ℕ) :
               Nat.le_add_left _ _
       · have hA_mul : A * A.descFactorial (m + 2) =
             A.descFactorial (m + 3) + (m + 2) * A.descFactorial (m + 2) := by
-          calc A * A.descFactorial (m + 2)
-              = (A - (m + 2) + (m + 2)) * A.descFactorial (m + 2) :=
-                congrArg (· * _) (Nat.sub_add_cancel hA.le).symm
-            _ = (A - (m + 2)) * A.descFactorial (m + 2) + (m + 2) * A.descFactorial (m + 2) :=
-                Nat.add_mul _ _ _
-            _ = A.descFactorial (m + 3) + (m + 2) * A.descFactorial (m + 2) := by
-                rw [← Nat.descFactorial_succ A (m + 2)]
+          rw [Nat.descFactorial_succ A (m + 2), ← Nat.add_mul, Nat.sub_add_cancel hA.le]
         have hdesc_le : A.descFactorial (m + 2) ≤ A ^ (m + 2) := Nat.descFactorial_le_pow A (m + 2)
         calc 2 * A ^ (m + 3)
             = (2 * A ^ (m + 2)) * A := by ring
-          _ ≤ (2 * A.descFactorial (m + 2) + (m + 2) * (m + 1) * A ^ (m + 1)) * A :=
-              Nat.mul_le_mul_right A ih
+          _ ≤ (2 * A.descFactorial (m + 2) + (m + 2) * (m + 1) * A ^ (m + 1)) * A := by gcongr
           _ = 2 * (A * A.descFactorial (m + 2)) + (m + 2) * (m + 1) * A ^ (m + 2) := by ring
           _ = 2 * A.descFactorial (m + 3) +
                 (2 * (m + 2) * A.descFactorial (m + 2) + (m + 2) * (m + 1) * A ^ (m + 2)) := by
               rw [hA_mul]; ring
           _ ≤ 2 * A.descFactorial (m + 3) +
                 (2 * (m + 2) * A ^ (m + 2) + (m + 2) * (m + 1) * A ^ (m + 2)) :=
-              Nat.add_le_add_left
-                (Nat.add_le_add_right (Nat.mul_le_mul_left _ hdesc_le) _) _
+              by gcongr
           _ = 2 * A.descFactorial (m + 3) + (m + 3) * (m + 2) * A ^ (m + 2) := by ring
 
 /-- Falling-factorial lower bound `A ^ r ≤ 2 * A.descFactorial r` whenever `2 * r ^ 2 ≤ A`. -/
@@ -91,10 +84,9 @@ theorem pow_le_two_mul_descFactorial {A r : ℕ} (h : 2 * r ^ 2 ≤ A) :
   · simp
   have htop := two_mul_pow_le_two_mul_descFactorial_add A r
   have h2r : r * (r - 1) * A ^ (r - 1) ≤ A ^ r := by
-    have hrr : 2 * (r * (r - 1)) ≤ 2 * r ^ 2 := by
-      have : r * (r - 1) ≤ r * r := Nat.mul_le_mul_left r (Nat.sub_le r 1)
-      nlinarith
-    have hr_le : r * (r - 1) ≤ A := by omega
+    have hr_le : r * (r - 1) ≤ A := by
+      have hrr : r * (r - 1) ≤ r ^ 2 := by rw [sq]; exact Nat.mul_le_mul_left r (Nat.sub_le r 1)
+      omega
     calc r * (r - 1) * A ^ (r - 1)
         ≤ A * A ^ (r - 1) := Nat.mul_le_mul_right _ hr_le
       _ = A ^ (r - 1 + 1) := by rw [pow_succ']

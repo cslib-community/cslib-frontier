@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Count
 import CslibFrontier.Computability.WordRAM.MemoryView
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete native adjacent deduplication and multiplicity arrays
@@ -49,16 +49,6 @@ def body : Code .standard 16 :=
 /-- Initialize the two cursors and count all adjacent runs. -/
 def code : Code .standard 16 :=
   .seq (ram[ one ← #1; idx ← #0; out ← #0 ]) (.loop (.lt idx len) body)
-
-private theorem flush_exec {w : ℕ} (x : Data 16) (ho : x.regs one = 1)
-    (hk : Fits w (x.regs keys + x.regs out))
-    (hc : Fits w (x.regs counts + x.regs out)) (hi : Fits w (x.regs out + 1)) :
-    ∃ y, ExecWithin w flush x y 5 ∧ y.regs out = x.regs out + 1 ∧
-      y.mem = Function.update (Function.update x.mem (x.regs keys + x.regs out) (x.regs key))
-        (x.regs counts + x.regs out) (x.regs count) := by
-  refine ⟨?_, ?run, ?_, ?_⟩
-  case run => ram_eval [flush, ho, hk, hc, hi]
-  all_goals simp +decide [Data.set_regs, Data.write_mem]
 
 /-- Emit each distinct key once and its full multiplicity in at most `29n+5` instructions.
 The input precedes the two output blocks; no input cells or cells outside the output blocks
@@ -122,119 +112,58 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
         simpa using hh
       have := hrest _ hmember
       omega
-    let y₀ := (((y.set addr (s + y.regs idx)).set key xs[y.regs idx]).set count 0).set active 1
-    have hinit : ExecWithin (B := .standard) w
-        (ram[ addr ← src + idx; key ← *addr; count ← #0; active ← #1 ]) y y₀ 4 := by
-      have had : Fits w (y.regs src + y.regs idx) := by
-        rw [hys]; exact hfit.of_le (by omega)
-      have hread : y.mem (y.regs src + y.regs idx) = xs[y.regs idx] := by
-        rw [hys]; exact hym.get _ hi
-      have had' : Fits w (s + y.regs idx) := hfit.of_le (by omega)
-      have hread' : y.mem (s + y.regs idx) = xs[y.regs idx] := hym.get _ hi
-      ram_eval [y₀, had, had', hread, hread', hys, h1]
-    obtain ⟨u, hu, hui, huc, hum⟩ := Count.exec (k := xs[y.regs idx]) y₀
-      (by simpa +decide [y₀] using hyn) (by simpa +decide [y₀] using hys)
-      (by simp +decide [y₀]) (by simp +decide [y₀])
-      (by simp +decide [y₀]) (by simp +decide [y₀])
-      (by simpa +decide [y₀] using hyo) (show y.regs idx ≤ y.regs idx + c by omega)
-      hstop (by simpa only [y₀, Data.set_mem] using hrun)
-      (by simpa only [y₀, Data.set_mem] using hnext) (hfit.of_le (by omega))
-    have huc' : u.regs count = c := by simpa using huc
-    have hun : u.regs len = n := by regs_frame
-    have hus : u.regs src = s := by regs_frame
-    have huk : u.regs keys = base := by regs_frame
-    have hucb : u.regs counts = base + n := by regs_frame
-    have huo : u.regs one = 1 := by regs_frame
-    have huout : u.regs out = rs.length := by regs_frame
-    have hukey : u.regs key = xs[y.regs idx] := by regs_frame
     have hrl : rs.length ≤ y.regs idx := by
       have hh := length_le_expand hrs.positive
-      rw [hrs.reconstruct, List.length_take_of_le hiy] at hh
-      exact hh
-    obtain ⟨z, hz, hzout, hzm⟩ := flush_exec u huo
-      (by rw [huk, huout]; exact hfit.of_le (by omega))
-      (by rw [hucb, huout]; exact hfit.of_le (by omega))
-      (by rw [huout]; exact hfit.of_le (by omega))
-    have hzmem : z.mem = Function.update
-        (Function.update y.mem (base + rs.length) xs[y.regs idx]) (base + n + rs.length) c := by
-      simpa only [huk, hucb, huout, hukey, huc', hum, y₀, Data.set_mem] using hzm
-    have hzi : z.regs idx = y.regs idx + c := by regs_frame
-    have hzf : Modifies (Block.mk base (2 * n)).footprint y.mem z.mem := by
+      rwa [hrs.reconstruct, List.length_take_of_le hiy] at hh
+    have hrs' : RunEncoding (xs.take (y.regs idx + c)) (rs ++ [(xs[y.regs idx], c)]) := by
+      refine ⟨?_, ?_, ?_⟩
+      · exact fun p hp => (List.mem_append.mp hp).elim (hrs.positive p)
+          fun hp => (List.mem_singleton.mp hp) ▸ hcp
+      · refine List.pairwise_append.mpr ⟨hrs.ordered, by simp, fun p hp q hq => ?_⟩
+        rcases List.mem_singleton.mp hq with rfl
+        exact hrlt p hp _ (List.drop_eq_getElem_cons hi ▸ List.mem_cons_self)
+      · rw [expand_append, expand_singleton, hrs.reconstruct, htake]
+    rw [exists_comm]
+    refine ⟨8 * c + 19, WP.exists_execWithin ?_⟩
+    unfold body flush
+    wram_exec * [hym.get _ hi]
+    wram_call (Count.exec (stop := y.regs idx + c) (k := xs[y.regs idx])) [hrun, hnext]
+      with u ⟨hui, huc, hum⟩
+    have hum' : u.mem = y.mem := by simpa only [Data.set_mem] using hum
+    have huc' : u.regs count = c := by omega
+    wram_exec *
+    dsimp only [I]
+    wram_simp * [hum', List.length_append, List.length_singleton]
+    have hzf : Modifies (Block.mk base (2 * n)).footprint y.mem
+        (Function.update (Function.update y.mem (base + rs.length) xs[y.regs idx])
+          (base + n + rs.length) c) := by
       intro a hnot
       have ha : ¬(base ≤ a ∧ a < base + 2 * n) := by
         simpa only [Block.mem_footprint, Block.Owns] using hnot
-      rw [hzmem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    have hkeyrep : Block.HoldsList base
-        ((rs ++ [(xs[y.regs idx], c)]).map Prod.fst) z.mem := by
-      rw [List.map_append]
-      simp only [List.map_cons, List.map_nil]
-      rw [hzmem]
+      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+    refine ⟨⟨hstop, by ram_keep hym using hzf,
+      fun a ha => (hzf a ha).trans (hyf a ha), rs ++ [(xs[y.regs idx], c)], hrs',
+      by simp, ?_, ?_, ?_⟩, by omega⟩
+    · rw [List.map_append, List.map_cons, List.map_nil]
       have hkr : Block.HoldsList base (rs.map Prod.fst ++ [xs[y.regs idx]])
           (Function.update y.mem (base + rs.length) xs[y.regs idx]) := by
         simpa only [List.length_map] using hyrk.append_one xs[y.regs idx]
       ram_keep hkr
-    have hcountrep : Block.HoldsList (base + n)
-        ((rs ++ [(xs[y.regs idx], c)]).map Prod.snd) z.mem := by
-      rw [List.map_append]
-      simp only [List.map_cons, List.map_nil]
-      rw [hzmem]
+    · rw [List.map_append, List.map_cons, List.map_nil]
       have hcr : Block.HoldsList (base + n) (rs.map Prod.snd)
-          (Function.update y.mem (base + rs.length) xs[y.regs idx]) := by
-        ram_keep hyrc
+          (Function.update y.mem (base + rs.length) xs[y.regs idx]) := by ram_keep hyrc
       simpa only [List.length_map] using hcr.append_one c
-    have hrs' : RunEncoding (xs.take (y.regs idx + c)) (rs ++ [(xs[y.regs idx], c)]) := by
-      refine ⟨?_, ?_, ?_⟩
-      · intro p hp
-        rcases List.mem_append.mp hp with hp | hp
-        · exact hrs.positive p hp
-        · have hp' := List.mem_singleton.mp hp
-          subst p
-          exact hcp
-      · apply List.pairwise_append.mpr
-        refine ⟨hrs.ordered, by simp, ?_⟩
-        intro p hp q hq
-        have hq' : q = (xs[y.regs idx], c) := List.mem_singleton.mp hq
-        subst q
-        apply hrlt p hp
-        rw [List.drop_eq_getElem_cons hi]
-        exact List.mem_cons_self
-      · rw [expand_append, expand_singleton, hrs.reconstruct, htake]
-    refine ⟨z, 8 * c + 19, ?_, ?_, ?_⟩
-    · have hall := hinit.seq (hu.seq hz)
-      exact hall.mono (by omega)
-    · refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-        by regs_frame, by omega, ?_, ?_,
-        rs ++ [(xs[y.regs idx], c)], by simpa only [hzi] using hrs', ?_, hkeyrep, hcountrep, ?_⟩
-      · ram_keep hym using hzf
-      · intro a ha
-        exact (hzf a ha).trans (hyf a ha)
-      · rw [hzout, huout, List.length_append, List.length_singleton]
-      · intro p hp v hv
-        rw [hzi, hdrop'] at hv
-        rcases List.mem_append.mp hp with hp | hp
-        · apply hrlt p hp
-          rw [hdrop]
-          exact List.mem_append_right _ hv
-        · have hp' : p = (xs[y.regs idx], c) := List.mem_singleton.mp hp
-          subst p
-          exact hrest v hv
-    · rw [hzi]
-      omega
+    · intro p hp v hv
+      rw [hdrop'] at hv
+      rcases List.mem_append.mp hp with hp | hp
+      · exact hrlt p hp v (hdrop ▸ List.mem_append_right _ hv)
+      · exact (List.mem_singleton.mp hp) ▸ hrest v hv
   let x₀ := ((x.set one 1).set idx 0).set out 0
   have hx₀ : I x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hmem, Modifies.refl _ _, [], ?_, ?_, ?_, ?_, ?_⟩
-    · simpa +decide [x₀] using hn
-    · simpa +decide [x₀] using hs
-    · simpa +decide [x₀] using hk
-    · simpa +decide [x₀] using hc
-    · simp +decide [x₀]
-    · simp +decide [x₀]
-    · refine ⟨by simp, by simp, ?_⟩
-      simp +decide [x₀, expand]
-    · simp [x₀]
-    · exact Block.holdsList_nil _ _
-    · exact Block.holdsList_nil _ _
-    · simp
+    refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      by simp +decide [x₀], hmem, Modifies.refl _ _, [], ⟨by simp, by simp, ?_⟩, by simp [x₀],
+      Block.holdsList_nil _ _, Block.holdsList_nil _ _, by simp⟩
+    simp +decide [x₀, expand]
   obtain ⟨y, he, hy, hcond⟩ := ExecWithin.loop_potential I
     (fun y => 29 * (n - y.regs idx)) hbody hx₀
   obtain ⟨hyn, _, _, _, _, hiy, hym, hyf, rs, hrs, hyout, hyrk, hyrc, _⟩ := hy
@@ -242,14 +171,9 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
     simp only [Cond.holds_lt, hyn] at hcond
     omega
   have hinit : ExecWithin (B := .standard) w (ram[ one ← #1; idx ← #0; out ← #0 ]) x x₀ 3 := by
-    ram_eval [x₀, h1]
+    wram_exec
   refine ⟨y, rs, ?_, by simpa only [hend, List.take_length] using hrs,
     hyout, hyrk, hyrc, hym, hyf⟩
-  have hall := hinit.seq he
-  convert hall using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, idx, out, one,
-      ↓reduceIte, Nat.sub_zero, n]
-    omega
+  exact (hinit.seq he).mono (by simp +decide [x₀, n]; omega)
 
 end Cslib.Algorithms.WordRAM.Deduplicate

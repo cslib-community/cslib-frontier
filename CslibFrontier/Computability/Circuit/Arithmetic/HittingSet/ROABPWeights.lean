@@ -160,15 +160,12 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
         simp [levelWeight]
       have hinj : Set.InjOn (Finsupp.weight (levelWeight p (n * δ * p + 1) []))
           (↑(monomialsLE [i] δ) : Set (Fin n →₀ ℕ)) := fun m hm m' hm' hmm => by
-        rw [mem_coe] at hm hm'
         rw [hwt m hm, hwt m' hm'] at hmm
-        ext j
-        by_cases hj : j = i
-        · rw [hj, hmm]
-        · rw [(mem_monomialsLE.1 hm).2 j (by simpa using hj),
-            (mem_monomialsLE.1 hm').2 j (by simpa using hj)]
-      obtain ⟨S, hS, hiso⟩ := exists_isolates_of_injOn (F := F)
-        (D := segmentCoeff M (Bracketing.leaf i).leaves) hinj
+        refine Finsupp.ext fun j => ?_
+        rcases eq_or_ne j i with rfl | hj
+        · exact hmm
+        · rw [(mem_monomialsLE.1 hm).2 j (by simp [hj]), (mem_monomialsLE.1 hm').2 j (by simp [hj])]
+      obtain ⟨S, hS, hiso⟩ := exists_isolates_of_injOn (F := F) (D := segmentCoeff M [i]) hinj
       exact ⟨S, hS.trans_eq hrank, hiso⟩
   | succ h ih =>
     obtain ⟨a, hlen, hap, hS⟩ := ih
@@ -185,23 +182,14 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
         (hSiso l (Bracketing.mem_subtrees_of_node hs).1 hl).1
         (hSiso r (Bracketing.mem_subtrees_of_node hs).2 hr).1
     have hheight : ∀ {l r : Bracketing (Fin n)}, (Bracketing.node l r).height ≤ h + 1 →
-        l.height ≤ h ∧ r.height ≤ h := fun {l r} hh => by
-      rw [Bracketing.height] at hh
-      exact ⟨(le_max_left _ _).trans (Nat.le_of_succ_le_succ hh),
-        (le_max_right _ _).trans (Nat.le_of_succ_le_succ hh)⟩
-    have hPmem : ∀ x ∈ P, ∃ l r, Bracketing.node l r ∈ t.subtrees ∧ l.height ≤ h ∧
-        r.height ≤ h ∧ x ∈ (S l + S r).offDiag := fun x hx => by
-      rw [hPdef, levelPairs, mem_biUnion] at hx
-      obtain ⟨s, hs, hxs⟩ := hx
-      rw [mem_filter, List.mem_toFinset] at hs
-      cases s with
-      | leaf i => exact absurd hxs (notMem_empty x)
-      | node l r => exact ⟨l, r, hs.1, (hheight hs.2).1, (hheight hs.2).2, hxs⟩
+        l.height ≤ h ∧ r.height ≤ h := fun hh => max_le_iff.1 (Nat.le_of_succ_le_succ hh)
     have hP : ∀ x ∈ P, x.1 ≠ x.2 ∧ (∀ i, x.1 i ≤ δ) ∧ ∀ i, x.2 i ≤ δ := fun x hx => by
-      obtain ⟨l, r, hs, hl, hr, hxs⟩ := hPmem x hx
-      rw [mem_offDiag] at hxs
-      exact ⟨hxs.2.2, (mem_monomialsLE.1 (hTsub hs hl hr hxs.1)).1,
-        (mem_monomialsLE.1 (hTsub hs hl hr hxs.2.1)).1⟩
+      rcases mem_biUnion.1 hx with ⟨_ | ⟨l, r⟩, hs, hxs⟩
+      · exact absurd hxs (notMem_empty x)
+      · obtain ⟨hs₁, hs₂⟩ := mem_filter.1 hs
+        obtain ⟨hx₁, hx₂, hne⟩ := mem_offDiag.1 hxs
+        have hsub := hTsub (List.mem_toFinset.1 hs₁) (hheight hs₂).1 (hheight hs₂).2
+        exact ⟨hne, (mem_monomialsLE.1 (hsub hx₁)).1, (mem_monomialsLE.1 (hsub hx₂)).1⟩
     have hPcard : P.card * n < p := by
       refine lt_of_le_of_lt (Nat.mul_le_mul_right n ?_) hp
       rw [hPdef, levelPairs]
@@ -214,17 +202,13 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
           have hr := hScard r (Bracketing.mem_subtrees_of_node hs.1).2 (hheight hs.2).2
           have hadd : (S l + S r).card ≤ w ^ 2 * w ^ 2 :=
             (card_add_le).trans (Nat.mul_le_mul hl hr)
-          calc (S l + S r).offDiag.card ≤ (S l + S r).card * (S l + S r).card := by
-                rw [offDiag_card]
-                exact Nat.sub_le _ _
-            _ ≤ (w ^ 2 * w ^ 2) * (w ^ 2 * w ^ 2) := Nat.mul_le_mul hadd hadd
-            _ = (w ^ 2) ^ 4 := by ring
+          exact (offDiag_card _).trans_le
+            ((Nat.sub_le _ _).trans ((Nat.mul_le_mul hadd hadd).trans_eq (by ring)))
       · rw [smul_eq_mul]
         refine Nat.mul_le_mul_right _ ((card_filter_le _ _).trans
           ((List.toFinset_card_le _).trans ?_))
         have h1 := t.length_subtrees
-        have h2 : t.leaves.length ≤ n := by
-          simpa using ht.length_le_card
+        have h2 : t.leaves.length ≤ n := by simpa using ht.length_le_card
         omega
     obtain ⟨a', ha'p, hsep⟩ := exists_modWeight_separating hδ P hP hPcard
     set c' := levelWeight (n := n) p B (a' :: a) with hc'
@@ -239,39 +223,32 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
           (S s) := fun s hs hsh => by
       have hiso := hSiso s hs hsh
       refine hiso.mono_weight (fun m hm m' hm' hlt => ?_) fun x hx y hy hxy => ?_
-      · rw [hw', hw']
-        exact mul_add_lt_mul_add hlt (hsmall hm')
+      · rw [hw', hw']; exact mul_add_lt_mul_add hlt (hsmall hm')
       · rw [hw', hw'] at hxy
         exact hiso.2.1 hx hy
           (eq_of_mul_add_eq (hsmall (hiso.1 hx)) (hsmall (hiso.1 hy)) hxy).1
-    refine ⟨a' :: a, by rw [List.length_cons, hlen], fun x hx => ?_, fun s hs hsh => ?_⟩
-    · rcases List.mem_cons.1 hx with rfl | hx
-      exacts [ha'p, hap x hx]
-    · rcases Nat.lt_or_ge s.height (h + 1) with hlt | hge
-      · exact ⟨S s, hScard s hs (Nat.lt_succ_iff.1 hlt), htransfer s hs (Nat.lt_succ_iff.1 hlt)⟩
-      · cases s with
-        | leaf i => exact absurd hge (by simp [Bracketing.height])
-        | node l r =>
-          obtain ⟨hl, hr⟩ := hheight hsh
-          have hd := disjoint_leaves ht hs
-          have hinj : Set.InjOn (Finsupp.weight c')
-              (↑(S l + S r) : Set (Fin n →₀ ℕ)) := by
-            intro x hx y hy hxy
-            by_contra hne
-            rw [hw', hw'] at hxy
-            have hxT := hTsub hs hl hr hx
-            have hyT := hTsub hs hl hr hy
-            refine hsep (x, y) ?_ (eq_of_mul_add_eq (hsmall hxT) (hsmall hyT) hxy).2
-            rw [hPdef, levelPairs, mem_biUnion]
-            exact ⟨_, mem_filter.2 ⟨List.mem_toFinset.2 hs, hsh⟩,
-              mem_offDiag.2 ⟨hx, hy, hne⟩⟩
-          obtain ⟨S', -, hcard, hiso⟩ := exists_isolates_add
-            (htransfer l (Bracketing.mem_subtrees_of_node hs).1 hl)
-            (htransfer r (Bracketing.mem_subtrees_of_node hs).2 hr)
-            (D := segmentCoeff M (l.leaves ++ r.leaves))
-            (fun m₁ hm₁ m₂ hm₂ => segmentCoeff_append_add M hd hm₁ hm₂) hinj
-          rw [← monomialsLE_append hd] at hiso
-          exact ⟨S', hcard.trans_eq hrank, hiso⟩
+    refine ⟨a' :: a, by rw [List.length_cons, hlen], List.forall_mem_cons.2 ⟨ha'p, hap⟩,
+      fun s hs hsh => ?_⟩
+    rcases Nat.lt_or_ge s.height (h + 1) with hlt | hge
+    · exact ⟨S s, hScard s hs (Nat.lt_succ_iff.1 hlt), htransfer s hs (Nat.lt_succ_iff.1 hlt)⟩
+    · cases s with
+      | leaf i => exact absurd hge (by simp [Bracketing.height])
+      | node l r =>
+        obtain ⟨hl, hr⟩ := hheight hsh
+        have hd := disjoint_leaves ht hs
+        have hinj : Set.InjOn (Finsupp.weight c')
+            (↑(S l + S r) : Set (Fin n →₀ ℕ)) := fun x hx y hy hxy => by
+          by_contra hne
+          rw [hw', hw'] at hxy
+          exact hsep (x, y) (mem_biUnion.2 ⟨.node l r,
+            mem_filter.2 ⟨List.mem_toFinset.2 hs, hsh⟩, mem_offDiag.2 ⟨hx, hy, hne⟩⟩)
+            (eq_of_mul_add_eq (hsmall (hTsub hs hl hr hx)) (hsmall (hTsub hs hl hr hy)) hxy).2
+        obtain ⟨S', -, hcard, hiso⟩ := exists_isolates_add
+          (htransfer l (Bracketing.mem_subtrees_of_node hs).1 hl)
+          (htransfer r (Bracketing.mem_subtrees_of_node hs).2 hr)
+          (D := segmentCoeff M (l.leaves ++ r.leaves))
+          (fun m₁ hm₁ m₂ hm₂ => segmentCoeff_append_add M hd hm₁ hm₂) hinj
+        exact ⟨S', hcard.trans_eq hrank, monomialsLE_append hd δ ▸ hiso⟩
 
 /-- **A weight isolating the coefficients of a branching program**
 ([AgrawalGurjarKorwarSaxena2015], Lemma 8, for univariate layers). For a prime `p` above
@@ -285,18 +262,14 @@ theorem exists_isolating_weight [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 4 * n < p
         (segmentCoeff M l) (monomialsLE l δ) S := by
   classical
   rcases eq_or_ne l [] with rfl | hne
-  · refine ⟨[], Nat.zero_le _, fun x hx => absurd hx List.not_mem_nil, {0}, ?_, ?_, ?_⟩
-    · exact singleton_subset_iff.2 (mem_monomialsLE.2 ⟨fun _ => Nat.zero_le _, fun _ _ => rfl⟩)
-    · rw [coe_singleton]
-      exact Set.injOn_singleton _ _
-    · intro m hm hm0
-      exact absurd (mem_singleton.2 (Finsupp.ext fun i =>
-        (mem_monomialsLE.1 hm).2 i List.not_mem_nil)) hm0
+  · refine ⟨[], Nat.zero_le _, fun x hx => absurd hx List.not_mem_nil, {0},
+      singleton_subset_iff.2 (mem_monomialsLE.2 ⟨fun _ => Nat.zero_le _, fun _ _ => rfl⟩),
+      by simp, fun m hm hm0 => (hm0 (mem_singleton.2
+        (Finsupp.ext fun i => (mem_monomialsLE.1 hm).2 i List.not_mem_nil))).elim⟩
   · obtain ⟨t, rfl, hth⟩ := Bracketing.exists_leaves_eq l hne
     obtain ⟨a, hlen, hap, hS⟩ := exists_isolates_subtrees (F := F) hp hδ M hl t.height
     obtain ⟨S, -, hiso⟩ := hS t t.self_mem_subtrees le_rfl
-    refine ⟨a, ?_, hap, S, hiso⟩
-    rw [hlen]
-    exact hth.trans (Nat.clog_mono_right 2 (by simpa using hl.length_le_card))
+    exact ⟨a, hlen.trans_le
+      (hth.trans (Nat.clog_mono_right 2 (by simpa using hl.length_le_card))), hap, S, hiso⟩
 
 end Cslib.Circuits.Arithmetic
