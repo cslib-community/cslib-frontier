@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
 import CslibFrontier.Foundations.Data.List.FoldMax
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # Serialized finite-domain CSP model and DP specification over nice tree decompositions
@@ -279,12 +280,6 @@ theorem encodeNiceTreeAux_max_le (offset : ℕ) (T : NiceTree ℕ) :
     (dpInstTree counting q cs vars T).length = q ^ (bagList T).length := by
   cases T <;> simp [dpInstTree, bagList]
 
-private theorem getD_le_of_forall_le {xs : List ℕ} {c : ℕ} (h : ∀ x ∈ xs, x ≤ c) (i : ℕ) :
-    xs.getD i 0 ≤ c := by
-  rw [List.getD_eq_getElem?_getD]
-  cases hg : xs[i]?
-  exacts [Nat.zero_le _, h _ (List.mem_of_getElem? hg)]
-
 /-- Entry magnitude bound for `dpInstTree`: `≤ 1` in decision mode and `≤ q ^ T.size` in counting
 mode. -/
 theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
@@ -303,7 +298,7 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
       simp only [dpInstTree] at hx
       obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
       split_ifs
-      exacts [getD_le_of_forall_le ih _, Nat.zero_le _]
+      exacts [List.getD_le_of_forall_le ih _, Nat.zero_le _]
     | forget v child ih =>
       intro x hx
       simp only [dpInstTree, Bool.false_eq_true, ↓reduceIte] at hx
@@ -320,13 +315,13 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
         | succ k ihk =>
           dsimp only [dpAlgFold]
           split_ifs <;> omega
-      · exact getD_le_of_forall_le ih _
+      · exact List.getD_le_of_forall_le ih _
     | join left right ihl ihr =>
       intro x hx
       simp only [dpInstTree] at hx
       obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
-      exact (Nat.mul_le_mul (getD_le_of_forall_le ihl _) (getD_le_of_forall_le ihr _)).trans
-        (by decide)
+      exact (Nat.mul_le_mul (List.getD_le_of_forall_le ihl _)
+        (List.getD_le_of_forall_le ihr _)).trans (by decide)
   · simp only [↓reduceIte]
     induction T with
     | leaf =>
@@ -340,7 +335,7 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
       simp only [dpInstTree] at hx
       obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
       split_ifs
-      exacts [(getD_le_of_forall_le ih _).trans (Nat.pow_le_pow_right hq (by simp)),
+      exacts [(List.getD_le_of_forall_le ih _).trans (Nat.pow_le_pow_right hq (by simp)),
         Nat.zero_le _]
     | forget v child ih =>
       intro x hx
@@ -350,14 +345,14 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
       · rw [dpAlgFold_nat]
         simpa only [Finset.card_range, smul_eq_mul, NiceTree.size_forget, Nat.pow_succ,
           Nat.mul_comm] using Finset.sum_le_card_nsmul (Finset.range q) _ (q ^ child.size)
-            fun d _ => getD_le_of_forall_le ih _
-      · exact (getD_le_of_forall_le ih _).trans (Nat.pow_le_pow_right hq (by simp))
+            fun d _ => List.getD_le_of_forall_le ih _
+      · exact (List.getD_le_of_forall_le ih _).trans (Nat.pow_le_pow_right hq (by simp))
     | join left right ihl ihr =>
       intro x hx
       simp only [dpInstTree] at hx
       obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
       calc _ ≤ q ^ left.size * q ^ right.size :=
-            Nat.mul_le_mul (getD_le_of_forall_le ihl _) (getD_le_of_forall_le ihr _)
+            Nat.mul_le_mul (List.getD_le_of_forall_le ihl _) (List.getD_le_of_forall_le ihr _)
         _ = q ^ (left.size + right.size) := (Nat.pow_add q left.size right.size).symm
         _ ≤ q ^ (NiceTree.join left right).size :=
             Nat.pow_le_pow_right hq (by simp [NiceTree.size_join])

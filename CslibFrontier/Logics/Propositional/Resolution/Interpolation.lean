@@ -412,7 +412,7 @@ theorem CNF.isMonotoneInterpolantAt_relabel_inl {pos : Bool}
   · refine good_false hd fun a _ l hl he => ?_
     rcases l with ⟨i | _, b⟩
     · obtain rfl := hpos rfl d hd i b hl
-      simp [leftPos, show a i = true from he]
+      simpa [leftPos] using he
     · simpa [leftPos] using he
 
 /-- A clause of `B` has the monotone interpolant `true`, if the shared variables occur only
@@ -425,7 +425,7 @@ theorem CNF.isMonotoneInterpolantAt_relabel_inr {pos : Bool}
   · refine good_true hd fun a _ l hl he => ?_
     rcases l with ⟨i | _, b⟩
     · obtain rfl := hneg rfl d hd i b hl
-      simp [rightNeg, show a i = false from he]
+      simpa [rightNeg] using he
     · simpa [rightNeg] using he
   · exact good_true hd fun _ _ l _ he => by
       rcases l with ⟨_ | _, b⟩ <;> simpa [rightPart] using he

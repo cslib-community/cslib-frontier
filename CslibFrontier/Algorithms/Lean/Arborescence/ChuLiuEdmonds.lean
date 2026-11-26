@@ -208,7 +208,8 @@ theorem cheapestParent_spec {v : V} (hv : v ≠ r) (hne : candidates a v ≠ [])
     a v (cheapestParent a c r v) = true ∧ cheapestParent a c r v ≠ v ∧
       ∀ w, a v w = true → w ≠ v → c v (cheapestParent a c r v) ≤ c v w := by
   obtain ⟨m, hm⟩ := List.exists_argmin_eq_some (f := c v) hne
-  rw [show cheapestParent a c r v = m by simp [cheapestParent, hv, hm]]
+  have hsel : cheapestParent a c r v = m := by simp [cheapestParent, hv, hm]
+  rw [hsel]
   have hmem := (mem_candidates a).mp (List.argmin_mem hm)
   exact ⟨hmem.1, hmem.2, fun w hw hwv =>
     List.le_of_mem_argmin ((mem_candidates a).mpr ⟨hw, hwv⟩) hm⟩
