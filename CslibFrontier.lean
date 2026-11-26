@@ -3676,6 +3676,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.Instance.OfFin
 public import CslibFrontier.Logics.FirstOrder.Operator.TransitiveClosure.Tuple
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.InnerProduct
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseImpulseCertificate
 public import CslibFrontier.Probability.PMF.UniformBound
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Scores
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.AxisCollision

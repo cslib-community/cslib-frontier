@@ -30,13 +30,21 @@ theorems turn acceptance into statements about the impulse response
 * `Cslib.LinearAlgebra.EnergyBoundCert` (energy upper bound): `W ⪰ 0` with
   `Aᵀ W + W A + Cᵀ C ⪯ 0`, so inexact rational reconstructions are accepted. Acceptance proves
   `∫₀^∞ ‖h t‖_F² dt ≤ bound`. It proves nothing about internal stability.
+* `Cslib.LinearAlgebra.EnergyLowerCert` (energy lower bound): a Lyapunov certificate for
+  stability and a `Q`, not necessarily positive semidefinite, with `Aᵀ Q + Q A + Cᵀ C ⪰ 0`.
+  Acceptance proves `bound ≤ ∫₀^∞ ‖h t‖_F² dt`, and with an `EnergyBoundCert` the enclosure
+  `∫₀^∞ ‖h t‖_F² dt ∈ [lower, upper]` with exact rational endpoints.
 * `Cslib.LinearAlgebra.DecayCert` (decay): `P` with `Aᵀ P + P A + 2 α P ⪯ 0`, `lo 1 ⪯ P ⪯ hi 1`,
-  `Cᵀ C ⪯ γ P` and `Bᵀ P B ⪯ β 1`. Acceptance proves exponential stability, the state bound
-  `‖x t‖₂² ≤ (hi / lo) exp (-2 α t) ‖x 0‖₂²`, the envelopes
+  `Cᵀ C ⪯ γ P` and `Bᵀ P B ⪯ β 1`. Acceptance proves the real inequalities
+  `Cslib.LinearAlgebra.DecayInequalities`, from which follow exponential stability, the state
+  bound `‖x t‖₂² ≤ (hi / lo) exp (-2 α t) ‖x 0‖₂²`, the envelopes
   `‖h t v‖₂² ≤ γ β exp (-2 α t) ‖v‖₂²` and `‖h t‖_F² ≤ γ tr (Bᵀ P B) exp (-2 α t)`, a peak bound,
   the output bound `‖C x t‖₂² ≤ γ hi exp (-2 α t) ‖x 0‖₂²`, the energy tail
   `∫_T^∞ ‖h t‖_F² ≤ γ tr (Bᵀ P B) exp (-2 α T) / (2 α)`, and numerical settling times and tail
-  values (`DecayCert.impulseSettles`, `DecayCert.stateSettles`, `DecayCert.tailBelow`).
+  values (`DecayConstants.impulseSettles`, `DecayConstants.stateSettles`,
+  `DecayConstants.tailBelow`). The sparse checker of
+  `CslibFrontier.Algorithms.LinearAlgebra.SparseImpulseCertificate` proves the same inequalities,
+  so these bounds are stated once, for `DecayInequalities`.
 
 ## Normalization and units
 
@@ -70,12 +78,17 @@ settling check `γ β vmax² ≤ ε² expLower N (2 α T)` therefore certifies
 * `Cslib.LinearAlgebra.EnergyCert.integrableOn_Ioi_and_integral_eq`,
   `Cslib.LinearAlgebra.EnergyCert.isExponentiallyStable`.
 * `Cslib.LinearAlgebra.EnergyBoundCert.integrableOn_Ioi_and_integral_le`.
-* `Cslib.LinearAlgebra.DecayCert.isExponentiallyStable`, `DecayCert.dotProduct_self_le`,
-  `DecayCert.output_dotProduct_le`, `DecayCert.integral_Ioi_frobeniusSq_le_of_tailBelow`,
-  `DecayCert.responseKernel_mulVec_sq_le`, `DecayCert.responseKernel_mulVec_sq_le_peak`,
-  `DecayCert.frobeniusSq_le`, `DecayCert.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le`,
-  `DecayCert.responseKernel_mulVec_sq_le_of_impulseSettles`,
-  `DecayCert.dotProduct_self_le_of_stateSettles`.
+* `Cslib.LinearAlgebra.EnergyLowerCert.integrableOn_Ioi_and_le_integral`,
+  `Cslib.LinearAlgebra.EnergyLowerCert.integrableOn_Ioi_and_integral_mem_Icc`.
+* `Cslib.LinearAlgebra.DecayCert.decayInequalities`, and for `DecayInequalities`:
+  `DecayInequalities.isExponentiallyStable`, `DecayInequalities.dotProduct_self_le`,
+  `DecayInequalities.output_dotProduct_le`,
+  `DecayInequalities.integral_Ioi_frobeniusSq_le_of_tailBelow`,
+  `DecayInequalities.responseKernel_mulVec_sq_le`,
+  `DecayInequalities.responseKernel_mulVec_sq_le_peak`, `DecayInequalities.frobeniusSq_le`,
+  `DecayInequalities.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le`,
+  `DecayInequalities.responseKernel_mulVec_sq_le_of_impulseSettles`,
+  `DecayInequalities.dotProduct_self_le_of_stateSettles`.
 
 ## References
 
@@ -260,15 +273,10 @@ private theorem mul_exp_le_of_settles {α T eps2 K : ℚ} {N : ℕ} (hα : 0 < �
         push_cast; ring_nf
     _ ≤ eps2 := mul_exp_neg_le (by positivity) he.le hs
 
-/-! ### Decay certificates -/
+/-! ### Decay inequalities and their consequences -/
 
-/-- A certificate for decay of the state and of the impulse response of a `RatLTI n m p` model:
-a matrix `P` (rows), rational constants and `LDLᵀ` witnesses for the five inequalities
-`Aᵀ P + P A + 2 α P ⪯ 0`, `lo 1 ⪯ P`, `P ⪯ hi 1`, `Cᵀ C ⪯ γ P` and `Bᵀ P B ⪯ β 1`. Each
-residual is recomputed from the model and `P` by the checker. -/
-structure DecayCert where
-  /-- The rows of the Lyapunov matrix `P`. -/
-  P : List (List ℚ)
+/-- The rational constants of a decay certificate. -/
+structure DecayConstants where
   /-- The certified rate `α > 0`: the energy `xᵀ P x` decays like `exp (-2 α t)`. -/
   α : ℚ
   /-- A lower bound `lo > 0` with `lo 1 ⪯ P`. -/
@@ -279,6 +287,195 @@ structure DecayCert where
   γ : ℚ
   /-- The input gain `β ≥ 0` with `Bᵀ P B ⪯ β 1`. -/
   β : ℚ
+
+/-- The real facts that a decay certificate establishes for the system `S`, the real matrix `P`
+and the constants `k`, with `τ` the exact value of `tr (Bᵀ P B)`: `α > 0`, `0 < lo ≤ hi`,
+`γ ≥ 0`, `β ≥ 0`, `Aᵀ P + P A + 2 α P ⪯ 0`, `lo 1 ⪯ P ⪯ hi 1`, `Cᵀ C ⪯ γ P` and
+`Bᵀ P B ⪯ β 1`. Both the dense checker (`Cslib.LinearAlgebra.DecayCert.decayInequalities`) and
+the sparse one establish it, and every decay bound is proved from it once. -/
+structure DecayInequalities {n m p : ℕ} (S : LTISystem (Fin n) (Fin m) (Fin p))
+    (P : Matrix (Fin n) (Fin n) ℝ) (k : DecayConstants) (τ : ℚ) : Prop where
+  α_pos : 0 < k.α
+  lo_pos : 0 < k.lo
+  lo_le_hi : k.lo ≤ k.hi
+  γ_nonneg : 0 ≤ k.γ
+  β_nonneg : 0 ≤ k.β
+  decay : (-(S.Aᵀ * P + P * S.A + (2 * (k.α : ℝ)) • P)).PosSemidef
+  lo_le : (P - (k.lo : ℝ) • 1).PosSemidef
+  le_hi : ((k.hi : ℝ) • 1 - P).PosSemidef
+  output : ((k.γ : ℝ) • P - S.Cᵀ * S.C).PosSemidef
+  input : ((k.β : ℝ) • 1 - S.Bᵀ * P * S.B).PosSemidef
+  trace_eq : trace (S.Bᵀ * P * S.B) = (τ : ℝ)
+
+namespace DecayConstants
+
+variable (k : DecayConstants)
+
+/-- Whether the constants `k` certify settling of the impulse response below `ε` after time `T`
+for inputs with `‖v‖₂² ≤ vmax2`: `T ≥ 0`, `vmax2 ≥ 0`, `eps2 = ε² > 0`, and
+`γ β vmax2 ≤ ε² expLower N (2 α T)`. It reads only the constants, so it means something only
+together with `DecayInequalities` for the same constants. -/
+@[expose] def impulseSettles (vmax2 eps2 T : ℚ) (N : ℕ) : Bool :=
+  decide (0 ≤ T) && decide (0 ≤ vmax2) && decide (0 < eps2) &&
+    decide (k.γ * k.β * vmax2 ≤ eps2 * expLower N (2 * k.α * T))
+
+/-- Whether the constants `k` certify settling of the state below `ε` after time `T` for initial
+states with `‖x 0‖₂² ≤ r2`: `T ≥ 0`, `r2 ≥ 0`, `eps2 = ε² > 0`, and
+`(hi / lo) r2 ≤ ε² expLower N (2 α T)`. It reads only the constants, so it means something only
+together with `DecayInequalities` for the same constants. -/
+@[expose] def stateSettles (r2 eps2 T : ℚ) (N : ℕ) : Bool :=
+  decide (0 ≤ T) && decide (0 ≤ r2) && decide (0 < eps2) &&
+    decide (k.hi / k.lo * r2 ≤ eps2 * expLower N (2 * k.α * T))
+
+/-- Whether the constants `k` and the trace `τ = tr (Bᵀ P B)` certify the numerical energy tail
+`∫_T^∞ ‖h t‖_F² ≤ tail`: `T ≥ 0`, `tail ≥ 0` and
+`γ τ / (2 α) ≤ tail · expLower N (2 α T)`. -/
+@[expose] def tailBelow (τ tail T : ℚ) (N : ℕ) : Bool :=
+  decide (0 ≤ T) && decide (0 ≤ tail) &&
+    decide (k.γ * τ / (2 * k.α) ≤ tail * expLower N (2 * k.α * T))
+
+end DecayConstants
+
+namespace DecayInequalities
+
+variable {n m p : ℕ} {S : LTISystem (Fin n) (Fin m) (Fin p)} {P : Matrix (Fin n) (Fin n) ℝ}
+  {k : DecayConstants} {τ : ℚ}
+
+/-- **Certified state decay.** Every solution `x : ℝ → Fin n → ℝ` of `x' = A *ᵥ x` on `[0, ∞)`
+satisfies `‖x t‖₂² ≤ (hi / lo) exp (-2 α t) ‖x 0‖₂²` for `t ≥ 0`, where `‖y‖₂² = y ⬝ᵥ y`. -/
+theorem dotProduct_self_le (h : DecayInequalities S P k τ) {x : ℝ → Fin n → ℝ}
+    (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (S.A *ᵥ x t) (Ici 0) t) {t : ℝ}
+    (ht : 0 ≤ t) : x t ⬝ᵥ x t ≤ k.hi / k.lo * Real.exp (-(2 * k.α) * t) * (x 0 ⬝ᵥ x 0) :=
+  dotProduct_self_le_exp_neg_mul hx h.decay (by exact_mod_cast h.lo_pos) h.lo_le h.le_hi ht
+
+/-- **Decay inequalities prove internal stability.** `ẋ = A x` is exponentially stable in the
+Euclidean norm, with constants `√(hi / lo)` and `α`. -/
+theorem isExponentiallyStable (h : DecayInequalities S P k τ) :
+    (toEuclideanCLM (𝕜 := ℝ) S.A).IsExponentiallyStable := by
+  have hq : ∀ y : EuclideanSpace ℝ (Fin n), ‖y‖ ^ 2 = y.ofLp ⬝ᵥ y.ofLp := fun y => by
+    rw [EuclideanSpace.norm_sq_eq]
+    simp [dotProduct, sq]
+  refine ⟨Real.sqrt (k.hi / k.lo), k.α, by exact_mod_cast h.α_pos, fun x hx t ht => ?_⟩
+  have hx' := (isTrajectoryOn_toEuclideanCLM_iff (A := S.A)
+    (x := fun t => (x t).ofLp) (s := Ici 0)).1 (by simpa using hx)
+  have hb := h.dotProduct_self_le hx' ht
+  rw [← hq, ← hq] at hb
+  have hhl : (0 : ℝ) ≤ k.hi / k.lo := by
+    exact_mod_cast div_nonneg (h.lo_pos.le.trans h.lo_le_hi) h.lo_pos.le
+  have hr : 0 ≤ Real.sqrt (k.hi / k.lo) * Real.exp (-(k.α * t)) * ‖x 0‖ := by positivity
+  refine pow_le_pow_iff_left₀ (norm_nonneg _) hr two_ne_zero |>.1 ?_
+  rw [mul_pow, mul_pow, Real.sq_sqrt hhl, ← Real.exp_nat_mul]
+  convert hb using 3
+  push_cast; ring_nf
+
+/-- **Certified output decay from an initial state.** Every solution of `x' = A *ᵥ x` on
+`[0, ∞)` has `‖C x t‖₂² ≤ γ hi exp (-2 α t) ‖x 0‖₂²` for `t ≥ 0`. The bound is normalized by
+the initial state, not by the initial output. -/
+theorem output_dotProduct_le (h : DecayInequalities S P k τ) {x : ℝ → Fin n → ℝ}
+    (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (S.A *ᵥ x t) (Ici 0) t) {t : ℝ}
+    (ht : 0 ≤ t) :
+    S.C *ᵥ x t ⬝ᵥ S.C *ᵥ x t ≤ k.γ * k.hi * Real.exp (-(2 * k.α) * t) * (x 0 ⬝ᵥ x 0) :=
+  mulVec_dotProduct_le_exp_neg_mul hx h.decay h.output (by exact_mod_cast h.γ_nonneg) h.le_hi ht
+
+/-- **Certified impulse-response envelope.** `‖h t v‖₂² ≤ γ β exp (-2 α t) ‖v‖₂²` for every
+input direction `v` and `t ≥ 0`. -/
+theorem responseKernel_mulVec_sq_le (h : DecayInequalities S P k τ) (v : Fin m → ℝ) {t : ℝ}
+    (ht : 0 ≤ t) :
+    S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v ≤
+      k.γ * k.β * Real.exp (-(2 * k.α) * t) * (v ⬝ᵥ v) :=
+  LTISystem.responseKernel_mulVec_sq_le h.decay h.output h.input (by exact_mod_cast h.γ_nonneg)
+    v ht
+
+/-- **Certified peak bound.** `‖h t v‖₂² ≤ γ β ‖v‖₂²` for all `t ≥ 0`. This is an upper bound on
+the peak, not its value. -/
+theorem responseKernel_mulVec_sq_le_peak (h : DecayInequalities S P k τ) (v : Fin m → ℝ)
+    {t : ℝ} (ht : 0 ≤ t) :
+    S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v ≤ k.γ * k.β * (v ⬝ᵥ v) := by
+  refine (h.responseKernel_mulVec_sq_le v ht).trans ?_
+  have he : Real.exp (-(2 * (k.α : ℝ)) * t) ≤ 1 :=
+    Real.exp_le_one_iff.2 (by nlinarith [(by exact_mod_cast h.α_pos : (0 : ℝ) < k.α)])
+  have hv0 : 0 ≤ v ⬝ᵥ v := by simpa using dotProduct_self_star_nonneg v
+  have hgb : (0 : ℝ) ≤ k.γ * k.β := by exact_mod_cast mul_nonneg h.γ_nonneg h.β_nonneg
+  nlinarith [mul_nonneg hgb hv0]
+
+/-- **Certified impulse-response settling.** If `k.impulseSettles vmax2 eps2 T N`, then every
+input direction with `‖v‖₂² ≤ vmax2` has `‖h t v‖₂² ≤ eps2` for all `t ≥ T`: the impulse
+response stays within `ε = √eps2` of `0` from time `T` on. This concerns the response to an
+impulse, not to persistent forcing. -/
+theorem responseKernel_mulVec_sq_le_of_impulseSettles (h : DecayInequalities S P k τ)
+    {vmax2 eps2 T : ℚ} {N : ℕ} (hs : k.impulseSettles vmax2 eps2 T N = true) {v : Fin m → ℝ}
+    (hv : v ⬝ᵥ v ≤ vmax2) {t : ℝ} (ht : T ≤ t) :
+    S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v ≤ eps2 := by
+  simp only [DecayConstants.impulseSettles, Bool.and_eq_true, decide_eq_true_eq] at hs
+  obtain ⟨⟨⟨hT, -⟩, he⟩, hs⟩ := hs
+  have hgb : (0 : ℝ) ≤ k.γ * k.β := by exact_mod_cast mul_nonneg h.γ_nonneg h.β_nonneg
+  have hv0 : 0 ≤ v ⬝ᵥ v := by simpa using dotProduct_self_star_nonneg v
+  calc _ ≤ k.γ * k.β * Real.exp (-(2 * k.α) * t) * (v ⬝ᵥ v) :=
+        h.responseKernel_mulVec_sq_le v ((by exact_mod_cast hT : (0 : ℝ) ≤ T).trans ht)
+    _ = k.γ * k.β * (v ⬝ᵥ v) * Real.exp (-(2 * k.α) * t) := by ring
+    _ ≤ eps2 := mul_exp_le_of_settles h.α_pos hT he hs (by positivity)
+        (by push_cast; gcongr) ht
+
+/-- **Certified state settling from a declared initial-state set.** If
+`k.stateSettles r2 eps2 T N`, every solution of `x' = A *ᵥ x` on `[0, ∞)` with
+`‖x 0‖₂² ≤ r2` has `‖x t‖₂² ≤ eps2` for all `t ≥ T`. -/
+theorem dotProduct_self_le_of_stateSettles (h : DecayInequalities S P k τ) {r2 eps2 T : ℚ}
+    {N : ℕ} (hs : k.stateSettles r2 eps2 T N = true) {x : ℝ → Fin n → ℝ}
+    (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (S.A *ᵥ x t) (Ici 0) t)
+    (hr : x 0 ⬝ᵥ x 0 ≤ r2) {t : ℝ} (ht : T ≤ t) : x t ⬝ᵥ x t ≤ eps2 := by
+  simp only [DecayConstants.stateSettles, Bool.and_eq_true, decide_eq_true_eq] at hs
+  obtain ⟨⟨⟨hT, -⟩, he⟩, hs⟩ := hs
+  have hv0 : 0 ≤ x 0 ⬝ᵥ x 0 := by simpa using dotProduct_self_star_nonneg (x 0)
+  have hhl : (0 : ℝ) ≤ k.hi / k.lo := by
+    exact_mod_cast div_nonneg (h.lo_pos.le.trans h.lo_le_hi) h.lo_pos.le
+  calc x t ⬝ᵥ x t ≤ k.hi / k.lo * Real.exp (-(2 * k.α) * t) * (x 0 ⬝ᵥ x 0) :=
+        h.dotProduct_self_le hx ((by exact_mod_cast hT : (0 : ℝ) ≤ T).trans ht)
+    _ = k.hi / k.lo * (x 0 ⬝ᵥ x 0) * Real.exp (-(2 * k.α) * t) := by ring
+    _ ≤ eps2 := mul_exp_le_of_settles h.α_pos hT he hs (by positivity)
+        (by push_cast; gcongr) ht
+
+/-- **Certified Frobenius envelope.** `‖h t‖_F² ≤ γ τ exp (-2 α t)` for `t ≥ 0`, where
+`τ = tr (Bᵀ P B)`. -/
+theorem frobeniusSq_le (h : DecayInequalities S P k τ) {t : ℝ} (ht : 0 ≤ t) :
+    ∑ i, ∑ j, S.responseKernel t i j ^ 2 ≤ k.γ * τ * Real.exp (-(2 * k.α) * t) := by
+  simpa only [h.trace_eq] using
+    LTISystem.frobeniusSq_responseKernel_le h.decay h.output (by exact_mod_cast h.γ_nonneg) ht
+
+/-- **Certified energy tail.** For `T ≥ 0` the impulse response energy after `T` is finite and
+`∫_T^∞ ‖h t‖_F² ≤ γ τ exp (-2 α T) / (2 α)`, where `τ = tr (Bᵀ P B)`. -/
+theorem integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le (h : DecayInequalities S P k τ)
+    {T : ℝ} (hT : 0 ≤ T) :
+    IntegrableOn (fun t => ∑ i, ∑ j, S.responseKernel t i j ^ 2) (Ioi T) ∧
+      ∫ t in Ioi T, ∑ i, ∑ j, S.responseKernel t i j ^ 2 ≤
+        k.γ * τ * Real.exp (-(2 * k.α) * T) / (2 * k.α) := by
+  have := LTISystem.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le
+    (by exact_mod_cast h.α_pos) h.decay h.output (by exact_mod_cast h.γ_nonneg) hT
+  rwa [h.trace_eq] at this
+
+/-- **Certified numerical energy tail.** If `k.tailBelow τ tail T N`, then
+`∫_T^∞ ‖h t‖_F² dt ≤ tail`, the integrand being integrable
+(`DecayInequalities.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le`). -/
+theorem integral_Ioi_frobeniusSq_le_of_tailBelow (h : DecayInequalities S P k τ)
+    {tail T : ℚ} {N : ℕ} (hs : k.tailBelow τ tail T N = true) :
+    ∫ t in Ioi (T : ℝ), ∑ i, ∑ j, S.responseKernel t i j ^ 2 ≤ tail := by
+  simp only [DecayConstants.tailBelow, Bool.and_eq_true, decide_eq_true_eq] at hs
+  obtain ⟨⟨hT, htail⟩, hs⟩ := hs
+  have hα := h.α_pos
+  refine (h.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le (by exact_mod_cast hT)).2.trans ?_
+  refine le_of_eq_of_le ?_ (mul_exp_neg_le (by positivity) htail hs)
+  push_cast; ring_nf
+
+end DecayInequalities
+
+/-! ### Dense decay certificates -/
+
+/-- A certificate for decay of the state and of the impulse response of a `RatLTI n m p` model:
+the constants, a matrix `P` (rows) and `LDLᵀ` witnesses for the five inequalities
+`Aᵀ P + P A + 2 α P ⪯ 0`, `lo 1 ⪯ P`, `P ⪯ hi 1`, `Cᵀ C ⪯ γ P` and `Bᵀ P B ⪯ β 1`. Each
+residual is recomputed from the model and `P` by the checker. -/
+structure DecayCert extends DecayConstants where
+  /-- The rows of the Lyapunov matrix `P`. -/
+  P : List (List ℚ)
   /-- A witness for `-(Aᵀ P + P A + 2 α P) ⪰ 0`. -/
   decayW : LDLCert
   /-- A witness for `P - lo 1 ⪰ 0`. -/
@@ -308,15 +505,14 @@ recomputed from `G` and `P`, are accepted as positive semidefinite. -/
 
 variable {c G}
 
-/-- The real facts that an accepted decay certificate establishes. -/
-private theorem facts (h : c.check G = true) :
-    0 < c.α ∧ 0 < c.lo ∧ c.lo ≤ c.hi ∧ 0 ≤ c.γ ∧ 0 ≤ c.β ∧
-      (-(G.toSystem.Aᵀ * re (ofLists n n c.P) + re (ofLists n n c.P) * G.toSystem.A +
-        (2 * (c.α : ℝ)) • re (ofLists n n c.P))).PosSemidef ∧
-      (re (ofLists n n c.P) - (c.lo : ℝ) • 1).PosSemidef ∧
-      ((c.hi : ℝ) • 1 - re (ofLists n n c.P)).PosSemidef ∧
-      ((c.γ : ℝ) • re (ofLists n n c.P) - G.toSystem.Cᵀ * G.toSystem.C).PosSemidef ∧
-      ((c.β : ℝ) • 1 - G.toSystem.Bᵀ * re (ofLists n n c.P) * G.toSystem.B).PosSemidef := by
+/-- **Soundness of the dense decay checker.** If the kernel accepts `c` for `G`, the decay
+inequalities hold for the real system of `G` and the real matrix `P`, with `τ = tr (Bᵀ P B)`
+computed exactly on rows. The bounds then follow from `DecayInequalities`: stability
+(`DecayInequalities.isExponentiallyStable`), state, output and impulse-response envelopes,
+settling and energy tails. -/
+theorem decayInequalities (h : c.check G = true) :
+    DecayInequalities G.toSystem ((ofLists n n c.P).map ((↑) : ℚ → ℝ)) c.toDecayConstants
+      (rowsTrace m (rowsCongr n m G.B c.P)) := by
   simp only [check, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨-, -⟩, hα⟩, hlo⟩, hlh⟩, hγ⟩, hβ⟩, hd⟩, hl⟩, hh⟩, ho⟩, hi⟩ := h
   have hd := c.decayW.posSemidef_of_checkPosSemidef hd
@@ -327,175 +523,13 @@ private theorem facts (h : c.check G = true) :
   change (re _).PosSemidef at hd hl hh ho hi
   simp only [re_rowsLin, re_lyapunovResidual, re_rowsOne, re_rowsGram,
     re_rowsCongr] at hd hl hh ho hi
-  refine ⟨hα, hlo, hlh, hγ, hβ, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨hα, hlo, hlh, hγ, hβ, ?_, ?_, ?_, ?_, ?_, trace_toSystem G c.P⟩
   · convert hd using 1
     simp only [RatLTI.toSystem, Rat.cast_one, one_smul, Rat.cast_mul, Rat.cast_ofNat]; abel
   · simpa using hl
   · simpa using hh
   · simpa [RatLTI.toSystem] using ho
   · simpa [RatLTI.toSystem] using hi
-
-/-- **Certified state decay.** If the kernel accepts `c` for `G`, every solution
-`x : ℝ → Fin n → ℝ` of `x' = A *ᵥ x` on `[0, ∞)` satisfies
-`‖x t‖₂² ≤ (hi / lo) exp (-2 α t) ‖x 0‖₂²` for `t ≥ 0`, where `‖y‖₂² = y ⬝ᵥ y`. -/
-theorem dotProduct_self_le (h : c.check G = true) {x : ℝ → Fin n → ℝ}
-    (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (G.toSystem.A *ᵥ x t) (Ici 0) t) {t : ℝ}
-    (ht : 0 ≤ t) : x t ⬝ᵥ x t ≤ c.hi / c.lo * Real.exp (-(2 * c.α) * t) * (x 0 ⬝ᵥ x 0) := by
-  obtain ⟨-, hlo, -, -, -, hd, hl, hh, -, -⟩ := facts h
-  exact dotProduct_self_le_exp_neg_mul hx hd (by exact_mod_cast hlo) hl hh ht
-
-/-- **A decay certificate proves internal stability.** If the kernel accepts `c` for `G`, then
-`ẋ = A x` is exponentially stable in the Euclidean norm, with constants `√(hi / lo)` and `α`. -/
-theorem isExponentiallyStable (h : c.check G = true) :
-    (toEuclideanCLM (𝕜 := ℝ) G.toSystem.A).IsExponentiallyStable := by
-  obtain ⟨hα, hlo, hlh, -, -, -, -, -, -, -⟩ := facts h
-  have hq : ∀ y : EuclideanSpace ℝ (Fin n), ‖y‖ ^ 2 = y.ofLp ⬝ᵥ y.ofLp := fun y => by
-    rw [EuclideanSpace.norm_sq_eq]
-    simp [dotProduct, sq]
-  refine ⟨Real.sqrt (c.hi / c.lo), c.α, by exact_mod_cast hα, fun x hx t ht => ?_⟩
-  have hx' := (isTrajectoryOn_toEuclideanCLM_iff (A := G.toSystem.A)
-    (x := fun t => (x t).ofLp) (s := Ici 0)).1 (by simpa using hx)
-  have hb := dotProduct_self_le h hx' ht
-  rw [← hq, ← hq] at hb
-  have hhl : (0 : ℝ) ≤ c.hi / c.lo := by exact_mod_cast div_nonneg (hlo.le.trans hlh) hlo.le
-  have hr : 0 ≤ Real.sqrt (c.hi / c.lo) * Real.exp (-(c.α * t)) * ‖x 0‖ := by positivity
-  refine pow_le_pow_iff_left₀ (norm_nonneg _) hr two_ne_zero |>.1 ?_
-  rw [mul_pow, mul_pow, Real.sq_sqrt hhl, ← Real.exp_nat_mul]
-  convert hb using 3
-  push_cast; ring_nf
-
-/-- **Certified output decay from an initial state.** If the kernel accepts `c` for `G`, every
-solution of `x' = A *ᵥ x` on `[0, ∞)` has `‖C x t‖₂² ≤ γ hi exp (-2 α t) ‖x 0‖₂²` for `t ≥ 0`.
-The bound is normalized by the initial state, not by the initial output. -/
-theorem output_dotProduct_le (h : c.check G = true) {x : ℝ → Fin n → ℝ}
-    (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (G.toSystem.A *ᵥ x t) (Ici 0) t) {t : ℝ}
-    (ht : 0 ≤ t) :
-    G.toSystem.C *ᵥ x t ⬝ᵥ G.toSystem.C *ᵥ x t ≤
-      c.γ * c.hi * Real.exp (-(2 * c.α) * t) * (x 0 ⬝ᵥ x 0) := by
-  obtain ⟨-, -, -, hγ, -, hd, -, hh, ho, -⟩ := facts h
-  exact mulVec_dotProduct_le_exp_neg_mul hx hd ho (by exact_mod_cast hγ) hh ht
-
-/-- **Certified impulse-response envelope.** If the kernel accepts `c` for `G`, the impulse
-response of `G` (which has no direct feedthrough, `RatLTI.toSystem_D`) satisfies
-`‖h t v‖₂² ≤ γ β exp (-2 α t) ‖v‖₂²` for every input direction `v` and `t ≥ 0`. -/
-theorem responseKernel_mulVec_sq_le (h : c.check G = true) (v : Fin m → ℝ) {t : ℝ}
-    (ht : 0 ≤ t) :
-    G.toSystem.responseKernel t *ᵥ v ⬝ᵥ G.toSystem.responseKernel t *ᵥ v ≤
-      c.γ * c.β * Real.exp (-(2 * c.α) * t) * (v ⬝ᵥ v) := by
-  obtain ⟨-, -, -, hγ, -, hd, -, -, ho, hi⟩ := facts h
-  exact LTISystem.responseKernel_mulVec_sq_le hd ho hi (by exact_mod_cast hγ) v ht
-
-/-- **Certified peak bound.** If the kernel accepts `c` for `G`, then
-`‖h t v‖₂² ≤ γ β ‖v‖₂²` for all `t ≥ 0`. This is an upper bound on the peak, not its value. -/
-theorem responseKernel_mulVec_sq_le_peak (h : c.check G = true) (v : Fin m → ℝ) {t : ℝ}
-    (ht : 0 ≤ t) :
-    G.toSystem.responseKernel t *ᵥ v ⬝ᵥ G.toSystem.responseKernel t *ᵥ v ≤
-      c.γ * c.β * (v ⬝ᵥ v) := by
-  obtain ⟨hα, -, -, hγ, hβ, -, -, -, -, -⟩ := facts h
-  refine (responseKernel_mulVec_sq_le h v ht).trans ?_
-  have he : Real.exp (-(2 * (c.α : ℝ)) * t) ≤ 1 :=
-    Real.exp_le_one_iff.2 (by nlinarith [(by exact_mod_cast hα : (0 : ℝ) < c.α)])
-  have hv0 : 0 ≤ v ⬝ᵥ v := by simpa using dotProduct_self_star_nonneg v
-  have hgb : (0 : ℝ) ≤ c.γ * c.β := by exact_mod_cast mul_nonneg hγ hβ
-  nlinarith [mul_nonneg hgb hv0]
-
-variable (c) in
-/-- Whether `c` certifies settling of the impulse response below `ε` after time `T` for inputs
-with `‖v‖₂² ≤ vmax2`: `T ≥ 0`, `vmax2 ≥ 0`, `eps2 = ε² > 0`, and
-`γ β vmax2 ≤ ε² expLower N (2 α T)`. It reads only the scalars of `c`, so it means something only
-together with a successful `DecayCert.check` of `c` for the same model. -/
-@[expose] def impulseSettles (vmax2 eps2 T : ℚ) (N : ℕ) : Bool :=
-  decide (0 ≤ T) && decide (0 ≤ vmax2) && decide (0 < eps2) &&
-    decide (c.γ * c.β * vmax2 ≤ eps2 * expLower N (2 * c.α * T))
-
-variable (c) in
-/-- Whether `c` certifies settling of the state below `ε` after time `T` for initial states with
-`‖x 0‖₂² ≤ r2`: `T ≥ 0`, `r2 ≥ 0`, `eps2 = ε² > 0`, and `(hi / lo) r2 ≤ ε² expLower N (2 α T)`.
-It reads only the scalars of `c`, so it means something only together with a successful
-`DecayCert.check` of `c` for the same model. -/
-@[expose] def stateSettles (r2 eps2 T : ℚ) (N : ℕ) : Bool :=
-  decide (0 ≤ T) && decide (0 ≤ r2) && decide (0 < eps2) &&
-    decide (c.hi / c.lo * r2 ≤ eps2 * expLower N (2 * c.α * T))
-
-/-- **Certified impulse-response settling.** If the kernel accepts `c` for `G` and
-`c.impulseSettles vmax2 eps2 T N`, then every input direction with `‖v‖₂² ≤ vmax2` has
-`‖h t v‖₂² ≤ eps2` for all `t ≥ T`: the impulse response stays within `ε = √eps2` of `0` from
-time `T` on. This concerns the response to an impulse, not to persistent forcing. -/
-theorem responseKernel_mulVec_sq_le_of_impulseSettles (h : c.check G = true) {vmax2 eps2 T : ℚ}
-    {N : ℕ} (hs : c.impulseSettles vmax2 eps2 T N = true) {v : Fin m → ℝ}
-    (hv : v ⬝ᵥ v ≤ vmax2) {t : ℝ} (ht : T ≤ t) :
-    G.toSystem.responseKernel t *ᵥ v ⬝ᵥ G.toSystem.responseKernel t *ᵥ v ≤ eps2 := by
-  simp only [impulseSettles, Bool.and_eq_true, decide_eq_true_eq] at hs
-  obtain ⟨⟨⟨hT, -⟩, he⟩, hs⟩ := hs
-  obtain ⟨hα, -, -, hγ, hβ, -, -, -, -, -⟩ := facts h
-  have hgb : (0 : ℝ) ≤ c.γ * c.β := by exact_mod_cast mul_nonneg hγ hβ
-  have hv0 : 0 ≤ v ⬝ᵥ v := by simpa using dotProduct_self_star_nonneg v
-  calc _ ≤ c.γ * c.β * Real.exp (-(2 * c.α) * t) * (v ⬝ᵥ v) :=
-        responseKernel_mulVec_sq_le h v ((by exact_mod_cast hT : (0 : ℝ) ≤ T).trans ht)
-    _ = c.γ * c.β * (v ⬝ᵥ v) * Real.exp (-(2 * c.α) * t) := by ring
-    _ ≤ eps2 := mul_exp_le_of_settles hα hT he hs (by positivity)
-        (by push_cast; gcongr) ht
-
-variable (c G) in
-/-- Whether `c` certifies the numerical energy tail `∫_T^∞ ‖h t‖_F² ≤ tail`: `T ≥ 0`, `tail ≥ 0`
-and `γ tr (Bᵀ P B) / (2 α) ≤ tail · expLower N (2 α T)`. -/
-@[expose] def tailBelow (tail T : ℚ) (N : ℕ) : Bool :=
-  decide (0 ≤ T) && decide (0 ≤ tail) &&
-    decide (c.γ * rowsTrace m (rowsCongr n m G.B c.P) / (2 * c.α) ≤
-      tail * expLower N (2 * c.α * T))
-
-/-- **Certified state settling from a declared initial-state set.** If the kernel accepts `c`
-for `G` and `c.stateSettles r2 eps2 T N`, every solution of `x' = A *ᵥ x` on `[0, ∞)` with
-`‖x 0‖₂² ≤ r2` has `‖x t‖₂² ≤ eps2` for all `t ≥ T`. -/
-theorem dotProduct_self_le_of_stateSettles (h : c.check G = true) {r2 eps2 T : ℚ} {N : ℕ}
-    (hs : c.stateSettles r2 eps2 T N = true) {x : ℝ → Fin n → ℝ}
-    (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (G.toSystem.A *ᵥ x t) (Ici 0) t)
-    (hr : x 0 ⬝ᵥ x 0 ≤ r2) {t : ℝ} (ht : T ≤ t) : x t ⬝ᵥ x t ≤ eps2 := by
-  simp only [stateSettles, Bool.and_eq_true, decide_eq_true_eq] at hs
-  obtain ⟨⟨⟨hT, -⟩, he⟩, hs⟩ := hs
-  obtain ⟨hα, hlo, hlh, -, -, -, -, -, -, -⟩ := facts h
-  have hv0 : 0 ≤ x 0 ⬝ᵥ x 0 := by simpa using dotProduct_self_star_nonneg (x 0)
-  have hhl : (0 : ℝ) ≤ c.hi / c.lo := by exact_mod_cast div_nonneg (hlo.le.trans hlh) hlo.le
-  calc x t ⬝ᵥ x t ≤ c.hi / c.lo * Real.exp (-(2 * c.α) * t) * (x 0 ⬝ᵥ x 0) :=
-        dotProduct_self_le h hx ((by exact_mod_cast hT : (0 : ℝ) ≤ T).trans ht)
-    _ = c.hi / c.lo * (x 0 ⬝ᵥ x 0) * Real.exp (-(2 * c.α) * t) := by ring
-    _ ≤ eps2 := mul_exp_le_of_settles hα hT he hs (by positivity)
-        (by push_cast; gcongr) ht
-
-/-- **Certified Frobenius envelope.** If the kernel accepts `c` for `G`, then
-`‖h t‖_F² ≤ γ tr (Bᵀ P B) exp (-2 α t)` for `t ≥ 0`, with the trace computed exactly on rows. -/
-theorem frobeniusSq_le (h : c.check G = true) {t : ℝ} (ht : 0 ≤ t) :
-    ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2 ≤
-      c.γ * (rowsTrace m (rowsCongr n m G.B c.P) : ℚ) * Real.exp (-(2 * c.α) * t) := by
-  obtain ⟨-, -, -, hγ, -, hd, -, -, ho, -⟩ := facts h
-  simpa only [trace_toSystem] using
-    LTISystem.frobeniusSq_responseKernel_le hd ho (by exact_mod_cast hγ) ht
-
-/-- **Certified energy tail.** If the kernel accepts `c` for `G`, then for `T ≥ 0` the impulse
-response energy after `T` is finite and
-`∫_T^∞ ‖h t‖_F² ≤ γ tr (Bᵀ P B) exp (-2 α T) / (2 α)`. -/
-theorem integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le (h : c.check G = true) {T : ℝ}
-    (hT : 0 ≤ T) :
-    IntegrableOn (fun t => ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2) (Ioi T) ∧
-      ∫ t in Ioi T, ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2 ≤
-        c.γ * (rowsTrace m (rowsCongr n m G.B c.P) : ℚ) * Real.exp (-(2 * c.α) * T) /
-          (2 * c.α) := by
-  obtain ⟨hα, -, -, hγ, -, hd, -, -, ho, -⟩ := facts h
-  have := LTISystem.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le
-    (by exact_mod_cast hα) hd ho (by exact_mod_cast hγ) hT
-  rwa [trace_toSystem] at this
-
-/-- **Certified numerical energy tail.** If the kernel accepts `c` for `G` and
-`c.tailBelow G tail T N`, then `∫_T^∞ ‖h t‖_F² dt ≤ tail`, the integrand being integrable. -/
-theorem integral_Ioi_frobeniusSq_le_of_tailBelow (h : c.check G = true) {tail T : ℚ} {N : ℕ}
-    (hs : c.tailBelow G tail T N = true) :
-    ∫ t in Ioi (T : ℝ), ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2 ≤ tail := by
-  simp only [tailBelow, Bool.and_eq_true, decide_eq_true_eq] at hs
-  obtain ⟨⟨hT, htail⟩, hs⟩ := hs
-  have hα : (0 : ℚ) < c.α := (facts h).1
-  refine (integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le h (by exact_mod_cast hT)).2.trans ?_
-  refine le_of_eq_of_le ?_ (mul_exp_neg_le (by positivity) htail hs)
-  push_cast; ring_nf
 
 end DecayCert
 
@@ -607,5 +641,73 @@ theorem integrableOn_Ioi_and_integral_le (h : c.check G = true) :
   exact ⟨this.1, this.2.trans (by exact_mod_cast hb)⟩
 
 end EnergyBoundCert
+
+/-! ### Energy lower-bound certificates -/
+
+private theorem re_supply {n m p : ℕ} (G : RatLTI n m p) (Q : List (List ℚ)) :
+    re (ofLists n n (rowsLin n 1 1 (rowsGram n p G.C) (lyapunovResidual n G.A Q))) =
+      G.toSystem.Aᵀ * re (ofLists n n Q) + re (ofLists n n Q) * G.toSystem.A +
+        G.toSystem.Cᵀ * G.toSystem.C := by
+  rw [re_rowsLin, re_lyapunovResidual, re_rowsGram]
+  simp only [Rat.cast_one, one_smul, RatLTI.toSystem, sub_neg_eq_add]; abel
+
+/-- An energy lower-bound certificate for a `RatLTI n m p` model: a Lyapunov certificate (`P` and
+its witnesses) proving exponential stability, a matrix `Q` with an `LDLᵀ` witness for
+`Aᵀ Q + Q A + Cᵀ C ⪰ 0`, and a claimed lower bound on `tr (Bᵀ Q B)`. `Q` need not be positive
+semidefinite. -/
+structure EnergyLowerCert where
+  /-- The rows of the Lyapunov matrix `P` that proves stability. -/
+  P : List (List ℚ)
+  /-- The witnesses for `P ≻ 0` and `-(Aᵀ P + P A) ≻ 0`. -/
+  stable : LyapunovCert
+  /-- The rows of `Q`. -/
+  Q : List (List ℚ)
+  /-- A witness for `Aᵀ Q + Q A + Cᵀ C ⪰ 0`. -/
+  supplyW : LDLCert
+  /-- The claimed lower bound on the impulse-response energy. -/
+  bound : ℚ
+
+namespace EnergyLowerCert
+
+variable {n m p : ℕ} (c : EnergyLowerCert) (G : RatLTI n m p)
+
+/-- Whether `c` is an energy lower-bound certificate for `G`: `G` is well formed without direct
+feedthrough, the Lyapunov certificate is accepted, the recomputed `Aᵀ Q + Q A + Cᵀ C ⪰ 0` is
+accepted, and `c.bound ≤ tr (Bᵀ Q B)`. -/
+@[expose] def check : Bool :=
+  G.check && c.stable.check n G.A c.P &&
+    c.supplyW.checkPosSemidef n (rowsLin n 1 1 (rowsGram n p G.C) (lyapunovResidual n G.A c.Q)) &&
+    decide (c.bound ≤ rowsTrace m (rowsCongr n m G.B c.Q))
+
+variable {c G}
+
+/-- **Certified impulse-response energy lower bound.** If the kernel accepts `c` for `G`, the
+squared Frobenius norm of the impulse response is integrable on `(0, ∞)` and
+`c.bound ≤ ∫₀^∞ ‖h t‖_F² dt`. The proof is `Q ⪯ W` for the observability Gramian `W`, since
+`W - Q = ∫₀^∞ exp (t Aᵀ) (Aᵀ Q + Q A + Cᵀ C) exp (t A) dt`; it uses the stability of `A`. -/
+theorem integrableOn_Ioi_and_le_integral (h : c.check G = true) :
+    IntegrableOn (fun t => ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2) (Ioi 0) ∧
+      c.bound ≤ ∫ t in Ioi 0, ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2 := by
+  simp only [check, Bool.and_eq_true, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨-, hs⟩, hR⟩, hb⟩ := h
+  have hR : (re _).PosSemidef := c.supplyW.posSemidef_of_checkPosSemidef hR
+  rw [re_supply] at hR
+  have := LTISystem.integrableOn_Ioi_and_le_integral_frobeniusSq hR
+    (LyapunovCert.isExponentiallyStable_of_check hs)
+  rw [trace_toSystem] at this
+  exact ⟨this.1, (by exact_mod_cast hb : (c.bound : ℝ) ≤ _).trans this.2⟩
+
+/-- **Certified energy enclosure.** If the kernel accepts a lower-bound certificate `c` and an
+upper-bound certificate `d` for `G`, the impulse-response energy is finite and lies in the
+interval `[c.bound, d.bound]`: `c.bound ≤ ∫₀^∞ ‖h t‖_F² dt ≤ d.bound`. -/
+theorem integrableOn_Ioi_and_integral_mem_Icc (h : c.check G = true) {d : EnergyBoundCert}
+    (hd : d.check G = true) :
+    IntegrableOn (fun t => ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2) (Ioi 0) ∧
+      ∫ t in Ioi 0, ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2 ∈
+        Icc (c.bound : ℝ) d.bound :=
+  ⟨(integrableOn_Ioi_and_le_integral h).1, (integrableOn_Ioi_and_le_integral h).2,
+    (EnergyBoundCert.integrableOn_Ioi_and_integral_le hd).2⟩
+
+end EnergyLowerCert
 
 end Cslib.LinearAlgebra
