@@ -514,7 +514,6 @@ private def PrefixSet (I : Instance) (mask k : ℕ) : Finset (Fin I.n) :=
   Finset.univ.filter fun i => i.val < k ∧ mask.testBit i.val = true
 
 private theorem prefixSet_zero (I : Instance) (mask : ℕ) : PrefixSet I mask 0 = ∅ := by
-  ext i
   simp [PrefixSet]
 
 private theorem prefixSet_full (I : Instance) (mask : ℕ) :
@@ -525,10 +524,8 @@ private theorem prefixSet_full (I : Instance) (mask : ℕ) :
 private theorem fit_table_cell {w : ℕ} {I : Instance} (hwS : Fits w I.spaceBound)
     {mask t : ℕ} (hm : mask < 2 ^ I.n) (ht : t < I.n + 1) :
     Fits w (2 + (I.n + 1) * (I.n + 1) + mask * (I.n + 1) + t) := by
-  refine hwS.of_le ?_
-  rw [Instance.spaceBound]
   have h1 : mask + 1 ≤ 2 ^ I.n := hm
-  nlinarith
+  exact hwS.of_le (by rw [Instance.spaceBound]; nlinarith)
 
 private theorem prefixSet_succ (I : Instance) (mask : ℕ) {k : ℕ} (hk : k < I.n) :
     PrefixSet I mask (k + 1) =
@@ -558,8 +555,7 @@ private theorem BestInv.insert_first {α : Type} [DecidableEq α] {S : Finset α
     {hb b : ℕ} (h : BestInv S f hb b) (h0 : hb = 0) (j : α) :
     BestInv (insert j S) f 1 (f j) := by
   have hS : ¬S.Nonempty := fun hS => by simpa [hS, h0] using h.hasBest_eq
-  rw [Finset.not_nonempty_iff_eq_empty] at hS
-  subst hS
+  obtain rfl := Finset.not_nonempty_iff_eq_empty.mp hS
   exact ⟨by simp, by simp, fun _ => ⟨j, by simp, rfl⟩⟩
 
 /-- A later candidate `f j` replaces the best value `b` by a value `b'` that is one of them and at
@@ -865,9 +861,8 @@ word width `w`, `program` halts on `State.init I.encode` with `heldKarp I.dist` 
 `80 (n² · 2ⁿ + 1)` standard-basis instructions. -/
 theorem executes_program {I : Instance} {w : ℕ} (hw : I.FitsWidth w) :
     ∃ m ≤ 80 * (I.n ^ 2 * 2 ^ I.n + 1),
-      Executes w program (.init I.encode) (heldKarp I.dist) m := by
-  obtain ⟨m, hexec, hm⟩ := computesInTime_program I w hw hw.inputFits
-  exact ⟨m, hm, hexec⟩
+      Executes w program (.init I.encode) (heldKarp I.dist) m :=
+  (computesInTime_program I w hw hw.inputFits).imp fun _ ⟨hexec, hm⟩ => ⟨hm, hexec⟩
 
 /-- Uniform standard-basis Word-RAM computability of Bellman–Held–Karp optimal tour cost in
 `80 (n² · 2ⁿ + 1)` instructions. -/

@@ -110,9 +110,7 @@ theorem norm_sub_sq_sub_le {D : ℝ} {x v w : E}
     (hv : ‖x - v‖ ≤ D) (hw : ‖x - w‖ ≤ D) :
     ‖x - w‖ ^ 2 - ‖x - v‖ ^ 2 ≤ 2 * D * ‖w - v‖ := by
   have h1 : ‖x - w‖ - ‖x - v‖ ≤ ‖w - v‖ := by
-    have htri := norm_sub_le_norm_sub_add_norm_sub x v w
-    rw [norm_sub_rev v w] at htri
-    linarith
+    linarith [norm_sub_le_norm_sub_add_norm_sub x v w, norm_sub_rev v w]
   calc ‖x - w‖ ^ 2 - ‖x - v‖ ^ 2
       = (‖x - w‖ - ‖x - v‖) * (‖x - w‖ + ‖x - v‖) := by ring
     _ ≤ ‖w - v‖ * (‖x - w‖ + ‖x - v‖) := mul_le_mul_of_nonneg_right h1 (by positivity)
@@ -167,9 +165,8 @@ theorem ogd_dynamic_sum_inner_le (hP : IsPythagoreanProjection K proj) (hx₀ : 
         sum_range_succ (fun t => η t * ‖grad t (x t)‖ ^ 2)]
       simp only [sub_div] at ih h hshift_div hmono ⊢
       linarith
-  have hk := key T
   have hnn : 0 ≤ ‖x (T + 1) - u T‖ ^ 2 / η T := div_nonneg (sq_nonneg _) (hη T).le
-  linarith [sub_div (D ^ 2) (‖x (T + 1) - u T‖ ^ 2) (η T),
+  linarith [key T, sub_div (D ^ 2) (‖x (T + 1) - u T‖ ^ 2) (η T),
     show D ^ 2 / (2 * η T) = D ^ 2 / η T / 2 by rw [div_div, mul_comm]]
 
 /-- Bounding the weighted drift in `ogd_dynamic_sum_inner_le` by the terminal step size `η T`
@@ -229,9 +226,8 @@ theorem ogd_dynamic_sum_inner_le_of_const (hP : IsPythagoreanProjection K proj) 
           show k + 1 + 1 = k + 2 from rfl, pathLength_succ_succ]
         rw [sub_div] at h hshift_div
         linarith
-    have hk := key T
     have hnn : 0 ≤ ‖x (T + 1) - u T‖ ^ 2 / c := by positivity
-    linarith [show ‖x₀ - u 0‖ ^ 2 / (2 * c) = ‖x₀ - u 0‖ ^ 2 / c / 2 by ring,
+    linarith [key T, show ‖x₀ - u 0‖ ^ 2 / (2 * c) = ‖x₀ - u 0‖ ^ 2 / c / 2 by ring,
       show D / c * pathLength u (T + 1) = (2 * D / c * pathLength u (T + 1)) / 2 by ring]
 
 private theorem sum_ogd_grad_norm_sq_le (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ K)
@@ -273,9 +269,8 @@ theorem ogd_dynamic_regret_le_fixed {f : ℕ → E → ℝ} (hP : IsPythagoreanP
   have hTpos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   have hc : 0 < D / (G * √(T : ℝ)) := div_pos hD0 (mul_pos hG0 (sqrt_pos.mpr hTpos))
   refine (ogd_dynamic_regret_le_of_const hP hx₀ hD hG hsub hc hu T).trans_eq ?_
-  have hsq : (√(T : ℝ)) ^ 2 = (T : ℝ) := sq_sqrt hTpos.le
   field_simp
-  nlinarith [hsq]
+  nlinarith [sq_sqrt hTpos.le]
 
 /-- **Optimal path-length-tuned dynamic regret of OGD** [Zinkevich2003] (locator unverified): when
 an upper bound `P ≥ pathLength u T` is used to tune the constant step size
@@ -359,8 +354,7 @@ theorem ogd_dynamic_regret_le_three_halves {f : ℕ → E → ℝ} (hP : IsPytha
     ∑ t ∈ range T, (f t (ogd proj (fun t => D / (G * √((t : ℝ) + 1))) grad x₀ t) - f t (u t)) ≤
       (3 / 2 * D + pathLength u T) * G * √(T : ℝ) := by
   have heta : (fun t : ℕ => D / (G * √((t : ℝ) + 1))) =
-      fun t : ℕ => D / G / √((t : ℝ) + 1) := by
-    funext t; rw [div_div]
+      fun t : ℕ => D / G / √((t : ℝ) + 1) := funext fun _ => (div_div _ _ _).symm
   rw [heta]
   refine (sum_sub_le_sum_inner_dynamic hsub (ogd_mem hP hx₀) hu T).trans ?_
   rcases T with _ | T

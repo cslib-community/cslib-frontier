@@ -155,10 +155,9 @@ theorem CNF.exists_isInterpolant_iff {A : CNF (X ⊕ Y)} {B : CNF (X ⊕ Z)} :
     (∃ f, A.IsInterpolant B f) ↔ ¬ (A.appendShared B).Satisfiable := by
   classical
   refine ⟨fun ⟨_, h⟩ => h.not_satisfiable, fun h => ?_⟩
-  refine ⟨fun a => decide (∃ y, A.eval (Sum.elim a y) = true),
-    fun a y hA => decide_eq_true ⟨y, hA⟩, fun a z hB => decide_eq_false ?_⟩
-  rintro ⟨y, hA⟩
-  exact h ⟨Sum.elim a (Sum.elim y z), by rw [CNF.eval_appendShared, hA, hB, Bool.and_self]⟩
+  exact ⟨fun a => decide (∃ y, A.eval (Sum.elim a y) = true),
+    fun a y hA => decide_eq_true ⟨y, hA⟩, fun a z hB => decide_eq_false fun ⟨y, hA⟩ =>
+      h ⟨Sum.elim a (Sum.elim y z), by rw [CNF.eval_appendShared, hA, hB, Bool.and_self]⟩⟩
 
 /-! ### Refutations guide circuit synthesis -/
 
@@ -413,8 +412,7 @@ theorem CNF.isMonotoneInterpolantAt_relabel_inl {pos : Bool}
   · refine good_false hd fun a _ l hl he => ?_
     rcases l with ⟨i | _, b⟩
     · obtain rfl := hpos rfl d hd i b hl
-      simp only [Sum.elim_inl] at he
-      simp [leftPos, he]
+      simp [leftPos, show a i = true from he]
     · simpa [leftPos] using he
 
 /-- A clause of `B` has the monotone interpolant `true`, if the shared variables occur only
@@ -427,8 +425,7 @@ theorem CNF.isMonotoneInterpolantAt_relabel_inr {pos : Bool}
   · refine good_true hd fun a _ l hl he => ?_
     rcases l with ⟨i | _, b⟩
     · obtain rfl := hneg rfl d hd i b hl
-      simp only [Sum.elim_inl] at he
-      simp [rightNeg, he]
+      simp [rightNeg, show a i = false from he]
     · simpa [rightNeg] using he
   · exact good_true hd fun _ _ l _ he => by
       rcases l with ⟨_ | _, b⟩ <;> simpa [rightPart] using he
@@ -553,8 +550,7 @@ theorem CNF.IsMonotoneInterpolantAt.resolvent_inr_inl {pos : Bool}
     {c₁ c₂ : Clause (X ⊕ (Y ⊕ Z))} {f₁ f₂ : (X → Bool) → Bool} (j : Y)
     (h₁ : A.IsMonotoneInterpolantAt B pos c₁ f₁) (h₂ : A.IsMonotoneInterpolantAt B pos c₂ f₂) :
     A.IsMonotoneInterpolantAt B pos (c₁.resolvent c₂ (.inr (.inl j))) fun a => f₁ a || f₂ a := by
-  cases pos
-  exacts [good_or (fun _ _ _ => rfl) j h₁ h₂, good_or (fun _ _ _ => rfl) j h₁ h₂]
+  cases pos <;> exact good_or (fun _ _ _ => rfl) j h₁ h₂
 
 /-- A resolution on a `B`-private variable has the monotone interpolant `f₁ ∧ f₂`, for monotone
 interpolants `f₁` and `f₂` at its premises. -/
@@ -562,8 +558,7 @@ theorem CNF.IsMonotoneInterpolantAt.resolvent_inr_inr {pos : Bool}
     {c₁ c₂ : Clause (X ⊕ (Y ⊕ Z))} {f₁ f₂ : (X → Bool) → Bool} (k : Z)
     (h₁ : A.IsMonotoneInterpolantAt B pos c₁ f₁) (h₂ : A.IsMonotoneInterpolantAt B pos c₂ f₂) :
     A.IsMonotoneInterpolantAt B pos (c₁.resolvent c₂ (.inr (.inr k))) fun a => f₁ a && f₂ a := by
-  cases pos
-  exacts [good_and (fun _ _ _ => rfl) k h₁ h₂, good_and (fun _ _ _ => rfl) k h₁ h₂]
+  cases pos <;> exact good_and (fun _ _ _ => rfl) k h₁ h₂
 
 end LineInvariant
 
@@ -608,9 +603,8 @@ private theorem exists_circuit_of_good {σ : Signature} {I : Interpretation σ B
     exacts [hshared i c₁ c₂ f₁ f₂ h₁ h₂, ⟨_, good_or hρB j h₁ h₂, hor f₁ f₂⟩,
       ⟨_, good_and hρA k h₁ h₂, hand f₁ f₂⟩]
   obtain ⟨f, hf, C, hC, hsize⟩ := IsProof.exists_circuit (Good ρA ρB A B) hmem hres h hnil
-  refine ⟨C, hsize, ?_⟩
   have hCf : (fun a => C.eval I a 0) = f := funext fun a => by rw [hC a, single_apply]
-  exact hCf ▸ isInterpolant_of_good hf
+  exact ⟨C, hsize, hCf ▸ isInterpolant_of_good hf⟩
 
 /-- The two premises' gates are available to the gate of their resolvent. -/
 private theorem synthesis_fst {σ : Signature} {I : Interpretation σ Bool}

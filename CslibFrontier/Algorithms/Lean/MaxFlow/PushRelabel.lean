@@ -422,8 +422,7 @@ theorem numSatPushes_eq_sum (σ : State N) (os : List (Op V)) :
   | nil => simp [numSatPushes, numSatPushesAt, countOps]
   | cons o os ih =>
     rw [numSatPushes_cons, ih]
-    simp only [numSatPushesAt_cons]
-    rw [Finset.sum_add_distrib]
+    simp only [numSatPushesAt_cons, Finset.sum_add_distrib]
     congr 1
     cases o with
     | relabel u => simp [IsSatPush]
@@ -431,9 +430,7 @@ theorem numSatPushes_eq_sum (σ : State N) (os : List (Op V)) :
       rw [Finset.sum_eq_single (u, v)]
       · simp
       · rintro ⟨a, b⟩ _ he
-        refine ite_eq_right fun ⟨h, _⟩ => he ?_
-        cases h
-        rfl
+        exact ite_eq_right fun ⟨h, _⟩ => he (by rw [(Op.push.inj h).1, (Op.push.inj h).2])
       · exact fun h => absurd (Finset.mem_univ _) h
 
 theorem numSatPushesAt_eq_zero {a b : V} (hab : (a, b) ∉ N.symArcs) (σ : State N)
@@ -679,8 +676,7 @@ theorem length_le (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).IsRun o
       N.symArcs.card ≤ 2 * Fintype.card V * (Fintype.card V * N.symArcs.card) := by
     have hn : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
     rw [← Nat.succ_mul]
-    refine Nat.mul_le_mul_right _ ?_
-    omega
+    exact Nat.mul_le_mul_right _ (by omega)
   omega
 
 /-- **Correctness of every run** ([CLRS2009], Lemma 26.14 and Theorem 26.18): if a run of the
@@ -718,8 +714,7 @@ theorem not_isActive_of_selectOp_eq_none {vs : List V} {σ : State N} (h : σ.se
   unfold selectOp at h
   split at h
   · rename_i hf
-    intro hact
-    exact List.find?_eq_none.mp hf u hu (decide_eq_true hact)
+    exact fun hact => List.find?_eq_none.mp hf u hu (decide_eq_true hact)
   · split at h <;> cases h
 
 theorem admissible_of_selectOp_eq_some {vs : List V} (hvs : ∀ v, v ∈ vs) {σ : State N}
@@ -741,9 +736,8 @@ theorem admissible_of_selectOp_eq_some {vs : List V} (hvs : ∀ v, v ∈ vs) {σ
       cases h
       refine ⟨hact, fun v hpos => ?_⟩
       have h1 := hσ.le_add_one u v hpos
-      have h2 := List.find?_eq_none.mp hv v (hvs v)
-      have h3 : ¬ (0 < σ.flow.resCap u v ∧ σ.height u = σ.height v + 1) := fun h =>
-        h2 (decide_eq_true h)
+      have h2 : ¬ (0 < σ.flow.resCap u v ∧ σ.height u = σ.height v + 1) := fun h =>
+        List.find?_eq_none.mp hv v (hvs v) (decide_eq_true h)
       omega
 
 /-- Apply operations chosen by `selectOp vs` until none applies or `fuel` runs out, normalizing the

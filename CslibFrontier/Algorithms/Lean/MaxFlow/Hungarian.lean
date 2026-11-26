@@ -420,11 +420,10 @@ variable {r : Fin n} {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n}
 theorem HgInv.tree_iff_used (h : HgInv c r y z mate used tree minv path) {i j : Fin n}
     (hm : vget mate j = some i) : vget tree i = true ↔ vget used j = true := by
   rw [h.tree_iff]
-  constructor
-  · rintro (rfl | ⟨j', hj', hm'⟩)
-    · exact absurd hm (h.root_free j)
-    · rwa [mate_inj h.matching hm hm']
-  · exact fun hj => .inr ⟨j, hj, hm⟩
+  refine ⟨?_, fun hj => .inr ⟨j, hj, hm⟩⟩
+  rintro (rfl | ⟨j', hj', hm'⟩)
+  · exact absurd hm (h.root_free j)
+  · rwa [mate_inj h.matching hm hm']
 
 theorem HgInv.minv_nonneg (h : HgInv c r y z mate used tree minv path) {j : Fin n}
     (hj : vget used j = false) : 0 ≤ vget minv j := by
@@ -593,9 +592,7 @@ theorem hgInv_extend {r : Fin n} {s : HgState n}
   · simp only [vget_vset_true, h.tree_iff, or_and_right, exists_or, exists_eq_left, hm,
       Option.some.injEq, @eq_comm _ i₀ i]
     exact or_left_comm
-  · have hjj : j ≠ j₁ := by
-      rintro rfl
-      simp at hj
+  · have hjj : j ≠ j₁ := fun hjj => by simp [hjj] at hj
     rw [hgRelax_minv]
     dsimp only
     rw [hj, ite_eq_right Bool.false_ne_true]
@@ -605,9 +602,7 @@ theorem hgInv_extend {r : Fin n} {s : HgState n}
   · rw [hgRelax_path]
     dsimp only
     split_ifs with hc
-    · have hjj : j ≠ j₁ := by
-        rintro rfl
-        simp at hc
+    · have hjj : j ≠ j₁ := fun hjj => by simp [hjj] at hc
       have hjs : vget s.used j = false := by rw [← hU' j hjj]; exact hc.1
       obtain ⟨b, l, hql⟩ := List.exists_cons_of_ne_nil hp₁.ne_nil
       refine ⟨List.cons_ne_nil _ _, fun e he => ?_, fun e he => ?_, ?_, ?_, ?_,
@@ -698,10 +693,8 @@ theorem card_lt_of_root_free {mate : Vector (Option (Fin n)) n}
     (hM : IsMatching (fun _ => true) (mateMatching mate)) {r : Fin n}
     (hr : ∀ j, vget mate j ≠ some r) : (mateMatching mate).card < n := by
   rw [← card_matchedLeft hM]
-  have : r ∉ matchedLeft (mateMatching mate) := by
-    intro h
-    obtain ⟨v, hv⟩ := mem_matchedLeft.mp h
-    exact hr v (mem_mateMatching.mp hv)
+  have : r ∉ matchedLeft (mateMatching mate) := fun h =>
+    (mem_matchedLeft.mp h).elim fun v hv => hr v (mem_mateMatching.mp hv)
   simpa using Finset.card_lt_univ_of_notMem this
 
 theorem exists_free_col_of_root_free {mate : Vector (Option (Fin n)) n}
@@ -762,18 +755,13 @@ theorem hgInv_init {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n} {r : 
   refine ⟨h.matching, h.feas, h.tight, fun j hj => hr ?_, fun j hj => ?_, fun i => ?_,
     fun i j hi _ => ?_, fun j => ?_⟩
   · exact mem_matchedLeft.mpr ⟨j, mem_mateMatching.mpr hj⟩
-  · rw [hgInit_used] at hj
-    exact absurd hj Bool.false_ne_true
+  · simp [hgInit_used] at hj
   · simp [hgInit_tree, hgInit_used]
   · rw [hgInit_tree, decide_eq_true_eq] at hi
-    subst hi
-    rw [hgInit_minv]
+    rw [hi, hgInit_minv]
   · rw [hgInit_path]
-    refine ⟨List.cons_ne_nil _ _, ?_, ?_, List.isChain_singleton _, by simp, by simp,
-      by simp, ?_⟩
-    · simp [hgInit_used, hgInit_minv]
-    · simp
-    · simp [hgInit_tree]
+    refine ⟨List.cons_ne_nil _ _, ?_, ?_, List.isChain_singleton _, ?_, ?_, ?_, ?_⟩ <;>
+      simp [hgInit_used, hgInit_minv, hgInit_tree]
 
 private theorem hgPhase_spec {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n} {r : Fin n}
     (h : HgOuter c y z mate) (hr : r ∉ matchedLeft (mateMatching mate)) :
@@ -783,9 +771,7 @@ private theorem hgPhase_spec {y z : Vector ℤ n} {mate : Vector (Option (Fin n)
   have hI := hgInv_init h hr
   have hlt := card_lt_of_root_free h.matching (r := r) (fun j hj => hr
     (mem_matchedLeft.mpr ⟨j, mem_mateMatching.mpr hj⟩))
-  have h0 : usedCount (hgInit c y z mate r).used = 0 := by
-    unfold usedCount
-    simp [hgInit_used]
+  have h0 : usedCount (hgInit c y z mate r).used = 0 := by simp [usedCount, hgInit_used]
   exact hgLoop_spec n _ hI (by rw [h0, hgInit_mate]; omega)
 
 private theorem hgRows_spec :
@@ -798,8 +784,7 @@ private theorem hgRows_spec :
   induction rows with
   | nil =>
     intro s _ h _
-    simp only [hgRows, List.toFinset_nil, Finset.empty_union, and_true]
-    exact h
+    simpa only [hgRows, List.toFinset_nil, Finset.empty_union, and_true] using h
   | cons r rs ih =>
     intro s hnd h hfree
     rw [List.nodup_cons] at hnd
@@ -882,8 +867,7 @@ theorem hgStepInv_dual {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n �
     rw [hgDual_mate] at hm
     rw [hgDual_z, h.free_z_zero j hm]
     split_ifs with hu
-    · obtain ⟨i, hi⟩ := h.used_mate j hu
-      simp [hm] at hi
+    · simpa [hm] using h.used_mate j hu
     · rfl
   obtain ⟨j_free, hj_free⟩ := exists_free_col_of_root_free h.matching h.root_free
   have hz_free : vget (hgDual s (vget s.minv j₁)).z j_free = 0 := hfree_z j_free hj_free
@@ -924,8 +908,7 @@ theorem hgStepInv_extend {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n 
         then i₀ else bestRow j) := by
   have hE := hgInv_extend h.toHgInv hj₁ hz hm
   have hpath_used : ∀ j', vget s.used j' = true →
-      vget (hgExtend c s j₁ i₀).path j' = vget s.path j' := by
-    intro j' hj'
+      vget (hgExtend c s j₁ i₀).path j' = vget s.path j' := fun j' hj' => by
     simp [hgExtend, hgRelax_path, vget_vset_true, hj']
   have hpath_j₁ : vget (hgExtend c s j₁ i₀).path j₁ = vget s.path j₁ := by
     simp [hgExtend, hgRelax_path]

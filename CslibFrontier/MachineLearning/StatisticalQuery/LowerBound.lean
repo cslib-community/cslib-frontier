@@ -168,19 +168,17 @@ private theorem card_le_of_bad_good {κ : Type} [Fintype κ] {D : PMF X}
     refine mem_union_right _ (mem_filter.2 ⟨mem_univ _, ?_⟩)
     set answer : Query X → ℝ := fun φ =>
       if φ ∈ L then nullAnswer D φ else expect D (f i) φ with hanswer
-    have hvalid : ∀ φ, |answer φ - expect D (f i) φ| ≤ τ := by
-      intro φ
+    have hvalid : ∀ φ, |answer φ - expect D (f i) φ| ≤ τ := fun φ => by
       by_cases hφ : φ ∈ L
-      · simp only [hanswer, hφ, ite_true]
-        rw [expect_eq_nullAnswer_add_bias, sub_add_cancel_left, abs_neg]
+      · simp only [hanswer, hφ, ite_true, expect_eq_nullAnswer_add_bias, sub_add_cancel_left,
+          abs_neg]
         exact le_of_not_gt fun hlt => hiB (mem_biUnion.2 ⟨φ, hφ, mem_filter.2 ⟨mem_univ _, hlt⟩⟩)
       · simpa only [hanswer, hφ, ite_false, sub_self, abs_zero] using hτ
     have hrun : run A answer = h₀ :=
       (OracleComp.interpret_id_congr (nullAnswer D) answer A fun φ hφ => by
         simp only [hanswer, List.mem_toFinset.2 hφ, ite_true, hL]).1
-    have hdis := hrun ▸ hA (f i) (hf i) answer hvalid
     rw [corr_eq_one_sub_two_mul_disagreement]
-    linarith
+    linarith [hrun ▸ hA (f i) (hf i) answer hvalid]
   have hBcard : (#B : ℝ) ≤ q * b := by
     calc (#B : ℝ) ≤ ∑ φ ∈ L, (#({i | τ < |bias D φ (f i)|} : Finset κ) : ℝ) := by
           exact_mod_cast card_biUnion_le
@@ -327,12 +325,10 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul {κ : Type} [Fintype κ] 
   have hγε : 1 / d < (1 - 2 * 0) ^ 2 := by rwa [mul_zero, sub_zero, one_pow]
   have h := hA.card_le_of_corr_le hq hf hcorr hτ le_rfl (by norm_num) hγτ hγε
   rw [mul_zero, sub_zero, one_pow, div_self (sub_pos.2 hγ1).ne'] at h
-  have hxmul : (1 - 1 / d) / (τ ^ 2 - 1 / d) * (τ ^ 2 - 1 / d) = 1 - 1 / d :=
-    div_mul_cancel₀ _ (sub_pos.2 hγτ).ne'
   have h4 : (d - 1) * (τ ^ 2 - 1 / d) ≤ 2 * q * (1 - 1 / d) := by
     have := mul_le_mul_of_nonneg_right
       (show d - 1 ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) by linarith) (sub_pos.2 hγτ).le
-    rwa [mul_assoc (2 * (q : ℝ)), hxmul] at this
+    rwa [mul_assoc (2 * (q : ℝ)), div_mul_cancel₀ _ (sub_pos.2 hγτ).ne'] at this
   have h5 : (d - 1) * (d * τ ^ 2 - 1) ≤ (d - 1) * (2 * q) := by
     have e : (d - 1) * (τ ^ 2 - 1 / d) * d = (d - 1) * (d * τ ^ 2 - 1) := by field_simp
     have e' : 2 * q * (1 - 1 / d) * d = (d - 1) * (2 * q) := by field_simp
@@ -354,9 +350,8 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul_add_one {κ : Type} [Fint
     Fintype.card κ * τ ^ 2 - 1 ≤ 2 * q + 1 := by
   rcases le_or_gt ((Fintype.card κ : ℝ) * τ ^ 2) 1 with h1 | h1
   · linarith [show (0 : ℝ) ≤ 2 * q + 1 by positivity]
-  have hd1 : (1 : ℝ) ≤ Fintype.card κ := by
-    refine Nat.one_le_cast.2 (Nat.one_le_iff_ne_zero.2 fun h0 => ?_)
-    rw [h0, Nat.cast_zero, zero_mul] at h1; linarith
+  have hd1 : (1 : ℝ) ≤ Fintype.card κ :=
+    Nat.one_le_cast.2 (Nat.one_le_iff_ne_zero.2 fun h0 => by simp [h0] at h1; linarith)
   set d : ℝ := (Fintype.card κ : ℝ) with hd
   have hdpos : 0 < d := by linarith
   have hγτ : 1 / d < τ ^ 2 := by rw [div_lt_iff₀ hdpos]; linarith

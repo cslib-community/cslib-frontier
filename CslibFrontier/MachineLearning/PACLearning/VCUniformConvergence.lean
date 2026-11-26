@@ -137,8 +137,7 @@ private theorem card_filter_swapSamples_mem_gapEvent_le {Z : Type*} (G : Concept
   have hkey : ∀ (g : Z → Bool) (σ : Fin m → Bool),
       ((Finset.univ.filter fun i => g ((swapSamples σ z).1 i) = true).card : ℝ) -
           (Finset.univ.filter fun i => g ((swapSamples σ z).2 i) = true).card =
-        ∑ i, w (fun j => g (x j)) i * (((σ i).toNat : ℝ) - 1 / 2) := by
-    intro g σ
+        ∑ i, w (fun j => g (x j)) i * (((σ i).toNat : ℝ) - 1 / 2) := fun g σ => by
     simp only [Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero,
       ← Finset.sum_sub_distrib]
     refine Finset.sum_congr rfl fun i _ => ?_
@@ -148,8 +147,7 @@ private theorem card_filter_swapSamples_mem_gapEvent_le {Z : Type*} (G : Concept
   -- Each swap in the event is caught by the labeling of one realized pattern.
   have hcover : (Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ gapEvent G m ε) ⊆
       R.biUnion fun v => Finset.univ.filter fun σ : Fin m → Bool =>
-        m * ε / 2 ≤ |∑ i, w v i * (((σ i).toNat : ℝ) - 1 / 2)| := by
-    intro σ hσ
+        m * ε / 2 ≤ |∑ i, w v i * (((σ i).toNat : ℝ) - 1 / 2)| := fun σ hσ => by
     obtain ⟨g, hg, hgap⟩ := (Finset.mem_filter.1 hσ).2
     refine Finset.mem_biUnion.2 ⟨fun j => g (x j), ?_, Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩⟩
     · exact (Set.Finite.mem_toFinset _).2 (mem_restriction.2 ⟨g, hg, fun _ => rfl⟩)
@@ -214,8 +212,7 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_s
       rw [show (1 / 2 : ℝ≥0∞) = ENNReal.ofReal (1 / 2) by
         rw [ENNReal.ofReal_div_of_pos (by norm_num), ENNReal.ofReal_one, ENNReal.ofReal_ofNat]]
       exact ENNReal.ofReal_le_ofReal hexp2
-    have hsub : Aᶜ ⊆ Prod.mk S ⁻¹' J := by
-      intro T hT
+    have hsub : Aᶜ ⊆ Prod.mk S ⁻¹' J := fun T hT => by
       simp only [A, Set.mem_compl_iff, Set.mem_ofPred_eq, not_le] at hT
       simp only [J, gapEvent, Set.mem_preimage, Set.mem_ofPred_eq]
       refine ⟨g, hg, ?_⟩
@@ -232,8 +229,7 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_s
   have hJB : ν B ≤ 2 * ν.prod ν J := measure_le_two_mul_measure_prod ν ν B hJ hfib
   -- Swaps: the double-sample event has probability at most `β`.
   have hK : ∀ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
-      ℝ≥0∞) ≤ 2 ^ m * ENNReal.ofReal β := by
-    intro z
+      ℝ≥0∞) ≤ 2 ^ m * ENNReal.ofReal β := fun z => by
     rw [← ENNReal.ofReal_natCast, show (2 : ℝ≥0∞) ^ m = ENNReal.ofReal (2 ^ m) by
       rw [ENNReal.ofReal_pow (by norm_num), ENNReal.ofReal_ofNat],
       ← ENNReal.ofReal_mul (by positivity)]
@@ -263,8 +259,7 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le (μ : Measure Z)
   set B := {S : Fin m → Z | ∃ g ∈ G, ε ≤ |((Finset.univ.filter fun i => g (S i) = true).card : ℝ) /
     m - (μ {z | g z = true}).toReal|} with hBdef
   rcases B.eq_empty_or_nonempty with hB | ⟨S₀, g₀, hg₀, -⟩
-  · rw [hB, measure_empty]
-    exact bot_le
+  · simp [hB]
   -- Otherwise `G` is nonempty, so `Π_G(2m) ≥ 1`, which forces `exp (-m ε² / 8) < 1 / 4`.
   have hN : (1 : ℝ) ≤ growthFunction G (m + m) := mod_cast
     (((Set.ncard_pos (Set.toFinite _)).2 ⟨fun i => g₀ (Fin.append S₀ S₀ i),
@@ -318,8 +313,7 @@ theorem measure_pi_not_isRepresentative_le_growthFunction (D : Measure (α × Bo
   refine le_trans (measure_mono fun S hS => ?_)
     (measure_pi_exists_le_abs_empiricalMiscount_div_sub_error_le D C m hε)
   simp only [IsRepresentative, not_forall, not_le, Set.mem_ofPred_eq] at hS
-  obtain ⟨h, hh, hlt⟩ := hS
-  exact ⟨h, hh, hlt.le⟩
+  exact hS.imp fun _ ⟨hh, hlt⟩ => ⟨hh, hlt.le⟩
 
 end Classification
 

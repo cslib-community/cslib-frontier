@@ -130,8 +130,7 @@ theorem deterministic_calError_ge_half (f : List Bool → ℝ) {T : ℕ} (hT : 0
   have hTpos : (0 : ℝ) < (T : ℝ) := Nat.cast_pos.mpr hT
   have hbucket : ∀ q : ℝ,
       ((range T).filter fun t => p t = q).card * (1 / 2 : ℝ) ≤
-        |∑ t ∈ (range T).filter fun t => p t = q, (outcome (y t) - q)| := by
-    intro q
+        |∑ t ∈ (range T).filter fun t => p t = q, (outcome (y t) - q)| := fun q => by
     -- On the bucket `p t = q` the adversary's bit is `decide (q < 1 / 2)`.
     rw [sum_congr rfl fun t ht => show outcome (y t) - q = outcome (decide (q < 1 / 2)) - q by
       obtain ⟨-, hpt⟩ := mem_filter.mp ht; subst hpt; rfl, sum_const, nsmul_eq_mul, abs_mul,
@@ -160,8 +159,7 @@ theorem gridPoint_zero (K : ℕ) : gridPoint K 0 = 0 := by
   simp [gridPoint]
 
 theorem gridPoint_last {K : ℕ} (hK : 0 < K) : gridPoint K (Fin.last K) = 1 := by
-  have hKne : (K : ℝ) ≠ 0 := by exact_mod_cast hK.ne'
-  simp [gridPoint, div_self hKne]
+  simp [gridPoint, hK.ne']
 
 theorem gridPoint_mem_Icc {K : ℕ} (hK : 0 < K) (i : Fin (K + 1)) :
     gridPoint K i ∈ Set.Icc (0 : ℝ) 1 := by
@@ -246,10 +244,9 @@ theorem sum_abs_le_add_sqrt_mul_distToSet {n : ℕ} {r : ℝ} (hr : 0 ≤ r)
   have htri : ∑ k : Fin n, |x k| ≤ ∑ k : Fin n, |s k| + ∑ k : Fin n, |(x - s) k| := by
     rw [← sum_add_distrib]
     exact sum_le_sum fun k _ => by simpa using abs_add_le (s k) (x k - s k)
-  have h1 : ∑ k : Fin n, |s k| ≤ r := hs_mem
   have hcs : ∑ k : Fin n, |(x - s) k| ≤ Real.sqrt n * distToSet (l1Ball n r) x :=
     sum_abs_le_sqrt_mul_norm (x - s)
-  linarith
+  linarith [show ∑ k : Fin n, |s k| ≤ r from hs_mem]
 
 /-- Rounding any `μ ∈ [0, 1]` to the nearest grid point `i / K` gives error `≤ 1 / (2 * K)`. -/
 private theorem exists_gridPoint_dist_le {K : ℕ} (hK : 0 < K) {μ : ℝ} (hμ0 : 0 ≤ μ)
@@ -286,8 +283,7 @@ theorem calPayoff_response {K : ℕ} (hK : 0 < K) :
       (fun i => if i = i₀ then 1 else 0) q) k| ≤ 1 / (2 * (K : ℝ))
   have heval : ∀ k : Fin (K + 1),
       (bilinearPayoff (calPayoff K) (fun i => if i = i₀ then 1 else 0) q) k =
-        if k = i₀ then q true - gridPoint K i₀ else 0 := by
-    intro k
+        if k = i₀ then q true - gridPoint K i₀ else 0 := fun k => by
     simp only [bilinearPayoff, Fintype.sum_bool]
     rw [Fintype.sum_eq_single i₀ fun i hi => by simp [hi]]
     simp only [↓reduceIte, one_mul, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul, calPayoff,
@@ -381,8 +377,7 @@ theorem fosterVohraDist_inner_le {K : ℕ} (hK : 0 < K)
   have hrnn : 0 ≤ 1 / (2 * (K : ℝ)) := by positivity
   have hexp_eval : ∀ (p : Fin (K + 1) → ℝ) (y : Bool),
       ⟪w, expectedPayoff (calPayoff K) p y⟫ =
-        ∑ k : Fin (K + 1), w k * p k * (outcome y - gridPoint K k) := by
-    intro p y
+        ∑ k : Fin (K + 1), w k * p k * (outcome y - gridPoint K k) := fun p y => by
     rw [expectedPayoff, inner_sum]
     refine sum_congr rfl fun k _ => ?_
     rw [real_inner_smul_right, PiLp.inner_apply,
@@ -541,8 +536,7 @@ theorem fosterVohra_prob_calError_ge_le {K : ℕ} (hK : 0 < K)
     have hlen : h.length = T := by simpa using hh
     split_ifs with h1 h2
     · exact le_rfl
-    · exfalso
-      have htri : empiricalCalError K adv h ≤
+    · have htri : empiricalCalError K adv h ≤
           1 / (2 * (K : ℝ)) + Real.sqrt (K + 1 : ℕ) *
             distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h) := by
         rw [empiricalCalError, hlen]

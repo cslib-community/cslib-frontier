@@ -171,8 +171,7 @@ theorem boxesAt_starLevels (hπ : π ∈ boxesAt η V) : Cube.starLevels π = in
   rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
   · exact hℓ
   · simp [boxesAt_P0 hπ hℓ] at h
-  · obtain ⟨i, j, hij⟩ := boxesAt_nine hπ hℓ
-    simp [hij] at h
+  · exact (boxesAt_nine hπ hℓ).elim fun i ⟨j, hij⟩ => by simp [hij] at h
   · simp [boxesAt_outside hπ hℓ] at h
 
 /-- Fixed P0 coordinates occupy the rest of the selected levels. -/
@@ -184,8 +183,7 @@ theorem boxesAt_P0Levels (hπ : π ∈ boxesAt η V) : Cube.P0Levels π = V \ in
   rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
   · simp [boxesAt_star hπ hℓ] at h
   · exact hℓ
-  · obtain ⟨i, j, hij⟩ := boxesAt_nine hπ hℓ
-    simp [hij] at h
+  · exact (boxesAt_nine hπ hℓ).elim fun i ⟨j, hij⟩ => by simp [hij] at h
   · rw [boxesAt_outside hπ hℓ] at h
     exact absurd (CubeSymbol.term.inj h) (privateLeaf_ne_P0 hℓ)
 
@@ -295,8 +293,7 @@ theorem exists_mem_boxesAt_leaf_iff {η : OutStr L} {V : Finset (Fin L)} {τ : L
   constructor
   · rintro ⟨π, hπ, hτπ⟩
     refine ⟨fun ℓ hℓ => mem_filter.2 ⟨?_, ?_⟩, fun ℓ hℓ => ?_⟩
-    · by_contra hℓQ
-      exact privateLeaf_ne_P0 hℓQ
+    · exact by_contra fun hℓQ => privateLeaf_ne_P0 hℓQ
         (CubeSymbol.term.inj ((boxesAt_outside hπ hℓQ).symm.trans (boxesAt_P0 hπ hℓ)))
     · exact Cube.eq_of_mem_leaves hτπ (boxesAt_P0 hπ hℓ)
     · by_contra hℓV
@@ -389,8 +386,7 @@ theorem sum_contributing_eq_low_add_boxes {G : Type*} [AddCommMonoid G] (m t : �
       (((boxLevelSets m t η).biUnion (boxesAt η) : Finset (Cube L)) : Set (Cube L)).PairwiseDisjoint
         Cube.leaves := by
     intro π hπ π' hπ' hne
-    rw [Function.onFun, disjoint_left]
-    intro τ hτ hτ'
+    refine disjoint_left.2 fun τ hτ hτ' => ?_
     obtain ⟨hc, hord⟩ := (contributes_high_iff_mem_box_leaves m t ht η hη τ).2 ⟨π, hπ, hτ⟩
     exact hne ((existsUnique_box_containing_leaf m t ht η hη τ hc hord).unique ⟨hπ, hτ⟩ ⟨hπ', hτ'⟩)
   have hhigh : ((boxLevelSets m t η).biUnion (boxesAt η)).biUnion Cube.leaves =
@@ -436,9 +432,7 @@ theorem box_query_counts {L : ℕ} (m t : ℕ) (ht : t ≤ m) (η : OutStr L)
       fun ⟨d, hd, hτ, heq⟩ => ⟨hτ, by omega⟩⟩
   rw [hlow, card_biUnion]
   · exact sum_congr rfl fun d _ => card_contributing_of_order η hη d
-  · intro d _ d' _ hne
-    rw [Function.onFun, disjoint_left]
-    exact fun _ hd hd' => hne (Int.ofNat_inj.1
+  · exact fun d _ d' _ hne => disjoint_left.2 fun _ hd hd' => hne (Int.ofNat_inj.1
       ((mem_filter.1 hd).2.2.symm.trans (mem_filter.1 hd').2.2))
 
 /-- An output box belongs to the global box set at its actual star count. -/
