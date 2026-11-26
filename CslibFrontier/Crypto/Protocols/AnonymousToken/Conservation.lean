@@ -755,26 +755,16 @@ theorem noteForger_queryBound
     (A : ExtractedAdversary Nullifier Context Opening Commitment PK Sig) (pk : PK) {q : ℕ}
     (hA : (A pk).IsQueryBounded q) :
     (noteForger com tag S A pk).IsQueryBounded q := by
-  have hbody :
-      ((OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-          (noteForgerHandler com tag S pk))
-        (A pk)).run []).IsQueryBounded q := by
-    refine OracleComp.IsCostBounded.run_interpret (fun r accepted => ?_) hA []
-    rcases r with k | req
-    · simpa [OracleComp.sumHandler, StateT.run, StateT.lift] using
-        (ProbOracleComp.IsQueryBounded.sample
-          (spec := fun _ : Payload (Credit.Note Nullifier Context) Opening => Sig)
-          (ProbComp.unifFin k)).bind fun a => OracleComp.IsCostBounded.pure (a, accepted) 0
-    · simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, noteForgerHandler]
-      split_ifs
-      · exact (ProbOracleComp.IsQueryBounded.query
-          (spec := fun _ : Payload (Credit.Note Nullifier Context) Opening => Sig)
-          req.outputPayload).bind fun σ =>
-            OracleComp.IsCostBounded.pure (some σ, accepted ++ [req]) 0
-      · exact OracleComp.IsCostBounded.pure (none, accepted) 1
-  exact hbody.bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  refine (OracleComp.IsCostBounded.run_interpret (fun r accepted => ?_) hA []).bind
+    fun _ => OracleComp.IsCostBounded.pure _ 0
+  rcases r with k | req
+  · exact (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
+      fun a => .pure (a, accepted) 0
+  · simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, noteForgerHandler]
+    split_ifs
+    · exact (ProbOracleComp.IsQueryBounded.query req.outputPayload).bind fun σ =>
+        .pure (some σ, accepted ++ [req]) 0
+    · exact .pure (none, accepted) 1
 
 /-- A `q`-query adversary logs at most `q` accepted requests in `runExtractedConservation`. -/
 theorem runExtractedConservation_log_length_le
@@ -1138,12 +1128,10 @@ theorem bindingExperiment_prod_mk_le_commitment
   change (μ.map fun witness => witness.any (checkBindingWitness (Credit.target com Prod.mk)))
       true ≤
     (μ.map fun witness => CS.isBindingCollision k (noteBindingCollisionOrTrivial com witness)) true
-  refine PMF.map_true_mono μ fun witness _ hwin => ?_
-  cases witness with
-  | none => simp at hwin
-  | some w =>
-    simp only [Option.any_some] at hwin
-    exact isBindingCollision_noteBindingCollision com CS hverify hwin
+  refine PMF.map_true_mono μ ?_
+  rintro (_ | w) _ hwin
+  · simp at hwin
+  · exact isBindingCollision_noteBindingCollision com CS hverify hwin
 
 /-- Extracted-model reduction step, original to this library: at `tag = Prod.mk`, any adversary
 winning the extracted credit-conservation game yields either a target forgery via `targetForger`

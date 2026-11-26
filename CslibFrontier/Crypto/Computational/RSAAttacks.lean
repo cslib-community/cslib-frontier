@@ -146,8 +146,7 @@ theorem rsaInvert_rsaEval_mul (desc : RSADesc) (m s : ℕ) :
     rsaInvert desc.modulus desc.d
         (rsaEval desc.modulus desc.e m * rsaEval desc.modulus desc.e s % desc.modulus) =
       m * s % desc.modulus := by
-  rw [← rsaEval_mul, show rsaEval desc.modulus desc.e (m * s) =
-      rsaEval desc.modulus desc.e (m * s % desc.modulus) by unfold rsaEval; rw [Nat.pow_mod]]
+  rw [← rsaEval_mul, rsaEval, Nat.pow_mod]
   exact rsaInvert_rsaEval desc (Nat.mod_lt _ desc.modulus_pos)
 
 /-! ### Common modulus -/
@@ -183,9 +182,8 @@ theorem commonRoot_rsaEval {N e₁ e₂ m : ℕ} (he : Nat.Coprime e₁ e₂) (h
       (hpow e₁ (commonRoot_pow_modEq_left hN he.symm (hc e₁) h))).trans
       (eq_zpow_mul_zpow_of_zpow_eq hbezout rfl rfl).symm
   have hlt : x < N := commonRoot_lt hN _ _ _ _
-  rw [← Nat.mod_eq_of_lt hlt, ← ZMod.natCast_eq_natCast_iff',
-    ← show (u : ZMod N) = m from ZMod.coe_unitOfCoprime m hm,
-    ← show (v : ZMod N) = x from ZMod.coe_unitOfCoprime x _, hvu]
+  rw [← Nat.mod_eq_of_lt hlt, ← ZMod.natCast_eq_natCast_iff']
+  simpa only [v, u, ZMod.coe_unitOfCoprime] using congrArg Units.val hvu
 
 /-! ### Small messages and the broadcast attack -/
 
@@ -261,10 +259,10 @@ private theorem proper_gcd_of_dvd_mul {N a b : ℕ} (hN : 1 < N) (hdvd : N ∣ a
 private theorem one_lt_of_sq_modEq {N x y : ℕ} (hsq : x ^ 2 ≡ y ^ 2 [MOD N])
     (hsub : ¬ x ≡ y [MOD N]) : 1 < N := by
   rcases N with _ | _ | N
-  · simp only [Nat.ModEq, Nat.mod_zero] at hsq hsub
-    exact False.elim (hsub (Nat.pow_left_injective two_ne_zero hsq))
-  · exact False.elim (hsub (by simp [Nat.ModEq, Nat.mod_one]))
-  · omega
+  · exact absurd (Nat.modEq_zero_iff.mpr
+      (Nat.pow_left_injective two_ne_zero (Nat.modEq_zero_iff.mp hsq))) hsub
+  · exact absurd Nat.modEq_one hsub
+  · exact Nat.one_lt_succ_succ N
 
 /-- If `y ≤ x` and `x ^ 2 ≡ y ^ 2 [MOD N]`, then `N ∣ (x - y) * (x + y)`. -/
 private theorem dvd_sub_mul_add_of_sq_modEq {N x y : ℕ} (hyx : y ≤ x)
@@ -332,12 +330,9 @@ every `x` coprime to `N`. -/
 theorem pow_mul_sub_one_modEq_one (desc : RSADesc) {x : ℕ} (hx : Nat.Coprime x desc.modulus) :
     x ^ (desc.e * desc.d - 1) ≡ 1 [MOD desc.modulus] := by
   have hed_pos : 0 < desc.e * desc.d := Nat.pos_of_ne_zero fun h0 => by
-    have h := desc.hed
-    rw [h0, Nat.ModEq, Nat.zero_mod, Nat.mod_eq_of_lt desc.totient_gt_one] at h
-    exact zero_ne_one h
-  refine Nat.ModEq.cancel_right_of_coprime (Nat.coprime_comm.mp hx).gcd_eq_one ?_
-  rw [← pow_succ, Nat.sub_add_cancel hed_pos, one_mul]
-  exact rsa_pow_mul_modEq desc x
+    simpa [h0, Nat.ModEq, Nat.mod_eq_of_lt desc.totient_gt_one] using desc.hed
+  refine Nat.ModEq.cancel_right_of_coprime hx.symm.gcd_eq_one ?_
+  simpa only [← pow_succ, Nat.sub_add_cancel hed_pos, one_mul] using rsa_pow_mul_modEq desc x
 
 /-- A square root `y` of `1` modulo an RSA modulus `N = p * q`, other than `±1`, gives a proper
 factor `gcd(y - 1, N)` of `N`. -/

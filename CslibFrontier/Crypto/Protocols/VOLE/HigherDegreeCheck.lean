@@ -937,11 +937,8 @@ theorem toOuterMeasure_qsHomogLinearBatch_le [Fintype F] [DecidableEq F] {C ι :
       (Fintype.card F : ℝ≥0∞)⁻¹ +
         (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ((d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞)) := by
   classical
-  refine uniform_linearBatch_split_le (fun i => MvPolynomial.eval w (constraints i)) hfalse
-    (fun r => (a r).bind fun reply => (PMF.uniformOfFintype C).bind fun c =>
-      PMF.pure (decide ((∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w v).eval
-        (ι_C c) = qsPolySum d reply (ι_C c)))) fun r hr => ?_
-  exact toOuterMeasure_qsHomogSum_bind_le ι_C constraints hdeg w v r hr (a r)
+  exact uniform_linearBatch_split_le (fun i => MvPolynomial.eval w (constraints i)) hfalse _
+    fun r hr => toOuterMeasure_qsHomogSum_bind_le ι_C constraints hdeg w v r hr (a r)
 
 /-- Single-shot independent-weight soundness of `qsMaskedCheckValue`: for any fixed sender VOLE
 vectors `(u, v)` and correction `d_corr : Fin n → F` whose effective committed witness
@@ -970,44 +967,32 @@ theorem toOuterMeasure_qsMaskedCheckValue_le [Fintype F] [DecidableEq F] {C ι :
   let v_w : Fin n → F := fun j => v (Fin.castAdd (d - 1) j)
   let mask : Fin d → F :=
     qsMaskCoeff d (fun k => u (Fin.natAdd n k)) (fun k => v (Fin.natAdd n k))
-  have hval : ∀ (r : ι → F) (c : C) (reply : Fin d → F),
+  have hval (r : ι → F) (c : C) (reply : Fin d → F) :
       (qsMaskedCheckValue d constraints (ι_C c) (fun j => u j * ι_C c + v j) d_corr r =
         qsPolySum d reply (ι_C c)) ↔
       ((∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w).eval (ι_C c) =
         qsPolySum d (reply - mask) (ι_C c)) := by
-    intro r c reply
     have hsum : (∑ i : ι, r i * qsHomogVerifierValue d (constraints i) (ι_C c)
         (voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * ι_C c +
           v (Fin.castAdd (d - 1) j)) d_corr (ι_C c))) =
         (∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w).eval (ι_C c) := by
       have hadj : voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * ι_C c +
           v (Fin.castAdd (d - 1) j)) d_corr (ι_C c) = fun j => w' j * ι_C c + v_w j :=
-        funext fun j => by dsimp only [voleAdjustReceiver, w', v_w]; ring
+        funext fun j => by
+          dsimp only [voleAdjustReceiver, w', v_w]
+          ring
       simp only [hadj, Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
         eval_qsHomogPoly]
     change (∑ i : ι, r i * qsHomogVerifierValue d (constraints i) (ι_C c) _) +
         qsMaskValue d _ (ι_C c) = qsPolySum d reply (ι_C c) ↔ _
     rw [hsum, qsMaskValue, ← qsPolySum_qsMaskCoeff]
     simp only [qsPolySum, mask, Pi.sub_apply, sub_mul, Finset.sum_sub_distrib, eq_sub_iff_add_eq]
-  have heq : (do
-        let r ← PMF.uniformOfFintype (ι → F)
-        let reply ← a r
-        let c ← PMF.uniformOfFintype C
-        let q : Fin (n + (d - 1)) → F := fun j => u j * ι_C c + v j
-        return decide (qsMaskedCheckValue d constraints (ι_C c) q d_corr r =
-          qsPolySum d reply (ι_C c))) =
-      (do
-        let r ← PMF.uniformOfFintype (ι → F)
-        let reply ← (a r).map (fun rep => rep - mask)
-        let c ← PMF.uniformOfFintype C
-        let P_batch := ∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w
-        return decide (P_batch.eval (ι_C c) = qsPolySum d reply (ι_C c))) := by
-    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def]
-    exact congrArg _ (funext fun r => congrArg _ (funext fun reply =>
-      congrArg _ (funext fun c => congrArg PMF.pure (decide_eq_decide.mpr (hval r c reply)))))
-  rw [heq]
-  exact toOuterMeasure_qsHomogLinearBatch_le ι_C constraints hdeg w' v_w hfalse
-    fun r => (a r).map fun rep => rep - mask
+  refine le_of_eq_of_le (congrArg (PMF.toOuterMeasure · {true}) ?_)
+    (toOuterMeasure_qsHomogLinearBatch_le ι_C constraints hdeg w' v_w hfalse
+      fun r => (a r).map fun rep => rep - mask)
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def]
+  exact congrArg _ (funext fun r => congrArg _ (funext fun reply =>
+    congrArg _ (funext fun c => congrArg PMF.pure (decide_eq_decide.mpr (hval r c reply)))))
 
 /-- Exact bijection between grinding-accepted `λ`-bit challenges
 (`FAEST.Challenge.grindingAccepted`) and `BitString (λ - w_grind)`. -/

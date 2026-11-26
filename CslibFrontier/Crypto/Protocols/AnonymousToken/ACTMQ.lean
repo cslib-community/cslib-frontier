@@ -496,10 +496,8 @@ theorem structuredTarget_collision_on {Message' : Type} [AddCommGroup Message]
     {r₁ r₂ : R} (hm : m₁ ≠ m₂)
     (htarg : UOV.structuredTarget F G (embed m₁) r₁ = UOV.structuredTarget F G (embed m₂) r₂) :
     r₁ ≠ r₂ ∧ G r₁ = G r₂ := by
-  have hfst : F r₁ + embed m₁ = F r₂ + embed m₂ := congrArg Prod.fst htarg
-  have hsnd : G r₁ = G r₂ := congrArg Prod.snd htarg
-  refine ⟨fun hr => hm (hembed hm₁ hm₂ (add_left_cancel (a := F r₁) ?_)), hsnd⟩
-  simpa [hr] using hfst
+  refine ⟨fun hr => hm (hembed hm₁ hm₂ (add_left_cancel (a := F r₁) ?_)), congrArg Prod.snd htarg⟩
+  simpa [UOV.structuredTarget, hr] using congrArg Prod.fst htarg
 
 /-- Global-injectivity specialization of `structuredTarget_collision_on`. -/
 theorem structuredTarget_collision {Message' : Type} [AddCommGroup Message]
@@ -535,8 +533,7 @@ private theorem eval_runClaw_clawReduction_eq [DecidableEq Target]
       (ProbComp.eval (runExtracted S target B)).map (clawExecutionOfExtracted S J embed) := by
   simp only [runClaw, clawReduction, runExtracted, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.map_bind]
-  refine Probability.PMF.bind_congr_on_support _ _ _ fun keys _ => ?_
-  rcases keys with ⟨pk, sk⟩
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
   dsimp only
   let represent :
       List (Payload Message R × Sig) → List (ClawClaim M R Sig) × List ((M × R) × Sig) :=
@@ -698,11 +695,6 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
       left
       have hnone := List.find?_eq_none.mp hfind
       simp only [decide_eq_true_eq, htarget] at hnone
-      have hy_fresh :
-          J (embed run.output.payload.message) run.output.payload.opening ∉
-            run.log.map fun (p, _) => J (embed p.message) p.opening := fun hmem => by
-        obtain ⟨e, he, heq⟩ := List.mem_map.mp hmem
-        exact hnone e he heq
       obtain ⟨hv_logged, hnd_logged, hmem_logged, hcov_logged⟩ :=
         stepValidClaim_invariant S J embed run.publicKey run.log [] (by simp) (by simp)
       set logged := run.log.foldl (stepValidClaim S J embed run.publicKey) []
@@ -710,11 +702,10 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
       have hy_out : S.verify run.publicKey y run.output.signature = true := by
         simpa [Token.valid, htarget, y] using hvalid_out
       have hy_not_mem : y ∉ logged.map fun c => J c.message c.opening := by
-        intro hmem
+        rintro hmem
         obtain ⟨c, hc, hce⟩ := List.mem_map.mp hmem
-        rcases hmem_logged c hc with hc | hc
-        · simp at hc
-        · exact hy_fresh (hce ▸ hc)
+        obtain ⟨e, he, heq⟩ := List.mem_map.mp ((hmem_logged c hc).resolve_left List.not_mem_nil)
+        exact hnone e he (heq.trans hce)
       have hsub_len :
           ((run.log.map fun (p, _) => J (embed p.message) p.opening)).dedup.length ≤
             (logged.map fun c => J c.message c.opening).length :=

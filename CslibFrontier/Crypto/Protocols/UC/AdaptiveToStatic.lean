@@ -262,14 +262,13 @@ private theorem eval_adaptiveExec_status_post (mode : CorruptionMode)
         (fun x => f x.1 x.2.2.corrupted) <$>
           (adaptiveExecMachine mode P A κ).runFrom (Z κ z) s := by
     rcases s with ⟨sA, rs⟩
-    erw [Machine.runFrom_bind, map_eq_pure_bind, map_eq_pure_bind, bind_assoc]
+    erw [Machine.runFrom_bind, map_bind, map_eq_pure_bind]
     refine bind_congr fun ⟨b, sA', rs'⟩ => ?_
     erw [Machine.runFrom_bind, queryStatus, Machine.runFrom_query,
-      adaptiveExecMachine_handle_inl_status]
-    simp only [Machine.runFrom_pure]; rfl
+      adaptiveExecMachine_handle_inl_status, pure_bind, Machine.runFrom_pure]
+    rfl
   erw [closeEval_bind, closeEval_bind, PMF.map_bind]
-  refine congrArg (PMF.bind _) (funext fun s => ?_)
-  erw [hrun s, closeEval_map]; rfl
+  exact congrArg _ (funext fun s => (congrArg closeEval (hrun s)).trans (closeEval_map _ _))
 
 private theorem queriesSatisfy_liftAdaptiveNet {C₀ : Finset (Fin n)} {α : Type}
     {netProg : ProbOracleComp (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)) α}
@@ -549,11 +548,10 @@ private theorem apply_true_status_post_eq_noNewCorrupt
   rw [eval_adaptiveExec_status_post, eval_adaptiveExec_eq_execState_map,
     PMF.map_apply, PMF.map_apply]
   refine tsum_congr fun x => ?_
-  by_cases hsup : execState .adaptive P A (Z κ z) κ x = 0
-  · simp [hsup]
-  · have hC := corrupted_eq_of_mem_support_execState_noNewCorrupt P A hno (Z κ z) κ
-      ((PMF.mem_support_iff _ _).mpr hsup)
-    by_cases hb : x.1 = target <;> simp [hC, C₀, hb, Ne.symm]
+  rcases eq_or_ne (execState .adaptive P A (Z κ z) κ x) 0 with h0 | hne
+  · simp [h0]
+  · cases target <;> cases x.1 <;>
+      simp [corrupted_eq_of_mem_support_execState_noNewCorrupt P A hno (Z κ z) κ hne, C₀]
 
 private theorem eval_Z_status_eq_pure
     (P : AdaptiveProtocol n In Out NetQ NetR View)
@@ -564,21 +562,19 @@ private theorem eval_Z_status_eq_pure
       pure (decide (C = C₀))
     (adaptiveExec .adaptive P A Z_status κ z).eval = PMF.pure (decide (A.initial κ = C₀)) := by
   intro Z_status
-  change closeEval (ProbOracleComp.sample (adaptiveExecMachine .adaptive P A κ).init >>=
-    fun s => Prod.fst <$> (adaptiveExecMachine .adaptive P A κ).runFrom (Z_status κ z) s) =
-    PMF.pure (decide (A.initial κ = C₀))
-  erw [sample_adaptiveExecMachine_init]
   have hstep (sA : (A.machine κ).State) (rs : AdaptiveRouterState (P.machine κ).State View n) :
       Prod.fst <$> (adaptiveExecMachine .adaptive P A κ).runFrom (Z_status κ z) (sA, rs) =
         pure (decide (rs.corrupted = C₀)) := by
     erw [Machine.runFrom_bind, queryStatus, Machine.runFrom_query,
-      adaptiveExecMachine_handle_inl_status]
-    simp only [Machine.runFrom_pure]; rfl
+      adaptiveExecMachine_handle_inl_status, pure_bind, Machine.runFrom_pure]
+    rfl
+  change closeEval (_ >>= _) = _
+  erw [sample_adaptiveExecMachine_init]
   rw [closeEval_bind]
-  refine (congrArg (PMF.bind _) (funext fun s₀ => ?_)).trans (PMF.bind_const _ _)
+  refine (congrArg (PMF.bind _) (funext fun _ => ?_)).trans (PMF.bind_const _ _)
   rw [closeEval_bind]
-  exact (congrArg (PMF.bind _) (funext fun sA => by erw [hstep, closeEval_pure])).trans
-    (PMF.bind_const _ _)
+  exact (congrArg (PMF.bind _) (funext fun _ =>
+    (congrArg closeEval (hstep _ _)).trans (closeEval_pure _))).trans (PMF.bind_const _ _)
 
 private theorem static_advantage_le_of_adaptive_clampStatic
     (P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁)
@@ -616,8 +612,7 @@ private theorem static_advantage_le_of_adaptive_clampStatic
       linarith [(abs_sub_le_iff.mp hadv_real).1,
         ENNReal.toReal_mono (PMF.apply_ne_top _ _) hQS]
     have hsum (p : PMF Bool) : (p true).toReal + (p false).toReal = 1 := by
-      simpa [Game.succProbability, Game.failProbability] using
-        congrArg NNReal.toReal (Game.succProbability_add_failProbability p)
+      simpa only [Fintype.sum_bool] using Probability.PMF.sum_toReal p
     rw [← NNReal.coe_le_coe, Game.coe_advantage, Game.coe_succProbability,
       Game.coe_succProbability, abs_sub_le_iff]
     exact ⟨hbound true, by

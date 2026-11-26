@@ -126,18 +126,13 @@ private theorem verifyTranscript_honest {generator : List Bool → List Bool} {s
   have hmask_eq := naorMaskBits_realBits (m₀ := m₀) (m₁ := m₁) (m₂ := m₂) ch hw
   have hflags_eq : allOpenFlags φ ch (naorMaskBits flags bits) = flags :=
     hmask_eq ▸ (allOpenFlags_realBits φ ch w m₀ m₁ m₂).symm
-  have h3sat : (φ.all fun c => decide (c.length ≤ 3)) = true :=
-    (Bool.and_eq_true _ _).mp hw |>.1
-  have hcopy :
-      verifyCopyBits φ (ch.getD 0 false) (gmwCopy0 φ (naorMaskBits flags bits)) = true ∧
-      verifyCopyBits φ (ch.getD 1 false) (gmwCopy1 φ (naorMaskBits flags bits)) = true ∧
-      verifyCopyBits φ (ch.getD 2 false) (gmwCopy2 φ (naorMaskBits flags bits)) = true := by
-    simp [flags, bits, hmask_eq, gmwCopy0_simBits, gmwCopy1_simBits, gmwCopy2_simBits,
-      verifyCopyBits_simCopyBits]
-  dsimp only [verifyTranscript, K, bits, flags] at htake hdrop hflags_eq hcopy ⊢
-  rw [htake, hdrop, hflags_eq, h3sat]
-  simp only [hcopy.1, hcopy.2.1, hcopy.2.2, Bool.true_and, verifyCommitments, List.all_eq_true,
-    List.mem_range, Bool.or_eq_true, Bool.not_eq_true', beq_iff_eq]
+  dsimp only [verifyTranscript, K, bits, flags] at htake hdrop hflags_eq ⊢
+  rw [htake, hdrop, hflags_eq]
+  refine (Bool.and_eq_true _ _).mpr ⟨by
+    simp only [((Bool.and_eq_true _ _).mp hw).1, hmask_eq, gmwCopy0_simBits, gmwCopy1_simBits,
+      gmwCopy2_simBits, verifyCopyBits_simCopyBits, Bool.and_self], ?_⟩
+  simp only [verifyCommitments, List.all_eq_true, List.mem_range, Bool.or_eq_true,
+    Bool.not_eq_true', beq_iff_eq]
   intro i hi
   by_cases hfi : flags.getD i false = true
   · right
@@ -375,11 +370,8 @@ theorem mem_ThreeSAT_of_verifyTranscript_ne
       (h₂ : verifyTranscript generator s m φ r commitReply (List.ofFn y₂) o₂ = true)
       (hy₁ : y₁ j = false) (hy₂ : y₂ j = true) : φ ∈ ThreeSAT :=
     mem_ThreeSAT_of_verifyTranscript_false_true hbind h₁ h₂ (by fin_cases j <;> simp_all)
-  cases h₁ : x₁ j <;> cases h₂ : x₂ j
-  · exact absurd (h₁.trans h₂.symm) hj
-  · exact key hv₁ hv₂ h₁ h₂
-  · exact key hv₂ hv₁ h₂ h₁
-  · exact absurd (h₁.trans h₂.symm) hj
+  cases h₁ : x₁ j <;> cases h₂ : x₂ j <;>
+    first | exact absurd (h₁.trans h₂.symm) hj | exact key hv₁ hv₂ h₁ h₂ | exact key hv₂ hv₁ h₂ h₁
 
 private theorem sum_le_of_subsingleton_support {ι : Type*} [Fintype ι]
     {f : ι → ℝ≥0∞} {c : ℝ≥0∞} (hle : ∀ i, f i ≤ c)

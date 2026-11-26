@@ -284,7 +284,6 @@ theorem honestCRTMaskTable_reconstruct_true {IV : Type} {nMult lam nMask : ℕ}
   have hcand : candidateLabel tbl wPrefix e = tbl.activeLabel e + uPrefix := by
     simp only [candidateLabel, tbl, honestCRTMaskTable]
     rw [add_comm wPrefix uPrefix, ← add_assoc, zmod2_vec_add_cancel_right]
-  rw [hcand]
   have hpair : h5 ⟨iv, e, tbl.activeLabel e⟩ mask +
       h5 ⟨iv, e, tbl.activeLabel e + uPrefix⟩ mask =
       h5 ⟨iv, e, L0 e⟩ mask + h5 ⟨iv, e, L0 e + uPrefix⟩ mask := by
@@ -292,7 +291,7 @@ theorem honestCRTMaskTable_reconstruct_true {IV : Type} {nMult lam nMask : ℕ}
     · simp [tbl, honestCRTMaskTable, hact]
     · simp only [tbl, honestCRTMaskTable, hact, ↓reduceIte, zmod2_vec_add_cancel_right]
       exact add_comm _ _
-  rw [add_assoc _ (h5 _ _) (h5 _ _), hpair]
+  rw [hcand, add_assoc _ (h5 _ _) (h5 _ _), hpair]
   dsimp only [tbl, honestCRTMaskTable]
   rw [add_right_comm, CharTwo.add_self_eq_zero, zero_add]
 
@@ -315,10 +314,10 @@ theorem candidateLabel_ne_of_ne {IV : Type} {nMult lam nMask : ℕ}
     rw [candidateLabel, add_assoc] at heq
     exact hnonzero (add_left_cancel (heq.trans (add_zero _).symm))
   have hother : candidateLabel tbl wStar e ≠ tbl.activeLabel e + uPrefix := fun heq => by
-    rw [candidateLabel, add_assoc] at heq
-    have hw : wPrefix + uPrefix + wStar = uPrefix := add_left_cancel heq
-    rw [add_comm wPrefix uPrefix, add_assoc] at hw
-    have hdiff : wPrefix + wStar = 0 := add_left_cancel (hw.trans (add_zero _).symm)
+    dsimp only [candidateLabel, tbl, honestCRTMaskTable] at heq
+    rw [add_assoc, add_right_comm wPrefix uPrefix wStar] at heq
+    have hdiff : wPrefix + wStar = 0 :=
+      add_right_cancel ((add_left_cancel heq).trans (zero_add uPrefix).symm)
     exact hne ((zmod2_vec_add_eq_zero_iff wPrefix wStar).mp hdiff).symm
   cases hact : active e <;>
     simp only [tbl, honestCRTMaskTable, hact, Bool.false_eq_true, ↓reduceIte,
@@ -489,14 +488,6 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
   have hnotMemAct (e : Fin nMult) :
       (⟨iv, e, if active e then L0 e + uPrefix else L0 e⟩ : H5Query IV nMult lam) ∉ I := by
     cases active e <;> simp [hnotMem₀, hnotMem₁]
-  have hunsplit_notMem {p : (∀ q : I, Fin nMask → ZMod 2) ×
-      (∀ q : {q // q ∉ I}, Fin nMask → ZMod 2)} {q : H5Query IV nMult lam} (hq : q ∉ I) :
-      unsplit p q = p.2 ⟨q, hq⟩ := by
-    simp [unsplit, eSplit, hq]
-  have hunsplit_mem {p : (∀ q : I, Fin nMask → ZMod 2) ×
-      (∀ q : {q // q ∉ I}, Fin nMask → ZMod 2)} {q : H5Query IV nMult lam} (hq : q ∈ I) :
-      unsplit p q = p.1 ⟨q, hq⟩ := by
-    simp [unsplit, eSplit, hq]
   have hbindSplit :
       ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
         let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
@@ -566,14 +557,14 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
                 (unsplit (hIn, hOut))) wStar (sub i)⟩ mask =
             eFlip hIn mask i := by
         intro mask i
-        have hemb : emb i = ⟨iv, sub i,
-            (if active (sub i) = true then L0 (sub i) + uPrefix else L0 (sub i)) +
-              (wPrefix + uPrefix) + wStar⟩ := rfl
         have hsubMem : emb i ∈ I := Finset.mem_image_of_mem emb (Finset.mem_univ i)
-        simp only [honestCRTMaskTable, hunsplit_notMem (hnotMem₀ _), hunsplit_notMem (hnotMem₁ _),
-          hunsplit_notMem (hnotMemAct _), candidateLabel]
-        rw [← hemb, hunsplit_mem hsubMem]
-        rfl
+        change unsplit (hIn, hOut) ⟨iv, sub i, L0 (sub i)⟩ mask +
+            unsplit (hIn, hOut) ⟨iv, sub i, L0 (sub i) + uPrefix⟩ mask +
+            (F *ᵥ maskInput mask) (sub i) +
+            unsplit (hIn, hOut) ⟨iv, sub i,
+              if active (sub i) then L0 (sub i) + uPrefix else L0 (sub i)⟩ mask +
+            unsplit (hIn, hOut) (emb i) mask = eFlip hIn mask i
+        simp [unsplit, eSplit, eFlip, eIdx, base, hnotMem₀, hnotMem₁, hnotMemAct, hsubMem]
       simp only [crtPrefixEval, hcol]
     simp_rw [hinner]
     rw [← multiMask_parityCheck_uniform_zero_prob hsurj, ← uniformOfFintype_map_equiv eFlip,
@@ -769,10 +760,7 @@ theorem crtSpendPrefixTest_run {IV : Type} {nMult lam nMask kGates rSub : ℕ}
   | cons w ws ih =>
       simp only [crtSpendPrefixTest, ProbOracleComp.run_bind, crtPrefixTest_run, pure_bind,
         List.any_cons]
-      cases hhit : crtPrefixEval sub Hsub tbl hActive h5 w
-      · simp only [Bool.false_eq_true, ↓reduceIte, Bool.false_or]
-        exact ih
-      · simp [ProbOracleComp.run_pure]
+      cases crtPrefixEval sub Hsub tbl hActive h5 w <;> simp [ih, ProbOracleComp.run_pure]
 
 /-- Enumerate all `2 ^ wRand` guesses `packBalancePrefix tStar r` in deterministic order. -/
 noncomputable def balancePrefixGuesses (wBal wRand : ℕ) (tStar : Fin wBal → ZMod 2) :
@@ -1147,25 +1135,13 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
                 (fun y => decide (∀ mask, Hsub *ᵥ y mask = 0)) := by
               rw [uniformOfFintype_map_equiv eShift]
       rw [hmap, multiMask_parityCheck_uniform_zero_prob hsurj]
-    have hreorder : gSim =
-        (uniformOfFintype (Fin lam → ZMod 2)).bind fun dSim =>
-          (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun cmultSim =>
-              let actL : Fin nMult → Fin lam → ZMod 2 :=
-                fun e => if active e then L0 e + uPrefix else L0 e
-              let tbl : CRTMaskTable IV nMult lam nMask := ⟨iv, actL, dSim, cmultSim⟩
-              let hActive : Fin kGates → Fin nMask → ZMod 2 :=
-                fun i => h5 ⟨iv, sub i, actL (sub i)⟩
-              ProbComp.eval
-                ((crtPrefixTest sub Hsub tbl hActive r).run (fun q => pure (h5 q))) := by
-      simp only [gSim]
-      rw [PMF.bind_comm]
-      congr 1 with dSim : 1
-      rw [PMF.bind_comm]
-    rw [hreorder, PMF.bind_apply]
-    refine le_of_eq ?_
+    dsimp only [gSim]
+    rw [PMF.bind_comm]
+    simp only [PMF.bind_comm (uniformOfFintype (Fin nMask → Fin nMult → ZMod 2))]
+    rw [PMF.bind_apply]
     simp_rw [PMF.bind_apply (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)),
       hinner, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+    exact le_rfl
   have hsim_succR : (Game.succProbability gSim : ℝ) ≤ (2 : ℝ)⁻¹ ^ (nMask * rSub) := by
     rw [Game.coe_succProbability]
     simpa [ENNReal.toReal_pow] using

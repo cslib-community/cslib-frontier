@@ -296,9 +296,7 @@ theorem isOraclePPTOn_targetForgerWordOf {Message : Type} {encM : Message ↪ Li
   have hsnd := ComputableInPolyTime.snd encPublicInput (encTokenOf encM)
   have hpost := (computableInPolyTime_target_comp htarget hfst.fst' hfst.snd'.snd'
     (encTokenOf_payload_polyTime encM hsnd)).prod (encTokenOf_signature_polyTime encM hsnd)
-  simpa only [targetForgerWordOf, bind_pure_comp] using
-    hinterp.map_with (f := fun p tok =>
-      (target p.1 p.2.2 tok.payload.message tok.payload.opening, tok.signature)) hpost
+  simpa only [targetForgerWordOf, bind_pure_comp] using hinterp.map_with hpost
 
 /-- Running a generic word-level forger with `sigBound`-truncation against
 `SignatureScheme.signingOracleOf` along an encoding `tag : Target → List Bool` preserves the joint
@@ -523,10 +521,9 @@ theorem isPPTOn_runExtractedWord {Message : Type} {encM : Message ↪ List Bool}
           (Nat.mul_le_mul_left dc (Nat.pow_le_pow_left (by omega) dd))
       have hmlen : msg.length ≤ tc * (4 * B + 2 * (dc * (B + 1) ^ dd) + 10) ^ td := by
         have hm := htBound (caller.1.1, caller.1.2, payload.message, payload.opening)
-        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply] at hm
-        have hpenc : (encPayloadOf encM payload).length =
-            2 * (encM payload.message).length + 1 + payload.opening.length := by
-          simp [encPayloadOf_apply, encBits_apply]
+        have hpenc := congrArg List.length (encPayloadOf_apply encM payload)
+        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
+          at hm hpenc
         exact hm.trans (Nat.mul_le_mul_left tc (Nat.pow_le_pow_left (by omega) td))
       have hslen : sig.length ≤
           sc * (2 * B + tc * (4 * B + 2 * (dc * (B + 1) ^ dd) + 10) ^ td + 2) ^ sd := by
@@ -535,13 +532,9 @@ theorem isPPTOn_runExtractedWord {Message : Type} {encM : Message ↪ List Bool}
         exact hs.trans (Nat.mul_le_mul_left sc (Nat.pow_le_pow_left (by omega) sd))
       change (encPayloadLogOf encM (acc ++ [(payload, sig)])).length ≤
         (encPayloadLogOf encM acc).length + growth caller req.2
-      have hlen : (encPayloadLogOf encM (acc ++ [(payload, sig)])).length =
-          (encPayloadLogOf encM acc).length +
-            (2 * (encPayloadLogEntryOf encM (payload, sig)).length + 1) := by
-        simp [encPayloadLogOf, encList_append, encList_cons, encList_nil, length_frame]
-      rw [hlen]
-      simp only [encPayloadLogEntryOf, length_encPair, encBits_apply, growth, polyB, B]
-        at hplen hslen ⊢
+      simp only [encPayloadLogOf, encList_append, encList_cons, encList_nil, List.length_append,
+        List.length_nil, length_frame, encPayloadLogEntryOf, length_encPair, encBits_apply,
+        growth, polyB, B] at hplen hslen ⊢
       omega)
   have hres' := ComputableInPolyTime.snd encExtractedCaller
     (encPair (encTokenOf encM) (encPayloadLogOf encM))
@@ -814,11 +807,9 @@ theorem eval_extractedTokenWordGame_eq (S : WordSignatureScheme)
       (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
         ProbComp.eval (extractedExperiment (S.toScheme n) (wordPayloadTarget H n ck)
           (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n)) := by
-  simp only [extractedTokenWordGame, extractedExperiment, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure]
-  refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ck _ => ?_
-  rw [eval_runExtractedWord_eq]
-  exact PMF.bind_pure_comp _ _
+  simp only [extractedTokenWordGame, extractedExperiment, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_pure, eval_runExtractedWord_eq]
+  rfl
 
 /-- Word-level unforgeability of extracted anonymous tokens: assuming only `S.EUFCMA`,
 `CollisionResistant H`, and efficient `H` and `A` (with the signature length bound obtained
@@ -1481,15 +1472,12 @@ private theorem mem_support_noteForgerHandlerWord_length_le
     obtain ⟨sig, -, rfl⟩ := by
       simpa only [OracleComp.supportWith_map, Set.mem_image, OracleComp.supportWith_pure,
         Set.mem_singleton_iff, exists_eq_right] using hres
-    have hlen : (encRequestLog (accepted ++ [wordRequestDecoder.decode req.2])).length =
-        (encRequestLog accepted).length +
-          (2 * (encWordRequest (wordRequestDecoder.decode req.2)).length + 1) := by
-      simp [encRequestLog, encList_append, encList_cons, encList_nil, length_frame]
     have hBw : req.2.length ≤ (encPair encParamInput encBits (caller, req.2)).length := by
       enc_len
     have hd' := (hdecBound req.2).trans
       (Nat.mul_le_mul_left dc (Nat.pow_le_pow_left (Nat.add_le_add_right hBw 1) dd))
-    rw [hlen]
+    simp only [encRequestLog, encList_append, encList_cons, encList_nil, List.length_append,
+      List.length_nil, length_frame]
     omega
   · simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff] at hres
     subst hres
@@ -1894,13 +1882,12 @@ theorem eval_eufCmaGame_noteForgerWord_eq (S : WordSignatureScheme)
   change (PMF.map _ (ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
         (SignatureScheme.signingOracleOf S.sign sk)) _).run []))).bind _ = _
-  have hrun := eval_signingOracle_take_eq_targetForger_runLog_of creditNoteDecoder S.sign sk
+  have hrun' := (eval_signingOracle_take_eq_targetForger_runLog_of creditNoteDecoder S.sign sk
     (Credit.target (com n ck) Prod.mk) (fun p : List Bool × ℕ => tag p.1 p.2)
     (sigBound n) (hbound n pk sk hkeys)
-    (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck))) [] [] rfl
-  have hrun' := hrun.trans (congrArg (PMF.map _)
-    (eval_targetForger_noteForgerWord_runState_eq S sigBound com tag A n ck pk sk
-      (hbound n pk sk hkeys)))
+    (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck))) [] [] rfl).trans
+    (congrArg (PMF.map _) (eval_targetForger_noteForgerWord_runState_eq S sigBound com tag A n ck
+      pk sk (hbound n pk sk hkeys)))
   dsimp only [noteTarget, Credit.target] at hrun' ⊢
   rw [hrun']
   simp only [PMF.bind_map, Function.comp_def, freshMessage, List.contains_reverse, pairScheme]
@@ -2077,8 +2064,7 @@ theorem negligible_extractedConservationWordGame (S : WordSignatureScheme) (hS :
     noteCollisionFinder, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
     PMF.pure_bind, ← eval_commitmentBindingReductionWord_eq S sigBound
       (fun m pk sk hkeys msg sig hsig => hsigBound m (pk, sk) hkeys msg sig hsig)
-      (wordNoteCom H) wordTag wordTag_injective A n ck ck]
-  simp only [PMF.bind_map, Function.comp_def]
+      (wordNoteCom H) wordTag wordTag_injective A n ck ck, PMF.bind_map, Function.comp_def]
   refine Cslib.Probability.PMF.map_true_mono _ fun col _ hcol => ?_
   simp only [Crypto.Commitment.Scheme.isBindingCollision, Bool.and_eq_true, decide_eq_true_eq]
     at hcol
