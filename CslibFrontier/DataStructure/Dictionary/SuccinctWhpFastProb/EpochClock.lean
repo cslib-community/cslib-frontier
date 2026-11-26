@@ -110,11 +110,10 @@ private theorem tickStage_rollover_itemAlloc_zero {c U V n_max : ℕ} {θ : Seed
         rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
           rw [hchk] at hs5 <;> dsimp only at hs5 <;> split_ifs at hs5 <;> cases hs5
       · rw [ite_eq_right hdone] at hs5
-        rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩
-        · rw [hchk] at hs5
-          exact absurd hs5 hne5
-        · rw [hchk] at hs5
-          dsimp only at hs5
+        rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+          rw [hchk] at hs5
+        · exact absurd hs5 hne5
+        · dsimp only at hs5
           split_ifs at hs5 <;> exact absurd hs5 hne5
     · rw [ite_eq_right hlt] at hs5
       split_ifs at hs5 <;> cases hs5
@@ -188,30 +187,24 @@ theorem fastDelete_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     (fastDelete c U n_max θ fs u).epochClock = fs.epochClock := by
   dsimp only [fastDelete]
   refine (overmarsStep_meta c U n_max _ θ _).1.trans ?_
-  cases fastFindLoc c U n_max θ fs u with
-  | none => rfl
-  | some loc_del =>
-    dsimp only [fastDeleteShrink, fastDeleteMoveLast, fastDeleteRemove]
-    by_cases hlt : loc_del < fs.bktCount (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val)
-        - 1 <;> [rw [ite_eq_left hlt]; rw [ite_eq_right hlt]]
+  rcases fastFindLoc c U n_max θ fs u with _ | loc_del
+  · rfl
+  · dsimp only [fastDeleteShrink]
+    split <;> rfl
 
 theorem fastInsert_epochClock {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs1 : FastState} {u : Fin U} {v : ℕ}
     (hins : fastInsert c U n_max θ fs u v = some fs1) :
     fs1.epochClock = fs.epochClock := by
   unfold fastInsert fastInsertAlloc at hins
-  cases hfl : fastFindLoc c U n_max θ fs u with
-  | some loc =>
-    rw [hfl] at hins
-    cases hins
-    exact (overmarsStep_meta c U n_max _ θ _).1
-  | none =>
-    rw [hfl] at hins
-    dsimp only at hins
+  rcases hfl : fastFindLoc c U n_max θ fs u with _ | loc <;> rw [hfl] at hins
+  · dsimp only at hins
     iterate 3 (split at hins <;> try cases hins)
     refine (overmarsStep_meta c U n_max _ θ _).1.trans ?_
     dsimp only [fastInsertFresh]
     split <;> rfl
+  · cases hins
+    exact (overmarsStep_meta c U n_max _ θ _).1
 
 theorem trySelfHeal_clean {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
     {θ : SeedWhp c U n_max} {W_keys BadIns : Finset (Fin U)}

@@ -168,9 +168,9 @@ theorem isLeast_balanced_lpOpt [DecidableEq A] (G : CostSharingGame A) :
   exact hG.unique G.isGreatest_coreFeasible_lpOpt ▸ hL
 
 theorem lpOpt_le_cost_univ (G : CostSharingGame A) :
-    G.lpOpt ≤ G.cost Finset.univ := by
-  obtain ⟨⟨α, hα, hsum⟩, -⟩ := G.isGreatest_coreFeasible_lpOpt
-  exact hsum ▸ hα Finset.univ
+    G.lpOpt ≤ G.cost Finset.univ :=
+  let ⟨⟨_, hα, hsum⟩, _⟩ := G.isGreatest_coreFeasible_lpOpt
+  hsum ▸ hα Finset.univ
 
 /-- **Theorem 15.8 (`γ`-Bondareva–Shapley theorem)** ([JainMahdian2007], p. 389): a TU
 cost-sharing game `G` has a nonempty `γ`-core if and only if every balanced weight collection `w`
@@ -239,9 +239,8 @@ of LP `(15.2)` (`∀ j, ∑_{S : j ∈ S} w S = 1`), i.e. an exact partition of 
   ∀ j : A, (∑ S with j ∈ S, w S) = 1
 
 theorem isIntegralBalancedWeights_univ {A : Type*} [Fintype A] [DecidableEq A] :
-    IsIntegralBalancedWeights (fun S : Finset A => if S = Finset.univ then 1 else 0) := by
-  intro j
-  simp
+    IsIntegralBalancedWeights (fun S : Finset A => if S = Finset.univ then 1 else 0) :=
+  fun _ => by simp
 
 namespace CostSharingGame
 
@@ -317,11 +316,10 @@ private theorem exists_isLeast_integralBalanced [DecidableEq A] (G : CostSharing
   let valid : Finset (Finset (Finset A)) :=
     Finset.univ.filter fun P =>
       (P : Set (Finset A)).PairwiseDisjoint id ∧ P.biUnion id = Finset.univ
-  have hmem_valid : ∀ {w : Finset A → ℕ}, IsIntegralBalancedWeights w →
-      ∃ P ∈ valid, ∑ S : Finset A, (w S : ℝ) * G.cost S = ∑ S ∈ P, G.cost S := by
-    intro w hw
-    obtain ⟨hdisj, hunion, hsum⟩ := G.integralBalanced_support_spec hw
-    exact ⟨_, Finset.mem_filter.2 ⟨Finset.mem_univ _, hdisj, hunion⟩, hsum⟩
+  have hmem_valid {w : Finset A → ℕ} (hw : IsIntegralBalancedWeights w) :
+      ∃ P ∈ valid, ∑ S : Finset A, (w S : ℝ) * G.cost S = ∑ S ∈ P, G.cost S :=
+    let ⟨hdisj, hunion, hsum⟩ := G.integralBalanced_support_spec hw
+    ⟨_, Finset.mem_filter.2 ⟨Finset.mem_univ _, hdisj, hunion⟩, hsum⟩
   have hof_valid : ∀ {P : Finset (Finset A)}, P ∈ valid →
       ∃ w : Finset A → ℕ, IsIntegralBalancedWeights w ∧
         ∑ S : Finset A, (w S : ℝ) * G.cost S = ∑ S ∈ P, G.cost S := by
@@ -370,14 +368,14 @@ theorem IsSubadditive.isLeast_integralBalanced [DecidableEq A] {G : CostSharingG
     (hsub : G.IsSubadditive) :
     IsLeast ((fun w : Finset A → ℕ => ∑ S : Finset A, (w S : ℝ) * G.cost S) ''
       {w | IsIntegralBalancedWeights w}) (G.cost Finset.univ) := by
-  refine ⟨⟨fun S => if S = Finset.univ then 1 else 0, isIntegralBalancedWeights_univ, ?_⟩, ?_⟩
-  · simp [ite_mul]
-  · rintro _ ⟨w, hw, rfl⟩
-    obtain ⟨hP_disj, hP_union, hsum⟩ := G.integralBalanced_support_spec hw
-    calc
-      G.cost Finset.univ = G.cost _ := by rw [hP_union]
-      _ ≤ _ := cost_biUnion_le_sum_of_pairwiseDisjoint hsub hP_disj
-      _ = ∑ S : Finset A, (w S : ℝ) * G.cost S := hsum.symm
+  refine ⟨⟨fun S => if S = Finset.univ then 1 else 0, isIntegralBalancedWeights_univ,
+    by simp [ite_mul]⟩, ?_⟩
+  rintro _ ⟨w, hw, rfl⟩
+  obtain ⟨hP_disj, hP_union, hsum⟩ := G.integralBalanced_support_spec hw
+  calc
+    G.cost Finset.univ = G.cost _ := by rw [hP_union]
+    _ ≤ _ := cost_biUnion_le_sum_of_pairwiseDisjoint hsub hP_disj
+    _ = ∑ S : Finset A, (w S : ℝ) * G.cost S := hsum.symm
 
 theorem IsSubadditive.integralLpOpt_eq_cost_univ [DecidableEq A] {G : CostSharingGame A}
     (hsub : G.IsSubadditive) :
@@ -404,12 +402,10 @@ integrality gap `G.integralityGapLP = G.lpOpt / G.integralLpOpt` of LP `(15.2)`.
 theorem IsSubadditive.isGreatest_nonemptyApproxCore_integralityGapLP [DecidableEq A]
     {G : CostSharingGame A} (hsub : G.IsSubadditive) (hpos : 0 < G.cost Finset.univ) :
     IsGreatest {γ : ℝ | G.NonemptyApproxCore γ} G.integralityGapLP := by
-  refine ⟨?_, fun γ hγ => ?_⟩
-  · change G.NonemptyApproxCore G.integralityGapLP
-    rw [G.nonemptyApproxCore_iff_le_lpOpt, integralityGapLP, hsub.integralLpOpt_eq_cost_univ,
-      div_mul_cancel₀ _ hpos.ne']
-  · rw [Set.mem_ofPred_eq, G.nonemptyApproxCore_iff_le_lpOpt] at hγ
-    rwa [integralityGapLP, hsub.integralLpOpt_eq_cost_univ, le_div_iff₀ hpos]
+  refine ⟨by rw [Set.mem_ofPred_eq, G.nonemptyApproxCore_iff_le_lpOpt, integralityGapLP,
+      hsub.integralLpOpt_eq_cost_univ, div_mul_cancel₀ _ hpos.ne'], fun γ hγ => ?_⟩
+  rw [Set.mem_ofPred_eq, G.nonemptyApproxCore_iff_le_lpOpt] at hγ
+  rwa [integralityGapLP, hsub.integralLpOpt_eq_cost_univ, le_div_iff₀ hpos]
 
 end IntegralityGap
 
@@ -500,11 +496,11 @@ theorem isGreatest_exactRedistribution [Fintype G]
       fun g : G => Finset.exists_mem_eq_sup' hS (E.utility · g)
     let xStar : A → G → ℝ := fun i g =>
       if i = winner g then ∑ j ∈ S, E.endowment j g else 0
-    have hxStar : E.IsExactRedistribution S xStar := by
-      refine ⟨fun i _ g => ?_, fun g => by simp [xStar, hwinner_mem g]⟩
-      simp only [xStar]
+    have hxStar : E.IsExactRedistribution S xStar := ⟨fun _ _ g => by
+      dsimp only [xStar]
       split_ifs
-      exacts [Finset.sum_nonneg fun j _ => E.endowment_nonneg j g, le_rfl]
+      exacts [Finset.sum_nonneg fun j _ => E.endowment_nonneg j g, le_rfl],
+      fun g => by simp [xStar, hwinner_mem g]⟩
     refine ⟨⟨xStar, hxStar, ?_⟩, ?_⟩
     · dsimp only
       rw [Finset.sum_comm, E.coalitionValue_of_nonempty hS]
@@ -565,11 +561,10 @@ theorem marketPriceAllocation_inCore [Fintype A] [Fintype G] (E : LinearExchange
       rw [Finset.sum_comm]
       refine Finset.sum_le_sum fun g _ => ?_
       rw [← Finset.mul_sum]
-      refine mul_le_mul_of_nonneg_right ?_ (Finset.sum_nonneg fun i _ => E.endowment_nonneg i g)
-      exact Finset.sup'_le hS _ fun i _ =>
-        Finset.le_sup' (fun k => E.utility k g) (Finset.mem_univ i)
-    · rw [Finset.not_nonempty_iff_eq_empty.1 hS]
-      simp
+      exact mul_le_mul_of_nonneg_right
+        (Finset.sup'_le hS _ fun i _ => Finset.le_sup' (E.utility · g) (Finset.mem_univ i))
+        (Finset.sum_nonneg fun i _ => E.endowment_nonneg i g)
+    · simp [Finset.not_nonempty_iff_eq_empty.1 hS]
 
 /-- **Exercise 15.1** ([JainMahdian2007], p. 410): every linear Arrow–Debreu exchange economy TU
 game has a **nonempty core** (answering Exercise 15.1 in the affirmative), and hence satisfies the

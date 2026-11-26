@@ -138,30 +138,26 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
     toCfg p d r hd (step p d r reply (ofCfg q)) =
       Ary.Iter.step hd e E (units p) read q := by
   rcases q with ⟨S, st, mode⟩
+  rcases reply with ⟨tag, vals⟩
   have hvalid := validBank_ofRegs (Fact.out : p.Prime).two_le S
   cases mode with
   | call c t =>
     cases hread : read (Ary.Iter.path st) with
     | leaf v =>
-      obtain ⟨htag, hvalues⟩ : reply.1 = 1 ∧ ∀ i : Fin r, (reply.2.getD i 0 : ZMod p) = e v i := by
+      obtain ⟨rfl, hvalues⟩ : tag = 1 ∧ ∀ i : Fin r, (vals.getD i 0 : ZMod p) = e v i := by
         simpa only [ReplyCorrect, hread] using hreply
-      rw [show reply = (1, reply.2) from Prod.ext htag rfl]
-      exact toCfg_step_call_leaf hd e E (units p) read S st c t v reply.2 hread hvalues
+      exact toCfg_step_call_leaf hd e E (units p) read S st c t v vals hread hvalues
     | none =>
-      have htag : reply.1 = 0 := by simpa only [ReplyCorrect, hread] using hreply
+      obtain rfl : tag = 0 := by simpa only [ReplyCorrect, hread] using hreply
       rw [Ary.Iter.step, hread]
-      change toCfg p d r hd
-        (step p d r reply (ofRegs S, st.map ofFrame, some (c.val, t.val))) = _
-      simp only [step, hvalid, ↓reduceIte, stepCore, htag,
-        show (0 : ℕ) ≠ 1 by decide, show (0 : ℕ) ≠ 2 by decide, ↓reduceIte]
+      dsimp only [ofCfg, ofMode]
+      simp only [step, hvalid, ↓reduceIte, stepCore, Nat.reduceEqDiff]
       rw [toCfg_ret, toRegs_ofRegs]
     | gate f =>
-      have htag : reply.1 = 2 := by simpa only [ReplyCorrect, hread] using hreply
+      obtain rfl : tag = 2 := by simpa only [ReplyCorrect, hread] using hreply
       have hp1 : p - 1 ≠ 0 := by have := (Fact.out : p.Prime).two_le; omega
-      change toCfg p d r hd
-        (step p d r reply (ofRegs S, st.map ofFrame, some (c.val, t.val))) = _
-      simp only [step, hvalid, ↓reduceIte, stepCore, htag,
-        show (2 : ℕ) ≠ 1 by decide, hp1, ↓reduceIte]
+      dsimp only [ofCfg, ofMode]
+      simp only [step, hvalid, ↓reduceIte, stepCore, Nat.reduceEqDiff, hp1]
       rw [toCfg_beginRound hd (units p) 0 c t (ofRegs S) (length_ofRegs S) st
         (unitAt_units (by omega)), toRegs_ofRegs]
       cases hus : units p with
@@ -171,25 +167,22 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
     cases st with
     | nil =>
       rw [Ary.Iter.step_ret_nil]
-      change toCfg p d r hd (step p d r reply (ofRegs S, [], none)) = _
+      dsimp only [ofCfg, ofMode]
       simp only [step, hvalid, ↓reduceIte, stepCore, toCfg, State.bank, State.stack, toMode,
         List.map_nil, toRegs_ofRegs]
     | cons fr st =>
       have hr : fr.round < p - 1 := hround fr (by simp)
-      change toCfg p d r hd
-        (step p d r reply (ofRegs S, ofFrame fr :: st.map ofFrame, none)) = _
+      dsimp only [ofCfg, ofMode, List.map_cons]
+      rw [List.map_cons]
       by_cases hu : fr.undo = true
       · by_cases hj : fr.child.val + 1 < d
         · let child : Fin d := ⟨fr.child.val + 1, hj⟩
           rw [Ary.Iter.step_ret_undo_next hd e E (units p) read S fr st hu hj]
           simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, ↓reduceIte]
           rw [reg_eq fr.target child]
-          change toCfg p d r hd
-            (scaleBank p r (reg d fr.target fr.child) (Reader.unitInv p fr.round) (ofRegs S),
-              ({ fr with child := child, undo := true } :: st).map ofFrame,
-              some (p - 1, (Ary.reg fr.target child).val)) = _
-          rw [toCfg_call, ZMod.natCast_self_sub_one,
-            toRegs_scale_inverse S fr.target fr.child fr.round hr]
+          refine (toCfg_call hd _ ({ fr with child := child, undo := true } :: st) _
+            (Ary.reg fr.target child)).trans ?_
+          rw [ZMod.natCast_self_sub_one, toRegs_scale_inverse S fr.target fr.child fr.round hr]
         · by_cases hi : fr.round + 1 < p - 1
           · rw [Ary.Iter.step_ret_undo_round hd e E (units p) read S fr st hu hj]
             · simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, hi, ↓reduceIte]
@@ -206,14 +199,13 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
         · let child : Fin d := ⟨fr.child.val + 1, hj⟩
           rw [Ary.Iter.step_ret_forward_next hd e E (units p) read S fr st huf hj]
           simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, huf, hj,
-            Bool.false_eq_true, ↓reduceIte]
+            Bool.false_eq_true, ↓reduceIte, State.bank]
           rw [reg_eq fr.target child]
-          change toCfg p d r hd
-            (scaleBank p r (reg d fr.target child) (fr.round + 1) (ofRegs S),
-              ({ fr with child := child, undo := false } :: st).map ofFrame,
-              some (1, (Ary.reg fr.target child).val)) = _
-          rw [toCfg_call, Nat.cast_one, toRegs_scale_unit S fr.target child fr.round hr]
-        · have hv : ∀ i : Fin r, (reply.2.getD i 0 : ZMod p) =
+          refine (toCfg_call hd _ ({ fr with child := child, undo := false } :: st) _
+            (Ary.reg fr.target child)).trans ?_
+          rw [Nat.cast_one, ← reg_eq fr.target child,
+            toRegs_scale_unit S fr.target child fr.round hr]
+        · have hv : ∀ i : Fin r, (vals.getD i 0 : ZMod p) =
               expectedGate E read S st fr.target i := by
             simpa only [ReplyCorrect, huf, hj, not_false_eq_true, and_self, ↓reduceIte]
               using hreply
@@ -221,12 +213,10 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
           simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, huf, hj,
             Bool.false_eq_true, ↓reduceIte]
           rw [reg_eq fr.target ⟨0, hd⟩]
-          change toCfg p d r hd
-            (subBank p r fr.target fr.coeff.val reply.2 (ofRegs S),
-              ({ fr with child := ⟨0, hd⟩, undo := true } :: st).map ofFrame,
-              some (p - 1, (Ary.reg fr.target ⟨0, hd⟩).val)) = _
-          rw [toCfg_call, ZMod.natCast_self_sub_one, toRegs_subBank_expected E read S st fr.coeff
-            fr.target reply.2 hv]
+          refine (toCfg_call hd _ ({ fr with child := ⟨0, hd⟩, undo := true } :: st) _
+            (Ary.reg fr.target ⟨0, hd⟩)).trans ?_
+          rw [ZMod.natCast_self_sub_one, toRegs_subBank_expected E read S st fr.coeff
+            fr.target vals hv]
 
 /-- Canonical padded cells retain exactly one modulus offset. -/
 @[expose] def CanonicalBank (p d r : ℕ) (bank : List ℕ) : Prop :=

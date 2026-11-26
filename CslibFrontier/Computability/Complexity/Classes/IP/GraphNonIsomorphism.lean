@@ -159,10 +159,7 @@ private theorem relabelFin_eq_flatten (A : Fin n → Fin n → Bool) (k : Fin n 
 theorem relabelFin_comp {A A' : Fin n → Fin n → Bool} {k : Fin n → ℕ}
     (hk : Function.Injective k) (σ : Equiv.Perm (Fin n)) (hA : ∀ i j, A' (σ i) (σ j) = A i j) :
     relabelFin A' k = relabelFin A (k ∘ σ) := by
-  rw [relabelFin, relabelFin, rankPerm_comp hk]
-  congr with t : 1
-  simp only [Equiv.symm_trans_apply]
-  rw [← hA, Equiv.apply_symm_apply, Equiv.apply_symm_apply]
+  simp [relabelFin, rankPerm_comp hk, ← hA]
 
 /-- Equal relabelings come from isomorphic adjacency matrices. -/
 theorem exists_equiv_of_relabelFin_eq {n' : ℕ} {A : Fin n → Fin n → Bool}
@@ -171,11 +168,8 @@ theorem exists_equiv_of_relabelFin_eq {n' : ℕ} {A : Fin n → Fin n → Bool}
     ∃ σ : Fin n ≃ Fin n', ∀ i j, A' (σ i) (σ j) = A i j := by
   obtain ⟨hnn, hf⟩ := Sigma.mk.inj_iff.1 (List.ofFn_inj'.1 h)
   obtain rfl : n = n' := Nat.mul_self_inj.1 hnn
-  have hf := eq_of_heq hf
   refine ⟨(rankPerm k).trans (rankPerm k').symm, fun i j => ?_⟩
-  have := congrFun hf (finProdFinEquiv (rankPerm k i, rankPerm k j))
-  simp only [Equiv.symm_apply_apply, Equiv.symm_apply_apply] at this
-  simpa using this.symm
+  simpa using (congrFun (eq_of_heq hf) (finProdFinEquiv (rankPerm k i, rankPerm k j))).symm
 
 /-! ### Computing relabelings -/
 
@@ -405,10 +399,9 @@ theorem tsum_relabelDist_le {n n' : ℕ} {A : Fin n → Fin n → Bool} {A' : Fi
   obtain rfl : n = n' := Fin.equiv_iff_eq.1 ⟨σ⟩
   refine (tsum_uniform_map_le (fun R => relabelFin A (keyValue ∘ R))
     (fun R => relabelFin A' (keyValue ∘ R)) (Equiv.arrowCongr σ.symm (Equiv.refl _))
-    (fun R => Function.Injective R) (fun R hR => ?_) hf).trans ?_
-  · rw [relabelFin_comp ((keyValue_injective _).comp hR) σ hσ]
-    rfl
-  · exact add_le_add le_rfl (card_filter_not_injective_div_le n)
+    (fun R => Function.Injective R)
+    (fun R hR => relabelFin_comp ((keyValue_injective _).comp hR) σ hσ) hf).trans
+    (add_le_add le_rfl (card_filter_not_injective_div_le n))
 
 /-- Equal relabelings come from isomorphic adjacency matrices. -/
 private theorem exists_equiv_of_mem_support_relabelDist {n n' : ℕ} {A : Fin n → Fin n → Bool}

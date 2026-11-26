@@ -57,10 +57,7 @@ theorem sbtw_zero_arg_pi_iff (w : ℂ) :
 theorem midpoint_mem_ball_of_mem_sphere {z p q : ℂ} {ρ : ℝ}
     (hp : p ∈ Metric.sphere z ρ) (hq : q ∈ Metric.sphere z ρ) (hpq : p ≠ q) :
     midpoint ℝ p q ∈ Metric.ball z ρ := by
-  have hρ : ρ ≠ 0 := by
-    intro h
-    rw [h, Metric.sphere_zero] at hp hq
-    exact hpq ((Set.mem_singleton_iff.mp hp).trans (Set.mem_singleton_iff.mp hq).symm)
+  have hρ : ρ ≠ 0 := fun h => hpq (by simp_all)
   rw [← interior_closedBall z hρ]
   exact (strictConvex_closedBall ℝ z ρ).openSegment_subset
     (Metric.sphere_subset_closedBall hp) (Metric.sphere_subset_closedBall hq) hpq
@@ -160,12 +157,9 @@ theorem sbtw_arg_iff_chordCoordinate_pos {z p q x : ℂ} {ρ : ℝ}
 /-- Reversing the oriented chord reverses its affine coordinate. -/
 theorem chordCoordinate_swap (p q : ℂ) : chordCoordinate q p = -chordCoordinate p q := by
   ext x
-  change ((x - midpoint ℝ q p) / (q - midpoint ℝ q p)).im =
-    -((x - midpoint ℝ p q) / (p - midpoint ℝ p q)).im
-  rw [midpoint_comm q p]
   have hq : q - midpoint ℝ p q = -(p - midpoint ℝ p q) := by
     simp only [right_sub_midpoint, left_sub_midpoint, ← smul_neg, neg_sub]
-  rw [hq, div_neg, Complex.neg_im]
+  simp [chordCoordinate, midpoint_comm q p, hq, div_neg]
 
 /-- Offset the chord midpoint in its oriented normal direction. -/
 @[expose] noncomputable def chordOffset (p q : ℂ) (t : ℝ) : ℂ :=

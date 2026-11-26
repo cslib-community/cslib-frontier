@@ -99,10 +99,9 @@ theorem collapse_of_not_valid {r : List Bool} (hv : H.valid r = false) : H.colla
 @[simp]
 theorem length_collapse (r : List Bool) : (H.collapse r).length = r.length := by
   by_cases hv : H.valid r = true
-  · rw [H.collapse_of_valid hv, List.length_append, List.length_replicate]
-    have := H.length_header_le hv
-    omega
-  · rw [H.collapse_of_not_valid (by simpa using hv)]
+  · have := H.length_header_le hv
+    simp only [H.collapse_of_valid hv, List.length_append, List.length_replicate]; omega
+  · simp [collapse, hv]
 
 theorem valid_collapse {r : List Bool} (hv : H.valid r = true) :
     H.valid (H.collapse r) = true ∧ H.header (H.collapse r) = H.header r :=
@@ -173,7 +172,7 @@ theorem binaryValue_le_binaryValue_collapse (r : List Bool) :
   · have := H.binaryValue_collapse_add_one hv
     have := (H.mem_block hv).2
     omega
-  · rw [H.collapse_of_not_valid (by simpa using hv)]
+  · simp [collapse, hv]
 
 /-- Two words of the same length collapse to the same word as a valid `r` exactly when they lie in
 its block. -/
@@ -224,14 +223,12 @@ theorem binaryValue_collapse_le_iff {r y : List Bool} (hlen : r.length = y.lengt
   · refine ⟨fun h => by omega, fun h => ?_⟩
     by_cases hvr : H.valid r = true
     · by_contra hc
-      have hmem : H.lo r ≤ BitString.binaryValue y ∧ BitString.binaryValue y < H.hi r := by
-        have := H.binaryValue_collapse_add_one hvr
-        have := (H.mem_block hvr).1
-        omega
-      rw [← hy, (H.collapse_eq_collapse_iff hvr hlen.symm).mpr hmem] at hc
-      exact hc le_rfl
-    · rw [H.collapse_of_not_valid (by simpa using hvr)]
-      omega
+      have := H.binaryValue_collapse_add_one hvr
+      have := (H.mem_block hvr).1
+      exact hc ((H.collapse_eq_collapse_iff hvr hlen.symm).mpr
+        ⟨by omega,
+          by omega⟩ ▸ (congrArg BitString.binaryValue hy).le)
+    · rw [H.collapse_of_not_valid (Bool.eq_false_iff.mpr hvr)]; omega
   · have hvy := H.valid_of_collapse_ne hy
     obtain ⟨hloy, hhiy⟩ := H.mem_block hvy
     refine ⟨fun h => ?_, fun h => ?_⟩
@@ -244,11 +241,11 @@ theorem binaryValue_collapse_le_iff {r y : List Bool} (hlen : r.length = y.lengt
       · by_contra hc
         have hcr := H.binaryValue_collapse_add_one hvr
         have hlor := (H.mem_block hvr).1
-        obtain ⟨-, hhy⟩ := H.valid_of_mem_block hvr hlen.symm (by omega) (by omega)
+        obtain ⟨-, hhy⟩ := H.valid_of_mem_block hvr hlen.symm (by omega)
+          (by omega)
         have := H.lo_eq_of_header_eq hhy hlen.symm
         omega
-      · rw [H.collapse_of_not_valid (by simpa using hvr)]
-        omega
+      · rw [H.collapse_of_not_valid (Bool.eq_false_iff.mpr hvr)]; omega
 
 /-- **The cumulative distribution of the collapsed ensemble** is the dyadic rational
 `cdfNum y / 2^{|y|}`. -/
@@ -373,14 +370,11 @@ theorem ensemble_dist_collapse {r : List Bool} (hv : H.valid r = true) :
       (H.collapse_eq_collapse_iff hv (Ensemble.uniform.length_eq _ _ hr)).symm
   rw [Ensemble.uniform_toOuterMeasure_binaryValue_lt (H.hi_le_two_pow hv),
     Ensemble.uniform_toOuterMeasure_binaryValue_lt (hlohi.trans (H.hi_le_two_pow hv))] at hblock
-  have hhi : H.hi r = H.lo r + 2 ^ (r.length - (H.header r).length) := by
-    unfold hi lo
-    ring
+  have hhi : H.hi r = H.lo r + 2 ^ (r.length - (H.header r).length) := by simp only [hi, lo]; ring
   rw [hhi, Nat.cast_add, ENNReal.add_div] at hblock
-  rw [← (ENNReal.add_right_inj (by finiteness)).mp hblock]
   obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le (H.length_header_le hv)
-  rw [hk, Nat.add_sub_cancel_left]
-  exact two_pow_div_two_pow_add _ _
+  simpa only [hk, Nat.add_sub_cancel_left, two_pow_div_two_pow_add] using
+    ((ENNReal.add_right_inj (by finiteness)).mp hblock).symm
 
 end HeaderParser
 

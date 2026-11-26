@@ -200,9 +200,7 @@ theorem eventually_rayCrosses_iff (a b z : ℂ) (ha : z.im ≠ a.im) (hb : z.im 
     eventually_lt_iff_of_ne him continuousAt_const hmax,
     eventually_lt_iff_of_ne Complex.continuous_re.continuousAt hcont.continuousAt hx]
     with w hlo hhi hre
-  have hlo' : min a.im b.im ≤ w.im ↔ min a.im b.im ≤ z.im := by
-    simpa only [not_lt] using not_congr hlo
-  simp only [RayCrosses, hlo', hhi, hre]
+  simp only [RayCrosses, ← not_lt (a := w.im), ← not_lt (a := z.im), hlo, hhi, hre]
 
 /-- At a height in the half-open vertical range, a base point off the actual segment
 cannot coincide with the segment's horizontal intercept. -/
@@ -256,19 +254,15 @@ theorem eventually_rayCrosses_endpoint_jump (a b z : ℂ) (hab : a.im ≠ b.im)
   · have hz' : z.im < b.im := hz ▸ hab
     filter_upwards [hcompare,
       Complex.continuous_im.continuousAt.eventually_lt continuousAt_const hz'] with w hw hwb
-    have hcw : RayCrosses a b w ↔ z.im ≤ w.im ∧ z.re < a.re := by
-      simp [RayCrosses, ← hz, hw, hwb]
-    have hcz : RayCrosses a b z ↔ z.re < a.re := by
-      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hz, hab]
-    by_cases hw' : z.im ≤ w.im <;> by_cases hx' : z.re < a.re <;> simp [hcw, hcz, hw', hx']
+    simp only [RayCrosses, hz, min_eq_left hab.le, max_eq_right hab.le, le_refl, hab,
+      horizontalIntercept_left, hw, hwb, true_and]
+    by_cases hw' : a.im ≤ w.im <;> by_cases hx' : z.re < a.re <;> simp [hw', hx']
   · have hz' : b.im < z.im := hz ▸ hab
     filter_upwards [hcompare,
       continuousAt_const.eventually_lt Complex.continuous_im.continuousAt hz'] with w hw hbw
-    have hcw : RayCrosses a b w ↔ w.im < z.im ∧ z.re < a.re := by
-      simp [RayCrosses, ← hz, hw, hbw.le]
-    have hcz : ¬RayCrosses a b z := by simp [RayCrosses, max_eq_left hab.le, hz]
-    by_cases hw' : z.im ≤ w.im <;> by_cases hx' : z.re < a.re <;>
-      simp [hcw, hcz, hw', hx', ← not_le]
+    simp only [RayCrosses, hz, min_eq_right hab.le, max_eq_left hab.le, lt_irrefl,
+      hbw.le, hw, true_and, false_and]
+    by_cases hw' : a.im ≤ w.im <;> by_cases hx' : z.re < a.re <;> simp [hw', hx', ← not_le]
 
 open Classical in
 /-- The complete local change formula for a nonhorizontal segment off its actual support.

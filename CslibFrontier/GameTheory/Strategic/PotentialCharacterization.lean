@@ -437,15 +437,9 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
   let L_rem := (Finset.univ.erase i).toList
   have hnd_all : L_all.Nodup := Finset.nodup_toList _
   have hi_notMem : i ∉ L_rem := by simp [L_rem]
-  have hnd_split : (L_rem ++ [i]).Nodup := List.nodup_append.2
-    ⟨Finset.nodup_toList _, List.nodup_singleton i, fun x hx y hy => by
-      rintro rfl
-      exact hi_notMem (List.mem_singleton.1 hy ▸ hx)⟩
   have hperm : L_all.Perm (L_rem ++ [i]) :=
-    (List.perm_ext_iff_of_nodup hnd_all hnd_split).2 fun x => by
-      simp only [L_all, L_rem, List.mem_append, Finset.mem_toList, Finset.mem_univ,
-        Finset.mem_erase, List.mem_singleton, and_true]
-      exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
+    (Finset.insert_erase (Finset.mem_univ i) ▸
+      Finset.toList_insert (Finset.notMem_erase i _)).trans (List.perm_append_comm (l₁ := [i]))
   have hw_rem (t : ∀ k, S k) : sweepProfile L_rem z t = update t i (z i) := by
     funext k
     rcases eq_or_ne k i with rfl | hki <;> simp [sweepProfile_apply, L_rem, *]
@@ -461,8 +455,7 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
 theorem potentialOfBase_self [Fintype ι] (G : CostGame ι S) (z : ∀ i, S i) :
     G.potentialOfBase z z = 0 := by
   unfold potentialOfBase
-  suffices ∀ L : List ι, sweepCost G L z z = 0 from this _
-  intro L
+  generalize (Finset.univ : Finset ι).toList = L
   induction L with
   | nil => rfl
   | cons i L ih => simp only [sweepCost, update_eq_self, sub_self, zero_add, ih]
@@ -564,10 +557,8 @@ theorem IsWeightedPotential.expectedCost_update_sub {G : CostGame ι S} {w : ι 
     refine sum_congr rfl fun s _ => ?_
     simp only [C, ← mul_sub, hΦ s i a]
     ring
-  have hC_eq : ∀ r : ∀ j, S j → ℝ, C.expectedCost r i = mixedPotential Φ r := fun r => by
-    rw [expectedCost_def, mixedPotential_def]
-  rw [← hC_eq (update p i q), ← hC_eq p, expectedCost_update_sub_eq G hp i hq,
-    expectedCost_update_sub_eq C hp i hq, mul_sum]
+  rw [mixedPotential_def, mixedPotential_def, ← C.expectedCost_def _ i, ← C.expectedCost_def _ i,
+    expectedCost_update_sub_eq G hp i hq, expectedCost_update_sub_eq C hp i hq, mul_sum]
   refine sum_congr rfl fun a _ => ?_
   rw [hdev a]
   ring

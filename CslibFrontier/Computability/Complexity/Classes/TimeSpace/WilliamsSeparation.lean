@@ -141,9 +141,7 @@ private theorem exists_shift_of_eventually_log2_le {s : ℕ → ℕ} (hs : Space
       exact (Nat.log_mono_right hn.le).trans (Nat.le_add_left _ _)
   · exact Set.Subset.antisymm
       (DSPACE_mono_of_le_mul_add (C := 1 + Nat.log2 N) fun n => by
-        have h1 := Nat.le_mul_of_pos_left (s n) (Nat.succ_pos (Nat.log2 N))
-        rw [Nat.succ_eq_add_one, add_comm] at h1
-        omega)
+        nlinarith [Nat.zero_le (s n * Nat.log2 N)])
       (DSPACE_mono fun n => Nat.le_add_right _ _)
 
 private theorem eventually_log2_le_of_eventually_le {s : ℕ → ℕ} (hn : ∀ᶠ n in atTop, n ≤ s n) :
@@ -199,11 +197,10 @@ theorem setOf_spaceDiagonal_notMem_DTIME {t s : ℕ → ℕ} (hlog : ∀ n, Nat.
       c * Nat.sqrt (max n (t n) * (Nat.log2 (max n (t n)) + 1)) + c ≤ s n) :
     {x | spaceDiagonal (fun n => 4 * s n) x = true} ∉ DTIME encBits t := by
   intro hmem
-  have hnot := setOf_spaceDiagonal_notMem_DSPACE
-    (f := fun n => Nat.sqrt (max n (t n) * (Nat.log2 (max n (t n)) + 1)))
-    (G := fun n => 4 * s n) (fun n => Nat.mul_le_mul_left 4 (hlog n)) fun c =>
-      (hdom c).mono fun _ h => by omega
-  exact hnot (DTIME_subset_DSPACE_sqrt_max encBits t hmem)
+  exact setOf_spaceDiagonal_notMem_DSPACE
+    (G := fun n => 4 * s n) (fun n => Nat.mul_le_mul_left 4 (hlog n))
+    (fun c => (hdom c).mono fun _ h => by omega)
+    (DTIME_subset_DSPACE_sqrt_max encBits t hmem)
 
 /-- **Explicit separating witness membership**: for space-constructible `s` with
 `⌊log₂ n⌋ ≤ s n` pointwise, `{x | spaceDiagonal (fun n => 4 * s n) x = true}` lies in
@@ -245,12 +242,8 @@ theorem DTIME_ssubset_DSPACE_of_isLittleO {t s : ℕ → ℕ} (hs : SpaceConstru
   filter_upwards [ho_nat, hten.eventually_ge_atTop (2 * c + 1)] with n hn hsc
   simp only [Real.norm_natCast] at hn
   set m := max n (t n) * (Nat.log2 (max n (t n)) + 1)
-  have h1 : 2 * c * m ≤ s n ^ 2 := by exact_mod_cast hn
-  have h2 : 2 * c ≤ s n ^ 2 := by nlinarith
-  rcases Nat.eq_zero_or_pos m with hm | hm
-  · simp [hm]; omega
-  · have h3 : c * m + c ≤ 2 * c * m := by nlinarith
-    omega
+  have h1 : 2 * c * m ≤ s n ^ 2 := mod_cast hn
+  rcases Nat.eq_zero_or_pos m with hm | hm <;> nlinarith
 
 /-- **Little-o containment failure**: `¬ DSPACE encBits s ⊆ DTIME encBits t`. -/
 theorem DSPACE_not_subset_DTIME_of_isLittleO {t s : ℕ → ℕ} (hs : SpaceConstructible s)
@@ -386,9 +379,8 @@ private theorem eventually_sq_div_log2_sq_mul_log2_le_sq {s : ℕ → ℕ}
   have hsdiv : c ≤ s n ^ 2 / L := (Nat.le_div_iff_mul_le hLpos).mpr
     ((Nat.mul_le_mul_right _ (by omega)).trans
       ((sq L).symm.trans_le (hL2.trans (Nat.le_self_pow (by decide) _))))
-  have hlast : c * (t * (Nat.log2 t + 1)) + c ≤ s n ^ 2 := by
-    nlinarith [Nat.mul_le_mul_left c ht_log]
-  simpa only [hmax] using hlast
+  rw [hmax]
+  nlinarith [Nat.mul_le_mul_left c ht_log]
 
 /-- **Logarithmic-factor sharpening for constructible space**: for any space-constructible `s`
 with `n ≤ s n` eventually, `DTIME encBits (fun n => s n ^ 2 / (Nat.log2 (s n) + 1) ^ 2)` is

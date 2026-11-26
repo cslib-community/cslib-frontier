@@ -310,13 +310,10 @@ theorem length_queries_repeatAll_le (k : ℕ) {a : α} {ρ : List Bool} {B : ℕ
   | succ k =>
     have hle : V.coins a ≤ ρ.length :=
       hρ.symm ▸ Nat.le_mul_of_pos_left _ (Nat.succ_pos k)
-    rw [queries_repeatAll, repeatQueries]
-    dsimp only
-    rw [V.repeatRowWidth_of_le hle, List.length_flatMap]
+    simp only [queries_repeatAll, repeatQueries, V.repeatRowWidth_of_le hle, List.length_flatMap]
     simpa [List.length_range, smul_eq_mul] using
-      List.sum_le_length_nsmul ((List.range (k + 1)).map _) B fun x hx => by
-        obtain ⟨i, -, rfl⟩ := List.mem_map.mp hx
-        exact hq _ (BitString.length_listRow (V.coins a) i ρ)
+      List.sum_le_length_nsmul ((List.range (k + 1)).map _) B
+        (List.forall_mem_map.mpr fun i _ => hq _ (BitString.length_listRow (V.coins a) i ρ))
 
 /-- First-occurrence lookup in `V.repeatQueries k` recovers each trial's individual verdict. -/
 theorem accepts_repeatAll_eq (k : ℕ) (a : α) (π ρ : List Bool) :
@@ -349,9 +346,8 @@ theorem acceptProb_repeatAll (k : ℕ) (a : α) (π : List Bool) :
     coins_repeatAll, ← ENNReal.toReal_pow,
     ← BitString.uniformList_all_listRow_true k (V.coins a) (fun ρ => V.accepts a π ρ)]
   congr 2
-  refine PMF.map_congr_on_support _ _ _ fun ρ hρ => ?_
-  rw [BitString.mem_support_uniformList_iff] at hρ
-  exact V.accepts_repeatAll k a π ρ hρ
+  exact PMF.map_congr_on_support _ _ _ fun ρ hρ =>
+    V.accepts_repeatAll k a π ρ (BitString.mem_support_uniformList_iff.mp hρ)
 
 variable {V}
 
@@ -409,14 +405,11 @@ theorem IsPCPVerifierWith.repeatAll {c s : ℝ} {r q : ℕ → ℕ} {V : PCPVeri
     IsPCPVerifierWith enc (c ^ k) (s ^ k) (fun n => k * r n) (fun n => k * q n)
       (V.repeatAll k) A where
   coins_le a := Nat.mul_le_mul_left k (h.coins_le a)
-  length_queries_le a ρ hρ :=
-    V.length_queries_repeatAll_le k hρ (h.length_queries_le a)
-  complete a ha := (h.complete a ha).imp fun π hπ => by
-    rw [V.acceptProb_repeatAll]
-    exact pow_le_pow_left₀ hc hπ k
-  sound a ha π := by
-    rw [V.acceptProb_repeatAll]
-    exact pow_le_pow_left₀ (V.acceptProb_nonneg a π) (h.sound a ha π) k
+  length_queries_le a _ hρ := V.length_queries_repeatAll_le k hρ (h.length_queries_le a)
+  complete a ha := (h.complete a ha).imp fun π hπ =>
+    V.acceptProb_repeatAll k a π ▸ pow_le_pow_left₀ hc hπ k
+  sound a ha π :=
+    V.acceptProb_repeatAll k a π ▸ pow_le_pow_left₀ (V.acceptProb_nonneg a π) (h.sound a ha π) k
 
 /-- Independent `k`-fold repetition maps `PCPWith c s r q enc` into
 `PCPWith (c ^ k) (s ^ k) r q enc`. -/

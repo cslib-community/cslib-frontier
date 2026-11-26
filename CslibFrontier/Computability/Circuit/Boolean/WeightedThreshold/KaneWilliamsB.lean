@@ -263,13 +263,11 @@ theorem kaneWilliamsParities_embedUpdate (n k ℓ : ℕ) (σ : Fin k → Fin ℓ
       (fun t => embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u (kaneWilliamsBlockVar n k ℓ j t)) =
     (u j ^^ kaneWilliamsResidualParities n k ℓ σ w j)
   rw [parityOn_eq_xor_erase (mem_univ (σ j))]
-  congr 1
-  · exact embedUpdate_emb (kaneWilliamsLiveVar_injective n k ℓ σ) w u j
-  · refine parityOn_congr fun t ht => embedUpdate_of_notMem w u ?_
-    simp only [mem_image, mem_univ, true_and, not_exists]
-    intro j' hj'
-    obtain ⟨rfl, h2⟩ := kaneWilliamsBlockVar_joint_injective n k ℓ j' (σ j') j t hj'
-    exact (mem_erase.mp ht).1 h2.symm
+  refine congrArg₂ xor (embedUpdate_emb (kaneWilliamsLiveVar_injective n k ℓ σ) w u j)
+    (parityOn_congr fun t ht => embedUpdate_of_notMem w u ?_)
+  simp only [mem_image, mem_univ, true_and, not_exists]
+  exact fun j' hj' => let ⟨h1, h2⟩ := kaneWilliamsBlockVar_joint_injective n k ℓ j' (σ j') j t hj'
+    (mem_erase.mp ht).1 (h2.symm.trans (congrArg σ h1))
 
 /-- Along `u ↦ embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u`, the Kane–Williams function reads
 the row `r (u + c)` for the residual parities `c` of `w`. -/
@@ -557,9 +555,8 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
   -- on the restriction, the translated votes compute the word of `x`
   set V : BitString k → BitString t :=
     fun u => v (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w (u + c)) with hVdef
-  have hV (u : BitString k) : threshold t θ (V u) = r u ⬝ᵥ x := by
+  have hdisc := sub_le_sum_sum_signVal_mul_of_threshold_eq V (fun u => r u ⬝ᵥ x) fun u => by
     rw [hVdef, hv, kaneWilliamsB_embedUpdate, add_assoc, hcc, add_zero]
-  have hdisc := sub_le_sum_sum_signVal_mul_of_threshold_eq V (fun u => r u ⬝ᵥ x) hV
   rw [hcardZ] at hdisc
   -- the word of `x ≠ 0` is nearly balanced
   have hbal : |∑ u, signVal (r u ⬝ᵥ x)| ≤ δ * 2 ^ k := by
@@ -600,10 +597,8 @@ theorem card_eval_eq_kaneWilliamsB_le_of_depth_le_two_size (hℓ : 0 < ℓ)
     (fun σ => circuitLiveWeights c o (kaneWilliamsLiveVar n k ℓ σ))
     (fun σ => Nat.add_le_add_right (card_circuitLiveWeights_le_size c o _) 1)
     (fun σ w => circuitUnforcedConstCount c o (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate_const c hd o
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate_const c hd o
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitUnforcedConstCount_blockLiveSet_le c o
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 
@@ -625,10 +620,8 @@ theorem card_eval_eq_kaneWilliamsB_le_of_depth_le_two_wireCount (hℓ : 0 < ℓ)
     (fun σ => circuitLiveWeights c o (kaneWilliamsLiveVar n k ℓ σ))
     (fun σ => Nat.add_le_add_right (card_circuitLiveWeights_le_wireCount c o _) 1)
     (fun σ w => circuitUnforcedAtMostOneCount c o (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate c hd o
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate c hd o
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitUnforcedAtMostOneCount_blockLiveSet_le c o
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 
@@ -657,10 +650,8 @@ theorem one_le_of_threshold_eval_eq_kaneWilliamsB_size {t : ℕ} (hℓ : 0 < ℓ
     (fun σ => Nat.add_le_add_right
       ((card_circuitBottomWeights_le c _).trans (card_circuitBottomGates_le_size c)) 1)
     (fun σ w => circuitBottomUnforcedConstCount c (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w o => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate_circuitBottom_const c hd
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w o) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate_circuitBottom_const c hd
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitBottomUnforcedConstCount_blockLiveSet_le c
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 
@@ -685,10 +676,8 @@ theorem one_le_of_threshold_eval_eq_kaneWilliamsB_wireCount {t : ℕ} (hℓ : 0 
       ((card_circuitBottomWeights_le c _).trans (card_circuitBottomGates_le_wireCount c)) 1)
     (fun σ w =>
       circuitBottomUnforcedAtMostOneCount c (blockLiveSet (kaneWilliamsBlockVar n k ℓ) σ) w)
-    (fun σ w o => by
-      rw [← univ_image_kaneWilliamsLiveVar_eq_blockLiveSet]
-      exact isDepthTwoOverWeights_eval_embedUpdate_circuitBottom c hd
-        (kaneWilliamsLiveVar_injective n k ℓ σ) w o) ?_ Q
+    (fun σ => isDepthTwoOverWeights_eval_embedUpdate_circuitBottom c hd
+      (kaneWilliamsLiveVar_injective n k ℓ σ)) ?_ Q
   simpa [Fintype.card_fin] using sum_circuitBottomUnforcedAtMostOneCount_blockLiveSet_le c
     (kaneWilliamsBlockVar n k ℓ) (kaneWilliamsBlockVar_joint_injective n k ℓ)
 

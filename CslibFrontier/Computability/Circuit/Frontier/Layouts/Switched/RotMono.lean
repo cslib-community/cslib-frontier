@@ -213,23 +213,20 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
   rw [rotF_eq hs2, rotF_eq hs1, ← sub_nonpos, ← integral_sub (integrable_rotIntegrand _)
     (integrable_rotIntegrand _)]
   -- the angular FTC inside the integral
-  have hdiff : ∀ p : ℝ × ℝ, rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ₂ p -
-      rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ₁ p =
-      ∫ θ in Ioc ψ₁ ψ₂, (indA I si h p.1 p.2 + indB I si h p.1 p.2) *
-        kernel (J := J) (sj := sj) (h := h) θ p.1 p.2 := by
-    intro p
+  have hdiff (p : ℝ × ℝ) :
+      rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ₂ p -
+        rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ₁ p =
+        ∫ θ in Ioc ψ₁ ψ₂, (indA I si h p.1 p.2 + indB I si h p.1 p.2) *
+          kernel (J := J) (sj := sj) (h := h) θ p.1 p.2 := by
     rw [integral_const_mul, ← intervalIntegral.integral_of_le h12]
-    unfold kernel
+    unfold kernel rotIntegrand
     rw [← Phi_beta_sub hsj h1 h12 h2]
-    unfold rotIntegrand
     ring
   simp_rw [hdiff]
   -- bound for the cotangent on the angle interval
-  obtain ⟨M, hM⟩ : ∃ M, ∀ θ ∈ Icc ψ₁ ψ₂, ‖Real.cos θ / Real.sin θ‖ ≤ M := by
-    apply isCompact_Icc.exists_bound_of_continuousOn
-    apply ContinuousOn.div (by fun_prop) (by fun_prop)
-    intro θ hθ
-    exact (Real.sin_pos_of_pos_of_lt_pi (by linarith [hθ.1]) (by linarith [hθ.2])).ne'
+  obtain ⟨M, hM⟩ : ∃ M, ∀ θ ∈ Icc ψ₁ ψ₂, ‖Real.cos θ / Real.sin θ‖ ≤ M :=
+    isCompact_Icc.exists_bound_of_continuousOn <| ContinuousOn.div (by fun_prop) (by fun_prop)
+      fun θ hθ => (Real.sin_pos_of_pos_of_lt_pi (h1.trans_le hθ.1) (hθ.2.trans_lt h2)).ne'
   set f : ℝ → ℝ → ℝ → ℝ := fun x₀ x₁ θ =>
     (Icc ψ₁ ψ₂).indicator (fun θ => (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
       kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) θ with hf
@@ -253,24 +250,18 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
       rw [abs_mul, abs_of_nonneg hab.1]
       nlinarith [abs_nonneg x₁, abs_nonneg (kernel (J := J) (sj := sj) (h := h) θ x₀ x₁)]
     · simp only [abs_zero]; linarith [abs_nonneg x₁, (abs_nonneg _).trans (hM ψ₁ ⟨le_rfl, h12⟩)]
-  have hcongr : ∀ x₀ x₁, ∫ θ in Ioc ψ₁ ψ₂, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
-      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ = ∫ θ in Ioc ψ₁ ψ₂, f x₀ x₁ θ := by
-    exact fun x₀ x₁ => setIntegral_congr_fun measurableSet_Ioc fun θ hθ => by
-      simp only [hf, Set.indicator_of_mem (Ioc_subset_Icc_self hθ)]
   have hiter : ∫ p, (∫ θ in Ioc ψ₁ ψ₂, (indA I si h p.1 p.2 + indB I si h p.1 p.2) *
       kernel (J := J) (sj := sj) (h := h) θ p.1 p.2) ∂(γ1.prod γ1) =
-      ∫ x₀, (∫ x₁, (∫ θ in Ioc ψ₁ ψ₂, f x₀ x₁ θ) ∂γ1) ∂γ1 := by
-    simp_rw [hcongr]
-    exact integral_prod _ (integrable_dom3 hfm measure_Ioc_lt_top hfb).integral_prod_left
-  rw [hiter, swap3 hfm measure_Ioc_lt_top hfb]
+      ∫ p, (∫ θ in Ioc ψ₁ ψ₂, f p.1 p.2 θ) ∂(γ1.prod γ1) :=
+    integral_congr_ae <| ae_of_all _ fun p =>
+      setIntegral_congr_fun measurableSet_Ioc fun θ hθ => by
+        simp only [hf, Set.indicator_of_mem (Ioc_subset_Icc_self hθ)]
+  rw [hiter, integral_prod _ (integrable_dom3 hfm measure_Ioc_lt_top hfb).integral_prod_left,
+    swap3 hfm measure_Ioc_lt_top hfb]
   refine setIntegral_nonpos measurableSet_Ioc fun θ hθ => ?_
-  have hval (x₀ x₁) := Set.indicator_of_mem (Ioc_subset_Icc_self hθ)
-    (fun θ => (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
-      kernel (J := J) (sj := sj) (h := h) θ x₀ x₁)
-  simp_rw [hf, hval]
-  have hcθ : Real.cos ψ₂ ≤ Real.cos θ :=
-    Real.cos_le_cos_of_nonneg_of_le_pi (by linarith [hθ.1]) (by linarith) hθ.2
-  exact inner_nonpos hP hR hsi hsj hh (by linarith [hθ.1]) (by linarith [hθ.2])
+  simp_rw [hf, Set.indicator_of_mem (Ioc_subset_Icc_self hθ)]
+  have hcθ := Real.cos_le_cos_of_nonneg_of_le_pi (h1.trans hθ.1).le h2.le hθ.2
+  exact inner_nonpos hP hR hsi hsj hh (h1.trans hθ.1) (hθ.2.trans_lt h2)
     (by nlinarith [mul_pos hsi hsj])
 
 end Rot
