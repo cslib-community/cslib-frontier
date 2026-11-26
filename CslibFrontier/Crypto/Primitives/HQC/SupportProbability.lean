@@ -73,9 +73,8 @@ theorem sampleSupport2_closeTo {width n count : ℕ} (h : count ≤ n) :
 theorem one_sub_supportLowerDensity_le {width n count : ℕ} (h : count ≤ n) :
     1 - (supportLowerDensity width n 0 count).toReal ≤
       (count : ℝ) * n / 2 ^ width := by
-  by_cases hc : count = 0
-  · subst count
-    simp [supportLowerDensity]
+  rcases eq_or_ne count 0 with rfl | hc
+  · simp [supportLowerDensity]
   have hM : (0 : ℝ) < 2 ^ width := by positivity
   by_cases hn : n ≤ 2 ^ width
   · have hn' : (n : ℝ) / 2 ^ width ≤ 1 :=
@@ -97,16 +96,12 @@ theorem one_sub_supportLowerDensity_le {width n count : ℕ} (h : count ≤ n) :
       (by linarith : -1 ≤ 1 - (n : ℝ) / 2 ^ width) count
     rw [mul_div_assoc]
     nlinarith
-  · have hn' : (1 : ℝ) ≤ n / 2 ^ width :=
-      (le_div_iff₀ hM).mpr (by
-        simpa only [one_mul] using
-          (show (2 : ℝ) ^ width ≤ n from by exact_mod_cast (Nat.lt_of_not_ge hn).le))
-    have hc' : (1 : ℝ) ≤ count := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr hc
-    have hbig : (1 : ℝ) ≤ count * (n / 2 ^ width) :=
-      one_mul (1 : ℝ) ▸ mul_le_mul hc' hn' (by positivity) (by positivity)
-    have hnonneg := ENNReal.toReal_nonneg (a := supportLowerDensity width n 0 count)
-    rw [mul_div_assoc]
-    linarith
+  · have hbig : (2 : ℝ) ^ width ≤ (count : ℝ) * n := by
+      exact_mod_cast (one_mul (2 ^ width)).symm.trans_le
+        (Nat.mul_le_mul (Nat.one_le_iff_ne_zero.mpr hc) (Nat.le_of_not_ge hn))
+    have h1 : (1 : ℝ) ≤ (count : ℝ) * n / 2 ^ width :=
+      (le_div_iff₀ hM).mpr (by linarith)
+    linarith [ENNReal.toReal_nonneg (a := supportLowerDensity width n 0 count)]
 
 /-- Polynomially bounded support parameters and at least one word bit per security-parameter
 unit suffice for negligible sampling error. This does not apply to a fixed 32-bit schedule. -/

@@ -130,7 +130,7 @@ example (b : Bool) (C : Finset (Fin 1)) (s : Unit) :
     rfl
 
 /-- Asymptotic emulation also fails for distinguishable functionalities. -/
-example : ¬ Emulates (bitFunc true).toProtocol (bitFunc false).toProtocol := by
+theorem not_emulates_bitFunc : ¬ Emulates (bitFunc true).toProtocol (bitFunc false).toProtocol := by
   intro h
   obtain ⟨S, _, _, hν⟩ := h _ _ (forward _ _) 1 (forward_polyBounded _ _)
   obtain ⟨ν, hν, hadv⟩ := hν 1

@@ -75,9 +75,8 @@ theorem firstAccepted_eq_none_iff (acc : T → Bool) {m : ℕ} (v : Fin m → T)
 
 /-- The first accepted trial is accepted and is one of the trials. -/
 theorem firstAccepted_eq_some {acc : T → Bool} {m : ℕ} {v : Fin m → T} {a : T}
-    (h : firstAccepted acc v = some a) : acc a = true ∧ ∃ i, v i = a := by
-  refine ⟨List.find?_some h, ?_⟩
-  simpa [List.mem_ofFn] using List.mem_of_find?_eq_some h
+    (h : firstAccepted acc v = some a) : acc a = true ∧ ∃ i, v i = a :=
+  ⟨List.find?_some h, by simpa [List.mem_ofFn] using List.mem_of_find?_eq_some h⟩
 
 variable [Fintype T]
 
@@ -85,9 +84,7 @@ variable [Fintype T]
 theorem card_filter_forall_not_acc (acc : T → Bool) (m : ℕ) :
     #{v : Fin m → T | ∀ i, acc (v i) = false} = #{a | acc a = false} ^ m := by
   rw [← Fintype.card_piFinset_const]
-  congr 1
-  ext v
-  simp [Fintype.mem_piFinset]
+  exact congrArg card (ext fun _ => by simp [Fintype.mem_piFinset])
 
 /-- The tuples whose first accepted entry is bad, split along the first trial. -/
 private theorem card_filter_firstAccepted_bad_succ (acc bad : T → Bool) (m : ℕ) :

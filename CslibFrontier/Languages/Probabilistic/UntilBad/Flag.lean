@@ -13,6 +13,7 @@ public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Support
 
 /-!
 # Stateful `ProbOracleComp` identical-until-bad hops and monotone bad-flag combinators
@@ -109,15 +110,12 @@ theorem IdenticalUntilBad.closeTo_run (h : IdenticalUntilBad first second bad)
       (((interpret first program).run s).toOuterMeasure {x | bad x.2}) := by
   classical
   intro event
-  let test : α × σ → PMF Bool := fun out => PMF.pure (decide (out ∈ event))
-  have ht (μ : PMF (α × σ)) : (μ.bind test) true = μ.toOuterMeasure event := by
+  have ht (μ : PMF (α × σ)) :
+      (μ.bind fun out => PMF.pure (decide (out ∈ event))) true = μ.toOuterMeasure event := by
     change (μ.map (fun out => decide (out ∈ event))) true = _
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-    congr 1
-    ext out
-    simp
-  have hb := h.bind_apply_le program s test true
-  rwa [ht, ht] at hb
+    exact congrArg _ (Set.ext fun _ => by simp)
+  simpa only [ht] using h.bind_apply_le program s (fun out => PMF.pure (decide (out ∈ event))) true
 
 /-- **All-events difference lemma for continuations**: postprocessing two identical-until-bad runs
 by a shared randomized continuation `next` preserves `CloseTo` within the bad-event probability. -/
@@ -141,17 +139,11 @@ theorem IdenticalUntilBad.sumHandler_lift_left {ι₁ : Type} {spec₁ : ι₁ �
     | inr q₂ => exact h.agree q₂ s hs a s' hs'
   absorb_first q s hs x hx := by
     cases q with
-    | inl q₁ =>
-      change x ∈ ((left q₁).map (·, s)).support at hx
-      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
+    | inl q₁ => exact (Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx).symm ▸ hs
     | inr q₂ => exact h.absorb_first q₂ s hs x hx
   absorb_second q s hs x hx := by
     cases q with
-    | inl q₁ =>
-      change x ∈ ((left q₁).map (·, s)).support at hx
-      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
+    | inl q₁ => exact (Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx).symm ▸ hs
     | inr q₂ => exact h.absorb_second q₂ s hs x hx
 
 end CloseToAndSum
@@ -189,9 +181,8 @@ theorem IdenticalUntilBad.of_flag {first second : (q : ι) → StateT (σ × Boo
     IdenticalUntilBad first second FlagBad where
   agree := by
     rintro q ⟨s, b⟩ hs a ⟨s', b'⟩ hs'
-    have hb : b = false := Bool.eq_false_iff.mpr hs
-    have hb' : b' = false := Bool.eq_false_iff.mpr hs'
-    subst hb hb'
+    obtain rfl := Bool.eq_false_iff.mpr hs
+    obtain rfl := Bool.eq_false_iff.mpr hs'
     exact hagree q s a s'
   absorb_first := hfirst.absorb
   absorb_second := hsecond.absorb
@@ -403,16 +394,6 @@ theorem runWith_withBadFlag_map_fst (step : (q : Query) → State → PMF (spec 
 
 /-! ### Bad-event union bounds for `ProbOracleComp.runWith` -/
 
-private theorem toOuterMeasure_lift_unif_bad_eq_zero {bad : State → Prop} {s : State}
-    (hs : ¬bad s) (m : ℕ) :
-    (StateT.lift (σ := State) (ProbComp.unifOracle m) s).toOuterMeasure
-      {x : Fin (m + 1) × State | bad x.2} = 0 := by
-  change ((ProbComp.unifOracle m).map (·, s)).toOuterMeasure {x | bad x.2} = 0
-  rw [PMF.toOuterMeasure_apply_eq_zero_iff]
-  refine Set.disjoint_left.mpr fun x hx hbad => hs ?_
-  obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-  exact hbad
-
 /-- **Accumulated probability of a bad state under `ProbOracleComp.runWith`.** Let each external
 call `q` from a good state turn bad with probability at most `cost q * budget s` and raise `budget`
 by at most `δ` (while private coin draws cost nothing and leave state unchanged). Then a program
@@ -426,25 +407,20 @@ theorem toOuterMeasure_bad_le {handler : (q : Query) → StateT State PMF (spec 
     {program : ProbOracleComp spec α} {n k : ℕ} (hn : program.IsQueryBounded n)
     (hk : IsCostBounded (Sum.elim (fun _ => 0) cost) program k) {s : State} (hs : ¬bad s) :
     (runWith handler program s).toOuterMeasure {x | bad x.2} ≤ k * (budget s + n * δ) := by
-  have h := OracleComp.toOuterMeasure_bad_le_two
-    (handler := sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) handler) (bad := bad)
-    (Sum.elim (fun _ => 0) cost) (Sum.elim (fun _ => 0) (fun _ => 1)) budget 0 δ 0
-    (fun q st hst => by
-      cases q with
-      | inl m => simp [toOuterMeasure_lift_unif_bad_eq_zero hst m]
-      | inr q => simpa only [Sum.elim_inr, mul_zero, add_zero] using hstep q st hst)
-    (fun q st hst x hx hgood => by
-      cases q with
-      | inl m =>
-        change x ∈ ((ProbComp.unifOracle m).map (·, st)).support at hx
-        obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        simp
-      | inr q =>
-        simpa only [Sum.elim_inr, mul_zero, add_zero, Nat.cast_one, one_mul] using
-          hgrow q st hst x hx hgood)
-    hk hn hs
-  rw [← runWith_eq_run_interpret] at h
-  simpa only [mul_zero, add_zero] using h
+  rw [runWith_eq_run_interpret]
+  simpa only [mul_zero, add_zero] using
+    OracleComp.toOuterMeasure_bad_le_two
+      (handler := sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) handler) (bad := bad)
+      (Sum.elim (fun _ => 0) cost) (Sum.elim (fun _ => 0) (fun _ => 1)) budget 0 δ 0
+      (fun
+        | .inl _, _, hst => by simp [Cslib.Probability.PMF.toOuterMeasure_lift_eq_zero _ _ hst]
+        | .inr q, st, hst => by simpa only [Sum.elim_inr, mul_zero, add_zero] using hstep q st hst)
+      (fun
+        | .inl _, _, _, _, hx, _ => by simp [Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx]
+        | .inr q, st, hst, x, hx, hgood => by
+          simpa only [Sum.elim_inr, mul_zero, add_zero, Nat.cast_one, one_mul] using
+            hgrow q st hst x hx hgood)
+      hk hn hs
 
 /-- **Two-cost triangular bad-state union bound under `ProbOracleComp.runWith`.** When external
 calls carry budgets `k₁` for `cost₁` (charging `(cost₁ q * size s + (cost₁ q).choose 2) * δ` and
@@ -469,17 +445,12 @@ theorem toOuterMeasure_bad_choose_two_cost_le {handler : (q : Query) → StateT 
   OracleComp.toOuterMeasure_bad_choose_two_cost_le
     (handler := sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) handler)
     (Sum.elim (fun _ => 0) cost₁) (Sum.elim (fun _ => 0) cost₂) size δ
-    (fun q st hst => by
-      cases q with
-      | inl m => simp [toOuterMeasure_lift_unif_bad_eq_zero hst m]
-      | inr q => exact hstep q st hst)
-    (fun q st hst x hx hgood => by
-      cases q with
-      | inl m =>
-        change x ∈ ((ProbComp.unifOracle m).map (·, st)).support at hx
-        obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        simp
-      | inr q => exact hgrow q st hst x hx hgood)
+    (fun
+      | .inl _, _, hst => by simp [Cslib.Probability.PMF.toOuterMeasure_lift_eq_zero _ _ hst]
+      | .inr q, st, hst => hstep q st hst)
+    (fun
+      | .inl _, _, _, _, hx, _ => by simp [Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx]
+      | .inr q, st, hst, x, hx, hgood => hgrow q st hst x hx hgood)
     hk₁ hk₂ hs
 
 /-- **Triangular bad-state union bound under `ProbOracleComp.runWith`.** If each external call from

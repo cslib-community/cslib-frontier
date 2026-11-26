@@ -97,13 +97,8 @@ exact preimage filter `{x ∈ D | iF.eval k x = y}` for every `y : R`
 theorem isCorrectKey_iff_inv_eq [Fintype D] [DecidableEq R] (iF : InvertiblePRF Key D R)
     (k : Key) :
     iF.IsCorrectKey k ↔ ∀ y : R, iF.inv k y = Finset.univ.filter (fun x => iF.eval k x = y) := by
-  rw [IsCorrectKey]
-  constructor
-  · intro hk y
-    ext x
-    simp [hk x y]
-  · intro h x y
-    simp [h y]
+  simp only [IsCorrectKey, Finset.ext_iff, Finset.mem_filter, Finset.mem_univ, true_and]
+  exact forall_comm
 
 theorem IsCorrectKey.inv_eq_filter [Fintype D] [DecidableEq R] {iF : InvertiblePRF Key D R}
     {k : Key} (hk : iF.IsCorrectKey k) (y : R) :
@@ -166,13 +161,9 @@ theorem isCorrectKey_compose [DecidableEq D] {genP : ProbComp Key₁} {P : Key�
     (hS : S.IsCorrectKey k₂) :
     (S.compose genP P Pinv).IsCorrectKey (k₁, k₂) := by
   intro x y
-  simp only [compose, Finset.mem_image]
-  constructor
-  · rintro ⟨z, hz, rfl⟩
-    rw [hright z, ← hS z y]
-    exact hz
-  · intro heval
-    exact ⟨P k₁ x, (hS (P k₁ x) y).mpr heval, hleft x⟩
+  rw [IsCorrectKey] at hS
+  simp only [compose, Finset.mem_image, hS]
+  exact ⟨fun ⟨z, hz, hzx⟩ => by rwa [← hzx, hright], fun h => ⟨P k₁ x, h, hleft x⟩⟩
 
 /-- **Inversion correctness of the Theorem 4.4 composition (all-key form)**: if `P k₁` and
 `Pinv k₁` are mutual inverses for every key `k₁` and `S.IsCorrect` holds, then

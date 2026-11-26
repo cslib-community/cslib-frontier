@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Signed.Compile
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Complete signed-program translation with charged input preparation
@@ -59,40 +60,20 @@ private def prepared (input : List ℤ) : WordRAM.Data (r + 9) :=
 
 private theorem prepared_represents {w : ℕ} {input : List ℤ} (hi : Signed.InputFits w input) :
     Represents w (Signed.initial (r := r) input).data (prepared input) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro i
-    exact Signed.fits_zero hi.1.1
-  · intro i
-    have hzero : bank i ≠ zero := bank_ne_scratch i (by dsimp [zero]; omega)
-    have htwo : bank i ≠ two := bank_ne_scratch i (by dsimp [two]; omega)
-    have hleft : bank i ≠ left := bank_ne_scratch i (by dsimp [left]; omega)
-    simp only [prepared, WordRAM.Data.write_regs, WordRAM.Data.set_regs,
-      Function.update_of_ne hleft, Function.update_of_ne htwo, Function.update_of_ne hzero]
-    rfl
-  · intro a
-    cases a with
-    | zero =>
-      simp [prepared, Signed.initial, GenericRAM.Data.init, encode, Nat.mul_comm]
+  refine ⟨fun _ => Signed.fits_zero hi.1.1, fun i => ?_, fun a => ?_⟩
+  · simp [prepared, bank, WordRAM.Data.init, Signed.initial, GenericRAM.Data.init, encode]
+  · cases a with
+    | zero => simp [prepared, Signed.initial, GenericRAM.Data.init, encode, Nat.mul_comm]
     | succ a =>
-      cases hv : input[a]? with
-      | none =>
+      cases hv : input[a]? <;>
         simp [prepared, WordRAM.Data.init, Signed.initial, GenericRAM.Data.init,
           List.getD, List.getElem?_map, hv, encode]
-      | some v =>
-        simp [prepared, WordRAM.Data.init, Signed.initial, GenericRAM.Data.init,
-          List.getD, List.getElem?_map, hv]
 
 private theorem exec_prologue {w : ℕ} {input : List ℤ} (hi : Signed.InputFits w input) :
     Exec (w + 2) prologue (WordRAM.Data.init (input.map encode)) (prepared (r := r) input) 5 := by
-  have h2 : WordRAM.Fits (w + 2) 2 :=
-    (show WordRAM.Fits 2 2 from by decide).mono (by omega)
-  have hlen : WordRAM.Fits (w + 2) (input.length * 2) := by
-    have hf := (encode_fits (show Signed.Fits w (input.length : ℤ) from hi.1)).mono
-      (by omega : w + 1 ≤ w + 2)
-    have hn : ¬(input.length : ℤ) < 0 := by omega
-    simpa [encode, Nat.mul_comm, hn] using hf
-  ram_eval [prologue, prepared, WordRAM.Data.init, zero, two, left, Fin.mk.injEq,
-    List.length_map, h2, hlen]
+  have := hi.1
+  unfold prologue prepared WordRAM.Data.init
+  wram_exec [List.length_map]
 
 private theorem prepared_runs {w : ℕ} {input : List ℤ} (hi : Signed.InputFits w input)
     (p : GenericRAM.Program model r) :
@@ -111,23 +92,15 @@ theorem runs_compile_input {w n : ℕ} {p : GenericRAM.Program model r}
     ∃ y k, k ≤ 32 * n + 5 ∧ WordRAM.Runs (w + 2) (compile p)
       (WordRAM.State.init (input.map encode)) ⟨entry 5 t.pc, y⟩ k ∧ Represents w t.data y := by
   obtain ⟨y, k, hk, he, hyr⟩ := runs_compile (prologue.assemble 0) (prepared_represents hi) hr
-  have htail : WordRAM.Runs (w + 2) (compile p) ⟨5, prepared input⟩ ⟨entry 5 t.pc, y⟩ k := by
-    simpa [compile, prologue, Code.size, entry, Signed.initial] using he
-  exact ⟨y, 5 + k, by omega, (prepared_runs hi p).trans htail, hyr⟩
+  refine ⟨y, 5 + k, by omega, (prepared_runs hi p).trans ?_, hyr⟩
+  simpa [compile, prologue, Code.size, entry, Signed.initial] using he
 
 /-- The encoded source input fits the target width, including its native length header. -/
 theorem inputFits_encode {w : ℕ} {input : List ℤ} (hi : Signed.InputFits w input) :
     WordRAM.InputFits (w + 2) (input.map encode) := by
-  refine ⟨?_, ?_⟩
-  · have hf := (encode_fits (show Signed.Fits w (input.length : ℤ) from hi.1)).mono
-      (by omega : w + 1 ≤ w + 2)
-    simpa only [List.length_map] using hf.of_le
-      (show input.length ≤ encode (input.length : ℤ) by
-        simp only [encode, Int.natAbs_natCast]
-        split_ifs <;> omega)
-  · intro v hv
-    obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hv
-    exact (encode_fits (hi.2 z hz)).mono (by omega)
+  refine ⟨by have := hi.1; rw [List.length_map]; fits, fun v hv => ?_⟩
+  obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hv
+  exact (encode_fits (hi.2 z hz)).mono (by omega)
 
 /-- Complete execution, starting from the ordinary unsigned input convention, costs at most
 `32 * t + 5` instructions at width `w + 2` and returns the encoded signed output. Forward
@@ -138,9 +111,7 @@ theorem executes_compile_input {w n : ℕ} {p : GenericRAM.Program model r}
     ∃ k ≤ 32 * n + 5, WordRAM.Executes (w + 2) (compile p)
       (WordRAM.State.init (input.map encode)) (encode v) k := by
   obtain ⟨k, hk, he⟩ := executes_compile (prologue.assemble 0) (prepared_represents hi) hr
-  have htail : WordRAM.Executes (w + 2) (compile p) ⟨5, prepared input⟩ (encode v) k := by
-    simpa [compile, prologue, Code.size, entry, Signed.initial] using he
-  refine ⟨5 + k, by omega, ?_⟩
-  exact WordRAM.Executes.of_runs (prepared_runs hi p) htail
+  refine ⟨5 + k, by omega, WordRAM.Executes.of_runs (prepared_runs hi p) ?_⟩
+  simpa [compile, prologue, Code.size, entry, Signed.initial] using he
 
 end Cslib.GenericRAM.Signed.ToWordRAM

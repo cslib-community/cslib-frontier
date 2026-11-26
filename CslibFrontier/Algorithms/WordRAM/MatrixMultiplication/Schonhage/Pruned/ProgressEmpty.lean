@@ -29,13 +29,12 @@ private theorem notMem_emptyChildWrites_values {L f d q : ℕ} (hd : d < L)
     (hq : q < 10 ^ L) :
     f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L + q ∉ emptyChildWrites L f d := by
   simp only [emptyChildWrites, Finset.mem_union, Block.mem_footprint, Block.Owns]
-  have hm := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 1 ≤ L + 1)
-  have hnext : d * 10 ^ L + q < (d + 1) * 10 ^ L := by nlinarith only [hq]
-  have hbound := hnext.trans_le hm
+  have hbound : d * 10 ^ L + q < (L + 1) * 10 ^ L :=
+    (by nlinarith only [hq] : d * 10 ^ L + q < (d + 1) * 10 ^ L).trans_le
+      (Nat.mul_le_mul_right (10 ^ L) (by omega))
   have hsep : (d + 1) * 10 ^ L + 10 ^ L ≤ (L + 1) * 10 ^ L := by
-    have := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 2 ≤ L + 1)
-    nlinarith only [this]
-  rw [show 2 * (L + 1) * 10 ^ L = (L + 1) * 10 ^ L + (L + 1) * 10 ^ L by ring]
+    nlinarith only [Nat.mul_le_mul_right (10 ^ L) (by omega : d + 2 ≤ L + 1)]
+  rw [mul_assoc 2]
   omega
 
 /-- The proof selects the empty mathematical case, and the actual native scan proves that
@@ -52,9 +51,8 @@ theorem exec_progress_empty {w L f a0 b0 n d p E : ℕ}
   have hpow := Nat.pow_le_pow_right (by decide : 1 ≤ (10 : ℕ))
     (by have := hx.depth_add; omega : n + 1 ≤ L)
   let input := fun i => y.mem (f + 4 * (L + 1) + d * 10 ^ L + i)
-  have hcodes : ∀ i < S.card, input i < 10 ^ L := by
-    intro i hi
-    exact (hy.requests i hi ▸ hx.read_lt hi).trans_le hpow
+  have hcodes (i : ℕ) (hi : i < S.card) : input i < 10 ^ L :=
+    (hy.requests i hi ▸ hx.read_lt hi).trans_le hpow
   have hscan : scanSet true k.val input S.card = ∅ := by
     rw [hy.scan_eq hx k, hempty, Finset.image_empty]
   have hE := hy.epoch_child_le k.isLt
@@ -68,29 +66,17 @@ theorem exec_progress_empty {w L f a0 b0 n d p E : ℕ}
     ?_, ?_, ?_, ?_⟩⟩
   · intro j
     change z.mem (f + 4 * d + j.val) = ![S.card, p, 10 ^ d, k.val + 1] j
-    fin_cases j
-    · exact (hfirst 0 (by decide)).trans (hy.frame 0)
-    · exact (hfirst 1 (by decide)).trans (hy.frame 1)
-    · exact (hfirst 2 (by decide)).trans (hy.frame 2)
-    · exact hterm
+    fin_cases j <;> first | exact hterm | (refine (hfirst _ ?_).trans (hy.frame _); simp)
   · intro i hi
     exact (hmod _ (notMem_nodeWrites_list hd.le (hi.trans_le hx.card_le))).trans
       (hy.requests i hi)
   · intro q hq
-    have hqbound := (queryIndex q).isLt.trans_le hpow
-    rw [hframe _ (notMem_emptyChildWrites_values hd hqbound), hy.values q hq,
-      partialValue_succ]
-    have hc : Pruned.childResult a b S (Encoding.termDigits k) (Fin.tail q) = 0 := by
-      simp [Pruned.childResult, hempty]
-    simp only [hc, ite_self, add_zero]
-  · rw [hepoch]
-    exact hy.epoch_le.trans (Nat.le_succ _)
-  · rw [hepoch]
-    have he := hy.epoch_upper
-    nlinarith only [he]
-  · intro q hq
-    rw [hepoch]
-    exact htable.stamp_le q hq
+    rw [hframe _ (notMem_emptyChildWrites_values hd ((queryIndex q).isLt.trans_le hpow)),
+      hy.values q hq, partialValue_succ]
+    simp [Pruned.childResult, hempty]
+  · exact hepoch ▸ hy.epoch_le.trans (Nat.le_succ _)
+  · rw [hepoch]; nlinarith only [hy.epoch_upper]
+  · exact fun q hq => hepoch ▸ htable.stamp_le q hq
   · simpa only [Finset.union_self] using hy.footprint.trans hmod
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

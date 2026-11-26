@@ -124,10 +124,8 @@ theorem Cube.eq_of_mem_leaves {π : Cube L} {τ : Leaf L} (hτ : τ ∈ π.leave
 theorem Cube.disjoint_starLevels_P0Levels (π : Cube L) :
     Disjoint π.starLevels π.P0Levels := by
   rw [disjoint_left]
-  intro ℓ hs hp
-  rw [Cube.mem_starLevels] at hs
-  rw [Cube.mem_P0Levels, hs] at hp
-  cases hp
+  intro ℓ
+  simp +contextual
 
 private def symbolTerms : CubeSymbol → Finset Term
   | .term lam => {lam}
@@ -170,14 +168,9 @@ theorem Cube.mem_leaves_replace {π : Cube L} {ℓ : Fin L} (hℓ : π ℓ = .st
     τ ∈ (π.replace ℓ lam).leaves ↔ τ ∈ π.leaves ∧ τ ℓ = lam := by
   rw [Cube.mem_leaves, Cube.mem_leaves, Cube.replace,
     Function.forall_update_iff π fun k s => s = .star ∨ s = .term (τ k)]
-  constructor
-  · rintro ⟨hlam, h⟩
-    refine ⟨fun k => ?_, by simpa [eq_comm] using hlam⟩
-    by_cases hk : k = ℓ
-    · exact Or.inl (hk ▸ hℓ)
-    · exact h k hk
-  · rintro ⟨h, rfl⟩
-    exact ⟨Or.inr rfl, fun k _ => h k⟩
+  exact ⟨fun ⟨hlam, h⟩ => ⟨fun k => if hk : k = ℓ then Or.inl (hk ▸ hℓ) else h k hk,
+    by simpa [eq_comm] using hlam⟩,
+    fun ⟨h, hτ⟩ => ⟨Or.inr (congrArg _ hτ.symm), fun k _ => h k⟩⟩
 
 @[simp] theorem Cube.starLevels_starAt (F : Finset (Fin L)) (τ : Leaf L) :
     (Cube.starAt F τ).starLevels = F := by

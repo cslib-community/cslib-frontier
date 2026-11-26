@@ -172,11 +172,8 @@ theorem reachable_src_tgt (e : E) : G.toSimpleGraph.Reachable (G.src e) (G.tgt e
   ext e; simp [mem_edgeCut]
 
 /-- The edges of the cut of `L` touch `L`. -/
-theorem edgeCut_subset_touching (L : Set V) : G.edgeCut L ⊆ G.touching L := by
-  intro e he
-  by_contra h
-  simp only [mem_touching, not_or] at h
-  exact he (iff_of_false h.1 h.2)
+theorem edgeCut_subset_touching (L : Set V) : G.edgeCut L ⊆ G.touching L :=
+  fun _ he => Classical.not_not.mp fun h => he (iff_of_false (mt Or.inl h) (mt Or.inr h))
 
 /-- Adding a vertex changes a cut only at the edges incident to it. -/
 theorem edgeCut_insert_subset (v : V) (L : Set V) :
@@ -185,8 +182,7 @@ theorem edgeCut_insert_subset (v : V) (L : Set V) :
   by_cases hv : G.src e = v ∨ G.tgt e = v
   · exact Or.inr hv
   · rw [not_or] at hv
-    left
-    simpa [mem_edgeCut, hv.1, hv.2] using he
+    exact Or.inl (by simpa [mem_edgeCut, hv.1, hv.2] using he)
 
 /-- **A connected multigraph has at least `|V| - 1` edges**: its cycle rank `|E| + 1 - |V|`
 involves no truncation. -/
@@ -313,17 +309,15 @@ theorem toSimpleGraph_induce (W : Set V) :
   ext u v
   simp only [toSimpleGraph_adj, SimpleGraph.comap_adj, Function.Embedding.subtype_apply, ne_eq,
     Subtype.ext_iff]
-  refine and_congr_right fun _ => ⟨fun ⟨e, he⟩ => ⟨e.1, ?_⟩, fun ⟨e, he⟩ => ?_⟩
-  · simpa [ends, induce, Sym2.map_mk] using congrArg (Sym2.map Subtype.val) he
-  · -- An edge between two vertices of `W` is an edge of the induced subgraph.
-    have hends : s(G.src e, G.tgt e) = s((u : V), v) := he
-    have hW : G.src e ∈ W ∧ G.tgt e ∈ W := by
-      rcases Sym2.eq_iff.1 hends with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ <;> rw [h₁, h₂] <;>
-        simp [u.2, v.2]
-    refine ⟨⟨e, hW⟩, ?_⟩
-    rcases Sym2.eq_iff.1 hends with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
-    · exact Sym2.eq_iff.2 (Or.inl ⟨Subtype.ext h₁, Subtype.ext h₂⟩)
-    · exact Sym2.eq_iff.2 (Or.inr ⟨Subtype.ext h₁, Subtype.ext h₂⟩)
+  refine and_congr_right fun _ => ⟨fun ⟨e, he⟩ =>
+    ⟨e.1, by simpa [ends, induce, Sym2.map_mk] using congrArg (Sym2.map Subtype.val) he⟩,
+    fun ⟨e, he⟩ => ?_⟩
+  -- An edge between two vertices of `W` is an edge of the induced subgraph.
+  rcases Sym2.eq_iff.1 (he : s(G.src e, G.tgt e) = s((u : V), v)) with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
+  · exact ⟨⟨e, h₁.symm ▸ u.2, h₂.symm ▸ v.2⟩,
+      Sym2.eq_iff.2 (Or.inl ⟨Subtype.ext h₁, Subtype.ext h₂⟩)⟩
+  · exact ⟨⟨e, h₁.symm ▸ v.2, h₂.symm ▸ u.2⟩,
+      Sym2.eq_iff.2 (Or.inr ⟨Subtype.ext h₁, Subtype.ext h₂⟩)⟩
 
 /-- **Components are connected.** -/
 theorem connected_induce_component (v : V) :
@@ -342,7 +336,7 @@ theorem cycleRank_induce {W : Set V} (hW : G.edgeCut W = ∅) :
 involves no truncation. -/
 theorem ncard_component_le_ncard_touching_add_one [Finite E] (v : V) :
     (G.component v).ncard ≤ (G.touching (G.component v)).ncard + 1 := by
-  have h := (G.induce (G.component v)).card_le_card_add_one_of_connected
+  have := (G.induce (G.component v)).card_le_card_add_one_of_connected
     (G.connected_induce_component v)
   rwa [G.touching_eq_of_edgeCut_eq_empty (G.edgeCut_component v), ← Nat.card_coe_set_eq,
     ← Nat.card_coe_set_eq]

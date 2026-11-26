@@ -33,10 +33,9 @@ theorem length_compileBlocks {block : ℕ → α → List β} {k : ℕ} {code : 
   induction code generalizing start with
   | nil => simp [compileBlocks]
   | cons i code ih =>
-    have ht := ih (fun pc j hj => hblock pc j (List.mem_cons_of_mem i hj)) (start + 1)
-    simp only [compileBlocks, List.length_append, List.length_cons,
-      hblock start i (List.mem_cons_self), ht, Nat.mul_succ]
-    omega
+    simp [compileBlocks, hblock start i List.mem_cons_self,
+      ih (fun pc j hj => hblock pc j (List.mem_cons_of_mem i hj)) (start + 1), Nat.mul_succ,
+      Nat.add_comm]
 
 /-- An indexed block occurs after a prefix of exactly `k * j` target instructions. -/
 theorem compileBlocks_decompose {block : ℕ → α → List β} {k start j : ℕ}
@@ -49,18 +48,15 @@ theorem compileBlocks_decompose {block : ℕ → α → List β} {k start j : �
   | cons a code ih =>
     cases j with
     | zero =>
-      have eq : a = i := by simpa using hi
-      subst i
+      obtain rfl : a = i := by simpa using hi
       exact ⟨[], compileBlocks block (start + 1) code, rfl, rfl⟩
     | succ j =>
       obtain ⟨pre, post, len, eq⟩ := ih
         (fun pc a ha => hblock pc a (List.mem_cons_of_mem _ ha))
         (by simpa using hi) (start := start + 1)
-      refine ⟨block start a ++ pre, post, ?_, ?_⟩
-      · simp only [List.length_append, hblock start a List.mem_cons_self, len, Nat.mul_succ]
-        omega
-      · simp only [compileBlocks, eq, List.append_assoc, Nat.add_left_comm,
-          Nat.add_comm]
+      exact ⟨block start a ++ pre, post,
+        by simp [hblock start a List.mem_cons_self, len, Nat.mul_succ, Nat.add_comm],
+        by simp [compileBlocks, eq, List.append_assoc, Nat.add_left_comm, Nat.add_comm]⟩
 
 /-- Fetch within a fixed-size compiled block agrees with fetching inside that block. -/
 theorem getElem?_compileBlocks {block : ℕ → α → List β} {k start j n : ℕ}
@@ -69,9 +65,7 @@ theorem getElem?_compileBlocks {block : ℕ → α → List β} {k start j n : �
     (localGet : (block (start + j) i)[n]? = some instruction) :
     (compileBlocks block start code)[k * j + n]? = some instruction := by
   obtain ⟨pre, post, len, eq⟩ := compileBlocks_decompose hblock hi (start := start)
-  have bound := (List.getElem?_eq_some_iff.mp localGet).1
-  rw [eq, ← len, List.getElem?_append_right (by omega), Nat.add_sub_cancel_left,
-    List.getElem?_append_left bound]
-  exact localGet
+  rwa [eq, ← len, List.getElem?_append_right (by omega), Nat.add_sub_cancel_left,
+    List.getElem?_append_left (List.getElem?_eq_some_iff.mp localGet).1]
 
 end Cslib.Program

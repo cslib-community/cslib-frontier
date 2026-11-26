@@ -77,7 +77,7 @@ example : ∃ out : Circuit signature 1 (1 + 2),
 example (c : Circuit signature 2 2) : ∃ out : Circuit signature 2 (2 + 2),
     (∀ x, BitString.equivBitVec (out.eval interpretation x) =
       BitVec.ofNat 4 (transientDepth (c.eval interpretation) x)) ∧
-      (out.size : ℝ) ≤ 600000 * (2 + 1 : ℝ) ^ 2 * optimizedBudget 2 c.size 4 := by
+      (out.size : ℝ) ≤ 400000 * (2 + 1 : ℝ) ^ 2 * optimizedBudget 2 c.size 4 := by
   simpa using depth_circuit_optimized c
 
 -- Reaching the state `![true]` under the flip, with its first time.
@@ -100,7 +100,7 @@ example : ∃ out : Circuit signature 1 (1 + 2),
     (∀ x ∈ Set.univ, let t := (BitString.equivBitVec (out.eval interpretation x)).toNat
       (zero.eval interpretation)^[t] x = (fun _ => false) ∧
         (∀ j < t, ¬(zero.eval interpretation)^[j] x = (fun _ => false)) ∧ t < 2 ^ 1) ∧
-    (out.size : ℝ) ≤ 150000 * optimizedBudget 1 zero.size (2 ^ 1) :=
+    (out.size : ℝ) ≤ 100000 * optimizedBudget 1 zero.size (2 ^ 1) :=
   halting_time zero (fun x => x = fun _ => false) Set.univ
     (fun x hx => by rw [eval_zero, hx]) fun x _ => ⟨1, by simp [eval_zero]⟩
 
@@ -125,7 +125,7 @@ example : ∃ out : Circuit signature (1 + 1) 1,
 example : ∃ out : Circuit signature 1 1,
     (∀ x, out.eval interpretation x 0 = true) ∧
     (out.size : ℝ) ≤
-      240000 * optimizedBudget 1 (flip.size + (Circuit.id signature 1).size + 4 * 1) (2 ^ 1) +
+      160000 * optimizedBudget 1 (flip.size + (Circuit.id signature 1).size + 4 * 1) (2 ^ 1) +
         (Circuit.id signature 1).size := by
   obtain ⟨out, hcorrect, hsize⟩ := recurring_target_optimized flip (Circuit.id signature 1)
   refine ⟨out, ?_, hsize⟩
@@ -143,7 +143,7 @@ example : ∃ out : Circuit signature 1 1,
 example : ∃ out : Circuit signature 1 1,
     (∀ x, out.eval interpretation x 0 = false) ∧
     (out.size : ℝ) ≤
-      240000 *
+      160000 *
         optimizedBudget 1 (zero.size + ((Circuit.id signature 1).size + 1) + 4 * 1) (2 ^ 1) +
         (Circuit.id signature 1).size + 2 := by
   obtain ⟨out, hcorrect, hsize⟩ := eventually_always_target_optimized zero (Circuit.id signature 1)
@@ -167,7 +167,7 @@ example : ∃ out : Circuit signature (1 + 10) 1,
 -- And for a time narrower than the state.
 example (c : Circuit signature 3 3) : ∃ out : Circuit signature (3 + 1) 3,
     out.Computes interpretation (inputTimeIterate (c.eval interpretation) 1) ∧
-      (out.size : ℝ) ≤ 600000 * (3 + 1) * optimizedBudget 3 c.size (2 ^ 3) + 80 * 1 * (3 + 1) := by
+      (out.size : ℝ) ≤ 400000 * (3 + 1) * optimizedBudget 3 c.size (2 ^ 3) + 80 * 1 * (3 + 1) := by
   simpa using variable_time_additive_optimized c 1
 
 -- Fixed powers charged to the active states.

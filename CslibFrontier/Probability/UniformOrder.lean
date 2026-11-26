@@ -84,25 +84,22 @@ theorem card_filter_least_mul_card {S : Finset α} {u : α} (hu : u ∈ S) :
     refine disjoint_left.2 fun σ hx hy => ?_
     simp only [E, mem_filter, mem_univ, true_and] at hx hy
     exact lt_asymm (hx y ‹_› (Ne.symm hxy)) (hy x ‹_› hxy)
-  have hcard : Fintype.card (α ≃ β) = (univ : Finset (α ≃ β)).card := card_univ.symm
   change (E u).card * S.card = _
-  rw [hcard, hcover, card_biUnion hdisj, sum_congr rfl heq, sum_const, smul_eq_mul, mul_comm]
+  rw [← card_univ, hcover, card_biUnion hdisj, sum_congr rfl heq, sum_const, smul_eq_mul, mul_comm]
 
 /-- In a uniform random bijection `σ : α ≃ β` into a linear order `β`, each element of a nonempty
 subset `S ⊆ α` is the greatest element of `S` for exactly a `1 / |S|` fraction of the bijections. -/
 theorem card_filter_greatest_mul_card {S : Finset α} {u : α} (hu : u ∈ S) :
     (univ.filter fun σ : α ≃ β => ∀ w ∈ S, w ≠ u → σ w < σ u).card * S.card =
       Fintype.card (α ≃ β) := by
-  have h := card_filter_least_mul_card (β := OrderDual β) hu
   have hequiv : (univ.filter fun σ : α ≃ β => ∀ w ∈ S, w ≠ u → σ w < σ u).card =
-      (univ.filter fun σ : α ≃ OrderDual β => ∀ w ∈ S, w ≠ u → σ u < σ w).card := by
-    refine card_nbij' (fun σ => σ.trans OrderDual.toDual) (fun σ => σ.trans OrderDual.ofDual)
+      (univ.filter fun σ : α ≃ OrderDual β => ∀ w ∈ S, w ≠ u → σ u < σ w).card :=
+    card_nbij' (fun σ => σ.trans OrderDual.toDual) (fun σ => σ.trans OrderDual.ofDual)
       (fun σ hσ => by simpa [OrderDual.toDual_lt_toDual] using hσ)
       (fun σ hσ => by simpa [OrderDual.toDual_lt_toDual] using hσ)
       (fun σ _ => by ext; simp) (fun σ _ => by ext; simp)
-  have hcard : Fintype.card (α ≃ OrderDual β) = Fintype.card (α ≃ β) :=
-    Fintype.card_congr (Equiv.equivCongr (Equiv.refl α) OrderDual.toDual)
-  rw [hequiv, h, hcard]
+  rw [hequiv, card_filter_least_mul_card (β := OrderDual β) hu]
+  exact Fintype.card_congr (Equiv.equivCongr (Equiv.refl α) OrderDual.toDual)
 
 omit [Fintype β] [DecidableEq β] [LinearOrder β] in
 /-- In a uniform random permutation of a finite linear order `α`, each element of a nonempty
@@ -110,8 +107,7 @@ subset `S` is least among `S` for a `1 / |S|` fraction of the permutations. -/
 theorem card_filter_perm_least_mul_card [LinearOrder α] {S : Finset α} {u : α} (hu : u ∈ S) :
     (univ.filter fun σ : Equiv.Perm α => ∀ w ∈ S, w ≠ u → σ u < σ w).card * S.card =
       (Fintype.card α).factorial := by
-  have := card_filter_least_mul_card (β := α) hu
-  rwa [Fintype.card_perm] at this
+  simpa only [Fintype.card_perm] using card_filter_least_mul_card (β := α) hu
 
 omit [Fintype β] [DecidableEq β] [LinearOrder β] in
 /-- In a uniform random permutation of a finite linear order `α`, each element of a nonempty
@@ -119,8 +115,7 @@ subset `S` is greatest among `S` for a `1 / |S|` fraction of the permutations. -
 theorem card_filter_perm_greatest_mul_card [LinearOrder α] {S : Finset α} {u : α} (hu : u ∈ S) :
     (univ.filter fun σ : Equiv.Perm α => ∀ w ∈ S, w ≠ u → σ w < σ u).card * S.card =
       (Fintype.card α).factorial := by
-  have := card_filter_greatest_mul_card (β := α) hu
-  rwa [Fintype.card_perm] at this
+  simpa only [Fintype.card_perm] using card_filter_greatest_mul_card (β := α) hu
 
 omit [Fintype β] [DecidableEq β] [LinearOrder β] in
 /-- In a uniform random permutation of a finite linear order `α`, each element of a nonempty

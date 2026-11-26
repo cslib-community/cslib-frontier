@@ -350,14 +350,15 @@ theorem reducedTableWords_le {t w : ℕ} (hc : 2 * reducedChunkBits t ≤ w) :
   · have hp : reducedPackShift t w = Nat.log 2 (w / c2) := Nat.min_eq_right (not_le.mp hle).le
     have hlt_pow : w / c2 < 2 * 2 ^ reducedPackShift t w := by
       simpa only [hp, pow_succ'] using Nat.lt_pow_succ_log_self one_lt_two (w / c2)
-    have hw_le : w ≤ 2 * c2 * 2 ^ reducedPackShift t w := by
-      have := Nat.div_add_mod w c2
-      have := Nat.mod_lt w hc2_pos
-      nlinarith
+    have hw_le : w ≤ 2 * c2 * 2 ^ reducedPackShift t w :=
+      calc w = c2 * (w / c2) + w % c2 := (Nat.div_add_mod w c2).symm
+        _ ≤ c2 * (w / c2) + c2 := Nat.add_le_add_left (Nat.mod_lt w hc2_pos).le _
+        _ = c2 * (w / c2 + 1) := by ring
+        _ ≤ c2 * (2 * 2 ^ reducedPackShift t w) := Nat.mul_le_mul_left c2 hlt_pow
+        _ = 2 * c2 * 2 ^ reducedPackShift t w := by ring
     have hmul : w * reducedTableWords t w ≤ 2 * reducedTableBits t := by
       calc w * 2 ^ (c2 - reducedPackShift t w)
-          ≤ (2 * c2 * 2 ^ reducedPackShift t w) * 2 ^ (c2 - reducedPackShift t w) :=
-            Nat.mul_le_mul_right _ hw_le
+          ≤ (2 * c2 * 2 ^ reducedPackShift t w) * 2 ^ (c2 - reducedPackShift t w) := by gcongr
         _ = 2 * (c2 * (2 ^ reducedPackShift t w * 2 ^ (c2 - reducedPackShift t w))) := by ring
         _ = 2 * reducedTableBits t := by
             rw [← pow_add, Nat.add_sub_of_le (reducedPackShift_le t w)]; rfl
@@ -393,8 +394,11 @@ theorem getLimb_xor (c a b m : ℕ) :
 theorem getLimb_and_low {c a m s : ℕ} (hm : m < s) :
     getLimb c (a &&& (2 ^ (s * c) - 1)) m = getLimb c a m := by
   apply Nat.eq_of_testBit_eq; intro k
-  have : k < c → m * c + k < s * c := fun _ => by nlinarith
-  simp [testBit_getLimb]; grind
+  by_cases hk : k < c
+  · have hlt : m * c + k < s * c := by
+      simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hm hk
+    simp [testBit_getLimb, hk, hlt]
+  · simp [testBit_getLimb, hk]
 
 theorem getLimb_and_high (c a : ℕ) {s m : ℕ} (hm : s ≤ m) :
     getLimb c (a &&& (2 ^ (s * c) - 1)) m = 0 :=
@@ -412,8 +416,11 @@ theorem getLimb_shiftRight_mul (c a s m : ℕ) :
 theorem getLimb_shiftLeft_mul_low (c a : ℕ) {s m : ℕ} (hm : m < s) :
     getLimb c (a <<< (s * c)) m = 0 := by
   apply Nat.eq_of_testBit_eq; intro k
-  have : k < c → m * c + k < s * c := fun _ => by nlinarith
-  simp [testBit_getLimb, Nat.testBit_shiftLeft]; grind
+  by_cases hk : k < c
+  · have hlt : m * c + k < s * c := by
+      simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hm hk
+    simp [testBit_getLimb, Nat.testBit_shiftLeft, hk, not_le.mpr hlt]
+  · simp [testBit_getLimb, hk]
 
 theorem getLimb_shiftLeft_mul_add (c a s m : ℕ) :
     getLimb c (a <<< (s * c)) (s + m) = getLimb c a m := by
@@ -607,8 +614,14 @@ theorem truncLimbs_of_lt {c n a : ℕ} (ha : a < 2 ^ (n * c)) :
 theorem truncLimbs_succ (c n a : ℕ) :
     truncLimbs c (n + 1) a = truncLimbs c n a ^^^ (getLimb c a n <<< (n * c)) := by
   apply Nat.eq_of_testBit_eq; intro idx
-  simp [truncLimbs, testBit_getLimb, Nat.testBit_xor, Nat.testBit_shiftLeft, Nat.succ_mul]
-  grind
+  simp only [truncLimbs, Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_xor,
+    Nat.testBit_shiftLeft, testBit_getLimb, Nat.succ_mul]
+  by_cases h1 : idx < n * c
+  · simp [h1, Nat.lt_add_right c h1, not_le.mpr h1]
+  · by_cases h2 : idx < n * c + c
+    · simp [h1, h2, not_lt.mp h1, show idx - n * c < c by omega,
+        show n * c + (idx - n * c) = idx by omega]
+    · simp [h1, h2, show ¬ idx - n * c < c by omega]
 
 theorem clmul_truncLimbs_right_succ (c i m xc x : ℕ) :
     clmul xc (truncLimbs c (m + 1) x) <<< (i * c) =
@@ -653,8 +666,20 @@ theorem packLimbs_and_mask_succ (c b' n : ℕ) (f : ℕ → ℕ) :
   rw [packLimbs, Nat.and_xor_distrib_right]
   congr 1
   apply Nat.eq_of_testBit_eq; intro idx
-  simp [reducedOutMask, reducedOutShift, Nat.testBit_shiftLeft]
-  grind
+  simp only [Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftLeft,
+    reducedOutMask, reducedOutShift]
+  by_cases hnb : n * c < b'
+  · by_cases hge : n * c ≤ idx
+    · simp only [hnb, ↓reduceIte, hge, decide_true, Bool.true_and, Bool.and_assoc,
+        ← Bool.decide_and]
+      congr 1
+      rw [decide_eq_decide]
+      omega
+    · simp [hnb, hge]
+  · have hzero : b' - n * c = 0 := Nat.sub_eq_zero_of_le (not_lt.mp hnb)
+    by_cases hge : n * c ≤ idx
+    · simp [hnb, hzero, show ¬ idx < b' by omega]
+    · simp [hnb, hzero, hge]
 
 theorem shiftRight_lt_reducedTableWords {t w idx : ℕ}
     (hidx : idx < 2 ^ (2 * reducedChunkBits t)) :

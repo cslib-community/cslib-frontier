@@ -28,10 +28,11 @@ Expansion Theorem** `Stab_ρ[1_A] ≤ α ^ (2 / (1 + ρ))` for `0 ≤ ρ ≤ 1`
 [O'Donnell, Corollary 9.8, Section 9.2, p. 254][ODonnell2014].
 
 The book also states both results in an equivalent conditional form for `α > 0`: for `x` uniform
-on `A` and `y` `ρ`-correlated with `x`, `Pr[y ∈ A] ≤ α ^ ((1 - ρ) / (1 + ρ))`. That form, the
-two-set Generalized Small-Set Expansion Theorem (Section 10.1) and the Level-k Inequalities
-(Section 9.5) are not formalized here; they are tracked on
-[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
+on `A` and `y` `ρ`-correlated with `x`, `Pr[y ∈ A] ≤ α ^ ((1 - ρ) / (1 + ρ))`. That form and the
+two-set Generalized Small-Set Expansion Theorem (Section 10.1) are not formalized here; they are
+tracked on [#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). The Level-k
+Inequalities (Section 9.5), which follow from these bounds, are in
+`CslibFrontier.Foundations.BooleanAnalysis.LevelK`.
 
 ## Usage
 

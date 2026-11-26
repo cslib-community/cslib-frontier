@@ -85,24 +85,9 @@ theorem writeWords_cons (mem : ℕ → ℕ) (addr : ℕ) {k : ℕ} (words : Fin 
   induction k with
   | zero => rfl
   | succ k ih =>
-    have hprev : writeWords (Function.update mem addr (words 0)) (addr + 1)
-        (fun i : Fin k => words i.castSucc.succ) =
-        writeWords mem addr (fun i => words i.castSucc) :=
-      ih (fun i => words i.castSucc)
-    have hcast : (fun i : Fin k => words i.succ.castSucc) =
-        fun i : Fin k => words i.castSucc.succ := by
-      funext i
-      exact congrArg words (Fin.succ_castSucc i)
-    calc
-      writeWords (Function.update mem addr (words 0)) (addr + 1) (fun i => words i.succ)
-        = Function.update
-            (writeWords (Function.update mem addr (words 0)) (addr + 1)
-              (fun i : Fin k => words i.succ.castSucc))
-            (addr + 1 + k) (words (Fin.last k).succ) := rfl
-      _ = Function.update (writeWords mem addr (fun i => words i.castSucc))
-            (addr + (k + 1)) (words (.last (k + 1))) := by
-          rw [hcast, hprev, show addr + 1 + k = addr + (k + 1) by omega, Fin.succ_last]
-      _ = writeWords mem addr words := rfl
+    rw [writeWords_succ, writeWords_succ, ← ih (fun i => words i.castSucc)]
+    simp only [Fin.succ_last, Fin.succ_castSucc, Fin.castSucc_zero, Nat.add_right_comm addr 1 k,
+      Nat.add_assoc addr k 1]
 
 /-- Writing `k` words at `addr` realizes `words` on `Block.mk addr k`. -/
 theorem Block.realizes_writeWords (mem : ℕ → ℕ) (addr : ℕ) {k : ℕ} (words : Fin k → ℕ) :
@@ -110,12 +95,10 @@ theorem Block.realizes_writeWords (mem : ℕ → ℕ) (addr : ℕ) {k : ℕ} (wo
   induction k with
   | zero => exact fun i => Fin.elim0 i
   | succ k ih =>
-    intro i
-    refine Fin.lastCases ?_ (fun j => ?_) i
-    · simp [Block.read]
-    · have hne : addr + j.val ≠ addr + k := by omega
-      simpa only [Block.read, Fin.val_castSucc, writeWords_succ, Function.update_of_ne hne] using
-        ih (fun i => words i.castSucc) j
+    refine Fin.lastCases (by simp [Block.read]) fun j => ?_
+    have hne : addr + j.val ≠ addr + k := by omega
+    simpa only [Block.read, Fin.val_castSucc, writeWords_succ, Function.update_of_ne hne] using
+      ih (fun i => words i.castSucc) j
 
 @[simp]
 theorem writeWords_add_fin (mem : ℕ → ℕ) (addr : ℕ) {k : ℕ} (words : Fin k → ℕ) (i : Fin k) :
@@ -206,19 +189,15 @@ theorem Code.preserves_appendCode {B : Basis} {r : ℕ} {c d : Code B r} {i : Fi
 theorem Code.not_readsWidth_appendCode {B : Basis} {r : ℕ} {c d : Code B r}
     (hc : ¬c.ReadsWidth) (hd : ¬d.ReadsWidth) : ¬(appendCode c d).ReadsWidth := by
   induction c with
-  | seq c₁ c₂ _ ih =>
-    have hc' : ¬c₁.ReadsWidth ∧ ¬c₂.ReadsWidth := not_or.mp hc
-    exact not_or.mpr ⟨hc'.1, ih hc'.2⟩
-  | op _ | branch _ _ _ _ _ | loop _ _ _ | rand _ _ =>
-    exact not_or.mpr ⟨hc, hd⟩
+  | seq c₁ c₂ _ ih => exact not_or.mpr ⟨(not_or.mp hc).1, ih (not_or.mp hc).2⟩
+  | op _ | branch _ _ _ _ _ | loop _ _ _ | rand _ _ => exact not_or.mpr ⟨hc, hd⟩
 
 /-- Continue symbolic `WP` execution from an exact-count routine contract. -/
 theorem WP.of_exec_spec {B : Basis} {r w T : ℕ} {c : Code B r} {x : Data r}
     {P : Data r → Prop} {Q : Data r → ℕ → Prop}
     (h : ∃ y, Exec w c x y T ∧ P y) (hQ : ∀ y, P y → Q y T) :
-    WP w c x Q := by
-  obtain ⟨y, hy, hP⟩ := h
-  exact WP.of_execWithin hy.within (hQ y hP)
+    WP w c x Q :=
+  h.elim fun y ⟨hy, hP⟩ => WP.of_execWithin hy.within (hQ y hP)
 
 /-- Continue symbolic `WP` execution across an exact-count prefix `c` of a right-nested
 `ram[ … ]` block. -/
@@ -308,9 +287,8 @@ theorem storeCursor_preserves {k : ℕ} [inst : NeZero k] (cursor one : Fin r)
 /-- `storeRecord` preserves every register except `cursor`. -/
 theorem storeRecord_preserves {k : ℕ} [NeZero k] (addr cursor one : Fin r)
     (fields : Fin k → Fin r) {j : Fin r} (hj : j ≠ cursor) :
-    (storeRecord addr cursor one fields).Preserves j := by
-  simp only [storeRecord, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-  exact ⟨hj.symm, storeCursor_preserves cursor one fields hj⟩
+    (storeRecord addr cursor one fields).Preserves j :=
+  ⟨fun h => hj (Option.some.inj h.symm), storeCursor_preserves cursor one fields hj⟩
 
 /-- `loadCursor` preserves every register outside `LoadRecordLocal cursor fields`. -/
 theorem loadCursor_preserves {k : ℕ} [inst : NeZero k] (cursor one : Fin r)
@@ -325,18 +303,15 @@ theorem loadCursor_preserves {k : ℕ} [inst : NeZero k] (cursor one : Fin r)
     exact (hf 0).symm
   | k + 2, _, fields, hf =>
     simp only [loadCursor, Code.Preserves, Op.dest, Op.bin, ne_eq, Option.some.injEq]
-    refine ⟨(hf 0).symm, hcur.symm,
-      loadCursor_preserves cursor one (k := k + 1) (fun i => fields i.succ) ?_⟩
-    rintro (rfl | ⟨i, rfl⟩)
-    · exact hcur rfl
-    · exact hf i.succ rfl
+    exact ⟨(hf 0).symm, hcur.symm,
+      loadCursor_preserves cursor one (k := k + 1) (fun i => fields i.succ)
+        fun h => h.elim hcur fun ⟨i, hi⟩ => hf i.succ hi⟩
 
 /-- `loadRecord` preserves every register outside `LoadRecordLocal cursor fields`. -/
 theorem loadRecord_preserves {k : ℕ} [NeZero k] (addr cursor one : Fin r)
     (fields : Fin k → Fin r) {j : Fin r} (hj : ¬LoadRecordLocal cursor fields j) :
-    (loadRecord addr cursor one fields).Preserves j := by
-  simp only [loadRecord, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-  exact ⟨fun h => hj (Or.inl h.symm), loadCursor_preserves cursor one fields hj⟩
+    (loadRecord addr cursor one fields).Preserves j :=
+  ⟨fun h => hj (Or.inl (Option.some.inj h.symm)), loadCursor_preserves cursor one fields hj⟩
 
 private theorem add_not_readsWidth (cursor one : Fin r) :
     ¬(Code.op (B := .standard) (Op.bin .add cursor cursor one)).ReadsWidth := by
@@ -383,41 +358,21 @@ theorem storeCursor_exec {k w : ℕ} [inst : NeZero k] (cursor one : Fin r) (fie
   match k, inst, fields, hfields_ne, hfit with
   | 0, h, _, _, _ => exact absurd rfl h.out
   | 1, _, fields, _, _ =>
-    refine ⟨x.write (x.regs cursor) (x.regs (fields 0)), Exec.store, ?_, ?_, fun _ _ => rfl⟩
-    · simp [writeWords, Data.write_mem]
-    · simp
+    exact ⟨x.write (x.regs cursor) (x.regs (fields 0)), Exec.store,
+      by simp [writeWords, Data.write_mem], rfl, fun _ _ => rfl⟩
   | k + 2, _, fields, hfields_ne, hfit =>
-    let x₁ := x.write (x.regs cursor) (x.regs (fields 0))
-    let x₂ := x₁.set cursor (x.regs cursor + 1)
-    have hstep₁ : Exec (B := .standard) w (.op (.store cursor (fields 0))) x x₁ 1 := Exec.store
-    have hadd_fit : Fits w (BinOp.add.eval (x₁.regs cursor) (x₁.regs one)) := by
-      simpa only [x₁, Data.write_regs, hone, BinOp.eval] using hfit.of_le (by omega)
-    have hstep₂ : Exec w (.op (.bin .add cursor cursor one)) x₁ x₂ 1 := by
-      simpa only [x₂, x₁, Data.write_regs, hone, BinOp.eval] using
-        Exec.bin (f := .add) (d := cursor) (i := cursor) (j := one) (x := x₁) hadd_fit
-    have hx₂_one : x₂.regs one = 1 := by
-      simp [x₂, x₁, Data.set_regs, Function.update_of_ne hone_ne, hone]
-    have hx₂_cur : x₂.regs cursor = x.regs cursor + 1 := by simp [x₂]
-    obtain ⟨y, hy, hymem, hycur, hyregs⟩ :=
-      storeCursor_exec (k := k + 1) cursor one (fun i => fields i.succ) x₂
-        hone_ne (fun i => hfields_ne i.succ) hx₂_one
-        (by rw [hx₂_cur]; exact hfit.of_le (by omega))
-    have hfields_x₂ : (fun i : Fin (k + 1) => x₂.regs (fields i.succ)) =
-        fun i : Fin (k + 1) => x.regs (fields i.succ) := by
-      funext i
-      simp [x₂, x₁, Data.set_regs, Function.update_of_ne (hfields_ne i.succ)]
-    refine ⟨y, ?_, ?_, ?_, ?_⟩
-    · have hseq := hstep₁.seq (hstep₂.seq hy)
-      simpa only [storeCursor, show 1 + (1 + (2 * (k + 1) - 1)) = 2 * (k + 2) - 1 by omega]
-        using hseq
-    · rw [hymem, hx₂_cur, hfields_x₂]
-      simpa only [x₂, x₁, Data.set_mem, Data.write_mem] using
-        writeWords_cons x.mem (x.regs cursor) (fun i => x.regs (fields i))
-    · rw [hycur, hx₂_cur]
-      omega
-    · intro j hj
-      rw [hyregs j hj]
-      simp [x₂, x₁, Data.set_regs, Function.update_of_ne hj]
+    have := hfit.of_le (show x.regs cursor + 1 ≤ _ by omega)
+    refine WP.Exact.exists_exec ?_
+    unfold storeCursor
+    wram_exec [hone]
+    refine WP.Exact.name fun x₂ hx₂ => ?_
+    obtain ⟨y, hy, hymem, hycur, hyregs⟩ := storeCursor_exec (k := k + 1) cursor one
+      (fun i => fields i.succ) x₂ hone_ne (fun i => hfields_ne i.succ) (by wram_simp [hx₂, hone])
+      (by wram_simp [hx₂]; exact hfit.of_le (by omega))
+    refine WP.Exact.of_exec hy ⟨by omega, ?_, ?_, fun j hj => ?_⟩
+    · rw [hymem, ← writeWords_cons x.mem]; wram_simp [hx₂]
+    · rw [hycur]; wram_simp [hx₂]; omega
+    · rw [hyregs j hj]; wram_simp [hx₂]
 
 private theorem initCursor_exec {k w : ℕ} [NeZero k] (addr cursor one : Fin r)
     (d : Code .standard r) (x : Data r) {P : Data r → Prop}
@@ -425,13 +380,9 @@ private theorem initCursor_exec {k w : ℕ} [NeZero k] (addr cursor one : Fin r)
     (hd : ∀ x₀ : Data r, x₀ = x.set cursor (x.regs addr) → x₀.regs one = 1 →
       x₀.regs cursor = x.regs addr → ∃ y, Exec w d x₀ y (2 * k - 1) ∧ P y) :
     ∃ y, Exec w (.seq (.op (.copy cursor addr)) d) x y (2 * k) ∧ P y := by
-  let x₀ := x.set cursor (x.regs addr)
-  have hcopy : Exec (B := .standard) w (.op (.copy cursor addr)) x x₀ 1 := Exec.copy
-  have hx₀_one : x₀.regs one = 1 := by
-    simp [x₀, Data.set_regs, Function.update_of_ne hone_ne, hone]
-  obtain ⟨y, hy, hP⟩ := hd x₀ rfl hx₀_one (Data.set_regs_self x cursor (x.regs addr))
   have hk : 1 ≤ k := Nat.pos_of_ne_zero (NeZero.ne k)
-  exact ⟨y, by simpa only [show 1 + (2 * k - 1) = 2 * k by omega] using hcopy.seq hy, hP⟩
+  obtain ⟨y, hy, hP⟩ := hd _ rfl (by wram_simp [hone]) (Data.set_regs_self x cursor (x.regs addr))
+  exact ⟨y, by simpa only [show 1 + (2 * k - 1) = 2 * k by omega] using Exec.copy.seq hy, hP⟩
 
 /-- Execute `storeRecord` in `2 * k` exact instructions, writing `x.regs ∘ fields` at
 `x.regs addr` and preserving all registers other than `cursor`. -/
@@ -447,17 +398,10 @@ theorem storeRecord_exec {k w : ℕ} [NeZero k] (addr cursor one : Fin r) (field
     fun x₀ hx₀ hx₀_one hx₀_cur => ?_
   obtain ⟨y, hy, hymem, hycur, hyregs⟩ :=
     storeCursor_exec cursor one fields x₀ hone_ne hfields_ne hx₀_one (by rwa [hx₀_cur])
-  have hfields_x₀ : (fun i : Fin k => x₀.regs (fields i)) = fun i => x.regs (fields i) := by
-    funext i
-    simp [hx₀, Data.set_regs, Function.update_of_ne (hfields_ne i)]
   have hmem : y.mem = writeWords x.mem (x.regs addr) (fun i => x.regs (fields i)) := by
-    rw [hx₀_cur, hfields_x₀] at hymem
-    simpa only [hx₀, Data.set_mem] using hymem
-  refine ⟨y, hy, hmem, hmem ▸ modifies_writeWords x.mem (x.regs addr) _, ?_, ?_⟩
-  · rwa [hx₀_cur] at hycur
-  · intro j hj
-    rw [hyregs j hj, hx₀]
-    simp [Data.set_regs, Function.update_of_ne hj]
+    rw [hymem, hx₀_cur]; wram_simp [hx₀]
+  exact ⟨y, hy, hmem, hmem ▸ modifies_writeWords x.mem (x.regs addr) _, hx₀_cur ▸ hycur,
+    fun j hj => by rw [hyregs j hj]; wram_simp [hx₀]⟩
 
 /-- Execute `storeRecord` for a typed `RecordSpec α k` value held across `fields`. -/
 theorem RecordSpec.store_exec {α : Type*} {k w : ℕ} [NeZero k] (R : RecordSpec α k)
@@ -472,8 +416,7 @@ theorem RecordSpec.store_exec {α : Type*} {k w : ℕ} [NeZero k] (R : RecordSpe
       ∀ j, j ≠ cursor → y.regs j = x.regs j := by
   obtain ⟨y, hy, hymem, hmod, _, hyregs⟩ :=
     storeRecord_exec addr cursor one fields x hone_ne hfields_ne hone hfit
-  have hwords : (fun i => x.regs (fields i)) = R.toWords v := funext hfields
-  rw [hwords] at hymem
+  rw [funext hfields] at hymem
   exact ⟨y, hy, hymem ▸ R.holdsAt_write (x.regs addr) v x.mem, hymem, hmod, hyregs⟩
 
 /-- Execute `loadCursor` in `2 * k - 1` instructions from an initialized cursor register. -/
@@ -489,64 +432,35 @@ theorem loadCursor_exec {k w : ℕ} [inst : NeZero k] (cursor one : Fin r) (fiel
   match k, inst, fields, hfields_cur, hfields_one, hinj, hfit with
   | 0, h, _, _, _, _, _ => exact absurd rfl h.out
   | 1, _, fields, hfields_cur, _, _, _ =>
-    let y := x.set (fields 0) (x.mem (x.regs cursor))
-    refine ⟨y, Exec.load, rfl, ?_, ?_, ?_⟩
-    · intro i
-      have hi : i = 0 := Subsingleton.elim i 0
-      subst hi
-      simp [y]
-    · simp [y, Data.set_regs, Function.update_of_ne (hfields_cur 0).symm]
-    · intro j hj
-      have hne : j ≠ fields 0 := fun h => hj (Or.inr ⟨0, h⟩)
-      simp [y, Data.set_regs, Function.update_of_ne hne]
+    refine ⟨_, Exec.load, rfl, fun i => ?_, by wram_simp, fun j hj => ?_⟩
+    · obtain rfl := Subsingleton.elim i 0
+      wram_simp [Fin.val_zero, Nat.add_zero]
+    · have hne : j ≠ fields 0 := fun h => hj (Or.inr ⟨0, h⟩)
+      wram_simp
   | k + 2, _, fields, hfields_cur, hfields_one, hinj, hfit =>
-    let x₁ := x.set (fields 0) (x.mem (x.regs cursor))
-    let x₂ := x₁.set cursor (x.regs cursor + 1)
-    have hstep₁ : Exec (B := .standard) w (.op (.load (fields 0) cursor)) x x₁ 1 := Exec.load
-    have hx₁_cur : x₁.regs cursor = x.regs cursor := by
-      simp [x₁, Data.set_regs, Function.update_of_ne (hfields_cur 0).symm]
-    have hx₁_one : x₁.regs one = 1 := by
-      simp [x₁, Data.set_regs, Function.update_of_ne (hfields_one 0).symm, hone]
-    have hadd_fit : Fits w (BinOp.add.eval (x₁.regs cursor) (x₁.regs one)) := by
-      simpa only [hx₁_cur, hx₁_one, BinOp.eval] using hfit.of_le (by omega)
-    have hstep₂ : Exec w (.op (.bin .add cursor cursor one)) x₁ x₂ 1 := by
-      simpa only [x₂, hx₁_cur, hx₁_one, BinOp.eval] using
-        Exec.bin (f := .add) (d := cursor) (i := cursor) (j := one) (x := x₁) hadd_fit
-    have hx₂_one : x₂.regs one = 1 := by
-      simp [x₂, Data.set_regs, Function.update_of_ne hone_ne, hx₁_one]
-    have hx₂_cur : x₂.regs cursor = x.regs cursor + 1 := by simp [x₂]
+    have := hfit.of_le (show x.regs cursor + 1 ≤ _ by omega)
+    refine WP.Exact.exists_exec ?_
+    unfold loadCursor
+    wram_exec [hone]
+    refine WP.Exact.name fun x₂ hx₂ => ?_
     obtain ⟨y, hy, hymem, hyfields, hycur, hyregs⟩ :=
       loadCursor_exec (k := k + 1) cursor one (fun i => fields i.succ) x₂
         hone_ne (fun i => hfields_cur i.succ) (fun i => hfields_one i.succ)
-        (fun i j h => Fin.succ_injective _ (hinj h)) hx₂_one
-        (by rw [hx₂_cur]; exact hfit.of_le (by omega))
-    refine ⟨y, ?_, hymem, ?_, ?_, ?_⟩
-    · have hseq := hstep₁.seq (hstep₂.seq hy)
-      simpa only [loadCursor, show 1 + (1 + (2 * (k + 1) - 1)) = 2 * (k + 2) - 1 by omega]
-        using hseq
-    · intro i
-      refine Fin.cases ?_ (fun i' => ?_) i
-      · have hnot : ¬LoadRecordLocal cursor (fun i : Fin (k + 1) => fields i.succ) (fields 0) := by
-          rintro (h | ⟨j, h⟩)
-          · exact hfields_cur 0 h
-          · exact Fin.succ_ne_zero j (hinj h.symm)
-        rw [hyregs (fields 0) hnot]
-        simp [x₂, x₁, Data.set_regs, Function.update_of_ne (hfields_cur 0)]
-      · rw [hyfields i', hx₂_cur]
-        change x.mem (x.regs cursor + 1 + i'.val) = x.mem (x.regs cursor + (i'.val + 1))
-        congr 1
-        omega
-    · rw [hycur, hx₂_cur]
-      omega
-    · intro j hj
-      have hcur : j ≠ cursor := fun h => hj (Or.inl h)
+        (fun i j h => Fin.succ_injective _ (hinj h)) (by wram_simp [hx₂, hone])
+        (by wram_simp [hx₂]; exact hfit.of_le (by omega))
+    refine WP.Exact.of_exec hy ⟨by omega, by wram_simp [hymem, hx₂], fun i => ?_,
+      by rw [hycur]; wram_simp [hx₂]; omega, fun j hj => ?_⟩
+    · refine Fin.cases ?_ (fun i => ?_) i
+      · rw [hyregs _ fun h => h.elim (hfields_cur 0) fun ⟨j, h⟩ =>
+          Fin.succ_ne_zero j (hinj h.symm)]
+        wram_simp [hx₂, Fin.val_zero, Nat.add_zero]
+      · rw [hyfields i, Fin.val_succ]
+        wram_simp [hx₂]
+        exact congrArg x.mem (by omega)
+    · have hcur : j ≠ cursor := fun h => hj (Or.inl h)
       have hf0 : j ≠ fields 0 := fun h => hj (Or.inr ⟨0, h⟩)
-      have hnot : ¬LoadRecordLocal cursor (fun i : Fin (k + 1) => fields i.succ) j := by
-        rintro (h | ⟨i, h⟩)
-        · exact hcur h
-        · exact hj (Or.inr ⟨i.succ, h⟩)
-      rw [hyregs j hnot]
-      simp [x₂, x₁, Data.set_regs, Function.update_of_ne hcur, Function.update_of_ne hf0]
+      rw [hyregs j fun h => h.elim hcur fun ⟨i, h⟩ => hj (Or.inr ⟨i.succ, h⟩)]
+      wram_simp [hx₂]
 
 /-- Execute `loadRecord` in `2 * k` exact instructions, loading `x.mem (x.regs addr + i)` into
 `fields i` and preserving memory and all registers outside `LoadRecordLocal cursor fields`. -/
@@ -564,16 +478,10 @@ theorem loadRecord_exec {k w : ℕ} [NeZero k] (addr cursor one : Fin r) (fields
   obtain ⟨y, hy, hymem, hyfields, hycur, hyregs⟩ :=
     loadCursor_exec cursor one fields x₀ hone_ne hfields_cur hfields_one hinj hx₀_one
       (by rwa [hx₀_cur])
-  refine ⟨y, hy, by simpa [hx₀] using hymem, ?_, ?_, ?_⟩
-  · intro i
-    have hi := hyfields i
-    rw [hx₀_cur] at hi
-    simpa only [hx₀, Data.set_mem] using hi
-  · rwa [hx₀_cur] at hycur
-  · intro j hj
-    have hcur : j ≠ cursor := fun h => hj (Or.inl h)
-    rw [hyregs j hj, hx₀]
-    simp [Data.set_regs, Function.update_of_ne hcur]
+  refine ⟨y, hy, by wram_simp [hymem, hx₀], fun i => by rw [hyfields i, hx₀_cur]; wram_simp [hx₀],
+    hx₀_cur ▸ hycur, fun j hj => ?_⟩
+  have hcur : j ≠ cursor := fun h => hj (Or.inl h)
+  rw [hyregs j hj]; wram_simp [hx₀]
 
 /-- Execute `loadRecord` when `R.HoldsAt (x.regs addr) v x.mem`, placing `R.toWords v i` in each
 `fields i`. -/
@@ -604,12 +512,10 @@ theorem loadRecord_exec_self {k w : ℕ} [NeZero k] (addr cursor one : Fin r)
       ∀ j, j ≠ cursor → y.regs j = x.regs j := by
   obtain ⟨y, hy, hymem, hyfields, _, hyregs⟩ :=
     loadRecord_exec addr cursor one fields x hone_ne hfields_cur hfields_one hinj hone hfit
-  refine ⟨y, hy, hymem, ?_⟩
-  intro j hj
+  refine ⟨y, hy, hymem, fun j hj => ?_⟩
   by_cases hloc : LoadRecordLocal cursor fields j
   · rcases hloc with rfl | ⟨i, rfl⟩
-    · exact absurd rfl hj
-    · exact (hyfields i).trans (hmem i)
+    exacts [absurd rfl hj, (hyfields i).trans (hmem i)]
   · exact hyregs j hloc
 
 end Routines

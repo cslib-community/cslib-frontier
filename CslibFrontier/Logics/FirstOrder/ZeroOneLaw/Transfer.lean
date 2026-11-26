@@ -100,9 +100,7 @@ theorem structProb_not (P : L.Structure α → Prop) :
   rfl
 
 theorem structProb_le_one (P : L.Structure α → Prop) : structProb μ P ≤ 1 := by
-  have h := structProb_not μ P
-  have h0 := structProb_nonneg μ fun S => ¬P S
-  linarith
+  linarith [structProb_not μ P, structProb_nonneg μ fun S => ¬P S]
 
 variable {μ} in
 theorem structProb_mono {P Q : L.Structure α → Prop} (h : ∀ S, P S → Q S) :
@@ -123,11 +121,8 @@ variable {μ} in
 /-- A property of positive probability holds of some structure. -/
 theorem exists_of_structProb_pos {P : L.Structure α → Prop} (h : 0 < structProb μ P) :
     ∃ S, P S := by
-  by_contra hne
-  push Not at hne
-  have := structProb_mono (μ := μ) (Q := fun _ => False) fun S hS => hne S hS
-  rw [structProb_false] at this
-  linarith
+  by_contra! hne
+  linarith [structProb_false μ ▸ structProb_mono (μ := μ) (Q := fun _ => False) hne]
 
 /-- **Union bound.** -/
 theorem structProb_exists_le {ι : Type*} (I : Finset ι) (P : ι → L.Structure α → Prop) :
@@ -156,11 +151,8 @@ theorem tendsto_structProb_forall_finset (T₀ : Finset L.Sentence)
     (h : ∀ φ ∈ T₀, Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 1)) :
     Tendsto (fun n => structProb (μ n) fun S => ∀ φ ∈ T₀, @Sentence.Realize L _ S φ)
       atTop (nhds 1) := by
-  have hfail : ∀ φ ∈ T₀, Tendsto (fun n => sentenceProb (μ n) φ.not) atTop (nhds 0) := by
-    intro φ hφ
-    have := (h φ hφ).const_sub 1
-    simp only [sub_self, ← sentenceProb_not] at this
-    exact this
+  have hfail (φ) (hφ : φ ∈ T₀) : Tendsto (fun n => sentenceProb (μ n) φ.not) atTop (nhds 0) := by
+    simpa only [sub_self, ← sentenceProb_not] using (h φ hφ).const_sub 1
   have hsum := tendsto_finsetSum T₀ hfail
   simp only [Finset.sum_const_zero] at hsum
   have hbad : Tendsto
@@ -171,9 +163,7 @@ theorem tendsto_structProb_forall_finset (T₀ : Finset L.Sentence)
     push Not at hS
     obtain ⟨φ, hφ, hS⟩ := hS
     exact ⟨φ, hφ, (@Sentence.realize_not L _ S φ).2 hS⟩
-  have := hbad.const_sub 1
-  simp only [sub_zero, structProb_not, sub_sub_cancel] at this
-  exact this
+  simpa only [sub_zero, structProb_not, sub_sub_cancel] using hbad.const_sub 1
 
 /-- **Compactness.** If every sentence of `T` holds with probability tending to `1`, then `T` is
 satisfiable. -/
@@ -214,9 +204,8 @@ theorem tendsto_sentenceProb_of_models_not {T : L.Theory}
     (h : ∀ φ ∈ T, Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 1))
     {φ : L.Sentence} (hφ : T ⊨ᵇ φ.not) :
     Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 0) := by
-  have := (tendsto_sentenceProb_of_models μ h hφ).const_sub 1
-  simp only [sentenceProb_not, sub_sub_cancel, sub_self] at this
-  exact this
+  simpa only [sentenceProb_not, sub_sub_cancel, sub_self] using
+    (tendsto_sentenceProb_of_models μ h hφ).const_sub 1
 
 /-- **Transfer to a 0-1 law.** If every sentence of a complete theory `T` holds with probability
 tending to `1`, then every sentence has probability tending to `0` or to `1` [Fagin1976]. -/
@@ -224,10 +213,8 @@ theorem zero_one_law_of_isComplete {T : L.Theory} (hT : T.IsComplete)
     (h : ∀ φ ∈ T, Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 1))
     (φ : L.Sentence) :
     Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 0) ∨
-      Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 1) := by
-  rcases hT.2 φ with hφ | hφ
-  · exact Or.inr (tendsto_sentenceProb_of_models μ h hφ)
-  · exact Or.inl (tendsto_sentenceProb_of_models_not μ h hφ)
+      Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 1) :=
+  (hT.2 φ).symm.imp (tendsto_sentenceProb_of_models_not μ h) (tendsto_sentenceProb_of_models μ h)
 
 /-- If every sentence of a complete theory `T` holds with probability tending to `1`, then the
 sentences of limit probability `1` are exactly the consequences of `T`. -/
@@ -259,31 +246,23 @@ theorem not_exists_sentence_of_not_tendsto
     ¬∃ φ : L.Sentence, ∀ᶠ n in atTop,
       ∀ S : L.Structure (Fin n), @Sentence.Realize L _ S φ ↔ P n S := by
   rintro ⟨φ, hφ⟩
-  have heq : (fun n => sentenceProb (μ n) φ) =ᶠ[atTop] fun n => structProb (μ n) (P n) := by
-    filter_upwards [hφ] with n hn
-    rw [sentenceProb, show (fun S => @Sentence.Realize L _ S φ) = P n from
-      funext fun S => propext (hn S)]
-  rcases hzo φ with h | h
-  · exact h0 (h.congr' heq)
-  · exact h1 (h.congr' heq)
+  have heq : (fun n => sentenceProb (μ n) φ) =ᶠ[atTop] fun n => structProb (μ n) (P n) :=
+    hφ.mono fun n hn => congrArg (structProb (μ n)) (funext fun S => propext (hn S))
+  exact (hzo φ).elim (fun h => h0 (h.congr' heq)) fun h => h1 (h.congr' heq)
 
 /-- The probability of an even number of elements alternates between `1` and `0`, so it has no
 limit. -/
 theorem not_tendsto_structProb_even (c : ℝ) :
     ¬Tendsto (fun n => structProb (μ n) fun _ => Even n) atTop (nhds c) := by
   intro h
-  have hval : ∀ n, structProb (μ n) (fun _ => Even n) = if Even n then 1 else 0 := fun n => by
-    by_cases hn : Even n
-    · simp only [hn, ↓reduceIte, structProb_true]
-    · simp only [hn, ↓reduceIte, structProb_false]
-  have hev : Tendsto (fun m : ℕ => 2 * m) atTop atTop := tendsto_id.const_mul_atTop' two_pos
-  have hodd : Tendsto (fun m : ℕ => 2 * m + 1) atTop atTop :=
-    tendsto_atTop_mono (fun m => Nat.le_succ (2 * m)) hev
+  have hval (n : ℕ) : structProb (μ n) (fun _ => Even n) = if Even n then 1 else 0 := by
+    by_cases hn : Even n <;> simp [hn]
+  have hev : Tendsto (2 * ·) atTop atTop := tendsto_id.const_mul_atTop' two_pos
   -- Along even `n` the probability is `1`, along odd `n` it is `0`.
   have h1 := h.comp hev
-  have h0 := h.comp hodd
-  simp only [Function.comp_def, hval, even_two_mul, Nat.not_even_two_mul_add_one,
-    ↓reduceIte] at h1 h0
+  have h0 := h.comp (tendsto_atTop_mono (fun m => Nat.le_succ (2 * m)) hev)
+  simp only [Function.comp_def, hval, even_two_mul, Nat.not_even_two_mul_add_one, ↓reduceIte]
+    at h1 h0
   exact one_ne_zero ((tendsto_const_nhds_iff.1 h1).trans (tendsto_const_nhds_iff.1 h0).symm)
 
 /-- Under a 0-1 law, having an even number of elements agrees with no sentence on all

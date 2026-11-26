@@ -130,13 +130,9 @@ private theorem ncard_setOf_ecomplexity_pair_le_eq (k u : ℕ) :
       {z ∈ {z | M.ecomplexity z ≤ k} | z.unpair.1 = u}.ncard := by
   rw [← Set.ncard_image_of_injective _
     (fun a b h => (Nat.pair_eq_pair.mp h).2 : Function.Injective (Nat.pair u))]
-  congr 1
-  ext z
-  constructor
-  · rintro ⟨v, hv, rfl⟩
-    exact ⟨hv, by simp⟩
-  · rintro ⟨hz, rfl⟩
-    exact ⟨z.unpair.2, by simpa using hz, by simp⟩
+  exact congrArg Set.ncard <| Set.ext fun z =>
+    ⟨fun ⟨v, hv, hz⟩ => ⟨hz ▸ hv, by simp [← hz]⟩,
+      fun ⟨hz, hu⟩ => ⟨z.unpair.2, by simpa [← hu] using hz, by simp [← hu]⟩⟩
 
 /-- Only finitely many `u` have at least `2 ^ l` partners `v` with `C(u, v) ≤ k`. -/
 theorem finite_setOf_two_pow_le_ncard (k l : ℕ) :
@@ -192,24 +188,18 @@ private theorem exists_sectionEvent_eq_some_iff {k x v : ℕ} :
     (∃ n, sectionEvent (k, x) n = some v) ↔ universal.ecomplexity (Nat.pair x v) ≤ k := by
   constructor
   · rintro ⟨n, hn⟩
-    simp only [sectionEvent, Option.bind_eq_some_iff] at hn
-    obtain ⟨p, -, hn⟩ := hn
+    obtain ⟨p, -, hn⟩ := Option.bind_eq_some_iff.mp hn
     split_ifs at hn with hlen
     obtain ⟨z, hz, hv⟩ := Option.bind_eq_some_iff.mp hn
     split_ifs at hv with hx
-    obtain rfl := Option.some.inj hv
-    have hzx : Nat.pair x z.unpair.2 = z := by rw [← hx, Nat.pair_unpair]
-    rw [hzx]
-    exact (ecomplexity_le_length (Produces.of_mem_runFor hz)).trans (by exact_mod_cast hlen)
+    obtain ⟨rfl, rfl⟩ : z.unpair.1 = x ∧ z.unpair.2 = v := ⟨hx, Option.some.inj hv⟩
+    simpa using (ecomplexity_le_length (.of_mem_runFor hz)).trans (Nat.cast_le.mpr hlen)
   · intro h
     obtain ⟨p, hp, hlen⟩ :=
       exists_length_eq_ecomplexity (ne_top_of_le_ne_top (ENat.natCast_ne_top k) h)
     obtain ⟨t, ht⟩ := produces_iff_exists_mem_runFor.mp hp
-    refine ⟨Nat.pair (encode p) t, ?_⟩
-    have hlen' : p.length ≤ k := by
-      rw [← hlen] at h
-      exact_mod_cast h
-    simp [sectionEvent, hlen', Option.mem_def.mp ht]
+    have hplen : p.length ≤ k := mod_cast hlen.trans_le h
+    exact ⟨Nat.pair (encode p) t, by simp [sectionEvent, hplen, Option.mem_def.mp ht]⟩
 
 private theorem setOf_exists_sectionEvent_eq (k x : ℕ) :
     {v | ∃ n, sectionEvent (k, x) n = some v} = {v | universal.ecomplexity (Nat.pair x v) ≤ k} :=
@@ -240,16 +230,12 @@ private theorem exists_heavyEvent_eq_some_iff {k l u : ℕ} :
     setOf_exists_sectionEvent_eq k u ▸ universal.finite_setOf_ecomplexity_pair_le k u
   constructor
   · rintro ⟨s, hs⟩
-    simp only [heavyEvent] at hs
-    split_ifs at hs with h
-    obtain rfl := Option.some.inj hs
-    rw [← setOf_exists_sectionEvent_eq]
-    exact h.trans (Nat.length_distinctValues_le_ncard hfin _)
+    obtain ⟨h, rfl⟩ : 2 ^ l ≤ _ ∧ s.unpair.1 = u := by simpa [heavyEvent] using hs
+    exact setOf_exists_sectionEvent_eq k s.unpair.1 ▸
+      h.trans (Nat.length_distinctValues_le_ncard hfin _)
   · intro h
     obtain ⟨N, hN⟩ := Nat.exists_length_distinctValues_eq_ncard hfin
-    refine ⟨Nat.pair u N, ?_⟩
-    rw [setOf_exists_sectionEvent_eq] at hN
-    simp [heavyEvent, hN, h]
+    exact ⟨Nat.pair u N, by simp [heavyEvent, setOf_exists_sectionEvent_eq k u ▸ hN, h]⟩
 
 /-- Decode, given `x`, a program `selfDelimitingCode k.bits ++ j.bits` as the `j`-th element of
 `{v | C(x, v) ≤ k}`. -/
@@ -302,18 +288,16 @@ theorem exists_complexity_universal_add_condUniversal_le :
   set l := Nat.log 2 S.ncard with hl
   have hlm : 2 ^ l ≤ S.ncard := Nat.pow_log_le_self 2 hm0
   have hml : S.ncard < 2 ^ (l + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two _
-  have hlk : l ≤ k := by
-    have h := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp (hlm.trans_lt hSlt)
-    omega
+  have hlk : l ≤ k :=
+    Nat.le_of_lt_succ ((Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp (hlm.trans_lt hSlt))
   -- describing `y` given `x`, by its index `j` among the partners of `x`
   obtain ⟨n, hn⟩ := exists_sectionEvent_eq_some_iff.mpr hxy
   obtain ⟨j, hj, hjy⟩ :=
     Nat.exists_mem_nthDistinctValue_of_finite (setOf_exists_sectionEvent_eq k x ▸ hSfin) hn
   rw [setOf_exists_sectionEvent_eq] at hj
   have hY : (condUniversal x).ecomplexity y ≤
-      ((selfDelimitingCode k.bits ++ j.bits).length : ℕ) + cY := by
-    refine hcY x _ y ?_
-    simpa [sectionDecoder, decodeSelfDelimiting_selfDelimitingCode_append] using hjy
+      ((selfDelimitingCode k.bits ++ j.bits).length : ℕ) + cY :=
+    hcY x _ y (by simpa [sectionDecoder, decodeSelfDelimiting_selfDelimitingCode_append] using hjy)
   -- describing `x`, by its index `i` among the numbers with at least `2 ^ l` partners
   set B := {u | 2 ^ l ≤ {v | universal.ecomplexity (Nat.pair u v) ≤ k}.ncard} with hB
   have hBfin : B.Finite := universal.finite_setOf_two_pow_le_ncard k l
@@ -334,19 +318,14 @@ theorem exists_complexity_universal_add_condUniversal_le :
   -- `i` is written with exactly `k + 1 - l` digits, so that `l` can be recovered
   have hrest : (i.bits ++ List.replicate (k + 1 - l - i.size) false).length = k + 1 - l := by
     grind [List.length_append, List.length_replicate, Nat.size_eq_bits_len]
-  have hl' : k + 1 - (k + 1 - l) = l := by omega
   have hX : universal.ecomplexity x ≤
       ((selfDelimitingCode k.bits ++ (i.bits ++ List.replicate (k + 1 - l - i.size) false)).length
-        : ℕ) + cX := by
-    refine hcX _ x ?_
-    simpa [heavyDecoder, decodeSelfDelimiting_selfDelimitingCode_append,
-      Nat.foldr_bit_append_replicate_false, hrest, hl'] using hix
-  rw [← natCast_complexity_universal] at hX
-  rw [← natCast_complexity_condUniversal] at hY
+        : ℕ) + cX :=
+    hcX _ x (by simpa [heavyDecoder, decodeSelfDelimiting_selfDelimitingCode_append,
+      Nat.foldr_bit_append_replicate_false, hrest, show k + 1 - (k + 1 - l) = l by omega] using hix)
+  simp only [← natCast_complexity_universal, ← natCast_complexity_condUniversal] at hX hY
   norm_cast at hX hY
-  rw [List.length_append, hrest, length_selfDelimitingCode, Nat.size_eq_bits_len] at hX
-  rw [List.length_append, length_selfDelimitingCode, Nat.size_eq_bits_len,
-    Nat.size_eq_bits_len] at hY
+  simp only [List.length_append, hrest, length_selfDelimitingCode, Nat.size_eq_bits_len] at hX hY
   omega
 
 /-- **Kolmogorov–Levin theorem**, two-sided form [Shen, Uspensky and Vereshchagin, Section
@@ -363,14 +342,11 @@ theorem exists_abs_complexity_universal_pair_sub_le :
   have e₂ := h₂ x y
   have e₃ : universal.complexity x ≤ universal.complexity (Nat.pair x y) + c₃ := by
     simpa using h₃ (Nat.pair x y)
-  have e₄ : (universal.complexity x).size ≤
-      (universal.complexity (Nat.pair x y)).size + c₃ + 1 :=
-    (Nat.size_le_size e₃).trans <| (Nat.size_add_le _ _).trans <| by
-      have := Nat.size_le_self c₃
-      omega
+  have e₄ := (Nat.size_le_size e₃).trans (Nat.size_add_le _ _)
+  have := Nat.size_le_self c₃
   have e₅ := Nat.size_le_self (universal.complexity (Nat.pair x y)).size
   rw [abs_le]
-  constructor <;> omega
+  omega
 
 end DescriptionMethod
 
@@ -387,12 +363,9 @@ can be described when `x` is known, for the plain complexity of `universal`. -/
 /-- The algorithmic information is nonnegative up to a constant
 [Shen, Uspensky and Vereshchagin, Section 2.3][ShenUspenskyVereshchagin2017]. -/
 theorem exists_algorithmicInformation_ge :
-    ∃ c : ℕ, ∀ x y, -(c : ℤ) ≤ algorithmicInformation x y := by
-  obtain ⟨c, hc⟩ := exists_complexity_condUniversal_le
-  refine ⟨c, fun x y => ?_⟩
-  have h := hc x y
-  rw [algorithmicInformation]
-  omega
+    ∃ c : ℕ, ∀ x y, -(c : ℤ) ≤ algorithmicInformation x y :=
+  exists_complexity_condUniversal_le.imp fun _ hc x y =>
+    neg_le_sub_iff_le_add.mpr (mod_cast hc x y)
 
 /-- The algorithmic information is `C(x) + C(y) - C(x, y)` up to a logarithmic term: there is a
 constant `c` with `|I(x : y) - (C(x) + C(y) - C(x, y))| ≤ 6 size (C(x, y)) + c`
@@ -401,11 +374,9 @@ theorem exists_abs_algorithmicInformation_sub_le :
     ∃ c : ℕ, ∀ x y, |algorithmicInformation x y - (universal.complexity x +
       universal.complexity y - universal.complexity (Nat.pair x y) : ℤ)| ≤
         6 * (universal.complexity (Nat.pair x y)).size + c := by
-  obtain ⟨c, hc⟩ := exists_abs_complexity_universal_pair_sub_le
-  refine ⟨c, fun x y => ?_⟩
-  have h := abs_le.mp (hc x y)
-  rw [abs_le, algorithmicInformation]
-  constructor <;> omega
+  refine exists_abs_complexity_universal_pair_sub_le.imp fun c hc x y => ?_
+  have := abs_le.mp (hc x y)
+  rw [abs_le, algorithmicInformation]; omega
 
 /-- **Symmetry of information** [Shen, Uspensky and Vereshchagin, Section
 2.3][ShenUspenskyVereshchagin2017]: there is a constant `c` with
@@ -420,16 +391,11 @@ theorem exists_abs_algorithmicInformation_sub_algorithmicInformation_le :
   refine ⟨2 * c + 7 * d + 6, fun x y => ?_⟩
   have h₁ := abs_le.mp (hc x y)
   have h₂ := abs_le.mp (hc y x)
-  have e₁ : universal.complexity (Nat.pair y x) ≤ universal.complexity (Nat.pair x y) + d := by
-    simpa using hd (Nat.pair x y)
-  have e₂ : universal.complexity (Nat.pair x y) ≤ universal.complexity (Nat.pair y x) + d := by
-    simpa using hd (Nat.pair y x)
-  have e₃ : (universal.complexity (Nat.pair y x)).size ≤
-      (universal.complexity (Nat.pair x y)).size + d + 1 :=
-    (Nat.size_le_size e₁).trans <| (Nat.size_add_le _ _).trans <| by
-      have := Nat.size_le_self d
-      omega
-  rw [abs_le]
-  constructor <;> omega
+  have e₁ := hd (Nat.pair x y)
+  have e₂ := hd (Nat.pair y x)
+  simp only [Nat.unpair_pair] at e₁ e₂
+  have e₃ := (Nat.size_le_size e₁).trans (Nat.size_add_le _ _)
+  have := Nat.size_le_self d
+  rw [abs_le]; omega
 
 end Cslib.Kolmogorov

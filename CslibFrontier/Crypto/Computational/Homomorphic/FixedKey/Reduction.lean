@@ -93,27 +93,22 @@ theorem isPPTOn_publicKeyGame (bit : Bool) :
 theorem isPPT_zeroAdversary
     (hkeyGen : IsPPTOn encUnary (encPair encBits encBits) E.keyGen) :
     (zeroAdversary E adversary).IsPPT := by
-  have hchoose := hadversary.choose
-  constructor
-  · change IsPPTOn (encPair encUnary encBits) (encPair (encPair encBool encBool) encBits)
-      (fun p => (zeroAdversary E adversary).choose p.1 p.2)
-    dsimp only [zeroAdversary]
-    apply (hkeyGen.preprocess (ComputableInPolyTime.fst encUnary encBits)).bind_with
-    have hbits : IsPPTOn
-        (encPair (encPair encUnary encBits) (encPair encBits encBits)) (encList encBits)
-        (fun p => E.encryptBits p.1.1 p.1.2 (List.replicate p.2.2.length false)) := by
-      apply Scheme.isPPTOn_encryptBits hencrypt <;> fun_prop
-    apply hbits.bind_with
-    have hpublic : ComputableInPolyTime
-        (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List (List Bool) =>
-          (p.1.1.2, p.2))
-        (encPair (encPair (encPair encUnary encBits) (encPair encBits encBits))
-          (encList encBits)) encPublicKey := by
-      dsimp only [encPublicKey, Encryption.encCircularPublicKey]
-      fun_prop
-    exact hchoose.on.preprocess
-      (((ComputableInPolyTime.fst _ _).fst'.fst').prod (hpublic.of_enc_eq fun _ => rfl))
-  · exact hadversary.guess
+  refine ⟨?_, hadversary.guess⟩
+  change IsPPTOn (encPair encUnary encBits) (encPair (encPair encBool encBool) encBits)
+    (fun p => (zeroAdversary E adversary).choose p.1 p.2)
+  dsimp only [zeroAdversary]
+  apply (hkeyGen.preprocess (ComputableInPolyTime.fst encUnary encBits)).bind_with
+  apply (Scheme.isPPTOn_encryptBits hencrypt (by fun_prop) (by fun_prop)
+    (by fun_prop)).bind_with
+  have hpublic : ComputableInPolyTime
+      (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List (List Bool) =>
+        (p.1.1.2, p.2))
+      (encPair (encPair (encPair encUnary encBits) (encPair encBits encBits))
+        (encList encBits)) encPublicKey := by
+    dsimp only [encPublicKey, Encryption.encCircularPublicKey]
+    fun_prop
+  exact hadversary.choose.on.preprocess
+    (((ComputableInPolyTime.fst _ _).fst'.fst').prod (hpublic.of_enc_eq fun _ => rfl))
 
 omit hencrypt hadversary in
 /-- A supported auxiliary key supplies exactly the challenge secret's length. Removing that
@@ -126,11 +121,9 @@ theorem eval_zeroAdversary (E : Scheme) (adversary : Encryption.Adversary)
         publicKeyGame E adversary bit n) := by
   simp only [pmf_norm, Encryption.game, Encryption.gameOn, zeroAdversary,
     Encryption.circularPublicKey, publicKeyGame, Scheme.encryptBits, Bool.false_eq_true, ↓reduceIte]
-  apply Probability.PMF.bind_congr_on_support
-  intro keys hkeys
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
   conv_rhs => rw [hwidth keys hkeys]
-  refine (Probability.PMF.bind_congr_on_support _ _ _ ?_).trans (PMF.bind_const _ _)
-  intro auxiliary hauxiliary
-  rw [hwidth auxiliary hauxiliary]
+  exact (Probability.PMF.bind_congr_on_support _ _ _ fun aux haux => by
+    rw [hwidth aux haux]).trans (PMF.bind_const _ _)
 
 end Cslib.Crypto.Homomorphic.FixedKey

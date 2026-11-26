@@ -31,21 +31,16 @@ private theorem potential_step (active : ℕ → Prop) [DecidablePred active]
     (if active i then T + 6 else 6) + 2 +
         (8 * (Q - (i + 1)) + T * (Nat.count active Q - Nat.count active (i + 1))) ≤
       8 * (Q - i) + T * (Nat.count active Q - Nat.count active i) := by
-  have hcount : Nat.count active (i + 1) = Nat.count active i +
-      (if active i then 1 else 0) := Nat.count_succ active i
-  have hle := Nat.count_monotone active (Nat.succ_le_of_lt hi)
-  change Nat.count active (i + 1) ≤ Nat.count active Q at hle
-  have hindex : Q - i = Q - (i + 1) + 1 := by omega
+  have hle : Nat.count active (i + 1) ≤ Nat.count active Q :=
+    Nat.count_monotone active (Nat.succ_le_of_lt hi)
+  rw [show Q - i = Q - (i + 1) + 1 by omega, Nat.mul_add]
   by_cases h : active i
-  · rw [ite_eq_left h] at hcount ⊢
-    rw [hcount] at hle
-    have hd : Nat.count active Q - Nat.count active i =
-        (Nat.count active Q - Nat.count active (i + 1)) + 1 := by omega
-    rw [hindex, hd, Nat.mul_add, Nat.mul_add]
+  · rw [ite_eq_left h]
+    rw [Nat.count_succ, ite_eq_left h] at hle ⊢
+    rw [show Nat.count active Q - Nat.count active i =
+      (Nat.count active Q - (Nat.count active i + 1)) + 1 by omega, Nat.mul_add]
     omega
-  · rw [ite_eq_right h] at hcount ⊢
-    simp only [Nat.add_zero] at hcount
-    rw [hindex, hcount, Nat.mul_add, Nat.mul_one]
+  · simp only [ite_eq_right h, Nat.count_succ, Nat.add_zero]
     omega
 
 /-- Run the actual answer/query loop. Every query coordinate is read from the protected
@@ -90,12 +85,9 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
   have hit_iff (i : ℕ) : hit i = true ↔ ∃ c, first ≤ c ∧ c < first + length ∧
       AB (a i) (b i) + BC (b i) c + AC (a i) c = 0 := by
     simp only [hit, decide_eq_true_eq]
-    constructor
-    · rintro ⟨c, hz⟩
-      exact ⟨first + c.val, by omega, by have := c.isLt; omega, hz⟩
-    · rintro ⟨c, hlo, hhi, hz⟩
-      refine ⟨⟨c - first, by omega⟩, ?_⟩
-      simpa only [Nat.add_sub_of_le hlo] using hz
+    exact ⟨fun ⟨c, hz⟩ => ⟨first + c.val, by omega, by omega, hz⟩,
+      fun ⟨c, hlo, hhi, hz⟩ =>
+        ⟨⟨c - first, by omega⟩, by simpa only [Nat.add_sub_of_le hlo] using hz⟩⟩
   let I (y : Data 400) : Prop :=
     Fixed n first length out queries Q y ∧ y.mem = x.mem ∧ y.regs Reg.index ≤ Q ∧
     y.regs Reg.found = (foundBefore accept hit (y.regs Reg.index)).toNat ∧
@@ -107,107 +99,64 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
         AC (a i) (y.regs Reg.witnessC) = 0)
   let Φ (y : Data 400) := 8 * (Q - y.regs Reg.index) +
     (42 * length + 28) * (Nat.count active Q - Nat.count active (y.regs Reg.index))
-  have hstart : I x := by
-    refine ⟨hx, rfl, by omega, ?_, ?_, ?_⟩
-    · simp only [hi, hf, foundBefore_zero, Bool.toNat_false]
-    · simp only [hi, hs, Nat.count_zero]
-    · intro h; omega
+  have hstart : I x := ⟨hx, rfl, by omega,
+    by simp only [hi, hf, foundBefore_zero, Bool.toNat_false],
+    by simp only [hi, hs, Nat.count_zero], fun h => by omega⟩
   have body (y : Data 400) (hy : I y) (hcond : (Cond.lt Reg.index Reg.count).Holds y) :
       ∃ z T, ExecWithin (w + 2) step y z T ∧ I z ∧ T + 2 + Φ z ≤ Φ y := by
     obtain ⟨yFixed, ym, yi, yf, ys, yw⟩ := hy
     let i := y.regs Reg.index
     change y.regs Reg.found = (foundBefore accept hit i).toNat at yf
     have hilt : i < Q := by simpa only [Cond.holds_lt, yFixed.count] using hcond
-    have hscans : y.regs Reg.scans ≤ Q := by
-      rw [ys]
-      exact (Nat.count_le active).trans yi
-    have hstepfit : Fits (w + 2)
-        (out + queries + 3 * i + y.regs Reg.scans + 6 * (n * n) + n + first + length + 40) :=
-      hfit.of_le (by dsimp only [i]; omega)
+    have hscans : y.regs Reg.scans ≤ Q := ys ▸ (Nat.count_le active).trans yi
     by_cases hact : active i
     · have hinfo : accept i = true ∧ foundBefore accept hit i = false := by
         simpa only [active, Bool.and_eq_true, Bool.not_eq_true_eq_eq_false] using hact
-      have yzero : y.regs Reg.found = 0 := by rw [yf, hinfo.2]; rfl
-      have hanswer : y.mem (out + i) ≠ 0 := by
-        rw [ym]
-        exact of_decide_eq_true hinfo.1
+      have hanswer : y.mem (out + i) ≠ 0 := ym ▸ of_decide_eq_true hinfo.1
       obtain ⟨haWord, hbWord, ha, hb⟩ := hquery i hilt
       obtain ⟨z, he, zFixed, zm, zi, zs, zf, zh, zw⟩ := exec_step_scan (i := i) AB BC AC y yFixed
-        rfl rfl yzero hanswer (by simpa only [ym] using haWord)
-        (by simpa only [ym] using hbWord) ha hb hc (by simpa only [ym] using hmem)
-        hmag hU hstepfit
+        rfl rfl (by rw [yf, hinfo.2]; rfl) hanswer (ym ▸ haWord) (ym ▸ hbWord) ha hb hc (ym ▸ hmem)
+        hmag hU (hfit.of_le (by dsimp only [i]; omega))
       have zflag : z.regs Reg.found = (hit i).toNat := by
         cases hh : hit i
-        · have hn : z.regs Reg.found ≠ 1 := by
-            intro h
-            have := (hit_iff i).mpr (zh.mp h)
-            simp only [hh, Bool.false_eq_true] at this
-          rcases zf with hz | hz
-          · simpa only [hh, Bool.toNat_false] using hz
-          · exact (hn hz).elim
-        · simpa only [hh, Bool.toNat_true] using zh.mpr ((hit_iff i).mp hh)
-      have zI : I z := by
-        refine ⟨zFixed, zm.trans ym, by omega, ?_, ?_, ?_⟩
-        · rw [zi, foundBefore_succ, hinfo.1, hinfo.2]
-          simpa only [Bool.true_and, Bool.false_or] using zflag
-        · rw [zi, Nat.count_succ, ite_eq_left hact, ← ys]
-          exact zs
-        · intro hz
-          obtain ⟨za, zb, zlo, zhi, zeq⟩ := zw hz
-          exact ⟨i, by omega, by simpa only [ym] using hanswer, za, zb, zlo, zhi, zeq⟩
-      refine ⟨z, 42 * length + 34, he, zI, ?_⟩
-      have hp := potential_step active (T := 42 * length + 28) hilt
-      simpa only [ite_eq_left hact, Φ, zi, i] using hp
+        · exact zf.resolve_right fun h =>
+            Bool.false_ne_true (hh ▸ (hit_iff i).mpr (zh.mp h))
+        · exact zh.mpr ((hit_iff i).mp hh)
+      refine ⟨z, 42 * length + 34, he, ⟨zFixed, zm.trans ym, by omega,
+        by simpa only [zi, foundBefore_succ, hinfo.1, hinfo.2, Bool.true_and, Bool.false_or]
+             using zflag,
+        by rwa [zi, Nat.count_succ, ite_eq_left hact, ← ys],
+        fun hz => let ⟨za, zb, zlo, zhi, zeq⟩ := zw hz
+          ⟨i, by omega, ym ▸ hanswer, za, zb, zlo, zhi, zeq⟩⟩, ?_⟩
+      simpa only [ite_eq_left hact, Φ, zi, i] using
+        potential_step active (T := 42 * length + 28) hilt
     · have hskip : y.regs Reg.found ≠ 0 ∨ y.mem (out + i) = 0 := by
         by_cases hz : y.regs Reg.found = 0
-        · right
-          by_contra hn
-          apply hact
-          have ha : accept i = true := decide_eq_true (by simpa only [ym] using hn)
-          have hb : foundBefore accept hit i = false := by
-            have hz' : (foundBefore accept hit i).toNat = 0 := yf.symm.trans hz
-            cases h : foundBefore accept hit i
-            · rfl
-            · simp only [h, Bool.toNat_true, Nat.one_ne_zero] at hz'
-          simp only [active, ha, hb, Bool.not_false, Bool.true_and]
+        · refine Or.inr (by_contra fun hn => hact ?_)
+          have hb : foundBefore accept hit i = false := Bool.toNat_eq_zero.mp (yf.symm.trans hz)
+          simpa only [active, accept, hb, Bool.not_false, Bool.and_true, decide_eq_true_eq] using
+            ym ▸ hn
         · exact Or.inl hz
       obtain ⟨z, he, zFixed, zm, zi, frame⟩ := exec_step_skip (i := i) y yFixed rfl hskip
         (hfit.of_le (by dsimp only [i]; omega))
-      have zfound : z.regs Reg.found = y.regs Reg.found :=
-        frame _ (by decide) (by decide) (by decide)
-      have zscans : z.regs Reg.scans = y.regs Reg.scans :=
-        frame _ (by decide) (by decide) (by decide)
+      have zreg (r : Fin 400)
+          (hr : r ≠ Reg.index ∧ r ≠ Reg.address ∧ r ≠ Reg.answer := by decide) :
+          z.regs r = y.regs r := frame r hr.1 hr.2.1 hr.2.2
       have hnext : foundBefore accept hit (i + 1) = foundBefore accept hit i := by
         rw [foundBefore_succ]
-        cases ha : accept i
-        · simp only [Bool.false_and, Bool.or_false]
-        · cases hb : foundBefore accept hit i
-          · exact (hact (by simp [active, ha, hb])).elim
-          · simp only [Bool.true_or]
-      have zI : I z := by
-        refine ⟨zFixed, zm.trans ym, by omega, ?_, ?_, ?_⟩
-        · rw [zi, hnext, zfound]
-          exact yf
-        · rw [zi, Nat.count_succ, ite_eq_right hact, Nat.add_zero, zscans]
-          exact ys
-        · intro hz
-          obtain ⟨j, hj, hm, hwa, hwb, hlo, hhi, hzsum⟩ := yw (zfound.symm.trans hz)
-          have za := frame Reg.witnessA (by decide) (by decide) (by decide)
-          have zb := frame Reg.witnessB (by decide) (by decide) (by decide)
-          have zc := frame Reg.witnessC (by decide) (by decide) (by decide)
-          exact ⟨j, by omega, hm, za.trans hwa, zb.trans hwb,
-            by simpa only [zc] using hlo, by simpa only [zc] using hhi,
-            by simpa only [zc] using hzsum⟩
-      refine ⟨z, 6, he, zI, ?_⟩
-      have hp := potential_step active (T := 42 * length + 28) hilt
-      simpa only [ite_eq_right hact, Φ, zi, i] using hp
-  obtain ⟨y, he, hIy, hend⟩ := ExecWithin.loop_potential I Φ body hstart
-  obtain ⟨yFixed, ym, yi, yf, ys, yw⟩ := hIy
-  have yindex : y.regs Reg.index = Q := by
-    have hh : ¬ y.regs Reg.index < Q := by
-      simpa only [Cond.holds_lt, yFixed.count] using hend
-    omega
-  have hcount := scan_count_le accept hit Q
+        cases ha : accept i <;> cases hb : foundBefore accept hit i <;>
+          simp_all [active]
+      refine ⟨z, 6, he, ⟨zFixed, zm.trans ym, by omega,
+        by rwa [zi, hnext, zreg Reg.found],
+        by rwa [zi, Nat.count_succ, ite_eq_right hact, Nat.add_zero, zreg Reg.scans],
+        fun hz => by
+          obtain ⟨j, hj, hm, hwa, hwb, hlo, hhi, hzsum⟩ := yw ((zreg Reg.found).symm.trans hz)
+          exact ⟨j, by omega, hm, (zreg Reg.witnessA).trans hwa, (zreg Reg.witnessB).trans hwb,
+            zreg Reg.witnessC ▸ hlo, zreg Reg.witnessC ▸ hhi, zreg Reg.witnessC ▸ hzsum⟩⟩, ?_⟩
+      simpa only [ite_eq_right hact, Φ, zi, i] using
+        potential_step active (T := 42 * length + 28) hilt
+  obtain ⟨y, he, ⟨yFixed, ym, yi, yf, ys, yw⟩, hend⟩ := ExecWithin.loop_potential I Φ body hstart
+  have yindex : y.regs Reg.index = Q := by simp only [Cond.holds_lt, yFixed.count] at hend; omega
   have hfail : Nat.count (fun i => (accept i && !hit i) = true) Q =
       Nat.count (fun i => x.mem (out + i) ≠ 0 ∧
         ∀ c : Fin length, AB (a i) (b i) + BC (b i) (first + c.val) +
@@ -215,20 +164,13 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
     congr 1 with i : 1
     simp only [accept, hit, Bool.and_eq_true, decide_eq_true_eq,
       Bool.not_eq_true_eq_eq_false, decide_eq_false_iff_not, not_exists]
-  refine ⟨y, Nat.count active Q, ?_, yFixed, ym, yindex, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [Φ, hi, Nat.sub_zero, Nat.count_zero, Nat.mul_zero, Nat.add_zero] using he
-  · simpa only [yindex] using ys
-  · rw [← hfail, yf, yindex]
-    exact hcount
-  · rw [yf, yindex]
-    cases foundBefore accept hit Q <;> simp
-  · rw [yf, yindex]
-    simp only [Bool.toNat_eq_one, foundBefore_eq_true, accept, decide_eq_true_eq]
-    constructor
-    · rintro ⟨i, hi, ha, hh⟩
-      exact ⟨i, hi, ha, (hit_iff i).mp hh⟩
-    · rintro ⟨i, hi, ha, hh⟩
-      exact ⟨i, hi, ha, (hit_iff i).mpr hh⟩
-  · simpa only [yindex] using yw
+  refine ⟨y, Nat.count active Q,
+    by simpa only [Φ, hi, Nat.sub_zero, Nat.count_zero, Nat.mul_zero, Nat.add_zero] using he,
+    yFixed, ym, yindex, yindex ▸ ys,
+    by rw [← hfail, yf, yindex]; exact scan_count_le accept hit Q,
+    by rw [yf, yindex]; cases foundBefore accept hit Q <;> simp,
+    by simp only [yf, yindex, Bool.toNat_eq_one, foundBefore_eq_true, accept, decide_eq_true_eq,
+         hit_iff],
+    yindex ▸ yw⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

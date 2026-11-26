@@ -49,12 +49,9 @@ theorem exists_annular_spokes (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR 
       Pairwise (fun i j => (T i).support ∩ (T j).support = {z}) := by
   obtain ⟨γ, hcont, hlip, hstart, hfinish, hnorm, hinj⟩ :=
     exists_annular_paths n z hr hrR p q hp hq hp' hq' hpo hqo
-  have hsep : Pairwise (fun i j => Disjoint (γ i '' Icc 0 1) (γ j '' Icc 0 1)) := by
-    intro i j hij
-    apply Set.disjoint_left.mpr
-    rintro _ ⟨s, hs, rfl⟩ ⟨t, ht, heq⟩
-    have h : (i, s) = (j, t) := hinj hs ht heq.symm
-    exact hij (congrArg Prod.fst h)
+  have hsep : Pairwise (fun i j => Disjoint (γ i '' Icc 0 1) (γ j '' Icc 0 1)) :=
+    fun i j hij => Set.disjoint_left.mpr fun _ ⟨s, hs, hx⟩ ⟨t, ht, heq⟩ =>
+      hij (congrArg Prod.fst (hinj hs ht (hx.trans heq.symm) : (i, s) = (j, t)))
   choose K hK using hlip
   have hout (i : Fin (n + 1)) := Route.eventually_sampled_outward (γ i) z (hK i) hr hrR (hnorm i)
   have hdisj := Route.eventually_pairwise_disjoint_sampled γ (fun i => (hcont i).continuousOn) hsep
@@ -101,15 +98,12 @@ theorem exists_annular_spokes (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR 
       (h : ‖lineMap z (p i) t - z‖ = r) : t = 1 :=
     lineMap_sphere_parameter hcenter (hport i) ht
       (by simpa only [Metric.mem_sphere, dist_eq_norm] using h)
-  have hTend (i : Fin (n + 1)) : (T i).finish = q i := by
-    change (Route.prepend z (P i)).endpoint true = _
-    simp only [Route.endpoint_prepend, ↓reduceIte, hPfinish]
+  have hTend (i : Fin (n + 1)) : (T i).finish = q i :=
+    (Route.endpoint_prepend z (P i) true).trans (hPfinish i)
   have hsimple (i : Fin (n + 1)) : (T i).IsSimple := by
     apply ((P i).isSimple_of_outward z (hchord i)).prepend
     · intro heq
-      have h := hp i
-      rw [← hPstart i, ← heq, sub_self, norm_zero] at h
-      exact hr.ne h
+      simpa [← hPstart i, ← heq, hr.ne] using hp i
     · intro k s t hs ht heq
       rw [hPstart i] at heq
       have hend := hnear i k ht (heq ▸ hray i hs)
@@ -123,22 +117,18 @@ theorem exists_annular_spokes (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR 
     · exact Or.inl (((P i).mem_support_iff x).mpr ⟨j, t, ht, hj.symm.trans heq⟩)
     · exact Or.inr ⟨t, ht, by rw [← hPstart i, ← hj, heq]⟩
   have hboundary (i : Fin (n + 1)) : (T i).support \ Metric.ball z R = {q i} := by
-    apply Set.eq_singleton_iff_unique_mem.mpr
-    constructor
-    · refine ⟨?_, ?_⟩
-      · have ht : (1 : ℝ) ∈ Icc 0 1 := ⟨zero_le_one, le_rfl⟩
-        have hm := (T i).at_mem_support (Fin.last (T i).bends) ht
-        rw [(T i).at_eq_finish _ ht (by simp [Route.position, Route.segments]), hTend] at hm
-        exact hm
-      · simp only [Metric.mem_ball, dist_eq_norm, hq, lt_irrefl, not_false_eq_true]
-    · intro x hx
-      have hxR : R ≤ ‖x - z‖ := by
-        simpa only [Metric.mem_ball, dist_eq_norm, not_lt] using hx.2
-      rcases hcases i hx.1 with hp' | ⟨t, ht, heq⟩
-      · obtain ⟨k, t, ht, heq⟩ := ((P i).mem_support_iff x).mp hp'
-        exact heq.symm.trans (((P i).at_eq_finish k ht (hfar i k ht (heq.symm ▸ hxR))).trans
-          (hPfinish i))
-      · exact ((not_le_of_gt hrR) (hxR.trans (heq ▸ hray i ht))).elim
+    refine Set.eq_singleton_iff_unique_mem.mpr ⟨⟨?_, ?_⟩, fun x hx => ?_⟩
+    · have ht : (1 : ℝ) ∈ Icc 0 1 := ⟨zero_le_one, le_rfl⟩
+      have hm := (T i).at_mem_support (Fin.last (T i).bends) ht
+      rwa [(T i).at_eq_finish _ ht (by simp [Route.position, Route.segments]), hTend] at hm
+    · simp only [Metric.mem_ball, dist_eq_norm, hq, lt_irrefl, not_false_eq_true]
+    have hxR : R ≤ ‖x - z‖ := by
+      simpa only [Metric.mem_ball, dist_eq_norm, not_lt] using hx.2
+    rcases hcases i hx.1 with hp' | ⟨t, ht, heq⟩
+    · obtain ⟨k, t, ht, heq⟩ := ((P i).mem_support_iff x).mp hp'
+      exact heq.symm.trans (((P i).at_eq_finish k ht (hfar i k ht (heq.symm ▸ hxR))).trans
+        (hPfinish i))
+    · exact ((not_le_of_gt hrR) (hxR.trans (heq ▸ hray i ht))).elim
   have hsample_ray {i j : Fin (n + 1)} (hij : i ≠ j) {x : ℂ}
       (hx : x ∈ (P i).support) {t : ℝ} (ht : t ∈ Icc 0 1)
       (heq : lineMap z (p j) t = x) : False := by
@@ -148,26 +138,19 @@ theorem exists_annular_spokes (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR 
     have ht1 := hray_end j ht (by rw [heq, hx', hp])
     rw [ht1, lineMap_apply_one] at heq
     exact hij (hpinj (hx'.symm.trans heq.symm))
-  refine ⟨T, ?_, ?_⟩
-  · intro i
-    refine ⟨rfl, hTend i, ?_, hsimple i, hboundary i⟩
-    simp only [T, Route.germ_prepend, Bool.false_eq_true, ↓reduceIte, hPstart]
-  · intro i j hij
-    apply Set.eq_singleton_iff_unique_mem.mpr
-    have hmem (k : Fin (n + 1)) : z ∈ (T k).support := by
-      apply ((T k).mem_support_iff z).mpr
-      exact ⟨0, 0, ⟨le_rfl, zero_le_one⟩, by simp only [T, Route.eval_prepend_zero,
-        lineMap_apply_zero]⟩
-    refine ⟨⟨hmem i, hmem j⟩, ?_⟩
-    intro x hx
-    rcases hcases i hx.1 with hi | ⟨s, hs, heqs⟩
-    · rcases hcases j hx.2 with hj | ⟨t, ht, heqt⟩
-      · exact (Set.disjoint_left.mp (hpair hij) hi hj).elim
-      · exact (hsample_ray hij hi ht heqt).elim
-    · rcases hcases j hx.2 with hj | ⟨t, ht, heqt⟩
-      · exact (hsample_ray hij.symm hj hs heqs).elim
-      · have h := fan_contact hcenter (hport i) (hport j)
-          (fun heq => hij (hpinj heq)) hs ht (heqs.trans heqt.symm)
-        simpa only [h.1, lineMap_apply_zero] using heqs.symm
+  refine ⟨T, fun i => ⟨rfl, hTend i, ?_, hsimple i, hboundary i⟩, fun i j hij => ?_⟩
+  · simp only [T, Route.germ_prepend, Bool.false_eq_true, ↓reduceIte, hPstart]
+  · apply Set.eq_singleton_iff_unique_mem.mpr
+    have hmem (k : Fin (n + 1)) : z ∈ (T k).support :=
+      ((T k).mem_support_iff z).mpr ⟨0, 0, ⟨le_rfl, zero_le_one⟩, by
+        simp only [T, Route.eval_prepend_zero, lineMap_apply_zero]⟩
+    refine ⟨⟨hmem i, hmem j⟩, fun x hx => ?_⟩
+    obtain hi | ⟨s, hs, heqs⟩ := hcases i hx.1 <;> obtain hj | ⟨t, ht, heqt⟩ := hcases j hx.2
+    · exact (Set.disjoint_left.mp (hpair hij) hi hj).elim
+    · exact (hsample_ray hij hi ht heqt).elim
+    · exact (hsample_ray hij.symm hj hs heqs).elim
+    · have h := fan_contact hcenter (hport i) (hport j)
+        (fun heq => hij (hpinj heq)) hs ht (heqs.trans heqt.symm)
+      simpa only [h.1, lineMap_apply_zero] using heqs.symm
 
 end Cslib.Polygonal

@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.FirstOrder.Operator.Polarity
+public import CslibFrontier.Logics.FirstOrder.Operator.Quantifiers
 
 /-!
 # Uniform definability by first-order formulas with operators
@@ -30,6 +30,7 @@ interface. A registered rule must produce a well-formed witness, rather than raw
 
 * `Definable.neg`, `Definable.conj`, `Definable.disj`, `Definable.ex`, `Definable.all`:
   compositional construction of well-formed formulas.
+* `Definable.exs`: quantify a fixed-width tuple of fresh first-order variables.
 * `Definable.ofFO`, `Definable.equal`, `Definable.rel`: atomic certificates.
 
 ## References
@@ -123,6 +124,17 @@ theorem ex {P : ∀ i, M i → (α → M i) → Prop}
   intro i v
   exact exists_congr fun x => hP i (Option.elim · x v)
 
+/-- Existentially quantify a whole tuple using fresh variables in the right summand. The tuple
+width is fixed independently of the structure; width zero also works on empty structures. -/
+theorem exs {n : ℕ} {P : ∀ i, (α → M i) → (Fin n → M i) → Prop}
+    (hP : Definable (L := L) policy M I ρ
+      (fun i v => P i (v ∘ Sum.inl) (v ∘ Sum.inr))) :
+    Definable (L := L) policy M I ρ (fun i v => ∃ xs, P i v xs) := by
+  obtain ⟨φ, hφ, hP⟩ := hP
+  refine ⟨φ.exs n, by rw [Formula.wellFormed_exs]; exact hφ, fun i v => ?_⟩
+  rw [Formula.realize_exs]
+  exact exists_congr fun xs => hP i (Sum.elim v xs)
+
 /-- Universal quantification is synthesized from a defining formula with one extra variable. -/
 theorem all {P : ∀ i, M i → (α → M i) → Prop}
     (hP : Definable (L := L) policy M I ρ
@@ -145,9 +157,7 @@ theorem falsity : Definable (L := L) policy M I ρ (fun _ (_ : α → _) => Fals
 /-- Equality of two native first-order terms is uniformly definable. -/
 theorem equal (a b : L.Term α) :
     Definable (L := L) policy M I ρ (fun i v => a.realize (M := M i) v = b.realize v) := by
-  apply (ofFO (a.equal b)).congr
-  intro i v
-  simp
+  exact (ofFO (a.equal b)).congr fun _ _ => by simp
 
 /-- Equality of two free variables is an atomic synthesis rule. -/
 theorem var_eq (a b : α) : Definable (L := L) policy M I ρ (fun _ v => v a = v b) :=
@@ -157,9 +167,7 @@ theorem var_eq (a b : α) : Definable (L := L) policy M I ρ (fun _ v => v a = v
 theorem relation {k : ℕ} (r : L.Relations k) (args : Fin k → L.Term α) :
     Definable (L := L) policy M I ρ
       (fun i v => Structure.RelMap (M := M i) r (fun j => (args j).realize v)) := by
-  apply (ofFO (r.formula args)).congr
-  intro i v
-  simp
+  exact (ofFO (r.formula args)).congr fun _ _ => by simp
 
 /-- A base-language relation applied to free variables is an atomic synthesis rule. -/
 theorem relation_vars {k : ℕ} (r : L.Relations k) (args : Fin k → α) :
@@ -189,22 +197,16 @@ theorem rel_vars {k : ℕ} (r : RelVar Γ k) (args : Fin k → α) :
 /-- Unary free-relation application in vector notation is an atomic synthesis rule. -/
 theorem rel₁ (r : RelVar Γ 1) (a : α) :
     Definable (L := L) policy M I ρ (fun i v => ![v a] ∈ ρ i r) := by
-  apply (rel_vars r ![a]).congr
-  intro i v
-  have h : v ∘ ![a] = ![v a] := by
-    funext j
-    exact Fin.cases rfl (fun k => k.elim0) j
-  rw [h]
+  refine (rel_vars r ![a]).congr fun _ v => ?_
+  rw [show v ∘ ![a] = ![v a] from funext fun j => Fin.cases rfl (fun k => k.elim0) j]
 
 /-- Binary free-relation application in vector notation is an atomic synthesis rule. -/
 theorem rel₂ (r : RelVar Γ 2) (a b : α) :
     Definable (L := L) policy M I ρ (fun i v => ![v a, v b] ∈ ρ i r) := by
-  apply (rel_vars r ![a, b]).congr
-  intro i v
-  have h : v ∘ ![a, b] = ![v a, v b] := by
-    funext j
-    exact Fin.cases rfl (fun k => Fin.cases rfl (fun l => l.elim0) k) j
-  rw [h]
+  refine (rel_vars r ![a, b]).congr fun _ v => ?_
+  have hcomp : v ∘ ![a, b] = ![v a, v b] :=
+    funext fun j => Fin.cases rfl (fun k => Fin.cases rfl (fun l => l.elim0) k) j
+  rw [hcomp]
 
 end Definable
 

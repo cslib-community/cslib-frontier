@@ -193,20 +193,13 @@ theorem spectralExpansion_le_of_preconnected
     intro S hS
     rcases S.eq_empty_or_nonempty with rfl | hne
     · simp
-    have hlt : #S < Fintype.card V := by
-      have := hne.card_pos
-      omega
-    have hne' : S ≠ univ := fun h ↦ by rw [h, card_univ] at hlt; exact lt_irrefl _ hlt
-    have h1 : (1 : ℝ) ≤ #(G.interedges S Sᶜ) :=
-      Nat.one_le_cast.2 (G.interedges_compl_nonempty hconn hne hne').card_pos
-    have h2 : 1 / (Fintype.card V : ℝ) * #S ≤ 1 := by
-      rw [div_mul_eq_mul_div, one_mul, div_le_one hN]
-      exact_mod_cast hlt.le
-    exact h2.trans h1
-  refine (G.expect_mul_walk_le_of_mul_card_le_card_interedges_compl (by positivity) hc hf).trans ?_
-  apply le_of_eq
-  congr 1
-  rw [div_pow, one_pow, div_div]
+    have hlt : #S < Fintype.card V := by have := hne.card_pos; omega
+    refine le_trans ?_ (Nat.one_le_cast.2 (G.interedges_compl_nonempty hconn hne
+      fun h ↦ by simp [h] at hlt).card_pos)
+    rw [div_mul_eq_mul_div, one_mul, div_le_one hN]
+    exact_mod_cast hlt.le
+  refine (G.expect_mul_walk_le_of_mul_card_le_card_interedges_compl (by positivity) hc hf).trans_eq
+    ?_
   ring
 
 end Gap
@@ -260,9 +253,7 @@ private theorem expect_sq_le_mul_sub_expect_walk_sq (hloop : ∀ v, ∃ i, G.nei
         mul_div_cancel₀ _ (by positivity)]
       exact single_le_sum (fun w _ ↦ expect_nonneg fun i _ ↦
         sq_nonneg (G.walk f w - f (G.neighbor w i))) (mem_univ v)
-    calc _ ≤ d * 𝔼 i, (G.walk f v - f (G.neighbor v i)) ^ 2 := h1
-      _ ≤ d * (n * Q) := by gcongr
-      _ = d * n * Q := by ring
+    linarith [mul_le_mul_of_nonneg_left h2 hd0.le]
   -- with the self-loops, adjacent values differ by at most `c`
   set c := √(4 * (d * n * Q)) with hc
   have hadj {v w : V} (h : G.toSimpleGraph.Adj v w) : |f v - f w| ≤ c := by
@@ -288,12 +279,8 @@ private theorem expect_sq_le_mul_sub_expect_walk_sq (hloop : ∀ v, ∃ i, G.nei
     classical
     obtain ⟨p⟩ := hconn u w
     have hp : (p.bypass.length : ℝ) ≤ n - 1 := by
-      have := p.bypass_isPath.length_lt
-      rw [hn, le_sub_iff_add_le]
-      exact_mod_cast this
-    calc f u - f w ≤ |f u - f w| := le_abs_self _
-      _ ≤ p.bypass.length * c := hwalk _
-      _ ≤ (n - 1) * c := by gcongr
+      rw [hn, le_sub_iff_add_le]; exact_mod_cast p.bypass_isPath.length_lt
+    exact (le_abs_self _).trans ((hwalk _).trans (by gcongr))
   -- a function of expectation zero has second moment at most `-(max f) (min f)`
   have hvar : 𝔼 v, f v ^ 2 ≤ -(f u * f w) := by
     have h (v : V) : f v ^ 2 ≤ (f u + f w) * f v - f u * f w := by
@@ -378,8 +365,7 @@ theorem spectralExpansion_le_one_sub_of_preconnected_of_loop
     field_simp
     ring
   rw [e]
-  have : 0 ≤ 3 / (4 * N) + 1 / (64 * N ^ 2) := by positivity
-  linarith
+  linarith [show 0 ≤ 3 / (4 * N) + 1 / (64 * N ^ 2) by positivity]
 
 end OneLoop
 /-- A walk along the labels `k` in `G` gives a walk of at most `t` steps in the simple graph of
@@ -465,8 +451,7 @@ theorem exists_walk_length_le_clog_of_spectralExpansion_lt (h : G.spectralExpans
     (u v : V) : ∃ w : G.toSimpleGraph.Walk u v, w.length ≤ Nat.clog 4 (Fintype.card V) := by
   set t := Nat.clog 4 (Fintype.card V)
   have hN : (Fintype.card V : ℝ) ≤ 4 ^ t := by exact_mod_cast Nat.le_pow_clog (by norm_num) _
-  have hlam : G.spectralExpansion ^ t ≤ (1 / 4) ^ t :=
-    pow_le_pow_left₀ G.spectralExpansion_nonneg h.le t
+  have hlam : G.spectralExpansion ^ t ≤ (1 / 4) ^ t := by gcongr
   have hpos : (0 : ℝ) ≤ Fintype.card V - 1 := by
     rw [sub_nonneg]; exact Nat.one_le_cast.2 (Fintype.card_pos_iff.2 ⟨u⟩)
   obtain ⟨k, rfl⟩ := G.exists_neighbor_pow_eq (t := t) (by
@@ -571,29 +556,18 @@ theorem card_pow_lt_two_mul_card_mul_card_filter_neighbor_pow_eq [DecidableEq V]
     have : n ^ 2 ≤ n ^ 5 := pow_le_pow_right₀ hn1 (by norm_num)
     nlinarith
   have hkey : 2 * x * (n - 1) < 1 := by nlinarith
-  have h6 : 1 / m * (1 + x) - x ≤ P := by
-    have h2 : lam ^ T * (1 - 1 / m) ≤ x * (1 - 1 / m) := by gcongr
-    calc 1 / m * (1 + x) - x = 1 / m - x * (1 - 1 / m) := by ring
-      _ ≤ 1 / m - lam ^ T * (1 - 1 / m) := by linarith
-      _ ≤ P := by linarith
+  have h6 : 1 / m * (1 + x) - x ≤ P := by linarith [mul_le_mul_of_nonneg_right hlamT h1m]
   have h7 : 1 / n * (1 + x) ≤ 1 / m * (1 + x) :=
     mul_le_mul_of_nonneg_right (one_div_le_one_div_of_le (by positivity) hmn) (by positivity)
   have h8 : 1 / (2 * n) < 1 / n * (1 + x) - x := by
-    have e : 1 / n * (1 + x) - x - 1 / (2 * n) = (1 - 2 * x * (n - 1)) / (2 * n) := by
-      field_simp
-      ring
-    have : 0 < 1 / n * (1 + x) - x - 1 / (2 * n) := by
-      rw [e]
-      exact div_pos (by linarith) (by positivity)
-    linarith
+    rw [← sub_pos, show 1 / n * (1 + x) - x - 1 / (2 * n) = (1 - 2 * x * (n - 1)) / (2 * n) by
+      field_simp; ring]
+    exact div_pos (by linarith) (by positivity)
   have hP' : 1 / (2 * n) < P := by linarith
   rw [div_lt_div_iff₀ (by positivity) (by positivity), one_mul] at hP'
-  rw [hcount]
-  have : ((Fintype.card D ^ T : ℕ) : ℝ) <
-      ((2 * Fintype.card V * #{k : Fin T → D | (C.pow T).neighbor s' k = j'} : ℕ) : ℝ) := by
-    push_cast
-    linarith
-  exact_mod_cast this
+  rw [hcount, ← Nat.cast_lt (α := ℝ)]
+  push_cast
+  linarith
 
 end PointwiseMixing
 

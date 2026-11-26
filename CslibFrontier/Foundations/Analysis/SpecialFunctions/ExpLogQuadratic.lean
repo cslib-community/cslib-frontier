@@ -57,23 +57,16 @@ private theorem one_le_one_sub_mul_exp_add_sq {y : ℝ} (hy : y ≤ 1 / 2) :
 /-- `-y - y ^ 2 ≤ log (1 - y)` for `y ≤ 1 / 2`. With `y = η ∈ [0, 1 / 2]` this is
 `-ln (1 - η) ≤ η + η ^ 2` [AroraHazanKale2012, §1.1]. -/
 theorem neg_sub_sq_le_log_one_sub {y : ℝ} (hy : y ≤ 1 / 2) : -y - y ^ 2 ≤ log (1 - y) := by
-  have h1 : 0 < 1 - y := by linarith
-  rw [le_log_iff_exp_le h1]
-  have h := one_le_one_sub_mul_exp_add_sq hy
-  have hinv : exp (-y - y ^ 2) = (exp (y + y ^ 2))⁻¹ := by
-    rw [← exp_neg, neg_add']
-  rw [hinv, inv_le_iff_one_le_mul₀ (exp_pos _)]
-  linarith [mul_comm (1 - y) (exp (y + y ^ 2))]
+  rw [le_log_iff_exp_le (by linarith), ← neg_add', exp_neg, inv_le_iff_one_le_mul₀ (exp_pos _)]
+  exact one_le_one_sub_mul_exp_add_sq hy
 
 /-- `exp (-y) ≤ 1 - y + y ^ 2` for `-1 ≤ y`: for `|y| ≤ 1` from the second-order bound
 `Real.abs_exp_sub_one_sub_id_le`, and for `y > 1` because `exp (-y) ≤ 1 ≤ 1 - y + y ^ 2`. -/
 theorem exp_neg_le_one_sub_add_sq {y : ℝ} (hy : -1 ≤ y) : exp (-y) ≤ 1 - y + y ^ 2 := by
   rcases le_or_gt y 1 with h1 | h1
-  · have habs : |-y| ≤ 1 := by rw [abs_le]; constructor <;> linarith
-    have h := (abs_le.mp (abs_exp_sub_one_sub_id_le habs)).2
-    rw [neg_sq] at h
-    linarith
-  · have : exp (-y) ≤ 1 := exp_le_one_iff.mpr (by linarith)
-    nlinarith
+  · have h := (abs_le.mp (abs_exp_sub_one_sub_id_le (x := -y)
+      (abs_le.mpr ⟨by linarith, by linarith⟩))).2
+    linarith [neg_sq y]
+  · nlinarith [exp_le_one_iff.mpr (show -y ≤ 0 by linarith)]
 
 end Real

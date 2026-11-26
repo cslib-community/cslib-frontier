@@ -93,26 +93,24 @@ theorem card_le_finrank_of_setShatters_positivityClass [FiniteDimensional ℝ V]
     omega
   obtain ⟨g, hg, i₀, hi₀⟩ := Fintype.not_linearIndependent_iff.1 hdep
   have hsum (v : V) : ∑ x, g x * Φ v x.1 = 0 := by
-    have := congrArg (fun f : Dual ℝ V => f v) hg
-    simpa [ev, LinearMap.sum_apply] using this
+    simpa [ev, LinearMap.sum_apply] using congrArg (fun f : Dual ℝ V => f v) hg
   -- Replace `g` by `-g` if needed so that some coefficient is positive.
-  obtain ⟨g, hsum, i₁, hi₁⟩ : ∃ g : W → ℝ, (∀ v, ∑ x, g x * Φ v x.1 = 0) ∧ ∃ i, 0 < g i := by
-    rcases hi₀.lt_or_gt with h | h
-    · refine ⟨-g, fun v => ?_, i₀, by simpa using h⟩
-      simp only [Pi.neg_apply, neg_mul, Finset.sum_neg_distrib, hsum v, neg_zero]
-    · exact ⟨g, hsum, i₀, h⟩
+  obtain ⟨g, hsum, i₁, hi₁⟩ : ∃ g : W → ℝ, (∀ v, ∑ x, g x * Φ v x.1 = 0) ∧ ∃ i, 0 < g i :=
+    hi₀.lt_or_gt.elim
+      (fun h => ⟨-g, fun v => by
+        simp only [Pi.neg_apply, neg_mul, Finset.sum_neg_distrib, hsum v, neg_zero], i₀,
+        by simpa using h⟩)
+      (fun h => ⟨g, hsum, i₀, h⟩)
   -- Label `true` exactly the points with a positive coefficient.
   obtain ⟨c, ⟨v, rfl⟩, hc⟩ := hW {x | ∃ h : x ∈ W, 0 < g ⟨x, h⟩} fun x hx => hx.1
   have hmem (x : W) : 0 < Φ v x.1 ↔ 0 < g x := by
-    have := congrArg (fun s : Set α => x.1 ∈ s) hc
-    simpa [x.2] using this
+    simpa [x.2] using congrArg (fun s : Set α => x.1 ∈ s) hc
   have hterm (x : W) : 0 ≤ g x * Φ v x.1 := by
     rcases le_or_gt (g x) 0 with h | h
     · exact mul_nonneg_of_nonpos_of_nonpos h (not_lt.1 fun h' => h.not_gt ((hmem x).1 h'))
     · exact (mul_pos h ((hmem x).2 h)).le
-  have hpos : 0 < ∑ x, g x * Φ v x.1 :=
-    Finset.sum_pos' (fun x _ => hterm x) ⟨i₁, Finset.mem_univ _, mul_pos hi₁ ((hmem i₁).2 hi₁)⟩
-  exact hpos.ne' (hsum v)
+  exact (Finset.sum_pos' (fun x _ => hterm x)
+    ⟨i₁, Finset.mem_univ _, mul_pos hi₁ ((hmem i₁).2 hi₁)⟩).ne' (hsum v)
 
 /-- Points at which the parameters realize every vector of real values are shattered. -/
 theorem setShatters_positivityClass_range {ι : Type*} (Φ : V →ₗ[ℝ] α → ℝ) (x : ι → α)
@@ -121,18 +119,16 @@ theorem setShatters_positivityClass_range {ι : Type*} (Φ : V →ₗ[ℝ] α �
   classical
   intro W' hW'
   obtain ⟨v, hv⟩ := hsurj fun i => if x i ∈ W' then 1 else -1
-  refine ⟨_, ⟨v, rfl⟩, ?_⟩
-  ext y
+  refine ⟨_, ⟨v, rfl⟩, Set.ext fun y => ?_⟩
   simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq,
     Set.mem_range]
   constructor
   · rintro ⟨hpos, i, rfl⟩
     by_contra hy
-    simp only [hv, hy, ite_false] at hpos
-    norm_num at hpos
+    norm_num [hv, hy] at hpos
   · intro hy
     obtain ⟨i, rfl⟩ := hW' hy
-    exact ⟨by simp only [hv, hy, ite_true, zero_lt_one], i, rfl⟩
+    exact ⟨by simp [hv, hy], i, rfl⟩
 
 /-- The positivity class of a linear family on a finite-dimensional space has finite VC
 dimension. -/

@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.WordRAM.Realization.Basic
+public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
 public import CslibFrontier.DataStructure.Queue.WordRAM.Model
 import CslibFrontier.Tactic.Realize
 
@@ -21,7 +21,8 @@ and staging instruction while retaining literal whole-memory semantics.
 
 ## Main definitions
 
-* `Input`, `counts`: five input words and two faithfully encoded returned counts.
+* `Input`, `Counts`, `counts`: five input words, the named stack-count record (`front`, `rear`),
+  and its two-word encoding.
 * `move`, `domain`: one physical step and the original two-array capacity/room domain.
 
 ## Main results
@@ -43,20 +44,36 @@ open Cslib.WordRAM Cslib.WordRAM.Realization
 /-- Five live input words: front count, rear count, base, capacity, reserved payload. -/
 abbrev Input := Fin 5 → ℕ
 
+/-- Resident stack element counts (`front` and `rear`) threaded as register values. -/
+structure Counts where
+  /-- Number of live elements in the front stack array. -/
+  front : ℕ
+  /-- Number of live elements in the rear stack array. -/
+  rear : ℕ
+  deriving DecidableEq, Repr
+
+/-- Equivalence between `Counts` and the ordered pair `(front, rear)` of count words. -/
+def Counts.equiv : Counts ≃ ℕ × ℕ where
+  toFun c := (c.front, c.rear)
+  invFun := fun (front, rear) => ⟨front, rear⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+instance : WordEncoding Counts := .ofEquiv Counts.equiv
+
 /-- One exact source transfer step; the counts are values, not cells. -/
-def move (d : Input) : Memory.Prog (ℕ × ℕ) := do
+def move (d : Input) : Memory.Prog Counts := do
   let v ← Memory.read (d 2 + d 3 + (d 1 - 1))
   Memory.write (d 2 + d 0) v
-  pure (d 0 + 1, d 1 - 1)
+  pure ⟨d 0 + 1, d 1 - 1⟩
 
 /-- The old capacity and allocation envelope, without extra count cells or zero memory. -/
 def domain (_w : ℕ) (d : Input) (s : Memory.State) : Prop :=
   0 < d 1 ∧ d 0 + d 1 ≤ d 3 ∧ d 2 + 2 * d 3 ≤ s.frontier
 
-/-- The two returned count words. -/
-def counts : ℕ × ℕ ↪ (Fin 2 → ℕ) :=
-  appendWords (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
-    (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
+/-- The two returned count words (`front` at `0`, `rear` at `1`), preserving the exact word layout
+of `ℕ × ℕ`. -/
+abbrev counts : Counts ↪ (Fin 2 → ℕ) := WordEncoding.encode
 
 /-- One emitter precedes every count, layout, width and initial memory. All native arithmetic
 and vector staging are charged by the memory-query budget; the body performs two queries. -/
@@ -72,7 +89,7 @@ theorem realizes_move : Realizes .exact move (.refl Input) counts
 /-- The exact source history, including the physical read and write. -/
 theorem runClient_move (w : ℕ) (d : Input) (s : Memory.State) :
     (Memory.spec w).runClient s (move d) =
-      ((d 0 + 1, d 1 - 1),
+      (⟨d 0 + 1, d 1 - 1⟩,
         ⟨Function.update s.mem (d 2 + d 0) (s.mem (d 2 + d 3 + (d 1 - 1))), s.frontier⟩,
         [.read (d 2 + d 3 + (d 1 - 1)),
           .write (d 2 + d 0) (s.mem (d 2 + d 3 + (d 1 - 1)))]) := rfl

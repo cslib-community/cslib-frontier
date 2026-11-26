@@ -47,22 +47,17 @@ theorem toOuterMeasure_bind_le_mul_add_mul (p : PMF α) (kernel : α → PMF β)
     (p.bind kernel).toOuterMeasure event ≤
       p.toOuterMeasure pre * a₁ + p.toOuterMeasure preᶜ * a₂ := by
   classical
-  have e₁ : p.toOuterMeasure pre * a₁ = ∑' a, pre.indicator p a * a₁ := by
-    rw [PMF.toOuterMeasure_apply, ENNReal.tsum_mul_right]
-  have e₂ : p.toOuterMeasure preᶜ * a₂ = ∑' a, preᶜ.indicator p a * a₂ := by
-    rw [PMF.toOuterMeasure_apply, ENNReal.tsum_mul_right]
-  rw [e₁, e₂, ← tsum_add, PMF.toOuterMeasure_bind_apply]
+  rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply p pre, ← ENNReal.tsum_mul_right,
+    PMF.toOuterMeasure_apply p preᶜ, ← ENNReal.tsum_mul_right, ← tsum_add]
   refine tsum_le_tsum fun a => ?_
   by_cases hs : a ∈ p.support
   · by_cases ha : a ∈ pre
-    · simp only [Set.indicator_of_mem ha, Set.indicator_of_notMem (Set.notMem_compl_iff.mpr ha),
-        zero_mul, add_zero]
-      exact mul_le_mul_of_nonneg_left (hpre a hs ha) zero_le
-    · simp only [Set.indicator_of_notMem ha, Set.indicator_of_mem (Set.mem_compl ha), zero_mul,
-        zero_add]
-      exact mul_le_mul_of_nonneg_left (hnot a hs ha) zero_le
-  · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using hs
-    simp [hz]
+    · simpa only [Set.indicator_of_mem ha, Set.indicator_of_notMem (Set.notMem_compl_iff.mpr ha),
+        zero_mul, add_zero] using mul_le_mul_of_nonneg_left (hpre a hs ha) zero_le
+    · simpa only [Set.indicator_of_notMem ha, Set.indicator_of_mem (Set.mem_compl ha), zero_mul,
+        zero_add] using mul_le_mul_of_nonneg_left (hnot a hs ha) zero_le
+  · rw [_root_.PMF.mem_support_iff, not_not] at hs
+    simp only [Set.indicator_apply, hs, ite_self, zero_mul, add_zero, le_rfl]
 
 /-- **Total probability with two cases**, in `ℝ`: if the continuation reaches `event` with
 probability at most `a₁ ≥ 0` after a supported outcome in `pre` and at most `a₂ ≥ 0` after any

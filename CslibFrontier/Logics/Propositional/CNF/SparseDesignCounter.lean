@@ -353,10 +353,10 @@ theorem CNF.natDegree_univariateClearedParityCoord_branchParityRowSystem_le
         (φ.branchParityRowSystem rows S e b) (commonDenom Q R : ℤ) k ℓ
         (designReplacementScaledIntMap D emb) s).natDegree ≤
       (k * (R - 1)) * (rows.length + 2 * (ℓ - 1)) := by
-  have hdeg := natDegree_univariateClearedParityCoord_design_le D emb
-    (univ : Finset (Fin rows.length)) (φ.branchParityRowSystem rows S e b)
-    (fun j _ _M hM => CNF.card_mem_branchParityRowSystem_le hk rows S e b j hM) hs
-  simpa only [card_univ, Fintype.card_fin] using hdeg
+  simpa only [card_univ, Fintype.card_fin] using
+    natDegree_univariateClearedParityCoord_design_le D emb
+      (univ : Finset (Fin rows.length)) (φ.branchParityRowSystem rows S e b)
+      (fun j _ _M hM => CNF.card_mem_branchParityRowSystem_le hk rows S e b j hM) hs
 
 /-- **Equation (5.5) degree bound for `univariateClearedParityTruncatedSum` on a branch-restricted
 CNF parity system**: under `∀ c ∈ φ, c.length ≤ k`, the truncated sum has
@@ -373,10 +373,10 @@ theorem CNF.natDegree_univariateClearedParityTruncatedSum_branchParityRowSystem_
         (φ.branchParityRowSystem rows S e b) (commonDenom Q R : ℤ) k ℓ
         (designReplacementScaledIntMap D emb)).natDegree ≤
       (k * (R - 1)) * (rows.length + 2 * (ℓ - 1)) := by
-  have hdeg := natDegree_univariateClearedParityTruncatedSum_design_le D emb
-    (univ : Finset (Fin rows.length)) (φ.branchParityRowSystem rows S e b) k ℓ
-    (fun j _ _M hM => CNF.card_mem_branchParityRowSystem_le hk rows S e b j hM)
-  simpa only [card_univ, Fintype.card_fin] using hdeg
+  simpa only [card_univ, Fintype.card_fin] using
+    natDegree_univariateClearedParityTruncatedSum_design_le D emb
+      (univ : Finset (Fin rows.length)) (φ.branchParityRowSystem rows S e b) k ℓ
+      (fun j _ _M hM => CNF.card_mem_branchParityRowSystem_le hk rows S e b j hM)
 
 /-- **Appendix B.2 coordinate `coeffNorm1` bound on a branch-restricted CNF parity system**: if
 every clause of `φ` has width at most `k` and every row in `rows` has Hamming weight at most `W`,
@@ -397,13 +397,12 @@ theorem CNF.coeffNorm1_univariateClearedParityCoord_branchParityRowSystem_le
         (ℓ * E_ℓ *
           ((W * 2 ^ k) * designRowNormBound Q R ^ k + commonDenom Q R ^ k) ^ (2 * ℓ - 1)) ^
             rows.length := by
-  have hnorm := coeffNorm1_univariateClearedParityCoord_design_le D emb
-    (univ : Finset (Fin rows.length)) (φ.branchParityRowSystem rows S e b) k ℓ
-    (S_mon := W * 2 ^ k)
-    (fun j _ _M hM => CNF.card_mem_branchParityRowSystem_le hk rows S e b j hM)
-    (fun j _ => CNF.card_branchParityRowSystem_le hk hW S e b j)
-    hE s
-  simpa only [card_univ, Fintype.card_fin] using hnorm
+  simpa only [card_univ, Fintype.card_fin] using
+    coeffNorm1_univariateClearedParityCoord_design_le D emb
+      (univ : Finset (Fin rows.length)) (φ.branchParityRowSystem rows S e b) k ℓ
+      (S_mon := W * 2 ^ k)
+      (fun j _ _M hM => CNF.card_mem_branchParityRowSystem_le hk rows S e b j hM)
+      (fun j _ => CNF.card_branchParityRowSystem_le hk hW S e b j) hE s
 
 end BranchDesignBounds
 
@@ -575,15 +574,10 @@ theorem CNF.exists_initialTests_modelCountOn_eq_sum_branch_emod_ediv_design_gree
   obtain ⟨A_init, hlen, hw, hgreedy⟩ := CNF.exists_initialTests_commonZeroCount_greedy φ hk hn hB hm
   refine ⟨A_init, hlen, hw, fun A γ h0 hA hγ => ?_⟩
   obtain ⟨hcount, hbounds⟩ := hgreedy A γ h0 hA hγ
-  refine ⟨fun i hi => ?_, fun S e scope D emb => ?_⟩
-  · obtain ⟨hlen_i, hj⟩ := hbounds i hi
-    refine ⟨hlen_i, fun j => ?_⟩
-    obtain ⟨hM, hcard, hscope⟩ := hj j
-    rw [max_initialRowWeightBound_greedyRowListLength] at hcard hscope
-    exact ⟨hM, hcard, hscope⟩
-  · rw [← hcount]
-    exact CNF.commonZeroCount_parityRowSystem_eq_sum_branch_emod_ediv_design hk
-      (A (3 * Fintype.card V)) S e scope D emb
+  refine ⟨fun i hi => ⟨(hbounds i hi).1, fun j => ?_⟩, fun S e scope D emb =>
+    hcount ▸ CNF.commonZeroCount_parityRowSystem_eq_sum_branch_emod_ediv_design hk
+      (A (3 * Fintype.card V)) S e scope D emb⟩
+  simpa only [max_initialRowWeightBound_greedyRowListLength] using (hbounds i hi).2 j
 
 end DesignRecovery
 

@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Primitives.Hash.Sponge
+public import CslibFrontier.Foundations.Data.BitString.Basic
+public import CslibFrontier.Foundations.Data.BitString.Pad10Star
 import CslibFrontier.Foundations.Data.List.ModifyLast
 public import Cslib.Probability.PMF
 import CslibFrontier.Probability.PMF.Uniform
@@ -29,7 +30,7 @@ is not proved here.
   most `ε`. The encodings need not be injective for a fixed key, as the book remarks.
 * `cmacRpf n (k₁, k₂)` is CMAC's encoding of a bit string (§6.10): a message whose length is a
   positive multiple of `n` is cut into `n`-bit blocks and `k₁` is added to the last; any other
-  message is padded with `1 ‖ 0^*` (`Cslib.Crypto.Sponge.pad`) and `k₂` is added to the last
+  message is padded with `1 ‖ 0^*` (`Cslib.BitString.pad10star`) and `k₂` is added to the last
   block.
 
 ## Main results
@@ -128,16 +129,16 @@ private theorem exists_key_eq_of_length_lt {l₀ l₁ : List X} (hl₀ : l₀ �
       PrefixCompatible (l₀.modifyLast (· + c₀)) (l₁.modifyLast (· + c₁)) → c₀ = c := by
   obtain ⟨init, a, rfl⟩ := (List.eq_nil_or_concat l₀).resolve_left hl₀
   simp only [List.concat_eq_append, List.length_append, List.length_singleton] at hlt
-  have hi : init.length < l₁.length := by omega
-  refine ⟨-a + l₁[init.length], fun c₀ c₁ hc => ?_⟩
+  refine ⟨-a + l₁[init.length]'(by omega), fun c₀ c₁ hc => ?_⟩
   rcases hc with hpre | hpre
   · rw [List.concat_eq_append, List.modifyLast_concat] at hpre
     have hget := hpre.getElem (i := init.length) (by simp)
-    rw [List.getElem_concat_length rfl, List.getElem_modifyLast] at hget
-    simp only [show init.length + 1 ≠ l₁.length by omega, ↓reduceIte] at hget
+    rw [List.getElem_concat_length rfl, List.getElem_modifyLast,
+      ite_eq_right (by omega)] at hget
     exact eq_neg_add_of_add_eq hget
   · have := hpre.length_le
-    simp at this
+    simp only [List.concat_eq_append, List.length_modifyLast, List.length_append,
+      List.length_singleton] at this
     omega
 
 /-- If two lists of equal length are prefix-compatible after adding keys to their last blocks, the
@@ -147,22 +148,19 @@ private theorem exists_key_eq_add_of_length_eq {l₀ l₁ : List X} (hl₀ : l�
       PrefixCompatible (l₀.modifyLast (· + c₀)) (l₁.modifyLast (· + c₁)) →
         c₀ = d + c₁ ∧ (c₀ = c₁ → l₀ = l₁) := by
   obtain ⟨i₀, a₀, rfl⟩ := (List.eq_nil_or_concat l₀).resolve_left hl₀
-  obtain ⟨i₁, a₁, rfl⟩ := (List.eq_nil_or_concat l₁).resolve_left (by
-    rintro rfl
-    simp at hlen)
+  obtain ⟨i₁, a₁, rfl⟩ := (List.eq_nil_or_concat l₁).resolve_left fun h => by simp [h] at hlen
   simp only [List.concat_eq_append, List.length_append, List.length_singleton,
     Nat.add_right_cancel_iff] at hlen
   refine ⟨-a₀ + a₁, fun c₀ c₁ hc => ?_⟩
-  have heq : i₀ ++ [a₀ + c₀] = i₁ ++ [a₁ + c₁] := by
-    simp only [List.concat_eq_append, List.modifyLast_concat] at hc
-    rcases hc with hpre | hpre
-    · exact hpre.eq_of_length (by simp [hlen])
-    · exact (hpre.eq_of_length (by simp [hlen])).symm
+  simp only [List.concat_eq_append, List.modifyLast_concat] at hc
+  have heq : i₀ ++ [a₀ + c₀] = i₁ ++ [a₁ + c₁] :=
+    hc.elim (fun h => h.eq_of_length (by simp [hlen]))
+      fun h => (h.eq_of_length (by simp [hlen])).symm
   obtain ⟨rfl, hlast⟩ := List.append_inj heq hlen
-  simp only [List.cons.injEq, and_true] at hlast
-  refine ⟨by rw [add_assoc, ← eq_neg_add_of_add_eq hlast], fun hc => ?_⟩
-  subst hc
-  rw [add_right_cancel hlast]
+  have hlast' := List.head_eq_of_cons_eq hlast
+  refine ⟨by rw [add_assoc, ← eq_neg_add_of_add_eq hlast'], ?_⟩
+  rintro rfl
+  rw [add_right_cancel hlast']
 
 end ModifyLast
 
@@ -199,8 +197,8 @@ theorem isRandPrefixFreeEncoding_modifyLast_add (X : Type*) [Fintype X] [Nonempt
 `(false, blocks of m ‖ 1 ‖ 0^*)`. The flag selects the key added to the last block. -/
 @[expose]
 def cmacCore (n : ℕ) (m : List Bool) : Bool × List (BitString n) :=
-  if 0 < m.length ∧ n ∣ m.length then (true, Sponge.toBlocks n m)
-  else (false, Sponge.toBlocks n (Sponge.pad n m))
+  if 0 < m.length ∧ n ∣ m.length then (true, BitString.toBlocks n m)
+  else (false, BitString.toBlocks n (BitString.pad10star n m))
 
 /-- CMAC's randomized prefix-free encoding ([BonehShoup2023], §6.10, p. 242). Cut `m` into `n`-bit
 blocks; if `|m|` is a positive multiple of `n`, add `k₁` to the last block, and otherwise pad `m`
@@ -213,18 +211,18 @@ private theorem cmacCore_snd_ne_nil {n : ℕ} (hn : 0 < n) (m : List Bool) :
     (cmacCore n m).2 ≠ [] := by
   unfold cmacCore
   split_ifs with h
-  · rw [← List.length_pos_iff, Sponge.length_toBlocks]
+  · rw [← List.length_pos_iff, BitString.length_toBlocks]
     exact Nat.div_pos (Nat.le_of_dvd h.1 h.2) hn
-  · exact Sponge.toBlocks_pad_ne_nil hn m
+  · exact BitString.toBlocks_pad10star_ne_nil hn m
 
 private theorem cmacCore_injective {n : ℕ} (hn : 0 < n) : Function.Injective (cmacCore n) := by
   intro m₀ m₁ h
   unfold cmacCore at h
   split_ifs at h with h₀ h₁ h₁
-  · exact Sponge.toBlocks_injOn hn h₀.2 h₁.2 (congrArg Prod.snd h)
+  · exact BitString.toBlocks_injOn h₀.2 h₁.2 (congrArg Prod.snd h)
   · simp at h
   · simp at h
-  · exact Sponge.toBlocks_pad_injective hn (congrArg Prod.snd h)
+  · exact BitString.toBlocks_pad10star_injective hn (congrArg Prod.snd h)
 
 /-- CMAC's encoding has the book's codomain: a message of at most `nℓ` bits has at most `ℓ`
 blocks, for `0 < n` and `1 ≤ ℓ`. -/
@@ -233,16 +231,13 @@ theorem length_cmacRpf_le {n ℓ : ℕ} (hn : 0 < n) (hℓ : 1 ≤ ℓ) (k : Bit
   rw [cmacRpf, List.length_modifyLast, cmacCore]
   split_ifs with h
   · simpa using Nat.div_le_of_le_mul hm
-  · have hlt : m.length < n * ℓ := by
-      rcases Nat.eq_zero_or_pos m.length with h0 | hpos
-      · rw [h0]
-        exact Nat.mul_pos hn hℓ
-      · exact lt_of_le_of_ne hm fun heq => h ⟨hpos, ⟨ℓ, heq⟩⟩
-    have hpad : (Sponge.pad n m).length < n * (ℓ + 1) := by
-      have := Sponge.length_pad_le hn m
+  · have hlt : m.length < n * ℓ :=
+      (Nat.eq_zero_or_pos m.length).elim (fun h0 => h0.symm ▸ Nat.mul_pos hn hℓ)
+        fun hpos => lt_of_le_of_ne hm fun heq => h ⟨hpos, ℓ, heq⟩
+    have := BitString.length_pad10star_le hn m
+    simpa [Nat.lt_succ_iff] using Nat.div_lt_of_lt_mul (k := ℓ + 1) (by
       rw [Nat.mul_succ]
-      omega
-    simpa [Nat.lt_succ_iff] using Nat.div_lt_of_lt_mul hpad
+      omega)
 
 /-- Selecting a key by a flag. -/
 private abbrev selectKey {X : Type*} (b : Bool) (k : X × X) : X := if b then k.1 else k.2
@@ -252,51 +247,49 @@ private theorem card_filter_selectKey_le {X : Type*} [Fintype X] (b : Bool)
     (φ : X → X) (s : Finset (X × X)) (hs : ∀ k ∈ s, selectKey b k = φ (selectKey (!b) k)) :
     s.card ≤ Fintype.card X := by
   classical
-  have hsub : s ⊆ Finset.univ.image fun x : X => if b then (φ x, x) else (x, φ x) := by
-    intro k hk
-    have h := hs k hk
-    refine Finset.mem_image.mpr ⟨selectKey (!b) k, Finset.mem_univ _, ?_⟩
-    cases b <;> simp only [selectKey, Bool.not_false, Bool.not_true, Bool.false_eq_true,
-      ↓reduceIte] at h ⊢ <;> rw [← h]
-  exact (Finset.card_le_card hsub).trans (Finset.card_image_le.trans (by simp))
+  refine (Finset.card_le_card (t := Finset.univ.image fun x : X =>
+      if b then (φ x, x) else (x, φ x)) fun k hk => ?_).trans (Finset.card_image_le.trans (by simp))
+  have h := hs k hk
+  refine Finset.mem_image.mpr ⟨selectKey (!b) k, Finset.mem_univ _, ?_⟩
+  cases b <;> simp only [selectKey, Bool.not_false, Bool.not_true, Bool.false_eq_true,
+    ↓reduceIte] at h ⊢ <;> rw [← h]
 
 /-- CMAC's encoding with two independent uniform keys is a randomized `2⁻ⁿ`-prefix-free encoding
 of all bit strings, for `0 < n` ([BonehShoup2023], §6.10, p. 242). -/
 theorem isRandPrefixFreeEncoding_cmacRpf {n : ℕ} (hn : 0 < n) :
     IsRandPrefixFreeEncoding (PMF.uniformOfFintype (BitString n × BitString n)) (cmacRpf n)
       ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  have hcard := IsRandPrefixFreeEncoding.of_card_le (c := Fintype.card (BitString n))
-    (rpf := cmacRpf n)
-    (fun k m => by simpa [cmacRpf, ← List.length_pos_iff] using cmacCore_snd_ne_nil hn m)
-    fun m₀ m₁ hm => by
-      have hne := (cmacCore_injective hn).ne hm
-      have hL₀ := cmacCore_snd_ne_nil hn m₀
-      have hL₁ := cmacCore_snd_ne_nil hn m₁
-      unfold cmacRpf
-      generalize cmacCore n m₀ = c₀ at hne hL₀
-      generalize cmacCore n m₁ = c₁ at hne hL₁
-      obtain ⟨b₀, L₀⟩ := c₀
-      obtain ⟨b₁, L₁⟩ := c₁
-      dsimp only at hL₀ hL₁ ⊢
-      rcases lt_trichotomy L₀.length L₁.length with hlt | heq | hgt
-      · obtain ⟨c, hc⟩ := exists_key_eq_of_length_lt hL₀ hlt
-        exact card_filter_selectKey_le b₀ (fun _ => c) _ fun k hk =>
-          hc _ _ (Finset.mem_filter.mp hk).2
-      · obtain ⟨d, hd⟩ := exists_key_eq_add_of_length_eq hL₀ heq
-        by_cases hb : b₀ = b₁
-        · subst hb
-          refine (Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun k _ hk =>
-            hne ?_)).trans_le (Nat.zero_le _)
-          rw [(hd _ _ hk).2 rfl]
-        · obtain rfl : b₁ = !b₀ := by cases b₀ <;> cases b₁ <;> simp at hb ⊢
-          exact card_filter_selectKey_le b₀ (d + ·) _ fun k hk =>
-            (hd _ _ (Finset.mem_filter.mp hk).2).1
-      · obtain ⟨c, hc⟩ := exists_key_eq_of_length_lt hL₁ hgt
-        exact card_filter_selectKey_le b₁ (fun _ => c) _ fun k hk =>
-          hc _ _ ((prefixCompatible_comm _ _).mp (Finset.mem_filter.mp hk).2)
-  convert hcard using 1
-  rw [Fintype.card_prod, Cslib.BitString.card, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat,
-    ENNReal.div_eq_inv_mul, ENNReal.mul_inv (Or.inl (by positivity)) (Or.inl (by simp)), mul_assoc,
-    ENNReal.inv_mul_cancel (by positivity) (by simp), mul_one]
+  have hratio : ((2 : ℝ≥0∞) ^ n)⁻¹ =
+      Fintype.card (BitString n) / Fintype.card (BitString n × BitString n) := by
+    rw [Fintype.card_prod, Cslib.BitString.card, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat,
+      ENNReal.div_eq_inv_mul, ENNReal.mul_inv (Or.inl (by positivity)) (Or.inl (by simp)),
+      mul_assoc, ENNReal.inv_mul_cancel (by positivity) (by simp), mul_one]
+  rw [hratio]
+  refine IsRandPrefixFreeEncoding.of_card_le (c := Fintype.card (BitString n)) (rpf := cmacRpf n)
+    (fun _ m => by simpa [cmacRpf, ← List.length_pos_iff] using cmacCore_snd_ne_nil hn m)
+    fun m₀ m₁ hm => ?_
+  have hne := (cmacCore_injective hn).ne hm
+  have hL₀ := cmacCore_snd_ne_nil hn m₀
+  have hL₁ := cmacCore_snd_ne_nil hn m₁
+  unfold cmacRpf
+  generalize cmacCore n m₀ = c₀ at hne hL₀
+  generalize cmacCore n m₁ = c₁ at hne hL₁
+  obtain ⟨b₀, L₀⟩ := c₀
+  obtain ⟨b₁, L₁⟩ := c₁
+  dsimp only at hL₀ hL₁ ⊢
+  rcases lt_trichotomy L₀.length L₁.length with hlt | heq | hgt
+  · obtain ⟨c, hc⟩ := exists_key_eq_of_length_lt hL₀ hlt
+    exact card_filter_selectKey_le b₀ (fun _ => c) _ fun k hk =>
+      hc _ _ (Finset.mem_filter.mp hk).2
+  · obtain ⟨d, hd⟩ := exists_key_eq_add_of_length_eq hL₀ heq
+    rcases eq_or_ne b₀ b₁ with rfl | hb
+    · exact (Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun k _ hk =>
+        hne (congrArg (b₀, ·) ((hd _ _ hk).2 rfl)))).trans_le (Nat.zero_le _)
+    · obtain rfl : b₁ = !b₀ := by cases b₀ <;> cases b₁ <;> first | rfl | contradiction
+      exact card_filter_selectKey_le b₀ (d + ·) _ fun k hk =>
+        (hd _ _ (Finset.mem_filter.mp hk).2).1
+  · obtain ⟨c, hc⟩ := exists_key_eq_of_length_lt hL₁ hgt
+    exact card_filter_selectKey_le b₁ (fun _ => c) _ fun k hk =>
+      hc _ _ ((prefixCompatible_comm _ _).mp (Finset.mem_filter.mp hk).2)
 
 end Cslib.Crypto.PRF

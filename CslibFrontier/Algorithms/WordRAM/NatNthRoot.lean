@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
 public import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
 public import Mathlib.Data.Nat.Log
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
@@ -78,67 +79,34 @@ theorem exec {w : ℕ} (x : Data 6) (hm : 1 ≤ x.regs m) (h1 : Fits w 1)
   set b := x.regs m
   set e := x.regs k
   set N := x.regs n
+  unfold program
+  wram_exec
   let I (y : Data 6) : Prop := y.regs m = b ∧ y.regs k = e ∧ y.regs n = N ∧ y.regs one = 1 ∧
     y.regs i ≤ e ∧ (y.regs p = b ^ y.regs i ∨ (N < y.regs p ∧ N < b ^ e)) ∧ y.mem = x.mem
-  have hbody (y : Data 6) (hy : I y) (hc : (Cond.lt i k).Holds y) :
-      ∃ z, ExecWithin w body y z 4 ∧ I z ∧ e - z.regs i < e - y.regs i := by
-    obtain ⟨hym, hyk, hyn, hyo, hyi, hyp, hymem⟩ := hy
+  refine WP.of_spec (ExecWithin.loop_invariant (T := 4) I (fun y => e - y.regs i) ?_ ?_) ?_
+  · rintro y ⟨hym, hyk, hyn, hyo, hyi, hyp, hymem⟩ hc
     have hlt : y.regs i < e := by simpa only [Cond.holds_lt, hyk] using hc
+    unfold body
     by_cases hover : N < y.regs p
-    · have hc' : (Cond.lt n p).Holds y := by simpa only [Cond.holds_lt, hyn] using hover
-      have hcopy : ExecWithin (B := .standard) w (ram[ i ← k ]) y (y.set i e) 1 := by
-        simpa only [hyk] using ExecWithin.copy (B := .standard) (w := w) (d := i) (s := k) (x := y)
-      refine ⟨y.set i e, (ExecWithin.branch_pos hc' hcopy).mono (by omega), ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hymem⟩
-        · simpa +decide [Function.update_apply] using hym
-        · simpa +decide [Function.update_apply] using hyk
-        · simpa +decide [Function.update_apply] using hyn
-        · simpa +decide [Function.update_apply] using hyo
-        · simp
-        · refine Or.inr ⟨by simpa +decide [Function.update_apply] using hover, ?_⟩
-          rcases hyp with h | h
-          · exact hover.trans_le (h ▸ Nat.pow_le_pow_right hm hyi)
-          · exact h.2
-      · simp only [Data.set_regs, Function.update_self]; omega
-    · have hc' : ¬(Cond.lt n p).Holds y := by simpa only [Cond.holds_lt, hyn] using hover
-      have hpow : y.regs p = b ^ y.regs i := hyp.resolve_right (fun h => hover h.1)
-      have hmul : Fits w (y.regs p * y.regs m) := by
-        rw [hym]; exact hprod.of_le (Nat.mul_le_mul_right _ (by omega))
-      have hinc : Fits w (y.regs i + 1) := hk.of_le (by omega)
-      refine ⟨?z, ?run, ?inv, ?decrease⟩
-      case run =>
-        refine ExecWithin.branch_neg hc' ?_
-        ram_eval [hmul, hinc, hyo]
-      case inv =>
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hymem⟩
-        · simpa +decide [Function.update_apply] using hym
-        · simpa +decide [Function.update_apply] using hyk
-        · simpa +decide [Function.update_apply] using hyn
-        · simpa +decide [Function.update_apply] using hyo
-        · simp +decide only [Data.set_regs, Function.update_apply, ↓reduceIte]; omega
-        · left
-          simp +decide only [Data.set_regs, Function.update_apply, ↓reduceIte, hpow, hym,
-            pow_succ]
-      case decrease =>
-        simp +decide only [Data.set_regs, Function.update_apply, ↓reduceIte]; omega
-  let x₀ := ((x.set p 1).set i 0).set one 1
-  have hx₀ : I x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, rfl⟩ <;> simp +decide [x₀, b, e, N]
-  obtain ⟨y, he, hy, hc⟩ := ExecWithin.loop_invariant I (fun y => e - y.regs i) hbody hx₀
-  obtain ⟨hym, hyk, hyn, hyo, hyi, hyp, hymem⟩ := hy
-  have hend : y.regs i = e := by simp only [Cond.holds_lt, hyk] at hc; omega
-  have hinit : ExecWithin (B := .standard) w (ram[ p ← #1; i ← #0; one ← #1 ]) x x₀ 3 := by
-    ram_eval [x₀, h1]
-  refine ⟨y, ?_, ?_, ?_, hym, hyk, hyn, hyo, hymem⟩
-  · have hi₀ : x₀.regs i = 0 := by simp +decide [x₀]
-    exact (hinit.seq he).mono (by rw [hi₀]; omega)
-  · rw [hend] at hyp
-    rcases hyp with h | h
-    · rw [h]
-    · exact ⟨fun hle => absurd hle (not_le.mpr h.1), fun hle => absurd hle (not_le.mpr h.2)⟩
-  · intro hle
+    · wram_exec [hyn, hyk, hover]
+      dsimp only [I]
+      wram_simp [hym, hyk, hyn, hyo, hymem, le_rfl]
+      refine ⟨Or.inr ⟨hover, ?_⟩, by omega⟩
+      exact hyp.elim (fun h => hover.trans_le (h ▸ Nat.pow_le_pow_right hm hyi)) And.right
+    · have hpow : y.regs p = b ^ y.regs i := hyp.resolve_right fun h => hover h.1
+      have hmul : Fits w (y.regs p * b) := by
+        fits [Nat.mul_le_mul_right b (show y.regs p ≤ N by omega)]
+      wram_exec [hyn, hym, hyo, hover, hmul]
+      dsimp only [I]
+      wram_simp [hym, hyk, hyn, hyo, hymem, hpow, ← pow_succ]
+      exact ⟨⟨by omega, Or.inl trivial⟩, by omega⟩
+  · dsimp only [I, b, e, N]; wram_simp; simp
+  · rintro y ⟨⟨hym, hyk, hyn, hyo, hyi, hyp, hymem⟩, hc⟩
+    have hend : y.regs i = e := by simp only [Cond.holds_lt, hyk] at hc; omega
     rw [hend] at hyp
-    exact hyp.resolve_right fun h => absurd hle (not_le.mpr h.2)
+    refine ⟨by wram_simp; omega, ?_, ?_, hym, hyk, hyn, hyo, hymem⟩
+    · exact hyp.elim (fun h => by rw [h]) fun h => ⟨by omega, by omega⟩
+    · exact fun hle => hyp.resolve_right fun h => by omega
 
 /-- Run the capped power on any injectively chosen registers. -/
 theorem exec_rename {r w : ℕ} (f : Fin 6 → Fin r) (hf : f.Injective) (x : Data r)
@@ -201,104 +169,69 @@ theorem exec {w : ℕ} (x : Data 10) (hk : 1 ≤ x.regs k) (hkfit : Fits w (x.re
   set N := x.regs n
   set e := x.regs k
   have he0 : e ≠ 0 := by omega
-  have h1 : Fits w 1 := hfit.of_le (by omega)
+  have h1 : Fits w 1 := by fits
+  have hn1 : Fits w (N + 1) := by fits [show N + 1 ≤ N * N + 2 * N + 2 by nlinarith]
+  unfold program
+  wram_exec
   let I (y : Data 10) : Prop := y.regs n = N ∧ y.regs k = e ∧ y.regs one = 1 ∧ y.regs two = 2 ∧
     y.regs t = y.regs lo + 1 ∧ y.regs lo < y.regs hi ∧ y.regs hi ≤ N + 1 ∧
     y.regs lo ^ e ≤ N ∧ N < y.regs hi ^ e ∧ y.mem = x.mem
-  have hbody (y : Data 10) (hy : I y) (hc : (Cond.lt t hi).Holds y) :
-      ∃ z, ExecWithin w body y z (6 * e + 11) ∧ I z ∧
-        Nat.clog 2 (z.regs hi - z.regs lo) < Nat.clog 2 (y.regs hi - y.regs lo) := by
-    obtain ⟨hyn, hyk, hyo, hyt2, hyt, hlohi, hhi, hlo, hhip, hymem⟩ := hy
+  refine WP.of_spec
+    (ExecWithin.loop_invariant (T := 6 * e + 11) I
+      (fun y => Nat.clog 2 (y.regs hi - y.regs lo)) ?_ ?_) ?_
+  · rintro y ⟨hyn, hyk, hyo, hyt2, hyt, hlohi, hhi, hlo, hhip, hymem⟩ hc
     obtain ⟨l, hl⟩ : ∃ l, y.regs lo = l := ⟨_, rfl⟩
     obtain ⟨h, hh⟩ : ∃ h, y.regs hi = h := ⟨_, rfl⟩
     simp only [hl, hh] at hlohi hlo hhip hyt hhi
     have hgap : l + 1 < h := by simpa only [Cond.holds_lt, hyt, hh] using hc
-    have hmd1 : l < (l + h) / 2 := by omega
-    have hmd2 : (l + h) / 2 < h := by omega
-    have hsum : Fits w (l + h) := hfit.of_le (by nlinarith)
-    have hdiv : Fits w ((l + h) / 2) := hsum.of_le (Nat.div_le_self _ _)
-    -- After the two midpoint instructions.
-    let y₁ := (y.set mid (l + h)).set mid ((l + h) / 2)
-    have hrun₁ : ExecWithin (B := .standard) w (ram[ mid ← lo + hi; mid ← mid / two ]) y y₁ 2 := by
-      ram_eval [y₁, hl, hh, hsum, hdiv, hyt2]
-    have hy₁ (j : Fin 10) (hj : j ≠ mid) : y₁.regs j = y.regs j := by
-      simp [y₁, hj]
-    have hy₁m : y₁.regs mid = (l + h) / 2 := by simp [y₁]
-    have hmdN : (l + h) / 2 ≤ N := by omega
-    have hcm : capMap CapPow.m = mid := rfl
-    have hck : capMap CapPow.k = k := rfl
-    have hcn : capMap CapPow.n = n := rfl
-    have hcp : capMap CapPow.p = p := rfl
-    have hco : capMap CapPow.one = one := rfl
-    obtain ⟨y₂, hrun₂, hple, -, hy₂m, hy₂k, hy₂n, hy₂o, hy₂mem⟩ :=
-      CapPow.exec_rename capMap capMap_injective y₁ (by rw [hcm, hy₁m]; omega) h1
-        (by rw [hck, hy₁ k (by decide), hyk]; exact hkfit)
-        (by
-          rw [hcn, hcm, hy₁m, hy₁ n (by decide), hyn]
-          exact hfit.of_le ((Nat.mul_le_mul_left N hmdN).trans (by omega)))
-    rw [hcp, hcn, hcm, hck, hy₁m, hy₁ n (by decide), hy₁ k (by decide), hyn, hyk] at hple
-    rw [hck, hy₁ k (by decide), hyk] at hy₂k
-    rw [hcn, hy₁ n (by decide), hyn] at hy₂n
-    rw [hco] at hy₂o
-    rw [hcm, hy₁m] at hy₂m
-    rw [hck, hy₁ k (by decide), hyk] at hrun₂
+    have hsum : Fits w (l + h) := by fits [show l + h ≤ N * N + 2 * N + 2 by nlinarith]
+    have hprod_mid : Fits w (N * ((l + h) / 2)) := by
+      fits [show N * ((l + h) / 2) ≤ N * N + 2 * N + 2 from
+        (Nat.mul_le_mul_left N (by omega : (l + h) / 2 ≤ N)).trans (by omega)]
+    unfold body
+    generalize hsub : CapPow.program.rename capMap = sub
+    wram_exec [hl, hh, hyt2]
+    subst hsub
+    refine WP.of_spec (ExecWithin.rename_post capMap_injective (CapPow.exec _ ?_ h1 ?_ ?_)) ?_
+    · rw [Data.comap_regs, show capMap CapPow.m = mid from rfl]; wram_simp; omega
+    · rw [Data.comap_regs, show capMap CapPow.k = k from rfl]; wram_simp [hyk]; exact hkfit
+    · rw [Data.comap_regs, Data.comap_regs, show capMap CapPow.n = n from rfl,
+        show capMap CapPow.m = mid from rfl]
+      wram_simp [hyn]; exact hprod_mid
+    rintro y₂ ⟨⟨hple, -, hy₂m, hy₂k, hy₂n, hy₂o, hy₂mem⟩, hframe⟩
+    simp only [Data.comap_regs, Data.comap_mem, show capMap CapPow.m = mid from rfl,
+      show capMap CapPow.k = k from rfl, show capMap CapPow.n = n from rfl,
+      show capMap CapPow.p = p from rfl, show capMap CapPow.one = one from rfl]
+      at hple hy₂m hy₂k hy₂n hy₂o hy₂mem ⊢
+    wram_simp [hyn, hyk] at hple hy₂m hy₂k hy₂n hy₂o hy₂mem ⊢
     have hy₂lo : y₂.regs lo = l := by regs_frame
     have hy₂hi : y₂.regs hi = h := by regs_frame
     have hy₂two : y₂.regs two = 2 := by regs_frame
-    have hy₂mid : y₂.regs mid = (l + h) / 2 := hy₂m
-    by_cases hover : N < y₂.regs p
-    · -- The probe is too large: `hi ← mid`.
-      have hc' : (Cond.lt n p).Holds y₂ := by simpa only [Cond.holds_lt, hy₂n] using hover
-      have hpow : N < ((l + h) / 2) ^ e := by
-        by_contra hle
-        exact absurd (hple.mpr (not_lt.mp hle)) (not_le.mpr hover)
-      have hinc : Fits w (l + 1) := hfit.of_le (by nlinarith)
-      let z := (y₂.set hi ((l + h) / 2)).set t (l + 1)
-      have hrun₃ : ExecWithin (B := .standard) w
-          (ram[ if n < p then [ hi ← mid ] else [ lo ← mid ]; t ← lo + one ]) y₂ z 3 := by
-        refine ((ExecWithin.branch_pos (T := 1) hc' (ExecWithin.copy (d := hi) (s := mid))).seq
-          (T₂ := 1) ?_).mono (by norm_num)
-        ram_eval [z, hy₂lo, hy₂o, hy₂mid, hinc]
-      refine ⟨z, (hrun₁.seq (hrun₂.seq hrun₃)).mono (by omega), ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hy₂mem.trans hymem⟩ <;>
-          simp +decide [z, hy₂n, hy₂k, hy₂o, hy₂two, hy₂lo] <;> omega
-      · simp +decide only [z, Data.set_regs, Function.update_apply, ↓reduceIte, hy₂lo, hl, hh]
-        exact Nat.clog_two_lt_clog_two_of_le_half (by omega) (by omega)
-    · have hc' : ¬(Cond.lt n p).Holds y₂ := by simpa only [Cond.holds_lt, hy₂n] using hover
-      have hpow : ((l + h) / 2) ^ e ≤ N := hple.mp (not_lt.mp hover)
-      have hinc : Fits w ((l + h) / 2 + 1) := hfit.of_le (by nlinarith)
-      let z := (y₂.set lo ((l + h) / 2)).set t ((l + h) / 2 + 1)
-      have hrun₃ : ExecWithin (B := .standard) w
-          (ram[ if n < p then [ hi ← mid ] else [ lo ← mid ]; t ← lo + one ]) y₂ z 4 := by
-        refine ((ExecWithin.branch_neg (T := 1) hc' (ExecWithin.copy (d := lo) (s := mid))).seq
-          (T₂ := 1) ?_).mono (by norm_num)
-        ram_eval [z, hy₂o, hy₂mid, hinc]
-      refine ⟨z, (hrun₁.seq (hrun₂.seq hrun₃)).mono (by omega), ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hy₂mem.trans hymem⟩ <;>
-          simp +decide [z, hy₂n, hy₂k, hy₂o, hy₂two, hy₂hi] <;> omega
-      · simp +decide only [z, Data.set_regs, Function.update_apply, ↓reduceIte, hy₂hi, hl, hh]
-        exact Nat.clog_two_lt_clog_two_of_le_half (by omega) (by omega)
-  have hn1 : Fits w (x.regs n + 1) := hfit.of_le (by nlinarith)
-  let x₀ := ((((x.set lo 0).set one 1).set two 2).set hi (N + 1)).set t 1
-  have hx₀ : I x₀ := by
-    have hpow : N < (N + 1) ^ e := Nat.lt_of_lt_of_le (Nat.lt_succ_self N) (Nat.le_self_pow he0 _)
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, rfl⟩ <;>
-      simp +decide [x₀, N, e, he0, hpow]
-  obtain ⟨y, hrun, hy, hc⟩ := ExecWithin.loop_invariant I
-    (fun y => Nat.clog 2 (y.regs hi - y.regs lo)) hbody hx₀
-  obtain ⟨hyn, hyk, hyo, hytwo, hyt, hlohi, -, hlo, hhip, hymem⟩ := hy
-  have hhi : y.regs hi = y.regs lo + 1 := by simp only [Cond.holds_lt, hyt] at hc; omega
-  have hinit : ExecWithin (B := .standard) w
-      (ram[ lo ← #0; one ← #1; two ← #2; hi ← n + one; t ← lo + one ]) x x₀ 5 := by
-    ram_eval [x₀, N, h1, hn1]
-  refine ⟨y, ?_, ?_, hyn, hyk, hyo, hytwo, hymem⟩
-  · have hμ : Nat.clog 2 (x₀.regs hi - x₀.regs lo) = Nat.clog 2 (N + 1) := by
-      simp +decide [x₀]
-    refine (hinit.seq hrun).mono ?_
-    rw [hμ, show 6 * e + 11 + 2 = 6 * e + 13 by omega]
-    omega
-  · rw [hhi] at hhip
-    exact (Nat.nthRoot_eq_of_le_of_lt hlo hhip).symm
+    have hl1 : Fits w (l + 1) := by fits [show l + 1 ≤ l + h by omega]
+    have hm1 : Fits w ((l + h) / 2 + 1) := by fits [show (l + h) / 2 + 1 ≤ l + h by omega]
+    wram_exec [hy₂n, hy₂o, hy₂m, hy₂lo, hy₂hi]
+    · have hpow : N < ((l + h) / 2) ^ e := by
+        by_contra hle; exact absurd (hple.mpr (not_lt.mp hle)) (not_le.mpr hc)
+      dsimp only [I]
+      wram_simp [hy₂n, hy₂k, hy₂o, hy₂two, hy₂lo, hy₂mem, hymem]
+      exact ⟨⟨by omega, by omega, hlo, hpow⟩,
+        Nat.clog_two_lt_clog_two_of_le_half (by omega) (by omega)⟩
+    · have hpow : ((l + h) / 2) ^ e ≤ N := hple.mp (not_lt.mp hc)
+      dsimp only [I]
+      wram_simp [hy₂n, hy₂k, hy₂o, hy₂two, hy₂hi, hy₂mem, hymem]
+      exact ⟨⟨by omega, hhi, hpow, hhip⟩,
+        Nat.clog_two_lt_clog_two_of_le_half (by omega) (by omega)⟩
+  · dsimp only [I, N, e]
+    wram_simp
+    exact ⟨le_rfl, by simp [show x.regs k ≠ 0 from he0],
+      Nat.lt_of_lt_of_le (Nat.lt_succ_self _) (Nat.le_self_pow he0 _)⟩
+  · rintro y ⟨⟨hyn, hyk, hyo, hytwo, hyt, hlohi, -, hlo, hhip, hymem⟩, hc⟩
+    have hhi : y.regs hi = y.regs lo + 1 := by simp only [Cond.holds_lt, hyt] at hc; omega
+    rw [hhi] at hhip
+    refine ⟨?_, (Nat.nthRoot_eq_of_le_of_lt hlo hhip).symm, hyn, hyk, hyo, hytwo, hymem⟩
+    wram_simp
+    dsimp only [N, e]
+    exact le_rfl
 
 /-- Run the binary search on any injectively chosen registers. -/
 theorem exec_rename {r w : ℕ} (f : Fin 10 → Fin r) (hf : f.Injective) (x : Data r)

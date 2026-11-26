@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Compo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryTake
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -95,15 +96,11 @@ theorem mono (h : ComputesInTimeOn input output t₁ program) (hle : ∀ a, t₁
   obtain ⟨k, State, hfinite, machine, hmachine⟩ := h
   refine ⟨k, State, hfinite, machine, fun a => ?_⟩
   obtain ⟨hout, hhalt⟩ := hmachine a
-  have hcfg : ProbComp.eval (machine.runClosedConfigFrom (t₂ a) (machine.initialConfig (input a))) =
-      ProbComp.eval (machine.runClosedConfigFrom (t₁ a) (machine.initialConfig (input a))) :=
-    machine.eval_runClosedConfigFrom_eq_of_halted (machine.initialConfig (input a)) (hle a) hhalt
-  refine ⟨hout.trans (machine.eval_runClosed_eq_of_halted (input a) (hle a) hhalt).symm, ?_⟩
-  intro final hfinal
+  refine ⟨hout.trans (machine.eval_runClosed_eq_of_halted (input a) (hle a) hhalt).symm,
+    fun final hfinal => hhalt final ?_⟩
   change final ∈ (ProbComp.eval
     (machine.runClosedConfigFrom (t₂ a) (machine.initialConfig (input a)))).support at hfinal
-  rw [hcfg] at hfinal
-  exact hhalt final hfinal
+  rwa [machine.eval_runClosedConfigFrom_eq_of_halted _ (hle a) hhalt] at hfinal
 
 /-- Distributional equality preserves the realizing machine and step schedule. -/
 theorem congr (h : ComputesInTimeOn input output t program)
@@ -129,28 +126,26 @@ theorem length_le (h : ComputesInTimeOn input output t program) (a : α) {result
 theorem uniform_bool (input : α ↪ List Bool) :
     ComputesInTimeOn input encBool (fun _ => 1) (fun _ => ProbComp.uniform Bool) := by
   refine ⟨0, Unit, inferInstance, Turing.MultiTapePTM.coinMachine (Operation := Empty), fun a => ?_⟩
+  let cfg := (Turing.MultiTapePTM.coinMachine (Operation := Empty)).initialConfig (input a)
   have hcfg : ProbComp.eval
       ((Turing.MultiTapePTM.coinMachine (Operation := Empty)).runConfigFrom
-        (ProbComp.uniform Bool) Empty.elim 1
-        ((Turing.MultiTapePTM.coinMachine (Operation := Empty)).initialConfig (input a))) =
+        (ProbComp.uniform Bool) Empty.elim 1 cfg) =
       (ProbComp.eval (ProbComp.uniform Bool)).map fun bit =>
-        ((Turing.MultiTapePTM.coinMachine (Operation := Empty)).initialConfig (input a)).step
-          { inputTape := 0, workTapes := Fin.elim0, output := some bit, state := none }
+        cfg.step { inputTape := 0, workTapes := Fin.elim0, output := some bit, state := none }
           (fun _ => none) (fun _ => 0) := by
-    simp [Turing.MultiTapePTM.runConfigFrom, Turing.MultiTapeMachine.runConfigFrom,
+    simp [cfg, Turing.MultiTapePTM.runConfigFrom, Turing.MultiTapeMachine.runConfigFrom,
       Turing.MultiTapeMachine.initialConfig, Turing.Cfg.init,
       Turing.MultiTapePTM.coinMachine, PMF.map]
   refine ⟨?_, ?_⟩
   · rw [Turing.MultiTapePTM.runClosed_eq_map, ProbComp.eval_map]
     change _ = PMF.map (fun final => final.tapes.output)
       (ProbComp.eval ((Turing.MultiTapePTM.coinMachine (Operation := Empty)).runConfigFrom
-        (ProbComp.uniform Bool) Empty.elim 1
-        ((Turing.MultiTapePTM.coinMachine (Operation := Empty)).initialConfig (input a))))
+        (ProbComp.uniform Bool) Empty.elim 1 cfg))
     rw [hcfg, PMF.map_comp]
     rfl
   · rw [hcfg]
     intro final hfinal
-    obtain ⟨bit, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
+    obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
     rfl
 
 /-- Sequence two halting probabilistic realizations, charging `2 * t₁ a + t₂' a + 4` steps where
@@ -168,17 +163,12 @@ theorem bind {first : α → ProbComp β} {second : β → ProbComp γ}
   obtain ⟨k₂, State₂, hfin₂, m₂, hm₂⟩ := hsecond
   refine ⟨k₂ + k₁ + 2, _, inferInstance, m₂.comp m₁ true, fun a => ?_⟩
   obtain ⟨hout₁, hhalt₁⟩ := hm₁ a
-  have hmem_word : ∀ word ∈ (ProbComp.eval (m₁.runClosed (t₁ a) (input a))).support,
-      ∃ b ∈ (ProbComp.eval (first a)).support, middle b = word := by
-    intro word hword
-    rw [← hout₁] at hword
-    exact (PMF.mem_support_map_iff _ _ _).mp hword
   have hhalt₂ : ∀ word ∈ (ProbComp.eval (m₁.runClosed (t₁ a) (input a))).support,
       ∀ final ∈ (ProbComp.eval
         (m₂.runClosedConfigFrom (t₂' a) (m₂.initialConfig word))).support,
         final.tapes.state = none := by
     intro word hword final hfinal
-    obtain ⟨b, hb, rfl⟩ := hmem_word word hword
+    obtain ⟨b, hb, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp (hout₁ ▸ hword)
     rw [m₂.eval_runClosedConfigFrom_eq_of_halted _ (ht₂ a b hb) (hm₂ b).2] at hfinal
     exact (hm₂ b).2 final hfinal
   have hstep : 2 * t₁ a + t₂' a + 4 = t₁ a + (t₁ a + 4 + t₂' a) := by omega
@@ -239,8 +229,7 @@ theorem Turing.MultiTapeTM.ComputableInTimeAndSpace.computesInTimeOn {α β : Ty
         ((Turing.MultiTapePTM.ofDeterministic tm).initialConfig (input a)))).support at hfinal
     rw [Turing.MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic,
       PMF.mem_support_pure_iff] at hfinal
-    rw [hfinal]
-    exact hhalt
+    exact hfinal ▸ hhalt
 
 namespace Cslib.Probability
 
@@ -329,11 +318,8 @@ theorem length_le (h : ComputesInTime output t program) (n : ℕ) (aux : List Bo
 /-- A polynomially bounded parameterized halting schedule gives `IsPPT`. -/
 theorem isPPT (ht : PolyBounded (fun p : ℕ × ℕ => p.1 + p.2) (Function.uncurry t))
     (h : ComputesInTime output t program) :
-    IsPPT output program := by
-  refine IsPPTOn.isPPT (h.on.isPPTOn ?_)
-  refine ht.comp (g := fun input : ℕ × List Bool => (input.1, input.2.length)) ?_
-  refine PolyBounded.of_forall_le 1 1 fun input => ?_
-  enc_len [pow_one, one_mul]
+    IsPPT output program :=
+  IsPPTOn.isPPT (h.on.isPPTOn (by growth_poly))
 
 end ComputesInTime
 

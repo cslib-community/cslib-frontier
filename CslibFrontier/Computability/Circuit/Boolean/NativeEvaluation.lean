@@ -147,48 +147,12 @@ not installed code; every framed gate is scanned by the concrete stream machine.
     congr 1
     simp [streamState, evalCode]
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 (evalCodeStep interpretation false) input.2 j,
-          input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [evalCodeSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        (encBits (streamState input.1 (evalCodeStep interpretation false) input.2 j)).length
-        else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    have hbound :
-        (encBits (streamState input.1 (evalCodeStep interpretation false) input.2 j)).length ≤
-          (Finset.range (input.2.length + 1)).sup fun j =>
-            if hj : j ≤ input.2.length then
-              (encBits
-                (streamState input.1 (evalCodeStep interpretation false) input.2 j)).length
-            else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_left _ _)
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        (encGate input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    have hbound : (encGate input.2[j]).length ≤
-        (Finset.range input.2.length).sup fun j =>
-          if hj : j < input.2.length then (encGate input.2[j]).length else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_right _ _)
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- The raw evaluator emits the initial bits followed by exactly one bit per gate. -/
 @[simp] theorem outputBits_evalCodeCompiler
@@ -238,42 +202,12 @@ code occurrences in that table. -/
         congr 1
         simpa only [encBool_apply] using ih values
     · intro input j hj
-      have hsup := Finset.le_sup
-        (s := Finset.range input.2.length)
-        (f := fun j => if hj : j < input.2.length then
-          let pair := (streamState input.1 Prod.fst input.2 j, input.2[j])
-          inputFromWordWorkspace
-              (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-              emitCompiler pair +
-            onWordsWorkspace
-              (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-              (streamFramedNext nextCompiler) pair
-          else 0)
-        (Finset.mem_range.mpr hj)
-      simpa only [outputSMax, hj, dite_true] using hsup
+      exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
     · intro input j hj
-      have hsup := Finset.le_sup
-        (s := Finset.range (input.2.length + 1))
-        (f := fun j => if hj : j ≤ input.2.length then
-          (encBits (streamState input.1 Prod.fst input.2 j)).length else 0)
-        (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-      have hbound : (encBits (streamState input.1 Prod.fst input.2 j)).length ≤
-          (Finset.range (input.2.length + 1)).sup fun j =>
-            if hj : j ≤ input.2.length then
-              (encBits (streamState input.1 Prod.fst input.2 j)).length else 0 := by
-        simpa only [hj, dite_true] using hsup
-      exact hbound.trans (Nat.le_max_left _ _)
+      exact le_max_of_le_left <|
+        Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
     · intro input j hj
-      have hsup := Finset.le_sup
-        (s := Finset.range input.2.length)
-        (f := fun j => if hj : j < input.2.length then
-          (encNat input.2[j]).length else 0)
-        (Finset.mem_range.mpr hj)
-      have hbound : (encNat input.2[j]).length ≤
-          (Finset.range input.2.length).sup fun j =>
-            if hj : j < input.2.length then (encNat input.2[j]).length else 0 := by
-        simpa only [hj, dite_true] using hsup
-      exact hbound.trans (Nat.le_max_right _ _)
+      exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
   let encRuntime := encPair encBits encCode
   let values := first encBits encCode
   let code := second encBits encCode

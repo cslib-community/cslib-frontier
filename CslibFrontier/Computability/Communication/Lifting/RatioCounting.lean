@@ -50,28 +50,19 @@ theorem card_parityTest_fiber_le (P : ParityTest F Y → Prop)
   let encode (w : {w : ParityTest F Y // P w ∧ w.parity = S}) :
       ConditioningAssignment (univ \ S) m (k S) :=
     { coordinates := w.val.conditioned
-      subset := by
-        intro i hi
-        apply mem_sdiff.mpr
-        refine ⟨mem_univ _, ?_⟩
-        rw [← w.property.2]
-        exact fun hs => disjoint_left.mp w.val.disjoint hi hs
+      subset := fun i hi => mem_sdiff.mpr ⟨mem_univ _,
+        fun hs => disjoint_left.mp w.val.disjoint hi (w.property.2.symm ▸ hs)⟩
       card_le := by simpa only [w.property.2] using hsize w.val w.property.1
       values := fun i => w.val.assignment i }
-  apply Fintype.card_le_of_injective encode
-  intro a b h
-  have hc : a.val.conditioned = b.val.conditioned :=
-    congrArg ConditioningAssignment.coordinates h
-  apply Subtype.ext
-  apply parityTest_ext _ _ (a.property.2.trans b.property.2.symm) hc
-  funext i
-  have he := congrArg (fun c : ConditioningAssignment (univ \ S) m (k S) =>
-    if hi : i ∈ c.coordinates then c.values ⟨i, hi⟩ else 0) h
+  refine Fintype.card_le_of_injective encode fun a b h => Subtype.ext ?_
+  have hc : a.val.conditioned = b.val.conditioned := congrArg ConditioningAssignment.coordinates h
+  refine parityTest_ext _ _ (a.property.2.trans b.property.2.symm) hc (funext fun i => ?_)
   by_cases hi : i ∈ a.val.conditioned
   · have hi' : i ∈ b.val.conditioned := hc ▸ hi
-    simpa only [encode, hi, hi', dite_true] using he
-  · have hi' : i ∉ b.val.conditioned := hc ▸ hi
-    rw [hcanonical a.val a.property.1 i hi, hcanonical b.val b.property.1 i hi']
+    simpa only [encode, hi, hi', dite_true] using congrArg
+      (fun c : ConditioningAssignment (univ \ S) m (k S) =>
+        if h : i ∈ c.coordinates then c.values ⟨i, h⟩ else 0) h
+  · rw [hcanonical a.val a.property.1 i hi, hcanonical b.val b.property.1 i (hc ▸ hi)]
 
 open scoped Classical in
 /-- Grouping canonical tests by their parity support bounds the family by partial assignments. -/
@@ -84,20 +75,14 @@ theorem sum_parityTest_pow_le_sum_conditioningAssignment (P : ParityTest F Y →
       ∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
         (Fintype.card (ConditioningAssignment (univ \ S) m (k S)) : ℝ) * q ^ S.card := by
   classical
-  have hmaps : ∀ w ∈ (univ : Finset {w : ParityTest F Y // P w}),
-      w.val.parity ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty := by
-    intro w _
-    exact mem_filter.mpr ⟨mem_powerset.mpr (subset_univ _), hnonempty w.val w.property⟩
-  rw [← sum_fiberwise_of_maps_to' hmaps (fun S => q ^ S.card)]
-  apply sum_le_sum
-  intro S _
+  rw [← sum_fiberwise_of_maps_to' (fun w _ =>
+    mem_filter.mpr ⟨mem_powerset.mpr (subset_univ _), hnonempty w.val w.property⟩)
+    (fun S => q ^ S.card)]
+  refine sum_le_sum fun S _ => ?_
   simp only [sum_const, nsmul_eq_mul]
-  apply mul_le_mul_of_nonneg_right _ (pow_nonneg hq _)
-  have hcard : #{w : {w : ParityTest F Y // P w} | w.val.parity = S} =
-      Fintype.card {w : ParityTest F Y // P w ∧ w.parity = S} := by
-    rw [← Fintype.card_subtype]
-    exact Fintype.card_congr (Equiv.subtypeSubtypeEquivSubtypeInter P (fun w => w.parity = S))
-  rw [hcard]
+  refine mul_le_mul_of_nonneg_right ?_ (pow_nonneg hq _)
+  rw [← Fintype.card_subtype,
+    Fintype.card_congr (Equiv.subtypeSubtypeEquivSubtypeInter P fun w => w.parity = S)]
   exact_mod_cast card_parityTest_fiber_le P hcanonical k hsize S
 
 open scoped Classical in
@@ -124,12 +109,10 @@ theorem conditioningSize_le_div_of_ratio {n r j s : ℕ} (hn : 2 ≤ n) (hr : 0 
   have hn1 : (1 : ℝ) < n := by exact_mod_cast (show 1 < n by omega)
   have hp : (n : ℝ) ^ ((2 * r) * j) ≤ (n : ℝ) ^ (2 * s) := by
     rw [pow_mul]
-    exact (pow_le_pow_left₀ (pow_nonneg (Nat.cast_nonneg _) _) hd _).trans hjs
+    exact (pow_le_pow_left₀ (by positivity) hd _).trans hjs
   have he := (pow_le_pow_iff_right₀ hn1).mp hp
-  have hjr : j * r ≤ s := by
-    rw [Nat.mul_assoc, Nat.mul_comm r j] at he
-    omega
-  exact (Nat.le_div_iff_mul_le hr).mpr hjr
+  rw [Nat.mul_assoc, Nat.mul_comm r j] at he
+  exact (Nat.le_div_iff_mul_le hr).mpr (by omega)
 
 /-- A coarse alphabet bound raised to the truncated conditioning size is paid for by a
 geometric weight on the parity size. -/

@@ -121,21 +121,15 @@ cutoff. The three facts below about such prefix sums serve both of them. -/
 /-- Adding the cutoff's own term to a prefix sum stays below any later prefix sum. -/
 private theorem sum_lt_add_le_of_lt {k : ℕ} (f : Fin k → ℕ) {u₁ u₂ : Fin k} (hlt : u₁ < u₂) :
     (∑ a ∈ Finset.univ.filter (· < u₁), f a) + f u₁ ≤ ∑ a ∈ Finset.univ.filter (· < u₂), f a := by
-  have hmem : u₁ ∉ Finset.univ.filter (· < u₁) := by simp
-  have hsub : insert u₁ (Finset.univ.filter (· < u₁)) ⊆ Finset.univ.filter (· < u₂) := by
-    intro a ha
-    simp only [Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and] at ha ⊢
-    rcases ha with rfl | ha
-    · exact hlt
-    · exact lt_trans ha hlt
-  rw [add_comm, ← Finset.sum_insert hmem]
-  exact Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => Nat.zero_le _
+  rw [add_comm, ← Finset.sum_insert (by simp)]
+  refine Finset.sum_le_sum_of_subset_of_nonneg (fun a ha => ?_) fun _ _ _ => Nat.zero_le _
+  simp only [Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and] at ha ⊢
+  exact ha.elim (· ▸ hlt) (·.trans hlt)
 
 /-- Adding the cutoff's own term to a prefix sum stays below the total. -/
 private theorem sum_lt_add_le_sum {k : ℕ} (f : Fin k → ℕ) (u : Fin k) :
     (∑ a ∈ Finset.univ.filter (· < u), f a) + f u ≤ ∑ a, f a := by
-  have hmem : u ∉ Finset.univ.filter (· < u) := by simp
-  rw [add_comm, ← Finset.sum_insert hmem]
+  rw [add_comm, ← Finset.sum_insert (by simp)]
   exact Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
 
 /-- Every value below the total lies in the block `[prefix, prefix + f u)` of some index `u`. -/
@@ -174,11 +168,9 @@ theorem degBefore_le_of_lt {k : ℕ} (W : Fin k → Fin k → ℕ) {u₁ u₂ : 
 theorem edgeOffset_add_le_totalDoubledWeight {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
     edgeOffset W u v + W u v ≤ totalDoubledWeight W := by
   unfold edgeOffset
-  calc
-    degBefore W u + weightBefore W u v + W u v
-      = degBefore W u + (weightBefore W u v + W u v) := by omega
-    _ ≤ degBefore W u + rowDeg W u := Nat.add_le_add_left (weightBefore_add_le_rowDeg W u v) _
-    _ ≤ totalDoubledWeight W := degBefore_add_le_totalDoubledWeight W u
+  have := weightBefore_add_le_rowDeg W u v
+  have := degBefore_add_le_totalDoubledWeight W u
+  omega
 
 /-- `IsSampledPair W r u v` holds when sample `r` falls inside the half-open interval
 `[edgeOffset W u v, edgeOffset W u v + W u v)`. -/
@@ -240,24 +232,13 @@ theorem card_sampledPair_fiber {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fi
   symm
   rw [← Finset.card_fin (W u v)]
   refine Finset.card_bij (fun (i : Fin (W u v)) _ =>
-    (⟨edgeOffset W u v + i.val, by have := i.isLt; omega⟩ : Fin (totalDoubledWeight W))) ?_ ?_ ?_
-  · intro i _
-    rw [Finset.mem_filter]
-    refine ⟨Finset.mem_univ _, ?_⟩
-    unfold IsSampledPair
-    simp only
-    have := i.isLt
-    omega
-  · intro i _ j _ hij
-    simp only [Fin.ext_iff] at hij
-    exact Fin.ext (by omega)
-  · intro r hr
-    rw [Finset.mem_filter] at hr
-    rcases hr.2 with ⟨hr1, hr2⟩
-    refine ⟨⟨r.val - edgeOffset W u v, by omega⟩, Finset.mem_univ _, ?_⟩
-    apply Fin.ext
-    simp only
-    omega
+    (⟨edgeOffset W u v + i.val, by omega⟩ : Fin (totalDoubledWeight W)))
+    (fun i _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, by simp only [IsSampledPair]; omega⟩)
+    (fun i _ j _ hij => Fin.ext (by simp only [Fin.ext_iff] at hij; omega)) fun r hr => ?_
+  rcases (Finset.mem_filter.mp hr).2 with ⟨hr1, hr2⟩
+  refine ⟨⟨r.val - edgeOffset W u v, by omega⟩, Finset.mem_univ _, Fin.ext ?_⟩
+  dsimp
+  omega
 
 /-- Event on `Fin (totalDoubledWeight W)` where the edge sampled at `r` keeps both endpoints on the
 same side of `B`. -/
@@ -334,20 +315,10 @@ theorem surviving_card_eq {k : ℕ} {W : Fin k → Fin k → ℕ} (hW : IsMultig
     (B : Finset (Fin k)) :
     (Finset.univ.filter fun r : Fin (totalDoubledWeight W) => SampleSurvives W B r).card =
       totalDoubledWeight W - 2 * cutWeight W B := by
-  let S := totalDoubledWeight W
-  let posSet := Finset.univ.filter fun r : Fin S => SampleSurvives W B r
-  let negSet := Finset.univ.filter fun r : Fin S => ¬ SampleSurvives W B r
-  have hdisj : Disjoint posSet negSet := by
-    simp only [Finset.disjoint_left, Finset.mem_filter, Finset.mem_univ, true_and, posSet, negSet]
-    exact fun _ h1 h2 => h2 h1
-  have hunion : posSet ∪ negSet = Finset.univ := by
-    ext r
-    by_cases hr : SampleSurvives W B r <;> simp [posSet, negSet, hr]
-  have hpart : posSet.card + negSet.card = S := by
-    rw [← Finset.card_union_of_disjoint hdisj, hunion, Finset.card_univ, Fintype.card_fin]
-  have hneg : negSet.card = 2 * cutWeight W B := crossing_card_eq hW B
-  have hle := two_mul_cutWeight_le_totalDoubledWeight hW B
-  dsimp only [S, posSet, negSet] at hpart hneg
+  have hpart := Finset.card_filter_add_card_filter_not
+    (s := (Finset.univ : Finset (Fin (totalDoubledWeight W)))) (fun r => SampleSurvives W B r)
+  rw [Finset.card_univ, Fintype.card_fin, crossing_card_eq hW B] at hpart
+  have := two_mul_cutWeight_le_totalDoubledWeight hW B
   omega
 
 /-- One-step survival probability lower bound: if `k ≥ 2`, `0 < totalDoubledWeight W`, and
@@ -393,27 +364,21 @@ theorem telescope_survival_step {t m : ℕ} (ht : 2 ≤ t) (htm : t ≤ m) :
       ((t * (t - 1) : ℕ) : ℝ≥0∞) / (((m + 1) * m : ℕ) : ℝ≥0∞) := by
   have hm1_pos : 0 < m - 1 := by omega
   have hm_pos : 0 < m := by omega
-  have hm1_ne0 : ((m - 1 : ℕ) : ℝ≥0∞) ≠ 0 := by exact_mod_cast hm1_pos.ne'
-  have hm_ne0 : (m : ℝ≥0∞) ≠ 0 := by exact_mod_cast hm_pos.ne'
   have hmp1_ne0 : ((m + 1 : ℕ) : ℝ≥0∞) ≠ 0 := by positivity
   have hmp1_top : ((m + 1 : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hmm1_ne0 : ((m * (m - 1) : ℕ) : ℝ≥0∞) ≠ 0 := by
-    exact_mod_cast (Nat.mul_pos hm_pos hm1_pos).ne'
-  have hmm1_top : ((m * (m - 1) : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hmp1m_ne0 : (((m + 1) * m : ℕ) : ℝ≥0∞) ≠ 0 := by
-    exact_mod_cast (Nat.mul_pos (Nat.succ_pos m) hm_pos).ne'
-  have hmp1m_top : (((m + 1) * m : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+  have hmm1_ne0 : ((m * (m - 1) : ℕ) : ℝ≥0∞) ≠ 0 := mod_cast (Nat.mul_pos hm_pos hm1_pos).ne'
+  have hmp1m_ne0 : (((m + 1) * m : ℕ) : ℝ≥0∞) ≠ 0 :=
+    mod_cast (Nat.mul_pos (Nat.succ_pos m) hm_pos).ne'
   have hprod : (((m - 1 : ℕ) : ℝ≥0∞) / (m + 1 : ℕ)) *
       (((t * (t - 1) : ℕ) : ℝ≥0∞) / ((m * (m - 1) : ℕ) : ℝ≥0∞)) =
       (((m - 1 : ℕ) : ℝ≥0∞) * ((t * (t - 1) : ℕ) : ℝ≥0∞)) /
         (((m + 1 : ℕ) : ℝ≥0∞) * ((m * (m - 1) : ℕ) : ℝ≥0∞)) := by
     simp only [div_eq_mul_inv, ENNReal.mul_inv (Or.inl hmp1_ne0) (Or.inl hmp1_top)]
     ring
-  rw [hprod, ENNReal.div_eq_div_iff hmp1m_ne0 hmp1m_top (mul_ne_zero hmp1_ne0 hmm1_ne0)
-    (ENNReal.mul_ne_top hmp1_top hmm1_top)]
-  have hnat : ((m + 1) * m) * ((m - 1) * (t * (t - 1))) =
-      ((m + 1) * (m * (m - 1))) * (t * (t - 1)) := by ring
-  exact_mod_cast hnat
+  rw [hprod, ENNReal.div_eq_div_iff hmp1m_ne0 (ENNReal.natCast_ne_top _)
+    (mul_ne_zero hmp1_ne0 hmm1_ne0) (ENNReal.mul_ne_top hmp1_top (ENNReal.natCast_ne_top _))]
+  exact_mod_cast (by ring :
+    ((m + 1) * m) * ((m - 1) * (t * (t - 1))) = ((m + 1) * (m * (m - 1))) * (t * (t - 1)))
 
 theorem one_sub_two_div_pairs_eq {n : ℕ} (hn : 2 ≤ n) :
     (1 : ℝ≥0∞) - (2 : ℝ≥0∞) / ((n * (n - 1) : ℕ) : ℝ≥0∞) =

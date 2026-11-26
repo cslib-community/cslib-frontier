@@ -69,19 +69,12 @@ theorem IsProof.exists_prod_mul {F ls : List (MvPolynomial V R)} {p : MvPolynomi
   obtain ⟨ns, hns, hn, hs, hd⟩ :=
     exists_isProof_monomial_mul (F := [p]) (List.mem_singleton_self p) m
   have hprod : (monomial m (1 : R)) = ∏ i ∈ s, X (v i) := by
-    rw [show m = ∑ i ∈ s, Finsupp.single (v i) 1 from rfl, monomial_sum_one]
-    rfl
-  refine ⟨ns ++ ls, h.comp hns ?_, List.subset_append_right _ _, ?_, ?_, ?_⟩
-  · intro q hq
-    obtain rfl := List.mem_singleton.1 hq
-    exact hp
-  · rw [← hprod]
-    exact List.mem_append_left _ hn
-  · rw [size_append]
-    rw [hm] at hs
-    omega
-  · rw [hm] at hd
-    rw [degree_append]
-    exact max_le (hd.trans (le_max_right _ _)) (le_max_left _ _)
+    rw [show m = ∑ i ∈ s, Finsupp.single (v i) 1 from rfl, monomial_sum_one]; rfl
+  refine ⟨ns ++ ls, h.comp hns (by simpa using hp), List.subset_append_right _ _,
+    hprod ▸ List.mem_append_left _ hn, ?_, ?_⟩
+  · rw [hm] at hs
+    rw [size_append]; omega
+  · rw [degree_append]
+    exact max_le ((hm ▸ hd).trans (le_max_right _ _)) (le_max_left _ _)
 
 end Cslib.Logic.PL.PC

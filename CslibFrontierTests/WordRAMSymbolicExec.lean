@@ -60,11 +60,11 @@ example (x : Data 4) :
 
 /-- A fitting condition that neither `simp` nor the discharger proves remains as a goal, tagged
 `hfit`, after the main goal. -/
-example (w : ℕ) (x : Data 4) (h : x.regs a = 3) (h7 : 7 ≤ w) :
-    ∃ y, ExecWithin w ram[ b ← a + a ] x y 1 ∧ y.regs b = 6 := by
+example (w n : ℕ) (x : Data 4) (h : x.regs a = n) (hn : n < 4) (hw : 3 ≤ w) :
+    ∃ y, ExecWithin w ram[ b ← a + a ] x y 1 ∧ y.regs b = n + n := by
   wram_exec [h]
   · wram_simp
-  case hfit => exact (fits_self w).of_le (by omega)
+  case hfit => exact (Nat.add_lt_add hn hn).trans_le (Nat.pow_le_pow_right two_pos hw)
 
 /-- The default discharger proves a fitting condition from the word-size facts in context with
 `fits`. -/
@@ -389,6 +389,23 @@ example (w : ℕ) (x : Data 4) (ha : x.regs a = 1) (hb : x.regs b = 1) (hc : x.r
   refine WP.of_execWithin
     (ExecWithin.loop_exit (by simp only [Cond.holds_lt, not_lt]; wram_simp [hd])) ?_
   wram_simp
+
+/-- `WP.loop_exit`, `WP.Exact.loop_exit`, and silent `wram_omega` in `wram_exec` / `wram_simp`. -/
+private def helperCap (n : ℕ) : ℕ := n + 10
+attribute [local wram_arith] helperCap
+
+example {w n : ℕ} (x : Data 4) (ha : x.regs a = n) (hcap : Fits w (helperCap n)) :
+    WP w (ram[ b ← #5; c ← a + b ]) x (fun y t => t ≤ 2 ∧ y.regs c = n + 5) := by
+  wram_exec [ha]
+  wram_simp
+
+example (x : Data 4) (ha : x.regs a = 0) (hd : x.regs d = 0) :
+    WP 8 moveLoop x (fun y t => t ≤ 2 ∧ y.regs a = 0) :=
+  WP.loop_exit (by simp [Cond.holds_lt, ha, hd]) ⟨le_rfl, ha⟩
+
+example (x : Data 4) (ha : x.regs a = 0) (hd : x.regs d = 0) :
+    WP.Exact 8 moveLoop x (fun y t => t = 2 ∧ y.regs a = 0) :=
+  WP.Exact.loop_exit (by simp [Cond.holds_lt, ha, hd]) ⟨rfl, ha⟩
 
 /-! ## Failures -/
 

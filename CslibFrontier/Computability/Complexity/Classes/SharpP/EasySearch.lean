@@ -49,18 +49,14 @@ private theorem exists_mem_FPSearch_searchCount_add_one_of_mem_SharpP {f : α �
   let S : NPRelation enc := ⟨p + 1, selectVerifier allFalseVerifier V,
     computableInPolyTime_selectVerifier computableInPolyTime_allFalseVerifier hV⟩
   let g (a : α) := List.replicate (p.eval (enc a).length + 1) false
-  have hg (a : α) : S.IsWitness a (g a) := by
-    constructor
-    · simp [S, g]
-    · simp [S, g, selectVerifier, allFalseVerifier, List.replicate_succ]
-  refine ⟨S.IsWitness, mem_FPSearch_of_total S.isWitness_mem_FNP ?_ hg,
+  have hg (a : α) : S.IsWitness a (g a) :=
+    ⟨by simp [S, g], by simp [S, g, selectVerifier, allFalseVerifier, List.replicate_succ]⟩
+  refine ⟨S.IsWitness, mem_FPSearch_of_total S.isWitness_mem_FNP
+    ((bitsReplicate false).comp
+      (unary_add' ((unary_eval p).comp (encoding_length enc)) (const 1))) hg,
     fun a => ⟨g a, hg a⟩, fun a => ?_⟩
-  · exact (bitsReplicate false).comp
-      (unary_add' ((unary_eval p).comp (encoding_length enc)) (const 1))
-  · rw [S.searchCount_eq]
-    simp only [S, Polynomial.eval_add, Polynomial.eval_one, acceptCount_selectVerifier,
-      acceptCount_allFalseVerifier, ← hf a]
-    omega
+  simpa only [NPRelation.searchCount_eq, S, Polynomial.eval_add, Polynomial.eval_one,
+    acceptCount_selectVerifier, acceptCount_allFalseVerifier, ← hf a] using Nat.add_comm 1 (f a)
 
 /-- [Goldreich2007Draft], Exercise 6.22(b) (February 2007 `r3.pdf`, PDF p. 57 / printed
 p. 259): every polynomially balanced, polynomial-time checkable relation admits an easy total

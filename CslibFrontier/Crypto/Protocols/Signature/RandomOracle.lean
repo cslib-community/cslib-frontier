@@ -208,17 +208,13 @@ noncomputable def oracle (q : Query) : StateT (List (Query × Digest)) PMF Diges
 theorem run_oracle_of_lookup_eq_none {q : Query} {cache : List (Query × Digest)}
     (h : cache.lookup q = none) :
     (oracle Digest q).run cache =
-      (PMF.uniformOfFintype Digest).bind fun c => PMF.pure (c, (q, c) :: cache) := by
-  change memoize (fun _ => PMF.uniformOfFintype Digest) q cache = _
-  rw [memoize_of_none _ _ _ h]
-  rfl
+      (PMF.uniformOfFintype Digest).bind fun c => PMF.pure (c, (q, c) :: cache) :=
+  memoize_of_none (fun _ => PMF.uniformOfFintype Digest) q cache h
 
 /-- A query at a cached point returns the cached digest and leaves the cache unchanged. -/
 theorem run_oracle_of_lookup_eq_some {q : Query} {cache : List (Query × Digest)} {c : Digest}
-    (h : cache.lookup q = some c) : (oracle Digest q).run cache = PMF.pure (c, cache) := by
-  change memoize (fun _ => PMF.uniformOfFintype Digest) q cache = _
-  rw [memoize_of_some _ _ _ _ h]
-  rfl
+    (h : cache.lookup q = some c) : (oracle Digest q).run cache = PMF.pure (c, cache) :=
+  memoize_of_some (fun _ => PMF.uniformOfFintype Digest) q cache c h
 
 /-- A table entry produced by a call of `oracle` is found at its queried point. -/
 theorem lookup_of_mem_support_oracle {q : Query} {cache : List (Query × Digest)}
@@ -229,8 +225,7 @@ theorem lookup_of_mem_support_oracle {q : Query} {cache : List (Query × Digest)
       PMF.mem_support_pure_iff, PMF.mem_support_bind_iff] at h
   · obtain ⟨_, _, rfl⟩ := h
     exact List.lookup_cons_self
-  · subst h
-    exact hlookup
+  · exact h.symm ▸ hlookup
 
 /-- A call of `oracle` adds at most one entry to the cache. -/
 theorem length_le_of_mem_support_oracle {q : Query} {cache : List (Query × Digest)}
@@ -241,8 +236,7 @@ theorem length_le_of_mem_support_oracle {q : Query} {cache : List (Query × Dige
       PMF.mem_support_pure_iff, PMF.mem_support_bind_iff] at h
   · obtain ⟨_, _, rfl⟩ := h
     exact le_rfl
-  · subst h
-    exact Nat.le_succ _
+  · exact h.symm ▸ Nat.le_succ _
 
 /-- Answer a forger's calls: sign with the secret key, recording the message, or query the
 oracle. Signing and the forger share the oracle. -/
@@ -323,10 +317,9 @@ def worldRealize (scheme : Scheme PK SK M Sig Query Digest) (pk : PK)
     (accept : Bool → M × Sig → List (M × Sig) → Bool) :
     ProbOracleComp (ForgerSpec M Query Sig Digest ⊕ₒ (fun _ : Query => Digest)) Bool := do
   let out ← Interactive.liftProver (oV := fun _ : Query => Digest) (runLoggedForger forger)
-  let msig := out.1
-  let pairs := out.2
-  let verified ← liftVerify (scheme.verify pk msig.1 msig.2)
-  return accept verified msig pairs
+  let ⟨⟨msg, sig⟩, pairs⟩ := out
+  let verified ← liftVerify (scheme.verify pk msg sig)
+  return accept verified out.1 pairs
 
 /-- Evaluate a signature security game through `Interactive.World.eval` on `world scheme sk`:
 draw `(pk, sk) ← scheme.keyGen`, run `worldRealize scheme pk (forger pk) accept` in
@@ -427,11 +420,10 @@ noncomputable def eufCmaGame [DecidableEq M] (scheme : Scheme PK SK M Sig Query 
   let keys ← scheme.keyGen
   let s ← forger.coins
   let forged ← (interpret (handler scheme keys.2) (forger.forge keys.1 s)).run ([], [])
-  let msig := forged.1
-  let state := forged.2
-  let verified ← (interpret (oracle Digest) (scheme.verify keys.1 msig.1 msig.2)).run
-    state.1
-  return (verified.1 && !(state.2.contains msig.1))
+  let ⟨⟨msg, sig⟩, cache, signed⟩ := forged
+  let verified ← (interpret (oracle Digest) (scheme.verify keys.1 msg sig)).run
+    cache
+  return (verified.1 && !(signed.contains msg))
 
 /-- `eufCmaGame` is equivalent to evaluating `worldRealize` in `world scheme sk` with the
 final-message freshness predicate `!(pairs.map Prod.fst).contains msg`. -/
@@ -493,13 +485,10 @@ theorem sufCma0Game_eq_ufCma0Game [DecidableEq M] [DecidableEq Sig]
     (scheme : Scheme PK SK M Sig Query Digest)
     (forger : Forger PK M Sig Query Digest) :
     sufCma0Game scheme forger = ufCma0Game scheme forger := by
-  have haccept :
-      (fun (verified : Bool) (msig : M × Sig) (pairs : List (M × Sig)) =>
-        verified && !pairs.contains msig && pairs.isEmpty) =
-      (fun verified _ pairs => verified && pairs.isEmpty) := by
-    funext verified msig pairs
-    cases pairs <;> simp
-  simp only [sufCma0Game, ufCma0Game, haccept]
+  suffices (fun (v : Bool) (x : M × Sig) (ps : List (M × Sig)) =>
+      v && !ps.contains x && ps.isEmpty) = fun v _ ps => v && ps.isEmpty by
+    simp only [sufCma0Game, ufCma0Game, this]
+  ext v x (_ | _) <;> simp
 
 /-! ### Completeness (`Scheme.Correct` and `Scheme.CorrectOn`) -/
 

@@ -73,12 +73,8 @@ theorem mem_supportWith_mapM_iff (possible : (q : ι) → Set (spec q))
   | cons a inputs ih =>
     simp only [List.mapM_cons, mem_supportWith_bind_iff, supportWith_pure,
       Set.mem_singleton_iff, ih]
-    constructor
-    · rintro ⟨b, hb, bs, hbs, rfl⟩
-      exact List.Forall₂.cons hb hbs
-    · intro h
-      cases h with
-      | cons hb hbs => exact ⟨_, hb, _, hbs, rfl⟩
+    exact ⟨fun ⟨_, hb, _, hbs, h⟩ => h ▸ .cons hb hbs,
+      fun | .cons hb hbs => ⟨_, hb, _, hbs, rfl⟩⟩
 
 /-- A traversal of `inputs` whose entries each cost at most `n` costs at most
 `inputs.length * n`. -/
@@ -96,9 +92,7 @@ theorem IsCostBounded.mapM {cost : ι → ℕ} {program : α → OracleComp spec
 theorem QueriesSatisfy.mapM {p : ι → Prop} {program : α → OracleComp spec β} {inputs : List α}
     (h : ∀ a ∈ inputs, QueriesSatisfy p (program a)) :
     QueriesSatisfy p (inputs.mapM program) := by
-  have h' := IsCostBounded.mapM h
-  rw [Nat.mul_zero] at h'
-  exact h'
+  simpa only [QueriesSatisfy, Nat.mul_zero] using IsCostBounded.mapM h
 
 /-- Folding `xs` by steps that each cost at most `k` costs at most `xs.length * k`. -/
 theorem IsCostBounded.foldlM.{u, v, w} {ι : Type u} {spec : OracleSpec.{u, v} ι}

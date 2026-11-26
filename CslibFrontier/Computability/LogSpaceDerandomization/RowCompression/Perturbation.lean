@@ -72,11 +72,9 @@ theorem advance_stability_of_increment_error {n K : ℕ} {ρ δ ε : ℝ}
       _ ≤ |a.row y ν - b.row y ν| + |Δ y ν - Δ' y ν| := abs_add_le _ _
       _ ≤ δ + ε := add_le_add (hw y hy ν) (hΔ y hy ν)
   have hz' : |a.defaultValue - b.defaultValue| ≤ δ + ε := hz.trans (le_add_of_nonneg_right hε)
-  constructor
-  · exact (abs_newDefault_sub_newDefault_le hn hK (add_nonneg hδ hε) hz' hinput).trans
-      (by nlinarith)
-  · intro y hy ν
-    exact abs_update_sub_update_le hn hK (add_nonneg hδ hε) hz' hinput hy ν
+  exact ⟨(abs_newDefault_sub_newDefault_le hn hK (add_nonneg hδ hε) hz' hinput).trans
+      (by nlinarith),
+    fun y hy ν => abs_update_sub_update_le hn hK (add_nonneg hδ hε) hz' hinput hy ν⟩
 
 private theorem propagation_succ (δ : ℝ) (ε : ℕ → ℝ) (j : ℕ) :
     28 * (28 ^ j * δ + ∑ i ∈ range j, 28 ^ (j - i) * ε i + ε j) =
@@ -84,10 +82,8 @@ private theorem propagation_succ (δ : ℝ) (ε : ℕ → ℝ) (j : ℕ) :
   have hsum : (∑ i ∈ range j, (28 : ℝ) ^ (j + 1 - i) * ε i) =
       28 * ∑ i ∈ range j, (28 : ℝ) ^ (j - i) * ε i := by
     rw [mul_sum]
-    apply sum_congr rfl
-    intro i hi
-    have hexp : j + 1 - i = (j - i) + 1 := by grind
-    rw [hexp, pow_succ]
+    refine sum_congr rfl fun i hi => ?_
+    rw [show j + 1 - i = (j - i) + 1 by grind, pow_succ]
     ring
   rw [sum_range_succ, hsum]
   simp only [Nat.add_sub_cancel_left, pow_succ]
@@ -118,10 +114,9 @@ theorem iterate_stability_of_increment_error {n K : ℕ → ℕ} {ρ : ℕ → �
       exact add_nonneg (mul_nonneg (by positivity) hδ)
         (sum_nonneg fun i hi => mul_nonneg (by positivity)
           (hε i (Nat.lt_succ_of_lt (mem_range.mp hi))))
-    have h := advance_stability_of_increment_error (ρ := ρ m)
-      (hn m (Nat.lt_succ_self m)) (hK m (Nat.lt_succ_self m)) hbudget
+    simpa only [iterate_succ, propagation_succ] using advance_stability_of_increment_error
+      (ρ := ρ m) (hn m (Nat.lt_succ_self m)) (hK m (Nat.lt_succ_self m)) hbudget
       (hε m (Nat.lt_succ_self m)) ih'.1 ih'.2 (hΔ m (Nat.lt_succ_self m))
-    simpa only [iterate_succ, propagation_succ] using h
 
 section Reference
 

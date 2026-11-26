@@ -62,26 +62,14 @@ private theorem setup_rep {w n K base : ℕ} (hn : Fits w n) (hK : Fits w K)
     Program.setup_registers x hx (parameter_live hpar) hb hS
   have hfront : y.regs Program.code.frontierReg = base + space n := hyf.trans hf
   obtain ⟨hi, ha⟩ := Memory.inv_compactLayout (n := n) (base := base)
-    (s := memoryState Program.code.frontierReg y) (by
-      change base + space n ≤ y.regs Program.code.frontierReg
-      rw [hfront]) (by
-      intro a ha
-      change y.mem a = 0
-      rw [hm]
-      exact hz a (Block.mem_footprint.mpr ha))
+    (s := memoryState Program.code.frontierReg y) hfront.ge
+    fun a ha => (congrFun hm a).trans (hz a (Block.mem_footprint.mpr ha))
   rw [Program.code_frontier] at hi ha
-  refine ⟨y, he, hfront, ⟨(Backend.rep_iff _ _ _).mpr ⟨hi, ha, hy⟩, ?_⟩,
+  refine ⟨y, he, hfront, ⟨(Backend.rep_iff _ _ _).mpr ⟨hi, ha, hy⟩, fun i => ?_⟩,
     fun a _ => congrFun hm a⟩
-  intro i
   fin_cases i
-  · change y.regs (Program.argument 0) = n
-    rwa [Program.code_nReg] at hyn
-  · change y.regs (Program.argument 1) = base + n
-    exact hcount
-  · change y.regs (Program.argument 2) = 1
-    exact hlen
-  · change y.regs (Program.argument 3) = base
-    rwa [Program.code_baseReg] at hyb
+  exacts [(congrArg y.regs Program.code_nReg.symm).trans hyn, hcount, hlen,
+    (congrArg y.regs Program.code_baseReg.symm).trans hyb]
 
 private noncomputable def baseImpl {w n K base : ℕ}
     (hS : Fits w (base + space n)) (hK : Fits w K) :

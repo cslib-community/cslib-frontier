@@ -88,29 +88,25 @@ private theorem dens_mul_root_expect_sub_pow_le {Ω : Type*} [Fintype Ω] [Decid
       (2 ^ (s - 1) * (s : ℝ) ^ s) * c *
         𝔼 σ, if σ ∈ S then |H σ ^ (s⁻¹ : ℝ) - H' σ ^ (s⁻¹ : ℝ)| ^ s else 0 := by
   classical
-  have hmean := rpow_inv_sub_pow_le_homogeneousLoss hs
-    (mul_nonneg hc (expect_nonneg hH)) (mul_nonneg hc (expect_nonneg hH'))
   have hpoint : (𝔼 σ, if σ ∈ S then homogeneousLoss s (H σ) (H' σ) else 0) ≤
       (s : ℝ) ^ s * 𝔼 σ, if σ ∈ S then |H σ ^ (s⁻¹ : ℝ) - H' σ ^ (s⁻¹ : ℝ)| ^ s else 0 := by
     rw [mul_expect]
-    refine expect_le_expect fun σ _ => ?_
-    split_ifs with hσ
-    · exact homogeneousLoss_le_rpow_inv_sub_pow hs (hH σ hσ) (hH' σ hσ)
-    · simp
+    exact expect_le_expect fun σ _ => by
+      split_ifs with hσ
+      · exact homogeneousLoss_le_rpow_inv_sub_pow hs (hH σ hσ) (hH' σ hσ)
+      · simp
   calc
     _ ≤ (dens S : ℝ) * (2 ^ (s - 1) * homogeneousLoss s
         (c * 𝔼 σ ∈ S, H σ) (c * 𝔼 σ ∈ S, H' σ)) :=
-      mul_le_mul_of_nonneg_left hmean (by positivity)
+      mul_le_mul_of_nonneg_left (rpow_inv_sub_pow_le_homogeneousLoss hs
+        (mul_nonneg hc (expect_nonneg hH)) (mul_nonneg hc (expect_nonneg hH'))) (by positivity)
     _ = (2 ^ (s - 1) * c) * ((dens S : ℝ) * homogeneousLoss s
         (𝔼 σ ∈ S, H σ) (𝔼 σ ∈ S, H' σ)) := by
-      rw [homogeneousLoss_mul hs hc]
-      ring
-    _ ≤ (2 ^ (s - 1) * c) *
-        𝔼 σ, if σ ∈ S then homogeneousLoss s (H σ) (H' σ) else 0 :=
-      mul_le_mul_of_nonneg_left (dens_mul_homogeneousLoss_expect_le S hs hH hH') (by positivity)
+      rw [homogeneousLoss_mul hs hc]; ring
     _ ≤ (2 ^ (s - 1) * c) * ((s : ℝ) ^ s *
         𝔼 σ, if σ ∈ S then |H σ ^ (s⁻¹ : ℝ) - H' σ ^ (s⁻¹ : ℝ)| ^ s else 0) :=
-      mul_le_mul_of_nonneg_left hpoint (by positivity)
+      mul_le_mul_of_nonneg_left
+        ((dens_mul_homogeneousLoss_expect_le S hs hH hH').trans hpoint) (by positivity)
     _ = _ := by ring
 
 variable {Ω V : Type*} [Fintype Ω] [Fintype V]

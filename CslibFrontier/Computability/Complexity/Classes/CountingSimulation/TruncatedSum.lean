@@ -112,67 +112,16 @@ theorem truncSum_modEq {c : C} {P ℓ : ℕ} (hmod : modulus c = 2 ^ P) (G : ℕ
       q j [ZMOD 2 ^ P]) :
     (truncSum entry build modulus count c : ℤ) ≡ ∑ j ∈ range ℓ, q j [ZMOD 2 ^ P] := by
   have hterm : ∀ i ∈ range (count c), truncCoeffSum entry (build (c, i)) =
-      ∑ j ∈ range ℓ, ((G i).polyContraction entry).coeff j % 2 ^ P := by
-    intro i hi
+      ∑ j ∈ range ℓ, ((G i).polyContraction entry).coeff j % 2 ^ P := fun i hi => by
     obtain ⟨r, hr⟩ := hbuild i (mem_range.mp hi)
     rw [hr, truncCoeffSum_eq]
   rw [truncSum_eq, hmod, sum_congr rfl hterm, sum_comm]
   push_cast
-  refine (Int.mod_modEq _ _).trans ((Int.ModEq.sum fun j _ =>
-    Int.ModEq.sum fun i _ => Int.mod_modEq _ _).trans ?_)
-  refine Int.ModEq.sum fun j hj => ?_
-  have h := hq j (mem_range.mp hj)
-  push_cast at h
-  exact h
+  exact (Int.mod_modEq _ _).trans <| Int.ModEq.sum fun j hj =>
+    (Int.ModEq.sum fun i _ => Int.mod_modEq _ _).trans
+      (by simpa only [Nat.cast_sum] using hq j (mem_range.mp hj))
 
 /-! ### Resources -/
-
-private theorem modulusFst_polyTime (hmodulus : ComputableInPolyTime modulus encC encNat) :
-    ComputableInPolyTime (fun q : C × ℕ => modulus q.1) (encPair encC encNat) encNat :=
-  hmodulus.comp (ComputableInPolyTime.fst _ _)
-
-/-- The native certificate of the terms: build the network, contract it with `cA`, add its
-coefficients and reduce modulo the modulus. -/
-private noncomputable def termCertificate
-    (cA : NativeCertificate
-      (fun x : ℕ × ℕ × ℕ × DescribedNetwork T => x.2.2.2.truncContraction entry x.1 x.2.1)
-      (encTrunc encT) (encList encNat))
-    (hbuild : ComputableInPolyTime build (encPair encC encNat) (encTrunc encT))
-    (hmodulus : ComputableInPolyTime modulus encC encNat) :
-    NativeCertificate (fun q : C × ℕ => truncCoeffSum entry (build q) % modulus q.1)
-      (encPair encC encNat) encNat :=
-  ((NativeCertificate.ofPolyTime ComputableInPolyTime.binary_mod).comp
-    (((NativeCertificate.ofPolyTime binary_sum).comp
-        (cA.comp (NativeCertificate.ofPolyTime hbuild))).prod
-      (NativeCertificate.ofPolyTime (modulusFst_polyTime hmodulus)))).congr fun _ => rfl
-
-private theorem termCertificate_time
-    (cA : NativeCertificate
-      (fun x : ℕ × ℕ × ℕ × DescribedNetwork T => x.2.2.2.truncContraction entry x.1 x.2.1)
-      (encTrunc encT) (encList encNat))
-    (hbuild : ComputableInPolyTime build (encPair encC encNat) (encTrunc encT))
-    (hmodulus : ComputableInPolyTime modulus encC encNat) (q : C × ℕ) :
-    (termCertificate cA hbuild hmodulus).time q =
-      (NativeCertificate.ofPolyTime hbuild).time q + cA.time (build q) +
-        (NativeCertificate.ofPolyTime binary_sum).time
-          ((build q).2.2.2.truncContraction entry (build q).1 (build q).2.1) +
-        (NativeCertificate.ofPolyTime (modulusFst_polyTime hmodulus)).time q +
-        (NativeCertificate.ofPolyTime ComputableInPolyTime.binary_mod).time
-          (truncCoeffSum entry (build q), modulus q.1) := rfl
-
-private theorem termCertificate_space
-    (cA : NativeCertificate
-      (fun x : ℕ × ℕ × ℕ × DescribedNetwork T => x.2.2.2.truncContraction entry x.1 x.2.1)
-      (encTrunc encT) (encList encNat))
-    (hbuild : ComputableInPolyTime build (encPair encC encNat) (encTrunc encT))
-    (hmodulus : ComputableInPolyTime modulus encC encNat) (q : C × ℕ) :
-    (termCertificate cA hbuild hmodulus).space q =
-      (NativeCertificate.ofPolyTime hbuild).space q + cA.space (build q) +
-        (NativeCertificate.ofPolyTime binary_sum).space
-          ((build q).2.2.2.truncContraction entry (build q).1 (build q).2.1) +
-        (NativeCertificate.ofPolyTime (modulusFst_polyTime hmodulus)).space q +
-        (NativeCertificate.ofPolyTime ComputableInPolyTime.binary_mod).space
-          (truncCoeffSum entry (build q), modulus q.1) := rfl
 
 /-- **Time and space of the loop.** Let `A` be an algorithm with the interface of Theorem D.1 at
 truncation order `ℓ`, with admissibility `Adm`. Let the networks, the modulus (positive) and the
@@ -196,7 +145,16 @@ theorem exists_truncSum_certificate {Adm : ℕ → ℕ → ℕ × DescribedNetwo
         cs.time c ≤ (count c + 1) * (K * ((encC c).length + 1) ^ K *
             2 ^ (K * s c / Nat.sqrt (Nat.log 2 (s c)))) ∧
           cs.space c ≤ K * ((encC c).length + 1) ^ K := by
-  set cr := termCertificate (entry := entry) A.certificate hbuild hmodulus with hcr
+  have hfst : ComputableInPolyTime (fun q : C × ℕ => q.1) (encPair encC encNat) encC :=
+    ComputableInPolyTime.fst encC encNat
+  have hpost : ComputableInPolyTime (fun p : List ℕ × C => p.1.sum % modulus p.2)
+      (encPair (encList encNat) encC) encNat :=
+    ComputableInPolyTime.binary_mod' (binary_sum.comp (.fst _ _)) (hmodulus.comp (.snd _ _))
+  let cr : NativeCertificate (fun q : C × ℕ => truncCoeffSum entry (build q) % modulus q.1)
+      (encPair encC encNat) encNat :=
+    ((NativeCertificate.ofPolyTime hpost).comp
+      ((A.certificate.comp (NativeCertificate.ofPolyTime hbuild)).prod
+        (NativeCertificate.ofPolyTime hfst))).congr fun _ => rfl
   let R : C → ℕ := fun c => (range (count c)).sup fun i => cr.time (c, i)
   let Q : C → ℕ := fun c => (range (count c)).sup fun i => cr.space (c, i)
   obtain ⟨a, d, h⟩ := exists_computableInO_modSum hmodulus hcount cr hpos
@@ -206,85 +164,63 @@ theorem exists_truncSum_certificate {Adm : ℕ → ℕ → ℕ × DescribedNetwo
   refine ⟨⟨_, _, h⟩, ?_⟩
   -- The polynomial-time pieces of a term.
   obtain ⟨pB, hpB, mB, bB⟩ := exists_mono_poly_cert hbuild
-  obtain ⟨pS, hpS, mS, bS⟩ := exists_mono_poly_cert binary_sum
-  obtain ⟨pF, hpF, mF, bF⟩ := exists_mono_poly_cert (modulusFst_polyTime hmodulus)
-  obtain ⟨pM, hpM, mM, bM⟩ := exists_mono_poly_cert ComputableInPolyTime.binary_mod
+  obtain ⟨pF, hpF, mF, bF⟩ := exists_mono_poly_cert hfst
+  obtain ⟨pP, hpP, mP, bP⟩ := exists_mono_poly_cert hpost
   obtain ⟨pBL, hpBL, mBL, bBL⟩ := exists_mono_poly hbuild.polyBounded_length
-  obtain ⟨pSL, hpSL, mSL, bSL⟩ := exists_mono_poly binary_sum.polyBounded_length
   obtain ⟨K₀, hK₀⟩ := A.bound Cadm D
   obtain ⟨cO, -, hcO⟩ := A.certificate.computes
   -- Sizes, as functions of the context.
   set L : C → ℕ := fun c => (encC c).length with hL
-  set lm : C → ℕ := fun c => (encNat (modulus c)).length with hlm
   set lk : C → ℕ := fun c => (encNat (count c)).length with hlk
-  have hlmp : PolyBounded L lm := hmodulus.polyBounded_length
-  have hlkp : PolyBounded L lk := hcount.polyBounded_length
-  -- The input of a term, the network, the contraction and its coefficient sum.
+  -- The input of a term, the network, the contraction and the post-processing input.
   let Lq : C → ℕ := fun c => 2 * L c + 1 + lk c
   let Lb : C → ℕ := fun c => pBL (Lq c)
   let Sp : C → ℕ := fun c => K₀ * (Lb c + 1) ^ K₀
   let Lo : C → ℕ := fun c => cO * (Sp c + 1)
-  let Lp : C → ℕ := fun c => 2 * pSL (Lo c) + 1 + lm c
-  let U : C → ℕ := fun c => pB (Lq c) + pS (Lo c) + pF (Lq c) + pM (Lp c) + Sp c
-  have hLq : PolyBounded L Lq := by growth_poly
-  have hLb : PolyBounded L Lb := (PolyBounded.of_polynomiallyBounded id hpBL).comp hLq
-  have hSp : PolyBounded L Sp := by growth_poly
-  have hLo : PolyBounded L Lo := (PolyBounded.const cO).mul (hSp.add (PolyBounded.const 1))
-  have hLp : PolyBounded L Lp := by growth_poly
-  have hU : PolyBounded L U := by growth_poly
+  let Lp : C → ℕ := fun c => 2 * Lo c + 1 + L c
+  let U : C → ℕ := fun c => pB (Lq c) + pF (Lq c) + pP (Lp c) + Sp c
   let W : C → ℕ := fun c => a * (L c + 1) ^ d + U c
   have hW : PolyBounded L W := by growth_poly
   obtain ⟨a', d', hWad⟩ := hW.exists_le
   refine ⟨a' + d' + K₀, fun c hs hgood => ?_⟩
   set E := 2 ^ (K₀ * s c / Nat.sqrt (Nat.log 2 (s c))) with hE
   have hE1 : 1 ≤ E := Nat.one_le_two_pow
-  -- A term at a summed index costs at most `U c` plus the contraction.
+  -- A term at a summed index costs at most `U c * E` time and `U c` space.
   have hterm : ∀ i < count c, cr.time (c, i) ≤ U c * E ∧ cr.space (c, i) ≤ U c := by
     intro i hi
     obtain ⟨hP1, hPD, hℓ1, hℓD, hadm⟩ := hgood i hi
     have hq : (encPair encC encNat (c, i)).length ≤ Lq c := by
-      rw [length_encPair]
-      have : (encNat i).length ≤ lk c := length_encNat_mono (le_of_lt hi)
-      simp only [Lq, L]
-      omega
+      have := length_encNat_mono (le_of_lt hi)
+      simp only [length_encPair, Lq, L, lk] at this ⊢; omega
     have hxlen : (encTrunc encT (build (c, i))).length ≤ Lb c := (bBL (c, i)).trans (mBL hq)
     obtain ⟨hAt, hAs⟩ := hK₀ (s c) (build (c, i)).1 (build (c, i)).2.1 (build (c, i)).2.2.1
       (build (c, i)).2.2.2 hs hP1 hPD hℓ1 hℓD hadm
-    have hpow : (encTrunc encT (build (c, i))).length + 1 ≤ Lb c + 1 := by omega
     have hAs' : A.certificate.space (build (c, i)) ≤ Sp c :=
-      hAs.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hpow _))
+      hAs.trans (by dsimp only [Sp]; gcongr)
     have hAt' : A.certificate.time (build (c, i)) ≤ Sp c * E :=
-      hAt.trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hpow _)))
+      hAt.trans (by dsimp only [Sp]; gcongr)
     have hout : (encList encNat ((build (c, i)).2.2.2.truncContraction entry (build (c, i)).1
         (build (c, i)).2.1)).length ≤ Lo c :=
       (hcO (build (c, i))).trans (Nat.mul_le_mul_left _ (by omega))
-    have hsumlen : (encNat (truncCoeffSum entry (build (c, i)))).length ≤ pSL (Lo c) :=
-      (bSL _).trans (mSL hout)
-    have hpair : (encPair encNat encNat (truncCoeffSum entry (build (c, i)), modulus c)).length ≤
-        Lp c := by
-      rw [length_encPair]
-      simp only [Lp, lm]
-      omega
-    have h1 := (bB (c, i)).1.trans (mB hq)
-    have h1' := (bB (c, i)).2.trans (mB hq)
-    have h2 := (bS _).1.trans (mS hout)
-    have h2' := (bS _).2.trans (mS hout)
-    have h3 := (bF (c, i)).1.trans (mF hq)
-    have h3' := (bF (c, i)).2.trans (mF hq)
-    have h4 := (bM (truncCoeffSum entry (build (c, i)), modulus c)).1.trans (mM hpair)
-    have h4' := (bM (truncCoeffSum entry (build (c, i)), modulus c)).2.trans (mM hpair)
-    rw [hcr, termCertificate_time, termCertificate_space]
-    dsimp only
+    have hpair : (encPair (encList encNat) encC
+        ((build (c, i)).2.2.2.truncContraction entry (build (c, i)).1 (build (c, i)).2.1,
+          c)).length ≤ Lp c := by
+      simp only [length_encPair, Lp, L]; omega
+    have h1 := (bB (c, i)).imp (·.trans (mB hq)) (·.trans (mB hq))
+    have h2 := (bF (c, i)).imp (·.trans (mF hq)) (·.trans (mF hq))
+    have h3 := (bP _).imp (·.trans (mP hpair)) (·.trans (mP hpair))
+    simp only [cr, NativeCertificate.congr, NativeCertificate.comp_time,
+      NativeCertificate.comp_space, NativeCertificate.prod_time, NativeCertificate.prod_space,
+      Function.comp_apply]
     refine ⟨?_, ?_⟩
-    · have hle : pB (Lq c) + pS (Lo c) + pF (Lq c) + pM (Lp c) ≤
-          (pB (Lq c) + pS (Lo c) + pF (Lq c) + pM (Lp c)) * E := Nat.le_mul_of_pos_right _ hE1
-      have hUE : U c * E = (pB (Lq c) + pS (Lo c) + pF (Lq c) + pM (Lp c)) * E + Sp c * E := by
-        simp only [U]
-        ring
-      rw [hUE]
-      omega
-    · simp only [U]
-      omega
+    · calc _ ≤ pB (Lq c) + Sp c * E + pF (Lq c) + pP (Lp c) :=
+            Nat.add_le_add (Nat.add_le_add (Nat.add_le_add h1.1 hAt') h2.1) h3.1
+        _ = (pB (Lq c) + pF (Lq c) + pP (Lp c)) + Sp c * E := by ring
+        _ ≤ (pB (Lq c) + pF (Lq c) + pP (Lp c)) * E + Sp c * E :=
+            Nat.add_le_add_right (Nat.le_mul_of_pos_right _ hE1) _
+        _ = U c * E := by simp only [U]; ring
+    · exact (Nat.add_le_add (Nat.add_le_add (Nat.add_le_add h1.2 hAs') h2.2) h3.2).trans
+        (by dsimp only [U]; omega)
   -- The trajectory maxima.
   have hR : R c ≤ U c * E := Finset.sup_le fun i hi => (hterm i (mem_range.mp hi)).1
   have hQ : Q c ≤ U c := Finset.sup_le fun i hi => (hterm i (mem_range.mp hi)).2
