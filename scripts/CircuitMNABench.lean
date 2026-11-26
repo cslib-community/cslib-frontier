@@ -27,13 +27,13 @@ Run it with
 lake env lean scripts/CircuitMNABench.lean
 ```
 
-It is not part of the test suite: the decoupling check takes about 13 s of kernel time and 5 GiB.
+It is not part of the test suite: the decoupling check takes about 12 s of kernel time and 5.4 GB.
 -/
 
 open Matrix Cslib.LinearAlgebra Cslib.Electrical
 
 set_option maxRecDepth 100000
-set_option maxHeartbeats 0 -- the decoupling check takes about 13 s of kernel time
+set_option maxHeartbeats 0 -- the decoupling check takes about 12 s of kernel time
 
 namespace CircuitMNABench
 

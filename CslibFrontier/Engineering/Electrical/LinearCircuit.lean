@@ -67,8 +67,9 @@ the descriptor system: `(φ, i)` is a trajectory if and only if `Fin.append φ i
 
 `Netlist.isExponentiallyStable_of_check` composes the semantics with the exact checkers of
 `CslibFrontier.Algorithms.LinearAlgebra.DescriptorCertificate`: a well-formed netlist, an
-accepted index-one decoupling of its equations, an exactly checked equilibrium `z₀` and an
-accepted Lyapunov certificate for the reduced matrix together prove that
+accepted index-one decoupling of its equations, an exactly checked equilibrium `z₀` and
+exponential stability of the checked reduced matrix (for instance from an accepted dense or
+sparse Lyapunov certificate) together prove that
 
 * `z₀` is a circuit trajectory (the DC operating point),
 * every differential state `x₀` (one coordinate per independent capacitor voltage or inductor
@@ -76,10 +77,13 @@ accepted Lyapunov certificate for the reduced matrix together prove that
 * every circuit trajectory with zero input converges to `z₀` exponentially: all potentials and
   all branch currents, in the Euclidean norm of the full vector.
 
-The supported class is the circuits whose equations have an index-one decoupling. Loops of
-capacitors and voltage sources and cutsets of inductors and current sources (index two),
-inconsistent sources and floating subcircuits have none; for them no certificate is accepted and
-nothing is claimed. Failure to find a certificate is not an instability proof.
+The supported class is the circuits whose equations have an index-one decoupling; nothing is
+claimed for any other circuit. By DAE index theory, loops of capacitors and voltage sources,
+cutsets of inductors and current sources, inconsistent sources and underdetermined subcircuits
+have none; this characterization is not proved here, but acceptance implies existence and
+uniqueness, so a circuit without trajectories, or with fewer than a decoupling would give, has no
+accepted certificate (the tests prove this for an inconsistent and an index-two circuit). Failure
+to find a certificate is not an instability proof.
 
 `Netlist.isTrajectoryOn_iff_realization` gives, for selected output probes
 (`Cslib.Electrical.Probe`: a node-pair voltage or a branch current) and the input ports, the

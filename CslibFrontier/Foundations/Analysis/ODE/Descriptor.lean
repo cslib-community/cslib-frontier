@@ -73,6 +73,8 @@ every consistent initial state (`IndexOneDecoupling.exists_isSolutionOn_Ici_iff`
 * `DescriptorSystem.IndexOneDecoupling.exists_isSolutionOn_Ici_iff`: for continuous inputs, an
   initial state `z₀` starts a solution on `[0, ∞)` exactly when it satisfies the algebraic
   constraint `z₀ = reconstruct (Q₁' z₀) (u 0)`.
+* `DescriptorSystem.IndexOneDecoupling.eqOn_of_isSolutionOn_Ici`: uniqueness of solutions with a
+  given input and initial state.
 * `DescriptorSystem.IndexOneDecoupling.isSolutionOn_iff_realization`: after the equilibrium
   shift, solutions of `S` are the solutions of the proper realization
   `ẋ = A x + B u`, `y = (H Q₁) x - (H Q₂ P₂ G) u` with output `H (z - z₀)`.
@@ -395,6 +397,26 @@ theorem exists_isSolutionOn_Ici_iff {u : ℝ → m → ℝ} (hu : ContinuousOn u
     · simp only [zero_smul, NormedSpace.exp_zero, one_mulVec, intervalIntegral.integral_same,
         add_zero]
       exact h₀.symm
+
+/-- **Uniqueness.** Two solutions of `S` on `[0, ∞)` with the same input and the same initial
+state agree at all times `t ≥ 0`. No regularity of the input is needed: the differential
+coordinates of the two solutions differ by a solution of `ẋ = A x` starting at `0`, and the
+algebraic coordinates are determined by the differential ones and the input. -/
+theorem eqOn_of_isSolutionOn_Ici (D : S.IndexOneDecoupling κ ρ) {u : ℝ → m → ℝ}
+    {z z' : ℝ → ι → ℝ} (hz : S.IsSolutionOn u z (Ici 0)) (hz' : S.IsSolutionOn u z' (Ici 0))
+    (h0 : z 0 = z' 0) :
+    EqOn z z' (Ici 0) := by
+  obtain ⟨hr, hx⟩ := (isSolutionOn_iff (D := D) (uniqueDiffOn_Ici 0)).1 hz
+  obtain ⟨hr', hx'⟩ := (isSolutionOn_iff (D := D) (uniqueDiffOn_Ici 0)).1 hz'
+  have hd : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt (fun τ => D.Q₁' *ᵥ z τ - D.Q₁' *ᵥ z' τ)
+      (D.A *ᵥ (D.Q₁' *ᵥ z t - D.Q₁' *ᵥ z' t)) (Ici 0) t := fun t ht => by
+    convert (hx t ht).sub (hx' t ht) using 1
+    rw [mulVec_sub]
+    abel
+  intro t ht
+  have h := Matrix.eq_exp_smul_mulVec_of_hasDerivWithinAt hd ht
+  rw [h0, sub_self, mulVec_zero, sub_eq_zero] at h
+  rw [hr t ht, hr' t ht, h]
 
 /-- The proper realization of `S` with output `H z`, after the equilibrium shift:
 `ẋ = A x + B u`, `y = (H Q₁) x - (H Q₂ P₂ G) u`. -/
