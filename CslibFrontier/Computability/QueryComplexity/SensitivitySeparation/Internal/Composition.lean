@@ -70,24 +70,21 @@ theorem compose_flip_sensitive_iff [DecidableEq (I × J)]
         f (fun k => g (fun a => x (k, a))) := by
   by_cases hg : g (BitString.flipOn {j} (fun a => x (i, a))) = g (fun a => x (i, a))
   · have he : (fun k => g (fun a => BitString.flipOn {(i, j)} x (k, a))) =
-        fun k => g (fun a => x (k, a)) := by
-      funext k
-      by_cases hk : k = i
-      · subst k
-        rw [BitString.flipOn_prod_same, hg]
+        fun k => g (fun a => x (k, a)) := funext fun k => by
+      rcases eq_or_ne k i with rfl | hk
+      · rw [BitString.flipOn_prod_same, hg]
       · rw [BitString.flipOn_prod_of_ne x j hk]
-    simp only [compose, he, ne_eq, not_true_eq_false, hg, false_and]
+    simp [compose, he, hg]
   · have hn : g (BitString.flipOn {j} (fun a => x (i, a))) = !(g (fun a => x (i, a))) := by
-      cases h₁ : g (BitString.flipOn {j} (fun a => x (i, a))) <;>
-        cases h₂ : g (fun a => x (i, a)) <;> simp_all
+      revert hg
+      cases g (BitString.flipOn {j} (fun a => x (i, a))) <;>
+        cases g (fun a => x (i, a)) <;> decide
     have he : (fun k => g (fun a => BitString.flipOn {(i, j)} x (k, a))) =
-        BitString.flipOn {i} (fun k => g (fun a => x (k, a))) := by
-      funext k
-      by_cases hk : k = i
-      · subst k
-        rw [BitString.flipOn_prod_same, BitString.flipOn_singleton_self, hn]
+        BitString.flipOn {i} (fun k => g (fun a => x (k, a))) := funext fun k => by
+      rcases eq_or_ne k i with rfl | hk
+      · rw [BitString.flipOn_prod_same, BitString.flipOn_singleton_self, hn]
       · rw [BitString.flipOn_prod_of_ne x j hk, BitString.flipOn_singleton_of_ne hk]
-    simp only [compose, he, ne_eq, hg, not_false_eq_true, true_and]
+    simp [compose, he, hg]
 
 /-- If `g` rejects the all-false input, then `compose f g` and `f` take the same value on the
 all-false input. -/
@@ -107,20 +104,16 @@ private theorem compose_flip_product_zero [DecidableEq (I × J)]
     compose f g (BitString.flipOn (C ×ˢ D) (fun _ => false)) =
       f (BitString.flipOn C (fun _ => false)) := by
   have hD' : g (BitString.flipOn D (fun _ => false)) = true := by
-    cases he : g (BitString.flipOn D (fun _ => false)) <;> simp_all
-  apply congrArg f
-  funext i
+    rw [hg] at hD
+    exact Bool.eq_true_of_not_eq_false hD
+  refine congrArg f (funext fun i => ?_)
   by_cases hi : i ∈ C
   · have he : (fun j => BitString.flipOn (C ×ˢ D) (fun _ => false) (i, j)) =
-        BitString.flipOn D (fun _ => false) := by
-      funext j
-      simp [BitString.flipOn_apply, hi]
+        BitString.flipOn D (fun _ => false) := funext fun j => by simp [BitString.flipOn_apply, hi]
     rw [he, hD']
     simp [BitString.flipOn_apply, hi]
   · have he : (fun j => BitString.flipOn (C ×ˢ D) (fun _ => false) (i, j)) =
-        fun _ => false := by
-      funext j
-      simp [BitString.flipOn_apply, hi]
+        fun _ => false := funext fun j => by simp [BitString.flipOn_apply, hi]
     rw [he, hg]
     simp [BitString.flipOn_apply, hi]
 
@@ -139,12 +132,9 @@ theorem sensitivityAt_compose (f : (I → Bool) → Bool) (g : (J → Bool) → 
         sensitivityAt g (fun a => x (i, a)) := by
   simp only [sensitivityAt, Finset.card_eq_sum_ones, Finset.sum_filter,
     compose_flip_sensitive_iff, Fintype.sum_prod_type]
-  apply Finset.sum_congr rfl
-  intro i _
+  refine Finset.sum_congr rfl fun i _ => ?_
   by_cases hi : f (BitString.flipOn {i} (fun k => g (fun a => x (k, a)))) ≠
-      f (fun k => g (fun a => x (k, a)))
-  · simp [hi]
-  · simp [hi]
+      f (fun k => g (fun a => x (k, a))) <;> simp [hi]
 
 /-- Sensitivity is submultiplicative under composition:
 `sensitivity (compose f g) ≤ sensitivity f * sensitivity g`. -/
@@ -173,33 +163,25 @@ theorem blockSensitivityAt_compose_zero_le (f : (I → Bool) → Bool)
   classical
   obtain ⟨S, hS, hdS, hbS⟩ := exists_blockSensitivityAt_family f (fun _ => false)
   obtain ⟨T, hT, hdT, hbT⟩ := exists_blockSensitivityAt_family g (fun _ => false)
-  have h := le_blockSensitivityAt_of_family (compose f g) (fun _ => false)
-    (fun p : S × T => p.1.val ×ˢ p.2.val)
-    (by
-      intro p
-      obtain ⟨i, hi⟩ := (hbS p.1.val p.1.property).1
-      obtain ⟨j, hj⟩ := (hbT p.2.val p.2.property).1
-      exact ⟨(i, j), Finset.mem_product.mpr ⟨hi, hj⟩⟩)
-    (by
-      intro p q hpq
-      apply Finset.disjoint_left.mpr
-      intro a ha hq
-      obtain ⟨ha₁, ha₂⟩ := Finset.mem_product.mp ha
-      obtain ⟨hq₁, hq₂⟩ := Finset.mem_product.mp hq
-      by_cases hs : p.1 = q.1
-      · have ht : p.2.val ≠ q.2.val := by
-          intro h
-          exact hpq (Prod.ext hs (Subtype.ext h))
-        exact Finset.disjoint_left.mp (hdT _ p.2.property _ q.2.property ht) ha₂ hq₂
-      · have hs' : p.1.val ≠ q.1.val := fun h => hs (Subtype.ext h)
-        exact Finset.disjoint_left.mp (hdS _ p.1.property _ q.1.property hs') ha₁ hq₁)
-    (by
-      intro p
-      rw [BitString.flipOn_congr_decidableEq,
-        compose_flip_product_zero f g _ _ hg (hbT p.2.val p.2.property).2,
-        compose_zero f g hg]
-      exact (hbS p.1.val p.1.property).2)
-  simpa only [Fintype.card_prod, Fintype.card_coe, hS, hT] using h
+  simpa only [Fintype.card_prod, Fintype.card_coe, hS, hT] using
+    le_blockSensitivityAt_of_family (compose f g) (fun _ => false)
+      (fun p : S × T => p.1.val ×ˢ p.2.val)
+      (fun p =>
+        let ⟨i, hi⟩ := (hbS p.1.val p.1.2).1
+        let ⟨j, hj⟩ := (hbT p.2.val p.2.2).1
+        ⟨(i, j), Finset.mem_product.mpr ⟨hi, hj⟩⟩)
+      (fun p q hpq => Finset.disjoint_left.mpr fun a ha hq => by
+        obtain ⟨ha₁, ha₂⟩ := Finset.mem_product.mp ha
+        obtain ⟨hq₁, hq₂⟩ := Finset.mem_product.mp hq
+        by_cases hs : p.1 = q.1
+        · exact Finset.disjoint_left.mp
+            (hdT _ p.2.2 _ q.2.2 fun h => hpq (Prod.ext hs (Subtype.ext h))) ha₂ hq₂
+        · exact Finset.disjoint_left.mp
+            (hdS _ p.1.2 _ q.1.2 fun h => hs (Subtype.ext h)) ha₁ hq₁)
+      fun p => by
+        rw [BitString.flipOn_congr_decidableEq,
+          compose_flip_product_zero f g _ _ hg (hbT p.2.val p.2.2).2, compose_zero f g hg]
+        exact (hbS p.1.val p.1.2).2
 
 end Finite
 end Internal

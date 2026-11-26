@@ -40,8 +40,7 @@ theorem blockDiagonal_mulVec_apply (A : X → Matrix ι ι ℂ) (v : ι × X →
     (blockDiagonal A *ᵥ v) (i, x) = (A x *ᵥ fun j => v (j, x)) i := by
   unfold mulVec dotProduct
   rw [Fintype.sum_prod_type]
-  refine sum_congr rfl fun j _ => ?_
-  simp [blockDiagonal_apply, ite_mul]
+  exact sum_congr rfl fun j _ => by simp [blockDiagonal_apply, ite_mul]
 
 variable [DecidableEq ι]
 
@@ -58,27 +57,20 @@ theorem cfc_blockDiagonal (f : ℝ → ℝ) (A : X → Matrix ι ι ℂ)
     (hA : ∀ x, (A x).IsHermitian) :
     cfc f (blockDiagonal A) = blockDiagonal (fun x => cfc f (A x)) := by
   classical
-  have hbig : IsSelfAdjoint (blockDiagonal A) := by
-    change (blockDiagonal A)ᴴ = blockDiagonal A
-    rw [blockDiagonal_conjTranspose]
-    exact congrArg blockDiagonal (funext hA)
   let T := spectrum ℝ (blockDiagonal A) ∪ ⋃ x, spectrum ℝ (A x)
   have hT : T.Finite := (blockDiagonal A).finite_real_spectrum.union
     (Set.finite_iUnion fun x => (A x).finite_real_spectrum)
   let P := Lagrange.interpolate hT.toFinset id f
   have hp (r : ℝ) (hr : r ∈ T) : P.eval r = f r :=
     Lagrange.eval_interpolate_at_node f (Set.injOn_id _) (hT.mem_toFinset.mpr hr)
-  have hc (B : Matrix (ι × X) (ι × X) ℂ) (hB : IsSelfAdjoint B)
-      (hsub : spectrum ℝ B ⊆ T) : cfc f B = Polynomial.aeval B P := by
-    rw [← cfc_polynomial P B hB]
-    exact cfc_congr fun r hr => (hp r (hsub hr)).symm
-  have hc' (x : X) : cfc f (A x) = Polynomial.aeval (A x) P := by
-    rw [← cfc_polynomial P (A x) (show IsSelfAdjoint (A x) from hA x)]
-    exact cfc_congr fun r hr => (hp r (Or.inr (Set.mem_iUnion.mpr ⟨x, hr⟩))).symm
-  rw [hc _ hbig (fun _ hr => Or.inl hr)]
-  simp only [hc']
-  let F : (X → Matrix ι ι ℂ) →ₐ[ℝ] Matrix (ι × X) (ι × X) ℂ := blockDiagonalAlgHom
-  change Polynomial.aeval (F A) P = F (fun x => Polynomial.aeval (A x) P)
+  have hbig : IsSelfAdjoint (blockDiagonal A) :=
+    (blockDiagonal_conjTranspose A).trans (congrArg blockDiagonal (funext hA))
+  rw [(cfc_congr fun r hr => (hp r (Or.inl hr)).symm).trans (cfc_polynomial P _ hbig)]
+  simp only [fun x => (cfc_congr fun r hr =>
+    (hp r (Or.inr (Set.mem_iUnion.mpr ⟨x, hr⟩))).symm).trans
+      (cfc_polynomial P (A x) (show IsSelfAdjoint (A x) from hA x))]
+  change Polynomial.aeval (blockDiagonalAlgHom A) P =
+    blockDiagonalAlgHom fun x => Polynomial.aeval (A x) P
   rw [Polynomial.aeval_algHom_apply, Polynomial.aeval_pi_apply]
 
 end Matrix

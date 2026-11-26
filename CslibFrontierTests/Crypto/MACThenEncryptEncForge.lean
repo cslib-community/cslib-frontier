@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.EncForge
+import CslibFrontierTests.Crypto.MACThenEncryptFixture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Lookup
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PolyTime
@@ -34,6 +35,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Crypto.MACThenEncryptEncForge
 
 open Cslib Cslib.Probability Cslib.Crypto Turing.MultiTapeTM
+open CslibFrontierTests.Crypto.MACThenEncrypt (echoMAC echo_pairLen)
 
 -- Exercise 9.15(a): MAC-then-Encrypt is CPA-secure and has plaintext integrity.
 example (E : SymmetricCipher) (M : MACScheme) (ptLen : ℕ → ℕ)
@@ -80,35 +82,6 @@ def echoCipher : SymmetricCipher where
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hct
     subst hct
     rfl
-
-/-- The MAC whose tag is the message itself. -/
-def echoMAC : MACScheme where
-  msgLen n := n
-  keyGen _ := pure []
-  sign _ msg := pure msg
-  verify _ msg tag := msg == tag
-  keyGen_ppt := by ppt
-  sign_ppt := by ppt
-  verify_polyTime := by polytime
-  verify_sign := by
-    intro _ _ _ msg _ tag htag
-    simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at htag
-    subst htag
-    exact beq_self_eq_true _
-
-theorem echo_pairLen :
-    ∀ n km, km ∈ (ProbComp.eval (echoMAC.keyGen n)).support →
-      ∀ msg, msg.length = n →
-      ∀ tag ∈ (ProbComp.eval (echoMAC.sign km msg)).support,
-        (encPair encBits encBits (msg, tag)).length = 3 * n + 1 := by
-  intro n km _ msg hmsg tag htag
-  change tag ∈ (ProbComp.eval (pure msg)).support at htag
-  simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at htag
-  subst htag
-  rw [encPair_apply]
-  dsimp only
-  rw [length_frame_append, encBits_apply, hmsg]
-  omega
 
 theorem ptLen_polyTime : ComputableInPolyTime (fun n => 3 * n + 1) encUnary encUnary := by
   polytime

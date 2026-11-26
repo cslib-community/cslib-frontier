@@ -117,39 +117,27 @@ theorem sequentialProjective_marginal [DecidableEq α] {k : ℕ} (M : Fin k → 
   | succ k ih =>
     rw [← (Fin.consEquiv fun _ : Fin (k + 1) => α).sum_comp, Fintype.sum_prod_type]
     refine Fin.cases ?_ (fun j => ?_) i
-    · have hidem := hM 0 b
-      simp only [Fin.consEquiv_apply, Fin.cons_zero,
-        sequentialProjective_effect_succ, Fin.tail_cons,
-        sum_ite_irrel, ← sum_mul, ← mul_sum, sum_effect, mul_one, sum_const_zero,
-        sum_ite_eq', mem_univ, ite_true, hidem]
-      change (M 0).effect b = ∑ p : Fin 0 → α,
-        (1 : A) * (M 0).effect b * star (1 : A)
+    · simp only [Fin.consEquiv_apply, Fin.cons_zero, sequentialProjective_effect_succ,
+        Fin.tail_cons, sum_ite_irrel, ← sum_mul, ← mul_sum, sum_effect, mul_one, sum_const_zero,
+        sum_ite_eq', mem_univ, ite_true, hM 0 b]
+      change (M 0).effect b = ∑ _ : Fin 0 → α, (1 : A) * (M 0).effect b * star (1 : A)
       simp
     · simp only [Fin.consEquiv_apply, Fin.cons_succ, Fin.cons_zero,
         sequentialProjective_effect_succ,
         Fin.tail_cons]
       have hprefix : (fun l : Fin j.val => before M j.succ l.succ) =
           before (fun t : Fin k => M t.succ) j := rfl
+      have hhead : before M j.succ (0 : Fin (j.val + 1)) = M 0 := rfl
       conv_rhs =>
         change ∑ p : Fin (j.val + 1) → α,
           transcriptProduct (before M j.succ) p * (M j.succ).effect b *
             star (transcriptProduct (before M j.succ) p)
         rw [← (Fin.consEquiv fun _ : Fin (j.val + 1) => α).sum_comp, Fintype.sum_prod_type]
       refine sum_congr rfl fun a _ => ?_
-      have hsplit (g : Fin k → α) :
-          (if g j = b then
-              (M 0).effect a *
-                (sequentialProjective (fun l : Fin k => M l.succ) (fun l => hM l.succ)).effect g *
-                  (M 0).effect a else 0) =
-            (M 0).effect a *
-                (if g j = b then
-                  (sequentialProjective (fun l : Fin k => M l.succ) (fun l => hM l.succ)).effect g
-                  else 0) * (M 0).effect a := by
-        split_ifs <;> simp
-      simp only [hsplit, ← sum_mul, ← mul_sum, ih, Fin.consEquiv_apply, transcriptProduct_succ,
-        Fin.cons_zero, Fin.tail_cons, hprefix, star_mul]
-      have hhead : before M j.succ (0 : Fin (j.val + 1)) = M 0 := rfl
-      simp only [hhead, ((M 0).nonneg a).isSelfAdjoint.star_eq, sum_mul, mul_sum, mul_assoc]
+      rw [← sum_filter, ← sum_mul, ← mul_sum, sum_filter]
+      simp only [ih, Fin.consEquiv_apply, transcriptProduct_succ,
+        Fin.cons_zero, Fin.tail_cons, hprefix, star_mul, hhead,
+        ((M 0).nonneg a).isSelfAdjoint.star_eq, sum_mul, mul_sum, mul_assoc]
 
 /-- An operator commuting with each measured effect also commutes with each transcript effect. -/
 theorem sequentialProjective_commute {k : ℕ} (M : Fin k → Measurement α A)

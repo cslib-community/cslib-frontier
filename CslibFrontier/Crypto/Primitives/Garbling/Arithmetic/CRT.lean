@@ -82,10 +82,9 @@ private theorem prod_div_eq (hm : ∀ i, 0 < m i) (i : Fin s) :
     (∏ j, m j) / m i = ∏ j ∈ Finset.univ.erase i, m j :=
   Nat.div_eq_of_eq_mul_left (hm i) (Finset.prod_erase_mul _ _ (Finset.mem_univ i)).symm
 
-private theorem prod_div_mul (hm : ∀ i, 0 < m i) (i : Fin s) :
-    (∏ j, m j) / m i * m i = ∏ j, m j := by
-  rw [prod_div_eq hm]
-  exact Finset.prod_erase_mul _ _ (Finset.mem_univ i)
+private theorem prod_div_mul (_hm : ∀ i, 0 < m i) (i : Fin s) :
+    (∏ j, m j) / m i * m i = ∏ j, m j :=
+  Nat.div_mul_cancel (Finset.dvd_prod_of_mem _ (Finset.mem_univ i))
 
 /-- Each CRT coefficient is below `N = ∏ i, m i`. -/
 theorem crtCoeff_lt (hm : ∀ i, 0 < m i) (i : Fin s) : crtCoeff m i < ∏ j, m j := by
@@ -120,23 +119,19 @@ theorem crtSum_modEq (hm : ∀ i, 0 < m i) (hco : Pairwise (Nat.Coprime on m)) (
     push_cast
     simp only [crtCoeff_cast hm hco, ite_mul, one_mul, zero_mul, Finset.sum_ite_eq',
       Finset.mem_univ, ↓reduceIte, ZMod.natCast_mod]
-  have hint : (∏ i, (m i : ℤ)) ∣ (x : ℤ) - crtSum m x :=
-    Fintype.prod_dvd_of_coprime (fun i j hij => Nat.Coprime.isCoprime (hco hij))
-      fun j => (Nat.modEq_iff_dvd.mp (hchan j))
   rw [Nat.modEq_iff_dvd]
-  exact_mod_cast hint
+  exact_mod_cast Fintype.prod_dvd_of_coprime (fun _ _ hij => (hco hij).isCoprime)
+    fun j => Nat.modEq_iff_dvd.mp (hchan j)
 
 
 /-- **No wrap-around**: the CRT combination of the residues of any `x` is at most
 `(N - 1) ^ 2` for `N = ∏ i, m i`. -/
 theorem crtSum_le_sq (hm : ∀ i, 0 < m i) (x : ℕ) : crtSum m x ≤ (∏ i, m i - 1) ^ 2 := by
   set N := ∏ i, m i
-  calc crtSum m x ≤ ∑ i, (N - 1) * (m i - 1) := by
-        refine Finset.sum_le_sum fun i _ => Nat.mul_le_mul ?_ ?_
-        · have := crtCoeff_lt hm i
-          omega
-        · have := Nat.mod_lt x (hm i)
-          omega
+  calc crtSum m x ≤ ∑ i, (N - 1) * (m i - 1) :=
+        Finset.sum_le_sum fun i _ =>
+          Nat.mul_le_mul (Nat.le_pred_of_lt (crtCoeff_lt hm i))
+            (Nat.le_pred_of_lt (Nat.mod_lt x (hm i)))
     _ = (N - 1) * ∑ i, (m i - 1) := (Finset.mul_sum _ _ _).symm
     _ ≤ (N - 1) * (N - 1) :=
       Nat.mul_le_mul_left _ (Nat.sum_sub_one_le_prod_sub_one Finset.univ fun i _ => hm i)
@@ -154,11 +149,9 @@ theorem constMod_crtSum (hm : ∀ i, 0 < m i) (hco : Pairwise (Nat.Coprime on m)
     have h1 := crtSum_le_sq hm x
     have h2 : (∏ i, m i - 1) ^ 2 < (∏ i, m i) ^ 2 := Nat.pow_lt_pow_left (by omega) two_ne_zero
     omega
-  have hk : p ^ k ≤ p ^ (2 * k + 1) := Nat.pow_le_pow_right (by omega) (by omega)
-  have hval : (crtSum m x : ZMod (p ^ (2 * k + 1))).val = crtSum m x := by
-    rw [ZMod.val_natCast, Nat.mod_eq_of_lt (hlt.trans_le hk)]
-  have hx : (crtSum m x : ZMod (p ^ (2 * k + 1))).val < p ^ k := by rw [hval]; exact hlt
-  rw [constMod_eq_mod hp hN0 hx, hval]
+  have hval : (crtSum m x : ZMod (p ^ (2 * k + 1))).val = crtSum m x :=
+    ZMod.val_natCast_of_lt (hlt.trans_le (Nat.pow_le_pow_right (by omega) (by omega)))
+  rw [constMod_eq_mod hp hN0 (hval.symm ▸ hlt), hval]
   exact congrArg Nat.cast (crtSum_modEq hm hco x)
 
 end Cslib.Crypto.Garbling.Arithmetic

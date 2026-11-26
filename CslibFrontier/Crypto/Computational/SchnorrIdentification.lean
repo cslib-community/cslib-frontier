@@ -210,15 +210,14 @@ private theorem specialSoundOn (setup : ℕ → PMF F.Desc) {k : ℕ → ℕ} {n
     simp only [wordKeyGen, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
       Prod.mk.injEq, Sigma.mk.injEq] at hkey
-    obtain ⟨d', hd', -, -, -, hdd, -⟩ := hkey
-    exact hdd ▸ hd'
+    obtain ⟨_, hd', -, -, -, rfl, -⟩ := hkey
+    exact hd'
   simp only [SigmaProtocol.Accepts, wordProtocol, decide_eq_true_eq] at hz hz'
-  have heq := F.encode_injective d (hz.symm.trans hz')
   have hcne : (ofBits (List.ofFn c) : ZMod (F.order d)) ≠ ofBits (List.ofFn c') :=
     (F.challengeEmbedding d (hkq d hd)).injective.ne hc
   simp only [wordRelation, wordExtract, extractNat_cast hcne, mul_smul]
-  rw [sub_smul, sub_eq_sub_iff_sub_eq_sub.mp heq, ← sub_smul,
-    inv_smul_smul₀ (sub_ne_zero.mpr hcne)]
+  rw [sub_smul, sub_eq_sub_iff_sub_eq_sub.mp (F.encode_injective d (hz.symm.trans hz')),
+    ← sub_smul, inv_smul_smul₀ (sub_ne_zero.mpr hcne)]
 
 /-- The rewinding adversary wins the discrete-logarithm game exactly when its output is a witness
 for the generated statement. -/
@@ -227,7 +226,7 @@ private theorem decide_wordRelation (d : F.Desc) (α : ZMod (F.order d)) (r : �
       decide (((ofBits r.bits : ℕ) : ZMod (F.order d)) = α) := by
   rw [ofBits_bits]
   exact decide_eq_decide.mpr ⟨fun h => F.smul_generator_injective d h, fun h => by
-    simp only [wordRelation, h]⟩
+    simp [wordRelation, h]⟩
 
 private theorem oneWayGame_eq (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ) (A : F.SchnorrImpersonator)
     (n : ℕ) :
@@ -265,15 +264,13 @@ theorem isPPTOn_rewind {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary e
     {A : F.SchnorrImpersonator} (hA : A.IsPPT) :
     IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
       (fun input => A.rewind k input.1 input.2) := by
-  have hrespond := hA.2
   unfold SchnorrImpersonator.rewind
-  refine hA.1.bind_with ?_
-  refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
-  refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
-  refine (hrespond.preprocess
+  refine hA.1.bind_with ((ComputableInPolyTime.sampleList (by fun_prop)).bind_with
+    ((ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_))
+  refine (hA.2.preprocess
     (prepare := fun p : (((ℕ × F.Desc × List Bool) × List Bool × List Bool) × List Bool) ×
       List Bool => (p.1.1.1.1, (p.1.1.2.2, p.1.2))) (by fun_prop)).bind_with ?_
-  refine (hrespond.preprocess
+  refine (hA.2.preprocess
     (prepare := fun p : ((((ℕ × F.Desc × List Bool) × List Bool × List Bool) × List Bool) ×
       List Bool) × List Bool => (p.1.1.1.1.1, (p.1.1.1.2.2, p.1.2))) (by fun_prop)).bind_with ?_
   exact ComputableInPolyTime.isPPTOn (by fun_prop)

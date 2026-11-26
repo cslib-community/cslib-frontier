@@ -137,9 +137,8 @@ theorem computableInPolyTime_truncateBlocks {γ : Type} {encIn : γ ↪ List Boo
   simpa only [truncateBlocks, List.map_map, Function.comp_def] using
     computableInPolyTime_takeBlocks
       (ps.map fun p => (fun x => p.eval (N x), fun x => p.eval (M x)))
-      (fun l hl => by
-        obtain ⟨p, -, rfl⟩ := List.mem_map.mp hl
-        exact ⟨(ComputableInPolyTime.unary_eval p).comp hN,
+      (List.forall_mem_map.mpr fun p _ =>
+        ⟨(ComputableInPolyTime.unary_eval p).comp hN,
           (ComputableInPolyTime.unary_eval p).comp hM⟩) hW
 
 /-- Cut consecutive blocks of uniform length `M` to lengths `p.eval n` for `p ∈ ps`. -/
@@ -166,11 +165,8 @@ theorem computableInPolyTime_trimUniformBlocks {γ : Type} {encIn : γ ↪ List 
     (hW : ComputableInPolyTime W encIn encBits) :
     ComputableInPolyTime (fun x => trimUniformBlocks ps (N x) (M x) (W x)) encIn encBits := by
   simpa only [trimUniformBlocks, List.map_map, Function.comp_def] using
-    computableInPolyTime_takeBlocks
-      (ps.map fun p => (fun x => p.eval (N x), M))
-      (fun l hl => by
-        obtain ⟨p, -, rfl⟩ := List.mem_map.mp hl
-        exact ⟨(ComputableInPolyTime.unary_eval p).comp hN, hM⟩) hW
+    computableInPolyTime_takeBlocks (ps.map fun p => (fun x => p.eval (N x), M))
+      (List.forall_mem_map.mpr fun p _ => ⟨(ComputableInPolyTime.unary_eval p).comp hN, hM⟩) hW
 
 /-! ### Uniform block lengths and peeling off the first quantifier -/
 
@@ -210,23 +206,20 @@ theorem IsAlternatingVerifier.peel {q : Bool} {p : Polynomial ℕ} {ps : List (P
         ∃ w : List Bool, w.length = p.eval (enc a).length ∧ (a, w) ∈ B
       else
         ∀ w : List Bool, w.length = p.eval (enc a).length → (a, w) ∈ B := by
-  let B : Set (α × List Bool) := {y | Alternation (!q)
-    (ps.map fun r => r.eval (enc y.1).length) fun w => V (y.1, y.2 ++ w) = true}
-  have hle (y : α × List Bool) : (enc y.1).length ≤ (encPair enc encBits y).length := by
-    enc_len
-  refine ⟨B, fun z =>
-    let y := z.1
-    (y.1, y.2 ++ truncateBlocks ps (enc y.1).length (encPair enc encBits y).length z.2),
-    ?_, fun y => ?_, fun a => ?_⟩
-  · have hfst := ComputableInPolyTime.fst (encPair enc encBits) encBits
-    exact ((ComputableInPolyTime.fst _ _).comp hfst).prod
+  have hfst := ComputableInPolyTime.fst (encPair enc encBits) encBits
+  refine ⟨{y | Alternation (!q) (ps.map fun r => r.eval (enc y.1).length)
+      fun w => V (y.1, y.2 ++ w) = true},
+    fun z => (z.1.1, z.1.2 ++ truncateBlocks ps (enc z.1.1).length
+      (encPair enc encBits z.1).length z.2),
+    ((ComputableInPolyTime.fst _ _).comp hfst).prod
       (ComputableInPolyTime.bitsAppend ((ComputableInPolyTime.snd _ _).comp hfst)
         (computableInPolyTime_truncateBlocks ps
           ((ComputableInPolyTime.encoding_length enc).comp
             ((ComputableInPolyTime.fst _ _).comp hfst))
-          ((ComputableInPolyTime.encoding_length _).comp hfst) (.snd _ _)))
-  · exact (alternation_truncateBlocks (hle y) (P := fun w => V (y.1, y.2 ++ w) = true)).symm
-  · cases q <;> exact hA a
+          ((ComputableInPolyTime.encoding_length _).comp hfst) (.snd _ _))),
+    fun y => (alternation_truncateBlocks (by enc_len)
+      (P := fun w => V (y.1, y.2 ++ w) = true)).symm,
+    fun a => by cases q <;> exact hA a⟩
 
 /-- **A problem in `Σₖ₊₁` is the projection of a problem in `Πₖ`**, as in the proof of
 [Arora and Barak, Theorem 5.4][AroraBarak09]: there are a polynomial `p` and a problem `B` in `Πₖ`

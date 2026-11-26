@@ -363,21 +363,10 @@ theorem slotStoreInv_of_zero (n_max : ℕ) {gm : ℕ → ℕ} (hzero : ∀ i, gm
   refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
   · intro _; rw [hzero 0]; exact Nat.zero_le n_max
   · intro hb
-    refine ⟨rfl, by rw [hzero 1]; exact Nat.zero_le _, ?_, ?_, ?_, ?_⟩
-    · intro b _; rw [hzero]; exact Nat.zero_le _
-    · intro b _ r hr; rw [hzero] at hr; omega
-    · intro b _ r hr; rw [hzero] at hr; omega
-    · intro t ht; rw [hzero 1] at ht; omega
+    refine ⟨rfl, by rw [hzero 1]; exact Nat.zero_le _, ?_, ?_, ?_, ?_⟩ <;> intros <;> simp_all
   · intro hb
-    refine ⟨rfl, by rw [hzero 0]; exact Nat.zero_le _, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro p hp; rw [hzero 0] at hp; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
+    refine ⟨rfl, by rw [hzero 0]; exact Nat.zero_le _, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;> simp_all
   · intro hb b _
     rw [hzero, hzero]
     have hK := slabSize_pos n_max
@@ -397,6 +386,13 @@ theorem slotStoreInv_of_zero (n_max : ℕ) {gm : ℕ → ℕ} (hzero : ∀ i, gm
       intro b _
       simp [hzero, bucketPotential]
 
+/-- Quotients agree when `a * K + r₁ = b * K + r₂` with both remainders below `K`. -/
+private theorem eq_of_mul_add_eq {K a b r₁ r₂ : ℕ} (h₁ : r₁ < K) (h₂ : r₂ < K)
+    (h : a * K + r₁ = b * K + r₂) : a = b := by
+  by_contra hne
+  rcases Nat.lt_or_gt_of_ne hne with hab | hab <;>
+  · have := Nat.mul_le_mul_right K hab; rw [Nat.add_one_mul] at this; omega
+
 /-- Key slot-store theorem: under `SlotStoreInv n_max gm`, every logical slot `(b, j)` with
 `b < numBuckets n_max` and `j < bCount n_max gm b` maps to a valid physical slot
 `slotOf n_max gm b j < n_max`, and `slotOf n_max gm` is injective across all active `(b, j)`. -/
@@ -408,30 +404,16 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · have hB1 : numBuckets n_max = 1 := by simp [numBuckets, hb0]
     have hc0 : gm 0 ≤ n_max := hinv.single_valid hb0
-    refine ⟨?_, ?_⟩
-    · intro b hb j hj
-      have hb_eq : b = 0 := by omega
-      subst hb_eq
-      unfold bCount at hj
-      simp only [hb0, ↓reduceIte] at hj
-      unfold slotOf
-      simp only [hb0, ↓reduceIte]
-      omega
-    · intro b₁ hb₁ j₁ _ b₂ hb₂ j₂ _ heq
-      have hb1 : b₁ = 0 := by omega
-      have hb2 : b₂ = 0 := by omega
-      unfold slotOf at heq
-      simp only [hb0, ↓reduceIte] at heq
-      exact ⟨by omega, heq⟩
+    simp only [slotOf, bCount, hb0, ↓reduceIte]
+    refine ⟨fun b hb j hj => ?_, fun b₁ hb₁ j₁ _ b₂ hb₂ j₂ _ heq => ⟨by omega, heq⟩⟩
+    obtain rfl : b = 0 := by omega
+    simp only [↓reduceIte] at hj
+    omega
   · have hb_ne : bucketBits n_max ≠ 0 := by omega
     have htail := hinv.multi_tail hb_pos
     have hslab := hinv.multi_slab hb_pos
     have htot := hinv.multi_total_le hb_pos
     have hK : 0 < slabSize n_max := slabSize_pos n_max
-    have hTcap : 0 < tailCapPerBucket n_max := by
-      unfold tailCapPerBucket
-      rw [ite_eq_right hb_ne]
-      omega
     have hslot_dichot : ∀ b < numBuckets n_max, ∀ j < bCount n_max gm b,
         (j < gm (gmQIdx b) * slabSize n_max ∧
           slotOf n_max gm b j < gm 0 * slabSize n_max) ∨
@@ -451,12 +433,9 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
           rw [hslab.nslabs_eq]
           exact hslab.ptr_lt b hb _ hs_lt
         have hmod_lt : j % slabSize n_max < slabSize n_max := Nat.mod_lt j hK
-        refine ⟨hj_slab, ?_⟩
-        have h1 : (slabPtrOf n_max gm b (j / slabSize n_max) + 1) * slabSize n_max ≤
-            gm 0 * slabSize n_max :=
-          Nat.mul_le_mul_right _ hp_lt
+        have h1 := Nat.mul_le_mul_right (slabSize n_max) hp_lt
         rw [Nat.add_one_mul] at h1
-        omega
+        exact ⟨hj_slab, by omega⟩
       · right
         have hj_ge : gm (gmQIdx b) * slabSize n_max ≤ j := by omega
         have hr_lt : j - gm (gmQIdx b) * slabSize n_max < gm (gmRIdx b) := by omega
@@ -466,9 +445,7 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
         refine ⟨hj_ge, by omega, by omega⟩
     refine ⟨?_, ?_⟩
     · intro b hb j hj
-      rcases hslot_dichot b hb j hj with ⟨_, hlt⟩ | ⟨_, _, hlt⟩
-      · omega
-      · exact hlt
+      rcases hslot_dichot b hb j hj with ⟨_, hlt⟩ | ⟨_, _, hlt⟩ <;> omega
     · intro b₁ hb₁ j₁ hj₁ b₂ hb₂ j₂ hj₂ heq
       rcases hslot_dichot b₁ hb₁ j₁ hj₁ with ⟨hj1_lt, hs1_lt⟩ | ⟨hj1_ge, hs1_ge, _⟩ <;>
       rcases hslot_dichot b₂ hb₂ j₂ hj₂ with ⟨hj2_lt, hs2_lt⟩ | ⟨hj2_ge, hs2_ge, _⟩
@@ -477,15 +454,7 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
         simp only [hb_ne, ↓reduceIte, hj1_lt, hj2_lt] at heq
         have hmod1 : j₁ % slabSize n_max < slabSize n_max := Nat.mod_lt j₁ hK
         have hmod2 : j₂ % slabSize n_max < slabSize n_max := Nat.mod_lt j₂ hK
-        have hp_eq : slabPtrOf n_max gm b₁ (j₁ / slabSize n_max) =
-            slabPtrOf n_max gm b₂ (j₂ / slabSize n_max) := by
-          rcases lt_trichotomy (slabPtrOf n_max gm b₁ (j₁ / slabSize n_max))
-              (slabPtrOf n_max gm b₂ (j₂ / slabSize n_max)) with hlt | hlt | hlt
-          · have := Nat.mul_le_mul_right (slabSize n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
-          · exact hlt
-          · have := Nat.mul_le_mul_right (slabSize n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
+        have hp_eq := eq_of_mul_add_eq (by omega) (by omega) heq
         have hrem_eq : j₁ % slabSize n_max = j₂ % slabSize n_max := by
           rw [hp_eq] at heq
           omega
@@ -526,16 +495,7 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
           lt_of_lt_of_le hr1_lt (htail.r_le b₁ hb₁)
         have hr2_cap : j₂ - gm (gmQIdx b₂) * slabSize n_max < tailCapPerBucket n_max :=
           lt_of_lt_of_le hr2_lt (htail.r_le b₂ hb₂)
-        have hb_eq : b₁ = b₂ := by
-          rcases lt_trichotomy b₁ b₂ with hlt | hlt | hlt
-          · have := Nat.mul_le_mul_right (tailCapPerBucket n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
-          · exact hlt
-          · have := Nat.mul_le_mul_right (tailCapPerBucket n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
-        subst hb_eq
-        have hr_eq : j₁ - gm (gmQIdx b₁) * slabSize n_max =
-            j₂ - gm (gmQIdx b₁) * slabSize n_max := by omega
+        obtain rfl := eq_of_mul_add_eq hr1_cap hr2_cap hown
         exact ⟨rfl, by omega⟩
 
 theorem r_le_ntails_of_tailBijection {n_max : ℕ} {gm r_fn : ℕ → ℕ} {n_tails : ℕ}
@@ -638,53 +598,23 @@ theorem SlabBijection.congr {n_max : ℕ} {gm gm' : ℕ → ℕ} {q_fn q_fn' : �
     (hmeta : ∀ idx, gmSlabMetaBase n_max ≤ idx → gm' idx = gm idx) :
     SlabBijection n_max gm' q_fn' (gm' 0) := by
   have hptr := slabPtrOf_congr_of_slabMeta h0 hmeta
-  have hB_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabOwnerBIdx n_max p :=
-    fun _ => by wram_omega
-  have hS_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabOwnerSIdx n_max p :=
-    fun _ => by wram_omega
-  have hBel_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabBelowIdx n_max p :=
-    fun _ => by wram_omega
-  have hAbv_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabAboveIdx n_max p :=
-    fun _ => by wram_omega
   have hn : gm' 0 = n_slabs := h0.trans hslab.nslabs_eq
   rw [hn]
-  refine ⟨hn, hslab.nslabs_le, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro b hb s hs
-    rw [hq_fn b hb] at hs
-    rw [hptr]
-    exact hslab.ptr_lt b hb s hs
-  · intro b hb s hs
-    rw [hq_fn b hb] at hs
-    rw [hptr, hmeta _ (hB_ge _)]
-    exact hslab.ownerB_ptr b hb s hs
-  · intro b hb s hs
-    rw [hq_fn b hb] at hs
-    rw [hptr, hmeta _ (hS_ge _)]
-    exact hslab.ownerS_ptr b hb s hs
-  · intro p hp
-    rw [hmeta _ (hB_ge p), hmeta _ (hS_ge p)]
+  refine ⟨hn, hslab.nslabs_le, fun b hb s hs => ?_, fun b hb s hs => ?_, fun b hb s hs => ?_,
+    fun p hp => ?_, fun b hb s hs hs_dir => ?_, fun b hb s hs hs_top => ?_,
+    fun b hb s hs hs_pos => ?_, fun b hb s hs hs_abv => ?_⟩
+  all_goals try rw [hq_fn b hb] at hs
+  · rw [hptr]; exact hslab.ptr_lt b hb s hs
+  · rw [hptr, hmeta _ (by wram_omega)]; exact hslab.ownerB_ptr b hb s hs
+  · rw [hptr, hmeta _ (by wram_omega)]; exact hslab.ownerS_ptr b hb s hs
+  · rw [hmeta _ (by wram_omega), hmeta (gmSlabOwnerSIdx n_max p) (by wram_omega)]
     obtain ⟨hb_p, hs_p, hptr_p⟩ := hslab.owner_valid p hp
-    refine ⟨hb_p, ?_, ?_⟩
-    · rw [hq_fn _ hb_p]
-      exact hs_p
-    · rw [hptr]
-      exact hptr_p
-  · intro b hb s hs hs_dir
-    rw [hq_fn b hb] at hs
-    rw [hptr, hdir b hb s hs_dir]
-    exact hslab.dir_eq b hb s hs hs_dir
-  · intro b hb s hs hs_top
-    rw [hq_fn b hb] at hs hs_top
-    rw [hptr, htop b hb]
-    exact hslab.top_eq b hb s hs hs_top
-  · intro b hb s hs hs_pos
-    rw [hq_fn b hb] at hs
-    rw [hptr, hptr, hmeta _ (hBel_ge _)]
-    exact hslab.below_eq b hb s hs hs_pos
-  · intro b hb s hs hs_abv
-    rw [hq_fn b hb] at hs hs_abv
-    rw [hptr, hptr, hmeta _ (hAbv_ge _)]
-    exact hslab.above_eq b hb s hs hs_abv
+    exact ⟨hb_p, by rwa [hq_fn _ hb_p], (hptr _ _).trans hptr_p⟩
+  · rw [hptr, hdir b hb s hs_dir]; exact hslab.dir_eq b hb s hs hs_dir
+  · rw [hq_fn b hb] at hs_top; rw [hptr, htop b hb]; exact hslab.top_eq b hb s hs hs_top
+  · rw [hptr, hptr, hmeta _ (by wram_omega)]; exact hslab.below_eq b hb s hs hs_pos
+  · rw [hq_fn b hb] at hs_abv
+    rw [hptr, hptr, hmeta _ (by wram_omega)]; exact hslab.above_eq b hb s hs hs_abv
 
 theorem bCount_le_n_max {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotStoreInv n_max gm) (b : ℕ) :
     bCount n_max gm b ≤ n_max := by

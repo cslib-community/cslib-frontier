@@ -154,14 +154,9 @@ theorem unframe_header_append (c z s : List Bool) : unframe (header c z ++ s) = 
 
 /-- The input of a word beginning with a header. -/
 theorem input_header_append (c z s : List Bool) : input (header c z ++ s) = z := by
-  have hd : declLen (header c z ++ s) = z.length := by
-    rw [declLen, header, List.append_assoc, List.append_assoc, dropFrame_frame_append,
-      unframe_frame_append, binaryValue_lenWord]
-  have hr : rest (header c z ++ s) = z ++ s := by
-    rw [rest, header, List.append_assoc, List.append_assoc, dropFrame_frame_append,
-      dropFrame_frame_append]
-  rw [input, hd, hr, List.length_append, Nat.min_eq_right (Nat.le_add_right _ _),
-    List.take_left' rfl]
+  simp only [input, declLen, rest, header, List.append_assoc, dropFrame_frame_append,
+    unframe_frame_append, binaryValue_lenWord, List.length_append,
+    Nat.min_eq_right (Nat.le_add_right _ _), List.take_left' rfl]
 
 /-- A header is parsed from every word extending it. -/
 theorem parseHeader_header_append (c z s : List Bool) :
@@ -230,19 +225,14 @@ theorem problem_ens : problem.ens = uniformBH := rfl
 theorem uniformBH_dist_encode (c z : List Bool) (t : ℕ) :
     uniformBH.dist (encode c z t).length (encode c z t) = (2 ^ (header c z).length : ℝ≥0∞)⁻¹ := by
   have h := parser.ensemble_dist_collapse (valid_header_append c z (List.replicate t true))
-  rw [← encode, collapse_encode, parser_header, encode, parseHeader_header_append] at h
-  exact h
+  rwa [← encode, collapse_encode, parser_header, parseHeader_encode] at h
 
 /-- Instances determine their program, input and clock. -/
 theorem encode_injective {c z c' z' : List Bool} {t t' : ℕ}
     (h : encode c z t = encode c' z' t') : c = c' ∧ z = z' ∧ t = t' := by
-  have hc := congrArg unframe h
-  have hz := congrArg input h
-  rw [encode, encode, unframe_header_append, unframe_header_append] at hc
-  rw [encode, encode, input_header_append, input_header_append] at hz
-  subst hc hz
-  refine ⟨rfl, rfl, ?_⟩
-  simpa using congrArg List.length h
+  obtain rfl : c = c' := by simpa only [unframe_encode] using congrArg unframe h
+  obtain rfl : z = z' := by simpa only [input_encode] using congrArg input h
+  exact ⟨rfl, rfl, by simpa using congrArg List.length h⟩
 
 /-- An instance is in `BH` exactly when its program accepts its input within its clock. -/
 theorem encode_mem_BH_iff {c z : List Bool} {t : ℕ} : encode c z t ∈ BH ↔ Accepts c z t := by
@@ -263,16 +253,14 @@ theorem lenWord_polyTime : ComputableInPolyTime lenWord encUnary encBits := by
 
 /-- Parsing the input is computable in polynomial time. -/
 theorem input_polyTime : ComputableInPolyTime input encBits encBits := by
-  have hd : ComputableInPolyTime declLen encBits encNat := by
-    unfold declLen
-    exact ComputableInPolyTime.bitsBinaryValue.comp
-      (ComputableInPolyTime.unframe.comp ComputableInPolyTime.dropFrame)
-  have hr : ComputableInPolyTime rest encBits encBits := by
-    unfold rest
-    exact ComputableInPolyTime.dropFrame.comp ComputableInPolyTime.dropFrame
+  have hr : ComputableInPolyTime rest encBits encBits :=
+    ComputableInPolyTime.dropFrame.comp ComputableInPolyTime.dropFrame
   unfold input
   exact ComputableInPolyTime.bitsTakeWithInput hr
-    (ComputableInPolyTime.binary_min_unary' (ComputableInPolyTime.length_bits.comp hr) hd)
+    (ComputableInPolyTime.binary_min_unary' (ComputableInPolyTime.length_bits.comp hr)
+      (show ComputableInPolyTime declLen encBits encNat from
+        ComputableInPolyTime.bitsBinaryValue.comp
+          (ComputableInPolyTime.unframe.comp ComputableInPolyTime.dropFrame)))
 
 /-- Forming headers is computable in polynomial time. -/
 theorem header_polyTime : ComputableInPolyTime (fun p : List Bool × List Bool => header p.1 p.2)
@@ -326,9 +314,8 @@ theorem verifier_polyTime : ComputableInPolyTime verifier (encPair encBits encBi
     unfold steps
     polytime
   have hy := ComputableInPolyTime.fst encBits encBits
-  have hw := ComputableInPolyTime.snd encBits encBits
   have hsteps := hs.comp hy
-  have hcert := ComputableInPolyTime.unframe.comp hw
+  have hcert := ComputableInPolyTime.unframe.comp (ComputableInPolyTime.snd encBits encBits)
   have hprogram := ComputableInPolyTime.bitsAppend
     (ComputableInPolyTime.frame.comp (ComputableInPolyTime.unframe.comp hy))
     (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.frame.comp (hi.comp hy)) hcert)
@@ -336,8 +323,8 @@ theorem verifier_polyTime : ComputableInPolyTime verifier (encPair encBits encBi
   have hheader : ComputableInPolyTime
       (fun yw : List Bool × List Bool =>
         parseHeader yw.1 ++ List.replicate (steps yw.1) true)
-      (encPair encBits encBits) encBits := by
-    exact ComputableInPolyTime.bitsAppend (hp.comp hy)
+      (encPair encBits encBits) encBits :=
+    ComputableInPolyTime.bitsAppend (hp.comp hy)
       ((ComputableInPolyTime.bitsReplicate true).comp hsteps)
   unfold verifier
   exact ComputableInPolyTime.bool_and'

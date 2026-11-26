@@ -138,25 +138,23 @@ theorem eval_modLeveledAdversary_guess_eq_map_coins (E : Scheme)
         (modLeveledGuessCoins evaluateChoose evaluateEncrypt evaluateGuess n (capacity n)
           encCoins chooseCoins guessCoins choice.2 challenge) := by
   unfold modLeveledGuessCoins
+  have hlink {bit : Bool} {chosen}
+      (hchosen : chosen ∈ (ProbComp.eval ((E.modLinkAdversary coins depth capacity
+        (publicKeyGame E adversary bit)).choose n target.1)).support) :=
+    E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins depth capacity
+      evaluateChoose evaluateEncrypt evaluateGuess bit n pkBound encCoins chooseCoins guessCoins
+      target challenge chosen hkeys htarget hchosen hchallenge hencrypt hchoose hguess
   rcases modLeveledAdversary_choose_support E adversary coins depth capacity n target.1
     choice hchoice with rfl | ⟨chosen, hchosen, rfl⟩ | ⟨chosen, hchosen, rfl⟩ |
       ⟨chosen, hchosen, rfl⟩
   · simp [modLeveledAdversary, leveledAdversary, rejectLeveledChoice,
       ProbComp.eval_pure, PMF.map, Function.comp_def]
-  · simpa only [modLeveledAdversary, leveledAdversary, tagLeveledChoice,
-      List.headD_cons, List.tail_cons, Bool.false_eq_true, ↓reduceIte,
-      Scheme.modLinkAdversary, Scheme.linkAdversary] using
-        E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins depth capacity
-          evaluateChoose evaluateEncrypt evaluateGuess false n pkBound encCoins chooseCoins
-          guessCoins target challenge chosen hkeys htarget hchosen hchallenge
-          hencrypt hchoose hguess
+  · simpa only [modLeveledAdversary, leveledAdversary, tagLeveledChoice, List.headD_cons,
+      List.tail_cons, Bool.false_eq_true, ↓reduceIte, Scheme.modLinkAdversary,
+      Scheme.linkAdversary] using hlink hchosen
   · simpa only [modLeveledAdversary, leveledAdversary, tagLeveledChoice, swapLeveledChoice,
-      List.headD_cons, List.tail_cons, Bool.false_eq_true, ↓reduceIte,
-      Scheme.modLinkAdversary, Scheme.linkAdversary] using
-        E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins depth capacity
-          evaluateChoose evaluateEncrypt evaluateGuess true n pkBound encCoins chooseCoins
-          guessCoins target challenge chosen hkeys htarget hchosen hchallenge
-          hencrypt hchoose hguess
+      List.headD_cons, List.tail_cons, Bool.false_eq_true, ↓reduceIte, Scheme.modLinkAdversary,
+      Scheme.linkAdversary] using hlink hchosen
   · have hstate := zeroLinkAdversary_choose_state_length_le E adversary depth n
       (capacity n) pkBound encCoins chooseCoins target.1 (hkeys target htarget).1 hkeys
       (fun pk hpk message => (hencrypt pk hpk message).2)
@@ -177,11 +175,11 @@ including arbitrary malformed words. The small allocated seed law separately req
     {evaluateEncrypt : (ℕ × List Bool × Bool) → List Bool → List Bool}
     {evaluateGuess : (ℕ × List Bool × List Bool) → List Bool → Bool}
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     {chooseCoins encCoins guessCoins capacity : ℕ → ℕ}
     (hchooseCoins : ComputableInPolyTime chooseCoins encUnary encUnary)
     (hencCoins : ComputableInPolyTime encCoins encUnary encUnary)
@@ -207,18 +205,12 @@ including arbitrary malformed words. The small allocated seed law separately req
     Scheme.computableInPolyTime_modLinkGuessCoins hchoose hencrypt hguess bit hchooseCoins
       hencCoins hcapacity hn htailtail hchallenge htape
   unfold modLeveledGuessCoins
-  apply ComputableInPolyTime.ite_decide
-  · simpa [Function.comp_def] using hfirst
-  · apply ComputableInPolyTime.ite_decide
-    · simpa [Function.comp_def] using hsecond
-    · exact .const _
-    · exact hguess.comp (show ComputableInPolyTime (fun a =>
+  refine .ite_decide (by simpa [Function.comp_def] using hfirst) ?_ ?_
+  · refine .ite_decide (by simpa [Function.comp_def] using hsecond) (.const _)
+      (hguess.comp (show ComputableInPolyTime (fun a =>
         ((n a, (state a).tail.tail, false :: challenge a), (tape a).take (guessCoins (n a))))
-        input (encPair (encPair encUnary (encPair encBits encBits)) encBits) by fun_prop)
-  · apply ComputableInPolyTime.ite_decide
-    · simpa [Function.comp_def] using hsecond
-    · exact hlink true
-    · exact hlink false
+        input (encPair Encryption.encGuessInput encBits) by fun_prop))
+  · exact .ite_decide (by simpa [Function.comp_def] using hsecond) (hlink true) (hlink false)
 
 /-- Replay the actual modular selector and the selected branch. Link branches use a prefix
 of the common payload; zero-link branches discard the three selector blocks. No ideal uniform
@@ -292,24 +284,19 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
     rw [hsize, BitString.uniformList_map_split (coins n) (2 * coins n + zeroCoins) afterHop]
     simp only [pmf_norm, modLeveledAdversary, hpos, and_self, ↓reduceIte, ProbComp.sampleModIndex,
       ProbComp.sampleModNat, ProbComp.sampleBinaryNat, BitString.eval_sampleList]
+    -- both link branches use a prefix of the common payload
+    have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
+    have hlaw (bit : Bool) := E.eval_modLinkAdversary_choose_eq_map_coins evaluateKey coins depth
+      capacity (publicKeyGame E adversary bit) n keyCoins challengePk hkey
+    simp only [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
     congr 1 with first : 1
-    by_cases hfirst : index 3 first = 0
-    · change min 3 (BitString.binaryValue first % 3) = 0 at hfirst
-      have hlaw := E.eval_modLinkAdversary_choose_eq_map_coins evaluateKey coins depth capacity
-        (publicKeyGame E adversary false) n keyCoins challengePk hkey
-      have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
-      rw [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
-      simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte] using
-          congrArg (PMF.map (tagLeveledChoice false false)) hlaw
-    · change ¬min 3 (BitString.binaryValue first % 3) = 0 at hfirst
-      by_cases hsecond : min 3 (BitString.binaryValue first % 3) = 1
-      · have hlaw := E.eval_modLinkAdversary_choose_eq_map_coins evaluateKey coins depth capacity
-          (publicKeyGame E adversary true) n keyCoins challengePk hkey
-        have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
-        rw [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
-        simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
+    by_cases hfirst : min 3 (BitString.binaryValue first % 3) = 0
+    · simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte] using
+          congrArg (PMF.map (tagLeveledChoice false false)) (hlaw false)
+    · by_cases hsecond : min 3 (BitString.binaryValue first % 3) = 1
+      · simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
           Nat.one_ne_zero] using
-            congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) hlaw
+            congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) (hlaw true)
       · have hsize : 2 * coins n + zeroCoins = coins n + (coins n + zeroCoins) := by omega
         have hsplit := BitString.uniformList_map_split3 (coins n) (coins n) zeroCoins
           (fun second third rest =>
@@ -324,10 +311,9 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
         congr 1 with second : 1
         congr 1 with third : 1
         split_ifs <;> simp [hzero, PMF.map, Function.comp_def]
-  · simp only [modLeveledAdversary, hpos, ↓reduceIte, ProbComp.eval_map, hzero, PMF.map_comp]
-    unfold modLeveledChooseCoins
-    simp only [hpos, ↓reduceIte]
-    rw [← BitString.uniformList_drop (3 * coins n) zeroCoins, PMF.map_comp]
+  · unfold modLeveledChooseCoins
+    simp only [modLeveledAdversary, hpos, ↓reduceIte, ProbComp.eval_map, hzero,
+      ← BitString.uniformList_drop (3 * coins n) zeroCoins, PMF.map_comp]
     rfl
 
 /-- The original modular dispatch is native polynomial time using binary remainders and
@@ -338,7 +324,7 @@ unary caps. The zero-link callback supplies its own already-certified actual rep
     (hkey : ComputableInPolyTime (fun (n, tape) => evaluateKey n tape)
       (encPair encUnary encBits) (encPair encBits encBits))
     (hzero : ComputableInPolyTime (fun (input, tape) => evaluateZero input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     {α : Type} {input : α ↪ List Bool} {n indexCoins depth capacity keyCoins : α → ℕ}
     {challengePk tape : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary)
@@ -350,7 +336,7 @@ unary caps. The zero-link callback supplies its own already-certified actual rep
     (htape : ComputableInPolyTime tape input encBits) :
     ComputableInPolyTime (fun a => modLeveledChooseCoins evaluateKey evaluateZero (n a)
       (indexCoins a) (depth a) (capacity a) (keyCoins a) (challengePk a) (tape a))
-      input (encPair (encPair encBool encBool) encBits) := by
+      input (Encryption.encChoiceOut encBool) := by
   have hhop := ComputableInPolyTime.binary_min_unary' (ComputableInPolyTime.const 3)
     (ComputableInPolyTime.binary_mod.comp
       ((ComputableInPolyTime.bitsBinaryValue.comp (htape.bitsTakeWithInput hindexCoins)).prod
@@ -369,39 +355,25 @@ unary caps. The zero-link callback supplies its own already-certified actual rep
   have hlink : ComputableInPolyTime (fun a => Scheme.chooseModLinkCoins evaluateKey (n a)
       (indexCoins a) (keyCoins a) (depth a) (capacity a) (challengePk a)
       (((tape a).drop (indexCoins a)).take (2 * indexCoins a + depth a * keyCoins a)))
-      input (encPair (encPair encBool encBool) encBits) := by
+      input (Encryption.encChoiceOut encBool) := by
     apply Scheme.computableInPolyTime_chooseModLinkCoins hkey <;> fun_prop
   have hzeroActive := hzero.comp ((hn.prod hpk).prod (hrest.bitsDropWithInput hindexCoins))
   have hzeroFallback := hzero.comp ((hn.prod hpk).prod
     (htape.bitsDropWithInput (show ComputableInPolyTime (fun a => 3 * indexCoins a)
       input encUnary by fun_prop)))
-  have hchoice := ComputableInPolyTime.id'
-    (encIn := encPair (encPair encBool encBool) encBits)
+  have hchoice := ComputableInPolyTime.id' (encIn := Encryption.encChoiceOut encBool)
   have htag (first second : Bool) : ComputableInPolyTime (tagLeveledChoice first second)
-      (encPair (encPair encBool encBool) encBits)
-      (encPair (encPair encBool encBool) encBits) :=
+      (Encryption.encChoiceOut encBool) (Encryption.encChoiceOut encBool) :=
     hchoice.fst'.prod (ComputableInPolyTime.bitsCons (.const first)
       (ComputableInPolyTime.bitsCons (.const second) hchoice.snd'))
   have hswap : ComputableInPolyTime swapLeveledChoice
-      (encPair (encPair encBool encBool) encBits)
-      (encPair (encPair encBool encBool) encBits) :=
+      (Encryption.encChoiceOut encBool) (Encryption.encChoiceOut encBool) :=
     (hchoice.fst'.snd'.prod hchoice.fst'.fst').prod hchoice.snd'
   unfold modLeveledChooseCoins
-  apply ComputableInPolyTime.ite_decide
-  · fun_prop
-  · apply ComputableInPolyTime.ite_decide
-    · fun_prop
-    · exact (htag false false).comp hlink
-    · apply ComputableInPolyTime.ite_decide
-      · fun_prop
-      · exact (htag false true).comp (hswap.comp hlink)
-      · apply ComputableInPolyTime.ite_decide
-        · fun_prop
-        · apply ComputableInPolyTime.ite_decide
-          · fun_prop
-          · exact (htag true false).comp hzeroActive
-          · exact .const _
-        · exact .const _
-  · exact (htag true false).comp hzeroFallback
+  refine .ite_decide (by fun_prop) ?_ ((htag true false).comp hzeroFallback)
+  refine .ite_decide (by fun_prop) ((htag false false).comp hlink) ?_
+  refine .ite_decide (by fun_prop) ((htag false true).comp (hswap.comp hlink)) ?_
+  refine .ite_decide (by fun_prop) ?_ (.const _)
+  exact .ite_decide (by fun_prop) ((htag true false).comp hzeroActive) (.const _)
 
 end Cslib.Crypto.Homomorphic.Leveled

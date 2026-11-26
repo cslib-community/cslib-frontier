@@ -100,14 +100,10 @@ theorem scheduleCost_true_eq_zero {B : Nat} {reqs : List Unit} {states : List Bo
   induction reqs generalizing states with
   | nil => cases states <;> rfl
   | cons r rs ih =>
-    cases states with
-    | nil => rfl
-    | cons b bs =>
-      obtain ⟨hstep, hrest⟩ := hv
-      have hb : b = true := hstep rfl
-      subst hb
-      change stepCost B true r true + _ = 0
-      rw [stepCost_true, ih hrest]
+    rcases states with _ | ⟨b, bs⟩
+    · rfl
+    · obtain rfl : b = true := hv.1 rfl
+      simpa [Problem.scheduleCost] using ih hv.2
 
 /-- **Offline lower bound.** Every valid schedule from the initial state costs at least
 `min n B` on `n` ski days. -/
@@ -117,20 +113,15 @@ theorem min_le_scheduleCost {B : Nat} {reqs : List Unit} {states : List Bool}
   induction reqs generalizing states with
   | nil => simp only [List.length_nil, Nat.zero_min, Nat.zero_le]
   | cons r rs ih =>
-    cases states with
-    | nil => exact absurd hv id
-    | cons b bs =>
-      obtain ⟨-, hrest⟩ := hv
-      cases b with
-      | false =>
-        change _ ≤ stepCost B false r false + _
-        have := ih hrest
-        simp only [stepCost_false_false, List.length_cons]
-        omega
-      | true =>
-        change _ ≤ stepCost B false r true + _
-        simp only [stepCost_false_true]
-        omega
+    rcases states with _ | ⟨_ | _, bs⟩
+    · cases hv
+    · have := ih hv.2
+      rw [Problem.scheduleCost, List.length_cons]
+      change _ ≤ stepCost B false r false + _
+      rw [stepCost_false_false]; omega
+    · rw [Problem.scheduleCost]
+      change _ ≤ stepCost B false r true + _
+      rw [stepCost_false_true]; omega
 
 /-- The constant schedule `replicate n b` is valid from `b₀` whenever `b₀ = true → b = true`. -/
 theorem validSchedule_replicate {B : Nat} {b₀ b : Bool} (h : b₀ = true → b = true)
@@ -166,11 +157,10 @@ theorem exists_optimal_schedule (B : Nat) (reqs : List Unit) :
     ∃ states, (problem B).ValidSchedule false reqs states ∧
       (problem B).scheduleCost false reqs states = min reqs.length B := by
   by_cases hn : reqs.length ≤ B
-  · refine ⟨_, validSchedule_replicate (b := false) (fun h => h) reqs, ?_⟩
-    rw [scheduleCost_replicate_false, Nat.min_eq_left hn]
-  · have hne : reqs ≠ [] := by grind
-    refine ⟨_, validSchedule_replicate (b := true) (fun _ => rfl) reqs, ?_⟩
-    rw [scheduleCost_replicate_true B hne, Nat.min_eq_right (by omega)]
+  · exact ⟨_, validSchedule_replicate (fun h => h) reqs,
+      (scheduleCost_replicate_false B reqs).trans (Nat.min_eq_left hn).symm⟩
+  · exact ⟨_, validSchedule_replicate (fun _ => rfl) reqs,
+      (scheduleCost_replicate_true B (by grind)).trans (Nat.min_eq_right (by omega)).symm⟩
 
 /-- A schedule that rents for `d` days and then buys costs `d + B`. -/
 theorem scheduleCost_replicate_false_append_true (B d : Nat) (reqs : List Unit)
@@ -181,15 +171,13 @@ theorem scheduleCost_replicate_false_append_true (B d : Nat) (reqs : List Unit)
     match reqs, hlen with
     | [r], _ =>
       change stepCost B false r true + 0 = 0 + B
-      rw [stepCost_false_true]
-      omega
+      rw [stepCost_false_true]; omega
   | succ d ih =>
     match reqs, hlen with
     | r :: rs, hlen =>
       change stepCost B false r false +
         (problem B).scheduleCost false rs (List.replicate d false ++ [true]) = _
-      rw [stepCost_false_false, ih rs (by simpa using hlen)]
-      omega
+      rw [stepCost_false_false, ih rs (by simpa using hlen)]; omega
 
 /-- A valid schedule that rents for `d` days and then buys costs `d + B`, whatever follows the
 purchase. -/
@@ -203,16 +191,14 @@ theorem scheduleCost_replicate_false_append_true_cons {B d : Nat} {reqs : List U
     | nil => cases hv
     | cons r rs =>
       change stepCost B false r true + (problem B).scheduleCost true rs tail = 0 + B
-      rw [stepCost_false_true, scheduleCost_true_eq_zero hv.2]
-      omega
+      rw [stepCost_false_true, scheduleCost_true_eq_zero hv.2]; omega
   | succ d ih =>
     cases reqs with
     | nil => cases hv
     | cons r rs =>
       change stepCost B false r false +
         (problem B).scheduleCost false rs (List.replicate d false ++ true :: tail) = d + 1 + B
-      rw [stepCost_false_false, ih hv.2]
-      omega
+      rw [stepCost_false_false, ih hv.2]; omega
 
 /-! ### Rent-then-buy strategies -/
 
@@ -250,9 +236,7 @@ theorem rentThenBuy_costFrom_true (B t k : Nat) (reqs : List Unit) :
     (rentThenBuy B t).costFrom (true, k) reqs = 0 := by
   induction reqs with
   | nil => rfl
-  | cons r rs ih =>
-    rw [DetStrategy.costFrom_cons, rentThenBuy_step_true, ih]
-    rfl
+  | cons _ _ ih => rw [DetStrategy.costFrom_cons, rentThenBuy_step_true, ih]; rfl
 
 /-- From the rented state after `k ≤ t` days, the remaining cost is the number of remaining days if
 the skier stops before day `t + 1`, and `t - k + B` otherwise. -/
@@ -260,29 +244,26 @@ theorem rentThenBuy_costFrom_false {B t k : Nat} (hk : k ≤ t) (reqs : List Uni
     (rentThenBuy B t).costFrom (false, k) reqs =
       if k + reqs.length ≤ t then reqs.length else t - k + B := by
   induction reqs generalizing k with
-  | nil =>
-    simp only [List.length_nil, Nat.add_zero, hk, ↓reduceIte]
-    rfl
+  | nil => simp only [List.length_nil, Nat.add_zero, hk, ↓reduceIte]; rfl
   | cons r rs ih =>
     rw [DetStrategy.costFrom_cons]
-    by_cases hkt : k = t
-    · subst hkt
-      rw [rentThenBuy_step_false_eq, rentThenBuy_costFrom_true]
+    rcases eq_or_ne k t with rfl | hkt
+    · rw [rentThenBuy_step_false_eq, rentThenBuy_costFrom_true]
       change stepCost B false r true + 0 = _
-      simp only [stepCost_false_true, List.length_cons, Nat.add_zero]
-      rw [ite_eq_right (by omega), Nat.sub_self, Nat.zero_add]
+      simp only [stepCost_false_true, List.length_cons, Nat.add_zero, Nat.sub_self, Nat.zero_add]
+      exact (ite_eq_right (by omega)).symm
     · rw [rentThenBuy_step_false_ne hkt, ih (by omega)]
       change stepCost B false r false + _ = _
       simp only [stepCost_false_false, List.length_cons]
-      split_ifs with h₁ h₂ h₂ <;> omega
+      split_ifs <;> omega
 
 /-- **Exact cost of rent-then-buy.** On `n` ski days, `rentThenBuy B t` pays `n` if `n ≤ t` and
 `t + B` otherwise. -/
 theorem cost_rentThenBuy (B t : Nat) (reqs : List Unit) :
     (rentThenBuy B t).cost false reqs = if reqs.length ≤ t then reqs.length else t + B := by
   rw [DetStrategy.cost_eq_costFrom _ rfl]
-  change (rentThenBuy B t).costFrom (false, 0) reqs = _
-  rw [rentThenBuy_costFrom_false (Nat.zero_le t), Nat.zero_add, Nat.sub_zero]
+  simpa only [Nat.zero_add, Nat.sub_zero] using
+    rentThenBuy_costFrom_false (B := B) (Nat.zero_le t) reqs
 
 /-- The break-even strategy: rent for `B - 1` days and buy on day `B`. -/
 abbrev breakEven (B : Nat) : DetStrategy (problem B) :=
@@ -310,17 +291,13 @@ theorem breakEven_isCompetitive_two (B : Nat) : (breakEven B).IsCompetitive 2 0 
   intro s₀ hs₀ reqs states hv
   subst hs₀
   rw [Nat.add_zero]
-  rcases Nat.eq_zero_or_pos B with hB | hB
-  · subst hB
+  rcases Nat.eq_zero_or_pos B with rfl | hB
+  · have := min_le_scheduleCost hv
     rw [cost_rentThenBuy]
-    have := min_le_scheduleCost hv
     split_ifs <;> omega
-  · have h := breakEven_mul_cost_le hv
-    have h2 : (2 * B - 1) * (problem B).scheduleCost false reqs states ≤
-        B * (2 * (problem B).scheduleCost false reqs states) := by
-      rw [← Nat.mul_assoc, Nat.mul_comm B 2]
-      exact Nat.mul_le_mul_right _ (by omega)
-    exact Nat.le_of_mul_le_mul_left (Nat.le_trans h h2) hB
+  · refine Nat.le_of_mul_le_mul_left ((breakEven_mul_cost_le hv).trans ?_) hB
+    rw [← Nat.mul_assoc, Nat.mul_comm B 2]
+    exact Nat.mul_le_mul_right _ (by omega)
 
 /-- With additive constant `B - 1`, the break-even strategy is even `(1, B - 1)`-competitive, which
 is why the ski-rental ratio `2 - 1/B` is a statement without additive constant. -/
@@ -352,10 +329,8 @@ private theorem bool_list_cases (L : List Bool) :
     | true => exact Or.inr ⟨0, L, rfl⟩
     | false =>
       rcases ih with h | ⟨d, tail, h⟩
-      · left
-        rw [List.length_cons, List.replicate_succ, ← h]
-      · right
-        exact ⟨d + 1, tail, by rw [List.replicate_succ, List.cons_append, ← h]⟩
+      · exact .inl (by rw [List.length_cons, List.replicate_succ, ← h])
+      · exact .inr ⟨d + 1, tail, by rw [List.replicate_succ, List.cons_append, ← h]⟩
 
 /-- `(2B - 1)(d + 1) ≤ B (d + B)` whenever `d + 1 ≤ B`. -/
 private theorem ski_arith {B d : Nat} (h : d + 1 ≤ B) :
@@ -386,24 +361,18 @@ theorem exists_witness {B : Nat} (hB : 1 ≤ B) (A : DetStrategy (problem B)) :
   · -- The strategy never buys: it pays `N = 2B - 1`, while buying on day one pays `B`.
     have hcost : A.cost false full = N := by
       change (problem B).scheduleCost false full (A.states false full) = N
-      rw [hall, hlen]
-      have := scheduleCost_replicate_false B full
-      rwa [List.length_replicate] at this
-    have hne : full ≠ [] := by
-      rw [Ne, List.replicate_eq_nil_iff]
-      omega
+      rw [hall, DetStrategy.length_states, scheduleCost_replicate_false, List.length_replicate]
+    have hne : full ≠ [] := by rw [Ne, List.replicate_eq_nil_iff]; omega
     have hvopt := validSchedule_replicate (B := B) (b₀ := false) (b := true) (fun _ => rfl) full
     refine ⟨full, _, hvopt, ?_, ?_⟩ <;> rw [scheduleCost_replicate_true B hne]
-    · exact hB
-    · rw [hcost, Nat.mul_comm]
+    exacts [hB, by rw [hcost, Nat.mul_comm]]
   · -- The strategy buys on day `d + 1`; stop skiing that day.
     have hd : d + 1 ≤ N := by
       have := congrArg List.length hsplit
       simp only [hlen, List.length_append, List.length_replicate, List.length_cons] at this
       omega
     set reqs : List Unit := List.replicate (d + 1) ()
-    have hreqs : reqs = full.take (d + 1) := by
-      rw [List.take_replicate, Nat.min_eq_left hd]
+    have hreqs : reqs = full.take (d + 1) := by rw [List.take_replicate, Nat.min_eq_left hd]
     have hstates : A.states false reqs = List.replicate d false ++ [true] := by
       rw [hreqs, DetStrategy.states_take, hsplit, List.take_append, List.length_replicate,
         List.take_of_length_le (by rw [List.length_replicate]; omega), Nat.add_sub_cancel_left,
@@ -416,18 +385,13 @@ theorem exists_witness {B : Nat} (hB : 1 ≤ B) (A : DetStrategy (problem B)) :
       have hvopt := validSchedule_replicate (B := B) (b₀ := false) (b := false) (fun h => h) reqs
       refine ⟨reqs, _, hvopt, ?_, ?_⟩ <;>
         rw [scheduleCost_replicate_false, List.length_replicate]
-      · omega
-      · rw [hcost, hN]
-        exact ski_arith hdB
+      exacts [by omega, by rw [hcost, hN]; exact ski_arith hdB]
     · -- Buying on day one is cheaper.
-      have hne : reqs ≠ [] := by
-        rw [Ne, List.replicate_eq_nil_iff]
-        omega
+      have hne : reqs ≠ [] := by rw [Ne, List.replicate_eq_nil_iff]; omega
       have hvopt := validSchedule_replicate (B := B) (b₀ := false) (b := true) (fun _ => rfl) reqs
       refine ⟨reqs, _, hvopt, ?_, ?_⟩ <;> rw [scheduleCost_replicate_true B hne]
-      · exact hB
-      · rw [hcost, Nat.mul_comm]
-        exact Nat.mul_le_mul_left B (by omega)
+      exacts [hB, ((Nat.mul_comm N B).trans_le
+        (Nat.mul_le_mul_left B (by omega : N ≤ d + B))).trans_eq (congrArg (B * ·) hcost.symm)]
 
 /-- **Deterministic lower bound** ([BorodinElYaniv1998]): for every deterministic online
 ski-rental strategy and every rational ratio `p / q < 2 - 1/B` (i.e. `p * B < (2B - 1) * q`) there
@@ -470,10 +434,9 @@ theorem exists_rentThenBuy_cost_eq {B : Nat} (A : DetStrategy (problem B)) (N : 
   have htake : ∀ n ≤ N, A.states false (List.replicate n ()) =
       (A.states false (List.replicate N ())).take n := fun n hn => by
     rw [← DetStrategy.states_take, List.take_replicate, Nat.min_eq_left hn]
-  have hrep : ∀ n, (problem B).scheduleCost false (List.replicate n ())
-      (List.replicate n false) = n := fun n => by
-    have := scheduleCost_replicate_false B (List.replicate n ())
-    rwa [List.length_replicate] at this
+  have hrep (n : Nat) : (problem B).scheduleCost false (List.replicate n ())
+      (List.replicate n false) = n := by
+    simpa using scheduleCost_replicate_false B (List.replicate n ())
   rcases bool_list_cases (A.states false (List.replicate N ())) with hall | ⟨d, tail, hsplit⟩
   · -- The strategy never buys within `N` days.
     refine ⟨N, fun n hn => ?_⟩

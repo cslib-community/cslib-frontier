@@ -12,6 +12,8 @@ public import CslibFrontier.DataStructure.CellProbe.Randomized.ObliviousSequence
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.Probability.PMF.Uniform
 public import Mathlib.Data.Finset.Sort
+import CslibFrontier.Tactic.UniformRelabel
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.Fintype.CardEmbedding
 import Mathlib.Data.Fintype.Powerset
 import Mathlib.Data.Fintype.Sort
@@ -849,12 +851,6 @@ theorem not_isQuery_of_mem_insertDeleteSeq {U V n : ℕ}
 
 /-! ### Admissibility and sliding-window state evolution -/
 
-private theorem finRange_take_succ {n k : ℕ} (hk : k < n) :
-    (List.finRange n).take (k + 1) = (List.finRange n).take k ++ [⟨k, hk⟩] := by
-  have hlen : k < (List.finRange n).length := by simpa using hk
-  rw [List.take_add_one, List.getElem?_eq_getElem hlen, List.getElem_finRange]
-  rfl
-
 private theorem validHistory_run_initInsertSeq_take {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V) :
     ∀ {k : ℕ} (hk : k ≤ n),
@@ -869,7 +865,7 @@ private theorem validHistory_run_initInsertSeq_take {U V n : ℕ}
   | 0, _ => by simp [dictOfPrefix]
   | k + 1, hk => by
     obtain ⟨hvh, hrun⟩ := validHistory_run_initInsertSeq_take keys vals (Nat.le_of_succ_le hk)
-    rw [finRange_take_succ hk, List.map_append, List.map_cons, List.map_nil,
+    rw [List.take_succ_finRange hk, List.map_append, List.map_cons, List.map_nil,
       StateTransitionSpec.validHistory_append, StateTransitionSpec.run_append, hrun]
     set s_k := dictOfPrefix (windowEmb keys 0 (Nat.zero_le n))
       (windowVals vals 0 (Nat.zero_le n)) k (Nat.le_of_succ_le hk)
@@ -1036,7 +1032,7 @@ private theorem validHistory_run_metaPrefix {U V n : ℕ}
     have hconcat :
         initInsertSeq keys vals ++ ((List.finRange n).take (t + 1)).flatMap metaOp =
           pref ++ metaOp ⟨t, ht⟩ := by
-      rw [finRange_take_succ ht, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+      rw [List.take_succ_finRange ht, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
         List.append_nil, List.append_assoc]
     rw [hconcat, StateTransitionSpec.validHistory_append,
       (Dynamic.spec U V n).run_append (Dictionary.empty U) pref (metaOp ⟨t, ht⟩), hrun]
@@ -1104,7 +1100,7 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
       metaOp j := by
   have htake := take_hardSeq c (j.1 + 1) keys vals metaOp hc
   have hidx : n + c * (j.1 + 1) = (n + c * j.1) + c := by ring
-  rw [hidx, finRange_take_succ j.2, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+  rw [hidx, List.take_succ_finRange j.2, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
     List.append_nil, ← List.append_assoc] at htake
   refine drop_take_of_take_add htake ?_ (hc j)
   rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,
@@ -1247,21 +1243,9 @@ private theorem sampleHardDist_eq_uniformOfFintype_map {U V n : ℕ} (hU : 2 * n
       (PMF.uniformOfFintype (HardSeed U V n)).map (fun p => seq p.1.1 p.1.2 p.2) := by
   let _ : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩
   let _ : Nonempty (Fin V) := ⟨⟨0, hV⟩⟩
-  let assoc := (Equiv.prodAssoc (Fin (2 * n) ↪ Fin U) (Fin (2 * n) → Fin V) (Equiv.Perm (Fin n)))
-  simp only [sampleHardDist, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    ← _root_.PMF.bind_pure_comp, Function.comp_def]
-  have hinner : ∀ keys : Fin (2 * n) ↪ Fin U,
-      ((PMF.uniformOfFintype (Fin (2 * n) → Fin V)).bind fun vals =>
-        (PMF.uniformOfFintype (Equiv.Perm (Fin n))).map fun delPerm => seq keys vals delPerm) =
-      (PMF.uniformOfFintype ((Fin (2 * n) → Fin V) × Equiv.Perm (Fin n))).map
-        (fun vp => seq keys vp.1 vp.2) := fun keys =>
-    PMF.uniformOfFintype_bind_map (fun vals delPerm => seq keys vals delPerm)
-  refine (congrArg (_root_.PMF.bind _) (funext hinner)).trans ?_
-  rw [PMF.uniformOfFintype_bind_map
-    (fun (keys : Fin (2 * n) ↪ Fin U) (vp : (Fin (2 * n) → Fin V) × Equiv.Perm (Fin n)) =>
-      seq keys vp.1 vp.2),
-    ← PMF.uniformOfFintype_map_equiv assoc, _root_.PMF.map_comp, ← _root_.PMF.bind_pure_comp]
-  rfl
+  simp only [sampleHardDist]
+  relabel_uniform
+    (Equiv.prodAssoc (Fin (2 * n) ↪ Fin U) (Fin (2 * n) → Fin V) (Equiv.Perm (Fin n))).symm
 
 theorem insertQueryDeleteDist_eq_uniformOfFintype_map {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
     letI : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩
@@ -1351,6 +1335,17 @@ theorem validHistory_of_mem_support_insertDeleteDist {U V n : ℕ} {hU : 2 * n �
   have hvh := validHistory_insertDeleteSeq (V := V) keys vals delPerm
   exact ⟨hvh, forall_mem_validOps_of_validHistory hvh⟩
 
+/-- Pushing a uniform distribution forward along the first component of an equivalence gives the
+uniform distribution. -/
+private theorem uniformOfFintype_map_of_fst_equiv {α β γ : Type*} [Fintype α] [Fintype β]
+    [Finite γ] [Nonempty α] [Nonempty β] [Nonempty γ] (e : α ≃ β × γ) {f : α → β}
+    (hf : ∀ a, (e a).1 = f a) :
+    (PMF.uniformOfFintype α).map f = PMF.uniformOfFintype β := by
+  have := Fintype.ofFinite γ
+  rw [show f = Prod.fst ∘ e from funext fun a => (hf a).symm, ← _root_.PMF.map_comp,
+    PMF.uniformOfFintype_map_equiv e]
+  exact PMF.uniformOfFintype_prod_map_fst
+
 private theorem map_delPerm_apply_uniformOfFintype {n : ℕ} (j : Fin n) :
     letI : Nonempty (Fin n) := ⟨j⟩
     (PMF.uniformOfFintype (Equiv.Perm (Fin n))).map (fun σ => σ j) =
@@ -1371,10 +1366,7 @@ private theorem map_delPerm_apply_uniformOfFintype {n : ℕ} (j : Fin n) :
       rw [h0]
       change σ ((Equiv.swap 0 j).symm.symm 0) = σ j
       rw [Equiv.symm_symm, Equiv.swap_apply_left]
-    have hfun : (fun σ : Equiv.Perm (Fin (m + 1)) => σ j) = Prod.fst ∘ e :=
-      funext fun σ => (he_fst σ).symm
-    rw [hfun, ← _root_.PMF.map_comp, PMF.uniformOfFintype_map_equiv e]
-    exact PMF.uniformOfFintype_prod_map_fst
+    exact uniformOfFintype_map_of_fst_equiv e he_fst
 
 private theorem map_deletedKey_eq_insertedKey_sampleHardDist {U V n : ℕ}
     (hU : 2 * n ≤ U) (hV : 1 ≤ V)
@@ -1601,28 +1593,10 @@ private theorem map_windowDict_uniformOfFintype {U V n t : ℕ}
   let _ : Nonempty (SizedDict U V n) := nonempty_sizedDict (by omega) hV
   let _ : Nonempty ({ K : Finset (Fin U) // K.card = n } × (Fin n → Fin V)) :=
     ⟨sizedDictEquiv U V n (Classical.arbitrary _)⟩
-  have hkeys :
-      (PMF.uniformOfFintype (Fin (2 * n) ↪ Fin U)).map
-        (fun keys : Fin (2 * n) ↪ Fin U => windowEmb keys t ht) =
-        PMF.uniformOfFintype (Fin n ↪ Fin U) := by
-    have hcomp :
-        (fun keys : Fin (2 * n) ↪ Fin U => windowEmb keys t ht) =
-          Prod.fst ∘ windowEmbEquiv (U := U) t ht :=
-      funext fun keys => (windowEmbEquiv_fst t ht keys).symm
-    rw [hcomp, ← _root_.PMF.map_comp,
-      PMF.uniformOfFintype_map_equiv (windowEmbEquiv (U := U) t ht)]
-    exact PMF.uniformOfFintype_prod_map_fst
-  have hvals :
-      (PMF.uniformOfFintype (Fin (2 * n) → Fin V)).map
-        (fun vals : Fin (2 * n) → Fin V => windowVals vals t ht) =
-        PMF.uniformOfFintype (Fin n → Fin V) := by
-    have hcomp :
-        (fun vals : Fin (2 * n) → Fin V => windowVals vals t ht) =
-          Prod.fst ∘ windowValsEquiv (V := V) t ht :=
-      funext fun vals => (windowValsEquiv_fst t ht vals).symm
-    rw [hcomp, ← _root_.PMF.map_comp,
-      PMF.uniformOfFintype_map_equiv (windowValsEquiv (V := V) t ht)]
-    exact PMF.uniformOfFintype_prod_map_fst
+  have hkeys :=
+    uniformOfFintype_map_of_fst_equiv (windowEmbEquiv (U := U) t ht) (windowEmbEquiv_fst t ht)
+  have hvals :=
+    uniformOfFintype_map_of_fst_equiv (windowValsEquiv (V := V) t ht) (windowValsEquiv_fst t ht)
   let mkDict : (Fin n ↪ Fin U) → (Fin n → Fin V) → SizedDict U V n := fun f v =>
     ⟨dictOfEmb f v, card_dom_dictOfEmb f v, valuesBounded_dictOfEmb f v⟩
   calc
@@ -1646,13 +1620,9 @@ private theorem map_windowDict_uniformOfFintype {U V n t : ℕ}
           rw [PMF.uniformOfFintype_bind_map]
           refine congrArg (_root_.PMF.map · _) (funext fun ⟨f, v⟩ => ?_)
           exact (sizedDictEquiv_symm_embValsEquiv_fst f v).symm
-    _ = (((PMF.uniformOfFintype ((Fin n ↪ Fin U) × (Fin n → Fin V))).map
-          (embValsEquiv U V n)).map Prod.fst).map (sizedDictEquiv U V n).symm := by
-          rw [_root_.PMF.map_comp, _root_.PMF.map_comp]; rfl
-    _ = PMF.uniformOfFintype (SizedDict U V n) := by
-          rw [PMF.uniformOfFintype_map_equiv (embValsEquiv U V n),
-            PMF.uniformOfFintype_prod_map_fst,
-            PMF.uniformOfFintype_map_equiv (sizedDictEquiv U V n).symm]
+    _ = PMF.uniformOfFintype (SizedDict U V n) :=
+          uniformOfFintype_map_of_fst_equiv ((embValsEquiv U V n).trans
+            (Equiv.prodCongr (sizedDictEquiv U V n).symm (Equiv.refl _))) fun _ => rfl
 
 private theorem map_activeWindowDict_uniformOfFintype {U V n t : ℕ}
     (hU : 2 * n ≤ U) (hV : 1 ≤ V) (ht : t ≤ n) :

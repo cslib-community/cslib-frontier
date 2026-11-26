@@ -261,9 +261,7 @@ theorem detRows_eq_det_of_rowEntry {d : ℕ} {rows : List (List ℤ)}
     (hA : ∀ i j : Fin d, rowEntry rows i j = A i j) : detRows rows = A.det := by
   subst hd
   rw [detRows_eq_det_ofRows]
-  congr 1
-  ext i j
-  exact hA i j
+  exact congrArg Matrix.det (Matrix.ext hA)
 
 /-- The list program computes the determinant. -/
 theorem detRows_eq {d : ℕ} (A : Matrix (Fin d) (Fin d) ℤ) : detRows (rowsOf A) = A.det :=
@@ -340,14 +338,10 @@ theorem natAbs_productTerms_take_sum_lt (hA : ∀ i j, (rowEntry A i j).natAbs <
 private lemma trace_mul_le (hA : ∀ i j, (rowEntry A i j).natAbs < 2 ^ b)
     (hF : ∀ i j, (rowEntry F i j).natAbs < 2 ^ e) (i j : ℕ) :
     ((traceTerms A F i).sum * rowEntry A i j).natAbs ≤ A.length * (2 ^ e * 2 ^ b) := by
-  have h := List.natAbs_sum_take_le_length_mul (l := traceTerms A F i) (C := 2 ^ e)
-    (fun x hx => by
-      obtain ⟨k, -, rfl⟩ := List.mem_map.mp hx
-      exact (hF k k).le) (traceTerms A F i).length
-  rw [List.take_length] at h
+  have h := traceTerms_take_le (A := A) (b := 0) hF i (traceTerms A F i).length
+  rw [List.take_length, pow_zero, Nat.mul_one] at h
   rw [Int.natAbs_mul, ← Nat.mul_assoc]
-  exact Nat.mul_le_mul (h.trans (Nat.mul_le_mul_right _ (length_traceTerms_le A F i)))
-    (hA i j).le
+  exact Nat.mul_le_mul h (hA i j).le
 
 /-- The trace product computed in one stage obeys the next stage's bound. -/
 private theorem natAbs_traceTerms_sum_mul_lt (hA : ∀ i j, (rowEntry A i j).natAbs < 2 ^ b)
@@ -491,15 +485,14 @@ theorem length_encList_stagesRows_le (A : List (List ℤ)) {i k : ℕ} (hik : i 
     exact (intBits_le_of_mem_stagesRows (fun _ hr _ hz' => intBits_le_length_encList hr hz')
       i hrow hz).trans
       (Nat.add_le_add_right (Nat.add_le_add_left (Nat.mul_le_mul hik (by omega)) L) 1)
-  have hrow_le {row : List ℤ} (hrow : row ∈ stagesRows A i) :
-      (encList encIntBin row).length ≤ stageRowBound L k := by
-    refine (length_encList_le encIntBin row fun z hz => hentry hrow hz).trans ?_
+  refine (length_encList_le (b := stageRowBound L k) (encList encIntBin) (stagesRows A i)
+    fun row hrow => ?_).trans ?_
+  · refine (length_encList_le (b := stageEntryBound L k) encIntBin row
+      fun _ hz => hentry hrow hz).trans ?_
     rw [length_of_mem_stagesRows hrow]
     exact Nat.mul_le_mul_right _ hlen
-  refine (length_encList_le (encList encIntBin) (stagesRows A i)
-    fun row hrow => hrow_le hrow).trans ?_
-  rw [length_stagesRows]
-  exact Nat.mul_le_mul_right _ hlen
+  · rw [length_stagesRows]
+    exact Nat.mul_le_mul_right _ hlen
 
 private lemma polyBounded_stageTableBound {α : Type} {size L k : α → ℕ}
     (hL : PolyBounded size L) (hk : PolyBounded size k) :
@@ -579,13 +572,7 @@ private lemma detRows_eq_ite (A : List (List ℤ)) :
     detRows A =
       if A.isEmpty then 1
       else (-1) ^ (A.length - 1) * rowEntry (stagesRows A (A.length - 1)) 0 0 := by
-  unfold detRows
-  cases h : A.length with
-  | zero => rw [List.length_eq_zero_iff.mp h]; rfl
-  | succ k =>
-    have hne : A.isEmpty = false := by
-      rw [Bool.eq_false_iff, ne_eq, List.isEmpty_iff]; intro hA; simp [hA] at h
-    simp [hne]
+  cases A <;> rfl
 
 /-- The staged division-free integer determinant `detRows` is computable in polynomial
 time on lists of rows of binary sign-magnitude integers. -/

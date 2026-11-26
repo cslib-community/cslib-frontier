@@ -113,12 +113,8 @@ private theorem add_midTrim [Field K] [LinearOrder K] [IsStrictOrderedRing K]
 
 private theorem add_multisetMidTrim [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     (a : K) (t : ℕ) {s : Multiset K} (h2t : 2 * t < s.card) :
-    a + multisetMidTrim t s = multisetMidTrim t (s.map (a + ·)) := by
-  obtain ⟨xs, hxs⟩ := Quot.exists_rep s
-  have hxs' : Multiset.ofList xs = s := hxs
-  rw [← hxs'] at h2t ⊢
-  rw [Multiset.coe_card] at h2t
-  exact add_midTrim a t h2t
+    a + multisetMidTrim t s = multisetMidTrim t (s.map (a + ·)) :=
+  Quot.inductionOn s (fun _ h2t => add_midTrim a t h2t) h2t
 
 private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List α} {f g : α → K}
     (hfg : ∀ x ∈ xs, f x ≤ g x) {k : ℕ} (hk : k < xs.length) :
@@ -126,54 +122,41 @@ private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List 
       (sortLE (xs.map g))[k]'(by rw [length_sortLE, List.length_map]; exact hk) := by
   set sf := sortLE (xs.map f)
   set sg := sortLE (xs.map g)
-  have hsf_len : sf.length = xs.length := by simp only [sf, length_sortLE, List.length_map]
   have hsg_len : sg.length = xs.length := by simp only [sg, length_sortLE, List.length_map]
-  have hsf_sort : sf.SortedLE := by
-    dsimp only [sf]; rw [sortLE_eq_mergeSort]; exact List.sortedLE_mergeSort
-  have hsg_sort : sg.SortedLE := by
-    dsimp only [sg]; rw [sortLE_eq_mergeSort]; exact List.sortedLE_mergeSort
-  have hsf_perm : sf.Perm (xs.map f) := by
-    dsimp only [sf]; rw [sortLE_eq_mergeSort]; exact List.mergeSort_perm _ _
-  have hsg_perm : sg.Perm (xs.map g) := by
-    dsimp only [sg]; rw [sortLE_eq_mergeSort]; exact List.mergeSort_perm _ _
+  have hsf_sort : sf.SortedLE :=
+    (congrArg List.SortedLE (sortLE_eq_mergeSort _)).mpr List.sortedLE_mergeSort
+  have hsg_sort : sg.SortedLE :=
+    (congrArg List.SortedLE (sortLE_eq_mergeSort _)).mpr List.sortedLE_mergeSort
+  have hsf_perm : sf.Perm (xs.map f) :=
+    (List.Perm.of_eq (sortLE_eq_mergeSort (xs.map f))).trans (List.mergeSort_perm _ _)
+  have hsg_perm : sg.Perm (xs.map g) :=
+    (List.Perm.of_eq (sortLE_eq_mergeSort (xs.map g))).trans (List.mergeSort_perm _ _)
   set B := sg[k]'(by omega)
   have hcnt_g : k + 1 ≤ (xs.map g).countP (· ≤ B) := by
     rw [← hsg_perm.countP_eq]
-    have htake : (sg.take (k + 1)).countP (· ≤ B) = k + 1 := by
-      rw [List.countP_eq_length.mpr, List.length_take_of_le (by omega)]
-      intro y hy
-      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hy
-      rw [List.getElem_take, decide_eq_true_eq]
-      rw [List.length_take] at hi
-      exact hsg_sort.getElem_le_getElem_of_le (by omega)
-    have hsplit :
-        sg.countP (· ≤ B) =
-          (sg.take (k + 1)).countP (· ≤ B) + (sg.drop (k + 1)).countP (· ≤ B) := by
-      conv_lhs => rw [← List.take_append_drop (k + 1) sg, List.countP_append]
-    omega
+    refine le_of_eq_of_le ?_ (List.take_sublist (k + 1) sg).countP_le
+    rw [List.countP_eq_length.mpr, List.length_take_of_le (by omega)]
+    intro y hy
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hy
+    rw [List.getElem_take, decide_eq_true_eq]
+    rw [List.length_take] at hi
+    exact hsg_sort.getElem_le_getElem_of_le (by omega)
   have hcnt_f : k + 1 ≤ sf.countP (· ≤ B) := by
-    rw [hsf_perm.countP_eq]
+    rw [hsf_perm.countP_eq, List.countP_map]
     refine hcnt_g.trans ?_
-    rw [List.countP_map, List.countP_map]
-    refine List.countP_mono_left fun x hx hgx => ?_
-    simp only [Function.comp_apply, decide_eq_true_eq] at hgx ⊢
-    exact (hfg x hx).trans hgx
+    rw [List.countP_map]
+    exact List.countP_mono_left fun x hx hgx =>
+      decide_eq_true ((hfg x hx).trans (of_decide_eq_true hgx))
   by_contra hlt
   rw [not_le] at hlt
-  have hdrop : (sf.drop k).countP (· ≤ B) = 0 := by
-    rw [List.countP_eq_zero]
-    intro y hy
+  have hdrop : (sf.drop k).countP (· ≤ B) = 0 := List.countP_eq_zero.mpr fun y hy => by
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hy
-    rw [List.getElem_drop]
     rw [List.length_drop] at hj
-    have hle : sf[k]'(by omega) ≤ sf[k + j]'(by omega) :=
-      hsf_sort.getElem_le_getElem_of_le (Nat.le_add_right k j)
-    simp only [decide_eq_true_eq, not_le]
-    exact hlt.trans_le hle
+    rw [List.getElem_drop, decide_eq_true_eq, not_le]
+    exact hlt.trans_le (hsf_sort.getElem_le_getElem_of_le (Nat.le_add_right k j))
   have htake : (sf.take k).countP (· ≤ B) ≤ k :=
-    List.countP_le_length.trans (by simp only [List.length_take, min_le_iff, le_rfl, true_or])
-  have hsplit : sf.countP (· ≤ B) = (sf.take k).countP (· ≤ B) + (sf.drop k).countP (· ≤ B) := by
-    conv_lhs => rw [← List.take_append_drop k sf, List.countP_append]
+    List.countP_le_length.trans (List.length_take_le k sf)
+  rw [← List.take_append_drop k sf, List.countP_append] at hcnt_f
   omega
 
 private theorem multisetMidTrim_map_mono {α : Type*} [Field K] [LinearOrder K]
@@ -183,22 +166,18 @@ private theorem multisetMidTrim_map_mono {α : Type*} [Field K] [LinearOrder K]
   refine Quot.inductionOn s (fun xs hfg => ?_) hfg
   change midTrim t (xs.map f) ≤ midTrim t (xs.map g)
   by_cases h2t : 2 * t < xs.length
-  · have hf_len : 2 * t < (xs.map f).length := by rwa [List.length_map]
-    have hg_len : 2 * t < (xs.map g).length := by rwa [List.length_map]
-    rw [midTrim_eq_endpoints hf_len, midTrim_eq_endpoints hg_len]
+  · rw [midTrim_eq_endpoints (by rwa [List.length_map]),
+      midTrim_eq_endpoints (by rwa [List.length_map])]
     have h1 := sortLE_getElem_map_mono (fun x hx => hfg x (Multiset.mem_coe.mpr hx))
       (k := t) (by omega)
     have h2 := sortLE_getElem_map_mono (fun x hx => hfg x (Multiset.mem_coe.mpr hx))
       (k := xs.length - 1 - t) (by omega)
     simp only [List.length_map]
     linarith
-  · have hf_not : ¬ 2 * t < (xs.map f).length := by rwa [List.length_map]
-    have hg_not : ¬ 2 * t < (xs.map g).length := by rwa [List.length_map]
-    have hf_nil : trimmed t (xs.map f) = [] := by
-      rw [← List.length_eq_zero_iff, length_trimmed, List.length_map]; omega
-    have hg_nil : trimmed t (xs.map g) = [] := by
-      rw [← List.length_eq_zero_iff, length_trimmed, List.length_map]; omega
-    simp only [midTrim, hf_nil, hg_nil, le_rfl]
+  · have hnil (h : α → K) : trimmed t (xs.map h) = [] := by
+      rw [← List.length_eq_zero_iff, length_trimmed, List.length_map]
+      omega
+    simp only [midTrim, hnil, le_rfl]
 
 end MidTrimOrder
 
@@ -327,19 +306,15 @@ theorem lockstepDriftFreeByzantineOffset_abs_sub_le {t : ℕ} (ht : 3 * t < Fint
       (fun _ => by simp only [lockstepByzantineArrival, hj, ↓reduceIte, arrivalReading, zero_add])
       (fun _ => (hδ j hj w hw).1) (fun _ => (hδ j hj w hw).2)
   have hxa_le : ∀ j ∈ Finset.univ.val, xa j ≤ e + ya j := fun j _ => by
-    dsimp only [ya]
+    dsimp only [ya, xa]
     split_ifs with hj
     · linarith
-    · have h := herr_honest ha hj
-      change |xa j - c j| ≤ e at h
-      linarith [(abs_le.mp h).2]
+    · linarith [(abs_le.mp (herr_honest ha hj)).2]
   have hzb_le : ∀ j ∈ Finset.univ.val, -e + zb j ≤ xb j := fun j _ => by
-    dsimp only [zb]
+    dsimp only [zb, xb]
     split_ifs with hj
     · linarith
-    · have h := herr_honest hb hj
-      change |xb j - c j| ≤ e at h
-      linarith [(abs_le.mp h).1]
+    · linarith [(abs_le.mp (herr_honest hb hj)).1]
   have h2t : 2 * t < Fintype.card P := by omega
   have hma : lockstepDriftFreeByzantineOffset t d_min d_max F adv c δ a ≤
       e + multisetMidTrim t (Finset.univ.val.map ya) := by
@@ -353,17 +328,11 @@ theorem lockstepDriftFreeByzantineOffset_abs_sub_le {t : ℕ} (ht : 3 * t < Fint
       add_multisetMidTrim (-e) t (by rw [Multiset.card_map, Finset.card_val]; exact h2t),
       Multiset.map_map]
     exact multisetMidTrim_map_mono t hzb_le
-  have hcore := abs_multisetMidTrim_map_sub_le hF
-    (S₁ := Finset.univ) (S₂ := Finset.univ)
-    (by simp only [Finset.card_univ]; omega) hc_Icc
-    (f₁ := ya) (f₂ := zb)
-    (fun j _ hj => by dsimp only [ya]; split_ifs; rfl)
-    (fun j _ hj => by dsimp only [zb]; split_ifs; rfl)
-  have hdiff : multisetMidTrim t (Finset.univ.val.map ya) -
-      multisetMidTrim t (Finset.univ.val.map zb) ≤ (hi - lo) / 2 :=
-    (le_abs_self _).trans hcore
+  have hcore := abs_multisetMidTrim_map_sub_le hF (S₁ := Finset.univ) (S₂ := Finset.univ)
+    (by simp only [Finset.card_univ]; omega) hc_Icc (f₁ := ya) (f₂ := zb)
+    (fun j _ hj => ite_eq_right hj) (fun j _ hj => ite_eq_right hj)
   have he : 2 * e = u := by dsimp only [e]; ring
-  linarith
+  linarith [(le_abs_self _).trans hcore]
 
 /-- A separated lockstep-round, drift-free `R`-round step after [Welch and Lynch][WelchLynch1988],
 and not the cited asynchronous nonzero-drift resynchronization theorem (`#7202`): iterating `R`
@@ -382,19 +351,13 @@ theorem lockstepDriftFreeByzantineOffsetIter_abs_sub_le {t : ℕ} (ht : 3 * t < 
   induction R with
   | zero =>
     intro p q hp hq
-    simp only [lockstepDriftFreeByzantineOffsetIter, pow_zero, div_one, sub_self, mul_zero,
-      zero_mul, add_zero]
-    exact hc p hp q hq
+    simpa [lockstepDriftFreeByzantineOffsetIter] using hc p hp q hq
   | succ r ih =>
     intro p q hp hq
-    have hstep := lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r)
-      (lockstepDriftFreeByzantineOffsetIter t d_min d_max F adv c δ r) (δ r)
-      (fun a ha b hb => ih ha hb) (hδ r) hp hq
-    have halg : (δ₀ / 2 ^ r + 2 * (1 - 1 / 2 ^ r) * (d_max - d_min)) / 2 + (d_max - d_min) =
-        δ₀ / 2 ^ (r + 1) + 2 * (1 - 1 / 2 ^ (r + 1)) * (d_max - d_min) := by
-      rw [pow_succ]
-      ring
-    simpa only [lockstepDriftFreeByzantineOffsetIter, halg] using hstep
+    refine (lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r) _ (δ r)
+      (fun a ha b hb => ih ha hb) (hδ r) hp hq).trans_eq ?_
+    rw [pow_succ]
+    ring
 
 end ByzantineProtocol
 

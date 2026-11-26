@@ -37,11 +37,10 @@ theorem length_and_mem_of_mem_support_encryptBits {E : Scheme} {n ctBound : ℕ}
     (hciphertexts : ciphertexts ∈ (ProbComp.eval (E.encryptBits n pk bits)).support) :
     ciphertexts.length = bits.length ∧ ∀ ct ∈ ciphertexts, ct.length ≤ ctBound := by
   have h := (E.mem_support_encryptBits_iff n pk bits ciphertexts).mp hciphertexts
-  refine ⟨h.length_eq.symm, ?_⟩
-  intro ct hct
+  refine ⟨h.length_eq.symm, fun ct hct => ?_⟩
   obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hct
-  have hi : i.val < bits.length := by rw [h.length_eq]; exact i.isLt
-  exact henc (bits.get ⟨i.val, hi⟩) (List.get_mem _ _) _ (h.get hi i.isLt)
+  exact henc _ (List.get_mem _ ⟨i.val, i.isLt.trans_eq h.length_eq.symm⟩) _
+    (h.get (i.isLt.trans_eq h.length_eq.symm) i.isLt)
 
 /-- The splice contains the zero prefix, the supplied challenge, and the original suffix.
 Every one of those ciphertexts is charged by `ctBound`. -/
@@ -58,14 +57,9 @@ theorem length_and_mem_of_mem_support_spliceEncryptedBit {E : Scheme} {n before 
   obtain ⟨front, hfront, back, hback, rfl⟩ := hciphertexts
   have hf := length_and_mem_of_mem_support_encryptBits (fun bit _ => henc bit) hfront
   have hb := length_and_mem_of_mem_support_encryptBits (fun bit _ => henc bit) hback
-  refine ⟨by
-    simp only [List.length_append, List.length_cons, hf.1, hb.1, List.length_replicate]
-    omega, ?_⟩
-  intro ct hct
-  simp only [List.mem_append, List.mem_cons] at hct
-  rcases hct with h | rfl | h
+  refine ⟨by simp [hf.1, hb.1]; omega, fun ct hct => ?_⟩
+  rcases List.mem_append.mp hct with h | h
   · exact hf.2 _ h
-  · exact hchallenge
-  · exact hb.2 _ h
+  · exact (List.mem_cons.mp h).elim (· ▸ hchallenge) (hb.2 _)
 
 end Cslib.Crypto.Homomorphic.Scheme

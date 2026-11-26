@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Program
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -90,14 +91,10 @@ classical word is unused; the device keeps all three qubits throughout the run. 
 
 /-- The phase subroutine's native machine branches only on its one-bit classical address. -/
 theorem isOraclePPTOn_phase : IsOraclePPTOn encBool encBool phase := by
-  apply IsOraclePPTOn.finite_cases (branch := fun address _ => phase address)
-    ComputableInPolyTime.id'
-  intro address
-  unfold phase
-  exact (isOraclePPTOn_gate encBool _).bind
-    ((isOraclePPTOn_command encUnit _ _).bind
-      ((isOraclePPTOn_gate encUnit _).bind
-        (ComputableInPolyTime.const address).isOraclePPTOn))
+  refine IsOraclePPTOn.finite_cases (branch := fun address _ => phase address) .id'
+    fun address => ?_
+  exact (isOraclePPTOn_gate encBool _).bind ((isOraclePPTOn_command encUnit _ _).bind
+    ((isOraclePPTOn_gate encUnit _).bind (ComputableInPolyTime.const address).isOraclePPTOn))
 
 /-- The loop body reads one bounded service reply and makes its next query depend on it. -/
 theorem isOraclePPTOn_round : IsOraclePPTOn encBool encBool round :=
@@ -106,9 +103,8 @@ theorem isOraclePPTOn_round : IsOraclePPTOn encBool encBool round :=
 /-- One native machine generates the entire adaptive loop. The encoded classical loop state has
 length exactly one under every possible word reply, so its growth allowance is zero. -/
 theorem isOraclePPTOn_walk : IsOraclePPTOn encUnary encBool walk := by
-  refine IsOraclePPTOn.iterate_of_bounded_growth (growth := 0)
-    ComputableInPolyTime.id' (.const false) isOraclePPTOn_round ?_
-  intro address next _
+  refine IsOraclePPTOn.iterate_of_bounded_growth (growth := 0) .id' (.const false)
+    isOraclePPTOn_round fun _ _ _ => ?_
   simp only [encBool_apply, List.length_singleton, Nat.add_zero, le_refl]
 
 private theorem isOraclePPTOn_prepare {α : Type} (input : α ↪ List Bool) :
@@ -119,12 +115,9 @@ private theorem isOraclePPTOn_prepare {α : Type} (input : α ↪ List Bool) :
 /-- A native certificate for preparation, all adaptive rounds and terminal measurement. It
 quantifies over arbitrary stateful word oracles, not only the intended quantum handler. -/
 theorem isOraclePPT_program : IsOraclePPT encBool program := by
-  apply IsOraclePPTOn.isOraclePPT
-  unfold program
-  apply (isOraclePPTOn_prepare (encPair encUnary encBits)).bind_with
-  apply (isOraclePPTOn_walk.preprocess (by fun_prop)).bind
-  exact (isOraclePPTOn_gate encBool _).bind
-    (isOraclePPTOn_requestBit encUnit (.inl .measure) (.const (encUnary 0)))
+  refine IsOraclePPTOn.isOraclePPT ((isOraclePPTOn_prepare (encPair encUnary encBits)).bind_with
+    ((isOraclePPTOn_walk.preprocess (by fun_prop)).bind ((isOraclePPTOn_gate encBool _).bind
+      (isOraclePPTOn_requestBit encUnit (.inl .measure) (.const (encUnary 0))))))
 
 /-- Every address branch makes two elementary calls and one coherent query. -/
 theorem isCostBounded_phase (cost : Operation → ℕ) (address : Bool) :
@@ -163,9 +156,7 @@ theorem isCostBounded_program (cost : Operation → ℕ) (count : ℕ) (input : 
       (program count input)
       ((2 * count + 4) * cost (.inl .gate) + count * cost (.inl .query) +
         count * cost (.inr ()) + cost (.inl .measure)) := by
-  have hprepare :
-      OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (fun request => cost request.1))
-        prepare (3 * cost (.inl .gate)) :=
+  have hprepare : OracleComp.IsCostBounded _ prepare (3 * cost (.inl .gate)) :=
     ((isCostBounded_command cost (.inl .gate) _).bind fun _ =>
       (isCostBounded_command cost (.inl .gate) _).bind fun _ =>
         isCostBounded_command cost (.inl .gate) _).mono (by omega)
@@ -183,9 +174,7 @@ private theorem transcript_cost_phase {State : Type} (cost : Operation → ℕ)
     (after.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         2 * cost (.inl .gate) + cost (.inl .query) := by
-  supp_cases h [phase, gate, command, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-    ProbOracleComp.runWith_pure, OracleComp.withTranscript]
+  supp_cases h [phase, gate, command, runWith_norm, OracleComp.withTranscript]
   simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   omega
 
@@ -199,14 +188,10 @@ private theorem transcript_cost_round {State : Type} (cost : Operation → ℕ)
     (after.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         (2 * cost (.inl .gate) + cost (.inl .query) + cost (.inr ())) := by
-  rw [round, ProbOracleComp.runWith_bind] at h
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨⟨next, middle, seen⟩, hnext, hphase⟩ := h
+  supp_cases h [round, runWith_norm] with ⟨⟨next, middle, seen⟩, hnext, hphase⟩
   have hcost := transcript_cost_phase cost oracle next hphase
-  supp_cases hnext [requestBit, ProbOracleComp.runWith_map,
-    ProbOracleComp.runWith_query, OracleComp.withTranscript]
-  simp only [List.map_cons, List.sum_cons] at hcost
-  dsimp only [Prod.map, id] at hcost ⊢
+  supp_cases hnext [requestBit, runWith_norm, OracleComp.withTranscript]
+  simp only [List.map_cons, List.sum_cons] at hcost ⊢
   omega
 
 private theorem transcript_cost_walk {State : Type} (cost : Operation → ℕ)
@@ -221,12 +206,11 @@ private theorem transcript_cost_walk {State : Type} (cost : Operation → ℕ)
         count * (2 * cost (.inl .gate) + cost (.inl .query) + cost (.inr ())) := by
   induction count generalizing state final result before after with
   | zero =>
-    supp_cases h [walk, OracleComp.iterate_zero, ProbOracleComp.runWith_pure]
+    supp_cases h [walk, OracleComp.iterate_zero, runWith_norm]
     simp only [Nat.zero_mul, Nat.add_zero]
   | succ count ih =>
-    rw [walk, OracleComp.iterate_succ, ProbOracleComp.runWith_bind] at h
-    rw [PMF.mem_support_bind_iff] at h
-    obtain ⟨⟨next, middle, seen⟩, hwalk, hround⟩ := h
+    supp_cases h [walk, OracleComp.iterate_succ, runWith_norm] with
+      ⟨⟨next, middle, seen⟩, hwalk, hround⟩
     have hfirst := ih hwalk
     have hlast := transcript_cost_round cost oracle next hround
     rw [Nat.succ_mul]
@@ -242,9 +226,7 @@ private theorem transcript_cost_prepare {State : Type} (cost : Operation → ℕ
     (after.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         3 * cost (.inl .gate) := by
-  supp_cases h [prepare, gate, command, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-    ProbOracleComp.runWith_pure, OracleComp.withTranscript]
+  supp_cases h [prepare, gate, command, runWith_norm, OracleComp.withTranscript]
   simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   omega
 
@@ -260,16 +242,9 @@ theorem transcript_cost_program {State : Type} (cost : Operation → ℕ)
     (transcript.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum =
       (2 * count + 4) * cost (.inl .gate) + count * cost (.inl .query) +
         count * cost (.inr ()) + cost (.inl .measure) := by
-  rw [program, ProbOracleComp.runWith_bind] at h
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨⟨_, first, prepared⟩, hprepare, h⟩ := h
-  rw [ProbOracleComp.runWith_bind] at h
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨⟨_, second, walked⟩, hwalk, h⟩ := h
-  have hfirst := transcript_cost_prepare cost oracle hprepare
-  have hsecond := transcript_cost_walk cost oracle count hwalk
-  supp_cases h [gate, command, requestBit, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, OracleComp.withTranscript]
+  supp_cases h [program, gate, command, requestBit, runWith_norm, OracleComp.withTranscript]
+  have hfirst := transcript_cost_prepare cost oracle ‹_›
+  have hsecond := transcript_cost_walk cost oracle count ‹_›
   simp only [List.map_nil, List.sum_nil, Nat.zero_add] at hfirst
   simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   rw [hsecond, hfirst]

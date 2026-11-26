@@ -13,6 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Computability.Circuit.Counting
 import CslibFrontier.Foundations.Combinatorics.Hoeffding
 import CslibFrontier.Foundations.Data.Nat.Power
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Random functions are hard on average
@@ -123,22 +124,13 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
     rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
     norm_num
   -- `2 ^ n ≤ S ^ 10` and `(S - 1) ^ 10 < 2 ^ n`
-  have hlow : 2 ^ n ≤ S ^ 10 := by
-    have h := pow_le_pow_left₀ hpos.le hS₁ 10
-    rw [hpow] at h
-    exact_mod_cast h
-  have hS1 : 1 ≤ S := by
-    by_contra h
-    have h0 : S = 0 := by omega
-    rw [h0] at hlow
-    simp at hlow
+  have hlow : 2 ^ n ≤ S ^ 10 := by exact_mod_cast hpow ▸ pow_le_pow_left₀ hpos.le hS₁ 10
+  have hS1 : 1 ≤ S := Nat.one_le_iff_ne_zero.mpr fun h => by simp [h] at hlow
   have hhigh : (S - 1) ^ 10 < 2 ^ n := by
     have h1 : ((S - 1 : ℕ) : ℝ) < 2 ^ ((n : ℝ) / 10) := by
       rw [Nat.cast_sub hS1, Nat.cast_one]
       linarith
-    have h := pow_lt_pow_left₀ h1 (Nat.cast_nonneg _) (by norm_num : (10 : ℕ) ≠ 0)
-    rw [hpow] at h
-    exact_mod_cast h
+    exact_mod_cast hpow ▸ pow_lt_pow_left₀ h1 (Nat.cast_nonneg _) (by norm_num : (10 : ℕ) ≠ 0)
   -- `n ≤ S` and `16 ≤ S`, from `n ^ 10 ≤ 2 ^ n` for `n ≥ 400`
   have hn10 : n ^ 10 ≤ 2 ^ n := Nat.pow_le_two_pow (by norm_num) (by omega)
   have hnS : n ≤ S := by
@@ -158,13 +150,11 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
   have ht : 0 ≤ t := by positivity
   have hexp : (2 : ℝ) ^ L * exp (-(2 * t ^ 2 / 2 ^ n)) < 1 := by
     have hLt : (L : ℝ) < 2 * t ^ 2 / 2 ^ n := by
-      have hkeyR : (9 : ℝ) * S ^ 4 < 2 * 2 ^ n := by exact_mod_cast hkey
-      have hLR : (L : ℝ) ≤ 9 * S ^ 2 := by exact_mod_cast hL
       have heq : 2 * t ^ 2 / 2 ^ n = 2 * 2 ^ n / S ^ 2 := by
         simp only [t]
         field_simp
       rw [heq, lt_div_iff₀ (by positivity)]
-      nlinarith
+      cast_nlinarith [hL, hkey]
     calc (2 : ℝ) ^ L * exp (-(2 * t ^ 2 / 2 ^ n))
         ≤ exp L * exp (-(2 * t ^ 2 / 2 ^ n)) := by
           gcongr
@@ -200,14 +190,11 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
     exact_mod_cast hbad
   obtain ⟨f, -, hf⟩ := exists_mem_notMem_of_card_lt_card hlt
   refine ⟨f, S, hS₁, fun g hg => ?_⟩
-  have hgmem : g ∈ computableFunctions n S := mem_computableFunctions_iff_complexity_le.mpr hg
-  have hnot : ¬ (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x} := fun h =>
-    hf (mem_biUnion.mpr ⟨g, hgmem, by simpa using h⟩)
-  rw [div_lt_iff₀ hN]
   have : (1 / 2 + 1 / (S : ℝ)) * 2 ^ n = 2 ^ n / 2 + t := by
     simp only [t]
     ring
-  rw [this]
-  exact lt_of_not_ge hnot
+  rw [div_lt_iff₀ hN, this]
+  exact lt_of_not_ge fun h => hf (mem_biUnion.mpr
+    ⟨g, mem_computableFunctions_iff_complexity_le.mpr hg, by simpa using h⟩)
 
 end Cslib.Circuits.Boolean

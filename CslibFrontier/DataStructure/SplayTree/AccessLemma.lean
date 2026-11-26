@@ -222,6 +222,12 @@ theorem rotations_le_splayTime (res : SplayResult α) : res.rotations ≤ splayT
 theorem one_le_splayTime (res : SplayResult α) : 1 ≤ splayTime res :=
   le_max_right _ _
 
+/-- An amortized `splayTime` bound gives the same amortized bound on rotations. -/
+private theorem rotations_amortized_le {res : SplayResult α} {a c b : ℝ}
+    (h : (splayTime res : ℝ) + a - c ≤ b) : (res.rotations : ℝ) + a - c ≤ b := by
+  have : (res.rotations : ℝ) ≤ splayTime res := by exact_mod_cast rotations_le_splayTime res
+  linarith
+
 /-! ### Elementary AM-GM Binary-Logarithm Inequality and Bottom-Up Access Lemma -/
 
 /-- Elementary AM-GM inequality in base-2 logarithms: for `0 < a`, `0 < b`, and `a + b ≤ s`,
@@ -507,9 +513,7 @@ theorem splay_rotations_amortized_le_of_mem {w : α → ℝ} (hw : ∀ y, 0 < w 
     {t : BinaryTree α} (ht : Ordered t) {x : α} (hx : x ∈ elements t) :
     ((splay x t).rotations : ℝ) + potential w (splay x t).tree - potential w t ≤
       3 * Real.logb 2 (subtreeWeight w t / w x) + 1 :=
-  (by exact_mod_cast rotations_le_splayTime (splay x t) :
-      ((splay x t).rotations : ℝ) ≤ splayTime (splay x t)) |> fun hle =>
-    by linarith [splay_splayTime_amortized_le_of_mem hw ht hx]
+  rotations_amortized_le (splay_splayTime_amortized_le_of_mem hw ht hx)
 
 /-- Amortized rotation bound for `splayMin` on a non-empty tree. -/
 theorem splayMin_rotations_amortized_le {w : α → ℝ} (hw : ∀ y, 0 < w y)
@@ -522,10 +526,7 @@ theorem splayMin_rotations_amortized_le {w : α → ℝ} (hw : ∀ y, 0 < w y)
   | some f =>
     obtain ⟨hmem, hbound⟩ := focus_splayUp_amortized_le hw
       (by simpa only [plug_nil] using (focusMin_spec hf).1)
-    have hrot : ((splayUp f.key f.leftSub f.rightSub f.ctx).rotations : ℝ) ≤
-        splayTime (splayUp f.key f.leftSub f.rightSub f.ctx) := by
-      exact_mod_cast rotations_le_splayTime _
-    exact ⟨f.key, hmem, by simp only [splayMin, hf]; linarith⟩
+    exact ⟨f.key, hmem, by simpa only [splayMin, hf] using rotations_amortized_le hbound⟩
 
 /-- Amortized rotation bound for `splayMax` on a non-empty tree. -/
 theorem splayMax_rotations_amortized_le {w : α → ℝ} (hw : ∀ y, 0 < w y)
@@ -538,10 +539,7 @@ theorem splayMax_rotations_amortized_le {w : α → ℝ} (hw : ∀ y, 0 < w y)
   | some f =>
     obtain ⟨hmem, hbound⟩ := focus_splayUp_amortized_le hw
       (by simpa only [plug_nil] using (focusMax_spec hf).1)
-    have hrot : ((splayUp f.key f.leftSub f.rightSub f.ctx).rotations : ℝ) ≤
-        splayTime (splayUp f.key f.leftSub f.rightSub f.ctx) := by
-      exact_mod_cast rotations_le_splayTime _
-    exact ⟨f.key, hmem, by simp only [splayMax, hf]; linarith⟩
+    exact ⟨f.key, hmem, by simpa only [splayMax, hf] using rotations_amortized_le hbound⟩
 
 /-! ### Fixed-Weight Potential Drop, Balance Theorem, and Static Optimality -/
 
@@ -894,8 +892,6 @@ private theorem unitPotential_splay_node {t : BinaryTree α} (ht : Ordered t) (h
     (subtreeWeight_unitWeight_eq_card ht).symm ▸ subtreeWeight_unitWeight_pos hne
   have hlog_le : Real.logb 2 (elements t).card ≤ Real.logb 2 ((elements t).card + 1) :=
     Real.logb_le_logb_of_le (by norm_num) hn_pos (by linarith)
-  have hrot_le : ((splay x t).rotations : ℝ) ≤ splayTime (splay x t) := by
-    exact_mod_cast rotations_le_splayTime _
   cases hs : (splay x t).tree with
   | nil => exact (hne ((tree_splay_eq_nil_iff x t).mp hs)).elim
   | node r' l' R' =>
@@ -904,7 +900,7 @@ private theorem unitPotential_splay_node {t : BinaryTree α} (ht : Ordered t) (h
     rw [hs] at hacc
     change (splayTime (splay x t) : ℝ) + unitPotential (.node r' l' R') - unitPotential t ≤ _
       at hacc
-    exact ⟨r', l', R', rfl, hs ▸ ordered_splay ht x, hsw, by linarith⟩
+    exact ⟨r', l', R', rfl, hs ▸ ordered_splay ht x, hsw, by linarith [rotations_amortized_le hacc]⟩
 
 private theorem unitPotential_splayMin_node {u : BinaryTree α} (hu : u ≠ .nil) {B : ℝ}
     (hB : subtreeWeight (unitWeight (α := α)) u ≤ B) :

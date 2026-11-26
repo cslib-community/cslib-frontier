@@ -24,6 +24,9 @@ import Mathlib.Data.List.GetD
 * `List.getD_flatMap_ofFn`: read a cell at its ordinary flat row-major index.
 * `List.getElem?_flatMap_mul_add`: read entry `j` of block `i` of a flattened list whose blocks
   all have length `M`.
+* `List.take_succ_finRange`: extend a prefix `(finRange n).take k` by one element `⟨k, hk⟩`.
+* `List.mul_add_lt_sq`: row-major index `a * n + b < n * n` for `a < n` and `b < n`.
+* `List.fin_mul_add_inj`: row-major flat-index injectivity for `Fin M × Fin N`.
 -/
 
 public section
@@ -82,5 +85,23 @@ theorem getElem?_flatMap_mul_add {ι δ : Type*} (l : List ι) (f : ι → List 
       have : (i + 1) * M + j - M = i * M + j := by rw [Nat.succ_mul]; omega
       rw [this, ih (fun y hy => hf y (by simp [hy])) (by simpa using hi)]
       simp
+
+/-- Extending a prefix of `finRange n` by one element appends `⟨k, hk⟩`. -/
+theorem take_succ_finRange {n k : ℕ} (hk : k < n) :
+    (finRange n).take (k + 1) = (finRange n).take k ++ [⟨k, hk⟩] := by
+  have hlen : k < (finRange n).length := by simpa using hk
+  rw [take_add_one, getElem?_eq_getElem hlen, getElem_finRange]
+  rfl
+
+/-- Row-major index bound for an `n × n` square table: `a * n + b < n * n`. -/
+theorem mul_add_lt_sq {n a b : ℕ} (ha : a < n) (hb : b < n) : a * n + b < n * n := by
+  rw [Nat.mul_comm]
+  exact Nat.mul_add_lt_mul_of_lt_of_lt ha hb
+
+/-- Row-major flat-index injectivity for `Fin M × Fin N`. -/
+theorem fin_mul_add_inj {M N : ℕ} {x₁ x₂ : Fin M} {y₁ y₂ : Fin N}
+    (h : x₁.1 * N + y₁.1 = x₂.1 * N + y₂.1) : x₁ = x₂ ∧ y₁ = y₂ :=
+  Prod.mk.inj <| finProdFinEquiv.injective <| Fin.ext <| by
+    simpa [finProdFinEquiv, Nat.mul_comm, Nat.add_comm] using h
 
 end List

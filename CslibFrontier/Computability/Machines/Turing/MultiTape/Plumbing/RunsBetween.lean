@@ -93,11 +93,8 @@ lemma tapesCfg_workTapeSymbols_self (ws : Fin k → List Symbol) (o : Fin k → 
 lemma shift_tapesCfg (ws : Fin k → List Symbol) (o h δ : Fin k → ℤ) (out : List Symbol) :
     (tapesCfg input ws o h out).shift δ =
       tapesCfg input ws (fun i => o i + δ i) (fun i => h i + δ i) out := by
-  refine Cfg.ext rfl rfl ?_ rfl rfl
-  funext i z
-  simp only [Cfg.shift, tapesCfg]
-  congr 1
-  ring
+  exact Cfg.ext rfl rfl (funext fun i => funext fun z =>
+    congrArg (tapeOfList (ws i)) (by ring)) rfl rfl
 
 lemma tapesCfg_zero_withState (ws : Fin k → List Symbol) (out : List Symbol) (q : Option State) :
     (tapesCfg input ws 0 0 out).withState q = wordsCfg input q ws out := by
@@ -118,27 +115,18 @@ namespace MultiTapeTM
 theorem step_shift (tm : MultiTapeTM k Symbol State) (δ : Fin k → ℤ)
     (c : Cfg k Symbol State input) : tm.step (c.shift δ) = (tm.step c).shift δ := by
   cases hq : c.state with
-  | none =>
-    have hq' : (c.shift δ).state = none := hq
-    rw [step_of_halt hq', step_of_halt hq]
+  | none => rw [step_of_halt (show (c.shift δ).state = none from hq), step_of_halt hq]
   | some q =>
-    have hq' : (c.shift δ).state = some q := hq
-    rw [step_of_state hq', step_of_state hq]
     have hw : (c.shift δ).workTapeSymbols = c.workTapeSymbols := by
-      funext i
+      funext
       simp [Cfg.workTapeSymbols, Cfg.shift]
-    have hin : (c.shift δ).inputSymbol = c.inputSymbol := rfl
-    rw [hw, hin]
-    refine Cfg.ext rfl rfl ?_ ?_ rfl
-    · funext i z
-      simp only [Action.apply, Cfg.shift]
-      generalize ((tm.tr q c.inputSymbol c.workTapeSymbols).workTapes i).1 = w
-      cases w with
-      | none => rfl
-      | some s => simp only [Function.update_apply, sub_eq_iff_eq_add]
-    · funext i
-      simp only [Action.apply, Cfg.shift]
-      ring
+    rw [step_of_state (show (c.shift δ).state = some q from hq), step_of_state hq, hw,
+      show (c.shift δ).inputSymbol = c.inputSymbol from rfl]
+    refine Cfg.ext rfl rfl (funext fun i => funext fun z => ?_)
+      (funext fun _ => by simp only [Action.apply, Cfg.shift]; ring) rfl
+    simp only [Action.apply, Cfg.shift]
+    cases ((tm.tr q c.inputSymbol c.workTapeSymbols).workTapes i).1 <;>
+      simp [Function.update_apply, sub_eq_iff_eq_add]
 
 /-- **Translation invariance.** The run from a shifted configuration is the shifted run. -/
 theorem runFrom_shift (tm : MultiTapeTM k Symbol State) (δ : Fin k → ℤ)
@@ -155,14 +143,10 @@ theorem space_shift (tm : MultiTapeTM k Symbol State) (δ : Fin k → ℤ)
       (MultiTapeNTM.RunPath.ofDeterministic tm c t).space := by
   have h (i : Fin k) : (MultiTapeNTM.RunPath.ofDeterministic tm (c.shift δ) t).visitedByTapeHead i =
       ((MultiTapeNTM.RunPath.ofDeterministic tm c t).visitedByTapeHead i).image (· + δ i) := by
-    ext z
+    ext
     simp only [MultiTapeNTM.RunPath.mem_visitedByTapeHead_ofDeterministic, Finset.mem_image,
       runFrom_shift]
-    constructor
-    · rintro ⟨m, hm, rfl⟩
-      exact ⟨_, ⟨m, hm, rfl⟩, rfl⟩
-    · rintro ⟨_, ⟨m, hm, rfl⟩, rfl⟩
-      exact ⟨m, hm, rfl⟩
+    exact ⟨fun ⟨m, hm, hr⟩ => ⟨_, ⟨m, hm, rfl⟩, hr⟩, fun ⟨_, ⟨m, hm, rfl⟩, hr⟩ => ⟨m, hm, hr⟩⟩
   simp only [MultiTapeNTM.RunPath.space, MultiTapeNTM.RunPath.spaceUsedByTape, h,
     Finset.card_image_of_injective _ (add_left_injective _)]
 
@@ -208,25 +192,20 @@ theorem seq {State₁ : Type*} {tm₁ : MultiTapeTM k Symbol State₁} {c'' : Cf
     RunsBetween (tm.seq tm₁) c c'' (t + t₁) (s + s₁) := by
   have hl : c.withState (some (tm.seq tm₁).q₀) =
       (c.withState (some tm.q₀)).mapState (handOver tm₁.q₀) := rfl
-  have hmid : (c'.withState (none : Option State)).Halted := rfl
-  refine ⟨?_, ?_⟩
-  · rw [hl, runFrom_seq h₀.1 hmid h₁.1 rfl]
-    rfl
-  · rw [hl]
-    refine (space_seq_le h₀.1 hmid ?_).trans (Nat.add_le_add h₀.2 h₁.2)
-    rw [show (c'.withState (none : Option State)).withState (some tm₁.q₀) =
-      c'.withState (some tm₁.q₀) from rfl, h₁.1]
-    rfl
+  refine ⟨by rw [hl, runFrom_seq h₀.1 rfl h₁.1 rfl]; rfl, ?_⟩
+  rw [hl]
+  refine (space_seq_le h₀.1 rfl ?_).trans (Nat.add_le_add h₀.2 h₁.2)
+  rw [show (c'.withState (none : Option State)).withState _ = c'.withState (some tm₁.q₀) from rfl,
+    h₁.1]
+  rfl
 
 /-- **A run on the tapes selected by an embedding.** The other tapes are left alone; each costs
 one cell. -/
 theorem extendTapes (e : Fin k ↪ Fin k') {c : Cfg k' Symbol Unit input}
     {d : Cfg k Symbol Unit input} (h : RunsBetween tm (viewCfg e c) d t s) :
     RunsBetween (tm.extendTapes e) c (embed e d c.workTapes c.workTapePos) t (s + (k' - k)) := by
-  refine ⟨?_, ?_⟩
-  · rw [runFrom_extendTapes]
-    exact congrArg (fun d => embed e d c.workTapes c.workTapePos) h.1
-  · exact (space_extendTapes_le tm e _ t).trans (Nat.add_le_add_right h.2 _)
+  exact ⟨(runFrom_extendTapes ..).trans (congrArg (embed e · c.workTapes c.workTapePos) h.1),
+    (space_extendTapes_le tm e _ t).trans (Nat.add_le_add_right h.2 _)⟩
 
 /-- A `TransformsTapes` specification, read as runs between shifted word configurations. -/
 theorem of_transformsTapes
@@ -239,11 +218,8 @@ theorem of_transformsTapes
   obtain ⟨ws', e, hrun, hQ, hsp⟩ := transformsTapes_iff_runFrom.mp h input ws out hP
   have h0 : RunsBetween tm (tapesCfg input ws 0 0 out) (tapesCfg input ws' 0 0 (out ++ e)) t s :=
     ⟨by rw [tapesCfg_zero_withState, tapesCfg_zero_withState, hrun],
-      by rw [tapesCfg_zero_withState]; exact hsp⟩
-  refine ⟨ws', e, hQ, ?_⟩
-  have := h0.shift δ
-  rw [shift_tapesCfg, shift_tapesCfg] at this
-  simpa only [Pi.zero_apply, zero_add] using this
+      tapesCfg_zero_withState ws out _ ▸ hsp⟩
+  exact ⟨ws', e, hQ, by simpa [shift_tapesCfg] using h0.shift δ⟩
 
 /-- A `TransformsTapes` specification whose postcondition determines the words and the emitted
 word, read as a run between shifted word configurations. -/
@@ -277,14 +253,11 @@ lemma embed_tapesCfg (e : Fin k ↪ Fin k') {v : Fin k → List Symbol} {ov hv :
   · rcases hl : partialInv e l with _ | j
     · have hx := hother l fun ⟨j, hj⟩ => by simp [← hj] at hl
       simp only [embed, hl, tapesCfg, hx.1, hx.2.1]
-    · have := partialInv_eq_some e hl
-      subst this
+    · obtain rfl := partialInv_eq_some e hl
       simp only [embed, hl, tapesCfg, (hsel j).1, (hsel j).2.1]
   · rcases hl : partialInv e l with _ | j
-    · have hx := hother l fun ⟨j, hj⟩ => by simp [← hj] at hl
-      simp only [embed, hl, tapesCfg, hx.2.2]
-    · have := partialInv_eq_some e hl
-      subst this
+    · simp only [embed, hl, tapesCfg, (hother l fun ⟨j, hj⟩ => by simp [← hj] at hl).2.2]
+    · obtain rfl := partialInv_eq_some e hl
       simp only [embed, hl, tapesCfg, (hsel j).2.2]
 
 /-- **One step from a `tapesCfg` configuration**, for an action that keeps the input head and emits
@@ -320,11 +293,9 @@ variable {c : Option Symbol → (Fin k → Option Symbol) → Bool} {tm : MultiT
 theorem step_check (d : Cfg k Symbol Unit input) :
     (whileCond c tm).step (d.withState (some (.inr ()))) =
       d.withState (if c d.inputSymbol d.workTapeSymbols then some (.inl tm.q₀) else none) := by
-  rw [step_of_state rfl]
-  have hw : (d.withState (some (.inr () : State ⊕ Unit))).workTapeSymbols = d.workTapeSymbols :=
-    rfl
-  have hi : (d.withState (some (.inr () : State ⊕ Unit))).inputSymbol = d.inputSymbol := rfl
-  rw [hw, hi]
+  rw [step_of_state rfl,
+    show (d.withState (some (.inr () : State ⊕ Unit))).workTapeSymbols = d.workTapeSymbols from rfl,
+    show (d.withState (some (.inr () : State ⊕ Unit))).inputSymbol = d.inputSymbol from rfl]
   rcases hc : c d.inputSymbol d.workTapeSymbols <;>
     tm_step [combine, adaptedTr, WhileCond.condTest, hc]
 
@@ -336,8 +307,7 @@ private lemma space_one_check (d : Cfg k Symbol Unit input) :
   refine space_le_of_workTapePos_const _ 1 fun m hm => ?_
   rcases (by omega : m = 0 ∨ m = 1) with rfl | rfl
   · rfl
-  · rw [runFrom_one, step_check]
-    rfl
+  · rw [runFrom_one, step_check]; rfl
 
 /-- One round: from the test with the condition holding, the loop runs `tm` and is back at the
 test. -/

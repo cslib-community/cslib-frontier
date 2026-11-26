@@ -11,6 +11,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Running and counting queries of `OracleComp.pi` and `OracleComp.replicate`
@@ -103,16 +105,11 @@ theorem run_pi_query {m : ℕ} (q : Fin m → Query) (O : (x : Query) → spec x
       (fun x => pure (O x)) = pure (fun i => O (q i)) := by
   induction m with
   | zero =>
-    change (pure (fun i : Fin 0 => i.elim0) : ProbComp ((i : Fin 0) → spec (q i))) = _
-    congr 1
-    funext i
-    exact i.elim0
+    exact congrArg pure (funext fun i => i.elim0)
   | succ m ih =>
     simp only [OracleComp.pi_succ, ProbOracleComp.run_bind, ProbOracleComp.run_query,
       ProbOracleComp.run_map, ih (fun i => q i.succ), pure_bind, map_pure]
-    congr 1
-    funext i
-    exact Fin.cases rfl (fun _ => rfl) i
+    exact congrArg pure (funext (Fin.cases rfl fun _ => rfl))
 
 /-- A tuple of `m` external queries makes at most `m` external queries. -/
 theorem isQueryBounded_pi_query {m : ℕ} (q : Fin m → Query) :
@@ -133,24 +130,14 @@ theorem length_transcript_pi_query {m : ℕ} {State : Type}
     transcript.length = m := by
   induction m generalizing s s' transcript with
   | zero =>
-    simp only [OracleComp.pi_zero, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
-      Prod.mk.injEq] at hmem
-    rcases hmem with ⟨-, -, rfl⟩
+    supp_cases hmem [OracleComp.pi_zero, runWith_norm]
     rfl
   | succ m ih =>
-    simp only [OracleComp.pi_succ, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_map, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-    obtain ⟨⟨first, s₁, seen⟩, hfirst, ⟨rest, s₂, total⟩, hrest, heq⟩ := hmem
-    simp only [Prod.map, id_eq, Prod.mk.injEq] at heq
-    rcases heq with ⟨-, rfl, rfl⟩
-    simp only [OracleComp.withTranscript, PMF.mem_support_map_iff] at hfirst
-    obtain ⟨⟨ans, next⟩, -, hfirst_eq⟩ := hfirst
-    cases hfirst_eq
-    rw [ProbOracleComp.run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hrest
-    obtain ⟨⟨rest', final, fresh⟩, hfresh, hrest_eq⟩ := hrest
-    cases hrest_eq
-    have hlen := ih (fun i => q i.succ) hfresh
-    simp [hlen]
+    supp_cases hmem [OracleComp.pi_succ, runWith_norm, OracleComp.withTranscript] with
+      ⟨_, ⟨⟨ans, next⟩, -, rfl⟩, ⟨rest, s₂, total⟩, hrest, -, rfl, rfl⟩
+    rw [ProbOracleComp.run_interpret_withTranscript_append] at hrest
+    supp_cases hrest with ⟨⟨rest', final, fresh⟩, hfresh, rfl, rfl, rfl⟩
+    simp [ih (fun i => q i.succ) hfresh]
 
 /-- Running `OracleComp.replicate` against an oracle repeats the run of the underlying program. -/
 @[simp]
@@ -170,12 +157,10 @@ theorem isQueryBounded_replicate (k : ℕ) {program : ProbOracleComp spec α} {q
   induction k with
   | zero =>
     rw [Nat.zero_mul]
-    exact OracleComp.IsCostBounded.pure _ 0
+    exact .pure _ 0
   | succ k ih =>
-    rw [OracleComp.replicate_succ]
-    refine OracleComp.IsCostBounded.mono (n := q + k * q) ?_ (by simp [Nat.succ_mul, Nat.add_comm])
-    refine hq.bind fun _ => ?_
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ih
+    rw [OracleComp.replicate_succ, Nat.succ_mul, Nat.add_comm]
+    exact hq.bind fun _ => (OracleComp.isCostBounded_map_iff _ _ _).mpr ih
 
 /-- If every supported execution of `program` makes exactly `q` external queries, then every
 supported execution of `OracleComp.replicate k program` makes exactly `k * q` external queries. -/
@@ -193,21 +178,13 @@ theorem length_transcript_replicate {State : Type}
     transcript.length = k * q := by
   induction k generalizing s s' results transcript with
   | zero =>
-    simp only [OracleComp.replicate_zero, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
-      Prod.mk.injEq] at hmem
-    rcases hmem with ⟨-, -, rfl⟩
+    supp_cases hmem [OracleComp.replicate_zero, runWith_norm]
     simp
   | succ k ih =>
-    simp only [OracleComp.replicate_succ, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-      PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-    obtain ⟨⟨first, s₁, seen⟩, hfirst, ⟨rest, s₂, total⟩, hrest, heq⟩ := hmem
-    simp only [Prod.map, id_eq, Prod.mk.injEq] at heq
-    rcases heq with ⟨-, rfl, rfl⟩
-    rw [ProbOracleComp.run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hrest
-    obtain ⟨⟨rest', final, fresh⟩, hfresh, hrest_eq⟩ := hrest
-    cases hrest_eq
-    have h1 := hq hfirst
-    have h2 := ih hfresh
-    simp [h1, h2, Nat.succ_mul, Nat.add_comm]
+    supp_cases hmem [OracleComp.replicate_succ, runWith_norm] with
+      ⟨⟨first, s₁, seen⟩, hfirst, ⟨rest, s₂, total⟩, hrest, -, rfl, rfl⟩
+    rw [ProbOracleComp.run_interpret_withTranscript_append] at hrest
+    supp_cases hrest with ⟨⟨rest', final, fresh⟩, hfresh, rfl, rfl, rfl⟩
+    simp [hq hfirst, ih hfresh, Nat.succ_mul, Nat.add_comm]
 
 end Cslib.ProbOracleComp

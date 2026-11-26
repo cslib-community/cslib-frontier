@@ -64,13 +64,12 @@ theorem exists_adj_edist_eq_of_edist_eq_add_one {k : ℕ} (h : G.edist u w = k +
     simp only [Walk.length_cons, Nat.add_right_cancel_iff] at hp
     have hle : G.edist u v ≤ k := edist_comm.trans_le (hp ▸ edist_le p)
     refine ⟨v, hadj.symm, le_antisymm hle ?_⟩
+    obtain ⟨n, hn, -⟩ := ENat.le_natCast_iff.mp hle
     have htri : G.edist u w ≤ G.edist u v + 1 := by
       simpa only [edist_comm (u := u)] using hadj.edist_le_edist_add_one u
-    obtain ⟨n, hn, -⟩ := ENat.le_natCast_iff.mp hle
     rw [h, hn] at htri
     rw [hn]
-    have : k + 1 ≤ n + 1 := by exact_mod_cast htri
-    exact_mod_cast (by omega : k ≤ n)
+    exact_mod_cast Nat.succ_le_succ_iff.mp (by exact_mod_cast htri)
 
 /-- If `u` and `v` are at extended distance at most `a + b`, some vertex is at distance at most `a`
 from `u` and at most `b` from `v`: the vertex at position `a` of a shortest walk. -/
@@ -129,18 +128,15 @@ theorem card_edist_eq_add_one_le (hD : ∀ v, G.degree v ≤ D) (u : V) (d : ℕ
     refine (card_edist_eq_add_one_le_sum u 0).trans ?_
     have h0 : ({w | G.edist u w = ((0 : ℕ) : ℕ∞)} : Finset V) = {u} := by
       ext w
-      simp only [mem_filter, mem_univ, true_and, mem_singleton, Nat.cast_zero,
-        edist_eq_zero_iff]
-      exact eq_comm
+      simpa [edist_eq_zero_iff] using eq_comm
     rw [h0, sum_singleton, pow_zero, mul_one]
     exact (card_filter_le _ _).trans ((G.card_neighborFinset_eq_degree u).trans_le (hD u))
   | succ d ih =>
     refine (card_edist_eq_add_one_le_sum u (d + 1)).trans ?_
     calc _ ≤ ∑ w with G.edist u w = ((d + 1 : ℕ) : ℕ∞), (D - 1) :=
           sum_le_sum fun w hw => by
-            have hw' : G.edist u w = d + 1 := by
-              rw [(mem_filter.mp hw).2, Nat.cast_add, Nat.cast_one]
-            simpa only [Nat.cast_add, Nat.cast_one] using card_filter_neighborFinset_le hD hw'
+            simpa only [Nat.cast_add, Nat.cast_one] using card_filter_neighborFinset_le hD
+              (by simpa only [Nat.cast_add, Nat.cast_one] using (mem_filter.mp hw).2)
       _ = (D - 1) * #{w | G.edist u w = d + 1} := by
           rw [sum_const, smul_eq_mul, mul_comm, Nat.cast_add, Nat.cast_one]
       _ ≤ (D - 1) * (D * (D - 1) ^ d) := Nat.mul_le_mul_left _ ih
@@ -154,9 +150,7 @@ theorem card_edist_le_le (hD : ∀ v, G.degree v ≤ D) (u : V) (r : ℕ) :
   | zero =>
     have h0 : ({v | G.edist u v ≤ ((0 : ℕ) : ℕ∞)} : Finset V) = {u} := by
       ext v
-      simp only [mem_filter, mem_univ, true_and, mem_singleton, Nat.cast_zero,
-        nonpos_iff_eq_zero, edist_eq_zero_iff]
-      exact eq_comm
+      simpa [edist_eq_zero_iff] using eq_comm
     rw [h0, card_singleton, pow_zero]
   | succ r ih =>
     classical

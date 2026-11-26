@@ -83,9 +83,7 @@ def xorMixStageCode (c : Bool) (j n : ℕ) : List (Op × List ℕ) × List ℕ :
 
 private theorem ofFn_eq_map_range {α : Type*} {k : ℕ} (f : Fin k → α) (g : ℕ → α)
     (h : ∀ i : Fin k, f i = g i) : List.ofFn f = (List.range k).map g :=
-  List.ext_getElem (by simp) fun i h₁ _ => by
-    simp only [List.getElem_ofFn, List.getElem_map, List.getElem_range]
-    exact h _
+  List.ext_getElem (by simp) fun i h₁ _ => by simp [h ⟨i, by simpa using h₁⟩]
 
 private theorem ofFn_comp_finProdFinEquiv_symm {α : Type*} {a b : ℕ}
     (g : Fin a × Fin b → α) :
@@ -104,19 +102,12 @@ theorem xorMixStageCode_code (c : Bool) (j n : ℕ) :
   refine Prod.ext (xorChainCode_code c j _ fun _ => rfl) ?_
   refine Eq.trans ?_ (ofFn_comp_finProdFinEquiv_symm
     (fun p : Fin (j + 1) × Fin (n + 1) => (xorMixStageWire j n p.1 p.2).toNat)).symm
-  simp only [xorMixStageCode]
-  rw [List.flatMap_def]
-  congr 1
-  symm
-  refine ofFn_eq_map_range _ _ fun i => ofFn_eq_map_range _ _ fun t => ?_
-  induction t using Fin.cases with
-  | zero =>
-    induction i using Fin.lastCases with
-    | last => simp [xorMixStageWire, xorMixStageWireCode, Wire.toNat]
-    | cast i => simp [xorMixStageWire, xorMixStageWireCode, Wire.toNat]
-  | succ t =>
-    simp [xorMixStageWire, xorMixStageWireCode, Wire.toNat]
-    omega
+  simp only [xorMixStageCode, List.flatMap_def]
+  refine congrArg List.flatten
+    (ofFn_eq_map_range _ _ fun i => ofFn_eq_map_range _ _ fun t => ?_).symm
+  cases t using Fin.cases with
+  | zero => cases i using Fin.lastCases <;> simp [xorMixStageWire, xorMixStageWireCode, Wire.toNat]
+  | succ t => simp [xorMixStageWire, xorMixStageWireCode, Wire.toNat]; omega
 
 /-- The code of one coordinate `xorMixBlock C₀ C₁` of the XOR construction, from the codes `c₀`
 and `c₁` of circuits with `n` inputs and `m` outputs. -/
@@ -171,13 +162,11 @@ theorem computableInPolyTime_xorChainCode {α : Type} {enc : α ↪ List Bool} (
     {N j : α → ℕ} (hN : ComputableInPolyTime N enc encNat)
     (hj : ComputableInPolyTime j enc encUnary) :
     ComputableInPolyTime (fun a => xorChainCode (N a) c (j a)) enc (encList encGate) := by
-  have hstep : ComputableInPolyTime (fun p : α × ℕ => xorStepCode (N p.1) p.2)
-      (encPair enc encUnary) (encList encGate) := by
-    have hN' := hN.comp (fst enc encUnary)
-    have ht := unary_to_binary.comp (snd enc encUnary)
-    unfold xorStepCode
-    fun_prop
-  exact (const _).cons' (flatMapWithInput (range.comp hj) hstep)
+  refine (const _).cons' (flatMapWithInput (range.comp hj) ?_)
+  have := hN.comp (fst enc encUnary)
+  have := unary_to_binary.comp (snd enc encUnary)
+  unfold xorStepCode
+  fun_prop
 
 /-- The selection stage is polynomial-time in unary parameters. -/
 theorem computableInPolyTime_xorMixStageCode {α : Type} {enc : α ↪ List Bool} (c : Bool)
@@ -186,26 +175,18 @@ theorem computableInPolyTime_xorMixStageCode {α : Type} {enc : α ↪ List Bool
     ComputableInPolyTime (fun a => xorMixStageCode c (j a) (n a)) enc encCode := by
   have hjb := unary_to_binary.comp hj
   have hnb := unary_to_binary.comp hn
-  have hN : ComputableInPolyTime (fun a => j a + (j a + 1) * n a) enc encNat := by fun_prop
-  have hwire : ComputableInPolyTime
-      (fun p : (α × ℕ) × ℕ => xorMixStageWireCode (j p.1.1) (n p.1.1) p.1.2 p.2)
-      (encPair (encPair enc encUnary) encUnary) encNat := by
-    have hj' := hjb.comp ((fst enc encUnary).comp (fst (encPair enc encUnary) encUnary))
-    have hn' := hnb.comp ((fst enc encUnary).comp (fst (encPair enc encUnary) encUnary))
-    have hi := unary_to_binary.comp ((snd enc encUnary).comp (fst _ encUnary))
-    have ht := unary_to_binary.comp (snd (encPair enc encUnary) encUnary)
-    unfold xorMixStageWireCode
-    fun_prop
-  have hrow : ComputableInPolyTime
-      (fun p : α × ℕ => (List.range (n p.1 + 1)).map (xorMixStageWireCode (j p.1) (n p.1) p.2))
-      (encPair enc encUnary) (encList encNat) := by
-    have hn1 : ComputableInPolyTime (fun p : α × ℕ => n p.1 + 1) (encPair enc encUnary)
-        encUnary := by
+  refine (computableInPolyTime_xorChainCode c (by fun_prop) hj).prod
+    (flatMapWithInput (range.comp (by fun_prop : ComputableInPolyTime (fun a => j a + 1) _ _)) ?_)
+  refine mapWithInput (range.comp (by
       have := hn.comp (fst enc encUnary)
-      fun_prop
-    exact mapWithInput (range.comp hn1) hwire
-  have hj1 : ComputableInPolyTime (fun a => j a + 1) enc encUnary := by fun_prop
-  exact (computableInPolyTime_xorChainCode c hN hj).prod (flatMapWithInput (range.comp hj1) hrow)
+      fun_prop :
+      ComputableInPolyTime (fun p : α × ℕ => n p.1 + 1) _ _)) ?_
+  have := hjb.comp ((fst enc encUnary).comp (fst (encPair enc encUnary) encUnary))
+  have := hnb.comp ((fst enc encUnary).comp (fst (encPair enc encUnary) encUnary))
+  have := unary_to_binary.comp ((snd enc encUnary).comp (fst _ encUnary))
+  have := unary_to_binary.comp (snd (encPair enc encUnary) encUnary)
+  unfold xorMixStageWireCode
+  fun_prop
 
 /-- One coordinate of the XOR construction is polynomial-time in unary sizes and the codes. -/
 theorem computableInPolyTime_xorMixBlockCode {α : Type} {enc : α ↪ List Bool}
@@ -235,11 +216,8 @@ theorem computableInPolyTime_xorMixCode {α : Type} {enc : α ↪ List Bool} (c 
     ComputableInPolyTime (fun a => xorMixCode (n a) (m a) (j a) c (c₀ a) (c₁ a)) enc encCode := by
   have hnb := unary_to_binary.comp hn
   have hjb := unary_to_binary.comp hj
-  have hN : ComputableInPolyTime (fun a => j a + (j a + 1) * n a) enc encNat := by fun_prop
-  have hn1 : ComputableInPolyTime (fun a => n a + 1) enc encNat := by fun_prop
-  have hj1 : ComputableInPolyTime (fun a => j a + 1) enc encUnary := by fun_prop
-  exact computableInPolyTime_compCode hN
-    (computableInPolyTime_replicateCode hn1 hj1
+  exact computableInPolyTime_compCode (by fun_prop)
+    (computableInPolyTime_replicateCode (by fun_prop) (by fun_prop)
       (computableInPolyTime_xorMixBlockCode hn hm hc₀ hc₁))
     (computableInPolyTime_xorMixStageCode c hj hn)
 
@@ -256,11 +234,7 @@ theorem computableInPolyTime_polarizeCode {α : Type} {enc : α ↪ List Bool} (
   have hin : ComputableInPolyTime (fun a => lam a + (lam a + 1) * n a) enc encUnary := by
     fun_prop
   have hinb := unary_to_binary.comp hin
-  have hN : ComputableInPolyTime (fun a => ell a * (lam a + (lam a + 1) * n a)) enc encUnary := by
-    fun_prop
-  have hM : ComputableInPolyTime (fun a => ell a * ((lam a + 1) * m a)) enc encUnary := by
-    fun_prop
-  exact computableInPolyTime_xorMixCode c hN hM hk
+  exact computableInPolyTime_xorMixCode c (by fun_prop) (by fun_prop) hk
     (computableInPolyTime_replicateCode hinb hell
       (computableInPolyTime_xorMixCode false hn hm hlam hc₀ hc₁))
     (computableInPolyTime_replicateCode hinb hell

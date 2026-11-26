@@ -129,9 +129,7 @@ private theorem tspPolytope_funLeft_eq {V₁ V₂ : Type*} [Fintype V₁] [Finty
     have heqv := mapEdgeSet_completeGraph_mem_tourEdgeSet e σ₂ hV₂ x
     have hσ : (finCongr hcard).trans (σ₂.trans e.symm) = σ₁ := by
       ext j
-      simp only [σ₂, Equiv.trans_apply, Equiv.symm_apply_apply]
-      change σ₁ ((finCongr hcard.symm) (finCongr hcard j)) = σ₁ j
-      rw [show (finCongr hcard.symm) (finCongr hcard j) = j from Fin.ext rfl]
+      simp [σ₂]
     have heqv' : (SimpleGraph.Iso.completeGraph e).mapEdgeSet x ∈ tourEdgeSet σ₂ hV₂ ↔
         x ∈ tourEdgeSet σ₁ hV₁ := by
       simpa only [hσ] using heqv
@@ -172,18 +170,10 @@ private theorem extensionComplexity_tspPolytope_inter_map_congr
           refine ⟨fun ⟨a, b, hab, ha, hb⟩ => ?_, fun h => ⟨u, v, h, rfl, rfl⟩⟩
           exact e.injective ha ▸ e.injective hb ▸ hab
         exact if_congr hmem rfl rfl
-  have hgf_inv : ∀ x, g (f x) = x := fun x => by
-    ext ⟨s, _⟩
-    induction s using Sym2.ind with
-    | _ u v =>
-        change x ⟨s(e.symm (e u), e.symm (e v)), _⟩ = x ⟨s(u, v), _⟩
-        simp only [Equiv.symm_apply_apply]
-  have hfg_inv : ∀ y, f (g y) = y := fun y => by
-    ext ⟨s, _⟩
-    induction s using Sym2.ind with
-    | _ u v =>
-        change y ⟨s(e (e.symm u), e (e.symm v)), _⟩ = y ⟨s(u, v), _⟩
-        simp only [Equiv.apply_symm_apply]
+  have hgf_inv : ∀ x, g (f x) = x := fun x => funext fun a =>
+    congrArg x ((SimpleGraph.Iso.completeGraph e).mapEdgeSet.symm_apply_apply a)
+  have hfg_inv : ∀ y, f (g y) = y := fun y => funext fun b =>
+    congrArg y ((SimpleGraph.Iso.completeGraph e).mapEdgeSet.apply_symm_apply b)
   have hfg_dot : ∀ x, c₂ ⬝ᵥ f x = c₁ ⬝ᵥ x := fun x => by
     have hfun : (fun a => c₂ (eEdge a) * f x (eEdge a)) = fun a => c₁ a * x a := by
       ext ⟨s, _⟩
@@ -197,24 +187,12 @@ private theorem extensionComplexity_tspPolytope_inter_map_congr
   have himP₂ : f '' tspPolytope K V₁ = tspPolytope K V₂ := tspPolytope_funLeft_eq e.symm
   have himP₁ : g '' tspPolytope K V₂ = tspPolytope K V₁ := tspPolytope_funLeft_eq e
   refine extensionComplexity_eq_of_linearMaps (K := K) g f ?_ ?_
-  · ext x
-    simp only [Set.mem_image, Set.mem_inter_iff, Set.mem_ofPred_eq]
-    constructor
-    · rintro ⟨y, ⟨hyP, hy0⟩, rfl⟩
-      refine ⟨himP₁ ▸ ⟨y, hyP, rfl⟩, ?_⟩
-      rw [← hfg_dot (g y), hfg_inv y]
-      exact hy0
-    · rintro ⟨hxP, hx0⟩
-      refine ⟨f x, ⟨himP₂ ▸ ⟨x, hxP, rfl⟩, (hfg_dot x).trans hx0⟩, hgf_inv x⟩
-  · ext y
-    simp only [Set.mem_image, Set.mem_inter_iff, Set.mem_ofPred_eq]
-    constructor
-    · rintro ⟨x, ⟨hxP, hx0⟩, rfl⟩
-      exact ⟨himP₂ ▸ ⟨x, hxP, rfl⟩, (hfg_dot x).trans hx0⟩
-    · rintro ⟨hyP, hy0⟩
-      refine ⟨g y, ⟨himP₁ ▸ ⟨y, hyP, rfl⟩, ?_⟩, hfg_inv y⟩
-      rw [← hfg_dot (g y), hfg_inv y]
-      exact hy0
+  · rw [Set.image_inter (Function.LeftInverse.injective hfg_inv), himP₁,
+      Set.image_eq_preimage_of_inverse hfg_inv hgf_inv]
+    simp only [Set.preimage_ofPred_eq, hfg_dot]
+  · rw [Set.image_inter (Function.LeftInverse.injective hgf_inv), himP₂,
+      Set.image_eq_preimage_of_inverse hgf_inv hfg_inv]
+    simp only [Set.preimage_ofPred_eq, ← hfg_dot, hfg_inv]
 
 end Congruence
 
@@ -234,8 +212,8 @@ private def corrPairEdge {p : ℕ} (hp : 1 ≤ p) (v₀ : CorrDigraphV p) (pad :
     splitV_top_edge_vOut_vIn v₀ pad _ _⟩
 
 private theorem chain_fin_eq {p : ℕ} {v₁ v₂ : CorrVar p} (hv : v₁ = v₂) {k : ℕ}
-    (h₁ : k < chainLen p v₁) (h₂ : k < chainLen p v₂) :
-    (CorrDigraphV.chain v₁ ⟨k, h₁⟩ : CorrDigraphV p) = .chain v₂ ⟨k, h₂⟩ := by
+    (h₁ : k < chainLen p v₁) :
+    (CorrDigraphV.chain v₁ ⟨k, h₁⟩ : CorrDigraphV p) = .chain v₂ ⟨k, hv ▸ h₁⟩ := by
   subst hv; rfl
 
 private theorem corrPairEdge_mem_iff_tour {p : ℕ} [NeZero p] (hp : 1 ≤ p)
@@ -260,25 +238,16 @@ private theorem corrPairEdge_mem_iff_tour {p : ℕ} [NeZero p] (hp : 1 ≤ p)
     corrPairEdge hp v₀ pad i j ∈ F ↔ i ∈ b ∧ j ∈ b := by
   dsimp only [corrPairEdge]
   rw [hinter]
-  by_cases h1 : i < j
-  · have hv : corrPairVar i j = .off ⟨i, j, h1⟩ := by
-      dsimp only [corrPairVar]; simp only [eq_true h1, ↓reduceDIte]
-    rw [chain_fin_eq hv _ (by have := two_le_chainLen hp (.off ⟨i, j, h1⟩); omega),
-      chain_fin_eq hv _ (by have := two_le_chainLen hp (.off ⟨i, j, h1⟩); omega)]
-    exact hoff ⟨i, j, h1⟩
-  · by_cases h2 : j < i
-    · have hv : corrPairVar i j = .off ⟨j, i, h2⟩ := by
-        dsimp only [corrPairVar]; simp only [eq_false h1, eq_true h2, ↓reduceDIte]
-      rw [chain_fin_eq hv _ (by have := two_le_chainLen hp (.off ⟨j, i, h2⟩); omega),
-        chain_fin_eq hv _ (by have := two_le_chainLen hp (.off ⟨j, i, h2⟩); omega)]
-      exact (hoff ⟨j, i, h2⟩).trans and_comm
-    · have hij : i = j := le_antisymm (not_lt.1 h2) (not_lt.1 h1)
-      subst hij
-      have hv : corrPairVar i i = .diag i := by
-        dsimp only [corrPairVar]; simp only [eq_false h1, ↓reduceDIte]
-      rw [chain_fin_eq hv _ (by have := two_le_chainLen hp (.diag i); omega),
-        chain_fin_eq hv _ (by have := two_le_chainLen hp (.diag i); omega)]
-      exact (hdiag i).trans ⟨fun h => ⟨h, h⟩, fun h => h.1⟩
+  rcases lt_trichotomy i j with h | rfl | h
+  · have hv : corrPairVar i j = .off ⟨i, j, h⟩ := by simp [corrPairVar, h]
+    rw [chain_fin_eq hv, chain_fin_eq hv]
+    exact hoff _
+  · have hv : corrPairVar i i = .diag i := by simp [corrPairVar]
+    rw [chain_fin_eq hv, chain_fin_eq hv]
+    exact (hdiag i).trans and_self_iff.symm
+  · have hv : corrPairVar i j = .off ⟨j, i, h⟩ := by simp [corrPairVar, h, lt_asymm h]
+    rw [chain_fin_eq hv, chain_fin_eq hv]
+    exact (hoff _).trans and_comm
 
 private theorem extensionComplexity_corrPolytope_le_splitV_face
     {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
@@ -323,10 +292,8 @@ private theorem extensionComplexity_corrPolytope_le_splitV_face
       ext ⟨i, j⟩
       simp only [π, LinearMap.coe_mk, AddHom.coe_mk, tspVertex, corrVertex_apply,
         corrPairEdge_mem_iff_tour hp v₀ pad b hdiag hoff hinter i j]
-  calc extensionComplexity (corrPolytope K (Fin p))
-      = extensionComplexity (π '' (tspPolytope K W ∩ {x | c ⬝ᵥ x = 0})) := by rw [hproj]
-    _ ≤ extensionComplexity (tspPolytope K W ∩ {x | c ⬝ᵥ x = 0}) :=
-      extensionComplexity_image_linearMap_le _ π
+  rw [← hproj]
+  exact extensionComplexity_image_linearMap_le _ π
 
 /-- `corrPolytope K (Fin p)` is a linear projection of a face of the symmetric TSP polytope on
 `SplitV (CorrDigraphV p) v₀ pad` vertices

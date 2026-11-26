@@ -63,17 +63,10 @@ private structure NativeInterpreter where
     (fun i => factor * (universalImplementationSpace i + 1))
 
 private theorem nativeInterpreter_nonempty : Nonempty NativeInterpreter := by
-  obtain ⟨factor, hmachine, -⟩ := Internal.NormalForm.inO computableInO_universal
-  obtain ⟨tapes, State, stateFinite, machine, computes⟩ := hmachine
-  exact ⟨{
-    factor
-    tapes
-    State
-    stateFinite
-    machine
-    computes := by
-      intro i
-      simpa only [universalImplementationTime, universalImplementationSpace] using computes i }⟩
+  obtain ⟨factor, ⟨tapes, State, stateFinite, machine, computes⟩, -⟩ :=
+    Internal.NormalForm.inO computableInO_universal
+  exact ⟨⟨factor, tapes, State, stateFinite, machine, fun i => by
+    simpa only [universalImplementationTime, universalImplementationSpace] using computes i⟩⟩
 
 private noncomputable def nativeInterpreter : NativeInterpreter :=
   Classical.choice nativeInterpreter_nonempty
@@ -98,13 +91,10 @@ theorem encodedUniversalInterpreterFactor_pos : 0 < encodedUniversalInterpreterF
   let i : Desc × List ℕ × ℕ := (⟨0, 0, []⟩, [], 0)
   have hlen := (nativeInterpreter.computes i).length_output_le
   have hout : 0 < (eOut (universal i)).length := by
-    simp only [eOut, length_encPair, encBool_apply, List.length_singleton]
-    omega
+    simp only [eOut, length_encPair, encBool_apply, List.length_singleton]; omega
   change 0 < nativeInterpreter.factor
   by_contra hfactor
-  have hzero : nativeInterpreter.factor = 0 := Nat.eq_zero_of_not_pos hfactor
-  simp only [hzero, Nat.zero_mul] at hlen
-  omega
+  simp only [Nat.eq_zero_of_not_pos hfactor, Nat.zero_mul] at hlen; omega
 
 /-- The number of work tapes in the selected native interpreter. -/
 noncomputable def encodedUniversalInterpreterTapes : ℕ := nativeInterpreter.tapes
@@ -148,11 +138,8 @@ bounds. This statement keeps the native certificate separate from encoding that 
 program for another universal run. -/
 private theorem encodedUniversalInterpreter_computes :
     ComputesFunTidilyInTimeAndSpace nativeInterpreter.machine eIn eOut universal
-      encodedUniversalInterpreterTime encodedUniversalInterpreterSpace := by
-  change ComputesFunTidilyInTimeAndSpace nativeInterpreter.machine eIn eOut universal
-    (fun i => nativeInterpreter.factor * (universalImplementationTime i + 1))
-    (fun i => nativeInterpreter.factor * (universalImplementationSpace i + 1))
-  exact nativeInterpreter.computes
+      encodedUniversalInterpreterTime encodedUniversalInterpreterSpace :=
+  nativeInterpreter.computes
 
 /-- Every finite prefix of the encoded interpreter visits at most its certified number of work
 cells. This directly connects the public description to the selected native machine's workspace
@@ -162,8 +149,8 @@ theorem simSpace_encodedUniversalInterpreter_le (i : Desc × List ℕ × ℕ) (c
       encodedUniversalInterpreterSpace i := by
   unfold encodedUniversalInterpreter
   rw [simSpace_desc]
-  obtain ⟨_, _, hspace⟩ := (encodedUniversalInterpreter_computes i).computesInTimeAndSpace
-  exact space_le_of_runsInSpace hspace clock
+  exact space_le_of_runsInSpace
+    (encodedUniversalInterpreter_computes i).computesInTimeAndSpace.2.2 clock
 
 /-- **The encoded interpreter realizes the existing universal function.** At any outer clock at
 least the selected native interpreter's certified runtime, it has halted and emitted the encoded
@@ -174,13 +161,10 @@ theorem universal_encodedUniversalInterpreter (i : Desc × List ℕ × ℕ) (clo
       ((eOut (universal i)).map eBit, true) := by
   unfold encodedUniversalInterpreter
   rw [universal_desc]
-  have hrun := ((encodedUniversalInterpreter_computes i).computesInTimeAndSpace).runFrom_of_le
-    hclock
-  rw [hrun.2]
-  have hstate :
-      (nativeInterpreter.machine.runFrom
-        (nativeInterpreter.machine.initCfg (eIn i)) clock).state.isNone = true := by
+  have hrun := (encodedUniversalInterpreter_computes i).computesInTimeAndSpace.runFrom_of_le hclock
+  have hstate : (nativeInterpreter.machine.runFrom
+      (nativeInterpreter.machine.initCfg (eIn i)) clock).state.isNone = true := by
     simpa only [Cfg.Halted, Option.isNone_iff_eq_none] using hrun.1
-  rw [hstate]
+  rw [hrun.2, hstate]
 
 end Turing.MultiTapeTM.Universal

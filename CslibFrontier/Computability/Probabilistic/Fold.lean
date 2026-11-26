@@ -61,22 +61,14 @@ theorem IsOraclePPTOn.foldlM_of_bounded_growth
     {growth : ℕ} (hgrowth : ∀ acc item, ∀ next ∈ OracleComp.support (step acc item),
       (output next).length ≤ (output acc).length + growth) :
     IsOraclePPTOn input output (fun a => (list a).foldlM step (initial a)) := by
-  have hcount : ComputableInPolyTime (fun a => (list a).length) input encUnary :=
-    (ComputableInPolyTime.length_list element).comp hlist
-  have hprepare : ComputableInPolyTime
-      (fun state : List Item × Acc => (state.2, state.1.headD fallback))
-      (encPair (encList element) output) (encPair output element) :=
-    (ComputableInPolyTime.snd _ _).prod
-      ((ComputableInPolyTime.headD fallback).comp (ComputableInPolyTime.fst _ _))
-  have htail : ComputableInPolyTime
-      (fun state : List Item × Acc => state.1.tail)
-      (encPair (encList element) output) (encList element) :=
-    ((ComputableInPolyTime.tail (encA := element) (encL := encList element)).comp
-      (ComputableInPolyTime.fst _ _))
   have hloopStep : IsOraclePPTOn (encPair (encList element) output)
       (encPair (encList element) output) (foldStep fallback step) :=
-    (hstep.preprocess hprepare).pair' htail
-  have hloop := IsOraclePPTOn.iterate_of_bounded_growth hcount (hlist.prod hinitial) hloopStep
+    (hstep.preprocess ((ComputableInPolyTime.snd _ _).prod
+      ((ComputableInPolyTime.headD fallback).comp (ComputableInPolyTime.fst _ _)))).pair'
+      ((ComputableInPolyTime.tail (encA := element) (encL := encList element)).comp
+        (ComputableInPolyTime.fst _ _))
+  have hloop := IsOraclePPTOn.iterate_of_bounded_growth
+    ((ComputableInPolyTime.length_list element).comp hlist) (hlist.prod hinitial) hloopStep
     (growth := growth) fun ⟨items, acc⟩ next hnext => by
       obtain ⟨nextAcc, hnextAcc, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
       have htail : (encList element items.tail).length ≤ (encList element items).length :=
@@ -84,7 +76,7 @@ theorem IsOraclePPTOn.foldlM_of_bounded_growth
       have hacc := hgrowth acc (items.headD fallback) nextAcc hnextAcc
       simp only [encPair_apply, List.length_append, length_frame]
       omega
-  simpa only [iterate_foldStep_eq_foldlM] using
+  simpa only [Function.comp_apply, iterate_foldStep_eq_foldlM] using
     hloop.map (ComputableInPolyTime.snd (encList element) output)
 
 /-- Fold a strict PPT step over an efficiently computed list, with a constant bound on the
@@ -114,7 +106,6 @@ theorem IsPPTOn.foldlM_of_bounded_growth
     | nil => rfl
     | cons item rest ih =>
       simp only [List.foldlM_cons, ProbOracleComp.sample_bind, ih]
-  apply IsOraclePPTOn.isPPTOn
-  simpa only [← hsample] using hloop
+  exact IsOraclePPTOn.isPPTOn (by simpa only [← hsample] using hloop)
 
 end Cslib.Probability

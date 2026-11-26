@@ -107,15 +107,11 @@ theorem subdivision_endpoint_spec {I : FixedRotationInput} (hI : Valid I)
       Dart.vertex (e, false) ≠ Dart.vertex (e, true) := by
   refine ⟨fun b => ((referenceOrder_enumerates hI).2 _).mpr
     (RotationSystem.vertex_mem (subdivisionGraph_endpoints_declared hI) (e, b)), ?_⟩
-  have he : (subdivisionGraph I).edges[e] ∈ (subdivisionGraph I).edges :=
-    List.getElem_mem e.isLt
-  obtain ⟨s, hs, hse⟩ := List.mem_map.mp he
-  have hne := subdivide_source_ne_target hI hs
-  simp only [Fin.getElem_fin] at hse
+  obtain ⟨s, hs, hse⟩ := List.mem_map.mp (List.getElem_mem e.isLt)
   change ((subdivisionGraph I).edges.getD e.val (0, 0)).1 ≠
     ((subdivisionGraph I).edges.getD e.val (0, 0)).2
   rw [List.getD_eq_getElem _ _ e.isLt, ← hse]
-  exact hne
+  exact subdivide_source_ne_target hI hs
 
 /-- All declared subdivision points, including isolated points, have distinct coordinates. -/
 theorem referenceDrawing_vertices_injective {I : FixedRotationInput} (hI : Valid I) :
@@ -144,25 +140,18 @@ theorem referenceDrawing_vertex_contacts {I : FixedRotationInput} (hI : Valid I)
   let p := referencePoint I
   have hs := subdivision_endpoint_spec hI e
   have hp : p a ≠ p b := fun h => hs.2 (rankPoint_inj (hs.1 false) h)
-  have hline : AffineMap.lineMap (p a) (p b) t = p v := by
-    change (Route.line (p a) (p b)).eval i t = p v at heq
-    exact (Route.eval_line (p a) (p b) i t).symm.trans heq
-  have hm : p v ∈ segment ℝ (p a) (p b) :=
-    hline ▸ lineMap_mem_segment ℝ (p a) (p b) ht
+  have hline : AffineMap.lineMap (p a) (p b) t = p v :=
+    (Route.eval_line (p a) (p b) i t).symm.trans heq
+  have hm : p v ∈ segment ℝ (p a) (p b) := hline ▸ lineMap_mem_segment ℝ (p a) (p b) ht
   have hmem := ((referenceOrder_enumerates hI).2 v).mpr hv
-  have hends : v = a ∨ v = b := by
-    obtain h | h := (parabolaPoint_mem_segment_iff
-      ((referenceOrder I).idxOf a : ℝ) ((referenceOrder I).idxOf b : ℝ)
-      ((referenceOrder I).idxOf v : ℝ)).mp hm
-    · exact Or.inl (rankPoint_inj hmem (congrArg parabolaPoint h))
-    · exact Or.inr (rankPoint_inj hmem (congrArg parabolaPoint h))
-  rcases hends with h | h
-  · have htime : t = 0 :=
-      (AffineMap.lineMap_eq_left_iff.mp (by simpa only [h] using hline)).resolve_left hp
-    exact ⟨false, (Route.atEnd_line_iff _ _ i t false).mpr htime, h.symm⟩
-  · have htime : t = 1 :=
-      (AffineMap.lineMap_eq_right_iff.mp (by simpa only [h] using hline)).resolve_left hp
-    exact ⟨true, (Route.atEnd_line_iff _ _ i t true).mpr htime, h.symm⟩
+  rcases (parabolaPoint_mem_segment_iff ((referenceOrder I).idxOf a : ℝ)
+    ((referenceOrder I).idxOf b : ℝ) ((referenceOrder I).idxOf v : ℝ)).mp hm with h | h
+  · have hv' := rankPoint_inj hmem (congrArg parabolaPoint h)
+    exact ⟨false, (Route.atEnd_line_iff _ _ i t false).mpr
+      ((AffineMap.lineMap_eq_left_iff.mp (hv' ▸ hline)).resolve_left hp), hv'.symm⟩
+  · have hv' := rankPoint_inj hmem (congrArg parabolaPoint h)
+    exact ⟨true, (Route.atEnd_line_iff _ _ i t true).mpr
+      ((AffineMap.lineMap_eq_right_iff.mp (hv' ▸ hline)).resolve_left hp), hv'.symm⟩
 
 private theorem crossing_rankChord_iff {order : List ℕ} {e f : ℕ × ℕ}
     (he : e.1 ∈ order ∧ e.2 ∈ order) (hf : f.1 ∈ order ∧ f.2 ∈ order)

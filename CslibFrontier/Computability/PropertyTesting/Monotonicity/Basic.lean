@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.InformationTheory.Hamming
+import CslibFrontier.Foundations.Data.BitString.Flip
 import Mathlib.Data.Pi.Interval
 import Mathlib.Order.Interval.Finset.Basic
 import Mathlib.Tactic.Linarith
@@ -113,12 +114,11 @@ theorem monotone_iff_forall_update_le [Finite ι] [DecidableEq ι] {β : Type*} 
   rw [monotone_iff_forall_covBy]
   intro a b hab
   obtain ⟨i, c, hc, rfl⟩ := Pi.covBy_iff_exists_right_eq.1 hab
-  have hlt := hc.lt
-  have ha : a i = false := by revert hlt; cases a i <;> cases c <;> decide
-  have hc' : c = true := by revert hlt; cases a i <;> cases c <;> decide
-  subst hc'
-  have := h a i
-  rwa [update_eq_self_iff.2 ha.symm] at this
+  obtain ⟨ha, rfl⟩ : a i = false ∧ c = true := by
+    have hlt := hc.lt
+    revert hlt
+    cases a i <;> cases c <;> decide
+  simpa [(update_eq_self_iff (f := a) (a := i)).2 ha.symm] using h a i
 
 variable [DecidableEq ι]
 
@@ -143,23 +143,13 @@ theorem mem_violatedEdges {f : (ι → Bool) → Bool} {i : ι} {x : ι → Bool
 theorem monotone_iff_forall_violatedEdges_eq_empty {f : (ι → Bool) → Bool} :
     Monotone f ↔ ∀ i, violatedEdges f i = ∅ := by
   rw [monotone_iff_forall_update_le]
-  constructor
-  · intro h i
-    ext x
-    simp only [mem_violatedEdges, Finset.notMem_empty, iff_false, not_and]
-    intro hx h1 h2
-    have := h x i
-    rw [update_eq_self_iff.2 hx.symm, h1, h2] at this
-    exact absurd this (by decide)
-  · intro h x i
-    by_contra hlt
-    have h1 : f (update x i false) = true ∧ f (update x i true) = false := by
+  refine ⟨fun h i => eq_empty_iff_forall_notMem.2 fun x hx => ?_,
+    fun h x i => by_contra fun hlt => ?_⟩
+  · obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 hx
+    simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, h1, h2, Bool.le_iff_imp] using h x i
+  · have h1 : f (update x i false) = true ∧ f (update x i true) = false := by
       revert hlt; cases f (update x i false) <;> cases f (update x i true) <;> decide
-    have hmem : update x i false ∈ violatedEdges f i := by
-      rw [mem_violatedEdges, update_self, update_idem]
-      exact ⟨rfl, h1⟩
-    rw [h i] at hmem
-    exact Finset.notMem_empty _ hmem
+    exact notMem_empty _ (h i ▸ mem_violatedEdges.2 ⟨update_self .., by simpa using h1⟩)
 
 end ViolatedEdges
 
@@ -173,22 +163,6 @@ private instance (f : (ι → Bool) → Bool) (i : ι) : DecidablePred (Viol f i
 private theorem viol_update (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) (b : Bool) :
     Viol f i (update x i b) ↔ Viol f i x := by
   simp only [Viol, update_idem]
-
-/-- Flip the coordinate `i`. -/
-private def flipAt (i : ι) (x : ι → Bool) : ι → Bool := update x i (!x i)
-
-private theorem flipAt_flipAt (i : ι) (x : ι → Bool) : flipAt i (flipAt i x) = x := by
-  simp only [flipAt, update_self, update_idem, Bool.not_not, update_eq_self]
-
-private theorem update_false_add_update_true {M : Type*} [AddCommMonoid M] (i : ι)
-    (h : (ι → Bool) → M) (y : ι → Bool) :
-    h (update y i false) + h (update y i true) = h y + h (flipAt i y) := by
-  unfold flipAt
-  cases hy : y i
-  · have e : update y i false = y := update_eq_self_iff.2 hy.symm
-    rw [e, Bool.not_false]
-  · have e : update y i true = y := update_eq_self_iff.2 hy.symm
-    rw [e, Bool.not_true, add_comm]
 
 /-! ### Sorting along a direction -/
 
@@ -216,13 +190,9 @@ theorem sortAlong_update_true (i : ι) (f : (ι → Bool) → Bool) (x : ι → 
 private theorem ne_sortAlong_iff (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
     f x ≠ sortAlong i f x ↔ Viol f i x := by
   unfold sortAlong Viol
-  cases hx : x i
-  · have e : update x i false = x := update_eq_self_iff.2 hx.symm
-    rw [e]
-    cases f x <;> cases f (update x i true) <;> simp
-  · have e : update x i true = x := update_eq_self_iff.2 hx.symm
-    rw [e]
-    cases f x <;> cases f (update x i false) <;> simp
+  cases hx : x i <;> rw [(update_eq_self_iff (f := x) (a := i)).2 hx.symm]
+  · cases f x <;> cases f (update x i true) <;> simp
+  · cases f x <;> cases f (update x i false) <;> simp
 
 /-- On a square spanned by the directions `i ≠ j`, sorting along `i` does not increase the number
 of violated `j`-edges: this is the case analysis of the Key Claim, over the 16 labellings of the
@@ -244,21 +214,10 @@ private theorem viol_sortAlong_square (f : (ι → Bool) → Bool) {i j : ι} (h
 
 variable [Fintype ι]
 
-private theorem sum_update_false_add_update_true {M : Type*} [AddCommMonoid M] (i : ι)
-    (h : (ι → Bool) → M) :
-    ∑ y, (h (update y i false) + h (update y i true)) = ∑ y, h y + ∑ y, h y := by
-  simp only [update_false_add_update_true, sum_add_distrib]
-  congr 1
-  exact Equiv.sum_comp (Function.Involutive.toPerm _ (flipAt_flipAt i)) h
-
 private theorem mem_violatedEdges_iff_viol {f : (ι → Bool) → Bool} {i : ι} {x : ι → Bool} :
     x ∈ violatedEdges f i ↔ x i = false ∧ Viol f i x := by
   rw [mem_violatedEdges, Viol]
-  constructor
-  · rintro ⟨hx, h0, h1⟩
-    exact ⟨hx, by rwa [update_eq_self_iff.2 hx.symm], h1⟩
-  · rintro ⟨hx, h0, h1⟩
-    exact ⟨hx, by rwa [update_eq_self_iff.2 hx.symm] at h0, h1⟩
+  exact and_congr_right fun hx => by rw [(update_eq_self_iff (f := x) (a := i)).2 hx.symm]
 
 /-- Each violated edge has two endpoints. -/
 private theorem card_viol (f : (ι → Bool) → Bool) (i : ι) :
@@ -267,10 +226,8 @@ private theorem card_viol (f : (ι → Bool) → Bool) (i : ι) :
     (fun x => if x i = false ∧ Viol f i x then (1 : ℕ) else 0)
   simp only [update_self, viol_update, true_and, Bool.true_eq_false, false_and,
     ↓reduceIte, add_zero] at h
-  have he : violatedEdges f i = univ.filter fun x => x i = false ∧ Viol f i x := by
-    ext x
-    rw [mem_violatedEdges_iff_viol, mem_filter]
-    simp only [mem_univ, true_and]
+  have he : violatedEdges f i = univ.filter fun x => x i = false ∧ Viol f i x :=
+    Finset.ext fun _ => by simp [mem_violatedEdges_iff_viol]
   rw [he, card_filter, card_filter, h, two_mul]
 
 /-- The endpoints of the violated edges in direction `i`, the points `x` such that `f` decreases
@@ -285,21 +242,17 @@ direction `i`. -/
 theorem hammingDist_sortAlong (f : (ι → Bool) → Bool) (i : ι) :
     hammingDist f (sortAlong i f) = 2 * #(violatedEdges f i) := by
   rw [← card_viol, hammingDist]
-  congr 1
-  ext x
-  simp only [mem_filter, mem_univ, true_and, ne_sortAlong_iff]
+  exact congrArg card (filter_congr fun _ _ => ne_sortAlong_iff _ _ _)
 
 /-- After sorting along `i`, no edge in direction `i` is violated. -/
 theorem violatedEdges_sortAlong_self (f : (ι → Bool) → Bool) (i : ι) :
     violatedEdges (sortAlong i f) i = ∅ := by
-  ext x
-  simp only [mem_violatedEdges, Finset.notMem_empty, iff_false, not_and]
-  intro hx h1
-  have hx' : update x i false = x := update_eq_self_iff.2 hx.symm
-  rw [← hx', sortAlong_update_false] at h1
-  rw [← hx', update_idem, sortAlong_update_true]
-  simp only [Bool.and_eq_true] at h1
-  simp [h1.1]
+  refine eq_empty_iff_forall_notMem.2 fun x hx => ?_
+  obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 hx
+  have hx' : update x i false = x := update_eq_self_iff.2 hxi.symm
+  rw [← hx', sortAlong_update_false, Bool.and_eq_true] at h1
+  rw [← hx', update_idem, sortAlong_update_true, h1.1, Bool.true_or] at h2
+  exact Bool.noConfusion h2
 
 /-- **The Key Claim** [Roughgarden, §8.3.1][Roughgarden2015CC]: sorting along any direction `i`
 does not increase the number of violated edges in any direction `j`. -/
@@ -371,21 +324,14 @@ theorem distMonotone_le {f g : (ι → Bool) → Bool} (hg : Monotone g) :
 
 /-- The distance to monotone is attained by a monotone function. -/
 theorem exists_monotone_hammingDist_eq_distMonotone (f : (ι → Bool) → Bool) :
-    ∃ g : (ι → Bool) → Bool, Monotone g ∧ hammingDist f g = distMonotone f := by
-  have hne : ((fun g => hammingDist f g) '' {g : (ι → Bool) → Bool | Monotone g}).Nonempty :=
-    ⟨_, (fun _ => false), monotone_const, rfl⟩
-  obtain ⟨g, hg, h⟩ := Nat.sInf_mem hne
-  exact ⟨g, hg, h⟩
+    ∃ g : (ι → Bool) → Bool, Monotone g ∧ hammingDist f g = distMonotone f :=
+  Nat.sInf_mem (s := (hammingDist f ·) '' {g | Monotone g}) ⟨_, fun _ => false, monotone_const, rfl⟩
 
 /-- The distance to monotone vanishes exactly on monotone functions. -/
 theorem distMonotone_eq_zero_iff {f : (ι → Bool) → Bool} : distMonotone f = 0 ↔ Monotone f := by
-  constructor
-  · intro h
-    obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
-    rw [h, hammingDist_eq_zero] at hfg
-    rwa [hfg]
-  · intro hf
-    exact Nat.le_zero.1 ((distMonotone_le hf).trans (hammingDist_self f).le)
+  refine ⟨fun h => ?_, fun hf => Nat.le_zero.1 ((distMonotone_le hf).trans (hammingDist_self f).le)⟩
+  obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
+  rwa [hammingDist_eq_zero.1 (hfg.trans h)]
 
 /-- The distance to monotone is at most twice the number of violated edges. -/
 theorem distMonotone_le_two_mul_sum (f : (ι → Bool) → Bool) :
@@ -401,29 +347,21 @@ theorem card_violatedEdges_le_distMonotone (f : (ι → Bool) → Bool) (i : ι)
   rw [← hfg, hammingDist]
   refine card_le_card_of_injOn (fun x => if f x ≠ g x then x else update x i true) ?_ ?_
   · intro x hx
-    rw [mem_coe, mem_violatedEdges] at hx
-    obtain ⟨hxi, h1, h2⟩ := hx
+    obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 (mem_coe.1 hx)
     simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq]
     split_ifs with h
     · exact h
-    · push Not at h
-      have hmono := hg (update_le_update_iff'.2 (Bool.false_le true) :
-        update x i false ≤ update x i true)
-      rw [update_eq_self_iff.2 hxi.symm] at hmono
-      intro heq
-      rw [← h, h1, ← heq, h2] at hmono
-      exact absurd hmono (by decide)
+    · intro heq
+      simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, ← not_ne_iff.1 h, h1, ← heq, h2,
+        Bool.le_iff_imp] using
+        hg (update_le_update_iff'.2 (Bool.false_le true) : update x i false ≤ update x i true)
   · intro x hx y hy hxy
     rw [mem_coe, mem_violatedEdges] at hx hy
-    simp only at hxy
+    dsimp only at hxy
     split_ifs at hxy with h1 h2 h2
     · exact hxy
-    · have := congrFun hxy i
-      rw [update_self, hx.1] at this
-      exact absurd this (by decide)
-    · have := congrFun hxy i
-      rw [update_self, hy.1] at this
-      exact absurd this (by decide)
+    · exact absurd (congrFun hxy i) (by simp [hx.1])
+    · exact absurd (congrFun hxy i) (by simp [hy.1])
     · have := congrArg (fun z => update z i false) hxy
       simp only [update_idem] at this
       rwa [update_eq_self_iff.2 hx.1.symm, update_eq_self_iff.2 hy.1.symm] at this
@@ -442,16 +380,12 @@ differs from `f` on at least an `ε` fraction of the cube. -/
 theorem le_relDistMonotone_iff {f : (ι → Bool) → Bool} {ε : ℝ} :
     ε ≤ relDistMonotone f ↔
       ∀ g : (ι → Bool) → Bool, Monotone g → ε ≤ hammingDist f g / 2 ^ Fintype.card ι := by
-  constructor
-  · intro h g hg
-    refine h.trans ?_
-    rw [relDistMonotone]
+  refine ⟨fun h g hg => h.trans ?_, fun h => ?_⟩
+  · rw [relDistMonotone]
     gcongr
     exact_mod_cast distMonotone_le hg
-  · intro h
-    obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
-    have := h g hg
-    rwa [hfg] at this
+  · obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
+    simpa [relDistMonotone, hfg] using h g hg
 
 /-- Monotone functions are at relative distance `0` from monotone. -/
 theorem relDistMonotone_of_monotone {f : (ι → Bool) → Bool} (hf : Monotone f) :

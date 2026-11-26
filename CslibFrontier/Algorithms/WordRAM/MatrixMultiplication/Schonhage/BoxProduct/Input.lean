@@ -47,14 +47,11 @@ theorem input_prefix {L m t N : ℕ} (bits : Bool)
     (State.init (input bits L t X Y qs) : State 160).data.mem p =
       (State.init (QueriedProduct.input bits L X Y qs) : State 160).data.mem p := by
   obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : p ≠ 0)
-  change (Data.init (input bits L t X Y qs) : Data 160).mem (k + 1) = _
-  rw [Data.init_mem_succ]
-  change (QueriedProduct.input bits L X Y qs ++ [t]).getD k 0 =
+  change (Data.init (input bits L t X Y qs) : Data 160).mem (k + 1) =
     (Data.init (QueriedProduct.input bits L X Y qs) : Data 160).mem (k + 1)
-  rw [Data.init_mem_succ]
-  exact List.getD_append _ _ _ _ (by
-    have := QueriedProduct.input_length bits L X Y qs
-    omega)
+  rw [Data.init_mem_succ, Data.init_mem_succ]
+  exact List.getD_append _ _ _ _
+    (Nat.lt_of_succ_lt_succ (hbound.trans_eq (QueriedProduct.input_length bits L X Y qs).symm))
 
 /-- The final original word contains precisely the supplied threshold. -/
 theorem input_threshold {L m t N : ℕ} (bits : Bool)
@@ -83,8 +80,7 @@ theorem input_fits {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
   · intro v hv
     rcases List.mem_append.mp hv with hv | hv
     · exact hold.2 v hv
-    · have hv' : v = t := by simpa only [List.mem_singleton] using hv
-      subst v
+    · obtain rfl := List.mem_singleton.mp hv
       exact hfit.of_le (by unfold wordBudget; omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

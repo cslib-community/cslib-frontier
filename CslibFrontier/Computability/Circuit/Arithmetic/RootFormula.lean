@@ -159,24 +159,20 @@ private theorem productDepth_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
   fin_cases i
   refine (productDepth_coeffLast_le _ _ _).trans <|
     (productDepth_substFormula_le (B := 0) (fun k => ?_) F).trans_eq (add_zero _)
-  refine Fin.lastCases ?_ (fun k => ?_) k
-  · rw [addLastInput, Fin.lastCases_last, productDepth_add]
-    exact Finset.sup_le fun i _ => by fin_cases i <;> simp
-  · simp [addLastInput]
+  refine Fin.lastCases ?_ (fun k => by simp [addLastInput]) k
+  rw [addLastInput, Fin.lastCases_last, productDepth_add]
+  exact Finset.sup_le fun i _ => by fin_cases i <;> simp
 
 private theorem nodeCount_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
     (derivLast j F).nodeCount ≤ (3 * F.nodeCount + 1) * (3 * F.nodeCount) + 2 := by
-  have hH : (substFormula addLastInput F).nodeCount ≤ 3 * F.nodeCount := by
-    refine (nodeCount_substFormula_le (S := 3) (fun k => ?_) (by norm_num) F).trans_eq
-      (mul_comm _ _)
-    refine Fin.lastCases ?_ (fun k => ?_) k
-    · simp [addLastInput, Fin.sum_univ_two]
-    · simp [addLastInput]
+  have hH : (substFormula addLastInput F).nodeCount ≤ 3 * F.nodeCount :=
+    (nodeCount_substFormula_le (S := 3)
+      (Fin.lastCases (by simp [addLastInput, Fin.sum_univ_two]) fun _ => by simp [addLastInput])
+      (by norm_num) F).trans_eq (mul_comm _ _)
   rw [derivLast, Formula.nodeCount_gate, Fin.sum_univ_one, Matrix.cons_val_zero]
   have := nodeCount_coeffLast_le j (substFormula addLastInput F).nodeCount
     (substFormula addLastInput F)
-  have := Nat.mul_le_mul (Nat.add_le_add_right hH 1) hH
-  omega
+  nlinarith
 
 /-! ### Roots -/
 
@@ -200,9 +196,7 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
   set D := f.totalDegree
   have hP : lastVariableEquiv K N F.polynomial ≠ 0 := fun h =>
     hF ((lastVariableEquiv K N).injective (h.trans (map_zero _).symm))
-  have hPf : (lastVariableEquiv K N F.polynomial).eval f = 0 := by
-    rw [eval_lastVariableEquiv]
-    exact hroot
+  have hPf : (lastVariableEquiv K N F.polynomial).eval f = 0 := by rwa [eval_lastVariableEquiv]
   obtain ⟨j, x₀, -, hshift⟩ := exists_shift_eq_truncate_sum_of_root hP hPf
   set α := eval x₀ f
   set Q := Polynomial.taylor (C α)
@@ -243,30 +237,23 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
         (fun k => (productDepth_affineInput _ _ _ k).le) _).trans
         ((add_zero _).trans_le ((productDepth_derivLast_le j F).trans hΔ))
     have hG₀d : G₀.productDepth ≤ Δ := by
-      rw [hG₀, productDepth_add]
-      exact Finset.sup_le fun i _ => by fin_cases i <;> simp [hQFd]
+      simp [hG₀, productDepth_add, Fin.forall_fin_two, hQFd]
     have hSd : S.productDepth ≤ Δ + 1 := productDepth_sumOn_le _ fun m _ =>
       (productDepth_coeffLast_le _ _ _).trans (productDepth_prodOn_le fun _ _ => hG₀d)
+    have hLd : L.productDepth ≤ Δ + 1 := (productDepth_lowPartFormula_le _ _ _).trans hSd
     have hTd : T.productDepth ≤ Δ + 1 := by
-      rw [hT, productDepth_add]
-      refine Finset.sup_le fun i _ => ?_
-      fin_cases i
-      · exact (productDepth_lowPartFormula_le _ _ _).trans hSd
-      · simp
+      simp [hT, productDepth_add, Fin.forall_fin_two, hLd]
     exact ((productDepth_substFormula_le (B := 0)
       (fun k => (productDepth_affineInput _ _ _ k).le) _).trans_eq (add_zero _)).trans hTd
   · set s := F.nodeCount with hs
     have hpos : 0 < (D + 1) * (s + 1) ^ 2 := by positivity
-    have hDer := nodeCount_derivLast_le j F
-    rw [← hs] at hDer
+    have hDer : _ ≤ (3 * s + 1) * (3 * s) + 2 := nodeCount_derivLast_le j F
     have hQFn : QF.nodeCount ≤ (derivLast j F).nodeCount * 3 :=
       nodeCount_substFormula_le (fun k => (nodeCount_affineInput _ _ _ k).le) (by norm_num) _
-    have hG₀n : G₀.nodeCount = QF.nodeCount + 2 := by
-      simp [hG₀, Formula.nodeCount_gate, Fin.sum_univ_two]
-      omega
     have hG₀b : G₀.nodeCount ≤ 44 * (s + 1) ^ 2 := by
-      have : (3 * s + 1) * (3 * s) + 2 ≤ 14 * (s + 1) ^ 2 := by nlinarith
-      omega
+      simp only [hG₀, Formula.nodeCount_gate, Fin.sum_univ_two, Matrix.cons_val_zero,
+        Matrix.cons_val_one, Formula.nodeCount_input]
+      nlinarith
     have hcL : ∀ m ∈ range (2 * (D + 1)), (coeffLast m (Pm m).nodeCount (Pm m)).nodeCount ≤
         3 * (89 * ((D + 1) * (s + 1) ^ 2)) ^ 2 := by
       intro m hm
@@ -289,9 +276,7 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
           rw [card_range, smul_eq_mul]
           ring
         _ ≤ _ := by omega
-    have hS1 : 1 ≤ S.nodeCount := by
-      rw [hS, nodeCount_sumOn]
-      omega
+    have hS1 : 1 ≤ S.nodeCount := by simp [hS, nodeCount_sumOn]
     have hTn : T.nodeCount = L.nodeCount + 2 := by
       simp [hT, Formula.nodeCount_gate, Fin.sum_univ_two]
     have hLn : L.nodeCount ≤ (S.nodeCount + 1) * (3 * S.nodeCount) + 1 :=
@@ -303,8 +288,6 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       _ ≤ 27 * (47527 * ((D + 1) ^ 3 * (s + 1) ^ 4)) ^ 2 := by gcongr
       _ = (27 * 47527 ^ 2) * ((s + 1) ^ 8 * (D + 1) ^ 6) := by ring
       _ ≤ 2 ^ 36 * ((s + 1) ^ 8 * (D + 1) ^ 6) := Nat.mul_le_mul_right _ (by norm_num)
-      _ = rootCost s D := by
-        rw [rootCost]
-        ring
+      _ = rootCost s D := by simp only [rootCost]; ring
 
 end Cslib.Circuits.Arithmetic.SPFormula

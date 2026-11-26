@@ -137,10 +137,8 @@ def subst (o : Lit) (v : ℕ) (ℓ : Lit) : Lit :=
 theorem eval_subst {o : Lit} {v : ℕ} {ℓ : Lit} {val : ℕ → Bool} (h : val v = ℓ.eval val) :
     (o.subst v ℓ).eval val = o.eval val := by
   unfold subst
-  split_ifs with ho
-  · simp only [eval, ho, Arg.eval_node, h]
-    cases ℓ.arg.eval val <;> cases o.neg <;> cases ℓ.neg <;> rfl
-  · rfl
+  split_ifs with ho <;> simp only [eval, ho, Arg.eval_node, h]
+  cases ℓ.arg.eval val <;> cases o.neg <;> cases ℓ.neg <;> rfl
 
 /-- The literal reads the internal value `t`. -/
 def Reads (o : Lit) (t : ℕ) : Prop :=
@@ -148,26 +146,22 @@ def Reads (o : Lit) (t : ℕ) : Prop :=
 
 /-- A literal's value depends only on the internal values it reads. -/
 theorem eval_congr {o : Lit} {val val' : ℕ → Bool} (h : ∀ i, o.Reads i → val i = val' i) :
-    o.eval val = o.eval val' := by
-  unfold eval
-  rw [Arg.eval_congr h]
+    o.eval val = o.eval val' :=
+  congrArg (· ^^ o.neg) (Arg.eval_congr h)
 
 /-- Rerouting `v` to a literal `ℓ` that does not read `v` yields a literal that does not read
 `v`. -/
 theorem not_reads_subst {o : Lit} {v : ℕ} {ℓ : Lit} (hℓ : ¬ ℓ.Reads v) :
     ¬ (o.subst v ℓ).Reads v := by
   unfold subst Reads
-  split_ifs with ho
-  · exact hℓ
-  · exact ho
+  split_ifs with ho <;> assumption
 
 /-- If `o.subst v ℓ` reads `z`, then either `o` reads `z` or `o` reads `v` and `ℓ` reads `z`. -/
 theorem reads_of_reads_subst {o : Lit} {v : ℕ} {ℓ : Lit} {z : ℕ} (h : (o.subst v ℓ).Reads z) :
     o.Reads z ∨ (o.Reads v ∧ ℓ.Reads z) := by
   unfold subst Reads at *
   split_ifs at h with ho
-  · exact Or.inr ⟨ho, h⟩
-  · exact Or.inl h
+  exacts [Or.inr ⟨ho, h⟩, Or.inl h]
 
 /-- Rerouting `v` in a literal that does not read `v` leaves the literal unchanged. -/
 theorem subst_of_not_reads {o : Lit} {v : ℕ} {ℓ : Lit} (h : ¬ o.Reads v) : o.subst v ℓ = o :=
@@ -244,10 +238,9 @@ theorem eval_subst {g : Gate} {v : ℕ} {ℓ : Lit} {val : ℕ → Bool} (h : va
 theorem substArg_eq_node_of_ne {a : Arg} {v z : ℕ} {target : Arg} (hzv : z ≠ v)
     (hzt : target ≠ .node z) : a.substArg v target = .node z ↔ a = .node z := by
   unfold Arg.substArg
-  by_cases ha : a = .node v
-  · rw [ite_eq_left ha, ha]
-    exact ⟨fun h => absurd h hzt, fun h => absurd (Arg.node.inj h) (Ne.symm hzv)⟩
-  · rw [ite_eq_right ha]
+  split_ifs with ha
+  · exact ⟨fun h => absurd h hzt, fun h => (hzv (Arg.node.inj (ha.symm.trans h)).symm).elim⟩
+  · rfl
 
 theorem eq_node_of_substArg_eq_node {a : Arg} {v z : ℕ} {target : Arg}
     (h : a.substArg v target = .node z) : a = .node z ∨ (a = .node v ∧ target = .node z) := by
@@ -265,12 +258,9 @@ theorem reads_subst_of_ne {g : Gate} {v : ℕ} {ℓ : Lit} {z : ℕ} (hzv : z �
 /-- If `g.subst v ℓ` reads `z`, then either `g` reads `z` or `g` reads `v` and `ℓ` reads `z`. -/
 theorem reads_of_reads_subst {g : Gate} {v : ℕ} {ℓ : Lit} {z : ℕ} (h : (g.subst v ℓ).Reads z) :
     g.Reads z ∨ (g.Reads v ∧ ℓ.arg = .node z) := by
-  unfold Reads subst at *
-  rcases h with h | h <;> rcases eq_node_of_substArg_eq_node h with h' | ⟨h', h''⟩
-  · exact Or.inl (Or.inl h')
-  · exact Or.inr ⟨Or.inl h', h''⟩
-  · exact Or.inl (Or.inr h')
-  · exact Or.inr ⟨Or.inr h', h''⟩
+  rcases h with h | h
+  · exact (eq_node_of_substArg_eq_node h).imp Or.inl fun ⟨h', h''⟩ => ⟨Or.inl h', h''⟩
+  · exact (eq_node_of_substArg_eq_node h).imp Or.inr fun ⟨h', h''⟩ => ⟨Or.inr h', h''⟩
 
 /-- Rerouting `v` to a literal not reading `v` eliminates `v` from the nodes read by the gate. -/
 theorem not_reads_subst {g : Gate} {v : ℕ} {ℓ : Lit} (hℓ : ℓ.arg ≠ .node v) :
@@ -308,7 +298,6 @@ assignment `Function.update val v b`. -/
 theorem args_of_reads {g : Gate} {z z' : ℕ} (hzz : z ≠ z') (hz : g.Reads z)
     (hz' : g.Reads z') : (g.left = .node z ∧ g.right = .node z') ∨
       (g.left = .node z' ∧ g.right = .node z) := by
-  unfold Gate.Reads at hz hz'
   rcases hz with hz | hz <;> rcases hz' with hz' | hz'
   · exact absurd (Arg.node.inj (hz.symm.trans hz')) hzz
   · exact Or.inl ⟨hz, hz'⟩
@@ -334,10 +323,8 @@ theorem eq_or_eq_of_reads {g : Gate} {a b i : ℕ} (hab : a ≠ b) (ha : g.Reads
 theorem card_filter_reads_le (g : Gate) (s : Finset ℕ) : (s.filter g.Reads).card ≤ 2 := by
   by_contra h
   obtain ⟨a, ha, b, hb, c, hc, hab, hac, hbc⟩ := Finset.two_lt_card.1 (not_le.1 h)
-  rcases eq_or_eq_of_reads hab (Finset.mem_filter.1 ha).2 (Finset.mem_filter.1 hb).2
-    (Finset.mem_filter.1 hc).2 with h | h
-  · exact hac h.symm
-  · exact hbc h.symm
+  exact (eq_or_eq_of_reads hab (Finset.mem_filter.1 ha).2 (Finset.mem_filter.1 hb).2
+    (Finset.mem_filter.1 hc).2).elim (hac ∘ Eq.symm) (hbc ∘ Eq.symm)
 
 /-- The value of a gate reading the internal values `a` and `b`. -/
 theorem eval_of_args {g : Gate} {a b : ℕ} (ha : g.left = .node a) (hb : g.right = .node b)
@@ -384,71 +371,34 @@ theorem eval_unaryLit (h : Bool → Bool) (a : Arg) (val : ℕ → Bool) :
 /-- If `unaryLit h a` reads `t`, then `a = .node t`. -/
 theorem reads_of_unaryLit_reads {h : Bool → Bool} {a : Arg} {t : ℕ}
     (hr : (unaryLit h a).Reads t) : a = .node t := by
-  unfold unaryLit at hr
-  split_ifs at hr
-  · simp [Lit.Reads, Lit.const] at hr
-  · exact hr
+  by_cases h0 : h false = h true <;> simp_all [unaryLit, Lit.Reads, Lit.const]
 
 /-- A degenerate gate evaluates to the same value as its simplified literal `g.lit`. -/
 theorem Gate.eval_lit {g : Gate} (hg : g.Degenerate) (val : ℕ → Bool) :
     g.eval val = g.lit.eval val := by
-  obtain ⟨op, l, r⟩ := g
-  unfold Degenerate at hg
-  unfold eval
-  cases l with
-  | const b =>
-    simp only [lit, Arg.eval_const]
-    rw [unary_cases (op b) (r.eval val)]
-    split_ifs <;> simp [Lit.eval, Lit.const]
-  | node t =>
-    cases r with
-    | const b =>
-      simp only [lit, Arg.eval_const, Arg.eval_node]
-      rw [unary_cases (fun x => op x b) (val t)]
-      split_ifs <;> simp [Lit.eval, Lit.const]
-    | node t' =>
-      simp only at hg
-      rcases hg with ⟨b, hb⟩ | ⟨b, hb⟩ | hb
-      · cases hb
-      · cases hb
-      · cases hb
-        simp only [lit, Arg.eval_node]
-        rw [unary_cases (fun x => op x x) (val t)]
-        split_ifs <;> simp [Lit.eval, Lit.const]
+  rcases g with ⟨op, b | t, r⟩
+  · exact eval_unaryLit (op b) r val
+  rcases r with b | t'
+  · exact eval_unaryLit (op · b) (.node t) val
+  rcases hg with ⟨_, ⟨⟩⟩ | ⟨_, ⟨⟩⟩ | hb
+  obtain rfl := Arg.node.inj hb
+  exact eval_unaryLit (fun x => op x x) (.node t) val
 
 /-- Any internal value read by `g.lit` is also read by `g`. -/
 theorem Gate.reads_of_lit_reads {g : Gate} {t : ℕ} (h : g.lit.Reads t) : g.Reads t := by
-  obtain ⟨op, l, r⟩ := g
-  unfold Reads
-  cases l with
-  | const b =>
-    simp only [lit] at h
-    split_ifs at h
-    · simp [Lit.Reads, Lit.const] at h
-    · exact Or.inr h
-  | node s =>
-    cases r with
-    | const b =>
-      simp only [lit] at h
-      split_ifs at h
-      · simp [Lit.Reads, Lit.const] at h
-      · exact Or.inl h
-    | node s' =>
-      simp only [lit] at h
-      split_ifs at h
-      · simp [Lit.Reads, Lit.const] at h
-      · exact Or.inl h
+  rcases g with ⟨op, b | s, r⟩
+  · exact Or.inr (reads_of_unaryLit_reads h)
+  rcases r with b | s'
+  · exact Or.inl (reads_of_unaryLit_reads (h := fun x => op x b) h)
+  · exact Or.inl (reads_of_unaryLit_reads (h := fun x => op x x) h)
 
 /-- Rerouting a variable in a degenerate gate yields a degenerate gate. -/
 theorem Gate.degenerate_subst {g : Gate} (hg : g.Degenerate) (v : ℕ) (ℓ : Lit) :
     (g.subst v ℓ).Degenerate := by
-  unfold Gate.Degenerate at *
-  change (∃ b, g.left.substArg v ℓ.arg = .const b) ∨ (∃ b, g.right.substArg v ℓ.arg = .const b) ∨
-    g.left.substArg v ℓ.arg = g.right.substArg v ℓ.arg
   rcases hg with ⟨b, hb⟩ | ⟨b, hb⟩ | hb
-  · exact Or.inl ⟨b, by rw [hb]; rfl⟩
-  · exact Or.inr (Or.inl ⟨b, by rw [hb]; rfl⟩)
-  · exact Or.inr (Or.inr (by rw [hb]))
+  · exact Or.inl ⟨b, by simp [Gate.subst, Arg.substArg, hb]⟩
+  · exact Or.inr (Or.inl ⟨b, by simp [Gate.subst, Arg.substArg, hb]⟩)
+  · exact Or.inr (Or.inr (by simp [Gate.subst, hb]))
 
 /-! ### Operations of the full binary basis -/
 
@@ -464,27 +414,10 @@ instance (op : Bool → Bool → Bool) : Decidable (IsAffineOp op) :=
 theorem exists_eq_of_not_isAffineOp {op : Bool → Bool → Bool} (h : ¬ IsAffineOp op) :
     (∃ b, op b false = op b true) ∧ (∃ b, op false b = op true b) := by
   unfold IsAffineOp at h
-  constructor
-  · by_cases h0 : op false false = op false true
-    · exact ⟨false, h0⟩
-    · by_cases h1 : op true false = op true true
-      · exact ⟨true, h1⟩
-      · exfalso
-        apply h
-        revert h0 h1
-        generalize op false false = a; generalize op true false = b
-        generalize op false true = c; generalize op true true = d
-        revert a b c d; decide
-  · by_cases h0 : op false false = op true false
-    · exact ⟨false, h0⟩
-    · by_cases h1 : op false true = op true true
-      · exact ⟨true, h1⟩
-      · exfalso
-        apply h
-        revert h0 h1
-        generalize op false false = a; generalize op true false = b
-        generalize op false true = c; generalize op true true = d
-        revert a b c d; decide
+  simp only [Bool.exists_bool]
+  revert h
+  generalize op false false = a, op true false = b, op false true = c, op true true = d
+  revert a b c d; decide
 
 /-- An AND-type gate reading two internal values becomes constant once the value `w` is fixed
 suitably. -/
@@ -495,14 +428,10 @@ theorem Gate.exists_const_of_not_isAffineOp {g : Gate} (hg : ¬ IsAffineOp g.op)
   rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩
   · refine ⟨br, g.op false br, fun val hw => ?_⟩
     rw [Gate.eval_of_args hl hr, hw]
-    cases val a
-    · rfl
-    · exact hbr.symm
+    cases val a <;> simp [hbr]
   · refine ⟨bl, g.op bl false, fun val hw => ?_⟩
     rw [Gate.eval_of_args hl hr, hw]
-    cases val a
-    · rfl
-    · exact hbl.symm
+    cases val a <;> simp [hbl]
 
 /-- The operation is a projection or a negated projection: `x ↦ c + x` or `y ↦ c + y`. -/
 def IsUnaryOp (op : Bool → Bool → Bool) : Prop :=
@@ -522,8 +451,7 @@ theorem exists_diag_const (op : Bool → Bool → Bool) :
     · right
       unfold IsUnaryOp
       revert h0 h1
-      generalize op false false = a₀; generalize op true false = b₀
-      generalize op false true = c₀; generalize op true true = d₀
+      generalize op false false = a₀, op true false = b₀, op false true = c₀, op true true = d₀
       revert a₀ b₀ c₀ d₀; decide
 
 /-- An operation that is not a projection or a negated projection is constant on a diagonal: a
@@ -536,62 +464,37 @@ theorem Gate.exists_const_of_diag {g : Gate} (hg : ¬ IsUnaryOp g.op) {p r : ℕ
   · rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩
     · refine ⟨c₁, g.op c₁ false, fun val hp => ?_⟩
       rw [Gate.eval_of_args hl hr, hp]
-      cases val r
-      · simp
-      · simpa using hc₁.symm
+      cases val r <;> simp [hc₁]
     · refine ⟨c₂, g.op false c₂, fun val hp => ?_⟩
       rw [Gate.eval_of_args hl hr, hp]
-      cases val r
-      · simp
-      · simpa using hc₂.symm
+      cases val r <;> simp [hc₂]
   · exact absurd hun hg
 
 /-- Every AND-type operation has the form `(a + α)(b + β) + γ`. -/
 theorem exists_and_form {op : Bool → Bool → Bool} (h : ¬ IsAffineOp op) :
     ∃ α β γ : Bool, ∀ a b, op a b = (((a ^^ α) && (b ^^ β)) ^^ γ) := by
-  have key : ∃ α β γ : Bool, op false false = ((α && β) ^^ γ) ∧
-      op true false = (((!α) && β) ^^ γ) ∧ op false true = ((α && !β) ^^ γ) ∧
-      op true true = (((!α) && !β) ^^ γ) := by
-    unfold IsAffineOp at h
-    revert h
-    generalize op false false = a₀; generalize op true false = b₀
-    generalize op false true = c₀; generalize op true true = d₀
-    revert a₀ b₀ c₀ d₀; decide
-  obtain ⟨α, β, γ, h0, h1, h2, h3⟩ := key
-  refine ⟨α, β, γ, fun a b => ?_⟩
-  cases a <;> cases b
-  · rw [h0]; cases α <;> cases β <;> rfl
-  · rw [h2]; cases α <;> cases β <;> rfl
-  · rw [h1]; cases α <;> cases β <;> rfl
-  · rw [h3]; cases α <;> cases β <;> rfl
+  unfold IsAffineOp at h
+  simp only [Bool.forall_bool]
+  revert h
+  generalize op false false = a₀, op true false = b₀, op false true = c₀, op true true = d₀
+  revert a₀ b₀ c₀ d₀; decide
 
 theorem and_form_spec {op : Bool → Bool → Bool} (h : ¬ IsAffineOp op) (x y : Bool) :
     op x y = (((x ^^ decide (op true false = op true true)) &&
       (y ^^ decide (op false true = op true true))) ^^
       op (decide (op true false = op true true)) (decide (op false true = op true true))) := by
   obtain ⟨α, β, γ, H⟩ := exists_and_form h
-  have hα : α = decide (op true false = op true true) := by
-    rw [H true false, H true true]
-    cases α <;> cases β <;> cases γ <;> rfl
-  have hβ : β = decide (op false true = op true true) := by
-    rw [H false true, H true true]
-    cases α <;> cases β <;> cases γ <;> rfl
-  have hγ : γ = op (decide (op true false = op true true))
-      (decide (op false true = op true true)) := by
-    rw [←hα, ←hβ, H]
-    cases α <;> cases β <;> cases γ <;> rfl
-  rw [←hγ, ←hα, ←hβ]
-  exact H x y
+  rw [H x y, H true false, H true true, H false true]
+  cases α <;> cases β <;> cases γ <;> cases x <;> cases y <;> simp [H]
 
 /-- An AND-type operation takes both values. -/
 theorem exists_eq_of_not_isAffineOp' {op : Bool → Bool → Bool} (h : ¬ IsAffineOp op) (δ : Bool) :
     ∃ a b, op a b = δ := by
   unfold IsAffineOp at h
-  by_contra hne
-  push Not at hne
-  have key : ∀ δ a b c d : Bool, a ≠ δ → b ≠ δ → c ≠ δ → d ≠ δ →
-      (a ^^ b ^^ c ^^ d) = false := by decide
-  exact h (key δ _ _ _ _ (hne _ _) (hne _ _) (hne _ _) (hne _ _))
+  simp only [Bool.exists_bool]
+  revert h
+  generalize op false false = a, op true false = b, op false true = c, op true true = d
+  revert a b c d δ; decide
 
 /-- An affine operation that is neither constant nor a projection or a negated projection is
 XOR-type: `a + b + c`. -/
@@ -599,13 +502,11 @@ theorem exists_xor_form {op : Bool → Bool → Bool} (h : IsAffineOp op) (hu : 
     (hc : ∃ a b, op a b ≠ op false false) : ∃ c, ∀ a b, op a b = (a ^^ b ^^ c) := by
   unfold IsAffineOp at h
   unfold IsUnaryOp at hu
-  obtain ⟨a₁, b₁, hab⟩ := hc
-  refine ⟨op false false, fun a b => ?_⟩
-  revert h hu hab
-  cases a₁ <;> cases b₁ <;> cases a <;> cases b <;>
-  · generalize op false false = a₀; generalize op true false = b₀
-    generalize op false true = c₀; generalize op true true = d₀
-    revert a₀ b₀ c₀ d₀; decide
+  simp only [Bool.exists_bool] at hc
+  simp only [Bool.forall_bool]
+  revert h hu hc
+  generalize op false false = a₀, op true false = b₀, op false true = c₀, op true true = d₀
+  revert a₀ b₀ c₀ d₀; decide
 
 /-- Of two operations of two bits, one AND-type, both are constant on a common line of `𝔽₂²`:
 `a = c`, `b = c` or `a = b + c` for a suitable constant `c`. -/
@@ -617,10 +518,8 @@ theorem exists_line_const {g h : Bool → Bool → Bool} (hg : ¬ IsAffineOp g) 
   simp only [Bool.exists_bool, Bool.forall_bool, Bool.false_xor, Bool.true_xor, Bool.not_false,
     Bool.not_true]
   revert hg
-  generalize g false false = a₀; generalize g true false = b₀
-  generalize g false true = c₀; generalize g true true = d₀
-  generalize h false false = a₁; generalize h true false = b₁
-  generalize h false true = c₁; generalize h true true = d₁
+  generalize g false false = a₀, g true false = b₀, g false true = c₀, g true true = d₀
+  generalize h false false = a₁, h true false = b₁, h false true = c₁, h true true = d₁
   revert a₀ b₀ c₀ d₀ a₁ b₁ c₁ d₁; decide
 
 /-- A gate reading the internal values `x` and `y` computes an operation of their values, which is

@@ -134,8 +134,7 @@ theorem toOuterMeasure_voleMulCheck_batch_le
       (Fintype.card F : ℝ≥0∞)⁻¹ := by
     simpa only [one_div] using toOuterMeasure_uniform_linearComb_eq_zero
       (d := fun j => x j * y j - z j) (i₀ := i) (sub_ne_zero.mpr hi)
-  have hcompl := PMF.toOuterMeasure_compl_le_one_sub
-    (PMF.uniformOfFintype (ι → F)) cancel hcancel.ge
+  have hcompl := PMF.toOuterMeasure_compl_le_one_sub _ cancel hcancel.ge
   change ((PMF.uniformOfFintype (ι → F)).bind kernel).toOuterMeasure {true} ≤ _
   rw [PMF.toOuterMeasure_bind_apply]
   calc
@@ -150,9 +149,7 @@ theorem toOuterMeasure_voleMulCheck_batch_le
         (PMF.uniformOfFintype (ι → F)).toOuterMeasure cancelᶜ *
           (2 / (Fintype.card F : ℝ≥0∞)) := by
         simp only [PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right, ← tsum_add]
-        apply tsum_congr
-        intro r
-        by_cases hr : r ∈ cancel <;> simp [hr]
+        exact tsum_congr fun r => by by_cases hr : r ∈ cancel <;> simp [hr]
     _ ≤ _ := by
       rw [hcancel]
       gcongr
@@ -173,8 +170,7 @@ theorem toOuterMeasure_voleMulCheck_batch_bind_le {S : Type} (sender : PMF S)
           (z s i * delta + v_z s i) * delta) = ab.1 * delta + ab.2)).toOuterMeasure {true} ≤
       (Fintype.card F : ℝ≥0∞)⁻¹ +
         (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * (2 / (Fintype.card F : ℝ≥0∞)) := by
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  rw [PMF.toOuterMeasure_bind_apply]
+  rw [PMF.monad_bind_eq_bind, PMF.toOuterMeasure_bind_apply]
   refine PMF.tsum_mul_le_of_forall_le sender fun s => ?_
   by_cases hfalse : ∃ i, x s i * y s i ≠ z s i
   · simpa only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, hfalse, true_and] using
@@ -196,13 +192,9 @@ theorem toOuterMeasure_voleMulCheck_batch_bind_le_three_div {S : Type} (sender :
       3 / (Fintype.card F : ℝ≥0∞) := by
   refine (toOuterMeasure_voleMulCheck_batch_bind_le sender x y z v_x v_y v_z reply).trans ?_
   calc
-    (Fintype.card F : ℝ≥0∞)⁻¹ +
-        (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * (2 / (Fintype.card F : ℝ≥0∞))
-      ≤ (Fintype.card F : ℝ≥0∞)⁻¹ + 1 * (2 / (Fintype.card F : ℝ≥0∞)) := by
-        gcongr
-        exact tsub_le_self
-    _ = _ := by
-      rw [div_eq_mul_inv, div_eq_mul_inv, one_mul]
-      ring
+    _ ≤ (Fintype.card F : ℝ≥0∞)⁻¹ + 1 * (2 / (Fintype.card F : ℝ≥0∞)) := by
+      gcongr
+      exact tsub_le_self
+    _ = _ := by rw [div_eq_mul_inv, div_eq_mul_inv, one_mul]; ring
 
 end Cslib.Crypto.Protocols.VOLE

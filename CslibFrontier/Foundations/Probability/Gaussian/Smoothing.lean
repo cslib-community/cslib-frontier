@@ -54,14 +54,9 @@ theorem eventually_gaussianMass_dual_sub_one_le (ε : ℝ) (hε : 0 < ε) :
       gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε := by
   let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
   have : DiscreteTopology D := discreteTopology_dualSubmodule L
-  obtain ⟨a, ha, hball⟩ := Metric.isOpen_iff.mp
-    (isOpen_discrete ({0} : Set D)) 0 (by simp)
-  have hgap : ∀ w : D, w ≠ 0 → a ≤ ‖(w : E)‖ := by
-    intro w hw
-    apply le_of_not_gt
-    intro hnorm
-    apply hw
-    exact hball (by simpa [Metric.mem_ball, dist_zero_right] using hnorm)
+  obtain ⟨a, ha, hball⟩ := Metric.isOpen_iff.mp (isOpen_discrete ({0} : Set D)) 0 (by simp)
+  have hgap (w : D) (hw : w ≠ 0) : a ≤ ‖(w : E)‖ :=
+    le_of_not_gt fun hnorm => hw (hball (by simpa [Metric.mem_ball, dist_zero_right] using hnorm))
   have hc : -3 * Real.pi * a ^ 2 / 4 < 0 := by
     exact div_neg_of_neg_of_pos
       (mul_neg_of_neg_of_pos (by nlinarith [Real.pi_pos]) (sq_pos_of_pos ha)) (by norm_num)

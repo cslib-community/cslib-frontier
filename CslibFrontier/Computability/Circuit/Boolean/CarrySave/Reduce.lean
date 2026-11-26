@@ -64,6 +64,7 @@ theorem pairVal_eval_pairWithZero (C : Circuit signature n w) (x : BitString n) 
   simp [pairWithZero]
 
 /-- The depth of `pairWithZero C` is at most `max C.depth 1`. -/
+@[circuit_bound]
 theorem depth_pairWithZero_le (C : Circuit signature n w) :
     (pairWithZero C).depth ≤ max C.depth 1 := by
   circuit_bound [pairWithZero]
@@ -88,12 +89,14 @@ theorem val_eval_sumPairs (cs : List (Circuit signature n (w + w))) (x : BitStri
     pairVal_eval_reducePairs_mod]
 
 /-- Polynomial gate bound retaining the sizes of the actual input circuits. -/
+@[circuit_bound]
 theorem size_sumPairs_le (cs : List (Circuit signature n (w + w))) :
     (sumPairs n w cs).size ≤
       21 * (w + 1) ^ 2 + 1 + (cs.map Circuit.size).sum + cs.length * (40 * w) := by
   circuit_bound [sumPairs]
 
 /-- Logarithmic finishing in addition to the balanced pair-reduction depth. -/
+@[circuit_bound]
 theorem depth_sumPairs_le (cs : List (Circuit signature n (w + w))) {D : ℕ}
     (hD : ∀ C ∈ cs, C.depth ≤ D) :
     (sumPairs n w cs).depth ≤

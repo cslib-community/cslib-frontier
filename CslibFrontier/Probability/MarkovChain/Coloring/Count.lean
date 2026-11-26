@@ -82,28 +82,18 @@ theorem mem_firstVertices {n : ℕ} (e : V ≃ Fin n) {k : ℕ} {v : V} :
 
 omit [DecidableEq V] in
 @[simp] theorem firstVertices_zero {n : ℕ} (e : V ≃ Fin n) : firstVertices e 0 = ∅ := by
-  ext v
-  simp [mem_firstVertices]
+  ext v; simp [mem_firstVertices]
 
 omit [DecidableEq V] in
 @[simp] theorem firstVertices_self {n : ℕ} (e : V ≃ Fin n) : firstVertices e n = Finset.univ := by
-  ext v
-  simp [mem_firstVertices]
+  ext v; simp [mem_firstVertices]
 
 /-- Removing the vertex `e.symm k` from the first `k + 1` vertices leaves the first `k`. -/
 theorem firstVertices_succ_erase {n : ℕ} (e : V ≃ Fin n) (k : Fin n) :
     (firstVertices e ((k : ℕ) + 1)).erase (e.symm k) = firstVertices e k := by
   ext v
-  simp only [Finset.mem_erase, mem_firstVertices]
-  constructor
-  · rintro ⟨hv, hk⟩
-    have : e v ≠ k := fun h => hv (by rw [← h, Equiv.symm_apply_apply])
-    have : (e v : ℕ) ≠ k := fun h => this (Fin.ext h)
-    omega
-  · intro hv
-    refine ⟨fun h => ?_, by omega⟩
-    rw [h, Equiv.apply_symm_apply] at hv
-    exact lt_irrefl _ hv
+  simp only [Finset.mem_erase, mem_firstVertices, ne_eq, Equiv.eq_symm_apply, Fin.ext_iff]
+  omega
 
 omit [DecidableEq V] in
 theorem firstVertices_succ_nonempty {n : ℕ} (e : V ≃ Fin n) (k : Fin n) :
@@ -138,8 +128,7 @@ private theorem prod_fin_div_succ {n : ℕ} (f : ℕ → ℝ) (hf : ∀ k, f k �
   | zero => simp [div_self (hf 0)]
   | succ n ih =>
     rw [Fin.prod_univ_castSucc]
-    simp only [Fin.val_castSucc, Fin.val_last]
-    rw [ih]
+    simp only [Fin.val_castSucc, Fin.val_last, ih]
     field_simp [hf n, hf (n + 1)]
 
 variable {G}
@@ -207,8 +196,7 @@ theorem le_toOuterMeasure_coloringCountEstimator (hq : 2 * G.maxDegree < q) {n :
     · have hlog : Real.log (ε / (6 * Real.exp 1 * q * n)) =
           -Real.log (6 * Real.exp 1 * q * n / ε) := by
         rw [← Real.log_inv, inv_div]
-      rw [hlog, sub_neg_eq_add]
-      exact ht
+      rwa [hlog, sub_neg_eq_add]
   -- The sample size: `48 n ≤ 5 η ε² a / (e q)` since `e < 2.72`.
   have hcard : 48 * (Fintype.card (Fin n) : ℝ) ≤ 5 * η * ε ^ 2 * a * (Real.exp 1 * q)⁻¹ := by
     rw [Fintype.card_fin]

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Header
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Neighbors
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # First fusion-node query and full-key selection
@@ -76,7 +77,7 @@ theorem exec_initial {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParameters 
   have hrz := hrt.frame hfz
   let y := ((z.set chosen (keys j)).set divergence (keys j ^^^ q)).set zero 0
   have hey : Exec w saveNeighbor z y 3 := by
-    ram_eval [saveNeighbor, y, hj, hd]
+    unfold saveNeighbor; wram_exec [hj, hd]
   have hry : Ready p q a y :=
     ((hrz.set_scratch chosen _ (by decide) (by decide)).set_scratch divergence _
       (by decide) (by decide)).set_scratch zero _ (by decide) (by decide)

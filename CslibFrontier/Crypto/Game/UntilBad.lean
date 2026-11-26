@@ -177,23 +177,14 @@ theorem runStatelessOracle_bind_le {T α : Type} (μ : PMF T)
             runStatelessOracle (o τ) (OracleComp.query (Sum.inl m) >>= k) (next τ)) =
           (PMF.uniformOfFintype (Fin (m + 1))).bind
             (fun x => μ.bind fun τ => runStatelessOracle (o τ) (k x) (next τ)) := by
-        rw [show (fun τ =>
-            runStatelessOracle (o τ) (OracleComp.query (Sum.inl m) >>= k) (next τ)) = _ from
-          funext fun τ => runStatelessOracle_query_inl (o τ) m k (next τ)]
+        simp_rw [fun τ => runStatelessOracle_query_inl (o τ) m k (next τ)]
         exact PMF.bind_comm μ (PMF.uniformOfFintype (Fin (m + 1))) _
       rw [hinl o₁, hinl (fun _ => o₂)]
       exact ⟨PMF.bind_apply_le_add_const_on_support _ _ fun x _ => (ih x).1,
         PMF.bind_apply_le_add_const_on_support _ _ fun x _ => (ih x).2⟩
     · simp only [Sum.elim_inr]
-      have hinr₁ :
-          (fun τ => runStatelessOracle (o₁ τ) (OracleComp.query (Sum.inr req) >>= k) (next τ)) =
-            fun τ => runStatelessOracle (o₁ τ) (k (o₁ τ req.2)) (next τ) :=
-        funext fun τ => runStatelessOracle_query_inr (o₁ τ) req k (next τ)
-      have hinr₂ :
-          (fun τ => runStatelessOracle o₂ (OracleComp.query (Sum.inr req) >>= k) (next τ)) =
-            fun τ => runStatelessOracle o₂ (k (o₂ req.2)) (next τ) :=
-        funext fun τ => runStatelessOracle_query_inr o₂ req k (next τ)
-      rw [hinr₁, hinr₂]
+      simp_rw [fun τ => runStatelessOracle_query_inr (o₁ τ) req k (next τ),
+        fun τ => runStatelessOracle_query_inr o₂ req k (next τ)]
       have hstep (f g : T → Game)
           (hfg : ∀ τ, isBad τ req.2 = false → f τ = g τ) :
           (μ.bind f) b ≤ (μ.bind g) b + δ := by
@@ -384,33 +375,15 @@ theorem runStatelessOracle_le_runFinderOracle {α : Type}
     · rw [runStatelessOracle_query_inl, runStatelessOracle_query_inl, runFinderOracle_query_inl]
       simp only [PMF.bind_apply]
       constructor
-      · calc ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₁ (k x) next b
-            ≤ ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                (runStatelessOracle o₂ (k x) next b +
-                  runFinderOracle o₂ isBad extract (k x) none isGood true) :=
-              tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).1 zero_le
-          _ = (∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₂ (k x) next b) +
-                ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                  runFinderOracle o₂ isBad extract (k x) none isGood true := by
-              simp only [mul_add, tsum_add]
-      · calc ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₂ (k x) next b
-            ≤ ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                (runStatelessOracle o₁ (k x) next b +
-                  runFinderOracle o₂ isBad extract (k x) none isGood true) :=
-              tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).2 zero_le
-          _ = (∑' x, PMF.uniformOfFintype (Fin (m + 1)) x * runStatelessOracle o₁ (k x) next b) +
-                ∑' x, PMF.uniformOfFintype (Fin (m + 1)) x *
-                  runFinderOracle o₂ isBad extract (k x) none isGood true := by
-              simp only [mul_add, tsum_add]
+      · exact le_of_le_of_eq (tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).1 zero_le)
+          (by simp only [mul_add, tsum_add])
+      · exact le_of_le_of_eq (tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).2 zero_le)
+          (by simp only [mul_add, tsum_add])
     · rw [runStatelessOracle_query_inr, runStatelessOracle_query_inr, runFinderOracle_query_inr]
       by_cases hb : isBad req.2 = true
       · simp only [hb, ↓reduceIte]
-        have h1 :
-            runFinderOracle o₂ isBad extract (k (o₂ req.2)) (some (extract req.2)) isGood true =
-              1 :=
-          runFinderOracle_true_of_good o₂ isBad extract isGood hbad_good (k (o₂ req.2))
-            (some (extract req.2)) (hbad_good req.2 hb)
-        rw [h1]
+        rw [runFinderOracle_true_of_good o₂ isBad extract isGood hbad_good (k (o₂ req.2))
+          (some (extract req.2)) (hbad_good req.2 hb)]
         exact ⟨le_add_of_le_right (PMF.coe_le_one _ _),
           le_add_of_le_right (PMF.coe_le_one _ _)⟩
       · simp only [Bool.not_eq_true] at hb

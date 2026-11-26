@@ -86,12 +86,8 @@ private def flipAt (z : ι → Bool) (g : (ι → Bool) → Bool) : (ι → Bool
   Function.update g z (!g z)
 
 omit [DecidableEq ι] in
-private theorem flipAt_involutive (z : ι → Bool) : Function.Involutive (flipAt z) := fun g => by
-  funext x
-  by_cases hx : x = z
-  · subst hx
-    simp [flipAt]
-  · simp [flipAt, hx]
+private theorem flipAt_involutive (z : ι → Bool) : Function.Involutive (flipAt z) := fun g =>
+  funext fun x => by by_cases hx : x = z <;> simp [flipAt, hx]
 
 /-- **An unqueried point is a fair coin.** Let `A` make at most `q` queries. For every seed, the
 hypothesis of `A` on a uniformly random function agrees with the function at a uniform point with
@@ -108,9 +104,7 @@ theorem expect_dens_agrees_le {A : QueryLearner ι Ω} {q : ℕ} (hA : A.Queries
   -- flipping the value at `z` preserves the uniform average
   have hflip (z : ι → Bool) : 𝔼 g, acc z g = 𝔼 g, acc z (flipAt z g) :=
     Fintype.expect_equiv (Function.Involutive.toPerm _ (flipAt_involutive z)) _ _
-      fun g => by
-        simp only [Function.Involutive.coe_toPerm]
-        rw [flipAt_involutive z g]
+      fun g => by simp only [Function.Involutive.coe_toPerm, flipAt_involutive z g]
   -- pointwise, the two acceptances sum to at most `1` plus the indicator of a query at `z`
   have hpair (z : ι → Bool) (g : (ι → Bool) → Bool) :
       acc z g + acc z (flipAt z g) ≤ 1 + hit z g := by
@@ -170,7 +164,8 @@ theorem _root_.Cslib.MachineLearning.UniformLearning.le_expect_dens_eq {K : Type
       linarith [not_lt.1 hlt]
   calc (1 - δ) * (1 - ε)
       ≤ (1 - ε) * (1 - dens {k | ε < uniformError (F k) (h k)}) := by
-        nlinarith [mul_nonneg (sub_nonneg.2 hε) (sub_nonneg.2 hbad)]
+        rw [mul_comm (1 - δ)]
+        exact mul_le_mul_of_nonneg_left (by linarith) (sub_nonneg.2 hε)
     _ = 𝔼 k, (1 - ε) * (1 - if ε < uniformError (F k) (h k) then 1 else 0) := by
         rw [← mul_expect, expect_sub_distrib, Fintype.expect_const, Fintype.expect_boole]
     _ ≤ 𝔼 k, (dens {z | h k z = F k z} : ℝ) := expect_le_expect fun k _ => hk k

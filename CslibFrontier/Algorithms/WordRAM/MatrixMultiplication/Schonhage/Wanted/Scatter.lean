@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.ScatterStep
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete native wanted-query scatter
@@ -66,15 +67,6 @@ theorem exec_scatter {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ × �
             (outStrOfPos (MaskTable.layout hm) (pairs i).1 (pairs i).2)).val ∧
         z.mem (originalAddress L m N Q + CountingSort.position key Q i) = i) ∧
     (∀ a, a < cursorAddressBase L m N Q ∨ memoryLimit L m N Q ≤ a → z.mem a = x.mem a)
-  let start := x.set index 0
-  have hs : ExecWithin w (ram[index ← #0] : Code .standard 96) x start 1 := by
-    ram_eval [start]
-  have hp : Parameters L m N Q start := hx.of_exec hs (by decide +kernel)
-  have hi : P (start.regs index) start := by
-    refine ⟨hp, hinput, htable, ?_, by simp [start], by simp [start]⟩
-    intro t ht
-    simpa only [start, Data.set_regs, Function.update_self, Data.set_mem,
-      Nat.count_zero, Nat.add_zero] using hcursors t ht
   have hb (z : Data 96) (hz : P (z.regs index) z) (hn : z.regs index < Q) :
       ∃ u, ExecWithin w scatterStep z u (15 * L + 39) ∧
         P (z.regs index + 1) u ∧ u.regs index = z.regs index + 1 := by
@@ -88,25 +80,12 @@ theorem exec_scatter {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ × �
       (hpairs _ hn).2
     have hpos : CountingSort.position key Q (z.regs index) < Q :=
       CountingSort.position_lt key hn
-    have hcursor : cursorAddressBase L m N Q + key (z.regs index) < codeAddress L m N Q := by
-      unfold codeAddress
-      omega
-    have hcodes : codeAddress L m N Q + CountingSort.position key Q (z.regs index) <
-        originalAddress L m N Q := by
-      unfold originalAddress
-      omega
-    have horiginals : originalAddress L m N Q + CountingSort.position key Q (z.regs index) <
-        memoryLimit L m N Q := by
-      unfold memoryLimit
-      omega
-    have horder : cursorAddressBase L m N Q ≤ codeAddress L m N Q ∧
-        codeAddress L m N Q ≤ originalAddress L m N Q ∧
-        originalAddress L m N Q ≤ memoryLimit L m N Q := by
-      simp only [codeAddress, originalAddress, memoryLimit]
-      omega
+    have hcode_eq : codeAddress L m N Q = cursorAddressBase L m N Q + numBands L m N ^ 2 := rfl
+    have horig_eq : originalAddress L m N Q = codeAddress L m N Q + Q := rfl
+    have hlim_eq : memoryLimit L m N Q = originalAddress L m N Q + Q := rfl
     have hlow (a : ℕ) (ha : a < cursorAddressBase L m N Q) : u.mem a = z.mem a :=
       hf a (by omega) (by omega) (by omega)
-    refine ⟨u, he, ⟨hu, ?_, ?_, ?_, ?_, ?_⟩, hidx⟩
+    refine ⟨u, he, ⟨hu, ?_, ?_, hcur, ?_, ?_⟩, hidx⟩
     · intro i hi
       have h2 := Nat.zero_le (2 ^ L)
       have ha : 5 + 2 * i + 1 < cursorAddressBase L m N Q := by
@@ -117,44 +96,36 @@ theorem exec_scatter {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ × �
     · intro gh
       have hr : (MaskTable.pairRank gh).val < 2 ^ L :=
         (MaskTable.pairRank gh).isLt.trans_le (Nat.choose_le_two_pow L m)
-      have ha : tableAddress L Q + (MaskTable.pairRank gh).val <
-          cursorAddressBase L m N Q := by
+      have ha : tableAddress L Q + (MaskTable.pairRank gh).val < cursorAddressBase L m N Q := by
         unfold cursorAddressBase offsetAddress countAddress
         omega
       rw [hlow _ ha]
       exact hz.2.2.1 gh
-    · intro t ht
-      exact hcur t ht
     · intro i hi
       by_cases h : i = z.regs index
-      · subst i
-        exact ⟨hcode, horig⟩
+      · subst i; exact ⟨hcode, horig⟩
       · have hip : i < z.regs index := by omega
         have hiQ : i < Q := hip.trans hn
         have hp : CountingSort.position key Q i < Q := CountingSort.position_lt key hiQ
-        have hne : CountingSort.position key Q i ≠ CountingSort.position key Q (z.regs index) := by
-          intro heq
-          have hfin : (⟨i, hiQ⟩ : Fin Q) = ⟨z.regs index, hn⟩ :=
-            CountingSort.position_injective key Q heq
-          exact h (congrArg (fun j : Fin Q => j.val) hfin)
-        have hop : originalAddress L m N Q = codeAddress L m N Q + Q := rfl
+        have hne : CountingSort.position key Q i ≠ CountingSort.position key Q (z.regs index) :=
+          fun heq => h (congrArg Fin.val (CountingSort.position_injective key Q
+            (a₁ := ⟨i, hiQ⟩) (a₂ := ⟨z.regs index, hn⟩) heq))
         rw [hf _ (by omega) (by omega) (by omega), hf _ (by omega) (by omega) (by omega)]
         exact hz.2.2.2.2.1 i hip
     · intro a ha
-      rw [hf _ (by rcases ha with ha | ha <;> omega)
-        (by rcases ha with ha | ha <;> omega) (by rcases ha with ha | ha <;> omega)]
+      rw [hf _ (by omega) (by omega) (by omega)]
       exact hz.2.2.2.2.2 a ha
-  obtain ⟨y, he, hy, _⟩ := ExecWithin.loop_count P (fun _ hy => hy.1.queryCount)
-    hb (by simp [start]) hi
-  refine ⟨y, ?_, hy.1, ?_, ?_, hy.2.2.2.2.2⟩
-  · apply (hs.seq he).mono
-    have h0 : start.regs index = 0 := by simp [start]
-    rw [h0, Nat.sub_zero]
-    nlinarith
-  · intro i hi
-    exact hy.2.2.2.2.1 i hi
-  · intro t ht
-    have hv := hy.2.2.2.1 t ht
-    exact hv.trans (CountingSort.count_lt_succ key Q t).symm
+  refine WP.exists_execWithin ?_
+  unfold scatter
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hb
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by regs_frame, hinput, htable, fun t ht => by
+      wram_simp [hcursors t ht, Nat.count_zero]; rfl, by wram_simp; simp, fun _ _ => rfl⟩)
+    with y ⟨hy, _⟩
+  refine ⟨?_, hy.1, hy.2.2.2.2.1, fun t ht =>
+    (hy.2.2.2.1 t ht).trans (CountingSort.count_lt_succ key Q t).symm, hy.2.2.2.2.2⟩
+  wram_simp
+  rw [show 15 * L + 39 + 2 = 15 * L + 41 by omega, Nat.mul_comm]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

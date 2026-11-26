@@ -180,12 +180,9 @@ def padCheck (e : ℕ → ℕ) (y : List Bool) : Option (CNF ℕ) :=
 theorem padCheck_eq_some_iff {e : ℕ → ℕ} {y : List Bool} {φ : CNF ℕ} :
     padCheck e y = some φ ↔ y = pad (encCNF φ) ((encCNF φ).length ^ e (encCNF φ).length) := by
   rw [padCheck, padCheckAt_eq_some_iff]
-  constructor
-  · intro h
-    have hu : (unpad y).1 = encCNF φ := by rw [h, unpad_pad]
-    rwa [hu] at h
-  · intro h
-    rw [h, unpad_pad]
+  refine ⟨fun h => ?_, fun h => by rw [h, unpad_pad]⟩
+  have hu : (unpad y).1 = encCNF φ := by rw [h, unpad_pad]
+  rwa [hu] at h
 
 /-- **Membership in a padded language through `padCheck`.** -/
 theorem mem_padSAT_iff {e : ℕ → ℕ} {y : List Bool} :
@@ -238,12 +235,10 @@ def bruteSAT (n : ℕ) (φ : CNF ℕ) : Bool := (List.range n).any fun j => SAT.
 the length of the encoded formula has a smaller index than `n`. -/
 theorem bruteSAT_iff {n : ℕ} {φ : CNF ℕ} (h : 2 ^ ((encCNF φ).length + 1) ≤ n + 1) :
     bruteSAT n φ = true ↔ φ ∈ SAT := by
-  constructor
-  · intro hb
-    obtain ⟨j, -, hj⟩ := List.any_eq_true.mp hb
+  refine ⟨fun hb => ?_, fun hφ => ?_⟩
+  · obtain ⟨j, -, hj⟩ := List.any_eq_true.mp hb
     exact ⟨_, hj⟩
-  · intro hφ
-    obtain ⟨w, hw, hv⟩ := (SAT.isVerifier φ).mp hφ
+  · obtain ⟨w, hw, hv⟩ := (SAT.isVerifier φ).mp hφ
     rw [Polynomial.eval_X] at hw
     have hi := index_add_two_le w
     rw [hw] at hi
@@ -287,13 +282,10 @@ def agreesB (T : List ℕ) (i j : ℕ) : Bool :=
 theorem agreesB_iff {T : List ℕ} {i j : ℕ} (hj : j < T.length) :
     agreesB T i j = true ↔ Agrees (fun m => T.getD m 0) T.length i j := by
   rw [agreesB, decide_eq_true_iff, Agrees, ← memB_word_iff hj]
-  constructor
-  · intro h
-    exact ⟨_, h, Iff.rfl⟩
-  · rintro ⟨b, hb, hiff⟩
-    have : memB T (word j) = b := by
-      cases b <;> cases hm : memB T (word j) <;> simp_all
-    rwa [this]
+  refine ⟨fun h => ⟨_, h, Iff.rfl⟩, fun ⟨b, hb, hiff⟩ => ?_⟩
+  have hm : memB T (word j) = b := by
+    cases b <;> cases hmem : memB T (word j) <;> simp_all
+  rwa [hm]
 
 /-- The step of the exponent function as a search over machine indices and words. -/
 def hstepB (T : List ℕ) : ℕ :=
@@ -352,16 +344,14 @@ theorem computableInPolyTime_Htable :
   change ComputableInPolyTime (List.courseOfValues Hstep) encUnary (encList encUnary)
   rw [← hstep]
   exact .courseOfValues computableInPolyTime_hstepB .id fun n i hi => by
-    have hval : List.courseOfValuesVal hstepB i = H i := by
-      simp [List.courseOfValuesVal, hstep, H, Htable]
-    simpa only [encUnary_apply, List.length_replicate, hval] using (H_le_self i).trans hi.le
+    simpa only [encUnary_apply, List.length_replicate, List.courseOfValuesVal, hstep, H, Htable]
+      using (H_le_self i).trans hi.le
 
 /-- **`H` is polynomial-time** on unary numbers. -/
 @[fun_prop]
-theorem computableInPolyTime_H : ComputableInPolyTime H encUnary encUnary := by
-  have h := computableInPolyTime_hstepB.comp computableInPolyTime_Htable
-  have heq : hstepB ∘ Htable = H := funext fun n => hstepB_eq _
-  exact heq ▸ h
+theorem computableInPolyTime_H : ComputableInPolyTime H encUnary encUnary :=
+  (funext fun _ => hstepB_eq _ : hstepB ∘ Htable = H) ▸
+    computableInPolyTime_hstepB.comp computableInPolyTime_Htable
 
 /-! ### Ladner's language is in NP -/
 

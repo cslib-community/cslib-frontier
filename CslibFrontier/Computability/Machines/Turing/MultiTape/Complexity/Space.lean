@@ -229,10 +229,9 @@ theorem accepts_iff_reflTransGen_codeStep {input : List Bool} {width : ℕ}
   rw [accepts_iff_reflTransGen_viewStep]
   constructor
   · rintro ⟨finite, hreach, hstate, houtput⟩
-    have hcodes : ∀ next, Relation.ReflTransGen ntm.ViewStep (ntm.initView input) next →
+    have hcodes (next) (hnext : Relation.ReflTransGen ntm.ViewStep (ntm.initView input) next) :
         Relation.ReflTransGen (ntm.CodeStep width) (viewCode width (ntm.initView input))
           (viewCode width next) := by
-      intro next hnext
       induction hnext with
       | refl => rfl
       | @tail view next hview hstep ih =>
@@ -242,14 +241,13 @@ theorem accepts_iff_reflTransGen_codeStep {input : List Bool} {width : ℕ}
       List.length_replicate .., (codeEdge_acceptCode).mpr ⟨hstate, houtput⟩⟩
   · intro hreach
     -- every reachable code decodes to a reachable view, or has tag one after an accepting view
-    have hinv : ∀ code, Relation.ReflTransGen (ntm.CodeStep width)
-        (viewCode width (ntm.initView input)) code →
+    have hinv (code) (hcode : Relation.ReflTransGen (ntm.CodeStep width)
+        (viewCode width (ntm.initView input)) code) :
         (∃ finite, decodeView code = some finite ∧
           Relation.ReflTransGen ntm.ViewStep (ntm.initView input) finite) ∨
         (code.head? = some true ∧ ∃ finite,
           Relation.ReflTransGen ntm.ViewStep (ntm.initView input) finite ∧
             finite.state = none ∧ finite.output = [true]) := by
-      intro code hcode
       induction hcode with
       | refl => exact .inl ⟨_, decodeView_viewCode _ _, .refl⟩
       | @tail code next _ hstep ih =>
@@ -259,17 +257,15 @@ theorem accepts_iff_reflTransGen_codeStep {input : List Bool} {width : ℕ}
         · rw [hfinite] at hedge
           rcases next with _ | ⟨_ | _, next⟩
           · simp [decodeView] at hedge
-          · simp only [List.headD_cons, Bool.false_eq_true, ↓reduceIte] at hedge
-            rcases hview : decodeView (false :: next) with _ | view
-            · simp [hview] at hedge
-            · simp only [hview, viewStepB_iff] at hedge
-              exact .inl ⟨view, rfl, hreach.tail hedge⟩
+          · simp only [List.headD_cons, Bool.false_eq_true, ↓reduceIte, decodeView,
+              viewStepB_iff] at hedge
+            exact .inl ⟨_, rfl, hreach.tail hedge⟩
           · simp only [List.headD_cons, ↓reduceIte, Bool.and_eq_true, decide_eq_true_eq] at hedge
             exact .inr ⟨rfl, finite, hreach, hedge⟩
         · rcases code with _ | ⟨_ | _, code⟩
-          · simp at hhead
-          · simp at hhead
-          · simp [decodeView] at hedge
+          · cases hhead
+          · cases hhead
+          · cases hedge
     rcases hinv _ hreach with ⟨finite, hfinite, -⟩ | ⟨-, hacc⟩
     · simp [acceptCode, List.replicate_succ, decodeView] at hfinite
     · exact hacc

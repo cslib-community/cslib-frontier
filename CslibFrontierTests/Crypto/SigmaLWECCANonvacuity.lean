@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Crypto.Protocols.SigmaProtocol.Basic
+import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 import CslibFrontier.Crypto.Computational.LWE.Basic
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 import CslibFrontier.Crypto.Computational.OneWay
@@ -24,7 +24,8 @@ candidate.
   exist, and no extractor can return a witness for it.
 * **Special honest-verifier zero knowledge.** The protocol whose commitment is the witness has no
   simulator for a statement with two witnesses: the simulator would have to reproduce both honest
-  transcripts, which differ.
+  transcripts, which differ. It likewise fails `ComputationalSpecialHVZK` unconditionally for every
+  typed simulator and every acceptance-error function `δ`.
 * **Decision LWE.** With no secret coordinates and zero noise, a real sample is the zero residue,
   while a uniform residue modulo `2` is zero half of the time. Testing whether the first bit is
   `false` has advantage `1 / 2`.
@@ -94,6 +95,91 @@ theorem not_specialHVZK_revealWitness (simulate : Unit → Bool → PMF (Bool ×
 
 /-- The witness-revealing protocol is complete, so zero knowledge is what fails. -/
 example : revealWitness.Complete (fun _ _ => True) := fun _ _ _ _ _ _ => rfl
+
+/-- Word encodings for the single-index `revealWitness` family. -/
+def revealWitnessEncoding :
+    SigmaProtocol.Encoding Unit (fun _ => Unit) (fun _ => Bool) (fun _ => Bool)
+      (fun _ => Unit) where
+  index := encUnit
+  statement _ := encUnit
+  commitment _ := encBool
+  challenge _ := encBool
+  response _ := encUnit
+
+/-- Attack Game 20.4 adversary that submits `(b, ())` and echoes the commitment bit. -/
+def chooseWitness (b : Bool) :
+    SigmaProtocol.CHVZKAdversary Unit (fun _ => Bool) (fun _ => Unit)
+      (fun _ => Bool) (fun _ => Bool) (fun _ => Unit) Unit :=
+  fun _ _ =>
+    { choose := fun _ => pure ((b, ()), ())
+      guess := fun _ conv => pure conv.1 }
+
+theorem isPPT_chooseWitness (b : Bool) :
+    SigmaProtocol.CHVZKAdversary.IsPPT revealWitnessEncoding (fun _ => encBool) encUnit
+      (chooseWitness b) where
+  choose := by
+    refine (ComputableInPolyTime.const ((encBool b, encUnit ()), ())).isPPTOn.congr
+      fun ⟨_, _⟩ => congrArg ProbComp.eval ?_
+    simp [chooseWitness, revealWitnessEncoding]
+  guess := by
+    have hg : ComputableInPolyTime
+        (fun g : SigmaProtocol.CHVZKGuessInput Unit (fun _ => Bool) (fun _ => Bool)
+          (fun _ => Unit) Unit => g)
+        (SigmaProtocol.encCHVZKGuessInput revealWitnessEncoding encUnit)
+        (SigmaProtocol.encCHVZKGuessInput revealWitnessEncoding encUnit) :=
+      ComputableInPolyTime.id'
+    have ht := SigmaProtocol.encCHVZKGuessInput_commitment_polyTime revealWitnessEncoding encUnit hg
+    have htrue : ComputableInPolyTime (fun w : List Bool => w == [true]) encBits encBool := by
+      fun_prop
+    refine (htrue.comp ht).isPPTOn.congr fun g => congrArg ProbComp.eval ?_
+    rcases g with ⟨_, _, _, false | true, _, _⟩ <;> rfl
+
+/-- **Revealing the witness fails `ComputationalSpecialHVZK` unconditionally** for every typed
+simulator `sim` and every acceptance-error function `δ` (without using `accepts`): the uniform
+strict PPT adversaries `chooseWitness true` and `chooseWitness false` yield `PMF.pure true` and
+`PMF.pure false` in `chvzkRealGame` while inducing the exact same `chvzkSimGame`. -/
+theorem not_computationalSpecialHVZK_revealWitness
+    (sim : SigmaProtocol.Simulator Unit (fun _ => Unit) (fun _ => Bool) (fun _ => Bool)
+      (fun _ => Unit))
+    (δ : Unit → ℝ≥0∞) :
+    ¬ SigmaProtocol.ComputationalSpecialHVZK (fun _ => revealWitness) (fun _ _ _ => True)
+      revealWitnessEncoding (fun _ => encBool) (fun _ => PMF.pure ()) sim δ := by
+  intro h
+  have hreal (b : Bool) (n : ℕ) :
+      SigmaProtocol.chvzkRealGame (fun _ => revealWitness) (fun _ _ _ => True)
+        (fun _ => PMF.pure ()) (chooseWitness b) n = PMF.pure b := by
+    simp [SigmaProtocol.chvzkRealGame, SigmaProtocol.chvzkExperiment, SigmaProtocol.conversation,
+      revealWitness, chooseWitness]
+  have hsim (n : ℕ) :
+      SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+        (chooseWitness false) n =
+      SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+        (chooseWitness true) n := by
+    simp [SigmaProtocol.chvzkSimGame, SigmaProtocol.chvzkExperiment, chooseWitness]
+  have hneg := (h.indistinguishable encUnit (chooseWitness true) (isPPT_chooseWitness true)).add
+    (h.indistinguishable encUnit (chooseWitness false) (isPPT_chooseWitness false))
+  have hone (n : ℕ) : (1 : ℝ≥0) ≤
+      Game.advantage
+        (SigmaProtocol.chvzkRealGame (fun _ => revealWitness) (fun _ _ _ => True)
+          (fun _ => PMF.pure ()) (chooseWitness true) n)
+        (SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+          (chooseWitness true) n) +
+      Game.advantage
+        (SigmaProtocol.chvzkRealGame (fun _ => revealWitness) (fun _ _ _ => True)
+          (fun _ => PMF.pure ()) (chooseWitness false) n)
+        (SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+          (chooseWitness false) n) := by
+    have htri := Game.advantage_triangle (PMF.pure true)
+      (SigmaProtocol.chvzkSimGame (fun _ _ _ => True) (fun _ => PMF.pure ()) sim
+        (chooseWitness true) n)
+      (PMF.pure false)
+    have hpure : Game.advantage (PMF.pure true) (PMF.pure false) = 1 := by
+      simp [Game.succProbability]
+    rw [hpure] at htri
+    rw [hreal true n, hreal false n, hsim n,
+      Game.advantage_comm (PMF.pure false)]
+    exact htri
+  exact not_negligible_const one_ne_zero (negligible_of_le hneg hone)
 
 /-! ### Decision LWE -/
 

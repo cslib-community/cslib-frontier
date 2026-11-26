@@ -65,12 +65,8 @@ theorem triple_iff {s : State} {p : Prog α} {c : ℕ} {Q : α → State → Pro
       (spec w).totalCost charge s ((spec w).clientHistory s p) ≤ c ∧
       Q ((spec w).clientResult s p) ((spec w).clientState s p) := by
   rw [Triple, StateTransitionSpec.costHoare_iff_ofFn, StateTransitionSpec.hoare_iff_ofFn]
-  constructor
-  · rintro ⟨h, hc⟩
-    obtain ⟨hv, hq⟩ := h s rfl
-    exact ⟨hv, hc s rfl, hq⟩
-  · rintro ⟨hv, hc, hq⟩
-    exact ⟨fun _ h => h ▸ ⟨hv, hq⟩, fun _ h => h ▸ hc⟩
+  exact ⟨fun ⟨h, hc⟩ => ⟨(h s rfl).1, hc s rfl, (h s rfl).2⟩,
+    fun ⟨hv, hc, hq⟩ => ⟨fun _ h => h ▸ ⟨hv, hq⟩, fun _ h => h ▸ hc⟩⟩
 
 namespace Triple
 
@@ -89,63 +85,43 @@ theorem pure {a : α} (h : Q a s) : Triple w s (Pure.pure a) c Q :=
 /-- Read an allocated cell, then continue with its contents. -/
 theorem read_bind {a : ℕ} {k : ℕ → Prog α} (ha : a < s.frontier)
     (h : Triple w s (k (s.mem a)) c Q) : Triple w s (read a >>= k) (c + 1) Q := by
-  rw [triple_iff] at h ⊢
-  obtain ⟨hv, hc, hq⟩ := h
-  refine ⟨⟨ha, hv⟩, ?_, hq⟩
-  change 1 + (spec w).totalCost charge s ((spec w).clientHistory s (k (s.mem a))) ≤ c + 1
-  omega
+  obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
+  exact triple_iff.mpr ⟨⟨ha, hv⟩, (Nat.add_le_add_left hc 1).trans_eq (Nat.add_comm 1 c), hq⟩
 
 /-- Write a word to an allocated cell, then continue. -/
 theorem write_bind {a v : ℕ} {k : Unit → Prog α} (ha : a < s.frontier) (hv : Fits w v)
     (h : Triple w ⟨Function.update s.mem a v, s.frontier⟩ (k ()) c Q) :
     Triple w s (write a v >>= k) (c + 1) Q := by
-  rw [triple_iff] at h ⊢
-  obtain ⟨hvh, hc, hq⟩ := h
-  refine ⟨⟨⟨ha, hv⟩, hvh⟩, ?_, hq⟩
-  change 1 + (spec w).totalCost charge ⟨Function.update s.mem a v, s.frontier⟩
-    ((spec w).clientHistory ⟨Function.update s.mem a v, s.frontier⟩ (k ())) ≤ c + 1
-  omega
+  obtain ⟨hvh, hc, hq⟩ := triple_iff.mp h
+  exact triple_iff.mpr ⟨⟨⟨ha, hv⟩, hvh⟩, (Nat.add_le_add_left hc 1).trans_eq (Nat.add_comm 1 c), hq⟩
 
 /-- Allocate a field of `k` cells without clearing it, then continue with the field at the
 frontier. -/
 theorem allocBlockDirty_bind {k : ℕ} {next : Block → Prog α} (hk : Fits w (s.frontier + k))
     (h : Triple w ⟨s.mem, s.frontier + k⟩ (next ⟨s.frontier, k⟩) c Q) :
     Triple w s (allocBlockDirty k >>= next) (c + 1) Q := by
-  rw [triple_iff] at h ⊢
-  obtain ⟨hv, hc, hq⟩ := h
-  refine ⟨⟨hk, hv⟩, ?_, hq⟩
-  change 1 + (spec w).totalCost charge ⟨s.mem, s.frontier + k⟩
-    ((spec w).clientHistory ⟨s.mem, s.frontier + k⟩ (next ⟨s.frontier, k⟩)) ≤ c + 1
-  omega
+  obtain ⟨hv, hc, hq⟩ := triple_iff.mp h
+  exact triple_iff.mpr ⟨⟨hk, hv⟩, (Nat.add_le_add_left hc 1).trans_eq (Nat.add_comm 1 c), hq⟩
 
 /-- **Sequential composition.** Run `p` within `c₁`, and from each of its outcomes run the
 continuation within `c₂`. -/
 theorem bind {p : Prog α} {k : α → Prog β} {c₁ c₂ : ℕ} {Q : β → State → Prop}
     (h : Triple w s p c₁ fun a s' => Triple w s' (k a) c₂ Q) :
     Triple w s (p >>= k) (c₁ + c₂) Q := by
-  rw [triple_iff] at h ⊢
-  obtain ⟨hv₁, hc₁, h₂⟩ := h
-  rw [triple_iff] at h₂
-  obtain ⟨hv₂, hc₂, hq⟩ := h₂
+  obtain ⟨hv₁, hc₁, h₂⟩ := triple_iff.mp h
+  obtain ⟨hv₂, hc₂, hq⟩ := triple_iff.mp h₂
   have hrun := (spec w).runClient_bind p k s
   have hhist : (spec w).clientHistory s (p >>= k) = (spec w).clientHistory s p ++
-      (spec w).clientHistory ((spec w).clientState s p) (k ((spec w).clientResult s p)) := by
-    simp only [StateTransitionSpec.clientHistory]
-    exact congrArg (fun r => r.2.2) hrun
-  have hstate : (spec w).clientState s (p >>= k) =
-      (spec w).clientState ((spec w).clientState s p) (k ((spec w).clientResult s p)) := by
-    simp only [StateTransitionSpec.clientState]
-    exact congrArg (fun r => r.2.1) hrun
-  have hres : (spec w).clientResult s (p >>= k) =
-      (spec w).clientResult ((spec w).clientState s p) (k ((spec w).clientResult s p)) :=
-    congrArg (fun r => r.1) hrun
+      (spec w).clientHistory ((spec w).clientState s p) (k ((spec w).clientResult s p)) :=
+    congrArg (·.2.2) hrun
   have hmid := (spec w).run_runClient p s
-  refine ⟨?_, ?_, ?_⟩
+  refine triple_iff.mpr ⟨?_, ?_, ?_⟩
   · rw [hhist, StateTransitionSpec.validHistory_append, hmid]
     exact ⟨hv₁, hv₂⟩
   · rw [hhist, StateTransitionSpec.totalCost_append, hmid]
-    omega
-  · rw [hres, hstate]
+    exact Nat.add_le_add hc₁ hc₂
+  · rw [show (spec w).clientResult s (p >>= k) = _ from congrArg (·.1) hrun,
+      show (spec w).clientState s (p >>= k) = _ from congrArg (·.2.1) hrun]
     exact hq
 
 end Triple
@@ -158,11 +134,9 @@ def ZeroAbove (s : State) : Prop := ∀ a, s.frontier ≤ a → s.mem a = 0
 
 /-- The input convention is zero above the frontier. -/
 theorem zeroAbove_init (input : List ℕ) : ZeroAbove (State.init input) := by
-  intro a ha
+  intro a (ha : input.length + 1 ≤ a)
   change (if a = 0 then input.length else input.getD (a - 1) 0) = 0
-  have ha' : input.length + 1 ≤ a := ha
-  rw [ite_eq_right (by omega), List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
-  rfl
+  rw [ite_eq_right (by omega), List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]; rfl
 
 /-- A dirty allocation keeps memory zero above the new frontier. -/
 theorem ZeroAbove.allocDirty {s : State} (h : ZeroAbove s) (k : ℕ) :

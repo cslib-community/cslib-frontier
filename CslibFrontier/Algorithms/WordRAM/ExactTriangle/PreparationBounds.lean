@@ -51,9 +51,7 @@ theorem matrix_writing_total_le {n D g p : ℕ} (wAB : Fin n → Fin n → ℤ) 
     exact_mod_cast card_instanceIndices_le wAB hD hDn hg hp
   have hpos : 1 ≤ n * D := Nat.mul_pos (by omega) (by omega)
   have hc : c ≤ c * (n * D) := Nat.le_mul_of_pos_right c hpos
-  have h12 : 12 ≤ 12 * (n * D) := by omega
-  have hstep : 2 * (20 * (n * D) + 6) + c ≤ (52 + c) * (n * D) := by
-    nlinarith
+  have hstep : 2 * (20 * (n * D) + 6) + c ≤ (52 + c) * (n * D) := by nlinarith
   calc
     _ = (instanceIndices wAB D g p).card * (2 * (20 * (n * D) + 6) + c) := by
       simp only [Finset.sum_const, smul_eq_mul]
@@ -73,14 +71,13 @@ theorem residue_class_parameter_time_le {n D g p : ℕ}
     69 * (n * n) + p * (14 * (n * n) + 14) + 30 +
         (5 * sOf D + 5 * queryCap n D + 27) ≤ 164 * (n * n) * D * g := by
   have hn : 1 ≤ n := hD.trans hDn
-  have hN : 1 ≤ n * n := Nat.mul_pos hn hn
-  have hnN : n ≤ n * n := Nat.le_mul_of_pos_right n hn
-  have hs : sOf D ≤ n * n := (Nat.sqrt_le_self D).trans (hDn.trans hnN)
+  have hs : sOf D ≤ n * n :=
+    (Nat.sqrt_le_self D).trans (hDn.trans (Nat.le_mul_of_pos_right n hn))
   have hq := queryCap_le_sq n D
-  have hscan : p * (14 * (n * n) + 14) ≤ D * (28 * (n * n)) :=
-    Nat.mul_le_mul hp (by omega)
-  have hbase : n * n ≤ (n * n) * D := Nat.le_mul_of_pos_right _ hD
-  have hfinal : (n * n) * D ≤ (n * n) * D * g := Nat.le_mul_of_pos_right _ hg
+  have hscan := Nat.mul_le_mul hp
+    (by have := Nat.mul_pos hn hn; omega : 14 * (n * n) + 14 ≤ 28 * (n * n))
+  have hbase := Nat.le_mul_of_pos_right (n * n) hD
+  have hfinal := Nat.le_mul_of_pos_right (n * n * D) hg
   nlinarith
 
 /-- The actual concatenation loop scans all `p` class counts, but writes only their actual
@@ -89,28 +86,19 @@ theorem catalogue_time_le {n D g p : ℕ}
     (hD : 1 ≤ D) (hDn : D ≤ n) (hg : 1 ≤ g) (hp : p ≤ D) :
     p * (17 * (n * n) + 20) + 9 ≤ 46 * (n * n) * D * g := by
   have hN : 1 ≤ n * n := Nat.mul_pos (hD.trans hDn) (hD.trans hDn)
-  have hstep : 17 * (n * n) + 20 ≤ 37 * (n * n) := by omega
-  have hscan := Nat.mul_le_mul hp hstep
-  have hbase : 1 ≤ (n * n) * D := Nat.mul_pos hN hD
-  have hfinal : (n * n) * D ≤ (n * n) * D * g := Nat.le_mul_of_pos_right _ hg
-  nlinarith only [hscan, hbase, hfinal]
+  have hscan := Nat.mul_le_mul hp (by omega : 17 * (n * n) + 20 ≤ 37 * (n * n))
+  nlinarith only [hscan, Nat.mul_pos hN hD, Nat.le_mul_of_pos_right (n * n * D) hg]
 
 /-- The complete prefix cost includes both argument-delivery stages in addition to residue,
 class, parameter and descriptor enumeration. -/
 theorem prefix_time_le {n D g p : ℕ}
     (hD : 1 ≤ D) (hDn : D ≤ n) (hg : 1 ≤ g) (hp : p ≤ D) :
     Catalogue.cost n D p ≤ 229 * (n * n) * D * g := by
-  have hprefix := residue_class_parameter_time_le hD hDn hg hp
-  have hcatalogue := catalogue_time_le hD hDn hg hp
   have hbase : 1 ≤ (n * n) * D * g :=
     Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (hD.trans hDn) (hD.trans hDn)) hD) hg
-  have heq : Catalogue.cost n D p =
-      69 * (n * n) + p * (14 * (n * n) + 14) + 30 +
-        (5 * sOf D + 5 * queryCap n D + 27) + (p * (17 * (n * n) + 20) + 9) + 19 := by
-    dsimp [Catalogue.cost]
-    ring
-  rw [heq]
-  nlinarith only [hprefix, hcatalogue, hbase]
+  unfold Catalogue.cost
+  nlinarith only [residue_class_parameter_time_le hD hDn hg hp,
+    catalogue_time_le hD hDn hg hp, hbase]
 
 /-- Substitute the existing actual chunk and piece counts into the native budget. The
 `690n²Dg` bound includes all catalogue work, selection, record stores, both matrix calls,
@@ -120,18 +108,13 @@ theorem timeBound_le {n D g p : ℕ} (wAB : Fin n → Fin n → ℤ)
     Instances.timeBound n D p (totalChunks wAB D p) (numPieces n D g) ≤
       690 * (n * n) * D * g := by
   have hpD : p ≤ D := (Nat.le_self_pow two_ne_zero p).trans
-    ((Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).2.2.le)
-  have hprefix := prefix_time_le (by omega : 1 ≤ D) hDn hg hpD
+    (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).2.2.le
   have hmat := matrix_writing_total_le wAB 56 hD hDn hg hp
-  have hvisit : (instanceIndices wAB D g p).card * (40 * (n * D) + 68) ≤
-      432 * (n * n) * D * g := by
-    simp only [Finset.sum_const, smul_eq_mul] at hmat
-    convert hmat using 1
-    ring
-  have hbase : 1 ≤ (n * n) * D * g :=
-    Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (by omega) (by omega)) (by omega)) hg
+  simp only [Finset.sum_const, smul_eq_mul] at hmat
   rw [Instances.timeBound, ← card_instanceIndices wAB]
-  nlinarith only [hprefix, hvisit, hbase]
+  have hn : 0 < n := by omega
+  nlinarith only [prefix_time_le (by omega) hDn hg hpD, hmat,
+    Nat.mul_pos (Nat.mul_pos (Nat.mul_pos hn hn) (by omega : 0 < D)) hg]
 
 /-- The native count in the initialized theorem is the existing finite chunk count. Thus its
 actual charged execution budget, not an assumed matrix-write contract, has the preparation
@@ -142,10 +125,9 @@ theorem computed_timeBound_le {n D g p : ℕ} (values : List ℤ)
     Instances.timeBound n D p (ChunkCatalogue.before C (queryCap n D) p)
       (numPieces n D g) ≤ 690 * (n * n) * D * g := by
   let wAB (a b : Fin n) := values.getD (Cslib.Matrix.pairIndex (a, b)) 0
-  have hp0 : p ≠ 0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
   dsimp only
-  rw [QuerySpec.before_eq_totalChunks wAB hp0
-    (fun q => (values.getD q 0 % (p : ℤ)).toNat) (by intro q; rfl) D]
+  rw [QuerySpec.before_eq_totalChunks wAB (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
+    (fun q => (values.getD q 0 % (p : ℤ)).toNat) (fun _ => rfl) D]
   exact timeBound_le wAB hD hDn hg hp
 
 /-- The entire real initialized preparation, including halt, costs at most `690n²Dg` under

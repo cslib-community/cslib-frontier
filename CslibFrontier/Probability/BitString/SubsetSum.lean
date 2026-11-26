@@ -59,12 +59,9 @@ def hash (weights : ι → G) (input : ι → Bool) : G :=
 
 private theorem hash_single [DecidableEq ι] (input : ι → Bool) (i : ι) (value : G) :
     hash (Pi.single i value) input = if input i then value else 0 := by
-  classical
-  rw [hash, Finset.sum_eq_single i]
-  · simp
-  · intro j _ hji
-    simp [Pi.single_eq_of_ne hji]
-  · simp
+  rw [hash, Finset.sum_eq_single_of_mem i (Finset.mem_univ i)
+    fun j _ hji => by simp [Pi.single_eq_of_ne hji]]
+  simp
 
 variable [Fintype G] [DecidableEq ι]
 
@@ -84,11 +81,9 @@ theorem uniform_hash_sub (x y : ι → Bool) (hxy : x ≠ y) :
   apply uniformOfFintype_map_addHom transform
   obtain ⟨i, hi⟩ : ∃ i, x i ≠ y i := Function.ne_iff.mp hxy
   intro value
-  cases hx : x i <;> cases hy : y i
-  · exact (hi (hx.trans hy.symm)).elim
+  cases hx : x i <;> cases hy : y i <;> simp_all only [ne_eq, not_true_eq_false]
   · exact ⟨Pi.single i (-value), by simp [transform, hash_single, hx, hy]⟩
   · exact ⟨Pi.single i value, by simp [transform, hash_single, hx, hy]⟩
-  · exact (hi (hx.trans hy.symm)).elim
 
 open Classical in
 /-- The collision probability is exactly the reciprocal output-group cardinality. -/

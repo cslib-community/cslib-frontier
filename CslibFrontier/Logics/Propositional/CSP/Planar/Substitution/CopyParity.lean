@@ -40,42 +40,33 @@ theorem sum_copied_constraint_eq_false
       (fun p => decide (p.1 = o.1))).map fun p =>
         x (incidenceDart (replacementOccurrence gadgets B F i p) true).1).sum = false := by
   let T := replaceGadgets B (fun r => (gadgets r).template) F
-  let selected := (CSP.incidenceList (gadgets F[i.val].rel).body).filter
-    (fun p => decide (p.1 = o.1))
+  let selected := (CSP.incidenceList (gadgets F[i.val].rel).body).filter (decide <| ·.1 = o.1)
   let e := replacementOccurrence gadgets B F i
-  have hinj : Function.Injective (fun p => incidenceDart (e p) true) := by
-    intro p q he
-    have hcopy : e p = e q := incidenceDart_injective true he
+  have hinj : Function.Injective (fun p => incidenceDart (e p) true) := fun p q he => by
     have hs : (⟨i, p⟩ : (j : Fin F.length) × (gadgets F[j.val].rel).body.Occurrence) = ⟨i, q⟩ :=
-      replacementOccurrence_injective gadgets B F hcopy
+      replacementOccurrence_injective gadgets B F (incidenceDart_injective true he)
     exact eq_of_heq (Sigma.mk.inj hs).2
   have hn : (selected.map fun p => incidenceDart (e p) true).Nodup :=
     ((CSP.incidenceList_nodup _).filter _).map hinj
   have hw (d : Dart (incidenceGraph T)) :
       d ∈ selected.map (fun p => incidenceDart (e p) true) ↔
         d.vertex = (incidenceDart (e o) true).vertex := by
-    constructor
-    · intro hd
+    refine ⟨?_, fun hd => ?_⟩
+    · rintro hd
       obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hd
-      have hrow : p.1 = o.1 := of_decide_eq_true (List.mem_filter.mp hp).2
-      apply (vertex_incidenceDart_eq_iff (e p) (e o) true true).mpr
-      refine ⟨rfl, ?_⟩
-      exact (replacementOccurrence_constraint_eq_iff gadgets B F i i p o).mpr
-        ⟨rfl, congrArg Fin.val hrow⟩
-    · intro hd
-      obtain ⟨p, hp⟩ := exists_incidenceDart d
+      exact (vertex_incidenceDart_eq_iff (e p) (e o) true true).mpr ⟨rfl,
+        (replacementOccurrence_constraint_eq_iff gadgets B F i i p o).mpr
+          ⟨rfl, congrArg Fin.val (of_decide_eq_true (List.mem_filter.mp hp).2)⟩⟩
+    · obtain ⟨p, hp⟩ := exists_incidenceDart d
       have hv := (vertex_incidenceDart_eq_iff p (e o) d.2 true).mp (hp ▸ hd)
-      have hcenter : p.1 = (e o).1 := by simpa only [hv.1, ite_true] using hv.2
       obtain ⟨k, q, hq⟩ := exists_replacementOccurrence gadgets B F p
-      rw [← hq] at hcenter
-      have hrow := (replacementOccurrence_constraint_eq_iff gadgets B F k i q o).mp hcenter
-      have hki : k = i := Fin.ext hrow.1
-      subst k
-      refine List.mem_map.mpr ⟨q, ?_, ?_⟩
-      · exact List.mem_filter.mpr ⟨CSP.mem_incidenceList q, decide_eq_true (Fin.ext hrow.2)⟩
-      · exact (congrArg (fun p => incidenceDart p true) hq).trans (hv.1 ▸ hp)
+      have hrow := (replacementOccurrence_constraint_eq_iff gadgets B F k i q o).mp
+        (hq ▸ by simpa only [hv.1, ite_true] using hv.2)
+      obtain rfl : k = i := Fin.ext hrow.1
+      exact List.mem_map.mpr ⟨q,
+        List.mem_filter.mpr ⟨CSP.mem_incidenceList q, decide_eq_true (Fin.ext hrow.2)⟩,
+        (congrArg (incidenceDart · true) hq).trans (hv.1 ▸ hp)⟩
   have h := hx (incidenceDart (e o) true).vertex
-  rw [(incidenceGraph T).vertexParity_eq_sum_word x _ _ hn hw, List.map_map] at h
-  exact h
+  rwa [(incidenceGraph T).vertexParity_eq_sum_word x _ _ hn hw, List.map_map] at h
 
 end Cslib.Complexity.CSP.GadgetRotation

@@ -74,11 +74,9 @@ theorem successfulEffect_eq_success_prob
       ((M.distribution φ).toOuterMeasure {q | q.isSome}).toReal := by
   classical
   simp only [Cslib.Probability.PMF.toOuterMeasure_apply_toReal, Fintype.sum_option,
-    Set.mem_ofPred_eq,
-    Option.isSome_none, Option.isSome_some, Bool.false_eq_true, ite_false, ite_true, zero_add,
-    Measurement.distribution_apply, ENNReal.toReal_ofReal (M.prob_nonneg φ _)]
-  unfold Measurement.successfulEffect Measurement.prob
-  rw [map_sum, Complex.re_sum]
+    Set.mem_ofPred_eq, Option.isSome_none, Option.isSome_some, Bool.false_eq_true, ite_false,
+    ite_true, zero_add, Measurement.distribution_apply, ENNReal.toReal_ofReal (M.prob_nonneg φ _)]
+  simp only [Measurement.successfulEffect, Measurement.prob, map_sum, Complex.re_sum]
 
 /-- The success effect is a positive contraction. -/
 theorem successfulEffect_mem_Icc (P : Measurement (Option α) A) :
@@ -93,11 +91,9 @@ private theorem norm_sum_effect_mul_sq_le (φ : AlgState A)
   classical
   rw [AlgState.norm_sq, star_sum, sum_mul, map_sum, Complex.re_sum]
   refine sum_le_sum fun a _ => ?_
-  rw [mul_sum, map_sum, Complex.re_sum]
-  rw [sum_eq_single_of_mem a (mem_univ a)]
+  rw [mul_sum, map_sum, Complex.re_sum, sum_eq_single_of_mem a (mem_univ a)]
   · rw [← AlgState.norm_sq]
-    apply pow_le_pow_left₀ (φ.norm_nonneg _)
-    refine φ.norm_mul_le_of_star_mul_self_le_one ?_ _
+    refine pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_mul_le_of_star_mul_self_le_one ?_ _) 2
     rw [((M.nonneg (ι a)).isSelfAdjoint.star_eq), hM (ι a)]
     exact M.effect_le_one _
   · intro b hb hba
@@ -156,13 +152,9 @@ theorem sum_successfulEffect_commutator_sq_le (φ : AlgState A)
     norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _
   have hv (b : κ) : φ.norm (V b) ^ 2 ≤ ∑ a, φ.norm (X a b) ^ 2 :=
     norm_sum_effect_mul_sq_le φ R hR Function.Embedding.some _
-  have hw : ∑ b, φ.norm (W b) ^ 2 ≤ ∑ a, φ.norm (D a) ^ 2 := by
-    calc
-      _ ≤ ∑ b, ∑ a, φ.norm (Q.effect (ι b) * D a) ^ 2 := sum_le_sum fun b _ =>
-        norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _
-      _ ≤ _ := by
-        rw [sum_comm]
-        exact sum_le_sum fun a _ => sum_norm_selected_effect_mul_sq_le φ Q hQ ι _
+  have hw : ∑ b, φ.norm (W b) ^ 2 ≤ ∑ a, φ.norm (D a) ^ 2 :=
+    (sum_le_sum fun b _ => norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _).trans <|
+      sum_comm.trans_le (sum_le_sum fun a _ => sum_norm_selected_effect_mul_sq_le φ Q hQ ι _)
   have hz : ∑ b, φ.norm (Z b) ^ 2 ≤ ∑ a, φ.norm (D a) ^ 2 :=
     (sum_norm_selected_effect_mul_sq_le φ Q hQ ι _).trans
       (norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _)
@@ -202,9 +194,8 @@ theorem norm_sum_successful_diff_sq_le (φ : AlgState A)
   calc
     _ ≤ ∑ b ∈ s, if b = a then φ.norm (D a) ^ 2 else 0 := by
       refine sum_le_sum fun b _ => ?_
-      by_cases hab : b = a
-      · subst b
-        rw [ite_eq_left rfl, AlgState.norm_sq]
+      rcases eq_or_ne b a with rfl | hab
+      · rw [ite_eq_left rfl, AlgState.norm_sq]
       · rw [ite_eq_right hab]
         have hp := hP.mul_eq_zero ((Option.some_injective α).ne (Ne.symm hab))
         have hr := hR.mul_eq_zero ((Option.some_injective α).ne (Ne.symm hab))
@@ -237,25 +228,21 @@ theorem norm_none_sub_sq_le_successfulCopyDefect (φ : AlgState A)
     (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) :
     φ.norm (P.effect none - R.effect none) ^ 2 ≤ successfulCopyDefect φ P R := by
   classical
-  let D (a : α) := P.effect (some a) - R.effect (some a)
-  have hd : P.effect none - R.effect none = -(∑ a, D a) := by
-    rw [effect_none_eq_one_sub_successfulEffect, effect_none_eq_one_sub_successfulEffect]
-    unfold successfulEffect D
-    rw [sum_sub_distrib]
+  have hd : P.effect none - R.effect none =
+      -(∑ a, (P.effect (some a) - R.effect (some a))) := by
+    rw [effect_none_eq_one_sub_successfulEffect, effect_none_eq_one_sub_successfulEffect,
+      successfulEffect, successfulEffect, sum_sub_distrib]
     abel
-  rw [hd, AlgState.norm_neg]
-  exact norm_sum_successful_diff_sq_le φ P R hP hR hc univ
+  simpa only [hd, AlgState.norm_neg, successfulCopyDefect] using
+    norm_sum_successful_diff_sq_le φ P R hP hR hc univ
 
 /-- The completed copy defect costs at most twice the successful part. -/
 theorem copyDefect_le_two_mul_successfulCopyDefect (φ : AlgState A)
     (P R : Measurement (Option α) A) (hP : P.IsProjective) (hR : R.IsProjective)
     (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) :
     copyDefect φ P R ≤ 2 * successfulCopyDefect φ P R := by
-  unfold copyDefect
-  rw [Fintype.sum_option]
-  change φ.norm (P.effect none - R.effect none) ^ 2 + successfulCopyDefect φ P R ≤ _
-  rw [two_mul]
-  exact add_le_add_left (norm_none_sub_sq_le_successfulCopyDefect φ P R hP hR hc) _
+  rw [copyDefect, Fintype.sum_option, ← successfulCopyDefect]
+  linarith [norm_none_sub_sq_le_successfulCopyDefect φ P R hP hR hc]
 
 /-- Commutator defect restricted to pairs of successful outcomes. -/
 @[expose] noncomputable def successfulPairDefect (φ : AlgState A)
@@ -266,10 +253,9 @@ theorem copyDefect_le_two_mul_successfulCopyDefect (φ : AlgState A)
 private theorem norm_commutator_none (φ : AlgState A) (P : Measurement (Option α) A) (x : A) :
     φ.norm (P.effect none * x - x * P.effect none) =
       φ.norm (P.successfulEffect * x - x * P.successfulEffect) := by
-  rw [effect_none_eq_one_sub_successfulEffect]
   have h : (1 - P.successfulEffect) * x - x * (1 - P.successfulEffect) =
       -(P.successfulEffect * x - x * P.successfulEffect) := by noncomm_ring
-  rw [h, AlgState.norm_neg]
+  rw [effect_none_eq_one_sub_successfulEffect, h, AlgState.norm_neg]
 
 /-- The commutator bound after adjoining the two failure outcomes. There is no factor
 depending on the size of either outcome alphabet. -/
@@ -289,23 +275,18 @@ theorem pairCommutatorDefect_le_successful (φ : AlgState A)
     have h := sum_successfulEffect_commutator_sq_le φ P R Q (Function.Embedding.refl (Option β))
       hP hR hQ (fun a b => hPR (some a) (some b)) (fun a b => hQR b (some a))
     -- Reorder the success-by-all sum on the right.
-    have hsum : (∑ b : Option β, ∑ a : α, f (some a) b) = ∑ a : α, ∑ b, f (some a) b :=
-      sum_comm
-    simpa only [Function.Embedding.refl_apply, f, norm_commutator_none, ← hsum,
+    rw [sum_comm] at h
+    simpa only [Function.Embedding.refl_apply, f, norm_commutator_none,
       successfulCopyDefect] using h
   have hright : (∑ a : α, f (some a) none) ≤
       8 * (successfulPairDefect φ P Q + successfulCopyDefect φ Q T) := by
     have h := sum_successfulEffect_commutator_sq_le φ Q T P Function.Embedding.some
       hQ hT hP (fun a b => hQT (some a) (some b)) (fun a b => hPT b (some a))
-    have hn (a : α) :
-        φ.norm (Q.successfulEffect * P.effect (some a) -
-          P.effect (some a) * Q.successfulEffect) =
-        φ.norm (P.effect (some a) * Q.effect none - Q.effect none * P.effect (some a)) :=
-      (norm_commutator_none φ Q _).symm.trans (φ.norm_sub_comm _ _)
-    have hs (a : α) (b : β) :
-        φ.norm (Q.effect (some b) * P.effect (some a) - P.effect (some a) * Q.effect (some b)) =
-        φ.norm (P.effect (some a) * Q.effect (some b) - Q.effect (some b) * P.effect (some a)) :=
-      φ.norm_sub_comm _ _
+    have hn (a : α) := (norm_commutator_none φ Q (P.effect (some a))).symm.trans
+      (φ.norm_sub_comm _ _)
+    have hs (a : α) (b : β) :=
+      φ.norm_sub_comm (Q.effect (some b) * P.effect (some a))
+        (P.effect (some a) * Q.effect (some b))
     simpa only [Function.Embedding.some_apply, hn, hs, f,
       successfulPairDefect, successfulCopyDefect] using h
   have hsuccess : ∑ a : α, ∑ b, f (some a) b =
@@ -313,8 +294,7 @@ theorem pairCommutatorDefect_le_successful (φ : AlgState A)
     simp only [Fintype.sum_option, successfulPairDefect, sum_add_distrib, f]
   unfold pairCommutatorDefect
   change (∑ a, ∑ b, f a b) ≤ _
-  rw [Fintype.sum_option, hsuccess]
-  rw [hsuccess] at hleft
+  rw [Fintype.sum_option]
   linarith
 
 /-- The completed pair and copy defects under independent uniform questions, expressed in

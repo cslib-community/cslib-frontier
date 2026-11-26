@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.FairCoin.PairedPorts
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
@@ -36,9 +37,6 @@ from `FairCoin.PairedPorts` on the resulting `O(log L)`-bit summary via
 
 ## Main results
 
-* `Turing.MultiTapeTM.computableInLogSpace_natBitLength`,
-  `Turing.MultiTapeTM.computableInLogSpace_bitsGetElem?`: general logarithmic-space word and
-  bit-length queries.
 * `Turing.MultiTapeNTM.ConfigurationGraph.computableInLogSpace_clockedVertexBound`,
   `Turing.MultiTapeNTM.ConfigurationGraph.computableInLogSpace_startID`,
   `Turing.MultiTapeNTM.ConfigurationGraph.computableInLogSpace_clockedAccept`: logarithmic-space
@@ -50,223 +48,6 @@ from `FairCoin.PairedPorts` on the resulting `O(log L)`-bit summary via
 -/
 
 public section
-
-namespace Turing.MultiTapeTM
-
-open CounterProgram CounterProgram.Instr CounterProgram.Expr ComputableInSpace
-
-/-- Number of binary digits of a natural number, computed in logarithmic space. -/
-theorem computableInLogSpace_natBitLength :
-    ComputableInLogSpace (fun m : ℕ => (encNat m).length) encNat encNat :=
-  computableInLogSpace_bitsLength.comp
-    (ComputableInLogSpace.of_eq (f := fun m : ℕ => encNat m)
-      (encIn := encNat) (encMid := encBits) fun _ => rfl)
-
-section BitsGetElem
-
-private def bitsGetElemProgram : CounterProgram where
-  code :=
-    [read (mul (const 2) (reg 0)) 1 2 2,
-     assign 0 (add (reg 0) (const 1)) 0,
-     assign 2 (const 1) 3,
-     read (add (add (mul (const 2) (reg 0)) (const 1)) (reg 1)) 4 6 9,
-     lt (reg 0) (reg 2) 13 5,
-     assign 3 (add (reg 3) (reg 2)) 7,
-     lt (reg 0) (reg 2) 13 7,
-     assign 2 (mul (const 2) (reg 2)) 8,
-     assign 1 (add (reg 1) (const 1)) 3,
-     lt (reg 3) (reg 0) 10 13,
-     read (add (mul (const 2) (reg 3)) (const 1)) 11 12 13,
-     halt [true, true],
-     halt [true, false],
-     halt []]
-  registers := 4
-
-private theorem bounded4_regs {B a₀ a₁ a₂ a₃ : ℕ}
-    (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B) (h₃ : a₃ ≤ B) :
-    ∀ r ∈ [a₀, a₁, a₂, a₃], r ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
-private def valBits : List Bool → ℕ
-  | [] => 0
-  | b :: bs => (if b then 1 else 0) + 2 * valBits bs
-
-private theorem valBits_lt_two_pow : ∀ bs : List Bool, valBits bs < 2 ^ bs.length
-  | [] => by simp [valBits]
-  | b :: bs => by
-    have ih := valBits_lt_two_pow bs
-    simp only [valBits, List.length_cons, pow_succ]
-    cases b <;> simp <;> omega
-
-private theorem valBits_bits (n : ℕ) : valBits n.bits = n := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rcases Nat.even_or_odd' n with ⟨m, rfl | rfl⟩
-    · rcases Nat.eq_zero_or_pos m with rfl | hm
-      · rfl
-      · rw [Nat.bit0_bits m hm.ne', valBits, ih m (by omega)]
-        simp
-    · rw [Nat.bit1_bits m, valBits, ih m (by omega)]
-      simp [Nat.add_comm]
-
-private theorem valBits_take_succ :
-    ∀ (bs : List Bool) (j : ℕ) (hj : j < bs.length),
-      valBits (bs.take (j + 1)) = valBits (bs.take j) + (if bs[j] then 2 ^ j else 0)
-  | [], _, hj => absurd hj (by simp)
-  | b :: bs, 0, _ => by
-    simp only [List.take_succ_cons, List.take_zero, valBits, List.getElem_cons_zero, pow_zero]
-    cases b <;> simp
-  | b :: bs, j + 1, hj => by
-    have hj' : j < bs.length := Nat.lt_of_succ_lt_succ hj
-    simp only [List.take_succ_cons, valBits, List.getElem_cons_succ, valBits_take_succ bs j hj',
-      pow_succ]
-    (cases bs[j] <;> simp); omega
-
-private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
-    (hB : 2 * w.length + 1 + i.bits.length + 1 ≤ B) :
-    ∃ s, bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
-      bitsGetElemProgram.init s ∧
-      bitsGetElemProgram.instr s.1 = .halt (encOption encBool w[i]?) ∧
-      ∀ r ∈ s.2, r ≤ B := by
-  have scan : ∀ j ≤ w.length,
-      bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
-        (0, [j, 0, 0, 0]) (2, [w.length, 0, 0, 0]) := by
-    intro j hj
-    induction h : w.length - j generalizing j with
-    | zero =>
-      obtain rfl : j = w.length := by omega
-      refine CounterProgram.Reaches.read (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
-      simpa [getElem?_frame_append_length, readLabel] using
-        CounterProgram.Reaches.refl (2, [w.length, 0, 0, 0])
-    | succ _ ih =>
-      refine CounterProgram.Reaches.read (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
-      simp only [eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-        (getElem?_frame_append w i.bits (show j < w.length by omega)).1, readLabel]
-      refine CounterProgram.Reaches.assign (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
-      simpa using ih (j + 1) (by omega) (by omega)
-  have setPow : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
-      (2, [w.length, 0, 0, 0]) (3, [w.length, 0, 2 ^ 0, valBits (i.bits.take 0)]) := by
-    refine CounterProgram.Reaches.assign (by rfl)
-      (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
-    simpa [valBits] using CounterProgram.Reaches.refl (3, [w.length, 0, 1, 0])
-  have loop : ∀ j ≤ i.bits.length, 2 ^ j ≤ 2 * w.length + 1 →
-      valBits (i.bits.take j) ≤ 2 * w.length →
-      ∃ s, bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
-        (3, [w.length, j, 2 ^ j, valBits (i.bits.take j)]) s ∧
-        bitsGetElemProgram.instr s.1 = .halt (encOption encBool w[i]?) ∧
-        ∀ r ∈ s.2, r ≤ B := by
-    intro j hj
-    induction h : i.bits.length - j generalizing j with
-    | zero =>
-      intro hpow hrem
-      obtain rfl : j = i.bits.length := by omega
-      have hval_eq : valBits (i.bits.take i.bits.length) = i := by
-        rw [List.take_length, valBits_bits]
-      rw [hval_eq] at hrem ⊢
-      have hb := bounded4_regs (B := B) (a₀ := w.length) (a₁ := i.bits.length)
-        (a₂ := 2 ^ i.bits.length) (a₃ := i) (by omega) (by omega) (by omega) (by omega)
-      have h3 : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
-          (3, [w.length, i.bits.length, 2 ^ i.bits.length, i])
-          (9, [w.length, i.bits.length, 2 ^ i.bits.length, i]) := by
-        refine CounterProgram.Reaches.read (by rfl) hb ?_
-        simpa [getElem?_frame_append_boundary, readLabel] using
-          CounterProgram.Reaches.refl (9, [w.length, i.bits.length, 2 ^ i.bits.length, i])
-      by_cases hiw : i < w.length
-      · have h9 : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
-            (9, [w.length, i.bits.length, 2 ^ i.bits.length, i])
-            (10, [w.length, i.bits.length, 2 ^ i.bits.length, i]) := by
-          refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simpa [hiw] using CounterProgram.Reaches.refl _
-        refine ⟨(if w[i] then 11 else 12, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
-          (h3.trans h9).trans ?_, ?_, hb⟩
-        · refine CounterProgram.Reaches.read (by rfl) hb ?_
-          cases hbit : w[i] <;>
-            simpa [(getElem?_frame_append w i.bits hiw).2, hbit, readLabel] using
-              CounterProgram.Reaches.refl _
-        · cases hbit : w[i] <;>
-            simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
-      · refine ⟨(13, [w.length, i.bits.length, 2 ^ i.bits.length, i]), h3.trans ?_, ?_, hb⟩
-        · refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simpa [hiw] using CounterProgram.Reaches.refl _
-        · simp [List.getElem?_eq_none (by omega : w.length ≤ i), bitsGetElemProgram, instr]
-    | succ _ ih =>
-      intro hpow hrem
-      have hj_lt : j < i.bits.length := by omega
-      have hb := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ j)
-        (a₃ := valBits (i.bits.take j)) (by omega) (by omega) (by omega) (by omega)
-      by_cases hgt : w.length < 2 ^ j
-      · have hj_sz : j < i.size := Nat.size_eq_bits_len i ▸ hj_lt
-        have hi_ge : 2 ^ j ≤ i := Nat.lt_size.mp hj_sz
-        have hnone : w[i]? = none := List.getElem?_eq_none (by omega)
-        refine ⟨(13, [w.length, j, 2 ^ j, valBits (i.bits.take j)]), ?_, ?_, hb⟩
-        · refine CounterProgram.Reaches.read (by rfl) hb ?_
-          simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-            List.getD_cons_succ, getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
-          cases i.bits[j] <;> dsimp only [readLabel] <;>
-            exact CounterProgram.Reaches.lt (by rfl) hb
-              (by simpa [hgt] using CounterProgram.Reaches.refl _)
-        · simp [hnone, bitsGetElemProgram, instr]
-      · have hpow_le_w : 2 ^ j ≤ w.length := by omega
-        have hnext_pow : 2 ^ (j + 1) ≤ 2 * w.length + 1 := by
-          rw [pow_succ]
-          omega
-        have hnext_rem : valBits (i.bits.take (j + 1)) ≤ 2 * w.length := by
-          have hv := valBits_lt_two_pow (i.bits.take (j + 1))
-          have htl : (i.bits.take (j + 1)).length = j + 1 :=
-            List.length_take_of_le (by omega)
-          rw [htl, pow_succ] at hv
-          omega
-        obtain ⟨s, hs, hout, hsB⟩ := ih (j + 1) (by omega) (by omega) hnext_pow hnext_rem
-        refine ⟨s, ?_, hout, hsB⟩
-        have hb7 := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ j)
-          (a₃ := valBits (i.bits.take (j + 1))) (by omega) (by omega) (by omega) (by omega)
-        have hb8 := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ (j + 1))
-          (a₃ := valBits (i.bits.take (j + 1))) (by omega) (by omega) (by omega) (by omega)
-        have htail7 : bitsGetElemProgram.Reaches (frame w ++ i.bits)
-            (bitsGetElemProgram.Running B) (7, [w.length, j, 2 ^ j, valBits (i.bits.take (j + 1))])
-            s := by
-          refine CounterProgram.Reaches.assign (by rfl) hb7 ?_
-          have hmul : 2 * 2 ^ j = 2 ^ (j + 1) := by rw [pow_succ]; ring
-          simp only [eval_mul, eval_const, eval_reg, List.getD_cons_succ, List.getD_cons_zero,
-            List.set_cons_succ, List.set_cons_zero, hmul]
-          refine CounterProgram.Reaches.assign (by rfl) hb8 ?_
-          simpa using hs
-        refine CounterProgram.Reaches.read (by rfl) hb ?_
-        simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-          List.getD_cons_succ, getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
-        have hstep_val := (valBits_take_succ i.bits j hj_lt).symm
-        cases htb : i.bits[j]
-        · simp only [htb, Bool.false_eq_true, ↓reduceIte, Nat.add_zero] at hstep_val
-          dsimp only [readLabel]
-          refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, hgt, ↓reduceIte]
-          rwa [hstep_val]
-        · simp only [htb, ↓reduceIte] at hstep_val
-          dsimp only [readLabel]
-          refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, hgt, ↓reduceIte]
-          refine CounterProgram.Reaches.assign (by rfl) hb ?_
-          simpa only [eval_add, eval_reg, List.getD_cons_succ, List.getD_cons_zero,
-            List.set_cons_succ, List.set_cons_zero, hstep_val] using htail7
-  obtain ⟨s, hs, hout, hsB⟩ := loop 0 (Nat.zero_le _) (by simp) (by simp [valBits])
-  dsimp only [CounterProgram.init, bitsGetElemProgram, List.replicate]
-  exact ⟨s, ((scan 0 (Nat.zero_le _)).trans setPow).trans hs, hout, hsB⟩
-
-/-- Looking up an optional bit of `w` at a binary index `i` is computable in logarithmic space. -/
-theorem computableInLogSpace_bitsGetElem? :
-    ComputableInLogSpace (fun (w, i) => w[i]?) (encPair encBits encNat) (encOption encBool) := by
-  refine bitsGetElemProgram.computableInLogSpace_of_reaches 1 fun ⟨w, i⟩ => ?_
-  rw [pow_one, encPair_apply, encBits_apply, encNat_apply]
-  refine bitsGetElem_run w i ?_
-  rw [List.length_append, length_frame]
-
-end BitsGetElem
-
-end Turing.MultiTapeTM
 
 namespace Turing.MultiTapeNTM.ConfigurationGraph
 
@@ -315,7 +96,7 @@ theorem computableInLogSpace_clockedVertexBound {k : ℕ} (D d : ℕ) :
   (comp_logSpace_of_length_log
     computableInLogSpace_bitsLength
     length_bitsLength_log
-    (clockedVertexBound_budget (k := k) D d (budget_id (.refl _)) (.refl _))).congr_fun fun _ => rfl
+    (clockedVertexBound_budget (k := k) D d (budget_id (.refl _)))).congr_fun fun _ => rfl
 
 /-- Computing the clock-zero compact start identifier `startID ntm (radix D w.length)` from `w` in
 logarithmic space. -/
@@ -325,11 +106,11 @@ theorem computableInLogSpace_startID {k : ℕ} {State : Type} [Fintype State]
       (fun w : List Bool => startID ntm (radix D w.length))
       encBits encNat := by
   have hn := budget_id (BigOLe.refl fun n => (encNat n).length)
-  have hB := radix_budget D hn (.refl _)
+  have hB := radix_budget D hn
   exact (comp_logSpace_of_length_log
     computableInLogSpace_bitsLength
     length_bitsLength_log
-    (startID_budget ntm hB (.refl _))).congr_fun fun _ => rfl
+    (startID_budget ntm hB)).congr_fun fun _ => rfl
 
 /-- Computing the terminal accepting-ID indicator `clockedAccept` on `(w, u)` in logarithmic
 space. -/
@@ -369,7 +150,7 @@ theorem computableInLogSpace_clockedAccept {k : ℕ} {State : Type} [Fintype Sta
       (fun p : ℕ × ℕ => decide (p.2 < E * (p.1 + 1) + 1))
       (encPair encNat encNat) encBool fun p => (encPair encNat encNat p).length :=
     budget_natLt (snd encNat encNat)
-      (budget_natSucc (budget_natMul (budget_const E (.refl _))
+      (budget_natSucc (budget_natMul (budget_const E)
         (budget_natSucc (fst encNat encNat))))
   have hguard : ComputableInLogSpace guard encWU encBool :=
     (comp_logSpace_of_length_log (ComputableInLogSpace.pair hln hlu) hpair_len
@@ -412,9 +193,9 @@ theorem computableInLogSpace_clockedAccept {k : ℕ} {State : Type} [Fintype Sta
       (encPair encNat encNat) encBool fun p => (encPair encNat encNat p).length := by
     have hn := fst encNat encNat
     have hu := snd encNat encNat
-    have hB := radix_budget D hn (.refl _)
-    have hT := polyClock_budget d hn (.refl _)
-    exact clockedAccept_budget (k := k) (State := State) hB hn hT hu (.refl _)
+    have hB := radix_budget D hn
+    have hT := polyClock_budget d hn
+    exact clockedAccept_budget (k := k) (State := State) hB hn hT hu
   let f (x : List Bool × ℕ) : Bool :=
     clockedAccept (k := k) (State := State)
       (radix D x.1.length) x.1.length (polyClock d x.1.length) x.2
@@ -562,8 +343,8 @@ private theorem computableInLogSpace_portGuard (k D d P : ℕ) :
       encNAP encBool fun z => (encNAP z).length := by
     refine (budget_boolAnd
       (budget_natLt hla_s
-        (budget_natSucc (budget_natMul (budget_const E (.refl _)) (budget_natSucc hln_s))))
-      (budget_natLt hlp_s (budget_const (Nat.size P + 1) (.refl _)))).of_enc_eq fun z => ?_
+        (budget_natSucc (budget_natMul (budget_const E) (budget_natSucc hln_s))))
+      (budget_natLt hlp_s (budget_const (Nat.size P + 1)))).of_enc_eq fun z => ?_
     simp
   exact (comp_logSpace_of_length_log hlengths hlen_bound htest).congr_fun fun ⟨w, a, p⟩ => rfl
 
@@ -671,8 +452,8 @@ private theorem computableInLogSpace_recipeSymbols (D : ℕ) {k' d P : ℕ}
         (encPair encNat encNat) encNat fun p => (encPair encNat encNat p).length := by
       have hn := fst encNat encNat
       have hv := snd encNat encNat
-      have hB := radix_budget D hn (.refl _)
-      exact queryIndex_budget (k := k') hB (evalPredRecipe_budget rec hB hv (.refl _))
+      have hB := radix_budget D hn
+      exact queryIndex_budget (k := k') hB (evalPredRecipe_budget rec hB hv)
     have hhead := computableInLogSpace_queryAt hnv_log hnv_len hidx_space
     have htail := computableInLogSpace_recipeSymbols D hv_log hv_len recs
     exact ComputableInLogSpace.listCons hhead htail
@@ -744,8 +525,8 @@ private theorem outQueryPack_log (k D d : ℕ) :
           (napId z % vertexBound (k := k) (radix D (napLen z))))
       encNAP encNat fun z => (encNAP z).length := by
     obtain ⟨hn, ha, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := radix_budget D hn (.refl _)
-    have hN := vertexBound_budget (k := k) hB (.refl _)
+    have hB := radix_budget D hn
+    have hN := vertexBound_budget (k := k) hB
     exact queryIndex_budget (k := k) hB (budget_natMod ha hN)
   have hsymOut_log := computableInLogSpace_queryAt hnap_log hnap_len hidxOut_space
   exact ⟨ComputableInLogSpace.pair hnap_log hsymOut_log,
@@ -764,7 +545,7 @@ theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool Stat
       encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
-    exact clockedOutCountWithSymbol_budget machine D d hn ha hp hsym (.refl _)
+    exact clockedOutCountWithSymbol_budget machine D d hn ha hp hsym
   let f : Triple → ℕ := fun (w, a, p) => clockedOutCount machine D d w a p
   have htrue : ComputableInLogSpace (f ∘ Subtype.val) (encGuardedSub k D d 2) encNat :=
     (comp_logSpace_of_length_log hpack_log hpack_len hcnt_space).congr_fun fun ⟨⟨w, a, p⟩, _⟩ => rfl
@@ -785,12 +566,10 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
       encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
-    have hB := radix_budget D hn (.refl _)
-    have hN := vertexBound_budget (k := k) hB (.refl _)
+    have hB := radix_budget D hn
+    have hN := vertexBound_budget (k := k) hB
     have houtList := coinOutTargetsWithSymbol_budget machine hB hn (budget_natMod ha hN) hsym
-      (.refl _)
     exact getElem?_getD_zero_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hp
-      (.refl _)
   have hvVal_log := comp_logSpace_of_length_log hpack1_log hpack1_len hvVal_space
   have hvVal_len := length_log_of_inSpace hpack1_len hvVal_space
   have hinSyms_log := computableInLogSpace_recipeSymbols D hvVal_log hvVal_len
@@ -804,7 +583,7 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
   have hsymOut := budget_comp_linear (snd encNAP (encOption encBool)) hp1
   have hinSyms := snd encOutQueryPack (encList (encOption encBool))
   have hout_space := clockedOutPortWithSymbols_budget machine D d _
-    hn ha hp hsymOut (fun i => budget_listGetDOptionBool i.val hinSyms) (.refl _)
+    hn ha hp hsymOut (fun i => budget_listGetDOptionBool i.val hinSyms)
   let f : Triple → Option (ℕ × ℕ) := fun (w, a, p) => clockedOutPort machine D d w a p
   have htrue : ComputableInLogSpace (f ∘ Subtype.val) (encGuardedSub k D d 2)
       (encOption (encPair encNat encNat)) := by
@@ -845,8 +624,8 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
       (fun z : NAP => napId z % vertexBound (k := k) (radix D (napLen z)))
       encNAP encNat fun z => (encNAP z).length := by
     obtain ⟨hn, hb, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := radix_budget D hn (.refl _)
-    exact budget_natMod hb (vertexBound_budget (k := k) hB (.refl _))
+    have hB := radix_budget D hn
+    exact budget_natMod hb (vertexBound_budget (k := k) hB)
   have hv_log := comp_logSpace_of_length_log hnap_log hnap_len hv_space
   have hv_len := length_log_of_inSpace hnap_len hv_space
   have hinSyms_log := computableInLogSpace_recipeSymbols D hv_log hv_len (predRecipes machine)
@@ -863,14 +642,14 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
       encPack1 encNat fun z => (encPack1 z).length := by
     obtain ⟨hn, hb, hq⟩ := nap_fields_inSpace (fst encNAP (encList (encOption encBool)))
     have hinSyms := snd encNAP (encList (encOption encBool))
-    have hB := radix_budget D hn (.refl _)
-    have hN := vertexBound_budget (k := k) hB (.refl _)
+    have hB := radix_budget D hn
+    have hN := vertexBound_budget (k := k) hB
     have hinList := coinInSourcesWithSymbols_ofFn_budget machine
       (fun i z => z.2.getD i.val none)
       hB hn (budget_natMod hb hN)
-      (fun i => budget_listGetDOptionBool i.val hinSyms) (.refl _)
+      (fun i => budget_listGetDOptionBool i.val hinSyms)
     have huVal := getElem?_getD_zero_budget P (fun _ => length_coinInSourcesWithSymbols_le ..)
-      hinList hq (.refl _)
+      hinList hq
     exact queryIndex_budget (k := k) hB huVal
   have hsymPred_log := computableInLogSpace_queryAt hpack1_log hpack1_len hidxPred_space
   have hpack2_log := ComputableInLogSpace.pair hpack1_log hsymPred_log
@@ -881,7 +660,7 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
   have hinSyms := budget_comp_linear (snd encNAP (encList (encOption encBool))) hp1
   have hsymPred := snd encPack1 (encOption encBool)
   have hin_space := clockedInPortWithSymbols_budget machine D d _
-    hn hb hq (fun i => budget_listGetDOptionBool i.val hinSyms) hsymPred (.refl _)
+    hn hb hq (fun i => budget_listGetDOptionBool i.val hinSyms) hsymPred
   let f : Triple → Option (ℕ × ℕ) := fun (w, b, q) => clockedInPort machine D d w b q
   have htrue : ComputableInLogSpace (f ∘ Subtype.val) (encGuardedSub k D d P)
       (encOption (encPair encNat encNat)) := by
