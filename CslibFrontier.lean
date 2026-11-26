@@ -3384,6 +3384,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 public import CslibFrontier.Computability.Distributed.PartialSynchrony.Liveness
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.CycleBlocks
 public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.Internal.Basic
+public import CslibFrontier.DataStructure.BPlusTree.Comparisons.Query
 public import CslibFrontier.Algorithms.WordRAM.Arborescence.Internal.BasicProg
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.CounterCall
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRehash
