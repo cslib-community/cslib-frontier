@@ -126,10 +126,8 @@ theorem budgetedOutput_eq_some {A : ι → Set (∀ v, α v)}
     (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) {T : ∀ p : V × ℕ, α p.1} {a : ∀ v, α v}
     (h : budgetedOutput vbl r B T = some a) (i : ι) : a ∉ A i := by
   unfold budgetedOutput at h
-  split at h
-  · cases h
-    exact hstop _ _ ‹_› i
-  · cases h
+  split at h <;> cases h
+  exact hstop _ _ ‹_› i
 
 /-- The budgeted output depends only on the entries `(v, k)` with `k ≤ B`. -/
 theorem dependsOn_budgetedOutput [Fintype V] :
@@ -350,11 +348,12 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
       using length_le_sum_iSup_count vbl A hlog
   have hxd : (1 / (d + 2 : ℝ)) / (1 - 1 / (d + 2)) = 1 / (d + 1) := by
     have h2 : (d + 2 : ℝ) ≠ 0 := by positivity
-    rw [one_sub_div h2, show (d + 2 : ℝ) - 1 = d + 1 by ring, div_div_div_cancel_right₀ h2]
+    rw [one_sub_div h2, div_div_div_cancel_right₀ h2]
+    exact congrArg (1 / ·) (by ring)
   have hint : ∫⁻ T, maxSteps T ∂table μ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) := by
-    have h := lintegral_sum_iSup_count_le_of_bound μ vbl A hAm fun i =>
-      lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hPx i
-    simpa only [hxd, sum_const, card_univ, nsmul_eq_mul] using h
+    simpa only [hxd, sum_const, card_univ, nsmul_eq_mul] using
+      lintegral_sum_iSup_count_le_of_bound μ vbl A hAm fun i =>
+        lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hPx i
   have hmeas : Measurable maxSteps :=
     Finset.measurable_sum _ fun i _ => measurable_iSup_count vbl A hAm i
   have hB0 : ((B + 1 : ℕ) : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.2 (Nat.succ_ne_zero B)
@@ -412,9 +411,8 @@ theorem isAccurateOn_budgetedMoserTardos {ι X : Type*} [Fintype ι] {m : ℕ}
   refine (Probability.PMF.toOuterMeasure_toReal_mono _
     (t := {σ | budgetedOutput vbl r B (seedTable B (est S) σ) = none}) fun σ hσ => ?_).trans
     (seedTable_timeout_le B vbl r (est S) A hA Γ hΓ hΓd (hP S hS) hp hr)
-  cases ho : budgetedOutput vbl r B (seedTable B (est S) σ) with
-  | none => exact ho
-  | some a => exact (hσ ⟨a, ho, budgetedOutput_eq_some hstop ho⟩).elim
+  rcases ho : budgetedOutput vbl r B (seedTable B (est S) σ) with _ | a
+  exacts [ho, (hσ ⟨a, ho, budgetedOutput_eq_some hstop ho⟩).elim]
 
 /-- **Strong accuracy of the budgeted learner (original).** If the local-lemma hypothesis holds
 for the estimates of every dataset, the learner outputs an assignment avoiding every event except
@@ -430,9 +428,9 @@ theorem isAccurate_budgetedMoserTardos {ι X : Type*} [Fintype ι] {m : ℕ}
     (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) :
     IsAccurate (budgetedMoserTardos B vbl r est) (fun _ => goodOutput A)
       (Fintype.card ι / ((d + 1) * (B + 1))) := fun D _ => by
-  have h := isAccurateOn_budgetedMoserTardos B vbl r est A hA Γ hΓ hΓd Set.univ
-    (fun S _ => hP S) hp hr hstop D
-  simpa only [Set.compl_univ, measure_empty, ENNReal.toReal_zero, add_zero] using h
+  simpa only [Set.compl_univ, measure_empty, ENNReal.toReal_zero, add_zero] using
+    isAccurateOn_budgetedMoserTardos B vbl r est A hA Γ hΓ hΓd Set.univ (fun S _ => hP S)
+      hp hr hstop D
 
 /-- Two-sample expectations of a function with values in `[0, 1]`, computed in `ℝ≥0∞` and in `ℝ`,
 agree. -/
@@ -482,14 +480,13 @@ theorem disagreeProb_budgetedMoserTardos_le {ι X : Type*} [Finite ι] {m : ℕ}
     ENNReal.ofReal (dist (est S₁ v).toPMF (est S₂ v).toPMF)
   have he := fun v => toReal_tsum_tsum_iid D (fun S₁ S₂ => dist (est S₁ v).toPMF (est S₂ v).toPMF)
     (fun _ _ => dist_nonneg) (fun _ _ => Cslib.Probability.PMF.dist_le_one _ _)
-  have hpair : ∀ S₁ S₂ : Fin m → X,
+  have hpair (S₁ S₂ : Fin m → X) :
       ((Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map fun σ =>
         (budgetedOutput vbl r B (seedTable B (est S₁) σ),
           budgetedOutput vbl r B (seedTable B (est S₂) σ))).toOuterMeasure
         {q | q.1 ≠ q.2} ≤
         4 * ∑ v, ENNReal.ofReal (dist (est S₁ v).toPMF (est S₂ v).toPMF) +
           goodᶜ.indicator 1 S₁ := by
-    intro S₁ S₂
     rw [PMF.toOuterMeasure_map_apply]
     by_cases hS : S₁ ∈ good
     · rw [Set.indicator_of_notMem (Set.notMem_compl_iff.2 hS), add_zero]
@@ -516,10 +513,9 @@ theorem disagreeProb_budgetedMoserTardos_le {ι X : Type*} [Finite ι] {m : ℕ}
           refine tsum_congr fun S₁ => ?_
           rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
           exact tsum_congr fun S₂ => sum_congr rfl fun v _ => by ring
-  have he_top : ∀ v, e v ≠ ∞ := fun v => (he v).1
+  have he_top (v : V) : e v ≠ ∞ := (he v).1
   ennreal_to_real at hbound
-  rw [Algorithm.disagreeProb]
-  exact hbound.trans_eq (by simp only [e, μ, fun v => (he v).2])
+  simpa only [Algorithm.disagreeProb, e, μ, fun v => (he v).2] using hbound
 
 end Seed
 

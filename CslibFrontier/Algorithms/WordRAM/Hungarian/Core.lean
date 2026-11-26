@@ -291,10 +291,8 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
       exec_phaseCode hCW hOB_k r hr_free y hby hCy hOM_k rfl hfit
     have hrr_p : y_p.regs rr = y.regs rr := hr_p rr (by decide)
     have hone_p : y_p.regs one = 1 := (hr_p one (by decide)).trans hby.hone
-    obtain ⟨z, he_inc, rfl⟩ : ∃ z,
-        ExecWithin w (ram[ rr ← rr + one ] : Code .standard 28) y_p z 1 ∧
-        z = y_p.set rr (y.regs rr + 1) := by
-      refine WP.exists_execWithin ?_
+    have he_inc : ExecWithin w (ram[ rr ← rr + one ] : Code .standard 28) y_p
+        (y_p.set rr (y.regs rr + 1)) 1 := WP.execWithin <| by
       wram_exec [hrr_p, hone_p]
       rfl
     have hs_succ : sAt (y.regs rr + 1) =
@@ -315,10 +313,8 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     ⟨fun i hi => by wram_simp [hr₁ i (by omega)],
       hgOuterBound_start hc_bounds, hL0, hOM₁, hf₁⟩
   have hb₃ : BaseRegs n bC M y₃ := hb.of_eq hr₃
-  obtain ⟨y₄, he₄, rfl⟩ : ∃ y₄,
-      ExecWithin w (ram[ *outBase ← rn ] : Code .standard 28) y₃ y₄ 1 ∧
-      y₄ = y₃.write (bC + n * n + 7 * n) n := by
-    refine WP.exists_execWithin ?_
+  have he₄ : ExecWithin w (ram[ *outBase ← rn ] : Code .standard 28) y₃
+      (y₃.write (bC + n * n + 7 * n) n) 1 := WP.execWithin <| by
     wram_exec [hb₃.houtBase, hb₃.hrn]
     rfl
   have hs_n : sAt n = hgRows c (List.finRange n) s₀ := by
@@ -341,12 +337,9 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     rfl
   · obtain ⟨v, hv⟩ := mem_matchedLeft.mp
       (hs_n.symm ▸ hL_univ.symm ▸ Finset.mem_univ u : u ∈ matchedLeft (mateMatching (sAt n).mate))
-    refine ⟨v, ?_, hm_eq.symm ▸ hs_n ▸ hv⟩
-    change Function.update y₃.mem (bC + n * n + 7 * n) n (bC + n * n + 7 * n + 1 + u.val) = v.val
-    rw [Function.update_of_ne (by omega)]
-    exact hOM_n.hrow_some v u (mem_mateMatching.mp hv)
-  · change Function.update y₃.mem (bC + n * n + 7 * n) n a = x.mem a
-    rw [Function.update_of_ne (by omega)]
-    exact hf₃ a (by omega)
+    refine ⟨v, (Function.update_of_ne (by omega) _ _).trans
+      (hOM_n.hrow_some v u (mem_mateMatching.mp hv)), hm_eq.symm ▸ hs_n ▸ hv⟩
+  · exact (Function.update_of_ne (by omega) _ _).trans
+      (hf₃ a (by omega))
 
 end Cslib.Algorithms.WordRAM.Hungarian
