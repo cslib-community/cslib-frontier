@@ -78,13 +78,13 @@ private theorem exists_endpointPrefix (c q : Circuit signature n n) (hL : 0 < L)
   have hr := synthesis_chooseRecord src flags row (fun x => row x first)
     (fun j => Or.inl (Or.inr ⟨j, rfl⟩)) hrow (hrow first)
   obtain ⟨out, hout, hs⟩ := (ht.trans (hf.trans (hconst.trans hr))).exists_circuit_outputs
-  refine ⟨out, fun x => cut (index x), fun x => ?_, fun x => ⟨hcut _, fun hi => ?_⟩,
-    hs.trans (le_of_eq (by dsimp only [K]; ring))⟩
-  · exact (hout x).trans (chooseRecord_map (row x) (flags x) id first K).symm
-  · obtain ⟨⟨j, hj⟩, hmin⟩ := leastRankFlag_spec (ranks x) first
-    obtain ⟨i, _, hflag, he⟩ := chooseRecord_spec (flags x) id first K ⟨j, j.isLt, hj⟩
-    dsimp only [index, id] at he ⊢
-    exact he ▸ isEndpointCheckpoint_of_min f _ hi i (hmin i hflag)
+  refine ⟨out, fun x => cut (index x),
+    fun x => (hout x).trans (chooseRecord_map (row x) (flags x) id first K).symm,
+    fun x => ⟨hcut _, fun hi => ?_⟩, hs.trans (le_of_eq (by dsimp only [K]; ring))⟩
+  obtain ⟨⟨j, hj⟩, hmin⟩ := leastRankFlag_spec (ranks x) first
+  obtain ⟨i, _, hflag, he⟩ := chooseRecord_spec (flags x) id first K ⟨j, j.isLt, hj⟩
+  dsimp only [index, id] at he ⊢
+  exact he ▸ isEndpointCheckpoint_of_min f _ hi i (hmin i hflag)
 
 /-- Feed the selected checkpoint and the unspent time to a circuit that answers queries
 starting at a mark. Both operands of the subtraction are widened, so the time may have any
@@ -113,14 +113,10 @@ private theorem exists_shiftedQuery (c q : Circuit signature n n) (hL : 0 < L) (
   let s := inputs (n + m) ∪ wires raw
   let src := s ∪ {fun _ => false}
   have hz : (fun _ : BitString (n + m) => false) ∈ src := Or.inr rfl
-  have ht : wordWires time ⊆ src := by
-    rintro _ ⟨j, rfl⟩
-    simpa only [time, BitString.getLsbD_equivBitVec] using
-      (show (fun y : BitString (n + m) => y (Fin.natAdd n j)) ∈ src from Or.inl (Or.inl ⟨_, rfl⟩))
-  have hdw : wordWires offset ⊆ src := by
-    rintro _ ⟨j, rfl⟩
-    simpa only [offset, BitString.getLsbD_equivBitVec] using
-      (show (fun y => raw y (Fin.natAdd n j)) ∈ src from Or.inl (Or.inr ⟨_, rfl⟩))
+  have ht : wordWires time ⊆ src := fun _ ⟨j, hj⟩ =>
+    hj ▸ Or.inl (Or.inl ⟨Fin.natAdd n j, funext fun y => by simp [time]⟩)
+  have hdw : wordWires offset ⊆ src := fun _ ⟨j, hj⟩ =>
+    hj ▸ Or.inl (Or.inr ⟨Fin.natAdd n j, funext fun y => by simp [offset]⟩)
   have hr := Synthesis.word_sub (s := src) (fun y => (time y).setWidth (n + m))
     (fun y => (offset y).setWidth (n + m))
     (fun j => wordWires_setWidth_subset ht hz ⟨j, rfl⟩)
@@ -171,10 +167,10 @@ private theorem exists_branch {a b : ℕ} (branch : Circuit signature a b)
     (fun i => ⟨i, rfl⟩)
   have hm := synthesis_bits_mux s (fun x j => branch.eval interpretation x (state j))
     (fallback.eval interpretation) (fun x => branch.eval interpretation x flag)
-    (by rintro _ ⟨j, rfl⟩; exact Or.inl (Or.inr ⟨_, rfl⟩)) (fun _ h => Or.inr h)
+    (fun _ ⟨j, hj⟩ => hj ▸ Or.inl (Or.inr ⟨state j, rfl⟩)) (fun _ h => Or.inr h)
     (Or.inl (Or.inr ⟨_, rfl⟩))
-  have hs := hb.trans ((hf.mono Set.subset_union_left Set.Subset.rfl le_rfl).trans hm)
-  obtain ⟨out, ho, hsize⟩ := hs.exists_circuit_outputs
+  obtain ⟨out, ho, hsize⟩ := (hb.trans
+    ((hf.mono Set.subset_union_left Set.Subset.rfl le_rfl).trans hm)).exists_circuit_outputs
   exact ⟨out, ho, by lia⟩
 
 /-- A single input-time query from a checkpoint can end either in its transient tree or on
@@ -221,7 +217,7 @@ theorem input_time_endpoint_tradeoff (c : Circuit signature n n) (m L : ℕ)
         2 ^ ((n + 1) / 2) + (n + 1) * (m + 1)) := by
   rcases eq_or_ne n 0 with rfl | hn
   · exact ⟨Circuit.wiring signature Fin.elim0, fun _ => funext fun i => i.elim0,
-      by rw [Circuit.size_wiring]; exact Nat.zero_le _⟩
+      (Circuit.size_wiring _).le.trans (Nat.zero_le _)⟩
   let f := c.eval interpretation
   obtain ⟨q, H, hq, hsize, hH⟩ := exists_endpointRank hn f hL hLN
   obtain ⟨query, hquery, querySize⟩ := exists_markedPower (w := n + m) c q H hL hLN hH

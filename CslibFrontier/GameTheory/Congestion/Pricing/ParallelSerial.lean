@@ -197,8 +197,7 @@ theorem IsStrictSerialOligopolyEquilibrium.price_pos_and_flow_pos [DecidableEq P
     0 < p i j ∧ 0 < x i := by
   have hpath := h.toPath
   have hprod_pos : 0 < p i j * x i := by
-    have hnonneg : 0 ≤ p i j * x i := mul_nonneg (hstrict.1 i j) (hstrict.2.1.1.1 i)
-    refine lt_of_le_of_ne hnonneg fun hzero => ?_
+    refine lt_of_le_of_ne (mul_nonneg (hstrict.1 i j) (hstrict.2.1.1.1 i)) fun hzero => ?_
     let pHigh : ℝ := max (p i j + 1) (R + 1)
     have hpHigh_nonneg : 0 ≤ pHigh := by linarith [(le_max_right _ _ : R + 1 ≤ pHigh)]
     have hpHigh_ne : pHigh ≠ p i j := by linarith [(le_max_left _ _ : p i j + 1 ≤ pHigh)]
@@ -258,11 +257,10 @@ private theorem serial_link_markup_ge_of_bestResponse [DecidableEq Path]
     simpa [effLat, hqi] using hpath.monotoneOn q
   have hcomp_cont : ∀ q, q ≠ i → ContinuousOn (effLat q) (Set.Ici 0) := fun q hqi => by
     simpa [effLat, hqi] using hpath.continuousOn q
-  have hlat0 : ∀ m, m = i → 0 ≤ effLat m 0 := fun m hmi => by
-    subst hmi
-    simpa only [effLat, ↓reduceIte, hpath.zero_at_zero m, zero_add, restP] using
-      Finset.sum_nonneg fun k _ => hp m k
-  have hres := markup_ge_mul_deriv_of_wardrop_bestResponse (own := fun m => m = i) rfl
+  have hlat0 : ∀ m, m = i → 0 ≤ effLat m 0 := fun m hmi => hmi ▸ by
+    simpa only [effLat, ↓reduceIte, hpath.zero_at_zero i, zero_add, restP] using
+      Finset.sum_nonneg fun k _ => hp i k
+  simpa [effPrice] using markup_ge_mul_deriv_of_wardrop_bestResponse (own := fun m => m = i) rfl
     hp_eff hw_eff hmono_i hderiv_i hcomp_mono hcomp_cont hlat0
     fun p' x' hp'0 hp'comp hchange hw' => by
       simp only [Finset.sum_filter, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte, effPrice]
@@ -277,10 +275,8 @@ private theorem serial_link_markup_ge_of_bestResponse [DecidableEq Path]
           · simp [serialPathPrice_updateSerialPrice_of_ne p hmi, hp'comp m hmi, effLat, effPrice,
               hmi]
         simpa only [IsPricedWardrop, hcost_upd] using hw'
-      rcases hchange with ⟨m, hm, hne⟩ | hle
-      · exact hbr (p' i) x' (hp'0 i) (Or.inl (by simpa [effPrice, hm] using hne)) hw_upd
-      · exact hbr (p' i) x' (hp'0 i) (Or.inr hle) hw_upd
-  simpa [effPrice] using hres
+      exact hbr (p' i) x' (hp'0 i)
+        (hchange.imp (fun ⟨_, hm, hne⟩ => by simpa [effPrice, hm] using hne) id) hw_upd
 
 /-- **Serial Provider Markup Lower Bound** ([Acemoglu and Ozdaglar, Proposition 6(a),
 p. 1185][AcemogluOzdaglar2007JSAC]): at any pure-strategy oligopoly equilibrium on a
@@ -341,11 +337,9 @@ private theorem serial_surplus_half_of_markup_and_sum_eq [∀ i, Nonempty (Seria
         fun hxi => by nlinarith [hlat_half i hxi]
     rw [← Finset.mul_sum, hsum] at hsum_ge
     linarith
-  have hy_ub : socialSurplus R (serialPathLatency latency) y ≤ R * d := by
-    have hle1 : socialSurplus R (serialPathLatency latency) y ≤ ∑ i, R * y i :=
-      Finset.sum_le_sum fun i _ => by nlinarith [hpath.latency_nonneg i (hy.1 i), hy.1 i]
-    rw [← Finset.mul_sum] at hle1
-    exact hle1.trans (mul_le_mul_of_nonneg_left hy.2 hR_pos.le)
+  have hy_ub : socialSurplus R (serialPathLatency latency) y ≤ R * d :=
+    ((Finset.sum_le_sum fun i _ => by nlinarith [hpath.latency_nonneg i (hy.1 i), hy.1 i]).trans_eq
+      (Finset.mul_sum Finset.univ y R).symm).trans (mul_le_mul_of_nonneg_left hy.2 hR_pos.le)
   linarith
 
 /-- **Parallel-Serial Full-Demand Efficiency `1 / 2` Bound**: in any parallel-serial network with at
@@ -525,8 +519,7 @@ theorem serialTightness_isStrongSerialOligopolyEquilibrium (n : ℕ) :
     rcases Fin.exists_fin_two.mp ⟨i, rfl⟩ with rfl | rfl
     · -- Deviation by a link j on path 0:
       have htwice : 2 * serialTightnessPrice n 0 j = 2 / ((n : ℝ) + 4) := mul_one_div 2 _
-      have hflow0 : serialTightnessFlow n 0 = 2 * serialTightnessPrice n 0 j := htwice.symm
-      rw [hflow0]
+      rw [serialTightnessFlow, ite_eq_left rfl, ← htwice]
       refine hprofit (by simp only [serialTightnessPrice, ↓reduceIte]; positivity) hne
         (hw'.1.1 0) fun hx0_pos => ?_
       have hcost0 : serialPathLatency (serialTightnessLatency n) 0 (x' 0) +
@@ -549,8 +542,7 @@ theorem serialTightness_isStrongSerialOligopolyEquilibrium (n : ℕ) :
       have htwice : 2 * serialTightnessPrice n 1 j = ((n : ℝ) + 2) / ((n : ℝ) + 4) := by
         simp only [serialTightnessPrice, one_ne_zero, ↓reduceIte]
         field_simp
-      have hflow1 : serialTightnessFlow n 1 = 2 * serialTightnessPrice n 1 j := htwice.symm
-      rw [hflow1]
+      rw [serialTightnessFlow, ite_eq_right one_ne_zero, ← htwice]
       refine hprofit (by simp only [serialTightnessPrice, one_ne_zero, ↓reduceIte]; positivity)
         hne (hw'.1.1 1) fun hx1_pos => ?_
       have hcost0 : serialPathLatency (serialTightnessLatency n) 0 (x' 0) +

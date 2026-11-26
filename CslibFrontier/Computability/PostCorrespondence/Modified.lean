@@ -193,14 +193,10 @@ private theorem tops_filter (ds : List (Domino α)) :
   induction ds with
   | nil => exact ⟨rfl, rfl⟩
   | cons d ds ih =>
-    rcases d with ⟨t, b⟩
-    by_cases h : 0 < t.length + b.length
-    · rw [List.filter_cons_of_pos (by simpa using h)]
-      simp only [tops_cons, bottoms_cons, ih.1, ih.2, and_self]
-    · rw [List.filter_cons_of_neg (by simpa using h)]
-      obtain ⟨rfl, rfl⟩ : t = [] ∧ b = [] :=
-        ⟨List.eq_nil_of_length_eq_zero (by omega), List.eq_nil_of_length_eq_zero (by omega)⟩
-      exact ih
+    rcases d with ⟨_ | ⟨a, t⟩, _ | ⟨b, u⟩⟩ <;>
+      simp only [List.filter_cons, List.length_nil, List.length_cons, Nat.add_zero, Nat.zero_add,
+        Nat.lt_irrefl, Nat.zero_lt_succ, Nat.add_pos_left, decide_false, decide_true,
+        Bool.false_eq_true, ↓reduceIte, tops_cons, bottoms_cons, List.nil_append, ih, and_self]
 
 /-- The marked pieces after the start domino: if their tops follow `⋆T` and their bottoms follow
 `⋆B⋆`, then a sequence of dominoes of the instance completes `T` over `B`. -/
@@ -232,7 +228,7 @@ private theorem complete_of_marked (I : MInstance α) :
       obtain ⟨h'', -⟩ := (List.append_cons_inj_of_notMem_prefix (by simp [stop_notMem_starBefore])
         (by simp [stop_notMem_starBefore])).mp h'
       have hTB : T = B := starBefore_injective (List.append_cancel_right h'')
-      exact ⟨[], fun _ h => absurd h List.not_mem_nil, by rw [hTB, tops_nil, bottoms_nil]⟩
+      exact ⟨[], by simp, by simp [hTB]⟩
     · -- a marked domino of the instance
       have key : starBefore B ++ sep :: (starAfter e.bottom ++ bottoms ρ) =
           starBefore (B ++ e.bottom) ++ sep :: bottoms ρ := by
@@ -247,15 +243,9 @@ private theorem head?_flatMap {β : Type*} {p : α → Prop} {f : β → List α
     ∀ {l : List β}, (∀ b ∈ l, ∀ x ∈ (f b).head?, p x) → ∀ x ∈ (l.flatMap f).head?, p x
   | [], _ => by simp
   | b :: l, h => by
-    rw [List.flatMap_cons]
-    intro x hx
     cases hfb : f b with
-    | nil =>
-      rw [hfb, List.nil_append] at hx
-      exact head?_flatMap (fun c hc => h c (List.mem_cons_of_mem b hc)) x hx
-    | cons y w =>
-      rw [hfb, List.cons_append, List.head?_cons, Option.mem_some_iff] at hx
-      exact h b List.mem_cons_self x (by rw [hfb, ← hx]; rfl)
+    | nil => simpa [hfb] using head?_flatMap (fun c hc => h c (List.mem_cons_of_mem b hc))
+    | cons y w => simpa [hfb] using h b List.mem_cons_self y
 
 /-- **Sipser's reduction is correct.** An MPCP instance is solvable exactly when the PCP instance
 `toPCP I` is. -/

@@ -403,9 +403,7 @@ theorem size_node {first : BPlusTree α β} {rest : List (Branch α β)} :
 
 /-- Every tree has positive height: a leaf is a node on its own path. -/
 theorem height_pos : 0 < tr.height := by
-  cases tr with
-  | leaf => simp
-  | node => simp [height_node]
+  cases tr <;> simp [height_node]
 
 /-- The trees of height `1` are the leaves. -/
 theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries := by
@@ -413,8 +411,7 @@ theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries :=
   | leaf entries => simp
   | node first rest =>
     have := height_pos (tr := first)
-    simp only [height_node, reduceCtorEq, exists_false, iff_false]
-    omega
+    simp only [height_node, reduceCtorEq, exists_false, iff_false]; omega
 
 /-- Mapping over values maps the leaves. -/
 @[simp] theorem leaves_map (f : β → γ) :
@@ -467,13 +464,11 @@ private theorem mem_children_cases {P : Prop} {c : BPlusTree α β} (hc : c ∈ 
 
 /-- The entries of a child form a sublist of those of the tree. -/
 theorem toList_sublist_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.children) :
-    c.toList.Sublist tr.toList := by
-  refine mem_children_cases hc (fun _ _ htr hc => ?_) fun _ _ _ htr he hc => ?_
-  · rw [htr, hc, toList_node]
-    exact List.sublist_append_left _ _
-  · rw [htr, hc, toList_node, List.flatMap_def]
-    exact (List.sublist_flatten_of_mem
-      (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)).trans
+    c.toList.Sublist tr.toList :=
+  mem_children_cases hc (fun _ _ htr hc => htr ▸ hc ▸ toList_node ▸ List.sublist_append_left _ _)
+    fun _ _ _ htr he hc => htr ▸ hc ▸ toList_node ▸ List.flatMap_def.symm ▸
+      (List.sublist_flatten_of_mem
+        (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)).trans
         (List.sublist_append_right _ _)
 
 /-- A child among the branches is lower than its node. -/

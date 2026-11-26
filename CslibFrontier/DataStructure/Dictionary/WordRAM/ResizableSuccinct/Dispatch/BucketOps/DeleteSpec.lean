@@ -100,10 +100,8 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     compDispatch_spec henv hfit_off hinv hcpl hm_items u
   have hwf := ghostDictParamsWf henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V
   have hg_env := ghostDictEnvGen henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V
-  obtain ⟨found, j_del, phys_del, q_last, hdel_fix⟩ :=
+  obtain ⟨found, j_del, phys_del, q_last, hres_fix_prep, _, _, hq_last_lt, _, _, _, hinv_fix', _⟩ :=
     deleteWithHashProg_dict_spec (w := ghostW w) hwf hg_env θ hinv u
-  dsimp only at hdel_fix
-  obtain ⟨hres_fix_prep, _, _, hq_last_lt, _, _, _, hinv_fix', _⟩ := hdel_fix
   have hchain : IsDLChain N (lmHead N (compLmAt metaBase U w N s.mem) b m)
       (lmPrev N (compLmAt metaBase U w N s.mem) b)
       (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) := by
@@ -131,7 +129,7 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     rfl
   obtain ⟨hlen_pr, hovf_pr, _⟩ := chain_and_overflow_le_probeExcess θ hb_inv u
   have henv_mid : CompEpochEnv U V w N metaBase itemBase m_items s_mid :=
-    henv.of_mem_eq (by rw [hmid_fr])
+    henv.of_mem_eq hmid_fr.ge
   have h0_off : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
   have h1_off : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
   have h2_off : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
@@ -145,21 +143,15 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     compTDAt_congr henv.pos_w fun a ha => hmid_out a (by omega)
   have hdt_mid : compDTAt metaBase U w N s_mid.mem = compDTAt metaBase U w N s.mem :=
     compDTAt_congr henv.pos_w fun a ha => hmid_out a (by omega)
-  have hq_mid : ∀ m_i,
-      compQuotAt itemBase U V w N m_i s_mid.mem = compQuotAt itemBase U V w N m_i s.mem :=
-    fun _ => compQuotAt_congr henv.pos_w fun a ha => hmid_out a (by omega)
-  have hv_mid : ∀ m_i,
-      compValAt itemBase U V w N m_i s_mid.mem = compValAt itemBase U V w N m_i s.mem :=
-    fun _ => compValAt_congr henv.pos_w fun a ha => hmid_out a (by omega)
   have hcpl_mid : FixedCoupled metaBase itemBase U V w N s_fix s_mid :=
     ⟨hgm_mid.trans hcpl.gm_eq, hlm_mid.trans hcpl.lm_eq,
       by simpa only [hgm_mid, htd_mid, hdt_mid] using hcpl.win_inv,
       fun i => htd_mid.symm ▸ hcpl.td_lt i, fun i => hdt_mid.symm ▸ hcpl.dt_lt i,
       fun d hd => by
-        rw [hgm_mid, hq_mid, hdt_mid]
+        rw [hgm_mid, compQuotAt_congr henv.pos_w fun a ha => hmid_out a (by omega), hdt_mid]
         exact hcpl.quot_eq d (by simpa only [epochTotalSlots, hgm_mid] using hd),
       fun d hd => by
-        rw [hgm_mid, hv_mid, hdt_mid]
+        rw [hgm_mid, compValAt_congr henv.pos_w fun a ha => hmid_out a (by omega), hdt_mid]
         exact hcpl.val_eq d (by simpa only [epochTotalSlots, hgm_mid] using hd)⟩
   refine ⟨found, j_del, phys_del, q_last, ?_⟩
   intro prep h_q_last d_fin prog_fin s' gm₀ gm'
@@ -185,7 +177,6 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
   have hfit_hq_last : Fits w h_q_last :=
     (fits_compFeistelCoords (s := s_mid) henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V hfit_off
       (u.isLt.trans henv.lt_pow_U) (hValOfSeed_lt U N θ q_last)).2.1
-  have hfit1 : Fits w 1 := fits_const_of_offCompItems hfit_off (by decide)
   have hprep_spec_fix := deletePrepProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m)
     rfl hm_lt
   dsimp only at hprep_spec_fix
@@ -222,7 +213,7 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
   have hpre_fin : CompDeleteFinishWithHashPre w d_fin s_mid := by
     refine ⟨fits_compFeistelCoords henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V hfit_off
         (u.isLt.trans henv.lt_pow_U) (hValOfSeed_lt U N θ q),
-      hfit_hq_last, hfit1, ?_⟩
+      hfit_hq_last, fits_const_of_offCompItems hfit_off (by decide), ?_⟩
     rw [hb_eq, hm_eq, cpBucketBits_mk]
     intro hf1
     obtain ⟨hj_lt, hphys_eq, hmem_del, hmem_last⟩ := hfound_slot hf1

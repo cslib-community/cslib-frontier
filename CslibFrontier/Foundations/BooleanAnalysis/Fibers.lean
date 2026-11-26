@@ -143,9 +143,8 @@ theorem uniformDeficit_nonneg {ι : Type*} [Fintype ι]
 /-- A nonempty subset has cardinality `2^(dimension - deficit)`. -/
 theorem card_eq_rpow_sub_uniformDeficit {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) : (X.card : ℝ) = (2 : ℝ) ^ ((Fintype.card ι : ℝ) - uniformDeficit X) := by
-  have hp : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
-  dsimp [uniformDeficit]
-  rw [sub_sub_cancel, Real.rpow_logb (by norm_num) (by norm_num) hp]
+  rw [uniformDeficit, sub_sub_cancel,
+    Real.rpow_logb two_pos (by norm_num) (Nat.cast_pos.2 hX.card_pos)]
 
 /-- A deficit bound is equivalent to the corresponding density lower bound
 when the subset is nonempty. -/
@@ -273,24 +272,20 @@ theorem resample_eq_piecewise (s x y : ι → Bool) :
 
 /-- Resampling completes the restriction of the sampled point. -/
 theorem resample_eq_completePattern (s x y : ι → Bool) :
-    resample s x y = completePattern s x (fun i => y i) := by
-  funext i
-  by_cases hi : s i = true <;> simp [resample, completePattern, hi]
+    resample s x y = completePattern s x (fun i => y i) :=
+  funext fun i => by by_cases hi : s i = true <;> simp [resample, completePattern, hi]
 
 /-- Resampling the coordinates outside `s` of `x` from `y` is resampling the coordinates in `s`
 of `y` from `x`. -/
-theorem resample_not (s x y : ι → Bool) : resample (fun i => !s i) x y = resample s y x := by
-  funext i
-  cases hs : s i <;> simp [resample, hs]
+theorem resample_not (s x y : ι → Bool) : resample (fun i => !s i) x y = resample s y x :=
+  funext fun i => by cases hs : s i <;> simp [resample, hs]
 
 private theorem resample_update_not [DecidableEq ι] {s : ι → Bool} {i : ι} (hi : s i = true)
     (x y : ι → Bool) :
     resample s x (Function.update y i (!y i)) =
-      Function.update (resample s x y) i (!(resample s x y i)) := by
-  funext j
-  rcases eq_or_ne j i with rfl | hj
-  · simp [resample, hi]
-  · simp [resample, Set.piecewise, Function.update_of_ne hj]
+      Function.update (resample s x y) i (!(resample s x y i)) :=
+  funext fun j => by
+    rcases eq_or_ne j i with rfl | hj <;> simp [resample, Set.piecewise, *]
 
 variable [Fintype ι] [DecidableEq ι]
 
@@ -525,9 +520,8 @@ theorem coordinateDensity_filter_eq_one_half_of_update_not {ι : Type*} [Fintype
     (f : (ι → Bool) → Bool) (i : ι) (hf : ∀ x, f (Function.update x i (!x i)) = !f x)
     (P x : ι → Bool) (hi : P i = true) (b : Bool) :
     coordinateDensity (univ.filter fun z => f z = b) P x = 1 / 2 := by
-  rw [coordinateDensity_eq_expect]
-  simp only [mem_filter, mem_univ, true_and]
-  exact expect_ite_eq_one_half_of_update_not (fun y => f (resample P x y)) i
-    (fun y => by rw [resample_update_not hi, hf]) b
+  simpa only [coordinateDensity_eq_expect, mem_filter, mem_univ, true_and] using
+    expect_ite_eq_one_half_of_update_not (fun y => f (resample P x y)) i
+      (fun y => by rw [resample_update_not hi, hf]) b
 
 end Cslib.BitString

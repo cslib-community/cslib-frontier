@@ -423,8 +423,8 @@ theorem toList_rebalanceRight (c : BTree α β) (k : α) (v : β) (s : BTree α 
       c.toList ++ toListRest ((k, v, s) :: rest) := by
   rw [rebalanceRight_eq_ite]
   split
-  · rw [← InsertResult.toList_withRest, toList_mergeSplit, toListRest_cons]
-    simp
+  · simp only [← InsertResult.toList_withRest, toList_mergeSplit, toListRest_cons,
+      List.append_assoc, List.cons_append]
   · rfl
 
 /-- Repair against the left sibling keeps the entries. -/
@@ -433,8 +433,8 @@ theorem toList_rebalanceLast (prev : BTree α β) (k : α) (v : β) (c : BTree �
       prev.toList ++ toListRest [(k, v, c)] := by
   rw [rebalanceLast_eq_ite]
   split
-  · rw [← InsertResult.toList_withRest, toList_mergeSplit, toListRest_cons]
-    simp
+  · simp only [← InsertResult.toList_withRest, toList_mergeSplit, toListRest_cons,
+      toListRest_nil, List.append_nil]
   · rfl
 
 /-- Removing the least entry: `none` exactly on a tree without entries, and otherwise the
@@ -531,8 +531,7 @@ theorem Underfull.rootKeys_eq_of_underflows {c : BTree α β} {h : ℕ} (hc : Un
   cases c with
   | leaf => simp [underflows] at hu
   | node f r =>
-    simp only [underflows, decide_eq_true_eq] at hu
-    simp only [rootKeys_node] at this ⊢
+    simp only [underflows, decide_eq_true_eq, rootKeys_node] at hu this ⊢
     omega
 
 /-- A subtree that underflows has positive height. -/
@@ -547,9 +546,7 @@ theorem EraseFits.underfull {tr c : BTree α β} (hf : EraseFits t tr c) (ho : O
     Underfull t tr.height c := by
   refine ⟨hf.balanced, hf.height_eq, hf.children_occupied, hf.rootKeys_le.trans ho.rootKeys_le,
     fun hne => ?_⟩
-  have htr : tr ≠ .leaf := by
-    rintro rfl
-    exact hne (height_eq_zero_iff.1 (by simpa using hf.height_eq))
+  have htr : tr ≠ .leaf := fun h => hne (height_eq_zero_iff.1 (by simpa [h] using hf.height_eq))
   have := ho.le_rootKeys htr
   have := hf.rootKeys_le_succ
   omega
@@ -574,8 +571,7 @@ theorem InsertResult.mended_ofNode {first : BTree α β}
     exact good_node hf hr hlo hle
   · obtain ⟨l, k, v, r, heq, hl, hr'⟩ :=
       InsertResult.exists_good_split_ofNode hf hr (by omega) (by omega)
-    rw [heq]
-    exact ⟨hl, hr'⟩
+    exact heq ▸ ⟨hl, hr'⟩
 
 /-- Placing a repaired result among good triples keeps them good, adding at most one key. -/
 theorem InsertResult.mended_withRest {x : InsertResult α β} {h : ℕ} (hx : x.Mended t h)
@@ -774,9 +770,7 @@ theorem eraseRest_spec {rest : List (Triple α β)}
     (eraseRest t k prev pe rest).1.toList ++ toListRest (eraseRest t k prev pe rest).2 =
       SortedAssoc.erase k (prev.toList ++ toListRest rest) := by
   induction rest generalizing prev pe with
-  | nil =>
-    rw [List.isSortedAssoc_append_iff] at hs
-    simp [hpe hs.1]
+  | nil => simp [hpe (List.isSortedAssoc_append_iff.1 hs).1]
   | cons e rest ih =>
     obtain ⟨k', v', c⟩ := e
     have hcc : c.toList.IsSortedAssoc →
@@ -795,8 +789,8 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         rcases hpm : popMin t c with _ | ⟨⟨k₂, v₂⟩, c'⟩
         · simp [toList_popMin.1 hpm]
         · rcases rest with _ | ⟨⟨k₃, v₃, c₃⟩, rest₃⟩
-          · rw [toList_rebalanceLast, toList_popMin.2 _ _ hpm]
-            simp
+          · rw [toList_rebalanceLast, toList_popMin.2 _ _ hpm, toListRest_cons, toListRest_nil,
+              List.append_nil]
           · simp only [toListRest_cons, List.cons_append, toList_rebalanceRight,
               toList_popMin.2 _ _ hpm]
       · -- the key is below this triple: erase from the child before it, then repair that child
@@ -806,8 +800,8 @@ theorem eraseRest_spec {rest : List (Triple α β)}
             (k', v') :: (c.toList ++ toListRest rest) :=
           SortedAssoc.erase_of_forall_ne
             (List.forall_mem_cons.2 ⟨hk.ne', fun p hp => (hk.trans (hgt p hp)).ne'⟩)
-        rw [toList_rebalanceRight, hpe hpre, toListRest_cons, SortedAssoc.erase_append, htail]
-        simp
+        rw [toList_rebalanceRight, hpe hpre, toListRest_cons, SortedAssoc.erase_append, htail,
+          List.cons_append]
     · -- the key is above this triple: move on, or at the last triple erase from its child
       have hk : k' < k := lt_of_not_ge h₁
       have hpre' : SortedAssoc.erase k prev.toList = prev.toList :=
@@ -929,9 +923,7 @@ theorem height_erase (h : IsWF t tr) (k : α) :
   rw [erase_eq_collapse]
   generalize eraseSubtree t k tr = c at *
   rcases c with _ | ⟨f, _ | ⟨e, r⟩⟩
-  · exact Or.inl hh
-  · exact Or.inr (by simp only [collapse]; rw [← hh, hb.height_node])
-  · exact Or.inl hh
+  exacts [Or.inl hh, Or.inr (hb.height_node.symm.trans hh), Or.inl hh]
 
 /-- Erasure never raises the height. -/
 theorem height_erase_le (h : IsWF t tr) (k : α) : (erase t k tr).height ≤ tr.height := by

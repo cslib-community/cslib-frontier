@@ -236,27 +236,21 @@ theorem exists_stage_eq (hS : Spec dA dF A F) (hinf : ∀ b i, (A b ∆ F b i).I
   | zero => exact ⟨0, stage_zero dA dF⟩
   | succ k ih =>
     obtain ⟨n, hn⟩ := ih
-    by_contra hne
-    simp only [not_exists] at hne
+    by_contra! hne
     -- the stages stay at `k` from `n` on
-    have hstay : ∀ m, n ≤ m → stage dA dF m = k := by
-      intro m hm
-      induction m, hm using Nat.le_induction with
-      | base => exact hn
-      | succ m _ ihm =>
-        exact Nat.le_antisymm
-          (Nat.lt_succ_iff.mp (lt_of_le_of_ne (ihm ▸ stage_succ_le dA dF m) (hne (m + 1))))
-          (ihm ▸ stage_le_succ dA dF m)
+    have hstay : ∀ m, n ≤ m → stage dA dF m = k := fun m hm =>
+      Nat.le_induction hn (fun m _ ihm => Nat.le_antisymm
+        (Nat.lt_succ_iff.mp (lt_of_le_of_ne (ihm ▸ stage_succ_le dA dF m) (hne (m + 1))))
+        (ihm ▸ stage_le_succ dA dF m)) m hm
     -- so the sets of the side of `k` agree on the words of length at least `n`
     refine hinf (side k) (k / 2) ((List.finite_length_lt Bool n).subset fun w hw => ?_)
     refine Nat.lt_of_not_le fun hlen => ?_
     have hsep : ¬(w ∈ A (side k) ↔ w ∈ F (side k) (k / 2)) := fun hiff =>
       (Set.mem_symmDiff.mp hw).elim (fun h => h.2 (hiff.mp h.1)) fun h => h.2 (hiff.mpr h.1)
     obtain ⟨N, hN⟩ := witness_complete hS hsep
-    have hw := hN (max N n + 1) (by omega) (hstay _ hlen)
-    have hs := stage_succ dA dF (max N n)
-    rw [hstay (max N n) (le_max_right _ _), ite_eq_left hw] at hs
-    exact hne _ hs
+    exact hne (max N n + 1) <| by
+      rw [stage_succ, hstay (max N n) (le_max_right _ _),
+        ite_eq_left (hN (max N n + 1) (by omega) (hstay _ hlen))]
 
 /-- **The mixed set differs from every diagonalized set.** -/
 theorem D_ne (hS : Spec dA dF A F) (hinf : ∀ b i, (A b ∆ F b i).Infinite) (b : Bool) (i : ℕ) :
@@ -325,10 +319,10 @@ theorem computableInPolyTime_stage : ComputableInPolyTime (stage dA dF) encUnary
 
 /-- The words whose length is at a stage of the first side form a problem in `P`. -/
 theorem setOf_side_stage_mem_P :
-    {w : List Bool | side (stage dA dF w.length) = true} ∈ P encBits := by
-  have hs := computableInPolyTime_stage dA dF
-  have hside := computableInPolyTime_side
-  exact ⟨fun w => side (stage dA dF w.length), by fun_prop, fun _ => Iff.rfl⟩
+    {w : List Bool | side (stage dA dF w.length) = true} ∈ P encBits :=
+  ⟨fun w => side (stage dA dF w.length),
+    (computableInPolyTime_side.comp (computableInPolyTime_stage dA dF)).comp (by fun_prop),
+    fun _ => Iff.rfl⟩
 
 end UniformDiagonalization
 
@@ -427,18 +421,15 @@ theorem polyTimeReducible_markedUnion {A B C : Set (List Bool)}
     PolyTimeReducible encBits encBits (markedUnion A B) C := by
   obtain ⟨fA, hfA, hA⟩ := hAC
   obtain ⟨fB, hfB, hB⟩ := hBC
-  let step : List Bool → List Bool := fun w =>
-    if w.isEmpty then c₀ else if w.headD false then fB w.tail else fA w.tail
-  refine ⟨step, by
-    dsimp only [step]
-    fun_prop, fun w => ?_⟩
+  refine ⟨fun w => if w.isEmpty then c₀ else if w.headD false then fB w.tail else fA w.tail,
+    by fun_prop, fun w => ?_⟩
   cases w with
   | nil =>
-    simp only [step, List.isEmpty_nil, ↓reduceIte, hc₀, iff_false]
+    simp only [List.isEmpty_nil, ↓reduceIte, hc₀, iff_false]
     rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
   | cons b u =>
     rw [cons_mem_markedUnion]
-    cases b <;> simp [step, hA u, hB u]
+    cases b <;> simp [hA u, hB u]
 
 /-- The marked union of two decidable sets of words is decidable. -/
 theorem isDecidable_markedUnion {A B : Set (List Bool)}
@@ -446,21 +437,21 @@ theorem isDecidable_markedUnion {A B : Set (List Bool)}
     IsDecidable (markedUnion A B) encBits := by
   obtain ⟨fA, hfA, hA'⟩ := hA.exists_isComputable
   obtain ⟨fB, hfB, hB'⟩ := hB.exists_isComputable
-  let dec : List Bool → Bool := fun w =>
-    if w.isEmpty then false else if w.headD false then fB w.tail else fA w.tail
   have hempty : ComputableInPolyTime List.isEmpty encBits encBool := by fun_prop
   have hhead : ComputableInPolyTime (·.headD false) encBits encBool := by fun_prop
-  have htail := (show ComputableInPolyTime List.tail encBits encBits by fun_prop).isComputable
-  refine isDecidable_iff.mpr ⟨dec,
-    hempty.isComputable.ite (ComputableInPolyTime.const false).isComputable
-      (hhead.isComputable.ite (hfB.comp htail) (hfA.comp htail)), fun w => ?_⟩
+  have htail : ComputableInPolyTime List.tail encBits encBits := by fun_prop
+  refine isDecidable_iff.mpr
+    ⟨fun w => if w.isEmpty then false else if w.headD false then fB w.tail else fA w.tail,
+      hempty.isComputable.ite (ComputableInPolyTime.const false).isComputable
+        (hhead.isComputable.ite (hfB.comp htail.isComputable) (hfA.comp htail.isComputable)),
+      fun w => ?_⟩
   cases w with
   | nil =>
-    simp only [dec, List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true, iff_false]
+    simp only [List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true, iff_false]
     rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
   | cons b u =>
     rw [cons_mem_markedUnion]
-    cases b <;> simp [dec, hA' u, hB' u]
+    cases b <;> simp [hA' u, hB' u]
 
 /-- The marked union of two problems in `NP` on bit words belongs to `NP`. -/
 theorem markedUnion_mem_NP {A B : Set (List Bool)}
@@ -501,11 +492,10 @@ theorem polyTimeReducible_ite_of_mem_P {α : Type} {enc : α ↪ List Bool} {G A
     PolyTimeReducible enc enc (G.ite A₁ A₂) A₂ := by
   obtain ⟨g, hg, hG'⟩ := hG
   obtain ⟨f, hf, hA₁'⟩ := hA₁
-  refine ⟨fun a => if g a then (if f a then y₁ else y₀) else a, ?_, fun a => ?_⟩
-  · have hid : ComputableInPolyTime (fun a : α => a) enc enc := .id'
-    fun_prop
-  · by_cases ha : a ∈ G <;> by_cases ha₁ : a ∈ A₁ <;>
-      simp [Set.ite, ha, ha₁, ← hG' a, ← hA₁' a, hy₀, hy₁]
+  refine ⟨fun a => if g a then (if f a then y₁ else y₀) else a,
+    hg.ite (hf.ite (.const y₁) (.const y₀)) .id', fun a => ?_⟩
+  by_cases ha : a ∈ G <;> by_cases ha₁ : a ∈ A₁ <;>
+    simp [Set.ite, ha, ha₁, ← hG' a, ← hA₁' a, hy₀, hy₁]
 
 /-- **Schöning's theorem for `P` against a second class.** -/
 theorem exists_mem_P_ite_notMem_P {C : Set (Set (List Bool))}

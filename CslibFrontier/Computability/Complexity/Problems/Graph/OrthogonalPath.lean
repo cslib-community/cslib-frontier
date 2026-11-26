@@ -94,9 +94,8 @@ theorem unitPath_endpoints (G : Graph)
 theorem unitPath_nodup (G : Graph)
     (hG : ∀ edge ∈ G.edges, edge.1 ∈ G.vertices ∧ edge.2 ∈ G.vertices)
     (hloop : ∀ edge ∈ G.edges, edge.1 ≠ edge.2) {i : ℕ} (hi : i < G.edges.length) :
-    (G.unitPath i).Nodup := by
-  rw [unitPath_eq_subdivide G hG hloop hi]
-  exact subdivide_nodup (canonical_orthogonal G hG hloop hi)
+    (G.unitPath i).Nodup :=
+  unitPath_eq_subdivide G hG hloop hi ▸ subdivide_nodup (canonical_orthogonal G hG hloop hi)
     (orthogonalRoutes_simple G G.canonicalPorts hi (hG _ (List.getElem_mem hi)).1
       (hG _ (List.getElem_mem hi)).2 (hloop _ (List.getElem_mem hi)))
 
@@ -175,9 +174,8 @@ theorem endpointNeighbor_ne (G : Graph)
 theorem unitPath_unit (G : Graph)
     (hG : ∀ edge ∈ G.edges, edge.1 ∈ G.vertices ∧ edge.2 ∈ G.vertices)
     (hloop : ∀ edge ∈ G.edges, edge.1 ≠ edge.2) {i : ℕ} (hi : i < G.edges.length)
-    {e : Point × Point} (he : e ∈ (G.unitPath i).consecutivePairs) : length e.1 e.2 = 1 := by
-  rw [unitPath_eq_subdivide G hG hloop hi] at he
-  exact subdivide_unit (canonical_orthogonal G hG hloop hi) he
+    {e : Point × Point} (he : e ∈ (G.unitPath i).consecutivePairs) : length e.1 e.2 = 1 :=
+  subdivide_unit (canonical_orthogonal G hG hloop hi) (unitPath_eq_subdivide G hG hloop hi ▸ he)
 
 /-- Unit paths retain the whole continuous real support of their original polygonal routes. -/
 theorem unitPath_support (G : Graph)
@@ -214,9 +212,8 @@ theorem unitPath_bounds (G : Graph)
 theorem unitPath_ne_nil (G : Graph)
     (hG : ∀ edge ∈ G.edges, edge.1 ∈ G.vertices ∧ edge.2 ∈ G.vertices)
     (hloop : ∀ edge ∈ G.edges, edge.1 ≠ edge.2) {i : ℕ} (hi : i < G.edges.length) :
-    G.unitPath i ≠ [] := by
-  rintro h
-  simpa [h] using (unitPath_endpoints G hG hloop hi).1
+    G.unitPath i ≠ [] :=
+  fun h => by simpa [h] using (unitPath_endpoints G hG hloop hi).1
 
 /-- A source grid center lies on a canonical unit path exactly when its position index is one
 of that graph edge's two endpoint indices. -/
@@ -398,10 +395,9 @@ theorem unitPath_on_column_track (G : Graph)
     have hb := (Layout.fan_bounds hf).2.2.2
     have hw : (G.vertices.idxOf (G.edgeEndpoint k b) : ℝ) + 1 ≤ G.vertices.length := by
       exact_mod_cast List.idxOf_lt_length_iff.2 (edgeEndpoint_mem G hG hk b)
-    have hi0 : (0 : ℝ) ≤ i := by positivity
-    change (Layout.track G.vertices.length i : ℝ) ≤ _ at hb
-    simp only [Layout.track] at hb
-    push_cast at hb
+    have hi0 : (0 : ℝ) ≤ i := Nat.cast_nonneg i
+    simp only [realPoint, Layout.track, Int.cast_add, Int.cast_mul, Int.cast_ofNat,
+      Int.cast_natCast] at hb
     linarith
   have hstem (b : Bool) (hs : realPoint (G.pathColumn j side, Layout.track G.vertices.length i) ∈
       Layout.stem G.vertices.length k (G.vertices.idxOf (G.edgeEndpoint k b))
@@ -415,8 +411,7 @@ theorem unitPath_on_column_track (G : Graph)
   · exact hstem false hp'
   · have hy : Layout.track G.vertices.length i = Layout.track G.vertices.length k :=
       Int.cast_inj.1 (Layout.mem_bridge.1 hp').1
-    simp only [Layout.track] at hy
-    exact .inl (by omega)
+    exact .inl (by simp only [Layout.track] at hy; omega)
   · exact hstem true hp'
   · exact (hfan true hp').elim
 
@@ -453,8 +448,7 @@ theorem BridgeStemCrossing.not_vertex_center {G : Graph} {i j : ℕ} {side : Boo
   obtain ⟨w, hw, heq⟩ := List.mem_map.1 h
   rw [List.mem_range] at hw
   have hy := congrArg Prod.snd (heq.trans hc.point)
-  simp only [Layout.center, Layout.track] at hy
-  omega
+  simp only [Layout.center, Layout.track] at hy; omega
 
 private theorem listed_on_upper_track {n e f u v : ℕ} (hu : u < n) (hv : v < n)
     (s t : Fin 3) {p : Point} (hp : p ∈ Layout.route n f u v s t)

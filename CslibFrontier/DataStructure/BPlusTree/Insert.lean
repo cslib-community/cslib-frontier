@@ -151,11 +151,10 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Branch α β)) :
 @[simp] theorem toList_ofLeaf (entries : List (α × β)) : (ofLeaf t entries).toList = entries := by
   unfold ofLeaf
   split_ifs
-  · simp
-  · split
-    · simp
-    · next p right heq =>
-      rw [toList_split, toList_leaf, toList_leaf, ← heq, List.take_append_drop]
+  · exact toList_leaf
+  · cases heq : entries.drop t with
+    | nil => exact toList_leaf
+    | cons p right => rw [toList_split, toList_leaf, toList_leaf, ← heq, List.take_append_drop]
 
 /-- Splitting an overflowing node keeps its entries. -/
 @[simp] theorem toList_ofNode (first : BPlusTree α β) (rest : List (Branch α β)) :
@@ -163,12 +162,12 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Branch α β)) :
   unfold ofNode
   split_ifs
   · rfl
-  · split
-    · rfl
-    · next s c right heq =>
+  · cases heq : rest.drop t with
+    | nil => rfl
+    | cons sc right =>
       conv_rhs => rw [← List.take_append_drop t rest, heq]
       simp only [toList_split, toList_node, List.flatMap_append, List.flatMap_cons,
-        Branch.child_mk, List.append_assoc]
+        List.append_assoc]
 
 end InsertResult
 
@@ -481,9 +480,8 @@ theorem insert_eq_toTree (tr : BPlusTree α β) :
 
 /-- Insertion into a leaf places the entry in its entry list and splits on overflow. -/
 theorem insertOrSplit_leaf (entries : List (α × β)) :
-    insertOrSplit t k v (.leaf entries) = .ofLeaf t (SortedAssoc.insert k v entries) := by
-  rw [← SortedAssoc.idRun_insertM]
-  rfl
+    insertOrSplit t k v (.leaf entries) = .ofLeaf t (SortedAssoc.insert k v entries) :=
+  congrArg (InsertResult.ofLeaf t) (SortedAssoc.idRun_insertM k v entries)
 
 /-- Insertion into a node: search its separators, descending into the first child when the key
 is below them, then split on overflow. -/
@@ -635,8 +633,8 @@ private theorem fits_insertOrSplit (ht : 1 ≤ t) (k : α) (v : β) (tr : BPlusT
   induction tr with
   | leaf entries =>
     rw [toList_leaf] at hs
-    have hlen := SortedAssoc.length_insert (k := k) (v := v) hs
     rw [width_leaf] at hw
+    have hlen := SortedAssoc.length_insert (k := k) (v := v) hs
     rw [insertOrSplit_leaf]
     exact InsertResult.fits_ofLeaf ht (by split at hlen <;> omega) rfl
       (by rw [width_leaf]; split at hlen <;> omega)
@@ -760,8 +758,7 @@ theorem sep_ofNode {first : BPlusTree α β} {rest : List (Branch α β)}
           (fun e he p hp => hd₁ e he p hp), fun p hp => ?_, fun p hp => ?_⟩
       · rw [toList_node, List.mem_append, List.mem_flatMap] at hp
         rcases hp with hp | ⟨a, ha, hp⟩
-        · exact h.lt_of_mem_first hsc hp
-        · exact htake a ha p hp
+        exacts [h.lt_of_mem_first hsc hp, htake a ha p hp]
       · rw [toList_node, List.mem_append, List.mem_flatMap] at hp
         rcases hp with hp | ⟨e, he, hp⟩
         · exact h.le_of_mem hsc hp
@@ -773,20 +770,16 @@ omit [LinearOrder α] in
 /-- The entries of the tree that takes the place of a child are entries of the result. -/
 theorem mem_toList_of_mem_withRest_fst {x : InsertResult α β} {rest : List (Branch α β)}
     {p : α × β} (hp : p ∈ (x.withRest rest).1.toList) : p ∈ x.toList := by
-  cases x with
-  | tree c => exact hp
-  | split l s r => exact List.mem_append_left _ hp
+  rcases x with c | ⟨l, s, r⟩
+  exacts [hp, List.mem_append_left _ hp]
 
 /-- The convention between neighbours looks at a child only through the bound of the next
 separator on its keys. -/
 theorem Linked.of_forall_lt {a b : BPlusTree α β} {rest : List (Branch α β)}
     (hl : Linked a rest)
     (hb : ∀ s c rest', rest = (s, c) :: rest' → ∀ p ∈ b.toList, p.1 < s) : Linked b rest := by
-  cases rest with
-  | nil => trivial
-  | cons e rest =>
-    obtain ⟨s, c⟩ := e
-    exact ⟨hb s c rest rfl, hl.2.1, hl.2.2⟩
+  rcases rest with _ | ⟨⟨s, c⟩, rest⟩
+  exacts [trivial, ⟨hb s c rest rfl, hl.2.1, hl.2.2⟩]
 
 /-- Placing a result with the separator convention in the place of a child linked to `rest`
 keeps the convention between neighbours, when the keys of the result are below the next
@@ -913,9 +906,8 @@ theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr)
   have hf := fits_insertOrSplit (by omega) k v tr h.balanced h.occupied_of_mem_children
     h.width_le h.sorted
   have hp := sep_insertOrSplit k v tr h.searchInvariant h.balanced h.width_le
-  have hs : (BPlusTree.insert t k v tr).toList.IsSortedAssoc := by
-    rw [toList_insert h]
-    exact SortedAssoc.isSortedAssoc_insert h.sorted
+  have hs : (BPlusTree.insert t k v tr).toList.IsSortedAssoc :=
+    toList_insert h k v ▸ SortedAssoc.isSortedAssoc_insert h.sorted
   rw [insert_eq_toTree] at hs ⊢
   rcases hx : insertOrSplit t k v tr with c | ⟨l, s, r⟩ <;> rw [hx] at hf hp hs
   · obtain ⟨hb, hh, hco, hk₁, hk₂⟩ := hf

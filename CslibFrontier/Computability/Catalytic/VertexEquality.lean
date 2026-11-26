@@ -299,10 +299,8 @@ private theorem mul_two_pow_sub_one_sq_lt (q ℓ : ℕ) :
       ≤ ℓ * 2 ^ (2 * q) := Nat.mul_le_mul_left ℓ hsq
     _ < 2 ^ (Nat.log 2 ℓ + 1) * 2 ^ (2 * q) :=
         Nat.mul_lt_mul_of_pos_right hℓ (by positivity)
-    _ = 2 ^ (2 * q + Nat.log 2 ℓ + 1) := by
-        rw [← pow_add]
-        congr 1
-        omega
+    _ = 2 ^ (2 * q + Nat.log 2 ℓ + 1) :=
+        (pow_add 2 _ _).symm.trans (congrArg (2 ^ ·) (by omega))
 
 /-! ### Two-stage bit-width parameterization and 64-excursion vertex equality -/
 
@@ -540,8 +538,7 @@ theorem innerDigits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
   have hq₂ : 0 < innerChunkBits B := by simp [innerChunkBits]
   have hq₁_le : outerChunkBits B ≤ 3 * innerChunkBits B := by grind [innerChunkBits]
   have := Nat.le_mul_of_pos_right (Nat.log 2 (C_N + 1)) hq₂
-  rw [innerDigits, Nat.ceilDiv_le_iff hq₂, Nat.add_mul]
-  omega
+  rw [innerDigits, Nat.ceilDiv_le_iff hq₂, Nat.add_mul]; omega
 
 /-- **`O(B)` catalytic bit budget.** Whenever `n ≤ C_N * B`, the total number of shared catalytic
 bits satisfies `vertexCatBits B n ≤ vertexCatLinearConst C_N * (B + 1)`. -/
@@ -579,8 +576,8 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
     (Nat.mul_le_mul (show innerDigits B n + 1 ≤ c + 12 by omega) hk₂_lin).trans_eq (by ring)
   have hpow_q₂ : 2 ^ (2 * innerChunkBits B) ≤ 4 * (B + 1) := by
     by_cases hlog : Nat.log 2 B ≤ 1
-    · rw [show innerChunkBits B = 1 by grind [innerChunkBits, outerChunkBits]]
-      omega
+    · have hq₂1 : innerChunkBits B = 1 := by grind [innerChunkBits, outerChunkBits]
+      rw [hq₂1]; omega
     · have hB0 : B ≠ 0 := fun h0 => by simp [h0] at hlog
       have h2q₂ : 2 * innerChunkBits B ≤ Nat.log 2 B := by grind [innerChunkBits, outerChunkBits]
       calc 2 ^ (2 * innerChunkBits B)
@@ -600,8 +597,6 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
           (c + 12) * (d + 2) * (B + 1) +
           2 ^ (d + 2) * (B + 1) :=
         Nat.add_le_add (Nat.add_le_add hstage1 hstage2) hstage3
-    _ = vertexCatLinearConst C_N * (B + 1) := by
-        dsimp only [vertexCatLinearConst, c, d]
-        ring
+    _ = vertexCatLinearConst C_N * (B + 1) := by dsimp only [vertexCatLinearConst, c, d]; ring
 
 end Cslib.Catalytic

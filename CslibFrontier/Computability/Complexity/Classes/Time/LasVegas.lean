@@ -89,10 +89,11 @@ private theorem toOuterMeasure_none_le {p : Polynomial ℕ} {V : α × List Bool
     simp only [Option.isSome_iff_ne_none, not_not]
   rw [hnone, ENNReal.div_le_iff (by simp) (by simp), ← ENNReal.div_eq_inv_mul,
     ENNReal.le_div_iff_mul_le (by simp) (by simp)]
-  simp only [acceptCount] at hhalf
-  exact_mod_cast (by omega :
-    (Finset.univ.filter fun r : Fin n → Bool => ¬(V (a, List.ofFn r)).isSome = true).card * 2
-      ≤ 2 ^ n)
+  have hcard : (Finset.univ.filter fun r : Fin n → Bool =>
+      ¬(V (a, List.ofFn r)).isSome = true).card * 2 ≤ 2 ^ n := by
+    simp only [acceptCount] at hhalf
+    omega
+  exact_mod_cast hcard
 
 /-- **`ZPP ⊆ ⋃_d ZTIME(n ^ d)`**: repeating a zero-error verifier on fresh random strings until it
 answers decides with zero error in expected polynomial time. -/
@@ -157,13 +158,11 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
     have hbodyAt (v : Option Bool) := (hbodyM (a, v)).mono
       (Nat.mul_le_mul_left cB (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a v).2 1) dB))
     have hretry : ∀ w ∈ ({w₀} : Set (List Bool)), bodyM.ComputesTidily w (cB * (L a + 1) ^ dB)
-        (ProbOracleComp.sample ((fun v => encode (a, v)) <$> sv a)) := by
-      rintro w rfl
-      exact (hbodyAt none).congr fun _ _ _ => by simp [body, encBits, ProbOracleComp.sample_map]
+        (ProbOracleComp.sample ((fun v => encode (a, v)) <$> sv a)) := fun _ hw =>
+      hw ▸ (hbodyAt none).congr fun _ _ _ => by simp [body, encBits, ProbOracleComp.sample_map]
     have hanswer : ∀ w ∈ ({ans} : Set (List Bool)),
-        bodyM.ComputesTidily w (cB * (L a + 1) ^ dB) (pure []) := by
-      rintro w rfl
-      exact (hbodyAt (some _)).congr fun _ _ _ => by simp [body, encBits]
+        bodyM.ComputesTidily w (cB * (L a + 1) ^ dB) (pure []) := fun _ hw =>
+      hw ▸ (hbodyAt (some _)).congr fun _ _ _ => by simp [body, encBits]
     have hsupport : ∀ w ∈ ({w₀} : Set (List Bool)),
         ∀ w' ∈ (ProbComp.eval ((fun v => encode (a, v)) <$> sv a)).support,
           w' ∈ ({w₀} : Set (List Bool)) ∨ w' ∈ ({ans} : Set (List Bool)) := by
@@ -232,22 +231,14 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
         exact ((hextM (a, some _)).mono (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left
           (Nat.add_le_add_right (hlen a _).2 1) de))).congr fun _ _ _ => by simp [encBits]
       rw [eval_runClosedConfigFrom_of_computesTidily_pure hspec, PMF.mem_support_pure_iff] at hfinal
-      subst hfinal
-      exact ⟨rfl, rfl⟩
+      exact hfinal ▸ ⟨rfl, rfl⟩
     -- the sums
     have hsumMid := tsum_le_add_of_shift (tp a + (tp a + 4))
-      (f := fun s => (ProbComp.eval (mid.runClosedConfigFrom s
-        (mid.initialConfig (enc a)))).toOuterMeasure good₁ᶜ)
-      (g := fun s => (ProbComp.eval (IW.runClosedConfigFrom s (IW.initialConfig w₀))).toOuterMeasure
-        {final | final.tapes.state = none ∧ final.tapes.output ∈ ({ans} : Set (List Bool))}ᶜ)
-      (fun _ => PMF.toOuterMeasure_le_one _ _) hmid
+      (fun s => PMF.toOuterMeasure_le_one
+        (ProbComp.eval (mid.runClosedConfigFrom s (mid.initialConfig (enc a)))) good₁ᶜ) hmid
     have hsumZ := tsum_le_add_of_shift (L a + 4 + te a)
-      (f := fun s => (ProbComp.eval (Z.runClosedConfigFrom s
-        (Z.initialConfig (enc a)))).toOuterMeasure {final | final.tapes.state = none ∧
-          final.tapes.output = [MultiTapeTM.indicator A a]}ᶜ)
-      (g := fun s => (ProbComp.eval (mid.runClosedConfigFrom s
-        (mid.initialConfig (enc a)))).toOuterMeasure good₁ᶜ)
-      (fun _ => PMF.toOuterMeasure_le_one _ _) hZ
+      (fun s => PMF.toOuterMeasure_le_one
+        (ProbComp.eval (Z.runClosedConfigFrom s (Z.initialConfig (enc a)))) _) hZ
     refine hsumZ.trans ((add_le_add le_rfl (hsumMid.trans (add_le_add le_rfl hloop))).trans_eq ?_)
     simp only [B, D]
     push_cast

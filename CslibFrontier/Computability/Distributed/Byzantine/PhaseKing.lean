@@ -224,8 +224,7 @@ theorem SolvesByzantineAgreement.mono {π : MultivaluedProtocol P S M V} {t t' R
 @[simp] theorem toProtocol_decision (π : MultivaluedProtocol P S M Bool) (F : Finset P)
     (adv : ℕ → P → P → M) (x : P → Bool) (R : ℕ) (i : P) :
     π.toProtocol.decision F adv x R i = π.decision F adv x R i := by
-  rw [Protocol.decision, decision, toProtocol_state]
-  rfl
+  exact congrArg (π.output i) (congrFun (toProtocol_state π F adv x R) i)
 
 /-- `π.toProtocol` solves binary `Protocol.SolvesByzantineAgreement` if and only if `π` solves
 `MultivaluedProtocol.SolvesByzantineAgreement`. -/
@@ -248,12 +247,9 @@ theorem not_solvesByzantineAgreement [Fintype P] [Nontrivial V] {t R : ℕ}
   classical
   intro h
   obtain ⟨v₀, v₁, hne⟩ := exists_pair_ne V
-  let πB : Protocol P S M := {
-    init := fun i b => π.init i (if b then v₁ else v₀)
-    send := π.send
-    update := π.update
-    output := fun i s => decide (π.output i s = v₁)
-  }
+  let πB : Protocol P S M :=
+    ⟨fun i b => π.init i (if b then v₁ else v₀), π.send, π.update,
+      fun i s => decide (π.output i s = v₁)⟩
   have hstate (F) (adv) (x : P → Bool) (r : ℕ) :
       πB.state F adv x r = π.state F adv (fun i => if x i then v₁ else v₀) r := by
     induction r with
@@ -299,8 +295,7 @@ theorem uniqueAboveOn_eq_some_iff {P V : Type*} [DecidableEq V] {dom : Finset P}
     intro hw
     obtain ⟨p, hp⟩ := Finset.card_pos.1 (lt_of_lt_of_le hk hw)
     exact ⟨p, (Finset.mem_filter.1 hp).1, (Finset.mem_filter.1 hp).2⟩
-  unfold uniqueAboveOn
-  dsimp only
+  dsimp only [uniqueAboveOn]
   split_ifs with hcard
   · simp only [Option.some.injEq]
     obtain ⟨x, hx⟩ := Finset.card_eq_one.1 hcard
@@ -338,11 +333,10 @@ private theorem card_filter_le_sdiff_add {P V : Type*} [Fintype P] [DecidableEq 
     (univ.filter fun j => m j = v).card ≤
       ((univ \ F).filter fun j => g j = v).card + F.card := by
   refine (Finset.card_le_card fun j hj => ?_).trans (Finset.card_union_le _ _)
-  rw [Finset.mem_filter] at hj
-  by_cases hjF : j ∈ F
-  · exact Finset.mem_union_right _ hjF
-  · exact Finset.mem_union_left _
-      (Finset.mem_filter.2 ⟨Finset.mem_sdiff.2 ⟨hj.1, hjF⟩, (h j hjF).symm.trans hj.2⟩)
+  obtain ⟨hu, hmj⟩ := Finset.mem_filter.1 hj
+  exact if hjF : j ∈ F then Finset.mem_union_right _ hjF else
+    Finset.mem_union_left _
+      (Finset.mem_filter.2 ⟨Finset.mem_sdiff.2 ⟨hu, hjF⟩, (h j hjF).symm.trans hmj⟩)
 
 /-! ### Two-round rotating-king protocol step (`4 * t < n`) -/
 
@@ -511,8 +505,8 @@ theorem phaseKing_solvesByzantineAgreement {t : ℕ} (kings : Fin (t + 1) ↪ P)
     -- Among `t + 1` distinct kings, at least one lies outside `F` (`F.card ≤ t`).
     obtain ⟨k, hk⟩ : ∃ k : Fin (t + 1), kings k ∉ F := by
       by_contra! hall
-      have hsub : univ.map kings ⊆ F := fun p hp => by
-        obtain ⟨k, _, rfl⟩ := Finset.mem_map.1 hp; exact hall k
+      have hsub : univ.map kings ⊆ F := fun p hp =>
+        (Finset.mem_map.1 hp).elim fun k ⟨_, hk⟩ => hk ▸ hall k
       finset_card
     have hconv := phaseKing_converges_of_notMem kings hF hn adv x k hk
     have hpers := phaseKing_persists_from kings hF (by omega) adv x
@@ -520,9 +514,7 @@ theorem phaseKing_solvesByzantineAgreement {t : ℕ} (kings : Fin (t + 1) ↪ P)
     exact (hpers i hi).trans (hpers j hj).symm
   validity F hF adv x v hv i hi := by
     rw [MultivaluedProtocol.decision, phaseKing_state_eq_of_le kings F adv x hR]
-    change ((phaseKing t kings).state F adv x (2 * (t + 1)) i).est = v
-    exact phaseKing_persists_from kings hF (by omega) adv x (Nat.zero_le (t + 1)) le_rfl
-      (fun p hp => hv p hp) i hi
+    exact phaseKing_persists_from kings hF (by omega) adv x (Nat.zero_le (t + 1)) le_rfl hv i hi
 
 end PhaseKing
 
@@ -592,9 +584,7 @@ theorem phaseKing_fails_four_one (kings : Fin 2 ↪ Fin 4) (R : ℕ) :
     decide
   obtain ⟨hF, hk₀, hp, hdis⟩ := hsuff (kings 0) (kings 1) hne r'
   rw [← hkings] at hdis
-  have hag := hsolves.agreement F hF adv x (kings 0) hk₀ p hp
-  rw [hmin (kings 0), hmin p] at hag
-  exact hdis hag
+  exact hdis (hmin (kings 0) ▸ hmin p ▸ hsolves.agreement F hF adv x (kings 0) hk₀ p hp)
 
 /-! ### Multivalued-to-binary reduction step (`3 * t < n`) -/
 
@@ -789,9 +779,7 @@ private theorem turpinCoan_state_add_two (t : ℕ) (default : V) (πBool : Proto
     have ih := turpinCoan_state_add_two t default πBool F adv x k
     refine ⟨(ih i).1, ?_⟩
     rw [MultivaluedProtocol.state, Protocol.state, ← (ih i).2]
-    change πBool.update k i _ _ = πBool.update k i _ _
-    congr 1
-    funext j
+    refine congrArg (πBool.update k i _) (funext fun j => ?_)
     by_cases hj : j ∈ F
     · simp only [hj, ↓reduceIte, turpinCoanAdvBool]; cases adv (k + 2) j i <;> rfl
     · simp only [hj, ↓reduceIte, ← (ih j).2]; rfl

@@ -92,8 +92,7 @@ theorem support_add_support (P : Profile V A) {a b : A} (hab : a ≠ b) :
 theorem support_eq_card_of_forall {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : support P a b = Fintype.card V := by
   classical
-  unfold support
-  rw [Finset.filter_true_of_mem fun i _ => h i, Finset.card_univ]
+  simp [support, Finset.filter_true_of_mem fun i _ => h i]
 
 theorem support_eq_zero_of_forall {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : support P b a = 0 := by
@@ -108,20 +107,17 @@ theorem MajorityPrefers.asymm {P : Profile V A} {a b : A} (h : MajorityPrefers P
     ¬ MajorityPrefers P b a :=
   Nat.lt_asymm h
 
-theorem MajorityPrefers.ne {P : Profile V A} {a b : A} (h : MajorityPrefers P a b) : a ≠ b := by
-  rintro rfl
-  exact Nat.lt_irrefl _ h
+theorem MajorityPrefers.ne {P : Profile V A} {a b : A} (h : MajorityPrefers P a b) : a ≠ b :=
+  fun h' => Nat.lt_irrefl _ (h' ▸ h)
 
 theorem majorityPrefers_iff_card_lt_two_mul {P : Profile V A} {a b : A} (hab : a ≠ b) :
     MajorityPrefers P a b ↔ Fintype.card V < 2 * support P a b := by
-  have hsum := support_add_support P hab
-  unfold MajorityPrefers
-  omega
+  have := support_add_support P hab
+  simp only [MajorityPrefers]; omega
 
 theorem majorityPrefers_of_forall [Nonempty V] {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : MajorityPrefers P a b := by
-  unfold MajorityPrefers
-  rw [support_eq_card_of_forall h, support_eq_zero_of_forall h]
+  simp only [MajorityPrefers, support_eq_card_of_forall h, support_eq_zero_of_forall h]
   exact Fintype.card_pos
 
 /-- Alternative `a` is a **Condorcet winner** of `P` if a strict majority of voters prefers `a` to
@@ -131,9 +127,8 @@ every other alternative. -/
 
 /-- A preference profile has at most one Condorcet winner. -/
 theorem IsCondorcetWinner.unique {P : Profile V A} {a b : A}
-    (ha : IsCondorcetWinner P a) (hb : IsCondorcetWinner P b) : a = b := by
-  by_contra hab
-  exact (ha b (Ne.symm hab)).asymm (hb a hab)
+    (ha : IsCondorcetWinner P a) (hb : IsCondorcetWinner P b) : a = b :=
+  Classical.byContradiction fun hab => (ha b (Ne.symm hab)).asymm (hb a hab)
 
 theorem isCondorcetWinner_of_forall_isTop [Nonempty V] {P : Profile V A} {a : A}
     (h : ∀ i, (P i).IsTop a) : IsCondorcetWinner P a :=
@@ -156,10 +151,9 @@ private theorem tripleTop_isTop (r : Ranking A) (x y z : A) :
 
 private theorem tripleTop_prefers_second_third (r : Ranking A) {x y z : A}
     (hxy : x ≠ y) (hxz : x ≠ z) (hyz : y ≠ z) :
-    (tripleTop r x y z).Prefers y z := by
-  unfold tripleTop
-  rw [((r.toTop z).toTop y).toTop_prefers_of_ne hxy.symm hxz.symm]
-  exact (r.toTop z).isTop_toTop y z hyz.symm
+    (tripleTop r x y z).Prefers y z :=
+  (((r.toTop z).toTop y).toTop_prefers_of_ne hxy.symm hxz.symm).2
+    ((r.toTop z).isTop_toTop y z hyz.symm)
 
 private theorem card_filter_fin_lt (e : V ≃ Fin (Fintype.card V)) {m : ℕ}
     (hm : m ≤ Fintype.card V) :
@@ -252,10 +246,8 @@ private theorem exists_cyclicThreeBlock (hV : 3 ≤ Fintype.card V)
   · unfold threeBlockProfile
     split_ifs
     · exact tripleTop_isTop r a b c x hxa
-    · unfold r₁ tripleTop
-      rw [((r.toTop a).toTop c).toTop_prefers_of_ne hab hxb,
-        (r.toTop a).toTop_prefers_of_ne hac hxc]
-      exact r.isTop_toTop a x hxa
+    · exact (((r.toTop a).toTop c).toTop_prefers_of_ne hab hxb).2
+        (((r.toTop a).toTop_prefers_of_ne hac hxc).2 (r.isTop_toTop a x hxa))
     · exact ((r.toTop b).toTop a).toTop_prefers_of_ne hac hxc |>.2
         ((r.toTop b).isTop_toTop a x hxa)
 
@@ -301,8 +293,7 @@ open Classical in
 theorem pluralityCount_eq_card_of_forall_isTop {P : Profile V A} {a : A}
     (h : ∀ i, (P i).IsTop a) : pluralityCount P a = Fintype.card V := by
   classical
-  unfold pluralityCount
-  rw [Finset.filter_true_of_mem fun i _ => h i, Finset.card_univ]
+  simp [pluralityCount, Finset.filter_true_of_mem fun i _ => h i]
 
 theorem pluralityCount_eq_zero_of_forall_isTop {P : Profile V A} {a b : A} (hab : b ≠ a)
     (h : ∀ i, (P i).IsTop a) : pluralityCount P b = 0 := by
@@ -363,20 +354,18 @@ theorem plurality_eq_of_isTop [Finite A] [Nonempty A] (t : Ranking A) {P : Profi
 
 /-- For a nonempty electorate, plurality rule is onto `A`. -/
 theorem surjective_plurality [Nonempty V] [Finite A] [Nonempty A] (t : Ranking A) :
-    Function.Surjective (plurality (V := V) t) := by
-  intro a
-  refine ⟨fun _ => t.toTop a, plurality_eq_of_isTop t fun x hxa => Or.inl ?_⟩
-  rw [pluralityCount_eq_card_of_forall_isTop fun _ => t.isTop_toTop a,
-    pluralityCount_eq_zero_of_forall_isTop hxa fun _ => t.isTop_toTop a]
-  exact Fintype.card_pos
+    Function.Surjective (plurality (V := V) t) := fun a =>
+  ⟨fun _ => t.toTop a, plurality_eq_of_isTop t fun x hxa => Or.inl <| by
+    rw [pluralityCount_eq_card_of_forall_isTop fun _ => t.isTop_toTop a,
+      pluralityCount_eq_zero_of_forall_isTop hxa fun _ => t.isTop_toTop a]
+    exact Fintype.card_pos⟩
 
 /-- With at least two voters and two alternatives, plurality has no dictator. -/
 theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
     (hV : 2 ≤ Fintype.card V) (i : V) :
-    ¬ (plurality (V := V) t).IsDictator i := by
+    ¬ (plurality (V := V) t).IsDictator i := fun hi => by
   classical
   have : Nonempty V := ⟨i⟩
-  intro hi
   let m := t.top
   obtain ⟨a, ham⟩ := exists_ne m
   let P : Profile V A := fun j => if j = i then t.toTop a else t.toTop m
@@ -410,11 +399,10 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
 and at least three alternatives, deterministic tie-broken plurality is not strategy-proof. -/
 theorem not_isStrategyProof_plurality [Finite A] [Nonempty A] (hV : 2 ≤ Fintype.card V)
     (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c) (t : Ranking A) :
-    ¬ (plurality (V := V) t).IsStrategyProof := by
+    ¬ (plurality (V := V) t).IsStrategyProof := fun hsp => by
   obtain ⟨a, b, -, hab, -⟩ := id h3
   have : Nontrivial A := ⟨⟨a, b, hab⟩⟩
   have : Nonempty V := Fintype.card_pos_iff.1 (by omega)
-  intro hsp
   obtain ⟨i, hi⟩ := isDictatorial_of_isStrategyProof_of_surjective hsp (surjective_plurality t) h3
   exact not_isDictator_plurality t hV i hi
 
@@ -533,9 +521,8 @@ theorem isPareto_borda [Nonempty V] : (borda (V := V) (A := A)).IsPareto := fun 
 ranks `a` first and `b` last while all other voters reverse that ranking, `b`'s Borda score is at
 least `a`'s. -/
 theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) :
-    ¬ (borda (V := V) (A := A)).IsDictator i := by
+    ¬ (borda (V := V) (A := A)).IsDictator i := fun hi => by
   classical
-  intro hi
   obtain ⟨a, b, hab⟩ := exists_pair_ne A
   obtain ⟨r₀⟩ := Ranking.nonempty A
   let r := (r₀.toBottom b).toTop a

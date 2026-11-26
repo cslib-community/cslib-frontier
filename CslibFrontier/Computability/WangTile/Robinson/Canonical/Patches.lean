@@ -111,10 +111,8 @@ theorem supertileIndexGrid_eq_iterateRefine (level : ℕ) (root : Node) :
   | zero => rfl
   | succ level ih =>
       have hxy : (childPosition x y).val % 4 = x % 4 ∧ (childPosition x y).val / 4 = y % 4 := by
-        simp only [childPosition, blockPosition]
-        omega
-      rw [show 2 * (level + 1) = 2 + 2 * level by omega, ← iterateRefine_add,
-        iterateRefine_two_local]
+        simp only [childPosition, blockPosition]; omega
+      rw [Nat.mul_succ, Nat.add_comm _ 2, ← iterateRefine_add, iterateRefine_two_local]
       change ((supertileNodeGrid level root (x / 4) (y / 4)).child
         (childPosition x y)).parent = _
       rw [Node.child_parent, hxy.1, hxy.2]
@@ -127,8 +125,8 @@ theorem supertileIndexGrid_eq_of_root_eq (level : ℕ) (root : Node) (coarse : �
     supertileIndexGrid level root x y = iterateRefine (2 * level) coarse x y := by
   rw [supertileIndexGrid_eq_iterateRefine]
   apply iterateRefine_eq_of_root_eq rootEq.symm
-  · simpa only [pow_mul, show (2 : ℕ) ^ 2 = 4 by decide] using hx
-  · simpa only [pow_mul, show (2 : ℕ) ^ 2 = 4 by decide] using hy
+  · rwa [pow_mul]
+  · rwa [pow_mul]
 
 /-- A four-by-four tile block in a supertile is the child block of its coarser node. -/
 theorem supertileNodeGrid_block (level : ℕ) (root : Node)
@@ -164,8 +162,7 @@ theorem supertileShadeGrid_block (level : ℕ) (root : Node)
 private theorem supertileNodeGrid_compatible (level : Nat) (root : Node) :
     CompatibleOn (supertileNodeGrid level root) (4 ^ level) (4 ^ level) := by
   induction level with
-  | zero =>
-      constructor <;> intro x y h <;> omega
+  | zero => constructor <;> intro _ _ h <;> omega
   | succ level ih =>
       change CompatibleOn (refineNodeGrid (supertileNodeGrid level root))
         (4 ^ (level + 1)) (4 ^ (level + 1))
@@ -239,13 +236,11 @@ theorem previousInterior_eq_of_none_between
     (between : ∀ candidate, border < candidate → candidate < position →
       interior candidate = none) (afterBorder : border < position) :
     previousInterior interior position = some orientation := by
-  have startLe : border + 1 ≤ position := by omega
-  induction position, startLe using Nat.le_induction with
+  induction position, Nat.succ_le_of_lt afterBorder using Nat.le_induction with
   | base => simp [previousInterior, selected]
   | succ position _ ih =>
-      have previous := ih
-        (fun candidate lower upper => between candidate lower (by omega)) (by omega)
-      simp [previousInterior, between position (by omega) (by omega), previous]
+      simp [previousInterior, between position (by omega) (by omega),
+        ih (fun candidate lower _ => between candidate lower (by omega)) (by omega)]
 
 /-- A bounded suffix has the given first orientation if a border with that orientation occurs
 and no opposite border precedes it. -/
@@ -259,10 +254,10 @@ theorem nextInterior_eq_of_no_opposite_before
   induction distance : border - position generalizing position with
   | zero =>
       obtain rfl : position = border := by omega
-      obtain ⟨fuel, fuelEq⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : length - position ≠ 0)
+      obtain ⟨fuel, fuelEq⟩ :=
+        Nat.exists_eq_succ_of_ne_zero (Nat.sub_ne_zero_of_lt borderBeforeEnd)
       simp [fuelEq, nextInterior, selected]
   | succ distance ih =>
-      have positionBefore : position < border := by omega
       have fuelEq : length - position = length - (position + 1) + 1 := by omega
       rw [fuelEq]
       cases current : interior position with
@@ -271,7 +266,7 @@ theorem nextInterior_eq_of_no_opposite_before
           apply ih (position := position + 1) <;>
             first | omega | exact fun candidate lower => noOpposite candidate (by omega)
       | some currentOrientation =>
-          have := noOpposite position le_rfl positionBefore
+          have := noOpposite position le_rfl (by omega)
           cases orientation <;> cases currentOrientation <;> simp [nextInterior, current] at this ⊢
 
 /-- A successful suffix scan witnesses an actual selected border in the scanned interval. -/
@@ -289,9 +284,8 @@ theorem exists_interior_of_nextInterior_eq_some
           obtain ⟨candidate, lower, upper, selected⟩ := ih next
           exact ⟨candidate, by omega, by omega, selected⟩
       | some currentOrientation =>
-          simp only [nextInterior, current, Option.orElse_some] at next
-          cases next
-          exact ⟨position, le_rfl, by omega, current⟩
+          simp only [nextInterior, current, Option.orElse_some, Option.some.injEq] at next
+          exact ⟨position, le_rfl, by omega, next ▸ current⟩
 
 /-- Canonical edge flow determined by the nearest selected borders. The clear case is the
 interval before a closing border whose previous border is opening or absent. -/
@@ -352,8 +346,7 @@ theorem interior_eq_none_of_adjacent_clear
     (hleft : intervalEdge interior length position = .none)
     (hright : intervalEdge interior length (position + 1) = .none) :
     interior position = none := by
-  have allowed := intervalEdge_allowed interior length position hposition
-  rw [hleft, hright] at allowed
+  have allowed := hleft ▸ hright ▸ intervalEdge_allowed interior length position hposition
   cases hcurrent : interior position with
   | none => rfl
   | some current => cases current <;> simp [flowAllowed, hcurrent] at allowed
@@ -454,15 +447,14 @@ shade/signal allowance proved from the closed decorated substitution. -/
 
 /-- Canonical patch sides grow beyond their substitution level. -/
 theorem lt_side (level : ℕ) : level < side level := by
-  have := (Nat.lt_two_pow_self : level < 2 ^ level)
-  have := Nat.pow_le_pow_left (show 2 ≤ 4 by decide) level
-  dsimp [side]
-  omega
+  have := Nat.lt_two_pow_self (n := level)
+  have := Nat.pow_le_pow_left (n := 2) (m := 4) (by decide) level
+  dsimp only [side]; omega
 
 /-- The concrete decorated Robinson scaffold has a plane tiling, by compactness of its
 canonical finite squares. This proves scaffold nonemptiness, not payload realization. -/
-theorem scaffold_tilesPlane : TilesPlane scaffold.tiles := by
-  exact (tilesPlane_iff_squares _).mpr fun n =>
+theorem scaffold_tilesPlane : TilesPlane scaffold.tiles :=
+  (tilesPlane_iff_squares _).mpr fun n =>
     ⟨(canonicalPatch (n + 1) seedNode).crop (lt_side (n + 1)).le (lt_side (n + 1)).le⟩
 
 end Cslib.WangTile.Robinson.Canonical

@@ -408,9 +408,7 @@ theorem exists_scale_effort_incentive [Nontrivial S]
     refine sum_pos' (fun s _ => ?_)
       ⟨s₁, mem_univ s₁, (mul_sub (M.signalProb s₁) _ _).symm ▸ hterm s₁ hs₁.symm⟩
     rw [← mul_sub]
-    rcases eq_or_ne s₀ s with rfl | hs
-    · simp
-    · exact (hterm s hs).le
+    exact (eq_or_ne s₀ s).elim (fun e => by simp [e]) fun hs => (hterm s hs).le
   let minGap : ℝ := univ.inf' univ_nonempty fun s₀ =>
     M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀
   have hminGap : 0 < minGap := (lt_inf'_iff _).mpr fun s₀ _ => hgap_pos s₀
@@ -459,15 +457,10 @@ theorem truthful_isStrictBayesNash_balancedLogPeerTransfer [DecidableEq S]
     {α : ℝ} (hα : 0 < α) :
     M.IsStrictBayesNashReporting (M.balancedLogPeerTransfer r b α) (truthfulStrategy I) := by
   intro i s_i report hne
-  have hsplit (a : S) :
-      M.interimTransfer (M.balancedLogPeerTransfer r b α) (truthfulStrategy I) i s_i a =
-        M.interimTransfer (M.logPeerTransfer r α 0) (truthfulStrategy I) i s_i a -
-          ∑ s_prof : I → S, M.condSignalProb i s_i s_prof *
-            M.logPeerTransfer r α 0 (fun j => truthfulStrategy I j (s_prof j)) (b i) := by
-    simp only [interimTransfer, balancedLogPeerTransfer, mul_sub, sum_sub_distrib,
-      logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)]
-  rw [hsplit report, hsplit (truthfulStrategy I i s_i)]
-  linarith [M.truthful_isStrictBayesNash_logPeerTransfer hr hrel hα 0 i s_i report hne]
+  have hlt := M.truthful_isStrictBayesNash_logPeerTransfer hr hrel hα 0 i s_i report hne
+  simp only [interimTransfer, balancedLogPeerTransfer, mul_sub, sum_sub_distrib,
+    logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)] at hlt ⊢
+  linarith
 
 /-! ### Uninformative constant equilibria & sequential manipulation (Footnote 2 & Exercise 27.6) -/
 

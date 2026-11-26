@@ -101,19 +101,15 @@ private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
   cases keep
   · obtain ⟨i, t, ht, rfl⟩ := ((slopeDetour r s d).mem_support_iff z).mp hz
     rw [eval_slopeDetour]
-    split_ifs with hi
+    split_ifs with hi <;>
+      simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
+        Complex.smul_re, Complex.smul_im, smul_eq_mul, mul_zero, add_zero, zero_add]
     · have hx : -r ≤ (1 - t) * -r ∧ (1 - t) * -r ≤ 0 := by
         constructor <;> nlinarith only [ht.1, ht.2, hr]
-      simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
-        Complex.smul_re, Complex.smul_im, smul_eq_mul, mul_zero,
-        add_zero]
       refine ⟨⟨hx.1, hx.2.trans hr.le⟩, ?_⟩
       rw [abs_of_nonpos hx.2]
       field_simp [hr.ne']; ring
     · have hx : 0 ≤ t * r ∧ t * r ≤ r := by constructor <;> nlinarith only [ht.1, ht.2, hr]
-      simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
-        Complex.smul_re, Complex.smul_im, smul_eq_mul, mul_zero,
-        zero_add]
       refine ⟨⟨by linarith only [hr, hx.1], hx.2⟩, ?_⟩
       rw [abs_of_nonneg hx.1]
       field_simp [hr.ne']; ring
@@ -214,9 +210,8 @@ private theorem pair_separation {r s t d e q : ℝ} (hr : 0 < r) (hst : s ≠ t)
     obtain ⟨_, hwy'⟩ := member_support hr hk' hw'
     have hwre := contact_abscissa hr hst hq hd hwx hwy hwy'
     apply Complex.ext hwre
-    rw [hwy, hwre, abs_of_neg hx.2]
     dsimp only [z]
-    ring
+    rw [hwy, hwre, abs_of_neg hx.2]; ring
   refine ⟨⟨z, hz, fun w hw => common hw.1 hw.2⟩,
     fun w hw hw' => common hw hw' ▸ ⟨hx.1, hx.2, u, v, hu, hv, hue, hve⟩, ?_⟩
   · rw [member_first_vector r s d keep hk, member_first_vector r t e keep' hk']

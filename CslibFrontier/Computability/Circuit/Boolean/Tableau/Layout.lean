@@ -453,10 +453,10 @@ theorem ScanQ.ofIdx_idx (q : ScanQ k) : ScanQ.ofIdx q.idx = q := by
   rcases q with s | ⟨i, s⟩
   · simp [ScanQ.idx, ScanQ.ofIdx, symIdx_lt, symOf_symIdx]
   · have hs := symIdx_lt s
+    have hlt : ¬3 + 3 * (i : ℕ) + symIdx s < 3 := by omega
     have h₁ : (3 + 3 * (i : ℕ) + symIdx s - 3) / 3 = i := by omega
     have h₂ : (3 + 3 * (i : ℕ) + symIdx s - 3) % 3 = symIdx s := by omega
-    simp only [ScanQ.idx, ScanQ.ofIdx, show ¬3 + 3 * (i : ℕ) + symIdx s < 3 by omega,
-      ↓reduceIte, h₁, i.isLt, ↓reduceDIte, h₂, symOf_symIdx]
+    simp only [ScanQ.idx, ScanQ.ofIdx, hlt, ↓reduceIte, h₁, i.isLt, ↓reduceDIte, h₂, symOf_symIdx]
 
 /-- The index of a scanned quantity is strictly less than `3 + 3 * k`. -/
 theorem ScanQ.idx_lt (q : ScanQ k) : q.idx < 3 + 3 * k := by
@@ -469,15 +469,14 @@ theorem ScanLoc.ofIdx_idx (l : ScanLoc k) : ScanLoc.ofIdx l.idx = l := by
   rcases l with i | _ | q | q
   · simp [ScanLoc.idx, ScanLoc.ofIdx]
   · simp [ScanLoc.idx, ScanLoc.ofIdx]
-  · simp only [ScanLoc.idx, ScanLoc.ofIdx, show ¬k + 1 + 2 * q.idx < k by omega,
-      show k + 1 + 2 * q.idx ≠ k by omega, ↓reduceDIte, ↓reduceIte,
-      show (k + 1 + 2 * q.idx - (k + 1)) % 2 = 0 by omega,
-      show (k + 1 + 2 * q.idx - (k + 1)) / 2 = q.idx by omega, ScanQ.ofIdx_idx]
-  · simp only [ScanLoc.idx, ScanLoc.ofIdx, show ¬k + 2 + 2 * q.idx < k by omega,
-      show k + 2 + 2 * q.idx ≠ k by omega, ↓reduceDIte, ↓reduceIte,
-      show (k + 2 + 2 * q.idx - (k + 1)) % 2 = 1 by omega,
-      show (k + 2 + 2 * q.idx - (k + 1)) / 2 = q.idx by omega, ScanQ.ofIdx_idx]
-    rfl
+  · have h₁ : (k + 1 + 2 * q.idx - (k + 1)) % 2 = 0 := by omega
+    have h₂ : (k + 1 + 2 * q.idx - (k + 1)) / 2 = q.idx := by omega
+    simp (disch := omega) only [ScanLoc.idx, ScanLoc.ofIdx, dite_eq_right, ite_eq_right, h₁,
+      ↓reduceIte, h₂, ScanQ.ofIdx_idx]
+  · have h₁ : (k + 2 + 2 * q.idx - (k + 1)) % 2 ≠ 0 := by omega
+    have h₂ : (k + 2 + 2 * q.idx - (k + 1)) / 2 = q.idx := by omega
+    simp (disch := omega) only [ScanLoc.idx, ScanLoc.ofIdx, dite_eq_right, ite_eq_right, h₁,
+      ↓reduceIte, h₂, ScanQ.ofIdx_idx]
 
 /-- The index of a scan position is strictly less than `scanWidth k`. -/
 theorem ScanLoc.idx_lt (l : ScanLoc k) : l.idx < scanWidth k := by
@@ -505,9 +504,8 @@ theorem GlobLoc.ofIdx_idx (l : GlobLoc k State) : GlobLoc.ofIdx l.idx = l := by
   rcases l with ⟨j, i⟩ | ⟨v, j⟩
   · simp only [GlobLoc.idx, GlobLoc.ofIdx, mul_add_lt_mul j.isLt i.isLt, ↓reduceDIte,
       GlobLoc.sit.injEq]
-    constructor <;> ext
-    · simp [Nat.mul_add_div_fin]
-    · simp [Nat.add_comm, Nat.mod_eq_of_lt i.isLt]
+    exact ⟨Fin.ext (by simp [Nat.mul_add_div_fin]),
+      Fin.ext (by simp [Nat.add_comm, Nat.mod_eq_of_lt i.isLt])⟩
   · have hm : ¬ numSit k State * (k + 1) + attrIdx v * (numSit k State + 1) + j <
         numSit k State * (k + 1) := by omega
     have hsub : numSit k State * (k + 1) + attrIdx v * (numSit k State + 1) + j -
@@ -515,8 +513,7 @@ theorem GlobLoc.ofIdx_idx (l : GlobLoc k State) : GlobLoc.ofIdx l.idx = l := by
     simp only [GlobLoc.idx, GlobLoc.ofIdx, hm, ↓reduceDIte, hsub,
       Nat.add_mul_div_of_lt _ j.isLt, attrIdx_lt v, Nat.add_mul_mod_self_right,
       Nat.mod_eq_of_lt j.isLt]
-    congr
-    exact (Fintype.equivFin (Attr k State)).symm_apply_apply v
+    exact congrArg (GlobLoc.attr · j) ((Fintype.equivFin (Attr k State)).symm_apply_apply v)
 
 /-- The index of a global feature is strictly less than `Fintype.card (Option State) + 4`. -/
 theorem GFeat.idx_lt (f : GFeat State) : f.idx < Fintype.card (Option State) + 4 := by
@@ -545,9 +542,8 @@ theorem ColFeat.ofIdx_idx (f : ColFeat k) : ColFeat.ofIdx f.idx = f := by
   · have hs := symIdx_lt s
     have h₁ : (1 + k + 3 * (i : ℕ) + symIdx s - 1 - k) / 3 = i := by omega
     have h₂ : (1 + k + 3 * (i : ℕ) + symIdx s - 1 - k) % 3 = symIdx s := by omega
-    simp only [ColFeat.idx, ColFeat.ofIdx, show 1 + k + 3 * (i : ℕ) + symIdx s ≠ 0 by omega,
-      show ¬1 + k + 3 * (i : ℕ) + symIdx s - 1 < k by omega, ↓reduceIte, ↓reduceDIte, h₁,
-      i.isLt, h₂, symOf_symIdx]
+    simp (disch := omega) only [ColFeat.idx, ColFeat.ofIdx, ite_eq_right, dite_eq_right, h₁,
+      i.isLt, ↓reduceDIte, h₂, symOf_symIdx]
 
 /-- The gadget index for feature `fi` is strictly less than `16 * (fi + 1)`. -/
 theorem gadgetIdx_lt (fi : ℕ) (b : Bool) (j : Fin 8) :
@@ -639,8 +635,7 @@ theorem scanWidth_pos : 0 < scanWidth k := by simp only [scanWidth]; omega
 /-- Subtracting the input offset gives the index of a tableau gate. -/
 theorem wire_sub (n T t : ℕ) (l : Loc k State) (c : ℕ) :
     wire n T t l c - n = 2 + t * blockSize k State T + l.offset T c := by
-  simp only [wire]
-  omega
+  simp only [wire]; omega
 
 /-- Dividing and reducing `wire n T t l c - n - 2` modulo `blockSize` recovers the block `t` and
 intra-block offset `l.offset T c`. -/
@@ -709,8 +704,7 @@ theorem GlobLoc.idx_ofIdx {m : ℕ} (hm : m < globWidth k State) :
   simp only [globWidth] at hm
   rw [GlobLoc.ofIdx]
   split_ifs with h₁ h₂
-  · simp only [GlobLoc.idx]
-    exact Nat.div_add_mod' m (k + 1)
+  · exact Nat.div_add_mod' m (k + 1)
   · simp only [GlobLoc.idx, attrIdx, Equiv.apply_symm_apply]
     have := Nat.div_add_mod' (m - numSit k State * (k + 1)) (numSit k State + 1)
     omega
@@ -724,8 +718,7 @@ theorem GFeat.idx_ofIdx {m : ℕ} (hm : m < Fintype.card (Option State) + 4) :
   rw [GFeat.ofIdx]
   split_ifs with h
   · simp [GFeat.idx]
-  · simp only [GFeat.idx]
-    rw [OutView.index_ofIndex (by omega)]
+  · rw [GFeat.idx, OutView.index_ofIndex (by omega)]
     omega
 
 /-- Encoding `ColFeat.ofIdx m` for `m < 1 + 4 * k` recovers `m`. -/
@@ -759,33 +752,28 @@ theorem exists_wire_eq {n T g : ℕ} (hg₂ : 2 ≤ g) (hg : g < numGates k Stat
   have hwire (l : Loc k State) (c : ℕ) (h : l.offset T c = r) : wire n T t l c - n = g := by
     rw [wire_sub, h, hgr]
   by_cases h₁ : r < globStart k T
-  · refine ⟨.scan (ScanLoc.ofIdx (r % scanWidth k)), r / scanWidth k, ?_, hwire _ _ ?_⟩
-    · simp only [Loc.ColOK, globStart] at h₁ ⊢
-      rwa [Nat.div_lt_iff_lt_mul hsw]
-    · simp only [Loc.offset]
-      rw [ScanLoc.idx_ofIdx (Nat.mod_lt _ hsw), Nat.mul_comm]
-      exact Nat.div_add_mod r _
+  · refine ⟨.scan (ScanLoc.ofIdx (r % scanWidth k)), r / scanWidth k,
+      (Nat.div_lt_iff_lt_mul hsw).2 h₁, hwire _ _ ?_⟩
+    rw [Loc.offset, ScanLoc.idx_ofIdx (Nat.mod_lt _ hsw), Nat.mul_comm]
+    exact Nat.div_add_mod r _
   by_cases h₂ : r < gfStart k State T
   · refine ⟨.glob (GlobLoc.ofIdx (r - globStart k T)), 0, rfl, hwire _ _ ?_⟩
-    simp only [Loc.offset]
-    rw [GlobLoc.idx_ofIdx (by simp only [gfStart] at h₂; omega)]
-    omega
+    have hm : r - globStart k T < globWidth k State := by simp only [gfStart] at h₂; omega
+    simp only [Loc.offset, GlobLoc.idx_ofIdx hm]; omega
   by_cases h₃ : r < colStart k State T
   · set m := r - gfStart k State T
     refine ⟨.gf (GFeat.ofIdx (m / 16)) (gadgetB m) (gadgetJ m), 0, rfl, hwire _ _ ?_⟩
-    simp only [Loc.offset]
-    rw [GFeat.idx_ofIdx (by simp only [colStart, gfWidth] at h₃; omega), gadgetIdx_decode]
-    omega
+    have hm : m / 16 < Fintype.card (Option State) + 4 := by
+      simp only [colStart, gfWidth] at h₃; omega
+    simp only [Loc.offset, GFeat.idx_ofIdx hm, gadgetIdx_decode]; omega
   · set m := r - colStart k State T
     have hm : m < numCols T * colWidth k := by simp only [blockSize] at hr; omega
     refine ⟨.col (ColFeat.ofIdx (m % colWidth k / 16)) (gadgetB (m % colWidth k))
-      (gadgetJ (m % colWidth k)), m / colWidth k, ?_, hwire _ _ ?_⟩
-    · simp only [Loc.ColOK]
-      rwa [Nat.div_lt_iff_lt_mul hcw]
-    · simp only [Loc.offset]
-      have hmod := Nat.mod_lt m hcw
-      rw [ColFeat.idx_ofIdx (by simp only [colWidth] at hmod ⊢; omega), gadgetIdx_decode]
-      have := Nat.div_add_mod' m (colWidth k)
-      omega
+      (gadgetJ (m % colWidth k)), m / colWidth k, (Nat.div_lt_iff_lt_mul hcw).2 hm, hwire _ _ ?_⟩
+    simp only [Loc.offset]
+    have hmod := Nat.mod_lt m hcw
+    rw [ColFeat.idx_ofIdx (by simp only [colWidth] at hmod ⊢; omega), gadgetIdx_decode]
+    have := Nat.div_add_mod' m (colWidth k)
+    omega
 
 end Cslib.Circuits.Boolean.Tableau

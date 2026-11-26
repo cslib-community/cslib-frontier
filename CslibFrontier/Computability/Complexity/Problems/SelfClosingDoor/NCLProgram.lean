@@ -143,9 +143,8 @@ private theorem local_check {a : Vertex ℕ} (ha : a.ports.length = 3)
   simp [localVertex, hp, Vertex.checkSat, Vertex.Sat, Vertex.inflow, Port.In, ← h0, ← h1, ← h2]
 
 private theorem set_read (s : List Bool) (i : ℕ) (b : Bool) (hi : i < s.length)
-    (hb : s.getD i false = b) : s.set i b = s := by
-  rw [← hb, List.getD_eq_getElem _ _ hi]
-  exact List.set_getElem_self hi
+    (hb : s.getD i false = b) : s.set i b = s :=
+  (List.getD_eq_getElem _ _ hi ▸ hb) ▸ List.set_getElem_self hi
 
 private theorem test_step {p : Program} {a b r : ℕ} {v : Bool} {s : List Bool}
     (hi : test a b r v ∈ p.instructions) (hs : s.length = p.initial.length)
@@ -235,9 +234,8 @@ private theorem good_accept {x : Input} {s : State} (hg : Good x s)
   exact hm ▸ hr
 
 private theorem vertex_mem {x : Input} {v : ℕ} (hv : v < x.graph.vertices.length) :
-    vertex x v ∈ x.graph.vertices := by
-  rw [vertex, List.getD_eq_getElem _ _ hv]
-  exact List.getElem_mem _
+    vertex x v ∈ x.graph.vertices :=
+  show x.graph.vertices.getD v _ ∈ _ from (List.getD_eq_getElem _ _ hv).symm ▸ List.getElem_mem _
 
 private theorem vertex_of_zipIdx {x : Input} {a : Vertex ℕ} {v : ℕ}
     (ha : (a, v) ∈ x.graph.vertices.zipIdx) :
@@ -314,8 +312,7 @@ private theorem branch_good {x : Input} (hx : x.graph.Valid) {v k p : ℕ}
 private theorem set_flip {s : List Bool} {e : ℕ} {b : Bool}
     (he : e < s.length) (hb : s.getD e false = b) :
     s.set e (!b) = s.modify e Bool.not := by
-  have hget : s.get ⟨e, he⟩ = b := (List.getD_eq_get s false ⟨e, he⟩).symm.trans hb
-  rw [List.modify_eq_set_get Bool.not he, hget]
+  rw [List.modify_eq_set_get Bool.not he, (List.getD_eq_get s false ⟨e, he⟩).symm.trans hb]
 
 private theorem flip_good {x : Input} {e : ℕ} {b : Bool}
     (he : e < x.initial.length) {s t : State} (hg : Good x s)
@@ -481,10 +478,9 @@ private theorem raw_complete {x : Input} (hx : x.graph.Valid)
   exact ⟨⟨1, x.target⟩, hrun.trans (run_target (ht.trans hlen.symm)), rfl⟩
 
 private theorem reject_not_accepts : ¬ reject.Accepts := by
-  rintro ⟨t, hrun, ht⟩
-  cases hrun with
-  | refl => simp [reject, Program.initialState] at ht
-  | tail _ hm => simp [Program.Step, reject] at hm
+  rintro ⟨_, _ | ⟨_, hm⟩, ht⟩
+  · simp [reject, Program.initialState] at ht
+  · simp [Program.Step, reject] at hm
 
 /-- The compiled finite register program accepts exactly the valid NCL source instances. -/
 theorem compile_accepts_iff (x : AndOrNCL.Instance) :
@@ -563,8 +559,7 @@ private theorem branchInstruction_polyTime (k p : ℕ) :
       encEmission encInstruction := by
   have hi : ComputableInPolyTime (fun q : Input × (Vertex ℕ × ℕ) => q.2.2)
       encEmission encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  have hp := (port_polyTime p).comp (by fun_prop : ComputableInPolyTime
-    (fun q : Input × (Vertex ℕ × ℕ) => q.2.1) encEmission (encVertex encNat))
+  have hp := port_polyTime p
   unfold branchInstruction
   split_ifs <;> fun_prop
 

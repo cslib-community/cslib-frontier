@@ -240,8 +240,7 @@ private theorem bitQueryPerm_simonPerm_apply (E : Fin N ≃ (Fin n → Bool) × 
       (i₀, false, ⟨xs, simonG E X xs⟩) := by
   rw [bitQueryPerm_simonPerm, simonSigma, dite_eq_right (lt_irrefl _), one_mul,
     simonAcc_apply _ _ _ le_rfl]
-  refine Prod.ext rfl (Prod.ext rfl (SimonWork.ext rfl (funext fun k => ?_)))
-  simp
+  exact Prod.ext rfl (Prod.ext rfl (SimonWork.ext rfl (funext fun _ => by simp)))
 
 private theorem home_iff {P : Equiv.Perm (Fin N × Bool × SimonWork m n)} {i₀ : Fin N}
     {G : (Fin m × Fin n → Bool) → Fin m × Fin n → Bool}
@@ -260,8 +259,7 @@ private theorem home_iff {P : Equiv.Perm (Fin N × Bool × SimonWork m n)} {i₀
     simp [← hP]
 
 private theorem simonEquiv_snd (r : Fin N × Bool × SimonWork m n) :
-    (simonEquiv r).2 = (r.1, r.2.1, r.2.2.ys) := by
-  obtain ⟨_, _, _⟩ := r
+    (simonEquiv r).2 = (r.1, r.2.1, r.2.2.ys) :=
   rfl
 
 /-- **The final state of Simon's algorithm**: the amplitude of `|i₀, 0, z, y⟩` is
@@ -358,16 +356,13 @@ theorem measureProb_simonAlg_of_ne_zero (E : Fin N ≃ (Fin n → Bool) × Fin n
     by_contra h
     push Not at h
     exact hp (mem_simonAccept.mpr ⟨s, hs, fun r => by simpa using h r⟩)
-  rw [run_simonAlg_apply, sum_signVal_eq_zero hX hr]
-  simp
+  simp [run_simonAlg_apply, sum_signVal_eq_zero hX hr]
 
 private theorem simonG_injective {E : Fin N ≃ (Fin n → Bool) × Fin n} {X : Fin N → Bool}
-    (hf : Function.Injective (simonFun E X)) : Function.Injective (simonG (m := m) E X) := by
-  intro a b h
-  funext k
-  have hrow : Function.curry a k.1 = Function.curry b k.1 :=
-    hf (funext fun j => congrFun h (k.1, j))
-  exact congrFun hrow k.2
+    (hf : Function.Injective (simonFun E X)) : Function.Injective (simonG (m := m) E X) :=
+  fun a b h => funext fun k =>
+    congrFun (hf (a₁ := Function.curry a k.1) (a₂ := Function.curry b k.1)
+      (funext fun j => congrFun h (k.1, j))) k.2
 
 /-- Few row matrices have a nonzero kernel vector: at most `(2^n - 1) 2^{nm} / 2^m`. -/
 private theorem card_kernel_rows_mul_le :
@@ -444,8 +439,7 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
               gcongr
               exact (norm_sq_sum_signVal_le _ w.xs).trans h2
           _ = c ^ 4 * K * #{a | simonG E X a = w.ys} := by ring
-      · push Not at hs
-        obtain ⟨r₀, hr⟩ := hs
+      · obtain ⟨r₀, hr⟩ : ∃ r, Function.curry w.xs r ⬝ᵥ s ≠ false := not_forall.mp hs
         rw [ite_eq_left h, sum_signVal_eq_zero hX (r₀ := r₀) (by simpa using hr), mul_zero,
           norm_zero, sq, mul_zero]
         exact hBnn (i, b, w)
@@ -459,11 +453,11 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
     exact_mod_cast this.symm
   have hsum : ∑ p, B p = c ^ 4 * K * (#Z' * 2 ^ (m * n)) := by
     rw [Fintype.sum_prod_type, Fintype.sum_eq_single i₀ fun i hi =>
-      sum_eq_zero fun ⟨_, _⟩ _ => by simp [hBdef, hi]]
-    rw [Fintype.sum_prod_type, Fintype.sum_eq_single false fun b hb =>
-      sum_eq_zero fun _ _ => by simp [hBdef, hb]]
-    rw [Fintype.sum_equiv SimonWork.equiv _ (fun q => B (i₀, false, ⟨q.1, q.2⟩))
-      (fun ⟨_, _⟩ => rfl), Fintype.sum_prod_type]
+        sum_eq_zero fun ⟨_, _⟩ _ => by simp [hBdef, hi],
+      Fintype.sum_prod_type, Fintype.sum_eq_single false fun b hb =>
+        sum_eq_zero fun _ _ => by simp [hBdef, hb],
+      Fintype.sum_equiv SimonWork.equiv _ (fun q => B (i₀, false, ⟨q.1, q.2⟩))
+        (fun ⟨_, _⟩ => rfl), Fintype.sum_prod_type]
     have hrow : ∀ zs : Fin m × Fin n → Bool, ∑ ys, B (i₀, false, ⟨zs, ys⟩) =
         if zs ∈ Z' then c ^ 4 * K * 2 ^ (m * n) else 0 := by
       intro zs
@@ -508,9 +502,7 @@ theorem measureProb_simonAlg_le_of_injective (E : Fin N ≃ (Fin n → Bool) × 
   have hreal : (#A : ℝ) * 2 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
     simpa [Nat.cast_sub Nat.one_le_two_pow] using
       (Nat.cast_le (α := ℝ)).2 (card_kernel_rows_mul_le (m := m) (n := n))
-  refine h.trans ?_
-  rw [div_le_div_iff₀ (by positivity) (by positivity)]
-  linarith
+  exact h.trans ((div_le_div_iff₀ (by positivity) (by positivity)).2 (by linarith))
 
 /-- With `n + 2` rounds, Simon's algorithm accepts an injective `f` with probability below `1/4`. -/
 private theorem measureProb_simonAlg_lt_of_injective (E : Fin N ≃ (Fin n → Bool) × Fin n)
@@ -573,10 +565,8 @@ theorem simon_separation_inputLength (E : Fin N ≃ (Fin n → Bool) × Fin n) (
       N ≤ Nat.log 2 N * μ.depth ^ 2 := by
   have hN : N = 2 ^ n * n := by
     simpa [Fintype.card_prod, Fintype.card_fun] using Fintype.card_congr E
-  have hlog : n ≤ Nat.log 2 N := by
-    refine Nat.le_log_of_pow_le (by norm_num) ?_
-    rw [hN]
-    exact Nat.le_mul_of_pos_right _ hn
+  have hlog : n ≤ Nat.log 2 N :=
+    Nat.le_log_of_pow_le (by norm_num) (hN ▸ Nat.le_mul_of_pos_right _ hn)
   refine ⟨(simonAlg_spec E i₀).2, ?_, fun μ F hF hμ => ?_⟩
   · calc (n + 2) * n ≤ (3 * n) * n := Nat.mul_le_mul_right _ (by omega)
       _ = 3 * n ^ 2 := by ring

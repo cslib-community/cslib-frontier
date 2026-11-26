@@ -119,9 +119,8 @@ theorem minWidth_le_numVars (φ : DNF V) : minWidth φ ≤ CNF.numVars φ :=
 
 /-- The minimum width is at most the width of every consistent term. -/
 theorem minWidth_le_width {φ : DNF V} {t : Term V} (ht : t ∈ φ) (hc : t.consistent = true) :
-    minWidth φ ≤ t.width := by
-  refine countP_range_le_of_lt _ (fun k hk => ?_) _
-  simpa [hc] using (List.all_eq_true.1 hk) t ht
+    minWidth φ ≤ t.width :=
+  countP_range_le_of_lt _ (fun _ hk => by simpa [hc] using (List.all_eq_true.1 hk) t ht) _
 
 /-- Below the number of variables, the minimum width is attained by a consistent term. -/
 theorem exists_width_le_minWidth {φ : DNF V} (h : minWidth φ < CNF.numVars φ) :
@@ -213,8 +212,8 @@ theorem card_filter_firstHit (φ : DNF V) {i : ℕ} (hi : i < φ.length) :
     (Finset.univ.filter fun x : Fin (CNF.numVars φ) → Bool =>
         firstHit φ i (List.ofFn x) = true).card =
       2 ^ (φ.getD i []).width * firstCount φ i := by
-  have hmem : φ.getD i [] ∈ φ := by simp [List.getD_eq_getElem?_getD, hi]
-  have h := card_filter_force (CNF.nodup_distinctVars φ) (DNF.mem_distinctVars_of_mem hmem)
+  have h := card_filter_force (CNF.nodup_distinctVars φ)
+    (DNF.mem_distinctVars_of_mem (by simp [List.getD_eq_getElem?_getD, hi] : φ.getD i [] ∈ φ))
     (fun σ => DNF.eval σ (φ.take i) = false)
   rw [CNF.length_distinctVars] at h
   simpa [firstCount, firstHit, forcedAssignment] using h
@@ -293,9 +292,9 @@ private theorem countTrue_relative_deviation (count : ℕ) (program : ProbComp B
 
 /-- A trial on a formula without models never accepts. -/
 theorem eval_trial_true_of_modelCount_eq_zero {φ : DNF V} (h : DNF.modelCount φ = 0) :
-    ProbComp.eval (trial φ) true = 0 := by
-  have h' := by simpa [h] using eval_trial_true_toReal φ
-  exact (ENNReal.toReal_eq_zero_iff _).1 h' |>.resolve_right (PMF.apply_ne_top _ _)
+    ProbComp.eval (trial φ) true = 0 :=
+  ((ENNReal.toReal_eq_zero_iff _).1 (by simpa [h] using eval_trial_true_toReal φ)).resolve_right
+    (PMF.apply_ne_top _ _)
 
 /-- On a formula without models every trial rejects, so the success count is `0` with
 probability one. -/
@@ -304,8 +303,8 @@ private theorem eval_countTrue_zero {φ : DNF V} (h : DNF.modelCount φ = 0) (co
     (ProbComp.eval (OracleComp.countTrue count (trial φ))).toOuterMeasure s = 1 := by
   rw [PMF.toOuterMeasure_apply_eq_one_iff]
   intro successes hsucc
-  rw [ProbComp.eval_countTrue, PMF.mem_support_map_iff] at hsucc
-  obtain ⟨bits, hbits, rfl⟩ := hsucc
+  obtain ⟨bits, hbits, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1
+    (ProbComp.eval_countTrue .. ▸ hsucc)
   have hzero : ∀ i, bits i = false := fun i => Bool.eq_false_iff.2 fun hb =>
     (PMF.mem_support_iff _ _).1 ((Probability.PMF.mem_support_pi_iff _ _).1 hbits i)
       (hb ▸ eval_trial_true_of_modelCount_eq_zero h)
@@ -336,21 +335,17 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
       (by simp [ApproxWithin, hc0, hK]), ENNReal.toReal_one]
     linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2) t]
   -- Some models: the multiplicative Chernoff bound with `δ = 1 / p`.
-  have hNc : N ≤ c := two_pow_sub_minWidth_le_modelCount hcpos
   have hNpos : (0 : ℝ) < N := by rw [hN_def]; positivity
-  have hcR : (0 : ℝ) < c := by exact_mod_cast hcpos
   have hKR : (0 : ℝ) < K := by exact_mod_cast hK
   have hpR : (0 : ℝ) < p := by exact_mod_cast hp
   have hDR : (0 : ℝ) < dyadicSize φ.length := by exact_mod_cast dyadicSize_pos _
-  have hNcR : (N : ℝ) ≤ c := by exact_mod_cast hNc
+  have hNcR : (N : ℝ) ≤ c := Nat.cast_le.mpr (two_pow_sub_minWidth_le_modelCount hcpos)
   set μ := (trialBudget φ p t : ℝ) * (ProbComp.eval (trial φ) true).toReal with hμ_def
   have hμ : μ = K * c / N := by
     rw [hμ_def, eval_trial_true_toReal, trialBudget, ← hc_def, hN_def, hK_def]
-    push_cast
-    field_simp
-  have hδ₁ : (1 : ℝ) / p ≤ 1 := (div_le_one hpR).2 (by exact_mod_cast hp)
+    push_cast; field_simp
   have hchern := countTrue_relative_deviation (trialBudget φ p t) (trial φ)
-    (δ := 1 / p) (by positivity) hδ₁
+    (δ := 1 / p) (by positivity) ((div_le_one hpR).2 (by exact_mod_cast hp))
   rw [← hμ_def] at hchern
   set good := (fun successes => (successes * N, K)) ⁻¹' {out | ApproxWithin c p out.1 out.2}
   have hsub : goodᶜ ⊆ {successes : ℕ | 1 / p * μ ≤ |(successes : ℝ) - μ|} := by
@@ -377,10 +372,8 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
       rw [div_pow, one_pow, hdiv]
       nlinarith [(one_le_div hNpos).2 hNcR]
     have hpow : (2 : ℝ) ^ (t + 1) ≤ Real.exp (t + 1) := by
-      have ht1 : ((t : ℝ) + 1) = ((t + 1 : ℕ) : ℝ) := by push_cast; ring
-      rw [ht1, ← Real.exp_one_pow]
-      exact pow_le_pow_left₀ (by norm_num)
-        (by linarith [Real.add_one_le_exp (1 : ℝ)]) _
+      rw [← Nat.cast_add_one, ← Real.exp_one_pow]
+      exact pow_le_pow_left₀ zero_le_two (by linarith [Real.add_one_le_exp (1 : ℝ)]) _
     calc 2 * Real.exp (-((1 / p) ^ 2 * μ / 3)) ≤ 2 * Real.exp (-(t + 1)) := by
           gcongr
       _ = 2 / Real.exp (t + 1) := by rw [Real.exp_neg, div_eq_mul_inv]

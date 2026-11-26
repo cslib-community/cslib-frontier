@@ -166,8 +166,7 @@ private theorem toList_outClass (word : List Bool) :
 
 private theorem outClass_append (word : List Bool) (symbol : Option Bool) :
     outClass ((outClass word).toList ++ symbol.toList) = outClass (word ++ symbol.toList) := by
-  rw [toList_outClass, outClass, MultiTapeNTM.outputClass_append]
-  rfl
+  rw [toList_outClass, outClass, MultiTapeNTM.outputClass_append]; rfl
 
 private theorem outClass_eq_some_true {word : List Bool} :
     outClass word = some true ↔ word = [true] := by
@@ -390,11 +389,8 @@ private theorem eval_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (out : L
           out) })
   | 0, pos, hpos, _ => by
     obtain rfl : pos = 0 := Fin.ext hpos
-    have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) (0 : Fin (input.length + 2))
-        out).inputSymbol = none := by
-      simp [Cfg.inputSymbol, ctrl]
-    rw [eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit 0 out,
-      hsym, moveInputPos_zero_one]
+    rw [eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit 0 out]
+    simp [Cfg.inputSymbol, ctrl, moveInputPos_zero_one]
   | q + 1, pos, hpos, hq => by
     have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol =
         some input[q] :=
@@ -578,10 +574,7 @@ private theorem reachable_ctrl_step (bit : Bool) (coins : List Bool) (W : Fin k�
     rw [step_cont_rewind]
     by_cases h0 : pos = 0
     · subst h0
-      have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
-          (some true) (0 : Fin (input.length + 2)) []).inputSymbol = none := by
-        simp [Cfg.inputSymbol, ctrl]
-      rw [hsym, moveInputPos_zero_one]
+      simp only [Cfg.inputSymbol, ctrl, Fin.val_zero, moveInputPos_zero_one]
       exact .inr (.inr (.inr ⟨coins, W, F, [], rfl⟩))
     · have hp := hpos rfl
       have hne : pos.val ≠ 0 := fun h => h0 (Fin.ext h)

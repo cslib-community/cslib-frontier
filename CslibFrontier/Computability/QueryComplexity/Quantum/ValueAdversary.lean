@@ -123,11 +123,10 @@ theorem sum_sq_norm_querySlice (ψ : ValueState ι V W) :
 @[simp] theorem norm_querySlice_valueOracle
     (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
     (x : ι → α) (ψ : ValueState ι V W) (i : ι) :
-    ‖querySlice i (valueOracle step x ψ)‖ = ‖querySlice i ψ‖ := by
-  have hsq : ‖querySlice i (valueOracle step x ψ)‖ ^ 2 = ‖querySlice i ψ‖ ^ 2 := by
-    rw [norm_querySlice_sq_eq_sum_fiberSlice, norm_querySlice_sq_eq_sum_fiberSlice]
-    exact sum_congr rfl fun w _ => by rw [fiberSlice_valueOracle, LinearIsometryEquiv.norm_map]
-  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).1 hsq
+    ‖querySlice i (valueOracle step x ψ)‖ = ‖querySlice i ψ‖ :=
+  (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).1 <| by
+    simp only [norm_querySlice_sq_eq_sum_fiberSlice, fiberSlice_valueOracle,
+      LinearIsometryEquiv.norm_map]
 
 /-- When two inputs `x` and `y` agree at `i`, `valueOracle` preserves the `i`-slice overlap. -/
 theorem inner_querySlice_valueOracle_of_eq
@@ -135,9 +134,8 @@ theorem inner_querySlice_valueOracle_of_eq
     {x y : ι → α} {i : ι} (hxy : x i = y i) (ψ φ : ValueState ι V W) :
     inner ℂ (querySlice i (valueOracle step x ψ)) (querySlice i (valueOracle step y φ)) =
       inner ℂ (querySlice i ψ) (querySlice i φ) := by
-  rw [inner_querySlice_eq_sum_fiberSlice, inner_querySlice_eq_sum_fiberSlice]
-  refine sum_congr rfl fun w _ => ?_
-  rw [fiberSlice_valueOracle, fiberSlice_valueOracle, hxy, LinearIsometryEquiv.inner_map_map]
+  simp only [inner_querySlice_eq_sum_fiberSlice, fiberSlice_valueOracle, hxy,
+    LinearIsometryEquiv.inner_map_map]
 
 /-- **Per-query overlap loss bound for `valueOracle`**: one value query lowers `‖inner ℂ ψ φ‖` by at
 most `2 ∑_{i : x i ≠ y i} ‖querySlice i ψ‖ * ‖querySlice i φ‖`. -/
@@ -158,12 +156,12 @@ theorem norm_inner_valueOracle_valueOracle_ge [DecidableEq α]
       2 * ∑ i with x i ≠ y i, ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
     rw [hdiff, mul_sum]
     refine (norm_sum_le _ _).trans (sum_le_sum fun i _ => ?_)
-    have h₁ := norm_inner_le_norm (𝕜 := ℂ) (querySlice i ψ) (querySlice i φ)
     have h₂ := norm_inner_le_norm (𝕜 := ℂ) (querySlice i (valueOracle step x ψ))
       (querySlice i (valueOracle step y φ))
     rw [norm_querySlice_valueOracle, norm_querySlice_valueOracle] at h₂
     linarith [norm_sub_le (inner ℂ (querySlice i ψ) (querySlice i φ))
-      (inner ℂ (querySlice i (valueOracle step x ψ)) (querySlice i (valueOracle step y φ)))]
+      (inner ℂ (querySlice i (valueOracle step x ψ)) (querySlice i (valueOracle step y φ))),
+      norm_inner_le_norm (𝕜 := ℂ) (querySlice i ψ) (querySlice i φ)]
   linarith [norm_sub_norm_le (inner ℂ ψ φ)
     (inner ℂ (valueOracle step x ψ) (valueOracle step y φ))]
 
@@ -294,20 +292,18 @@ theorem one_sub_mul_sum_le_of_sq_le_value [DecidableEq α]
     (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β_b y) :
     (1 - δ) * ∑ p ∈ R, γ p ≤
       T * (∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y) := by
-  have htelT := valueWeightedProgress_zero_sub_le step U hψ₀ R γ a b α_b β_b hγ ha hb hγsq hα hβ T
   have hend : valueWeightedProgress step U ψ₀ R γ T ≤ δ * ∑ p ∈ R, γ p := by
     rw [valueWeightedProgress, mul_sum]
     exact sum_le_sum fun p hp =>
       (mul_le_mul_of_nonneg_left (hδ p hp) (hγ p hp)).trans_eq (mul_comm _ _)
-  rw [valueWeightedProgress_zero step U hψ₀ R γ] at htelT
-  linarith
+  linarith [valueWeightedProgress_zero_sub_le step U hψ₀ R γ a b α_b β_b hγ ha hb hγsq hα hβ T,
+    valueWeightedProgress_zero step U hψ₀ R γ]
 
 private theorem sum_le_of_eq_div_card {γ : Type*} {S : Finset γ} {C : ℝ} (hC : 0 ≤ C)
     {f : γ → ℝ} (hf : ∀ p ∈ S, f p = C / (#S : ℝ)) : ∑ p ∈ S, f p ≤ C := by
   rw [sum_congr rfl hf, sum_const, nsmul_eq_mul]
-  by_cases h0 : #S = 0
-  · simp [h0, hC]
-  · exact (mul_div_cancel₀ _ (Nat.cast_ne_zero.2 h0)).le
+  rcases eq_or_ne #S 0 with h0 | h0
+  exacts [by simp [h0, hC], (mul_div_cancel₀ _ (Nat.cast_ne_zero.2 h0)).le]
 
 /-- **Ambainis's adversary bound for non-Boolean input alphabets** ([Ambainis2002], Section 6.1,
 Theorem 6, overlap form): let `R` be a nonempty set of pairs of inputs `x, y : ι → α` on which a

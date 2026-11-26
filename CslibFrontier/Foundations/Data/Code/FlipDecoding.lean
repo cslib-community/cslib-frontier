@@ -119,12 +119,10 @@ theorem exists_isFlippable {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c)
     exact hcU
   obtain ⟨i, -, hi⟩ := exists_lt_of_sum_lt hlt
   refine ⟨i, ?_⟩
-  have hUi : #(U.bipartiteAbove G i) ≤ #{j | G i j ∧ syndrome G y j = true} := by
-    refine card_le_card fun j hj => ?_
-    rw [mem_bipartiteAbove] at hj
-    have := uniqueNeighbors_subset_unsat hw hj.1
-    simp only [unsat, mem_filter, mem_univ, true_and] at this ⊢
-    exact ⟨hj.2, this⟩
+  have hUi : #(U.bipartiteAbove G i) ≤ #{j | G i j ∧ syndrome G y j = true} :=
+    card_le_card fun j hj => by
+      rw [mem_bipartiteAbove] at hj
+      exact mem_filter.2 ⟨mem_univ _, hj.2, (mem_filter.1 (uniqueNeighbors_subset_unsat hw hj.1)).2⟩
   have hdeg : #{j | G i j ∧ syndrome G y j = false} + #{j | G i j ∧ syndrome G y j = true} ≤ c := by
     refine le_trans (le_of_eq ?_) (hG i)
     rw [← card_filter_add_card_filter_not (s := univ.bipartiteAbove G i)
@@ -148,10 +146,8 @@ def firstFlippable (l : List ι) (x : ι → Bool) : Option ι :=
 theorem isFlipRule_firstFlippable {l : List ι} (hl : ∀ i, i ∈ l) :
     IsFlipRule G (firstFlippable G l) := by
   intro x
-  refine ⟨fun i hi => ?_, fun hn i hi => ?_⟩
-  · simpa using List.find?_some hi
-  · rw [firstFlippable, List.find?_eq_none] at hn
-    exact hn i (hl i) (by simpa using hi)
+  exact ⟨fun i hi => by simpa using List.find?_some hi,
+    fun hn i hi => (List.find?_eq_none.1 hn) i (hl i) (by simpa using hi)⟩
 
 variable [DecidableEq ι]
 
@@ -174,10 +170,8 @@ theorem _root_.Cslib.BitString.flipOn_singleton_eq_add_single (x : ι → Bool) 
     flipOn {i} x = x + Pi.single i true := by
   rw [flipOn_eq_add]
   congr 1 with l : 1
-  by_cases h : l = i
-  · subst h; simp
-  · rw [Pi.single_eq_of_ne h]
-    exact decide_eq_false (by simpa using h)
+  have h0 : (0 : Bool) = false := rfl
+  by_cases h : l = i <;> simp [h, h0]
 
 omit [Fintype κ] in
 /-- Flipping variable `i` toggles exactly the checks adjacent to `i`. -/
@@ -193,11 +187,9 @@ theorem card_unsat_flipOn_add (x : ι → Bool) (i : ι) :
     #(unsat G (flipOn {i} x)) + #{j | G i j ∧ syndrome G x j = true} =
       #(unsat G x) + #{j | G i j ∧ syndrome G x j = false} := by
   have key : ∀ y : ι → Bool, #(unsat G y) =
-      #{j | ¬ G i j ∧ syndrome G y j = true} + #{j | G i j ∧ syndrome G y j = true} := by
-    intro y
+      #{j | ¬ G i j ∧ syndrome G y j = true} + #{j | G i j ∧ syndrome G y j = true} := fun y => by
     rw [unsat, ← card_filter_add_card_filter_not (s := filter _ univ) (G i ·), filter_filter,
-      filter_filter]
-    rw [add_comm]
+      filter_filter, add_comm]
     congr 2 <;> ext j <;> simp only [mem_filter, mem_univ, true_and] <;> tauto
   rw [key x, key (flipOn {i} x)]
   have h1 : #{j | ¬ G i j ∧ syndrome G (flipOn {i} x) j = true} =
@@ -265,10 +257,9 @@ theorem hammingDist_lt_and_card_unsat_le {c k : ℕ} {α : ℝ} (hG : IsLeftBoun
     by_contra! h
     have hdk : hammingDist (flipOn {i} y) w = k := by omega
     have h1 := hE.le_card_uniqueNeighbors hG hdk.le
-    have h2 := card_le_card (uniqueNeighbors_subset_unsat (y := flipOn {i} y) hw)
-    have h3 := card_unsat_le hG (y := x) hw
     have h4 : (#(uniqueNeighbors G {l | flipOn {i} y l ≠ w l}) : ℝ) ≤ c * hammingDist x w := by
-      exact_mod_cast h2.trans (hz.trans h3)
+      exact_mod_cast (card_le_card (uniqueNeighbors_subset_unsat (y := flipOn {i} y) hw)).trans
+        (hz.trans (card_unsat_le hG (y := x) hw))
     change (2 * α - c) * (hammingDist (flipOn {i} y) w : ℝ) ≤ _ at h1
     rw [hdk] at h1
     linarith

@@ -67,10 +67,7 @@ namespace Cslib.Complexity
 private theorem eq_of_forall_take_drop {P Q : List Bool}
     (h : ∀ j ≤ Q.length, (P.drop j).take 1 = (Q.drop j).take 1) : P = Q := by
   induction Q generalizing P with
-  | nil =>
-    cases P with
-    | nil => rfl
-    | cons a P => simpa using h 0 le_rfl
+  | nil => simpa [List.take_eq_nil_iff] using h 0 le_rfl
   | cons b Q ih =>
     cases P with
     | nil => simpa using h 0 (Nat.zero_le _)
@@ -81,10 +78,9 @@ private theorem eq_of_forall_take_drop {P Q : List Bool}
 /-- A framed word followed by `true` that is a prefix of another framed word followed by `true`
 is that word. -/
 private theorem eq_of_frame_prefix {w X : List Bool}
-    (h : frame w ++ [true] <+: frame X ++ [true]) : w = X := by
-  obtain ⟨r, hr⟩ := h
-  rw [List.append_assoc] at hr
-  exact (frame_append_inj hr).1
+    (h : frame w ++ [true] <+: frame X ++ [true]) : w = X :=
+  let ⟨_, hr⟩ := h
+  (frame_append_inj (List.append_assoc _ _ _ ▸ hr)).1
 
 /-! ### Counting leading `true`s -/
 
@@ -198,8 +194,7 @@ private theorem add_two_mul_length_le_of_drop_frames {E : List Bool} {i : ℕ} {
   | zero =>
     have hE : E ≠ [] := by rintro rfl; simp at h
     rw [List.drop_zero, frames_of_ne_nil hE, List.cons.injEq] at h
-    have := length_unframe_add_dropFrame_le E
-    rw [h.1] at this
+    have := h.1 ▸ length_unframe_add_dropFrame_le E
     omega
   | succ i ih =>
     have hE : E ≠ [] := by rintro rfl; simp at h
@@ -458,10 +453,9 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
     set E := unframe (dropFrame u) with hE
     set step := fun s => next (P a, (s, bw)) with hstep
     have hEL : 2 * E.length ≤ L := by
-      have h₁ := length_unframe_add_dropFrame_le (dropFrame u)
-      have h₂ := length_dropFrame_le u
-      rw [← hE] at h₁
-      omega
+      have := length_unframe_add_dropFrame_le (dropFrame u)
+      have := length_dropFrame_le u
+      dsimp only [E]; omega
     have hchain : ∀ k ≤ (frames E).length,
         (eS s₀ :: frames E).drop k = eS (step^[k] s₀) :: (frames E).drop k := by
       intro k hk
