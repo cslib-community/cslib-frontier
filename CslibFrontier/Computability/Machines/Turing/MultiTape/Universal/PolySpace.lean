@@ -224,10 +224,9 @@ theorem budgetStep_iterate_eq_of_le {t T : ℕ}
   | zero => rfl
   | succ k ih =>
     rw [← Nat.add_assoc, Function.iterate_succ_apply', ih]
-    refine budgetStep_of_state_eq_none d x b (Option.isNone_iff_eq_none.mp hhalt) ?_
-    obtain ⟨j, -, heq, -⟩ := budgetStep_iterate d x b t
-    rw [heq]
-    exact List.length_take_le _ _
+    obtain ⟨_, -, heq, -⟩ := budgetStep_iterate d x b t
+    exact budgetStep_of_state_eq_none d x b (Option.isNone_iff_eq_none.mp hhalt)
+      (by simpa only [heq] using List.length_take_le _ _)
 
 /-- Once `budgetedUniversal (d, x, t, b)` reports halting, increasing the step count `t ≤ T` leaves
 its result unchanged. -/
@@ -391,24 +390,19 @@ theorem visited_eq_Icc_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
   | zero => simp [boundsAt, initBounds, hi, visited, headAt_zero]
   | succ j ih =>
     obtain ⟨hvis, hlo, hhi⟩ := ih
-    have hget : (boundsAt d x (j + 1)).getD i (0, 0) =
-        (max ((boundsAt d x j).getD i (0, 0)).1 (-(headAt d x (j + 1) i)).toNat,
-          max ((boundsAt d x j).getD i (0, 0)).2 (headAt d x (j + 1) i).toNat) := by
-      rw [boundsAt_succ, getD_updateBounds _ _ ((length_run_workTapes d x (j + 1)).symm ▸ hi)
-        ((length_boundsAt d x j).symm ▸ hi), headAt]
-    obtain ⟨a, ha⟩ := step_tape d x (run d x j) i
-    have hstep : headAt d x (j + 1) i = headAt d x j i - 1 ∨
-        headAt d x (j + 1) i = headAt d x j i ∨
-        headAt d x (j + 1) i = headAt d x j i + 1 := by
-      simp only [headAt, run_succ, ha]
-      exact head_apply _ a
     set l := ((boundsAt d x j).getD i (0, 0)).1
     set r := ((boundsAt d x j).getD i (0, 0)).2
+    have hget : (boundsAt d x (j + 1)).getD i (0, 0) =
+        (max l (-(headAt d x (j + 1) i)).toNat, max r (headAt d x (j + 1) i).toNat) := by
+      rw [boundsAt_succ, getD_updateBounds _ _ ((length_run_workTapes d x (j + 1)).symm ▸ hi)
+        ((length_boundsAt d x j).symm ▸ hi), headAt]
     set h' := headAt d x (j + 1) i
-    have hl' : -((max l (-h').toNat : ℕ) : ℤ) = min (-(l : ℤ)) h' := by omega
-    have hr' : ((max r h'.toNat : ℕ) : ℤ) = max (r : ℤ) h' := by omega
-    rw [hget, visited_succ, hvis, insert_Icc_of_step ⟨hlo, hhi⟩ hstep, hl', hr']
-    exact ⟨rfl, by omega, by omega⟩
+    obtain ⟨a, ha⟩ := step_tape d x (run d x j) i
+    have hstep : h' = headAt d x j i - 1 ∨ h' = headAt d x j i ∨ h' = headAt d x j i + 1 := by
+      simpa only [h', headAt, run_succ, ha] using head_apply _ a
+    rw [hget, visited_succ, hvis, insert_Icc_of_step ⟨hlo, hhi⟩ hstep]
+    refine ⟨?_, by omega, by omega⟩
+    congr 1 <;> omega
 
 theorem card_visited_eq_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
     (visited d x j i).card =
@@ -664,11 +658,9 @@ private lemma le_of_mem_boundsAt {j s : ℕ} (hsp : j = 0 ∨ simSpace d x j ≤
     {p : ℕ × ℕ} (hp : p ∈ boundsAt d x j) : p.1 ≤ s ∧ p.2 ≤ s := by
   rcases hsp with rfl | hsp
   · simp [List.eq_of_mem_replicate hp]
-  · have hmem : p.1 + p.2 + 1 ∈ (boundsAt d x j).map (fun q => q.1 + q.2 + 1) :=
-      List.mem_map_of_mem hp
-    have hle : p.1 + p.2 + 1 ≤ s :=
-      (List.le_sum_of_mem hmem).trans
-        (by rw [← boundsSpace_eq_sum_map, boundsSpace_boundsAt]; exact hsp)
+  · have hle : p.1 + p.2 + 1 ≤ s :=
+      (List.le_sum_of_mem (List.mem_map_of_mem (f := fun q => q.1 + q.2 + 1) hp)).trans
+        (((boundsSpace_eq_sum_map _).symm.trans (boundsSpace_boundsAt d x j)).trans_le hsp)
     omega
 
 private lemma length_boundsAt_le {j s : ℕ} (hsp : j = 0 ∨ simSpace d x j ≤ s) :

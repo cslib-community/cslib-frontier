@@ -122,9 +122,7 @@ private theorem Dec.single {A : Finset (Fin k)} (hA : A ∈ bal S) {δ : ℕ} (h
     split_ifs with h
     · exact h.2 ▸ hq
     · exact .zero
-  · rw [sum_eq_single (⟨δ, hδ⟩ : Fin s) (fun b _ hb => sum_eq_zero fun A' _ => by simp [hb])
-      (by simp), sum_eq_single A (fun A' _ hA' => by simp [hA']) (fun h => absurd hA h)]
-    simp
+  · simp [ite_and, mul_ite, hA]
 
 /-- A decomposition on `S` times a polynomial on the rest of a larger set `S'`. -/
 private theorem Dec.mul {S' : Finset (Fin k)} (hS : S ⊆ S') {f q : MvPolynomial σ K}
@@ -137,15 +135,12 @@ private theorem Dec.mul {S' : Finset (Fin k)} (hS : S ⊆ S') {f q : MvPolynomia
   refine ⟨fun δ A => if A ∈ bal S then h δ A * q else 0, fun δ A _ => ?_, ?_⟩
   · dsimp only
     split_ifs with hA
-    · have hAS := (mem_bal.1 hA).1
-      rw [show S' \ A = S \ A ∪ S' \ S by
+    · have hSA : S' \ A = S \ A ∪ S' \ S := by
+        have := (mem_bal.1 hA).1
         ext i
         simp only [mem_union, mem_sdiff]
-        constructor
-        · exact fun ⟨h1, h2⟩ => (em (i ∈ S)).imp (fun h => ⟨h, h2⟩) fun h => ⟨h1, h⟩
-        · rintro (⟨h1, h2⟩ | ⟨h1, h2⟩)
-          · exact ⟨hS h1, h2⟩
-          · exact ⟨h1, fun h => h2 (hAS h)⟩]
+        grind
+      rw [hSA]
       exact (h1 δ A hA).mul hq (disjoint_left.2 fun i hi hi' =>
         (mem_sdiff.1 hi').2 (mem_sdiff.1 hi).1)
     · exact .zero
@@ -203,12 +198,10 @@ theorem exists_balanced_products_of_steps {s : ℕ} {l : ℕ → MvPolynomial σ
       smProj blk univ (l γ) =
         ∑ S ∈ balancedSets k, ∑ δ, g S δ * h S δ := by
   classical
-  obtain ⟨h, h1, h2⟩ := dec_gate blk hl hk γ hγ univ (by
-    rw [card_univ, Fintype.card_fin]
-    omega)
+  obtain ⟨h, h1, h2⟩ := dec_gate blk hl hk γ hγ univ (by simp; omega)
   have hbal : bal (univ : Finset (Fin k)) = balancedSets k := by
     ext S
-    simp [mem_bal, mem_balancedSets]
+    simp [mem_bal]
   refine ⟨fun S δ => smProj blk S (l δ), fun S δ => if S ∈ bal univ then h δ S else 0,
     fun S δ => isSetMultilinear_smProj blk S _, fun S δ => ?_, ?_⟩
   · dsimp only

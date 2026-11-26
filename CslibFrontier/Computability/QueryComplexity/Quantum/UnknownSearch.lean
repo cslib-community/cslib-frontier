@@ -149,11 +149,8 @@ theorem two_mul_sin_mul_sum_cos (α : ℝ) (m : ℕ) :
 private theorem sum_sin_sq_eq (θ : ℝ) (m : ℕ) :
     ∑ j ∈ range m, Real.sin ((2 * j + 1) * θ) ^ 2 =
       m / 2 - (∑ j ∈ range m, Real.cos ((2 * j + 1) * (2 * θ))) / 2 := by
-  have h : ∀ j : ℕ, Real.sin ((2 * j + 1) * θ) ^ 2 =
-      1 / 2 - Real.cos ((2 * j + 1) * (2 * θ)) / 2 := fun j => by
-    rw [Real.sin_sq_eq_half_sub]
-    ring_nf
-  simp only [h, sum_sub_distrib, sum_const, card_range, nsmul_eq_mul, ← sum_div]
+  simp only [Real.sin_sq_eq_half_sub, mul_left_comm (2 : ℝ) _ θ, sum_sub_distrib, sum_const,
+    card_range, nsmul_eq_mul, ← sum_div]
   ring
 
 /-- **The average success probability of a random number of iterations** [Boyer, Brassard, Høyer,
@@ -320,11 +317,10 @@ theorem randomGrover_search (hN : 0 < N) :
       ∀ x : Fin N → Bool, (∃ i, x i = true) → 1 / 4 ≤ ∑ i with x i = true,
         regProb (run (randomGrover N (Nat.sqrt N + 1)) (randomGroverInit N (Nat.sqrt N + 1)) x
           (Nat.sqrt N)) i :=
-  ⟨norm_randomGroverInit hN (Nat.succ_pos _), Real.nat_sqrt_le_real_sqrt, fun x hx => by
-    have := le_sum_regProb_run_randomGrover hN (m := Nat.sqrt N + 1) one_pos
-      (by rw [one_pow, one_mul]; exact_mod_cast (Nat.lt_succ_sqrt' N).le) x hx
-    norm_num at this ⊢
-    exact this⟩
+  ⟨norm_randomGroverInit hN (Nat.succ_pos _), Real.nat_sqrt_le_real_sqrt, fun x hx =>
+    (by norm_num : (1 / 4 : ℝ) ≤ 1 / 2 - 1 / (4 * 1)).trans <|
+      le_sum_regProb_run_randomGrover hN (m := Nat.sqrt N + 1) one_pos
+        (by simpa only [one_pow, one_mul] using mod_cast (Nat.lt_succ_sqrt' N).le) x hx⟩
 
 /-! ### Deciding `OR_N` with error `1/3` -/
 
@@ -428,7 +424,8 @@ theorem abs_measureProb_run_orSearch_sub_le (hN : 0 < N) (x : Fin N → Bool) :
     constructor <;> linarith [sq_nonneg (1 - a)]
   · -- `OR_N(x) = 0`: there is no marked item, so `a = 0`.
     rw [show a = 0 from sum_eq_zero fun i hi => absurd ⟨i, (mem_filter.mp hi).2⟩ hx]
-    simp only [hx, decide_false, bitVal_false]; norm_num
+    simp only [hx, decide_false, bitVal_false]
+    norm_num
 
 /-- **An `O(√N)`-query algorithm for `OR_N` with error `1/3`**, matching the polynomial-method
 lower bound `N ≤ 16 T²` up to a constant: `orSearch` starts from a unit state, makes
@@ -439,9 +436,7 @@ theorem orSearch_spec (hN : 0 < N) :
       ∀ x : Fin N → Bool, |measureProb (run (orSearch N) (orSearchInit N) x
         (orRange N + orRange N)) (orAccept N) - bitVal ℝ (threshold N 1 x)| ≤ 1 / 3 := by
   refine ⟨norm_orSearchInit hN, ?_, abs_measureProb_run_orSearch_sub_le hN⟩
-  have := Real.nat_sqrt_le_real_sqrt (a := N)
-  simp only [orRange]
-  push_cast
-  linarith
+  push_cast [orRange]
+  linarith [Real.nat_sqrt_le_real_sqrt (a := N)]
 
 end Cslib.Quantum

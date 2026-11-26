@@ -412,8 +412,7 @@ theorem foldl_add_eq {β : Type} (g : β → ℕ) (xs : List β) (acc : CappedNa
 /-- Folding `CappedNatAcc.add` from `init c` yields `min c ((xs.map g).sum)`. -/
 theorem foldl_add_init_total {β : Type} (g : β → ℕ) (xs : List β) (c : ℕ) :
     (xs.foldl (fun s b => s.add (g b)) (init c)).total = min c ((xs.map g).sum) := by
-  rw [foldl_add_eq g xs (init c) (Nat.zero_le c)]
-  simp
+  simp [foldl_add_eq g xs (init c) (Nat.zero_le c)]
 
 /-- When the true sum does not exceed `c`, the capped fold computes `(xs.map g).sum` exactly. -/
 theorem foldl_add_init_total_eq_sum {β : Type} (g : β → ℕ) (xs : List β) {c : ℕ}
@@ -436,9 +435,8 @@ open ComputableInPolyTime in
 @[fun_prop]
 theorem computableInPolyTime_init {α : Type} {encA : α ↪ List Bool} {c : α → ℕ}
     (hc : ComputableInPolyTime c encA encNat) :
-    ComputableInPolyTime (fun a => init (c a)) encA encCappedNatAcc := by
-  unfold init
-  fun_prop
+    ComputableInPolyTime (fun a => init (c a)) encA encCappedNatAcc :=
+  encCappedNatAcc_mk_polyTime hc (.const 0)
 
 open ComputableInPolyTime in
 @[fun_prop]
@@ -665,14 +663,18 @@ private theorem exists_computableInO_foldl_of_ansBound
   let stepPoly (a : α) : ℕ := 2 * pairBound a + (ansPairBound a + 1) ^ dc
   let R (a : α) : ℕ := stepPoly a + listMax Tg (r.toBatch a).items
   let Q (a : α) : ℕ := stepPoly a + sgMax a
-  have hbase (a : α) {i : ℕ} (hi : i < (r.toBatch a).items.length) :
-      2 * (encPair encD encB
+  have hbase (a : α) {i : ℕ} (hi : i < (r.toBatch a).items.length) {F : β → ℕ} {fBound : ℕ}
+      (hf : F (r.toBatch a).items[i] ≤ fBound) :
+      (encPair encD encB
           (((r.toBatch a).items.take i).foldl (fun s b => combine s (g b)) (init a),
             (r.toBatch a).items[i])).length +
+        ((encPair encD encB
+            (((r.toBatch a).items.take i).foldl (fun s b => combine s (g b)) (init a),
+              (r.toBatch a).items[i])).length + F (r.toBatch a).items[i]) +
         ((encPair encD encG
           (((r.toBatch a).items.take i).foldl (fun s b => combine s (g b)) (init a),
             g (r.toBatch a).items[i])).length + 1) ^ dc ≤
-        stepPoly a := by
+        stepPoly a + fBound := by
     have hmem := List.getElem_mem hi
     have hblen : (encB (r.toBatch a).items[i]).length ≤ listLen a :=
       length_le_encList_of_mem encB hmem
@@ -691,16 +693,8 @@ private theorem exists_computableInO_foldl_of_ansBound
     omega
   have hfold := ComputableInO.foldl (encL := encList encB) hlist.inO hi.inO hstep
     (R := R) (Q := Q) (B := accBound)
-    (fun a i hi => by
-      have hb := hbase a hi
-      have htg := le_listMax (f := Tg) (List.getElem_mem hi)
-      dsimp only [R, Function.comp_apply]
-      omega)
-    (fun a i hi => by
-      have hb := hbase a hi
-      have hsg_i := hsg a _ (List.getElem_mem hi)
-      dsimp only [Q, Function.comp_apply]
-      omega)
+    (fun a i hi => hbase a hi (le_listMax (List.getElem_mem hi)))
+    (fun a i hi => hbase a hi (hsg a _ (List.getElem_mem hi)))
     hacc
   have hlistPoly : PolyBounded (fun a => (encA a).length) listLen := r.polyBounded_batch_length
   have hOverhead : PolyBounded (fun a => (encA a).length)
@@ -837,9 +831,8 @@ theorem exists_computableInO_cappedSum (r : DisjointBatchReduction encA encB μA
     (perItem := fun a => cf * ((encA a).length + 1) ^ ef)
     (by growth_poly) (by growth_poly) hTg
   refine ⟨_, Space, C₀, E, hSpacePoly, hout, hps, fun a => ?_⟩
-  have ha := hT a
-  rw [Nat.add_right_comm] at ha
-  exact ha.trans (le_add_of_nonneg_right (Nat.cast_nonneg _))
+  rw [Nat.add_right_comm]
+  exact (hT a).trans (le_add_of_nonneg_right (Nat.cast_nonneg _))
 
 end DisjointBatchReduction
 
@@ -1329,12 +1322,8 @@ private theorem exists_leafMax_exp_le (S : StackAccumulationSpec encA encK encS 
     ⌈(k : ℝ) * (2 ^ (δ * ((scale * μA a + offset : ℕ) : ℝ)) * ((leafLen a : ℝ) + 1) ^ e) + k⌉₊
   have hceil (a : α) : (leafMax a : ℝ) ≤
       k * ((2 : ℝ) ^ (δ * ((scale * μA a + offset : ℕ) : ℝ)) * ((leafLen a : ℝ) + 1) ^ e) +
-        (k + 1) := by
-    set X : ℝ :=
-      (k : ℝ) * (2 ^ (δ * ((scale * μA a + offset : ℕ) : ℝ)) * ((leafLen a : ℝ) + 1) ^ e) + k
-    have hlt := Nat.ceil_lt_add_one (by positivity : 0 ≤ X)
-    dsimp only [leafMax, X] at hlt ⊢
-    linarith
+        (k + 1) :=
+    (Nat.ceil_lt_add_one (by positivity)).le.trans_eq (add_assoc ..)
   refine ⟨leafLen, leafMax, hleafPoly, hceil, fun a i hi hact => ?_⟩
   set b := S.leafInstance (S.topNode ((S.step g)^[i] (S.initState a)))
   have hexp : (2 : ℝ) ^ (δ * μB b) ≤ 2 ^ (δ * ((scale * μA a + offset : ℕ) : ℝ)) :=
@@ -1570,13 +1559,11 @@ theorem exists_computableInO_cappedSum_of_stack
     S.exists_leafMax_exp_le hstatePoly hδ hstate hmeas hTg
   obtain ⟨cs, es, Space₀, hSpace₀, hrun, _⟩ :=
     S.exists_computableInO_run hg hSg hstatePoly hansPoly hstate hans htime
-  have hrun_len (a : α) : (encCappedNatAcc (S.run countB a)).length ≤ stateBound a := by
-    have hst := hstate a (S.rounds a) le_rfl
-    have hle : (encCappedNatAcc ((S.step countB)^[S.rounds a] (S.initState a)).acc).length ≤
+  have hrun_len (a : α) : (encCappedNatAcc (S.run countB a)).length ≤ stateBound a :=
+    (show (encCappedNatAcc ((S.step countB)^[S.rounds a] (S.initState a)).acc).length ≤
         (encStackSearchState encK encS encCappedNatAcc
-          ((S.step countB)^[S.rounds a] (S.initState a))).length := by
-      enc_len [encStackSearchState_apply]
-    exact hle.trans hst
+          ((S.step countB)^[S.rounds a] (S.initState a))).length by
+      enc_len [encStackSearchState_apply]).trans (hstate a (S.rounds a) le_rfl)
   obtain ⟨dtot, Space, hSpacePoly, hout, hps⟩ :=
     computableInO_cappedAcc_total hrun hSpace₀ hstatePoly hrun_len hcorrect
   obtain ⟨C₀, E, hT⟩ := stack_poly_exp_le hδ
@@ -1584,9 +1571,8 @@ theorem exists_computableInO_cappedSum_of_stack
     (B_ov := fun a => cs * ((encA a).length + 1) ^ es)
     (by growth_poly) (by growth_poly) hleafPoly hrounds hν hleafMax_le
   refine ⟨_, Space, C₀, E, hSpacePoly, hout, hps, fun a => ?_⟩
-  have ha := hT a
-  rw [Nat.add_right_comm] at ha
-  exact ha.trans (le_add_of_nonneg_right (Nat.cast_nonneg _))
+  rw [Nat.add_right_comm]
+  exact (hT a).trans (le_add_of_nonneg_right (Nat.cast_nonneg _))
 
 /-! ### Bridge to `BinaryBranching` and disjoint sparsification -/
 

@@ -192,12 +192,11 @@ theorem image_decodeWord_iterate_firstCode :
     exact length_decodeWord_le (lsbValue_iterate_firstCode hi).2
   · intro hw
     have hlen := length_encodeWord hw
-    have hpos := BitString.lsbValue_pos_of_true_mem (true_mem_encodeWord L w)
-    have hlt := BitString.lsbValue_lt (encodeWord L w)
-    rw [hlen] at hlt
+    have hlt := hlen ▸ BitString.lsbValue_lt (encodeWord L w)
     refine ⟨lsbValue (encodeWord L w) - 1, by simp only [codeCount]; lia, ?_⟩
-    rw [iterate_firstCode, Nat.sub_add_cancel hpos, ← hlen, BitString.iterate_increment_lsbValue,
-      decodeWord_encodeWord]
+    rw [iterate_firstCode,
+      Nat.sub_add_cancel (BitString.lsbValue_pos_of_true_mem (true_mem_encodeWord L w)),
+      ← hlen, BitString.iterate_increment_lsbValue, decodeWord_encodeWord]
 
 private theorem injOn_decodeWord_iterate_firstCode :
     Set.InjOn (fun i => decodeWord (increment^[i] (firstCode L))) (range (codeCount L)) := by
@@ -205,7 +204,6 @@ private theorem injOn_decodeWord_iterate_firstCode :
   simp only [coe_range, Set.mem_Iio] at hi hj
   have hu := encodeWord_decodeWord (lsbValue_iterate_firstCode hi).2 (true_mem_iterate_firstCode hi)
   have hv := encodeWord_decodeWord (lsbValue_iterate_firstCode hj).2 (true_mem_iterate_firstCode hj)
-  simp only at h
   have := congrArg lsbValue (hu.symm.trans ((congrArg (encodeWord L) h).trans hv))
   rw [(lsbValue_iterate_firstCode hi).1, (lsbValue_iterate_firstCode hj).1] at this
   lia
@@ -477,14 +475,11 @@ omit hfuel in
 theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
     (hfuel : ComputableInPolyTime fuel enc encUnary) :
     ComputableInPolySpace (evaluate enc M fuel) enc encNat := by
-  have hn : ComputableInPolyTime (evalTime fuel) enc encNat := by
-    have hexp : ComputableInPolyTime (fun a => (fuel a + 1) * (2 * fuel a + 1)) enc
-        encUnary := by
-      have h1 := unary_add.comp (hfuel.prod (const (encOut := encUnary) 1))
-      have h2 := unary_add.comp ((unary_mul.comp ((const (encOut := encUnary) 2).prod hfuel)).prod
-        (const (encOut := encUnary) 1))
-      exact unary_mul.comp (h1.prod h2)
-    exact binary_two_pow.comp hexp
+  have hn : ComputableInPolyTime (evalTime fuel) enc encNat :=
+    binary_two_pow.comp <| unary_mul.comp
+      ((unary_add.comp (hfuel.prod (const (encOut := encUnary) 1))).prod
+        (unary_add.comp ((unary_mul.comp ((const (encOut := encUnary) 2).prod hfuel)).prod
+          (const (encOut := encUnary) 1))))
   have hinit : ComputableInPolyTime (fun a : α => ((a, [], none) : EvalState α)) enc
       (encEvalState enc) := by fun_prop
   have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit)

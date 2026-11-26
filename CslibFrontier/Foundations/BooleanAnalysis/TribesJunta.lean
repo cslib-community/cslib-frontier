@@ -103,13 +103,10 @@ private theorem le_four_mul_card_looseTribes (hw : 0 < w) (hJ : 4 * #J ≤ 3 * (
   have hTU : #T + #U = s := by
     rw [hT, looseTribes, hU, card_filter_add_card_filter_not, card_univ, Fintype.card_fin]
   have hUJ : #U * w ≤ #J := by
-    have : (U ×ˢ (univ : Finset (Fin w))).map finProdFinEquiv.toEmbedding ⊆ J := by
-      intro k hk
+    have hsub : (U ×ˢ (univ : Finset (Fin w))).map finProdFinEquiv.toEmbedding ⊆ J := fun _ hk => by
       obtain ⟨⟨j, i⟩, hj, rfl⟩ := mem_map.1 hk
-      simp only [hU, mem_product, mem_univ, and_true, mem_filter, true_and, not_exists,
-        not_not] at hj
-      exact hj i
-    simpa [card_product] using card_le_card this
+      exact (by simpa [hU] using hj : ∀ x, finProdFinEquiv (j, x) ∈ J) i
+    simpa [card_product] using card_le_card hsub
   have h4 : #U ≤ 3 * #T := Nat.le_of_mul_le_mul_right (by nlinarith) hw
   omega
 
@@ -268,10 +265,9 @@ private theorem one_div_256_le_card_mul (hw : 1 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ 
     (hq : 1 / 2 ≤ (1 - (2⁻¹ : ℝ) ^ w) ^ s) {t : ℕ} (ht : s ≤ 4 * t) (hts : t ≤ s) :
     (1 / 256 : ℝ) ≤
       t * (2⁻¹ ^ (w - 1) * ((1 - 2⁻¹ ^ (w - 1)) ^ (t - 1) * (1 - 2⁻¹ ^ w) ^ (s - t)) / 2) := by
-  obtain ⟨y, hy⟩ : ∃ y : ℝ, y = 2⁻¹ ^ (w - 1) := ⟨_, rfl⟩
-  rw [← hy]
-  have hy0 : 0 ≤ y := hy ▸ by positivity
-  have hy1 : y ≤ 1 := hy ▸ pow_le_one₀ (by norm_num) (by norm_num)
+  set y : ℝ := 2⁻¹ ^ (w - 1) with hy
+  have hy0 : 0 ≤ y := by positivity
+  have hy1 : y ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
   have hq0 : 0 ≤ 1 - (2⁻¹ : ℝ) ^ w := sub_nonneg.2 (pow_le_one₀ (by norm_num) (by norm_num))
   have hq1 : 1 - (2⁻¹ : ℝ) ^ w ≤ 1 := sub_le_self _ (by positivity)
   have hA : 1 / 2 ≤ (1 - (2⁻¹ : ℝ) ^ w) ^ (s - t) :=
@@ -284,7 +280,7 @@ private theorem one_div_256_le_card_mul (hw : 1 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ 
     · obtain rfl : w = 1 := by omega
       rw [show t - 1 = 0 by norm_num at hs₂; omega, pow_zero]
       norm_num
-    · obtain ⟨n₀, hn₀⟩ : ∃ n₀ : ℕ, n₀ = 2 ^ (w - 2) := ⟨_, rfl⟩
+    · set n₀ : ℕ := 2 ^ (w - 2) with hn₀
       have hny : (n₀ : ℝ) * y = 1 / 2 := by
         rw [hy, hn₀, Nat.cast_pow, Nat.cast_ofNat, inv_pow, ← div_eq_mul_inv,
           div_eq_iff (by positivity), show w - 1 = w - 2 + 1 by omega, pow_succ]
@@ -304,9 +300,9 @@ private theorem one_div_256_le_card_mul (hw : 1 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ 
   have hB0 : 0 ≤ (t : ℝ) * y := mul_nonneg (Nat.cast_nonneg _) hy0
   have hC0 : 0 ≤ (1 - y) ^ (t - 1) := pow_nonneg (by linarith) _
   calc (1 / 256 : ℝ) = (1 / 4) * (1 / 16) * (1 / 2) / 2 := by norm_num
-    _ ≤ (t * y) * (1 - y) ^ (t - 1) * (1 - 2⁻¹ ^ w) ^ (s - t) / 2 := by
-      refine div_le_div_of_nonneg_right ?_ (by norm_num)
-      exact mul_le_mul (mul_le_mul hB hC (by norm_num) hB0) hA (by norm_num) (mul_nonneg hB0 hC0)
+    _ ≤ (t * y) * (1 - y) ^ (t - 1) * (1 - 2⁻¹ ^ w) ^ (s - t) / 2 := div_le_div_of_nonneg_right
+        (mul_le_mul (mul_le_mul hB hC (by norm_num) hB0) hA (by norm_num) (mul_nonneg hB0 hC0))
+        (by norm_num)
     _ = t * (y * ((1 - y) ^ (t - 1) * (1 - 2⁻¹ ^ w) ^ (s - t)) / 2) := by ring
 
 /-- The junta-distance bound for every nearly balanced number `s` of tribes. -/
@@ -349,21 +345,20 @@ theorem exists_totalInfluence_le_lt_card_of_dependsOn {K : ℝ} (hK : 4 ≤ K) :
     ∃ (n : ℕ) (f : BitString n → Bool), totalInfluence (fun x => signVal (f x)) ≤ K ∧
       ∀ (J : Finset (Fin n)) (g : BitString n → Bool), DependsOn g (J : Set (Fin n)) →
         (hammingDist f g : ℝ) / 2 ^ n < 1 / 256 → 3 / 16 * (2 : ℝ) ^ (K / 2) < #J := by
-  obtain ⟨w, hw⟩ : ∃ w : ℕ, w = ⌊K / 2⌋₊ := ⟨_, rfl⟩
-  have hw1 : (w : ℝ) ≤ K / 2 := hw ▸ Nat.floor_le (by linarith)
-  have hw2 : K / 2 < w + 1 := hw ▸ Nat.lt_floor_add_one _
-  have hw2' : 2 ≤ w := hw ▸ Nat.le_floor (by norm_num; linarith)
-  refine ⟨tribesSize w * w, tribes w (tribesSize w), ?_, fun J g hg hdist => ?_⟩
-  · exact (totalInfluence_tribes_le w).trans (by linarith)
-  · by_contra! hJ
-    refine absurd (one_div_256_le_hammingDist_tribes_div (by omega) ?_ hg) (not_le.2 hdist)
-    have hs₁ : 2 ^ (w - 1) ≤ tribesSize w := two_pow_sub_one_le_tribesSize (by omega)
-    have h1 : (2 : ℝ) ^ (K / 2) ≤ 2 ^ ((w : ℝ) + 1) :=
-      Real.rpow_le_rpow_of_exponent_le (by norm_num) hw2.le
-    rw [Real.rpow_add (by norm_num), Real.rpow_natCast, Real.rpow_one] at h1
-    have hpow : (2 : ℝ) ^ w = 2 * 2 ^ (w - 1) := by
-      rw [← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ w)]
-    have : (4 * #J : ℝ) ≤ 3 * (tribesSize w * w) := by cast_nlinarith [hw2', hs₁]
-    exact_mod_cast this
+  set w : ℕ := ⌊K / 2⌋₊
+  have hw1 : (w : ℝ) ≤ K / 2 := Nat.floor_le (by linarith)
+  have hw2 : K / 2 < w + 1 := Nat.lt_floor_add_one _
+  have hw2' : 2 ≤ w := Nat.le_floor (by linarith)
+  refine ⟨tribesSize w * w, tribes w (tribesSize w),
+    (totalInfluence_tribes_le w).trans (by linarith), fun J g hg hdist => ?_⟩
+  by_contra! hJ
+  refine absurd (one_div_256_le_hammingDist_tribes_div (by omega) ?_ hg) (not_le.2 hdist)
+  have hs₁ : 2 ^ (w - 1) ≤ tribesSize w := two_pow_sub_one_le_tribesSize (by omega)
+  have h1 : (2 : ℝ) ^ (K / 2) ≤ 2 ^ ((w : ℝ) + 1) :=
+    Real.rpow_le_rpow_of_exponent_le (by norm_num) hw2.le
+  rw [Real.rpow_add (by norm_num), Real.rpow_natCast, Real.rpow_one] at h1
+  have hpow : (2 : ℝ) ^ w = 2 * 2 ^ (w - 1) := by
+    rw [← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ w)]
+  exact_mod_cast (show (4 * #J : ℝ) ≤ 3 * (tribesSize w * w) by cast_nlinarith [hw2', hs₁])
 
 end Cslib.BitString

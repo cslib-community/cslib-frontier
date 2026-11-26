@@ -84,9 +84,7 @@ theorem logb_ncard_le_self {n : ℕ} {S : Set (Fin n → U)} (hS : S.Nonempty) :
     Real.logb (Nat.card U) S.ncard ≤ n := by
   have hq : (1 : ℝ) < Nat.card U := by exact_mod_cast Finite.one_lt_card
   have hle : (S.ncard : ℝ) ≤ (Nat.card U : ℝ) ^ n := by
-    have := ncard_le_card S
-    rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin] at this
-    exact_mod_cast this
+    simpa [Nat.card_fun] using (Nat.cast_le (α := ℝ)).2 (ncard_le_card S)
   have hpos : (0 : ℝ) < S.ncard := by exact_mod_cast (ncard_pos (toFinite S)).mpr hS
   calc Real.logb (Nat.card U) S.ncard ≤ Real.logb (Nat.card U) ((Nat.card U : ℝ) ^ n) :=
         Real.logb_le_logb_of_le hq hpos hle
@@ -134,14 +132,13 @@ theorem eventually_card_mul_sq_le_ncard (hSK : DenseRectangleFree S K) :
   have hn1' : (1 : ℝ) ≤ n := by exact_mod_cast hn1
   have hK1 : (1 : ℝ) ≤ K n := by exact_mod_cast hfreen.pos
   have hlogK : 0 ≤ Real.log (K n) := Real.log_nonneg hK1
-  simp only [Real.norm_eq_abs, abs_of_nonneg (by linarith : (0 : ℝ) ≤ n)] at hn
-  have hb := (le_abs_self _).trans hn
+  simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)] at hn
   -- `log |S| ≥ log q + 2 log K + (n / 2) log q > log (q K ^ 2)`.
-  have hSlog : Real.log q + 2 * Real.log (K n) < Real.log (S n).ncard := by nlinarith
-  have hSpos : (0 : ℝ) < (S n).ncard := by
-    refine Nat.cast_pos.2 (Nat.pos_of_ne_zero fun h0 => ?_)
-    rw [h0, Nat.cast_zero, Real.log_zero] at hSlog
-    linarith
+  have hSlog : Real.log q + 2 * Real.log (K n) < Real.log (S n).ncard := by
+    nlinarith [le_abs_self (Real.log q + 2 * Real.log (K n) +
+      (n * Real.log q - Real.log (S n).ncard))]
+  have hSpos : (0 : ℝ) < (S n).ncard :=
+    Nat.cast_pos.2 (Nat.pos_of_ne_zero fun h0 => by simp [h0] at hSlog; linarith)
   have : Real.log (q * K n ^ 2 : ℝ) ≤ Real.log (S n).ncard := by
     rw [Real.log_mul (by positivity) (by positivity), Real.log_pow]
     cast_linarith
@@ -200,15 +197,13 @@ private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM 
   have hvκ : v ≤ κ * (n + s + 1) :=
     hvs.trans (mul_le_mul_of_nonneg_right (le_add_of_nonneg_right (by positivity))
       (by linarith [Nat.cast_nonneg (α := ℝ) n]))
-  have hd := le_abs_self d
   refine hn s v (w - (A + η) * Real.logb q (v + 1)) hs hv hvκ ?_ ?_
   · simp only [e]
-    nlinarith
+    nlinarith [le_abs_self d]
   · have hρ' : ρ ≤ s - n + e n + Real.logb q (v + 1) := by
       simp only [e]
       linarith [abs_nonneg d]
-    have := mul_le_mul_of_nonneg_left hρ' (by linarith : 0 ≤ A + η)
-    nlinarith
+    nlinarith [mul_le_mul_of_nonneg_left hρ' (by linarith : 0 ≤ A + η)]
 
 /-- **Demand against supply for the frontier method**, with the error terms of the problem and
 a sublinear slack. Let `S_n` be dense sets with `log K_n = o(n)`, let `β(n) = o(n)`, let `d` be a
@@ -265,19 +260,17 @@ private theorem eventually_lt_of_graph_of_bound {r : ℕ} (hr : 2 ≤ r) {A M : 
     n hn hfreen hbign g V E _ _ G hconn hloop hdeg hV hrank hwidth
   obtain ⟨π, hπ⟩ := hC V E G hconn hloop hdeg
   have hr' : (2 : ℝ) ≤ r := by exact_mod_cast hr
-  have hg : (0 : ℝ) ≤ g := Nat.cast_nonneg g
-  have hSne : (S n).Nonempty := by
-    rw [← ncard_pos (toFinite _)]
-    exact lt_of_lt_of_le (Nat.mul_pos Nat.card_pos (pow_pos hfreen.pos 2)) hbign
+  have hSne : (S n).Nonempty := (ncard_pos (toFinite _)).mp
+    ((Nat.mul_pos Nat.card_pos (pow_pos hfreen.pos 2)).trans_le hbign)
   have hlogS := logb_ncard_le_self hSne
   have hlogK : 0 ≤ Real.logb q (K n) :=
     div_nonneg (Real.log_natCast_nonneg _) (Real.log_nonneg hq.le)
   have hlogV : 0 ≤ Real.logb q (Nat.card V + 1) :=
     Real.logb_nonneg hq (by linarith [Nat.cast_nonneg (α := ℝ) (Nat.card V)])
-  refine hn ((r - 1) * g) (Nat.card V) G.cycleRank (G.width π) (mul_nonneg (by linarith) hg)
-    (Nat.cast_nonneg _) hV ?_ (by simpa using hwidth π) hπ
-  have h0 : (0 : ℕ → ℝ) n = 0 := rfl
-  linarith
+  refine hn ((r - 1) * g) (Nat.card V) G.cycleRank (G.width π)
+    (mul_nonneg (by linarith) (Nat.cast_nonneg g)) (Nat.cast_nonneg _) hV ?_
+    (by simpa using hwidth π) hπ
+  linarith [show (0 : ℕ → ℝ) n = 0 from rfl]
 
 /-- **Demand against supply for graphs.** Assume the layout hypothesis for maximum degree `r + 1`
 with coefficient `A > 0`, and let `S_n` be dense `K_n`-rectangle-free sets with

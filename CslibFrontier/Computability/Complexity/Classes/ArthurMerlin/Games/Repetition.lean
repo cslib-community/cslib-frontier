@@ -331,17 +331,11 @@ theorem isAMGameVerifierWithErrorExponent_iff_value {enc : α ↪ List Bool} {e 
         (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1) := by
   refine forall_congr' fun a => ?_
   have hp : (0 : ℚ) < 2 ^ arthurBits (evalShape G (enc a).length) := by positivity
-  refine and_congr (imp_congr_right fun _ => ?_) (imp_congr_right fun _ => ?_)
+  refine and_congr (imp_congr_right fun _ => ?_) (imp_congr_right fun _ => ?_) <;>
   · rw [← Nat.cast_le (α := ℚ)]
     push_cast [count_le_two_pow (evalShape G (enc a).length) fun t => V (a, t)]
     rw [count_eq]
-    exact ⟨fun h => by nlinarith,
-      fun h => by nlinarith⟩
-  · rw [← Nat.cast_le (α := ℚ)]
-    push_cast
-    rw [count_eq]
-    exact ⟨fun h => by nlinarith,
-      fun h => by nlinarith⟩
+    constructor <;> intro <;> nlinarith
 
 theorem IsAMGameVerifierWithErrorExponent.isAMGameVerifier {enc : α ↪ List Bool}
     {e : Polynomial ℕ} {G : List (AMMove × Polynomial ℕ)} {V : α × List Bool → Bool} {A : Set α}

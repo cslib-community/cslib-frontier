@@ -154,12 +154,11 @@ private theorem basis_anticomm_oddExpect_le
   change (𝔼 p : ↥(oddPairs (Fin n)), F p.val.1 p.val.2) ≤ _ at h
   change oddExpect F ≤ _
   rw [oddExpect_eq_dens_mul_expect]
-  have hnonneg : 0 ≤ 𝔼 p : ↥(oddPairs (Fin n)), F p.val.1 p.val.2 :=
-    expect_nonneg fun p _ => sq_nonneg _
-  refine (mul_le_mul_of_nonneg_right dens_oddPairs_le_half hnonneg).trans
+  refine (mul_le_mul_of_nonneg_right dens_oddPairs_le_half
+    (expect_nonneg fun _ _ => sq_nonneg _)).trans
     ((mul_le_mul_of_nonneg_left h (by norm_num : 0 ≤ (1 / 2 : ℝ))).trans ?_)
-  have hconst := mul_le_mul_of_nonneg_left hac (mul_nonneg zero_le_two chshAnticommConst_nonneg)
-  linarith only [hcons, hconst]
+  linarith only [hcons, mul_le_mul_of_nonneg_left hac
+    (mul_nonneg zero_le_two chshAnticommConst_nonneg)]
 
 omit [Nonempty (Fin n)] in
 private theorem commute_average_basisObservable
@@ -383,16 +382,11 @@ private theorem compress_in_joint_state {η : Type w} [Fintype η] [DecidableEq 
   let ψ := φ.comap e he
   refine ⟨J, inferInstance, inferInstance, W, hW, (hproduct ψ).trans ?_, hZ, ?_⟩
   · simpa only [ψ, AlgState.norm_comap, map_sub, map_mul, hLift] using hdef.1
-  · have hmean : (𝔼 x, let D := W * X x - (pauliXPow x ⊗ₖ (1 : Matrix J J ℂ)) * W
-          (ψ (Dᴴ * D)).re) =
-        𝔼 x, 𝔼 z, ψ.norm (Z z * X x - (signVal (x ⬝ᵥ z) : ℂ) • (X x * Z z)) ^ 2 := by
-      refine expect_congr rfl fun x _ => ?_
-      dsimp only
-      rw [hX x, ψ.re_apply_expect]
-      simp only [AlgState.norm_sq, Matrix.star_eq_conjTranspose]
-    refine hmean.le.trans ?_
-    simpa only [ψ, AlgState.norm_comap, map_sub, map_mul, map_smul, Function.comp_apply]
-      using hdef.2
+  · refine (le_of_eq (expect_congr rfl fun x _ => ?_)).trans hdef.2
+    dsimp only
+    rw [hX x, ψ.re_apply_expect]
+    simp only [← Matrix.star_eq_conjTranspose, ← AlgState.norm_sq, ψ, X, Z, AlgState.norm_comap,
+      map_sub, map_mul, map_smul, Function.comp_apply]
 
 private theorem quantum_branch_deficits_le
     (S : QuantumStrategy (PauliBraidingQuestion n Bool) (PauliBraidingQuestion n Bool)

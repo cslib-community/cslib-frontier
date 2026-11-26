@@ -83,17 +83,13 @@ private theorem eq_of_findPair_eq_some {f : BooleanFunction n} {S : State n} (hS
 
 private theorem isFstOfAnyPair_eq_true_iff {f : BooleanFunction n} {S : State n} (hS : S.Valid f)
     {x : ℕ} : isFstOfAnyPair S x = true ↔ ∃ pr ∈ S.pairs, pr.fst = x := by
-  constructor
-  · unfold isFstOfAnyPair
-    split
-    · rename_i pr h
-      intro hx
-      exact ⟨pr, (findPair_spec h).1, by simpa using hx⟩
-    · simp
-  · rintro ⟨pr, hpr, hx⟩
-    obtain ⟨pr', h'⟩ := Option.isSome_iff_exists.1 (findPair_isSome hS hpr (Or.inl hx))
-    obtain rfl := eq_of_findPair_eq_some hS h' hpr hx
-    simpa [isFstOfAnyPair, h'] using hx
+  unfold isFstOfAnyPair
+  rcases h : findPair S x with _ | pr
+  · simp only [Bool.false_eq_true, false_iff, not_exists, not_and]
+    exact fun pr hpr hx => by simpa [h] using findPair_isSome hS hpr (Or.inl hx)
+  · simp only [decide_eq_true_eq]
+    exact ⟨fun hx => ⟨pr, (findPair_spec h).1, hx⟩,
+      fun ⟨pr', hpr', hx⟩ => eq_of_findPair_eq_some hS h hpr' hx ▸ hx⟩
 
 private theorem terminalVal_fst {f : BooleanFunction n} {S : State n} (hS : S.Valid f) (L : List ℕ)
     (A : List Bool) {pr : ZeroPair} (hpr : pr ∈ S.pairs) :
@@ -132,15 +128,13 @@ private theorem isAffine_terminalVal {d : ℕ} (S : State n) (L : List ℕ) (x :
     IsAffine fun u : BitString d => terminalVal S L (List.ofFn u) x := by
   unfold terminalVal
   rcases findPair S x with _ | pr
-  · rcases L.findIdx? (· = x) with _ | i
-    · exact Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) false
-    · exact isAffine_getD_ofFn i
+  · cases L.findIdx? (· = x)
+    exacts [isAffine_const Bool.xor_self false, isAffine_getD_ofFn _]
   · by_cases h : pr.fst = x
-    · simpa [h] using Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) pr.fstBias
+    · simpa [h] using isAffine_const Bool.xor_self pr.fstBias
     · simp only [h, ite_false]
-      rcases L.findIdx? (· = x) with _ | i
-      · exact Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) false
-      · exact isAffine_getD_ofFn i
+      cases L.findIdx? (· = x)
+      exacts [isAffine_const Bool.xor_self false, isAffine_getD_ofFn _]
 
 /-! ### The free parameters -/
 
@@ -482,10 +476,8 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             ∑ y ∈ T_out, terminalVal S ((freeParams S).take d) [] y := by
           refine Finset.sum_congr rfl fun y hy => ?_
           have hyp := hAff.1 hy
-          have hfst : isFstOfAnyPair S y = true := by
-            by_contra h
-            exact hnot y (mem_freeParams.2 ⟨hyp, by simpa using h⟩) hy
-          obtain ⟨pr, hpr, rfl⟩ := (isFstOfAnyPair_eq_true_iff hS).1 hfst
+          obtain ⟨pr, hpr, rfl⟩ := (isFstOfAnyPair_eq_true_iff hS).1
+            (Bool.eq_true_of_not_eq_false fun h => hnot y (mem_freeParams.2 ⟨hyp, h⟩) hy)
           rw [hval _ hyp, terminalVal_fst hS _ _ hpr, terminalVal_fst hS _ _ hpr]
         simp only [Lit.eval, hu, Arg.eval, hAff.2 val hcons.1, hsum]
     · rename_i hcase
@@ -521,11 +513,9 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           ((fixArg (S.gate G) p).2 ^^ S.out.neg) ?_
         · intro x
           by_cases hxp : x = p
-          · simpa [hxp] using
-              Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) (fixArg (S.gate G) p).1
+          · simpa [hxp] using isAffine_const Bool.xor_self _
           · by_cases hxr : x = pr.partner p
-            · simp only [hxr, hr_ne_p, ↓reduceIte]
-              exact Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) (pr.partnerBias p)
+            · simpa [hxr, hr_ne_p] using isAffine_const Bool.xor_self _
             · simpa [hxp, hxr] using isAffine_terminalVal S L x
         · intro A j hj
           obtain ⟨h1, h2⟩ := hL_not_pr _ (List.getElem_mem hj)

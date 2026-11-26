@@ -545,9 +545,8 @@ theorem Circuit.two_mul_sub_two_mul_le_size (C : Circuit σ n m)
     | .input i, hv => Classical.byContradiction fun hnot => hiso ⟨i, hv, hnot⟩
     | .gate k, hv => hnoDead k hv
   have hge1 : ∀ v : Wire n C.size, 1 ≤ C.outDeg v + bonus v := by grind
-  have hge2_end :
-      ∀ x : Fin n, 2 ≤ C.outDeg (C.criticalEndpoint x) + bonus (C.criticalEndpoint x) := by
-    intro x
+  have hge2_end (x : Fin n) :
+      2 ≤ C.outDeg (C.criticalEndpoint x) + bonus (C.criticalEndpoint x) := by
     have hne1 := C.outDeg_criticalEndpoint_ne_one x
     by_cases hv : C.outDeg (C.criticalEndpoint x) = 0
     · simp [bonus, hv, hzero_out _ hv]
@@ -591,8 +590,8 @@ theorem Circuit.outDeg_output_eq_zero_of_noDeadGates (C : Circuit σ n 1) (hnoDe
   let S : Finset (Fin C.size) :=
     Finset.univ.filter fun k => Relation.TransGen Reach (C.outputs 0) (.gate k)
   have hne : S.Nonempty := by
-    have hnotNil : C.slotReaders (C.outputs 0) ≠ [] := by grind [Circuit.outDeg]
-    obtain ⟨s, hs⟩ := List.exists_mem_of_ne_nil _ hnotNil
+    obtain ⟨s, hs⟩ := List.exists_mem_of_ne_nil _
+      (by grind [Circuit.outDeg] : C.slotReaders (C.outputs 0) ≠ [])
     exact ⟨s.1, Finset.mem_filter.mpr ⟨Finset.mem_univ _,
       Relation.TransGen.single ⟨s, C.mem_slotReaders.mp hs, rfl⟩⟩⟩
   let kMax := S.max' hne
@@ -609,13 +608,11 @@ theorem Circuit.outDeg_output_eq_zero_of_noDeadGates (C : Circuit σ n 1) (hnoDe
 wire of the path is a gate. -/
 theorem Circuit.input_mem_criticalPath_iff (C : Circuit σ n m) {x y : Fin n} :
     Wire.input x ∈ C.criticalPath y ↔ x = y := by
-  refine ⟨fun h => ?_, ?_⟩
-  · rw [← List.cons_head_tail (C.criticalPath_ne_nil y), C.head_criticalPath, List.mem_cons] at h
-    rcases h with h | h
-    · exact Wire.input.inj h
-    · obtain ⟨_, ⟨⟩⟩ := C.gate_of_mem_tail_criticalPath y h
-  · rintro rfl
-    exact List.mem_of_getElem (C.criticalPath_zero_getElem x)
+  refine ⟨fun h => ?_, fun h => h ▸ List.mem_of_getElem (C.criticalPath_zero_getElem x)⟩
+  rw [← List.cons_head_tail (C.criticalPath_ne_nil y), C.head_criticalPath, List.mem_cons] at h
+  rcases h with h | h
+  · exact Wire.input.inj h
+  · obtain ⟨_, ⟨⟩⟩ := C.gate_of_mem_tail_criticalPath y h
 
 /-- Consecutive wires of a critical path: the wire at position `i` has a unique reader slot, whose
 gate is the wire at position `i + 1`. -/
@@ -681,13 +678,13 @@ private theorem Circuit.exists_first_meet_criticalPath (C : Circuit σ n m) {x y
       fun k hk => by simpa using List.not_of_lt_findIdx hk⟩
   obtain ⟨j, hj, hji⟩ := List.getElem_of_mem hmem
   -- Neither meeting position is the start of its path, since the starts are distinct inputs.
-  obtain ⟨a, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := i) fun h => by
-    subst h
+  obtain ⟨a, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := i) <| by
+    rintro rfl
     exact hxy ((C.input_mem_criticalPath_iff).mp (by simpa using hmem))
-  obtain ⟨b, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := j) fun h => by
-    subst h
-    rw [C.criticalPath_zero_getElem] at hji
-    exact hxy ((C.input_mem_criticalPath_iff).mp (hji ▸ List.getElem_mem _)).symm
+  obtain ⟨b, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := j) <| by
+    rintro rfl
+    exact hxy ((C.input_mem_criticalPath_iff).mp
+      ((C.criticalPath_zero_getElem y).symm.trans hji ▸ List.getElem_mem _)).symm
   obtain ⟨⟨G, tx⟩, hxRead, hxGate⟩ := C.criticalPath_step x hlt
   obtain ⟨⟨G', ty⟩, hyRead, hyGate⟩ := C.criticalPath_step y hj
   obtain rfl : G = G' := Wire.gate.inj (hxGate.symm.trans (hji.symm.trans hyGate))
@@ -813,8 +810,7 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
       hclosedX hdisj.symm fun w hPy hPx p q hlt => hout w hPx hPy p q (Or.inl hlt)
   /- Hence `G` computes `opG (f₂ bx) (f₃ by_)`, and the output factors through `G`, since it has
   out-degree `0` and so lies on neither prefix. -/
-  have hG : ∀ p, T (.gate G) p = opG (T px[a] (p.1, p.1)) (T py[b] (p.2, p.2)) := by
-    intro p
+  have hG (p) : T (.gate G) p = opG (T px[a] (p.1, p.1)) (T py[b] (p.2, p.2)) := by
     simp only [T, Program.trace_gate, opG]
     congr 1
     funext t
@@ -828,9 +824,8 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
     hout _ (fun h => absurd (C.outDeg_eq_one_of_mem_take_criticalPath x ha h) (by omega))
       (fun h => absurd (C.outDeg_eq_one_of_mem_take_criticalPath y hb h) (by omega)) p q
       (Or.inr hpq)
-  refine ⟨Function.extend (T (.gate G)) (T (C.outputs 0)) _root_.id, fun bx => T px[a] (bx, bx),
-    fun by_ => T py[b] (by_, by_), fun bx by_ => ?_⟩
-  rw [← hG (bx, by_), hfactor.extend_apply]
-  rfl
+  exact ⟨Function.extend (T (.gate G)) (T (C.outputs 0)) _root_.id, fun bx => T px[a] (bx, bx),
+    fun by_ => T py[b] (by_, by_),
+    fun bx by_ => (hfactor.extend_apply _ (bx, by_)).symm.trans (congrArg _ (hG (bx, by_)))⟩
 
 end Cslib.Circuits
