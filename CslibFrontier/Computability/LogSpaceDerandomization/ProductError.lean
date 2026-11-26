@@ -78,8 +78,7 @@ private theorem root_mul_sub_pow_le {s : ℕ} (hs : s ≠ 0) {a a' b b' : ℝ}
   have heq : (a * b) ^ (s⁻¹ : ℝ) - (a' * b') ^ (s⁻¹ : ℝ) =
       (a ^ (s⁻¹ : ℝ) - a' ^ (s⁻¹ : ℝ)) * b ^ (s⁻¹ : ℝ) +
         a' ^ (s⁻¹ : ℝ) * (b ^ (s⁻¹ : ℝ) - b' ^ (s⁻¹ : ℝ)) := by
-    rw [Real.mul_rpow ha hb, Real.mul_rpow ha' hb']
-    ring
+    rw [Real.mul_rpow ha hb, Real.mul_rpow ha' hb']; ring
   have habs : |(a * b) ^ (s⁻¹ : ℝ) - (a' * b') ^ (s⁻¹ : ℝ)| ≤
       |a ^ (s⁻¹ : ℝ) - a' ^ (s⁻¹ : ℝ)| * b ^ (s⁻¹ : ℝ) +
         a' ^ (s⁻¹ : ℝ) * |b ^ (s⁻¹ : ℝ) - b' ^ (s⁻¹ : ℝ)| := by
@@ -120,9 +119,7 @@ private theorem root_sum_mul_sub_pow_le {α : Type*} (T : Finset α) {s : ℕ} (
         (mul_le_mul_of_nonneg_left (root_mul_sub_pow_le hs (ha z hz) (ha' z hz)
           (hb z hz) (hb' z hz)) (by positivity))
     _ = _ := by
-      simp only [← mul_sum]
-      rw [show 2 * (s - 1) = (s - 1) + (s - 1) by omega, pow_add]
-      ring
+      simp only [← mul_sum, two_mul, pow_add]; ring
 
 variable {Ω V : Type*} [Fintype Ω] [Fintype V]
   {s : ℕ} {N u f : ℝ} {X Z Y : Ω → V → Prop}
@@ -197,12 +194,6 @@ theorem rootDistPow_mul_le (hs : s ≠ 0) (hN : 0 < N) (hu : 0 < u) (hf : 0 < f)
       _ ≤ CF * (Kc * (f / u) * rootDistPow s N f Z Y B B') :=
         mul_le_mul_of_nonneg_left hrelease hCF
       _ = _ := by ring
-  have hswap : ∀ σ x,
-      ∑ y ∈ ({y | Y σ y} : Finset V), ∑ z ∈ ({z | Z σ z} : Finset V),
-        (B σ z y * eF σ x z + F' σ x z * eB σ z y) =
-      (∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), B σ z y * eF σ x z) +
-        ∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), F' σ x z * eB σ z y :=
-    fun _ _ => sum_comm.trans (by simp only [sum_add_distrib])
   rw [rootDistPow, rowNormPow]
   calc
     _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V),
@@ -217,9 +208,8 @@ theorem rootDistPow_mul_le (hs : s ≠ 0) (hN : 0 < N) (hu : 0 < u) (hf : 0 < f)
           ∑ y ∈ ({y | Y σ y} : Finset V), B σ z y * eF σ x z) +
           ((N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ z ∈ ({z | Z σ z} : Finset V),
             ∑ y ∈ ({y | Y σ y} : Finset V), F' σ x z * eB σ z y)) := by
-      simp only [← mul_sum, ← mul_expect]
-      simp_rw [hswap]
-      simp only [sum_add_distrib, expect_add_distrib, ← mul_sum]
+      simp only [← mul_sum, ← mul_expect, sum_add_distrib, expect_add_distrib]
+      simp_rw [Finset.sum_comm (s := {y | Y _ y}), ← mul_sum]
       ring
     _ ≤ _ := mul_le_mul_of_nonneg_left (add_le_add hleft hright) (by positivity)
 
@@ -276,10 +266,9 @@ theorem correctionAtom_denseAtom_rootDistPow_le
     (fun σ => denseAtom_nonneg hk0 hρB0 (drawB σ))
     (fun σ => denseAtom_nonneg hk0 hρB0 (drawB σ))
     (by positivity) (by positivity) ?_ ?_
-    (fun σ z _ =>
-      (card_le_card fun _ hy => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hy).2⟩).trans
-        (card_filter_denseAtom_ne_zero_lt (h := hB) (a := b) (G := H σ)
-          hYt hKB heB hkzero hgB hρBclose (drawB σ) z).le)
+    (fun σ z _ => (card_le_card (filter_subset_filter _ (subset_univ _))).trans
+      (card_filter_denseAtom_ne_zero_lt (h := hB) (a := b) (G := H σ)
+        hYt hKB heB hkzero hgB hρBclose (drawB σ) z).le)
     (fun σ z _ => (card_filter_correctionAtom_col_ne_zero_lt hKc hIQ hgF hτclose (drawF σ) z).le)
   · intro σ x z
     calc

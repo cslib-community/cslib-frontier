@@ -77,9 +77,7 @@ private theorem sum_neg_one_pow_mul_choose_succ (d M : ℕ) :
 private theorem sum_neg_one_pow_mul_choose_eq_zero (N : ℕ) (hN : 0 < N) :
     ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((0 : ℕ).choose r : ℝ) = 1 := by
   obtain ⟨M, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hN.ne'
-  rw [Finset.sum_range_succ']
-  simp only [pow_zero, Nat.choose_zero_right, Nat.cast_one, mul_one, Nat.choose_zero_succ,
-    Nat.cast_zero, mul_zero, Finset.sum_const_zero, zero_add]
+  simp [Finset.sum_range_succ']
 
 private theorem sum_neg_one_pow_mul_choose_odd_nonneg (d m : ℕ) (hd : 0 < d) :
     0 ≤ ∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r * (d.choose r : ℝ) := by
@@ -176,16 +174,13 @@ theorem measurableSet_natCard_eq [Finite ι] {A : ι → Set Ω}
         ⋃ t ∈ (Finset.univ : Finset ι).powersetCard k,
           (⋂ i ∈ t, A i) ∩ ⋂ i ∈ tᶜ, (A i)ᶜ := by
     ext ω
-    rw [Set.mem_ofPred_eq, natCard_subtype_mem_eq_card]
-    simp only [Set.mem_iUnion, Finset.mem_powersetCard, Finset.subset_univ,
-      true_and, Set.mem_inter_iff, Set.mem_iInter, Finset.mem_compl, Set.mem_compl_iff]
-    refine ⟨fun hcard => ⟨Finset.univ.filter (ω ∈ A ·), hcard,
-        fun _ hi => (Finset.mem_filter.mp hi).2, fun _ hi => by simpa using hi⟩, ?_⟩
-    rintro ⟨t, rfl, hmem, hnmem⟩
-    congr 1
+    simp only [Set.mem_ofPred_eq, natCard_subtype_mem_eq_card, Set.mem_iUnion,
+      Finset.mem_powersetCard, Finset.subset_univ, true_and, Set.mem_inter_iff, Set.mem_iInter,
+      Finset.mem_compl, Set.mem_compl_iff]
+    refine ⟨fun h => ⟨Finset.univ.filter (ω ∈ A ·), h, fun _ hi => (Finset.mem_filter.mp hi).2,
+      fun _ hi => by simpa using hi⟩, fun ⟨t, hk, h1, h2⟩ => hk ▸ congrArg Finset.card ?_⟩
     ext i
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨fun hω => by_contra fun hnt => hnmem i hnt hω, hmem i⟩
+    simpa using ⟨fun hω => by_contra fun hnt => h2 i hnt hω, h1 i⟩
   rw [heq]
   exact MeasurableSet.biUnion (Finset.countable_toSet _) fun t _ =>
     (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i).inter
@@ -333,10 +328,9 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
     exact Finset.sum_congr rfl fun r _ => by rw [hterm r]; ring
   rw [Metric.tendsto_atTop]
   intro ε hε
-  have hε2 : 0 < ε / 2 := by positivity
-  obtain ⟨M₀, hM₀⟩ := (Metric.tendsto_atTop.mp hexp) (ε / 2) hε2
-  obtain ⟨N₁, hN₁⟩ := (Metric.tendsto_atTop.mp (hsum_lim (2 * M₀))) (ε / 2) hε2
-  obtain ⟨N₂, hN₂⟩ := (Metric.tendsto_atTop.mp (hsum_lim (2 * M₀ + 1))) (ε / 2) hε2
+  obtain ⟨M₀, hM₀⟩ := Metric.tendsto_atTop.mp hexp (ε / 2) (half_pos hε)
+  obtain ⟨N₁, hN₁⟩ := Metric.tendsto_atTop.mp (hsum_lim (2 * M₀)) (ε / 2) (half_pos hε)
+  obtain ⟨N₂, hN₂⟩ := Metric.tendsto_atTop.mp (hsum_lim (2 * M₀ + 1)) (ε / 2) (half_pos hε)
   refine ⟨max N₁ N₂, fun n hn => ?_⟩
   have h1 := hN₁ n (le_of_max_le_left hn)
   have h2 := hN₂ n (le_of_max_le_right hn)

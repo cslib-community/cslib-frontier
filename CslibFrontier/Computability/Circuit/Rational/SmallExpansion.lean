@@ -129,13 +129,11 @@ private lemma map_taylor_projection_kernel (M : ℕ) (a : K) (A : ℕ)
   ext f
   constructor
   · rintro ⟨x, ⟨hxV, hx⟩, rfl⟩
-    refine ⟨⟨x, hxV, rfl⟩, ?_⟩
-    intro j hj
+    refine ⟨⟨x, hxV, rfl⟩, fun j hj => ?_⟩
     by_cases hjM : j < M
     · exact congrFun hx ⟨⟨j, hjM⟩, Nat.lt_succ_iff.mp hj⟩
-    · refine coeff_eq_zero_of_degree_lt ?_
-      simpa only [degree_taylor] using (Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)).trans_le
-        (Nat.cast_le.mpr (Nat.le_of_not_gt hjM))
+    · exact coeff_eq_zero_of_degree_lt ((degree_taylor _ a).trans_lt <|
+        (Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)).trans_le (mod_cast Nat.not_lt.mp hjM))
   · rintro ⟨⟨x, hxV, rfl⟩, hx⟩
     exact ⟨x, ⟨hxV, funext fun j => hx j.1.1 (Nat.lt_succ_of_le j.2)⟩, rfl⟩
 
@@ -149,8 +147,7 @@ private lemma map_reverseTaylor_lowSupported (M : ℕ) (a : K) (A : ℕ)
   constructor
   · rintro ⟨y, ⟨⟨x, hxV, rfl⟩, hy⟩, rfl⟩
     simp only [LinearMap.comp_apply, LinearEquiv.coe_coe, LinearEquiv.symm_apply_apply]
-    refine ⟨⟨x, hxV, rfl⟩, ?_⟩
-    intro j hj
+    refine ⟨⟨x, hxV, rfl⟩, fun j hj => ?_⟩
     have hjM : j < M := by omega
     have hh := hy (Fin.rev ⟨j, hjM⟩) (by simp only [Fin.val_rev]; omega)
     change taylorCoordinates M a x ((Fin.rev ⟨j, hjM⟩).rev) = 0 at hh
@@ -174,12 +171,10 @@ private lemma finrank_lowTaylor (M : ℕ) (a : K) (A : ℕ)
   have hdim : finrank K V = h := by
     rw [← finrank_polynomialSpace, Module.finrank_eq_card_basis b, Fintype.card_fin]
   rw [Submodule.map_comp, ← hk, hdim] at hd
-  have hc : Fintype.card {j : Fin h // (b j : K[X]).rootMultiplicity a ≤ A} +
-      Fintype.card {j : Fin h // A + 1 ≤ (b j : K[X]).rootMultiplicity a} = h := by
-    simp only [Fintype.card_subtype, Nat.add_one_le_iff, ← not_le]
-    simpa only [Finset.card_univ, Fintype.card_fin] using
-      Finset.card_filter_add_card_filter_not (s := Finset.univ)
-        (fun j : Fin h => (b j : K[X]).rootMultiplicity a ≤ A)
+  have hc := Finset.card_filter_add_card_filter_not (s := Finset.univ)
+    (fun j : Fin h => (b j : K[X]).rootMultiplicity a ≤ A)
+  simp only [Fintype.card_subtype, Nat.add_one_le_iff, ← not_le, Finset.card_univ,
+    Fintype.card_fin] at hd hc ⊢
   omega
 
 private lemma finrank_reverseTaylor (M : ℕ) (a : K) (A : ℕ)
@@ -299,10 +294,8 @@ private lemma reduced_degree_bound {M N : ℕ} (U : Submodule (F K) (Fin M → F
   have hr : ∀ y ∈ reducedSubspace U, ∀ j : Fin M, N ≤ j.val → y j = 0 := by
     intro y hy
     obtain ⟨b⟩ := exists_integralFrame U
-    have hyy : y ∈ reducedSet U := by
-      rw [reducedSet_eq_span b]
-      rwa [reducedSubspace_eq_span b] at hy
-    obtain ⟨x, hx, hI, rfl⟩ := hyy
+    obtain ⟨x, hx, -, rfl⟩ : y ∈ reducedSet U := by
+      rwa [reducedSet_eq_span b, ← reducedSubspace_eq_span b]
     intro j hj
     simp only [reduce, hU x hx j hj, reduction_zero]
   rintro f ⟨x, hx, rfl⟩ hn

@@ -236,17 +236,12 @@ theorem IsSparseSystem.incidences_le {k c n : ℕ} {sys : List (List (List ℕ))
 theorem threshold_le {k c n : ℕ} {sys : List (List (List ℕ))} (h : IsSparseSystem k c n sys) :
     threshold n sys ≤ max 1 (c * k * Nat.clog 2 n ^ c) * ((Nat.clog 2 n - 1).sqrt + 1) := by
   rcases Nat.lt_or_ge n 2 with hn | hn
-  · have hc : Nat.clog 2 n = 0 := Nat.clog_of_right_le_one (by omega) 2
-    simp only [threshold, ParameterCheck.heavyIncidenceCutoff, hc, ↓reduceIte, mul_zero,
-      Nat.zero_le]
+  · simp [threshold, ParameterCheck.heavyIncidenceCutoff,
+      Nat.clog_of_right_le_one (Nat.le_of_lt_succ hn)]
   rw [threshold_eq_mul hn]
-  refine Nat.mul_le_mul_right _ ((Nat.div_lt_iff_lt_mul (by omega)).mpr ?_ |> Nat.le_of_lt_succ)
-  set B := c * k * Nat.clog 2 n ^ c
-  have h1 : (sys.map fun eq => (equationVars eq).length).sum ≤ max 1 B * n :=
-    h.incidences_le.trans (Nat.mul_le_mul_right n (le_max_right 1 B))
-  have h2 : 1 ≤ max 1 B * n := Nat.mul_pos (by omega) (by omega)
-  rw [Nat.succ_mul]
-  omega
+  refine Nat.mul_le_mul_right _ ((Nat.ceilDiv_le_iff (by omega)).mpr ?_)
+  exact max_le (Nat.mul_pos (by omega) (by omega))
+    (h.incidences_le.trans (Nat.mul_le_mul_right n (le_max_right 1 _)))
 
 /-- **`D* ≤ λ ^ (c + 2)`** (p. 54): under the hypotheses of Lemma D.2, for `n ≥ 2` and
 `c k ≤ λ`. -/

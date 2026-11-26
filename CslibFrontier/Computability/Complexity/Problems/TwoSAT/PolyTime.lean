@@ -165,18 +165,16 @@ theorem reachFrom_fixed (φ : CNF V) (ℓ₀ : Literal V) :
     have hsub : s n ⊆ (lits φ).toFinset := fun m hm =>
       List.mem_toFinset.mpr ((reachFrom_sublist φ ℓ₀ n).subset (List.mem_toFinset.mp hm))
     exact (Finset.card_le_card hsub).trans (card_lits_toFinset_le φ)
-  have heq (n : ℕ) (h : (s n).card = (s (n + 1)).card) : s n = s (n + 1) :=
-    Finset.eq_of_subset_of_card_le (hincl n) h.ge
   have hnext (n : ℕ) (h : (s n).card = (s (n + 1)).card) :
       reachFrom φ ℓ₀ (n + 1) = reachFrom φ ℓ₀ (n + 2) := by
-    have hm (m : Literal V) : m ∈ reachFrom φ ℓ₀ n ↔ m ∈ reachFrom φ ℓ₀ (n + 1) := by
-      simpa only [s, List.mem_toFinset] using Finset.ext_iff.mp (heq n h) m
-    simpa only [reachFrom, Function.iterate_succ_apply'] using stepReach_congr φ hm
-  have hstab (n : ℕ) (h : (s n).card = (s (n + 1)).card) :
-      (s (n + 1)).card = (s (n + 2)).card := by
-    simp only [s, hnext n h]
-  have hc :=
-    Nat.stabilises_of_monotone hmono hbound hstab (n := φ.numVars + φ.numVars + 1) (by omega)
+    have heq := Finset.eq_of_subset_of_card_le (hincl n) h.ge
+    have hsucc (k : ℕ) : reachFrom φ ℓ₀ (k + 1) = stepReach φ (reachFrom φ ℓ₀ k) :=
+      Function.iterate_succ_apply' _ _ _
+    rw [hsucc, hsucc]
+    exact stepReach_congr φ fun m => by
+      simpa only [s, List.mem_toFinset] using Finset.ext_iff.mp heq m
+  have hc := Nat.stabilises_of_monotone hmono hbound
+    (fun n h => by simp only [s, hnext n h]) (n := φ.numVars + φ.numVars + 1) (by omega)
   simpa only [reach, reachFrom, Function.iterate_succ_apply'] using
     (hnext (φ.numVars + φ.numVars) hc.symm).symm
 
@@ -186,8 +184,7 @@ private theorem reachFrom_sound (φ : CNF V) (ℓ₀ : Literal V) :
   | 0, m, hm => by
     simp only [reachFrom, Function.iterate_zero_apply, List.mem_filter, beq_iff_eq,
       mem_lits_iff] at hm
-    rcases hm with ⟨hmv, rfl⟩
-    exact ⟨hmv, .refl⟩
+    exact hm.2 ▸ ⟨hm.1, .refl⟩
   | n + 1, m, hm => by
     rw [reachFrom, Function.iterate_succ_apply'] at hm
     obtain ⟨hmv, hm | ⟨ℓ, hℓ, himp⟩⟩ := (mem_stepReach φ _ m).mp hm
@@ -280,17 +277,14 @@ private theorem chooseStep_good {φ : CNF V}
   · simp only [Bool.or_eq_true, List.contains_iff_mem] at hdec
     exact ⟨hg, fun _ h => h, hdec⟩
   · simp only [Bool.or_eq_true, List.contains_iff_mem, not_or] at hdec
-    obtain ⟨hnt, hnf⟩ := hdec
     have hmem_tf : (reach φ (v, true)).contains (v, false) = true ↔
         Relation.ReflTransGen φ.Implies (v, true) (v, false) :=
       List.contains_iff_mem.trans (mem_reach_iff hv (v, false))
     cases htf : (reach φ (v, true)).contains (v, false)
-    · obtain ⟨hg', hsub', hmem'⟩ :=
-        extendGoodSet (ℓ := (v, true)) hg hv hnf (mt hmem_tf.mpr (Bool.eq_false_iff.mp htf))
-      exact ⟨hg', hsub', .inl hmem'⟩
-    · obtain ⟨hg', hsub', hmem'⟩ :=
-        extendGoodSet (ℓ := (v, false)) hg hv hnt fun h₂ => hnocyc v ⟨hmem_tf.mp htf, h₂⟩
-      exact ⟨hg', hsub', .inr hmem'⟩
+    · exact (extendGoodSet (ℓ := (v, true)) hg hv hdec.2
+        (mt hmem_tf.mpr (Bool.eq_false_iff.mp htf))).imp_right (And.imp_right .inl)
+    · exact (extendGoodSet (ℓ := (v, false)) hg hv hdec.1
+        fun h₂ => hnocyc v ⟨hmem_tf.mp htf, h₂⟩).imp_right (And.imp_right .inr)
 
 private theorem foldl_chooseStep_good {φ : CNF V}
     (hnocyc : ∀ x, ¬ (Relation.ReflTransGen φ.Implies (x, true) (x, false) ∧
@@ -393,8 +387,8 @@ theorem computableInPolyTime_stepReach :
 
 private theorem computableInPolyTime_reachPair :
     ComputableInPolyTime (fun p : CNF ℕ × Literal ℕ => reach p.1 p.2)
-      (encPair encCNF (encPair encNat encBool)) (encClause encNat) := by
-  exact ComputableInPolyTime.iterateWith
+      (encPair encCNF (encPair encNat encBool)) (encClause encNat) :=
+  ComputableInPolyTime.iterateWith
     (.fst encCNF (encPair encNat encBool))
     (by fun_prop)
     (by fun_prop)

@@ -84,11 +84,9 @@ private theorem card_seeds : #(seeds m F) = Fintype.card F ^ m * (Fintype.card F
 /-- Each point of a random line is uniformly distributed. -/
 private theorem card_seeds_mem (A : Finset (Fin m → F)) (t : F) :
     #{xu ∈ seeds m F | xu.1 + t • xu.2 ∈ A} = #A * (Fintype.card F ^ m - 1) := by
-  have hcard : #(A ×ˢ (univ : Finset (Fin m → F)).erase 0) = #A * (Fintype.card F ^ m - 1) := by
-    simp [card_erase_of_mem]
-  rw [← hcard]
-  refine card_nbij' (fun xu => (xu.1 + t • xu.2, xu.2)) (fun yu => (yu.1 - t • yu.2, yu.2))
-    ?_ ?_ ?_ ?_ <;> intro xu hxu <;> simp_all [seeds]
+  refine (card_nbij' (t := A ×ˢ (univ : Finset (Fin m → F)).erase 0)
+    (fun xu => (xu.1 + t • xu.2, xu.2)) (fun yu => (yu.1 - t • yu.2, yu.2))
+    ?_ ?_ ?_ ?_).trans (by simp [card_erase_of_mem]) <;> intro xu hxu <;> simp_all [seeds]
 
 omit [Fintype F] [DecidableEq F] in
 /-- The base point and direction of the line through `y` at `t` and `y'` at `t'`. -/
@@ -111,15 +109,13 @@ private theorem card_seeds_mem_mem (A : Finset (Fin m → F)) {t t' : F} (htt : 
     (fun ⟨x, u⟩ hxu => ?_) (fun ⟨y, y'⟩ hyy => ?_) (fun ⟨x, u⟩ _ => ?_) (fun ⟨y, y'⟩ _ => ?_)
   · simp only [mem_coe, seeds, filter_filter, mem_filter, mem_offDiag] at hxu ⊢
     exact ⟨hxu.2.2.1, hxu.2.2.2, fun heq => hxu.2.1 (by rw [← hdir x u, heq, sub_self, smul_zero])⟩
-  · rw [mem_coe, mem_offDiag] at hyy
-    rw [mem_coe, seeds, filter_filter, mem_filter]
+  · simp only [mem_coe, mem_offDiag, seeds, filter_filter, mem_filter] at hyy ⊢
     obtain ⟨h₁, h₂⟩ := line_through hsub y y'
     exact ⟨mem_univ _, fun h0 => hyy.2.2 (sub_eq_zero.1 ((smul_eq_zero.1 h0).resolve_left
       (inv_ne_zero hsub))), by simpa only [h₁] using hyy.1, by simpa only [h₂] using hyy.2.1⟩
   · simp only [hdir, Prod.mk.injEq, and_true]
     abel
-  · obtain ⟨h₁, h₂⟩ := line_through hsub y y'
-    exact Prod.ext h₁ h₂
+  · exact (line_through hsub y y').elim Prod.ext
 
 /-- `lineAgree` as a sum of indicators. -/
 private theorem lineAgree_cast_eq_sum (A : Finset (Fin m → F)) (x u : Fin m → F) :
@@ -177,13 +173,11 @@ private theorem sum_lineAgree_sub_sq_le (A : Finset (Fin m → F)) :
   generalize (Fintype.card F : ℝ) ^ m = Q at *
   generalize (Fintype.card F : ℝ) = q at *
   generalize (#A : ℝ) = a at *
-  have hQ0 : Q ≠ 0 := by linarith
-  have key : 0 ≤ q * a * ((q - 1) * (Q - a) + a * (Q - 1)) / Q := by
-    have := mul_nonneg (sub_nonneg.2 hq1) (sub_nonneg.2 haQ)
-    have := mul_nonneg ha0 (sub_nonneg.2 hQ1)
-    exact div_nonneg (by positivity) (by linarith)
+  have hQ0 : 0 < Q := by linarith
+  have hnum : 0 ≤ q * a * ((q - 1) * (Q - a) + a * (Q - 1)) :=
+    mul_nonneg (by positivity) (by nlinarith)
   rw [← sub_nonneg]
-  exact key.trans_eq (by field_simp; ring)
+  exact (div_nonneg hnum hQ0.le).trans_eq (by field_simp; ring)
 
 /-- **Random lines sample a set well.** Over all points `x` and nonzero directions `u`, the
 number of pairs for which the line `t ↦ x + t • u` has at most `D` points in `A` is at most

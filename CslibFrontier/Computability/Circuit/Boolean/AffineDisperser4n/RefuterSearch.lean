@@ -115,12 +115,11 @@ private theorem terminalVal_of_getElem {S : State n} {L : List ℕ} (hL : L.Nodu
     simp [hfst]
 
 private theorem isAffine_getD_ofFn {d : ℕ} (i : ℕ) :
-    IsAffine fun u : BitString d => (List.ofFn u).getD i false := by
-  intro a b c
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
+    IsAffine fun u : BitString d => (List.ofFn u).getD i false := fun _ _ _ => by
   by_cases hi : i < d
-  · simp [hi]
-  · simp [hi]; rfl
+  · simp [List.getD_eq_getElem?_getD, hi]
+  · simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn, hi, ↓reduceDIte, Option.getD_none]
+    rfl
 
 private theorem isAffine_terminalVal {d : ℕ} (S : State n) (L : List ℕ) (x : ℕ) :
     IsAffine fun u : BitString d => terminalVal S L (List.ofFn u) x := by
@@ -184,10 +183,8 @@ private theorem findSome_isSome_of_family {d : ℕ} (C : Circuit (fullSignature 
         if decide (y ∈ S.params) then σ A y else evaluateAux S y (σ A)
       if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none).isSome := by
   set g : BitString d → BitString n := fun u => S.phi (σ (List.ofFn u)) with hg_def
-  have hgaff : IsAffine g := by
-    have : IsAffine fun u : BitString d => σ (List.ofFn u) :=
-      fun x y z => funext fun i => hσ i x y z
-    exact hS.phi_affine.comp this
+  have hgaff : IsAffine g :=
+    hS.phi_affine.comp fun x y z => funext fun i => hσ i x y z
   have hginj : Function.Injective g := fun u v h =>
     inj_of_coords σ hLp hlen hcoord u v (hS.phi_injective _ _ h)
   have hval : ∀ w, C.eval fullInterpretation (g w) 0 = b := by
@@ -196,9 +193,8 @@ private theorem findSome_isSome_of_family {d : ℕ} (C : Circuit (fullSignature 
     have hlv : S.Locus val := fun pr hpr =>
       (ZeroPair.holds_congr (hv _ (hS.pair_mem pr hpr).1)
         (hv _ (hS.pair_mem pr hpr).2.1)).2 (hlocus _ pr hpr)
-    have := hS.computes val hcons hlv
-    rw [hout _ val hcons hv, hS.phi_congr val _ hv] at this
-    exact this.symm
+    simpa only [hout _ val hcons hv, hS.phi_congr val _ hv] using
+      (hS.computes val hcons hlv).symm
   obtain ⟨u, v, huv⟩ := hf g hgaff hginj
   have hx : ∀ w, (S.phi fun y => if decide (y ∈ S.params) then σ (List.ofFn w) y else
       evaluateAux S y (σ (List.ofFn w))) = g w :=
@@ -207,8 +203,7 @@ private theorem findSome_isSome_of_family {d : ℕ} (C : Circuit (fullSignature 
     if hu : C.eval fullInterpretation (g u) 0 = f (g u) then
       ⟨v, fun hv => huv (by rw [← hu, ← hv, hval, hval])⟩
     else ⟨u, hu⟩
-  refine List.findSome?_isSome_iff.2
-    ⟨List.ofFn w, mem_allAssignments (A := List.ofFn w) (by simp), ?_⟩
+  refine List.findSome?_isSome_iff.2 ⟨List.ofFn w, mem_allAssignments (by simp), ?_⟩
   rw [hx w]
   simp [hw]
 
@@ -406,10 +401,9 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
   unfold findCounterexample
   split
   · rename_i b hb
-    refine findSome_isSome_terminalVal C f hf hS
+    exact findSome_isSome_terminalVal C f hf hS
       (take_props (nodup_freeParams S) (fun _ h => h) (by rw [length_freeParams hS]; omega))
-      (b ^^ S.out.neg) fun A val _ _ => ?_
-    simp [Lit.eval, hb, Arg.eval]
+      (b ^^ S.out.neg) fun _ _ _ _ => by simp [Lit.eval, hb, Arg.eval]
   · rename_i u hu
     split
     · rename_i hcase
@@ -439,8 +433,7 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             (fun a b c => funext fun y => isAffine_terminalVal S L y a b c)
             (c_out ^^ S.out.neg) {x ∈ T_out | x ≠ pivot}
         · intro A val hcons hval
-          have h1 := hAff.2 val hcons.1
-          simp only [Lit.eval, hu, Arg.eval, h1]
+          simp only [Lit.eval, hu, Arg.eval, hAff.2 val hcons.1]
           rw [← Finset.add_sum_erase _ _ hpT, hval pivot (hAff.1 hpT), ite_eq_left rfl,
             foldl_xor_eq_sum, Finset.filter_ne',
             Finset.sum_congr rfl fun y hy => (hval y (hAff.1 (Finset.mem_of_mem_erase hy))).trans
@@ -513,11 +506,9 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
               terminalVal_fst hS L A hpr']
             simp [ZeroPair.bias]
         · intro A val hcons hval
-          have hvalG := hcons.2 G hG
           have hvp : val p = (fixArg (S.gate G) p).1 := by rw [hval p hppar, ite_eq_left rfl]
-          have hGe : (S.gate G).eval val = (fixArg (S.gate G) p).2 :=
-            fixArg_spec hna hpw.symm (Gate.args_of_reads hpw.symm hGw hGp) val hvp
-          simp only [Lit.eval, hu, huG, Arg.eval, hvalG, hGe]
+          simp only [Lit.eval, hu, huG, Arg.eval, hcons.2 G hG,
+            fixArg_spec hna hpw.symm (Gate.args_of_reads hpw.symm hGw hGp) val hvp]
       · rename_i hAOP_not
         have hAOP : findAndOnPair S = none :=
           Option.eq_none_iff_forall_ne_some.2 fun x hx => hAOP_not x.1 x.2 hx

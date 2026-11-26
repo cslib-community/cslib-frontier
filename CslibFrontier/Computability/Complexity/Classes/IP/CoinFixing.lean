@@ -105,10 +105,8 @@ private theorem run_interpret_finiteStep_pure (t : ℕ)
   | none => rfl
   | some c =>
     simp only [map_pure, pure_bind]
-    cases M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
-    | step => rfl
-    | query op next =>
-      simp only [bind_map_left, interp_norm]
+    cases M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b <;>
+      simp [interp_norm]
 
 /-- Instructions with fixed coins make the requests of `coinStep`. -/
 private theorem run_interpret_foldlM_pure (t : ℕ) (r : List Bool)
@@ -299,9 +297,7 @@ private theorem replayInv_step {t : ℕ} {x : List Bool} {h : History} {i : ℕ}
   · trivial
   · exact ⟨Nat.lt_succ_of_lt hacc.1, Nat.lt_succ_of_lt hacc.2⟩
   · obtain ⟨⟨pre, hpre, hlen⟩, hspace⟩ := hacc
-    change ReplayInv t x h (i + 1) (replayStep M t (cfg, rest) b)
-    unfold replayStep
-    dsimp only
+    dsimp only [Except.bind, replayStep]
     cases cfg.tapes.state with
     | none => exact ⟨⟨pre, hpre, by omega⟩, hspace.mono le_rfl (by omega) le_rfl⟩
     | some c =>
@@ -344,8 +340,7 @@ private theorem replayStep_truncate (t : ℕ) (cfg : FiniteConfig k Bool Control
     (b : Bool) :
     (replayStep M t (cfg, h) b).map (fun p => (p.1, truncate t p.2)) =
       (replayStep M t (cfg, truncate t h) b).map (fun p => (p.1, truncate t p.2)) := by
-  unfold replayStep
-  dsimp only
+  dsimp only [replayStep]
   cases cfg.tapes.state with
   | none => simp only [Except.map, truncate_idemp]
   | some c =>
