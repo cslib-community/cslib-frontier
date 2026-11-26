@@ -124,7 +124,7 @@ system without solutions; see the module documentation. -/
 variable {S}
 
 omit [Fintype m] in
-private theorem hasDerivWithinAt_mulVec {κ : Type*} [Fintype κ] (M : Matrix κ ι ℝ)
+private theorem hasDerivWithinAt_mulVec {κ : Type*} (M : Matrix κ ι ℝ)
     {f : ℝ → ι → ℝ} {f' : ι → ℝ} {s : Set ℝ} {t : ℝ} (h : HasDerivWithinAt f f' s t) :
     HasDerivWithinAt (fun τ => M *ᵥ f τ) (M *ᵥ f') s t := by
   refine hasDerivWithinAt_pi.2 fun i => ?_

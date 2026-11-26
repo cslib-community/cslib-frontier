@@ -421,12 +421,14 @@ theorem vc_initial {φ : ℝ → Fin vc.nodes → ℝ} {i : ℝ → Fin vc.branc
     hC.congr (fun t ht => (hv t ht).symm) (hv 0 self_mem_Ici).symm
   have hi1 : i 0 1 = 0 :=
     (uniqueDiffOn_Ici 0 0 self_mem_Ici).eq_deriv _ hC' (hasDerivWithinAt_const _ _ _)
-  have hk := h.kcl 0 self_mem_Ici 0
-  simp [vc, Branch.incidence, Fin.sum_univ_two, hi1] at hk
+  have hk : i 0 0 = 0 := by
+    have := h.kcl 0 self_mem_Ici 0
+    erw [Fin.sum_univ_two] at this
+    simpa [Branch.incidence, hi1] using this
   funext j
   fin_cases j
   · exact (Fin.append_left (φ 0) (i 0) 0).trans (hv 0 self_mem_Ici)
-  · exact (Fin.append_right (φ 0) (i 0) 0).trans (by simpa using hk)
+  · exact (Fin.append_right (φ 0) (i 0) 0).trans hk
   · exact (Fin.append_right (φ 0) (i 0) 1).trans hi1
 
 /-- **The index-two circuit has no accepted decoupling.** With `k ≥ 1` differential coordinates,
