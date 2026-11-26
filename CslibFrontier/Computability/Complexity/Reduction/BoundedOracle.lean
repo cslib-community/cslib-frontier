@@ -668,17 +668,14 @@ private theorem comp_interpret_and_queriesWith {oracle₁ oracle₂ : List Bool 
         (OracleComp.interpret G (R₁.program a)) =
       (OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)).flatMap fun q =>
         OracleComp.queriesWith (fun q' => oracle₂ q'.2) (R₂.program q.2) := by
-  let G (q : Unit × List Bool) : WordQueryComp Unit (List Bool) :=
-    List.take (R₁.alenCap a) <$> R₂.program q.2
-  have hG : ∀ q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a),
-      OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 := fun q hq => by
-    rw [show OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) =
-        (OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (R₂.program q.2)).take
-          (R₁.alenCap a) from OracleComp.interpret_map .., R₂.eval_eq q.2]
-    exact List.take_of_length_le ((R₁.respects_bound a).2.2.2 q hq |>.trans (R₁.alen_le_alenCap a))
+  intro G
+  have hG (q) (hq : q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)) :
+      OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 :=
+    (OracleComp.interpret_map (m := Id) ..).trans ((congrArg (List.take (R₁.alenCap a))
+      (R₂.eval_eq q.2)).trans (List.take_of_length_le
+        ((R₁.respects_bound a).2.2.2 q hq |>.trans (R₁.alen_le_alenCap a))))
   obtain ⟨heval, hqs⟩ := interpret_and_queriesWith_subst oracle₁ oracle₂ G (R₁.program a) hG
-  refine ⟨heval.trans (R₁.eval_eq a), ?_⟩
-  simpa only [G, OracleComp.queriesWith_map] using hqs
+  exact ⟨heval.trans (R₁.eval_eq a), by simpa only [G, OracleComp.queriesWith_map] using hqs⟩
 
 /-- Polynomial reply-length allowance for `BoundedOracleProgram.comp`. -/
 noncomputable def compCapPoly {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
@@ -872,9 +869,8 @@ theorem computableInPolyTime {oracle : List Bool → List Bool} {f : α → β}
     (horacle : ComputableInPolyTime oracle encBits encBits) :
     ComputableInPolyTime f encA encB := by
   obtain ⟨_, _, machine, c, d, hrun⟩ := R.isOraclePPTOn.exists_fin_run_pure_false
-  refine (machine.computableInPolyTime_run_word (input := encA) horacle c d).of_enc_eq fun a => ?_
-  rw [← R.eval_eq a, ← hrun a (fun q => oracle q.2)]
-  rfl
+  exact (machine.computableInPolyTime_run_word (input := encA) horacle c d).of_enc_eq fun a =>
+    ((hrun a fun q => oracle q.2).trans (congrArg encB (R.eval_eq a))).symm
 
 /-- **Explicit `ComputableInO` transfer in polynomial workspace for multi-bit word oracles:**
 simulating `R` against `ComputableInO oracle encBits encBits Tg Sg` uses **polynomial workspace**
@@ -896,9 +892,8 @@ theorem exists_computableInO_polySpace {oracle : List Bool → List Bool} {f : �
   obtain ⟨_, _, machine, c₁, d₁, hrun⟩ := R.isOraclePPTOn.exists_fin_run_pure_false
   obtain ⟨c₀, e₀, S, hSPoly, hcomp⟩ :=
     machine.exists_computableInO_run_word (input := encA) horacle hSg c₁ d₁
-  refine ⟨c₀, e₀, S, hSPoly, c₁, d₁, hcomp.of_enc_eq fun a => ?_⟩
-  rw [← R.eval_eq a, ← hrun a (fun q => oracle q.2)]
-  rfl
+  exact ⟨c₀, e₀, S, hSPoly, c₁, d₁, hcomp.of_enc_eq fun a =>
+    ((hrun a fun q => oracle q.2).trans (congrArg encB (R.eval_eq a))).symm⟩
 
 /-- **Polynomial-space transfer for multi-bit word oracles:** if `oracle : List Bool → List Bool` is
 computable in polynomial space, any `BoundedOracleProgram` relative to `oracle` is computable in

@@ -62,15 +62,13 @@ theorem abs_sum_mul_sub_mul_le {α : Type*} (T : Finset α)
     |(∑ z ∈ T, a z * b z) - ∑ z ∈ T, a' z * b' z| ≤
       ∑ z ∈ T, (CA * |b z - b' z| + |a z - a' z| * CB) := by
   rw [← sum_sub_distrib]
-  apply (abs_sum_le_sum_abs _ _).trans
-  apply sum_le_sum
-  intro z hz
-  rw [show a z * b z - a' z * b' z =
-    a z * (b z - b' z) + (a z - a' z) * b' z by ring]
-  exact (abs_add_le _ _).trans (by
-    rw [abs_mul, abs_mul]
-    exact add_le_add (mul_le_mul_of_nonneg_right (ha z hz) (abs_nonneg _))
-      (mul_le_mul_of_nonneg_left (hb' z hz) (abs_nonneg _)))
+  refine (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun z hz => ?_)
+  have hsub : a z * b z - a' z * b' z = a z * (b z - b' z) + (a z - a' z) * b' z := by ring
+  rw [hsub]
+  refine (abs_add_le _ _).trans ?_
+  rw [abs_mul, abs_mul]
+  exact add_le_add (mul_le_mul_of_nonneg_right (ha z hz) (abs_nonneg _))
+    (mul_le_mul_of_nonneg_left (hb' z hz) (abs_nonneg _))
 
 private theorem root_mul_sub_pow_le {s : ℕ} (hs : s ≠ 0) {a a' b b' : ℝ}
     (ha : 0 ≤ a) (ha' : 0 ≤ a') (hb : 0 ≤ b) (hb' : 0 ≤ b') :
@@ -277,7 +275,12 @@ theorem correctionAtom_denseAtom_rootDistPow_le
     (fun σ => correctionAtom_nonneg hQ0 hρF0 hτ0 (hg'0 σ) (drawF σ))
     (fun σ => denseAtom_nonneg hk0 hρB0 (drawB σ))
     (fun σ => denseAtom_nonneg hk0 hρB0 (drawB σ))
-    (by positivity) (by positivity) ?_ ?_ ?_ ?_
+    (by positivity) (by positivity) ?_ ?_
+    (fun σ z _ =>
+      (card_le_card fun _ hy => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hy).2⟩).trans
+        (card_filter_denseAtom_ne_zero_lt (h := hB) (a := b) (G := H σ)
+          hYt hKB heB hkzero hgB hρBclose (drawB σ) z).le)
+    (fun σ z _ => (card_filter_correctionAtom_col_ne_zero_lt hKc hIQ hgF hτclose (drawF σ) z).le)
   · intro σ x z
     calc
       _ ≤ |correctionAtom I τ KF Kc f (G' σ) X Z Zt Q hF ρF (g' σ) (drawF σ) x z| :=
@@ -295,13 +298,5 @@ theorem correctionAtom_denseAtom_rootDistPow_le
       _ ≤ 2 * |k (H σ z y / b)| := abs_denseAtom_le hρB0 hρB1 _ _ _
       _ = 2 * k (H σ z y / b) := by rw [abs_of_nonneg (hk0 _)]
       _ ≤ _ := mul_le_mul_of_nonneg_left (hkbound σ z y) (by norm_num)
-  · intro σ z _
-    refine (card_le_card ?_).trans
-      (card_filter_denseAtom_ne_zero_lt (h := hB) (a := b) (G := H σ)
-        hYt hKB heB hkzero hgB hρBclose (drawB σ) z).le
-    intro y hy
-    exact mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hy).2⟩
-  · intro σ z _
-    exact (card_filter_correctionAtom_col_ne_zero_lt hKc hIQ hgF hτclose (drawF σ) z).le
 
 end Matrix

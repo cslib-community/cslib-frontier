@@ -190,8 +190,7 @@ theorem ext {t n r : ℕ} {x y : BitString (t * 2 + n * r)}
   funext i
   refine Fin.addCases (fun i => ?_) (fun i => ?_) i <;>
     obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective i
-  · exact congrFun (congrFun hc j) b
-  · exact congrFun (congrFun hd j) b
+  exacts [congrFun (congrFun hc j) b, congrFun (congrFun hd j) b]
 
 /-- The explicit numbering of control-pair and record coordinates. -/
 def layout (t n r : ℕ) : (Fin t × Fin 2) ⊕ (Fin n × Fin r) ≃
@@ -340,11 +339,9 @@ private theorem cost_pair {r : ℕ} (flag : Circuit signature (r + r) 1) (ascend
     (cost : signature.Op → ℕ) :
     (pair flag ascending).program.cost cost =
       (compareSwapCircuit.record flag).program.cost cost := by
-  cases ascending with
-  | true => rfl
-  | false =>
-    unfold pair
-    erw [Circuit.cost_program_comp, Circuit.cost_program_wiring, Nat.add_zero]
+  cases ascending
+  · erw [pair, Circuit.cost_program_comp, Circuit.cost_program_wiring, Nat.add_zero]
+  · rfl
 
 /-- Compare a layer and retain all of its controls before the payload. -/
 def layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascending : Bool) :
@@ -468,8 +465,7 @@ theorem eval_bitonicMergeTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : �
   induction d with
   | zero =>
     dsimp only [bitonicMergeTraceCircuit, mergeTraceSize, BitonicSort.merge, BitonicSort.mergeTrace]
-    funext i
-    refine Fin.addCases (fun i => Fin.elim0 i) (fun i => ?_) i
+    refine funext (Fin.addCases (fun i => i.elim0) fun i => ?_)
     simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, pack, Fin.append_right,
       BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
       Equiv.apply_symm_apply, id_eq]
@@ -492,8 +488,7 @@ theorem eval_bitonicSortTraceCircuit {k r : ℕ} (key : Fin k → Fin r) (d : �
   induction d generalizing ascending with
   | zero =>
     dsimp only [bitonicSortTraceCircuit, sortTraceSize, BitonicSort.sort, BitonicSort.sortTrace]
-    funext i
-    refine Fin.addCases (fun i => Fin.elim0 i) (fun i => ?_) i
+    refine funext (Fin.addCases (fun i => i.elim0) fun i => ?_)
     simp only [Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, pack, Fin.append_right,
       BitString.blocksEquiv_symm_apply, BitString.block, Prod.mk.eta,
       Equiv.apply_symm_apply, id_eq]
@@ -575,8 +570,7 @@ theorem eval_bitonicMergeCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : �
   rcases eq_or_ne r 0 with rfl | hr
   · exact funext fun _ => funext fun i => Fin.elim0 i
   · rw [bitonicMergeCircuit, ite_eq_right hr, Circuit.eval_comp, Circuit.eval_wiring,
-      eval_bitonicMergeTraceCircuit]
-    exact records_pack _ _
+      eval_bitonicMergeTraceCircuit, pack_comp_natAdd, BitString.block_blocksEquiv_symm]
 
 /-- The native circuit realizes Batcher sorting on complete records. -/
 theorem eval_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ)
@@ -587,8 +581,7 @@ theorem eval_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ
   rcases eq_or_ne r 0 with rfl | hr
   · exact funext fun _ => funext fun i => Fin.elim0 i
   · rw [bitonicSortCircuit, ite_eq_right hr, Circuit.eval_comp, Circuit.eval_wiring,
-      eval_bitonicSortTraceCircuit]
-    exact records_pack _ _
+      eval_bitonicSortTraceCircuit, pack_comp_natAdd, BitString.block_blocksEquiv_symm]
 
 /-- The output keys of ascending sorting are nondecreasing. -/
 theorem monotone_bitonicSortCircuit {k r : ℕ} (key : Fin k → Fin r) (depth : ℕ)

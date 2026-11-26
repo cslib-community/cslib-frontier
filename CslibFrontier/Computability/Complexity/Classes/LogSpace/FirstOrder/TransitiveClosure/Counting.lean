@@ -87,9 +87,7 @@ private theorem relatesInSteps_of_graph {xs : Fin k → Fin n} {m : ℕ} :
       ∃ hd : d < n ^ k, Relation.RelatesInSteps E xs (finFunctionFinEquiv.symm ⟨d, hd⟩) m := by
   induction m with
   | zero =>
-    intro d h
-    obtain rfl := h.zero
-    exact ⟨(finFunctionFinEquiv xs).isLt,
+    exact fun {_} h => h.zero ▸ ⟨(finFunctionFinEquiv xs).isLt,
       by simpa only [Fin.eta, Equiv.symm_apply_apply] using .refl xs⟩
   | succ m ih =>
     intro d h
@@ -498,11 +496,10 @@ private theorem scan_decode (hw : w₁ = b + 14 + 5 * k + wb.length)
     (by rw [hout₁ _ (by omega)]; exact hY)
   refine ⟨regs₂, finFunctionFinEquiv.symm ⟨x, hx⟩, finFunctionFinEquiv.symm ⟨y, hy⟩, ?_,
     ⟨by rw [hlen₂, hlen₁], fun j hj => by rw [hout₂ j (by omega), hout₁ j (by omega)], hB₂⟩,
-    by rw [Equiv.apply_symm_apply], by rw [Equiv.apply_symm_apply], fun j => ?_, hin₂⟩
-  · rw [show b + 6 + 2 * k = b + 6 + k + k by omega]
-    exact hr₁.trans hr₂
-  · have := j.isLt
-    rw [hout₂ _ (by omega), hin₁ j]
+    by rw [Equiv.apply_symm_apply], by rw [Equiv.apply_symm_apply],
+    fun j => (hout₂ _ (by have := j.isLt; omega)).trans (hin₁ j), hin₂⟩
+  have hbk : b + 6 + 2 * k = b + 6 + k + k := by omega
+  exact hbk ▸ hr₁.trans hr₂
 
 private theorem scan_count (hw : w₁ = b + 14 + 5 * k + wb.length)
     (hP : P.CodeAt b (countTestCode b base k src wb et ef T R)) {s : ℕ} {regs : List ℕ}
@@ -960,18 +957,15 @@ private theorem count_y_record (hP : P.CodeAt b (countCode b base k dst t₁ t�
       YInv B base E s₀ regs₀ i (y + 1) regs'' := by
   obtain ⟨-, -, -, -, -, -, -, c8, c9, -⟩ := countCode_parts hP
   obtain ⟨⟨hk, hlen, h0, hI, hi, hC⟩, hi1, hD, hY⟩ := hinv
-  have hlen' : regs'.length = regs.length := hk'.length_eq
+  have hlen' := hk'.length_eq
   have hD' := (hk'.getD_eq (base + 2) (by omega)).trans hD
   have hY' : regs'.getD (base + 3) 0 = y := by rw [hk'.getD_eq _ (by omega), hY]
-  have hcard : prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i (y + 1) =
-      prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i y +
-        if y ∈ countRound E s₀ (i + 1) then 1 else 0 :=
-    InductiveCounting.prefixCount_succ y
   have hcB : prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i (y + 1) ≤ B :=
     InductiveCounting.prefixCount_le.trans hNB
   obtain ⟨hr₁, hB₁⟩ := reaches_assign (w := w)
     (v := prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i (y + 1)) c8
-    (by rw [eval_add, eval_reg, eval_reg, hD', hH, hcard]) hcB hk'.bounded
+    (by rw [eval_add, eval_reg, eval_reg, hD', hH, countRound,
+      ← InductiveCounting.prefixCount_succ]) hcB hk'.bounded
   obtain ⟨hr₂, -⟩ := reaches_assign (w := w) (v := y + 1) c9
     (by rw [eval_add, eval_reg, eval_const, List.getD_set_ne (by omega), hY']) (by omega) hB₁
   refine ⟨_, hr₁.trans hr₂, ⟨?_, ?_, ?_, ?_, hi, ?_⟩, hi1, ?_, ?_⟩

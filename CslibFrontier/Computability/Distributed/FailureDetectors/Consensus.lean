@@ -539,15 +539,11 @@ subrounds under arbitrary `F, H, tick, deliver`. -/
 theorem ctRoundProtocol_irrevocable {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) (v : V)
     (hdec : (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₁ p = some v) :
     (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₂ p = some v := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
-  clear hk
-  induction d with
-  | zero => simpa only [Nat.add_zero] using hdec
-  | succ d ih =>
-    change (ctSt F H tick deliver x procs fallback (k₁ + d) p).decided = some v at ih
-    change (ctSt F H tick deliver x procs fallback ((k₁ + d) + 1) p).decided = some v
+  induction hk with
+  | refl => exact hdec
+  | step _ ih =>
+    change (ctSt F H tick deliver x procs fallback _ p).decided = some v at ih ⊢
     rw [ctSt_succ]
-    generalize ctIn F H tick deliver x procs fallback (k₁ + d) p = m
     unfold ctUpdate
     grind
 
@@ -564,16 +560,13 @@ private theorem ctSt_ts_le :
 private theorem ctSt_ts_mono {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) :
     (ctSt F H tick deliver x procs fallback k₁ p).ts ≤
       (ctSt F H tick deliver x procs fallback k₂ p).ts := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
-  clear hk
-  induction d with
-  | zero => exact le_rfl
-  | succ d ih =>
-    refine ih.trans ?_
-    rw [← Nat.add_assoc]
-    have := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) (k₁ + d) p
+  induction hk with
+  | refl => exact le_rfl
+  | @step m _ ih =>
+    dsimp only [Nat.succ_eq_add_one]
+    have := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) m p
     rcases ctSt_succ_est_ts F H tick deliver x (procs := procs) (fallback := fallback)
-      (k₁ + d) p with h | ⟨h1, h2, -⟩ <;> omega
+      m p with h | ⟨h1, h2, -⟩ <;> omega
 
 /-- Any `proposal = some (r, v)` stored at `(k, p)` was created at `k = 4 * r + 1` on
 `p = rotatingCoordinator procs fallback r`. -/

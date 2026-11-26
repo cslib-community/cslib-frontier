@@ -342,9 +342,7 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
   rw [detRows_cramerColZeroRows_hermiteRows nodes J jets hQ hJ hjets_row,
     detRows_hermiteRows]
   apply Int.cast_injective (α := ℚ)
-  rw [← hcramer]
-  push_cast
-  ring
+  simpa only [Int.cast_mul, mul_assoc, mul_left_comm (Ω : ℚ)] using hcramer.symm
 
 /-- **Exact confluent Hermite Cramer recovery (`rowEntry` form).** When `nodes` are distinct,
 `Ω ≠ 0`, `H ∈ ℚ[X]` has `natDegree < nodes.length * J` and integer value `H(0) = H_zero`, and
@@ -421,15 +419,12 @@ theorem modPowTwo_sum_hermiteRecoverZero_eq {nodes : List ℤ} {J ℓ : ℕ} {Ω
     (hcount₀ : 0 ≤ count) (hcount₁ : count < (2 : ℤ) ^ ℓ)
     (hdvd : (2 : ℤ) ^ ℓ ∣ H_zeros.sum - count) :
     ((coordJets.map (hermiteRecoverZero nodes J Ω)).sum).modPowTwo ℓ = count := by
-  have hmap : coordJets.map (hermiteRecoverZero nodes J Ω) = H_zeros := by
-    apply List.ext_getElem (by simp [hlen_Z])
-    intro s hs hs'
-    simp only [List.length_map] at hs
-    obtain ⟨hdeg, hH0, hjrow, hj⟩ := hcoord ⟨s, hs⟩
-    simp only [List.getElem_map]
-    exact hermiteRecoverZero_eq_of_rowEntry hnodup hΩ hdeg hH0 hjrow hj
-  rw [hmap]
-  exact Int.modPowTwo_eq_of_dvd_sub hcount₀ hcount₁ hdvd
+  have hmap : coordJets.map (hermiteRecoverZero nodes J Ω) = H_zeros :=
+    List.ext_getElem (by simp [hlen_Z])
+      fun s hs _ => by
+        obtain ⟨hdeg, hH0, hjrow, hj⟩ := hcoord ⟨s, by simpa using hs⟩
+        simpa using hermiteRecoverZero_eq_of_rowEntry hnodup hΩ hdeg hH0 hjrow hj
+  exact hmap ▸ Int.modPowTwo_eq_of_dvd_sub hcount₀ hcount₁ hdvd
 
 /-! ### Entry magnitude and bit-length bounds -/
 

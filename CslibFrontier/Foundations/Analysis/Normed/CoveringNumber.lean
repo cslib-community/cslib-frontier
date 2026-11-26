@@ -137,9 +137,8 @@ theorem internalCoveringNumber_empty (ε : ℝ) : internalCoveringNumber (∅ : 
 
 @[simp]
 theorem packingNumber_empty (ε : ℝ) : packingNumber (∅ : Set X) ε = 0 := by
-  refine le_antisymm (sSup_le ?_) bot_le
-  rintro _ ⟨P, rfl, hPs, -⟩
-  simp [Finset.eq_empty_of_forall_notMem hPs]
+  refine le_antisymm (sSup_le fun _ ⟨P, hcard, hPs, _⟩ => ?_) bot_le
+  simp [← hcard, Finset.eq_empty_of_forall_notMem hPs]
 
 theorem one_le_coveringNumber {s : Set X} (hs : s.Nonempty) (ε : ℝ) :
     1 ≤ coveringNumber s ε := by
@@ -212,10 +211,8 @@ theorem internalCoveringNumber_le_packingNumber (s : Set X) {ε : ℝ} (hε : 0 
     refine card_le_packingNumber (fun y hy => (Finset.mem_insert.1 hy).elim (· ▸ hx) (hPs y))
       fun y hy z hz hyz => ?_
     rcases Finset.mem_insert.1 hy with rfl | hy' <;> rcases Finset.mem_insert.1 hz with rfl | hz'
-    · exact (hyz rfl).elim
-    · exact hfar z hz'
-    · rw [dist_comm]; exact hfar y hy'
-    · exact hsep y hy' z hz' hyz
+    exacts [(hyz rfl).elim, hfar z hz', (hfar y hy').trans_eq (dist_comm _ _),
+      hsep y hy' z hz' hyz]
   rw [Finset.card_insert_of_notMem hxP, ← hPcard] at hle
   exact ((Nat.lt_succ_self P.card).not_ge (by exact_mod_cast hle)).elim
 
@@ -244,10 +241,9 @@ theorem coveringNumber_lt_top_of_totallyBounded {s : Set X} (hs : TotallyBounded
     {ε : ℝ} (hε : 0 < ε) : coveringNumber s ε < ⊤ := by
   classical
   obtain ⟨t, hfin, hcov⟩ := Metric.totallyBounded_iff.1 hs ε hε
-  refine lt_of_le_of_lt (coveringNumber_le_card (T := hfin.toFinset) ?_) (ENat.natCast_lt_top _)
-  intro x hx
-  obtain ⟨y, hy, hxy⟩ := Set.mem_iUnion₂.1 (hcov hx)
-  exact ⟨y, hfin.mem_toFinset.2 hy, (Metric.mem_ball.1 hxy).le⟩
+  exact lt_of_le_of_lt (coveringNumber_le_card (T := hfin.toFinset) fun x hx =>
+    let ⟨y, hy, hxy⟩ := Set.mem_iUnion₂.1 (hcov hx)
+    ⟨y, hfin.mem_toFinset.2 hy, (Metric.mem_ball.1 hxy).le⟩) (ENat.natCast_lt_top _)
 
 /-- Every totally bounded set has finite internal covering number at every positive scale `ε`. -/
 theorem internalCoveringNumber_lt_top_of_totallyBounded {s : Set X} (hs : TotallyBounded s)
@@ -310,9 +306,9 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
     (P.card : ℝ) ≤ (1 + 2 * R / ε) ^ Module.finrank ℝ E := by
   classical
   rcases subsingleton_or_nontrivial E with hsub | hnt
-  · have hcard : P.card ≤ 1 := Finset.card_le_one.2 fun a _ b _ => Subsingleton.elim a b
-    exact (by exact_mod_cast hcard : (P.card : ℝ) ≤ 1).trans
-      (one_le_pow₀ (by linarith [show 0 ≤ 2 * R / ε by positivity]))
+  · exact (((Nat.cast_le (α := ℝ)).2
+      (Finset.card_le_one.2 fun a _ b _ => Subsingleton.elim a b)).trans_eq Nat.cast_one).trans
+      (one_le_pow₀ (le_add_of_nonneg_right (div_nonneg (mul_nonneg zero_le_two hR) hε.le)))
   let _ : MeasurableSpace E := borel E
   have _ : BorelSpace E := ⟨rfl⟩
   let μ : Measure E := Measure.addHaar
@@ -355,9 +351,8 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
     rwa [← ENNReal.ofReal_pow hhalf_pos.le, ← ENNReal.ofReal_natCast,
       ← ENNReal.ofReal_mul (Nat.cast_nonneg _), ← ENNReal.ofReal_pow hbig_pos.le,
       ENNReal.ofReal_le_ofReal_iff (by positivity)] at hcancel
-  refine ((le_div_iff₀ (pow_pos hhalf_pos _)).2 hreal).trans_eq ?_
-  rw [← div_pow]
-  exact congrArg (· ^ _) (by field_simp; ring)
+  exact ((le_div_iff₀ (pow_pos hhalf_pos _)).2 hreal).trans_eq
+    ((div_pow _ _ _).symm.trans (congrArg (· ^ _) (by field_simp; ring)))
 
 /-- Finite real bound on `packingNumber (Metric.closedBall x₀ R) ε` for `R ≥ 0, ε > 0`. -/
 theorem packingNumber_closedBall_lt_top (x₀ : E) {R ε : ℝ} (hR : 0 ≤ R) (hε : 0 < ε) :

@@ -720,14 +720,13 @@ private theorem bssInv_step_broadcast {F : Set P} {xl : List (BSSAction P V)} {s
     · obtain ⟨q, hq_val, rfl⟩ := Multiset.mem_map.mp hm
       exact ⟨Set.mem_insert pkt _,
         (Finset.ne_of_mem_erase (hdests (Finset.mem_def.mpr hq_val))).symm⟩
-  · rw [hbcast_eq] at hb
-    rcases hb with rfl | hb
-    · have hpkt_s : pkt.sender = p := rfl
-      simp only [s', hpkt_s, Function.update_self, hpkt_ts_p]; omega
-    · obtain ⟨hb1, hble⟩ := hinv.bcast_sender_bounds b hb
-      refine ⟨hb1, ?_⟩
+  · rcases hbcast_eq ▸ hb with rfl | hb
+    · simp only [s', pkt, bssBroadcastPacket, bssNextTimestamp, Function.update_self]
+      omega
+    · refine (hinv.bcast_sender_bounds b hb).imp_right fun hble => ?_
       rcases eq_or_ne b.sender p with hbp | hbp
-      · rw [hbp] at hble ⊢; simp only [s', Function.update_self, hpkt_ts_p]; omega
+      · simp only [s', hbp, Function.update_self, hpkt_ts_p] at hble ⊢
+        omega
       · simpa [s', Function.update_of_ne hbp] using hble
   · rcases bssAppendSingleton_at xl act hi with ⟨hlt, hst, hget⟩ | ⟨_, hst, hget⟩
     · rw [hst, hget] at hbi; rw [hst]; exact hinv.bcast_emitted_spec i hlt b hbi
@@ -750,9 +749,9 @@ private theorem bssInv_step_broadcast {F : Set P} {xl : List (BSSAction P V)} {s
         rcases eq_or_ne r b₁.sender with rfl | hr
         · exact hsend ▸ (hinv.bcast_sender_bounds b₁ hb₁_mem).2
         · rw [hb₁_spec, bssNextTimestamp, Function.update_of_ne hr, hsend]; exact hvt_mono r
-      refine ⟨lt_of_le_of_lt hb₁_le_s hvt_lt_pkt, ?_⟩
-      have hpkt_s : pkt.sender = p := rfl
-      simpa only [hsend, hpkt_s, hpkt_ts_p] using Nat.lt_succ_of_le (hb₁_le_s p)
+      exact ⟨lt_of_le_of_lt hb₁_le_s hvt_lt_pkt,
+        by simpa only [hsend, pkt, bssBroadcastPacket, bssNextTimestamp, Function.update_self] using
+          Nat.lt_succ_of_le (hb₁_le_s p)⟩
 
 private theorem bssInv_of_vt_delivered_eq {F : Set P} {xl : List (BSSAction P V)}
     {s : BSSState P V} (hinv : BSSInv F xl s) {act : BSSAction P V}
@@ -1092,8 +1091,7 @@ private theorem omega_mTr_prefix {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (hinit : ss 0 = bssInit P V)
     (he : (bssLTS F).OmegaExecution ss xs) (n : ℕ) :
     (bssLTS F).MTr (bssInit P V) (xs.extract 0 n) (ss n) := by
-  rw [← hinit]
-  exact he.extract_mTr (Nat.zero_le n)
+  exact hinit ▸ he.extract_mTr (Nat.zero_le n)
 
 private theorem omega_vt_mono {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (he : (bssLTS F).OmegaExecution ss xs)
@@ -1271,8 +1269,7 @@ theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
   · have := hvt b.sender
     rw [hb_ts, bssNextTimestamp, Function.update_self] at hlt ⊢
     omega
-  · rw [hb_ts, bssNextTimestamp, Function.update_of_ne hr]
-    exact hvt r
+  · simpa only [hb_ts, bssNextTimestamp, Function.update_of_ne hr] using hvt r
 
 /-- Predicate stating that an action is not a mid-multicast partial crash (`crashBroadcast`). -/
 @[expose]
@@ -1294,9 +1291,8 @@ theorem bss_live_of_atomic_multicast {F : Set P} {ss : ωSequence (BSSState P V)
   have hsent_all (k' : ℕ) (b' : Packet P V) (hem' : emittedPacket (ss k') (xs k') = some b') :
       PacketSentTo q ss xs b' := by
     refine ⟨k', hem', or_iff_not_imp_left.mpr fun hsq => ?_⟩
-    obtain ⟨_, hstep⟩ := he k'
     have hat := hatomic k'
-    rw [hstep]
+    rw [(he k').2]
     cases hact : xs k' <;> simp only [hact, emittedPacket, reduceCtorEq, Option.some.injEq,
       IsAtomicMulticastAction] at hem' hat
     subst hem'
@@ -1331,12 +1327,10 @@ quorum or majority restriction), `bssLTS F` satisfies
 `BSSSolvesAtomicMulticastCausalBroadcast P V F`. -/
 theorem bss_solves_atomicMulticast_causalBroadcast (F : Set P) :
     BSSSolvesAtomicMulticastCausalBroadcast P V F :=
-  ⟨fun _ _ hmtr =>
-    ⟨bss_integrity hmtr,
-     bss_no_duplicates hmtr,
-     fun _ hb₁ _ hb₂ hprec q hd => bss_causal_delivery hmtr hb₁ hb₂ hprec q hd⟩,
-   fun _ _ hinit he hfair hatomic _ hq _ _ hem =>
-     bss_live_of_atomic_multicast hinit he hfair hatomic hq hem⟩
+  ⟨fun _ _ hmtr => ⟨bss_integrity hmtr, bss_no_duplicates hmtr,
+      fun _ hb₁ _ hb₂ => bss_causal_delivery hmtr hb₁ hb₂⟩,
+    fun _ _ hinit he hfair hatomic _ hq _ _ =>
+      bss_live_of_atomic_multicast hinit he hfair hatomic hq⟩
 
 end Liveness
 

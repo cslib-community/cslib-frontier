@@ -136,7 +136,6 @@ noncomputable def PlacedGate.ctrlPhase (inv : Bool) {k : ℕ} (e : Fin k ↪ Fin
 @[simp] theorem PlacedGate.mapWires_ctrlPhase {N k : ℕ} (e : Fin m ↪ Fin N) (inv : Bool)
     (A : Fin k ↪ Fin m) :
     (PlacedGate.ctrlPhase inv A).mapWires e = PlacedGate.ctrlPhase inv (A.trans e) := by
-  unfold PlacedGate.ctrlPhase PlacedGate.mapWires
   rfl
 
 /-- **The entries of a placed controlled phase gate**: it multiplies `|x⟩` by `i` (for `inv`, by
@@ -146,14 +145,10 @@ theorem PlacedGate.ctrlPhase_matrix_apply (inv : Bool) {k : ℕ} (e : Fin k ↪ 
     ((PlacedGate.ctrlPhase inv e).matrix : Matrix _ _ ℂ) y x =
       if y = x then (if ∀ i, x (e i) = true then (bif inv then -Complex.I else Complex.I) else 1)
       else 0 := by
-  rw [show PlacedGate.ctrlPhase inv e =
-      ⟨k, bif inv then (Gate.ctrlPhase k)⁻¹ else Gate.ctrlPhase k, e⟩ from rfl, matrix_apply]
-  dsimp only
-  rw [Gate.ctrlPhase_cond_apply]
-  simp only [Function.comp_apply]
+  unfold PlacedGate.ctrlPhase
+  simp only [matrix_apply, Gate.ctrlPhase_cond_apply, Function.comp_apply]
   by_cases hyx : y = x
-  · subst hyx
-    simp
+  · simp [hyx]
   · rw [ite_eq_right hyx]
     have key (h₁ : ∀ j, (¬∃ i, e i = j) → y j = x j) (h₂ : y ∘ e = x ∘ e) : y = x :=
       funext fun j => by
@@ -431,9 +426,8 @@ theorem wellFormed_toRealCodes {gs : List PhaseGateCode} (hgs : ∀ c ∈ gs, c.
   have hwf := hgs c hc
   match c, hwf, hg with
   | (false, g'), hwf, hg =>
-    rw [show realCodes m (false, g') = [g'] from rfl, List.mem_singleton] at hg
-    subst hg
-    simpa using GateCode.WellFormed.shift (o := 0) (N := m + 1) (by omega) hwf
+    simpa [List.mem_singleton.mp hg] using
+      GateCode.WellFormed.shift (o := 0) (N := m + 1) (by omega) hwf
   | (true, inv, t, cs), hwf, hg =>
     have hH : GateCode.WellFormed (m + 1) (true, m, []) := ⟨by omega, rfl⟩
     have hX := wellFormed_ctrlCode hwf
@@ -463,9 +457,8 @@ into `m` qubits. -/
 theorem _root_.Cslib.Quantum.inputState_succ {x : List Bool} (hx : x.length ≤ m) :
     inputState (m + 1) x = Fin.snoc (inputState m x) false := by
   funext i
-  refine Fin.lastCases ?_ (fun j => ?_) i
-  · simp [inputState, List.getElem?_eq_none_iff.mpr hx]
-  · simp [inputState]
+  exact Fin.lastCases (by simp [inputState, List.getElem?_eq_none_iff.mpr hx])
+    (fun _ => by simp [inputState]) i
 
 /-- The outcomes of `m + 1` qubits in which the qubits `S` below `m` read one are those whose
 first `m` bits do. -/

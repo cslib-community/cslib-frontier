@@ -146,9 +146,8 @@ section Deterministic
 omit [Fintype S] [DecidableEq S] in
 private theorem rowValid_injective :
     Injective (uncurry Name.rowValid : Option S × Fin (K + K) → PlanName S M U0 U1 pS) := by
-  rintro ⟨s, p⟩ ⟨s', p'⟩ h
-  simp only [uncurry_apply_pair, Name.rowValid.injEq] at h
-  rw [h.1, h.2]
+  rintro ⟨_, _⟩ ⟨_, _⟩ ⟨⟩
+  rfl
 
 omit [DecidableEq S] in
 private theorem execAll_rowCheckSteps {st : PlanName S M U0 U1 pS → Tree}
@@ -164,12 +163,10 @@ private theorem execAll_rowCheckSteps {st : PlanName S M U0 U1 pS → Tree}
   simp only [uncurry_apply_pair, Codes.rowCheckStep]
   split_ifs with h
   · rw [exec_op C.name_injective, hz, hρ, path_ofBits]
-    simp only [path, tget, hd_cons]
-    rw [tget_trieOf C.rowData_injective]
-    simp [ValidRow, RowValidAfter, prevLast, h]
-  · rw [exec_op C.name_injective, hρ, hρ, path_ofBits, path_ofBits, tget_trieOf C.rowData_injective,
-      tget_trieOf C.rowData_injective]
-    simp [ValidRow, RowValidAfter, prevLast, h]
+    simp [path, tget, hd_cons, tget_trieOf C.rowData_injective, ValidRow, RowValidAfter, prevLast,
+      h]
+  · rw [exec_op C.name_injective, hρ, hρ, path_ofBits, path_ofBits]
+    simp [tget_trieOf C.rowData_injective, ValidRow, RowValidAfter, prevLast, h]
 
 omit [Fintype S] in
 private theorem exec_gateStep (x : PlanInput M U0 U1) (k : Fin pS)
@@ -185,11 +182,9 @@ private theorem exec_gateStep (x : PlanInput M U0 U1) (k : Fin pS)
   · rw [Codes.exec_constStep hz, congrFun h2.choose_spec x]
   · obtain ⟨hi, hj, hφ⟩ := h3.choose_spec.choose_spec.choose_spec
     rw [Codes.exec_binaryStep (hprev _ hi) (hprev _ hj), ← hφ x]
-  · exfalso
-    rcases tab.isSlpStep k k.2 with h | h | ⟨i, hi, j, hj, φ, hφ⟩
-    · exact h1 h
-    · exact h2 h
-    · exact h3 ⟨⟨i, hi.trans k.2⟩, ⟨j, hj.trans k.2⟩, φ, hi, hj, hφ⟩
+  · rcases tab.isSlpStep k k.2 with h | h | ⟨i, hi, j, hj, φ, hφ⟩
+    exacts [(h1 h).elim, (h2 h).elim,
+      (h3 ⟨⟨i, hi.trans k.2⟩, ⟨j, hj.trans k.2⟩, φ, hi, hj, hφ⟩).elim]
 
 omit [Fintype S] [DecidableEq S] in
 private theorem execAll_gateSteps (x : PlanInput M U0 U1) {st : PlanName S M U0 U1 pS → Tree}
@@ -204,10 +199,8 @@ private theorem execAll_gateSteps (x : PlanInput M U0 U1) {st : PlanName S M U0 
     ⟨List.pairwise_lt_finRange pS, hz, hin, fun j hj => absurd (List.mem_finRange j) hj⟩
     fun k rest st ⟨h1, h2, h3, h4⟩ => ⟨exec_gateStep C tab x k h2 h3 fun j hj => h4 j ?_,
       (List.pairwise_cons.1 h1).2, by simp [h2], fun i => ?_, fun j hj => ?_⟩
-  · intro hj'
-    rcases List.mem_cons.1 hj' with rfl | hj'
-    · exact lt_irrefl _ hj
-    · exact lt_asymm hj ((List.pairwise_cons.1 h1).1 j hj')
+  · rintro (_ | ⟨_, hj'⟩)
+    exacts [lt_irrefl _ hj, lt_asymm hj ((List.pairwise_cons.1 h1).1 j hj')]
   · rw [update_of_ne (by rcases tab.input i <;> simp [inputName]), h3]
   · by_cases hjk : j = k
     · simp [hjk]

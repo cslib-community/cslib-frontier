@@ -505,9 +505,8 @@ private theorem balance_of_acceptLocal [DecidableEq Commitment]
     (hlocal : ∀ r ∈ reqs, acceptLocal com tag S pk r = true) :
     ∀ s ∈ spends reqs, s.oldCredit + s.oldRefund = s.newCredit + s.debit := by
   intro s hs
-  have hr := hlocal (.spend s) (mem_reqs_of_mem_spends hs)
-  simp only [acceptLocal, Bool.and_eq_true, decide_eq_true_eq] at hr
-  exact hr.2
+  exact of_decide_eq_true
+    (Bool.and_eq_true_iff.mp (hlocal (.spend s) (mem_reqs_of_mem_spends hs))).2
 
 /-- Every spend in a trace accepted by `validTrace` satisfies the `(V3)` balance equation, the
 first premise of `spentDebit_le_of_certified`. -/
@@ -536,17 +535,13 @@ private theorem sum_balance_outputPayload_filter [DecidableEq Context]
         simp only [List.filter_cons, Request.ctx, hctx, decide_true, decide_false,
           Bool.false_eq_true, ↓reduceIte, List.map_cons, Request.outputPayload,
           Credit.Note.balance, List.sum_cons, issuedAmount, issuesIn_cons_issue,
-          spendsIn_cons_issue, grantedRefund] at ih ⊢
-      · omega
-      · exact ih
+          spendsIn_cons_issue, grantedRefund] at ih ⊢ <;> omega
     | spend sr =>
       by_cases hctx : sr.ctx = ctx <;>
         simp only [List.filter_cons, Request.ctx, hctx, decide_true, decide_false,
           Bool.false_eq_true, ↓reduceIte, List.map_cons, Request.outputPayload,
           Credit.Note.balance, List.sum_cons, issuedAmount, issuesIn_cons_spend,
-          spendsIn_cons_spend, grantedRefund] at ih ⊢
-      · omega
-      · exact ih
+          spendsIn_cons_spend, grantedRefund] at ih ⊢ <;> omega
 
 private theorem sum_balance_inputNote_list
     (l : List (SpendRequest Nullifier Context Opening Commitment Sig))
@@ -968,12 +963,9 @@ private theorem extractedConservationAccept_imp_extractedAccept
       · simpa using ih fun p hp => hsome p (List.mem_cons_of_mem _ hp)
   cases hforg : findNoteForgery reqs with
   | none =>
-    exfalso
-    have hcert := (findNoteForgery_eq_none_iff reqs).mp hforg
-    have hle := spentDebit_le_of_certified reqs (balance_of_validTrace hvalid)
-      (nodup_spends_of_validTrace hvalid) hcert run.targetCtx
-    simp only [extractedConservationAccept, decide_eq_true_eq] at hwin
-    exact (Nat.not_le.mpr hwin) hle
+    exact absurd (spentDebit_le_of_certified reqs (balance_of_validTrace hvalid)
+      (nodup_spends_of_validTrace hvalid) ((findNoteForgery_eq_none_iff reqs).mp hforg)
+      run.targetCtx) (Nat.not_le.mpr (of_decide_eq_true hwin))
   | some tok =>
     obtain ⟨s, hs, rfl, hnotmem⟩ := findNoteForgery_eq_some hforg
     have hloc := acceptLocal_of_validTrace hvalid (.spend s) (mem_reqs_of_mem_spends hs)

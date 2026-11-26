@@ -67,13 +67,11 @@ private theorem eventually_chebyshevFactor_le :
   have hLs : L < (s + 1) ^ 2 := Nat.lt_succ_sqrt' L
   set q := s / 10
   have hq : 10 * q ≤ s := Nat.mul_div_le s 10
-  have hq' : s < 10 * (q + 1) := by omega
-  have hqQ : Q ≤ q := by omega
-  have hsS : S ≤ s := by omega
+  have hq' : s < 10 * (q + 1) ∧ Q ≤ q ∧ S ≤ s := by omega
   -- `4 L + 1 ≤ 5 (s + 1) ^ 2 ≤ 500 (q + 1) ^ 2 ≤ 2 ^ q`
-  have h1 : 4 * L + 1 ≤ 2 ^ q := by nlinarith [hQ q hqQ]
+  have h1 : 4 * L + 1 ≤ 2 ^ q := by nlinarith [hQ q hq'.2.1]
   -- `64 (3 L + 3) ≤ 384 (s + 1) ^ 2 ≤ 2 ^ s`
-  have h2 : 64 * (3 * L + 3) ≤ 2 ^ s := by nlinarith [hS s hsS]
+  have h2 : 64 * (3 * L + 3) ≤ 2 ^ s := by nlinarith [hS s hq'.2.2]
   have h3 : s + q * (8 * s + 10) ≤ L := by nlinarith
   calc 64 * (3 * L + 3) * (4 * L + 1) ^ (8 * s + 10) ≤ 2 ^ s * (2 ^ q) ^ (8 * s + 10) :=
         Nat.mul_le_mul h2 (Nat.pow_le_pow_left h1 _)
@@ -193,10 +191,9 @@ private theorem eventually_four_mul_numBlocks_le :
         _ ≤ (ℓ + 1) ^ 2 * (4 * L * n) := Nat.mul_le_mul_left _ hTn
         _ = (ℓ + 1) ^ 2 * (4 * L) * n := by ring
     have hrlt : r < (ℓ + 1) ^ 2 * (4 * L) := (Nat.div_lt_iff_lt_mul hn0).2 h2
-    have h4L : 4 * L ≤ 2 * (ℓ + 1) := by omega
-    have hr1 : r + 1 ≤ 2 * (ℓ + 1) ^ 3 := by
-      have : (ℓ + 1) ^ 2 * (4 * L) ≤ (ℓ + 1) ^ 2 * (2 * (ℓ + 1)) := Nat.mul_le_mul_left _ h4L
-      linarith [show (ℓ + 1) ^ 2 * (2 * (ℓ + 1)) = 2 * (ℓ + 1) ^ 3 by ring]
+    have hcube : (ℓ + 1) ^ 2 * (2 * (ℓ + 1)) = 2 * (ℓ + 1) ^ 3 := by ring
+    have hr1 : r + 1 ≤ 2 * (ℓ + 1) ^ 3 :=
+      hcube ▸ hrlt.trans_le (Nat.mul_le_mul_left _ (by omega))
     calc 4 * ((ℓ + 1) * (r * (r + 1)))
         ≤ 4 * ((ℓ + 1) * (2 * (ℓ + 1) ^ 3 * (2 * (ℓ + 1) ^ 3))) := by
           gcongr
@@ -241,16 +238,14 @@ theorem eventually_explicitThreshold_le :
 theorem eventually_explicitThreshold_lt : ∀ᶠ N in atTop, explicitThreshold N < N := by
   filter_upwards [eventually_explicitThreshold_le, Nat.eventually_le_log 6 one_lt_two,
     eventually_gt_atTop 0] with N h hℓ hN
-  have : 7 * explicitThreshold N ≤ 6 * N := le_trans (Nat.mul_le_mul_right _ (by omega)) h
-  omega
+  linarith [Nat.mul_le_mul_right (explicitThreshold N) (Nat.add_le_add_right hℓ 1)]
 
 /-- **The threshold is `O(N / log N)`**. -/
 theorem isBigO_explicitThreshold :
     (fun N : ℕ => (explicitThreshold N : ℝ)) =O[atTop] fun N => (N : ℝ) / Real.log N := by
   refine Asymptotics.IsBigO.of_bound 6 ?_
   filter_upwards [eventually_explicitThreshold_le, eventually_ge_atTop 2] with N h hN2
-  have hN2' : (2 : ℝ) ≤ N := by exact_mod_cast hN2
-  have hlogpos : 0 < Real.log N := Real.log_pos (by linarith)
+  have hlogpos : 0 < Real.log N := Real.log_pos (Nat.one_lt_cast.mpr (by omega))
   rw [Real.norm_natCast, Real.norm_of_nonneg (by positivity)]
   -- `log N < (⌊log₂ N⌋ + 1) log 2 ≤ ⌊log₂ N⌋ + 1`
   have hlog : Real.log N ≤ Nat.log 2 N + 1 := by

@@ -463,10 +463,8 @@ def IsMinSubcubeCert (n s : ℕ) (f : BooleanFunction n) (p w : List Bool) : Pro
 
 private theorem exists_isMinSubcubeCert_iff {n s : ℕ} {f : BooleanFunction n} {p : List Bool} :
     (∃ w, IsMinSubcubeCert n s f p w) ↔ ∃ w, IsSubcubeCert n s f p w := by
-  refine ⟨fun ⟨w, hw, _⟩ => ⟨w, hw⟩, fun ⟨w₀, hw₀⟩ => ?_⟩
-  obtain ⟨w, _, hPw, hmin⟩ :=
-    exists_wordLt_min ⟨w₀, hw₀.1, hw₀⟩
-  exact ⟨w, hPw, hmin⟩
+  exact ⟨fun ⟨w, hw, _⟩ => ⟨w, hw⟩,
+    fun ⟨w₀, hw₀⟩ => (exists_wordLt_min ⟨w₀, hw₀.1, hw₀⟩).imp fun _ h => h.2⟩
 
 private theorem isMinSubcubeCert_unique {n s : ℕ} {f : BooleanFunction n} {p w₁ w₂ : List Bool}
     (h₁ : IsMinSubcubeCert n s f p w₁) (h₂ : IsMinSubcubeCert n s f p w₂) :
@@ -476,9 +474,8 @@ private theorem isMinSubcubeCert_unique {n s : ℕ} {f : BooleanFunction n} {p w
 private theorem isSubcubeCert_append_of_isSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w : List Bool} (hp : p.length < n) (hw : IsSubcubeCert n s f p w) (b : Bool) :
     IsSubcubeCert n s f (p ++ [b]) w := by
-  refine ⟨hw.1, hw.2.1, fun x hx => hw.2.2 x ?_⟩
-  have hx' : p.length < (List.ofFn x).length := by simpa using hp
-  exact ((isPrefixOf_append_singleton hx').1 hx).1
+  exact ⟨hw.1, hw.2.1, fun x hx =>
+    hw.2.2 x ((isPrefixOf_append_singleton (by simpa using hp)).1 hx).1⟩
 
 private theorem isMergedCert_iff_isSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w₀ w₁ w : List Bool} (hp : p.length < n)
@@ -500,8 +497,8 @@ private theorem isMergedCert_iff_isSubcubeCert {n s : ℕ} {f : BooleanFunction 
       ⟨BitString.ofList n x, BitString.ofFn_ofList hx⟩
     cases hin : p.isPrefixOf (List.ofFn y)
     · simp [agreesOnPoint, hin]
-    · rw [agreesOnPoint, hrhs y hin, h y hin]
-      simp
+    · simp only [agreesOnPoint, hin, Bool.not_true, Bool.false_or, beq_iff_eq, h y hin,
+        hrhs y hin]
 
 private theorem isMinMergedCert_iff_isMinSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w₀ w₁ w : List Bool} (hp : p.length < n)
@@ -780,10 +777,8 @@ private theorem length_frame_encHeader_add_le {n s : ℕ} {p : List Bool} (hp : 
     (frame (encHeader ⟨n, s, p, (j : ℕ)⟩)).length + (stateWidth n s + stateWidth n s) ≤
       48 * (n + s + 1) ^ 2 := by
   have hj : (j : ℕ) < stateWidth n s := j.isLt
-  have hsw : stateWidth n s ≤ 3 * (n + s + 1) ^ 2 + 1 := by
-    have := certLength_le_three_mul_sq n s
-    unfold stateWidth
-    omega
+  have hsw : stateWidth n s ≤ 3 * (n + s + 1) ^ 2 + 1 :=
+    Nat.add_le_add_right (certLength_le_three_mul_sq n s) 1
   simp only [encHeader_apply, encHeaderFields, length_frame, length_encPair, encUnary_apply,
     List.length_replicate, encBits_apply]
   nlinarith
@@ -832,9 +827,7 @@ theorem exists_complexity_yesSet_le_of_NP_subset_PPoly
     rw [hslice]
     exact (complexity_comp_le (I := interpretation) _ _).trans
       (by simpa [complexity_single_proj] using htree)
-  have hsw : stateWidth n (s n) ≤ 6 * N ^ 2 := by
-    unfold stateWidth certLength N
-    nlinarith
+  have hsw : stateWidth n (s n) ≤ 6 * N ^ 2 := by dsimp [stateWidth, certLength, N]; nlinarith
   have h48 : 48 * N ^ 2 + 1 ≤ 49 * N ^ 2 := by nlinarith
   have hM_le : M + 3 ≤ (c₀ * 49 ^ c₀ + 3) * (N ^ 2) ^ c₀ := by
     have h1 : M ≤ c₀ * 49 ^ c₀ * (N ^ 2) ^ c₀ := by
@@ -903,8 +896,7 @@ theorem not_NP_subset_PPoly_of_yesSet_hard
     ¬ (NP encBits ⊆ PPolyOn encBits) := by
   intro hNP
   obtain ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_le_of_NP_subset_PPoly hNP
-  obtain ⟨s, n, hlb⟩ := h c hc_pos
-  exact (lt_irrefl _) ((hub s n).trans_lt hlb)
+  exact (h c hc_pos).elim fun s ⟨n, hlb⟩ => (hub s n).not_gt hlb
 
 /-- **Hardness magnification for `MCSP[s]` to `P ≠ NP`**: if for every `c > 0` there exist a
 schedule `s` and input arity `n` such that the `2 ^ n`-bit slice of `GapMCSP.yesSet s` requires
@@ -934,8 +926,7 @@ theorem not_NP_subset_PPoly_of_yesSet_pow_hard (k : ℕ)
     ¬ (NP encBits ⊆ PPolyOn encBits) := by
   intro hNP
   obtain ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_pow_le_of_NP_subset_PPoly hNP k
-  obtain ⟨n, hlb⟩ := h c hc_pos
-  exact (lt_irrefl _) ((hub n).trans_lt hlb)
+  exact (h c hc_pos).elim fun n hlb => (hub n).not_gt hlb
 
 /-- **Hardness magnification for `MCSP[n ^ k]` to `P ≠ NP`**: if for some `k` and every `c > 0`,
 there is `n` such that the `2 ^ n`-bit slice of `GapMCSP.yesSet (fun m => m ^ k)` requires more

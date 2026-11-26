@@ -69,9 +69,8 @@ private theorem input_mem {α : Type*} (xs : List α)
   List.get_mem _ _
 
 private theorem input_injective {α : Type*} (xs : List α) (hxs : xs.Nodup) :
-    Function.Injective (input xs) := by
-  intro i j hij
-  exact Fin.ext (congrArg (fun k : Fin xs.length => k.val) (hxs.injective_get hij))
+    Function.Injective (input xs) := fun _ _ hij =>
+  Fin.ext (congrArg (fun k : Fin xs.length => k.val) (hxs.injective_get hij))
 
 private theorem exists_input {α : Type*} (xs : List α) {x : α} (hx : x ∈ xs) :
     ∃ i, input xs i = x := by
@@ -100,10 +99,8 @@ private theorem port_injective (v : Vert U C R) : Function.Injective (port N A v
   rcases v with u | (c | r)
   · rintro (i | i) (j | j) h
     · exact congrArg Sum.inl (input_injective _ (N.characters_nodup.filter _) (Sum.inl.inj h))
-    · have hc := (List.mem_filter.mp (input_mem (rowInputs N A u) i)).2
-      exact (of_decide_eq_true hc).2 (Sum.inl.inj h) |>.elim
-    · have hc := (List.mem_filter.mp (input_mem (rowInputs N A u) j)).2
-      exact (of_decide_eq_true hc).2 (Sum.inl.inj h).symm |>.elim
+    · exact absurd (Sum.inl.inj h) (of_decide_eq_true (List.mem_filter.mp (input_mem _ i)).2).2
+    · exact absurd (Sum.inl.inj h).symm (of_decide_eq_true (List.mem_filter.mp (input_mem _ j)).2).2
     · exact congrArg Sum.inr (Subsingleton.elim (α := Fin 1) i j)
   · rintro (i | i) (j | j) h
     · exact congrArg Sum.inl (input_injective _ ((N.branches_nodup).filter _) (Sum.inr.inj h))
@@ -308,8 +305,7 @@ private theorem boundaryEnd_injective : Function.Injective (boundaryEnd N A) := 
   rintro ⟨v, x⟩ ⟨w, y⟩ h
   obtain rfl : v = w := (endpoint_boundary N A v x).symm.trans
     ((congrArg (fun z => N.endpoints.endpoint z.1 z.2) h).trans (endpoint_boundary N A w y))
-  obtain rfl := port_injective N A v (congrArg Prod.fst h)
-  rfl
+  exact congrArg (Sigma.mk v) (port_injective N A v (congrArg Prod.fst h))
 
 private theorem boundaryEnd_surjective : Function.Surjective (boundaryEnd N A) := by
   rintro ⟨e, b⟩
@@ -370,9 +366,8 @@ private theorem local_shared_endpoint (v : Vert U C R) (w : (cell N A v).diagram
   rw [local_portMultiset] at hm
   rcases Multiset.mem_add.mp hm with hm | hm
   · obtain ⟨x, _, hx⟩ := Multiset.mem_sum.mp hm
-    obtain rfl := Multiset.mem_singleton.mp hx
-    obtain rfl : port N A v x = e := Sum.inl.inj he
-    exact endpoint_boundary N A v x
+    rw [Multiset.mem_singleton.mp hx] at he ⊢
+    exact Sum.inl.inj he ▸ endpoint_boundary N A v x
   · obtain ⟨x, _, hx⟩ := Multiset.mem_sum.mp hm
     rcases Multiset.mem_add.mp hx with hx | hx <;> simp [Multiset.mem_singleton.mp hx] at he
 

@@ -142,21 +142,17 @@ theorem IsLeafMinimal.arg {op : Op} {args : Fin (signature.Arity op) → Formula
     (hF : (gate op args).IsLeafMinimal) (j : Fin (signature.Arity op)) :
     (args j).IsLeafMinimal := by
   intro G hG
-  have hcomp : (gate op (update args j G)).Computes interpretation
-      ((gate op args).eval interpretation) := fun x => by
+  have hle := hF (gate op (update args j G)) fun x => by
     simp only [eval_gate]
     congr 1 with k : 1
     rcases eq_or_ne k j with rfl | hk
     · simpa using hG x
     · simp [hk]
-  have hle := hF (gate op (update args j G)) hcomp
   simp only [leafSize_gate] at hle
-  have heq : ∑ k ∈ univ.erase j, (update args j G k).leafSize =
-      ∑ k ∈ univ.erase j, (args k).leafSize :=
-    sum_congr rfl fun k hk => by simp [ne_of_mem_erase hk]
   rw [← add_sum_erase univ (fun k => (args k).leafSize) (mem_univ j),
-    ← add_sum_erase univ (fun k => (update args j G k).leafSize) (mem_univ j),
-    update_self, heq] at hle
+    ← add_sum_erase univ (fun k => (update args j G k).leafSize) (mem_univ j), update_self,
+    sum_congr rfl fun k hk => congrArg leafSize
+      (update_of_ne (β := fun _ => Formula signature n) (ne_of_mem_erase hk) G args)] at hle
   omega
 
 theorem IsLeafMinimal.of_not {F : Formula signature n} (h : F.not.IsLeafMinimal) :
@@ -403,10 +399,7 @@ theorem sum_formulaSize_restrict_update_le_add_one (f : BooleanFunction n)
       (2 * #ρ.free - 3) * formulaSize (f ∘ ρ.fill) + 1 := by
   have h := sum_formulaSize_restrict_update_le f ρ
   rw [Nat.sub_mul]
-  split_ifs at h with h1
-  · rw [h1] at h ⊢
-    omega
-  · omega
+  split_ifs at h with h1 <;> omega
 
 /-! ### Deterministic shrinkage and Subbotovskaya's parity lower bound -/
 
@@ -660,7 +653,7 @@ theorem exists_mem_formulaSize_sub_sq_le (f : BooleanFunction n)
       _ ≤ S_k := sum_le_sum_of_subset hAsub
   have h2 : (L' - 2 * k) * N_k ≤ 2 * (S_k - k * N_k) := by
     have : L' * N_k ≤ 2 * S_k := by nlinarith
-    rw [Nat.sub_mul, Nat.mul_sub_left_distrib, show 2 * (k * N_k) = 2 * k * N_k by ring]
+    rw [Nat.sub_mul, Nat.mul_sub_left_distrib, ← mul_assoc]
     omega
   have hsq : ((L' - 2 * k) * N_k) ^ 2 ≤ (2 * (S_k - k * N_k)) ^ 2 := by gcongr
   have havg := sum_extensions_formulaSize_sub_sq_le f ρ₀ hk1 hk

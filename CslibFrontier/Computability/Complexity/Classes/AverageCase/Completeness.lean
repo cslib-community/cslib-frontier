@@ -99,16 +99,13 @@ theorem codeVerifier_polyTime (hnum : ComputableInPolyTime num encBits encNat)
     {V : List Bool × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair encBits encBits) encBool) :
     ComputableInPolyTime (codeVerifier num den q V) (encPair encBits encBits) encBool := by
-  have hcode := code_polyTime hnum hden
-  have h1 := ComputableInPolyTime.fst encBits encBits
-  have h2 := ComputableInPolyTime.snd encBits encBits
-  have hx := ComputableInPolyTime.unframe.comp h2
-  have hw := ComputableInPolyTime.dropFrame.comp h2
-  have hq := (ComputableInPolyTime.unary_eval q).comp (ComputableInPolyTime.length_bits.comp hx)
-  have hV' := hV.comp (hx.prod hw)
-  have hd1 := ComputableInPolyTime.decide_eq' h1 (hcode.comp hx)
-  have hd2 := ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits.comp hw) hq
-  exact ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hd1 hd2) hV'
+  have hx := ComputableInPolyTime.unframe.comp (.snd encBits encBits)
+  have hw := ComputableInPolyTime.dropFrame.comp (.snd encBits encBits)
+  exact ComputableInPolyTime.bool_and'
+    (.bool_and' (.decide_eq' (.fst encBits encBits) ((code_polyTime hnum hden).comp hx))
+      (.decide_eq' (ComputableInPolyTime.length_bits.comp hw)
+        ((ComputableInPolyTime.unary_eval q).comp (ComputableInPolyTime.length_bits.comp hx))))
+    (hV.comp (hx.prod hw))
 
 section Spec
 
@@ -186,12 +183,10 @@ private theorem runFor_eq_of_computesInTimeAndSpace {k : ℕ} {State : Type}
 private theorem eq_of_runFor_eq {k : ℕ} {State : Type} {tm : Turing.MultiTapeTM k Bool State}
     {w out out' : List Bool} {T s t : ℕ} (h : tm.ComputesInTimeAndSpace w out T s)
     (h' : tm.runFor w t = some out') : out' = out := by
-  have h1 := (tm.mem_runFor_iff).mp h'
+  obtain ⟨hhalt, hout'⟩ := tm.mem_runFor_iff.mp h'
   rcases le_total T t with hTt | htT
-  · obtain ⟨-, ho⟩ := h.runFrom_of_le hTt
-    rw [← h1.2, ho]
-  · obtain ⟨-, ho⟩ := h.runFrom_of_le (le_refl T)
-    rw [← h1.2, ← ho, tm.runFrom_eq_of_halt _ htT h1.1]
+  · rw [← hout', (h.runFrom_of_le hTt).2]
+  · rw [← hout', ← (h.runFrom_of_le le_rfl).2, tm.runFrom_eq_of_halt _ htT hhalt]
 
 /-- **Levin's theorem** [Bogdanov and Trevisan, Theorem 19][BogdanovTrevisan2006]: every problem of
 `DistNP` reduces to the distributional bounded halting problem `(BH, U^BH)`. -/
@@ -277,13 +272,11 @@ theorem distHard_problem : DistHard DistNP problem := by
           decide_true, Bool.and_self, encBool_apply]
     · rintro ⟨v, -, hrun⟩
       rw [hc, hpair] at hrun
-      have hv : codeVerifier num den q V (code num den x, v) = true := by
-        simpa only [encBool_apply, List.cons.injEq, and_true] using
-          (eq_of_runFor_eq (htm (code num den x, v)) hrun).symm
-      simp only [codeVerifier, Bool.and_eq_true, decide_eq_true_eq] at hv
-      obtain ⟨⟨hcx, hq⟩, hV⟩ := hv
-      rw [code_injective hcdf hden0 hcx]
-      exact (hVer _).mpr ⟨dropFrame v, by simpa only [encBits_apply] using hq, hV⟩
+      have hv := (eq_of_runFor_eq (htm (code num den x, v)) hrun).symm
+      simp only [encBool_apply, List.cons.injEq, and_true, codeVerifier, Bool.and_eq_true,
+        decide_eq_true_eq] at hv
+      rw [code_injective hcdf hden0 hv.1.1]
+      exact (hVer _).mpr ⟨dropFrame v, by simpa only [encBits_apply] using hv.1.2, hv.2⟩
   · -- domination
     by_cases hy : ∃ x ∈ (L.ens.dist n).support, f x = y
     · obtain ⟨x, hx, rfl⟩ := hy

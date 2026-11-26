@@ -642,8 +642,7 @@ private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
     P.step ⟨.counter, t⟩ cfg =
       reflectConfig (P.dual.step ⟨.clockwise, -t⟩ (reflectConfig cfg)) := by
-  have hsub : -t - 1 = -(t + 1) := by
-    rw [sub_eq_add_neg, neg_add]
+  have hsub : -t - 1 = -(t + 1) := (sub_eq_add_neg (-t) 1).trans (neg_add t 1).symm
   simp only [step, dual, reflectConfig, hsub, neg_neg]
   cases hq : cfg.chanPred (t + 1) with
   | nil => exact (reflectConfig_involutive cfg).symm
@@ -668,8 +667,7 @@ private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
 private theorem enabled_counter_iff_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
     cfg.Enabled ⟨.counter, t⟩ ↔ (reflectConfig cfg).Enabled ⟨.clockwise, -t⟩ := by
-  have hsub : -t - 1 = -(t + 1) := by
-    rw [sub_eq_add_neg, neg_add]
+  have hsub : -t - 1 = -(t + 1) := (sub_eq_add_neg (-t) 1).trans (neg_add t 1).symm
   simp only [AnonAsyncConfig.Enabled, reflectConfig, hsub, neg_neg]
 
 private theorem mtr_reflect_counter {n : ℕ} [NeZero n] {xs : List (Fin n)}
@@ -699,10 +697,8 @@ private theorem exec_counterWave_eq_dual {n : ℕ} [NeZero n] (cfg : AnonAsyncCo
   induction xs generalizing c with
   | nil => exact (reflectConfig_involutive c).symm
   | cons i is ih =>
-    simp only [List.map_cons, exec_cons]
-    have hstep := P.step_counter_eq_dual (-i) c
-    rw [neg_neg] at hstep
-    rw [hstep, ih, reflectConfig_involutive]
+    rw [List.map_cons, List.map_cons, exec_cons, exec_cons, P.step_counter_eq_dual (-i) c,
+      neg_neg, ih, reflectConfig_involutive]
 
 private theorem mtr_counterWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     {s : S} {m : M} {cs mp : List M} (huni : cfg.IsUniform s cs (m :: mp)) :
@@ -798,15 +794,10 @@ theorem exists_rotWave_trace_leaders_card_ne_one {n : ℕ} [NeZero n] (hn : 2 �
       · exact ⟨sched, cfg, s, cs, cp, hmtr, huni, Or.inr ⟨hcs, hcp⟩⟩
   obtain ⟨sched, cfg, s, cs, cp, hmtr, huni, hdone⟩ := hbuild W
   refine ⟨sched, cfg, hmtr, ?_, ?_⟩
-  · rcases hdone with hlen | ⟨hcs, hcp⟩
-    · exact Or.inl hlen
-    · right
-      rintro ⟨dir, t⟩ cfg' ⟨hen, _⟩
-      cases dir with
-      | clockwise =>
-        exact hen ((huni.2.1 (t - 1)).trans hcs)
-      | counter =>
-        exact hen ((huni.2.2 (t + 1)).trans hcp)
+  · exact hdone.imp_right fun ⟨hcs, hcp⟩ ⟨dir, t⟩ _ ⟨hen, _⟩ => by
+      cases dir
+      · exact hen ((huni.2.1 (t - 1)).trans hcs)
+      · exact hen ((huni.2.2 (t + 1)).trans hcp)
   · by_cases hs : P.isLeader s = true <;> simp [configLeaders, huni.1, hs]
     omega
 

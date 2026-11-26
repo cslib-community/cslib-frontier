@@ -195,21 +195,17 @@ theorem evalLabels_congr (X : Fin n → K × Bool) {ct ct' : Slot C → K × Boo
     (isLocal_evalStep_const C H tw ct X).isFixed_iterate 0
   have hE' : evalStep C H tw ct' X (evalLabels C H tw ct' X) = evalLabels C H tw ct' X :=
     (isLocal_evalStep_const C H tw ct' X).isFixed_iterate 0
-  have key (N : ℕ) (w : Wire n C.size) (hN : w.toNat < N) (hk : w.toNat < n + k) :
-      evalLabels C H tw ct X w = evalLabels C H tw ct' X w := by
-    induction N generalizing w with
-    | zero => exact absurd hN (Nat.not_lt_zero _)
-    | succ N ih =>
-      rw [← hE, ← hE']
-      cases w with
-      | input _ => rfl
-      | gate g =>
-        rw [Wire.toNat_gate] at hN hk
-        have hl := toNat_left_lt C g
-        have hr := toNat_right_lt C g
-        exact evalStep_gate_congr C H tw X g (fun _ _ => hct _ (by dsimp only [Slot.gate]; omega))
-          (ih _ (by omega) (by omega)) (ih _ (by omega) (by omega))
-  exact key _ w (Nat.lt_succ_self _) hw
+  induction w using (measure Wire.toNat).wf.induction with
+  | h w ih =>
+    rw [← hE, ← hE']
+    cases w with
+    | input _ => rfl
+    | gate g =>
+      change ∀ y : Wire n C.size, y.toNat < (Wire.gate g).toNat → _ at ih
+      rw [Wire.toNat_gate] at hw ih
+      exact evalStep_gate_congr C H tw X g (fun _ _ => hct _ (by dsimp only [Slot.gate]; omega))
+        (ih _ (toNat_left_lt C g) ((toNat_left_lt C g).trans hw))
+        (ih _ (toNat_right_lt C g) ((toNat_right_lt C g).trans hw))
 
 /-- **Against a fixed function** the reduction's table is `oracleTable`: the fibre of a table
 `ct` is the set of functions taking the prescribed values at the queries made from the labels

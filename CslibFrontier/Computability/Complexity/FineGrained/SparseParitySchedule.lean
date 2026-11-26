@@ -485,9 +485,8 @@ private theorem parityBranchThreshold_succ_and_width_le_clog_pow {n n' m B W k C
     (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 0 < n)
   have hsqrt1 : 1 ≤ lam.sqrt := Nat.le_sqrt.mpr (by omega)
   have hmax_le : max (k * (W * 2 ^ k)) 1 ≤ CNF.parityBranchThreshold k W n + 1 := by
-    have : k * (W * 2 ^ k) ≤ (6 * (k * (W * 2 ^ k))) * (Nat.clog 2 n).sqrt :=
-      (Nat.le_mul_of_pos_left _ (by decide)).trans (Nat.le_mul_of_pos_right _ hsqrt1)
-    unfold CNF.parityBranchThreshold
+    have := Nat.le_mul_of_pos_right (6 * (k * (W * 2 ^ k))) hsqrt1
+    change _ ≤ (6 * (k * (W * 2 ^ k))) * lam.sqrt + 1 + 1
     omega
   have hW_le : W ≤ CNF.initialRowWeightCoeff C_B β_B * lam ^ (2 * β_B + 3) :=
     hW.trans (CNF.initialRowWeightBound_le_mul_pow_clog hn hm hB)
@@ -680,22 +679,16 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_of_le_clog_pow (k C_B 
   have hscope_D₀ : ∀ j : Fin (A i).length,
       #(equationScope (φ.parityRowSystem (A i) j)) ≤ k * (D₀ * 2 ^ k) := fun j => by
     simpa only [D₀, P, max_initialRowWeightBound_greedyRowListLength] using (hscope_i j).2.2
-  have hn20 : 20 ≤ Fintype.card V := (by omega : 20 ≤ 2 * n₀).trans ((le_max_left _ _).trans hN₀)
-  have hsqrt := two_le_sqrt_clog_two hn20
+  have hsqrt :=
+    two_le_sqrt_clog_two ((by omega : 20 ≤ 2 * n₀).trans ((le_max_left _ _).trans hN₀))
   have hM_le :=
     CNF.totalIncidence_mul_le_of_card_equationScope_le hscope_D₀ hlen_i (Nat.le_succ _ : _ ≤ b₀)
-  have hcard :=
-    card_le_two_mul_freeVar_of_heavyVars univ
-      (fun j => equationScope (φ.parityRowSystem (A i) j)) hsqrt hM_le e
-  have hbr :=
-    card_branchAssignments_heavyVars_le_two_pow_div univ
-      (fun j => equationScope (φ.parityRowSystem (A i) j)) (by omega) hM_le
+  have hcard := card_le_two_mul_freeVar_of_heavyVars univ _ hsqrt hM_le e
   obtain ⟨hn₀_le, hcoeff⟩ := le_and_le_clog_of_max_le hN₀ hcard.1
   obtain ⟨hb₀_pow, hw_pow⟩ :=
     parityBranchThreshold_succ_and_width_le_clog_pow (by omega) hcard.1 (by omega) hm hB_le
       le_rfl hcoeff
-  exact ⟨hcard, hbr, fun b =>
-    hsched univ univ (φ.parityRowSystem (A i)) (Subset.refl _) e hn₀_le hb₀_pow hw_pow
-      (fun j _ => hscope_D₀ j) b⟩
+  exact ⟨hcard, card_branchAssignments_heavyVars_le_two_pow_div univ _ (by omega) hM_le,
+    fun b => hsched univ univ _ (Subset.refl _) e hn₀_le hb₀_pow hw_pow (fun j _ => hscope_D₀ j) b⟩
 
 end Cslib.Logic.PL

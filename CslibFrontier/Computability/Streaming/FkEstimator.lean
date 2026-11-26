@@ -441,11 +441,10 @@ theorem solves_fkEstimator [Fintype α] [NeZero m] (hk : k ≠ 0) {η δ : ℝ} 
   classical
   intro s _
   rw [errorProb_fkEstimator]
-  by_cases hs : s.length = m
-  · subst hs
-    simp only [not_imp, not_le, true_and]
-    exact (dens_fkSketch_error_le hk hη hK s (card_le_univ _)).trans hδ
-  · rw [filter_false_of_mem fun ω _ => by simp [hs], dens_empty, NNRat.cast_zero]
+  rcases eq_or_ne s.length m with rfl | hs
+  · simpa only [not_imp, not_le, true_and] using
+      (dens_fkSketch_error_le hk hη hK s (card_le_univ _)).trans hδ
+  · rw [filter_false_of_mem fun _ _ => by simp [hs], dens_empty, NNRat.cast_zero]
     exact (pow_nonneg (by norm_num) r).trans hδ
 
 /-- `Cslib.Streaming.solves_fkEstimator` with the group size condition
@@ -484,11 +483,9 @@ private theorem state_fkSketch_mem [Fintype α] {M : ℕ}
     (fkSketch k m r K ω).state s ∈ fkStateFinset M T := by
   classical
   rw [state_fkSketch, fkStateFinset, mem_map]
-  refine ⟨(ω, s.length, fun i l => (s[(ω i l : ℕ)]?, suffixCount s (ω i l))), ?_, rfl⟩
-  rw [mem_product, mem_product, Fintype.mem_piFinset]
-  refine ⟨hω, mem_range.2 (Nat.lt_succ_of_le hs), fun i => Fintype.mem_piFinset.2 fun l => ?_⟩
-  exact mem_product.2 ⟨mem_univ _,
-    mem_range.2 (Nat.lt_succ_of_le ((suffixCount_le_length s _).trans hs))⟩
+  exact ⟨(_, _, _), mem_product.2 ⟨hω, mem_product.2 ⟨mem_range.2 (Nat.lt_succ_of_le hs),
+    Fintype.mem_piFinset.2 fun _ => Fintype.mem_piFinset.2 fun _ => mem_product.2 ⟨mem_univ _,
+      mem_range.2 (Nat.lt_succ_of_le ((suffixCount_le_length s _).trans hs))⟩⟩⟩, rfl⟩
 
 omit [DecidableEq α] in
 private theorem card_fkStateFinset [Fintype α] (M : ℕ)
@@ -512,10 +509,9 @@ theorem spaceLE_fkEstimator [Fintype α] [NeZero m] {M b : ℕ}
   intro A hA
   rw [fkEstimator, PMF.support_map] at hA
   obtain ⟨ω, -, rfl⟩ := hA
-  refine Algorithm.spaceLE_of_subset_finset (T := fkStateFinset M {ω}) ?_ ?_
-  · rintro _ ⟨s, hs, rfl⟩
-    exact state_fkSketch_mem (mem_singleton_self ω) hs
-  · rwa [card_fkStateFinset, card_singleton, one_mul]
+  refine Algorithm.spaceLE_of_subset_finset (T := fkStateFinset M {ω})
+    (fun _ ⟨s, hs, hx⟩ => hx ▸ state_fkSketch_mem (mem_singleton_self ω) hs) ?_
+  rwa [card_fkStateFinset, card_singleton, one_mul]
 
 /-- **The memory of the `F_k` sketch with its positions stored** [AlonMatiasSzegedy1999,
 Theorem 2.1]: on streams of at most `M` items, the states reachable from all sampled positions
@@ -531,9 +527,7 @@ theorem exists_injOn_iUnion_reachable_fkSketch [Fintype α] {M b : ℕ}
   refine Algorithm.exists_injOn_of_subset_finset (T := fkStateFinset M univ) ?_ ?_
   · rintro _ ⟨_, ⟨ω, rfl⟩, s, hs, rfl⟩
     exact state_fkSketch_mem (mem_univ ω) hs
-  · rw [card_fkStateFinset, card_univ, Fintype.card_pi, prod_const, card_univ, Fintype.card_fin,
-      Fintype.card_pi, prod_const, card_univ, Fintype.card_fin, Fintype.card_fin, ← pow_mul,
-      mul_comm K]
-    exact hb
+  · simpa only [card_fkStateFinset, card_univ, Fintype.card_pi, prod_const, Fintype.card_fin,
+      ← pow_mul, mul_comm K] using hb
 
 end Cslib.Streaming

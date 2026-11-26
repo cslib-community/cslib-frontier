@@ -97,8 +97,7 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
       S R u v = ∑ g, (φ (C u g * ((R v).effect (f v g) * T.effect g *
         (R v).effect (f v g)))).re := by
     refine sum_congr rfl fun g _ => ?_
-    rw [← mul_assoc, ← (hCR u v g (f v g)).eq]
-    simp only [mul_assoc]
+    simp only [← mul_assoc, (hCR u v g (f v g)).eq]
   have hleft (u : Point F m) :
       S L u u = ∑ g, (φ ((L u).effect (f u g) * C u g *
         (L u).effect (f u g) * T.effect g)).re := by
@@ -226,8 +225,7 @@ theorem successfulMass_sandwichedPolynomial_lower_bound (φ : AlgState A)
     rw [averagePolynomialPointEffect_eq, mul_smul_comm, mul_sum, AlgState.re_apply_uniformAverage]
   have hscore : (𝔼 u : Point F m, ∑ g,
       (φ (G.effect (some g) * (R u).effect (eval u g.val))).re) ≤ (φ Z).re := by
-    rw [expect_sum_comm]
-    simp only [hmean]
+    simp only [expect_sum_comm, hmean]
     refine (sum_le_sum fun g _ => ?_).trans hsum
     have hc := (hGZ (some g)).sub_right
       (commute_averagePolynomialPointEffect R g _ (hGR (some g)))
@@ -267,7 +265,7 @@ theorem average_successfulMismatch_sandwichedPolynomial_le (φ : AlgState A)
       Commute (C u g) ((R v).effect b) := (Commute.one_left _).sub_left (hLR u v _ b)
   have hCH (u : Point F m) (g : BoundedPolynomial F m d) :
       Commute (C u g) (H.effect (some g)) := by
-    rw [show H = _ from rfl, sandwichedPolynomialMeasurement_effect_some]
+    rw [sandwichedPolynomialMeasurement_effect_some]
     exact (Commute.sum_right _ _ _ fun v _ =>
       ((hCR u v g _).mul_right (hCT u g)).mul_right (hCR u v g _)).smul_right _
   have hgroup (u : Point F m) : successfulMismatch φ (evaluatePolynomialMeasurement H u) (L u) =
@@ -276,8 +274,7 @@ theorem average_successfulMismatch_sandwichedPolynomial_le (φ : AlgState A)
     exact sum_congr rfl fun g _ => congrArg (fun x => (φ x).re) (hCH u g).eq.symm
   have hzero (u : Point F m) (g : BoundedPolynomial F m d) :
       (L u).effect (eval u g.val) * C u g * (L u).effect (eval u g.val) * T.effect g = 0 := by
-    dsimp only [C]
-    rw [mul_sub, mul_one, hL u _, sub_self, zero_mul, zero_mul]
+    simp only [C, mul_sub, mul_one, hL u _, sub_self, zero_mul]
   have h := abs_sandwichedPolynomial_score_sub_le φ L R T C
     (fun u g => ⟨sub_nonneg.mpr ((L u).effect_le_one _),
       sub_le_self _ ((L u).nonneg _)⟩) hCT hCR hLT
@@ -308,12 +305,10 @@ theorem majorant_sub_sandwichedPolynomial_agreement_le (φ : AlgState A)
     congr 1
     simpa only [successfulEffect, map_sum, Complex.re_sum] using
       congrArg (fun x => (φ x).re) (evaluatePolynomialMeasurement_successfulEffect H u)
+  dsimp only [H] at hsplit ⊢
   have hmis := average_successfulMismatch_sandwichedPolynomial_le φ L R T hL hLR hLT
-  change (𝔼 u : Point F m, successfulMismatch φ (evaluatePolynomialMeasurement H u) (L u)) ≤ _
-    at hmis
   simp_rw [hsplit, expect_sub_distrib, Fintype.expect_const] at hmis
   have hm := abs_successfulMass_sandwichedPolynomial_sub_majorant_le φ L R T hL hLT Z hslack
-  change |(φ H.successfulEffect).re - (φ Z).re| ≤ _ at hm
   linarith only [hmis, (abs_le.mp hm).1]
 
 end Cslib.PCP.LowIndividualDegree

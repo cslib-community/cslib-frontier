@@ -952,11 +952,9 @@ private theorem faceHeight_step_right
         (row - quarterSouth south) =
       faceHeight stateGrid (position - 1) (quarterSouth south)
           (row - quarterSouth south) + upWeightAt stateGrid position row := by
-  have difference := CycleShade.faceHeight_sub_left
-    shaded cycle valid (column := position)
-      (offset := row - quarterSouth south) westPosition eastPosition
-  rw [show quarterSouth south + (row - quarterSouth south) = row by omega]
-    at difference
+  have difference := CycleShade.faceHeight_sub_left shaded cycle valid
+    (offset := row - quarterSouth south) westPosition eastPosition
+  rw [Nat.add_sub_of_le rowSouth] at difference
   omega
 
 private theorem ValidShadeGrid.horizontal_south_has_negative_weightAt
@@ -1039,12 +1037,9 @@ theorem CycleShade.geometry
     · exact height
     · exact fun _ _ _ positionSouth _ => faceHeight_step_up positionSouth
     · exact fun _ => ValidShadeGrid.horizontal_none_weightsAt_zero valid
-    · intro scan position scanEq positionSouth positionNorth
-      exact CycleShade.one_le_faceHeight_at
-        shaded cycle valid
+    · exact fun scan position scanEq => CycleShade.one_le_faceHeight_at shaded cycle valid
         (by rcases scanEq with h | h <;> omega)
-        (by rcases scanEq with h | h <;> omega)
-        (row := position) positionSouth positionNorth
+        (by rcases scanEq with h | h <;> omega) (row := position)
   horizontalBoundary := by
     intro column row hwest heast hsouth hnorth free notFree
     let selected := fun x => selectedVerticalFor
@@ -1074,27 +1069,20 @@ theorem CycleShade.geometry
     · exact fun _ => ValidShadeGrid.vertical_west_has_negative_weightAt valid
     · exact fun _ => ValidShadeGrid.vertical_east_has_positive_weightAt valid
     · exact fun scan x => ValidShadeGrid.upWeightAt_eq_downWeightAt_succ valid x scan
-    · intro scan scanEq
-      exact CycleShade.faceHeight_eq_one_right_of_freeColumn
-        shaded cycle valid (column := column) (row := scan)
-        (le_of_lt hwest) heast
+    · exact fun scan scanEq => CycleShade.faceHeight_eq_one_right_of_freeColumn
+        shaded cycle valid (le_of_lt hwest) heast
         (by rcases scanEq with h | h <;> omega)
         (by rcases scanEq with h | h <;> omega) free
-    · intro scan scanEq
-      exact CycleShade.faceHeight_eq_one_left_of_freeColumn
-        shaded cycle valid (column := column) (row := scan)
-        hwest heast
+    · exact fun scan scanEq => CycleShade.faceHeight_eq_one_left_of_freeColumn
+        shaded cycle valid hwest heast
         (by rcases scanEq with h | h <;> omega)
         (by rcases scanEq with h | h <;> omega) free
-    · intro scan position scanEq positionWest positionEast
-      exact faceHeight_step_right shaded cycle valid
-        (by rcases scanEq with h | h <;> omega) positionWest positionEast
+    · exact fun scan _ scanEq => faceHeight_step_right shaded cycle valid
+        (by rcases scanEq with h | h <;> omega)
     · exact fun _ => ValidShadeGrid.vertical_none_weightsAt_zero valid
-    · intro scan position scanEq positionWest positionEast
-      exact CycleShade.one_le_faceHeight_at
-        shaded cycle valid (column := position) (row := scan)
-        positionWest positionEast
-        (by rcases scanEq with h | h <;> omega)
-        (by rcases scanEq with h | h <;> omega)
+    · exact fun scan position scanEq positionWest positionEast =>
+        CycleShade.one_le_faceHeight_at shaded cycle valid positionWest positionEast
+          (by rcases scanEq with h | h <;> omega)
+          (by rcases scanEq with h | h <;> omega)
 
 end Cslib.WangTile.Robinson

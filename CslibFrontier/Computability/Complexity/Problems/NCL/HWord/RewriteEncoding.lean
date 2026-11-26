@@ -98,16 +98,13 @@ private theorem zipWith_ofFn {α β γ : Type} (f : α → β → γ) {m : ℕ}
 
 private theorem padded_left (s : Fin n → Fin q) :
     List.ofFn (fun i : Fin (n + 1) => padded s i.val) = none :: (List.ofFn s).map some := by
-  rw [List.ofFn_succ]
-  simp only [Fin.val_zero, Fin.val_succ, padded_at]
-  rw [List.ofFn_comp']
+  simp only [List.ofFn_succ, Fin.val_zero, Fin.val_succ, padded_at, List.ofFn_comp']
   simp [padded]
 
 private theorem padded_right (s : Fin n → Fin q) :
     List.ofFn (fun i : Fin (n + 1) => padded s (i.val + 1)) =
       (List.ofFn s).map some ++ [none] := by
-  rw [List.ofFn_succ']
-  simp only [Fin.val_castSucc, padded_at, Fin.val_last, List.ofFn_comp']
+  simp only [List.ofFn_succ', Fin.val_castSucc, padded_at, Fin.val_last, List.ofFn_comp']
   simp [padded, List.concat_eq_append]
 
 /-- The list algorithm produces exactly the canonical finite-vector word. -/
@@ -329,14 +326,11 @@ private theorem word_window (s : Fin n → Fin q) (i j : Fin n) (hij : i.val + 1
       (.pair (padded s i.val) (some (s i))) (.pair (some (s i)) (some (s j)))
       (.pair (some (s j)) (padded s (i.val + 3))) (encode s ⟨i.val + 4, by omega⟩) u =
       word (r := r) s ((⟨i.val, by omega⟩ : Window (n + 3) 5).get u) := by
-  have hp := padded_at s i
-  have hq : padded s (i.val + 2) = some (s j) := by
-    rw [show i.val + 2 = j.val + 1 by omega]
-    exact padded_at s j
+  have hq : padded s (i.val + 2) = some (s j) := by simpa only [← hij] using padded_at s j
   have h1 := encode_pair (r := r) s ⟨i.val, by omega⟩
   have h2 := encode_pair (r := r) s ⟨i.val + 1, by omega⟩
   have h3 := encode_pair (r := r) s ⟨i.val + 2, by omega⟩
-  simp only [hp, hq] at h1 h2 h3
+  simp only [padded_at s i, hq] at h1 h2 h3
   intro u
   fin_cases u <;> simp [segment, word, Window.get, h1, h2, h3]
 
@@ -439,15 +433,14 @@ private theorem step_finish (rules : Fin r → Rule q)
     (hfinish : s ⟨n + 2, by omega⟩ = code .finish) :
     t ⟨n + 2, by omega⟩ = code .finish := by
   let last : Fin (n + 3) := ⟨n + 2, by omega⟩
-  change s last = code .finish at hfinish
-  change t last = code .finish
   obtain ⟨hs, ht, i, _, he⟩ := hs
   rcases eq_or_ne i last with rfl | hi
   · let previous : Fin (n + 3) := ⟨n + 1, by omega⟩
     have he1 : s previous = t previous :=
       he previous (Fin.ne_of_val_ne (by simp [previous, last]))
     obtain ⟨a, ha⟩ := finish_pair rules
-      (by simpa only [hfinish, Equiv.symm_apply_apply] using edge_view rules hs previous last rfl)
+      (by simpa only [last, hfinish, Equiv.symm_apply_apply] using
+        edge_view rules hs previous last rfl)
     exact code.symm_apply_eq.mp (successor_blank rules a
       (by simpa only [← he1, ha] using edge_view rules ht previous last rfl))
   · exact (he last (Ne.symm hi)).symm.trans hfinish
