@@ -236,15 +236,11 @@ private theorem uniform_reconstructPadFn_step {β : Type} [Fintype N] [Decidable
     ((PMF.uniformOfFintype Y).bind fun t =>
       (PMF.uniformOfFintype (N → Y)).bind fun table =>
         F t (tr ++ [((m, x), t)]) (reconstructPadFn hash k (tr ++ [((m, x), t)]) table)) := by
-  have h1 (table : N → Y) :
-      (let t := sign hash k (reconstructPadFn hash k tr table x) m
-      F t (tr ++ [((m, x), t)]) (reconstructPadFn hash k tr table)) =
-      (let t := sign hash k (table x) m
-      F t (tr ++ [((m, x), t)]) (reconstructPadFn hash k (tr ++ [((m, x), t)]) table)) := by
+  conv_lhs =>
+    enter [2, table]
     dsimp only
     rw [reconstructPadFn_apply_of_not_mem hash k hx table,
-      reconstructPadFn_append_sign_of_not_mem hash k m hx table]
-  simp only [h1]
+      ← reconstructPadFn_append_sign_of_not_mem hash k m hx table]
   rw [PMF.bind_uniformOfFintype_update x]
   simp only [Function.update_self, reconstructPadFn_append_update_self]
   conv_rhs =>
@@ -670,12 +666,10 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
         (encList (encPair (encPair encBits encBits) encBits)))
       (encPair encBits (encList (encPair (encPair encBits encBits) encBits)))
       (fun ⟨((n, _), k), request, log⟩ => cwNonceLogHandler msgLen hash n k request log) := by
-    unfold cwNonceLogHandler
-    dsimp only
+    dsimp only [cwNonceLogHandler]
     exact IsOraclePPTOn.cond (by fun_prop)
       ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop))
       ((ComputableInPolyTime.isOraclePPTOn (Operation := Unit)) (by fun_prop))
-  unfold prfNonceToPrfDistinguisher
   refine isOraclePPT_prfLogDistinguisher hseed hadversary hhandler
     (fun caller query => 2 * caller.1.1 + 4 * query.length + 14) (by fun_prop) ?_
     (by dsimp only; fun_prop)
@@ -712,9 +706,6 @@ theorem eval_prfRealGame_prfNonceToPrfDistinguisher
         ((carterWegmanNonceMAC msgLen seed hash family hmsgLen hseed hhash hfamily).sufCmaGame
           adversary n) := by
   let M := carterWegmanNonceMAC msgLen seed hash family hmsgLen hseed hhash hfamily
-  change ProbComp.eval
-      (prfRealGame id family (prfNonceToPrfDistinguisher msgLen seed hash adversary) n) =
-    ProbComp.eval (M.sufCmaGame adversary n)
   unfold prfNonceToPrfDistinguisher NonceMACScheme.sufCmaGame
   refine eval_prfRealGame_prfLogDistinguisher family seed (cwNonceLogHandler msgLen hash)
     adversary _ _ (M.signingPairOracle n)

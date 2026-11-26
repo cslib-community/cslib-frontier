@@ -855,20 +855,18 @@ private theorem toOuterMeasure_output_collision (y v : G) :
 private theorem toOuterMeasure_prod_input_collision (e p : G × G) :
     (PMF.uniformOfFintype (G × G)).toOuterMeasure {k : G × G | decide (e.1 + k.1 = p.1) = true} =
       (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  change (PMF.uniformOfFintype (G × G)).toOuterMeasure
-    (Prod.fst ⁻¹' {k₀ : G | decide (e.1 + k₀ = p.1) = true}) = _
-  rw [← PMF.toOuterMeasure_map_apply, PMF.uniformOfFintype_prod_map_fst,
-    toOuterMeasure_input_collision]
+  rw [← toOuterMeasure_input_collision e.1 p.1,
+    ← PMF.uniformOfFintype_prod_map_fst (α := G) (β := G), PMF.toOuterMeasure_map_apply]
+  rfl
 
 /-- Under uniform independent keys `(k₀, k₁) ← G × G`, the probability of an output collision
 `e.2 - k.2 = p.2` is `|G|⁻¹`. -/
 private theorem toOuterMeasure_prod_output_collision (e p : G × G) :
     (PMF.uniformOfFintype (G × G)).toOuterMeasure {k : G × G | decide (e.2 - k.2 = p.2) = true} =
       (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  change (PMF.uniformOfFintype (G × G)).toOuterMeasure
-    (Prod.snd ⁻¹' {k₁ : G | decide (e.2 - k₁ = p.2) = true}) = _
-  rw [← PMF.toOuterMeasure_map_apply, PMF.uniformOfFintype_prod_map_snd,
-    toOuterMeasure_output_collision]
+  rw [← toOuterMeasure_output_collision e.2 p.2,
+    ← PMF.uniformOfFintype_prod_map_snd (α := G) (β := G), PMF.toOuterMeasure_map_apply]
+  rfl
 
 private theorem toOuterMeasure_isBadKeyPair_union_le {K : Type*} (μ : PMF K) (f₁ f₂ : K → G)
     (e p : G × G)
@@ -1085,12 +1083,9 @@ private theorem IsCallBounded.badKey_toReal_le {State γ K : Type}
         2 * (T_e.length : ℝ) * (T_π.length : ℝ) / (Fintype.card G : ℝ)) :
     (μ.toOuterMeasure {k | bad (transcriptCipher T) (transcriptPerm T) k = true}).toReal ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  have hlen_e : ((transcriptCipher T).length : ℝ) ≤ Q_e :=
-    Nat.cast_le.mpr (h.length_transcriptCipher_le oracle hmem)
-  have hlen_π : ((transcriptPerm T).length : ℝ) ≤ Q_π :=
-    Nat.cast_le.mpr (h.length_transcriptPerm_le oracle hmem)
-  refine (hbad (transcriptCipher T) (transcriptPerm T)).trans ?_
-  gcongr
+  have hlen_e := h.length_transcriptCipher_le oracle hmem
+  have hlen_π := h.length_transcriptPerm_le oracle hmem
+  exact (hbad (transcriptCipher T) (transcriptPerm T)).trans (by gcongr)
 
 /-- **Boneh–Shoup Theorem 4.14 bad-key union bound on call-bounded transcripts (two-key)**:
 against any stateful bidirectional oracle, on any supported transcript `T` of a distinguisher
@@ -1602,13 +1597,11 @@ private theorem length_proj_idealLazyHandler_le {α : Type}
     (proj res.2).length ≤ (proj st).length + Q := by
   induction h generalizing st with
   | pure a n =>
-    change res ∈ (PMF.pure (a, st)).support at hmem
-    supp_cases hmem
+    supp_cases hmem [OracleComp.interpret_pure, StateT.run_pure]
     exact Nat.le_add_right _ _
   | liftBind q cont n hcost ih =>
-    change res ∈ ((idealLazyHandler q st).bind fun p =>
-      (OracleComp.interpret idealLazyHandler (cont p.1)).run p.2).support at hmem
-    supp_cases hmem with ⟨⟨ans, st₁⟩, hstep, hcont⟩
+    supp_cases hmem [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind] with
+      ⟨⟨ans, st₁⟩, hstep, hcont⟩
     dsimp only at hcont
     have h1 := hstep_le q st ans st₁ hstep
     have h2 := ih ans hcont
@@ -1724,10 +1717,9 @@ private theorem advantage_keyDist_evenMansourIdealGame_le (keyDist : PMF (G × G
       (evenMansourIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
   let ε : ℝ≥0∞ := 2 * Q_e * Q_π * (Fintype.card G : ℝ≥0∞)⁻¹
-  have hε : ε ≠ ⊤ := by
-    refine ENNReal.mul_ne_top (ENNReal.mul_ne_top (ENNReal.mul_ne_top ENNReal.ofNat_ne_top
-      (ENNReal.natCast_ne_top _)) (ENNReal.natCast_ne_top _)) ?_
-    simp [Fintype.card_ne_zero]
+  have hε : ε ≠ ⊤ := ENNReal.mul_ne_top (ENNReal.mul_ne_top
+    (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.natCast_ne_top _))
+    (ENNReal.natCast_ne_top _)) (by simp [Fintype.card_ne_zero])
   have hle (b : Bool) := idealGame_apply_le_realGame_add_of_keyDist keyDist hcall
     (fun c_e c_π he hπ => (hbad c_e c_π).trans
       (mul_le_mul' (mul_le_mul' (mul_le_mul' le_rfl (Nat.cast_le.mpr he))

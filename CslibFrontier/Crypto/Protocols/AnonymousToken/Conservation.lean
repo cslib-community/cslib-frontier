@@ -532,25 +532,21 @@ private theorem sum_balance_outputPayload_filter [DecidableEq Context]
   | cons r rest ih =>
     cases r with
     | issue ir =>
-      by_cases hctx : ir.ctx = ctx
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_true, ↓reduceIte, List.map_cons,
-          Request.outputPayload, Credit.Note.balance, List.sum_cons, issuedAmount,
-          issuesIn_cons_issue, spendsIn_cons_issue, grantedRefund] at ih ⊢
-        omega
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_false, Bool.false_eq_true,
-          ↓reduceIte, issuedAmount, issuesIn_cons_issue, spendsIn_cons_issue, grantedRefund]
-          at ih ⊢
-        exact ih
+      by_cases hctx : ir.ctx = ctx <;>
+        simp only [List.filter_cons, Request.ctx, hctx, decide_true, decide_false,
+          Bool.false_eq_true, ↓reduceIte, List.map_cons, Request.outputPayload,
+          Credit.Note.balance, List.sum_cons, issuedAmount, issuesIn_cons_issue,
+          spendsIn_cons_issue, grantedRefund] at ih ⊢
+      · omega
+      · exact ih
     | spend sr =>
-      by_cases hctx : sr.ctx = ctx
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_true, ↓reduceIte, List.map_cons,
-          Request.outputPayload, Credit.Note.balance, List.sum_cons, issuedAmount,
-          issuesIn_cons_spend, spendsIn_cons_spend, grantedRefund] at ih ⊢
-        omega
-      · simp only [List.filter_cons, Request.ctx, hctx, decide_false, Bool.false_eq_true,
-          ↓reduceIte, issuedAmount, issuesIn_cons_spend, spendsIn_cons_spend, grantedRefund]
-          at ih ⊢
-        exact ih
+      by_cases hctx : sr.ctx = ctx <;>
+        simp only [List.filter_cons, Request.ctx, hctx, decide_true, decide_false,
+          Bool.false_eq_true, ↓reduceIte, List.map_cons, Request.outputPayload,
+          Credit.Note.balance, List.sum_cons, issuedAmount, issuesIn_cons_spend,
+          spendsIn_cons_spend, grantedRefund] at ih ⊢
+      · omega
+      · exact ih
 
 private theorem sum_balance_inputNote_list
     (l : List (SpendRequest Nullifier Context Opening Commitment Sig))
@@ -653,12 +649,9 @@ theorem findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
     ∃ s ∈ spends reqs,
       tok = ⟨s.inputPayload, s.signature⟩ ∧
         s.inputNote ∉ reqs.map (fun r => r.outputPayload.message) := by
-  simp only [findNoteForgery, List.findSome?_eq_some_iff] at h
-  obtain ⟨_, s, _, hsp, hfound, _⟩ := h
-  by_cases hmem : s.inputNote ∈ reqs.map (fun r => r.outputPayload.message)
-  · simp [hmem] at hfound
-  · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
-    exact ⟨s, by simp [hsp], hfound.symm, hmem⟩
+  obtain ⟨_, s, _, hsp, hfound, _⟩ := List.findSome?_eq_some_iff.mp h
+  split_ifs at hfound with hmem
+  exact ⟨s, by simp [hsp], (Option.some.inj hfound).symm, hmem⟩
 
 /-! ### Part II: Adaptive game, reduction to `AnonymousToken`, and probability bound -/
 
@@ -856,16 +849,12 @@ private theorem runLogWith_extractedIssuerOracle_invariant
   split_ifs at hstep with hacc
   · simp only [Functor.map_map, ProbComp.eval_map, PMF.mem_support_map_iff, Prod.mk.injEq] at hstep
     obtain ⟨σ, -, rfl, rfl⟩ := hstep
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, fun p hp => ?_⟩
     · rw [List.map_append, List.map_cons, List.map_nil]
-      change validTraceFrom com tag S keys.1 [] (log.map Prod.fst ++ [req]) = true
-      rw [validTraceFrom_append]
-      exact Bool.and_eq_true_iff.mpr ⟨hvalid, hacc⟩
-    · intro p hp
-      rcases List.mem_append.mp hp with hp | hp
+      simpa only [validTrace, validTraceFrom_append, Bool.and_eq_true] using ⟨hvalid, hacc⟩
+    · rcases List.mem_append.mp hp with hp | hp
       · exact hsome p hp
-      · obtain rfl := List.mem_singleton.mp hp
-        rfl
+      · simp [List.mem_singleton.mp hp]
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
     obtain ⟨-, rfl⟩ := hstep
     exact ⟨hvalid, hsome⟩

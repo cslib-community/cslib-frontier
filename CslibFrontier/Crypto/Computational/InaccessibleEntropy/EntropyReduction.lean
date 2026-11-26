@@ -786,13 +786,9 @@ private theorem shrunkHash_randomCollision_succProbability_eq (n₁ m₁ j s : �
           PMF.pure (decide (shrunkCollPred (n₁ n) (m₁ n) (j n) (s n) (evalWord₁ n)
             ⟨⟨z, iRows⟩, oRows⟩ raw))) true).toReal := by
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, randomCollisionGame,
-    ProbComp.eval_bind, Cslib.BitString.eval_sampleList, ProbComp.eval_pure]
-  rw [uniformList_shrunkHashInLen_eq (n₁ n) (m₁ n) (s n), PMF.bind_bind]
-  simp only [PMF.bind_apply_toReal]
-  refine sum_congr rfl fun z _ => congrArg (_ * ·) ?_
-  rw [PMF.bind_bind]
-  simp only [PMF.bind_apply_toReal]
-  exact sum_congr rfl fun _ _ => congrArg (_ * ·) (by rw [PMF.bind_map, PMF.bind_apply_toReal]; rfl)
+    ProbComp.eval_bind, Cslib.BitString.eval_sampleList, ProbComp.eval_pure,
+    uniformList_shrunkHashInLen_eq (n₁ n) (m₁ n) (s n), PMF.monad_bind_eq_bind, PMF.bind_bind,
+    PMF.bind_map, PMF.bind_apply_toReal, Function.comp_def]
 
 open Classical in
 private theorem shrunkHash_escape_succProbability_eq (n₁ m₁ s : ℕ → ℕ)
@@ -808,16 +804,10 @@ private theorem shrunkHash_escape_succProbability_eq (n₁ m₁ s : ℕ → ℕ)
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, accessibleEscapeGame,
     shrunkHashEscapeInverter, ProbComp.eval_bind, Cslib.BitString.eval_sampleList,
     ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_bind]
-  rw [Cslib.BitString.uniformList, PMF.bind_map, PMF.bind_apply_toReal]
-  refine sum_congr rfl fun z _ => congrArg (_ * ·) ?_
-  dsimp only [Function.comp_def]
-  rw [uniformList_mul_eq_map_blocks, PMF.bind_map, PMF.bind_apply_toReal]
-  refine sum_congr rfl fun iRows _ => congrArg (_ * ·) ?_
-  dsimp only [Function.comp_def]
-  rw [uniformList_mul_eq_map_blocks, PMF.bind_map, PMF.bind_apply_toReal]
-  refine sum_congr rfl fun oRows _ => congrArg (_ * ·) ?_
-  simp only [Function.comp_def, listRow_zero_ofFn, Cslib.BitString.ofList_ofFn, PMF.pure_bind,
-    ShrunkHashInput.packWord, InputHashedInput.packWord, shrunkEscPred]
+  rw [Cslib.BitString.uniformList, uniformList_mul_eq_map_blocks, uniformList_mul_eq_map_blocks]
+  simp only [PMF.bind_map, PMF.bind_apply_toReal, Function.comp_def,
+    listRow_zero_ofFn, Cslib.BitString.ofList_ofFn, PMF.pure_bind, ShrunkHashInput.packWord,
+    InputHashedInput.packWord, shrunkEscPred]
 
 open Classical in
 private theorem shrunkBadIn_sum_le {w₁ out₁ j₀ s : ℕ} (f₁ : BitString w₁ → BitString out₁)

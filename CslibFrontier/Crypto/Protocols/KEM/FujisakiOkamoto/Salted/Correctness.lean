@@ -784,15 +784,16 @@ private theorem mem_support_cacheJoint_iff
         refine ⟨coins, hc, ?_⟩
         rcases hbranch with ⟨htarget, hvalid, hdec, rfl⟩ |
             ⟨htarget, hvalid, hdec, hk, rfl⟩ | ⟨hn, hk, rfl⟩
-        · rw [ite_eq_left htarget]; simp [hvalid, hdec]
-        · rw [PMF.mem_support_iff] at hk
-          rw [ite_eq_left htarget]
-          simp [hvalid, hdec, hk]
-        · rw [PMF.mem_support_iff] at hk
-          by_cases htarget : input = S.jointInput pk input.message input.salt
+        · rw [ite_eq_left htarget]
+          simp [hvalid, hdec]
+        · rw [ite_eq_left htarget]
+          simp [hvalid, hdec, (PMF.mem_support_iff _ _).mp hk]
+        · by_cases htarget : input = S.jointInput pk input.message input.salt
           · rw [ite_eq_left htarget]
-            simp [show ¬valid input.message coins from fun hv => hn ⟨htarget, hv⟩, hk]
-          · rw [ite_eq_right htarget]; simp [hk]
+            simp [show ¬valid input.message coins from fun hv => hn ⟨htarget, hv⟩,
+              (PMF.mem_support_iff _ _).mp hk]
+          · rw [ite_eq_right htarget]
+            simp [(PMF.mem_support_iff _ _).mp hk]
 
 private theorem mem_support_rejection_iff
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
@@ -1113,8 +1114,10 @@ private theorem coinCache_cons [DecidableEq (JointInput JointPrefix M Salt)]
   unfold coinCache
   rw [h, List.filter_cons]
   by_cases ht : input = S.jointInput pk input.message input.salt
-  · rw [ite_eq_left ht, decide_eq_true ht]; rfl
-  · rw [ite_eq_right ht, decide_eq_false ht]; rfl
+  · rw [ite_eq_left ht, decide_eq_true ht]
+    rfl
+  · rw [ite_eq_right ht, decide_eq_false ht]
+    rfl
 
 private theorem rejection_jointCache_eq
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
@@ -1168,14 +1171,11 @@ private theorem realJoint_bad_eq_msgFailProb
     simp only [μ, realJoint, cacheJoint, hlookup, ite_eq_left htarget, PMF.map_bind]
     conv_rhs => rw [← PMF.bind_pure (ProbComp.eval S.pke.sampleCoins)]
     refine PMF.bind_congr_on_support _ _ _ fun coins _ => ?_
-    by_cases hcoins : S.pke.dec sk (S.pke.encDet pk input.message coins) = some input.message
-    · simp only [hcoins, ↓reduceIte]
-      cases st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩
-      · simp only [PMF.map_comp, Function.comp_def]
-        exact PMF.map_const (ProbComp.eval S.sampleKey) coins
-      · simp only [PMF.pure_map]
-    · simp only [hcoins, ↓reduceIte, PMF.map_comp, Function.comp_def]
-      exact PMF.map_const (ProbComp.eval S.sampleKey) coins
+    split_ifs with hcoins
+    · cases st.decapsCache.lookup ⟨S.pke.encDet pk input.message coins, input.salt⟩
+      · exact (PMF.map_comp _ _ _).trans (PMF.map_const (ProbComp.eval S.sampleKey) coins)
+      · exact PMF.pure_map _ _
+    · exact (PMF.map_comp _ _ _).trans (PMF.map_const (ProbComp.eval S.sampleKey) coins)
   have hbad : μ.toOuterMeasure {z | ¬S.GoodCache pk sk z.2} =
       μ.toOuterMeasure ((fun z => z.1.coins) ⁻¹' {coins |
         S.pke.dec sk (S.pke.encDet pk input.message coins) ≠ some input.message}) := by
@@ -1329,22 +1329,18 @@ private theorem dispatch_cacheJoint_jointCache_subset
       intro entry hentry <;> simp [h, hentry]
   rcases q with input | input | ciphertext
   · exact hjoint hy
-  · intro entry hentry
-    rwa [S.rejection_jointCache_eq input hy]
+  · exact fun entry hentry => S.rejection_jointCache_eq input hy ▸ hentry
   · supp_cases hy [Query.dispatch, stateT_ite_apply, StateT.pure_apply] with ⟨-, rfl⟩ | ⟨-, hy⟩
     · exact fun _ hentry => hentry
     · cases hdec : S.pke.dec sk ciphertext.pke with
       | none =>
         supp_cases hy [decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
-        intro entry hentry
-        dsimp only
-        rwa [S.decapsKey_jointCache_eq ciphertext hx]
+        exact fun entry hentry => S.decapsKey_jointCache_eq ciphertext hx ▸ hentry
       | some message =>
         classical
         supp_cases hy [decapsWithJoint, hdec, StateT.bind_apply] with ⟨z, hz, hy⟩
-        intro entry hentry
-        rw [S.decapsContinuation_jointCache_eq ciphertext z hy]
-        exact hjoint hz entry hentry
+        exact fun entry hentry =>
+          S.decapsContinuation_jointCache_eq ciphertext z hy ▸ hjoint hz entry hentry
 
 private theorem identicalUntilBad_realHandler_prefetchHandler
     [DecidableEq (JointInput JointPrefix M Salt)]

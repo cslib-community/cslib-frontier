@@ -392,15 +392,10 @@ theorem BlockCipher.isPPTOn_cbcEncrypt (E : BlockCipher) :
     (E.blockLen_polyTime.comp hn)
     (by dsimp only [EIn, encKeyedInput]; fun_prop) (by dsimp only [EIn]; fun_prop)
     (by dsimp only [EIn, encKeyedInput]; fun_prop)
-  have hpost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × List Bool =>
-        p.2 ++ cbcWordBody (E.encrypt p.1.1) (E.blockLen p.1.1) p.1.2.1 p.2 p.1.2.2)
-      EIn encBits :=
-    ComputableInPolyTime.bitsAppend (by dsimp only [EIn]; fun_prop) hbody
   exact (ComputableInPolyTime.sampleList
     (E.blockLen_polyTime.comp
-      ((ComputableInPolyTime.fst _ _).comp
-        (by dsimp only [encKeyedInput]; exact ComputableInPolyTime.id')))).bind_with hpost.isPPTOn
+      (ComputableInPolyTime.fst encUnary (encPair encBits encBits)))).bind_with
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.snd _ _) hbody).isPPTOn
 
 /-- For every `BlockCipher` `E`, `E.cbcDecrypt` is computable in polynomial time on `(n, k, ct)`. -/
 theorem BlockCipher.computableInPolyTime_cbcDecrypt (E : BlockCipher) :
@@ -415,19 +410,13 @@ theorem BlockCipher.computableInPolyTime_cbcDecrypt (E : BlockCipher) :
     E.blockLen_polyTime.comp hn
   have hct : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.2) EIn encBits := by
     dsimp only [EIn, encKeyedInput]; fun_prop
-  have hcond : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool =>
-        decide (E.blockLen p.1 ≤ p.2.2.length) &&
-          ((p.2.2.length - E.blockLen p.1) % E.blockLen p.1 == 0))
-      EIn encBool := by
-    polytime
   have hdec := computableInPolyTime_cbcWordDecBody_param E.decrypt_polyTime
     (k := fun p => p.2.1) hn hw
     (by dsimp only [EIn, encKeyedInput]; fun_prop)
     (ComputableInPolyTime.bitsTakeWithInput hct hw)
     (ComputableInPolyTime.bitsDropWithInput hct hw)
   unfold BlockCipher.cbcDecrypt ivModeDecrypt
-  exact ComputableInPolyTime.ite hcond
+  exact ComputableInPolyTime.ite (by polytime)
     ((ComputableInPolyTime.optionSome encBits).comp hdec)
     (ComputableInPolyTime.const none)
 

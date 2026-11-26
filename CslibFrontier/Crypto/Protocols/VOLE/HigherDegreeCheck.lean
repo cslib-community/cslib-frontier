@@ -284,10 +284,9 @@ private theorem natDegree_and_coeff_qsHomogPoly {n : ℕ} (d : ℕ) (F_poly : Mv
     intro m hm
     have hm_le : (m.sum fun _ e => e) ≤ d := (monomial_degree_le_totalDegree hm).trans hdeg
     have hm_sum : (∑ i : Fin n, m i * 1) = m.sum fun _ e => e := by
-      simp only [mul_one, Finsupp.sum]
-      symm
-      exact Finset.sum_subset (Finset.subset_univ m.support) fun i _ hi =>
-        Finsupp.notMem_support_iff.mp hi
+      simpa only [mul_one, Finsupp.sum] using
+        (Finset.sum_subset (Finset.subset_univ m.support) fun _ _ hi =>
+          Finsupp.notMem_support_iff.mp hi).symm
     have hprod := natDegree_prod_le_and_coeff (Finset.univ : Finset (Fin n))
       (fun i => qsWirePoly w v i ^ m i) (fun i => m i * 1) fun i _ =>
         (natDegree_pow_le_and_coeff (qsWirePoly w v i) (coeff_qsWirePoly_eq_one w v i).1
@@ -305,14 +304,12 @@ private theorem natDegree_and_coeff_qsHomogPoly {n : ℕ} (d : ℕ) (F_poly : Mv
     have hmul := natDegree_mul_le_and_coeff hleft hprod.1
     rw [Nat.sub_add_cancel hm_le] at hmul
     refine ⟨hmul.1, ?_⟩
-    rw [hmul.2]
-    simp only [Polynomial.coeff_C_mul, Polynomial.coeff_X_pow_self, mul_one]
+    simp only [hmul.2, Polynomial.coeff_C_mul, Polynomial.coeff_X_pow_self, mul_one]
     congr 1
     simpa only [hm_sum, hpow_coeff] using hprod.2
   refine ⟨Polynomial.natDegree_sum_le_of_forall_le _ _ fun m hm => (hterm m hm).1, ?_⟩
   rw [qsHomogPoly, Polynomial.finsetSum_coeff, MvPolynomial.eval_eq']
-  refine Finset.sum_congr rfl fun m hm => ?_
-  rw [(hterm m hm).2]
+  exact Finset.sum_congr rfl fun m hm => (hterm m hm).2
 
 /-- When `F_poly.totalDegree ≤ d`, the homogenized polynomial `qsHomogPoly d F_poly w v` has
 `natDegree ≤ d`. -/
@@ -595,8 +592,7 @@ theorem qsMaskedCheck_complete (d : ℕ) (constraints : ι → MvPolynomial (Fin
     simp only [interp_norm, pmf_norm, qsMaskedCheck, liftProver, runStrategy, qsMaskedCheckSpec,
       threeMoveSpec, voleWorld, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
       ProbOracleComp.runWith_pure, pure_bind, VOLECorrelation.senderView]
-    apply PMF.bind_congr_on_support
-    intro c hc
+    refine PMF.bind_congr_on_support _ _ _ fun c hc => ?_
     rw [← OracleComp.substitute_eq_interpret]
     erw [bind_runWith_voleWorld_sample_uniform]
     congr 1 with r : 1
@@ -658,14 +654,11 @@ private theorem qsMaskedView_fixed {d : ℕ} (hd : 1 ≤ d)
         (fun i => v₁ (Fin.castAdd (d - 1) i)) = fun i => v₂ (Fin.castAdd (d - 1) i) :=
       funext fun i => by
         simpa [voleSample, hu_w i] using congrFun hq (Fin.castAdd (d - 1) i)
-    have hm_ind : ∀ bound : ℕ, ∀ k : Fin (d - 1), (d - 1) - k.val ≤ bound →
+    have hm_ind (bound : ℕ) : ∀ k : Fin (d - 1), (d - 1) - k.val ≤ bound →
         u₁ (Fin.natAdd n k) = u₂ (Fin.natAdd n k) ∧
         v₁ (Fin.natAdd n k) = v₂ (Fin.natAdd n k) := by
-      intro bound
       induction bound with
-      | zero =>
-        intro k hk
-        exact absurd k.isLt (by omega)
+      | zero => exact fun k _ => absurd k.isLt (by omega)
       | succ b ih =>
         intro k hk
         have hhi_k := congrFun hhi k
@@ -696,8 +689,7 @@ private theorem qsMaskedView_fixed {d : ℕ} (hd : 1 ≤ d)
           ∑ k : Fin m,
             qsMaskedCheckReply (m + 1) constraints w uv.1 uv.2 r ⟨k.val + 1, by omega⟩ *
               delta ^ (k.val + 1) := by
-      rw [qsPolySum, Fin.sum_univ_succ]
-      simp only [Fin.val_zero, pow_zero, mul_one, Fin.val_succ]
+      simp only [qsPolySum, Fin.sum_univ_succ, Fin.val_zero, pow_zero, mul_one, Fin.val_succ]
       rfl
     have hc0 :
         qsMaskedCheckValue (m + 1) constraints delta (fun x => uv.1 x * delta + uv.2 x)
@@ -780,11 +772,9 @@ theorem card_filter_qsCheck_le {C : Type} [Fintype C] [DecidableEq F]
   have hsub : (Finset.univ.filter fun c : C => P.eval (ι c) = qsPolySum d a (ι c)).image ι ⊆
       (qsDiffPoly d P a).roots.toFinset := by
     intro x hx
-    rw [Finset.mem_image] at hx
-    obtain ⟨c, hc, rfl⟩ := hx
-    rw [Multiset.mem_toFinset, Polynomial.mem_roots hp, Polynomial.IsRoot.def, eval_qsDiffPoly,
-      sub_eq_zero]
-    exact (Finset.mem_filter.mp hc).2
+    obtain ⟨c, hc, rfl⟩ := Finset.mem_image.mp hx
+    simpa only [Multiset.mem_toFinset, Polynomial.mem_roots hp, Polynomial.IsRoot.def,
+      eval_qsDiffPoly, sub_eq_zero] using (Finset.mem_filter.mp hc).2
   calc (Finset.univ.filter fun c : C => P.eval (ι c) = qsPolySum d a (ι c)).card
       = ((Finset.univ.filter fun c : C =>
           P.eval (ι c) = qsPolySum d a (ι c)).image ι).card :=
@@ -1125,12 +1115,10 @@ theorem toOuterMeasure_qsCheck_grinding_raw_le (p : ChallengeParams) {d : ℕ}
             qsPolySum d a (ι (grindingAcceptedEquiv p ⟨c, h⟩))).image
         (fun c => ι (proj c))) ⊆ (qsDiffPoly d P a).roots.toFinset := by
       intro x hx
-      rw [Finset.mem_image] at hx
-      obtain ⟨c, hc, rfl⟩ := hx
-      obtain ⟨hacc, heval⟩ := (Finset.mem_filter.mp hc).2
-      rw [Multiset.mem_toFinset, Polynomial.mem_roots (qsDiffPoly_ne_zero d P a hne),
+      obtain ⟨c, hc, rfl⟩ := Finset.mem_image.mp hx
+      obtain ⟨_, heval⟩ := (Finset.mem_filter.mp hc).2
+      rwa [Multiset.mem_toFinset, Polynomial.mem_roots (qsDiffPoly_ne_zero d P a hne),
         Polynomial.IsRoot.def, eval_qsDiffPoly, sub_eq_zero]
-      exact heval
     calc _ = ((Finset.univ.filter fun c : BitString p.securityBits =>
           ∃ h : grindingAccepted p c = true,
             P.eval (ι (grindingAcceptedEquiv p ⟨c, h⟩)) =
@@ -1321,11 +1309,8 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
       (PMF.bind · (fun sc : S × Cache (fun _ : K => V) =>
         (complete d sc.2).bind fun H => distK.bind fun k => body sc.1 k (H k)))
       (run_interpret_memoize_prob d M [])
-    rw [PMF.bind_map] at hmemo
-    simp only [ofList_nil] at hmemo
-    simp only [PMF.monad_bind_eq_bind]
-    rw [← hcomp', ← hmemo]
-    simp only [Function.comp_def]
+    simp only [PMF.bind_map, ofList_nil] at hmemo
+    simp only [PMF.monad_bind_eq_bind, ← hcomp', ← hmemo, Function.comp_def]
     congr 1 with sc : 1
     exact PMF.bind_comm _ _ _
   rw [heq_eager, PMF.toOuterMeasure_apply_singleton]
@@ -1356,9 +1341,7 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
       have hkT : k ∉ T := by
         simp only [T, Finset.mem_filter, hlook, Option.isSome_none, Bool.false_eq_true, and_false,
           not_false_eq_true]
-      have hnone : ofList cache k = none := hlook
-      simp only [hkT, ↓reduceIte, zero_add, hnone, Option.elim_none, d, g]
-      exact le_rfl
+      simp [hkT, show ofList cache k = none from hlook, d, g]
   rw [PMF.bind_apply]
   calc ∑' k, distK k * ((complete d (ofList cache)).bind fun H => body s k (H k)) true
       ≤ ∑' k, (distK k * (if k ∈ T then (1 : ℝ≥0∞) else 0) + distK k * g k) := by

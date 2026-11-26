@@ -212,13 +212,10 @@ theorem shortenStep_linearIndependent {S : Fin n → E} (hS : LinearIndependent 
       nlinarith [norm_nonneg t, norm_nonneg (w - t)]
     have hSpos : 0 < ‖S‖ := pi_norm_pos_of_linearIndependent hS i
     linarith
-  have hS_zero : ∑ j : Fin n, c j • S j = 0 := by
-    rw [← hc]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    by_cases hji : j = i
-    · subst hji; simp [hci]
-    · simp [Function.update_of_ne hji]
-  exact Fintype.linearIndependent_iff.mp hS c hS_zero
+  refine Fintype.linearIndependent_iff.mp hS c (hc ▸ Finset.sum_congr rfl fun j _ => ?_)
+  rcases eq_or_ne j i with rfl | hji
+  · simp [hci]
+  · simp [hji]
 
 /-- Bridge from `IncGDD.IsSolution 8 L S t (‖S‖ / 8) u` to the one-round shortening invariants. -/
 theorem shortenStep_of_incGDD {L : Submodule ℤ E} {S : Fin (finrank ℤ L) → E}
@@ -272,13 +269,9 @@ private theorem pow_shortenRoundBound_mul_lt_one {n B : ℕ} (hn : 0 < n) :
       _ = 1 := by rw [← mul_pow]; norm_num
   have hrew : ((13 / 16 : ℝ) ^ 2) ^ (shortenRoundBound n B) * (B : ℝ) ^ n =
       ((((13 / 16 : ℝ) ^ 2) ^ 2) ^ L * (B : ℝ)) ^ n := by
-    rw [mul_pow, ← pow_mul, ← pow_mul, ← pow_mul, ← pow_mul]
-    congr 1
-    congr 1
-    dsimp only [shortenRoundBound, L]
+    simp only [shortenRoundBound, L, mul_pow, ← pow_mul]
     ring
-  rw [hrew]
-  exact pow_lt_one₀ (by positivity) hone_term hn.ne'
+  exact hrew ▸ pow_lt_one₀ (by positivity) hone_term hn.ne'
 
 /-- Pure `ℕ`-exponent potential-drop bound: a chain of shortening steps starting from `S₀` with
 `∀ i, ‖S₀ i‖ ^ 2 ≤ B` has length strictly less than `shortenRoundBound n B` whenever `0 < n`. -/
@@ -434,16 +427,12 @@ theorem ratOrthoScale_sq_bounds {sqS sqV : ℚ} (hS : 0 < sqS) (hV : 0 < sqV) :
   have hk_def : Nat.sqrt (64 * p * d) = k := by simp [k, m, mul_assoc]
   rw [hk_def, div_pow, hq_eq]
   refine ⟨(lt_div_iff₀ hden_pos).mpr ?_, (div_le_iff₀ hden_pos).mpr ?_⟩
-  · have h1 : (1 / 4 : ℚ) * ((p : ℚ) / (d : ℚ)) * (16 * (d : ℚ)) ^ 2 =
-        64 * (p : ℚ) * (d : ℚ) := by
-      field_simp
-      ring
-    linarith
-  · have h2 : (9 / 16 : ℚ) ^ 2 * ((p : ℚ) / (d : ℚ)) * (16 * (d : ℚ)) ^ 2 =
-        81 * (p : ℚ) * (d : ℚ) := by
-      field_simp
-      ring
-    linarith
+  · convert hlo_q using 1
+    field_simp
+    ring
+  · convert hhi_q using 1
+    field_simp
+    ring
 
 /-- `m × (m + 1)` `RatTable` whose rows are `{S j : j ≠ i}` ordered by `i.succAbove`. -/
 @[expose] def omitRowTable {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ) (i : Fin (m + 1)) :
@@ -829,19 +818,12 @@ theorem shortenGuardedIter_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : 
   · exact ⟨hliK, hmemK, fun j => absurd j.isLt (by omega)⟩
   · have hnpos : 0 < finrank ℤ L := Nat.pos_of_ne_zero hn
     by_contra hnot
-    have hval_all : ∀ k < K, IncGDD.IsValidInstance φ γ L (seq k) (‖seq k‖ / 8) := by
-      intro k hk
-      obtain ⟨hlik, hmemk⟩ := hinv k hk.le
-      rcases isSolution_givp_or_isValidInstance_incGDD φ γ L (seq k) hlik hmemk with
-        hsol | hval
-      · exfalso
-        apply hnot
-        refine ⟨hliK, hmemK, fun j => ?_⟩
-        have hle_k : ‖seq k‖ ≤ 8 * γ * φ L :=
-          (pi_norm_le_iff_of_nonneg ((norm_nonneg _).trans (hsol.norm_le ⟨0, hnpos⟩))).2
-            hsol.norm_le
-        exact (norm_le_pi_norm (seq K) j).trans ((hmono_norm hk.le le_rfl).trans hle_k)
-      · exact hval
+    have hval_all : ∀ k < K, IncGDD.IsValidInstance φ γ L (seq k) (‖seq k‖ / 8) := fun k hk =>
+      let ⟨hlik, hmemk⟩ := hinv k hk.le
+      (isSolution_givp_or_isValidInstance_incGDD φ γ L (seq k) hlik hmemk).resolve_left fun hsol =>
+        hnot ⟨hliK, hmemK, fun j => (norm_le_pi_norm (seq K) j).trans
+          ((hmono_norm hk.le le_rfl).trans ((pi_norm_le_iff_of_nonneg
+            ((norm_nonneg _).trans (hsol.norm_le ⟨0, hnpos⟩))).2 hsol.norm_le))⟩
     have hdrop : ∀ k < K, sqNormProd (seq (k + 1)) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd (seq k) := by
       intro k hk
       obtain ⟨hlik, hmemk⟩ := hinv k hk.le

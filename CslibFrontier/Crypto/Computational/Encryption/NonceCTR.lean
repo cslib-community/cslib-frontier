@@ -717,26 +717,12 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
       (jointOracle q state).map (fun (a, state') => (a, state'.1)) =
         nonceCTRIdealOracle nonceLen n q state.1 := by
     rintro request ⟨⟨ok, seen⟩, cache⟩ hinv
-    have hpure_inv (flag : Bool) :
-        (∀ a state', (a, state') ∈
-          ((ProbOracleComp.runWith
-              (fun req : Unit × List Bool => lazyRandomFunctionOracle n n req.2)
-              (pure (([] : List Bool), (flag, seen))) cache).map
-            fun r => (r.1.1, r.1.2, r.2)).support →
-          inv state') ∧
-        ((ProbOracleComp.runWith
-            (fun req : Unit × List Bool => lazyRandomFunctionOracle n n req.2)
-            (pure (([] : List Bool), (flag, seen))) cache).map
-          fun r => (r.1.1, r.1.2, r.2)).map
-          (fun p => (p.1, p.2.1)) = PMF.pure ([], (flag, seen)) := by
-      rw [ProbOracleComp.runWith_pure]
-      refine ⟨fun a s' hmem => ?_, by simp [PMF.pure_map]⟩
-      simp only [PMF.pure_map, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      rcases hmem with ⟨_, rfl⟩
-      exact hinv
     dsimp only [jointOracle, nonceCTRHandler, nonceCTRIdealOracle, StateT.run]
     cases hdec : NonceCipher.unitCPACodec.decodeQuery request with
-    | none => exact hpure_inv ok
+    | none =>
+      simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff,
+        Prod.mk.injEq, and_true]
+      exact fun _ _ h => h.2.symm ▸ hinv
     | some q =>
       rcases q with ⟨pair, ⟨⟩, nonce⟩
       dsimp only
@@ -764,7 +750,9 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
             conv_rhs => rw [← hselLen, ← uniformList_map_xorWithStream (pair.select b)]
             rw [PMF.map_comp, hselLen]
             rfl
-      · exact hpure_inv false
+      · simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff,
+          Prod.mk.injEq, and_true]
+        exact fun _ _ h => h.2.symm ▸ hinv
   have hsim := ProbOracleComp.runWith_map_state_of_invariant
     jointOracle (nonceCTRIdealOracle nonceLen n) Prod.fst inv
     (fun q s hs a s' hmem => (hstep_inv_and_law q s hs).1 a s' hmem)
@@ -815,21 +803,17 @@ theorem advantage_cpaExperiment_nonceCTRCipher_eq_two_mul
         (ProbComp.eval ((nonceCTRCipher family n (nonceLen n)).cpaExperiment
           (BitString.sampleList n) (nonceCTRValid nonceLen n) (nonceCTRValidNonce nonceLen n)
           (NonceCipher.unitCPACodec.adapt (adversary n [])) b)).map (· == b) := by
-    unfold prfRealGame
-    rw [eval_prfGame_nonceCTRToPRF_eq_bind]
-    refine congrArg (PMF.bind (PMF.uniformOfFintype Bool)) (funext fun b => ?_)
-    rw [← eval_prfRealGame_nonceCTRSimView hlen adversary b]
-    rfl
+    rw [prfRealGame, eval_prfGame_nonceCTRToPRF_eq_bind]
+    exact congrArg _ (funext fun b =>
+      congrArg (PMF.map (· == b)) (eval_prfRealGame_nonceCTRSimView hlen adversary b))
   have hideal : ProbComp.eval (prfIdealGame id id (nonceCTRToPRF nonceLen adversary) n) =
       PMF.uniformOfFintype Bool := by
-    unfold prfIdealGame
-    rw [eval_prfGame_nonceCTRToPRF_eq_bind]
+    rw [prfIdealGame, eval_prfGame_nonceCTRToPRF_eq_bind]
     refine (congrArg (PMF.bind (PMF.uniformOfFintype Bool)) (funext fun b => ?_)).trans
       (Game.uniform_bool_bind_map_beq_const
         ((ProbOracleComp.runWith (nonceCTRIdealOracle nonceLen n)
           (adversary n []) (true, [])).map fun (guess, ok, _) => ok && guess))
-    rw [← eval_prfIdealGame_nonceCTRSimView hs adversary b]
-    rfl
+    exact congrArg (PMF.map (· == b)) (eval_prfIdealGame_nonceCTRSimView hs adversary b)
   rw [hreal, hideal]
   exact Game.advantage_eq_two_mul_guessingAdvantage_uniform_bool_beq fun b =>
     ProbComp.eval ((nonceCTRCipher family n (nonceLen n)).cpaExperiment

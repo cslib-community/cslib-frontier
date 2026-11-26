@@ -403,13 +403,7 @@ private theorem coupledStep_eq_of_flag_eq_false (n : ℕ) (request : Bool × Lis
     (h : (coupledStep n bit request s r z).2.2 = false) :
     coupledStep n false request s r z = coupledStep n true request s r z := by
   rw [coupledStep_flag] at h
-  unfold coupledStep
-  by_cases h1 : request.1 = true
-  · simp only [h1, ↓reduceIte]
-  · by_cases h2 : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
-    · have h3 : r ∉ s.2.map (fun t => (List.ofFn t.1).take n) := by simpa [h1, h2] using h
-      simp only [h1, h2, h3, Bool.false_eq_true, ↓reduceIte]
-    · simp only [h1, h2, Bool.false_eq_true, ↓reduceIte]
+  grind [coupledStep]
 
 /-- A raised flag means the fresh nonce repeats the nonce part of a recorded block. -/
 private theorem coupledStep_flag_imp (n : ℕ) (bit : Bool) (request : Bool × List Bool)
@@ -779,22 +773,13 @@ theorem advantage_strongPRPIdealGame_ccaToStrongPRPAdversary_le (adversary : CCA
   have hmid := advantage_forgetful_ccaToStrongPRPAdversary_le adversary n Q hQ
   have hpow : ((2 : ℝ) ^ (2 * n))⁻¹ = (((2 : ℝ) ^ n)⁻¹) ^ 2 := by rw [pow_mul', inv_pow]
   rw [hpow] at h0 h1
-  rw [Game.advantage_comm] at h1
-  have htri1 := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary false adversary) n))
-    ((ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
-      (ccaToStrongPRPAdversary false adversary n []) []).map Prod.fst)
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary true adversary) n)))
-  have htri2 := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    ((ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
-      (ccaToStrongPRPAdversary false adversary n []) []).map Prod.fst)
-    ((ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
-      (ccaToStrongPRPAdversary true adversary n []) []).map Prod.fst)
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary true adversary) n)))
-  rw [NNReal.coe_add] at htri1 htri2
+  let f (b : Bool) :=
+    (ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
+      (ccaToStrongPRPAdversary b adversary n []) []).map Prod.fst
+  refine (NNReal.coe_le_coe.mpr ((Game.advantage_triangle _ (f false) _).trans
+    (add_le_add le_rfl (Game.advantage_triangle _ (f true) _)))).trans ?_
+  rw [Game.advantage_comm (f true), NNReal.coe_add, NNReal.coe_add]
+  dsimp only [f]
   linarith
 
 /-! ### Exercise 9.12(a) and the missing integrity -/
@@ -828,19 +813,12 @@ theorem BlockCipher.advantage_ccaGame_halfBlockCipher_le (F : BlockCipher)
   have hideal := advantage_strongPRPIdealGame_ccaToStrongPRPAdversary_le adversary n Q hQ
   rw [hbl, eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock,
     eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock]
-  have h₁ := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary false n))
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary false adversary) n))
-    (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary true n)))
-  have h₂ := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary false adversary) n))
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary true adversary) n))
-    (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary true n)))
-  rw [NNReal.coe_add] at h₁ h₂
-  rw [Game.advantage_comm (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary true n))]
+  let g (b : Bool) := ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
+    (ccaToStrongPRPAdversary b adversary) n)
+  refine (NNReal.coe_le_coe.mpr ((Game.advantage_triangle _ (g false) _).trans
+    (add_le_add le_rfl (Game.advantage_triangle _ (g true) _)))).trans ?_
+  rw [Game.advantage_comm (g true), NNReal.coe_add, NNReal.coe_add]
+  dsimp only [g]
   linarith
 
 /-- **Boneh–Shoup, Exercise 9.12(a)**, for the half-block scheme: if `F` is a strong pseudorandom
