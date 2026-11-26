@@ -110,10 +110,8 @@ variable {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F Bool}
 
 /-- The new ports of a partial expansion are all unused in the older log. -/
 theorem port_unused (h : Partial sem f rs es e) {o : Occurrence F}
-    (ho : o = e.input ∨ o ∈ e.outputs) : o ∉ es.used := by
-  rcases ho with rfl | ho
-  · exact h.unused
-  · exact Log.Grown.output_not_used h.grown h.fresh ho
+    (ho : o = e.input ∨ o ∈ e.outputs) : o ∉ es.used :=
+  ho.elim (fun he => he ▸ h.unused) (Log.Grown.output_not_used h.grown h.fresh)
 
 private theorem arc_cases (_h : Partial sem f rs es e) {a : Arc F}
     (ha : a ∈ Log.arcs (e :: es)) :
@@ -141,8 +139,7 @@ theorem used_nodup (h : Partial sem f rs es e) : (Log.used (e :: es)).Nodup := b
 theorem children_nodup (h : Partial sem f rs es e) :
     (Log.children (e :: es)).Nodup := by
   rw [Log.children, List.nodup_append]
-  refine ⟨h.distinct, h.grown.children_nodup, ?_⟩
-  intro v hv w hw he
+  refine ⟨h.distinct, h.grown.children_nodup, fun v hv w hw he => ?_⟩
   obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hv
   exact h.fresh o ho (Or.inr (he.symm ▸ hw))
 
@@ -194,8 +191,7 @@ theorem isFDAG (h : Partial sem f rs es e) (hF : EdgeInstance F)
     · rintro x y (⟨a, ha, rfl, rfl⟩ | ⟨_, -, _, -, ht, rfl, rfl⟩)
       · have hr := h.rank_arc (List.mem_toFinset.mp ha)
         cases hi : a.incoming <;> simpa [Arc.source, Arc.target, hi, Arc.copy] using hr
-      · dsimp only [Sum.elim]
-        omega
+      · exact Nat.add_lt_add_right (Nat.mul_lt_mul_of_pos_left ht Nat.two_pos) 1
   feasible a ha b hb hai hc := by
     rcases h.arc_cases (List.mem_toFinset.mp ha) with ha | rfl | ⟨_, _, rfl⟩
     · rcases h.arc_cases (List.mem_toFinset.mp hb) with hb | hb
@@ -299,18 +295,15 @@ theorem Trace.pruned_arcs (h : Trace sem f m) :
     m.prunedDAG.arcs = insert ⟨m.output, m.older.length, true⟩
       (insert ⟨m.current.input, m.older.length, true⟩ m.older.arcs.toFinset) := by
   ext a
-  simp only [Meeting.prunedDAG, Finset.mem_insert, Finset.mem_filter]
+  simp only [Meeting.prunedDAG, Meeting.toDAG, Log.toDAG, Finset.mem_insert, Finset.mem_filter,
+    List.mem_toFinset]
   refine or_congr_right ⟨fun ⟨ha, hp⟩ => ?_, ?_⟩
-  · rcases h.expansion.arc_cases (List.mem_toFinset.mp ha) with ha | rfl | ⟨o, ho, rfl⟩
-    · exact Or.inr (List.mem_toFinset.mpr ha)
-    · exact Or.inl rfl
-    · exact False.elim (hp.elim (fun hn => hn (h.expansion.new_copy (Or.inr ⟨o, ho, rfl⟩)))
-        Bool.noConfusion)
+  · rcases h.expansion.arc_cases ha with ha | rfl | ⟨o, ho, rfl⟩
+    exacts [Or.inr ha, Or.inl rfl,
+      (hp.elim (fun hn => hn (h.expansion.new_copy (Or.inr ⟨o, ho, rfl⟩))) Bool.noConfusion).elim]
   · rintro (rfl | ha)
-    · exact ⟨List.mem_toFinset.mpr List.mem_cons_self, Or.inr rfl⟩
-    · have ha' := List.mem_toFinset.mp ha
-      exact ⟨List.mem_toFinset.mpr (List.mem_cons_of_mem _ (List.mem_append_right _ ha')),
-        Or.inl (copy_ne_of_mem_arcs ha' rfl)⟩
+    exacts [⟨List.mem_cons_self, Or.inr rfl⟩,
+      ⟨List.mem_cons_of_mem _ (List.mem_append_right _ ha), Or.inl (copy_ne_of_mem_arcs ha rfl)⟩]
 
 /-- The terminal graph of Lemma 34's moreover clause is an f-DAG. This proves the
 claim for the executable pruning operation, including its retained isolated child support. -/
@@ -346,8 +339,7 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
   · rcases hcase ha with rfl | ha
     · cases hai
     · rcases hcase hb with rfl | hb
-      · cases hbi
-      · exact ht.indegree a (hsub ha) b (hsub hb) hai hbi he
+      exacts [Bool.noConfusion hbi, ht.indegree a (hsub ha) b (hsub hb) hai hbi he]
   · refine ⟨ht.ordered.1, ⟨Sum.elim (Log.birth (m.current :: m.older))
       (fun c => 2 * c.2 + 1), ?_⟩⟩
     rintro x y (⟨a, ha, rfl, rfl⟩ | ⟨_, -, _, -, hcd, rfl, rfl⟩)
@@ -361,8 +353,7 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
         omega
       · have hr := h.expansion.rank_arc (List.mem_toFinset.mp (hsub ha))
         cases hi : a.incoming <;> simpa [Arc.source, Arc.target, hi, Arc.copy] using hr
-    · dsimp only [Sum.elim]
-      omega
+    · exact Nat.add_lt_add_right (Nat.mul_lt_mul_of_pos_left hcd Nat.two_pos) 1
   · rcases hcase ha with rfl | ha <;> rcases hcase hb with rfl | hb
     · simpa using hf
     · rcases hb with rfl | hb
@@ -399,12 +390,11 @@ theorem run_trace (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
     have hui := hu input (List.mem_of_find?_eq_some hi)
     split
     next os o hs =>
-      have hout := scan_outputs (roots f) es input (partners sem f input) []
-        (by simp) (by simp)
-      rw [hs] at hout
+      obtain ⟨hfr, hnd, hsub⟩ :=
+        hs ▸ scan_outputs (roots f) es input (partners sem f input) [] (by simp) (by simp)
       obtain ⟨ho, hvo, hpo⟩ := scan_meeting_spec (roots f) es input _ [] hs
       have ht : Meeting.Trace sem f ⟨roots f, es, ⟨input, os⟩, o⟩ :=
-        ⟨rfl, ⟨hg, hv, hui, hout.1, hout.2.1, fun p hp => hout.2.2 hp⟩, ho, hvo, hpo⟩
+        ⟨rfl, ⟨hg, hv, hui, hfr, hnd, fun p hp => hsub hp⟩, ho, hvo, hpo⟩
       dsimp only
       split <;> exact ht
     next os hs =>
