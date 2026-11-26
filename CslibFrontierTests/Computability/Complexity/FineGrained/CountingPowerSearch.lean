@@ -137,4 +137,13 @@ example (hhard : ∀ q : ℝ, 0 < q → q < 1 →
     hthree.SharpKSAT_numVars_of_size (by decide) (by norm_num) (by norm_num)
   exact hhard q hq hq1 (by simpa only [SharpKSAT_three] using hcount)
 
+-- The decision transfer gives a size lower bound from the corresponding variable hypothesis.
+example (hhard : ∀ q : ℝ, 0 < q → q < 1 →
+    ¬ DecidableInPowerExpTime (KSAT 3) encCNF CNF.numVars q) :
+    ¬ DecidableInPowerExpTime (KSAT 3) encCNF (fun φ => φ.numVars + φ.length) (1 / 2) := by
+  intro h
+  obtain ⟨q, hq, hq1, hdec⟩ :=
+    h.KSAT_numVars_of_size (by decide) (by norm_num) (by norm_num)
+  exact hhard q hq hq1 hdec
+
 end CslibFrontierTests.CountingPowerSearch
