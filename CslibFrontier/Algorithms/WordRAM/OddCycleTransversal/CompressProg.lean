@@ -119,11 +119,10 @@ private theorem buildWProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (vL : ℕ × ℕ) _ => vL.1 + rem = d.1 ∧ vL.2 ≤ vL.1) ?_ ⟨Nat.zero_add _, le_rfl⟩
   intro rem vL t ⟨hsum, hL⟩
-  dsimp only
-  refine ⟨⟨hw, by omega, hL⟩, ?_⟩
   obtain ⟨h1, h2⟩ := clientResult_buildWListStep (d.1, vL) t
-  dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2
-  exact ⟨by omega, by omega⟩
+  dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2 ⊢
+  refine ⟨⟨hw, by omega, hL⟩, ?_⟩
+  omega
 
 /-- Single step of `unpackGuessProg`. -/
 @[expose] def unpackStep (d : ℕ × ℕ) : Memory.Prog ℕ := do
@@ -323,20 +322,16 @@ private theorem checkProperProg_realizes :
 
 theorem preservesAt_checkProperProg (a : ℕ) (d : (ℕ × ℕ) × ℕ) :
     PreservesAt a (checkProperProg d) := by
-  unfold checkProperProg
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate (fun iok => ?_) _ _) fun _ => preservesAt_pure _ _
-  unfold properOuterStep
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  refine preservesAt_bind (preservesAt_iterate (fun jok => ?_) _ _) fun _ => preservesAt_pure _ _
-  unfold properInnerStep
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  exact preservesAt_ite _ (preservesAt_pure _ _) (preservesAt_pure _ _)
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_iterate (fun _ => ?_) _ _) fun _ => preservesAt_pure _ _
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_ite _ ?_ (preservesAt_pure _ _)
+  refine preservesAt_bind (preservesAt_iterate (fun _ => ?_) _ _) fun _ => preservesAt_pure _ _
+  exact preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_ite _ (preservesAt_bind (preservesAt_read _ _) fun _ =>
+      preservesAt_ite _ (preservesAt_pure _ _) (preservesAt_pure _ _)) (preservesAt_pure _ _)
 
 /-- Number of vertices in `termInnerStep` arguments `((n, m), (v, cv)), j`. -/
 abbrev TermInnerArgs.n (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) : ℕ := d.1.1.1
@@ -533,20 +528,17 @@ private theorem countDelProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (jc : ℕ × ℕ) _ => jc.1 + rem = d.2 ∧ jc.2 ≤ jc.1) ?_ ⟨Nat.zero_add _, le_rfl⟩
   intro rem jc t ⟨hsum, hc⟩
-  dsimp only
-  refine ⟨⟨hw, by omega, hc⟩, ?_⟩
   obtain ⟨h1, h2⟩ := clientResult_countDelStep (d.1, jc) t
-  dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2
-  exact ⟨by omega, by omega⟩
+  dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2 ⊢
+  refine ⟨⟨hw, by omega, hc⟩, ?_⟩
+  omega
 
 theorem preservesAt_countDelProg (a : ℕ) (d : ℕ × ℕ) :
     PreservesAt a (countDelProg d) := by
-  unfold countDelProg
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate (fun jc => ?_) _ _) fun _ => preservesAt_pure _ _
-  unfold countDelStep
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  exact preservesAt_ite _ (preservesAt_pure _ _) (preservesAt_pure _ _)
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_iterate (fun _ => ?_) _ _) fun _ => preservesAt_pure _ _
+  exact preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_ite _ (preservesAt_pure _ _) (preservesAt_pure _ _)
 
 /-- Single-vertex commit updating `sepBase` and `colBase`. -/
 @[expose] def commitStep (d : ℕ × ℕ) : Memory.Prog ℕ := do
@@ -609,21 +601,18 @@ private theorem commitLeafProg_realizes :
 theorem preservesAt_commitLeafProg {a n : ℕ}
     (ha : a < sepBase n ∨ wBase n ≤ a) :
     PreservesAt a (commitLeafProg n) := by
-  unfold commitLeafProg
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate_nat fun v hv => ⟨fun s => ?_, fun s => ?_⟩)
-    fun _ => preservesAt_pure _ _
-  · unfold commitStep
-    have hsep : a ≠ sepBase n + v := by dsimp only [sepBase, wBase] at ha ⊢; omega
-    have hcol : a ≠ colBase n + v := by dsimp only [sepBase, colBase, wBase] at ha ⊢; omega
-    rw [clientState_bind_read, clientState_bind_read, clientState_bind_read,
-      clientState_bind_read, clientState_bind_read]
-    dsimp only
-    split_ifs <;>
-      (rw [clientState_bind_write, clientState_bind_write, clientState_pure]
-       dsimp only
-       rw [Function.update_of_ne hcol, Function.update_of_ne hsep])
-  · exact clientResult_commitStep (n, v) s
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_iterate_nat fun v hv =>
+      ⟨fun s => ?_, clientResult_commitStep (n, v)⟩) fun _ => preservesAt_pure _ _
+  have hsep : a ≠ sepBase n + v := by dsimp only [sepBase, wBase] at ha ⊢; omega
+  have hcol : a ≠ colBase n + v := by dsimp only [sepBase, colBase, wBase] at ha ⊢; omega
+  unfold commitStep
+  rw [clientState_bind_read, clientState_bind_read, clientState_bind_read,
+    clientState_bind_read, clientState_bind_read]
+  dsimp only
+  split_ifs <;>
+    (rw [clientState_bind_write, clientState_bind_write, clientState_pure]
+     exact (Function.update_of_ne hcol _ _).trans (Function.update_of_ne hsep _ _))
 
 /-- Number of vertices in compression leaf configuration `(((n, k), m), L)`. -/
 abbrev CompressCfg.n (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1
@@ -671,22 +660,18 @@ theorem preservesAt_leafProg {a : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ}
     (ha : a < sepBase (CompressCfg.n d) ∨
       (wBase (CompressCfg.n d) ≤ a ∧ a < guessBase (CompressCfg.n d))) :
     PreservesAt a (leafProg d) := by
-  have hg : a < guessBase (CompressCfg.n d) := by
-    dsimp only [sepBase, wBase, guessBase, CompressCfg.n] at ha ⊢; omega
-  have hk : a < keepBase (CompressCfg.n d) := by
-    dsimp only [guessBase, keepBase, CompressCfg.n] at hg ⊢; omega
-  have hf : a < flowBase (CompressCfg.n d) := by
-    dsimp only [keepBase, flowBase, CompressCfg.n] at hk ⊢; omega
-  have hc : a < sepBase (CompressCfg.n d) ∨ wBase (CompressCfg.n d) ≤ a := ha.imp id And.left
-  unfold leafProg
-  refine preservesAt_bind (preservesAt_unpackGuessProg hg) fun _ => ?_
-  refine preservesAt_bind (preservesAt_checkProperProg a _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  refine preservesAt_bind (preservesAt_buildTerminalsProg hk) fun _ => ?_
-  refine preservesAt_bind (preservesAt_minSepProg hf) fun _ => ?_
-  refine preservesAt_bind (preservesAt_countDelProg a _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  exact preservesAt_bind (preservesAt_commitLeafProg hc) fun _ => preservesAt_pure _ _
+  have hb : a < guessBase (CompressCfg.n d) ∧ a < keepBase (CompressCfg.n d) ∧
+      a < flowBase (CompressCfg.n d) := by
+    dsimp only [sepBase, wBase, guessBase, keepBase, flowBase, CompressCfg.n] at ha ⊢
+    omega
+  refine preservesAt_bind (preservesAt_unpackGuessProg hb.1) fun _ =>
+    preservesAt_bind (preservesAt_checkProperProg a _) fun _ =>
+    preservesAt_ite _ ?_ (preservesAt_pure _ _)
+  refine preservesAt_bind (preservesAt_buildTerminalsProg hb.2.1) fun _ =>
+    preservesAt_bind (preservesAt_minSepProg hb.2.2) fun _ =>
+    preservesAt_bind (preservesAt_countDelProg a _) fun _ =>
+    preservesAt_ite _ (preservesAt_bind (preservesAt_commitLeafProg (ha.imp id And.left))
+      fun _ => preservesAt_pure _ _) (preservesAt_pure _ _)
 
 /-- Single-digit carry propagation step of the base-3 odometer. -/
 @[expose] def incOdomStep (d : ℕ × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
@@ -782,8 +767,7 @@ theorem base3At_lt (mem : ℕ → ℕ) (base : ℕ) :
   | 0 => by simp [base3At]
   | j + 1 => by
     have ih := base3At_lt mem base j
-    have hmin : min (mem (base + j)) 2 ≤ 2 := Nat.min_le_right _ _
-    have hmul : min (mem (base + j)) 2 * 3 ^ j ≤ 2 * 3 ^ j := Nat.mul_le_mul_right _ hmin
+    have hmul := Nat.mul_le_mul_right (3 ^ j) (Nat.min_le_right (mem (base + j)) 2)
     simp only [base3At, pow_succ]
     omega
 
@@ -792,7 +776,7 @@ theorem base3At_congr {m₁ m₂ : ℕ → ℕ} {base : ℕ} :
   | 0, _ => rfl
   | j + 1, h => by
     unfold base3At
-    rw [base3At_congr fun i hi => h i (by omega), h j (by omega)]
+    rw [base3At_congr fun i hi => h i (Nat.lt_succ_of_lt hi), h j (Nat.lt_succ_self j)]
 
 theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
     let done' := (Memory.spec 0).clientResult s (incOdomProg (n, L))
@@ -801,55 +785,44 @@ theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
       base3At s'.mem (digitBase n) L + done' * 3 ^ L = base3At s.mem (digitBase n) L + 1 := by
   unfold incOdomProg
   simp only [client_simps]
-  have hinv := iterate_invariant_of incOdomStep n
+  obtain ⟨hL0, hcarry, _, hval⟩ := iterate_invariant_of incOdomStep n
     (fun rem (jc : ℕ × ℕ) t =>
       jc.1 + rem = L ∧ jc.2 ≤ 1 ∧
         (∀ i, jc.1 ≤ i → t.mem (digitBase n + i) = s.mem (digitBase n + i)) ∧
         base3At t.mem (digitBase n) jc.1 + jc.2 * 3 ^ jc.1 =
           base3At s.mem (digitBase n) jc.1 + 1)
     (fun rem jc t ⟨hsum, hcarry, habove, hval⟩ => by
-      dsimp only [incOdomStep, LoopAccArgs.idx, LoopAccArgs.acc]
+      unfold incOdomStep
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
+      rw [clientResult_bind_read, clientState_bind_read]
       have hdj : t.mem (digitBase n + jc.1) = s.mem (digitBase n + jc.1) := habove jc.1 le_rfl
-      by_cases hc : jc.2 = 1
-      · have hpre (v : ℕ) : base3At (Function.update t.mem (digitBase n + jc.1) v)
-            (digitBase n) jc.1 = base3At t.mem (digitBase n) jc.1 :=
-          base3At_congr fun _ _ => Function.update_of_ne (by omega) _ _
-        by_cases hlt : t.mem (digitBase n + jc.1) < 2
-        · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_left hlt,
-            clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
-          dsimp only
-          refine ⟨by omega, by omega,
-            fun i hi => (Function.update_of_ne (by omega) _ _).trans (habove i (by omega)), ?_⟩
-          simp only [base3At, hpre, Function.update_self, zero_mul, add_zero]
-          rw [hc, one_mul] at hval
-          have hmin1 : min (t.mem (digitBase n + jc.1) + 1) 2 = t.mem (digitBase n + jc.1) + 1 :=
-            Nat.min_eq_left (by omega)
-          have hmin0 : min (s.mem (digitBase n + jc.1)) 2 = t.mem (digitBase n + jc.1) := by
-            rw [← hdj]; exact Nat.min_eq_left (by omega)
-          rw [hmin1, hmin0, add_mul, one_mul]
-          omega
-        · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_right hlt,
-            clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
-          dsimp only
-          refine ⟨by omega, by omega,
-            fun i hi => (Function.update_of_ne (by omega) _ _).trans (habove i (by omega)), ?_⟩
-          simp only [base3At, hpre, Function.update_self, Nat.zero_min, zero_mul, add_zero,
-            one_mul, pow_succ]
-          rw [hc, one_mul] at hval
-          have hmin0 : min (s.mem (digitBase n + jc.1)) 2 = 2 := by
-            rw [← hdj]; exact Nat.min_eq_right (by omega)
-          rw [hmin0]
-          omega
-      · have hc0 : jc.2 = 0 := by omega
-        rw [clientResult_bind_read, clientState_bind_read, ite_eq_right hc,
-          clientResult_pure, clientState_pure]
-        dsimp only
-        refine ⟨by omega, by omega, fun i hi => habove i (by omega), ?_⟩
-        simp only [base3At, hdj, zero_mul, add_zero]
+      have hpre (v : ℕ) : base3At (Function.update t.mem (digitBase n + jc.1) v)
+          (digitBase n) jc.1 = base3At t.mem (digitBase n) jc.1 :=
+        base3At_congr fun _ _ => Function.update_of_ne (by omega) _ _
+      have hupd (v i : ℕ) (hi : jc.1 + 1 ≤ i) :
+          Function.update t.mem (digitBase n + jc.1) v (digitBase n + i) =
+            s.mem (digitBase n + i) :=
+        (Function.update_of_ne (by omega) _ _).trans (habove i (Nat.le_of_succ_le hi))
+      split_ifs with hc hlt
+      · rw [clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
+        refine ⟨by omega, Nat.zero_le _, hupd _, ?_⟩
+        rw [hc, one_mul] at hval
+        simp only [base3At, hpre, Function.update_self, zero_mul, add_zero, ← hdj,
+          Nat.min_eq_left (Nat.succ_le_of_lt hlt), Nat.min_eq_left hlt.le, Nat.succ_mul]
+        omega
+      · rw [clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
+        refine ⟨by omega, le_rfl, hupd _, ?_⟩
+        rw [hc, one_mul] at hval
+        simp only [base3At, hpre, Function.update_self, Nat.zero_min, zero_mul, add_zero,
+          one_mul, pow_succ, ← hdj, Nat.min_eq_right (Nat.le_of_not_lt hlt)]
+        omega
+      · rw [clientResult_pure, clientState_pure]
+        refine ⟨by omega, Nat.zero_le _, fun i hi => habove i (Nat.le_of_succ_le hi), ?_⟩
+        have hc0 : jc.2 = 0 := by omega
         rw [hc0, zero_mul, add_zero] at hval
+        simp only [base3At, hdj, zero_mul, add_zero]
         omega)
     (n := L) (a := (0, 1)) (s := s) ⟨Nat.zero_add _, le_rfl, fun _ _ => rfl, by simp [base3At]⟩
-  obtain ⟨hL0, hcarry, _, hval⟩ := hinv
   have hfst : ((Memory.spec 0).clientResult s (iterate incOdomStep n L (0, 1))).1 = L := by omega
   rw [hfst] at hval
   exact ⟨hcarry, hval⟩
@@ -892,21 +865,15 @@ private theorem compressProg_realizes :
           (Memory.spec 0).clientState t₁ (incOdomProg (d.1.1.1, d.2)) := by
       unfold guessStep
       dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found, t₁]
-      rw [clientResult_bind_read, clientState_bind_read]
-      split_ifs
-      · rw [clientResult_bind, clientState_bind, clientResult_bind, clientResult_pure,
-          clientState_bind, clientState_pure]
-        exact ⟨rfl, rfl⟩
-      · rw [clientResult_bind, clientState_bind, clientState_pure, clientResult_bind,
-          clientResult_pure, clientState_bind, clientState_pure]
-        exact ⟨rfl, rfl⟩
+      simp only [client_simps]
+      split_ifs <;> simp only [client_simps] <;> exact ⟨rfl, rfl⟩
     have hpres :
         base3At t₁.mem (digitBase d.1.1.1) d.2 = base3At t.mem (digitBase d.1.1.1) d.2 := by
       dsimp only [t₁]
       split_ifs
-      · refine base3At_congr fun i hi => preservesAt_leafProg (Or.inr ⟨?_, ?_⟩) t
-        · dsimp only [wBase, digitBase, CompressCfg.n]; omega
-        · dsimp only [digitBase, guessBase, CompressCfg.n]; omega
+      · refine base3At_congr fun i hi => preservesAt_leafProg (Or.inr ?_) t
+        dsimp only [wBase, digitBase, guessBase, CompressCfg.n]
+        omega
       · rfl
     simp only [hstep.1, hstep.2, hg, ↓reduceIte]
     obtain ⟨hdone_le, hodom_eq⟩ := incOdomProg_base3At d.1.1.1 d.2 t₁

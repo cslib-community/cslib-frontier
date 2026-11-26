@@ -51,7 +51,7 @@ theorem inputFits_encode (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   rcases hv with rfl | rfl | ⟨c, hc, rfl | ⟨ℓ, _, rfl⟩⟩
   · omega
   · omega
-  · have hle : c.length ≤ G.totalLits := List.le_sum_of_mem (List.mem_map_of_mem hc)
+  · have : c.length ≤ G.totalLits := List.le_sum_of_mem (List.mem_map_of_mem hc)
     omega
   · have := ℓ.1.isLt
     have := Bool.toNat_le ℓ.2
@@ -70,11 +70,8 @@ theorem decodeAnswer_answerWords (G : Instance) :
   | some σ =>
     simp only [encodeAssignment, decodeAnswer, Option.some.injEq]
     funext v
-    have hv : v.val < ((List.finRange G.n).map fun u => (σ u).toNat).length := by
-      simp [v.isLt]
-    rw [List.getD_eq_getElem _ 0 hv]
-    simp only [List.getElem_map, List.getElem_finRange, Fin.cast_mk, Fin.eta]
-    cases σ v <;> rfl
+    rw [List.getD_eq_getElem _ 0 (by simp [v.isLt])]
+    cases hσ : σ v <;> simp [hσ]
 
 /-- `answerWords G` is empty if and only if `G.φ` is either not width-at-most-`2` or
 unsatisfiable. -/
@@ -88,8 +85,7 @@ theorem answerWords_eq_nil_iff (G : Instance) :
 theorem eval_of_decodeAnswer_eq_some {G : Instance} {σ : Fin G.n → Bool}
     (h : decodeAnswer G (answerWords G) = some σ) :
     (∀ c ∈ G.φ, c.length ≤ 2) ∧ G.φ.eval σ = true := by
-  rw [decodeAnswer_answerWords] at h
-  exact solveFin_eq_some h
+  exact solveFin_eq_some (decodeAnswer_answerWords G ▸ h)
 
 /-- Structured standard-basis Word-RAM solver for 2-SAT. -/
 def solver : Code .standard 28 :=
@@ -197,11 +193,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       refine ⟨y_n0, (hsetup.seq (hchk_ex.seq
         ((hpos_n0.branch_pos hcond_n0).branch_pos hcond_chk))).mono (by omega), hob_y, ?_⟩
       rw [hob_y, outputList_eq_iff]
-      have hans : answerWords G = [1] := by
-        rcases G with ⟨n, φ⟩
-        dsimp only at hn0 hφ_nil
-        subst hn0 hφ_nil
-        rfl
+      have hans : answerWords G = [1] := match G, hn0, hφ_nil with | ⟨0, []⟩, rfl, rfl => rfl
       rw [hans]
       refine ⟨by wram_simp [y_n0]; rfl, fun ⟨i, hi⟩ => ?_⟩
       obtain rfl : i = 0 := by simpa using hi
@@ -290,8 +282,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             dsimp only [answerWords, solveFin, solve, extractAssignment]
             rw [hchk, hok_all]
             rfl
-          obtain ⟨hbr, hout⟩ :=
-            hwrite_nil s₈ hs₈_0 hs₈_1 (by rw [hs₈_ok, hok_all]; rfl) hs₈_ob hans
+          obtain ⟨hbr, hout⟩ := hwrite_nil s₈ hs₈_0 hs₈_1
+            (hs₈_ok.trans (congrArg Bool.toNat hok_all)) hs₈_ob hans
           exact ⟨_, hbr.mono (by omega), hs₈_ob, hout⟩
         · have hs₈_ok1 : s₈.regs compIdxReg = 1 := by rw [hs₈_ok, hok_all]; rfl
           have hcond_ok : (Cond.eq compIdxReg cOne).Holds s₈ := by
@@ -314,9 +306,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           have hans : answerWords G =
               1 :: (List.finRange G.n).map
                 (fun v => (decide (compIdx (v, false) < compIdx (v, true))).toNat) := by
-            dsimp only [answerWords, solveFin, solve, extractAssignment, encodeAssignment]
-            rw [hchk, hok_all]
-            rfl
+            simp [answerWords, solveFin, solve, extractAssignment, encodeAssignment, compIdx, hchk,
+              hdist_all]
           rw [hans]
           refine ⟨by wram_simp [y_sat]; simp, fun ⟨i, hi⟩ => ?_⟩
           rcases i with _ | q
@@ -355,8 +346,7 @@ theorem computesListInTime_program :
       (fun G w => Fits w G.wordBound)
       answerWords := by
   intro G w hfit _
-  obtain ⟨steps, hle, hex⟩ := program_spec G hfit
-  exact ⟨steps, hex, hle⟩
+  exact (program_spec G hfit).imp fun _ ⟨hle, hex⟩ => ⟨hex, hle⟩
 
 /-- `program` does not read the word width (`width%`). -/
 theorem not_readsWidth_program : ¬ program.ReadsWidth := by
