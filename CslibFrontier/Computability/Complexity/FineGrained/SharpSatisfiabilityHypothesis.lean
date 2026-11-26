@@ -143,7 +143,8 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
 
 /-- The counting equivalence of [MITHardnessGroup2026SH, v2, §2.3, Theorem 2.4].
 The fixed-width size formulation and disjoint sparsification give the equivalence with
-Weak #ETH on the native CNF encoding. -/
+Weak #ETH on the native CNF encoding. The decision equivalence of Theorem 2.4,
+between SH and Weak ETH, remains open in #8457. -/
 theorem SharpSH_iff_WeakSharpETH : SharpSH ↔ WeakSharpETH := by
   rw [SharpSH_iff_SharpKSAT (k := 3) le_rfl]
   constructor
