@@ -262,10 +262,8 @@ theorem totalVote_pos (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α →
     (hε₀ : ∀ t < T, 0 < (rounds S A t).error S) (hε : ∀ t < T, (rounds S A t).error S < 1 / 2) :
     0 < totalVote S A T := by
   rw [totalVote_def]
-  exact sum_pos (fun t ht => by
-    rw [Round.vote_def]
-    exact voteWeight_pos (hε₀ t (mem_range.mp ht)) (hε t (mem_range.mp ht)))
-    ⟨0, mem_range.mpr hT⟩
+  exact sum_pos (fun t ht => Round.vote_def _ _ ▸
+    voteWeight_pos (hε₀ t (mem_range.mp ht)) (hε t (mem_range.mp ht))) ⟨0, mem_range.mpr hT⟩
 
 /-- When `T > 0` and every round `t < T` chooses a hypothesis in `C` with weighted error `< 1/2`,
 `normalizedScore S A T` lies in `convexHull ℝ (signClass C)`. -/
@@ -289,14 +287,11 @@ theorem normalizedScore_mem_convexHull {S : Fin m → α × Bool} {A : (Fin m �
       simp only [normalizedScore_of_not_exists_error_zero S A hz, score_def, neg_neg,
         Finset.sum_apply, Finset.sum_div, Pi.smul_apply, smul_eq_mul, div_mul_eq_mul_div]
     rw [heq]
-    refine (convex_convexHull ℝ (signClass C)).sum_mem ?_ ?_ ?_
-    · intro t ht
-      rw [Round.vote_def]
-      exact div_nonneg (voteWeight_nonneg (hε₀ t (mem_range.mp ht))
-        (hε t (mem_range.mp ht)).le) hZ.le
-    · rw [← Finset.sum_div, ← totalVote_def, div_self hZ.ne']
-    · intro t ht
-      exact subset_convexHull ℝ (signClass C)
+    exact (convex_convexHull ℝ (signClass C)).sum_mem
+      (fun t ht => Round.vote_def _ _ ▸ div_nonneg (voteWeight_nonneg (hε₀ t (mem_range.mp ht))
+        (hε t (mem_range.mp ht)).le) hZ.le)
+      (by rw [← Finset.sum_div, ← totalVote_def, div_self hZ.ne'])
+      fun t ht => subset_convexHull ℝ (signClass C)
         (mem_signClass.2 ⟨(rounds S A t).hyp, hC t (mem_range.mp ht), rfl⟩)
 
 /-- Every point misclassified by `adaBoost S A T` has nonpositive signed margin under
@@ -543,8 +538,7 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
         hyp_eq_of_error_eq_zero S A (Nat.find_spec hz).2 i, signVal_mul_self] at hle
       linarith
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · rw [Nat.cast_zero, div_zero]
-    exact hprod_nonneg
+  · simpa using hprod_nonneg
   have : NeZero m := ⟨hm.ne'⟩
   have hε₀ : ∀ t < T, 0 < (rounds S A t).error S := fun t ht =>
     (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht, h.symm⟩
@@ -661,10 +655,7 @@ theorem marginCount_normalizedScore_le_exp (S : Fin m → α × Bool)
   calc (√((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ))) ^ T
       ≤ (exp (-(2 * γ * (γ - ρ)))) ^ T :=
         pow_le_pow_left₀ (Real.sqrt_nonneg _) (sqrt_marginFactor_le_exp hγ₀ hγ₁ hρ₀ hργ) T
-    _ = exp (-(2 * γ * (γ - ρ) * T)) := by
-        rw [← Real.exp_nat_mul]
-        congr 1
-        ring
+    _ = exp (-(2 * γ * (γ - ρ) * T)) := by rw [← Real.exp_nat_mul]; ring_nf
 
 /-- **End-to-end margin generalization bound for AdaBoost under an edge assumption**
 [SchapireFreundBartlettLee1998, Theorems 2 and 5] [MohriRostamizadehTalwalkar2018, Section 7.3.3,

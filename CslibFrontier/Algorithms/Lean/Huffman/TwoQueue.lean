@@ -142,9 +142,7 @@ theorem wf_empty : (empty : FifoQueue γ).WF := fun _ => rfl
   cases f <;> simp [checkf, size]
 
 theorem wf_checkf (f b : List γ) : (checkf f b).WF := by
-  cases f with
-  | nil => intro _; rfl
-  | cons _ _ => intro h; cases h
+  cases f <;> simp [checkf, WF]
 
 @[simp] theorem length_toList (q : FifoQueue γ) : q.toList.length = q.size := by
   simp [toList, size]
@@ -287,9 +285,7 @@ private theorem twoQueueSteps_eq_twoQueueLoop {α β : Type u} [Add β] [LE β]
     ∀ (fuel : ℕ) (q₁ : List (WeightedTree α β)) (q₂ : FifoQueue (WeightedTree α β)),
       q₁.length + q₂.size ≤ fuel →
       twoQueueSteps fuel q₁ q₂ = twoQueueLoop q₁ q₂
-  | 0, q₁, q₂, hle => by
-    unfold twoQueueLoop
-    rw [Nat.eq_zero_of_le_zero hle]
+  | 0, q₁, q₂, hle => by simp [twoQueueLoop, Nat.eq_zero_of_le_zero hle]
   | fuel + 1, q₁, q₂, hle => by
     unfold twoQueueLoop
     rcases hsz : q₁.length + q₂.size with _ | n
@@ -565,9 +561,8 @@ theorem huffman_optimal {α β : Type u}
     (T' : CodeTree α) (hT' : T'.leaves.Perm syms) :
     T.weightedPathLength w ≤ T'.weightedPathLength w := by
   have hne : syms ≠ [] := fun hnil => T'.leaves_ne_nil (List.Perm.eq_nil (hnil ▸ hT'))
-  rcases huffman_spec hne hw with ⟨T₀, hT₀, hbuild, _⟩
-  obtain rfl : T = T₀ := Option.some.inj (hT.symm.trans hT₀)
-  exact hbuild.weightedPathLength_le T' hT'
+  obtain ⟨_, hT₀, hbuild, _⟩ := huffman_spec hne hw
+  exact (Option.some.inj (hT₀.symm.trans hT) ▸ hbuild).weightedPathLength_le T' hT'
 
 /-- **Optimality of `huffman` over All Prefix-Free Binary Codes**: on distinct symbols `syms` with
 nonnegative weights, `huffman w syms` achieves weighted path length at most that of *any* injective
@@ -581,9 +576,9 @@ theorem huffman_optimal_isPrefixFree {α β : Type u}
     (hinj : Set.InjOn code {a | a ∈ syms})
     (hpf : InformationTheory.IsPrefixFree (code '' {a | a ∈ syms})) :
     T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
-  rcases huffman_spec hne hw with ⟨T₀, hT₀, hbuild, _⟩
-  obtain rfl : T = T₀ := Option.some.inj (hT.symm.trans hT₀)
-  exact hbuild.weightedPathLength_le_of_isPrefixFree hne hnodup hw hinj hpf
+  obtain ⟨_, hT₀, hbuild, _⟩ := huffman_spec hne hw
+  exact (Option.some.inj (hT₀.symm.trans hT) ▸ hbuild).weightedPathLength_le_of_isPrefixFree
+    hne hnodup hw hinj hpf
 
 /-- **Optimality of `huffman` over All Uniquely Decodable Binary Codes**: on distinct symbols `syms`
 with nonnegative weights, `huffman w syms` achieves weighted path length at most that of *any*
@@ -597,8 +592,8 @@ theorem huffman_optimal_isUniquelyDecodable {α β : Type u}
     (hinj : Set.InjOn code {a | a ∈ syms})
     (hud : InformationTheory.IsUniquelyDecodable (code '' {a | a ∈ syms})) :
     T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
-  rcases huffman_spec hne hw with ⟨T₀, hT₀, hbuild, _⟩
-  obtain rfl : T = T₀ := Option.some.inj (hT.symm.trans hT₀)
-  exact hbuild.weightedPathLength_le_of_isUniquelyDecodable hne hnodup hw hinj hud
+  obtain ⟨_, hT₀, hbuild, _⟩ := huffman_spec hne hw
+  exact (Option.some.inj (hT₀.symm.trans hT) ▸ hbuild).weightedPathLength_le_of_isUniquelyDecodable
+    hne hnodup hw hinj hud
 
 end Cslib.Algorithms.Lean.Huffman

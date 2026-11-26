@@ -216,8 +216,7 @@ theorem stepChar_spec {σ : ℕ} {T : PTrie} (hT : TreeInv σ T) {u a : ℕ}
             rw [Function.update_self, Function.update_of_ne (by omega)]
         trie_oob := fun x hx c => by
           dsimp only at hx ⊢
-          rw [ite_eq_right (by omega)]
-          exact hT.trie_oob x (by omega) c
+          rw [ite_eq_right (by omega), hT.trie_oob x (by omega) c]
         depth_oob := fun x hx => by
           dsimp only at hx ⊢
           rw [Function.update_of_ne (by omega), hT.depth_oob x (by omega)]
@@ -256,17 +255,11 @@ theorem insertChars_spec {σ : ℕ} :
     set s := (T.stepChar u a).2
     obtain ⟨hT₂, hle₂, hub₂, hu₂_lt, hu₂_str, hu₂_pos, hpres₂, hnew₂, hpref₂⟩ :=
       insertChars_spec as T₁ s hT₁ hs_lt has
-    set T₂ := (T₁.insertChars s as).1
-    set u₂ := (T₁.insertChars s as).2
-    refine ⟨hT₂, le_trans hle₁ hle₂, by simp only [List.length_cons]; omega, hu₂_lt, ?_, ?_,
-      ?_, ?_, ?_⟩
+    refine ⟨hT₂, le_trans hle₁ hle₂, by simp only [List.length_cons]; omega, hu₂_lt, ?_,
+      fun _ => match as with | [] => hs_pos | _ :: _ => hu₂_pos (List.cons_ne_nil _ _),
+      fun v hv => (hpres₂ v (lt_of_lt_of_le hv hle₁)).imp (·.trans (hpres₁ v hv).1)
+        (·.trans (hpres₁ v hv).2), ?_, ?_⟩
     · rw [hu₂_str, hs_str, List.append_assoc, List.singleton_append]
-    · intro _
-      rcases as with _ | ⟨_, _⟩
-      · exact hs_pos
-      · exact hu₂_pos (List.cons_ne_nil _ _)
-    · exact fun v hv => (hpres₂ v (lt_of_lt_of_le hv hle₁)).imp (·.trans (hpres₁ v hv).1)
-        (·.trans (hpres₁ v hv).2)
     · intro w hge hlt
       rcases lt_or_ge w T₁.numStates with hw₁ | hw₁
       · have hw_eq : w = T.numStates := by omega
@@ -365,9 +358,7 @@ theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
       rw [hT₂_str]
       rcases lt_or_ge v T.numStates with hv₀ | hv₀
       · rw [(hpres₁ v hv₀).1]
-        rcases hnode v hv₀ with hnil | ⟨r, hr, hvr⟩
-        · exact Or.inl hnil
-        · exact Or.inr ⟨r, List.mem_append_left _ hr, hvr⟩
+        exact (hnode v hv₀).imp_right fun ⟨r, hr, hvr⟩ => ⟨r, List.mem_append_left _ hr, hvr⟩
       · obtain ⟨_, q, _, hqp, hqstr⟩ := hnew₁ v hv₀ hv
         exact hqstr ▸ Or.inr ⟨p, List.mem_append_right _ (by simp), hqp⟩
     have hcomp₂ : ∀ w, IsNode (Q ++ [p]) w → ∃ v < T₂.numStates, T₂.strOf v = w := by
@@ -383,11 +374,10 @@ theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
         T₂.isTerm v = if T₂.strOf v ≠ [] ∧ T₂.strOf v ∈ Q ++ [p] then 1 else 0 := by
       intro v hv
       rw [hT₂_num] at hv
-      rw [hT₂_str]
       have hT₂_term : T₂.isTerm v =
           (if 0 < u then Function.update T₁.isTerm u 1 else T₁.isTerm) v := by
         dsimp only [T₂, PTrie.insertPat]; split_ifs <;> rfl
-      rw [hT₂_term]
+      rw [hT₂_str, hT₂_term]
       by_cases hp_nil : p = []
       · subst hp_nil
         change T₁.isTerm v = _
