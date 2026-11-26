@@ -159,17 +159,13 @@ theorem IsVerificationQueryBounded.query_verify {M Sig : Type} (p : M × Sig) :
 theorem IsSigningQueryBounded.of_isQueryBounded {M Sig α : Type}
     {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q : ℕ}
     (h : program.IsQueryBounded Q) : IsSigningQueryBounded program Q :=
-  h.of_le fun q => by cases q with
-    | inl _ => simp
-    | inr q => cases q <;> simp
+  h.of_le fun q => by rcases q with _ | (_ | _) <;> simp
 
 /-- A total external query budget bounds the number of verification queries. -/
 theorem IsVerificationQueryBounded.of_isQueryBounded {M Sig α : Type}
     {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q : ℕ}
     (h : program.IsQueryBounded Q) : IsVerificationQueryBounded program Q :=
-  h.of_le fun q => by cases q with
-    | inl _ => simp
-    | inr q => cases q <;> simp
+  h.of_le fun q => by rcases q with _ | (_ | _) <;> simp
 
 /-- Separate signing and verification query budgets yield a total external query budget of
 `Q_s + Q_v`. -/
@@ -177,9 +173,7 @@ theorem IsQueryBounded.of_signing_and_verification {M Sig α : Type}
     {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q_s Q_v : ℕ}
     (hs : IsSigningQueryBounded program Q_s) (hv : IsVerificationQueryBounded program Q_v) :
     program.IsQueryBounded (Q_s + Q_v) :=
-  (hs.add hv).of_le fun q => by cases q with
-    | inl _ => simp
-    | inr q => cases q <;> simp
+  (hs.add hv).of_le fun q => by rcases q with _ | (_ | _) <;> simp
 
 /-- Challenger state for Attack Game 6.2: the chronological `log` of answered signing pairs and
 whether some fresh verification query has already verified (`won`). -/
@@ -1001,11 +995,9 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
     (keyGen := ((), ·) <$> ProbComp.uniform (D → R))
     (signer := Signer.ofSign fun f : D → R => fun m => pure (f m))
     (verify := fun (_ : Unit) (f : D → R) m σ => decide (f m = σ))
-    (fun ⟨⟨⟩, f⟩ _ _ m program hprog σ hσ => by
-      simp only [Signer.ofSign_apply, Option.some.injEq] at hprog
-      subst hprog
-      simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hσ
-      simp [hσ])
+    (by
+      rintro ⟨⟨⟩, f⟩ _ _ m _ ⟨⟩ σ hσ
+      simp_all [ProbComp.eval_pure])
     (fun ⟨⟨⟩, f⟩ _ m σ σ' h1 h2 => by
       simp only [decide_eq_true_eq] at h1 h2
       exact h1.symm.trans h2)
@@ -1100,9 +1092,7 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
           exact List.mem_cons_of_mem _ (hs x hx)
     dsimp only [Function.comp_def]
     by_cases hfresh : m ∉ queried
-    · have hnone : cache.lookup m = none := by
-        by_contra hsome
-        exact hfresh (hinv m hsome)
+    · have hnone : cache.lookup m = none := Classical.byContradiction (hfresh ∘ hinv m)
       simp only [decide_eq_true hfresh, ↓reduceIte, ProbOracleComp.runWith_map,
         ProbOracleComp.runWith_query, memoize_of_none _ _ _ hnone, Prod.map_fst, pmf_norm]
       rw [PMF.bind_apply, tsum_eq_single σ fun r hr => by simp [hr]]

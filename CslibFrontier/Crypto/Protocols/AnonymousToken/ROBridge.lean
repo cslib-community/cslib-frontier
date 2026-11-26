@@ -434,8 +434,7 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
     simp only [extractedExperiment, runExtracted, extractedForgerOfROM, ProbComp.eval_map,
       ProbComp.eval_bind, ProbComp.eval_pure, PMF.map, PMF.bind_bind, Function.comp_def,
       PMF.pure_bind]
-    congr 1
-    funext keys
+    congr 1 with keys : 1
     let signO : Payload Message Opening → ProbComp Sig := fun p =>
       S.sign keys.2 (targetFn p.message p.opening)
     let signH : Payload Message Opening → StateT (List (Payload Message Opening × Sig)) PMF Sig :=
@@ -479,8 +478,7 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
           ProbOracleComp.runWith_sample, extH, verifyGatedHandler,
           eval_runState_voleithMemoizeProg, PMF.map, PMF.bind_bind, Function.comp_def,
           PMF.pure_bind]
-        congr 1
-        funext ⟨ok, roSt'⟩
+        congr 1 with ⟨ok, roSt'⟩ : 1
         cases ok
         · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind,
             repMsg]
@@ -501,8 +499,9 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
       (romTokenRel targetFn) ROMTokenRequest.stmt ROMTokenRequest.proof checkRel hSound none
       (romTokenAcceptReal S keys) (romTokenAcceptExt expand decWit targetFn S keys)
       (fun tr req _ hrel => by
-        simp [romTokenAcceptReal, romTokenAcceptExt,
-          of_decide_eq_true (by simpa only [romTokenRel, ROMTokenRequest.stmt] using hrel)])
+        have hrel' : targetFn req.message (extractWitnessFromTrace expand decWit tr req.proof) =
+            req.target := of_decide_eq_true hrel
+        simp [romTokenAcceptReal, romTokenAcceptExt, hrel'])
       [] (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
       (fun (tok, (_, msgs)) =>
         Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)))
@@ -1098,8 +1097,7 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
       Conservation.runExtractedConservation, extractedAdversaryOfROM, ProbComp.eval_map,
       ProbComp.eval_bind, ProbComp.eval_pure, PMF.map, PMF.bind_bind, Function.comp_def,
       PMF.pure_bind]
-    congr 1
-    funext keys
+    congr 1 with keys : 1
     let issuerH : Conservation.Request Nullifier Context Opening Commitment Sig →
         StateT (List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig))
           PMF (Option Sig) := fun q log =>
@@ -1122,12 +1120,10 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
               (A keys.1)).run ([], [])) []).map (Prod.map Prod.fst id) := by
       simp only [ProbOracleComp.runLogWith, ProbOracleComp.runState_map, StateT.run_map,
         ProbOracleComp.eval_runState, ProbComp.eval_map]
-      congr 2
-      funext q log
+      congr 2 with q log
       simp only [ProbOracleComp.logOracle, Conservation.extractedIssuerOracle, issuerH]
       cases Conservation.acceptRequest com tag S keys.1 (log.map Prod.fst) q
-      · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure]
-        rfl
+      · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure]; rfl
       · simp only [↓reduceIte, ProbComp.eval_map, PMF.map_comp, Function.comp_def]
     erw [hlog_map]
     have hrun := ProbOracleComp.runWith_run_interpret
@@ -1156,8 +1152,7 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
           ProbOracleComp.runWith_sample, extH, verifyGatedHandler,
           eval_runState_voleithMemoizeProg, PMF.map, PMF.bind_bind, Function.comp_def,
           PMF.pure_bind]
-        congr 1
-        funext ⟨ok, roSt'⟩
+        congr 1 with ⟨ok, roSt'⟩ : 1
         cases ok
         · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind,
             repCons]
@@ -1199,8 +1194,7 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
     rw [hrun, ← hjoint_eq]
     simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind,
       Conservation.extractedConservationAccept, repCons, Prod.map, id_eq]
-    congr 1
-    funext ⟨ctx, roSt, log⟩
+    congr 1 with ⟨ctx, roSt, log⟩ : 1
     rw [← romIssuedAmount_map, ← romGrantedRefund_map, ← romSpentDebit_map, List.map_map]
     rfl
   exact bind_tsum_add_voleithKSBound_toNNReal _ _ (ProbComp.eval S.keyGen) _ _ _

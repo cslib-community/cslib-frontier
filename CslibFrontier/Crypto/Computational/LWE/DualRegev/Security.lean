@@ -474,20 +474,17 @@ theorem computableInPolyTime_syndromeEntry {inputs : α → SerializedKeyInputs}
     (hinputs : ComputableInPolyTime inputs input encSerializedKeyInputs)
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => syndromeEntry (m a) (w a) (inputs a) (j a)) input encNat := by
-  have hp := ComputableInPolyTime.id' (encIn := encPair input encUnary)
-  have hbits := encSerializedKeyInputs_bits_polyTime hinputs
-  have hmatrix := encSerializedKeyInputs_publicPart_polyTime hinputs
-  have hrow := ComputableInPolyTime.listGetDWithInput (hmatrix.comp hp.fst') hp.snd' []
-  have hentry := ComputableInPolyTime.listGetDWithInput hrow (hj.comp hp.fst') 0
-  have hbit := (hbits.comp hp.fst').bitsGetDWithInput hp.snd' false
-  have hvalues := ComputableInPolyTime.mapWithInput
+  have hp := id' (encIn := encPair input encUnary)
+  have hrow := listGetDWithInput ((encSerializedKeyInputs_publicPart_polyTime hinputs).comp hp.fst')
+    hp.snd' []
+  have hbit := ((encSerializedKeyInputs_bits_polyTime hinputs).comp hp.fst').bitsGetDWithInput
+    hp.snd' false
+  have hvalues := mapWithInput
     (f := fun a i => if (inputs a).bits.getD i false then
       ((inputs a).publicPart.getD i []).getD (j a) 0 else 0)
-    (ComputableInPolyTime.range.comp hm)
-    (hbit.ite hentry (ComputableInPolyTime.const 0))
+    (range.comp hm) (hbit.ite (listGetDWithInput hrow (hj.comp hp.fst') 0) (const 0))
   simpa only [syndromeEntry, Function.comp_def] using
-    ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_sum.comp hvalues)
-      (ComputableInPolyTime.binary_two_pow.comp hw)
+    binary_mod' (binary_sum.comp hvalues) (binary_two_pow.comp hw)
 
 /-- Construct the serialized dual-Regev public-key word `[u; A]` in polynomial time. -/
 @[fun_prop]
@@ -501,19 +498,15 @@ theorem computableInPolyTime_publicKeySerialized {inputs : α → SerializedKeyI
   unfold publicKeySerialized
   apply bitsAppend
   · apply flatMapToBitsWithInput (range.comp hn)
-    apply bitsLow (hw.comp (fst input encUnary))
-    exact computableInPolyTime_syndromeEntry (hm.comp (fst input encUnary))
-      (hw.comp (fst input encUnary)) (hinputs.comp (fst input encUnary)) (snd input encUnary)
+    exact bitsLow (by fun_prop) (by fun_prop)
   · apply flatMapToBitsWithInput (range.comp hm)
     apply flatMapToBitsWithInput (range.comp (hn.comp (fst input encUnary)))
-    apply bitsLow (hw.comp ((fst input encUnary).comp (fst (encPair input encUnary) encUnary)))
-    have hrow := (listGetD (encA := encList encNat) []).comp
-      (((encSerializedKeyInputs_publicPart_polyTime hinputs).comp
-        (fst input encUnary)).prod (snd input encUnary))
-    have hentry := (listGetD (encA := encNat) 0).comp
-      ((hrow.comp (fst (encPair input encUnary) encUnary)).prod
-        (snd (encPair input encUnary) encUnary))
-    exact binary_mod.comp (hentry.prod (binary_pow' (const 2) (by fun_prop)))
+    have hrow := listGetDWithInput
+      ((encSerializedKeyInputs_publicPart_polyTime hinputs).comp (fst input encUnary))
+      (snd input encUnary) []
+    have hentry := listGetDWithInput (hrow.comp (fst (encPair input encUnary) encUnary))
+      (snd (encPair input encUnary) encUnary) 0
+    exact bitsLow (by fun_prop) (binary_mod' hentry (by fun_prop))
 
 /-- Normalize the binary secret list to length `m` in polynomial time. -/
 @[fun_prop]
@@ -567,18 +560,14 @@ theorem computableInPolyTime_encryptEntry
   have hterm : ComputableInPolyTime
       (fun p : α × ℕ =>
         Cslib.Matrix.binaryEntry (n p.1) (w p.1) (publicWord p.1) (idx p.1) p.2 *
-          (coins p.1).secret.getD p.2 0) (encPair input encUnary) encNat := by
-    apply binary_mul'
-    · exact matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
-        (by fun_prop) (by fun_prop)
-    · exact (listGetD (encA := encNat) 0).comp
-        (((encSerializedEncCoins_secret_polyTime hcoins).comp
-          (fst input encUnary)).prod (snd input encUnary))
-  have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-    (mapWithInput
-      (f := fun a j => Cslib.Matrix.binaryEntry (n a) (w a) (publicWord a) (idx a) j *
-        (coins a).secret.getD j 0)
-      (range.comp hn) hterm)
+          (coins p.1).secret.getD p.2 0) (encPair input encUnary) encNat :=
+    binary_mul' (by fun_prop) (listGetDWithInput
+      ((encSerializedEncCoins_secret_polyTime hcoins).comp (fst input encUnary))
+      (snd input encUnary) 0)
+  have hsum := binary_sum.comp (mapWithInput
+    (f := fun a j => Cslib.Matrix.binaryEntry (n a) (w a) (publicWord a) (idx a) j *
+      (coins a).secret.getD j 0)
+    (range.comp hn) hterm)
   have hzero : ComputableInPolyTime
       (fun a => (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input
         encIntBin :=

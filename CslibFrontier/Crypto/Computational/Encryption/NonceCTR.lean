@@ -518,9 +518,8 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
   congr 2
   funext request ⟨ok, seen⟩
   dsimp only [StateT.run]
-  rw [show (fun req : Unit × List Bool => PMF.pure (prfOracle family n k req.2)) =
-      (fun req => ProbComp.eval (pure (prfOracle family n k req.2))) from rfl,
-    ← ProbOracleComp.eval_run_eq_evalWith]
+  erw [← ProbOracleComp.eval_run_eq_evalWith
+    (oracle := fun req : Unit × List Bool => pure (prfOracle family n k req.2))]
   unfold nonceCTRHandler OracleCodec.wordOracle NonceCipher.cpaOracle
   cases hdec : NonceCipher.unitCPACodec.decodeQuery request with
   | none =>
@@ -536,12 +535,9 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
       simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
       have hpair := hcond.1.1.2
       simp only [nonceCTRValid, blockPairValid, Bool.and_eq_true, beq_iff_eq] at hpair
-      rcases hpair with ⟨⟨hlenPair, hmod⟩, _⟩
-      have hselMod : (pair.select b).length % n = 0 := by
-        cases b <;> simp [MessagePair.select, ← hlenPair, hmod]
       have hselDiv : ((pair.select b).length + n - 1) / n = pair.msg₀.length / n := by
-        rw [div_ceil_eq_div_of_mod_eq_zero hselMod]
-        cases b <;> simp [MessagePair.select, hlenPair]
+        cases b <;>
+          simp [MessagePair.select, ← hpair.1.1, div_ceil_eq_div_of_mod_eq_zero hpair.1.2]
       dsimp only [Functor.map, StateT.map]
       simp [hcond.1.1.1, hcond.1.1.2, hcond.1.2, hcond.2, NonceCipher.unitCPACodec,
         nonceCTRCipher, nonceStreamCipher_encrypt_eq, hselDiv]
@@ -741,15 +737,10 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
         · rw [PMF.mem_support_map_iff] at hmem
           obtain ⟨ksRes, hksRes, ⟨⟩⟩ := hmem
           exact hsuppKs ksRes hksRes
-        · trans ((ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-              (ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0)
-                (pair.msg₀.length / n)) cache).map Prod.fst).map
-              (fun s => (true :: xorWithStream (pair.select b) s, (true, nonce :: seen)))
-          · rw [PMF.map_comp]; rfl
-          · rw [hlawKs, hmulBlocks]
-            conv_rhs => rw [← hselLen, ← uniformList_map_xorWithStream (pair.select b)]
-            rw [PMF.map_comp, hselLen]
-            rfl
+        · rw [← hselLen, ← uniformList_map_xorWithStream (pair.select b), PMF.map_comp]
+          simpa only [PMF.map_comp, Function.comp_def, hmulBlocks, hselLen] using
+            congrArg (PMF.map fun s =>
+              (true :: xorWithStream (pair.select b) s, (true, nonce :: seen))) hlawKs
       · simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff,
           Prod.mk.injEq, and_true]
         exact fun _ _ h => h.2.symm ▸ hinv
@@ -947,9 +938,7 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
           ((), frame m₀ ++ frame m₁ ++ nonce) (true, seen) =
           PMF.pure (true :: (unscaledNonceCTRCipher family n).encrypt k
             ((MessagePair.mk m₀ m₁).select b) () nonce, (true, nonce :: seen)) := by
-      rw [show ((), frame m₀ ++ frame m₁ ++ nonce) =
-          NonceCipher.unitCPACodec.encodeQuery (⟨m₀, m₁⟩, (), nonce) from rfl,
-        NonceCipher.unitCPACodec.wordOracle_encodeQuery]
+      erw [NonceCipher.unitCPACodec.wordOracle_encodeQuery _ (⟨m₀, m₁⟩, (), nonce)]
       dsimp only [Functor.map, StateT.map]
       simp [NonceCipher.cpaOracle, NonceCipher.unitCPACodec, hv, hvn', hfresh, ProbComp.eval_pure]
     have hsel0 : (MessagePair.mk z2 z2).select b = z2 := by cases b <;> rfl

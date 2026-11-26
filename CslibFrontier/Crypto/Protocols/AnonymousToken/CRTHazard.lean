@@ -430,12 +430,10 @@ theorem crtPrefixTest_honest_true {IV : Type} {nMult lam nMask kGates rSub : ℕ
       h5 ⟨tbl.iv, sub i, candidateLabel tbl wPrefix (sub i)⟩ mask) =
       F.submatrix sub id *ᵥ maskInput mask := by
     funext i
-    have hrec := honestCRTMaskTable_reconstruct_true iv L0 uPrefix wPrefix active F maskInput h5
-      mask (sub i)
     simpa [tbl, hActive, honestCRTMaskTable, Matrix.submatrix_apply, Matrix.mulVec,
-      dotProduct] using hrec
-  rw [hvec]
-  exact Matrix.parityCheck_mulVec_of_eq_zero hHF (maskInput mask)
+      dotProduct] using honestCRTMaskTable_reconstruct_true iv L0 uPrefix wPrefix active F
+        maskInput h5 mask (sub i)
+  exact hvec ▸ Matrix.parityCheck_mulVec_of_eq_zero hHF (maskInput mask)
 
 /-- Helper factoring `Fin kGates ↪ H5Query IV nMult lam` for distinct `sub` gates. -/
 private def gateQueryEmbedding {IV : Type} {nMult lam kGates : ℕ}
@@ -546,13 +544,9 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
       { toFun := fun hIn mask i => base mask i + hIn (eIdx i) mask
         invFun := fun y q => fun mask => base mask (eIdx.symm q) + y mask (eIdx.symm q)
         left_inv := fun hIn => funext fun q => funext fun mask => by
-          dsimp only
-          have : eIdx (eIdx.symm q) = q := eIdx.apply_symm_apply q
-          rw [this, ← add_assoc, CharTwo.add_self_eq_zero, zero_add]
+          simp [← add_assoc, CharTwo.add_self_eq_zero]
         right_inv := fun y => funext fun mask => funext fun i => by
-          dsimp only
-          have : eIdx.symm (eIdx i) = i := eIdx.symm_apply_apply i
-          rw [this, ← add_assoc, CharTwo.add_self_eq_zero, zero_add] }
+          simp [← add_assoc, CharTwo.add_self_eq_zero] }
     have hinner : ∀ hIn : ∀ q : I, Fin nMask → ZMod 2,
         (let h5 := unsplit (hIn, hOut)
         let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
@@ -632,17 +626,11 @@ private theorem crtPrefixTest_wrong_guess_le {IV : Type} [Fintype IV] [Decidable
         by_cases hu : uPrefix = badU
         · simp only [hu, ↓reduceIte]
           exact le_add_of_le_right (PMF.coe_le_one _ _)
-        · have hnz : wPrefix + uPrefix + wStar ≠ 0 := by
-            intro h0
-            apply hu
-            have hsum : uPrefix + badU = 0 := by
-              rw [show badU = wPrefix + wStar from rfl, ← add_assoc, add_comm uPrefix wPrefix]
-              exact h0
-            exact (zmod2_vec_add_eq_zero_iff uPrefix badU).mp hsum
-          have hp := crtPrefixTest_wrong_guess_prob sub Hsub hsurj iv L0 uPrefix wPrefix wStar
-            active F maskInput hne hnz
-          rw [hp]
-          simp only [hu, ↓reduceIte, add_zero, le_rfl]
+        · have hnz : wPrefix + uPrefix + wStar ≠ 0 := fun h0 => hu
+            ((zmod2_vec_add_eq_zero_iff uPrefix badU).mp
+              (by simpa only [badU, ← add_assoc, add_comm uPrefix wPrefix] using h0))
+          simp [crtPrefixTest_wrong_guess_prob sub Hsub hsurj iv L0 uPrefix wPrefix wStar
+            active F maskInput hne hnz, hu]
     _ = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (uniformOfFintype (Fin lam → ZMod 2)) badU := by
         simp_rw [mul_add, mul_ite, mul_one, mul_zero]
         rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, tsum_ite_eq, add_comm]
@@ -1197,8 +1185,7 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
     rw [Game.coe_succProbability]
     simpa [ENNReal.toReal_pow] using
       ENNReal.toReal_mono (ENNReal.pow_ne_top (by norm_num)) hsim_val
-  rw [Game.coe_advantage, hreal_succ]
-  simp only [NNReal.coe_one]
+  rw [Game.coe_advantage, hreal_succ, NNReal.coe_one]
   exact le_trans (by linarith) (le_abs_self _)
 
 end UnlinkabilityBreaks

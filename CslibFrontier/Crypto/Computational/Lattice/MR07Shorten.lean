@@ -204,18 +204,12 @@ theorem shortenStep_linearIndependent {S : Fin n → E} (hS : LinearIndependent 
       refine Finset.sum_eq_zero fun j hj => ?_
       rw [inner_smul_right, ht_orth j (Finset.ne_of_mem_erase hj), mul_zero]
     have hnorm_sq : ‖w - t‖ ^ 2 = ‖w‖ ^ 2 + ‖t‖ ^ 2 := by
-      rw [norm_sub_sq_real, real_inner_comm, horth_w]
-      ring
-    have ht_le : ‖t‖ ≤ ‖u - t‖ := by
-      rw [hu_eq]
-      have h1 : ‖t‖ ^ 2 ≤ ‖w - t‖ ^ 2 := by linarith [sq_nonneg ‖w‖]
-      nlinarith [norm_nonneg t, norm_nonneg (w - t)]
-    have hSpos : 0 < ‖S‖ := pi_norm_pos_of_linearIndependent hS i
-    linarith
+      rw [norm_sub_sq_real, real_inner_comm, horth_w]; ring
+    rw [hu_eq] at hu_dist
+    nlinarith [sq_nonneg ‖w‖, norm_nonneg t, norm_nonneg (w - t),
+      pi_norm_pos_of_linearIndependent hS i]
   refine Fintype.linearIndependent_iff.mp hS c (hc ▸ Finset.sum_congr rfl fun j _ => ?_)
-  rcases eq_or_ne j i with rfl | hji
-  · simp [hci]
-  · simp [hji]
+  rcases eq_or_ne j i with rfl | hji <;> simp [*]
 
 /-- Bridge from `IncGDD.IsSolution 8 L S t (‖S‖ / 8) u` to the one-round shortening invariants. -/
 theorem shortenStep_of_incGDD {L : Submodule ℤ E} {S : Fin (finrank ℤ L) → E}
@@ -647,9 +641,8 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
         simp [shortenLoopFrom, hcall]⟩⟩
     | some u =>
       by_cases hvalid : u ∈ L ∧ ‖u - (stepTarget S).2‖ ≤ (1 / 4 : ℝ) * ‖S‖
-      · have hpos := shortenLoopFrom_succ_some_pos L stepTarget oracles r fuel S hcall hvalid
-        dsimp only
-        rw [hpos]
+      · dsimp only
+        rw [shortenLoopFrom_succ_some_pos L stepTarget oracles r fuel S hcall hvalid]
         have hli' : LinearIndependent ℝ (Function.update S (stepTarget S).1 u) :=
           shortenStep_linearIndependent hli horth hlo hvalid.2
         have hmem' : ∀ j, Function.update S (stepTarget S).1 u j ∈ L :=
@@ -662,10 +655,10 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
         refine ⟨hli_o, hmem_o, hnorm_o.trans (shortenStep_pi_norm_le hhi hvalid.2), ?_⟩
         rcases hor with ⟨k, hk, heq, hhalt⟩ | hpot_o
         · left
+          have hrk : r + (k + 1) = r + 1 + k := by omega
           refine ⟨k + 1, Nat.succ_lt_succ hk, ?_, ?_⟩
           · rwa [shortenLoopFrom_succ_some_pos L stepTarget oracles r k S hcall hvalid]
-          · rwa [shortenLoopFrom_succ_some_pos L stepTarget oracles r k S hcall hvalid,
-              show r + (k + 1) = r + 1 + k by omega]
+          · rwa [shortenLoopFrom_succ_some_pos L stepTarget oracles r k S hcall hvalid, hrk]
         · right
           calc sqNormProd (shortenLoopFrom L stepTarget oracles (r + 1) fuel
                   (Function.update S (stepTarget S).1 u))
@@ -765,11 +758,8 @@ theorem shortenGuardedStep_of_incGDD {L : Submodule ℤ E} {S : Fin (finrank ℤ
   have hu_dist : ‖u - t‖ ≤ (1 / 4 : ℝ) * ‖S‖ := by linarith [hu.dist_le]
   have hSpos : 0 < ‖S‖ := pi_norm_pos_of_linearIndependent hS_li i
   have hlt : ‖u‖ < ‖S i‖ := by linarith [shortenStep_norm_le ht_hi hu_dist]
-  have hli' := shortenStep_linearIndependent hS_li ht_orth ht_lo hu_dist
-  have hcond : u ∈ L ∧ ‖u‖ < ‖S i‖ ∧ LinearIndependent ℝ (Function.update S i u) :=
-    ⟨hu.mem, hlt, hli'⟩
-  have heq : shortenGuardedStep L S i u = Function.update S i u := by
-    simp only [shortenGuardedStep, hcond, and_self, ↓reduceIte]
+  have heq : shortenGuardedStep L S i u = Function.update S i u :=
+    ite_eq_left ⟨hu.mem, hlt, shortenStep_linearIndependent hS_li ht_orth ht_lo hu_dist⟩
   exact ⟨heq, heq ▸ shortenStep_sqNormProd_le hi ht_hi hu_dist⟩
 
 /-- Fixed-iteration guarded-loop soundness (tailored for `IsPPTOn.iterateWith_spec`):
@@ -798,11 +788,9 @@ theorem shortenGuardedIter_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : 
     induction k with
     | zero => exact ⟨hS₀_li, hS₀_mem⟩
     | succ k ih =>
-      have hkl : k < K := Nat.lt_of_succ_le hk
-      obtain ⟨hli, hmem⟩ := ih hkl.le
-      rw [hstep k hkl]
-      exact ⟨(shortenGuardedStep_invariants hli hmem _ _).1,
-        (shortenGuardedStep_invariants hli hmem _ _).2.1⟩
+      obtain ⟨hli, hmem⟩ := ih (Nat.le_of_succ_le hk)
+      rw [hstep k (Nat.lt_of_succ_le hk)]
+      exact (shortenGuardedStep_invariants hli hmem _ _).imp_right And.left
   have hmono_norm : ∀ {a b}, a ≤ b → b ≤ K → ‖seq b‖ ≤ ‖seq a‖ := by
     intro a b hab hbK
     induction hab with

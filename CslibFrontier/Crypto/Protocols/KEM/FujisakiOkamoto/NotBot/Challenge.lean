@@ -385,12 +385,9 @@ private theorem eval_genHandler_H_false (S : Scheme PK SK M R CT K)
       (ProbComp.eval (genHashG gs m s)).bind fun z =>
         if t m c z.1 then ProbComp.eval (genHashHq hs c z.2)
         else ProbComp.eval (simHashHRaw S.sampleKey (false, m, c) z.2) := by
-  change ProbComp.eval (genHashG gs m s >>= fun z =>
-    (if t m c z.1 then genHashHq hs c
-      else simHashHRaw S.sampleKey (false, m, c)) z.2) = _
-  rw [ProbComp.eval_bind]
-  congr 1 with z : 1
-  split_ifs <;> rfl
+  dsimp only [genHandler, ROQuery.dispatch, Bind.bind, StateT.bind]
+  erw [ProbComp.eval_bind]
+  exact congrArg _ (funext fun z => by split_ifs <;> rfl)
 
 private theorem eval_genHandler_decaps (S : Scheme PK SK M R CT K)
     (d : List (M × R) → CT → Bool) (t : M → CT → R → Prop) [∀ m c, DecidablePred (t m c)]
@@ -600,8 +597,7 @@ private theorem identicalUntilBad_genHandler (S : Scheme PK SK M R CT K)
             ((simHashHRaw_support hy).2 ▸ List.suffix_refl _) hz
     · rfl
     · by_cases hc : c = cStar
-      · subst hc
-        rw [eval_genHandler_decaps_self, eval_genHandler_decaps_self]
+      · rw [hc, eval_genHandler_decaps_self, eval_genHandler_decaps_self]
       · rw [eval_genHandler_decaps _ _ _ _ _ _ _ hc, eval_genHandler_decaps _ _ _ _ _ _ _ hc]
         cases d s.gCache c <;> simp only [↓reduceIte, Bool.false_eq_true, PMF.map_apply]
         refine tsum_congr fun z => ?_
@@ -747,14 +743,12 @@ private theorem genHandler_presetState (S : Scheme PK SK M R CT K)
     · exact presetRaw _ z.2
   · exact presetRaw _ s
   · by_cases hc : c = cStar
-    · subst hc
-      rw [eval_genHandler_decaps_self, eval_genHandler_decaps_self, PMF.pure_map]
-    · rw [eval_genHandler_decaps _ _ _ _ _ _ _ hc, eval_genHandler_decaps _ _ _ _ _ _ _ hc,
-        show (presetState mStar rStar cStar kq s).gCache = ens mStar rStar s.gCache from rfl,
-        hd s.gCache c hc hs.1]
+    · rw [hc, eval_genHandler_decaps_self, eval_genHandler_decaps_self, PMF.pure_map]
+    · have hg : (presetState mStar rStar cStar kq s).gCache = ens mStar rStar s.gCache := rfl
+      rw [eval_genHandler_decaps _ _ _ _ _ _ _ hc, eval_genHandler_decaps _ _ _ _ _ _ _ hc,
+        hg, hd s.gCache c hc hs.1]
       cases d s.gCache c
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        exact PMF.pure_map _ _
+      · simp only [Bool.false_eq_true, ↓reduceIte, PMF.pure_map]
       · dsimp only [genHashHq]
         simp only [↓reduceIte, PMF.map_comp]
         rw [← zoomMemoize_presetState SimState.hqCache (fun s c => { s with hqCache := c })
@@ -1031,9 +1025,8 @@ theorem advantage_simFilterGame_le (S : Scheme PK SK M R CT K)
         simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
         rw [← PMF.bind_apply, hH, ← S.chalOuter4_bind_eq b OW]
   have hHtop : H ≠ ⊤ := PMF.apply_ne_top _ _
-  rw [hε] at hle
+  rw [hε, Nat.cast_add] at hle
   ennreal_to_real at hle
-  rw [Nat.cast_add] at hle
   rw [eval_simFilterOwExperiment]
   linarith
 

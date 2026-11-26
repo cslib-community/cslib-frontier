@@ -706,33 +706,28 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
   let f₁ := wordToFinMap w₁ out₁ evalWord₁
   rcases hcoll with ⟨hlen_raw, hne_raw, heval_raw⟩
   let v : ShrunkHashInput w₁ out₁ s := ⟨⟨z, iRows⟩, oRows⟩
-  let v' := ShrunkHashInput.unpackWord w₁ out₁ s raw
-  have hpack' : v'.packWord = raw := ShrunkHashInput.packWord_unpackWord hlen_raw
-  have hf₃_eq : shrunkHashFin f₁ j₀ s v' = shrunkHashFin f₁ j₀ s v := by
+  have hpack' : (ShrunkHashInput.unpackWord w₁ out₁ s raw).packWord = raw :=
+    ShrunkHashInput.packWord_unpackWord hlen_raw
+  rcases hup : ShrunkHashInput.unpackWord w₁ out₁ s raw with ⟨⟨z', iRows'⟩, oRows'⟩
+  rw [hup] at hpack'
+  have hf₃_eq : shrunkHashFin f₁ j₀ s ⟨⟨z', iRows'⟩, oRows'⟩ = shrunkHashFin f₁ j₀ s v := by
     simpa only [ShrunkHashOutput.unpackWord_packWord] using
       congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s)
-        (((shrunkHashEvalWord_packWord evalWord₁ j₀ v').symm.trans (hpack'.symm ▸ heval_raw)).trans
-          (shrunkHashEvalWord_packWord evalWord₁ j₀ v))
-  have hoRows_eq : v'.outRows = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
-  have hf₂_eq : inputHashFin f₁ j₀ v'.inner = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
-    Classical.byContradiction fun hne₂ => hnot_out ⟨v'.inner, hne₂,
-      by rwa [show (⟨v'.inner, oRows⟩ : ShrunkHashInput _ _ _) = v' by rw [← hoRows_eq]]⟩
-  have hiRows_eq : v'.inner.inRows = iRows := congrArg InputHashedOutput.inRows hf₂_eq
-  have hz_ne : v'.inner.base ≠ z := fun hz_eq => hne_raw <| by
-    rw [← hpack']
-    rcases v' with ⟨⟨_, _⟩, _⟩
-    dsimp only at hz_eq hiRows_eq hoRows_eq
-    subst hz_eq hiRows_eq hoRows_eq; rfl
-  have htake_eq : raw.take w₁ = List.ofFn v'.inner.base := by
+        (((shrunkHashEvalWord_packWord evalWord₁ j₀ ⟨⟨z', iRows'⟩, oRows'⟩).symm.trans
+          (hpack'.symm ▸ heval_raw)).trans (shrunkHashEvalWord_packWord evalWord₁ j₀ v))
+  obtain rfl : oRows' = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
+  have hf₂_eq : inputHashFin f₁ j₀ ⟨z', iRows'⟩ = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
+    Classical.byContradiction fun hne₂ => hnot_out ⟨⟨z', iRows'⟩, hne₂, hf₃_eq⟩
+  obtain rfl : iRows' = iRows := congrArg InputHashedOutput.inRows hf₂_eq
+  have hz_ne : z' ≠ z := fun h => hne_raw (h ▸ hpack'.symm)
+  have htake_eq : raw.take w₁ = List.ofFn z' := by
     rw [← hpack', ShrunkHashInput.packWord, InputHashedInput.packWord, List.append_assoc,
       List.take_left' List.length_ofFn]
-  have heval₁_eq : evalWord₁ (List.ofFn v'.inner.base) = evalWord₁ (List.ofFn z) := by
+  have heval₁_eq : evalWord₁ (List.ofFn z') = evalWord₁ (List.ofFn z) := by
     rw [← Cslib.BitString.ofFn_ofList (hlen₁ _ List.length_ofFn),
       ← Cslib.BitString.ofFn_ofList (hlen₁ (List.ofFn z) List.length_ofFn)]
     exact congrArg List.ofFn (congrArg InputHashedOutput.baseOut hf₂_eq)
-  have hnot_L₁ : v'.inner.base ∉ L z := fun hmem =>
-    hnot_in ⟨v'.inner.base, hmem, hz_ne,
-      by rwa [show (⟨v'.inner.base, iRows⟩ : InputHashedInput _) = v'.inner by rw [← hiRows_eq]]⟩
+  have hnot_L₁ : z' ∉ L z := fun hmem => hnot_in ⟨z', hmem, hz_ne, hf₂_eq⟩
   simpa only [shrunkEscPred, htake_eq, List.length_ofFn, heval₁_eq, Cslib.BitString.ofList_ofFn,
     true_and] using hnot_L₁
 
@@ -825,11 +820,11 @@ private theorem shrunkBadIn_sum_le {w₁ out₁ j₀ s : ℕ} (f₁ : BitString 
         (2 : ℝ) ^ (A_max - (min j₀ w₁ : ℝ)) := by
     by_cases hA_ge : A_max ≤ Real.logb 2 #(L z)
     · simp only [hA_ge, ↓reduceIte]
-      have hle1 := (sum_le_sum fun iRows (_ : iRows ∈ univ) => show
-          (if shrunkBadIn f₁ j₀ L z iRows then
-            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal else 0) ≤
-            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal by
-        split_ifs <;> simp).trans_eq (PMF.sum_toReal _)
+      have hle1 : (∑ iRows : Fin w₁ → BitString w₁,
+          if shrunkBadIn f₁ j₀ L z iRows then
+            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal else 0) ≤ 1 :=
+        (sum_le_sum fun _ _ => by split_ifs <;> simp).trans_eq
+          (PMF.sum_toReal (PMF.uniformOfFintype (Fin w₁ → BitString w₁)))
       linarith [Real.rpow_nonneg two_pos.le (A_max - (min j₀ w₁ : ℝ))]
     · simp only [hA_ge, ↓reduceIte, zero_add]
       have hcard_le : (#(L z) : ℝ) ≤ (2 : ℝ) ^ A_max := by

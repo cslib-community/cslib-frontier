@@ -743,8 +743,7 @@ private theorem handle_plainRouter_deliverCommit_empty [DecidableEq CommitMsg] [
       pure (.inr .ack, plainRouterState scheme κ ∅ (.committed c o) (.committed c)) := by
   dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
     Functor.map, StateT.map]
-  simp only [Finset.notMem_empty, ↓reduceIte, bind_pure_comp]
-  rfl
+  simp
 
 private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (c : CommitMsg) (o : OpenMsg) :
@@ -754,8 +753,7 @@ private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [De
         ProbOracleComp.sample (scheme.verify κ c o) := by
   dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
     Functor.map, StateT.map]
-  simp only [Finset.notMem_empty, ↓reduceIte, bind_pure_comp, Functor.map_map]
-  rfl
+  simp [Functor.map_map]
 
 private theorem handle_plainRouter_query_finished
     [DecidableEq CommitMsg] [DecidableEq OpenMsg]
@@ -792,8 +790,7 @@ private theorem handle_plainRouter_deliverOpen_zero [DecidableEq CommitMsg] [Dec
         ProbOracleComp.sample (scheme.verify κ c o) := by
   dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
     Functor.map, StateT.map]
-  simp only [Finset.mem_singleton, ↓reduceIte, bind_pure_comp, Functor.map_map]
-  rfl
+  simp [Functor.map_map]
 
 /-- With no corruptions (`C = ∅`) and `dummyAdversary`, running `honestCommitEnv b` on
 `scheme.toProtocol` has the exact distribution `scheme.acceptGame κ b`. -/
@@ -1211,10 +1208,7 @@ private theorem closeProgram_fst_runFrom_execMachine_fcom_locked {AdvQ AdvR α :
       Prod.fst <$> Machine.closeProgram
         (((liftAdversary (S₀ κ {0})).comp (corruptRouter {0} (fcomLocked bStar))).runFrom
           program (fcomLockedState S₀ bStar κ stS₀ phase)) := by
-  change Prod.fst <$> Machine.closeProgram
-    ((execMachine fcom.toProtocol S₀ κ {0}).runFrom
-      program (stS₀, .active bStar phase)) = _
-  rw [runFrom_execMachine_fcom_locked S₀ κ {0} bStar program stS₀ phase]
+  rw [fcomExecState, runFrom_execMachine_fcom_locked S₀ κ {0} bStar program stS₀ phase]
   erw [Machine.closeProgram_map, Functor.map_map]
   rfl
 

@@ -255,16 +255,16 @@ theorem crtDecouple_identicalUntilBad
   absorb_first q s hs x hx := by
     cases q with
     | inl n =>
-      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact (Prod.mk.inj heq).2 ▸ hs
+      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+      exact hs
     | inr q =>
       simp only [OracleComp.sumHandler, g8Handler] at hx
       split_ifs at hx <;> simp_all
   absorb_second q s hs x hx := by
     cases q with
     | inl n =>
-      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact (Prod.mk.inj heq).2 ▸ hs
+      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+      exact hs
     | inr q =>
       obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
       simp only [hs, Bool.true_or]
@@ -487,14 +487,11 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
       refine Probability.PMF.bind_congr_on_support _ _ _ fun u _ =>
         Probability.PMF.bind_congr_on_support _ _ _ fun h5 _ =>
           Probability.PMF.bind_congr_on_support _ _ _ fun iv _ => ?_
-      have hlab : ∀ j e,
-          setup.baseLabel ck j e + (r j + u j) + r j = setup.baseLabel ck j e + u j :=
-        fun j e => by
-          rw [add_assoc (setup.baseLabel ck j e), add_comm (r j) (u j), add_assoc,
-            hvec, add_zero]
+      have hlab (j) (e) :
+          setup.baseLabel ck j e + (r j + u j) + r j = setup.baseLabel ck j e + u j := by
+        rw [add_assoc (setup.baseLabel ck j e), add_comm (r j) (u j), add_assoc, hvec, add_zero]
       simp_rw [hlab]
-    rw [PMF.bind_comm]
-    rw [hshift]
+    rw [PMF.bind_comm, hshift]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun d _ => ?_
     rw [PMF.bind_comm]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun iv _ =>
@@ -603,15 +600,13 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
           (fun _ => ()) hg8_ans
           (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩)
           false)
+        have hid : (Prod.fst ∘ fun x : Bool => (x, ())) = id := rfl
         simp only [PMF.map_comp, Function.comp_def] at hunit
         rw [hunit, ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => PMF.pure (ans q)),
-          PMF.map_comp, show (Prod.fst ∘ fun x : Bool => (x, ())) = id from rfl, PMF.map_id,
-          OracleComp.evalWith_eq_interpret, ProbOracleComp.eval_run]
+          PMF.map_comp, hid, PMF.map_id, OracleComp.evalWith_eq_interpret, ProbOracleComp.eval_run]
         dsimp only [ans]
-        congr 2
-        funext j
-        congr 1
-        exact congrFun (hcm cmult h5) j
+        exact congrArg (fun c => OracleComp.interpret (m := PMF) _ (setup.adv ck fun j =>
+          ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, c j⟩)) (hcm cmult h5)
       have hstep_le : ∀ h5 cmult,
           let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
             ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
@@ -663,9 +658,9 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
     rw [PMF.bind_comm]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun d _ => ?_
     rw [PMF.bind_comm]
-    refine Probability.PMF.bind_congr_on_support _ _ _ fun iv _ => ?_
-    refine Probability.PMF.bind_congr_on_support _ _ _ fun h5 _ =>
-      Probability.PMF.bind_congr_on_support _ _ _ fun cmult _ => ?_
+    refine Probability.PMF.bind_congr_on_support _ _ _ fun iv _ =>
+      Probability.PMF.bind_congr_on_support _ _ _ fun h5 _ =>
+        Probability.PMF.bind_congr_on_support _ _ _ fun cmult _ => ?_
     unfold g85Handler
     simp only [ProbOracleComp.eval_runState, g85HandlerP, ProbComp.eval_pure,
       PMF.monad_pure_eq_pure, PMF.map, Function.comp_def]
@@ -769,9 +764,8 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
               (ProbOracleComp.runWith (h5LogHandler h5) (setup.adv ck fun j =>
                 ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩) []).bind
                 fun res => PMF.pure (hitAt ck r d iv res.2 jStar)) := by
-        have hrep := samplePi_replace (fun _ : Fin qTok => setup.Com.openSample)
-          (fun _ : Fin qTok => (0 : Fin lam → ZMod 2)) jStar
-        rw [← hrep]
+        rw [← samplePi_replace (fun _ : Fin qTok => setup.Com.openSample)
+          (fun _ : Fin qTok => (0 : Fin lam → ZMod 2)) jStar]
         simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
         conv_lhs => enter [2, rStar]; rw [PMF.bind_comm]
         rw [PMF.bind_comm]
@@ -793,10 +787,9 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
                   iv j, d j, cmult j⟩) := by
           funext j
           by_cases hj : j = jStar <;> simp [hj, Function.update]
-        have hup : Function.update rOthers jStar rStar jStar = rStar := by simp
         unfold h5LogHandler
-        simp only [hitAt, heq_tok, hup, ProbOracleComp.eval_runState, h5LogHandlerP,
-          ProbComp.eval_pure, PMF.monad_pure_eq_pure]
+        simp only [hitAt, heq_tok, Function.update_self, ProbOracleComp.eval_runState,
+          h5LogHandlerP, ProbComp.eval_pure, PMF.monad_pure_eq_pure]
       simp_rw [hcomm1]
       rw [PMF.bind_comm]
       refine Probability.PMF.bind_congr_on_support _ _ _ fun r _ => ?_
@@ -882,9 +875,7 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
           decide (setup.Com.eval ck (setup.msgs ck jStar)
             (q.label + setup.baseLabel ck jStar q.gate + dStar) =
             setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy)) with
-    | none =>
-      have hany := List.any_eq_false.mpr (List.find?_eq_none.mp hq)
-      simp [hany]
+    | none => simp [List.any_eq_false.mpr (List.find?_eq_none.mp hq)]
     | some q =>
       have hqp := List.find?_some hq
       have hqev : setup.Com.eval ck (setup.msgs ck jStar)

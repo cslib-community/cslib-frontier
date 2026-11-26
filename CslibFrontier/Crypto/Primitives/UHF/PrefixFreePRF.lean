@@ -436,11 +436,9 @@ for the wrapper in [BonehShoup2023], v0.6, Theorem 7.4 (printed pp. 259–260). 
 /-- Each prepared word is distinct, including when the guesser repeats a message. -/
 theorem nodup_prefixFreeBatchQueries (width count : ℕ) (valid : List Bool → Bool)
     (guesses : List (List Bool)) : (prefixFreeBatchQueries width count valid guesses).Nodup := by
-  unfold prefixFreeBatchQueries
-  dsimp only
+  dsimp only [prefixFreeBatchQueries]
   split
-  · exact (List.nodup_eraseDupsBy_eq _).map fun _ _ => List.append_cancel_right
-  · exact List.nodup_nil
+  exacts [(List.nodup_eraseDupsBy_eq _).map fun _ _ => List.append_cancel_right, List.nodup_nil]
 
 private theorem isPrefixFree_prefixFreeBatchQueries {width count : ℕ}
     {valid : List Bool → Bool} (guesses : List (List Bool))
@@ -477,13 +475,11 @@ accept if two capped replies coincide. The reply cap bounds the reading time for
 private theorem length_prefixFreeBatchQueries_le (width count : ℕ) (valid : List Bool → Bool)
     (guesses : List (List Bool)) : (prefixFreeBatchQueries width count valid guesses).length ≤
       count := by
-  unfold prefixFreeBatchQueries
-  dsimp only
+  dsimp only [prefixFreeBatchQueries]
   split
-  · rw [List.length_map]
-    exact ((List.eraseDupsBy_sublist _).length_le.trans (List.length_filter_le _ _)).trans
-      (List.length_take_le _ _)
-  · simp
+  · exact (List.length_map _).le.trans (((List.eraseDupsBy_sublist _).length_le.trans
+      (List.length_filter_le _ _)).trans (List.length_take_le _ _))
+  · exact Nat.zero_le _
 
 /-- The batch wrapper makes at most `Q n` external queries for every oracle and guess list. -/
 theorem isQueryBounded_prefixFreeBatchReduction (width outLen Q : ℕ → ℕ)
@@ -822,12 +818,9 @@ theorem exists_computableInPolyTime_batchQueryCap
       ∀ n guesses, guesses ∈ (ProbComp.eval (guessBatch (n, n))).support →
         guesses.length ≤ Q n := by
   obtain ⟨c, d, hLength⟩ := hGuess.length_le
-  let Q (n : ℕ) := c * (2 * n + 1 + n + 1) ^ d
-  refine ⟨Q, (ComputableInPolyTime.const c).unary_mul'
-    ((ComputableInPolyTime.unary_pow d).comp (by fun_prop)), ?_⟩
-  intro n guesses hGuesses
-  refine (length_le_length_encList encBits guesses).trans ?_
-  simpa only [Q, length_encPair, encUnary_apply, List.length_replicate] using
+  refine ⟨fun n => c * (2 * n + 1 + n + 1) ^ d, by fun_prop, fun n guesses hGuesses =>
+    (length_le_length_encList encBits guesses).trans ?_⟩
+  simpa only [length_encPair, encUnary_apply, List.length_replicate] using
     hLength (n, n) guesses hGuesses
 
 /-- Boneh–Shoup v0.6, Theorem 7.4 (printed pp. 259–260), in the word model. An extendable

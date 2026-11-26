@@ -1337,14 +1337,10 @@ theorem isOraclePPTOn_run_macLogHandlerOn {valid : ℕ → List Bool → Bool}
     (operationEncoding := encFinEnum Unit)
     (stateEncoding := encList encBits)
     (handler := fun caller => macLogHandlerOn valid caller.1)
-    (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
-    (initial := fun _ => ([] : List (List Bool)))
-    (resources := fun caller query => caller.1 + 2 * query.length + 2)
-    (by polytime)
-    (by ppt [macLogHandlerOn])
-    (ComputableInPolyTime.const [])
-    (fun _ _ => True) (fun _ => trivial)
-    (by polytime)
+    (prepare := fun caller : ℕ × List Bool => (caller.1, [])) (initial := fun _ => [])
+    (resources := fun caller query => caller.1 + 2 * query.length + 2) (by polytime)
+    (by ppt [macLogHandlerOn]) (.const [])
+    (fun _ _ => True) (fun _ => trivial) (by polytime)
   intro caller request queried _ result hresult
   unfold macLogHandlerOn at hresult
   split_ifs at hresult
@@ -1606,13 +1602,10 @@ private theorem prfIdealPost_true_le (n : ℕ)
       hcond.1, ↓reduceIte]
     dsimp only [StateT.run]
     rw [RandomOracle.answer_of_none _ _ _ hnone]
-    have htake (x : BitString n) : (List.ofFn x).take n = List.ofFn x :=
-      List.take_of_length_le (List.length_ofFn (f := x)).le
-    simp only [pmf_norm, htake]
-    refine (PMF.uniformOfFintype_bind_pure_apply_true_le (E := fun x => List.ofFn x == out.2)
-      fun a ha b hb => List.ofFn_injective
-        ((beq_iff_eq.mp ha).trans (beq_iff_eq.mp hb).symm)).trans_eq ?_
-    simp
+    simp only [pmf_norm,
+      fun x : BitString n => List.take_of_length_le (List.length_ofFn (f := x)).le]
+    simpa using PMF.uniformOfFintype_bind_pure_apply_true_le (E := fun x => List.ofFn x == out.2)
+      fun a ha b hb => List.ofFn_injective ((beq_iff_eq.mp ha).trans (beq_iff_eq.mp hb).symm)
   · simp only [Bool.eq_false_iff.mpr hcond, Bool.false_eq_true, ↓reduceIte, PMF.pure_apply,
       reduceCtorEq, zero_le]
 
@@ -1977,20 +1970,18 @@ theorem isPPTOn_run_signingPairOracle (M : NonceMACScheme) {adversary : NonceMAC
   intro caller request queriedTriples _ result hresult
   dsimp only [signingPairOracle] at hresult
   split_ifs at hresult
-  swap
-  · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-    subst result
+  · simp only [ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hresult
+    obtain ⟨tag, htag, rfl⟩ := hresult
+    have htagLen := hlen (caller.2, unframe request.2, dropFrame request.2) tag htag
+    simp only [encBits_apply, length_encPair] at htagLen
+    have hframe := length_unframe_add_dropFrame_le request.2
+    have htag_le : tag.length ≤ c * (2 * caller.2.length + request.2.length + 3) ^ d :=
+      htagLen.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d))
+    refine ⟨trivial, by dsimp only; omega, ?_⟩
+    enc_len
+  · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hresult
     exact ⟨trivial, by simp, by lia⟩
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hresult
-  obtain ⟨tag, htag, rfl⟩ := hresult
-  have htagLen := hlen (caller.2, unframe request.2, dropFrame request.2) tag htag
-  simp only [encBits_apply, length_encPair] at htagLen
-  have hframe := length_unframe_add_dropFrame_le request.2
-  have htag_le : tag.length ≤ c * (2 * caller.2.length + request.2.length + 3) ^ d :=
-    htagLen.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d))
-  refine ⟨trivial, by dsimp only; omega, ?_⟩
-  enc_len
 
 /-- Run the complete nonce-based MAC SUF-CMA experiment on its unary security parameter for any
 oracle-PPT forger. -/

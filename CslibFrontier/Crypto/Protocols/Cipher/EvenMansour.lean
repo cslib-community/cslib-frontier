@@ -1347,11 +1347,9 @@ private theorem CacheRel.cons_cipher {k : G × G} {c_e c_π c : Cache G}
       partial_π := hrel.partial_π
       partial_c := hrel.partial_c.cons_of_lookup_eq_none hxc hyc
       good := hgood'
-      mem_iff := fun p => ?_ }⟩
-  have hhead : p = (x + k.1, y - k.2) ↔ unshiftPair k p = (x, y) := by
-    rcases p with ⟨u, v⟩
-    simp only [unshiftPair, Prod.mk.injEq, eq_sub_iff_add_eq, sub_eq_iff_eq_add]
-  rw [List.mem_cons, List.mem_cons, hrel.mem_iff, hhead, or_assoc]
+      mem_iff := fun ⟨u, v⟩ => by
+        simp only [List.mem_cons, hrel.mem_iff, unshiftPair, Prod.mk.injEq, eq_sub_iff_add_eq,
+          sub_eq_iff_eq_add, or_assoc] }⟩
 
 omit [Fintype G] [Nonempty G] in
 private theorem CacheRel.cons_perm {k : G × G} {c_e c_π c : Cache G}
@@ -1463,19 +1461,17 @@ private theorem sum_uniform_le_of_good (U V : Finset G) (e : G ≃ G) (bad : G �
     ∑ x ∈ U, (U.card : ℝ≥0∞)⁻¹ * f x ≤ ∑ y ∈ V, (V.card : ℝ≥0∞)⁻¹ * g y := by
   have hcard : (U.card : ℝ≥0∞)⁻¹ ≤ (V.card : ℝ≥0∞)⁻¹ :=
     ENNReal.inv_le_inv.mpr (Nat.cast_le.mpr (by simpa using Finset.card_le_card hsub))
-  have hout : ∀ x ∈ U, x ∉ V.map e.toEmbedding → (U.card : ℝ≥0∞)⁻¹ * f x = 0 := by
-    intro x hx hnot
-    by_cases hb : bad x = true
+  have hout : ∀ x ∈ U, x ∉ V.map e.toEmbedding → (U.card : ℝ≥0∞)⁻¹ * f x = 0 := fun x hx hnot => by
+    cases hb : bad x
+    · exact (hnot (Finset.mem_map.mpr ⟨e.symm x, (hgood x hx hb).1, e.apply_symm_apply x⟩)).elim
     · rw [hzero x hb, mul_zero]
-    · exact False.elim (hnot (Finset.mem_map.mpr
-        ⟨e.symm x, (hgood x hx (Bool.eq_false_iff.mpr hb)).1, e.apply_symm_apply x⟩))
   rw [← Finset.sum_subset hsub hout, Finset.sum_map]
   refine Finset.sum_le_sum fun y hy => ?_
   simp only [Equiv.toEmbedding_apply]
-  by_cases hb : bad (e y) = true
+  cases hb : bad (e y)
+  · simpa only [Equiv.symm_apply_apply] using
+      mul_le_mul' hcard (hgood (e y) (hsub (Finset.mem_map_of_mem _ hy)) hb).2
   · simp only [hzero (e y) hb, mul_zero, zero_le]
-  · simpa only [Equiv.symm_apply_apply] using mul_le_mul' hcard
-      (hgood (e y) (hsub (Finset.mem_map_of_mem _ hy)) (Bool.eq_false_iff.mpr hb)).2
 
 /-- Shared one-query lazy-permutation coupling step across forward/inverse cipher and primitive
 queries. -/
@@ -1542,16 +1538,12 @@ theorem run_idealLazyHandler_good_le_realLazyHandler {α : Type}
         P r ∧ isBadEvenMansourKey c_e' c_π' k = false} ≤
     ((OracleComp.interpret (realLazyHandler k) program).run c).toOuterMeasure
       {res | P res.1} := by
-  rw [show {(r, c_e', c_π') : α × Cache G × Cache G |
-      P r ∧ isBadEvenMansourKey c_e' c_π' k = false} =
-      {res | P res.1 ∧ isBadEvenMansourKey res.2.1 res.2.2 k = false} by ext ⟨_, _, _⟩; rfl]
   induction program generalizing c_e c_π c with
   | pure a =>
-    change (PMF.pure (a, (c_e, c_π))).toOuterMeasure
-        {res | P res.1 ∧ isBadEvenMansourKey res.2.1 res.2.2 k = false} ≤
-      (PMF.pure (a, c)).toOuterMeasure {res | P res.1}
-    by_cases hP : P a <;> simp only [PMF.toOuterMeasure_pure_apply, hP, hrel.good,
-      Set.mem_ofPred_eq, and_self, false_and, ↓reduceIte, le_refl]
+    change (PMF.pure (a, (c_e, c_π))).toOuterMeasure _ ≤ (PMF.pure (a, c)).toOuterMeasure _
+    by_cases hP : P a <;>
+      simp only [PMF.toOuterMeasure_pure_apply, hP, hrel.good, Set.mem_ofPred_eq, and_self,
+        false_and, ↓reduceIte, le_refl]
   | liftBind q cont ih =>
     change ((idealLazyHandler q (c_e, c_π)).bind fun p =>
         (OracleComp.interpret idealLazyHandler (cont p.1)).run p.2).toOuterMeasure _ ≤

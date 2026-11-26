@@ -341,11 +341,9 @@ theorem micaliVerifyRawBoundedPure_enc_eq_of_root_le
   have hk := kilianVerifyRawBounded_enc_eq_of_root_le (fun _ => hTree) V
     ⟨List.replicate σ false, x, hFS (x, prf.root)⟩ prf.root prf.response
     (by simpa [List.length_replicate] using hroot)
-  unfold micaliVerifyRawBoundedPure micaliVerifyPure
-  rw [unframe_take_encMicaliProof prf hroot, micaliHasRootPrefix_encMicaliProof prf hroot]
+  rw [micaliVerifyRawBoundedPure, micaliVerifyPure, unframe_take_encMicaliProof prf hroot,
+    micaliHasRootPrefix_encMicaliProof prf hroot, encMicaliProof_apply, hk]
   simp only [hch, Bool.true_and]
-  rw [show encMicaliProof prf = encPair encBits encKilianResponse (prf.root, prf.response) from rfl,
-    hk]
   exact kilianVerify_congr_hash V x prf.root (hFS (x, prf.root)) prf.response rfl
 
 /-- Honest completeness for `micaliVerifyRawBoundedPure`. -/
@@ -1024,14 +1022,13 @@ theorem runWith_wordOracle_micaliVerifyRawWordCore {State : Type}
         (micaliProofDecoder.decode rawProof).response s₁
     · have hgt : ((encList encBits ρs).take (fsCap + 1)).length > fsCap := by
         simp [List.length_take]; omega
-      have hbad : (ρs.length == m && ρs.all fun ρ => ρ.length == V.coins x) = false := by
-        by_contra htrue
-        simp only [Bool.not_eq_false, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at htrue
-        have := length_encList_le_micaliFSReplyCap enc hcoins htrue.1 htrue.2
-        omega
+      have hbad : (ρs.length == m && ρs.all fun ρ => ρ.length == V.coins x) = false :=
+        Bool.eq_false_iff.mpr fun htrue => by
+          simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at htrue
+          exact hfit (length_encList_le_micaliFSReplyCap enc hcoins htrue.1 htrue.2)
       simp only [hgt, ↓reduceIte, hbad, Bool.not_false, ProbOracleComp.runWith_pure,
         OracleComp.runWith_pure]
-  · simp [show micaliHasRootPrefix σ rawProof = false from Bool.eq_false_iff.mpr hhas]
+  · simp [hhas]
 
 theorem runWith_wordOracle_micaliVerifyRawWord {State : Type}
     (oracle : (q : List Bool ⊕ (α × List Bool)) → StateT State PMF (MicaliSpec α q))
@@ -1050,8 +1047,7 @@ theorem runWith_wordOracle_micaliVerifyRawWord {State : Type}
   by_cases hle : rawProof.length ≤ maxCap
   · rw [List.take_of_length_le (hle.trans (Nat.le_succ maxCap))]
   · have hpfxEq : (rawProof.take (maxCap + 1)).take (2 * σ + 1) = rawProof.take (2 * σ + 1) := by
-      rw [List.take_take, Nat.min_eq_left
-        ((show 2 * σ + 1 ≤ maxCap from Nat.le_add_right _ _).trans (Nat.le_succ _))]
+      rw [List.take_take, Nat.min_eq_left (by dsimp only [maxCap, micaliMaxProofCap]; omega)]
     have hfalse (raw : List Bool) (hr : maxCap < raw.length) :
         OracleComp.runWith oracle (micaliVerifyRawBounded V σ m x raw) s =
           if micaliHasRootPrefix σ raw = true then
@@ -1070,13 +1066,12 @@ theorem runWith_wordOracle_micaliVerifyRawWord {State : Type}
             simpa [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] using hch
           have hcap := kilianRawProverCap_le_micaliMaxProofCap V (σ := σ) hch'.1 fun ρ hρ =>
             hq x ρ (hch'.2 ρ hρ)
-          simp [hch, show raw.length > kilianRawProverCap V (List.replicate σ false) x ρs by omega]
+          simp [hch, lt_of_le_of_lt hcap hr]
         · simp [hch]
-      · simp [show micaliHasRootPrefix σ raw = false from Bool.eq_false_iff.mpr hhas]
-    have hhasEq : micaliHasRootPrefix σ (rawProof.take (maxCap + 1)) =
-        micaliHasRootPrefix σ rawProof := by
-      simp only [micaliHasRootPrefix, hpfxEq]
-    rw [hfalse _ (by simp; omega), hfalse rawProof (Nat.lt_of_not_ge hle), hhasEq, hpfxEq]
+      · simp [hhas]
+    have htakeGt : maxCap < (rawProof.take (maxCap + 1)).length := by simp; omega
+    rw [hfalse _ htakeGt, hfalse rawProof (Nat.lt_of_not_ge hle), micaliHasRootPrefix,
+      micaliHasRootPrefix, hpfxEq]
 
 end WordBisimulation
 
@@ -1644,10 +1639,7 @@ theorem computesOracleInTimeAndQueriesOn_micaliVerifyRawWord
     exact hc.trans (Nat.mul_le_mul_left c₁ (Nat.pow_le_pow_left (by omega) d₁))
   have hprep_len : (E_in (prepare (inp, rawProof))).length + 1 ≤
       2 * (4 * u + 4) + 1 + (c₁ * (4 * u + 4 + 1) ^ d₁ + 1) + 1 := by
-    have htakeLen :
-        (rawProof.take (micaliMaxProofCap V inp.sigma inp.reps d inp.stmt + 1)).length ≤
-          micaliMaxProofCap V inp.sigma inp.reps d inp.stmt + 1 :=
-      List.length_take_le _ _
+    have := List.length_take_le (micaliMaxProofCap V inp.sigma inp.reps d inp.stmt + 1) rawProof
     simp only [E_in, prepare, length_encPair, encBits_apply]
     omega
   have htp_bound :
@@ -1680,21 +1672,18 @@ theorem micaliHonestRawGame_eq_pure_true [DecidableEq α] (V : PCPVerifier α) {
     micaliHonestRawGame V x table σ m = PMF.pure true := by
   unfold micaliHonestRawGame
   refine OracleComp.map_fst_runWith_answer_eq_pure (micaliOracleDist V σ m) _ true fun h hh => ?_
-  have hsplit : h = micaliOracle (fun msg => h (.inl msg)) (fun xrt => h (.inr xrt)) := by
-    ext q
-    cases q <;> rfl
+  have hsplit : h = micaliOracle (fun msg => h (.inl msg)) (fun xrt => h (.inr xrt)) :=
+    funext fun q => by cases q <;> rfl
   rw [hsplit]
   have hlen : ∀ y, (h (.inl y)).length = σ := fun y =>
     BitString.length_of_mem_support_uniformList (hh (.inl y))
   have hmem := hh (.inr (x, kilianCommit (fun _ => fun msg => h (.inl msg)) V [] x table))
   simp only [micaliOracleDist, kilianChallenges, ProbComp.mem_support_replicate_iff] at hmem
-  have hm : (h (.inr (x, kilianCommit (fun _ => fun msg => h (.inl msg)) V [] x table))).length =
-      m := hmem.1
   have hρs : ∀ ρ ∈ h (.inr (x, kilianCommit (fun _ => fun msg => h (.inl msg)) V [] x table)),
       ρ.length = V.coins x := fun ρ hρ =>
     BitString.length_of_mem_support_uniformList (by simpa using hmem.2 ρ hρ)
   simp only [OracleComp.evalPure_bind, evalPure_micaliProve, evalPure_micaliVerifyRawBounded]
-  exact micaliVerifyRawBoundedPure_micaliProvePure_eq_true hlen htable hm hρs
+  exact micaliVerifyRawBoundedPure_micaliProvePure_eq_true hlen htable hmem.1 hρs
 
 open Classical in
 /-- Native raw-byte Micali soundness program: runs a raw cheating prover
@@ -1845,19 +1834,17 @@ theorem micaliRawSoundness_bound [DecidableEq α] (V : PCPVerifier α) (L : Set 
   refine le_trans ?_ (micaliSoundness_bound_of_prover_verifier V L σ m hsound
     (hMT.bind fun _ => OracleComp.IsCostBounded.pure _ 0)
     (hFS.bind fun _ => OracleComp.IsCostBounded.pure _ 0) hV')
-  unfold micaliRawSoundnessGame micaliSoundnessGame
-  set oracle := RandomOracle.answer (micaliOracleDist V σ m)
-  unfold micaliRawSoundnessProg micaliSoundnessProg
-  simp only [OracleComp.runWith_bind, OracleComp.runWith_pure, PMF.bind_bind, PMF.pure_bind,
-    PMF.map_bind]
-  rw [PMF.bind_apply, PMF.bind_apply]
+  simp only [micaliRawSoundnessGame, micaliSoundnessGame, micaliRawSoundnessProg,
+    micaliSoundnessProg, OracleComp.runWith_bind, OracleComp.runWith_pure, PMF.bind_bind,
+    PMF.pure_bind, PMF.map_bind, PMF.bind_apply]
   refine tsum_le_tsum fun ⟨⟨x, rawProof⟩, s₁⟩ => mul_le_mul_right ?_ _
   simp only [PMF.pure_map]
   by_cases hxL : x ∈ L
   · simp [hxL]
   · simp only [hxL, not_false_eq_true, decide_true, Bool.true_and]
     simpa [PMF.map_apply] using
-      map_fst_runWith_micaliVerifyRawBounded_le oracle V hq x rawProof s₁
+      map_fst_runWith_micaliVerifyRawBounded_le (RandomOracle.answer (micaliOracleDist V σ m)) V hq
+        x rawProof s₁
 
 /-- **Native raw-byte Micali CS Proofs for arbitrary NP relations** (compare [Micali2000];
 [ChiesaYogev2024], Construction 21.1.1 and Theorem 21.2.1; `locator not re-verified against primary

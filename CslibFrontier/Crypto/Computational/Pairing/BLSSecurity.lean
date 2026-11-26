@@ -398,27 +398,21 @@ private theorem isPPTOn_blsBankReplay (P : PairingGroupFamily)
   have hresources : ComputableInPolyTime
       (fun pair : BLSBankCaller P × List Bool => resources pair.1 pair.2)
       (encPair (encBLSBankCaller P) encBits) encUnary := by
+    open Turing.MultiTapeTM.ComputableInPolyTime in
     let E := encPair (encBLSBankCaller P) encBits
-    have hmul (k : ℕ) {f : BLSBankCaller P × List Bool → ℕ}
-        (hf : ComputableInPolyTime f E encUnary) :=
-      ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const k).prod hf)
-    have hadd {f g : BLSBankCaller P × List Bool → ℕ}
-        (hf : ComputableInPolyTime f E encUnary) (hg : ComputableInPolyTime g E encUnary) :=
-      ComputableInPolyTime.unary_add.comp (hf.prod hg)
+    let k (n : ℕ) := const (encIn := E) (encOut := encUnary) n
     have hbankMax : ComputableInPolyTime (fun p : _ => bankMax p.1) E encUnary :=
-      hadd ((ComputableInPolyTime.encoding_length (encList encBLSBankSample)).comp (by fun_prop))
-        (.const (encBLSBankSample ⟨false, 0⟩).length)
+      unary_add' (input := E) ((encoding_length (encList encBLSBankSample)).comp (by fun_prop))
+        (k (encBLSBankSample ⟨false, 0⟩).length)
     have hargLen : ComputableInPolyTime (fun p : _ => argLen p.1) E encUnary :=
-      hadd (hadd (hadd (hadd
-        (hmul 2 ((ComputableInPolyTime.encoding_length P.G₀.encDesc).comp (by fun_prop)))
-        (hmul 2 (ComputableInPolyTime.length_bits.comp (by fun_prop))))
-        (hmul 2 (ComputableInPolyTime.length_bits.comp (by fun_prop)))) hbankMax) (.const 64)
-    have hleft := hmul cR
-      ((ComputableInPolyTime.unary_pow dR).comp (hadd hargLen (.const 1)))
-    have hright := hadd (hadd (hmul 8
-      (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd _ _)))
-      (hmul 4 hbankMax)) (.const 64)
-    exact ComputableInPolyTime.unary_max.comp (hleft.prod hright)
+      unary_add' (unary_add' (unary_add' (unary_add'
+        (unary_mul' (k 2) ((encoding_length P.G₀.encDesc).comp (by fun_prop)))
+        (unary_mul' (k 2) (length_bits.comp (by fun_prop))))
+        (unary_mul' (k 2) (length_bits.comp (by fun_prop)))) hbankMax) (k 64)
+    exact unary_max.comp
+      ((unary_mul' (k cR) ((unary_pow dR).comp (unary_add' hargLen (k 1)))).prod
+        (unary_add' (unary_add' (unary_mul' (k 8) (length_bits.comp (snd _ _)))
+          (unary_mul' (k 4) hbankMax)) (k 64)))
   refine IsOraclePPTOn.isPPTOn_runState (isOraclePPTOn_savedWordReplay machine c e keyC keyD)
     hprepare (computableInPolyTime_blsBankWordStep P).isPPTOn hinitial invariant
     (fun caller => ⟨fun _ h => (by cases h), fun s hs =>
@@ -504,14 +498,11 @@ private theorem computableInPolyTime_savedCoinBudget (F : PrimeOrderGroupFamily)
     (c e keyC keyD : ℕ) :
     ComputableInPolyTime (fun x : F.CoCDHInput C => savedCoinBudget c e keyC keyD x.secParam)
       (F.encCoCDHInput C) encUnary := by
-  have hn0 := F.encCoCDHInput_secParam_polyTime C ComputableInPolyTime.id'
-  have h1 := ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hn0)
-  have h2 := ComputableInPolyTime.unary_add.comp (h1.prod (.const 2))
-  have h3 := ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const keyC).prod
-    ((ComputableInPolyTime.unary_pow keyD).comp
-      (ComputableInPolyTime.unary_add.comp (hn0.prod (.const 1)))))
-  exact ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const c).prod
-    ((ComputableInPolyTime.unary_pow e).comp (ComputableInPolyTime.unary_add.comp (h2.prod h3))))
+  open Turing.MultiTapeTM.ComputableInPolyTime in
+  have hn0 := F.encCoCDHInput_secParam_polyTime C id'
+  exact unary_mul' (const c) ((unary_pow e).comp (unary_add'
+    (unary_add' (unary_mul' (const 2) hn0) (const 2))
+    (unary_mul' (const keyC) ((unary_pow keyD).comp (unary_add' hn0 (const 1))))))
 
 private theorem computableInPolyTime_blsBankAdversaryCaller (P : PairingGroupFamily) :
     ComputableInPolyTime
