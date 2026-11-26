@@ -75,9 +75,7 @@ theorem mem_djpVerts_mono {n numSteps : ℕ} (root : Fin n) (vOut : Fin numSteps
 theorem vOut_mem_djpVerts_succ {n numSteps : ℕ} (root : Fin n)
     (vOut : Fin numSteps → Fin n) (s : Fin numSteps) :
     vOut s ∈ djpVerts root vOut (s.val + 1) := by
-  dsimp only [djpVerts]
-  simp only [s.isLt, ↓reduceDIte]
-  exact Finset.mem_insert_self _ _
+  simp only [djpVerts, s.isLt, ↓reduceDIte, Finset.mem_insert_self]
 
 /-- Dynamic Soft-Heap DJP tree recording popped edges `edge s`, Soft-Heap pop keys `wPop s`,
 and monotonic DJP step invariants ([PettieRamachandran2002], Section 2.4 and Lemma 2.1). -/
@@ -176,10 +174,8 @@ theorem DynamicDJPTree.rel_treeEdges_filter_of_border {n : ℕ} (D : DynamicDJPT
   classical
   let valid : Finset (Finset (Fin D.numSteps)) :=
     Finset.univ.filter fun P => Cslib.Multigraph.Joins D.ends (P : Set (Fin D.numSteps)) x y
-  have huniv_valid : Finset.univ ∈ valid := by
-    rw [Finset.mem_filter]
-    refine ⟨Finset.mem_univ _, ?_⟩
-    simpa using (D.joins_treeVerts hx).symm.trans (D.joins_treeVerts hy)
+  have huniv_valid : Finset.univ ∈ valid := Finset.mem_filter.mpr
+    ⟨Finset.mem_univ _, by simpa using (D.joins_treeVerts hx).symm.trans (D.joins_treeVerts hy)⟩
   obtain ⟨P, hP_mem, hP_min⟩ := Finset.exists_min_image valid Finset.card ⟨Finset.univ, huniv_valid⟩
   have hP_conn : Cslib.Multigraph.Joins D.ends (P : Set (Fin D.numSteps)) x y :=
     (Finset.mem_filter.mp hP_mem).2
@@ -195,30 +191,21 @@ theorem DynamicDJPTree.rel_treeEdges_filter_of_border {n : ℕ} (D : DynamicDJPT
     have hnot_erase :
         ¬ Cslib.Multigraph.Joins D.ends ((P.erase sStar : Finset _) : Set _) x y := by
       intro hc
-      have her_mem : P.erase sStar ∈ valid := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hc⟩
-      have hcard := hP_min (P.erase sStar) her_mem
-      have hlt := Finset.card_erase_lt_of_mem hsStar_mem
-      omega
+      exact Nat.lt_irrefl _ ((Finset.card_erase_lt_of_mem hsStar_mem).trans_le
+        (hP_min (P.erase sStar) (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hc⟩)))
     have hno_cross : ∀ s' ∈ P.erase sStar, (D.edge s').u ∈ A ↔ (D.edge s').v ∈ A := by
       intro s' hs'
       have hs'_mem := Finset.mem_of_mem_erase hs'
       have hs'_ne : s' ≠ sStar := Finset.ne_of_mem_erase hs'
       by_contra hnot
-      have hcross : (D.edge s').u ∈ A ↔ (D.edge s').v ∉ A := by
-        constructor
-        · intro hu hv; exact hnot ⟨fun _ => hv, fun _ => hu⟩
-        · intro hnv
-          by_contra hnu
-          exact hnot ⟨fun hu => absurd hu hnu, fun hv => absurd hv hnv⟩
-      have hgt : sStar.val < s'.val := by
-        by_contra hle
-        have hle' : s'.val + 1 ≤ sStar.val := by
-          have : s'.val ≠ sStar.val := fun h => hs'_ne (Fin.ext h)
-          omega
-        have hm := D.mem_treeVerts_of_edge s'
-        have hm1 := mem_djpVerts_mono D.root D.vOut hle' hm.1
-        have hm2 := mem_djpVerts_mono D.root D.vOut hle' hm.2
-        exact absurd hm2 (hcross.mp hm1)
+      have hcross : (D.edge s').u ∈ A ↔ (D.edge s').v ∉ A :=
+        ⟨fun hu hv => hnot ⟨fun _ => hv, fun _ => hu⟩, fun hnv => Classical.byContradiction
+          fun hnu => hnot ⟨fun hu => absurd hu hnu, fun hv => absurd hv hnv⟩⟩
+      have hgt : sStar.val < s'.val := Nat.lt_of_not_ge fun hle => by
+        have hle' : s'.val + 1 ≤ sStar.val := Nat.lt_of_le_of_ne hle (mt Fin.ext hs'_ne)
+        obtain ⟨hm1, hm2⟩ := D.mem_treeVerts_of_edge s'
+        exact hcross.mp (mem_djpVerts_mono D.root D.vOut hle' hm1)
+          (mem_djpVerts_mono D.root D.vOut hle' hm2)
       have hw := D.djp_future sStar s' hgt hcross
       have hk_max := hsStar_max s' hs'_mem
       dsimp only [key] at hk_max
@@ -342,8 +329,7 @@ theorem weaklySupported_of_dynamicDJPTree {n n' : ℕ}
     ∀ e ∈ es, WeaklySupported (F_C ++ H_lift ++ M_C) e := by
   intro e he
   have hmem : e ∈ C ∨ e ∈ M_C ∨ e ∈ H_edges := by
-    have hp := hpart.symm.subset he
-    simpa [List.mem_append, or_assoc] using hp
+    simpa [List.mem_append, or_assoc] using hpart.symm.subset he
   have hFC_thresh := (isMinSpanningForest_iff_threshold_partition C F_C).mp hFC
   have hHL_thresh := (isMinSpanningForest_iff_threshold_partition
     (contractEdgeList c H_edges) (contractEdgeList c H_lift)).mp hHL_msf
@@ -366,13 +352,10 @@ theorem weaklySupported_of_dynamicDJPTree {n n' : ℕ}
     let U := (F_C ++ H_lift ++ M_C).filter fun f => decide (f.weight ≤ w)
     let H' := H_lift.filter fun f => decide (f.weight ≤ w)
     have hc_H : (edgePartition (contractEdgeList c H')).rel (c e.u) (c e.v) = true := by
-      have h1 : (edgePartition (contractEdgeList c (H_edges.filter fun f =>
-          decide (f.weight ≤ w)))).rel (c e.u) (c e.v) = true :=
-        rel_edgePartitionFrom_of_mem (Partition.discrete n')
-          (List.mem_map_of_mem (f := contractEdge c)
-            (List.mem_filter.mpr ⟨heH, decide_eq_true le_rfl⟩))
-      rw [← filter_contractEdgeList, ← hHL_thresh.2 w, filter_contractEdgeList] at h1
-      exact h1
+      rw [← filter_contractEdgeList, hHL_thresh.2 w, filter_contractEdgeList]
+      exact rel_edgePartitionFrom_of_mem (Partition.discrete n')
+        (List.mem_map_of_mem (f := contractEdge c)
+          (List.mem_filter.mpr ⟨heH, decide_eq_true le_rfl⟩))
     let EndOf (x : Fin n) : Prop :=
       ∃ h ∈ H_edges, h.weight ≤ w ∧ (h.u = x ∨ h.v = x)
     have hbridge : ∀ x y : Fin n, c x = c y → EndOf x → EndOf y →
@@ -407,14 +390,13 @@ theorem weaklySupported_of_dynamicDJPTree {n n' : ℕ}
       induction hxy with
       | refl _ => exact .inl rfl
       | rel a' b' hab =>
-        obtain ⟨f, hf, rfl, rfl⟩ := hab
-        simp only [contractEdgeList, List.mem_map] at hf
-        obtain ⟨h, hhH, rfl⟩ := hf
-        have hh_mem := List.mem_filter.mp hhH
-        have hh_edge : h ∈ H_edges := hHL_sub.subset hh_mem.1
-        have hh_w : h.weight ≤ w := decide_eq_true_eq.mp hh_mem.2
-        have hh_U : h ∈ U := List.mem_filter.mpr ⟨List.mem_append_left _
-          (List.mem_append_right _ hh_mem.1), hh_mem.2⟩
+        obtain ⟨_, hf, rfl, rfl⟩ := hab
+        obtain ⟨h, hhH, rfl⟩ := List.mem_map.mp hf
+        obtain ⟨hh_in, hh_dec⟩ := List.mem_filter.mp hhH
+        have hh_edge : h ∈ H_edges := hHL_sub.subset hh_in
+        have hh_w : h.weight ≤ w := of_decide_eq_true hh_dec
+        have hh_U : h ∈ U :=
+          List.mem_filter.mpr ⟨List.mem_append_left _ (List.mem_append_right _ hh_in), hh_dec⟩
         exact .inr ⟨h.u, h.v, rfl, rfl, ⟨h, hh_edge, hh_w, .inl rfl⟩,
           ⟨h, hh_edge, hh_w, .inr rfl⟩, rel_edgePartitionFrom_of_mem (Partition.discrete n) hh_U⟩
       | symm _ _ _ ih =>
@@ -617,8 +599,7 @@ private theorem dedupSimpleEdges_nodup {n : ℕ} (es : List (WeightedEdge n ℕ)
 theorem dedupSimpleEdges_subperm {n : ℕ} (es : List (WeightedEdge n ℕ)) :
     (dedupSimpleEdges es).Subperm es := by
   refine List.subperm_of_subset (dedupSimpleEdges_nodup es) fun e he => ?_
-  rw [dedupSimpleEdges_eq_filterMap, List.mem_filterMap] at he
-  obtain ⟨p, _, hp⟩ := he
+  obtain ⟨p, -, hp⟩ := List.mem_filterMap.mp (dedupSimpleEdges_eq_filterMap es ▸ he)
   exact ((minByPairAux_spec p es).1 e hp).1
 
 private theorem ne_of_canonicalPair_in_allPairs {n : ℕ} {e : WeightedEdge n ℕ}
@@ -634,29 +615,16 @@ private theorem ne_of_canonicalPair_in_allPairs {n : ℕ} {e : WeightedEdge n �
 
 theorem dedupSimpleEdges_isSimple {n : ℕ} (es : List (WeightedEdge n ℕ)) :
     IsSimple (edgeEnds (dedupSimpleEdges es)) := by
+  have hmem_aux (i : Fin (dedupSimpleEdges es).length) :
+      ∃ p ∈ allPairs n, minByPairAux p es = some (dedupSimpleEdges es)[i.val] :=
+    List.mem_filterMap.mp (dedupSimpleEdges_eq_filterMap es ▸ List.getElem_mem i.isLt)
   rw [isSimple_iff]
   refine ⟨fun i => ?_, fun i₁ i₂ hij => ?_⟩
-  · have hmem : (dedupSimpleEdges es)[i.val] ∈
-        (allPairs n).filterMap (fun p => minByPairAux p es) := by
-      rw [← dedupSimpleEdges_eq_filterMap]
-      exact List.getElem_mem i.isLt
-    rw [List.mem_filterMap] at hmem
-    obtain ⟨p, hp_all, hp⟩ := hmem
-    have hcp := ((minByPairAux_spec p es).1 _ hp).2.1
-    dsimp only [edgeEnds]
-    rw [Sym2.mk_isDiag_iff]
-    exact ne_of_canonicalPair_in_allPairs hp_all hcp
-  · have hm1 : (dedupSimpleEdges es)[i₁.val] ∈
-        (allPairs n).filterMap (fun p => minByPairAux p es) := by
-      rw [← dedupSimpleEdges_eq_filterMap]
-      exact List.getElem_mem i₁.isLt
-    have hm2 : (dedupSimpleEdges es)[i₂.val] ∈
-        (allPairs n).filterMap (fun p => minByPairAux p es) := by
-      rw [← dedupSimpleEdges_eq_filterMap]
-      exact List.getElem_mem i₂.isLt
-    rw [List.mem_filterMap] at hm1 hm2
-    obtain ⟨p₁, hp1_all, hp1⟩ := hm1
-    obtain ⟨p₂, hp2_all, hp2⟩ := hm2
+  · obtain ⟨p, hp_all, hp⟩ := hmem_aux i
+    rw [edgeEnds, Sym2.mk_isDiag_iff]
+    exact ne_of_canonicalPair_in_allPairs hp_all ((minByPairAux_spec p es).1 _ hp).2.1
+  · obtain ⟨p₁, hp1_all, hp1⟩ := hmem_aux i₁
+    obtain ⟨p₂, _, hp2⟩ := hmem_aux i₂
     have hcp1 := ((minByPairAux_spec p₁ es).1 _ hp1).2.1
     have hcp2 := ((minByPairAux_spec p₂ es).1 _ hp2).2.1
     have hne : (dedupSimpleEdges es)[i₁.val].u ≠ (dedupSimpleEdges es)[i₁.val].v :=
@@ -702,11 +670,9 @@ theorem simpleGraph_weakSupport {n : ℕ} (es : List (WeightedEdge n ℕ)) :
       · exact Nat.lt_of_le_of_ne (not_lt.mp huv_lt) hne.symm
     obtain ⟨e', he'⟩ := (minByPairAux_spec p es).2 e he rfl
     obtain ⟨_, hcp', hmin'⟩ := (minByPairAux_spec p es).1 e' he'
-    have hw' : e'.weight ≤ e.weight := hmin' e he rfl
-    have he'_mem : e' ∈ (dedupSimpleEdges es).filter fun f => decide (f.weight ≤ e.weight) := by
-      rw [List.mem_filter, decide_eq_true_eq]
-      rw [dedupSimpleEdges_eq_filterMap]
-      exact ⟨List.mem_filterMap.mpr ⟨p, hp_all, he'⟩, hw'⟩
+    have he'_mem : e' ∈ (dedupSimpleEdges es).filter fun f => decide (f.weight ≤ e.weight) :=
+      List.mem_filter.mpr ⟨(dedupSimpleEdges_eq_filterMap es).symm ▸
+        List.mem_filterMap.mpr ⟨p, hp_all, he'⟩, decide_eq_true (hmin' e he rfl)⟩
     have hrel := rel_edgePartitionFrom_of_mem (Partition.discrete n) he'_mem
     have hcp_eq : canonicalPair e' = canonicalPair e := hcp'
     dsimp only [canonicalPair] at hcp_eq
