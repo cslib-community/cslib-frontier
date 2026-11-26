@@ -18,8 +18,9 @@ bit, a coin step writes a fair coin, and a query step writes the oracle's reply,
 machine's run and, through the bridge, for the output of its step law.
 
 For machines that query the whole transcript: with the identity encoding the machine is the
-output program of `Debate.lean`, its run is Lipschitz in the external oracle with the trivial
-constant, and the soundness statement applies to an oracle that always answers `false`.
+output program of `Debate.lean`. With the encoding `Option.some`, which is injective but not
+surjective, the trivial Lipschitz constant of the run gives the step-law hypothesis, and the
+soundness statement applies to an oracle that always answers `false`.
 -/
 
 public section
@@ -80,24 +81,13 @@ example (O : List Bool → PMF Bool) (n : ℕ) :
         OracleComp.evalWith (sumHandler ProbComp.unifOracle O) (output n) := by
   rw [run_prefixMachine_id]
 
-/-- The run of the machine that queries the whole transcript makes one query per step, so it is
-Lipschitz in the external oracle with the number of steps as constant. -/
-theorem lipschitzAt_run_prefixMachine_id (O : List Bool → PMF Bool) (n : ℕ) :
-    LipschitzAt (n : ℝ≥0) O ((prefixMachine (id : List Bool → List Bool)).run n) := by
-  rw [run_prefixMachine_id]
-  refine (ProbOracleComp.LipschitzAt.of_isQueryBounded (n := n) ?_ O).map _
-  induction n with
-  | zero => exact .pure _ 0
-  | succ n ih =>
-    exact ih.bind fun bits => by
-      simpa using (ProbOracleComp.IsQueryBounded.query (spec := StepSpec) bits).bind fun bit =>
-        .pure (bit :: bits) 0
-
-/-- Definition 6.1 then gives the step-law hypothesis of the soundness step. -/
-example (O : List Bool → PMF Bool) (n : ℕ) :
-    LipschitzAt (n : ℝ≥0) O (output n) :=
-  lipschitzAt_stepLaw_of_lipschitzAt_run (enc := id) Function.injective_id
-    (lipschitzAt_run_prefixMachine_id O n)
+/-- Definition 6.1 with the trivial constant gives the step-law hypothesis of the soundness step,
+for an encoding that is injective but not surjective: the oracle is also defined at `none`, which
+no transcript asks. -/
+example (O : Option (List Bool) → PMF Bool) (n : ℕ) :
+    LipschitzAt (n : ℝ≥0) ((prefixMachine Option.some).stepLaw O) (output n) :=
+  lipschitzAt_stepLaw_of_lipschitzAt_run (Option.some_injective _)
+    ((prefixMachine Option.some).lipschitzAt_run O n)
 
 /-- The soundness statement applies: against the oracle that always answers `false`, no
 proposer is accepted with probability above `2 / 5`. -/
@@ -105,9 +95,9 @@ example (T : ℕ) (A : Proposer (Params.default ((T + 1 : ℕ) : ℝ≥0) T).gri
     OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ : List Bool => PMF.pure false)
       (run (Params.default ((T + 1 : ℕ) : ℝ≥0) T) A
         (honestChallenger (Params.default ((T + 1 : ℕ) : ℝ≥0) T))) true ≤ 2 / 5 := by
-  have h := soundness_of_lipschitzAt_run_prefixMachine (enc := id) Function.injective_id
+  have h := soundness_of_lipschitzAt_run_prefixMachine (Option.some_injective _)
     (K := ((T + 1 : ℕ) : ℝ≥0)) (by positivity) T
-    (lipschitzAt_run_prefixMachine_id (fun _ => PMF.pure false) (T + 1)) ?_ A
+    ((prefixMachine Option.some).lipschitzAt_run (fun _ => PMF.pure false) (T + 1)) ?_ A
   · exact h
   · simp [Machine.run, Machine.transcript, OracleComp.evalWith_bind, Machine.evalWith_next,
       stepLaw_prefixMachine]
