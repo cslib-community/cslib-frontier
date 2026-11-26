@@ -33,8 +33,12 @@ Mathlib's `Convexity.StdSimplex`, so that they can be fed to continuous maps on 
   for a finite type `κ`.
 * `Cslib.Brouwer.exists_isFixedPt_pi_simplex`: **Brouwer's fixed-point theorem** for a finite
   product of standard simplices.
+* `Cslib.Brouwer.exists_isFixedPt_simplex`: **Brouwer's fixed-point theorem** for a single
+  standard simplex.
 
-Arbitrary compact convex sets are not treated here.
+Arbitrary compact convex subsets of finite-dimensional real normed spaces are treated in
+`CslibFrontier.Foundations.Analysis.Kakutani`
+(`Cslib.Brouwer.exists_isFixedPt_of_isCompact_convex`).
 -/
 
 public section

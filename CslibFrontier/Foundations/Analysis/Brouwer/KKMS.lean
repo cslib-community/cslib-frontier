@@ -41,7 +41,7 @@ The proof proceeds by fixed-point and hyperplane-separation arguments: if no sim
 to a balanced intersection, Farkas' lemma (`Matrix.not_exists_nonneg_mulVec_eq_iff`) produces a
 separating direction at each point, a distance-based continuous partition of unity on the compact
 simplex pastes these directions into a continuous vector field, and Brouwer's fixed-point theorem
-(`Cslib.Brouwer.exists_isFixedPt_pi_simplex`) applied to a Nash-style map yields a contradiction.
+(`Cslib.Brouwer.exists_isFixedPt_simplex`) applied to a Nash-style map yields a contradiction.
 The classical KKM lemma (`Cslib.Brouwer.exists_mem_iInter_of_kkmCover`) follows immediately by
 restricting the cover to singleton coalitions.
 
@@ -207,10 +207,8 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
     ⟨fun i => div_nonneg (add_nonneg (hz.1 i) (le_max_left _ _)) (hdenom_pos z).le, by
       simp only [step, ← Finset.sum_div, Finset.sum_add_distrib, hz.2]
       exact div_self (hdenom_pos z).ne'⟩
-  obtain ⟨p, hp, hfix⟩ := Cslib.Brouwer.exists_isFixedPt_pi_simplex
-    (f := fun (p : Unit → A → ℝ) _ => step (p ())) (fun p hp _ => hstep_maps (hp ()))
-    (continuous_pi fun _ => hstep_cont.comp (continuous_apply ())).continuousOn
-  obtain ⟨z, hzΔ, hfz⟩ : ∃ z ∈ Δ, step z = z := ⟨p (), hp (), congrFun hfix ()⟩
+  obtain ⟨z, hzΔ, hfz⟩ :=
+    Cslib.Brouwer.exists_isFixedPt_simplex hstep_maps hstep_cont.continuousOn
   let μ : ℝ := ∑ j, dir z j * z j
   have hgain_eq (i : A) : gain z i = z i * ∑ j, gain z j := by
     have hi := congrFun hfz i

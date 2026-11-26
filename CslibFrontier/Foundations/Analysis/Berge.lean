@@ -8,31 +8,48 @@ module
 -- upstream: candidate (Mathlib, `Mathlib/Topology/Semicontinuity/Berge.lean`)
 
 public import CslibFrontier.Init
+public import Mathlib.Analysis.Convex.Quasiconvex
 public import Mathlib.Basic.Real.Basic
-public import Mathlib.Topology.Algebra.Order.Field
 public import Mathlib.Topology.Instances.Real.Lemmas
 public import Mathlib.Topology.Semicontinuity.Hemicontinuity
 import Mathlib.Data.Finset.Max
 import Mathlib.Tactic.Linarith
+import Mathlib.Topology.Algebra.Order.Field
 import Mathlib.Topology.Compactness.Compact
 import Mathlib.Topology.Order.Compact
 import Mathlib.Topology.Order.Real
+import Mathlib.Topology.Semicontinuity.Basic
 
 /-!
 # Berge's maximum theorem
 
 This module proves **Berge's maximum theorem** ([Berge1963], Chapter VI; primary PDF unverified)
 for a correspondence `Γ : X → Set Y` and an objective `u : X → Y → ℝ` between general
-topological spaces `X` and `Y`.
+topological spaces `X` and `Y`. It reuses Mathlib's `UpperHemicontinuousOn`,
+`LowerHemicontinuousOn`, `LowerSemicontinuousOn`, and `UpperSemicontinuousOn`
+(`Mathlib.Topology.Semicontinuity.Hemicontinuity` and `Mathlib.Topology.Semicontinuity.Defs`).
+Unlike `[Berge1963]`'s Hausdorff convention on compact sets, the theorems here hold for arbitrary
+`[TopologicalSpace X]` and `[TopologicalSpace Y]` with `u` continuous on
+`{p | p.1 ∈ s ∧ p.2 ∈ Γ p.1}`.
 
-If `Γ` has nonempty compact values on `s : Set X`, is both upper and lower hemicontinuous on `s`,
-and `u` is continuous on the graph `{(x, y) | x ∈ s ∧ y ∈ Γ x}`, then:
+## Main definitions
 
-* `Cslib.Berge.maxValue Γ u` is continuous on `s` (`continuousOn_maxValue`);
-* `Cslib.Berge.argmaxSet Γ u` has nonempty compact values and is upper hemicontinuous on `s`
-  (`argmaxSet_nonempty`, `argmaxSet_isCompact`, `upperHemicontinuousOn_argmaxSet`);
-* any single-valued selection from `argmaxSet Γ u` is continuous on `s`
-  (`continuousOn_of_argmaxSet_singleton`).
+* `Cslib.Berge.maxValue`: the value function `x ↦ sSup (u x '' Γ x)` (which agrees with the
+  maximum on nonempty bounded-above fibers and evaluates to `0` if empty or unbounded above).
+* `Cslib.Berge.argmaxSet`: the maximizer correspondence `x ↦ {y ∈ Γ x | ∀ z ∈ Γ x, u x z ≤ u x y}`.
+
+## Main results
+
+* `Cslib.Berge.continuousOn_maxValue`: continuity of `maxValue Γ u` on `s`.
+* `Cslib.Berge.upperHemicontinuousOn_argmaxSet`: upper hemicontinuity of `argmaxSet Γ u` on `s`.
+* `Cslib.Berge.continuousOn_of_argmaxSet_singleton`: continuity of any single-valued selection
+  from `argmaxSet Γ u`.
+* `Cslib.Berge.convex_argmaxSet`, `Cslib.Berge.subsingleton_argmaxSet_of_strictQuasiconcaveOn`,
+  `Cslib.Berge.exists_unique_continuousOn_argmaxSet`: convexity under quasiconcavity and unique
+  continuous selection under strict quasiconcavity on convex constraint sets.
+* `Cslib.Berge.isClosed_graph_of_upperHemicontinuousOn`,
+  `Cslib.Berge.upperHemicontinuousOn_of_isClosed_graph`: closed-graph and upper-hemicontinuity
+  equivalences for correspondences.
 
 ## References
 
@@ -49,7 +66,8 @@ section Definitions
 
 variable {X Y : Type*}
 
-/-- The optimal value `sup_{y ∈ Γ x} u x y` of `u` over `Γ x`. -/
+/-- The optimal value `sup_{y ∈ Γ x} u x y` of `u` over `Γ x`. In `ℝ`, `sSup` agrees with the
+supremum on nonempty bounded-above fibers and evaluates to `0` when empty or unbounded above. -/
 @[expose] noncomputable def maxValue (Γ : X → Set Y) (u : X → Y → ℝ) (x : X) : ℝ :=
   sSup (u x '' Γ x)
 
@@ -73,15 +91,18 @@ theorem maxValue_eq_of_mem_argmaxSet {Γ : X → Set Y} {u : X → Y → ℝ} {x
     le_csSup ⟨u x y, fun _ ⟨z, hz, hzx⟩ => hzx ▸ hy.2 z hz⟩ ⟨y, hy.1, rfl⟩
   exact le_antisymm hge hle
 
-theorem le_maxValue_of_mem {Γ : X → Set Y} {u : X → Y → ℝ} {x : X} {y z : Y}
-    (hy : y ∈ argmaxSet Γ u x) (hz : z ∈ Γ x) : u x z ≤ maxValue Γ u x :=
-  (hy.2 z hz).trans (le_of_eq (maxValue_eq_of_mem_argmaxSet hy))
-
 end Definitions
 
 section Fiber
 
 variable {X Y : Type*} [TopologicalSpace Y] {Γ : X → Set Y} {u : X → Y → ℝ}
+
+/-- Any feasible value `u x y` (`y ∈ Γ x`) is at most `maxValue Γ u x` when `Γ x` is compact and
+`u x` is continuous on `Γ x`. -/
+theorem le_maxValue_of_mem {x : X} (hcomp : IsCompact (Γ x))
+    (hu : ContinuousOn (u x) (Γ x)) {y : Y} (hy : y ∈ Γ x) :
+    u x y ≤ maxValue Γ u x :=
+  le_csSup (hcomp.image_of_continuousOn hu).bddAbove ⟨y, hy, rfl⟩
 
 /-- If `Γ x` is nonempty and compact and `u x` is continuous on `Γ x`, then `u x` attains its
 maximum on `Γ x`. -/
@@ -93,11 +114,15 @@ theorem argmaxSet_nonempty {x : X} (hne : (Γ x).Nonempty) (hcomp : IsCompact (�
 /-- Characterization of `argmaxSet` in terms of `maxValue` under compactness and continuity. -/
 theorem mem_argmaxSet_iff {x : X} (hcomp : IsCompact (Γ x))
     (hu : ContinuousOn (u x) (Γ x)) {y : Y} (hy : y ∈ Γ x) :
-    y ∈ argmaxSet Γ u x ↔ u x y = maxValue Γ u x := by
-  refine ⟨maxValue_eq_of_mem_argmaxSet, fun heq => ⟨hy, fun z hz => ?_⟩⟩
-  have hbdd : BddAbove (u x '' Γ x) := (hcomp.image_of_continuousOn hu).bddAbove
-  rw [heq]
-  exact le_csSup hbdd ⟨z, hz, rfl⟩
+    y ∈ argmaxSet Γ u x ↔ u x y = maxValue Γ u x :=
+  ⟨maxValue_eq_of_mem_argmaxSet, fun heq => ⟨hy, fun _ hz =>
+    heq ▸ le_maxValue_of_mem hcomp hu hz⟩⟩
+
+private theorem lt_maxValue_of_notMem_argmaxSet {x : X} (hcomp : IsCompact (Γ x))
+    (hu : ContinuousOn (u x) (Γ x)) {y : Y} (hyΓ : y ∈ Γ x) (hynot : y ∉ argmaxSet Γ u x) :
+    u x y < maxValue Γ u x :=
+  lt_of_le_of_ne (le_maxValue_of_mem hcomp hu hyΓ) fun heq =>
+    hynot ((mem_argmaxSet_iff hcomp hu hyΓ).mpr heq)
 
 /-- If `Γ x` is compact and `u x` is continuous on `Γ x`, then `argmaxSet Γ u x` is compact. -/
 theorem argmaxSet_isCompact {x : X} (hcomp : IsCompact (Γ x)) (hu : ContinuousOn (u x) (Γ x)) :
@@ -110,9 +135,8 @@ theorem argmaxSet_isCompact {x : X} (hcomp : IsCompact (Γ x)) (hu : ContinuousO
         exists_eq_right]
       refine ⟨fun hy => ⟨hy.1, le_of_eq (maxValue_eq_of_mem_argmaxSet hy).symm⟩, ?_⟩
       rintro ⟨hy, hge⟩
-      have hbdd : BddAbove (u x '' Γ x) := (hcomp.image_of_continuousOn hu).bddAbove
       exact (mem_argmaxSet_iff hcomp hu hy).2
-        (le_antisymm (le_csSup hbdd ⟨y, hy, rfl⟩) hge)
+        (le_antisymm (le_maxValue_of_mem hcomp hu hy) hge)
     rw [hEq]
     have : CompactSpace (Γ x) := isCompact_iff_compactSpace.mp hcomp
     have hclosed : IsClosed ((fun y : Γ x => u x y) ⁻¹' Ici (maxValue Γ u x)) :=
@@ -153,7 +177,7 @@ theorem lowerSemicontinuousOn_maxValue
     (hne : ∀ x ∈ s, (Γ x).Nonempty) (hcomp : ∀ x ∈ s, IsCompact (Γ x))
     (hLHC : LowerHemicontinuousOn Γ s)
     (hu : ContinuousOn (fun p : X × Y => u p.1 p.2) {p | p.1 ∈ s ∧ p.2 ∈ Γ p.1}) :
-    ∀ x₀ ∈ s, ∀ a < maxValue Γ u x₀, ∀ᶠ x in 𝓝[s] x₀, a < maxValue Γ u x := by
+    LowerSemicontinuousOn (maxValue Γ u) s := by
   intro x₀ hx₀ a ha
   have hu₀ : ContinuousOn (u x₀) (Γ x₀) :=
     hu.comp (continuous_const.prodMk continuous_id).continuousOn fun _ hy => ⟨hx₀, hy⟩
@@ -169,8 +193,7 @@ theorem lowerSemicontinuousOn_maxValue
   have hy_lt : a < u x y := hUV x ⟨hxU', hxs⟩ y ⟨hyV', hyΓ⟩
   have hu_x : ContinuousOn (u x) (Γ x) :=
     hu.comp (continuous_const.prodMk continuous_id).continuousOn fun _ hy' => ⟨hxs, hy'⟩
-  have hbdd : BddAbove (u x '' Γ x) := ((hcomp x hxs).image_of_continuousOn hu_x).bddAbove
-  exact hy_lt.trans_le (le_csSup hbdd ⟨y, hyΓ, rfl⟩)
+  exact hy_lt.trans_le (le_maxValue_of_mem (hcomp x hxs) hu_x hyΓ)
 
 /-- Upper semicontinuity of `maxValue` when `Γ` is compact-valued and upper hemicontinuous and `u`
 is continuous on the graph of `Γ`. -/
@@ -178,15 +201,14 @@ theorem upperSemicontinuousOn_maxValue
     (hne : ∀ x ∈ s, (Γ x).Nonempty) (hcomp : ∀ x ∈ s, IsCompact (Γ x))
     (hUHC : UpperHemicontinuousOn Γ s)
     (hu : ContinuousOn (fun p : X × Y => u p.1 p.2) {p | p.1 ∈ s ∧ p.2 ∈ Γ p.1}) :
-    ∀ x₀ ∈ s, ∀ b, maxValue Γ u x₀ < b → ∀ᶠ x in 𝓝[s] x₀, maxValue Γ u x < b := by
+    UpperSemicontinuousOn (maxValue Γ u) s := by
   intro x₀ hx₀ b hb
   have hu₀ : ContinuousOn (u x₀) (Γ x₀) :=
     hu.comp (continuous_const.prodMk continuous_id).continuousOn fun _ hy => ⟨hx₀, hy⟩
-  have hbdd₀ : BddAbove (u x₀ '' Γ x₀) := ((hcomp x₀ hx₀).image_of_continuousOn hu₀).bddAbove
   have hcover : ∀ y : Γ x₀, ∃ U V, IsOpen U ∧ IsOpen V ∧ x₀ ∈ U ∧ (y : Y) ∈ V ∧
       ∀ x ∈ U ∩ s, ∀ z ∈ V ∩ Γ x, u x z < b := by
     intro y
-    have hyb : u x₀ y < b := (le_csSup hbdd₀ ⟨y, y.2, rfl⟩).trans_lt hb
+    have hyb : u x₀ y < b := (le_maxValue_of_mem (hcomp x₀ hx₀) hu₀ y.2).trans_lt hb
     exact nhds_prod_basis_of_continuousOn x₀ (y : Y) hx₀ y.2 hu (isOpen_Iio.mem_nhds hyb)
   choose U V hU hV hxU hyV hUV using hcover
   have hcov : Γ x₀ ⊆ ⋃ y : Γ x₀, V y := fun y hy => mem_iUnion.mpr ⟨⟨y, hy⟩, hyV ⟨y, hy⟩⟩
@@ -215,14 +237,14 @@ theorem continuousOn_maxValue
     (hne : ∀ x ∈ s, (Γ x).Nonempty) (hcomp : ∀ x ∈ s, IsCompact (Γ x))
     (hUHC : UpperHemicontinuousOn Γ s) (hLHC : LowerHemicontinuousOn Γ s)
     (hu : ContinuousOn (fun p : X × Y => u p.1 p.2) {p | p.1 ∈ s ∧ p.2 ∈ Γ p.1}) :
-    ContinuousOn (maxValue Γ u) s := by
-  intro x₀ hx₀
-  exact tendsto_order.mpr ⟨lowerSemicontinuousOn_maxValue hne hcomp hLHC hu x₀ hx₀,
-    upperSemicontinuousOn_maxValue hne hcomp hUHC hu x₀ hx₀⟩
+    ContinuousOn (maxValue Γ u) s :=
+  continuousOn_iff_lower_upperSemicontinuousOn.mpr
+    ⟨lowerSemicontinuousOn_maxValue hne hcomp hLHC hu,
+      upperSemicontinuousOn_maxValue hne hcomp hUHC hu⟩
 
 /-- **Berge's maximum theorem (correspondence upper hemicontinuity)** ([Berge1963], Chapter VI,
-Section 3): under the same hypotheses, the maximizer correspondence `argmaxSet Γ u` is upper
-hemicontinuous on `s`. -/
+Section 3; primary PDF unverified): under the same hypotheses, the maximizer correspondence
+`argmaxSet Γ u` is upper hemicontinuous on `s`. -/
 theorem upperHemicontinuousOn_argmaxSet
     (hne : ∀ x ∈ s, (Γ x).Nonempty) (hcomp : ∀ x ∈ s, IsCompact (Γ x))
     (hUHC : UpperHemicontinuousOn Γ s) (hLHC : LowerHemicontinuousOn Γ s)
@@ -234,17 +256,13 @@ theorem upperHemicontinuousOn_argmaxSet
   have hK_comp : IsCompact K := (hcomp x₀ hx₀).inter_right hO.isClosed_compl
   have hu₀ : ContinuousOn (u x₀) (Γ x₀) :=
     hu.comp (continuous_const.prodMk continuous_id).continuousOn fun _ hy => ⟨hx₀, hy⟩
+  have hsub_lt : ∀ y : K, u x₀ y < maxValue Γ u x₀ := fun y =>
+    lt_maxValue_of_notMem_argmaxSet (hcomp x₀ hx₀) hu₀ y.2.1 fun hyarg => y.2.2 (hsub hyarg)
   have hcover : ∀ y : K, ∃ U V, IsOpen U ∧ IsOpen V ∧ x₀ ∈ U ∧ (y : Y) ∈ V ∧
       ∀ x ∈ U ∩ s, ∀ z ∈ V ∩ Γ x, u x z < (u x₀ y + maxValue Γ u x₀) / 2 := by
     intro y
-    have hyΓ : (y : Y) ∈ Γ x₀ := y.2.1
-    have hynot : (y : Y) ∉ argmaxSet Γ u x₀ := fun hyarg => y.2.2 (hsub hyarg)
-    have hbdd₀ : BddAbove (u x₀ '' Γ x₀) := ((hcomp x₀ hx₀).image_of_continuousOn hu₀).bddAbove
-    have hle : u x₀ y ≤ maxValue Γ u x₀ := le_csSup hbdd₀ ⟨y, hyΓ, rfl⟩
-    have hne_val : u x₀ y ≠ maxValue Γ u x₀ := fun heq =>
-      hynot ((mem_argmaxSet_iff (hcomp x₀ hx₀) hu₀ hyΓ).mpr heq)
-    have hlt : u x₀ y < (u x₀ y + maxValue Γ u x₀) / 2 := by linarith [lt_of_le_of_ne hle hne_val]
-    exact nhds_prod_basis_of_continuousOn x₀ (y : Y) hx₀ hyΓ hu (isOpen_Iio.mem_nhds hlt)
+    have hlt : u x₀ y < (u x₀ y + maxValue Γ u x₀) / 2 := by linarith [hsub_lt y]
+    exact nhds_prod_basis_of_continuousOn x₀ (y : Y) hx₀ y.2.1 hu (isOpen_Iio.mem_nhds hlt)
   choose U V hU hV hxU hyV hUV using hcover
   have hcov : K ⊆ ⋃ y : K, V y := fun y hy => mem_iUnion.mpr ⟨⟨y, hy⟩, hyV ⟨y, hy⟩⟩
   obtain ⟨t, ht_cov⟩ := hK_comp.elim_finite_subcover V hV hcov
@@ -254,13 +272,8 @@ theorem upperHemicontinuousOn_argmaxSet
     have hm₀_lt : m₀ < maxValue Γ u x₀ := by
       rw [Finset.sup'_lt_iff]
       intro y _
-      have hyΓ : (y : Y) ∈ Γ x₀ := y.2.1
-      have hynot : (y : Y) ∉ argmaxSet Γ u x₀ := fun hyarg => y.2.2 (hsub hyarg)
-      have hbdd₀ : BddAbove (u x₀ '' Γ x₀) := ((hcomp x₀ hx₀).image_of_continuousOn hu₀).bddAbove
-      have hlt : u x₀ y < maxValue Γ u x₀ := lt_of_le_of_ne (le_csSup hbdd₀ ⟨y, hyΓ, rfl⟩)
-        fun heq => hynot ((mem_argmaxSet_iff (hcomp x₀ hx₀) hu₀ hyΓ).mpr heq)
       dsimp [m]
-      linarith
+      linarith [hsub_lt y]
     let U₁ : Set X := ⋂ y ∈ t, U y
     let W : Set Y := ⋃ y ∈ t, V y
     have hU₁_open : IsOpen U₁ := isOpen_biInter_finset fun y _ => hU y
@@ -317,5 +330,119 @@ theorem continuousOn_of_argmaxSet_singleton
   exact upperHemicontinuousOn_singleton_iff.mp huhc
 
 end Topological
+
+section ClosedGraph
+
+open Set Filter Topology
+
+/-- If `s` is closed, every value `F x` (`x ∈ s`) is closed, and `F` is upper hemicontinuous on
+`s` into a regular space `Y`, then the restricted graph `{(x, y) | x ∈ s ∧ y ∈ F x}` is closed. -/
+theorem isClosed_graph_of_upperHemicontinuousOn
+    {X Y : Type*} [TopologicalSpace X] [TopologicalSpace Y] [RegularSpace Y]
+    {s : Set X} {F : X → Set Y}
+    (hs : IsClosed s) (hF_closed : ∀ x ∈ s, IsClosed (F x))
+    (hF_uhc : UpperHemicontinuousOn F s) :
+    IsClosed {p : X × Y | p.1 ∈ s ∧ p.2 ∈ F p.1} := by
+  let G : Set (X × Y) := {p | p.1 ∈ s ∧ p.2 ∈ F p.1}
+  rw [isClosed_iff_clusterPt]
+  intro ⟨x₀, y₀⟩ hcl
+  let l : Filter G := Filter.comap Subtype.val (𝓝 (x₀, y₀))
+  have : l.NeBot := Filter.comap_neBot fun {U} hU => by
+    obtain ⟨p, hpU, hpG⟩ := clusterPt_principal_iff.mp hcl U hU
+    exact ⟨⟨p, hpG⟩, hpU⟩
+  have hx_lim : Tendsto (fun p : G => p.1.1) l (𝓝 x₀) :=
+    continuous_fst.continuousAt.tendsto.comp tendsto_comap
+  have hy_lim : Tendsto (fun p : G => p.1.2) l (𝓝 y₀) :=
+    continuous_snd.continuousAt.tendsto.comp tendsto_comap
+  have hx₀ : x₀ ∈ s := hs.mem_of_tendsto hx_lim (Eventually.of_forall fun p => p.2.1)
+  have hsub_lim : Tendsto (fun p : G => (⟨p.1.1, p.2.1⟩ : s)) l (𝓝 (⟨x₀, hx₀⟩ : s)) :=
+    tendsto_subtype_rng.mpr hx_lim
+  have huhc : UpperHemicontinuousAt (s.domRestrict F) ⟨x₀, hx₀⟩ :=
+    upperHemicontinuousOn_iff_restrict.mpr hF_uhc ⟨x₀, hx₀⟩
+  have hy₀ : y₀ ∈ F x₀ := huhc.mem_of_tendsto (hF_closed x₀ hx₀) hsub_lim
+    (Eventually.of_forall fun p : G => p.2.2).frequently hy_lim
+  exact ⟨hx₀, hy₀⟩
+
+/-- A correspondence with closed graph over `s` taking values in a sequentially compact set `K`
+is upper hemicontinuous on `s`. -/
+theorem upperHemicontinuousOn_of_isClosed_graph
+    {X Y : Type*} [TopologicalSpace X] [TopologicalSpace Y] [FirstCountableTopology X]
+    {s : Set X} {K : Set Y} {F : X → Set Y}
+    (hK : IsSeqCompact K) (hsub : ∀ x ∈ s, F x ⊆ K)
+    (hgraph : IsClosed {p : X × Y | p.1 ∈ s ∧ p.2 ∈ F p.1}) :
+    UpperHemicontinuousOn F s := by
+  rw [← upperHemicontinuousOn_iff_restrict]
+  intro ⟨x₀, hx₀⟩
+  refine UpperHemicontinuousAt.of_sequences (K := K) hK
+    (Eventually.of_forall fun x => hsub x.1 x.2) ?_
+  intro x hx y hy y₀ hy₀
+  have hlim_prod : Tendsto (fun n => ((x n : X), y n)) atTop (𝓝 (x₀, y₀)) :=
+    (continuousAt_subtype_val.tendsto.comp hx).prodMk_nhds hy₀
+  have hmem : ∀ n, ((x n : X), y n) ∈ {p : X × Y | p.1 ∈ s ∧ p.2 ∈ F p.1} :=
+    fun n => ⟨(x n).2, hy n⟩
+  exact (hgraph.mem_of_tendsto hlim_prod (Eventually.of_forall hmem)).2
+
+end ClosedGraph
+
+section Convex
+
+/-- If `Γ x` is convex and `u x` is quasiconcave on `Γ x`, then `argmaxSet Γ u x` is convex. -/
+theorem convex_argmaxSet {X Y : Type*} [AddCommMonoid Y] [Module ℝ Y]
+    {Γ : X → Set Y} {u : X → Y → ℝ} {x : X}
+    (hconv : Convex ℝ (Γ x)) (hqc : QuasiconcaveOn ℝ (Γ x) (u x)) :
+    Convex ℝ (argmaxSet Γ u x) := by
+  intro y₁ hy₁ y₂ hy₂ a b ha hb hab
+  refine ⟨hconv hy₁.1 hy₂.1 ha hb hab, fun z hz => ?_⟩
+  exact (hqc (u x z) ⟨hy₁.1, hy₁.2 z hz⟩ ⟨hy₂.1, hy₂.2 z hz⟩ ha hb hab).2
+
+/-- If `Γ x` is convex and `u x` is strictly quasiconcave on `Γ x`, then `argmaxSet Γ u x`
+contains at most one point. -/
+theorem subsingleton_argmaxSet_of_strictQuasiconcaveOn
+    {X Y : Type*} [AddCommMonoid Y] [Module ℝ Y]
+    {Γ : X → Set Y} {u : X → Y → ℝ} {x : X}
+    (hconv : Convex ℝ (Γ x))
+    (hsqc : ∀ ⦃y₁ y₂ : Y⦄, y₁ ∈ Γ x → y₂ ∈ Γ x → y₁ ≠ y₂ →
+      ∀ ⦃a b : ℝ⦄, 0 < a → 0 < b → a + b = 1 →
+        min (u x y₁) (u x y₂) < u x (a • y₁ + b • y₂)) :
+    (argmaxSet Γ u x).Subsingleton := by
+  intro y₁ hy₁ y₂ hy₂
+  by_contra hne
+  have hmid_mem : ((1 / 2 : ℝ) • y₁ + (1 / 2 : ℝ) • y₂) ∈ Γ x :=
+    hconv hy₁.1 hy₂.1 (by norm_num) (by norm_num) (by norm_num)
+  have hlt := hsqc hy₁.1 hy₂.1 hne (a := (1 / 2 : ℝ)) (b := (1 / 2 : ℝ))
+    (by norm_num) (by norm_num) (by norm_num)
+  have hle₁ : u x ((1 / 2 : ℝ) • y₁ + (1 / 2 : ℝ) • y₂) ≤ u x y₁ := hy₁.2 _ hmid_mem
+  have hle₂ : u x ((1 / 2 : ℝ) • y₁ + (1 / 2 : ℝ) • y₂) ≤ u x y₂ := hy₂.2 _ hmid_mem
+  linarith [lt_min (hlt.trans_le hle₁) (hlt.trans_le hle₂)]
+
+/-- Under Berge's hypotheses plus convex constraint sets and strict quasiconcavity of `u x` on
+`Γ x`, `argmaxSet Γ u` admits a continuous unique maximizer selection on `s`. -/
+theorem exists_unique_continuousOn_argmaxSet
+    {X Y : Type*} [TopologicalSpace X] [TopologicalSpace Y]
+    [AddCommMonoid Y] [Module ℝ Y]
+    {Γ : X → Set Y} {u : X → Y → ℝ} {s : Set X}
+    (hne : ∀ x ∈ s, (Γ x).Nonempty) (hcomp : ∀ x ∈ s, IsCompact (Γ x))
+    (hconv : ∀ x ∈ s, Convex ℝ (Γ x))
+    (hUHC : UpperHemicontinuousOn Γ s) (hLHC : LowerHemicontinuousOn Γ s)
+    (hu : ContinuousOn (fun p : X × Y => u p.1 p.2) {p | p.1 ∈ s ∧ p.2 ∈ Γ p.1})
+    (hsqc : ∀ x ∈ s, ∀ ⦃y₁ y₂ : Y⦄, y₁ ∈ Γ x → y₂ ∈ Γ x → y₁ ≠ y₂ →
+      ∀ ⦃a b : ℝ⦄, 0 < a → 0 < b → a + b = 1 →
+        min (u x y₁) (u x y₂) < u x (a • y₁ + b • y₂)) :
+    ∃ sel : X → Y, ContinuousOn sel s ∧ ∀ x ∈ s, argmaxSet Γ u x = {sel x} := by
+  classical
+  let harg_ne : ∀ x ∈ s, (argmaxSet Γ u x).Nonempty := fun x hx =>
+    argmaxSet_nonempty (hne x hx) (hcomp x hx)
+      (hu.comp (continuous_const.prodMk continuous_id).continuousOn fun _ hy => ⟨hx, hy⟩)
+  let sel : X → Y := fun x => if hx : x ∈ s then (harg_ne x hx).some else 0
+  have hsing : ∀ x ∈ s, argmaxSet Γ u x = {sel x} := by
+    intro x hx
+    have hmem : sel x ∈ argmaxSet Γ u x := by
+      simp only [sel, hx, ↓reduceDIte]
+      exact (harg_ne x hx).some_mem
+    exact (subsingleton_argmaxSet_of_strictQuasiconcaveOn (hconv x hx)
+      (hsqc x hx)).eq_singleton_of_mem hmem
+  exact ⟨sel, continuousOn_of_argmaxSet_singleton hne hcomp hUHC hLHC hu hsing, hsing⟩
+
+end Convex
 
 end Cslib.Berge
