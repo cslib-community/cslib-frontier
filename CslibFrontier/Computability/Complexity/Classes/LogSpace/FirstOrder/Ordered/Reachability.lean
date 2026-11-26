@@ -250,25 +250,18 @@ theorem exists_fullTupleInterpretation_Reach_of_encodedLanguage_mem_NL {L : Lang
   refine ⟨(Fintype.card (Register k) + 2) * K', hd, J.comp I, fun M => ?_⟩
   let a := encode v M
   have ha : v.WellFormed a := v.wellFormed_encode M (Equiv.refl M)
-  obtain ⟨hdec_all, -⟩ := hdec
-  obtain ⟨hspace, hacc⟩ := hdec_all a
+  obtain ⟨hspace, hacc⟩ := hdec.1 a
   obtain ⟨hn, hfit⟩ := hpow a ha M.size_ge_two hspace
-  change (encStructure a).length < M.size ^ K' at hn
-  change ∀ u, _ → Fits (M.size ^ K') _ at hfit
-  have hcomp := mem_Reach_comp (hcomp := (J.comp I).admissible_toDomainInterpretation hd)
-    (hJ := J.admissible_toDomainInterpretation hl) hK' hl I J M
-  let P : Structure v.powerLanguage :=
-    ⟨M.size ^ K', FullTupleInterpretation.two_le_pow (n := M.size) hK',
-      v.powerStructure a (M.size ^ K')⟩
-  rw [v.inputStructure_orderedPowerInterpretation K' har hK' M] at hcomp
   let _ : Fact (2 ≤ M.size ^ K') := ⟨FullTupleInterpretation.two_le_pow (n := M.size) hK'⟩
   let _ := v.powerStructure a (M.size ^ K')
-  have hJ_reach : J.toDomainInterpretation.map (J.admissible_toDomainInterpretation hl) P ∈ Reach ↔
-      ntm.Accepts (encStructure a) :=
-    mem_Reach_configurationGraphInterpretation P
-      (v.realize_inputSymbol ha hn) (v.realize_inputLength ha hn) hn ntm hfit
-  exact (mem_encodedLanguage_encode v K M).symm.trans
-    (hacc.trans (hJ_reach.symm.trans hcomp.symm))
+  rw [← mem_encodedLanguage_encode v K M, hacc,
+    mem_Reach_comp (hcomp := (J.comp I).admissible_toDomainInterpretation hd)
+      (hJ := J.admissible_toDomainInterpretation hl) hK' hl I J M,
+    v.inputStructure_orderedPowerInterpretation K' har hK' M]
+  exact (mem_Reach_configurationGraphInterpretation
+    ⟨M.size ^ K', FullTupleInterpretation.two_le_pow (n := M.size) hK',
+      v.powerStructure a (M.size ^ K')⟩
+    (v.realize_inputSymbol ha hn) (v.realize_inputLength ha hn) hn ntm hfit).symm
 
 /-- **Hardness of `Reach` for native `NL` under ordered first-order reductions**
 ([Immerman1999, Theorem 3.16]). -/
@@ -383,8 +376,7 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
         · rcases hedge with ⟨hu0, _⟩ | ⟨a, _, ha, _, _⟩ | ⟨ht, _⟩ <;> omega
     rcases hinv hpath with h0 | ⟨a, ha, -⟩ | ⟨_, hst⟩
     · omega
-    · have ha' : a.val + 1 = I.n + 1 := (congrArg Fin.val ha).symm.trans hval
-      omega
+    · exact absurd (congrArg Fin.val ha) (by dsimp [shift]; omega)
     · exact hst
   · intro hst
     have h2 : Relation.ReflTransGen (graphAdj I.toOrderedGraph) (shift I.s) (shift I.t) :=

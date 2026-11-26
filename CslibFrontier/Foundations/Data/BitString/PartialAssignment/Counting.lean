@@ -110,14 +110,11 @@ theorem card_filter_extensions_free_eq (ρ₀ : PartialAssignment ι) (ℓ : ℕ
       have hi₀ : i ∉ ρ₀.free := by simp only [mem_free, hb, reduceCtorEq, not_false_eq_true]
       have hi : i ∉ S := fun hi => hi₀ (hSsub hi)
       simpa only [hi, ↓reduceIte, hi₀, mem_singleton, hb] using h i
-  have hsdiff : ({a | a ∉ S ∧ a ∈ ρ₀.free} : Finset ι) = ρ₀.free \ S := by
-    ext a
-    simp only [mem_filter, mem_univ, true_and, mem_sdiff, and_comm]
   rw [this, Fintype.card_piFinset]
   simp only [apply_ite card, card_singleton,
     card_pair (Bool.false_ne_true ∘ Option.some.inj)]
-  rw [prod_ite, prod_const_one, one_mul, prod_ite, prod_const,
-    prod_const_one, mul_one, filter_filter, hsdiff, card_sdiff_of_subset hSsub, hScard]
+  rw [prod_ite, prod_const_one, one_mul, prod_ite, prod_const, prod_const_one, mul_one,
+    filter_comm, filter_univ_mem, ← sdiff_eq_filter, card_sdiff_of_subset hSsub, hScard]
 
 /-- There are `(m choose ℓ) 2 ^ (m - ℓ)` extensions of `ρ₀` leaving `ℓ` of the `m` free
 coordinates of `ρ₀` free. -/
@@ -148,13 +145,11 @@ theorem card_filter_extensions_not_nonempty_inter (ρ₀ : PartialAssignment ι)
     {B : Finset ι} (hB : B ⊆ ρ₀.free) :
     #{ρ ∈ ρ₀.extensions ℓ | ¬(ρ.free ∩ B).Nonempty} =
       (#ρ₀.free - #B).choose ℓ * 2 ^ (#ρ₀.free - ℓ) := by
-  have heq :
-      {ρ ∈ ρ₀.extensions ℓ | ¬(ρ.free ∩ B).Nonempty} =
-        {ρ ∈ ρ₀.extensions ℓ | ρ.free ⊆ ρ₀.free \ B} := by
-    ext ρ
-    simp only [mem_filter, not_nonempty_iff_eq_empty, ← disjoint_iff_inter_eq_empty,
-      subset_sdiff]
-    exact and_congr_right fun hρ => (and_iff_right (mem_extensions.1 hρ).1.free_subset).symm
+  have heq : {ρ ∈ ρ₀.extensions ℓ | ¬(ρ.free ∩ B).Nonempty} =
+      {ρ ∈ ρ₀.extensions ℓ | ρ.free ⊆ ρ₀.free \ B} :=
+    filter_congr fun ρ hρ => by
+      simp [not_nonempty_iff_eq_empty, ← disjoint_iff_inter_eq_empty, subset_sdiff,
+        (mem_extensions.1 hρ).1.free_subset]
   rw [heq, card_filter_extensions_free_subset ρ₀ ℓ sdiff_subset, card_sdiff_of_subset hB]
 
 variable (ι) in
