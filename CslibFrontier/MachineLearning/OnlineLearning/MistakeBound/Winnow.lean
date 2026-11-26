@@ -243,15 +243,11 @@ theorem sum_winnowEliminate (w : Fin n → ℝ) (x : Fin n → Bool) :
 
 theorem winnowPromote_nonneg {α : ℝ} (hα : 0 ≤ α) {w : Fin n → ℝ} (hw : ∀ i, 0 ≤ w i)
     (x : Fin n → Bool) (i : Fin n) : 0 ≤ winnowPromote α w x i := by
-  unfold winnowPromote
-  split_ifs
-  exacts [mul_nonneg hα (hw i), hw i]
+  by_cases hx : x i <;> simp [winnowPromote, hx, mul_nonneg hα (hw i), hw i]
 
 theorem winnowEliminate_nonneg {w : Fin n → ℝ} (hw : ∀ i, 0 ≤ w i) (x : Fin n → Bool)
     (i : Fin n) : 0 ≤ winnowEliminate w x i := by
-  unfold winnowEliminate
-  split_ifs
-  exacts [le_rfl, hw i]
+  by_cases hx : x i <;> simp [winnowEliminate, hx, hw i]
 
 @[simp] theorem winnowWeight_nil (α θ : ℝ) (tie : Bool) :
     winnowWeight α θ tie ([] : List ((Fin n → Bool) × Bool)) = fun _ => 1 := by
@@ -291,17 +287,12 @@ theorem winnowWeight_le {α θ : ℝ} (hα : 1 ≤ α) (hθ : 1 ≤ α * θ) (ti
       ⟨-, hs⟩ | ⟨-, hpred, hs⟩ | ⟨-, -, hs⟩ <;> rw [hs]
     · exact ih
     · -- a promoted weight is active, so it is at most the score, which is at most `θ`
-      unfold winnowPromote
-      split
-      · rename_i hx
-        exact mul_le_mul_of_nonneg_left
+      by_cases hx : x i
+      · simpa [winnowPromote, hx] using mul_le_mul_of_nonneg_left
           ((le_winnowScore hw hx).trans (winnowScore_le_of_winnowPredict_eq_false hpred))
           (zero_le_one.trans hα)
-      · exact ih
-    · unfold winnowEliminate
-      split
-      · exact zero_le_one.trans hθ
-      · exact ih
+      · simp [winnowPromote, hx, ih]
+    · by_cases hx : x i <;> simp [winnowEliminate, hx, zero_le_one.trans hθ, ih]
 
 /-! ### The mistake bound -/
 

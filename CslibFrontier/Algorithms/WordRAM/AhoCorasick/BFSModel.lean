@@ -66,8 +66,7 @@ theorem followOut_zero_right (depth outNext : ℕ → ℕ) :
 
 theorem followOut_pos (depth outNext : ℕ → ℕ) {k q : ℕ} (hq : 0 < q) :
     followOut depth outNext (k + 1) q = depth q :: followOut depth outNext k (outNext q) := by
-  have hne : q ≠ 0 := by omega
-  simp only [followOut, hne, ↓reduceIte]
+  simp only [followOut, hq.ne', ↓reduceIte]
 
 theorem followOut_congr_on {depth outNext outNext' : ℕ → ℕ} {D : Finset ℕ}
     (hclosed : ∀ x ∈ D, 0 < x → outNext x ∈ D)
@@ -266,40 +265,34 @@ theorem tablesInv_push {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
   obtain ⟨hoh_disc, hoh_depth⟩ := htab.outHead_spec df hdf_disc
   have hoh_lt : B.outHead df < T.numStates := mem_disc_lt hT.one_le hq_pos hoh_disc
   have hcongr : ∀ k, ∀ q ∈ B.disc,
-      followOut T.depth B'.outNext k q = followOut T.depth B.outNext k q := by
-    refine followOut_congr_on (fun x hx hxp => (htab.outNext_spec x hx hxp).1) ?_
-    intro x hx
-    rw [houtNext', Function.update_of_ne (by rintro rfl; exact hs_not hx)]
+      followOut T.depth B'.outNext k q = followOut T.depth B.outNext k q :=
+    followOut_congr_on (fun x hx hxp => (htab.outNext_spec x hx hxp).1) fun x hx => by
+      rw [houtNext', Function.update_of_ne (ne_of_mem_of_not_mem hx hs_not)]
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · rw [hfail', houtHead', houtNext', Function.update_of_ne hs_ne0.symm,
       Function.update_of_ne hs_ne0.symm, Function.update_of_ne hs_ne0.symm]
     exact htab.zero_vals
   · intro x hx hxp
     rw [hdisc'] at hx ⊢
-    rw [hfail']
     rcases Finset.mem_insert.mp hx with rfl | hx_old
-    · rw [Function.update_self]
-      exact ⟨Finset.mem_insert_of_mem hdf_disc, hdf_str⟩
-    · rw [Function.update_of_ne (by rintro rfl; exact hs_not hx_old)]
-      exact (htab.fail_spec x hx_old hxp).imp_left Finset.mem_insert_of_mem
+    · simpa only [hfail', Function.update_self] using ⟨Finset.mem_insert_of_mem hdf_disc, hdf_str⟩
+    · simpa only [hfail', Function.update_of_ne (ne_of_mem_of_not_mem hx_old hs_not)] using
+        (htab.fail_spec x hx_old hxp).imp_left Finset.mem_insert_of_mem
   · intro x hx
     rw [hdisc'] at hx ⊢
-    rw [houtHead']
     rcases Finset.mem_insert.mp hx with rfl | hx_old
-    · rw [Function.update_self]
+    · rw [houtHead', Function.update_self]
       split_ifs
-      exacts [⟨Finset.mem_insert_self _ _, Nat.le_refl _⟩,
-        ⟨Finset.mem_insert_of_mem hoh_disc, by omega⟩]
-    · rw [Function.update_of_ne (ne_of_mem_of_not_mem hx_old hs_not)]
-      exact (htab.outHead_spec x hx_old).imp_left Finset.mem_insert_of_mem
+      exacts [⟨Finset.mem_insert_self _ _, le_rfl⟩, ⟨Finset.mem_insert_of_mem hoh_disc, by omega⟩]
+    · simpa only [houtHead', Function.update_of_ne (ne_of_mem_of_not_mem hx_old hs_not)] using
+        (htab.outHead_spec x hx_old).imp_left Finset.mem_insert_of_mem
   · intro x hx hxp
     rw [hdisc'] at hx ⊢
-    rw [houtNext']
     rcases Finset.mem_insert.mp hx with rfl | hx_old
-    · rw [Function.update_self]
-      refine ⟨Finset.mem_insert_of_mem hoh_disc, Or.inr (by omega)⟩
-    · rw [Function.update_of_ne (by rintro rfl; exact hs_not hx_old)]
-      exact (htab.outNext_spec x hx_old hxp).imp_left Finset.mem_insert_of_mem
+    · simpa only [houtNext', Function.update_self] using
+        ⟨Finset.mem_insert_of_mem hoh_disc, Or.inr (hoh_depth.trans_lt hdf_depth_lt)⟩
+    · simpa only [houtNext', Function.update_of_ne (ne_of_mem_of_not_mem hx_old hs_not)] using
+        (htab.outNext_spec x hx_old hxp).imp_left Finset.mem_insert_of_mem
   · intro x hx
     rw [hdisc'] at hx
     rcases Finset.mem_insert.mp hx with hxs | hx_old
@@ -363,15 +356,12 @@ theorem rootStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     rcases hT.trie_spec 0 hT.one_le a ha with h0 | ⟨_, hs_str⟩
     · omega
     · rw [hT.str_zero, List.nil_append] at hs_str
-      have hs_depth : T.depth s = 1 := by
-        rw [hT.depth_eq s hs_lt, hs_str, List.length_singleton]
-      have hs_not : s ∉ B.disc := by
-        intro hmem
+      have hs_depth : T.depth s = 1 := by simp [hT.depth_eq s hs_lt, s, hs_str]
+      have hs_not : s ∉ B.disc := fun hmem => by
         rcases (hinv.disc_iff s hs_lt).mp hmem with hs0 | ⟨c, hca, htc⟩
-        · omega
-        · have ⟨_, hceq⟩ :=
-            parent_unique hT hT.one_le ha hT.one_le (lt_trans hca ha) hs_pos htc.symm
-          omega
+        · exact hs_pos.ne' hs0
+        · exact hca.ne
+            (parent_unique hT hT.one_le ha hT.one_le (hca.trans ha) hs_pos htc.symm).2.symm
       set B' : PBFS :=
         { delta := fun u c => if u = 0 ∧ c = a then s else B.delta u c
           fail := Function.update B.fail s 0
@@ -414,8 +404,7 @@ theorem rootStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
             rw [hdisc']
             dsimp only [B']
             rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hc) with hlt | rfl
-            · have hne : c ≠ a := by omega
-              simp only [true_and, hne, ↓reduceIte]
+            · simp only [true_and, hlt.ne, ↓reduceIte]
               exact (hinv.delta_zero c hlt).imp_left Finset.mem_insert_of_mem
             · simp only [and_self, ↓reduceIte]
               refine ⟨Finset.mem_insert_self s _, ?_⟩
@@ -440,14 +429,12 @@ theorem rootStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
         delta_zero := fun c hc => by
           change (if 0 = 0 ∧ c = a then 0 else B.delta 0 c) ∈ B.disc ∧ _
           rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hc) with hlt | rfl
-          · have hne : c ≠ a := by omega
-            simp only [true_and, hne, ↓reduceIte]
+          · simp only [true_and, hlt.ne, ↓reduceIte]
             exact hinv.delta_zero c hlt
           · simp only [and_self, ↓reduceIte]
             refine ⟨Finset.mem_insert_self 0 _, ?_⟩
             rw [hT.str_zero, nextMove_of_not_isNode_of_eq_nil hnot_node rfl]
-        tables := ⟨hinv.tables.zero_vals, hinv.tables.fail_spec, hinv.tables.outHead_spec,
-          hinv.tables.outNext_spec, hinv.tables.follow_spec⟩ }
+        tables := ⟨hinv.tables.1, hinv.tables.2, hinv.tables.3, hinv.tables.4, hinv.tables.5⟩ }
 
 theorem rootLoop_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     (hT : TreeInv σ T)
