@@ -465,11 +465,10 @@ theorem code_replicate {σ : Signature.{v}} {n m : ℕ} (c : Circuit σ n m) (k 
         compCodeWire (Op := σ.Op) (k * n + n) ([], (List.range (k * n)).map _root_.id) ∘
           replicateWire n c.code.1.length k t = replicateWire n c.code.1.length (k + 1) t := by
       intro t ht
-      have ht := List.mem_range.1 ht
       funext i
       simp only [Function.comp_apply, compCodeWire_range_map, replicateWire, Nat.succ_mul, id_eq]
-      have : t * n + n ≤ k * n := by
-        rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right n ht
+      have : t * n + n ≤ k * n :=
+        Nat.succ_mul t n ▸ Nat.mul_le_mul_right n (List.mem_range.1 ht)
       split_ifs <;> omega
     have hB : shiftCodeWire (k * n + n) (k * c.code.1.length) ∘
         compCodeWire (Op := σ.Op) (k * n + n) ([], (List.range n).map (k * n + ·)) =
@@ -881,10 +880,10 @@ private theorem referenceCode_bounds {Op : Type} {encOp : Op ↪ List Bool}
   · intro left right c d hleft hright ihleft ihright hlength hc _
     have hlpos := List.length_pos_iff.mpr hleft
     have hrpos := List.length_pos_iff.mpr hright
-    have hll : left.length ≤ k := by simp only [List.length_append] at hlength; omega
-    have hrl : right.length ≤ k := by simp only [List.length_append] at hlength; omega
-    obtain ⟨htl, hml, hwl⟩ := ihleft hll (fun a ha => hc a (List.mem_append_left _ ha)) hleft
-    obtain ⟨htr, hmr, hwr⟩ := ihright hrl (fun a ha => hc a (List.mem_append_right _ ha)) hright
+    simp only [List.length_append] at hlength
+    obtain ⟨htl, hml, hwl⟩ := ihleft (by omega) (fun a ha => hc a (List.mem_append_left _ ha)) hleft
+    obtain ⟨htr, hmr, hwr⟩ :=
+      ihright (by omega) (fun a ha => hc a (List.mem_append_right _ ha)) hright
     have hcm : codeMass c ≤ M := hml.trans (Nat.mul_le_mul_right B (by omega))
     have hdm : codeMass d ≤ M := hmr.trans (Nat.mul_le_mul_right B (by omega))
     have hcoeff : 2 * (left ++ right).length - 1 =
@@ -1009,10 +1008,7 @@ private theorem intervalTables_getD {Op : Type*} (n : ℕ)
     obtain rfl : len = 0 := by omega
     simp [intervalTables, referenceCode]
   | succ count ih =>
-    rw [intervalTables, Function.iterate_succ_apply']
-    change (((intervalTables n op unit leaves count) ++
-      [intervalRow n op unit leaves (intervalTables n op unit leaves count)]).getD len []).getD
-        start unit = _
+    rw [intervalTables, Function.iterate_succ_apply', ← intervalTables]
     by_cases hlt : len ≤ count
     · rw [List.getD_append _ _ _ _ (by rw [length_intervalTables]; omega)]
       exact ih _ _ hlt hs
@@ -1021,8 +1017,8 @@ private theorem intervalTables_getD {Op : Type*} (n : ℕ)
         intervalRow_getD n op unit leaves _ start (by omega), length_intervalTables]
       by_cases hc : count = 0
       · subst count
-        rw [ite_eq_left rfl, List.take_one_drop_eq_of_lt_length (by omega)]
-        rw [List.getD_eq_getElem _ _ (by omega : start < leaves.length)]
+        rw [ite_eq_left rfl, List.take_one_drop_eq_of_lt_length (by omega),
+          List.getD_eq_getElem _ _ (by omega)]
         simp [referenceCode]
       · rw [ite_eq_right (by omega), ite_eq_left hs]
         have hh : (count + 1) / 2 ≤ count := by omega
@@ -1046,10 +1042,7 @@ private theorem intervalTables_getD_invalid {Op : Type*} (n : ℕ)
   induction count generalizing len start with
   | zero => omega
   | succ count ih =>
-    rw [intervalTables, Function.iterate_succ_apply']
-    change (((intervalTables n op unit leaves count) ++
-      [intervalRow n op unit leaves (intervalTables n op unit leaves count)]).getD len []).getD
-        start unit = _
+    rw [intervalTables, Function.iterate_succ_apply', ← intervalTables]
     by_cases hlt : len ≤ count
     · rw [List.getD_append _ _ _ _ (by rw [length_intervalTables]; omega)]
       exact ih _ _ hlt hs hinvalid

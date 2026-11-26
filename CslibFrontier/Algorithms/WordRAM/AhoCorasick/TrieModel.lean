@@ -277,14 +277,12 @@ theorem insertChars_spec {σ : ℕ} :
         refine ⟨ht_0, a :: q', List.cons_ne_nil a q',
           List.cons_prefix_cons.mpr ⟨rfl, hq'_pref⟩, ?_⟩
         rw [hq'_str, hs_str, List.append_assoc, List.singleton_append]
-    · intro q hq
-      rcases q with _ | ⟨b, q'⟩
-      · refine ⟨u, lt_of_lt_of_le hu (le_trans hle₁ hle₂), ?_⟩
-        rw [List.append_nil, (hpres₂ u (lt_of_lt_of_le hu hle₁)).1, (hpres₁ u hu).1]
+    · rintro (_ | ⟨b, q'⟩) hq
+      · exact ⟨u, lt_of_lt_of_le hu (le_trans hle₁ hle₂), by
+          rw [List.append_nil, (hpres₂ u (lt_of_lt_of_le hu hle₁)).1, (hpres₁ u hu).1]⟩
       · obtain ⟨rfl, hq'⟩ := List.cons_prefix_cons.mp hq
         obtain ⟨v, hv, hv_str⟩ := hpref₂ q' hq'
-        refine ⟨v, hv, ?_⟩
-        rw [hv_str, hs_str, List.append_assoc, List.singleton_append]
+        exact ⟨v, hv, by rw [hv_str, hs_str, List.append_assoc, List.singleton_append]⟩
 
 theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
     (hvalid : ∀ p ∈ P, ∀ a ∈ p, a < σ) :
@@ -318,13 +316,11 @@ theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
         (fun w hw => hw.elim (fun h => ⟨0, Nat.zero_lt_one, h.symm⟩)
           fun ⟨_, hp, _⟩ => (List.not_mem_nil hp).elim)
         (fun u hu => by simp [PTrie.init, Nat.lt_one_iff.mp hu])
-  intro ps
-  induction ps with
+  intro ps Q T hps hT hnum hnode hcomp hterm
+  induction ps generalizing Q T with
   | nil =>
-    intro Q T _ hT hnum hnode hcomp hterm
     simpa only [List.foldl_nil, List.append_nil] using ⟨hT, hnum, hnode, hcomp, hterm⟩
   | cons p ps ih =>
-    intro Q T hps hT hnum hnode hcomp hterm
     have hp_val : ∀ a ∈ p, a < σ := hps p List.mem_cons_self
     have hps_val : ∀ q ∈ ps, ∀ a ∈ q, a < σ := fun q hq => hps q (List.mem_cons_of_mem p hq)
     obtain ⟨hT₁, hle₁, hub₁, hu_lt, hu_str, hu_pos, hpres₁, hnew₁, hpref₁⟩ :=
@@ -348,8 +344,7 @@ theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
             rw [Function.update_of_ne (by omega)]; exact hT₁.term_oob x hx }
       · exact hT₁
     have hnum₂ : T₂.numStates ≤ totalPatternLen (Q ++ [p]) + 1 := by
-      rw [hT₂_num]
-      have htot : totalPatternLen (Q ++ [p]) = totalPatternLen Q + p.length := by
+      have : totalPatternLen (Q ++ [p]) = totalPatternLen Q + p.length := by
         simp [totalPatternLen, List.map_append, List.sum_append]
       omega
     have hnode₂ : ∀ v < T₂.numStates, IsNode (Q ++ [p]) (T₂.strOf v) := by

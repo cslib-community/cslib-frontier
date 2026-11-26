@@ -380,13 +380,12 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
         hrun.2.2⟩
     rw [indepBagProg, StateTransitionSpec.clientResult_bind]
     exact hrun.2.1.trans (by cases indepInst adj xs args.mask <;> rfl)
-  intro ys
-  induction ys with
+  intro ys cur curM ok hcur hus hok
+  induction ys generalizing cur curM ok with
   | nil =>
-    rintro cur curM _ _ _ (rfl | rfl) <;>
+    rcases hok with rfl | rfl <;>
       exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
   | cons u rest ih =>
-    intro cur curM ok hcur hus hok
     obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     have hu_lt : u < m := hus u List.mem_cons_self
     have hrest_lt : ∀ v ∈ rest, v < m := fun v hv => hus v (List.mem_cons_of_mem u hv)
@@ -399,8 +398,6 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       dsimp only [ok', naPure]
       split_ifs <;> simp
     obtain ⟨hv_rest, hr_rest, hc_rest⟩ := ih (cur + 1) (curM / 2) ok' hrest hrest_lt hok'
-    have hr_st (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
-    have hr_res (a : ℕ) : (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
     obtain ⟨hv_na, hst_na, hr_na, hc_na⟩ :=
       noAdjScanProg_spec (w := w)
         ⟨args.numVerts, args.adjPtr, u, cur + 1, rest.length, curM / 2⟩
@@ -425,7 +422,7 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
     have hc_step : memoryCost (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) s ≤
         2 * rest.length + 1 := by
       unfold indepBagStep
-      rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hmem_u]
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u]
       simp only [env, List.length_cons, Nat.add_sub_cancel]
       split
       · rw [memoryCost_bind', hst_na, memoryCost_pure, Nat.add_zero]; omega
@@ -490,13 +487,12 @@ theorem indepBagProg_realizes :
       ⟨d.numVerts, d.adjPtr, t.mem st.cur, st.cur + 1, st.remLen - 1, st.curM / 2⟩
       hadj_t hadjL_len hnv hu_lt hrem_next htail_len htail_lt).2.2.1
     dsimp only at hr_na
-    refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, Nat.le_of_succ_le hj_le,
+      (congrArg IndepBagState.remLen hres_ev).trans (by rw [hrem_eq, Nat.add_sub_cancel]),
+      by simp only [hres_ev]; omega, ?_, hst_ev.symm ▸ hadj_t,
+      hst_ev.symm ▸ (congrArg IndepBagState.cur hres_ev).symm ▸ hrem_next⟩
     · repeat (first | split | exact hnoAdj_safe | assumption | refine And.intro ?_ ?_)
-    · simp only [hres_ev, hrem_eq, Nat.add_sub_cancel]
-    · simp only [hres_ev]; omega
     · simp only [hres_ev, hr_na]
       split_ifs <;> omega
-    · rwa [hst_ev]
-    · rwa [hst_ev, hres_ev]
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

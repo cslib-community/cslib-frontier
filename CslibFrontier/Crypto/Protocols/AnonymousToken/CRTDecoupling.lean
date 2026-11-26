@@ -600,10 +600,9 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
           (fun _ => ()) hg8_ans
           (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩)
           false)
-        have hid : (Prod.fst ∘ fun x : Bool => (x, ())) = id := rfl
         simp only [PMF.map_comp, Function.comp_def] at hunit
-        rw [hunit, ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => PMF.pure (ans q)),
-          PMF.map_comp, hid, PMF.map_id, OracleComp.evalWith_eq_interpret, ProbOracleComp.eval_run]
+        erw [hunit, ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => PMF.pure (ans q)),
+          PMF.map_comp, PMF.map_id, OracleComp.evalWith_eq_interpret, ProbOracleComp.eval_run]
         dsimp only [ans]
         exact congrArg (fun c => OracleComp.interpret (m := PMF) _ (setup.adv ck fun j =>
           ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, c j⟩)) (hcm cmult h5)
@@ -678,9 +677,7 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
               (badRun ck h5 r d iv cmult).map Prod.snd) true +
             (PMF.pure (decide (¬ Function.Injective iv))) true := by
       intro ck r d iv
-      by_cases hInj : Function.Injective iv
-      · simp [hInj]
-      · simp [hInj, self_le_add_left]
+      by_cases hInj : Function.Injective iv <;> simp [hInj, self_le_add_left]
     have hg85_fst :
         g85Game setup true =
           (fullSetup fun ck r d iv h5 cmult => (badRun ck h5 r d iv cmult).map Prod.fst) true := by
@@ -717,8 +714,7 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
       badFullProb ≤ (qTok : ℝ≥0∞) *
         (ProbComp.eval
           (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false) true) := by
-    have hq_pos : (qTok : ℝ≥0∞) ≠ 0 := by
-      exact_mod_cast NeZero.ne qTok
+    have hq_pos : (qTok : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr (NeZero.ne qTok)
     have hq_ne_top : (qTok : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top qTok
     let hitAt (ck : CommitKey) (r d : Fin qTok → Fin lam → ZMod 2) (iv : Fin qTok → IV)
         (qs : List (H5Query IV nMult lam)) (jStar : Fin qTok) : Bool :=
@@ -784,8 +780,7 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
                   CRTProofToken C IV nMult lam nMask)) =
               (fun j : Fin qTok =>
                 ⟨setup.Com.eval ck (setup.msgs ck j) (Function.update rOthers jStar rStar j),
-                  iv j, d j, cmult j⟩) := by
-          funext j
+                  iv j, d j, cmult j⟩) := funext fun j => by
           by_cases hj : j = jStar <;> simp [hj, Function.update]
         unfold h5LogHandler
         simp only [hitAt, heq_tok, Function.update_self, ProbOracleComp.eval_runState,
@@ -834,12 +829,9 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
         have hle1 : (qTok : ℝ≥0∞)⁻¹ ≤
             ((uniformOfFintype (Fin qTok)).map (hitAt ck r d iv qs)) true := by
           rw [PMF.map_apply]
-          have hj0 : (qTok : ℝ≥0∞)⁻¹ =
-              if true = hitAt ck r d iv qs j₀ then (uniformOfFintype (Fin qTok)) j₀ else 0 := by
-            simp [uniformOfFintype_apply, hpred0]
-          simpa using hj0.trans_le (le_tsum (fun jStar =>
+          simpa [uniformOfFintype_apply, hpred0] using le_tsum (fun jStar =>
             if true = hitAt ck r d iv qs jStar then (uniformOfFintype (Fin qTok)) jStar
-            else 0) j₀)
+            else 0) j₀
         calc (1 : ℝ≥0∞) = (qTok : ℝ≥0∞) * (qTok : ℝ≥0∞)⁻¹ :=
               (ENNReal.mul_inv_cancel hq_pos hq_ne_top).symm
           _ ≤ _ := mul_le_mul_of_nonneg_left hle1 zero_le

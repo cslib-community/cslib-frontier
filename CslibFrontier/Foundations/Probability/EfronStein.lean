@@ -196,19 +196,14 @@ theorem expect_sub_expect_sq_le {κ : Type*} [Fintype κ] [DecidableEq κ]
       (fun v => (g u - g v) ^ 2) (fun y => (f (fun i => u (e i)) - f y) ^ 2) fun _ => rfl
   have hstep := expect_expect_sq_sub_le_sum_expect_expect_sq_sub_update g
   have hcoord (j : Fin (Fintype.card κ)) :
-      (𝔼 u, 𝔼 a, (g u - g (update u j a)) ^ 2) ≤ c (e.symm j) ^ 2 := by
-    refine expect_le univ_nonempty fun u _ => expect_le univ_nonempty fun a _ => ?_
-    have hu : (fun i => u (e i)) = update (fun i => u (e i)) (e.symm j) (u j) :=
-      (update_eq_self_iff.2 (by simp)).symm
-    have hupd : (fun i => update u j a (e i)) = update (fun i => u (e i)) (e.symm j) a :=
-      update_comp_equiv u e j a
-    have hdiff : g u - g (update u j a) =
-        f (update (fun i => u (e i)) (e.symm j) (u j)) -
-          f (update (fun i => u (e i)) (e.symm j) a) := by
-      dsimp only [g]
-      rw [← hu, hupd]
-    have habs : |g u - g (update u j a)| ≤ c (e.symm j) := hdiff ▸ hf _ _ _ _
-    exact sq_le_sq.mpr (by rwa [abs_of_nonneg (hc (e.symm j))])
+      (𝔼 u, 𝔼 a, (g u - g (update u j a)) ^ 2) ≤ c (e.symm j) ^ 2 :=
+    expect_le univ_nonempty fun u _ => expect_le univ_nonempty fun a _ => sq_le_sq.mpr <| by
+      have hu : update (fun i => u (e i)) (e.symm j) (u j) = fun i => u (e i) :=
+        update_eq_self_iff.2 (by simp)
+      have hupd : (fun i => update u j a (e i)) = update (fun i => u (e i)) (e.symm j) a :=
+        update_comp_equiv u e j a
+      rw [abs_of_nonneg (hc _)]
+      simpa only [g, hu, hupd] using hf (fun i => u (e i)) (e.symm j) (u j) a
   have hsum : (∑ j, 𝔼 u, 𝔼 a, (g u - g (update u j a)) ^ 2) ≤ ∑ i, c i ^ 2 :=
     (sum_le_sum fun j _ => hcoord j).trans_eq (e.symm.sum_comp fun i => c i ^ 2)
   have hvar_nn : 0 ≤ 𝔼 ω, (f ω - 𝔼 ω', f ω') ^ 2 := expect_nonneg fun _ _ => sq_nonneg _
@@ -227,9 +222,8 @@ theorem exists_forall_abs_sub_expect_le {ι κ : Type*} [Fintype ι] [Fintype κ
   have hexp_sum : (𝔼 ω : κ → A, Φ ω) = ∑ r : ι, 𝔼 ω : κ → A, (f r ω - 𝔼 ω', f r ω') ^ 2 := by
     simp only [Φ, Fintype.expect_eq_sum_div_card]
     rw [Finset.sum_comm, Finset.sum_div]
-  have hexp_le : (𝔼 ω : κ → A, Φ ω) ≤ B := by
-    rw [hexp_sum]
-    exact sum_le_sum fun r _ => expect_sub_expect_sq_le (f r) (c r) (hc r) (hf r)
+  have hexp_le : (𝔼 ω : κ → A, Φ ω) ≤ B :=
+    hexp_sum ▸ sum_le_sum fun r _ => expect_sub_expect_sq_le (f r) (c r) (hc r) (hf r)
   have hex : ∃ ω : κ → A, Φ ω ≤ B := by
     by_contra! hgt
     have hlt : B < 𝔼 ω : κ → A, Φ ω := by

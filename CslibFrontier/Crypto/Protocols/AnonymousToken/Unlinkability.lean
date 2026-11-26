@@ -953,18 +953,16 @@ private lemma eval_refund_preLoopOracle
   rw [bind_realProofOracle_valid Com tag S bound sys ck
     (spendValid_mkSig_note2 Com tag S bound hbound ck pk ctx mkSig hmksig nf0 r0 nf0' r0')]
   refine pmfBind_congr _ fun pi0' => ?_
+  have h2lt : 2 < bound := by omega
   simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, hmksig, Bool.and_true, show (2 : ℕ) < bound by omega,
-    decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-  have h1ne0 : ¬((2 - (0 + 1) : ℕ) = 0) := by omega
-  simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, h1ne0, ↓reduceIte, hadm0, Bool.not_true, Bool.false_eq_true,
+    ProbComp.eval_pure, PMF.pure_bind, hmksig, Bool.and_true, h2lt, decide_true, Bool.not_true,
+    Bool.false_eq_true, ↓reduceIte, Nat.reduceAdd, Nat.reduceSub, Nat.one_ne_zero, hadm0,
     ProbOracleComp.run_query]
   refine pmfBind_congr _ fun nf1' => pmfBind_congr _ fun r1' => ?_
   rw [bind_realProofOracle_valid Com tag S bound sys ck
     (spendValid_mkSig_note2 Com tag S bound hbound ck pk ctx mkSig hmksig nf1 r1 nf1' r1')]
   refine pmfBind_congr _ fun pi1' => ?_
-  simp [hmksig, show bound ≠ 0 by omega]
+  simp [hmksig, (Nat.zero_lt_of_lt h2lt).ne']
 
 private lemma eval_balancePartitionRefund_eq
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
@@ -1208,22 +1206,18 @@ theorem zkDistinguisher_isQueryBounded
       preRounds challengeSpends) (ck : CommitKey) :
     ProbOracleComp.IsQueryBounded (zkDistinguisher Com nfGen tag S bound adv ck)
       (2 + preRounds + challengeSpends) := by
-  simp only [zkDistinguisher]
-  conv_rhs => rw [← Nat.zero_add (2 + preRounds + challengeSpends)]
-  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-  refine (?_ : ProbOracleComp.IsQueryBounded _ (2 + preRounds + challengeSpends)).bind
-    (fun _ => OracleComp.IsCostBounded.pure _ 0)
-  simp only [unlinkOracleProgram]
-  conv_rhs => rw [← Nat.zero_add (2 + preRounds + challengeSpends)]
-  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun initOut => ?_
+  simp only [zkDistinguisher, unlinkOracleProgram]
+  refine (?_ : ProbOracleComp.IsQueryBounded _
+    (0 + ((0 + (1 + (1 + (0 + (preRounds + challengeSpends))))) + 0))).mono (by omega)
+  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+    ((ProbOracleComp.IsQueryBounded.sample _).bind fun initOut => ?_).bind
+      fun _ => OracleComp.IsCostBounded.pure _ 0
   split_ifs
   · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-  · rw [show 2 + preRounds + challengeSpends = 1 + (1 + (preRounds + challengeSpends)) by omega]
-    refine issueStep_isQueryBounded nfGen Com.openSample _ _
+  · refine issueStep_isQueryBounded nfGen Com.openSample _ _
       (fun _ _ => (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)) fun _ _ _ => ?_
     refine issueStep_isQueryBounded nfGen Com.openSample _ _
       (fun _ _ => (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)) fun _ _ _ => ?_
-    conv_rhs => rw [← Nat.zero_add (preRounds + challengeSpends)]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs
     · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
@@ -1544,11 +1538,8 @@ private lemma preLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpends : 
       ProbComp.eval (preLoopSim env adv pk ctx b 0 rem hrem note0.toSim note1.toSim st) := by
   induction rem generalizing note0 note1 st with
   | zero =>
-    cases b
-    · exact challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
-        note0 note1.bal note1.ref st h0
-    · exact challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
-        note1 note0.bal note0.ref st h1
+    cases b <;> refine challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
+      _ _ _ st ‹_›
   | succ rem' ih =>
     simp only [preLoopOracle, preLoopSim, Nat.not_lt_zero, ↓reduceIte, ProbOracleComp.run_bind,
       ProbOracleComp.run_sample, ProbComp.eval_bind]
@@ -1884,11 +1875,8 @@ private lemma preLoopPause_resume_eq {preRounds challengeSpends : ℕ}
         (if isDummy then pauseSlot + 1 else pauseSlot) rem hrem note0 note1 st) := by
   induction rem generalizing note0 note1 st with
   | zero =>
-    cases b
-    · exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
-        (le_refl _) (by omega) note0 note1.bal note1.ref st
-    · exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
-        (le_refl _) (by omega) note1 note0.bal note0.ref st
+    cases b <;> exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
+      (le_refl _) (by omega) _ _ _ st
   | succ rem' ih =>
     simp only [preLoopPause, preLoopSim, ProbComp.eval_bind, PMF.bind_bind]
     refine pmfBind_congr _ fun choice => ?_
@@ -1965,7 +1953,7 @@ private lemma runPause_resume_eq {preRounds challengeSpends : ℕ}
         · exact congrArg ProbComp.eval (preLoopSim_cutoff_congr env adv initOut.pk initOut.ctx b 1 0
             preRounds (le_refl _) (by omega) (by omega) _ _ _)
       · simp only [↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
-          resumeAfterCom, show (0 : ℕ) < 1 by omega, eq_false (by omega : ¬((1 : ℕ) < 0 + 1))]
+          resumeAfterCom, Nat.zero_lt_one, Nat.zero_add, Nat.lt_irrefl]
     · have h0lt' : 0 < (if isDummy then pauseSlot + 1 else pauseSlot) := by
         cases isDummy <;> simp
         omega
@@ -1983,7 +1971,7 @@ private lemma runPause_resume_eq {preRounds challengeSpends : ℕ}
           · exact congrArg ProbComp.eval (preLoopSim_cutoff_congr env adv initOut.pk initOut.ctx b
               2 1 preRounds (le_refl _) (by omega) (by omega) _ _ _)
         · simp only [↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
-            resumeAfterCom, show (1 : ℕ) < 2 by omega]
+            resumeAfterCom, Nat.lt_succ_self]
       · have h1lt' : 1 < (if isDummy then pauseSlot + 1 else pauseSlot) := by
           cases isDummy <;> simp <;> omega
         simp only [h1, h1lt', ↓reduceIte, ProbComp.eval_bind, PMF.bind_bind]

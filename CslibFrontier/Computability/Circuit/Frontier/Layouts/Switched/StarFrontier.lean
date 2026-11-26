@@ -64,8 +64,7 @@ private theorem exists_le_compare {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1) 
       (stdGaussian E3).real {y | ∃ j, ⟪u j, y⟫ ≤ θ} := by
   rw [prob_exists_le_eq w, prob_exists_le_eq u]
   have hneg : ∀ j, ‖-w j‖ = 1 := fun j => (norm_neg _).trans (hw j)
-  have htl := triangle_lemma (hneg 0) (hneg 1) (hneg 2) (-θ)
-  rw [← idealResidual (-θ)] at htl; linarith only [htl]
+  linarith only [triangle_lemma (hneg 0) (hneg 1) (hneg 2) (-θ), idealResidual (-θ)]
 
 theorem s_pos {r : ℝ} (hr : 0 < r) (hr1 : r < 1) : 0 < Ideal.s r :=
   Real.sqrt_pos.mpr (sub_pos.mpr (by simpa using pow_lt_pow_left₀ hr1 hr.le two_ne_zero))
@@ -112,6 +111,7 @@ private theorem compare_ideal {a : E} (ha : ‖a‖ = 1) {w : Fin 3 → E} (hw :
     · rw [le_div_iff₀ hs] at hj; linarith
   rw [hev, real_disintegrate ha hS, idealProb, hev3, real_disintegrate (norm_e 0) hS3]
   refine integral_mono (integrable_cond hS) (integrable_cond hS3) fun z => ?_
+  simp only
   by_cases hz : t ≤ z
   · have e1 : {x : E | (z, remainder a x) ∈ S} =
         {x | ∃ j, ⟪w j, x⟫ ≤ (t - r * z) / Ideal.s r} :=
@@ -119,11 +119,9 @@ private theorem compare_ideal {a : E} (ha : ‖a‖ = 1) {w : Fin 3 → E} (hw :
     have e2 : {y : E3 | (z, remainder (e 0) y) ∈ S3} =
         {y | ∃ j, ⟪u j, y⟫ ≤ (t - r * z) / Ideal.s r} :=
       Set.ext fun _ => by simp [S3, hz, inner_remainder_of_orth (hu0 _)]
-    simp only
     rw [e1, e2]
     exact exists_le_compare hw _
   · have e1 : {x : E | (z, remainder a x) ∈ S} = ∅ := Set.ext fun _ => by simp [S, hz]
-    simp only
     rw [e1, measureReal_empty]
     exact measureReal_nonneg
 
@@ -140,14 +138,15 @@ theorem coupling_ineq {r c t Z : ℝ} (hr : 0 < r) (hrc : r ≤ c) (hc1 : c < 1)
   have h1 : s * (1 - c) ≤ n * (1 - r) := by
     refine (pow_le_pow_iff_left₀ (mul_nonneg hs.le (sub_nonneg.mpr hc1.le))
       (mul_nonneg hn.le (sub_nonneg.mpr (hrc.trans hc1.le))) two_ne_zero).mp ?_
+    have hid1 : (1 - c ^ 2) * (1 - r) ^ 2 - (1 - r ^ 2) * (1 - c) ^ 2 =
+        2 * (1 - r) * (1 - c) * (c - r) := by ring
     rw [mul_pow, mul_pow, Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hc0 hc1.le)),
-      Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hr.le (hrc.trans hc1.le))), ← sub_nonneg,
-      show (1 - c ^ 2) * (1 - r) ^ 2 - (1 - r ^ 2) * (1 - c) ^ 2 =
-        2 * (1 - r) * (1 - c) * (c - r) by ring]
+      Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hr.le (hrc.trans hc1.le))), ← sub_nonneg, hid1]
     exact mul_nonneg (mul_nonneg (by linarith only [hrc, hc1]) (sub_nonneg.mpr hc1.le))
       (sub_nonneg.mpr hrc)
-  rw [div_le_div_iff₀ hn hs, ← sub_nonneg, show (t - r * Z) * n - (t - c * Z) * s =
-    (Z - t) * (c * s - r * n) + t * (n * (1 - r) - s * (1 - c)) by ring]
+  have hid2 : (t - r * Z) * n - (t - c * Z) * s =
+      (Z - t) * (c * s - r * n) + t * (n * (1 - r) - s * (1 - c)) := by ring
+  rw [div_le_div_iff₀ hn hs, ← sub_nonneg, hid2]
   exact add_nonneg
     (mul_nonneg (sub_nonneg.mpr htZ) (sub_nonneg.mpr (mul_le_mul hrc hsn hn.le hc0)))
     (mul_nonneg ht (sub_nonneg.mpr h1))
@@ -193,9 +192,8 @@ theorem exists_unit_residuals {d : ℕ} {a : E} {b : Fin d → E}
   have hRnorm : ∀ i, ‖R i‖ = Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := fun i => by
     have hbb : ⟪b i, b i⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hb i]; norm_num
     have hsq : ‖R i‖ ^ 2 = 1 - ⟪a, b i⟫ ^ 2 := by
-      rw [← real_inner_self_eq_norm_sq]
-      simp only [R, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
-        real_inner_smul_right, haa, hbb, real_inner_comm (b i) a]
+      simp only [← real_inner_self_eq_norm_sq, R, remainder, inner_sub_left, inner_sub_right,
+        real_inner_smul_left, real_inner_smul_right, haa, hbb, real_inner_comm (b i) a]
       ring
     rw [← hsq, Real.sqrt_sq (norm_nonneg _)]
   let W : Fin d → E := fun i => (‖R i‖)⁻¹ • R i
@@ -224,12 +222,11 @@ theorem starFrontier {r : ℝ} (hr : 0 < r) (hrs : r ≤ rStar) {a : E} {d : ℕ
     (stdGaussian E).real {x | t ≤ ⟪a, x⟫ ∧ ∃ i, ⟪b i, x⟫ ≤ t} ≤ kappa r := by
   have hr1 : r < 1 := lt_of_le_of_lt hrs rStar_lt_one
   refine le_trans ?_ ((idealProb_le_zero hr hr1 ht).trans (idealProb_zero hr hr1).le)
-  have hone : ∀ x i, t ≤ ⟪a, x⟫ → ⟪b i, x⟫ ≤ t → ¬⟪a, b i⟫ < 1 → ⟪a, x⟫ = t := by
-    intro x i hZ hi hg
+  have hone (x : E) (i : Fin d) (hZ : t ≤ ⟪a, x⟫) (hi : ⟪b i, x⟫ ≤ t)
+      (hg : ¬⟪a, b i⟫ < 1) : ⟪a, x⟫ = t := by
     have h1 : ⟪a, b i⟫ = 1 := le_antisymm
       ((real_inner_le_norm a (b i)).trans_eq (by rw [ha, hb i, mul_one])) (not_lt.mp hg)
-    rw [eq_of_inner_eq_one ha (hb i) h1] at hi
-    exact le_antisymm hi hZ
+    exact le_antisymm (eq_of_inner_eq_one ha (hb i) h1 ▸ hi) hZ
   by_cases hI : ∃ i, ⟪a, b i⟫ < 1
   · obtain ⟨W, pick, hSpos, hWnorm, hWorth, hdecomp, hpick, hpick_eq⟩ :=
       exists_unit_residuals ha hb (fun i => hr.le.trans (hab i)) hI
@@ -241,9 +238,8 @@ theorem starFrontier {r : ℝ} (hr : 0 < r) (hrs : r ≤ rStar) {a : E} {d : ℕ
       by_cases hgood : ⟪a, b i⟫ < 1
       · refine Or.inr ⟨hZ, ⟨i.val, by omega⟩, ?_⟩
         simp only [w, hpick_eq i (by omega) hgood]
-        have hdec := hdecomp i x hgood
         refine le_trans ?_ (coupling_ineq hr (hab i) hgood ht hZ)
-        rw [le_div_iff₀ (hSpos i hgood)]; linarith
+        rw [le_div_iff₀ (hSpos i hgood)]; linarith [hdecomp i x hgood]
       · exact Or.inl (hone x i hZ hi hgood)
     refine (measureReal_mono hcover (measure_ne_top _ _)).trans
       ((measureReal_union_le _ _).trans ?_)
@@ -251,7 +247,6 @@ theorem starFrontier {r : ℝ} (hr : 0 < r) (hrs : r ≤ rStar) {a : E} {d : ℕ
     exact compare_ideal ha (fun j => hWnorm _ (hpick j)) (fun j => hWorth _) hr hr1
   · refine (measureReal_mono (s₂ := {x | ⟪a, x⟫ = t}) ?_ (measure_ne_top _ _)).trans
       ((prob_inner_eq ha t).trans_le measureReal_nonneg)
-    rintro x ⟨hZ, i, hi⟩
-    exact hone x i hZ hi fun h => hI ⟨i, h⟩
+    exact fun x ⟨hZ, i, hi⟩ => hone x i hZ hi fun h => hI ⟨i, h⟩
 
 end Cslib.Circuits.Frontier.Switched

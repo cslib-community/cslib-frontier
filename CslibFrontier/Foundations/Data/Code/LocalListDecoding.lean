@@ -77,17 +77,16 @@ private def seeds (m : ℕ) (F : Type*) [Fintype F] [DecidableEq F] [Zero F] :
     Finset ((Fin m → F) × (Fin m → F)) := univ.filter fun xu => xu.2 ≠ 0
 
 private theorem card_seeds : #(seeds m F) = Fintype.card F ^ m * (Fintype.card F ^ m - 1) := by
-  rw [seeds, show (univ.filter fun xu : (Fin m → F) × (Fin m → F) => xu.2 ≠ 0) =
-    univ ×ˢ (univ.filter fun u : Fin m → F => u ≠ 0) by ext; simp, card_product, card_univ,
-    Fintype.card_fun, Fintype.card_fin, filter_ne', card_erase_of_mem (mem_univ _), card_univ,
-    Fintype.card_fun, Fintype.card_fin]
+  have h : seeds m F = univ ×ˢ (univ : Finset (Fin m → F)).erase 0 :=
+    Finset.ext fun _ => by simp [seeds]
+  simp [h, card_erase_of_mem]
 
 /-- Each point of a random line is uniformly distributed. -/
 private theorem card_seeds_mem (A : Finset (Fin m → F)) (t : F) :
     #{xu ∈ seeds m F | xu.1 + t • xu.2 ∈ A} = #A * (Fintype.card F ^ m - 1) := by
-  rw [show #A * (Fintype.card F ^ m - 1) = #(A ×ˢ (univ : Finset (Fin m → F)).erase 0) by
-    rw [card_product, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fun,
-      Fintype.card_fin]]
+  have hcard : #(A ×ˢ (univ : Finset (Fin m → F)).erase 0) = #A * (Fintype.card F ^ m - 1) := by
+    simp [card_erase_of_mem]
+  rw [← hcard]
   refine card_nbij' (fun xu => (xu.1 + t • xu.2, xu.2)) (fun yu => (yu.1 - t • yu.2, yu.2))
     ?_ ?_ ?_ ?_ <;> intro xu hxu <;> simp_all [seeds]
 
@@ -106,25 +105,20 @@ private theorem card_seeds_mem_mem (A : Finset (Fin m → F)) {t t' : F} (htt : 
   rw [← offDiag_card]
   have hsub : t - t' ≠ 0 := sub_ne_zero.2 htt
   have hdir : ∀ x u : Fin m → F, (t - t')⁻¹ • (x + t • u - (x + t' • u)) = u := fun x u => by
-    rw [show x + t • u - (x + t' • u) = (t - t') • u by rw [sub_smul]; abel, smul_smul,
-      inv_mul_cancel₀ hsub, one_smul]
+    rw [add_sub_add_left_eq_sub, ← sub_smul, smul_smul, inv_mul_cancel₀ hsub, one_smul]
   refine card_nbij' (fun xu => (xu.1 + t • xu.2, xu.1 + t' • xu.2))
     (fun yy => (yy.1 - t • (t - t')⁻¹ • (yy.1 - yy.2), (t - t')⁻¹ • (yy.1 - yy.2)))
-    (fun xu hxu => ?_) (fun yy hyy => ?_) (fun xu _ => ?_) (fun yy _ => ?_)
-  · obtain ⟨x, u⟩ := xu
-    simp only [mem_coe, seeds, filter_filter, mem_filter, mem_offDiag] at hxu ⊢
+    (fun ⟨x, u⟩ hxu => ?_) (fun ⟨y, y'⟩ hyy => ?_) (fun ⟨x, u⟩ _ => ?_) (fun ⟨y, y'⟩ _ => ?_)
+  · simp only [mem_coe, seeds, filter_filter, mem_filter, mem_offDiag] at hxu ⊢
     exact ⟨hxu.2.2.1, hxu.2.2.2, fun heq => hxu.2.1 (by rw [← hdir x u, heq, sub_self, smul_zero])⟩
-  · obtain ⟨y, y'⟩ := yy
-    rw [mem_coe, mem_offDiag] at hyy
+  · rw [mem_coe, mem_offDiag] at hyy
     rw [mem_coe, seeds, filter_filter, mem_filter]
     obtain ⟨h₁, h₂⟩ := line_through hsub y y'
     exact ⟨mem_univ _, fun h0 => hyy.2.2 (sub_eq_zero.1 ((smul_eq_zero.1 h0).resolve_left
       (inv_ne_zero hsub))), by simpa only [h₁] using hyy.1, by simpa only [h₂] using hyy.2.1⟩
-  · obtain ⟨x, u⟩ := xu
-    simp only [hdir, Prod.mk.injEq, and_true]
+  · simp only [hdir, Prod.mk.injEq, and_true]
     abel
-  · obtain ⟨y, y'⟩ := yy
-    obtain ⟨h₁, h₂⟩ := line_through hsub y y'
+  · obtain ⟨h₁, h₂⟩ := line_through hsub y y'
     exact Prod.ext h₁ h₂
 
 /-- `lineAgree` as a sum of indicators. -/
@@ -189,9 +183,7 @@ private theorem sum_lineAgree_sub_sq_le (A : Finset (Fin m → F)) :
     have := mul_nonneg ha0 (sub_nonneg.2 hQ1)
     exact div_nonneg (by positivity) (by linarith)
   rw [← sub_nonneg]
-  convert key using 1
-  field_simp
-  ring
+  exact key.trans_eq (by field_simp; ring)
 
 /-- **Random lines sample a set well.** Over all points `x` and nonzero directions `u`, the
 number of pairs for which the line `t ↦ x + t • u` has at most `D` points in `A` is at most

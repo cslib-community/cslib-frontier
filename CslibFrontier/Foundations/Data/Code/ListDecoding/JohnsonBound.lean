@@ -223,13 +223,11 @@ private theorem qary_johnson_denom_ge {q n d e : ℕ} (hq : 2 ≤ q) (hn : 0 < n
   set δ : ℝ := (d : ℝ) / n
   set x : ℝ := (e : ℝ) / n
   have hxρ : x ≤ ρ := (div_le_iff₀ hnR).2 heρ
-  have hJ : johnsonRadius q δ = θ - Real.sqrt (θ ^ 2 - θ * δ) :=
-    johnsonRadius_eq_sub_sqrt hqR δ
   set s : ℝ := Real.sqrt (θ ^ 2 - θ * δ)
   have hs0 : 0 ≤ s := Real.sqrt_nonneg _
   have hs_le : θ ^ 2 - θ * δ ≤ s ^ 2 :=
     (le_total (θ ^ 2 - θ * δ) 0).elim (fun h => h.trans (sq_nonneg s)) fun h => (Real.sq_sqrt h).ge
-  have hθx : s + ε ≤ θ - x := by linarith
+  have hθx : s + ε ≤ θ - x := by linarith [johnsonRadius_eq_sub_sqrt hqR δ]
   have hdiff : ε ^ 2 ≤ (θ - x) ^ 2 - (θ ^ 2 - θ * δ) := by
     nlinarith [pow_le_pow_left₀ (by positivity) hθx 2, mul_nonneg hs0 hε.le]
   have hq0 : (q : ℝ) ≠ 0 := by positivity
@@ -253,8 +251,7 @@ private theorem qary_johnson_denom_ge {q n d e : ℕ} (hq : 2 ≤ q) (hn : 0 < n
       _ = (n : ℝ) ^ 2 * (q : ℝ) * ((θ - x) ^ 2 - (θ ^ 2 - θ * δ)) := by
           rw [hinner_id, mul_assoc]
   rw [hid]
-  have hnq0 : 0 ≤ (n : ℝ) ^ 2 * (q : ℝ) := by positivity
-  nlinarith
+  exact mul_le_mul_of_nonneg_left hdiff (by positivity)
 
 /-- Bridge from the strict real `q`-ary Johnson radius condition `e / n < J_q(d / n)` (with
 `q ≥ 2` and `d ≤ n`) to the natural-number hypotheses `q * e ≤ (q - 1) * n` and
@@ -345,13 +342,11 @@ theorem isListDecodable_of_le_johnsonRadius [Nonempty ι] [Fintype α]
     have hδ1 : 1 ≤ δ := (one_le_div hnR).2 (by exact_mod_cast hnd.le)
     have hε_le : ε ≤ 1 - 1 / (q : ℝ) := by
       linarith [johnsonRadius_le_one_sub_inv (δ := δ) hqR]
-    have hθ : 0 < 1 - 1 / (q : ℝ) := sub_pos.2 ((div_lt_one (zero_lt_one.trans hqR)).2 hqR)
-    have hθ1 : 1 - 1 / (q : ℝ) ≤ 1 := sub_le_self 1 (by positivity)
     have hq0 : (0 : ℝ) < q := by positivity
     have hθq : (1 - 1 / (q : ℝ)) * q = q - 1 := by field_simp
     have hden : ε ^ 2 ≤ 1 - 1 / (q : ℝ) := by
-      have : ε ^ 2 ≤ (1 - 1 / (q : ℝ)) ^ 2 := pow_le_pow_left₀ hε.le hε_le 2
-      nlinarith
+      rw [sq]
+      exact (mul_le_of_le_one_left hε.le (hε_le.trans (sub_le_self 1 (by positivity)))).trans hε_le
     rw [le_div_iff₀ (by positivity), one_mul]
     nlinarith [mul_le_mul_of_nonneg_left hden hq0.le,
       mul_le_mul_of_nonneg_left hδ1 (sub_pos.2 hqR).le]
@@ -462,9 +457,9 @@ theorem isListDecodable_reedSolomon [Nonempty ι] {F : Type*} [Field F] [Decidab
       ⌊(1 - ((k - 1 : ℕ) : ℝ) / Fintype.card ι) / ε ^ 2⌋₊ := by
   set n : ℕ := Fintype.card ι
   have hnR : (0 : ℝ) < n := Nat.cast_pos.2 Fintype.card_pos
+  have hsub : n - k + 1 = n - (k - 1) := by omega
   have hd_eq : ((n - k + 1 : ℕ) : ℝ) / n = 1 - ((k - 1 : ℕ) : ℝ) / n := by
-    rw [show n - k + 1 = n - (k - 1) by omega, Nat.cast_sub (by omega), sub_div,
-      div_self hnR.ne']
+    rw [hsub, Nat.cast_sub (by omega), sub_div, div_self hnR.ne']
   have hρ' : ρ ≤ johnsonRadiusLimit (((n - k + 1 : ℕ) : ℝ) / n) - ε := by
     rwa [johnsonRadiusLimit, hd_eq, sub_sub_cancel]
   simpa only [← hd_eq] using

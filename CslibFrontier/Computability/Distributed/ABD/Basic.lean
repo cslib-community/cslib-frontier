@@ -683,8 +683,7 @@ theorem deliverHistory_entry_preserves {P V : Type*} (hist : List (OpRecord P V)
     (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
       hist[i].status.respStep? = some r ∨ r = step) := by
   by_cases h : (deliverHistory hist resp step pend?)[i] = hist[i]
-  · rw [h]
-    exact ⟨rfl, rfl, rfl, fun _ hr => Or.inl hr⟩
+  · exact h ▸ ⟨rfl, rfl, rfl, fun _ => Or.inl⟩
   · rcases pend? with _ | pend
     · exact absurd rfl h
     · cases hm : matchCompletion pend.kind resp step with
@@ -812,9 +811,8 @@ theorem reachable_start [Fintype P] : π.Reachable π.start :=
 
 /-- Reachability from `π.start` composes with `π.lts.CanReach`. -/
 theorem Reachable.trans [Fintype P] {π : Protocol P S M V} {s s' : State P S M V}
-    (hs : π.Reachable s) (hreach : π.lts.CanReach s s') : π.Reachable s' := by
-  rcases hs, hreach with ⟨⟨xl, hxl⟩, ⟨yl, hyl⟩⟩
-  exact ⟨xl ++ yl, LTS.MTr.comp π.lts hxl hyl⟩
+    (hs : π.Reachable s) (hreach : π.lts.CanReach s s') : π.Reachable s' :=
+  hs.elim fun xl hxl => hreach.elim fun yl hyl => ⟨xl ++ yl, LTS.MTr.comp π.lts hxl hyl⟩
 
 /-! ### Structural invariants of `history` and `msgs` -/
 
@@ -1181,12 +1179,10 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
   | deliver e =>
     obtain ⟨_, rfl⟩ := htr
     rw [(localRegisterProtocol P V v₀).doDeliver_of_resp_eq_none rfl]
-    have hproc_eq : Function.update s.proc e.dest
-        ⟨(s.proc e.dest).state, (s.proc e.dest).pending⟩ = s.proc :=
-      Function.update_eq_self e.dest s.proc
-    refine ⟨fun p => hproc_eq.symm ▸ hpend p, fun i hi => ?_, hmono, hvalid,
-      fun p => hproc_eq.symm ▸ hstate p⟩
-    exact ⟨(hcomp i hi).1, (hcomp i hi).2.1, Nat.lt_succ_of_lt (hcomp i hi).2.2⟩
+    have hproc_eq := Function.update_eq_self e.dest s.proc
+    exact ⟨fun p => hproc_eq.symm ▸ hpend p,
+      fun i hi => ⟨(hcomp i hi).1, (hcomp i hi).2.1, Nat.lt_succ_of_lt (hcomp i hi).2.2⟩,
+      hmono, hvalid, fun p => hproc_eq.symm ▸ hstate p⟩
   | invoke caller kind =>
     obtain ⟨_, rfl⟩ := htr
     let nextVal : V := match kind with
@@ -1206,8 +1202,7 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
         registerValAfter v₀ s.history (List.range s.history.length) :=
       registerValAfter_append_hist v₀ s.history [rec'] fun _ hx => List.mem_range.mp hx
     refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · intro p
-      rw [hproc, Subsingleton.elim p caller, Function.update_self]
+    · exact fun p => by rw [hproc, Subsingleton.elim p caller, Function.update_self]
     · change ∀ (i : ℕ)
           (hi : i < ((localRegisterProtocol P V v₀).doInvoke caller kind s).history.length),
         _ ∧ _ ∧ _ < s.step + 1
@@ -1240,8 +1235,7 @@ theorem implementsAtomicRegister_local_of_card_le_one {P V : Type*} [Fintype P] 
     · intro i hi j hj ⟨hi_lt, hj_lt, r, hr_step, hlt⟩
       have hidx {k : ℕ} (hk : k < s.history.length) :
           (List.range s.history.length).idxOf k = k := by
-        have hlen : k < (List.range s.history.length).length := by simpa using hk
-        simpa [List.getElem_range hlen] using List.Nodup.idxOf_getElem List.nodup_range k hlen
+        simpa using List.Nodup.idxOf_getElem List.nodup_range k (hk.trans_eq List.length_range.symm)
       rw [hidx hi_lt, hidx hj_lt]
       obtain ⟨_, hr', _⟩ := hcomp i hi_lt
       cases hr'.symm.trans hr_step

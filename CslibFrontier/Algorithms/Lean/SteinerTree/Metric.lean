@@ -146,8 +146,8 @@ theorem edgeCost_steinerMST (δ : α → α → ℕ) (R : List α) :
       totalWeight (kruskalEdges (completeEdges (terminalCost δ R))) := by
   unfold edgeCost steinerMST totalWeight
   rw [List.map_map]
-  refine congrArg List.sum (List.map_congr_left fun e he => ?_)
-  exact ((mem_completeEdges.1 ((kruskalEdges_subperm _).subset he))).symm
+  exact congrArg List.sum (List.map_congr_left fun e he =>
+    (mem_completeEdges.1 ((kruskalEdges_subperm _).subset he)).symm)
 
 /-- The heuristic connects the terminals. -/
 theorem connects_steinerMST (δ : α → α → ℕ) (R : List α) : Connects (steinerMST δ R) R := by
@@ -184,16 +184,14 @@ theorem totalWeight_kruskalEdges_le_sum_consecutivePairs {k : ℕ} (δ : Fin k �
     {q : List (Fin k)} (hq : q.Nodup) (hcov : ∀ x, x ∈ q) :
     totalWeight (kruskalEdges (completeEdges δ)) ≤
       (q.consecutivePairs.map fun e => δ e.1 e.2).sum := by
-  set H : List (WeightedEdge k ℕ) :=
-    q.consecutivePairs.map fun p => ⟨p.1, p.2, δ p.1 p.2⟩ with hH
-  have hHw : totalWeight H = (q.consecutivePairs.map fun e => δ e.1 e.2).sum := by
-    simp [totalWeight, hH, Function.comp_def]
-  rw [← hHw]
+  let H : List (WeightedEdge k ℕ) := q.consecutivePairs.map fun p => ⟨p.1, p.2, δ p.1 p.2⟩
+  suffices totalWeight (kruskalEdges (completeEdges δ)) ≤ totalWeight H by
+    simpa [totalWeight, H, Function.comp_def] using this
   refine totalWeight_kruskalEdges_completeEdges_le δ ?_
     (List.forall_mem_map.2 fun _ _ => rfl) ?_
-  · have hmap : H.map WeightedEdge.u = q.dropLast := by
-      simpa [hH, Function.comp_def] using map_fst_consecutivePairs q
-    exact List.Nodup.of_map _ (hmap ▸ hq.sublist (List.dropLast_sublist q))
+  · refine List.Nodup.of_map WeightedEdge.u ?_
+    simpa [H, Function.comp_def, map_fst_consecutivePairs] using
+      hq.sublist (List.dropLast_sublist q)
   · intro x y
     cases q with
     | nil => exact absurd (hcov x) (by simp)
@@ -225,9 +223,8 @@ sharpens [WilliamsonShmoys2011], Lemma 2.10 (`totalWeight_kruskalEdges_le_cycleC
 theorem mul_totalWeight_kruskalEdges_le {k : ℕ} (δ : Fin k → Fin k → ℕ)
     {q : List (Fin k)} (hq : q.Nodup) (hcov : ∀ x, x ∈ q) :
     k * totalWeight (kruskalEdges (completeEdges δ)) ≤ (k - 1) * cycleCost δ q := by
-  have hlen : q.length = k := by
-    rw [(List.perm_ext_iff_of_nodup hq (List.nodup_finRange k)).2 (by simp [hcov]) |>.length_eq,
-      List.length_finRange]
+  have hlen : q.length = k := ((List.perm_ext_iff_of_nodup hq (List.nodup_finRange k)).2
+    (by simp [hcov])).length_eq.trans List.length_finRange
   set c := List.zipWith δ q (q.rotate 1) with hc
   have hclen : c.length = k := by simp [hc, hlen]
   rcases Nat.eq_zero_or_pos k with rfl | hk
@@ -438,7 +435,7 @@ theorem length_mul_edgeCost_steinerMST_le {δ : α → α → ℕ} (hsymm : ∀ 
   classical
   rw [edgeCost_steinerMST]
   rcases Nat.lt_or_ge R.length 2 with hk | hk
-  · simpa [Nat.sub_eq_zero_of_le (by omega : R.length ≤ 1)] using
+  · simpa [Nat.sub_eq_zero_of_le (Nat.le_of_lt_succ hk)] using
       mul_totalWeight_kruskalEdges_le (terminalCost δ R) (List.nodup_finRange R.length)
         List.mem_finRange
   have hne : ∃ a ∈ R, ∃ b ∈ R, a ≠ b :=
@@ -446,12 +443,11 @@ theorem length_mul_edgeCost_steinerMST_le {δ : α → α → ℕ} (hsymm : ∀ 
       fun h => nomatch hR.getElem_inj_iff.1 h⟩
   obtain ⟨s, hs_nd, hs_R, hR_s, hs_cost⟩ := exists_cycleCost_le_of_connects hsymm htri hne hT
   -- Step 4: reindex by the positions of the terminals.
-  set q : List (Fin R.length) :=
-    s.pmap (fun x hx => ⟨R.idxOf x, List.idxOf_lt_length_iff.2 hx⟩) hs_R with hq
-  have hqs : q.map (fun i => R[i]) = s := by
-    rw [hq, List.map_pmap]
-    exact List.pmap_eq_self.2 fun x hx => List.getElem_idxOf _
-  have hq_nd : q.Nodup := List.Nodup.of_map (fun i => R[i]) (by rw [hqs]; exact hs_nd)
+  let q : List (Fin R.length) :=
+    s.pmap (fun x hx => ⟨R.idxOf x, List.idxOf_lt_length_iff.2 hx⟩) hs_R
+  have hqs : q.map (fun i => R[i]) = s :=
+    (List.map_pmap hs_R).trans (List.pmap_eq_self.2 fun _ _ => List.getElem_idxOf _)
+  have hq_nd : q.Nodup := List.Nodup.of_map (fun i => R[i]) (hqs.symm ▸ hs_nd)
   have hq_cov (i : Fin R.length) : i ∈ q := by
     obtain ⟨j, hj, hji⟩ := List.mem_map.1 (hqs.symm ▸ hR_s R[i] (List.getElem_mem _))
     exact Fin.ext ((List.Nodup.getElem_inj_iff hR).1 hji) ▸ hj
@@ -467,26 +463,25 @@ theorem length_mul_edgeCost_steinerMST_le_of_diag {δ : α → α → ℕ} (hdia
   classical
   rw [edgeCost_steinerMST]
   rcases Nat.lt_or_ge R.length 2 with hk | hk
-  · simpa [Nat.sub_eq_zero_of_le (by omega : R.length ≤ 1)] using
+  · simpa [Nat.sub_eq_zero_of_le (Nat.le_of_lt_succ hk)] using
       mul_totalWeight_kruskalEdges_le (terminalCost δ R) (List.nodup_finRange R.length)
         List.mem_finRange
   by_cases hne : ∃ a ∈ R, ∃ b ∈ R, a ≠ b
   · obtain ⟨s, hs_nd, hs_R, hR_s, hs_cost⟩ :=
       exists_cycleCost_le_of_connects hsymm htri hne hT
     obtain ⟨a, l, rfl⟩ := List.exists_cons_of_ne_nil
-      (List.ne_nil_of_mem (hR_s R[0] (List.getElem_mem (by omega))))
+      (List.ne_nil_of_mem (hR_s R[0] (List.getElem_mem (Nat.zero_lt_of_lt hk))))
     have hpos : ∀ x ∈ a :: l, 0 < (indices R x).length := fun x hx => by
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem (hs_R x hx)
       exact List.length_pos_of_mem (mem_indices.2 rfl : (⟨i, hi⟩ : Fin R.length) ∈ _)
     refine mul_totalWeight_le_of_cycle (nodup_flatMap_indices hs_nd) (mem_flatMap_indices hR_s) ?_
     rwa [cycleCost_flatMap_indices_cons δ hdiag R a l hpos]
   · push Not at hne
-    have hall : ∀ i j : Fin R.length, R[i] = R[j] := fun i j =>
-      hne R[i] (List.getElem_mem _) R[j] (List.getElem_mem _)
     have h0 : totalWeight (kruskalEdges (completeEdges (terminalCost δ R))) = 0 :=
       List.sum_eq_zero (List.forall_mem_map.2 fun e he => by
         rw [mem_completeEdges.1 ((kruskalEdges_subperm _).subset he)]
-        exact (congrArg (δ · R[e.v]) (hall e.u e.v)).trans (hdiag _))
+        exact (congrArg (δ · R[e.v])
+          (hne R[e.u] (List.getElem_mem _) R[e.v] (List.getElem_mem _))).trans (hdiag _))
     simp [h0]
 
 /-- The factor-2 bound follows from the sharp form: divide by `|R|`, and for `R = []` the tree is

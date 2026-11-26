@@ -374,16 +374,13 @@ theorem Represents.result_eq {s : Config k Q} {c : Cfg k Bool Q w}
     | none => simp only [result, Cfg.blockControl, Cfg.headPos_none, hs.inputPos]
     | some h =>
       change (s.heads h : ZMod width) = (c.workTapePos h : ZMod width)
-      rw [hs.heads h]
-      push_cast
-      simp
+      simp [hs.heads h]
   · have hr := ZMod.val_lt r
     have hd := d.isLt
     change cellOfCode ((s.cells h).getD (d * width + r.val) 0) =
       c.workTapes h (width * (J (some h) + d - 1) + r.val)
     rw [hs.cells h (d * width + r.val) (by rw [hlen h]; nlinarith)]
-    congr 1
-    push_cast; ring
+    exact congrArg _ (by push_cast; ring)
 
 /-- The state-returning query subroutine computes exactly the native leaving view of the block. -/
 theorem result_runFrom_loadView (M : MultiTapeTM k Bool Q) (width : ℕ) [NeZero width]
@@ -424,9 +421,7 @@ theorem cells_lt_three_runFrom (M : MultiTapeTM k Bool Q) (w : List Bool) (s : C
 /-- The view loader writes only the existing blank/false/true codes. -/
 theorem cells_lt_three_loadView (width : ℕ) (J : Option (Fin k) → ℤ)
     (v : View k Q width) (h : Fin k) :
-    ∀ a ∈ (loadView w.length width J v).cells h, a < 3 := by
-  rintro _ ha
-  obtain ⟨_, rfl⟩ := List.mem_ofFn.mp ha
-  exact symbolCode_lt _
+    ∀ a ∈ (loadView w.length width J v).cells h, a < 3 :=
+  fun _ ha => (List.mem_ofFn.mp ha).elim fun _ hx => hx ▸ symbolCode_lt _
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay

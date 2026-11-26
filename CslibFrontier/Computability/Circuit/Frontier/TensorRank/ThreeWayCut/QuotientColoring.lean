@@ -76,8 +76,7 @@ private theorem dot2_edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ) (u : ℝ 
   dsimp [dot2, edgeVec2, edgeScore]
   simp only [PiLp.inner_apply, RCLike.inner_apply, conj_trivial, Finset.mul_sum,
     ← Finset.sum_add_distrib]
-  refine Finset.sum_congr rfl fun B _ => ?_
-  ring
+  exact Finset.sum_congr rfl fun B _ => by ring
 
 omit [Finite F] in
 private theorem edgeVec2_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
@@ -179,23 +178,13 @@ private theorem blockColor_eq_iff_of_injective {Q : Multigraph W F} {q : ℝ} {R
     unfold blockColor at hc' ⊢
     split_ifs at hc' ⊢ with h0 h1
     · fin_cases c'
-      · exact absurd rfl hc'
-      · exact h0.1
-      · exact h0.2
+      exacts [absurd rfl hc', h0.1, h0.2]
     · fin_cases c'
-      · rcases ht01 with hb01 | hb10
-        · exact absurd ⟨hb01, beats_trans hb01 h1⟩ h0
-        · exact hb10
-      · exact absurd rfl hc'
-      · exact h1
-    · have hb21 : beats Q q R ω B 2 1 := ht12.resolve_left h1
-      fin_cases c'
-      · rcases ht02 with hb02 | hb20
-        · rcases ht01 with hb01 | hb10
-          · exact absurd ⟨hb01, hb02⟩ h0
-          · exact absurd (beats_trans hb10 hb02) h1
-        · exact hb20
-      · exact hb21
+      exacts [ht01.resolve_left fun hb01 => h0 ⟨hb01, beats_trans hb01 h1⟩, absurd rfl hc', h1]
+    · fin_cases c'
+      · exact ht02.resolve_left fun hb02 =>
+          ht01.elim (fun hb01 => h0 ⟨hb01, hb02⟩) fun hb10 => h1 (beats_trans hb10 hb02)
+      · exact ht12.resolve_left h1
       · exact absurd rfl hc'
   · intro hall
     unfold blockColor

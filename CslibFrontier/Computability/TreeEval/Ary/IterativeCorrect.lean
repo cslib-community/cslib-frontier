@@ -79,37 +79,32 @@ private theorem exists_runFrom_round (hd : 0 < d)
   let u := unitAt us i
   let F (j : ℕ) := ((List.finRange d).take j).foldl
     (fun S j => p j 1 (reg t j) (scale (reg t j) (u : K) S)) S
-  have hF0 : F 0 = S := rfl
   have hF (j : ℕ) (hj : j < d) :
       F (j + 1) = p ⟨j, hj⟩ 1 (reg t ⟨j, hj⟩)
         (scale (reg t ⟨j, hj⟩) (u : K) (F j)) := by
     dsimp only [F]
     rw [foldl_take_succ _ _ _ (by simpa using hj), List.getElem_finRange]
     simp only [Fin.cast_mk]
-  have hforward : ∀ j (hj : j < d), Reaches next (beginRound hd us i c t S st)
+  have hforward (j : ℕ) (hj : j < d) : Reaches next (beginRound hd us i c t S st)
       ⟨F (j + 1), ⟨i, ⟨j, hj⟩, false, c, t⟩ :: st, .ret⟩ := by
-    intro j
     induction j with
     | zero =>
-      intro hj
-      rw [hF 0 hj, hF0]
+      rw [hF 0 hj]
       exact hp ⟨i, ⟨0, hj⟩, false, c, t⟩ 1 (reg t ⟨0, hj⟩)
         (scale (reg t ⟨0, hj⟩) (u : K) S)
     | succ j ih =>
-      intro hj
       have hj' : j < d := by omega
       have hnext : next ⟨F (j + 1), ⟨i, ⟨j, hj'⟩, false, c, t⟩ :: st, .ret⟩ =
           ⟨scale (reg t ⟨j + 1, hj⟩) (u : K) (F (j + 1)),
             ⟨i, ⟨j + 1, hj⟩, false, c, t⟩ :: st, .call 1 (reg t ⟨j + 1, hj⟩)⟩ := by
         simp [next, step, hj, u]
-      rw [show j.succ + 1 = (j + 1) + 1 by omega, hF (j + 1) hj]
+      rw [hF (j + 1) hj]
       exact (ih hj').trans (Reaches.single hnext) |>.trans
         (hp ⟨i, ⟨j + 1, hj⟩, false, c, t⟩ 1 (reg t ⟨j + 1, hj⟩)
           (scale (reg t ⟨j + 1, hj⟩) (u : K) (F (j + 1))))
   let G := gateUpdateWith E f c t (F d)
   let B (j : ℕ) := ((List.finRange d).take j).foldl
     (fun S j => scale (reg t j) ((u⁻¹ : Kˣ) : K) (p j (-1) (reg t j) S)) G
-  have hB0 : B 0 = G := rfl
   have hB (j : ℕ) (hj : j < d) :
       B (j + 1) = scale (reg t ⟨j, hj⟩) ((u⁻¹ : Kˣ) : K)
         (p ⟨j, hj⟩ (-1) (reg t ⟨j, hj⟩) (B j)) := by
@@ -120,20 +115,16 @@ private theorem exists_runFrom_round (hd : 0 < d)
     ⟨G, ⟨i, ⟨0, hd⟩, true, c, t⟩ :: st, .call (-1) (reg t ⟨0, hd⟩)⟩
   have hlast : d - 1 < d := by omega
   have hlastEq : d - 1 + 1 = d := by omega
+  have hnotLt : ¬(d - 1 + 1 < d) := by omega
   have hupdate : Reaches next (beginRound hd us i c t S st) undoStart :=
     (hlastEq ▸ hforward (d - 1) hlast).trans <| Reaches.single <| by
-      simp [next, step, show ¬(d - 1 + 1 < d) by omega, updateAt, hgate, undoStart, G]
-  have hbackward : ∀ j (hj : j < d), Reaches next undoStart
+      simp [next, step, hnotLt, updateAt, hgate, undoStart, G]
+  have hbackward (j : ℕ) (hj : j < d) : Reaches next undoStart
       ⟨p ⟨j, hj⟩ (-1) (reg t ⟨j, hj⟩) (B j),
         ⟨i, ⟨j, hj⟩, true, c, t⟩ :: st, .ret⟩ := by
-    intro j
     induction j with
-    | zero =>
-      intro hj
-      rw [hB0]
-      exact hp ⟨i, ⟨0, hj⟩, true, c, t⟩ (-1) (reg t ⟨0, hj⟩) G
+    | zero => exact hp ⟨i, ⟨0, hj⟩, true, c, t⟩ (-1) (reg t ⟨0, hj⟩) G
     | succ j ih =>
-      intro hj
       have hj' : j < d := by omega
       have hnext : next
           ⟨p ⟨j, hj'⟩ (-1) (reg t ⟨j, hj'⟩) (B j),
@@ -155,7 +146,7 @@ private theorem exists_runFrom_round (hd : 0 < d)
         ⟨i, ⟨d - 1, hlast⟩, true, c, t⟩ :: st, .ret⟩ =
       if i + 1 < us.length then beginRound hd us (i + 1) c t (B d) st
       else ⟨B d, st, .ret⟩ := by
-    simp [next, step, show ¬(d - 1 + 1 < d) by omega, ← hscaleLast, u]
+    simp [next, step, hnotLt, ← hscaleLast, u]
   exact hBdone ▸ (hupdate.trans (hbackward (d - 1) hlast) |>.trans (Reaches.single hexit))
 
 
@@ -178,23 +169,19 @@ private theorem exists_runFrom_gate (hd : 0 < d)
       ⟨us.foldl (fun S u => gateRoundWith E p f c t u S) S, st, .ret⟩ := by
   cases hus : us with
   | nil =>
-    refine ⟨1, ?_⟩
-    simp only [runFrom_one, List.foldl_nil]
-    exact step_call_gate_nil hd e E read S st c t f hgate
+    exact ⟨1, by simpa only [runFrom_one, List.foldl_nil] using
+      step_call_gate_nil hd e E read S st c t f hgate⟩
   | cons u tail =>
     let F := fun S u => gateRoundWith E p f c t u S
-    have hprefix : ∀ j, j ≤ us.length → ∃ N,
+    have hprefix (j : ℕ) (hj : j ≤ us.length) : ∃ N,
         runFrom hd e E us read ⟨S, st, .call c t⟩ N =
           if j < us.length then beginRound hd us j c t ((us.take j).foldl F S) st
           else ⟨(us.take j).foldl F S, st, .ret⟩ := by
-      intro j
       induction j with
       | zero =>
-        intro _
         exact ⟨1, by simpa [hus, runFrom_one] using
           step_call_gate_cons hd e E u tail read S st c t f hgate⟩
       | succ j ih =>
-        intro hj
         have hjlt : j < us.length := by omega
         obtain ⟨N, hN⟩ := ih (by omega)
         rw [ite_eq_left hjlt] at hN

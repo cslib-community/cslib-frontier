@@ -111,9 +111,7 @@ theorem entrySize_nonneg (v : Fin 2 → ℝ) : 0 ≤ entrySize v :=
   (abs_nonneg _).trans (le_max_left _ _)
 
 theorem abs_apply_le_entrySize (v : Fin 2 → ℝ) (ν : Fin 2) : |v ν| ≤ entrySize v := by
-  fin_cases ν
-  · exact le_max_left _ _
-  · exact le_max_right _ _
+  fin_cases ν <;> simp [entrySize]
 
 @[simp]
 theorem entrySize_defaultEntry (hz : 0 ≤ z) : entrySize (defaultEntry z) = z := by
@@ -185,16 +183,12 @@ theorem updateEntry_eq_self_of_three_mul_le {u b : ℝ} {v : Fin 2 → ℝ}
 private theorem add_clip_mem_Icc (b x r : ℝ) (hr : 0 ≤ r) :
     b + max (-r) (min (x - b) r) ∈ Set.Icc (min x b) (max x b) := by
   rcases le_total x b with h | h
-  · rw [min_eq_left h, max_eq_right h, min_eq_left (by linarith : x - b ≤ r)]
-    have hlo : x - b ≤ max (-r) (x - b) := le_max_right (-r) (x - b)
-    have hhi : max (-r) (x - b) ≤ 0 := max_le (by linarith) (sub_nonpos.mpr h)
-    exact ⟨by linarith, by linarith⟩
+  · rw [min_eq_left h, max_eq_right h, min_eq_left (a := x - b) (by linarith)]
+    exact ⟨by linarith [le_max_right (-r) (x - b)],
+      by linarith [max_le (neg_nonpos.mpr hr) (sub_nonpos.mpr h)]⟩
   · rw [min_eq_right h, max_eq_left h]
-    have hlo : 0 ≤ max (-r) (min (x - b) r) :=
-      (le_min (sub_nonneg.mpr h) hr).trans (le_max_right _ _)
-    have hhi : max (-r) (min (x - b) r) ≤ x - b :=
-      max_le (by linarith) (min_le_left _ _)
-    exact ⟨by linarith, by linarith⟩
+    exact ⟨by linarith [(le_min (sub_nonneg.mpr h) hr).trans (le_max_right (-r) _)],
+      by linarith [max_le ((neg_nonpos.mpr hr).trans (sub_nonneg.mpr h)) (min_le_left (x - b) r)]⟩
 
 theorem updateEntry_mem_Icc (u b : ℝ) (v : Fin 2 → ℝ) (ν : Fin 2) :
     updateEntry u b v ν ∈ Set.Icc (min (v ν) (defaultEntry b ν))
@@ -336,11 +330,11 @@ theorem abs_radius_sub_radius_le {u u' : ℝ} {v v' : Fin 2 → ℝ} (hδ : 0 �
     calc |(entrySize v - 2 * u) - (entrySize v' - 2 * u')|
         = |(entrySize v - entrySize v') - 2 * (u - u')| := by congr 1; ring
       _ ≤ |entrySize v - entrySize v'| + |2 * (u - u')| := abs_sub _ _
-      _ ≤ 3 * δ := by rw [abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 2)]; linarith
-  have hmax := abs_max_sub_max_le (b := 0) (d := 0) hsub
-    (by simpa using (show 0 ≤ 3 * δ by positivity))
+      _ ≤ 3 * δ := by rw [abs_mul, abs_of_nonneg (a := (2 : ℝ)) zero_le_two]; linarith
+  have h3δ : 0 ≤ 3 * δ := by positivity
+  have hmax := abs_max_sub_max_le (b := 0) (d := 0) hsub (by simpa using h3δ)
   unfold radius
-  rw [← mul_sub, abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 7)]
+  rw [← mul_sub, abs_mul, abs_of_nonneg (a := 7) (by norm_num)]
   linarith
 
 /-- The update is 28-Lipschitz in the row and old default, with the floor and capacities fixed.

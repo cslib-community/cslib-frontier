@@ -104,26 +104,20 @@ private theorem pos_params_of_interpolation {ι : Type*} [Fintype ι] {W : ι �
     1 ≤ W_tot ∧ 1 ≤ D := by
   have hB_pos : 1 ≤ B_W := by
     by_contra h0
-    have hdiv : (B_W + M - 1) / M = 0 := by
-      rw [show B_W = 0 by omega, zero_add]; exact Nat.div_eq_of_lt (by omega)
+    have hdiv : (B_W + M - 1) / M = 0 := Nat.div_eq_of_lt (by omega)
     omega
-  have hW_tot_pos : 1 ≤ W_tot :=
-    hB_pos.trans (hA.trans ((Finset.sum_le_sum_of_subset (Finset.subset_univ _)).trans hW_sum))
   have hcard_pos : 1 ≤ Fintype.card ι :=
     (hk.trans hk_le_t).trans ((ceil_div_le_card_of_sum_le hM hW_le hA).trans (card_le_univ _))
-  have hD_pos : 1 ≤ D := by
-    by_contra h0
-    have htri : 1 ≤ m * (m + 1) / 2 := by
-      have : 2 ≤ m * (m + 1) := Nat.mul_le_mul hm (by omega : 2 ≤ m + 1)
-      omega
-    have hmon0 : #(Sudan.monomials d 0) ≤ 1 := by
-      refine (card_le_card (t := {(0, 0)}) fun p hp => mem_singleton.2 ?_).trans (by simp)
-      obtain ⟨h1, h2, _⟩ := Sudan.mem_monomials.1 hp
-      exact Prod.ext (by omega) (by omega)
-    rw [show D = 0 by omega] at hinterp
-    have := Nat.mul_pos hcard_pos htri
-    omega
-  exact ⟨hW_tot_pos, hD_pos⟩
+  refine ⟨hB_pos.trans (hA.trans ((sum_le_sum_of_subset (subset_univ _)).trans hW_sum)), ?_⟩
+  by_contra h0
+  obtain rfl : D = 0 := by omega
+  have hpos : 0 < Fintype.card ι * (m * (m + 1) / 2) := Nat.mul_pos hcard_pos
+    (Nat.div_pos ((Nat.succ_le_succ hm).trans (Nat.le_mul_of_pos_left _ hm)) zero_lt_two)
+  have hmon0 : #(Sudan.monomials d 0) ≤ 1 := card_le_one.2 fun a ha b hb => by
+    obtain ⟨ha1, ha2, _⟩ := Sudan.mem_monomials.1 ha
+    obtain ⟨hb1, hb2, _⟩ := Sudan.mem_monomials.1 hb
+    exact Prod.ext (by omega) (by omega)
+  omega
 
 /-- Step 2 (UFD factorization in `F[Z][X][Y]` and pigeonhole onto a single irreducible factor `R`).
 -/

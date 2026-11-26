@@ -155,7 +155,8 @@ private theorem firstTerm_eq_of_extends (ht : F.firstTerm ρ = some t) (h : θ.E
   rw [firstTerm, List.find?_eq_some_iff_append] at ht ⊢
   obtain ⟨-, as, bs, rfl, has⟩ := ht
   refine ⟨by simp [hθ], as, bs, rfl, fun a ha => ?_⟩
-  simpa using (show a.FalsifiedBy ρ by simpa using has a ha).mono h
+  have haρ : a.FalsifiedBy ρ := by simpa using has a ha
+  simpa using haρ.mono h
 
 variable [DecidableEq ι]
 
@@ -297,14 +298,11 @@ private theorem encode_extends (s : ℕ) (ρ : PartialAssignment ι) (x : ι →
   by_cases h : F.queried ρ = []
   · rwa [encode_of_queried_eq_nil h]
   by_cases hs : s ≤ (F.queried ρ).length
-  · rw [encode_of_le h hs]
-    dsimp only
+  · simp only [encode_of_le h hs]
     rw [PartialAssignment.assign_of_notMem
       fun hiW => hiV (List.mem_toFinset.2 (List.mem_of_mem_take (List.mem_toFinset.1 hiW))), hi]
-  · rw [encode_of_lt h (by omega)]
-    dsimp only
-    rw [PartialAssignment.assign_of_notMem hiV,
-      encode_extends _ (ρ.assign (F.queried ρ).toFinset x) x i b (by simp [hiV, hi])]
+  · simp only [encode_of_lt h (s := s) (by omega), PartialAssignment.assign_of_notMem hiV]
+    exact encode_extends _ (ρ.assign (F.queried ρ).toFinset x) x i b (by simp [hiV, hi])
 termination_by #ρ.free
 decreasing_by exact card_free_assign_lt h x
 
@@ -332,10 +330,9 @@ private theorem decodeAux_encode (hF : ∀ t ∈ F, (t.map Prod.fst).Nodup) {ρ 
   by_cases hsV : s ≤ (F.queried ρ).length
   · rw [encode_of_le h hsV, ht, Option.getD_some]
     dsimp only
-    by_cases hs0 : s = 0
-    · subst hs0
-      simp only [List.take_zero, List.toFinset_nil, Term.stageCode, decodeAux]
-      exact congrArg (PartialAssignment.unassign · Q) (PartialAssignment.assign_eq_self (by simp))
+    rcases eq_or_ne s 0 with rfl | hs0
+    · simpa [Term.stageCode, decodeAux] using
+        congrArg (PartialAssignment.unassign · Q) (PartialAssignment.assign_eq_self (by simp))
     have hW : (F.queried ρ).take s ≠ [] := by simp [List.take_eq_nil_iff, hs0, h]
     rw [decodeAux_none (Term.stageCode_eq_nil_iff.not.2 hW),
       firstTerm_assign_satisfying hF ht (PartialAssignment.Extends.refl ρ)
@@ -345,8 +342,7 @@ private theorem decodeAux_encode (hF : ∀ t ∈ F, (t.map Prod.fst).Nodup) {ρ 
       decodeAux_stageCode (fun v hv => htV v (List.mem_of_mem_take hv)) hW]
     simp only [decodeAux, PartialAssignment.assign_assign]
     exact PartialAssignment.unassign_union_assign (toFinset_take_queried_subset_free s) x
-  · have hlt : (F.queried ρ).length < s := by omega
-    rw [encode_of_lt h hlt, ht, Option.getD_some]
+  · rw [encode_of_lt h (by omega), ht, Option.getD_some]
     dsimp only
     rw [decodeAux_none (List.append_ne_nil_of_left_ne_nil (Term.stageCode_eq_nil_iff.not.2 h) _),
       firstTerm_assign_satisfying hF ht ((encode_extends _ _ _).trans
@@ -354,9 +350,8 @@ private theorem decodeAux_encode (hF : ∀ t ∈ F, (t.map Prod.fst).Nodup) {ρ 
         (fun _ hv => hv) (fun _ hv hv' => absurd hv hv'),
       Option.getD_some, decodeAux_stageCode htV h, PartialAssignment.assign_assign,
       PartialAssignment.assign_eq_self fun i hi => encode_assign_eq _ x hi,
-      decodeAux_encode hF (ρ := ρ.assign (F.queried ρ).toFinset x) (by
-        rw [pathLength_of_queried_ne_nil h] at hs
-        omega)]
+      decodeAux_encode hF (ρ := ρ.assign (F.queried ρ).toFinset x)
+        (by rw [pathLength_of_queried_ne_nil h] at hs; omega)]
     exact PartialAssignment.unassign_union_assign toFinset_queried_subset_free x
 termination_by #ρ.free
 decreasing_by exact card_free_assign_lt h x
@@ -376,20 +371,17 @@ private theorem card_free_encode (hF : ∀ t ∈ F, (t.map Prod.fst).Nodup) {ρ 
     rw [encode_of_queried_eq_nil h, Nat.le_zero.1 hs, Nat.sub_zero]
   have hnd := nodup_queried (ρ := ρ) hF
   by_cases hsV : s ≤ (F.queried ρ).length
-  · rw [encode_of_le h hsV]
-    dsimp only
-    rw [PartialAssignment.free_assign, card_sdiff_of_subset (toFinset_take_queried_subset_free s),
+  · simp only [encode_of_le h hsV, PartialAssignment.free_assign,
+      card_sdiff_of_subset (toFinset_take_queried_subset_free s),
       List.toFinset_card_of_nodup ((List.take_sublist _ _).nodup hnd), List.length_take,
       min_eq_left hsV]
-  · rw [encode_of_lt h (by omega)]
-    dsimp only
+  · simp only [encode_of_lt h (s := s) (by omega), PartialAssignment.free_assign]
     have hlen := (List.toFinset_card_of_nodup hnd).symm.trans_le
       (card_le_card (toFinset_queried_subset_free (ρ := ρ)))
-    rw [PartialAssignment.free_assign, sdiff_eq_self_of_disjoint (disjoint_left.2 fun i hi hiV => by
+    rw [sdiff_eq_self_of_disjoint (disjoint_left.2 fun i hi hiV => by
         simp [PartialAssignment.mem_free, encode_assign_eq _ x hiV] at hi),
-      card_free_encode hF (ρ := ρ.assign (F.queried ρ).toFinset x) (by
-        rw [pathLength_of_queried_ne_nil h] at hs
-        omega),
+      card_free_encode hF (s := s - (F.queried ρ).length) (ρ := ρ.assign (F.queried ρ).toFinset x)
+        (x := x) (by rw [pathLength_of_queried_ne_nil h] at hs; omega),
       PartialAssignment.free_assign, card_sdiff_of_subset toFinset_queried_subset_free,
       List.toFinset_card_of_nodup hnd]
     omega
@@ -404,11 +396,9 @@ private theorem length_encode {ρ : PartialAssignment ι} {s : ℕ} {x : ι → 
     simp [encode_of_queried_eq_nil h, Nat.le_zero.1 hs]
   by_cases hsV : s ≤ (F.queried ρ).length
   · simp [encode_of_le h hsV, hsV]
-  · rw [encode_of_lt h (by omega)]
-    dsimp only
-    rw [List.length_append, Term.length_stageCode,
-      length_encode (ρ := ρ.assign (F.queried ρ).toFinset x)
-        (by rw [pathLength_of_queried_ne_nil h] at hs; omega)]
+  · simp only [encode_of_lt h (s := s) (by omega), List.length_append, Term.length_stageCode,
+      length_encode (s := s - (F.queried ρ).length) (ρ := ρ.assign (F.queried ρ).toFinset x)
+        (x := x) (by rw [pathLength_of_queried_ne_nil h] at hs; omega)]
     omega
 termination_by #ρ.free
 decreasing_by exact card_free_assign_lt h x

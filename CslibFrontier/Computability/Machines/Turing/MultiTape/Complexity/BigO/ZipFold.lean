@@ -222,13 +222,9 @@ theorem zipFold [Inhabited β]
   · have hin := Nat.mul_le_mul_left (q.2.1.length + 1)
       (show (K + 8) * ((8 + 2 * k) * (X + 1)) + (2 * (X + 1) + k * (X + 1)) + (encP q.1).length +
         (encList encA q.2.1).length ≤ C * (X + 1) by omega)
-    have hcomm : (q.2.1.length + 1) * (C * (X + 1)) = C * ((q.2.1.length + 1) * (X + 1)) :=
-      Nat.mul_left_comm ..
     have hU : X + 1 ≤ (q.2.1.length + 1) * (X + 1) := Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
-    have hexp : (C + 8) * ((q.2.1.length + 1) * (X + 1) + 1) =
-        C * ((q.2.1.length + 1) * (X + 1)) + 8 * ((q.2.1.length + 1) * (X + 1)) + C + 8 := by ring
-    omega
-  · have hexp : (C + 8) * (X + 1) = C * (X + 1) + 8 * (X + 1) := by ring
+    rw [Nat.mul_add (C + 8), Nat.add_mul C 8, Nat.mul_one, ← Nat.mul_left_comm _ C]; omega
+  · rw [Nat.add_mul C 8]
     omega
 
 end ComputableInO

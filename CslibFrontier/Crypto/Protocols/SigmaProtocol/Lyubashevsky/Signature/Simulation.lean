@@ -425,27 +425,22 @@ public theorem closeTo_lyubashevskySign_simulate {Ω M α : Type} [DecidableEq M
     let coin ← (lyubashevsky n m k q γ β).commit (S h) (A, T A h)
     let c ← PMF.uniformOfFintype (BitString k)
     return (A, h, coin, c)
-  let f : Matrix (Fin n) (Fin m) (ZMod q) × Ω ×
-      ((Fin n → ZMod q) × (Fin m → ℤ)) × BitString k →
-      PMF (Matrix (Fin n) (Fin m) (ZMod q) × Ω × α) := fun a =>
+  let f (a : Matrix (Fin n) (Fin m) (ZMod q) × Ω ×
+      ((Fin n → ZMod q) × (Fin m → ℤ)) × BitString k) :=
     let sig := ((lyubashevsky n m k q γ β).respond (S a.2.1) (a.1, T a.1 a.2.1)
       a.2.2.1.2 a.2.2.2).map fun z => (a.2.2.1.1, z)
     ((interpret (oracle (BitString k)) (cont a.1 a.2.1 sig)).run
-      (((msg a.2.1, a.2.2.1.1), a.2.2.2) :: cache a.2.1)).map
-        fun out => (a.1, a.2.1, out.1)
-  let g : Matrix (Fin n) (Fin m) (ZMod q) × Ω ×
-      ((Fin n → ZMod q) × (Fin m → ℤ)) × BitString k →
-      PMF (Matrix (Fin n) (Fin m) (ZMod q) × Ω × α) := fun a =>
+      (((msg a.2.1, a.2.2.1.1), a.2.2.2) :: cache a.2.1)).map fun out => (a.1, a.2.1, out.1)
+  let g (a : Matrix (Fin n) (Fin m) (ZMod q) × Ω ×
+      ((Fin n → ZMod q) × (Fin m → ℤ)) × BitString k) :=
     let sig := ((lyubashevsky n m k q γ β).respond (S a.2.1) (a.1, T a.1 a.2.1)
       a.2.2.1.2 a.2.2.2).map fun z => (a.2.2.1.1, z)
     ((interpret (oracle (BitString k)) (cont a.1 a.2.1 sig)).run
       (lyubashevskySimCache (msg a.2.1) a.2.2.2 (cache a.2.1) sig)).map
         fun out => (a.1, a.2.1, out.1)
-  let entryToPair : (Σ _ : M × (Fin n → ZMod q), BitString k) →
-      (M × (Fin n → ZMod q)) × BitString k :=
-    fun entry => (entry.1, entry.2)
-  let err : Matrix (Fin n) (Fin m) (ZMod q) × Ω ×
-      ((Fin n → ZMod q) × (Fin m → ℤ)) × BitString k → PMF Bool := fun a =>
+  let entryToPair (entry : Σ _ : M × (Fin n → ZMod q), BitString k) := (entry.1, entry.2)
+  let err (a : Matrix (Fin n) (Fin m) (ZMod q) × Ω ×
+      ((Fin n → ZMod q) × (Fin m → ℤ)) × BitString k) :=
     (((interpret (withTranscript (oracle (BitString k)))
       (cont a.1 a.2.1 none)).run (cache a.2.1, [])).map
         fun trace => ((trace.2.2.map entryToPair).lookup

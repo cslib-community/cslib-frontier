@@ -172,10 +172,8 @@ private theorem sum_update_transfer [DecidableEq ι] (f : ι → ℝ) {i j : ι}
 
 private theorem eq_of_le_of_sum_le {f g : ι → ℝ} (hle : ∀ i, f i ≤ g i)
     (hsum : ∑ i, g i ≤ ∑ i, f i) (i : ι) : f i = g i := by
-  have hdiff : ∀ k, 0 ≤ g k - f k := fun k => sub_nonneg.mpr (hle k)
-  have hzero : ∑ k, (g k - f k) = 0 :=
-    le_antisymm (by rw [Finset.sum_sub_distrib]; linarith) (Finset.sum_nonneg fun k _ => hdiff k)
-  linarith [(Finset.sum_eq_zero_iff_of_nonneg fun k _ => hdiff k).mp hzero i (Finset.mem_univ i)]
+  exact (Finset.sum_eq_sum_iff_of_le fun k _ => hle k).mp
+    ((Finset.sum_le_sum fun k _ => hle k).antisymm hsum) i (Finset.mem_univ i)
 
 private theorem isClearedAndExhausted_of_isParetoOptimal
     {m : ℝ} {v B : ι → ℝ} (hv : ∀ i, 0 ≤ v i) {o : Outcome ι}
@@ -273,20 +271,17 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
     have hw_pos (i : ι) : 0 < w i := by
       dsimp only [w]
       split_ifs with hle
-      · exact zero_lt_one
-      · exact div_pos hpStar_pos (hpStar_pos.trans (lt_of_not_ge hle))
+      exacts [zero_lt_one, div_pos hpStar_pos (hpStar_pos.trans (lt_of_not_ge hle))]
     have hterm_le (i : ι) :
         w i * (o'.utility v i - o.utility v i) + (o'.payment i - o.payment i) ≤
           pStar * (o'.alloc i - o.alloc i) := by
       dsimp only [w, utility]
       split_ifs with hle
-      · have hsimp : 1 * (v i * o'.alloc i - o'.payment i - (v i * o.alloc i - o.payment i)) +
-            (o'.payment i - o.payment i) = v i * (o'.alloc i - o.alloc i) := by ring
-        rw [hsimp]
-        rcases (hfeas.1 i).eq_or_lt with hxi | hxi_pos
-        · rw [← hxi, sub_zero]
-          exact mul_le_mul_of_nonneg_right hle (hnn' i)
+      · rcases (hfeas.1 i).eq_or_lt with hxi | hxi_pos
+        · rw [← hxi]
+          linarith [mul_le_mul_of_nonneg_right hle (hnn' i)]
         · rw [le_antisymm hle (hge_of_alloc_pos i hxi_pos)]
+          linarith
       · have hgt : pStar < v i := lt_of_not_ge hle
         have hvi_pos : 0 < v i := hpStar_pos.trans hgt
         have hrew :
@@ -319,9 +314,8 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
     have hpay_le (i : ι) : o'.payment i ≤ o.payment i := by
       rcases (hv i).eq_or_lt with hvi0 | hvi
       · simpa only [utility, ← hvi0, zero_mul, zero_sub, neg_le_neg_iff] using hu_le i
-      · have hnot : i ∉ slackSet := fun h => hslack ⟨i, h⟩
-        simp only [slackSet, Finset.mem_filter, Finset.mem_univ, true_and, hvi, not_lt] at hnot
-        exact (hbf' i).trans hnot
+      · exact (hbf' i).trans (not_lt.mp fun hlt =>
+          hslack ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ i, hvi, hlt⟩⟩)
     have hpay_eq (i : ι) : o'.payment i = o.payment i := eq_of_le_of_sum_le hpay_le hrev_le i
     have hrev_eq : o'.revenue = o.revenue := Finset.sum_congr rfl fun i _ => hpay_eq i
     obtain ⟨i₀, hi₀⟩ := hstrict.resolve_right (by linarith)

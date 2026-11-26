@@ -116,18 +116,12 @@ theorem prefixLoad_of_le (p : Fin n → α) (σ : Fin n → Fin m) {k : ℕ} (hk
 
 theorem prefixLoad_succ (p : Fin n → α) (σ : Fin n → Fin m) (j : Fin n) (i : Fin m) :
     prefixLoad p σ (j + 1) i = prefixLoad p σ j i + if σ j = i then p j else 0 := by
-  unfold prefixLoad
-  have : (univ.filter fun k : Fin n => (k : ℕ) < j + 1 ∧ σ k = i) =
-      (univ.filter fun k : Fin n => (k : ℕ) < j ∧ σ k = i) ∪
-        (univ.filter fun k : Fin n => k = j ∧ σ k = i) := by
-    ext k
-    simp only [mem_filter, mem_univ, true_and, mem_union, Fin.ext_iff]
-    omega
-  rw [this, sum_union]
-  · simp [sum_filter, ite_and]
-  · rw [disjoint_filter]
-    rintro k - ⟨hk, -⟩ ⟨rfl, -⟩
-    omega
+  simp only [prefixLoad, sum_filter]
+  rw [← Fintype.sum_ite_eq' j (fun _ => if σ j = i then p j else 0), ← sum_add_distrib]
+  refine sum_congr rfl fun k _ => ?_
+  rcases eq_or_ne k j with rfl | hne
+  · simp
+  · simp [Nat.lt_succ_iff, le_iff_lt_or_eq, ← Fin.ext_iff, hne]
 
 /-- The machine loads before job `k` add up to the total processing time of the jobs `j < k`. -/
 theorem sum_prefixLoad (p : Fin n → α) (σ : Fin n → Fin m) (k : ℕ) :
@@ -223,7 +217,7 @@ theorem load_le_of_forall_completion_le (p : Fin n → α) (σ : Fin n → Fin m
   induction k with
   | zero => simpa [prefixLoad_zero] using hB
   | succ k ih =>
-    rw [show k + 1 = (⟨k, hk⟩ : Fin n).val + 1 from rfl, prefixLoad_succ]
+    rw [← Fin.val_mk hk, prefixLoad_succ]
     split_ifs with hσ
     · exact hσ ▸ h ⟨k, hk⟩
     · simpa using ih (Nat.le_of_succ_le hk)
@@ -278,11 +272,9 @@ theorem IsListSchedule.makespan_le_optMakespan {p : Fin n → α} {σ : Fin n �
     (hσ : IsListSchedule p σ) (hp : ∀ j, 0 ≤ p j) :
     makespan p σ ≤ (2 - 1 / m) * optMakespan m p := by
   obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan m p
-  have hmpos : (0 : α) < m := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne m)
-  have hdiv : (2 - 1 / (m : α)) * optMakespan m p = (2 * m - 1) * optMakespan m p / m := by
-    field_simp
-  rw [hdiv, le_div_iff₀' hmpos, ← hτ]
-  exact hσ.card_mul_makespan_le hp τ
+  have hmpos : (0 : α) < m := Nat.cast_pos.mpr (NeZero.pos m)
+  rw [sub_div' hmpos.ne', div_mul_eq_mul_div, le_div_iff₀' hmpos, ← hτ]
+  simpa only [one_mul] using hσ.card_mul_makespan_le hp τ
 
 end Graham
 

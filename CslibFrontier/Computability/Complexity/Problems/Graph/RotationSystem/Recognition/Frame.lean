@@ -82,15 +82,13 @@ theorem mem_referenceOrder_lt {I : FixedRotationInput} (hI : Valid I) {x : ℕ}
   unfold subdivisionSize
   rcases List.mem_append.mp hx with hc | hr
   · obtain ⟨v, hv, hx⟩ := List.mem_flatMap.mp hc
-    have hv' := List.mem_range.mp hv
     rcases List.mem_cons.mp hx with rfl | hx
-    · omega
+    · exact Nat.lt_add_right _ (List.mem_range.mp hv)
     · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hx
-      have := (mem_fiber.mp ((fixedWord_spec hI v).2 d (List.mem_reverse.mp hd))).1
-      omega
+      exact Nat.add_lt_add_left
+        (mem_fiber.mp ((fixedWord_spec hI v).2 d (List.mem_reverse.mp hd))).1 _
   · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp (List.mem_filter.mp hr).1
-    have := List.mem_range.mp hd
-    omega
+    exact Nat.add_lt_add_left (List.mem_range.mp hd) _
 
 /-- Center blocks have distinct original centers and distinct fresh selected leaves. -/
 theorem centerBlocks_nodup {I : FixedRotationInput} (hI : Valid I) : (centerBlocks I).Nodup := by
@@ -168,21 +166,20 @@ theorem frozen_edge_shape {I : FixedRotationInput} (hI : Valid I) {e : ℕ × �
   rcases List.mem_cons.mp hs with rfl | hs
   · refine ⟨entry.1.1, I.graph.vertices.length + 2 * entry.2, hu, Nat.le_add_right _ _, by
       unfold subdivisionSize
-      omega, Or.inl rfl, hf, ?_⟩
+      omega, .inl rfl, hf, ?_⟩
     have hr := getD_incidenceVertices_even I.graph entry.2
     rw [List.getD_eq_getElem _ _ hi, hv] at hr
-    simpa using hr
+    rwa [Nat.add_sub_cancel_left]
   · rcases List.mem_cons.mp hs with rfl | hs
     · cases hf
     · obtain rfl := List.mem_singleton.mp hs
-      refine ⟨entry.1.2, I.graph.vertices.length + 2 * entry.2 + 1, hw, by omega,
-        by
+      refine ⟨entry.1.2, I.graph.vertices.length + 2 * entry.2 + 1, hw,
+        (Nat.le_add_right _ _).trans (Nat.le_succ _), by
           unfold subdivisionSize
-          omega, Or.inr rfl, hf, ?_⟩
+          omega, .inr rfl, hf, ?_⟩
       have hr := getD_incidenceVertices_odd I.graph entry.2
       rw [List.getD_eq_getElem _ _ hi, hv] at hr
-      simpa only [show I.graph.vertices.length + 2 * entry.2 + 1 - I.graph.vertices.length =
-        2 * entry.2 + 1 by omega] using hr
+      rwa [Nat.add_assoc, Nat.add_sub_cancel_left]
 
 /-- Every selected subdivision leaf belongs to exactly one center. Together with
 `frozen_edge_shape`, this describes disjoint spanning stars and isolated points. -/
@@ -195,10 +192,8 @@ theorem frozen_leaf_unique {I : FixedRotationInput} (hI : Valid I) {leaf u v : �
     rcases hx with hx | hx <;> obtain ⟨c, l, hc, _, _, he | he, _, hread⟩ := frozen_edge_shape hI hx
     · obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
       exact hread
-    · have := (Prod.mk.inj he).2
-      omega
-    · have := (Prod.mk.inj he).1
-      omega
+    · exact absurd (Prod.mk.inj he).2 (by omega)
+    · exact absurd (Prod.mk.inj he).1 (by omega)
     · obtain ⟨rfl, rfl⟩ := Prod.mk.inj he
       exact hread
   exact (center u hu).symm.trans (center v hv)

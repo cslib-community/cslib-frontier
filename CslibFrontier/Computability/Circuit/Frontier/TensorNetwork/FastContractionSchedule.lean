@@ -158,9 +158,7 @@ theorem child (hB : ∀ d M p, Active C m d M p → ActiveBounds C m d M p) (h :
   obtain ⟨-, -, hg⟩ := lt_of_mem_children hc
   have hK := pow_slots_le_edges_of_active ha
   have hu := level_lt_levels hc
-  have ha' := ha
-  simp only [active, decide_eq_true_eq] at ha'
-  obtain ⟨-, -, -, hua, -, -, -⟩ := ha'
+  obtain ⟨-, -, -, hua, -, -, -⟩ := by simpa only [active, decide_eq_true_eq] using ha
   have hia : level x ((nodes x).getD c.1 0) < slots x := hu.trans_le hua
   have hslots : slots x = slotBits m x.depth := by rw [slots, h.scale_eq]
   have hlevels : levels x = taper m x.depth := by rw [levels, h.scale_eq]
@@ -274,19 +272,12 @@ theorem length_children_le (hB : ∀ d M p, Active C m d M p → ActiveBounds C 
       (by rw [hslots]; exact hb.slots_mul_pairs_le)
   have hT : ∀ j < (nodes x).length, (BudgetTuples.budgetTuples (weights x j)
       (nodePrec x j)).length ≤ 2 ^ branchExponent C m x.depth := fun j hj => by
-    have hu := level_lt_levels_of_lt hj
-    set i := level x ((nodes x).getD j 0)
-    have e1 : nodePrec x j = nodePrecision x.prec (step x) (slotBits m x.depth) x.edges i := by
-      rw [nodePrec, hslots]
-    have e2 : weights x j = modeWeights (packing x).2.1 (2 ^ (i + 1))
-        (nodePrecision x.prec (step x) (slotBits m x.depth) x.edges i) := by
-      rw [weights, ← e1]
+    have hu : level x ((nodes x).getD j 0) < taper m x.depth :=
+      hlevels ▸ level_lt_levels_of_lt hj
     have hh : step x * taper m x.depth ≤ 3 * x.edges + taper m x.depth := by
       simpa only [step, h.scale_eq] using taperStep_mul_le x.scale x.depth x.edges
-    have hP' : Fintype.card (Fin (packing x).2.1) * 2 ^ slotBits m x.depth ≤ 3 * x.edges := by
-      rw [Fintype.card_fin, ← hslots]; exact hP
-    rw [e1, e2, length_budgetTuples_modeWeights]
-    exact hb.card_modeBudget_le hA (by rw [← hlevels]; exact hu) hh hP'
+    rw [weights, nodePrec, hslots, length_budgetTuples_modeWeights]
+    exact hb.card_modeBudget_le hA hu hh (by rwa [Fintype.card_fin, ← hslots])
   have hc := length_cursorList_le (n := numPoints x) (r := 64) hT
   have hbr := hb.branching_le
   have hN := length_nodes_le x

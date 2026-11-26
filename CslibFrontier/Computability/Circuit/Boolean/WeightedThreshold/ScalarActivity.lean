@@ -286,16 +286,14 @@ private theorem scalarEval_eq_of_le_of_rank_eq (p : Program signature n g) (w : 
     rw [hval t ((card_le_card hsub).trans h1), hval t' h1]
   · have htr_set_eq : leTranscripts p w t = leTranscripts p w t' :=
       eq_of_subset_of_card_le hsub (by omega)
-    obtain ⟨_, hx_tr⟩ := card_pos.mp (by omega : 0 < (leTranscripts p w t).card)
-    obtain ⟨x₀, hx₀, -⟩ := mem_image.mp hx_tr
-    have hrep_t := scalarRep_mem_of_nonempty ⟨x₀, hx₀⟩
-    have hmem_tr' : transcript p (scalarRep w t') ∈ leTranscripts p w t := by
-      rw [htr_set_eq]
-      exact mem_image_of_mem _ (scalarRep_mem_of_nonempty ⟨x₀, leInputs_subset htt' hx₀⟩)
-    obtain ⟨x₁, hx₁, htr₁⟩ := mem_image.mp hmem_tr'
+    have hne : (leInputs w t).Nonempty :=
+      Nonempty.of_image (card_pos.mp (by omega : 0 < (leTranscripts p w t).card))
+    have hmem : transcript p (scalarRep w t') ∈ leTranscripts p w t' :=
+      mem_image_of_mem _ (scalarRep_mem_of_nonempty (hne.mono (leInputs_subset htt')))
+    obtain ⟨x₁, hx₁, htr₁⟩ := mem_image.mp (htr_set_eq ▸ hmem)
     exact (eval_eq_of_weightedSum_between p w hw (le_weightedSum_scalarRep_of_mem hx₁)
-      (le_weightedSum_scalarRep_of_mem (leInputs_subset htt' hrep_t)) htr₁).trans
-      (eval_eq_of_transcript_eq p htr₁)
+      (le_weightedSum_scalarRep_of_mem (leInputs_subset htt' (scalarRep_mem_of_nonempty hne)))
+      htr₁).trans (eval_eq_of_transcript_eq p htr₁)
 
 /-- **Theorem 4.1 (Piece bound for scalar-direction gate evaluation)**: when every gate reads
 inputs along `w`, `scalarEval p w` has at most `(attainableTranscripts p).card` pieces on `ℝ`. -/
@@ -346,11 +344,8 @@ theorem length_le_card_attainableTranscripts_of_isChain {β : Type*} (p : Progra
     (halt : (xs.map fun x => readout (p.eval interpretation x)).IsChain (· ≠ ·)) :
     xs.length ≤ (attainableTranscripts p).card := by
   have hpos := card_attainableTranscripts_pos p
-  have hmap : (xs.map (weightedSum w)).map (scalarReadout p w readout) =
-      xs.map fun x => readout (p.eval interpretation x) := by
-    simp only [List.map_map, Function.comp_def, scalarReadout_weightedSum p w hw]
-  have hlen := (changesAtMost_scalarReadout p w hw readout).length_le_succ_of_isChain
-    hmono (hmap.symm ▸ halt)
+  have hlen := (changesAtMost_scalarReadout p w hw readout).length_le_succ_of_isChain hmono
+    (by simpa only [List.map_map, Function.comp_def, scalarReadout_weightedSum p w hw] using halt)
   rw [List.length_map] at hlen
   omega
 
@@ -493,10 +488,10 @@ private theorem exists_scalarThreshold (w : Fin n → ℝ)
   let upper : Finset (Fin n → Bool) := univ.filter fun x => k ≤ index x
   by_cases hupper : upper.Nonempty
   · obtain ⟨y, hy, hmin⟩ := exists_min_image upper (weightedSum w) hupper
-    refine ⟨weightedSum w y, fun x =>
-      ⟨fun hs => ?_, fun hx => hmin x (mem_filter.mpr ⟨mem_univ _, hx⟩)⟩⟩
-    by_contra hx
-    exact not_lt_of_ge hs (horder x y ((Nat.lt_of_not_ge hx).trans_le (mem_filter.mp hy).2))
+    exact ⟨weightedSum w y, fun x =>
+      ⟨fun hs => not_lt.mp fun hx =>
+         not_lt_of_ge hs (horder x y (hx.trans_le (mem_filter.mp hy).2)),
+       fun hx => hmin x (mem_filter.mpr ⟨mem_univ _, hx⟩)⟩⟩
   · obtain ⟨y, -, hmax⟩ := exists_max_image (univ : Finset (Fin n → Bool))
       (weightedSum w) ⟨fun _ => false, mem_univ _⟩
     refine ⟨weightedSum w y + 1, fun x => iff_of_false (fun h => ?_)
@@ -534,8 +529,7 @@ theorem exists_scalarComparisonTree_iff (w : Fin n → ℝ)
     refine ⟨t.mapQueries θ, (DecisionTree.leafCount_mapQueries _ _).trans hcount,
       (DecisionTree.depth_mapQueries _ _).trans_le hdepth,
       (DecisionTree.energy_mapQueries _ _).trans_le henergy, fun x => ?_⟩
-    rw [DecisionTree.eval_mapQueries, show (fun s => decide (s ≤ weightedSum w x)) ∘ θ =
-        fun k => decide (k ≤ index x) from funext fun k => by simp only [Function.comp_apply, hθ]]
-    simpa only [zero_add] using heval (index x) (hbound x)
+    simpa only [DecisionTree.eval_mapQueries, Function.comp_def, hθ, zero_add] using
+      heval (index x) (hbound x)
 
 end Cslib.Circuits.Boolean.WeightedThreshold

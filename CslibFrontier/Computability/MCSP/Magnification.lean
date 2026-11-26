@@ -431,20 +431,11 @@ theorem circuitMinMergeLanguage_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBit
       PPolyOn encMerge :=
     PPolyOn.exists_of_computableInPolyTime_length hNP computableInPolyTime_mergeCertLength
       (PPolyOn.inf (isMinMergedCert_mem_PPolyOn hNP) hbit_q)
-  have h_eq : CircuitMinMergeLanguage =
-      {a : MergeInput | mergeOk₀ a = true ∧ mergeOk₁ a = true} ∩
-      {a : MergeInput |
-        ∃ w : List Bool, w.length = certLength a.header.arity a.header.size ∧
-          (IsMinMergedCert a.header.arity a.header.size a.header.subcube
-              (mergeCert₀ a) (mergeCert₁ a) w ∧
-            (a.header.bitIndex == 0 || w.getD (a.header.bitIndex - 1) false) = true)} := by
-    ext a
-    simp only [CircuitMinMergeLanguage, Set.mem_inter_iff, Set.mem_ofPred_eq, and_assoc]
-    refine and_congr_right fun _ => and_congr_right fun _ => exists_congr fun w => ?_
-    exact ⟨fun ⟨hmin, hbit⟩ => ⟨hmin.1.1, hmin, hbit⟩,
-      fun ⟨_, hmin, hbit⟩ => ⟨hmin, hbit⟩⟩
-  rw [h_eq]
-  exact PPolyOn.inf hok hex
+  convert PPolyOn.inf hok hex using 1
+  ext a
+  simp only [CircuitMinMergeLanguage, Set.mem_inter_iff, Set.mem_ofPred_eq, and_assoc]
+  exact and_congr_right fun _ => and_congr_right fun _ => exists_congr fun w =>
+    ⟨fun ⟨hmin, hbit⟩ => ⟨hmin.1.1, hmin, hbit⟩, fun ⟨_, hmin, hbit⟩ => ⟨hmin, hbit⟩⟩
 
 /-! ### Subcube certificates and semantic tree synthesis -/
 
@@ -649,12 +640,10 @@ private theorem complexity_single_comp_proj_le {m : ℕ} (g : Bool → Bool) (i�
   cases h0 : g false <;> cases h1 : g true
   · exact (Synthesis.of_forall_eq_const (s := inputs m) false fun x => by
       cases x i₀ <;> assumption).complexity_le
-  · rw [show (fun x : BitString m => g (x i₀)) = fun x => x i₀ from
-      funext fun x => by cases x i₀ <;> assumption, complexity_single_proj]
-    omega
-  · rw [show (fun x : BitString m => g (x i₀)) = fun x => !(x i₀) from
-      funext fun x => by cases x i₀ <;> simp [h0, h1]]
-    simpa [complexity_single_proj] using complexity_not_le (fun x : BitString m => x i₀)
+  · have hg : g = id := funext fun b => by cases b <;> assumption
+    simp [hg, complexity_single_proj]
+  · have hg : g = not := funext fun b => by cases b <;> simp [h0, h1]
+    simpa [hg, complexity_single_proj] using complexity_not_le (fun x : BitString m => x i₀)
   · exact (Synthesis.of_forall_eq_const (s := inputs m) true fun x => by
       cases x i₀ <;> assumption).complexity_le
 

@@ -101,8 +101,7 @@ theorem norm_mul_sub_smul_mul_le_of_consistent (φ : AlgState A) {X Z X' Z' : A}
     _ = s • (X * Z') := by rw [hXZ'.eq]
     _ ≈[φ; ‖s‖ * φ.norm (Z - Z')] s • (X * Z) := (cZ.symm.mul_left hX).smul s
   rw [hs, one_mul, one_mul] at chain
-  have h := AlgState.approx_iff.mp chain
-  linarith
+  linarith [AlgState.approx_iff.mp chain]
 
 /-- **Squared transfer**: under the hypotheses of
 `Cslib.Quantum.norm_mul_sub_smul_mul_le_of_consistent`,
@@ -213,11 +212,9 @@ private theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
     else 0
   have hm : ∀ c, 0 ≤ m c := fun c => by simp only [m]; split_ifs <;> positivity
   change _ ≤ m b + 32 * (𝔼 c, ℓ c ^ 2 + 𝔼 c, κZ c ^ 2 + κX ^ 2 + 𝔼 c, m c)
-  have hE : 0 ≤ 𝔼 c, ℓ c ^ 2 + 𝔼 c, κZ c ^ 2 + κX ^ 2 + 𝔼 c, m c := by
-    have h1 : 0 ≤ 𝔼 c, ℓ c ^ 2 := expect_nonneg fun c _ => sq_nonneg _
-    have h2 : 0 ≤ 𝔼 c, κZ c ^ 2 := expect_nonneg fun c _ => sq_nonneg _
-    have h3 : 0 ≤ 𝔼 c, m c := expect_nonneg fun c _ => hm c
-    positivity
+  have hE : 0 ≤ 𝔼 c, ℓ c ^ 2 + 𝔼 c, κZ c ^ 2 + κX ^ 2 + 𝔼 c, m c :=
+    add_nonneg (add_nonneg (add_nonneg (expect_nonneg fun _ _ => sq_nonneg _)
+      (expect_nonneg fun _ _ => sq_nonneg _)) (sq_nonneg _)) (expect_nonneg fun c _ => hm c)
   by_cases hab : a ⬝ᵥ b = true
   · have e : φ.norm (Z b * X a - (BitString.signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)) ^ 2 = m b := by
       simp only [m, hab, ite_true, BitString.signVal_true]
@@ -254,15 +251,13 @@ private theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
   have hmask : 𝔼 c, (if a ⬝ᵥ c = true then 8 * R c else 0) ≤ 𝔼 c, 8 * R c :=
     expect_le_expect fun c _ => by split_ifs <;> [exact le_rfl; exact by have := hR c; positivity]
   have hshift : ∀ f : (ι → Bool) → ℝ, 𝔼 c, f (c + b) = 𝔼 c, f c := fun f => by
-    simp only [add_comm _ b]
-    exact Fintype.expect_add_left f b
+    simpa only [add_comm _ b] using Fintype.expect_add_left f b
   have hR' : 𝔼 c, R c = 2 * 𝔼 c, ℓ c ^ 2 + 2 * 𝔼 c, κZ c ^ 2 + 2 * κX ^ 2 + 2 * 𝔼 c, m c := by
     simp only [R, expect_add_distrib, ← mul_expect, Fintype.expect_const]
     rw [hshift (fun c => κZ c ^ 2), hshift m]
     ring
   rw [← mul_expect] at hmask
-  have := hm b
-  linarith
+  linarith [hm b]
 
 /-- **Braiding relations from anticommutation, consistency and linearity**, averaged
 ([Natarajan and Vidick, §4.3.2, Lemma 18 and §4.3.3, Lemma 19][NatarajanVidick2017]): if
@@ -306,10 +301,8 @@ theorem expect_norm_pauliFamily_sub_sq_le_of_anticommute [Fintype ι] [Decidable
         33 * BitString.oddExpect (fun a b => φ.norm (X a * Z b + Z b * X a) ^ 2) +
         𝔼 a, 𝔼 a', φ.norm (X a * X a' - X (a + a')) ^ 2 +
         33 * 𝔼 b, 𝔼 b', φ.norm (Z b * Z b' - Z (b + b')) ^ 2) := by
-  have h₁ := expect_norm_pauliFamily_sub_sq_le φ X Z Z' hX hZ hZ' hXZ' hZZ'
-  have h₂ := expect_norm_braid_sq_le φ X Z X' Z' hX hZ hX' hZ' hXZ' hZZ' hZX' hX0
-  refine h₁.trans ?_
-  linarith [h₂]
+  linarith [expect_norm_pauliFamily_sub_sq_le φ X Z Z' hX hZ hZ' hXZ' hZZ',
+    expect_norm_braid_sq_le φ X Z X' Z' hX hZ hX' hZ' hXZ' hZZ' hZX' hX0]
 
 end Commutation
 

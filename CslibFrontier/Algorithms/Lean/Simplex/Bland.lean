@@ -283,12 +283,10 @@ theorem blandLeaving_eq_some_iff {s r : ι} : D.blandLeaving s = some r ↔
       ∀ i ∈ D.basis, D.coeff i s < 0 → D.ratio s i = D.ratio s r → r ≤ i := by
   rw [blandLeaving, minOpt_eq_some_iff]
   simp only [minRatioCandidates, leavingCandidates, Finset.mem_filter, and_imp, and_assoc]
-  constructor
-  · rintro ⟨hr, har, hmin, hle⟩
-    exact ⟨hr, har, hmin, fun i hi hai heq => hle i hi hai fun k hk hak => heq ▸ hmin k hk hak⟩
-  · rintro ⟨hr, har, hmin, hle⟩
-    exact ⟨hr, har, hmin, fun i hi hai himin =>
-      hle i hi hai (le_antisymm (himin r hr har) (hmin i hi hai))⟩
+  refine ⟨fun ⟨hr, har, hmin, hle⟩ => ⟨hr, har, hmin,
+      fun i hi hai heq => hle i hi hai fun k hk hak => heq ▸ hmin k hk hak⟩,
+    fun ⟨hr, har, hmin, hle⟩ => ⟨hr, har, hmin,
+      fun i hi hai himin => hle i hi hai (le_antisymm (himin r hr har) (hmin i hi hai))⟩⟩
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_optimal_iff : D.blandStep = .optimal ↔ D.blandEntering = none := by
@@ -409,7 +407,7 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   have hFne : F.Nonempty := by
     obtain ⟨r, s, hEk, ⟨hs, -⟩, -⟩ := (hE i (by omega)).exists_pivot
     exact ⟨s, (hFmem s).2 ⟨i + 1, by omega, by omega, i, le_rfl, hij.le,
-      by rw [hEk, mem_pivot_basis]; exact .inl rfl, hs⟩⟩
+      hEk ▸ (E i).mem_pivot_basis.2 (.inl rfl), hs⟩⟩
   obtain ⟨t, htF, hleT⟩ : ∃ t ∈ F, ∀ v ∈ F, v ≤ t :=
     ⟨F.max' hFne, F.max'_mem hFne, fun v hv => F.le_max' v hv⟩
   -- find a step `p` where `t` leaves and a step `q` where `t` enters
@@ -421,21 +419,19 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
     · obtain ⟨p, hip, hpl, hp, hp'⟩ :=
         exists_flip (P := fun k => t ∈ (E k).basis) hil₀ hti hl₀
       obtain ⟨q, hlq, hqj, hq, hq'⟩ :=
-        exists_flip (P := fun k => t ∉ (E k).basis) hl₀j hl₀
-          (by rw [not_not, ← hB]; exact hti)
+        exists_flip (P := fun k => t ∉ (E k).basis) hl₀j hl₀ (not_not.2 (hB ▸ hti))
       exact ⟨p, q, hip, by omega, by omega, hqj, hp, hp', hq, not_not.1 hq'⟩
     · obtain ⟨q, hiq, hqk, hq, hq'⟩ :=
         exists_flip (P := fun k => t ∉ (E k).basis) hik₀ hti (not_not.2 hk₀)
       obtain ⟨p, hkp, hpj, hp, hp'⟩ :=
-        exists_flip (P := fun k => t ∈ (E k).basis) hk₀j hk₀ (by rw [← hB]; exact hti)
+        exists_flip (P := fun k => t ∈ (E k).basis) hk₀j hk₀ (hB ▸ hti)
       exact ⟨p, q, by omega, hpj, hiq, by omega, hp, hp', hq, not_not.1 hq'⟩
   -- at step `p`, `s` enters and `t` leaves
   obtain ⟨r, s, hEp, ⟨hs, hcs, -⟩, hr, har, hmin, htie⟩ := (hE p (by omega)).exists_pivot
   rw [hEp, mem_pivot_basis] at htp'
   obtain rfl : t = r := of_not_not fun hrt => htp' (.inr ⟨htp, hrt⟩)
-  have hsF : s ∈ F :=
-    (hFmem s).2 ⟨p + 1, by omega, by omega, p, hip, hpj.le,
-      by rw [hEp, mem_pivot_basis]; exact .inl rfl, hs⟩
+  have hsF : s ∈ F := (hFmem s).2 ⟨p + 1, by omega, by omega, p, hip, hpj.le,
+    hEp ▸ (E p).mem_pivot_basis.2 (.inl rfl), hs⟩
   have hsr : s < t := lt_of_le_of_ne (hleT s hsF) fun h => hs (h ▸ hr)
   -- at step `q`, `t` enters
   obtain ⟨r', s', hEq, ⟨-, hcq, hminq⟩, -⟩ := (hE q (by omega)).exists_pivot
@@ -487,13 +483,10 @@ theorem add_one_le_choose_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ}
     (t := Finset.powersetCard #(E 0).basis Finset.univ) (fun k => (E k).basis)
     (fun k hk => Finset.mem_powersetCard.2 ⟨Finset.subset_univ _,
       hcard k (Nat.lt_succ_iff.1 (Finset.mem_range.1 hk))⟩)
-    (fun k hk l hl hkl => by
-      have hk := Nat.lt_succ_iff.1 (Finset.mem_range.1 hk)
-      have hl := Nat.lt_succ_iff.1 (Finset.mem_range.1 hl)
-      by_contra hne
-      rcases lt_or_gt_of_ne hne with h | h
-      · exact basis_ne_of_blandPivot hE0 hE h hl hkl
-      · exact basis_ne_of_blandPivot hE0 hE h hk hkl.symm)
+    fun k hk l hl hkl => by_contra fun hne => (lt_or_gt_of_ne hne).elim
+      (fun h => basis_ne_of_blandPivot hE0 hE h (Nat.lt_succ_iff.1 (Finset.mem_range.1 hl)) hkl)
+      (fun h => basis_ne_of_blandPivot hE0 hE h (Nat.lt_succ_iff.1 (Finset.mem_range.1 hk))
+        hkl.symm)
   rwa [Finset.card_range, Finset.card_powersetCard, Finset.card_univ] at h
 
 /-! ### The simplex method with Bland's rule -/

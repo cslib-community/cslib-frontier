@@ -73,10 +73,7 @@ def railBits (x : List Bool) : List Bool := true :: x.flatMap fun b => [b, !b]
 @[simp] theorem length_railBits (x : List Bool) : (railBits x).length = 2 * x.length + 1 := by
   induction x with
   | nil => rfl
-  | cons b x ih =>
-    simp only [railBits, List.length_cons, List.flatMap_cons, List.length_append,
-      List.length_nil] at ih ⊢
-    omega
+  | cons b x ih => simp [railBits] at ih ⊢; omega
 
 theorem railBits_append (x : List Bool) (v : Bool) :
     railBits (x ++ [v]) = railBits x ++ [v, !v] := by
@@ -103,16 +100,13 @@ private theorem getD_flatMap_pair (x : List Bool) {w : ℕ} (hw : w < x.length) 
 
 /-- The positive rail of a value. -/
 theorem getD_railBits_true (x : List Bool) {w : ℕ} (hw : w < x.length) :
-    (railBits x).getD (railWire true w) false = x.getD w false := by
-  simp only [railBits, railWire, ↓reduceIte, List.getD_cons_succ]
-  exact (getD_flatMap_pair x hw).1
+    (railBits x).getD (railWire true w) false = x.getD w false :=
+  (getD_flatMap_pair x hw).1
 
 /-- The negative rail of a value. -/
 theorem getD_railBits_false (x : List Bool) {w : ℕ} (hw : w < x.length) :
-    (railBits x).getD (railWire false w) false = !x.getD w false := by
-  simp only [railBits, railWire, Bool.false_eq_true, ↓reduceIte,
-    show 2 * w + 2 = 2 * w + 1 + 1 from rfl, List.getD_cons_succ]
-  exact (getD_flatMap_pair x hw).2
+    (railBits x).getD (railWire false w) false = !x.getD w false :=
+  (getD_flatMap_pair x hw).2
 
 /-! ### Gates -/
 
@@ -159,9 +153,8 @@ private theorem sum_andCost_dualCode (gates : List (Boolean.Op × List ℕ)) :
       simpa [dualCode, dualGates, andCost, Boolean.binaryCost] using ih
 
 private theorem getD_lt_of_isCode {l : List ℕ} {B j : ℕ} (hj : j < l.length) (h : ∀ i ∈ l, i < B) :
-    l.getD j 0 < B := by
-  rw [List.getD_eq_getElem _ _ hj]
-  exact h _ (List.getElem_mem hj)
+    l.getD j 0 < B :=
+  List.getD_eq_getElem _ _ hj ▸ h _ (List.getElem_mem hj)
 
 private theorem isCodeFrom_pair {N K : ℕ} {o₁ o₂ : Op} {l₁ l₂ : List ℕ}
     (h₁ : l₁.length = signature.Arity o₁) (h₂ : l₂.length = signature.Arity o₂)
@@ -286,10 +279,9 @@ def railBitString (x : BitString n) : BitString (2 * n + 1) :=
 
 /-- Listing the bits of `railBitString x` gives `railBits (List.ofFn x)`. -/
 theorem ofFn_railBitString (x : BitString n) :
-    List.ofFn (railBitString x) = railBits (List.ofFn x) := by
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  rw [List.getElem_ofFn]
-  exact List.getD_eq_getElem _ _ h₂
+    List.ofFn (railBitString x) = railBits (List.ofFn x) :=
+  List.ext_getElem (by simp) fun _ _ h₂ =>
+    (List.getElem_ofFn _).trans (List.getD_eq_getElem _ _ h₂)
 
 /-- The dual-rail code of a De Morgan circuit `c` is a valid monotone circuit code. -/
 theorem isSome_ofCode_dualRail (c : Circuit Boolean.signature n m) :

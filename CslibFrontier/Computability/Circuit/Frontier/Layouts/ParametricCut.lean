@@ -449,26 +449,18 @@ theorem nbrMedian_le_iff_innerCrossDeg_le_one (G : Multigraph V E) (y : V → α
     (hv : (G.incidenceSet v).ncard = 3) (t : α) :
     G.nbrMedian y v ≤ t ↔ G.innerCrossDeg y t v ≤ 1 := by
   obtain ⟨hm₁, hm₂⟩ := G.isMedianAt_nbrMedian y hv
-  constructor
-  · intro hmt
-    have hsum := innerCrossDeg_add_low_eq hv y (G.nbrMedian y v)
+  refine ⟨fun hmt => ?_, fun hdeg => by_contra fun hnot => ?_⟩
+  · have hsum := innerCrossDeg_add_low_eq hv y (G.nbrMedian y v)
     rw [innerCrossDeg] at hsum ⊢
-    exact (ncard_le_ncard
-      (s := {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)})
-      (t := {e ∈ G.incidenceSet v | G.nbrMedian y v < y (G.otherEnd v e)})
-      fun e he => ⟨he.1, hmt.trans_lt he.2⟩).trans (by omega)
-  · intro hdeg
-    by_contra hnot
-    have htm : t < G.nbrMedian y v := not_le.mp hnot
-    have hsum := (ncard_sep_add_not (G.incidenceSet v)
+    have hle : {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)}.ncard ≤
+        {e ∈ G.incidenceSet v | G.nbrMedian y v < y (G.otherEnd v e)}.ncard :=
+      ncard_le_ncard fun e he => ⟨he.1, hmt.trans_lt he.2⟩
+    omega
+  · have hsum := (ncard_sep_add_not (G.incidenceSet v)
       fun e => G.nbrMedian y v ≤ y (G.otherEnd v e)).trans hv
-    simp only [not_le] at hsum
+    simp only [not_le] at hsum hnot
     have hle : {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)}.ncard ≤
-        G.innerCrossDeg y t v := by
-      rw [innerCrossDeg]
-      exact ncard_le_ncard
-        (s := {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)})
-        fun e he => ⟨he.1, htm.trans_le he.2⟩
+        G.innerCrossDeg y t v := ncard_le_ncard fun e he => ⟨he.1, hnot.trans_le he.2⟩
     omega
 
 /-- Exact characterization of `L_-(t)` on a cubic multigraph: `v ∈ L_-(t)` iff `y v ≤ t` and
@@ -654,9 +646,11 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
     let F_U : Finset V := Finset.univ.filter (· ∈ U₂int)
     let F_E : Finset E := Finset.univ.filter (· ∈ E₂₂)
     have hcU : U₂int.ncard = F_U.card := by
-      rw [← ncard_coe_finset]; congr 1; ext u; simp [F_U]
+      simpa only [Finset.coe_filter, Finset.mem_univ, true_and, Set.ofPred_mem_eq, F_U] using
+        ncard_coe_finset F_U
     have hcE : E₂₂.ncard = F_E.card := by
-      rw [← ncard_coe_finset]; congr 1; ext e; simp [F_E]
+      simpa only [Finset.coe_filter, Finset.mem_univ, true_and, Set.ofPred_mem_eq, F_E] using
+        ncard_coe_finset F_E
     rw [hcU, hcE]
     have h1 : F_U.card = ∑ u ∈ F_U, ∑ e ∈ F_E, if e ∈ G.incidenceSet u then 1 else 0 := by
       rw [Finset.card_eq_sum_ones]

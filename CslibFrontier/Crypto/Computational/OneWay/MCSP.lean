@@ -169,16 +169,16 @@ theorem two_thirds_le_toReal_eval_mcspRun
 theorem toReal_eval_mcspRun_le_one_third
     (hV : DecidesWithBoundedError MCSP.encInstance p V MCSP) {x : MCSP.Instance} (hx : x ∉ MCSP) :
     (ProbComp.eval (mcspRun p V x) true).toReal ≤ 1 / 3 := by
-  rw [toReal_eval_mcspRun, div_le_iff₀ (by positivity)]
+  rw [toReal_eval_mcspRun, div_le_div_iff₀ (by positivity) zero_lt_three]
   set k := p.eval (MCSP.encInstance x).length
   have hsum : (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = true).card +
       (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = false).card = 2 ^ k := by
     simpa [Bool.not_eq_true] using Finset.card_filter_add_card_filter_not
       (s := (Finset.univ : Finset (Fin k → Bool))) (fun r => V (x, List.ofFn r) = true)
-  have h' := (Nat.cast_le (α := ℝ)).mpr ((hV x).2 hx)
-  have hsum' := congrArg (Nat.cast (R := ℝ)) hsum
-  push_cast at h' hsum'
-  linarith
+  have hfalse : 2 * 2 ^ k ≤
+      3 * (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = false).card :=
+    (hV x).2 hx
+  norm_cast; omega
 
 /-! ### The distinguisher -/
 
@@ -264,15 +264,10 @@ theorem computableInPolyTime_tableInstance (d : ℕ) :
   have hsize : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
       2 ^ tableArity d pair.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
     (computableInPolyTime_two_pow_tableArity d).comp (fst _ _).fst'
-  have hraw : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
-      ((pair.2 ++ List.replicate (2 ^ tableArity d pair.1.1) false).take
-        (2 ^ tableArity d pair.1.1), 2 ^ tableArity d pair.1.1 / (5 * tableArity d pair.1.1)))
-      (encPair (encPair encUnary encBits) encBits) (encPair encBits encNat) :=
-    (bitsTakeWithInput (bitsAppend (snd _ _) ((bitsReplicate false).comp hsize)) hsize).prod
-      (unary_to_binary.comp (unary_div.comp (hsize.prod (unary_mul.comp
-        ((const 5).prod harity)))))
-  refine hraw.of_enc_eq fun pair => ?_
-  simp only [MCSP.encInstance_apply, tableInstance, BitString.ofFn_ofList_eq_take]
+  refine ((bitsTakeWithInput (bitsAppend (snd _ _) ((bitsReplicate false).comp hsize)) hsize).prod
+    (unary_to_binary.comp (unary_div.comp (hsize.prod (unary_mul.comp
+      ((const 5).prod harity)))))).of_enc_eq fun pair => ?_
+  simp [MCSP.encInstance_apply, tableInstance, BitString.ofFn_ofList_eq_take]
 
 /-- **The Kabanets–Cai distinguisher is uniform strict oracle PPT**, for a polynomial-time
 decider `V`: it makes `2 ^ m ≤ (2 (n + 1)) ^ d` queries of length `n` and runs `V` on a truth table
@@ -389,8 +384,8 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
         calc 12 * 2 ^ (2 ^ m / 4) ≤ 2 ^ 4 * 2 ^ (2 ^ m / 4) := by gcongr; norm_num
           _ = 2 ^ (4 + 2 ^ m / 4) := by rw [pow_add]
           _ ≤ 2 ^ 2 ^ m := Nat.pow_le_pow_right two_pos (by omega)
-      rw [div_le_iff₀ (by positivity)]
-      linarith [show (12 : ℝ) * 2 ^ (2 ^ m / 4) ≤ 2 ^ 2 ^ m by exact_mod_cast hnat]
+      rw [div_le_div_iff₀ (by positivity) (by norm_num)]
+      norm_cast; omega
     calc 𝔼 table, (ProbComp.eval (mcspRun p V ⟨m,
           MCSP.truthTable m (KabanetsCai.restrictTable n m hn table), 2 ^ m / (5 * m)⟩)
             true).toReal

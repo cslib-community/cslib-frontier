@@ -141,13 +141,11 @@ private theorem identityMix_nonneg (y a : α) : 0 ≤ identityMix y a := by
   split_ifs <;> positivity
 
 private theorem sum_identityMix (y : α) : ∑ b, identityMix y b = 1 := by
-  have hn : (Fintype.card α : ℝ) ≠ 0 := by
-    have : Nonempty α := ⟨y⟩
-    exact_mod_cast Fintype.card_ne_zero
+  have : Nonempty α := ⟨y⟩
+  have hn : (Fintype.card α : ℝ) ≠ 0 := mod_cast Fintype.card_ne_zero
   simp only [identityMix, sum_add_distrib, sum_ite_eq', mem_univ, ite_true, sum_const, card_univ,
     nsmul_eq_mul]
-  field_simp
-  ring
+  field_simp; ring
 
 private theorem sum_mul_identityMix (p : PMF α) (b : α) :
     ∑ y, (p y).toReal * identityMix y b = (p b).toReal / 2 + 1 / (2 * Fintype.card α) := by
@@ -273,14 +271,9 @@ theorem dist_le_three_mul_dist_bind_identityKernel (p : PMF α) :
         ((q b).toReal / 2 + 1 / (2 * Fintype.card α)) / (2 * Fintype.card α * (q b).toReal + 2) =
           ((p b).toReal - (q b).toReal) / (2 * (2 * Fintype.card α * (q b).toReal + 2)) := by
       field_simp; ring
-    rw [he, abs_div, abs_of_pos (by positivity :
-        (0 : ℝ) < 2 * (2 * Fintype.card α * (q b).toReal + 2)),
-      show 3 * ((identityBlock q (some b) : ℝ) * (|(p b).toReal - (q b).toReal| /
-        (2 * (2 * Fintype.card α * (q b).toReal + 2)))) =
-        |(p b).toReal - (q b).toReal| * (3 * identityBlock q (some b)) /
-          (2 * (2 * Fintype.card α * (q b).toReal + 2)) by ring,
-      le_div_iff₀ (by positivity)]
-    exact mul_le_mul_of_nonneg_left hG (abs_nonneg _)
+    have hpos : (0 : ℝ) < 2 * (2 * Fintype.card α * (q b).toReal + 2) := by positivity
+    rw [he, abs_div, abs_of_pos hpos, mul_div_assoc', mul_div_assoc', le_div_iff₀ hpos]
+    linarith [mul_le_mul_of_nonneg_left hG (abs_nonneg ((p b).toReal - (q b).toReal))]
   linarith [sum_nonneg fun j (_ : j ∈ univ) =>
     abs_nonneg ((p.bind (identityKernel q) ⟨none, j⟩).toReal -
       (q.bind (identityKernel q) ⟨none, j⟩).toReal)]
@@ -324,9 +317,9 @@ theorem isTester_identityTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     (hk : 720 * Real.sqrt (Fintype.card α) ≤ (k - 1) * ε ^ 2) :
     IsTester (identityTester q k ε) {q} ε := by
   refine isTester_identity_of_uniform q (isTester_collisionTester (by positivity) ?_)
-  rw [card_identityDomain, Nat.cast_mul, Real.sqrt_mul (by norm_num),
-    show Real.sqrt ((4 : ℕ) : ℝ) = 2 by
-      rw [show ((4 : ℕ) : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]]
+  have h4 : Real.sqrt ((4 : ℕ) : ℝ) = 2 :=
+    (Real.sqrt_eq_iff_eq_sq (by norm_num) (by norm_num)).mpr (by norm_num)
+  rw [card_identityDomain, Nat.cast_mul, Real.sqrt_mul (by norm_num), h4]
   nlinarith
 
 end Cslib.DistributionTesting

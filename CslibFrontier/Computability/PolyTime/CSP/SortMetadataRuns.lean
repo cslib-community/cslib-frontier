@@ -157,10 +157,9 @@ private theorem equal_key_values (xs : List (ℕ × Bool))
     (hc : xs.IsChain (fun a b => a.1 = b.1 → a.2 = b.2))
     (x y : ℕ × Bool) (hx : x ∈ xs) (hy : y ∈ xs) (he : x.1 = y.1) : x.2 = y.2 := by
   set block := xs.filter (fun q => q.1 = x.1)
-  have hb := List.Pairwise.filter_key_eq Prod.fst x.1 hs
   have hchain : block.IsChain (fun a b => a.1 = b.1 → a.2 = b.2) := by
     dsimp only [block]
-    rw [hb]
+    rw [List.Pairwise.filter_key_eq Prod.fst x.1 hs]
     exact (hc.drop _).take _
   have hall (q) (hq : q ∈ block) : q.1 = x.1 := of_decide_eq_true (List.mem_filter.mp hq).2
   have hvalues : (block.map Prod.snd).IsChain (· = ·) :=
@@ -169,12 +168,11 @@ private theorem equal_key_values (xs : List (ℕ × Bool))
   have hxm : x.2 ∈ block.map Prod.snd := List.mem_map.mpr ⟨x, by simp [block, hx], rfl⟩
   have hym : y.2 ∈ block.map Prod.snd := List.mem_map.mpr ⟨y, by simp [block, hy, he], rfl⟩
   cases hv : block.map Prod.snd with
-  | nil => simp only [hv, List.not_mem_nil] at hxm
+  | nil => simp [hv] at hxm
   | cons a vs =>
     rw [hv] at hvalues hxm hym
-    have hconst (v) (hm : v ∈ a :: vs) : v = a :=
-      (List.mem_cons.mp hm).elim id fun hm => (hvalues.rel_cons hm).symm
-    exact (hconst _ hxm).trans (hconst _ hym).symm
+    exact ((List.mem_cons.mp hxm).elim id fun hm => (hvalues.rel_cons hm).symm).trans
+      ((List.mem_cons.mp hym).elim id fun hm => (hvalues.rel_cons hm).symm).symm
 
 private theorem paired_word (I : State Rel) (keys : List ℕ) (σ ν : ℕ → Bool)
     (hword : (sortBoundaryMetadata g w I keys).ports.map ν = ((compute keys).requests.foldl (fun
@@ -247,18 +245,15 @@ theorem forward_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
   have hchain : ((compute keys).sortedKeys.zip (J.ports.map ν)).IsChain
       (fun a b => a.1=b.1 → a.2=b.2) := by
     rw [hpairs]
-    apply List.isChain_iff_getElem.mpr
-    intro s hs'
-    have hsids : s+1 < ids.length := by simpa only [List.length_map] using hs'
-    have hi : ids[s] < keys.length := List.mem_range.mp
-      (hperm.mem_iff.mp (List.getElem_mem _))
-    have hj : ids[s+1] < keys.length := List.mem_range.mp
-      (hperm.mem_iff.mp (List.getElem_mem _))
-    simpa only [List.getElem_map] using he ids[s] ids[s+1] hi hj
-  have ht := forward_closeMetadataRuns sem J (compute keys).sortedKeys
+    refine List.isChain_iff_getElem.mpr fun s hs' => ?_
+    have hsids : s + 1 < ids.length := by simpa only [List.length_map] using hs'
+    simpa only [List.getElem_map] using he ids[s] ids[s + 1]
+      (List.mem_range.mp (hperm.mem_iff.mp (List.getElem_mem _)))
+      (List.mem_range.mp (hperm.mem_iff.mp (List.getElem_mem _)))
+  refine ⟨ν, ?_, hagree⟩
+  rw [intermediate g w I keys hl]
+  exact forward_closeMetadataRuns sem J (compute keys).sortedKeys
     (sortedKeys_length_sortBoundaryMetadata g w I keys hl) ν hν hchain
-  refine ⟨ν,?_,hagree⟩
-  rwa [intermediate g w I keys hl]
 
 /-- Plain polynomial time on EVERY raw State/key pair, for arbitrary encoded Rel. ONE
 Result supplies both projections; its literal schedule and the independently bounded
@@ -279,8 +274,6 @@ theorem computableInPolyTime_sortAndCloseMetadataRuns (encRel : Rel ↪ List Boo
   have hbad : ComputableInPolyTime
       (fun p : State Rel × List ℕ => decide (p.2.length≠p.1.ports.length))
       (encStateMetadata encRel) encBool := by fun_prop
-  apply (ComputableInPolyTime.ite_decide hbad hi (hclose.comp hstored)).of_enc_eq
-  intro p
-  rfl
+  exact (ComputableInPolyTime.ite_decide hbad hi (hclose.comp hstored)).of_enc_eq fun _ => rfl
 
 end Cslib.Complexity.CSP.CrossInsertion

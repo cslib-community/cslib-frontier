@@ -61,13 +61,9 @@ private theorem getElem_literalList {V : Type*} :
   | v :: vs, 1, _ => rfl
   | v :: vs, k + 2, hk => by
     simp only [literalList, List.length_cons] at hk
-    have hk' : k < (literalList vs).length := by omega
     have hdiv : (k + 2) / 2 = k / 2 + 1 := by omega
     have hmod : (k + 2) % 2 = k % 2 := by omega
-    change (literalList vs)[k] = _
-    rw [getElem_literalList vs k hk']
-    simp only [hmod, Prod.mk.injEq, and_true]
-    simp [hdiv]
+    simpa [literalList, hmod, hdiv] using getElem_literalList vs k (by omega)
 
 private theorem map_litEquiv_literalList_finRange (n : ℕ) :
     (literalList (List.finRange n)).map (litEquiv n) = List.finRange (2 * n) := by
@@ -115,14 +111,9 @@ private theorem visit_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (
       simp only [visit, hu, heu, ↓reduceIte]
     · have heu : e u ∉ s.visited.map e.toEmbedding := by
         simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hu
-      have hins : insert (e u) (s.visited.map e.toEmbedding) =
-          (insert u s.visited).map e.toEmbedding :=
-        (Finset.map_insert e.toEmbedding u s.visited).symm
-      have hstep := foldl_visit_mapAdj e g (visit_mapAdj e g k) (g u)
-        ⟨insert u s.visited, s.finished⟩
+      have hins : insert (e u) _ = _ := (Finset.map_insert e.toEmbedding u s.visited).symm
       simp only [visit, hu, heu, ↓reduceIte, mapAdj_apply, hins]
-      rw [hstep]
-      rfl
+      rw [foldl_visit_mapAdj e g (visit_mapAdj e g k) (g u) ⟨insert u s.visited, s.finished⟩]; rfl
 
 private theorem dfs_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (e : α ≃ β)
     (g : α → List α) (k : ℕ) (rs : List α) :

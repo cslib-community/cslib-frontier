@@ -640,18 +640,15 @@ theorem roundDegree_arithmetize_le {xs : List V} {φ : QBF V} (hxs : ∀ v ∈ �
     simp only [arithmetize, ArithQBF.roundDegree, size]
     exact (ih hxs).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.le_succ _) 2))
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
-    simp only [vars, List.mem_append] at hxs
-    have h₁ := ihφ fun v hv => hxs v (Or.inl hv)
-    have h₂ := ihψ fun v hv => hxs v (Or.inr hv)
+    simp only [vars, List.mem_append, or_imp, forall_and] at hxs
     simp only [arithmetize, ArithQBF.roundDegree, size]
-    refine (Nat.add_le_add h₁ h₂).trans ?_
+    refine (Nat.add_le_add (ihφ hxs.1) (ihψ hxs.2)).trans ?_
     rw [← Nat.mul_add]
     exact Nat.mul_le_mul_left _ (by rw [add_sq, add_sq]; omega)
   | ex v φ ih | all v φ ih =>
-    simp only [vars, List.mem_cons] at hxs
-    have hxs' : ∀ w ∈ φ.vars, w ∈ xs := fun w hw => hxs w (Or.inr hw)
-    refine (roundDegree_arithmetize_op_le hxs' _ (by decide) v).trans ?_
-    refine (Nat.add_le_add_left (ih hxs') _).trans ?_
+    have hxs' : ∀ w ∈ φ.vars, w ∈ xs := fun w hw => hxs w (List.mem_cons_of_mem v hw)
+    refine (roundDegree_arithmetize_op_le hxs' _ (by decide) v).trans
+      ((Nat.add_le_add_left (ih hxs') _).trans ?_)
     rw [← Nat.mul_add, size]
     exact Nat.mul_le_mul_left _ (by rw [add_sq]; omega)
 
@@ -699,18 +696,15 @@ theorem maxRoundDegree_arithmetize_le {xs : List V} {φ : QBF V} (hxs : ∀ v �
   induction φ with
   | var _ | top | bot => exact Nat.zero_le _
   | not φ ih =>
-    simp only [arithmetize, ArithQBF.maxRoundDegree, size]
-    have := ih hxs
-    omega
+    exact (ih hxs).trans (Nat.mul_le_mul_left 2 (Nat.le_succ _))
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
-    simp only [vars, List.mem_append] at hxs
-    have := ihφ fun v hv => hxs v (Or.inl hv)
-    have := ihψ fun v hv => hxs v (Or.inr hv)
+    simp only [vars, List.mem_append, or_imp, forall_and] at hxs
+    have := ihφ hxs.1
+    have := ihψ hxs.2
     simp only [arithmetize, ArithQBF.maxRoundDegree, size]
     omega
   | ex v φ ih | all v φ ih =>
-    simp only [vars, List.mem_cons] at hxs
-    have hxs' : ∀ w ∈ φ.vars, w ∈ xs := fun w hw => hxs w (Or.inr hw)
+    have hxs' : ∀ w ∈ φ.vars, w ∈ xs := fun w hw => hxs w (List.mem_cons_of_mem v hw)
     have hs := one_le_size φ
     refine (maxRoundDegree_lins_le _ xs (degBound_op_arithmetize_le hxs' _ (by decide) v)
       (by omega)).trans (max_le (by rw [size]; omega) ?_)

@@ -214,22 +214,19 @@ private theorem reads_programBinaryGate {g : ℕ} (p : Program (fullSignature 2 
   | empty => simp [programBinaryGates]
   | @gate g p line ih =>
     intro J hJ t ht
-    have hsub : ∀ x ∈ programBinaryGates p, x ∈ programBinaryGates (p.gate line) :=
-      fun x hx => subset_programBinaryGates_gate p line hx
-    by_cases hJg : J = n + g
-    · subst hJg
-      simp only [programBinaryGate, ↓reduceIte] at ht
+    rcases eq_or_ne J (n + g) with rfl | hJg
+    · simp only [programBinaryGate, ↓reduceIte] at ht
       obtain ⟨op | c, w⟩ := line
       · rcases ht with ht | ht <;>
-          exact (reads_programWireLit p _ ht).imp_left (Or.imp_right (hsub t))
+          exact (reads_programWireLit p _ ht).imp_left
+            (Or.imp_right (subset_programBinaryGates_gate p _ ·))
       · rcases ht with ht | ht <;> cases ht
     · simp only [programBinaryGate, hJg, ↓reduceIte] at ht
       have hJp : J ∈ programBinaryGates p := by
         dsimp only [programBinaryGates] at hJ
         split_ifs at hJ
         exacts [(Finset.mem_insert.1 hJ).resolve_left hJg, hJ]
-      obtain ⟨hb, hlt⟩ := ih hJp ht
-      exact ⟨hb.imp_right (hsub t), hlt⟩
+      exact (ih hJp ht).imp_left (Or.imp_right (subset_programBinaryGates_gate p line ·))
 
 private theorem fn_indep_snd {op : (Fin 2 → Bool) → Bool}
     (h0 : op ![false, false] = op ![false, true]) (h1 : op ![true, false] = op ![true, true])
@@ -246,17 +243,14 @@ private theorem eval_lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit)
     (hg : binaryB2Cost line.op = 1 → val (n + g) = (lineBinaryGate wLit line).eval val) :
     (lineBinaryLit wLit line).eval val =
       fullInterpretation line.op fun a => (wLit (line.wires a)).eval val := by
-  revert hg
-  obtain ⟨op | c, w⟩ := line
-  · intro hg
-    have hv_eq : (fullInterpretation (k := 2) (.fn op) fun a => (wLit (w a)).eval val) =
+  rcases line with ⟨op | c, w⟩
+  · have hv_eq : (fullInterpretation (k := 2) (.fn op) fun a => (wLit (w a)).eval val) =
         op ![(wLit (w ⟨0, by simp [fullSignature]⟩)).eval val,
           (wLit (w ⟨1, by simp [fullSignature]⟩)).eval val] := by
       change op _ = _
       congr 1 with a : 1
       obtain ⟨_ | _ | m, hm⟩ := a <;> first | rfl | simp [fullSignature] at hm
-    change (lineBinaryLit wLit ⟨.fn op, w⟩).eval val =
-      fullInterpretation (k := 2) (.fn op) fun a => (wLit (w a)).eval val
+    dsimp only at hg ⊢
     rw [hv_eq]
     dsimp only [lineBinaryLit]
     set ℓ₀ := wLit (w ⟨0, by simp [fullSignature]⟩)
@@ -269,7 +263,7 @@ private theorem eval_lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit)
     · have hc : binaryB2Cost (.fn op) = 1 := by simp [binaryB2Cost, h1, h2]
       rw [Lit.eval_node, Bool.xor_false, hg hc]
       rfl
-  · intro _; exact Lit.eval_const c val
+  · exact Lit.eval_const c val
 
 private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     {val : ℕ → Bool}

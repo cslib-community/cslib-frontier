@@ -708,9 +708,8 @@ theorem discharge_push_step {adj : V → List V} (hadj : IsAdjacency N adj) {u v
   have hs' : CAInv adj ⟨s.pr.apply (.push u v), s.cur⟩ :=
     ⟨hs.prInv.apply (o := .push u v) hp, currentArcInv_push hs.curInv hp⟩
   refine ⟨hs', ?_⟩
-  have hf : dischargeFuel adj u = dischargeFuel adj u - 1 + 1 := by
-    have := dischargeFuel_pos adj u
-    omega
+  have hf : dischargeFuel adj u = dischargeFuel adj u - 1 + 1 :=
+    (Nat.sub_add_cancel (dischargeFuel_pos adj u)).symm
   rw [discharge, hf, dischargeLoop_push (norm := id) (fun _ => rfl) hact hcu hadm]
   by_cases hsat : s.pr.IsSatPush (.push u v)
   · rw [(dischargeLoop_pred_fuel_eq hadj hs hs'
@@ -729,8 +728,8 @@ theorem discharge_advance_step {adj : V → List V} (hadj : IsAdjacency N adj) {
     CAInv adj s' ∧ discharge adj id u s = ⟨r'.ops, r'.ca, r'.advances + 1, r'.relabeled⟩ := by
   obtain ⟨hs', hmeas'⟩ := dischargeMeasure_advance_step hs hcu hadm
   obtain ⟨hf, heq⟩ := dischargeLoop_pred_fuel_eq hadj hs hs' hmeas'
-  refine ⟨hs', ?_⟩
-  rw [discharge, hf, dischargeLoop_advance (norm := id) (fun _ => rfl) hact hcu hadm, heq]
+  exact ⟨hs', by rw [discharge, hf,
+    dischargeLoop_advance (norm := id) (fun _ => rfl) hact hcu hadm, heq]⟩
 
 end Decidable
 
@@ -1394,17 +1393,14 @@ theorem relabelToFrontWith_totalSteps_le {vs : List V} (hnodup : vs.Nodup)
       2 * Fintype.card V * ∑ v, (adj v).length :=
     hadv.trans (Nat.mul_le_mul_left _ hsub)
   refine ⟨by omega, fun hnd => ?_⟩
-  have hsum_le : ∑ v, (adj v).length ≤ Fintype.card V * Fintype.card V := by
-    have h1 : ∀ v : V, (adj v).length ≤ Fintype.card V := fun v => (hnd v).length_le_card
+  have hsum_le : ∑ v, (adj v).length ≤ Fintype.card V * Fintype.card V :=
     calc ∑ v : V, (adj v).length
-        ≤ ∑ _ : V, Fintype.card V := Finset.sum_le_sum fun v _ => h1 v
+        ≤ ∑ _ : V, Fintype.card V := Finset.sum_le_sum fun v _ => (hnd v).length_le_card
       _ = Fintype.card V * Fintype.card V := by simp [Finset.sum_const]
-  have hmul : 2 * Fintype.card V * ∑ v, (adj v).length ≤ 2 * Fintype.card V ^ 3 := by
-    have : 2 * Fintype.card V * (Fintype.card V * Fintype.card V) = 2 * Fintype.card V ^ 3 := by
-      ring
+  have hmul : 2 * Fintype.card V * ∑ v, (adj v).length ≤ 2 * Fintype.card V ^ 3 :=
     calc 2 * Fintype.card V * ∑ v, (adj v).length
         ≤ 2 * Fintype.card V * (Fintype.card V * Fintype.card V) := Nat.mul_le_mul_left _ hsum_le
-      _ = 2 * Fintype.card V ^ 3 := this
+      _ = 2 * Fintype.card V ^ 3 := by ring
   omega
 
 /-! ### Executable tabulated instances on `Fin n` -/
@@ -1517,10 +1513,10 @@ theorem relabelToFrontExact_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s �
     relabelToFront_correct (isAdjacency_exactAdj N) hst
   have hadv : (relabelToFrontExact N).advances ≤ 4 * n * N.posArcs.card := by
     rw [adjSteps_exactAdj_eq N] at h10
-    have h2 := Nat.mul_le_mul_left (2 * n) N.card_symArcs_le_two_mul_posArcs
     calc (relabelToFrontExact N).advances
         ≤ 2 * n * N.symArcs.card := h10
-      _ ≤ 2 * n * (2 * N.posArcs.card) := h2
+      _ ≤ 2 * n * (2 * N.posArcs.card) :=
+          Nat.mul_le_mul_left (2 * n) N.card_symArcs_le_two_mul_posArcs
       _ = 4 * n * N.posArcs.card := by ring
   exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, hadv, h11 (nodup_exactAdj N)⟩
 

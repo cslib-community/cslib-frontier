@@ -303,14 +303,12 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
       ?_, by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hrun.2.2⟩
     rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
     simpa only [Nat.zero_add, Nat.one_mul] using hrun.2.1
-  intro ys
-  induction ys with
+  intro ys curP pow2 acc hcur
+  induction ys generalizing curP pow2 acc with
   | nil =>
-    intro curP pow2 acc _
     dsimp only [List.length_nil, iterate, keyMask, Nat.mul_zero, Nat.add_zero]
     exact ⟨validHistory_pure w s _, rfl, by simp [memoryCost_pure]⟩
   | cons u rest ih =>
-    intro curP pow2 acc hcur
     obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     obtain ⟨hv_sel, hst_sel, hr_sel, hc_sel⟩ :=
       selMemBagProg_spec (w := w) ⟨u, args.bagBPtr, args.bagBLen, args.mask⟩ hLB hlenB
@@ -321,23 +319,21 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
         (if (if selMemMask u LB args.mask then 1 else 0) = 1 then pow2 else 0) = addTerm := by
       dsimp only [addTerm]
       cases selMemMask u LB args.mask <;> rfl
-    have hr_st : (Memory.spec 0).clientState s (Memory.read curP) = s := rfl
-    have hr_res : (Memory.spec 0).clientResult s (Memory.read curP) = u := hmem_u
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (keyMaskStep (env, ⟨curP, pow2, acc⟩))) :=
-      validHistory_read_bind (by omega : curP < s.frontier)
+      validHistory_read_bind (by dsimp only; omega)
         (hmem_u.symm ▸ validHistory_bind_step hv_sel (validHistory_pure w _ _))
     have hst_step := keyMaskStep_state env ⟨curP, pow2, acc⟩ s
     have hres_step : (Memory.spec 0).clientResult s (keyMaskStep (env, ⟨curP, pow2, acc⟩)) =
         ⟨curP + 1, 2 * pow2, acc + addTerm⟩ := by
       dsimp only [keyMaskStep, env]
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res,
+      rw [StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read, hmem_u,
         StateTransitionSpec.clientResult_bind, hst_sel, hr_sel]
       exact hadd_eq ▸ rfl
     have hc_step : memoryCost (keyMaskStep (env, ⟨curP, pow2, acc⟩)) s ≤ args.bagBLen + 1 := by
       dsimp only [keyMaskStep, env]
-      rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, memoryCost_bind', hst_sel,
-        memoryCost_pure]
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u,
+        memoryCost_bind', hst_sel, memoryCost_pure]
       omega
     dsimp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
@@ -476,14 +472,12 @@ theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ
       by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hrun.2.2⟩
     rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
     simpa only [Nat.zero_add, Nat.one_mul] using hrun.2.1
-  intro ys
-  induction ys with
+  intro ys curP curS pow2 acc hcur
+  induction ys generalizing curP curS pow2 acc with
   | nil =>
-    intro curP curS pow2 acc _
     dsimp only [List.length_nil, iterate, restrictMask, Nat.mul_zero, Nat.add_zero]
     exact ⟨validHistory_pure w s _, rfl, by simp [memoryCost_pure]⟩
   | cons u rest ih =>
-    intro curP curS pow2 acc hcur
     obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
       bagMemProg_spec (w := w) ⟨u, args.bagBPtr, args.bagBLen⟩ hLB hlenB
@@ -497,25 +491,23 @@ theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ
         else 0) = addTerm := by
       dsimp only [addTerm]
       by_cases hbit : curS % 2 = 1 <;> cases memBag u LB <;> simp [hbit]
-    have hr_st : (Memory.spec 0).clientState s (Memory.read curP) = s := rfl
-    have hr_res : (Memory.spec 0).clientResult s (Memory.read curP) = u := hmem_u
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (restrictStep (env, ⟨curP, curS, pow2, acc⟩))) :=
-      validHistory_read_bind (by omega : curP < s.frontier)
+      validHistory_read_bind (by dsimp only; omega)
         (hmem_u.symm ▸ validHistory_bind_step hv_bm (validHistory_pure w _ _))
     have hst_step := restrictStep_state env ⟨curP, curS, pow2, acc⟩ s
     have hres_step : (Memory.spec 0).clientResult s
         (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) =
         ⟨curP + 1, curS / 2, 2 * pow2, acc + addTerm⟩ := by
       dsimp only [restrictStep, env]
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res,
+      rw [StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read, hmem_u,
         StateTransitionSpec.clientResult_bind, hst_bm, hr_bm]
       exact hadd_eq ▸ rfl
     have hc_step : memoryCost (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) s ≤
         args.bagBLen + 1 := by
       dsimp only [restrictStep, env]
-      rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, memoryCost_bind', hst_bm,
-        memoryCost_pure]
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u,
+        memoryCost_bind', hst_bm, memoryCost_pure]
       omega
     dsimp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩

@@ -188,12 +188,12 @@ private theorem reachesOut_literalCode_loop {b r exit : ℕ} {sign : Bool}
     rw [List.set_set] at hhalf
     refine ReachesOut.lt (hi 9 (by omega)) hB' ?_
     simp only [eval_mod, eval_reg, eval_const, hq]
+    have hassign := ReachesOut.assign (hi 12 (by omega)) hB'
+      (by simpa only [eval_div, eval_reg, eval_const, hq] using hhalf)
     rcases Nat.mod_two_eq_zero_or_one q with h | h <;>
       simp only [h, Nat.zero_lt_one, lt_irrefl, ↓reduceIte]
-    · exact ReachesOut.emit (hi 10 (by omega)) hB' (ReachesOut.assign (hi 12 (by omega)) hB'
-        (by simpa only [eval_div, eval_reg, eval_const, hq] using hhalf))
-    · exact ReachesOut.emit (hi 11 (by omega)) hB' (ReachesOut.assign (hi 12 (by omega)) hB'
-        (by simpa only [eval_div, eval_reg, eval_const, hq] using hhalf))
+    · exact ReachesOut.emit (hi 10 (by omega)) hB' hassign
+    · exact ReachesOut.emit (hi 11 (by omega)) hB' hassign
 
 /-- **The code of a literal writes it**, through register `5`, which ends at `0`. -/
 theorem reachesOut_literalCode {b r exit : ℕ} {sign : Bool}
@@ -202,10 +202,8 @@ theorem reachesOut_literalCode {b r exit : ℕ} {sign : Bool}
     P.ReachesOut w (P.Active B) (b, regs) (exit, regs.set 5 0)
       (literalBits (regs.getD r 0) sign) := by
   have hi (i : ℕ) (h : i < 23) := hcode i (length_literalCode b r sign exit ▸ h)
-  have hrB : regs.getD r 0 ≤ B := by
-    rcases lt_or_ge r regs.length with hr | hr
-    · exact List.getD_eq_getElem _ 0 hr ▸ hB _ (List.getElem_mem hr)
-    · simp [hr]
+  have hrB : regs.getD r 0 ≤ B :=
+    (List.getD_mem_or regs r 0).elim (hB _) fun h => h.le.trans (Nat.zero_le B)
   have hB0 : ∀ x ∈ regs.set 5 0, x ≤ B :=
     List.forall_mem_set_of_forall_mem hB (Nat.zero_le _)
   -- the register, then the end of the literal
@@ -221,9 +219,7 @@ theorem reachesOut_literalCode {b r exit : ℕ} {sign : Bool}
     (regs.set 5 (regs.getD r 0)) (List.getD_set_self (by omega)) (by simpa using h5)
     (List.forall_mem_set_of_forall_mem hB hrB)
   rw [List.set_set] at hdigits
-  refine ReachesOut.assign (hi 0 (by omega)) hB ?_
-  simp only [eval_reg]
-  exact (hdigits.trans htail).of_eq rfl
+  exact ReachesOut.assign (hi 0 (by omega)) hB ((hdigits.trans htail).of_eq rfl)
 
 /-! #### The encoding of the formula -/
 
@@ -272,14 +268,14 @@ private theorem reachesOut_entry (hB : I.n ≤ B) {u v : ℕ} (hu : u < I.n) (hv
       (60, [I.n, I.s, I.t, u, v, 0]) (59, [I.n, I.s, I.t, u, v, 0])
       (if arc I u v then literalBits u false ++ literalBits v true ++ [false] else []) := by
   -- an entry of the matrix
-  have hs := I.s.isLt
-  have ht := I.t.isLt
   have hb : ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, v, 0], z ≤ B :=
-    bounded6 hB (by omega) (by omega) (hu.le.trans hB) (hv.le.trans hB) (Nat.zero_le _)
+    bounded6 hB (I.s.isLt.le.trans hB) (I.t.isLt.le.trans hB) (hu.le.trans hB) (hv.le.trans hB)
+      (Nat.zero_le _)
   refine ReachesOut.read (show writer.instr 60 = _ from rfl) hb ?_
   simp only [eval_add, eval_mul, eval_reg, eval_const, List.getD_cons_zero,
     List.getD_cons_succ, I.getElem?_encode_matrix hu hv]
-  rw [← (by rw [arc, dite_eq_left ⟨hu, hv⟩] : arc I u v = I.adj ⟨u, hu⟩ ⟨v, hv⟩)]
+  have harc_eq : arc I u v = I.adj ⟨u, hu⟩ ⟨v, hv⟩ := dite_eq_left ⟨hu, hv⟩
+  rw [← harc_eq]
   cases arc I u v
   · exact ReachesOut.refl _
   · simp only [readLabel, ↓reduceIte]
@@ -301,11 +297,10 @@ private theorem reachesOut_rows (hB : I.n ≤ B) {i₀ : ℕ} (hi₀ : i₀ ≤ 
       ((List.range I.n).flatMap fun u => (List.range I.n).flatMap fun v =>
         if arc I u v then literalBits u false ++ literalBits v true ++ [false] else []) ∧
       ∀ x ∈ regs, x ≤ B := by
-  have hs := I.s.isLt
-  have ht := I.t.isLt
   have hreg : ∀ {u v y : ℕ}, u ≤ I.n → v ≤ I.n → y ≤ I.n →
       ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, v, y], z ≤ B := fun hu hv hy =>
-    bounded6 hB (by omega) (by omega) (hu.trans hB) (hv.trans hB) (hy.trans hB)
+    bounded6 hB (I.s.isLt.le.trans hB) (I.t.isLt.le.trans hB) (hu.trans hB) (hv.trans hB)
+      (hy.trans hB)
   have hcode₁ : writer.CodeAt 54 (forCode 54 3 (reg 0) 57 108) := codeAt_of_prefix ⟨_, rfl⟩
   have hcode₂ : writer.CodeAt 57 (forCode 57 4 (reg 0) 60 56) := codeAt_of_prefix ⟨_, rfl⟩
   obtain ⟨regs, hreach, x, rfl, -, hx⟩ := reachesOut_forCode (w := I.encode) (N := I.n)
@@ -342,12 +337,11 @@ theorem computableInLogSpace_reachabilityFormula :
   simp only [encSTCON_apply, pow_one]
   have hlen := I.length_encode
   have hB : I.n ≤ I.encode.length + 1 := by omega
-  have hs := I.s.isLt
-  have ht := I.t.isLt
   have hlit₁ : writer.CodeAt 6 (literalCode 6 1 true 29) := codeAt_of_prefix ⟨_, rfl⟩
   have hlit₂ : writer.CodeAt 30 (literalCode 30 2 false 53) := codeAt_of_prefix ⟨_, rfl⟩
   have hb : ∀ x ∈ [I.n, (I.s : ℕ), (I.t : ℕ), 0, 0, 0], x ≤ I.encode.length + 1 :=
-    bounded6 hB (by omega) (by omega) (Nat.zero_le _) (Nat.zero_le _) (Nat.zero_le _)
+    bounded6 hB (I.s.isLt.le.trans hB) (I.t.isLt.le.trans hB) (Nat.zero_le _) (Nat.zero_le _)
+      (Nat.zero_le _)
   have h₁ := reachesOut_literalCode (w := I.encode) hlit₁ (by simp) hb
   have h₂ := reachesOut_literalCode (w := I.encode) hlit₂ (by simp) hb
   simp only [List.set_cons_succ, List.set_cons_zero, List.getD_cons_succ,

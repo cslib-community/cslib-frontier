@@ -7,6 +7,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import Mathlib.Tactic.NormNum
 
 /-! # Characteristic-coefficient evaluator edge cases and uniform certificates -/
@@ -62,5 +63,21 @@ example : (fun d : ℕ => traceExponentialCoefficient 3 1 d (fun _ => 1)) ∈
     (p := fun _ : ℕ => 3) (D := fun _ => 1) (d := fun d => d) (t := fun _ => 1)
     (ComputableInPolyTime.const 3) (ComputableInPolyTime.const 1) (by fun_prop)
     (CountingFunction.of_polyTime (ComputableInPolyTime.const 1)))
+
+-- At fixed parameters the relative polynomial specializes even over the integers.
+open MvPolynomial.CriticalSystem in
+example (u x : ℤ) :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) + MvPolynomial.X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_add _ _).trans (by simp)
+    (relativeValuePolynomial (by decide : 1 ≤ 2) F hF).map
+      (MvPolynomial.eval₂Hom (Int.castRingHom ℤ)
+        (fun i : Option (Fin 1) => i.elim u (fun _ => x))) =
+    valuePolynomial (by decide : 1 ≤ 2) (fun _ => 0) u
+      (MvPolynomial.X (0 : Fin 1) + MvPolynomial.C x)
+      ((MvPolynomial.totalDegree_add _ _).trans (by
+        rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_C]
+        decide)) := by
+  intro F hF
+  simpa [F] using relativeValuePolynomial_map (by decide : 1 ≤ 2) F hF u (fun _ => x)
 
 end CslibFrontierTests.RealAlgebraicCharacteristic

@@ -155,15 +155,10 @@ private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
         encStep (encBitString (64 * layout.rateLanes)) :=
       hsumList.of_enc_eq fun p => Cslib.BitString.ofFn_add p.1.1 p.2
     exact hsum.prod hstate.snd'
-  have hstep : ComputableInPolyTime
-      (fun p : SpongeView layout × BitString (64 * layout.rateLanes) =>
-        Sponge.absorbStep (keccakP1600Rounds24View layout) p.1 p.2)
-      (encPair (encSpongeView layout) (encBitString (64 * layout.rateLanes)))
-      (encSpongeView layout) := by
-    unfold Sponge.absorbStep
-    exact (computableInPolyTime_keccakP1600Rounds24View layout).comp hpreprocess
   exact foldl_of_bounded_growth (id' (encIn := encList (encBitString (64 * layout.rateLanes))))
-    (const (0 : SpongeView layout)) hstep (growth := 0) fun _ _ => by simp [encSpongeView]
+    (const (0 : SpongeView layout))
+    ((computableInPolyTime_keccakP1600Rounds24View layout).comp hpreprocess) (growth := 0)
+    fun _ _ => by simp [encSpongeView]
 
 private theorem computableInPolyTime_iteratePermutation (layout : SpongeLayout) :
     ComputableInPolyTime
@@ -229,18 +224,11 @@ private theorem computableInPolyTime_squeezeBytesFor (layout : SpongeLayout) :
       (fun p : List (BitString (64 * layout.rateLanes)) × ℕ =>
         squeezeBytesFor layout p.1 p.2)
       (encPair (encList (encBitString (64 * layout.rateLanes))) encUnary)
-      encByteStringLE := by
-  unfold squeezeBytesFor
-  have hbody : ComputableInPolyTime
-      (fun p : (List (BitString (64 * layout.rateLanes)) × ℕ) ×
-        BitString (64 * layout.rateLanes) => rateBytesFor layout p.2)
-      (encPair
-        (encPair (encList (encBitString (64 * layout.rateLanes))) encUnary)
-        (encBitString (64 * layout.rateLanes))) encByteStringLE :=
-    (ComputableInPolyTime.of_finite (rateBytesFor layout)).comp
+      encByteStringLE :=
+  flatMapWithInput (computableInPolyTime_hashBlocks layout)
+    ((ComputableInPolyTime.of_finite (rateBytesFor layout)).comp
       (snd (encPair (encList (encBitString (64 * layout.rateLanes))) encUnary)
-        (encBitString (64 * layout.rateLanes)))
-  exact flatMapWithInput (computableInPolyTime_hashBlocks layout) hbody
+        (encBitString (64 * layout.rateLanes))))
 
 /-- For every fixed Keccak-p[1600] lane split and suffix, the executable byte sponge is uniformly
 polynomial-time in the framed input bytes and the unary requested output length. -/

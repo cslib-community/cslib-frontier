@@ -970,12 +970,6 @@ theorem toOuterMeasure_qsMaskedCheckValue_le [Fintype F] [DecidableEq F] {C ι :
   let v_w : Fin n → F := fun j => v (Fin.castAdd (d - 1) j)
   let mask : Fin d → F :=
     qsMaskCoeff d (fun k => u (Fin.natAdd n k)) (fun k => v (Fin.natAdd n k))
-  have hadj : ∀ (delta : F) (i : Fin n),
-      voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * delta +
-          v (Fin.castAdd (d - 1) j)) d_corr delta i =
-        w' i * delta + v_w i := fun delta i => by
-    simp only [voleAdjustReceiver, w', v_w]
-    ring
   have hval : ∀ (r : ι → F) (c : C) (reply : Fin d → F),
       (qsMaskedCheckValue d constraints (ι_C c) (fun j => u j * ι_C c + v j) d_corr r =
         qsPolySum d reply (ι_C c)) ↔
@@ -986,10 +980,11 @@ theorem toOuterMeasure_qsMaskedCheckValue_le [Fintype F] [DecidableEq F] {C ι :
         (voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * ι_C c +
           v (Fin.castAdd (d - 1) j)) d_corr (ι_C c))) =
         (∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w).eval (ι_C c) := by
-      simp only [Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
+      have hadj : voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * ι_C c +
+          v (Fin.castAdd (d - 1) j)) d_corr (ι_C c) = fun j => w' j * ι_C c + v_w j :=
+        funext fun j => by dsimp only [voleAdjustReceiver, w', v_w]; ring
+      simp only [hadj, Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
         eval_qsHomogPoly]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      rw [funext (hadj (ι_C c))]
     change (∑ i : ι, r i * qsHomogVerifierValue d (constraints i) (ι_C c) _) +
         qsMaskValue d _ (ι_C c) = qsPolySum d reply (ι_C c) ↔ _
     rw [hsum, qsMaskValue, ← qsPolySum_qsMaskCoeff]
@@ -1316,19 +1311,17 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
   let T : Finset K := Finset.univ.filter fun k : K => (cache.lookup k).isSome = true
   have hT_card : T.card ≤ q := (card_filter_lookup_isSome_le cache).trans hcache_le
   let g : K → ℝ≥0∞ := fun k => ((PMF.uniformOfFintype V).bind fun v => body s k v) true
-  have hpt : ∀ k : K,
+  have hpt (k : K) :
       ((complete d (ofList cache)).bind fun H => body s k (H k)) true ≤
         (if k ∈ T then (1 : ℝ≥0∞) else 0) + g k := by
-    intro k
     have hproj : ((complete d (ofList cache)).bind fun H => body s k (H k)) =
-        (((ofList cache k).elim (d k) PMF.pure).bind fun v => body s k v) := by
-      rw [← PMF.pi_map_eval (fun k' => (ofList cache k').elim (d k') PMF.pure) k,
-        PMF.bind_map]
+        ((ofList cache k).elim (d k) PMF.pure).bind (body s k) := by
+      rw [← PMF.pi_map_eval (fun k' => (ofList cache k').elim (d k') PMF.pure) k, PMF.bind_map]
       rfl
     rw [hproj]
     cases hlook : cache.lookup k with
     | some v =>
-      have hkT : k ∈ T := Finset.mem_filter.mpr ⟨Finset.mem_univ k, by rw [hlook]; rfl⟩
+      have hkT : k ∈ T := Finset.mem_filter.mpr ⟨Finset.mem_univ k, by simp [hlook]⟩
       simp only [hkT, ↓reduceIte]
       exact (PMF.coe_le_one _ _).trans le_self_add
     | none =>
@@ -1492,14 +1485,10 @@ private theorem actV1_qs_inner_le {C : Type}
             (∑' k, distK k * ((d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞))) := tsum_add
       _ ≤ ε_zk + (d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞) := by
           refine add_le_add ?_ ?_
-          · have hmem : (∑' k, distK k *
-                (if ZKAccepts k l ∧ (Q k l).coeff d = 0 then (1 : ℝ≥0∞) else 0)) =
-                distK.toOuterMeasure {k | ZKAccepts k l ∧ (Q k l).coeff d = 0} := by
-              rw [PMF.toOuterMeasure_eq_tsum_mul_indicator]
-              refine tsum_congr fun k => ?_
+          · refine (le_of_eq ?_).trans (hzk l hl')
+            rw [PMF.toOuterMeasure_eq_tsum_mul_indicator]
+            exact tsum_congr fun k => by
               by_cases hk : ZKAccepts k l ∧ (Q k l).coeff d = 0 <;> simp [hk]
-            rw [hmem]
-            exact hzk l hl'
           · rw [ENNReal.tsum_mul_right, distK.tsum_coe, one_mul]
   · simp [hs]
 

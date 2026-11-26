@@ -52,13 +52,9 @@ theorem inv_le_map_uniformOfFintype_getD {Q : ℕ} [NeZero Q] {l : List α} {x :
     (Q : ℝ≥0∞)⁻¹ ≤ (PMF.uniformOfFintype (Fin Q)).map (fun i : Fin Q => l.getD i d) x := by
   classical
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
-  rw [List.length_take] at hi
-  have hiQ : i < Q := lt_of_lt_of_le hi (min_le_left _ _)
-  have hil : i < l.length := lt_of_lt_of_le hi (min_le_right _ _)
-  have hsel : (l.take Q)[i] = l.getD (⟨i, hiQ⟩ : Fin Q) d := by
-    simp [List.getElem_take, List.getElem?_eq_getElem hil]
+  obtain ⟨hiQ, hil⟩ := Nat.lt_min.mp (List.length_take .. ▸ hi)
   rw [PMF.map_apply]
   refine le_trans (le_of_eq ?_) (le_tsum _ (⟨i, hiQ⟩ : Fin Q))
-  simp [hsel, PMF.uniformOfFintype_apply]
+  simp [List.getElem_take, List.getElem?_eq_getElem hil, PMF.uniformOfFintype_apply]
 
 end Cslib.Probability.PMF

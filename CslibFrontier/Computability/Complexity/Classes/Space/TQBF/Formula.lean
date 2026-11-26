@@ -140,10 +140,9 @@ theorem blockVar_inj {k k' i i' j j' : ℕ} (hk : k < 3) (hk' : k' < 3)
 private theorem blockVar_mem_blockVars {w k k' i i' j : ℕ} (hk : k < 3) (hk' : k' < 3) :
     blockVar k i j ∈ blockVars w k' i' ↔ k = k' ∧ i = i' ∧ j < w := by
   simp only [blockVars, List.mem_map, List.mem_range]
-  exact ⟨fun ⟨j', hj', h⟩ => by
-      obtain ⟨rfl, rfl, rfl⟩ := blockVar_inj hk' hk h
-      exact ⟨rfl, rfl, hj'⟩,
-    fun ⟨rfl, rfl, hj⟩ => ⟨j, hj, rfl⟩⟩
+  refine ⟨fun ⟨j', hj', h⟩ => ?_, fun ⟨rfl, rfl, hj⟩ => ⟨j, hj, rfl⟩⟩
+  obtain ⟨rfl, rfl, rfl⟩ := blockVar_inj hk' hk h
+  exact ⟨rfl, rfl, hj'⟩
 
 private theorem nodup_blockVars (w kind i : ℕ) (hk : kind < 3) : (blockVars w kind i).Nodup :=
   List.nodup_range.map fun _ _ h => (blockVar_inj hk hk h).2.2
@@ -218,9 +217,8 @@ theorem mem_freeVars_eqBlock {w k i k' i' x : ℕ} (hx : x ∈ (eqBlock w k i k'
   simp only [eqBlock, QBF.mem_freeVars_conj, List.mem_map, List.mem_range] at hx
   obtain ⟨_, ⟨j, hj, rfl⟩, hx⟩ := hx
   simp only [QBF.freeVars_iff, QBF.freeVars_var, Finset.mem_union, Finset.mem_singleton] at hx
-  rcases hx with rfl | rfl
-  · exact .inl (List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩)
-  · exact .inr (List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩)
+  exact hx.imp (fun (h : x = _) => h.symm ▸ List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩)
+    (fun (h : x = _) => h.symm ▸ List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩)
 
 private theorem mem_freeVars_isBlock {w k i x : ℕ} {u : List Bool}
     (hx : x ∈ (isBlock w k i u).freeVars) :
@@ -301,9 +299,7 @@ theorem eval_midpoint {e : List Bool → List Bool → Bool} {w : ℕ} {base : Q
           block_eq_of_agree hτ₁ (fun _ => hmid 0 (by omega)),
           block_eq_of_agree hτ₁ (fun _ => hmid 1 (by omega)), hτm,
           Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq] at hh
-        rcases hh with ⟨ha, hb⟩ | ⟨ha, hb⟩
-        · exact .inr (ha ▸ hb ▸ h₁)
-        · exact .inr (ha ▸ hb ▸ h₂)
+        exact .inr (hh.elim (fun ⟨ha, hb⟩ => ha ▸ hb ▸ h₁) fun ⟨ha, hb⟩ => ha ▸ hb ▸ h₂)
       · exact .inl (Bool.eq_false_iff.mpr hh)
 
 /-- The free variables of the midpoint formula of level `i` lie in the source and target blocks
@@ -338,11 +334,9 @@ theorem eval_savitchFormula {e : List Bool → List Bool → Bool} {w : ℕ} {ba
   rw [Bool.eq_iff_iff, savitchFormula, QBF.eval_exs_eq_true_iff]
   simp only [QBF.eval_and, Bool.and_eq_true, eval_isBlock _ _ _ hu, eval_isBlock _ _ _ hv,
     decide_eq_true_eq, eval_midpoint hbase]
-  refine ⟨?_, fun h =>
+  exact ⟨fun ⟨_, _, h₁, h₂, h⟩ => h₁ ▸ h₂ ▸ h, fun h =>
     let ⟨τ, hτ, h₁, h₂⟩ := exists_agree_block σ d hu hv
     ⟨τ, hτ, h₁, h₂, h₁.symm ▸ h₂.symm ▸ h⟩⟩
-  rintro ⟨_, -, rfl, rfl, h⟩
-  exact h
 
 /-- **Savitch's formula is closed**, as soon as the free variables of the formula of level `0` lie
 in the source and target blocks of level `0`. -/

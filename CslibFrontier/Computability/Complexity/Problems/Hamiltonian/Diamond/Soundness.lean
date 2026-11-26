@@ -132,10 +132,8 @@ private theorem Follows.left_unique {p : List ℕ} (hnd : p.Nodup) {u u' v : ℕ
     (h : Follows p u v) (h' : Follows p u' v) : u = u' := by
   obtain ⟨i, hu, hv⟩ := h
   obtain ⟨j, hu', hv'⟩ := h'
-  obtain rfl : i = j := by
-    have := (hnd.getElem?_inj (List.getElem?_eq_some_iff.1 hv).1).1 (hv.trans hv'.symm)
-    omega
-  exact Option.some_injective _ (hu.symm.trans hu')
+  have hij := (hnd.getElem?_inj (List.getElem?_eq_some_iff.1 hv).1).1 (hv.trans hv'.symm)
+  exact Option.some_injective _ ((Nat.succ.inj hij ▸ hu).symm.trans hu')
 
 private theorem Follows.asymm {p : List ℕ} (hnd : p.Nodup) {u v : ℕ} (h : Follows p u v) :
     ¬Follows p v u := by
@@ -204,10 +202,7 @@ private theorem separator_dir
   obtain ⟨w, hw⟩ := exists_succ hp hmem (rowNode_ne_topNode _ _ _)
   rcases separator_nbrs (Or.inl (hu.rel hp.2.2.2.2)) with rfl | rfl <;>
     rcases separator_nbrs (Or.inr (hw.rel hp.2.2.2.2)) with rfl | rfl
-  · exact absurd hw (hu.asymm hp.1)
-  · exact Or.inl ⟨hu, hw⟩
-  · exact Or.inr ⟨hu, hw⟩
-  · exact absurd hw (hu.asymm hp.1)
+  exacts [absurd hw (hu.asymm hp.1), Or.inl ⟨hu, hw⟩, Or.inr ⟨hu, hw⟩, absurd hw (hu.asymm hp.1)]
 
 /-- Separator `s + 1` written with the positions of slot `s`. -/
 private theorem separator_dir_succ
@@ -349,8 +344,7 @@ private theorem exists_detour (hD : WellFormed N slots M D)
       (fun ⟨h₁, _⟩ => by simpa using hu.right_unique hnd h₁)
       (fun ⟨_, h₁⟩ => by simpa using h₁.right_unique hnd h)
   · simp only [hb, ite_true] at hu
-    simp only [iff_true]
-    rw [← rightwards_iff hD hp hi d.slot hs.le]
+    rw [iff_true_right rfl, ← rightwards_iff hD hp hi d.slot hs.le]
     exact (separator_dir hp hi (s := d.slot) hs.le).elim And.right
       fun ⟨h₁, _⟩ => by simpa using hu.right_unique hnd h₁
 

@@ -98,13 +98,10 @@ theorem bind {L m n : ℕ} {p : WordQueryComp ι α} {k : α → WordQueryComp �
     (hp : IsBoundedComp L m p) (hk : ∀ a, IsBoundedComp L n (k a)) :
     IsBoundedComp L (m + n) (p >>= k) := by
   induction hp with
-  | pure m a =>
-    change IsBoundedComp L (m + n) (k a)
-    exact (hk a).mono (Nat.le_add_left n m)
+  | pure m a => simpa only [pure_bind] using (hk a).mono (Nat.le_add_left n m)
   | @liftBind m₀ q next hq htake _ ih =>
     rw [Nat.add_right_comm m₀ 1 n]
-    refine .liftBind q (fun y => next y >>= k) hq (fun y => ?_) (fun y => ih y)
-    rw [htake y]
+    exact .liftBind q (fun y => next y >>= k) hq (fun y => congrArg (· >>= k) (htake y)) ih
 
 theorem map {L m : ℕ} {p : WordQueryComp ι α} (f : α → β) (hp : IsBoundedComp L m p) :
     IsBoundedComp L m (f <$> p) := by
@@ -684,15 +681,13 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
       obtain ⟨r₀, rest₀⟩ := first
       have hc : r₀ = r ∧ consistentHist rest₀ rest = true := by
         simpa [consistentHist] using hcons _ (hmemF.mp (hm ▸ List.mem_cons_self)) _ hh
-      have hstep : (candidateProver H).respond q cand =
-          (r₀, (cand.filterMap filterFn).map Prod.snd) := by
-        simp only [candidateProver, stepCandidates, filterFn, hm]
-      simp only [DetProver.ValidFrom, hstep]
-      refine ⟨hc.1.symm, ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem hmem_match)⟩
+      simp only [DetProver.ValidFrom, candidateProver, stepCandidates, filterFn, hm]
+      refine ⟨hc.1.symm, ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem (hm ▸ hmem_match))⟩
       obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := List.mem_map.mp ht₁
       obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := List.mem_map.mp ht₂
-      have hc12 : r₁ = r₂ ∧ consistentHist s₁ s₂ = true := by
-        simpa [consistentHist] using hcons _ (hmemF.mp hs₁) _ (hmemF.mp hs₂)
-      exact hc12.2
+      obtain ⟨-, h12⟩ : r₁ = r₂ ∧ consistentHist s₁ s₂ = true := by
+        simpa [consistentHist] using
+          hcons _ (hmemF.mp (hm.symm ▸ hs₁)) _ (hmemF.mp (hm.symm ▸ hs₂))
+      exact h12
 
 end Cslib.Complexity.MIP

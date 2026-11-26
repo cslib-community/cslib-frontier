@@ -88,8 +88,7 @@ private theorem lowestDiffBitAux_spec :
   | 0, a, b, hab, h => by omega
   | fuel + 1, a, b, hab, h => by
     by_cases hp : a % 2 = b % 2
-    · have hab' : a / 2 ≠ b / 2 := by omega
-      obtain ⟨h1, h2⟩ := lowestDiffBitAux_spec fuel (a / 2) (b / 2) hab' (by omega)
+    · obtain ⟨h1, h2⟩ := lowestDiffBitAux_spec fuel (a / 2) (b / 2) (by omega) (by omega)
       simp only [lowestDiffBitAux, hp, ↓reduceIte]
       refine ⟨by rwa [Nat.testBit_succ, Nat.testBit_succ], fun i hi => ?_⟩
       cases i with
@@ -138,8 +137,7 @@ theorem cvColor_lt_of_lt_two_pow {a b L : ℕ} (hab : a ≠ b) (ha : a < 2 ^ L) 
     rw [Nat.testBit_lt_two_pow (lt_of_lt_of_le ha (Nat.pow_le_pow_right two_pos (not_lt.1 hL))),
       Nat.testBit_lt_two_pow (lt_of_lt_of_le hb (Nat.pow_le_pow_right two_pos (not_lt.1 hL)))]
   have := Bool.toNat_le (a.testBit (lowestDiffBit a b))
-  unfold cvColor
-  omega
+  simp only [cvColor]; omega
 
 /-- **One Cole–Vishkin round.** Distinct colours below `M` give Cole–Vishkin colours below
 `2 ⌈log₂ M⌉`. -/
@@ -247,7 +245,7 @@ private theorem step_of_le_of_lt {r : ℕ} (h₁ : K ≤ r) (h₂ : r < K + 3) (
 
 private theorem step_of_le {r : ℕ} (h : K + 3 ≤ r) (p a q : ℕ) :
     (threeColoring K).step r p a q = a := by
-  simp only [threeColoring, show ¬r < K by omega, show ¬r < K + 3 by omega, ↓reduceIte]
+  simp only [threeColoring, not_lt.2 (le_trans (Nat.le_add_right K 3) h), not_lt.2 h, ↓reduceIte]
 
 /-- During the first `K` rounds the colouring stays proper, with colours below `cvBound^[s] N`
 after `s` rounds. In particular one round leaves colours below `2 ⌈log₂ N⌉`. -/
@@ -375,10 +373,7 @@ theorem cvIter_shift (k : ℕ) (w : ℤ → ℕ) (j : ℤ) :
 /-- A proper colouring of the cycle is proper along every window. -/
 private theorem window_ne_window_add_one {n : ℕ} {x : ZMod n → ℕ} (hx : IsProperColoring x)
     (v : ZMod n) (j : ℤ) : window x v j ≠ window x v (j + 1) := by
-  simp only [window]
-  push_cast
-  rw [← add_assoc]
-  exact hx _
+  simpa [window, add_assoc] using hx (v + j)
 
 theorem cvRule_apply_isProperColoring {n : ℕ} {x : ZMod n → ℕ} (hx : IsProperColoring x)
     (s : ℕ) : IsProperColoring ((cvRule s).apply x) := by

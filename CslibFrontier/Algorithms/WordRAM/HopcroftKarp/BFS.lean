@@ -820,7 +820,7 @@ theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
   obtain ⟨y₂, he₂, hr₂, hdM₂, hqM₂, hqh₂, hqt₂, hrk₂, hrf₂, hact₂, hnd₂, hiff₂, hf₂⟩ :=
     exec_seedBfsCode y₁ hb₁ hml₁ hfit
   set p := (List.finRange inst.m).foldl (hkBfsInitStep (hkMatchedLeft mate))
-    (Vector.replicate inst.m none, [])
+    (Vector.replicate inst.m none, []) with hp_def
   have hb₂ : BaseRegs inst bOff y₂ := hb₁.of_eq fun i hi => hr₂ i (by omega)
   have hcsr₂ : CSRMem inst bOff y₂.mem :=
     hcsr.of_outside fun a ha => (hf₂ a (by omega)).trans (hf₁ a (by omega))
@@ -828,33 +828,24 @@ theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
     hmate.of_outside fun a ha => (hf₂ a (by omega)).trans (hf₁ a (by omega))
   have hcard_bound :
       p.2.length + (Finset.univ.filter fun w₀ => vget p.1 w₀ = none).card ≤ inst.m := by
-    have hlen_eq : p.2.length = (Finset.univ.filter fun w₀ => ¬ vget p.1 w₀ = none).card := by
-      rw [← List.toFinset_card_of_nodup hnd₂]
-      congr 1
-      ext w₀
-      simp [← hiff₂ w₀]
+    have hlen_eq : p.2.length = (Finset.univ.filter fun w₀ => ¬ vget p.1 w₀ = none).card :=
+      (List.toFinset_card_of_nodup hnd₂).symm.trans
+        (congrArg Finset.card (Finset.ext fun w₀ => by simp [← hiff₂ w₀]))
     rw [hlen_eq, Nat.add_comm, Finset.card_filter_add_card_filter_not]
     simp
   obtain ⟨y₃, he₃, hr₃, hdM₃, hrk₃, hrf₃, hf₃⟩ :=
     exec_bfsLayersLoop (inst.m + 1) 0 0 p.1 p.2 y₂ hb₂ hcsr₂ hmate₂ hdM₂ hqM₂ hrk₂ hrf₂ hqh₂
       (by simpa using hqt₂) hact₂ (by omega) (by simpa using hcard_bound) (by omega) hfit
-  have hinit_pot :
-      vecPotential (fun x : Option ℕ => x = none) (bfsVertWeight inst) p.1 +
-          (p.2.map (bfsVertWeight inst)).sum ≤
-        vecPotential (fun x : Option ℕ => x = none) (bfsVertWeight inst)
-            (Vector.replicate inst.m (none : Option ℕ)) +
-          ((List.finRange inst.m).map (bfsVertWeight inst)).sum := by
-    simpa [p] using bfsInit_potential (hkMatchedLeft mate) (bfsVertWeight inst)
-      (List.finRange inst.m) (Vector.replicate inst.m (none : Option ℕ), [])
+  have hinit_pot := bfsInit_potential (hkMatchedLeft mate) (bfsVertWeight inst)
+    (List.finRange inst.m) (Vector.replicate inst.m (none : Option ℕ), [])
+  simp only [← hp_def, List.map_nil, List.sum_nil, Nat.add_zero] at hinit_pot
   have hrep_le := (vecPotential_le_sum (p := fun x : Option ℕ => x = none) (bfsVertWeight inst)
     (Vector.replicate inst.m (none : Option ℕ))).trans_eq (sum_bfsVertWeight inst)
-  have hfin_sum : ((List.finRange inst.m).map (bfsVertWeight inst)).sum =
-      18 * inst.numEdges + 11 * inst.m :=
+  have hfin_sum : ((List.finRange inst.m).map (bfsVertWeight inst)).sum = _ :=
     (Fin.sum_univ_def _).symm.trans (sum_bfsVertWeight inst)
-  refine ⟨y₃, (he₁.seq (he₂.seq he₃)).mono ?_,
+  exact ⟨y₃, (he₁.seq (he₂.seq he₃)).mono (by omega),
     fun i hi => (hr₃ i hi).trans ((hr₂ i hi).trans (hr₁ i (by omega))),
     hdM₃, hrk₃, hrf₃,
     fun a ha => (hf₃ a (by omega)).trans ((hf₂ a (by omega)).trans (hf₁ a (by omega)))⟩
-  omega
 
 end Cslib.Algorithms.WordRAM.HopcroftKarp.Internal

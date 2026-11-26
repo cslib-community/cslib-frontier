@@ -159,9 +159,7 @@ theorem length_stage_le : ∀ l : List α, (stage label t l).length ≤ max (t +
     have h := (List.eraseDupsBy_sublist
       (r := fun b b' => decide (label a b = label a b')) rest).length_le
     rw [stage]
-    split
-    · simp only [List.length_cons, Nat.add_sub_cancel]; omega
-    · rw [List.length_cons]; omega
+    split <;> simp only [List.length_cons, Nat.add_sub_cancel] <;> omega
 
 theorem iterate_stage_sublist (i : ℕ) (l : List α) : ((stage label t)^[i] l).Sublist l := by
   induction i with
@@ -281,12 +279,12 @@ theorem accepts_iff (hkey : ∀ ψ, ψ ∈ SAT ↔ key ψ ∈ K)
     (hM : ∀ a b : List (Literal ℕ), (∀ l ∈ a, l.1 ∈ φ.vars) → (∀ l ∈ b, l.1 ∈ φ.vars) →
       a.length ≤ φ.vars.length → b.length ≤ φ.vars.length → (key (disj φ a b)).length ≤ M)
     (hc : ∀ s : Finset (List Bool), (∀ w ∈ s, w ∈ K ∧ w.length ≤ M) → s.card ≤ t) :
-    accepts key t φ = true ↔ φ ∈ SAT := by
-  refine Fortune.acceptsWith_iff (fun l _ ha => (prune_sublist l).subset ha)
-    fun pre l hpre hfst h => exists_mem_prune hkey hc (fun a ha b hb => ?_) h
-  have ha' := Fortune.mem_vars_and_length_le_of_map_fst_eq hpre (hfst a ha)
-  have hb' := Fortune.mem_vars_and_length_le_of_map_fst_eq hpre (hfst b hb)
-  exact hM a b ha'.1 hb'.1 ha'.2 hb'.2
+    accepts key t φ = true ↔ φ ∈ SAT :=
+  Fortune.acceptsWith_iff (fun l _ ha => (prune_sublist l).subset ha)
+    fun _ _ hpre hfst h => exists_mem_prune hkey hc (fun a ha b hb =>
+      let ⟨ha₁, ha₂⟩ := Fortune.mem_vars_and_length_le_of_map_fst_eq hpre (hfst a ha)
+      let ⟨hb₁, hb₂⟩ := Fortune.mem_vars_and_length_le_of_map_fst_eq hpre (hfst b hb)
+      hM a b ha₁ hb₁ ha₂ hb₂) h
 
 end Correctness
 
@@ -335,13 +333,9 @@ theorem computableInPolyTime_iterate_expand {π : Type} {encP : π ↪ List Bool
       (encPair (encPair encP encNodes) encNat) encNodes := by
     unfold Fortune.expand
     fun_prop
-  have hcount : ComputableInPolyTime
-      (fun q : (π × List (List (Literal ℕ))) × ℕ => (Fortune.expand q.2 q.1.2).length)
-      (encPair (encPair encP encNodes) encNat) encUnary := by
-    fun_prop
   exact iterateWith (par := fun q => q.1.1) (init := fun q => Fortune.expand q.2 q.1.2)
-    (step := step) (fst _ _).fst' hcount hexpand hstep hexpand.polyBounded_length
-    (fun _ i _ => length_encList_sublist _ (hsub _ i _))
+    (step := step) (fst _ _).fst' ((length_list _).comp hexpand) hexpand hstep
+    hexpand.polyBounded_length (fun _ i _ => length_encList_sublist _ (hsub _ i _))
 
 /-- A level of the search is polynomial-time, uniformly in the formula, the bound, the nodes and
 the occurrence. -/
@@ -385,7 +379,8 @@ theorem length_encCNF_disj_le {φ : CNF ℕ} {a b : List (Literal ℕ)} (ha : �
   have hcross := length_encList_le _ _ hclause
   simp only [List.length_flatMap, List.length_map, List.map_const', List.sum_replicate,
     smul_eq_mul] at hcross
-  rw [show 2 * (8 * (encCNF φ).length + 10) + 1 = 16 * (encCNF φ).length + 21 by ring] at hcross
+  have h16 : 2 * (8 * (encCNF φ).length + 10) + 1 = 16 * (encCNF φ).length + 21 := by omega
+  rw [h16] at hcross
   rw [disj, length_encCNF_append]
   dsimp only [encCNF] at hcross ⊢; omega
 

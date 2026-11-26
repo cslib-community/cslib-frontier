@@ -263,15 +263,8 @@ theorem meta_end_le_totalSpace (p : KickTreeParams) :
 theorem kickTreeWords_le_succinctWords (C C₀ U V w n_max : ℕ) :
     kickTreeWords C C₀ U V w 1 n_max ≤ Dynamic.succinctWords C C₀ U V w n_max := by
   unfold kickTreeWords Dynamic.succinctWords
-  have hle : max (Nat.iterLog 2 n_max) 1 ≤ Dynamic.logLogFactor n_max :=
-    Nat.max_iterLog_two_eq n_max ▸ Nat.iterLog_two_max_four_le_clog n_max
-  have hmul : C * n_max * max (Nat.iterLog 2 n_max) 1 ≤
-      C * n_max * Dynamic.logLogFactor n_max :=
-    Nat.mul_le_mul_left _ hle
-  have hadd : Dynamic.optBits U V n_max + C * n_max * max (Nat.iterLog 2 n_max) 1 + w - 1 ≤
-      Dynamic.optBits U V n_max + C * n_max * Dynamic.logLogFactor n_max + w - 1 := by
-    omega
-  exact Nat.add_le_add_right (Nat.div_le_div_right hadd) _
+  gcongr
+  exact Nat.max_iterLog_two_eq n_max ▸ Nat.iterLog_two_max_four_le_clog n_max
 
 /-- Master deterministic word-space bound: `totalSpace p` is bounded by
 `kickTreeWords (p.cMeta + 7) (p.hSpace + 14) p.U p.V p.w p.k p.nMax` when quotiented. -/
@@ -292,12 +285,11 @@ theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented) :
   have h12345 := div_add_packedWords_le
     (p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V + occLen p * 1 + p.nMax * 1) 11
     (metaLen p) (metaBits p) p.w
-  have hopt := mul_fullQuotBits_add_valBits_le_optBits p.U p.V p.nMax
   set M := metaBits p
   have hM : 1 ≤ M := le_max_right _ _
   have hterm1 : p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V ≤
-      Dynamic.optBits p.U p.V p.nMax + 2 * p.nMax := by
-    rw [← Nat.mul_add]; exact hopt
+      Dynamic.optBits p.U p.V p.nMax + 2 * p.nMax :=
+    Nat.mul_add p.nMax _ _ ▸ mul_fullQuotBits_add_valBits_le_optBits p.U p.V p.nMax
   have h7M : 7 * p.nMax ≤ 7 * p.nMax * M := Nat.le_mul_of_pos_right _ hM
   have hnum_le : p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
       occLen p * 1 + p.nMax * 1 + metaLen p * M ≤
@@ -307,9 +299,7 @@ theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented) :
       occLen p * 1 + p.nMax * 1 + metaLen p * M + p.w - 1) / p.w ≤
       (Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M + p.w - 1) / p.w := by gcongr
   unfold kickTreeWords valWords occWords elevWords metaWords
-  have hM_def : max (Nat.iterLog (p.k + 1) p.nMax) 1 = M := rfl
-  have hM_meta : metaBits p = M := rfl
-  rw [hM_def, hM_meta] at *
+  dsimp only [M, metaBits] at *
   omega
 
 /-! ### 3. Pure extraction and update functions -/

@@ -142,9 +142,8 @@ theorem length_iterate_stage_le (i : ℕ) (l : List α) :
   induction i with
   | zero => exact le_max_right _ _
   | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    refine (length_stage_le _).trans ?_
-    omega
+    exact (congrArg List.length (Function.iterate_succ_apply' (stage label t) i l)).trans_le
+      ((length_stage_le _).trans (by omega))
 
 theorem prune_sublist (l : List α) : (prune label t l).Sublist l := iterate_stage_sublist _ l
 
@@ -212,16 +211,15 @@ private theorem exists_mem_stage (hkey : ∀ ψ, ψ ∈ SAT ↔ ((key ψ).1 ∈ 
     · rename_i hpos
       by_cases hasat : units a ++ φ ∈ SAT
       · /- If `a` were satisfiable, every kept label with the sign `true` would lie in `K`. -/
-        exfalso
-        have hle := filter_length_le_of_nodup hc hnodup (List.Sublist.refl kept) hlen (s₀ := true)
-          (p := fun b => (lab b).2) (fun _ h => h) fun b _ hsign =>
-            ((hkey _).1 (Mahaney.disj_mem_SAT_iff.2 (.inl hasat))).2 hsign
-        dsimp only [lab] at hle
-        omega
+        exact False.elim (by
+          have hle := filter_length_le_of_nodup hc hnodup (List.Sublist.refl kept) hlen (s₀ := true)
+            (p := fun b => (lab b).2) (fun _ h => h) fun b _ hsign =>
+              ((hkey _).1 (Mahaney.disj_mem_SAT_iff.2 (.inl hasat))).2 hsign
+          dsimp only [lab] at hle
+          omega)
       · exact hcases.resolve_left hasat
     · rename_i hpos
-      by_contra hnone
-      push Not at hnone
+      by_contra! hnone
       have hasat : units a ++ φ ∉ SAT := hnone a (List.mem_cons_self ..)
       obtain ⟨b', hb', hb'sat⟩ := hcases.resolve_left hasat
       by_cases hshort : kept.length ≤ 2 * t + 1
@@ -249,16 +247,13 @@ private theorem exists_mem_prune (hkey : ∀ ψ, ψ ∈ SAT ↔ ((key ψ).1 ∈ 
     (hM : ∀ a ∈ l, ∀ b ∈ l, (key (Mahaney.disj φ a b)).1.length ≤ M)
     (h : ∃ a ∈ l, units a ++ φ ∈ SAT) :
     ∃ a ∈ prune (fun a b => key (Mahaney.disj φ a b)) t l, units a ++ φ ∈ SAT := by
-  suffices ∀ i, ∃ a ∈ (stage (fun a b => key (Mahaney.disj φ a b)) t)^[i] l,
-      units a ++ φ ∈ SAT from this _
-  intro i
-  induction i with
-  | zero => exact h
-  | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    have hsub := (iterate_stage_sublist
-      (label := fun a b => key (Mahaney.disj φ a b)) (t := t) i l).subset
-    exact exists_mem_stage hkey hc (fun a ha b hb => hM a (hsub ha) b (hsub hb)) ih
+  refine Nat.rec (motive := fun i =>
+    ∃ a ∈ (stage (fun a b => key (Mahaney.disj φ a b)) t)^[i] l, units a ++ φ ∈ SAT) h
+    (fun i ih => ?_) l.length
+  rw [Function.iterate_succ_apply']
+  have hsub := (iterate_stage_sublist
+    (label := fun a b => key (Mahaney.disj φ a b)) (t := t) i l).subset
+  exact exists_mem_stage hkey hc (fun a ha b hb => hM a (hsub ha) b (hsub hb)) ih
 
 /-- **Correctness of the procedure.** If the signed labels `key` reduce `SAT` to `K`, the words of
 the labels of the pairs of nodes of the tree of `φ` have length at most `M`, and every finite set
@@ -357,9 +352,8 @@ theorem mem_SAT_iff_signedKey {S : Set β} {r : CNF ℕ → ℕ} {q : CNF ℕ ×
   classical
   have hcons : ∀ w : List Bool, true :: w ∈ List.cons true '' (encB '' S) ↔ w ∈ encB '' S :=
     fun w => (List.cons_injective).mem_set_image
-  have hnil : ([] : List Bool) ∉ List.cons true '' (encB '' S) := by
-    rintro ⟨w, -, hw⟩
-    exact List.cons_ne_nil _ _ hw
+  have hnil : ([] : List Bool) ∉ List.cons true '' (encB '' S) :=
+    fun ⟨w, _, hw⟩ => List.cons_ne_nil _ _ hw
   rw [hL, signedKey]
   rcases Nat.le_one_iff_eq_zero_or_eq_one.1 (hr ψ) with h0 | h1
   · simp [h0, truthTableAnswers_eq_map_range, hnil]

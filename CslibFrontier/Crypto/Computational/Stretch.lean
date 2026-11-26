@@ -110,7 +110,7 @@ theorem ideal_hop (generator : List Bool → List Bool) (n total i : ℕ) :
       (uniformList i).map (fun suffix =>
         iterate generator n (total - (i + 1)) (challenge ++ suffix))) =
       hybrid generator n total (i + 1) := by
-  rw [hybrid, show n + (i + 1) = (n + 1) + i by lia, uniformList_add (n + 1) i]
+  rw [hybrid, ← Nat.add_assoc, Nat.add_right_comm, uniformList_add (n + 1) i]
   simp only [pmf_norm]
 
 /-- Embed one challenge at a chosen hop; out-of-range hops reject on both sides. -/
@@ -236,9 +236,7 @@ theorem advantage_eq (generator : List Bool → List Bool) (count : ℕ → ℕ)
       (PMF.uniformOfFintype (Fin (2 ^ (Nat.log 2 (count n) + 1)))).bind (fun i =>
         if i.val < count n then (hybrid generator n (count n) i.val).bind
           (fun word => ProbComp.eval (adversary n word)) else PMF.pure false) := by
-    rw [eval_prgRealGame]
-    change (generatorEnsemble generator n).bind _ = _
-    simp_rw [eval_reduction]
+    simp only [eval_prgRealGame, distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, eval_reduction]
     pmf_swap with i
     exact eval_real_hop generator count adversary n i.val
   have hideal : ProbComp.eval (prgIdealGame (fun n => n + 1)
@@ -246,9 +244,8 @@ theorem advantage_eq (generator : List Bool → List Bool) (count : ℕ → ℕ)
       (PMF.uniformOfFintype (Fin (2 ^ (Nat.log 2 (count n) + 1)))).bind (fun i =>
         if i.val < count n then (hybrid generator n (count n) (i.val + 1)).bind
           (fun word => ProbComp.eval (adversary n word)) else PMF.pure false) := by
-    rw [eval_prgIdealGame]
-    change (uniformList (n + 1)).bind _ = _
-    simp_rw [eval_reduction]
+    simp only [eval_prgIdealGame, distinguishingGame_eq_bind, PMF.monad_bind_eq_bind,
+      eval_reduction]
     pmf_swap with i
     exact eval_ideal_hop generator count adversary n i.val
   have havg := Game.advantage_hybrid_average
@@ -292,16 +289,15 @@ theorem advantage_le (generator : List Bool → List Bool) (count : ℕ → ℕ)
           (ProbComp.eval
             (prgIdealGame (fun n => n + 1) (reduction generator count adversary) n)) := by
   rw [advantage_eq]
-  have hpow : 2 ^ (Nat.log 2 (count n) + 1) ≤ 2 * count n := by
-    rw [pow_succ]
-    linarith [Nat.pow_log_le_self 2 hpositive.ne']
+  have hpow : 2 ^ (Nat.log 2 (count n) + 1) ≤ 2 * count n :=
+    pow_succ' 2 _ ▸ Nat.mul_le_mul_left 2 (Nat.pow_log_le_self 2 hpositive.ne')
   exact mul_le_mul_of_nonneg_right (mod_cast hpow) zero_le
 
 /-- Efficient unary counts give a polynomial bound on the reduction's dyadic loss. -/
 theorem loss_polynomial {count : ℕ → ℕ}
     (hcount : ComputableInPolyTime count encUnary encUnary) :
-    PolynomiallyBounded (fun n => 2 ^ (Nat.log 2 (count n) + 1)) := by
-  exact dyadicSize_polynomiallyBounded.comp hcount.polynomiallyBounded
+    PolynomiallyBounded (fun n => 2 ^ (Nat.log 2 (count n) + 1)) :=
+  dyadicSize_polynomiallyBounded.comp hcount.polynomiallyBounded
 
 /-- Polynomially many expansions preserve the secure choice in a uniformly efficient family.
 The choice `choose n` is a context of any encoded type: a candidate index, an advice word, or
@@ -367,10 +363,9 @@ theorem indistinguishableWithAdvice {generator : List Bool → List Bool} {count
       simpa only [distinguishingGame_eq_bind, generatorEnsemble, PMF.monad_bind_eq_bind] using
         hsecure _ hadversary)
     (fun n context word => test ((n, context), word)) htest
-  refine h.congr' (Filter.Eventually.of_forall fun n => ?_)
-  beta_reduce
-  rw [← hybrid_zero generator count n]
-  simp only [hybrid, distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, Nat.add_zero, Nat.sub_zero]
+  exact h.congr' (Filter.Eventually.of_forall fun n => by
+    simp only [← hybrid_zero generator count n, hybrid, distinguishingGame_eq_bind,
+      PMF.monad_bind_eq_bind, Nat.add_zero, Nat.sub_zero])
 
 /-- Polynomially many seed expansions preserve computational indistinguishability. -/
 theorem indistinguishable {generator : List Bool → List Bool} {count : ℕ → ℕ}

@@ -180,9 +180,8 @@ theorem constantSum_average_loss_mem_Icc {s₁ s₂ : I → J → ℝ} {c v₁ R
   have havg_sum :
       (∑ t ∈ range T, ∑ i, p t i * ∑ j, q t j * s₁ i j) / T +
       (∑ t ∈ range T, ∑ j, q t j * ∑ i, p t i * s₂ i j) / T = c := by
-    rw [← add_div, ← sum_add_distrib, sum_congr rfl fun t ht => hstage_sum t (mem_range.mp ht)]
-    simp only [sum_const, card_range, nsmul_eq_mul]
-    exact mul_div_cancel_left₀ c hT'.ne'
+    rw [← add_div, ← sum_add_distrib, sum_congr rfl fun t ht => hstage_sum t (mem_range.mp ht),
+      sum_const, card_range, nsmul_eq_mul, mul_div_cancel_left₀ c hT'.ne']
   exact ⟨by linarith, hup₁⟩
 
 /-! ### §4.4.2: Coupled no-regret proof of von Neumann's minimax theorem -/
@@ -362,11 +361,9 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
           _ ≤ Bmax :=
               single_le_sum (f := fun i' : I => ∑ j' : J, |M i' j'|)
                 (fun _ _ => sum_nonneg fun _ _ => abs_nonneg _) (mem_univ i)
-      have hlow : -B ≤ M i j := by linarith [neg_le_of_abs_le habs]
-      have hhigh : M i j ≤ B := by linarith [le_of_abs_le habs]
-      dsimp only [M₀]
-      exact ⟨div_nonneg (by linarith) (by positivity),
-        (div_le_one (by positivity)).mpr (by linarith)⟩
+      have h2B : 0 < 2 * B := mul_pos zero_lt_two hB
+      exact ⟨div_nonneg (by linarith [neg_le_of_abs_le habs]) h2B.le,
+        (div_le_one h2B).mpr (by linarith [le_of_abs_le habs])⟩
     set C := 2 * B * (2 * (√(log (Fintype.card I)) + √(log (Fintype.card J))))
     have hgap : ∀ T : ℕ, 0 < T →
         (⨅ p : StdSimplex ℝ I, ⨆ j : J, ∑ i, p.weights i * M i j) ≤
@@ -422,18 +419,16 @@ theorem isMinimaxValue_ciInf_ciSup (M : I → J → ℝ) :
     IsMinimaxValue M (⨅ p : StdSimplex ℝ I, ⨆ j : J, ∑ i, p.weights i * M i j) := by
   have : Nonempty (StdSimplex ℝ I) := ‹Nonempty I›.map StdSimplex.single
   have : Nonempty (StdSimplex ℝ J) := ‹Nonempty J›.map StdSimplex.single
-  have hcont_wI : Continuous (fun p : StdSimplex ℝ I => (p.weights : I → ℝ)) :=
-    (StdSimplex.isEmbedding_toFun_comp_weights ℝ I).continuous
-  have hcont_wJ : Continuous (fun q : StdSimplex ℝ J => (q.weights : J → ℝ)) :=
-    (StdSimplex.isEmbedding_toFun_comp_weights ℝ J).continuous
   have hcont_row : Continuous (fun p : StdSimplex ℝ I => ⨆ j : J, ∑ i, p.weights i * M i j) := by
     simp_rw [← sup'_univ_eq_ciSup]
-    exact Continuous.finset_sup'_apply univ_nonempty fun j _ =>
-      continuous_finsetSum univ fun i _ => ((continuous_apply i).comp hcont_wI).mul continuous_const
+    exact Continuous.finset_sup'_apply univ_nonempty fun j _ => continuous_finsetSum univ fun i _ =>
+      ((continuous_apply i).comp
+        (StdSimplex.isEmbedding_toFun_comp_weights ℝ I).continuous).mul continuous_const
   have hcont_col : Continuous (fun q : StdSimplex ℝ J => ⨅ i : I, ∑ j, q.weights j * M i j) := by
     simp_rw [← inf'_univ_eq_ciInf]
-    exact Continuous.finset_inf'_apply univ_nonempty fun i _ =>
-      continuous_finsetSum univ fun j _ => ((continuous_apply j).comp hcont_wJ).mul continuous_const
+    exact Continuous.finset_inf'_apply univ_nonempty fun i _ => continuous_finsetSum univ fun j _ =>
+      ((continuous_apply j).comp
+        (StdSimplex.isEmbedding_toFun_comp_weights ℝ J).continuous).mul continuous_const
   obtain ⟨p_opt, -, hp_min⟩ :=
     isCompact_univ.exists_isMinOn Set.univ_nonempty hcont_row.continuousOn
   obtain ⟨q_opt, -, hq_max⟩ :=

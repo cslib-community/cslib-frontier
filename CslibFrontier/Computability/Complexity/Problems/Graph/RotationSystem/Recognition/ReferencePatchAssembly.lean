@@ -178,9 +178,7 @@ private theorem frozen_cut_parameter (a b : ℂ) (α β t : ℝ) :
     (Route.line (AffineMap.lineMap a b α) (AffineMap.lineMap a b β)).eval 0 t =
       (Route.line a b).eval 0 (α + (β - α) * t) := by
   rw [Route.eval_line, Route.eval_line, ← AffineMap.apply_lineMap]
-  congr 1
-  rw [AffineMap.lineMap_apply_ring']
-  ring
+  exact congrArg _ (by rw [AffineMap.lineMap_apply_ring']; ring)
 
 
 private theorem chain_patch_word {ι : Type*} (L : List ι) (a b : ℂ)
@@ -374,14 +372,10 @@ private theorem free_route_eval_nodes {I : FixedRotationInput}
     let word := ((referenceDrawing I).route e).start :: left z :: nodes
     have hi1 : i.val + 1 < word.length := by
       have hh := i.isLt
-      simp only [free_route_segments, List.length_cons] at hh
-      simp [word, nodes, List.length_flatMap]
+      simp [free_route_segments, word, nodes, List.length_flatMap] at hh ⊢
       omega
-    refine ⟨word[i.val], word[i.val + 1], ?_, ?_, Route.eval_foldl_append_line _ _ nodes i t⟩
-    · simpa only [word, nodes, List.flatMap_cons, List.cons_append, List.nil_append]
-        using List.getElem?_eq_getElem (by omega : i.val < word.length)
-    · simpa only [word, nodes, List.flatMap_cons, List.cons_append, List.nil_append]
-        using List.getElem?_eq_getElem hi1
+    refine ⟨word[i.val], word[i.val + 1], by simp [word, nodes], by simp [word, nodes],
+      Route.eval_foldl_append_line _ _ nodes i t⟩
 
 
 private theorem free_route_patch_eval {I : FixedRotationInput}
@@ -397,8 +391,8 @@ private theorem free_route_patch_eval {I : FixedRotationInput}
   refine ⟨i, rfl, fun t => ?_⟩
   obtain ⟨a, b, ha, hb, he⟩ := free_route_eval_nodes e L left middle right i t
   have hi1 : i.val + 1 = 3 * q.val + 1 + j.succ.val := by simp only [i, Fin.val_succ]; omega
-  rw [show i.val = 3 * q.val + 1 + j.castSucc.val from rfl,
-    patch_node_get L _ _ left middle right q j.castSucc] at ha
+  have hi0 : i.val = 3 * q.val + 1 + j.castSucc.val := rfl
+  rw [hi0, patch_node_get L _ _ left middle right q j.castSucc] at ha
   rw [hi1, patch_node_get L _ _ left middle right q j.succ] at hb
   exact he.trans (congrArg₂ (fun x y => AffineMap.lineMap x y t)
     (Option.some.inj ha).symm (Option.some.inj hb).symm)

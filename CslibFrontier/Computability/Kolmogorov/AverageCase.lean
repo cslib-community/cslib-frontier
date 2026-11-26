@@ -115,10 +115,8 @@ theorem timeBoundedNat_generator_le {G : List Bool → List Bool} {pG : Polynomi
     (hbound : ∀ {t : ℕ → ℕ}, (∀ m, pG.eval m ≤ t m) → ∀ z : List Bool,
       timeBounded t (G z) ≤ (z.length + c : ℕ))
     {t : ℕ → ℕ} (ht : ∀ m, pG.eval m ≤ t m) (z : List Bool) :
-    timeBoundedNat t (G z) ≤ z.length + c := by
-  have hne : timeBounded t (G z) ≠ ⊤ :=
-    timeBounded_ne_top ((hpG (G z).length).trans (ht (G z).length))
-  exact (timeBoundedNat_le_iff hne).mpr (hbound ht z)
+    timeBoundedNat t (G z) ≤ z.length + c :=
+  (timeBoundedNat_le_iff (timeBounded_ne_top ((hpG _).trans (ht _)))).mpr (hbound ht z)
 
 /-- Fewer than `2 ^ r` bitstrings of length `n` have `timeBoundedNat t (List.ofFn x) < r`
 whenever `n + 1 ≤ t n`. -/
@@ -170,9 +168,8 @@ private theorem pmf_map_true_le_one_sub_of_imp_false {α : Type*} (q : PMF α) (
     (hdisj : ∀ v, P v = true → Q v = false) :
     ((q.map P) true).toReal ≤ 1 - ((q.map Q) true).toReal := by
   have h := map_true_mono q (E := P) (F := fun a => !Q a) fun v _ hv => by simp [hdisj v hv]
-  rw [map_not_true] at h
   rw [← ENNReal.toReal_one, ← ENNReal.toReal_sub_of_le (PMF.coe_le_one _ _) ENNReal.one_ne_top]
-  exact ENNReal.toReal_mono (ENNReal.sub_ne_top ENNReal.one_ne_top) h
+  exact ENNReal.toReal_mono (ENNReal.sub_ne_top ENNReal.one_ne_top) (map_not_true q Q ▸ h)
 
 /-- **[Liu and Pass, Proof of Theorem 5.2, Claim 1, §5.2, p. 12 of arXiv:2009.11514v1][LiuPass2020]:
 Acceptance probability of the threshold distinguisher on the uniform distribution $U_m$.** -/
@@ -197,10 +194,8 @@ theorem uniformList_threshold_accept_ge {t : ℕ → ℕ} {m : ℕ} (ht : m + 1 
       linarith [toReal_apply_le_one (approx (List.ofFn x)) true,
         ENNReal.toReal_nonneg (a := accept (List.ofFn x) true)]
     · simp only [hlt, ↓reduceIte, add_zero]
-      refine ENNReal.toReal_mono (PMF.apply_ne_top _ _) <|
-        map_true_mono (q (List.ofFn x)) fun v _ hv => ?_
-      simp only [decide_eq_true_eq] at hv ⊢
-      omega
+      exact ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+        (map_true_mono _ fun v _ hv => by simp only [decide_eq_true_eq] at hv ⊢; omega)
   have hsum := Finset.sum_le_sum (s := Finset.univ) fun x _ =>
     mul_le_mul_of_nonneg_left (hpoint x)
       (ENNReal.toReal_nonneg (a := PMF.uniformOfFintype (BitString m) x))
@@ -284,8 +279,7 @@ theorem generator_threshold_accept_le {t : ℕ → ℕ} {m : ℕ} (hm : 1 ≤ m)
       (((pG.map List.ofFn).bind accept) true).toReal =
         (∑ x ∈ S, (pG x).toReal * (accept (List.ofFn x) true).toReal) +
           ∑ x ∈ Sᶜ, (pG x).toReal * (accept (List.ofFn x) true).toReal := by
-    rw [PMF.bind_map, bind_apply_toReal, ← Finset.sum_add_sum_compl S]
-    rfl
+    rw [PMF.bind_map, bind_apply_toReal, ← Finset.sum_add_sum_compl S]; rfl
   linarith
 
 end Cslib.Kolmogorov

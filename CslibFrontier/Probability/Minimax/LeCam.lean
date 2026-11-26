@@ -84,10 +84,8 @@ variable {α : Type*} {mα : MeasurableSpace α}
 private theorem hahn_overlap_eq (μ ν : Measure α) [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
     {s : Set α} (hs : IsHahnDecomposition μ ν s) :
     μ.real s + ν.real sᶜ = 1 - tvDist μ ν / 2 := by
-  have htv := hs.tvDist_eq
-  have hμ := probReal_compl_eq_one_sub (μ := μ) hs.measurableSet
-  have hν := probReal_compl_eq_one_sub (μ := ν) hs.measurableSet
-  linarith
+  linarith [hs.tvDist_eq, probReal_compl_eq_one_sub (μ := μ) hs.measurableSet,
+    probReal_compl_eq_one_sub (μ := ν) hs.measurableSet]
 
 /-- **Measure-theoretic Le Cam sum inequality**: if `L₀, L₁ ≥ 0` are integrable under probability
 measures `μ, ν` and satisfy `∀ x, sep ≤ L₀ x + L₁ x`, then
@@ -107,8 +105,9 @@ theorem leCam_measure_add_ge (μ ν : Measure α) [IsProbabilityMeasure μ] [IsP
     (add_le_add hs.le_on le_rfl).trans_eq (Measure.restrict_add_restrict_compl hs.measurableSet)
   let : IsFiniteMeasure overlap := isFiniteMeasure_of_le μ hμ
   have hmass : overlap.real univ = 1 - tvDist μ ν / 2 := by
-    rw [show overlap = μ.restrict s + ν.restrict sᶜ from rfl, measureReal_add_apply,
-      measureReal_restrict_apply_univ, measureReal_restrict_apply_univ, hahn_overlap_eq μ ν hs]
+    dsimp only [overlap]
+    rw [measureReal_add_apply, measureReal_restrict_apply_univ, measureReal_restrict_apply_univ,
+      hahn_overlap_eq μ ν hs]
   have ho₀ := hint₀.mono_measure hμ
   have ho₁ := hint₁.mono_measure hν
   calc sep * (1 - tvDist μ ν / 2) = ∫ _ : α, sep ∂overlap := by
@@ -290,8 +289,7 @@ theorem toReal_klDiv_coin_perturbed_le {δ : ℝ} (hδ : |δ| ≤ 1 / 6)
     rw [← sq_abs]
     calc |δ| ^ 2 ≤ (1 / 6) ^ 2 := by gcongr
       _ = 1 / 36 := by norm_num
-  have hprod : 2 / 9 ≤ (1 / 2 + δ) * (1 / 2 - δ) := by
-    linarith [show (1 / 2 + δ) * (1 / 2 - δ) = 1 / 4 - δ ^ 2 by ring]
+  have hprod : 2 / 9 ≤ (1 / 2 + δ) * (1 / 2 - δ) := by nlinarith
   calc _ = 4 * δ ^ 2 := by ring
     _ = 18 * δ ^ 2 * (2 / 9) := by ring
     _ ≤ 18 * δ ^ 2 * ((1 / 2 + δ) * (1 / 2 - δ)) := by gcongr
@@ -307,7 +305,6 @@ theorem exists_coin_perturbed_klDiv_le {n : ℕ} (hn : 0 < n) :
       ∀ b : Bool,
         (klDiv (coin (pBit b)).toMeasure (coin (pBit (!b))).toMeasure).toReal ≤
           1 / (2 * (n : ℝ)) := by
-  have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
   have hsqrt_ge_one : 1 ≤ Real.sqrt n := Real.one_le_sqrt.mpr (by exact_mod_cast hn)
   set δ : ℝ := 1 / (6 * Real.sqrt n)
   have hδ_pos : 0 < δ := by positivity
@@ -321,8 +318,7 @@ theorem exists_coin_perturbed_klDiv_le {n : ℕ} (hn : 0 < n) :
   have hsupp (b₁ b₂ : Bool) : (coin (pBit b₁)).support ⊆ (coin (pBit b₂)).support :=
     fun c _ => mem_support_coin_of_Ioo (hpBit_oo b₂).1 (hpBit_oo b₂).2 c
   have h18 : 18 * δ ^ 2 = 1 / (2 * (n : ℝ)) := by
-    simp only [δ, div_pow, mul_pow, Real.sq_sqrt hn_pos.le]
-    ring
+    simp only [δ, div_pow, mul_pow, Real.sq_sqrt (Nat.cast_nonneg n)]; ring
   refine ⟨pBit, rfl, rfl, hsupp, fun b => ?_⟩
   rw [← h18]
   cases b
@@ -340,8 +336,7 @@ private theorem leCam_perturbed_coin_factor_ge {n : ℕ} (hn : 0 < n) {kl : ℝ}
     calc (n : ℝ) * kl / 2 ≤ (n : ℝ) * (1 / (2 * (n : ℝ))) / 2 := by gcongr
       _ = 1 / 4 := by field_simp; ring
   have hsqrt : Real.sqrt ((n : ℝ) * kl / 2) ≤ 1 / 2 :=
-    (Real.sqrt_le_sqrt hprod).trans_eq
-      (by rw [show (1 / 4 : ℝ) = (1 / 2) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)])
+    Real.sqrt_le_iff.mpr ⟨by norm_num, by nlinarith⟩
   linarith
 
 private theorem bernoulli_perturbed_minimax_lower_bound {n : ℕ} (hn : 0 < n)
@@ -384,9 +379,7 @@ theorem bernoulli_mean_minimax_sq_lower_bound {n : ℕ} (hn : 0 < n)
     (fun _ _ => sq_nonneg _)
     (fun p₀ p₁ hp₀ hp₁ t => by
       rw [hp₀, hp₁]
-      linarith [sq_nonneg (t - 1 / 2),
-        show (t - (1 / 2 - δ)) ^ 2 + (t - (1 / 2 + δ)) ^ 2 =
-          2 * (t - 1 / 2) ^ 2 + 2 * δ ^ 2 by ring])
+      nlinarith [sq_nonneg (t - 1 / 2)])
     est
 
 /-- **`Ω(1 / √n)` minimax lower bound for Bernoulli mean estimation under absolute error**: for
@@ -403,9 +396,10 @@ theorem bernoulli_mean_minimax_abs_lower_bound {n : ℕ} (hn : 0 < n)
     (loss := fun t (q : I) => |t - (q : ℝ)|) (sep := 2 * δ) (by positivity)
     (fun _ _ => abs_nonneg _)
     (fun p₀ p₁ hp₀ hp₁ t => by
+      have hd : (1 / 2 + δ) - (1 / 2 - δ) = 2 * δ := by ring
       rw [hp₀, hp₁, abs_sub_comm t (1 / 2 + δ)]
       refine (le_of_eq ?_).trans ((abs_sub_le (1 / 2 + δ) t (1 / 2 - δ)).trans_eq (add_comm _ _))
-      rw [show (1 / 2 + δ) - (1 / 2 - δ) = 2 * δ by ring, abs_of_pos (by positivity)])
+      rw [hd, abs_of_pos (by positivity)])
     est
 
 end BernoulliMinimax

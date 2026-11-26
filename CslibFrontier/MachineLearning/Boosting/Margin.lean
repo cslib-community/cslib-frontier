@@ -200,8 +200,7 @@ theorem convexHull_signClass_vc_uniform_margin_bound {α : Type*} [Finite α] (D
       (fun _ hf => abs_le_one_of_mem_signClass hf) zero_lt_one hδ)
   rintro S ⟨f, hf, ρ, hρ, hlt⟩
   have hmul := mul_le_mul_of_nonneg_left
-    (rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm)
-    (div_nonneg (by norm_num : (0 : ℝ) ≤ 4) hρ.1.le)
+    (rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm) (div_nonneg zero_le_four hρ.1.le)
   exact ⟨f, hf, ρ, hρ, by rw [mul_one]; linarith⟩
 
 /-! ### Normalized AdaBoost score and convex-hull membership -/
@@ -303,9 +302,7 @@ theorem signVal_mul_normalizedScore_nonpos_of_adaBoost_ne {S : Fin m → α × B
   classical
   by_cases hz : ∃ t < T, (rounds S A t).error S = 0
   · rw [adaBoost_of_exists_error_zero S A hz] at hne
-    rw [normalizedScore_of_exists_error_zero S A hz, mul_comm, signVal_mul_signVal,
-      ite_eq_right hne]
-    norm_num
+    simp [normalizedScore_of_exists_error_zero S A hz, signVal_mul_signVal, hne.symm]
   · rw [adaBoost_of_not_exists_error_zero S A hz] at hne
     have hscore : signVal y * -score S A T x ≤ 0 := by
       cases y <;> simp only [ne_eq, decide_eq_true_eq, decide_eq_false_iff_not, Classical.not_not,
@@ -498,8 +495,7 @@ theorem sqrt_marginFactor_le_exp {γ ρ : ℝ} (hγ₀ : 0 < γ) (hγ₁ : γ < 
   have h1p : 0 < 1 + 2 * γ := by linarith
   have hzero : Real.log (1 - 2 * γ) + Real.log (1 + 2 * γ) ≤ -(4 * γ ^ 2) := by
     rw [← Real.log_mul h1m.ne' h1p.ne']
-    have hlog := Real.log_le_sub_one_of_pos (mul_pos h1m h1p)
-    linarith [show (1 - 2 * γ) * (1 + 2 * γ) - 1 = -(4 * γ ^ 2) by ring]
+    exact (Real.log_le_sub_one_of_pos (mul_pos h1m h1p)).trans_eq (by ring)
   have hle : (1 - ρ) * Real.log (1 - 2 * γ) + (1 + ρ) * Real.log (1 + 2 * γ) ≤
       -(4 * γ * (γ - ρ)) := by
     rw [log_marginFactor_affine hγ₀.ne']
@@ -532,11 +528,9 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
       (mul_nonneg zero_le_two (Real.rpow_nonneg (rounds_error_nonneg S A t) _))
       (Real.rpow_nonneg (by linarith [hε t (mem_range.mp ht)]) _)
   by_cases hz : ∃ t < T, (rounds S A t).error S = 0
-  · rw [card_eq_zero.mpr (filter_eq_empty_iff.mpr fun i _ hle => ?_), Nat.cast_zero, zero_div]
-    · exact hprod_nonneg
-    · simp only [normalizedScore_of_exists_error_zero S A hz,
-        hyp_eq_of_error_eq_zero S A (Nat.find_spec hz).2 i, signVal_mul_self] at hle
-      linarith
+  · simp [normalizedScore_of_exists_error_zero S A hz,
+      hyp_eq_of_error_eq_zero S A (Nat.find_spec hz).2, signVal_mul_self, not_le.mpr hρ,
+      hprod_nonneg]
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simpa using hprod_nonneg
   have : NeZero m := ⟨hm.ne'⟩
@@ -566,8 +560,7 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
     refine prod_congr rfl fun t ht => ?_
     rw [Round.vote_def]
     exact exp_mul_voteWeight_mul_two_sqrt (hε₀ t (mem_range.mp ht)) (hε₁ t (mem_range.mp ht))
-  have hm_pos : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  rw [div_le_iff₀ hm_pos, ← hfac]
+  rw [div_le_iff₀ (Nat.cast_pos.mpr hm), ← hfac]
   calc ((univ.filter fun i : Fin m =>
         signVal (S i).2 * normalizedScore S A T (S i).1 ≤ ρ).card : ℝ)
       = ((univ.filter fun i : Fin m =>

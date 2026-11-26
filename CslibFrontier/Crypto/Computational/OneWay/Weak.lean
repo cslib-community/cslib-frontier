@@ -202,9 +202,7 @@ theorem OneWay.weakOneWayAt_half {f : List Bool → List Bool} (hf : OneWay f) :
   refine ⟨hf.polyTime, fun adversary hPPT => ?_⟩
   filter_upwards [(hf.inversion_negligible adversary hPPT).eventually_le_inv_polynomial
     (PolynomiallyBounded.const 3) (fun _ => by omega)] with n hn
-  have hn' : (Game.succProbability (ProbComp.eval (inversionGame f adversary n)) : ℝ) ≤ 1 / 3 :=
-    mod_cast hn
-  linarith
+  exact lt_of_le_of_lt (b := (1 / 3 : ℝ)) (mod_cast hn) (by norm_num)
 
 /-- Every strong one-way function is a weak one-way function. -/
 theorem OneWay.weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay f :=
@@ -440,8 +438,7 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
       ProbComp.eval_pure, PMF.map]
     apply PMF.bind_congr_on_support
     intro input hinput
-    have hlen : input.length = M := BitString.length_of_mem_support_uniformList hinput
-    simp [Function.comp_def, reindex, hlen, n]
+    simp [Function.comp_def, reindex, BitString.length_of_mem_support_uniformList hinput, n]
   have hrhs : ProbComp.eval (familyInversionGame m core (familyInverter m core c d evaluate) n) =
       (BitString.uniformList (m n)).bind (fun x₀ =>
         (BitString.uniformList (coinBudget m c d n (core n x₀))).map fun coins =>
@@ -449,14 +446,12 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
             core n x₀) := by
     simp [familyInversionGame, familyInverter, PMF.map]
   rw [hlhs, hrhs]
-  apply PMF.bind_apply_mono_on_support _ true
-  intro x₀ _
+  refine PMF.bind_apply_mono_on_support _ true fun x₀ _ => ?_
   set y := core n x₀
   have hlaw_M := hlaw (M, wrappedImage n y) (coinBudget m c d n y)
     (le_coinBudget m c d y hlt.le)
   rw [hlaw_M, PMF.map_comp]
-  apply PMF.bind_apply_mono_on_support _ true
-  intro coins _
+  refine PMF.bind_apply_mono_on_support _ true fun coins _ => ?_
   simp only [Function.comp_apply, PMF.pure_apply]
   by_cases h : reindex m core (evaluate (M, wrappedImage n y) coins) == wrappedImage n y
   · obtain ⟨hn_eq, hcore_eq⟩ : _ = n ∧ _ := by

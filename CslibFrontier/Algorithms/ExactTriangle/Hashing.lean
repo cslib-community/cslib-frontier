@@ -202,16 +202,13 @@ theorem falsePositiveCount_add_zeroCount_eq_sum_coeff {p : ℕ} (hp : p ≠ 0) :
   rw [(coeff_matP_mul_matQ wBC wAC) hp a b _ hr,
     Finset.card_filter]
   push_cast
-  refine Finset.sum_congr rfl fun c _ => ?_
+  refine Finset.sum_congr rfl fun c _ => if_congr ?_ rfl rfl
   -- A zero `weightSum` modulo `p` means `wAC a c + wBC b c ≡ -wAB a b`, and the right side
   -- is congruent to its residue.
   have hsub : 0 - weightSum wAB wBC wAC a b c = -wAB a b - (wAC a c + wBC b c) := by
     simp only [weightSum]; ring
-  have hiff : weightSum wAB wBC wAC a b c ≡ 0 [ZMOD (p : ℤ)] ↔
-      wAC a c + wBC b c ≡ ((((-wAB a b) % (p : ℤ)).toNat : ℕ) : ℤ) [ZMOD (p : ℤ)] := by
-    rw [Int.natCast_toNat_emod (Nat.pos_of_ne_zero hp), Int.modEq_iff_dvd, hsub,
-      ← Int.modEq_iff_dvd, Int.ModEq, Int.ModEq, Int.emod_emod]
-  simp only [hiff]
+  rw [Int.natCast_toNat_emod (Nat.pos_of_ne_zero hp), Int.modEq_iff_dvd, hsub,
+    ← Int.modEq_iff_dvd, Int.ModEq, Int.ModEq, Int.emod_emod]
 
 end Counting
 
@@ -290,8 +287,7 @@ theorem sum_falsePositiveCount_le (hD : 16 ≤ D) (hκ : 1 ≤ κ) (hT : Weights
   have hswap : ∑ p ∈ Nat.sqrtPrimeWindow D, (falsePositiveCount wAB wBC wAC) p =
       ∑ t : Triangle n,
         ((Nat.sqrtPrimeWindow D).filter fun p => IsFalsePositive wAB wBC wAC p t).card := by
-    simp only [falsePositiveCount, Finset.card_filter]
-    exact Finset.sum_comm
+    simpa only [falsePositiveCount, Finset.card_filter] using Finset.sum_comm
   have hterm (t : Triangle n) :
       (((Nat.sqrtPrimeWindow D).filter fun p => IsFalsePositive wAB wBC wAC p t).card : ℝ)
         ≤ Real.logb (Real.sqrt D / 2) (3 * (n : ℝ) ^ κ) := by
@@ -330,12 +326,11 @@ theorem IsSelectedPrime.falsePositiveCount_mul_card_le_sum {n D p : ℕ} {wAB wB
 private theorem log_le_four_mul_log_sqrt_div_two (D : ℕ) (hD : 16 ≤ D) :
     Real.log D ≤ 4 * Real.log (Real.sqrt D / 2) := by
   have hD16 : (16 : ℝ) ≤ D := by exact_mod_cast hD
-  have hsqrt : 0 < Real.sqrt D := Real.sqrt_pos.mpr
-    (by exact_mod_cast (show 0 < D by omega))
   -- `log(√D/2) = (log D)/2 - log 2`, and `4 log 2 = log 16 ≤ log D`.
   have hlog16 : 4 * Real.log 2 ≤ Real.log D := by
     simpa [Real.log_pow] using Real.log_le_log (by norm_num) (show (2 : ℝ) ^ 4 ≤ D by linarith)
-  rw [Real.log_div hsqrt.ne' (by norm_num), Real.log_sqrt (by linarith)]
+  rw [Real.log_div (Real.sqrt_pos.mpr (by linarith)).ne' (by norm_num),
+    Real.log_sqrt (by linarith)]
   linarith [hlog16]
 
 /-- For `16 ≤ D ≤ n`, `κ ≥ 1` and edge weights bounded by `n^κ`, a positive pointwise prime-count

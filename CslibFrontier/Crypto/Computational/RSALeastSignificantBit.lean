@@ -141,8 +141,7 @@ theorem two_pow_mul_mod_mod_two {N : ℕ} (hN : Odd N) {k : ℕ} (hk : k ≠ 0) 
 `y = x ^ e % N`. -/
 theorem two_pow_mul_rsaEval (N e k x : ℕ) :
     2 ^ (k * e) * rsaEval N e x % N = rsaEval N e (2 ^ k * x % N) := by
-  unfold rsaEval
-  rw [← Nat.pow_mod, mul_pow, ← pow_mul, Nat.mul_mod_mod]
+  rw [rsaEval, rsaEval, ← Nat.pow_mod, mul_pow, ← pow_mul, Nat.mul_mod_mod]
 
 /-- The public doubling queries `2 ^ (k * e) * y % N` for `k = 1, …, m`. -/
 @[expose] def lsbQueries (N e y m : ℕ) : List ℕ :=
@@ -175,13 +174,10 @@ theorem binaryValue_testBit_two_pow_mul_mod {N x : ℕ} (hN : Odd N) (hx : x < N
 /-- Rounding `⌊2 ^ m * x / N⌋ * N / 2 ^ m` up recovers `x` once `N ≤ 2 ^ m`. -/
 theorem lsbRecover_eq {N x m : ℕ} (hx : x < N) (hm : N ≤ 2 ^ m) (bits : List Bool)
     (hbits : BitString.binaryValue bits = 2 ^ m * x / N) : lsbRecover N m bits = x := by
-  have hN : 0 < N := by omega
-  have hP : 0 < 2 ^ m := Nat.two_pow_pos m
-  unfold lsbRecover
-  rw [hbits]
+  rw [lsbRecover, hbits]
   have hlo := Nat.div_mul_le_self (2 ^ m * x) N
-  have hhi := Nat.lt_div_mul_add (a := 2 ^ m * x) hN
-  apply Nat.div_eq_of_lt_le
+  have hhi := Nat.lt_div_mul_add (a := 2 ^ m * x) (Nat.zero_lt_of_lt hx)
+  refine Nat.div_eq_of_lt_le ?_ ?_
   · rw [mul_comm x]
     omega
   · rw [add_mul, one_mul, mul_comm x]
@@ -192,11 +188,10 @@ from the `m` doubling queries, once `N ≤ 2 ^ m`. -/
 theorem lsbRecover_lsbQueries {N e x m : ℕ} (hN : Odd N) (hx : x < N) (hm : N ≤ 2 ^ m)
     (oracle : ℕ → Bool) (horacle : ∀ z < N, oracle (rsaEval N e z) = z.testBit 0) :
     lsbRecover N m ((lsbQueries N e (rsaEval N e x) m).map oracle) = x := by
-  apply lsbRecover_eq hx hm
-  rw [← binaryValue_testBit_two_pow_mul_mod hN hx m, lsbQueries, List.map_map]
-  congr 1
-  exact List.map_congr_left fun k _ => by
-    rw [Function.comp_apply, two_pow_mul_rsaEval, horacle _ (Nat.mod_lt _ (by omega))]
+  refine lsbRecover_eq hx hm _ (by
+    rw [← binaryValue_testBit_two_pow_mul_mod hN hx m, lsbQueries, List.map_map]
+    exact congrArg _ (List.map_congr_left fun k _ => by
+      rw [Function.comp_apply, two_pow_mul_rsaEval, horacle _ (Nat.mod_lt _ (by omega))]))
 
 /-! ### The inverter -/
 

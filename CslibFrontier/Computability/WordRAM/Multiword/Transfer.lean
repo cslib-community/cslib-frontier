@@ -68,11 +68,8 @@ theorem exec_copy {w : ℕ} (as ds : List (Fin (r + 4)))
       ∀ i ∉ ds, y.regs i = x.regs i := by
   induction as generalizing ds x with
   | nil =>
-    cases ds with
-    | cons => simp_all
-    | nil =>
-      exact ⟨x.set carry (x.regs carry), Exec.copy, rfl,
-        frame_set_carry x (x.regs carry) [], fun i _ => by simp⟩
+    obtain rfl : ds = [] := by simpa using hlen.symm
+    exact ⟨x.set carry (x.regs carry), Exec.copy, rfl, frame_set_carry x _ [], fun _ _ => by simp⟩
   | cons a as ih =>
     cases ds with
     | nil => simp_all
@@ -81,16 +78,16 @@ theorem exec_copy {w : ℕ} (as ds : List (Fin (r + 4)))
       have hdis' : List.Disjoint ds as :=
         fun i hi hj => hdis (List.mem_cons_of_mem d hi) (List.mem_cons_of_mem a hj)
       let z := x.set d (x.regs a)
-      have hz (i : Fin (r + 4)) (hi : i ∈ a :: as) : z.regs i = x.regs i := by
-        simp [z, show i ≠ d from fun h => hdis (h ▸ List.mem_cons_self) hi]
       obtain ⟨y, hey, hym, hyf, hyp⟩ := ih ds hlen' (List.nodup_cons.mp hnd).2 hdis' z
       have hp : ∀ i ∉ d :: ds, y.regs i = x.regs i := fun i hi => by
         simp [hyp i (List.not_mem_of_not_mem_cons hi), z, List.ne_of_not_mem_cons hi]
       refine ⟨y, ?_, ?_, ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
       · simpa only [copy, List.length_cons, Nat.add_comm 1] using
-          (show Exec w (.op (.copy (B := .standard) d a)) x z 1 from Exec.copy).seq hey
-      · exact congrArg₂ List.cons (by simp [z, hyp d (List.nodup_cons.mp hnd).1])
-          (hym.trans (List.map_congr_left fun i hi => hz i (List.mem_cons_of_mem a hi)))
+          (Exec.copy (B := .standard)).seq hey
+      · refine congrArg₂ List.cons (by simp [z, hyp d (List.nodup_cons.mp hnd).1])
+          (hym.trans (List.map_congr_left fun i hi => ?_))
+        have hid : i ≠ d := fun h => hdis (h ▸ List.mem_cons_self) (List.mem_cons_of_mem a hi)
+        simp [z, hid]
 
 /-- Exact reconstruction follows from the copied digit sequence, at any radix. -/
 theorem value_copy {β : ℕ} {x y : Data (r + 4)} {as ds : List (Fin (r + 4))}
@@ -141,8 +138,7 @@ theorem exec_constants {w : ℕ} (ds : List (Fin (r + 4))) (cs : List ℕ)
         simp [hyp i (List.not_mem_of_not_mem_cons hi), z, List.ne_of_not_mem_cons hi]
       refine ⟨y, ?_, ?_, ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
       · simpa only [constants, List.length_cons, Nat.add_comm 1] using
-          (show Exec w (.op (.const (B := .standard) d c)) x z 1 from
-            Exec.const (hfit c (by simp))).seq hey
+          (Exec.const (B := .standard) (hfit c (by simp))).seq hey
       · exact congrArg₂ List.cons (by simp [z, hyp d (List.nodup_cons.mp hnd).1]) hym
 
 /-- Installing bounded digits gives the requested value in the half-word radix. -/
@@ -231,8 +227,7 @@ theorem exec_assemble {w : ℕ} (hw : 2 ≤ w) (as : List (Fin (r + 4)))
   wram_exec [huv, hval]
   refine ⟨by wram_simp, ⟨hum, fun i hi ht hc => ?_⟩,
     fun i hi hid => by wram_simp [hup i (digit_ne hi).1, Workspace.setup_digit w x hi]⟩
-  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hi
-  obtain ⟨hb, hz, hd⟩ := hi
+  obtain ⟨hb, hz, hd⟩ : i ≠ base ∧ i ≠ zero ∧ i ≠ d := by simpa using hi
   wram_simp [hup i ht]
   unfold Workspace.setupResult
   wram_simp
@@ -326,10 +321,10 @@ theorem exec_split {w : ℕ} (hw : 2 ≤ w) (a : Fin (r + 4))
   refine ⟨trivial, hyb, by simpa only [hyzero, mul_zero, add_zero] using hyv,
     ⟨hym, fun i hi ht hc => ?_⟩, fun i hi hid => by
       rw [hyp i hid (digit_ne hi).1]; wram_simp [Workspace.setup_digit w x hi]⟩
-  simp only [List.mem_cons, not_or] at hi
-  obtain ⟨hb, hz, hd⟩ := hi
-  rw [hyp i hd ht]
-  wram_simp; unfold Workspace.setupResult; wram_simp
+  obtain ⟨hb, hz, hd⟩ : i ≠ base ∧ i ≠ zero ∧ i ∉ ds := by simpa using hi
+  wram_simp [hyp i hd ht]
+  unfold Workspace.setupResult
+  wram_simp
 
 /-- Eighteen half-word digits suffice for every physical scalar at widths at least two,
 including odd widths. This conversion always executes exactly 44 instructions. -/

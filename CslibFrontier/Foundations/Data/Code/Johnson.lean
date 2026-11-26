@@ -141,13 +141,11 @@ private theorem card_inter_filter_eq_le_of_le_minDist [DecidableEq ι] {C : Fins
     (hd : (d : ℕ∞) ≤ minDist (C : Set (ι → α))) (w : ι → α) {c c' : ι → α}
     (hc : c ∈ C) (hc' : c' ∈ C) (hne : c ≠ c') :
     #(({i | c i = w i} : Finset ι) ∩ ({i | c' i = w i} : Finset ι)) ≤ Fintype.card ι - d := by
-  have hsub : ({i | c i = w i} : Finset ι) ∩ ({i | c' i = w i} : Finset ι) ⊆
-      ({i | c i = c' i} : Finset ι) := fun i => by
-    simp only [mem_inter, mem_filter, mem_univ, true_and]
-    exact fun h => h.1.trans h.2.symm
+  have hsub : #(({i | c i = w i} : Finset ι) ∩ ({i | c' i = w i} : Finset ι)) ≤
+      #({i | c i = c' i} : Finset ι) :=
+    card_le_card fun i => by simp +contextual
   have h1 := card_filter_eq_add_hammingDist c c'
   have h2 := Nat.cast_le.1 (le_minDist_iff.1 hd c hc c' hc' hne)
-  have := card_le_card hsub
   omega
 
 /-- **The Johnson bound**, in agreement form: for a code of length `n` and minimum distance at
@@ -260,8 +258,7 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
   set A : ℤ := ∑ i, (a i : ℤ)
   have hA : (#L : ℤ) * ((n : ℤ) - e) ≤ A := by
     have hswap : A = ∑ x ∈ L, (#({i | x i = w i} : Finset ι) : ℤ) := by
-      simp only [A, a, card_filter, Nat.cast_sum]
-      exact sum_comm
+      simpa only [A, a, card_filter, Nat.cast_sum] using (sum_comm : ∑ i : ι, ∑ x ∈ L, _ = _)
     rw [hswap, ← nsmul_eq_mul]
     exact card_nsmul_le_sum _ _ _ fun x hx => by
       have := le_card_filter_eq_of_hammingDist_le (mem_filter.1 hx).2
@@ -276,8 +273,7 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
   have hD := card_mul_card_sub_one_mul_le_sum_sum_hammingDist
     (hd.trans (minDist_anti fun x (hx : x ∈ L) => (mem_filter.1 hx).1))
   rcases Nat.eq_zero_or_pos #L with hM | hM
-  · rw [hM, Nat.cast_zero, zero_mul]
-    exact mul_nonneg (mul_nonneg hq1 hn) d.cast_nonneg
+  · simpa [hM] using mul_nonneg (mul_nonneg hq1 hn) d.cast_nonneg
   set M := #L
   have hPZ : (P : ℤ) ≤ n * (M : ℤ) ^ 2 - M * ((M : ℤ) - 1) * d := by
     zify [hM] at hDP hD
@@ -328,8 +324,7 @@ theorem card_filter_hammingDist_le_mul_le_of_mul_le [Nonempty α] {C : Finset (�
   have hq : 1 ≤ q := Fintype.card_pos
   have hen : e ≤ n := Nat.le_of_mul_le_mul_left (he.trans (Nat.mul_le_mul_right n (q.sub_le 1))) hq
   rcases le_or_gt ((q - 1) * (n - e) ^ 2 + e ^ 2) ((q - 1) * n * (n - d)) with hBX | hBX
-  · rw [Nat.sub_eq_zero_of_le hBX, mul_zero]
-    exact Nat.zero_le _
+  · simp [Nat.sub_eq_zero_of_le hBX]
   -- `(q - 1) n (n - d)` over `ℕ` is at least its value over `ℤ`, with equality when `d ≤ n`
   have hdn : (n : ℤ) - d ≤ ((n - d : ℕ) : ℤ) := by omega
   have hq1 : (0 : ℤ) ≤ (q : ℤ) - 1 := sub_nonneg.2 (Nat.one_le_cast.2 hq)

@@ -287,8 +287,7 @@ variable {x}
 /-- Every node precision is positive at a call with an edge. -/
 theorem nodePrec_pos (hM : 1 ≤ x.edges) (i : ℕ) : 0 < nodePrec x i := by
   unfold nodePrec nodePrecision
-  have : 0 < 8 * x.edges * (slots x + 1) := by positivity
-  omega
+  positivity
 
 /-- Every weight is positive. -/
 theorem weights_pos (i : ℕ) : ∀ w ∈ weights x i, 0 < w := by
@@ -309,9 +308,7 @@ theorem one_le_edges_of_active (h : active x = true) : 1 ≤ x.edges := by
 theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.edges := by
   obtain ⟨hleaf, hu, -, -, -, -, -⟩ := of_decide_eq_true h
   set L := Nat.log 2 x.scale with hL
-  have hL1 : 1 ≤ L := Nat.pos_of_ne_zero fun h0 => by
-    change 1 ≤ L / 2 ^ (17 + x.depth) at hu
-    simp [h0] at hu
+  have hL1 : 1 ≤ L := Nat.pos_of_ne_zero fun h0 => by simp [levels, taper, ← hL, h0] at hu
   have hs0 : x.scale ≠ 0 := fun h0 => by simp [hL, h0] at hL1
   have hsL : 2 ^ L ≤ x.scale := Nat.pow_log_le_self 2 hs0
   have ha : slots x ≤ L / 32768 := slotBits_le _ _
@@ -332,9 +329,7 @@ theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.
       _ = 2 ^ (6 * (L / 32768) + (L + 1) / 2) := (pow_add _ _ _).symm
       _ ≤ 2 ^ L := Nat.pow_le_pow_right (by norm_num) (by omega)
       _ ≤ x.scale := hsL
-  have hle : 64 ^ slots x ≤ leafSize x.scale :=
-    (Nat.le_div_iff_mul_le hsqpos).mpr hprod
-  omega
+  exact ((Nat.le_div_iff_mul_le hsqpos).mpr hprod).trans hleaf.le
 
 /-- An active call has a node of positive multiplicity: the index `2 ^ a + 1`, of level `0`. -/
 theorem nodes_ne_nil_of_active (h : active x = true) : nodes x ≠ [] := by
@@ -478,8 +473,7 @@ theorem val_table_runLoop (h : active x = true) (vals : State → List ℕ) {j :
     (T := (nodes x).length) (n := numPoints x) (r := 64) (mul (wide x) x.fl) (add (wide x) x.fl)
     (one x.fl) (zero x.fl) (val (wide x) x.fl) (fun a b => val_mul a b) (fun a b => val_add a b)
     val_one val_zero (by norm_num) (nodePrec_pos hM) weights_pos vals
-  have hloop : (runLoop x vals).2.2 = qs := by rw [runLoop, children, hrun]
-  rw [hloop]
+  rw [runLoop, children, hrun]
   -- The row of the `j`-th node is its block.
   have hnodup : (nodes x).Nodup := (List.nodup_range).filter _
   have hmem : (nodes x)[j] ∈ nodes x := List.getElem_mem hj

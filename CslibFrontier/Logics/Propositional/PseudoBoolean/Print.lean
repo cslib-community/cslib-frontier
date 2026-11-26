@@ -818,8 +818,7 @@ theorem rereadConstr_eq {c : PBConstr} (hnd : (c.terms.map termVar).Nodup)
       have ha := hpos _ List.mem_cons_self
       rw [List.map_cons, List.filterMap_cons,
         ih (List.nodup_cons.1 hnd).2 fun t ht => hpos t (List.mem_cons_of_mem _ ht)]
-      have ha' : ¬ ((a : ℤ) < 0) := by omega
-      cases b <;> simp [entryTerm, termCoeff, ha, ha']
+      cases b <;> simp [entryTerm, termCoeff, ha, not_lt.2 (Int.natCast_nonneg a)]
   have hmass : negMass (ts.map fun t => (termVar t, termCoeff t)) = negSum ts := by
     clear hnd hterms
     induction ts with
@@ -829,8 +828,7 @@ theorem rereadConstr_eq {c : PBConstr} (hnd : (c.terms.map termVar).Nodup)
       simp only [negMass, negSum, List.map_cons, List.sum_cons] at ih ⊢
       rw [ih fun t ht => hpos t (List.mem_cons_of_mem _ ht)]
       cases b <;> simp [termCoeff]
-  rw [hterms, hmass]
-  simp
+  simp [hterms, hmass]
 
 /-- **On the normal form, an objective is read back as printed.** -/
 theorem rereadObj_eq {f : Objective} (h : (f.lin.map Prod.fst).Nodup) : rereadObj f = f := by
@@ -842,9 +840,7 @@ theorem reread_eq {I : Instance} (h : Normal I) : reread I = I := by
   have hcs : cs.map rereadConstr = cs := by
     simpa using List.map_congr_left fun c hc => rereadConstr_eq (h.constr_nodup c hc)
       (h.constr_pos c hc)
-  cases obj with
-  | none => simp [reread, hcs]
-  | some f => simp [reread, hcs, rereadObj_eq (h.obj_nodup f rfl)]
+  cases obj <;> simp [reread, hcs, rereadObj_eq, h.obj_nodup]
 
 private theorem linVal_foldl_insertCoeff (σ : ℕ → Bool) (es L : List (ℕ × ℤ)) :
     linVal σ (es.foldl (fun L e => insertCoeff e.1 e.2 L) L) = linVal σ L + linVal σ es := by
@@ -1018,8 +1014,7 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
       apply ofList_ne
       rcases hd with rfl | hd
       · decide
-      · intro h'
-        exact absurd (Option.some.inj h' ▸ hd) (by decide)
+      · exact fun h' => absurd (Option.some.inj h' ▸ hd) (by decide)
   -- The clauses read.
   have hcls (ψ : CNF ℕ) (hψ : ∀ v ∈ CNF.vars ψ, v < V) :
       dimacsClauses V (ψ.map fun cl => (cl.map Dimacs.litChars).map String.ofList ++ ["0"]).flatten
@@ -1055,11 +1050,10 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
       ((φ.map fun x => x.map (fun x => String.ofList (Dimacs.litChars x)) ++ ["0"]).flatten)
       [] = some φ := by
     simpa [List.map_map, Function.comp_def] using hcls φ fun v hv => CNF.lt_dimacsVars hv
-  simp only [show (some "p" != some "c") = true by decide, ↓reduceIte, List.filter_append, hfilt,
-    show tokens (String.ofList []) = [] from rfl, List.filter_cons, List.head?_nil,
-    show ((none : Option String) != some "c") = true by decide, List.filter_nil, nat?_toDecimal,
-    List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil, hcls',
-    Option.bind_some]
+  have htok0 : tokens (String.ofList []) = [] := rfl
+  have hc1 : (some "p" != some "c") = true := by decide
+  have hc2 : ((none : Option String) != some "c") = true := by decide
+  simp [htok0, hc1, hc2, hfilt, nat?_toDecimal, hcls']
 
 /-! #### The round trips and the soundness theorems end to end -/
 
@@ -1143,25 +1137,18 @@ theorem exists_parseOPB_printOPB {I : Instance} {N : Names} (hN : N.Covers I) :
       (∀ v ∈ I.varList, (opbNames (printOPB I N)).var? (N.name v) = some (π v)) ∧
       (∀ v ∈ I.varList, (opbNames (printOPB I N)).name (π v) = N.name v) ∧
       parseOPB (printOPB I N) = some (reread (I.rename π)) := by
-  set M := opbNames (printOPB I N)
-  have hread : ∀ v ∈ I.varList, ∃ w, M.var? (N.name v) = some w := fun v hv => by
+  let M := opbNames (printOPB I N)
+  let π (v : ℕ) : ℕ := (M.var? (N.name v)).getD 0
+  have hvar : ∀ v ∈ I.varList, M.var? (N.name v) = some (π v) := fun v hv => by
     obtain ⟨t, ht, hbt⟩ := exists_token_name hN hv
     obtain ⟨w, hw, -⟩ := opbNames_var? ht (hbt ▸ hN.opb v hv)
-    exact ⟨w, hbt ▸ hw⟩
-  refine ⟨fun v => (M.var? (N.name v)).getD 0, ?_, fun v hv => ?_, fun v hv => ?_, ?_⟩
-  · intro v hv w hw hvw
-    obtain ⟨a, ha⟩ := hread v hv
-    obtain ⟨b, hb⟩ := hread w hw
-    simp only [ha, hb, Option.getD_some] at hvw
-    subst hvw
-    exact Names.name_injective hN.wf ((Names.name_of_var? ha).symm.trans (Names.name_of_var? hb))
-  · obtain ⟨a, ha⟩ := hread v hv
-    simp [ha]
-  · obtain ⟨a, ha⟩ := hread v hv
-    simpa only [ha, Option.getD_some] using Names.name_of_var? ha
-  · refine parseOPBWith_printOPB fun v hv => ⟨?_, hN.opb v hv⟩
-    obtain ⟨a, ha⟩ := hread v hv
-    simp [ha, M]
+    have hw' : M.var? (N.name v) = some w := hbt ▸ hw
+    simp [π, hw']
+  have hname : ∀ v ∈ I.varList, M.name (π v) = N.name v :=
+    fun v hv => Names.name_of_var? (hvar v hv)
+  exact ⟨π, fun v hv w hw hvw => Names.name_injective hN.wf
+    ((hname v hv).symm.trans ((congrArg M.name hvw).trans (hname w hw))), hvar, hname,
+    parseOPBWith_printOPB fun v hv => ⟨hvar v hv, hN.opb v hv⟩⟩
 
 /-- **The parser reads back exactly the printed instance, normalized**, when its names read
 each variable as itself, as for names given in their order of first appearance in the text
@@ -1169,9 +1156,8 @@ each variable as itself, as for names given in their order of first appearance i
 theorem parseOPB_printOPB_of_var? {I : Instance} {N : Names} (hN : N.Covers I)
     (h : ∀ v ∈ I.varList, (opbNames (printOPB I N)).var? (N.name v) = some v) :
     parseOPB (printOPB I N) = some (reread I) := by
-  have := parseOPBWith_printOPB (M := opbNames (printOPB I N)) (N := N) (π := id) (I := I)
-    fun v hv => ⟨h v hv, hN.opb v hv⟩
-  rwa [Instance.rename_id] at this
+  simpa only [parseOPB, Instance.rename_id] using
+    parseOPBWith_printOPB (π := id) fun v hv => ⟨h v hv, hN.opb v hv⟩
 
 /-- **The parser reads back a printed instance**, normalized: for every instance `I`, the text
 `printOPB I` parses, with the standard names `x(v + 1)`, to `reread I`, which has the same
@@ -1283,12 +1269,10 @@ theorem bounds_of_checkOPB_printOPB {I : Instance} {N : Names} (hN : N.Covers I)
   cases hp.symm.trans hJ
   obtain ⟨g, hg, rfl⟩ := Option.map_eq_some_iff.1 hf'
   obtain ⟨f, hf, rfl⟩ := Option.map_eq_some_iff.1 hg
-  have hval := values_read hπ (P := []) (by simp)
-  simp only [List.map_nil] at hval
-  have hobj : objValue (reread (I.rename π)).objective = (rereadObj (renameObj π f)).eval := by
-    funext σ
-    simp only [reread, Instance.rename, hf, Option.map_some]
-    rfl
+  have hval : (reread (I.rename π)).values [] = I.values [] :=
+    values_read hπ (P := []) (by simp)
+  have hobj : objValue (reread (I.rename π)).objective = (rereadObj (renameObj π f)).eval :=
+    funext fun _ => by simp [objValue, reread, Instance.rename, hf]
   refine ⟨f, hf, fun σ hσ => ?_, fun u hu => ?_⟩
   · have hx : (f.eval σ, proj [] σ) ∈ (reread (I.rename π)).values [] :=
       hval ▸ Instance.mem_values.2 ⟨σ, hσ, by simp [objValue, hf]⟩

@@ -84,7 +84,8 @@ theorem bernoulliAverage_lowerSet_transfer {A : Set (ι → Bool)}
   have hlower : 1 ≤ (h : ℝ) * (5 * r) := by
     have hf := mul_lt_mul_of_pos_right (Nat.lt_floor_add_one (1 / (4 * r))) hr
     rw [hmul, add_mul, one_mul] at hf
-    linarith [show (h : ℝ) * (5 * r) = 5 * ((h : ℝ) * r) by ring]
+    rw [mul_left_comm]
+    linarith
   have hpos : 0 < (h : ℝ) :=
     pos_of_mul_pos_left (by linarith : 0 < (h : ℝ) * (5 * r)) (by positivity)
   have hinv : (h : ℝ)⁻¹ ≤ 5 * r := by
@@ -144,11 +145,9 @@ theorem le_bernoulliAverage_le_harmonicTransform_of_rpow
   have hB : 1 ≤ B := Real.one_le_rpow (by norm_num) (by linarith)
   have ha : 0 < a := by dsimp [a]; positivity
   have hA : IsLowerSet A := fun _ _ hst ht => ht.trans (harmonicTransform_antitone hf hst)
-  have hA' : A.Nonempty := by
-    refine ⟨fun _ => false, ?_⟩
-    change 1 / (4 * B) ≤ harmonicTransform f (fun _ => false)
-    rw [harmonicTransform_empty, hmean, div_le_one (by positivity)]
-    linarith
+  have hA' : A.Nonempty := ⟨fun _ => false, by
+    simpa only [A, Set.mem_ofPred_eq, harmonicTransform_empty, hmean] using
+      (div_le_one (by positivity)).mpr (by linarith)⟩
   have hr20 : r ≤ 1 / 20 := (le_one_div_512_of_le_div hk hr').trans (by norm_num)
   have hind : A.indicator 1 =
       fun s => if 1 / (4 * B) ≤ harmonicTransform f s then (1 : ℝ) else 0 :=
@@ -170,10 +169,9 @@ theorem le_bernoulliAverage_expect_coordinateMarginal_le
       if (𝔼 z, if coordinateMarginal f s z ≤ (2 : ℝ) ^ (-2 * k - 2) then (1 : ℝ) else 0) ≤
         (2 : ℝ) ^ (-k) then 1 else 0) := by
   have ht : (2 : ℝ) ^ (-2 * k - 2) / (1 / (4 * (2 : ℝ) ^ k)) = (2 : ℝ) ^ (-k) := by
-    rw [one_div, div_inv_eq_mul, show (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) by norm_num,
-      ← Real.rpow_add two_pos, ← Real.rpow_add two_pos]
-    congr 1
-    ring
+    have h4 : (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) := by norm_num
+    rw [one_div, div_inv_eq_mul, h4, ← Real.rpow_add two_pos, ← Real.rpow_add two_pos]
+    exact congrArg ((2 : ℝ) ^ ·) (by ring)
   have hr1 : r ≤ 1 := (le_one_div_512_of_le_div hk hr').trans (by norm_num)
   refine (le_bernoulliAverage_le_harmonicTransform_of_rpow hf hmean hk hbound hr hr').trans
     (bernoulliAverage_mono hr hr1 fun s => ?_)
@@ -225,14 +223,11 @@ private theorem coordinateMarginal_normalize (mass : (ι → Bool) → ℝ) (s :
     (z : {i // s i = true} → Bool) :
     coordinateMarginal (fun x => (2 : ℝ) ^ Fintype.card ι * mass x) s z =
       (2 : ℝ) ^ Fintype.card {i // s i = true} * coordinateMass mass s z := by
-  let e := Equiv.piEquivPiSubtypeProd (fun i => s i = true) (fun _ => Bool)
   have hc : (2 : ℝ) ^ Fintype.card ι =
       (2 : ℝ) ^ Fintype.card {i // s i = true} *
         (Fintype.card ({i // s i ≠ true} → Bool) : ℝ) := by
-    have h := Fintype.card_congr e
-    simp only [Fintype.card_fun, Fintype.card_bool, Fintype.card_prod] at h
-    simp only [Fintype.card_fun, Fintype.card_bool]
-    exact_mod_cast h
+    simpa [Fintype.card_fun] using congrArg ((↑) : ℕ → ℝ)
+      (Fintype.card_congr (Equiv.piEquivPiSubtypeProd (fun i => s i = true) (fun _ => Bool)))
   unfold coordinateMarginal coordinateMass
   rw [Fintype.expect_eq_sum_div_card, ← mul_sum, hc]
   have hp : (0 : ℝ) < Fintype.card ({i // s i ≠ true} → Bool) := Nat.cast_pos.mpr Fintype.card_pos
@@ -272,8 +267,7 @@ private theorem ite_expect_coordinateMarginal_le_of_normalize (mass : (ι → Bo
       ((univ.filter fun z => coordinateMass mass s z ≤
         (2 : ℝ) ^ (-(m : ℝ) - 2 * k - 2)).card : ℝ) / (2 : ℝ) ^ m := by
     simp_rw [he]
-    rw [Fintype.expect_eq_sum_div_card]
-    simp [m]
+    simp [Fintype.expect_eq_sum_div_card, m]
   simp only [havg, div_le_iff₀ hp, hcount]
   exact le_rfl
 
@@ -292,9 +286,7 @@ theorem le_bernoulliAverage_card_coordinateMass_le
   let f : (ι → Bool) → ℝ := fun x => (2 : ℝ) ^ Fintype.card ι * mass x
   have hf : ∀ x, 0 ≤ f x := fun x => mul_nonneg (by positivity) (hm x)
   have hsum : (𝔼 x, f x) = 1 := by
-    dsimp [f]
-    rw [Fintype.expect_eq_sum_div_card, ← mul_sum, hmean]
-    simp
+    simp [f, Fintype.expect_eq_sum_div_card, ← mul_sum, hmean]
   have hproduct : (2 : ℝ) ^ Fintype.card ι * (2 : ℝ) ^ (k - Fintype.card ι) = (2 : ℝ) ^ k :=
     two_pow_mul_rpow_eq (by ring)
   have hfb : ∀ x, f x ≤ (2 : ℝ) ^ k := fun x =>

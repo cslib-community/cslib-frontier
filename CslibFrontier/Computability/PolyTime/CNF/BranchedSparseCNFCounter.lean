@@ -504,11 +504,8 @@ private theorem compiled_system_incidence_bounds (k C_B β_B : ℕ) :
   have hpow_step : lam ^ (2 * β_B + 3) ≤ lam ^ (2 * β_B + 4) :=
     Nat.pow_le_pow_right hlam1 (by omega)
   have hw_le : branchMaxFactorWidth N sys ≤ C_inc * lam ^ (2 * β_B + 4) := by
-    unfold branchMaxFactorWidth
-    refine (List.max_le_iff (l := _ :: _) (by simp)).mpr ?_
-    simp only [List.mem_cons, forall_eq_or_imp]
-    refine ⟨Nat.mul_pos (by dsimp only [C_inc]; omega) hpow1, fun w hw => ?_⟩
-    obtain ⟨eq, heq, rfl⟩ := List.mem_map.mp hw
+    refine (List.max_le_iff (by simp)).mpr (List.forall_mem_cons.mpr
+      ⟨Nat.mul_pos (by dsimp only [C_inc]; omega) hpow1, List.forall_mem_map.mpr fun eq heq => ?_⟩)
     exact ((hsc_all eq heq).trans (hT_le.trans (Nat.mul_le_mul_left _ hpow_step))).trans
       (Nat.mul_le_mul_right _ (by dsimp only [C_inc]; omega))
   have hsum_le : (sys.map (scopeWidthOn N)).sum ≤ (6 * T) * N :=
@@ -652,12 +649,10 @@ private theorem polySys_time_bound_of_branchPolylog (k N₀_top N₀_branch : �
   set lam := Nat.clog 2 N
   have hlam14 : 14 ≤ lam := (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr (by omega : 2 ^ 13 < N)
   have hs_eq : inp.2.1.2.1 = (lam - 1).sqrt + 1 := by
-    have hcz : ¬ Nat.clog 2 N = 0 := by omega
-    have h1N : 1 + N - 1 = N := by omega
-    have hpos : 0 < N := by omega
     change max 1 (ParameterCheck.heavyIncidenceCutoff 1 N) = _
-    simpa only [ParameterCheck.heavyIncidenceCutoff, hcz, ↓reduceIte, h1N, Nat.div_self hpos,
-      one_mul] using Nat.max_eq_right (Nat.le_add_left 1 _)
+    rw [ParameterCheck.heavyIncidenceCutoff, ite_eq_right (by omega), Nat.add_sub_cancel_left,
+      Nat.div_self (by omega), one_mul]
+    exact Nat.max_eq_right (Nat.le_add_left 1 _)
   have hs2 : 2 ≤ inp.2.1.2.1 :=
     hs_eq ▸ Nat.add_le_add_right (Nat.le_sqrt.mpr (by omega : 1 * 1 ≤ lam - 1)) 1
   have hsqrt_le_s : lam.sqrt ≤ inp.2.1.2.1 := by

@@ -158,9 +158,7 @@ private def stretchLen (γ n : ℕ) : ℕ := n + γ * Nat.log 2 n
 private theorem stretchLen_succ_le (γ n : ℕ) :
     stretchLen γ (n + 1) ≤ stretchLen γ n + γ + 1 := by
   dsimp [stretchLen]
-  have h := Nat.mul_le_mul_left γ (Nat.log_add_one_le 2 n)
-  rw [mul_add, mul_one] at h
-  omega
+  linarith [Nat.mul_le_mul_left γ (Nat.log_add_one_le 2 n)]
 
 private def seedLen (γ m : ℕ) : ℕ :=
   Nat.findGreatest (fun k => stretchLen γ k ≤ m) m + 1
@@ -180,16 +178,12 @@ private theorem lt_stretchLen_seedLen (γ m : ℕ) :
 
 private theorem seedLen_bound (γ m : ℕ) : m < (γ + 1) * seedLen γ m := by
   have hgt := (lt_stretchLen_seedLen γ m).1
-  have hlog : Nat.log 2 (seedLen γ m) ≤ seedLen γ m := Nat.log_le_self 2 _
   dsimp [stretchLen] at hgt
-  nlinarith
+  nlinarith [Nat.log_le_self 2 (seedLen γ m)]
 
 private theorem tendsto_seedLen (γ : ℕ) : Tendsto (seedLen γ) atTop atTop := by
-  rw [tendsto_atTop_atTop]
-  refine fun N => ⟨(γ + 1) * N, fun m hm => by_contra fun hlt => ?_⟩
-  have := seedLen_bound γ m
-  have := Nat.mul_le_mul_left (γ + 1) (Nat.le_of_not_ge hlt)
-  omega
+  refine tendsto_atTop_atTop.mpr fun N => ⟨(γ + 1) * N, fun m hm => by_contra fun hlt => ?_⟩
+  nlinarith [seedLen_bound γ m]
 
 /-! ### Truncated generator and threshold distinguisher for Theorem 5.2 -/
 
@@ -277,7 +271,7 @@ private theorem threshold_arith_bounds {γ d C₀ n c m : ℕ}
   have hγ_split : 2 * d * Nat.log 2 n + 2 * Nat.log 2 n + Nat.log 2 n ≤ γ * Nat.log 2 n := by
     nlinarith only [hγ]
   refine ⟨by omega, by omega, by omega, by omega, ?_⟩
-  simpa only [sq] using (show (4 : ℝ) * m ≤ n * n by exact_mod_cast hm_le_nat)
+  exact_mod_cast hm_le_nat.trans_eq (sq n).symm
 
 private theorem condEPPRG_real_threshold_accept_le
     {G : List Bool → List Bool} {γ α d : ℕ}
@@ -309,8 +303,7 @@ private theorem condEPPRG_real_threshold_accept_le
   set k := 2 * Nat.log 2 n + 3 with hk_def
   set g_err := d * (Nat.log 2 m + 1) with hg_err_def
   have hthr_eq : thresholdValue γ d c n = m - k - g_err := by
-    dsimp [thresholdValue]
-    rw [← hm_def, ← hk_def, ← hg_err_def]
+    simp only [thresholdValue, ← hm₀_def, ← hm_def, ← hk_def, ← hg_err_def]
   let p_full : PMF (BitString m₀) :=
     (PMF.uniformOfFinset E_n hE_n).map fun x => BitString.ofList m₀ (G (List.ofFn x))
   let pG_dist : PMF (BitString m) :=
@@ -332,13 +325,12 @@ private theorem condEPPRG_real_threshold_accept_le
     simp only [pmf_norm, thresholdDistinguisher, ← hm₀_def, ← hm_def, hthr_eq]
   set B : ℝ := (n : ℝ) - (α : ℝ) * (Nat.log 2 n : ℝ) - (c : ℝ) with hB_def
   have hB3 : 3 ≤ B := by
-    have hlog_real : ((γ : ℝ) + 5) + (α : ℝ) * (Nat.log 2 n : ℝ) ≤ n := by
-      exact_mod_cast hlog_bound
-    have hc_real : (c : ℝ) ≤ γ + 1 := by exact_mod_cast hc_le
+    have hlog_real : ((γ : ℝ) + 5) + (α : ℝ) * (Nat.log 2 n : ℝ) ≤ n := mod_cast hlog_bound
+    have hc_real : (c : ℝ) ≤ γ + 1 := mod_cast hc_le
     linarith only [hB_def, hlog_real, hc_real]
   have hent_pG : B ≤ PMF.entropy pG_dist := by
     have htake := entropy_ofList_take_ge hm_le_m₀ p_full
-    have hsub : ((m₀ - m : ℕ) : ℝ) = c := by exact_mod_cast (show m₀ - m = c by omega)
+    have hsub : ((m₀ - m : ℕ) : ℝ) = c := mod_cast (by omega : m₀ - m = c)
     linarith only [hB_def, hn_ent, htake, hsub]
   have hlow : ∀ y ∈ pG_dist.support, timeBoundedNat t (List.ofFn y) < m - k - g_err := by
     intro y hy
@@ -346,11 +338,9 @@ private theorem condEPPRG_real_threshold_accept_le
       (PMF.mem_support_map_iff _ _ _).mpr ⟨y, hy, rfl⟩
     rw [hpG_map] at hy'
     supp_cases hy' with ⟨_, ⟨_, ⟨x, -, rfl⟩, rfl⟩, hwy⟩
-    have hlen_Gx : (G (List.ofFn x)).length = m₀ := by
-      simpa [hm₀_def] using hG_len (List.ofFn x)
     have htrunc_eq : truncGen G (c, List.ofFn x) = List.ofFn y := by
       dsimp [truncGen]
-      rw [hlen_Gx, ← hm_def, hwy]
+      rw [hG_len, List.length_ofFn, ← hm₀_def, ← hm_def, hwy]
     have hlen_enc : (encPair encUnary encBits (c, List.ofFn x)).length ≤ n + (2 * γ + 3) := by
       rw [length_encPair, encUnary_apply, List.length_replicate, encBits_apply, List.length_ofFn]
       omega

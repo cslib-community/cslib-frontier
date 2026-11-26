@@ -188,19 +188,14 @@ private theorem caseA (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (h
     refine hplanar.trans (Rot.rot_mono hP hR hsy' hsz' hh h0 hπ le_rfl ?_)
     -- condition at `π`: `sy sz ≤ (1-y)(1-z)`
     rw [Real.cos_pi]
-    have hy1 : y ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 0) (hv 2)
-    have hz1 : z ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 1) (hv 2)
+    have h1y : 0 ≤ 1 - y := sub_nonneg.mpr (real_inner_le_one_of_norm_eq_one (hv 0) (hv 2))
+    have h1z : 0 ≤ 1 - z := sub_nonneg.mpr (real_inner_le_one_of_norm_eq_one (hv 1) (hv 2))
     have hsq : (sy * sz) ^ 2 ≤ ((1 - y) * (1 - z)) ^ 2 := by
-      rw [mul_pow, hP, hR]
-      have hprod : 0 ≤ (1 - y) * (1 - z) * -(y + z) :=
-        mul_nonneg (mul_nonneg (sub_nonneg.mpr hy1) (sub_nonneg.mpr hz1)) (neg_nonneg.mpr hyz)
-      linarith only [
-        show ((1 - y) * (1 - z)) ^ 2 - (1 - y ^ 2) * (1 - z ^ 2) =
-          2 * ((1 - y) * (1 - z) * -(y + z)) by ring,
-        hprod]
-    have hle := (pow_le_pow_iff_left₀ (by positivity)
-      (mul_nonneg (sub_nonneg.mpr hy1) (sub_nonneg.mpr hz1)) two_ne_zero).mp hsq
-    linarith only [hle, show (1 - y) * (1 - z) = 1 - y - z + y * z by ring]
+      have hid : ((1 - y) * (1 - z)) ^ 2 - (sy * sz) ^ 2 = 2 * ((1 - y) * (1 - z) * -(y + z)) := by
+        rw [mul_pow sy sz, hP, hR]; ring
+      linarith [mul_nonneg (mul_nonneg h1y h1z) (neg_nonneg.mpr hyz)]
+    have hle := (pow_le_pow_iff_left₀ (by positivity) (mul_nonneg h1y h1z) two_ne_zero).mp hsq
+    ring_nf at hle ⊢; linarith
 
 /-- The deviation potential: sum of the two largest deviations `1 - cos`. -/
 private def Pot (v : Fin 3 → E) : ℝ :=
@@ -236,23 +231,19 @@ private theorem move (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh
   set c' := (y + z - 1 - y * z) / (sy * sz)
   have hy1 : y < 1 := (abs_lt.mp ((sq_lt_one_iff_abs_lt_one y).mp hy)).2
   have hz1 : z < 1 := (abs_lt.mp ((sq_lt_one_iff_abs_lt_one z).mp hz)).2
+  have h1y : 0 < 1 - y := sub_pos.mpr hy1
+  have h1z : 0 < 1 - z := sub_pos.mpr hz1
   have hc'1 : c' ≤ 1 := by
-    rw [div_le_one hyz]
-    linarith only [hyz, mul_pos (sub_pos.mpr hy1) (sub_pos.mpr hz1),
-      show y + z - 1 - y * z = -((1 - y) * (1 - z)) by ring]
+    have hid : y + z - 1 - y * z = -((1 - y) * (1 - z)) := by ring
+    rw [div_le_one hyz]; linarith [mul_pos h1y h1z]
   have hc'm : -1 ≤ c' := by
     rw [le_div_iff₀ hyz]
     have hsq : ((1 - y) * (1 - z)) ^ 2 ≤ (sy * sz) ^ 2 := by
-      rw [mul_pow sy sz, hP, hR]
-      have hprod : 0 ≤ (1 - y) * (1 - z) * (y + z) :=
-        mul_nonneg (mul_nonneg (sub_pos.mpr hy1).le (sub_pos.mpr hz1).le) hpos.le
-      linarith only [
-        show (1 - y ^ 2) * (1 - z ^ 2) - ((1 - y) * (1 - z)) ^ 2 =
-          2 * ((1 - y) * (1 - z) * (y + z)) by ring,
-        hprod]
-    have hle := (pow_le_pow_iff_left₀
-      (mul_nonneg (sub_pos.mpr hy1).le (sub_pos.mpr hz1).le) hyz.le two_ne_zero).mp hsq
-    linarith only [hle, show (1 - y) * (1 - z) = 1 - y - z + y * z by ring]
+      have hid : (sy * sz) ^ 2 - ((1 - y) * (1 - z)) ^ 2 = 2 * ((1 - y) * (1 - z) * (y + z)) := by
+        rw [mul_pow sy sz, hP, hR]; ring
+      linarith [mul_nonneg (mul_pos h1y h1z).le hpos.le]
+    have hle := (pow_le_pow_iff_left₀ (mul_pos h1y h1z).le hyz.le two_ne_zero).mp hsq
+    ring_nf at hle ⊢; linarith
   set ψ' := Real.arccos c'
   have hcos' : Real.cos ψ' = c' := Real.cos_arccos hc'm hc'1
   refine ⟨canT y z sy sz ψ', fun i => norm_canT hP hR i, ?_, ?_, ?_, ?_⟩

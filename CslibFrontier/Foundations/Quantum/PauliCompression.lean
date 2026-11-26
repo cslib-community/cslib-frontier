@@ -118,12 +118,10 @@ private theorem signProj_mul_isometry (hEE : Eᴴ * E = 1)
 private theorem compress_mul (hEE : Eᴴ * E = 1) (hEP : E * Eᴴ = signProj (reg negOne) true)
     (y y' : PauliGroup ι) :
     Eᴴ * reg y * E * (Eᴴ * reg y' * E) = Eᴴ * reg (y * y') * E := by
-  rw [show Eᴴ * reg y * E * (Eᴴ * reg y' * E) = Eᴴ * reg y * (E * Eᴴ) * reg y' * E by
-    simp only [Matrix.mul_assoc], hEP, Matrix.mul_assoc (Eᴴ * reg y),
-    ← commute_regularRep_signProj,
-    ← Matrix.mul_assoc, Matrix.mul_assoc _ _ E, signProj_mul_isometry hEE hEP,
-    ← regularRep_mul]
   simp only [Matrix.mul_assoc]
+  rw [← Matrix.mul_assoc E Eᴴ, hEP, ← Matrix.mul_assoc (signProj _ _),
+    ← commute_regularRep_signProj, Matrix.mul_assoc (reg y'), signProj_mul_isometry hEE hEP,
+    ← Matrix.mul_assoc (reg y), ← regularRep_mul]
 
 private theorem compress_negOne_mul (hEE : Eᴴ * E = 1) (hEP : E * Eᴴ = signProj (reg negOne) true)
     (y : PauliGroup ι) : Eᴴ * reg (negOne * y) * E = -(Eᴴ * reg y * E) := by
@@ -172,18 +170,13 @@ theorem pauliFamily_pauliXPow_mul (p q : PauliGroup ι) :
     pauliFamily pauliXPow pauliZPow p * pauliFamily pauliXPow pauliZPow q =
       pauliFamily pauliXPow pauliZPow (p * q) := by
   simp only [pauliFamily, smul_mul_smul_comm, PauliGroup.mul_sign, PauliGroup.mul_x,
-    PauliGroup.mul_z]
-  rw [show pauliXPow p.x * pauliZPow p.z * (pauliXPow q.x * pauliZPow q.z) =
-      pauliXPow p.x * (pauliZPow p.z * pauliXPow q.x) * pauliZPow q.z by
-    simp only [Matrix.mul_assoc], pauliZPow_mul_pauliXPow, Matrix.mul_smul, Matrix.smul_mul,
-    smul_smul, show pauliXPow p.x * (pauliXPow q.x * pauliZPow p.z) * pauliZPow q.z =
-      pauliXPow p.x * pauliXPow q.x * (pauliZPow p.z * pauliZPow q.z) by
-    simp only [Matrix.mul_assoc], pauliXPow_mul, pauliZPow_mul, dotProduct_comm q.x p.z]
+    PauliGroup.mul_z, Matrix.mul_assoc]
+  rw [← Matrix.mul_assoc (pauliZPow p.z), pauliZPow_mul_pauliXPow, Matrix.smul_mul,
+    Matrix.mul_smul, smul_smul, Matrix.mul_assoc (pauliXPow q.x), pauliZPow_mul,
+    ← Matrix.mul_assoc, pauliXPow_mul, dotProduct_comm q.x p.z]
   congr 1
-  rw [show p.sign + q.sign + p.z ⬝ᵥ q.x = ((p.sign ^^ q.sign) ^^ p.z ⬝ᵥ q.x) from rfl,
-    signVal_xor, signVal_xor]
-  push_cast
-  ring
+  rw [Bool.add_eq_xor, Bool.add_eq_xor, signVal_xor, signVal_xor]
+  push_cast; ring
 
 /-- The averaging isometry of the Pauli family lies in the `-1` eigenspace of the central element:
 `g(-1) V = -V`, exactly. -/
@@ -289,14 +282,12 @@ private theorem expect_norm_sub_pauliFamily_compression_le
     (𝔼 a, 𝔼 b, φ.norm (X a * Z b -
           Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2) ≤
         𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 := by
-  let f := pauliFamily X Z
-  refine le_of_eq_of_le ?_ (expect_norm_sub_compress_sq_le f φ hf)
+  refine le_of_eq_of_le ?_ (expect_norm_sub_compress_sq_le (pauliFamily X Z) φ hf)
   rw [← expect_pauliGroup (fun a b => φ.norm (X a * Z b -
     Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2)]
   refine Finset.expect_congr rfl fun p _ => ?_
-  rw [← hcompress, pauliFamily, smul_kronecker, Matrix.mul_smul, Matrix.smul_mul,
-    show f p = (signVal p.sign : ℂ) • (X p.x * Z p.z) from rfl, ← smul_sub,
-    AlgState.norm_smul, Complex.norm_real, Real.norm_eq_abs, abs_signVal, one_mul]
+  rw [← hcompress, pauliFamily, pauliFamily, smul_kronecker, Matrix.mul_smul, Matrix.smul_mul,
+    ← smul_sub, AlgState.norm_smul, Complex.norm_real, Real.norm_eq_abs, abs_signVal, one_mul]
 
 /-- **Compression of the Pauli family**, a step toward robust Pauli rigidity
 [Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017]: for unitaries `X(a)`, `Z(b)` on
@@ -345,9 +336,8 @@ theorem exists_isometry_compress_intertwine_pauliFamily
     rw [← pauliFamily_ofZ pauliXPow pauliZPow pauliXPow_zero b, ← pauliFamily_ofZ X Z hX0 b,
       hintertwine]
     refine (expect_congr rfl fun p _ => ?_).trans (Fintype.expect_const _)
-    have hz : f p * f (ofZ b) - f (p * ofZ b) = 0 := by
-      simp [f, pauliFamily_mul_sub, ofZ, Bool.zero_eq_false, hX0, ← hZmul p.z b, Matrix.mul_assoc]
-    change (f p * f (ofZ b) - f (p * ofZ b))ᴴ * (f p * f (ofZ b) - f (p * ofZ b)) = _
+    have hz : pauliFamily X Z p * pauliFamily X Z (ofZ b) - pauliFamily X Z (p * ofZ b) = 0 := by
+      simp [pauliFamily_mul_sub, ofZ, Bool.zero_eq_false, hX0, ← hZmul p.z b, Matrix.mul_assoc]
     simp [hz]
   refine ⟨J, inferInstance, inferInstance, W, hWW, hZexact,
     expect_norm_sub_pauliFamily_compression_le X Z W

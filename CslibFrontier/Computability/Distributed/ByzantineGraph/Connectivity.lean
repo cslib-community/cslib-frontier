@@ -280,9 +280,8 @@ structure DisjointPaths {P : Type*} (G : SimpleGraph P) (k : ℕ) where
 @[expose] def epochLen (P : Type*) [Fintype P] : ℕ :=
   max 1 (Fintype.card P - 1)
 
-theorem epochLen_pos (P : Type*) [Fintype P] : 0 < epochLen P := by
-  unfold epochLen
-  omega
+theorem epochLen_pos (P : Type*) [Fintype P] : 0 < epochLen P :=
+  lt_max_of_lt_left Nat.zero_lt_one
 
 private theorem walk_length_le_epochLen {P : Type*} [Fintype P] {G : SimpleGraph P} {u v : P}
     {w : G.Walk u v} (hw : w.IsPath) : w.length ≤ epochLen P := by
@@ -458,9 +457,8 @@ private theorem curBuf_freeze (v : ℕ) (i : P) (w : List P) :
       match w with
       | [] => exact curBuf_succ_nil routes F adv x (by omega) i
       | j :: w' =>
-        funext τ
-        exact curBuf_succ_cons_ne routes F adv x (by omega) i j
-          (by simp only [List.length_cons] at hws; omega) τ
+        exact funext (curBuf_succ_cons_ne routes F adv x (by omega) i j
+          (by simp only [List.length_cons] at hws; omega))
     exact hstep.trans (curBuf_freeze v i w hws (by omega))
 
 private theorem curBuf_walk (v : ℕ) :
@@ -566,8 +564,7 @@ private theorem omResolve_purifiedOM_eq_frozenTree {R : ℕ}
   have hle : τ.length * epochLen P ≤ R :=
     (Nat.mul_le_mul_right _ (by simp only [List.length_singleton] at hτ; omega)).trans hR
   obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le hle
-  rw [hd, purifiedOM_omTree_freeze]
-  rfl
+  rw [hd, purifiedOM_omTree_freeze]; rfl
 
 end PurifiedOMProof
 
@@ -596,10 +593,8 @@ theorem solvesByzantineAgreement_purifiedOM {P : Type*} [Fintype P] [DecidableEq
           (fun _ hp _ hq τ => frozenTree_cons routes F adv x hF hp hq τ) t c [] hc
           (by simpa using hF)
           (by simp only [List.toFinset_nil, Finset.compl_empty, Finset.card_univ]; omega) i hi]
-      unfold frozenTree
-      rw [List.length_nil, Nat.zero_mul, purifiedOM_omTree_nil, hv c hc]
-    · rw [Finset.card_univ]
-      omega
+      simp only [frozenTree, List.length_nil, Nat.zero_mul, purifiedOM_omTree_nil, hv c hc]
+    · rw [Finset.card_univ]; omega
 
 /-! ### Menger bridge and synchronous Boolean consensus characterization -/
 
@@ -626,14 +621,11 @@ theorem isVertexConnected_iff_card_gt_and_nonempty_disjointPaths {P : Type*} [Fi
 private theorem card_le_one_or_of_solvesByzantineAgreement {P S M : Type*} [Fintype P]
     [DecidableEq P] {G : SimpleGraph P} {t R : ℕ} {π : GraphProtocol G S M}
     (h : π.SolvesByzantineAgreement t R) :
-    Fintype.card P ≤ 1 ∨ (3 * t < Fintype.card P ∧ G.IsVertexConnected (2 * t + 1)) := by
-  by_cases h1 : Fintype.card P ≤ 1
-  · exact Or.inl h1
-  · refine Or.inr ⟨?_, ?_⟩
-    · by_contra h3
-      exact π.not_solvesByzantineAgreement (by omega) (by omega) h
-    · by_contra hconn
-      exact π.not_solvesByzantineAgreement_of_not_isVertexConnected (by omega) hconn h
+    Fintype.card P ≤ 1 ∨ (3 * t < Fintype.card P ∧ G.IsVertexConnected (2 * t + 1)) :=
+  or_iff_not_imp_left.mpr fun _ =>
+    ⟨by_contra fun _ => π.not_solvesByzantineAgreement (by omega) (by omega) h,
+      by_contra fun hconn =>
+        π.not_solvesByzantineAgreement_of_not_isVertexConnected (by omega) hconn h⟩
 
 private def uliftProtocol.{u, s₀, m₀, v, w} {P : Type u} {G : SimpleGraph P}
     {S : Type s₀} {M : Type m₀} (π : GraphProtocol G S M) :

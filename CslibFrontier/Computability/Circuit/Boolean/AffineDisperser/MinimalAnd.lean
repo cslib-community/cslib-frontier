@@ -193,10 +193,10 @@ private theorem deletionAvailable_of_dependent {S : State n} {J t t' : ℕ} (hJ 
 /-- The output of a valid state with `d < a` is not a literal of an auxiliary variable. -/
 private theorem Valid.not_out_reads_aux {S : State n} {d : ℕ} (hS : S.Valid f)
     (hf : IsAffineDisperser f d) (ha : d < S.a) {v : ℕ} (hv : v ∈ S.aux) : ¬ S.out.Reads v := by
-  intro hr
+  rintro (hr : S.out.arg = .node v)
   obtain ⟨c, T, hT⟩ := hS.wf.exists_affineIn hv
   refine Valid.out_not_affine hS hf ha (c ^^ S.out.neg) hT.1 fun val hval => ?_
-  simp only [Lit.eval, show S.out.arg = .node v from hr, Arg.eval_node, hT.2 val hval.1]
+  simp only [Lit.eval, hr, Arg.eval_node, hT.2 val hval.1]
   generalize ∑ j ∈ T, val j = s
   cases c <;> cases s <;> cases S.out.neg <;> rfl
 
@@ -219,25 +219,21 @@ theorem Valid.exists_minGate {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAf
       simp only [SemiCircuit.live, Finset.mem_union, hempty, Finset.notMem_empty, or_false]
         at hlive
       rcases hlive with hp | hv
-      · exact Valid.not_out_reads_param hS hf ha hp hout
-      · exact Valid.not_out_reads_aux hS hf ha hv hout
+      exacts [Valid.not_out_reads_param hS hf ha hp hout, Valid.not_out_reads_aux hS hf ha hv hout]
   set G := S.gates.min' hne
   have hG : G ∈ S.gates := Finset.min'_mem _ _
   have hmin : ∀ i, (S.gate G).Reads i → i ∉ S.gates := fun i hi hig =>
     absurd (hS.wf.reads_lt G hG i hig hi) (not_lt.2 (Finset.min'_le _ _ hig))
   have hand : ¬ IsAffineOp (S.gate G).op := fun haff => hmov G ⟨hG, haff, hmin⟩
-  have hpa : ∀ i, (S.gate G).Reads i → i ∈ S.params ∪ S.aux := fun i hi => by
-    have := hS.wf.reads_live G hG i hi
-    simp only [SemiCircuit.live, Finset.mem_union] at this ⊢
-    exact this.resolve_right (hmin i hi)
+  have hpa : ∀ i, (S.gate G).Reads i → i ∈ S.params ∪ S.aux := fun i hi =>
+    (Finset.mem_union.1 (hS.wf.reads_live G hG i hi)).resolve_right (hmin i hi)
   refine ⟨hne, hand, ?_⟩
   rcases hl : (S.gate G).left with b₁ | t₁
   · exact absurd (deletionAvailable_of_degenerate hG (Or.inl ⟨b₁, hl⟩)) hdel
   rcases hr : (S.gate G).right with b₂ | t₂
   · exact absurd (deletionAvailable_of_degenerate hG (Or.inr (Or.inl ⟨b₂, hr⟩))) hdel
-  refine ⟨t₁, t₂, rfl, rfl, fun he => ?_, hpa t₁ (Or.inl hl), hpa t₂ (Or.inr hr)⟩
-  subst he
-  exact hdel (deletionAvailable_of_degenerate hG (Or.inr (Or.inr (hl.trans hr.symm))))
+  exact ⟨t₁, t₂, rfl, rfl, fun he => hdel (deletionAvailable_of_degenerate hG
+    (Or.inr (Or.inr (hl.trans (he ▸ hr.symm))))), hpa t₁ (Or.inl hl), hpa t₂ (Or.inr hr)⟩
 
 /-- An auxiliary input `Q` of the minimal gate depends on a parameter `x` other than the other
 input; when no preliminary reduction applies, `x` is unpaired of degree at least two, and `Q` has
@@ -295,8 +291,7 @@ def childIn (S : State n) : ℕ :=
   else 0
 
 private theorem auxIn_eq {S : State n} (hne : S.gates.Nonempty) :
-    S.auxIn = S.auxArgs (S.gate (S.gates.min' hne)) := by
-  simp only [auxIn, dite_eq_left hne]
+    S.auxIn = S.auxArgs (S.gate (S.gates.min' hne)) := dite_eq_left hne
 
 private theorem auxArgs_nodes (S : State n) {g : Gate} {t₁ t₂ : ℕ} (hl : g.left = .node t₁)
     (hr : g.right = .node t₂) :
@@ -305,8 +300,8 @@ private theorem auxArgs_nodes (S : State n) {g : Gate} {t₁ t₂ : ℕ} (hl : g
 
 private theorem childIn_eq {S : State n} (hne : S.gates.Nonempty) :
     S.childIn = (S.gates.filter fun K => (S.gate K).Reads (S.gates.min' hne) ∧
-      ∃ t ∈ S.params, (S.gate (S.gates.min' hne)).Reads t ∧ (S.gate K).Reads t).card := by
-  simp only [childIn, dite_eq_left hne]
+      ∃ t ∈ S.params, (S.gate (S.gates.min' hne)).Reads t ∧ (S.gate K).Reads t).card :=
+  dite_eq_left hne
 
 /-! ### Restructuring the minimal AND -/
 
@@ -327,13 +322,12 @@ theorem Valid.exists_preparation_auxIn_lt {S : State n} (hS : S.Valid f) (hN : S
   set S₁ := S.swap x Q c T
   have hxp := (mem_unpaired.1 hxu).1
   have hQx : Q ≠ x := fun h => hS.wf.notMem_aux_of_mem_params (h ▸ hxp) hQ
-  have hQ₁ : Q ∉ S₁.aux := fun h => by
-    change Q ∈ insert x (S.aux.erase Q) at h
-    exact (Finset.mem_insert.1 h).elim hQx (Finset.notMem_erase _ _)
+  have hQ₁ : Q ∉ S₁.aux := by
+    change Q ∉ insert x (S.aux.erase Q)
+    simp [hQx]
   have ho₁ : o ∈ S₁.aux ↔ o ∈ S.aux := by
     change o ∈ insert x (S.aux.erase Q) ↔ _
-    rw [Finset.mem_insert, Finset.mem_erase]
-    exact ⟨fun h => h.elim (fun h => absurd h.symm hxo) And.right, fun h => .inr ⟨hQo.symm, h⟩⟩
+    simp [hxo.symm, hQo.symm]
   rw [auxIn_eq (S := S₁) hne, auxIn_eq hne]
   change auxArgs S₁ (S.gate G) < S.auxArgs (S.gate G)
   rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;>
@@ -448,9 +442,8 @@ theorem mem_children_y (h : S.MinimalAnd G x y) : Sum.inl G ∈ S.children y :=
 
 /-- The minimal AND computes an AND-type operation of its inputs. -/
 theorem exists_op (h : S.MinimalAnd G x y) : ∃ φ : Bool → Bool → Bool, ¬ IsAffineOp φ ∧
-    ∀ val : ℕ → Bool, (S.gate G).eval val = φ (val x) (val y) := by
-  obtain ⟨φ, hφ, hG⟩ := Gate.exists_op_of_args h.args
-  exact ⟨φ, fun h' => h.and_op (hφ.1 h'), hG⟩
+    ∀ val : ℕ → Bool, (S.gate G).eval val = φ (val x) (val y) :=
+  (Gate.exists_op_of_args h.args).imp fun _ ⟨hφ, hG⟩ => ⟨mt hφ.1 h.and_op, hG⟩
 
 /-- No parameter of a valid state is equal to its minimal AND gate `G`. -/
 theorem ne_gate (hS : S.Valid f) (h : S.MinimalAnd G x y) {u : ℕ} (hu : u ∈ S.params) : u ≠ G :=

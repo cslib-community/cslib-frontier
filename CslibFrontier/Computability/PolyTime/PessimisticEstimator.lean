@@ -304,14 +304,12 @@ private theorem scanStep_foldl_mem (x : I) (s : S) (r : R) (all : List A) :
   | [], _, hbest, _ => hbest
   | a :: cs, best, hbest, hsub => by
     have ha : a ∈ all := hsub a List.mem_cons_self
-    have hnext : G.scanStep x s r best a = none ∨
-        ∃ b ∈ all, G.scanStep x s r best a = some (b, G.estimate x (G.branch x r b s)) := by
-      rcases hbest with rfl | ⟨b, hb, rfl⟩
-      · exact Or.inr ⟨a, ha, rfl⟩
-      · dsimp only [scanStep, Option.elim]
-        split_ifs
-        exacts [Or.inr ⟨a, ha, rfl⟩, Or.inr ⟨b, hb, rfl⟩]
-    exact scanStep_foldl_mem x s r all cs _ hnext fun c hc => hsub c (List.mem_cons_of_mem a hc)
+    refine scanStep_foldl_mem x s r all cs _ ?_ fun c hc => hsub c (List.mem_cons_of_mem a hc)
+    rcases hbest with rfl | ⟨b, hb, rfl⟩
+    · exact Or.inr ⟨a, ha, rfl⟩
+    · dsimp only [scanStep, Option.elim]
+      split_ifs
+      exacts [Or.inr ⟨a, ha, rfl⟩, Or.inr ⟨b, hb, rfl⟩]
 
 /-- Plain `ComputableInPolyTime` transfer for `G.run` when `rounds`, `choices`, `init`, `branch`,
 `estimate`, and `(· ≤ ·)` are polynomial-time and taking any candidate `a ∈ G.choices x r` on any
@@ -389,8 +387,7 @@ theorem computableInPolyTime_run
     rcases G.scanStep_foldl_mem p.1.1 p.1.2 p.2 (G.choices p.1.1 p.2)
         ((G.choices p.1.1 p.2).take k) none (Or.inl rfl)
         (fun a ha => List.mem_of_mem_take ha) with hnone | ⟨a, ha, hsome⟩
-    · rw [hnone]
-      simp [encOpt, B_opt]
+    · simp [hnone, encOpt, B_opt]
     · rw [hsome]
       have ha_len : (encA a).length ≤ (encLA (G.choices p.1.1 p.2)).length :=
         hSA.length_elem_le (G.choices p.1.1 p.2) a ha
@@ -405,18 +402,16 @@ theorem computableInPolyTime_run
       simp only [encOpt, encAM, encOption_some, List.length_cons, length_encPair, B_opt]
       omega
   have hstep_round : ComputableInPolyTime
-      (fun p : (I × S) × R => G.stepRound p.1.1 p.1.2 p.2)
-      encRound encS := by
-    refine optionElimWithInput hscan_fold (by fun_prop) ?_
-    exact hbranch.comp ((fst encRound encAM).prod ((fst encA encM).comp (snd encRound encAM)))
+      (fun p : (I × S) × R => G.stepRound p.1.1 p.1.2 p.2) encRound encS :=
+    optionElimWithInput hscan_fold (by fun_prop)
+      (hbranch.comp ((fst encRound encAM).prod ((fst encA encM).comp (snd encRound encAM))))
   refine foldlWithInput_of_bounded_growth hinit ⟨hrounds, hstep_round, inferInstance, inferInstance⟩
     ⟨hpoly, fun x s r hr => ?_⟩
   dsimp only [stepRound]
   rcases G.scanStep_foldl_mem x s r (G.choices x r) (G.choices x r) none (Or.inl rfl)
       (fun _ h => h) with hnone | ⟨a, ha, hsome⟩
   · simp [hnone]
-  · rw [hsome]
-    exact hgrowth x s r a hr ha
+  · simpa only [hsome, Option.elim_some] using hgrowth x s r a hr ha
 
 end Execution
 

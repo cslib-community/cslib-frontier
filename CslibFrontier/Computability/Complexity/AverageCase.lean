@@ -316,9 +316,7 @@ theorem MildlyHardOnAverageFor.approx_zero_iff
       MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
   Iff.of_eq (congrArg (MildlyHardOnAverageFor Quant Admissible)
     (funext fun _ => funext fun _ => funext fun _ =>
-      decide_eq_decide.mpr (by
-        unfold Nat.dist
-        omega)))
+      decide_eq_decide.mpr (Nat.le_zero.trans ⟨Nat.eq_of_dist_eq_zero, Nat.dist_eq_zero⟩)))
 
 /-- **Zero-gap specialization (one-sided):** one-sided `0`-approximation hardness coincides with
 exact hardness for every quantifier and admissibility predicate. -/
@@ -385,14 +383,11 @@ theorem MildlyHardOnAverageFor.not_of_admissible_pure {β : Type}
     ¬ MildlyHardOnAverageFor Quant Admissible correct := by
   refine MildlyHardOnAverageFor.not_of_forall_poly hfalse fun p hp => ⟨fun _ => pure v₀, hadm, ?_⟩
   filter_upwards [hcorr] with n hn
-  have hmap : ((do
-      let x ← BitString.uniformList n
-      (ProbComp.eval (pure v₀)).map (correct n x) : PMF Bool)) = PMF.pure true :=
-    (PMF.bind_congr_on_support (BitString.uniformList n) _ (fun _ => PMF.pure true) fun x hx => by
-      simp [hn x (BitString.length_of_mem_support_uniformList hx)]).trans (PMF.bind_const _ _)
-  rw [hmap]
+  change 1 - _ < (((BitString.uniformList n).bind _) true).toReal
+  rw [(PMF.bind_congr_on_support (BitString.uniformList n) _ (fun _ => PMF.pure true) fun x hx =>
+    by simp [hn x (BitString.length_of_mem_support_uniformList hx)]).trans (PMF.bind_const _ _)]
   simp only [PMF.pure_apply_self, ENNReal.toReal_one]
-  linarith [one_div_pos.mpr (show (0 : ℝ) < (p.eval n : ℕ) by exact_mod_cast hp n)]
+  linarith [one_div_pos.mpr ((Nat.cast_pos (α := ℝ)).mpr (hp n))]
 
 /-! ### Specializations of the kernel to PPT, deterministic, and infinitely-often cores -/
 
@@ -689,10 +684,10 @@ theorem nat_dist_le_mul_log_two_succ_of_abs_sub_le_mul_logb {v w d n : ℕ} (hn 
     Nat.dist v w ≤ d * (Nat.log 2 n + 1) := by
   have hdist : ((Nat.dist v w : ℕ) : ℝ) = |(v : ℝ) - (w : ℝ)| := by
     rcases le_total v w with hvw | hwv
-    · rw [show Nat.dist v w = w - v by unfold Nat.dist; omega, Nat.cast_sub hvw,
-        abs_of_nonpos (sub_nonpos.2 (by exact_mod_cast hvw)), neg_sub]
-    · rw [show Nat.dist v w = v - w by unfold Nat.dist; omega, Nat.cast_sub hwv,
-        abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast hwv))]
+    · rw [Nat.dist_eq_sub_of_le hvw, Nat.cast_sub hvw, abs_sub_comm,
+        abs_of_nonneg (sub_nonneg.2 (Nat.cast_le.mpr hvw))]
+    · rw [Nat.dist_eq_sub_of_le_right hwv, Nat.cast_sub hwv,
+        abs_of_nonneg (sub_nonneg.2 (Nat.cast_le.mpr hwv))]
   exact_mod_cast (hdist.trans_le (h.trans (mul_le_mul_of_nonneg_left
     (real_logb_two_le_nat_log_two_succ hn) (Nat.cast_nonneg d)))).trans_eq (Nat.cast_mul ..).symm
 

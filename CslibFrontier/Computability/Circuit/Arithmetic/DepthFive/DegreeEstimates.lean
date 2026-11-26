@@ -72,13 +72,10 @@ theorem Good.q_rpow_quarter_le (hp : p.Good) : p.q ^ (1 / 4 : ℝ) ≤ 1 / 4 := 
 /-- `λ e = e / 2 - s e / (2 n)`. -/
 theorem Good.lam_mul (hp : p.Good) (e : ℝ) : p.lam * e = e / 2 - p.s * e / (2 * p.n) := by
   have hn := hp.cast_n_pos
-  have h : p.n = 2 * p.k + p.s := by
-    have := p.hkm
-    have := p.hks
-    lia
+  have h : p.n = 2 * p.k + p.s := by linarith [p.hkm, p.hks]
   rw [lam]
   field_simp
-  rw [show (p.n : ℝ) = 2 * p.k + p.s by exact_mod_cast h]
+  simp only [h, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat]
   ring
 
 /-- If `n ≤ 4 s e`, then `√n ≤ 4 e`. -/
@@ -201,9 +198,8 @@ theorem Good.H_le_exp (hp : p.Good) (e : ℕ) : p.H e ≤ Real.exp (132 * e / �
       Real.rpow_le_one hq.le hp.q_le_one (sub_nonneg.2 (Nat.floor_le hx))
     have hb : p.q ^ (⌊p.lam * e⌋₊ + 1 - p.lam * e) ≤ 1 :=
       Real.rpow_le_one hq.le hp.q_le_one (sub_nonneg.2 (Nat.lt_floor_add_one _).le)
-    have h33 : (33 : ℝ) ≤ 132 * e / √(p.n : ℝ) := by
-      rw [le_div_iff₀ (Real.sqrt_pos.2 hp.cast_n_pos)]
-      linarith [hp.sqrt_le_of_le (not_lt.1 he)]
+    have h33 : (33 : ℝ) ≤ 132 * e / √(p.n : ℝ) :=
+      (le_div_iff₀ (Real.sqrt_pos.2 hp.cast_n_pos)).2 (by linarith [hp.sqrt_le_of_le (not_lt.1 he)])
     calc p.H e ≤ (1 + 2 * p.q) * (1 + 1) := h.trans (by gcongr)
       _ ≤ 132 * e / √(p.n : ℝ) + 1 := by linarith [hp.q_le_half]
       _ ≤ _ := Real.add_one_le_exp _
@@ -235,9 +231,8 @@ theorem Good.prod_H_le_of_low (hp : p.Good) (he : ∑ j, e j = p.n)
         have hs : p.s * (p.n : ℝ) / (4 * p.n) = p.s / 4 := by field_simp
         rw [prod_mul_distrib, ← Real.exp_sum, ← Real.rpow_sum_of_pos hp.q_pos, ← sum_div,
           ← sum_div, ← mul_sum, ← mul_sum, h, mul_comm, mul_div_assoc, Real.div_sqrt, hs]
-    _ ≤ _ := by
-        gcongr
-        exact hp.q_rpow_le (by linarith [hp.le_s])
+    _ ≤ _ := mul_le_mul_of_nonneg_left (hp.q_rpow_le (by linarith [hp.le_s]))
+        (Real.exp_nonneg _)
 
 /-- The weights of `d ≥ n / (4 s)` linear factors and further factors, of total degree `n`,
 multiply to at most `exp (132 √n) n ^ (-√n / 100)`. -/

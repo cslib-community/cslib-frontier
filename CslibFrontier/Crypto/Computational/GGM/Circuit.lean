@@ -338,20 +338,13 @@ private theorem complexity_slice_le (G : PRG.Generator (BitString k) (BitString 
   refine (sum_le_sum (g := fun _ => m * complexity interpretation ⇑G + 1) fun i _ => ?_).trans_eq
     (by simp)
   -- the bit of the truth table at the input `x`
-  set x := (BitString.equivFin n).symm i
-  set p : BitString (j + 1) := fun l => x ⟨l, by omega⟩
-  have hfn : (fun y => truthTable n (fun x =>
-        leaves G (j + 1) m h (reshape (update c q y)) x 0) i) =
-      fun y => evalBits G
-        (BitString.block (update c q y (Fin.init p)) (finTwoEquiv.symm (p (Fin.last j))))
-        (fun l : Fin m => x ⟨j + 1 + l, by omega⟩) 0 :=
-    funext fun _ => by simp only [truthTable_apply, leaves, reshape_apply, p, x]
-  rw [hfn]
+  set p : BitString (j + 1) := fun l => ((BitString.equivFin n).symm i) ⟨l, by omega⟩
+  simp only [truthTable_apply, leaves, reshape_apply]
   by_cases hp : Fin.init p = q
-  · simp only [hp, update_self]
-    exact (complexity_evalBits_block_le G _ _ 0).trans (Nat.le_succ _)
-  · simp only [update_of_ne hp]
-    exact (Synthesis.const _).complexity_le.trans (Nat.le_add_left _ _)
+  · simpa only [p, hp, update_self] using
+      (complexity_evalBits_block_le G _ _ 0).trans (Nat.le_succ _)
+  · simpa only [p, update_of_ne hp] using
+      (Synthesis.const _).complexity_le.trans (Nat.le_add_left _ _)
 
 /-- The first hybrid is the GGM family with a uniformly random key. -/
 private theorem hybridProb_zero (G : PRG.Generator (BitString k) (BitString (2 * k)))

@@ -102,12 +102,8 @@ end MoveOK
 /-- In a well-formed semi-circuit, any node read by a gate `J` satisfying `MoveOK J e` is a
 parameter or auxiliary variable. -/
 theorem MoveOK.mem_params_or_aux (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e) {i : ℕ}
-    (hi : (C.gate J).Reads i) : i ∈ C.params ∪ C.aux := by
-  have := hC.reads_live J h.mem i hi
-  simp only [live, Finset.mem_union] at this
-  rcases this with hpa | hg
-  · exact Finset.mem_union.2 hpa
-  · exact absurd hg (h.inputs i hi)
+    (hi : (C.gate J).Reads i) : i ∈ C.params ∪ C.aux :=
+  (Finset.mem_union.1 (hC.reads_live J h.mem i hi)).resolve_right (h.inputs i hi)
 
 /-- Moving an affine gate reading no gates into the affine system preserves well-formedness. -/
 theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e) :
@@ -240,17 +236,14 @@ theorem WellFormed.rewire (hC : C.WellFormed) {J : ℕ} {g : Gate} (h : C.Rewire
   disjoint_params_gates := hC.disjoint_params_gates
   disjoint_aux_gates := hC.disjoint_aux_gates
   reads_lt K hK i hi hr := by
-    by_cases hKJ : K = J
-    · subst hKJ
-      rw [rewire_gate_self] at hr
+    obtain rfl | hKJ := eq_or_ne K J
+    · rw [rewire_gate_self] at hr
       exact absurd hi (hC.notMem_gates_of_mem_params (h.reads i hr))
     · rw [rewire_gate_of_ne hKJ] at hr; exact hC.reads_lt K hK i hi hr
   reads_live K hK i hr := by
-    by_cases hKJ : K = J
-    · subst hKJ
-      rw [rewire_gate_self] at hr
-      simp only [live, Finset.mem_union]
-      exact Or.inl (Or.inl (h.reads i hr))
+    obtain rfl | hKJ := eq_or_ne K J
+    · rw [rewire_gate_self] at hr
+      exact Finset.mem_union_left _ (Finset.mem_union_left _ (h.reads i hr))
     · rw [rewire_gate_of_ne hKJ] at hr; exact hC.reads_live K hK i hr
   terms_subset := hC.terms_subset
   card_terms_le := hC.card_terms_le

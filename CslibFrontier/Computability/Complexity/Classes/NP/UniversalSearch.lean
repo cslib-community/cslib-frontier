@@ -187,10 +187,9 @@ theorem isSome_levinStage_iff {enc : α ↪ List Bool} {V : α × List Bool → 
       List.find?_eq_none.mp hf i (List.mem_range.mpr hi)
   | some i =>
     have hspec := List.find?_some hf
-    have hmem := List.mem_range.mp (List.mem_of_find?_eq_some hf)
     simp only [Option.elim_some, hspec, true_iff]
     obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp hspec
-    exact ⟨i, hmem, w, levinTry_eq_some_iff.mp hw⟩
+    exact ⟨i, List.mem_range.mp (List.mem_of_find?_eq_some hf), w, levinTry_eq_some_iff.mp hw⟩
 
 /-- Monotonicity of `levinStage` in the stage index: once some stage succeeds, every later stage
 also succeeds. -/
@@ -240,17 +239,13 @@ theorem exists_index_levinStage_isSome {enc : α ↪ List Bool} {V : α × List 
 only if `a` has a `V`-accepted witness. -/
 theorem exists_levinStage_eq_some_iff {enc : α ↪ List Bool} {V : α × List Bool → Bool} {a : α} :
     (∃ K w, levinStage enc V a K = some w) ↔ ∃ w, V (a, w) = true := by
-  constructor
-  · rintro ⟨K, w, hw⟩
-    exact ⟨w, verifier_of_levinStage_eq_some hw⟩
-  · rintro ⟨w, hw⟩
-    obtain ⟨t, s, -, -, k, State, hfin, tm, htm⟩ :=
-      ComputableInPolyTime.const (encIn := enc) (encOut := encBits) w
-    obtain ⟨i₀, hi₀⟩ := exists_index_levinStage_isSome (enc := enc) (V := V) tm
-    have hrun := (htm a).runFrom_of_le le_rfl
-    obtain ⟨w', hw'⟩ := Option.isSome_iff_exists.mp
-      (hi₀ a _ (max (i₀ + 1) (t (enc a).length)) hrun.1 (hrun.2.symm ▸ hw) le_rfl)
-    exact ⟨_, w', hw'⟩
+  refine ⟨fun ⟨K, w, hw⟩ => ⟨w, verifier_of_levinStage_eq_some hw⟩, fun ⟨w, hw⟩ => ?_⟩
+  obtain ⟨t, s, -, -, k, State, hfin, tm, htm⟩ :=
+    ComputableInPolyTime.const (encIn := enc) (encOut := encBits) w
+  obtain ⟨i₀, hi₀⟩ := exists_index_levinStage_isSome (enc := enc) (V := V) tm
+  have hrun := (htm a).runFrom_of_le le_rfl
+  exact ⟨_, Option.isSome_iff_exists.mp
+    (hi₀ a _ (max (i₀ + 1) (t (enc a).length)) hrun.1 (hrun.2.symm ▸ hw) le_rfl)⟩
 
 /-- **Stage `K` of Levin's universal search is polynomial-time** with `K` written in unary. -/
 @[fun_prop]
@@ -382,8 +377,7 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
     have hex : ∃ m, (levinStage enc V a m).isSome := ⟨K, hK⟩
     let K₀ := Nat.find hex
     have hK₀_le : K₀ ≤ K := Nat.find_min' hex hK
-    have hK₀_some : (levinStage enc V a K₀).isSome := Nat.find_spec hex
-    obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.mp hK₀_some
+    obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.mp (Nat.find_spec hex)
     have hnone : ∀ m < K₀, levinStage enc V a m = none := fun m hm =>
       Option.not_isSome_iff_eq_none.mp (Nat.find_min hex hm)
     have hstate_le : ∀ n ≤ K₀,
@@ -391,7 +385,7 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
       fun n hn => searchStep_iterate_of_none n fun m hm => hnone m (lt_of_lt_of_le hm hn)
     have hstate_found : (searchStep enc V)^[K₀ + 1] (searchInit a) = some (.inr w₀) := by
       rw [Function.iterate_succ_apply', hstate_le K₀ le_rfl]
-      simp [searchStep, hw₀]
+      simp [searchStep, K₀, hw₀]
     have hstate_stop : (searchStep enc V)^[K₀ + 1 + 1] (searchInit a) = none :=
       (Function.iterate_succ_apply' _ (K₀ + 1) _).trans (congrArg _ hstate_found)
     have hlen_w₀ : w₀.length ≤ K₀ := length_le_of_levinStage_eq_some hw₀
@@ -425,14 +419,11 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
     · calc _ ≤ (2 * (K + (enc a).length + 1)) * (c * (4 ^ d * (K + (enc a).length + 1) ^ d)) :=
             (Nat.mul_le_mul_left c hpow).trans (Nat.le_mul_of_pos_left _ (by omega))
         _ = C * (K + (enc a).length + 1) ^ D := by dsimp only [C, D]; ring
-  have hno : ∀ a, (¬∃ w, V (a, w) = true) → ¬tm.Halts (enc a) := by
-    intro a hna
-    have hnone : ∀ m, levinStage enc V a m = none := fun m => by
-      cases hm : levinStage enc V a m with
-      | none => rfl
-      | some w => exact (hna ⟨w, verifier_of_levinStage_eq_some hm⟩).elim
-    refine hdiv a fun n => ?_
-    simp [searchStep_iterate_of_none (n + 1) fun m _ => hnone m, encSearchState]
+  have hno (a : α) (hna : ¬∃ w, V (a, w) = true) : ¬tm.Halts (enc a) := by
+    have hnone (m : ℕ) : levinStage enc V a m = none :=
+      Option.eq_none_iff_forall_not_mem.mpr fun w hw => hna ⟨w, verifier_of_levinStage_eq_some hw⟩
+    exact hdiv a fun n => by
+      simp [searchStep_iterate_of_none (n + 1) fun m _ => hnone m, encSearchState]
   have hhalts : ∀ a, tm.Halts (enc a) ↔ ∃ w, V (a, w) = true := fun a =>
     ⟨fun hh => Classical.byContradiction fun hna => hno a hna hh, fun hex => by
       obtain ⟨K, w, hK⟩ := exists_levinStage_eq_some_iff.mpr hex

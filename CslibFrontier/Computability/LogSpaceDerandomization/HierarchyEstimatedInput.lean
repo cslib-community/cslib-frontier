@@ -58,15 +58,10 @@ theorem boundedRoutedBinCutoff_grid_range
   | zero =>
     let v := min cap (max 0 d)
     have hv : 0 ≤ v := le_min hcap (le_max_left _ _)
-    have hvc : v ≤ cap := min_le_left _ _
-    have hc := hχrange v
-    have he : boundedRoutedBinCutoff χ (fun i => rate (kb i)) cap 0 (fun _ => 1) d =
-        v * χ v := by
-      simp only [boundedRoutedBinCutoff, routedBinCutoff, Cslib.binWeight,
-        ↓reduceIte, mul_one, mul_div_cancel_left₀ _ (rate_pos (kb 0)).ne']
-      rfl
-    rw [he]
-    exact ⟨mul_nonneg hv hc.1, (mul_le_of_le_one_right hv hc.2).trans hvc⟩
+    simp only [estimatedBinCap, boundedRoutedBinCutoff, routedBinCutoff, Cslib.binWeight,
+      ↓reduceIte, mul_one, mul_div_cancel_left₀ _ (rate_pos (kb 0)).ne']
+    exact ⟨mul_nonneg hv (hχrange v).1,
+      (mul_le_of_le_one_right hv (hχrange v).2).trans (min_le_left _ _)⟩
   | succ i =>
     simpa only [estimatedBinCap, boundedRoutedBinCutoff, Nat.succ_ne_zero, ↓reduceIte] using
       boundedRoutedBinCutoff_mem_Icc (cap := 0) (B := 16) (by norm_num) (by norm_num)
@@ -156,8 +151,7 @@ theorem estimatedPositiveSample_abs_le
     exact selectedRequest_row_support HP hK D id req.left Kc _ _ _ σ x
   have hz (z : ZMod P) (hz : z ∉ T) : child req.left σ x z = 0 := by
     by_cases hm : mid.retains (channels D) σ z
-    · by_contra hn
-      exact hz (mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hm⟩, hn⟩)
+    · exact not_not.mp fun hn => hz (mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hm⟩, hn⟩)
     · rw [hleft]
       exact correctionRequest_eq_zero_of_not_usage D id req.left _ _ _ _ _ _ _ _ _ _
         σ x z hm

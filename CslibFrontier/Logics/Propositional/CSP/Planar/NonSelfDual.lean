@@ -101,31 +101,27 @@ private theorem majority_translate (a : Fin 3 → Bool) (b : Bool) :
 /-- Every relation of arity at most one is preserved by ternary parity, including empty
 and nullary relations. -/
 theorem parity_preserves_of_arity_le_one {R : Set (Fin n → Bool)} (hn : n ≤ 1) :
-    IsPolymorphism (Cslib.parity 3) R := by
-  have choose (a : Fin 3 → Fin n → Bool) :
-      ∃ j, (fun i => Cslib.parity 3 (fun k => a k i)) = a j := by
+    IsPolymorphism (Cslib.parity 3) R := fun a ha => by
+  obtain ⟨j, hj⟩ : ∃ j, (fun i => Cslib.parity 3 (fun k => a k i)) = a j := by
+    clear ha R
     interval_cases n
     · exact ⟨0, Subsingleton.elim _ _⟩
     · revert a
       decide
-  intro a ha
-  obtain ⟨j, hj⟩ := choose a
   exact hj ▸ ha j
 
 /-- Every relation of arity at most two is majority-preserved, including empty and nullary
 relations. The finite check concerns the operation's two-coordinate selector law only. -/
 theorem majority_preserves_of_arity_le_two {R : Set (Fin n → Bool)} (hn : n ≤ 2) :
-    IsPolymorphism (Cslib.majority 3) R := by
-  have choose (a : Fin 3 → Fin n → Bool) :
-      ∃ j, (fun i => Cslib.majority 3 (fun k => a k i)) = a j := by
+    IsPolymorphism (Cslib.majority 3) R := fun a ha => by
+  obtain ⟨j, hj⟩ : ∃ j, (fun i => Cslib.majority 3 (fun k => a k i)) = a j := by
+    clear ha R
     interval_cases n
     · exact ⟨0, Subsingleton.elim _ _⟩
     · revert a
       decide
     · revert a
       decide
-  intro a ha
-  obtain ⟨j, hj⟩ := choose a
   exact hj ▸ ha j
 
 /-- If a projected zero output is forced by closure, its unique feasible lift is the unit
@@ -196,12 +192,11 @@ theorem exists_majority_minor {R : Set (Fin m → Bool)}
       ![Pi.single i true, Pi.single j true, Pi.single k true]
       (by intro q; fin_cases q <;> exact hu _)
       (by intro q; fin_cases q <;> simp [i, j, k, l, Bool.zero_eq_false])
-    have he := median_units (n := n + 1) (i := i) (j := j) (k := k)
-      (by simp [i, j]) (by simp [i, k]) (by simp [j, k])
     have he' : (fun p => Cslib.majority 3
         (fun q => (![Pi.single i true, Pi.single j true, Pi.single k true] :
           Fin 3 → Fin (n + 1) → Bool) q p)) = 0 :=
-      (funext fun p => (median_apply_eq_majority _ _ _ p).symm).trans he
+      (funext fun p => (median_apply_eq_majority _ _ _ p).symm).trans
+        (median_units (by simp [i, j]) (by simp [i, k]) (by simp [j, k]))
     exact hz (he' ▸ hm)
   obtain rfl : n = 2 := by omega
   exact ⟨S, trace, hz, hu⟩
@@ -286,7 +281,7 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
       (he : Cslib.parityOn Finset.univ v = false) : v = fun _ => true := by
     ext j
     exact proper_even_impossible hz hu (fun j => hc j false) hv he j
-  have hex : ∃ k : Fin 3, Cslib.parityOn Finset.univ (a k) = false := by
+  obtain ⟨q, hq⟩ : ∃ k : Fin 3, Cslib.parityOn Finset.univ (a k) = false := by
     by_contra hh
     simp only [not_exists, Bool.not_eq_false] at hh
     have heq : a 0 + a 1 + a 2 = (0 : Fin (n + 1) → Bool) := by
@@ -296,7 +291,6 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
     have he := congrArg (Cslib.parityOn Finset.univ) heq
     rw [Cslib.parityOn_add, Cslib.parityOn_add, hh, hh, hh, Cslib.parityOn_eq_sum] at he
     simp at he
-  obtain ⟨q, hq⟩ := hex
   have hfull : (fun _ : Fin (n + 1) => true) ∈ S := heven_full (ha q) hq ▸ ha q
   have hefull : Cslib.parityOn Finset.univ (fun _ : Fin (n + 1) => true) = false := by
     rwa [heven_full (ha q) hq] at hq
@@ -360,9 +354,9 @@ theorem binary_parity_failure_eq {S : Set (Fin 2 → Bool)}
         simp [disequality, hz, hu, hh]
     rw [he] at h
     exact h (by unfold IsPolymorphism disequality; decide)
+  have hne0 : (fun _ : Fin 2 => true) ≠ 0 := by decide
   ext x
-  rcases rows x with rfl | rfl | rfl | rfl <;>
-    simp [hz, hu, hfull, show (fun _ : Fin 2 => true) ≠ 0 by decide]
+  rcases rows x with rfl | rfl | rfl | rfl <;> simp [hz, hu, hfull, hne0]
 
 /-- Every relation failing ternary parity has an actual finite ordered trace to NAND.
 Only projections, cofactors and single-port twists occur in the returned trace. -/

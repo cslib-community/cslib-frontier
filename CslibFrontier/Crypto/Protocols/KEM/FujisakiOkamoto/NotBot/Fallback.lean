@@ -109,12 +109,11 @@ private theorem pi_eq_bind_map_fbTable [DecidableEq M] [Fintype M] [Fintype CT] 
         congr 1 with H : 1
         rw [PMF.map_comp, ← hrow, PMF.map_comp]
         congr 1 with H₂ : 1
-        funext x
-        obtain ⟨t, m, c⟩ := x
+        funext ⟨t, m, c⟩
         by_cases hx : t = false ∧ m = s ∧ eligible c
         · obtain ⟨rfl, rfl, hc⟩ := hx
-          simp [bad, fbTable, hc]
-        · simp [bad, fbTable, hx]
+          simp only [bad, fbTable, hc, and_self, ↓reduceIte, Function.comp_apply]
+        · simp only [bad, fbTable, hx, ↓reduceIte, Function.comp_apply]
 
 /-! ### The two oracles agree until the seed is queried -/
 
@@ -234,15 +233,11 @@ private theorem runReal_le_and_runFb_le (S : Scheme PK SK M R CT K)
         (fun q st => (S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ c q).map (·, logM q st))
         prog).run []).toOuterMeasure {x | (fun st => s ∈ st) x.2} := by
     rw [hitSeed, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-    congr 1
-    ext x
-    simp
+    exact congrArg _ (Set.ext fun _ => by simp)
   dsimp only [runReal, runFb]
   rw [hY, e _, e _]
-  refine ⟨?_, ?_⟩
-  · rw [← h.bad_eq]
-    exact h.bind_apply_le prog [] _ true
-  · exact h.symm.bind_apply_le prog [] _ true
+  exact ⟨(h.bind_apply_le prog [] _ true).trans_eq (congrArg (_ + ·) (h.bad_eq prog [])),
+    h.symm.bind_apply_le prog [] _ true⟩
 
 /-! ### Averaging over the randomness -/
 

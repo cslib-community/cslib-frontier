@@ -127,8 +127,7 @@ instance [Fintype F] [DecidableEq F] : DecidablePred (IsAffineFun (F := F)) :=
 /-- An affine function is determined by its values at `0` and `1`. -/
 theorem isAffineFun_iff {g : F → F} : IsAffineFun g ↔ ∀ t, g t = (g 1 - g 0) * t + g 0 := by
   refine ⟨fun ⟨a, b, h⟩ t => ?_, fun h => ⟨_, _, h⟩⟩
-  rw [h t, h 1, h 0]
-  ring
+  rw [h t, h 1, h 0]; ring
 
 /-- Affine functions of one variable are the underlying functions of Mathlib's affine maps. -/
 theorem isAffineFun_iff_exists_affineMap {g : F → F} :
@@ -338,8 +337,7 @@ theorem multilinearityTestRejection_eq (f : (ι → F) → F) :
     multilinearityTestRejection f =
       𝔼 i, (#(wrongPoints f i) : ℝ) / Fintype.card (ι → F) := by
   refine expect_congr rfl fun i _ => ?_
-  rw [Fintype.expect_eq_sum_div_card, wrongPoints, Finset.natCast_card_filter]
-  simp only [ite_not]
+  simp [Fintype.expect_eq_sum_div_card, wrongPoints, Finset.natCast_card_filter, ite_not]
 
 /-- The rejection probability is nonnegative. -/
 theorem multilinearityTestRejection_nonneg (f : (ι → F) → F) :
@@ -397,14 +395,12 @@ theorem isMultilinear_sliceInterpolant {n : ℕ} (t₁ t₂ : F) {g₁ g₂ : (F
       fun t => by ring⟩
   | succ j =>
     have hsucc : lineRestrict (sliceInterpolant t₁ t₂ g₁ g₂) x j.succ = fun t =>
-        lineRestrict g₁ (Fin.tail x) j t +
-          (x 0 - t₁) / (t₂ - t₁) *
-            (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) := by
-      funext t
-      simp only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
-        update_of_ne (Fin.succ_ne_zero j).symm]
-    rw [hsucc]
-    exact (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
+        lineRestrict g₁ (Fin.tail x) j t + (x 0 - t₁) / (t₂ - t₁) *
+          (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) :=
+      funext fun t => by
+        simp only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
+          update_of_ne (Fin.succ_ne_zero j).symm]
+    exact hsucc ▸ (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
 
 section Soundness
 
@@ -533,8 +529,8 @@ theorem exists_isMultilinear_hammingDist_div_le (f : (Fin n → F) → F) :
   refine ⟨g, hg, ?_⟩
   have hcard : (0 : ℝ) < Fintype.card (Fin n → F) := by exact_mod_cast Fintype.card_pos
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have : hammingDist f g = 0 := by simpa using hdist
-    simp [this]
+  · simp only [Finset.univ_eq_empty, Finset.sum_empty, nonpos_iff_eq_zero] at hdist
+    simp only [hdist, Nat.cast_zero, zero_div, zero_mul, le_refl]
   rw [multilinearityTestRejection_eq, Fintype.expect_eq_sum_div_card, Fintype.card_fin,
     ← sum_div, div_le_iff₀ hcard]
   have hn' : (n : ℝ) ≠ 0 := by exact_mod_cast hn.ne'

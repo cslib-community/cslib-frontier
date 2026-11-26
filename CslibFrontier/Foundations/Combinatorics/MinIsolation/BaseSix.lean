@@ -117,10 +117,8 @@ private theorem two_mul_sum_six_pow_le (m : ℕ) :
     have hsum : (∑ k ∈ range m, (2 : ℕ) ^ (m + 1 - k) * 6 ^ k) =
         2 * ∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k := by
       rw [mul_sum]
-      refine sum_congr rfl fun k hk => ?_
-      have := mem_range.mp hk
-      rw [show m + 1 - k = m - k + 1 by omega, pow_succ]
-      ring
+      exact sum_congr rfl fun k hk => by
+        rw [Nat.succ_sub (Nat.le_of_lt (mem_range.mp hk)), pow_succ']; ring
     rw [sum_range_succ, hsum, Nat.add_sub_cancel_left, pow_one, pow_succ 6]
     omega
 
@@ -294,11 +292,9 @@ private theorem eq_of_agrees_on_equal_bits {c d : Fin ℓ → Bool} (δ : (Fin �
 private theorem abs_update_sub_eq {δ : (Fin ℓ → Bool) → ℤ} {x : Fin ℓ → Bool}
     {j : Fin ℓ} {b : Bool} (h : x j ≠ b) :
     |δ (update x j b) - δ x| = |δ (update x j true) - δ (update x j false)| := by
-  cases hj : x j <;> cases b
-  · exact (h hj).elim
-  · rw [show update x j false = x from update_eq_self_iff.mpr hj.symm]
-  · rw [show update x j true = x from update_eq_self_iff.mpr hj.symm, abs_sub_comm]
-  · exact (h hj).elim
+  nth_rw 2 [← update_eq_self j x]
+  revert h
+  cases x j <;> cases b <;> simp [abs_sub_comm]
 
 /-- If two seed functions satisfy the two-sided base-six derivative bound at the same scale level
 `m` with codewords `c` and `d`, then every tying seed is uniquely determined by its bits on
@@ -345,10 +341,10 @@ theorem card_tyingSeeds_le_of_update_bounds (f g : (Fin ℓ → Bool) → ℕ)
         exact (hflip z j).1
     · rw [abs_update_sub_eq h, ← hcoeff]
       exact (hflip z j).2 hc
-  have hcard := card_filter_add_card_filter_not (s := (univ : Finset (Fin ℓ))) (fun j => c j = d j)
-  rw [card_univ, Fintype.card_fin] at hcard
-  change agree.card + hammingDist c d = ℓ at hcard
-  rwa [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_coe,
-    show agree.card = ℓ - hammingDist c d by omega] at hcount
+  have hcard : agree.card = ℓ - hammingDist c d := by
+    have h := card_filter_add_card_filter_not (s := (univ : Finset (Fin ℓ))) (fun j => c j = d j)
+    rw [card_univ, Fintype.card_fin] at h
+    exact eq_tsub_of_add_eq h
+  simpa [Fintype.card_coe, hcard] using hcount
 
 end Cslib.MinIsolation.BaseSix

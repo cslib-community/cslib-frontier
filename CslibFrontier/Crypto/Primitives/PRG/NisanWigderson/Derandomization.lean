@@ -204,9 +204,7 @@ private theorem prefix_foldl_greedyStep (cands kept : List (List Bool)) :
   | nil => exact List.prefix_refl _
   | cons w cands ih =>
     rw [List.foldl_cons, greedyStep]
-    split_ifs
-    · exact (List.prefix_append _ _).trans (ih _)
-    · exact ih _
+    split_ifs <;> first | exact (List.prefix_append _ _).trans (ih _) | exact ih _
 
 private theorem mem_foldl_greedyStep {cands kept : List (List Bool)} {v : List Bool}
     (hv : v ∈ cands.foldl (greedyStep n a) kept) : v ∈ kept ∨ v ∈ cands ∧ v.count true = n := by
@@ -216,9 +214,8 @@ private theorem mem_foldl_greedyStep {cands kept : List (List Bool)} {v : List B
     rcases ih hv with hv | ⟨hv, hn⟩
     · rw [greedyStep] at hv
       split_ifs at hv with h
-      · exact (List.mem_append.1 hv).elim .inl fun hv => by
-          obtain rfl := List.mem_singleton.1 hv
-          exact .inr ⟨List.mem_cons_self .., h.1⟩
+      · exact (List.mem_append.1 hv).elim .inl fun hv =>
+          .inr (List.mem_singleton.1 hv ▸ (⟨List.mem_cons_self .., h.1⟩ : w ∈ _ ∧ _))
       · exact .inl hv
     · exact .inr ⟨List.mem_cons_of_mem _ hv, hn⟩
 
@@ -248,8 +245,7 @@ private theorem maximal_foldl_greedyStep {cands kept : List (List Bool)} {w : Li
       split_ifs at hpre ⊢ with h
       · exact .inl (hpre.subset (List.mem_append_right _ (List.mem_singleton_self _)))
       · push Not at h
-        obtain ⟨v, hv, hlt⟩ := h hn
-        exact .inr ⟨v, hpre.subset hv, hlt⟩
+        exact .inr <| (h hn).imp fun v ⟨hv, hlt⟩ => ⟨hpre.subset hv, hlt⟩
     · exact ih hw
 
 variable {w : List Bool}
@@ -407,8 +403,7 @@ theorem listGenerator_take_greedyMasks (h : m ≤ (greedyMasks ℓ n a).length)
   have hrestrict := ofFn_restrict_greedy h ⟨i, hi'⟩ z
   have hlen : (restrictMask (greedyMasks ℓ n a)[i] (List.ofFn z)).length ≤ n :=
     (congrArg List.length hrestrict).symm.trans_le (List.length_ofFn).le
-  rw [List.take_of_length_le hlen, hrestrict]
-  rfl
+  rw [List.take_of_length_le hlen, hrestrict]; rfl
 
 /-! ### Fooling small circuits, in counting form -/
 
@@ -416,10 +411,9 @@ theorem listGenerator_take_greedyMasks (h : m ≤ (greedyMasks ℓ n a).length)
 private theorem card_not_div {X : Type*} [Fintype X] [Nonempty X] (p : X → Bool) :
     (#{x | (!p x) = true} : ℝ) / Fintype.card X =
       1 - (#{x | p x = true} : ℝ) / Fintype.card X := by
-  have hpos : (0 : ℝ) < Fintype.card X := by exact_mod_cast Fintype.card_pos
+  have hpos : (0 : ℝ) < Fintype.card X := mod_cast Fintype.card_pos
   have hsum : #{x | p x = true} + #{x | (!p x) = true} = Fintype.card X := by
-    rw [← card_univ, ← card_filter_add_card_filter_not (s := univ) (fun x => p x = true)]
-    simp
+    simpa using card_filter_add_card_filter_not (s := univ) (fun x => p x = true)
   rw [eq_sub_iff_add_eq, ← add_div, div_eq_one_iff_eq hpos.ne']
   exact_mod_cast (add_comm _ _).trans hsum
 
