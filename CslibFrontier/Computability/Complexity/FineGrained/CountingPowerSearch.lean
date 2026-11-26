@@ -20,7 +20,17 @@ For a fixed width and inverse saving denominator, one deterministic multitape se
 the disjoint sparse-leaf sum over the original declared variables. The certificate charges
 the encoded input, including the unary declared size, and the supplied leaf computation.
 Its round factor uses the power saving from [MITHardnessGroup2026SH, Lemma 2.2, §2.2].
-The leaf routine is a parameter of this traversal theorem.
+The variable-count equivalence remains open in #8457.
+
+## Main results
+
+* `polyBounded_nodeBound_powerBudget`: a polynomial bound on the encoded leaf formulas.
+* `exists_computableInO_searchDeclared_powerBudget`: exact declared counting and separate time
+  and workspace bounds from a certified leaf counter.
+
+## References
+
+* [MITHardnessGroup2026SH], §2.2, Lemma 2.2 and Corollary 2.3.
 -/
 
 public section
@@ -60,6 +70,18 @@ private theorem depth_polyBounded {C : Type} (encC : C ↪ List Bool)
     fun _ => countingDepthCoeff_le_mul_pow
       ((by decide : 1 ≤ 2).trans (two_le_countingThresholdBase _ _))
 
+/-- The bit length bound for each active leaf formula is polynomial in the full encoded input,
+including its unary declared variable count. -/
+theorem polyBounded_nodeBound_powerBudget {C : Type} (encC : C ↪ List Bool)
+    {k : ℕ} (hk : 2 ≤ k) (d : ℕ) :
+    PolyBounded (fun x => (encPair encC (encPair encUnary encCNF) x).length)
+      (fun (_, declared, formula) => nodeBound k
+        (countingDepthCoeff k (countingThresholdBase k (countingPowerBudget d declared)))
+        formula) :=
+  nodeBound_polyBounded k (PolyBounded.self.mono fun x =>
+    (length_le_encPair_right encUnary encCNF x.2).trans
+      (length_le_encPair_right encC (encPair encUnary encCNF) x)) (depth_polyBounded encC hk d)
+
 private theorem rounds_bound {d : ℕ} (hd : 1 ≤ d) {φ : CNF ℕ} {n : ℕ}
     (hn : φ.numVars ≤ n) :
     ((rounds (countingPowerBudget d n) φ + 1 : ℕ) : ℝ) ≤
@@ -77,26 +99,32 @@ private theorem rounds_bound {d : ℕ} (hd : 1 ≤ d) {φ : CNF ℕ} {n : ℕ}
       exact mul_le_mul_of_nonneg_left (Real.rpow_le_rpow_of_exponent_le one_le_two hq)
         (by norm_num)
 
-/-- A fixed power budget gives a native declared-variable counter from a native width-bounded
-leaf counter. On valid inputs the time is a polynomial in the input length plus the leaf-time
-allowance, multiplied by a power-saving round factor. Workspace is polynomial if the leaf
-workspace allowance is polynomial. The input encodes the declared size in unary. -/
+/-- For unary declared variable counts, a fixed power budget gives a native counter from
+a certified leaf counter exact on sparse, supported leaves. On valid inputs, time is bounded
+by the power-saving round factor times the sum of a polynomial and one leaf-time allowance.
+Workspace is polynomial whenever the leaf workspace allowance is polynomial. -/
 theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪ List Bool)
-    {k d : ℕ} (hk : 2 ≤ k) (hd : 2 ≤ d)
+    {k d : ℕ} (hk : 2 ≤ k) (hd : 1 ≤ d)
     {g t s : (C × ℕ) × CNF ℕ → ℕ} {R Q : C × ℕ × CNF ℕ → ℕ}
     (hcounter : ComputableInO g (encPair (encPair encC encUnary) encCNF) encNat t s)
-    (hcorrect : ∀ p ψ, (∀ c ∈ ψ, c.length ≤ k) → g (p, ψ) = ψ.modelCount)
+    (hcorrect : ∀ (p : C × ℕ) (ψ : CNF ℕ),
+      let (_, declared) := p
+      let M := countingThresholdBase k (countingPowerBudget d declared)
+      (∀ c ∈ ψ, c.length ≤ k) → isSparse (countingThreshold M) k ψ = true →
+      ψ.vars.toFinset ⊆ Finset.range declared → ψ.length ≤ occBound k M * declared + 1 →
+      g (p, ψ) = ψ.modelCount)
     (hresources : ∀ (x : C × ℕ × CNF ℕ) (ψ : CNF ℕ),
-      let (context, declared, _) := x
-      (∀ c ∈ ψ, c.length ≤ k) → ψ.vars.toFinset ⊆ Finset.range declared →
-      ψ.length ≤ occBound k (countingThresholdBase k (countingPowerBudget d declared)) *
-        declared + 1 →
-      t ((context, declared), ψ) ≤ R x ∧ s ((context, declared), ψ) ≤ Q x)
-    (hQ : PolyBounded (fun x => (encPair encC (encPair encUnary encCNF) x).length) Q) :
+      let (context, declared, formula) := x
+      let M := countingThresholdBase k (countingPowerBudget d declared)
+      (∀ c ∈ ψ, c.length ≤ k) → isSparse (countingThreshold M) k ψ = true →
+      ψ.vars.toFinset ⊆ Finset.range declared → ψ.length ≤ occBound k M * declared + 1 →
+      (encCNF ψ).length ≤ nodeBound k (countingDepthCoeff k M) formula →
+      t ((context, declared), ψ) ≤ R x ∧ s ((context, declared), ψ) ≤ Q x) :
     let encInput := encPair encC (encPair encUnary encCNF)
     ∃ (count T S : C × ℕ × CNF ℕ → ℕ) (c e : ℕ),
       ComputableInO count encInput encNat T S ∧
-      PolyBounded (fun x => (encInput x).length) S ∧
+      (PolyBounded (fun x => (encInput x).length) Q →
+        PolyBounded (fun x => (encInput x).length) S) ∧
       (∀ x, let (_, declared, formula) := x
         count x = if validDeclaredInput k declared formula then
           formula.modelCountOn (Finset.range declared) else 0) ∧
@@ -132,23 +160,25 @@ theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪
       let ψ := st.2.1.headD []
       g (p, ψ) ≤ 2 ^ ψ.numVars ∧ t (p, ψ) ≤ R x ∧ s (p, ψ) ≤ Q x := by
     intro p st hactive ψ
-    obtain ⟨hw, hv, _, hl, _⟩ := (iterate_step_prefix_bounds
+    obtain ⟨hw, hv, _, hl, hlen⟩ := (iterate_step_prefix_bounds
       (hM p) hK (hM2 p) le_rfl (htree p) (fun ψ => g (p, ψ)) x.2.2 i).2.2.2 hactive
-    refine ⟨?_, hresources x ψ hw (hv.trans (validDeclaredInput_eq_true_iff.mp hx).2)
-      (hl.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ (hvars x hx)) 1))⟩
-    rw [hcorrect p ψ hw]
+    have hsupport := hv.trans (validDeclaredInput_eq_true_iff.mp hx).2
+    have hclause := hl.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ (hvars x hx)) 1)
+    refine ⟨?_, hresources x ψ hw hactive.2 hsupport hclause hlen⟩
+    rw [hcorrect p ψ hw hactive.2 hsupport hclause]
     exact CNF.modelCount_le_two_pow_numVars ψ
   obtain ⟨c, e, hc, hs⟩ := exists_computableInO_searchDeclaredWith (MOf := base k d) hB hθ
     hM hK hM2 le_rfl htree (depth_polyBounded encC hk d) hcounter
     (fun x hx i _ hi => (hleaf x hx i hi).1)
     (fun x hx i _ hi => (hleaf x hx i hi).2.1)
-    (fun x hx i _ hi => (hleaf x hx i hi).2.2) hQ
+    (fun x hx i _ hi => (hleaf x hx i hi).2.2)
   refine ⟨_, _, _, c, e, hc, hs, ?_, ?_⟩
   · intro x
     exact searchDeclaredWith_eq_ite_modelCountOn_of_normalized
-      (hM _) hK (hM2 _) le_rfl (htree _) (fun ψ _ hw _ _ _ => hcorrect _ ψ hw) x.2.2
+      (hM _) hK (hM2 _) le_rfl (htree _)
+      (fun ψ _ hw hsp hsub hlen => hcorrect _ ψ hw hsp hsub hlen) x.2.2
   · intro x hx
-    have hr := rounds_bound (show 1 ≤ d by omega) (hvars x hx)
+    have hr := rounds_bound hd (hvars x hx)
     let Y : ℝ := 2 ^ (3 * (x.2.1 + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹))
     let W : ℝ := c * (((encInput x).length : ℝ) + 1) ^ e + R x
     have hY : 1 ≤ Y := Real.one_le_rpow one_le_two (by positivity)

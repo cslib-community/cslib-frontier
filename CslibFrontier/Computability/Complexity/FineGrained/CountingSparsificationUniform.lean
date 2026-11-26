@@ -72,24 +72,13 @@ private theorem input_numVars :
       (fun x => x.2.numVars) :=
   input_formula_size.mono fun x => x.2.numVars_le_length_vars.trans (SAT.length_vars_le x.2)
 
-private theorem nodeBound_runtime_polyBounded (K : ℕ) {D : P → ℕ}
-    (hD : PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
-      (fun x => D x.1)) :
-    PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
-      (fun x => nodeBound K (D x.1) x.2) := by
-  have hm := input_formula_size (encP := encP) |>.mono
-    (fun x => length_le_length_encList _ x.2)
-  exact ((hm.add (.const 1)).add ((PolyBounded.const K).mul (hD.mul input_numVars))).mul
-    (((PolyBounded.const 2).mul ((PolyBounded.const K).mul
-      (((PolyBounded.const 2).mul input_formula_size).add (.const 1)))).add (.const 1))
-
 private theorem stateBound_runtime_polyBounded (K : ℕ) {D : P → ℕ}
     (hD : PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
       (fun x => D x.1)) :
     PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
       (fun x => stateBound K (D x.1) x.2) := by
   have hstack := ((hD.mul input_numVars).add (.const 1)).mul
-    (((PolyBounded.const 2).mul (nodeBound_runtime_polyBounded K hD)).add (.const 1))
+    (((PolyBounded.const 2).mul (nodeBound_polyBounded K input_formula_size hD)).add (.const 1))
   exact (((PolyBounded.const 4).mul input_numVars).add
     ((PolyBounded.const 4).mul hstack)).add (.const 10)
 
@@ -288,28 +277,24 @@ private theorem declared_resources_of_step
       ∀ i ≤ rounds (BOf x.1) x.2,
       let st := (step (MOf x.1) K (fun ψ => g (x.1, ψ)))^[i] (init k x.2)
       st.2.1.isEmpty = false ∧ isSparse (countingThreshold (MOf x.1)) K (st.2.1.headD []) = true →
-      s (x.1, st.2.1.headD []) ≤ Q x)
-    (hQ : PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length) Q) :
+      s (x.1, st.2.1.headD []) ≤ Q x) :
     ∃ c e, ComputableInO
       (fun x : P × CNF ℕ => searchDeclaredWith NOf MOf BOf K k g x.1 x.2)
       (encPair encP encCNF) encNat
       (fun x => c * ((encPair encP encCNF x).length + 1) ^ e +
         (rounds (BOf x.1) x.2 + 1) * (c * ((encPair encP encCNF x).length + 1) ^ e + R x))
-      (fun x => c * ((encPair encP encCNF x).length + 1) ^ e + Q x) ∧
-      PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
-        (fun x => c * ((encPair encP encCNF x).length + 1) ^ e + Q x) := by
+      (fun x => c * ((encPair encP encCNF x).length + 1) ^ e + Q x) := by
   classical
   by_cases hp : Nonempty P
   swap
-  · refine ⟨0, 0, ?_, ?_⟩
-    · have hz : ComputableInO (fun _ : P × CNF ℕ => 0) (encPair encP encCNF) encNat
-          (fun x => (rounds (BOf x.1) x.2 + 1) * R x) Q :=
-        (ComputableInO.const (encIn := encPair encP encCNF) 0).mono_le
-          (fun x => (hp ⟨x.1⟩).elim) (fun x => (hp ⟨x.1⟩).elim)
-      simpa only [Nat.zero_mul, Nat.zero_add] using
-        (hz.of_enc_eq (g := fun x => searchDeclaredWith NOf MOf BOf K k g x.1 x.2)
-          fun x => (hp ⟨x.1⟩).elim)
-    · simpa only [Nat.zero_mul, Nat.zero_add] using hQ
+  · have hz : ComputableInO (fun _ : P × CNF ℕ => 0) (encPair encP encCNF) encNat
+        (fun x => (rounds (BOf x.1) x.2 + 1) * R x) Q :=
+      (ComputableInO.const (encIn := encPair encP encCNF) 0).mono_le
+        (fun x => (hp ⟨x.1⟩).elim) (fun x => (hp ⟨x.1⟩).elim)
+    refine ⟨0, 0, ?_⟩
+    simpa only [Nat.zero_mul, Nat.zero_add] using
+      (hz.of_enc_eq (g := fun x => searchDeclaredWith NOf MOf BOf K k g x.1 x.2)
+        fun x => (hp ⟨x.1⟩).elim)
   let : Inhabited P := Classical.inhabited_of_nonempty hp
   let L (x : P × CNF ℕ) := (encPair encP encCNF x).length
   let q (x : P × CNF ℕ) := rounds (BOf x.1) x.2
@@ -396,8 +381,7 @@ private theorem declared_resources_of_step
     · dsimp only [W]
       omega
   obtain ⟨c, e, hce⟩ := hW.exists_le
-  refine ⟨c, e, ?_, ((PolyBounded.const c).mul
-    (PolyBounded.pow (PolyBounded.self.add (.const 1)) e)).add hQ⟩
+  refine ⟨c, e, ?_⟩
   have hcert := hwhole.mono_le
     (fun x => (htime x).trans (Nat.add_le_add (hce x)
       (Nat.mul_le_mul_left _ (Nat.add_le_add_right (hce x) (R x)))))
@@ -449,9 +433,7 @@ private theorem declared_resources_input {C : Type} {encC : C ↪ List Bool}
       (fun x => c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e +
         (rounds (BOf x.1) x.2 + 1) *
           (c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e + R x))
-      (fun x => c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e + Q x))
-    (hQ : PolyBounded (fun x : C × ℕ × CNF ℕ => (encPair encC (encPair encUnary encCNF) x).length)
-      (fun x => Q ((x.1, x.2.1), x.2.2))) :
+      (fun x => c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e + Q x)) :
     ∃ a d, ComputableInO
       (fun x : C × ℕ × CNF ℕ =>
         searchDeclaredWith Prod.snd MOf BOf K k g (x.1, x.2.1) x.2.2)
@@ -461,10 +443,7 @@ private theorem declared_resources_input {C : Type} {encC : C ↪ List Bool}
           (a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
             R ((x.1, x.2.1), x.2.2)))
       (fun x => a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
-        Q ((x.1, x.2.1), x.2.2)) ∧
-      PolyBounded (fun x : C × ℕ × CNF ℕ => (encPair encC (encPair encUnary encCNF) x).length)
-        (fun x => a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
-          Q ((x.1, x.2.1), x.2.2)) := by
+        Q ((x.1, x.2.1), x.2.2)) := by
   let rearrange (x : C × ℕ × CNF ℕ) := ((x.1, x.2.1), x.2.2)
   let L (x : C × ℕ × CNF ℕ) := (encPair encC (encPair encUnary encCNF) x).length
   let L' (x : C × ℕ × CNF ℕ) := (encPair (encPair encC encUnary) encCNF (rearrange x)).length
@@ -485,8 +464,7 @@ private theorem declared_resources_input {C : Type} {encC : C ↪ List Bool}
         _ = 2 ^ e * (L x + 1) ^ e := mul_pow _ _ _
         _ ≤ _ := Nat.mul_le_mul_left _ he'
     nlinarith [Nat.mul_le_mul_left c hL']
-  refine ⟨1 + c * 2 ^ e, da + e, ?_,
-    ((PolyBounded.const _).mul (PolyBounded.pow (PolyBounded.self.add (.const 1)) _)).add hQ⟩
+  refine ⟨1 + c * 2 ^ e, da + e, ?_⟩
   refine ((hcore.comp ha).mono_le (fun x => ?_) (fun x => ?_)).of_enc_eq fun _ => rfl
   · have hinside : c * (L' x + 1) ^ e ≤ (1 + c * 2 ^ e) * (L x + 1) ^ (da + e) :=
       (Nat.le_add_left _ _).trans (hpoly x)
@@ -501,15 +479,16 @@ private theorem declared_resources_input {C : Type} {encC : C ↪ List Bool}
 
 /-- Independent resources for the existing declared-variable search on one full runtime input.
 The threshold-comparison and leaf certificates precede every input `(context, N, formula)`;
-`N` is encoded in unary. The numerical depth and leaf-workspace envelopes are polynomial in
-that complete encoded input, and the leaf promises concern every active prefix `i ≤ rounds`,
-including the terminal prefix. The original occurring-support state and cap are unchanged.
+`N` is encoded in unary. The numerical depth envelope is polynomial in that complete encoded
+input, and the leaf promises concern every active prefix `i ≤ rounds`, including the terminal
+prefix. The original occurring-support state and cap are unchanged.
 
 The time bound contains the round count times a per-step allowance. The workspace bound contains
 the independent leaf-workspace allowance and a polynomial for initialization, retained context,
 all prefix states, binary clock, leaf output and final declared-variable scaling. It has
-no factor of the number of rounds or the leaf time. Any prior preparation of a larger context must
-be composed separately and charged against its own original external input. -/
+no factor of the number of rounds or the leaf time, and is polynomial if the leaf-workspace
+allowance is polynomial. Any prior preparation of a larger context must be composed separately
+and charged against its own original external input. -/
 theorem exists_computableInO_searchDeclaredWith {C : Type} {encC : C ↪ List Bool}
     {MOf BOf D : C × ℕ → ℕ} {K k : ℕ}
     (hB : ComputableInPolyTime BOf (encPair encC encUnary) encNat)
@@ -540,9 +519,7 @@ theorem exists_computableInO_searchDeclaredWith {C : Type} {encC : C ↪ List Bo
       let p := (x.1, x.2.1)
       let st := (step (MOf p) K (fun ψ => g (p, ψ)))^[i] (init k x.2.2)
       st.2.1.isEmpty = false ∧ isSparse (countingThreshold (MOf p)) K (st.2.1.headD []) = true →
-      s (p, st.2.1.headD []) ≤ Q x)
-    (hQ : PolyBounded
-      (fun x : C × ℕ × CNF ℕ => (encPair encC (encPair encUnary encCNF) x).length) Q) :
+      s (p, st.2.1.headD []) ≤ Q x) :
     ∃ c e, ComputableInO
       (fun x : C × ℕ × CNF ℕ =>
         searchDeclaredWith Prod.snd MOf BOf K k g (x.1, x.2.1) x.2.2)
@@ -551,27 +528,28 @@ theorem exists_computableInO_searchDeclaredWith {C : Type} {encC : C ↪ List Bo
         (rounds (BOf (x.1, x.2.1)) x.2.2 + 1) *
           (c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e + R x))
       (fun x => c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e + Q x) ∧
-      PolyBounded
-        (fun x : C × ℕ × CNF ℕ => (encPair encC (encPair encUnary encCNF) x).length)
-        (fun x => c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e + Q x) := by
+      (PolyBounded (fun x => (encPair encC (encPair encUnary encCNF) x).length) Q →
+        PolyBounded (fun x => (encPair encC (encPair encUnary encCNF) x).length)
+          (fun x => c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e + Q x)) := by
   let toFull (x : (C × ℕ) × CNF ℕ) := (x.1.1, x.1.2, x.2)
   have hfull : ComputableInPolyTime toFull (encPair (encPair encC encUnary) encCNF)
       (encPair encC (encPair encUnary encCNF)) := by unfold toFull; fun_prop
   have hD' := hD.comp hfull.polyBounded_length
-  have hQ' := hQ.comp hfull.polyBounded_length
   obtain ⟨d, hstep⟩ := exists_computableInO_stepWith
     (θ := fun p => countingThreshold (MOf p)) hθ K hcounter
   change ComputableInO (stepWith (fun p => countingThreshold (MOf p)) K g)
     (encPair (encPair encC encUnary) encState) (encPair (encPair encC encUnary) encState)
     (stepCost (encPair encC encUnary) MOf K d g t)
     (stepCost (encPair encC encUnary) MOf K d g s) at hstep
-  obtain ⟨c, e, hcore, _⟩ := declared_resources_of_step
+  obtain ⟨c, e, hcore⟩ := declared_resources_of_step
     (show ComputableInPolyTime (Prod.snd : C × ℕ → ℕ) (encPair encC encUnary) encUnary by
       fun_prop)
     hB hM hK hM2 hkK hTB hD' hstep
     (fun x hx i hi => hg (toFull x) hx i hi)
     (fun x hx i hi => ht (toFull x) hx i hi)
-    (fun x hx i hi => hs (toFull x) hx i hi) hQ'
-  exact declared_resources_input hcore hQ
+    (fun x hx i hi => hs (toFull x) hx i hi)
+  obtain ⟨a, d, hcert⟩ := declared_resources_input hcore
+  exact ⟨a, d, hcert, fun hQ =>
+    ((PolyBounded.const a).mul ((PolyBounded.self.add (.const 1)).pow d)).add hQ⟩
 
 end Cslib.Complexity.CountingSparsify

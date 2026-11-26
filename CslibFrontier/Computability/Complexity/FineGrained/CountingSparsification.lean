@@ -603,14 +603,22 @@ private theorem polyBounded_numVars :
     PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) CNF.numVars :=
   PolyBounded.self.mono fun φ => φ.numVars_le_length_vars.trans (SAT.length_vars_le φ)
 
-/-- `nodeBound` is polynomial in the encoded length of the formula. -/
+/-- The encoded-node bound is polynomial in any input size that polynomially bounds both the
+encoded formula length and the tree-depth coefficient. -/
+theorem nodeBound_polyBounded {α : Type*} {size depth : α → ℕ} {φ : α → CNF ℕ} (K : ℕ)
+    (hφ : PolyBounded size (fun x => (encCNF (φ x)).length))
+    (hdepth : PolyBounded size depth) :
+    PolyBounded size (fun x => nodeBound K (depth x) (φ x)) := by
+  have hm := hφ.mono fun x => length_le_length_encList _ (φ x)
+  have hn := hφ.mono fun x => (φ x).numVars_le_length_vars.trans (SAT.length_vars_le (φ x))
+  exact ((hm.add (.const 1)).add ((PolyBounded.const K).mul (hdepth.mul hn))).mul
+    (((PolyBounded.const 2).mul ((PolyBounded.const K).mul
+      (((PolyBounded.const 2).mul hφ).add (.const 1)))).add (.const 1))
+
+/-- `nodeBound` is polynomial in the encoded length of the formula at fixed depth coefficient. -/
 theorem polyBounded_nodeBound (K L_coeff : ℕ) :
-    PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (nodeBound K L_coeff) := by
-  have hn := polyBounded_numVars
-  have hm : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) List.length :=
-    PolyBounded.self.mono fun φ => length_le_length_encList _ φ
-  unfold nodeBound
-  with_reducible growth_poly
+    PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (nodeBound K L_coeff) :=
+  nodeBound_polyBounded K PolyBounded.self (PolyBounded.const L_coeff)
 
 /-- `stateBound` is polynomial in the encoded length of the formula. -/
 theorem polyBounded_stateBound (K L_coeff : ℕ) :
