@@ -1317,12 +1317,9 @@ theorem ValidFastState.liveInsCount_le {c U V n_max : ℕ} {θ : SeedWhp c U n_m
     {fs : FastState} {dict : State U} (hv : ValidFastState c U V n_max θ fs dict)
     {b : ℕ} (hb : b < numBucketsWhp n_max) :
     fs.liveInsCount b ≤ 8 * (slabScale n_max) ^ 12 := by
-  have hcf_le : capFrontWhp n_max ≤ 2 * (slabScale n_max) ^ 12 := by
-    have hM_pos : 0 < numBucketsWhp n_max := by unfold numBucketsWhp; positivity
-    have h2M := n_max_le_two_mul_numBuckets_scale_pow12 n_max
-    have hmul : numBucketsWhp n_max * (2 * (slabScale n_max) ^ 12) =
-        2 * numBucketsWhp n_max * (slabScale n_max) ^ 12 := by ring
-    exact (Nat.sub_le _ _).trans ((Nat.div_le_iff_le_mul_add_pred hM_pos).mpr (by omega))
+  have hcf_le : capFrontWhp n_max ≤ 2 * (slabScale n_max) ^ 12 :=
+    (Nat.sub_le _ _).trans (Nat.div_le_of_le_mul
+      (by linarith [n_max_le_two_mul_numBuckets_scale_pow12 n_max]))
   have htot_le : totalLocalCoordsWhp n_max ≤ 3 * (slabScale n_max) ^ 12 := by
     have hcb_le : capBackWhp n_max ≤ (slabScale n_max) ^ 12 := by
       calc capBackWhp n_max = 2 * (slabScale n_max) ^ 11 := rfl
@@ -1710,14 +1707,12 @@ theorem ValidFastState.fastToCsr_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
     obtain ⟨hq_e, hv_e⟩ := hqv_eq b hb (i - fb b) (by omega)
     obtain ⟨hu, hfb_u, hkq_u, hv_lt⟩ := hv.active_item b hb (i - fb b) (by omega)
     dsimp only [FastState.keyValAt] at hu hfb_u hkq_u
-    have hi_eq : i = fb b + (i - fb b) := by omega
-    rw [hi_eq, hq_e, hv_e]
+    rw [← Nat.add_sub_of_le hlo, hq_e, hv_e]
     exact ⟨hu, hfb_u, hkq_u, (hv.qv_global _).1, hv_lt⟩
   · intro b hb i j hloi hhii hloj hhij hq_eq
     rw [hfb_adj b hb] at hhii hhij
-    have hi_eq : i = fb b + (i - fb b) := by omega
-    have hj_eq : j = fb b + (j - fb b) := by omega
-    rw [hi_eq, hj_eq, (hqv_eq b hb _ (by omega)).1, (hqv_eq b hb _ (by omega)).1] at hq_eq
+    rw [← Nat.add_sub_of_le hloi, ← Nat.add_sub_of_le hloj,
+      (hqv_eq b hb _ (by omega)).1, (hqv_eq b hb _ (by omega)).1] at hq_eq
     have := hv.quot_inj b hb _ (by omega) _ (by omega) hq_eq
     omega
   · intro u
@@ -1728,8 +1723,7 @@ theorem ValidFastState.fastToCsr_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
     refine ⟨hdm.1.trans ⟨fun hall i hlo hhi => ?_, fun hall loc hloc => ?_⟩,
       fun v => (hdm.2 v).trans ⟨?_, ?_⟩⟩
     · rw [hfb_adj b hb_lt] at hhi
-      have hi_eq : i = fb b + (i - fb b) := by omega
-      rw [hi_eq, (hqv_eq b hb_lt _ (by omega)).1]
+      rw [← Nat.add_sub_of_le hlo, (hqv_eq b hb_lt _ (by omega)).1]
       exact hall _ (by omega)
     · rw [← (hqv_eq b hb_lt loc hloc).1]
       exact hall (fb b + loc) (by omega) (by rw [hfb_adj b hb_lt]; omega)
@@ -1739,26 +1733,19 @@ theorem ValidFastState.fastToCsr_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
         (hqv_eq b hb_lt loc hloc).1.trans hqe, (hqv_eq b hb_lt loc hloc).2.trans hve⟩
     · rintro ⟨i, hlo, hhi, hqe, hve⟩
       rw [hfb_adj b hb_lt] at hhi
-      have hi_eq : i = fb b + (i - fb b) := by omega
-      rw [hi_eq] at hqe hve
+      rw [← Nat.add_sub_of_le hlo] at hqe hve
       exact ⟨i - fb b, by omega, (hqv_eq b hb_lt _ (by omega)).1.symm.trans hqe,
         (hqv_eq b hb_lt _ (by omega)).2.symm.trans hve⟩
 
 theorem totalLocalCoordsWhp_le_three_mul {n_max : ℕ} :
     totalLocalCoordsWhp n_max ≤ 3 * (slabScale n_max) ^ 12 := by
-  have hM_pos : 0 < numBucketsWhp n_max := by unfold numBucketsWhp; positivity
-  have h2M := n_max_le_two_mul_numBuckets_scale_pow12 n_max
-  have hcf_le : capFrontWhp n_max ≤ 2 * (slabScale n_max) ^ 12 := by
-    have hdiv : n_max / numBucketsWhp n_max ≤ 2 * (slabScale n_max) ^ 12 := by
-      rw [Nat.div_le_iff_le_mul_add_pred hM_pos]
-      have hmul : numBucketsWhp n_max * (2 * (slabScale n_max) ^ 12) =
-          2 * numBucketsWhp n_max * (slabScale n_max) ^ 12 := by ring
-      omega
-    exact (Nat.sub_le _ _).trans hdiv
-  have hL2 := two_le_slabScale n_max
+  have hcf_le : capFrontWhp n_max ≤ 2 * (slabScale n_max) ^ 12 :=
+    (Nat.sub_le _ _).trans (Nat.div_le_of_le_mul
+      (by linarith [n_max_le_two_mul_numBuckets_scale_pow12 n_max]))
   have hcb_le : capBackWhp n_max ≤ (slabScale n_max) ^ 12 := by
     calc capBackWhp n_max = 2 * (slabScale n_max) ^ 11 := rfl
-      _ ≤ slabScale n_max * (slabScale n_max) ^ 11 := Nat.mul_le_mul_right _ hL2
+      _ ≤ slabScale n_max * (slabScale n_max) ^ 11 :=
+        Nat.mul_le_mul_right _ (two_le_slabScale n_max)
       _ = (slabScale n_max) ^ 12 := by ring
   unfold totalLocalCoordsWhp
   omega
@@ -1859,12 +1846,8 @@ theorem trySelfHeal_spec {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
       exact Fintype.sum_congr _ _ fun b => by simp only [Fin.ext_iff, hcard_b, X_fin]
     obtain ⟨hback_lt_cb, _, hpool_le⟩ := sum_sub_capFront_le_poolSize hth X_fin
       (hsum_X.trans_le hfbM_le)
-      (fun b => by
-        have hb := (hgood.2.1 b).1
-        rwa [hcard_b b, hcard_dom, ← hsum_X] at hb)
-      (fun b => by
-        have hb := (hgood.2.1 b).2
-        rwa [hcard_b b, hcard_dom, ← hsum_X] at hb)
+      (fun b => by simpa only [hcard_b b, hcard_dom, ← hsum_X] using (hgood.2.1 b).1)
+      (fun b => by simpa only [hcard_b b, hcard_dom, ← hsum_X] using (hgood.2.1 b).2)
     let bktCnt : ℕ → ℕ := fun b =>
       if b < numBucketsWhp n_max then csr.fbStart (b + 1) - csr.fbStart b else 0
     have hbktCnt_le : ∀ b < numBucketsWhp n_max, bktCnt b ≤ totalLocalCoordsWhp n_max := by
@@ -1908,20 +1891,17 @@ theorem trySelfHeal_spec {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
         (if l₂ < capFrontWhp n_max then b₂ * capFrontWhp n_max + l₂
           else numBucketsWhp n_max * capFrontWhp n_max + backPtr b₂ (l₂ - capFrontWhp n_max))
         at hd_eq
-      by_cases h1 : l₁ < capFrontWhp n_max <;> by_cases h2 : l₂ < capFrontWhp n_max
-      · simp only [h1, h2, ↓reduceIte] at hd_eq
-        obtain ⟨hb_eq, hl_eq⟩ := eq_of_mul_add_eq h1 h2 hd_eq
+      by_cases h1 : l₁ < capFrontWhp n_max <;> by_cases h2 : l₂ < capFrontWhp n_max <;>
+        simp only [h1, h2, ↓reduceIte] at hd_eq
+      · obtain ⟨hb_eq, hl_eq⟩ := eq_of_mul_add_eq h1 h2 hd_eq
         dsimp only [l₁, l₂] at hl_eq
         rw [hb_eq] at hlo₁ hl_eq
         omega
-      · simp only [h1, h2, ↓reduceIte] at hd_eq
-        have hlt := mul_add_lt_mul_of_lt hb₁ h1
+      · have hlt := mul_add_lt_mul_of_lt hb₁ h1
         omega
-      · simp only [h1, h2, ↓reduceIte] at hd_eq
-        have hlt := mul_add_lt_mul_of_lt hb₂ h2
+      · have hlt := mul_add_lt_mul_of_lt hb₂ h2
         omega
-      · simp only [h1, h2, ↓reduceIte] at hd_eq
-        have hk₁ : l₁ - capFrontWhp n_max < bktCnt b₁ - capFrontWhp n_max := by omega
+      · have hk₁ : l₁ - capFrontWhp n_max < bktCnt b₁ - capFrontWhp n_max := by omega
         have hk₂ : l₂ - capFrontWhp n_max < bktCnt b₂ - capFrontWhp n_max := by omega
         have hbp_eq : bp b₁ + (l₁ - capFrontWhp n_max) = bp b₂ + (l₂ - capFrontWhp n_max) := by
           dsimp only [backPtr] at hd_eq
@@ -2083,12 +2063,10 @@ theorem trySelfHeal_spec {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
           · change q' (fs'.physSlot n_max b loc) ≠ _
             rw [(hqv_at b hb loc hloc).1]
             exact hall (csr.fbStart b + loc) (by omega) (by omega)
-          · have hi_eq : i = csr.fbStart b + (i - csr.fbStart b) := by omega
-            rw [hi_eq, ← (hqv_at b hb (i - csr.fbStart b) (by omega)).1]
+          · rw [← Nat.add_sub_of_le hlo, ← (hqv_at b hb (i - csr.fbStart b) (by omega)).1]
             exact hall _ (by omega)
           · rintro ⟨i, hlo, hhi, hqe, hve⟩
-            have hi_eq : i = csr.fbStart b + (i - csr.fbStart b) := by omega
-            rw [hi_eq] at hqe hve
+            rw [← Nat.add_sub_of_le hlo] at hqe hve
             exact ⟨i - csr.fbStart b, by omega,
               (hqv_at b hb _ (by omega)).1.trans hqe, (hqv_at b hb _ (by omega)).2.trans hve⟩
           · rintro ⟨loc, hloc_f, hqe, hve⟩

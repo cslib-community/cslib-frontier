@@ -502,8 +502,7 @@ private theorem gamma_add_le [Finite ι] [Nonempty ι] [DecidableEq Ω]
     (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy.symm (p := gamma f x y + ε / 3) (by linarith))
     (const_mem_diffSet_of_gamma_lt hf_onto hpad hyz.symm (p := gamma f y z + ε / 3) (by linarith))
     (δ := ε / 3) (by linarith) using 1
-  ext
-  ring
+  exact funext fun _ => by ring
 
 private theorem gamma_add [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -544,8 +543,7 @@ private theorem const_pos_mem_openShifted [Finite ι] [Nonempty ι] [DecidableEq
   refine ⟨r / 2, by linarith, ?_⟩
   convert const_mem_diffSet_of_gamma_lt hf_onto hpad hxy (p := gamma f x y + r / 2) (by linarith)
     using 1
-  ext _
-  ring
+  exact funext fun _ => by ring
 
 private theorem openShifted_subset_right [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -658,8 +656,7 @@ private theorem openShifted_half [Finite ι] [Nonempty ι] [Fintype Ω] [Decidab
   have h1 : (fun i => α i - ε / 2) ∈ openShifted f x₀ y₀ :=
     ⟨ε / 2, half_pos hε, by
       convert hmem using 1
-      ext
-      ring⟩
+      exact funext fun _ => by ring⟩
   exact hnot <| openShifted_upward hpad hxy (openShifted_add hf_onto hpad hgw hcard hxy h1 h2)
     fun i => by simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]; linarith
 
@@ -696,9 +693,7 @@ private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [Dec
   have hα' : α' ∈ openShifted f x₀ y₀ :=
     ⟨ε / 2, hr, by
       convert hmem using 1
-      ext
-      simp only [α', r]
-      ring⟩
+      exact funext fun _ => by ring⟩
   let M : ℝ := Finset.univ.sup' Finset.univ_nonempty (fun i => |α i|) + 1
   have hM_le : ∀ i, |α i| ≤ M := fun i =>
     le_add_of_le_of_nonneg (Finset.le_sup' (fun i => |α i|) (Finset.mem_univ i)) zero_le_one
@@ -726,7 +721,6 @@ private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [Dec
     convert hpow m _ (hnsmul n α' hn_pos hα') using 1
     rw [smul_smul, hinv]
     congr 1
-    simp only [d]
     ring
   refine openShifted_upward hpad hxy hd_mem fun i => ?_
   simp only [Pi.smul_apply, smul_eq_mul, α']
@@ -869,8 +863,7 @@ theorem exists_isAffineMaximizerFor_of_isWeaklyMonotone [Fintype ι] [DecidableE
     ∃ (w : ι → ℝ) (c : Ω → ℝ),
       (∀ i, 0 ≤ w i) ∧ (∑ i, w i = 1) ∧ IsAffineMaximizerFor f Set.univ w c := by
   classical
-  have : Nonempty Ω := Fintype.card_pos_iff.1 (by omega)
-  obtain ⟨x₀⟩ := ‹Nonempty Ω›
+  have ⟨x₀⟩ : Nonempty Ω := Fintype.card_pos_iff.1 (by omega)
   obtain ⟨w, hw, hsum, hmax⟩ := roberts_with_gamma hf_onto hf_wmon hcard x₀
   exact ⟨w, fun x => gamma f x₀ x, hw, hsum, hmax⟩
 
@@ -915,7 +908,7 @@ theorem exists_weightedWelfare_of_isNeutral_of_isWeaklyMonotone [Fintype ι] [De
   classical
   have hf_onto : Function.Surjective f := hneut.surjective
   have : Nonempty ι := nonempty_of_surjective_of_two_le_card hf_onto (by omega)
-  have : Nonempty Ω := Fintype.card_pos_iff.1 (by omega)
+  have ⟨x₀⟩ : Nonempty Ω := Fintype.card_pos_iff.1 (by omega)
   have hpad : IsPADOn f (fun _ => Set.univ) :=
     (isWeaklyMonotoneOn_univ_iff.2 hf_wmon).isPADOn
   have hgw : IsGeneralizedWMONOn f (fun _ => Set.univ) :=
@@ -934,7 +927,6 @@ theorem exists_weightedWelfare_of_isNeutral_of_isWeaklyMonotone [Fintype ι] [De
     rcases eq_or_ne y x with rfl | hxy
     · simp [gamma]
     · linarith [hgamma_le x y hxy.symm, hgamma_le y x hxy, gamma_neg hf_onto hpad hgw y x]
-  obtain ⟨x₀⟩ := ‹Nonempty Ω›
   obtain ⟨w, hw, hsum, hmax⟩ := roberts_with_gamma hf_onto hf_wmon hcard x₀
   exact ⟨w, hw, hsum, fun b ω => by
     simpa only [affineScore, hgamma_zero, zero_add] using (hmax b).2 ω (Set.mem_univ _)⟩
@@ -977,10 +969,9 @@ theorem exists_isAffineMaximizerFor_range_of_isWeaklyMonotone [Fintype ι] [Deci
     ext j ω
     by_cases h : j = i <;> simp [h, ext]
   have hg_wmon : IsWeaklyMonotone g := fun i u v v' => by
-    have hw := hf_wmon i (ext u) (fun ω => if h : ω ∈ Set.range f then v ⟨ω, h⟩ else 0)
-      (fun ω => if h : ω ∈ Set.range f then v' ⟨ω, h⟩ else 0)
-    rw [← hext_upd, ← hext_upd] at hw
-    simpa only [g, Set.mem_range_self, ↓reduceDIte] using hw
+    simpa only [← hext_upd, g, Set.mem_range_self, ↓reduceDIte] using
+      hf_wmon i (ext u) (fun ω => if h : ω ∈ Set.range f then v ⟨ω, h⟩ else 0)
+        (fun ω => if h : ω ∈ Set.range f then v' ⟨ω, h⟩ else 0)
   have hg_onto : Function.Surjective g := by
     rintro ⟨a, v, rfl⟩
     refine ⟨fun i r => if r.val = f v then v i r.val + 1 else v i r.val,

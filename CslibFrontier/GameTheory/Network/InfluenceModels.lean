@@ -423,13 +423,10 @@ theorem measurableSet_thresholdFinal_eq (S A : Finset V) :
     MeasurableSet {θ : V → ℝ | M.thresholdFinal θ S = A} := by
   suffices ∀ t (B : Finset V), MeasurableSet {θ : V → ℝ | (M.thresholdStep θ)^[t] S = B} from
     this (Fintype.card V) A
-  intro t
-  induction t with
-  | zero =>
-    intro B
-    by_cases h : S = B <;> simp [h]
+  intro t B
+  induction t generalizing B with
+  | zero => by_cases h : S = B <;> simp [h]
   | succ t ih =>
-    intro B
     have hunion : {θ : V → ℝ | (M.thresholdStep θ)^[t + 1] S = B} =
         ⋃ C : Finset V,
           {θ | (M.thresholdStep θ)^[t] S = C} ∩ {θ | M.thresholdStep θ C = B} := by
@@ -687,18 +684,16 @@ theorem survivalProb_le_one (v : V) (X : Finset V) : C.survivalProb v X ≤ 1 :=
 
 theorem survivalProb_anti (v : V) ⦃X Y : Finset V⦄ (hXY : X ⊆ Y) :
     C.survivalProb v Y ≤ C.survivalProb v X := by
-  have hdiff : Y = X ∪ (Y \ X) := (Finset.union_sdiff_of_subset hXY).symm
-  rw [hdiff]
+  rw [← Finset.union_sdiff_of_subset hXY]
   have hdisj : Disjoint X (Y \ X) := Finset.disjoint_sdiff
-  generalize Y \ X = D at hdisj
+  generalize Y \ X = D at hdisj ⊢
   induction D using Finset.induction with
   | empty => simp
   | insert u D huD ih =>
     rcases Finset.disjoint_insert_right.mp hdisj with ⟨huX, hdisj'⟩
-    have huXD : u ∉ X ∪ D := by simp [huX, huD]
-    rw [Finset.union_insert, C.survivalProb_insert v huXD]
-    have h1 : 1 - C.prob v u (X ∪ D) ≤ 1 := sub_le_self 1 (C.prob_nonneg v u _)
-    exact (mul_le_of_le_one_right (C.survivalProb_nonneg v _) h1).trans (ih hdisj')
+    rw [Finset.union_insert, C.survivalProb_insert v fun h => (Finset.mem_union.mp h).elim huX huD]
+    exact (mul_le_of_le_one_right (C.survivalProb_nonneg v _)
+      (sub_le_self 1 (C.prob_nonneg v u _))).trans (ih hdisj')
 
 private theorem survivalProb_inNeighbors_inter (v : V) (X : Finset V) :
     C.survivalProb v (X ∩ inNeighbors G v) = C.survivalProb v X := by
@@ -1056,10 +1051,9 @@ theorem activeSetProb_eq_of_step
               F (insert v active) (Function.update tried v (insert u (tried v))) +
             F active (Function.update tried v (insert u (tried v)))) :
     C.activeSetProb nextEdge S A = F S (fun _ => ∅) := by
-  have key := C.survivalProd_mul_cascadeProbFrom_eq hvalid A F hbase hstep S (fun _ => ∅)
-    (fun _ _ => Finset.empty_subset _)
-  rw [Finset.prod_eq_one fun w _ => C.survivalProb_empty w, one_mul] at key
-  exact key
+  simpa only [activeSetProb, Finset.prod_eq_one fun w _ => C.survivalProb_empty w, one_mul] using
+    C.survivalProd_mul_cascadeProbFrom_eq hvalid A F hbase hstep S (fun _ => ∅)
+      (fun _ _ => Finset.empty_subset _)
 
 /-- **Equivalence of Order-Independent Cascade and General Threshold Models**
 ([KempeKleinbergTardos2005]; [Kleinberg2007], Section 24.3, pp. 620–621): under any valid
@@ -1095,8 +1089,7 @@ theorem activeSetProb_eq_toGeneralThresholdModel
           ENNReal.toReal_prod, ← Finset.prod_compl_mul_prod active,
           Finset.prod_eq_one (s := active) fun w hw => by simp [hw], mul_one]
         refine Finset.prod_congr rfl fun w hw => ?_
-        have hwnot : w ∉ active := Finset.mem_compl.mp hw
-        simp only [hwnot, ↓reduceIte, ← measureReal_def]
+        simp only [Finset.mem_compl.mp hw, ↓reduceIte, ← measureReal_def]
         rw [unitMeasure_real_Ioi (M.thresholdFn_nonneg w _) (M.thresholdFn_le_one w _)]
         simp only [M, toGeneralThresholdModel_thresholdFn, sub_sub_cancel]
       · have hemp_set : survEvent M active tried A = ∅ := Set.eq_empty_iff_forall_notMem.mpr
@@ -1395,9 +1388,8 @@ theorem mem_thresholdFinal_toTimeLayered_iff {T : ℕ} {θ : V × Fin (T + 1) �
       rw [M.mem_nonprogActive_succ θ S hk' w, not_le] at hxnot
       have hfilt : (Finset.univ.filter fun u =>
           (u, (⟨k, Nat.lt_succ_of_le (Nat.le_of_succ_le hk')⟩ : Fin (T + 1))) ∈ B) =
-          M.nonprogActive θ S ⟨k, Nat.lt_succ_of_le (Nat.le_of_succ_le hk')⟩ := by
-        ext u
-        simp [B]
+          M.nonprogActive θ S ⟨k, Nat.lt_succ_of_le (Nat.le_of_succ_le hk')⟩ :=
+        Finset.ext fun _ => by simp [B]
       simpa only [toTimeLayered, Nat.succ_ne_zero, ↓reduceDIte, Nat.add_sub_cancel, hfilt]
         using hxnot
   · intro ⟨w, ⟨k, hk⟩⟩ hB

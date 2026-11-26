@@ -709,11 +709,9 @@ theorem twoBidderClinchingSP_isNormalized {m : ℝ} (hm : 0 < m) {B : Fin 2 → 
     twoBidderClinchingMechanism, twoBidderClinching]
   split_ifs with hle
   · fin_cases i
-    · exact (helper (hB 0) (hb 1)).1
-    · exact (helper (hB 0) (hb 0)).2
+    exacts [(helper (hB 0) (hb 1)).1, (helper (hB 0) (hb 0)).2]
   · fin_cases i
-    · exact (helper (hB 1) (hb 1)).2
-    · exact (helper (hB 1) (hb 0)).1
+    exacts [(helper (hB 1) (hb 1)).2, (helper (hB 1) (hb 0)).1]
 
 private theorem ordered_dsic_zero_branch {m v b : ℝ} (hm : 0 < m) (hv : 0 ≤ v) :
     (if 0 < b then v * m else 0) ≤ (if 0 < v then v * m else 0) := by
@@ -881,19 +879,14 @@ theorem twoBidderClinching_budget_manipulation {m : ℝ} (hm : 0 < m) :
   have hdev_p : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).payment 1 =
       Real.log 2 := by
     simp only [hdev_p0, trajP1, entryPrice, hpe_dev, hgt_p0, le_rfl, ↓reduceIte, one_mul]
-    congr 1
-    field_simp [hm.ne']
+    exact congrArg Real.log (by field_simp [hm.ne'])
   have hdev_u : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).utility
       (fun k => (θ k).val) 1 = 1 - Real.log 2 := by
     simp only [Outcome.utility, hdev_x, hdev_p, θ, Matrix.cons_val_one, Matrix.cons_val_zero]
     field_simp [hm.ne']
-  refine ⟨fun k => ?_,
-    ⟨div_pos (by norm_num) hm,
-      by linarith⟩,
-    hhon_p, hhon_u, hdev_p,
-    by simp only [hdev_p, θ, Matrix.cons_val_one, Matrix.cons_val_zero]; linarith,
-    hdev_u,
-    by rw [hhon_u, hdev_u]; linarith⟩
+  refine ⟨fun k => ?_, ⟨div_pos zero_lt_two hm, by linarith⟩, hhon_p, hhon_u, hdev_p,
+    hdev_p.trans_le (hlog_lt.le.trans (by norm_num [θ])), hdev_u,
+    by linarith [hhon_u, hdev_u]⟩
   fin_cases k <;> exact ⟨div_pos (by norm_num) hm, zero_lt_one⟩
 
 /-- The continuous 2-bidder adaptive clinching auction is **not** private-budget DSIC for any

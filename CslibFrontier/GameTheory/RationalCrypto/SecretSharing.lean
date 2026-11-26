@@ -372,12 +372,10 @@ theorem mem_broadcastSet_iff {s : ι → Bool} {j : ι} :
 
 @[simp]
 theorem broadcastSet_const_true : broadcastSet (fun _ : ι => true) = Finset.univ := by
-  ext j
   simp [broadcastSet]
 
 @[simp]
 theorem broadcastSet_const_false : broadcastSet (fun _ : ι => false) = ∅ := by
-  ext j
   simp [broadcastSet]
 
 section Broadcast
@@ -494,16 +492,12 @@ theorem simultaneousGame_payoff (i : ι) (s : ι → Bool) :
 private theorem broadcastSet_update_false (s : ι → Bool) (i : ι) :
     broadcastSet (Function.update s i false) = (broadcastSet s).erase i := by
   ext j
-  rcases eq_or_ne j i with rfl | hne
-  · simp [broadcastSet]
-  · simp [broadcastSet, hne]
+  by_cases hne : j = i <;> simp [broadcastSet, hne]
 
 private theorem broadcastSet_update_true (s : ι → Bool) (i : ι) :
     broadcastSet (Function.update s i true) = insert i ((broadcastSet s).erase i) := by
   ext j
-  rcases eq_or_ne j i with rfl | hne
-  · simp [broadcastSet]
-  · simp [broadcastSet, hne]
+  by_cases hne : j = i <;> simp [broadcastSet, hne]
 
 /-- **Halpern–Teague single-round / final-round weak dominance** ([HalpernTeague2004];
 [DodisRabin2007], Section 8.5.2(a)): in any `(t, n)` reconstruction game (`2 ≤ t ≤ n`),
@@ -594,9 +588,7 @@ private theorem rampPayoffFrom_lt_pos (R : ReconstructionGame ι) {T : ℕ} (q :
     (s : ι → Fin (T + 1)) (i : ι) {m : ℕ} (hm : m < T)
     (hcard : R.threshold ≤ (roundActive s m).card) :
     rampPayoffFrom R q s i m = rampPayoffFrom R q s i (m + 1) := by
-  rw [rampPayoffFrom]
-  split_ifs
-  rfl
+  rw [rampPayoffFrom, dite_eq_left hm, ite_eq_left hcard]
 
 private theorem rampPayoffFrom_lt_neg (R : ReconstructionGame ι) {T : ℕ} (q : Fin T → ℝ)
     (s : ι → Fin (T + 1)) (i : ι) {m : ℕ} (hm : m < T)
@@ -604,16 +596,12 @@ private theorem rampPayoffFrom_lt_neg (R : ReconstructionGame ι) {T : ℕ} (q :
     rampPayoffFrom R q s i m =
       q ⟨m, hm⟩ * R.prefs.outcomeUtility (R.learnedSet (roundActive s m)) i +
         (1 - q ⟨m, hm⟩) * R.prefs.uMinus := by
-  rw [rampPayoffFrom]
-  split_ifs
-  rfl
+  rw [rampPayoffFrom, dite_eq_left hm, ite_eq_right hcard]
 
 private theorem rampPayoffFrom_ge (R : ReconstructionGame ι) {T : ℕ} (q : Fin T → ℝ)
     (s : ι → Fin (T + 1)) (i : ι) {m : ℕ} (hm : ¬ m < T) :
     rampPayoffFrom R q s i m = R.prefs.uAll := by
-  rw [rampPayoffFrom]
-  split_ifs
-  rfl
+  rw [rampPayoffFrom, dite_eq_right hm]
 
 private theorem rampPayoffFrom_congr_before (R : ReconstructionGame ι) {T : ℕ} (q : Fin T → ℝ)
     {s₁ s₂ : ι → Fin (T + 1)} (i : ι) {M : ℕ}
@@ -626,10 +614,8 @@ private theorem rampPayoffFrom_congr_before (R : ReconstructionGame ι) {T : ℕ
   intro r hr
   induction hdiff : M - r generalizing r with
   | zero =>
-    have hrm : r = M := by omega
-    subst hrm
-    intro hprev
-    exact Or.inr ⟨hprev, rfl, rfl⟩
+    obtain rfl : r = M := by omega
+    exact fun hprev => Or.inr ⟨hprev, rfl, rfl⟩
   | succ d ih =>
     have hrM : r < M := by omega
     intro hprev
@@ -643,11 +629,9 @@ private theorem rampPayoffFrom_congr_before (R : ReconstructionGame ι) {T : ℕ
         rcases ih (r := r + 1) (by omega) (by omega) hprev' with heq | ⟨hall, he1, he2⟩
         · exact Or.inl (hstep1.trans (heq.trans hstep2.symm))
         · exact Or.inr ⟨hall, hstep1.trans he1, hstep2.trans he2⟩
-      · rw [rampPayoffFrom_lt_neg R q s₁ i hT hcard,
-          rampPayoffFrom_lt_neg R q s₂ i hT (hact ▸ hcard), hact]
-        exact Or.inl rfl
-    · rw [rampPayoffFrom_ge R q s₁ i hT, rampPayoffFrom_ge R q s₂ i hT]
-      exact Or.inl rfl
+      · simp only [rampPayoffFrom_lt_neg R q s₁ i hT hcard,
+          rampPayoffFrom_lt_neg R q s₂ i hT (hact ▸ hcard), hact, true_or]
+    · simp only [rampPayoffFrom_ge R q s₁ i hT, rampPayoffFrom_ge R q s₂ i hT, true_or]
 
 private theorem rampPayoffFrom_zero_eq_at (R : ReconstructionGame ι) {T : ℕ} (q : Fin T → ℝ)
     (s : ι → Fin (T + 1)) (i : ι) {M : ℕ}
@@ -816,8 +800,7 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
         · simp [s₀, s₁, Function.update_of_ne hne]
     rcases rampPayoffFrom_eq_or_reach R q i hbefore with heq | ⟨_, he0, he1⟩
     · exact heq.ge
-    · unfold gradualReleaseGame
-      dsimp only
+    · dsimp only [gradualReleaseGame]
       rw [he0, he1]
       have hnext : ∀ a : Fin (T + 1), a.val ≤ m + 1 →
           rampPayoffFrom R q (Function.update s i a) i (m + 1) =
@@ -839,8 +822,7 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
     refine ⟨pivotalCutoffProfile S mSuccFin, fun j => ?_, ?_⟩
     · simp only [pivotalCutoffProfile, Rset, Set.mem_ofPred_eq]
       split_ifs <;> simp [mSuccFin]
-    · unfold gradualReleaseGame
-      dsimp only
+    · dsimp only [gradualReleaseGame]
       rw [rampPayoffFrom_pivotal_withhold R q hiS hScard (a := mFin) hm (Nat.lt_succ_self m),
         rampPayoffFrom_pivotal_self R q hiS hScard mSuccFin]
       exact hpiv m hm
@@ -857,8 +839,7 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
       · dsimp [rSucc]; omega
       · simp
     have hcmp := hdom.1 s hs_mem
-    unfold gradualReleaseGame at hcmp
-    dsimp only at hcmp
+    dsimp only [gradualReleaseGame] at hcmp
     rw [rampPayoffFrom_pivotal_withhold R q hiS hScard (a := r) hrT (Nat.lt_succ_self r.val)]
       at hcmp
     rcases lt_trichotomy r'.val r.val with hlt_r' | heq_r' | hgt_r'
@@ -964,9 +945,7 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
           · simp [s₀, s₁, Function.update_of_ne hne]
       rcases rampPayoffFrom_eq_or_reach R qK j hbefore with heq | ⟨_, he0, he1⟩
       · exact heq.ge
-      · unfold knownHorizonGame gradualReleaseGame
-        dsimp only
-        change rampPayoffFrom R qK s₁ j 0 ≤ rampPayoffFrom R qK s₀ j 0
+      · dsimp only [knownHorizonGame, gradualReleaseGame]
         rw [he0, he1]
         have hlast_false : ¬ (T - 1 + 1 < T) := by omega
         refine rampPayoffFrom_insert_le R qK j hm (Finset.notMem_erase j _)
@@ -976,19 +955,13 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
           linarith [R.prefs.uAll_lt_uPlus]
         · rw [rampPayoffFrom_ge R qK s₁ j hlast_false, rampPayoffFrom_ge R qK s₀ j hlast_false]
     · obtain ⟨S, hjS, hScard⟩ := R.exists_pivotal_opponents j
-      refine ⟨pivotalCutoffProfile S (Fin.last T), ?_, ?_⟩
-      · intro _
-        simp [PayoffGame.idowdsIter_zero]
-      · unfold knownHorizonGame gradualReleaseGame
-        dsimp only
-        change rampPayoffFrom R qK _ j 0 < rampPayoffFrom R qK _ j 0
-        rw [rampPayoffFrom_pivotal_withhold R qK hjS hScard (a := ⟨T - 1, by omega⟩) hm hm,
-          rampPayoffFrom_pivotal_self R qK hjS hScard (Fin.last T), hq1,
-          ite_eq_right (by simp [Fin.last])]
-        linarith [R.prefs.uAll_lt_uPlus]
-  unfold knownHorizonGame gradualReleaseGame
-  dsimp only
-  change rampPayoffFrom R qK s i 0 = R.prefs.uMinus
+      refine ⟨pivotalCutoffProfile S (Fin.last T),
+        fun _ => by simp [PayoffGame.idowdsIter_zero], ?_⟩
+      dsimp only [knownHorizonGame, gradualReleaseGame]
+      rw [rampPayoffFrom_pivotal_withhold R qK hjS hScard (a := ⟨T - 1, by omega⟩) hm hm,
+        rampPayoffFrom_pivotal_self R qK hjS hScard (Fin.last T), hq1,
+        ite_eq_right (by simp [Fin.last])]
+      linarith [R.prefs.uAll_lt_uPlus]
   suffices ∀ r ≤ T - 1, rampPayoffFrom R qK s i r = R.prefs.uMinus from this 0 (Nat.zero_le _)
   intro r hr
   induction hdiff : (T - 1) - r generalizing r with
@@ -1446,9 +1419,7 @@ theorem roundCoalitionBroadcastDist_ofProfile (C : Finset ι)
     AccessStructure.viewDistOf, PMF.map_comp, CoalitionStrategy.ofProfile_apply]
   congr 1
   funext k j
-  by_cases hj : j ∈ C
-  · simp [Function.comp_apply, hj]
-  · simp [Function.comp_apply, hj, honestProfile_apply]
+  by_cases hj : j ∈ C <;> simp [Function.comp_apply, hj]
 
 /-- **Cryptographic share-indistinguishability bridge for share-pooling coalitions**: when an
 unauthorized coalition `C` (`¬ proto.scheme.access.authorized C`) pools its joint share view via

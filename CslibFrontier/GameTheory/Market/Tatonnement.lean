@@ -158,12 +158,11 @@ theorem isApproxDemand_iff_of_mem_demandSet {u : (G → ℝ) → ℝ} {μ : ℝ}
       1 ≤ μ ∧ (∀ g, 0 ≤ x g) ∧ expenditure p x ≤ μ * expenditure p w ∧
         (1 / μ) * u xStar ≤ u x := by
   rw [mem_demandSet] at hxStar
-  refine ⟨fun ⟨hμ, hx_nn, hexp, hopt⟩ => ⟨hμ, hx_nn, hexp, ?_⟩,
-    fun ⟨hμ, hx_nn, hexp, hge⟩ => ⟨hμ, hx_nn, hexp, fun y hy => ?_⟩⟩
-  · rw [one_div]
-    exact (inv_mul_le_iff₀ (by linarith)).2 (hopt xStar hxStar.1)
-  · rw [one_div] at hge
-    exact (hxStar.2 y hy).trans ((inv_mul_le_iff₀ (by linarith)).1 hge)
+  simp only [one_div]
+  exact ⟨fun ⟨hμ, hx_nn, hexp, hopt⟩ =>
+      ⟨hμ, hx_nn, hexp, (inv_mul_le_iff₀ (by linarith)).2 (hopt xStar hxStar.1)⟩,
+    fun ⟨hμ, hx_nn, hexp, hge⟩ =>
+      ⟨hμ, hx_nn, hexp, fun y hy => (hxStar.2 y hy).trans ((inv_mul_le_iff₀ (by linarith)).1 hge)⟩⟩
 
 theorem IsApproxDemand.of_mem_demandSet {u : (G → ℝ) → ℝ} {p w x : G → ℝ}
     (hx : x ∈ demandSet u p (expenditure p w)) :
@@ -300,10 +299,8 @@ theorem isWeakApproxEquilibrium_of_priceRatio_le {xHat : I → G → ℝ} {pHat 
       rw [expenditure_smul_right]
       have h_chain := (mul_expenditure_le_of_le hp_ge_min hy.1).trans
         (hy.2.trans (expenditure_le_mul_of_le hp_le_max (E.endowment_nonneg i)))
-      exact (inv_mul_le_iff₀ hr_pos).2 <| by
-        dsimp only [r]
-        rw [div_mul_eq_mul_div]
-        exact (le_div_iff₀' hαMin_pos).2 h_chain
+      rw [inv_mul_le_iff₀ hr_pos, div_mul_eq_mul_div, le_div_iff₀' hαMin_pos]
+      exact h_chain
     have huy_le_r : E.utility i y ≤ r * E.utility i (xHat i) :=
       (inv_mul_le_iff₀ hr_pos).1
         ((hray i hy.1 (inv_pos.2 hr_pos) (inv_le_one_of_one_le₀ hr_ge_1)).trans
@@ -341,10 +338,8 @@ omit [Fintype G] in
 omit [Fintype G] in
 theorem unitRescale_totalSupply (E : ExchangeMarket I G) {g : G} (hW : 0 < E.totalSupply g) :
     E.unitRescale.totalSupply g = 1 := by
-  rw [totalSupply_eq_sum]
-  simp only [unitRescale_endowment, ← sum_div]
-  rw [← totalSupply_eq_sum]
-  exact div_self hW.ne'
+  rw [totalSupply_eq_sum, sum_congr rfl fun i _ => E.unitRescale_endowment i g, ← sum_div,
+    ← totalSupply_eq_sum, div_self hW.ne']
 
 /-- **Lemma 6.5 (i)** ([CodenottiVaradarajan2007], p. 143): `b` is a `μ`-approximate demand at
 prices `p` for trader `i` in `E.unitRescale` if and only if `(fun g => E.totalSupply g * b g)` is a
@@ -367,18 +362,16 @@ theorem isApproxDemand_unitRescale_iff (E : ExchangeMarket I G)
     let y' : G → ℝ := fun g => y g / E.totalSupply g
     have hy_rec : (fun g => E.totalSupply g * y' g) = y :=
       funext fun g => mul_div_cancel₀ _ (hW g).ne'
-    have hy'_feas : Market.IsBudgetFeasible p (expenditure p (E.unitRescale.endowment i)) y' :=
+    simpa only [unitRescale_utility, hy_rec] using hopt y'
       ⟨fun g => div_nonneg (hy.1 g) (hW g).le, by
         rw [← expenditure_div_mul_self hW, hy_rec, ← hexp_endow]
         exact hy.2⟩
-    simpa only [unitRescale_utility, hy_rec] using hopt y' hy'_feas
   · rintro ⟨hμ, hb_nn, hexp, hopt⟩
     refine ⟨hμ, hnn_iff.2 hb_nn, by rwa [← expenditure_div_mul_self hW, ← hexp_endow],
       fun y' hy' => ?_⟩
     exact hopt (fun g => E.totalSupply g * y' g)
-      ⟨fun g => mul_nonneg (hW g).le (hy'.1 g), by
-        rw [expenditure_div_mul_self hW, hexp_endow]
-        exact hy'.2⟩
+      ⟨fun g => mul_nonneg (hW g).le (hy'.1 g),
+        by simpa only [expenditure_div_mul_self hW, hexp_endow] using hy'.2⟩
 
 /-- **Lemma 6.5 (ii)** ([CodenottiVaradarajan2007], p. 143): `p` is a weak `μ`-approximate
 equilibrium for `E.unitRescale` if and only if `(fun g => p g / E.totalSupply g)` is a weak
@@ -634,9 +627,7 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
         exact sum_le_sum fun k _ =>
           mul_le_mul_of_nonneg_right (hp_low k) (by linarith [hZ_lower k])
       have hwal : ∑ k : G, p k * (Z p k + (1 + η)) = 1 + η := by
-        have hw0 : ∑ k : G, p k * Z p k = 0 := by
-          rw [← expenditure_eq_sum]
-          exact hWZ hp_pos
+        have hw0 : ∑ k : G, p k * Z p k = 0 := expenditure_eq_sum p (Z p) ▸ hWZ hp_pos
         calc
           ∑ k : G, p k * (Z p k + (1 + η)) =
               (∑ k : G, p k * Z p k) + (∑ k : G, p k) * (1 + η) := by
@@ -972,9 +963,8 @@ theorem expenditure_phantomExcessDemand_ge_delta [Nonempty G]
       exact cobbDouglasDemand_mem_demandSet (fun _ => by positivity) sum_uniformWeight
         hpHat_pos (expenditure_nonneg (fun g => (hpHat_pos g).le) fun _ => hη0.le)
     · rw [ExchangeMarket.mem_demandSet, ExchangeMarket.withPhantomTrader_utility_some,
-        ExchangeMarket.income_eq]
-      have hmem := (E.mem_demandSet).1 (hd hpHat_pos i)
-      rwa [E.income_eq] at hmem
+        ExchangeMarket.income_eq, ExchangeMarket.withPhantomTrader_endowment_some, ← E.income_eq]
+      exact (E.mem_demandSet).1 (hd hpHat_pos i)
   -- Contrapositive of Exercise 6.5 gives a pair of goods violating `(1 + ε / 3)`.
   have hspread : ∃ j l : G, (1 + ε / 3) * (p l / pHat l) < p j / pHat j := by
     by_contra hall
@@ -1035,9 +1025,9 @@ theorem expenditure_phantomExcessDemand_ge_delta [Nonempty G]
     have hdiv_le : α s / α s' ≤ 1 / (1 + ε / (6 * (n : ℝ))) := by
       rw [div_le_div_iff₀ hαs'_pos (by positivity), one_mul]; linarith
     have h6n_le_2 : 1 + ε / (6 * (n : ℝ)) ≤ 2 := by
-      have : (1 : ℝ) ≤ n := by exact_mod_cast hn_pos
-      have hdiv1 : ε / (6 * (n : ℝ)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
-      linarith
+      have : (1 : ℝ) ≤ n := Nat.one_le_cast.2 hn_pos
+      have h6n_pos : (0 : ℝ) < 6 * n := by positivity
+      linarith [(div_le_one h6n_pos).2 (by linarith : ε ≤ 6 * n)]
     calc ε / (12 * (n : ℝ))
         = (ε / (6 * (n : ℝ))) / 2 := by ring
       _ ≤ (ε / (6 * (n : ℝ))) / (1 + ε / (6 * (n : ℝ))) :=
@@ -1160,9 +1150,7 @@ theorem sum_sq_phantomExcessDemand_le [Nonempty G] {Z' : (G → ℝ) → G → �
       rw [mul_sum]
       exact sum_le_sum fun g _ => mul_le_mul_of_nonneg_right (hgMin g (mem_univ g)) (hX_pos g)
     have hwal : ∑ g : G, p g * X g = ∑ g : G, p g * (1 + η) := by
-      have hw0 : ∑ g : G, p g * Z p g = 0 := by
-        rw [← expenditure_eq_sum]
-        exact hWZ hp_pos
+      have hw0 : ∑ g : G, p g * Z p g = 0 := expenditure_eq_sum p (Z p) ▸ hWZ hp_pos
       calc ∑ g : G, p g * X g
           = (∑ g : G, p g * Z p g) + ∑ g : G, p g * (1 + η) := by
             simp only [X, mul_add, sum_add_distrib]
@@ -1276,8 +1264,7 @@ theorem exists_le_tatonnementIter_sep_lt [Nonempty G] {Z : (G → ℝ) → G →
   have hL_pos : 0 < L := by dsimp only [L]; rw [tatonnementBoundL_eq]; positivity
   set μ := tatonnementMu n η δ
   have hμ_pos : 0 < μ := by
-    dsimp only [μ]
-    rw [tatonnementMu_eq]
+    simp only [μ, tatonnementMu_eq]
     exact lt_min (by positivity) (by positivity)
   let pot : (G → ℝ) → ℝ := fun p => ∑ g : G, (pStar g - p g) ^ 2
   -- Step decrease lemma: if `p ∉ Δ⁺` or `δ ≤ expenditure pStar (Z p)`, `pot` drops by `≥ μ`.

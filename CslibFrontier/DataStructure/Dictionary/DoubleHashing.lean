@@ -350,8 +350,7 @@ private theorem extRank_blocker_spec {U m : ℕ} {π : Fin U → Equiv.Perm (Fin
   have hmem_eq {z : Fin U} (hz : z ∈ Dictionary.dom s) : extRank s rank u z = rank z := by
     unfold extRank
     split_ifs with hu
-    · rfl
-    · exact Function.update_of_ne (fun h : z = u => hu (h ▸ hz)) _ _
+    exacts [rfl, Function.update_of_ne (fun h : z = u => hu (h ▸ hz)) _ _]
   by_cases hx_dom : x ∈ Dictionary.dom s
   · obtain ⟨y, hy, vy, hT, hlt⟩ := hrank x hx_dom i hi
     exact ⟨y, hy, vy, hT, by rwa [hmem_eq (Finset.mem_erase.mp hy).2, hmem_eq hx_dom]⟩
@@ -911,10 +910,9 @@ private theorem rawQueue_spec {U m : ℕ} (hm : 0 < m)
       refine ⟨fun j hj => ?_, ?_⟩
       · simp only [rawQueue, List.toFinset_append, Finset.mem_union, List.mem_toFinset,
           List.mem_filter] at hj
-        obtain hj_c | ⟨hj_new, -⟩ := hj
-        · exact hsub_c (List.mem_toFinset.mpr hj_c)
-        · obtain ⟨y, hy_dir, rfl⟩ := (hpref _ hxc_W j).mp hj_new
-          exact Finset.mem_image_of_mem _ (hdirW _ hxc_W hy_dir)
+        refine hj.elim (fun hj_c => hsub_c (List.mem_toFinset.mpr hj_c)) fun ⟨hj_new, _⟩ => ?_
+        obtain ⟨y, hy_dir, rfl⟩ := (hpref _ hxc_W j).mp hj_new
+        exact Finset.mem_image_of_mem _ (hdirW _ hxc_W hy_dir)
       -- Otherwise every enqueued slot has been expanded, so the keys landing in the queue are
       -- closed under direct blockers and contain all of `W`, which is larger than the queue.
       by_contra hlt_succ
@@ -938,9 +936,8 @@ private theorem rawQueue_spec {U m : ℕ} (hm : 0 < m)
           (rawQueue_prefix hm T π x₀ r₀ (b := c + 1) (by omega)).subset
             (mem_rawQueue_succ_of_mem_probePrefix hm T π x₀ r₀ a
               (hkey_a ▸ (hpref z hzW _).mpr ⟨y, hy_dir, rfl⟩))⟩
-      have hW_sub_C : W ⊆ C := fun w hw => by
-        obtain ⟨y, hy_dir, hwy⟩ := Finset.mem_biUnion.mp hw
-        exact depSet_subset_of_directBlockers_closed T π r_ext hclosed_C (hdir0_C hy_dir) hwy
+      have hW_sub_C : W ⊆ C := Finset.biUnion_subset.mpr fun y hy_dir =>
+        depSet_subset_of_directBlockers_closed T π r_ext hclosed_C (hdir0_C hy_dir)
       have hcard := (Finset.card_le_card_of_injOn (landingSlot hm T π)
         (fun y hy => List.mem_toFinset.mpr (Finset.mem_filter.mp (hW_sub_C hy)).2)
         ((landingSlot_injOn_dom hm hrep).mono hW_dom)).trans (List.toFinset_card_le q')
@@ -1375,8 +1372,7 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
       have hlt : degPrefSum w f b.val < 2 * w := by have := b.isLt; dsimp only [degPrefSum]; omega
       simp only [g, hlt, ↓reduceDIte]
     have hg_mono : ∀ f ∈ degSeqFinset w, StrictMono (g f) := fun f hf b₁ b₂ hb => by
-      rw [Fin.lt_def] at hb ⊢
-      rw [hg f hf, hg f hf]
+      rw [Fin.lt_def, hg f hf, hg f hf]
       have := Finset.sum_le_sum_of_subset (f := fun a : Fin (w + 1) => (f a).val)
         (Finset.monotone_filter_right Finset.univ fun a _ (h : a.val ≤ b₁.val) => h.trans hb.le)
       dsimp only [degPrefSum]
@@ -1681,11 +1677,9 @@ theorem sum_probeCount_oddStride_of_whp_kWiseIndependent
           (oddStridePerm (H₁ top₁ bot.1) (H₂ top₂ bot.2) u)) ≤
         (2 + b₁ top₁ + b₂ top₂) * B_card := by
     by_cases h : Good₁ top₁ ∧ Good₂ top₂
-    · have hgood := sum_probeCount_oddStride_le_of_kWiseIndependent
+    · simpa [b₁, b₂, h.1, h.2, B_card] using sum_probeCount_oddStride_le_of_kWiseIndependent
         (hk₁ top₁ h.1) (hk₂ top₂ h.2) hM hload hw4
-        (T := fun bot : Θ_bot₁ × Θ_bot₂ => T ((top₁, bot.1), (top₂, bot.2)))
         (fun bot => hrep ((top₁, bot.1), (top₂, bot.2))) hdom u
-      simpa [b₁, b₂, h.1, h.2, B_card] using hgood
     · -- Deterministic fallback for a bad top seed: every probe count is at most `n_max + 1`.
       calc _ ≤ ∑ _bot : Θ_bot₁ × Θ_bot₂, (n_max + 1) :=
             Finset.sum_le_sum fun bot _ =>
@@ -1839,8 +1833,7 @@ theorem sum_probeCount_oddStride_doubleTab_le
   let b := (1 + Nat.clog 2 (max n_max 4)) / 2
   have hc1 : 1 ≤ c := by omega
   have hM : 1 ≤ M := by grind
-  obtain ⟨hU_cb, hb_ge, hmax_le_2b⟩ : U ≤ 2 ^ (c * b) ∧ doubleTabMinB c_exp ≤ b ∧
-      max n_max 4 ≤ 2 ^ (2 * b) := doubleTab_canonical_params hge hU
+  obtain ⟨hU_cb, hb_ge, hmax_le_2b⟩ := doubleTab_canonical_params hge hU
   have hb_min_def : doubleTabMinB c_exp = 4 * (24 * c + 8) ^ 2 := doubleTabMinB_eq c_exp
   have hb_64 : 64 ≤ b := ((by decide : 64 ≤ 4 * 8 ^ 2).trans
     (Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left (by omega) 2))).trans (hb_min_def ▸ hb_ge)
@@ -1900,11 +1893,8 @@ theorem expect_probeCount_oddStride_unconditional_le
         (probeCount (T θ) u (doubleHashOddStridePerm c_exp n_max U M θ u) : ℝ≥0∞)) ≤
       max (doubleTabThreshold c_exp : ℝ≥0∞) 3 := by
   by_cases hge : doubleTabThreshold c_exp ≤ n_max
-  · exact (expect_probeCount_oddStride_doubleTab_le hge hU hm hrep hdom u).trans
-      (le_max_right _ 3)
-  · have hle : (n_max + 1 : ℝ≥0∞) ≤ (doubleTabThreshold c_exp : ℝ≥0∞) :=
-      mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp)
-    exact ((expect_probeCount_le_add_one (fun θ => (hrep θ).toTableRep) hdom u).trans hle).trans
-      (le_max_left _ 3)
+  · exact (expect_probeCount_oddStride_doubleTab_le hge hU hm hrep hdom u).trans (le_max_right _ 3)
+  · exact ((expect_probeCount_le_add_one (fun θ => (hrep θ).toTableRep) hdom u).trans
+      (mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp))).trans (le_max_left _ 3)
 
 end Cslib.DataStructure.Dictionary.DoubleHashing

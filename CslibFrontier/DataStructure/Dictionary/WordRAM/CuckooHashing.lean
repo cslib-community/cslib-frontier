@@ -238,14 +238,11 @@ private theorem opCode_execCodeDist {w base c_exp n_max U V : ℕ}
       wram_rand_exec [h2]
       wram_rand_call he_g
       exact ⟨rfl, by norm_cast; omega⟩
-    · simp only [stepKeys, hθ_surv, ↓reduceIte, PMF.map, PMF.pure_bind, Function.comp_apply,
-        hy_seed]
-      rfl
+    · simp only [stepKeys, hθ_surv, ↓reduceIte, PMF.pure_map, hy_seed, Data.set, θ_mem]
     · intro z hz
-      rw [PMF.mem_support_pure_iff] at hz
-      subst hz
-      refine ⟨?_, hy_rep, hy_mod⟩
-      simp [decode, Dictionary.spec, hy_2, decodeOptionNat_encodeOptionNat]
+      obtain rfl := (PMF.mem_support_pure_iff ..).mp hz
+      exact ⟨by simp [decode, Dictionary.spec, hy_2, decodeOptionNat_encodeOptionNat],
+        hy_rep, hy_mod⟩
   | insert u v =>
     obtain ⟨h2, h3, h4⟩ := harg
     obtain ⟨μ_ins, hE', hins_dist, hins_law, hins_supp⟩ :=
@@ -481,8 +478,7 @@ private theorem opCode_coupled_step_spec {w base c_exp n_max U V : ℕ}
       simpa only [μ_raw, hp, and_self, ↓reduceDIte] using
         hex.mono (opSeedSteps_le_stepWorstCharge _ _ _ _ _ _ _)
     · intro q hq
-      rw [PMF.mem_support_map_iff] at hq
-      obtain ⟨y, hy, rfl⟩ := hq
+      obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq
       obtain ⟨hdec, hrep', hmod⟩ :=
         hpost y (by simpa only [μ_raw, hp, and_self, ↓reduceDIte] using hy)
       exact ⟨hdec, hrep'.toRep, hmod⟩
@@ -766,8 +762,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
   | nil =>
     obtain ⟨p₀, hp₀⟩ := ν.support_nonempty
     have hrep₀ := (hsupp p₀ hp₀).2
-    have hcard := (survivingSeeds_card_and_nonempty (c_exp := c_exp) (U := U) (n_max := n_max)
-      hfam.rehash_prob_le_half hrep₀.2.2.2.2.1.1 hrep₀.2.2.2.2.1.2.1).1
+    have hcard := (survivingSeeds_card_and_nonempty hfam.rehash_prob_le_half
+      hrep₀.2.2.2.2.1.1 hrep₀.2.2.2.2.1.2.1).1
     exact ⟨ν, 0, Randomized.StateTransitionImpl.ExecStepsOfFn.nil (C := C) s ν,
       fun θ => hseed ▸ uniformOfFinset_le_two_mul_uniformOfFintype hE hcard θ,
       fun p hp => (hsupp p hp).2.toRep, by simp⟩
@@ -778,10 +774,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
     have hnodup : ks.Nodup := hrep₀.2.2.2.2.1.1
     have hlen_le : ks.length ≤ n_max := hrep₀.2.2.2.2.1.2.1
     have hdom : ∀ x, x ∈ ks ↔ x ∈ Dictionary.dom s := hrep₀.2.2.2.2.1.2.2.2.1
-    have hcard : Fintype.card (Seed c_exp n_max U (tableBits n_max)) ≤
-        2 * (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ks).card :=
-      (survivingSeeds_card_and_nonempty (c_exp := c_exp) (U := U) (n_max := n_max)
-        hfam.rehash_prob_le_half hnodup hlen_le).1
+    have hcard :=
+      (survivingSeeds_card_and_nonempty hfam.rehash_prob_le_half hnodup hlen_le).1
     have hseed_le : ∀ θ, (ν.map Prod.fst) θ ≤ 2 * seedLaw c_exp n_max U (tableBits n_max) θ :=
       fun θ => hseed ▸ uniformOfFinset_le_two_mul_uniformOfFintype hE hcard θ
     have hprep_ok : ∀ p ∈ ν.support,
@@ -869,8 +863,7 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
         q.1 = extractSeed (hashBase base) c_exp n_max U (tableBits n_max) q.2.mem ∧
         RepWithKeys w base c_exp n_max U V (stepKeys ks o)
           ((Dictionary.spec U V n_max).stepFn s o).1 q.2 := fun q hq => by
-      rw [PMF.mem_support_bind_iff] at hq
-      obtain ⟨p, hp, hq_step⟩ := hq
+      obtain ⟨p, hp, hq_step⟩ := (PMF.mem_support_bind_iff ..).mp hq
       exact ⟨((hstep_spec p hp).2.2 q hq_step).2.1, ((hstep_spec p hp).2.2 q hq_step).2.2.1⟩
     obtain ⟨ν_final, T_rest, hex_rest, hseed_final, hrep_final, hamort_rest⟩ :=
       ih ν₁ hvos hE' hseed₁ hsupp₁
@@ -885,13 +878,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
         (∑' p, ν p * T_step p) ≤ (expectedOpCharge c_exp s o : ℝ≥0∞) := by
       have hstep_ch :
           (∑' p, ν p * T_step p) ≤ (charge c_exp n_max U 3 4 s o : ℝ≥0∞) := by
-        have hmap_lhs :
-            (∑' p : Seed c_exp n_max U (tableBits n_max) × Data 19, ν p * T_step p) =
-              ∑' θ : Seed c_exp n_max U (tableBits n_max),
-                (ν.map Prod.fst) θ * opSeedSteps c_exp n_max U ks θ s o :=
-          (Cslib.Probability.PMF.tsum_map_mul ν Prod.fst
-            (fun θ => opSeedSteps c_exp n_max U ks θ s o)).symm
-        rw [hmap_lhs]
+        rw [← Cslib.Probability.PMF.tsum_map_mul ν Prod.fst
+          (fun θ => opSeedSteps c_exp n_max U ks θ s o)]
         cases o with
         | query u =>
           dsimp only [opSeedSteps, charge]
@@ -959,10 +947,9 @@ theorem cuckoo_seq_expected_amortized (w base c_exp n_max U V : ℕ)
   obtain ⟨x₁, ⟨t_span, ht_span, he_span⟩, hm₁, hb₁, hfr₁, h3₁, h4₁⟩ :=
     allocSpan_execWithin hfr h3 h4 hfit_end hfit_ev
   have hx₁_bdd : x₁.Bounded w := he_span.bounded hx
-  have hz₁ : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, x₁.mem a = 0 := by
-    intro a ha; rw [hm₁]; exact hz a ha
   obtain ⟨ν₀, hdist_setup, hseed_setup, hsupp_setup⟩ :=
-    initSetup_spec (V := V) hx₁_bdd hb₁ hfr₁ h3₁ h4₁ hz₁ hfit_ev hfit_U hfit_q
+    initSetup_spec (V := V) hx₁_bdd hb₁ hfr₁ h3₁ h4₁ (fun a ha => hm₁ ▸ hz a ha)
+      hfit_ev hfit_U hfit_q
   have he_init :
       ExecCodeDist w (cuckooCode c_exp n_max).initFresh x (ν₀.map Prod.snd) C.initTime :=
     ((ExecCodeDist.of_exec he_span).seq_pure hdist_setup).mono

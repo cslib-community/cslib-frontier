@@ -306,11 +306,9 @@ private theorem greedyAllocatedBefore_mono (cap : Fin T → ℕ) (θ : ι → Ag
   induction h with
   | refl => exact Finset.Subset.rfl
   | @step m _ ih =>
-    refine ih.trans ?_
     simp only [greedyAllocatedBefore]
     split_ifs
-    · exact Finset.subset_union_left
-    · exact Finset.Subset.rfl
+    exacts [ih.trans Finset.subset_union_left, ih]
 
 private theorem greedyWinnersAt_disjoint_before (cap : Fin T → ℕ) (θ : ι → AgentType (Fin T))
     (t : Fin T) {i : ι} (hi : i ∈ greedyWinnersAt cap θ t) :
@@ -344,12 +342,10 @@ private theorem mem_greedyAllocatedBefore_iff (cap : Fin T → ℕ) (θ : ι →
     simp only [greedyAllocatedBefore]
     split_ifs with hk
     · rw [Finset.mem_union, ih]
-      constructor
+      refine ⟨?_, fun ⟨t, hlt, ht⟩ => ?_⟩
       · rintro (⟨t, hlt, ht⟩ | hnow)
-        · exact ⟨t, by omega, ht⟩
-        · exact ⟨⟨k, hk⟩, Nat.lt_succ_self k, hnow⟩
-      · rintro ⟨t, hlt, ht⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
+        exacts [⟨t, by omega, ht⟩, ⟨⟨k, hk⟩, Nat.lt_succ_self k, hnow⟩]
+      · rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
         exacts [Or.inl ⟨t, hlt', ht⟩, Or.inr ht]
     · rw [ih]
       exact exists_congr fun t => and_congr_left fun _ => by omega
@@ -459,12 +455,10 @@ theorem greedyPolicy_isCausal (cap : Fin T → ℕ) : (greedyPolicy (ι := ι) c
   | zero => intro _ _ _; rfl
   | succ k ih =>
     intro θ θ' hagree
-    have hprev : greedyAllocatedBefore cap θ k = greedyAllocatedBefore cap θ' k :=
-      ih θ θ' fun j hj => hagree j (hj.imp Nat.lt_succ_of_lt Nat.lt_succ_of_lt)
+    have hprev := ih θ θ' fun j hj => hagree j (hj.imp Nat.lt_succ_of_lt Nat.lt_succ_of_lt)
     by_cases hk : k < T
-    · change greedyAllocatedBefore cap θ ((⟨k, hk⟩ : Fin T).val + 1) =
-        greedyAllocatedBefore cap θ' ((⟨k, hk⟩ : Fin T).val + 1)
-      rw [greedyAllocatedBefore_succ_eq, greedyAllocatedBefore_succ_eq, hprev,
+    · rw [greedyAllocatedBefore_succ_eq cap θ ⟨k, hk⟩,
+        greedyAllocatedBefore_succ_eq cap θ' ⟨k, hk⟩, hprev,
         greedyWinnersAt_eq_of_agree cap ⟨k, hk⟩ hprev
           fun j hj => hagree j (hj.imp Nat.lt_succ_of_le Nat.lt_succ_of_le)]
     · simp only [greedyAllocatedBefore, hk, ↓reduceDIte, hprev]
@@ -492,41 +486,32 @@ theorem greedyPolicy_isMonotone (cap : Fin T → ℕ) : (greedyPolicy (ι := ι)
       intro hks
       have hlt : k < tstar.val := Nat.lt_of_succ_le hks
       have hkT : k < T := lt_trans hlt tstar.isLt
-      have hprev : greedyAllocatedBefore cap θ'₁ k = greedyAllocatedBefore cap θ'₂ k :=
-        ih (le_of_lt hlt)
+      have hprev := ih (le_of_lt hlt)
       set tk : Fin T := ⟨k, hkT⟩
       have hni₁ : i ∉ greedyWinnersAt cap θ'₁ tk := fun hmem =>
         ne_of_lt hlt (congrArg Fin.val (greedyWinnersAt_unique cap θ'₁ hmem htstar))
-      have hni₂ : i ∉ greedyWinnersAt cap θ'₂ tk := hno₂ tk
+      have herase :
+          (Finset.univ.filter fun j =>
+            j ∉ greedyAllocatedBefore cap θ'₁ k ∧ (θ'₁ j).InWindow tk).erase i =
+          (Finset.univ.filter fun j =>
+            j ∉ greedyAllocatedBefore cap θ'₂ k ∧ (θ'₂ j).InWindow tk).erase i := by
+        rw [← Finset.filter_erase, ← Finset.filter_erase]
+        exact Finset.filter_congr fun j hj => by
+          simp only [hprev, θ'₁, θ'₂, Function.update_of_ne (Finset.mem_erase.mp hj).1]
       have hwin_eq : greedyWinnersAt cap θ'₁ tk = greedyWinnersAt cap θ'₂ tk := by
         unfold greedyWinnersAt
-        rw [topK_eq_erase_of_not_mem hni₁, topK_eq_erase_of_not_mem hni₂]
-        have herase :
-            (Finset.univ.filter fun j =>
-              j ∉ greedyAllocatedBefore cap θ'₁ k ∧ (θ'₁ j).InWindow tk).erase i =
-            (Finset.univ.filter fun j =>
-              j ∉ greedyAllocatedBefore cap θ'₂ k ∧ (θ'₂ j).InWindow tk).erase i := by
-          ext j
-          simp only [Finset.mem_erase, Finset.mem_filter, Finset.mem_univ, true_and, hprev]
-          exact and_congr_right fun hne => by simp only [θ'₁, θ'₂, Function.update_of_ne hne]
-        rw [herase]
+        rw [topK_eq_erase_of_not_mem hni₁, topK_eq_erase_of_not_mem (hno₂ tk), herase]
         exact topK_congr fun j hj => by
           simp only [θ'₁, θ'₂, Function.update_of_ne (Finset.mem_erase.mp hj).1]
       rw [greedyAllocatedBefore_succ_eq cap θ'₁ tk, greedyAllocatedBefore_succ_eq cap θ'₂ tk,
         hprev, hwin_eq]
   have hprev_star := hprev_eq tstar.val le_rfl
-  have hi_not_prev₁ : i ∉ greedyAllocatedBefore cap θ'₁ tstar.val :=
-    greedyWinnersAt_disjoint_before cap θ'₁ tstar htstar
-  have hi_not_prev₂ : i ∉ greedyAllocatedBefore cap θ'₂ tstar.val := hprev_star ▸ hi_not_prev₁
+  have hi_not_prev₂ : i ∉ greedyAllocatedBefore cap θ'₂ tstar.val :=
+    hprev_star ▸ greedyWinnersAt_disjoint_before cap θ'₁ tstar htstar
   have hi_in_win₁ : θ₁.InWindow tstar := by
     simpa only [θ'₁, Function.update_self] using greedyWinnersAt_inWindow cap θ'₁ tstar htstar
   have hi_in_win₂ : (θ'₂ i).InWindow tstar := by
     simpa only [θ'₂, Function.update_self] using ⟨ha.trans hi_in_win₁.1, hi_in_win₁.2.trans hd⟩
-  have hrank₁ :
-      rankIn θ'₁
-        (Finset.univ.filter fun j =>
-          j ∉ greedyAllocatedBefore cap θ'₁ tstar.val ∧ (θ'₁ j).InWindow tstar) i < cap tstar :=
-    (Finset.mem_filter.mp htstar).2
   have hrank₂_le :
       rankIn θ'₂
         (Finset.univ.filter fun j =>
@@ -545,10 +530,9 @@ theorem greedyPolicy_isMonotone (cap : Fin T → ℕ) : (greedyPolicy (ι := ι)
     · have hle := value_le_of_beats hbj
       simp only [Beats, θ'₁, θ'₂, Function.update_self, Function.update_of_ne hne] at hle ⊢
       exact Or.inl (hv.trans_le hle)
-  have hi_wins₂ : i ∈ greedyWinnersAt cap θ'₂ tstar :=
-    Finset.mem_filter.mpr ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi_not_prev₂, hi_in_win₂⟩,
-      lt_of_le_of_lt hrank₂_le hrank₁⟩
-  exact hno₂ tstar hi_wins₂
+  exact hno₂ tstar (Finset.mem_filter.mpr
+    ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi_not_prev₂, hi_in_win₂⟩,
+      hrank₂_le.trans_lt (Finset.mem_filter.mp htstar).2⟩)
 
 /-- The Lavi–Nisan / Parkes greedy expiring-items mechanism (`Auction 2`): `greedyPolicy` paired
 with its online critical-value payments
@@ -968,10 +952,8 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
   let θBase : Fin (2 * m + 1) → AgentType (Fin (m + 1)) := fun j =>
     if j.val = 0 then pointType 0 1 (by norm_num)
     else pointType (periodOf j) 0 le_rfl
-  have hStar0 : θStar 0 = pointType 0 1 (by norm_num) := by
-    simp only [θStar, Fin.val_zero, ↓reduceIte]
-  have hBase0 : θBase 0 = pointType 0 1 (by norm_num) := by
-    simp only [θBase, Fin.val_zero, ↓reduceIte]
+  have hStar0 : θStar 0 = pointType 0 1 (by norm_num) := rfl
+  have hBase0 : θBase 0 = pointType 0 1 (by norm_num) := rfl
   have hBase : ∀ x, x ≠ 0 → θBase x = pointType (periodOf x) 0 le_rfl := fun x hx => by
     simp only [θBase, show x.val ≠ 0 from fun h => hx (Fin.ext h), ↓reduceIte]
   have hStar_arr : ∀ x, x ≠ 0 → (θStar x).arrival = periodOf x := fun x hx => by
@@ -1019,8 +1001,7 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
       refine le_sInf fun w hw => ?_
       obtain ⟨z, hz, rfl, hwin_z⟩ := hw
       apply ENNReal.ofReal_le_ofReal
-      by_contra hlt
-      push Not at hlt
+      by_contra! hlt
       have hwin0 := (hpoint θStar 0 z hz).resolve_left (Option.isSome_iff_ne_none.mp hwin_z)
       set θz := Function.update θBase i (pointType 0 z hz)
       have hwin_θz : M.policy.alloc θz i = some 0 := (hcausal 0 _ θz (hagreeSB _) i).mp hwin0
@@ -1127,13 +1108,9 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
               have ht_le : t.val ≤ r := Nat.lt_succ_iff.mp ht_lt
               have hagree : ∀ x, (θr x).arrival ≤ t ∨ (θnext x).arrival ≤ t → θr x = θnext x := by
                 intro x hx
-                by_cases hxbr : x = br
-                · subst hxbr
-                  have h1 : (θr br).arrival = ⟨r + 1, by omega⟩ :=
-                    (hθr_rest br hbr_ne0 hbr_nei).1.trans hbr_per
-                  have h2 : (θnext br).arrival = ⟨r + 1, by omega⟩ := by
-                    simp only [θnext, Function.update_self, pointType]
-                  rw [h1, h2, or_self] at hx
+                rcases eq_or_ne x br with rfl | hxbr
+                · rw [(hθr_rest br hbr_ne0 hbr_nei).1, hbr_per] at hx
+                  simp only [θnext, Function.update_self, pointType, or_self] at hx
                   exact absurd hx (not_le_of_gt (Nat.lt_succ_of_le ht_le))
                 · simp only [θnext, Function.update_of_ne hxbr]
               exact fun hwin => hθr_no t ht_le ((hcausal t θr θnext hagree i).mpr hwin)

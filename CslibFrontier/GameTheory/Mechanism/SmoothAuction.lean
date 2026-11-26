@@ -188,9 +188,8 @@ theorem expected_utility_ge_of_cce [DecidableEq ι] {M : Mechanism ι}
     (hσ : (M.toCostGame v).IsCoarseCorrelatedEquilibrium σ) (i : ι) (z : ℝ≥0) :
     σ.weights.sum (fun b w => w * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ))) ≤
       σ.weights.sum (fun b w => w * M.utility i (v i) (fun j => (b j : ℝ))) := by
-  have h := hσ i z
   simpa only [toCostGame, mul_neg, Finsupp.sum, sum_neg_distrib, neg_le_neg_iff,
-    coe_update_nnreal] using h
+    coe_update_nnreal] using hσ i z
 
 private theorem div_max_one_mul_le {lam μ W U P E : ℝ} (hsm : lam * W - μ * P ≤ U)
     (hU : 0 ≤ U) (hP : 0 ≤ P) (hwel : E = U + P) : lam / max 1 μ * W ≤ E := by
@@ -291,9 +290,8 @@ theorem IsSmoothMechanism.welfare_ge_of_isPureNash {X : Set (ι → ℝ)}
     (hpay : ∀ b : ι → ℝ, 0 ≤ b → 0 ≤ ∑ i, M.payment b i) {v : ι → ℝ} (hv : 0 ≤ v)
     {x : ι → ℝ} (hx : x ∈ X) {b : ι → ℝ≥0} (hb : (M.toCostGame v).IsPureNash b) :
     lam / max 1 μ * socialWelfare v x ≤ M.welfare v (fun j => (b j : ℝ)) := by
-  have h := hM.welfare_ge h0 hpay hv hx hb.isCoarseCorrelatedEquilibrium
   simpa only [Convexity.StdSimplex.weights_single, Finsupp.sum_single_index, zero_mul,
-    one_mul] using h
+    one_mul] using hM.welfare_ge h0 hpay hv hx hb.isCoarseCorrelatedEquilibrium
 
 end CompleteInfo
 
@@ -490,10 +488,9 @@ variable {ι : Type*} [LinearOrder ι] [Fintype ι]
 omit [Fintype ι] in
 theorem hasZeroBidFloor : (FirstPrice.mechanism (ι := ι)).HasZeroBidFloor := by
   intro i b _
-  refine ⟨?_, ?_⟩
-  · rw [FirstPrice.mechanism_allocation]
-    exact vickrey_allocation_nonneg (update b i 0) i
-  · simp only [FirstPrice.mechanism, update_self, zero_mul, le_refl]
+  exact ⟨by simpa only [FirstPrice.mechanism_allocation] using
+      vickrey_allocation_nonneg (update b i 0) i,
+    by simp only [FirstPrice.mechanism, update_self, zero_mul, le_refl]⟩
 
 theorem sum_payment_nonneg {b : ι → ℝ} (hb : 0 ≤ b) :
     0 ≤ ∑ i, FirstPrice.mechanism.payment b i :=
@@ -578,11 +575,9 @@ theorem singleItemFeasible_cases {x : ι → ℝ}
   classical
   by_cases hall : ∀ i, x i = 0
   · exact .inl hall
-  · push Not at hall
-    obtain ⟨i, hi0⟩ := hall
+  · obtain ⟨i, hi0⟩ := not_forall.1 hall
     have hi1 : x i = 1 := (hx.1 i).resolve_left hi0
-    refine .inr ⟨i, hi1, fun j hj => ?_⟩
-    by_contra hj0
+    refine .inr ⟨i, hi1, fun j hj => by_contra fun hj0 => ?_⟩
     have hge2 : ∑ k ∈ ({i, j} : Finset ι), x k ≤ ∑ k, x k :=
       sum_le_sum_of_subset_of_nonneg (subset_univ _) fun k _ _ => by
         rcases hx.1 k with h | h <;> simp [h]
@@ -648,16 +643,12 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
   set q : ℝ := Real.exp (-1 / (K : ℝ))
   have hK_pos : (0 : ℝ) < K := Nat.cast_pos.2 (by omega)
   have hq_pos : 0 < q := Real.exp_pos _
-  have hq_lt1 : q < 1 := by
-    rw [Real.exp_lt_one_iff, neg_div]
-    exact neg_neg_of_pos (by positivity)
+  have hq_lt1 : q < 1 := Real.exp_lt_one_iff.2 (div_neg_of_neg_of_pos neg_one_lt_zero hK_pos)
   have hqK : q ^ K = Real.exp (-1) := by
-    dsimp [q]
     rw [← Real.exp_nat_mul]
-    congr 1
-    field_simp
+    exact congrArg Real.exp (by field_simp)
   have h1q_le : 1 - q ≤ 1 / (K : ℝ) := by
-    dsimp [q]
+    dsimp only [q]
     rw [neg_div]
     linarith [Real.add_one_le_exp (-(1 / (K : ℝ)))]
   refine isSmoothMechanism_of_winner fun v hv i₀ => ?_
@@ -753,17 +744,18 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
 
 private theorem le_of_forall_exp_neg_inv_mul_le {A W : ℝ} (hW : 0 ≤ W)
     (hK : ∀ K : ℕ, 1 ≤ K → Real.exp (-1 / (K : ℝ)) * W ≤ A) : W ≤ A := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   have hW_pos : 0 < W := hW.lt_of_ne' fun h0 => by
     simpa [h0] using (hK 1 le_rfl).trans_lt hlt
   obtain ⟨K, hK_gt⟩ := exists_nat_gt (W / (W - A))
   have hKR : (0 : ℝ) < K := (div_pos hW_pos (sub_pos.2 hlt)).trans hK_gt
   have hexp_ge : 1 - 1 / (K : ℝ) ≤ Real.exp (-1 / (K : ℝ)) := by
-    rw [neg_div]; linarith [Real.add_one_le_exp (-(1 / (K : ℝ)))]
+    rw [neg_div]
+    linarith [Real.add_one_le_exp (-(1 / (K : ℝ)))]
   have hstep1 := (mul_le_mul_of_nonneg_right hexp_ge hW).trans (hK K (Nat.cast_pos.1 hKR))
   have hstep2 : W - A ≤ W / (K : ℝ) := by
-    linarith [show (1 - 1 / (K : ℝ)) * W = W - W / (K : ℝ) by ring]
+    have : (1 - 1 / (K : ℝ)) * W = W - W / (K : ℝ) := by ring
+    linarith
   linarith [(le_div_iff₀ hKR).1 hstep2, (div_lt_iff₀ (sub_pos.2 hlt)).1 hK_gt]
 
 omit [LinearOrder ι] in
@@ -847,9 +839,7 @@ theorem utility_truthful_ge (b : ι → ℝ) (i : ι) (v : ℝ) :
   by_cases hwin : Wins (update b i v) i
   · simp only [Mechanism.utility, Vickrey.mechanism, allocation_eq_one_iff.2 hwin, mul_one,
       highestOtherBid_update, le_refl]
-  · have hob : v ≤ highestOtherBid b i := by
-      by_contra hlt
-      exact hwin (wins_update_of_lt (lt_of_not_ge hlt))
+  · have hob : v ≤ highestOtherBid b i := not_lt.1 fun hlt => hwin (wins_update_of_lt hlt)
     simp only [Mechanism.utility, Vickrey.mechanism, allocation_eq_zero_iff.2 hwin, mul_zero,
       sub_self]
     linarith

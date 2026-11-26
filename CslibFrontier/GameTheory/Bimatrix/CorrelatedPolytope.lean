@@ -278,18 +278,14 @@ theorem isCorrelated_jointMatrix_iff (G : BimatrixGame M N)
       · rw [← hs, update_eq_self]
       · rfl
   rw [CostGame.isCorrelatedEquilibrium_iff]
-  constructor
+  refine ⟨?_, fun hce => ⟨hnn, hsum, fun i i' => ?_, fun j j' => ?_⟩⟩
   · rintro ⟨-, -, hrow, hcol⟩ (_ | _) ⟨a⟩ ⟨a'⟩
-    · rw [hself_eq false ⟨a⟩, hrow_sum a a, hrow_sum a a', neg_le_neg_iff]
-      exact hrow a a'
-    · rw [hself_eq true ⟨a⟩, hcol_sum a a, hcol_sum a a', neg_le_neg_iff]
-      exact hcol a a'
-  · intro hce
-    refine ⟨hnn, hsum, fun i i' => ?_, fun j j' => ?_⟩
-    · simpa only [hself_eq false ⟨i⟩, hrow_sum i i, hrow_sum i i', neg_le_neg_iff] using
-        hce false ⟨i⟩ ⟨i'⟩
-    · simpa only [hself_eq true ⟨j⟩, hcol_sum j j, hcol_sum j j', neg_le_neg_iff] using
-        hce true ⟨j⟩ ⟨j'⟩
+    · simpa only [hself_eq false ⟨a⟩, hrow_sum a a, hrow_sum a a', neg_le_neg_iff] using hrow a a'
+    · simpa only [hself_eq true ⟨a⟩, hcol_sum a a, hcol_sum a a', neg_le_neg_iff] using hcol a a'
+  · simpa only [hself_eq false ⟨i⟩, hrow_sum i i, hrow_sum i i', neg_le_neg_iff] using
+      hce false ⟨i⟩ ⟨i'⟩
+  · simpa only [hself_eq true ⟨j⟩, hcol_sum j j, hcol_sum j j', neg_le_neg_iff] using
+      hce true ⟨j⟩ ⟨j'⟩
 
 /-- **Polytope-level bridge to `G.toCostGame`**: `P` lies in `G.correlatedPolytope` iff
 `jointWeight P` belongs to the switching-function correlated-equilibrium polytope of `G.toCostGame`
@@ -560,10 +556,9 @@ theorem IsNondegenerate.eq_of_support_subset_of_isPureBestResponse₂ {G : Bimat
     (hcard : {j | G.IsPureBestResponse₂ x j}.ncard = (Function.support x).ncard)
     (hbr : ∀ j, G.IsPureBestResponse₂ x j → G.IsPureBestResponse₂ x' j) :
     x' = x := by
-  refine (isNondegenerate_swap.2 hG).eq_of_support_subset_of_isPureBestResponse₁ hx hx' hsupp ?_ ?_
-  · simpa only [isPureBestResponse₁_swap] using hcard
-  · intro j hj
-    exact isPureBestResponse₁_swap.2 (hbr j (isPureBestResponse₁_swap.1 hj))
+  refine (isNondegenerate_swap.2 hG).eq_of_support_subset_of_isPureBestResponse₁ hx hx' hsupp
+    (by simpa only [isPureBestResponse₁_swap] using hcard) fun j hj =>
+      isPureBestResponse₁_swap.2 (hbr j (isPureBestResponse₁_swap.1 hj))
 
 end NondegenerateSupport
 
@@ -866,12 +861,7 @@ private theorem chickenGame_ncard_pureBestResponse₁_le {y : Fin 2 → ℝ} (hy
 theorem chickenGame_isNondegenerate : chickenGame.IsNondegenerate := by
   refine isNondegenerate_iff.2
     ⟨fun x hx => ?_, fun _ hy => chickenGame_ncard_pureBestResponse₁_le hy⟩
-  have hswap : {j | chickenGame.IsPureBestResponse₂ x j} =
-      {j | chickenGame.IsPureBestResponse₁ x j} := by
-    ext j
-    rw [Set.mem_ofPred_eq, Set.mem_ofPred_eq, ← isPureBestResponse₁_swap,
-      chickenGame_isSymmetric.swap_eq]
-  rw [hswap]
+  simp_rw [← isPureBestResponse₁_swap, chickenGame_isSymmetric.swap_eq]
   exact chickenGame_ncard_pureBestResponse₁_le hx
 
 private theorem fin2_eq_pair (v : Fin 2 → ℝ) : v = ![v 0, v 1] :=
@@ -966,8 +956,8 @@ theorem chickenTrafficLight_ne_vecMulVec (x y : Fin 2 → ℝ) :
   have h10 : x 1 * y 0 = 1 / 2 := by
     simpa [vecMulVec_apply, chickenTrafficLight] using congrFun (congrFun h 1) 0
   rcases mul_eq_zero.1 h00 with hx0 | hy0
-  · rw [hx0, zero_mul] at h01; norm_num at h01
-  · rw [hy0, mul_zero] at h10; norm_num at h10
+  · norm_num [hx0] at h01
+  · norm_num [hy0] at h10
 
 /-- The social-welfare-optimal correlated equilibrium `C₂ = !![1 / 3, 1 / 3; 1 / 3, 0]` of
 [Papadimitriou2007], Section 2.7, p. 47 ("a traffic light that is red for both one third of the
@@ -1034,18 +1024,16 @@ theorem chickenOptimalCorrelated_mem_sdiff_convexHull_isNash :
     chickenOptimalCorrelated ∈ chickenGame.correlatedPolytope \
       convexHull ℝ {Q | ∃ x y, chickenGame.IsNash x y ∧ Matrix.vecMulVec x y = Q} := by
   refine ⟨chickenOptimalCorrelated_mem_correlatedPolytope, fun hmem => ?_⟩
-  have hle := chickenGame_socialWelfare_le_six_of_mem_convexHull_isNash hmem
-  rw [chickenGame_socialWelfare_optimalCorrelated] at hle
-  norm_num at hle
+  linarith [chickenGame_socialWelfare_le_six_of_mem_convexHull_isNash hmem,
+    chickenGame_socialWelfare_optimalCorrelated]
 
 /-- The social welfare of `chickenOptimalCorrelated` (`20 / 3`) strictly exceeds that of every
 convex combination of Nash equilibrium product distributions (`≤ 6`). -/
 theorem chickenOptimalCorrelated_socialWelfare_gt_convexHull_isNash {P : Matrix (Fin 2) (Fin 2) ℝ}
     (hP : P ∈ convexHull ℝ {Q | ∃ x y, chickenGame.IsNash x y ∧ Matrix.vecMulVec x y = Q}) :
     chickenGame.socialWelfare P < chickenGame.socialWelfare chickenOptimalCorrelated := by
-  have hle := chickenGame_socialWelfare_le_six_of_mem_convexHull_isNash hP
-  rw [chickenGame_socialWelfare_optimalCorrelated]
-  linarith
+  linarith [chickenGame_socialWelfare_le_six_of_mem_convexHull_isNash hP,
+    chickenGame_socialWelfare_optimalCorrelated]
 
 end ChickenSeparation
 
