@@ -8,11 +8,23 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingPowerSearch
 import CslibFrontier.Computability.Complexity.FineGrained.CountingNativeModelCount
+import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SparseCountingScale
 import CslibFrontier.Tactic.EncLen
 
 /-! Exercise the power-budget search on a native counter with a superpolynomial allowance
 and use the size-to-variable transfer for a counting lower bound. -/
+
+section
+
+open Cslib Cslib.Complexity Cslib.Logic.PL Turing.MultiTapeTM
+
+-- The decision hypothesis implies a square-root exponent lower bound for #3SAT in variables.
+example (h : SH) :
+    ¬ ComputableInPowerExpTime SharpThreeSAT encCNF encNat CNF.numVars (1 / 2) :=
+  (SharpSH_iff_WeakSharpETH.mp h.sharpSH) _ (by norm_num) (by norm_num)
+
+end
 
 public section
 

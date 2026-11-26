@@ -25,7 +25,7 @@ the encoded input, including the unary declared size, and the supplied leaf comp
 Its round factor uses the power saving from [MITHardnessGroup2026SH, Lemma 2.2, §2.2].
 A size-bounded counter therefore yields a counter with a fixed power saving in the
 occurring variable count after polynomial-time dense relabeling. The decision transfer and
-the variable-count hypothesis equivalences remain open in #8457.
+its variable-count equivalences remain open in #8457.
 
 ## Main results
 
@@ -386,7 +386,7 @@ A power saving in variables plus clauses yields a power saving in occurring vari
 
 Polynomial-time dense relabeling preserves clause width and model count. The polynomial factor
 charges the original encoded length, including large labels and repeated clauses. The decision
-transfer and the variable-count hypothesis equivalences remain open in #8457. -/
+transfer and its variable-count equivalences remain open in #8457. -/
 theorem ComputableInPowerExpTime.SharpKSAT_numVars_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
     (hp : 0 < p) (hp1 : p < 1)
     (h : ComputableInPowerExpTime (SharpKSAT k) encCNF encNat (fun φ => φ.numVars + φ.length) p) :
