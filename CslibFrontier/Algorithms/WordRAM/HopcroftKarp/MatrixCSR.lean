@@ -84,16 +84,15 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       CSRMem sInst bOff z.mem := by
   let sInst : SparseInstance := ⟨m, r, exactBipAdj G⟩
   have hE_le : sInst.numEdges ≤ m * r := bipAdjSteps_exactBipAdj_le G
-  obtain ⟨s₀, he₀, rfl⟩ : ∃ s₀, ExecWithin w
-      (ram[ bEdgesReg ← bOffReg + rm; bEdgesReg ← bEdgesReg + one;
-            rE ← #0; qHead ← #0; qTail ← #matBase ] : Code .standard 34) x s₀ 5 ∧
-      s₀ = ((((x.set bEdgesReg (bOff + m)).set bEdgesReg (bOff + m + 1)).set rE 0).set
-        qHead 0).set qTail matBase := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hbOff, hrm, h1]
-    rfl
   let s₀ := ((((x.set bEdgesReg (bOff + m)).set bEdgesReg (bOff + m + 1)).set rE 0).set
     qHead 0).set qTail matBase
+  have he₀ : ExecWithin w
+      (.seq (ram[ bEdgesReg ← bOffReg + rm ]) (.seq (ram[ bEdgesReg ← bEdgesReg + one ])
+        (.seq (ram[ rE ← #0 ]) (.seq (ram[ qHead ← #0 ]) (ram[ qTail ← #matBase ])))) :
+        Code .standard 34) x s₀ 5 := by
+    refine WP.execWithin ?_
+    wram_exec [hbOff, hrm, h1]
+    rfl
   let PR (uIdx : ℕ) (y : Data 34) : Prop :=
     uIdx ≤ m ∧
       (∀ i : Fin 34, i.val < 22 → i ≠ rE → y.regs i = s₀.regs i) ∧
@@ -130,15 +129,14 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       rw [hy_s0 one (by decide) (by decide)]; dsimp only [s₀]; wram_simp [h1]
     have hy_rr : y.regs rr = r := by
       rw [hy_s0 rr (by decide) (by decide)]; dsimp only [s₀]; wram_simp [hrr]
-    obtain ⟨y₁, he_pre_row, rfl⟩ : ∃ y₁, ExecWithin w
-        (ram[ addr ← bOffReg + qHead; *addr ← rE; idx ← #0 ] : Code .standard 34) y y₁ 3 ∧
-        y₁ = ((y.set addr (bOff + y.regs qHead)).write
-          (bOff + y.regs qHead) (sInst.offset u.val)).set idx 0 := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hy_bOff, hrE_y]
-      rfl
     let y₁ := ((y.set addr (bOff + y.regs qHead)).write
       (bOff + y.regs qHead) (sInst.offset u.val)).set idx 0
+    have he_pre_row : ExecWithin w
+        (.seq (ram[ addr ← bOffReg + qHead ])
+          (.seq (ram[ *addr ← rE ]) (ram[ idx ← #0 ])) : Code .standard 34) y y₁ 3 := by
+      refine WP.execWithin ?_
+      wram_exec [hy_bOff, hrE_y]
+      rfl
     let rowPre (t : ℕ) : List (Fin r) := ((List.finRange r).take t).filter fun v => G (u, v)
     have hrowPre_sub (t : ℕ) : (rowPre t).length ≤ (sInst.adj u).length :=
       (List.Sublist.filter _ (List.take_sublist t (List.finRange r))).length_le
@@ -230,12 +228,11 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       rw [hr_c2 qHead (by decide) (by decide) (by decide)]; dsimp only [y₁]; wram_simp
     have hy₂_one : y₂.regs one = 1 := by
       rw [hr_c2 one (by decide) (by decide) (by decide)]; dsimp only [y₁]; wram_simp [hy_one]
-    have hpost_row : ∃ z, ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34) y₂ z 1 ∧
-        z = y₂.set qHead (y.regs qHead + 1) := by
-      refine WP.exists_execWithin ?_
+    have he_post_row : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34) y₂
+        (y₂.set qHead (y.regs qHead + 1)) 1 := by
+      refine WP.execWithin ?_
       wram_exec [hy₂_qh, hy₂_one]
       rfl
-    obtain ⟨z, he_post_row, rfl⟩ := hpost_row
     refine ⟨_, (he_pre_row.seq (hl_col.seq he_post_row)).mono (by omega),
       ⟨by omega, fun i hi hne => ?_, ?_, ?_, fun u' hu' => ?_, fun u' hu' {i} hi => ?_,
         fun a ha => ?_⟩, by wram_simp⟩
@@ -285,20 +282,19 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
     (hs₀_reg bOffReg (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [hbOff])
   have hend_rm : y_end.regs rm = m :=
     (hs₀_reg rm (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [hrm])
-  obtain ⟨y_last, he_last, rfl⟩ : ∃ y_last, ExecWithin w
-      (ram[ addr ← bOffReg + rm; *addr ← rE ] : Code .standard 34) y_end y_last 2 ∧
-      y_last = (y_end.set addr (bOff + m)).write (bOff + m) (sInst.offset m) := by
-    refine WP.exists_execWithin ?_
+  let y_last := (y_end.set addr (bOff + m)).write (bOff + m) (sInst.offset m)
+  have he_last : ExecWithin w
+      (.seq (ram[ addr ← bOffReg + rm ]) (ram[ *addr ← rE ]) : Code .standard 34)
+      y_end y_last 2 := by
+    refine WP.execWithin ?_
     wram_exec [hend_bOff, hend_rm, hrE_m]
     rfl
-  let y_last := (y_end.set addr (bOff + m)).write (bOff + m) (sInst.offset m)
   have hlast_reg (i : Fin 34) (hi : i.val < 22) (hne : i ≠ rE) : y_last.regs i = s₀.regs i := by
     have : i ≠ addr := fun h => by subst h; simp at hi
     calc y_last.regs i = y_end.regs i := by dsimp only [y_last]; wram_simp
       _ = s₀.regs i := hs₀_reg i hi hne
-  have hfit_init : Fits w (bOff + 7 * sInst.m + 5 * sInst.r + sInst.numEdges + 8) := by
-    change Fits w (bOff + 7 * m + 5 * r + sInst.numEdges + 8)
-    exact hfit.of_le (by omega)
+  have hfit_init : Fits w (bOff + 7 * sInst.m + 5 * sInst.r + sInst.numEdges + 8) :=
+    hfit.of_le (Nat.add_le_add_right (Nat.add_le_add_left hE_le _) 8)
   obtain ⟨z, he_init, hbz, hmem_z⟩ := exec_initBaseRegsFromCSR sInst y_last
     ((hlast_reg zero (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [h0]))
     ((hlast_reg one (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [h1]))

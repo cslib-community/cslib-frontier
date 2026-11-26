@@ -754,6 +754,7 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
   have hc' : f.toState.core = f.core.toList := rfl
   have ht : f.toState.tcb = f.s.tcb := rfl
   have ho : f.toState.order = f.s.order := rfl
+  have mkWF {d c s} (hd : d.WF) (hc : c.WF) : (⟨d, c, s⟩ : FState).WF := ⟨hd, hc⟩
   have fallback (t) : Option.map FState.toState (Option.map FState.ofState
       (stepTop F obj f.toState t)) = stepTop F obj f.toState t := by
     simp [Option.map_map, Function.comp_def]
@@ -778,12 +779,9 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       rw [stepTop_step_of_ne_del _ _ _ (by simp)]
       simp only [stepTopFast, runStep, rupFast_eq hdb]
       rw [hs']
-      by_cases hr : rup f.db.toList c hs
-      · simp only [hr, ↓reduceIte, Option.map_some, Option.mem_def, Option.some.injEq,
-          forall_eq', normalizeFast_eq]
-        exact ⟨by simp [FState.toState, (DB.push_spec hf.db f.s.next _).2],
-          ⟨(DB.push_spec hf.db _ _).1, hf.core⟩⟩
-      · simp [hr]
+      by_cases hr : rup f.db.toList c hs <;>
+        simp [hr, FState.toState, (DB.push_spec hf.db f.s.next _).2,
+          mkWF (DB.push_spec hf.db _ _).1 hf.core]
     | del ids =>
       rw [stepTop_step_del]
       simp only [stepTopFast, runStep, nodupFast_eq, hdb, hcore, hs', hc', ht, ho,
@@ -793,8 +791,7 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       split
       · split
         · simp
-        · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
-          exact ⟨by simp [FState.toState, hl₁, hl₂], ⟨hw₁, hw₂⟩⟩
+        · simp [FState.toState, hl₁, hl₂, mkWF hw₁ hw₂]
       · simp
     | _ => exact ⟨fallback _, fallbackWF _⟩
   | deld ids =>
@@ -802,20 +799,14 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
     simp only [stepTopFast, nodupFast_eq, hdb, hcore, hs', hc',
       any_contains_eq_any_isSome_lookup]
     obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
-    split
-    · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
-      exact ⟨by simp [FState.toState, hl₁], ⟨hw₁, hf.core⟩⟩
-    · simp
+    split <;> simp [FState.toState, hl₁, mkWF hw₁ hf.core]
   | delc ids =>
     rw [stepTop_delc]
     simp only [stepTopFast, nodupFast_eq, hcore, hs', hc', ht, ho,
       any_fst_beq_eq_isSome_lookup]
     obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
     obtain ⟨hw₂, hl₂⟩ := DB.eraseAll_compact_spec hf.core ids
-    split
-    · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
-      exact ⟨by simp [FState.toState, hl₁, hl₂], ⟨hw₁, hw₂⟩⟩
-    · simp
+    split <;> simp [FState.toState, hl₁, hl₂, mkWF hw₁ hw₂]
   | _ => exact ⟨fallback _, fallbackWF _⟩
 
 /-- Run the top-level steps on the compiled state. -/

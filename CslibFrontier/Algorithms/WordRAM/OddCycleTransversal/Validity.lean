@@ -87,20 +87,17 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
   have hsq := splitCount_sq n
   unfold bfsProg
   dsimp only
-  have hfill : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (fillRange ((distBase n, splitCount n), splitCount n))) :=
-    validHistory_fillRange hs
+  refine validHistory_bind_ready hs
+    (validHistory_fillRange hs
       (by dsimp only [octWorkspace, distBase, flowBase, splitCount]; omega)
-      (by apply hw.of_le; dsimp only [octWorkspace, splitCount]; omega)
-  refine validHistory_bind_step hfill ?_
-  have hs1 := MonotoneMemInv.pres hs hfill
-  refine validHistory_write_bind
-    (by have := hs1.2; dsimp only [octWorkspace, distBase, flowBase, splitCount] at *; omega)
-    (fits_zero w) ?_
-  refine validHistory_write_bind
-    (by have := hs1.2; dsimp only [octWorkspace, parBase, distBase, flowBase, splitCount] at *;
-        omega)
-    (fits_zero w) ?_
+      (hw.of_le (by dsimp only [octWorkspace, splitCount]; omega)))
+    fun _ s1 hs1 => ?_
+  have hfr1 := hs1.2
+  have hd0 : distBase n < s1.frontier := by
+    dsimp only [octWorkspace, distBase, flowBase, splitCount] at hfr1 ⊢; omega
+  have hp0 : parBase n < s1.frontier := by
+    dsimp only [octWorkspace, parBase, distBase, flowBase, splitCount] at hfr1 ⊢; omega
+  refine validHistory_write_bind hd0 (fits_zero w) (validHistory_write_bind hp0 (fits_zero w) ?_)
   have hs2 := memReady_write (memReady_write hs1 (distBase n) 0 (fits_zero w))
     (parBase n) 0 (fits_zero w)
   refine validHistory_bind_step
@@ -131,11 +128,10 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
           have := ht''.2
           dsimp only [octWorkspace, distBase, flowBase, splitCount] at hv this ⊢; omega
         refine validHistory_read_bind hdv ?_
-        have hrc := validHistory_readResCap (d := (((n, m), u), v)) ht''
-          (by dsimp only; omega) (by dsimp only; omega)
-        refine validHistory_bind_step hrc ?_
-        have ht3 := MonotoneMemInv.pres ht'' hrc
-        refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
+        refine validHistory_bind_ready ht''
+          (validHistory_readResCap (d := (((n, m), u), v)) ht''
+            (hu.trans_eq (Nat.zero_add _)) (hv.trans_eq (Nat.zero_add _)))
+          fun _ t3 ht3 => validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
         refine validHistory_write_bind
           (by have := ht3.2
               dsimp only [octWorkspace, distBase, flowBase, splitCount] at hv this ⊢; omega)
@@ -158,51 +154,48 @@ private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
   have hsq := splitCount_sq n
   unfold minSepProg
   dsimp only
-  have hfill := validHistory_fillRange (d := ((flowBase n, 0), splitCount n * splitCount n))
-    hs (by dsimp only [octWorkspace, flowBase, splitCount]; omega) (fits_zero w)
-  refine validHistory_bind_step hfill ?_
-  have hs1 := MonotoneMemInv.pres hs hfill
-  have haug := validHistory_iterate_inv (MemReady w n) augRoundStep (n, m)
-    (fun r t ht => by
-      unfold augRoundStep
-      dsimp only [GraphStepArgs.n, GraphStepArgs.m]
-      have hbfs := validHistory_bfsProg (d := (n, m)) hw ht
-      refine validHistory_bind_step hbfs ?_
-      have ht1 := MonotoneMemInv.pres ht hbfs
-      refine validHistory_read_bind
-        (by have := ht1.2
-            dsimp only [octWorkspace, distBase, flowBase, splitCount] at *; omega) ?_
-      refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
-      refine validHistory_bind_step
-        (validHistory_iterate_inv (MemReady w n) pushUnitStep n (fun cur t' ht' => ?_) _ 1 ht1)
-        (validHistory_pure _ _ _)
-      unfold pushUnitStep
-      dsimp only
-      refine validHistory_read_bind (by have := ht'.2; dsimp only [octWorkspace] at *; omega) ?_
-      refine validHistory_ite (fun hcur => ?_) (fun _ => validHistory_pure _ _ _)
-      refine validHistory_read_bind
-        (by have := ht'.2
-            dsimp only [octWorkspace, parBase, distBase, flowBase, splitCount] at hcur this ⊢
-            omega)
-        ?_
-      refine validHistory_ite (fun hu => ?_) (fun _ => validHistory_pure _ _ _)
-      have had1 := flowAddr_lt_frontier ht' hcur hu
-      have had2 := flowAddr_lt_frontier ht' hu hcur
-      refine validHistory_read_bind had1 ?_
-      refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
-      · exact validHistory_write_bind had1 ((ht'.1.mem_fits _).of_le (Nat.sub_le _ _))
-          (validHistory_pure _ _ _)
-      · refine validHistory_read_bind had2 ?_
+  refine validHistory_bind_ready hs
+    (validHistory_fillRange hs
+      (by dsimp only [octWorkspace, flowBase, splitCount]; omega) (fits_zero w))
+    fun _ s1 hs1 => ?_
+  refine validHistory_bind_ready hs1
+    (validHistory_iterate_inv (MemReady w n) augRoundStep (n, m)
+      (fun r t ht => by
+        unfold augRoundStep
+        dsimp only [GraphStepArgs.n, GraphStepArgs.m]
+        refine validHistory_bind_ready ht (validHistory_bfsProg (d := (n, m)) hw ht)
+          fun _ t1 ht1 => ?_
+        refine validHistory_read_bind
+          (by have := ht1.2
+              dsimp only [octWorkspace, distBase, flowBase, splitCount] at *; omega) ?_
         refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
-        exact validHistory_write_bind had2
-          (by apply hw.of_le; dsimp only [octWorkspace]; omega)
-          (validHistory_pure _ _ _))
-    n 0 hs1
-  refine validHistory_bind_step haug ?_
-  have hs2 := MonotoneMemInv.pres hs1 haug
-  have hbfs2 := validHistory_bfsProg (d := (n, m)) hw hs2
-  refine validHistory_bind_step hbfs2 ?_
-  have hs3 := MonotoneMemInv.pres hs2 hbfs2
+        refine validHistory_bind_step
+          (validHistory_iterate_inv (MemReady w n) pushUnitStep n (fun cur t' ht' => ?_) _ 1 ht1)
+          (validHistory_pure _ _ _)
+        unfold pushUnitStep
+        dsimp only
+        have hfr' := ht'.2
+        refine validHistory_read_bind (by dsimp only [octWorkspace] at hfr' ⊢; omega) ?_
+        refine validHistory_ite (fun hcur => ?_) (fun _ => validHistory_pure _ _ _)
+        refine validHistory_read_bind
+          (by dsimp only [octWorkspace, parBase, distBase, flowBase, splitCount] at hcur hfr' ⊢
+              omega) ?_
+        refine validHistory_ite (fun hu => ?_) (fun _ => validHistory_pure _ _ _)
+        have had1 := flowAddr_lt_frontier ht' hcur hu
+        have had2 := flowAddr_lt_frontier ht' hu hcur
+        refine validHistory_read_bind had1 ?_
+        refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
+        · exact validHistory_write_bind had1 ((ht'.1.mem_fits _).of_le (Nat.sub_le _ _))
+            (validHistory_pure _ _ _)
+        · refine validHistory_read_bind had2 ?_
+          refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
+          exact validHistory_write_bind had2
+            (by apply hw.of_le; dsimp only [octWorkspace]; omega)
+            (validHistory_pure _ _ _))
+      n 0 hs1)
+    fun _ s2 hs2 => ?_
+  refine validHistory_bind_ready hs2 (validHistory_bfsProg (d := (n, m)) hw hs2)
+    fun _ s3 hs3 => ?_
   refine validHistory_bind_step
     (validHistory_iterate_fst (Inv := MemReady w n) n 0 0
       (fun v hv cnt t ht => ⟨?_, ?_⟩) hs3)
@@ -232,23 +225,21 @@ private theorem validHistory_buildWProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
   dsimp only at hw hm hs
   unfold buildWProg
   dsimp only
-  have hcp := validHistory_copyRange (d := ((sepBase n, wBase n), n)) hs
-    (by dsimp only [octWorkspace, sepBase]; omega)
-    (by dsimp only [octWorkspace, wBase]; omega)
-  refine validHistory_bind_step hcp ?_
-  have hs1 := MonotoneMemInv.pres hs hcp
-  have hwm : wBase n + m <
-      ((Memory.spec 0).clientState s (copyRange ((sepBase n, wBase n), n))).frontier := by
+  refine validHistory_bind_ready hs
+    (validHistory_copyRange hs
+      (by dsimp only [octWorkspace, sepBase]; omega)
+      (by dsimp only [octWorkspace, wBase]; omega))
+    fun _ s1 hs1 => ?_
+  have hwm : wBase n + m < s1.frontier := by
     have := hs1.2; dsimp only [octWorkspace, wBase] at *; omega
   have h1 : Fits w 1 := by apply hw.of_le; dsimp only [octWorkspace]; omega
   refine validHistory_write_bind hwm h1 ?_
   have hs2 := memReady_write hs1 (wBase n + m) 1 h1
-  have hloop : ∀ rem vL t, vL.1 + rem = n → vL.2 ≤ vL.1 → MemReady w n t →
+  have hloop (rem : ℕ) : ∀ vL t, vL.1 + rem = n → vL.2 ≤ vL.1 → MemReady w n t →
       (Memory.spec w).ValidHistory t
         ((Memory.spec w).clientHistory t (iterate buildWListStep n rem vL)) := by
-    intro rem
     induction rem with
-    | zero => intro vL t _ _ _; exact validHistory_pure _ _ _
+    | zero => exact fun _ _ _ _ _ => validHistory_pure _ _ _
     | succ rem ih =>
       intro vL t hsum hL ht
       have hvstep : (Memory.spec w).ValidHistory t
@@ -341,14 +332,12 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
   refine validHistory_bind_ready hs2 ?_ fun _ t3 hs3 => ?_
   · unfold buildTerminalsProg
     dsimp only [GraphStepArgs.n]
-    have hf1 := validHistory_fillRange (d := ((keepBase n, 0), n)) hs2
-      (by dsimp only [octWorkspace, keepBase]; omega) (fits_zero w)
-    refine validHistory_bind_step hf1 ?_
-    have hs2a := MonotoneMemInv.pres hs2 hf1
-    have hf2 := validHistory_fillRange (d := ((flipBase n, 0), n)) hs2a
-      (by dsimp only [octWorkspace, flipBase]; omega) (fits_zero w)
-    refine validHistory_bind_step hf2 ?_
-    have hs2b := MonotoneMemInv.pres hs2a hf2
+    refine validHistory_bind_ready hs2
+      (validHistory_fillRange hs2 (by dsimp only [octWorkspace, keepBase]; omega) (fits_zero w))
+      fun _ _ hs2a => ?_
+    refine validHistory_bind_ready hs2a
+      (validHistory_fillRange hs2a (by dsimp only [octWorkspace, flipBase]; omega) (fits_zero w))
+      fun _ _ hs2b => ?_
     refine validHistory_bind_step
       (validHistory_iterate_nat (Inv := MemReady w n) n 0 (fun v hv t ht => ⟨?_, ?_⟩) hs2b)
       (validHistory_pure _ _ _)
@@ -424,28 +413,12 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
       (by dsimp only [octWorkspace, distBase, flowBase, splitCount] at hfr hv ⊢; omega) ?_
     have hsaddr : sepBase n + v < t.frontier := by
       dsimp only [octWorkspace, sepBase] at hfr hv ⊢; omega
-    have hw1 : ∀ val, Fits w val →
-        (Memory.spec w).ValidHistory ⟨Function.update t.mem (sepBase n + v) val, t.frontier⟩
-          ((Memory.spec w).clientHistory ⟨Function.update t.mem (sepBase n + v) val, t.frontier⟩
-            (do
-              if t.mem (wBase n + v) = 1 then
-                if t.mem (guessBase n + v) = 2 then Memory.write (colBase n + v) 1
-                else Memory.write (colBase n + v) 0
-              else if t.mem (distBase n + (v + n + 2)) < splitCount n then
-                if t.mem (colBase n + v) = 1 then Memory.write (colBase n + v) 1
-                else Memory.write (colBase n + v) 0
-              else if t.mem (colBase n + v) = 1 then Memory.write (colBase n + v) 0
-              else Memory.write (colBase n + v) 1
-              pure (v + 1))) := by
-      intro val _
-      have hcaddr : colBase n + v < t.frontier := by
-        dsimp only [octWorkspace, colBase] at hfr hv ⊢; omega
-      split_ifs <;>
-        exact validHistory_write_bind hcaddr (by first | exact h1 | exact fits_zero w)
-          (validHistory_pure _ _ _)
-    exact validHistory_ite
-      (fun _ => validHistory_write_bind hsaddr h1 (hw1 1 h1))
-      (fun _ => validHistory_write_bind hsaddr (fits_zero w) (hw1 0 (fits_zero w)))
+    have hcaddr : colBase n + v < t.frontier := by
+      dsimp only [octWorkspace, colBase] at hfr hv ⊢; omega
+    split_ifs <;>
+      exact validHistory_write_bind hsaddr (by first | exact h1 | exact fits_zero w)
+        (validHistory_write_bind hcaddr (by first | exact h1 | exact fits_zero w)
+          (validHistory_pure _ _ _))
   · exact clientResult_commitStep _ t
 
 private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ} {s : Memory.State}
@@ -455,19 +428,17 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
   dsimp only at hw hL hs
   unfold compressProg
   dsimp only [CompressCfg.n]
-  have hf := validHistory_fillRange (d := ((digitBase n, 0), L)) hs
-    (by dsimp only [octWorkspace, digitBase]; omega) (fits_zero w)
-  refine validHistory_bind_step hf ?_
-  have hs1 := MonotoneMemInv.pres hs hf
+  refine validHistory_bind_ready hs
+    (validHistory_fillRange hs (by dsimp only [octWorkspace, digitBase]; omega) (fits_zero w))
+    fun _ _ hs1 => ?_
   refine validHistory_bind_step
     (validHistory_boundedWhile_inv (MemReady w n) (fun _ (st : ℕ × ℕ) => st.1 = 0) guessStep
       (((n, k), m), L) (fun st t ht _ => ?_) (3 ^ L) (0, 0) hs1)
     (validHistory_pure _ _ _)
-  have hodom : ∀ (found' : ℕ) (t1 : Memory.State), MemReady w n t1 →
+  have hodom (found' : ℕ) (t1 : Memory.State) (ht1 : MemReady w n t1) :
       (Memory.spec w).ValidHistory t1
         ((Memory.spec w).clientHistory t1
           (incOdomProg (n, L) >>= fun done' => pure (done', found'))) := by
-    intro found' t1 ht1
     refine validHistory_bind_step ?_ (validHistory_pure _ _ _)
     unfold incOdomProg
     dsimp only
@@ -478,23 +449,22 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
       (validHistory_pure _ _ _)
     · unfold incOdomStep
       dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
-      refine validHistory_read_bind
-        (by have := ht'.2; dsimp only [octWorkspace, digitBase] at *; omega) ?_
+      have hfr' := ht'.2
+      have hd : digitBase n + j < t'.frontier := by
+        dsimp only [octWorkspace, digitBase] at hfr' hj ⊢; omega
+      refine validHistory_read_bind hd ?_
       refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
       exact validHistory_ite
-        (fun hlt => validHistory_write_bind
-          (by have := ht'.2; dsimp only [octWorkspace, digitBase] at *; omega)
+        (fun hlt => validHistory_write_bind hd
           (by apply hw.of_le; dsimp only [octWorkspace]; omega)
           (validHistory_pure _ _ _))
-        (fun _ => validHistory_write_bind
-          (by have := ht'.2; dsimp only [octWorkspace, digitBase] at *; omega)
-          (fits_zero w) (validHistory_pure _ _ _))
+        (fun _ => validHistory_write_bind hd (fits_zero w) (validHistory_pure _ _ _))
     · exact clientResult_incOdomStep_fst _ t'
   dsimp only [guessStep, GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
   refine validHistory_read_bind (by have := ht.2; dsimp only [octWorkspace] at *; omega) ?_
   refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
-  · have hlf := validHistory_leafProg (d := (((n, k), m), L)) hw hL ht
-    exact validHistory_bind_step hlf (hodom _ _ (MonotoneMemInv.pres ht hlf))
+  · exact validHistory_bind_ready ht (validHistory_leafProg (d := (((n, k), m), L)) hw hL ht)
+      fun _ => hodom _
   · exact validHistory_bind_step (validHistory_pure _ _ _) (hodom _ t ht)
 
 /-- `encodeInput G k` satisfies `InputFits` when `Fits w (octWorkspace n)` and `Fits w k`. -/
@@ -532,14 +502,12 @@ theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G
   have hs1 : MemReady w n ((Memory.spec 0).clientState s₀ (Memory.alloc (octScratch n))) :=
     ⟨wellFormed_clientState hwf0 halloc,
       ((congrArg (· + octScratch n) hfr0).trans (frontier_add_octScratch n)).ge⟩
-  have hf1 := validHistory_fillRange (d := ((sepBase n, 0), n)) hs1
-    (by dsimp only [octWorkspace, sepBase]; omega) (fits_zero w)
-  refine validHistory_bind_step hf1 ?_
-  have hs2 := MonotoneMemInv.pres hs1 hf1
-  have hf2 := validHistory_fillRange (d := ((colBase n, 0), n)) hs2
-    (by dsimp only [octWorkspace, colBase]; omega) (fits_zero w)
-  refine validHistory_bind_step hf2 ?_
-  have hs3 := MonotoneMemInv.pres hs2 hf2
+  refine validHistory_bind_ready hs1
+    (validHistory_fillRange hs1 (by dsimp only [octWorkspace, sepBase]; omega) (fits_zero w))
+    fun _ _ hs2 => ?_
+  refine validHistory_bind_ready hs2
+    (validHistory_fillRange hs2 (by dsimp only [octWorkspace, colBase]; omega) (fits_zero w))
+    fun _ _ hs3 => ?_
   refine validHistory_bind_step
     (validHistory_iterate_fst (Inv := MemReady w n) n 0 1 (fun m hm alive t ht => ⟨?_, ?_⟩) hs3)
     (validHistory_pure _ _ _)
