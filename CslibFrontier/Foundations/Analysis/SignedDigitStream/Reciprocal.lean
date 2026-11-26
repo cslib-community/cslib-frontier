@@ -70,15 +70,13 @@ during formation of the `(recipCutoff t + 1)`-place integer prefix is paid for b
 with constant additive slack. -/
 theorem recipCutoff_clock_payment {t j : ℕ} (hj : j ≤ recipCutoff t) :
     ((recipCutoff t + 1 : ℕ) : ℤ) ≤ 22 + 2 * ((t : ℤ) - (j : ℤ)) := by
-  unfold recipCutoff at hj ⊢
-  omega
+  rw [recipCutoff] at hj ⊢; omega
 
 /-- Also `t + 1` itself is bounded by `15 + 2 * (t - j)` on every early-word query
 `j ≤ recipCutoff t` [OpenAI2026LogSpace, (10.16)]. -/
 theorem clock_succ_le_early_payment {t j : ℕ} (hj : j ≤ recipCutoff t) :
     ((t + 1 : ℕ) : ℤ) ≤ 15 + 2 * ((t : ℤ) - (j : ℤ)) := by
-  unfold recipCutoff at hj
-  omega
+  rw [recipCutoff] at hj; omega
 
 /-- Rational early prefix `x^{[recipCutoff t]}` formed from digits `0 .. recipCutoff t`. -/
 @[expose] def recipPrefixRat (x : ℕ → ℤ) (t : ℕ) : ℚ :=
@@ -321,10 +319,8 @@ theorem streamVal_recip64Stream {x : ℕ → ℤ} (hx : IsSignedStream x)
 
 theorem recip64Approx_emod_eq (x : ℕ → ℤ) (t q : ℕ) :
     recip64Approx x t % (2 : ℤ) ^ q =
-      (shiftClipApprox 1 (recipHalfStream x t) (t + 3) % (2 : ℤ) ^ (q + 3)) / 8 := by
-  unfold recip64Approx
-  simpa only [show (8 : ℤ) = (2 : ℤ) ^ (3 : ℕ) by decide] using
-    ediv_two_pow_emod_eq (shiftClipApprox 1 (recipHalfStream x t) (t + 3)) q 3
+      (shiftClipApprox 1 (recipHalfStream x t) (t + 3) % (2 : ℤ) ^ (q + 3)) / 8 :=
+  ediv_two_pow_emod_eq (shiftClipApprox 1 (recipHalfStream x t) (t + 3)) q 3
 
 end EarlyWordReciprocal
 
@@ -365,27 +361,21 @@ theorem polynomialTransition4_eq_shiftClip (t : ℝ) :
       (((1 / 32 + (1 / 8) * (1 - u)) / 2 +
         ((5 / 16) * (1 - u) ^ 2 + (5 / 8) * (1 - u) ^ 3) / 2) / 2) =
       Cslib.polynomialTransition4 t / 128 := by
-    unfold Cslib.polynomialTransition4 Cslib.transitionPolynomial4
-    dsimp [u]
-    ring
-  rw [hpoly]
-  unfold shiftClipVal
+    simp only [Cslib.polynomialTransition4, Cslib.transitionPolynomial4, u]; ring
+  rw [hpoly, shiftClipVal]
   have hscale : (2 : ℝ) ^ (7 : ℤ) * (Cslib.polynomialTransition4 t / 128) =
       Cslib.polynomialTransition4 t := by rw [zpow_ofNat]; ring
-  have h0 : 0 ≤ Cslib.polynomialTransition4 t := Cslib.polynomialTransition4_nonneg t
-  have h1 : Cslib.polynomialTransition4 t ≤ 1 := Cslib.polynomialTransition4_le_one t
-  rw [hscale, min_eq_right h1, max_eq_right (by linarith)]
+  rw [hscale, min_eq_right (Cslib.polynomialTransition4_le_one t),
+    max_eq_right (by linarith [Cslib.polynomialTransition4_nonneg t])]
 
 /-- Exact polynomial-plus-reciprocal decomposition of `Cslib.rationalRamp4Unit`. -/
 theorem rationalRamp4Unit_eq_poly_add_inv (t : ℝ) :
     Cslib.rationalRamp4Unit t =
       max 0 t - 3 + 6 * (1 / (1 + max 0 t)) - 4 * (1 / (1 + max 0 t)) ^ 2 +
         (1 / (1 + max 0 t)) ^ 3 := by
-  unfold Cslib.rationalRamp4Unit
-  set u := max (0 : ℝ) t
-  have hpos : 0 < 1 + u := by linarith [le_max_left (0 : ℝ) t]
-  field_simp
-  ring
+  rw [Cslib.rationalRamp4Unit]
+  have hpos : 0 < 1 + max (0 : ℝ) t := by linarith [le_max_left (0 : ℝ) t]
+  field_simp; ring
 
 /-- Smooth dyadic transition `polynomialSwitch4 (2 ^ r) (2 ^ (r + 1)) w`. -/
 @[expose] noncomputable def dyadicSwitch (r : ℕ) (w : ℝ) : ℝ :=

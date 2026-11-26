@@ -280,15 +280,10 @@ theorem pairCommutatorDefect_le_successful (φ : AlgState A)
       successfulCopyDefect] using h
   have hright : (∑ a : α, f (some a) none) ≤
       8 * (successfulPairDefect φ P Q + successfulCopyDefect φ Q T) := by
-    have h := sum_successfulEffect_commutator_sq_le φ Q T P Function.Embedding.some
-      hQ hT hP (fun a b => hQT (some a) (some b)) (fun a b => hPT b (some a))
-    have hn (a : α) := (norm_commutator_none φ Q (P.effect (some a))).symm.trans
-      (φ.norm_sub_comm _ _)
-    have hs (a : α) (b : β) :=
-      φ.norm_sub_comm (Q.effect (some b) * P.effect (some a))
-        (P.effect (some a) * Q.effect (some b))
-    simpa only [Function.Embedding.some_apply, hn, hs, f,
-      successfulPairDefect, successfulCopyDefect] using h
+    simpa only [Function.Embedding.some_apply, ← norm_commutator_none,
+      φ.norm_sub_comm (Q.effect _ * _), f, successfulPairDefect, successfulCopyDefect] using
+      sum_successfulEffect_commutator_sq_le φ Q T P Function.Embedding.some
+        hQ hT hP (fun a b => hQT (some a) (some b)) (fun a b => hPT b (some a))
   have hsuccess : ∑ a : α, ∑ b, f (some a) b =
       (∑ a : α, f (some a) none) + successfulPairDefect φ P Q := by
     simp only [Fintype.sum_option, successfulPairDefect, sum_add_distrib, f]

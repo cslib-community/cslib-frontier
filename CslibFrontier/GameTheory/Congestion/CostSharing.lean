@@ -188,11 +188,8 @@ theorem socialCost_fairCostSharing [Fintype E] (s : ∀ i, S i) :
 theorem rosenthalPotential_fairCostSharing [Fintype E] (s : ∀ i, S i) :
     (fairCostSharing resources c).rosenthalPotential s
       = ∑ e, c e * harmonic ((fairCostSharing resources c).load s e) := by
-  rw [rosenthalPotential_def]
-  refine Finset.sum_congr rfl fun e _ => ?_
-  rw [cast_harmonic, Finset.mul_sum]
-  refine Finset.sum_congr rfl fun k _ => ?_
-  rw [fairCostSharing_latency, div_eq_mul_inv, Nat.cast_add, Nat.cast_one]
+  simp only [rosenthalPotential_def, cast_harmonic, Finset.mul_sum, fairCostSharing_latency,
+    div_eq_mul_inv, Nat.cast_add, Nat.cast_one]
 
 /-- **The potential bounds the social cost from above** ([TardosWexler2007], Lemma 19.8, first
 inequality): with nonnegative costs, every resource in use is counted at least once. -/
@@ -254,10 +251,8 @@ theorem cost_fairCostSharing_update_le [DecidableEq ι] (hc : ∀ e, 0 ≤ c e) 
     (fairCostSharing resources c).toCostGame.cost i (Function.update s i a)
       ≤ ∑ e ∈ resources i a, c e := by
   rw [toCostGame_cost, fairCostSharing_resources, Function.update_self]
-  refine Finset.sum_le_sum fun e he => ?_
-  have hpos : 1 ≤ (fairCostSharing resources c).load (Function.update s i a) e :=
-    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by simpa using he⟩⟩
-  exact div_le_self (hc e) (by exact_mod_cast hpos)
+  refine Finset.sum_le_sum fun e he => div_le_self (hc e) (Nat.one_le_cast.2 ?_)
+  exact Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by simpa using he⟩⟩
 
 /-- **Fair cost-sharing games are `(k, 0)`-smooth** ([Roughgarden2015], Definition 2.1;
 [TardosWexler2007], Section 19.3): with `k = Fintype.card ι` players and nonnegative resource
@@ -510,13 +505,13 @@ theorem exists_forall_isPureNash_optOut_mul_lt (hk : k ≠ 0) {r : ℝ} (hr : r 
       r * (optOut k ε).toCostGame.socialCost (fun _ => false)
         < (optOut k ε).toCostGame.socialCost s := by
   have hH : (0 : ℝ) < harmonic k := by exact_mod_cast harmonic_pos hk
-  obtain ⟨ε, hε, hlt⟩ : ∃ ε > 0, r * (1 + ε) < harmonic k := by
-    rcases le_or_gt r 0 with hr0 | hr0
-    · exact ⟨1, one_pos, by nlinarith⟩
-    · refine ⟨(harmonic k - r) / (2 * r), div_pos (by linarith) (by linarith), ?_⟩
-      linarith [show r * (1 + (harmonic k - r) / (2 * r)) = (r + harmonic k) / 2 by
-        field_simp; ring]
-  exact ⟨ε, hε, fun s hs => by
-    rwa [(isPureNash_optOut_iff hε s).1 hs, socialCost_optOut_true, socialCost_optOut_false hk]⟩
+  let m := max r (harmonic k / 2)
+  have hm0 : 0 < m := lt_max_of_lt_right (half_pos hH)
+  have hm1 : m < harmonic k := max_lt hr (half_lt_self hH)
+  have hε : 0 < (harmonic k - m) / (2 * m) := div_pos (sub_pos.2 hm1) (mul_pos zero_lt_two hm0)
+  have hmid : m * (1 + (harmonic k - m) / (2 * m)) = (m + harmonic k) / 2 := by field_simp; ring
+  exact ⟨_, hε, fun s hs => by
+    rw [(isPureNash_optOut_iff hε s).1 hs, socialCost_optOut_true, socialCost_optOut_false hk]
+    nlinarith [le_max_left r (harmonic k / 2)]⟩
 
 end Cslib.GameTheory.CongestionGame

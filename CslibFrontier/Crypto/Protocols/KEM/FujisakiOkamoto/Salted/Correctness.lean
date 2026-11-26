@@ -646,9 +646,7 @@ private theorem simJoint_map_completionCache
       simp only [RandomOracle.answer, RandomOracle.ofList, hlinked input reply hmem htarget,
         PMF.pure_map, PMF.pure_bind]
     · have hkey : (offTargetKeyCache S pk st.jointCache).lookup input = some reply.key := by
-        rw [S.lookup_offTargetKeyCache pk st.jointCache input,
-          ite_eq_right (by simpa only [jointInput] using htarget), hlookup]
-        rfl
+        simpa [lookup_offTargetKeyCache, jointInput, hlookup] using htarget
       rw [ite_eq_right htarget]
       simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.run_interpret_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
@@ -676,9 +674,7 @@ private theorem simJoint_map_completionCache
           (input, r.key) :: offTargetKeyCache S pk st.jointCache := fun _ => by
         rw [offTargetKeyCache, ite_eq_right (by simpa only [jointInput] using htarget)]
       have hkey : RandomOracle.ofList (offTargetKeyCache S pk st.jointCache) input = none := by
-        rw [RandomOracle.ofList, S.lookup_offTargetKeyCache pk st.jointCache input,
-          ite_eq_right (by simpa only [jointInput] using htarget), hlookup]
-        rfl
+        simp [RandomOracle.ofList, lookup_offTargetKeyCache, hlookup]
       rw [ite_eq_right htarget, ite_eq_right htarget]
       simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.run_interpret_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
@@ -1201,15 +1197,12 @@ private theorem realJoint_bad_le [Fintype M] [Nonempty M]
     | none =>
       exact (S.realJoint_bad_eq_msgFailProb pk sk input hs hlookup htarget).trans_le
         (ENNReal.ofReal_le_ofReal (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk input.message))
-  · refine le_of_eq_of_le ?_ zero_le
-    rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-    intro z hz hbad
-    apply hbad
-    unfold GoodCache at hs ⊢
+  · refine le_of_eq_of_le ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr
+      (Set.disjoint_left.mpr fun z hz hbad => hbad ?_)) zero_le
     rcases S.cacheJoint_jointCache_eq_or_cons pk _ input (by simpa only [realJoint] using hz)
       with heq | heq
-    · simpa only [coinCache, heq] using hs
-    · rwa [S.coinCache_cons pk input z.1 heq, ite_eq_right htarget]
+    · simpa only [GoodCache, coinCache, heq] using hs
+    · simpa only [GoodCache, S.coinCache_cons pk input z.1 heq, ite_eq_right htarget] using hs
 
 /-! ### Identical-until-bad coupling: real versus prefetch handler -/
 

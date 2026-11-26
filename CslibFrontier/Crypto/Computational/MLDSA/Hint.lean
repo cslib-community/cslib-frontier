@@ -122,9 +122,8 @@ private abbrev hintWrap (q γ₂ : ℕ) (h : Bool) (r : ZMod q) : ℤ :=
 
 private theorem hintStep_bounds (h : Bool) (r : ZMod q) :
     -1 ≤ hintStep q γ₂ h r ∧ hintStep q γ₂ h r ≤ 1 := by
-  cases h
-  · simp only [hintStep, Bool.cond_false]; omega
-  · simp only [hintStep, Bool.cond_true]; split_ifs <;> omega
+  by_cases hpos : 0 < lowBits q γ₂ r <;> cases h <;>
+    simp only [hintStep, Bool.cond_false, Bool.cond_true, hpos, ↓reduceIte] <;> omega
 
 private theorem hintWrap_nonneg_of_pos (hγ : 0 < γ₂)
     {r : ZMod q} (hrpos : 0 < lowBits q γ₂ r) :
@@ -160,13 +159,10 @@ private theorem add_emod_natCast_eq_sub_wrap {m : ℕ} (hm : 0 < m) {a s : ℤ}
       a + s - (if a + s < 0 then (-1 : ℤ) else if (m : ℤ) ≤ a + s then 1 else 0) * m := by
   split_ifs with hlt hge
   · have hneg : a + s = -1 := by omega
-    rw [hneg, neg_one_emod_natCast hm]
-    ring
+    rw [hneg, neg_one_emod_natCast hm]; ring
   · have htop : a + s = m := by omega
-    rw [htop, Int.emod_self]
-    ring
-  · rw [Int.emod_eq_of_lt (by omega) (by omega)]
-    ring
+    rw [htop, Int.emod_self]; ring
+  · rw [Int.emod_eq_of_lt (by omega) (by omega)]; ring
 
 /-- The `ZMod q` product of the shifted bucket index `useHint q γ₂ h r` and `2 γ₂`, recording the
 wrap-around correction `hintWrap q γ₂ h r ∈ {-1, 0, 1}` coming from `m * (2 γ₂) ≡ -1 (mod q)`. -/
@@ -219,8 +215,8 @@ private theorem highBits_intCast_eq_zero_of_neg (hγ : 0 < γ₂) (hdvd : 2 * γ
     push_cast at hqeq hmul₀ hmul_hi ⊢
     constructor <;> linarith
   by_contra hne
-  have hge : 2 * (γ₂ : ℤ) ≤ highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) := by
-    exact_mod_cast le_mul_of_one_le_left (Nat.cast_nonneg (2 * γ₂)) (by omega)
+  have hge : 2 * (γ₂ : ℤ) ≤ highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) :=
+    le_mul_of_one_le_left (Nat.cast_nonneg _) (by omega)
   push_cast at hdiff0 hge
   omega
 
@@ -238,20 +234,18 @@ private theorem highBits_intCast_mul_add_of_le (hγ : 0 < γ₂) (hdvd : 2 * γ�
 /-- `UseHint` always returns a nonnegative bucket index under the source parameter hypotheses. -/
 theorem useHint_nonneg (hγ : 0 < γ₂) (hq : 4 * γ₂ < q) (h : Bool) (r : ZMod q) :
     0 ≤ useHint q γ₂ h r := by
-  have hmz : (0 : ℤ) < ((q - 1) / (2 * γ₂) : ℕ) := Nat.cast_pos.mpr (bucketCount_pos hγ hq)
   cases h
-  · simpa only [useHint_false] using highBits_nonneg (q := q) hγ r
+  · exact highBits_nonneg hγ r
   · simp only [useHint]
-    split <;> exact Int.emod_nonneg _ (ne_of_gt hmz)
+    split <;> exact Int.emod_nonneg _ (Nat.cast_pos.mpr (bucketCount_pos hγ hq)).ne'
 
 /-- `UseHint` returns an index below the number `(q - 1) / (2 γ₂)` of high-order buckets. -/
 theorem useHint_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 * γ₂ < q)
     (h : Bool) (r : ZMod q) : useHint q γ₂ h r < ((q - 1) / (2 * γ₂) : ℕ) := by
-  have hmz : (0 : ℤ) < ((q - 1) / (2 * γ₂) : ℕ) := Nat.cast_pos.mpr (bucketCount_pos hγ hq)
   cases h
-  · simpa only [useHint_false] using highBits_lt hγ hdvd (by omega) r
+  · exact highBits_lt hγ hdvd (by omega) r
   · simp only [useHint]
-    split <;> exact Int.emod_lt_of_pos _ hmz
+    split <;> exact Int.emod_lt_of_pos _ (Nat.cast_pos.mpr (bucketCount_pos hγ hq))
 
 /-- A set hint never produces the unadjusted high bits. This is the scalar separation underlying
 Lemma 1(3) of the Dilithium v3.1 specification. -/
@@ -367,8 +361,7 @@ def useHintVec {ι : Type*} (q γ₂ : ℕ) (h : ι → Bool) (r : ι → ZMod q
 /-- Coefficientwise hint recovery. -/
 theorem useHintVec_makeHintVec {ι : Type*} (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     (hq : 4 * γ₂ < q) {z r : ι → ZMod q} (hz : ∀ i, |(z i).valMinAbs| ≤ γ₂) :
-    useHintVec q γ₂ (makeHintVec q γ₂ z r) r = fun i => highBits q γ₂ (r i + z i) := by
-  funext i
-  exact useHint_makeHint hγ hdvd hq (hz i)
+    useHintVec q γ₂ (makeHintVec q γ₂ z r) r = fun i => highBits q γ₂ (r i + z i) :=
+  funext fun i => useHint_makeHint hγ hdvd hq (hz i)
 
 end Cslib.Crypto.MLDSA

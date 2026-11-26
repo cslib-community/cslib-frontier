@@ -180,10 +180,10 @@ theorem unframe_take_of_micaliHasRootPrefix {σ : ℕ} {rawProof : List Bool}
   simp only [micaliHasRootPrefix, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at h
   set root := unframe (rawProof.take (2 * σ + 1))
   have htake : rawProof.take (2 * root.length + 1) = frame root := by
-    simpa only [List.take_take, Nat.min_eq_left (by omega : 2 * root.length + 1 ≤ 2 * σ + 1)]
-      using h.2
-  have hraw : frame root ++ rawProof.drop (2 * root.length + 1) = rawProof := by
-    rw [← htake, List.take_append_drop]
+    simpa only [List.take_take,
+      Nat.min_eq_left (Nat.add_le_add_right (Nat.mul_le_mul_left 2 h.1) 1)] using h.2
+  have hraw : frame root ++ rawProof.drop (2 * root.length + 1) = rawProof :=
+    htake ▸ List.take_append_drop (2 * root.length + 1) rawProof
   exact ⟨h.1, ⟨_, hraw⟩, by rw [← hraw, unframe_frame_append]⟩
 
 theorem unframe_take_encMicaliProof {σ : ℕ} (prf : MicaliProof) (hroot : prf.root.length ≤ σ) :
@@ -307,8 +307,10 @@ theorem micaliVerifyRawBoundedPure_take_eq
         (rawProof.take (micaliMaxProofCap V σ m d x + 1)) := by
   by_cases hle : rawProof.length ≤ micaliMaxProofCap V σ m d x
   · rw [List.take_of_length_le (hle.trans (Nat.le_succ _))]
-  · rw [micaliVerifyRawBoundedPure_eq_false_of_maxCap_lt hTree hFS V hq (by omega),
-      micaliVerifyRawBoundedPure_eq_false_of_maxCap_lt hTree hFS V hq (by simp; omega)]
+  · have hlt : micaliMaxProofCap V σ m d x <
+        (rawProof.take (micaliMaxProofCap V σ m d x + 1)).length := by simp; omega
+    rw [micaliVerifyRawBoundedPure_eq_false_of_maxCap_lt hTree hFS V hq (Nat.lt_of_not_ge hle),
+      micaliVerifyRawBoundedPure_eq_false_of_maxCap_lt hTree hFS V hq hlt]
 
 private theorem merkleVerify_congr_hash {H₁ H₂ : List Bool → List Bool → List Bool}
     {k₁ k₂ : List Bool} {d : ℕ} {root : List Bool} {i : ℕ} {leaf : List Bool}
@@ -559,20 +561,16 @@ theorem computableInTimeAndSpace_micaliVerifyRawBoundedPure_of_params
       (fun ⟨m, x⟩ rawProof => micaliVerifyRawBoundedPure_take_eq hTree hFS V hq x rawProof)
   obtain ⟨ct, dt, htle⟩ := polynomiallyBounded_iff_le.mp ht_pb
   obtain ⟨cs, ds, hsle⟩ := polynomiallyBounded_iff_le.mp hs_pb
-  let t' (u : ℕ) : ℕ := ct * (u + 1) ^ dt
-  let s' (u : ℕ) : ℕ := cs * (u + 1) ^ ds
-  have ht'_pb : PolynomiallyBounded t' := polynomiallyBounded_iff_le.mpr ⟨ct, dt, fun _ => le_rfl⟩
-  have hs'_pb : PolynomiallyBounded s' := polynomiallyBounded_iff_le.mpr ⟨cs, ds, fun _ => le_rfl⟩
-  have hin_pb : PolynomiallyBounded (fun u => 2 * u + 1) := by fun_prop
-  have htm' := htm.mono (fun p => htle _) (fun p => hsle _)
-  refine ⟨k, State, hfin, tm, t', s', fun u => t' (2 * u + 1), fun u => s' (2 * u + 1),
-    ht'_pb, hs'_pb, ht'_pb.comp hin_pb, hs'_pb.comp hin_pb, htm', fun m x rawProof => ?_⟩
-  have hlen_in : (encPair encUnary enc (m, x)).length ≤ 2 * (m + (enc x).length) + 1 := by
+  refine ⟨k, State, hfin, tm, t, s,
+    fun u => ct * (2 * u + 2) ^ dt, fun u => cs * (2 * u + 2) ^ ds, ht_pb, hs_pb,
+    by fun_prop,
+    by fun_prop, htm, fun m x rawProof => ?_⟩
+  have hlen_in : (encPair encUnary enc (m, x)).length + 1 ≤ 2 * (m + (enc x).length) + 2 := by
     simp only [length_encPair, encUnary_apply, List.length_replicate]; omega
-  have hp := htm' ((m, x), rawProof)
+  have hp := htm ((m, x), rawProof)
   exact ⟨hp.1,
-    hp.2.1.mono (Nat.mul_le_mul_left ct (Nat.pow_le_pow_left (Nat.succ_le_succ hlen_in) dt)),
-    hp.2.2.mono (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (Nat.succ_le_succ hlen_in) ds))⟩
+    hp.2.1.mono ((htle _).trans (Nat.mul_le_mul_left ct (Nat.pow_le_pow_left hlen_in dt))),
+    hp.2.2.mono ((hsle _).trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left hlen_in ds)))⟩
 
 end PureMachineComplexity
 
@@ -1046,8 +1044,9 @@ theorem runWith_wordOracle_micaliVerifyRawWord {State : Type}
   set maxCap := micaliMaxProofCap V σ m d x
   by_cases hle : rawProof.length ≤ maxCap
   · rw [List.take_of_length_le (hle.trans (Nat.le_succ maxCap))]
-  · have hpfxEq : (rawProof.take (maxCap + 1)).take (2 * σ + 1) = rawProof.take (2 * σ + 1) := by
-      rw [List.take_take, Nat.min_eq_left (by dsimp only [maxCap, micaliMaxProofCap]; omega)]
+  · have hcap : 2 * σ + 1 ≤ maxCap + 1 := Nat.le_succ_of_le (Nat.le_add_right _ _)
+    have hpfxEq : (rawProof.take (maxCap + 1)).take (2 * σ + 1) = rawProof.take (2 * σ + 1) := by
+      rw [List.take_take, Nat.min_eq_left hcap]
     have hfalse (raw : List Bool) (hr : maxCap < raw.length) :
         OracleComp.runWith oracle (micaliVerifyRawBounded V σ m x raw) s =
           if micaliHasRootPrefix σ raw = true then
@@ -1173,8 +1172,7 @@ private theorem merkleWordLoop_bound (p : ℕ × (List (List Bool) × List Bool 
   have hremLen : (encList encBits st.1).length ≤ (encList encBits p.2.1).length :=
     hinv.1 ▸ SizedListEncoding.length_drop_le (encA := encBits) (encL := encList encBits) p.2.1 j
   simp only [merkleStateEnc, length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-  have := hinv.2.1
-  have := hinv.2.2
+  obtain ⟨_, _⟩ := hinv.2
   omega
 
 private theorem isOraclePPTOn_merkleWordLoop :
@@ -1238,7 +1236,7 @@ private theorem isOraclePPTOn_merkleVerifyWord :
       (fun w : (ℕ × ℕ × List Bool) × (ℕ × List Bool × List (List Bool)) =>
         merkleVerifyWord w.1.1 w.1.2.1 w.1.2.2 w.2.1 w.2.2.1 w.2.2.2) := by
   have hdec (i d : ℕ) : decide (i < 2 ^ d) = decide (Nat.clog 2 (i + 1) ≤ d) :=
-    decide_eq_decide.mpr (by rw [Nat.clog_le_iff_le_pow (by norm_num), Nat.succ_le_iff])
+    decide_eq_decide.mpr (by rw [Nat.clog_le_iff_le_pow Nat.one_lt_two, Nat.succ_le_iff])
   have hfn :
       (fun w : (ℕ × ℕ × List Bool) × (ℕ × List Bool × List (List Bool)) =>
         merkleVerifyWord w.1.1 w.1.2.1 w.1.2.2 w.2.1 w.2.2.1 w.2.2.2) =
@@ -1769,11 +1767,8 @@ private theorem map_fst_runWith_micaliVerifyRawBounded_le {State : Type}
       OracleComp.liftRight_query, OracleComp.runWith_query, PMF.map_bind, PMF.bind_apply]
     refine tsum_le_tsum fun ⟨ρs, s₁⟩ => mul_le_mul_right ?_ _
     split_ifs <;> simp
-  · suffices (OracleComp.runWith oracle
-        (micaliVerifyRawBounded V σ m x rawProof) s).map Prod.fst true = 0 by
-      rw [this]
-      exact bot_le
-    rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
+  · refine le_of_eq_of_le ((PMF.apply_eq_zero_iff _ _).mpr ?_) bot_le
+    rw [PMF.mem_support_map_iff]
     rintro ⟨⟨_, s'⟩, hmem, rfl⟩
     apply hsan
     unfold micaliVerifyRawBounded at hmem

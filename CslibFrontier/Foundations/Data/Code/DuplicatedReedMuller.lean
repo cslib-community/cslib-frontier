@@ -217,8 +217,8 @@ theorem drmHadamardTransform_eq_sum {n : ℕ} (v : BitString n → ℤ) (a : Bit
         ite_false, ite_true]
       rw [ih, sum_bitString_succ]
       refine sum_congr rfl fun x _ => ?_
-      rw [walshSign_cons, walshSign_cons]
-      norm_num
+      simp only [walshSign_cons, Bool.and_false, Bool.and_true, Bool.false_eq_true, ite_true,
+        ite_false]
       ring
 
 /-- The corrected Walsh–Hadamard coefficient used by the source decoder.  The subtraction at
@@ -347,12 +347,10 @@ theorem drmHadamardCoeff_encode (μ : ℕ) (m : RMMessage) :
     drmHadamardCoeff (drmEncode μ m) m.slope =
       if m.sign then (64 * μ : ℤ) else -(64 * μ : ℤ) := by
   rcases m with ⟨b, a⟩
+  have htotal := hammingDist_drmEncode_true_add_false (drmEncode μ ⟨true, a⟩) a
   rw [drmHadamardCoeff_eq_hammingDist_sub]
-  cases b
-  · simp only [Bool.false_eq_true, ite_false, hammingDist_self, Nat.cast_zero, zero_sub]
-  · have htotal := hammingDist_drmEncode_true_add_false (drmEncode μ ⟨true, a⟩) a
-    simp only [ite_true, hammingDist_self, zero_add] at htotal ⊢
-    omega
+  cases b <;> simp only [Bool.false_eq_true, ite_false, ite_true, hammingDist_self, zero_add]
+    at htotal ⊢ <;> omega
 
 private theorem hammingDist_chosenSign_add_natAbs {μ : ℕ} (w : DRMWord μ) (a : RMPoint) :
     hammingDist (drmEncode μ ⟨0 < drmHadamardCoeff w a, a⟩) w +
@@ -402,13 +400,11 @@ private theorem two_mul_hammingDist_rmEncode_of_slope_ne (b c : Bool) {a a' : RM
       hammingDist (fun x => !hadamardCode u x) (hadamardCode v) +
         hammingDist (hadamardCode u) (hadamardCode v) = 128 := by
     simpa only [card_rmPoint] using hammingDist_not_left_add (hadamardCode u) (hadamardCode v)
-  cases b <;> cases c
-  · simpa only [rmEncode_false] using hhalf
-  · rw [rmEncode_false, rmEncode_true, hammingDist_comm]
-    have := hnot a' a; rw [hammingDist_comm (hadamardCode a')] at this; omega
-  · rw [rmEncode_true, rmEncode_false]
-    have := hnot a a'; omega
-  · simpa only [rmEncode_true, hammingDist_not] using hhalf
+  have hnot1 := hnot a a'
+  have hnot2 : hammingDist (hadamardCode a) (fun x => !hadamardCode a' x) +
+      hammingDist (hadamardCode a) (hadamardCode a') = 128 := by
+    simpa only [hammingDist_comm] using hnot a' a
+  cases b <;> cases c <;> simp only [rmEncode_false, rmEncode_true, hammingDist_not] <;> omega
 
 /-- Distinct affine `RM(1, 7)` messages have Hamming distance at least `64`. -/
 theorem sixtyFour_le_hammingDist_rmEncode {m m' : RMMessage} (hmm' : m ≠ m') :
@@ -459,9 +455,8 @@ recovers a message after adding any error word whose weight `e` satisfies `2 * e
 theorem drmDecode_add_eq_of_two_mul_weight_lt {μ : ℕ} (m : RMMessage) (error : DRMWord μ)
     (herror : 2 * weight error < 64 * μ) :
     drmDecode (drmEncode μ m + error) = m := by
-  let w := drmEncode μ m + error
+  set w := drmEncode μ m + error
   by_contra hne
-  change drmDecode w ≠ m at hne
   have hlower := sixtyFour_mul_le_hammingDist_drmEncode μ hne
   have hnearest := drmDecode_isNearestDecoder μ w m
   have herr : hammingDist (drmEncode μ m) w = weight error := hammingDist_drmEncode_add μ m error

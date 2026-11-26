@@ -125,9 +125,8 @@ def RunsTo (K : ℕ) (μ : HoleList n State) (rs : List (List (Γ × State)))
 /-- A well-nested run from an initial state reaches a list without holes. -/
 theorem runsTo_init {K : ℕ} {s₀ s : State} {v : List (Symbol × Op n Γ)} (hs₀ : s₀ ∈ M.start)
     (hv : WellNested v) (hvrun : M.MTr s₀ v s) : M.RunsTo K ⟨[], s⟩ [] v := by
-  refine ⟨s₀, hs₀, [], List.nil_append v ▸ .wellNested .nil hv, .nil, .nil, ?_⟩
-  rw [stacksOf_nil]
-  exact hv.configLTS_mTr hvrun _
+  exact ⟨s₀, hs₀, [], List.nil_append v ▸ .wellNested .nil hv, .nil, .nil,
+    hv.configLTS_mTr hvrun _⟩
 
 /-- **A new hole**: a block run of a realization extends the run by the
 new hole triple, while fewer than `K` holes are open. -/
@@ -166,21 +165,17 @@ private theorem RunsTo.pop_aux {K : ℕ} {ν : HoleList n State} {w : List (Symb
   obtain ⟨s₀, hs₀, C, hd, hst, hsym, hrun⟩ := h
   rw [hμh] at hst
   obtain ⟨Cpre, c₀, Cpost, rfl, hClen, hstpre, hc₀, hstpost⟩ := hst.split_right_cons
-  obtain ⟨hsympre, hsymrest⟩ := List.Forall₂.split_of_length_eq (hClen.trans hlen.symm) hsym
-  cases hsymrest with
-  | cons hsym₀ hsympost =>
-  obtain ⟨stk, pushes⟩ := c₀
-  simp only at hc₀ hsym₀
-  subst stk
-  rcases pushes with _ | ⟨⟨p, γ'⟩, ps⟩
+  obtain ⟨hsympre, _ | ⟨hsym₀, hsympost⟩⟩ :=
+    List.Forall₂.split_of_length_eq (hClen.trans hlen.symm) hsym
+  obtain ⟨stk, _ | ⟨⟨p, γ'⟩, ps⟩⟩ := c₀
   · simp at hsym₀
+  cases hc₀
   obtain ⟨rfl, hps⟩ : γ' = γ ∧ ps.map Prod.snd = r.map Prod.fst := by simpa using hsym₀
   have hCpost : ∀ c ∈ Cpost, c.stack ≠ i := fun c hc => by
     obtain ⟨h, hh, hch⟩ := List.Forall₂.exists_mem_of_mem hstpost hc
     exact hch ▸ hpost h hh
-  refine ⟨s₀, hs₀, Cpre, Cpost, ps, .pop hd hCpost, hstpre, hstpost, hsympre, hsympost, hps,
-    hrun.comp _ (.single _ (configLTS_tr.mpr ⟨hb, ?_⟩))⟩
-  exact Op.apply_pop.mpr (stacksOf_pop hCpost)
+  exact ⟨s₀, hs₀, Cpre, Cpost, ps, .pop hd hCpost, hstpre, hstpost, hsympre, hsympost, hps,
+    hrun.comp _ (.single _ (configLTS_tr.mpr ⟨hb, Op.apply_pop.mpr (stacksOf_pop hCpost)⟩))⟩
 
 /-- **A pop that shrinks a hole**: the pop of the newest push of the last hole of stack `i`,
 followed by a well-nested run, drops the last atomic segment of that hole's realization. -/
@@ -195,7 +190,7 @@ theorem RunsTo.pop {K : ℕ} {ν : HoleList n State} {w v : List (Symbol × Op n
       (w ++ (b, .pop i γ) :: v) := by
   obtain ⟨s₀, hs₀, Cpre, Cpost, ps, hd, hstpre, hstpost, hsympre, hsympost, hps, hrun⟩ :=
     h.pop_aux hsplit hlen hb
-  rw [show w ++ (b, .pop i γ) :: v = w ++ [(b, .pop i γ)] ++ v by simp]
+  rw [← List.singleton_append (x := (b, Op.pop i γ)), ← List.append_assoc w]
   exact ⟨s₀, hs₀, Cpre ++ ⟨i, ps⟩ :: Cpost, .wellNested hd hv,
     List.rel_append hstpre (.cons rfl hstpost), List.rel_append hsympre (.cons hps hsympost),
     hrun.comp _ (hv.configLTS_mTr hvrun _)⟩
@@ -213,11 +208,10 @@ theorem RunsTo.popClose {K : ℕ} {ν : HoleList n State} {w v : List (Symbol ×
   obtain ⟨s₀, hs₀, Cpre, Cpost, ps, hd, hstpre, hstpost, hsympre, hsympost, hps, hrun⟩ :=
     h.pop_aux hsplit hlen hb
   obtain rfl : ps = [] := by simpa using hps
-  rw [show w ++ (b, .pop i γ) :: v = w ++ [(b, .pop i γ)] ++ v by simp]
-  refine ⟨s₀, hs₀, Cpre ++ Cpost, .wellNested hd.close hv, List.rel_append hstpre hstpost,
-    List.rel_append hsympre hsympost, hrun.comp _ ?_⟩
-  rw [stacksOf_close]
-  exact hv.configLTS_mTr hvrun _
+  rw [stacksOf_close] at hrun
+  rw [← List.singleton_append (x := (b, Op.pop i γ)), ← List.append_assoc w]
+  exact ⟨s₀, hs₀, Cpre ++ Cpost, .wellNested hd.close hv, List.rel_append hstpre hstpost,
+    List.rel_append hsympre hsympost, hrun.comp _ (hv.configLTS_mTr hvrun _)⟩
 
 /-- A run reaching a list without holes, followed by a well-nested run to a final state, is an
 accepting `K`-hole-bounded run. -/
@@ -228,8 +222,7 @@ theorem RunsTo.accepting {K : ℕ} {μ : HoleList n State} {w v : List (Symbol �
       HoleBounded K (w ++ v) := by
   obtain ⟨s₀, hs₀, C, hd, hst, -, hrun⟩ := h
   rw [hholes] at hst
-  obtain rfl : C = [] := by cases hst; rfl
-  rw [stacksOf_nil] at hrun
+  cases hst
   exact ⟨s₀, hs₀, hrun.comp _ (hv.configLTS_mTr hvrun _), (hd.wellNested hv).holeBounded⟩
 
 end Runs

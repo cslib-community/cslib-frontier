@@ -214,13 +214,13 @@ private theorem exists_size_add_numGates_le :
   have hG : numGates k State T < 2 ^ Nat.size C * (2 ^ Nat.size T) ^ 2 + 1 :=
     Nat.lt_succ_of_le <| (hC T).trans <|
       Nat.mul_le_mul (Nat.lt_size_self C).le (Nat.pow_le_pow_left (Nat.lt_size_self T) 2)
-  have h1 : 1 ≤ 2 ^ Nat.size n := Nat.one_le_two_pow
-  have h2 : 1 ≤ 2 ^ Nat.size C * (2 ^ Nat.size T) ^ 2 := Nat.one_le_iff_ne_zero.mpr (by positivity)
-  have hn : n < 2 ^ Nat.size n := Nat.lt_size_self n
   have hpow : 2 ^ (Nat.size n + 2 * Nat.size T + (Nat.size C + 1)) =
       2 * (2 ^ Nat.size n * (2 ^ Nat.size C * (2 ^ Nat.size T) ^ 2)) := by
     rw [← pow_mul, mul_comm (Nat.size T) 2, ← pow_add, ← pow_add, ← pow_succ']; ring_nf
-  rw [hpow]; nlinarith
+  rw [hpow]
+  nlinarith [Nat.one_le_two_pow (n := Nat.size n), Nat.lt_size_self n,
+    Nat.mul_pos (Nat.one_le_two_pow (n := Nat.size C))
+      (pow_pos (Nat.one_le_two_pow (n := Nat.size T)) 2)]
 
 /-- **Positions of logarithmic length.** On an input `x` of length `n`, every position of the
 circuit-value game reachable from a claim about a wire of the tableau of `T` steps has length at
@@ -239,8 +239,7 @@ theorem exists_length_le_of_reach_encLocal :
   obtain ⟨c, hc⟩ := exists_size_add_numGates_le (k := k) (State := State)
   refine ⟨2 * c + 10, fun x T w₀ v₀ w hw₀ h => ?_⟩
   obtain ⟨w', v, hw', rfl⟩ := reach_position (tm := tm) (encLocal x) hw₀ h
-  have hs : Nat.size w' ≤ Nat.size (x.length + numGates k State T) := Nat.size_le_size hw'.le
-  have := hc x.length T
+  have := (Nat.size_le_size hw'.le).trans (hc x.length T)
   have := length_position_encLocal_le (tm := tm) x T w' v
   omega
 
@@ -450,8 +449,7 @@ private theorem outcome_toLocal {x : List Bool} {c : Claim} (h : c.input = x) :
 /-- The player of the local data of a claim is the player of the claim. -/
 private theorem localUniversal_toLocal (c : Claim) (o : Option Bool) :
     localUniversal tm (c.toLocal, o) = Claim.player tm c := by
-  rw [player_eq_playerOf]
-  simp only [localUniversal, Claim.toLocal, LocalClaim.gate, Claim.gate_eq]
+  simp only [player_eq_playerOf, localUniversal, Claim.toLocal, LocalClaim.gate, Claim.gate_eq]
 
 private theorem step_localMachine_of_outcome_some (lc₀ : LocalClaim) {x : List Bool} {T w : ℕ}
     {v r : Bool} (ho : Claim.outcome tm ⟨x, T, w, v⟩ = some r) (b : Bool) :
@@ -488,9 +486,9 @@ theorem acceptsFrom_localMachine_iff (lc₀ : LocalClaim) (x : List Bool) (T : �
   simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
   cases ho : Claim.outcome tm ⟨x, T, w, v⟩ with
   | some r =>
-    rw [wins_position_terminal ho]
-    simp only [step_localMachine_of_outcome_some lc₀ ho, AlternatingQueryMachine.acceptsFrom_iff,
-      localMachine_halted, localMachine_accept, Option.isSome_some, ↓reduceIte, Option.getD_some]
+    simp only [wins_position_terminal ho, step_localMachine_of_outcome_some lc₀ ho,
+      AlternatingQueryMachine.acceptsFrom_iff, localMachine_halted, localMachine_accept,
+      Option.isSome_some, ↓reduceIte, Option.getD_some]
     cases localUniversal tm (⟨x.length, T, w, v⟩, none) <;> simp
   | none =>
     have hstep (b : Bool) : (localMachine tm lc₀).AcceptsFrom x
@@ -553,9 +551,9 @@ theorem replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T : ℕ} :
       exact ⟨w, v, some r, hw, (localMachine tm lc₀).replay_of_halted x rfl _, nofun⟩
     | none =>
       rcases step_localMachine_live (tm := tm) lc₀ (v := v) hw b with ⟨r, hr⟩ | ⟨w₁, v₁, hlt, h₁⟩
-      · refine ⟨w, v, some r, hw, ?_, nofun⟩
-        exact (congrArg ((localMachine tm lc₀).replay x choices) hr).trans
-          ((localMachine tm lc₀).replay_of_halted x (s := (⟨x.length, T, w, v⟩, some r)) rfl _)
+      · exact ⟨w, v, some r, hw, (congrArg ((localMachine tm lc₀).replay x choices) hr).trans
+          ((localMachine tm lc₀).replay_of_halted x (s := (⟨x.length, T, w, v⟩, some r)) rfl _),
+          nofun⟩
       · obtain ⟨w', v', o', hw', heq, hle⟩ := ih w₁ v₁ none (hlt.trans hw)
         refine ⟨w', v', o', hw', (congrArg ((localMachine tm lc₀).replay x choices) h₁).trans heq,
           fun h => (Nat.succ_add ..).trans_le (Nat.succ_le_of_lt ((hle h).trans_lt hlt))⟩
@@ -567,10 +565,9 @@ theorem halted_replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T w : �
     (localMachine tm lc₀).halted
       ((localMachine tm lc₀).replay x choices (⟨x.length, T, w, v⟩, none)) = true := by
   obtain ⟨w', v', o', -, heq, hle⟩ := replay_localMachine (tm := tm) lc₀ choices w v none hw
-  rw [heq, localMachine_halted]
-  cases o' with
-  | some _ => rfl
-  | none => exact absurd (hle rfl) (by omega)
+  cases o'
+  · exact absurd (hle rfl) (by omega)
+  · simp [heq, localMachine_halted]
 
 /-- **States of logarithmic length.** On an input `x` of length `n`, every state reached by the
 local machine from the local data of a claim about a wire of the tableau of `T` steps has an
@@ -585,8 +582,7 @@ theorem exists_length_le_of_replay_localMachine :
   refine ⟨4 * c + 30, fun lc₀ x T w v choices hw => ?_⟩
   obtain ⟨w', v', o', hw', heq, -⟩ := replay_localMachine (tm := tm) lc₀ choices w v none hw
   rw [heq]
-  have hs : Nat.size w' ≤ Nat.size (x.length + numGates k State T) := Nat.size_le_size hw'.le
-  have := hc x.length T
+  have := (Nat.size_le_size hw'.le).trans (hc x.length T)
   have hlen (n : ℕ) : (encNat n).length = Nat.size n := by
     simp [encNat_apply, Nat.size_eq_bits_len]
   have ho : (encOption encBool o').length ≤ 2 := by
@@ -598,20 +594,20 @@ theorem exists_length_le_of_replay_localMachine :
 /-- The query of the local machine, the wire of the claim, within linear space in the state. -/
 theorem localQuery_inSpace {lc₀ : LocalClaim} :
     ComputableInSpace (localMachine tm lc₀).query encLocalState encNat
-      fun s => (encLocalState s).length := by
-  exact encLocalClaim_wire_budget (fst encLocalClaim (encOption encBool))
+      fun s => (encLocalState s).length :=
+  encLocalClaim_wire_budget (fst encLocalClaim (encOption encBool))
 
 /-- Whether a state of the local machine has halted, within linear space in the state. -/
 theorem localHalted_inSpace {lc₀ : LocalClaim} :
     ComputableInSpace (localMachine tm lc₀).halted encLocalState encBool
-      fun s => (encLocalState s).length := by
-  exact budget_optionIsSome (snd encLocalClaim (encOption encBool))
+      fun s => (encLocalState s).length :=
+  budget_optionIsSome (snd encLocalClaim (encOption encBool))
 
 /-- Whether a state of the local machine accepts, within linear space in the state. -/
 theorem localAccept_inSpace {lc₀ : LocalClaim} :
     ComputableInSpace (localMachine tm lc₀).accept encLocalState encBool
-      fun s => (encLocalState s).length := by
-  exact budget_optionGetD false (snd encLocalClaim (encOption encBool))
+      fun s => (encLocalState s).length :=
+  budget_optionGetD false (snd encLocalClaim (encOption encBool))
 
 /-- The player at a state of the local machine, within linear space in the state. -/
 theorem localUniversal_inSpace {lc₀ : LocalClaim} :

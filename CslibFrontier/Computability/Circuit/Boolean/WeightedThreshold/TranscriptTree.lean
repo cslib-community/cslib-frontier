@@ -122,12 +122,10 @@ private theorem exists_varying_query (p : Program signature n g)
   have hi : i ∈ varying := min'_mem _ _
   obtain ⟨x₀, hx₀⟩ := hS
   have hprevious (x) (hx : x ∈ S) : ∀ j : Fin g, j < i.val →
-      p.eval interpretation x₀ j = p.eval interpretation x j := by
-    apply eval_eq_of_forall_mem_inputGates_lt p i.val
-    intro j hj hjlt
-    by_contra hne
-    exact not_le_of_gt hjlt
-      (varying.min'_le ⟨j, hj⟩ (mem_filter.mpr ⟨mem_univ _, x₀, hx₀, x, hx, hne⟩))
+      p.eval interpretation x₀ j = p.eval interpretation x j :=
+    eval_eq_of_forall_mem_inputGates_lt p i.val fun j hj hjlt => by_contra fun hne =>
+      not_le_of_gt hjlt
+        (varying.min'_le ⟨j, hj⟩ (mem_filter.mpr ⟨mem_univ _, x₀, hx₀, x, hx, hne⟩))
   refine ⟨gateQuery p i.val (p.eval interpretation x₀), i,
     fun x hx => gateQuery_eval_eq p i.val _ x (hprevious x hx), fun b => ?_⟩
   obtain ⟨x, hx, y, hy, hxy⟩ := (mem_filter.mp hi).2
@@ -209,10 +207,9 @@ theorem exists_transcript_tree (p : Program signature n g) (split : Fin n ≃ L 
   let : Fintype L := Fintype.ofInjective (Sum.inl : L → L ⊕ R) Sum.inl_injective
   let : Fintype R := Fintype.ofInjective (Sum.inr : R → L ⊕ R) Sum.inr_injective
   obtain ⟨t, ht, hd, hl⟩ := exists_linear_transcript_tree p output hout
-  refine ⟨t.mapQueries (fun q => lineComparison q split), ?_,
+  refine ⟨t.mapQueries (lineComparison · split), fun x y => ?_,
     (DecisionTree.depth_mapQueries _ _).trans_le hd,
     (DecisionTree.leafCount_mapQueries _ _).trans_le hl⟩
-  intro x y
   simpa only [DecisionTree.eval_mapQueries, Function.comp_def, lineComparison_eval] using
     ht (inputOfSplit split x y)
 
@@ -358,9 +355,7 @@ theorem card_inputGates_prefixBank (p : Program signature n g) (reads : Fin d �
     (inputGates (prefixBank p reads m patterns)).card = (inputGates p).card := by
   induction m with
   | zero => rfl
-  | succ m ih =>
-    rw [prefixBank, card_inputGates_gate]
-    simp [prefixLine_inputWeight, ih]
+  | succ m ih => simp [prefixBank, card_inputGates_gate, prefixLine_inputWeight, ih]
 
 /-- A native scalar query with direct input vector `w`, plus a weighted sum of earlier flags. -/
 def queryLine (w : Fin n → ℝ) (flags : Fin m → Fin g) (adjust : Fin m → ℝ)
@@ -378,8 +373,7 @@ theorem queryLine_eval (w : Fin n → ℝ) (flags : Fin m → Fin g) (adjust : F
   change decide (baseline ≤ ∑ a : Fin (n + m), (Fin.addCases w adjust a : ℝ) *
     ((Wire.elim x z (Fin.addCases (Wire.input : Fin n → Wire n g)
       (fun j : Fin m => Wire.gate (flags j)) a)).toNat : ℝ)) = _
-  rw [Fin.sum_univ_add]
-  simp
+  simp [Fin.sum_univ_add]
 
 /-- The effective coefficient on an original input is exactly the supplied coefficient. -/
 theorem queryLine_inputWeight (w : Fin n → ℝ) (flags : Fin m → Fin g)
@@ -389,8 +383,7 @@ theorem queryLine_inputWeight (w : Fin n → ℝ) (flags : Fin m → Fin g)
     (Fin.addCases (Wire.input : Fin n → Wire n g)
       (fun j : Fin m => Wire.gate (flags j)) a : Wire n g) = Wire.input i,
       (Fin.addCases w adjust a : ℝ)) = w i
-  rw [sum_filter, Fin.sum_univ_add]
-  simp
+  simp [sum_filter, Fin.sum_univ_add]
 
 /-- Append one adaptive scalar stage: a bank of `m` prefix indicators and one query.
 A matching pattern contributes `baseline - threshold`, so a unique match selects that threshold.
@@ -430,15 +423,16 @@ theorem eval_append_of_match (p : Program signature n g) (reads : Fin d → Fin 
     (hmatch : (fun j => p.eval interpretation x (reads j)) = patterns a) :
     (append p reads patterns w thresholds baseline).eval interpretation x (Fin.last (g + m)) =
       decide (thresholds a ≤ ∑ i, w i * (x i).toNat) := by
+  have hne (b : Fin m) (hba : b ≠ a) :
+      (fun j => p.eval interpretation x (reads j)) ≠ patterns b :=
+    fun h => hba (hinj (h.symm.trans hmatch))
   have hsum : (∑ b, (baseline - thresholds b) *
       (decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat) =
         baseline - thresholds a := by
-    rw [sum_eq_single a (fun b _ hba => by
-        simp [show _ ≠ patterns b from fun h => hba (hinj (h.symm.trans hmatch))])
-      (fun h => (h (mem_univ a)).elim)]
+    rw [sum_eq_single a (fun b _ hba => by simp [hne b hba]) (fun h => (h (mem_univ a)).elim)]
     simp [hmatch]
   rw [eval_append_last, hsum, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
-  exact ⟨fun h => by linarith, fun h => by linarith⟩
+  constructor <;> intro <;> linarith
 
 /-- No matching live prefix pads the transcript with `false` when the score is below baseline. -/
 theorem eval_append_of_no_match (p : Program signature n g) (reads : Fin d → Fin g)
@@ -464,7 +458,8 @@ theorem eval_append_readout (p : Program signature n g) (reads : Fin d → Fin g
   rw [eval_append_last, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
   simp only [zero_mul, sum_const_zero, zero_add, sub_zero, one_mul]
   refine ⟨fun hs => by_contra fun hn => ?_, fun ⟨a, ha⟩ => ?_⟩
-  · norm_num [show ∀ a, _ ≠ patterns a from fun a ha => hn ⟨a, ha⟩] at hs
+  · push Not at hn
+    norm_num [hn] at hs
   · simpa [ha] using single_le_sum (f := fun b : Fin m =>
       ((decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat : ℝ))
       (fun _ _ => Nat.cast_nonneg _) (mem_univ a)

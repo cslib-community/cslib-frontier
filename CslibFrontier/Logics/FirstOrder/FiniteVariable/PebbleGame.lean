@@ -110,13 +110,10 @@ theorem PartialIsoOn.mono {S T : Set (Fin k)} {a : Fin k → M} {b : Fin k → N
 theorem PartialIsoOn.congr {S : Set (Fin k)} {a a' : Fin k → M} {b b' : Fin k → N}
     (ha : Set.EqOn a a' S) (hb : Set.EqOn b b' S) (h : PartialIsoOn L S a b) :
     PartialIsoOn L S a' b' :=
-  ⟨fun i hi j hj => by
-      rw [← ha hi, ← ha hj, ← hb hi, ← hb hj]
-      exact h.eq_iff i hi j hj,
-    fun R f hf => by
-      rw [show a' ∘ f = a ∘ f from funext fun t => (ha (hf t)).symm,
-        show b' ∘ f = b ∘ f from funext fun t => (hb (hf t)).symm]
-      exact h.relMap_iff R f hf⟩
+  ⟨fun i hi j hj => ha hi ▸ ha hj ▸ hb hi ▸ hb hj ▸ h.eq_iff i hi j hj, fun R f hf => by
+    have haf : a' ∘ f = a ∘ f := funext fun t => (ha (hf t)).symm
+    have hbf : b' ∘ f = b ∘ f := funext fun t => (hb (hf t)).symm
+    simpa only [haf, hbf] using h.relMap_iff R f hf⟩
 
 /-- With no pebbles placed, every position is a partial isomorphism, provided `L` has no nullary
 relation symbols: these are sentences that the two structures would have to agree on. -/
@@ -198,22 +195,21 @@ def PebbleWins : ℕ → Set (Fin k) → (Fin k → M) → (Fin k → N) → Pro
         PebbleWins n (insert i S) (Function.update a i c) (Function.update b i d))
 
 theorem pebbleWins_zero {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
-    PebbleWins L 0 S a b ↔ PartialIsoOn L S a b := by
-  rw [PebbleWins]
+    PebbleWins L 0 S a b ↔ PartialIsoOn L S a b :=
+  Iff.rfl
 
 theorem pebbleWins_succ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
     PebbleWins L (n + 1) S a b ↔ PartialIsoOn L S a b ∧
       (∀ i (c : M), ∃ d : N,
         PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) ∧
       (∀ i (d : N), ∃ c : M,
-        PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) := by
-  rw [PebbleWins]
+        PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) :=
+  Iff.rfl
 
 theorem PebbleWins.partialIsoOn {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L n S a b) : PartialIsoOn L S a b := by
-  cases n with
-  | zero => exact pebbleWins_zero.1 h
-  | succ n => exact (pebbleWins_succ.1 h).1
+  rcases n with _ | n
+  exacts [h, h.1]
 
 theorem PebbleWins.forth {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L (n + 1) S a b) (i : Fin k) (c : M) :

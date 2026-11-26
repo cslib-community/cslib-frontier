@@ -163,12 +163,11 @@ private theorem card_lt_of_hasNewQuery {l : List α} {j j' : ℕ} {z : α} (hz :
   obtain ⟨-, u, hu, hnotin⟩ := hnew
   refine Finset.card_lt_card (Finset.ssubset_iff_of_subset ?_ |>.2 ⟨u, ?_, ?_⟩)
   · intro x hx
-    simp only [List.mem_toFinset, List.mem_flatMap] at hx ⊢
-    obtain ⟨y, hy, hxy⟩ := hx
-    exact ⟨y, (List.take_prefix_take_left (by omega)).subset hy, hxy⟩
-  · simp only [List.mem_toFinset, List.mem_flatMap]
-    exact ⟨z, List.mem_of_getElem? (i := j + 1)
-      (by simpa [List.getElem?_take, Nat.succ_lt_succ hjj'] using hz), hu⟩
+    obtain ⟨y, hy, hxy⟩ := List.mem_flatMap.1 (List.mem_toFinset.1 hx)
+    exact List.mem_toFinset.2 (List.mem_flatMap.2
+      ⟨y, (List.take_prefix_take_left (Nat.succ_le_succ hjj'.le)).subset hy, hxy⟩)
+  · exact List.mem_toFinset.2 (List.mem_flatMap.2 ⟨z, List.mem_of_getElem? (i := j + 1)
+      (by simpa [List.getElem?_take, Nat.succ_lt_succ hjj'] using hz), hu⟩)
   · simpa using of_decide_eq_true hnotin
 
 /-- **`SEARCH-RIGHT` keeps at most `s + 2` nodes**: the last one, and at most `s + 1` others,
@@ -196,10 +195,9 @@ theorem length_searchRight_le (l : List α) : (searchRight Q s l).length ≤ s +
     rw [hasNewQuery, Bool.and_eq_true, decide_eq_true_iff, length_eraseDupsBy_flatMap] at hnew
     exact List.mem_range.2 (Nat.lt_succ_of_le hnew.1)
   have hF := List.Nodup.length_le_of_subset (hsorted.imp ne_of_lt) hsub
-  rw [List.length_map, List.length_range] at hF
-  have hdrop : (l.drop (l.length - 1)).length ≤ 1 := by rw [List.length_drop]; omega
-  rw [searchRight, List.length_append, List.length_map]
-  exact le_trans (Nat.add_le_add hF hdrop) (by omega)
+  simp only [searchRight, F, P, List.length_append, List.length_map, List.length_drop,
+    List.length_range] at hF ⊢
+  omega
 
 /-- **`SEARCH-RIGHT` keeps the end of a run of nodes whose queries lie in a small set.** If every
 query of the nodes `A` and of `y` lies in a set `K` whose finite subsets have at most `s` members,
@@ -263,10 +261,8 @@ variable {φ : CNF ℕ}
 /-- A node is satisfiable exactly when some satisfying assignment agrees with its values. -/
 private theorem units_append_mem_SAT_iff {a : List (Literal ℕ)} :
     units a ++ φ ∈ SAT ↔ ∃ σ, φ.eval σ = true ∧ a.map Prod.snd = a.map fun l => σ l.1 := by
-  simp only [mem_SAT, CNF.Satisfiable, eval_units_append]
-  refine exists_congr fun σ => ⟨fun ⟨h, hσ⟩ => ⟨hσ, ?_⟩, fun ⟨hσ, h⟩ => ⟨fun l hl => ?_, hσ⟩⟩
-  · exact List.map_congr_left fun l hl => (h l hl).symm
-  · exact (List.map_inj_left.1 h l hl).symm
+  simp only [mem_SAT, CNF.Satisfiable, eval_units_append, List.map_inj_left, and_comm]
+  exact exists_congr fun σ => and_congr_right' (forall₂_congr fun _ _ => eq_comm)
 
 /-- `a` is the lexicographically largest satisfiable node fixing its occurrences. -/
 def IsLargest (φ : CNF ℕ) (a : List (Literal ℕ)) : Prop :=
@@ -356,8 +352,7 @@ theorem pairwise_expand {pre : List ℕ} {nodes : List (List (Literal ℕ))} (v 
     have hlen : (b.map Prod.snd).length = (a.map Prod.snd).length := by
       simpa using congrArg List.length ((hfst b hb).trans (hfst a ha).symm)
     intro x hx y hy
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx hy
-    rcases hx with rfl | rfl <;> rcases hy with rfl | rfl <;>
+    rcases List.mem_pair.1 hx with rfl | rfl <;> rcases List.mem_pair.1 hy with rfl | rfl <;>
       simpa using List.append_lt_append_of_lt_of_length_eq hlt hlen _ _
 
 /-- **Correctness of a search that keeps the largest satisfiable node.** Let the rule `prune` return

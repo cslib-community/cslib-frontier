@@ -243,18 +243,18 @@ private theorem insOldBufSomeGenProg_spec {c U V w n_max base rKey : ℕ}
   obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ := readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
     hrep.2.2.2.1 (s := s)
-  dsimp only
-  unfold insOldBufSomeGenProg; dsimp only; simp only [pure_bind]
+  unfold insOldBufSomeGenProg
+  simp only [pure_bind]
+  refine CostBoundedStep.weaken (C := 1 + (1 + (2 * cTabWhp c + 8)))
+    (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
+      .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ ?_) rfl (by omega)
   by_cases hle3 : fs.rebStage ≤ 3
   · obtain ⟨oldMap, hv_old⟩ := hbo_fn hle3
     obtain ⟨hb1, hb2, hb3, hb4⟩ := insBufIsSomeGenProg_spec henv hold_or hrep hv_old (rKey := rKey)
-    exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
-      .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <|
-      .if_pos hle3 ⟨hb1, hb2, hb3, hb4⟩)
-      (by simp [hle3]) (by omega)
-  · exact CostBoundedStep.weaken (.bind ⟨hst_st, hst_res, hst_mc.le, hst_vp⟩ <|
-      .bind ⟨hro_st, hro_res, hro_mc.le, hro_vp⟩ <| .if_neg hle3 (.pure _ _))
-      (by simp [hle3]) (by omega)
+    simpa only [hle3, true_and, ↓reduceIte] using
+      (⟨hb1, hb2, hb3, hb4⟩ : CostBoundedStep ..)
+  · simpa only [hle3, false_and, ↓reduceIte] using
+      (CostBoundedStep.pure s 0).mono (Nat.zero_le _)
 
 /-- Guard 2 (`insCheckRKeyGuardsGenProg`): return `0` if `rKey` collides in `buf curEp` or active
 `buf oldEp`, else `1` (`d = ((cp, base), rKey)`). -/
@@ -537,24 +537,19 @@ private theorem insReadCurBufItemAllocProg_spec {c U V w n_max base : ℕ}
     (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
     (by dsimp [hdrCurEp]; omega) (s := s)
   rw [hrep.2.2.2.1] at hce_res
-  dsimp only
-  unfold insReadCurBufItemAllocProg; simp only [pure_bind]
-  rcases hce with hc0 | hc1
-  · obtain ⟨hi_st, hi_res, hi_mc, hi_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrBuf0ItemAlloc)
-      (by dsimp [hdrBuf0ItemAlloc]; omega) (s := s)
-    rw [hc0] at hce_res ⊢
-    exact CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
-      .if_pos rfl ⟨hi_st, hi_res.trans (hrep.buf_rep (Or.inl rfl)).2.2.2.1, hi_mc.le, hi_vp⟩)
-      rfl (by omega)
-  · obtain ⟨hi_st, hi_res, hi_mc, hi_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrBuf1ItemAlloc)
-      (by dsimp [hdrBuf1ItemAlloc]; omega) (s := s)
-    rw [hc1] at hce_res ⊢
-    exact CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
-      .if_neg (by decide)
-        ⟨hi_st, hi_res.trans (hrep.buf_rep (Or.inr rfl)).2.2.2.1, hi_mc.le, hi_vp⟩)
-      rfl (by omega)
+  obtain ⟨_, _hv, _hna, hmIa, _⟩ := hrep.buf_rep hce
+  obtain ⟨hi_st, hi_res, hi_mc, hi_vp⟩ := readHdrProg_spec (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (base := base)
+    (hdrOff := if fs.curEp = 0 then hdrBuf0ItemAlloc else hdrBuf1ItemAlloc)
+    (by split_ifs <;> dsimp [hdrBuf0ItemAlloc, hdrBuf1ItemAlloc] <;> omega) (s := s)
+  unfold insReadCurBufItemAllocProg
+  simp only [pure_bind]
+  refine CostBoundedStep.weaken (C := 1 + 1)
+    (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ ?_) rfl (by omega)
+  have hstep : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (readHdrProg (base, if fs.curEp = 0 then hdrBuf0ItemAlloc else hdrBuf1ItemAlloc)) s
+      (fs.buf fs.curEp).itemAlloc 1 := ⟨hi_st, hi_res.trans hmIa, hi_mc.le, hi_vp⟩
+  split_ifs with hc0 <;> simpa only [hc0, ↓reduceIte] using hstep
 
 /-- Guard 3 active helper (`hasFpCollision = true`): return `0` iff
 `!bufEverPresent (buf curEp) rKey ∧ 2 * sMaxWhp ≤ (buf curEp).itemAlloc`, else `1`. -/

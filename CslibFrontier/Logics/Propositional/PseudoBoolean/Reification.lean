@@ -85,9 +85,6 @@ namespace PBConstr
 
 /-! ### Implications -/
 
-/-- The variables of the terms of a constraint. -/
-def vars (c : PBConstr) : List ℕ := c.terms.map termVar
-
 /-- **The implication `⋀ R ⇒ c`** (§2.1 of the paper): each literal `ℓ` of `R` adds the term
 `d ¬ℓ`, for the degree `d` of `c`. A false literal of `R` satisfies it on its own. -/
 def impl (R : List (Literal ℕ)) (c : PBConstr) : PBConstr :=
@@ -129,49 +126,10 @@ private abbrev keys (L : List (ℕ × ℤ)) : List ℕ := L.map Prod.fst
 private noncomputable abbrev sing (L : List (ℕ × ℤ)) : ℕ →₀ ℤ :=
   (L.map fun e => Finsupp.single e.1 e.2).sum
 
-private theorem mem_keys_insertCoeff {x v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)} :
-    x ∈ keys (insertCoeff v a L) ↔ x = v ∨ x ∈ keys L := by
-  induction L with
-  | nil => simp [insertCoeff]
-  | cons e L ih =>
-    obtain ⟨u, b⟩ := e
-    by_cases h : u = v
-    · subst h; simp only [insertCoeff, ↓reduceIte, List.map_cons, List.mem_cons]; tauto
-    · simp only [insertCoeff, h, ↓reduceIte, List.map_cons, List.mem_cons] at ih ⊢
-      rw [ih]; tauto
-
-private theorem nodup_keys_insertCoeff {v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)}
-    (h : (keys L).Nodup) : (keys (insertCoeff v a L)).Nodup := by
-  induction L with
-  | nil => simp [insertCoeff]
-  | cons e L ih =>
-    obtain ⟨u, b⟩ := e
-    simp only [List.map_cons, List.nodup_cons] at h
-    by_cases huv : u = v
-    · subst huv; simpa [insertCoeff] using h
-    · simp only [insertCoeff, huv, ↓reduceIte, List.map_cons, List.nodup_cons]
-      exact ⟨fun hm => (mem_keys_insertCoeff.1 hm).elim huv h.1, ih h.2⟩
-
-private theorem keys_toLinear_subset {x : ℕ} {ts : List (ℕ × Literal ℕ)}
-    (h : x ∈ keys (toLinear ts)) : x ∈ ts.map termVar := by
-  induction ts with
-  | nil => simp [toLinear] at h
-  | cons t ts ih =>
-    rw [show toLinear (t :: ts) = insertCoeff (termVar t) (termCoeff t) (toLinear ts) from rfl,
-      mem_keys_insertCoeff] at h
-    rcases h with rfl | h
-    · simp
-    · exact List.mem_cons_of_mem _ (ih h)
-
-private theorem nodup_keys_toLinear (ts : List (ℕ × Literal ℕ)) : (keys (toLinear ts)).Nodup := by
-  induction ts with
-  | nil => simp [toLinear]
-  | cons t ts ih => exact nodup_keys_insertCoeff ih
-
 private theorem nodup_keys_subLinear {L : List (ℕ × ℤ)} (h : (keys L).Nodup) :
     ∀ L' : List (ℕ × ℤ), (keys (VeriPB.subLinear L L')).Nodup
   | [] => h
-  | _ :: L' => nodup_keys_insertCoeff (nodup_keys_subLinear h L')
+  | _ :: L' => nodup_map_fst_insertCoeff (nodup_keys_subLinear h L')
 
 private theorem sing_insertCoeff (v : ℕ) (a : ℤ) (L : List (ℕ × ℤ)) :
     sing (insertCoeff v a L) = Finsupp.single v a + sing L := by
@@ -226,7 +184,7 @@ theorem weakImplies_of_le {D C : PBConstr} (hcf : ∀ v, cf D.terms v ≤ cf C.t
     (hb : (C.degree : ℤ) - negSum C.terms ≤ (D.degree : ℤ) - negSum D.terms) :
     VeriPB.weakImplies D C = true := by
   unfold VeriPB.weakImplies
-  have hnd := nodup_keys_subLinear (nodup_keys_toLinear D.terms) (toLinear C.terms)
+  have hnd := nodup_keys_subLinear (nodup_map_fst_toLinear D.terms) (toLinear C.terms)
   have h0 : VeriPB.posMass (VeriPB.subLinear (toLinear D.terms) (toLinear C.terms)) = 0 := by
     refine List.sum_eq_zero fun x hx => ?_
     obtain ⟨e, he, rfl⟩ := List.mem_map.1 hx
@@ -323,13 +281,6 @@ private theorem coeffSum_fromLinear (L : List (ℕ × ℤ)) (D : ℤ) :
     · rw [he, coeffSum_cons, ih]; simp only; omega
     · rw [he]; simp [ih]
 
-private theorem var_mem_of_mem_fromLinear {L : List (ℕ × ℤ)} {D : ℤ} {t : ℕ × Literal ℕ}
-    (ht : t ∈ (fromLinear L D).terms) : termVar t ∈ keys L := by
-  obtain ⟨e, he, het⟩ := List.mem_filterMap.1 ht
-  obtain ⟨v, c⟩ := e
-  rcases entryTerm_cases v c with ⟨-, h⟩ | ⟨-, h⟩ | ⟨-, h⟩ <;> rw [h] at het <;> cases het <;>
-    exact List.mem_map_of_mem he
-
 /-- A term of `fromLinear L D` has a positive coefficient, and its signed coefficient is that of
 its variable in `L`. -/
 private theorem termCoeff_of_mem_fromLinear {L : List (ℕ × ℤ)} (h : (keys L).Nodup) {D : ℤ}
@@ -344,19 +295,14 @@ private theorem termCoeff_of_mem_fromLinear {L : List (ℕ × ℤ)} (h : (keys L
 
 /-! ### Normalization -/
 
-theorem mem_vars_of_mem_vars_normalize {c : PBConstr} {x : ℕ} (h : x ∈ c.normalize.vars) :
-    x ∈ c.vars := by
-  obtain ⟨t, ht, rfl⟩ := List.mem_map.1 h
-  exact keys_toLinear_subset (var_mem_of_mem_fromLinear ht)
-
 private theorem negMass_toLinear_normalize (c : PBConstr) :
     negMass (toLinear c.normalize.terms) = negMass (toLinear c.terms) := by
-  rw [normalize, toLinear_fromLinear (nodup_keys_toLinear _)]
+  rw [normalize, toLinear_fromLinear (nodup_map_fst_toLinear _)]
   exact sum_filter_reverse (fun a => (-a).toNat) rfl _
 
 private theorem posMass_toLinear_normalize (c : PBConstr) :
     VeriPB.posMass (toLinear c.normalize.terms) = VeriPB.posMass (toLinear c.terms) := by
-  rw [normalize, toLinear_fromLinear (nodup_keys_toLinear _)]
+  rw [normalize, toLinear_fromLinear (nodup_map_fst_toLinear _)]
   exact sum_filter_reverse (fun a => a.toNat) rfl _
 
 private theorem negSum_normalize (c : PBConstr) :
@@ -417,7 +363,9 @@ private theorem toLinear_impl_single {l : Literal ℕ} {c : PBConstr} (h : l.1 �
       insertCoeff (termVar (c.degree, Std.Sat.Literal.negate l))
         (termCoeff (c.degree, Std.Sat.Literal.negate l)) (toLinear c.terms) from rfl]
   obtain ⟨v, b⟩ := l
-  exact insertCoeff_of_not_mem fun hm => h (keys_toLinear_subset hm)
+  refine insertCoeff_of_not_mem fun hm => h ?_
+  obtain ⟨e, he, rfl⟩ := List.mem_map.1 hm
+  exact fst_mem_of_mem_toLinear he
 
 private theorem vars_negate (c : PBConstr) : c.negate.vars = c.normalize.vars := by
   simp only [vars, negate, List.map_map]
@@ -563,7 +511,7 @@ private theorem weakImplies_reify {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
   have hDs := negSum_normalize X
   have hneg : ∀ t ∈ X.normalize.terms, termVar t = z → termPos t = false := by
     intro t ht htz
-    obtain ⟨hpos, hcoef⟩ := termCoeff_of_mem_fromLinear (nodup_keys_toLinear X.terms) ht
+    obtain ⟨hpos, hcoef⟩ := termCoeff_of_mem_fromLinear (nodup_map_fst_toLinear X.terms) ht
     rw [htz, sing, ← cf_eq_lin, hXcf] at hcoef
     simp only [Finsupp.add_apply, Finsupp.single_eq_same, hγz, add_zero] at hcoef
     by_contra hp
@@ -596,7 +544,7 @@ private theorem negMass_toLinear_eq_zero {ts : List (ℕ × Literal ℕ)} (h : �
     negMass (toLinear ts) = 0 := by
   refine List.sum_eq_zero fun x hx => ?_
   obtain ⟨e, he, rfl⟩ := List.mem_map.1 hx
-  have := sing_apply_of_mem (nodup_keys_toLinear ts) he
+  have := sing_apply_of_mem (nodup_map_fst_toLinear ts) he
   rw [sing, ← cf_eq_lin] at this
   have := h e.1
   omega
@@ -700,7 +648,7 @@ private theorem sum_map_eq {L : List (ℕ × ℤ)} (h : (keys L).Nodup) (g : ℤ
 
 private theorem negMass_toLinear_eq (ts : List (ℕ × Literal ℕ)) :
     negMass (toLinear ts) = nP (cf ts) := by
-  rw [cf_eq_lin]; exact sum_map_eq (nodup_keys_toLinear ts) (fun a => (-a).toNat) rfl
+  rw [cf_eq_lin]; exact sum_map_eq (nodup_map_fst_toLinear ts) (fun a => (-a).toNat) rfl
 
 private theorem bnd_normalize (c : PBConstr) :
     bnd c.normalize = max (bnd c) (-(nP (cf c.terms) : ℤ)) := by

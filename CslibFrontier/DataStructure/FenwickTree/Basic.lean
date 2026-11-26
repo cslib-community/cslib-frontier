@@ -177,9 +177,7 @@ theorem size_zeros {α : Type*} [Zero α] (n : ℕ) : (zeros n : FenwickTree α)
 theorem valid_zeros {α : Type*} [AddCommMonoid α] (n : ℕ) :
     Valid (zeros n : FenwickTree α) (List.replicate n 0) := by
   rw [valid_iff_sum_Ico]
-  refine ⟨by simp only [zeros, Array.size_replicate, List.length_replicate],
-    fun m _ _ => ?_⟩
-  simp [zeros]
+  exact ⟨by simp [zeros], fun _ _ _ => by simp [zeros]⟩
 
 /-! ## Prefix queries (`prefixSum`) -/
 
@@ -201,9 +199,7 @@ p. 330). Clamps `len` to `t.size`. -/
 @[simp]
 theorem prefixSum_zero {α : Type*} [AddCommMonoid α] (t : FenwickTree α) :
     prefixSum t 0 = 0 := by
-  unfold prefixSum
-  rw [Nat.zero_min, prefixSumLoop]
-  simp only [Nat.lt_irrefl, false_and, ↓reduceDIte]
+  simp [prefixSum, prefixSumLoop]
 
 private theorem prefixSumLoop_eq {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} (hv : Valid t s)
@@ -420,9 +416,7 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
         Finset.sum_insert (notMem_biUnion_fenwickChildren m),
         Finset.sum_biUnion (pairwiseDisjoint_fenwickChildren m)]
   set p := m + lowbit m
-  have hp_gt : m < p := by
-    have := lowbit_pos hm1
-    omega
+  have hp_gt : m < p := Nat.lt_add_of_pos_right (lowbit_pos hm1)
   set tree' :=
     if p ≤ s.length then tree.modify (p - 1) (· + tree[m - 1]'(by omega)) else tree
   have hsz' : tree'.size = s.length := by
@@ -442,12 +436,7 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
       have hp_le : p ≤ s.length := hsz' ▸ hidx_sz'
       have htree'_p : tree'[p - 1]'(by omega) =
           tree[p - 1]'(by omega) + tree[m - 1]'(by omega) := by
-        generalize_proofs pf1 pf2 pf3
-        revert pf1
-        dsimp only [tree']
-        simp only [hp_le, ↓reduceIte]
-        intro pf1
-        simp only [Array.getElem_modify, ↓reduceIte]
+        simp [tree', hp_le, Array.getElem_modify_self]
       rw [htree'_p, hinv.todo_eq p hidx1 (by omega) hidx_sz, hm_val]
       have hm_mem : m ∈ fenwickChildren p := by
         simp only [fenwickChildren, Finset.mem_filter, Finset.mem_Icc]
@@ -474,20 +463,16 @@ theorem BuildInv.to_valid {α : Type*} [AddCommMonoid α]
     {s : List α} {tree : Array α} (hinv : BuildInv s (s.length + 1) tree) :
     Valid ⟨tree⟩ s := by
   rw [valid_iff_sum_Ico]
-  refine ⟨hinv.size_eq, fun m hm1 hm => ?_⟩
-  dsimp only at hm
-  exact hinv.done_eq m hm1 (by have := hinv.size_eq; omega) hm
+  exact ⟨hinv.size_eq, fun m hm1 hm =>
+    hinv.done_eq m hm1 (Nat.lt_succ_of_le (hinv.size_eq ▸ hm)) hm⟩
 
 /-- Over `ℕ`, every intermediate array entry under `BuildInv s m tree` is bounded by `s.sum`. -/
 theorem BuildInv.getElem_le_sum {s : List ℕ} {m : ℕ} {tree : Array ℕ}
     (hinv : BuildInv s m tree) {idx : ℕ} (hidx1 : 1 ≤ idx) (hidx_sz : idx ≤ tree.size) :
     tree[idx - 1]'(by omega) ≤ s.sum := by
   have hico_le : (∑ i ∈ Finset.Ico (idx - lowbit idx) idx, s.getD i 0) ≤ s.sum := by
-    have hsub : Finset.Ico (idx - lowbit idx) idx ⊆ Finset.Ico 0 s.length := by
-      intro i hi
-      simp only [Finset.mem_Ico] at hi ⊢
-      have := hinv.size_eq
-      omega
+    have hsub : Finset.Ico (idx - lowbit idx) idx ⊆ Finset.Ico 0 s.length :=
+      Finset.Ico_subset_Ico (Nat.zero_le _) (hinv.size_eq ▸ hidx_sz)
     calc ∑ i ∈ Finset.Ico (idx - lowbit idx) idx, s.getD i 0
         ≤ ∑ i ∈ Finset.Ico 0 s.length, s.getD i 0 :=
           Finset.sum_le_sum_of_subset hsub

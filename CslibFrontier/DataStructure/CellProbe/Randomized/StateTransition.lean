@@ -966,23 +966,17 @@ private theorem steps_trace_amortized (C : StateTransitionImpl D P s₀)
       ν.bind fun u => (μ_step (traceToCoupled u)).map (liftStep u)
     have hmarg₁ : ν₁.map (fun u => (u.trace.labels, u.mem)) =
         P.init.bind fun m₀ => (P.runFrom m₀ (prefOps ++ [o])).map Prod.fst := by
-      have hrhs :
-          (P.init.bind fun m₀ => (P.runFrom m₀ (prefOps ++ [o])).map Prod.fst) =
-          (P.init.bind fun m₀ => (P.runFrom m₀ prefOps).map Prod.fst).bind fun (out₁, m₁) =>
-            (((P.step o).run m₁).map Prod.fst).map fun (a, m₂) => (out₁ ++ [⟨o, a⟩], m₂) := by
-        simp only [P.runFrom_append_fst, PMF.bind_bind]
-        refine congrArg (PMF.bind P.init) (funext fun m₀ => ?_)
-        refine congrArg (PMF.bind ((P.runFrom m₀ prefOps).map Prod.fst))
-          (funext fun (out₁, m₁) => ?_)
-        rw [P.runFrom_cons_fst]
-        simp only [Cslib.CellProbe.Randomized.Scheme.runFrom_nil, PMF.pure_map, PMF.map_bind]
+      have hone (m₁) : (P.runFrom m₁ [o]).map Prod.fst =
+          (((P.step o).run m₁).map Prod.fst).map fun (a, m₂) => ([⟨o, a⟩], m₂) := by
+        simp only [P.runFrom_cons_fst, Cslib.CellProbe.Randomized.Scheme.runFrom_nil, PMF.pure_map]
         exact PMF.bind_pure_comp _ _
-      rw [hrhs, ← hmarg, PMF.bind_map, PMF.map_bind]
+      simp_rw [P.runFrom_append_fst, hone, ← PMF.bind_bind, ← hmarg, ν₁, PMF.bind_map,
+        PMF.map_bind]
       refine PMF.bind_congr_on_support ν _ _ fun u hu => ?_
       have hst : ((P.step o).run u.mem).map Prod.fst = _ := (hstep (traceToCoupled u) (hc u hu)).1
       dsimp only [Function.comp_def]
-      rw [hst, PMF.map_comp, PMF.map_comp]
-      exact congrArg (PMF.map · _) (funext fun q => by simp [liftStep, CoupledOutcome.resultMem])
+      rw [hst]
+      simp [PMF.map_comp, Function.comp_def, liftStep, CoupledOutcome.resultMem]
     have hseed_ν₁ : ∀ θ, (ν₁.map TraceState.seed) θ ≤ C.seedSlack * C.seedLaw θ := by
       simpa only [ν₁, ν_c, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def] using hseed₁
     have hmem₁ (u₁) (hu₁ : u₁ ∈ ν₁.support) :

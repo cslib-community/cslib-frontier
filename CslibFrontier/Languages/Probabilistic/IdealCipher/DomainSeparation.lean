@@ -453,8 +453,7 @@ private lemma coalescedExperiment_eq_game1 (f : U → V)
     (fun ν => ⟨1, agreesWith_fiberCache_iff.mpr fun μ _ => agreesWith_nil 1⟩)
   have hfiber_nil : fiberCache f (fun _ : U => ([] : Cache X)) = fun _ => [] :=
     funext fun ν => by simp [fiberCache]
-  have hconst (p : PMF (V → Equiv.Perm X)) (y : α) : p.map (fun _ => y) = PMF.pure y :=
-    PMF.map_const p y
+  have hconst {β : Type} (p : PMF β) (y : α) : p.map (fun _ => y) = .pure y := PMF.map_const p y
   have hfst := congrArg (PMF.map Prod.fst) hsim
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, hconst,
     hfiber_nil, IdealCipher.complete_nil] at hfst
@@ -521,8 +520,7 @@ private lemma splitExperiment_eq_answer (A : ProbOracleComp (IdealCipher.Spec U 
           by_cases hμ : μ = q.1 <;> simp [recordQueryDomain, cacheDomains_cons, hμ]
       simp [PMF.map_comp, Function.comp_def, hdom])
     A (fun _ => []) (fun _ => isPartialBijection_nil)
-  have hconst (p : PMF (U → Equiv.Perm X)) (y : α × QueryDomains U X) :
-      p.map (fun _ => y) = PMF.pure y := PMF.map_const p y
+  have hconst {β γ : Type} (p : PMF β) (y : γ) : p.map (fun _ => y) = .pure y := PMF.map_const p y
   have hfst := congrArg (PMF.map fun (a, πFam, dom) => (a, dom)) hsim
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, hconst,
     IdealCipher.complete_nil] at hfst
@@ -695,10 +693,7 @@ private lemma game2_bad_eq_failureProb (f : U → V)
         (s := {x : α × ((U → Cache X) × Bool) | FlagBad x.2}),
       ← PMF.toOuterMeasure_apply_inter_support (s := {x : α × ((U → Cache X) × Bool) |
         DomainOverlap f (fun μ => cacheDomains (x.2.1 μ))})]
-    congr 1
-    ext x
-    simp only [Set.mem_inter_iff, Set.mem_ofPred_eq]
-    exact and_congr_left fun hmem => (hinv x hmem).2
+    exact congrArg _ (Set.ext fun x => and_congr_left fun hmem => (hinv x hmem).2)
   rw [hcongr, ← splitExperiment_eq_answer A, PMF.toOuterMeasure_map_apply,
     ← game2_map_fst f A, PMF.toOuterMeasure_map_apply]
   rfl

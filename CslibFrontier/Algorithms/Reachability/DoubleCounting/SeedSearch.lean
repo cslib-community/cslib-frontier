@@ -386,8 +386,7 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
         checkSourcesFrom (fun position => scan i (some (position, answer)))
           source sourceAt count 0 (by simp))).run t).2 ≤
         clock t + (1 + count) * cost := by
-    rw [Nat.add_mul, Nat.one_mul]
-    unfold testSeedWith
+    rw [Nat.add_mul, Nat.one_mul, testSeedWith]
     apply bind_optionT_clock clock cost (count * cost) _ _ (hc i none source)
     rintro (_ | _ | answer) _
     · exact Nat.le_add_right _ _
@@ -445,7 +444,9 @@ theorem testSeed_correct {r : Fin n → Fin n → Prop} {target source : Fin n}
     funext fun s => by
       obtain ⟨verdict, hv, hs⟩ := hc s
       cases verdict with
-      | bad j => simp [sourceGood, hv, show ¬ ∀ i, ∃! w, Passes r s i w from fun h => hs (h j)]
+      | bad j =>
+        have hnot : ¬ ∀ i, ∃! w, Passes r s i w := fun h => hs (h j)
+        simp [sourceGood, hv, hnot]
       | decided b => simp [sourceGood, hv, hs.1]
   obtain ⟨verdict, hv, hs⟩ := hc source
   cases verdict with
@@ -458,17 +459,13 @@ theorem testSeed_correct {r : Fin n → Fin n → Prop} {target source : Fin n}
       Bool.eq_iff_iff.mpr (by simpa only [decide_eq_true_eq] using hs.2)
     have hall : (sources.filter (fun u => u != source)).all
         (fun s => decide (∀ j, ∃! w, Passes r s j w)) =
-        decide (∀ s ∈ sources, ∀ j, ∃! w, Passes r s j w) := by
-      apply Bool.eq_iff_iff.mpr
-      simp only [List.all_eq_true, List.mem_filter,
-        bne_iff_ne, decide_eq_true_eq]
-      exact ⟨fun h s hmem => if heq : s = source then heq ▸ hs.1 else h s ⟨hmem, heq⟩,
-        fun h s hs => h s hs.1⟩
+        decide (∀ s ∈ sources, ∀ j, ∃! w, Passes r s j w) :=
+      Bool.eq_iff_iff.mpr <| by
+        simp only [List.all_eq_true, List.mem_filter, bne_iff_ne, decide_eq_true_eq]
+        exact ⟨fun h s hmem => if heq : s = source then heq ▸ hs.1 else h s ⟨hmem, heq⟩,
+          fun h s hs => h s hs.1⟩
     simp only [testSeed, testSeedWith, hv, pure_bind, hsource', List.allM_pure, hall, hb,
-      decide_eq_true_eq]
-    by_cases h : ∀ s ∈ sources, ∀ j, ∃! w, Passes r s j w
-    · rw [ite_eq_left h, ite_eq_left ⟨hs.1, h⟩]
-    · rw [ite_eq_right h, ite_eq_right (fun h' => h h'.2)]
+      decide_eq_true_eq, hs.1, implies_true, true_and, apply_ite pure]
 
 /-- Under exact controller outcomes and the existence of an all-source-good seed, the
 ordered search has one outcome and selects the least binary seed that passes every source.
@@ -507,7 +504,7 @@ theorem runSeedSearch_correct (sources : List (Fin n))
     refine List.find?_eq_some_iff_getElem.mpr
       ⟨decide_eq_true (Fin.find_spec hex'), i.val,
         by simpa only [List.length_finRange] using i.isLt, by simp, fun j hj => ?_⟩
-    simpa using Fin.find_min hex' (show (⟨j, by omega⟩ : Fin (2 ^ length)) < i from hj)
+    simpa using Fin.find_min hex' (j := ⟨j, by omega⟩) hj
   have htest (j : Fin (2 ^ length)) :
       rankedSeedTest (fun k => testSeed (controller (bits k)) sources source) j =
         pure ((Option.guard (fun j => decide (good j)) j).map makeAnswer) := by
@@ -530,9 +527,7 @@ theorem runSeedSearch_correct (sources : List (Fin n))
         change pure ((List.finRange (2 ^ length)).findSome?
           (Option.map makeAnswer ∘ Option.guard (fun j => decide (good j)))) = _
         rw [← List.map_findSome?, List.findSome?_guard]
-  refine ⟨makeAnswer i, ?_, Fin.find_spec hex', fun j hj => Fin.find_min hex' hj,
-    decide_eq_true_iff⟩
-  rw [hrun, hfind]
-  rfl
+  exact ⟨makeAnswer i, hrun.trans (by rw [hfind]; rfl), Fin.find_spec hex',
+    fun j hj => Fin.find_min hex' hj, decide_eq_true_iff⟩
 
 end Cslib.DoubleCounting

@@ -214,9 +214,8 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     execute_next_root ha hw h hc hn hU hfront hkeys hnd hcard hvalues
   have yi : y.regs current = s.index := by regs_frame
   have yo : y.regs one = 1 := by regs_frame
-  have hfit : Fits (w + 2) (s.index + 1) := (h.bounded.1 roots).of_le (by
-    rw [h.roots]
-    omega)
+  have hfit : Fits (w + 2) (s.index + 1) :=
+    (h.bounded.1 roots).of_le (by rw [h.roots]; omega)
   let z := y.set current (s.index + 1)
   have hz : Exec (B := .standard) (w + 2) (.op (.bin .add current current one)) y z 1 := by
     dsimp only [z]
@@ -252,8 +251,7 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
         simpa only [rootArena, Traversal.Cursor.work, List.map_nil,
           Traversal.Math.potential, List.sum_nil, Nat.zero_mul, Nat.add_zero] using hy.heapBudget
       change z.regs Traversal.heap + (l.count - (s.index + 1)) * _ ≤ _
-      rw [zreg _ (by decide)]
-      omega
+      rw [zreg _ (by decide)]; omega
     · regs_frame
     · have ht : out.length ≤ s.nodes.length + Traversal.Math.work a.fuel := by
         simpa only [rootArena, Traversal.Cursor.work, List.map_nil,
@@ -263,11 +261,9 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     · exact hy.output
     · simpa only [s', rootArena, zreg Traversal.heap (by decide)] using hy.outputBounds
     · change out.map Prod.snd ++ _ = _
-      rw [hout, List.append_assoc]
       have hm := h.exactOutput
-      rw [entries_drop_cons hi, List.map_cons, Traversal.Math.output,
-        List.flatMap_cons] at hm
-      rwa [hf]
+      rw [entries_drop_cons hi, List.map_cons, Traversal.Math.output, List.flatMap_cons] at hm
+      rwa [hout, List.append_assoc, hf]
     · exact fun p hp => (hprefix p hp).trans (h.protectedMemory p hp)
 
 /-- Execute every native frontend root with exact finite output and all loop control charged. -/

@@ -358,7 +358,7 @@ private theorem negMass_toLinear_of_nodup {ts : List (ℕ × Literal ℕ)}
     simp only [List.map_cons, List.nodup_cons] at hd
     have hn : termVar t ∉ (toLinear ts).map Prod.fst := fun h => hd.1 (by
       obtain ⟨e, he, hev⟩ := List.mem_map.1 h
-      exact hev ▸ fst_mem_toLinear he)
+      exact hev ▸ fst_mem_of_mem_toLinear he)
     rw [show toLinear (t :: ts) = insertCoeff (termVar t) (termCoeff t) (toLinear ts) from rfl,
       insertCoeff_of_not_mem hn, negSum_cons, ← ih hd.2]
     obtain ⟨a, v, b⟩ := t

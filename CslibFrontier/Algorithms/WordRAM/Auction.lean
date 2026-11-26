@@ -98,9 +98,7 @@ private theorem scaledMinCostMainProg_realizes :
     Realizes .exact scaledMinCostMainProg wordWords wordWords ScaledMinCostSafe (fun _ _ => 0) := by
   unfold scaledMinCostMainProg
   realize [scaledSolveProg_realizes, sumScaledCostProg_realizes]
-  all_goals
-    rcases h with ⟨_, _⟩
-    assumption
+  exacts [h.1, h.2]
 
 private theorem eps_poly_bound (n C eps : ℕ) (hε : 0 < eps) :
     (n * (C + eps) / eps + 1) * (4 * n + 6) + 3 * (n * n) + 5 * n + 3 + 1 ≤
@@ -189,8 +187,7 @@ theorem exists_epsAuction_program :
     obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=
       he w (inst.n, inst.eps) inst.encode hlayout hk hfit_len hin hsafe hv
     rw [clientState_width w] at hmem
-    rw [clientResult_width w] at hhalt₀
-    dsimp only [wordWords] at hhalt₀
+    simp only [clientResult_width w, wordWords] at hhalt₀
     refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀,
       (show y.mem = _ from congrArg Memory.State.mem hmem) ▸ hout, hfit_out, rfl⟩, ?_⟩
     have hp := eps_poly_bound inst.n C inst.eps hε
@@ -247,8 +244,7 @@ theorem exists_scaledAuction_program :
     obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=
       he w inst.n inst.encode hlayout hk hfit_len hin hsafe hv
     rw [clientState_width w] at hmem
-    rw [clientResult_width w] at hhalt₀
-    dsimp only [wordWords] at hhalt₀
+    simp only [clientResult_width w, wordWords] at hhalt₀
     unfold scaledMainProg at hmem hhalt₀
     rw [clientState_bind, clientState_pure] at hmem
     rw [clientResult_bind, clientResult_pure] at hhalt₀
@@ -304,10 +300,8 @@ theorem exists_scaledMinCost_program :
       exact (Nat.add_le_add hmc_s hmc_sum).trans (by omega)
     obtain ⟨y, m, hruns₀, hhalt₀, _, _, hsteps⟩ :=
       he w inst.n inst.encode hlayout hk hfit_len hin ⟨hsafe_s, hsafe_sum⟩ hv
-    rw [clientResult_width w] at hhalt₀
+    rw [clientResult_width w, scaledMinCostMainProg, clientResult_bind, hres_sum] at hhalt₀
     dsimp only [wordWords] at hhalt₀
-    unfold scaledMinCostMainProg at hhalt₀
-    rw [clientResult_bind, hres_sum] at hhalt₀
     exact ⟨m + 1, ⟨⟨pc, y⟩, m, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀, rfl⟩,
       scaled_steps_le hsteps hmc⟩
   refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,

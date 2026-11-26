@@ -185,9 +185,9 @@ theorem card_smoothPos_le (P : Scheme ι S R Q A) [Fintype S] [Fintype Q] [Decid
         1 + (ProbComp.eval (P.serverQuery sq.1 i₀) sq.2).toReal * l := by
     set r : ℚ := ProbComp.evalRat (P.serverQuery sq.1 i₀) sq.2 * (l : ℚ)
     have hr0 : 0 ≤ r := mul_nonneg (ProbComp.evalRat_nonneg _ _) (Nat.cast_nonneg l)
-    have hlt : (⌈r⌉₊ : ℚ) < r + 1 := Nat.ceil_lt_add_one hr0
     have hle_q : (smoothCopies P i₀ sq : ℚ) ≤ 1 + r := by
-      simpa [smoothCopies_eq, r, l, add_comm] using max_le (by linarith : (1 : ℚ) ≤ r + 1) hlt.le
+      simpa [smoothCopies_eq, r, l, add_comm] using
+        max_le (le_add_of_nonneg_left hr0) (Nat.ceil_lt_add_one hr0).le
     simpa [r, l, ProbComp.coe_evalRat_eq_toReal_eval] using (mod_cast hle_q : (_ : ℝ) ≤ 1 + r)
   have hsum_all :
       ∑ sq : S × Q, (ProbComp.eval (P.serverQuery sq.1 i₀) sq.2).toReal = Fintype.card S := by
@@ -574,9 +574,8 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
           ennreal_to_real using (PMF.mem_support_iff _ _).mp hk
         rw [toReal_eval_smoothSlotCoins_some] at hpos
         split_ifs at hpos with hsq
-        · rcases pos : (slots (eS s)).get (hall (eS s)) with ⟨sq, _⟩
-          rw [pos] at hsq
-          subst hsq
+        · rcases hget : (slots (eS s)).get (hall (eS s)) with ⟨sq, _⟩
+          obtain rfl : sq = (s, rq.2 s) := (congrArg Sigma.fst hget).symm.trans hsq
           rfl
         · exact (hpos rfl).elim
       rw [hrec_eq]
@@ -605,9 +604,8 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
             if P.reconstruct i rq.1 (fun s => P.answer s x (rq.2 s)) = x i then 1 else 0 := by
       rw [P.eval_run, PMF.map_apply]
       exact tsum_congr fun rq => by
-        by_cases h : P.reconstruct i rq.1 (fun s => P.answer s x (rq.2 s)) = x i
-        · simp [h]
-        · simp [h, Ne.symm h]
+        by_cases h : P.reconstruct i rq.1 (fun s => P.answer s x (rq.2 s)) = x i <;>
+          simp [h, @eq_comm Bool (x i)]
     rw [hpir_lhs, hlaw]
     have hinner (rq : R × (S → Q)) :
         (if P.reconstruct i rq.1 (fun s => P.answer s x (rq.2 s)) = x i then (1 : ℝ≥0∞) else 0) ≤
@@ -646,10 +644,7 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
           ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k))) none := by
         simp only [slotDist, ProbComp.eval_pi, Probability.PMF.pi_map_eval]
       rw [← hproj, PMF.map_apply]
-      exact tsum_congr fun slots => by
-        by_cases hn : slots k = none
-        · simp [hn]
-        · simp [hn, Ne.symm hn]
+      exact tsum_congr fun slots => by by_cases hn : slots k = none <;> simp [hn, eq_comm]
     calc ∑' rq, ProbComp.eval (P.query i) rq *
             (if P.reconstruct i rq.1 (fun s => P.answer s x (rq.2 s)) = x i then 1 else 0)
         ≤ ∑' rq, ProbComp.eval (P.query i) rq *
@@ -683,9 +678,9 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
       rw [PMF.toReal_false_eq_one_sub, mul_sub, mul_one, mul_keepProb_eq_min]
       by_cases hle : ProbComp.eval (P.serverQuery s i₀) q ≤ ProbComp.eval (P.serverQuery s i) q
       · rw [ENNReal.toReal_sub_of_le hle (PMF.apply_ne_top _ _),
-          min_eq_left (by ennreal_to_real using hle)]
+          min_eq_left (ENNReal.toReal_mono (PMF.apply_ne_top _ _) hle)]
       · rw [tsub_eq_zero_of_le (le_of_not_ge hle), ENNReal.toReal_zero,
-          min_eq_right (by ennreal_to_real using le_of_not_ge hle), sub_self]
+          min_eq_right (ENNReal.toReal_mono (PMF.apply_ne_top _ _) (le_of_not_ge hle)), sub_self]
     have hclose := closeTo_iff_tsum_tsub_le.mp (hpriv s i)
     rw [tsum_fintype] at hclose
     ennreal_to_real at hclose
@@ -723,11 +718,8 @@ theorem isSmoothDecoder_smoothDecoder_two (P : Scheme ι S R Q A) [Fintype S] [D
     [Fintype Q] [DecidableEq Q] (hS : Fintype.card S = 2) (i₀ : ι) {δ ε : ℝ} (hδ : 0 ≤ δ)
     (hpriv : P.IsStatPrivateAt i₀ δ) (hrec : P.Recovers ε) :
     IsSmoothDecoder (smoothCode P i₀) 2 3 (ε - δ) (smoothDecoder P i₀) := by
-  have h := isSmoothDecoder_smoothDecoder P i₀ hδ hpriv hrec
-  rw [hS] at h
-  have hc : ((2 : ℕ) : ℝ) + 1 = 3 := by norm_num
-  have hε : ε - ((2 : ℕ) : ℝ) * δ / 2 = ε - δ := by push_cast; ring
-  rwa [hc, hε] at h
+  simpa [hS, mul_div_cancel_left₀ δ two_ne_zero, two_add_one_eq_three] using
+    isSmoothDecoder_smoothDecoder P i₀ hδ hpriv hrec
 
 /-! ### Perfect-privacy specializations (`δ = 0`) -/
 
@@ -844,7 +836,7 @@ theorem card_mul_sq_le_card_answer_sub_one_of_statPrivate (P : Scheme ι S R Q A
   · obtain ⟨i₀⟩ := hne
     have hsm := isSmoothDecoder_smoothDecoder P i₀ hδ (hpriv.isStatPrivateAt i₀) hrec
     simp only [Fintype.card_unique, Nat.cast_one, one_add_one_eq_two, one_mul] at hsm
-    linarith [hsm.four_mul_card_mul_sq_le (by linarith)]
+    linarith [hsm.four_mul_card_mul_sq_le (sub_nonneg.mpr hε)]
 
 /-- **Noisy perfectly-private single-server PIR answer-size lower bound** (`δ = 0` case of
 `card_mul_sq_le_card_answer_sub_one_of_statPrivate`): any perfectly private one-server PIR scheme
@@ -854,7 +846,7 @@ theorem card_mul_sq_le_card_answer_sub_one_of_isPrivate (P : Scheme ι S R Q A)
     [Fintype ι] [Unique S] [Finite Q] [Fintype A] [Nonempty A] (hpriv : P.IsPrivate) {ε : ℝ}
     (hε : 0 ≤ ε) (hrec : P.Recovers ε) :
     (Fintype.card ι : ℝ) * ε ^ 2 ≤ Fintype.card A - 1 := by
-  simpa using card_mul_sq_le_card_answer_sub_one_of_statPrivate P le_rfl (by linarith)
+  simpa using card_mul_sq_le_card_answer_sub_one_of_statPrivate P le_rfl ((zero_div 2).trans_le hε)
     hpriv.isStatPrivate_zero hrec
 
 end SmoothDecoder

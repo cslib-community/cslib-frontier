@@ -95,21 +95,20 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
   let e (u v : Point F m) := ∑ g, (φ (star (V u v g) * T.effect g * V u v g)).re
   have hright (u v : Point F m) :
       S R u v = ∑ g, (φ (C u g * ((R v).effect (f v g) * T.effect g *
-        (R v).effect (f v g)))).re := by
-    refine sum_congr rfl fun g _ => ?_
-    simp only [← mul_assoc, (hCR u v g (f v g)).eq]
+        (R v).effect (f v g)))).re :=
+    sum_congr rfl fun g _ => by simp only [← mul_assoc, (hCR u v g (f v g)).eq]
   have hleft (u : Point F m) :
       S L u u = ∑ g, (φ ((L u).effect (f u g) * C u g *
-        (L u).effect (f u g) * T.effect g)).re := by
-    refine sum_congr rfl fun g _ => ?_
-    rw [← mul_assoc, mul_assoc ((L u).effect (f u g) * C u g),
-      ← (hLT u g (f u g)).eq, ← mul_assoc]
+        (L u).effect (f u g) * T.effect g)).re :=
+    sum_congr rfl fun g _ => by
+      rw [← mul_assoc, mul_assoc ((L u).effect (f u g) * C u g),
+        ← (hLT u g (f u g)).eq, ← mul_assoc]
   have h₁ : (𝔼 u : Point F m, ∑ g,
         (φ (C u g * (sandwichedPolynomialMeasurement R T).effect (some g))).re) =
-      𝔼 u : Point F m, 𝔼 v : Point F m, S R u v := by
-    refine expect_congr rfl fun u _ => ?_
-    simp_rw [sandwichedPolynomialMeasurement_effect_some, mul_smul_comm, mul_sum,
-      AlgState.re_apply_uniformAverage, hright, expect_sum_comm, f]
+      𝔼 u : Point F m, 𝔼 v : Point F m, S R u v :=
+    expect_congr rfl fun u _ => by
+      simp_rw [sandwichedPolynomialMeasurement_effect_some, mul_smul_comm, mul_sum,
+        AlgState.re_apply_uniformAverage, hright, expect_sum_comm, f]
   have h₂ : (𝔼 u : Point F m, ∑ g, (φ ((L u).effect (f u g) * C u g *
         (L u).effect (f u g) * T.effect g)).re) =
       𝔼 u : Point F m, 𝔼 v : Point F m, S L u u := by
@@ -123,8 +122,7 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
       (fun b => (R v).effect b - (L v).effect b)
     have hcopy := (abs_sum_weighted_sandwich_sub_le φ T (R v) (L v) (f v) (f v)
       (C u) (hC u) (hCT u)).trans
-      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hgroup)
-        (by norm_num))
+      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hgroup) zero_le_two)
     have hvar := abs_sum_weighted_sandwich_sub_le φ T (L v) (L u) (f v) (f u)
       (C u) (hC u) (hCT u)
     exact (abs_sub_le (S R u v) (S L u v) (S L u u)).trans (add_le_add hcopy hvar)
@@ -184,8 +182,8 @@ theorem abs_successfulMass_sandwichedPolynomial_sub_majorant_le (φ : AlgState A
     simp only [one_mul, hex] at hquad
     have hlin := (φ.abs_sum_weighted_mul_le T T.effect (fun g => Rg u g - Lg u g)
       T.nonneg (fun _ => le_rfl)).trans hweighted
-    simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib] at hlin
-    rw [abs_sub_comm] at hlin
+    simp only [mul_sub, map_sub, Complex.sub_re, sum_sub_distrib,
+      abs_sub_comm (∑ g, (φ (T.effect g * Rg u g)).re)] at hlin
     refine ((abs_sub_le (∑ g, (φ (Rg u g * T.effect g * Rg u g)).re)
       (∑ g, (φ (T.effect g * Lg u g)).re) (∑ g, (φ (T.effect g * Rg u g)).re)).trans
       (add_le_add hquad hlin)).trans_eq ?_
@@ -263,15 +261,13 @@ theorem average_successfulMismatch_sandwichedPolynomial_le (φ : AlgState A)
     (Commute.one_left _).sub_left (hLT u g _)
   have hCR (u v : Point F m) (g : BoundedPolynomial F m d) (b : F) :
       Commute (C u g) ((R v).effect b) := (Commute.one_left _).sub_left (hLR u v _ b)
-  have hCH (u : Point F m) (g : BoundedPolynomial F m d) :
-      Commute (C u g) (H.effect (some g)) := by
-    rw [sandwichedPolynomialMeasurement_effect_some]
-    exact (Commute.sum_right _ _ _ fun v _ =>
-      ((hCR u v g _).mul_right (hCT u g)).mul_right (hCR u v g _)).smul_right _
   have hgroup (u : Point F m) : successfulMismatch φ (evaluatePolynomialMeasurement H u) (L u) =
       ∑ g, (φ (C u g * H.effect (some g))).re := by
     rw [successfulMismatch_evaluate_eq_sum]
-    exact sum_congr rfl fun g _ => congrArg (fun x => (φ x).re) (hCH u g).eq.symm
+    refine sum_congr rfl fun g _ => congrArg (fun x => (φ x).re) ?_
+    rw [sandwichedPolynomialMeasurement_effect_some]
+    exact ((Commute.sum_right _ _ _ fun v _ =>
+      ((hCR u v g _).mul_right (hCT u g)).mul_right (hCR u v g _)).smul_right _).eq.symm
   have hzero (u : Point F m) (g : BoundedPolynomial F m d) :
       (L u).effect (eval u g.val) * C u g * (L u).effect (eval u g.val) * T.effect g = 0 := by
     simp only [C, mul_sub, mul_one, hL u _, sub_self, zero_mul]

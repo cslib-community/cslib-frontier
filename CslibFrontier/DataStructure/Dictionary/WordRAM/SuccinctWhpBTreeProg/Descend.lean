@@ -235,20 +235,13 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
         have hval_r : laneGet (valLaneBitsWhp n_max) (sl.nodes cur).valsWord r_fin.val =
             (cs r_fin).rootIdx := (hcs_sub r_fin).1
         have hchi_le : childHi (fpBitsWhp n_max + 2) hi c0 (sl.nodes cur).keysWord r_fin.val ≤
-            hi := by
-          unfold childHi
-          split_ifs with hrc
-          · rcases eq_or_lt_of_le (Nat.le_sub_one_of_lt hrc) with heq | hlt
-            · exact heq ▸ hhi_last.le
-            · exact (hmono _ _ hlt (by omega)).le.trans hhi_last.le
-          · exact le_rfl
+            hi := childHi_le hhi_last.le hmono
         refine ⟨false, (cs r_fin).rootIdx, _, _, cs r_fin, ?_, ?_, rfl,
           hclo_q, hq_chi, hchi_le.trans_lt hhi, (hcs_sub r_fin).2⟩
         · unfold descendStepGenProg
-          simp only [d0, pure_bind, clientResult_bind, hcs_n, hres_n, hmod0, ↓reduceIte,
+          simpa only [d0, pure_bind, clientResult_bind, hcs_n, hres_n, hmod0, ↓reduceIte,
             hcnt_div, wp_large_wVal hth, clientResult_swarRankGenProg hth,
-            clientResult_laneGetGenProg]
-          exact hval_r
+            clientResult_laneGetGenProg] using hval_r
         · dsimp only [r_fin] at hval_r ⊢
           simp [descendToLeaf, hmeta, hval_r]
     obtain ⟨isRoot', cur', lo', hi', T', hstep_res, hdesc_eq, hrt', hlo', hhi', hhi_lt', hv'⟩ :=

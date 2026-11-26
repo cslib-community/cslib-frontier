@@ -140,8 +140,8 @@ private theorem synthesis_batched_power_on (c : Circuit signature n n)
   let s2 := s1 ∪ ⋃ q, wires fun x => lookupOr cp stored (queries x q)
   have hresult (member : Fin r) (j : Fin (K + 1)) (bit : Fin (n + 1)) :
       (fun x => lookupOr cp stored (f^[j.val] (init x member)) bit) ∈ s2 :=
-    Or.inr (Set.mem_iUnion.mpr ⟨finProdFinEquiv (member, j), bit, funext fun x => by
-      simp only [hquery]⟩)
+    Or.inr <| Set.mem_iUnion.mpr ⟨finProdFinEquiv (member, j), bit,
+      funext fun x => congrArg (lookupOr cp stored · bit) (hquery x member j)⟩
   obtain ⟨fallback, hfall, hfs⟩ := exists_repeat_power c T L hL hLN hT
   let flags := fun member x (j : Fin (K + 1)) =>
     lookupOr cp stored (f^[j.val] (init x member)) 0
@@ -164,15 +164,12 @@ private theorem synthesis_batched_power_on (c : Circuit signature n n)
     · intro j hj
       obtain ⟨h, hh, -⟩ := (decide_eq_true_iff.mp hj : ∃ h, cp h = _ ∧ stored h 0 = true)
       funext bit
-      change lookupOr cp stored _ bit.succ = _
-      rw [lookupOr_of_eq stored hcp hh]
-      simp only [stored, Fin.cons_succ, hh]
+      simp only [payloads, lookupOr_of_eq stored hcp hh, stored, Fin.cons_succ, hh]
     · intro hnone
-      rcases hcover (init x member) hx with hr | ⟨t, ht, h, hh⟩
-      · exact hfall _ hr
-      · have hj := hnone ⟨t, by omega⟩
-        simp only [flags, lookupOr, decide_eq_false_iff_not] at hj
-        exact absurd ⟨h, hh.symm, rfl⟩ hj
+      refine (hcover (init x member) hx).elim (hfall _) fun ⟨t, ht, h, hh⟩ => ?_
+      have hj := hnone ⟨t, by omega⟩
+      simp only [flags, lookupOr, decide_eq_false_iff_not] at hj
+      exact absurd ⟨h, hh.symm, rfl⟩ hj
   have hfam := Synthesis.iUnion (fun member => wires (finished member)) _ hfinish
   refine ⟨finished, hcorrect,
     (hall.trans (hdict.trans hfam)).mono Set.Subset.rfl Set.Subset.rfl ?_⟩
@@ -301,9 +298,8 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
   classical
   have hrep (x : BitString (r * n)) : ((c.iterate T).replicate r).eval interpretation x =
       blockMap (c.eval interpretation)^[T] r x := by
-    rw [Circuit.eval_replicate]
-    funext i
-    simp only [blockMap, Circuit.eval_iterate]
+    ext i
+    simp [Circuit.eval_replicate, blockMap, Circuit.eval_iterate]
   wlog hLN : L ≤ 2 ^ n generalizing L
   · -- A longer prefix only strengthens the promise, and for a nonempty batch the budget at
     -- `L = 2 ^ n` is at most the budget at `L`.
@@ -336,11 +332,8 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
   let cp : Fin H.card → BitString n := fun j => (H.equivFin.symm j).val
   have hcp : Function.Injective cp := fun i j h => H.equivFin.symm.injective (Subtype.ext h)
   have hcov (x : BitString n) (hx : ∀ i : Fin L, f^[i.val] x ∈ S) :
-      FunctionalGraph.Repeats f x L ∨
-      ∃ t < 2 * L, ∃ j, f^[t] x = cp j := by
-    rcases hcover x hx with hrep | ⟨t, ht, hmem⟩
-    · exact Or.inl hrep
-    · exact Or.inr ⟨t, ht, H.equivFin ⟨_, hmem⟩, by simp [cp]⟩
+      FunctionalGraph.Repeats f x L ∨ ∃ t < 2 * L, ∃ j, f^[t] x = cp j :=
+    (hcover x hx).imp_right fun ⟨t, ht, hmem⟩ => ⟨t, ht, H.equivFin ⟨_, hmem⟩, by simp [cp]⟩
   let constants : Set (BooleanFunction (r * n)) := {fun _ => false, fun _ => true}
   have hconst : Synthesis interpretation (inputs (r * n)) constants 2 :=
     (Synthesis.const false).union (Synthesis.const true)

@@ -151,9 +151,7 @@ theorem ofbCpaGame_eq_realExperiment {Key : Type} [Fintype Key] [Nonempty Key]
 theorem isQueryBounded_ofbChainQueries (x : BitString n) (k : ℕ) :
     ProbOracleComp.IsQueryBounded (ofbChainQueries x k) k := by
   induction k generalizing x with
-  | zero =>
-    simp only [ofbChainQueries]
-    exact OracleComp.IsCostBounded.pure _ _
+  | zero => exact OracleComp.IsCostBounded.pure [] 0
   | succ k ih =>
     simp only [ofbChainQueries]
     exact OracleComp.IsCostBounded.mono
@@ -190,8 +188,7 @@ private theorem length_chainCache (c : List (BitString n × BitString n)) (x : B
   induction us generalizing c x with
   | nil => simp [chainCache]
   | cons u us ih =>
-    simp only [chainCache, ih, List.length_cons]
-    omega
+    simp only [chainCache, ih, List.length_cons]; omega
 
 private theorem not_goodChain_of_chainFlag (c : List (BitString n × BitString n))
     (x : BitString n) (us : List (BitString n)) (h : chainFlag c x us = true) :
@@ -242,8 +239,7 @@ private theorem length_of_mem_support_freshQuery (ℓ : ℕ) (b : Bool) (q : Blo
     x.2.1.length = s.1.length + blockModeBlocks ℓ q := by
   rw [runWith_freshStep_ofbQueryProgram, PMF.support_map] at hx
   obtain ⟨⟨iv, us⟩, hp, rfl⟩ := hx
-  have hlen : us.length = blockModeBlocks ℓ q := length_snd_of_mem_support_uniformDraws hp
-  simp only [length_chainCache, hlen]
+  simp only [length_chainCache, length_snd_of_mem_support_uniformDraws hp]
 
 /-- One encryption under fresh sampling raises the flag with probability at most
 `k (t + k) / 2 ^ n`, where `k` is the number of blocks and `t` the size of the table. -/
@@ -342,11 +338,10 @@ theorem advantage_ofbCpaGame_randomFunction_le (ℓ : ℕ) {adversary : BlockMod
     (Game.advantage (ofbCpaGame (fun f : BitString n → BitString n => f) ℓ false adversary)
         (ofbCpaGame (fun f : BitString n → BitString n => f) ℓ true adversary) : ℝ) ≤
       2 * ((K : ℝ) * (K + ℓ) / 2 ^ n) := by
-  have e (b) : ofbCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary =
-      ProbComp.eval (PRF.idealExperiment (ofbReduction ℓ b adversary)) :=
-    ofbCpaGame_eq_realExperiment _ ℓ b adversary
-  rw [e, e]
-  refine (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans ?_
+  rw [ofbCpaGame_eq_realExperiment, ofbCpaGame_eq_realExperiment]
+  refine (advantage_le_two (ProbComp.eval (PRF.idealExperiment _))
+    (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
+    (ProbComp.eval (PRF.idealExperiment _))).trans ?_
   linarith [advantage_idealExperiment_ofbReduction_le ℓ false h,
     advantage_idealExperiment_ofbReduction_le ℓ true h]
 

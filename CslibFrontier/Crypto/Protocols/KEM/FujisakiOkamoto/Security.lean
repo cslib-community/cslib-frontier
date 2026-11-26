@@ -655,8 +655,7 @@ theorem interpret_decapsNotBotM {ι : Type} {spec : OracleSpec ι} {n : Type →
   cases S.pke.dec dk.sk c
   · rfl
   · simp only [OracleComp.interpret_bind]
-    congr 1 with r'
-    split_ifs <;> rfl
+    exact congrArg _ (funext fun _ => by split_ifs <;> rfl)
 
 omit [DecidableEq M] in
 /-- Interpreting `decapsBotM` against oracle calls runs it against the interpreted calls. -/
@@ -671,8 +670,7 @@ theorem interpret_decapsBotM {ι : Type} {spec : OracleSpec ι} {n : Type → Ty
   cases S.pke.dec sk c
   · simp
   · simp only [OracleComp.interpret_bind]
-    congr 1 with r'
-    split_ifs <;> simp
+    exact congrArg _ (funext fun _ => by split_ifs <;> simp)
 
 /-- The joined cache represented by the two list caches of an `ROCache`. -/
 private abbrev roTables (st : ROCache M R CT K) : RandomOracle.Cache (ROSpec M R CT K) :=
@@ -716,8 +714,7 @@ private theorem eval_run_romHandler_eq_eager [Fintype M] [Finite R] [Fintype CT]
       S.eval_roHash_map_roTables,
     ← RandomOracle.bind_complete_sum]
   congr 1 with T : 1
-  congr 1 with q : 1
-  rcases q with m | x <;> rfl
+  exact congrArg (OracleComp.interpret · _) (funext fun q => by cases q <;> rfl)
 
 /-- **Eager/lazy equivalence for the ROM IND-CCA experiment**: for every key generation and
 decapsulation program, the lazy experiment has the output distribution of the eager one. -/
@@ -815,8 +812,7 @@ random-oracle game `S.eagerIndCcaGame A b`. -/
 theorem eval_roIndCcaGame_eq_eagerIndCcaGame [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K) (b : Bool) :
     ProbComp.eval (S.roIndCcaGame A b) = S.eagerIndCcaGame A b := by
-  rw [← romIndCcaExperiment_notBot, ← eagerRomIndCcaExperiment_notBot]
-  exact S.eval_romIndCcaExperiment_eq_eager _ _ A b
+  simpa using S.eval_romIndCcaExperiment_eq_eager S.keyGenNotBot (fun _ dk => S.notBotDecaps dk) A b
 
 /-- The ROM IND-CCA advantage of a deterministic adversary `A` against `FO-notbot` equals the
 distinguishing advantage between `S.eagerIndCcaGame A false` and `S.eagerIndCcaGame A true`. -/
@@ -983,12 +979,12 @@ theorem succProbability_simFilterOwExperiment_le [Fintype M] [Nonempty M]
     Pr[A.coins >>= fun ω => S.simFilterOwExperiment d (A.run ω)] ≤
       (S.pke.cpaAdvantage (S.romFilterCpaReduction d A) : ℝ) +
         ((qG : ℝ) + qH) / Fintype.card M := by
-  have hfalse := S.succProbability_romFilterCpaReduction_false_le d A hq hmsg
   rw [← eval_cpaExperiment_romFilterCpaReduction_true (S := S) d A, ExplicitCoinPKE.cpaAdvantage,
     Experiment.coe_advantage]
-  linarith [neg_abs_le (Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true)
-      (S.romFilterCpaReduction d A) false] -
-    Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true])]
+  linarith [S.succProbability_romFilterCpaReduction_false_le d A hq hmsg,
+    neg_abs_le (Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true)
+        (S.romFilterCpaReduction d A) false] -
+      Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true])]
 
 end Scheme
 

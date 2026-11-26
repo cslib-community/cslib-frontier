@@ -395,9 +395,7 @@ private theorem runFrom_parLiftAdversary_liftMultiParty {m n : ℕ}
   refine Machine.runFrom_interpret_of_forward (parLiftAdversary S) _ _ (fun q s => ?_) program s
   cases q with
   | inl k => exact runFrom_query_sample _ k s
-  | inr c =>
-    simp only [sumHandler, parLiftAdversary]
-    rfl
+  | inr c => simp only [sumHandler, parLiftAdversary]; rfl
 
 /-- Mapping over a multi-session party-interface program commutes with `liftMultiParty`. -/
 theorem liftMultiParty_map {m n : ℕ} {SubIn SubOut NQ NR α β : Type} (f : α → β)
@@ -498,9 +496,7 @@ private theorem runFrom_routeCorrupt_liftNet_liftMultiSubNet {m n : ℕ}
   refine Machine.runFrom_interpret_of_forward (routeCorrupt C (multiHybridWrap M)) _ _
     (fun q s => ?_) program s
   cases q with
-  | inl k =>
-    simp only [OracleComp.interpret_query]
-    exact runFrom_query_sample _ k s
+  | inl k => simpa only [OracleComp.interpret_query] using runFrom_query_sample _ k s
   | inr q =>
     simp only [OracleComp.interpret_map, ProbOracleComp.interpret_query, Machine.runFrom_map,
       Machine.runFrom_query]
@@ -598,8 +594,7 @@ private theorem runFrom_sessionRouter_liftSessionNet {m n : ℕ} {SubIn SubOut N
           (OracleComp.query (spec := probOracleSpec (netSpec (RoutedNetQ n SubIn NQ)
             (RoutedNetR SubOut NR))) (Sum.inl k)) =
           ProbOracleComp.sample (ProbComp.unifFin k) := by
-        rw [liftNet, ← Machine.liftRightProgram_sample (partySpec n SubIn SubOut)]
-        rfl
+        rw [liftNet, ← Machine.liftRightProgram_sample (partySpec n SubIn SubOut)]; rfl
       simp only [liftSessionNet, liftNet]
       change (sessionRouter C φ).runFrom
           (liftSessionNet j (OracleComp.query (.inl k)) >>= fun a =>
@@ -620,9 +615,7 @@ private theorem runFrom_sessionRouter_liftSessionNet {m n : ℕ} {SubIn SubOut N
       refine bind_congr fun x => ?_
       rw [ih x.1 (Function.update s j x.2)]
       erw [Function.update_self]
-      congr 1
-      funext y
-      erw [Function.update_idem]
+      exact congrArg (· <$> _) (funext fun y => by erw [Function.update_idem])
 
 private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
     {SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ α : Type}

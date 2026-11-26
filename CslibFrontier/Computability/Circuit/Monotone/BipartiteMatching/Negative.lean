@@ -188,13 +188,12 @@ private theorem two_mul_card_filter_edge {U V : Finset (Fin n)} {S : Finset (Col
         cases c (.inl e.1) <;> cases c (.inr e.2) <;> decide
   have hbij : #{c ∈ S | c (.inl e.1) = c (.inr e.2)} = #{c ∈ S | ¬c (.inl e.1) = c (.inr e.2)} :=
     card_nbij' (flipOn {w}) (flipOn {w})
-      (fun c hc => mem_filter.2 ⟨hwS c (mem_filter.1 hc).1, by
-        rw [hw, not_not]; exact (mem_filter.1 hc).2⟩)
+      (fun c hc => mem_filter.2 ⟨hwS c (mem_filter.1 hc).1,
+        fun h => (hw c).1 h (mem_filter.1 hc).2⟩)
       (fun c hc => mem_filter.2 ⟨hwS c (mem_filter.1 hc).1, (hw c).2 (mem_filter.1 hc).2⟩)
       (fun c _ => flipOn_flipOn _ c) fun c _ => flipOn_flipOn _ c
   rw [two_mul]
-  nth_rw 2 [hbij]
-  exact card_filter_add_card_filter_not _
+  exact (congrArg (_ + ·) hbij).trans (card_filter_add_card_filter_not _)
 
 /-- Along a matching whose every edge has an endpoint outside the vertices determining `S`, the
 matching lies in the graphs of exactly a `2 ^ (-#D)` fraction of the colourings in `S`. -/
@@ -322,13 +321,12 @@ theorem card_filter_forall_not_contains_mul_le {𝒟 : Finset (Finset (Fin n × 
       (lt_of_le_of_lt (Nat.pow_le_pow_left (Nat.mul_le_mul_right _ (by omega)) 2) hq)
     refine ⟨insert D 𝒞, insert_subset hD h𝒞, by rw [card_insert_of_notMem hD𝒞, hk𝒞], ?_⟩
     set S := univ.filter fun c : Coloring n => ∀ D ∈ 𝒞, ¬Contains (ofColoring c) D
-    have hS : Determined (𝒞.biUnion (·.image Prod.fst)) (𝒞.biUnion (·.image Prod.snd)) S := by
-      intro c c' hU hV hc
-      refine mem_filter.2 ⟨mem_univ _, fun D' hD' hc' => (mem_filter.1 hc).2 D' hD' ?_⟩
-      refine contains_ofColoring_iff.2 fun e he => ?_
-      rw [hU _ (mem_biUnion.2 ⟨D', hD', mem_image_of_mem _ he⟩),
-        hV _ (mem_biUnion.2 ⟨D', hD', mem_image_of_mem _ he⟩)]
-      exact contains_ofColoring_iff.1 hc' e he
+    have hS : Determined (𝒞.biUnion (·.image Prod.fst)) (𝒞.biUnion (·.image Prod.snd)) S :=
+      fun c c' hU hV hc => mem_filter.2 ⟨mem_univ _, fun D' hD' hc' =>
+        (mem_filter.1 hc).2 D' hD' <| contains_ofColoring_iff.2 fun e he => by
+          rw [hU _ (mem_biUnion.2 ⟨D', hD', mem_image_of_mem _ he⟩),
+            hV _ (mem_biUnion.2 ⟨D', hD', mem_image_of_mem _ he⟩)]
+          exact contains_ofColoring_iff.1 hc' e he⟩
     have hfilter : univ.filter (fun c : Coloring n => ∀ D' ∈ insert D 𝒞,
         ¬Contains (ofColoring c) D') = S.filter fun c => ¬Contains (ofColoring c) D := by
       ext c
@@ -392,8 +390,7 @@ theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
       fun ht => absurd ⟨t, ht, hct⟩ hF'
   by_cases hsub : ∃ i, V i ⊆ W
   · obtain ⟨i, hi⟩ := hsub
-    have hemp := eq_empty_of_forall_notMem fun c hc => (hexc c hc).2 i ((hexc c hc).1.mono hi)
-    simp [card_eq_zero.2 hemp]
+    simp [eq_empty_of_forall_notMem fun c hc => (hexc c hc).2 i ((hexc c hc).1.mono hi)]
   push Not at hsub
   have hinter (i j : Fin r) (hij : i ≠ j) : (V i \ W) ∩ (V j \ W) = ∅ := by
     refine eq_empty_of_forall_notMem fun e he => ?_
@@ -476,8 +473,7 @@ theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n 
     (c : Coloring n) (hc : c ∉ exceptions op A) :
     (Approximator.interpretation op A).decode (ofColoring c) ≤
       Monotone.interpretation op fun i => (A i).decode (ofColoring c) := by
-  rw [Bool.le_iff_imp]
-  intro h
+  refine Bool.le_iff_imp.2 fun h => ?_
   cases op with
   | const b => simpa using h
   | and =>

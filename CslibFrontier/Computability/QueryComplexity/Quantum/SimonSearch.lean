@@ -119,12 +119,10 @@ theorem simonSolve_eq {zs : Fin m × Fin n → Bool} {s : Fin n → Bool}
     have he : simonSolutions zs = ∅ := filter_eq_empty_iff.mpr fun w _ hw =>
       hw.1 ((or_self _).mp ((h w).mp hw.2))
     simp [simonSolve, he]
-  · have he : simonSolutions zs = {s} := by
-      ext w
+  · have he : simonSolutions zs = {s} := ext fun w => by
       simp only [simonSolutions, mem_filter, mem_univ, true_and, mem_singleton]
-      refine ⟨fun hw => ((h w).mp hw.2).resolve_left hw.1, ?_⟩
-      rintro rfl
-      exact ⟨hs, (h w).mpr (Or.inr rfl)⟩
+      exact ⟨fun hw => ((h w).mp hw.2).resolve_left hw.1,
+        fun hws => hws ▸ ⟨hs, (h s).mpr (Or.inr rfl)⟩⟩
     simp [simonSolve, he]
 
 /-- The outcomes of Simon's algorithm on which the post-processing outputs `s`. -/
@@ -159,19 +157,16 @@ theorem card_simonG_fiber_le {E : Fin N ≃ (Fin n → Bool) × Fin n} {X : Fin 
   have hinj : Set.InjOn (fun a (r : Fin m) => decide (Function.curry a r = Function.curry a₀ r))
       (univ.filter fun a => simonG (m := m) E X a = ys : Finset _) := by
     intro a ha b hb hab
-    have ha' := mem_coe.mp ha
-    have hb' := mem_coe.mp hb
     funext k
-    have hk := congrFun hab k.1
-    simp only [decide_eq_decide] at hk
+    have hk := decide_eq_decide.mp (congrFun hab k.1)
     have hcur : Function.curry a k.1 = Function.curry b k.1 := by
       by_cases h : Function.curry a k.1 = Function.curry a₀ k.1
       · exact h.trans (hk.mp h).symm
-      · have hb0 : Function.curry b k.1 ≠ Function.curry a₀ k.1 := fun h' => h (hk.mpr h')
-        exact ((hrow a ha' k.1).resolve_left h).trans ((hrow b hb' k.1).resolve_left hb0).symm
+      · exact ((hrow a (mem_coe.mp ha) k.1).resolve_left h).trans
+          ((hrow b (mem_coe.mp hb) k.1).resolve_left fun h' => h (hk.mpr h')).symm
     exact congrFun hcur k.2
-  have h := card_le_card_of_injOn _ (fun _ _ => mem_univ _) hinj
-  simpa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using h
+  simpa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using
+    card_le_card_of_injOn _ (fun _ _ => mem_univ _) hinj
 
 /-- **The rows rarely fail to determine a nonzero hidden string**: for `s ≠ 0` they fail with
 probability at most `(2^n - 1) / 2^m`. -/

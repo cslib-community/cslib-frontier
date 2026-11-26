@@ -147,12 +147,7 @@ omit [DecidableEq ι] in
 /-- Disturbance costs are nonnegative. -/
 theorem updateCost_nonneg {B} [Fintype B] (p : MeasuredPrefix ι D V W B) :
     0 ≤ p.updateCost := by
-  induction p with
-  | start => exact (le_rfl : (0 : ℝ) ≤ 0)
-  | localGate p g ih => exact ih
-  | coherent p enabled gate ih => exact add_nonneg ih (by norm_num)
-  | measure p read ih => exact ih
-  | service p run K hb ih => exact add_nonneg ih (Real.sqrt_nonneg _)
+  induction p <;> simp only [updateCost] <;> positivity
 
 private theorem sum_sq_triangle {J E : Type} [Fintype J] [NormedAddCommGroup E]
     (a b c : J → E) {d e : ℝ} (hd : 0 ≤ d) (he : 0 ≤ e)

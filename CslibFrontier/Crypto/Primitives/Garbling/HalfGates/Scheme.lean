@@ -523,16 +523,14 @@ theorem gb_eq_encodeGarbled (k : ℕ) (f : XorAndCircuit) (coins : List Bool) :
   refine ⟨?_, ?_, ?_⟩
   · simp only [fnWord, encodeFn, encodeGate_garbleTable]
     congr 2
-    · rw [size_toCircuit]
-    · rw [List.ofFn_congr (size_toCircuit f)]
-      rfl
+    · rw [hsize]
+    · rw [List.ofFn_congr hsize]; rfl
   · simp only [encInfoWord, labelBits_add, labelBits_inputLabels,
       labelBits_bitOffset, labelBits_offset]
   · simp only [decInfoWord, zeroWords_q, ← hWdef]
     congr 1
     funext o
-    have hm := f.isValid.m_le_q
-    simp only [ConventionalCircuit.topo] at hm
+    have hm : f.circuit.m ≤ f.circuit.q := f.isValid.m_le_q
     have hout : (Wire.ofNat (f.circuit.n + f.circuit.q - f.circuit.m + o) (by omega) :
         Wire f.circuit.n (toCircuit f).size) = (toCircuit f).outputs o :=
       Wire.toNat_injective (by rw [Wire.toNat_ofNat, toNat_outputs_toCircuit])
@@ -550,14 +548,13 @@ theorem block_parts {w : ℕ} {a b cts more : List Bool} (d : Bool) (ha : a.leng
       ((a ++ b ++ [d] ++ cts ++ more).drop w).take w = b ∧
       (a ++ b ++ [d] ++ cts ++ more).getD (2 * w) false = d ∧
         (a ++ b ++ [d] ++ cts ++ more).drop (2 * w + 1) = cts ++ more := by
-  have hshape : a ++ b ++ [d] ++ cts ++ more = a ++ (b ++ (d :: (cts ++ more))) := by simp
-  rw [hshape]
   subst ha
+  simp only [List.append_assoc, List.cons_append]
   refine ⟨by simp, by simp [hb], ?_, ?_⟩
   · rw [List.getD_eq_getElem?_getD, List.getElem?_append_right (by omega),
       List.getElem?_append_right (by omega)]
     simp [hb, two_mul]
-  · simpa only [List.append_assoc, List.singleton_append] using
+  · simpa only [List.append_assoc, List.singleton_append, List.cons_append] using
       List.drop_left' (l₁ := a ++ b ++ [d]) (l₂ := cts ++ more) (by simp [hb]; omega)
 
 /-- One gate of `Ev` on the labels of the earlier wires of a fixed point of an evaluation round, at
@@ -652,7 +649,7 @@ theorem evalWord_encodeFn (k : ℕ) (f : XorAndCircuit)
       List.getElem_ofFn, hin, ← hA (.input ⟨i, h₁⟩), evalStep]
     exact BitString.listRow_flatten_ofFn (fun i => labelBits (X i))
       (fun _ => length_labelBits _) ⟨i, h₁⟩
-  have hfold : ∀ g ≤ (toCircuit f).size,
+  have hfold (g : ℕ) (hg : g ≤ (toCircuit f).size) :
       (List.range g).foldl (evalGate hash k (PointPermute.wireWidth f.circuit.n (toCircuit f).size)
           (List.ofFn fun g => encodeGate k (PointPermute.wireWidth f.circuit.n (toCircuit f).size)
             (toCircuit f) table g).flatten)
@@ -662,7 +659,6 @@ theorem evalWord_encodeFn (k : ℕ) (f : XorAndCircuit)
           labelBits (A (Wire.ofNat v v.isLt))).take (f.circuit.n + g),
         ((List.ofFn fun g => encodeGate k (PointPermute.wireWidth f.circuit.n (toCircuit f).size)
           (toCircuit f) table g).take g).flatten.length) := by
-    intro g hg
     induction g with
     | zero => simp [hinit]
     | succ g ih =>
@@ -670,9 +666,8 @@ theorem evalWord_encodeFn (k : ℕ) (f : XorAndCircuit)
       exact evalGate_take hash k f table X A hA ⟨g, by omega⟩
   simp only [evalWord, encodeFn, PointPermute.fnDecoder.decode_enc]
   rw [hfold _ le_rfl, List.take_of_length_le (by simp)]
-  have hm := f.isValid.m_le_q
+  have hm : f.circuit.m ≤ f.circuit.q := f.isValid.m_le_q
   have hq := size_toCircuit f
-  simp only [ConventionalCircuit.topo] at hm
   congr 1
   apply List.ext_getElem (by simp; omega)
   intro o h₁ h₂

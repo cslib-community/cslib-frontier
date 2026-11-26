@@ -127,20 +127,19 @@ theorem isProperBorderLen_iff_isPeriod {α : Type*} {w : List α} {k : ℕ} :
   refine and_congr_right fun hk => ?_
   simp only [List.ext_getElem_iff, List.length_take, List.length_drop, List.getElem_take,
     List.getElem_drop, Nat.min_eq_left hk.le, Nat.sub_sub_self hk.le, true_and]
-  refine ⟨fun heq i hi => ?_, fun hper i h1 _ => by
-    simpa only [Nat.add_comm] using hper i (by omega)⟩
-  have hik : i < k := by omega
-  simpa only [Nat.add_comm] using heq i hik hik
+  exact ⟨fun heq i hi => by
+      simpa only [Nat.add_comm] using heq i (by omega) (by omega),
+    fun hper i _ _ => by
+      simpa only [Nat.add_comm] using hper i (by omega)⟩
 
 /-- A proper border of a proper border of `w` is itself a proper border of `w`. -/
 theorem IsProperBorderLen.trans {α : Type*} {w : List α} {j k : ℕ}
     (hjk : IsProperBorderLen (w.take k) j) (hkw : IsProperBorderLen w k) :
     IsProperBorderLen w j := by
-  rcases hkw with ⟨hk, hsufk⟩
   rcases hjk with ⟨hj, hsufj⟩
-  simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt hk)] at hj
-  rw [List.take_take, Nat.min_eq_left (Nat.le_of_lt hj)] at hsufj
-  exact ⟨Nat.lt_trans hj hk, hsufj.trans hsufk⟩
+  simp only [List.length_take, Nat.min_eq_left hkw.1.le] at hj
+  rw [List.take_take, Nat.min_eq_left hj.le] at hsufj
+  exact ⟨hj.trans hkw.1, hsufj.trans hkw.2⟩
 
 /-- Any proper border of `w` strictly shorter than a proper border `k` of `w` is a proper border
 of `w.take k`. -/
@@ -187,16 +186,13 @@ theorem le_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α] {p t : List α} {B 
 theorem eq_maxPrefixSuffixUpTo_iff {α : Type*} [DecidableEq α] {p t : List α} {B m : ℕ} :
     m = maxPrefixSuffixUpTo p t B ↔
       m ≤ B ∧ m ≤ p.length ∧ p.take m <:+ t ∧
-        ∀ k, m < k → k ≤ B → k ≤ p.length → ¬ (p.take k <:+ t) := by
-  constructor
-  · rintro rfl
-    exact ⟨maxPrefixSuffixUpTo_le_bound p t B, maxPrefixSuffixUpTo_le_length p t B,
+        ∀ k, m < k → k ≤ B → k ≤ p.length → ¬ (p.take k <:+ t) :=
+  ⟨fun h => h ▸ ⟨maxPrefixSuffixUpTo_le_bound p t B, maxPrefixSuffixUpTo_le_length p t B,
       take_maxPrefixSuffixUpTo_isSuffix p t B,
-      fun k hlt hkB hkp hsuf => not_le.mpr hlt (le_maxPrefixSuffixUpTo hkB hkp hsuf)⟩
-  · rintro ⟨hmB, hmp, hmsuf, hmax⟩
-    refine Nat.le_antisymm (le_maxPrefixSuffixUpTo hmB hmp hmsuf) (not_lt.mp fun hlt => ?_)
-    exact hmax _ hlt (maxPrefixSuffixUpTo_le_bound p t B) (maxPrefixSuffixUpTo_le_length p t B)
-      (take_maxPrefixSuffixUpTo_isSuffix p t B)
+      fun _ hlt hkB hkp hsuf => not_le.mpr hlt (le_maxPrefixSuffixUpTo hkB hkp hsuf)⟩,
+    fun ⟨hmB, hmp, hmsuf, hmax⟩ => Nat.le_antisymm (le_maxPrefixSuffixUpTo hmB hmp hmsuf)
+      (not_lt.mp fun hlt => hmax _ hlt (maxPrefixSuffixUpTo_le_bound p t B)
+        (maxPrefixSuffixUpTo_le_length p t B) (take_maxPrefixSuffixUpTo_isSuffix p t B))⟩
 
 /-- Maximum proper border length of `w` (`0` when `w = []`). -/
 @[expose] def maxBorderLen {α : Type*} [DecidableEq α] (w : List α) : ℕ :=
@@ -315,8 +311,8 @@ theorem mem_borderChain_iff {α : Type*} [DecidableEq α] {p : List α} {q j : �
     have hb_proper : IsProperBorderLen (p.take q) k :=
       isProperBorderLen_maxBorderLen (by rw [hlen]; omega)
     have hklt : k < q := hlen ▸ hb_proper.1
-    have htake_k : (p.take q).take k = p.take k := by
-      rw [List.take_take, Nat.min_eq_left hklt.le]
+    have htake_k : (p.take q).take k = p.take k :=
+      List.take_take.trans (congrArg p.take (Nat.min_eq_left hklt.le))
     simp only [List.mem_cons, ih (by omega) (hklt.le.trans hqp), ← htake_k]
     exact ⟨fun h => h.elim (· ▸ hb_proper) (·.trans hb_proper), fun hj =>
       (Nat.eq_or_lt_of_le (le_maxBorderLen_of_isProperBorderLen hj)).imp_right
@@ -467,9 +463,9 @@ theorem maxPrefixSuffixUpTo_pred_of_eq_length {α : Type*} [DecidableEq α]
 leaves the value unchanged. -/
 theorem maxPrefixSuffixUpTo_pred_of_lt_length {α : Type*} [DecidableEq α]
     {p t : List α} (hlt : maxPrefixSuffixUpTo p t p.length < p.length) :
-    maxPrefixSuffixUpTo p t (p.length - 1) = maxPrefixSuffixUpTo p t p.length := by
-  refine maxPrefixSuffixUpTo_congr fun j hj => ⟨fun ⟨_, hsuf⟩ => ⟨hj, hsuf⟩, fun ⟨_, hsuf⟩ => ?_⟩
-  have := le_maxPrefixSuffixUpTo hj hj hsuf
-  exact ⟨by omega, hsuf⟩
+    maxPrefixSuffixUpTo p t (p.length - 1) = maxPrefixSuffixUpTo p t p.length :=
+  maxPrefixSuffixUpTo_congr fun _ hj => ⟨fun ⟨_, hsuf⟩ => ⟨hj, hsuf⟩,
+    fun ⟨_, hsuf⟩ => ⟨Nat.le_sub_one_of_lt ((le_maxPrefixSuffixUpTo hj hj hsuf).trans_lt hlt),
+      hsuf⟩⟩
 
 end Cslib.Algorithms.Lean.KMP

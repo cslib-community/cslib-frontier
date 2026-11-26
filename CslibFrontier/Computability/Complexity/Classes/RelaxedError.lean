@@ -168,19 +168,17 @@ private theorem cast_le_inv_two_pow_mul {q m c : ℕ} (h : 2 ^ q * c ≤ 2 ^ m) 
 `1 - 2 ^ (-q)` fraction. -/
 private theorem one_sub_inv_two_pow_mul_le {q m c : ℕ} (hc : c ≤ 2 ^ m)
     (h : 2 ^ q * (2 ^ m - c) ≤ 2 ^ m) : (1 - ((2 : ℝ) ^ q)⁻¹) * 2 ^ m ≤ c := by
-  linarith [cast_le_inv_two_pow_mul h,
-    show ((2 ^ m - c : ℕ) : ℝ) = 2 ^ m - c by simp [Nat.cast_sub hc]]
+  have hle := cast_le_inv_two_pow_mul h
+  simp only [Nat.cast_sub hc, Nat.cast_pow, Nat.cast_ofNat] at hle; linarith
 
 /-- A density of at least `1 / 2 + 1 / q` among `2 ^ m` strings, in natural-number form. -/
 private theorem two_mul_le_mul_sub_of_le {m g q : ℕ} (hq : 0 < q)
     (h : ((1 : ℝ) / 2 + 1 / q) * 2 ^ m ≤ g) : 2 * 2 ^ m ≤ q * (2 * g - 2 ^ m) := by
-  have hq' : (0 : ℝ) < q := by exact_mod_cast hq
-  have hpos : (0 : ℝ) < 2 ^ m := by positivity
-  have hg : 2 ^ m ≤ 2 * g := by
-    exact_mod_cast (show (2 : ℝ) ^ m ≤ 2 * g by nlinarith [div_pos one_pos hq'])
-  suffices ((2 * 2 ^ m : ℕ) : ℝ) ≤ ((q * (2 * g - 2 ^ m) : ℕ) : ℝ) by exact_mod_cast this
-  push_cast [Nat.cast_sub hg]
-  nlinarith [show (1 : ℝ) / q * 2 ^ m * q = 2 ^ m by field_simp]
+  have hq' : (0 : ℝ) < q := Nat.cast_pos.2 hq
+  have hid : 2 * (q : ℝ) * ((1 / 2 + 1 / q) * 2 ^ m) = q * 2 ^ m + 2 * 2 ^ m := by field_simp
+  have hreal : (q : ℝ) * 2 ^ m + 2 * 2 ^ m ≤ q * (2 * g) := by nlinarith
+  have hle : q * 2 ^ m + 2 * 2 ^ m ≤ q * (2 * g) := by exact_mod_cast hreal
+  rw [Nat.mul_sub]; omega
 
 /-- `x ^ (-c) ≥ x ^ (-⌈c⌉₊)` for `x ≥ 1`. -/
 private theorem inv_pow_ceil_le_rpow_neg {x : ℝ} (hx : 1 ≤ x) (c : ℝ) :
@@ -295,9 +293,9 @@ theorem BPPWithError_eq_BPP {p : Polynomial ℕ} (hp : ∀ n, 2 < p.eval n) :
     BPPWithError enc (fun n => 1 / 2 - 1 / ((p.eval n : ℕ) : ℝ)) = BPP enc := by
   refine (BPPWithError_subset_BPP p (Eventually.of_forall fun n =>
     ⟨by have := hp n; omega, le_rfl⟩)).antisymm (BPP_subset_BPPWithError 3 fun n => ?_)
-  have := one_div_le_one_div_of_le (by norm_num : (0 : ℝ) < 3)
-    (by exact_mod_cast hp n : (3 : ℝ) ≤ p.eval n)
-  simp only [eval_ofNat]; linarith [show ((2 : ℝ) ^ 3)⁻¹ = 1 / 8 by norm_num]
+  have := one_div_le_one_div_of_le (zero_lt_three' ℝ) (Nat.ofNat_le_cast.2 (hp n))
+  rw [eval_ofNat]
+  ring_nf at this ⊢; linarith
 
 /-- **[Arora–Barak, Lemma 7.9][AroraBarak07], with the printed bound from some length on**: for
 `c > 0`, the problems decided in polynomial time with success probability at least
@@ -311,18 +309,19 @@ theorem setOf_exists_BPPWithError_rpow_eq_BPP {c : ℝ} (hc : 0 < c) :
   · refine BPPWithError_subset_BPP (X ^ ⌈c⌉₊)
       (eventually_atTop.2 ⟨max N 1, fun n hn => ⟨?_, ?_⟩⟩) hA
     · simpa only [eval_pow, eval_X] using pow_pos (by omega) _
-    · have := inv_pow_ceil_le_rpow_neg (by exact_mod_cast le_of_max_le_right hn : (1 : ℝ) ≤ n) c
-      simp only [show ¬n < N by omega, ↓reduceIte, eval_pow, eval_X, Nat.cast_pow, one_div]
-      linarith
+    · have := inv_pow_ceil_le_rpow_neg (Nat.one_le_cast.2 (le_of_max_le_right hn)) c
+      rw [ite_eq_right (not_lt.2 (le_of_max_le_left hn))]
+      simp only [eval_pow, eval_X, Nat.cast_pow, one_div]; linarith
   · -- the error `1 / 4` is at most `1 / 2 - n ^ (-c)` once `n ^ (-c) ≤ 1 / 4`
     obtain ⟨N, hN⟩ := eventually_atTop.1 (((tendsto_rpow_neg_atTop hc).comp
       tendsto_natCast_atTop_atTop).eventually (ge_mem_nhds (by norm_num : (0 : ℝ) < 1 / 4)))
     refine ⟨N, BPP_subset_BPPWithError 2 (fun n => ?_) hA⟩
-    simp only [eval_ofNat]
+    rw [eval_ofNat]
     split_ifs with hn
     · norm_num
-    · linarith [show (n : ℝ) ^ (-c) ≤ 1 / 4 from hN n (by omega),
-        show ((2 : ℝ) ^ 2)⁻¹ = 1 / 4 by norm_num]
+    · have h4 : ((2 : ℝ) ^ 2)⁻¹ = 1 / 4 := by norm_num
+      have hNn : (n : ℝ) ^ (-c) ≤ 1 / 4 := hN n (not_lt.1 hn)
+      linarith
 
 /-- **[Arora–Barak, Theorem 7.10][AroraBarak07]** (error reduction), with the hypothesis of
 Lemma 7.9 read from some length on (`Cslib.Complexity.setOf_exists_BPPWithError_rpow_eq_BPP`): for
@@ -353,7 +352,6 @@ theorem two_pow_le_two_mul_acceptCount_repeatAny {q p : Polynomial ℕ}
     (n := (q * p).eval (enc a).length)
   have hrej := card_filter_repeatAny_eq_false (enc := enc) (q := q) (p := p) (V := V) a
   have hone := acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := p.eval (enc a).length)
-  have hc := acceptCount_le_two_pow (V := V) (a := a) (n := p.eval (enc a).length)
   rw [eval_mul] at hsum ⊢
   set k := q.eval (enc a).length
   set m := p.eval (enc a).length
@@ -362,20 +360,18 @@ theorem two_pow_le_two_mul_acceptCount_repeatAny {q p : Polynomial ℕ}
   set F := (univ.filter fun u : Fin m → Bool => V (a, List.ofFn u) = false).card
   have hpos : (0 : ℝ) < 2 ^ m := by positivity
   let x : ℝ := c / 2 ^ m
-  have hx₁ : x ≤ 1 := (div_le_one hpos).2 (by exact_mod_cast hc)
+  have hx₁ : x ≤ 1 := (div_le_one hpos).2 (by exact_mod_cast Nat.le_of_add_right_le hone.le)
   have hkx : (1 : ℝ) ≤ k * x := by
     rw [← mul_div_assoc, le_div_iff₀ hpos, one_mul]
     exact_mod_cast h
   have hB := Cslib.one_sub_pow_mul_one_add_mul_le_one (by positivity : 0 ≤ x) hx₁ k
   have hFr : (F : ℝ) = 2 ^ m * (1 - x) := by
-    rw [show F = 2 ^ m - c by omega, Nat.cast_sub hc]
-    push_cast [x]
-    field_simp
+    have : (c : ℝ) + F = 2 ^ m := by exact_mod_cast hone
+    rw [mul_sub, mul_one, mul_div_cancel₀ _ hpos.ne']; linarith
   have hpow : 2 * F ^ k ≤ 2 ^ (k * m) := by
     suffices (2 : ℝ) * (F : ℝ) ^ k ≤ (2 : ℝ) ^ (k * m) by exact_mod_cast this
     rw [hFr, mul_pow, ← pow_mul, mul_comm m]
-    nlinarith [pow_nonneg (show 0 ≤ 1 - x by linarith) k, pow_pos hpos k,
-      pow_pos (two_pos : (0 : ℝ) < 2) (k * m)]
+    nlinarith [pow_nonneg (sub_nonneg.2 hx₁) k, pow_pos (two_pos : (0 : ℝ) < 2) (k * m)]
   omega
 
 /-- **Inverse-polynomial success gives `RP`.** If `ρ(n) ≥ 1 / q(n) > 0` for a polynomial `q`, then
@@ -391,10 +387,8 @@ theorem RPWithSuccess_subset_RP {ρ : ℕ → ℝ} (q : Polynomial ℕ)
     have h1 := (mul_le_mul_of_nonneg_right hρ (by positivity)).trans ((h a).1 ha)
     rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ hq', mul_comm] at h1
     exact_mod_cast h1
-  · rw [eval_mul]
-    intro x
-    rw [← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff]
-    simpa using fun i => (h a).2 ha (BitString.block x i)
+  · intro x
+    simp [eval_mul, ← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff, (h a).2 ha]
 
 /-- **Exponential error reduction into `RP_ρ`.** If `ρ(n) ≤ 1 - 2 ^ (-q(n))` for a polynomial `q`,
 then `RP ⊆ RP_ρ`. -/
@@ -414,8 +408,7 @@ theorem RPWithSuccess_inv_eq_RP {p : Polynomial ℕ} (hp : ∀ n, 2 ≤ p.eval n
     RPWithSuccess enc (fun n => 1 / ((p.eval n : ℕ) : ℝ)) = RP enc := by
   refine (RPWithSuccess_subset_RP p fun n => ⟨by have := hp n; omega, le_rfl⟩).antisymm
     (RP_subset_RPWithSuccess 1 fun n => ?_)
-  have := one_div_le_one_div_of_le (by norm_num : (0 : ℝ) < 2)
-    (by exact_mod_cast hp n : (2 : ℝ) ≤ p.eval n)
+  have := one_div_le_one_div_of_le (zero_lt_two' ℝ) (Nat.ofNat_le_cast.2 (hp n))
   simp only [eval_one, pow_one]; linarith
 
 /-- **[Arora–Barak, Theorem 7.12][AroraBarak07]** (error reduction for `RP`): a problem decided in
@@ -479,8 +472,7 @@ theorem ZPPWithSuccess_inv_eq_ZPP {p : Polynomial ℕ} (hp : ∀ n, 2 ≤ p.eval
     ZPPWithSuccess enc (fun n => 1 / ((p.eval n : ℕ) : ℝ)) = ZPP enc := by
   refine (ZPPWithSuccess_subset_ZPP p fun n => ⟨by have := hp n; omega, le_rfl⟩).antisymm
     (ZPP_subset_ZPPWithSuccess 1 fun n => ?_)
-  have := one_div_le_one_div_of_le (by norm_num : (0 : ℝ) < 2)
-    (by exact_mod_cast hp n : (2 : ℝ) ≤ p.eval n)
+  have := one_div_le_one_div_of_le (zero_lt_two' ℝ) (Nat.ofNat_le_cast.2 (hp n))
   simp only [eval_one, pow_one]; linarith
 
 /-- **[Goldreich, Exercise 6.6(2)][Goldreich2007Draft]**: for every positive polynomial `p`, the

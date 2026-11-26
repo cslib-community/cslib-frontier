@@ -107,16 +107,14 @@ private theorem actions_inner {input output : List Bool} {index : ℕ}
       [emit false, emit true] := by
   have hsym := inputSymbolInner (cfg := config input (some ()) index output (by lia))
     index (by simp [config]; lia) h
-  simp only [actions, show (config input (some ()) index output (by lia)).state = some ()
-    from rfl, guessMachine, hsym, Option.isSome_some, ↓reduceIte, List.map_map]
+  rw [actions, hsym]
   rfl
 
 private theorem actions_boundary (input output : List Bool) :
     guessMachine.actions (config input (some ()) input.length output le_rfl) = [halt] := by
   have hsym := inputSymbol_eq_none_of_boundary
     (cfg := config input (some ()) input.length output le_rfl) (Or.inr rfl)
-  simp only [actions, show (config input (some ()) input.length output le_rfl).state = some ()
-    from rfl, guessMachine, hsym, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, List.map_map]
+  rw [actions, hsym]
   rfl
 
 private theorem apply_emit {input output : List Bool} {index : ℕ}
@@ -217,8 +215,7 @@ private theorem word_of_runBranch (input : List Bool) (choices : List ℕ) :
         obtain ⟨word, hlen, hrest, rfl⟩ :=
           ih (index + 1) (output ++ [choice == 1]) hi hrun
         refine ⟨(choice == 1) :: word, ?_, ?_, by simp [List.append_assoc]⟩
-        · simp only [List.length_cons]
-          lia
+        · simp only [List.length_cons]; omega
         · rcases (by lia : choice = 0 ∨ choice = 1) with rfl | rfl <;> simp [hrest]
       · simp at hrun
     · obtain rfl : index = input.length := by lia
@@ -229,8 +226,8 @@ private theorem word_of_runBranch (input : List Bool) (choices : List ℕ) :
         cases rest with
         | nil => exact ⟨[], by simp, rfl, by simpa using (Option.some.inj hrun).symm⟩
         | cons choice rest =>
-          simp [runBranch_cons, guessMachine.step?_of_halted
-            (show (config input none input.length output le_rfl).Halted from rfl)] at hrun
+          have hh : (config input none input.length output le_rfl).Halted := rfl
+          simp [runBranch_cons, guessMachine.step?_of_halted hh] at hrun
       · simp at hrun
 
 /-- Soundness and completeness of terminal replay, including its exact output. -/
@@ -328,8 +325,7 @@ private theorem interpret_runProgram_config (input : List Bool) (remaining : ℕ
   induction remaining with
   | zero =>
     intro index output h
-    have hi : index = input.length := by lia
-    subst index
+    obtain rfl : index = input.length := by lia
     rw [interpret_runProgram_succ guessMachine _ 0 () rfl, actions_boundary]
     simp [runProgram_zero, apply_halt]
   | succ remaining ih =>

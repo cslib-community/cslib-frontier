@@ -151,8 +151,9 @@ theorem toWeierstrass_Δ :
 
 /-- When `2 ≠ 0` in `F`, `M.toWeierstrass` is an elliptic curve. -/
 theorem isElliptic_toWeierstrass (h2 : (2 : F) ≠ 0) : M.toWeierstrass.IsElliptic := by
+  have h16 : (16 : F) = 2 ^ 4 := by norm_num
   refine ⟨isUnit_iff_ne_zero.mpr ?_⟩
-  rw [toWeierstrass_Δ, show (16 : F) = 2 ^ 4 by norm_num]
+  rw [toWeierstrass_Δ, h16]
   exact div_ne_zero (mul_ne_zero (pow_ne_zero 4 h2) M.discr_ne_zero) (pow_ne_zero 6 M.B_ne_zero)
 
 /-- Affine solutions `(B x, B y)` of `M.Equation` correspond to affine solutions `(x, y)` of
@@ -164,8 +165,7 @@ theorem equation_iff_toWeierstrass (x y : F) :
   have hy : M.B⁻¹ ^ 2 * (M.B ^ 2 * y) = y := by field_simp
   have heq : M.B⁻¹ * (M.B ^ 2 * y) ^ 2 = M.B * (M.B * y) ^ 2 := by field_simp
   rw [← toWeierstrass_eq_quadraticTwist, inv_mul_cancel_left₀ hB, hy] at hq
-  rw [hq, heq, Equation]
-  simp only [ofCubic_a₂, ofCubic_a₄, ofCubic_a₆, one_mul, add_zero]
+  simp only [hq, heq, Equation, ofCubic_a₂, ofCubic_a₄, ofCubic_a₆, one_mul, add_zero]
 
 /-- An affine point `(u, v)` on `M` maps to an affine solution `(u / B, v / B)` of
 `M.toWeierstrass`. -/
@@ -233,8 +233,8 @@ noncomputable def toShortWeierstrass : WeierstrassCurve F :=
 theorem toShortWeierstrass_eq_toShortNF [Invertible (2 : F)] [Invertible (3 : F)] :
     M.toShortWeierstrass = M.toWeierstrass.toShortNF • M.toWeierstrass := by
   have h2nf : M.toWeierstrass.toCharNeTwoNF = 1 := by
-    rw [WeierstrassCurve.toCharNeTwoNF]
-    simp only [toWeierstrass, ofCubic_a₁, ofCubic_a₃, neg_zero, mul_zero]
+    simp only [WeierstrassCurve.toCharNeTwoNF, toWeierstrass, ofCubic_a₁, ofCubic_a₃,
+      neg_zero, mul_zero]
     rfl
   rw [toShortWeierstrass, WeierstrassCurve.toShortNF, h2nf, mul_one, one_smul]
   congr 2
@@ -337,13 +337,10 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
           by_contra hne
           have hadd := Affine.Point.add_some (x₁ := x) (x₂ := x) (y₁ := y) (y₂ := y)
             (fun ⟨_, hy'⟩ ↦ hne hy') (h₁ := h) (h₂ := h)
-          rw [show Affine.Point.some x y h + Affine.Point.some x y h = 0 from hP] at hadd
-          exact Affine.Point.some_ne_zero _ hadd.symm
-        have hy0 : y = 0 := by
-          rw [toWeierstrass_negY] at hy
-          have : 2 * y = 0 := by linear_combination hy
-          exact (mul_eq_zero.mp this).resolve_left h2
-        subst hy0
+          exact Affine.Point.some_ne_zero _ (hadd.symm.trans hP)
+        rw [toWeierstrass_negY] at hy
+        have hy2 : 2 * y = 0 := by linear_combination hy
+        obtain rfl : y = 0 := (mul_eq_zero.mp hy2).resolve_left h2
         have heq := (M.equation_iff_toWeierstrass x 0).mpr h.1
         rw [Equation] at heq
         have hfac : x * (x - x₁) * (x - x₂) = 0 := by
@@ -379,8 +376,7 @@ private lemma four_dvd_of_fourTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 
   have hs' : M.B * s ^ 2 = M.A + 2 * ε := by rw [hs, mul_div_cancel₀ _ hB]
   have hAε : M.A + 2 * ε ≠ 0 := fun h ↦
     M.discr_ne_zero (by linear_combination (M.A - 2 * ε) * h + 4 * hε)
-  have hs0 : s ≠ 0 := fun h ↦
-    hAε (by linear_combination -hs' + M.B * (by rw [h]; ring : s ^ 2 = 0))
+  have hs0 : s ≠ 0 := fun h ↦ hAε (hs'.symm.trans (by simp [h]))
   have hEq0 : M.toWeierstrass.toAffine.Equation 0 0 := by
     simp [← M.equation_iff_toWeierstrass, Equation]
   have hEq : M.toWeierstrass.toAffine.Equation (ε / M.B) (s / M.B) := by
@@ -389,11 +385,10 @@ private lemma four_dvd_of_fourTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 
   let P₀ : M.toWeierstrass.toAffine.Point := Affine.Point.mk hEq0
   let P : M.toWeierstrass.toAffine.Point := Affine.Point.mk hEq
   have hP2 : P + P = P₀ := by
-    have hne : s / M.B ≠ M.toWeierstrass.toAffine.negY (ε / M.B) (s / M.B) := by
-      intro h
+    have hne : s / M.B ≠ M.toWeierstrass.toAffine.negY (ε / M.B) (s / M.B) := fun h ↦ by
       rw [toWeierstrass_negY] at h
-      have : 2 * (s / M.B) = 0 := by linear_combination h
-      exact (mul_eq_zero.mp this).elim h2 (div_ne_zero hs0 hB)
+      exact (mul_eq_zero.mp (by linear_combination h : 2 * (s / M.B) = 0)).elim h2
+        (div_ne_zero hs0 hB)
     dsimp [P, P₀, Affine.Point.mk]
     rw [Affine.Point.add_some (fun ⟨_, h⟩ ↦ hne h)]
     simp only [Affine.Point.some.injEq]
@@ -429,8 +424,7 @@ private lemma four_dvd_of_fourTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 
     refine (addOrderOf_eq_prime_pow (p := 2) (n := 1) ?_ ?_).trans (by norm_num)
     · rw [pow_one, two_nsmul, hP2]
       exact Affine.Point.some_ne_zero _
-    · rw [show (2 ^ (1 + 1) : ℕ) • P = (P + P) + (P + P) by
-        rw [show (2 ^ (1 + 1) : ℕ) = 2 + 2 by norm_num, add_nsmul, two_nsmul], hP2]
+    · rw [pow_succ, pow_one, mul_nsmul, two_nsmul, two_nsmul, hP2]
       exact Affine.Point.add_of_Y_eq rfl (by rw [toWeierstrass_negY, neg_zero])
   rw [← hord]
   exact addOrderOf_dvd_natCard P
@@ -457,8 +451,8 @@ theorem four_dvd_natCard_toWeierstrass_point (M : MontgomeryCurve F) [Finite F]
       rw [hab] at hu
       field_simp at hu
       linear_combination hu⟩
-    have hχ : quadraticChar F (a * b) = -1 := quadraticChar_neg_one_iff_not_isSquare.mpr hns
-    rw [map_mul] at hχ
+    have hχ : quadraticChar F a * quadraticChar F b = -1 :=
+      map_mul (quadraticChar F) a b ▸ quadraticChar_neg_one_iff_not_isSquare.mpr hns
     rcases quadraticChar_dichotomy ha0 with hχa | hχa
     · obtain ⟨s, hs⟩ := (quadraticChar_one_iff_isSquare ha0).mp hχa
       exact four_dvd_of_fourTorsion M h2 1 s (by norm_num) (by rw [sq, ← hs]; dsimp [a]; ring)
@@ -480,9 +474,9 @@ theorem not_variableChange_of_odd {W : WeierstrassCurve F} [Finite F] (hF : ring
     C • M.toWeierstrass ≠ W := by
   classical
   rintro rfl
-  have h4 := M.four_dvd_natCard_toWeierstrass_point hF
-  rw [← Nat.card_congr (variableChangePointEquiv C M.toWeierstrass).toEquiv] at h4
-  exact Nat.not_odd_iff_even.mpr (even_iff_two_dvd.mpr (dvd_trans (by norm_num) h4)) hodd
+  exact Nat.not_odd_iff_even.mpr (even_iff_two_dvd.mpr (dvd_trans (by norm_num)
+    ((Nat.card_congr (variableChangePointEquiv C M.toWeierstrass).toEquiv).symm ▸
+      M.four_dvd_natCard_toWeierstrass_point hF))) hodd
 
 end DivFour
 

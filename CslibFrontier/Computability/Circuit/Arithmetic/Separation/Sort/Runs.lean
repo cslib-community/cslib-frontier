@@ -62,8 +62,7 @@ theorem IsRuns.exists_run {P : Series F (Z × Γ)} {X : Type*} {em : X → Z →
     {wt : X → F} (h : IsRuns P em wt) {v : Z → List Γ} (hv : hat P v ≠ 0) :
     ∃ x, em x = v ∧ wt x ≠ 0 := by
   obtain ⟨R, h1, h2⟩ := h v
-  rw [h2] at hv
-  obtain ⟨x, hx, hne⟩ := Finset.exists_ne_zero_of_sum_ne_zero hv
+  obtain ⟨x, hx, hne⟩ := Finset.exists_ne_zero_of_sum_ne_zero (h2 ▸ hv)
   exact ⟨x, (h1 x).1 hx, hne⟩
 
 theorem IsRuns.of_fib {P : Series F (Z × Γ)} {X : Type*} {em : X → Z → List Γ}
@@ -119,8 +118,7 @@ theorem IsRuns.one :
   intro v
   refine ⟨if v = fun _ => [] then {()} else ∅, fun _ => ?_, ?_⟩
   · by_cases h : v = fun _ => [] <;> simp [h, Ne.symm]
-  · rw [hat_one]
-    split_ifs <;> simp
+  · by_cases h : v = fun _ => [] <;> simp [hat_one, h]
 
 /-- The star: runs of `Series.kstar f` are finite lists of non-empty runs of `f`. -/
 theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List Γ}
@@ -165,11 +163,9 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
       B.map ⟨fun p => p.1 :: p.2, by rintro ⟨a, b⟩ ⟨c, d⟩ h; simpa using h⟩
     have hC : ∀ l, l ∈ C ↔ l ≠ [] ∧ (fun z => l.flatMap fun x => em x z) = v := fun l => by
       simp only [C, Finset.mem_map, Prod.exists]
-      refine ⟨?_, fun ⟨h1, h2⟩ => ?_⟩
-      · rintro ⟨x, l', h, rfl⟩
-        exact ⟨List.cons_ne_nil _ _, (hB x l').1 h⟩
-      · obtain ⟨x, l', rfl⟩ := List.exists_cons_of_ne_nil h1
-        exact ⟨x, l', (hB _ _).2 h2, rfl⟩
+      refine ⟨fun ⟨x, l', h, hl⟩ => hl ▸ ⟨List.cons_ne_nil _ _, (hB x l').1 h⟩, fun ⟨h1, h2⟩ => ?_⟩
+      obtain ⟨x, l', rfl⟩ := List.exists_cons_of_ne_nil h1
+      exact ⟨x, l', (hB _ _).2 h2, rfl⟩
     refine ⟨(if v = fun _ => [] then {[]} else ∅) ∪ C, fun l => ?_, ?_⟩
     · rw [Finset.mem_union, hC]
       by_cases hl : l = [] <;> by_cases h : v = fun _ => [] <;> simp [hl, h, Ne.symm]
@@ -309,8 +305,7 @@ theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
   | zero =>
     exact ((one (F := F) (Z := Z) (Γ := Γ)).congr
       ⟨fun _ => (), fun _ i => i.elim0, fun _ => Subsingleton.elim _ _, fun _ => rfl⟩
-      (fun _ _ => by simp) (fun _ => by simp)).mono
-      (by omega)
+      (fun _ _ => rfl) (fun _ => by simp)).mono (by omega)
   | succ k ih =>
     have h1 := (h 0).mul
       (ih (n := fun i => n i.succ) (X := fun i => X i.succ)
@@ -318,8 +313,7 @@ theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
     refine (h1.congr (Fin.consEquiv X).symm
       (fun y z => by simp [Fin.consEquiv, List.ofFn_succ, Fin.tail])
       fun y => by simp [Fin.consEquiv, Fin.prod_univ_succ, Fin.tail]).mono ?_
-    rw [Fin.sum_univ_succ]
-    omega
+    rw [Fin.sum_univ_succ]; omega
 
 end Runs
 

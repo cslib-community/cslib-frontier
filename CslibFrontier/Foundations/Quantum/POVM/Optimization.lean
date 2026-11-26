@@ -65,14 +65,10 @@ private theorem linear_nonpos_of_quadratic {b c δ : ℝ} (hδ : 0 < δ)
   by_contra! hb
   let t := min δ (b / (2 * (|c| + 1)))
   have ht : 0 < t := lt_min hδ (div_pos hb (by positivity))
-  have htc : t * (2 * (|c| + 1)) ≤ b :=
-    (le_div_iff₀ (by positivity)).mp (min_le_right _ _)
-  have hquad := h t ht (min_le_left _ _)
-  have hsign : b + t * c ≤ 0 := by
-    apply nonpos_of_mul_nonpos_right _ ht
-    linarith [show t * (b + t * c) = t * b + t ^ 2 * c by ring]
-  have hlower := mul_le_mul_of_nonneg_left (neg_abs_le c) ht.le
-  linarith [show t * (2 * (|c| + 1)) = 2 * (t * |c|) + 2 * t by ring]
+  have htc : t * (2 * (|c| + 1)) ≤ b := (le_div_iff₀ (by positivity)).mp (min_le_right _ _)
+  have hsign : b + t * c ≤ 0 := nonpos_of_mul_nonpos_right
+    (by simpa only [mul_add, ← mul_assoc, ← sq] using h t ht (min_le_left _ _)) ht
+  nlinarith [neg_abs_le c]
 
 private theorem sandwich_sub_smul (P X : Matrix ι ι ℂ) (t : ℝ) :
     (1 - t • P) * X * (1 - t • P) =
@@ -159,8 +155,8 @@ private theorem majorant_of_max (H : A → Matrix ι ι ℂ) (hH : ∀ a, (H a).
   have ht : 0 ≤ ((P * (Z - H j)).trace).re := by
     rw [mul_sub, trace_sub, Complex.sub_re]
     linarith only [hb]
-  rw [trace_mul_comm, show P = vecMulVec v (star v) from rfl, mul_vecMulVec, trace_vecMulVec,
-    dotProduct_comm] at ht
+  dsimp only [P] at ht
+  rw [trace_mul_comm, mul_vecMulVec, trace_vecMulVec, dotProduct_comm] at ht
   refine Complex.nonneg_iff.mpr ⟨ht, ?_⟩
   have hi := congrArg Complex.im ((hZ.sub (hH j)).star_dotProduct_mulVec_comm v v)
   simp only [Complex.star_def, Complex.conj_im] at hi

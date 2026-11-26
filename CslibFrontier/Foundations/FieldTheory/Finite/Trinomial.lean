@@ -125,11 +125,9 @@ private theorem zmod_three_pow_two_pow_ne_one (t : ℕ) :
 /-- The multiplicative order of `2` modulo `3 ^ (t + 1)` is `2 * 3 ^ t`. -/
 theorem orderOf_two_zmod_three_pow (t : ℕ) :
     orderOf (2 : ZMod (3 ^ (t + 1))) = 2 * 3 ^ t := by
-  have h4 : orderOf (4 : ZMod (3 ^ (t + 1))) = 3 ^ t := by
-    simpa [show (1 + 3 : ZMod (3 ^ (t + 1))) = 4 by ring] using
-      ZMod.orderOf_one_add_prime Nat.prime_three (by decide) t
-  rw [show (4 : ZMod (3 ^ (t + 1))) = (2 : ZMod (3 ^ (t + 1))) ^ 2 by ring,
-    orderOf_pow' (2 : ZMod (3 ^ (t + 1))) (by decide)] at h4
+  have h13 : (1 + 3 : ZMod (3 ^ (t + 1))) = 2 ^ 2 := by norm_num
+  have h4 := h13 ▸ ZMod.orderOf_one_add_prime Nat.prime_three (by decide) t
+  rw [orderOf_pow' (2 : ZMod (3 ^ (t + 1))) (by decide)] at h4
   set d := orderOf (2 : ZMod (3 ^ (t + 1)))
   have h_mul : d = 3 ^ t * d.gcd 2 :=
     (Nat.div_eq_iff_eq_mul_left (Nat.gcd_pos_of_pos_right d (by decide))
@@ -192,17 +190,14 @@ theorem clmul_zero_right (a : ℕ) : clmul a 0 = 0 := by
 /-- Step equation for `clmul` in terms of bitwise shift and mask. -/
 theorem clmul_step (a b : ℕ) :
     clmul a b = (if b &&& 1 = 1 then a else 0) ^^^ (clmul a (b >>> 1) <<< 1) := by
-  rw [show b &&& 1 = b % 2 from Nat.and_two_pow_sub_one_eq_mod b 1,
-    show b >>> 1 = b / 2 from Nat.shiftRight_eq_div_pow b 1]
-  rw [clmul]
+  rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow, pow_one, clmul]
   by_cases hb : b = 0 <;> simp [hb]
 
 /-- Step recurrence for `clmul u v` using `(v &&& 1) * u`:
 `((v &&& 1) * u) ^^^ (clmul u (v >>> 1) <<< 1) = clmul u v`. -/
 theorem clmul_eq_bit_mul_xor (u v : ℕ) :
     ((v &&& 1) * u) ^^^ (clmul u (v >>> 1) <<< 1) = clmul u v := by
-  rw [clmul_step u v, show v &&& 1 = v % 2 from Nat.and_two_pow_sub_one_eq_mod v 1]
-  congr 1
+  rw [clmul_step u v, Nat.and_one_is_mod]
   rcases Nat.mod_two_eq_zero_or_one v with h | h <;> simp [h]
 
 /-- Splitting a natural number `a` into its low `c` bits (`a &&& (2 ^ c - 1)`) and shifted high
@@ -242,12 +237,13 @@ theorem clmulTab_index_props {c idx : ℕ} (hidx : idx < 2 ^ (2 * c)) :
     rw [Nat.shiftLeft_eq, hu_eq, hv_eq, Nat.div_add_mod' idx (2 ^ c)]
   have hv_shr_lt : v >>> 1 < 2 ^ c :=
     Nat.shiftRight_eq_div_pow v 1 ▸ (Nat.div_le_self v 2).trans_lt hv_lt
-  have hprev_eq : prevIdx = u * 2 ^ c + (v >>> 1) := by rw [← Nat.shiftLeft_eq]
   have hprev_u : prevIdx >>> c = u := by
-    rw [Nat.shiftRight_eq_div_pow, hprev_eq, Nat.add_comm,
+    dsimp only [prevIdx]
+    rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, Nat.add_comm,
       Nat.add_mul_div_right _ _ hpow_pos, Nat.div_eq_of_lt hv_shr_lt, zero_add]
   have hprev_v : prevIdx &&& (2 ^ c - 1) = v >>> 1 := by
-    rw [Nat.and_two_pow_sub_one_eq_mod, hprev_eq, Nat.add_comm,
+    dsimp only [prevIdx]
+    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.shiftLeft_eq, Nat.add_comm,
       Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hv_shr_lt]
   exact ⟨hu_lt, hv_lt, huv_eq, by omega, by omega, by omega, hprev_u, hprev_v⟩
 
@@ -473,10 +469,8 @@ by 4-limb reduction `reduceTrinomialCode` on `equivFin t` coordinates. -/
 theorem val_equivFin_mul (t : ℕ) (x y : TrinomialField t) :
     (equivFin t (x * y)).val =
       reduceTrinomialCode t (clmul (equivFin t x).val (equivFin t y).val) := by
-  have hred : reduceTrinomialCode t (clmul (equivFin t x).val (equivFin t y).val) <
-      2 ^ (2 * 3 ^ t) := reduceTrinomialCode_lt t (by
-    rw [show 4 * 3 ^ t = 2 * (2 * 3 ^ t) by ring]
-    exact clmul_lt_two_pow_two_mul (equivFin t x).isLt (equivFin t y).isLt)
+  have hred := reduceTrinomialCode_lt t (Nat.mul_assoc 2 2 (3 ^ t) ▸
+    clmul_lt_two_pow_two_mul (equivFin t x).isLt (equivFin t y).isLt)
   conv_lhs => rw [← mk_polyOfCode_val_equivFin t x, ← mk_polyOfCode_val_equivFin t y]
   rw [← map_mul, ← polyOfCode_clmul, ← mk_polyOfCode_reduceTrinomialCode,
     val_equivFin_mk_polyOfCode t hred]

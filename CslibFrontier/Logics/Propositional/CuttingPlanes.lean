@@ -199,14 +199,11 @@ theorem lhs_eq_finsuppSum (σ : V → Bool) (I : Ineq V) :
 
 theorem Holds.add {σ : V → Bool} {I J : Ineq V} (hI : I.Holds σ) (hJ : J.Holds σ) :
     (I + J).Holds σ := by
-  unfold Holds at *
-  rw [bound_add, lhs_add]
-  exact add_le_add hI hJ
+  simpa only [Holds, bound_add, lhs_add] using add_le_add hI hJ
 
 theorem Holds.nsmul {σ : V → Bool} {I : Ineq V} (c : ℕ) (h : I.Holds σ) : (c • I).Holds σ := by
-  unfold Holds at *
-  rw [bound_nsmul, lhs_nsmul, nsmul_eq_mul]
-  exact mul_le_mul_of_nonneg_left h (Int.natCast_nonneg c)
+  simpa only [Holds, bound_nsmul, lhs_nsmul, nsmul_eq_mul] using
+    mul_le_mul_of_nonneg_left h (Int.natCast_nonneg c)
 
 /-! ### The axioms and the contradiction -/
 
@@ -261,9 +258,7 @@ theorem bound_div_le_iff {I : Ineq V} {c : ℕ} (hc : 0 < c) {y : ℤ} :
 back those of `I`. -/
 theorem smul_coeff_div {I : Ineq V} {c : ℕ} (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v) :
     (c : ℤ) • (I.div c).coeff = I.coeff := by
-  ext v
-  simp only [Finsupp.smul_apply, coeff_div, smul_eq_mul]
-  exact Int.mul_ediv_cancel' (hdvd v)
+  exact Finsupp.ext fun v => Int.mul_ediv_cancel' (hdvd v)
 
 /-- **Soundness of rounded division**: if `c` divides every coefficient of `I`, every 0/1
 assignment satisfying `I` satisfies `I.div c`. At `c = 0`, `I.div 0` is `0 ≥ 0`. -/
@@ -698,8 +693,7 @@ theorem RefutableInSize.mono (h : RefutableInSize Γ s) (hst : s ≤ t) : Refuta
 /-- Renaming the variables along any map keeps a refutation a refutation of the same size. -/
 theorem RefutableInSize.relabel {W : Type*} (f : V → W) (h : RefutableInSize Γ s) :
     RefutableInSize (Ineq.relabel f '' Γ) s := by
-  have := DerivableInSize.relabel f h
-  rwa [relabel_contra] at this
+  simpa only [RefutableInSize, relabel_contra] using DerivableInSize.relabel f h
 
 /-- **Soundness of cutting planes for CNFs**: a CNF whose inequalities are refutable is
 unsatisfiable. -/

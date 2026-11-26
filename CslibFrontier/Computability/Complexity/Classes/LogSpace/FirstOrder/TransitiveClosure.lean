@@ -176,23 +176,22 @@ private theorem test_correct (hE : Env v a P B Post R) {Γ : List ℕ} {α : Typ
     (by rw [length_compile]) hP hE.one_le hE.card_le hNB hE.halts hE.post hsrc ?_ ?_ ?_ hpre,
     test_complete (w₁ := l + 14 + 5 * k + len (body ⟨0, Nat.one_pos⟩) true)
     (by rw [length_compile]) hP hE.one_le hE.card_le hNB hsrc ?_ ?_ ?_ hpre⟩
-  · intro regsW us ws t regs₃ hkW hmid
-    rw [length_compile]
-    exact (hwalk hkW hmid).1.mono fun _ h => ⟨h.1.mono (by omega), h.2⟩
-  · intro regs₂ xs ys hk₂ hx hy
-    exact sound_of_eq (hedge true (codeAt_of_eq h18 (by omega)) hk₂ hx hy).1 (by omega) (by omega)
-  · intro regs₂ xs ys hk₂ hx hy
-    exact sound_of_eq (hedge false (codeAt_of_eq h20 (by rw [length_compile]; omega)) hk₂ hx hy).1
+  · exact fun _ _ _ _ _ hkW hmid =>
+      sound_of_eq ((hwalk hkW hmid).1.mono fun _ h => ⟨h.1.mono (by omega), h.2⟩) rfl
+        (by rw [length_compile])
+  · exact fun _ _ _ hk₂ hx hy =>
+      sound_of_eq (hedge true (codeAt_of_eq h18 (by omega)) hk₂ hx hy).1 (by omega) (by omega)
+  · exact fun _ _ _ hk₂ hx hy => sound_of_eq
+      (hedge false (codeAt_of_eq h20 (by rw [length_compile]; omega)) hk₂ hx hy).1
       (by rw [length_compile]; omega)
       (by simp only [length_compile]; omega)
-  · intro regsW us ws t regs₃ hkW hmid he
-    rw [length_compile]
-    exact ((hwalk hkW hmid).2 he).mono fun _ h => h.mono (by omega)
-  · intro regs₂ xs ys hk₂ hx hy he
-    exact complete_of_eq ((hedge true (codeAt_of_eq h18 (by omega)) hk₂ hx hy).2 he)
-      (by omega) (by omega)
-  · intro regs₂ xs ys hk₂ hx hy he
-    exact complete_of_eq
+  · exact fun _ _ _ _ _ hkW hmid he =>
+      complete_of_eq (((hwalk hkW hmid).2 he).mono fun _ h => h.mono (by omega)) rfl
+        (by rw [length_compile])
+  · exact fun _ _ _ hk₂ hx hy he =>
+      complete_of_eq ((hedge true (codeAt_of_eq h18 (by omega)) hk₂ hx hy).2 he)
+        (by omega) (by omega)
+  · exact fun _ _ _ hk₂ hx hy he => complete_of_eq
       ((hedge false (codeAt_of_eq h20 (by rw [length_compile]; omega)) hk₂ hx hy).2 he)
       (by rw [length_compile]; omega)
       (by simp only [length_compile]; omega)
@@ -260,8 +259,7 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
         (fun regs' => Kept B (base + 2 * k + 2) regs₃ regs' ∧ E us ws) ∧
       (E us ws → Complete P (encStructure a) (b + 2 * k + 7) regs₃
         (b + 2 * k + 7 + code.length) (Kept B (base + 2 * k + 2) regs₃)) := by
-    intro us ws t regs₃ hmid
-    obtain ⟨⟨hk, hlen, hu, -⟩, hw⟩ := hmid
+    rintro us ws t regs₃ ⟨⟨hk, _, hu, -⟩, hw⟩
     rw [hcl]
     exact body_correct ih hΓ hWb hbase hfv h0 hv (fun _ _ => Iff.rfl) le_rfl (by omega) true
       (tcCode_parts hP').2.2.2.2.2.2.1 hk (by rw [hk.length_eq]; omega) hu hw
@@ -277,8 +275,7 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
       simp only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin]; omega
     obtain ⟨m, hm, hsteps⟩ := (Relation.reflTransGen_iff_relatesWithinSteps hcard).mp hsat
     exact loop_complete hP' hbase hE.card_le hNB hNB h0 hdst hM
-      (fun us ws t regs₃ hmid => (hbody us ws t regs₃ hmid).2) m 0 s₀ regsI hsteps (by omega)
-      hinvI
+      (fun _ _ _ _ h => (hbody _ _ _ _ h).2) m 0 s₀ regsI hsteps (by omega) hinvI
 
 /-- **Compiler correctness** for every formula without free relation variables. -/
 theorem correct (hE : Env v a P B Post R) :
@@ -326,8 +323,7 @@ in native nondeterministic logarithmic space, at the source-only structure encod
 theorem TCDefinable.encodedLanguage_mem_NL {L : Language} [L.IsRelational] {K : Query L}
     (hK : TCDefinable K) (v : Vocabulary L) :
     K.encodedLanguage v ∈ Complexity.NL encStructure :=
-  let ⟨_, hφ⟩ := hK
-  TCModelChecker.encodedLanguage_mem_NL v hφ
+  hK.elim fun _ => TCModelChecker.encodedLanguage_mem_NL v
 
 /-- **FO(positive TC) ⊆ NL** on canonically ordered structures: the positive fragment, as a
 special case of `TCDefinable.encodedLanguage_mem_NL`. -/

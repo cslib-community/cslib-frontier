@@ -296,8 +296,7 @@ theorem three_mul_card_ofTable_mem_le {S : SetSystem} {k : ℕ}
   have hmiss : ∀ B : Finset (Fin S.sets.length), #B ≤ k + 1 →
       ∃ u < S.ground.length, ∀ i ∈ B, u ∉ residues S i := by
     intro B hB
-    by_contra h
-    push Not at h
+    by_contra! h
     have := SetSystem.optCoverSize_le ((forall_residues_iff S B).mp h)
     omega
   have hM := bound_pow_six_lt S
@@ -320,11 +319,10 @@ theorem three_mul_card_ofTable_mem_le {S : SetSystem} {k : ℕ}
           calc 30 * bound S ^ 3 ≤ bound S ^ 3 * bound S ^ 3 := Nat.mul_le_mul_right _ h30
             _ = bound S ^ 6 := by ring
       _ ≤ 2 ^ arity S := hM.le
-  refine (Nat.mul_le_mul_left 3 (card_le_card fun T hT => ?_)).trans
+  exact (Nat.mul_le_mul_left 3 (card_le_card (monotone_filter_right _ fun T _ hT =>
+    hmin ▸ ofTable_mem_iff.mp hT))).trans
     (Window.three_mul_card_cheap_lift_le (I := I) hN (residues S) k hmiss (by omega)
       (by omega) h64 hd)
-  rw [mem_filter] at hT ⊢
-  exact ⟨mem_univ _, hmin ▸ ofTable_mem_iff.mp hT.2⟩
 
 /-! ### The randomized reduction -/
 
@@ -402,9 +400,7 @@ theorem rpReducible_of_computableInPolyTime
     have hgood : #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∉ MultiMCSP I} ≤
         #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∈
           ((PromiseProblem.ofSet (MultiMCSP I)).restrict {x | x.Positive}).no} :=
-      card_le_card fun r hr => by
-        rw [mem_filter] at hr ⊢
-        exact ⟨hr.1, Set.mem_inter hr.2 (reduce_positive _)⟩
+      card_le_card (monotone_filter_right _ fun r _ hr => Set.mem_inter hr (reduce_positive _))
     omega
 
 end Reduction

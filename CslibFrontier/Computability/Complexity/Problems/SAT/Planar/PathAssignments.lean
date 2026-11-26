@@ -174,14 +174,13 @@ theorem dropLast_center_eq_source {φ : CNF ℕ} {o : Occurrence ℕ}
     (hc : p ∈ (SAT.incidenceGraph φ).orthogonalPositions) :
     p = Layout.center (φ.distinctVars.idxOf o.lit.1) := by
   obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hc
-  have hwmem : w ∈ (SAT.incidenceGraph φ).vertices := List.mem_range.mpr
-    (by simpa only [SAT.incidenceGraph, List.length_range] using List.mem_range.mp hw)
+  simp only [SAT.incidenceGraph, List.length_range] at hw
   have hidx : (SAT.incidenceGraph φ).vertices.idxOf w = w := by
     simpa only [SAT.incidenceGraph, List.getElem_range] using
-      List.getElem_idxOf (List.idxOf_lt_length_of_mem hwmem)
+      List.getElem_idxOf (List.idxOf_lt_length_of_mem hw)
   have h := (Graph.unitPath_declared_center_iff (SAT.incidenceGraph φ)
     (fun _ he => SAT.incidenceGraph_endpoints he)
-    (fun _ he => SAT.incidenceGraph_loopless he) (occurrence_index_lt ho) hwmem).1
+    (fun _ he => SAT.incidenceGraph_loopless he) (occurrence_index_lt ho) hw).1
     (by rw [hidx]; simpa only [occurrencePath_eq_unitPath] using List.dropLast_subset _ hp)
   simp only [SAT.incidenceGraph, List.getElem_map,
     List.getElem_idxOf (List.idxOf_lt_length_of_mem ho)] at h
@@ -301,19 +300,15 @@ theorem exists_compatible_assignment {φ : CNF ℕ}
   by_cases hp : p ∈ crossingSites φ
   · obtain ⟨hl, hr, hb, ht⟩ := side_cardinal p
     obtain ⟨ha1, ha2, hb1, hb2⟩ := (hcross p).2
-    have hsig (q : Point) :
-        σ (signal (crossingSites φ) p q) = cross p (Crossover.splitTerminal (side p q)) := by
-      simp only [signal, hp, ite_true, σ]
     have hpair {d : Point} (hs : StraightThrough (occurrencePath φ o) p d)
         (hminus : cross p (Crossover.splitTerminal (side p (p - d))) = axis p d)
         (hplus : cross p (Crossover.splitTerminal (side p (p + d))) = axis p d) :
         σ (signal (crossingSites φ) p ((occurrencePath φ o).getD (k - 1) p)) = τ o.lit.1 ∧
         σ (signal (crossingSites φ) p ((occurrencePath φ o).getD (k + 1) p)) = τ o.lit.1 := by
-      obtain ⟨_, _, hnb⟩ := hs.getD_neighbors (occurrencePath_nodup ho) hk' heq'
-      have hav := haxis ho hp hpo hs
-      rcases hnb with ⟨hprev, hnext⟩ | ⟨hprev, hnext⟩
-      · rw [hprev, hnext, hsig, hsig]; exact ⟨hminus.trans hav, hplus.trans hav⟩
-      · rw [hprev, hnext, hsig, hsig]; exact ⟨hplus.trans hav, hminus.trans hav⟩
+      rcases hs.getD_neighbors (occurrencePath_nodup ho) hk' heq' with
+          ⟨_, _, ⟨hprev, hnext⟩ | ⟨hprev, hnext⟩⟩ <;>
+        rw [hprev, hnext] <;>
+        simp [signal, hp, σ, hminus, hplus, haxis ho hp hpo hs]
     rcases occurrencePath_crossing_straight hw hv ho hp hpo with hs | hs
     · exact hpair hs (by rw [hl]; exact ha1) (by rw [hr]; exact ha2)
     · exact hpair hs (by rw [hb]; exact hb1) (by rw [ht]; exact hb2)

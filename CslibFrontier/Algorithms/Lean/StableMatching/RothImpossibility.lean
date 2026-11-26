@@ -151,12 +151,10 @@ private theorem isStable_restrict {n : ℕ} (hn : 3 ≤ n) {I : Instance 3} {μ 
   have hμp' : μ p' = ⟨(ρ p).val, lt_of_lt_of_le (ρ p).isLt hn⟩ := Fin.ext rfl
   have hμr' : μ.symm r' = ⟨(ρ.symm r).val, lt_of_lt_of_le (ρ.symm r).isLt hn⟩ := Fin.ext rfl
   refine hμ p' r' ⟨?_, ?_⟩
-  · change (padInstance hn I).propRank p' r' < (padInstance hn I).propRank p' (μ p')
-    rw [hμp', Fin.lt_def, padInstance_propRank_core, padInstance_propRank_core]
-    exact hp
-  · change (padInstance hn I).recvRank r' p' < (padInstance hn I).recvRank r' (μ.symm r')
-    rw [hμr', Fin.lt_def, padInstance_recvRank_core, padInstance_recvRank_core]
-    exact hr
+  · simpa only [Instance.PropPrefers, p', r', ρ, hμp', Fin.lt_def, padInstance_propRank_core]
+      using hp
+  · simpa only [Instance.RecvPrefers, p', r', ρ, hμr', Fin.lt_def, padInstance_recvRank_core]
+      using hr
 
 /-- Any stable matching of `padInstance hn I` restricts on `{0, 1, 2}` to a stable matching of
 `I`. -/
@@ -169,8 +167,7 @@ theorem isStable_padInstance_restrict {n : ℕ} (hn : 3 ≤ n) {I : Instance 3} 
 
 private theorem instance_ext {n : ℕ} {I J : Instance n}
     (hp : I.propPref = J.propPref) (hr : I.recvPref = J.recvPref) : I = J := by
-  cases I
-  cases J
+  rcases I, J with ⟨⟨_, _⟩, ⟨_, _⟩⟩
   simp_all
 
 private theorem padPref_update {n : ℕ} (hn : 3 ≤ n) (f : Fin 3 → Equiv.Perm (Fin 3))
@@ -276,7 +273,7 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_two {n : ℕ} (hn : n �
     · have hrank1 : I.recvRank r (μ.symm r) = 1 := by omega
       by_cases hπ : π = I.recvPref r
       · have hI' : I' = I := instance_ext rfl (by simp [I', Instance.updateRecvPref, hπ])
-        rw [show μ' = μ from congrArg Instance.deferredAcceptance hI']
+        simp only [μ', μ, hI', le_rfl]
       · have htop' : I'.recvRank r (μ.symm r) = 0 := by
           change (Function.update I.recvPref r π r).symm (μ.symm r) = 0
           rw [Function.update_self]
@@ -322,7 +319,6 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_two {n : ℕ} (hn : n �
 deferred acceptance is also strategy-proof for the proposers. -/
 theorem isProposerStrategyProof_receiverDeferredAcceptance_of_le_two {n : ℕ} (hn : n ≤ 2) :
     (receiverDeferredAcceptance (n := n)).IsProposerStrategyProof := by
-  intro I p π
-  exact isReceiverStrategyProof_deferredAcceptance_of_le_two hn I.swap p π
+  exact fun I p π => isReceiverStrategyProof_deferredAcceptance_of_le_two hn I.swap p π
 
 end Cslib.Algorithms.Lean.StableMatching.MatchingMechanism

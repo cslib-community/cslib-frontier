@@ -108,11 +108,9 @@ theorem length_splitPhrase_snd_lt (dict : List (List α)) (a : α) (x : List α)
   have hpre : [a] <+: (splitPhrase dict (a :: x)).1 := by
     simp only [splitPhrase, splitPhraseAux]
     split_ifs
-    · exact prefix_splitPhraseAux _ _ _
-    · exact List.prefix_rfl
+    exacts [prefix_splitPhraseAux _ _ _, List.prefix_rfl]
   have h' := hpre.length_le
-  simp only [List.length_append, List.length_cons] at h h' ⊢
-  omega
+  simp only [List.length_append, List.length_cons] at h h' ⊢; omega
 
 private theorem splitPhraseAux_notMem (dict : List (List α)) (acc x : List α)
     (h : (splitPhraseAux dict acc x).2 ≠ []) : (splitPhraseAux dict acc x).1 ∉ dict := by
@@ -197,8 +195,7 @@ theorem length_parse_le (x : List α) : (parse x).length ≤ x.length := by
     | cons w ws ih =>
       have := List.length_pos_iff.2 (hws w List.mem_cons_self)
       have := ih fun v hv => hws v (List.mem_cons_of_mem _ hv)
-      simp only [List.length_cons, List.map_cons, List.sum_cons]
-      omega
+      simp only [List.length_cons, List.map_cons, List.sum_cons]; omega
   exact h _ ne_nil_of_mem_parse
 
 private theorem parseAux_eq_nil_of_nil (fuel : ℕ) (dict : List (List α)) :
@@ -267,10 +264,8 @@ theorem nodup_parse_of_getLast_notMem (x : List α)
   have hd := nodup_dropLast_parse x
   rcases List.eq_nil_or_concat (parse x) with h0 | ⟨vs, w, hw⟩
   · simp [h0]
-  · rw [hw, List.concat_eq_append, List.dropLast_concat] at hd
-    rw [hw, List.concat_eq_append, List.dropLast_concat, List.getLast?_concat] at h
-    rw [hw, List.concat_eq_append, List.nodup_append]
-    exact ⟨hd, List.nodup_singleton _, fun a ha b hb hab =>
+  · simp only [hw, List.concat_eq_append, List.dropLast_concat, List.getLast?_concat] at hd h ⊢
+    exact List.nodup_append.2 ⟨hd, List.nodup_singleton _, fun a ha b hb hab =>
       h w rfl (List.mem_singleton.1 hb ▸ hab ▸ ha)⟩
 
 /-- A phrase sequence is *tree structured* over the dictionary `dict` if every phrase is an
@@ -346,9 +341,7 @@ theorem decodePairs_encodePhrases (dict ws : List (List α)) (ht : IsTreeStructu
   | cons w ws ih =>
     obtain ⟨⟨q, hq, a, rfl⟩, ht⟩ := (isTreeStructured_cons _ _ _).1 ht
     simp only [encodePhrases, List.getLast?_concat, List.dropLast_concat, decodePairs]
-    have hidx : ([] :: dict).getD (([] :: dict).idxOf q) [] = q := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_idxOf hq, Option.getD_some]
-    rw [hidx, ih _ ht]
+    rw [List.getD_eq_getElem?_getD, List.getElem?_idxOf hq, Option.getD_some, ih _ ht]
 
 /-- **The LZ78 code is lossless.** -/
 @[simp] theorem decode_encode (x : List α) : decode (encode x) = x := by

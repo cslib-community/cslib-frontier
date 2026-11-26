@@ -247,17 +247,13 @@ theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : WellNeste
           = u := by simp [List.extract]
       simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hp
       obtain ⟨rfl, rfl, rfl⟩ := hp
-      refine ⟨u.length + 1, ⟨by omega, j, ⟨a', γ', rfl⟩, ⟨b, γ', by simp⟩, ?_, ?_⟩, ?_⟩
-      · rw [hf]
-        exact hu.net_take_nonneg j
-      · rw [hf]
-        exact hu.net_eq_zero j
-      · have hext :
-            ((a', Op.push j γ') :: (u ++ (b, Op.pop j γ') :: u')).extract 0 (u.length + 1 + 1) =
-              (a', Op.push j γ') :: (u ++ [(b, Op.pop j γ')]) := by
-          simp [List.extract, List.take_append]
-        rw [hext]
-        exact .pushPop hu .nil
+      refine ⟨u.length + 1, ⟨by omega, j, ⟨a', γ', rfl⟩,
+        ⟨b, γ', by simp⟩, hf.symm ▸ hu.net_take_nonneg j, hf.symm ▸ hu.net_eq_zero j⟩, ?_⟩
+      have hext :
+          ((a', Op.push j γ') :: (u ++ (b, Op.pop j γ') :: u')).extract 0 (u.length + 1 + 1) =
+            (a', Op.push j γ') :: (u ++ [(b, Op.pop j γ')]) := by
+        simp [List.extract, List.take_append]
+      exact hext ▸ .pushPop hu .nil
     · rw [List.getElem?_cons_succ] at hp
       rcases lt_trichotomy p u.length with h | rfl | h
       · rw [List.getElem?_append_left h] at hp

@@ -105,10 +105,7 @@ theorem toData_set (x : FastData r) (i : Fin r) (v : ℕ) :
     (x.set i v).toData = x.toData.set i v := by
   ext j
   · simp only [toData, set, reg, Data.set_regs, Function.update_apply, Vector.getElem_set,
-      Fin.val_inj]
-    by_cases h : i = j
-    · simp [h]
-    · simp [h, Ne.symm h]
+      Fin.val_inj, @eq_comm _ i j]
   · rfl
 
 /-- `FastData.put` agrees with `Data.put` on the data represented. -/
@@ -125,10 +122,8 @@ theorem toData_write (x : FastData r) (a v : ℕ) :
   ext b
   · rfl
   · simp only [toData, write, read, Data.write_mem, Function.update_apply,
-      Std.HashMap.getElem?_insert, beq_iff_eq]
-    by_cases h : a = b
-    · simp [h]
-    · simp [h, Ne.symm h]
+      Std.HashMap.getElem?_insert, beq_iff_eq, @eq_comm _ a b]
+    split_ifs <;> rfl
 
 end FastData
 
@@ -365,15 +360,10 @@ theorem Program.runFastList_sound {w fuel : ℕ} {p : Program B r} {input l : Li
     ∃ t m v, Runs w p (.init input) t m ∧ step w p t = .halt v ∧
       (List.range (t.data.mem v)).map (fun i => t.data.mem (v + 1 + i)) = l ∧
       n = m + 1 := by
-  unfold Program.runFastList at h
-  cases hloop : Program.runFastLoop w p.toArray fuel 0 (.ofData (.init input)) 0 with
-  | none => simp [hloop] at h
-  | some yvn =>
-    obtain ⟨y, v, n'⟩ := yvn
-    rw [hloop] at h
-    obtain ⟨rfl, rfl⟩ := Option.some.inj h
-    obtain ⟨pc', m, hr, hh, rfl⟩ := Program.runFastLoop_sound hloop
-    rw [FastData.toData_ofData] at hr
-    exact ⟨⟨pc', y.toData⟩, m, v, hr, hh, rfl, by omega⟩
+  obtain ⟨⟨y, v, n'⟩, hloop, hmap⟩ := Option.map_eq_some_iff.mp h
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj hmap.symm
+  obtain ⟨pc', m, hr, hh, rfl⟩ := Program.runFastLoop_sound hloop
+  rw [FastData.toData_ofData] at hr
+  exact ⟨⟨pc', y.toData⟩, m, v, hr, hh, rfl, by omega⟩
 
 end Cslib.WordRAM

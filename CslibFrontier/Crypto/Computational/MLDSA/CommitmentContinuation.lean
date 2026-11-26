@@ -239,16 +239,15 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
       let sig' y := sign' y (tape.headD 0) ask
       let tail y v := scored (k v) (write y) (sign' y) (test' y) d (ask.logReply v log) tape.tail
       have one : PMF.meanAbsDiffAt μ true (fun y => tail y (sig' y)) (fun y => tail y sig) ≤ S :=
-        (meanGap_of_agree μ _ _ {y | sig' y ≠ sig} fun y h => by
-          rw [show sig' y = sig from not_not.mp h]).trans (signing _ ask)
+        (meanGap_of_agree μ _ _ {y | sig' y ≠ sig} fun _ h =>
+          congrArg (tail _) (of_not_not h)).trans (signing _ ask)
       have rest := ih sig (cont sig) d (ask.logReply sig log) tape.tail
       simp only [scored_eq_measured, measured_sign (C := C) (ask := ask) (k := k), tapeReply,
         PMF.pure_bind, isXofQuery, Bool.toNat_false, Nat.add_zero]
       simp only [← scored_eq_measured]
       refine (PMF.meanAbsDiffAt_triangle μ true _ _ _).trans ((add_le_add one rest).trans_eq ?_)
       rw [Nat.cast_sub fits]
-      simp only [isSigningCall, Sum.elim_inr, Bool.toNat_true, Nat.cast_one]
-      ring
+      simp only [isSigningCall, Sum.elim_inr, Bool.toNat_true, Nat.cast_one]; ring
 
 private theorem prob_row_changes (H : Xofs) (s : Level) (A : PublicMatrix s) (m : BitString 512)
     (D) (key : List Byte) (q : SigningQuery) (row : ExpansionRow (maskPolyBytes s)) :
@@ -292,9 +291,8 @@ private theorem mean_verify_gap_le (s : Level) (H : Xofs) (A : PublicMatrix s)
       SignedMatrixTrial.repeatsDigest, not_not.mp off]
   · simpa only [δ, ENNReal.toReal_mul, ENNReal.toReal_ofNat] using
       ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) finite)
-        (show μ.toOuterMeasure bad ≤ _ from
-          (H.prob_verify_changes_at_maskCommitment_le s A m D pk f).trans'
-            (μ.toOuterMeasure.mono fun y hy => ⟨replacement y, hy⟩))
+        ((H.prob_verify_changes_at_maskCommitment_le s A m D pk f).trans'
+          (μ.toOuterMeasure_mono fun y hy => ⟨replacement y, hy.1⟩))
 
 /-- For any remaining adaptive program, changing the digest at one fresh mask commitment changes
 the probability of a verified fresh-digest strong forgery by at most the coherent-query, signing
@@ -343,10 +341,8 @@ theorem mean_expansionContinuation_gap_le (C : QuantumSigningForger) (s : Level)
   intro row q
   simpa only [δ, ENNReal.toReal_mul, ENNReal.toReal_ofNat] using
     ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) finite)
-      (show μ.toOuterMeasure {y | (write y).signWithExpansionRow s keys.secretKey q row ≠
-          base.signWithExpansionRow s keys.secretKey q row} ≤ _ from
-        (prob_row_changes H s A m D keys.secretKey q row).trans'
-          (μ.toOuterMeasure.mono fun y hy => ⟨replacement y, hy⟩))
+      ((prob_row_changes H s A m D keys.secretKey q row).trans'
+        (μ.toOuterMeasure_mono fun y hy => ⟨replacement y, hy.1⟩))
 
 /-- Running the resumed comparison at the initial device with independent mask-expansion
 rows gives the fresh-digest game in the original forgery bound, including failed key

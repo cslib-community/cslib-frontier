@@ -72,8 +72,7 @@ private theorem exists_mix [Nonempty V] (F : SpectralPoint K V) (a b m : A → V
     (lt_of_lt_of_le one_pos (F.toUpperFunctional.one_le_unit m (by norm_num)))
   refine ⟨F', he, ?_, fun x y => (hd x y).trans_eq ?_, ?_⟩
   · simp only [SpectralPoint.unitExponent, ← F'.congr (antisymmRel_push_push Sum.inl m _), hC]
-  · simp [Fin.sum_univ_two]
-    ring
+  · simp [Fin.sum_univ_two]; ring
   · have h := hle (push Sum.inr (unit K A 2))
     rw [F'.apply_push_unit_two] at h
     refine le_mean_of_two_rpow_le (h.trans_eq (Finset.prod_congr rfl fun l _ => ?_))
@@ -104,8 +103,7 @@ private theorem unitExponent_le_mean_add (F : SpectralPoint K V) {c : ℝ} (hc :
     c * F.unitExponent m ≤ (c * F.unitExponent a + c * F.unitExponent b) / 2 +
       ∑ v, √(c * F.wireExponent (a v) (b v) * δ + δ ^ 2) := by
   rcases isEmpty_or_nonempty A with hA | ⟨⟨v₀⟩⟩
-  · rw [Subsingleton.elim a m, Subsingleton.elim b m]
-    simp
+  · simp [Subsingleton.elim a m, Subsingleton.elim b m]
   have : Nonempty V := ⟨m v₀⟩
   obtain ⟨F', he, hm, hd, hg⟩ := exists_mix F a b m
   have hw : IsPrice K fun x y => c * F'.wireExponent x y := (isPrice_wireExponent F').smul hc
@@ -118,8 +116,7 @@ private theorem unitExponent_le_mean_add (F : SpectralPoint K V) {c : ℝ} (hc :
       (by simpa only [he] using ha v) (by simpa only [he] using hb v)
     · simpa only [he] using h
     · have := mul_le_mul_of_nonneg_left (hd (Sum.inl (a v)) (Sum.inr v)) hc
-      simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self, he] at this ⊢
-      linarith
+      simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self, he] at this ⊢; linarith
     · have := mul_le_mul_of_nonneg_left (hd (Sum.inl (b v)) (Sum.inr v)) hc
       simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self,
         F.wireExponent_comm (b v) (a v), he] at this ⊢
@@ -128,8 +125,7 @@ private theorem unitExponent_le_mean_add (F : SpectralPoint K V) {c : ℝ} (hc :
       ≤ c * (F'.unitExponent Sum.inr + ∑ v, F'.wireExponent ((Sum.inl ∘ m) v) (Sum.inr v)) :=
         mul_le_mul_of_nonneg_left (hm ▸ F'.unitExponent_le_move (Sum.inl ∘ m) Sum.inr) hc
     _ = c * F'.unitExponent Sum.inr + ∑ v, c * F'.wireExponent (Sum.inl (m v)) (Sum.inr v) := by
-        rw [mul_add, Finset.mul_sum]
-        rfl
+        rw [mul_add, Finset.mul_sum]; rfl
     _ ≤ c * ((F.unitExponent a + F.unitExponent b) / 2) +
           ∑ v, √(c * F.wireExponent (a v) (b v) * δ + δ ^ 2) :=
         add_le_add (mul_le_mul_of_nonneg_left hg hc) (Finset.sum_le_sum fun v _ => hclose v)
@@ -292,9 +288,8 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
           (cubeSign_zero χ (j x) (b x)).imp (congrArg pt) (congrArg pt)
       have h2 := (abs_lt.1 (hF' (pt fun x => boolSign (χ x)) (pt fun x => -boolSign (χ x)))).2
       rw [Subtype.dist_eq, dist_cubePoint_neg] at h2
-      have h3 := mul_le_mul_of_nonneg_left h1 hc0
       simp only [Nat.cast_zero, zero_mul, add_zero]
-      linarith [min_le_right δ (ε / 2)]
+      linarith [mul_le_mul_of_nonneg_left h1 hc0, min_le_right δ (ε / 2)]
     | succ i ih =>
       intro hi χ
       have h1 := hconv F c hc0 (fun x y => (hF' x y).trans_le (min_le_left _ _))

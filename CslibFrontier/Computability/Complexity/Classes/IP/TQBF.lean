@@ -285,11 +285,9 @@ private theorem runWith_verdict_op (o : ArithQBF.Operator) (v : ℕ) (hv : v ∈
     runWith_query_bind, PMF.bind_bind, hmsg]
   refine congrArg _ (funext fun y => ?_)
   simp only [Function.comp_apply]
-  rw [take_decodeTyped, hmod, hdeg]
+  rw [take_decodeTyped, decodeTyped, hmod, hdeg]
   set w := y.1.take (replyLimit I.modulus I.degree)
   set l := decodeReply I.modulus I.degree w with hl
-  have hlT : decodeTyped I y.1 = l.map Nat.cast := rfl
-  rw [hlT]
   have hiff : operatorMod I.modulus o (lookupPt a.top.point a.head.2 % I.modulus)
         (hornerMod I.modulus 0 l) (hornerMod I.modulus 1 l) % I.modulus =
           a.top.value % I.modulus ↔
@@ -432,12 +430,11 @@ theorem acceptProb_verifier_eq (hψ : ψ.Closed) (P : Prover Unit) :
     simp only [canonPt, Pi.zero_apply, ZMod.val_zero]
   have hrun := runWith_verdict P.respond (loopInput ψ) (arithOf ψ) (fun w hw => vars_arithOf ψ hw)
     [] 0 1 [] 0 P.init
-  rw [← hinit, Nat.add_zero, tokens_arithOf] at hrun
-  rw [acceptProb_eq_acceptProbWith, verifier, decide_eq_true hψ, ite_eq_left rfl]
   have hcont : (fun x : Bool × P.State => if x.1 then runWith P.respond
       (verdict (loopInput ψ) ⟨[], [], true⟩ 0) x.2 else PMF.pure (false, x.2)) = PMF.pure :=
     funext fun ⟨b, _⟩ => by cases b <;> simp [verdict_nil, ProbOracleComp.runWith_pure]
-  rw [hcont, PMF.bind_pure] at hrun
+  rw [← hinit, Nat.add_zero, tokens_arithOf, hcont, PMF.bind_pure] at hrun
+  rw [acceptProb_eq_acceptProbWith, verifier, decide_eq_true hψ, ite_eq_left rfl]
   exact congrArg (fun μ => (μ.map Prod.fst) true) hrun
 
 /-- The samples of the protocol give every residue probability at most `2 / p`. -/
@@ -448,9 +445,8 @@ private theorem eval_samplerOf_le (I : LoopInput) (z : ZMod I.modulus) :
     exacts [eval_sampleMod_le _, zero_le]
   · intro n hn
     split_ifs with hz
-    · exact (PMF.apply_eq_zero_iff _ _).mpr fun hsupp =>
-        hn (by rw [hz, ZMod.val_natCast, Nat.mod_eq_of_lt (lt_of_mem_support_sampleMod hsupp)])
-    · rfl
+    exacts [(PMF.apply_eq_zero_iff _ _).mpr fun hsupp =>
+      hn (by rw [hz, ZMod.val_natCast, Nat.mod_eq_of_lt (lt_of_mem_support_sampleMod hsupp)]), rfl]
 
 /-- A soundness error `N * (2 / p)` is at most `1 / 3` when `6 * N ≤ p`. -/
 private theorem mul_two_div_le_one_third {N p : ℕ} (hp : p ≠ 0) (h : 6 * N ≤ p) :
@@ -469,8 +465,7 @@ theorem acceptProb_verifier_le (hψ : ψ ∉ TQBF) (P : Prover Unit) :
     have hfalse : ψ.eval (fun _ => false) = false :=
       Bool.eq_false_iff.2 fun h => hψ ⟨hclosed, h⟩
     have hc : (arithOf ψ).eval 0 ≠ (1 : ZMod (loopInput ψ).modulus) := by
-      rw [arithOf, QBF.eval_arithmetize_zero _ hclosed (fun _ => false), hfalse]
-      simp
+      simp [arithOf, QBF.eval_arithmetize_zero _ hclosed (fun _ => false), hfalse]
     refine (acceptProb_verifyAt_le (samplerOf (loopInput ψ)) (loopInput ψ).degree
       (eval_samplerOf_le (loopInput ψ)) _ _ (maxRoundDegree_arithOf ψ) hc P.init).trans ?_
     refine mul_two_div_le_one_third (Nat.succ_ne_zero _) ?_

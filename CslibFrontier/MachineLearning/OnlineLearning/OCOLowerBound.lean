@@ -89,9 +89,8 @@ the exact second/fourth moments in `CslibFrontier.Probability.BitString.Rademach
 theorem khintchine_rademacher_abs_sum (T : ℕ) :
     (2 : ℝ) ^ T * Real.sqrt ((T : ℝ) / 3) ≤
       ∑ σ : Fin T → Bool, |∑ t : Fin T, signVal (σ t)| := by
-  by_cases hT : T = 0
-  · subst hT
-    simp
+  rcases eq_or_ne T 0 with rfl | hT
+  · simp
   have hTpos : (0 : ℝ) < (T : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero hT)
   have hcard : (Fintype.card (Fin T → Bool) : ℝ) = (2 : ℝ) ^ T := by simp
   set radSum : (Fin T → Bool) → ℝ := fun σ => ∑ t : Fin T, signVal (σ t)
@@ -103,8 +102,7 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
     have h := expect_sq_sum_mul_signVal (fun _ : Fin T => (1 : ℝ))
     simp only [one_mul, one_pow, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
       Fintype.expect_eq_sum_div_card, hcard] at h
-    have h2pos : (0 : ℝ) < (2 : ℝ) ^ T := by positivity
-    exact (div_eq_iff h2pos.ne').mp h |>.trans (mul_comm _ _)
+    exact (div_eq_iff (by positivity)).mp h |>.trans (mul_comm _ _)
   have hS4_le : S4 ≤ (2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2) := by
     have h := expect_sum_mul_signVal_pow_four_le (fun _ : Fin T => (1 : ℝ))
     simp only [one_mul, one_pow, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
@@ -148,8 +146,9 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
     have h3 : S2 ^ 3 ≤ S1 ^ 2 * ((2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2)) :=
       hholder.trans (mul_le_mul_of_nonneg_left hS4_le (sq_nonneg _))
     rw [hS2_eq] at h3
-    rw [mul_pow, Real.sq_sqrt (by positivity : 0 ≤ (T : ℝ) / 3)]
-    nlinarith [(by positivity : (0 : ℝ) < (2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2))]
+    rw [mul_pow, Real.sq_sqrt (by positivity)]
+    have hpos : (0 : ℝ) < (2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2) := by positivity
+    nlinarith
   have hsqrt := Real.sqrt_le_sqrt hsq
   rwa [Real.sqrt_sq (by positivity),
     Real.sqrt_sq (Finset.sum_nonneg fun _ _ => abs_nonneg _)] at hsqrt
@@ -176,9 +175,7 @@ theorem rademacherLinear_subgrad (e : E) (G : ℝ) (b : Bool) (x y : E) :
 theorem rademacherLinear_convexOn (e : E) (G : ℝ) (b : Bool) {K : Set E} (hK : Convex ℝ K) :
     ConvexOn ℝ K (rademacherLinear e G b) := by
   refine ⟨hK, fun x _ y _ a c _ _ _ => ?_⟩
-  simp only [rademacherLinear, smul_eq_mul, inner_add_right, real_inner_smul_right]
-  ring_nf
-  exact le_rfl
+  simp only [rademacherLinear, smul_eq_mul, inner_add_right, real_inner_smul_right]; linarith
 
 /-- Gradient norm bound `‖rademacherGrad e G b‖ ≤ G` when `‖e‖ ≤ 1` and `0 ≤ G`. -/
 theorem norm_rademacherGrad_le {e : E} {G : ℝ} (he : ‖e‖ ≤ 1) (hG : 0 ≤ G) (b : Bool) :
@@ -210,8 +207,7 @@ private theorem sum_signVal_mul_eq_zero {T : ℕ} (t : Fin T) (g : (Fin T → Bo
     refine Finset.expect_eq_zero fun σ _ => ?_
     simp only [Function.update_self, hinv, ← Finset.expect_mul, expect_bool_signVal, zero_mul]
   rw [Fintype.expect_eq_sum_div_card] at hexp
-  have hcard : (Fintype.card (Fin T → Bool) : ℝ) ≠ 0 := by positivity
-  exact (div_eq_zero_iff.mp hexp).resolve_right hcard
+  exact (div_eq_zero_iff.mp hexp).resolve_right (by positivity)
 
 /-- Total loss of any causal learner averaged over all `2 ^ T` Rademacher sequences vanishes. -/
 theorem sum_rademacherLinear_eval_eq_zero {K : Set E} {T : ℕ} (L : CausalLearner K T)
@@ -251,10 +247,8 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
     split_ifs with hs
     · rw [inner_sub_right, real_inner_smul_right, hee, mul_one, abs_of_nonneg hs]; ring
     · rw [inner_add_right, real_inner_smul_right, hee, mul_one, abs_of_neg (lt_of_not_ge hs)]; ring
-  have hsum_rad : ∑ σ : Fin T → Bool, radSum σ = 0 := by
-    simp only [radSum]
-    rw [Finset.sum_comm]
-    exact Finset.sum_eq_zero fun t _ => by
+  have hsum_rad : ∑ σ : Fin T → Bool, radSum σ = 0 :=
+    (Finset.sum_comm (s := univ) (t := univ) ..).trans <| Finset.sum_eq_zero fun t _ => by
       simpa only [mul_one] using sum_signVal_mul_eq_zero t (fun _ => (1 : ℝ)) fun _ _ => rfl
   have hsum_reg :
       ∑ σ : Fin T → Bool,

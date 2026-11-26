@@ -391,12 +391,13 @@ theorem exists_evalPure_rainbowAttack_of_lookup_eq_some {h : P → Y} {lookup : 
   cases heval : (rainbowAttack g τ y).evalPure (OracleComp.sumPure h lookup) with
   | some pw' => exact ⟨pw', rfl, rainbowAttack_sound heval⟩
   | none =>
+    obtain ⟨k, rfl⟩ : ∃ k, τ = col + k + 1 := ⟨τ - 1 - col, by omega⟩
     rw [evalPure_rainbowAttack, List.findSome?_eq_none_iff] at heval
-    have hstep := heval (τ - 1 - col) (List.mem_range.mpr (by omega))
-    have hsub₁ : τ - 1 - (τ - 1 - col) = col := by omega
-    have hadd := rainbowChainPure_add h g 0 col (τ - 1 - col + 1) pw₀
-    rw [Nat.zero_add, show col + (τ - 1 - col + 1) = τ by omega, rainbowChainPure_succ, hy] at hadd
-    rw [show τ - (τ - 1 - col) = col + 1 by omega, hsub₁, ← hadd, hlookup] at hstep
+    have hstep := heval k (List.mem_range.mpr (by omega))
+    have hadd := rainbowChainPure_add h g 0 col (k + 1) pw₀
+    rw [Nat.zero_add, rainbowChainPure_succ h g col k, hy, ← Nat.add_assoc] at hadd
+    rw [Nat.add_sub_cancel, Nat.add_sub_cancel, Nat.add_right_comm col k 1, Nat.add_sub_cancel,
+      ← hadd, hlookup] at hstep
     simp [hy] at hstep
 
 /-- When `h` is injective, `rainbowAttack` recovers `pw` itself on any covered chain point. -/
@@ -459,15 +460,13 @@ private theorem hashCost_chain (g : ℕ → Y → P) (s n : ℕ) (pw : P) :
 private theorem isCostBounded_lookupCost_rainbowAttackStep (g : ℕ → Y → P) (τ : ℕ) (y : Y)
     (k : ℕ) :
     OracleComp.IsCostBounded TableAttackSpec.lookupCost (rainbowAttackStep g τ y k) 1 := by
-  unfold rainbowAttackStep
-  change OracleComp.IsCostBounded _ _ (0 + (1 + 0))
+  refine (?_ : OracleComp.IsCostBounded TableAttackSpec.lookupCost (rainbowAttackStep g τ y k)
+    (0 + (1 + (0 + (0 + 0))))).mono (by omega)
   refine (lookupCost_liftLeft _).bind fun z =>
     (((OracleComp.IsCostBounded.query (cost := fun _ : P => 1) z).liftRight
       fun q => (TableAttackSpec.lookupCost_inr q).le).bind fun
-      | none => .pure none 0
-      | some _ => ?_)
-  change OracleComp.IsCostBounded _ _ (0 + (0 + 0))
-  refine (lookupCost_liftLeft _).bind fun _ => (lookupCost_liftLeft _).bind fun _ => ?_
+      | none => .pure none _
+      | some _ => (lookupCost_liftLeft _).bind fun _ => (lookupCost_liftLeft _).bind fun _ => ?_)
   split_ifs <;> exact .pure _ 0
 
 private theorem isCostBounded_hashCost_rainbowAttackStep (g : ℕ → Y → P) {τ : ℕ} (y : Y) {k : ℕ}
@@ -584,14 +583,12 @@ private theorem exists_evalPure_hellmanLoop_of_lookup_eq_some {h : P → Y} {loo
     simp_all [evalPure_hellmanLoop_succ]
   | succ d ih =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
-    have hrec := ih (rem := m) (by omega)
-      (by rwa [show m - 1 - d = m + 1 - 1 - (d + 1) by omega]) hlookup
+    rw [Nat.add_sub_cancel, ← Nat.sub_sub, Nat.sub_right_comm] at hy
+    have hrec := ih (by omega) hy hlookup
     rw [evalPure_hellmanLoop_succ]
-    cases lookup z with
-    | none => exact hrec
-    | some _ =>
-      dsimp only
-      split_ifs with hcheck
+    cases lookup z <;> dsimp only
+    · exact hrec
+    · split_ifs with hcheck
       exacts [⟨_, rfl, hcheck⟩, hrec]
 
 /-- **Completeness of Hellman's inversion on covered points** ([BonehShoup2023], Section 18.7,
@@ -604,12 +601,12 @@ theorem exists_evalPure_hellmanAttack_of_lookup_eq_some {h : P → Y} {lookup : 
     (hlookup : lookup ((fun x => g₀ (h x))^[τ] pw₀) = some pw₀) :
     ∃ pw', (hellmanAttack g₀ τ y).evalPure (OracleComp.sumPure h lookup) = some pw' ∧
       h pw' = y := by
-  have hend : (fun x => g₀ (h x))^[τ - 1 - col] (g₀ y) = (fun x => g₀ (h x))^[τ] pw₀ := by
-    rw [← hy, ← Function.iterate_succ_apply (fun x => g₀ (h x)) (τ - 1 - col),
-      ← Function.iterate_add_apply]
+  obtain ⟨k, rfl⟩ : ∃ k, τ = col + k + 1 := ⟨τ - 1 - col, by omega⟩
+  have hend : (fun x => g₀ (h x))^[k] (g₀ y) = (fun x => g₀ (h x))^[col + k + 1] pw₀ := by
+    rw [← hy, ← Function.iterate_succ_apply _ k, ← Function.iterate_add_apply]
     exact congrArg ((fun x => g₀ (h x))^[·] pw₀) (by omega)
   exact exists_evalPure_hellmanLoop_of_lookup_eq_some (by omega)
-    (by rwa [show τ - 1 - (τ - 1 - col) = col by omega]) (hend.symm ▸ hlookup)
+    (by simpa [Nat.add_sub_cancel] using hy) (hend.symm ▸ hlookup)
 
 /-- When `h` is injective, `hellmanAttack` recovers `pw` itself on any covered chain point. -/
 theorem evalPure_hellmanAttack_of_injective {h : P → Y} {lookup : P → Option P} {g₀ : Y → P}
@@ -635,11 +632,9 @@ theorem exists_evalPure_hellmanAttack_rainbowPreprocess [DecidableEq P] {h : P �
       (OracleComp.sumPure h
         (List.lookup · ((rainbowPreprocess (fun _ => g₀) τ starts).evalPure h))) = some pw' ∧
       h pw' = y := by
-  have hfn : rainbowChainPure h (fun _ => g₀) 0 τ = fun pw => (fun x => g₀ (h x))^[τ] pw :=
-    funext (rainbowChainPure_const h g₀ 0 τ)
   refine exists_evalPure_hellmanAttack_of_lookup_eq_some hcol hy ?_
-  simpa only [rainbowChainPure_const] using
-    lookup_evalPure_rainbowPreprocess_of_nodup (g := fun _ => g₀) hmem (hfn.symm ▸ hnodup)
+  simpa only [rainbowChainPure_const] using lookup_evalPure_rainbowPreprocess_of_nodup
+    (g := fun _ => g₀) hmem (funext (rainbowChainPure_const h g₀ 0 τ) ▸ hnodup)
 
 /-- When `h` is injective and `starts` has distinct `τ`-step endpoints, two-phase Hellman inversion
 `(rainbowPreprocess (fun _ => g₀), hellmanAttack)` recovers `pw` itself on every covered chain
@@ -683,8 +678,7 @@ private theorem isCostBounded_hashCost_hellmanLoop (g₀ : Y → P) (y : Y) (rem
   induction rem generalizing z with
   | zero => exact .pure none 0
   | succ m ih =>
-    rw [show (m + 1) * (m + 1 + 3) = m * (m + 3) + (m + 2) * 2 by ring,
-      Nat.add_mul_div_right _ _ Nat.two_pos]
+    have hdiv : (m + 1) * (m + 1 + 3) = m * (m + 3) + 2 * (m + 2) := by ring
     refine (?_ : OracleComp.IsCostBounded TableAttackSpec.hashCost (hellmanLoop g₀ y (m + 1) z)
       (0 + (m + (1 + (1 + m * (m + 3) / 2))))).mono (by omega)
     conv_lhs => unfold hellmanLoop

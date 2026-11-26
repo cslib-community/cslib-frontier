@@ -119,11 +119,8 @@ theorem exists_prefixLoad_add_le_makespan (p : Fin n → α) (hp : ∀ k, 0 ≤ 
   -- The `σ` side: the jobs before `j`, grouped by machine.
   set E : Finset (Fin n) := univ.filter fun k => k.val < j.val with hE
   set F : Fin m → Finset (Fin n) := fun i => E.filter fun k => σ k = i with hF
-  have hEcard : #E = j.val := by
-    rw [hE, ← Fin.card_Iio j]
-    congr 1
-    ext k
-    simp
+  have hEcard : #E = j.val :=
+    (congrArg card (ext fun k => by simp [hE])).trans (Fin.card_Iio j)
   have hFload (i) : prefixLoad p σ j i = ∑ k ∈ F i, p k := by
     simp only [prefixLoad_def, hF, hE, filter_filter]
   have hFne (i) : (F i).Nonempty := by
@@ -161,11 +158,8 @@ theorem exists_prefixLoad_add_le_makespan (p : Fin n → α) (hp : ∀ k, 0 ≤ 
   -- The `τ` side: the jobs `0, …, j`, grouped by machine.
   set J : Finset (Fin n) := univ.filter fun k => k ≤ j with hJ
   set G : Fin m → Finset (Fin n) := fun i => J.filter fun k => τ k = i with hG
-  have hJcard : #J = j.val + 1 := by
-    rw [hJ, ← Fin.card_Iic j]
-    congr 1
-    ext k
-    simp
+  have hJcard : #J = j.val + 1 :=
+    (congrArg card (ext fun k => by simp [hJ])).trans (Fin.card_Iic j)
   have hJp (k) (hk : k ∈ J) : p j ≤ p k := hanti k (by simpa [hJ] using hk)
   have hGsum (i) : ∑ k ∈ G i, p k ≤ T := by
     refine le_trans ?_ (load_le_makespan p τ i)
@@ -184,17 +178,16 @@ theorem exists_prefixLoad_add_le_makespan (p : Fin n → α) (hp : ∀ k, 0 ≤ 
   have hGA (a) (ha : a ∈ A) : G (τ a) = {a} := by
     ext b
     simp only [hG, mem_filter, mem_singleton]
-    refine ⟨fun ⟨hbJ, hb⟩ => by_contra fun hne => ?_, ?_⟩
-    · have hsub : ({a, b} : Finset (Fin n)) ⊆ G (τ a) := fun k hk => by
-        rcases mem_insert.mp hk with rfl | hk
-        · exact mem_filter.mpr ⟨hAJ k ha, rfl⟩
-        · exact mem_singleton.mp hk ▸ mem_filter.mpr ⟨hbJ, hb⟩
-      have h1 : p a + p b ≤ T := by
-        rw [← sum_pair (Ne.symm hne)]
-        exact (sum_le_sum_of_subset_of_nonneg hsub fun k _ _ => hp k).trans (hGsum _)
-      linarith [hAbig a ha, hJp b hbJ]
-    · rintro rfl
-      exact ⟨hAJ b ha, rfl⟩
+    refine ⟨fun ⟨hbJ, hb⟩ => by_contra fun hne => ?_,
+      fun h => h ▸ (⟨hAJ a ha, rfl⟩ : a ∈ J ∧ τ a = τ a)⟩
+    have hsub : ({a, b} : Finset (Fin n)) ⊆ G (τ a) := fun k hk => by
+      rcases mem_insert.mp hk with rfl | hk
+      · exact mem_filter.mpr ⟨hAJ k ha, rfl⟩
+      · exact mem_singleton.mp hk ▸ mem_filter.mpr ⟨hbJ, hb⟩
+    have h1 : p a + p b ≤ T := by
+      rw [← sum_pair (Ne.symm hne)]
+      exact (sum_le_sum_of_subset_of_nonneg hsub fun k _ _ => hp k).trans (hGsum _)
+    linarith [hAbig a ha, hJp b hbJ]
   have hinj : Set.InjOn τ A := fun a ha b hb hab =>
     (singleton_injective (by rw [← hGA a ha, hab, hGA b hb])).symm
   set M : Finset (Fin m) := A.image τ

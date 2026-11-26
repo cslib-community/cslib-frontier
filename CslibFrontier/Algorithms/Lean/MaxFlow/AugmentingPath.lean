@@ -620,9 +620,8 @@ theorem IsLayeredPath.nodup_left {u : L} {i : ℕ} {p : List (L × R)}
   | last => simp
   | @cons u u' v i p hu _ _ _ hp ih =>
     refine List.nodup_cons.mpr ⟨fun hmem => ?_, ih⟩
-    obtain ⟨e, he, hfst⟩ := List.mem_map.mp hmem
+    obtain ⟨e, he, rfl⟩ := List.mem_map.mp hmem
     obtain ⟨j, hj, hl, _⟩ := hp.mem_layers e he
-    rw [hfst] at hl
     have := hu.unique hl
     omega
 
@@ -632,9 +631,8 @@ theorem IsLayeredPath.nodup_right (hM : IsMatching G M) {u : L} {i : ℕ} {p : L
   | last => simp
   | @cons u u' v i p hu _ huv _ hp ih =>
     refine List.nodup_cons.mpr ⟨fun hmem => ?_, ih⟩
-    obtain ⟨e, he, hsnd⟩ := List.mem_map.mp hmem
+    obtain ⟨e, he, rfl⟩ := List.mem_map.mp hmem
     obtain ⟨j, hj, _, hr⟩ := hp.mem_layers e he
-    rw [hsnd] at hr
     rcases hr with ⟨hfree, _⟩ | ⟨w, hw, hwl⟩
     · exact hfree (mem_matchedRight.mpr ⟨u', huv⟩)
     · have := hp.isLayer.unique (hM.2.2 _ _ _ hw huv ▸ hwl)
@@ -672,9 +670,7 @@ theorem noShortAug_of_forall_not_isAugmentingPath (hM : IsMatching G M)
   obtain ⟨w, hw, hG⟩ := mem_altRight.mp hv
   obtain ⟨i, _, hwi⟩ := exists_isLayer hw
   obtain ⟨r, q, hq⟩ := exists_isLayeredPrefix hwi
-  have hp : IsLayeredPath G M ∅ i w i [(w, v)] :=
-    .last hwi hG hfree (Finset.notMem_empty v)
-  exact h _ ((hq.append hp).isAugmentingPath hM)
+  exact h _ ((hq.append (.last hwi hG hfree (Finset.notMem_empty v))).isAugmentingPath hM)
 
 omit [Fintype L] [Fintype R] in
 /-- **Berge's theorem** (bipartite case): a matching is maximum iff it has no augmenting path. -/
@@ -686,10 +682,8 @@ theorem isMaxMatching_iff_forall_not_isAugmentingPath [Finite L] [Finite R] :
   have hk := card_mul_le_of_noShortAug hM hM'
     (noShortAug_of_forall_not_isAugmentingPath hM h (M.card + 1))
   by_contra hlt
-  have h2 : (M.card + 1) * (M.card + 1) ≤ (M.card + 1) * M'.card :=
-    Nat.mul_le_mul_left _ (Nat.lt_of_not_le hlt)
-  have h3 := le_trans h2 hk
-  simp only [Nat.add_mul, Nat.mul_add, Nat.one_mul, Nat.mul_one] at h3
+  have h3 := (Nat.mul_le_mul_left _ (Nat.lt_of_not_le hlt)).trans hk
+  simp only [Nat.succ_eq_add_one, Nat.add_mul, Nat.mul_add, Nat.one_mul, Nat.mul_one] at h3
   omega
 
 theorem IsLayeredPath.mem_left {u : L} {i : ℕ} {p : List (L × R)}
@@ -1021,8 +1015,7 @@ theorem mul_card_sub_le_of_noShortAug (hM : IsMatching G M) {M' : Finset (L × R
     (hM' : IsMatching G M') {t : ℕ} (ht : NoShortAug G M t) :
     t * (M'.card - M.card) ≤ M.card := by
   have h := card_mul_le_of_noShortAug hM hM' ht
-  rw [Nat.add_one_mul] at h
-  rw [Nat.mul_sub]
+  simp only [Nat.add_one_mul, Nat.mul_sub] at h ⊢
   omega
 
 /-- `IsPhaseRun G M n`: starting from `M`, `n` Hopcroft–Karp phases are performed. Each phase

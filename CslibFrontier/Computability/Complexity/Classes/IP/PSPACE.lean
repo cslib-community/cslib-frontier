@@ -414,14 +414,11 @@ private theorem computableInPolySpace_leaf [Finite Control] :
   have harg : ComputableInPolyTime (fun s : EvalState α =>
       (s.1, decodeHistory (GameTree.history s.2.1))) (encEvalState enc)
       (encPair enc encHistory) := by fun_prop [GameTree.history]
-  have hcap : ComputableInPolyTime (fun s : EvalState α => 2 ^ fuel s.1)
-      (encEvalState enc) encNat := binary_two_pow.comp (hfuel.comp (fst _ _))
-  have hmin : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2) (encPair encNat encNat)
-      encNat := by fun_prop
-  refine ((ComputableInPolySpace.of_polyTime hmin).comp
-    ((ComputableInPolySpace.of_polyTime hcap).prod (hcount.comp
-      (ComputableInPolySpace.of_polyTime harg)))).congr fun s => ?_
-  simp only [leafValue, countAccepts_eq_accepted]
+  refine ((ComputableInPolySpace.of_polyTime (encIn := encPair encNat encNat) (encOut := encNat)
+    (f := fun p : ℕ × ℕ => min p.1 p.2) (by fun_prop)).comp
+    ((ComputableInPolySpace.of_polyTime (binary_two_pow.comp (hfuel.comp (fst _ _)))).prod
+      (hcount.comp (.of_polyTime harg)))).congr fun _ => ?_
+  simp only [leafValue, countAccepts_eq_accepted, Function.comp_apply]
 
 /-- **A step of the evaluation within polynomial space.** -/
 private theorem computableInPolySpace_evalStep [Finite Control] :
@@ -475,16 +472,14 @@ theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
       ((unary_add.comp (hfuel.prod (const (encOut := encUnary) 1))).prod
         (unary_add.comp ((unary_mul.comp ((const (encOut := encUnary) 2).prod hfuel)).prod
           (const (encOut := encUnary) 1))))
-  have hinit : ComputableInPolyTime (fun a : α => ((a, [], none) : EvalState α)) enc
-      (encEvalState enc) := by fun_prop
-  have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit)
+  have hit := ComputableInPolySpace.iterate hn
+    (.of_polyTime (f := fun a : α => ((a, [], none) : EvalState α))
+      (encIn := enc) (encOut := encEvalState enc) (by fun_prop))
     (computableInPolySpace_evalStep M hfuel)
     (B := fun a => 2 * (enc a).length + 2 * fuel a * (14 * fuel a + 21) + fuel a + 4)
-    (by growth_poly)
-    (fun a j _ => length_encEvalState_iterate_le M a j)
-  have hpost : ComputableInPolyTime (fun s : EvalState α => s.2.2.getD 0)
-      (encEvalState enc) encNat := by fun_prop
-  exact (ComputableInPolySpace.of_polyTime hpost).comp hit
+    (by growth_poly) (fun a j _ => length_encEvalState_iterate_le M a j)
+  exact (ComputableInPolySpace.of_polyTime (f := fun s : EvalState α => s.2.2.getD 0)
+    (encIn := encEvalState enc) (encOut := encNat) (by fun_prop)).comp hit
 
 end Space
 
@@ -553,16 +548,13 @@ theorem IP_subset_PSPACE (enc : α ↪ List Bool) : IP enc ⊆ PSPACE enc := by
   set fuel : α → ℕ := fun a => c * ((enc a).length + 1) ^ d
   have hfuel : ComputableInPolyTime fuel enc encUnary :=
     ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
-      (by fun_prop : ComputableInPolyTime (fun a => (enc a).length) enc encUnary)).of_enc_eq
-      fun a => by simp [fuel]
-  have hdec : ComputableInPolySpace
-      (fun a => decide (2 ^ fuel a < 2 * evaluate enc M fuel a)) enc encBool :=
-    (ComputableInPolySpace.of_polyTime (by fun_prop :
-      ComputableInPolyTime (fun p : ℕ × ℕ => decide (p.1 < 2 * p.2))
-        (encPair encNat encNat) encBool)).comp
+      (ComputableInPolyTime.encoding_length enc)).of_enc_eq fun a => by simp [fuel]
+  refine ⟨fun a => decide (2 ^ fuel a < 2 * evaluate enc M fuel a),
+    (ComputableInPolySpace.of_polyTime (encIn := encPair encNat encNat) (encOut := encBool)
+      (f := fun p : ℕ × ℕ => decide (p.1 < 2 * p.2)) (by fun_prop)).comp
       ((ComputableInPolySpace.of_polyTime (ComputableInPolyTime.binary_two_pow.comp hfuel)).prod
-        (computableInPolySpace_evaluate M hfuel))
-  refine ⟨_, hdec, fun a => ?_⟩
-  rw [mem_iff_two_pow_lt_value (fun a => hreal a) hA a, evaluate_eq, decide_eq_true_iff]
+        (computableInPolySpace_evaluate M hfuel)), fun a => ?_⟩
+  simp only [mem_iff_two_pow_lt_value (fun a => hreal a) hA a, evaluate_eq, decide_eq_true_iff,
+    fuel]
 
 end Cslib.Complexity

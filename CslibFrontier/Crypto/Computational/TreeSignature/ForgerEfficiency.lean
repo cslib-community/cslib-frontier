@@ -58,10 +58,8 @@ attribute [local fun_prop]
 private theorem getLastD_fp {α : Type} {encA : α ↪ List Bool} {l : α → List Bool} (d : Bool)
     (hl : ComputableInPolyTime l encA encBits) :
     ComputableInPolyTime (fun a => (l a).getLastD d) encA encBool := by
-  have heq : (fun a => (l a).getLastD d) = fun a => (l a).getD ((l a).length - 1) d := by
-    funext a
-    rw [List.getLastD_eq_getLast?, List.getLast?_eq_getElem?, List.getD_eq_getElem?_getD]
-  rw [heq]; fun_prop
+  simp only [List.getLastD_eq_getLast?, List.getLast?_eq_getElem?, ← List.getD_eq_getElem?_getD]
+  fun_prop
 
 @[local fun_prop]
 private theorem encodeSignature_funProp {α : Type} {encA : α ↪ List Bool}
@@ -280,11 +278,10 @@ private theorem plantedLoopInv_step (S : IndexedSignatureScheme) {Mv Me : ℕ} (
     hedgStep
   simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate,
     List.length_append, List.length_singleton, hinv.node_len] at hvBound heBound
-  refine ⟨by simp [hinv.node_len], hvBound.1,
-    by simp [hinv.certs_len], ?_, hvBound.2.1, heBound.2.1, ?_, ?_⟩
-  · rintro c hc
-    exact (List.mem_append.mp hc).elim (hinv.certs_bound c) fun h =>
-      List.mem_singleton.mp h ▸ ⟨length_fst_getD_keys_le keys childIdx, heBound.1⟩
+  refine ⟨by simp [hinv.node_len], hvBound.1, by simp [hinv.certs_len],
+    fun c hc => (List.mem_append.mp hc).elim (hinv.certs_bound c) fun h =>
+      List.mem_singleton.mp h ▸ ⟨length_fst_getD_keys_le keys childIdx, heBound.1⟩,
+    hvBound.2.1, heBound.2.1, ?_, ?_⟩
   · linarith only [hinv.visited_enc_le, hvBound.2.2]
   · linarith only [hinv.edges_enc_le, heBound.2.2, Bool.toNat_le (leaf.getD i false)]
 
@@ -439,10 +436,8 @@ private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth 
       ((∀ e ∈ visited, e.2 ≤ c.2.length) ∧ (∀ e ∈ edges, e.2.length ≤ sigCap c.1.1.1)) ∧
       (encPlantedState ((visited, edges), ⟨request.2 :: queried, seenLeaves, b'⟩)).length ≤
         (encPlantedState ((visited, edges), ⟨queried, seenLeaves, bad⟩)).length +
-          plantedStateGrowth depth sigCap c request.2 := by
-    refine ⟨⟨hvis, hedg⟩, ?_⟩
-    rw [plantedState_length_eq, plantedState_length_eq]
-    dsimp only [plantedStateGrowth]; omega
+          plantedStateGrowth depth sigCap c request.2 :=
+    ⟨⟨hvis, hedg⟩, by simp only [plantedState_length_eq, plantedStateGrowth]; omega⟩
   unfold plantedTreeHandler at hresult
   dsimp only at hresult
   split_ifs at hresult with hmsg hbad

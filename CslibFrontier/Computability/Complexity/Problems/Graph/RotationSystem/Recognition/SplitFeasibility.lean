@@ -427,12 +427,11 @@ private theorem exists_contract_rotation {I : FixedRotationInput} (hI : Valid I)
     (contractLastEdgeDartEquiv H n v).trans
     (lastEdgeDartEquiv (contractLastEdgeGraph H n v) v v)
   have hcoord : E.trans e.optionCongr.optionCongr = splitCoordinates I v block := by
-    rw [show E = (lastEdgeDartEquiv H n v).trans
-      (Dart.relabelEquiv H (Function.update id n v)).optionCongr.optionCongr from
-        contractLastEdge_coordinates H n v]
+    dsimp only [E]
+    rw [contractLastEdge_coordinates]
     refine Equiv.symm_bijective.injective (Equiv.ext fun z => ?_)
     rcases z with _ | (_ | d) <;> apply Prod.ext <;> first | rfl | exact Fin.ext hlen
-  have hcomp (f : Perm (Dart (lastEdgeGraph H n v))) :
+  have hcomp (f : Perm (Dart (split I v block).graph)) :
       e.optionCongr.optionCongr.permCongr (E.permCongr f) =
         (E.trans e.optionCongr.optionCongr).permCongr f := rfl
   let dt : Dart (split I v block).graph := lastEdgeDart H n v true
@@ -447,13 +446,9 @@ private theorem exists_contract_rotation {I : FixedRotationInput} (hI : Valid I)
       Equiv.apply_symm_apply, Equiv.apply_symm_apply, Equiv.apply_symm_apply, swap_comm]
   change e.permCongr q.rotate = _
   rw [rotate_contractLastEdge]
-  change e.permCongr (removeNone (removeNone
-    (E.permCongr (s'.rotate * swap (lastEdgeDart H n v true) (lastEdgeDart H n v false))))) = _
+  change e.permCongr (removeNone (removeNone (E.permCongr (s.rotate * swap dt df)))) = _
   rw [← removeNone_permCongr_option e, ← removeNone_permCongr_option e.optionCongr,
-    hcomp, hcoord]
-  change removeNone (removeNone ((splitCoordinates I v block).permCongr
-    (s.rotate * swap dt df))) = _
-  rw [Equiv.permCongr_mul, hswap]
+    hcomp, hcoord, Equiv.permCongr_mul, hswap]
 
 private def coordinateIndex (m : ℕ) {α : Type} (index : α → ℕ) : Option (Option α) → ℕ
   | none => 2 * m + 1
@@ -616,34 +611,29 @@ private theorem cut_realizes {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
           change L[i] = L[L.length - 1]
           congr 1; omega
         rw [ite_eq_left hel]
-        simp only [coordinateIndex]
-        unfold nextInWord
-        rw [ite_eq_left (by simp; omega), List.getD_eq_getElem _ _ (by simp; omega)]
-        simp [hlast]
+        dsimp only [coordinateIndex, nextInWord]
+        rw [hlast]
+        simp
       · have hi' : i + 1 < L.length := by omega
+        have hlt : i + 1 < block.length := hlen ▸ hi'
         have hel : e ≠ last := fun h => absurd (hL.getElem_inj_iff.mp h) (by omega)
         have hea : e ≠ a := fun h =>
           hel (h.trans ((block_boundary r.rotate L hn hL (successive_blockDarts block hb r hc)).1.mp
             (Eq.mp (congrArg (· ∈ L) h) (List.getElem_mem (Nat.lt_of_succ_lt hi')))))
         rw [ite_eq_right hel, ite_eq_right hea]
-        simp only [coordinateIndex]
-        rw [successive_blockDarts block hb r hc i hi', get_blockDarts_index block hb (i + 1) hi']
-        unfold nextInWord
-        rw [ite_eq_left (by simpa only [List.length_append, List.length_singleton] using
-          (show i + 1 < block.length + 1 from by omega)), List.getD_append _ _ _ _ (by omega)]
+        dsimp only [coordinateIndex, nextInWord]
+        rw [successive_blockDarts block hb r hc i hi', get_blockDarts_index block hb (i + 1) hi',
+          ite_eq_left (by simpa using hib), List.getD_append _ _ _ _ hlt]
     · obtain rfl : i = block.length := by
         simp only [List.length_append, List.length_singleton] at hi; omega
       have hdi : d.index = 2 * I.graph.edges.length := by simpa using hd
       have hd' : d = E.symm (some none) := (Dart.indexEquiv (split I v block).graph).injective
         (Fin.ext (hdi.trans (index_splitCoordinates I v block (some none)).symm))
+      have hb0 : 0 < block.length := hlen ▸ hn
       rw [hd', step, cutPermutation_hub]
-      simp only [coordinateIndex]
-      rw [get_blockDarts_index block hb 0 hn]
-      unfold nextInWord
-      rw [ite_eq_right (by
-        simp only [List.length_append, List.length_singleton, lt_self_iff_false,
-          not_false_eq_true]),
-        List.getD_append _ _ _ _ (by omega)]
+      dsimp only [coordinateIndex, nextInWord]
+      rw [get_blockDarts_index block hb 0 hn, ite_eq_right (by simp),
+        List.getD_append _ _ _ _ hb0]
 
 /-- Splitting a nonempty directed block at a free vertex is feasible exactly when some
 original genus-zero rotation realizes the fixed words and contains that consecutive block.

@@ -535,13 +535,10 @@ theorem mabPlay_bandit_congr [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype 
     mabPlay hm sched H ω ℓ t = mabPlay hm sched H ω ℓ' t := by
   funext j
   unfold mabPlay
-  split_ifs with hτ hex
-  · rfl
-  · rfl
-  · exact congrFun (hH.congr (exploredLoss_mem_Icc_of_obs sched ω hobs) fun σ hσ =>
-      funext fun i => by
-        simp only [exploredLoss_of_lt sched ω _ (hσ.trans hτ) i, h ⟨σ, hσ.trans hτ⟩ hσ i]) j
-  · rfl
+  split_ifs with hτ _ _ <;> try rfl
+  exact congrFun (hH.congr (exploredLoss_mem_Icc_of_obs sched ω hobs) fun σ hσ =>
+    funext fun i => by
+      simp only [exploredLoss_of_lt sched ω _ (hσ.trans hτ) i, h ⟨σ, hσ.trans hτ⟩ hσ i]) j
 
 /-- For every fixed exploration seed sequence `ω : Fin K → Ω`, `mabPlay` is a causal online
 algorithm (`IsOnlineAlgorithm`). -/
@@ -717,7 +714,7 @@ theorem mabPlay_expected_loss_le [DecidableEq ι] [Nonempty ι] {m K T : ℕ} {�
         (∑ t ∈ range (K * m), ∑ j, mabPlay hm sched H ω ℓ t j * ℓ t j) +
         (∑ r ∈ range (T - K * m),
           ∑ j, mabPlay hm sched H ω ℓ (K * m + r) j * ℓ (K * m + r) j) := fun ω => by
-    conv_lhs => rw [show T = K * m + (T - K * m) by omega]
+    conv_lhs => rw [← Nat.add_sub_of_le hKm]
     exact sum_range_add _ _ _
   calc
     (𝔼 ω : Fin K → Ω, ∑ t ∈ range T, ∑ j, mabPlay hm sched H ω ℓ t j * ℓ t j)
@@ -757,13 +754,9 @@ noncomputable def mabBlockCount (N T : ℕ) : ℕ :=
 noncomputable def mabBlockLen (N T : ℕ) : ℕ :=
   T / mabBlockCount N T
 
-theorem mabBlockCount_pos {N T : ℕ} (hN : 0 < N) (hT : N ≤ T) : 0 < mabBlockCount N T := by
-  unfold mabBlockCount
-  refine Nat.floor_pos.mpr ?_
-  have h1 : (1 : ℝ) ≤ (T : ℝ) / N := by
-    rw [le_div_iff₀ (Nat.cast_pos.mpr hN), one_mul]
-    exact_mod_cast hT
-  exact one_le_rpow h1 (by norm_num)
+theorem mabBlockCount_pos {N T : ℕ} (hN : 0 < N) (hT : N ≤ T) : 0 < mabBlockCount N T :=
+  Nat.floor_pos.mpr <| one_le_rpow
+    ((one_le_div (Nat.cast_pos.mpr hN)).mpr (Nat.cast_le.mpr hT)) (by norm_num)
 
 theorem mabBlockCount_mul_mabBlockLen_le (N T : ℕ) :
     mabBlockCount N T * mabBlockLen N T ≤ T :=
@@ -839,12 +832,9 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
     have hx_pos : 0 < x := by linarith
     have hK_le_x : (K : ℝ) ≤ x := Nat.floor_le hx_pos.le
     have hx_half_le_K : x / 2 ≤ (K : ℝ) := by
-      by_cases hx2 : x < 2
-      · have h1 : (1 : ℝ) ≤ (K : ℝ) := by exact_mod_cast Nat.le_floor (by exact_mod_cast hx_ge)
-        linarith
-      · have hlt := Nat.lt_floor_add_one x
-        change x < (K : ℝ) + 1 at hlt
-        linarith
+      have h1 : (1 : ℝ) ≤ K := Nat.one_le_cast.mpr hK_pos
+      have hlt : x < (K : ℝ) + 1 := Nat.lt_floor_add_one x
+      rcases lt_or_ge x 2 with hx2 | hx2 <;> linarith
     have hB_cube : B ^ 3 = (T : ℝ) ^ 2 * N := by
       dsimp only [B]
       rw [mul_pow, rpow_two_thirds_cube hTpos.le, rpow_one_third_cube hNpos.le]
@@ -855,18 +845,16 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
     have hterm1 : (N : ℝ) * K ≤ B :=
       (mul_le_mul_of_nonneg_left hK_le_x hNpos.le).trans_eq hNx_eq_B
     have hterm2 : ((T - K * m : ℕ) : ℝ) ≤ (1 / 2) * B := by
-      have hrem_nat : T - K * m < K := by
-        change T - K * (T / K) < K
-        rw [show T - K * (T / K) = T % K by have := Nat.div_add_mod T K; omega]
-        exact Nat.mod_lt T hK_pos
+      have hrem_nat : T - K * m < K := (Nat.mod_def T K).symm ▸ Nat.mod_lt T hK_pos
       calc ((T - K * m : ℕ) : ℝ) ≤ x := (Nat.cast_le.mpr hrem_nat.le).trans hK_le_x
         _ = (1 / N) * B := by rw [← hNx_eq_B]; field_simp
         _ ≤ (1 / 2) * B :=
           mul_le_mul_of_nonneg_right (one_div_le_one_div_of_le (by norm_num) hNr) hB_nn
     have hT_div_eq : (T : ℝ) / √x = B := by
+      have hx6 : (√x) ^ 6 = x ^ 3 := (pow_mul (√x) 2 3).trans (by rw [sq_sqrt hx_pos.le])
+      have hB6 : B ^ 6 = (B ^ 3) ^ 2 := by ring
       refine (pow_left_inj₀ (by positivity) hB_nn (by decide : 6 ≠ 0)).mp ?_
-      rw [div_pow, show (√x) ^ 6 = x ^ 3 by rw [show 6 = 2 * 3 by rfl, pow_mul, sq_sqrt hx_pos.le],
-        rpow_two_thirds_cube (by positivity), show B ^ 6 = (B ^ 3) ^ 2 by ring, hB_cube]
+      rw [div_pow, hx6, rpow_two_thirds_cube (by positivity), hB6, hB_cube]
       field_simp
     have hterm3 : (m : ℝ) * (C * √((K : ℝ) * log N)) ≤ C * √2 * √(log N) * B := by
       have hm_le : (m : ℝ) ≤ (T : ℝ) / K :=
@@ -921,7 +909,7 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
     have hN1 : N = 1 := le_antisymm (by omega) hN_pos
     have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hN1.le
     obtain ⟨i₀⟩ := ‹Nonempty ι›
-    rw [show log (N : ℝ) = 0 by simp [hN1], mul_zero, add_zero]
+    simp only [hN1, Nat.cast_one, log_one, mul_zero, add_zero]
     have hpt : ∀ ω : Fin K → (ι ↪ Fin m),
         ∑ t ∈ range T, ∑ j, mabPlay hm_pos sched (H K) ω ℓ t j * ℓ t j =
           ∑ t ∈ range T, ℓ t i₀ := fun ω =>
@@ -967,8 +955,8 @@ theorem mabMW_expected_loss_le [DecidableEq ι] [Nonempty ι] {T : ℕ}
         hx.2 hx.1 (by positivity)
       rw [mwFactor_apply]
       linarith
-  have hbound := mabPlay_expected_loss_le_two_thirds hT halg (by norm_num : (0 : ℝ) ≤ 2)
-    (fun K' c hc k => mw_regret_le_sqrt_of_mem_Icc hc k) hℓ
-  simpa only [Hfam, show (3 : ℝ) + 2 * 2 = 7 by norm_num] using hbound
+  have h7 : (3 : ℝ) + 2 * 2 = 7 := by norm_num
+  simpa only [Hfam, h7] using mabPlay_expected_loss_le_two_thirds hT halg zero_le_two
+    (fun _ _ hc => mw_regret_le_sqrt_of_mem_Icc hc) hℓ
 
 end Cslib.MachineLearning.OnlineLearning.Experts

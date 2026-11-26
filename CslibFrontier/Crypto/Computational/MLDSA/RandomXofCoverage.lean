@@ -74,14 +74,13 @@ private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
       simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
       lia)
     (by lia)
-  let e := G.expandKeySeed s seed
+  set e := G.expandKeySeed s seed with he
   have secret (i : ℕ) :
-      H.secretPoly s ((e.drop 32).take 64) i = G.secretPoly s ((e.drop 32).take 64) i := by
-    unfold Xofs.secretPoly
-    rw [h.bytes256 (n := 481) (by
+      H.secretPoly s ((e.drop 32).take 64) i = G.secretPoly s ((e.drop 32).take 64) i :=
+    congrArg _ (h.bytes256 (n := 481) (by
       simp only [nonceInput, List.length_append, List.length_take, List.length_cons,
         List.length_nil]
-      lia) (by lia)]
+      lia) (by lia))
   have pk (t : Fin s.params.k → Poly) :
       H.h256.readBytes (encodePublic s (e.take 32) t) 64 =
         G.h256.readBytes (encodePublic s (e.take 32) t) 64 := by
@@ -89,7 +88,7 @@ private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
     refine h.bytes256 ?_ (by lia)
     simp only [length_encodePublic, List.length_take]
     lia
-  simp only [Xofs.keyGen, Xofs.expandS, exp, ← show e = G.expandKeySeed s seed from rfl,
+  simp only [Xofs.keyGen, Xofs.expandS, exp, ← he,
     h.matrix ha hb (rho := e.take 32) (by simp), secret, pk]
 
 private theorem representative (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
@@ -117,9 +116,8 @@ private theorem challenge (h : Agreement H G a b) (ha : honestAddressBits s m �
     H.sampleInBall s d = G.sampleInBall s d := by
   have := fixedInputs ha
   have : digestBytes s ≤ 64 := by cases s <;> decide
-  simp only [Xofs.sampleInBall,
-    h.bytes256 (xs := d) (by lia)
-      (n := 221) (by lia)]
+  exact congrArg _ (h.bytes256 (xs := d) (by lia)
+    (n := 221) (by lia))
 
 private theorem mask (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {seed : List Byte} (hr : seed.length = 64) (κ : ℕ) :
@@ -221,9 +219,8 @@ private theorem queryTable_eq (C : QuantumSigningForger) {H G : Xofs} {a b : ℕ
   cases hx : Xofs.unpad (List.ofFn (fun i : Fin (C.addressBits + 1) => q i.succ)) with
   | none => rfl
   | some x =>
-    have len := unpad_length _ hx
-    rw [List.length_ofFn] at len
-    have hxa : x.length ≤ a := by lia
+    have hxa : x.length ≤ a := Nat.le_of_lt_succ
+      ((List.length_ofFn .. ▸ unpad_length _ hx).trans_le (Nat.succ_le_succ ha))
     cases q 0 <;> simp [h.shake128 x hxa _ hb, h.shake256 x hxa _ hb]
 
 private theorem forgeryGame_eq (C : QuantumSigningForger) {m a b : ℕ} {s : Level}
@@ -287,9 +284,7 @@ private theorem restrict_game {a b A B : ℕ} (ha : a ≤ A) (hb : b ≤ B)
       PMF.uniformOfFintype (Table a b) :=
     PMF.uniformOfFintype_pi_map_comp_embedding (cellEmbedding ha hb)
   rw [independent_tables, independent_tables]
-  simp only [PMF.bind_bind, PMF.bind_map]
-  rw [← unif]
-  simp only [PMF.bind_map]
+  simp only [PMF.bind_bind, PMF.bind_map, ← unif, Function.comp_def]
   refine congrArg _ (funext fun t₂ => congrArg _ (funext fun t₁ => congr _ _
     ⟨read_restrict ha hb t₁ lo.h128 hi.h128, read_restrict ha hb t₂ lo.h256 hi.h256⟩))
 

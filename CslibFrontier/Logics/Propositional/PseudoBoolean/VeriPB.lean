@@ -150,11 +150,10 @@ theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBCon
     (hρ : Consistent σ ρ) (hc : c.Holds σ) :
     ∃ ρ', propagate ρ c = some ρ' ∧ Consistent σ ρ' := by
   -- A term whose literal is true is not falsified.
-  have hnf : ∀ t ∈ c.terms, Literal.eval σ t.2 = true → falsified ρ t = false := by
-    intro t _ ht
-    by_contra hf
-    have := hρ _ (List.contains_iff_mem.mp (Bool.eq_true_of_ne_false hf))
-    simp [Literal.eval_negate, ht] at this
+  have hnf : ∀ t ∈ c.terms, Literal.eval σ t.2 = true → falsified ρ t = false :=
+    fun t _ ht => Bool.eq_false_iff.mpr fun hf => by
+      have := hρ _ (List.contains_iff_mem.mp hf)
+      simp [Literal.eval_negate, ht] at this
   have hsplit := coeffSum_filter_add c.terms (fun t => !falsified ρ t)
     (fun t => Literal.eval σ t.2)
   have htrue : (c.terms.filter fun t => !falsified ρ t && Literal.eval σ t.2) =
@@ -167,12 +166,12 @@ theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBCon
   rcases List.mem_append.mp hl with hl | hl
   · obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hl
     obtain ⟨htm, hp⟩ := List.mem_filter.mp ht
-    simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq] at hp
-    obtain ⟨⟨hf, -⟩, hlt⟩ := hp
+    simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq, and_assoc] at hp
+    obtain ⟨hf, -, hlt⟩ := hp
     by_contra hev
-    have hmem : t ∈ c.terms.filter fun t => !falsified ρ t && !Literal.eval σ t.2 := by
-      simp [List.mem_filter, htm, hf, Bool.eq_false_of_ne_true hev]
-    have := le_coeffSum_of_mem hmem
+    have := le_coeffSum_of_mem
+      (ts := c.terms.filter fun t => !falsified ρ t && !Literal.eval σ t.2) (t := t)
+      (by simp [htm, hf, Bool.eq_false_of_ne_true hev])
     unfold slack at hlt
     omega
   · exact hρ l hl
@@ -512,9 +511,8 @@ theorem runSteps_sound {σ : ℕ → Bool} :
 end
 
 theorem allHold_initDb {σ : ℕ → Bool} {F : List PBConstr} (hF : ∀ c ∈ F, c.Holds σ) :
-    AllHold σ (initDb F) := by
-  intro e he
-  obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp he
+    AllHold σ (initDb F) := fun e he => by
+  obtain ⟨⟨c, _⟩, hci, rfl⟩ := List.mem_map.mp he
   exact (holds_normalize σ c).2 (hF c (List.fst_mem_of_mem_zipIdx hci))
 
 /-! ### Fresh numbers -/
@@ -560,14 +558,12 @@ end IdOk
 
 /-- The input database is numbered from `1` to the number of its constraints. -/
 theorem idOk_initDb (F : List PBConstr) : IdOk (initDb F) (F.length + 1) := by
+  have hfn : ((·.1) ∘ fun e : PBConstr × ℕ => (e.2 + 1, e.1.normalize)) =
+      (1 + ·) ∘ Prod.snd := funext fun _ => Nat.add_comm _ _
   have hmap : (initDb F).map (·.1) = List.range' 1 F.length := by
-    simp only [initDb, List.map_map]
-    rw [show ((·.1) ∘ fun e : PBConstr × ℕ => (e.2 + 1, e.1.normalize)) =
-      (1 + ·) ∘ Prod.snd from funext fun _ => Nat.add_comm _ _, ← List.map_map,
-      List.zipIdx_map_snd, List.map_add_range']
-  refine ⟨fun e he => ?_, hmap ▸ List.nodup_range'⟩
-  exact Nat.add_comm 1 F.length ▸
-    (List.mem_range'_1.1 (hmap ▸ List.mem_map_of_mem (f := (·.1)) he)).2
+    rw [initDb, List.map_map, hfn, ← List.map_map, List.zipIdx_map_snd, List.map_add_range']
+  exact ⟨fun e he => Nat.add_comm 1 F.length ▸
+    (List.mem_range'_1.1 (hmap ▸ List.mem_map_of_mem (f := (·.1)) he)).2, hmap ▸ List.nodup_range'⟩
 
 /-- **The shape of a successful step on the database `db`, whose next number is `n`**: which
 constraint it adds, at which number, and what it deletes. Each addition puts its constraint in
@@ -693,11 +689,9 @@ theorem not_satisfiable_of_check {F : List PBConstr} {P : Proof} (h : check F P 
 /-- **Soundness for CNF**: a CNF whose clauses, as pseudo-Boolean constraints, have a checked
 proof of `UNSAT` is unsatisfiable. -/
 theorem not_satisfiable_cnf_of_check {φ : CNF ℕ} {P : Proof}
-    (h : check (φ.map Clause.toPB) P = true) : ¬ φ.Satisfiable := by
-  rintro ⟨σ, hσ⟩
-  refine not_satisfiable_of_check h σ fun c hc => ?_
-  obtain ⟨cl, hcl, rfl⟩ := List.mem_map.mp hc
-  exact (Clause.holds_toPB_iff σ cl).2 ((CNF.eval_eq_true_iff σ φ).1 hσ cl hcl)
+    (h : check (φ.map Clause.toPB) P = true) : ¬ φ.Satisfiable := fun ⟨σ, hσ⟩ =>
+  not_satisfiable_of_check h σ (List.forall_mem_map.2 fun cl hcl =>
+    (Clause.holds_toPB_iff σ cl).2 ((CNF.eval_eq_true_iff σ φ).1 hσ cl hcl))
 
 end VeriPB
 

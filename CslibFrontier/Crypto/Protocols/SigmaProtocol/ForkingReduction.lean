@@ -256,18 +256,14 @@ private theorem combined_step (σ : Signer Req Reply Point C Log S) (q : Req ⊕
     | some e =>
       have hcache : s.1.toGame.1.1.lookup x = some e.1 := by
         simp [State.toGame, List.lookup_map_snd, h]
-      simp only [run_handler_inr_some σ h, run_interpret_countingUniform_pure,
-        PMF.monad_map_eq_map, PMF.pure_map, withSampleList, gameHandler, oracle,
-        memoize_of_some _ _ _ _ hcache, PMF.monad_pure_eq_pure]
-      rfl
+      simp only [withSampleList, gameHandler, oracle, memoize_of_some _ _ _ _ hcache]
+      simp [run_handler_inr_some σ h, State.toGame]
     | none =>
       have hcache : s.1.toGame.1.1.lookup x = none := by
         simp [State.toGame, List.lookup_map_snd, h]
-      simp only [run_handler_inr_none σ h, interp_norm, PMF.monad_map_eq_map, withSampleList,
-        gameHandler, oracle, memoize_of_none _ _ _ hcache, run_countingUniform,
-        PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp, PMF.bind_bind,
-        PMF.pure_bind, Function.comp_apply]
-      rfl
+      simp only [withSampleList, gameHandler, oracle, memoize_of_none _ _ _ hcache]
+      simp [run_handler_inr_none σ h, interp_norm, run_countingUniform, ← PMF.bind_pure_comp,
+        State.toGame]
 
 /-- The reduction's final check, with its oracle answered uniformly, wins exactly when the game's
 final check does. -/
@@ -280,17 +276,13 @@ private theorem map_run_finish (κ : Check M T C Z Point Log) (cand : M × (T ×
   | some e =>
     have hcache : st.toGame.1.1.lookup (κ.point m t) = some e.1 := by
       simp [State.toGame, List.lookup_map_snd, h]
-    simp only [finish, h, run_interpret_countingUniform_pure, PMF.pure_map, finishGame, verdict,
-      oracle, memoize_of_some _ _ _ _ hcache, PMF.monad_pure_eq_pure]
-    rfl
+    rw [finishGame, oracle, memoize_of_some _ _ _ _ hcache]
+    simp [finish, h, verdict, State.toGame]
   | none =>
     have hcache : st.toGame.1.1.lookup (κ.point m t) = none := by
       simp [State.toGame, List.lookup_map_snd, h]
-    simp only [finish, h, interp_norm, PMF.monad_map_eq_map, finishGame, verdict, oracle,
-      memoize_of_none _ _ _ hcache, run_countingUniform, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind,
-      Function.comp_apply]
-    rfl
+    rw [finishGame, oracle, memoize_of_none _ _ _ hcache]
+    simp [finish, h, interp_norm, verdict, run_countingUniform, ← PMF.bind_pure_comp, State.toGame]
 
 /-- **The reduction simulates the game.** With its oracle answered uniformly, the reduction wins
 exactly when the adversary wins against the game's signer with the same presampled values. -/
@@ -456,8 +448,8 @@ private theorem map_run_le_validIndex (σ : Signer Req Reply Point C Log S)
   by_cases hw : outcome.won = true
   · obtain ⟨j, rfl⟩ := Option.isSome_iff_exists.mp (hwin hw)
     have hlt : j < queries.length := (List.getElem?_eq_some_iff.mp (hnamed j rfl).1).1
-    rw [hw, zero_add]
-    simp [validIndex, show j ≤ Qro by omega, hlt]
+    have hjQ : j ≤ Qro := by omega
+    simp [hw, validIndex, hjQ, hlt]
   · simp [Bool.eq_false_iff.mpr hw]
 
 /-- **The forking lemma for the reduction** ([BellareNeven2006], Lemma 1). If an event has

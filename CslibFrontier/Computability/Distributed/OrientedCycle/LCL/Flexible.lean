@@ -136,15 +136,13 @@ theorem distColoring_ne {s k n : ℕ} (hkn : k < n) {x : ZMod n → ℕ} (hx : F
     apply hstep
     push_cast at this ⊢
     linear_combination -this
-  have hyN : ∀ i, y i < n := fun i => hxn _
-  have hT := fastThreeColoringRule_toFun hyp hyN hs
-  have hT' := fastThreeColoringRule_toFun (fun i => hyp (i + 1)) (fun i => hyN (i + 1)) hs
+  have hT := fastThreeColoringRule_toFun hyp (fun _ => hxn _) hs
+  have hT' := fastThreeColoringRule_toFun (fun i => hyp (i + 1)) (fun _ => hxn _) hs
   have e : (fun i => window x u (((j + 1 : ℕ) : ℤ) * i)) = y ∧
       (fun i => window x (u + ((j + 1 : ℕ) : ZMod n)) (((j + 1 : ℕ) : ℤ) * i)) =
         fun i => y (i + 1) := by
     constructor <;> funext i <;> simp only [window, hy] <;> congr 1 <;> push_cast <;> ring
-  simp only [Fin.coe_clamp] at hj
-  rw [e.1, e.2] at hj
+  simp only [Fin.coe_clamp, e.1, e.2] at hj
   omega
 
 /-! ### Anchors -/
@@ -173,10 +171,8 @@ theorem anchorRule_spacing {k n : ℕ} (c : ZMod n → ℕ) (u : ZMod n)
     (hu : (anchorRule k).apply c u = true) {m : ℕ} (hm : m < k) :
     (anchorRule k).apply c (u + (m + 1)) = false := by
   rw [← Bool.not_eq_true, anchorRule_apply]
-  intro h
-  have h2 := (h m hm).2
-  rw [add_sub_cancel_right] at h2
-  exact Nat.lt_asymm ((anchorRule_apply c u).1 hu m hm).1 h2
+  exact fun h => Nat.lt_asymm ((anchorRule_apply c u).1 hu m hm).1
+    (by simpa only [add_sub_cancel_right] using (h m hm).2)
 
 /-- Following decreasing colours from a node of colour at most `N` reaches an anchor within
 distance `k N`. -/
@@ -197,8 +193,7 @@ theorem anchorRule_exists {k n : ℕ} {c : ZMod n → ℕ}
     intro v hv
     by_cases ha : (anchorRule k).apply c v = true
     · exact ⟨0, by simp, by rwa [Int.cast_zero, add_zero]⟩
-    rw [anchorRule_apply] at ha
-    push Not at ha
+    simp only [anchorRule_apply, not_forall, not_and, not_lt] at ha
     obtain ⟨m, hm, hle⟩ := ha
     -- some node within distance `k` of `v` has a smaller colour
     obtain ⟨s, hs, hcs⟩ : ∃ s : ℤ, |s| ≤ k ∧ c (v + s) < c v := by
@@ -221,13 +216,10 @@ theorem anchorRule_exists_sub {k n C : ℕ} {c : ZMod n → ℕ}
     ∃ d ≤ 2 * (k * (C - 1)), (anchorRule k).apply c (v - d) = true := by
   obtain ⟨e, he, hae⟩ := anchorRule_exists hc (C - 1) (v - ((k * (C - 1) : ℕ) : ZMod n))
     (by have := hC (v - ((k * (C - 1) : ℕ) : ZMod n)); omega)
-  have he' : |e| ≤ ((k * (C - 1) : ℕ) : ℤ) := by rwa [Nat.cast_mul]
-  rw [abs_le] at he'
-  obtain ⟨d, hd⟩ : ∃ d : ℕ, (d : ℤ) = ((k * (C - 1) : ℕ) : ℤ) - e :=
-    ⟨_, Int.toNat_of_nonneg (by omega)⟩
-  refine ⟨d, by omega, ?_⟩
+  rw [← Nat.cast_mul, abs_le] at he
+  refine ⟨(((k * (C - 1) : ℕ) : ℤ) - e).toNat, by omega, ?_⟩
   convert hae using 2
-  rw [← Int.cast_natCast (R := ZMod n) d, hd]
+  rw [← Int.cast_natCast (R := ZMod n), Int.toNat_of_nonneg (by omega)]
   push_cast
   ring
 
@@ -299,19 +291,14 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
   set P : ZMod n → ℕ := fun v => firstTrue (fun i : ℕ => a (v - (i : ZMod n))) (D + 1) with hP
   set Q : ZMod n → ℕ := fun v => firstTrue (fun i : ℕ => a (v + ((i : ZMod n) + 1))) (D + 1)
     with hQ
-  have happly : ∀ v, (fillRule W D).apply a v = W (P v + Q v + 1) (P v) := fun v => by
-    have e1 : (fun i : ℕ => window a v (-(i : ℤ))) = fun i : ℕ => a (v - (i : ZMod n)) :=
-      funext fun i => by simp [window, sub_eq_add_neg]
-    have e2 : (fun i : ℕ => window a v ((i : ℤ) + 1)) =
-        fun i : ℕ => a (v + ((i : ZMod n) + 1)) :=
-      funext fun i => by simp [window]
-    simp only [LocalRule.apply, fillRule, e1, e2, hP, hQ]
+  have happly (v : ZMod n) : (fillRule W D).apply a v = W (P v + Q v + 1) (P v) := by
+    simp only [LocalRule.apply, fillRule, window, P, Q, Int.cast_neg, Int.cast_natCast,
+      Int.cast_add, Int.cast_one, ← sub_eq_add_neg]
   have hPspec : ∀ v, P v ≤ D ∧ a (v - P v) = true ∧ ∀ i < P v, a (v - i) = false := by
     intro v
     obtain ⟨d, hd, had⟩ := hcov v
     have hex : ∃ i < D + 1, a (v - (i : ZMod n)) = true := ⟨d, by omega, had⟩
-    have hlt : P v < D + 1 := firstTrue_lt _ _ hex
-    exact ⟨by omega, firstTrue_spec _ _ hex, firstTrue_min _ _⟩
+    exact ⟨Nat.lt_succ_iff.mp (firstTrue_lt _ _ hex), firstTrue_spec _ _ hex, firstTrue_min _ _⟩
   have hQspec : ∀ v, Q v ≤ D ∧ a (v + (Q v + 1)) = true ∧
       ∀ i < Q v, a (v + (i + 1)) = false := by
     intro v
@@ -320,16 +307,13 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
       convert had using 2
       rw [Nat.cast_sub hd]
       ring⟩
-    have hlt : Q v < D + 1 := firstTrue_lt _ _ hex
-    exact ⟨by omega, firstTrue_spec _ _ hex, firstTrue_min _ _⟩
+    exact ⟨Nat.lt_succ_iff.mp (firstTrue_lt _ _ hex), firstTrue_spec _ _ hex, firstTrue_min _ _⟩
   have hgap : ∀ v, k + 1 ≤ P v + Q v + 1 := by
     intro v
     by_contra hlt
     have h1 := hspace (v - P v) (hPspec v).2.1 (P v + Q v) (by omega)
-    have h2 := (hQspec v).2.1
-    have : v - (P v : ZMod n) + ((P v + Q v : ℕ) + 1) = v + (Q v + 1) := by push_cast; ring
-    rw [this, h2] at h1
-    exact absurd h1 (by decide)
+    have hidx : v - (P v : ZMod n) + ((P v + Q v : ℕ) + 1) = v + (Q v + 1) := by push_cast; ring
+    simp only [hidx, (hQspec v).2.1, Bool.true_eq_false] at h1
   intro v
   rw [happly v, happly (v + 1)]
   by_cases hnext : a (v + 1) = true
@@ -376,8 +360,7 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
 abbrev flexibleRadius (k s : ℕ) : ℕ := k * (s + 3) + k + (2 * (k * (3 ^ k - 1)) + 1)
 
 theorem flexibleRadius_eq (k s : ℕ) : flexibleRadius k s = k * (s + 2 * 3 ^ k + 2) + 1 := by
-  have h : 1 ≤ 3 ^ k := Nat.one_le_pow _ _ (by decide)
-  obtain ⟨c, hc⟩ : ∃ c, 3 ^ k = c + 1 := ⟨3 ^ k - 1, by omega⟩
+  obtain ⟨c, hc⟩ := Nat.exists_eq_add_of_le' (Nat.one_le_pow k 3 (by decide))
   simp only [flexibleRadius, hc, Nat.add_sub_cancel]
   ring
 
@@ -395,9 +378,8 @@ theorem flexibleRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : 
   set c := (distColoring (fastThreeColoringRule s) k).apply x
   have hc : ∀ u : ZMod n, ∀ m < k, c u ≠ c (u + (m + 1)) := fun u m hm => by
     simpa using distColoring_ne hkn hx hxn hs u (Nat.succ_pos m) (Nat.succ_le_of_lt hm)
-  have hC : ∀ u, c u < 3 ^ k := distColoring_lt _ _ x
   exact fillRule_isSolution hW0 hWm hWR (fun u hu m hm => anchorRule_spacing c u hu hm)
-    (anchorRule_exists_sub hc hC)
+    (anchorRule_exists_sub hc (distColoring_lt _ _ x))
 
 /-- A walk of length `m` from `a` to `b`, as a sequence `w` with `w 0 = a` and `w m = b`. -/
 private theorem exists_seq_of_relatesInSteps {L : Type*} {R : L → L → Prop} {a b : L} {m : ℕ}

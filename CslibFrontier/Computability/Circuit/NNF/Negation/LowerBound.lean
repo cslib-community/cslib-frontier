@@ -239,14 +239,11 @@ theorem notMem_edgeNbhd {u u' : V} (hu : u ∈ S) (hu' : u' ∈ S) (hne : u ≠ 
 theorem otherNbrs_notMem_ends {u t : V} (hu : u ∈ S) (ht : t ∈ M.otherNbrs c u) :
     t ∉ M.ends c S := by
   rw [mem_ends]
-  rintro ⟨u', hu', htu⟩
-  by_cases h : u = u'
-  · subst h
-    exact htu.elim (fun h => self_notMem_otherNbrs c u (h ▸ ht))
-      (fun h => mate_notMem_otherNbrs c u (h ▸ ht))
-  · refine hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht) ?_
-    rcases htu with rfl | rfl
-    exacts [self_mem_edgeNbhd c _, mate_mem_edgeNbhd c _]
+  rintro ⟨u', hu', rfl | rfl⟩
+  · exact if h : u = t then self_notMem_otherNbrs c t (h ▸ ht)
+      else hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht) (self_mem_edgeNbhd c _)
+  · exact if h : u = u' then mate_notMem_otherNbrs c u' (h ▸ ht)
+      else hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht) (mate_mem_edgeNbhd c _)
 
 /-- An edge of another colour at an end of a listed edge leads off the ends. -/
 theorem mate_notMem_ends {a : V} (ha : a ∈ M.ends c S) {c' : Fin 3} (hc' : c' ≠ c) :
@@ -317,11 +314,9 @@ theorem witness_eq_false (hS : M.IsSeparatedCrossing A c S)
         (hz t hzt).elim (fun h => ⟨h, (hyx t ht).trans h⟩) fun h => ⟨(hyx t ht).symm.trans h, h⟩
       by_cases haE : a ∈ M.ends c S
       · obtain ⟨hxb, hyb⟩ := hboth _ (hS.mate_notMem_ends haE hc') hb
-        rcases hz a ha with h | h
-        exacts [hx c' a ⟨h, hxb⟩, hy c' a ⟨h, hyb⟩]
+        exact (hz a ha).elim (fun h => hx c' a ⟨h, hxb⟩) fun h => hy c' a ⟨h, hyb⟩
       · obtain ⟨hxa, hya⟩ := hboth a haE ha
-        rcases hz _ hb with h | h
-        exacts [hx c' a ⟨hxa, h⟩, hy c' a ⟨hya, h⟩]
+        exact (hz _ hb).elim (fun h => hx c' a ⟨hxa, h⟩) fun h => hy c' a ⟨hya, h⟩
     have hf := hR0 _ (hR y hyR x hxR)
     simp only [someButNotAllColors, decide_eq_false_iff_not, not_and, not_exists, not_not] at hf
     exact hzc' (c + 1) (by omega) (hf ⟨c, hzc⟩ (c + 1))
@@ -476,10 +471,9 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
             have hcard : #F ≤ 3 := by
               calc #F ≤ ((univ : Finset (Bool × Bool)).erase (true, true)).card := by
                     refine card_le_card_of_injOn (fun y => (y u, y (M.mate c u))) ?_ ?_
-                    · intro z hz
-                      refine mem_erase.mpr ⟨fun h => ?_, mem_univ _⟩
-                      simp only [Prod.mk.injEq] at h
-                      exact (mem_filter.mp (mem_filter.mp hz).1).2 c u h
+                    · exact fun z hz => mem_erase.mpr
+                        ⟨fun h => (mem_filter.mp (mem_filter.mp hz).1).2 c u (Prod.mk.inj h),
+                          mem_univ _⟩
                     · intro z hz z' hz' hzz
                       simp only [Prod.mk.injEq] at hzz
                       funext t
@@ -531,9 +525,8 @@ theorem card_filter_mem_le [DecidablePred (· ∈ R)] (hS : M.IsSeparatedCrossin
       = ∑ x ∈ I, if x ∈ R then (1 : ℝ) else 0 := by rw [sum_boole]
     _ ≤ ∑ x ∈ I, (if ∀ u ∈ S, x (M.witness c S R u x) = false then (1 : ℝ) else 0) * 1 := by
         refine sum_le_sum fun x hx => ?_
-        rw [mul_one]
         split_ifs with h1 h2
-        · exact le_rfl
+        · norm_num
         · exact absurd (fun u hu => witness_eq_false hS hR hR0 h1 (mem_filter.mp hx).2 hu) h2
         all_goals norm_num
     _ ≤ ∑ x ∈ I, (2 / 3 : ℝ) ^ #(S.filter fun u => M.IsFree c u x) * 1 :=

@@ -88,8 +88,7 @@ private def augment (s : ℕ × C × SelectBestAcc) : C × List (List Bool) :=
 private theorem augment_polyTime : ComputableInPolyTime (augment (C := C))
     (encPair encNat (encAcc encC)) (encPair encC (encList encBits)) := by
   have := computableInPolyTime_augCandidateRows
-  unfold augment encAcc
-  fun_prop
+  fun_prop [augment, encAcc]
 
 private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc :=
   (p.1.2.1, finishSelectBestStep ((p.1.1, p.1.2.2), p.2))
@@ -97,8 +96,7 @@ private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc
 private theorem finish_polyTime : ComputableInPolyTime (finish (C := C))
     (encPair (encPair encNat (encAcc encC)) encNat) (encAcc encC) := by
   have := computableInPolyTime_finishSelectBestStep
-  unfold finish encAcc
-  fun_prop
+  fun_prop [finish, encAcc]
 
 private def step (count : C × List (List Bool) → ℕ)
     (s : ℕ × C × SelectBestAcc) : C × SelectBestAcc :=
@@ -147,8 +145,7 @@ private def initIn (a : C × ℕ × ℕ × List (List Bool)) : C × SelectBestAc
 
 private theorem initIn_polyTime :
     ComputableInPolyTime (initIn (C := C)) (encInput encC) (encAcc encC) := by
-  unfold initIn encInput encSelectBestIn encAcc encSelectBestAcc
-  fun_prop
+  fun_prop [initIn, encInput, encSelectBestIn, encAcc, encSelectBestAcc]
 
 private def extract (r : ℕ × C × SelectBestAcc) : List Bool :=
   r.2.2.2.2.elim (List.replicate r.2.2.1.1 false) Prod.fst
@@ -186,8 +183,7 @@ private def appendRow (p : (C × ℕ × ℕ × List (List Bool)) × List Bool) :
 
 private theorem appendRow_polyTime : ComputableInPolyTime (appendRow (C := C))
     (encPair (encInput encC) encBits) (encInput encC) := by
-  unfold appendRow encInput encSelectBestIn
-  fun_prop
+  fun_prop [appendRow, encInput, encSelectBestIn]
 
 private def outerStep (count : C × List (List Bool) → ℕ)
     (s : C × ℕ × ℕ × List (List Bool)) : C × ℕ × ℕ × List (List Bool) :=
@@ -222,8 +218,7 @@ private def outerInit (a : C × ℕ × ℕ × ℕ × List (List Bool)) :
 
 private theorem outerInit_polyTime :
     ComputableInPolyTime (outerInit (C := C)) (encGreedyInput encC) (encInput encC) := by
-  unfold outerInit encGreedyInput encGreedyIn encInput
-  fun_prop
+  fun_prop [outerInit, encGreedyInput, encGreedyIn, encInput]
 
 /-- One fixed machine runs `3n` greedy rounds for the runtime context. The context survives every
 candidate and round; the returned rows are the original `greedyParityRows` specialization. -/

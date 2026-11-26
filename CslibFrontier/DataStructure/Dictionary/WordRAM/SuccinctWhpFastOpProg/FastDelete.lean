@@ -157,8 +157,7 @@ private theorem delHitPrepGenProg_step {c U V w n_max base b : ℕ}
        if decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
          fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
          fs.rebCollision = 0) then 1 else 0) 9 := by
-  unfold delHitPrepGenProg
-  simp only [pure_bind]
+  simp only [delHitPrepGenProg.eq_1, pure_bind]
   have hc0 := CostBoundedStep.of (readBktFieldGenProg_spec henv hb (by decide : 0 < 10) hrep)
   simp only [getBktField] at hc0
   obtain ⟨h1, h2, h3, h4⟩ := readRebActiveBGenProg_spec henv hrep (b := b) (s := s)
@@ -289,10 +288,8 @@ private theorem fastDeleteHitGenProg_fastStep {c U V w n_max base loc_del : ℕ}
   have hback := fun hcf => poolFreeTop_lt_of_backyard_active (fs := fs) hv hb hcnt hcf
   have hP := bind_of_readOnly hp.clientState_eq hp.clientResult_eq hp.validProg
   dsimp only
-  unfold fastDeleteHitGenProg
-  dsimp only
-  rw [hwp1, (hP _ _).1, (hP _ _).2.2.1, (hP _ _).2.2.2, clientState_bind, memoryCost_bind']
-  unfold fastDeleteOptMoveGenProg
+  rw [fastDeleteHitGenProg.eq_1, hwp1, (hP _ _).1, (hP _ _).2.2.1, (hP _ _).2.2.2,
+    clientState_bind, memoryCost_bind', fastDeleteOptMoveGenProg.eq_1]
   by_cases hlt_ll : loc_del < fs.bktCount b - 1
   · simp only [hlt_ll, ↓reduceIte]
     obtain ⟨hdm_mc, hdm_vp, hdm_step⟩ :=
@@ -418,8 +415,7 @@ private theorem fastDeleteBodyGenProg_fastStep {c U V w n_max base : ℕ}
   have hspec := hv.fastFindLoc_spec u
   have hF := bind_of_readOnly hfl_st hfl_res hfl_vp
   dsimp only
-  unfold fastDeleteBodyGenProg
-  simp only [pure_bind]
+  simp only [fastDeleteBodyGenProg.eq_1, pure_bind]
   rw [(hF _ _).1, (hF _ _).2.2.1, (hF _ _).2.2.2]
   cases hfind : fastFindLoc c U n_max θ fs u with
   | none =>
@@ -509,9 +505,8 @@ theorem fastDeleteGenProg_fastStep {c U V w n_max base : ℕ}
   have hM := bind_of_readOnly hmh_st hmh_res hmh_vp
   have hS := bind_of_readOnly hfs_st hfs_res hfs_vp
   dsimp only
-  unfold fastDeleteGenProg fastDelete
-  rw [(hM _ _).1, (hM _ _).2.2.1, (hM _ _).2.2.2, hmh_mc, (hS _ _).1, (hS _ _).2.2.1,
-    (hS _ _).2.2.2, clientState_bind, memoryCost_bind']
+  rw [fastDeleteGenProg.eq_1, fastDelete, (hM _ _).1, (hM _ _).2.2.1, (hM _ _).2.2.2, hmh_mc,
+    (hS _ _).1, (hS _ _).2.2.1, (hS _ _).2.2.2, clientState_bind, memoryCost_bind']
   refine ⟨?_, validProg_bind hdb_vp hom_vp, hdb_step.trans hom_step⟩
   dsimp only [s1, bq] at hfs_mc hdb_mc hom_mc ⊢; omega
 

@@ -300,11 +300,8 @@ private theorem pack_cost {n K m N X PW PR : ℕ} (hX : N + 1 ≤ X) (hm : m ≤
       n * (2 * (41 * m + 2 * n + 40) + 2) + n * (2 * (2 * n + 6) + 2) + 82 * m + 400 ≤
       (2 * K * (n + 1) + 200 * (n + 1) * (n + 1) + 3000) * X := by
   have f1 : K * (n * (N + 1) + 1) ≤ K * (n + 1) * X := by
-    rw [mul_assoc]
-    refine Nat.mul_le_mul_left _ ?_
-    have := Nat.mul_le_mul_left n hX
-    rw [add_mul, one_mul]
-    omega
+    rw [mul_assoc, add_mul, one_mul]
+    exact Nat.mul_le_mul_left _ (Nat.add_le_add (Nat.mul_le_mul_left n hX) (by omega))
   have g1 : n * m ≤ n * X := Nat.mul_le_mul_left _ hm
   have g2 : n * n ≤ n * n * X := Nat.le_mul_of_pos_right _ (by omega)
   have g3 : n ≤ n * X := Nat.le_mul_of_pos_right _ (by omega)
@@ -354,10 +351,8 @@ private theorem exists_formula_packSem (sep : List Bool) {c : ℕ} (hsep : sep.l
     (gW.cons (Gives.id x).tl.tl.hd))))
     (hCP c N m ub (writeItems B.flags o) B.writeKeys t hsep (by omega) fun it hit => by
       obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hit
-      exact ⟨by
-        have := length_getD_le B.flags i.rev
-        have := hO (Fin.castAdd (tapeCount S) i.rev)
-        dsimp only; omega, hc _⟩)
+      exact ⟨(Nat.add_le_add (length_getD_le B.flags i.rev)
+        (hO (Fin.castAdd (tapeCount S) i.rev))).trans (by omega), hc _⟩)
   rw [show (writeItems B.flags o).length = tapeCount S from List.length_ofFn] at hR
   -- what is read
   have hC : ∀ t1 : Tree, Does θ _ (.cons x t1)
@@ -438,11 +433,9 @@ theorem exists_formula_input (cb : Option Γ → Fin c → Bool) : ∃ F κ, ∀
   have hIO : Gives θ (listF (List.ofFn fun j : Fin n =>
       if outputSide j = (none, false) then .hd .id else .quote .nil)) x
       (Outputs.enc (inputOutputs (S := S) part)) (n * 3 + 1) := listF_gives fun j => by
-    by_cases h : outputSide j = ((none : Option S), false)
-    · simp only [inputOutputs, h, ↓reduceIte]
-      exact (Gives.id x).hd
-    · simp only [inputOutputs, h, ↓reduceIte]
-      exact (Gives.quote .nil x).mono (by omega)
+    split_ifs with h <;> simp only [inputOutputs, h, ↓reduceIte]
+    · exact (Gives.id x).hd
+    · exact (Gives.quote .nil x).mono (by omega)
   have hB : 1 ≤ B.cost ub := by simp only [Body.cost]; omega
   refine (Does.of_gives (hIO.cons (Gives.id x).tl) (hFP ub part.length B _ t (fun j => by
     simp only [inputOutputs]; split_ifs <;> simp) fun j a ha => by

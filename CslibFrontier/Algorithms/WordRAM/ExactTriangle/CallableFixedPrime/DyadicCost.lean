@@ -51,9 +51,8 @@ private theorem one_le_weightExponent {n : ℕ} (hn : 2 ≤ n) (F : ℕ) :
     1 ≤ weightExponent n F := by
   have hlog : 0 < Real.log (n : ℝ) := Real.log_pos (by exact_mod_cast hn)
   have hF : 0 ≤ Real.log (F + 1 : ℝ) := Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ F + 1))
-  have hdiv := div_nonneg hF hlog.le
   unfold weightExponent Real.logb
-  linarith only [hdiv]
+  linarith [div_nonneg hF hlog.le]
 
 private theorem bound_le_rpow_weightExponent {n : ℕ} (hn : 2 ≤ n) (F : ℕ) :
     (F : ℝ) ≤ (n : ℝ) ^ weightExponent n F := by
@@ -70,14 +69,11 @@ private theorem original_weights {n F : ℕ} (values : List ℤ)
       (fun u v : Fin n => values.getD (pairIndex (u, v)) 0)
       (fun u v => values.getD (n * n + pairIndex (u, v)) 0)
       (fun u v => values.getD (2 * (n * n) + pairIndex (u, v)) 0) (F : ℝ) := by
-  have hlookup (q : ℕ) : (values.getD q 0).natAbs ≤ F := by
-    by_cases hq : q < 3 * (n * n)
-    · exact RecordWitness.original_magnitude values hlen hv hq
-    · rw [List.getD_eq_default values 0 (by omega : values.length ≤ q), Int.natAbs_zero]
-      exact Nat.zero_le F
   have hw (q : ℕ) : ((|values.getD q 0| : ℤ) : ℝ) ≤ F := by
     rw [← Int.natCast_natAbs, Int.cast_natCast]
-    exact_mod_cast hlookup q
+    by_cases hq : q < 3 * (n * n)
+    · exact_mod_cast RecordWitness.original_magnitude values hlen hv hq
+    · simp [List.getElem?_eq_none (hlen.trans_le (Nat.not_lt.mp hq))]
   exact ⟨fun _ _ => hw _, fun _ _ => hw _, fun _ _ => hw _⟩
 
 private theorem scalar_bounds {n p : ℕ} (hn : 0 < n)
@@ -142,7 +138,6 @@ private theorem setupLog_le_log {n F κ : ℕ} (hF : F ≤ (n + 2) ^ κ) :
   have h2 : 2 ≤ n + 2 := by omega
   have h1 : 1 ≤ (n + 2) ^ κ := Nat.one_le_pow _ _ (by omega)
   have hn2 : n * n ≤ (n + 2) ^ 2 := by nlinarith
-  have hnB : n ≤ (n + 2) ^ 2 := by nlinarith
   have hAB : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ 17 * ((n + 2) ^ κ * (n + 2) ^ 2) := by
     nlinarith
   have h5 : 17 ≤ (n + 2) ^ 5 := Nat.le_trans (by decide) (Nat.pow_le_pow_left h2 5)

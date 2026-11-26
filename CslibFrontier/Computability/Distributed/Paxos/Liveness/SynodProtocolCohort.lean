@@ -42,16 +42,14 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
     (synodQuorumProtocol (V := V) qs).SafeConsensus ∧
       ∀ Q, qs.Supports Q → (synodQuorumProtocol (V := V) qs).CanDecideIn Q := by
   let π := synodQuorumProtocol (V := V) qs
-  refine ⟨?_, ?_⟩
-  · intro inp s hreach
-    obtain ⟨hr, hout⟩ := netToSynod_reach qs hreach
+  refine ⟨fun inp s hreach => ?_, fun Q₀ hQ₀ v => ?_⟩
+  · obtain ⟨hr, hout⟩ := netToSynod_reach qs hreach
     refine ⟨fun p₁ p₂ v₁ v₂ h₁ h₂ => ?_,
       fun p v hpv => paxos_validity_crashStop qs hr (hout p ▸ hpv)⟩
     obtain ⟨b₁, hl₁⟩ := hr.learned_eq_some_iff.mp (hout p₁ ▸ h₁)
     obtain ⟨b₂, hl₂⟩ := hr.learned_eq_some_iff.mp (hout p₂ ▸ h₂)
     exact paxos_agreement_crashStop qs hr hl₁ hl₂
-  · intro Q₀ hQ₀ v
-    obtain ⟨p₀, hp₀Q⟩ := hQ₀.nonempty
+  · obtain ⟨p₀, hp₀Q⟩ := hQ₀.nonempty
     obtain ⟨⟨Q₁, hQ₁, hQ₁_sub⟩, ⟨Q₂, hQ₂, hQ₂_sub⟩⟩ := hQ₀
     let b : Ballot P := ⟨0, p₀⟩
     let qList := Q₀.toList
@@ -148,8 +146,7 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
       hs₃_2a_imp (decide_eq_true
         ⟨Q₁, hQ₁, fun a haQ => hs₃_mem a (Finset.mem_toList.mpr (hQ₁_sub haQ))⟩)
     -- Phase 2a fanout across `qList`:
-    have hal_b : allowsVote (some b) b = true := by
-      simp only [allowsVote, decide_eq_true_eq, le_refl]
+    have hal_b : allowsVote (some b) b = true := by simp [allowsVote]
     obtain ⟨hmtr_2a, hs₄_pl, _, hs₄_in⟩ :=
       deliver_fanout_acc qs p₀ (.phase2a b v)
         { maxBal := some b, maxVoted := none, crashed := false }
@@ -180,8 +177,6 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
         (fun x hx => (hs₄_in x hx).2)
         ⟨hs₄_learn, fun _ hm => False.elim (Finset.notMem_empty _ hm)⟩
     set s₅ := qList.foldl (fun w a => π.deliverStep w ⟨a, p₀, .phase2b a b v⟩) s₄
-    have hs₅_recv : ∀ a ∈ qList, ⟨a, b, v⟩ ∈ (s₅.proc p₀).state.learn.received :=
-      fun a ha => hs₅_recv_S a (hs₅_mem a ha)
     let xl : List (NetAction P ℕ (Msg P P V)) :=
       [act₀] ++
         (qList.map fun a => NetAction.deliver (L := ℕ) ⟨p₀, a, Msg.phase1a b⟩) ++
@@ -196,7 +191,7 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
       exacts [hp₀Q, ⟨hp₀Q, haQ⟩, ⟨haQ, hp₀Q⟩, ⟨hp₀Q, haQ⟩, ⟨haQ, hp₀Q⟩]
     obtain ⟨hr₅, hout₅⟩ := netToSynod_reach qs ⟨xl, hmtr_all⟩
     have hlearnedAt₅ : (netToSynod s₅).LearnedAt qs p₀ b v :=
-      ⟨Q₂, hQ₂, fun a haQ => hs₅_recv a (Finset.mem_toList.mpr (hQ₂_sub haQ))⟩
+      ⟨Q₂, hQ₂, fun a haQ => hs₅_recv_S a (hs₅_mem a (Finset.mem_toList.mpr (hQ₂_sub haQ)))⟩
     exact ⟨xl, s₅, hgroup, hmtr_all, p₀, hp₀Q, v,
       (hout₅ p₀).trans (hr₅.learned_eq_some_iff.mpr ⟨b, hlearnedAt₅⟩)⟩
 

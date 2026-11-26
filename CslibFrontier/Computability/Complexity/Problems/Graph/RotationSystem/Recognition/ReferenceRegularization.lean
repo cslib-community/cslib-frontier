@@ -77,9 +77,7 @@ private theorem transverse_of_vector_factors
     (hab : a.re * b.im - a.im * b.re ≠ 0) :
     A.re * B.im - A.im * B.re ≠ 0 := by
   have hdet : a.re * b.im - a.im * b.re = (c * d) * (A.re * B.im - A.im * B.re) := by
-    rw [ha, hb]
-    simp only [Complex.smul_re, Complex.smul_im, smul_eq_mul]
-    ring
+    simp only [ha, hb, Complex.smul_re, Complex.smul_im, smul_eq_mul]; ring
   exact (mul_ne_zero_iff.mp (hdet ▸ hab)).2
 
 -- An actual local transverse pair together with its two affine segment embeddings
@@ -158,11 +156,11 @@ private theorem local_contact_global {I : FixedRotationInput}
     transport_local_transverse (A.patch z e) (A.patch z f)
       (A.drawing.route e.val) (A.drawing.route f.val) i j i' j'
       hα hαβ hβ hγ hγδ hδ hu hv heu hfv hi hj hdet
-  refine ⟨heu' ▸ (A.drawing.route e.val).at_mem_support i' ⟨hu'.1.le, hu'.2.le⟩,
+  exact ⟨heu' ▸ (A.drawing.route e.val).at_mem_support i' ⟨hu'.1.le, hu'.2.le⟩,
     hfv' ▸ (A.drawing.route f.val).at_mem_support j' ⟨hv'.1.le, hv'.2.le⟩,
-    fun v hv heq => ?_, i', j', u', v', hu', hv', heu', hfv', hdet'⟩
-  exact A.avoids_vertices z.val z.property v hv
-    (Metric.ball_subset_closedBall (by simpa only [heq, A.vertex_eq] using A.patch_support z e he))
+    fun v hv heq => A.avoids_vertices z.val z.property v hv (Metric.ball_subset_closedBall
+      (by simpa only [heq, A.vertex_eq] using A.patch_support z e he)),
+    i', j', u', v', hu', hv', heu', hfv', hdet'⟩
 
 -- A closed gap in the COMPLETE sorted cut list misses the open interior of EVERY
 -- selected cut, including nonadjacent cuts. End cuts use source endpoints 0 and 1;
@@ -402,8 +400,7 @@ private theorem assembled_support_cases {I : FixedRotationInput}
           have h := j.isLt
           simp only [Route.segments_foldl_append] at h
           change j.val < 1 + nodes.length at h
-          rw [hword, List.length_cons, List.length_cons]
-          omega
+          rw [hword, List.length_cons, List.length_cons]; omega
         refine ⟨word[j.val], word[j.val + 1], List.getElem_mem_consecutivePairs word j.val hj, ?_⟩
         simpa only [hword] using Route.eval_foldl_append_line (D.route e).start
           (AffineMap.lineMap (D.route e).start (D.route e).finish (α z)) nodes j t
@@ -501,10 +498,9 @@ private theorem reference_open_of_support {I : FixedRotationInput} (hI : Valid I
     (hvertex : ∀ v ∈ (subdivisionGraph I).vertices, w ≠ (referenceDrawing I).vertex v) :
     w ∈ openSegment ℝ ((referenceDrawing I).route e).start
       ((referenceDrawing I).route e).finish := by
-  have hend (tag : Bool) : w ≠ ((referenceDrawing I).route e).endpoint tag := by
-    rw [(referenceDrawing I).endpoint_eq]
-    exact hvertex _ (((referenceOrder_enumerates hI).2 _).mp
-      ((subdivision_endpoint_spec hI e).1 tag))
+  have hend (tag : Bool) : w ≠ ((referenceDrawing I).route e).endpoint tag :=
+    (referenceDrawing I).endpoint_eq e tag ▸
+      hvertex _ (((referenceOrder_enumerates hI).2 _).mp ((subdivision_endpoint_spec hI e).1 tag))
   exact mem_openSegment_of_ne_left_right (hend false).symm (hend true).symm
     (Route.support_line _ _ ▸ hw)
 
@@ -542,7 +538,6 @@ private theorem old_gap_outside_slab {I : FixedRotationInput} (hI : Valid I)
     (((referenceDrawing I).route e.val).eval 0 t).re ≤ z.val.re - A.extent z ∨
       z.val.re + A.extent z ≤ (((referenceDrawing I).route e.val).eval 0 t).re := by
   have hends := patch_real_ends A z e
-  dsimp only at hends
   set a := ((referenceDrawing I).route e.val).start.re
   set b := ((referenceDrawing I).route e.val).finish.re
   have hne : a ≠ b := fun heq =>
@@ -641,9 +636,8 @@ private theorem global_contact_same_patch {I : FixedRotationInput} (hI : Valid I
       reference_open_of_support hI e heold hvertex',
       reference_open_of_support hI f (hue ▸ ((referenceDrawing I).route f).at_mem_support 0 hu)
         hvertex'⟩
-    have hout := old_gap_outside_slab hI A z ⟨e, heold⟩ (htg ⟨w, z.property, heold⟩)
-    rw [hte] at hout
-    rcases hout with hout | hout <;> linarith [A.extent_pos z]
+    rcases hte ▸ old_gap_outside_slab hI A z ⟨e, heold⟩ (htg ⟨w, z.property, heold⟩) with h | h <;>
+      linarith [A.extent_pos z]
 
 /-- Construct an actual global reference crossing regularization from valid input alone.
 The output assembly retains its literal route construction and all named preservation

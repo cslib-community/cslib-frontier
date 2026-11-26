@@ -111,8 +111,7 @@ private theorem isLittleO_comp_linear {s : ℕ → ℝ}
       (IsBigO.of_bound (c + d) (eventually_atTop.2 ⟨1, fun n hn => ?_⟩))
     have : (1 : ℝ) ≤ n := by exact_mod_cast hn
     simp only [Function.comp, Real.norm_natCast]
-    push_cast
-    nlinarith
+    push_cast; nlinarith
 
 /-! ### Single-machine subexponential decision and function computation -/
 
@@ -240,13 +239,11 @@ theorem computableInSingleSubexpTime_iff_exists_machine {f : α → β} {encIn :
       (L := (encIn a).length) (e := e) (hK (μ a))) (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀)
     have hpos := mul_nonneg (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀)
       (by positivity : (0 : ℝ) ≤ 2 ^ (δ * μ a) * (((encIn a).length : ℝ) + 1) ^ e)
-    push_cast
-    linarith
+    push_cast; linarith
   · rintro ⟨t, sp, e, hcomp, h⟩
     obtain ⟨s, hnn, hs_o, hbound⟩ := exists_isLittleO_of_forall_exp_bound h
     refine ⟨s, e, hnn, hs_o, 1, t, sp, fun a => ?_, hcomp⟩
-    push_cast
-    linarith [hbound a]
+    push_cast; linarith [hbound a]
 
 /-- **Machine-quantifier characterization of `DecidableInSingleSubexpTime`.** Single-machine
 `2 ^ o(μ)` decision is equivalent to having *one* machine (`DecidableInTimeAndSpace A enc t sp`)
@@ -281,8 +278,7 @@ theorem ComputableInSingleSubexpTime.mono_measure {f : α → β} {encIn : α �
     hO.mono 1 (fun a => ?_) fun _ => by positivity⟩
   have h := two_rpow_mul_pow_le_two_rpow_mul_pow (L := (encIn a).length) (d := e) (e := e)
     ((hle (μ a)).trans (hmono (hμ a))) le_rfl
-  push_cast
-  linarith
+  push_cast; linarith
 
 /-- Single-machine subexponential decision transfers to any parameter at least linear in `μ`. -/
 theorem DecidableInSingleSubexpTime.mono_measure {A : Set α} {enc : α ↪ List Bool}
@@ -366,8 +362,7 @@ theorem ComputableInSingleSubexpTime.of_reduction {μA : α → ℕ} {μB : β �
   have hc_nn : (0 : ℝ) ≤ (1 + k * (2 * l + 1) ^ e + k : ℕ) := Nat.cast_nonneg _
   push_cast at hc_nn ⊢
   rw [pow_mul]
-  dsimp only [P, X] at hsum ⊢
-  linarith
+  dsimp only [P, X] at hsum ⊢; linarith
 
 /-- **Transfer along linear-parameter polynomial-time reductions (`SingleSubexp` decision).** -/
 theorem DecidableInSingleSubexpTime.of_reduction {A : Set α} {B : Set β}
@@ -488,9 +483,9 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
       (pow_le_pow_right₀ hL1 (by omega)).trans (le_mul_of_one_le_left (by positivity) hX1)
     have hring : (1 + (c : ℝ) * C_sched * 2 ^ N + c) * X =
         X + (c : ℝ) * ((C_sched * 2 ^ N : ℝ) * X) + (c : ℝ) * X := by ring
-    dsimp only [C_total, L1, X] at hT_le hc_prod hdp_le hring ⊢
-    push_cast at hc_prod ⊢
-    linarith [show (0 : ℝ) ≤ (c : ℝ) * X + (1 + c * C_sched * 2 ^ N) by positivity]
+    have hnn_rem : (0 : ℝ) ≤ (c : ℝ) * X + (1 + c * C_sched * 2 ^ N) := by positivity
+    dsimp only [C_total, L1, X] at hT_le hc_prod hdp_le hring hnn_rem ⊢
+    push_cast at hc_prod ⊢; linarith
   obtain ⟨s, hnn, hs_o, hbound⟩ := exists_isLittleO_of_forall_exp_bound hforall
   exact ⟨s, dp + ds * d + e, hnn, hs_o, ComputableInTimeO.of_computableInO hfO hbound⟩
 

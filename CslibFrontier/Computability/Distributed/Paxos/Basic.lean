@@ -705,8 +705,7 @@ private lemma SynodCoreInv.of_proposer_update {inputs : Proposer → V}
   prop_promises q r' hq := by
     dsimp only [] at hq ⊢
     split_ifs at hq ⊢ with hqp
-    · exact hqp ▸ hprom r' hq
-    · exact proposerPromiseInv_mono hsub (hinv.prop_promises q r' hq)
+    exacts [hqp ▸ hprom r' hq, proposerPromiseInv_mono hsub (hinv.prop_promises q r' hq)]
   phase2a_witness := h2a_wit
   acc_local a vt hvt := (hinv.acc_local a vt hvt).imp_right fun h => hsub h
   phase1b_inv a b mv hm :=
@@ -855,10 +854,9 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
           ⟨b, rfl, (by simpa only [aboveMaxBal, hmb, decide_eq_true_eq] using habove : mb < b).le⟩)
         (fun vt hvt => ⟨vt, hvt, le_rfl⟩)
         (fun vt hvt => ⟨⟨b, rfl, (hvt_lt vt hvt).1.le⟩, (hvt_lt vt hvt).2⟩)
-        (fun a' b' mv hm => by
-          rcases Finset.mem_insert.mp hm with h | hold
-          · cases h; exact Or.inr ⟨rfl, ⟨_, rfl, le_rfl⟩, hvt_lt⟩
-          · exact Or.inl hold)
+        (fun a' b' mv hm => (Finset.mem_insert.mp hm).symm.imp_right fun h => by
+          cases h
+          exact ⟨rfl, ⟨_, rfl, le_rfl⟩, hvt_lt⟩)
         (fun _ _ _ hm => Or.inl (Finset.mem_of_mem_insert_of_ne hm nofun))
         (fun a' b₀ v₀ b' mv h2b h1b hlt => by
           have h2b' := Finset.mem_of_mem_insert_of_ne h2b nofun
@@ -877,8 +875,8 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
         simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq] at hprop_q
         obtain ⟨hnot_prop, Q, hQ, hQsub⟩ := hprop_q
         have hprom' := mergeVote_promises_inv qs hinv hround hen.2
-        set maxVote' := mergeVote (s.proposers p).maxVote mv
-        set val := match maxVote' with | some vt => vt.value | none => (s.proposers p).input
+        let val := match mergeVote (s.proposers p).maxVote mv with
+          | some vt => vt.value | none => (s.proposers p).input
         have hno_prior_2a : ∀ v_old, Msg.phase2a ⟨r, p⟩ v_old ∉ s.msgs := fun v_old hm_old => by
           obtain ⟨r_cur, hr_cur, hrel⟩ := hinv.prop_phase2a_round r p v_old hm_old
           obtain rfl := Option.some.inj (hround.symm.trans hr_cur)
@@ -886,14 +884,12 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
         have ⟨hval_valid, hwit_s⟩ : (∃ p₀, inputs p₀ = val) ∧
             Phase2aQuorumWitness qs s.msgs ⟨r, p⟩ val := by
           dsimp only [val]
-          cases hmv' : maxVote' with
-          | none =>
-            rw [hmv'] at hprom'
-            exact ⟨⟨p, (hinv.prop_input p).symm⟩, Q, hQ, Or.inl fun a' ha' => hprom' a' (hQsub ha')⟩
-          | some vt =>
-            rw [hmv'] at hprom'
-            exact ⟨hinv.phase2a_valid _ _ hprom'.2.1, Q, hQ,
-              Or.inr ⟨vt, rfl, hprom'.1, hprom'.2.1, fun a' ha' => hprom'.2.2 a' (hQsub ha')⟩⟩
+          exact match mergeVote (s.proposers p).maxVote mv, hprom' with
+            | none, hprom' =>
+              ⟨⟨p, (hinv.prop_input p).symm⟩, Q, hQ, Or.inl fun a' ha' => hprom' a' (hQsub ha')⟩
+            | some vt, ⟨hlt, h2a, hall⟩ =>
+              ⟨hinv.phase2a_valid _ _ h2a, Q, hQ,
+                Or.inr ⟨vt, rfl, hlt, h2a, fun a' ha' => hall a' (hQsub ha')⟩⟩
         refine hinv.of_proposer_update qs (Finset.subset_insert _ _)
           (fun _ _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun)
           (fun _ _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun) rfl
@@ -937,8 +933,8 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
           ⟨b, rfl, by simpa only [allowsVote, hmb, decide_eq_true_eq] using hallows⟩)
         (fun vt hvt => by
           obtain ⟨⟨mb, hmb, hvt_le⟩, _⟩ := hinv.acc_local a vt hvt
-          simp only [allowsVote, hmb, decide_eq_true_eq] at hallows
-          exact ⟨⟨b, v⟩, rfl, hvt_le.trans hallows⟩)
+          exact ⟨⟨b, v⟩, rfl, hvt_le.trans
+            (by simpa only [allowsVote, hmb, decide_eq_true_eq] using hallows)⟩)
         (fun _ hvt => Option.some.inj hvt ▸ ⟨⟨b, rfl, le_rfl⟩, hen.2⟩)
         (fun _ _ _ hm => Or.inl (Finset.mem_of_mem_insert_of_ne hm nofun))
         (fun a' b' v' hm => (Finset.mem_insert.mp hm).symm.imp_right fun h => by

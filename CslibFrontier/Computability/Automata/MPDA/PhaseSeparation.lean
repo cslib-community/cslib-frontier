@@ -87,18 +87,17 @@ theorem not_phaseBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       μ.2 = .pop (⟨j % 2, Nat.mod_lt _ (by omega)⟩ : Fin 2) γ := by
     intro j hj
     have hletter : (w.map Prod.fst)[2 * m + j]? = some (if j % 2 = 0 then .c else .d) := by
+      have hsub : 2 * m + j - (m + m) = j := by omega
+      have hlt2 : j < m * (0 + 1 + 1) := by omega
       rw [hw, word, List.getElem?_append_right (by simp; omega), List.getElem?_flatten_replicate]
       simp only [List.length_append, List.length_replicate, List.length_cons,
-        List.length_nil, show 2 * m + j - (m + m) = j by omega,
-        show j < m * (0 + 1 + 1) by omega, ↓reduceIte]
+        List.length_nil, hsub, hlt2, ↓reduceIte]
       rcases Nat.mod_two_eq_zero_or_one j with hj2 | hj2 <;> simp [hj2]
-    rw [List.getElem?_map] at hletter
-    obtain ⟨μ, hμ, hμ1⟩ := Option.map_eq_some_iff.mp hletter
-    have hk := hkind μ (List.mem_of_getElem? hμ)
-    rw [hμ1] at hk
-    obtain ⟨γ, hγ⟩ : ∃ γ, μ.2 = .pop (⟨j % 2, Nat.mod_lt _ (by omega)⟩ : Fin 2) γ := by
-      refine Op.kind_eq_pop.mp (hk.trans ?_)
-      rcases Nat.mod_two_eq_zero_or_one j with hj2 | hj2 <;> simp [hj2, kind]
+    obtain ⟨μ, hμ, hμ1⟩ := Option.map_eq_some_iff.mp (List.getElem?_map.symm.trans hletter)
+    obtain ⟨γ, hγ⟩ := Op.kind_eq_pop (i := ⟨j % 2, Nat.mod_lt _ (by omega)⟩).mp <|
+      (hkind μ (List.mem_of_getElem? hμ)).trans <| by
+        rw [hμ1]
+        rcases Nat.mod_two_eq_zero_or_one j with hj2 | hj2 <;> simp [hj2, kind]
     exact ⟨μ, γ, hμ, hγ⟩
   have hcard := List.Splits.card_le (fun _ _ huv hv => IsPhase.of_isInfix huv hv) hs
     ((Finset.range (2 * m)).image (2 * m + ·))
@@ -176,9 +175,9 @@ theorem phaseBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_, nofun⟩
   · rw [hw₁] at hx
     simp only [List.mem_append, List.mem_flatten, List.mem_replicate] at hx
-    rcases hx with ⟨l, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
-    · rcases (by simpa using hl : x = .a ∨ x = .b) with rfl | rfl <;> simp_all [kind]
-    · simp_all [kind]
+    rcases hx with ⟨_, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
+    · rcases List.mem_pair.mp hl with rfl | rfl <;> simp [kind] at hi
+    · simpa [kind] using hi.symm
   · simpa [kind, (List.mem_replicate.mp (hw₂ ▸ hx)).2] using hi.symm
 
 /-! ## `L'` is not hole-bounded -/
@@ -241,15 +240,13 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       ¬∃ p, SameHole w (2 * n - 1) p (2 * i) := by
     intro i hi
     obtain ⟨μ, hμ, -⟩ := hentry (2 * i) (by omega)
-    have hμa : μ.1 = .a := by
-      simpa [show 2 * i % 2 = 0 by omega] using hlt (by omega) hμ
+    have hμa : μ.1 = .a := by simpa [Nat.mul_mod_left] using hlt (by omega) hμ
     obtain ⟨γ, hγ⟩ := Op.kind_eq_push.mp ((hkind μ (List.mem_of_getElem? hμ)).trans
       (by rw [hμa]; rfl))
     have hpush : w[2 * i]? = some (μ.1, .push 0 γ) := by rw [hμ, ← hγ]
     -- The `b` right after it.
     obtain ⟨ν, hν, -⟩ := hentry (2 * i + 1) (by omega)
-    have hνb : ν.1 = .b := by
-      simpa [show (2 * i + 1) % 2 = 1 by omega] using hlt (by omega) hν
+    have hνb : ν.1 = .b := by simpa [Nat.mul_add_mod] using hlt (by omega) hν
     have hpend : PendingAt w (2 * i) (2 * n - 1) := by
       refine ⟨by omega, by omega, 0, ⟨μ.1, γ, hpush⟩, fun k => ?_⟩
       refine (net_of_ab (fun μ hμ => hkext _ _ μ (List.mem_of_mem_take hμ))
@@ -260,17 +257,17 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       obtain ⟨-, j, ⟨a', γ', hj⟩, ⟨b', δ, hmpop⟩, -, -⟩ := hm
       simp only [hpush, Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hj
       obtain ⟨-, rfl, -⟩ := hj
-      have hm := hlet hmpop
       have hmk := hkind _ (List.mem_of_getElem? hmpop)
-      simp only [Op.kind] at hmk
       have hm2 : 2 * n ≤ m ∧ m < 3 * n := by
-        rcases phaseWord_cases hm with ⟨-, h⟩ | ⟨h₁, h₂, -⟩ | ⟨-, -, h⟩
-        · split_ifs at h <;> subst h <;> simp [kind] at hmk
+        rcases phaseWord_cases (hlet hmpop) with ⟨-, h⟩ | ⟨h₁, h₂, -⟩ | ⟨-, -, h⟩
+        · split_ifs at h <;> subst h <;> simp [kind, Op.kind] at hmk
         · exact ⟨h₁, h₂⟩
-        · subst h; simp [kind] at hmk
+        · subst h
+          simp [kind, Op.kind] at hmk
       have hnet := hwn.net_eq_zero 1
-      rw [← w.extract_append_extract (show 2 * i ≤ 2 * n by omega) (show 2 * n ≤ m + 1 by omega),
-        net_append] at hnet
+      have hsplit := w.extract_append_extract (a := 2 * i) (b := 2 * n) (c := m + 1)
+        (by omega) (by omega)
+      rw [← hsplit, net_append] at hnet
       have h₁ := (net_of_ab (u := w.extract (2 * i) (2 * n)) (hkext _ _) (ab_of_lt hw le_rfl)).2
         ⟨ν, List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hν⟩, hνb⟩
       -- The factor from `2 * n` to `m` carries only `c`s, which do not touch stack `1`.
@@ -287,19 +284,17 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       rintro ⟨p, hpq, -, -, ⟨j, ⟨a₁, γ₁, hp⟩, ⟨a₂, γ₂, hq⟩⟩, hwn⟩
       simp only [hpush, Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hq
       obtain ⟨-, rfl, -⟩ := hq
-      have hpl := hlet hp
       have hpk := hkind _ (List.mem_of_getElem? hp)
       have hp2 : p % 2 = 0 := by
         by_contra hodd
-        rcases phaseWord_cases hpl with ⟨-, h⟩ | ⟨-, -, h⟩ | ⟨-, -, h⟩ <;>
+        rcases phaseWord_cases (hlet hp) with ⟨-, h⟩ | ⟨-, -, h⟩ | ⟨-, -, h⟩ <;>
           simp_all [kind, Op.kind]
       obtain ⟨ν', hν', -⟩ := hentry (2 * i - 1) (by omega)
-      have hν'b : ν'.1 = .b := by
-        simpa [show (2 * i - 1) % 2 = 1 by omega] using hlt (by omega) hν'
-      have hν'mem : ν' ∈ w.extract (p + 1) (2 * i) :=
-        List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hν'⟩
+      have hodd' : (2 * i - 1) % 2 = 1 := by omega
+      have hν'b : ν'.1 = .b := by simpa [hodd'] using hlt (by omega) hν'
       have h₁ := (net_of_ab (u := w.extract (p + 1) (2 * i)) (hkext _ _)
-        (ab_of_lt hw (by omega))).2 ⟨ν', hν'mem, hν'b⟩
+        (ab_of_lt hw (by omega))).2 ⟨ν', List.mem_extract_iff_getElem?.mpr
+          ⟨_, by omega, by omega, hν'⟩, hν'b⟩
       have := hwn.net_eq_zero 1
       omega
   -- So at least `n` holes are open after `(a b)ⁿ`.
@@ -307,9 +302,8 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       {q | OpenHolePush w (2 * n - 1) q ∧ ¬∃ p, SameHole w (2 * n - 1) p q} := by
     rw [Finset.coe_image, Set.image_subset_iff]
     exact fun i hi => hmem i (Finset.mem_range.mp hi)
-  have hfin : {q | OpenHolePush w (2 * n - 1) q ∧ ¬∃ p, SameHole w (2 * n - 1) p q}.Finite :=
-    (Set.finite_le_nat (2 * n - 1)).subset fun q hq => hq.1.2.1
-  have := Set.ncard_le_ncard hsubset hfin
+  have := Set.ncard_le_ncard hsubset
+    ((Set.finite_le_nat (2 * n - 1)).subset fun q hq => hq.1.2.1)
   rw [Set.ncard_coe_finset, Finset.card_image_of_injective _ (mul_right_injective₀ two_ne_zero),
     Finset.card_range] at this
   have := hb (2 * n - 1) (by omega)

@@ -392,8 +392,7 @@ private theorem closeTo_coupledCache_cachedCoupledBotHandler (S : Scheme PK SK M
               hlook, Option.elim_none]
           refine le_of_eq_of_le ?_ ((ENNReal.le_ofReal_iff_toReal_le
             (PMF.toOuterMeasure_ne_top _ _) (by positivity)).mpr (hγ pk sk hpk m' c))
-          rw [← hmap, PMF.toOuterMeasure_map_apply]
-          rfl
+          rw [← hmap, PMF.toOuterMeasure_map_apply]; rfl
 
 /-- Running a decapsulation-bounded program under the handler of `cachedCoupledBotGame` is within
 `d · 2^{-γ}` of completing the three caches into tables `G`, `Hraw` and `Hq` and running it under
@@ -456,24 +455,12 @@ theorem closeTo_cachedCoupledBotGame_eagerCoupledBotGame
     congr 1 with ⟨pk, sk⟩ : 1
     congr 1 with mStar : 1
     congr 1 with rStar : 1
-    set cStar := S.pke.encDet pk mStar rStar
-    have hP (kRand : K) :
-        (ProbComp.eval ((OracleComp.interpret
-          (S.coupledFilterHandler (cachedCoupledBotCheck S.pke pk sk) pk sk cStar)
-          (OracleComp.query (spec := ROResp (M := M) (CT := CT) R K)
-            (ROQuery.H (false, mStar, cStar)) >>= fun k =>
-              A ⟨pk, cStar, if b then kRand else k⟩)).run
-          { gCache := [(mStar, rStar)] })).map Prod.fst =
-        (ProbComp.eval ((S.coupledHashH pk sk (false, mStar, cStar)).run
-          { gCache := [(mStar, rStar)] })).bind (fun z =>
-          (ProbComp.eval ((OracleComp.interpret
-            (S.coupledFilterHandler (cachedCoupledBotCheck S.pke pk sk) pk sk cStar)
-            (A ⟨pk, cStar, if b then kRand else z.1⟩)).run z.2)).bind fun a => PMF.pure a.1) := by
-      rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
-      simp only [pmf_norm]
-      rfl
     rw [PMF.bind_comm]
-    simp only [← hP]
+    congr 1 with kRand : 1
+    symm
+    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
+    simp only [pmf_norm]
+    rfl
   have hR : S.eagerCoupledBotGame A b =
       (ProbComp.eval S.pke.keyGen).bind fun keys =>
       (ProbComp.eval S.sampleMsg).bind fun mStar =>

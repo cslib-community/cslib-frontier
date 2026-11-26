@@ -86,10 +86,9 @@ private theorem costs_expandSigningRetries (K : ℕ)
     | false, false => K
     | true, true => 1
     | _, _ => 0
-  have bound (i : Bool) : IsCostBounded (cost i) program (budget i) := by
-    cases i
-    · exact hS.of_le fun q => by cases q <;> rfl
-    · exact hH.of_le fun q => by cases q <;> rfl
+  have bound : ∀ i, IsCostBounded (cost i) program (budget i)
+    | false => hS.of_le fun q => by cases q <;> rfl
+    | true => hH.of_le fun q => by cases q <;> rfl
   have hx (j : Bool) : IsCostBounded (cost j) (expandSigningRetries P K program)
       (∑ i, budget i * demand i j) := by
     refine IsCostBounded.interpret_demand cost cost demand _ (fun q c => ?_) bound j
@@ -256,8 +255,8 @@ private theorem closeTo_terminalTrials (K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF
   obtain ⟨hs, hh⟩ := costs_expandSigningRetries P K hS hH
   have hmass (m q) : ((trialCoins P hγ dist).map (fun x => trialPoint P sk m x.2)) q ≤
       commitmentGuessProbability P hγ sk.A := by
-    simp only [trialCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const]
-    exact trialPoint_le P hγ sk m q
+    simpa only [trialCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const] using
+      trialPoint_le P hγ sk m q
   have erased := RandomOracle.closeTo_eraseRejectedTrialWrites (trialCoins P hγ dist)
     (fun m x => trialPoint P sk m x.2) Prod.fst
     (fun _ x => result x.2 x.1) hs hh hmass []
@@ -571,8 +570,8 @@ private theorem recorded_of_mem_simulatePartialSigningTranscript (d ω K : ℕ) 
     (fun st => ∀ e ∈ st.1, writeRecorded P attempt st.2 e)
     (fun q ⟨st, prev⟩ hprev answer after h => ?_) program ([], []) (by simp) a (cache, log) hrun
   obtain ⟨⟨_, next⟩, hquery, ⟨⟩⟩ := (PMF.mem_support_map_iff ..).1 h
-  intro e he
-  have old (he : e ∈ st) := writeRecorded_cons P ⟨q, answer⟩ (hprev e he)
+  have old : ∀ e ∈ st, writeRecorded P attempt (⟨q, answer⟩ :: prev) e :=
+    fun e he => writeRecorded_cons P ⟨q, answer⟩ (hprev e he)
   rcases q with msg | point
   · change (answer, next) ∈
       ((interpret primitive (outerSigningQuery P K (.inl msg))).run st).support at hquery
@@ -581,23 +580,19 @@ private theorem recorded_of_mem_simulatePartialSigningTranscript (d ω K : ℕ) 
     obtain ⟨⟨_, _⟩, hsearch, ⟨⟩⟩ := hquery
     rcases retry_support P dist attempt msg (List.range K) st hsearch with
       ⟨rfl, rfl⟩ | ⟨raw, w, sent, rfl, rfl, ht⟩
-    · exact old he
-    · rcases List.mem_cons.mp he with rfl | htail
-      · exact ⟨List.mem_cons_self, ht⟩
-      · exact old htail
+    · exact old
+    · exact List.forall_mem_cons.mpr ⟨⟨List.mem_cons_self, ht⟩, old⟩
   · simp only [outerSigningQuery, sumHandler, interpret_query, primitive, observedTrial,
       terminalTrialHandler] at hquery
     cases eq : st.lookup point with
     | some entry =>
       simp only [eq, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hquery
-      exact old (hquery.2 ▸ he)
+      exact hquery.2 ▸ old
     | none =>
       simp only [eq, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
         PMF.mem_support_pure_iff, Prod.mk.injEq] at hquery
       obtain ⟨raw, _, rfl, rfl⟩ := hquery
-      rcases List.mem_cons.mp he with rfl | htail
-      · exact List.mem_cons_self
-      · exact old htail
+      exact List.forall_mem_cons.mpr ⟨List.mem_cons_self, old⟩
 
 /-- A candidate forgery in the compressed signing ROM: a message representative, a transmitted
 commitment digest, and a decoded compressed signature. -/

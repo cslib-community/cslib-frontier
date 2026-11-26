@@ -122,8 +122,7 @@ private theorem card_lits_toFinset_le (φ : CNF V) :
   have hle : (lits φ).toFinset.card ≤ (φ.vars.toFinset ×ˢ (Finset.univ : Finset Bool)).card :=
     Finset.card_le_card fun ℓ hℓ => Finset.mem_product.mpr
       ⟨List.mem_toFinset.mpr ((mem_lits_iff φ ℓ).mp (List.mem_toFinset.mp hℓ)), Finset.mem_univ _⟩
-  rw [Finset.card_product, Finset.card_univ, Fintype.card_bool, ← CNF.numVars] at hle
-  omega
+  rw [Finset.card_product, Finset.card_univ, Fintype.card_bool, ← CNF.numVars] at hle; omega
 
 theorem hasImpEdge_eq_true_iff (φ : CNF V) (ℓ ℓ' : Literal V) :
     hasImpEdge φ ℓ ℓ' = true ↔ φ.Implies ℓ ℓ' := by
@@ -375,8 +374,7 @@ theorem solve_eq_true_iff_mem (φ : CNF ℕ) : solve φ = true ↔ φ ∈ TwoSAT
 theorem computableInPolyTime_lits {α : Type} {encIn : α ↪ List Bool} {φ : α → CNF ℕ}
     (hφ : ComputableInPolyTime φ encIn encCNF) :
     ComputableInPolyTime (fun a => lits (φ a)) encIn (encClause encNat) := by
-  unfold lits
-  fun_prop
+  fun_prop [lits]
 
 @[fun_prop]
 theorem computableInPolyTime_hasImpEdge {α : Type} {encIn : α ↪ List Bool}
@@ -385,15 +383,13 @@ theorem computableInPolyTime_hasImpEdge {α : Type} {encIn : α ↪ List Bool}
     (hℓ : ComputableInPolyTime ℓ encIn (encPair encNat encBool))
     (hℓ' : ComputableInPolyTime ℓ' encIn (encPair encNat encBool)) :
     ComputableInPolyTime (fun a => hasImpEdge (φ a) (ℓ a) (ℓ' a)) encIn encBool := by
-  simp only [hasImpEdge, List.contains_eq_mem]
-  fun_prop
+  simp only [hasImpEdge, List.contains_eq_mem]; fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_stepReach :
     ComputableInPolyTime (fun p : CNF ℕ × Clause ℕ => stepReach p.1 p.2)
       (encPair encCNF (encClause encNat)) (encClause encNat) := by
-  simp only [stepReach, List.contains_eq_mem]
-  fun_prop
+  simp only [stepReach, List.contains_eq_mem]; fun_prop
 
 private theorem computableInPolyTime_reachPair :
     ComputableInPolyTime (fun p : CNF ℕ × Literal ℕ => reach p.1 p.2)
@@ -440,8 +436,7 @@ polynomial-time under `encPair encCNF encNat`. -/
 theorem computableInPolyTime_assignment :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => assignment p.1 p.2)
       (encPair encCNF encNat) encBool := by
-  simp only [assignment, List.contains_eq_mem]
-  fun_prop
+  simp only [assignment, List.contains_eq_mem]; fun_prop
 
 /-- Native multi-tape polynomial-time certificate for the total `TwoSAT` decider. -/
 @[fun_prop]

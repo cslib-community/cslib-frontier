@@ -109,8 +109,7 @@ private theorem inner_eq_zero_or_exists_smul_of_clone_apparatus_core (T : E → 
     rw [hUx, hT, hT, inner_self_eq_one_of_norm_eq_one hx, inner_self_eq_one_of_norm_eq_one he,
       inner_self_eq_one_of_norm_eq_one ha₀, one_mul, one_mul, mul_one] at hn
     refine (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp ?_
-    rw [norm_sq_eq_re_inner (𝕜 := ℂ), hn]
-    simp
+    simpa [norm_sq_eq_re_inner (𝕜 := ℂ)] using congrArg RCLike.re hn
   refine or_iff_not_imp_left.mpr fun h0 => ?_
   set c : ℂ := ⟪ψ, φ⟫_ℂ with hc_def
   have hn := congrArg norm (U.inner_map_map (T ψ e a₀) (T φ e a₀))
@@ -143,16 +142,14 @@ private theorem not_clone_apparatus_core (T : E → E → A → G)
     rw [hs_def, Complex.conj_ofReal, ← Complex.ofReal_mul, ← mul_inv,
       Real.mul_self_sqrt (by norm_num)]
     norm_num
-  have hs0 : s ≠ 0 := by
-    rw [hs_def]; exact_mod_cast inv_ne_zero (Real.sqrt_ne_zero'.mpr (by norm_num))
+  have hs0 : s ≠ 0 := Complex.ofReal_ne_zero.mpr (inv_ne_zero (Real.sqrt_ne_zero'.mpr zero_lt_two))
   have hw : ‖s • u + s • v‖ = 1 := by
     have h2 : ⟪s • u + s • v, s • u + s • v⟫_ℂ = 1 := by
       simp only [inner_add_left, inner_add_right, inner_smul_left, inner_smul_right, huu, hvv,
         huv, hvu]
       linear_combination 2 * hs
     refine (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp ?_
-    rw [norm_sq_eq_re_inner (𝕜 := ℂ), h2]
-    simp
+    simpa [norm_sq_eq_re_inner (𝕜 := ℂ)] using congrArg RCLike.re h2
   obtain ⟨au, _, hLu⟩ := hL u hu
   obtain ⟨av, _, hLv⟩ := hL v hv
   obtain ⟨aw, haw, hLw⟩ := hL _ hw
@@ -273,9 +270,7 @@ private lemma exists_orthonormal_ket (ι : Type*) [Fintype ι] [Nontrivial ι] :
     ∃ u v : EuclideanSpace ℂ ι, ‖u‖ = 1 ∧ ‖v‖ = 1 ∧ ⟪u, v⟫_ℂ = 0 := by
   classical
   obtain ⟨i, j, hij⟩ := exists_pair_ne ι
-  refine ⟨ket i, ket j, norm_ket i, norm_ket j, ?_⟩
-  rw [ket, EuclideanSpace.inner_single_left]
-  simp [hij]
+  exact ⟨ket i, ket j, norm_ket i, norm_ket j, by simp [ket, EuclideanSpace.inner_single_left, hij]⟩
 
 /-- **No-cloning, inner-product form**, ancilla-free, for a unitary matrix `U` on `ℂ^{ι × ι}`: if
 `U` copies two unit states `ψ` and `φ` of `ℂ^ι` onto a unit blank state `e`, then `ψ` and `φ` are

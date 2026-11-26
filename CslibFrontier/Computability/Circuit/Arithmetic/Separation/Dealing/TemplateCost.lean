@@ -255,20 +255,8 @@ theorem cost_pieceTm_le (hXU0 : U0 + 1 ≤ X) (hR : Fintype.card M.Role ≤ X) (
       (C.endTm tab hD hmm g)) (by simpa [UnitId.list] using hId) fun t ht => by
       obtain ⟨u, -, rfl⟩ := List.mem_map.1 ht
       exact (cost_endTm (hD := hD) hst hnm hdc hmm g u).trans (by omega)
-  have e (l₁ l₂ : List Tm) : (catTm (l₁ ++ l₂)).cost (extend C.name st fun _ => .nil) + 20 =
-      (catTm l₁).cost (extend C.name st fun _ => .nil) +
-        (catTm l₂).cost (extend C.name st fun _ => .nil) := by
-    simp only [cost_catTm, List.map_append, List.sum_append]; omega
-  have e₁ := e (((List.finRange (K + K)).map fun p => ifTm (C.name (.gate (tab.groupGate
-    (Fin.castAdd A' p)))) (C.digitTree (Fin.castLE hmm g)) (C.basesTm p)) ++
-      (allRoles M).map fun r => ifTm (C.name (.gate (tab.groupGate (M.roleParty r))))
-        (C.digitTree (Fin.castLE hmm g)) (listTm [C.roleTm tab tg hD r]))
-    ((UnitId.list (K + K) U0 M.Channel U1).map (C.endTm tab hD hmm g))
-  have e₂ := e ((List.finRange (K + K)).map fun p => ifTm (C.name (.gate (tab.groupGate
-    (Fin.castAdd A' p)))) (C.digitTree (Fin.castLE hmm g)) (C.basesTm p))
-      ((allRoles M).map fun r => ifTm (C.name (.gate (tab.groupGate (M.roleParty r))))
-        (C.digitTree (Fin.castLE hmm g)) (listTm [C.roleTm tab tg hD r]))
-  simp only [Codes.pieceTm, Codes.scriptTm, Tm.cost, pieceBound]
+  simp only [Codes.pieceTm, Codes.scriptTm, Tm.cost, cost_catTm, List.map_append, List.sum_append,
+    pieceBound] at h1 h2 h3 ⊢
   ring_nf at h1 h2 h3 ⊢
   omega
 

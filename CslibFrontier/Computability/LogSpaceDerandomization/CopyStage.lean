@@ -121,11 +121,9 @@ include hC0 hφ0 hφθ hθf in
 theorem cutoffCorrection_residual_le_mul (hCf : ∀ x y, C x y ≤ f) (hf : 0 ≤ f)
     (hC1 : C *ᵥ 1 ≤ 1) (k : ℕ) (x y : V) :
     (C - cutoffCorrectionIter φ C k + cutoffCorrectionIter φ C k * C) x y ≤ (k + 1) * f := by
-  have h := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).input_le_mul hCf hf hC1 k
-    x y
-  have h0 := cutoffCorrectionIter_nonneg (C := C) hφ0 k x y
+  have h := (isCorrectionSeq_cutoffCorrectionIter hC0 hφ0 hφθ hθf).input_le_mul hCf hf hC1 k x y
   simp only [Matrix.add_apply, Matrix.sub_apply] at h ⊢
-  linarith
+  linarith [cutoffCorrectionIter_nonneg (C := C) hφ0 k x y]
 
 include hC0 hφ0 hφθ hθf in
 /-- **Domination of the unsigned terms**: for `θ ≤ 1`, the residual of the `(k + 1)`-th iterate
@@ -151,15 +149,14 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
   have hFE : (F * C) x y ≤ (E * C) x y :=
     Finset.sum_le_sum fun z _ =>
       mul_le_mul_of_nonneg_right (cutoffCorrectionIter_le_succ hC0 hφ0 hφm k x z) (hC0 z y)
-  have hθa : E x y ≤ max (a - θ * f) 0 := by
-    rw [hEdef, cutoffCorrectionIter_succ]
-    exact hφθ y a
   have ht0 : 0 ≤ t := by positivity
   have ht1 : t ≤ 1 := by rw [div_le_one hk]; linarith
   have htf : t * a ≤ θ * f :=
     calc t * a ≤ t * ((k + 1) * f) := mul_le_mul_of_nonneg_left ha ht0
       _ = θ * f := by simp only [t]; field_simp
   have hmin : t * a ≤ a - E x y := by
+    have hθa : E x y ≤ max (a - θ * f) 0 :=
+      (congrFun (congrFun (cutoffCorrectionIter_succ ..) x) y).trans_le (hφθ y a)
     rcases le_max_iff.mp hθa with he | he <;> nlinarith
   have hcoef : θ / (2 * (k + 1)) = t / 2 := by simp only [t]; field_simp
   rw [hcoef]
@@ -245,8 +242,7 @@ theorem sum_copyFraction (χ : ℝ → ℝ) (m : ℕ) (t : ℝ) : ∑ j, copyFra
   rw [Fin.sum_univ_succ]
   simp only [copyFraction, Fin.succ_ne_zero, ↓reduceIte, Finset.sum_const, card_univ,
     Fintype.card_fin, nsmul_eq_mul]
-  field_simp
-  ring
+  field_simp; ring
 
 theorem copyFraction_nonneg (h0 : 0 ≤ χ t) (h1 : χ t ≤ 1) (j : Fin (m + 1)) :
     0 ≤ copyFraction χ m t j := by
@@ -260,8 +256,7 @@ theorem copyFraction_le_one (h0 : 0 ≤ χ t) (h1 : χ t ≤ 1) (j : Fin (m + 1)
     copyFraction χ m t j ≤ 1 := by
   unfold copyFraction
   split_ifs
-  · have : 0 ≤ (m : ℝ) / (m + 1) * χ t := by positivity
-    linarith
+  · exact sub_le_self 1 (by positivity)
   · rw [div_le_one (by positivity)]; linarith
 
 theorem copyFraction_of_eq_zero (h : χ t = 0) (j : Fin (m + 1)) :
@@ -420,8 +415,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
     _ ≤ ∑ i, ∑ x, if x ∈ A then s i else 0 :=
         Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun x _ => hrowA i x
     _ = #A * ∑ i, s i := by
-        simp only [Finset.sum_ite_mem, univ_inter, Finset.sum_const, nsmul_eq_mul]
-        rw [Finset.mul_sum]
+        simp only [Finset.sum_ite_mem, univ_inter, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum]
 
 /-! ### One stage -/
 

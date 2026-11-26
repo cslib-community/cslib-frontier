@@ -220,17 +220,13 @@ theorem lastLiteral_value_of_wire (sites : List Point) (r : Route) (positive val
       σ (c lane).1 = value ∧ σ (c lane).2 = value) :
     σ (lastLiteral sites r positive).1.1 = value := by
   have hi : r.length - 2 < r.length - 1 := by omega
+  have hlt1 : r.length - 1 < r.length := by omega
   have hwi : r.length - 2 < (wire sites r).length := by rwa [length_wire]
-  have hc := hcompat _ (List.getElem_mem hwi)
-  rw [getElem_wire _ _ _ hi] at hc
   have hnext : r.length - 2 + 1 = r.length - 1 := by omega
-  have hget (d : Point) : r.getD (r.length - 1) d = r[r.length - 1] :=
-    List.getD_eq_getElem _ _ (by omega)
-  simp only [hnext, hget] at hc
-  have hne : r ≠ [] := by intro he; rw [he] at hlen; simp at hlen
-  unfold lastLiteral
-  rw [List.getD_eq_getElem _ _ (by omega), List.getLastD_eq_getElem _ _ hne]
-  exact (hc _).2
+  rw [lastLiteral, List.getD_eq_getElem _ _ (hi.trans hlt1),
+    List.getLastD_eq_getElem _ _ (List.ne_nil_of_length_pos (Nat.zero_lt_of_lt hlt1))]
+  simpa only [getElem_wire _ _ _ hi, hnext, List.getD_eq_getElem _ _ hlt1] using
+    (hcompat _ (List.getElem_mem hwi) _).2
 
 /-- The literal emitted at an occurrence has precisely its source variable's value. -/
 theorem lastLiteral_value {φ : CNF ℕ}
@@ -327,11 +323,9 @@ theorem exists_compatible_assignment {φ : CNF ℕ}
   refine ⟨liftAssignment σ, ?_, fun _ _ => OrdinaryRing.eval_constant _,
     fun _ _ => PairedCrossover.eval_canonicalExtension _ _⟩
   intro o ho c hc lane
-  unfold wire at hc
   obtain ⟨⟨p, k⟩, hpk, rfl⟩ := List.mem_map.mp hc
-  dsimp only
-  rw [liftAssignment_signal _ σ hcross, liftAssignment_signal _ σ hcross]
-  exact hcompat o ho _ (List.mem_map.mpr ⟨(p, k), hpk, rfl⟩)
+  simpa only [liftAssignment_signal _ σ hcross] using
+    hcompat o ho _ (List.mem_map.mpr ⟨(p, k), hpk, rfl⟩)
 
 /-- Compatible local assignments satisfy the actual output if the source holds. -/
 theorem eval_rawFormula_of_compatible {φ : CNF ℕ} (τ : ℕ → Bool) (σ : Variable → Bool)

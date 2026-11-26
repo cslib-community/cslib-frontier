@@ -158,10 +158,9 @@ theorem Circuit.outDeg_eq_one_iff (C : Circuit σ n m) {v : Wire n C.size} :
 /-- Summing `C.outDeg` over all wires counts every gate input slot of `C`. -/
 theorem Circuit.sum_outDeg (C : Circuit σ n m) :
     (∑ v : Wire n C.size, C.outDeg v) = ∑ k : Fin C.size, σ.Arity (C.program.lines k).op := by
-  simp_rw [C.outDeg_eq_card_filter]
-  rw [← Finset.card_eq_sum_card_fiberwise (fun s _ => Finset.mem_univ (C.slotWire s)),
-    Finset.card_univ, Fintype.card_sigma]
-  simp
+  simp [C.outDeg_eq_card_filter,
+    ← Finset.card_eq_sum_card_fiberwise (fun s _ => Finset.mem_univ (C.slotWire s)),
+    Fintype.card_sigma]
 
 /-- Under fan-in bound `r`, the sum of wire out-degrees is at most `r * C.size`. -/
 theorem Circuit.sum_outDeg_le_of_fanInAtMost (C : Circuit σ n m) {r : ℕ} (h : C.FanInAtMost r) :
@@ -256,13 +255,12 @@ private theorem Program.exists_deleteUnusedGate :
             wires := fun a => ρ' (line.wires a) (hlineUnused a) }
         refine ⟨q'.gate line', stepDeletedWire ρ', ?_, fun r hp => ⟨hfan' r hp.1, hp.2⟩⟩
         rintro U I x (i | j) hw
-        · simp only [stepDeletedWire, Program.trace_gate_castSucc, Program.trace_input]
-          exact htrace' I x (.input i) (by simp)
+        · simpa only [stepDeletedWire, Program.trace_gate_castSucc, Program.trace_input] using
+            htrace' I x (.input i) (by simp)
         by_cases hj : j = Fin.last (g' + 1)
         · subst hj
           simp only [stepDeletedWire, ↓reduceDIte, Program.trace_gate_last, line']
-          congr 1
-          exact funext fun a => htrace' I x (line.wires a) (hlineUnused a)
+          exact congrArg _ (funext fun a => htrace' I x (line.wires a) (hlineUnused a))
         · simp only [stepDeletedWire, hj, ↓reduceDIte, Program.trace_gate_castSucc]
           rw [htrace']
           simpa only [Wire.castSucc_gate, Fin.castSucc_castPred j hj] using
@@ -276,8 +274,7 @@ theorem Circuit.exists_noDeadGates (C : Circuit σ n m) :
       (∀ r, C.FanInAtMost r → C'.FanInAtMost r) := by
   by_cases hnoDead : C.NoDeadGates
   · exact ⟨C, hnoDead, le_rfl, fun _ _ => rfl, fun _ h => h⟩
-  · unfold Circuit.NoDeadGates at hnoDead
-    push Not at hnoDead
+  · simp only [Circuit.NoDeadGates, not_forall] at hnoDead
     obtain ⟨k₀, hout0, hnotOut⟩ := hnoDead
     generalize hs : C.size = s
     rcases C with ⟨p, outputs⟩
@@ -311,11 +308,9 @@ theorem Circuit.eval_update_of_outDeg_input_eq_zero {U : Type u} [DecidableEq (F
     refine C.program.wire_induction (P := fun w => w ≠ .input i →
       C.program.trace I (Function.update ρ i b) w = C.program.trace I ρ w)
       (fun z hz => ?_) (fun k ih _ => ?_) w
-    · have hzi : z ≠ i := fun h => hz (congrArg Wire.input h)
-      simp [Function.update_of_ne hzi]
+    · simp [Function.update_of_ne (mt (congrArg Wire.input) hz)]
     · rw [C.program.trace_gate, C.program.trace_gate]
-      congr 1
-      exact funext fun a => ih a ((C.outDeg_eq_zero_iff.mp hout) ⟨k, a⟩)
+      exact congrArg _ (funext fun a => ih a ((C.outDeg_eq_zero_iff.mp hout) ⟨k, a⟩))
   exact funext fun j => hwire _ fun h => hnotOut (C.mem_outputsFinset.mpr ⟨j, h⟩)
 
 /-! ### Critical paths and Lemma 7.4 -/
@@ -446,13 +441,9 @@ theorem Circuit.criticalPathAux_step (C : Circuit σ n m) :
     | some s =>
       cases i with
       | zero =>
-        refine ⟨s, ?_, ?_⟩
-        · simpa only [Circuit.criticalPathAux, h, List.getElem_cons_zero] using
-            C.uniqueReaderSlot_eq_some_iff.mp h
-        · have hpos : 0 < (C.criticalPathAux fuel (.gate s.1)).length :=
-            List.length_pos_iff.mpr (C.criticalPathAux_ne_nil fuel (.gate s.1))
-          simp only [Circuit.criticalPathAux, h, List.getElem_cons_succ, List.getElem_zero hpos,
-            C.head_criticalPathAux]
+        have hpos := List.length_pos_iff.mpr (C.criticalPathAux_ne_nil fuel (.gate s.1))
+        exact ⟨s, by simpa [Circuit.criticalPathAux, h] using C.uniqueReaderSlot_eq_some_iff.mp h,
+          by simp [Circuit.criticalPathAux, h, List.getElem_zero hpos]⟩
       | succ i' =>
         have hi' : i' + 1 < (C.criticalPathAux fuel (.gate s.1)).length := by
           grind [Circuit.criticalPathAux, List.length_cons]
@@ -757,8 +748,7 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
       rcases eq_or_ne k G with rfl | hkG
       · exact hpq.resolve_left (lt_irrefl _)
       simp only [T, Program.trace_gate]
-      congr 1
-      funext t
+      refine congrArg _ (funext fun t => ?_)
       have hlt : (C.slotWire ⟨k, t⟩).rank < (Wire.gate k : Wire n C.size).rank :=
         C.rank_lt_of_slotWire_eq rfl
       exact ih t (fun ht => (hclosedX ⟨k, t⟩ ht).elim hkG hkx)
@@ -782,8 +772,7 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
     | gate k ih =>
       intro hk p q hpq
       simp only [T, Program.trace_gate]
-      congr 1
-      funext t
+      refine congrArg _ (funext fun t => ?_)
       by_cases ht : C.slotWire ⟨k, t⟩ ∈ P
       · exact ih t ht p q hpq
       refine hoff _ ht (fun hQ => ?_) p q ((C.rank_lt_of_slotWire_eq rfl).trans (hrank _ hk))
@@ -802,8 +791,7 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
   out-degree `0` and so lies on neither prefix. -/
   have hG (p) : T (.gate G) p = opG (T px[a] (p.1, p.1)) (T py[b] (p.2, p.2)) := by
     simp only [T, Program.trace_gate, opG]
-    congr 1
-    funext t
+    refine congrArg _ (funext fun t => ?_)
     split_ifs with ht
     · subst ht
       exact (congrArg (T · p) hxWire).trans (hX _ hxMem _ _ rfl)

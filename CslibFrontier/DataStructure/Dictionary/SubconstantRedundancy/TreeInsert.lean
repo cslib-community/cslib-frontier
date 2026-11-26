@@ -341,7 +341,8 @@ theorem wellFormedPadded_normalInsertFresh
       rw [(nodeWait_normalInsertFresh_self st hwf x v hx_fresh hgood' h2 hℓ).1, hw_old,
         ← image_insert]
       congr 1; ext y
-      by_cases hyx : y = x <;> simp [SeedAssignment.mem_activeAt_iff, hyx, show 1 < ℓ by omega]
+      by_cases hyx : y = x <;>
+        simp [SeedAssignment.mem_activeAt_iff, hyx, Nat.one_lt_two.trans_le h2]
     · rw [nodeWait_normalInsertFresh_of_ne st hwf x v hx_fresh hgood' h2 hℓ hu, hw_old]
       congr 1; ext y
       by_cases hyx : y = x <;> simp [SeedAssignment.mem_activeAt_iff, hyx, Ne.symm hu]
@@ -398,15 +399,10 @@ private theorem removeWaitAtNode_cases (st : P.TreeState) {L : ℕ} (h2L : 2 ≤
   dsimp only [removeWaitAtNode]
   by_cases hLlt : L < P.depth
   · rw [dite_eq_left hLlt]
-    exact Or.inl ⟨hLlt,
-      { (st.inner L h2L hLlt uL) with wait := (st.inner L h2L hLlt uL).wait.remove k },
-      rfl, rfl, rfl⟩
+    refine Or.inl ⟨hLlt, _, ?_, ?_, rfl⟩ <;> rfl
   · obtain rfl : L = P.depth := by omega
     rw [dite_eq_right (lt_irrefl _)]; dsimp only [removeWaitLeafAt]
-    exact Or.inr ⟨rfl,
-      { (st.leaves uL) with leafMeta :=
-          { (st.leaves uL).leafMeta with wait := (st.leaves uL).leafMeta.wait.remove k } },
-      rfl, rfl, rfl⟩
+    refine Or.inr ⟨rfl, _, ?_, ?_, rfl⟩ <;> rfl
 
 theorem seeds_removeWaitAtNode (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L) (hLL : L ≤ P.depth)
     (uL : Fin (P.numNodes L)) (k : Fin (2 ^ P.idBits L)) :
@@ -536,18 +532,14 @@ private theorem replaceAtNode_cases
   by_cases hLlt : L < P.depth
   · rw [dite_eq_left hLlt]; dsimp only [replaceInnerAt]
     split_ifs with h
-    · exact Or.inr (Or.inl ⟨hLlt,
-        { (st.inner L h2L hLlt uL) with
-          wait := wait'
-          table := (st.inner L h2L hLlt uL).table.replace k_old k_new qv_new h.1 h.2 },
-        rfl, rfl⟩)
+    · refine Or.inr (Or.inl ⟨hLlt, _, ?_, rfl⟩)
+      rfl
     · exact Or.inl rfl
   · obtain rfl : L = P.depth := by omega
     rw [dite_eq_right (lt_irrefl _)]; dsimp only [replaceLeafAt]
     split_ifs with h
-    · exact Or.inr (Or.inr ⟨rfl,
-        (st.leaves uL).replace scheme wait' k_old k_new qv_new h.1 h.2,
-        rfl, rfl⟩)
+    · refine Or.inr (Or.inr ⟨rfl, _, ?_, rfl⟩)
+      rfl
     · exact Or.inl rfl
 
 theorem seeds_replaceAtNode

@@ -105,8 +105,7 @@ private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     by_cases hgo : 0 < x.regs rState ∧ inp.trie.trie (x.regs rState) (x.regs r5) = 0
     · obtain ⟨hupos, ht0⟩ := hgo
       have hc : (Cond.lt zero r7).Holds x := by
-        simp only [Cond.holds_lt, hL.h_zero, hr7, hupos, ht0, and_self, ↓reduceIte]
-        exact Nat.zero_lt_one
+        simp [Cond.holds_lt, hL.h_zero, hr7, hupos, ht0]
       obtain ⟨hfu_lt, hfu_str, hfu_depth⟩ := hB.fail_spec (x.regs rState) hu_lt hupos
       have hu_maxS : x.regs rState < inp.maxS := lt_of_lt_of_le hu_lt hT_maxS
       have hfu_maxS : inp.bfs.fail (x.regs rState) < inp.maxS := lt_of_lt_of_le hfu_lt hT_maxS
@@ -120,10 +119,9 @@ private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         wram_exec [hL.h_failBase, hf_read, hf_addr]
         exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
       obtain ⟨x₁, he_hop, hs1, h11, h21, h31, h51, hm1⟩ := hhop
-      have hL₁ := hL.of_preserves he_hop
       obtain ⟨x₂, he_cond, hL₂, hm2, hs2, h12, h22, h32, h52, hr7_2⟩ :=
-        exec_computeFailCond inp w hw hL₁ (by rwa [hm1]) (by rw [hs1]; exact hfu_maxS)
-          (by rw [h51]; exact ha_lt)
+        exec_computeFailCond inp w hw (hL.of_preserves he_hop) (by rwa [hm1])
+          (hs1.symm ▸ hfu_maxS) (h51.symm ▸ ha_lt)
       rw [hs1, h51] at hr7_2
       have hfu_d_lt : inp.trie.depth (inp.bfs.fail (x.regs rState)) < d := by rwa [← hd_eq]
       obtain ⟨y, u_exit, hu_ex_lt, he_tl, hLy, hmy, hsy, hd_ex, hstop_ex, hnm_ex,
@@ -131,15 +129,13 @@ private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         ih (inp.trie.depth (inp.bfs.fail (x.regs rState))) hfu_d_lt x₂ hL₂ (by rwa [hm2, hm1])
           (by rw [hs2, hs1]; exact hfu_lt) (by rw [hs2, hs1])
           (by rw [h52, h51]; exact ha_lt) (by rw [hs2, hs1, h52, h51]; exact hr7_2)
-      rw [h52, h51] at hstop_ex hnm_ex
-      rw [hs2, hs1] at hnm_ex
+      simp only [h52, h51, hs2, hs1] at hstop_ex hnm_ex
       have hnot_node : ¬IsNode inp.patterns (inp.trie.strOf (x.regs rState) ++ [x.regs r5]) :=
         fun his => absurd ((hchar _ hu_lt _ ha_lt).1 his) (by omega)
       have hnm_step :
           nextMove inp.patterns (inp.trie.strOf (x.regs rState)) (x.regs r5) =
-            nextMove inp.patterns (inp.trie.strOf (inp.bfs.fail (x.regs rState))) (x.regs r5) := by
-        rw [hfu_str]
-        exact nextMove_of_not_isNode hnot_node (hT.str_ne_nil _ hupos hu_lt)
+            nextMove inp.patterns (inp.trie.strOf (inp.bfs.fail (x.regs rState))) (x.regs r5) :=
+        hfu_str ▸ nextMove_of_not_isNode hnot_node (hT.str_ne_nil _ hupos hu_lt)
       refine ⟨y, u_exit, hu_ex_lt,
         (ExecWithin.loop_iter hc (he_hop.seq he_cond) he_tl).mono (by omega),
         hLy, hmy.trans (hm2.trans hm1), hsy, by omega, hstop_ex, hnm_ex.trans hnm_step.symm,
@@ -179,8 +175,7 @@ theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     exec_failLoop inp w hvalid hw (inp.trie.depth (x.regs rState)) x₁ hL₁ (by rwa [hm1])
       (by rw [hs1]; exact hu_lt) (by rw [hs1]) (by rw [h51]; exact ha_lt)
       (by rw [hs1, h51]; exact hr7_1)
-  rw [h51] at hstop_ex hnm_ex
-  rw [hs1] at hnm_ex
+  simp only [h51, hs1] at hstop_ex hnm_ex
   set a := x.regs r5
   set u' := inp.trie.trie u_ex a
   have hu'_lt : u' < inp.trie.numStates := hT.trie_lt u_ex hu_ex_lt a ha_lt
@@ -200,7 +195,6 @@ theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     WP.exists_execWithin <| by
       wram_exec [hL₂.h_sigma, hL₂.h_trieBase, hs2, h52, h51, ht_read, hf_m, hf_a, hf_t]
       exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  have hLy := hL₂.of_preserves he_fin
   obtain ⟨hu'_str, hu'_depth⟩ :
       inp.trie.strOf u' = nextMove inp.patterns (inp.trie.strOf u_ex) a ∧
         inp.trie.depth u' ≤ inp.trie.depth u_ex + 1 := by
@@ -208,13 +202,13 @@ theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     · obtain rfl : u_ex = 0 := by omega
       have hnot_node : ¬IsNode inp.patterns ([] ++ [a]) := fun his =>
         absurd ((hchar 0 hT.one_le a ha_lt).1 (by rwa [hT.str_zero])) (by omega)
-      simp only [show u' = 0 from h0, hT.str_zero, hT.depth_zero,
+      simp only [u', h0, hT.str_zero, hT.depth_zero,
         nextMove_of_not_isNode_of_eq_nil hnot_node rfl, Nat.zero_le, and_self]
     · refine ⟨hstr.trans (nextMove_of_isNode (hstr ▸ hnode u' hu'_lt)).symm, ?_⟩
       rw [hT.depth_eq u' hu'_lt, hstr, List.length_append, List.length_singleton,
         ← hT.depth_eq u_ex hu_ex_lt]
-  refine ⟨y, u', hu'_lt, (he_c0.seq (he_fl.seq he_fin)).mono (by omega),
-    hLy, hmy.trans (hm2.trans hm1), hsy, hu'_str.trans hnm_ex, by omega,
+  exact ⟨y, u', hu'_lt, (he_c0.seq (he_fl.seq he_fin)).mono (by omega),
+    hL₂.of_preserves he_fin, hmy.trans (hm2.trans hm1), hsy, hu'_str.trans hnm_ex, by omega,
     h1y.trans (h12.trans h11), h2y.trans (h22.trans h21),
     h3y.trans (h32.trans h31), h5y.trans (h52.trans h51)⟩
 

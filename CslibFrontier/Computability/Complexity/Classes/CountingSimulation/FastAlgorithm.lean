@@ -135,7 +135,7 @@ theorem exists_le_of_fastGuard_eq_false (C : ℕ) :
   have h4 := hL₀ _ (Nat.le_log_of_pow_le one_lt_two hs.le)
   have h5 : 2 ^ (9 * Nat.log 2 s) ≤ s ^ 9 :=
     pow_mul' 2 9 (Nat.log 2 s) ▸ Nat.pow_le_pow_left
-      (Nat.pow_log_le_self 2 (by have := Nat.one_le_two_pow (n := L₀); omega)) 9
+      (Nat.pow_log_le_self 2 (Nat.zero_lt_of_lt hs).ne') 9
   omega
 
 /-! ### The guard in polynomial time -/
@@ -154,17 +154,13 @@ theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encExplicitRowNetwor
       encExplicitRowNetwork (encList (encPair (encList encNat) (encList encNat))) :=
     DescribedNetwork.vertices_polyTime.comp hd
   -- Rows first.
-  have hrows : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
-      decide (G.2.IsRowsFirstBipartite G.1)) encExplicitRowNetwork encBool :=
-    DescribedNetwork.rowsFirst_polyTime
   -- Full tables.
   have htab : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
       G.2.vertices.all (fun v => decide (v.2.length = 2 ^ v.1.length)))
-      encExplicitRowNetwork encBool := by
-    refine ComputableInPolyTime.allWithInput hvs ?_
-    have hv := ComputableInPolyTime.snd encExplicitRowNetwork
+      encExplicitRowNetwork encBool :=
+    let hv := ComputableInPolyTime.snd encExplicitRowNetwork
       (encPair (encList encNat) (encList encNat))
-    exact ComputableInPolyTime.decide_eq'
+    ComputableInPolyTime.allWithInput hvs <| ComputableInPolyTime.decide_eq'
       (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
         ((ComputableInPolyTime.snd _ _).comp hv)))
       (ComputableInPolyTime.binary_two_pow.comp ((ComputableInPolyTime.length_list _).comp
@@ -172,14 +168,13 @@ theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encExplicitRowNetwor
   -- The degree bound.
   have hdeg : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
       G.2.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.2.numEdges)))
-      encExplicitRowNetwork encBool := by
-    refine ComputableInPolyTime.allWithInput hvs ?_
-    exact ComputableInPolyTime.binary_le'
+      encExplicitRowNetwork encBool :=
+    ComputableInPolyTime.allWithInput hvs <| ComputableInPolyTime.binary_le'
       (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
         ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))))
       (degreeBound_polyTime.comp (hm.comp (ComputableInPolyTime.fst _ _)))
-  refine (ComputableInPolyTime.bool_and.comp (hrows.prod (ComputableInPolyTime.bool_and.comp
-    (htab.prod hdeg)))).of_enc_eq fun G => ?_
+  refine (ComputableInPolyTime.bool_and.comp (DescribedNetwork.rowsFirst_polyTime.prod
+    (ComputableInPolyTime.bool_and.comp (htab.prod hdeg)))).of_enc_eq fun G => ?_
   simp only [fastGuard, ExplicitTensorNetwork.maxDegree_le_iff, Function.comp_apply,
     Bool.decide_and, List.all_eq, decide_eq_true_eq]
 
@@ -422,7 +417,6 @@ theorem fastCertificate_le
     (NativeCertificate.ofPolyTime root_polyTime) I F TL SL hnode hframe hvalue
     (ExplicitTensorNetwork.capPrecision q) _ N H he
   -- Direct summation below `s₀`.
-  have h2 : 1 ≤ 2 ^ (C * s₀) := Nat.one_le_two_pow
   have hdir (hs₀ : s < s₀) :
       ExplicitTensorNetwork.directContractionBinaryCertificate.time q ≤
         K₂ * 2 ^ (C * s₀) * B ^ K₂ := by
@@ -430,10 +424,8 @@ theorem fastCertificate_le
       (hA.2.1.trans (Nat.mul_le_mul_left _ hs₀.le)))) (by ring))
   have hdirS : ExplicitTensorNetwork.directContractionBinaryCertificate.space q ≤
       K₂ * 2 ^ (C * s₀) * B ^ K₂ :=
-    hdS.trans (le_of_le_of_eq (Nat.le_mul_of_pos_right _ h2) (by ring))
-  have hbig : s₀ ≤ s → (scheme tableEntry mk).run fuel root (ExplicitTensorNetwork.capPrecision q) =
-      some (0, value tableEntry mk (root (ExplicitTensorNetwork.capPrecision q))) :=
-    fun h => Scheme.run_eq_some he (hN h)
+    hdS.trans (le_of_le_of_eq (Nat.le_mul_of_pos_right _ (Nat.one_le_two_pow (n := C * s₀)))
+      (by ring))
   have hrest : ((scheme tableEntry mk).run fuel root (ExplicitTensorNetwork.capPrecision q)).elim
         (ExplicitTensorNetwork.directContractionBinaryCertificate.time q) (fun v =>
           (NativeCertificate.ofPolyTime tag_polyTime).time (q, v) +
@@ -453,7 +445,8 @@ theorem fastCertificate_le
       2 * (c₂ * (Ka + 2) ^ d₂) * B ^ ((Ka + 1) * d₂) + 2 * (K₂ * 2 ^ (C * s₀)) * B ^ K₂ := by
     rw [Nat.mul_assoc 2, Nat.mul_assoc 2]
     exact outputStep_le (fun _ => Scheme.value_of_run_eq_some he)
-      (fun v hv => le_of_le_encPair (h₂ (q, v)) hB (hvalue v hv) (by omega)) hbig hdir hdirS
+      (fun v hv => le_of_le_encPair (h₂ (q, v)) hB (hvalue v hv) (by omega))
+      (fun h => Scheme.run_eq_some he (hN h)) hdir hdirS
   simp only [fastCertificate_time, fastCertificate_space, runCertificate]
   exact (hK (n := (FastContraction.encInput q).length)
     (pre := 2 * (NativeCertificate.ofPolyTime ExplicitTensorNetwork.capPrecision_polyTime).time q)
@@ -487,8 +480,7 @@ theorem wf_root (P : ℕ) {G : ℕ × ExplicitTensorNetwork ℕ} (hg : fastGuard
   simp only [fastGuard, decide_eq_true_eq] at hg
   obtain ⟨h1, h2⟩ := hg.1
   refine ⟨irreducible_modulus _, fun v hv i hi => ?_, fun i hi => ?_⟩
-  · simp only [root, ExplicitTensorNetwork.capPrecision, rootNet, List.mem_map] at hv
-    obtain ⟨w, hw, rfl⟩ := hv
+  · obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
     exact h1 w hw i hi
   · simpa only [root, ExplicitTensorNetwork.capPrecision, rootNet, ← List.map_take,
       ← List.map_drop, List.map_map, Function.comp_def] using h2 i hi

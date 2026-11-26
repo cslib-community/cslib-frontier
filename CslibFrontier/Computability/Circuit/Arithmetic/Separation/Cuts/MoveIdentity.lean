@@ -73,10 +73,7 @@ theorem length_bits_le (w : UnitContent ub) : w.bits.length ≤ ub := by
 /-- A unit that is not absent is determined by its bits. -/
 theorem bits_injOn : Set.InjOn (bits (ub := ub)) {w | w ≠ none} := by
   rintro (_ | v) h (_ | v') h' e
-  · rfl
-  · exact absurd rfl h
-  · exact absurd rfl h'
-  · exact congrArg some (List.ofFn_injective e)
+  exacts [rfl, absurd rfl h, absurd rfl h', congrArg some (List.ofFn_injective e)]
 
 end UnitContent
 
@@ -131,11 +128,11 @@ variable {F : Type*} [CommSemiring F] {A A' E U0 U1 ub : ℕ} {M : Moves F (A + 
 /-- The new units of a move are units of its channels. -/
 theorem mem_newUnits {x : Fin E} {o : M.Channel → Fin U1} {id : UnitId A U0 M.Channel U1} :
     id ∈ newUnits M x o ↔ ∃ ν k, id = .new ⟨x, ν⟩ k ∧ k ≤ o ⟨x, ν⟩ := by
-  obtain _ | ⟨⟨x', ν⟩, k⟩ := id
+  rcases id with _ | ⟨⟨x', ν⟩, k⟩
   · simp
-  · refine new_mem_newUnits.trans ⟨fun ⟨rfl, hk⟩ => ⟨ν, k, rfl, hk⟩, ?_⟩
-    rintro ⟨_, _, ⟨⟩, hk⟩
-    exact ⟨rfl, hk⟩
+  · refine new_mem_newUnits.trans ⟨fun ⟨rfl, h⟩ => ⟨ν, k, rfl, h⟩, ?_⟩
+    rintro ⟨_, _, ⟨⟩, h⟩
+    exact ⟨rfl, h⟩
 
 section Role
 
@@ -171,8 +168,7 @@ theorem roleTable_ne_zero (h : roleTable M x p t ids o y ≠ 0) :
 private theorem ChannelOk.ne_none {N : Type*} {ν : N} {J : ℕ} {str : List Bool}
     {y : UnitId A U0 N U1 → UnitContent ub} (h : ChannelOk ν J str y) {k : Fin U1}
     (hk : (k : ℕ) ≤ J) : y (.new ν k) ≠ none := by
-  rw [h.2 k, Ne, unitsOf_eq_none, h.1]
-  omega
+  rw [h.2 k, Ne, unitsOf_eq_none, h.1]; omega
 
 /-- The table of a role vanishes unless the new units of its channels are present. -/
 theorem roleTable_new_ne_none (h : roleTable M x p t ids o y ≠ 0) {ν : (M.law x).Channel}
@@ -302,9 +298,8 @@ theorem move_outcome :
       by_cases hn : (.new ⟨x, ν⟩ k : UnitId A U0 M.Channel U1) ∈ newUnits M x o
       · exact Play.extend_of_holds hn (hν.imp fun d hd => congrArg (M.party x) hd)
       · rw [Play.extend_of_notMem hn, hnew, Play.mem_common.1 hz _ hn]
-    · rintro ⟨e, d, rfl⟩ id hid
-      rw [hext z _ e id hid]
-      exact hne e id hid d
+    · rintro ⟨e, d, rfl⟩ id hid h0
+      exact hne e id hid d ((hext z _ e id hid).symm.trans h0)
   rw [sum_congr rfl fun z hz => prod_congr rfl fun p _ => e1 z hz p,
     ← sum_prod_unitTable (fun p k e => (slotBits t (ids e) (y (M.party x p))).getD k false)
       (fun ν => o ⟨x, ν⟩) hub hm (by rwa [Nat.mul_right_comm, Nat.mul_div_cancel _ hub])]

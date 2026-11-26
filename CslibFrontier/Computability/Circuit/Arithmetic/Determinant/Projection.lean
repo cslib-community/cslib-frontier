@@ -137,10 +137,8 @@ projection of `(genericMatrix K m).det`, then `P` is a projection of `(genericMa
 theorem isProjection_det_mono {P : MvPolynomial σ K} {m k : ℕ} (hmk : m ≤ k)
     (hP : IsProjection P (genericMatrix K m).det) :
     IsProjection P (genericMatrix K k).det := by
-  have h := hP.det_mul
-    (isProjection_det_iff_exists_isSubstMatrix.mpr ⟨1, .one, Matrix.det_one⟩ :
-      IsProjection 1 (genericMatrix K (k - m)).det)
-  rwa [mul_one, Nat.add_sub_of_le hmk] at h
+  exact Nat.add_sub_of_le hmk ▸ mul_one P ▸ hP.det_mul (k := k - m)
+    (isProjection_det_iff_exists_isSubstMatrix.mpr ⟨1, .one, Matrix.det_one⟩)
 
 /-! ### Acyclic specialization branching programs -/
 
@@ -272,13 +270,12 @@ specialization branching program (`k = 0`). -/
 theorem of_isSubstEntry {P : MvPolynomial σ K} (hP : IsSubstEntry P) :
     IsSubstABP 0 P := by
   refine ⟨Matrix.of fun i j => if i = 0 ∧ j = 1 then P else 0,
-    Fin.cases 1 (fun _ => P), fun i j => ?_, fun i j hji => ?_, ?_, rfl⟩
+    fun i => if i = 0 then 1 else P, fun i j => ?_, fun i j hji => ?_, ?_, rfl⟩
   · simp only [Matrix.of_apply]
     split_ifs <;> [exact hP; exact .zero]
   · exact ite_eq_right_iff.2 fun ⟨hi, hj⟩ => absurd (hi ▸ hj ▸ hji) (by decide)
-  · refine funext (Fin.cases (by simp [Matrix.vecMul, dotProduct]) fun i => ?_)
-    rw [Subsingleton.elim i 0, Fin.cases_succ]
-    simp [Matrix.vecMul, dotProduct]
+  · refine funext (Fin.forall_fin_two.mpr ⟨?_, ?_⟩) <;>
+      simp [Matrix.vecMul, dotProduct]
 
 /-- **Multiplicative closure** of specialization branching programs by series composition. -/
 theorem mul {k₁ k₂ : ℕ} {P Q : MvPolynomial σ K}
@@ -334,8 +331,7 @@ theorem add {k₁ k₂ : ℕ} {P Q : MvPolynomial σ K}
         ← Finset.add_sum_erase _ _ (Finset.mem_erase.mpr ⟨h0_ne.symm, Finset.mem_univ _⟩)]
       have hrest : ∑ a ∈ (Finset.univ.erase 0).erase (Fin.last (k₁ + 1)), q₁ a * B a b = 0 :=
         Finset.sum_eq_zero fun a ha => by
-          rcases Finset.mem_erase.mp ha with ⟨hal, ha0⟩
-          simp [B, (Finset.mem_erase.mp ha0).1, hal]
+          simp [B, Finset.ne_of_mem_erase ha, Finset.ne_of_mem_erase (Finset.mem_of_mem_erase ha)]
       rw [hrest, add_zero, pathSum_zero hN₁ hq₁, pathSum_zero hN₂ hq₂]
       simp only [B, Matrix.of_apply, ↓reduceIte, h0_ne.symm, true_and, mul_ite, mul_one, mul_zero]
     have hD_eval : (r ᵥ* N₂.submatrix Fin.succ Fin.succ) b =

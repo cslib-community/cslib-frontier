@@ -242,16 +242,14 @@ private theorem actual_marker_step (p : Program) (registers markers : List Bool)
   have hd := principal_marker_get p j
   have hbits : (registers ++ markers).getD (p.initial.length + j.val) false = b := by
     rw [List.getD_append_right _ _ _ _ (by omega), hr, Nat.add_sub_cancel_left, hb]
-  have hset : (registers ++ markers).set (p.initial.length + j.val) (!b) =
-      registers ++ markers.set j.val (!b) := by
-    rw [List.set_append_right _ _ (by omega), hr, Nat.add_sub_cancel_left]
   refine ⟨?_, ⟨p.initial.length + j.val, by
     simp only [principalDoors, List.length_append, registerDoors_length, markerDoors_length]
     omega⟩, ?_, ?_⟩
   · simp only [State.Valid, List.length_append, principalDoors, registerDoors_length,
       markerDoors_length, hr, hm]
   · simp only [Fin.getElem_fin, hd, hbits]
-  · simp only [Fin.getElem_fin, hd, hbits, hset]
+  · simp only [Fin.getElem_fin, hd, hbits]
+    rw [List.set_append_right _ _ (by omega), hr, Nat.add_sub_cancel_left]
 
 private theorem indexed_instruction_mem (p : Program) (j : Fin p.instructions.length) :
     (p.instructions[j], j.val) ∈ p.instructions.zipIdx := by
@@ -375,11 +373,10 @@ private theorem selectedMarkers_self (p : Program) (j : Fin p.instructions.lengt
 
 private theorem selectedMarkers_true {p : Program} {j k : Fin p.instructions.length} {b : Bool}
     (h : (selectedMarkers p j b).getD k.val false = true) : k = j ∧ b = true := by
-  by_cases hkj : k.val = j.val
-  · obtain rfl := Fin.ext hkj
-    exact ⟨rfl, (selectedMarkers_self p k b).symm.trans h⟩
+  rcases eq_or_ne k j with rfl | hkj
+  · exact ⟨rfl, (selectedMarkers_self p k b).symm.trans h⟩
   · simp [selectedMarkers, closedMarkers, List.getD_eq_getElem?_getD,
-      List.getElem_set_ne (Ne.symm hkj)] at h
+      List.getElem_set_ne (Fin.val_ne_of_ne hkj).symm] at h
 
 private inductive Certified (p : Program) : MachineState → Prop
   | boundary (s : State) (hr : p.Reachable p.initialState s) :
@@ -416,8 +413,7 @@ private theorem Certified.step {p : Program} {s t : MachineState}
     exact Certified.boundary ⟨a.target, source.bits⟩
       (hr.tail ⟨hr.length rfl, Or.inl ⟨a, ha, Place.external.inj hloc, rfl⟩⟩)
   case boundary.enter source hr j =>
-    rw [← selectedMarkers_false p j]
-    exact Certified.entry source hr j (Place.external.inj hloc) false
+    exact selectedMarkers_false p j ▸ Certified.entry source hr j (Place.external.inj hloc) false
   case entry.approach source hr j hp m k =>
     exact Fin.ext (Place.entry.inj hloc) ▸ Certified.ready source hr j hp m
   case entry.openMarker source hr j hp m k hb =>
@@ -437,13 +433,12 @@ private theorem Certified.step {p : Program} {s t : MachineState}
     obtain ⟨hri, rfl⟩ := Place.output.inj hloc
     simpa only [hri] using Certified.input source hr j hp hg hreg m (!b₀)
   case output.returnMarker source hr j hp hg hreg m b k hb =>
-    obtain ⟨he, rfl⟩ := selectedMarkers_true hb
-    subst k
-    have hbit : b = !p.instructions[j].write := (Place.output.inj hloc).2
-    let next : State := ⟨p.instructions[j].target, source.bits.set p.instructions[j].register
-      p.instructions[j].write⟩
+    obtain ⟨rfl, rfl⟩ := selectedMarkers_true hb
+    have hbit : b = !p.instructions[k].write := (Place.output.inj hloc).2
+    let next : State := ⟨p.instructions[k].target, source.bits.set p.instructions[k].register
+      p.instructions[k].write⟩
     have hnext : p.Step source next :=
-      ⟨hr.length rfl, Or.inr ⟨p.instructions[j], List.getElem_mem j.isLt,
+      ⟨hr.length rfl, Or.inr ⟨p.instructions[k], List.getElem_mem k.isLt,
         hreg, hp, hg, rfl⟩⟩
     simpa only [next, hbit, Bool.not_not, selectedMarkers, List.set_set,
       closedMarkers, List.set_replicate_self] using Certified.boundary next (hr.tail hnext)

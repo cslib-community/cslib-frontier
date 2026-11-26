@@ -122,11 +122,9 @@ theorem andreev_andreevCubePoint (x : BitString (2 ^ b)) {s : Fin b → ℕ} (hs
     andreev b m (andreevCubePoint b m x s) =
       x (BitString.equivFin b fun j => decide (s j % 2 = 1)) := by
   rw [andreev_eq_table_parities, andreevTable, andreevCubePoint_andreevTableIndex]
-  congr 2
-  funext j
+  congr 2 with j
   simp only [andreevParities, parity, parityOn, andreevCubePoint_andreevBlockVar,
-    decide_eq_true_eq]
-  rw [Fin.card_filter_val_lt, min_eq_right (hs j)]
+    decide_eq_true_eq, Fin.card_filter_val_lt, min_eq_right (hs j)]
 
 /-- On a cube, the values of Andreev's function determine the table. -/
 theorem eq_of_andreev_andreevCubePoint_add {x x' : BitString (2 ^ b)} (q : Fin b → Fin m)
@@ -204,9 +202,7 @@ theorem card_andreevCubeSplitCount_eq_le (c : Circuit signature (2 ^ b + b * m) 
     congrFun (hcomp w) 0
   have hinj : Set.InjOn (f ∘ P) ↑F := fun x _ x' _ h =>
     eq_of_andreev_andreevCubePoint_add q fun z => by
-      have := congrFun h z
-      simp only [Function.comp_apply, f, P] at this
-      rwa [← andreevCubePoint_add, ← andreevCubePoint_add, hcomp', hcomp'] at this
+      simpa only [Function.comp_apply, f, P, ← andreevCubePoint_add, hcomp'] using congrFun h z
   calc #F = #(F.image (f ∘ P)) := (card_image_of_injOn hinj).symm
     _ = #((F.image P).image f) := by rw [image_image]
     _ ≤ (#(outputBottomGates c 0)).choose D * (2 ^ Fintype.card (Fin b) - 1) ^ D *
@@ -487,8 +483,7 @@ theorem min_le_card_outputBottomGates (c : Circuit signature (2 ^ b + b * m) 1)
         linarith).trans (le_max_right _ _)) (by linarith) (by linarith)
   have hstep := (mul_le_mul_of_nonneg_left hD (Nat.cast_nonneg m)).trans hmain
   rw [div_le_iff₀ (by positivity)]
-  rw [mul_div_assoc', div_le_iff₀ (by positivity)] at hstep
-  nlinarith
+  rw [mul_div_assoc', div_le_iff₀ (by positivity)] at hstep; nlinarith
 
 /-- **Theorem 13, balanced form**: if `b m = N = 2 ^ b`, then `G ≥ N (N - 3 b - 1) / (3 b ^ 3)`,
 which is `Ω(n ^ 2 / log ^ 3 n)` for `n = 2 N`. -/
@@ -554,9 +549,8 @@ theorem le_of_balanced_of_depthTwoInputs {G : ℕ} (bottom : Fin G → Op)
   obtain ⟨top, htop⟩ : ∃ top, c.outputs 0 = .gate top := ⟨_, rfl⟩
   have hB : #(outputBottomGates c 0) ≤ G :=
     Nat.lt_succ_iff.mp ((card_outputBottomGates_lt_size htop).trans_eq (size_depthTwoInputs ..))
-  refine (le_card_outputBottomGates_of_balanced c (depth_depthTwoInputs_le ..) hcomp
+  exact (le_card_outputBottomGates_of_balanced c (depth_depthTwoInputs_le ..) hcomp
     (fun k hk => isSignCoherent_inputWeight_depthTwoInputs bottom args u v θ hcoh htop
-      (by rwa [outputBottomGates_of_gate htop] at hk)) hbal).trans ?_
-  exact_mod_cast hB
+      (by rwa [outputBottomGates_of_gate htop] at hk)) hbal).trans (Nat.cast_le.mpr hB)
 
 end Cslib.Circuits.Boolean.WeightedThreshold

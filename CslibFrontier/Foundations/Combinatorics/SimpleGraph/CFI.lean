@@ -136,8 +136,7 @@ private def cfiAdj {m : ℕ} {f : Fin m → ZMod 2} : CFIVertex m f → CFIVerte
 
 private theorem cfiAdj_symm {m : ℕ} {f : Fin m → ZMod 2} {x y : CFIVertex m f}
     (h : cfiAdj x y) : cfiAdj y x := by
-  cases x <;> cases y
-  all_goals simp only [cfiAdj] at h ⊢
+  cases x <;> cases y <;> simp only [cfiAdj] at h ⊢
   all_goals first | exact h | exact h.symm | exact ⟨h.1.symm, h.2.symm⟩
 
 private theorem cfiAdj_irrefl {m : ℕ} {f : Fin m → ZMod 2} (x : CFIVertex m f) :
@@ -281,7 +280,7 @@ def CFIVertex.castAway (u : Fin m) (hfg : ∀ v ≠ u, f v = g v) :
 theorem CFIVertex.castAway_inj {u : Fin m} {hfg : ∀ v ≠ u, f v = g v}
     {x y : CFIVertex m f} (hx : u ∉ x.support) (hy : u ∉ y.support) :
     x.castAway u hfg hx = y.castAway u hfg hy ↔ x = y := by
-  refine ⟨fun h => ?_, fun h => by subst h; rfl⟩
+  refine ⟨fun h => ?_, fun h => h ▸ rfl⟩
   cases x <;> cases y <;> simp only [castAway, gadget.injEq, edge.injEq, apex.injEq, reduceCtorEq]
     at h ⊢
   all_goals exact h
@@ -645,9 +644,8 @@ private theorem not_isApexLike_edge (hm : 3 ≤ m) {f : Fin m → ZMod 2}
       simp only [α, Pi.add_apply, Finset.sum_add_distrib, Fintype.sum_pi_single']
       rw [← add_assoc, add_comm b (f v), CharTwo.add_cancel_right]
     intro hapex
-    refine not_inTriangle_gadget v α hα (hapex.2 (.gadget v α hα) ?_)
-    rw [cfiGraph_adj_edge_gadget]
-    refine ⟨w', rfl, ?_⟩
+    refine not_inTriangle_gadget v α hα (hapex.2 (.gadget v α hα) ((cfiGraph_adj_edge_gadget ..).2
+      ⟨w', rfl, ?_⟩))
     simp only [α, Pi.add_apply, Pi.single_eq_same, Pi.single_eq_of_ne hwu', add_zero]
 
 private theorem isApexLike_cfiGraph_iff (hm : 3 ≤ m) {f : Fin m → ZMod 2}
@@ -754,20 +752,16 @@ private theorem gadgetBase_eq_of_nearApex (hm : 3 ≤ m) {g : Fin m → ZMod 2}
     gadgetBase hm x₁ = gadgetBase hm x₂ := by
   obtain ⟨v₁, α₁, hα₁, rfl⟩ := exists_gadget_eq_of_not_inTriangle hx₁
   obtain ⟨v₂, α₂, h₂, rfl⟩ := exists_gadget_eq_of_not_inTriangle hx₂
-  change v₁ = v₂
   refine eq_of_forall_mem_sym2_iff hm fun e he => ?_
-  have h := hnear (.apex e he) (isApexLike_apex e he)
-  rwa [nearApex_gadget_apex v₁ α₁ hα₁ e he, nearApex_gadget_apex v₂ α₂ h₂ e he] at h
+  simpa only [gadgetBase, nearApex_gadget_apex] using hnear (.apex e he) (isApexLike_apex e he)
 
 private theorem iso_gadgetBase_eq (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     (φ : cfiGraph m f ≃g cfiGraph m g) (v : Fin m)
     (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v) :
     gadgetBase hm (φ (.gadget v α hα)) = gadgetBase hm (φ (defaultGadget hm f v)) := by
-  have hx₁ : ¬ InTriangle (cfiGraph m g) (φ (.gadget v α hα)) :=
-    φ.inTriangle_iff.not.2 (not_inTriangle_gadget v α hα)
-  have hx₂ : ¬ InTriangle (cfiGraph m g) (φ (defaultGadget hm f v)) :=
-    φ.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm f v)
-  refine gadgetBase_eq_of_nearApex hm hx₁ hx₂ fun a ha => ?_
+  refine gadgetBase_eq_of_nearApex hm
+    (φ.inTriangle_iff.not.2 (not_inTriangle_gadget v α hα))
+    (φ.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm f v)) fun a ha => ?_
   obtain ⟨e, he, hea⟩ := exists_apex_eq_of_isApexLike hm (φ.symm.isApexLike ha)
   obtain rfl : φ (.apex e he) = a := by
     simpa only [RelIso.apply_symm_apply] using congrArg φ hea.symm
@@ -779,8 +773,7 @@ private theorem exists_iso_defaultGadget_eq (hm : 3 ≤ m) {f g : Fin m → ZMod
     ∃ β hβ, φ (defaultGadget hm f v) = .gadget v' β hβ := by
   obtain ⟨v'', β, hβ, hv''⟩ := exists_gadget_eq_of_not_inTriangle
     (φ.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm f v))
-  rw [hv'', gadgetBase] at hv
-  subst hv
+  obtain rfl : v'' = v' := by simpa only [hv'', gadgetBase] using hv
   exact ⟨β, hβ, hv''⟩
 
 private theorem gadgetBase_symm_defaultGadget (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
@@ -800,15 +793,13 @@ private theorem iso_apply_apex (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     (φ : cfiGraph m f ≃g cfiGraph m g) (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) :
     φ (.apex e he) = .apex (e.map (isoBaseEquiv hm φ)) (not_isDiag_map he) := by
   set π := isoBaseEquiv hm φ
-  have hapex : IsApexLike (cfiGraph m g) (φ (.apex e he)) := φ.isApexLike (isApexLike_apex e he)
-  obtain ⟨e', he', hφe⟩ := exists_apex_eq_of_isApexLike hm hapex
+  obtain ⟨e', he', hφe⟩ := exists_apex_eq_of_isApexLike hm (φ.isApexLike (isApexLike_apex e he))
   obtain rfl : e' = e.map π := by
     ext z
     obtain ⟨u, rfl⟩ := π.surjective z
     obtain ⟨β, hβ, hv'⟩ := exists_iso_defaultGadget_eq hm φ (v' := π u) rfl
-    rw [← nearApex_gadget_apex (π u) β hβ e' he', ← hv', ← hφe, φ.nearApex_iff,
-      defaultGadget, nearApex_gadget_apex, Sym2.mem_map]
-    exact ⟨fun hu => ⟨u, hu, rfl⟩, fun ⟨u', hu', h⟩ => π.injective h ▸ hu'⟩
+    simp only [← nearApex_gadget_apex (π u) β hβ e' he', ← hv', ← hφe, φ.nearApex_iff,
+      defaultGadget, nearApex_gadget_apex, Sym2.mem_map, π.injective.eq_iff, exists_eq_right]
   exact hφe
 
 private theorem zmod_two_eq_add_of_ne {c₀ c₁ : ZMod 2} (hne : c₀ ≠ c₁) (b : ZMod 2) :
@@ -823,10 +814,9 @@ private theorem iso_apply_edge (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
   have hbit : ∀ c : ZMod 2,
       φ (.edge e he c) = .edge (e.map π) (not_isDiag_map he) (edgeBit (φ (.edge e he c))) := by
     intro c
-    have ht : InTriangle (cfiGraph m g) (φ (.edge e he c)) := φ.inTriangle (inTriangle_edge e he c)
-    have ha : ¬ IsApexLike (cfiGraph m g) (φ (.edge e he c)) :=
-      φ.isApexLike_iff.not.2 (not_isApexLike_edge hm e he c)
-    obtain ⟨e', he', b', hφc⟩ := exists_edge_eq_of_inTriangle_not_isApexLike ht ha
+    obtain ⟨e', he', b', hφc⟩ := exists_edge_eq_of_inTriangle_not_isApexLike
+      (φ.inTriangle (inTriangle_edge e he c))
+      (φ.isApexLike_iff.not.2 (not_isApexLike_edge hm e he c))
     have hadj : (cfiGraph m g).Adj (φ (.edge e he c)) (φ (.apex e he)) :=
       φ.map_adj_iff.2 ((cfiGraph_adj_edge_apex e he c e he).2 rfl)
     rw [hφc, iso_apply_apex hm φ e he, cfiGraph_adj_edge_apex] at hadj
@@ -835,23 +825,20 @@ private theorem iso_apply_edge (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
   have hadj01 : (cfiGraph m g).Adj (φ (.edge e he 0)) (φ (.edge e he 1)) :=
     φ.map_adj_iff.2 ((cfiGraph_adj_edge_edge e he 0 e he 1).2 ⟨rfl, by decide⟩)
   rw [hbit 0, hbit 1, cfiGraph_adj_edge_edge] at hadj01
-  have hne : edgeBit (φ (.edge e he 0)) ≠ edgeBit (φ (.edge e he 1)) := hadj01.2
   rw [hbit b]
   congr 1
   exact (by fin_cases b <;> rfl : edgeBit (φ (.edge e he b)) = _).trans
-    (zmod_two_eq_add_of_ne hne b)
+    (zmod_two_eq_add_of_ne hadj01.2 b)
 
 private theorem sum_symm_zero_diag : ∀ {n : ℕ} (F : Fin n → Fin n → ZMod 2),
     (∀ i j, F i j = F j i) → (∀ i, F i i = 0) → ∑ i, ∑ j, F i j = 0
   | 0, _, _, _ => rfl
   | n + 1, F, hsymm, hdiag => by
-    simp only [Fin.sum_univ_castSucc, Finset.sum_add_distrib, hdiag]
-    have ih := sum_symm_zero_diag (fun i j => F i.castSucc j.castSucc)
-      (fun i j => hsymm _ _) (fun i => hdiag _)
-    have hlast : ∑ j : Fin n, F (Fin.last n) j.castSucc =
-        ∑ j : Fin n, F j.castSucc (Fin.last n) :=
-      Finset.sum_congr rfl fun j _ => hsymm _ _
-    rw [ih, zero_add, add_zero, hlast, CharTwo.add_self_eq_zero]
+    simp only [Fin.sum_univ_castSucc, Finset.sum_add_distrib, hdiag,
+      sum_symm_zero_diag (fun i j => F i.castSucc j.castSucc) (fun _ _ => hsymm _ _)
+        (fun _ => hdiag _),
+      Finset.sum_congr rfl fun (j : Fin n) _ => hsymm (Fin.last n) j.castSucc,
+      zero_add, add_zero, CharTwo.add_self_eq_zero]
 
 private theorem sum_eq_of_iso (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     (φ : cfiGraph m f ≃g cfiGraph m g) : ∑ v, f v = ∑ v, g v := by
@@ -970,8 +957,7 @@ theorem nonempty_iso_cfiGraph_iff_sum_eq (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
 /-- `cfiEven k` and `cfiOdd k` have no graph isomorphism for any `k : ℕ`. -/
 theorem isEmpty_iso_cfiEven_cfiOdd (k : ℕ) : IsEmpty (cfiEven k ≃g cfiOdd k) := by
   refine isEmpty_iso_cfiGraph_of_sum_ne (by omega) ?_
-  simp only [Pi.zero_apply, Finset.sum_const_zero, Fintype.sum_pi_single']
-  decide
+  simp only [Pi.zero_apply, Finset.sum_const_zero, Fintype.sum_pi_single']; decide
 
 /-- `¬ Nonempty` form of `SimpleGraph.isEmpty_iso_cfiEven_cfiOdd`. -/
 theorem not_nonempty_iso_cfiEven_cfiOdd (k : ℕ) : ¬ Nonempty (cfiEven k ≃g cfiOdd k) :=

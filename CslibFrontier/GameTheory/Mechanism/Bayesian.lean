@@ -139,11 +139,9 @@ theorem IsTruthfulOn.payment_eq {X P : ℝ → ℝ} {h : ℝ} (hT : IsTruthfulOn
     {v : ℝ} (hv : v ∈ Icc 0 h) :
     P v = P 0 + (v * X v - ∫ z in (0 : ℝ)..v, X z) := by
   have hh : 0 ≤ h := hv.1.trans hv.2
-  have := (clampMechanism_isDSIC hh hT).payment_eq () (b := fun _ => v) (fun _ => hv.1)
-  simp only [clampMechanism, myersonPayment, Function.update_self,
-    coe_projIcc_of_mem hh hv, coe_projIcc_of_mem hh ⟨le_rfl, hh⟩,
-    intervalIntegral_comp_projIcc hh hv] at this
-  exact this
+  simpa only [clampMechanism, myersonPayment, Function.update_self, coe_projIcc_of_mem hh hv,
+    coe_projIcc_of_mem hh ⟨le_rfl, hh⟩, intervalIntegral_comp_projIcc hh hv] using
+    (clampMechanism_isDSIC hh hT).payment_eq () (b := fun _ => v) (fun _ => hv.1)
 
 /-- **Sufficiency on an interval.** A monotone allocation curve on `[0, h]` with the payments of the
 payment identity is incentive compatible on `[0, h]`. -/
@@ -268,11 +266,8 @@ theorem isBayesNash_iff :
 omit [Fintype ι] in
 private theorem update_comp (β : ι → ℝ → ℝ) (v : ι → ℝ) (i : ι) (z : ℝ) :
     Function.update (fun j => β j (v j)) i (β i z) =
-      fun j => β j (Function.update v i z j) := by
-  funext j
-  rcases eq_or_ne j i with rfl | hj
-  · rw [Function.update_self, Function.update_self]
-  · rw [Function.update_of_ne hj, Function.update_of_ne hj]
+      fun j => β j (Function.update v i z j) :=
+  funext fun j => (Function.apply_update β v i z j).symm
 
 variable [∀ i, IsProbabilityMeasure (μ i)] {f : ι → ℝ → NNReal}
 
@@ -350,9 +345,8 @@ theorem IsBayesNash.integral_payment_eq_integral_interimAllocation
   rw [integral_payment_eq_integral_interimPayment M β i hp, integral_congr_ae hPae,
     integral_add (integrable_const _) hQint, integral_const, probReal_univ, one_smul, key]
   congr 1
-  refine integral_congr_ae ?_
-  filter_upwards [(hμ i).ae_mem] with z hz
-  simp only [hgdef, coe_projIcc_of_mem hh hz]
+  exact integral_congr_ae (((hμ i).ae_mem).mono fun z hz => by
+    simp only [hgdef, coe_projIcc_of_mem hh hz])
 
 /-- **Expected payment in a Bayes–Nash equilibrium.** Bidder `i`'s expected payment is the payment
 `pᵢ(0)` of its zero type plus its expected virtual surplus `E[φᵢ(vᵢ) xᵢ(β(v))]` under the ex post
@@ -414,9 +408,7 @@ theorem IsBayesNash.integral_sum_payment_eq_of_allocation_ae_eq {M' : Mechanism 
   rw [hM.integral_sum_payment_eq hμ hp hx hB, hM'.integral_sum_payment_eq hμ hp' hx' hB',
     Finset.sum_congr rfl fun i _ => h0 i]
   congr 1
-  refine integral_congr_ae ?_
-  filter_upwards [hxx] with v hv
-  exact Finset.sum_congr rfl fun i _ => by rw [hv i]
+  exact integral_congr_ae (hxx.mono fun v hv => Finset.sum_congr rfl fun i _ => by rw [hv i])
 
 /-- **Revenue equivalence** ([Hartline2021], Corollary 2.7.1). Two Bayes–Nash equilibria, possibly
 of different mechanisms, whose interim allocation rules `xᵢ(v) = x̃ᵢ(βᵢ(v))` agree for almost every
@@ -441,9 +433,7 @@ theorem IsBayesNash.integral_sum_payment_eq_of_interimAllocation_ae_eq {M' : Mec
   rw [hM.integral_payment_eq_integral_interimAllocation hμ i (hp i) fun b hb => hB b hb i,
     hM'.integral_payment_eq_integral_interimAllocation hμ i (hp' i) fun b hb => hB' b hb i, h0 i]
   congr 1
-  refine integral_congr_ae ?_
-  filter_upwards [hxx i] with z hz
-  rw [hz]
+  exact integral_congr_ae ((hxx i).mono fun z hz => by simp only [hz])
 
 omit [∀ i, IsProbabilityMeasure (μ i)] in
 /-- **Interim revenue equivalence** ([Hartline2021], §2.7): in two Bayes–Nash equilibria with the

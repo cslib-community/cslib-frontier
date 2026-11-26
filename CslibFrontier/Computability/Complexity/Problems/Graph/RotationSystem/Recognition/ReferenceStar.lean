@@ -170,8 +170,8 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
     simp only [Nat.add_sub_cancel_left, List.getElem_cons_succ]
     rw [List.getElem_append_left (by simpa only [List.length_map] using hk),
       List.getElem_map, List.getElem_reverse]
-    simp only [show word.length - 1 - k = i by omega]
-    exact congrArg (I.graph.vertices.length + ·) (List.getElem_idxOf hi)
+    have hki : word.length - 1 - k = i := by omega
+    simpa only [hki] using congrArg (I.graph.vertices.length + ·) (List.getElem_idxOf hi)
   have hrank : (referenceOrder I).idxOf (I.graph.vertices.length + d) =
       blockPrefix.length + (k + 1) := hget ▸ hn.idxOf_getElem _ hpos
   refine ⟨hget ▸ List.getElem_mem hpos, ?_, ?_⟩ <;> rw [hvrank, hrank] <;> dsimp only [k, i] <;>
@@ -186,12 +186,10 @@ theorem referenceDrawing_fixedWord_arg_lt_iff {I : FixedRotationInput} (hI : Val
       ((referenceDrawing I).germ (subdivisionDart I e)).arg ↔
         word.idxOf e.index < word.idxOf d.index := by
   have hs := fixedWord_rank_spec hI hw
-  have hdv := fixedWord_dart_vertex hI hw hd
-  have hev := fixedWord_dart_vertex hI hw he
   have hdl := hs.2 d.index hd
   have hel := hs.2 e.index he
   rw [referenceDrawing_subdivisionDart_germ, referenceDrawing_subdivisionDart_germ,
-    hdv, hev]
+    fixedWord_dart_vertex hI hw hd, fixedWord_dart_vertex hI hw he]
   change (parabolaPoint _ - parabolaPoint _).arg <
     (parabolaPoint _ - parabolaPoint _).arg ↔ _
   -- Both actual leaf names and the center belong to the enumeration before reading ranks.
@@ -268,11 +266,9 @@ theorem cutPort_clockwise_iff_reference {I : FixedRotationInput} (hI : Valid I)
     sbtw ((referenceDrawing I).direction (subdivisionDart I c))
       ((referenceDrawing I).direction (subdivisionDart I b))
       ((referenceDrawing I).direction (subdivisionDart I a)) := by
-  have hav := fixedWord_dart_vertex hI hw ha
-  have hbv := fixedWord_dart_vertex hI hw hb
-  have hcv := fixedWord_dart_vertex hI hw hc
-  exact (hReal.cutPort_clockwise v hρ (Metric.mem_ball_self hρ)
-    a b c hav hbv hcv hab hbc hac).trans
+  exact (hReal.cutPort_clockwise v hρ (Metric.mem_ball_self hρ) a b c
+    (fixedWord_dart_vertex hI hw ha) (fixedWord_dart_vertex hI hw hb)
+    (fixedWord_dart_vertex hI hw hc) hab hbc hac).trans
     ((hfixed.mem_rotationInterval_iff_fixedWord hI hw ha hb hc hab hbc hac).trans
       (referenceDrawing_fixedWord_clockwise_iff hI hw ha hb hc hab hbc hac).symm)
 

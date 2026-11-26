@@ -174,10 +174,9 @@ private theorem choose_geometry {ι : Type*} [Finite ι] (s m : ι → ℝ)
     have hKi : 1 + |s i| ≤ K := by
       dsimp [K]
       linarith [Finset.single_le_sum (fun j _ => abs_nonneg (s j)) (Finset.mem_univ i)]
-    have hrK := (le_div_iff₀ (by positivity : 0 < 4 * K)).mp (min_le_left _ _ : r ≤ _)
-    have hbound := mul_le_mul_of_nonneg_left hKi hr.le
-    dsimp [ε]
-    nlinarith
+    have hK0 : 0 < 4 * K := by positivity
+    have hrK := (le_div_iff₀ hK0).mp (min_le_left _ _ : r ≤ _)
+    dsimp [ε]; nlinarith [mul_le_mul_of_nonneg_left hKi hr.le]
 
 /-- Place the actual finite incident family inside any positive-radius ball. Source cut
 parameters, optional frozen protection, slopes and all geometric conclusions are internal.
@@ -225,7 +224,6 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   let : DecidableEq X := fun e f => Classical.propDecidable (e = f)
   let a : E → ℝ := fun e => (D.route e).start.re
   let b : E → ℝ := fun e => (D.route e).finish.re
-  have hshape (e : E) : D.route e = Route.line (parabolaPoint (a e)) (parabolaPoint (b e)) := rfl
   have hne (e : E) : a e ≠ b e := fun hab =>
     (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e) (congrArg parabolaPoint hab)
   have hopen (e : X) : z ∈ openSegment ℝ (D.route e.val).start (D.route e.val).finish := by
@@ -245,11 +243,9 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     simp only [openSegment_eq_image_lineMap] at hopen
     obtain ⟨u, hu, hueq⟩ := hopen e
     obtain ⟨v, hv, hveq⟩ := hopen f
-    have heval : (D.route e.val).eval 0 u = (D.route f.val).eval 0 v := by
-      rw [hshape e.val, hshape f.val, Route.eval_line, Route.eval_line]
-      exact hueq.trans hveq.symm
     obtain ⟨be, _, hbe, _, _⟩ := referenceDrawing_frozen_edge_contacts hI e.val f.val
-      hef' he hf 0 0 ⟨hu.1.le, hu.2.le⟩ ⟨hv.1.le, hv.2.le⟩ heval
+      hef' he hf 0 0 ⟨hu.1.le, hu.2.le⟩ ⟨hv.1.le, hv.2.le⟩
+      (((Route.eval_line _ _ 0 u).trans hueq).trans ((Route.eval_line _ _ 0 v).trans hveq).symm)
     exact (Route.not_atEnd_of_mem_Ioo _ 0 hu be) hbe
   let fixed : Option X := if h : ∃ e : X, F e.val = true then some h.choose else none
   have hfixed (e : X) : fixed = some e ↔ F e.val = true := by
@@ -318,10 +314,8 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         _ ≤ |v.im - s e * v.re| + |s e| * r := by
           rw [abs_mul]
           exact add_le_add_right (mul_le_mul_of_nonneg_left hxab (abs_nonneg _)) _
-    apply Metric.mem_ball.mpr
-    rw [dist_eq_norm, add_sub_cancel_left]
-    have hn := Complex.norm_le_abs_re_add_abs_im v
-    nlinarith [htube e]
+    rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left]
+    nlinarith [Complex.norm_le_abs_re_add_abs_im v, htube e]
   have hPkeep (e : X) (he : F e.val = true) : d e = 0 ∧
       P e = Route.line (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e))
         (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e)) := by

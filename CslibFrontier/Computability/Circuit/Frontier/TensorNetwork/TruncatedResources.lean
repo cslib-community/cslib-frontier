@@ -350,13 +350,10 @@ theorem specEntryCertificate_le :
   have hD := (bD ((t, P, ℓ, fl, ζ), bs)).imp (·.trans (mD hnZ)) (·.trans (mD hnZ))
   have hE := (bE ((t, P, ℓ, fl, ζ), bs)).imp (·.trans (mE hnZ)) (·.trans (mE hnZ))
   have hH' := (bH ((P, ℓ, fl, ζ), entry t bs)).imp (·.trans (mH hH)) (·.trans (mH hH))
-  refine ⟨?_, ?_⟩
-  · simp only [specEntryCertificate, NativeCertificate.congr, NativeCertificate.comp_time,
-      NativeCertificate.prod_time, Function.comp_apply]
-    omega
-  · simp only [specEntryCertificate, NativeCertificate.congr, NativeCertificate.comp_space,
-      NativeCertificate.prod_space, Function.comp_apply]
-    omega
+  simp only [specEntryCertificate, NativeCertificate.congr, NativeCertificate.comp_time,
+    NativeCertificate.prod_time, NativeCertificate.comp_space, NativeCertificate.prod_space,
+    Function.comp_apply]
+  constructor <;> omega
 
 /-! ### Direct summation -/
 
@@ -543,9 +540,7 @@ theorem truncDirectCertificate_le (entry : T → List Bool → List ℕ)
   obtain ⟨hTe, hSe⟩ := hK₁ fl P ℓ r G (Rf W * X * (E + 1)) (Rf W) (cD * (Rf W + 1)) <| by
     intro k _
     have hc := length_encCore_coreInput_le (encT := encT) (fl, P, ℓ, r, G) k
-    have hci : coreInput (fl, P, ℓ, r, G) k =
-        (P, fl, r, DescribedNetwork.specNet P ℓ fl (FastContraction.digits fl.length k) G) := rfl
-    rw [hci] at hc ⊢
+    dsimp only [coreInput] at hc ⊢
     obtain ⟨hT, hS⟩ := hKA P ℓ r fl (FastContraction.digits fl.length k) G E ES hE
     have hR : KA * ((encCore encT (P, fl, r, DescribedNetwork.specNet P ℓ fl
         (FastContraction.digits fl.length k) G)).length + ES + 1) ^ KA ≤ Rf W := by

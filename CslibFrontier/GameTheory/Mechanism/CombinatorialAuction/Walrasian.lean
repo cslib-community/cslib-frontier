@@ -185,11 +185,8 @@ theorem Allocation.indicator_isLPRFeasible {N M : Type*} [Fintype N] [Fintype M]
       simp [hi₀]
     · push Not at h
       simp [h]
-  bidder_le i := by
-    simp [Allocation.indicator]
-  nonneg i S := by
-    unfold Allocation.indicator
-    split_ifs <;> norm_num
+  bidder_le i := by simp [Allocation.indicator]
+  nonneg i S := by rcases a.indicator_isIntegral i S with h | h <;> linarith
 
 /-- The LPR objective evaluated at the indicator of an allocation equals its social welfare. -/
 @[simp]
@@ -365,16 +362,12 @@ private theorem isDLPRFeasible_iff_matrix [DecidableEq N]
     (v : N → Finset M → ℝ) (u : N → ℝ) (p : M → ℝ) :
     IsDLPRFeasible v u p ↔
       0 ≤ Sum.elim p u ∧ Function.uncurry v ≤ Sum.elim p u ᵥ* lprMatrix := by
-  constructor
-  · intro h
-    exact ⟨fun | .inl j => h.price_nonneg j | .inr i => h.utility_nonneg i,
-      fun ⟨i, S⟩ => (h.cover i S).trans_eq (vecMul_lprMatrix p u i S).symm⟩
-  · rintro ⟨hnonneg, hle⟩
-    exact
-      { cover := fun i S => by
-          simpa [vecMul_lprMatrix] using hle (i, S)
+  exact ⟨fun h => ⟨fun | .inl j => h.price_nonneg j | .inr i => h.utility_nonneg i,
+      fun ⟨i, S⟩ => (h.cover i S).trans_eq (vecMul_lprMatrix p u i S).symm⟩,
+    fun ⟨hnonneg, hle⟩ =>
+      { cover := fun i S => by simpa [vecMul_lprMatrix] using hle (i, S)
         utility_nonneg := fun i => hnonneg (.inr i)
-        price_nonneg := fun j => hnonneg (.inl j) }
+        price_nonneg := fun j => hnonneg (.inl j) }⟩
 
 /-- **Weak LP duality** between LPR and DLPR ([BlumrosenNisan2007], §11.3.1, pp. 276–277): the
 objective of any LPR-feasible fractional allocation is at most the objective of any DLPR-feasible
@@ -689,8 +682,7 @@ theorem not_exists_isWalrasianEquilibrium_noEquilibriumVal :
       IsWalrasianEquilibrium noEquilibriumVal p a := by
   rintro ⟨p, a, heq⟩
   obtain ⟨x, hx, hval⟩ := exists_isLPROptimal_noEquilibriumVal
-  have h1 := heq.lprObjective_le (fun i => (noEquilibriumVal_empty i).ge) hx.1
-  have h2 := welfare_noEquilibriumVal_le a
-  linarith
+  linarith [heq.lprObjective_le (fun i => (noEquilibriumVal_empty i).ge) hx.1,
+    welfare_noEquilibriumVal_le a]
 
 end Cslib.GameTheory.CombinatorialAuction

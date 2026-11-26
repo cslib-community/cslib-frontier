@@ -198,11 +198,8 @@ noncomputable def parallelRounds (psel : (∀ p : V × ℕ, α p.1) → List ι 
 theorem parallelRounds_le_of_eq_nil {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
     {T : ∀ p : V × ℕ, α p.1} {n : ℕ} (hn : psel T (parallelRun psel T n) = []) :
     parallelRounds psel T ≤ n := by
-  refine iSup₂_le fun m hm => ?_
-  have hlt : m < n := by
-    by_contra hge
-    exact hm (psel_parallelRun_eq_nil_of_le hn (Nat.le_of_not_lt hge))
-  exact_mod_cast Nat.succ_le_of_lt hlt
+  refine iSup₂_le fun m hm => mod_cast Nat.succ_le_of_lt (by_contra fun hge =>
+    hm (psel_parallelRun_eq_nil_of_le hn (Nat.le_of_not_lt hge)))
 
 theorem succ_le_parallelRounds_iff (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     (T : ∀ p : V × ℕ, α p.1) (k : ℕ) :
@@ -252,8 +249,7 @@ private theorem le_length_parallelRun_of_forall
   | n + 1 => by
     have hpos := List.length_pos_of_ne_nil (h n)
     have ih := le_length_parallelRun_of_forall h n
-    rw [parallelRun_succ, List.length_append]
-    omega
+    rw [parallelRun_succ, List.length_append]; omega
 
 end ParallelExecution
 
@@ -494,9 +490,8 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
     obtain ⟨j, hj, hadj⟩ := parallel_step_adj vbl A hA hrule T r hp_in
     have hspec := mem_pushList_spec (Adj vbl) (hrule.pairwise T (parallelRun psel T r))
       (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)
-    have hj_bound : ∀ x ∈ psel T (parallelRun psel T r),
+    have hj_bound (x : ι) (_ : x ∈ psel T (parallelRun psel T r)) :
         levelRel (Adj vbl) x (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) ≤ t + d + 1 := by
-      intro x _
       rcases Nat.eq_zero_or_pos
           (levelRel (Adj vbl) x (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)) with
         hl0 | hlpos
@@ -795,15 +790,10 @@ private theorem lintegral_parallelEventSum_le [Fintype V] [DecidableEq V] [Decid
     ∫⁻ T, parallelEventSum vbl A T ∂table μ ≤
       ENNReal.ofReal ((max 0 (Real.log (∑ i : ι, x i / (1 - x i))) + 1) / ε) := by
   rw [lintegral_parallelEventSum_eq μ vbl A hAm]
-  have htail : ∑' k : ℕ, table μ (parallelEvent vbl A k) ≤
-      ∑' k : ℕ, min (1 : ℝ≥0∞)
-        (ENNReal.ofReal ((1 - ε) ^ (k + 1) * ∑ i : ι, x i / (1 - x i))) := by
-    refine tsum_le_tsum fun k => le_min ?_ ?_
-    · exact (measure_mono (Set.subset_univ _)).trans (by simp)
-    · exact table_parallelEvent_le μ vbl A hAm hA Γ hΓ hx hε hP k
-  have hM0 : 0 ≤ ∑ i : ι, x i / (1 - x i) :=
-    Finset.sum_nonneg fun i _ => div_nonneg (hx i).1 (sub_pos.2 (hx i).2).le
-  exact htail.trans (tsum_min_one_ofReal_pow_mul_le hε hM0)
+  exact (tsum_le_tsum fun k => le_min ((measure_mono (Set.subset_univ _)).trans (by simp))
+      (table_parallelEvent_le μ vbl A hAm hA Γ hΓ hx hε hP k)).trans
+    (tsum_min_one_ofReal_pow_mul_le hε <|
+      Finset.sum_nonneg fun i _ => div_nonneg (hx i).1 (sub_pos.2 (hx i).2).le)
 
 /-- **Parallel Moser–Tardos theorem** [MoserTardos2010, Theorem 1.3]: under
 `Pr[A i] ≤ (1 - ε) * x i * ∏ j ∈ Γ i, (1 - x j)` with `ε ∈ (0, 1]`, any admissible parallel

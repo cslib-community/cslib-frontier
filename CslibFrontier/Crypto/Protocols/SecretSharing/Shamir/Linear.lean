@@ -121,11 +121,7 @@ theorem tailPolynomial_smul (n : ℕ) (c : F) (a : Fin n → F) :
 theorem tailPolynomial_sum {ι : Type*} (S : Finset ι) (n : ℕ) (f : ι → Fin n → F) :
     tailPolynomial (F := F) n (∑ j ∈ S, f j) =
       ∑ j ∈ S, tailPolynomial n (f j) := by
-  classical
-  induction S using Finset.induction_on with
-  | empty => simp
-  | insert _ _ hnotMem ih =>
-    rw [Finset.sum_insert hnotMem, tailPolynomial_add, ih, Finset.sum_insert hnotMem]
+  simp only [tailPolynomial, map_sum, Submodule.coe_sum]
 
 /-- The sharing polynomial with zero secret and zero tail is the zero polynomial. -/
 @[simp] theorem sharingPolynomial_zero :
@@ -182,9 +178,8 @@ theorem lagrangeWeightAtZero_ne_zero {ι : Type*} [Fintype ι] {x : ι → F}
 weight at `0`. -/
 theorem reconstruct_single {ι : Type*} [Fintype ι] [DecidableEq ι] (x : ι → F) (i : ι) (c : F) :
     reconstruct x (Pi.single i c) = c * lagrangeWeightAtZero x i := by
-  rw [reconstruct_eq_sum_lagrangeWeightAtZero,
-    Finset.sum_eq_single i (fun _ _ hji => by simp [hji]) (fun hi => (hi (Finset.mem_univ i)).elim)]
-  simp
+  simp only [reconstruct_eq_sum_lagrangeWeightAtZero, Pi.single_apply, ite_mul, zero_mul,
+    Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
 
 /-- Reconstructing the zero share vector returns `0`. -/
 @[simp] theorem reconstruct_zero {ι : Type*} [Fintype ι] (x : ι → F) :
@@ -208,11 +203,8 @@ theorem reconstruct_smul {ι : Type*} [Fintype ι] (x : ι → F) (c : F) (σ : 
 theorem reconstruct_sum {ι κ : Type*} [Fintype ι] (S : Finset κ) (x : ι → F) (σ : κ → ι → F) :
     reconstruct x (∑ k ∈ S, σ k) =
       ∑ k ∈ S, reconstruct x (σ k) := by
-  classical
-  induction S using Finset.induction_on with
-  | empty => simp
-  | insert _ _ hnotMem ih =>
-    rw [Finset.sum_insert hnotMem, reconstruct_add, ih, Finset.sum_insert hnotMem]
+  simp only [reconstruct_eq_sum_lagrangeWeightAtZero, Finset.sum_apply, Finset.sum_mul]
+  exact Finset.sum_comm
 
 /-- Reconstructing a Shamir sharing across all parties via `Polynomial.reconstruct params.point`
 recovers `secretValue`. -/
@@ -272,12 +264,8 @@ theorem share_sum {ι : Type*} (S : Finset ι) (params : Params F Party)
     (r : ι → Randomness params) (s : ι → F) (i : Party) :
     share params (∑ j ∈ S, r j) (∑ j ∈ S, s j) i =
       ∑ j ∈ S, share params (r j) (s j) i := by
-  classical
-  induction S using Finset.induction_on with
-  | empty => simp
-  | insert _ _ hnotMem ih =>
-    rw [Finset.sum_insert hnotMem, Finset.sum_insert hnotMem, share_add, ih,
-      Finset.sum_insert hnotMem]
+  simp only [share, Polynomial.sharingPolynomial_eval, Polynomial.tailPolynomial_sum,
+    _root_.Polynomial.eval_finsetSum, Finset.mul_sum, Finset.sum_add_distrib]
 
 /-- Reconstructing the zero coalition share vector returns `0`. -/
 @[simp] theorem reconstruct_zero (params : Params F Party) (s : Finset Party) :
@@ -363,11 +351,9 @@ theorem degree_mulTailPolynomial_lt {t : ℕ} (a : F) {t₁ : _root_.Polynomial 
     (ht₁ : t₁.degree < t) (b : F) {t₂ : _root_.Polynomial F} (ht₂ : t₂.degree < t) :
     (mulTailPolynomial a t₁ b t₂).degree < (2 * t : WithBot ℕ) := by
   rcases t with _ | k
-  · have ht₁0 : t₁ = 0 := _root_.Polynomial.degree_eq_bot.mp
-      (WithBot.lt_coe_bot.mp (by simpa using ht₁))
-    have ht₂0 : t₂ = 0 := _root_.Polynomial.degree_eq_bot.mp
-      (WithBot.lt_coe_bot.mp (by simpa using ht₂))
-    simp [mulTailPolynomial, ht₁0, ht₂0]
+  · have h0 {p : _root_.Polynomial F} (hp : p.degree < (0 : ℕ)) : p = 0 :=
+      _root_.Polynomial.degree_eq_bot.mp (WithBot.lt_coe_bot.mp (by simpa using hp))
+    simp [mulTailPolynomial, h0 ht₁, h0 ht₂]
   · have hle {p : _root_.Polynomial F} (hp : p.degree < ((k + 1 : ℕ) : WithBot ℕ)) :
         p.degree ≤ (k : WithBot ℕ) := by
       cases h : p.degree with
@@ -377,8 +363,7 @@ theorem degree_mulTailPolynomial_lt {t : ℕ} (a : F) {t₁ : _root_.Polynomial 
     have hlt : ((k + 1 : ℕ) : WithBot ℕ) ≤ (2 * (k + 1 : ℕ) : WithBot ℕ) := by
       exact_mod_cast (by omega : k + 1 ≤ 2 * (k + 1))
     have hC (c : F) (p : _root_.Polynomial F) : (_root_.Polynomial.C c * p).degree ≤ p.degree :=
-      (_root_.Polynomial.degree_mul_le _ _).trans
-        (by simpa using add_le_add_left _root_.Polynomial.degree_C_le p.degree)
+      _root_.Polynomial.smul_eq_C_mul c ▸ _root_.Polynomial.degree_smul_le c p
     have h1 : (_root_.Polynomial.C a * t₂).degree < (2 * (k + 1 : ℕ) : WithBot ℕ) :=
       (hC a t₂).trans_lt (ht₂.trans_le hlt)
     have h2 : (_root_.Polynomial.C b * t₁).degree < (2 * (k + 1 : ℕ) : WithBot ℕ) :=
@@ -500,11 +485,8 @@ coalition member `i : I`. -/
 @[simp] theorem share_interpCoeffs (params : Params F Party) (I : Finset Party)
     (hI : I.card ≤ params.threshold) (y : F) (σ : I → F) (i : I) :
     share params (interpCoeffs params I hI y σ) y i = σ i := by
-  unfold share
-  rw [Polynomial.sharingPolynomial_eval, tailPolynomial_interpCoeffs, interpTailPolynomial_eval]
-  have hnz : params.point i ≠ 0 := params.point_nonzero i
-  field_simp [hnz]
-  ring
+  rw [share, Polynomial.sharingPolynomial_eval, tailPolynomial_interpCoeffs,
+    interpTailPolynomial_eval, mul_div_cancel₀ _ (params.point_nonzero i), add_sub_cancel]
 
 /-- Additive group homomorphism restricting a zero-secret Shamir sharing to a coalition `I`. -/
 noncomputable def shareZeroRestrictHom (params : Params F Party) (I : Finset Party) :

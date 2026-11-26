@@ -244,9 +244,7 @@ theorem PosTCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduce
     dsimp only [TC.left, TC.right, Term.realize, Sum.elim_inr, id]
     refine ⟨fun hr => ⟨TC.pair z₀.val m₀.val, TC.left_pair _ _, TC.right_pair _ _, ?_⟩,
       fun ⟨_, hz, ht, hr⟩ => by rwa [hz, ht] at hr⟩
-    have hl : (fun i => TC.pair z₀.val m₀.val _) = z₀.val := TC.left_pair _ _
-    have hr' : (fun i => TC.pair z₀.val m₀.val _) = m₀.val := TC.right_pair _ _
-    rwa [hl, hr']
+    exact (congrArg₂ _ (TC.left_pair _ _) (TC.right_pair _ _)).mpr hr
 
 /-- **Ordered first-order reductions to `Reach` pull back FO(TC) definability.** -/
 theorem TCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduces K Reach) :
@@ -386,15 +384,12 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
     exacts [(hZ_ne_T hTZ.symm).elim, (hT_not_mid hT).elim, hgoal]
   · rintro ⟨x, y, hx, hxy, hy⟩
     have hmid (a : Fin d → Fin M.size) : IsMid (midTuple maxElem a) := ⟨rfl, rfl⟩
-    have h1 : Edge Z (midTuple maxElem x) :=
-      Or.inl ⟨⟨rfl, hmid x⟩, by simpa only [midTuple_payload] using hx⟩
-    have h2 : Relation.ReflTransGen Edge (midTuple maxElem x) (midTuple maxElem y) :=
-      Relation.ReflTransGen.lift (midTuple maxElem)
-        (fun a b hab => Or.inr (Or.inl ⟨⟨hmid a, hmid b⟩, by
-          simpa only [midTuple_payload] using hab⟩)) x y hxy
-    have h3 : Edge (midTuple maxElem y) T :=
-      Or.inr (Or.inr ⟨⟨hmid y, rfl⟩, by simpa only [midTuple_payload] using hy⟩)
-    exact (Relation.ReflTransGen.head h1 h2).tail h3
+    refine (Relation.ReflTransGen.head (r := Edge)
+      (Or.inl ⟨⟨rfl, hmid x⟩, by simpa only [midTuple_payload] using hx⟩)
+      (Relation.ReflTransGen.lift (midTuple maxElem) (fun a b hab =>
+        Or.inr (Or.inl ⟨⟨hmid a, hmid b⟩, by simpa only [midTuple_payload] using hab⟩))
+        x y hxy)).tail
+      (Or.inr (Or.inr ⟨⟨hmid y, rfl⟩, by simpa only [midTuple_payload] using hy⟩))
 
 end BoundedReach
 

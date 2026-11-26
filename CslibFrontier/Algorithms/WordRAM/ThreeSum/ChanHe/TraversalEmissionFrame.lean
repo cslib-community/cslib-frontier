@@ -37,16 +37,8 @@ theorem Emission.prefix_preserved {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     {x y : Data 128} {published : Bool}
     (h : Emission Q Λ e x y published) (p : ℕ) (hp : p < x.regs heap)
     (hne : p ≠ x.regs outputs + x.regs outputCount) : y.mem p = x.mem p := by
-  cases published with
-  | false =>
-    have hm : y.mem = h.before := by simpa using h.memory
-    rw [hm]
-    exact h.prefixMemory p hp
-  | true =>
-    have hm : y.mem = Function.update h.before (x.regs outputs + x.regs outputCount)
-        (recordLayout x h.M).packed := by simpa using h.memory
-    rw [hm, Function.update_of_ne hne]
-    exact h.prefixMemory p hp
+  have hm := h.memory
+  cases published <;> simp_all [h.prefixMemory p hp]
 
 /-- All persistent caller parameters survive the actual complete visit. -/
 theorem Emission.controls {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
@@ -114,9 +106,8 @@ theorem Emission.children_tasks {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     (h : Emission Q Λ e x y published) :
     h.children.map Entry.task = e.task.children Q Λ (e.fuel - 1) := by
   simp only [Emission.children, List.map_cons, List.map_nil]
-  apply e.task_children Q Λ (recordLayout x h.M).heavy h.lists
-  intro j
-  rw [h.sets j, h.exactModulus]
+  exact e.task_children Q Λ (recordLayout x h.M).heavy h.lists fun j => by
+    rw [h.sets j, h.exactModulus]
 
 /-- Each of the actual three heavy-child arrays retains the existing admissibility promises. -/
 theorem Emission.children_valid {Q : Finset ℕ} {Λ n U : ℕ} {e : Entry}
@@ -251,9 +242,9 @@ theorem Emission.output {Q : Finset ℕ} {Λ : ℕ} {e : Entry} {x y : Data 128}
     have hi : i.val < 4 * x.regs groups := by simpa only [hN] using i.isLt
     have hp := h.packed ⟨i.val, hi⟩
     change y.mem ((recordLayout x h.M).packed + i.val) = _ at hp
-    rw [hm, Function.update_of_ne (show
-      (recordLayout x h.M).packed + i.val ≠ x.regs outputs + x.regs outputCount by
-        rw [ht, hcount]; omega)] at hp
+    have hne : (recordLayout x h.M).packed + i.val ≠ x.regs outputs + x.regs outputCount := by
+      rw [ht, hcount]; omega
+    rw [hm, Function.update_of_ne hne] at hp
     simpa only [Block.read, hU] using hp
   rw [hm, ht, hcount]
   exact hbefore.append hnew (by intro i; have := (hbounds i).1; omega) (by omega)
@@ -273,7 +264,7 @@ theorem Emission.math_step {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
   cases he : e.fuel with
   | zero => exact (hf he).elim
   | succ f =>
-    simp only [Math.step, show e.task.fuel = f + 1 from he, hempty, ↓reduceIte,
-      Nat.add_sub_cancel]
+    have hfuel : e.task.fuel = f + 1 := he
+    simp only [Math.step, hfuel, hempty, ↓reduceIte, Nat.add_sub_cancel]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

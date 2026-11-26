@@ -175,16 +175,14 @@ theorem projHash_fiber_eq (d : F.Desc) (α β γ δ τ : ZMod (F.order d)) :
     projHash F d (δ - α * τ) τ (β • F.generator d) (γ • F.generator d) =
       (β * δ + (γ - α * β) * τ) • F.generator d := by
   rw [projHash_generator_smul]
-  congr 1
-  ring
+  exact congrArg (· • F.generator d) (by ring)
 
 /-- On the fiber `σ = δ - α * τ`, the auxiliary projection `projHashAux` is independent of `τ` and
 equals `δ • g`. -/
 theorem projHashAux_fiber_eq (d : F.Desc) (α δ τ : ZMod (F.order d)) :
     projHashAux F d (δ - α * τ) τ (α • F.generator d) = δ • F.generator d := by
   rw [projHashAux_generator_smul]
-  congr 1
-  ring
+  exact congrArg (· • F.generator d) (by ring)
 
 /-- The fiber change-of-variables `(δ, τ) ↦ (δ - α * τ, τ)` on `ZMod (F.order d) × ZMod (F.order d)`
 under which `projHashAux F d σ τ (α • g) = δ • g` depends only on `δ`. -/
@@ -359,8 +357,7 @@ theorem projHash2_fiber_eq (d : F.Desc) (α β γ δ₁ δ₂ τ₁ τ₂ ρ : Z
       (β • F.generator d) (γ • F.generator d) =
       (β * (δ₁ + ρ * δ₂) + (γ - α * β) * (τ₁ + ρ * τ₂)) • F.generator d := by
   rw [projHash2_generator_smul]
-  congr 1
-  ring
+  exact congrArg (· • F.generator d) (by ring)
 
 /-- On a Diffie–Hellman triple `γ = α * β`, `projHash2` on the fiber `σ₁ = δ₁ - α * τ₁`,
 `σ₂ = δ₂ - α * τ₂` equals `(β * (δ₁ + ρ * δ₂)) • g`, independent of `(τ₁, τ₂)`. -/
@@ -416,8 +413,7 @@ theorem projHash2_fiber_challenge_eq (d : F.Desc) (α β γ δ₁ δ₂ ξ τ₂
       (β • F.generator d) (γ • F.generator d) =
       (β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d := by
   rw [projHash2_fiber_eq]
-  congr 1
-  ring
+  exact congrArg (· • F.generator d) (by ring)
 
 /-- Further conditioning on `ξ = τ₁ + ρ * τ₂` (so `τ₁ = ξ - ρ * τ₂`), a query on
 `(β' • g, γ' • g, ρ')` evaluates to
@@ -428,8 +424,7 @@ theorem projHash2_fiber_query_eq (d : F.Desc) (α β' γ' δ₁ δ₂ ξ τ₂ �
       ((β' * (δ₁ + ρ' * δ₂) + (γ' - α * β') * ξ) +
         ((γ' - α * β') * (ρ' - ρ)) * τ₂) • F.generator d := by
   rw [projHash2_fiber_eq]
-  congr 1
-  ring
+  exact congrArg (· • F.generator d) (by ring)
 
 /-- The affine bijection
 `τ₂ ↦ (β' * (δ₁ + ρ' * δ₂) + (γ' - α * β') * ξ) + ((γ' - α * β') * (ρ' - ρ)) * τ₂`
@@ -522,11 +517,10 @@ theorem uniform_projHash2_fiber_any_le (d : F.Desc)
       rw [← uniform_projHash2_fiber_apply F d hq_head.1 hq_head.2 δ₁ δ₂ ξ z',
         PMF.map_apply, PMF.map_apply]
       refine tsum_congr fun τ₂ => ?_
-      dsimp only [μ, hit]
       by_cases h : projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ'
           (β' • F.generator d) (γ' • F.generator d) = z'
-      · simp only [h, decide_true, ↓reduceIte]
-      · simp only [h, decide_false, Bool.true_eq_false, ↓reduceIte, ite_eq_right (Ne.symm h)]
+      · simp only [μ, hit, h, decide_true, ↓reduceIte]
+      · simp only [hit, h, decide_false, Bool.true_eq_false, ↓reduceIte, ite_eq_right (Ne.symm h)]
     refine hor.trans ?_
     rw [hsingle, List.length_cons, Nat.cast_add, Nat.cast_one, ENNReal.add_div, one_div, add_comm]
     exact add_le_add_left (ih fun q' hmem => hq q' (List.mem_cons_of_mem _ hmem)) _

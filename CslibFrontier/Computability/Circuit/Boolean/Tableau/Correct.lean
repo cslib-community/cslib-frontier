@@ -193,9 +193,7 @@ private theorem val_resolve_node {t c : ℕ} {p : Bool} {l : Loc k State} {cs : 
     val tm T x ((Ref.node p l cs g).resolve x.length T t c) =
       (g.test x.length T c && val tm T x (wire x.length T (if p then t - 1 else t) l
         (cs.apply T c))) := by
-  cases h : g.test x.length T c
-  · simp [Ref.resolve, h, val_fls]
-  · simp [Ref.resolve, h]
+  cases h : g.test x.length T c <;> simp [Ref.resolve, h, val_fls]
 
 variable (T x) in
 /-- The contribution of column `c` to a scanned quantity. -/
@@ -335,10 +333,11 @@ private theorem val_acc (htT : t + 1 ≤ T) (q : ScanQ k) :
       Guard.test, Bool.true_and, ColSel.apply, Bool.false_eq_true, decide_false, Bool.false_and,
       Bool.false_or, val_term tm hinv htT hc, Nat.le_zero, exists_eq_left]
   | succ c ih =>
+    have hc1 : 1 ≤ c + 1 := Nat.le_add_left 1 c
     rw [val_wire tm (l := .scan (.acc q)) hc htT]
     simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, scanAt, val_resolve_node,
       Guard.test, Bool.false_eq_true, ↓reduceIte, Bool.true_and, ColSel.apply,
-      Nat.add_sub_cancel, show 1 ≤ c + 1 by omega, decide_true, Bool.or_eq_true,
+      Nat.add_sub_cancel, hc1, decide_true, Bool.or_eq_true,
       ih (by omega), val_term tm hinv htT hc, ← Nat.lt_add_one_iff]
     exact Nat.exists_lt_succ_right.symm
 
@@ -355,9 +354,9 @@ private theorem val_acc_last (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (q : Sc
   · simp only [termSem, readSem, Cfg.workTapeSymbols]
     have hb : |cfg.workTapePos i| ≤ t := abs_workTapePos_runFrom_le (tm := tm) x t i
     rw [abs_le] at hb
-    refine ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨(cfg.workTapePos i + T).toNat,
-      by omega, by omega, ?_⟩⟩
-    rwa [show (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i by omega]
+    have hpos : (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i := by omega
+    exact ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨(cfg.workTapePos i + T).toNat,
+      by omega, by omega, hpos.symm ▸ h⟩⟩
 
 /-! ### Situations and attributes -/
 
@@ -498,17 +497,13 @@ omit [DecidableEq State] in
 private theorem exists_getD_iff {L : List (Ref k State × Ref k State)} (hL : L.length ≤ 8)
     {P : Ref k State × Ref k State → Bool} (hd : P (.fls, .fls) = false) :
     (∃ j' : Fin 8, j' ≤ 7 ∧ P (L.getD j' (.fls, .fls)) = true) ↔ ∃ p ∈ L, P p = true := by
-  constructor
-  · rintro ⟨j', -, h⟩
-    rcases List.getD_mem_or L j' (.fls, .fls) with hm | hm
-    · exact ⟨_, hm, h⟩
-    · rw [hm, hd] at h
-      exact absurd h Bool.false_ne_true
-  · rintro ⟨p, hp, h⟩
-    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hp
-    exact ⟨⟨i, by omega⟩, by
-      simp only [Fin.isValue, Fin.le_iff_val_le_val, Fin.coe_ofNat_eq_mod, Nat.mod_succ]; omega,
-      by rw [List.getD_eq_getElem _ _ hi]; exact h⟩
+  refine ⟨fun ⟨j', _, h⟩ => (List.getD_mem_or L j' (.fls, .fls)).elim (fun hm => ⟨_, hm, h⟩)
+    fun hm => Bool.noConfusion (hd.symm.trans ((congrArg P hm).symm.trans h)),
+    fun ⟨p, hp, h⟩ => ?_⟩
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hp
+  exact ⟨⟨i, by omega⟩,
+    Fin.le_iff_val_le_val.2 (by dsimp; omega),
+    (List.getD_eq_getElem _ _ hi).symm ▸ h⟩
 
 omit [Fintype State] in
 /-- The two cases of a step: a halted configuration stays, and otherwise the action of the

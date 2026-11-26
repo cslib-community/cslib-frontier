@@ -192,10 +192,8 @@ theorem decidableInExpTime (r : SizeSensitiveReduction encA encB μA μB)
   have hX : 1 ≤ X := Real.one_le_rpow (by norm_num) (by positivity)
   have hexp : (2 : ℝ) ^ (δ * μB (r.toFun a)) ≤ 2 ^ (δ * r.offset) * X := by
     rw [← Real.rpow_add (by norm_num)]
-    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
-    have hm : (μB (r.toFun a) : ℝ) ≤ r.scale * μA a + r.offset := by
-      exact_mod_cast r.measure_le a
-    nlinarith
+    have hm : (μB (r.toFun a) : ℝ) ≤ r.scale * μA a + r.offset := by exact_mod_cast r.measure_le a
+    exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by nlinarith)
   have hsum : P + (t (r.toFun a) : ℝ) ≤ K * (X * P ^ (e + 1)) :=
     reduction_add_time_le (C := (2 : ℝ) ^ (δ * r.offset)) hP hX (by positivity)
       (by dsimp only [P]; exact_mod_cast hl a) hexp (ht (r.toFun a))
@@ -543,13 +541,12 @@ private theorem listMax_exp_le (r : DisjointBatchReduction encA encB μA μB)
   refine cast_listMax_le t (r.toBatch a).items (by positivity) fun b hb => ?_
   have hexp : (2 : ℝ) ^ (δ * μB b) ≤ 2 ^ (δ * r.offset) * 2 ^ ((r.scale * δ) * μA a) := by
     rw [← Real.rpow_add (by norm_num)]
-    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
     have hm : (μB b : ℝ) ≤ r.scale * μA a + r.offset := by exact_mod_cast r.measure_mem_le a hb
-    nlinarith
-  have hblen : ((encB b).length : ℝ) ≤ (encList encB (r.toBatch a).items).length := by
-    exact_mod_cast length_le_encList_of_mem encB hb
+    exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by nlinarith)
   have hpow : (((encB b).length : ℝ) + 1) ^ e ≤
-      (((encList encB (r.toBatch a).items).length : ℝ) + 1) ^ e := by gcongr
+      (((encList encB (r.toBatch a).items).length : ℝ) + 1) ^ e :=
+    pow_le_pow_left₀ (by positivity)
+      (add_le_add_left (Nat.cast_le.mpr (length_le_encList_of_mem encB hb)) 1) e
   have hmul := mul_le_mul_of_nonneg_left (mul_le_mul hexp hpow (by positivity) (by positivity))
     (Nat.cast_nonneg k : (0 : ℝ) ≤ k)
   linarith [ht b]
@@ -562,8 +559,8 @@ private theorem batch_exp_absorb_le {base itemsLen listLen perItem maxT Cp k e o
     (hmax : (maxT : ℝ) ≤ k * 2 ^ (δ * offset) * X * ((listLen : ℝ) + 1) ^ e + k) :
     ((base + (itemsLen + 1) * (perItem + maxT) : ℕ) : ℝ) ≤
       Cp * (1 + k * 2 ^ (δ * offset) + k) * (X * P) := by
-  have hl_e : ((listLen : ℝ) + 1) * ((listLen : ℝ) + 1) ^ e ≤ Cp * P := by
-    linarith [show (0 : ℝ) ≤ (base : ℝ) + ((listLen : ℝ) + 1) * (perItem : ℝ) by positivity]
+  have h0 : (0 : ℝ) ≤ (base : ℝ) + ((listLen : ℝ) + 1) * (perItem : ℝ) := by positivity
+  have hl_e : ((listLen : ℝ) + 1) * ((listLen : ℝ) + 1) ^ e ≤ Cp * P := by linarith
   have hl_1 : ((listLen : ℝ) + 1) ≤ Cp * P :=
     (le_mul_of_one_le_right (by positivity)
       (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg listLen)))).trans hl_e
@@ -585,8 +582,7 @@ private theorem batch_exp_absorb_le {base itemsLen listLen perItem maxT Cp k e o
         (hl_1.trans (mul_le_mul_of_nonneg_left hXP (Nat.cast_nonneg Cp)))
         (Nat.cast_nonneg k)).trans_eq (mul_right_comm _ _ _)
     linarith
-  push_cast
-  linarith
+  push_cast; linarith
 
 private theorem batch_poly_exp_le (r : DisjointBatchReduction encA encB μA μB)
     {base perItem : α → ℕ} {t : β → ℕ} {δ : ℝ} (hδ : 0 ≤ δ) {k e : ℕ}
@@ -694,8 +690,7 @@ private theorem exists_computableInO_foldl_of_ansBound
     dsimp only [InstanceBatch.length, R, listLen] at h₁ ⊢
     exact Nat.add_le_add (by omega) (Nat.mul_le_mul_left _ (by omega))
   · have h₁ := hce a
-    dsimp only [Q, listLen] at h₁ ⊢
-    omega
+    dsimp only [Q, listLen] at h₁ ⊢; omega
 
 /-- **Sequential left-fold resource transfer with bounded live workspace.**
 Evaluating `g : β → γ` sequentially across `(r.toBatch a).items` and folding answers via a
@@ -1161,21 +1156,17 @@ private theorem stack_exp_absorb {A_ov B_ov R_cnt leafMax Cp : ℝ} {K₀ K₁ M
   have hY1 : 1 ≤ Y := Real.one_le_rpow (by norm_num) (by positivity)
   have hleaf' : leafMax ≤ k * 2 ^ (δ * offset) * Cp * Y * P + (k + 1) := by
     have hexp : (2 : ℝ) ^ (δ * ((scale * μ + offset : ℕ) : ℝ)) = 2 ^ (δ * offset) * Y := by
-      dsimp only [Y]
       rw [← Real.rpow_add (by norm_num)]
-      congr 1
-      push_cast
-      ring
+      exact congrArg (2 ^ ·) (by push_cast; ring)
     have hmul := mul_le_mul_of_nonneg_left hll
       (by positivity : (0 : ℝ) ≤ k * 2 ^ (δ * offset) * Y)
     rw [hexp, ← mul_assoc] at hleaf
-    linarith [show (k : ℝ) * (2 : ℝ) ^ (δ * offset) * Y * (Cp * P) =
-      k * (2 : ℝ) ^ (δ * offset) * Cp * Y * P by ring]
+    have hring : (k : ℝ) * (2 : ℝ) ^ (δ * offset) * Y * (Cp * P) =
+        k * (2 : ℝ) ^ (δ * offset) * Cp * Y * P := by ring
+    linarith
   have hXY : (2 : ℝ) ^ ((1 / M + scale * δ) * μ) = X * Y := by
-    dsimp only [X, Y]
     rw [← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
+    exact congrArg (2 ^ ·) (by ring)
   have hround_sum : B_ov + leafMax ≤ (Cp + k * 2 ^ (δ * offset) * Cp + (k + 1)) * (Y * P) := by
     linarith [mul_le_mul_of_nonneg_left (le_mul_of_one_le_left (by positivity : 0 ≤ P) hY1) hCp0,
       le_mul_of_one_le_right (by positivity : (0 : ℝ) ≤ k + 1)
@@ -1227,12 +1218,10 @@ private theorem stack_poly_exp_le
   set K : ℝ := Cp + (K₀ * 2 ^ K₁ + 1) * (Cp + k * 2 ^ (δ * offset) * Cp + (k + 1))
   refine ⟨⌈K⌉₊, E, fun a => ?_⟩
   have hCp_a := hCp a
-  have hA : (A_ov a : ℝ) ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by
-    exact_mod_cast (show A_ov a ≤ Cp * ((encA a).length + 1) ^ E by omega)
-  have hB : (B_ov a : ℝ) ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by
-    exact_mod_cast (show B_ov a ≤ Cp * ((encA a).length + 1) ^ E by omega)
+  have hA : (A_ov a : ℝ) ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by norm_cast; omega
+  have hB : (B_ov a : ℝ) ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by norm_cast; omega
   have hll : ((leafLen a : ℝ) + 1) ^ e ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by
-    exact_mod_cast (show (leafLen a + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E by omega)
+    norm_cast; omega
   have habs := stack_exp_absorb hδ (Nat.cast_nonneg Cp) (Nat.cast_nonneg _) (Nat.cast_nonneg _)
     hA hB (rounds_succ_exp_le hrounds hν a) (hleafMax_le a) hll
   push_cast at habs ⊢
@@ -1611,13 +1600,12 @@ theorem run_eq_foldl_leafWords
   obtain ⟨L, hnd, hL, N, hN, hsearch⟩ := T.exists_iterate_searchStep hT f root hh
   have hrl := hrounds L hnd hL
   obtain ⟨hfin, hpref⟩ := hsearch [] (S.initAcc a)
-  have hfix : ∀ k, (T.searchStep f)^[k] ([], (L.map (T.walk root)).foldl f (S.initAcc a)) =
-      ([], (L.map (T.walk root)).foldl f (S.initAcc a)) :=
-    Function.iterate_fixed (by rfl)
+  have hfix := Function.iterate_fixed (f := T.searchStep f)
+    (x := ([], (L.map (T.walk root)).foldl f (S.initAcc a))) rfl
   have hafter (m : ℕ) (hm : N ≤ m) :
       (T.searchStep f)^[m] ([root], S.initAcc a) =
         ([], (L.map (T.walk root)).foldl f (S.initAcc a)) := by
-    rw [show m = (m - N) + N by omega, Function.iterate_add_apply, hfin, hfix]
+    rw [← Nat.sub_add_cancel hm, Function.iterate_add_apply, hfin, hfix]
   refine ⟨L, hnd, hL, ?_, fun i hi => ?_⟩
   · simp only [run, initState, hinit]
     rw [S.iterate_step_eq_binaryBranching g (S.initCtx a) T hleaf hexp (S.rounds a) [root]

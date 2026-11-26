@@ -134,8 +134,7 @@ private theorem size_basesTm (p : Fin (K + K)) : (C.basesTm p).tree.size ≤ 140
 private theorem size_ifTm_le {k : Fin pS} {t : Tree} {a : Tm} (ht : t.size ≤ 5 * Lc) :
     (ifTm (C.name (.gate k)) t a).tree.size ≤ a.tree.size + 10 * Lc + 14 := by
   have := H.size_ofBits_le (H.name (.gate k))
-  simp only [ifTm, Tm.tree, Tree.size, num]
-  omega
+  simp only [ifTm, Tm.tree, Tree.size, num]; omega
 
 private theorem size_digitTree (d : Fin D) : (C.digitTree d).size ≤ 5 * Lc :=
   H.size_ofBits_le (H.digit d)
@@ -151,8 +150,7 @@ private theorem size_slotTm (z : M.Slot) (a : Fin (K + K + A')) :
   have := size_ifTm_le H (k := tab.givenGate z u) (a := .c (listT [ofBits (C.key ⟨a, u⟩)]))
     (size_digitTree H ⟨1, hD⟩)
   have := H.size_ofBits_le (H.key ⟨a, u⟩)
-  simp only [Tm.tree, listT, Tree.size, num] at *
-  omega
+  simp only [Tm.tree, listT, Tree.size, num] at *; omega
 
 private theorem size_roleTm (r : M.Role) : (C.roleTm tab tg hD r).tree.size ≤
     120 * (X * (X * Lc)) := by
@@ -173,8 +171,7 @@ private theorem size_roleTm (r : M.Role) : (C.roleTm tab tg hD r).tree.size ≤
       exact size_valueTm H _
   have := size_valueTm H (.count r.1)
   have := H.roleNum r
-  simp only [Codes.roleTm, Tm.tree, Tree.size, size_num, num] at *
-  omega
+  simp only [Codes.roleTm, Tm.tree, Tree.size, size_num, num] at *; omega
 
 private theorem size_endTm (hmm : mm ≤ D) (g : Fin mm) (u : UnitId (K + K) U0 M.Channel U1) :
     (C.endTm tab hD hmm g u).tree.size ≤ 300 * Lc := by
@@ -224,8 +221,7 @@ private theorem size_pieceTm {bT bub : List Bool} (hbT : bT.length ≤ Lc) (hbub
         (a := listTm [C.roleTm tab tg hD r])
         (size_digitTree H (Fin.castLE hmm g))
       have := size_roleTm (hD := hD) tab H r
-      simp only [listTm, Tm.tree, Tree.size, num] at *
-      omega
+      simp only [listTm, Tm.tree, Tree.size, num] at *; omega
   have s3 := sum_map_le_mul (a := 300) (b := 11) hLc
     (ts := (UnitId.list (K + K) U0 M.Channel U1).map (C.endTm tab hD hmm g))
     (by simpa [UnitId.list] using H.units) fun t ht => by
@@ -282,9 +278,7 @@ theorem size_dealProgram_le (hmX : mm ≤ X) (hc : c ≤ X) {nl nub bT bub : Lis
   have := size_dealFormula_le (ofBits (letterCode cb (bt false))) (ofBits (letterCode cb (bt true)))
     ((List.finRange K).map fun κ => C.name (.part κ)) nl nub (C.dealSteps tab qn i e hU0 hU1)
     C.contentSteps ((List.finRange mm).map (C.pieceTm tab tg bT bub hD hmm gp))
-  rw [Codes.dealProgram]
-  have e := Nat.add_mul dealBaseSize 3000 ((X * Lc) ^ 4)
   have := Nat.le_mul_of_pos_right dealBaseSize h1
-  omega
+  rw [Codes.dealProgram, Nat.add_mul]; omega
 
 end Cslib.Circuits.Arithmetic.Separation.Dealing

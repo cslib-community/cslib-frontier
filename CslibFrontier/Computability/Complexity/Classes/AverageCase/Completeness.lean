@@ -228,21 +228,17 @@ theorem distHard_problem : DistHard DistNP problem := by
     code_injective hcdf hden0 (encode_injective h).2.1
   have hfpoly : ComputableInPolyTime f encBits encBits := by
     have hcode := code_polyTime hnum hden
-    have hh : ComputableInPolyTime (fun x => (header c (code num den x)).length) encBits
-        encUnary :=
-      ComputableInPolyTime.length_bits.comp
-        (header_polyTime.comp ((ComputableInPolyTime.const c).prod hcode))
-    have hNx : ComputableInPolyTime (fun x : List Bool => N.eval x.length) encBits encUnary :=
-      (ComputableInPolyTime.unary_eval N).comp ComputableInPolyTime.length_bits
-    exact encode_polyTime (ComputableInPolyTime.const c) hcode
-      (ComputableInPolyTime.unary_sub' hNx hh)
+    exact encode_polyTime (.const c) hcode (.unary_sub'
+      ((ComputableInPolyTime.unary_eval N).comp .length_bits)
+      (ComputableInPolyTime.length_bits.comp
+        (header_polyTime.comp ((ComputableInPolyTime.const c).prod hcode))))
   refine ⟨⟨f, fun n => N.eval n, P, hfpoly, fun n x _ => ?_, fun n y => ?_⟩⟩
   · -- correctness
     rw [problem_lang, encode_mem_BH_iff, accepts_iff]
-    have hhx := hhead x
     have hRle : R.eval x.length ≤ N.eval x.length - (header c (code num den x)).length := by
       have := length_header_code_le hcdf hden0 c x
-      rw [hN] at hhx ⊢; omega
+      rw [hN]
+      omega
     have hpair (v : List Bool) :
         frame (code num den x) ++ v = encPair encBits encBits (code num den x, v) := by
       simp [encPair_apply]

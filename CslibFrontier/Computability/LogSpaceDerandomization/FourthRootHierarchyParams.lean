@@ -106,8 +106,7 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
   have hθ : 0 < θ := by positivity
   have ha : 0 < a := by positivity
   have hθ₂ : θ₂ = 1 / (64 * q) := by
-    dsimp [θ₂, θ, a]
-    field_simp
+    simp only [θ₂, θ, a, one_div, mul_inv]
     ring
   have hθ₂small : θ₂ < 1 / (32 * q) :=
     hθ₂ ▸ one_div_lt_one_div_of_lt (by positivity) (by linarith)
@@ -226,19 +225,14 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
       _ = 1 / (8 * q) := by ring
   · rw [div_le_div_iff₀ (by positivity) hq, one_mul]
     simpa only [mul_comm] using hcopies.le
-  · have hJ : (2 * Cπ * m * k * (k + 1)) / δ₀ ≤ (J : ℝ) := by
-      push_cast [J]
-      linarith [Nat.le_ceil ((2 * Cπ * m * k * (k + 1)) / δ₀)]
+  · have hJ : (2 * Cπ * m * k * (k + 1)) / δ₀ ≤ J :=
+      (Nat.le_ceil _).trans (by push_cast [J]; linarith)
     linarith [(div_le_iff₀ hδ₀).mp hJ]
-  · simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-    have hsw (a b : ℝ) := And.intro (exists_lipschitzWith_polynomialSwitch4_root a b)
+  · have hsw (a b : ℝ) := And.intro (exists_lipschitzWith_polynomialSwitch4_root a b)
       (exists_lipschitzWith_one_sub_polynomialSwitch4_root a b)
-    have hcomp (a b : ℝ) :
-        (∃ K, LipschitzWith K fun t => (1 - polynomialSwitch4 a b t) ^ (4⁻¹ : ℝ)) ∧
-        (∃ K, LipschitzWith K fun t => (1 - (1 - polynomialSwitch4 a b t)) ^ (4⁻¹ : ℝ)) :=
-      ⟨exists_lipschitzWith_one_sub_polynomialSwitch4_root a b,
-        by simpa only [sub_sub_cancel] using exists_lipschitzWith_polynomialSwitch4_root a b⟩
-    exact ⟨hsw _ _, hsw _ _, hcomp η η₂, hcomp (1 / 2) (4 / 5), hsw _ _⟩
+    simpa only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq,
+      sub_sub_cancel] using ⟨hsw _ _, hsw _ _, (hsw η η₂).symm, (hsw (1 / 2) (4 / 5)).symm,
+        hsw _ _⟩
 
 end FourthRootHierarchyParams
 

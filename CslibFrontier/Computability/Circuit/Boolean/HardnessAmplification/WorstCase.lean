@@ -263,9 +263,7 @@ private theorem lineErrors_le {q Q a ε D δ : ℝ} (hq : 1 < q) (hQ : 1 ≤ Q) 
   have hterm1 : q * a * (Q - 1) / (μ - D) ^ 2 / Q ≤ Q * (2 ^ (K + 4) / (q * ε)) := by
     have hμD' : 0 < μ - D := by linarith only [hμpos, hμD]
     rw [div_div, div_le_iff₀ (by positivity)]
-    have hμsq : μ ^ 2 * Q ^ 2 = (q * a) ^ 2 := by
-      simp only [μ]
-      field_simp
+    have hμsq : μ ^ 2 * Q ^ 2 = (q * a) ^ 2 := by simp only [μ]; field_simp
     have key : q * a * (Q - 1) ≤ q * a * Q :=
       mul_le_mul_of_nonneg_left (by linarith only [hQ]) (by positivity)
     have hstep : q * a * Q * 4 ≤ Q * (2 ^ (K + 4) / (q * ε)) * (μ ^ 2 * Q) := by
@@ -290,9 +288,7 @@ private theorem lineErrors_le {q Q a ε D δ : ℝ} (hq : 1 < q) (hQ : 1 ≤ Q) 
   rw [add_div]
   calc 1 + (q * a * (Q - 1) / (μ - D) ^ 2 / Q + Q * (Q - 1) * δ / (q - 1) / Q)
       ≤ 1 + (Q * (2 ^ (K + 4) / (q * ε)) + Q * (D / (q - 1))) := by linarith only [hterm1, hterm2]
-    _ = Q * (1 / Q + 2 ^ (K + 4) / (q * ε) + D / (q - 1)) := by
-        field_simp
-        ring
+    _ = Q * (1 / Q + 2 ^ (K + 4) / (q * ε) + D / (q - 1)) := by field_simp; ring
 
 /-- The ranges of the parameters forced by the hypotheses of the reconstruction theorem: the
 Sudan parameter `D` is positive and below `q`, and `d + 1 ≤ q - 1`, so there are `d + 1` distinct
@@ -325,13 +321,10 @@ private theorem reconstruction_ranges {q d D K m : ℕ} {ε : ℝ} (hq2 : 2 ≤ 
       (by positivity)).trans herr
   have h6' : 6 * ((d : ℝ) + 1) * D ≤ q - 1 := by
     rwa [mul_div_assoc', div_le_one (by linarith only [hq1])] at h6
-  have hD1' : (1 : ℝ) ≤ D := by exact_mod_cast hD1
-  have hle : ((d + 1 : ℕ) : ℝ) ≤ ((q - 1 : ℕ) : ℝ) := by
-    rw [Nat.cast_sub (by omega)]
-    push_cast
-    linarith only [h6', le_mul_of_one_le_right (by positivity : (0 : ℝ) ≤ 6 * ((d : ℝ) + 1)) hD1',
-      Nat.cast_nonneg (α := ℝ) d]
-  exact_mod_cast hle
+  have h6d : 6 * ((d : ℝ) + 1) ≤ q - 1 :=
+    (le_mul_of_one_le_right (by positivity) (by exact_mod_cast hD1)).trans h6'
+  rw [← Nat.cast_le (α := ℝ), Nat.cast_sub (by omega), Nat.cast_add, Nat.cast_one]
+  linarith [Nat.cast_nonneg (α := ℝ) d]
 
 omit [DecidableEq F] in
 /-- **The reconstruction theorem** [SudanTrevisanVadhan2001]. Let `F` be a field of `q` elements
@@ -455,8 +448,7 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
       hUx, p, gp, truthTableExtension_block]
     cases f x <;> simp
   refine (hemb.trans (hUs.trans hout)).complexity_le.trans ?_
-  simp only [reconstructionCost, ← hd_def, ← hq_def]
-  omega
+  simp only [reconstructionCost, ← hd_def, ← hq_def]; omega
 
 /-! ### A polynomial bound on the reconstruction cost -/
 

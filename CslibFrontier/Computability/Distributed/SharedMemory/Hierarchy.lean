@@ -299,22 +299,18 @@ theorem not_waitFreeConsensus_registers {P I S : Type*} {Val : I → Type*}
   intro hcons
   refine false_of_same_object_critical π hcons hcard ?_
   intro cstar p q hpq i op_p next_p dec_p op_q next_q dec_q ha_p ha_q huf hut hr_pq hr_qp
-  have hqp : q ≠ p := hpq.symm
   cases op_p <;> cases op_q
   · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut hr_pq hr_qp
       (by simp only [applyAt, registerObj, Function.update_eq_self])
       (by simp only [applyAt, registerObj, Function.update_eq_self, Function.update_self,
-        Function.update_of_ne hqp])
-  · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
-      hr_pq (LTS.CanReach.refl _ _)
+        Function.update_of_ne hpq.symm])
+  · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut hr_pq (.refl _ _)
       (by simp only [applyAt, registerObj, Function.update_eq_self])
       (by simp only [applyAt, registerObj, Function.update_self])
-  · exact Protocol.not_univalent_of_indistinguishable p ha_p ha_q huf hut
-      (LTS.CanReach.refl _ _) hr_qp
+  · exact Protocol.not_univalent_of_indistinguishable p ha_p ha_q huf hut (.refl _ _) hr_qp
       (by simp only [applyAt, registerObj, Function.update_eq_self])
       (by simp only [applyAt, registerObj, Function.update_self])
-  · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
-      hr_pq (LTS.CanReach.refl _ _)
+  · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut hr_pq (.refl _ _)
       (by simp only [applyAt, registerObj, Function.update_idem])
       (by simp only [applyAt, registerObj, Function.update_self])
 
@@ -676,10 +672,8 @@ theorem solvesWaitFreeConsensus_testAndSetProtocol {P R : Type*} {V : Type u}
               fun _ h => (TASState.readWinner.inj h).symm.trans (by simp [hother q w hwq.symm]),
               fun _ h => (nomatch h), fun p _ => hw_rw p, fun p _ => hw_dec p⟩⟩
       | readWinner r =>
-        have htas_true_eq : (c₁.mem .tas).down = true := by
-          cases ht : (c₁.mem .tas).down with
-          | false => exact absurd hsq ((hinit.tas_false ht q).1 r)
-          | true => rfl
+        have htas_true_eq : (c₁.mem .tas).down = true :=
+          Bool.eq_true_of_not_eq_false fun ht => (hinit.tas_false ht q).1 r hsq
         obtain ⟨w, hw_st, hw_rw, hw_dec⟩ := hinit.tas_true htas_true_eq
         cases hw_rw q r hsq
         have hmem_w : c₁.mem (.propReg (regOf w)) = inp w :=
@@ -746,17 +740,15 @@ theorem not_waitFreeConsensus_rmw_of_three_le {P I S : Type*} {Op Resp ObjState 
       (s := {p, q}) (Finset.card_le_two.trans_lt (by rw [Finset.card_univ]; omega))
     exact ⟨w, by simpa only [Finset.mem_insert, Finset.mem_singleton, not_or] using hw_notin⟩
   rcases hobj i op_p op_q (cstar.mem i) with hcomm | hover_q | hover_p
-  · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut hr_pq hr_qp ?_ ?_
-    · simp only [applyAt, Function.update_self, Function.update_idem, hcomm]
-    · simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq]
-  · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut
-      hr_pq (LTS.CanReach.refl _ _) ?_ ?_
-    · simp only [applyAt, Function.update_self, Function.update_idem, hover_q]
-    · simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq]
-  · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut
-      (LTS.CanReach.refl _ _) hr_qp ?_ ?_
-    · simp only [applyAt, Function.update_self, Function.update_idem, hover_p]
-    · simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq]
+  · exact Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut hr_pq hr_qp
+      (by simp only [applyAt, Function.update_self, Function.update_idem, hcomm])
+      (by simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq])
+  · exact Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut hr_pq (.refl _ _)
+      (by simp only [applyAt, Function.update_self, Function.update_idem, hover_q])
+      (by simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq])
+  · exact Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut (.refl _ _) hr_qp
+      (by simp only [applyAt, Function.update_self, Function.update_idem, hover_p])
+      (by simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq])
 
 /-- **Sharp Level-2 `TestAndSet` consensus characterization ([Herlihy1991], §3.2, Figure 7 &
 Theorem 4, p. 134):** wait-free binary consensus (`SolvesWaitFreeConsensus`) is solvable using
@@ -880,8 +872,8 @@ theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [De
     | some w =>
       obtain ⟨hq, hdec⟩ := hsome w hm
       exact (hdec p v hp).symm ▸ ⟨rfl, hq⟩
-  refine ⟨hwf, fun inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩ => ?_,
+  exact ⟨hwf, fun inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩ =>
+      Option.some.inj ((hdec_of hr hp₁).1.symm.trans (hdec_of hr hp₂).1),
     fun inp c v hr ⟨p, hp⟩ => (hdec_of hr hp).2⟩
-  exact Option.some.inj ((hdec_of hr hp₁).1.symm.trans (hdec_of hr hp₂).1)
 
 end Cslib.Distributed.SharedMemory

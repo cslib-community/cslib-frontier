@@ -214,10 +214,7 @@ theorem scheduleCost_append {s : P.State} {reqs₁ reqs₂ : List P.Req}
       P.scheduleCost s reqs₁ states₁ +
         P.scheduleCost (P.finalState s states₁) reqs₂ states₂ := by
   induction reqs₁ generalizing s states₁ with
-  | nil =>
-    rw [List.length_nil, List.length_eq_zero_iff] at hlen
-    subst hlen
-    simp
+  | nil => simp [List.length_eq_zero_iff.mp hlen]
   | cons r rs ih =>
     rcases states₁ with _ | ⟨s', ss⟩
     · cases hlen
@@ -537,13 +534,9 @@ theorem amortized_bound {potential : P.State → A.Mem → Nat} {c : Nat}
   have hrun := P.runClient_scheduleClient hv
   have hvh : P.offlineSpec.ValidHistory s_off
       (P.offlineSpec.runClient s_off (P.scheduleClient reqs offStates)).2.2 := by
-    rw [hrun]
-    exact P.validHistory_zip hv
-  have hclient := Cert.client (s := s_off) hm hvh hexec
-  rw [StateTransitionSpec.clientState, StateTransitionSpec.clientHistory, hrun] at hclient
-  dsimp only at hclient
-  rw [htot, P.totalCost_zip c hv] at hclient
-  exact hclient
+    simpa only [hrun] using P.validHistory_zip hv
+  simpa only [StateTransitionSpec.clientState, StateTransitionSpec.clientHistory, hrun, htot,
+    P.totalCost_zip c hv] using Cert.client (s := s_off) hm hvh hexec
 
 /-- A `Cslib.DataStructure.Amortized` certificate whose initial potential on `(s₀, A.init s₀)` is at
 most `b` establishes `A.IsCompetitive c b`. -/
@@ -665,10 +658,8 @@ theorem le_costFrom_adaptiveRequestsFrom {chooseReq : P.State → P.Req} {w : Na
   induction n generalizing m with
   | zero => simp only [Nat.zero_mul, Nat.zero_le]
   | succ n ih =>
-    simp only [adaptiveRequestsFrom_succ, costFrom_cons, Nat.add_mul, Nat.one_mul]
-    have h₁ := hw hm
-    have h₂ := ih (A.valid_step (chooseReq (A.project m)) hm).1
-    omega
+    rw [adaptiveRequestsFrom_succ, costFrom_cons, Nat.succ_mul, Nat.add_comm]
+    exact Nat.add_le_add (hw hm) (ih (A.valid_step _ hm).1)
 
 /-- From an admissible initial state `s₀`, if `chooseReq` forces step cost at least `w` at every
 reachable state, then `A.adaptiveRequests chooseReq s₀ n` has online cost at least `n * w`. -/

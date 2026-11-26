@@ -363,9 +363,8 @@ theorem isReplicable_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   let good : Set (Fin k → α) := {v | ∀ y : α, |empFreq k v y - (A.marginal D y).toReal| ≤ δ}
   have hgoodc : ((Probability.PMF.iid (A.marginal D) k).toOuterMeasure goodᶜ).toReal ≤
       (Fintype.card α : ℝ) * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)) := by
-    have heq : goodᶜ = {v | ∃ y, δ < |empFreq k v y - (A.marginal D y).toReal|} :=
-      Set.ext fun _ => by simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, not_le, good]
-    exact heq ▸ empFreq_all_concentrates (A.marginal D) k hδ
+    simpa only [Set.compl_def, Set.mem_ofPred_eq, not_forall, not_le, good] using
+      empFreq_all_concentrates (A.marginal D) k hδ
   have hba : 0 < b - a := sub_pos.mpr hab
   refine paired_bind_disagree_le _ good (fun i v => pickThresholded a b N k i v) hgoodc
     (by positivity) fun v₁ hv₁ v₂ hv₂ => thresholdRound_union_disagree_le hab N hv₁ hv₂ ?_
@@ -421,13 +420,13 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
     rw [pickThresholded, dite_eq_left hcand]
     exact Finset.min'_mem cand hcand
   have hbad_mass : (A.marginal D (pickThresholded a b N k i v)).toReal ≤ β₀ := by
-    rw [← PMF.toOuterMeasure_apply_singleton]
-    exact (Probability.PMF.toOuterMeasure_toReal_mono _
-      (Set.singleton_subset_iff.mpr hv)).trans (hacc D hD)
-  have hfalse := thresholdRound_false_of_lt_left hab i
-    (show empFreq k v (pickThresholded a b N k i v) < a by
-      linarith [(abs_sub_le_iff.mp (hconc (pickThresholded a b N k i v))).1])
-  exact Bool.false_ne_true (hfalse.symm.trans (Finset.mem_filter.mp hmem).2)
+    simpa only [PMF.toOuterMeasure_apply_singleton] using
+      (Probability.PMF.toOuterMeasure_toReal_mono _
+        (Set.singleton_subset_iff.mpr hv)).trans (hacc D hD)
+  have hlt : empFreq k v (pickThresholded a b N k i v) < a := by
+    linarith [(abs_sub_le_iff.mp (hconc (pickThresholded a b N k i v))).1]
+  exact Bool.false_ne_true
+    ((thresholdRound_false_of_lt_left hab i hlt).symm.trans (Finset.mem_filter.mp hmem).2)
 
 /-- **Finite-domain amplification theorem** [ImpagliazzoLeiPitassiSorrell2022]: for any finite
 nonempty linearly ordered output type `α`, if `A` achieves error `β₀ < 1 / (|α| + 1)` on `𝒟`
@@ -874,8 +873,8 @@ theorem disagreeProb_amplifyReplicability_le [DecidableEq α] (A : Algorithm X �
     (fun t => (htr₁ t).1) (fun t => (htr₂ t).1) fun i hi => by
       simp only [Set.mem_ofPred_eq, ne_eq, Set.mem_iUnion, Finset.mem_univ, exists_true_left]
         at hi ⊢
-      by_contra hnone; push Not at hnone
-      exact hi (pickFirstThresholded_eq_of_rounds_eq A D hab.le hb_acc ht₀ htr₁ htr₂ i hnone)
+      contrapose! hi
+      exact pickFirstThresholded_eq_of_rounds_eq A D hab.le hb_acc ht₀ htr₁ htr₂ i hi
 
 /-- **Accuracy preservation for `amplifyReplicability`**: under `IsReplicableFor A 𝒟 ρ₀` and
 `IsAccurateFor A 𝒟 good β₀` with `1 / 2 + δ < a < b ≤ θ_acc - δ` and `θ_acc < 1`, the failure
@@ -909,11 +908,10 @@ theorem isAccurateFor_amplifyReplicability [DecidableEq α] (A : Algorithm X Ω 
         (by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul])
   have hgoodRS_c : (seeds.toOuterMeasure (goodSeeds ∩ badErrSeedsᶜ)ᶜ).toReal ≤
       (ρ₀ / (1 - θ_acc)) ^ T + (T : ℝ) * (β₀ / (a - δ)) := by
-    have hnt : ∀ s, seeds.toOuterMeasure s ≠ ⊤ := fun s => Probability.PMF.toOuterMeasure_ne_top _ s
     rw [Set.compl_inter, compl_compl]
-    exact (ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨hnt _, hnt _⟩)
-      (MeasureTheory.measure_union_le goodSeedsᶜ badErrSeeds)).trans
-      ((ENNReal.toReal_add (hnt _) (hnt _)).trans_le (add_le_add hbad_coll hbad_err))
+    exact (ENNReal.toReal_le_add (MeasureTheory.measure_union_le goodSeedsᶜ badErrSeeds)
+      (Probability.PMF.toOuterMeasure_ne_top _ _) (Probability.PMF.toOuterMeasure_ne_top _ _)).trans
+      (add_le_add hbad_coll hbad_err)
   let trialFail : ℝ := (T : ℝ) * (2 * Real.exp (-2 * (k₁ : ℝ) * δ ^ 2) +
     2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2))
   refine (Probability.PMF.toOuterMeasure_bind_failure_toReal_le seeds _
@@ -929,9 +927,8 @@ theorem isAccurateFor_amplifyReplicability [DecidableEq α] (A : Algorithm X Ω 
   obtain ⟨tStar, yStar, hpick, hyStar⟩ :=
     pickFirstThresholded_eq_heavy A D hab.le hb_acc ht₀ htr i
   refine herr ⟨tStar, hyStar.trans ?_⟩
-  rw [← PMF.toOuterMeasure_apply_singleton]
-  exact Probability.PMF.toOuterMeasure_toReal_mono _
-    (Set.singleton_subset_iff.mpr (hpick ▸ hy_bad))
+  simpa only [PMF.toOuterMeasure_apply_singleton] using
+    Probability.PMF.toOuterMeasure_toReal_mono _ (Set.singleton_subset_iff.mpr (hpick ▸ hy_bad))
 
 /-- **General-domain replicability and accuracy-preserving amplification**: over any
 `[DecidableEq α]`, for any initial `ρ₀ < 1 / 2` and target `ρ, β > 0`, there exist shared-seed
@@ -961,7 +958,6 @@ theorem exists_amplifyReplicability_accurate {ρ₀ ρ β : ℝ} (hρ₀_nonneg 
   have hq1 : q < 1 := (div_lt_one (sub_pos.mpr hθ_lt)).mpr (by dsimp only [θ_acc, γ]; linarith)
   obtain ⟨T, hT_inst, hT_pow⟩ :=
     exists_neZero_mul_pow_le 1 hq0 hq1 (show 0 < ε / 4 by positivity)
-  rw [one_mul] at hT_pow
   have hTR : (0 : ℝ) < T := Nat.cast_pos.mpr (NeZero.pos T)
   obtain ⟨N, hN_inst, hN_bound⟩ := exists_nat_div_le (T : ℝ) (by positivity : 0 < ρ / 4)
   let δ : ℝ := min (γ / 2) ((ρ / (8 * (T : ℝ))) * (b - a))
@@ -976,15 +972,13 @@ theorem exists_amplifyReplicability_accurate {ρ₀ ρ β : ℝ} (hρ₀_nonneg 
   let β₀_req : ℝ := (β / 4) * (a - δ) / T
   refine ⟨a, b, T, k₁, k₂, N, hT_inst, hk₁_inst, hk₂_inst, hN_inst, β₀_req, by positivity, ?_⟩
   intro X Ω α m _ A 𝒟 good β₀ hrep hacc hβ₀_le
-  have hε_rho : ε ≤ ρ := min_le_left _ _
-  have hε_beta : ε ≤ β := min_le_right _ _
   refine ⟨fun D hD => ?_,
     (isAccurateFor_amplifyReplicability A hrep hacc hab hδ.le ha_half hb_acc hθ_lt
       T k₁ k₂ N).mono ?_⟩
   · have hpow : (A.disagreeProb D / (1 - θ_acc)) ^ T ≤ ρ / 4 :=
       (pow_le_pow_left₀ (div_nonneg (A.disagreeProb_nonneg D) (sub_pos.mpr hθ_lt).le)
         (div_le_div_of_nonneg_right (hrep D hD) (sub_pos.mpr hθ_lt).le) T).trans
-        (by linarith [hT_pow])
+        (by linarith [hT_pow, min_le_left ρ β])
     have hseed : (T : ℝ) * (2 * δ / (b - a)) ≤ ρ / 4 := calc
       (T : ℝ) * (2 * δ / (b - a))
           ≤ (T : ℝ) * (2 * ((ρ / (8 * (T : ℝ))) * (b - a)) / (b - a)) := by
@@ -992,12 +986,14 @@ theorem exists_amplifyReplicability_accurate {ρ₀ ρ β : ℝ} (hρ₀_nonneg 
       _ = ρ / 4 := by field_simp [hTR.ne', hba.ne']; ring
     have hsplit : (T : ℝ) * (2 * δ / (b - a) + 1 / N) =
         (T : ℝ) * (2 * δ / (b - a)) + (T : ℝ) / N := by ring
-    linarith [disagreeProb_amplifyReplicability_le A D hab hδ.le ha_half hb_acc hθ_lt T k₁ k₂ N]
+    linarith [min_le_left ρ β,
+      disagreeProb_amplifyReplicability_le A D hab hδ.le ha_half hb_acc hθ_lt T k₁ k₂ N]
   · have h2 : (T : ℝ) * (β₀ / (a - δ)) ≤ β / 4 := calc
       (T : ℝ) * (β₀ / (a - δ)) ≤ (T : ℝ) * (β₀_req / (a - δ)) := by gcongr
       _ = β / 4 := by dsimp only [β₀_req]; field_simp [hTR.ne', had_pos.ne']
-    linarith [hT_pow, (by positivity : 0 ≤ (T : ℝ) * (2 * Real.exp (-2 * (k₁ : ℝ) * δ ^ 2))),
-      (by positivity : 0 ≤ (T : ℝ) * (2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2)))]
+    linarith [hT_pow, min_le_right ρ β,
+      mul_nonneg hTR.le (Real.exp_nonneg (-2 * (k₁ : ℝ) * δ ^ 2)),
+      mul_nonneg hTR.le (Real.exp_nonneg (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2))]
 
 /-- **General-domain replicability amplification** [ImpagliazzoLeiPitassiSorrell2022]: over any
 `[DecidableEq α]` output type, any algorithm `A` that is weakly (or strongly) `ρ₀`-replicable on

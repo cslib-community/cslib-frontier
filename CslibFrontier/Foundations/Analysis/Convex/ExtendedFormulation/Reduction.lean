@@ -61,15 +61,10 @@ theorem IsExtendedFormulation.inter_mulVec_eq {Q : Set (ι → K)}
       (fromRows E' C) (fromRows F' (0 : Matrix ρ κ K)) (Sum.elim g' d) := by
   intro x
   simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, hEF x]
-  have heq : ∀ y : κ → K,
-      fromRows E' C *ᵥ x + fromRows F' (0 : Matrix ρ κ K) *ᵥ y = Sum.elim g' d ↔
-        E' *ᵥ x + F' *ᵥ y = g' ∧ C *ᵥ x = d := fun y => by
-    have hsum : fromRows E' C *ᵥ x + fromRows F' (0 : Matrix ρ κ K) *ᵥ y =
-        Sum.elim (E' *ᵥ x + F' *ᵥ y) (C *ᵥ x) := by
-      ext (i | j) <;> simp only [fromRows_mulVec, zero_mulVec, Pi.add_apply, Pi.zero_apply,
-        add_zero, Sum.elim_inl, Sum.elim_inr]
-    rw [hsum, Sum.elim_eq_iff]
-  simp_rw [heq]
+  have hsum (y : κ → K) : fromRows E' C *ᵥ x + fromRows F' (0 : Matrix ρ κ K) *ᵥ y =
+      Sum.elim (E' *ᵥ x + F' *ᵥ y) (C *ᵥ x) := by
+    ext (i | j) <;> simp [fromRows_mulVec]
+  simp_rw [hsum, Sum.elim_eq_iff]
   exact ⟨fun ⟨⟨y, hy, hy'⟩, hCx⟩ => ⟨y, hy, hy', hCx⟩,
     fun ⟨y, hy, hy', hCx⟩ => ⟨⟨y, hy, hy'⟩, hCx⟩⟩
 
@@ -121,10 +116,9 @@ theorem IsExtendedFormulation.affineImage [DecidableEq ι] {Q : Set (ν → K)}
   constructor
   · rintro ⟨z, hz, rfl⟩
     obtain ⟨y, hy, hy'⟩ := (hEF z).1 hz
-    refine ⟨Sum.elim z y, ?_, ?_⟩
-    · rwa [hblk]
-    · rw [heq_blk, hy', Sum.elim_eq_iff]
-      exact ⟨by abel, rfl⟩
+    refine ⟨Sum.elim z y, by rwa [hblk], ?_⟩
+    rw [heq_blk, hy', Sum.elim_eq_iff]
+    exact ⟨by abel, rfl⟩
   · rintro ⟨w, hw, hw'⟩
     rw [← Sum.elim_comp_inl_inr w, hblk] at hw
     rw [← Sum.elim_comp_inl_inr w, heq_blk, Sum.elim_eq_iff] at hw'
@@ -156,10 +150,8 @@ variable {ι ν : Type*} [Fintype ι] [Fintype ν]
 theorem extensionComplexity_image_linearMap_le (Q : Set (ν → K)) (f : (ν → K) →ₗ[K] (ι → K)) :
     extensionComplexity (f '' Q) ≤ extensionComplexity Q := by
   classical
-  have him : f '' Q = (fun z => LinearMap.toMatrix' f *ᵥ z) '' Q :=
-    Set.image_congr fun z _ => (LinearMap.toMatrix'_mulVec f z).symm
-  rw [him]
-  exact extensionComplexity_image_mulVec_le Q (LinearMap.toMatrix' f)
+  exact (Set.image_congr (s := Q) fun z _ => (LinearMap.toMatrix'_mulVec f z).symm) ▸
+    extensionComplexity_image_mulVec_le Q (LinearMap.toMatrix' f)
 
 /-- If two sets are mutual linear images of each other, they have the same extension
 complexity. -/
@@ -181,14 +173,10 @@ omit [IsStrictOrderedRing K] in
 /-- An affine matrix map commutes with `convexHull`. -/
 theorem image_affine_convexHull (T : Matrix ι ν K) [Fintype ν] (t : ι → K) (S : Set (ν → K)) :
     (fun z => T *ᵥ z + t) '' convexHull K S =
-      convexHull K ((fun z => T *ᵥ z + t) '' S) := by
-  let φ : (ν → K) →ᵃ[K] (ι → K) :=
-    { toFun := fun z => T *ᵥ z + t
-      linear := T.mulVecLin
-      map_vadd' := fun p v => by
-        simp only [vadd_eq_add, mulVecLin_apply, mulVec_add]
-        abel }
-  exact φ.image_convexHull S
+      convexHull K ((fun z => T *ᵥ z + t) '' S) :=
+  ({ toFun := fun z => T *ᵥ z + t, linear := T.mulVecLin, map_vadd' := fun _ _ => by
+      simp only [vadd_eq_add, mulVecLin_apply, mulVec_add]; abel } :
+      (ν → K) →ᵃ[K] (ι → K)).image_convexHull S
 
 omit [IsStrictOrderedRing K] in
 /-- A finite convex hull `conv (range V)` is nontrivial iff `V` takes two distinct values. -/

@@ -137,13 +137,11 @@ theorem isPPTOn_bitwiseEncrypt {encrypt : ℕ → List Bool → Bool → ProbCom
       (fun p => prog p.1 p.2) :=
     (hencrypt.preprocess
       (prepare := fun p : (ℕ × List Bool × List Bool) × Bool => (p.1.1, p.1.2.1, p.2)) (by
-        dsimp only [encKeyedInput]
-        fun_prop)).congr fun _ => rfl
+        dsimp only [encKeyedInput]; fun_prop)).congr fun _ => rfl
   have hlist : ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
       (encKeyedInput encBits) (encList encBool) :=
     ComputableInPolyTime.bitsToList.comp (by
-      dsimp only [encKeyedInput]
-      fun_prop)
+      dsimp only [encKeyedInput]; fun_prop)
   exact (isPPTOn_iff_encoded.mp (IsPPTOn.mapMWith (program := prog) hstep hlist)).congr
     fun ⟨_, _, _⟩ => rfl
 
@@ -364,8 +362,7 @@ theorem isPPT_bitwiseToSingleAt
         (hencrypt.preprocess
           (prepare := fun q : (ℕ × List Bool × List Bool) × Bool =>
             (q.1.1, (bitwiseToSingleStateDecoder.decode q.1.2.1).pk, q.2)) (by
-          dsimp only [encGuessInput, encKeyedInput]
-          fun_prop))
+          dsimp only [encGuessInput, encKeyedInput]; fun_prop))
         (ComputableInPolyTime.bitsToList.comp (encBitwiseToSingleState_front_polyTime hdec))
     have hback : IsPPTOn E1 (encList encBits)
         (fun q => (bitwiseToSingleStateDecoder.decode q.1.2.1).back.mapM
@@ -374,8 +371,7 @@ theorem isPPT_bitwiseToSingleAt
         (hencrypt.preprocess
           (prepare := fun q : ((ℕ × List Bool × List Bool) × List (List Bool)) × Bool =>
             (q.1.1.1, (bitwiseToSingleStateDecoder.decode q.1.1.2.1).pk, q.2)) (by
-          dsimp only [E1, encGuessInput, encKeyedInput]
-          fun_prop))
+          dsimp only [E1, encGuessInput, encKeyedInput]; fun_prop))
         (ComputableInPolyTime.bitsToList.comp
           ((encBitwiseToSingleState_back_polyTime hdec).comp
             (ComputableInPolyTime.fst encGuessInput (encList encBits))))
@@ -385,8 +381,7 @@ theorem isPPT_bitwiseToSingleAt
           (r.1.1.1, (bitwiseToSingleStateDecoder.decode r.1.1.2.1).stateA,
             encList encBits (r.1.2 ++ r.1.1.2.2 :: r.2)))
         E2 encGuessInput by
-          dsimp only [E2, E1, encGuessInput]
-          fun_prop)
+          dsimp only [E2, E1, encGuessInput]; fun_prop)
     simpa only [bitwiseToSingleAt] using IsPPTOn.cond
       (encBitwiseToSingleState_active_polyTime hdec)
       (hfront.bind_with (hback.bind_with hguess))
@@ -405,10 +400,9 @@ theorem isPPT_bitwiseToSingle
     (hadversary : adversary.IsPPT) :
     (bitwiseToSingle valid encrypt maxLen adversary).IsPPT where
   choose := by
-    have hsample : IsPPTOn (encPair encUnary encBits) encUnary
-        (fun p : ℕ × List Bool => ProbComp.sampleDyadicIndex (maxLen p.1)) :=
-      isPPTOn_sampleDyadicIndex (hmax.comp (ComputableInPolyTime.fst encUnary encBits))
-    exact hsample.bind_with (isPPTOn_bitwiseToSingleAt_choose hvalid hmax hadversary)
+    exact (isPPTOn_sampleDyadicIndex
+      (hmax.comp (ComputableInPolyTime.fst encUnary encBits))).bind_with
+      (isPPTOn_bitwiseToSingleAt_choose hvalid hmax hadversary)
   guess := (isPPT_bitwiseToSingleAt hvalid hencrypt hmax hadversary 0).guess
 
 /-! ### Coordinate hybrid games and exact advantage identity -/

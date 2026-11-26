@@ -365,8 +365,9 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
     have hf_k1 : Fits w (k + 1) := hfit_d.of_le (by omega)
     have hf_ro_k1 : Fits w (free + (k + 1)) := hfit_free.of_le (by omega)
     have hpass_le := Nat.add_one_mul k (2 * d * dom.length + 2)
-    have hpass_fit : Fits w (curFree + 2 + 2 * d * dom.length) := hfit_free.of_le (by
-      have := Nat.mul_le_mul_right (2 * d * dom.length + 2) (show k + 1 ≤ d from hk); omega)
+    have hpass_mul : (k + 1) * (2 * d * dom.length + 2) ≤ d * (2 * d * dom.length + 2) :=
+      Nat.mul_le_mul_right _ hk
+    have hpass_fit : Fits w (curFree + 2 + 2 * d * dom.length) := hfit_free.of_le (by omega)
     -- The fallback trie of stage `k`: empty when `cutoff = 0`, else stored at `fbBase + k`.
     obtain ⟨fbRoot, fbFn, hfbr, hfb_tr, hfb_eq⟩ : ∃ fbRoot fbFn,
         (if cutoff = 0 then 0 else s.mem (fbBase + k)) = fbRoot ∧
@@ -397,8 +398,7 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
       · have : Fits w (fbBase + k) := hfit_free.of_le (by have := (hfb_valid (by omega)).1; omega)
         wram_exec [hsz, hso, hsro, hk_eq, hscut, hcut0, hsfbb]
         wram_simp [coord, ← hfbr, hcut0]
-    have hdom_s : HoldsDom s.mem domPtr dom := by
-      intro p hp
+    have hdom_s : HoldsDom s.mem domPtr dom := fun p hp => by
       rw [hsframe _ (Or.inl (by omega)), hsframe _ (Or.inl (by omega))]
       exact hdom p hp
     obtain ⟨u₁, free', S_new, outFn, he_pass, hu₁_sav, hu₁_free, hcf_le', hfree'_le,
@@ -424,7 +424,7 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
       by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
       by regs_frame, free', by regs_frame, by omega, by omega, fun j hj => ?_, fun a ha => ?_⟩,
       hz_k⟩
-    · rcases (show j ≤ k ∨ j = k + 1 by omega) with hj | rfl
+    · rcases Nat.le_succ_iff.mp hj with hj | rfl
       · obtain ⟨stFn, ⟨S_j, hSj_sub, hSj_disj, hSj_rep⟩, hst_eq⟩ := hstages j hj
         have hslot : free + (k + 1) ∈ Set.Ico free exclHi := ⟨by omega, by omega⟩
         refine ⟨stFn, ⟨S_j, fun a ha => ⟨(hSj_sub ha).1, (hSj_sub ha).2.trans_le (by omega)⟩,
@@ -435,19 +435,16 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
       · refine ⟨outFn, ⟨S_new, fun a ha => ⟨by have := (hS_new ha).1; omega, (hS_new ha).2⟩,
           Set.disjoint_left.2 fun a ha hx => by have := (hS_new ha).1; have := hx.2; omega,
           ?_⟩, fun X hX => ?_⟩
-        · rw [show z.mem (free + (k + 1)) = curFree by simp [hz_mem]]
+        · rw [(congrFun hz_mem _).trans (Function.update_self _ _ _)]
           exact hrep_new.congr_mem fun a ha => by
             have := (hS_new ha).1
             rw [hz_mem, Function.update_of_ne (by omega)]
-        · have htake : (List.finRange d).take (k + 1) = (List.finRange d).take k ++ [coord] := by
-            rw [List.take_succ_eq_append_getElem (by simp [hk])]
-            simp [coord]
-          rw [htake, yatesTransform_append, yatesTransform_cons, yatesTransform_nil]
+        · rw [List.take_succ_eq_append_getElem (by simpa using hk), List.getElem_finRange,
+            yatesTransform_append, yatesTransform_cons, yatesTransform_nil]
           exact hout_eq X hX
-    · rw [hz_mem, Function.update_of_ne (by omega)]
-      rcases ha with ha | ha
-      · rw [hu₁_frame a (Or.inl (by omega)), hu₀mem, hsframe a (Or.inl ha)]
-      · rw [hu₁_frame a (Or.inr ha), hu₀mem, hsframe a (Or.inr (by omega))]
+    · rw [hz_mem, Function.update_of_ne (by omega),
+        hu₁_frame a (ha.imp (fun _ => by omega) id), hu₀mem,
+        hsframe a (ha.imp id fun _ => by omega)]
   have hf_d1 : Fits w (d + 1) := hfit_free.of_le (by omega)
   have hf_excl : Fits w (free + (d + 1)) := hfit_free.of_le (by omega)
   have hf_free0 : Fits w free := hfit_free.of_le (by omega)
@@ -466,13 +463,12 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
     refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
       by regs_frame, by regs_frame, by regs_frame, hs₀ro, exclHi, hs₀fr, le_rfl, by omega, ?_, ?_⟩
     · intro j hj
-      obtain rfl : j = 0 := by omega
+      obtain rfl : j = 0 := Nat.eq_zero_of_le_zero hj
       simp only [Nat.add_zero, List.take_zero, yatesTransform_nil]
-      rw [show s₀.mem free = initRoot by simp [hs₀mem]]
+      rw [(congrFun hs₀mem free).trans (Function.update_self _ _ _)]
       exact ⟨initFn, (htrie_init.congr_below fun a ha => by
         rw [hs₀mem, Function.update_of_ne (by omega)]).toOutside_of_le le_rfl (by omega), hinit_eq⟩
-    · intro a ha
-      rw [hs₀mem, Function.update_of_ne (by omega)]
+    · exact fun a _ => (congrFun hs₀mem a).trans (Function.update_of_ne (by omega) _ _)
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [hs₀k]) hs₀P
   obtain ⟨_, _, _, _, _, _, _, _, hyro, endFree, hyfr, hlo_ef, hhi_ef, hystages, hyframe⟩ := hyP

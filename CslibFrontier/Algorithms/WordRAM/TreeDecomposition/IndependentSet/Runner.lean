@@ -156,8 +156,6 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
   obtain ⟨h0_tlen, _, h0_tbl⟩ := hlay₂.tbl_holds zeroFin
   simp only [zeroFin, Fin.val_zero, Nat.mul_zero, Nat.add_zero]
     at h0_len h0_pow h0_bag h0_tlen h0_tbl
-  change HoldsIn (s₂.mem descBase) (inst.bagAt zeroFin) s₂ at h0_bag
-  change HoldsIn (s₂.mem (descBase + 2)) (tblFinal zeroFin) s₂ at h0_tbl
   let rpArgs : RootPassArgs :=
     ⟨m, 3 + m, 3, s₂.mem descBase, s₂.mem (descBase + 1),
       s₂.mem (descBase + 2), s₂.mem (descBase + 3)⟩
@@ -166,15 +164,13 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     (arr0 := (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[zeroFin]) (s := s₂)
     hlay₂.adj_holds hlay₂.wt_holds rfl h0_bag h0_len.symm (inst.bagAt_mem_lt zeroFin)
     h0_tbl (h0_tlen.trans h0_pow.symm) (h0_pow.symm ▸ hagree₂ zeroFin)
-  have hd_lt (off : ℕ) (_ : off < 4) : descBase + off < s₂.frontier := by
-    have : descBase + 4 * (n + 1) ≤ s₂.frontier := hlay₂.desc_hi
-    omega
+  have hd_lt (off : ℕ) (hoff : off < 4) : descBase + off < s₂.frontier :=
+    Nat.lt_of_lt_of_le (by omega) hlay₂.desc_hi
   have hr_st (s : Memory.State) (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
   have hr_res (s : Memory.State) (a : ℕ) :
       (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
   refine ⟨?_, ?_, ?_⟩
-  · unfold runMWISProg
-    dsimp only
+  · dsimp only [runMWISProg]
     refine validHistory_read_bind (by omega) ?_
     rw [hm1]
     refine validHistory_read_bind (by omega) ?_
@@ -184,8 +180,7 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     refine validHistory_read_bind (hd_lt 1 (by decide)) ?_
     refine validHistory_read_bind (hd_lt 2 (by decide)) ?_
     exact validHistory_read_bind (hd_lt 3 (by decide)) hv_rp
-  · unfold runMWISProg
-    dsimp only
+  · dsimp only [runMWISProg]
     rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm1,
       StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm2,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
@@ -193,8 +188,7 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
     rw [hr_rp]
     exact congrArg _ h0_pow
-  · unfold runMWISProg
-    dsimp only
+  · dsimp only [runMWISProg]
     rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm1,
       memoryCost_bind', memoryCost_read, hr_st, hr_res, hm2,
       memoryCost_bind', memoryCost_bind']
@@ -279,8 +273,8 @@ theorem runMWISProg_realizes :
     have hfit_proc_peak : Fits w (s₁.frontier + inst.numNodes * 2 ^ inst.maxBagLen) := hw.of_le (by
       dsimp only [s₁, initProg] at hfr₁' ⊢
       simp only [MWISInstance.wordBound]; omega)
-    have hfit_val : Fits w ((inst.numNodes + 1) * inst.maxBagLen * inst.maxWeight) := hw.of_le (by
-      simp only [MWISInstance.wordBound]; omega)
+    have hfit_val : Fits w ((inst.numNodes + 1) * inst.maxBagLen * inst.maxWeight) :=
+      hw.of_le (by simp only [MWISInstance.wordBound]; omega)
     obtain ⟨_, hfr₂, ⟨tblFinal, hlay₂, hpfx₂, _⟩, _⟩ :=
       processNodesProg_spec (w := w) inst descRes hlay₁ hfit_proc_peak hfit_val
     have hfr₂_bound : ((Memory.spec 0).clientState s₁

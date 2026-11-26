@@ -143,18 +143,14 @@ theorem adapt_toWord {replyCap : Q → ℕ} {decodeReply : Q → List Bool → R
     simp only [queryWord, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
       wordOracle_encodeQuery, Functor.map_map]
     have hfun : (fun r : R => decodeReply q (List.take (replyCap q) (c.encodeReply q r))) =
-        _root_.id := by
-      funext r
-      rw [List.take_of_length_le (hcap q r), hdec q r]
-      rfl
+        _root_.id := funext fun r =>
+      (congrArg (decodeReply q) (List.take_of_length_le (hcap q r))).trans (hdec q r)
     rw [hfun, id_map]
   rw [hid]
   have hsub : OracleComp.sumHandler (fun n => ProbOracleComp.sample (ProbComp.unifFin n))
-      (ProbOracleComp.query (spec := fun _ : Q => R)) = OracleComp.query := by
-    funext x
-    rcases x with n | q
-    · exact ProbOracleComp.sample_unifFin n
-    · rfl
+      (ProbOracleComp.query (spec := fun _ : Q => R)) = OracleComp.query := funext fun
+    | .inl n => ProbOracleComp.sample_unifFin n
+    | .inr _ => rfl
   rw [ProbOracleComp.simulate, hsub, OracleComp.substitute_query_eq_self]
 
 /-- **Stateful `runWith` bisimulation**: running `c.toWord replyCap decodeReply program` against
@@ -323,16 +319,15 @@ theorem IsOraclePPTOn.wordOracle_state
         (c.encodeReply ((c.decodeQuery p.1.2.1).getD defaultQuery) p.2.1, p.2.2))
       (encPair EIn (encPair replyEncoding stateEncoding)) EOut := by
     fun_prop
-  have hnone : ComputableInPolyTime
-      (fun x : Caller × (Op × List Bool) × State => (([] : List Bool), x.2.2)) EIn EOut := by
-    fun_prop
   refine (IsOraclePPTOn.cond
     (condition := fun x : Caller × (Op × List Bool) × State => (c.decodeQuery x.2.1).isSome)
     (by fun_prop)
     (hcall.map_with
       (f := fun x res => (c.encodeReply ((c.decodeQuery x.2.1).getD defaultQuery) res.1, res.2))
       hpost)
-    hnone.isOraclePPTOn).congr ?_
+    (ComputableInPolyTime.isOraclePPTOn
+      (f := fun ⟨_caller, _req, state⟩ => (([] : List Bool), state))
+      (by fun_prop))).congr ?_
   rintro ⟨caller, request, state⟩ ExtState oracle ext
   refine congrArg (fun p => ProbOracleComp.runWith oracle p ext) ?_
   dsimp only [OracleCodec.wordOracle]

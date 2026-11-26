@@ -196,8 +196,8 @@ private theorem synthesis_inputIs (j : ℕ) (b : Option Bool) :
   · refine Synthesis.of_forall_eq_const (decide (none = b)) fun x => ?_
     rcases hj with rfl | hj
     · rfl
-    · have hget : (List.ofFn x)[j - 1]? = none := List.getElem?_eq_none (by simp; omega)
-      simp [inputIs, inputAt, Nat.ne_of_gt (Nat.zero_lt_of_lt hj), hget]
+    · simp [inputIs, inputAt, Nat.ne_of_gt (Nat.zero_lt_of_lt hj),
+        Nat.not_lt.2 (Nat.le_sub_one_of_lt hj)]
   · push Not at hj
     have hidx : j - 1 < n := by omega
     have hinput (x : Fin n → Bool) : inputIs j b x = decide (some (x ⟨j - 1, hidx⟩) = b) := by
@@ -253,9 +253,7 @@ private theorem synthesis_reads (ht : t ≤ T) :
     (Finset.univ : Finset (Option Bool)) (fun s => {featureFn tm t (.inRead s)})
     (fun _ => (n + 2) * 3 + 1) fun s _ => synthesis_inRead tm s
   refine (hw.union hi).mono Set.Subset.rfl ?_ (by simp [readsCost, Fintype.card_option])
-  rintro f ⟨φ, ⟨i, s, rfl⟩ | ⟨s, rfl⟩, rfl⟩
-  · exact Or.inl (Set.mem_biUnion (x := (i, s)) (Finset.mem_univ _) rfl)
-  · exact Or.inr (Set.mem_biUnion (x := s) (Finset.mem_univ _) rfl)
+  rintro f ⟨φ, ⟨i, s, rfl⟩ | ⟨s, rfl⟩, rfl⟩ <;> simp
 
 /-- The indicator of a situation, from the state and the symbols read. -/
 private theorem synthesis_sit (y : Situation k State) :
@@ -278,8 +276,8 @@ private theorem synthesis_sit (y : Situation k State) :
 /-- Phase 2: every situation indicator. -/
 private theorem synthesis_sits :
     Synthesis interpretation (inputs n ∪ basicAt tm T t ∪ readsAt tm t) (sitsAt tm t)
-      (Fintype.card (Situation k State) * (k + 3)) := by
-  exact (Synthesis.biUnion (I := interpretation) (Finset.univ : Finset (Situation k State))
+      (Fintype.card (Situation k State) * (k + 3)) :=
+  (Synthesis.biUnion (I := interpretation) (Finset.univ : Finset (Situation k State))
     (fun y => {featureFn tm t (.sit y)}) (fun _ => k + 3) fun y _ =>
       synthesis_sit tm y).mono Set.Subset.rfl
     (Set.range_subset_iff.2 fun y => Set.mem_biUnion (x := y) (Finset.mem_univ _) rfl) (by simp)
@@ -399,11 +397,10 @@ private theorem featureCount_add_mul_stepCost_le (n T : ℕ) :
     simp only [stepCost]
     linarith [Nat.mul_le_mul_right (featureCost k State) hF,
       Nat.le_mul_of_pos_right (Fintype.card (Situation k State) * (k + 3)) hu]
-  have hT : T ≤ u := by omega
   calc featureCount n T k State + T * stepCost n T k State
       ≤ A * u + u * ((A * featureCost k State + 21 * k + 30 +
           Fintype.card (Situation k State) * (k + 3)) * u) :=
-        Nat.add_le_add hF (Nat.mul_le_mul hT hS)
+        Nat.add_le_add hF (Nat.mul_le_mul (by omega) hS)
     _ ≤ _ := by nlinarith
 
 end Run
@@ -417,9 +414,8 @@ steps is `[true]`. -/
 theorem mem_acceptedWithin_iff (T : ℕ → ℕ) (w : List Bool) :
     w ∈ acceptedWithin tm T ↔
       OutView.ofList (tm.runFrom (tm.initCfg w) (T w.length)).output = .one true := by
-  rw [acceptedWithin, Language.mem_ofSlices, featureFn_eq_true, Feature.holds_out, cfgAt,
-    congrArg (fun u => OutView.ofList (tm.runFrom (tm.initCfg u) (T w.length)).output)
-      (List.ext_getElem (by simp) fun i _ _ => by simp : List.ofFn (w[·]) = w)]
+  have hw : List.ofFn (w[·]) = w := List.ext_getElem (by simp) fun _ _ _ => by simp
+  rw [acceptedWithin, Language.mem_ofSlices, featureFn_eq_true, Feature.holds_out, cfgAt, hw]
 
 /-- **Running `T` steps takes `O((n + T) ^ 2)` gates.** For a machine with finitely many states,
 there is a constant `C` such that, for every step count `T n`, the slice at length `n` of the
@@ -443,7 +439,7 @@ steps is `[true]`, where `n` is the length of the input, form a language in `P/p
 theorem acceptedWithin_mem_PPoly [Finite State] {T : ℕ → ℕ} (hT : PolynomiallyBounded T) :
     acceptedWithin tm T ∈ PPoly := by
   obtain ⟨C, hC⟩ := complexity_slice_acceptedWithin_le tm (State := State)
-  exact mem_PPoly.2 ((show PolynomiallyBounded fun n => C * (n + T n + 1) ^ 2 by fun_prop)
-    |>.mono_of_le (hC T))
+  have hpoly : PolynomiallyBounded fun n => C * (n + T n + 1) ^ 2 := by fun_prop
+  exact mem_PPoly.2 (hpoly.mono_of_le (hC T))
 
 end Cslib.Circuits.Boolean.MachineSimulation

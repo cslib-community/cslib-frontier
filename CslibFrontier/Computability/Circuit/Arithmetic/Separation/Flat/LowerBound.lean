@@ -105,9 +105,8 @@ theorem coveredBy_hubTensor {K : Type} [CommSemiring K] {I : Type} [Fintype I] [
   · rw [withEntry_entry, ← coeff_smProj_of_mem ⟨_, rfl⟩, he, coeff_sum]
     change ∑ S ∈ balancedSets k, _ = _
     rw [← sum_coe_sort]
-    refine sum_congr rfl fun S _ => ?_
-    rw [coeff_sum]
-    exact sum_congr rfl fun δ _ => coeff_mul_blockMonomial_ofProd (hg _ δ) (hh _ δ) _
+    exact sum_congr rfl fun S _ => (coeff_sum ..).trans
+      (sum_congr rfl fun δ _ => coeff_mul_blockMonomial_ofProd (hg _ δ) (hh _ δ) _)
   · refine (push_le_prod_wire_hubs π _ (fun a => a.1.node a.2 ∈ (S : Finset (Fin k))) (α S) (β S)
       (fun δ z z' hz => by simp only [α, ofProd_views_congr hz])
       (fun δ z z' hz => by simp only [β, ofProd_views_congr fun a ha => hz a (mem_compl.1 ha)])
@@ -162,14 +161,11 @@ theorem networkPolynomial_size_ge {K : Type} [Field K] (hK : FlatCase K) (hk : 2
   classical
   have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast (by omega : 1 ≤ k)
   -- the hubs `±x S` of the balanced sets `S`
-  have hhub (S : Finset (Fin k)) : ∃ x : EuclideanSpace ℝ (Fin k), S ∈ balancedSets k →
-      ‖x‖ = 1 / (6 * √k) ∧ ∑ a, ∑ b, (if a = b then 0 else
-        dist (endPoint a b) (if a ∈ S then x else -x)) ≤ (k : ℝ) * (k - 1) / 2 - k / 12 := by
-    by_cases hS : S ∈ balancedSets k
-    · exact Exists.imp (fun _ hx _ => hx) (exists_norm_eq_sum_dist_endPoint_le (by omega) S
-        (mem_balancedSets.1 hS).1 (mem_balancedSets.1 hS).2)
-    · exact ⟨0, fun h => absurd h hS⟩
-  choose x hx using hhub
+  choose x hx using fun S : Finset (Fin k) =>
+    if hS : S ∈ balancedSets k then
+      (exists_norm_eq_sum_dist_endPoint_le (by omega) S (mem_balancedSets.1 hS).1
+        (mem_balancedSets.1 hS).2).imp fun _ hx _ => hx
+    else ⟨0, fun h => absurd h hS⟩
   -- a spectral point on the ends and the hubs, close to their distances up to the factor `c`
   let place : (Σ _ : Pair k, Bool) ⊕ (Finset (Fin k) × Bool) → EuclideanSpace ℝ (Fin k) :=
     Sum.elim (fun a => endPoint (a.1.node a.2) (a.1.node !a.2))
@@ -199,8 +195,7 @@ theorem networkPolynomial_size_ge {K : Type} [Field K] (hK : FlatCase K) (hk : 2
     have h3 := (abs_lt.1 (hF (Sum.inl ⟨e, false⟩) (Sum.inl ⟨e, true⟩))).2
     have h4 : dist (place (Sum.inl ⟨e, false⟩)) (place (Sum.inl ⟨e, true⟩)) = 1 :=
       dist_endPoint e.low_lt_high.ne
-    simp only [id, h4] at h3
-    linarith
+    simp only [id, h4] at h3; linarith
   have hh : c * ∑ a, F.wireExponent (Sum.inl a)
       (if a.1.node a.2 ∈ A then .inr (A, true) else .inr (A, false)) ≤
       (k : ℝ) * (k - 1) / 2 - k / 12 + 2 * ((k : ℝ) * (k - 1) / 2) * δ := by
@@ -227,8 +222,7 @@ theorem networkPolynomial_size_ge {K : Type} [Field K] (hK : FlatCase K) (hk : 2
     have h4 : dist (place (.inr (A, true))) (place (.inr (A, false))) = 1 / (3 * √k) := by
       change dist (x A) (-x A) = _
       rw [dist_self_neg, hxn]; ring
-    simp only [id, h4] at h3
-    linarith
+    simp only [id, h4] at h3; linarith
   have key := lower_numbers hk1 (Nat.cast_nonneg ℓ) hc rfl hδ
     (Real.logb_nonneg one_lt_two (by exact_mod_cast hs)) (hℓ₀.trans (by exact_mod_cast hℓ))
     hw hh hm (h2.trans_eq (add_assoc _ _ _).symm)
@@ -268,9 +262,8 @@ theorem not_computedWithin_permFamily {K : Type} [Field K] (hK : FlatCase K) (h2
   have h1 := hℓ₀ ℓ (by omega) _ (computedWithin_networkPolynomial h2 hk (by omega) hsize hP)
   -- and `5 m ^ C < 2 ^ (3 + 2 n² (ℓ + 1) C)`
   have h5 : 5 * m ^ C ≤ 2 ^ (3 + 2 * n ^ 2 * (ℓ + 1) * C) := by
-    rw [pow_add, pow_mul]
-    refine Nat.mul_le_mul (by norm_num) (Nat.pow_le_pow_left (hhigh.le.trans_eq ?_) C)
-    rw [← pow_mul]
+    rw [pow_add, pow_mul, pow_mul 2]
+    exact Nat.mul_le_mul (by norm_num) (Nat.pow_le_pow_left hhigh.le C)
   -- so `ℓ n³ / 6 ≤ 3 + 2 n² (ℓ + 1) C`, which is false for `n = 30 (C + 1)`
   have h6 := h1.trans (Nat.cast_le.2 h5)
   push_cast [hn] at h6

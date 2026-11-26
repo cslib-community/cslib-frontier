@@ -721,13 +721,9 @@ private theorem bssInv_step_broadcast {F : Set P} {xl : List (BSSAction P V)} {s
       exact ⟨Set.mem_insert pkt _,
         (Finset.ne_of_mem_erase (hdests (Finset.mem_def.mpr hq_val))).symm⟩
   · rcases hbcast_eq ▸ hb with rfl | hb
-    · simp only [s', pkt, bssBroadcastPacket, bssNextTimestamp, Function.update_self]
-      omega
-    · refine (hinv.bcast_sender_bounds b hb).imp_right fun hble => ?_
-      rcases eq_or_ne b.sender p with hbp | hbp
-      · simp only [s', hbp, Function.update_self, hpkt_ts_p] at hble ⊢
-        omega
-      · simpa [s', Function.update_of_ne hbp] using hble
+    · simp [s', pkt, bssBroadcastPacket, bssNextTimestamp]
+    · refine (hinv.bcast_sender_bounds b hb).imp_right (le_trans · ?_)
+      by_cases hbp : b.sender = p <;> simp [s', hbp, hpkt_ts_p]
   · rcases bssAppendSingleton_at xl act hi with ⟨hlt, hst, hget⟩ | ⟨_, hst, hget⟩
     · rw [hst, hget] at hbi; rw [hst]; exact hinv.bcast_emitted_spec i hlt b hbi
     · rw [hst, hget, hsome] at hbi; cases Option.some.inj hbi; rw [hst, ← hs]; rfl
@@ -798,23 +794,20 @@ private theorem bssInv_of_validTrace {F : Set P} {xl : List (BSSAction P V)}
       exact bssInv_step_broadcast hinv hs_def hdests
         (fun _ => hpF) (.crashBroadcast p dests payload) rfl rfl
     | recv m =>
-      rcases hen with ⟨hm_in, _⟩
-      obtain ⟨hm_bcast, hm_ne⟩ := hinv.inFlight_wf m hm_in
+      obtain ⟨hm_bcast, hm_ne⟩ := hinv.inFlight_wf m hen.1
       refine bssInv_of_vt_delivered_eq hinv rfl
-        (fun q => by simp only [bssStep, bssExecRecv,
-          Function.apply_update (fun _ => BSSProcState.vt), Function.update_eq_self])
-        (fun q => by simp only [bssStep, bssExecRecv,
-          Function.apply_update (fun _ => BSSProcState.delivered), Function.update_eq_self])
+        (fun q => by simp [bssStep, bssExecRecv, Function.apply_update (fun _ => BSSProcState.vt)])
+        (fun q => by simp [bssStep, bssExecRecv,
+          Function.apply_update (fun _ => BSSProcState.delivered)])
         (fun q hq => hinv.halted_mem q (by
-          simpa only [bssStep, bssExecRecv, Function.apply_update (fun _ => BSSProcState.halted),
-            Function.update_eq_self] using hq))
+          simpa [bssStep, bssExecRecv, Function.apply_update (fun _ => BSSProcState.halted)]
+            using hq))
         (fun m' hm' => hinv.inFlight_wf m' (Multiset.mem_of_mem_erase hm'))
         (fun q b hb => ?_)
       rcases eq_or_ne q m.dest with rfl | hq_dest
       · simp only [bssStep, bssExecRecv, Function.update_self, Multiset.mem_cons] at hb
         exact hb.elim (· ▸ ⟨hm_bcast, hm_ne⟩) (hinv.pending_wf _ b)
-      · exact hinv.pending_wf q b
-          (by simpa only [bssStep, bssExecRecv, Function.update_of_ne hq_dest] using hb)
+      · exact hinv.pending_wf q b (by simpa [bssStep, bssExecRecv, hq_dest] using hb)
     | deliver p pkt =>
       rcases hen with ⟨_, hpkt_pend, hdeliv⟩
       have hnone : emittedPacket (bssRun (bssInit P V) xl) (.deliver p pkt) = none := rfl
@@ -832,21 +825,17 @@ private theorem bssInv_of_validTrace {F : Set P} {xl : List (BSSAction P V)}
         (nonBroadcast_emitted_spec hinv hnone)
         (nonBroadcast_same_sender_lt hinv hnone)
     | crash p =>
-      rcases hen with ⟨hpF, _⟩
       refine bssInv_of_vt_delivered_eq hinv rfl
-        (fun q => by simp only [bssStep, bssExecCrash,
-          Function.apply_update (fun _ => BSSProcState.vt), Function.update_eq_self])
-        (fun q => by simp only [bssStep, bssExecCrash,
-          Function.apply_update (fun _ => BSSProcState.delivered), Function.update_eq_self])
-        (fun q hq => ?_)
-        hinv.inFlight_wf
+        (fun q => by simp [bssStep, bssExecCrash, Function.apply_update (fun _ => BSSProcState.vt)])
+        (fun q => by simp [bssStep, bssExecCrash,
+          Function.apply_update (fun _ => BSSProcState.delivered)])
+        (fun q hq => ?_) hinv.inFlight_wf
         (fun q b hb => hinv.pending_wf q b (by
-          simpa only [bssStep, bssExecCrash, Function.apply_update (fun _ => BSSProcState.pending),
-            Function.update_eq_self] using hb))
+          simpa [bssStep, bssExecCrash, Function.apply_update (fun _ => BSSProcState.pending)]
+            using hb))
       rcases eq_or_ne q p with rfl | hqp
-      · exact hpF
-      · exact hinv.halted_mem q
-          (by simpa only [bssStep, bssExecCrash, Function.update_of_ne hqp] using hq)
+      · exact hen.1
+      · exact hinv.halted_mem q (by simpa [bssStep, bssExecCrash, hqp] using hq)
     | stutter =>
       exact bssInv_of_vt_delivered_eq hinv rfl (fun _ => rfl) (fun _ => rfl)
         hinv.halted_mem hinv.inFlight_wf hinv.pending_wf
@@ -1015,22 +1004,20 @@ theorem bss_causal_delivery {F : Set P} {xl : List (BSSAction P V)} {s : BSSStat
     | broadcast p payload | crashBroadcast p _ payload =>
       rw [hp] at hm_del₂
       rcases eq_or_ne p q with rfl | hpq
-      · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, Function.update_self,
-          List.mem_append, List.mem_singleton, hnot_del₂_k, false_or] at hm_del₂
-        subst hm_del₂
+      · obtain rfl : b₂ = bssBroadcastPacket (bssStateAt xl k) p payload := by
+          simpa [bssStep, bssExecBroadcast, bssExecCrashBroadcast, hnot_del₂_k] using hm_del₂
         exact local_bcast_ts_le_vt hinv hk_lt_len hb₁ hts_lt (by simp [hp, emittedPacket])
       · simp [bssStep, bssExecBroadcast, bssExecCrashBroadcast, Function.update_of_ne hpq.symm,
           hnot_del₂_k] at hm_del₂
     | deliver p pkt =>
       rw [hp] at hm_del₂ hen_k
       rcases eq_or_ne p q with rfl | hpq
-      · simp only [bssStep, bssExecDeliver, Function.update_self, List.mem_append,
-          List.mem_singleton, hnot_del₂_k, false_or] at hm_del₂
-        rw [← hm_del₂] at hen_k
-        by_cases hsend : b₁.sender = b₂.sender
+      · obtain rfl : b₂ = pkt := by simpa [bssStep, bssExecDeliver, hnot_del₂_k] using hm_del₂
+        obtain ⟨-, -, hts_eq, hts_other⟩ := hen_k
+        rcases eq_or_ne b₁.sender b₂.sender with hsend | hsend
         · have := same_sender_coord_lt_of_ts_lt hinv hb₁ hb₂ hsend hts_lt
-          rw [hsend, hen_k.2.2.1] at this; rw [hsend]; omega
-        · exact (hts_lt.le b₁.sender).trans (hen_k.2.2.2 b₁.sender hsend)
+          rw [hsend] at this ⊢; omega
+        · exact (hts_lt.le b₁.sender).trans (hts_other b₁.sender hsend)
       · simp [bssStep, bssExecDeliver, Function.update_of_ne hpq.symm, hnot_del₂_k] at hm_del₂
     | recv _ | crash _ | stutter =>
       rw [hp] at hm_del₂

@@ -87,8 +87,7 @@ theorem realizes_delMoveBufGen :
             ∃ m1, ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf 1) m1))
       (fun _ _ => 0) := by
   unfold delMoveBufGenProg
-  have hbi := realizes_bufInsertGen
-  realize
+  realize [realizes_bufInsertGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, loc_del⟩, ⟨st_last, rKey_last⟩⟩
     dsimp only at *
@@ -173,13 +172,8 @@ theorem realizes_delCopySlotGen :
           fs.valArr (fs.physSlot n_max b loc_last) < 2 ^ valBits V)
       (fun _ _ => 0) := by
   unfold delCopySlotGenProg
-  have hps := realizes_physSlotGen
-  have hrq := realizes_readQuotGen
-  have hrv := realizes_readValGen
-  have hwq := realizes_writeQuotGen
-  have hwv := realizes_writeValGen
-  have hwl := realizes_writeFastLocGen
-  realize
+  realize [realizes_physSlotGen, realizes_readQuotGen, realizes_readValGen,
+    realizes_writeQuotGen, realizes_writeValGen, realizes_writeFastLocGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, ⟨loc_del, loc_last⟩⟩, st_last⟩
     dsimp only at *
@@ -484,10 +478,7 @@ theorem realizes_delMoveReadInfoGen :
       CoordHashPre
       (fun _ _ => 0) := by
   unfold delMoveReadInfoGenProg
-  have hsr := realizes_delMoveReadStRkGen
-  have hfl := realizes_readLiveFpAtGen
-  have hfc := realizes_readCandFpAtGen
-  realize
+  realize [realizes_delMoveReadStRkGen, realizes_readLiveFpAtGen, realizes_readCandFpAtGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, loc_last⟩
     dsimp only at *
