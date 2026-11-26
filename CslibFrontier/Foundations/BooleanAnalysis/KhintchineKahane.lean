@@ -230,21 +230,14 @@ theorem expect_sq_le_two_mul_expect_abs_sq_of_mem_lowDegree_one {ℓ : (ι → B
   -- `ℓ = ℓ̂(∅) + ∑ᵢ ℓ̂({i}) xᵢ`
   have hexp (x : ι → Bool) :
       ℓ x = fourierCoeff ℓ ∅ + ∑ i, fourierCoeff ℓ {i} * signVal (x i) := by
-    rw [← sum_fourierCoeff_mul_chi ℓ x]
-    rw [← sum_filter_add_sum_filter_not univ fun S : Finset ι => #S ≤ 1]
-    rw [sum_eq_zero (s := univ.filter fun S : Finset ι => ¬ #S ≤ 1) fun S hS => by
-      rw [hdeg S (by simpa using hS), zero_mul], add_zero]
-    have hsplit : univ.filter (fun S : Finset ι => #S ≤ 1) =
+    rw [← sum_fourierCoeff_mul_chi ℓ x,
+      ← sum_filter_add_sum_filter_not univ fun S : Finset ι => 1 < #S,
+      sum_eq_zero fun S hS => by
+        rw [hdeg S (mem_filter.1 hS).2, zero_mul], zero_add]
+    have hsplit : univ.filter (fun S : Finset ι => ¬ 1 < #S) =
         insert ∅ (univ.image fun i : ι => ({i} : Finset ι)) := by
       ext S
-      simp only [mem_filter, mem_univ, true_and, mem_insert, mem_image]
-      constructor
-      · intro h
-        rcases Nat.le_one_iff_eq_zero_or_eq_one.1 h with h0 | h1
-        · exact Or.inl (card_eq_zero.1 h0)
-        · obtain ⟨i, rfl⟩ := card_eq_one.1 h1
-          exact Or.inr ⟨i, rfl⟩
-      · rintro (rfl | ⟨i, rfl⟩) <;> simp
+      simp [Nat.le_one_iff_eq_zero_or_eq_one, card_eq_one, eq_comm]
     rw [hsplit, sum_insert (by simp), sum_image fun i _ j _ h => singleton_injective h, chi_empty]
     simp only [chi_singleton, mul_one]
   set b := fourierCoeff ℓ ∅
@@ -260,10 +253,7 @@ theorem expect_sq_le_two_mul_expect_abs_sq_of_mem_lowDegree_one {ℓ : (ι → B
     simp only [e, hexp]
     exact expect_signVal_none_mul_add_sum_eq (fun t => h ‖t‖) (fun t => by rw [norm_neg]) b a
   have hKK := expect_norm_sum_sq_le_two_mul_sq w
-  have h1 := hlin fun t => t ^ 2
-  have h2 := hlin id
-  simp only [id, Real.norm_eq_abs, sq_abs] at h1 h2 hKK
-  rw [h1, h2] at hKK
-  exact hKK
+  rw [hlin (· ^ 2), hlin fun t => t] at hKK
+  simpa only [Real.norm_eq_abs, sq_abs] using hKK
 
 end Cslib.BitString

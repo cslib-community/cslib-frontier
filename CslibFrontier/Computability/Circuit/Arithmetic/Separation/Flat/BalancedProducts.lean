@@ -28,8 +28,14 @@ balanced. In the source (modules `Nc.CaseI.Multi` and `Paper.Flat`) the parts ar
 coefficients; here they are the projections `MvPolynomial.smProj`, whose product rule
 `MvPolynomial.smProj_mul` is the step of the walk.
 
+## Main definitions
+
+* `Flat.balancedSets`: the balanced sets of blocks, `k ≤ 3 |S| ≤ 2 k`.
+
 ## Main results
 
+* `Flat.mem_balancedSets`, `Flat.card_balancedSets_le`, `Flat.balancedSets_nonempty`: membership,
+  at most `2 ^ k` balanced sets, and one for `k ≥ 2`.
 * `Flat.exists_balanced_products_of_steps`: the statement for a list of gates.
 * `Flat.exists_balanced_products`: the statement for `ComputedWithin`.
 
@@ -54,6 +60,26 @@ private def bal (S : Finset (Fin k)) : Finset (Finset (Fin k)) :=
 private theorem mem_bal {S A : Finset (Fin k)} :
     A ∈ bal S ↔ A ⊆ S ∧ k ≤ 3 * A.card ∧ 3 * A.card ≤ 2 * k := by
   rw [bal, mem_filter, mem_powerset]
+
+/-! ### Balanced sets -/
+
+/-- The balanced sets of nodes: the sets `S` of nodes with `k ≤ 3 |S| ≤ 2 k`. -/
+def balancedSets (k : ℕ) : Finset (Finset (Fin k)) := {S | k ≤ 3 * #S ∧ 3 * #S ≤ 2 * k}
+
+/-- The balanced sets are those with `k ≤ 3 |S| ≤ 2 k`. -/
+@[simp] theorem mem_balancedSets {S : Finset (Fin k)} :
+    S ∈ balancedSets k ↔ k ≤ 3 * #S ∧ 3 * #S ≤ 2 * k := by
+  simp [balancedSets]
+
+/-- There are at most `2 ^ k` balanced sets. -/
+theorem card_balancedSets_le (k : ℕ) : #(balancedSets k) ≤ 2 ^ k :=
+  (card_filter_le _ _).trans_eq (by simp)
+
+/-- There is a balanced set of `k ≥ 2` nodes. -/
+theorem balancedSets_nonempty (hk : 2 ≤ k) : (balancedSets k).Nonempty := by
+  obtain ⟨S, -, hS⟩ := exists_subset_card_eq (s := (univ : Finset (Fin k))) (n := k / 2)
+    (by simp only [card_univ, Fintype.card_fin]; omega)
+  exact ⟨S, mem_balancedSets.2 (by omega)⟩
 
 /-- `f` is a sum, over the gates `δ < s` and the balanced sets `A ⊆ S`, of the part of the gate
 on `A` times a polynomial that is set-multilinear on the rest of `S`. -/
@@ -175,15 +201,14 @@ theorem exists_balanced_products_of_steps {s : ℕ} {l : ℕ → MvPolynomial σ
     ∃ g h : Finset (Fin k) → Fin s → MvPolynomial σ K,
       (∀ S δ, IsSetMultilinear blk S (g S δ)) ∧ (∀ S δ, IsSetMultilinear blk Sᶜ (h S δ)) ∧
       smProj blk univ (l γ) =
-        ∑ S with k ≤ 3 * S.card ∧ 3 * S.card ≤ 2 * k, ∑ δ, g S δ * h S δ := by
+        ∑ S ∈ balancedSets k, ∑ δ, g S δ * h S δ := by
   classical
   obtain ⟨h, h1, h2⟩ := dec_gate blk hl hk γ hγ univ (by
     rw [card_univ, Fintype.card_fin]
     omega)
-  have hbal : bal (univ : Finset (Fin k)) =
-      univ.filter fun S => k ≤ 3 * S.card ∧ 3 * S.card ≤ 2 * k := by
+  have hbal : bal (univ : Finset (Fin k)) = balancedSets k := by
     ext S
-    simp [mem_bal]
+    simp [mem_bal, mem_balancedSets]
   refine ⟨fun S δ => smProj blk S (l δ), fun S δ => if S ∈ bal univ then h δ S else 0,
     fun S δ => isSetMultilinear_smProj blk S _, fun S δ => ?_, ?_⟩
   · dsimp only
@@ -202,7 +227,7 @@ theorem exists_balanced_products {P : MvPolynomial σ K} {s : ℕ} (hP : Compute
     ∃ g h : Finset (Fin k) → Fin s → MvPolynomial σ K,
       (∀ S δ, IsSetMultilinear blk S (g S δ)) ∧ (∀ S δ, IsSetMultilinear blk Sᶜ (h S δ)) ∧
       smProj blk univ P =
-        ∑ S with k ≤ 3 * S.card ∧ 3 * S.card ≤ 2 * k, ∑ δ, g S δ * h S δ := by
+        ∑ S ∈ balancedSets k, ∑ δ, g S δ * h S δ := by
   obtain ⟨l, hl, γ, hγ, rfl⟩ := hP.exists_steps
   exact exists_balanced_products_of_steps blk hl hk hγ
 

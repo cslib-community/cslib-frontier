@@ -143,9 +143,8 @@ private theorem lineApprox_update (f : (Fin n → F) → F) (δ : ℝ) (i : Fin 
 open Classical in
 private theorem isAffineFun_lineApprox {f : (Fin n → F) → F} {δ : ℝ} {i : Fin n} {x : Fin n → F}
     (hx : x ∉ wrongPointsApprox f δ i) : IsAffineFun (lineApprox f δ i x) := by
-  simp only [wrongPointsApprox, mem_filter, mem_univ, true_and, not_not] at hx
   have hx' : IsApproxAffine δ (lineRestrict f (update x i 0) i) := by
-    rwa [lineRestrict_update]
+    simpa [wrongPointsApprox, lineRestrict_update] using hx
   simpa [lineApprox, hx'] using hx'.choose_spec.1
 
 open Classical in
@@ -153,9 +152,8 @@ private theorem card_lineApprox_disagree_le {f : (Fin n → F) → F} {δ : ℝ}
     {x : Fin n → F} (hx : x ∉ wrongPointsApprox f δ i) :
     (#(univ.filter fun t => lineRestrict f x i t ≠ lineApprox f δ i x t) : ℝ) ≤
       δ * Fintype.card F := by
-  simp only [wrongPointsApprox, mem_filter, mem_univ, true_and, not_not] at hx
   have hx' : IsApproxAffine δ (lineRestrict f (update x i 0) i) := by
-    rwa [lineRestrict_update]
+    simpa [wrongPointsApprox, lineRestrict_update] using hx
   rw [← lineRestrict_update f x i 0]
   simpa [lineApprox, hx'] using hx'.choose_spec.2
 
@@ -486,10 +484,8 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
         _ = ((1 - 1 / (2 * (m : ℝ))) * Fintype.card F) *
             ((1 - 1 / (2 * (m : ℝ))) ^ k * ε₀ * (Fintype.card F : ℝ) ^ k) := by ring
         _ = _ := by rw [hθ]
-    have hθpos : 0 < θ := by
-      have h0 : (0 : ℝ) ≤ ∑ i, (#(wrongPointsApprox f δ i) : ℝ) := by positivity
-      have hmul : 0 < ((1 - 1 / (2 * (m : ℝ))) * Fintype.card F) * θ := h0.trans_lt hT
-      exact pos_of_mul_pos_right hmul (mul_nonneg hr_nonneg hq.le)
+    have hθpos : 0 < θ := pos_of_mul_pos_right
+      ((Finset.sum_nonneg fun _ _ => Nat.cast_nonneg _).trans_lt hT) (mul_nonneg hr_nonneg hq.le)
     -- At least two slices have `< θ` wrong points and `< (1 / 40) |F|^k` direction-0 corrupt
     -- points.
     let badW : Finset F :=
@@ -610,10 +606,8 @@ theorem exists_isMultilinear_hammingDist_lt_of_approx (f : (Fin n → F) → F) 
   have hq0 : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
   have hnr : (1 : ℝ) ≤ n := by exact_mod_cast hn
   have hqr : 40 * (n : ℝ) ^ 2 ≤ Fintype.card F := by exact_mod_cast hq
-  have hεpos : 0 < ε := by
-    have h0 : (0 : ℝ) ≤ #(wrongPointsApprox f δ ⟨0, hn⟩) := by positivity
-    have : 0 < ε * (Fintype.card F : ℝ) ^ n := h0.trans_lt (hW ⟨0, hn⟩)
-    exact pos_of_mul_pos_left this (by positivity)
+  have hεpos : 0 < ε := pos_of_mul_pos_left
+    ((Nat.cast_nonneg _).trans_lt (hW ⟨0, hn⟩)) (pow_nonneg hq0.le n)
   have hsum : (∑ i, (#(wrongPointsApprox f δ i) : ℝ)) < n * ε * (Fintype.card F : ℝ) ^ n := by
     calc (∑ i, (#(wrongPointsApprox f δ i) : ℝ)) < ∑ _i : Fin n, ε * (Fintype.card F : ℝ) ^ n :=
           sum_lt_sum_of_nonempty ⟨⟨0, hn⟩, mem_univ _⟩ fun i _ => hW i
@@ -707,17 +701,12 @@ theorem exists_isMultilinear_hammingDist_lt_of_lineOracle (f : (Fin n → F) →
           (#({x : Fin n → F | L i (update x i 0) (x i) ≠ f x} : Finset (Fin n → F)) : ℝ) /
             (Fintype.card F : ℝ) ^ n := by
       rw [Fintype.expect_eq_sum_div_card, hcard, Finset.natCast_card_filter]
-      congr 1
-      refine Finset.sum_congr rfl fun x _ => ?_
-      simp [ite_not]
+      exact congrArg (· / _) (Finset.sum_congr rfl fun x _ => by simp [ite_not])
     simp_rw [hexp] at hrej
     rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin, ← sum_div, div_div,
-      div_lt_iff₀ (show (0 : ℝ) < (Fintype.card F : ℝ) ^ n * n by positivity)] at hrej
-    have hrhs : ε * δ / (n : ℝ) * ((Fintype.card F : ℝ) ^ n * n) =
-        ε * δ * (Fintype.card F : ℝ) ^ n := by
-      have : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn.ne'
-      field_simp
-    rwa [hrhs] at hrej
+      div_lt_iff₀ (by positivity)] at hrej
+    rwa [mul_comm (_ ^ n) (n : ℝ), ← mul_assoc,
+      div_mul_cancel₀ _ (Nat.cast_ne_zero.mpr hn.ne')] at hrej
   refine exists_isMultilinear_hammingDist_lt_of_approx f hn hq hδ0 hδ hε fun i => ?_
   let D : Finset (Fin n → F) := {x | L i (update x i 0) (x i) ≠ f x}
   have hDi : (#D : ℝ) < ε * δ * (Fintype.card F : ℝ) ^ n :=
@@ -739,9 +728,8 @@ theorem exists_isMultilinear_hammingDist_lt_of_lineOracle (f : (Fin n → F) →
         simp [g, D, hx]
     simp_rw [hsplit, Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul,
       mul_comm _ (Fintype.card F : ℝ)]
-    have hcard_le : (#(wrongPointsApprox f δ i ∩ D) : ℝ) ≤ (#D : ℝ) :=
-      Nat.cast_le.mpr (Finset.card_le_card Finset.inter_subset_right)
-    exact mul_le_mul_of_nonneg_left hcard_le hq'.le
+    exact mul_le_mul_of_nonneg_left
+      (Nat.cast_le.mpr (Finset.card_le_card Finset.inter_subset_right)) hq'.le
   have hRHS : (#(wrongPointsApprox f δ i) : ℝ) * (δ * Fintype.card F) ≤
       ∑ p : (Fin n → F) × F, g (τ p) := by
     rw [Fintype.sum_prod_type]

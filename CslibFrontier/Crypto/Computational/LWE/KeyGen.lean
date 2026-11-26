@@ -348,22 +348,11 @@ theorem secretProductResidue_eq (n w row : ℕ) (secretWord ciphertextWord : Lis
         ∑ j : Fin n,
           (Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row (j.val + 1) : ZMod (2 ^ w)) *
             decodeSecret n w secretWord j).val := by
-  let value : ℤ := (Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row 0 : ℤ) -
-    ((∑ j : Fin n,
-      Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row (j.val + 1) *
-        Cslib.Matrix.binaryEntry n w secretWord 0 j.val : ℕ) : ℤ)
-  have hcast : (value : ZMod (2 ^ w)) =
-      (Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row 0 : ZMod (2 ^ w)) -
-        ∑ j : Fin n,
-          (Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row (j.val + 1) : ZMod (2 ^ w)) *
-            decodeSecret n w secretWord j := by
-    simp [value, decodeSecret, Cslib.Matrix.ofBinary_apply]
   unfold secretProductResidue
-  rw [List.map_range_eq_ofFn, List.sum_ofFn]
-  change (value % (2 ^ w : ℤ)).toNat = _
-  rw [← hcast]
-  simpa only [Int.toNat_natCast, Nat.cast_pow, Nat.cast_ofNat] using
-    (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)).symm
+  rw [List.map_range_eq_ofFn, List.sum_ofFn, ← Nat.cast_two, ← Nat.cast_pow,
+    ← ZMod.val_intCast, Int.toNat_natCast]
+  congr 1
+  simp [decodeSecret, Cslib.Matrix.ofBinary_apply]
 
 /-- For `row : Fin r`, `secretProductResidue` computes the canonical residue of row `row` of
 `Matrix.ofBinary r (n + 1) w ciphertextWord` dotted with
@@ -417,18 +406,10 @@ theorem publicRowHead_eq {n m w : ℕ} (inputs : SerializedKeyInputs) (i : Fin m
       (publicMatrixInt (decodeKeyInputs n m w inputs).publicPart
         (decodeKeyInputs n m w inputs).secret (decodeKeyInputs n m w inputs).error i 0).val := by
   unfold publicRowHead publicMatrixInt publicMatrix decodeKeyInputs
-  simp only [Fin.cons_zero, _root_.Matrix.mulVec, dotProduct]
-  rw [List.map_range_eq_ofFn, List.sum_ofFn]
-  have h : ((∑ j : Fin n,
-      (inputs.publicPart.getD i.val []).getD j.val 0 * inputs.secret.getD j.val 0 : ℕ) :
-        ZMod (2 ^ w)) =
-      ∑ j : Fin n, ((inputs.publicPart.getD i.val []).getD j.val 0 : ZMod (2 ^ w)) *
-        (inputs.secret.getD j.val 0 : ZMod (2 ^ w)) := by simp
-  rw [← h]
-  simpa only [Int.toNat_natCast, Int.cast_add, Int.cast_natCast, Nat.cast_pow, Nat.cast_ofNat] using
-    (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) (((∑ j : Fin n,
-      (inputs.publicPart.getD i.val []).getD j.val 0 * inputs.secret.getD j.val 0 : ℕ) : ℤ) +
-        inputs.error.getD i.val 0))).symm
+  rw [List.map_range_eq_ofFn, List.sum_ofFn, ← Nat.cast_two, ← Nat.cast_pow,
+    ← ZMod.val_intCast, Int.toNat_natCast]
+  congr 1
+  simp [_root_.Matrix.mulVec, dotProduct]
 
 /-- The total public-key computation is exactly the typed public matrix of the decoded inputs. -/
 theorem publicMatrixSerialized_eq (n m w : ℕ) (inputs : SerializedKeyInputs) :

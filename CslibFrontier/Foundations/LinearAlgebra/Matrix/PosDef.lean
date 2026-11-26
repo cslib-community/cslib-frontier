@@ -50,9 +50,7 @@ theorem posSemidef_fin_two {a b c : ℝ} (ha : 0 ≤ a) (hc : 0 ≤ c) (h : b ^ 
   · simp only [mulVec, dotProduct, Fin.sum_univ_two, of_apply, cons_val', cons_val_zero,
       cons_val_one, empty_val', cons_val_fin_one, star_trivial]
     rcases ha.eq_or_lt with rfl | hapos
-    · have hb : b = 0 := pow_eq_zero_iff two_ne_zero |>.1 (le_antisymm (by simpa using h)
-        (sq_nonneg b))
-      subst hb
+    · obtain rfl : b = 0 := sq_eq_zero_iff.mp (le_antisymm (by simpa using h) (sq_nonneg b))
       nlinarith [mul_nonneg hc (sq_nonneg (x 1))]
     · refine (mul_nonneg_iff_of_pos_left hapos).1 ?_
       nlinarith [sq_nonneg (a * x 0 + b * x 1), mul_nonneg (sub_nonneg.2 h) (sq_nonneg (x 1))]
@@ -156,38 +154,25 @@ theorem exists_LDL_of_posSemidef : ∀ {n : ℕ} {M : Matrix (Fin n) (Fin n) K},
         rw [e3, e4]
         ring
     obtain ⟨L', d', hL', h1', hd', hS'⟩ := exists_LDL_of_posSemidef hS
-    have hSij : ∀ i j, M i.succ j.succ = a * l i * l j + ∑ k, L' i k * d' k * L' j k := by
-      intro i j
-      have := congrFun (congrFun hS' i) j
-      rw [mul_diagonal_mul_transpose_apply] at this
-      simp only [S, of_apply] at this
-      rw [← this]
-      ring
+    have hSij (i j : Fin n) : M i.succ j.succ = ∑ k, L' i k * d' k * L' j k + a * l i * l j :=
+      sub_eq_iff_eq_add.mp (by
+        simpa only [S, of_apply, mul_diagonal_mul_transpose_apply] using
+          congrFun (congrFun hS' i) j)
     set L : Matrix (Fin (n + 1)) (Fin (n + 1)) K := of fun i j =>
       Fin.cases (Fin.cases 1 (fun _ => 0) j) (fun i' => Fin.cases (l i') (fun j' => L' i' j') j) i
-    have L00 : L 0 0 = 1 := rfl
-    have L0s : ∀ j : Fin n, L 0 j.succ = 0 := fun _ => rfl
-    have Ls0 : ∀ i : Fin n, L i.succ 0 = l i := fun _ => rfl
-    have Lss : ∀ i j : Fin n, L i.succ j.succ = L' i j := fun _ _ => rfl
-    refine ⟨L, Fin.cons a d', fun i j hij => ?_, fun i => ?_, fun i => ?_, ?_⟩
+    refine ⟨L, Fin.cons a d', fun i j hij => ?_, Fin.cases rfl h1',
+      Fin.cases hM.diag_nonneg hd', ?_⟩
     · cases i using Fin.cases <;> cases j using Fin.cases
       · exact absurd hij (lt_irrefl _)
-      · exact L0s _
+      · rfl
       · exact absurd hij (Fin.succ_pos _).not_gt
-      · rw [Lss]
-        exact hL' (Fin.succ_lt_succ_iff.1 hij)
-    · cases i using Fin.cases
-      · exact L00
-      · rw [Lss, h1']
-    · cases i using Fin.cases
-      · exact hM.diag_nonneg
-      · simpa using hd' _
+      · exact hL' (Fin.succ_lt_succ_iff.1 hij)
     · ext i j
       rw [mul_diagonal_mul_transpose_apply]
       simp only [Fin.sum_univ_succ, Fin.cons_zero, Fin.cons_succ]
       cases i using Fin.cases <;> cases j using Fin.cases <;>
-        simp only [L00, L0s, Ls0, Lss, hSij, hb, ← hsymm 0 (Fin.succ _), mul_zero, zero_mul,
-          mul_one, one_mul, add_zero, Finset.sum_const_zero] <;> ring
+        simp only [L, of_apply, Fin.cases_zero, Fin.cases_succ, hSij, hb, ← hsymm 0 (Fin.succ _),
+          mul_zero, zero_mul, mul_one, one_mul, add_zero, Finset.sum_const_zero] <;> ring
 
 /-- **Existence of `LDLᵀ` for positive definite matrices.** Every positive definite `M` factors as
 `M = L * diagonal d * Lᵀ` with `L` unit lower triangular and every `d i > 0`. -/

@@ -186,10 +186,8 @@ private theorem small_cycle (g : ℕ → ℕ → Index) (level : ℕ) (hlevel : 
     CycleOn (iterateRefine (level + 2) g)
       (2 ^ (level - 1)) (3 * 2 ^ (level - 1))
       (2 ^ (level - 1)) (3 * 2 ^ (level - 1)) := by
-  have c := (root_cycle (iterateRefine 1 g)).iterateRefine (level - 1)
-  rw [iterateRefine_add, iterateRefine_add] at c
-  simpa only [show level - 1 + 2 + 1 = level + 2 by omega, Nat.mul_one, Nat.one_mul,
-    Nat.mul_comm] using c
+  simpa only [iterateRefine_add, show level - 1 + 2 + 1 = level + 2 by omega, Nat.mul_one,
+    Nat.one_mul, Nat.mul_comm] using (root_cycle (iterateRefine 1 g)).iterateRefine (level - 1)
 
 private theorem has_light_cycle (g : ℕ → ℕ → Index)
     {s : ℕ → ℕ → ShadeState} (level : ℕ) (hlevel : 1 ≤ level)
@@ -389,8 +387,6 @@ private theorem coordinate_bounds {phaseScale depth index : ℕ} (hs : 0 < phase
     2 * (phaseScale * 4 ^ depth) + 1 < coordinate phaseScale depth index ∧
       coordinate phaseScale depth index < 6 * (phaseScale * 4 ^ depth) := by
   obtain ⟨hpos, hbound⟩ := offset_bounds depth index hi
-  have hlo := Nat.mul_pos hs hpos
-  have hhi := Nat.mul_lt_mul_of_pos_left hbound hs
   dsimp only [coordinate]
   constructor <;> nlinarith
 
@@ -502,22 +498,20 @@ private theorem evenRules (node : Node) : EvenRules node := by
       rw [h]
     exacts [even_checked0, even_checked1, even_checked2, even_checked3]
   have hcore : EvenRulesCore ⟨⟨k, hk⟩⟩ := by
-    have hm := (List.all_eq_true.mp hchunk) (k % 78)
-      (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
-    have heq : (78 * (k / 78) + k % 78) % 312 = k := by omega
-    simpa only [heq, decide_eq_true_eq] using hm
+    simpa only [show (78 * (k / 78) + k % 78) % 312 = k by omega, decide_eq_true_eq] using
+      (List.all_eq_true.mp hchunk) (k % 78) (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
   intro axis
   obtain ⟨h0, h1, htail, h10⟩ := hcore axis
   refine ⟨fun hc a => ?_, fun hc a => ?_, htail, h10⟩
   · by_cases ha : a.val < 2
     · exact h0 hc ⟨a.val, ha⟩
-    · have ht := htail ⟨a.val - 2, by omega⟩ ⟨0, by decide⟩
-      simpa only [show a.val - 2 + 2 = a.val by omega] using ht
+    · simpa only [show a.val - 2 + 2 = a.val by omega] using
+        htail ⟨a.val - 2, by omega⟩ ⟨0, by decide⟩
   · by_cases ha : a.val < 2
     · exact h1 hc ⟨a.val, ha⟩
-    · have ht1 := htail ⟨a.val - 2, by omega⟩ ⟨1, by decide⟩
-      have ht2 := htail ⟨a.val - 2, by omega⟩ ⟨2, by decide⟩
-      simpa only [show a.val - 2 + 2 = a.val by omega] using And.intro ht1 ht2
+    · let idx : Fin 6 := ⟨a.val - 2, by omega⟩
+      simpa only [idx, show a.val - 2 + 2 = a.val by omega] using
+        And.intro (htail idx ⟨1, by decide⟩) (htail idx ⟨2, by decide⟩)
 
 private def rowEven : List ℕ :=
   [260, 253, 252, 222, 262, 177, 176, 79, 174, 77, 156, 186, 158, 184, 11, 250, 73, 224]
@@ -976,15 +970,14 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
       have ⟨hbx, hbX, hby, hbY⟩ :
           C.scale d ≤ bx ∧ bx < 3 * C.scale d ∧ C.scale d ≤ by₀ ∧ by₀ < 3 * C.scale d := by
         rw [C.scale_succ] at hpx hpX hpy hpY; dsimp only [bx, by₀]; omega
-      have canonicalRelation := C.local_sound d bx by₀ hbx hbX hby hbY path
-      have targetEq := C.block d bx by₀ localPort hx hy
-      rw [hlocation] at targetEq
       have finish (h : value actual (translatePort source (8 * bx) (8 * by₀)) =
           value (C.localStates d bx by₀) source) :
           value actual p = value (C.states (d + 1)) p := by
-        have relation := actualPath.sound valid
-        rw [h] at relation; rw [← targetEq] at canonicalRelation
-        exact Related.right_unique relation canonicalRelation
+        have rel1 := actualPath.sound valid
+        have rel2 := C.local_sound d bx by₀ hbx hbX hby hbY path
+        rw [h] at rel1
+        rw [← C.block d bx by₀ localPort hx hy, hlocation] at rel2
+        exact Related.right_unique rel1 rel2
       rcases source_cases hsource with heq | ⟨old, _, oldPresent, heq⟩
       · subst source
         exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
@@ -1117,10 +1110,9 @@ private theorem phase_source (flipped : Bool) (depth : ℕ) (coarse : ℕ → �
     ring
   have h := root_descendant_source k g' valid' (by simpa only [scaleEq] using shaded) bx by₀
     (by rw [scaleEq, phaseScale_succ]; omega) (by rw [scaleEq, phaseScale_succ]; omega)
-  have invol : Function.Involutive Shade.opposite := Shade.opposite_opposite
   cases flipped <;> simp only [k, Bool.false_eq_true, ↓reduceIte] at h
-  · rwa [invol.iterate_two_mul_add_one] at h
-  · rwa [invol.iterate_two_mul] at h
+  · rwa [Function.Involutive.iterate_two_mul_add_one Shade.opposite_opposite] at h
+  · rwa [Function.Involutive.iterate_two_mul Shade.opposite_opposite] at h
 
 private def phaseComparison (flipped : Bool) (coarse : ℕ → ℕ → Index)
     (rootEq : coarse 0 0 = 0) : RefinementComparison where

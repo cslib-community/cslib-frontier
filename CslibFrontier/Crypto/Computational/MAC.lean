@@ -1610,23 +1610,18 @@ private theorem prfIdealPost_true_le (n : ℕ)
   by_cases hcond : ((out.1.length == n) && !queried.contains out.1) = true
   · simp only [hcond, ↓reduceIte]
     simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at hcond
-    have hnone : cache (BitString.ofList n out.1) = none := by
-      by_contra hsome
-      have htrue := List.contains_iff_mem.mpr (BitString.ofFn_ofList hcond.1 ▸ hinv _ hsome)
-      exact Bool.false_ne_true (hcond.2.symm.trans htrue)
-    simp only [Functor.map_map, OracleComp.interpret_map, StateT.run_map,
-      ProbOracleComp.interpret_query, PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def]
+    have hnone : cache (BitString.ofList n out.1) = none :=
+      Classical.byContradiction fun hsome => Bool.false_ne_true (hcond.2.symm.trans
+        (List.contains_iff_mem.mpr (BitString.ofFn_ofList hcond.1 ▸ hinv _ hsome)))
     unfold lazyRandomFunctionOracle randomFunctionQuery
-    simp only [hcond.1, ↓reduceIte, OracleComp.interpret_map, ProbOracleComp.interpret_query,
-      StateT.run_map, PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def]
+    simp only [Functor.map_map, OracleComp.interpret_map, StateT.run_map,
+      ProbOracleComp.interpret_query, PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def,
+      hcond.1, ↓reduceIte]
     dsimp only [StateT.run]
     rw [RandomOracle.answer_of_none _ _ _ hnone]
-    simp only [PMF.map_comp, Function.comp_def]
-    have htake : (fun x : BitString n => ((List.ofFn x).take n == out.2)) =
-        (fun x : BitString n => (List.ofFn x == out.2)) := by
-      funext x
-      simp [List.take_of_length_le (List.length_ofFn (f := x)).le]
-    rw [htake, ← PMF.bind_pure_comp]
+    have htake (x : BitString n) : (List.ofFn x).take n = List.ofFn x :=
+      List.take_of_length_le (List.length_ofFn (f := x)).le
+    simp only [pmf_norm, htake]
     refine (PMF.uniformOfFintype_bind_pure_apply_true_le (E := fun x => List.ofFn x == out.2)
       fun a ha b hb => List.ofFn_injective
         ((beq_iff_eq.mp ha).trans (beq_iff_eq.mp hb).symm)).trans_eq ?_
@@ -1642,16 +1637,12 @@ theorem succProbability_prfIdealGame_macToPrfDistinguisher_le (adversary : Forge
     Game.succProbability (ProbComp.eval (prfIdealGame id id (macToPrfDistinguisher adversary) n)) ≤
       (1 : ℝ≥0) / 2 ^ n := by
   simp only [prfIdealGame_eq_lazy, id_eq, eval_prfIdealGame_macToPrfDistinguisher_eq_bind]
-  have htotal : (((OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (prfIdealLogOracle n))
-      (adversary n [])).run ([], fun _ => none)).bind (prfIdealPost n)) true ≤
-      (1 : ℝ≥0∞) / 2 ^ n :=
-    PMF.bind_apply_le_on_support _ fun ⟨out, queried, cache⟩ hmem =>
-      prfIdealPost_true_le n (prfIdealLogOracle_inv adversary n hmem)
   simpa only [Game.succProbability, ENNReal.toNNReal_div, ENNReal.toNNReal_one,
     ENNReal.toNNReal_pow, ENNReal.toNNReal_ofNat] using
-    ENNReal.toNNReal_mono (ENNReal.div_ne_top ENNReal.one_ne_top (by positivity)) htotal
+    ENNReal.toNNReal_mono (b := (1 : ℝ≥0∞) / 2 ^ n)
+      (ENNReal.div_ne_top ENNReal.one_ne_top (by positivity))
+      (PMF.bind_apply_le_on_support _ fun ⟨out, queried, cache⟩ hmem =>
+        prfIdealPost_true_le n (prfIdealLogOracle_inv adversary n hmem))
 
 private theorem unique_tag_prfMAC
     {family : List Bool → List Bool → List Bool}

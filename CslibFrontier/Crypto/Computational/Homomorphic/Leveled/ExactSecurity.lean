@@ -418,25 +418,23 @@ theorem advantage_exactLinkAdversary_modLinkAdversary_le
     rw [hexact, hmod, Game.advantage_comm]
     exact Game.advantage_bind_sampleModNat_fin_fin_le (coins n) (depth n) (capacity n)
       (E.linkRunAt depth capacity test bit n)
-  · have hmod_false :
-        ProbComp.eval (Encryption.game E.keyGen E.encrypt
-          (E.modLinkAdversary coins depth capacity test) bit n) = PMF.pure false := by
-      rw [hmod]
+  · refine le_of_eq_of_le
+      (congr (congrArg Game.advantage ?_) ?_ :
+        _ = Game.advantage (PMF.pure false) (PMF.pure false))
+      (by simp)
+    · dsimp only [Encryption.game, Encryption.gameOn, exactLinkAdversary]
+      simp only [dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice,
+        ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, guessLink_reject, PMF.bind_const]
+    · rw [hmod]
       refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false) fun i hi =>
         (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false) fun j hj => ?_).trans
           (PMF.bind_const _ _)).trans (PMF.bind_const _ _)
       simp only [sampleModIndex, ProbComp.eval_map, PMF.mem_support_map_iff] at hi hj
-      rcases hi with ⟨x, _, rfl⟩
-      rcases hj with ⟨y, _, rfl⟩
-      have hmin_i := Nat.min_le_left (depth n) (x % depth n)
-      have hmin_j := Nat.min_le_left (capacity n) (y % capacity n)
+      obtain ⟨⟨x, _, rfl⟩, ⟨y, _, rfl⟩⟩ := And.intro hi hj
+      have := Nat.min_le_left (depth n) (x % depth n)
+      have := Nat.min_le_left (capacity n) (y % capacity n)
       dsimp only [linkRunAt]
       split_ifs <;> first | rfl | omega
-    rw [hmod_false]
-    dsimp only [Encryption.game, Encryption.gameOn, exactLinkAdversary]
-    simp only [dite_eq_right_of_eq_false (eq_false hpos), ↓reduceIte, rejectLinkChoice,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, guessLink_reject, PMF.bind_const,
-      Game.advantage_self, zero_le]
 
 /-- Concrete key-chain hybrid advantage bound via the strict-PPT `modLinkAdversary` reduction:
 when every base secret key in the support of `E.keyGen n` has the same length
@@ -1074,14 +1072,12 @@ theorem advantage_scheme_le_modLeveledAdversary_two_mul {E : Scheme}
         (modLeveledAdversary E (fun n => 2 * n) (fun n => 2 * budget n) capacity adversary)) n +
         2 / 2 ^ n) := by
   refine (advantage_scheme_le_modLeveledAdversary D (fun n => 2 * n) budget capacity adversary
-    n width hbudget_pos hcapacity_pos hwidth hcapacity).trans ?_
-  have htail_div :
-      2 * ((3 + 2 * budget n + capacity n : ℕ) : ℝ≥0) / 2 ^ (2 * n) ≤ 2 / 2 ^ n := by
-    rw [Nat.two_mul n, pow_add,
-      ← mul_div_mul_right (2 : ℝ≥0) ((2 : ℝ≥0) ^ n) (pow_ne_zero n two_ne_zero)]
-    gcongr
-    exact_mod_cast htail
+    n width hbudget_pos hcapacity_pos hwidth hcapacity).trans
+    (mul_le_mul_of_nonneg_left (add_le_add le_rfl ?_) zero_le)
+  rw [Nat.two_mul n, pow_add,
+    ← mul_div_mul_right (2 : ℝ≥0) ((2 : ℝ≥0) ^ n) (pow_ne_zero n two_ne_zero)]
   gcongr
+  exact_mod_cast htail
 
 /-! ### Explicit polynomial artifact-length bounds, coin-count formulas, and efficiency witnesses -/
 
@@ -1131,9 +1127,8 @@ theorem length_publicKey_support_keyGen_le {E : Scheme}
     {kp : List Bool × List Bool}
     (hkp : kp ∈ (ProbComp.eval (keyGen E n budget)).support) :
     kp.1.length ≤ publicKeyLengthBound (2 * budget) width pkBound ctBound := by
-  have hmap := (PMF.mem_support_map_iff Prod.fst _ kp.1).mpr ⟨kp, hkp, rfl⟩
-  rw [eval_keyGen_public] at hmap
-  rcases (PMF.mem_support_map_iff _ _ _).mp hmap with ⟨artifact, hart, hfst⟩
+  rcases (PMF.mem_support_map_iff _ _ _).mp (eval_keyGen_public E n budget ▸
+      (PMF.mem_support_map_iff Prod.fst _ kp.1).mpr ⟨kp, hkp, rfl⟩) with ⟨artifact, hart, hfst⟩
   exact hfst ▸ length_encPublicKey_support_publicKeyChainHybrid_le n (2 * budget) (2 * budget)
     width pkBound ctBound hkey henc hart
 

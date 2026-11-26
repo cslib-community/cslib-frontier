@@ -336,11 +336,7 @@ theorem Xofs.signInternalReads_bounded {R : Type} (H : Xofs) (s : Level) (key : 
   unfold signInternalReads
   split <;> first | exact .pure _ _ | split
   all_goals try exact .pure _ _
-  apply OracleComp.IsCostBounded.liftBind
-  intro _
-  apply OracleComp.IsCostBounded.liftBind
-  intro _
-  apply signingQueries_bounded
+  exact .liftBind _ _ _ fun _ => .liftBind _ _ _ fun _ => signingQueries_bounded ..
 
 private theorem evalPure_signingRetryLoop {ι : Type} {spec : ι → Type} {α R : Type}
     (ans : (q : ι) → spec q) (stride : ℕ) (reply : Option α → R)
@@ -352,12 +348,10 @@ private theorem evalPure_signingRetryLoop {ι : Type} {spec : ι → Type} {α R
   | zero => rfl
   | succ fuel ih =>
     simp only [signingRetryLoop, OracleComp.evalPure_bind, id_bind_eq, id_pure_eq, id_eq]
-    cases OracleComp.evalPure ans (tryAt κ) with
-    | none => rfl
-    | some res =>
-      cases res with
-      | none => exact ih (κ + stride)
-      | some _ => rfl
+    rcases OracleComp.evalPure ans (tryAt κ) with _ | _ | _
+    · rfl
+    · exact ih (κ + stride)
+    · rfl
 
 private theorem evalPure_signingAttemptReads (H : Xofs) (s : Level) (sk : PrivateKey s)
     (A : PublicMatrix s) (μ : List Bool) (seed : List Byte) (κ : ℕ) :
@@ -510,22 +504,17 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
   | some c =>
     let resp := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂
       (publicKeyLowPart s.params 13 sk.publicKey) y w c
-    have out : resp.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩) = some f.signature := by
-      simpa [hc, resp, y, w] using hs
-    cases he : resp with
-    | none => simp [he] at out
-    | some σ =>
-      have enc : encodeSignature s ⟨digest, σ.z, σ.h⟩ = f.signature := by simpa [he] using out
-      have valid := s.valid
-      obtain ⟨hz, hw, hchallenge, recovers⟩ := recovered_of_compressedResponse s.params valid
-        (by cases s <;> decide) (inBall_of_sampleInBall hc) hs₂ he
-      have dec := sigDecode_encodeSignature s ⟨digest, σ.z, σ.h⟩
-        (length_commitmentDigest (H := H) ..) hz hw
-      rw [enc] at dec
-      apply verifyWithExpansion_of_recovered (f := f) (c := c) hA hctx dec hc hz
-      change H.commitmentDigest s _ μ = digest
-      rw [← hchallenge]
-      exact congrArg (fun high => H.commitmentDigest s high μ) recovers
+    obtain ⟨σ, he, enc⟩ :
+        ∃ σ, resp = some σ ∧ encodeSignature s ⟨digest, σ.z, σ.h⟩ = f.signature :=
+      Option.map_eq_some_iff.mp (by simpa [hc, resp, y, w] using hs)
+    obtain ⟨hz, hw, hchallenge, recovers⟩ := recovered_of_compressedResponse s.params s.valid
+      (by cases s <;> decide) (inBall_of_sampleInBall hc) hs₂ he
+    have dec := enc ▸ sigDecode_encodeSignature s ⟨digest, σ.z, σ.h⟩
+      (length_commitmentDigest (H := H) ..) hz hw
+    apply verifyWithExpansion_of_recovered (f := f) (c := c) hA hctx dec hc hz
+    change H.commitmentDigest s _ μ = digest
+    rw [← hchallenge]
+    exact congrArg (fun high => H.commitmentDigest s high μ) recovers
 
 /-- For any fixed pair of XOFs, Algorithm 3 accepts every successful signature produced
 under a key generated with those same XOFs. This includes deterministic and hedged randomness. -/

@@ -306,8 +306,7 @@ theorem isPPTOn_run_sufCmaVqOracle (M : MACScheme) {adversary : VqForger}
   intro caller request st _ result hresult
   dsimp only [sufCmaVqOracle] at hresult
   split_ifs at hresult
-  · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-    subst result
+  · obtain rfl : result = _ := by simpa using hresult
     refine ⟨trivial, by simp, ?_⟩
     enc_len [encVqState_apply, encVqStateFields]
   · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
@@ -319,8 +318,7 @@ theorem isPPTOn_run_sufCmaVqOracle (M : MACScheme) {adversary : VqForger}
       htagLen.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d))
     refine ⟨trivial, by dsimp only; omega, ?_⟩
     enc_len [encVqState_apply, encVqStateFields]
-  · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-    subst result
+  · obtain rfl : result = _ := by simpa using hresult
     exact ⟨trivial, by simp, by lia⟩
 
 /-- Run the complete MAC Attack Game 6.2 experiment on its unary security parameter for any
@@ -673,15 +671,11 @@ theorem isQueryBounded_vqToSufForger (M : MACScheme) (tagBound width Qv : ℕ �
       rcases req with ⟨b, raw⟩
       dsimp only [OracleComp.sumHandler, vqToSufHandler, StateT.run, Sum.elim_inr]
       cases s.planted.hasCaptured
-      · cases b
-        · simp only [Bool.false_eq_true, ↓reduceIte]
-          split_ifs
-          · simp only [map_eq_bind_pure_comp]
-            exact ((ProbOracleComp.IsQueryBounded.query ((), raw)).bind
-              fun _ => .pure _ 0).mono (by omega)
-          · exact .pure _ 1
-        · simp only [Bool.false_eq_true, ↓reduceIte]
-          split_ifs <;> exact .pure _ 0
+      · cases b <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> split_ifs
+        · simp only [map_eq_bind_pure_comp]
+          exact ((ProbOracleComp.IsQueryBounded.query ((), raw)).bind
+            fun _ => .pure _ 0).mono (by omega)
+        all_goals exact .pure _ _
       · cases b <;> exact .pure _ _
   exact ((ProbOracleComp.IsQueryBounded.sample
     (ProbComp.sampleModIndex (width n) (Qv n))).bind
@@ -1085,15 +1079,9 @@ private theorem eval_interpret_pure_eq_runWith {Op β : Type} {spec : Op → Typ
       (OracleComp.sumHandler ProbComp.unifFin fun q => pure (ans q)) M) =
     (ProbOracleComp.runWith (fun q (u : Unit) => (PMF.pure (ans q)).map (·, u)) M ()).map
       Prod.fst := by
-  have hfst := congrArg (PMF.map Prod.fst)
-    (ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => PMF.pure (ans q)) M ())
-  simp only [PMF.map_comp, Function.comp_def] at hfst
-  change _ = PMF.map id _ at hfst
-  rw [PMF.map_id] at hfst
-  rw [ProbOracleComp.eval_interpret]
-  simp only [ProbComp.eval_pure]
-  rw [← OracleComp.evalWith_eq_interpret]
-  exact hfst.symm
+  rw [ProbOracleComp.eval_interpret, ProbOracleComp.runWith_readOnly, PMF.map_comp]
+  simp only [ProbComp.eval_pure, ← OracleComp.evalWith_eq_interpret]
+  exact (PMF.map_id _).symm
 
 private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForger) (n : ℕ)
     (table : BitString n → BitString n) :
@@ -1180,12 +1168,9 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
       cases b
       · simp only [Bool.false_eq_true, ↓reduceIte]
         by_cases hmsg : raw.length = n
-        · have hofFn_msg : List.ofFn (BitString.ofList n raw) = raw := BitString.ofFn_ofList hmsg
-          have htake : (List.ofFn (table (BitString.ofList n raw))).take n =
-              List.ofFn (table (BitString.ofList n raw)) :=
-            List.take_of_length_le (List.length_ofFn).le
-          simp [hmsg, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-            randomFunctionOracle, htake, hofFn_msg]
+        · simp [hmsg, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
+            randomFunctionOracle, List.take_of_length_le (List.length_ofFn).le,
+            BitString.ofFn_ofList hmsg]
         · simp [beq_eq_false_iff_ne.mpr hmsg]
       · simp only [↓reduceIte]
         by_cases hboth : ((unframe raw).length == n && (dropFrame raw).length == n) = true
@@ -1206,26 +1191,20 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
               ← List.ofFn_injective ((Prod.mk.inj heq).2.trans hofFn_tag.symm)]
           by_cases hmem :
               (BitString.ofList n (unframe raw), BitString.ofList n (dropFrame raw)) ∈ st.log
-          · have hcont : (st.log.map fun p => (List.ofFn p.1, List.ofFn p.2)).reverse.contains
-                (unframe raw, dropFrame raw) = true := hmem_iff.mp hmem
-            simp only [hmsg, htag, beq_self_eq_true, Bool.and_self, hcont, ↓reduceIte,
+          · simp only [hmsg, htag, beq_self_eq_true, Bool.and_self, hmem_iff.mp hmem, ↓reduceIte,
               ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, hmem,
               ProbOracleComp.runWith_pure, PMF.pure_map, Prod.map]
             rfl
-          · have hcont : (st.log.map fun p => (List.ofFn p.1, List.ofFn p.2)).reverse.contains
-                (unframe raw, dropFrame raw) = false :=
-              Bool.eq_false_iff.mpr (mt hmem_iff.mpr hmem)
-            have htake : (List.ofFn (table (BitString.ofList n (unframe raw)))).take n =
-                List.ofFn (table (BitString.ofList n (unframe raw))) :=
-              List.take_of_length_le (List.length_ofFn).le
-            have hbeq : (List.ofFn (table (BitString.ofList n (unframe raw))) == dropFrame raw) =
+          · have hbeq : (List.ofFn (table (BitString.ofList n (unframe raw))) == dropFrame raw) =
                 decide (table (BitString.ofList n (unframe raw)) =
                   BitString.ofList n (dropFrame raw)) := by
               rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_eq,
                 ← List.ofFn_injective.eq_iff, hofFn_tag]
-            simp only [hmsg, htag, beq_self_eq_true, Bool.and_self, hcont, Bool.false_eq_true,
+            simp only [hmsg, htag, beq_self_eq_true, Bool.and_self,
+              Bool.eq_false_iff.mpr (mt hmem_iff.mpr hmem), Bool.false_eq_true,
               ↓reduceIte, Functor.map_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-              hmem, randomFunctionOracle, PMF.pure_map, Prod.map, htake, hbeq]
+              hmem, randomFunctionOracle, PMF.pure_map, Prod.map,
+              List.take_of_length_le (List.length_ofFn).le, hbeq]
             rfl
         · simp [Bool.eq_false_iff.mpr hboth])
     (adversary n []) (⟨[], false⟩, ())
@@ -1304,23 +1283,19 @@ theorem eval_prfRealGame_vqMacToPrfDistinguisher
               hskLen ▸ hlen sk (unframe raw) (hmsg.trans hskLen.symm)
             by_cases htag : (dropFrame raw).length = n
             · by_cases hcont : s.val.log.contains (unframe raw, dropFrame raw) = true
-              · have hprop := s.property (unframe raw, dropFrame raw)
-                  (List.contains_iff_mem.mp hcont)
-                have heq : (family sk (unframe raw) == dropFrame raw) = true :=
-                  beq_iff_eq.mpr hprop.2.symm
+              · have heq : (family sk (unframe raw) == dropFrame raw) = true :=
+                  beq_iff_eq.mpr (s.property _ (List.contains_iff_mem.mp hcont)).2.symm
                 simp only [hmsg, htag, beq_self_eq_true, Bool.and_self, ↓reduceIte, hcont, heq,
                   Bool.not_true, Bool.and_false, Bool.or_false,
                   ProbOracleComp.runWith_pure, PMF.pure_map]
-              · have hcontF : s.val.log.contains (unframe raw, dropFrame raw) = false :=
-                  Bool.eq_false_iff.mpr hcont
-                simp only [hmsg, htag, beq_self_eq_true, Bool.and_self, hcontF,
+              · simp only [hmsg, htag, beq_self_eq_true, Bool.and_self, Bool.eq_false_iff.mpr hcont,
                   Bool.false_eq_true, ↓reduceIte, Bool.not_false, Bool.and_true, Bool.true_and,
                   Functor.map_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
                   prfOracle, PMF.pure_map, Prod.map, id_eq,
                   List.take_of_length_le hfamLen.le]
-            · have hneq : (family sk (unframe raw) == dropFrame raw) = false :=
-                beq_eq_false_iff_ne.mpr fun heq => htag (heq ▸ hfamLen)
-              simp [hmsg, beq_eq_false_iff_ne.mpr htag, hneq]
+            · simp [hmsg, beq_eq_false_iff_ne.mpr htag,
+                beq_eq_false_iff_ne.mpr (ne_of_apply_ne List.length
+                  (hfamLen.trans_ne (Ne.symm htag)))]
           · simp [beq_eq_false_iff_ne.mpr hmsg])
       (adversary n []) ⟨⟨[], false⟩, by simp⟩
     rw [hinit, ← hsim, PMF.map_comp, PMF.map_comp]
@@ -1393,12 +1368,10 @@ theorem succProbability_sufCmaVqGame_prfMAC_le
     refine PMF.bind_congr_on_support _ _ _ fun key _ => ?_
     exact eval_adapt_vqMacToPrfDistinguisher_run_pure adversary n (PRF.atLevel family n key)
   rw [hreal_eq, advantage_vqMacToPrfDistinguisher_eq_atLevel hlen adversary n]
-  have hfin := succProbability_vqForgeExperiment_prf_le (PRF.atLevel family n) Q_v
+  refine (succProbability_vqForgeExperiment_prf_le (PRF.atLevel family n) Q_v
     (A := fun _ => toBitStringVq n (adversary n []))
-    (isVerificationQueryBounded_toBitStringVq hQv)
-  have hcard : (Fintype.card (BitString n) : ℝ≥0) = 2 ^ n := by
-    simp [BitString]
-  rwa [hcard] at hfin
+    (isVerificationQueryBounded_toBitStringVq hQv)).trans_eq (congrArg _ ?_)
+  simp [BitString]
 
 /-- **Every pseudorandom function yields an `SUFCMAVq`-secure MAC via Exercise 6.2**
 ([BonehShoup2023], Section 6.14, Exercise 6.2, p. 246): proved directly via

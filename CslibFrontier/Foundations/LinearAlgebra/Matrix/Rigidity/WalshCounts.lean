@@ -46,13 +46,10 @@ private theorem sum_split {n : ℕ} (x : Finset (Fin n)) (f : ℕ → ℕ → �
   · simp
   · intro y _
     ext i; by_cases h : i ∈ x <;> simp [h]
-  · rintro ⟨s,q⟩ h
-    obtain ⟨hs,hq⟩ : s ⊆ x ∧ q ⊆ xᶜ := by simpa using h
-    apply Prod.ext
-    · change x ∩ (s ∪ q) = s
-      ext i; simp only [mem_inter, mem_union]; grind [mem_compl]
-    · change xᶜ ∩ (s ∪ q) = q
-      ext i; simp only [mem_inter, mem_union]; grind [mem_compl]
+  · rintro ⟨s, q⟩ h
+    obtain ⟨hs, hq⟩ : s ⊆ x ∧ q ⊆ xᶜ := by simpa using h
+    exact Prod.ext (ext fun i => by simp only [mem_inter, mem_union]; grind [mem_compl])
+      (ext fun i => by simp only [mem_inter, mem_union]; grind [mem_compl])
   · intro y _
     have hd : Disjoint (x ∩ y) (xᶜ ∩ y) :=
       disjoint_compl_right.mono inter_subset_left inter_subset_left
@@ -107,10 +104,7 @@ theorem card_off_band_pair (n lo hi k t : ℕ) :
       intro x _
       by_cases h : lo ≤ x.card ∧ x.card ≤ hi
       · simpa [weight, h, h.1, h.2, row, ← sum_filter] using card_off_band_row n lo hi k t x
-      · by_cases l : lo ≤ x.card
-        · have u : ¬x.card ≤ hi := fun hu => h ⟨l, hu⟩
-          simp [weight, l, u]
-        · simp [weight, l]
+      · simp only [weight, ← and_assoc, h, false_and, ↓reduceIte, sum_const_zero]
     _ = _ := by
       have h := sum_by_size (univ : Finset (Fin n)) weight
       simpa [weight, row, mul_ite] using h

@@ -133,8 +133,7 @@ private noncomputable def gv (c : Code) (y b : ℕ) : ℕ :=
 
 private theorem gv_mem {Φ : BlumMeasure} {c : Code} {y b : ℕ} (h : Halts Φ c y b) :
     gv Φ c y b ∈ c.eval y := by
-  simp only [gv, h, ↓reduceDIte]
-  exact Part.get_mem _
+  simpa only [gv, h, ↓reduceDIte] using Part.get_mem _
 
 private theorem gv_eq_of_mem {Φ : BlumMeasure} {c : Code} {y b v : ℕ} (h : Halts Φ c y b)
     (hv : v ∈ c.eval y) : gv Φ c y b = v :=
@@ -178,10 +177,8 @@ private theorem gv_mono {Φ : BlumMeasure} {i : Code} {y s s' : ℕ} (h : Halts 
   gv_eq_of_mem (halts_mono h hs) (gv_mem h)
 
 private theorem triggers_mono {Φ : BlumMeasure} {i : Code} {e y s s' : ℕ} (h : Triggers Φ i e y s)
-    (hs : s ≤ s') : Triggers Φ i e y s' := by
-  obtain ⟨hy, hi, he⟩ := h
-  refine ⟨hy.trans hs, halts_mono hi hs, ?_⟩
-  rwa [gv_mono hi hs]
+    (hs : s ≤ s') : Triggers Φ i e y s' :=
+  ⟨h.1.trans hs, halts_mono h.2.1 hs, gv_mono h.2.1 hs ▸ h.2.2⟩
 
 /-- The last stage `a < n` of `l` at which index `e` acted, if any. -/
 private def lastAct (l : List (Option ℕ)) (e n : ℕ) : Option ℕ :=
@@ -203,9 +200,8 @@ private theorem lastAct_eq_some {l : List (Option ℕ)} {e n a : ℕ} :
     change (if actAt l n = some e then some n else lastAct l e n) = some a ↔ _
     split_ifs with h
     · simp only [Option.some.injEq]
-      refine ⟨?_, fun ⟨ha, _, hb⟩ => by_contra fun hne => hb n (by omega) (Nat.lt_succ_self _) h⟩
-      rintro rfl
-      exact ⟨Nat.lt_succ_self _, h, fun _ _ _ => by omega⟩
+      exact ⟨fun h' => h' ▸ ⟨Nat.lt_succ_self _, h, fun _ _ _ => by omega⟩,
+        fun ⟨ha, _, hb⟩ => by_contra fun hne => hb n (by omega) (Nat.lt_succ_self _) h⟩
     · rw [ih]
       refine ⟨fun ⟨ha, hae, hb⟩ => ⟨by omega, hae, fun b hab hbn => ?_⟩,
         fun ⟨ha, hae, hb⟩ => ⟨lt_of_le_of_ne (Nat.le_of_lt_succ ha) fun heq => h (heq ▸ hae),
@@ -326,12 +322,10 @@ private theorem computablePred_forall_option {α : Type*} [Primcodable α] {o : 
     (Computable.option_casesOn ho (Computable.const true) (hf.comp
       (Computable.fst.pair Computable.snd)).to₂).of_eq fun a => ?_, funext fun a => ?_⟩
   · cases o a <;> rfl
-  · have hpq : ∀ b, p a b ↔ f (a, b) = true := fun b => by
-      rw [show p a b = (fun q : α × ℕ => p q.1 q.2) (a, b) from rfl, hfp]
-    dsimp only
-    cases h : o a with
+  · dsimp only
+    cases o a with
     | none => simp
-    | some b => simpa using hpq b
+    | some b => simp [congrFun hfp (a, b)]
 
 private theorem computablePred_flagged {α : Type*} [Primcodable α] {i : α → Code}
     {l : α → List (Option ℕ)} {e s : α → ℕ} (hi : Computable i) (hl : Computable l)
@@ -519,9 +513,7 @@ private theorem le_lastAct_hist {i : Code} {e a s : ℕ} (ha : a < s)
   | none => exact absurd hae (lastAct_hist_eq_none.1 h a ha)
   | some a' =>
     obtain ⟨-, -, hb⟩ := lastAct_hist_eq_some.1 h
-    refine ⟨a', rfl, ?_⟩
-    by_contra hlt
-    exact hb a (by omega) ha hae
+    exact ⟨a', rfl, le_of_not_gt fun hlt => hb a hlt ha hae⟩
 
 private theorem act_eq_some {i : Code} {s e : ℕ} :
     act Φ i s = some e ↔ UndefBefore Φ i (hist Φ i s) (Nat.unpair s).1 (Nat.unpair s).2 ∧
@@ -593,9 +585,7 @@ private theorem act_le {i : Code} {s e : ℕ} (h : act Φ i s = some e) : e ≤ 
 private theorem key_ge_of_act {i : Code} {e a s : ℕ} (ha : a < s) (hae : act Φ i a = some e) :
     2 * a + 1 ≤ key (hist Φ i s) e s := by
   obtain ⟨a', h, haa'⟩ := le_lastAct_hist ha hae
-  unfold key
-  rw [h]
-  change 2 * a + 1 ≤ 2 * a' + 1
+  simp only [key, h, Option.elim_some]
   omega
 
 private theorem le_key_hist (i : Code) (e s : ℕ) : e ≤ key (hist Φ i s) e s := by
@@ -658,12 +648,9 @@ private theorem mem_name {i : Code} {x v : ℕ} :
   rw [Part.mem_map_iff]
   refine exists_congr fun z => and_congr_left fun _ => Nat.mem_rfind.trans ?_
   simp only [Part.mem_some_iff]
-  constructor
-  · rintro ⟨h, -⟩
-    exact @of_decide_eq_true _ (Classical.dec _) h.symm
-  · intro h
-    refine ⟨(@decide_eq_true _ (Classical.dec _) h).symm, fun {m} hm => ?_⟩
-    exact (@decide_eq_false _ (Classical.dec _) fun hm' => (Defd.unique hm' h ▸ hm).false).symm
+  exact ⟨fun ⟨h, _⟩ => @of_decide_eq_true _ (Classical.dec _) h.symm, fun h =>
+    ⟨(@decide_eq_true _ (Classical.dec _) h).symm, fun {m} hm =>
+      (@decide_eq_false _ (Classical.dec _) fun hm' => (Defd.unique hm' h ▸ hm).false).symm⟩⟩
 
 variable (Φ)
 
@@ -740,9 +727,8 @@ private theorem eventually_triggers {i : Code} {t : ℕ → ℕ} (ht : ∀ n, t 
   exact ⟨by omega, hcs, by rwa [gv_eq ht hcs]⟩
 
 private theorem not_halts_of_triggers {i : Code} {t : ℕ → ℕ} (ht : ∀ n, t n ∈ i.eval n)
-    {e y s : ℕ} (h : Triggers Φ i e y s) : ¬Halts Φ (ofNat Code e) y (t y) := by
-  have := h.2.2
-  rwa [gv_eq ht h.2.1] at this
+    {e y s : ℕ} (h : Triggers Φ i e y s) : ¬Halts Φ (ofNat Code e) y (t y) :=
+  gv_eq ht h.2.1 ▸ h.2.2
 
 /-- (A) If program `e` halts within `t` almost everywhere, then `e` acts at only finitely many
 stages: each action uses up one of the finitely many inputs where `e` exceeds `t`. -/
@@ -989,9 +975,8 @@ theorem complexityClass_name {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n �
   ext f
   simp only [mem_complexityClass]
   refine exists_congr fun c => and_congr_right fun hc => ?_
-  have h := eventually_cost_le_name_iff ht ht' c
-  simp only [← Φ.forall_mem_cost_iff_exists_of_total hc] at h
-  exact h.symm
+  simpa only [← Φ.forall_mem_cost_iff_exists_of_total hc] using
+    (eventually_cost_le_name_iff ht ht' c).symm
 
 variable (Φ) in
 /-- **The naming theorem** [Odifreddi1999, Theorem VII.3.6]. There is a computable map `h` on
@@ -1018,10 +1003,9 @@ theorem naming_theorem :
     rw [Code.eval_curry, hc]
     simp only [Nat.unpair_pair, ofNat_encode]
   refine ⟨fun i => Code.curry c (encode i), Code.primrec₂_curry.to_comp.comp
-    (Computable.const c) Computable.encode, ?_, fun i t ht => ?_⟩
-  · refine (Φ.computablePred_mem_name).of_eq fun q => ?_
-    rw [hh]
-  · obtain ⟨t', ht'⟩ := Φ.exists_name_total ht
-    exact ⟨t', fun n => (hh i n).symm ▸ ht' n, complexityClass_name ht ht'⟩
+    (Computable.const c) Computable.encode, (Φ.computablePred_mem_name).of_eq fun q => by rw [hh],
+    fun i t ht => ?_⟩
+  obtain ⟨t', ht'⟩ := Φ.exists_name_total ht
+  exact ⟨t', fun n => (hh i n).symm ▸ ht' n, complexityClass_name ht ht'⟩
 
 end Cslib.BlumComplexity.BlumMeasure

@@ -62,9 +62,7 @@ variable {w} {p r : ℕ}
 theorem wnEnd_spec (hp : p ≤ w.length) :
     p ≤ wnEnd w p ∧ wnEnd w p ≤ w.length ∧ WellNested (w.extract p (wnEnd w p)) := by
   classical
-  have hP : p ≤ p ∧ WellNested (w.extract p p) := ⟨le_rfl, by
-    rw [List.extract_eq_take_drop, Nat.sub_self, List.take_zero]
-    exact .nil⟩
+  have hP : p ≤ p ∧ WellNested (w.extract p p) := ⟨le_rfl, by simpa using .nil⟩
   have := Nat.findGreatest_spec (P := fun r => p ≤ r ∧ WellNested (w.extract p r)) hp hP
   exact ⟨this.1, Nat.findGreatest_le _, this.2⟩
 
@@ -318,15 +316,8 @@ theorem splitLastHole_eq_some_of {State : Type*} {i : Fin n} {post : List (HoleT
     {s s' : State} (hpost : ∀ h ∈ post, h.stack ≠ i) :
     ∀ pre : List (HoleTriple n State),
       splitLastHole i (pre ++ ⟨i, s, s'⟩ :: post) = some (pre, (s, s'), post)
-  | [] => by
-    simp only [List.nil_append]
-    unfold splitLastHole
-    rw [splitLastHole_eq_none hpost]
-    simp
-  | h :: pre => by
-    simp only [List.cons_append]
-    unfold splitLastHole
-    rw [splitLastHole_eq_some_of hpost pre]
+  | [] => by simp [splitLastHole, splitLastHole_eq_none hpost]
+  | h :: pre => by simp [splitLastHole, splitLastHole_eq_some_of hpost pre]
 
 /-- The top of a stack holding open chains is the newest push of the last chain of that stack. -/
 theorem stacksOf_eq_cons {C : List (HoleChain n Γ)} (hne : ∀ c ∈ C, c.pushes ≠ []) {i : Fin n}
@@ -360,9 +351,7 @@ theorem HoleBlock.prepend {i : Fin n} {L : ℕ} {v ws : List (α × Op n Γ)} {p
   | @snoc v ws' ps' a' γ' _ hws' ih =>
     convert HoleBlock.snoc (a := a') (γ := γ') ih hws' using 1
     · simp [List.cons_append, List.append_assoc]
-    · simp only [List.cons_append, List.length_cons, List.length_append, List.cons.injEq,
-        Prod.mk.injEq, and_true]
-      omega
+    · simp [List.cons_append]; omega
 
 end Helpers
 
@@ -497,20 +486,14 @@ theorem eq_nil_of_stacksOf_eq_empty {C : List (HoleChain n Γ)} (hne : ∀ c ∈
   induction C using List.reverseRecOn with
   | nil => rfl
   | append_singleton C d _ =>
-    exfalso
-    have := congrFun h d.stack
-    rw [stacksOf_append_singleton, Function.update_self] at this
     obtain ⟨e, ps, hps⟩ := List.exists_cons_of_ne_nil (hne d (by simp))
-    simp [hps, Stacks.empty] at this
+    have := congrFun h d.stack
+    simp [stacksOf_append_singleton, hps, Stacks.empty] at this
 
 theorem update_cons_injective {σ σ' : Stacks n Γ} {i : Fin n} {γ : Γ}
     (h : Function.update σ i (γ :: σ i) = Function.update σ' i (γ :: σ' i)) : σ = σ' := by
   funext j
-  have hj' := congrFun h j
-  by_cases hj : j = i
-  · subst hj
-    simpa only [Function.update_self, List.cons.injEq, true_and] using hj'
-  · rwa [Function.update_of_ne hj, Function.update_of_ne hj] at hj'
+  by_cases hj : j = i <;> simpa [hj] using congrFun h j
 
 theorem reverse_take_eq_cons {β : Type*} {L : List β} {m : ℕ} (hm₁ : 1 ≤ m)
     (hm₂ : m ≤ L.length) :
@@ -549,16 +532,15 @@ private theorem cinv_init {K : ℕ} {w : List (Symbol × Op n Γ)} {s₀ f : Sta
     M.CInv K w f (wnEnd w 0) := by
   obtain ⟨-, hle, hwn⟩ := wnEnd_spec (w := w) (p := 0) (Nat.zero_le _)
   have hsplit : w = w.extract 0 (wnEnd w 0) ++ w.drop (wnEnd w 0) := by
-    rw [List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero, List.take_append_drop]
+    simp [List.extract_eq_take_drop]
   rw [hsplit] at hrun
   obtain ⟨c, hpre, hrest⟩ := LTS.MTr.split hrun
   obtain ⟨hctl, hcont⟩ := hwn.configLTS_mTr_iff.mp hpre
   have hμ : (⟨[], c.state⟩ : HoleList n State) ∈ M.initialLists :=
     mem_initialLists.mpr ⟨rfl, s₀, hs₀, (mem_wellNestedPairs M).mpr
       (wellNestedReach_iff.mpr ⟨_, hwn, hctl⟩)⟩
-  have htake : w.take (wnEnd w 0) = [] ++ w.extract 0 (wnEnd w 0) := by
-    rw [List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero, List.nil_append]
-  refine ⟨⟨[], c.state⟩, [], [], c, .init hμ, htake ▸ .wellNested .nil hwn, hrest, rfl,
+  refine ⟨⟨[], c.state⟩, [], [], c, .init hμ,
+    by simpa [List.extract_eq_take_drop] using .wellNested .nil hwn, hrest, rfl,
     by rw [hcont, stacksOf_nil], .nil, .nil, .nil, by simp, by simp, by simp⟩
 
 /-- At the end of the run, the invariant gives an accepting list. -/

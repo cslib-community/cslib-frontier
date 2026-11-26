@@ -311,10 +311,8 @@ theorem val_probePerm {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U)
 
 @[simp]
 theorem probePerm_zero {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U) :
-    probePerm θ u ⟨0, numBuckets_pos n_max⟩ = primaryHash θ u := by
-  apply Fin.ext
-  rw [val_probePerm]
-  simpa using Nat.mod_eq_of_lt (primaryHash θ u).isLt
+    probePerm θ u ⟨0, numBuckets_pos n_max⟩ = primaryHash θ u :=
+  Fin.ext (by simpa [val_probePerm] using Nat.mod_eq_of_lt (primaryHash θ u).isLt)
 
 /-- One step of the Word-RAM probe loop `(slot + stride) &&& (2 ^ M - 1)` advances from
 `probePerm θ u ⟨i, _⟩` to `probePerm θ u ⟨i + 1, _⟩`. -/
@@ -359,8 +357,7 @@ theorem extractSlots_eq_none_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
       mem (base + slotOffset c_exp n_max + j.val) = 0 := by
   rcases hwf j with ⟨h0 | h1, hkey⟩
   · simp [extractSlots, h0]
-  · have hlt : mem (base + slotOffset c_exp n_max + numBuckets n_max + j.val) < U := hkey h1
-    simp [extractSlots, h1, hlt]
+  · simp [extractSlots, h1, hkey h1]
 
 theorem extractSlots_eq_some_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
     (hwf : SlotArrayWF base c_exp U n_max mem) (j : Fin (numBuckets n_max))
@@ -371,8 +368,7 @@ theorem extractSlots_eq_some_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
       mem (base + slotOffset c_exp n_max + 2 * numBuckets n_max + j.val) = v := by
   rcases hwf j with ⟨h0 | h1, hkey⟩
   · simp [extractSlots, h0]
-  · have hlt : mem (base + slotOffset c_exp n_max + numBuckets n_max + j.val) < U := hkey h1
-    simp [extractSlots, h1, hlt, Fin.ext_iff]
+  · simp [extractSlots, h1, hkey h1, Fin.ext_iff]
 
 attribute [local wram_arith] slotOffset space
 
@@ -533,13 +529,6 @@ def dtMap : Fin 12 → Fin 16 :=
 private theorem injective_dtMap : Function.Injective dtMap :=
   Fin.castLE_injective _
 
-private theorem notMem_range_dtMap {j : Fin 16} (hj : 12 ≤ j.val) :
-    j ∉ Set.range dtMap := by
-  rintro ⟨i, rfl⟩
-  have := i.isLt
-  simp only [dtMap, Fin.val_castLE] at hj
-  omega
-
 /-- Allocation program `allocSpan c_exp n_max` (`3` instructions): copies `frontierReg` (`regV`) to
 `baseReg` (`regBase`) and advances `frontierReg` by `space c_exp n_max`. -/
 def allocSpan (c_exp n_max : ℕ) : Code .exact 16 :=
@@ -655,12 +644,11 @@ private theorem mem_support_resampleInitPMF {addr c_exp n_max M : ℕ} {x y : Da
   rw [resampleInitPMF, ProbComp.eval_map, PMF.map_comp] at hy
   supp_cases hy with ⟨z, hz, rfl⟩
   rw [ProbComp.support_eval] at hz
-  obtain ⟨hbase', hrep, hframe, -⟩ :=
-    DoubleTabulation.mem_support_resampleComp hbase hz
-  refine ⟨hrep, ?_, Data.extend_regs_of_notMem _ _ (notMem_range_dtMap (by decide)), hframe⟩
+  obtain ⟨hbase', hrep, hframe, -⟩ := DoubleTabulation.mem_support_resampleComp hbase hz
+  refine ⟨hrep, ?_, Data.extend_regs_of_notMem _ _
+    (fun ⟨i, h⟩ => (by decide : ¬regV.val < 12) (congrArg Fin.val h ▸ i.isLt)), hframe⟩
   change ((z.1.extend dtMap x).comap dtMap).regs 0 = addr
-  rw [Data.comap_extend injective_dtMap]
-  exact hbase'
+  rwa [Data.comap_extend injective_dtMap]
 
 private theorem map_extractSeed_resampleInitPMF (addr c_exp n_max M : ℕ) (x : Data 16) :
     (resampleInitPMF addr c_exp n_max M x).map
@@ -738,11 +726,8 @@ private theorem initSetup_execCodeDist {w base c_exp n_max : ℕ} {x₁ : Data 1
   wram_rand_call (resampleInit_execCodeDist hbase hbt hmb hmM h1) with y₁ hy₁
   · have hb₁ := (mem_support_resampleInitPMF hbase hy₁).2.1
     wram_rand_exec [hb₁]
-    have hy₂_base : ((y₁.set regCond (singleTabSpace c_exp n_max)).set regBase
-        (base + singleTabSpace c_exp n_max)).regs regBase = base + singleTabSpace c_exp n_max :=
-      rfl
-    wram_rand_call (resampleInit_execCodeDist hy₂_base hb2t hmb hmM1 h1) with y₃ hy₃
-    · have hb₃ := (mem_support_resampleInitPMF hy₂_base hy₃).2.1
+    wram_rand_call (resampleInit_execCodeDist rfl hb2t hmb hmM1 h1) with y₃ hy₃
+    · have hb₃ := (mem_support_resampleInitPMF rfl hy₃).2.1
       wram_rand_exec [hb₃, show base + singleTabSpace c_exp n_max - singleTabSpace c_exp n_max =
         base from Nat.add_sub_cancel _ _]
     · exact ⟨(PMF.bind_pure_comp _ _).symm, by norm_cast⟩
@@ -881,15 +866,12 @@ private theorem probeLoop_execWithin_aux {w base c_exp U n_max : ℕ} (θ : Seed
   induction rem with
   | zero =>
     intro i hi_lt d hik hmem _ _ _ _ hzero _ hslot hcond
-    have hi_eq : i = k := by omega
-    have hnot : probePerm θ u ⟨i, hi_lt⟩ ∉ O := by
-      have : (⟨i, hi_lt⟩ : Fin (numBuckets n_max)) = probeSlotIndex O (probePerm θ u) hO :=
-        Fin.ext hi_eq
-      exact this ▸ notMem_apply_probeSlotIndex hO
-    have hc : ¬(Cond.lt regZero regCond).Holds d := by
-      simp [Cond.Holds, hzero, hcond, hnot]
-    refine ⟨d, (Exec.loop_exit hc).within, hmem, ?_, fun _ _ _ _ => rfl⟩
-    rw [hslot]; dsimp only [targetSlot, probeSlotIndex]; congr 2; exact Fin.ext hi_eq
+    have hidx : (⟨i, hi_lt⟩ : Fin (numBuckets n_max)) = probeSlotIndex O (probePerm θ u) hO :=
+      Fin.ext (by omega : i = k)
+    have hnot : probePerm θ u ⟨i, hi_lt⟩ ∉ O := hidx ▸ notMem_apply_probeSlotIndex hO
+    have hc : ¬(Cond.lt regZero regCond).Holds d := by simp [Cond.Holds, hzero, hcond, hnot]
+    exact ⟨d, (Exec.loop_exit hc).within, hmem,
+      hslot.trans (congrArg (fun j => (probePerm θ u j).val) hidx), fun _ _ _ _ => rfl⟩
   | succ rem ih =>
     intro i hi_lt d hik hmem hsbase hmask hstride hm hzero hu hslot hcond
     have hi1_lt : i + 1 < numBuckets n_max := by omega

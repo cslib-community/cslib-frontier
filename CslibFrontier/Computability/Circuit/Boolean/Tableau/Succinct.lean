@@ -337,11 +337,9 @@ theorem table_inWindow {n T c : ℕ} (hc : c < numCols T) (tm : MultiTapeTM k Bo
   change (table tm l).2.1.InWindow n T c ∧ (table tm l).2.2.InWindow n T c
   have hw {r : Ref k State} (h : ∀ p l g, r = .node p l .next g → g = .ltLast) :
       r.InWindow n T c := by
-    rcases r with _ | _ | _ | ⟨p, l, cs, g⟩
-    · trivial
-    · trivial
-    · trivial
-    · exact inWindow_of_cs hc fun hcs => h p l g (by rw [hcs])
+    cases r with
+    | node p l cs g => exact inWindow_of_cs hc fun hcs => h p l g (hcs ▸ rfl)
+    | _ => trivial
   have hterm {L : List (Ref k State × Ref k State)}
       (hL : ∀ q ∈ L, ∀ p l g, (q.1 = .node p l .next g → g = .ltLast) ∧
         (q.2 = .node p l .next g → g = .ltLast)) (j : ℕ) :
@@ -519,8 +517,7 @@ theorem eval_clauseOf {x : List Bool} {n T : ℕ} {σ : ℕ → Bool}
       · exact eval_tautology σ
     · exact eval_tautology σ
   · simpa using hout
-  · exact eval_tautology σ
-  · exact eval_tautology σ
+  all_goals exact eval_tautology σ
 
 /-! ### Comparison with the Tseitin formula of the tableau -/
 
@@ -679,9 +676,7 @@ theorem length_of_mem_succinctCNF {x : List Bool} {n T : ℕ} {C : Clause ℕ}
           exact length_tseitinClause _ _ _ _ _
       · rfl
     · rfl
-  · rfl
-  · rfl
-  · rfl
+  all_goals rfl
 
 /-- The formula has `2 ^ clauseBits k State T` clauses. -/
 theorem length_succinctCNF (x : List Bool) (n T : ℕ) :
@@ -776,7 +771,6 @@ theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List 
     · exact htaut hvC
   · obtain ⟨rfl, -⟩ : v = outLabel k State T ∧ _ := by simpa [unitClause] using hvC
     exact posLabel_lt _ (Nat.two_pow_pos _) le_rfl
-  · exact htaut hvC
-  · exact htaut hvC
+  all_goals exact htaut hvC
 
 end Cslib.Circuits.Boolean.Tableau

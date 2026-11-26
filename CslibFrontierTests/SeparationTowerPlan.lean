@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.PlayMoves
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Capacity
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Constants
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EndUnits
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EverHeld
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.ProgramUnits
@@ -46,6 +47,11 @@ import Mathlib.Data.Fintype.BigOperators
   and satisfies the bounds of the program (`ProgramBound`, `UnitBound`) for `Y = 1100`, and from
   any program for the inputs, `counts_stage`, `tree_stage` and `units_stage` compute its numbers,
   its tree and its units.
+* The conditions with one constant (`TowerConstants`), which the tower with one edge does not
+  satisfy: `constNormBound` and `constMoveCap` on its numbers, its at most `12 · 2 ^ 5` targets
+  (`card_target_le`), and the roles in `lawRoles`. For an arbitrary tower under the conditions:
+  the depth of the tower and the lengths of the routes, the number of moves (`sizeBound`), and the
+  units of a move, of the tree and between a chamber and its parent by the numbers.
 * For an arbitrary tower, under the hypotheses of the statements: `towerPlan_ok` bounds the units
   given at a slot by `cap`; no alive unit of a channel of a law move is current after all moves;
   the units that a party ever holds, exactly; possible outcomes are good, in the form that
@@ -612,6 +618,79 @@ example {Inp : Type} {N p c : ℕ} {inp : Fin N → Inp → Fin (1100 ^ 4)} {H :
       ((InputBound.ofPlan nI oI).outcome_le x) _ τ) s1 f1.load f1.toChoicesIn
   obtain ⟨H3, s3, u3, f3⟩ := units_stage hY edgeProgramBound edgePlanUnitBound s2 (f1.mono u2)
   exact ⟨H3, s3, ⟨fun P P' => u3 (f2.parent P P'), fun P => u3 (f2.parentUnits P)⟩, f3⟩
+
+/-! ### The conditions with one constant, and the numbers that follow
+
+The tower with one edge satisfies `StageRate` only at the rate `1` (it has one type and no
+contraction), and it has no near pairs, so it does not satisfy `TowerConstants`; the statements
+under these conditions are below for an arbitrary tower. -/
+
+/-- With the constant `1`, routes of length `1`, `2` chambers of the level `0` and `lhat = 2`,
+the bound for the norms is `1 · (1 · 2 · (2 + 2 · 2 ^ 2)) = 20`, and the bound for the units of a
+move with `U0 = 1` is `1 + 2 + 3 · 1 · 20 = 63`. -/
+example : constNormBound 1 1 2 2 = 20 ∧ constMoveCap 1 1 2 2 1 = 63 := by decide
+
+/-- The targets of the units of the tower with one edge are at most `12 · 2 ^ 5`
+(`card_target_le`); there are `19`. -/
+example : Fintype.card (Target edgeTower 1 2) ≤ 12 * 2 ^ 5 :=
+  card_target_le two_pos (edgeSize (F := ℕ)) Nat.one_pos
+
+/-- The roles of the relay are in `lawRoles` for every list of laws, and the role of the law
+without slots is in it exactly when that law is in the list. -/
+example : (⟨relayLaw ℕ, RelayRole.via⟩ : Σ L : Law ℕ, L.Role) ∈ lawRoles ℕ [] ∧
+    (⟨pointLaw ℕ, ()⟩ : Σ L : Law ℕ, L.Role) ∈ lawRoles ℕ [pointLaw ℕ] ∧
+    (⟨pointLaw ℕ, ()⟩ : Σ L : Law ℕ, L.Role) ∉ lawRoles ℕ [] := by
+  refine ⟨(mk_mem_lawRoles _).2 (Or.inl rfl), (mk_mem_lawRoles _).2 (Or.inr (by simp)),
+    fun hm => ?_⟩
+  rcases (mk_mem_lawRoles _).1 hm with h | h
+  · exact absurd (congrArg Law.labelLength h) (by decide)
+  · simp at h
+
+section
+
+variable {T : Tower h b D J r} {R : Routes T m Uu} {ch : Fin A ↪ T.X 0} {FL : VertexLaws F T}
+  {Pl : Placement T ch A'} {laws : List (Law F)} {c p q : ℕ} {ρ : ℝ}
+  (hC : TowerConstants FL laws c ρ p q)
+
+/-- If the level `0` has at most `c M` chambers, then `J + 1 ≤ (c + 1) lg M`; so routes of length
+at most `c (J + 1) ^ 7` are at most `c ((c + 1) lg M) ^ 7` long. -/
+example {M : ℕ} (hM : Fintype.card (T.X 0) ≤ c * M) (hm : m ≤ c * (J + 1) ^ 7) :
+    m ≤ c * ((c + 1) * Interpreter.lg M) ^ 7 :=
+  hm.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (hC.succ_depth_le hM) 7))
+
+/-- With sizes at most `V ≥ c`, the moves of the plan are at most `9 V ^ 5`
+(`TowerConstants.sizeBound`, `card_move_le`). -/
+example {V : ℕ} (hcV : c ≤ V) (hm : m ≤ V) (hJ : J ≤ V) (hA : A ≤ V)
+    (hX : Fintype.card (T.X 0) ≤ V) : Fintype.card (Move R ch FL) ≤ 9 * V ^ 5 :=
+  card_move_le (by have := hC.two_lt_ratio; omega) (hC.sizeBound hcV hm hJ hA hX) hC.b_pos
+
+variable (hm : 1 ≤ m) (hUu : Uu ≤ 2 * Fintype.card (T.X 0) * m) (hA : A ≤ Fintype.card (T.X 0))
+  {n : Fin A → Fin A → ℕ} {o : MoveChannel R ch FL → ℕ}
+
+/-- Every move of the tower plan uses at most `constMoveCap` units
+(`towerPlan_ok_moveCap`, `TowerConstants.moveCap_le_constMoveCap`). -/
+example (n : Fin A → Fin A → Fin (U0 + 1)) (o : (moves R FL Pl).Channel → Fin U1) (x) :
+    (towerPlan R FL Pl lhat U0 U1).count n o x ≤
+      constMoveCap c m (Fintype.card (T.X 0)) lhat U0 :=
+  ((towerPlan_ok_moveCap hC.toStageRate hC.rate_lt_one.le).count_le n o x).trans
+    (hC.moveCap_le_constMoveCap hm hUu hA)
+
+/-- The units between the chambers and their parents add up to at most `2 c constNormBound c`
+(`sum_parentUnits_le`, `TowerConstants.treeUnitBound_le`). -/
+example : ∑ j ∈ range (J + 1), ∑ c', T.parentUnits (edgeLoads (load lhat n o)) j c' ≤
+    2 * c * constNormBound c m (Fintype.card (T.X 0)) lhat * c :=
+  (sum_parentUnits_le hC.toStageRate hC.rate_lt_one).trans (hC.treeUnitBound_le hm hUu hA)
+
+/-- By the gain, the units between a chamber and its parent satisfy
+`u ^ q |X 0| ^ p ≤ (2 c constNormBound) ^ q` (`parentUnits_le`,
+`TowerConstants.edgeUnitBound_pow_mul_le`). -/
+example {j : ℕ} (hj : j ≤ J) (c' : T.X j) :
+    T.parentUnits (edgeLoads (load lhat n o)) j c' ^ q * Fintype.card (T.X 0) ^ p ≤
+      (2 * c * constNormBound c m (Fintype.card (T.X 0)) lhat) ^ q :=
+  (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (parentUnits_le hC.toStageRate hj c') q)).trans
+    (hC.edgeUnitBound_pow_mul_le hm hUu hA)
+
+end
 
 /-! ### The rules and the units for an arbitrary tower -/
 

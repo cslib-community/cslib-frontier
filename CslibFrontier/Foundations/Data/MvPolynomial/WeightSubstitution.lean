@@ -79,22 +79,17 @@ theorem aeval_X_pow_ne_zero_of_isolates {c : σ → ℕ} {D : (σ →₀ ℕ) �
     {f : MvPolynomial σ F} (hT : f.support ⊆ T) (hf : ∀ m ∈ T, f.coeff m = ℓ (D m))
     (hf0 : f ≠ 0) : aeval (fun i => (Polynomial.X : F[X]) ^ c i) f ≠ 0 := by
   classical
-  have key : ∀ m ∈ T, m ∉ S →
-      (∀ m' ∈ S, Finsupp.weight c m' < Finsupp.weight c m → ℓ (D m') = 0) → ℓ (D m) = 0 := by
-    intro m hm hmS hz
+  have key (m) (hm : m ∈ T) (hmS : m ∉ S)
+      (hz : ∀ m' ∈ S, Finsupp.weight c m' < Finsupp.weight c m → ℓ (D m') = 0) : ℓ (D m) = 0 := by
     refine (Submodule.span_le (p := LinearMap.ker ℓ)).2 ?_ (h.2.2 m hm hmS)
-    rintro _ ⟨m', hm', rfl⟩
-    exact hz m' hm'.1 hm'.2
+    exact Set.image_subset_iff.2 fun m' hm' => hz m' hm'.1 hm'.2
   obtain ⟨m₀, hm₀⟩ := ne_zero_iff.1 hf0
   have hm₀T : m₀ ∈ T := hT (mem_support_iff.2 hm₀)
   have hex : ({m ∈ S | ℓ (D m) ≠ 0}).Nonempty := by
     by_contra hne
-    rw [Finset.not_nonempty_iff_eq_empty, Finset.filter_eq_empty_iff] at hne
-    have hz : ∀ m ∈ S, ℓ (D m) = 0 := fun m hm => not_not.1 (hne hm)
-    refine hm₀ ((hf m₀ hm₀T).trans ?_)
-    by_cases hS : m₀ ∈ S
-    · exact hz m₀ hS
-    · exact key m₀ hm₀T hS fun m' hm' _ => hz m' hm'
+    simp only [Finset.not_nonempty_iff_eq_empty, Finset.filter_eq_empty_iff, not_not] at hne
+    exact hm₀ ((hf m₀ hm₀T).trans
+      (if hS : m₀ ∈ S then hne hS else key m₀ hm₀T hS fun _ hm' _ => hne hm'))
   obtain ⟨m, hm, hmin⟩ := Finset.exists_min_image _ (Finsupp.weight c) hex
   rw [Finset.mem_filter] at hm
   have hmT : m ∈ T := h.1 hm.1
@@ -104,11 +99,9 @@ theorem aeval_X_pow_ne_zero_of_isolates {c : σ → ℕ} {D : (σ →₀ ℕ) �
     refine Finset.sum_eq_single_of_mem m
       (Finset.mem_filter.2 ⟨mem_support_iff.2 (hf m hmT ▸ hm.2), rfl⟩) fun m' hm' hne => ?_
     rw [Finset.mem_filter] at hm'
-    have hm'T : m' ∈ T := hT hm'.1
-    rw [hf m' hm'T]
-    refine key m' hm'T (fun hS => hne (h.2.1 hS hm.1 hm'.2)) fun m'' hm'' hlt => ?_
-    by_contra hnz
-    exact (hmin m'' (Finset.mem_filter.2 ⟨hm'', hnz⟩)).not_gt (hm'.2 ▸ hlt)
+    rw [hf m' (hT hm'.1)]
+    exact key m' (hT hm'.1) (fun hS => hne (h.2.1 hS hm.1 hm'.2)) fun m'' hm'' hlt =>
+      not_not.1 fun hnz => (hmin m'' (Finset.mem_filter.2 ⟨hm'', hnz⟩)).not_gt (hm'.2 ▸ hlt)
   exact fun h0 => hm.2 (by rw [← hf m hmT, ← hcoeff, h0, Polynomial.coeff_zero])
 
 end MvPolynomial

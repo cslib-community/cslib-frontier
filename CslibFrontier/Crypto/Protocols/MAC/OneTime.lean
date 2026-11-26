@@ -47,17 +47,11 @@ theorem oneTimeForgeExperiment_hash_le [Fintype K] [Nonempty K] [DecidableEq M] 
     simp only [oneTimeForgeExperiment, UHF.predictionExperiment, B, ProbComp.eval_bind,
       ProbComp.eval_pure, PMF.pure_bind]
     congr 1 with k : 1
-    congr 1 with chosen : 1
-    rcases chosen with ⟨m, state⟩
+    congr 1 with ⟨m, state⟩ : 1
     simp only [ProbComp.eval_map, PMF.bind_map, Function.comp_def]
-    congr 1 with guess : 1
-    rcases guess with ⟨m', t'⟩
-    by_cases ht : H k m' = t'
-    · subst t'
-      by_cases hm : m' = m
-      · subst m'
-        simp [freshPair]
-      · simp [freshPair, hm]
+    congr 1 with ⟨m', t'⟩ : 1
+    rcases eq_or_ne (H k m') t' with rfl | ht
+    · by_cases hm : m' = m <;> simp [freshPair, hm]
     · simp [ht]
   rw [sameLaw]
   exact h σ B

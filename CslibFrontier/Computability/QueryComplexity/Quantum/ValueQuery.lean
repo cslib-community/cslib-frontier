@@ -181,10 +181,8 @@ private theorem piLpExtendByZero_fiberEmb_apply {P A B : Type*} [Fintype P] [Fin
     conv_lhs => rw [hp]
     change Function.extend (fiberEmb e a₀) ψ.ofLp 0 (fiberEmb e a₀ (e p).2) = _
     exact (fiberEmb e a₀).injective.extend_apply ψ.ofLp 0 (e p).2
-  · have hp : p ∉ Set.range (fiberEmb e a₀) := by
-      rintro ⟨b, rfl⟩
-      simp at h
-    exact LinearIsometry.piLpExtendByZero_apply_eq_zero hp ψ
+  · exact LinearIsometry.piLpExtendByZero_apply_eq_zero
+      (fun ⟨b, hb⟩ => h (by simp [← hb])) ψ
 
 private theorem liftFiberIsoAt_piLpExtendByZero {P A B : Type*} [Fintype P] [Fintype A]
     [Fintype B] [DecidableEq A] (e : P ≃ A × B) (a₀ : A)
@@ -194,18 +192,12 @@ private theorem liftFiberIsoAt_piLpExtendByZero {P A B : Type*} [Fintype P] [Fin
   ext p
   simp only [liftFiberIsoAt, liftFiberIso_apply, piLpExtendByZero_fiberEmb_apply]
   split_ifs with h
-  · have hs : sliceSecond
-        (reindexProd e (LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb e a₀) ψ))
-        (e p).1 = ψ := by
-      ext b; simp only [sliceSecond_apply, reindexProd_apply]
-      rw [piLpExtendByZero_fiberEmb_apply]; simp [h]
-    rw [hs]
-  · have hs : sliceSecond
-        (reindexProd e (LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb e a₀) ψ))
-        (e p).1 = 0 := by
-      ext b; simp only [sliceSecond_apply, reindexProd_apply]
-      rw [piLpExtendByZero_fiberEmb_apply]; simp [h]
-    rw [hs, map_zero, WithLp.ofLp_zero, Pi.zero_apply]
+  · refine congrArg (fun u => (f u).ofLp (e p).2) ?_
+    ext b
+    simp only [sliceSecond_apply, reindexProd_apply, piLpExtendByZero_fiberEmb_apply,
+      Equiv.apply_symm_apply, h, ↓reduceIte]
+  · simp only [LinearIsometry.id_apply, sliceSecond_apply, reindexProd_apply,
+      piLpExtendByZero_fiberEmb_apply, Equiv.apply_symm_apply, h, ↓reduceIte]
 
 end FiberHelpers
 
@@ -402,8 +394,7 @@ private theorem measureProb_embedState {N : ℕ} (e : ι ≃ Fin N) (ψ : ValueS
     (S : Finset (ι × V × W)) :
     measureProb (embedState e ψ) (S.map (embedOutcome e)) = measureProb ψ S := by
   rw [measureProb, sum_map, measureProb]
-  refine sum_congr rfl fun ⟨i, v, w⟩ _ => ?_
-  simp
+  exact sum_congr rfl fun ⟨i, v, w⟩ _ => by simp
 
 /-- Lifting any linear isometry `f : ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W` to
 `State N (V × W)`, acting as `f` on the `ctrl = false` sector and the identity on `ctrl = true`. -/
@@ -600,18 +591,17 @@ private theorem invBoolV_ctrlZ_invBoolV (R : EuclideanSpace ℂ V ≃ₗᵢ[ℂ]
     (hR : ∀ φ, R (R φ) = φ) (flag : Bool) (φ : EuclideanSpace ℂ V) :
     invBoolV R (ctrlZ flag (invBoolV R (embedBoolFalse φ))) =
       embedBoolFalse (if flag then R φ else φ) := by
-  have hmid : ∀ x : EuclideanSpace ℂ (Bool × V),
+  have hmid (x : EuclideanSpace ℂ (Bool × V)) :
       liftBoolLeft (fun _ => hadBool) (ctrlZ flag (liftBoolLeft (fun _ => hadBool) x)) =
-        liftBoolLeft (fun _ => if flag then swapBool else .refl ℂ (EuclideanSpace ℂ Bool)) x :=
-    fun x => by
+        if flag then liftBoolLeft (fun _ => swapBool) x else x := by
     ext ⟨c, v⟩
-    simp only [liftBoolLeft_apply,
-      show (WithLp.toLp 2 fun b => (ctrlZ flag (liftBoolLeft (fun _ => hadBool) x)).ofLp (b, v)) =
-        phaseStep flag (hadBool (WithLp.toLp 2 fun b => x.ofLp (b, v))) from rfl,
+    have h1 : (WithLp.toLp 2 fun b =>
+        (ctrlZ flag (liftBoolLeft (fun _ => hadBool) x)).ofLp (b, v)) =
+        phaseStep flag (hadBool (WithLp.toLp 2 fun b => x.ofLp (b, v))) := rfl
+    cases flag <;> simp only [Bool.false_eq_true, ite_false, ite_true, liftBoolLeft_apply, h1,
       hadBool_phaseStep_hadBool]
-    cases flag <;> rfl
-  have hH : ∀ x : EuclideanSpace ℂ (Bool × V),
-      liftBoolLeft (fun _ => hadBool) (liftBoolLeft (fun _ => hadBool) x) = x := fun x => by
+  have hH (x : EuclideanSpace ℂ (Bool × V)) :
+      liftBoolLeft (fun _ => hadBool) (liftBoolLeft (fun _ => hadBool) x) = x := by
     ext ⟨c, v⟩
     have h1 : (WithLp.toLp 2 fun b => (liftBoolLeft (fun _ => hadBool) x).ofLp (b, v)) =
         hadBool (WithLp.toLp 2 fun b => x.ofLp (b, v)) := rfl
@@ -620,13 +610,10 @@ private theorem invBoolV_ctrlZ_invBoolV (R : EuclideanSpace ℂ V ≃ₗᵢ[ℂ]
   rw [hmid]
   cases flag
   · simp only [Bool.false_eq_true, ite_false]
-    have hI : liftBoolLeft (fun _ : V => LinearIsometryEquiv.refl ℂ (EuclideanSpace ℂ Bool))
-        (ctrlUnit R (liftBoolLeft (fun _ => hadBool) (embedBoolFalse φ))) =
-        ctrlUnit R (liftBoolLeft (fun _ => hadBool) (embedBoolFalse φ)) := by
-      ext ⟨c, v⟩; rfl
-    have hRR : ∀ x, ctrlUnit R (ctrlUnit R x) = x := fun x => by
-      ext ⟨c, v⟩; cases c <;> simp [ctrlUnit, sliceSecond, hR]
-    rw [hI, hRR, hH]
+    have hRR (x : EuclideanSpace ℂ (Bool × V)) : ctrlUnit R (ctrlUnit R x) = x := by
+      ext ⟨c, v⟩
+      cases c <;> simp [ctrlUnit, sliceSecond, hR]
+    rw [hRR, hH]
   · simp only [ite_true]
     have hctrl : ∀ (x : EuclideanSpace ℂ (Bool × V)) (c : Bool),
         sliceSecond (ctrlUnit R x) c = if c then R (sliceSecond x true) else sliceSecond x false :=
@@ -785,10 +772,8 @@ theorem exists_sim_involution {N : ℕ}
     congr 1
     ext v
     exact step_rel_ite_apply e step a₀ a₁ b y j v w
-  simpa only [one_mul] using
-    exists_sim_stride e step a₀ a₁ U ψ₀ T 1 Nat.one_pos G G LinearIsometry.id fun b y => by
-      simp only [Nat.sub_self, Function.iterate_zero, id_eq]
-      exact hstep b y
+  simpa only [one_mul] using exists_sim_stride e step a₀ a₁ U ψ₀ T 1 Nat.one_pos G G
+    LinearIsometry.id fun b y => by simpa using hstep b y
 
 /-! #### 2-query simulation for arbitrary unitary relative step -/
 

@@ -78,14 +78,10 @@ theorem friSmoothBatchCommitRound_escape_le_of_weightedCurveEscapePerRound [Fint
   | nil => cases hlen
   | cons head rest =>
     rw [toOuterMeasure_not_friSmoothBatchGoodStep_cons]
-    have htail_len : (friBatchTailTranscript rest).length = i.val := by
-      simpa [List.length_cons] using hlen
-    have hpm : (friBatchTailTranscript rest).length < params.m := htail_len ▸ i.isLt
-    have hbound := friSmoothCommitRound_escape_le_of_weightedCurveEscapePerRound params hesc
-      (stmt.eval head.2.batchCoeffs) (friBatchTailTranscript rest) hpm π hdoomed
-    have hidx : (⟨(friBatchTailTranscript rest).length, hpm⟩ : Fin params.m) = i :=
-      Fin.ext htail_len
-    rwa [hidx] at hbound
+    have htail_len : (friBatchTailTranscript rest).length = i.val := by simpa using hlen
+    simpa [Fin.ext_iff, htail_len] using
+      friSmoothCommitRound_escape_le_of_weightedCurveEscapePerRound params hesc
+        (stmt.eval head.2.batchCoeffs) (friBatchTailTranscript rest) (htail_len ▸ i.isLt) π hdoomed
 
 /-- Per-round escape budget vector for `(params.m + 2)`-round `friSmoothBatchIOP`: `ε_batch` in
 round `0`, `ε_commit i` in folding rounds `1, …, m`, and `((2 ^ d - e - 1) / 2 ^ d) ^ q` in the
@@ -182,10 +178,8 @@ theorem friSmoothBatchCommitGame_le_of_escape [Fintype F] [DecidableEq F]
     (fun pref πFinal hlen hdoomed => ?_)).trans_eq (by rw [Fin.sum_univ_succ, Fin.cases_zero]; rfl)
   · have hbound := friSmoothBatchPerRoundEscape_of_escape params t hbatch hesc stmt hfar
       j.castSucc pref π hlen hdoomed
-    cases j using Fin.cases with
-    | zero => simpa [friSmoothBatchRoundEscape] using hbound
-    | succ i =>
-      simpa [friSmoothBatchRoundEscape, friSmoothRoundEscape, i.isLt] using hbound
+    cases j using Fin.cases <;>
+      simpa [friSmoothBatchRoundEscape, friSmoothRoundEscape] using hbound
   · cases pref with
     | nil => cases hlen
     | cons head rest =>

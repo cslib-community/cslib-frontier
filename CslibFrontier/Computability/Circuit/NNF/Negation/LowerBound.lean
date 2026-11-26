@@ -148,12 +148,9 @@ theorem mem_edgeNbhd_iff {c : Fin 3} {u t : V} :
   · rintro (h | h | ⟨c', rfl⟩ | ⟨c', rfl⟩)
     · exact .inl h
     · exact .inr (.inl h)
-    · by_cases hc : c' = c
-      · exact .inr (.inl (hc ▸ rfl))
-      · exact .inr (.inr (mate_mem_otherNbrs hc u))
-    · by_cases hc : c' = c
-      · subst hc; exact .inl (M.mate_mate c' u)
-      · exact .inr (.inr (mate_mate_mem_otherNbrs hc u))
+    · exact if hc : c' = c then .inr (.inl (hc ▸ rfl)) else .inr (.inr (mate_mem_otherNbrs hc u))
+    · exact if hc : c' = c then .inl (hc ▸ M.mate_mate c' u)
+        else .inr (.inr (mate_mate_mem_otherNbrs hc u))
 
 variable (M) in
 /-- `S` lists the ends in `A` of edges of colour `c` crossing from `A` to its complement, with
@@ -606,12 +603,9 @@ private theorem mem_nbhdPre {c : Fin 3} {t u' : V} (h : t ∈ M.edgeNbhd c u') :
   · exact .inr (.inl ⟨c', M.mate_eq_iff.mp h⟩)
   · exact .inr (.inr ⟨c', by rw [M.mate_eq_iff.mp h, M.mate_mate]⟩)
 
-private theorem card_nbhdPre_le (c : Fin 3) (t : V) : #(M.nbhdPre c t) ≤ 7 := by
-  refine (card_insert_le _ _).trans ?_
-  have h := (card_union_le (univ.image fun c' => M.mate c' t)
-    (univ.image fun c' => M.mate c (M.mate c' t))).trans (add_le_add card_image_le card_image_le)
-  simp only [card_univ, Fintype.card_fin] at h
-  omega
+private theorem card_nbhdPre_le (c : Fin 3) (t : V) : #(M.nbhdPre c t) ≤ 7 :=
+  (card_insert_le _ _).trans (Nat.succ_le_succ ((card_union_le _ _).trans
+    ((add_le_add card_image_le card_image_le).trans (by simp))))
 
 theorem card_edgeNbhd_le (c : Fin 3) (u : V) : #(M.edgeNbhd c u) ≤ 6 := by
   refine (card_insert_le _ _).trans (Nat.succ_le_succ ((card_insert_le _ _).trans ?_))
@@ -666,9 +660,8 @@ theorem le_card_of_isCover {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGrap
   classical
   set I : Finset (V → Bool) := univ.filter M.IsIndep
   set e : ℝ := γ * Fintype.card V / 126
-  have hIpos : (0 : ℝ) < #I := by
-    exact_mod_cast card_pos.mpr ⟨fun _ => false, mem_filter.mpr ⟨mem_univ _, by
-      simp [IsIndep]⟩⟩
+  have hIpos : (0 : ℝ) < #I := mod_cast card_pos.mpr
+    ⟨fun _ => false, mem_filter.mpr ⟨mem_univ _, by simp [IsIndep]⟩⟩
   -- Each rectangle holds at most a `(47/48)^e` fraction of the independent sets.
   have hrect : ∀ i, (#{x ∈ I | x ∈ R i} : ℝ) ≤ (47 / 48 : ℝ) ^ e * #I := fun i => by
     obtain ⟨X, ⟨hX1, hX2⟩, P, Q, hRi⟩ := hR.1 i
@@ -676,11 +669,10 @@ theorem le_card_of_isCover {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGrap
       hR.2.subset (Set.mem_iUnion.mpr ⟨i, hx⟩)
     have hmix : ∀ x ∈ R i, ∀ y ∈ R i, X.piecewise x y ∈ R i := fun x hx y hy => by
       rw [hRi] at hx hy ⊢
-      refine ⟨?_, ?_⟩
-      · exact (funext fun ⟨_, ht⟩ => Finset.piecewise_eq_of_mem X x y ht :
-          (↑X : Set V).domRestrict (X.piecewise x y) = (↑X : Set V).domRestrict x) ▸ hx.1
-      · exact (funext fun ⟨_, ht⟩ => Finset.piecewise_eq_of_notMem X x y ht :
-          (↑X : Set V)ᶜ.domRestrict (X.piecewise x y) = (↑X : Set V)ᶜ.domRestrict y) ▸ hy.2
+      exact ⟨(funext fun ⟨_, ht⟩ => X.piecewise_eq_of_mem x y ht :
+          (↑X : Set V).domRestrict (X.piecewise x y) = (↑X : Set V).domRestrict x) ▸ hx.1,
+        (funext fun ⟨_, ht⟩ => X.piecewise_eq_of_notMem x y ht :
+          (↑X : Set V)ᶜ.domRestrict (X.piecewise x y) = (↑X : Set V)ᶜ.domRestrict y) ▸ hy.2⟩
     obtain ⟨c, S, hS, hcard⟩ := M.exists_isSeparatedCrossing hG hX1 hX2
     refine (card_filter_mem_le hS hmix hsub).trans (mul_le_mul_of_nonneg_right ?_ hIpos.le)
     rw [← Real.rpow_natCast]
@@ -714,11 +706,10 @@ theorem le_coverNumberFun {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGraph
   classical
   obtain ⟨R, hR⟩ := Communication.MultiPartition.exists_isCover_card hn
     (M.someButNotAllColors ⁻¹' {false})
-  refine ⟨?_, hR.coverNumber_le.trans ?_⟩
-  · obtain ⟨R', hR'⟩ := Nat.sInf_mem (s := {k | ∃ R : Fin k → Set (V → Bool),
-      Communication.MultiPartition.IsCover (M.someButNotAllColors ⁻¹' {false}) R}) ⟨_, R, hR⟩
-    exact le_card_of_isCover hG hR'
-  · exact (card_filter_le _ _).trans (by simp)
+  refine ⟨?_, hR.coverNumber_le.trans ((card_filter_le _ _).trans (by simp))⟩
+  obtain ⟨R', hR'⟩ := Nat.sInf_mem (s := {k | ∃ R : Fin k → Set (V → Bool),
+    Communication.MultiPartition.IsCover (M.someButNotAllColors ⁻¹' {false}) R}) ⟨_, R, hR⟩
+  exact le_card_of_isCover hG hR'
 
 /-- **[ArenasBroadrickLiewVanDenBroeck2026, Theorem 5.3], DNNF size.** For a balanced-cut
 `γ`-edge expander on at least two vertices, every DNNF computing `¬f_G` has at least
