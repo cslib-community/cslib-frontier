@@ -145,11 +145,8 @@ move its output block to the measured prefix. -/
   have hseed := S.computableInPolyTime_seedBits
   have hcode := S.computableInPolyTime_circuitCode
   have hsampler := computableInPolyTime_samplerCodes hseed hcode
-  have hsource : ComputableInPolyTime
-      (fun s => samplerOutputStart (S.seedBits s) (S.circuit s).code)
-      encUnary encUnary := computableInPolyTime_samplerOutputStart hseed hcode
-  have hprefix := computableInPolyTime_prefixSwapCodes hsource
-    S.computableInPolyTime_universeSize
+  have hprefix := computableInPolyTime_prefixSwapCodes
+    (computableInPolyTime_samplerOutputStart hseed hcode) S.computableInPolyTime_universeSize
   unfold gateCodes flipCodes
   fun_prop
 
@@ -183,14 +180,13 @@ private theorem run_gateCodes (s : ℕ) :
         (Circuit.run (Circuit.ofCodes (S.activeWidth s)
             (samplerCodes (S.seedBits s) (S.circuit s).code))
           (inputState (S.activeWidth s) [])) := by
-  have hwidth : 2 * s + 1 ≤ S.activeWidth s := S.framedInput_le_activeWidth s
   have hclear : IsClassical (S.activeWidth s) (flipCodes (List.range (2 * s))) :=
-    isClassical_flipCodes fun j hj => (List.mem_range.mp hj).trans (by omega)
+    isClassical_flipCodes fun j hj =>
+      (List.mem_range.mp hj).trans (S.framedInput_le_activeWidth s)
   rw [Circuit.run, gateCodes, Circuit.ofCodes_append, Circuit.ofCodes_append,
-    Quantum.Circuit.eval_append, Quantum.Circuit.eval_append,
-    Circuit.eval_ofCodes_ket hclear,
-    classicalRun_clearInput hwidth]
-  rw [Quantum.Circuit.run]
+    Quantum.Circuit.eval_append, Quantum.Circuit.eval_append, Circuit.eval_ofCodes_ket hclear,
+    classicalRun_clearInput (width := S.activeWidth s) (S.framedInput_le_activeWidth s),
+    Quantum.Circuit.run]
 
 /-- Starting from the framed empty input, the complete gate list realizes exactly the scheduled
 Boolean sampler law. Input clearing and output-prefix movement add no approximation. -/
@@ -260,9 +256,8 @@ private theorem computableInPolyTime_description :
     fun_prop
   have hwidth := S.computableInPolyTime_activeWidth
   have huniverse := S.computableInPolyTime_universeSize
-  have hphase : ComputableInPolyTime (fun g : GateCode => (false, g))
-      encGateCode encPhaseGateCode := (const false).prod id'
-  have horacle := OracleGateCode.computableInPolyTime_gate hphase
+  have horacle := OracleGateCode.computableInPolyTime_gate (g := fun g : GateCode => (false, g))
+    ((const false).prod id')
   have hinstructions := horacle.map.comp (S.computableInPolyTime_gateCodes.comp hs)
   unfold description
   fun_prop

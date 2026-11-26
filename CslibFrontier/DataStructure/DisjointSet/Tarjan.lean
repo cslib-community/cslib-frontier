@@ -122,16 +122,12 @@ private theorem findPath_length (uf : Batteries.UnionFind) (x : Fin uf.size) :
 private theorem findPathGo_mem_lt (uf : Batteries.UnionFind) :
     ∀ (fuel : ℕ) (x : Fin uf.size) {u : ℕ},
       u ∈ findPathGo uf fuel x → u < uf.size
-  | 0, x, _, hu => by
-    simp only [findPathGo, List.mem_singleton] at hu
-    exact hu ▸ x.2
+  | 0, x, _, hu => List.mem_singleton.mp hu ▸ x.2
   | fuel + 1, x, _, hu => by
     rw [findPathGo] at hu
     split at hu
-    · simp only [List.mem_singleton] at hu
-      exact hu ▸ x.2
-    · simp only [List.mem_cons] at hu
-      rcases hu with rfl | htail
+    · exact List.mem_singleton.mp hu ▸ x.2
+    · rcases List.mem_cons.mp hu with rfl | htail
       · exact x.2
       · exact findPathGo_mem_lt uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ htail
 
@@ -142,17 +138,13 @@ private theorem findPath_mem_lt (uf : Batteries.UnionFind) (x : Fin uf.size) {u 
 private theorem findPathGo_rank_ge (uf : Batteries.UnionFind) :
     ∀ (fuel : ℕ) (x : Fin uf.size) {u : ℕ},
       u ∈ findPathGo uf fuel x → uf.rank x.1 ≤ uf.rank u
-  | 0, x, _, hu => by
-    simp only [findPathGo, List.mem_singleton] at hu
-    exact hu ▸ Nat.le_refl _
+  | 0, x, _, hu => List.mem_singleton.mp hu ▸ Nat.le_refl _
   | fuel + 1, x, _, hu => by
     rw [findPathGo] at hu
     split at hu
-    · simp only [List.mem_singleton] at hu
-      exact hu ▸ Nat.le_refl _
+    · exact List.mem_singleton.mp hu ▸ Nat.le_refl _
     · next h =>
-      simp only [List.mem_cons] at hu
-      rcases hu with rfl | htail
+      rcases List.mem_cons.mp hu with rfl | htail
       · exact Nat.le_refl _
       · exact (Nat.le_of_lt (uf.rank'_lt x.1 x.2 h)).trans
           (findPathGo_rank_ge uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ htail)
@@ -190,20 +182,16 @@ private theorem findPath_rank_ne_of_ne (uf : Batteries.UnionFind) (x : Fin uf.si
 private theorem findPathGo_rootD (uf : Batteries.UnionFind) :
     ∀ (fuel : ℕ) (x : Fin uf.size) {u : ℕ},
       u ∈ findPathGo uf fuel x → uf.rootD u = uf.rootD x.1
-  | 0, x, _, hu => by
-    simp only [findPathGo, List.mem_singleton] at hu
-    exact hu ▸ rfl
+  | 0, x, _, hu => List.mem_singleton.mp hu ▸ rfl
   | fuel + 1, x, _, hu => by
     rw [findPathGo] at hu
     split at hu
-    · simp only [List.mem_singleton] at hu
-      exact hu ▸ rfl
-    · simp only [List.mem_cons] at hu
-      rcases hu with rfl | htail
+    · exact List.mem_singleton.mp hu ▸ rfl
+    · rcases List.mem_cons.mp hu with rfl | htail
       · rfl
       · rw [findPathGo_rootD uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ htail]
-        dsimp only
-        rw [← Batteries.UnionFind.parentD_eq x.2, Batteries.UnionFind.rootD_parent]
+        exact (congrArg uf.rootD (Batteries.UnionFind.parentD_eq x.2).symm).trans
+          (Batteries.UnionFind.rootD_parent uf x.1)
 
 private theorem findPath_rootD (uf : Batteries.UnionFind) (x : Fin uf.size) {u : ℕ}
     (hu : u ∈ findPath uf x) : uf.rootD u = uf.rootD x.1 :=
@@ -647,8 +635,7 @@ private theorem link_pot_aux {uf uf' : Batteries.UnionFind}
         (nodePotential zs q d uf' child.1 + ∑ i ∈ rest, nodePotential zs q d uf' i) =
       potentialCore zs q d uf' := by
     unfold potentialCore
-    rw [hsize]
-    rw [Finset.add_sum_erase _ _ hmem_c, Finset.add_sum_erase _ _ hmem_w]
+    rw [hsize, Finset.add_sum_erase _ _ hmem_c, Finset.add_sum_erase _ _ hmem_w]
   have hrest : ∀ i ∈ rest, nodePotential zs q d uf' i ≤ nodePotential zs q d uf i := by
     intro i hi
     have hi_ne_c : child.1 ≠ i := (Finset.mem_erase.mp hi).1.symm
@@ -656,9 +643,7 @@ private theorem link_pot_aux {uf uf' : Batteries.UnionFind}
     have hp_i : uf'.parent i = uf.parent i := by rw [hparent i, ite_eq_right hi_ne_c]
     have hr_i : uf'.rank i = uf.rank i := by rw [hrank i]; simp [hi_ne_w]
     by_cases hroot : uf.parent i = i
-    · have hroot' : uf'.parent i = i := hp_i.trans hroot
-      simp only [nodePotential, hroot, hroot', ↓reduceIte, hr_i]
-      exact Nat.le_refl _
+    · simp [nodePotential, hroot, hp_i.trans hroot, hr_i]
     · have hroot' : uf'.parent i ≠ i := by rwa [hp_i]
       simp only [nodePotential, hroot, hroot', ↓reduceIte, hr_i]
       by_cases hpw : uf.parent i = winner.1
@@ -1017,11 +1002,9 @@ theorem tarjan_run_linear_of_dense {n : ℕ} {β : Type} (client : (spec n).Clie
     total id (run (init n) client).traces ≤
       7 * ((spec n).clientHistory (Partition.discrete n) client).length := by
   have htwo := (tarjan_run_two_param client).2.2
-  change total id (run (init n) client).traces ≤
-    ((spec n).clientHistory (Partition.discrete n) client).length *
-      (5 * Nat.inverseAckermannTwo
-        ((spec n).clientHistory (Partition.discrete n) client).length n + 2) at htwo
-  rw [Nat.inverseAckermannTwo_eq_one_of_mul_log_le hdense] at htwo
+  have hhist : ((spec n).runClient (Partition.discrete n) client).2.2 =
+      (spec n).clientHistory (Partition.discrete n) client := rfl
+  rw [hhist, Nat.inverseAckermannTwo_eq_one_of_mul_log_le hdense] at htwo
   omega
 
 end Cslib.DataStructure.DisjointSet.UnionFind

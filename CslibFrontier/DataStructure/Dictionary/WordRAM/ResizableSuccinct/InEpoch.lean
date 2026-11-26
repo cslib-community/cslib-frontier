@@ -106,61 +106,55 @@ theorem compactedEpochWords_le_succinctWords {U V w N n : ℕ}
   · unfold compactedEpochWords rootHdrWords Dynamic.succinctWords
     simp only [↓reduceIte]
     exact (by decide : 8 ≤ 441).trans (Nat.le_add_left 441 _)
-  · unfold compactedEpochWords
-    split_ifs with hn0
-    · unfold rootHdrWords Dynamic.succinctWords
-      exact (by decide : 8 ≤ 441).trans (Nat.le_add_left 441 _)
-    · have hnU : n ≤ U := hnN.trans hNU
-      have hbase := compactedEpochWords_pos_le_div_add (V := V) (n := n) hw hNU hU.le
-      have hq6 := quotientBits_le_add_six_of_le_four_mul U hnN hN4
-      have hqv_opt := quotient_val_bits_le_optBits (U := U) (V := V) (n := n)
-      have hll_n := Dynamic.one_le_logLogFactor n
-      have hll_N : Dynamic.logLogFactor N ≤ 4 * Dynamic.logLogFactor n :=
-        (Dynamic.logLogFactor_mono hN4).trans (Dynamic.logLogFactor_four_mul_le n)
-      have hlm := localMetaLen_mul_effBucketPosBits_le N
-      have hgm := globalMetaLen_mul_globalPtrBits_le N
-      have htail := maxTailItems_mul_globalPtrBits_le N
-      have hitem_bits :
-          n * (quotientBits U N + valBits V) ≤
-            Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n := by
-        calc n * (quotientBits U N + valBits V)
-            ≤ n * (quotientBits U n + 6 + valBits V) := Nat.mul_le_mul_left n (by omega)
-          _ = n * (quotientBits U n + valBits V) + 6 * n := by ring
-          _ ≤ (Dynamic.optBits U V n + 5 * n * Dynamic.logLogFactor n) +
-                6 * n * Dynamic.logLogFactor n :=
-              Nat.add_le_add hqv_opt (Nat.le_mul_of_pos_right _ hll_n)
-          _ = Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n := by ring
-      have hmeta_bits :
-          localMetaLen N * effBucketPosBits N + globalMetaLen N * globalPtrBits N +
-            (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1 ≤
-            1344 * n * Dynamic.logLogFactor n := by
-        have hll_N1 := Dynamic.one_le_logLogFactor N
-        have h10N : (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1 ≤
-            10 * N * Dynamic.logLogFactor N := by
-          calc (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1
-              = 2 * (maxTailItems N * globalPtrBits N) + 2 * N := by ring
-            _ ≤ 2 * (4 * N) + 2 * N := Nat.add_le_add (Nat.mul_le_mul_left 2 htail) le_rfl
-            _ = 10 * N := by ring
-            _ ≤ 10 * N * Dynamic.logLogFactor N := Nat.le_mul_of_pos_right _ hll_N1
-        calc localMetaLen N * effBucketPosBits N + globalMetaLen N * globalPtrBits N +
-              (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1
-            ≤ 54 * N * Dynamic.logLogFactor N + 20 * N * Dynamic.logLogFactor N +
-                10 * N * Dynamic.logLogFactor N := by omega
-          _ = 84 * (N * Dynamic.logLogFactor N) := by ring
-          _ ≤ 84 * ((4 * n) * (4 * Dynamic.logLogFactor n)) :=
-              Nat.mul_le_mul_left 84 (Nat.mul_le_mul hN4 hll_N)
-          _ = 1344 * n * Dynamic.logLogFactor n := by ring
-      have hnum :
-          n * (quotientBits U N + valBits V) + localMetaLen N * effBucketPosBits N +
-            globalMetaLen N * globalPtrBits N + (2 * maxTailItems N) * globalPtrBits N +
-            (2 * N) * 1 + w - 1 ≤
-          Dynamic.optBits U V n + 1355 * n * Dynamic.logLogFactor n + w - 1 := by
-        have : 1355 * n * Dynamic.logLogFactor n =
-            11 * n * Dynamic.logLogFactor n + 1344 * n * Dynamic.logLogFactor n := by ring
-        omega
-      have hdiv := Nat.div_le_div_right (c := w) hnum
-      unfold Dynamic.succinctWords
-      omega
+  · rw [compactedEpochWords, ite_eq_right (by omega)]
+    have hbase := compactedEpochWords_pos_le_div_add (V := V) (n := n) hw hNU hU.le
+    have hq6 := quotientBits_le_add_six_of_le_four_mul U hnN hN4
+    have hqv_opt := quotient_val_bits_le_optBits (U := U) (V := V) (n := n)
+    have hll_n := Dynamic.one_le_logLogFactor n
+    have hll_N : Dynamic.logLogFactor N ≤ 4 * Dynamic.logLogFactor n :=
+      (Dynamic.logLogFactor_mono hN4).trans (Dynamic.logLogFactor_four_mul_le n)
+    have hlm := localMetaLen_mul_effBucketPosBits_le N
+    have hgm := globalMetaLen_mul_globalPtrBits_le N
+    have htail := maxTailItems_mul_globalPtrBits_le N
+    have hitem_bits :
+        n * (quotientBits U N + valBits V) ≤
+          Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n := by
+      calc n * (quotientBits U N + valBits V)
+          ≤ n * (quotientBits U n + 6 + valBits V) := Nat.mul_le_mul_left n (by omega)
+        _ = n * (quotientBits U n + valBits V) + 6 * n := by ring
+        _ ≤ (Dynamic.optBits U V n + 5 * n * Dynamic.logLogFactor n) +
+              6 * n * Dynamic.logLogFactor n :=
+            Nat.add_le_add hqv_opt (Nat.le_mul_of_pos_right _ hll_n)
+        _ = Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n := by ring
+    have hmeta_bits :
+        localMetaLen N * effBucketPosBits N + globalMetaLen N * globalPtrBits N +
+          (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1 ≤
+          1344 * n * Dynamic.logLogFactor n := by
+      have hll_N1 := Dynamic.one_le_logLogFactor N
+      have h10N : (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1 ≤
+          10 * N * Dynamic.logLogFactor N := by
+        calc (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1
+            = 2 * (maxTailItems N * globalPtrBits N) + 2 * N := by ring
+          _ ≤ 2 * (4 * N) + 2 * N := Nat.add_le_add (Nat.mul_le_mul_left 2 htail) le_rfl
+          _ = 10 * N := by ring
+          _ ≤ 10 * N * Dynamic.logLogFactor N := Nat.le_mul_of_pos_right _ hll_N1
+      calc localMetaLen N * effBucketPosBits N + globalMetaLen N * globalPtrBits N +
+            (2 * maxTailItems N) * globalPtrBits N + (2 * N) * 1
+          ≤ 54 * N * Dynamic.logLogFactor N + 20 * N * Dynamic.logLogFactor N +
+              10 * N * Dynamic.logLogFactor N := by omega
+        _ = 84 * (N * Dynamic.logLogFactor N) := by ring
+        _ ≤ 84 * ((4 * n) * (4 * Dynamic.logLogFactor n)) :=
+            Nat.mul_le_mul_left 84 (Nat.mul_le_mul hN4 hll_N)
+        _ = 1344 * n * Dynamic.logLogFactor n := by ring
+    have hnum :
+        n * (quotientBits U N + valBits V) + localMetaLen N * effBucketPosBits N +
+          globalMetaLen N * globalPtrBits N + (2 * maxTailItems N) * globalPtrBits N +
+          (2 * N) * 1 + w - 1 ≤
+        Dynamic.optBits U V n + 1355 * n * Dynamic.logLogFactor n + w - 1 :=
+      Nat.sub_le_sub_right (by linarith only [hitem_bits, hmeta_bits]) 1
+    have hdiv := Nat.div_le_div_right (c := w) hnum
+    unfold Dynamic.succinctWords
+    omega
 
 /-- **Static `1 · OPT` bit-space bound (`w_mul_compactedEpochWords_le_bits`):**
 multiplying `compactedEpochWords U V w N n` by `w` yields at most
@@ -201,7 +195,7 @@ theorem reconstructKeyAt_spec {metaBase itemBase U V w N n : ℕ} {θ : QuotHash
   set dt := compDTAt metaBase U w N s.mem
   set wg := ghostW w
   have hgm_eq : gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem = gm := hcpl.gm_eq.symm
-  have hslot : SlotStoreInv N gm := by rw [← hgm_eq]; exact hbucket.hslot
+  have hslot : SlotStoreInv N gm := hgm_eq ▸ hbucket.hslot
   have htd : 0 < bucketBits N → TailDenseInv N (gm 0) (gm 1) td dt := fun hb => by
     have hwin := hcpl.win_inv; simp only [Nat.ne_of_gt hb, ↓reduceIte] at hwin; exact hwin
   have hqv_slot : ∀ d < totalSlots N gm, ∀ b j,

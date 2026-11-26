@@ -150,11 +150,10 @@ private theorem wOff_add_one_lt_compactedItemWords {U V w N n wOff bOff g : ℕ}
     (hw : 0 < w) (hb : bOff < w) (hid : wOff * w + bOff = g)
     (hle : g ≤ n * (quotientBits U N + valBits V)) :
     wOff + 1 < compactedItemWords U V w N n := by
-  have h1 : wOff = g / w := by
-    rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
-  have hdiv : wOff ≤ (n * (quotientBits U N + valBits V) + w - 1) / w :=
-    h1 ▸ Nat.div_le_div_right (by omega)
   unfold compactedItemWords
+  have hdiv : wOff ≤ (n * (quotientBits U N + valBits V) + w - 1) / w := by
+    simpa [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb] using
+      Nat.div_le_div_right (c := w) (hle.trans (by omega))
   omega
 
 theorem wOffQ_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd : d < n) :
@@ -164,9 +163,9 @@ theorem wOffQ_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd
 
 theorem wOffV_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd : d < n) :
     wOffV (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n :=
-  wOff_add_one_lt_compactedItemWords hw (bOffV_lt hw) wOffV_mul_add_bOffV <| by
-    have := Nat.mul_le_mul_right (quotientBits U N + valBits V) hd
-    nlinarith
+  wOff_add_one_lt_compactedItemWords hw (bOffV_lt hw) wOffV_mul_add_bOffV (by
+    have := Nat.add_one_mul d (quotientBits U N + valBits V) ▸ Nat.mul_le_mul_right _ hd
+    omega)
 
 theorem compactedItemWords_mono {U V w N n₁ n₂ : ℕ} (h : n₁ ≤ n₂) :
     compactedItemWords U V w N n₁ ≤ compactedItemWords U V w N n₂ := by
@@ -241,13 +240,11 @@ private theorem pair_bitRange_disjoint {q v d₁ d₂ o₁ k₁ o₂ k₂ : ℕ}
     d₁ * (q + v) + o₁ + k₁ ≤ d₂ * (q + v) + o₂ ∨
     d₂ * (q + v) + o₂ + k₂ ≤ d₁ * (q + v) + o₁ := by
   rcases lt_trichotomy d₁ d₂ with hlt | rfl | hgt
-  · left
-    have hle := Nat.mul_le_mul_right (q + v) hlt
-    rw [Nat.add_one_mul] at hle; omega
-  · have := hdisj rfl; omega
-  · right
-    have hle := Nat.mul_le_mul_right (q + v) hgt
-    rw [Nat.add_one_mul] at hle; omega
+  · have := Nat.add_one_mul d₁ (q + v) ▸ Nat.mul_le_mul_right (q + v) hlt
+    exact Or.inl (by omega)
+  · exact (hdisj rfl).imp (by omega) (by omega)
+  · have := Nat.add_one_mul d₂ (q + v) ▸ Nat.mul_le_mul_right (q + v) hgt
+    exact Or.inr (by omega)
 
 theorem compQuotAt_writeCompQuot_of_ne {itemBase U V w N n d d' q : ℕ} (hw : 0 < w)
     (mem : ℕ → ℕ) (hne : d' ≠ d) :
@@ -257,8 +254,7 @@ theorem compQuotAt_writeCompQuot_of_ne {itemBase U V w N n d d' q : ℕ} (hw : 0
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffQ_lt hw) ?_ mem q
     rw [wOffQ_mul_add_bOffQ, wOffQ_mul_add_bOffQ]
-    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V :=
-      Nat.zero_add _ ▸ Nat.le_add_right _ _
+    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V := by omega
     simpa only [Nat.add_zero] using pair_bitRange_disjoint h0 h0 fun h => absurd h.symm hne
   · rfl
 
@@ -269,8 +265,7 @@ theorem compValAt_writeCompQuot {itemBase U V w N n d d' q : ℕ} (hw : 0 < w) (
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffV_lt hw) ?_ mem q
     rw [wOffQ_mul_add_bOffQ, wOffV_mul_add_bOffV]
-    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V :=
-      Nat.zero_add _ ▸ Nat.le_add_right _ _
+    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V := by omega
     simpa only [Nat.add_zero] using pair_bitRange_disjoint h0 le_rfl fun _ => Or.inl (by omega)
   · rfl
 
@@ -298,8 +293,7 @@ theorem compQuotAt_writeCompVal {itemBase U V w N n d d' v : ℕ} (hw : 0 < w) (
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffQ_lt hw) ?_ mem v
     rw [wOffV_mul_add_bOffV, wOffQ_mul_add_bOffQ]
-    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V :=
-      Nat.zero_add _ ▸ Nat.le_add_right _ _
+    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V := by omega
     simpa only [Nat.add_zero] using pair_bitRange_disjoint le_rfl h0 fun _ => Or.inr (by omega)
   · rfl
 
@@ -325,8 +319,7 @@ theorem compQuotAt_congr {itemBase U V w N n : ℕ} (hw : 0 < w) {mem₁ mem₂ 
   split_ifs with hd
   · dsimp only
     have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hd
-    rw [heq (itemBase + wOffQ (quotientBits U N) (valBits V) w d) ⟨by omega, by omega⟩,
-      heq (itemBase + wOffQ (quotientBits U N) (valBits V) w d + 1) ⟨by omega, by omega⟩]
+    rw [heq _ ⟨by omega, by omega⟩, heq _ ⟨by omega, by omega⟩]
   · rfl
 
 theorem compValAt_congr {itemBase U V w N n : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ → ℕ}
@@ -337,8 +330,7 @@ theorem compValAt_congr {itemBase U V w N n : ℕ} (hw : 0 < w) {mem₁ mem₂ :
   split_ifs with hd
   · dsimp only
     have hlt := wOffV_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hd
-    rw [heq (itemBase + wOffV (quotientBits U N) (valBits V) w d) ⟨by omega, by omega⟩,
-      heq (itemBase + wOffV (quotientBits U N) (valBits V) w d + 1) ⟨by omega, by omega⟩]
+    rw [heq _ ⟨by omega, by omega⟩, heq _ ⟨by omega, by omega⟩]
   · rfl
 
 theorem compQuotAt_of_lt {itemBase U V w N n₁ n₂ d : ℕ} (mem : ℕ → ℕ)
@@ -441,12 +433,10 @@ theorem eight_le_compactedEpochWords (U V w N n : ℕ) :
 
 theorem compactedEpochWords_mono {U V w N n₁ n₂ : ℕ} (h : n₁ ≤ n₂) :
     compactedEpochWords U V w N n₁ ≤ compactedEpochWords U V w N n₂ := by
-  unfold compactedEpochWords rootHdrWords
-  split_ifs with h1 h2
-  · exact le_rfl
-  · unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
-  · omega
-  · exact Nat.add_le_add_left (compactedItemWords_mono h) _
+  rcases eq_or_ne n₁ 0 with rfl | hn₁
+  · exact eight_le_compactedEpochWords U V w N n₂
+  · simp only [compactedEpochWords, hn₁, ((Nat.pos_of_ne_zero hn₁).trans_le h).ne', ↓reduceIte]
+    exact Nat.add_le_add_left (compactedItemWords_mono h) _
 
 theorem quotientBits_le_add_six_of_le_four_mul {n N : ℕ} (U : ℕ)
     (hnN : n ≤ N) (hN4 : N ≤ 4 * n) :

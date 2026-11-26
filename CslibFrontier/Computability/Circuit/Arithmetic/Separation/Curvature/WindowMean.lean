@@ -72,18 +72,16 @@ theorem windowAvg_eq_sum (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) :
     Finset.card_product, Finset.card_univ, Fintype.card_bool, Finset.card_range,
     Finset.card_range]
   simp only [Finset.sum_product]
-  push_cast
-  ring
+  push_cast; ring
 
 namespace WindowFn
 
 /-- Bounded window functions. -/
 @[expose] def Bounded (f : WindowFn) : Prop := ∃ C, ∀ n b i k, |f n b i k| ≤ C
 
-theorem Bounded.add {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded (f + g) := by
-  obtain ⟨C, hC⟩ := hf
-  obtain ⟨D, hD⟩ := hg
-  exact ⟨C + D, fun n b i k => (abs_add_le _ _).trans (add_le_add (hC n b i k) (hD n b i k))⟩
+theorem Bounded.add {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded (f + g) :=
+  hf.elim fun C hC => hg.elim fun D hD =>
+    ⟨C + D, fun n b i k => (abs_add_le _ _).trans (add_le_add (hC n b i k) (hD n b i k))⟩
 
 theorem Bounded.mul {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded (f * g) := by
   obtain ⟨C, hC⟩ := hf
@@ -92,18 +90,16 @@ theorem Bounded.mul {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded
   rw [Pi.mul_apply, Pi.mul_apply, Pi.mul_apply, Pi.mul_apply, abs_mul]
   exact mul_le_mul (hC n b i k) (hD n b i k) (abs_nonneg _) ((abs_nonneg _).trans (hC n b i k))
 
-theorem Bounded.smul {f : WindowFn} (hf : Bounded f) (c : ℝ) : Bounded (c • f) := by
-  obtain ⟨C, hC⟩ := hf
-  refine ⟨|c| * C, fun n b i k => ?_⟩
-  simp only [Pi.smul_apply, smul_eq_mul, abs_mul]
-  exact mul_le_mul_of_nonneg_left (hC n b i k) (abs_nonneg _)
+theorem Bounded.smul {f : WindowFn} (hf : Bounded f) (c : ℝ) : Bounded (c • f) :=
+  hf.elim fun C hC => ⟨|c| * C, fun n b i k => by
+    simpa only [Pi.smul_apply, smul_eq_mul, abs_mul] using
+      mul_le_mul_of_nonneg_left (hC n b i k) (abs_nonneg _)⟩
 
 theorem Bounded.const (c : ℝ) : Bounded fun _ _ _ _ => c := ⟨|c|, fun _ _ _ _ => le_rfl⟩
 
 theorem Bounded.shift {f : WindowFn} (hf : Bounded f) (a c : ℤ) :
-    Bounded fun n b i k => f n b (i + a) (k + c) := by
-  obtain ⟨C, hC⟩ := hf
-  exact ⟨C, fun n b i k => hC _ _ _ _⟩
+    Bounded fun n b i k => f n b (i + a) (k + c) :=
+  hf.elim fun C hC => ⟨C, fun _ _ _ _ => hC _ _ _ _⟩
 
 end WindowFn
 
@@ -201,10 +197,8 @@ theorem mean_nonneg {f : WindowFn} (hf : Bounded f) (h : ∀ n b i k, 0 ≤ f n 
 /-- `∑_{i < N} φ (i + 1) = ∑_{i < N} φ i + (φ N − φ 0)`. -/
 private theorem sum_range_shift (φ : ℤ → ℝ) (N : ℕ) :
     ∑ i ∈ range N, φ ((i : ℤ) + 1) = ∑ i ∈ range N, φ (i : ℤ) + (φ N - φ 0) := by
-  have h := Finset.sum_range_sub (fun i : ℕ => φ (i : ℤ)) N
-  rw [Finset.sum_sub_distrib] at h
-  push_cast at h
-  linarith
+  simpa only [Finset.sum_sub_distrib, Nat.cast_add, Nat.cast_one, Nat.cast_zero,
+    sub_eq_iff_eq_add'] using Finset.sum_range_sub (fun i : ℕ => φ (i : ℤ)) N
 
 /-- Two bounded window functions whose window means differ by `O(1/n)` have the same mean. -/
 private theorem mean_eq_of_abs_sub_le {f g : WindowFn} (hf : Bounded f) (hg : Bounded g)
@@ -255,8 +249,7 @@ private theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
       (abs_sub _ _).trans (by linarith [hC n b ((n ^ 2 : ℕ) : ℤ) k, hC n b 0 k]))
   rw [Finset.sum_comm, Finset.sum_comm (s := range (n ^ 2)), ← Finset.sum_sub_distrib]
   refine Finset.sum_congr rfl fun k _ => ?_
-  rw [sum_range_shift (fun i => f n b i k)]
-  ring
+  rw [sum_range_shift (fun i => f n b i k)]; ring
 
 private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     mean (fun n b i k => f n b i (k + 1)) = mean f := by
@@ -265,8 +258,7 @@ private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     (fun C hC n b i => (abs_sub _ _).trans (by linarith [hC n b i (n : ℕ), hC n b i 0]))
   rw [← Finset.sum_sub_distrib]
   refine Finset.sum_congr rfl fun i _ => ?_
-  rw [sum_range_shift (fun k => f n b i k)]
-  ring
+  rw [sum_range_shift (fun k => f n b i k)]; ring
 
 /-- From invariance under one step to invariance under every integer number of steps, for a
 family of translations `T a` with `T a ∘ T c = T (a + c)`. -/
@@ -348,10 +340,7 @@ theorem mean_steps {F : WindowFn}
         (fun n b i k => (n : ℝ) ^ 2 * (F n b (i + S + 1) k - F n b (i + S) k) : WindowFn) +
           (fun n b i k => (n : ℝ) ^ 2 * (F n b (i + S) k - F n b i k) : WindowFn) := by
       funext n b i k
-      simp only [Pi.add_apply]
-      push_cast
-      rw [← add_assoc i]
-      ring
+      simp only [Pi.add_apply, Nat.cast_add, Nat.cast_one, ← add_assoc]; ring
     rw [this, mean_add hs ih.1, ih.2, mean_shift_left hX S]
     exact ⟨hs.add ih.1, by push_cast; ring⟩
 
@@ -390,8 +379,7 @@ theorem rms_add_le {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) :
   rw [rms_sq (hf.add hg), add_sq, rms_sq hf, rms_sq hg]
   have h1 : (f + g) * (f + g) = f * f + (2 : ℝ) • (f * g) + g * g := by
     funext n b i k
-    simp only [Pi.mul_apply, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    ring
+    simp only [Pi.mul_apply, Pi.add_apply, Pi.smul_apply, smul_eq_mul]; ring
   rw [h1, mean_add ((hf.mul hf).add ((hf.mul hg).smul 2)) (hg.mul hg),
     mean_add (hf.mul hf) ((hf.mul hg).smul 2), mean_smul (hf.mul hg)]
   linarith [mean_mul_le hf hg]

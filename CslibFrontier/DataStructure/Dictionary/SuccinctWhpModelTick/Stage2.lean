@@ -175,12 +175,10 @@ private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ 
           have hm1 : min (fs.bktCount b) (cur + 1) = cur + 1 :=
             Nat.min_eq_right (Nat.succ_le_of_lt hlt_b)
           rw [hm0] at hinj0 hrr0; rw [hm1]
-          refine ⟨fun l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq => ?_, hrr0.step_false hnp⟩
-          have hl1' : l₁ < cur := Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hl₁)
-            (fun h => hnp (h ▸ hp₁))
-          have hl2' : l₂ < cur := Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hl₂)
-            (fun h => hnp (h ▸ hp₂))
-          exact hinj0 l₁ hl1' l₂ hl2' hp₁ hp₂ hfeq
+          have hlt {l} (hl : l < cur + 1) hp : l < cur :=
+            Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hl) fun h => hnp (h ▸ hp)
+          exact ⟨fun l₁ hl₁ l₂ hl₂ hp₁ hp₂ => hinj0 l₁ (hlt hl₁ hp₁) l₂ (hlt hl₂ hp₂) hp₁ hp₂,
+            hrr0.step_false hnp⟩
         · have hm0 : min (fs.bktCount b) cur = fs.bktCount b := Nat.min_eq_left (by omega)
           have hm1 : min (fs.bktCount b) (cur + 1) = fs.bktCount b := Nat.min_eq_left (by omega)
           rw [hm0] at hinj0 hrr0; rw [hm1]
@@ -361,18 +359,14 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             back_free_disj := hc.back_free_disj
             pool_conservation := hc.pool_conservation
             roles_valid := fun b' hb' => by
-              dsimp only [fsSw, epochTickStage2Swap, fsScan]
-              by_cases hbb : b' = b
-              · subst hbb
-                rw [Function.update_self]
-                exact ⟨hrr_b.1, hor_b, hrr_b.2.2⟩
-              · rw [Function.update_of_ne hbb]
-                exact hc.roles_valid b' hb'
+              rcases eq_or_ne b' b with rfl | hbb
+              · simpa only [fsSw, epochTickStage2Swap, Function.update_self] using
+                  ⟨hrr_b.1, hor_b, hrr_b.2.2⟩
+              · simpa only [fsSw, epochTickStage2Swap, Function.update_of_ne hbb] using
+                  hc.roles_valid b' hb'
             bktSalt_lt := fun b' hb' => by
-              dsimp only [fsSw, epochTickStage2Swap, fsScan]
-              by_cases hbb : b' = b
-              · subst hbb; simp [hcs_lt]
-              · simp [hbb, hc.bktSalt_lt b' hb']
+              by_cases hbb : b' = b <;>
+                simp [fsSw, epochTickStage2Swap, fsScan, hbb, hcs_lt, hc.bktSalt_lt b' hb']
             live_fp_inj := fun b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
               rw [hst_sw] at hin₁ hin₂
               rw [hfp_sw] at hfeq
@@ -497,14 +491,12 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             rebScanCursor := fs.rebScanCursor + 16
             rebInsCount := ins' } : FastState).fpAt c U n_max θ fs.rebCandSalt b =
             fs.fpAt c U n_max θ fs.rebCandSalt b := fpAt_eq_of_fields rfl rfl _ _
-        refine ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun _ => ⟨?_, ?_, rm', ?_, ?_⟩⟩
-        · right
-          refine ⟨by omega, hcur_lt_b, ?_⟩
-          rcases hcur_r with ⟨hc0, hi0⟩ | ⟨_, _, hins_le⟩ <;> omega
-        · rw [hfp_eq]; exact hinj'
-        · change ValidWhpSlice n_max ins' (Function.update fs.slices rIdx sl' rIdx) rm'
-          rw [Function.update_self]; exact hv'
-        · rw [hfp_eq]; exact hrr'
+        refine ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun _ =>
+          ⟨Or.inr ⟨by omega, hcur_lt_b,
+            by rcases hcur_r with ⟨_, _⟩ | ⟨_, _, _⟩ <;> omega⟩,
+           hfp_eq ▸ hinj', rm', ?_, hfp_eq ▸ hrr'⟩⟩
+        change ValidWhpSlice n_max ins' (Function.update fs.slices rIdx sl' rIdx) rm'
+        rwa [Function.update_self]
   · -- Exhausted `sMaxWhp`: `epochTickStage2` is a no-op (`fs1 = fs`), vacuous in `ValidEpochStage`
     rw [ite_eq_right hcs_lt]
     refine ⟨hc, hom, ?_, rfl⟩

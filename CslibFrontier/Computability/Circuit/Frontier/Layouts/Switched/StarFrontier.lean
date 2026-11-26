@@ -84,8 +84,7 @@ theorem integrable_cond {F : Type*} [NormedAddCommGroup F] [InnerProductSpace �
     Integrable (fun z => (stdGaussian F).real {x | (z, remainder a x) ∈ S}) (gaussianReal 0 1) := by
   refine Integrable.of_bound (C := 1) (measurable_cond hS).aestronglyMeasurable
     (ae_of_all _ fun z => ?_)
-  rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]
-  exact measureReal_le_one
+  simpa only [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg] using measureReal_le_one
 
 /-- **Comparison with the ideal star.** -/
 private theorem compare_ideal {a : E} (ha : ‖a‖ = 1) {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1)
@@ -117,18 +116,15 @@ private theorem compare_ideal {a : E} (ha : ‖a‖ = 1) {w : Fin 3 → E} (hw :
   intro z
   by_cases hz : t ≤ z
   · have e1 : {x : E | (z, remainder a x) ∈ S} =
-        {x | ∃ j, ⟪w j, x⟫ ≤ (t - r * z) / Ideal.s r} := by
-      ext x
-      simp only [S, Set.mem_ofPred_eq, hz, true_and, inner_remainder_of_orth (horth _)]
+        {x | ∃ j, ⟪w j, x⟫ ≤ (t - r * z) / Ideal.s r} :=
+      Set.ext fun _ => by simp [S, hz, inner_remainder_of_orth (horth _)]
     have e2 : {y : E3 | (z, remainder (e 0) y) ∈ S3} =
-        {y | ∃ j, ⟪u j, y⟫ ≤ (t - r * z) / Ideal.s r} := by
-      ext y
-      simp only [S3, Set.mem_ofPred_eq, hz, true_and, inner_remainder_of_orth (hu0 _)]
+        {y | ∃ j, ⟪u j, y⟫ ≤ (t - r * z) / Ideal.s r} :=
+      Set.ext fun _ => by simp [S3, hz, inner_remainder_of_orth (hu0 _)]
     simp only
     rw [e1, e2]
     exact exists_le_compare hw _
-  · have e1 : {x : E | (z, remainder a x) ∈ S} = ∅ := by
-      ext x; simp [S, hz]
+  · have e1 : {x : E | (z, remainder a x) ∈ S} = ∅ := Set.ext fun _ => by simp [S, hz]
     simp only
     rw [e1, measureReal_empty]
     exact measureReal_nonneg
@@ -170,9 +166,9 @@ theorem eq_of_inner_eq_one {a b : E} (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) (h : 
 theorem prob_inner_eq {a : E} (ha : ‖a‖ = 1) (t : ℝ) :
     (stdGaussian E).real {x | ⟪a, x⟫ = t} = 0 := by
   have haa : ⟪a, a⟫ = 1 := by rw [real_inner_self_eq_norm_sq, ha]; norm_num
-  have e : {x : E | ⟪a, x⟫ = t} = (fun x => ⟪a, x⟫) ⁻¹' {t} := rfl
-  rw [e, ← map_measureReal_apply (by fun_prop) (measurableSet_singleton t)]
-  rw [stdGaussian_map_inner_unit_sq haa]
+  change (stdGaussian E).real ((fun x => ⟪a, x⟫) ⁻¹' {t}) = 0
+  rw [← map_measureReal_apply (by fun_prop) (measurableSet_singleton t),
+    stdGaussian_map_inner_unit_sq haa]
   let _ := nullSingletonClass_gaussianReal (μ := 0) (by norm_num : (1 : NNReal) ≠ 0)
   simp [Measure.real]
 

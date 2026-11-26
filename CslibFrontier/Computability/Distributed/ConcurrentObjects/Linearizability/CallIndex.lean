@@ -100,11 +100,9 @@ theorem even_length_of_equivalent_complete [DecidableEq P] {H S : History P Op R
     S.length % 2 = 0 := by
   rcases isSequential_decomp hseq with ⟨cs, rfl⟩ | ⟨cs, p, x, op, rfl⟩
   · rw [length_flatMap_toEvents]; omega
-  · exfalso
-    have hp := heq p
-    rw [procSubhistory_complete] at hp
-    obtain ⟨_, hev_p⟩ := complete_isSequential (hwf p)
-    simp only [hp, procSubhistory_append, procSubhistory_flatMap_toEvents, procSubhistory_cons,
+  · obtain ⟨_, hev_p⟩ := complete_isSequential (hwf p)
+    rw [← procSubhistory_complete, heq p] at hev_p
+    simp only [procSubhistory_append, procSubhistory_flatMap_toEvents, procSubhistory_cons,
       Event.proc_inv, ↓reduceIte, procSubhistory_nil, List.length_append, length_flatMap_toEvents,
       List.length_singleton] at hev_p
     omega
@@ -217,16 +215,12 @@ theorem flatMap_toEvents_injective :
   | [], _ :: _, h | _ :: _, [], h => by
     simp only [List.flatMap_nil, List.flatMap_cons, OpCall.toEvents, List.cons_append] at h
     nomatch h
-  | c₁ :: rest₁, c₂ :: rest₂, h => by
+  | ⟨_, _, _, _⟩ :: rest₁, ⟨_, _, _, _⟩ :: rest₂, h => by
     simp only [List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append,
       List.cons.injEq] at h
-    obtain ⟨hinv, hresp, hrest⟩ := h
-    cases c₁; cases c₂
-    injection hinv with hp hx hop
-    subst hp hx
-    cases hop
-    injection hresp with _ _ hres
-    cases hres
+    rcases h with ⟨hinv, hresp, hrest⟩
+    cases hinv
+    cases hresp
     exact congrArg _ (flatMap_toEvents_injective hrest)
 
 /-- Even positions `2 * k` of `cs.flatMap OpCall.toEvents` hold the invocation of `cs[k]`. -/
@@ -340,11 +334,10 @@ theorem invPos_respPos_opIdAt [DecidableEq P] (calls : List (OpCall P Op Resp))
 /-- `opIdAt calls` is injective on valid call indices. -/
 theorem opIdAt_injective [DecidableEq P] {calls : List (OpCall P Op Resp)}
     {j₁ j₂ : ℕ} (hj₁ : j₁ < calls.length) (hj₂ : j₂ < calls.length)
-    (heq : opIdAt calls j₁ hj₁ = opIdAt calls j₂ hj₂) : j₁ = j₂ := by
-  have h₁ := (invPos_respPos_opIdAt calls j₁ hj₁).1
-  have h₂ := (invPos_respPos_opIdAt calls j₂ hj₂).1
-  rw [heq, h₂] at h₁
-  injection h₁ with h; omega
+    (heq : opIdAt calls j₁ hj₁ = opIdAt calls j₂ hj₂) : j₁ = j₂ :=
+  Nat.mul_left_cancel Nat.zero_lt_two <| Option.some.inj <|
+    (invPos_respPos_opIdAt calls j₁ hj₁).1.symm.trans
+      (heq ▸ (invPos_respPos_opIdAt calls j₂ hj₂).1)
 
 /-- Real-time precedence in `calls.flatMap OpCall.toEvents` agrees with call-index order `j₁ < j₂`.
 -/
@@ -355,13 +348,10 @@ theorem prec_flatMap_toEvents_opIdAt_iff [DecidableEq P]
       (opIdAt calls j₁ hj₁) (opIdAt calls j₂ hj₂) ↔ j₁ < j₂ := by
   obtain ⟨_, hr₁⟩ := invPos_respPos_opIdAt calls j₁ hj₁
   obtain ⟨hi₂, _⟩ := invPos_respPos_opIdAt calls j₂ hj₂
-  constructor
-  · rintro ⟨r, i, hr, hi, hlt⟩
-    rw [hr₁] at hr; rw [hi₂] at hi
-    injection hr with hr'; injection hi with hi'
-    omega
-  · intro hlt
-    exact ⟨2 * j₁ + 1, 2 * j₂, hr₁, hi₂, by omega⟩
+  refine ⟨fun ⟨_, _, hr, hi, _⟩ => ?_, fun _ => ⟨2 * j₁ + 1, 2 * j₂, hr₁, hi₂, by omega⟩⟩
+  rw [hr₁, Option.some.injEq] at hr
+  rw [hi₂, Option.some.injEq] at hi
+  omega
 
 /-- Surjectivity of `opIdAt calls` onto all `e : OpId P` with `e.idx < countProcCalls e.proc calls`.
 -/

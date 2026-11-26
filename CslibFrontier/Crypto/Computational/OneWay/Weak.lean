@@ -130,8 +130,7 @@ def WeakOneWay (f : List Bool → List Bool) : Prop :=
 /-- Extract the polynomial-time certificate from `WeakOneWay`. -/
 theorem WeakOneWay.polyTime {f : List Bool → List Bool} (hf : WeakOneWay f) :
     ComputableInPolyTime f encBits encBits :=
-  let ⟨_, _, h⟩ := hf
-  h.polyTime
+  hf.elim fun _ h => h.2.polyTime
 
 /-- Monotonicity of `WeakOneWayAt` in the failure threshold $\alpha$. -/
 theorem WeakOneWayAt.mono {f : List Bool → List Bool} {α₁ α₂ : ℕ → ℝ}
@@ -180,13 +179,9 @@ theorem weakOneWay_iff_le {f : List Bool → List Bool} :
             ∀ᶠ n in atTop,
               (Game.succProbability (ProbComp.eval (inversionGame f adversary n)) : ℝ) ≤
                 1 - 1 / ((q.eval n : ℕ) : ℝ) := by
-  constructor
-  · rintro ⟨q, hq, hf⟩
-    refine ⟨hf.polyTime, q, hq, fun adversary hPPT => ?_⟩
-    filter_upwards [hf.weak adversary hPPT] with n hn
-    exact hn.le
-  · rintro ⟨hf, q, hq, h⟩
-    exact WeakOneWay.of_le hf hq h
+  refine ⟨fun ⟨q, hq, hf⟩ => ⟨hf.polyTime, q, hq, fun adversary hPPT => ?_⟩,
+    fun ⟨hf, q, hq, h⟩ => WeakOneWay.of_le hf hq h⟩
+  exact (hf.weak adversary hPPT).mono fun _ => le_of_lt
 
 /-- Every weak one-way function admits a monotone polynomial $q \in \mathbb{N}[X]$ with
 $q(n) \ge n + 1$ for all $n$ such that `WeakOneWayAt f (fun n => 1 / (q.eval n : ℝ))`. -/
@@ -212,9 +207,9 @@ theorem OneWay.weakOneWayAt_half {f : List Bool → List Bool} (hf : OneWay f) :
     from mod_cast hn]
 
 /-- Every strong one-way function is a weak one-way function. -/
-theorem OneWay.weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay f := by
-  refine ⟨2, fun _ => by simp, ?_⟩
-  simpa using hf.weakOneWayAt_half
+theorem OneWay.weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay f :=
+  ⟨2, fun _ => by simp,
+    by simpa using hf.weakOneWayAt_half⟩
 
 /-! ### Negative / nonvacuity witnesses -/
 
@@ -261,9 +256,8 @@ theorem WeakOneWayAt.normalize {f : List Bool → List Bool} {α : ℕ → ℝ}
 /-- Self-delimiting output padding preserves `WeakOneWay` against uniform strict PPT inverters. -/
 theorem WeakOneWay.normalize {f : List Bool → List Bool} (hf : WeakOneWay f) (bound : ℕ → ℕ)
     (hbound : ComputableInPolyTime bound encUnary encUnary) :
-    WeakOneWay (OneWayNormalization.normalize f bound) := by
-  obtain ⟨q, hq, hweak⟩ := hf
-  exact ⟨q, hq, hweak.normalize bound hbound⟩
+    WeakOneWay (OneWayNormalization.normalize f bound) :=
+  hf.elim fun q h => ⟨q, h.1, h.2.normalize bound hbound⟩
 
 /-- Every weak one-way function yields a weak one-way function whose output length depends only on
 the input length, with a uniformly polynomial-time unary output-length function. -/
@@ -375,11 +369,9 @@ private theorem searchCandidate_spec {m : ℕ → ℕ} {core : ℕ → List Bool
     {n M : ℕ} {y coins : List Bool} (hM : M ≤ m (n + 1))
     (h : core n ((evaluate (M, wrappedImage n y) coins).take (m n)) = y) :
     core n ((searchCandidate m core evaluate n y coins).take (m n)) = y := by
-  have htry : tryLength m core evaluate n y coins M = true := by
-    simp [tryLength, h]
-  have hbest := Nat.findGreatest_spec
-    (P := fun M => tryLength m core evaluate n y coins M = true) hM htry
-  simpa [searchCandidate, bestLength, tryLength] using hbest
+  simpa [searchCandidate, bestLength, tryLength] using
+    Nat.findGreatest_spec (P := fun M => tryLength m core evaluate n y coins M = true) hM
+      (by simp [tryLength, h])
 
 /-- The parameter-indexed inverter induced by an inverter for `reindex m core`. -/
 private noncomputable def familyInverter (m : ℕ → ℕ) (core : ℕ → List Bool → List Bool)
@@ -532,13 +524,12 @@ theorem oneWay {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
   intro adversary hPPT
   obtain ⟨familyAdv, hfamilyPPT, hred⟩ :=
     exists_familyInverter_inversion_le hm hge hcore adversary hPPT
-  have hneg := hsecure familyAdv hfamilyPPT
-  have hdecay := hneg.comp_of_polynomial_bound (GeneratorReindex.parameter_tendsto m)
-    (hm.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
-    (Eventually.of_forall fun M => (GeneratorReindex.lt_length_succ_parameter hge M).le)
-  apply negligible_of_eventually_le hdecay
-  filter_upwards [eventually_ge_atTop (m 0)] with M hM0
-  exact hred hM0
+  refine negligible_of_eventually_le
+    ((hsecure familyAdv hfamilyPPT).comp_of_polynomial_bound
+      (GeneratorReindex.parameter_tendsto m)
+      (hm.polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1)))
+      (Eventually.of_forall fun M => (GeneratorReindex.lt_length_succ_parameter hge M).le))
+    ((eventually_ge_atTop (m 0)).mono fun _ => hred)
 
 end OneWayReindex
 

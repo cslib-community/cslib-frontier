@@ -106,10 +106,8 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
     have : ({k | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} : Finset α) = {k₀} := by
       ext k
       simp only [mem_filter, mem_univ, true_and, mem_singleton]
-      constructor
-      · intro h
-        by_contra hk
-        obtain ⟨j, hjk, hj⟩ := h (f k) (fun h' => hk (hinj (h'.trans hk₀.symm)))
+      refine ⟨fun h => not_ne_iff.mp fun hk => ?_, ?_⟩
+      · obtain ⟨j, hjk, hj⟩ := h (f k) fun h' => hk (hinj (h'.trans hk₀.symm))
         exact hjk (hinj hj)
       · rintro rfl b hb
         obtain ⟨j, rfl⟩ := hf b
@@ -134,21 +132,18 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
       have hD : ({k | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} : Finset α) = {j₁, j₂} := by
         ext l
         simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton]
-        constructor
-        · intro hl
-          by_contra h
-          simp only [not_or] at h
-          exact hne (hdoor_inj l hl (mem_coe.mpr (mem_erase.mpr ⟨Ne.symm h.1, mem_univ _⟩))
-            (mem_coe.mpr (mem_erase.mpr ⟨Ne.symm h.2, mem_univ _⟩)) h12)
-        · have key : ∀ i i', i ≠ i' → f i = f i' → ∀ b ≠ b₀, ∃ j ≠ i, f j = b := by
-            intro i i' hii' hfi b hb
+        refine ⟨fun hl => ?_, ?_⟩
+        · by_contra! h
+          exact hne (hdoor_inj l hl (mem_coe.mpr (mem_erase.mpr ⟨h.1.symm, mem_univ _⟩))
+            (mem_coe.mpr (mem_erase.mpr ⟨h.2.symm, mem_univ _⟩)) h12)
+        · have key {i i'} (hii' : i ≠ i') (hfi : f i = f i') (b) (hb : b ≠ b₀) :
+              ∃ j ≠ i, f j = b := by
             by_cases hbi : b = f i
-            · exact ⟨i', Ne.symm hii', hbi ▸ hfi.symm⟩
+            · exact ⟨i', hii'.symm, hbi ▸ hfi.symm⟩
             · obtain ⟨j, -, hj⟩ := hk b hb
               exact ⟨j, fun h => hbi (h ▸ hj.symm), hj⟩
           rintro (rfl | rfl)
-          · exact key _ _ hne h12
-          · exact key _ _ (Ne.symm hne) h12.symm
+          exacts [key hne h12, key hne.symm h12.symm]
       rw [hD, card_pair hne]
       exact ⟨1, rfl⟩
     · rw [filter_false_of_mem fun k _ h => hD ⟨k, h⟩, card_empty]
@@ -416,18 +411,14 @@ theorem across_mem {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)} {k : Fin 
   rw [mem_kuhnSimplices] at hs ⊢
   intro i
   have := hs i
-  by_cases hk0 : k = 0
-  · subst hk0
-    rw [base_across_zero]
+  rcases eq_or_ne k 0 with rfl | hk0
+  · rw [base_across_zero]
     split_ifs <;> omega
-  · by_cases hkl : k = Fin.last (n + 1)
-    · subst hkl
-      rw [base_across_last]
+  · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
+    · rw [base_across_last]
       split_ifs with hr
-      · exact h.2 rfl i hr
-      · exact this
-    · rw [base_across_of_ne _ hk0 hkl]
-      exact this
+      exacts [h.2 rfl i hr, this]
+    · rwa [base_across_of_ne _ hk0 hkl]
 
 /-- The shared facet is interior from the other side as well. -/
 theorem isInteriorFacet_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)}
@@ -458,17 +449,11 @@ theorem isInteriorFacet_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1
 theorem across_ne (s : KuhnSimplex (n + 1)) (k : Fin (n + 2)) :
     (across s k, mate k) ≠ (s, k) := by
   intro h
-  have h1 := congrArg Prod.fst h
-  have h2 := congrArg Prod.snd h
-  simp only at h1 h2
-  by_cases hk0 : k = 0
-  · subst hk0
-    rw [mate_zero] at h2
-    exact Fin.last_pos.ne' h2
-  · by_cases hkl : k = Fin.last (n + 1)
-    · subst hkl
-      rw [mate_last] at h2
-      exact Fin.last_pos.ne h2
+  obtain ⟨h1, h2⟩ := Prod.mk.inj h
+  rcases eq_or_ne k 0 with rfl | hk0
+  · exact Fin.last_pos.ne' (mate_zero ▸ h2)
+  · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
+    · exact Fin.last_pos.ne (mate_last ▸ h2)
     · have := congrArg (fun t => t.rank (s.rank.symm (k.pred hk0))) h1
       simp only [rank_across_of_ne _ hk0 hkl, Equiv.trans_apply, Equiv.apply_symm_apply,
         Equiv.swap_apply_left] at this
@@ -740,16 +725,11 @@ theorem hypergridBoundaryColor_ne_succ {n : ℕ} {p : Fin n → ℕ} {i : Fin n}
   | succ n ih =>
     simp only [hypergridBoundaryColor]
     split_ifs with hl
-    · intro he
-      rw [← Fin.succ_last] at he
-      exact h (Fin.succ_injective _ he ▸ hl)
-    · by_cases hi : i = Fin.last n
-      · subst hi
-        rw [Fin.succ_last]
-        exact (Fin.castSucc_lt_last _).ne
+    · exact fun he => h (Fin.succ_injective _ (Fin.succ_last n ▸ he) ▸ hl)
+    · rcases eq_or_ne i (Fin.last n) with rfl | hi
+      · exact Fin.succ_last n ▸ (Fin.castSucc_lt_last _).ne
       · obtain ⟨j, rfl⟩ := Fin.exists_castSucc_eq.mpr hi
-        rw [Fin.succ_castSucc]
-        exact fun he => ih h (Fin.castSucc_injective _ he)
+        exact Fin.succ_castSucc j ▸ fun he => ih h (Fin.castSucc_injective _ he)
 
 /-- A *valid colouring* of the hypergrid `∏ i, [0, N i]` in the sense of Chen, Deng and Teng: it
 agrees with `hypergridBoundaryColor` at the boundary points, those with some `p i ∈ {0, N i}`. -/

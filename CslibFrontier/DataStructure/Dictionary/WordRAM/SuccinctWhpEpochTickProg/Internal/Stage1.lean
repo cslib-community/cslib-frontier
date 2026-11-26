@@ -406,17 +406,15 @@ private theorem stage1_dirtyZero_bounds_after_queue {c U V n_max b₀ : ℕ}
     0 < fs_q.dirtyCount → fs_q.dirtyBuckets 0 < numBucketsWhp n_max ∧
       fs_q.rebSliceIdx (fs_q.dirtyBuckets 0) < 3 * numBucketsWhp n_max := by
   subst hfs_q
-  by_cases hrq0 : fs.rebQueued b₀ = 0
-  · rw [ite_eq_left hrq0]
-    intro _
+  split_ifs with hrq0
+  · intro _
     have hb_z : Function.update fs.dirtyBuckets fs.dirtyCount b₀ 0 < numBucketsWhp n_max := by
-      by_cases hdc0 : fs.dirtyCount = 0
+      rcases eq_or_ne fs.dirtyCount 0 with hdc0 | hdc0
       · simpa only [hdc0, Function.update_self] using hb₀
-      · rw [Function.update_of_ne (Ne.symm hdc0)]
-        exact (hpos_init (Nat.pos_of_ne_zero hdc0)).1
+      · simpa only [Function.update_of_ne (Ne.symm hdc0)] using
+          (hpos_init (Nat.pos_of_ne_zero hdc0)).1
     exact ⟨hb_z, rebSliceIdx_lt_of_core hc hb_z⟩
-  · rw [ite_eq_right hrq0]
-    exact hpos_init
+  · exact hpos_init
 
 /-- `Realizes .exact` certificate for `epochTickStage1GenProg`. -/
 theorem realizes_epochTickStage1Gen :
@@ -472,14 +470,11 @@ theorem realizes_epochTickStage1Gen :
          hseed hrep (hdrOff := hdrStageCursor) (val := fs.stageCursor + 1) (s := s)
        exact ⟨c, U, V, w, n_max, { fs with stageCursor := fs.stageCursor + 1 },
          henv, rfl, hw.2.2.2.2.1, hpos_init⟩)
-    | (cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with
-       | none =>
-         rw [hchk] at hcs_res; simp only [hcs_res] at *
-         have hhit : (0 : ℕ) = 1 := by assumption
-         cases hhit
-       | some p =>
-         rcases p with ⟨b₀, loc₀⟩
-         rw [hchk] at hcs_res
+    | (rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨b₀, loc₀⟩
+       · rw [hchk] at hcs_res
+         simp only [hcs_res] at *
+         cases (by assumption : (0 : ℕ) = 1)
+       · rw [hchk] at hcs_res
          obtain ⟨_, k, _, _, hmk⟩ := hv_o.checkSlot_some hchk
          have hb₀ : b₀ < numBucketsWhp n_max := hrel_o k b₀ loc₀ hmk
          simp only [hcs_res] at *

@@ -117,13 +117,11 @@ theorem positiveExterior_box_contact {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
     p = realPoint (positiveBoxOrigin φ d i + collarOuterPort ((clausePorts φ d i).side j)) := by
   rw [positiveExterior, support_translate] at hp
   obtain ⟨q, hq, rfl⟩ := hp
-  rw [inPointBox_translate_iff] at hb
-  have hstart : sourceStart (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j) =
-      Graph.drawingPosition (SAT.incidenceGraph φ) d (φ.distinctVars.length + i) := by
-    rw [sourceStart, sourceEdgeIndex_edge φ hi hj]
   have hb' : inPointBox
       (positiveScale • sourceStart (SAT.incidenceGraph φ) d (sourceEdgeIndex φ i j))
-      positiveRadius q := by simpa only [positiveBoxOrigin, hstart] using hb
+      positiveRadius q := by
+    simpa only [inPointBox_translate_iff, positiveBoxOrigin, sourceStart,
+      sourceEdgeIndex_edge φ hi hj] using hb
   have hport := exteriorRoute_box_contact hd (sourceEdgeIndex_lt φ hi hj)
     (by decide : positiveRadius < positiveScale) hq hb'
   have hhead := positiveExterior_head hd hi j hj
@@ -206,10 +204,8 @@ theorem positiveStem_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   refine ⟨(isOrthogonal_translate_iff _ _).2
     (collaredProfile_incidence_orthogonal _ h hs he),
     (isSimple_translate_iff _ _).2 (collaredProfile_incidence_isSimple _ h hs he), ?_, ?_⟩
-  · rw [positiveStem, translate, List.head?_map, hept.2.2.1]
-    exact congrArg some (add_comm _ _)
-  · rw [positiveStem, translate, List.getLast?_map, hept.2.2.2]
-    exact congrArg some (add_comm _ _)
+  · simp [positiveStem, translate, clauseGeometry, hept.2.2.1, add_comm]
+  · simp [positiveStem, translate, clauseGeometry, hept.2.2.2, add_comm]
 
 /-- A local source-placeholder lookup identifies its unique terminal slot, including the
 actual unmodded source position. -/
@@ -235,11 +231,9 @@ theorem profile_source_lookup (p : ClauseProfile) {v j : ℕ}
     rw [← hget']
     exact ((CNF.nodup_distinctVars (profileFormula p)).idxOf_getElem v hv').symm
   have ht := profileSource_terminal_index p ⟨j, hj3⟩ hj
-  refine ⟨hj, hj3, hidx, ?_, ?_⟩
-  · rw [hidx]
-    exact ht.2.1
-  · change (profileGeometry p).terminalVariables.idxOf v % 3 = j
-    rw [hidx, ht.2.2, Nat.mod_eq_of_lt hj3]
+  refine ⟨hj, hj3, hidx, hidx ▸ ht.2.1, ?_⟩
+  change (profileGeometry p).terminalVariables.idxOf v % 3 = j
+  rw [hidx, ht.2.2, Nat.mod_eq_of_lt hj3]
 
 private theorem source_incidence_port {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
     (hd : Graph.IsPlanarOrthogonalDrawing (SAT.incidenceGraph φ) d) {i : ℕ}
@@ -275,9 +269,7 @@ theorem positiveIncidenceRoute_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawi
   split
   next j hj =>
     obtain ⟨j', rfl, hjSource, -, hpoint⟩ := source_incidence_port hd hi h he hj
-    have hlast : (positiveStem φ d i e).getLast? =
-        some (positiveBoxOrigin φ d i + collarOuterPort ((clausePorts φ d i).side j')) := by
-      rw [hstem.2.2.2, hpoint]
+    have hlast := hstem.2.2.2.trans (congrArg (some <| positiveBoxOrigin φ d i + ·) hpoint)
     have hhead := positiveExterior_head hd hi j' hjSource
     have hext := positiveExterior_regular hd hi hjSource
     exact ⟨isOrthogonal_join hlast hhead hstem.1 hext.1,

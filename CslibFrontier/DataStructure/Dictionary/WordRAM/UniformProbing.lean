@@ -355,9 +355,7 @@ theorem extractSlots_eq_none_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
     (hwf : SlotArrayWF base c_exp U n_max mem) (j : Fin (numBuckets n_max)) :
     extractSlots base c_exp U n_max mem j = none ↔
       mem (base + slotOffset c_exp n_max + j.val) = 0 := by
-  rcases hwf j with ⟨h0 | h1, hkey⟩
-  · simp [extractSlots, h0]
-  · simp [extractSlots, h1, hkey h1]
+  rcases hwf j with ⟨h0 | h1, hkey⟩ <;> simp [extractSlots, *]
 
 theorem extractSlots_eq_some_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
     (hwf : SlotArrayWF base c_exp U n_max mem) (j : Fin (numBuckets n_max))
@@ -366,9 +364,7 @@ theorem extractSlots_eq_some_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
       mem (base + slotOffset c_exp n_max + j.val) = 1 ∧
       mem (base + slotOffset c_exp n_max + numBuckets n_max + j.val) = u.val ∧
       mem (base + slotOffset c_exp n_max + 2 * numBuckets n_max + j.val) = v := by
-  rcases hwf j with ⟨h0 | h1, hkey⟩
-  · simp [extractSlots, h0]
-  · simp [extractSlots, h1, hkey h1, Fin.ext_iff]
+  rcases hwf j with ⟨h0 | h1, hkey⟩ <;> simp [extractSlots, Fin.ext_iff, *]
 
 attribute [local wram_arith] slotOffset space
 
@@ -724,16 +720,12 @@ private theorem initSetup_execCodeDist {w base c_exp n_max : ℕ} {x₁ : Data 1
   unfold initSetup initMidCode initPostCode
   refine WP.Dist.execCodeDist ?_
   wram_rand_call (resampleInit_execCodeDist hbase hbt hmb hmM h1) with y₁ hy₁
-  · have hb₁ := (mem_support_resampleInitPMF hbase hy₁).2.1
-    wram_rand_exec [hb₁]
+  · wram_rand_exec [(mem_support_resampleInitPMF hbase hy₁).2.1]
     wram_rand_call (resampleInit_execCodeDist rfl hb2t hmb hmM1 h1) with y₃ hy₃
-    · have hb₃ := (mem_support_resampleInitPMF rfl hy₃).2.1
-      wram_rand_exec [hb₃, show base + singleTabSpace c_exp n_max - singleTabSpace c_exp n_max =
-        base from Nat.add_sub_cancel _ _]
+    · wram_rand_exec [(mem_support_resampleInitPMF rfl hy₃).2.1, Nat.add_sub_cancel base _]
     · exact ⟨(PMF.bind_pure_comp _ _).symm, by norm_cast⟩
   · dsimp only [initSetupPMF, initMidData, initPostData, setupSteps]
-    refine ⟨rfl, ?_⟩
-    norm_cast; omega
+    exact ⟨rfl, by norm_cast; omega⟩
 
 /-- Full `Randomized.StateTransitionImpl.setup_exec` certificate for `initSetup c_exp n_max`. -/
 theorem setup_exec_spec {w base c_exp U V n_max : ℕ} {x₁ : Data 16}
@@ -1677,11 +1669,8 @@ theorem expect_idealProbeSteps_le {c_exp U n_max : ℕ}
         ((13 * UniformProbing.probeCount T u π + hashEvalSteps c_exp + 8 : ℕ) : ℝ≥0∞)) ≤
       (hashEvalSteps c_exp + 34 : ℝ≥0∞) := by
   have h4 := four_mul_le_numBuckets n_max
-  have hB : (∑' π : Equiv.Perm (Fin (numBuckets n_max)),
-      (PMF.uniformOfFintype (Equiv.Perm (Fin (numBuckets n_max)))) π *
-        (UniformProbing.probeCount T u π : ℝ≥0∞)) ≤ 2 :=
-    UniformProbing.expect_unsuccessfulProbes_le_two (numBuckets_pos n_max) (by omega)
-  exact (expect_probeLinear_le (PMF.uniformOfFintype _) (fun π => probeCount T u π) 2 hB).trans_eq
+  exact (expect_probeLinear_le (PMF.uniformOfFintype _) (fun π => probeCount T u π) 2
+    (UniformProbing.expect_unsuccessfulProbes_le_two (numBuckets_pos n_max) (by omega))).trans_eq
     (by ring)
 
 end Cslib.DataStructure.Dictionary.WordRAM.UniformProbing

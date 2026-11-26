@@ -678,8 +678,7 @@ theorem iterate_promoteStepProg_spec {U V w₀ n_max h_space w base b : ℕ} {s�
   induction m with
   | zero =>
     intro k s _ hinv
-    simp only [iterate, Nat.add_zero, Nat.mul_zero, memoryCost_pure, iterationSafe]
-    exact ⟨hinv, trivial, fun _ => trivial⟩
+    exact ⟨hinv, rfl, fun _ => trivial⟩
   | succ m ih =>
     intro k s hkm hinv
     have hk_lt : k < slabSize n_max := by omega
@@ -687,16 +686,14 @@ theorem iterate_promoteStepProg_spec {U V w₀ n_max h_space w base b : ℕ} {s�
     obtain ⟨hfinal, hcost, hsafe⟩ := ih (k + 1)
       ((Memory.spec 0).clientState s (promoteStepProg U V w₀ n_max h_space ((base, b), k)))
       (by omega) hinv'
-    refine ⟨?_, ?_, ?_⟩
+    refine ⟨?_, ?_, fun hdenv => ?_⟩
     · unfold iterate
-      rw [StateTransitionSpec.clientState_bind, hres]
-      rw [show k + (m + 1) = (k + 1) + m by omega]
+      rw [StateTransitionSpec.clientState_bind, hres, Nat.add_succ, ← Nat.succ_add]
       exact hfinal
     · simp only [iterate, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
         memoryCost_promoteStepProg, hres, hcost]
       omega
-    · intro hdenv
-      simp only [iterationSafe, hres]
+    · simp only [iterationSafe, hres]
       exact ⟨⟨hdenv, promoteStepInv_of_loopInv hinv hk_lt, hb_pos⟩, hsafe hdenv⟩
 
 /-- Parameter-free wrapper for `iterate promoteStepGenProg` with signature
@@ -843,13 +840,9 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
           rw [hq b hb]
           have := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm] : j < slabSize n_max * gm₀ (gmQIdx b))
           omega
-        rw [hptr b hb (j / slabSize n_max) hs_lt, ite_eq_right (fun h => hs_ne h.2)]
-        have hslot_eq :
-            slabPtrOf n_max gm b (j / slabSize n_max) * slabSize n_max +
-              (slabSize n_max - 1 - j % slabSize n_max) = slotOf n_max gm b j := by
-          unfold slotOf; rw [ite_eq_right hb0, hq b hb, ite_eq_left hj_old]
-        rw [hslot_eq]
-        exact harr.same_slabs j hj_old
+        rw [hptr b hb (j / slabSize n_max) hs_lt, ite_eq_right (fun h => hs_ne h.2),
+          ← harr.same_slabs j hj_old]
+        simp only [slotOf, hb0, hq b hb, hj_old, ↓reduceIte]
       · set u := j - gm₀ (gmQIdx b) * slabSize n_max
         have hu_lt : u < slabSize n_max := by rw [Nat.add_one_mul] at hj_slab; omega
         have hj_eq : j = gm₀ (gmQIdx b) * slabSize n_max + u := by omega
@@ -935,8 +928,7 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
       hw hb_pos hloopK.b_lt s₁ hloopK.slab_bij hp_lt1
   have hst : s' =
       (Memory.spec 0).clientState s₁ (gmPushSlabProg U V w n_max h_space (base, b)) := by
-    change (Memory.spec 0).clientState s (promoteSlabProg U V w n_max h_space (base, b)) = _
-    simp only [promoteSlabProg, promoteSlabGenProg, p_slabSize_mk, promoteLoopGenProg_mk,
+    simp only [s', promoteSlabProg, promoteSlabGenProg, p_slabSize_mk, promoteLoopGenProg_mk,
       gmPushSlabGenProg_mk]
     rw [StateTransitionSpec.clientState_bind]
   have hgm'_eq : gm' = gmPushSlab n_max gm₁ b := by dsimp only [gm']; rw [hst, hgm_push]
@@ -956,13 +948,13 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
     rw [hgm'_eq, hf_fields.2.2.2.2.1 b' hb', ite_eq_right hne, hf_fields.2.2.1 b' hb']
     exact ⟨hloopK.q_eq b' hb', hloopK.r_other b' hb' hne⟩
   have hinv2 : SlotStoreInv n_max gm' := by
-    refine ⟨fun _ => by omega, fun _ => by rw [hgm'_eq]; exact htail2,
-      fun _ => by rw [hgm'_eq]; exact hslab2, fun _ b' hb' => ?_, fun _ => ?_⟩
+    refine ⟨fun _ => by omega, fun _ => hgm'_eq ▸ htail2,
+      fun _ => hgm'_eq ▸ hslab2, fun _ b' hb' => ?_, ?_⟩
     · by_cases hbeq : b' = b
       · subst b'; rw [hrb]; unfold tailCapPerBucket; rw [ite_eq_right hb0]; omega
       · rw [(hother b' hb' hbeq).1, (hother b' hb' hbeq).2]
         exact hpre.2.2.2.2.1 b' hb' hbeq
-    · rw [hgm'_eq, hf_fields.1, hf_fields.2.1]; exact htot_push
+    · simpa only [hgm'_eq, hf_fields.1, hf_fields.2.1] using fun _ => htot_push
   have hbc : ∀ b' < numBuckets n_max, bCount n_max gm' b' = bCount n_max gm₀ b' := by
     intro b' hb'
     rw [bCount_of_pos hb0 _ hb', bCount_of_pos hb0 _ hb']

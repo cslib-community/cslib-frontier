@@ -482,15 +482,13 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         have hmP : parentNd'.metaWord < 2 ^ nodeMetaBitsWhp n_max := by
           dsimp only [parentNd', mkNodeMeta]; simp only [Bool.false_eq_true, ↓reduceIte]; omega
         have hkP : parentNd'.keysWord < 2 ^ keysWordBitsWhp n_max := by
-          dsimp only [parentNd']
-          unfold keysWordBitsWhp keyLaneBitsWhp
+          dsimp only [parentNd', keysWordBitsWhp, keyLaneBitsWhp]
           exact (wordInsertAt_lt hr_le hsep_lt hkw_cur).trans_le
             (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
         have hvP : parentNd'.valsWord < 2 ^ valsWordBitsWhp n_max := by
-          dsimp only [parentNd']
+          dsimp only [parentNd', valsWordBitsWhp]
           have hr_v : sl.alloc < 2 ^ valLaneBitsWhp n_max :=
             (by omega : sl.alloc < nSliceWhp n_max).trans hns_lt
-          unfold valsWordBitsWhp
           exact (wordInsertAt_lt (Nat.succ_le_succ hr_le) hr_v hvw_cur).trans_le
             (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
         obtain ⟨hfr4, hmc4, hvp4, hrep4, hoth4, hbm4, hout4⟩ :=
@@ -567,10 +565,10 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
             rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
               clientResult_wordInsertAtGenProg, memoryCost_bind, clientState_wordInsertAtGenProg,
               memoryCost_wordInsertAtGenProg, clientResult_wordInsertAtGenProg, memoryCost_bind]
-            have hite_mc : ∀ s_end, memoryCost
+            have hite_mc (s_end) : memoryCost
                 (if spPure.sep < q then pure (sl.alloc + 1, sl.alloc)
                  else pure (sl.alloc + 1, (cs r_fin).rootIdx)) s_end = 0 := by
-              intro _; split_ifs <;> rfl
+              split_ifs <;> rfl
             rw [hite_mc, Nat.add_zero, writeSplitFourOpProg_eq, ← hmP_eq]
             dsimp only [w4prog, parentNd', keyLaneBitsWhp, childIdx] at hmc4 ⊢
             rw [hmc4]
@@ -596,23 +594,20 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         have hlr_ne : childIdx ≠ sl.alloc := by omega
         have hcur_ne_r : cur ≠ sl.alloc := by omega
         have hl_nd : nodes3 childIdx = spPure.left := by
-          dsimp only [nodes3]
-          rw [Function.update_of_ne hchild_ne_cur, Function.update_of_ne hlr_ne,
+          simp only [nodes3, Function.update_of_ne hchild_ne_cur, Function.update_of_ne hlr_ne,
             Function.update_self]
         have hr_nd : nodes3 sl.alloc = spPure.right := by
-          dsimp only [nodes3]
-          rw [Function.update_of_ne hcur_ne_r.symm, Function.update_self]
+          simp only [nodes3, Function.update_of_ne hcur_ne_r.symm, Function.update_self]
         have herase : ∀ v ∈ (cs r_fin).nodeSet.erase childIdx,
             nodes3 v = sl.nodes v ∧ v ≠ childIdx ∧ v ≠ sl.alloc := by
           intro v hv_er
           obtain ⟨hv_ne_c, hv_mem⟩ := mem_erase.mp hv_er
           have hv_lt : v < sl.alloc := (((hcs_sub r_fin).2).leafCount_le_card_nodeSet).1 v hv_mem
           have hv_ne_r : v ≠ sl.alloc := by omega
-          have hv_ne_cur : v ≠ cur := fun heq => hnot_cur r_fin (heq ▸ hv_mem)
           refine ⟨?_, hv_ne_c, hv_ne_r⟩
-          dsimp only [nodes3]
-          rw [Function.update_of_ne hv_ne_cur, Function.update_of_ne hv_ne_r,
-            Function.update_of_ne hv_ne_c]
+          simp only [nodes3,
+            Function.update_of_ne (fun heq : v = cur => hnot_cur r_fin (heq ▸ hv_mem)),
+            Function.update_of_ne hv_ne_r, Function.update_of_ne hv_ne_c]
         obtain ⟨leftT, rightT, hrtL, hrtR, hcntL_le, hcntR_eq, hhtL, hhtR, _, _,
           _, hclo_sep, hsep_chi, _, hvL, hvR⟩ :=
           splitFullNode_spec (alloc' := sl.alloc + 1) (nodes' := nodes3)

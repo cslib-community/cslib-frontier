@@ -200,19 +200,18 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
       by_cases hlt : b.val < t.val
       · exact ⟨b, Finset.mem_erase.mpr ⟨Fin.ne_of_val_ne (by dsimp [last]; omega),
           Finset.mem_univ b⟩, by simp [hlt]⟩
-      · let b1 : Fin k := ⟨b.val - 1, by omega⟩
-        refine ⟨b1, Finset.mem_erase.mpr ⟨Fin.ne_of_val_ne (by dsimp [b1, last]; omega),
-          Finset.mem_univ _⟩, ?_⟩
-        have hb1 : ¬b1.val < t.val := by dsimp [b1]; omega
-        simp only [hb1, ↓reduceIte, Fin.ext_iff, b1]
+      · refine ⟨⟨b.val - 1, by omega⟩, Finset.mem_erase.mpr
+          ⟨Fin.ne_of_val_ne (by dsimp [last]; omega), Finset.mem_univ _⟩, ?_⟩
+        have hb1 : ¬b.val - 1 < t.val := by omega
+        simp only [hb1, ↓reduceIte, Fin.ext_iff]
         omega
     · intro r hr
       have hrne : r.val ≠ k - 1 := Fin.ext_iff.not.mp (Finset.ne_of_mem_erase hr)
       by_cases hlt : r.val < t.val
       · simp [hlt, show r ≠ t from Fin.ne_of_val_ne (by omega)]
       · have hsucc : r.val + 1 < k := by omega
-        simp [hlt, hsucc,
-          show (⟨r.val + 1, hsucc⟩ : Fin k) ≠ t from Fin.ne_of_val_ne (by dsimp; omega)]
+        have hne : r.val + 1 ≠ t.val := by omega
+        simp [hlt, hsucc, Fin.ext_iff, hne]
   rw [welfare, hold_eq, hbelow_eq, ← Finset.sum_sub_distrib,
     ← Finset.sum_subset (Finset.subset_univ (Finset.Ici t)) fun r _ hr => by
       have hlt : r.val < t.val := Nat.lt_of_not_le (Finset.mem_Ici.not.mp hr : ¬t ≤ r)
@@ -256,11 +255,10 @@ private theorem mem_range_shiftUp_of_ne {σ : Fin k ↪ ι} {t : Fin k} {tail : 
     σ r ∈ Set.range (shiftUp σ t tail htail) := by
   rcases lt_or_gt_of_ne hrt with hlt | hgt
   · exact ⟨r, shiftUp_lt σ t tail htail hlt⟩
-  · have h1 : t.val ≤ r.val - 1 := by have : t.val < r.val := hgt; omega
-    have h2 : r.val - 1 + 1 < k := by omega
-    refine ⟨⟨r.val - 1, by omega⟩, ?_⟩
-    rw [shiftUp_mid σ t tail htail h1 h2]
-    congr 1; apply Fin.ext; dsimp; omega
+  · have ht_lt : t.val < r.val := hgt
+    have hj : t.val ≤ r.val - 1 ∧ r.val - 1 + 1 = r.val := by omega
+    exact ⟨_, (shiftUp_mid σ t tail htail (r := ⟨r.val - 1, by omega⟩) hj.1
+      (hj.2.trans_lt r.isLt)).trans (congrArg σ (Fin.ext hj.2))⟩
 
 /-- **VCG payment equals `minEnvyFreePrice`** ([LahaiePennockSaberiVohra2007], §28.3.1–28.3.2,
 pp. 703–706): on the outcome space `Ω = Fin k ↪ ι` with linear valuations
@@ -293,23 +291,19 @@ theorem vcg_payment_slot_eq_minEnvyFreePrice [Fintype ι] [DecidableEq ι]
   by_cases hne : (Finset.univ \ Finset.univ.map σ).Nonempty
   · obtain ⟨jstar, hjmem, hjval⟩ := Finset.exists_mem_eq_sup' hne v
     have hjrange : jstar ∉ Set.range σ := by
-      simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists] at hjmem
-      rintro ⟨r, rfl⟩; exact hjmem r rfl
+      simpa [Set.mem_range] using (Finset.mem_sdiff.mp hjmem).2
     have htail : ∀ r : Fin k, r ≠ t → jstar ≠ σ r := fun r _ h => hjrange ⟨r, h.symm⟩
     have hjt : jstar ≠ σ t := fun h => hjrange ⟨t, h.symm⟩
     have hval : Function.update v (σ t) 0 jstar = maxUnassignedValue v σ := by
-      rw [Function.update_of_ne hjt]
-      simp only [maxUnassignedValue, hne, ↓reduceDIte, hjval]
+      simp [Function.update_of_ne hjt, maxUnassignedValue, hne, hjval]
     refine hsolve jstar htail hval (shiftUp_isAssortative hσ t jstar htail ?_ ?_)
     · intro r; rw [Function.update_of_ne hjt]; exact hσ.unassigned_le r jstar hjrange
     · intro j hj
       rw [hval]
-      by_cases hje : j = σ t
-      · subst hje; rw [Function.update_self]; exact maxUnassignedValue_nonneg hv σ
-      · rw [Function.update_of_ne hje]
-        refine le_maxUnassignedValue v σ ?_
-        rintro ⟨r, rfl⟩
-        exact hj (mem_range_shiftUp_of_ne (fun h => hje (by rw [h])))
+      rcases eq_or_ne j (σ t) with rfl | hje
+      · simpa only [Function.update_self] using maxUnassignedValue_nonneg hv σ
+      · simpa only [Function.update_of_ne hje] using le_maxUnassignedValue v σ fun ⟨r, hr⟩ =>
+          hj (hr ▸ mem_range_shiftUp_of_ne fun h => hje (hr.symm.trans (congrArg σ h)))
   · have htail : ∀ r : Fin k, r ≠ t → σ t ≠ σ r := fun r hr h => hr (σ.injective h).symm
     have hval : Function.update v (σ t) 0 (σ t) = maxUnassignedValue v σ := by
       simp [maxUnassignedValue, hne]

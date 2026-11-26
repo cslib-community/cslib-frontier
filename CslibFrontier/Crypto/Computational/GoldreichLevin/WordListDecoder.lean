@@ -486,13 +486,11 @@ theorem toFinset_wordListDecodePruned (predictor : List Bool → Bool) (dimensio
   rw [toFinset_dedupWords, List.toFinset_filter, toFinset_wordListDecode, listRows_eq_ofFn]
   ext w
   simp only [Finset.mem_filter, Finset.mem_image, List.length_ofFn, mem_prunedCandidates]
-  refine ⟨?_, ?_⟩
+  constructor
   · rintro ⟨⟨x, hx, rfl⟩, hpass⟩
-    exact ⟨x, ⟨hx,
-      by simpa only [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] using hpass⟩, rfl⟩
+    exact ⟨x, ⟨hx, by simpa [wordEmpiricalHits_eq_empiricalHits] using hpass⟩, rfl⟩
   · rintro ⟨x, ⟨hx, hpass⟩, rfl⟩
-    exact ⟨⟨x, hx, rfl⟩,
-      by simpa only [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] using hpass⟩
+    exact ⟨⟨x, hx, rfl⟩, by simpa [wordEmpiricalHits_eq_empiricalHits] using hpass⟩
 
 /-- For `x : BitString n`, `List.ofFn x` belongs to `wordListDecodePruned` if and only if `x`
 belongs to `prunedCandidates`. -/
@@ -676,8 +674,7 @@ theorem lookupReply_map_of_mem (predictor : List Bool → Bool)
     lookupReply queries (queries.map predictor) query = predictor query := by
   unfold lookupReply
   have hlt : queries.idxOf query < queries.length := List.idxOf_lt_length_of_mem hq
-  have hlt' : queries.idxOf query < (queries.map predictor).length := by simp [hlt]
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt', Option.getD_some,
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simp [hlt]), Option.getD_some,
     List.getElem_map, List.getElem_idxOf hlt]
 
 /-- `wordCandidate` depends on `predictor` only at queries in `candidateQueries`. -/
@@ -690,12 +687,8 @@ theorem wordCandidate_congr {predictor₁ predictor₂ : List Bool → Bool} (di
   refine List.map_congr_left fun coordinate hcoord => ?_
   congr 1
   refine List.map_congr_left fun selector hsel => ?_
-  have hmem :
-      coordinate.zipWith Bool.xor (listXorSelected dimension selector rows) ∈
-        candidateQueries dimension rows selectors := by
-    unfold candidateQueries
-    exact List.mem_flatMap.mpr ⟨coordinate, hcoord, List.mem_map.mpr ⟨selector, hsel, rfl⟩⟩
-  rw [hagree _ hmem]
+  rw [hagree _
+    (List.mem_flatMap.mpr ⟨coordinate, hcoord, List.mem_map.mpr ⟨selector, hsel, rfl⟩⟩)]
 
 /-- `wordCandidates` depends on `predictor` only at queries in `candidateQueries`. -/
 theorem wordCandidates_congr {predictor₁ predictor₂ : List Bool → Bool} (dimension : ℕ)
@@ -840,14 +833,12 @@ private theorem runWith_iterate_queryBatchStep (predictor : List Bool → Bool)
   | succ t ih =>
     rw [OracleComp.iterate_succ, ProbOracleComp.runWith_bind, ih (Nat.le_of_succ_le ht),
       PMF.pure_bind]
-    have hlt : t < queries.length := ht
-    have hlen : ((queries.take t).map predictor).length = t := by
-      rw [List.length_map, List.length_take, Nat.min_eq_left (Nat.le_of_lt hlt)]
     have hget : queries.getD ((queries.take t).map predictor).length [] = queries[t] := by
-      rw [hlen, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some]
+      rw [List.length_map, List.length_take, Nat.min_eq_left (Nat.le_of_succ_le ht),
+        List.getD_eq_getElem?_getD, List.getElem?_eq_getElem ht, Option.getD_some]
     have htake : (queries.take (t + 1)).map predictor =
         (queries.take t).map predictor ++ [predictor queries[t]] := by
-      rw [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some, List.map_append,
+      rw [List.take_add_one, List.getElem?_eq_getElem ht, Option.toList_some, List.map_append,
         List.map_singleton]
     rw [htake, queryBatchStep, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
       ProbOracleComp.runWith_query, hget, predictorOracle]
